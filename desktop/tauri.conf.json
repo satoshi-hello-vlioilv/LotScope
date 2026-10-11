@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Defect-Analyzer",
-  "mainBinaryName": "Defect-Analyzer",
-  "version": "3.18.2",
+  "productName": "LotScope",
+  "mainBinaryName": "LotScope",
+  "version": "3.19.0",
   "identifier": "local.transferpitchanalyzer.desktop",
   "build": {
     "frontendDist": "splash"

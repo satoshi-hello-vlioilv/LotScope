@@ -24,16 +24,16 @@ const DESK = "C:\\Users\\user\\Desktop";
 const START = "C:\\Users\\user\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs";
 /** 窓の答えの作り物（この PC のアプリはある・スタートにだけショートカットがある） */
 const INSTALL = {
-  installed: true, runningFromApp: true, name: "Defect-Analyzer", appDir: "C:\\Users\\user\\AppData\\Local\\Defect-Analyzer\\app",
-  shortcut: { links: [`${START}\\Defect-Analyzer.lnk`], places: [DESK, START], ask: false, declined: false },
+  installed: true, runningFromApp: true, name: "LotScope", appDir: "C:\\Users\\user\\AppData\\Local\\LotScope\\app",
+  shortcut: { links: [`${START}\\LotScope.lnk`], places: [DESK, START], ask: false, declined: false },
 };
 /** 配布の置き場の作り物（版が 3 つ置いてあり、3.12.0 を配っている） */
-const BOX = "C:\\Users\\user\\Box\\Defect-Analyzer";
+const BOX = "C:\\Users\\user\\Box\\LotScope";
 const RELEASE = {
   reachable: true, found: BOX, adjusted: false, folder: BOX, appFolder: BOX, problems: [],
-  distributed: { schema: 1, app_id: "defect-analyzer", version: "3.12.0", entry: "Defect-Analyzer.exe", setAt: "2026-10-06T16:40:00", setBy: "user", setPc: "PC-01", previous: "3.11.0" },
-  versions: ["3.13.0", "3.12.0", "3.11.0"].map((v, i) => ({ version: v, placedAt: `2026-10-0${8 - i * 2}T12:30:00`, placedPc: "PC-01", placedBy: "user", source: "desktop-windows", zip: `Defect-Analyzer-${v}-windows.zip`, bytes: 6816621, dir: `${BOX}\\${v}` })),
-  entry: { exists: true, path: `${BOX}\\Defect-Analyzer.exe` },
+  distributed: { schema: 1, app_id: "defect-analyzer", version: "3.12.0", entry: "LotScope.exe", setAt: "2026-10-06T16:40:00", setBy: "user", setPc: "PC-01", previous: "3.11.0" },
+  versions: ["3.13.0", "3.12.0", "3.11.0"].map((v, i) => ({ version: v, placedAt: `2026-10-0${8 - i * 2}T12:30:00`, placedPc: "PC-01", placedBy: "user", source: "desktop-windows", zip: `LotScope-${v}-windows.zip`, bytes: 6816621, dir: `${BOX}\\${v}` })),
+  entry: { exists: true, path: `${BOX}\\LotScope.exe` },
   me: { canRelease: true, role: "開発者" },
 };
 // まとめて見る（並び・まとめ）の状態で使う段: 設備 ▲ → 不良名 ▲、繰り返しを省く
@@ -74,7 +74,7 @@ export async function launch() {
       const page = await context.newPage();
       page.on("pageerror", (e) => console.warn(`[${theme}] page error: ${e.message}`));
       await page.goto(pathToFileURL(SPLASH).href);
-      await page.evaluate(() => window.splash.brand("Defect-Analyzer", "転写距離・ピッチ解析"));
+      await page.evaluate(() => window.splash.brand("LotScope", "転写距離・ピッチ解析"));
       return page;
     },
     async close() {
@@ -142,7 +142,7 @@ export const STATES = [
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ
-const APP = "C:\\Users\\user\\AppData\\Local\\Defect-Analyzer\\app\\program";
+const APP = "C:\\Users\\user\\AppData\\Local\\LotScope\\app\\program";
 const PY = "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe";
 export const SPLASH_STATES = [
   ["splash", async (p) => {
@@ -153,7 +153,7 @@ export const SPLASH_STATES = [
   ["splash-fail", async (p) => {
     await p.reload();
     await p.evaluate(([app]) => {
-      splash.brand("Defect-Analyzer", "転写距離・ピッチ解析");
+      splash.brand("LotScope", "転写距離・ピッチ解析");
       splash.version?.("3.16.0");
       splash.step("program", "ok", app);
     }, [APP]);

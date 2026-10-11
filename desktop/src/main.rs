@@ -1,4 +1,4 @@
-//! Defect-Analyzer（転写距離・ピッチ解析）デスクトップ版の窓（Tauri）。設計は program/docs/DESKTOP_MIGRATION_DESIGN.md。
+//! LotScope（転写距離・ピッチ解析）デスクトップ版の窓（Tauri）。設計は program/docs/DESKTOP_MIGRATION_DESIGN.md。
 //!
 //! 役割の分け方（得意な分野ごと）:
 //!   - Rust（この exe）: 窓・起動と終了・1つだけ起動・静的ファイル・中身（Python）の監督と起こし直し・外のリンク
@@ -177,6 +177,11 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             let version = v["version"].as_str().unwrap_or("").to_string();
             Some(reply_of(update_settings(backend).map_err(|e| (503, e)).and_then(|s| upd.distribute(&s, &version))))
         }
+        ("POST", "/__desktop/release/remove") => {
+            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+            let version = v["version"].as_str().unwrap_or("").to_string();
+            Some(reply_of(update_settings(backend).map_err(|e| (503, e)).and_then(|s| upd.remove(&s, &version))))
+        }
         ("POST", "/__desktop/update/apply") => {
             if upd.status()["state"] != "ready" || !upd.installed {
                 return Some(Reply {
@@ -189,6 +194,17 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
                 Ok(()) => json_reply(&json!({"ok": true})),
                 Err(e) => Reply { status: 500, ..json_reply(&json!({"error": e})) },
             })
+        }
+        // 版が混ざった画面が、押させずに開き直す（入口から開き直す。この PC の app が無い開発の形では開き直せない）
+        ("POST", "/__desktop/restart") => {
+            if !upd.installed {
+                return Some(Reply {
+                    status: 409,
+                    ..json_reply(&json!({"error": "この PC のアプリ（app）から開いていないので、開き直せません。"}))
+                });
+            }
+            log("RESTART 版が混ざったので開き直します");
+            Some(reply_of(relaunch(&app, &upd.paths).map(|_| json!({"ok": true})).map_err(|e| (500, e))))
         }
         // 書き出したファイルの入ったフォルダを開き、そのファイルを選んだ状態にする（保存の案内の「フォルダを開く」）
         ("POST", "/__desktop/reveal") => {
@@ -277,10 +293,26 @@ fn reply_of(r: Result<serde_json::Value, (u16, String)>) -> Reply {
     }
 }
 
-/// ショートカットの名前（いまのアプリ名と、名前の歴史: 版 3.5.0 までのアプリ名 TransferPitchAnalyzer）。
+/// ショートカットの名前（いまのアプリ名と、前の名前: brand.json の legacy_names）とアイコン。
 fn names() -> install::Names<'static> {
     let b = brand();
-    install::Names { name: &b.name, exe: &b.exe, description: &b.subtitle, legacy: &["TransferPitchAnalyzer"] }
+    install::Names { name: &b.name, exe: &b.exe, description: &b.subtitle, legacy: &b.legacy_names, icon: shortcut_icon().clone() }
+}
+
+/// exe に入れたアイコンの絵（build.rs が program/app/app_icon.py で描く）。
+const ICON: &[u8] = include_bytes!("../icons/icon.ico");
+
+/// ショートカットが指すアイコン: 作業場所の icon\<絵の指紋>.ico（絵が変わると場所も変わり、Windows が古い絵を出し続けない）。
+/// 書けなければ、これまでどおり app の exe の中の絵。
+fn shortcut_icon() -> &'static std::path::PathBuf {
+    static I: OnceLock<std::path::PathBuf> = OnceLock::new();
+    I.get_or_init(|| {
+        let p = Paths::new(&locate::local_root());
+        install::icon_file(&p, ICON).unwrap_or_else(|e| {
+            log(&format!("SHORTCUT アイコンを書き出せません（exe の絵を使います）: {e}"));
+            p.app().join(&brand().exe)
+        })
+    })
 }
 
 fn json_reply(v: &serde_json::Value) -> Reply {
@@ -478,10 +510,10 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     };
     if installed {
         update::confirm(&paths);
-        // ショートカットの指す先・作業フォルダを直す（共有の exe を指す物・前の名前の物。消された物は作り直さない）
+        // ショートカットの指す先・作業フォルダ・アイコンを直す（共有の exe を指す物・前の名前の物・前の絵の物。消された物は作り直さない）
         std::thread::spawn(|| {
             let p = Paths::new(&locate::local_root());
-            for f in install::maintain(&p, &lnk::places(), &lnk::OsLinks, &names()) {
+            for f in install::maintain(&p, &lnk::places(), &lnk::pinned(), &lnk::OsLinks, &names()) {
                 log(&format!("SHORTCUT {f}"));
             }
         });
@@ -532,6 +564,70 @@ fn same_dir(a: &std::path::Path, b: &std::path::Path) -> bool {
 }
 
 /// 引数 `--name <数>`。
+/// 作業場所の名前を変えた版（3.19.0。brand.json の legacy_data_dir）: 前の名前の場所から中身を移す（da_core::home）。
+/// 前の場所から動いている exe は自分のいる場所を動かせないので、新しい場所へ自分を写し、写した物（--moved-from）に移してもらう。
+/// 移す係は移し終えたら（移せなければ前の場所のまま --no-move で）この PC のアプリを開いて終わる。→ 自分は終わるか
+fn settle_home(me: &std::path::Path) -> bool {
+    let Some((new, legacy)) = locate::home_roots() else { return false };
+    let mover = arg_str("--moved-from").is_some();
+    let pid = std::process::id().to_string();
+    if !std::env::args().any(|a| a == "--no-move") {
+        let inside = |d: &std::path::Path| {
+            me.starts_with(d) || std::fs::canonicalize(me).is_ok_and(|m| std::fs::canonicalize(d).is_ok_and(|d| m.starts_with(d)))
+        };
+        for old in legacy.iter().filter(|d| d.is_dir()) {
+            if inside(old) {
+                let copy = new.join("desktop").join(format!("move-{pid}")).join(me.file_name().unwrap_or_default());
+                let spawned =
+                    std::fs::create_dir_all(copy.parent().unwrap_or(&new)).and_then(|_| std::fs::copy(me, &copy)).and_then(|_| {
+                        std::process::Command::new(&copy)
+                            .args(["--moved-from", &old.display().to_string(), "--wait-pid", &pid])
+                            .current_dir(copy.parent().unwrap_or(&new))
+                            .spawn()
+                    });
+                match spawned {
+                    Ok(_) => {
+                        log(&format!("HOME {} から {} へ移すため、写した exe へ渡しました", old.display(), new.display()));
+                        return true;
+                    }
+                    Err(e) => log(&format!("HOME 移す係を起こせないので、{} のまま開きます: {e}", old.display())),
+                }
+                continue;
+            }
+            match da_core::home::move_home(old, &new, Duration::from_secs(20)) {
+                Ok(kept) => {
+                    log(&format!("HOME {} の中身を {} へ移しました", old.display(), new.display()));
+                    for k in kept {
+                        log(&format!("HOME 残した物: {k}"));
+                    }
+                }
+                Err(e) => log(&format!("HOME 移せないので、{} のまま開きます（次の起動でまた移します）: {e}", old.display())),
+            }
+        }
+    }
+    if !mover {
+        return false;
+    }
+    // 移す係: この PC のアプリ（移せていれば新しい場所・移せなければ前の場所）を開いて終わる
+    let app = Paths::new(&locate::local_root()).app();
+    let names = [brand().exe.clone(), me.file_name().unwrap_or_default().to_string_lossy().to_string()];
+    let Some(entry) = names.iter().map(|n| app.join(n)).find(|e| e.is_file()) else {
+        log(&format!("HOME 開くアプリが {} にありません", app.display()));
+        return false;
+    };
+    let moved = app.starts_with(&new);
+    let mut args = vec!["--wait-pid".to_string(), pid];
+    if !moved {
+        args.push("--no-move".into());
+    }
+    std::process::Command::new(&entry).args(&args).current_dir(&app).spawn().is_ok()
+}
+
+fn arg_str(name: &str) -> Option<String> {
+    let args: Vec<String> = std::env::args().collect();
+    args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
+}
+
 fn arg_u32(name: &str) -> Option<u32> {
     let args: Vec<String> = std::env::args().collect();
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok())
@@ -633,6 +729,9 @@ fn hand_off() -> bool {
         proc::wait_gone(pid, Duration::from_secs(30));
     }
     let Ok(me) = std::env::current_exe() else { return false };
+    if !dev_mode() && settle_home(&me) {
+        return true;
+    }
     let b = brand();
     let paths = Paths::new(&locate::local_root());
     // 配る入口（置き場のアプリのフォルダの exe）: 配る版を取り込むのは窓の中で（起動画面に段を出す）

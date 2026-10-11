@@ -166,6 +166,6 @@
   }
   const body = JSON.stringify({ ok: res.every((r) => r.ok), elapsed_ms: Math.round(performance.now() - t0), ua: navigator.userAgent, results: res,
     update, info: info && { exe: info.exe, program: info.program, installed: info.installed, version: (info.backend || {}).version,
-      install: info.install } });
+      install: info.install, local_root: info.local_root } });
   await fetch("/__desktop/selftest", { method: "POST", headers: { "Content-Type": "application/json" }, body });
 })();

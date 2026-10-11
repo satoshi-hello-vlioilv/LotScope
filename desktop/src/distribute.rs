@@ -10,6 +10,7 @@
 //!   <版>\<name>-<版>-windows.zip
 //! ```
 //! 置くときは `.<版>.placing-<pid>` へ写して指紋を確かめ直し、release.json を書いてから名前を変える（各 PC が置きかけを読まない）。
+//! 消すときは逆に、先に `.<版>.removing-<pid>` へ名前を変えてから中身を消す（各 PC が消しかけを読まない・版 3.19.0）。
 
 use crate::release::{self, Release, Scan, DISTRIBUTE, MARKER};
 use crate::update::{self, dist_root, extract_zip, read_json, sha256_file, validate_dist, write_json, Paths};
@@ -159,14 +160,54 @@ pub fn set_distributed(found: &Path, version: &str, app_id: &str, who: &Who) -> 
     }
     let prev = scan.distribute.as_ref();
     let previous = prev.map(|d| d.version.clone()).filter(|v| v != version);
-    // 入口の名前が変わった版を配ったら、前の名前の入口を消す
-    if let Some(old_entry) = prev.and_then(|d| d.raw["entry"].as_str()).filter(|e| *e != rel.exe && release::safe_name(e)) {
-        let _ = std::fs::remove_file(folder.join(old_entry));
+    // 入口の名前が変わった版を配ったとき、前の名前の入口は、その版の ZIP に同じ名前の exe（名前の歴史・brand.json の legacy_exe）が
+    // あれば置き換えて残す（前に渡したアドレスでも新しい PC が入れる）。無ければ消す
+    let mut olds: Vec<String> = prev.and_then(|d| d.raw["entry"].as_str()).map(str::to_string).into_iter().collect();
+    olds.extend(entry_aliases(prev.map(|d| &d.raw)));
+    let mut aliases: Vec<String> = vec![];
+    for old in olds.into_iter().filter(|e| *e != rel.exe && release::safe_name(e)) {
+        if aliases.contains(&old) {
+            continue;
+        }
+        let tmp = folder.join(format!(".{old}.new-{}", std::process::id()));
+        let kept = extract_exe(&rel.zip_path(), &old, &tmp).is_ok() && update::rename_patiently(&tmp, &folder.join(&old)).is_ok();
+        let _ = std::fs::remove_file(&tmp);
+        if kept {
+            aliases.push(old);
+        } else {
+            let _ = std::fs::remove_file(folder.join(&old));
+        }
     }
-    let d = json!({"schema": 1, "app_id": app_id, "version": version, "entry": rel.exe, "setAt": now_text(),
+    let d = json!({"schema": 1, "app_id": app_id, "version": version, "entry": rel.exe, "aliases": aliases, "setAt": now_text(),
                    "setBy": who.login, "setPc": who.pc, "previous": previous});
     write_json(&folder.join(DISTRIBUTE), &d)?;
     Ok(json!({"version": version, "notes": notes, "entry": entry}))
+}
+
+/// 置いた版を消す（配っている版は消さない）。→ {version, removed, notes}
+/// 版のフォルダを `.<版>.removing-<pid>` に変えてから消す。名前を変えた時点で各 PC からは見えない（scan は「.」で始まる物を見ない）ので、
+/// 中身を消しきれなくても（BOX の同期・だれかが開いている）消しかけの版を取り込む PC は無い。残った物は理由を添えて言う。
+pub fn remove_version(found: &Path, version: &str, app_id: &str) -> Result<Value, String> {
+    let scan = release::scan(found, app_id);
+    if scan.distribute.as_ref().is_some_and(|d| d.version == version) {
+        return Err(format!("版 {version} は配っている版なので消せません。先にほかの版を配ってから消してください"));
+    }
+    let dirs: Vec<&Release> = scan.versions.iter().filter(|r| r.version == version).collect();
+    if dirs.is_empty() {
+        return Err(format!("版 {version} は置き場にありません（もう消したか、BOX の同期待ちかもしれません）"));
+    }
+    let (mut removed, mut notes) = (0, vec![]);
+    for r in dirs {
+        let parent = r.dir.parent().ok_or_else(|| format!("{} の上のフォルダが分かりません", r.dir.display()))?;
+        let gone = parent.join(format!(".{version}.removing-{}", std::process::id()));
+        update::rename_patiently(&r.dir, &gone)
+            .map_err(|e| format!("版 {version}（{}）を消せません（だれかが開いているかもしれません）: {e}", r.dir.display()))?;
+        removed += 1;
+        if let Err(e) = std::fs::remove_dir_all(&gone) {
+            notes.push(format!("各 PC からはもう見えませんが、{} を消しきれませんでした。あとで手で消してください: {e}", gone.display()));
+        }
+    }
+    Ok(json!({"version": version, "removed": removed, "notes": notes}))
 }
 
 /// 配布の画面の答え（GET /__desktop/release）。置き場をたどる（BOX では遅い）。
@@ -195,12 +236,18 @@ pub fn view_of(scan: &Scan, found: &Path, adjusted: bool, source: &str, name: &s
     })
 }
 
-/// いま動いている exe が「配る入口」か（隣の distribute.json がこのアプリの物で、入口の名前が自分）。→ アプリのフォルダ
+/// 前の名前の入口（distribute.json の aliases）。
+fn entry_aliases(d: Option<&Value>) -> Vec<String> {
+    d.and_then(|d| d["aliases"].as_array()).into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect()
+}
+
+/// いま動いている exe が「配る入口」か（隣の distribute.json がこのアプリの物で、入口か前の名前の入口が自分）。→ アプリのフォルダ
 pub fn entry_folder(me: &Path, app_id: &str) -> Option<PathBuf> {
     let dir = me.parent()?;
     let d = read_json(&dir.join(DISTRIBUTE))?;
     let name = me.file_name()?.to_string_lossy().to_string();
-    (d["app_id"].as_str() == Some(app_id) && d["entry"].as_str().is_some_and(|e| e.eq_ignore_ascii_case(&name))).then(|| dir.to_path_buf())
+    let names: Vec<String> = d["entry"].as_str().map(str::to_string).into_iter().chain(entry_aliases(Some(&d))).collect();
+    (d["app_id"].as_str() == Some(app_id) && names.iter().any(|e| e.eq_ignore_ascii_case(&name))).then(|| dir.to_path_buf())
 }
 
 /// 配る入口から: 配る版を取り込み、この PC の app に据える（app が配る版と同じなら写さない）。入口の置き場を控える。→ 据えた版
@@ -241,14 +288,21 @@ mod tests {
 
     /// 配る ZIP を作る（App/App.exe・program/…）。
     fn make_zip(out: &Path, version: &str, exe_body: &str, app_id: &str) {
+        make_zip_named(out, version, "App.exe", exe_body, app_id, &[]);
+    }
+
+    /// exe の名前と、同じ中身で置く前の名前の exe（名前の歴史）を選べる配る ZIP。
+    fn make_zip_named(out: &Path, version: &str, exe: &str, exe_body: &str, app_id: &str, legacy: &[&str]) {
         let mut z = zip::ZipWriter::new(std::fs::File::create(out).unwrap());
         let o = zip::write::SimpleFileOptions::default();
-        for (n, body) in [
-            ("App/App.exe".to_string(), exe_body.to_string()),
+        let mut files = vec![
+            (format!("App/{exe}"), exe_body.to_string()),
             ("App/program/sidecar.py".into(), "#".into()),
-            ("App/program/app/brand.json".into(), format!(r#"{{"app_id":"{app_id}","name":"App","exe":"App.exe"}}"#)),
+            ("App/program/app/brand.json".into(), format!(r#"{{"app_id":"{app_id}","name":"App","exe":"{exe}"}}"#)),
             ("App/program/app/version.py".into(), format!("APP_VERSION = \"{version}\"\n")),
-        ] {
+        ];
+        files.extend(legacy.iter().map(|l| (format!("App/{l}"), exe_body.to_string())));
+        for (n, body) in files {
             z.start_file(n, o).unwrap();
             z.write_all(body.as_bytes()).unwrap();
         }
@@ -300,6 +354,56 @@ mod tests {
         assert_eq!(remembered_entry(&p), Some(rels.join("App")), "入口の置き場を控える");
         assert_eq!(read_json(&p.want()).unwrap()["version"], "3.10.0", "配る版を覚える");
         assert_eq!(install_from_entry(&p, &rels.join("App"), ID, &|_| {}).unwrap(), "3.10.0", "2 回目は写さない");
+        // 消す: 配っている版は消さない。ほかの版は消え、各 PC の一覧からも消える
+        assert!(remove_version(&rels, "3.10.0", ID).unwrap_err().contains("配っている版"), "配っている版は消さない");
+        let r = remove_version(&rels, "3.10.1", ID).unwrap();
+        assert_eq!((r["removed"].as_u64(), r["notes"].as_array().unwrap().len()), (Some(1), 0), "{r}");
+        assert!(!rels.join("App").join("3.10.1").exists(), "版のフォルダが消える");
+        let left: Vec<_> = std::fs::read_dir(rels.join("App")).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(left.iter().all(|n| !n.to_string_lossy().contains("removing")), "消しかけを残さない: {left:?}");
+        assert_eq!(release::scan(&rels, ID).by_version().len(), 1);
+        assert!(remove_version(&rels, "3.10.1", ID).unwrap_err().contains("ありません"), "無い版は断る");
+        assert_eq!(read_json(&rels.join("App").join(DISTRIBUTE)).unwrap()["version"], "3.10.0", "配る版はそのまま");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_renamed_exe_keeps_the_old_entry_while_the_zip_carries_it() {
+        let d = tmp("rename");
+        let rels = d.join("Releases");
+        std::fs::create_dir_all(&rels).unwrap();
+        let (p, who, none) = (Paths::new(&d.join("local")), Who::default(), |_: &str, _: u64, _: u64| {});
+        let app = rels.join("App");
+        make_zip(&d.join("a.zip"), "3.18.2", "old-exe", ID);
+        place(&p, &rels, &d.join("a.zip"), "a.zip", ID, &who, &none).unwrap();
+        set_distributed(&rels, "3.18.2", ID, &who).unwrap();
+        // 名前を変えた版: 入口は New.exe、ZIP に前の名前の App.exe を同じ中身で入れる
+        make_zip_named(&d.join("b.zip"), "3.19.0", "New.exe", "new-exe", ID, &["App.exe"]);
+        place(&p, &rels, &d.join("b.zip"), "b.zip", ID, &who, &none).unwrap();
+        set_distributed(&rels, "3.19.0", ID, &who).unwrap();
+        assert_eq!(std::fs::read_to_string(app.join("New.exe")).unwrap(), "new-exe", "新しい名前の入口");
+        assert_eq!(std::fs::read_to_string(app.join("App.exe")).unwrap(), "new-exe", "前の名前の入口は新しい中身で残す");
+        assert_eq!(read_json(&app.join(DISTRIBUTE)).unwrap()["aliases"], json!(["App.exe"]));
+        assert_eq!(entry_folder(&app.join("App.exe"), ID), Some(app.clone()), "前に渡したアドレスでも配る入口として開く");
+        assert_eq!(entry_folder(&app.join("New.exe"), ID), Some(app.clone()));
+        // 名前の歴史を外した版（ZIP に App.exe が無い）を配れば、前の名前の入口は消える
+        make_zip_named(&d.join("c.zip"), "3.20.0", "New.exe", "newer", ID, &[]);
+        place(&p, &rels, &d.join("c.zip"), "c.zip", ID, &who, &none).unwrap();
+        set_distributed(&rels, "3.20.0", ID, &who).unwrap();
+        assert!(!app.join("App.exe").exists() && read_json(&app.join(DISTRIBUTE)).unwrap()["aliases"] == json!([]));
+        assert_eq!(entry_folder(&app.join("App.exe"), ID), None);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_half_removed_version_is_not_seen_by_any_pc() {
+        let d = tmp("half");
+        let rels = d.join("Releases");
+        let dir = rels.join("App").join(".3.10.1.removing-1");
+        std::fs::create_dir_all(&dir).unwrap();
+        let rel = json!({"schema": 1, "app_id": ID, "name": "App", "version": "3.10.1", "zip": "a.zip", "sha256": "a".repeat(64), "exe": "App.exe"});
+        std::fs::write(dir.join(MARKER), serde_json::to_vec(&rel).unwrap()).unwrap();
+        assert!(release::scan(&rels, ID).versions.is_empty(), "消しかけ（「.」で始まる名前）は取り込まない");
         let _ = std::fs::remove_dir_all(&d);
     }
 }

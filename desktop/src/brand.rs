@@ -15,6 +15,12 @@ pub struct Brand {
     pub exe: String,
     pub app_id: String,
     pub data_dir: String,
+    /// 名前の歴史: 前のアプリ名（その名前のショートカットを、いまの名前で作り直す）
+    #[serde(default)]
+    pub legacy_names: Vec<String>,
+    /// 名前の歴史: 前の作業場所のフォルダ名（起動のはじめに中身を新しい場所へ移す・home.rs）
+    #[serde(default)]
+    pub legacy_data_dir: Vec<String>,
 }
 
 pub fn brand() -> &'static Brand {
@@ -34,5 +40,6 @@ mod tests {
         assert_eq!(conf["productName"], b.name.as_str());
         assert_eq!(format!("{}.exe", conf["mainBinaryName"].as_str().unwrap()), b.exe, "exe の名前");
         assert!(!b.data_dir.is_empty() && !b.subtitle.is_empty());
+        assert!(!b.legacy_names.contains(&b.name) && !b.legacy_data_dir.contains(&b.data_dir), "名前の歴史に、いまの名前は入れない");
     }
 }

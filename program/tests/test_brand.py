@@ -55,9 +55,13 @@ class Brand(unittest.TestCase):
         self.assertTrue(raw["exe"].endswith(".exe") and "/" not in raw["exe"] and "\\" not in raw["exe"])
 
     def test_fixed_ids_never_change(self):
-        # 変えると、作業場所（%LOCALAPPDATA%\<data_dir>）・WebView の保存先・入れたアプリ・取り込んだ版・更新の見分けが切れる
+        # app_id を変えると、WebView の保存先・更新の置き場での見分けが切れる
         self.assertEqual(BRAND["app_id"], "local.transferpitchanalyzer.desktop")
-        self.assertEqual(BRAND["data_dir"], "TransferPitchAnalyzer")
+        # 作業場所（%LOCALAPPDATA%\<data_dir>）は名前を変えてよいが、前の名前を legacy_data_dir に残す（起動のはじめに移す）。
+        # はじめの名前 TransferPitchAnalyzer までたどれれば、各 PC の設定・記録・入れたアプリ・取り込んだ版を引き継げる
+        self.assertIn("TransferPitchAnalyzer", [BRAND["data_dir"], *BRAND.get("legacy_data_dir", [])])
+        self.assertNotIn(BRAND["data_dir"], BRAND.get("legacy_data_dir", []))
+        self.assertNotIn(BRAND["name"], BRAND.get("legacy_names", []), "名前の歴史に、いまの名前は入れない")
 
     def test_names_are_not_copied_into_code(self):
         """表示名・アプリ名をコードにじかに書かない（brand.json から読む）。説明（コメント・docstring）と試験のコードは調べない。
@@ -87,15 +91,28 @@ class Brand(unittest.TestCase):
         cfg = c.get("/api/config").get_json()
         self.assertEqual((cfg["app"]["name"], cfg["app"]["subtitle"]), (BRAND["name"], BRAND["subtitle"]))
 
-    def test_work_place_uses_the_fixed_folder(self):
+    def test_work_place_moves_to_the_new_name(self):
+        """作業場所は data_dir。前の名前（legacy_data_dir）の場所は、窓が中身を移し終える（新しい場所に app ができる）まで使う。"""
         import os
+        import tempfile
         import app_env
-        old = os.environ.pop("TRANSFER_LOCAL_ROOT", None)
+        saved = {k: os.environ.pop(k, None) for k in ("TRANSFER_LOCAL_ROOT", "LOCALAPPDATA")}
         try:
-            self.assertEqual(app_env.local_root().name, BRAND["data_dir"])
+            with tempfile.TemporaryDirectory() as tmp:
+                os.environ["LOCALAPPDATA"] = tmp
+                new = Path(tmp) / BRAND["data_dir"]
+                self.assertEqual(app_env.local_root(), new, "どちらも無い（新しい PC）: 新しい名前の場所")
+                for old in BRAND.get("legacy_data_dir", []):
+                    (Path(tmp) / old / "app").mkdir(parents=True)
+                    self.assertEqual(app_env.local_root(), Path(tmp) / old, "移す前: 前の名前の場所")
+                (new / "app").mkdir(parents=True)
+                self.assertEqual(app_env.local_root(), new, "移した後: 新しい名前の場所")
         finally:
-            if old is not None:
-                os.environ["TRANSFER_LOCAL_ROOT"] = old
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
 
 
 @unittest.skipUnless((DESKTOP / "tauri.conf.json").exists(), "desktop フォルダが無い（配った形）。作る道具との突き合わせはリポジトリで行う")

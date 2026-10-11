@@ -19,6 +19,15 @@ class Bundle(unittest.TestCase):
             with self.assertRaises(SystemExit, msg=bad):
                 bundle.release_json(b, "3.9.0", bad, "a" * 64)
 
+    def test_legacy_exe_names(self):
+        """名前の歴史: 前の名前の exe は、いまの exe と別の 1 つの名前。使えない名前は断る。"""
+        b = bundle.brand()
+        self.assertNotIn(b["exe"], bundle.legacy_exe(b))
+        self.assertEqual(bundle.legacy_exe({**b, "legacy_exe": [b["exe"], "Old.exe"]}), ["Old.exe"], "いまの名前は除く")
+        for bad in ("../Old.exe", "a\\b.exe", "Old.txt"):
+            with self.assertRaises(SystemExit, msg=bad):
+                bundle.legacy_exe({**b, "legacy_exe": [bad]})
+
     def test_zip_has_one_top_folder_in_name_order(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "stage"

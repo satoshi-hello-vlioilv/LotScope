@@ -27,7 +27,7 @@ WaveLog のマスタ共有（WaveLog §9.263「マスタを共有に置くため
 | --- | --- |
 | 共有の実物 | `<dir>/roll_master.json`・`<dir>/equipment_master.json`（`{schema, revision, updated_at, updated_by, rows}`） |
 | 錠 | `<dir>/master.lock.json`（`{token, holder_pc, holder_login, acquired_at, expires_at}`） |
-| 手元の写し | `%LOCALAPPDATA%\TransferPitchAnalyzer\master_cache\<name>.json`（PC ごと） |
+| 手元の写し | `%LOCALAPPDATA%\LotScope\master_cache\<name>.json`（PC ごと） |
 | 最初の版 | 共有にまだ無いとき、手元の写し（無ければアプリ同梱の `data/`）を錠を取って置く |
 
 ## 2. 読む（参照）

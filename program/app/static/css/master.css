@@ -280,6 +280,13 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .pz-table tr.is-live td{background:#f1faf5}
 .pz-btn.dz-go{color:var(--on-fill);background:var(--h-input);border-color:var(--h-input);font-weight:700}
 .pz-btn.dz-go:hover{background:#34557b}
+.pz-btn.dz-rm{color:var(--danger);border-color:var(--danger-line)}
+.pz-btn.dz-rm:hover{background:var(--danger-bg)}
+.pz-btn.dz-rm.is-armed{color:var(--on-fill);background:var(--danger);border-color:var(--danger);font-weight:700}
+.pz-table tr.is-removing td{color:var(--muted);text-decoration:line-through;background:var(--surface-5)}
+.pz-table tr.is-removing td.pz-acts{text-decoration:none}
+.dz-removing{display:inline-flex;align-items:center;gap:6px;color:var(--danger);font-size:12.5px}
+.dz-removing .wait-spin{width:12px;height:12px}
 /* 配布の置き場を変える: 「上のフォルダ ＼ 名前」を横に並べ、できあがる場所をその下に（入力と結果を近くに置く）。
    確かめた結果は 緑＝変えられる／赤＝理由／淡い＝確かめ中。主操作は藍（ほかの主操作と同じ） */
 .dz-place-btn{margin-left:8px}
