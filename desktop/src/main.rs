@@ -103,6 +103,10 @@ impl Splash {
     fn step(&self, app: &AppHandle, id: &str, state: &str, detail: &str) {
         self.say(app, format!("splash.step(...{})", json!([id, state, detail])));
     }
+    /// アプリの中身の版（program/app/version.py）。名乗りの下に出す
+    fn version(&self, app: &AppHandle, version: &str) {
+        self.say(app, format!("splash.version(...{})", json!([version])));
+    }
     fn fail(&self, app: &AppHandle, title: &str, detail: &str) {
         log(&format!("FAIL {title}: {}", detail.replace('\n', " / ")));
         self.say(app, format!("splash.fail(...{})", json!([title, detail])));
@@ -417,6 +421,10 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
                 notes.push(format!("新しい版に入れ替えられませんでした（次に開いたときにもう一度試します）: {e}"));
             }
         }
+    }
+    // 版は入れ替えたあとの物（中身を起こす前に、名乗りの下へ）
+    if let Some(v) = update::program_version(&program) {
+        splash.version(&app, &v);
     }
     let py = match locate::python() {
         Ok(p) => p,

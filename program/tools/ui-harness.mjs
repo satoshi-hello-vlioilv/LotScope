@@ -4,15 +4,17 @@
 // 利用者の画面と同じ大きさ（2160×1440・表示倍率 125% → 1728×1152）の頁を開く。
 // 窓だけが答える /__desktop/*（ショートカットの様子など）は作り物で答える（デスクトップのショートカットだけが欠けた PC）。
 // 状態（STATES）は、異常ロット一覧 → … → 更新履歴 → 表示列の設定 → マスタ管理 の順に 1 つの頁で進める。
+// 起動画面（desktop/splash。窓が出す）は別の頁で、窓の代わりに splash.brand・step・fail を呼んで進める（SPLASH_STATES）。
 
 import { spawn, execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const require = createRequire(import.meta.url);
 export const { chromium } = require(path.join(execSync("npm root -g").toString().trim(), "playwright"));
 export const PROGRAM = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SPLASH = path.resolve(PROGRAM, "../desktop/splash/index.html");
 export const VIEW = { width: 1728, height: 1152 }; // 利用者の PC。フル HD（1920×1080）・125% なら 1536×864
 /** "1536x864" → { width, height }（無ければ利用者の PC の大きさ） */
 export const parseView = (text) => (text ? Object.fromEntries(text.split("x").map((v, i) => [i ? "height" : "width", Number(v)])) : VIEW);
@@ -56,11 +58,23 @@ export async function launch() {
         return route.fulfill({ status: 404, json: { error: "作り物の窓は答えません" } });
       });
       await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ status: 200, body: "", headers: { "Content-Type": "text/css" } }));
+      // 前の頁で変えた画面の設定（サーバーの控え。スライサー・並びなど）を消して、まっさらから始める（案どうしで混ざらない）
+      const saved = await (await context.request.get(`${base}/api/ui-state`)).json();
+      await context.request.post(`${base}/api/ui-state`, { data: { changed: {}, removed: Object.keys(saved.keys) } });
       const page = await context.newPage();
       page.on("pageerror", (e) => console.warn(`[${theme}] page error: ${e.message}`));
       await page.goto(base);
       await page.waitForSelector("#llBody tr[data-i]", { timeout: 30000 });
       await sleep(500);
+      return page;
+    },
+    /** 起動画面（窓が名前を伝えた直後。まだ段取りは進んでいない） */
+    async newSplash(theme, view = VIEW) {
+      const context = await browser.newContext({ viewport: view, deviceScaleFactor: 1.25, colorScheme: theme, locale: "ja-JP" });
+      const page = await context.newPage();
+      page.on("pageerror", (e) => console.warn(`[${theme}] page error: ${e.message}`));
+      await page.goto(pathToFileURL(SPLASH).href);
+      await page.evaluate(() => window.splash.brand("Defect-Analyzer", "転写距離・ピッチ解析"));
       return page;
     },
     async close() {
@@ -112,6 +126,40 @@ export const STATES = [
   ["master-release", async (p) => { await tab(p, "release"); await sleep(900); }, "[data-next], #masterSettings button"],
 ];
 
+// 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ
+const APP = "C:\\Users\\user\\AppData\\Local\\Defect-Analyzer\\app\\program";
+const PY = "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\python.exe";
+export const SPLASH_STATES = [
+  ["splash", async (p) => {
+    await p.evaluate(([app, py]) => { splash.version?.("3.16.0"); splash.step("program", "ok", app); splash.step("python", "ok", py); splash.step("backend", "now", "Python でアプリの中身を読み込んでいます…"); }, [APP, PY]);
+    await sleep(1300);
+  }, "[data-next]"],
+  // 実際の流れと同じく、まっさらな起動画面から: 中身は見つかり、Python を探している段で止まる
+  ["splash-fail", async (p) => {
+    await p.reload();
+    await p.evaluate(([app]) => {
+      splash.brand("Defect-Analyzer", "転写距離・ピッチ解析");
+      splash.version?.("3.16.0");
+      splash.step("program", "ok", app);
+    }, [APP]);
+    await sleep(1500);   // 探して見つからないまでの間（経過の秒が 0 にならないように）
+    await p.evaluate(() => {
+      splash.step("python", "bad", "見つかりません");
+      splash.fail("Python が見つかりません", "Python が見つかりません。\n探した場所:\nPATH の python.exe\npy ランチャー（py -3）\nC:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python3*\\python.exe\nMicrosoft Store の入口だけがあり、Python は入っていません（使いません）:\nC:\\Users\\user\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe");
+    });
+    await sleep(300);
+  }, "[data-next]"],
+];
+export const SPLASH_NAMES = SPLASH_STATES.map(([name]) => name);
+
+/** 起動画面の状態を順に進める（walk と同じ形） */
+export async function walkSplash(page, visit, only = null) {
+  for (const [name, go, next] of SPLASH_STATES) {
+    await go(page);
+    if (!only || only.includes(name)) await visit(name, next);
+  }
+}
+
 /** マスタ管理のタブを押す（見えていなくても押す） */
 function tab(p, key) {
   return p.$eval(`#masterTabs [data-tab="${key}"]`, (b) => b.click());
@@ -120,7 +168,8 @@ function tab(p, key) {
 /** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ） */
 export async function walk(page, visit, only = null) {
   page.setDefaultTimeout(5000);   // 見つからない部品で 30 秒止まらない
-  for (const [name, go, next] of STATES) {
+  const last = only ? Math.max(...STATES.map(([name], i) => (only.includes(name) ? i : -1))) : STATES.length - 1;
+  for (const [name, go, next] of STATES.slice(0, last + 1)) {   // 撮る状態のうち最後の物まで（その先へは進まない）
     try {
       await go(page);
     } catch (e) {

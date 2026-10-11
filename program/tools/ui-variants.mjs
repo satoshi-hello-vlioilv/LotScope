@@ -3,6 +3,7 @@
 //   node program/tools/ui-variants.mjs 出力フォルダ 案の定義.mjs [--states list,grouped,calc] [--themes light,dark] [--only A,B] [--view 1536x864]
 //
 // 案の定義（ES モジュール）は PROPOSALS = [{ key, name, css, ops }] を書き出す（例: ui-proposals/2026-10-shortcut.mjs）。
+// 起動画面（desktop/splash）の案は --states splash,splash-fail で撮る（案の CSS・ops は起動画面に当たる。例: ui-proposals/2026-10-splash.mjs）。
 // 今の画面に案ごとの CSS と DOM の組み替え（ops）を当て、利用者の画面と同じ大きさ（1728×1152・表示倍率 125%。--view で
 // フル HD・125% の 1536×864 なども）で、
 // 状態ごとに撮る（状態-テーマ-案.png）。測る量は ui-check.mjs と同じ（metrics.json）。状態ごとに全案を並べた
@@ -20,7 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { launch, measure, parseView, walk } from "./ui-harness.mjs";
+import { launch, measure, parseView, SPLASH_NAMES, walk, walkSplash } from "./ui-harness.mjs";
 
 const [outArg, defsArg, ...rest] = process.argv.slice(2);
 if (!outArg || !defsArg) {
@@ -33,6 +34,7 @@ const option = (name, fallback) => {
 };
 const OUT = path.resolve(outArg);
 const STATES = option("states", "list,grouped,calc");
+const SPLASH = STATES.every((s) => SPLASH_NAMES.includes(s)); // 起動画面の状態だけ（アプリの画面とは別の頁で撮る）
 const THEMES = option("themes", "light");
 const ONLY = option("only", "");
 const VIEW = parseView(option("view", "")[0]);
@@ -101,7 +103,7 @@ try {
   fs.mkdirSync(OUT, { recursive: true });
   for (const theme of THEMES) {
     for (const p of TAKE) {
-      const page = await app.newPage(theme, VIEW);
+      const page = await (SPLASH ? app.newSplash(theme, VIEW) : app.newPage(theme, VIEW));
       // 案を当てる。状態の途中で頁を読み直しても（並び・まとめ）消えないよう、読み込むたびにも当てる
       const install = `(() => { const go = () => { const css = ${JSON.stringify(p.css || "")};
         if (css) document.head.append(Object.assign(document.createElement("style"), { textContent: css }));
@@ -109,7 +111,7 @@ try {
         document.readyState === "loading" ? addEventListener("DOMContentLoaded", go) : go(); })()`;
       await page.addInitScript(install);
       await page.evaluate(install);
-      await walk(page, async (state, next) => {
+      await (SPLASH ? walkSplash : walk)(page, async (state, next) => {
         const id = `${state}-${theme}-${p.key}`;
         await page.screenshot({ path: path.join(OUT, `${id}.png`) });
         metrics[id] = await page.evaluate(measure, next);

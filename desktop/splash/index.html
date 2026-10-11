@@ -7,81 +7,99 @@
 <!--
   デスクトップ版の起動画面（exe に入る）。窓（Rust・src/main.rs）が確かめた事実だけで進み具合を言う:
   ① アプリの中身を探す ② Python を探す ③ アプリの中身を起こす ④ 画面を開く。
-  窓が splash.brand(name, subtitle)（名前は program/app/brand.json の1か所）/ splash.step(id, state, detail) / splash.fail(title, detail) を呼ぶ。
-  形は 5 案＋複合案を 1728×1152 で進行中・失敗の 2 状態を描いて比べて選んだ（左にアプリの名前・右に段取り。地は画面の見出しと同じ藍）。
+  窓が splash.brand(name, subtitle)（名前は program/app/brand.json の1か所）/ splash.version(v) / splash.step(id, state, detail) /
+  splash.fail(title, detail) を呼ぶ。state: wait（まだ）・now（いま）・ok（済んだ）・warn（注意しつつ進む）・bad（止まった）。
+  形は 7 案＋複合 4 案を 1728×1152 で進行中・失敗の 2 状態を描いて比べて選んだ（program/tools/ui-proposals/2026-10-splash*.mjs・.json）:
+  名乗り（アイコン・名前・版）を中央に大きく、その下に段ごとに 4 つに区切った帯（字を読まずにどこまで来たか分かる）と、いまの 1 段だけ。
+  止まったら、同じ名乗りの下の白い面に「次にすること」を主に、理由は控えに（コピーできる）。地は画面の見出しと同じ藍。
   icon.png は作るとき build.rs が program/app/app_icon.py で描く。
 -->
 <style>
  :root{
-  --navy:#1c3550; --blue:#2b5f79; --teal:#2f7d78; --amber:#e6a52e;
-  --ink:#1b2733; --muted:#5d6b77; --faint:#8995a0; --line:#dbe3e9;
-  --warn:#8a5a00; --warn-bg:#fff1d6;
-  --red:#c0392b; --red-bg:#fdeeec; --red-line:#e6bcb6;
+  --navy:#1c3550; --blue:#2b5f79; --deep:#0f1f30; --teal:#2f7d78; --mint:#7fd3c9; --amber:#e6a52e; --coral:#ff8a7a;
+  --ink:#1b2733; --muted:#5d6b77; --line:#dbe3e9; --warn:#8a5a00; --code:#f5f7f9;
  }
  *{box-sizing:border-box}
  html,body{height:100%;margin:0}
- body{display:grid;place-items:center;background:linear-gradient(150deg,#13263a,var(--navy) 45%,var(--blue));
-  font-family:"Yu Gothic UI","Segoe UI",Meiryo,system-ui,sans-serif;font-size:15px;line-height:1.6;color:var(--ink)}
- .card{width:min(980px,94vw);display:grid;grid-template-columns:320px 1fr;background:#fff;border-radius:16px;overflow:hidden;
-  box-shadow:0 18px 44px rgba(0,0,0,.3)}
- .side{display:flex;flex-direction:column;padding:32px 26px;color:#fff;background:linear-gradient(160deg,var(--navy),var(--blue))}
- .side img{width:80px;height:80px}
- .side h1{font-size:22px;margin:14px 0 0;letter-spacing:.02em}
- .side .sub{opacity:.8}
- .side .el{margin-top:auto;padding-top:24px;font:12px Consolas,monospace;opacity:.7}
- .main{padding:22px 26px}
- #title{display:block;font-size:19px}
- #lead{display:block;color:var(--muted);font-size:13px}
- ol{list-style:none;margin:10px 0;padding:0}
- li{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
- li:first-child{border-top:0}
- .mark{flex:0 0 auto;width:20px;height:20px;margin-top:2px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;
-  font-size:11px;font-weight:800;color:#fff}
- .t{display:block;font-weight:700}
- .d{display:block;color:var(--muted);font-size:12.5px;word-break:break-all}
- li.wait{color:var(--faint)}
- li.now .mark{border-color:var(--teal);border-top-color:transparent;animation:spin .9s linear infinite}
- li.ok .mark{background:var(--teal);border-color:var(--teal)}
- li.ok .mark::after{content:"✓"}
- li.warn .mark{background:var(--amber);border-color:var(--amber);color:var(--warn)}
- li.warn .mark::after{content:"!"}
- li.bad .mark{background:var(--red);border-color:var(--red)}
- li.bad .mark::after{content:"×"}
- li.bad .t{color:var(--red)}
- @keyframes spin{to{transform:rotate(360deg)}}
- @media (prefers-reduced-motion:reduce){li.now .mark{animation:none}}
- .fail{padding:12px 14px;border-radius:10px;background:var(--red-bg);border:1px solid var(--red-line);color:var(--red);font-size:13px;line-height:1.7}
- .fail pre{white-space:pre-wrap;margin:6px 0 0;font:12px Consolas,monospace;max-height:220px;overflow:auto;color:var(--ink)}
- .hidden{display:none}
+ body{display:grid;place-content:center;background:radial-gradient(ellipse at 50% 35%,var(--blue) 0%,var(--navy) 55%,var(--deep) 100%);color:#fff;
+  font-family:"Yu Gothic UI","Segoe UI",Meiryo,system-ui,sans-serif;font-size:15px;line-height:1.6;overflow:hidden}
+ [hidden]{display:none!important}
+
+ /* 名乗り */
+ .hero{display:flex;flex-direction:column;align-items:center;text-align:center;width:min(820px,90vw)}
+ .logo{width:112px;height:112px;filter:drop-shadow(0 12px 28px rgba(0,0,0,.4));transition:width .3s,height .3s}
+ h1{margin:22px 0 0;font:700 44px/1.15 "Segoe UI Variable Display","Segoe UI","Yu Gothic UI",sans-serif;letter-spacing:.01em}
+ .sub{margin-top:4px;font-size:18px;opacity:.82}
+ .ver{margin-top:12px;min-height:12px;font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.2em;opacity:.6}
+
+ /* 進み具合: 段ごとに区切った帯（済んだ＝青緑・いま＝流れる光・注意＝アンバー・止まった＝珊瑚）と、いまの 1 段 */
+ .run{width:440px;margin-top:56px}
+ .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+ .seg i{position:relative;height:5px;border-radius:99px;background:rgba(255,255,255,.16);overflow:hidden}
+ .seg i.ok{background:var(--mint)}
+ .seg i.warn{background:var(--amber)}
+ .seg i.bad{background:var(--coral)}
+ .seg i.now{background:rgba(127,211,201,.25)}
+ .seg i.now::after{content:"";position:absolute;inset:0;width:40%;border-radius:99px;background:var(--mint);animation:flow 1.2s ease-in-out infinite}
+ @keyframes flow{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+ .step{display:flex;justify-content:space-between;gap:16px;margin-top:12px;font-size:14px;opacity:.92}
+ .count{font-variant-numeric:tabular-nums;opacity:.7}
+ .detail{margin-top:2px;min-height:19px;font-size:12px;text-align:left;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .elapsed{position:fixed;right:24px;bottom:18px;font:12px Consolas,monospace;opacity:.45}
+
+ /* 止まったとき: 名乗りを小さくし、白い面に「次にすること」（主）と理由（控え・コピーできる） */
+ body.is-fail .run{display:none}
+ body.is-fail .logo{width:72px;height:72px}
+ body.is-fail h1{margin-top:12px;font-size:30px}
+ .panel{width:min(820px,90vw);margin-top:34px;padding:24px 28px;border-radius:16px;background:#fff;color:var(--ink);text-align:left;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+ .panel h2{margin:0;font-size:20px}
+ .lead{color:var(--muted);font-size:13px}
+ .next{margin-top:14px;padding:14px 16px;border:1px solid #f0d9a8;border-left:4px solid var(--amber);border-radius:10px}
+ .label{display:flex;align-items:center;justify-content:space-between;color:var(--warn);font-size:13px;font-weight:700;letter-spacing:.04em}
+ .next p{margin:2px 0 0;font-size:15px;font-weight:600;line-height:1.7}
+ .why{margin-top:14px}
+ .why pre{margin:6px 0 0;max-height:180px;overflow:auto;padding:10px 12px;border-radius:8px;background:var(--code);color:var(--muted);
+  font:12px/1.6 Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+ .copy{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-family:inherit;font-size:12px;font-weight:600;letter-spacing:0;cursor:pointer}
+ .copy:hover{border-color:var(--teal);color:var(--teal)}
+ .copy:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+ @media (prefers-reduced-motion:reduce){.seg i.now::after{animation:none;width:50%}.logo{transition:none}}
 </style>
 </head>
 <body>
-<section class="card" aria-labelledby="title">
-  <div class="side">
-    <img src="icon.png" alt="">
-    <h1 id="name"></h1>
-    <div class="sub" id="subtitle"></div>
-    <span class="el" id="elapsed">0.0 秒</span>
-  </div>
-  <div class="main">
-    <b id="title">起動しています</b>
-    <span id="lead">準備ができたら、この窓がそのままアプリに切り替わります。</span>
-    <ol>
-      <li class="now" id="s-program"><span class="mark"></span><span><span class="t">アプリの中身を探す</span><span class="d">exe と並ぶ program フォルダ</span></span></li>
-      <li class="wait" id="s-python"><span class="mark"></span><span><span class="t">Python を探す</span><span class="d">この PC に入れた Python（PATH・Microsoft Store 版も）</span></span></li>
-      <li class="wait" id="s-backend"><span class="mark"></span><span><span class="t">アプリの中身を起こす</span><span class="d">計算・LotDsp・マスタ（ポートは使いません）</span></span></li>
-      <li class="wait" id="s-open"><span class="mark"></span><span><span class="t">画面を開く</span><span class="d"></span></span></li>
-    </ol>
-    <div class="fail hidden" id="fail" role="alert"></div>
-  </div>
-</section>
+<main class="hero" aria-labelledby="name">
+  <img class="logo" src="icon.png" alt="">
+  <h1 id="name"></h1>
+  <div class="sub" id="subtitle"></div>
+  <div class="ver" id="version"></div>
+  <section class="run" aria-live="polite" aria-label="起動の進み具合">
+    <div class="seg" id="seg" aria-hidden="true"></div>
+    <div class="step"><span id="stepTitle"></span><span class="count" id="count"></span></div>
+    <div class="detail" id="stepDetail"></div>
+  </section>
+  <section class="panel" id="panel" role="alert" aria-labelledby="failTitle" hidden>
+    <h2 id="failTitle"></h2>
+    <div class="lead">直したら、この窓を閉じて開き直してください。</div>
+    <div class="next" id="next" hidden><div class="label">次にすること</div><p id="nextText"></p></div>
+    <div class="why"><div class="label">理由<button type="button" class="copy" id="copy">理由をコピー</button></div><pre id="why"></pre></div>
+  </section>
+</main>
+<span class="elapsed" id="elapsed">0.0 秒</span>
 <script>
 (() => {
-  const t0 = performance.now();
   const $ = (s) => document.querySelector(s);
+  const t0 = performance.now();
   const sec = () => ((performance.now() - t0) / 1000).toFixed(1);
   const timer = setInterval(() => { $("#elapsed").textContent = sec() + " 秒"; }, 100);
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  /* 段（窓が step で伝える id の順）。detail は窓が伝えるまでの説明 */
+  const STEPS = [
+    { id: "program", title: "アプリの中身を探す", detail: "exe と並ぶ program フォルダ", state: "now" },
+    { id: "python", title: "Python を探す", detail: "この PC に入れた Python（PATH・Microsoft Store 版も）", state: "wait" },
+    { id: "backend", title: "アプリの中身を起こす", detail: "計算・LotDsp・マスタ（ポートは使いません）", state: "wait" },
+    { id: "open", title: "画面を開く", detail: "", state: "wait" },
+  ];
+  const CURRENT = ["now", "warn", "bad"];
   /* よくある理由 → 次にすること（理由の文から見分ける。当てはまらなければ理由だけ出す） */
   const HINTS = [
     [/program フォルダ|sidecar\.py/, "配られた ZIP を展開したフォルダの exe から開いてください（exe と program フォルダが並んでいる形）。"],
@@ -91,31 +109,61 @@
     [/版が食い違/, "窓とアプリの中身の組がずれています。配られた ZIP を展開し直してから開いてください。"],
     [/秒たっても準備できません/, "PC が混んでいるか、共有フォルダへの接続で止まっています。少し待ってから開き直してください。"],
   ];
+  $("#seg").innerHTML = STEPS.map(() => "<i></i>").join("");
+
+  /** 段の状態を、区切った帯といまの 1 段に描く */
+  function paint() {
+    STEPS.forEach((s, i) => { $("#seg").children[i].className = s.state; });
+    const i = STEPS.findIndex((s) => CURRENT.includes(s.state));
+    const cur = STEPS[i < 0 ? STEPS.length - 1 : i];
+    $("#stepTitle").textContent = cur.title;
+    $("#stepDetail").textContent = cur.detail;
+    $("#count").textContent = `${i < 0 ? STEPS.length : i + 1} / ${STEPS.length}`;
+  }
+
   window.splash = {
     brand(name, subtitle) {
       $("#name").textContent = name;
       $("#subtitle").textContent = subtitle;
       document.title = name + " — 起動中";
     },
+    version(v) { $("#version").textContent = v ? "VER " + v : ""; },
     step(id, state, detail) {
-      const li = $("#s-" + id); if (!li) return;
-      li.className = state;
-      if (detail) li.querySelector(".d").textContent = detail;
-      const next = li.nextElementSibling;
-      if (state === "ok" && next && next.classList.contains("wait")) next.className = "now";
+      const k = STEPS.findIndex((s) => s.id === id);
+      if (k < 0) return;
+      STEPS[k].state = state;
+      if (detail) STEPS[k].detail = detail;
+      const next = STEPS[k + 1];
+      if (state === "ok" && next && next.state === "wait") next.state = "now";
+      paint();
     },
     fail(title, detail) {
       clearInterval(timer);
       $("#elapsed").textContent = sec() + " 秒";
-      $("#title").textContent = title;
-      $("#lead").textContent = "下の理由を確かめてください。直したら、この窓を閉じて開き直してください。";
-      document.querySelectorAll("li.now").forEach((li) => (li.className = "bad"));
+      STEPS.forEach((s) => { if (s.state === "now") s.state = "bad"; });
+      paint();
+      $("#failTitle").textContent = title;
       const hint = HINTS.find(([re]) => re.test(detail));
-      const box = $("#fail");
-      box.innerHTML = (hint ? "<b>次にすること</b><div>" + hint[1] + "</div>" : "") + "<b>理由</b><pre>" + esc(detail) + "</pre>";
-      box.classList.remove("hidden");
+      $("#next").hidden = !hint;
+      $("#nextText").textContent = hint ? hint[1] : "";
+      $("#why").textContent = detail;
+      $("#panel").hidden = false;
+      document.body.classList.add("is-fail");
+      document.title = title;
     },
   };
+
+  /* 理由をコピー（問い合わせるときに写せる）。クリップボードが使えなければ選んで写す */
+  $("#copy").onclick = async () => {
+    const text = $("#why").textContent;
+    try { await navigator.clipboard.writeText(text); } catch (_) {
+      const r = document.createRange(); r.selectNodeContents($("#why"));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand("copy");
+    }
+    $("#copy").textContent = "コピーしました";
+    setTimeout(() => { $("#copy").textContent = "理由をコピー"; }, 1600);
+  };
+  paint();
 })();
 </script>
 </body>
