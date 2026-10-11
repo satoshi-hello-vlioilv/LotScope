@@ -170,6 +170,12 @@ class Api(unittest.TestCase):
         r = self.c.post("/api/settings/check", json={"key": "work_log.pattern", "value": "実績.sqlite3"}).get_json()
         self.assertFalse(r["ok"])
 
+    def test_folder_settings_are_edited_only_on_the_work_log_page(self):
+        # 「参照先」は page の無い項目だけを並べる（同じ値を直す所を 1 つに）。作業実績の 2 項目は「作業実績」の頁で直す
+        items = {i["key"]: i for i in self.c.get("/api/settings").get_json()["items"]}
+        self.assertEqual({k for k, i in items.items() if i.get("page")}, {"work_log.folder", "work_log.pattern"})
+        self.assertEqual({i["page"] for i in items.values() if i.get("page")}, {"worklog"})
+
 
 if __name__ == "__main__":
     unittest.main()

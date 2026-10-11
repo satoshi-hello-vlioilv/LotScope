@@ -363,7 +363,7 @@ function renderSettings() {
     : `マスタの共有フォルダが決まっていないため、<b>この PC だけ</b>に保存します。`;
   box.innerHTML = `<p class="ps-lead">${where} 空にして保存すると、配った設定（既定）に戻ります。</p>
     <div class="ps-notice hidden" id="psNotice"></div>`
-    + d.items.map((it) => {
+    + d.items.filter((it) => !it.page).map((it) => {     // page のある項目は、その頁（例: 作業実績）で直す
       const changed = it.source === "master";
       const by = changed && it.updated_by ? `${escapeHtml(whoText(it.updated_by))} ${stamp(it.updated_at)}` : "";
       return `<section class="ps-card${changed ? " is-changed" : ""}" data-key="${escapeHtml(it.key)}" data-rev="${it.rev ?? 0}"${it.check_url ? ` data-check="${escapeHtml(it.check_url)}"` : ""}>

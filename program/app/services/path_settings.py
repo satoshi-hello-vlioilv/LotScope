@@ -31,10 +31,10 @@ ITEMS = [
      "hint": "この間隔で元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},
     {"key": "lot_list.stale_hours", "label": "元データが古いと警告するまで（時間）", "kind": "number", "min": 0, "max": 24 * 60,
      "hint": "元ファイルの最後の更新からこの時間を過ぎたら、一覧の上で警告します。0 にすると警告しません。土日に更新しない運用なら 72 など。"},
-    {"key": "work_log.folder", "label": "作業実績のフォルダ（設備ごとの実績 .sqlite3 を置く所）", "kind": "folder",
+    {"key": "work_log.folder", "label": "作業実績のフォルダ（設備ごとの実績 .sqlite3 を置く所）", "kind": "folder", "page": "worklog",
      "hint": "設備ごとの実績ファイル（例: 実績_CR1.sqlite3）が並ぶフォルダ（例: \\\\Nlmsrvngy03\\Read\\【New】実績）。"
              "保存すると、このフォルダを探して設備を見つけ、「マスタ管理」の「作業実績」に並べます（表示する・しないはそこで決めます）。"},
-    {"key": "work_log.pattern", "label": "作業実績のファイル名の決まり", "kind": "pattern",
+    {"key": "work_log.pattern", "label": "作業実績のファイル名の決まり", "kind": "pattern", "page": "worklog",
      "hint": "* の所が設備名になります（既定: 実績_*.sqlite3）。* はちょうど 1 つ書きます。"},
     {"key": "lotdsp_import.url", "label": "ロット問い合わせ（LotDsp）の URL", "kind": "url",
      "hint": "「検索」で読みに行く LotDsp の場所。社内（ログイン不要）ではこのアプリだけで読み、VPN でログインが要るときは"
@@ -49,6 +49,8 @@ ITEMS = [
      "hint": "このアプリだけで LotDsp を読むとき、画面に出さずに動かすブラウザの実行ファイル。ふつうは空のままで、"
              "Edge（C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe）を自動で使います。"},
 ]
+# page: その項目を直す頁（マスタ管理のタブ）。ある項目は「参照先」に並べない（同じ値を直す所を 1 つにする）。
+#       値の置き場・確かめ方・版はほかの項目と同じ（PUT /api/settings/<key>）
 BY_KEY = {i["key"]: i for i in ITEMS}
 
 
