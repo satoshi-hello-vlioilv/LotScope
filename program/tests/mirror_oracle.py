@@ -33,6 +33,9 @@ STEPS = [
     {"do": "source_info"},                                   # 50 時間前 → 古い
     {"do": "refresh"},                                       # 変わっていない
     {"do": "put", "file": "share", "asset": "v2", "age": 10},
+    {"do": "mark", "file": "share"},                         # 書き手（DataRelay）が公開している途中
+    {"do": "refresh"},                                       # 写さずに見送る（busy）
+    {"do": "unmark", "file": "share"},
     {"do": "refresh"},                                       # 新しい世代・古い世代を片付ける
     {"do": "files"},
     {"do": "ledger"},
@@ -127,6 +130,9 @@ def run(work):
             os.utime(where[st["file"]], (t, t))
         elif do == "unlink":
             where[st["file"]].unlink()
+        elif do in ("mark", "unmark"):          # DataRelay の公開の書きかけ（.<名前>.<番号>.incoming）
+            mark = where[st["file"]].parent / f".{where[st['file']].name}.4242.incoming"
+            mark.write_bytes(b"x") if do == "mark" else mark.unlink()
         elif do == "refresh":
             r = m.refresh(force=bool(st.get("force")))
         elif do == "read_path":

@@ -125,7 +125,9 @@ impl Lot {
                 (200, json!({"result": r, "source": m.source_info()}))
             }
             _ => match m.read_path() {
-                None => (400, json!({"error": NO_SOURCE, "source": m.source_info()})),
+                None if m.remote().is_empty() => (400, json!({"error": NO_SOURCE, "source": m.source_info()})),
+                // 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す（Python の lotlist_plan と同じ答え）
+                None => (503, json!({"error": m.not_ready_text(), "kind": "copying", "source": m.source_info()})),
                 // スライサーに並べる値（列の重複なしの値と件数）
                 Some(p) if path == "/api/lotlist/slicer" => {
                     let today = chrono::Local::now().date_naive();

@@ -10,7 +10,7 @@
 """
 from pathlib import Path
 
-from ..services import equipment_names, work_log
+from ..services import display_formats, equipment_names, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
 
@@ -39,6 +39,8 @@ SPECS = {
     "access_permissions": {"fields": ["ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考"], "renamed": {}, "unique": None},
     # 作業実績の設備（services/work_log.py）。ファイルごとに1行。表示ルールは変わらないキーに結ぶ
     "work_log_files": {"fields": work_log.FIELDS, "renamed": {}, "unique": "キー"},
+    # 共有の書式（services/display_formats.py）。名前は元（異常ロット一覧・作業実績）ごとに 1 つ（_check_row）
+    "display_formats": {"fields": display_formats.FIELDS, "renamed": {}, "unique": None},
 }
 
 
@@ -99,6 +101,11 @@ class MasterRepository:
             for r in rows:
                 if r.get("id") != self_id and (_key(r.get("ログインID")), _key(r.get("PC名"))) == key:
                     raise DuplicateKey(f"ログインID「{data.get('ログインID') or '（空）'}」・PC名「{data.get('PC名') or '（空）'}」の組はもう登録してあります。その行を直してください。")
+        if name == "display_formats":
+            key = (_key(data.get("名前")), data.get("元"))
+            for r in rows:
+                if r.get("id") != self_id and (_key(r.get("名前")), r.get("元")) == key:
+                    raise DuplicateKey(f"書式「{data.get('名前')}」はもうあります。上書きするか、別の名前にしてください。")
         if name == "equipment_master":
             msg = equipment_names.check_row(rows, data, self_id)
             if msg:
@@ -277,6 +284,20 @@ class MasterRepository:
                 out["added"].append(dict(row))
             return out
         return self.store.write("work_log_files", mutate)
+
+    # -------------------------------------------------- 共有の書式
+    def formats(self):
+        return self._list("display_formats")
+
+    def format_create(self, data):
+        return self._create("display_formats", data)
+
+    def format_update(self, item_id, data, base_rev=None):
+        """名前・中身・備考を直す（元・表・作った所は作ったときのまま）。"""
+        return self._update("display_formats", item_id, {k: v for k, v in data.items() if k in ("名前", "中身", "備考")}, base_rev)
+
+    def format_delete(self, item_id, base_rev=None):
+        self._delete("display_formats", item_id, base_rev)
 
     # -------------------------------------------------- ロールマスタ
     def rolls(self):

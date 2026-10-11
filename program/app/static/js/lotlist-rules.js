@@ -499,6 +499,14 @@
     renderUsage(); render();
   }
 
-  window.LotListRules = { names, selfMode, match, textOf, open, compile: calcOf, SELF_KEY,
+  /** 共有の書式（lotlist-formats.js）: ルールそのもの（{rows, self}）を取り出す・入れる（同じ名前は書式の内容にそろえる） */
+  const raw = (name) => (all()[name] ? TPA.clone(all()[name]) : null);
+  function putRaw(name, rule) {
+    if (!name || !rule || !Array.isArray(rule.rows)) return false;
+    put(name, rule.rows, { self: rule.self === "shown" ? "shown" : "raw" }); write();
+    return true;
+  }
+
+  window.LotListRules = { names, selfMode, match, textOf, open, compile: calcOf, SELF_KEY, raw, putRaw,
     _toFormula: toFormula };   // 評価用
 })();

@@ -34,6 +34,7 @@ import uuid
 from pathlib import Path
 
 from ..fsio import unquote_path
+from .db_mirror import DbMirror, is_side_file
 
 NAME = "work_log_files"
 FIELDS = ["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "備考"]
@@ -98,6 +99,8 @@ def scan(folder, pattern):
     try:
         with os.scandir(folder) as it:
             for e in it:
+                if is_side_file(e.name):      # 書き手の作業用（DataRelay の .pending_・隠しの .incoming など）は設備にしない
+                    continue
                 eq = equipment_of(e.name, pattern)
                 if not eq:
                     continue
@@ -223,7 +226,6 @@ class Mirrors:
         self._all = {}
 
     def get(self, key, remote, interval_sec, stale_hours):
-        from .db_mirror import DbMirror
         with self._lock:
             m = self._all.get(key)
             if m is None:

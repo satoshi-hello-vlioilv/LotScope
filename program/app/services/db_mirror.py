@@ -7,10 +7,15 @@
     共有を直接読むと更新中の中途半端な状態を読むことがある。共有を手元の一時ファイルへ
     写し、写しが正しいと確かめてから切り替え、画面はいつも手元の写しだけを読む。
 
-写し方（この順）
-    1. SQLite のバックアップ API（書き手が動いていても一貫したスナップショット）
-    2. 失敗したらバイト単位のコピー
-    どちらも採用前に PRAGMA quick_check で検査し、壊れていれば捨てて前の写しを使い続ける。
+写し方（書き手の DataRelay と干渉しない作法。DataRelay の lib/navi_publish.py に合わせる）
+    DataRelay は、公開先の横へ隠しファイル .<名前>.<番号>.incoming を書き切ってから os.replace で丸ごと入れ替える
+    （中を書き換えない。だから公開先はいつも書き切ったファイル）。入れ替えは、ほかが公開先を開いていると Windows で
+    「使用中」になり、20 秒粘ってだめなら <名前>.pending_<日時> として次の実行まで保留する。そこで:
+    1. 写す直前に、書き手の作業中の印（.incoming・SQLite の -journal・-wal）が無いかを見る。あれば今回は写さない（busy）
+    2. SQLite としては開かず、ファイルとして丸ごと写す。置き換えを許す開き方（fsio.open_shared_read）で、休まず一気に写してすぐ閉じる
+    3. 写した後にもう一度 (大きさ, 更新時刻) を見て、写す前と違えば捨てる（入れ替えをまたいだ写しを使わない）
+    4. PRAGMA quick_check で検査し、壊れていれば捨てて前の写しを使い続ける
+    1・3 で見送ったときは、少し空けて（RETRY_AFTER_BUSY_SEC）やり直す。
 
 世代名
     写しは毎回新しい名前 <キー>.g<世代>.sqlite3 で作り、台帳 _mirror.json が今の世代を指す。
@@ -20,7 +25,8 @@
 いつ写すか
     背景スレッドが一定間隔で元ファイルの (パス, サイズ, 更新時刻) を見て、変わっていれば写す。
     共有へ触るのは背景スレッド（と利用者が押した「再読込」）だけで、一覧を出す要求の中では
-    共有を stat しない。写しがまだ無いときだけ元を直接読む（fail-open）。
+    共有を stat しない。写しがまだ無いときも共有を直接は読まない（開くと書き手の入れ替えを止めるため）。
+    read_path は None を返し、画面は「まだ写せていない」と理由を出して、写し終えたら引き直す。
     起動して最初の周回が済むまでは、読む側が待つ（前回の起動の古い写しを出さない）。
 
 受け身（passive）
@@ -38,7 +44,7 @@ import threading
 import time
 from pathlib import Path
 
-from ..fsio import retrying, write_json_atomic
+from ..fsio import open_shared_read, retrying, write_json_atomic
 from .sqlite_ro import ro_uri
 
 log = logging.getLogger(__name__)
@@ -49,6 +55,8 @@ MIN_INTERVAL_SEC = 10
 FIRST_WAIT_SEC = 30
 STAT_RETRY_SEC = (0.3, 0.7, 1.5)          # 書き直しの最中の一瞬の不在は待って取り直す
 RETRY_AFTER_UNREACHABLE_SEC = 10          # 届かなくなった最初の1回は早めに取り直す
+RETRY_AFTER_BUSY_SEC = 5                  # 書き手が作業中・写すあいだに入れ替わったときは、少し空けて写し直す
+COPY_CHUNK = 4 * 1024 * 1024              # 一気に写す（休まない。開いている時間を短くする）
 REPLACE_BUDGET_SEC = 2.0
 DEFAULT_STALE_HOURS = 36                  # 毎日の更新が1回抜けたら気づく長さ（夜中の更新時刻のずれは許す）
 _LEDGER_LOCK = threading.Lock()           # このプロセスの中で台帳を書き換えるのは1本ずつ
@@ -60,6 +68,27 @@ def _os_error_text(e):
     win = getattr(e, "winerror", None)
     code = f"WinError {win}" if win else (f"Errno {e.errno}" if getattr(e, "errno", None) else "")
     return f"{code} {getattr(e, 'strerror', None) or e}".strip()
+
+
+def writer_marks(remote):
+    """書き手が作業中の印（元ファイルと同じフォルダ）。あれば名前の並び、無ければ []。
+    DataRelay の公開の書きかけ（.<名前>.<番号>.incoming）と、SQLite の中を書き換える書き手の -journal・-wal。"""
+    p = Path(remote)
+    name, low = p.name, p.name.lower()
+    try:
+        with os.scandir(p.parent) as it:
+            names = [e.name for e in it]
+    except OSError:
+        return []
+    return sorted(n for n in names if (n.lower().startswith(f".{low}.") and n.lower().endswith(".incoming"))
+                  or n.lower() in (f"{low}-journal", f"{low}-wal")) if name else []
+
+
+def is_side_file(name):
+    """書き手の作業用のファイルか（設備・元ファイルとして数えない）: 隠し（. で始まる）・DataRelay の更新保留（.pending_）・
+    SQLite の -journal・-wal・-shm。"""
+    low = str(name).lower()
+    return low.startswith(".") or ".pending_" in low or low.endswith(("-journal", "-wal", "-shm", ".incoming"))
 
 
 def _retrying(fn, budget=REPLACE_BUDGET_SEC):
@@ -85,7 +114,7 @@ class DbMirror:
 
     def reconfigure(self, remote=None, interval_sec=None, stale_hours=None):
         """参照先マスタで元ファイル・間隔・古さのしきいが変わったとき、起動し直さずに切り替える。
-        元のパスは写しの印に入っているので、前の元の写しは使われない（新しい元を写すまでは元を直接読む）。
+        元のパスは写しの印に入っているので、前の元の写しは使われない（新しい元を写すまでは「まだ写せていない」と答える）。
         変わった物があれば True。"""
         changed = False
         with self._lock:
@@ -180,16 +209,10 @@ class DbMirror:
         return None, _os_error_text(err)
 
     @staticmethod
-    def _snapshot_backup(remote, tmp):
-        src = sqlite3.connect(ro_uri(remote), uri=True, timeout=15)
-        try:
-            dst = sqlite3.connect(str(tmp))
-            try:
-                src.backup(dst, pages=256, sleep=0.05)
-            finally:
-                dst.close()
-        finally:
-            src.close()
+    def _copy(remote, tmp):
+        """元をファイルとして丸ごと写す（SQLite として開かない・置き換えを許す開き方・休まない）。"""
+        with open_shared_read(remote) as src, open(tmp, "wb") as dst:
+            shutil.copyfileobj(src, dst, COPY_CHUNK)
 
     @staticmethod
     def _verify(tmp):
@@ -238,21 +261,24 @@ class DbMirror:
             res.update(skipped=True, reason="元ファイルは変わっていません")
             self._sweep(local)
             return self._record(res)
+        marks = writer_marks(self.remote)
+        if marks:
+            res.update(busy=True, reason=f"書き手が公開している途中のため、写すのを見送りました（{marks[0]}）。少し空けて写し直します")
+            return self._record(res)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         target = self._generation_path(self._next_generation())
         tmp = target.with_suffix(".sqlite3.tmp")
         with contextlib.suppress(OSError):
             tmp.unlink()
         try:
-            try:
-                self._snapshot_backup(self.remote, tmp)
-                how = "backup"
-            except Exception as e:
-                log.info("%s: バックアップAPIで写せなかったのでコピーします: %s", self.key, e)
-                shutil.copyfile(self.remote, tmp)
-                how = "copy"
+            self._copy(self.remote, tmp)
         except Exception as e:
             res["reason"] = f"写せませんでした: {e}"
+            self._cleanup(tmp)
+            return self._record(res)
+        after, _ = self._remote_stat(retry=False)
+        if after != sig:
+            res.update(busy=True, reason="写しているあいだに元ファイルが入れ替わったため、見送りました。少し空けて写し直します")
             self._cleanup(tmp)
             return self._record(res)
         bad = self._verify(tmp)
@@ -267,8 +293,7 @@ class DbMirror:
             res["reason"] = f"写しを置き換えられませんでした: {e}"
             self._cleanup(tmp)
             return self._record(res)
-        res.update(updated=True, how=how,
-                   reason="写しを更新しました（" + ("バックアップAPI" if how == "backup" else "コピー") + "）")
+        res.update(updated=True, how="copy", reason="写しを更新しました")
         self._sweep(target)
         return self._record(res)
 
@@ -284,22 +309,28 @@ class DbMirror:
 
     # ------------------------------------------------------------ 読む側
     def read_path(self):
-        """実際に読む場所。その元から作った写しがあればそれ、無ければ元（fail-open）。"""
+        """実際に読む場所 = その元から作った写し。まだ無ければ None（共有は直接読まない。理由は source_info の reason）。"""
         if not self.enabled:
             return None
         if not self._first.is_set() and self._thread is not None and self._thread.is_alive():
             self._first.wait(FIRST_WAIT_SEC)
         entry = self._entry()
         sig = entry.get("signature") or {}
-        if sig.get("source") and str(sig["source"]) != self.remote:
-            return Path(self.remote)
+        if str(sig.get("source") or "") != self.remote:
+            return None
         local = self.mirror_path()
         try:
             if local and local.exists():
                 return local
         except OSError:
             pass
-        return Path(self.remote)
+        return None
+
+    def not_ready_text(self):
+        """写しがまだ無いときに画面へ出す文（なぜ無いか＋写し終えたら出ること）。"""
+        with self._lock:
+            why = str(self._state.get("reason") or "")
+        return "共有の元ファイルを、まだ手元へ写せていません" + (f"（{why}）" if why else "") + "。写し終えると一覧が出ます。"
 
     def source_info(self):
         """いま読んでいるデータは「いつのものか」。共有は stat しない（台帳の印から読む）。
@@ -342,6 +373,8 @@ class DbMirror:
         st = self._state
         if st.get("unreachable") and int(st.get("fails") or 1) == 1:
             return min(self.interval, RETRY_AFTER_UNREACHABLE_SEC)
+        if st.get("busy"):
+            return min(self.interval, RETRY_AFTER_BUSY_SEC)
         return self.interval
 
     def _loop(self):

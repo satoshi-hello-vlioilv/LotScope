@@ -8,7 +8,7 @@ import app_env
 from .. import effective_settings
 from ..repositories.master_store import MasterError
 from ..services import lot_list, work_log
-from .common import base_rev, bp, error, master_call, master_repo, me
+from .common import base_rev, bp, can_write, error, master_call, master_repo
 
 
 class FolderUnreachable(MasterError):
@@ -42,15 +42,6 @@ def _found(wl, fresh=False):
         return [], str(e)
 
 
-def _can_edit():
-    try:
-        m = me()
-    except Exception:
-        return False
-    from ..services import access
-    return not m["revoked"] and access.master_edit_can(m["flags"]["masterEdit"], "write", access.master_scope(work_log.NAME))
-
-
 @bp.get("/api/worklog/files")
 def worklog_files():
     """作業実績のタブで選べる設備（表示が「有」の行。all=1 なら全部）と、いま読むファイル・状態・まだ登録していないファイル（new）。"""
@@ -60,12 +51,12 @@ def worklog_files():
     if request.args.get("all") != "1":
         v["items"] = [x for x in v["items"] if x["visible"]]
     work_log.mark_stale(v["items"], wl["stale_hours"])
-    return jsonify(folder=wl["folder"], pattern=wl["pattern"], canEdit=_can_edit(), staleHours=wl["stale_hours"], **v)
+    return jsonify(folder=wl["folder"], pattern=wl["pattern"], canEdit=can_write(work_log.NAME), staleHours=wl["stale_hours"], **v)
 
 
-def worklog_plan():
+def worklog_plan(need_copy=True):
     """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
-    段取り: 写しの係・読むファイル（写しがあれば写し）・既定の表・既定の件数・設備の行。"""
+    段取り: 写しの係・読むファイル（写し）・既定の表・既定の件数・設備の行。need_copy=False は写しがまだ無くてもよい（再読込）。"""
     key = request.args.get("equip", "")
     wl = _params()
     row = next((r for r in master_repo().work_logs() if r.get("キー") == key), None)
@@ -88,6 +79,8 @@ def worklog_plan():
     read = m.read_path()
     equip = {"key": key, "name": row.get("設備名") or "", "file": path.name if path else row.get("ファイル名") or "",
              "renamed": bool(path and path.name != row.get("ファイル名"))}
+    if read is None and need_copy:  # 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す
+        return None, error(m.not_ready_text(), 503, "copying", source=m.source_info(), equip=equip)
     return {"mirror": m, "path": str(read), "table": row.get("表") or wl["table"], "page_size": wl["page_size"],
             "source": m.source_info(), "equip": equip}, None
 
@@ -139,7 +132,7 @@ def worklog_source():
 @bp.post("/api/worklog/refresh")
 def worklog_refresh():
     """「再読込」: その設備のファイルを共有から取り直す（変わっていなくても写し直す）。"""
-    plan, fail = worklog_plan()
+    plan, fail = worklog_plan(need_copy=False)
     if fail:
         return fail
     m = plan["mirror"]
@@ -154,7 +147,7 @@ def _master_view(fresh=False):
     st = current_app.config["MASTER_STORE"]
     v = work_log.view(master_repo().work_logs(), found, err)
     work_log.mark_stale(v["items"], wl["stale_hours"])
-    return {"folder": wl["folder"], "pattern": wl["pattern"], "canEdit": _can_edit(), "shared": st.is_shared(work_log.NAME),
+    return {"folder": wl["folder"], "pattern": wl["pattern"], "canEdit": can_write(work_log.NAME), "shared": st.is_shared(work_log.NAME),
             "revision": st.revision(work_log.NAME), "staleHours": wl["stale_hours"], **v}
 
 

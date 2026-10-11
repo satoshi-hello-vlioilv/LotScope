@@ -835,6 +835,9 @@
     setContext, bindHeader, toggle,
     /** 対象を人の読める名前にする関数を決める（一覧の元が増えても、ここは名前の付け方を知らない） */
     describe: (fn) => { describeTarget = fn; },
+    /** 共有の書式（lotlist-formats.js）: 対象 t の保存した列の設定（触っている途中は入れない）と、その置き換え */
+    layoutOf: (t) => norm(saved[t]),
+    replaceLayout: (t, l) => { saved[t] = norm(l); delete draft[t]; delete live[t]; writeSaved(); },
     // テスト・評価用
     _formatValue: formatValue, _parseDateTime: parseDateTime,
   };

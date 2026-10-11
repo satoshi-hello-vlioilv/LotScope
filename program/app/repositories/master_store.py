@@ -171,8 +171,9 @@ class MasterStore:
         # app_seeds: 起動で一度だけ当てた初期値の記録（services/master_seeds.py）。全員で1つ
         # ui_defaults: 新しく入れた PC の一覧の表示の初期設定（services/ui_defaults.py）。開発者が置く。全員で1つ
         # work_log_files: 作業実績の設備（どのファイルを・表示するか）。読みに行く場所と同じく全員で1つ
+        # display_formats: 共有の書式（一覧の表示ルールに名前を付けて置く）。ほかの PC が呼び出すので全員で1つ
         self.shared_names = set(cfg.get("masters") or ["roll_master", "equipment_master"]) | {"path_settings", "access_permissions", "app_seeds",
-                                                                                              "ui_defaults", "work_log_files"}
+                                                                                              "ui_defaults", "work_log_files", "display_formats"}
         self.lock_ttl = float(cfg.get("lock_ttl_seconds", LOCK_TTL_DEFAULT))
         self.refresh_sec = float(cfg.get("refresh_seconds", REFRESH_DEFAULT))
         root = Path(local_root) if local_root else app_env.local_root()
@@ -504,7 +505,7 @@ class MasterStore:
                 self._release_lock(token)
 
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
-    def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files")):
+    def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats")):
         shared = self.share_dir is not None
         out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
                "configured": str(self.configured_dir or ""), "override": self.override_path.exists(),

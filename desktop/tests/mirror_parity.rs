@@ -90,6 +90,17 @@ fn rust_mirrors_like_python() {
                 std::fs::remove_file(place(&s("file"))).unwrap();
                 Value::Null
             }
+            // DataRelay の公開の書きかけ（.<名前>.<番号>.incoming）。Python の筋書きと同じ名前
+            "mark" | "unmark" => {
+                let f = PathBuf::from(place(&s("file")));
+                let mark = f.with_file_name(format!(".{}.4242.incoming", f.file_name().unwrap().to_string_lossy()));
+                if s("do") == "mark" {
+                    std::fs::write(&mark, b"x").unwrap();
+                } else {
+                    std::fs::remove_file(&mark).unwrap();
+                }
+                Value::Null
+            }
             "refresh" => m.as_ref().unwrap().refresh(st["force"].as_bool().unwrap_or(false)),
             "read_path" => m.as_ref().unwrap().read_path().map(|p| json!(p.display().to_string())).unwrap_or(Value::Null),
             "source_info" => m.as_ref().unwrap().source_info(),

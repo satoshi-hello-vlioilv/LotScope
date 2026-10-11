@@ -92,8 +92,9 @@ class Api(unittest.TestCase):
         return next(i for i in c.get("/api/settings").get_json()["items"] if i["key"] == key)
 
     def lots(self, c):
+        """一覧のロット番号。写し直している途中（写しがまだ無い: kind=copying）は None。"""
         r = c.get("/api/lotlist").get_json()
-        return sorted(x["ロット番号"] for x in r["rows"])
+        return sorted(x["ロット番号"] for x in r["rows"]) if "rows" in r else None
 
     def test_save_switches_the_lot_list_without_restart(self):
         c = self.pc("PC-A")
@@ -101,7 +102,7 @@ class Api(unittest.TestCase):
         r = c.put("/api/settings/lot_list.source", json={"value": str(self.b), "base_rev": 0})
         self.assertEqual(r.status_code, 200, r.get_json())
         self.assertEqual(self.item(c, "lot_list.source")["source"], "master")
-        for _ in range(40):          # 背景の写し直しを待つ（写すまでは元を直接読む）
+        for _ in range(40):          # 背景の写し直しを待つ（写し終えるまでは「まだ写せていない」と答え、共有は直接読まない）
             if self.lots(c) == ["B0001", "B0002"]:
                 break
             time.sleep(0.1)

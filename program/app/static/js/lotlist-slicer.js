@@ -160,5 +160,14 @@
   function mount(h) { host = h; bind(); render(); }
   /** 一覧の元が替わった: 前の元の値・探した字を捨てて描き直す（値は次の refresh で読む） */
   function reset() { seq++; Object.keys(vals).forEach((k) => delete vals[k]); Object.keys(qs).forEach((k) => delete qs[k]); if (host) render(); }
-  window.LotListSlicer = { mount, refresh, filters, render, clearAll, reset };
+  /** 共有の書式（lotlist-formats.js）: 範囲 t のカードの並び（選んだ値は入れない）と、その置き換え（選んだ値は空から） */
+  const setupOf = (t) => (st.tables[t] || []).map((c) => ({ column: c.column, ...(c.key ? { key: c.key } : {}) }));
+  function setSetup(t, list) {
+    const cs = (Array.isArray(list) ? list : []).filter((c) => c && typeof c.column === "string" && c.column)
+      .map((c) => ({ column: c.column, key: String(c.key || ""), sel: [] }));
+    if (cs.length) st.tables[t] = cs; else delete st.tables[t];
+    save();
+    if (host && host.table() === t) render();
+  }
+  window.LotListSlicer = { mount, refresh, filters, render, clearAll, reset, setupOf, setSetup };
 })();

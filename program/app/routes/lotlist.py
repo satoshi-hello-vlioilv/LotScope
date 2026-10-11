@@ -25,10 +25,12 @@ def lotlist_plan():
     """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
     段取り: 読むファイル（写しがあれば写し）・既定の表・既定の件数・いつのデータか。"""
     m, ll = lot_mirror()
-    path = m.read_path()
-    if not path:
+    if not m.enabled:
         return None, error("ロット一覧の元ファイルが決まっていません。「マスタ管理」の「参照先」で元ファイルを入れてください。", 400,
                            source=m.source_info())
+    path = m.read_path()
+    if not path:      # 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す
+        return None, error(m.not_ready_text(), 503, "copying", source=m.source_info())
     return {"path": str(path), "table": ll.get("table", ""), "page_size": ll.get("page_size", 500), "source": m.source_info()}, None
 
 

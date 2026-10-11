@@ -53,7 +53,7 @@ class MirrorTests(Base):
         m = DbMirror("lot_list", self.share, self.cache)
         r = m.refresh()
         self.assertTrue(r["updated"], r)
-        self.assertEqual(r["how"], "backup")
+        self.assertEqual(r["how"], "copy")
         p = m.read_path()
         self.assertEqual(p.parent, self.cache)
         self.assertTrue(p.name.startswith("lot_list.g1"))
@@ -99,17 +99,19 @@ class MirrorTests(Base):
         info = m.source_info()
         self.assertTrue(info["mirrored"] and info["unreachable"])
 
-    def test_no_copy_yet_reads_source_directly(self):
+    def test_no_copy_yet_does_not_read_the_share(self):
+        # 共有を直接開くと、書き手（DataRelay）の入れ替えを止める。写しが無ければ読まず、理由を言う
         m = DbMirror("lot_list", self.share, self.cache)
-        self.assertEqual(m.read_path(), self.share)
+        self.assertIsNone(m.read_path())
         self.assertFalse(m.source_info()["mirrored"])
+        self.assertIn("まだ手元へ写せていません", m.not_ready_text())
 
     def test_repointed_source_does_not_use_old_copy(self):
         DbMirror("lot_list", self.share, self.cache).refresh()
         other = self.tmp / "other.sqlite3"
         make_db(other, ROWS[:1])
         m2 = DbMirror("lot_list", other, self.cache)
-        self.assertEqual(m2.read_path(), other)
+        self.assertIsNone(m2.read_path())
         self.assertFalse(m2.source_info()["mirrored"])
 
     def test_source_info_does_not_touch_share(self):
@@ -129,7 +131,7 @@ class PassiveMirrorTests(Base):
         p = DbMirror("lot_list", self.share, self.cache, passive=True)
         self.assertFalse(p.start(), "背景スレッドを起こさない")
         self.assertFalse(p.reconfigure(remote=str(self.share), interval_sec=30) and p._thread, "設定が変わっても起こさない")
-        self.assertEqual(p.read_path(), self.share, "写しが無ければ元を直接（待たない）")
+        self.assertIsNone(p.read_path(), "写しが無ければ読まない（待たない・共有を直接開かない）")
         DbMirror("lot_list", self.share, self.cache).refresh()       # ほかの係（Rust の代わり）が写した
         self.assertEqual(p.read_path().parent, self.cache, "台帳の写しを読む")
         self.assertTrue(p.source_info()["mirrored"])

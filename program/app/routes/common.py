@@ -100,3 +100,12 @@ def me():
 def roles_from(rows):
     """(ログインID, PC名) の組 → 登録上の区分、を答える関数（読み終えた権限の行を使う。表を何度も読みに行かない）。"""
     return lambda pairs: access.registered_roles(rows, pairs)
+
+
+def can_write(name):
+    """この PC・このログインが、マスタ name を書けるか（画面がボタンを出すかを決める。書くときは門番 routes/access.py も確かめる）。"""
+    try:
+        m = me()
+    except Exception:
+        return False
+    return not m["revoked"] and access.master_edit_can(m["flags"]["masterEdit"], "write", access.master_scope(name))
