@@ -10,6 +10,7 @@
 //!   <版>\<name>-<版>-windows.zip
 //! ```
 //! 置くときは `.<版>.placing-<pid>` へ写して指紋を確かめ直し、release.json を書いてから名前を変える（各 PC が置きかけを読まない）。
+//! 消すときは逆に、先に `.<版>.removing-<pid>` へ名前を変えてから中身を消す（各 PC が消しかけを読まない・版 3.19.0）。
 
 use crate::release::{self, Release, Scan, DISTRIBUTE, MARKER};
 use crate::update::{self, dist_root, extract_zip, read_json, sha256_file, validate_dist, write_json, Paths};
@@ -169,6 +170,32 @@ pub fn set_distributed(found: &Path, version: &str, app_id: &str, who: &Who) -> 
     Ok(json!({"version": version, "notes": notes, "entry": entry}))
 }
 
+/// 置いた版を消す（配っている版は消さない）。→ {version, removed, notes}
+/// 版のフォルダを `.<版>.removing-<pid>` に変えてから消す。名前を変えた時点で各 PC からは見えない（scan は「.」で始まる物を見ない）ので、
+/// 中身を消しきれなくても（BOX の同期・だれかが開いている）消しかけの版を取り込む PC は無い。残った物は理由を添えて言う。
+pub fn remove_version(found: &Path, version: &str, app_id: &str) -> Result<Value, String> {
+    let scan = release::scan(found, app_id);
+    if scan.distribute.as_ref().is_some_and(|d| d.version == version) {
+        return Err(format!("版 {version} は配っている版なので消せません。先にほかの版を配ってから消してください"));
+    }
+    let dirs: Vec<&Release> = scan.versions.iter().filter(|r| r.version == version).collect();
+    if dirs.is_empty() {
+        return Err(format!("版 {version} は置き場にありません（もう消したか、BOX の同期待ちかもしれません）"));
+    }
+    let (mut removed, mut notes) = (0, vec![]);
+    for r in dirs {
+        let parent = r.dir.parent().ok_or_else(|| format!("{} の上のフォルダが分かりません", r.dir.display()))?;
+        let gone = parent.join(format!(".{version}.removing-{}", std::process::id()));
+        update::rename_patiently(&r.dir, &gone)
+            .map_err(|e| format!("版 {version}（{}）を消せません（だれかが開いているかもしれません）: {e}", r.dir.display()))?;
+        removed += 1;
+        if let Err(e) = std::fs::remove_dir_all(&gone) {
+            notes.push(format!("各 PC からはもう見えませんが、{} を消しきれませんでした。あとで手で消してください: {e}", gone.display()));
+        }
+    }
+    Ok(json!({"version": version, "removed": removed, "notes": notes}))
+}
+
 /// 配布の画面の答え（GET /__desktop/release）。置き場をたどる（BOX では遅い）。
 pub fn view(found: &Path, adjusted: bool, source: &str, app_id: &str, name: &str, me: Value) -> Value {
     view_of(&release::scan(found, app_id), found, adjusted, source, name, me)
@@ -300,6 +327,28 @@ mod tests {
         assert_eq!(remembered_entry(&p), Some(rels.join("App")), "入口の置き場を控える");
         assert_eq!(read_json(&p.want()).unwrap()["version"], "3.10.0", "配る版を覚える");
         assert_eq!(install_from_entry(&p, &rels.join("App"), ID, &|_| {}).unwrap(), "3.10.0", "2 回目は写さない");
+        // 消す: 配っている版は消さない。ほかの版は消え、各 PC の一覧からも消える
+        assert!(remove_version(&rels, "3.10.0", ID).unwrap_err().contains("配っている版"), "配っている版は消さない");
+        let r = remove_version(&rels, "3.10.1", ID).unwrap();
+        assert_eq!((r["removed"].as_u64(), r["notes"].as_array().unwrap().len()), (Some(1), 0), "{r}");
+        assert!(!rels.join("App").join("3.10.1").exists(), "版のフォルダが消える");
+        let left: Vec<_> = std::fs::read_dir(rels.join("App")).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(left.iter().all(|n| !n.to_string_lossy().contains("removing")), "消しかけを残さない: {left:?}");
+        assert_eq!(release::scan(&rels, ID).by_version().len(), 1);
+        assert!(remove_version(&rels, "3.10.1", ID).unwrap_err().contains("ありません"), "無い版は断る");
+        assert_eq!(read_json(&rels.join("App").join(DISTRIBUTE)).unwrap()["version"], "3.10.0", "配る版はそのまま");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_half_removed_version_is_not_seen_by_any_pc() {
+        let d = tmp("half");
+        let rels = d.join("Releases");
+        let dir = rels.join("App").join(".3.10.1.removing-1");
+        std::fs::create_dir_all(&dir).unwrap();
+        let rel = json!({"schema": 1, "app_id": ID, "name": "App", "version": "3.10.1", "zip": "a.zip", "sha256": "a".repeat(64), "exe": "App.exe"});
+        std::fs::write(dir.join(MARKER), serde_json::to_vec(&rel).unwrap()).unwrap();
+        assert!(release::scan(&rels, ID).versions.is_empty(), "消しかけ（「.」で始まる名前）は取り込まない");
         let _ = std::fs::remove_dir_all(&d);
     }
 }

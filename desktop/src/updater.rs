@@ -272,6 +272,17 @@ impl Updater {
         Ok(r)
     }
 
+    /// 置いた版を消す（POST /__desktop/release/remove）。配っている版は消さない。
+    pub fn remove(&self, settings: &Value, version: &str) -> Result<Value, (u16, String)> {
+        if settings["who"]["canRelease"] != true {
+            return Err((403, "版を消せるのは、開発者・メンテナンス者だけです（切断中の PC も消せません）。".into()));
+        }
+        let (found, _) = release::locate_source(settings["source"].as_str().unwrap_or("")).map_err(|e| (400, e))?;
+        let r = distribute::remove_version(&found, version, &brand().app_id).map_err(|e| (400, e))?;
+        self.wake();
+        Ok(r)
+    }
+
     /// 参照先の「確かめる」（この PC での見え方で探し、見つけた版を言う）。
     pub fn probe(value: &str) -> Value {
         let b = brand();

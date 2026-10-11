@@ -878,7 +878,8 @@ function paintRelease(d, freshness) {
     const tags = [v.version === cur ? chip("配っている", "c-on") : "", v.version === prev ? chip("前に配った", "c-plain") : "",
       v.version === me.current ? chip("この PC", "c-me") : ""].join("");
     const act = me.canRelease && !busy && v.version !== cur
-      ? `<button type="button" class="pz-btn${cur && cmpVer(v.version, cur) < 0 ? "" : " dz-go"}" data-dist="${escapeHtml(v.version)}">${cur && cmpVer(v.version, cur) < 0 ? "この版に戻す" : "この版を配る"}</button>` : "";
+      ? `<button type="button" class="pz-btn${cur && cmpVer(v.version, cur) < 0 ? "" : " dz-go"}" data-dist="${escapeHtml(v.version)}">${cur && cmpVer(v.version, cur) < 0 ? "この版に戻す" : "この版を配る"}</button>`
+        + `<button type="button" class="pz-btn dz-rm" data-remove="${escapeHtml(v.version)}" title="置き場からこの版を消します（配っている版は消せません）">消す</button>` : "";
     return `<tr class="${v.version === cur ? "is-live" : ""}"><td><b class="pz-ver">${escapeHtml(v.version)}</b></td><td>${tags}</td>
       <td>${escapeHtml(stamp(v.placedAt) || "-")} ${escapeHtml([v.placedPc, v.placedBy].filter(Boolean).join("／"))}</td>
       <td><span class="m-ident">${escapeHtml(v.source || v.zip || "-")}</span></td><td class="num">${MB(v.bytes)}</td><td class="pz-acts">${act}</td></tr>`;
@@ -894,6 +895,7 @@ function paintRelease(d, freshness) {
   const zip = $("#dzZip"); if (zip) zip.onchange = () => { placeRelease(zip.files && zip.files[0]); zip.value = ""; };
   const copy = $("#dzCopy"); if (copy) copy.onclick = () => navigator.clipboard.writeText(d.entry.path).then(() => { copy.textContent = "コピーしました"; });
   box.querySelectorAll("[data-dist]").forEach((b) => { b.onclick = () => distributeRelease(b.dataset.dist, d); });
+  box.querySelectorAll("[data-remove]").forEach((b) => { b.onclick = () => armRemove(b); });
   bindReleasePlace(d);
   paintReleaseProgress();
 }
@@ -973,11 +975,8 @@ function placeTree(d, a, pl, sep) {
   const root = (path, items) => `<ul class="dz-t-root"><li>📁 ${escapeHtml(path || "（場所）")}<ul>${items}</ul></li></ul>`;
   return same ? root(newParent, oldLi + newLi) : (d.found ? root(curParent, oldLi) : "") + root(newParent, newLi);
 }
+/* 置き場を変える。確かめない（版 3.19.0）: 押す前に、変えたあとのフォルダの木と写す量を出していて、前の置き場は消さずに残す */
 async function moveReleasePlace(d, a, pl, say) {
-  const what = pl.mode === "copy" ? `いまの置き場（${d.found}）を写して、新しい置き場（${pl.dest}）に変えます。\n写すもの: ${pl.files} ファイル・${MB(pl.bytes)}（前の置き場は消さずに残します）`
-    : `新しい置き場（${pl.dest}）に切り替えます。` + (pl.mode === "empty" ? "\n新しい置き場に版を置いて配るまで、各 PC はいまの版のまま開きます。" : "");
-  if (!confirm(`${what}\n\n参照先の「更新の置き場」を書き換えるので、全員の PC が次に確かめたとき（起動・30 分ごと）から新しい置き場を見ます。`
-    + "新しい PC へ渡す入口のアドレスも変わります。よろしいですか？")) return;
   const go = $("#dzPlGo"); go.disabled = true;
   const r = await masterRequest("/api/release/place/move", TPA.json("POST", a));
   if (!r.ok) { say("ng", "✕ " + escapeHtml(r.data.error || "変えられませんでした。")); go.disabled = false; return; }
@@ -1084,10 +1083,8 @@ function masterPlaceTree(cur, a, pl, sep) {
   const root = (path, items) => `<ul class="dz-t-root"><li>📁 ${escapeHtml(path || "（場所）")}<ul>${items}</ul></li></ul>`;
   return same ? root(newParent, oldLi + newLi) : (cur ? root(curParent, oldLi) : "") + root(newParent, newLi);
 }
+/* 確かめない（版 3.19.0）: 押す前に変えたあとの木を出していて、前の置き場は消さずに残す */
 async function moveMasterPlace(cur, a, pl, say) {
-  const what = pl.mode === "switch" ? `新しい置き場（${pl.dest}）に切り替えます。その置き場にあるマスタを使います。`
-    : `${cur ? `いまの置き場（${cur}）` : "この PC"}のマスタを写して、新しい置き場（${pl.dest}）に変えます。\n写すもの: ${pl.files} ファイル（前の置き場は消さずに残します）`;
-  if (!confirm(`${what}\n\nこの PC はすぐに、ほかの PC はマスタを読みに行くついでに（数秒ごと）新しい置き場を見ます。よろしいですか？`)) return;
   const go = $("#mpGo"); go.disabled = true;
   say("wait", pl.mode === "switch" ? "切り替えています…" : "写しています…");
   const r = await masterRequest("/api/masters/place/move", TPA.json("POST", a));
@@ -1137,11 +1134,9 @@ async function placeRelease(file) {
   await renderRelease({ fresh: true });
   releaseNotice(...msg);
 }
+/* 配る版を決める・戻す。確かめない（版 3.19.0）: 前の版へ戻すのも、同じ一覧で選び直すだけ */
 async function distributeRelease(version, d) {
   const cur = d.distributed && d.distributed.version, back = cur && cmpVer(version, cur) < 0;
-  const ok = confirm(`版 ${version} を${back ? "配る版に戻します" : "配ります"}。${cur ? `（いま配っている版は ${cur}）` : ""}\n`
-    + "全員の PC が、次に確かめたとき（起動・30 分ごと）に取り込み、開き直したときにそろいます。前の版へ戻すのも、ここで選び直すだけです。");
-  if (!ok) return;
   // 配るのは置き場の ZIP の指紋を確かめ、配る入口（exe）を取り出して置く（BOX では数十秒）。書き換えるので裏へは回さない
   const w = TPA.waiting({ title: `版 ${version} を${back ? "配る版に戻しています" : "配っています"}`, subject: version, from: d.found || "",
     now: "置き場の ZIP の指紋を確かめ、配る入口（exe）を置いています…",
@@ -1150,7 +1145,29 @@ async function distributeRelease(version, d) {
   w.done();
   await renderRelease({ fresh: true });
   if (!r.ok) { releaseNotice("ng", "✕ " + (r.data.error || "配る版を決められませんでした。")); return; }
-  releaseNotice((r.data.notes || []).length ? "ng" : "ok", `✓ 配る版を ${r.data.version} にしました。` + (r.data.notes || []).map((n) => `\n${n}`).join(""));
+  releaseNotice((r.data.notes || []).length ? "ng" : "ok", `✓ 配る版を ${r.data.version} にしました${cur ? `（前は ${cur}）` : ""}。`
+    + "全員の PC が次に確かめたとき（起動・30 分ごと）に取り込み、開き直したときにそろいます。"
+    + (cur ? `戻すときは、一覧の ${cur} の「この版に戻す」を押すだけです。` : "") + (r.data.notes || []).map((n) => `\n${n}`).join(""));
+}
+/* 版を消す。確かめの窓は出さず、その場の 2 回押しで確かめる（1 回目でボタンが「もう一度押すと消す」に変わり、4 秒で戻る）。
+   消している間は、その行を打ち消し線と「消しています…」にする（待ちの窓で表を隠さない・2026-10-release-remove の K4）。
+   消した版は GitHub Releases の ZIP からもう一度置ける。配っている版にはボタンを出さない（窓も断る） */
+const REMOVE_ARM_MS = 4000;
+function armRemove(btn) {
+  if (btn.classList.contains("is-armed")) { removeRelease(btn); return; }
+  btn.classList.add("is-armed");
+  btn.textContent = "もう一度押すと消す";
+  setTimeout(() => { if (btn.isConnected) { btn.classList.remove("is-armed"); btn.textContent = "消す"; } }, REMOVE_ARM_MS);
+}
+async function removeRelease(btn) {
+  const version = btn.dataset.remove, row = btn.closest("tr");
+  row.classList.add("is-removing");
+  btn.closest("td").innerHTML = '<span class="dz-removing"><i class="wait-spin" aria-hidden="true"></i>消しています…</span>';
+  const r = await masterRequest("/__desktop/release/remove", TPA.json("POST", { version }));
+  await renderRelease({ fresh: true });
+  if (!r.ok) { releaseNotice("ng", "✕ " + (r.data.error || "版を消せませんでした。")); return; }
+  releaseNotice((r.data.notes || []).length ? "ng" : "ok", `✓ 版 ${version} を置き場から消しました。もう一度使うときは、GitHub Releases の ZIP から置き直せます。`
+    + (r.data.notes || []).map((n) => `\n${n}`).join(""));
 }
 function releaseNotice(cls, text) {
   const put = document.querySelector("#masterSettings .dz-put");

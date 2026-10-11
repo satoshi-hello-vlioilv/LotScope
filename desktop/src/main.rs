@@ -177,6 +177,11 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             let version = v["version"].as_str().unwrap_or("").to_string();
             Some(reply_of(update_settings(backend).map_err(|e| (503, e)).and_then(|s| upd.distribute(&s, &version))))
         }
+        ("POST", "/__desktop/release/remove") => {
+            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+            let version = v["version"].as_str().unwrap_or("").to_string();
+            Some(reply_of(update_settings(backend).map_err(|e| (503, e)).and_then(|s| upd.remove(&s, &version))))
+        }
         ("POST", "/__desktop/update/apply") => {
             if upd.status()["state"] != "ready" || !upd.installed {
                 return Some(Reply {
@@ -189,6 +194,17 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
                 Ok(()) => json_reply(&json!({"ok": true})),
                 Err(e) => Reply { status: 500, ..json_reply(&json!({"error": e})) },
             })
+        }
+        // 版が混ざった画面が、押させずに開き直す（入口から開き直す。この PC の app が無い開発の形では開き直せない）
+        ("POST", "/__desktop/restart") => {
+            if !upd.installed {
+                return Some(Reply {
+                    status: 409,
+                    ..json_reply(&json!({"error": "この PC のアプリ（app）から開いていないので、開き直せません。"}))
+                });
+            }
+            log("RESTART 版が混ざったので開き直します");
+            Some(reply_of(relaunch(&app, &upd.paths).map(|_| json!({"ok": true})).map_err(|e| (500, e))))
         }
         // 書き出したファイルの入ったフォルダを開き、そのファイルを選んだ状態にする（保存の案内の「フォルダを開く」）
         ("POST", "/__desktop/reveal") => {
@@ -277,10 +293,32 @@ fn reply_of(r: Result<serde_json::Value, (u16, String)>) -> Reply {
     }
 }
 
-/// ショートカットの名前（いまのアプリ名と、名前の歴史: 版 3.5.0 までのアプリ名 TransferPitchAnalyzer）。
+/// ショートカットの名前（いまのアプリ名と、名前の歴史: 版 3.5.0 までのアプリ名 TransferPitchAnalyzer）とアイコン。
 fn names() -> install::Names<'static> {
     let b = brand();
-    install::Names { name: &b.name, exe: &b.exe, description: &b.subtitle, legacy: &["TransferPitchAnalyzer"] }
+    install::Names {
+        name: &b.name,
+        exe: &b.exe,
+        description: &b.subtitle,
+        legacy: &["TransferPitchAnalyzer"],
+        icon: shortcut_icon().clone(),
+    }
+}
+
+/// exe に入れたアイコンの絵（build.rs が program/app/app_icon.py で描く）。
+const ICON: &[u8] = include_bytes!("../icons/icon.ico");
+
+/// ショートカットが指すアイコン: 作業場所の icon\<絵の指紋>.ico（絵が変わると場所も変わり、Windows が古い絵を出し続けない）。
+/// 書けなければ、これまでどおり app の exe の中の絵。
+fn shortcut_icon() -> &'static std::path::PathBuf {
+    static I: OnceLock<std::path::PathBuf> = OnceLock::new();
+    I.get_or_init(|| {
+        let p = Paths::new(&locate::local_root());
+        install::icon_file(&p, ICON).unwrap_or_else(|e| {
+            log(&format!("SHORTCUT アイコンを書き出せません（exe の絵を使います）: {e}"));
+            p.app().join(&brand().exe)
+        })
+    })
 }
 
 fn json_reply(v: &serde_json::Value) -> Reply {
@@ -478,10 +516,10 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     };
     if installed {
         update::confirm(&paths);
-        // ショートカットの指す先・作業フォルダを直す（共有の exe を指す物・前の名前の物。消された物は作り直さない）
+        // ショートカットの指す先・作業フォルダ・アイコンを直す（共有の exe を指す物・前の名前の物・前の絵の物。消された物は作り直さない）
         std::thread::spawn(|| {
             let p = Paths::new(&locate::local_root());
-            for f in install::maintain(&p, &lnk::places(), &lnk::OsLinks, &names()) {
+            for f in install::maintain(&p, &lnk::places(), &lnk::pinned(), &lnk::OsLinks, &names()) {
                 log(&format!("SHORTCUT {f}"));
             }
         });

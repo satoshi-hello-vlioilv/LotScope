@@ -11,7 +11,8 @@
 /* ---------------- 版が混ざっていないか（最初に確かめる） ----------------
    前から動いていた古いサーバーの古い画面（HTML）に、入れ替えた新しい JS が読み込まれると、画面が途中で止まって真っ白になる
    （2026-09-29 の不具合）。画面の指紋（<meta name="tpa-build">）と、この JS を読んだ URL の指紋（?v=）が違えば、
-   先へ進まず、何が起きたかと直し方（再起動）を出す。動いているあいだに program を入れ替えると起こり得る。 */
+   先へ進まず、窓に開き直してもらう（版 3.19.0 から押させない）。開き直せない（窓の外・開発）ときだけ、直し方を出す。
+   動いているあいだに program を入れ替えると起こり得る。 */
 /* アプリの名前（app/brand.json → 画面の <meta name="tpa-app">）。案内の文で使う（名前をじかに書かない） */
 const APP = (() => {
   const m = document.querySelector('meta[name="tpa-app"]');
@@ -26,19 +27,19 @@ const APP_EXE = APP.exe || "アプリの exe";
   // 見た目はこの場に書く（版が混ざったときは、読み込まれた CSS がこの JS と合っている保証が無い）
   const box = document.createElement("div");
   box.id = "staleBuild";
-  box.setAttribute("role", "alertdialog");
+  box.setAttribute("role", "status");
   box.style.cssText = "position:fixed;inset:0;z-index:2000;display:grid;place-items:center;background:rgba(15,31,46,.45);font-family:'Segoe UI','Yu Gothic UI',Meiryo,sans-serif";
   box.innerHTML = `<div style="width:min(520px,92vw);background:#fff;border-radius:14px;padding:20px 22px;box-shadow:0 18px 50px rgba(10,30,50,.3);color:#1c2b36;line-height:1.7">
-      <h3 style="margin:0 0 8px;font-size:18px">アプリの版が混ざっています</h3>
-      <p style="margin:0 0 14px;font-size:14px">前から動いていたアプリが、新しく入れ替えたプログラムと一緒に使われています。
-        このままでは画面が正しく動きません。<b>「アプリを再起動する」</b>を押すとアプリが閉じるので、<b>${APP_EXE}</b> で開き直してください。</p>
-      <div style="text-align:right"><button id="staleRestart" style="height:34px;border:0;border-radius:8px;background:#2b5f79;color:#fff;font-weight:700;padding:0 18px;cursor:pointer">アプリを再起動する</button></div>
-      <p id="staleMsg" style="margin:10px 0 0;font-size:13px;color:#5a6b7c"></p></div>`;
+      <h3 style="margin:0 0 8px;font-size:18px">新しい版で開き直しています…</h3>
+      <p id="staleMsg" style="margin:0;font-size:14px">前から動いていたアプリと、入れ替えたプログラムが混ざったので、アプリが自分で開き直します。</p></div>`;
   document.body.appendChild(box);
-  document.getElementById("staleRestart").onclick = async () => {
-    try { await fetch("/api/shutdown", { method: "POST" }); } catch (_) { /* 止まれば届かない */ }
-    document.getElementById("staleMsg").textContent = `閉じない場合は、窓を閉じてから ${APP_EXE} で開き直してください。`;
-  };
+  const manual = () => { document.getElementById("staleMsg").textContent = `自分で開き直せませんでした。窓を閉じてから ${APP_EXE} で開き直してください。`; };
+  // 歯止め: 同じ食い違いで 2 分のうちにもう一度来たら（開き直しても直らない）、繰り返さずに直し方を出す
+  const KEY = "tpa.staleRestart", pair = `${meta ? meta.content : ""}|${mine}`;
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(KEY) || "null"); localStorage.setItem(KEY, JSON.stringify({ pair, at: Date.now() })); } catch (_) { /* 覚えられなくても開き直す */ }
+  if (last && last.pair === pair && Date.now() - last.at < 120000) manual();
+  else fetch("/__desktop/restart", { method: "POST" }).then((r) => { if (!r.ok) throw new Error(); }).catch(manual);
   throw new Error("page/script build mismatch: page=" + (meta ? meta.content : "(none)") + " script=" + mine);
 })();
 
@@ -267,12 +268,13 @@ function paintBeat(d) {
 }
 function paintVersionNotice() {
   const v = state.versionNotice, u = state.update, btn = $("#verNew");
+  if (state.quitting) return;              // 開き直している間は札を描き直さない（「開き直しています…」のまま）
   const ready = u && u.state === "ready", outdated = v && v.outdated, back = ready && u.direction === "down";
   btn.classList.toggle("hidden", !(ready || outdated));
   btn.classList.toggle("is-ready", !!ready);
   btn.textContent = back ? `配る版 ${u.ready} に戻す` : ready ? `更新あり ${u.ready}` : v && v.distributed ? `配る版 ${v.latestVersion}` : "新しい版あり";
-  btn.title = back ? `配る版が ${u.ready} に戻されました（取り込み済み）。押すと「${u.ready} で開き直す」`
-    : ready ? `新しい版 ${u.ready} を取り込みました。押すと「更新して開き直す」（開き直すまでは今の版のまま）`
+  btn.title = back ? `配る版が ${u.ready} に戻されました（取り込み済み）。押すとすぐ ${u.ready} で開き直します`
+    : ready ? `新しい版 ${u.ready} を取り込みました。押すとすぐ新しい版で開き直します（押すまでは今の版のまま）`
     : outdated ? (v.distributed ? `配る版は ${v.latestVersion}・いまの版は ${v.myVersion} です。押すと更新のこと`
       : `ほかの人が新しい版（${v.latestVersion}）を使っています。いまの版は ${v.myVersion} です。押すと更新のしかた`) : "";
   if (!$("#changelogModal").classList.contains("hidden")) paintUpdateBox();
@@ -336,11 +338,11 @@ function paintUpdateBox() {
   if (!rows.length) return;
   box.className = `cl-update tone-${t ? t.tone : "info"}`;
   box.innerHTML = rows.join("");
-  if (t && t.act) $("#clApply").onclick = applyUpdate;
+  if (t && t.act) $("#clApply").onclick = () => applyUpdate();
   if (noLink) $("#clShortcut").onclick = () => { closeChangelog(); openShortcut(); };
 }
-async function applyUpdate() {
-  const btn = $("#clApply"), label = btn.textContent;
+async function applyUpdate(btn = $("#clApply")) {
+  const label = btn.textContent;
   btn.disabled = true; btn.textContent = "開き直しています…";
   TPA.saveUiState();
   try {
@@ -480,7 +482,13 @@ async function openChangelog() {
   $("#clClose").focus();
 }
 $("#verBadge").onclick = openChangelog;
-$("#verNew").onclick = openChangelog;
+$("#verNew").onclick = onVerNew;
+/* 見出しの版の札。取り込み済みの版があれば、押すだけで開き直す（更新履歴の窓を挟まない・版 3.19.0）。
+   まだ取り込めていない・古いだけのときは、何をすればよいかを更新履歴の窓で言う */
+function onVerNew() {
+  if (state.update && state.update.state === "ready") applyUpdate($("#verNew"));
+  else openChangelog();
+}
 const closeChangelog = () => $("#changelogModal").classList.add("hidden");
 $("#clClose").onclick = closeChangelog;
 TPA.layer($("#changelogModal"), closeChangelog);
@@ -1349,9 +1357,9 @@ $("#exportCsv").onclick = () => {
 };
 
 /* ---------------- 終了 ----------------
-   窓（Rust）が /api/shutdown に答えてから自分で閉じる。中身（Python）は入力が閉じて自分で終わる。 */
+   窓（Rust）が /api/shutdown に答えてから自分で閉じる。中身（Python）は入力が閉じて自分で終わる。
+   確かめない（版 3.19.0）: 画面の状態は閉じる前に覚え、次に開けば同じ所から続けられるので、取り返しがつく。 */
 $("#quitBtn").onclick = async () => {
-  if (!confirm("アプリを終了します。よろしいですか？")) return;
   state.quitting = true;
   if (hbTimer) clearInterval(hbTimer);
   TPA.saveUiState();
