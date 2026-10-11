@@ -116,11 +116,22 @@
       ok("一覧の突き合わせ: 元ファイルが無いので比べない（CI は試験用の品質データで比べる）", true, ll.text.slice(0, 120));
     }
 
+    // 10b) 作業実績の設備（Python）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す（画面は案内を出す）
+    const wl = await get("/api/worklog/files");
+    let wlj = {}; try { wlj = JSON.parse(wl.text); } catch (_) { /* 下で言う */ }
+    ok("作業実績の設備の問い合わせが答える（届かなければ理由つき）", wl.r.ok && Array.isArray(wlj.items) && (wlj.items.length > 0 || !!wlj.error || Array.isArray(wlj.new)),
+       `設備 ${(wlj.items || []).length} 台・未登録 ${(wlj.new || []).length}・${wlj.error || "フォルダに届いた"}`);
+
     // 11) 配布の画面の係（窓）: 答えが返る・版を置けない人は理由つきで断られる（だれが置けるかは Python の権限）
     const rel = await get("/__desktop/release");
     let relj = {}; try { relj = JSON.parse(rel.text); } catch (_) { /* 下で言う */ }
     ok("配布の画面の係が答える（置き場に届くか・権限）", rel.by === "shell" && rel.r.ok && "reachable" in relj && relj.me,
        `${rel.r.status} reachable=${relj.reachable} canRelease=${(relj.me || {}).canRelease} ${relj.why || ""}`);
+    // 覚えた答え（cached=1）: 上でたどった答えを、置き場をたどり直さずに返す（タブを開いたときに待たせない）
+    const relT0 = performance.now(), relc = await get("/__desktop/release?cached=1"), relMs = performance.now() - relT0;
+    let relcj = {}; try { relcj = JSON.parse(relc.text); } catch (_) { /* 下で言う */ }
+    ok("配布の画面: 覚えた答えをすぐ返す（cached=1）", relc.r.ok && relcj.cached === true && !!relcj.me && relcj.reachable === relj.reachable,
+       `${relMs.toFixed(0)}ms cached=${relcj.cached} checkedAt=${relcj.checkedAt}`);
     if (relj.me && !relj.me.canRelease) {
       const put = await get("/__desktop/release/place?name=x.zip", { method: "POST", headers: { "Content-Type": "application/zip" }, body: new Uint8Array([80, 75]) });
       ok("版を置けない人は理由つきで断られる", put.r.status === 403 && /開発者・メンテナンス者/.test(put.text), `${put.r.status} ${put.text.slice(0, 80)}`);

@@ -3,7 +3,7 @@
 // 窓の代わりの開発用サーバー（ui_server.py。試験用の品質データ 1500 行）を起こし、Playwright の Chromium（WebView2 と同じ系統）で、
 // 利用者の画面と同じ大きさ（2160×1440・表示倍率 125% → 1728×1152）の頁を開く。
 // 窓だけが答える /__desktop/*（ショートカットの様子など）は作り物で答える（デスクトップのショートカットだけが欠けた PC）。
-// 状態（STATES）は、異常ロット一覧 → … → 更新履歴 → 表示列の設定 → マスタ管理 の順に 1 つの頁で進める。
+// 状態（STATES）は、異常ロット一覧 → … → 作業実績 → … → 更新履歴 → 表示列の設定 → マスタ管理 → 待ちの窓 の順に 1 つの頁で進める。
 // 起動画面（desktop/splash。窓が出す）は別の頁で、窓の代わりに splash.brand・step・fail を呼んで進める（SPLASH_STATES）。
 
 import { spawn, execSync } from "node:child_process";
@@ -107,6 +107,8 @@ export const STATES = [
   ["viewmenu", async (p) => { await p.click("#llViewBtn"); await sleep(400); }, "[data-next], #llLvAdd"],
   ["card", async (p) => { await closeAll(p); await p.dblclick("#llBody tr[data-i] td:nth-child(3)"); await sleep(600); }, "[data-next], .lk-pin"],
   ["calc", async (p) => { await closeAll(p); await p.click("#tabCalc"); await sleep(500); }, "[data-next], #query"],
+  // 作業実績（設備ごとの実績。設備を札で替える）: 開いた直後（前に見た設備か、読める最初の設備）
+  ["worklog", async (p) => { await closeAll(p); await p.click("#tabWork"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(700); }, "[data-next], #llEquipBar [aria-selected=false]"],
   ["appmenu", async (p) => { await p.click("#appBtn"); await sleep(500); }, "[data-next], #amShortcut"],
   ["changelog", async (p) => { await closeAll(p); await p.click("#verBadge"); await sleep(600); }, "[data-next], #clClose"],
   // スライサー（設備で CR1・L-1 を選び、不良名を足したところ）と、表示の設定（道具の行の「表示の設定 ▾」）
@@ -120,10 +122,18 @@ export const STATES = [
   // マスタ管理: 設備・参照先・アクセス権限・利用状況・アプリの配布（タブは DOM で押す。区分ごとにタブを隠す案でも同じ所へ行けるように）
   ["master", async (p) => { await closeAll(p); await p.click("#masterBtn"); await sleep(900); }, "[data-next], #masterAddBtn"],
   ["master-paths", async (p) => { await tab(p, "paths"); await sleep(900); }, "[data-next], #masterSettings button"],
+  ["master-worklog", async (p) => { await tab(p, "worklog"); await sleep(900); }, "[data-next], #wlScan"],
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   ["master-access", async (p) => { await tab(p, "access"); await sleep(800); }, "[data-next], #masterAddBtn"],
   ["master-presence", async (p) => { await tab(p, "presence"); await sleep(800); }, "[data-next], #masterSettings button"],
   ["master-release", async (p) => { await tab(p, "release"); await sleep(900); }, "[data-next], #masterSettings button"],
+  // 待ちの窓（TPA.waiting）: 配布の置き場を初めて読むときと同じ文で、すぐ出す
+  ["waiting", async (p) => {
+    await p.evaluate(() => { window.__wait = TPA.waiting({ title: "アプリの配布の置き場を読んでいます", from: "C:\\boxdrive\\Box\\(D)_仕上課\\90_アプリ開発\\90_Releases",
+      now: "置き場のフォルダをたどり、置いてある版（release.json）を集めています…", background: true, delay: 0,
+      note: "BOX・共有の置き場は、読むのに数秒〜数十秒かかることがあります。2 回目からは前に読んだ内容をすぐ出し、裏で確かめ直します。" }); });
+    await sleep(2300);
+  }, "[data-next], .tpa-wait button"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

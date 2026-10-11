@@ -169,10 +169,14 @@ pub fn set_distributed(found: &Path, version: &str, app_id: &str, who: &Who) -> 
     Ok(json!({"version": version, "notes": notes, "entry": entry}))
 }
 
-/// 配布の画面の答え（GET /__desktop/release）。
+/// 配布の画面の答え（GET /__desktop/release）。置き場をたどる（BOX では遅い）。
 pub fn view(found: &Path, adjusted: bool, source: &str, app_id: &str, name: &str, me: Value) -> Value {
-    let scan = release::scan(found, app_id);
-    let folder = app_folder(found, &scan, name);
+    view_of(&release::scan(found, app_id), found, adjusted, source, name, me)
+}
+
+/// たどり終えた置き場（scan）から、配布の画面の答えを作る（裏の確認がたどった結果を、画面へもそのまま使えるように分けてある）。
+pub fn view_of(scan: &Scan, found: &Path, adjusted: bool, source: &str, name: &str, me: Value) -> Value {
+    let folder = app_folder(found, scan, name);
     let versions: Vec<Value> = scan
         .by_version()
         .iter()

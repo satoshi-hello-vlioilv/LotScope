@@ -10,7 +10,7 @@
 """
 from pathlib import Path
 
-from ..services import equipment_names
+from ..services import equipment_names, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
 
@@ -37,6 +37,8 @@ SPECS = {
     "path_settings": {"fields": ["項目", "値"], "renamed": {}, "unique": "項目"},
     # アクセス権限（services/access.py）。ログインID・PC名の組は1行だけ（_check_row）
     "access_permissions": {"fields": ["ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考"], "renamed": {}, "unique": None},
+    # 作業実績の設備（services/work_log.py）。ファイルごとに1行。表示ルールは変わらないキーに結ぶ
+    "work_log_files": {"fields": work_log.FIELDS, "renamed": {}, "unique": "キー"},
 }
 
 
@@ -229,6 +231,52 @@ class MasterRepository:
             row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
             return dict(row)
         return self.store.write("path_settings", mutate)
+
+    # -------------------------------------------------- 作業実績の設備（中身の決まりは services/work_log.py）
+    def work_logs(self):
+        return self._list("work_log_files")
+
+    def work_log_update(self, item_id, data, base_rev=None):
+        """設備名・表示・表・備考と、結ぶファイル（ファイル名・ファイルID）を直す。キーは変えない（表示ルールが離れるため）。"""
+        data = {k: v for k, v in data.items() if k in work_log.FIELDS and k != "キー"}
+        if "表示" in data:
+            data["表示"] = "無" if str(data["表示"]).strip() == "無" else "有"
+        if "設備名" in data and not _clean(data["設備名"]):
+            raise InvalidRow("設備名を入れてください。")
+        return self._update("work_log_files", item_id, data, base_rev)
+
+    def work_log_delete(self, item_id, base_rev=None):
+        self._delete("work_log_files", item_id, base_rev)
+
+    def work_log_sync(self, found):
+        """フォルダで見つけたファイルを登録に当てる（1回の錠の中で）: 名前が変わったファイルは登録の名前を書き換え、
+        ファイルID の無い行には入れ、新しいファイルは行を足す（表示は "有"・設備名はファイル名の * の所）。見つからない行は消さない。
+        → {"added": [行], "renamed": [{id, from, to}], "missing": [行]}"""
+        spec = SPECS["work_log_files"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            m = work_log.match(rows, found)
+            out = {"added": [], "renamed": [], "missing": [dict(r) for r in m["missing"]]}
+            for r, f in m["linked"] + m["renamed"]:
+                changed = {}
+                if r.get("ファイル名") != f["file"]:
+                    changed["ファイル名"] = f["file"]
+                    out["renamed"].append({"id": r.get("id"), "from": r.get("ファイル名"), "to": f["file"]})
+                if f["fid"] and r.get("ファイルID") != f["fid"]:
+                    changed["ファイルID"] = f["fid"]
+                if not r.get("キー"):
+                    changed["キー"] = work_log.new_key()
+                if changed:
+                    r.update(changed)
+                    r.update(rev=int(r.get("rev", 1)) + 1, **stamp)
+            for f in m["new"]:
+                row = {"id": next_id(rows), "キー": work_log.new_key(), "設備名": f["equipment"], "ファイル名": f["file"],
+                       "ファイルID": f["fid"], "表示": "有", "表": "", "備考": "", "rev": 1, **stamp}
+                rows.append(row)
+                out["added"].append(dict(row))
+            return out
+        return self.store.write("work_log_files", mutate)
 
     # -------------------------------------------------- ロールマスタ
     def rolls(self):

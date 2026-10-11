@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """アプリのアイコン（app/app_icon.py。desktop/build.rs が作るたびに .ico を書き出す）。
 
-評価の物差し: Windows が読める .ico（大きさごとの PNG）・角は透ける・どの大きさでも欠点（赤）とピッチの線（アンバー）が残る。
+評価の物差し: Windows が読める .ico（大きさごとの PNG）・角は透ける・どの大きさでも山の頭の欠点（赤）・ピッチの線（アンバー）・
+青緑の地が残る（16px で赤とアンバーが混ざって濁らない）。
 """
 import struct
 import unittest
@@ -41,15 +42,19 @@ class Icon(unittest.TestCase):
             self.assertEqual(decode(png)[:2], (size, size))
 
     def test_corners_are_clear_and_marks_survive(self):
-        red, amber = (0xd6, 0x2c, 0x1a), (0xe6, 0xa5, 0x2e)
-        for size in (16, 32, 256):
+        red, amber = (0xe0, 0x41, 0x2c), (0xe6, 0xa5, 0x2e)
+        for size in (16, 24, 32, 256):
             _, _, rows = decode(app_icon.png(size))
-            px = lambda x, y: tuple(rows[int(y * size)][int(x * size) * 4: int(x * size) * 4 + 4])   # noqa: E731
-            self.assertEqual(px(0, 0)[3], 0, f"{size}px: 角は透ける（角丸）")
-            self.assertTrue(near(px(.5, .62), red), f"{size}px: 真ん中の欠点は赤 {px(.5, .62)}")
-            self.assertTrue(near(px(.5, app_icon.BAR), amber), f"{size}px: ピッチの線はアンバー {px(.5, app_icon.BAR)}")
-            self.assertTrue(near(px(app_icon.LEFT, app_icon.BAR - .06), amber), f"{size}px: 寸法線の端もアンバー")
 
+            def px(x, y):
+                i, j = min(size - 1, int(x * size)), min(size - 1, int(y * size))
+                return tuple(rows[j][i * 4: i * 4 + 4])
+            self.assertEqual(px(0, 0)[3], 0, f"{size}px: 角は透ける（角丸）")
+            for x in app_icon.PEAKS:
+                self.assertTrue(near(px(x, app_icon.TOP), red, 90), f"{size}px: 山の頭（{x}）の欠点は赤 {px(x, app_icon.TOP)}")
+            self.assertTrue(near(px(.4, app_icon.BAR), amber, 90), f"{size}px: ピッチの線はアンバー {px(.4, app_icon.BAR)}")
+            g = px(.5, .86)
+            self.assertTrue(g[3] > 200 and g[1] > g[0] and g[2] > g[0], f"{size}px: 地は青緑 {g}")
 
 if __name__ == "__main__":
     unittest.main()

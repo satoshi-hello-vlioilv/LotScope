@@ -10,9 +10,11 @@
   窓が splash.brand(name, subtitle)（名前は program/app/brand.json の1か所）/ splash.version(v) / splash.step(id, state, detail) /
   splash.fail(title, detail) を呼ぶ。state: wait（まだ）・now（いま）・ok（済んだ）・warn（注意しつつ進む）・bad（止まった）。
   形は 7 案＋複合 4 案を 1728×1152 で進行中・失敗の 2 状態を描いて比べて選んだ（program/tools/ui-proposals/2026-10-splash*.mjs・.json）:
-  名乗り（アイコン・名前・版）を中央に大きく、その下に段ごとに 4 つに区切った帯（字を読まずにどこまで来たか分かる）と、いまの 1 段だけ。
+  名乗り（アイコン・名前・版）を中央に大きく、そのすぐ下に進み具合を「周期の山の線」で（アイコンと同じ形。8 つの山を 4 段に分け、
+  段が 1 つ済むごとに 2 つの山が描かれる。いまの段の山はゆっくり明滅）。その下に、いまの 1 段と「3 / 4」。
+  下には同じ山の淡い模様を敷き、藍一色の何も無い面を埋める（版 3.18.0。それまでの細い帯は暗く、名乗りが藍の中にぽつんと浮いて寂しかった）。
   止まったら、同じ名乗りの下の白い面に「次にすること」を主に、理由は控えに（コピーできる）。地は画面の見出しと同じ藍。
-  icon.png は作るとき build.rs が program/app/app_icon.py で描く。
+  icon.png は作るとき build.rs が program/app/app_icon.py で描く（256px）。
 -->
 <style>
  :root{
@@ -32,17 +34,22 @@
  .sub{margin-top:4px;font-size:18px;opacity:.82}
  .ver{margin-top:12px;min-height:12px;font:600 11px/1 "Segoe UI",sans-serif;letter-spacing:.2em;opacity:.6}
 
- /* 進み具合: 段ごとに区切った帯（済んだ＝青緑・いま＝流れる光・注意＝アンバー・止まった＝珊瑚）と、いまの 1 段 */
- .run{width:440px;margin-top:56px}
- .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
- .seg i{position:relative;height:5px;border-radius:99px;background:rgba(255,255,255,.16);overflow:hidden}
- .seg i.ok{background:var(--mint)}
- .seg i.warn{background:var(--amber)}
- .seg i.bad{background:var(--coral)}
- .seg i.now{background:rgba(127,211,201,.25)}
- .seg i.now::after{content:"";position:absolute;inset:0;width:40%;border-radius:99px;background:var(--mint);animation:flow 1.2s ease-in-out infinite}
- @keyframes flow{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
- .step{display:flex;justify-content:space-between;gap:16px;margin-top:12px;font-size:14px;opacity:.92}
+ /* 進み具合: 周期の山の線（8 つの山・段ごとに 2 つ）。まだ＝淡い線、済んだ＝青緑（注意で進んだ段はアンバー）、いま＝明滅、止まった＝珊瑚 */
+ .run{width:560px;margin-top:40px}
+ .seg{display:block;width:560px;height:70px;overflow:visible}
+ .seg path{fill:none;stroke-width:3.5;stroke-linejoin:round;stroke-linecap:round}
+ .seg .wait{stroke:rgba(127,211,201,.18)}
+ .seg .ok{stroke:var(--mint);filter:drop-shadow(0 0 6px rgba(127,211,201,.5))}
+ .seg .warn{stroke:var(--amber)}
+ .seg .bad{stroke:var(--coral)}
+ .seg .now{stroke:var(--mint);animation:breathe 1.4s ease-in-out infinite}
+ @keyframes breathe{0%,100%{opacity:.25}50%{opacity:.85}}
+ .step{display:flex;justify-content:space-between;gap:16px;margin-top:8px;font-size:14px;opacity:.92}
+ /* 下に敷く同じ山の淡い模様（何も伝えない飾り。読む物の後ろには来ない） */
+ .motif{position:fixed;left:-2%;bottom:0;width:104%;height:42vh;pointer-events:none}
+ .motif path{fill:none;stroke:rgba(127,211,201,.07);stroke-width:3;vector-effect:non-scaling-stroke}
+ .motif path + path{stroke:rgba(127,211,201,.04)}
+ .hero{position:relative;z-index:1}
  .count{font-variant-numeric:tabular-nums;opacity:.7}
  .detail{margin-top:2px;min-height:19px;font-size:12px;text-align:left;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .elapsed{position:fixed;right:24px;bottom:18px;font:12px Consolas,monospace;opacity:.45}
@@ -64,17 +71,18 @@
  .copy:hover{border-color:var(--teal);color:var(--teal)}
  .copy:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 
- @media (prefers-reduced-motion:reduce){.seg i.now::after{animation:none;width:50%}.logo{transition:none}}
+ @media (prefers-reduced-motion:reduce){.seg .now{animation:none;opacity:.6}.logo{transition:none}}
 </style>
 </head>
 <body>
+<svg class="motif" id="motif" viewBox="0 0 1600 400" preserveAspectRatio="none" aria-hidden="true"></svg>
 <main class="hero" aria-labelledby="name">
   <img class="logo" src="icon.png" alt="">
   <h1 id="name"></h1>
   <div class="sub" id="subtitle"></div>
   <div class="ver" id="version"></div>
   <section class="run" aria-live="polite" aria-label="起動の進み具合">
-    <div class="seg" id="seg" aria-hidden="true"></div>
+    <svg class="seg" id="seg" viewBox="0 0 560 70" aria-hidden="true"></svg>
     <div class="step"><span id="stepTitle"></span><span class="count" id="count"></span></div>
     <div class="detail" id="stepDetail"></div>
   </section>
@@ -109,11 +117,24 @@
     [/版が食い違/, "窓とアプリの中身の組がずれています。配られた ZIP を展開し直してから開いてください。"],
     [/秒たっても準備できません/, "PC が混んでいるか、共有フォルダへの接続で止まっています。少し待ってから開き直してください。"],
   ];
-  $("#seg").innerHTML = STEPS.map(() => "<i></i>").join("");
+  /** 周期の山の線（SVG のパス）。x0 から幅 w に n 個の山（底 base・頭 top）。頭の左右は山の間隔の 22% ずつ */
+  function peaks(x0, w, n, base, top) {
+    const step = w / n;
+    let d = `M${x0} ${base}`;
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * step + step / 2;
+      d += ` L${x - step * 0.22} ${base} L${x} ${top} L${x + step * 0.22} ${base}`;
+    }
+    return d + ` L${x0 + w} ${base}`;
+  }
+  /* 段ごとに 2 つの山（560px を 4 つに分ける）。段の線は隣とつながる */
+  const PEAKS = 2, W = 560 / STEPS.length;
+  $("#seg").innerHTML = STEPS.map((_, i) => `<path d="${peaks(i * W, W, PEAKS, 64, 6)}"/>`).join("");
+  $("#motif").innerHTML = `<path d="${peaks(0, 1600, 9, 330, 120)}"/><path d="${peaks(0, 1600, 9, 380, 210)}"/>`;
 
-  /** 段の状態を、区切った帯といまの 1 段に描く */
+  /** 段の状態を、山の線といまの 1 段に描く */
   function paint() {
-    STEPS.forEach((s, i) => { $("#seg").children[i].className = s.state; });
+    STEPS.forEach((s, i) => { $("#seg").children[i].setAttribute("class", s.state); });
     const i = STEPS.findIndex((s) => CURRENT.includes(s.state));
     const cur = STEPS[i < 0 ? STEPS.length - 1 : i];
     $("#stepTitle").textContent = cur.title;

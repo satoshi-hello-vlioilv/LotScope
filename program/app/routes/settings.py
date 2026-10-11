@@ -33,7 +33,7 @@ def settings_check():
         return jsonify(ok=False, message=str(e))
     if value is None:
         value = path_settings.default_of(current_app.config["APP_SETTINGS"], item["key"])
-    return jsonify(path_settings.check(item, value))
+    return jsonify(path_settings.check(item, value, effective_settings(current_app)))
 
 
 @bp.put("/api/settings/<path:key>")
@@ -53,6 +53,8 @@ def settings_put(key):
         row = master_repo().path_setting_put(key, value, base)
         if key.startswith("lot_list."):
             lot_mirror()       # 元ファイル・間隔・しきいを、起動し直さずに切り替える
+        if key.startswith("work_log.") and current_app.config.get("WORK_LISTING"):
+            current_app.config["WORK_LISTING"].forget()    # 作業実績のフォルダ・決まりを変えた → 次は探し直す
         return {"row": row}
     return master_call(run)
 

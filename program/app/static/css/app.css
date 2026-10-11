@@ -214,7 +214,16 @@ details[open]>summary .imp-more{transform:rotate(180deg)}
 .fetch-time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:var(--fs-sm)}
 .fetch-foot button{margin-left:auto}
 .fetch-foot kbd{font-size:10px;padding:0 4px;border:1px solid var(--line);border-radius:3px;color:var(--muted);margin-left:2px}
-@media (prefers-reduced-motion:reduce){.fetch-steps li.now i{animation:none;background:var(--h-input)}}
+/* 待ちの窓（WAITING。shared.js の TPA.waiting）: 問い合わせ中の窓と同じ形。いま何をしているかを回る輪と 1 行で、経過の秒を下に */
+.tpa-wait{z-index:1400;animation:wait-in .16s ease-out}
+.tpa-wait .fetch-card:focus{outline:none}
+.wait-from{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:Consolas,"Yu Gothic UI",monospace}
+.wait-now{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:var(--fs-md);font-weight:700;color:var(--ink)}
+.wait-spin{width:16px;height:16px;flex:none;border-radius:50%;border:2px solid #c9d6e2;border-top-color:var(--h-input);animation:imp-spin .8s linear infinite}
+/* 控え（なぜ時間がかかるか・次から速いか）は淡い 1 行。乗せると全文（7 案＋2 回目で選んだ: program/tools/ui-proposals/2026-10-waiting*.mjs） */
+.wait-note{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@keyframes wait-in{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.fetch-steps li.now i{animation:none;background:var(--h-input)}.wait-spin{animation:none;border-color:var(--h-input)}.tpa-wait{animation:none}}
 .lotdsp-dialog-body{padding:16px 20px;overflow:auto;font-size:var(--fs-md);line-height:1.65;color:var(--ink)}
 .lotdsp-dialog-body p{margin:0 0 8px;color:var(--muted)}
 .lotdsp-dialog-body ol{margin:0 0 10px;padding-left:20px}

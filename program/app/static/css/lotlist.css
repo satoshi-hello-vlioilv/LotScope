@@ -157,7 +157,7 @@
 table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 .ll-grid th,.ll-grid td{padding:0 var(--ll-cell-padx,10px);border-bottom:1px solid var(--line-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 /* 入り切らない字（表の見せ方）: 記号なしで切る＝記号のぶん1〜2字多く見える／折り返す＝全部出す（行が高くなる） */
-.ll-grid[data-overflow="clip"] th,.ll-grid[data-overflow="clip"] td,.ll-grid[data-overflow="clip"] thead th > span{text-overflow:clip}
+.ll-grid[data-overflow="clip"] th,.ll-grid[data-overflow="clip"] td,.ll-grid[data-overflow="clip"] thead th .th-in > span{text-overflow:clip}
 .ll-grid[data-overflow="wrap"] tbody td{white-space:normal;overflow-wrap:anywhere;line-height:1.35;vertical-align:top}
 .ll-grid thead th{position:sticky;top:0;z-index:2;background:var(--h-meta);color:var(--on-fill);font-weight:700;font-size:13px;cursor:pointer;user-select:none}
 .ll-grid thead th:hover{background:#3b4a57}
@@ -298,3 +298,24 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 .ll-screen .generic-filter-bar .ll-viewmenu .vm-seg button:last-child{border-radius:0 7px 7px 0}
 .ll-screen .generic-filter-bar .ll-viewmenu .vm-seg button[aria-checked="true"],.ll-screen .generic-filter-bar .ll-viewmenu .vm-seg button[aria-pressed="true"]{background:var(--input-soft);border-color:var(--h-input);color:var(--h-input);font-weight:800}
 .ll-screen .generic-filter-bar .ll-viewmenu .vm-freeze button{padding:0 7px;border-radius:4px}
+
+/* ---------- 作業実績: 設備のタブ（どの設備の実績を見ているか）。一覧の上の淡い帯に紙のタブを並べ、いま見ている設備のタブは
+   白で一覧の面とつながる（上に青緑の線）。様子の印は、正常な設備には何も付けず（読む量を増やさない）、
+   最後の更新が古い設備に橙の点、ファイルが見つからない設備に赤い「!」だけ（理由はタブの説明に）。
+   形は 7 案＋2 回目で選んだ（program/tools/ui-proposals/2026-10-worklog*.mjs・.json） ---------- */
+.ll-equipbar{display:flex;align-items:flex-end;gap:12px;margin:0;padding:8px 16px 0;background:#e9f0f3;border-bottom:1px solid var(--line);flex:0 0 auto;min-width:0}
+.ll-equipbar[hidden]{display:none}
+.eq-lab{flex:none;padding-bottom:9px;font-size:12.5px;font-weight:800;letter-spacing:.06em;color:var(--muted)}
+.eq-chips{display:flex;flex-wrap:wrap;gap:2px;min-width:0;flex:1}
+.eq-chip{position:relative;height:34px;padding:0 14px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:transparent;color:var(--muted);
+  font-family:inherit;font-size:13.5px;font-weight:700;white-space:nowrap;cursor:pointer;transition:background .12s,color .12s}
+.eq-chip:hover{background:rgba(255,255,255,.65);color:var(--ink)}
+.eq-chip[aria-selected="true"]{background:var(--surface);color:var(--ll-teal-dark);border-color:var(--line);box-shadow:inset 0 3px 0 var(--ll-teal);margin-bottom:-1px;height:35px}
+.eq-chip:focus-visible{outline:2px solid var(--accent,#e6a52e);outline-offset:-2px}
+.eq-chip.is-missing{color:var(--faint);cursor:not-allowed}
+.eq-chip.is-stale::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#dc7f2a;box-shadow:0 0 0 2px #e9f0f3}
+.eq-chip.is-stale[aria-selected="true"]::after{box-shadow:0 0 0 2px var(--surface)}
+.eq-warn{display:inline-grid;place-items:center;width:15px;height:15px;margin-left:6px;border-radius:50%;background:#c0392b;color:#fff;font-size:10px;font-style:normal;font-weight:800;vertical-align:1px}
+.eq-wait{padding-bottom:9px;color:var(--muted);font-size:13px}
+.eq-manage{flex:none;margin-bottom:6px;height:28px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--h-input);font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.eq-manage:hover{border-color:var(--h-input)}

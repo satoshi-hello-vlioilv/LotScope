@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """アプリのアイコン（exe・窓・タスクバー）を描く。標準ライブラリだけで書く（作るとき desktop/build.rs が呼ぶ）。
 
-絵: 藍の地に、等間隔に並ぶ欠点（赤い点）と、その間隔（ピッチ）を示す寸法線（アンバー）。
-「繰り返す欠点の間隔からロールを突き止める」というアプリの仕事を表す。色は画面と同じ（見出しの藍・発見設備の赤・強調のアンバー）。
-5 案（棒グラフ・ロール・寸法線・虫めがね・頭文字）と組み合わせ 3 案を 256〜16px で描いて比べ、16px でも点と線が読める形を選んだ。
+絵（版 3.18.0〜）: 青緑の地に、同じ間隔で立つ 3 つの山（周期の欠陥の信号）と、山の頭の赤い点（欠陥）、その間隔を示すアンバーの寸法線。
+「繰り返す欠陥の間隔（ピッチ）からロールを突き止める」というアプリの仕事を、波形で表す。地は青緑（画面の「効いている」の色）にして、
+藍の見出し・起動画面の藍の地・タスクバーの暗い地の上でも埋もれないようにした。
+決め方: 7 案（ロールと帯・虫めがね・コイルの層・周期の波形・一覧の表・照準・輪のロール）を 256〜16px・暗い地と明るい地で描いて採点し、
+1 位でも 80 点に届かなかったので、上位 3 案と複合 4 案で 2 回目を採点して選んだ（program/tools/ui-proposals/2026-10-icon.py・.json）。
+版 3.17.0 までの絵（藍の地に寸法線と 3 つの点）は、寝台のようにも見え、藍の地の上で埋もれた。
 
 形は「中心からの距離」（SDF）で書き、縁は 1px の幅でぼかす（どの大きさでも同じ式で描け、縮めて潰れない）。
 """
@@ -20,7 +23,7 @@ def _hex(h):
     return tuple(int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
 
 
-NAVY, BLUE, RED, AMBER, STRIP = _hex("#1c3550"), _hex("#2b5f79"), _hex("#d62c1a"), _hex("#e6a52e"), _hex("#e8f1f4")
+TEAL0, TEAL1, PALE, RED, AMBER = _hex("#1f4e63"), _hex("#2f8a80"), _hex("#e8f1f4"), _hex("#e0412c"), _hex("#e6a52e")
 
 
 def _clamp(x, lo=0.0, hi=1.0):
@@ -50,19 +53,27 @@ def _segment(ax, ay, bx, by, r):
 
 def _ground(x, y):
     t = _clamp((x + y) / 2)
-    return tuple(NAVY[i] + (BLUE[i] - NAVY[i]) * t for i in range(3))
+    return tuple(TEAL0[i] + (TEAL1[i] - TEAL0[i]) * t for i in range(3))
 
 
-# 描く順（後ろほど上）。座標は 0〜1。細い線（太さ約 1/14）は 16px の画素の中心に置く（4.5/16・5.5/16・11.5/16）。
-# 画素の境に置くと 16px で 2 画素に割れて濁り、アンバーに見えなかった（試験 test_app_icon が見張る）
-LEFT, RIGHT, BAR = 4.5 / 16, 11.5 / 16, 5.5 / 16
+def _peaks(xs, base, top, r):
+    """同じ間隔の山（xs が山の頭）を線でつなぐ。→ 線分の並び"""
+    pts = [(xs[0] - .16, base)]
+    for x in xs:
+        pts += [(x - .07, base), (x, top), (x + .07, base)]
+    pts.append((xs[-1] + .16, base))
+    return [(_segment(*pts[i], *pts[i + 1], r), PALE) for i in range(len(pts) - 1)]
+
+
+# 描く順（後ろほど上）。座標は 0〜1。山の頭（PEAKS）・頭の高さ（TOP）・寸法線の高さ（BAR）は試験 test_app_icon も見る。
+# 細い寸法線（太さ約 1/14）は 16px の画素の中心（3.5/16）に置く。画素の境に置くと 16px で 2 画素に割れて濁り、アンバーに見えない
+PEAKS, TOP, BAR = (.28, .50, .72), .37, 3.5 / 16
 SHAPES = [
     (_rrect(.5, .5, .44, .44, .13), _ground),
-    (_rrect(.5, .62, .36, .13, .05), STRIP),
-    *[(_circle(cx, .62, .075), RED) for cx in (LEFT, .5, RIGHT)],
-    (_segment(LEFT, BAR, RIGHT, BAR, .035), AMBER),
-    (_segment(LEFT, BAR - .08, LEFT, BAR + .08, .035), AMBER),
-    (_segment(RIGHT, BAR - .08, RIGHT, BAR + .08, .035), AMBER),
+    *_peaks(PEAKS, .76, TOP, .045),
+    *[(_circle(x, TOP, .062), RED) for x in PEAKS],
+    (_segment(PEAKS[0], BAR, PEAKS[-1], BAR, .035), AMBER),
+    *[(_segment(x, BAR - .045, x, BAR + .045, .035), AMBER) for x in (PEAKS[0], PEAKS[-1])],
 ]
 
 

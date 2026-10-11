@@ -31,6 +31,11 @@ ITEMS = [
      "hint": "この間隔で元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},
     {"key": "lot_list.stale_hours", "label": "元データが古いと警告するまで（時間）", "kind": "number", "min": 0, "max": 24 * 60,
      "hint": "元ファイルの最後の更新からこの時間を過ぎたら、一覧の上で警告します。0 にすると警告しません。土日に更新しない運用なら 72 など。"},
+    {"key": "work_log.folder", "label": "作業実績のフォルダ（設備ごとの実績 .sqlite3 を置く所）", "kind": "folder",
+     "hint": "設備ごとの実績ファイル（例: 実績_CR1.sqlite3）が並ぶフォルダ（例: \\\\Nlmsrvngy03\\Read\\【New】実績）。"
+             "保存すると、このフォルダを探して設備を見つけ、「マスタ管理」の「作業実績」に並べます（表示する・しないはそこで決めます）。"},
+    {"key": "work_log.pattern", "label": "作業実績のファイル名の決まり", "kind": "pattern",
+     "hint": "* の所が設備名になります（既定: 実績_*.sqlite3）。* はちょうど 1 つ書きます。"},
     {"key": "lotdsp_import.url", "label": "ロット問い合わせ（LotDsp）の URL", "kind": "url",
      "hint": "「検索」で読みに行く LotDsp の場所。社内（ログイン不要）ではこのアプリだけで読み、VPN でログインが要るときは"
              " LotDsp の窓が開きます（ログインはその窓で利用者が行う）。貼り付けで取り込むときの「LotDsp を開く」もここを開きます。"},
@@ -90,8 +95,11 @@ def parse(item, raw):
         return n
     if kind == "url" and not (s.startswith("http://") or s.startswith("https://")):
         raise ValueError(f"「{item['label']}」は http:// か https:// で始まる URL を入れてください。")
-    if kind in ("sqlite", "exe"):
+    if kind in ("sqlite", "exe", "folder"):
         s = unquote_path(s)
+    if kind == "pattern":
+        from .work_log import split_pattern
+        split_pattern(s)            # * がちょうど 1 つ（違えば理由つきの ValueError）
     if kind == "release":           # 候補を「;」で区切れる（それぞれの " を外す。探すのはデスクトップ版: desktop/src/release.rs）
         s = ";".join(x for x in (unquote_path(p.strip()) for p in s.replace("\n", ";").split(";")) if x)
     return s
@@ -120,9 +128,12 @@ def effective(settings, rows):
     return eff, items
 
 
-def check(item, value):
-    """「確かめる」: その値で本当に読めるか（保存の前に）。-> {ok, message, detail}"""
+def check(item, value, settings=None):
+    """「確かめる」: その値で本当に読めるか（保存の前に）。settings はいま効いている設定（ほかの項目と組んで確かめるとき）。
+    -> {ok, message, detail}"""
     fn = _CHECKS.get(item["kind"])
+    if fn is _check_folder:
+        return fn(item, value, settings)
     return fn(item, value) if fn else {"ok": True, "message": "値の形は正しいです。"}
 
 
@@ -178,4 +189,26 @@ def _check_exe(item, value):
             "Edge が見つかりません。msedge.exe の場所を入れてください。"}
 
 
-_CHECKS = {"sqlite": _check_sqlite, "url": _check_url, "exe": _check_exe}
+def _check_folder(item, value, settings=None):
+    """作業実績のフォルダ: 届くか・決まりに合うファイル（設備）がいくつあるか（ファイル名の決まりは、いま効いている物）。"""
+    from .work_log import FolderError, params, scan
+    pattern = params(settings)["pattern"]
+    t0 = time.perf_counter()
+    try:
+        found = scan(value, pattern)
+    except (FolderError, ValueError) as e:
+        return {"ok": False, "message": str(e)}
+    names = "・".join(f["equipment"] for f in found[:8]) + (f" ほか {len(found) - 8}" if len(found) > 8 else "")
+    if not found:
+        return {"ok": False, "message": f"フォルダには届きましたが、{pattern} に合うファイルがありません。場所かファイル名の決まりを確かめてください。"}
+    return {"ok": True, "message": f"届きました。設備 {len(found)} 台（{names}）・{(time.perf_counter() - t0) * 1000:.0f} ms",
+            "detail": {"files": [f["file"] for f in found]}}
+
+
+def _check_pattern(item, value):
+    from .work_log import split_pattern
+    head, tail = split_pattern(value)
+    return {"ok": True, "message": f"「{head}設備名{tail}」の形のファイルを探します。"}
+
+
+_CHECKS = {"sqlite": _check_sqlite, "url": _check_url, "exe": _check_exe, "folder": _check_folder, "pattern": _check_pattern}

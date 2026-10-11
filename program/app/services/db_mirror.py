@@ -51,6 +51,7 @@ STAT_RETRY_SEC = (0.3, 0.7, 1.5)          # 書き直しの最中の一瞬の不
 RETRY_AFTER_UNREACHABLE_SEC = 10          # 届かなくなった最初の1回は早めに取り直す
 REPLACE_BUDGET_SEC = 2.0
 DEFAULT_STALE_HOURS = 36                  # 毎日の更新が1回抜けたら気づく長さ（夜中の更新時刻のずれは許す）
+_LEDGER_LOCK = threading.Lock()           # このプロセスの中で台帳を書き換えるのは1本ずつ
 
 
 def _os_error_text(e):
@@ -127,9 +128,11 @@ class DbMirror:
         return e if isinstance(e, dict) else {}
 
     def _save_entry(self, signature, filename):
-        data = self._ledger()
-        data[self.key] = {"signature": signature, "file": str(filename)}
-        write_json_atomic(self._ledger_path(), data, indent=1, retry_budget=REPLACE_BUDGET_SEC)
+        # 同じ台帳に、いくつもの係（作業実績の設備ごと）が書くので、読んで直して書くあいだは1本にする（ほかの係の行を消さない）
+        with _LEDGER_LOCK:
+            data = self._ledger()
+            data[self.key] = {"signature": signature, "file": str(filename)}
+            write_json_atomic(self._ledger_path(), data, indent=1, retry_budget=REPLACE_BUDGET_SEC)
 
     def _generation_path(self, gen):
         return self.cache_dir / f"{self.key}.g{int(gen)}.sqlite3"

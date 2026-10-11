@@ -5,7 +5,8 @@
    - 選んだ値は in の絞り込みとして一覧へ渡す（lot_list.build_filter_where / lotlist.rs）。空欄も選べる（値 ""）
    - 日付だけ・年月・年の書式で見せている列は、見えている値でまとめる（鍵は一覧と同じ levelKeyKind）
    - 置き場は左（既定）・右・上。足した列と選んだ値は表ごと、置き場と開閉は全体で、この PC に覚える
-   一覧（lotlist.js）とは mount の引数だけでつながる: table・search・baseFilters・keyOf・label・onChange
+   一覧（lotlist.js）とは mount の引数だけでつながる: table（覚えの範囲）・api（問い合わせの頭）・params（どの設備か）・search・baseFilters・keyOf・label・onChange
+   一覧の元（異常ロット一覧・作業実績の設備）を替えたら reset（前の元の値を出さない）
    ========================================================================= */
 (function () {
   "use strict";
@@ -46,13 +47,13 @@
     list.forEach((c) => { const k = host.keyOf(c.column); if ((c.key || "") !== k) { c.key = k; if (c.sel.length) { c.sel = []; changed = true; } } });
     if (changed) { save(); host.onChange(); return; }
     await Promise.all(list.map(async (c) => {
-      const q = new URLSearchParams({ column: c.column, table: host.table() });
+      const q = new URLSearchParams({ ...host.params(), column: c.column, table: host.table() });
       if (c.key) q.set("key", c.key);
       if (host.search()) q.set("search", host.search());
       const f = host.baseFilters().concat(filters(c.column));
       if (f.length) q.set("filters", JSON.stringify(f));
       try {
-        const r = await fetch("/api/lotlist/slicer?" + q, { cache: "no-store" });
+        const r = await fetch(`${host.api()}/slicer?` + q, { cache: "no-store" });
         const d = await r.json();
         if (my === seq && r.ok) vals[c.column] = { key: c.key || "", values: d.values || [], truncated: !!d.truncated };
       } catch (_) { /* 次の読み込みで */ }
@@ -157,5 +158,7 @@
   }
 
   function mount(h) { host = h; bind(); render(); }
-  window.LotListSlicer = { mount, refresh, filters, render, clearAll };
+  /** 一覧の元が替わった: 前の元の値・探した字を捨てて描き直す（値は次の refresh で読む） */
+  function reset() { seq++; Object.keys(vals).forEach((k) => delete vals[k]); Object.keys(qs).forEach((k) => delete qs[k]); if (host) render(); }
+  window.LotListSlicer = { mount, refresh, filters, render, clearAll, reset };
 })();
