@@ -3,7 +3,7 @@
 
 WaveLog のマスタ共有（WaveLog §9.263・§9.384）と同じ考え方を JSON のマスタへ当てる。
 
-    読む   … 手元の写し（%LOCALAPPDATA%/TransferPitchAnalyzer/master_cache）。
+    読む   … 手元の写し（%LOCALAPPDATA%/LotScope/master_cache）。
              共有は「数秒に1回、変わったかを見る」だけで、読むたびには開かない。
              共有に届かなくても、前に取った写しで読み続ける（fail-open）。
     書く   … 錠を取る → 共有から取り直す → 行の版を確かめて当てる → 版番号を上げる

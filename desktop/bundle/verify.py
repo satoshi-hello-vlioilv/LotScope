@@ -2,6 +2,7 @@
 """配る形と更新の通しを、本物の窓で確かめる（評価関数・設計書「更新（B+）」）。Windows の CI と、手元の Linux（xvfb-run の下）で流す。
 
     python verify.py update --exe <作った exe> [--work <作業フォルダ>] [--keep]
+    python verify.py rename --old-exe <前の版の exe> --old-repo <前の版のリポジトリ> --exe <作った exe> [--work …] [--keep]
 
 利用者の PC を真似る: 作業場所（TRANSFER_LOCAL_ROOT）はまっさら、配る形は共有を真似たフォルダ、更新の置き場は BOX を真似たフォルダ。
 窓は自己診断（TPA_SELFTEST）で起こし、結果のファイル（selftest.js が更新の係の状態と、動いている exe・program を添える）を読む。
@@ -253,6 +254,81 @@ def update(exe: Path, work: Path) -> bool:
     return ok
 
 
+def rename(old_exe: Path, old_repo: Path, exe: Path, work: Path) -> bool:
+    """名前を変えた版へ移る通し（版 3.19.0: Defect-Analyzer → LotScope・作業場所 TransferPitchAnalyzer → LotScope）。
+    前の版の本物の窓（old_exe。old_repo の program と一緒に配る形にする）で始めた PC が、置き場のいまの版を取り込み、開き直すと:
+    いまの名前の窓で開く・作業場所が新しい名前へ移り前の場所が消える・前の名前のショートカットがいまの名前で作り直される・以後はいまの名前の exe で開く。
+    作業場所の名前で決まるので、TRANSFER_LOCAL_ROOT ではなく LOCALAPPDATA を差し替える。"""
+    b = bundle.brand()
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir(parents=True)
+    old_out = work / "old-out"
+    subprocess.run([sys.executable, str(old_repo / "desktop" / "bundle" / "bundle.py"), "build", "--exe", str(old_exe), "--out", str(old_out)],
+                   check=True, capture_output=True)
+    old_zip = next(old_out.glob("*-windows.zip"))
+    old_rel = json.loads((old_out / "release.json").read_text(encoding="utf-8"))
+    share = work / "share"
+    with zipfile.ZipFile(old_zip) as z:
+        z.extractall(share)
+    share_exe = share / old_rel["name"] / old_rel["exe"]
+    built = bundle.build(exe, work / "out")
+    v_new = built["version"]
+    for f in [share_exe, *(Path(built["stage"]).glob("*.exe"))]:
+        if os.name != "nt":
+            f.chmod(0o755)
+    rel_root = work / "Releases"
+    place(Path(built["stage"]), v_new, rel_root)
+    fixture = work / "q.sqlite3"
+    subprocess.run([sys.executable, str(REPO / "program" / "tests" / "lotlist_fixture.py"), str(fixture), "300"], check=True, capture_output=True)
+    conf = work / "appsettings.json"
+    subprocess.run([sys.executable, str(REPO / "program" / "tests" / "selftest_config.py"), str(fixture), str(conf), str(rel_root)], check=True)
+    lad = work / "LocalAppData"
+    olds = [lad / d for d in b.get("legacy_data_dir", [])]
+    old_root, new_root = olds[-1], lad / b["data_dir"]
+    links = [work / "links" / "Desktop", work / "links" / "Programs"]
+    env = {k: v for k, v in os.environ.items() if k not in ("TPA_NO_HANDOFF", "TPA_PROGRAM_DIR", "TPA_SELFTEST", "TRANSFER_LOCAL_ROOT")}
+    env.update({"TRANSFER_APP_CONFIG": str(conf), "LOCALAPPDATA": str(lad), "TPA_LINK_DIRS": os.pathsep.join(map(str, links))})
+    run = Run(work, env)
+    ok = True
+
+    # 1. 前の版の共有の exe で始める → 前の作業場所へ写り、使っている間にいまの版を取り込む
+    r = run.open(share_exe, "old-share")
+    info, upd = r.get("info") or {}, r.get("update") or {}
+    ok &= check(r.get("ok") is True and info.get("version") == old_rel["version"], f"1. 前の版 {old_rel['version']}（{old_rel['name']}）で開く",
+                r.get("error", "") or info.get("version"))
+    ok &= check((old_root / "app" / old_rel["exe"]).is_file(), f"1. 前の作業場所 {old_root.name} に入った")
+    ok &= check(upd.get("state") == "ready" and upd.get("ready") == v_new, f"1. 使っている間に {v_new}（{b['name']}）を取り込んだ",
+                json.dumps(upd, ensure_ascii=False)[:300])
+    old_link = links[0] / f"{old_rel['name']}.lnk"
+    make_link(old_link, old_root / "app" / old_rel["exe"], old_root / "app")
+
+    # 2. 前の名前のショートカットの行き先（前の版の入口）で開く → 入れ替え・開き直し・作業場所を移す・ショートカットを作り直す
+    r = run.open(old_root / "app" / old_rel["exe"], "old-entry")
+    info = r.get("info") or {}
+    ok &= check(r.get("ok") is True and info.get("version") == v_new, f"2. 開き直すと {v_new} で開く", r.get("error", "") or info.get("version"))
+    ok &= check(same(info.get("local_root", ""), new_root), f"2. 作業場所は {new_root.name}", info.get("local_root"))
+    ok &= check((new_root / "app" / b["exe"]).is_file() and (new_root / "update").is_dir(), "2. 入れたアプリと更新の記録が新しい作業場所へ移った")
+    ok &= check(not old_root.exists(), f"2. 前の作業場所 {old_root.name} は消えた", sorted(p.name for p in old_root.iterdir()) if old_root.exists() else "")
+    time.sleep(3)    # ショートカットの確かめは窓が開いたあと裏で流れる
+    new_link = links[0] / f"{b['name']}.lnk"
+    got = read_link(new_link)
+    ok &= check(not old_link.exists(), f"2. 前の名前のショートカット（{old_link.name}）は消えた")
+    ok &= check(bool(got) and same(got[0], new_root / "app" / b["exe"]) and same(got[1], new_root / "app"),
+                f"2. {new_link.name} で作り直し、新しい作業場所の {b['exe']} を指す", got)
+
+    # 3. いまの名前のショートカットの行き先で開く
+    r = run.open(new_root / "app" / b["exe"], "new-entry")
+    info = r.get("info") or {}
+    sc = ((info.get("install") or {}).get("shortcut") or {})
+    ok &= check(r.get("ok") is True and info.get("version") == v_new and same(info.get("local_root", ""), new_root),
+                f"3. {b['exe']} で {v_new} が開く", r.get("error", "") or info.get("version"))
+    ok &= check(sc.get("ask") is False and len(sc.get("links") or []) >= 1, "3. ショートカットがあるので尋ねない", sc)
+    left = leftover_python(work)
+    ok &= check(not left, "終わったあと Python が残らない", left)
+    return ok
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -260,8 +336,17 @@ def main(argv=None):
     s.add_argument("--exe", required=True, type=Path)
     s.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "da-verify")
     s.add_argument("--keep", action="store_true")
+    s = sub.add_parser("rename")
+    s.add_argument("--old-exe", required=True, type=Path, help="前の版の窓（old-repo で作った物）")
+    s.add_argument("--old-repo", required=True, type=Path, help="前の版のリポジトリ（git worktree など。その program で配る形にする）")
+    s.add_argument("--exe", required=True, type=Path)
+    s.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "da-verify-rename")
+    s.add_argument("--keep", action="store_true")
     a = ap.parse_args(argv)
-    ok = update(a.exe.resolve(), a.work.resolve())
+    if a.cmd == "rename":
+        ok = rename(a.old_exe.resolve(), a.old_repo.resolve(), a.exe.resolve(), a.work.resolve())
+    else:
+        ok = update(a.exe.resolve(), a.work.resolve())
     if not a.keep and ok:
         shutil.rmtree(a.work, ignore_errors=True)
     print("OK" if ok else "FAILED")

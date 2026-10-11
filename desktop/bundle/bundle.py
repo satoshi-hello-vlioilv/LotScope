@@ -84,6 +84,14 @@ def safe_name(name: str) -> bool:
     return bool(name) and name not in (".", "..") and not any(c in name for c in "/\\:") and name == name.strip()
 
 
+def legacy_exe(b: dict) -> list[str]:
+    """配る形に、いまの exe と同じ中身で置く前の名前の exe（brand.json の legacy_exe。名前の歴史）。"""
+    out = [x for x in b.get("legacy_exe", []) if x != b["exe"]]
+    if not all(safe_name(x) and x.lower().endswith(".exe") for x in out):
+        raise SystemExit(f"brand.json の legacy_exe に使えない名前があります: {out}")
+    return out
+
+
 def release_json(b: dict, version: str, zip_name: str, sha: str) -> dict:
     """版のフォルダの目印（desktop/src/release.rs が読む形・schema 1）。"""
     if not (safe_name(zip_name) and safe_name(b["exe"])):
@@ -106,6 +114,8 @@ def build(exe: Path, out: Path) -> dict:
     shutil.rmtree(out / "stage", ignore_errors=True)
     stage.mkdir(parents=True)
     shutil.copy2(exe, stage / b["exe"])
+    for old in legacy_exe(b):     # 名前の歴史: 前の版の窓は入れ替えたあと前の名前の exe で開き直す（無いと開き直せずショートカットも切れる）
+        shutil.copy2(exe, stage / old)
     for rel in program_files():
         dst = stage / rel
         dst.parent.mkdir(parents=True, exist_ok=True)

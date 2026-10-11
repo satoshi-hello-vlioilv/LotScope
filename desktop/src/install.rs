@@ -38,7 +38,7 @@ pub struct Names<'a> {
     pub exe: &'a str,
     pub description: &'a str,
     /// 前の名前（名前の歴史: 版 3.5.0 までのアプリ名）。見つけたら消していまの名前で作る
-    pub legacy: &'a [&'a str],
+    pub legacy: &'a [String],
     /// ショートカットが指すアイコン（icon_file で書き出した物。書けなければ exe）
     pub icon: PathBuf,
 }
@@ -157,23 +157,28 @@ pub fn maintain(p: &Paths, places: &[PathBuf], pinned: &[PathBuf], io: &dyn Link
         return vec![];
     }
     let mut fixed = vec![];
+    // 中身（指す先・作業フォルダ・アイコン）が違えば、その名前のまま作り直す → 直したこと
+    let refresh = |link: &Path, have: &Link| -> Option<String> {
+        let why = if !opens_app(have, &w) {
+            format!("指す先 {} → {}", have.target.display(), w.target.display())
+        } else if !same(&have.icon, &w.icon) {
+            format!("アイコン {} → {}", have.icon.display(), w.icon.display())
+        } else {
+            return None;
+        };
+        io.make(link, &w, n.description).is_ok().then(|| format!("{} を作り直しました（{why}）", link.display()))
+    };
     for (d, rename) in places.iter().map(|d| (d, true)).chain(pinned.iter().map(|d| (d, false))) {
         let link = d.join(link_name(n.name));
-        if let Some(have) = io.read(&link) {
-            let why = if !opens_app(&have, &w) {
-                format!("指す先 {} → {}", have.target.display(), w.target.display())
-            } else if !same(&have.icon, &w.icon) {
-                format!("アイコン {} → {}", have.icon.display(), w.icon.display())
-            } else {
-                continue;
-            };
-            if io.make(&link, &w, n.description).is_ok() {
-                fixed.push(format!("{} を作り直しました（{why}）", link.display()));
-            }
+        if let Some(f) = io.read(&link).and_then(|have| refresh(&link, &have)) {
+            fixed.push(f);
         }
-        for old in n.legacy.iter().filter(|o| rename && **o != n.name) {
+        for old in n.legacy.iter().filter(|o| o.as_str() != n.name) {
             let ol = d.join(link_name(old));
-            if io.read(&ol).is_some() && std::fs::remove_file(&ol).is_ok() && io.make(&link, &w, n.description).is_ok() {
+            let Some(have) = io.read(&ol) else { continue };
+            if !rename {
+                fixed.extend(refresh(&ol, &have)); // ピン留めは名前を変えると外れるので、中身だけ直す
+            } else if std::fs::remove_file(&ol).is_ok() && io.make(&link, &w, n.description).is_ok() {
                 fixed.push(format!("{} を {} で作り直しました", ol.display(), link.display()));
             }
         }
@@ -205,7 +210,9 @@ pub mod tests {
     }
 
     fn names(icon: &Path) -> Names<'static> {
-        Names { name: "App", exe: "App.exe", description: "説明", legacy: &["OldName"], icon: icon.to_path_buf() }
+        static LEGACY: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+        let legacy = LEGACY.get_or_init(|| vec!["OldName".into()]);
+        Names { name: "App", exe: "App.exe", description: "説明", legacy, icon: icon.to_path_buf() }
     }
     fn link(target: PathBuf, workdir: PathBuf) -> Link {
         Link { icon: target.clone(), target, workdir }
@@ -312,11 +319,17 @@ pub mod tests {
             assert_eq!(io.read(&l).unwrap(), want(&p, &n), "新しい絵を指す（指す先・作業フォルダはそのまま）");
         }
         assert!(maintain(&p, &places, &pinned, &io, &n).is_empty(), "揃えば触らない");
-        // ピン留めは作らない・名前を変えない
+        // ピン留めは作らない・名前を変えない（前の名前のピン留めは、中身だけ新しい exe と絵に直す）
         std::fs::remove_file(pinned[0].join("App.lnk")).unwrap();
-        io.make(&pinned[0].join("OldName.lnk"), &want(&p, &old), "").unwrap();
-        assert!(maintain(&p, &places, &pinned, &io, &n).is_empty());
-        assert!(!pinned[0].join("App.lnk").exists() && pinned[0].join("OldName.lnk").exists());
+        let old_pin = Link { target: p.app().join("Old.exe"), ..want(&p, &old) };
+        io.make(&pinned[0].join("OldName.lnk"), &old_pin, "").unwrap();
+        assert_eq!(maintain(&p, &places, &pinned, &io, &n).len(), 1);
+        assert!(!pinned[0].join("App.lnk").exists(), "ピン留めは作らない");
+        assert_eq!(io.read(&pinned[0].join("OldName.lnk")).unwrap(), want(&p, &n), "名前はそのまま、中身は新しい exe と絵");
+        // いまの名前の物が正しくても、同じ場所の前の名前の物は片付ける
+        io.make(&places[0].join("OldName.lnk"), &old_pin, "").unwrap();
+        assert_eq!(maintain(&p, &places, &pinned, &io, &n).len(), 1);
+        assert!(!places[0].join("OldName.lnk").exists() && io.read(&places[0].join("App.lnk")).unwrap() == want(&p, &n));
         let _ = std::fs::remove_dir_all(&d);
     }
 }

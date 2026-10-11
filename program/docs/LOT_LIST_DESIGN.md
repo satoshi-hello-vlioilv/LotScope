@@ -9,7 +9,7 @@ WaveLog の品質データ（`SIKADEF.sqlite3`）を一覧で開き、WaveLog �
 | 項目 | 内容 |
 |---|---|
 | 元 | 設定 `lot_list.source`（既定 `\\Nlmsrvngy03\Read\【New】仕掛\台帳\SIKADEF.sqlite3`） |
-| 写しの置き場 | `%LOCALAPPDATA%\TransferPitchAnalyzer\db_cache\lot_list.g<世代>.sqlite3`、台帳 `_mirror.json` |
+| 写しの置き場 | `%LOCALAPPDATA%\LotScope\db_cache\lot_list.g<世代>.sqlite3`、台帳 `_mirror.json` |
 | 写し方 | 書き手（DataRelay）と干渉しない作法: 同じフォルダに書き手の作業中の印（DataRelay の `.<名前>.<番号>.incoming`・SQLite の `-journal`・`-wal`）があれば写さない → SQLite として開かず、置き換えを許す開き方（Windows の `FILE_SHARE_DELETE`。`fsio.open_shared_read`）でファイルを丸ごと一気に写す → 写す前後の (サイズ, 更新時刻) が同じか → `PRAGMA quick_check(1)` とテーブルの有無で検査 → 世代名へ `os.replace` → 台帳を一時ファイル経由で置き換え。見送ったら 5 秒空けて写し直す |
 | 書き手（DataRelay）の公開 | 公開先の横へ隠しファイル `.<名前>.<番号>.incoming` を書き切り、`os.replace` で丸ごと入れ替える（中を書き換えない）。ほかが公開先を開いていると Windows では入れ替えが「使用中」で拒まれ、20 秒粘ってだめなら `<名前>.pending_<日時>` に保留して次の実行で入れ替える。だから写しの係は、公開の最中に開かない・開いている時間を最短にする・共有を直接読まない。試験は `tests/test_mirror_writer.py`・`desktop/tests/mirror_writer.rs`（Windows の本物の規則は CI） |
 | 変わったかの判断 | 元の (パス, サイズ, 更新時刻 ns)。パスも印に含めるので、元を差し替えたら前の写しは使わない |

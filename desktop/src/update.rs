@@ -413,7 +413,8 @@ pub fn plan(p: &Paths, me: &Path, exe: &str, dev: bool) -> Step {
     {
         return Step::Stay;
     }
-    if same(me, &p.app().join(exe)) {
+    // app の exe（入口）。前の名前の exe（名前の歴史: 前の版の窓は入れ替えたあと前の名前で開き直す・前の名前のピン留め）も入口
+    if same(me, &p.app().join(exe)) || me.parent().is_some_and(|d| same(d, &p.app())) {
         return Step::Handoff;
     }
     match me.parent() {
@@ -596,6 +597,8 @@ mod tests {
         localize(&p, &d.join("share"), EXE, ID).unwrap();
         assert_eq!(plan(&p, &d.join("share").join(EXE), EXE, false), Step::Localize(d.join("share")), "共有の exe はこの PC へ写す");
         assert_eq!(plan(&p, &p.app().join(EXE), EXE, false), Step::Handoff, "入口は版ごとの写しへ渡す");
+        std::fs::write(p.app().join("Old.exe"), "x").unwrap();
+        assert_eq!(plan(&p, &p.app().join("Old.exe"), EXE, false), Step::Handoff, "app の前の名前の exe も入口（写し直さない）");
         let copy = copy_for_run(&p, &p.app().join(EXE)).unwrap();
         assert!(copy.starts_with(p.desktop()));
         assert_eq!(copy_for_run(&p, &p.app().join(EXE)).unwrap(), copy, "同じ exe なら写し直さない");

@@ -1,8 +1,19 @@
 {
-  "_about": "アプリの名前（1か所の定義）。name・subtitle・exe は変えてよい（exe を変えたら desktop/Cargo.toml の [[bin]] name と desktop/tauri.conf.json の mainBinaryName、name を変えたら productName も同じにする。tests/test_brand.py が食い違いを止める）。app_id・data_dir は変えない（変えると各 PC の設定・記録・入れたアプリ・取り込んだ版を引き継げない）。",
-  "name": "Defect-Analyzer",
+  "_about": "アプリの名前（1か所の定義）。name・subtitle・exe は変えてよい（exe を変えたら desktop/Cargo.toml の [[bin]] name と desktop/tauri.conf.json の mainBinaryName、name を変えたら productName も同じにする。tests/test_brand.py が食い違いを止める）。app_id は変えない（更新の置き場で「このアプリの版」を見分ける・WebView の保存先）。data_dir（この PC の作業場所のフォルダ名）を変えたら、前の名前を legacy_data_dir に足す（起動のはじめに前の場所から移す）。 名前を変えたら、前の name を legacy_names に、前の exe を legacy_exe に足す（名前の歴史）。",
+  "name": "LotScope",
   "subtitle": "転写距離・ピッチ解析",
-  "exe": "Defect-Analyzer.exe",
+  "exe": "LotScope.exe",
   "app_id": "local.transferpitchanalyzer.desktop",
-  "data_dir": "TransferPitchAnalyzer"
+  "data_dir": "LotScope",
+  "_legacy": "名前の歴史。legacy_names: 前のアプリ名（起動のたびに、その名前のショートカットを消していまの名前で作り直す）。legacy_exe: 前の exe の名前（配る ZIP と配る入口に、いまの exe と同じ中身で置く。前の版の窓は入れ替えたあと前の名前の exe で開き直すので、無いと開き直せずショートカットも切れる。全員の PC が移り終えたら外してよい）。 legacy_data_dir: 前の作業場所のフォルダ名（起動のはじめに中身を新しい場所へ移す。desktop/src/home.rs）。",
+  "legacy_names": [
+    "TransferPitchAnalyzer",
+    "Defect-Analyzer"
+  ],
+  "legacy_exe": [
+    "Defect-Analyzer.exe"
+  ],
+  "legacy_data_dir": [
+    "TransferPitchAnalyzer"
+  ]
 }

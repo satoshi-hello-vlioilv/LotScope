@@ -66,7 +66,8 @@ pub fn find_program_from(start: &Path) -> Option<PathBuf> {
     start.ancestors().skip(1).take(6).map(|d| d.join("program")).find(|p| p.join("sidecar.py").is_file())
 }
 
-/// この PC の作業場所（`app_env.local_root` と同じ決まり: TRANSFER_LOCAL_ROOT → (LOCALAPPDATA → TEMP → ホーム)\<data_dir>）。
+/// この PC の作業場所（`app_env.local_root` と同じ決まり: TRANSFER_LOCAL_ROOT → (LOCALAPPDATA → TEMP → ホーム)\<data_dir>。
+/// 前の名前の場所（legacy_data_dir）から移し終えるまでは前の場所: da_core::home::choose）。
 pub fn local_root() -> PathBuf {
     local_root_from(|k| env::var_os(k).filter(|v| !v.is_empty()), home())
 }
@@ -75,7 +76,23 @@ fn local_root_from(var: impl Fn(&str) -> Option<std::ffi::OsString>, home: PathB
     if let Some(p) = var("TRANSFER_LOCAL_ROOT") {
         return PathBuf::from(p);
     }
-    var("LOCALAPPDATA").or_else(|| var("TEMP")).map(PathBuf::from).unwrap_or(home).join(&brand().data_dir)
+    let (new, legacy) = roots_from(&var, home);
+    da_core::home::choose(&new, &legacy)
+}
+
+/// 作業場所の候補（いまの名前の場所, 前の名前の場所）。TRANSFER_LOCAL_ROOT を指定したとき（試験・開発）は None（移さない）。
+pub fn home_roots() -> Option<(PathBuf, Vec<PathBuf>)> {
+    let var = |k: &str| env::var_os(k).filter(|v| !v.is_empty());
+    if var("TRANSFER_LOCAL_ROOT").is_some() {
+        return None;
+    }
+    Some(roots_from(&var, home()))
+}
+
+fn roots_from(var: &impl Fn(&str) -> Option<std::ffi::OsString>, home: PathBuf) -> (PathBuf, Vec<PathBuf>) {
+    let base = var("LOCALAPPDATA").or_else(|| var("TEMP")).map(PathBuf::from).unwrap_or(home);
+    let b = brand();
+    (base.join(&b.data_dir), b.legacy_data_dir.iter().map(|d| base.join(d)).collect())
 }
 
 /// Python の `Path.home()` と同じ（Windows は USERPROFILE、ほかは HOME）。
@@ -163,8 +180,8 @@ mod tests {
         std::fs::write(prog.join("sidecar.py"), "").unwrap();
         let deep = tmp.join("desktop").join("target").join("release");
         std::fs::create_dir_all(&deep).unwrap();
-        assert_eq!(find_program_from(&tmp.join("Defect-Analyzer.exe")), Some(prog.clone()), "exe と program が並ぶ（配る形）");
-        assert_eq!(find_program_from(&deep.join("Defect-Analyzer.exe")), Some(prog.clone()), "作る途中（3つ上）");
+        assert_eq!(find_program_from(&tmp.join("App.exe")), Some(prog.clone()), "exe と program が並ぶ（配る形）");
+        assert_eq!(find_program_from(&deep.join("App.exe")), Some(prog.clone()), "作る途中（3つ上）");
         assert_eq!(find_program_from(&env::temp_dir().join("nowhere").join("x.exe")), None);
         std::fs::remove_dir_all(&tmp).ok();
     }

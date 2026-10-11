@@ -1,4 +1,4 @@
-//! Defect-Analyzer（転写距離・ピッチ解析）デスクトップ版の窓（Tauri）。設計は program/docs/DESKTOP_MIGRATION_DESIGN.md。
+//! LotScope（転写距離・ピッチ解析）デスクトップ版の窓（Tauri）。設計は program/docs/DESKTOP_MIGRATION_DESIGN.md。
 //!
 //! 役割の分け方（得意な分野ごと）:
 //!   - Rust（この exe）: 窓・起動と終了・1つだけ起動・静的ファイル・中身（Python）の監督と起こし直し・外のリンク
@@ -293,16 +293,10 @@ fn reply_of(r: Result<serde_json::Value, (u16, String)>) -> Reply {
     }
 }
 
-/// ショートカットの名前（いまのアプリ名と、名前の歴史: 版 3.5.0 までのアプリ名 TransferPitchAnalyzer）とアイコン。
+/// ショートカットの名前（いまのアプリ名と、前の名前: brand.json の legacy_names）とアイコン。
 fn names() -> install::Names<'static> {
     let b = brand();
-    install::Names {
-        name: &b.name,
-        exe: &b.exe,
-        description: &b.subtitle,
-        legacy: &["TransferPitchAnalyzer"],
-        icon: shortcut_icon().clone(),
-    }
+    install::Names { name: &b.name, exe: &b.exe, description: &b.subtitle, legacy: &b.legacy_names, icon: shortcut_icon().clone() }
 }
 
 /// exe に入れたアイコンの絵（build.rs が program/app/app_icon.py で描く）。
@@ -570,6 +564,70 @@ fn same_dir(a: &std::path::Path, b: &std::path::Path) -> bool {
 }
 
 /// 引数 `--name <数>`。
+/// 作業場所の名前を変えた版（3.19.0。brand.json の legacy_data_dir）: 前の名前の場所から中身を移す（da_core::home）。
+/// 前の場所から動いている exe は自分のいる場所を動かせないので、新しい場所へ自分を写し、写した物（--moved-from）に移してもらう。
+/// 移す係は移し終えたら（移せなければ前の場所のまま --no-move で）この PC のアプリを開いて終わる。→ 自分は終わるか
+fn settle_home(me: &std::path::Path) -> bool {
+    let Some((new, legacy)) = locate::home_roots() else { return false };
+    let mover = arg_str("--moved-from").is_some();
+    let pid = std::process::id().to_string();
+    if !std::env::args().any(|a| a == "--no-move") {
+        let inside = |d: &std::path::Path| {
+            me.starts_with(d) || std::fs::canonicalize(me).is_ok_and(|m| std::fs::canonicalize(d).is_ok_and(|d| m.starts_with(d)))
+        };
+        for old in legacy.iter().filter(|d| d.is_dir()) {
+            if inside(old) {
+                let copy = new.join("desktop").join(format!("move-{pid}")).join(me.file_name().unwrap_or_default());
+                let spawned =
+                    std::fs::create_dir_all(copy.parent().unwrap_or(&new)).and_then(|_| std::fs::copy(me, &copy)).and_then(|_| {
+                        std::process::Command::new(&copy)
+                            .args(["--moved-from", &old.display().to_string(), "--wait-pid", &pid])
+                            .current_dir(copy.parent().unwrap_or(&new))
+                            .spawn()
+                    });
+                match spawned {
+                    Ok(_) => {
+                        log(&format!("HOME {} から {} へ移すため、写した exe へ渡しました", old.display(), new.display()));
+                        return true;
+                    }
+                    Err(e) => log(&format!("HOME 移す係を起こせないので、{} のまま開きます: {e}", old.display())),
+                }
+                continue;
+            }
+            match da_core::home::move_home(old, &new, Duration::from_secs(20)) {
+                Ok(kept) => {
+                    log(&format!("HOME {} の中身を {} へ移しました", old.display(), new.display()));
+                    for k in kept {
+                        log(&format!("HOME 残した物: {k}"));
+                    }
+                }
+                Err(e) => log(&format!("HOME 移せないので、{} のまま開きます（次の起動でまた移します）: {e}", old.display())),
+            }
+        }
+    }
+    if !mover {
+        return false;
+    }
+    // 移す係: この PC のアプリ（移せていれば新しい場所・移せなければ前の場所）を開いて終わる
+    let app = Paths::new(&locate::local_root()).app();
+    let names = [brand().exe.clone(), me.file_name().unwrap_or_default().to_string_lossy().to_string()];
+    let Some(entry) = names.iter().map(|n| app.join(n)).find(|e| e.is_file()) else {
+        log(&format!("HOME 開くアプリが {} にありません", app.display()));
+        return false;
+    };
+    let moved = app.starts_with(&new);
+    let mut args = vec!["--wait-pid".to_string(), pid];
+    if !moved {
+        args.push("--no-move".into());
+    }
+    std::process::Command::new(&entry).args(&args).current_dir(&app).spawn().is_ok()
+}
+
+fn arg_str(name: &str) -> Option<String> {
+    let args: Vec<String> = std::env::args().collect();
+    args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
+}
+
 fn arg_u32(name: &str) -> Option<u32> {
     let args: Vec<String> = std::env::args().collect();
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok())
@@ -671,6 +729,9 @@ fn hand_off() -> bool {
         proc::wait_gone(pid, Duration::from_secs(30));
     }
     let Ok(me) = std::env::current_exe() else { return false };
+    if !dev_mode() && settle_home(&me) {
+        return true;
+    }
     let b = brand();
     let paths = Paths::new(&locate::local_root());
     // 配る入口（置き場のアプリのフォルダの exe）: 配る版を取り込むのは窓の中で（起動画面に段を出す）

@@ -1,7 +1,7 @@
 [package]
 name = "defect-analyzer-desktop"
 version = "3.19.0"
-description = "Defect-Analyzer（転写距離・ピッチ解析）デスクトップ版の窓"
+description = "LotScope（転写距離・ピッチ解析）デスクトップ版の窓"
 edition = "2021"
 rust-version = "1.90"
 publish = false
@@ -13,7 +13,7 @@ name = "da_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "Defect-Analyzer"
+name = "LotScope"
 path = "src/main.rs"
 
 [features]

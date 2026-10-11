@@ -12,8 +12,10 @@ import os
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent          # program フォルダ
-# 作業場所のフォルダ名（変えない目印。app/brand.json の data_dir。アプリ名を変えても変えない）
-DATA_DIR = json.loads((BASE / "app" / "brand.json").read_text(encoding="utf-8"))["data_dir"]
+_BRAND = json.loads((BASE / "app" / "brand.json").read_text(encoding="utf-8"))
+# 作業場所のフォルダ名（app/brand.json の data_dir）と、前の名前（legacy_data_dir。版 3.19.0 で TransferPitchAnalyzer → LotScope）
+DATA_DIR = _BRAND["data_dir"]
+LEGACY_DATA_DIRS = list(_BRAND.get("legacy_data_dir") or [])
 
 
 def local_root() -> Path:
@@ -21,7 +23,16 @@ def local_root() -> Path:
     読むたびに環境変数を見る（起動の仕組みが子のプロセスへ渡す TRANSFER_LOCAL_ROOT・試験が差し替える値を拾う）。"""
     if os.environ.get("TRANSFER_LOCAL_ROOT"):
         return Path(os.environ["TRANSFER_LOCAL_ROOT"])
-    return Path(os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP") or Path.home()) / DATA_DIR
+    base = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP") or Path.home())
+    return choose_root(base / DATA_DIR, [base / d for d in LEGACY_DATA_DIRS])
+
+
+def choose_root(new: Path, legacy: list[Path]) -> Path:
+    """作業場所を決める（窓の desktop/src/home.rs の choose と同じ決まり）。新しい場所に app があれば新しい場所、
+    無くて前の場所があれば前の場所（窓が移し終えるまで）、どちらも無ければ新しい場所。中身を移すのは窓（Rust）だけ。"""
+    if (new / "app").is_dir():
+        return new
+    return next((d for d in legacy if d.is_dir()), new)
 
 
 def config_path(base: Path = BASE) -> Path:
