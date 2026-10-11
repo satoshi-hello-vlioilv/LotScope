@@ -38,6 +38,11 @@ jobs:
       - name: test（Rust・Windows）
         working-directory: desktop
         run: cargo test --locked
+      # 写しの係（Python 版）が、共有の書き手（DataRelay の os.replace による公開）を止めないか。Windows の本物の規則で
+      # （開いているファイルは置き換えられない。Rust 版は上の cargo test の tests/mirror_writer.rs）
+      - name: 写しと公開の干渉（Python・Windows）
+        working-directory: program
+        run: python -m unittest tests.test_mirror_writer -v
       - name: exe を作る
         working-directory: desktop
         run: cargo build --release --locked

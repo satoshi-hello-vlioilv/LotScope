@@ -18,7 +18,8 @@ def access_me():
 # 書き込みの門番: マスタへ書く道（現場のマスタ＝設備・ロール、管理のマスタ＝アクセス権限・参照先・作業実績の設備）だけを見る。
 # 計算・一覧・取込・心拍は書き込みではないので止めない。切断された PC は冷却のあいだ書けない。
 _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls", "roll_master"),
-            ("/api/masters/access", "access_permissions"), ("/api/settings/", "path_settings"), ("/api/masters/worklog", "work_log_files"))
+            ("/api/masters/access", "access_permissions"), ("/api/settings/", "path_settings"), ("/api/masters/worklog", "work_log_files"),
+            ("/api/masters/formats", "display_formats"))
 
 
 @bp.before_app_request

@@ -1,6 +1,8 @@
 //! 共有上の品質データ（SQLite）を手元へ写してから読む係。Python 版（program/app/services/db_mirror.py）と**同じ手順・同じ台帳・同じ文言**。
 //!
-//! - 写し方: SQLite のバックアップ API → 失敗したらバイト単位のコピー。どちらも採用前に quick_check で検査する
+//! - 写し方: 書き手（DataRelay）と干渉しない作法。書き手の作業中の印（.incoming・-journal・-wal）があれば写さない →
+//!   SQLite として開かず、置き換えを許す開き方でファイルを丸ごと一気に写す → 写す前後の (大きさ, 更新時刻) が同じか →
+//!   quick_check。どれかで見送れば少し空けてやり直す（Python の db_mirror.py の冒頭に理由）
 //! - 世代名: 毎回 `<キー>.g<世代>.sqlite3` で作り、台帳 `_mirror.json` が今の世代を指す（開いているファイルを上書きしない）
 //! - いつ: 背景の糸が一定間隔で元の (パス, 大きさ, 更新時刻 ns) を見て、変わっていれば写す。一覧の問い合わせの中では共有を見ない
 //! - 台帳は Python と同じ形なので、どちらが写した写しも互いに読める（desktop/tests/mirror_parity.rs が突き合わせる）
@@ -17,6 +19,8 @@ const MIN_INTERVAL_SEC: i64 = 10;
 const FIRST_WAIT: Duration = Duration::from_secs(30);
 const STAT_RETRY_SEC: [f64; 3] = [0.3, 0.7, 1.5];
 const RETRY_AFTER_UNREACHABLE_SEC: i64 = 10;
+const RETRY_AFTER_BUSY_SEC: i64 = 5;
+const COPY_CHUNK: usize = 4 * 1024 * 1024;
 const REPLACE_BUDGET: f64 = 2.0;
 
 fn now() -> f64 {
@@ -54,6 +58,49 @@ fn retrying<T>(budget: f64, mut f: impl FnMut() -> std::io::Result<T>) -> std::i
             }
         }
     }
+}
+
+/// 書き手が作業中の印（元ファイルと同じフォルダ）。DataRelay の公開の書きかけ（.<名前>.<番号>.incoming）と、
+/// SQLite の中を書き換える書き手の -journal・-wal。Python の writer_marks と同じ（小文字で比べ、名前の順）。
+pub fn writer_marks(remote: &str) -> Vec<String> {
+    let p = Path::new(remote);
+    let Some(name) = p.file_name().map(|n| n.to_string_lossy().to_lowercase()) else { return vec![] };
+    let Ok(rd) = std::fs::read_dir(p.parent().unwrap_or(Path::new("."))) else { return vec![] };
+    let (head, journal, wal) = (format!(".{name}."), format!("{name}-journal"), format!("{name}-wal"));
+    let mut v: Vec<String> = rd
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| {
+            let l = n.to_lowercase();
+            (l.starts_with(&head) && l.ends_with(".incoming")) || l == journal || l == wal
+        })
+        .collect();
+    v.sort();
+    v
+}
+
+/// 元をファイルとして丸ごと写す（SQLite として開かない・休まない）。Windows では、開いているあいだも書き手が
+/// 置き換え（os.replace）できる開き方（FILE_SHARE_DELETE。std の既定でも付くが、ここで明かす）。
+fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
+    use std::io::{Read, Write};
+    let mut o = std::fs::OpenOptions::new();
+    o.read(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        o.share_mode(0x1 | 0x2 | 0x4).custom_flags(0x0800_0000); // 読み・書き・削除を許す／順に読む
+    }
+    let mut src = o.open(remote)?;
+    let mut dst = std::fs::File::create(tmp)?;
+    let mut buf = vec![0u8; COPY_CHUNK];
+    loop {
+        let n = src.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        dst.write_all(&buf[..n])?;
+    }
+    Ok(())
 }
 
 /// JSON を置き換えで書く（途中で止まっても前の台帳か新しい台帳のどちらか）。Python の write_json_atomic（indent=1）と同じ形。
@@ -246,15 +293,6 @@ impl DbMirror {
         Err(err.map(|e| os_error_text(&e)).unwrap_or_default())
     }
 
-    fn snapshot_backup(remote: &str, tmp: &Path) -> Result<(), String> {
-        let src = Connection::open_with_flags(remote, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
-            .map_err(|e| sqlite_text(&e))?;
-        let _ = src.busy_timeout(Duration::from_secs(15));
-        let mut dst = Connection::open(tmp).map_err(|e| sqlite_text(&e))?;
-        let b = rusqlite::backup::Backup::new(&src, &mut dst).map_err(|e| sqlite_text(&e))?;
-        b.run_to_completion(256, Duration::from_millis(50), None).map_err(|e| sqlite_text(&e))
-    }
-
     fn verify(tmp: &Path) -> Option<String> {
         let c = match Connection::open_with_flags(tmp, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX) {
             Ok(c) => c,
@@ -330,24 +368,27 @@ impl DbMirror {
             self.sweep(local.as_deref().unwrap());
             return self.record(res);
         }
+        let marks = writer_marks(&remote);
+        if let Some(m) = marks.first() {
+            res.insert("busy".into(), json!(true));
+            reason(&mut res, format!("書き手が公開している途中のため、写すのを見送りました（{m}）。少し空けて写し直します"));
+            return self.record(res);
+        }
         let _ = std::fs::create_dir_all(&self.cache_dir);
         let target = self.generation_path(self.next_generation());
         let tmp = target.with_extension("sqlite3.tmp");
         let _ = std::fs::remove_file(&tmp);
-        let how = match Self::snapshot_backup(&remote, &tmp) {
-            Ok(()) => "backup",
-            Err(_) => {
-                let _ = std::fs::remove_file(&tmp);
-                match std::fs::copy(&remote, &tmp) {
-                    Ok(_) => "copy",
-                    Err(e) => {
-                        reason(&mut res, format!("写せませんでした: {}", copy_error_text(&e, &remote)));
-                        cleanup(&tmp);
-                        return self.record(res);
-                    }
-                }
-            }
-        };
+        if let Err(e) = copy_shared(&remote, &tmp) {
+            reason(&mut res, format!("写せませんでした: {}", copy_error_text(&e, &remote)));
+            cleanup(&tmp);
+            return self.record(res);
+        }
+        if self.remote_stat(&remote, false).ok().as_ref() != Some(&sig) {
+            res.insert("busy".into(), json!(true));
+            reason(&mut res, "写しているあいだに元ファイルが入れ替わったため、見送りました。少し空けて写し直します".into());
+            cleanup(&tmp);
+            return self.record(res);
+        }
         if let Some(bad) = Self::verify(&tmp) {
             reason(&mut res, format!("写しが正しくないため見送りました（{bad}）"));
             cleanup(&tmp);
@@ -360,8 +401,8 @@ impl DbMirror {
             return self.record(res);
         }
         res.insert("updated".into(), json!(true));
-        res.insert("how".into(), json!(how));
-        reason(&mut res, format!("写しを更新しました（{}）", if how == "backup" { "バックアップAPI" } else { "コピー" }));
+        res.insert("how".into(), json!("copy"));
+        reason(&mut res, "写しを更新しました".into());
         self.sweep(&target);
         self.record(res)
     }
@@ -371,7 +412,7 @@ impl DbMirror {
         res
     }
 
-    /// 実際に読む場所。その元から作った写しがあればそれ、無ければ元（fail-open）。最初の周回が済むまでは待つ。
+    /// 実際に読む場所 = その元から作った写し。まだ無ければ None（共有は直接読まない。理由は not_ready_text）。最初の周回が済むまでは待つ。
     pub fn read_path(&self) -> Option<PathBuf> {
         if !self.enabled() {
             return None;
@@ -383,15 +424,18 @@ impl DbMirror {
         }
         let remote = self.remote();
         let entry = self.entry();
-        if let Some(src) = entry.get("signature").and_then(|s| s.get("source")).filter(|s| truthy(s)) {
-            if src.as_str().map(str::to_string).unwrap_or_else(|| src.to_string()) != remote {
-                return Some(PathBuf::from(remote));
-            }
+        let src = entry.get("signature").and_then(|s| s.get("source")).and_then(Value::as_str).unwrap_or("");
+        if src != remote {
+            return None;
         }
-        match self.mirror_path() {
-            Some(p) if p.exists() => Some(p),
-            _ => Some(PathBuf::from(remote)),
-        }
+        self.mirror_path().filter(|p| p.exists())
+    }
+
+    /// 写しがまだ無いときに画面へ出す文（なぜ無いか＋写し終えたら出ること）。Python の not_ready_text と同じ。
+    pub fn not_ready_text(&self) -> String {
+        let why = self.state.lock().unwrap().get("reason").and_then(Value::as_str).unwrap_or("").to_string();
+        let why = if why.is_empty() { why } else { format!("（{why}）") };
+        format!("共有の元ファイルを、まだ手元へ写せていません{why}。写し終えると一覧が出ます。")
     }
 
     /// いま読んでいるデータは「いつのものか」。共有は見に行かない（台帳の印から読む）。
@@ -444,6 +488,8 @@ impl DbMirror {
         let secs =
             if st.get("unreachable").is_some_and(truthy) && st.get("fails").and_then(Value::as_i64).filter(|n| *n != 0).unwrap_or(1) == 1 {
                 interval.min(RETRY_AFTER_UNREACHABLE_SEC)
+            } else if st.get("busy").is_some_and(truthy) {
+                interval.min(RETRY_AFTER_BUSY_SEC)
             } else {
                 interval
             };

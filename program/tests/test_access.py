@@ -156,8 +156,12 @@ class Api(Env):
         self.as_("u1")
         r = self.put_equipment()
         self.assertEqual((r.status_code, r.get_json()["kind"]), (403, "forbidden"), "閲覧のみはマスタを書けない")
+        fmt = {"name": "標準", "source": "work", "body": {"sorts": [{"column": "作業日", "dir": "desc"}]}}
+        self.assertEqual(self.c.post("/api/masters/formats", json=fmt).status_code, 403, "閲覧のみは共有の書式を置けない（呼び出すのはできる）")
+        self.assertEqual(self.c.get("/api/masters/formats").status_code, 200)
         self.as_("u2")
         self.assertEqual(self.put_equipment().status_code, 200, "部分的編集可は現場のマスタを書ける")
+        self.assertEqual(self.c.post("/api/masters/formats", json=fmt).status_code, 201, "共有の書式は現場のマスタと同じ（部分的編集可から）")
         r = self.c.put("/api/settings/lot_list.stale_hours", json={"value": "48", "base_rev": 0})
         self.assertEqual(r.status_code, 403, "部分的編集可は参照先（管理のマスタ）を書けない")
         self.assertEqual(self.c.post("/api/settings/check", json={"key": "lot_list.stale_hours", "value": "48"}).status_code, 200, "確かめるは書き込みではない")

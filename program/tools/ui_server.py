@@ -28,7 +28,7 @@ import app_env  # noqa: E402
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import access, work_log  # noqa: E402
+from app.services import access, display_formats, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from app.web import serve_http  # noqa: E402
 from tests import lotlist_fixture  # noqa: E402
@@ -42,6 +42,21 @@ def as_role(role):
     def flags(rows, login, pc):
         return {"role": role, "masterEdit": access.master_edit_cap(role), "masterEditStored": "", "matchedId": None}
     access.flags = flags
+
+
+def seed_formats(repo):
+    """共有の書式（作業実績）を 3 つ置いておく（画面の「書式 ▾」を撮るため。中身は作り物）。"""
+    std = {"columns": {"order": ["作業日", "開始", "終了", "ロット番号", "作業区分", "作業者"], "hidden": ["備考", "速度"],
+                       "names": {"入側板厚": "入側", "出側板厚": "出側"}, "widths": {}, "locks": [], "formats": {}, "aligns": {}, "formulas": {}, "rules": {}},
+           "sorts": [{"column": "作業日", "dir": "desc"}], "arrange": {"levels": [{"column": "作業者", "dir": "asc", "lot": False}], "heads": True, "suppress": False}}
+    insp = {"slicer": {"cards": [{"column": "作業区分"}, {"column": "作業者"}]},
+            "presets": [{"name": "再処理だけ", "filters": [{"column": "作業区分", "op": "equals", "value": "再処理"}], "group": "", "always": False}],
+            "sorts": [{"column": "重量", "dir": "desc"}]}
+    thin = {"columns": {"order": ["ロット番号", "入側板厚", "出側板厚", "板幅"], "hidden": ["備考", "合金", "調質"], "names": {}, "widths": {},
+                        "locks": [], "formats": {}, "aligns": {}, "formulas": {"減面率": "1-[出側板厚]/[入側板厚]"}, "rules": {}}}
+    for name, origin, body, note in (("標準", "CR1・実績", std, "全設備の基本の並び"), ("検査用", "L-1・実績", insp, ""),
+                                     ("薄板の確認", "CR2・実績", thin, "板厚と減面率")):
+        repo.format_create(display_formats.clean_row({"name": name, "source": "work", "table": "実績", "origin": origin, "body": body, "note": note}))
 
 
 def main():
@@ -63,6 +78,7 @@ def main():
                       "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log")})
     # 設備を登録しておく（マスタ管理の「探す」と同じ）
     MasterRepository(app.config["MASTER_STORE"]).work_log_sync(work_log.scan(folder, settings["work_log"]["pattern"]))
+    seed_formats(MasterRepository(app.config["MASTER_STORE"]))
     (folder / "実績_SL3.sqlite3").unlink()
     old = time.time() - 80 * 3600                    # 1 台（HOT）は更新が止まった形（80 時間前）
     os.utime(folder / "実績_HOT.sqlite3", (old, old))

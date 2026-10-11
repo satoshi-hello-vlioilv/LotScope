@@ -59,6 +59,8 @@
   const ADHOC_DEBOUNCE_MS = 280;
   const SEARCH_DEBOUNCE_MS = 280;
   const SOURCE_POLL_MS = 20000;
+  const COPY_RETRY_MS = 4000;
+  let fmtCtx = null;              // 共有の書式の札を描いた範囲（替わったら描き直す）     // 写しがまだ無いとき、引き直すまで（写しの係は書き手が作業中なら 5 秒空けて写し直す）
   const MAX_SORTS = 4;
   const PRESET_NONE = "";
 
@@ -104,7 +106,7 @@
     work: {
       id: "work", api: "/api/worklog", title: "作業実績", noun: "作業実績", fileStem: "作業実績",
       params: () => (S.equip ? { equip: S.equip } : {}),
-      scope: (t) => `wl:${S.equip}:${t || ""}`, target: (t) => `worklog:${S.equip}:${t || ""}`, owns: (k) => k.startsWith(`wl:${S.equip}:`),
+      scope: (t, e = S.equip) => `wl:${e}:${t || ""}`, target: (t, e = S.equip) => `worklog:${e}:${t || ""}`, owns: (k) => k.startsWith(`wl:${S.equip}:`),
       colTable: (t) => `wl:${t || ""}`, place: (t) => `${equipName(S.equip)}・${t || ""}`,
       loadTable: () => (store.get(KEY.workTable, {})[S.equip] || ""),
       saveTable: (t) => { const m = store.get(KEY.workTable, {}); if (t) m[S.equip] = t; else delete m[S.equip]; store.set(KEY.workTable, m); },
@@ -127,6 +129,7 @@
     };
   }
   const STATES = { lot: newState("lot"), work: newState("work") };
+  STATES.work.presets = STATES.lot.presets;     // 登録した条件は 1 つの並び（savePresets）
   STATES.lot.table = SOURCES.lot.loadTable();
   STATES.work.equip = store.get(KEY.workEquip, "");
   let S = STATES.lot;
@@ -291,7 +294,7 @@
       const d = await r.json();
       if (me !== S || seq !== S.seq) return;  // 追い越された古い答え・ほかの元へ移った後の答えは捨てる
       S.source = d.source || S.source;
-      if (!r.ok) throw new Error(d.error || `${S.src.title}を読めませんでした`);
+      if (!r.ok) throw Object.assign(new Error(d.error || `${S.src.title}を読めませんでした`), { kind: d.kind });
       S.table = d.table; S.tables = d.tables || []; S.columns = d.columns || []; S.rows = d.rows || [];
       S.lotColumn = d.lotColumn || ""; S.rows = clusterRows(S.rows);
       S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
@@ -302,6 +305,7 @@
       S.loadedAt = (S.source && S.source.copiedAt) || null;
       S.src.saveTable(S.table);
       S.shownEquip = S.equip;
+      if (fmtCtx !== scope()) { fmtCtx = scope(); window.LotListFormats?.refresh(); }   // 共有の書式の札（この所に当てた書式）を描き直す
       // 表が初めて決まった（サーバーが既定の表を選んだ）ら、その表の覚えを戻して引き直す
       if (S.ctx !== scope() && syncContext() && (S.genericFilters.length || S.sorts.length || adhocActive() || grouped() || window.LotListSlicer.filters().length)) {
         S.loading = false; wait?.done(); return load();
@@ -309,6 +313,8 @@
     } catch (e) {
       if (me !== S || seq !== S.seq) return;
       S.error = e.message; S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0];
+      // 写しがまだ無い（共有は直接読まない）: 写し終えるまで、少し空けて引き直す
+      if (e.kind === "copying") { clearTimeout(me.copyRetry); me.copyRetry = setTimeout(() => { if (me === S && seq === S.seq) load(); }, COPY_RETRY_MS); }
     } finally { wait?.done(); }
     S.loading = false;
     renderAll();
@@ -342,7 +348,9 @@
     return true;
   }
   function tablePresets() { const k = scope(); return S.presets.filter((p) => p.table === k); }
-  function savePresets() { store.set(KEY.presets, S.presets); }
+  /* 登録した条件は、元（異常ロット一覧・作業実績）をまたいで 1 つの覚え（どの範囲の条件かは table で見分ける）。
+     両方の元が同じ並びを持つ（別々に持つと、片方で登録した条件を、もう片方の保存が消してしまう） */
+  function savePresets(list = S.presets) { STATES.lot.presets = STATES.work.presets = list; store.set(KEY.presets, list); }
   /* 「いつも適用（固定）」は開くたびに入り、手で外せても開き直すと戻る（WaveLog §9.190 と同じ）。 */
   function applyAlwaysOn() {
     const seen = new Set(S.genericFilters.map(filterKey));
@@ -382,7 +390,7 @@
     if (registeredPreset(f)) return "dup";
     S.presets.unshift({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: presetName(f),
       table: scope(), filters: [{ column: f.column, op: f.op, value: f.value }], group: "", always: false });
-    S.presets = S.presets.slice(0, 200); savePresets();
+    savePresets(S.presets.slice(0, 200));
     return "saved";
   }
 
@@ -913,7 +921,7 @@
       $(".ll-pm-apply", tr).onclick = () => { (p.filters || []).forEach((f) => { if (!S.genericFilters.some((x) => filterKey(x) === filterKey(f))) S.genericFilters.push({ ...f }); }); reload(); };
       $(".ll-pm-del", tr).onclick = () => {
         if (!confirm(`登録した条件「${p.name}」を削除します。よろしいですか？（効いている条件からは外しません）`)) return;
-        S.presets = S.presets.filter((x) => x.id !== p.id); savePresets();
+        savePresets(S.presets.filter((x) => x.id !== p.id));
         S.genericFilters.forEach((f) => { if (f.locked && !tablePresets().some((q) => q.always && (q.filters || []).some((g) => filterKey(g) === filterKey(f)))) delete f.locked; });
         renderPresetModal(); renderBar();
       };
@@ -1634,6 +1642,7 @@
     root = $("#lotListScreen");
     onPick = opts.onPick || onPick;
     buildBar(); bindGrid(); bindEquipBar();
+    window.LotListFormats?.mount();
     window.LotListSlicer.mount({
       table: scope, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,
       api: () => S.src.api, params: () => S.src.params(),
@@ -1653,5 +1662,96 @@
       return t.replace(/^lotlist:/, "");
     });
   }
-  window.LotList = { mount, activate, deactivate, focus: () => $("#llSearch")?.focus(), source: () => S.src.id };
+  /* ================= 共有の書式（lotlist-formats.js が呼ぶ）: いまの表示ルールを取り出す・ほかの所へ当てる =================
+     部品（services/display_formats.PARTS と同じ名前）: 表示列・読み替えルール・並び・まとめ・並べ替え・登録した条件・スライサー・列で絞り込む。
+     その時だけの状態（効いている条件の値・スライサーで選んだ値・列で絞り込むの値・畳んだまとまり）は運ばない。
+     当てる所（place）: {key: 範囲, target: 表示列の対象, label}。作業実績は設備ごと（その設備で最後に見た表。無ければ書式の表） */
+  const isEmptyLayout = (l) => !l || Object.values(l).every((v) => (Array.isArray(v) ? !v.length : !Object.keys(v || {}).length));
+  function captureFormat() {
+    saveActive(); saveAdhocSetup();
+    const k = scope(), LC = window.LotListColumns, LR = window.LotListRules, out = {};
+    const columns = LC.layoutOf(layoutTarget());
+    if (!isEmptyLayout(columns)) out.columns = columns;
+    const rules = {};
+    Object.values(columns.rules || {}).forEach((n) => { const r = LR.raw(n); if (r) rules[n] = r; });
+    if (Object.keys(rules).length) out.rules = rules;
+    const a = store.get(KEY.arrange, {})[k];
+    if (a) { const { sorts: _s, ...rest } = cleanArrange(a); out.arrange = rest; }
+    if (S.sorts.length) out.sorts = S.sorts.map(({ column, dir }) => ({ column, dir }));
+    const ps = tablePresets().map(({ id: _id, table: _t, ...p }) => TPA.clone(p));
+    if (ps.length) out.presets = ps;
+    const cards = window.LotListSlicer.setupOf(k);
+    if (cards.length) out.slicer = { cards };
+    const ad = store.get(KEY.adhoc, {})[k];
+    if (ad && ad.column) out.adhoc = { column: ad.column, op: ad.op || "contains" };
+    return out;
+  }
+  /** 当てられる所（いまの所が先頭）。作業実績は表示する設備ごと、異常ロット一覧はいまの表だけ。
+      まだ開いていない設備の表は分からないので、table（書式を作った表。無ければいまの表）にする */
+  function formatPlaces(table = S.table) {
+    if (S.src.id !== "work") return [{ key: scope(), target: layoutTarget(), label: S.table || "（表）", here: true }];
+    const tables = store.get(KEY.workTable, {});
+    return (S.equips || []).filter((e) => e.visible !== false && e.state !== "missing").map((e) => {
+      const t = e.key === S.equip ? S.table : (tables[e.key] || table || S.table);
+      return { key: S.src.scope(t, e.key), target: S.src.target(t, e.key), label: e.name, equip: e.key, here: e.key === S.equip };
+    }).sort((x, y) => (y.here - x.here));
+  }
+  /** 当てた所の、当てる前の表示ルール（元に戻す用）。当てるのと同じ形で持つ */
+  function snapshotPlace(pl) {
+    const was = { columns: window.LotListColumns.layoutOf(pl.target), arrange: store.get(KEY.arrange, {})[pl.key] || null,
+      sorts: store.get(KEY.sorts, {})[pl.key] || [], presets: S.presets.filter((p) => p.table === pl.key).map((p) => TPA.clone(p)),
+      slicer: { cards: window.LotListSlicer.setupOf(pl.key) }, adhoc: store.get(KEY.adhoc, {})[pl.key] || null };
+    return { place: pl, was };
+  }
+  /** 書式 body を places へ当てる → {places, rules, undo}。書式に無い部品は、当てた所の今のまま */
+  function applyFormat(body, places) {
+    const LC = window.LotListColumns, LR = window.LotListRules;
+    const undo = places.map(snapshotPlace);
+    let rules = 0;
+    Object.entries(body.rules || {}).forEach(([n, r]) => { if (LR.putRaw(n, r)) rules++; });   // ルールは名前で呼ぶので先に入れる
+    const arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {});
+    let presets = S.presets;
+    places.forEach((pl) => {
+      if (body.columns) LC.replaceLayout(pl.target, body.columns);
+      if (body.arrange) { const { sorts: _s, ...a } = cleanArrange(body.arrange); arr[pl.key] = a; }
+      if (body.sorts) { const x = cleanArrange({ sorts: body.sorts }).sorts; if (x.length) srt[pl.key] = x; else delete srt[pl.key]; }
+      if (body.presets) {
+        presets = presets.filter((p) => p.table !== pl.key).concat(body.presets.map((p, i) => ({ ...TPA.clone(p),
+          id: "p" + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 5), table: pl.key })));
+      }
+      if (body.slicer) window.LotListSlicer.setSetup(pl.key, body.slicer.cards);
+      if (body.adhoc) adh[pl.key] = { column: String(body.adhoc.column || ""), op: body.adhoc.op || "contains" };
+    });
+    store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
+    if (body.presets) savePresets(presets.slice(0, 400));
+    afterFormat(places);
+    return { places: places.length, rules, undo };
+  }
+  /** 元に戻す: 当てる前の表示ルールへ（applyFormat の undo をそのまま） */
+  function undoFormat(undo) {
+    const LC = window.LotListColumns, arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {});
+    let presets = S.presets;
+    undo.forEach(({ place: pl, was }) => {
+      LC.replaceLayout(pl.target, was.columns);
+      if (was.arrange) arr[pl.key] = was.arrange; else delete arr[pl.key];
+      if (was.sorts.length) srt[pl.key] = was.sorts; else delete srt[pl.key];
+      if (was.adhoc) adh[pl.key] = was.adhoc; else delete adh[pl.key];
+      presets = presets.filter((p) => p.table !== pl.key).concat(was.presets);
+      window.LotListSlicer.setSetup(pl.key, was.slicer.cards);
+    });
+    store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
+    savePresets(presets);
+    afterFormat(undo.map((u) => u.place));
+  }
+  /** いまの所に当たったら、覚えを読み直して引き直す（ほかの所は、その設備を開いたときに効く） */
+  function afterFormat(places) {
+    if (!places.some((pl) => pl.key === scope())) return;
+    S.adhocScope = null; syncContext(true);
+    if (!$("#llViewMenu").hidden) renderViewMenu();
+    load();
+  }
+
+  window.LotList = { mount, activate, deactivate, focus: () => $("#llSearch")?.focus(), source: () => S.src.id,
+    formats: { capture: captureFormat, places: formatPlaces, apply: applyFormat, undo: undoFormat,
+      here: () => ({ source: S.src.id, table: S.table, origin: S.src.place(S.table), equip: S.equip, title: S.src.title }) } };
 })();

@@ -1,0 +1,70 @@
+/* ---------- 共有の書式（道具の行の「書式 ▾」・件数の行の札・その窓）: lotlist-formats.js ----------
+   7 案×2 回で決めた形（ui-proposals/2026-10-formats: K3）。入口と件数の行の札に、いまの所に当てた書式の名前（共有で上書きされたら橙）。
+   窓は上から「当てる所 → 結果と元に戻す → 書式の一覧（行の主の行動は当てる 1 つ・部品は札）→ 置く」 */
+.ll-screen .generic-filter-bar .fm-entry{display:inline-flex;align-items:center;gap:6px;max-width:260px}
+.fm-entry .fm-key{color:var(--muted);font-weight:700}
+.fm-entry .fm-now{display:none;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ll-teal-dark);font-weight:800}
+.fm-entry.has-now .fm-now{display:inline}
+.fm-entry.has-now{border-color:var(--ll-teal)}
+.fm-entry[aria-expanded="true"]{border-color:var(--ll-teal);background:var(--ll-pale)}
+.fm-entry{position:relative}
+.fm-entry.is-newer::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:#dc7f2a;box-shadow:0 0 0 2px var(--surface)}
+
+.fm-panel{position:absolute;right:10px;top:calc(100% - 2px);z-index:46;width:440px;max-height:min(70vh,640px);overflow:auto;display:grid;gap:10px;padding:12px 14px;
+  background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 14px 36px var(--pop-shadow);font-size:12.5px;color:var(--ink)}
+.fm-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.fm-head b{font-size:14px}
+.fm-head small{flex-basis:100%;color:var(--muted);font-size:11.5px;line-height:1.5}
+.fm-shared{font-size:10.5px;font-weight:800;border-radius:999px;padding:0 7px;background:var(--ok-soft);color:var(--ok-ink);white-space:nowrap}
+.fm-shared.is-local{background:var(--surface-4);color:var(--muted)}
+
+.fm-to{border:1px solid var(--line);border-radius:8px;padding:6px 10px 8px;margin:0;display:flex;flex-wrap:wrap;gap:4px 14px}
+.fm-to legend{padding:0 4px;color:var(--muted);font-weight:700;font-size:11.5px}
+.fm-to label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer}
+.fm-equips{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 12px;padding-top:4px;border-top:1px dashed var(--line)}
+.fm-equips .fm-all{font-weight:700}
+.fm-cur{font-size:10.5px;color:var(--ll-teal-dark);background:var(--ll-pale);border-radius:999px;padding:0 6px;margin-left:2px;font-weight:700}
+
+.fm-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.fm-item{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.fm-subs{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.fm-subs small{color:var(--muted);font-size:11px}
+.fm-item.is-current{border-color:var(--ll-teal);background:var(--ll-pale)}
+.fm-main{flex:1;min-width:0;display:grid;gap:1px}
+.fm-main b{font-size:13.5px}
+.fm-main small{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fm-parts{display:flex;flex-wrap:wrap;gap:3px}
+.fm-parts i{font-style:normal;font-size:10.5px;font-weight:700;padding:0 6px;border-radius:999px;background:var(--surface-4);color:var(--muted);line-height:1.7;white-space:nowrap}
+.fm-item.is-current .fm-parts i{background:var(--surface)}
+.fm-tag{justify-self:start;font-size:10.5px;font-weight:800;border-radius:999px;padding:0 7px;background:var(--ll-teal);color:var(--on-fill);white-space:nowrap}
+.fm-tag.is-newer{background:#dc7f2a}
+.fm-acts{display:flex;gap:4px;flex:none}
+.ll-screen .generic-filter-bar .fm-panel button{height:28px;padding:0 10px;font-size:12.5px;white-space:nowrap}
+.ll-screen .generic-filter-bar .fm-panel .fm-apply{background:var(--ll-teal);border-color:var(--ll-teal);color:var(--on-fill);font-weight:700}
+.ll-screen .generic-filter-bar .fm-panel .fm-more{width:28px;padding:0;color:var(--muted)}
+.ll-screen .generic-filter-bar .fm-panel .fm-more[aria-expanded="true"]{background:var(--surface-4)}
+.ll-screen .generic-filter-bar .fm-panel .fm-subs button{height:26px;font-size:12px}
+.ll-screen .generic-filter-bar .fm-panel .fm-del{color:var(--danger);border-color:var(--danger-line)}
+.fm-empty{color:var(--muted);padding:8px 2px}
+
+.fm-save{display:grid;gap:4px;padding-top:8px;border-top:1px solid var(--line)}
+.fm-save label{font-weight:700;font-size:12px}
+.fm-save div{display:flex;gap:6px}
+.ll-screen .generic-filter-bar .fm-save input{flex:1;min-width:0;height:28px;border:1px solid var(--line);border-radius:7px;padding:0 8px}
+.ll-screen .generic-filter-bar .fm-save button{font-weight:700;color:var(--ll-teal-dark);border-color:var(--ll-teal)}
+.fm-note{margin:0;color:var(--muted);font-size:11.5px;padding-top:8px;border-top:1px solid var(--line)}
+.fm-msg{margin:0;font-size:12px;color:var(--ok-ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 10px;border-radius:7px;background:var(--ok-soft)}
+.fm-msg.is-ng{color:var(--danger);background:var(--danger-bg)}
+
+/* 件数の行の札（当てていなければ出さない） */
+.fm-now-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;margin-left:6px;border-radius:999px;border:1px solid var(--ll-teal);
+  background:var(--ll-pale);color:var(--ll-teal-dark);font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap;max-width:260px}
+.fm-now-chip[hidden]{display:none}
+.fm-now-chip small{color:var(--muted);font-weight:600;font-size:11px}
+.fm-now-chip b{overflow:hidden;text-overflow:ellipsis;font-weight:800}
+.fm-now-chip i{font-style:normal;font-size:10px}
+.fm-now-chip em{font-style:normal;font-size:10.5px;font-weight:800;color:var(--on-fill);background:#dc7f2a;border-radius:999px;padding:0 6px}
+.fm-now-chip.is-newer{border-color:#dc7f2a}
+.fm-now-chip:hover{background:var(--surface)}
+.ll-screen .generic-filter-bar .fm-panel .fm-undo{height:24px;font-size:12px}
+.fm-loading{margin:0;color:var(--muted)}
