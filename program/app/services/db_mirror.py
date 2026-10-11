@@ -13,9 +13,10 @@
     「使用中」になり、20 秒粘ってだめなら <名前>.pending_<日時> として次の実行まで保留する。そこで:
     1. 写す直前に、書き手の作業中の印（.incoming・SQLite の -journal・-wal）が無いかを見る。あれば今回は写さない（busy）
     2. SQLite としては開かず、ファイルとして丸ごと写す。置き換えを許す開き方（fsio.open_shared_read）で、休まず一気に写してすぐ閉じる
-    3. 写した後にもう一度 (大きさ, 更新時刻) を見て、写す前と違えば捨てる（入れ替えをまたいだ写しを使わない）
+    3. 写した後にもう一度 (大きさ, 更新時刻) と作業中の印を見て、写す前と違う・印が出ていれば捨てる（入れ替え・書き込みをまたいだ写しを使わない）
     4. PRAGMA quick_check で検査し、壊れていれば捨てて前の写しを使い続ける
     1・3 で見送ったときは、少し空けて（RETRY_AFTER_BUSY_SEC）やり直す。
+    この作法は WaveLog・DataRelay（ビュワー）と同じ「共有の写し方の約束」（program/docs/SHARED_READ.md）。
 
 世代名
     写しは毎回新しい名前 <キー>.g<世代>.sqlite3 で作り、台帳 _mirror.json が今の世代を指す。
@@ -25,7 +26,8 @@
 いつ写すか
     背景スレッドが一定間隔で元ファイルの (パス, サイズ, 更新時刻) を見て、変わっていれば写す。
     共有へ触るのは背景スレッド（と利用者が押した「再読込」）だけで、一覧を出す要求の中では
-    共有を stat しない。写しがまだ無いときも共有を直接は読まない（開くと書き手の入れ替えを止めるため）。
+    共有を stat しない。「再読込」は**今すぐ確かめる**だけで、元が変わっていなければ写さない
+    （変わっていない元を写し直しても中身は同じで、共有を開く回数だけが台数に比例して増える）。写しがまだ無いときも共有を直接は読まない（開くと書き手の入れ替えを止めるため）。
     read_path は None を返し、画面は「まだ写せていない」と理由を出して、写し終えたら引き直す。
     起動して最初の周回が済むまでは、読む側が待つ（前回の起動の古い写しを出さない）。
 
@@ -50,6 +52,8 @@ from .sqlite_ro import ro_uri
 log = logging.getLogger(__name__)
 
 LEDGER = "_mirror.json"
+# 従っている「共有の写し方の約束」の版（program/docs/SHARED_READ.md の題。WaveLog・DataRelay と同じ文を置く）
+CONTRACT_VERSION = 1
 DEFAULT_INTERVAL_SEC = 60
 MIN_INTERVAL_SEC = 10
 FIRST_WAIT_SEC = 30
@@ -233,12 +237,23 @@ class DbMirror:
             c.close()
         return None
 
-    def refresh(self, force=False):
-        """1回ぶん写し直す。結果（画面の診断用）を返す。"""
+    def refresh(self):
+        """1回ぶん確かめ、元が変わっていれば写し直す。結果（画面の診断用）を返す。"""
         with self._refresh_lock:
-            return self._refresh(force)
+            return self._refresh()
 
-    def _refresh(self, force):
+    def _settled(self, sig):
+        """写し終えた後も、元が写す前と同じで、書き手の作業中の印も無いか（約束の R5）。
+        ダメなら見送る理由、良ければ None。"""
+        after, _ = self._remote_stat(retry=False)
+        if after != sig:
+            return "写しているあいだに元ファイルが入れ替わったため、見送りました。少し空けて写し直します"
+        marks = writer_marks(self.remote)
+        if marks:
+            return f"写しているあいだに書き手が書き始めたため、見送りました（{marks[0]}）。少し空けて写し直します"
+        return None
+
+    def _refresh(self):
         res = {"updated": False, "reason": "", "at": time.time(), "remote": self.remote}
         if not self.enabled:
             res["reason"] = "元ファイルが設定されていません"
@@ -257,7 +272,7 @@ class DbMirror:
             if not (same and prev.get("error") == err):
                 log.warning("%s: %s", self.key, res["reason"])
             return self._record(res)
-        if not force and has_local and entry.get("signature") == sig:
+        if has_local and entry.get("signature") == sig:
             res.update(skipped=True, reason="元ファイルは変わっていません")
             self._sweep(local)
             return self._record(res)
@@ -276,9 +291,9 @@ class DbMirror:
             res["reason"] = f"写せませんでした: {e}"
             self._cleanup(tmp)
             return self._record(res)
-        after, _ = self._remote_stat(retry=False)
-        if after != sig:
-            res.update(busy=True, reason="写しているあいだに元ファイルが入れ替わったため、見送りました。少し空けて写し直します")
+        moved = self._settled(sig)
+        if moved:
+            res.update(busy=True, reason=moved)
             self._cleanup(tmp)
             return self._record(res)
         bad = self._verify(tmp)

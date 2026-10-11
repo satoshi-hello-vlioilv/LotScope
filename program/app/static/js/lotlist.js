@@ -1358,14 +1358,14 @@
     renderStale();
     let text, cls = "";
     if (s.stale) { text = `元データが古い ${hm(s.at)}（${ageText(s.ageHours)}）`; cls = "is-warn"; }
-    else if (!s.mirrored) { text = s.unreachable ? "共有に届きません（写しもまだありません）" : "共有を直接読んでいます（写しを作っています）"; cls = "is-warn"; }
+    else if (!s.mirrored) { text = s.unreachable ? "共有に届きません（写しもまだありません）" : "共有から手元へ写しています（写し終えると一覧が出ます）"; cls = "is-warn"; }
     else if (newer) { text = `新しい版を取り込みました（${hm(s.at)}）・押すと表示を更新`; cls = "is-new"; }
     else if (s.unreachable) { text = `共有に届きません・前の写し（${hm(s.at)}）を表示中`; cls = "is-warn"; }
     else text = `元データ ${hm(s.at)}`;
     b.textContent = text; if (cls) b.classList.add(cls);
     b.title = [`元: ${s.remote || "-"}`, s.at ? `元データの更新: ${hm(s.at)}` : "", s.copiedAt ? `手元の写し: ${hm(s.copiedAt)} に取り込み` : "",
       s.checkedAt ? `最後に共有を確かめた: ${hm(s.checkedAt)}（${s.interval_sec}秒ごと）` : "", s.reason || "",
-      newer ? "押すと、取り込んだ新しい版で一覧を出し直します。" : "押すと、共有から今すぐ取り直します（再読込）。"].filter(Boolean).join("\n");
+      newer ? "押すと、取り込んだ新しい版で一覧を出し直します。" : "押すと、共有に新しい版があるかを今すぐ確かめ、あれば取り込みます（再読込）。"].filter(Boolean).join("\n");
   }
   function paintBusy() {
     root?.classList.toggle("is-loading", S.loading);

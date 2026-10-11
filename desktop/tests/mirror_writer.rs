@@ -5,7 +5,7 @@
 
 mod common;
 
-use da_core::mirror::DbMirror;
+use da_core::mirror::{copy_shared, DbMirror};
 use rusqlite::Connection;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -58,11 +58,11 @@ fn does_not_copy_while_the_writer_is_publishing() {
     let mark = share.join(".実績_CR1.sqlite3.4242.incoming");
     std::fs::write(&mark, b"x").unwrap();
     let m = DbMirror::new("work_log_CR1", &dst.display().to_string(), &work.join("cache"), 60, 36.0);
-    let r = m.refresh(false);
+    let r = m.refresh();
     assert_eq!((r["busy"].as_bool(), r["updated"].as_bool()), (Some(true), Some(false)), "{r}");
     assert!(m.read_path().is_none(), "写さない・共有も読まない");
     std::fs::remove_file(&mark).unwrap();
-    assert_eq!(m.refresh(false)["updated"], true);
+    assert_eq!(m.refresh()["updated"], true);
     assert_eq!(version_of(&m.read_path().unwrap()), 0);
     let _ = std::fs::remove_dir_all(&work);
 }
@@ -97,15 +97,19 @@ fn publishing_never_goes_pending_and_copies_are_whole() {
         out
     });
     let (mut seen, mut busy) = (std::collections::BTreeSet::new(), 0);
+    let (remote, scratch) = (dst.display().to_string(), work.join("hammer.bin"));
     while !stop.load(Ordering::SeqCst) {
-        let r = m.refresh(true);
+        let r = m.refresh();
         busy += r["busy"].as_bool().unwrap_or(false) as usize;
         if r["updated"] == true {
             seen.insert(version_of(&m.read_path().unwrap()));
         }
+        // 「再読込」は元が変わったときしか写さない（SHARED_READ.md の R2）ので、同じ開き方で写すのを試験の側で
+        // 休まず続け、入れ替えとぶつけ続ける（入れ替えの一瞬に開けないことはある。そのときは次の回）
+        let _ = copy_shared(&remote, &scratch);
     }
     let results = th.join().unwrap();
-    m.refresh(false);
+    m.refresh();
     seen.insert(version_of(&m.read_path().unwrap()));
     let pending = results.iter().filter(|(ok, _)| !ok).count();
     let retried = results.iter().filter(|(_, a)| *a > 1).count();

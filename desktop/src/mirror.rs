@@ -1,8 +1,9 @@
 //! 共有上の品質データ（SQLite）を手元へ写してから読む係。Python 版（program/app/services/db_mirror.py）と**同じ手順・同じ台帳・同じ文言**。
 //!
 //! - 写し方: 書き手（DataRelay）と干渉しない作法。書き手の作業中の印（.incoming・-journal・-wal）があれば写さない →
-//!   SQLite として開かず、置き換えを許す開き方でファイルを丸ごと一気に写す → 写す前後の (大きさ, 更新時刻) が同じか →
-//!   quick_check。どれかで見送れば少し空けてやり直す（Python の db_mirror.py の冒頭に理由）
+//!   SQLite として開かず、置き換えを許す開き方でファイルを丸ごと一気に写す → 写す前後の (大きさ, 更新時刻) が同じで、
+//!   作業中の印も出ていないか → quick_check。どれかで見送れば少し空けてやり直す（Python の db_mirror.py の冒頭に理由）
+//! - 「再読込」は今すぐ確かめるだけ（元が変わっていなければ写さない）。約束は program/docs/SHARED_READ.md
 //! - 世代名: 毎回 `<キー>.g<世代>.sqlite3` で作り、台帳 `_mirror.json` が今の世代を指す（開いているファイルを上書きしない）
 //! - いつ: 背景の糸が一定間隔で元の (パス, 大きさ, 更新時刻 ns) を見て、変わっていれば写す。一覧の問い合わせの中では共有を見ない
 //! - 台帳は Python と同じ形なので、どちらが写した写しも互いに読める（desktop/tests/mirror_parity.rs が突き合わせる）
@@ -81,7 +82,7 @@ pub fn writer_marks(remote: &str) -> Vec<String> {
 
 /// 元をファイルとして丸ごと写す（SQLite として開かない・休まない）。Windows では、開いているあいだも書き手が
 /// 置き換え（os.replace）できる開き方（FILE_SHARE_DELETE。std の既定でも付くが、ここで明かす）。
-fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
+pub fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
     use std::io::{Read, Write};
     let mut o = std::fs::OpenOptions::new();
     o.read(true);
@@ -318,12 +319,24 @@ impl DbMirror {
     }
 
     /// 1回ぶん写し直す。結果（画面の診断用）を返す。
-    pub fn refresh(&self, force: bool) -> Value {
+    /// 1回ぶん確かめ、元が変わっていれば写し直す（Python の refresh と同じ。「再読込」も同じ道）。
+    pub fn refresh(&self) -> Value {
         let _one = self.refresh_lock.lock().unwrap_or_else(|e| e.into_inner());
-        Value::Object(self.refresh_inner(force))
+        Value::Object(self.refresh_inner())
     }
 
-    fn refresh_inner(&self, force: bool) -> Map<String, Value> {
+    /// 写し終えた後も、元が写す前と同じで、書き手の作業中の印も無いか（約束の R5。Python の _settled と同じ文）。
+    /// ダメなら見送る理由、良ければ None。
+    fn settled(&self, remote: &str, sig: &Value) -> Option<String> {
+        if self.remote_stat(remote, false).ok().as_ref() != Some(sig) {
+            return Some("写しているあいだに元ファイルが入れ替わったため、見送りました。少し空けて写し直します".into());
+        }
+        writer_marks(remote)
+            .first()
+            .map(|m| format!("写しているあいだに書き手が書き始めたため、見送りました（{m}）。少し空けて写し直します"))
+    }
+
+    fn refresh_inner(&self) -> Map<String, Value> {
         let remote = self.remote();
         let mut res = Map::new();
         res.insert("updated".into(), json!(false));
@@ -362,7 +375,7 @@ impl DbMirror {
                 return self.record(res);
             }
         };
-        if !force && has_local && entry.get("signature") == Some(&sig) {
+        if has_local && entry.get("signature") == Some(&sig) {
             res.insert("skipped".into(), json!(true));
             reason(&mut res, "元ファイルは変わっていません".into());
             self.sweep(local.as_deref().unwrap());
@@ -383,9 +396,9 @@ impl DbMirror {
             cleanup(&tmp);
             return self.record(res);
         }
-        if self.remote_stat(&remote, false).ok().as_ref() != Some(&sig) {
+        if let Some(moved) = self.settled(&remote, &sig) {
             res.insert("busy".into(), json!(true));
-            reason(&mut res, "写しているあいだに元ファイルが入れ替わったため、見送りました。少し空けて写し直します".into());
+            reason(&mut res, moved);
             cleanup(&tmp);
             return self.record(res);
         }
@@ -507,7 +520,7 @@ impl DbMirror {
         std::thread::Builder::new()
             .name(format!("db-mirror-{}", self.key))
             .spawn(move || {
-                me.refresh(false);
+                me.refresh();
                 {
                     let (m, cv) = &*me.wake;
                     m.lock().unwrap().first_done = true;
@@ -526,7 +539,7 @@ impl DbMirror {
                     }
                     g.woken = false;
                     drop(g);
-                    me.refresh(false);
+                    me.refresh();
                 }
             })
             .is_ok()
@@ -571,4 +584,28 @@ fn copy_error_text(e: &std::io::Error, path: &str) -> String {
 
 fn cleanup(tmp: &Path) {
     let _ = retrying(1.0, || std::fs::remove_file(tmp));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 写し終えた後の確かめ（約束の R5）: 元が同じでも、書き手の印が出ていれば見送る。Python の _settled と同じ文。
+    #[test]
+    fn settled_refuses_when_the_writer_started() {
+        let dir = std::env::temp_dir().join(format!("qa-settled-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let remote = dir.join("SIKADEF.sqlite3");
+        std::fs::write(&remote, b"x").unwrap();
+        let r = remote.display().to_string();
+        let m = DbMirror::new("k", &r, &dir.join("cache"), 60, 36.0);
+        let sig = m.remote_stat(&r, false).unwrap();
+        assert_eq!(m.settled(&r, &sig), None);
+        std::fs::write(dir.join("SIKADEF.sqlite3-journal"), b"j").unwrap();
+        let why = m.settled(&r, &sig).unwrap();
+        assert!(why.contains("書き始めた") && why.contains("SIKADEF.sqlite3-journal"), "{why}");
+        std::fs::write(&remote, b"xy").unwrap();
+        assert!(m.settled(&r, &sig).unwrap().contains("入れ替わった"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

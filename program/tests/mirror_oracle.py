@@ -4,7 +4,7 @@
     python tests/mirror_oracle.py scenario 作業フォルダ
         作業フォルダ/assets に試験用の元ファイル（v1・v2・テーブルの無いもの）を作り、筋書き（STEPS）を
         作業フォルダ/py で Python の DbMirror に行わせて、一歩ずつの結果を JSON で出す。Rust は作業フォルダ/rs で同じことをして比べる。
-    python tests/mirror_oracle.py op 写しの置き場 元ファイル refresh|force|read_path|source_info
+    python tests/mirror_oracle.py op 写しの置き場 元ファイル refresh|read_path|source_info
         1つの操作だけ（Python と Rust が同じ置き場を交互に使い、互いの台帳を読めるかを確かめる）。
 
 時刻で変わる値（at・copiedAt・checkedAt）は「あるか」だけ、ageHours は 0.15 時間の幅で比べる（normalize）。
@@ -41,10 +41,10 @@ STEPS = [
     {"do": "ledger"},
     {"do": "source_info"},
     {"do": "corrupt", "file": "share", "age": 1},
-    {"do": "refresh", "force": True},                        # 壊れた元は見送る
+    {"do": "refresh"},                                       # 壊れた元は見送る
     {"do": "read_path"},
     {"do": "put", "file": "share", "asset": "empty", "age": 1},
-    {"do": "refresh", "force": True},                        # テーブルの無い元も見送る
+    {"do": "refresh"},                                       # テーブルの無い元も見送る
     {"do": "unlink", "file": "share"},
     {"do": "refresh"},                                       # 届かない（1回目・写しはある）
     {"do": "refresh"},                                       # 2回目
@@ -134,7 +134,7 @@ def run(work):
             mark = where[st["file"]].parent / f".{where[st['file']].name}.4242.incoming"
             mark.write_bytes(b"x") if do == "mark" else mark.unlink()
         elif do == "refresh":
-            r = m.refresh(force=bool(st.get("force")))
+            r = m.refresh()
         elif do == "read_path":
             p = m.read_path()
             r = None if p is None else str(p)
@@ -156,8 +156,8 @@ def run(work):
 
 def op(cache, remote, what):
     m = DbMirror("lot_list", remote, Path(cache))
-    if what in ("refresh", "force"):
-        r = m.refresh(force=what == "force")
+    if what == "refresh":
+        r = m.refresh()
         r.pop("at", None)
         return r
     if what == "read_path":

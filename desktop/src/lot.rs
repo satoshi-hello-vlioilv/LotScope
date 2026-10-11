@@ -121,7 +121,7 @@ impl Lot {
         Some(match path {
             "/api/lotlist/source" => (200, m.source_info()),
             "/api/lotlist/refresh" => {
-                let r = m.refresh(true);
+                let r = m.refresh();
                 (200, json!({"result": r, "source": m.source_info()}))
             }
             _ => match m.read_path() {
@@ -186,8 +186,17 @@ mod tests {
         let (_, s) = lot.handle("GET", "/api/lotlist/source", "", &ask).unwrap();
         assert_eq!(s["mirrored"], true);
         assert_eq!(asked.get(), 1, "設定は覚えている間は1回だけ尋ねる");
+        // 再読込は今すぐ確かめるだけ: 変わっていない元は写さず、変わった元は写す（SHARED_READ.md の R2）
         let (_, r) = lot.handle("POST", "/api/lotlist/refresh", "", &ask).unwrap();
-        assert_eq!(r["result"]["updated"], true, "再読込は写し直す: {r}");
+        assert_eq!(
+            (r["result"]["updated"].as_bool(), r["result"]["skipped"].as_bool()),
+            (Some(false), Some(true)),
+            "変わっていない元は写さない: {r}"
+        );
+        let mtime = std::fs::metadata(&src).unwrap().modified().unwrap() + std::time::Duration::from_secs(1);
+        std::fs::File::options().write(true).open(&src).unwrap().set_modified(mtime).unwrap();
+        let (_, r) = lot.handle("POST", "/api/lotlist/refresh", "", &ask).unwrap();
+        assert_eq!(r["result"]["updated"], true, "変わった元は写す: {r}");
         assert!(lot.handle("GET", "/api/lotlist", "engine=python", &ask).is_none(), "engine=python はその1回だけ Python");
         assert!(lot.handle("GET", "/api/lotlist/settings", "", &ask).is_none(), "設定そのものは Python");
         *engine.lock().unwrap() = "python";
