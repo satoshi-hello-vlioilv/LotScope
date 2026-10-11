@@ -371,5 +371,60 @@
 
     /** 権限区分 → 色の鍵（見出しの札 role-*・マスタの札 c-*）。登録が無い区分は一般ユーザー（user）。 */
     roleKey: (role) => ({ "開発者": "dev", "メンテナンス者": "maint", "設備作業者": "op" })[role] || "user",
+
+    /** 待ちの窓（WAITING）。時間がかかると分かっている処理のあいだ、画面の上に「何を・どれを・いま何をしているか・何秒たったか」を出す。
+        delay ms のうちに済めば出さない（速い処理でちらつかせない）。出ているあいだは後ろを触れない（Esc で後ろの窓も閉じない）。
+        background: 窓だけ閉じて処理は続けてよい処理なら、「裏で続ける」（Esc でも）を出す（読むだけの処理。書き換える処理には出さない）。
+        const w = TPA.waiting({ title, subject, from, now, note, delay, background });  w.now("いまのこと"); w.done();
+        出ていたかは w.shown（済んだあとに「待たせた」ことを言うかどうかに使える）。 */
+    waiting({ title, subject = "", from = "", now = "", note = "", delay = 350, background = false } = {}) {
+      let el = null, timer = 0, tick = 0, done = false, back = false, prev = null;
+      const t0 = performance.now();
+      const sec = () => Math.floor((performance.now() - t0) / 1000);
+      const blockEsc = (e) => {
+        if (e.key !== "Escape" || !el) return;
+        e.preventDefault(); e.stopPropagation();
+        if (background) hide(true);
+      };
+      const hide = (toBack) => {
+        if (toBack) back = true;
+        clearInterval(tick);
+        window.removeEventListener("keydown", blockEsc, true);
+        if (el) { el.remove(); el = null; if (prev && prev.isConnected) prev.focus(); }
+      };
+      const show = () => {
+        if (done || back) return;
+        prev = document.activeElement;
+        el = document.createElement("div");
+        el.className = "fetch-overlay tpa-wait";
+        el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-busy", "true");
+        el.setAttribute("aria-label", title);
+        el.innerHTML = `<div class="fetch-card" tabindex="-1">
+            <div class="fetch-head"><h3>${TPA.esc(title)}</h3>${subject ? `<b class="fetch-lot">${TPA.esc(subject)}</b>` : ""}</div>
+            ${from ? `<div class="fetch-route wait-from" title="${TPA.esc(from)}">${TPA.esc(from)}</div>` : ""}
+            <div class="wait-now" aria-live="polite"><i class="wait-spin" aria-hidden="true"></i><span></span></div>
+            ${note ? `<p class="wait-note" title="${TPA.esc(note)}">${TPA.esc(note)}</p>` : ""}
+            <div class="fetch-foot"><span class="fetch-time" aria-label="経過">0 秒</span>
+              ${background ? '<button type="button" class="btn-ghost wait-back" title="この窓を閉じます。処理は裏で続き、済むと画面に出ます">裏で続ける <kbd>Esc</kbd></button>' : ""}</div></div>`;
+        document.body.append(el);
+        el.querySelector(".wait-now span").textContent = now || "お待ちください…";
+        el.querySelector(".wait-back")?.addEventListener("click", () => hide(true));
+        window.addEventListener("keydown", blockEsc, true);
+        el.querySelector(".fetch-card").focus();
+        tick = setInterval(() => { if (el) el.querySelector(".fetch-time").textContent = `${sec()} 秒`; }, 250);
+        api.shown = true;
+      };
+      const api = {
+        shown: false,
+        /** いま何をしているか（段が進んだら差し替える） */
+        now(text) { now = text; if (el) el.querySelector(".wait-now span").textContent = text; },
+        /** 済んだ（出ていれば閉じる）。何度呼んでもよい */
+        done() { done = true; clearTimeout(timer); hide(false); },
+        /** 「裏で続ける」を押したか */
+        get background() { return back; },
+      };
+      timer = setTimeout(show, Math.max(0, delay));
+      return api;
+    },
   };
 })();

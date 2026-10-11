@@ -87,6 +87,10 @@ const MASTER_DEFS = {
 
 /* 参照先（読みに行く場所）。表ではなくカードで出す特別なタブ（custom）。中身は /api/settings の items */
 MASTER_DEFS.paths = { name: "path_settings", label: "参照先", group: "つなぎ先", api: "/api/settings", custom: true, admin: true };
+/* 作業実績（設備ごとの実績ファイル）: フォルダを探して設備を見つけ、設備ごとに表示する・しない・結ぶファイルを決める（管理のマスタ）。
+   表示ルール（表示列・条件など）は行のキーに結ぶので、ファイルの名前が変わっても設備ごとの見え方は続く（services/work_log.py） */
+MASTER_DEFS.worklog = { name: "work_log_files", label: "作業実績", group: "つなぎ先", api: "/api/masters/worklog", custom: true, admin: true,
+  render: () => renderWorklog() };
 /* マスタの置き場（共有フォルダ）。見るのはだれでも、変えるのは開発者・メンテナンス者（サーバーの門番 _release_place_gate）。
    ナビの項目には、頁を開かなくても分かるように今の状態の札（手元・共有・届かない）を添える。 */
 MASTER_DEFS.place = { name: "master_place", label: "マスタの置き場", group: "管理", api: "/api/masters/place", custom: true, render: () => renderMasterPlace() };
@@ -126,7 +130,7 @@ MASTER_DEFS.release = { name: "release", label: "アプリの配布", group: "�
 
 const mstate = {
   tab: "equipment",
-  data: { equipment: null, rolls: null, paths: null, access: null, presence: null, release: null },
+  data: { equipment: null, rolls: null, paths: null, worklog: null, access: null, presence: null, release: null },
   meta: {},           // タブごとの付き物（アクセス権限の選択欄・自分の行 など）
   me: null,           // /api/access/me（この PC・このログインの権限）
   loadedRev: { equipment: null, rolls: null, paths: null },   // 一覧を読んだときのマスタの版
@@ -315,6 +319,9 @@ function paintPlaceNav() {
 async function ensureTabLoaded(tab) {
   if (mstate.data[tab]) return;
   const def = MASTER_DEFS[tab];
+  // 自分で読んで描く頁（render。置き場・作業実績・利用状況・配布）は前もって読まない。描くときに 1 回だけ読む
+  // （配布は共有の置き場を探すので遅い。前もって読むと、同じ重い問い合わせを 2 回待たせていた）
+  if (def.render) return;
   const r = await fetch(def.api);
   const d = await r.json();
   mstate.data[tab] = def.parse ? def.parse(d) : d;
@@ -356,7 +363,7 @@ function renderSettings() {
     : `マスタの共有フォルダが決まっていないため、<b>この PC だけ</b>に保存します。`;
   box.innerHTML = `<p class="ps-lead">${where} 空にして保存すると、配った設定（既定）に戻ります。</p>
     <div class="ps-notice hidden" id="psNotice"></div>`
-    + d.items.map((it) => {
+    + d.items.filter((it) => !it.page).map((it) => {     // page のある項目は、その頁（例: 作業実績）で直す
       const changed = it.source === "master";
       const by = changed && it.updated_by ? `${escapeHtml(whoText(it.updated_by))} ${stamp(it.updated_at)}` : "";
       return `<section class="ps-card${changed ? " is-changed" : ""}" data-key="${escapeHtml(it.key)}" data-rev="${it.rev ?? 0}"${it.check_url ? ` data-check="${escapeHtml(it.check_url)}"` : ""}>
@@ -646,6 +653,134 @@ async function renderHistory() {
     say("ok", `✓ ${r.data.files} ファイル（${r.data.sessions} 回分）を消しました。`);
   };
 }
+/* ---------------- 作業実績（フォルダ → 探す → 設備ごとに表示する・しない） ----------------
+   形は 7 案＋2 回目で選んだ（program/tools/ui-proposals/2026-10-worklog-master*.mjs・.json）:
+   ① フォルダとファイル名の決まり（参照先の work_log.*）と「探す」を 1 行に
+   ② 直すこと（見つからない・古い・名前が変わった・登録していないファイル）と次の手を表の上に（表を見て回らせない）
+   ③ 数の札（設備・表示・見つからない・古い）と、静かな表（表示の切り替え・設備名・ファイル・最後の更新・表。「登録を消す」は行に乗せたときだけ）
+   見つからない行は、フォルダにある登録していないファイルから選んで結び直す（勝手には結ばない）。 */
+const wlAgo = (sec) => { if (!sec) return "-"; const d = new Date(sec * 1000), p = TPA.pad2; return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+const wlState = (x) => (x.stale ? chip("古い", "c-warn", `${Math.round(x.ageHours)} 時間、更新されていません（元のアプリ・ファイルを書く仕組みが止まっていないか確かめてください）`) + " " : "")
+  + wlFileState(x);
+const wlFileState = (x) => x.state === "ok" ? "" : x.state === "renamed" ? chip("名前が変わった", "c-warn", `登録の名前「${x.file}」→ いま「${x.now}」。同じファイルをたどって読みます（「探す」で登録の名前も直ります）`)
+  : x.state === "missing" ? chip("見つからない", "c-off", `「${x.file}」がフォルダにありません。右の選択で、結ぶファイルを選び直してください`) : chip("確かめられない", "c-plain", "フォルダに届きません");
+async function renderWorklog({ fresh = false, notice = null } = {}) {
+  const box = $("#masterSettings");
+  if (!mstate.data.worklog) box.innerHTML = '<p class="ps-loading">作業実績のフォルダを読んでいます…</p>';
+  const r = await masterRequest("/api/masters/worklog" + (fresh ? "?fresh=1" : ""), { cache: "no-store" });
+  if (mstate.tab !== "worklog") return;
+  if (!r.ok) { box.innerHTML = `<p class="ps-loading">作業実績の登録を読めませんでした: ${escapeHtml(r.data.error || "")}</p>`; return; }
+  const d = mstate.data.worklog = r.data;
+  mstate.loadedRev.worklog = d.revision;
+  const can = d.canEdit && !shareDown(), dis = can ? "" : ` disabled title="${escapeHtml(shareDown() ? "共有フォルダに届かないため、いまは保存できません" : readOnlyWhy("worklog") + "のため変えられません")}"`;
+  const paths = mstate.data.paths && mstate.data.paths.items;
+  const rev = (k) => ((paths || []).find((i) => i.key === k) || {}).rev || 0;
+  const loose = d.new || [];
+  const looseOpts = loose.map((f) => `<option value="${escapeHtml(f.file)}">${escapeHtml(f.file)}</option>`).join("");
+  const rows = d.items.map((x) => `<tr data-id="${x.id}" data-rev="${x.rev}" class="${x.visible ? "" : "is-off"}${x.state === "missing" ? " is-missing" : ""}">
+      <td class="wl-vis"><label class="wl-switch" title="作業実績のタブで、この設備を選べるようにするか（いま: ${x.visible ? "表示する" : "表示しない"}）"><input type="checkbox" data-wl="vis" aria-label="${escapeHtml(x.name)} を表示する"${x.visible ? " checked" : ""}${dis}><i aria-hidden="true"></i></label></td>
+      <td><input class="wl-name" data-wl="name" value="${escapeHtml(x.name)}" aria-label="設備名"${dis}></td>
+      <td class="wl-file"><span class="m-ident">${escapeHtml(x.now || x.file)}</span> ${wlState(x)}
+        ${x.state === "missing" && can && loose.length ? `<select data-wl="relink" aria-label="結ぶファイル"><option value="">結ぶファイルを選ぶ…</option>${looseOpts}</select>` : ""}</td>
+      <td class="num">${wlAgo(x.mtime)}</td><td class="num">${x.size == null ? "-" : MB(x.size)}</td>
+      <td><input class="wl-table" data-wl="table" value="${escapeHtml(x.table)}" placeholder="自動" aria-label="表（空なら自動）"${dis}></td>
+      <td class="pz-acts">${can ? '<button type="button" class="pz-btn danger wl-del" data-wl="del" title="この設備の登録を消します（この設備の表示ルールは、同じキーの行が無くなるので使われなくなります）">登録を消す</button>' : ""}</td></tr>`).join("");
+  const shown = d.items.filter((x) => x.visible).length;
+  const miss = d.items.filter((x) => x.state === "missing"), old = d.items.filter((x) => x.stale), moved = d.items.filter((x) => x.state === "renamed");
+  /* 直すこと（次の手つき）。無ければ出さない */
+  const todo = d.error ? [] : [
+    ...miss.map((x) => `<div><span class="m-chip c-off">見つからない</span><span><b>${escapeHtml(x.name)}</b>: ${escapeHtml(x.file)} がフォルダにありません</span>`
+      + (can && loose.length ? `<button type="button" class="pz-btn" data-wl-go="${x.id}">結ぶファイルを選ぶ</button>` : "<small>名前が変わったか、消されました</small>") + "</div>"),
+    ...old.map((x) => `<div><span class="m-chip c-warn">古い</span><span><b>${escapeHtml(x.name)}</b>: ${Math.round(x.ageHours)} 時間、更新されていません（ファイルを書く元のアプリ・仕組みが止まっていないか確かめてください）</span></div>`),
+    ...(moved.length ? [`<div><span class="m-chip c-warn">名前が変わった</span><span>${moved.map((x) => `<b>${escapeHtml(x.name)}</b>（${escapeHtml(x.file)} → ${escapeHtml(x.now)}）`).join("・")}。同じファイルをたどって読んでいます</span>`
+      + (can ? '<button type="button" class="pz-btn" data-wl-scan>登録の名前を直す</button>' : "") + "</div>"] : []),
+    ...(loose.length ? [`<div><span class="m-chip c-plain">登録していない</span><span>${loose.length} 個（${loose.map((f) => escapeHtml(f.equipment)).join("・")}）</span>`
+      + (can ? '<button type="button" class="pz-btn" data-wl-scan>設備として足す</button>' : "") + "</div>"] : []),
+  ];
+  const tally = [`<span class="wl-n">表示 ${shown}</span>`, miss.length ? `<span class="wl-n is-ng">見つからない ${miss.length}</span>` : "",
+    old.length ? `<span class="wl-n is-warn">古い ${old.length}</span>` : "", shown < d.items.length ? `<span class="wl-n">表示しない ${d.items.length - shown}</span>` : ""].join("");
+  box.innerHTML = `<section class="wl-page">
+    <div class="wl-src">
+      <label class="wl-field"><span>フォルダ</span><input class="ps-input" id="wlFolder" value="${escapeHtml(d.folder)}" spellcheck="false"${dis}></label>
+      <label class="wl-field wl-pat" title="* の所が設備名になります（例: 実績_CR1.sqlite3 → CR1）"><span>ファイル名の決まり</span><input class="ps-input" id="wlPattern" value="${escapeHtml(d.pattern)}" spellcheck="false"${dis}></label>
+      <button type="button" class="btn-primary" id="wlScan" title="フォルダの中で決まりに合うファイルを探し、新しい設備を足し、名前が変わったファイルをたどって登録を直します"${dis}>探す</button>
+    </div>
+    <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="wlNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
+    ${d.error ? `<div class="dz-bad"><b>フォルダに届きません。</b>${escapeHtml(d.error)}<br>場所・ネットワークのつながりを確かめてください。前に写した設備は、写しのまま見られます。</div>` : ""}
+    ${todo.length ? `<div class="wl-todo" role="region" aria-label="直すこと"><b>直すことが ${todo.length} つあります</b>${todo.join("")}</div>` : ""}
+    <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}
+      <small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small></div>
+    <div class="master-table-wrap pz-wrap"><table class="master-table wl-tablelist">
+      <thead><tr><th>表示</th><th>設備名</th><th>ファイル</th><th class="num">最後の更新</th><th class="num">大きさ</th><th>表</th><th class="grow"></th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      ${d.items.length ? "" : `<div class="master-empty">まだ設備がありません。上のフォルダを確かめて「探す」を押すと、${escapeHtml(d.pattern)} に合うファイルを設備として並べます。</div>`}</div>
+  </section>`;
+  const say = (cls, html) => { const n = $("#wlNotice"); n.className = `ps-result ${cls}`; n.innerHTML = html; };
+  const changed = () => emit("tpa:worklog-changed");
+  const scan = async () => {
+    const w = TPA.waiting({ title: "作業実績のフォルダを探しています", from: $("#wlFolder").value, now: "決まりに合うファイルを探し、設備の登録に当てています…",
+      note: "共有のフォルダを読むので、数秒かかることがあります。" });
+    const res = await withLockWait(() => masterRequest("/api/masters/worklog/scan", TPA.json("POST", {})), (x) => w.now(lockWaitText(x, "登録")));
+    w.done();
+    if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "探せませんでした。")); return; }
+    const k = res.data.result, parts = [`ファイル ${k.files} 個を見つけました`];
+    if (k.added.length) parts.push(`新しく ${k.added.length} 台を足しました（${k.added.map(escapeHtml).join("・")}）`);
+    if (k.renamed.length) parts.push(`名前が変わった ${k.renamed.length} 台をたどりました（${k.renamed.map((x) => `${escapeHtml(x.from)} → ${escapeHtml(x.to)}`).join("・")}）`);
+    if (k.missing.length) parts.push(`見つからない ${k.missing.length} 台（${k.missing.map(escapeHtml).join("・")}）: 表の選択で結ぶファイルを選び直せます`);
+    changed();
+    renderWorklog({ notice: [k.missing.length ? "wait" : "ok", "✓ " + parts.join("。")] });
+  };
+  /* フォルダ・決まりを直したら、参照先へ保存してから探す（1 つの押下で済む）。直していなければ探すだけ */
+  $("#wlScan") && ($("#wlScan").onclick = async () => {
+    if (!mstate.data.paths) { await ensureTabLoaded("paths"); }
+    const its = (mstate.data.paths && mstate.data.paths.items) || [];
+    for (const [key, val, now] of [["work_log.folder", $("#wlFolder").value.trim(), d.folder], ["work_log.pattern", $("#wlPattern").value.trim(), d.pattern]]) {
+      if (val === now) continue;
+      const it = its.find((i) => i.key === key) || {};
+      const res = await withLockWait(() => masterRequest(`/api/settings/${encodeURIComponent(key)}`, TPA.json("PUT", { value: val, base_rev: it.rev || rev(key) })),
+        (x) => say("wait", lockWaitText(x, "保存", boldName)));
+      if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "保存できませんでした。")); return; }
+      mstate.data.paths = null;
+      emit("tpa:settings-changed", { key });
+    }
+    scan();
+  });
+  ["#wlFolder", "#wlPattern"].forEach((sel) => $(sel)?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#wlScan").click(); }));
+  box.querySelectorAll("[data-wl-scan]").forEach((b) => b.addEventListener("click", scan));
+  /* 「結ぶファイルを選ぶ」: その行の選択欄へ（行は表の中のまま。並びを変えない） */
+  box.querySelectorAll("[data-wl-go]").forEach((b) => b.addEventListener("click", () => {
+    const sel = box.querySelector(`tr[data-id="${b.dataset.wlGo}"] [data-wl="relink"]`);
+    if (sel) { sel.scrollIntoView({ block: "center" }); sel.focus(); if (sel.showPicker) try { sel.showPicker(); } catch (_) { /* 選択欄を開けない WebView は、選ぶだけ */ } }
+  }));
+  /* 行を直す（表示・設備名・表・結ぶファイル）。行の版がずれていたら（ほかの PC が先に直した）、読み直して言う */
+  const put = async (tr, body, what) => {
+    const res = await withLockWait(() => masterRequest(`/api/masters/worklog/${tr.dataset.id}`, TPA.json("PUT", { ...body, base_rev: +tr.dataset.rev })),
+      (x) => say("wait", lockWaitText(x, "保存", boldName)));
+    if (res.status === 409 && res.data.kind === "conflict") { renderWorklog({ notice: ["ng", "開いたあとに、ほかの PC がこの設備を直しました。読み直したので、もう一度直してください。"] }); return; }
+    if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "保存できませんでした。")); return; }
+    tr.dataset.rev = res.data.rev; changed();
+    if (what) renderWorklog({ notice: ["ok", `✓ ${escapeHtml(what)}`] });
+  };
+  box.querySelectorAll("tr[data-id]").forEach((tr) => {
+    const name = () => tr.querySelector(".wl-name").value.trim();
+    tr.querySelector('[data-wl="vis"]').onchange = (e) => put(tr, { "表示": e.target.checked ? "有" : "無" }, `「${name()}」を${e.target.checked ? "表示する" : "表示しない"}にしました`);
+    const commit = (el, field, label) => {
+      el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
+      el.addEventListener("change", () => put(tr, { [field]: el.value.trim() }, `「${name()}」の${label}を直しました`));
+    };
+    commit(tr.querySelector(".wl-name"), "設備名", "設備名");
+    commit(tr.querySelector(".wl-table"), "表", "表");
+    tr.querySelector('[data-wl="relink"]')?.addEventListener("change", (e) => { if (e.target.value) put(tr, { "ファイル名": e.target.value }, `「${name()}」を「${e.target.value}」に結びました`); });
+    tr.querySelector('[data-wl="del"]')?.addEventListener("click", async () => {
+      if (!confirm(`「${name()}」の登録を消します。フォルダのファイルは消しません（次に「探す」と、新しい設備として足されます）。よろしいですか？`)) return;
+      const res = await masterRequest(`/api/masters/worklog/${tr.dataset.id}?rev=${tr.dataset.rev}`, { method: "DELETE" });
+      if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "消せませんでした。")); return; }
+      changed(); renderWorklog({ notice: ["ok", `✓ 「${escapeHtml(name())}」の登録を消しました`] });
+    });
+  });
+  if (!paths) ensureTabLoaded("paths").catch(() => {});   // フォルダを直したときの行の版（参照先）を用意しておく
+}
+
 /* ---------------- アプリの配布（① 版を置く → ② 配る版を選ぶ → ③ 各 PC がそろう） ----------------
    並びは作業の順（左→右・上→下）。判定は窓（distribute.rs）と Python（権限）で、ここは答えを並べるだけ。
    置いている間は進み具合を出す（共有へ十数 MB を写す。反応が無いと止まったように見える）。 */
@@ -653,23 +788,63 @@ const MB = (b) => `${(Number(b || 0) / 1048576).toFixed(1)} MB`;
 const RELEASE_STAGE = { send: "ZIP を送っています", check: "ZIP の中身を確かめています（このアプリの物か・版・exe・同梱の Python）",
   copy: "置き場へ写しています", finish: "写した物を確かめて仕上げています" };
 mstate.releaseBusy = null;      // 置いている最中 { name, size, p }
-async function renderRelease() {
-  const box = $("#masterSettings");
-  let d;
-  try {
-    const r = await fetch("/__desktop/release", { cache: "no-store" });
-    if (!r.ok) throw new Error();
-    d = await r.json();
-  } catch (_) {
-    box.innerHTML = '<p class="ps-loading">アプリの配布は、デスクトップ版の窓の中でだけ使えます。</p>';
-    return;
+mstate.releaseSeq = 0;
+/* 配布の頁を開く（タブを開いたとき・置いた／配ったあと）。置き場（BOX）をたどるのは遅いので:
+   1) 覚えた答え（この画面で前に開いた・窓の裏の確認がたどった: ?cached=1）をすぐ描き、札で「最新を確かめています」と言う
+   2) 裏でたどり直し（cached なし）、違っていれば描き直す（同じなら札を「最新」にするだけ。置き場を変える欄を開いていれば描き直さない）
+   覚えも無い（窓が起きた直後など）ときと、置いた・配ったあと（fresh）は、たどり終えるまで待ちの窓（TPA.waiting）で何を待っているかを言う */
+async function renderRelease({ fresh = false } = {}) {
+  const box = $("#masterSettings"), seq = ++mstate.releaseSeq;
+  const live = () => seq === mstate.releaseSeq && mstate.tab === "release";
+  const get = (cached) => masterRequest("/__desktop/release" + (cached ? "?cached=1" : ""), { cache: "no-store" });
+  const nope = () => { box.innerHTML = '<p class="ps-loading">アプリの配布は、デスクトップ版の窓の中でだけ使えます。</p>'; };
+  const wait = () => TPA.waiting({ title: "アプリの配布の置き場を読んでいます", from: releaseSource(), background: !fresh,
+    now: fresh ? "置いた・配った結果を、置き場からたどり直しています…" : "置き場のフォルダをたどり、置いてある版（release.json）を集めています…",
+    note: "BOX・共有の置き場は、読むのに数秒〜数十秒かかることがあります。2 回目からは前に読んだ内容をすぐ出し、裏で確かめ直します。" });
+  if (mstate.data.release && !fresh) paintRelease(mstate.data.release, "checking");
+  else if (!fresh) {
+    const w = wait(), first = await get(true);
+    w.done();
+    if (!live()) return;
+    if (!first.ok) { nope(); return; }
+    mstate.data.release = first.data;
+    paintRelease(first.data, first.data.cached ? "checking" : "fresh");
+    if (!first.data.cached) return;              // いまたどった答え（確かめ直すまでもない）
   }
-  mstate.data.release = d;
+  const w = fresh ? wait() : null, r = await get(false);
+  w?.done();
+  if (!live()) return;
+  if (!r.ok) { if (mstate.data.release) paintReleaseFresh(mstate.data.release, "ng"); else nope(); return; }
+  const same = mstate.data.release && releaseSig(mstate.data.release) === releaseSig(r.data);
+  mstate.data.release = r.data;
+  const editing = mstate.releaseBusy || ($("#dzPlaceBox") && !$("#dzPlaceBox").hidden);
+  if (same || (editing && !fresh)) paintReleaseFresh(r.data, "fresh"); else paintRelease(r.data, "fresh");
+}
+/** 置き場の答えの中身の印（時刻・覚えたかを除く）。同じなら描き直さない */
+const releaseSig = (d) => JSON.stringify({ ...d, cached: 0, checkedAt: 0 });
+/** 待ちの窓に出す置き場（参照先の「更新の置き場」。読んでいなければ空） */
+function releaseSource() {
+  const it = ((mstate.data.paths && mstate.data.paths.items) || []).find((i) => i.key === "update.source");
+  return it ? String(it.effective || "") : "";
+}
+/** 置き場の答えが「いつの物か」の札（確かめている最中・確かめた最新・確かめられなかった） */
+function releaseFreshHtml(d, state) {
+  const at = escapeHtml(String(d.checkedAt || "").slice(11, 16)), when = at ? `${at} に` : "前に";   // 時刻が分からないときは「前に」
+  if (state === "checking") return `<span class="dz-fresh is-checking" title="前に読んだ内容を表示しています。置き場をたどり直し、変わっていれば描き直します"><i class="wait-spin" aria-hidden="true"></i>最新を確かめています（${when}読んだ内容を表示中）</span>`;
+  if (state === "ng") return `<span class="dz-fresh is-ng" title="置き場をたどり直せませんでした。表示は${when}読んだ内容です">確かめられませんでした（${when}読んだ内容）</span>`;
+  return `<span class="dz-fresh" title="置き場をたどって確かめた内容です">✓ ${at ? `${at} に確かめた` : "確かめた"}最新</span>`;
+}
+function paintReleaseFresh(d, state) {
+  const el = document.querySelector("#masterSettings .dz-fresh");
+  if (el) el.outerHTML = releaseFreshHtml(d, state);
+}
+function paintRelease(d, freshness) {
+  const box = $("#masterSettings");
   const me = d.me || {};
   const placeBtn = me.canRelease && !mstate.releaseBusy
     ? '<button type="button" class="pz-btn dz-place-btn" id="dzPlaceBtn" aria-expanded="false" aria-controls="dzPlaceBox" title="配布の置き場の場所・フォルダの名前を変えます（置いてある版を写して、全員の PC の参照先を切り替えます）">置き場を変える…</button>' : "";
   if (!d.reachable) {
-    box.innerHTML = `<div class="dz-bad"><b>更新の置き場に届きません。</b>${escapeHtml(d.why || "")}<br>
+    box.innerHTML = `<p class="dz-where">${releaseFreshHtml(d, freshness)}</p><div class="dz-bad"><b>更新の置き場に届きません。</b>${escapeHtml(d.why || "")}<br>
       「参照先」タブの「更新の置き場」を確かめてください（BOX の同期・権限も）。各 PC は届かないあいだ、いまの版のまま開きます。
       ${placeBtn ? `<div class="dz-bad-acts">${placeBtn}<small>置き場の場所・名前を変えたときは、ここから新しい置き場へ切り替えられます。</small></div>` : ""}</div>
       <div class="dz-place" id="dzPlaceBox" hidden></div>`;
@@ -708,7 +883,7 @@ async function renderRelease() {
       <td>${escapeHtml(stamp(v.placedAt) || "-")} ${escapeHtml([v.placedPc, v.placedBy].filter(Boolean).join("／"))}</td>
       <td><span class="m-ident">${escapeHtml(v.source || v.zip || "-")}</span></td><td class="num">${MB(v.bytes)}</td><td class="pz-acts">${act}</td></tr>`;
   }).join("");
-  box.innerHTML = `<p class="dz-where">置き場 <code>${escapeHtml(d.found)}</code>${d.adjusted ? "（この PC での BOX の見え方に合わせて探しました）" : ""} ${chip("届いています", "c-on")} ${placeBtn}</p>
+  box.innerHTML = `<p class="dz-where">置き場 <code>${escapeHtml(d.found)}</code>${d.adjusted ? "（この PC での BOX の見え方に合わせて探しました）" : ""} ${chip("届いています", "c-on")} ${releaseFreshHtml(d, freshness)} ${placeBtn}</p>
     <div class="dz-place" id="dzPlaceBox" hidden></div>
     ${flow}${entry}<div class="dz-put">${put}</div>
     <div class="master-table-wrap pz-wrap"><table class="master-table pz-table">
@@ -829,7 +1004,7 @@ async function moveReleasePlace(d, a, pl, say) {
     return;
   }
   emit("tpa:settings-changed", { key: "update.source" });
-  await renderRelease();
+  await renderRelease({ fresh: true });
   releaseNotice("ok", `✓ 配布の置き場を ${r.data.dest} に変えました。全員の PC が次に確かめたときから、新しい置き場を見ます。`
     + "\n新しい PC へ渡すアドレスも変わりました（下の「アドレスをコピー」で写し直してください）。"
     + (r.data.started ? `\n前の置き場（${d.found}）は残しています。要らなければ、全員がそろったあとで手で消してください。` : ""));
@@ -941,7 +1116,7 @@ function paintReleaseProgress() {
 async function placeRelease(file) {
   if (!file || mstate.releaseBusy) return;
   mstate.releaseBusy = { name: file.name, size: file.size, p: {} };
-  await renderRelease();
+  paintRelease(mstate.data.release, "fresh");
   const poll = setInterval(async () => {
     try { mstate.releaseBusy.p = await (await fetch("/__desktop/release/progress", { cache: "no-store" })).json(); paintReleaseProgress(); } catch (_) { /* 次の問い合わせで */ }
   }, 400);
@@ -959,7 +1134,7 @@ async function placeRelease(file) {
     clearInterval(poll);
     mstate.releaseBusy = null;
   }
-  await renderRelease();
+  await renderRelease({ fresh: true });
   releaseNotice(...msg);
 }
 async function distributeRelease(version, d) {
@@ -967,8 +1142,13 @@ async function distributeRelease(version, d) {
   const ok = confirm(`版 ${version} を${back ? "配る版に戻します" : "配ります"}。${cur ? `（いま配っている版は ${cur}）` : ""}\n`
     + "全員の PC が、次に確かめたとき（起動・30 分ごと）に取り込み、開き直したときにそろいます。前の版へ戻すのも、ここで選び直すだけです。");
   if (!ok) return;
+  // 配るのは置き場の ZIP の指紋を確かめ、配る入口（exe）を取り出して置く（BOX では数十秒）。書き換えるので裏へは回さない
+  const w = TPA.waiting({ title: `版 ${version} を${back ? "配る版に戻しています" : "配っています"}`, subject: version, from: d.found || "",
+    now: "置き場の ZIP の指紋を確かめ、配る入口（exe）を置いています…",
+    note: "置き場（BOX・共有）へ書くので、数秒〜数十秒かかります。終わるまでこの画面はそのままにしてください。" });
   const r = await masterRequest("/__desktop/release/distribute", TPA.json("POST", { version }));
-  await renderRelease();
+  w.done();
+  await renderRelease({ fresh: true });
   if (!r.ok) { releaseNotice("ng", "✕ " + (r.data.error || "配る版を決められませんでした。")); return; }
   releaseNotice((r.data.notes || []).length ? "ng" : "ok", `✓ 配る版を ${r.data.version} にしました。` + (r.data.notes || []).map((n) => `\n${n}`).join(""));
 }

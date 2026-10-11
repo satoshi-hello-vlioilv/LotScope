@@ -156,10 +156,14 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         }
         ("POST", "/__desktop/shortcut/decline") => Some(reply_of(install::decline(&upd.paths).map_err(|e| (500, e)))),
         // 配布の画面（da_core::distribute・updater.rs）。だれが置いてよいかは Python に尋ねる
-        ("GET", "/__desktop/release") => Some(match update_settings(backend) {
-            Ok(s) => json_reply(&upd.release_view(&s)),
-            Err(e) => Reply { status: 503, ..json_reply(&json!({"error": e})) },
-        }),
+        // cached=1: 覚えた答え（裏の確認・前に開いたときにたどった物）をすぐ返す。画面はそのあと cached なしで確かめ直す
+        ("GET", "/__desktop/release") => {
+            let cached = da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "cached" && v == "1");
+            Some(match update_settings(backend) {
+                Ok(s) => json_reply(&upd.release_view(&s, cached)),
+                Err(e) => Reply { status: 503, ..json_reply(&json!({"error": e})) },
+            })
+        }
         ("GET", "/__desktop/release/progress") => Some(json_reply(&upd.place_progress())),
         ("POST", "/__desktop/release/place") => {
             let name = da_core::lotlist::parse_query(req.query).into_iter().find(|(k, _)| k == "name").map(|(_, v)| v).unwrap_or_default();

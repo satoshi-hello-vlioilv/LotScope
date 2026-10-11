@@ -28,6 +28,30 @@ def _date_text(d, kind):
             f"{d.year}年{d.month}月{d.day}日", "", None, "不明", f"{d.year}.{d.month}.{d.day}"][kind]
 
 
+WORK_COLUMNS = ["ロット番号", "作業日", "開始", "終了", "作業区分", "作業者", "入側板厚", "出側板厚", "板幅", "重量", "速度", "合金", "調質", "備考"]
+
+
+def make_work(path, equipment, n=400, seed=11):
+    """作業実績の試験用データ（設備ごとの実績 SQLite。表「実績」）。本物の列は分からないので、画面を確かめるための作り物。"""
+    r = random.Random(f"{seed}-{equipment}")
+    c = sqlite3.connect(path)
+    c.execute("DROP TABLE IF EXISTS 実績")
+    c.execute("CREATE TABLE 実績 (" + ",".join(f"[{x}]" for x in WORK_COLUMNS) + ")")
+    rows = []
+    for i in range(n):
+        d = TODAY - timedelta(days=r.randint(0, 120))
+        start = r.randint(0, 23 * 60)
+        t0, t1 = f"{start // 60:02d}:{start % 60:02d}", f"{(start + 40) // 60 % 24:02d}:{(start + 40) % 60:02d}"
+        th = r.choice([0.3, 0.5, 1.0, 2.0, 3.0])
+        rows.append([f"L{r.randint(1, 900):04d}C{r.randint(0, 9)}", d.strftime("%Y/%m/%d"), t0, t1, r.choice(["通常", "通常", "通常", "再処理", "試作"]),
+                     r.choice(["作業者A", "作業者B", "作業者C"]), th, round(th * r.uniform(0.5, 0.95), 3), r.randint(800, 1600),
+                     round(r.uniform(500, 6000), 1), r.randint(80, 600), r.choice(["A1100", "A5052", "A3004"]), r.choice(["H14", "O", "H24"]),
+                     r.choice(["", "", "", "速度落とし", "ロール替え後", None])])
+    c.executemany("INSERT INTO 実績 VALUES (" + ",".join("?" * len(WORK_COLUMNS)) + ")", rows)
+    c.commit()
+    c.close()
+
+
 def make(path, n=3000, extra_columns=20, seed=7):
     """n 行 ×（20＋extra_columns）列の表「仕掛」と、ビュー「仕掛_ビュー」・WITHOUT ROWID の表「保留」を作る。"""
     r = random.Random(seed)

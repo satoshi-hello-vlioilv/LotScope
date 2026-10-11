@@ -8,7 +8,15 @@
 table.ll-grid{table-layout:fixed;min-width:0}
 .ll-grid td,.ll-grid th{max-width:none;padding-top:var(--ll-row-pad,4px);padding-bottom:var(--ll-row-pad,4px)}
 .ll-grid thead th{position:sticky;top:0;padding-right:calc(var(--ll-cell-padx,10px) + 4px)}
-.ll-grid thead th > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 見出しの中: 列名と札（段・並べ替え・絞り込み・式）を 1 行に並べる。入り切らないときは列名を「…」で削り、札は丸ごと見せる */
+.ll-grid thead th > .th-in{display:flex;align-items:center;min-width:0}
+.ll-grid thead th.al-h-center > .th-in{justify-content:center}.ll-grid thead th.al-h-right > .th-in{justify-content:flex-end}
+.ll-grid thead th > .th-in > span{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ll-grid thead th > .th-in > i{flex:none}
+/* 札（段の番号・並べ替え・件数・段の名前・式）は中で折り返さない（「42」と「件」が割れない）。折り返す設定でも札は丸ごと次の行へ */
+.ll-lvmark,.ll-sort,.col-filter-badge,.ll-calcmark,.ll-gn,.ll-bn,.ll-gk,.ll-bnone{display:inline-block;white-space:nowrap}
+/* まとまりの見出し行の「n通り」も、数と単位を割らない */
+.ll-grid[data-overflow] tbody td.ll-gdiff{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 掴める手がかり（見出しにマウスを乗せると左端に ⠿）。どの列もドラッグで入れ替えられる */
 .col-grip{position:absolute;left:1px;top:50%;transform:translateY(-50%);font-style:normal;font-size:11px;letter-spacing:-2px;color:rgba(255,255,255,.55);opacity:0;transition:opacity .12s;pointer-events:none}
 .ll-grid thead th:hover .col-grip{opacity:1}
@@ -18,7 +26,7 @@ table.ll-grid{table-layout:fixed;min-width:0}
 .ll-grid thead th.al-h-left{text-align:left}.ll-grid thead th.al-h-center{text-align:center}.ll-grid thead th.al-h-right{text-align:right}
 .ll-grid td.al-left{text-align:left}.ll-grid td.al-center{text-align:center}.ll-grid td.al-right{text-align:right;font-variant-numeric:tabular-nums}
 .ll-grid thead th.is-calc{background:#5b6b86;cursor:default}
-.ll-grid thead th.is-calc::after{content:"式";margin-left:4px;font-size:10px;padding:0 4px;border-radius:4px;background:rgba(255,255,255,.22)}
+.ll-calcmark{font-style:normal;margin-left:4px;font-size:10px;padding:0 4px;border-radius:4px;background:rgba(255,255,255,.22)}
 .ll-grid thead th.is-dragging{opacity:.5}
 .ll-grid thead th.col-drop-before{box-shadow:inset 3px 0 0 #ffd27a}
 .ll-grid thead th.col-drop-after{box-shadow:inset -3px 0 0 #ffd27a}

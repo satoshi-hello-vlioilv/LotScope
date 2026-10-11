@@ -17,6 +17,10 @@
        ロット番号の段は、サーバーがロットを1か所に集め（lot_list.grouped_rows・group=1）、ページの境目で切らない。
        ロット番号の段だけ「並べ替えの順」（以前の「ロット番号でまとめる」と同じ: そのロットのいちばん上の行の順）を選べる。
    - 機能: 行のダブルクリックでカード … その1行をカードで見る（lotlist-card.js。Ctrl を押すと別のカードで）。
+   - データの元（SOURCES）: 異常ロット一覧（品質データ）と作業実績（設備ごとの実績）の 2 つを、同じ部品・同じ画面で出す。
+       元ごとに状態（S: 表・条件・ページ・検索…）を持ち、タブを行き来しても元ごとにそのまま残る。
+       覚え（条件・並び・表示列・スライサー…）は「範囲」ごと（scope()）。異常ロット一覧の範囲は表の名前のまま（前からの覚えを使い続ける）、
+       作業実績は `wl:<設備のキー>:<表>`（表示列は `worklog:<設備のキー>:<表>`）。設備のキーは登録の行で決まり、ファイルの名前が変わっても同じ。
    ========================================================================= */
 (function () {
   const { $, $$, esc } = TPA;
@@ -33,6 +37,8 @@
     features: "tpa.lotlist.features.v1",  // 機能の使う／使わない（この PC）
     collapsed: "tpa.lotlist.collapsed.v1", // 畳んだまとまり（表ごと・開いているあいだだけ）
     arrange: "tpa.lotlist.arrange.v1",    // 並び・まとめ（表ごと）{levels:[{column, dir, lot}], heads, suppress}
+    workEquip: "tpa.worklog.equip.v1",    // 作業実績: 最後に見た設備（キー）
+    workTable: "tpa.worklog.table.v1",    // 作業実績: 設備ごとに最後に見た表 {キー: 表}
   };
   /* 機能の既定: カードは使う（ダブルクリックは今まで何もしなかった操作）。
      以前の「ロット番号でまとめる」（features.group）は、並び・まとめを一度も決めていない表で「ロット番号の段1つ」として引き継ぐ */
@@ -79,13 +85,53 @@
   const colOption = (c) => `<option value="${esc(c)}">${esc(c)}${isDateCol(c) ? "（日付）" : ""}</option>`;
   const presetName = (f) => condLabel(f).slice(0, 60);
 
-  const S = {
-    table: store.get(KEY.table, ""), tables: [], columns: [], rows: [], count: 0, lotColumn: "",
-    page: 1, pageSize: store.get(KEY.pageSize, 500), search: "", sorts: [],
-    genericFilters: [], presets: store.get(KEY.presets, []), source: null, loadedAt: null, dateColumns: [],
-    loading: false, error: "", seq: 0, currentLot: "", dateHints: [], today: "",
-    groups: null, groupCount: 0, range: [0, 0], cardIdx: -1, cardSet: new Set(),
+  /* ================= データの元（異常ロット一覧・作業実績） =================
+     api: 一覧の問い合わせの頭（/slicer・/source・/refresh も同じ頭）。params: どの設備か（作業実績だけ）。
+     scope(表): 覚えの範囲。target(表): 表示列の対象。owns(範囲): その元の範囲か（書き出しの「すべての表」を元ごとにする）。 */
+  const equipName = (k) => ((S && S.equips || []).find((e) => e.key === k) || {}).name || "";
+  const SOURCES = {
+    lot: {
+      id: "lot", api: "/api/lotlist", title: "異常ロット一覧", noun: "品質データ", fileStem: "異常ロット一覧",
+      params: () => ({}), scope: (t) => t, target: (t) => "lotlist:" + (t || ""), owns: (k) => !k.startsWith("wl:"),
+      colTable: (t) => t, place: (t) => t,
+      loadTable: () => store.get(KEY.table, ""), saveTable: (t) => store.set(KEY.table, t),
+      settingsKey: "lot_list.", settingsTab: "paths", settingsLabel: "参照先を開く",
+      settingsTip: "元ファイルの場所・名前を「マスタ管理」の「参照先」で直します",
+      remoteHint: "（設定 lot_list.source）", reading: "品質データを読んでいます…",
+      firstNote: "初めて開いたときは、共有の元ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
+      staleWhat: "最近の異常ロットは一覧に出ません。",
+    },
+    work: {
+      id: "work", api: "/api/worklog", title: "作業実績", noun: "作業実績", fileStem: "作業実績",
+      params: () => (S.equip ? { equip: S.equip } : {}),
+      scope: (t) => `wl:${S.equip}:${t || ""}`, target: (t) => `worklog:${S.equip}:${t || ""}`, owns: (k) => k.startsWith(`wl:${S.equip}:`),
+      colTable: (t) => `wl:${t || ""}`, place: (t) => `${equipName(S.equip)}・${t || ""}`,
+      loadTable: () => (store.get(KEY.workTable, {})[S.equip] || ""),
+      saveTable: (t) => { const m = store.get(KEY.workTable, {}); if (t) m[S.equip] = t; else delete m[S.equip]; store.set(KEY.workTable, m); },
+      settingsKey: "work_log.", settingsTab: "worklog", settingsLabel: "作業実績の設備を開く",
+      settingsTip: "作業実績のフォルダ・設備（どのファイルを・表示するか）を「マスタ管理」の「作業実績」で確かめます",
+      remoteHint: "（作業実績のフォルダ）", reading: "作業実績を読んでいます…",
+      firstNote: "初めて開いた設備は、共有の実績ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
+      staleWhat: "最近の作業実績は一覧に出ません。",
+    },
   };
+  function newState(src) {
+    return {
+      src: SOURCES[src], table: "", tables: [], columns: [], rows: [], count: 0, lotColumn: "",
+      page: 1, pageSize: store.get(KEY.pageSize, 500), search: "", sorts: [],
+      genericFilters: [], presets: store.get(KEY.presets, []), source: null, loadedAt: null, dateColumns: [],
+      loading: false, error: "", seq: 0, currentLot: "", dateHints: [], today: "",
+      groups: null, groupCount: 0, range: [0, 0], cardIdx: -1, cardSet: new Set(),
+      ctx: null, adhoc: { column: "", op: "contains", value: "" }, adhocScope: null, activated: false,
+      equip: "", equips: null, equipError: "", equipEdit: false,
+    };
+  }
+  const STATES = { lot: newState("lot"), work: newState("work") };
+  STATES.lot.table = SOURCES.lot.loadTable();
+  STATES.work.equip = store.get(KEY.workEquip, "");
+  let S = STATES.lot;
+  /** いまの覚えの範囲（表ごと・作業実績は設備ごと） */
+  const scope = () => S.src.scope(S.table);
   /* まとめるときのロットの見分け方（サーバーの lot_key と同じ: 大小・前後の空白は同じロット） */
   const lotKey = (r) => (S.lotColumn && r ? String(r[S.lotColumn] ?? "").trim().toUpperCase() : "");
   /* 段の値の見分け方（サーバーの並べ替えの鍵 SortKey と同じ: app/services/sqlite_ro.sort_key）。
@@ -103,7 +149,7 @@
   /* ================= 並び・まとめ（表ごと） ================= */
   const LOT_ORDER = "first";      // ロット番号の段だけ: 並べ替えの順（そのロットのいちばん上の行の順）で集める
   function arrange() {
-    const a = store.get(KEY.arrange, {})[S.table];
+    const a = store.get(KEY.arrange, {})[scope()];
     if (a) return { levels: (a.levels || []).filter((l) => l && l.column), heads: a.heads !== false, suppress: !!a.suppress };
     if (legacyGroup) return { levels: S.lotColumn ? [{ column: S.lotColumn, dir: LOT_ORDER, lot: true }] : [], heads: true, suppress: false, legacy: true };
     return { levels: [], heads: true, suppress: false };
@@ -111,7 +157,7 @@
   function saveArrange(patch) {
     const all = store.get(KEY.arrange, {}), cur = arrange();
     delete cur.legacy;
-    all[S.table] = Object.assign(cur, patch);
+    all[scope()] = Object.assign(cur, patch);
     store.set(KEY.arrange, all);
   }
   /* 効いている段（この表にある列だけ・並べ替えのキーの上限まで） */
@@ -186,28 +232,28 @@
     return { levels, heads: !b || b.heads !== false, suppress: !!(b && b.suppress), sorts };
   }
   function arrangeOf(table) {
-    if (table === S.table) { const { levels: lv, heads, suppress } = arrange(); return { levels: lv, heads, suppress, sorts: S.sorts }; }
+    if (table === scope()) { const { levels: lv, heads, suppress } = arrange(); return { levels: lv, heads, suppress, sorts: S.sorts }; }
     return cleanArrange({ ...(store.get(KEY.arrange, {})[table] || {}), sorts: store.get(KEY.sorts, {})[table] || [] });
   }
   function exportArrange() {
-    const others = Object.keys(store.get(KEY.arrange, {})).filter((t) => t !== S.table);
+    const here = scope(), others = Object.keys(store.get(KEY.arrange, {})).filter((t) => t !== here && S.src.owns(t));
     const all = others.length > 0 && confirm("すべての表の並び・まとめを書き出しますか？\n［OK］すべての表　［キャンセル］この表だけ");
-    const tables = all ? [S.table, ...others] : [S.table];
-    TPA.saveJson(ARRANGE_KIND, tables.map((t) => ({ target: t, body: arrangeOf(t) })), `異常ロット一覧_並び・まとめ_${all ? "すべて" : S.table}.json`);
+    const tables = all ? [here, ...others] : [here];
+    TPA.saveJson(ARRANGE_KIND, tables.map((t) => ({ target: t, body: arrangeOf(t) })), `${S.src.fileStem}_並び・まとめ_${all ? "すべて" : S.src.place(S.table)}.json`);
   }
   async function importArrange() {
     let items;
     try { items = await TPA.pickJson(ARRANGE_KIND, "並び・まとめ"); } catch (e) { flash("読み込めませんでした: " + e.message); return; }
     if (!items) return;
-    const mine = items.find((x) => x.target === S.table) || (items.length === 1 ? items[0] : null);
+    const here = scope(), mine = items.find((x) => x.target === here) || (items.length === 1 ? items[0] : null);
     // ほかの表の分は、その表を開いたときに効くよう覚えるだけ
     const arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {});
-    items.filter((x) => x !== mine && typeof x.target === "string" && x.target && x.target !== S.table).forEach((x) => {
+    items.filter((x) => x !== mine && typeof x.target === "string" && x.target && x.target !== here).forEach((x) => {
       const { sorts, ...a } = cleanArrange(x.body); arr[x.target] = a;
       if (sorts.length) srt[x.target] = sorts; else delete srt[x.target];
     });
     store.set(KEY.arrange, arr); store.set(KEY.sorts, srt);
-    if (!mine) { flash(`読み込みました（${items.length}件。この表「${S.table}」の分は入っていません）`); return; }
+    if (!mine) { flash(`読み込みました（${items.length}件。この表「${S.src.place(S.table)}」の分は入っていません）`); return; }
     // この表の分: この表に無い列は飛ばして数える
     const b = cleanArrange(mine.body), have = (x) => S.columns.includes(x.column);
     const skipped = b.levels.filter((l) => !have(l)).length + b.sorts.filter((x) => !have(x)).length;
@@ -217,14 +263,14 @@
     flash(`並び・まとめを読み込みました` + (skipped ? `（この表に無い ${skipped}列ぶんは飛ばしました）` : ""));
     load();
   }
-  const collapsed = () => new Set((TPA.session.get(KEY.collapsed, {})[S.table]) || []);
-  function setCollapsed(set) { const all = TPA.session.get(KEY.collapsed, {}); all[S.table] = [...set]; TPA.session.set(KEY.collapsed, all); }
+  const collapsed = () => new Set((TPA.session.get(KEY.collapsed, {})[scope()]) || []);
+  function setCollapsed(set) { const all = TPA.session.get(KEY.collapsed, {}); all[scope()] = [...set]; TPA.session.set(KEY.collapsed, all); }
   let onPick = () => {};
   let root = null;
 
   /* ================= 読み込み ================= */
   function queryString() {
-    const q = new URLSearchParams();
+    const q = new URLSearchParams(S.src.params());
     if (S.table) q.set("table", S.table);
     q.set("page", S.page); q.set("page_size", S.pageSize);
     if (S.search) q.set("search", S.search);
@@ -236,14 +282,16 @@
     return q.toString();
   }
   async function load() {
-    const seq = ++S.seq;
+    const me = S, seq = ++S.seq;
+    if (S.src.id === "work" && !S.equip) { S.loading = false; renderAll(); return; }   // 設備を選ぶまでは読まない（設備の札が案内する）
     S.loading = true; paintBusy();
+    const wait = S.src.id === "work" ? waitFirstCopy(me) : null;
     try {
-      const r = await fetch("/api/lotlist?" + queryString(), { cache: "no-store" });
+      const r = await fetch(S.src.api + "?" + queryString(), { cache: "no-store" });
       const d = await r.json();
-      if (seq !== S.seq) return;              // 追い越された古い答えは捨てる
+      if (me !== S || seq !== S.seq) return;  // 追い越された古い答え・ほかの元へ移った後の答えは捨てる
       S.source = d.source || S.source;
-      if (!r.ok) throw new Error(d.error || "ロット一覧を読めませんでした");
+      if (!r.ok) throw new Error(d.error || `${S.src.title}を読めませんでした`);
       S.table = d.table; S.tables = d.tables || []; S.columns = d.columns || []; S.rows = d.rows || [];
       S.lotColumn = d.lotColumn || ""; S.rows = clusterRows(S.rows);
       S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
@@ -252,46 +300,48 @@
       else S.sorts = d.sorts || S.sorts;
       S.groups = d.groups || null; S.groupCount = d.groupCount || 0; S.range = d.range || [0, 0];
       S.loadedAt = (S.source && S.source.copiedAt) || null;
-      store.set(KEY.table, S.table);
+      S.src.saveTable(S.table);
+      S.shownEquip = S.equip;
       // 表が初めて決まった（サーバーが既定の表を選んだ）ら、その表の覚えを戻して引き直す
-      if (contextKey !== S.table && syncContext() && (S.genericFilters.length || S.sorts.length || adhocActive() || grouped() || window.LotListSlicer.filters().length)) {
-        S.loading = false; return load();
+      if (S.ctx !== scope() && syncContext() && (S.genericFilters.length || S.sorts.length || adhocActive() || grouped() || window.LotListSlicer.filters().length)) {
+        S.loading = false; wait?.done(); return load();
       }
     } catch (e) {
-      if (seq !== S.seq) return;
+      if (me !== S || seq !== S.seq) return;
       S.error = e.message; S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0];
-    }
+    } finally { wait?.done(); }
     S.loading = false;
     renderAll();
     window.LotListSlicer.refresh();   // 件数を今の絞り込みで数え直す
   }
 
-  /* ================= 表（コンテキスト）ごとの覚え ================= */
-  let contextKey = null;
+  /* ================= 範囲（表・作業実績は設備と表）ごとの覚え ================= */
   function saveActive() {
-    if (contextKey == null) return;
+    const k = S.ctx;
+    if (k == null) return;
     const all = store.get(KEY.active, {});
     const keep = S.genericFilters.filter((f) => !f.locked).map((f) => ({ column: f.column, op: f.op, value: f.value }));
-    if (keep.length) all[contextKey] = keep; else delete all[contextKey];
+    if (keep.length) all[k] = keep; else delete all[k];
     store.set(KEY.active, all);
     const srt = store.get(KEY.sorts, {});
-    if (S.sorts.length) srt[contextKey] = S.sorts; else delete srt[contextKey];
+    if (S.sorts.length) srt[k] = S.sorts; else delete srt[k];
     store.set(KEY.sorts, srt);
   }
   /* 表が決まった（変わった）ら、その表の覚えを戻して「いつも適用（固定）」を当て直す。戻り値: 条件が変わったか */
   function syncContext(force) {
     if (!S.table) return false;
-    if (S.table === contextKey && !force) return false;
-    if (contextKey != null && contextKey !== S.table) saveActive();
-    contextKey = S.table;
-    S.genericFilters = (store.get(KEY.active, {})[S.table] || []).map((f) => ({ ...f }));
-    S.sorts = (store.get(KEY.sorts, {})[S.table] || []).slice(0, MAX_SORTS);
+    const k = scope();
+    if (k === S.ctx && !force) return false;
+    if (S.ctx != null && S.ctx !== k) saveActive();
+    S.ctx = k;
+    S.genericFilters = (store.get(KEY.active, {})[k] || []).map((f) => ({ ...f }));
+    S.sorts = (store.get(KEY.sorts, {})[k] || []).slice(0, MAX_SORTS);
     applyAlwaysOn();
     syncAdhocContext();
     S.page = 1;
     return true;
   }
-  function tablePresets() { return S.presets.filter((p) => p.table === S.table); }
+  function tablePresets() { const k = scope(); return S.presets.filter((p) => p.table === k); }
   function savePresets() { store.set(KEY.presets, S.presets); }
   /* 「いつも適用（固定）」は開くたびに入り、手で外せても開き直すと戻る（WaveLog §9.190 と同じ）。 */
   function applyAlwaysOn() {
@@ -331,7 +381,7 @@
   function saveOne(f) {
     if (registeredPreset(f)) return "dup";
     S.presets.unshift({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: presetName(f),
-      table: S.table, filters: [{ column: f.column, op: f.op, value: f.value }], group: "", always: false });
+      table: scope(), filters: [{ column: f.column, op: f.op, value: f.value }], group: "", always: false });
     S.presets = S.presets.slice(0, 200); savePresets();
     return "saved";
   }
@@ -345,10 +395,10 @@
     return out;
   }
   function selectedPresetKey() {
-    const k = (store.get(KEY.presetSel, {})[S.table]) || PRESET_NONE;
+    const k = (store.get(KEY.presetSel, {})[scope()]) || PRESET_NONE;
     return presetEntries().some((e) => e.key === k) ? k : PRESET_NONE;
   }
-  function setSelectedPreset(k) { const m = store.get(KEY.presetSel, {}); if (k) m[S.table] = k; else delete m[S.table]; store.set(KEY.presetSel, m); }
+  function setSelectedPreset(k) { const m = store.get(KEY.presetSel, {}), here = scope(); if (k) m[here] = k; else delete m[here]; store.set(KEY.presetSel, m); }
   /* 切り替え＝入れ替え（足すのではない）。前のプリセットの条件を外し、新しいプリセットの条件を入れる。
      手で足した条件と「いつも適用（固定）」はそのまま。 */
   function switchPreset(key) {
@@ -376,36 +426,36 @@
   }
 
   /* ================= 列で絞り込む（登録しない・その場だけ） ================= */
-  let adhoc = { column: "", op: "contains", value: "" };
-  let adhocScope = null, adhocTimer = null, adhocColsSig = "";
+  let adhocTimer = null, adhocColsSig = "";
   let adhocOpen = !!store.get(KEY.adhocOpen, false);
   function saveAdhocSetup() {
-    if (adhocScope == null) return;
-    const all = store.get(KEY.adhoc, {});
-    if (adhoc.column) all[adhocScope] = { column: adhoc.column, op: adhoc.op }; else delete all[adhocScope];
+    if (S.adhocScope == null) return;
+    const all = store.get(KEY.adhoc, {}), a = S.adhoc;
+    if (a.column) all[S.adhocScope] = { column: a.column, op: a.op }; else delete all[S.adhocScope];
     store.set(KEY.adhoc, all);
   }
   function syncAdhocContext() {
-    if (S.table === adhocScope) return;
-    if (adhocScope != null) saveAdhocSetup();
-    const saved = store.get(KEY.adhoc, {})[S.table] || {};
-    adhoc = { column: String(saved.column || ""), op: OPS.some((o) => o[0] === saved.op) ? saved.op : "contains", value: "" };
-    adhocScope = S.table; adhocColsSig = "";
+    const k = scope();
+    if (k === S.adhocScope) return;
+    if (S.adhocScope != null) saveAdhocSetup();
+    const saved = store.get(KEY.adhoc, {})[k] || {};
+    S.adhoc = { column: String(saved.column || ""), op: OPS.some((o) => o[0] === saved.op) ? saved.op : "contains", value: "" };
+    S.adhocScope = k; adhocColsSig = "";
     const box = $("#llAdhocValue"); if (box) box.value = "";
   }
-  const adhocColumnOk = () => !!adhoc.column && (!S.columns.length || S.columns.includes(adhoc.column));
-  const adhocActive = () => adhocColumnOk() && (noValueOp(adhoc.op)
-    || (isRel(adhoc.op) ? /^\d+$/.test(String(adhoc.value || "").trim()) : !!String(adhoc.value || "").trim()));
+  const adhocColumnOk = () => !!S.adhoc.column && (!S.columns.length || S.columns.includes(S.adhoc.column));
+  const adhocActive = () => adhocColumnOk() && (noValueOp(S.adhoc.op)
+    || (isRel(S.adhoc.op) ? /^\d+$/.test(String(S.adhoc.value || "").trim()) : !!String(S.adhoc.value || "").trim()));
   /** スライサーより前の絞り込み（条件・列で絞り込む）。スライサーが自分の件数を数えるときにも使う */
   const baseFilters = () => S.genericFilters.map(({ column, op, value }) => ({ column, op, value })).concat(adhocFilters());
-  const adhocFilters = () => adhocActive() ? [{ column: adhoc.column, op: adhoc.op, value: noValueOp(adhoc.op) ? "" : String(adhoc.value).trim() }] : [];
-  const adhocLabel = () => adhoc.column ? condLabel({ column: adhoc.column, op: adhoc.op, value: String(adhoc.value || "").trim() }) : "";
+  const adhocFilters = () => adhocActive() ? [{ column: S.adhoc.column, op: S.adhoc.op, value: noValueOp(S.adhoc.op) ? "" : String(S.adhoc.value).trim() }] : [];
+  const adhocLabel = () => S.adhoc.column ? condLabel({ column: S.adhoc.column, op: S.adhoc.op, value: String(S.adhoc.value || "").trim() }) : "";
   function applyAdhoc(now) {
     clearTimeout(adhocTimer); adhocTimer = null;
     const run = () => { S.page = 1; renderBar(); load(); };
     if (now) run(); else adhocTimer = setTimeout(run, ADHOC_DEBOUNCE_MS);
   }
-  function resetAdhoc() { adhoc.value = ""; const b = $("#llAdhocValue"); if (b) b.value = ""; }
+  function resetAdhoc() { S.adhoc.value = ""; const b = $("#llAdhocValue"); if (b) b.value = ""; }
   function clearAdhoc() { resetAdhoc(); applyAdhoc(true); }
   function keepAdhoc() { const l = adhocFilters(); if (!l.length) return; resetAdhoc(); addFilter(l[0]); }
   function setAdhocOpen(v) {
@@ -516,13 +566,13 @@
     // 列で絞り込む
     $("#llAdhocToggle").onclick = () => setAdhocOpen(!adhocOpen);
     $("#llAdhocClose").onclick = () => setAdhocOpen(false);
-    $("#llAdhocColumn").onchange = () => { adhoc.column = $("#llAdhocColumn").value; saveAdhocSetup(); updateAdhocSuggestions(); renderAdhocRow(); applyAdhoc(true); };
-    $("#llAdhocOp").onchange = () => { adhoc.op = $("#llAdhocOp").value; saveAdhocSetup(); renderAdhocRow(); applyAdhoc(true); };
+    $("#llAdhocColumn").onchange = () => { S.adhoc.column = $("#llAdhocColumn").value; saveAdhocSetup(); updateAdhocSuggestions(); renderAdhocRow(); applyAdhoc(true); };
+    $("#llAdhocOp").onchange = () => { S.adhoc.op = $("#llAdhocOp").value; saveAdhocSetup(); renderAdhocRow(); applyAdhoc(true); };
     const box = $("#llAdhocValue");
-    TPA.onText(box, () => { adhoc.value = box.value; renderAdhocRow(); applyAdhoc(false); });
+    TPA.onText(box, () => { S.adhoc.value = box.value; renderAdhocRow(); applyAdhoc(false); });
     box.addEventListener("keydown", (e) => {
       if (TPA.composing(e)) return;   // 変換の確定の Enter・Esc は IME のもの
-      if (e.key === "Enter") { e.preventDefault(); adhoc.value = box.value; renderAdhocRow(); applyAdhoc(true); }
+      if (e.key === "Enter") { e.preventDefault(); S.adhoc.value = box.value; renderAdhocRow(); applyAdhoc(true); }
       else if (e.key === "Escape" && box.value) { e.preventDefault(); e.stopPropagation(); clearAdhoc(); }
     });
     box.addEventListener("focus", updateAdhocSuggestions);
@@ -592,7 +642,7 @@
   }
   function updateAdhocSuggestions() {
     const list = $("#llAdhocList");
-    list.innerHTML = !adhoc.column || noValueOp(adhoc.op) ? "" : valueOptions(adhoc.column, adhoc.op);
+    list.innerHTML = !S.adhoc.column || noValueOp(S.adhoc.op) ? "" : valueOptions(S.adhoc.column, S.adhoc.op);
   }
   function renderPresetButton() {
     const btn = $("#llPresetBtn"), st = presetButtonState();
@@ -663,29 +713,29 @@
     const colSel = $("#llAdhocColumn"), sig = S.columns.join("\u001f");
     if (sig !== adhocColsSig) {
       adhocColsSig = sig;
-      const missing = adhoc.column && S.columns.length && !S.columns.includes(adhoc.column);
+      const missing = S.adhoc.column && S.columns.length && !S.columns.includes(S.adhoc.column);
       colSel.innerHTML = '<option value="">列を選ぶ…</option>'
-        + (missing ? `<option value="${esc(adhoc.column)}">${esc(adhoc.column)}（この一覧にありません）</option>` : "")
+        + (missing ? `<option value="${esc(S.adhoc.column)}">${esc(S.adhoc.column)}（この一覧にありません）</option>` : "")
         + S.columns.map(colOption).join("");
     }
-    if (colSel.value !== adhoc.column) colSel.value = adhoc.column;
-    const opSel = $("#llAdhocOp"); if (opSel.value !== adhoc.op) opSel.value = adhoc.op;
-    if (paintOpOptions(opSel, adhoc.column) !== adhoc.op && S.columns.length) { adhoc.op = opSel.value; saveAdhocSetup(); }
-    const box = $("#llAdhocValue"), noVal = noValueOp(adhoc.op);
-    box.disabled = noVal || !adhoc.column;
-    box.placeholder = !adhoc.column ? "先に列を選んでください" : noVal ? "この条件では値は要りません"
-      : isRel(adhoc.op) ? `数を打つと絞り込みます（例: 7 → 7${REL_UNIT[adhoc.op]}以内）` : "打つとその場で絞り込みます（Enterですぐ）";
-    if (document.activeElement !== box && box.value !== adhoc.value) box.value = adhoc.value;
+    if (colSel.value !== S.adhoc.column) colSel.value = S.adhoc.column;
+    const opSel = $("#llAdhocOp"); if (opSel.value !== S.adhoc.op) opSel.value = S.adhoc.op;
+    if (paintOpOptions(opSel, S.adhoc.column) !== S.adhoc.op && S.columns.length) { S.adhoc.op = opSel.value; saveAdhocSetup(); }
+    const box = $("#llAdhocValue"), noVal = noValueOp(S.adhoc.op);
+    box.disabled = noVal || !S.adhoc.column;
+    box.placeholder = !S.adhoc.column ? "先に列を選んでください" : noVal ? "この条件では値は要りません"
+      : isRel(S.adhoc.op) ? `数を打つと絞り込みます（例: 7 → 7${REL_UNIT[S.adhoc.op]}以内）` : "打つとその場で絞り込みます（Enterですぐ）";
+    if (document.activeElement !== box && box.value !== S.adhoc.value) box.value = S.adhoc.value;
     const on = adhocActive();
     const keep = $("#llAdhocKeep");
     keep.disabled = !on;
     keep.title = on ? `「${adhocLabel()}」を上の条件へ移します（そのあと登録もできます）` : "効いている条件があるときだけ移せます";
-    $("#llAdhocClear").disabled = !on && !String(adhoc.value || "").trim();
+    $("#llAdhocClear").disabled = !on && !String(S.adhoc.value || "").trim();
     const state = $("#llAdhocState");
-    if (!adhoc.column) { state.className = "filter-adhoc-state"; state.textContent = "列と比べ方を選ぶと使えます"; }
-    else if (!adhocColumnOk()) { state.className = "filter-adhoc-state is-warn"; state.textContent = `この一覧に「${adhoc.column}」の列がありません`; }
+    if (!S.adhoc.column) { state.className = "filter-adhoc-state"; state.textContent = "列と比べ方を選ぶと使えます"; }
+    else if (!adhocColumnOk()) { state.className = "filter-adhoc-state is-warn"; state.textContent = `この一覧に「${S.adhoc.column}」の列がありません`; }
     else if (on) { state.className = "filter-adhoc-state is-on"; state.textContent = `効いています: ${adhocLabel()}`; }
-    else if (isRel(adhoc.op) && String(adhoc.value || "").trim()) { state.className = "filter-adhoc-state is-warn"; state.textContent = "「以内」は 0 以上の整数で入れてください（例: 7）"; }
+    else if (isRel(S.adhoc.op) && String(S.adhoc.value || "").trim()) { state.className = "filter-adhoc-state is-warn"; state.textContent = "「以内」は 0 以上の整数で入れてください（例: 7）"; }
     else { state.className = "filter-adhoc-state"; state.textContent = "まだ効いていません（入力欄に打つと効きます）"; }
     state.title = state.textContent;
     row.hidden = !adhocOpen;
@@ -838,7 +888,7 @@
   function renderPresetModal() {
     const ps = tablePresets(), groups = [...new Set(ps.map((p) => p.group).filter(Boolean))];
     $("#llPresetGroups").innerHTML = groups.map((g) => `<option value="${esc(g)}"></option>`).join("");
-    $("#llPresetTable").textContent = S.table || "-";
+    $("#llPresetTable").textContent = S.table ? S.src.place(S.table) : "-";
     const body = $("#llPresetRows");
     if (!ps.length) { body.innerHTML = '<tr><td colspan="5" class="ll-pm-empty">登録した条件はまだありません。「条件」→「条件を作る・登録する」か、効いている条件の ☆ で登録できます。</td></tr>'; return; }
     body.innerHTML = ps.map((p) => `<tr data-id="${esc(p.id)}">
@@ -872,9 +922,10 @@
 
   /* ================= 一覧（表） ================= */
   /* ---- 表示列（lotlist-columns.js）へ渡す「いまの一覧」 ---- */
-  const layoutTarget = () => "lotlist:" + (S.table || "");
+  const layoutTarget = () => S.src.target(S.table);
   function columnContext() {
-    return { target: layoutTarget(), table: S.table, columns: window.LotListColumns.allColumns(layoutTarget(), S.columns),
+    return { target: layoutTarget(), table: S.src.colTable(S.table), title: `${S.src.title}：${S.src.place(S.table)}`, fileStem: S.src.fileStem,
+      place: S.src.place(S.table), columns: window.LotListColumns.allColumns(layoutTarget(), S.columns),
       sourceColumns: S.columns, rows: S.rows, lotColumn: S.lotColumn, grid: $("#llGrid"),
       rerender: () => renderGrid(), toast: (m) => flash(m), levels: levelsApi() };
   }
@@ -1181,11 +1232,18 @@
   }
   function renderGrid() {
     const head = $("#llHead"), body = $("#llBody"), note = $("#llNote");
+    if (S.src.id === "work" && !S.equip) {
+      head.innerHTML = ""; body.innerHTML = "";
+      if (S.equips == null) { note.hidden = true; return; }
+      note.innerHTML = equipEmptyHtml(); note.hidden = false; return;
+    }
     if (S.error) {
       head.innerHTML = ""; body.innerHTML = "";
-      note.innerHTML = `<b>ロット一覧を読めませんでした。</b><br>${esc(S.error)}<br>`
-        + `<small>元: ${esc((S.source && S.source.remote) || "（設定 lot_list.source）")}</small><div class="ll-note-acts"><button type="button" class="btn-primary" data-ll-refresh>共有から読み直す</button>`
-        + ` <button type="button" data-ll-settings title="元ファイルの場所・名前を「マスタ管理」の「参照先」で直します">参照先を開く</button></div>`;
+      const canRefresh = S.src.id === "lot" || !!S.source;   // 作業実績は、まだ開けていない設備（ファイルが見つからない等）には取り直す物が無い
+      note.innerHTML = `<b>${esc(S.src.title)}を読めませんでした。</b><br>${esc(S.error)}<br>`
+        + `<small>元: ${esc((S.source && S.source.remote) || S.src.remoteHint)}</small><div class="ll-note-acts">`
+        + (canRefresh ? '<button type="button" class="btn-primary" data-ll-refresh>共有から読み直す</button> ' : "")
+        + `<button type="button"${canRefresh ? "" : ' class="btn-primary"'} data-ll-settings title="${esc(S.src.settingsTip)}">${esc(S.src.settingsLabel)}</button></div>`;
       note.hidden = false; return;
     }
     const filtered = new Set(baseFilters().concat(window.LotListSlicer.filters()).map((f) => f.column));
@@ -1217,7 +1275,7 @@
           + (li >= 0 ? "まとめている列: クリックで ▲／▼ を入れ替え" : `クリックで並び替え。Shift+クリックで並べ替えのキーを足します（段と合わせて最大${MAX_SORTS}つ）`)
           + "\nドラッグで列の入れ替え（どの列もどこへでも）・右クリックで「この列でまとめる」など";
       return `<th data-col="${esc(c)}" draggable="true" class="${c === S.lotColumn ? "ll-lotcol " : ""}${filtered.has(c) ? "col-filtered " : ""}${calc ? "is-calc " : ""}${li >= 0 ? "is-level " : ""}al-h-${al.head}" title="${esc(tip)}">`
-        + `<i class="col-grip" aria-hidden="true">⠿</i><span>${esc(LC.label(t, c))}</span>${mark}${filtered.has(c) ? '<i class="col-filter-badge" title="この列にフィルタが適用されています">▼</i>' : ""}`
+        + `<i class="col-grip" aria-hidden="true">⠿</i><span class="th-in"><span>${esc(LC.label(t, c))}</span>${calc ? '<i class="ll-calcmark">式</i>' : ""}${mark}${filtered.has(c) ? '<i class="col-filter-badge" title="この列にフィルタが適用されています">▼</i>' : ""}</span>`
         + `<i class="col-resize${L.locks.includes(c) ? " is-locked" : ""}" title="${L.locks.includes(c) ? "この列は幅を固定しています（列の設定で解けます）" : "ドラッグで列幅を調整（ダブルクリックで既定へ）"}"></i></th>`;
     }).join("") + "</tr>";
     const aligns = cols.map((c) => LC.alignOf(t, c).data);
@@ -1279,9 +1337,9 @@
     if (!el) return;
     if (!s || !s.stale) { el.hidden = true; return; }
     el.innerHTML = `<b>元データが ${ageText(s.ageHours)}から更新されていません</b>（最後の更新 ${hm(s.at)}・${Math.round(s.staleHours)}時間を過ぎると警告）。`
-      + `毎日更新されるはずの元ファイルの更新が止まっている可能性があります。最近の異常ロットは一覧に出ません。`
+      + `毎日更新されるはずの元ファイルの更新が止まっている可能性があります。${S.src.staleWhat}`
       + `<small>元: ${esc(s.remote || "-")}${s.unreachable ? "（いまは共有に届きません）" : ""}。更新する側（元データを作る PC・仕組み）を確かめてください。</small>`
-      + `<button type="button" data-ll-refresh>共有から取り直す</button> <button type="button" data-ll-settings title="元ファイルの場所・名前が合っているかを「マスタ管理」の「参照先」で確かめます">参照先を開く</button>`;
+      + `<button type="button" data-ll-refresh>共有から取り直す</button> <button type="button" data-ll-settings title="${esc(S.src.settingsTip)}">${esc(S.src.settingsLabel)}</button>`;
     el.hidden = false;
   }
   function renderFresh() {
@@ -1306,23 +1364,27 @@
     // まだ1行も無いまま待っているとき（初めて開いた＝共有から写している最中）は、何を待っているかを言う
     const note = $("#llNote");
     if (S.loading && !S.rows.length && !S.error && note) {
-      note.innerHTML = "<b>品質データを読んでいます…</b><br>初めて開いたときは、共有の元ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。";
+      note.innerHTML = `<b>${esc(S.src.reading)}</b><br>${esc(S.src.firstNote)}`;
       note.hidden = false;
     }
   }
-  function renderAll() { renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh(); }
+  function renderAll() { renderEquipBar(); renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh(); }
 
   async function refreshFromShare() {
     const b = $("#llFresh"); b.disabled = true; b.textContent = "共有から取り直しています…";
     try {
-      const r = await fetch("/api/lotlist/refresh", { method: "POST" });
+      const r = await fetch(`${S.src.api}/refresh?${new URLSearchParams(S.src.params())}`, { method: "POST" });
       const d = await r.json(); S.source = d.source || S.source;
     } catch (_) { /* 一覧の読み直しで理由が出る */ }
     b.disabled = false; await load();
   }
   let pollTimer = null;
   async function pollSource() {
-    try { const r = await fetch("/api/lotlist/source", { cache: "no-store" }); if (r.ok) { S.source = await r.json(); renderFresh(); } } catch (_) { /* 次の周回で */ }
+    const me = S;
+    try {
+      const r = await fetch(`${S.src.api}/source?${new URLSearchParams(S.src.params())}`, { cache: "no-store" });
+      if (r.ok && me === S) { S.source = await r.json(); renderFresh(); }
+    } catch (_) { /* 次の周回で */ }
   }
 
   /* ---- 一覧の拡大（一時的: この窓のあいだだけ覚え、閉じると 100%） ----
@@ -1414,13 +1476,14 @@
     root.addEventListener("click", (e) => {
       if (e.target.closest("[data-ll-clear-all]")) { dropAllFilters({ adhoc: true }); S.search = ""; $("#llSearch").value = ""; reload(); }
       if (e.target.closest("[data-ll-refresh]")) refreshFromShare();
-      if (e.target.closest("[data-ll-settings]") && window.openMasterAt) window.openMasterAt("paths");
+      if (e.target.closest("[data-ll-settings]") && window.openMasterAt) window.openMasterAt(S.src.settingsTab);
+      if (e.target.closest("[data-wl-adopt]")) adoptLoose();
     });
     $("#llPrev").onclick = () => { if (S.page > 1) { S.page--; load(); } };
     $("#llNext").onclick = () => { S.page++; load(); };
     $("#llColBtn").onclick = () => { closeViewMenu(); window.LotListColumns.toggle(); };
     $("#llViewBtn").onclick = () => toggleViewMenu();
-    $("#llTable").onchange = (e) => { saveActive(); S.table = e.target.value; contextKey = null; syncContext(true); window.LotListCard.close(); load(); };
+    $("#llTable").onchange = (e) => { saveActive(); S.table = e.target.value; S.ctx = null; syncContext(true); window.LotListCard.close(); window.LotListSlicer.reset(); load(); };
     $("#llFresh").onclick = () => {
       const s = S.source, newer = S.loadedAt && s && s.copiedAt && s.copiedAt > S.loadedAt + 0.5;
       if (newer) load(); else refreshFromShare();
@@ -1429,33 +1492,151 @@
     TPA.layer($("#llPresetModal"), closePresetModal, { backdrop: false });
   }
 
+  /* ================= 作業実績: 設備を選ぶ =================
+     設備は登録（マスタ管理の「作業実績」）で「表示する」にした物。いま見ている設備は札が塗られる（タブと同じ見え方）。
+     ファイルが見つからない設備は押せない（理由を札の説明に）。設備を替えると、その設備の覚え（条件・並び・表示列…）に入れ替わる。
+     検索の字はそのまま（同じロットを設備を替えて探せる）。 */
+  async function loadEquips({ fresh = false } = {}) {
+    const me = STATES.work;
+    try {
+      const r = await fetch("/api/worklog/files" + (fresh ? "?fresh=1" : ""), { cache: "no-store" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "設備を読めませんでした");
+      Object.assign(me, { equips: d.items || [], equipError: d.error || "", equipEdit: !!d.canEdit, equipFolder: d.folder || "", equipStale: d.staleHours,
+        equipLoose: d.new || [] });
+    } catch (e) { Object.assign(me, { equips: [], equipError: e.message }); }
+    const ok = (k) => me.equips.some((x) => x.key === k && x.state !== "missing");
+    if (!ok(me.equip)) {
+      const first = me.equips.find((x) => x.state !== "missing");
+      if (me === S) switchEquip(first ? first.key : "", { load: false }); else me.equip = first ? first.key : "";
+    }
+  }
+  const equipOf = (k = S.equip) => (S.equips || []).find((x) => x.key === k) || null;
+  function switchEquip(k, { load: reload = true } = {}) {
+    if (S.src.id !== "work") return;
+    if (k !== S.equip) {
+      saveActive(); saveAdhocSetup();
+      S.equip = k; store.set(KEY.workEquip, k);
+      Object.assign(S, { table: S.src.loadTable(), tables: [], ctx: null, adhocScope: null, page: 1, rows: [], columns: [], count: 0,
+        source: null, error: "", groups: null, range: [0, 0] });
+      window.LotListCard.close(); window.LotListSlicer.reset();
+      if (S.table) syncContext(true);
+    }
+    renderAll();
+    if (reload) load();
+  }
+  const whenText = (sec) => { if (!sec) return ""; const d = new Date(sec * 1000); return `${d.getMonth() + 1}/${TPA.pad2(d.getDate())} ${TPA.pad2(d.getHours())}:${TPA.pad2(d.getMinutes())}`; };
+  function equipTip(e) {
+    if (e.state === "missing") return `${e.name}: ファイル「${e.file}」が見つかりません（名前が変わったか、消されました）。\nマスタ管理の「作業実績」で結ぶファイルを選び直せます`;
+    return `${e.name}（${e.now || e.file}）` + (e.mtime ? `\n最後の更新 ${whenText(e.mtime)}` : "")
+      + (e.stale ? `\n${Math.round(e.ageHours)}時間、更新されていません（${S.equipStale || 36}時間を過ぎると印）` : "")
+      + (e.state === "renamed" ? `\nファイルの名前が「${e.file}」から変わっています（同じファイルをたどって読みます）` : "");
+  }
+  function renderEquipBar() {
+    const bar = $("#llEquipBar"); if (!bar) return;
+    bar.hidden = S.src.id !== "work";
+    if (bar.hidden) return;
+    const list = S.equips;
+    const manage = S.equipEdit ? '<button type="button" class="eq-manage" data-ll-settings title="作業実績のフォルダと、どの設備を表示するかを決めます（マスタ管理の「作業実績」）">設備を管理…</button>' : "";
+    if (list == null) { bar.innerHTML = '<span class="eq-lab">設備</span><span class="eq-wait">設備を探しています…</span>'; return; }
+    const chips = list.map((e) => `<button type="button" role="tab" class="eq-chip is-${e.state}${e.stale ? " is-stale" : ""}" data-equip="${esc(e.key)}" aria-selected="${e.key === S.equip}"`
+      + ` data-when="${esc(whenText(e.mtime))}" tabindex="${e.key === S.equip ? 0 : -1}"${e.state === "missing" ? ' aria-disabled="true"' : ""} title="${esc(equipTip(e))}">`
+      + `${esc(e.name)}${e.state === "missing" ? '<i class="eq-warn" aria-label="見つからない">!</i>' : ""}</button>`).join("");
+    bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips || '<span class="eq-wait">表示できる設備がありません</span>'}</div>${manage}`;
+  }
+  /** 設備がまだ無い・選べないときの案内（一覧の場所に、理由と次にすること）。
+      フォルダに登録していない実績ファイルがあり、書ける PC なら、その場で「登録して開く」（マスタ管理を開かせない） */
+  function equipEmptyHtml() {
+    const loose = S.equipLoose || [], adopt = S.equipEdit && loose.length > 0 && !S.equipError;
+    const why = S.equipError ? esc(S.equipError)
+      : S.equips && S.equips.length ? "表示できる設備のファイルが、作業実績のフォルダに見つかりません。"
+        : loose.length ? `作業実績のフォルダに、まだ登録していない実績ファイルが ${loose.length} 個あります（${esc(loose.slice(0, 8).map((f) => f.equipment).join("・"))}${loose.length > 8 ? " ほか" : ""}）。`
+          : "作業実績の設備がまだ登録されていません（フォルダを探すと、実績_＊＊＊.sqlite3 の ＊＊＊ を設備として並べます）。";
+    const next = S.equipEdit
+      ? `<div class="ll-note-acts">${adopt ? `<button type="button" class="btn-primary" data-wl-adopt>${loose.length} 台を設備として登録して開く</button> ` : ""}`
+        + `<button type="button"${adopt ? "" : ' class="btn-primary"'} data-ll-settings>作業実績の設備を開く</button></div>`
+      : "<small>設備の登録・表示する設備は、マスタ管理の「作業実績」で管理する人（参照先を書き換えられる人）が決めます。</small>";
+    return `<b>作業実績の設備を選べません。</b><br>${why}${next}`;
+  }
+  /** 見つけた実績ファイルを設備として登録し（マスタ管理の「探す」と同じ）、設備の札を読み直して最初の設備を開く */
+  async function adoptLoose() {
+    const w = TPA.waiting({ title: "作業実績の設備を登録しています", from: S.equipFolder, now: "フォルダの実績ファイルを探し、設備として登録しています…" });
+    let r = null, d = {};
+    try { r = await fetch("/api/masters/worklog/scan", TPA.json("POST", {})); d = await r.json().catch(() => ({})); } catch (e) { d = { error: e.message }; }
+    w.done();
+    if (!r || !r.ok) { flash("登録できませんでした: " + (d.error || "")); return; }
+    document.dispatchEvent(new CustomEvent("tpa:worklog-changed"));
+  }
+  /* まだ見ていない設備を開くとき: 共有の実績ファイルを手元へ写し終えるまで（初めては数十秒）、何を待っているかを窓で言う */
+  function waitFirstCopy(me) {
+    if (me.shownEquip === me.equip) return null;
+    const e = equipOf(me.equip) || {};
+    const from = me.equipFolder && (e.now || e.file) ? `${me.equipFolder.replace(/[\\/]+$/, "")}\\${e.now || e.file}` : "";
+    return TPA.waiting({ title: "作業実績を読んでいます", subject: e.name || "", from, background: true, delay: 400,
+      now: "共有の実績ファイルを手元へ写し、一覧を作っています…",
+      note: "初めて開く設備は、共有のファイルを手元へ写し終えるまで待ちます（大きいファイルは数十秒）。2 回目からは手元の写しを読むので、すぐ出ます。" });
+  }
+
   /* ================= 画面に出す・下げる =================
      一覧は窓ではなく「最初の画面」。計算画面と行き来しても、ページ・条件・並べ替えはそのまま残す
      （戻るたびに1ページ目へ戻すと、どこまで見たかを思い出させることになる）。
-     「いつも適用（固定）」はアプリを開いた最初の1回に当てる（外した固定は、アプリを開き直すと戻る）。 */
-  let activatedOnce = false;
-  function activate({ currentLot } = {}) {
+     「いつも適用（固定）」は、その元を開いた最初の1回に当てる（外した固定は、アプリを開き直すと戻る）。
+     異常ロット一覧と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
+  function activate({ source = "lot", currentLot } = {}) {
+    const next = STATES[source] || STATES.lot;
+    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); }
     S.currentLot = currentLot || S.currentLot || "";
-    if (!activatedOnce && S.table) syncContext(true);
-    activatedOnce = true;
-    renderAll(); load();          // 戻ってきたら今の写しで引き直す（ページはそのまま）
+    root.dataset.source = S.src.id;
+    if (!S.activated && S.table) syncContext(true);
+    S.activated = true;
+    renderAll();
+    const me = S;
+    if (S.src.id === "work" && S.equips == null) loadEquips().then(() => { if (me === S) { renderAll(); load(); } });
+    else load();                  // 戻ってきたら今の写しで引き直す（ページはそのまま）
     clearInterval(pollTimer); pollTimer = setInterval(pollSource, SOURCE_POLL_MS);
   }
   function deactivate() {
     clearInterval(pollTimer); pollTimer = null;
     closePresetMenu(); closeCondMenu(); window.LotListCard.close();
-    saveActive();
+    saveActive(); saveAdhocSetup();
   }
-  // 参照先マスタで元ファイルなどが変わったら、いまの一覧を読み直す（サーバーは保存と同時に切り替え済み）
+  // 参照先マスタで元ファイルなどが変わったら、その元の一覧を読み直す（サーバーは保存と同時に切り替え済み）
   document.addEventListener("tpa:settings-changed", (e) => {
-    if (String((e.detail || {}).key || "").startsWith("lot_list.")) { S.page = 1; load(); }
+    const key = String((e.detail || {}).key || "");
+    if (key.startsWith("work_log.")) STATES.work.equips = null;
+    if (!root || root.classList.contains("hidden") || !key.startsWith(S.src.settingsKey)) return;
+    S.page = 1;
+    if (S.src.id === "work") loadEquips({ fresh: true }).then(() => { renderAll(); load(); }); else load();
   });
+  // マスタ管理の「作業実績」で設備の登録（表示する・しない・結ぶファイル）が変わった → 設備の札を読み直す
+  document.addEventListener("tpa:worklog-changed", () => {
+    STATES.work.equips = null;
+    if (S.src.id === "work" && root && !root.classList.contains("hidden")) loadEquips().then(() => { renderAll(); load(); });
+  });
+  function bindEquipBar() {
+    const bar = $("#llEquipBar"); if (!bar) return;
+    bar.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-equip]");
+      if (b && b.getAttribute("aria-disabled") !== "true") switchEquip(b.dataset.equip);
+    });
+    // 札の並びはタブと同じ: ← → で隣の設備へ（見つからない設備は飛ばす）
+    bar.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const chips = $$("[data-equip]:not([aria-disabled=true])", bar), i = chips.indexOf(document.activeElement);
+      if (i < 0) return;
+      e.preventDefault();
+      const n = chips[(i + (e.key === "ArrowRight" ? 1 : chips.length - 1)) % chips.length];
+      switchEquip(n.dataset.equip);
+      $(`[data-equip="${CSS.escape(n.dataset.equip)}"]`, bar)?.focus();
+    });
+  }
   function mount(opts) {
     root = $("#lotListScreen");
     onPick = opts.onPick || onPick;
-    buildBar(); bindGrid();
+    buildBar(); bindGrid(); bindEquipBar();
     window.LotListSlicer.mount({
-      table: () => S.table, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,
+      table: scope, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,
+      api: () => S.src.api, params: () => S.src.params(),
       label: (c) => window.LotListColumns.label(layoutTarget(), c),
       onChange: () => { S.page = 1; load(); },
     });
@@ -1465,6 +1646,12 @@
       onPick: (lot) => { if (lot) { S.currentLot = lot; onPick(lot); } },
       onShow: markCarded, toast: (m) => flash(m),
     });
+    // 表示列の窓・読み替えルールの「使っている列」で、対象を人の読める名前に（作業実績は設備の名前）
+    window.LotListColumns.describe((t) => {
+      const m = /^worklog:([^:]*):(.*)$/.exec(t);
+      if (m) { const e = (STATES.work.equips || []).find((x) => x.key === m[1]); return `作業実績 ${e ? e.name : "（設備）"}・${m[2]}`; }
+      return t.replace(/^lotlist:/, "");
+    });
   }
-  window.LotList = { mount, activate, deactivate, focus: () => $("#llSearch")?.focus() };
+  window.LotList = { mount, activate, deactivate, focus: () => $("#llSearch")?.focus(), source: () => S.src.id };
 })();

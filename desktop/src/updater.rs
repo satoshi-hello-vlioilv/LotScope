@@ -5,6 +5,8 @@
 //! - 配る版が決まっていればその版（前の版へ戻すときも）、決まっていなければいちばん新しい版を、使っている間に取り込む
 //! - 画面: GET /__desktop/update（状態）・POST /__desktop/update/check・POST /__desktop/update/apply（開き直す）・
 //!   POST /__desktop/update/probe（参照先の「確かめる」: この PC での見え方で置き場を探す）
+//! - 配布の画面（GET /__desktop/release）は、置き場をたどった結果を覚える（裏の確認がたどった結果も）。cached=1 なら覚えた結果を
+//!   すぐ返し（cachedAt つき）、画面は裏で cached なしを尋ねて確かめ直す。BOX の置き場をたどるのは遅く、タブを開くたびに待たせていた
 
 use crate::brand::brand;
 use da_core::distribute::{self, Who};
@@ -27,6 +29,8 @@ pub struct Updater {
     wake: (Mutex<bool>, Condvar),
     /// 版を置いている最中の進み具合（1 台で同時に置けるのは 1 本）
     placing: Mutex<Option<Value>>,
+    /// 配布の画面の答えの覚え（置き場の設定, 答え（me なし）, たどった時刻）
+    view_cache: Mutex<Option<(String, Value, String)>>,
 }
 
 /// 置き場の設定（参照先 update.source）に、配る入口から入れた PC が控えた置き場を後ろの候補として足す。
@@ -41,6 +45,14 @@ pub fn source_with_entry(paths: &Paths, source: &str) -> String {
         }
         _ => source.to_string(),
     }
+}
+
+/// 配布の画面の答えに、だれか（me）と、覚えた答えなら いつたどった物か（cachedAt）を入れる。
+fn with_me(mut v: Value, me: Value, cached_at: Option<&str>) -> Value {
+    v["me"] = me;
+    v["cached"] = json!(cached_at.is_some());
+    v["checkedAt"] = json!(cached_at.map(str::to_string).unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()));
+    v
 }
 
 fn who_of(settings: &Value) -> Who {
@@ -63,6 +75,7 @@ impl Updater {
             state: Mutex::new(st),
             wake: (Mutex::new(false), Condvar::new()),
             placing: Mutex::new(None),
+            view_cache: Mutex::new(None),
         })
     }
 
@@ -128,6 +141,7 @@ impl Updater {
             Err(e) => return self.set(json!({"state": "error", "problem": e})),
         };
         let scan = release::scan(&found, &b.app_id);
+        self.remember_view(&source, distribute::view_of(&scan, &found, adjusted, &source, &b.name, Value::Null));
         {
             let mut s = self.state.lock().unwrap();
             s.insert("found".into(), json!(found.display().to_string()));
@@ -184,16 +198,31 @@ impl Updater {
     }
 
     /// 配布の画面（GET /__desktop/release）。settings は Python の /api/update/settings（置き場と、だれか）。
-    pub fn release_view(&self, settings: &Value) -> Value {
+    pub fn release_view(&self, settings: &Value, cached: bool) -> Value {
         let b = brand();
         let who = &settings["who"];
         let me = json!({"canRelease": who["canRelease"] == true, "role": who["role"], "login": who["login"], "pc": who["pc"],
                         "current": self.current});
         let source = source_with_entry(&self.paths, settings["source"].as_str().unwrap_or(""));
-        match release::locate_source(&source) {
-            Ok((found, adjusted)) => distribute::view(&found, adjusted, &source, &b.app_id, &b.name, me),
-            Err(e) => json!({"reachable": false, "why": e, "folder": source, "found": null, "me": me, "versions": []}),
+        if cached {
+            if let Some((src, v, at)) = self.view_cache.lock().unwrap().clone() {
+                if src == source {
+                    return with_me(v, me, Some(&at));
+                }
+            }
         }
+        let v = match release::locate_source(&source) {
+            Ok((found, adjusted)) => distribute::view(&found, adjusted, &source, &b.app_id, &b.name, Value::Null),
+            Err(e) => json!({"reachable": false, "why": e, "folder": source, "found": null, "versions": []}),
+        };
+        self.remember_view(&source, v.clone());
+        with_me(v, me, None)
+    }
+
+    /// 置き場をたどった結果を覚える（画面の答え・裏の確認のどちらがたどっても）。
+    fn remember_view(&self, source: &str, v: Value) {
+        let at = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+        *self.view_cache.lock().unwrap() = Some((source.to_string(), v, at));
     }
 
     /// 置いている最中の進み具合（GET /__desktop/release/progress）。
@@ -260,5 +289,46 @@ impl Updater {
         }
         json!({"ok": true, "message": format!("置き場 {}{adj} に届きました。版 {} 個（いちばん新しい版 {}）{dist}{problems}",
             found.display(), vers.len(), vers[0])})
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 置き場に版を 1 つ置く（release.json だけ。配布の画面は中身の ZIP を開かない）
+    fn put(dir: &std::path::Path, version: &str) {
+        let d = dir.join("App").join(version);
+        std::fs::create_dir_all(&d).unwrap();
+        let rel = json!({"schema": 1, "app_id": brand().app_id, "name": "App", "version": version, "zip": format!("App-{version}.zip"),
+                         "sha256": "a".repeat(64), "exe": "App.exe", "bytes": 10});
+        std::fs::write(d.join(release::MARKER), serde_json::to_vec(&rel).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn release_view_answers_from_memory_when_asked_and_rescans_otherwise() {
+        let d = std::env::temp_dir().join(format!("da-updater-view-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let rels = d.join("Releases");
+        put(&rels, "3.1.0");
+        let upd = Updater::new(Paths::new(&d.join("local")), false, "3.1.0".into(), vec![]);
+        let settings =
+            json!({"source": rels.display().to_string(), "who": {"canRelease": true, "role": "開発者", "login": "u", "pc": "PC"}});
+        let n = |v: &Value| v["versions"].as_array().map(Vec::len).unwrap_or(0);
+
+        let first = upd.release_view(&settings, true);
+        assert_eq!((n(&first), first["cached"].as_bool()), (1, Some(false)), "覚えが無ければたどる: {first}");
+        assert_eq!(first["me"]["canRelease"], true, "だれか（me）は毎回入れる");
+        put(&rels, "3.2.0");
+        let mem = upd.release_view(&settings, true);
+        assert_eq!((n(&mem), mem["cached"].as_bool()), (1, Some(true)), "cached=1 は覚えた答え（置き場をたどらない）");
+        assert_eq!(mem["checkedAt"], first["checkedAt"], "いつたどった答えかを言う");
+        let fresh = upd.release_view(&settings, false);
+        assert_eq!((n(&fresh), fresh["cached"].as_bool()), (2, Some(false)), "cached なしはたどり直す");
+        assert_eq!(n(&upd.release_view(&settings, true)), 2, "たどり直した答えを覚える");
+        let other = json!({"source": d.join("無い").display().to_string(), "who": {}});
+        let v = upd.release_view(&other, true);
+        assert_eq!((v["reachable"].as_bool(), v["cached"].as_bool()), (Some(false), Some(false)), "置き場が変われば覚えは使わない: {v}");
+        let _ = std::fs::remove_dir_all(&d);
     }
 }

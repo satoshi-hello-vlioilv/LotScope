@@ -885,35 +885,44 @@ $("#searchBtn").onclick = runSearch;
 /* ---------------- 画面の切り替え（最初は異常ロット一覧） ----------------
    一覧でロット番号を押す → 計算画面へ移り、検索欄に入れて「検索」と同じ流れで取り込む。
    計算画面の検索欄からは、これまでどおり直接ロット問い合わせもできる。 */
-const SCREENS = { list: { tab: "#tabList", panel: "#lotListScreen" }, calc: { tab: "#tabCalc", panel: "#calcScreen" } };
+/* 異常ロット一覧（list）と作業実績（work）は同じ画面（#lotListScreen）を、一覧の元（source）を替えて使う（lotlist.js の SOURCES）。
+   並び（見た目の順）と Alt の数字: 異常ロット一覧 Alt+1・転写・ピッチ計算 Alt+2・作業実績 Alt+3（前からの Alt+1・Alt+2 は変えない） */
+const SCREENS = {
+  list: { tab: "#tabList", panel: "#lotListScreen", source: "lot", key: "1" },
+  calc: { tab: "#tabCalc", panel: "#calcScreen", key: "2" },
+  work: { tab: "#tabWork", panel: "#lotListScreen", source: "work", key: "3" },
+};
 state.screen = null;
 function showScreen(name, { focus = true } = {}) {
   if (!SCREENS[name] || state.screen === name) return;
   const prev = state.screen;
   state.screen = name;
+  const panel = SCREENS[name].panel;
+  Object.values(SCREENS).forEach((v) => $(v.panel).classList.toggle("hidden", v.panel !== panel));
   Object.entries(SCREENS).forEach(([k, v]) => {
-    $(v.panel).classList.toggle("hidden", k !== name);
     $(v.tab).setAttribute("aria-selected", k === name ? "true" : "false");
     $(v.tab).tabIndex = k === name ? 0 : -1;
   });
-  if (prev === "list") window.LotList.deactivate();
-  if (name === "list") {
-    window.LotList.activate({ currentLot: (state.lot && state.lot.lot_no) || "" });
+  $(panel).setAttribute("aria-labelledby", SCREENS[name].tab.slice(1));
+  if (prev && SCREENS[prev].source) window.LotList.deactivate();
+  if (SCREENS[name].source) {
+    window.LotList.activate({ source: SCREENS[name].source, currentLot: (state.lot && state.lot.lot_no) || "" });
     if (focus) window.LotList.focus();
   } else if (focus) { $("#query").focus(); $("#query").select(); }
 }
 Object.entries(SCREENS).forEach(([k, v]) => { $(v.tab).onclick = () => showScreen(k); });
-// タブの並びは ← → でも移れる（WAI-ARIA のタブの作法）。Alt+1 / Alt+2 でどこからでも切り替える
+// タブの並びは ← → でも移れる（WAI-ARIA のタブの作法）。Alt+1・Alt+2・Alt+3 でどこからでも切り替える
 $(".screen-tabs").addEventListener("keydown", (e) => {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
   e.preventDefault();
-  const next = state.screen === "list" ? "calc" : "list";
+  const tabs = [...document.querySelectorAll(".screen-tabs [data-screen]")].map((b) => b.dataset.screen);
+  const i = tabs.indexOf(state.screen), next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
   showScreen(next); $(SCREENS[next].tab).focus();
 });
 document.addEventListener("keydown", (e) => {
   if (!e.altKey || e.ctrlKey || e.metaKey) return;
-  if (e.key === "1") { e.preventDefault(); showScreen("list"); }
-  else if (e.key === "2") { e.preventDefault(); showScreen("calc"); }
+  const hit = Object.entries(SCREENS).find(([, v]) => v.key === e.key);
+  if (hit) { e.preventDefault(); showScreen(hit[0]); }
 });
 function paintCalcTabLot() {
   const lot = (state.lot && state.lot.lot_no) || "";

@@ -126,9 +126,12 @@
   function ruleUsage(name) {
     const out = [];
     const targets = new Set([...Object.keys(saved), ...Object.keys(draft)]);
-    targets.forEach((t) => Object.entries(get(t).rules).forEach(([c, n]) => { if (n === name) out.push(`${t.replace(/^lotlist:/, "")}・${label(t, c)}`); }));
+    targets.forEach((t) => Object.entries(get(t).rules).forEach(([c, n]) => { if (n === name) out.push(`${describeTarget(t)}・${label(t, c)}`); }));
     return out;
   }
+
+  /* 対象（lotlist:<表>・worklog:<設備>:<表>）を人の読める名前に。一覧（lotlist.js）が describe で決める */
+  let describeTarget = (t) => t.replace(/^lotlist:/, "");
 
   /* ================= 列の顔ぶれ・並び ================= */
   function ordered(t, cols, lotCol) {
@@ -505,7 +508,7 @@
   function renderPanel() {
     if (!panel || panel.hidden || !ctx) return;
     const t = ctx.target, l = get(t), all = ordered(t, ctx.columns, ctx.lotColumn), hidden = new Set(l.hidden);
-    $("#lcTitle").textContent = `表示列の設定（異常ロット一覧：${t.replace(/^lotlist:/, "")}）`;
+    $("#lcTitle").textContent = `表示列の設定（${ctx.title || `異常ロット一覧：${describeTarget(t)}`}）`;
     const nShown = all.filter((c) => !hidden.has(c) || c === ctx.lotColumn).length;
     const nCalc = all.filter((c) => isComputed(t, c)).length;
     $("#lcChips").innerHTML = [["", `すべて ${all.length}`], ["src", `元データ ${all.length - nCalc}`], ["calc", `計算・操作 ${nCalc}`], ["shown", `表示中 ${nShown}`], ["hidden", `非表示中 ${all.length - nShown}`]]
@@ -798,7 +801,7 @@
     $("#lcExport").onclick = () => {
       const scopeAll = confirm("すべての表の設定を書き出しますか？\n［OK］すべての一覧　［キャンセル］この一覧だけ");
       const items = scopeAll ? Object.keys(saved).map((t) => ({ target: t, body: saved[t] })) : [{ target: ctx.target, body: get(ctx.target) }];
-      TPA.saveJson("tpa-lotlist-column-layouts", items, `異常ロット一覧_表示列_${scopeAll ? "すべて" : ctx.table}.json`);
+      TPA.saveJson("tpa-lotlist-column-layouts", items, `${ctx.fileStem || "異常ロット一覧"}_表示列_${scopeAll ? "すべて" : ctx.place || ctx.table}.json`);
     };
     $("#lcImport").onclick = async () => {
       try {
@@ -830,6 +833,8 @@
     cellPad, setCellPad, overflow, setOverflow, OVERFLOWS, PAD_MAX, freeze, setFreeze, FREEZE_MAX, freezeCss,
     allColumns, isComputed, cell,
     setContext, bindHeader, toggle,
+    /** 対象を人の読める名前にする関数を決める（一覧の元が増えても、ここは名前の付け方を知らない） */
+    describe: (fn) => { describeTarget = fn; },
     // テスト・評価用
     _formatValue: formatValue, _parseDateTime: parseDateTime,
   };

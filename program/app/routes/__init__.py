@@ -8,8 +8,9 @@
     masters  … 現場のマスタ（設備・ロール）
     lotlist  … ロット一覧
     settings … 参照先マスタ
+    worklog  … 作業実績（設備ごとの実績）と、その設備の登録
 """
-from . import access, lots, lotlist, masters, settings, system  # 読み込むと bp へ登録される
+from . import access, lots, lotlist, masters, settings, system, worklog  # 読み込むと bp へ登録される
 from .common import _REVOKE_CACHE, bp  # _REVOKE_CACHE はテストが切断の覚えを消すため
 
-__all__ = ["bp", "_REVOKE_CACHE", "access", "lots", "lotlist", "masters", "settings", "system"]
+__all__ = ["bp", "_REVOKE_CACHE", "access", "lots", "lotlist", "masters", "settings", "system", "worklog"]

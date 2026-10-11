@@ -391,16 +391,16 @@ def _json_value(v):
     return v
 
 
-def slicer(path, *, column, key="", table="", preferred_table="", search="", filters="", today=None):
+def slicer(path, *, column, key="", table="", preferred_table="", search="", filters="", today=None, table_candidates=TABLE_CANDIDATES):
     """スライサーに並べる値（重複なし）と、ほかの絞り込みのもとでの件数。
     件数 0 の値も出す（今の絞り込みでは当たらないが、選べる値）。並びは SortKey の小さい順で、空欄は最後。"""
     t0 = time.perf_counter()
     q = (search or "").strip()
     with connect_ro(path) as c:
         names = tables(c)
-        t = table if table in names else pick_table(names, preferred_table)
+        t = table if table in names else pick_table(names, preferred_table, table_candidates)
         if not t:
-            raise RuntimeError("品質データにテーブルが1つもありません。")
+            raise RuntimeError(f"{'品質データ' if table_candidates is TABLE_CANDIDATES else 'データ'}にテーブルが1つもありません。")
         cs = columns(c, t, raw_columns(c, t))
         if column not in cs:
             raise ValueError(f"列「{column}」がありません。")
@@ -426,16 +426,17 @@ def slicer(path, *, column, key="", table="", preferred_table="", search="", fil
 
 
 def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEFAULT, search="",
-          filters="", sorts="", today=None, group=False):
+          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES):
+    """1 ページ分。表は table（あれば）→ preferred_table → table_candidates の順に探す（作業実績は別の候補を渡す）。"""
     t0 = time.perf_counter()
     page = max(1, int(page or 1))
     size = min(PAGE_SIZE_MAX, max(1, int(page_size or PAGE_SIZE_DEFAULT)))
     q = (search or "").strip()
     with connect_ro(path) as c:
         names = tables(c)
-        t = table if table in names else pick_table(names, preferred_table)
+        t = table if table in names else pick_table(names, preferred_table, table_candidates)
         if not t:
-            raise RuntimeError("品質データにテーブルが1つもありません。")
+            raise RuntimeError(f"{'品質データ' if table_candidates is TABLE_CANDIDATES else 'データ'}にテーブルが1つもありません。")
         raw_cs = raw_columns(c, t)
         cs = columns(c, t, raw_cs)
         where_parts, params = [], []

@@ -34,6 +34,10 @@
     <button id="tabCalc" class="screen-tab" role="tab" aria-selected="false" aria-controls="calcScreen" data-screen="calc"
             title="転写・ピッチ計算。検索欄でロット番号を直接問い合わせることもできます（Alt+2）">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13V8M8 13V3M13 13V6"/></svg>転写・ピッチ計算<small id="tabCalcLot"></small></button>
+    <!-- 作業実績（設備ごとの実績 SQLite）。異常ロット一覧と同じ画面・同じ部品で、設備を札で替える -->
+    <button id="tabWork" class="screen-tab" role="tab" aria-selected="false" aria-controls="lotListScreen" data-screen="work"
+            title="設備ごとの作業実績を、異常ロット一覧と同じ絞り込み・表示列で見ます（Alt+3）">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M5 6h6M5 8.5h6M5 11h3.5"/></svg>作業実績</button>
   </nav>
   <div class="header-right">
     <!-- 状態（データ元・接続・待機中）は 1 つの札にまとめ、押せる操作（右）と形で分ける -->
@@ -84,6 +88,8 @@
   <div class="ll-panel">
     <!-- 元データが古い（毎日更新されるはずの元ファイルの更新が止まっている）ときの警告 -->
     <div id="llStale" class="ll-stale" role="alert" hidden></div>
+    <!-- 作業実績のときだけ: どの設備を見るか（札の並び。いま見ている設備は塗る） -->
+    <nav id="llEquipBar" class="ll-equipbar" aria-label="設備" hidden></nav>
     <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
     <div class="ll-status">
       <span id="llCount" class="ll-count">全 0件</span>

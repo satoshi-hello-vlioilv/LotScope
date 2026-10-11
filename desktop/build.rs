@@ -1,12 +1,13 @@
 //! 作る前の準備: アイコンを描いてから Tauri の準備へ渡す。
 //! アイコンの絵は `program/app/app_icon.py` の1箇所が描く（.ico をリポジトリへ置くと同じ絵が2箇所になるので、作るたびに書き出す）。
+//! 起動画面の絵は 256px（表示の倍率 125〜150% でも 112〜160px の表示がぼやけない）。
 use std::path::Path;
 use std::process::Command;
 
 const DRAW: &str = "import runpy,pathlib;m=runpy.run_path('../program/app/app_icon.py');\
 d=pathlib.Path('icons');d.mkdir(exist_ok=True);\
 (d/'icon.ico').write_bytes(m['build']());(d/'icon.png').write_bytes(m['png'](256));\
-pathlib.Path('splash/icon.png').write_bytes(m['png'](96))";
+pathlib.Path('splash/icon.png').write_bytes(m['png'](256))";
 
 fn main() {
     // exe が名乗る「作ったコミット」。CI が渡す（desktop.yml の TPA_BUILD_COMMIT）。手元で作った exe は空
