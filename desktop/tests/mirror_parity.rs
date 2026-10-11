@@ -101,7 +101,7 @@ fn rust_mirrors_like_python() {
                 }
                 Value::Null
             }
-            "refresh" => m.as_ref().unwrap().refresh(st["force"].as_bool().unwrap_or(false)),
+            "refresh" => m.as_ref().unwrap().refresh(),
             "read_path" => m.as_ref().unwrap().read_path().map(|p| json!(p.display().to_string())).unwrap_or(Value::Null),
             "source_info" => m.as_ref().unwrap().source_info(),
             "reconfigure" => {
@@ -158,11 +158,14 @@ fn python_and_rust_share_the_ledger() {
     let py = common::python_json("mirror_oracle.py", &["op", c, r, "refresh"]);
     assert_eq!(py["updated"], true, "{py}");
     let m = DbMirror::new("lot_list", r, &cache, 60, 36.0);
-    let rs = m.refresh(false);
+    let rs = m.refresh();
     assert_eq!((rs["skipped"].as_bool(), rs["reason"].as_str()), (Some(true), Some("元ファイルは変わっていません")), "{rs}");
     assert_eq!(m.read_path().unwrap(), cache.join("lot_list.g1.sqlite3"));
-    // Rust が写し直す（force）→ Python は写し直さずに読む
-    let rs = m.refresh(true);
+    // 元が変わったら Rust が写し直す → Python は写し直さずに読む（変わっていない元は、再読込でも写さない＝R2）
+    let rs = m.refresh();
+    assert_eq!(rs["skipped"], true, "変わっていない元は写し直さない: {rs}");
+    std::fs::copy(work.join("x").join("assets").join("v2.sqlite3"), &remote).unwrap();
+    let rs = m.refresh();
     assert_eq!(rs["updated"], true, "{rs}");
     let py = common::python_json("mirror_oracle.py", &["op", c, r, "refresh"]);
     assert_eq!(py["skipped"], true, "{py}");

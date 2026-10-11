@@ -131,12 +131,12 @@ def worklog_source():
 
 @bp.post("/api/worklog/refresh")
 def worklog_refresh():
-    """「再読込」: その設備のファイルを共有から取り直す（変わっていなくても写し直す）。"""
+    """「再読込」: その設備のファイルに新しい版があるかを今すぐ確かめ、あれば取り込む（変わっていなければ写さない・SHARED_READ.md の R2）。"""
     plan, fail = worklog_plan(need_copy=False)
     if fail:
         return fail
     m = plan["mirror"]
-    res = m.refresh(force=True)
+    res = m.refresh()
     return jsonify(result=res, source=m.source_info())
 
 

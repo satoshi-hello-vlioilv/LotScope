@@ -5,6 +5,7 @@ DataRelay の公開（lib/navi_publish.py）: 公開先の横へ隠しファイ�
 入れ替える。ほかが公開先を開いていると Windows では「使用中」になり、20 秒粘ってだめなら <名前>.pending_<日時> に保留する。
 ここではその手順をそのまま真似て、写しと同時に走らせる（Windows の本物の規則は CI の desktop.yml がこの試験を流して確かめる）。
 """
+import contextlib
 import os
 import shutil
 import sqlite3
@@ -67,7 +68,44 @@ class Base(unittest.TestCase):
         return n
 
 
+class Contract(unittest.TestCase):
+    def test_follows_the_shared_read_contract(self):
+        """約束の文書（3つのリポジトリに同じ文）が、この実装の従う版を名乗り、読み手の9つの決まりを持つ。"""
+        doc = (Path(__file__).resolve().parents[1] / "docs" / "SHARED_READ.md").read_text(encoding="utf-8")
+        self.assertIn(f"（第{db_mirror.CONTRACT_VERSION}版）", doc.splitlines()[0])
+        for r in [f"R{i}" for i in range(1, 10)] + ["W1", "W2", "W3"]:
+            self.assertIn(f"| {r} |", doc)
+
+
 class Courtesy(Base):
+    def test_reload_does_not_open_an_unchanged_source(self):
+        """「再読込」でも、元が変わっていなければ共有を開かない（SHARED_READ.md の R2: 開く回数を台数に比例させない）。"""
+        m = DbMirror("work_log_CR1", self.dst, self.cache)
+        self.assertTrue(m.refresh()["updated"])
+        with mock.patch.object(db_mirror, "open_shared_read", side_effect=AssertionError("共有を開いた")):
+            r = m.refresh()
+        self.assertTrue(r.get("skipped"), r)
+
+    def test_discards_a_copy_when_the_writer_starts_during_it(self):
+        """写している間に書き手の印（-journal）が出たら、その写しは使わない（R5。大きさ・時刻が同じでも）。"""
+        m = DbMirror("work_log_CR1", self.dst, self.cache)
+        m.refresh()
+        good = m.read_path()
+        make_version(self.tmp / "v2.sqlite3", 2, mb=1)
+        shutil.copyfile(self.tmp / "v2.sqlite3", self.dst)
+        real = DbMirror._copy
+
+        def copy_then_writer_starts(remote, tmp):
+            real(remote, tmp)
+            (self.dst.parent / f"{self.dst.name}-journal").write_bytes(b"j")
+        with mock.patch.object(DbMirror, "_copy", staticmethod(copy_then_writer_starts)):
+            r = m.refresh()
+        self.assertTrue(r.get("busy") and not r["updated"], r)
+        self.assertIn("書き始めた", r["reason"])
+        self.assertEqual(m.read_path(), good, "前の写しを使い続ける")
+        (self.dst.parent / f"{self.dst.name}-journal").unlink()
+        self.assertTrue(m.refresh()["updated"], "印が消えたら次の回で写す")
+
     def test_does_not_copy_while_the_writer_is_publishing(self):
         mark = self.dst.parent / f".{self.dst.name}.4242.incoming"
         mark.write_bytes(b"x")
@@ -136,11 +174,16 @@ class WithPublisher(Base):
         th = threading.Thread(target=publisher)
         th.start()
         seen, busy = set(), 0
+        scratch = self.tmp / "hammer.bin"
         while not stop.is_set():
-            r = m.refresh(force=True)
+            r = m.refresh()
             busy += bool(r.get("busy"))
             if r["updated"]:
                 seen.add(self.version_of(m.read_path()))
+            # 「再読込」は元が変わったときしか写さない（SHARED_READ.md の R2）ので、同じ開き方で写すのを試験の側で
+            # 休まず続け、入れ替えとぶつけ続ける（入れ替えの一瞬に開けないことはある。そのときは次の回）
+            with contextlib.suppress(OSError):
+                DbMirror._copy(self.dst, scratch)
         th.join()
         m.refresh()
         seen.add(self.version_of(m.read_path()))

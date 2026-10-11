@@ -82,7 +82,7 @@ class MirrorTests(Base):
         m.refresh()
         good = m.read_path()
         self.share.write_bytes(b"not a sqlite file" * 100)
-        r = m.refresh(force=True)
+        r = m.refresh()
         self.assertFalse(r["updated"])
         self.assertEqual(m.read_path(), good)
         self.assertEqual(lot_list.query(good)["count"], len(ROWS))
@@ -510,7 +510,12 @@ class ApiTests(Base):
             access.flags = orig
 
     def test_refresh_and_source(self):
+        """「再読込」は今すぐ確かめるだけ: 元が変わっていなければ写さず、変わっていれば写す（SHARED_READ.md の R2）。"""
         self.c.get("/api/lotlist")
+        d = self.c.post("/api/lotlist/refresh").get_json()
+        self.assertTrue(d["result"].get("skipped") and not d["result"]["updated"], d)
+        st = os.stat(self.share)
+        os.utime(self.share, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
         d = self.c.post("/api/lotlist/refresh").get_json()
         self.assertTrue(d["result"]["updated"], d)
         s = self.c.get("/api/lotlist/source").get_json()

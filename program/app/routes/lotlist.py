@@ -90,7 +90,7 @@ def lotlist_source():
 
 @bp.post("/api/lotlist/refresh")
 def lotlist_refresh():
-    """「再読込」: 共有から取り直す（変わっていなくても写し直す）。"""
+    """「再読込」: 共有に新しい版があるかを今すぐ確かめ、あれば取り込む（変わっていなければ写さない・SHARED_READ.md の R2）。"""
     m, _ = lot_mirror()
-    res = m.refresh(force=True)
+    res = m.refresh()
     return jsonify(result=res, source=m.source_info())
