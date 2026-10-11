@@ -33,6 +33,20 @@ class Bundle(unittest.TestCase):
             self.assertTrue(all(n.startswith("App/") for n in names), names)
             self.assertIn("App/program/app/日本.txt", names)
 
+    def test_release_notes_carry_this_versions_changelog_and_fingerprint(self):
+        b = bundle.brand()
+        version = bundle.app_version()
+        rel = bundle.release_json(b, version, f"{b['name']}-{version}-windows.zip", "a" * 64)
+        history = bundle.changelog()
+        notes = bundle.release_notes(rel, history)
+        self.assertTrue(notes.startswith(f"## 版 {version}（"), notes[:40])
+        for n in history[0]["notes"]:
+            self.assertIn(f"- {n}", notes)
+        self.assertIn(rel["zip"], notes)
+        self.assertIn("a" * 64, notes)
+        with self.assertRaisesRegex(SystemExit, "更新履歴"):
+            bundle.release_notes({**rel, "version": "0.0.1"}, history)
+
     def test_program_files_are_tracked_files_without_local_state(self):
         files = bundle.program_files()
         self.assertIn("program/sidecar.py", files)

@@ -231,7 +231,7 @@ WaveLog の品質データと同じ SQLite（既定 `\\Nlmsrvngy03\Read\【New�
 （窓は受け持つ仕事を起動のときに中身へ伝え、中身は伝えられなかった仕事を自分で受け持ちます）。
 
 - Python は同梱しません。各 PC に入れた Python（PATH・Microsoft Store 版も）を使います。
-- 配る ZIP: `python desktop/bundle/bundle.py build --exe <exe> --out <出力先>`（ZIP・release.json・.sha256。Windows の CI が作って Artifacts に置きます）。
+- 配る ZIP: `python desktop/bundle/bundle.py build --exe <exe> --out <出力先>`（ZIP・release.json・.sha256。Windows の CI（`.github/workflows/desktop.yml`）が作って Artifacts に置き、main に入ったときは GitHub の Releases にも版の札 `v<版>` で載せます。説明はその版の更新履歴から作ります。同じ版の札が既にあれば上書きしないので、配る物を変えたときは版を上げます）。
 - 更新の通し: `python desktop/bundle/verify.py update --exe <exe>`（本物の窓で、共有から写る → 裏で取り込む → 次の起動で入れ替わる → 壊れた版は前の版へ戻す → 配る版を戻す → 新しい PC が配る入口から入る・ショートカットを直す、の 25 項目。CI が Linux と Windows で流します）。
 
 - 作る: `cd desktop && cargo build`（Linux は `libwebkit2gtk-4.1-dev` などが要ります。`.github/workflows/ci.yml` を参照）。exe は上へたどって `program/sidecar.py` を探します。
