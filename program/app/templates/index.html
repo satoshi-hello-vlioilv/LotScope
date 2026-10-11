@@ -36,9 +36,13 @@
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13V8M8 13V3M13 13V6"/></svg>転写・ピッチ計算<small id="tabCalcLot"></small></button>
   </nav>
   <div class="header-right">
-    <span id="modeBadge" class="pill">データ元: 確認中</span>
-    <span id="conn" class="pill conn-ok" title="バックエンドとの接続状態">接続 ●</span>
-    <span id="status" class="pill">待機中</span>
+    <!-- 状態（データ元・接続・待機中）は 1 つの札にまとめ、押せる操作（右）と形で分ける -->
+    <div class="hstat" role="group" aria-label="状態">
+      <span id="modeBadge" class="pill">データ元: 確認中</span>
+      <span id="conn" class="pill conn-ok" title="バックエンドとの接続状態">接続 ●</span>
+      <span id="status" class="pill">待機中</span>
+    </div>
+    <i class="hsep" aria-hidden="true"></i>
     <!-- だれが・どの権限で使っているか（押すとログインID・PC名・マスタ編集） -->
     <button type="button" id="meChip" class="pill me-chip" aria-haspopup="dialog" title="ログインID・PC名・権限">確認中</button>
     <button id="masterBtn" class="btn-ghost on-dark" title="設備マスタ・ロールマスタの追加/修正/削除">マスタ管理</button>
@@ -78,24 +82,22 @@
 <!-- ============ 異常ロット一覧（最初の画面。品質データの手元の写し・WaveLog と同じ絞り込み） ============ -->
 <div id="lotListScreen" class="ll-screen" role="tabpanel" aria-labelledby="tabList">
   <div class="ll-panel">
-    <div class="ll-head">
-      <div class="ll-title">
-        <h2>異常ロット一覧</h2>
-        <p>品質データ（元ファイルは「マスタ管理」の「参照先」で変えられます）から絞り込み、<b>ロット番号を押すと</b>計算画面へ移って、そのロットを「検索」と同じ流れで取り込みます。</p>
-      </div>
-      <select id="llTable" class="ll-table" aria-label="表" title="品質データの表" hidden></select>
-      <button id="llFresh" type="button" class="ll-fresh">元データ 確認中</button>
-    </div>
     <!-- 元データが古い（毎日更新されるはずの元ファイルの更新が止まっている）ときの警告 -->
     <div id="llStale" class="ll-stale" role="alert" hidden></div>
     <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
     <div class="ll-status">
       <span id="llCount" class="ll-count">全 0件</span>
+      <!-- 頁の頭は置かない（題はタブ）。何の表か・元データの時刻・ロット番号を押すと何が起きるかを、件数と同じ行に -->
+      <label class="ll-tablepick">表<select id="llTable" class="ll-table" aria-label="表" title="品質データの表" hidden></select></label>
+      <button id="llFresh" type="button" class="ll-fresh">元データ 確認中</button>
+      <span class="ll-lothint">ロット番号を押すと、計算へ移って取り込みます</span>
       <!-- スライサーで選んでいる値（「設備: CR1・L-1 ×」）。スライサーを閉じても何で絞っているかが分かる -->
       <span id="llSlicerSum" class="sx-sum" hidden></span>
       <span id="llGroupBar" class="ll-groupbar" hidden></span>
       <span id="llCardShelf" class="lk-shelf" hidden role="toolbar" aria-label="開いているカード"></span>
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
+      <!-- 右の組（拡大・頁）。件数の行が折り返しても、2 つは離れず右に寄る -->
+      <div class="ll-statusright">
       <!-- 一覧だけを一時的に拡大（この窓を閉じると 100% に戻る）。100% でないときは数字を強めて「戻す」を出す -->
       <span id="llZoom" class="ll-zoom" title="一覧だけを一時的に拡大・縮小します（窓を閉じると 100% に戻ります）">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
@@ -112,6 +114,7 @@
         <button id="llPrev" type="button" aria-label="前のページ">◀</button>
         <span id="llRange">0</span>
         <button id="llNext" type="button" aria-label="次のページ">▶</button>
+      </div>
       </div>
     </div>
     <!-- 表とスライサー（置き場は左・右・上。data-place） -->

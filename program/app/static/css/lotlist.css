@@ -10,22 +10,19 @@
   height:calc(100vh - var(--header-h));padding:var(--gap);display:flex;min-height:0}
 .ll-panel{position:relative;flex:1;min-width:0;background:var(--surface);border-radius:var(--radius);display:flex;flex-direction:column;
   box-shadow:var(--shadow-sm);overflow:hidden}
-.ll-head{display:flex;align-items:center;gap:12px;padding:10px 16px 2px;flex:0 0 auto}
-.ll-title{flex:1;min-width:0}
-.ll-title h2{margin:0;font-size:var(--fs-xl);color:var(--ink);display:flex;align-items:center;gap:8px}
-.ll-title h2::before{content:"";width:4px;height:17px;border-radius:2px;background:var(--h-xfer)}
-.ll-title p{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
-.ll-title p b{color:var(--h-input)}
-.ll-table{height:30px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 8px;font-size:13px;font-family:inherit}
-.ll-fresh{height:30px;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;padding:0 14px;cursor:pointer;
-  border:1px solid var(--line);background:var(--surface-3);color:var(--ink);font-size:12.5px;font-weight:700;font-family:inherit}
+/* 頁の頭は置かない（題はタブ）。何の表か・元データの時刻・ロット番号を押すと何が起きるかは、件数の行に（.ll-status） */
+.ll-tablepick{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.ll-tablepick:has(select[hidden]){display:none}
+.ll-table{height:26px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0 8px;font-size:13px;font-family:inherit}
+.ll-fresh{height:26px;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;padding:0 14px;cursor:pointer;
+  border:1px solid var(--line);background:var(--surface-3);color:var(--ink);font-size:var(--fs-sm);font-weight:700;font-family:inherit}
 .ll-fresh:hover{background:#e8eef2}
 .ll-fresh.is-new{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .ll-fresh.is-warn{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}
 .ll-fresh:disabled{cursor:progress;opacity:.8}
 
 /* ---------- 絞り込みのバー（WaveLog と同じ部品） ---------- */
-.ll-screen .generic-filter-bar{margin:10px 16px 0;border:1px solid var(--line);border-radius:8px;background:var(--surface);flex:0 0 auto}
+.ll-screen .generic-filter-bar{margin:12px 16px 0;border:1px solid var(--line);border-radius:8px;background:var(--surface);flex:0 0 auto}
 .ll-screen .filter-search-row{position:relative;display:flex;align-items:center;gap:8px;min-height:44px;padding:7px 10px;background:#edf6f5;border-radius:8px}
 .ll-screen .generic-filter-bar button,.ll-screen .generic-filter-bar select,.ll-screen .generic-filter-bar input{font-family:inherit;font-size:var(--ll-fs)}
 .ll-screen .generic-filter-bar button{height:var(--ll-h);border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);cursor:pointer;padding:0 11px}
@@ -119,10 +116,17 @@
 .filter-builder-note{margin:0;font-size:12.5px;color:var(--muted)}
 
 /* ---------- 件数・ページ ---------- */
-.ll-status{display:flex;align-items:center;gap:14px;padding:8px 18px 6px;flex:0 0 auto}
+/* 件数の行。部品は縮めず 1 行のまま（字を縦に折らない）。入り切らないときは行ごと折り返す（フル HD・125% でまとめているときなど） */
+.ll-status{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 18px 6px;flex:0 0 auto}
+.ll-status > *{flex-shrink:0;white-space:nowrap}
+.ll-statusright{margin-left:auto;display:flex;align-items:center}
+/* ロット番号を押すと何が起きるか（次の行動）。藍の淡い札。まとめ・スライサー・カードの札が出ているあいだは、
+   使い方の 2 つの添え書き（これと行のダブルクリック）はそちらに場所を譲る（もう使い始めている） */
+.ll-lothint{font-size:var(--fs-sm);font-weight:600;color:var(--h-input);background:var(--input-soft);padding:2px 10px;border-radius:999px}
+.ll-status:has(#llGroupBar:not([hidden]),#llSlicerSum:not([hidden]),#llCardShelf:not([hidden])) :is(.ll-lothint,#llCardHint){display:none!important}
 .ll-count{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
 /* 一覧の拡大（一時的）。100% でないあいだは数字をアンバーの札にして、拡大中だと分かるようにする */
-.ll-zoom{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ll-zoom{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .ll-zoom svg{width:15px;height:15px;fill:none;stroke:var(--h-input);stroke-width:1.6}
 .ll-zoom{position:relative}
 .ll-zoom input{width:140px;accent-color:var(--h-input);cursor:pointer;display:block;margin:0}
