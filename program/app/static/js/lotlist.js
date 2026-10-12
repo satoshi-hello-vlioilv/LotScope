@@ -44,7 +44,7 @@
   };
   /* 機能の既定: カードは使う（ダブルクリックは今まで何もしなかった操作）。
      以前の「ロット番号でまとめる」（features.group）は、並び・まとめを一度も決めていない表で「ロット番号の段1つ」として引き継ぐ */
-  const FEATURES = { card: true };
+  const FEATURES = { card: true, lens: true };
   const feat = Object.assign({}, FEATURES, store.get(KEY.features, {}));
   const legacyGroup = !!feat.group;
   function setFeature(k, v) { feat[k] = !!v; store.set(KEY.features, feat); }
@@ -273,6 +273,10 @@
   const collapsed = () => new Set((TPA.session.get(KEY.collapsed, {})[scope()]) || []);
   function setCollapsed(set) { const all = TPA.session.get(KEY.collapsed, {}); all[scope()] = [...set]; TPA.session.set(KEY.collapsed, all); }
   let onPick = () => {};
+  let onLens = null;            // 虫眼鏡: LotDsp でそのロットを開くだけ（app.js の showInLotDsp。→ 知らせる文）
+  const LENS_W = 22;            // 虫眼鏡のぶん、ロット番号の列を広げる（幅を決めていない列だけ）
+  const LENS_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.1 10.1 14 14"/></svg>';
+  const lensOn = () => feat.lens && !!onLens;
   let root = null;
 
   /* ================= 読み込み ================= */
@@ -287,6 +291,8 @@
     const sorts = effectiveSorts();
     if (sorts.length) q.set("sorts", JSON.stringify(sorts));
     if (serverGroup()) q.set("group", "1");
+    const marks = window.LotListMarks.param();
+    if (marks) q.set("marks", marks);
     if (S.src.id === "work") Object.entries(window.LotListWork.params()).forEach(([k, v]) => q.set(k, v));
     return q.toString();
   }
@@ -303,6 +309,7 @@
       if (!r.ok) throw Object.assign(new Error(d.error || `${S.src.title}を読めませんでした`), { kind: d.kind });
       S.table = d.table; S.tables = d.tables || []; S.columns = d.columns || []; S.rows = d.rows || [];
       S.lotColumn = d.lotColumn || ""; S.work = d.work || null;
+      window.LotListMarks.take(S.rows, d.marks, d.markCounts);   // 色付けの印は、並べ替える前の行の並びで行そのものに結ぶ
       if (!S.work) S.rows = clusterRows(S.rows);       // 作業でまとめた答えは、行と作業の印（work.rows）の並びを崩さない
       S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
       // 並べ替えはサーバーが確かめた形（実在する列だけ）。まとめているときは段の列を除いた、見出しで決めた分だけを持つ
@@ -473,6 +480,14 @@
   function resetAdhoc() { S.adhoc.value = ""; const b = $("#llAdhocValue"); if (b) b.value = ""; }
   function clearAdhoc() { resetAdhoc(); applyAdhoc(true); }
   function keepAdhoc() { const l = adhocFilters(); if (!l.length) return; resetAdhoc(); addFilter(l[0]); }
+  /** 打っている条件を、絞り込む代わりに色付けにする（行は絞らない。色付けの M2） */
+  function paintAdhoc() {
+    const l = adhocFilters(); if (!l.length) return;
+    const label = adhocLabel();
+    resetAdhoc(); renderBar();
+    if (window.LotListMarks.add([l[0]])) flash(`「${label}」に当たった所に色を付けました（行は絞りません）`, 4000);
+    else load();
+  }
   function setAdhocOpen(v) {
     adhocOpen = !!v; store.set(KEY.adhocOpen, adhocOpen);
     if (adhocOpen) setBodyOpen(false);
@@ -509,6 +524,8 @@
         </button>
         <button id="llAdhocToggle" class="filter-adhoc-toggle" type="button" aria-expanded="false" aria-controls="llAdhocRow">列で絞り込む</button>
         <button id="llSlicerBtn" class="sx-entry" type="button" aria-expanded="false" aria-controls="llSlicer" title="列の値（重複なし）を並べ、押して絞り込みます（Excel のスライサーと同じ）">スライサー</button>
+        <!-- 色付け（条件付き書式）: 絞り込みの派生。行は絞らず、当たった所に色（7 案＋2 回目で選んだ: ui-proposals/2026-10-marks* の M2） -->
+        <button id="llMarkBtn" class="mk-entry" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="llMarkMenu">色付け</button>
         <div class="filter-token-input" id="llTokenInput" hidden>
           <span class="filter-token-key" aria-hidden="true">＋条件</span>
           <input class="filter-token-search" id="llTokenSearch" autocomplete="off" placeholder="列名・値を打つと候補が出ます" aria-label="条件を検索して足す">
@@ -525,6 +542,7 @@
         </div>
         <div class="ll-profile" id="llProfileMenu" hidden role="menu" aria-label="表示の設定"></div>
         <div class="ll-viewmenu" id="llViewMenu" hidden role="dialog" aria-label="表の見せ方"></div>
+        <div class="mk-menu" id="llMarkMenu" hidden role="dialog" aria-label="色付け"></div>
         <div class="fb-cond-menu" id="llCondMenu" hidden role="menu" aria-label="条件">
           <div class="fb-cond-list" id="llCondList"></div>
           <div class="fb-cond-acts" role="group" aria-label="条件の操作">
@@ -542,6 +560,7 @@
         <input id="llAdhocValue" class="filter-adhoc-value" list="llAdhocList" autocomplete="off" type="search" title="打つとその場で絞り込みます。Enterですぐ、Escで解除">
         <datalist id="llAdhocList"></datalist>
         <button id="llAdhocKeep" type="button">条件に残す</button>
+        <button id="llAdhocPaint" type="button" class="mk-paint"><span class="mk-dot mk-red" aria-hidden="true"></span>色を付ける</button>
         <button id="llAdhocClear" type="button" title="入力を消して、この絞り込みを解除します">解除</button>
         <span class="filter-adhoc-state" id="llAdhocState"></span>
         <button id="llAdhocClose" class="fb-close" type="button" aria-label="列で絞り込むを閉じる" title="閉じます（Esc）。効いている絞り込みはそのまま残ります">✕</button>
@@ -594,6 +613,7 @@
     });
     box.addEventListener("focus", updateAdhocSuggestions);
     $("#llAdhocKeep").onclick = keepAdhoc;
+    $("#llAdhocPaint").onclick = paintAdhoc;
     $("#llAdhocClear").onclick = clearAdhoc;
 
     // 条件を作る（適用と登録は入力を消さない：片方のあとにもう片方も押せる）
@@ -747,6 +767,9 @@
     const keep = $("#llAdhocKeep");
     keep.disabled = !on;
     keep.title = on ? `「${adhocLabel()}」を上の条件へ移します（そのあと登録もできます）` : "効いている条件があるときだけ移せます";
+    const paintBtn = $("#llAdhocPaint");
+    paintBtn.disabled = !on;
+    paintBtn.title = on ? `「${adhocLabel()}」で絞り込む代わりに、当たった所に色を付けます（行は絞りません）` : "効いている条件があるときだけ色にできます";
     $("#llAdhocClear").disabled = !on && !String(S.adhoc.value || "").trim();
     const state = $("#llAdhocState");
     if (!S.adhoc.column) { state.className = "filter-adhoc-state"; state.textContent = "列と比べ方を選ぶと使えます"; }
@@ -946,11 +969,26 @@
       sourceColumns: S.columns, rows: S.rows, lotColumn: S.lotColumn, grid: $("#llGrid"),
       rerender: () => renderGrid(), toast: (m) => flash(m), levels: levelsApi() };
   }
-  function flash(msg) {
+  /** 件数の行の案内: ロット番号を押したとき・虫眼鏡を押したときに起きること（押す前に違いが分かるように） */
+  function paintLotHint() {
+    const h = $(".ll-lothint", root); if (!h) return;
+    h.innerHTML = lensOn() ? `ロット番号を押すと計算へ取り込み・${LENS_ICON} で LotDsp を開くだけ` : "ロット番号を押すと、計算へ移って取り込みます";
+  }
+  /** 虫眼鏡: LotDsp でそのロットを開くだけ（取り込まない・画面は移らない）。開くまで数秒かかることがあるので、押した印を出して待つ */
+  let lensBusy = false;
+  async function showLot(btn) {
+    if (lensBusy || !onLens) return;
+    lensBusy = true; btn.classList.add("is-busy"); btn.setAttribute("aria-busy", "true");
+    flash(`LotDsp で ${btn.dataset.lens} を開いています…`, 30000);
+    try { flash(await onLens(btn.dataset.lens), 6000); }
+    catch (e) { flash("LotDsp を開けませんでした: " + e.message, 6000); }
+    finally { lensBusy = false; btn.classList.remove("is-busy"); btn.removeAttribute("aria-busy"); }
+  }
+  function flash(msg, ms = 2600) {
     const n = $("#llFlash") || Object.assign(document.createElement("div"), { id: "llFlash", className: "ll-flash" });
     if (!n.isConnected) root.append(n);
     n.textContent = msg; n.classList.add("is-on");
-    clearTimeout(flash.t); flash.t = setTimeout(() => n.classList.remove("is-on"), 2600);
+    clearTimeout(flash.t); flash.t = setTimeout(() => n.classList.remove("is-on"), ms);
   }
   /* ---- 表の見せ方（並び・まとめ／列と文字／そのほか） ----
      上から「何を・どの順で並べてまとめるか」→「列と字の詰め方」→「件数・機能」。触るとすぐ後ろの一覧に出る（見て確かめられる）。 */
@@ -1040,6 +1078,8 @@
       <section class="vm-sec" aria-label="そのほか"><h4>そのほか</h4>
         <label class="vm-row"><span>表示件数</span><select id="llPageSize">${PAGE_SIZES.map((n) => `<option value="${n}"${n === S.pageSize ? " selected" : ""}>${n}件ずつ</option>`).join("")}</select></label>
         <div class="vm-row"><span>機能</span><div class="vm-feats">
+          <label class="vm-switch"><input type="checkbox" id="llFeatLens"${feat.lens ? " checked" : ""}>
+            <b>ロット番号の横に虫眼鏡を出す</b><small>押すと LotDsp（ロット問い合わせ）でそのロットを開くだけです。取り込まず、画面も移りません（番号を押すと、これまでどおり計算へ取り込みます）</small></label>
           <label class="vm-switch"><input type="checkbox" id="llFeatCard"${feat.card ? " checked" : ""}>
             <b>行のダブルクリックでカードを開く</b><small>1行を読みやすいカードで見ます。Ctrl＋ダブルクリックで別のカードに開き、並べて比べられます</small></label>
         </div></div>
@@ -1085,6 +1125,7 @@
     $("#llGap").oninput = (e) => { LC.setRowGap(+e.target.value); $("#llGapLabel").textContent = LC.GAP[+e.target.value - 1][0]; renderGrid(); };
     $("#llPageSize").onchange = (e) => { S.pageSize = +e.target.value; store.set(KEY.pageSize, S.pageSize); S.page = 1; load(); };
     $("#llSortClear")?.addEventListener("click", () => { S.sorts = []; S.page = 1; saveActive(); renderViewMenu(); load(); });
+    $("#llFeatLens").onchange = (e) => { setFeature("lens", e.target.checked); renderGrid(); paintLotHint(); };
     $("#llFeatCard").onchange = (e) => { setFeature("card", e.target.checked); if (!feat.card) window.LotListCard.close(); renderPager(); };
   }
   let viewOff = null;
@@ -1125,7 +1166,8 @@
   }
   /* ---- 行（ふつうの行・まとまりの中の行で同じ） ---- */
   const GROUP_HEAD_EXTRA = 64, GROUP_INDENT = 16;   // 見出し行の先頭の列に足す幅（畳むボタンと件数）・段ごとの字下げ
-  const lotButton = (raw, sub) => (raw ? `<button type="button" class="ll-lot${sub ? " is-sub" : ""}" data-lot="${esc(raw)}" title="押すと「${esc(raw)}」を検索します（転写計算の「検索」と同じ）">${esc(raw)}</button>` : "");
+  const lotButton = (raw, sub) => (raw ? `<button type="button" class="ll-lot${sub ? " is-sub" : ""}" data-lot="${esc(raw)}" title="押すと「${esc(raw)}」を転写計算へ取り込みます（転写計算の「検索」と同じ）">${esc(raw)}</button>`
+    + (lensOn() ? `<button type="button" class="ll-lens" data-lens="${esc(raw)}" title="LotDsp（ロット問い合わせ）で「${esc(raw)}」を開くだけ（取り込まず、画面も移りません）" aria-label="${esc(raw)} を LotDsp で開く">${LENS_ICON}</button>` : "") : "");
   const cellTd = (cell, al, extra = "", tail = "") => {
     const tip = cell.raw !== cell.text ? `${cell.text}\n元の値: ${cell.raw}` : cell.text;
     return `<td class="al-${al}${cell.color && !extra.includes("ll-rep") ? " cell-" + cell.color : ""}${extra}" title="${esc(tip)}">${esc(cell.text)}${tail}</td>`;
@@ -1134,9 +1176,10 @@
   /* deco: 列ごとの飾り Map(列 → {cls, tail})。繰り返しを省いた値は面（ll-blk）にして字を見せない（行にマウスを乗せると薄く出る） */
   function rowHtml(cols, aligns, r, i, cells, cls, attrs = "", deco = null) {
     const lot = S.lotColumn ? String(r[S.lotColumn] ?? "") : "";
-    const k = [cls, lot && lot.toUpperCase() === String(S.currentLot || "").toUpperCase() ? "is-current" : "", i === S.cardIdx || S.cardSet.has(i) ? "is-carded" : ""].filter(Boolean).join(" ");
+    const M = window.LotListMarks;
+    const k = [cls, lot && lot.toUpperCase() === String(S.currentLot || "").toUpperCase() ? "is-current" : "", i === S.cardIdx || S.cardSet.has(i) ? "is-carded" : "", M.rowClass(r)].filter(Boolean).join(" ");
     return `<tr data-i="${i}"${k ? ` class="${k}"` : ""}${attrs}>` + cols.map((c, ci) => {
-      const d = deco && deco.get(c), extra = d ? d.cls : "", tail = d ? d.tail || "" : "";
+      const d = deco && deco.get(c), extra = (d ? d.cls : "") + M.cellClass(r, c), tail = d ? d.tail || "" : "";
       return c === S.lotColumn ? `<td class="ll-lotcol${extra}"${extra ? ` title="${esc(lot)}"` : ""}>${lotButton(lot, cls.includes("g-child"))}${tail}</td>` : cellTd(cells[ci], aligns[ci], extra, tail);
     }).join("") + "</tr>";
   }
@@ -1301,7 +1344,7 @@
     const tagW = withHeads ? Math.max(...lv.map((l) => TPA.textWidth(LC.label(t, l.column), '700 11.5px "Yu Gothic UI","Meiryo UI",sans-serif'))) + 16 : 0;
     const wk = workOn() && S.work && S.work.rows.length === S.rows.length ? S.work : null, badgeAt = wk && workSplit() ? workBadgeCol(cols) : "";
     const widths = cols.map((c, i) => LC.widthOf(t, c, S.rows) + markW(c) + (withHeads && i === 0 ? GROUP_HEAD_EXTRA + tagW + GROUP_INDENT * (lv.length - 1) : 0)
-      + (c === badgeAt && !L.widths[c] ? 38 : 0) + (wk && c === wk.column && !L.widths[c] ? 14 : 0));
+      + (c === badgeAt && !L.widths[c] ? 38 : 0) + (wk && c === wk.column && !L.widths[c] ? 14 : 0) + (lensOn() && c === S.lotColumn && !L.widths[c] ? LENS_W : 0));
     $("#llCols").innerHTML = cols.map((c, i) => `<col data-col="${esc(c)}" style="width:${widths[i]}px">`).join("");
     const grid = $("#llGrid");
     grid.style.width = widths.reduce((a, b) => a + b, 0) + "px";
@@ -1372,6 +1415,7 @@
       + (heads ? '<button type="button" data-gall="1">全部開く</button><button type="button" data-gall="0">全部畳む</button>' : "")
       + '<button type="button" data-goff title="まとめずに1行ずつ並べます">まとめない</button>' : "";
     $("#llCardHint").hidden = !feat.card || !S.rows.length;
+    paintLotHint();
     $("#llRange").textContent = S.count ? `${from.toLocaleString()}–${to.toLocaleString()}` : "0";
     $("#llPrev").disabled = S.page <= 1;
     $("#llNext").disabled = !S.count || to >= S.count;
@@ -1428,6 +1472,7 @@
   function renderAll() {
     renderEquipBar(); renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh();
     window.LotListWork.update(S.src.id === "work" ? S.work : null);
+    window.LotListMarks.paint();
   }
 
   async function refreshFromShare() {
@@ -1513,6 +1558,8 @@
     $("#llBody").addEventListener("click", (e) => {
       const w = e.target.closest(".wk-plus");
       if (w) { toggleWork(w); return; }
+      const lens = e.target.closest(".ll-lens");
+      if (lens) { showLot(lens); return; }
       const b = e.target.closest(".ll-lot");
       if (b) { S.currentLot = b.dataset.lot; onPick(b.dataset.lot); return; }
       const head = e.target.closest("tr.ll-ghead");     // 見出し行はどこを押しても畳む／開く
@@ -1526,7 +1573,7 @@
     $("#llBody").addEventListener("mousedown", (e) => { if (feat.card && e.detail > 1 && e.target.closest("tr[data-i]")) e.preventDefault(); });
     $("#llBody").addEventListener("dblclick", (e) => {
       const tr = e.target.closest("tr[data-i]");
-      if (feat.card && tr && !e.target.closest(".ll-lot")) window.LotListCard.show(+tr.dataset.i, { another: e.ctrlKey || e.metaKey });
+      if (feat.card && tr && !e.target.closest(".ll-lot, .ll-lens")) window.LotListCard.show(+tr.dataset.i, { another: e.ctrlKey || e.metaKey });
     });
     $("#llGroupBar").addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
@@ -1546,7 +1593,7 @@
     $("#llNext").onclick = () => { S.page++; load(); };
     $("#llColBtn").onclick = () => { closeViewMenu(); window.LotListColumns.toggle(); };
     $("#llViewBtn").onclick = () => toggleViewMenu();
-    $("#llTable").onchange = (e) => { saveActive(); S.table = e.target.value; S.ctx = null; syncContext(true); window.LotListCard.close(); window.LotListSlicer.reset(); load(); };
+    $("#llTable").onchange = (e) => { saveActive(); S.table = e.target.value; S.ctx = null; syncContext(true); window.LotListCard.close(); window.LotListSlicer.reset(); window.LotListMarks.reset(); load(); };
     $("#llFresh").onclick = () => {
       const s = S.source, newer = S.loadedAt && s && s.copiedAt && s.copiedAt > S.loadedAt + 0.5;
       if (newer) load(); else refreshFromShare();
@@ -1582,7 +1629,7 @@
       S.equip = k; store.set(KEY.workEquip, k);
       Object.assign(S, { table: S.src.loadTable(), tables: [], ctx: null, adhocScope: null, page: 1, rows: [], columns: [], count: 0,
         source: null, error: "", groups: null, range: [0, 0] });
-      window.LotListCard.close(); window.LotListSlicer.reset();
+      window.LotListCard.close(); window.LotListSlicer.reset(); window.LotListMarks.reset();
       if (S.table) syncContext(true);
     }
     renderAll();
@@ -1647,7 +1694,7 @@
      異常ロット一覧と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   function activate({ source = "lot", currentLot } = {}) {
     const next = STATES[source] || STATES.lot;
-    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); }
+    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); }
     S.currentLot = currentLot || S.currentLot || "";
     root.dataset.source = S.src.id;
     if (!S.activated && S.table) syncContext(true);
@@ -1696,10 +1743,11 @@
   function mount(opts) {
     root = $("#lotListScreen");
     onPick = opts.onPick || onPick;
+    onLens = opts.onLens || null;
     buildBar(); bindGrid(); bindEquipBar();
     window.LotListFormats?.mount();
     window.LotListSlicer.mount({
-      table: scope, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,
+      table: scope, screen: () => S.src.id, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,
       // 計算列（表示列で式から作った列）: 名前・式が使う元の列・元の列の値の組 → 一覧と同じ見えている値
       calcColumns: () => { const LC = window.LotListColumns, t = layoutTarget(); return LC.allColumns(t, S.columns).filter((c) => LC.isComputed(t, c)); },
       sourcesOf: (c) => window.LotListColumns.sourcesOf(layoutTarget(), c),
@@ -1707,6 +1755,11 @@
       api: () => S.src.api, params: () => S.src.params(),
       label: (c) => window.LotListColumns.label(layoutTarget(), c),
       onChange: () => { S.page = 1; load(); },
+    });
+    window.LotListMarks.mount({
+      table: scope, columns: () => S.columns, ops: OPS, paintOps: paintOpOptions, noValue: noValueOp, colOption,
+      condText: (f) => condLabel({ ...f, column: window.LotListColumns.label(layoutTarget(), f.column) }),
+      onChange: () => load(), toast: (m) => flash(m),
     });
     window.LotListWork.mount({
       scope, isWork: () => S.src.id === "work", toast: (m) => flash(m),
@@ -1722,11 +1775,13 @@
       title: () => (S.src.id === "work" ? `${equipName(S.equip)}の作業実績` : S.src.title),
       fileStem: () => `${S.src.fileStem}_${S.src.place(S.table)}`.replace(/[\\/:*?"<>|]/g, "_"),
       work: () => (S.src.id === "work" ? window.LotListWork.exportInfo() : null),
+      marks: () => window.LotListMarks.exportPlan(),
       conditions: () => [["一覧", S.src.title], [S.src.id === "work" ? "設備・表" : "表", S.src.place(S.table)],
         ["元データ", `${(S.source && S.source.remote) || "-"}${S.source && S.source.at ? `（${hm(S.source.at)} の版）` : ""}`],
         ["検索", S.search || "（なし）"],
         ...(condRows().length ? condRows().map((r) => ["条件", r.kind === "adhoc" ? `列で絞り込み: ${r.label}` : condLabel(r.f)]) : [["条件", "（なし）"]]),
         ...window.LotListSlicer.summary().map(([c, v]) => [`スライサー: ${c}`, v]),
+        ...window.LotListMarks.summary(),
         ["並べ替え", effectiveSorts().map((x) => `${window.LotListColumns.label(layoutTarget(), x.column)} ${x.dir === "desc" ? "▼" : "▲"}`).join("・") || "（元の順）"],
         ...((S.src.id === "work" && window.LotListWork.exportInfo()?.conditions) || []),
         ["絞り込みに当たる件数", `${S.count.toLocaleString()} 件`]],
@@ -1764,6 +1819,8 @@
     if (ps.length) out.presets = ps;
     const cards = window.LotListSlicer.setupOf(k);
     if (cards.length) out.slicer = { cards };
+    const marks = window.LotListMarks.setupOf(k);
+    if (marks.length) out.marks = marks;
     const ad = store.get(KEY.adhoc, {})[k];
     if (ad && ad.column) out.adhoc = { column: ad.column, op: ad.op || "contains" };
     return out;
@@ -1782,7 +1839,7 @@
   function snapshotPlace(pl) {
     const was = { columns: window.LotListColumns.layoutOf(pl.target), arrange: store.get(KEY.arrange, {})[pl.key] || null,
       sorts: store.get(KEY.sorts, {})[pl.key] || [], presets: S.presets.filter((p) => p.table === pl.key).map((p) => TPA.clone(p)),
-      slicer: { cards: window.LotListSlicer.setupOf(pl.key) }, adhoc: store.get(KEY.adhoc, {})[pl.key] || null };
+      slicer: { cards: window.LotListSlicer.setupOf(pl.key) }, marks: window.LotListMarks.setupOf(pl.key), adhoc: store.get(KEY.adhoc, {})[pl.key] || null };
     return { place: pl, was };
   }
   /** 書式 body を places へ当てる → {places, rules, undo}。書式に無い部品は、当てた所の今のまま */
@@ -1802,6 +1859,7 @@
           id: "p" + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 5), table: pl.key })));
       }
       if (body.slicer) window.LotListSlicer.setSetup(pl.key, body.slicer.cards);
+      if (body.marks) window.LotListMarks.setSetup(pl.key, body.marks);
       if (body.adhoc) adh[pl.key] = { column: String(body.adhoc.column || ""), op: body.adhoc.op || "contains" };
     });
     store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
@@ -1820,6 +1878,7 @@
       if (was.adhoc) adh[pl.key] = was.adhoc; else delete adh[pl.key];
       presets = presets.filter((p) => p.table !== pl.key).concat(was.presets);
       window.LotListSlicer.setSetup(pl.key, was.slicer.cards);
+      window.LotListMarks.setSetup(pl.key, was.marks || []);
     });
     store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
     savePresets(presets);

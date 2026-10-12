@@ -61,6 +61,19 @@ def lot_fetch_lotdsp():
     return jsonify(lot=lot.to_dict(), report=report, seconds=round(time.perf_counter() - t0, 1))
 
 
+@bp.post("/api/lots/show-lotdsp")
+def lot_show_lotdsp():
+    """ロット番号で LotDsp を検索し、LotDsp の窓に出す（取り込まない。一覧のロット番号の横の虫眼鏡）。→ {lot, login}
+    窓を使えない（disabled・no_browser・browser）・届かない（unreachable）ときは kind を返し、画面はいつものブラウザで
+    LotDsp を開いてロット番号を写す（そちらはプロキシを通るので届くことがある）。状態コードは fetch-lotdsp と同じ。"""
+    payload = request.get_json(force=True) or {}
+    cfg = lotdsp_direct.settings_of(effective_settings(current_app).get("lotdsp_import"))
+    try:
+        return jsonify(lotdsp_direct.show_lot(payload.get("lot_no"), cfg))
+    except lotdsp_direct.DirectError as e:
+        return error(str(e), _DIRECT_STATUS.get(e.kind, 503), e.kind)
+
+
 # API で読めなかった理由 → 状態コード（ここに無いもの: unreachable・timeout・http・invalid・business・mismatch は 502）
 _API_STATUS = {"not_ready": 409, "disabled": 409, "not_found": 404}
 

@@ -8,6 +8,8 @@
     sorts   … [{column, dir}]（最大 4 キー）。実在する列だけを通す
     page / page_size … LIMIT / OFFSET
     group   … ロット番号でまとめる（grouped_rows）。並べ替えは効いたまま、ページの境目でロットを切らない
+    marks   … 色付け（条件付き書式）: [[{column, op, value}, ...], ...]（最大 8 組）。行は絞らず、組ごとに
+              「そのページで当たった行の位置」と「絞り込んだ全件で当たった数」を返す（mark_rows。判定は filters と同じ式）
 列名は実在するものだけを SQL へ入れ（qi で括る）、値はすべてパラメータで渡す。
 """
 import json
@@ -36,6 +38,8 @@ MAX_SLICER_VALUES = 1000  # スライサーに並べる値の数（超えたら 
 MAX_TUPLE_COLUMNS = 4     # 計算列のスライサー: 式が使う列の数の上限
 MAX_COMBOS = 5000         # 計算列のスライサー: 値の組を並べる数（超えたら truncated）
 MAX_SORTS = 4
+MAX_MARKS = 8             # 色付け（条件付き書式）の組の数
+MARK_VARS = 30000         # 色付けで 1 回に渡す値の数の上限（SQLite の上限 32766 の内側）
 PAGE_SIZE_MAX = 5000
 PAGE_SIZE_DEFAULT = 500
 # 表の既定（WaveLog の品質データの「既定テーブル」＝仕掛、品質情報の読み方の候補）
@@ -295,6 +299,61 @@ def build_filter_where(filters, today=None):
     return parts, params
 
 
+def safe_marks(text, cs):
+    """色付け（条件付き書式）の組の並び。→ [条件の並び または None]。
+    組の中に、無い列・使えない比べ方の条件が 1 つでもあれば None（当てない。外して当てると、広く当たってしまう）。"""
+    try:
+        items = json.loads(text) if isinstance(text, str) and text else (text or [])
+    except ValueError:
+        return []
+    if not isinstance(items, list):
+        return []
+    out = []
+    for rule in items[:MAX_MARKS]:
+        given = [f for f in rule if isinstance(f, dict)][:MAX_FILTERS] if isinstance(rule, list) else []
+        fl = safe_filters(given, cs)
+        out.append(fl if given and len(fl) == len(given) else None)
+    return out
+
+
+def mark_rows(c, marks, rows, today=None):
+    """色付け: ページの行（{列: 値}）が、どの組に当たるか。→ 組ごとに当たった行の位置（0 から）の並び。
+    判定は絞り込みと同じ式（build_filter_where）を、その行の値だけを並べた表（VALUES）に当てる
+    （行を引く SQL は変えないので、どのまとめ方でも同じに効く。Rust の lotlist.rs も同じ作り）。"""
+    out = [[] for _ in marks]
+    live = [(k, build_filter_where(fl, today)) for k, fl in enumerate(marks) if fl]
+    if not live or not rows:
+        return out
+    cols = sorted({x for k, _ in live for f in marks[k] for x in (f["columns"] if f["op"] == "tuple_in" else [f["column"]])})
+    names = ["_tpa_i", *cols]
+    sel = ", ".join("(" + " AND ".join(parts) + ")" for _, (parts, _) in live)
+    tail = [v for _, (_, ps) in live for v in ps]
+    step = max(1, (MARK_VARS - len(tail)) // len(names))
+    for s in range(0, len(rows), step):
+        part = rows[s:s + step]
+        vals = ", ".join("(" + ", ".join("?" * len(names)) + ")" for _ in part)
+        args = [v for i, r in enumerate(part, s) for v in (i, *(r.get(x) for x in cols))]
+        sql = f"WITH m({', '.join(qi(n) for n in names)}) AS (VALUES {vals}) SELECT {qi('_tpa_i')}, {sel} FROM m"
+        for r in c.execute(sql, args + tail):
+            for j, (k, _) in enumerate(live):
+                if r[1 + j]:
+                    out[k].append(int(r[0]))
+    return out
+
+
+def mark_counts(c, t, marks, where, params, today=None):
+    """色付け: 絞り込んだ全件のうち、組ごとに当たる行の数（当てない組は None）。"""
+    out = []
+    for fl in marks:
+        if not fl:
+            out.append(None)
+            continue
+        parts, ps = build_filter_where(fl, today)
+        sql = f"SELECT COUNT(*) FROM {qi(t)}" + (where + " AND " if where else " WHERE ") + " AND ".join(parts)
+        out.append(int(c.execute(sql, list(params) + ps).fetchone()[0]))
+    return out
+
+
 SORT_KEYS = ("date", "month", "year")      # 並べ替えの鍵の形（画面の書式に合わせる。round:N は小数 N 桁で丸めた数）
 
 
@@ -517,7 +576,7 @@ def slicer_answer(path, args, **kw):
 
 
 def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEFAULT, search="",
-          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES, grouping=None):
+          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES, grouping=None, marks=""):
     """1 ページ分。表は table（あれば）→ preferred_table → table_candidates の順に探す（作業実績は別の候補を渡す）。
     grouping: ロット番号の代わりの鍵でまとめる係（作業実績の「作業でまとめる」。services/work_summary.py の Grouping）。
         grouping.prepare(接続, 表, 列) → まとめるなら {"key": 鍵の式, "lead": [並べ替えの前に置く式], "where": ([式], [値])?}・まとめないなら None
@@ -568,6 +627,10 @@ def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEF
         hints = date_hints(c, t, fl, today) if count == 0 else []
         dict_rows = [{col: _json_value(v) for col, v in zip(raw_cs, r)} for r in rows]
         extra = grouping.extra(c, t, cs, dcols, base_where, base_params, dict_rows) if grouping else {}
+        ml = safe_marks(marks, cs)
+        if ml:
+            extra["marks"] = mark_rows(c, ml, dict_rows, today)
+            extra["markCounts"] = mark_counts(c, t, ml, where, params, today)
     return {
         "table": t, "tables": names, "columns": cs, "lotColumn": lot, "dateColumns": dcols,
         "today": (today or date.today()).isoformat(), "dateHints": hints,

@@ -48,7 +48,7 @@ def answer(db, case, today):
     try:
         out = lot_list.query(db, table=a.get("table", ""), preferred_table="", page=a.get("page", 1),
                              page_size=a.get("page_size", 500), search=a.get("search", ""), filters=a.get("filters", ""),
-                             sorts=a.get("sorts", ""), today=today, group=a.get("group") == "1")
+                             sorts=a.get("sorts", ""), today=today, group=a.get("group") == "1", marks=a.get("marks", ""))
     except Exception as e:               # /api/lotlist は 503 と理由を返す
         return {"error": str(e)}
     out.pop("timing", None)

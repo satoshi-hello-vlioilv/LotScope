@@ -198,6 +198,7 @@ class _Cdp:
     """1つのページへの DevTools Protocol の呼び出し（id で答えを待つ・届く合図は読み捨てる）。"""
 
     def __init__(self, ws_url, timeout):
+        self.ws_url = ws_url
         self.ws = _WebSocket(ws_url, timeout)
         self.next_id = 0
 
@@ -290,14 +291,16 @@ def _devtools_port(profile, proc, timeout=15.0):
                                  "起動に時間がかかっている可能性があります）")
 
 
-def _page_ws(port, timeout=10):
+def _page_ws(port, timeout=10, skip=()):
+    """ブラウザのページにつなぐ口（skip の口は飛ばす）。"""
     end = time.time() + timeout
     while time.time() < end:
         try:
             with _LOCAL.open(f"http://127.0.0.1:{port}/json/list", timeout=3) as r:
-                pages = [t for t in json.loads(r.read().decode()) if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
+                pages = [t["webSocketDebuggerUrl"] for t in json.loads(r.read().decode())
+                         if t.get("type") == "page" and t.get("webSocketDebuggerUrl") and t["webSocketDebuggerUrl"] not in skip]
             if pages:
-                return pages[0]["webSocketDebuggerUrl"]
+                return pages[0]
         except (OSError, ValueError):
             pass
         time.sleep(0.1)
@@ -321,10 +324,25 @@ class _Browser:
         self.used = time.time()
         try:
             self.proc = _launch(exe, self.profile, self.extra, visible)
-            self.cdp = _Cdp(_page_ws(_devtools_port(self.profile, self.proc, start_timeout)), timeout=10)
+            self.cdp = self._connect(_devtools_port(self.profile, self.proc, start_timeout))
         except BaseException:
             self.close()
             raise
+
+    def _connect(self, port):
+        """ページにつなぐ。LotDsp の窓は、窓に属するページを選ぶ（版によっては、新しいタブの画面の中に埋め込まれた部品の
+        ページ chrome://newtab-footer なども並ぶ。それは窓を持たず、出し入れできないうえ、途中で消えて切れる）。"""
+        skip = []
+        while True:
+            cdp = _Cdp(_page_ws(port, skip=skip), timeout=10)
+            if not self.visible or len(skip) >= 5:
+                return cdp
+            try:
+                cdp.call("Browser.getWindowForTarget", timeout=5)
+                return cdp
+            except DirectError:
+                skip.append(cdp.ws_url)
+                cdp.close()
 
     def alive(self):
         return self.proc is not None and self.proc.poll() is None
@@ -516,11 +534,13 @@ _PREFILL = """((lot) => {
 })(__LOT__)"""
 
 
-def _run_once(b, cfg, lot_no):
-    """ページの中の手順（lotdsp_direct.js）を走らせ、0.25 秒ごとに段階と結果を尋ねる（途中経過・中止のため）。"""
+def _run_once(b, cfg, lot_no, mode="read"):
+    """ページの中の手順（lotdsp_direct.js）を走らせ、0.25 秒ごとに段階と結果を尋ねる（途中経過・中止のため）。
+    mode: read（進度情報を読み、画面の HTML を返す）／ show（「検索」を押したら読まずに終える。答えの dict を返す）"""
     _stage("search")
     total_ms = int(max(10, cfg["timeout_seconds"] - 5) * 1000)
-    js = SCRIPT.read_text(encoding="utf-8").replace("__LOT__", json.dumps(lot_no)).replace("__TOTAL_MS__", str(total_ms))
+    js = (SCRIPT.read_text(encoding="utf-8").replace("__LOT__", json.dumps(lot_no)).replace("__TOTAL_MS__", str(total_ms))
+          .replace("__MODE__", json.dumps(mode)))
     b.cdp.eval(js, timeout=10)
     end = time.time() + cfg["timeout_seconds"]
     while True:
@@ -536,7 +556,7 @@ def _run_once(b, cfg, lot_no):
         if res:
             if not res.get("ok"):
                 raise DirectError(res.get("kind") or "screen", res.get("error") or "進度情報を読めませんでした")
-            return res["html"]
+            return res["html"] if mode == "read" else res
         if stage in STAGES:
             _stage(stage)
         if _CANCEL.is_set():
@@ -546,48 +566,91 @@ def _run_once(b, cfg, lot_no):
         time.sleep(0.25)
 
 
-def fetch_progress_html(lot_no, cfg, window=False):
-    """ロット番号で LotDsp を検索し、進度情報を描き終わった画面の HTML を返す。失敗は DirectError（kind つき）。
-    ブラウザは使い回す（cfg.keep_seconds）。使い回しのページが壊れていたら、1度だけ起こし直して読み直す。
-    window: LotDsp の窓で読む（ログインが要れば利用者を待つ）。画面が、ログインが要ったあとに頼む。"""
+def _checked_lot(lot_no):
     lot_no = str(lot_no or "").strip().upper()
     if not lot_no or not lot_no.isalnum() or len(lot_no) > 12:
         raise DirectError("invalid", f"ロット番号の形が違います（{lot_no or '空'}）")
-    if not cfg.get("enabled"):
-        raise DirectError("disabled", "このアプリだけで LotDsp を読む設定が切ってあります（lotdsp_import.direct.enabled）")
+    return lot_no
+
+
+@contextlib.contextmanager
+def _turn(lot_no):
+    """ブラウザを動かすのは同時に1つだけ（画面の検索ボタンも1つ）。そのあいだの途中経過を status() に出す。"""
     if not _LOCK.acquire(blocking=False):
         raise DirectError("busy", "いまほかのロットを LotDsp から読んでいます。終わってからもう一度押してください")
     _CANCEL.clear()
     _STATUS.update(lot=lot_no, stage="", since=time.time(), reused=False)
     try:
-        for attempt in (0, 1):
-            b = _SESSION
-            if not (b and b.alive()):
-                _stage("reach")          # 起こす前にだけ確かめる（使い回しのときは届いている）。社外なら Edge を探す前に言う
-                if not reachable(cfg["url"], cfg["reach_timeout_seconds"]):
-                    raise DirectError("unreachable", f"LotDsp（{cfg['url']}）に届きません（社外・VPN 未接続・サイトの停止）")
-            exe = find_browser(cfg.get("browser", ""))
-            if not exe:
-                raise DirectError("no_browser", "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）")
-            visible = bool(window and cfg.get("login_window"))
-            b, reused = _session(cfg, exe, visible)
-            _STATUS["reused"] = reused
-            try:
-                _open_search_page(b, cfg, lot_no, reused)
-                html = _run(b, cfg, lot_no, wait_login=visible)
-                b.used = time.time()
-                if not cfg.get("keep_seconds", 0) > 0:
-                    shutdown()
-                return html
-            except DirectError as e:
-                if e.kind == "not_found":
-                    b.used = time.time()    # 該当なしは正しい答え。ページはそのまま次に使える
-                    raise
-                shutdown()                  # ログインが要る（VPN）・中止・壊れた ときは残さない
-                if e.kind in ("login", "cancelled", "browser", "unreachable") or not reused or attempt:
-                    raise
-                # 使い回しのページが想定外の画面だった → 1度だけ起こし直して読み直す
+        yield
     finally:
         _STATUS["stage"] = ""
         _LOCK.release()
 
+
+def _drive(cfg, lot_no, visible, work):
+    """ブラウザ（visible なら LotDsp の窓）で LotDsp の検索できる画面にし、work(browser) を行って、その答えを返す。
+    ブラウザは使い回す。使い回しのページが想定外の画面だったら、1度だけ起こし直してやり直す。"""
+    for attempt in (0, 1):
+        b = _SESSION
+        if not (b and b.alive()):
+            _stage("reach")          # 起こす前にだけ確かめる（使い回しのときは届いている）。社外なら Edge を探す前に言う
+            if not reachable(cfg["url"], cfg["reach_timeout_seconds"]):
+                raise DirectError("unreachable", f"LotDsp（{cfg['url']}）に届きません（社外・VPN 未接続・サイトの停止）")
+        exe = find_browser(cfg.get("browser", ""))
+        if not exe:
+            raise DirectError("no_browser", "LotDsp を裏で開くブラウザ（Edge）が見つかりません（「マスタ管理」の「参照先」で場所を入れられます）")
+        b, reused = _session(cfg, exe, visible)
+        _STATUS["reused"] = reused
+        try:
+            _open_search_page(b, cfg, lot_no, reused)
+            out = work(b)
+            b.used = time.time()
+            return out
+        except DirectError as e:
+            if e.kind == "not_found":
+                b.used = time.time()    # 該当なしは正しい答え。ページはそのまま次に使える
+                raise
+            shutdown()                  # ログインが要る（VPN）・中止・壊れた ときは残さない
+            if e.kind in ("login", "cancelled", "browser", "unreachable") or not reused or attempt:
+                raise
+            # 使い回しのページが想定外の画面だった → 1度だけ起こし直してやり直す
+    raise AssertionError("ここには来ない（2 回目は必ず返すか投げる）")
+
+
+def fetch_progress_html(lot_no, cfg, window=False):
+    """ロット番号で LotDsp を検索し、進度情報を描き終わった画面の HTML を返す。失敗は DirectError（kind つき）。
+    ブラウザは使い回す（cfg.keep_seconds）。使い回しのページが壊れていたら、1度だけ起こし直して読み直す。
+    window: LotDsp の窓で読む（ログインが要れば利用者を待つ）。画面が、ログインが要ったあとに頼む。"""
+    lot_no = _checked_lot(lot_no)
+    if not cfg.get("enabled"):
+        raise DirectError("disabled", "このアプリだけで LotDsp を読む設定が切ってあります（lotdsp_import.direct.enabled）")
+    with _turn(lot_no):
+        visible = bool(window and cfg.get("login_window"))
+        html = _drive(cfg, lot_no, visible, lambda b: _run(b, cfg, lot_no, wait_login=visible))
+        if not cfg.get("keep_seconds", 0) > 0:
+            shutdown()
+        return html
+
+
+def show_lot(lot_no, cfg):
+    """ロット番号で LotDsp を検索し、LotDsp の窓に出して前に出す（取り込まない。一覧のロット番号の横の虫眼鏡）。
+    → {"lot": ロット番号, "login": ログインが要ったか}。
+    ログインが要るときは、空いているロット番号の欄にだけ入れて窓を前に出し、待たずに返す（ログインと「検索」は利用者が
+    窓で行う。アプリは何も押さない）。窓は読むときと同じ物（専用のプロファイル）を使い回し、見ている窓はしまわない。"""
+    lot_no = _checked_lot(lot_no)
+    if not (cfg.get("enabled") and cfg.get("login_window")):
+        raise DirectError("disabled", "LotDsp の窓を使わない設定です（lotdsp_import.direct の enabled・login_window）")
+
+    def show(b):
+        try:
+            _run_once(b, cfg, lot_no, mode="show")
+            login = False
+        except DirectError as e:
+            if e.kind != "login":
+                raise
+            _eval_quiet(b, _PREFILL.replace("__LOT__", json.dumps(lot_no)))
+            login = True
+        _window(b, "normal")
+        return login
+    with _turn(lot_no):
+        return {"lot": lot_no, "login": _drive(cfg, lot_no, True, show)}

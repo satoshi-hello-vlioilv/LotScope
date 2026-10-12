@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/formula-builder.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-card.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-slicer.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-marks.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-formats.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-work.css') }}">
 </head>
@@ -104,6 +105,8 @@
       <span class="ll-lothint">ロット番号を押すと、計算へ移って取り込みます</span>
       <!-- スライサーで選んでいる値（「設備: CR1・L-1 ×」）。スライサーを閉じても何で絞っているかが分かる -->
       <span id="llSlicerSum" class="sx-sum" hidden></span>
+      <!-- 色付けの凡例（色・条件・全件で当たった数）。押すと、その色付けを消す／付ける（lotlist-marks.js） -->
+      <span id="llMarkSum" class="mk-sum" hidden role="group" aria-label="色付け"></span>
       <span id="llGroupBar" class="ll-groupbar" hidden></span>
       <span id="llCardShelf" class="lk-shelf" hidden role="toolbar" aria-label="開いているカード"></span>
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
@@ -364,6 +367,7 @@
 <script src="{{ url_for('static', filename='js/lotlist-columns.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-card.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-slicer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-marks.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-profile.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-formats.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-work.js') }}"></script>

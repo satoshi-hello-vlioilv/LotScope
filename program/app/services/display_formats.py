@@ -27,6 +27,7 @@ PARTS = {
     "sorts": (list, "並べ替え"),          # [{column, dir}]
     "presets": (list, "登録した条件"),    # [{name, filters, group, always, …}]（当てる先の表に付け替える）
     "slicer": (dict, "スライサー"),       # {cards:[{column, …}]}（選んだ値は入れない）
+    "marks": (list, "色付け"),            # 色付け（条件付き書式）の組 [{conds, tone, target, on}]
     "adhoc": (dict, "列で絞り込む"),      # {column, op}（値は入れない）
 }
 MAX_BYTES = 512 * 1024

@@ -17,6 +17,7 @@ fn args(case: &Value) -> Args {
         filters: s("filters").unwrap_or_default(),
         sorts: s("sorts").unwrap_or_default(),
         group: s("group").as_deref() == Some("1"),
+        marks: s("marks").unwrap_or_default(),
     }
 }
 

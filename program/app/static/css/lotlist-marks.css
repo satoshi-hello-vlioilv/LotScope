@@ -1,0 +1,73 @@
+/* 色付け（条件付き書式。lotlist-marks.js）。色は意味で固定し、どの色も地は淡く・字は濃く（字と地のコントラスト 4.5 以上）。
+   セル: 地を塗り字を濃く太く。行: 地を淡く塗り、先頭のセルの左に色の帯（色の見分けが難しい人にも「この行」が分かる） */
+.mk-red{--mk-bg:#fde4e1;--mk-ink:#a52a1f;--mk-bar:#d9473a}
+.mk-amber{--mk-bg:#fff1cf;--mk-ink:#7a5200;--mk-bar:#e3a21a}
+.mk-green{--mk-bg:#ddf3e4;--mk-ink:#1d6b3a;--mk-bar:#36a061}
+.mk-blue{--mk-bg:#e1ecfb;--mk-ink:#1f4f8a;--mk-bar:#3f7fd0}
+.mk-violet{--mk-bg:#efe6fb;--mk-ink:#5a3592;--mk-bar:#8a5fd0}
+.mk-gray{--mk-bg:#eef1f4;--mk-ink:#5f6b77;--mk-bar:#9aa6b2}
+.ll-grid tbody td.mk-cell{background:var(--mk-bg)!important;color:var(--mk-ink)!important;font-weight:700}
+.ll-grid tbody td.mk-cell .ll-lot{color:var(--mk-ink)}
+.ll-grid tbody tr.mk-row>td{background:var(--mk-bg)}
+.ll-grid tbody tr.mk-row>td:first-child{box-shadow:inset 4px 0 0 var(--mk-bar)}
+.mk-gray .mk-dot,.mk-dot.mk-gray{background:var(--mk-bar)}
+
+/* 道具の行の入口（スライサーの入口と同じ形）。効いている色の点と、使っている組の数 */
+.ll-screen .generic-filter-bar .mk-entry{display:inline-flex;align-items:center;gap:6px}
+.ll-screen .generic-filter-bar .mk-entry.is-on{background:var(--ll-pale);border-color:var(--h-xfer);color:var(--ll-teal-dark);font-weight:700}
+.mk-entry b{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--h-xfer);color:var(--on-fill);font-size:11px}
+.mk-dots{display:inline-flex;gap:2px}
+.mk-dots i{width:9px;height:9px;border-radius:3px;background:var(--mk-bar)}
+.mk-dots i.mk-none{background:conic-gradient(#d9473a 0 25%,#e3a21a 0 50%,#36a061 0 75%,#3f7fd0 0);opacity:.75}
+
+/* 面（条件の面と同じ枠） */
+.mk-menu{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 18px 44px var(--pop-shadow);
+  padding:10px 12px;width:min(92vw,560px);max-height:72vh;overflow:auto;font-size:13px}
+.mk-head{margin:0 0 8px;color:var(--ink);font-weight:800}
+.mk-head small,.mk-make h5 small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.mk-empty{margin:4px 2px 10px;color:var(--muted)}
+.mk-list{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-direction:column;gap:2px}
+.mk-item{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:4px 8px;padding:6px 8px;border-radius:8px}
+.mk-item:hover{background:var(--surface-3)}
+.mk-item.is-off .mk-text,.mk-item.is-off .mk-dot{opacity:.45}
+.mk-item.is-off .mk-text{text-decoration:line-through}
+.mk-text{overflow-wrap:anywhere;font-weight:600;color:var(--ink)}
+.mk-n{color:var(--muted);white-space:nowrap}
+.mk-n em{font-style:normal;color:var(--amber-ink)}
+.mk-tools{grid-column:3/5;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mk-tools select,.mk-style select{height:26px;font-size:12px}
+/* 面は道具の行（.generic-filter-bar）の中に置くので、その中のボタンの決まりより強くする */
+.ll-screen .mk-menu button[data-mk-up],.ll-screen .mk-menu .mk-x{width:26px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--surface);cursor:pointer;font-size:13px}
+.ll-screen .mk-menu .mk-x{color:var(--danger)}
+.ll-screen .mk-menu .mk-x:hover{background:var(--danger-bg)}
+.mk-dot{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--mk-bar);flex:0 0 auto}
+.mk-on input{width:16px;height:16px;margin:0;accent-color:var(--h-input)}
+.mk-tones{display:inline-flex;gap:4px}
+.ll-screen .mk-menu .mk-tone{width:18px;height:18px;min-width:0;padding:0;border:0;border-radius:5px;background:var(--mk-bar);cursor:pointer}
+.ll-screen .mk-menu .mk-tone[aria-checked="true"]{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--h-input)}
+.mk-make{margin-top:8px;padding-top:10px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:6px}
+.mk-make h5{margin:0;font-size:12.5px;color:var(--ink);font-weight:800}
+.mk-cond{display:grid;grid-template-columns:auto minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) auto;align-items:center;gap:6px}
+.mk-cond:first-of-type{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) auto}
+.mk-cond select,.mk-cond input{height:28px;min-width:0;font-size:12.5px}
+.mk-and{font-size:11.5px;font-weight:800;color:var(--muted)}
+.ll-screen .mk-menu .mk-addc{align-self:flex-start;height:28px;border:1px dashed var(--line);border-radius:7px;background:var(--surface);color:var(--h-input);font-weight:700;padding:0 10px;cursor:pointer}
+.mk-style{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;font-weight:700}
+.mk-acts{display:flex;justify-content:flex-end}
+.ll-screen .mk-menu .mk-go{height:30px;padding:0 16px;border:0;border-radius:7px;background:var(--h-input);color:#fff;font-weight:800;cursor:pointer}
+.ll-screen .mk-menu .mk-go:disabled{opacity:.45;cursor:default}
+
+/* 件数の行の凡例の札（押すと消す／付ける。消した札は灰色の打ち消し線） */
+.mk-sum{display:inline-flex;flex-wrap:wrap;gap:6px}
+.mk-chip{display:inline-flex;align-items:center;gap:6px;height:24px;max-width:280px;padding:0 9px;border:0;border-radius:999px;
+  background:var(--mk-bg);color:var(--mk-ink);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.mk-chip-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.mk-chip i{font-style:normal;font-weight:600;opacity:.85}
+.mk-chip:hover,.mk-chip:focus-visible{box-shadow:0 0 0 2px var(--mk-bar);outline:none}
+.mk-chip.is-off{background:#f1f3f5;color:#8a96a2}
+.mk-chip.is-off .mk-chip-t{text-decoration:line-through}
+.mk-chip.is-off .mk-dot{background:#c3ccd5}
+
+/* 列で絞り込むの行の「色を付ける」（打っている条件を、絞り込む代わりに色に） */
+.mk-paint{display:inline-flex;align-items:center;gap:6px}
+.mk-paint:disabled .mk-dot{opacity:.4}
