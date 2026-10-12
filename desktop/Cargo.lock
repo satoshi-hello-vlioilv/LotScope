@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "defect-analyzer-desktop"
-version = "3.21.0"
+version = "3.21.1"
 dependencies = [
  "chrono",
  "rusqlite",

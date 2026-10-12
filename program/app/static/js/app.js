@@ -938,22 +938,16 @@ function paintCalcTabLot() {
   $("#tabCalc").title = (lot ? `いま取り込んでいるロット: ${lot}\n` : "") + "転写・ピッチ計算。検索欄でロット番号を直接問い合わせることもできます（Alt+2）";
 }
 /* 一覧のロット番号の横の虫眼鏡: LotDsp（ロット問い合わせ）でそのロットを開くだけ（取り込まない・画面も移らない）。
-   LotDsp の窓（見える Edge）で検索して前に出す。ログインが要るときは、ロット番号だけ入れて窓を前に出す（ログインと「検索」は利用者）。
-   窓を使えない（設定で切った・Edge が無い・会社の設定で操作できない・窓から届かない）ときは、いつものブラウザで LotDsp を開き、
-   ロット番号をクリップボードに写す（LotDsp は URL でロット番号を受け取れないので、検索欄に貼ってもらう）。→ 知らせる文 */
-async function showInLotDsp(lotNo) {
-  let r = null, d = {};
-  try {
-    r = await fetch("/api/lots/show-lotdsp", TPA.json("POST", { lot_no: lotNo }));
-    d = await r.json();
-  } catch (_) { d = { kind: "network" }; }
-  if (r && r.ok) return d.login ? `LotDsp の窓を前に出しました。ログインして「検索」を押すと ${lotNo} が出ます（ロット番号は入れてあります）` : `LotDsp の窓に ${lotNo} を出しました`;
-  if (d.kind === "busy" || d.kind === "invalid") return d.error;
+   WaveLog と同じ方式（static/js/core/base.js の openLotDsp）: ロット番号と鋳造番号の linkkey とタブを付けた URL を開くと、
+   LotDsp の側が linkkey を読んで検索まで行う（URL は lotdsp-url.js）。窓（デスクトップ版）の中では、PC の既定のブラウザへ渡る。
+   念のためロット番号をクリップボードにも写す（LotDsp が linkkey を読めなかったときに、検索欄へ貼れるように）。→ 知らせる文 */
+function openLotDsp(lotNo, castingNo, tab) {
   const url = (state.config && state.config.lotdsp_url) || "";
+  if (!lotNo) return "ロット番号が無いので、LotDsp を開けません";
   if (!url) return "LotDsp の場所が設定されていません（マスタ管理の「参照先」）";
-  window.open(url, "_blank", "noopener");
-  const copied = navigator.clipboard ? await navigator.clipboard.writeText(lotNo).then(() => true, () => false) : false;
-  return copied ? `LotDsp を開きました。ロット番号 ${lotNo} を写したので、検索欄に貼り付けてください` : `LotDsp を開きました。${lotNo} で検索してください`;
+  window.open(window.LotDspUrl.build(url, lotNo, castingNo, tab), "_blank", "noopener");
+  if (navigator.clipboard) navigator.clipboard.writeText(lotNo).catch(() => {});
+  return `LotDsp の「${window.LotDspUrl.label(tab)}」で ${lotNo}${castingNo ? `（鋳造番号 ${castingNo}）` : ""} を開きました（ロット番号も写しました）`;
 }
 window.LotList.mount({
   onPick: (lotNo) => {
@@ -961,7 +955,7 @@ window.LotList.mount({
     showScreen("calc", { focus: false });
     $("#query").value = lotNo; runSearch();
   },
-  onLens: showInLotDsp,
+  onLens: openLotDsp,
 });
 // Enter の続き（keypress）が、開いたモーダルの「中止」を押してしまわないよう既定の動作を止める
 $("#query").addEventListener("keydown", (e) => { if (e.key === "Enter" && !$("#searchBtn").disabled) { e.preventDefault(); runSearch(); } });

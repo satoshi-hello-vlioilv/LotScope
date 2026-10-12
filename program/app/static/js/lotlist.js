@@ -273,8 +273,12 @@
   const collapsed = () => new Set((TPA.session.get(KEY.collapsed, {})[scope()]) || []);
   function setCollapsed(set) { const all = TPA.session.get(KEY.collapsed, {}); all[scope()] = [...set]; TPA.session.set(KEY.collapsed, all); }
   let onPick = () => {};
-  let onLens = null;            // 虫眼鏡: LotDsp でそのロットを開くだけ（app.js の showInLotDsp。→ 知らせる文）
+  let onLens = null;            // 虫眼鏡: LotDsp でそのロットを開くだけ（app.js の openLotDsp(ロット番号, 鋳造番号, タブ)。→ 知らせる文）
   const LENS_W = 22;            // 虫眼鏡のぶん、ロット番号の列を広げる（幅を決めていない列だけ）
+  const CAST_COLUMNS = ["鋳造番号", "CYNO"];   // 鋳造番号の列の名前（WaveLog の aliases.castingNo と同じ）。LotDsp の linkkey に使う
+  // 虫眼鏡で開く LotDsp のタブは進度情報（WaveLog の既定と同じ）。選ぶ所は置かない（7 案を比べて決めた: ui-proposals/2026-10-lotdsp-tab）
+  const lotDspTab = () => window.LotDspUrl.DEFAULT_TAB;
+  const castOf = (row) => { const c = CAST_COLUMNS.find((x) => S.columns.includes(x)); return c && row ? String(row[c] ?? "") : ""; };
   const LENS_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.3"/><path d="M10.1 10.1 14 14"/></svg>';
   const lensOn = () => feat.lens && !!onLens;
   let root = null;
@@ -974,15 +978,9 @@
     const h = $(".ll-lothint", root); if (!h) return;
     h.innerHTML = lensOn() ? `ロット番号を押すと計算へ取り込み・${LENS_ICON} で LotDsp を開くだけ` : "ロット番号を押すと、計算へ移って取り込みます";
   }
-  /** 虫眼鏡: LotDsp でそのロットを開くだけ（取り込まない・画面は移らない）。開くまで数秒かかることがあるので、押した印を出して待つ */
-  let lensBusy = false;
-  async function showLot(btn) {
-    if (lensBusy || !onLens) return;
-    lensBusy = true; btn.classList.add("is-busy"); btn.setAttribute("aria-busy", "true");
-    flash(`LotDsp で ${btn.dataset.lens} を開いています…`, 30000);
-    try { flash(await onLens(btn.dataset.lens), 6000); }
-    catch (e) { flash("LotDsp を開けませんでした: " + e.message, 6000); }
-    finally { lensBusy = false; btn.classList.remove("is-busy"); btn.removeAttribute("aria-busy"); }
+  /** 虫眼鏡: LotDsp でそのロットを開くだけ（取り込まない・画面は移らない）。WaveLog と同じく、ロット番号と鋳造番号の linkkey の URL で開く */
+  function showLot(btn) {
+    if (onLens) flash(onLens(btn.dataset.lens, btn.dataset.cast || "", lotDspTab()), 5000);
   }
   function flash(msg, ms = 2600) {
     const n = $("#llFlash") || Object.assign(document.createElement("div"), { id: "llFlash", className: "ll-flash" });
@@ -1166,8 +1164,9 @@
   }
   /* ---- 行（ふつうの行・まとまりの中の行で同じ） ---- */
   const GROUP_HEAD_EXTRA = 64, GROUP_INDENT = 16;   // 見出し行の先頭の列に足す幅（畳むボタンと件数）・段ごとの字下げ
-  const lotButton = (raw, sub) => (raw ? `<button type="button" class="ll-lot${sub ? " is-sub" : ""}" data-lot="${esc(raw)}" title="押すと「${esc(raw)}」を転写計算へ取り込みます（転写計算の「検索」と同じ）">${esc(raw)}</button>`
-    + (lensOn() ? `<button type="button" class="ll-lens" data-lens="${esc(raw)}" title="LotDsp（ロット問い合わせ）で「${esc(raw)}」を開くだけ（取り込まず、画面も移りません）" aria-label="${esc(raw)} を LotDsp で開く">${LENS_ICON}</button>` : "") : "");
+  /* ロット番号のボタンと、その横の虫眼鏡（row: その行。虫眼鏡が鋳造番号を持つ＝LotDsp の linkkey はロット番号と鋳造番号の組） */
+  const lotButton = (raw, sub, row = null) => (raw ? `<button type="button" class="ll-lot${sub ? " is-sub" : ""}" data-lot="${esc(raw)}" title="押すと「${esc(raw)}」を転写計算へ取り込みます（転写計算の「検索」と同じ）">${esc(raw)}</button>`
+    + (lensOn() ? `<button type="button" class="ll-lens" data-lens="${esc(raw)}" data-cast="${esc(castOf(row))}" title="LotDsp（ロット問い合わせ）の「${esc(window.LotDspUrl.label(lotDspTab()))}」で「${esc(raw)}」を開きます（取り込まず、画面も移りません）" aria-label="${esc(raw)} を LotDsp で開く">${LENS_ICON}</button>` : "") : "");
   const cellTd = (cell, al, extra = "", tail = "") => {
     const tip = cell.raw !== cell.text ? `${cell.text}\n元の値: ${cell.raw}` : cell.text;
     return `<td class="al-${al}${cell.color && !extra.includes("ll-rep") ? " cell-" + cell.color : ""}${extra}" title="${esc(tip)}">${esc(cell.text)}${tail}</td>`;
@@ -1180,7 +1179,7 @@
     const k = [cls, lot && lot.toUpperCase() === String(S.currentLot || "").toUpperCase() ? "is-current" : "", i === S.cardIdx || S.cardSet.has(i) ? "is-carded" : "", M.rowClass(r)].filter(Boolean).join(" ");
     return `<tr data-i="${i}"${k ? ` class="${k}"` : ""}${attrs}>` + cols.map((c, ci) => {
       const d = deco && deco.get(c), extra = (d ? d.cls : "") + M.cellClass(r, c), tail = d ? d.tail || "" : "";
-      return c === S.lotColumn ? `<td class="ll-lotcol${extra}"${extra ? ` title="${esc(lot)}"` : ""}>${lotButton(lot, cls.includes("g-child"))}${tail}</td>` : cellTd(cells[ci], aligns[ci], extra, tail);
+      return c === S.lotColumn ? `<td class="ll-lotcol${extra}"${extra ? ` title="${esc(lot)}"` : ""}>${lotButton(lot, cls.includes("g-child"), r)}${tail}</td>` : cellTd(cells[ci], aligns[ci], extra, tail);
     }).join("") + "</tr>";
   }
   /* 並び・まとめの本体。サーバーは段の列の順（ロット番号の段はロットを1か所に集めて）で返すので、値が同じ行は続いている。
@@ -1202,7 +1201,7 @@
     const headRow = (i, end, d, id, key, anc, hide, open, alt) => {
       const lc = lv[d].column, rs = rows.slice(i, end), len = end - i;
       const lvDepth = new Map(lv.map((l, k) => [l.column, k]));
-      const shown = lc === S.lotColumn ? lotButton(String(rows[i][lc] ?? ""), false)
+      const shown = lc === S.lotColumn ? lotButton(String(rows[i][lc] ?? ""), false, rows[i])
         : `<b class="ll-gv">${esc(LC.cell(t, lc, rows[i]).text) || "（空欄）"}</b>`;
       // 段の列が表に出ていれば値だけ（列の名前は見出しにある）。隠している列でまとめているときは列の名前を添える
       // 段の名前の札（どの段の見出しか）＋値。札の色の濃さで段の深さも分かる
@@ -1215,7 +1214,7 @@
           const rep = A.suppress && ld != null && ld < d ? " ll-rep" + blk(ld) : "";     // 外側の段の値は外側の見出しにある（面にする）
           if (c === S.lotColumn) {
             const ks = new Set(rs.map(lotKey));
-            return ks.size === 1 ? `<td class="ll-lotcol ll-gsame${rep}">${lotButton(String(rs[0][c] ?? ""), false)}</td>`
+            return ks.size === 1 ? `<td class="ll-lotcol ll-gsame${rep}">${lotButton(String(rs[0][c] ?? ""), false, rs[0])}</td>`
               : `<td class="ll-gdiff" title="このまとまりの中で ${ks.size}通りのロットがあります">${ks.size}通り</td>`;
           }
           const texts = new Set(cells.slice(i, end).map((x) => x[ci].text));

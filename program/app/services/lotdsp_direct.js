@@ -1,6 +1,5 @@
 /* lotdsp_direct.js: このアプリだけで LotDsp を読むときに、裏で開いた LotDsp のページの中で動かす手順
-   （lotdsp_direct.py が Chrome DevTools Protocol の Runtime.evaluate で入れる。__LOT__ はロット番号に、__MODE__ は
-   read（読む）か show（開くだけ: 「検索」を押したら読まずに終える。一覧の虫眼鏡）に置き換わる）。
+   （lotdsp_direct.py が Chrome DevTools Protocol の Runtime.evaluate で入れる。__LOT__ はロット番号に置き換わる）。
 
    手順は LotData-Link の lotdsp-relay.js（docs/DESIGN.md §3）と同じ道——人と同じにロット番号の欄へ入れて
    「検索」を1回押し、「進度情報」タブの実績の表が描き終わったら画面の HTML をそのまま返す。
@@ -10,13 +9,12 @@
    入れるとすぐ戻り、手順は裏で進む。途中経過と結果は window.__tpaDirect = { stage, result } に置き、
    lotdsp_direct.py が 0.25 秒ごとに尋ねる（画面のモーダルの段階表示・中止のため）。
      stage … search（検索している）／ read（進度情報を読んでいる）
-     result … { ok: true, html }（show は { ok: true, shown: true }）／ { ok: false, kind, error }
+     result … { ok: true, html } ／ { ok: false, kind, error }
        kind … login（ログインが要る）／ not_found（該当なし）／ screen（画面が想定と違う・出ない）
    見えない Edge は使い回すので、2回目からは検索のあとの画面（上の検索欄）から始まる。欄は見えている方を使う。 */
 window.__tpaDirect = { stage: 'search', result: null };
 (async () => {
   const LOT = __LOT__;
-  const MODE = __MODE__;
   const TOTAL_MS = __TOTAL_MS__;
   const STEP_MS = 250;
   const NOT_FOUND_MS = 8000;
@@ -104,7 +102,6 @@ window.__tpaDirect = { stage: 'search', result: null };
       if (kn && kn.value) put(kn, '');
       btn.click();
     }
-    if (MODE === 'show') return { ok: true, shown: true };   // 開くだけ: 結果は利用者が窓で見る（該当なしも LotDsp が言う）
     const clickedAt = Date.now();
     await until(() => {
       if (pageLot() === LOT && hitCount() !== 0) return true;

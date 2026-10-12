@@ -7,8 +7,9 @@
 //   ⑤ 開き直しても残る ⑥ 設備でまとめて（画面が行を並べ替える）も、色は「汚れ」のセルにだけ付く
 //   ⑩ Excel に出力: 全件のうち、塗られた不良名のセルがちょうど「汚れ」のセル（数はサーバーで絞った件数）
 // 虫眼鏡
-//   ⑦ 番号が切れない（列が虫眼鏡のぶん広い）・押すと開くだけ（計算へ移らない）・答えを知らせる
-//   ⑧ 窓を使えないとき（kind: browser）は、いつものブラウザで LotDsp を開き、ロット番号を写す ⑨ 機能を切ると消える
+//   ⑦ ロット番号の字のすぐ横（字と高さが揃う）・番号も虫眼鏡も切れない（列が虫眼鏡のぶん広い）
+//   ⑧ 押すと WaveLog と同じ URL（その行のロット番号と鋳造番号の linkkey・既定のタブ 1＝進度情報）で開き、ロット番号を写す。
+//      計算へ移らない（版 3.21.1。前は LotDsp の窓を操作していた） ⑨ 機能を切ると消える
 // 全部合えば終了コード 0。
 import fs from "node:fs";
 import os from "node:os";
@@ -112,27 +113,33 @@ try {
   out.ten = { rows: body.length, painted: body.filter(([, st]) => st !== "0").length, wrong: body.filter(([v, st]) => (st !== "0") !== (v === "汚れ")).length, want: out.one.want };
   const ok10 = out.ten.rows === total && out.ten.painted === out.one.want && out.ten.wrong === 0;
 
-  // ⑦ 虫眼鏡（窓の答えは作り物）
+  // ⑦ 虫眼鏡の置き場
   await p.evaluate(() => { localStorage.clear(); });
   const lens = await app.newPage("light");
-  await lens.route("**/api/lots/show-lotdsp", (r) => r.fulfill({ json: { lot: JSON.parse(r.request().postData()).lot_no, login: false } }));
-  const cut = await lens.$$eval("#llBody .ll-lotcol .ll-lot", (bs) => bs.filter((b) => b.scrollWidth > b.clientWidth + 1 || b.getBoundingClientRect().right > b.closest("td").querySelector(".ll-lens").getBoundingClientRect().left).length);
-  const lenses = await lens.$$eval("#llBody .ll-lotcol", (tds) => tds.filter((td) => td.querySelector(".ll-lot") && !td.querySelector(".ll-lens")).length);
-  const lot = await lens.$eval("#llBody .ll-lens", (b) => b.dataset.lens);
-  await lens.click("#llBody .ll-lens"); await sleep(800);
-  out.seven = { cut, missing: lenses, flash: await lens.$eval("#llFlash", (x) => x.textContent), stay: await lens.$eval("#lotListScreen", (x) => !x.classList.contains("hidden")),
-    hint: await lens.$eval(".ll-lothint", (x) => x.textContent) };
-  const ok7 = cut === 0 && lenses === 0 && out.seven.flash.includes(lot) && out.seven.flash.includes("LotDsp の窓") && out.seven.stay && out.seven.hint.includes("LotDsp を開くだけ");
+  const place = await lens.$$eval("#llBody .ll-lotcol", (tds) => tds.filter((td) => td.querySelector(".ll-lot")).map((td) => {
+    const n = td.querySelector(".ll-lot"), l = td.querySelector(".ll-lens"), c = td.getBoundingClientRect();
+    if (!l) return { missing: true };
+    const a = n.getBoundingClientRect(), b = l.getBoundingClientRect();
+    return { gap: b.left - a.right, mid: Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2), cut: n.scrollWidth > n.clientWidth + 1 || b.right > c.right + 0.5 };
+  }));
+  out.seven = { lenses: place.length, missing: place.filter((x) => x.missing).length, far: place.filter((x) => !x.missing && !(x.gap >= 0 && x.gap <= 8)).length,
+    tilt: place.filter((x) => !x.missing && x.mid > 3).length, cut: place.filter((x) => x.cut).length, hint: await lens.$eval(".ll-lothint", (x) => x.textContent) };
+  const ok7 = place.length > 0 && !out.seven.missing && !out.seven.far && !out.seven.tilt && !out.seven.cut && out.seven.hint.includes("LotDsp を開くだけ");
 
-  // ⑧ 窓を使えない → いつものブラウザで開き、ロット番号を写す
-  await lens.unroute("**/api/lots/show-lotdsp");
-  await lens.route("**/api/lots/show-lotdsp", (r) => r.fulfill({ status: 503, json: { error: "窓を使えない", kind: "browser" } }));
+  // ⑧ 押す → WaveLog と同じ URL で開き、ロット番号を写す（開く先と写しは作り物で受ける）
   await lens.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; };
     window.__copied = ""; Object.defineProperty(navigator, "clipboard", { value: { writeText: async (t) => { window.__copied = t; } }, configurable: true });
-    state.config = Object.assign({}, state.config, { lotdsp_url: "http://lotdsp.example/LotDspWeb/" }); });
-  await lens.click("#llBody .ll-lens"); await sleep(800);
-  out.eight = { opened: await lens.evaluate(() => window.__opened), copied: await lens.evaluate(() => window.__copied), flash: await lens.$eval("#llFlash", (x) => x.textContent) };
-  const ok8 = out.eight.opened[0] === "http://lotdsp.example/LotDspWeb/" && out.eight.copied === lot && out.eight.flash.includes("貼り付け");
+    state.config = Object.assign({}, state.config, { lotdsp_url: "http://nlmfangyweb1a/LotDspWeb/" }); });
+  const row = await lens.$eval("#llBody tr[data-i] .ll-lens", (b) => ({ lot: b.dataset.lens, cast: b.dataset.cast }));
+  const castShown = await lens.evaluate(() => { const at = [...document.querySelectorAll("#llHead th")].findIndex((th) => th.dataset.col === "鋳造番号");
+    return document.querySelector("#llBody tr[data-i]").children[at].textContent.trim(); });
+  await lens.click("#llBody tr[data-i] .ll-lens"); await sleep(500);
+  const field = (v) => String(v || "").slice(0, 7).padEnd(7, " ");
+  const want = `http://nlmfangyweb1a/LotDspWeb/#/lotdsp?linkkey=${encodeURIComponent(field(row.lot) + "   " + field(row.cast))}&tab=1`;
+  out.eight = { row, castShown, opened: await lens.evaluate(() => window.__opened), copied: await lens.evaluate(() => window.__copied),
+    flash: await lens.$eval("#llFlash", (x) => x.textContent), stay: await lens.$eval("#lotListScreen", (x) => !x.classList.contains("hidden")), want };
+  const ok8 = !!row.cast && row.cast === castShown && out.eight.opened.length === 1 && out.eight.opened[0] === want && out.eight.copied === row.lot
+    && out.eight.flash.includes(row.lot) && out.eight.stay;
 
   // ⑨ 機能を切る
   await lens.click("#llViewBtn"); await sleep(300);
