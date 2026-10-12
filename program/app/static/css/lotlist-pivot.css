@@ -2,8 +2,10 @@
    ピボット集計（集計表・グラフ。lotlist-pivot.js。7 案＋2 回目で選んだ: ui-proposals/2026-10-pivot* の M3）
    - 一覧の場所（.ll-bodyrow の中）に替えて出す。左にカラムの札、右に文・グラフの形の札・グラフ・表
    - 色は役割で固定: 行＝青緑（まとめる段と同じ）・列＝藍（並べ替えと同じ構造の色）・値＝琥珀（数）。札・文の欄・グラフで同じ色
+     （白字を載せる札は、3 色とも白との明るさの比 4.5 以上。値の琥珀は #b5822a〈3.4〉から明度だけ下げた。
+      グラフの棒は字ではないので #b5822a のまま〈図形は 3 以上〉: lotlist-pivot.js の COLORS）
    ========================================================================= */
-:root{--pv-row:#2f7d78;--pv-row-bg:#e8f4f2;--pv-col:#4a62b0;--pv-col-bg:#eef1fb;--pv-val:#b5822a;--pv-val-bg:#fbf3e4}
+:root{--pv-row:#2f7d78;--pv-row-bg:#e8f4f2;--pv-col:#4a62b0;--pv-col-bg:#eef1fb;--pv-val:#8f6418;--pv-val-bg:#fbf3e4}
 
 /* 一覧｜集計表・グラフ（件数の行） */
 .pv-switch{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
@@ -38,7 +40,7 @@
 .pv-main{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0;overflow:auto;padding-right:2px}
 .pv-sent{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .pv-slot{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:32px;padding:2px 6px;border:1.5px dashed #b9c7d4;border-radius:8px;background:var(--surface-1)}
-.pv-ph{color:#7d8a96;font-size:12px}
+.pv-ph{color:var(--muted);font-size:12px}
 .pv-w{color:var(--h-meta);font-weight:700;white-space:nowrap}
 .pv-sp{flex:1}
 .pv-chip{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 3px 0 9px;border-radius:999px;font-weight:800;font-size:12.5px;color:#fff;max-width:280px}
