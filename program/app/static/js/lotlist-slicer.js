@@ -222,11 +222,13 @@
   function mount(h) { host = h; bind(); render(); }
   /** 一覧の元が替わった: 前の元の値・探した字を捨てて描き直す（値は次の refresh で読む） */
   function reset() { seq++; Object.keys(vals).forEach((k) => delete vals[k]); Object.keys(qs).forEach((k) => delete qs[k]); if (host) render(); }
-  /** 共有の書式（lotlist-formats.js）: 範囲 t のカードの並び（選んだ値は入れない）と、その置き換え（選んだ値は空から） */
-  const setupOf = (t) => (st.tables[t] || []).map((c) => ({ column: c.column, ...(c.key ? { key: c.key } : {}) }));
-  function setSetup(t, list) {
+  /** 範囲 t のカードの並びと、その置き換え。
+      共有の書式（lotlist-formats.js）は選んだ値を運ばない（既定）。保存した見方（lotlist.js）は選んだ値ごと運ぶ（{ sel: true }） */
+  const setupOf = (t, { sel = false } = {}) => (st.tables[t] || [])
+    .map((c) => ({ column: c.column, ...(c.key ? { key: c.key } : {}), ...(sel && c.sel.length ? { sel: c.sel.slice() } : {}) }));
+  function setSetup(t, list, { sel = false } = {}) {
     const cs = (Array.isArray(list) ? list : []).filter((c) => c && typeof c.column === "string" && c.column)
-      .map((c) => ({ column: c.column, key: String(c.key || ""), sel: [] }));
+      .map((c) => ({ column: c.column, key: String(c.key || ""), sel: sel && Array.isArray(c.sel) ? c.sel.map(String) : [] }));
     if (cs.length) st.tables[t] = cs; else delete st.tables[t];
     save();
     if (host && host.table() === t) render();
@@ -234,5 +236,8 @@
   /** 選んでいる値の要約 [[列の表示名, 値・値…]]（Excel に出力の「出力の条件」） */
   const summary = () => cards().filter((c) => c.sel.length && (host.columns().includes(c.column) || isCalc(c.column)))
     .map((c) => [host.label(c.column) + (isCalc(c.column) ? "（式）" : ""), c.sel.map((v) => (v === "" ? BLANK : v)).join("・")]);
-  window.LotListSlicer = { mount, refresh, filters, render, clearAll, reset, setupOf, setSetup, summary };
+  /** 保存した見方（lotlist.js）: いまの画面でスライサーを開いているか・開く／閉じる */
+  const openState = () => isOpen();
+  function setOpenState(v) { if (!host) return; setOpen(!!v); render(); refresh(); }
+  window.LotListSlicer = { mount, refresh, filters, render, clearAll, reset, setupOf, setSetup, summary, isOpen: openState, setOpen: setOpenState };
 })();

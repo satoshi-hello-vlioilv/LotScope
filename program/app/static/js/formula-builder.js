@@ -1,8 +1,8 @@
 "use strict";
 /* =========================================================================
    式ビルダー（式の書き方に慣れていない人のための、組み立てて作る入口）
-   - 表示列の「この列の作り方」で、文のように選んで組み立て（「もし [重量] が 1000 以上 なら '重' そうでなければ '軽'」）、
-     「式にする」で式の欄へ入れる。組み立てた物は式の字（list-formula.js の書き方）に変えるだけで、式の決まりは増やさない
+   - 表示列の「この列の作り方」の窓（lotlist-rules.js）の「式を書く」の「部品から作る」で、文のように選んで組み立て、
+     「式にする」で式の欄へ入れる（条件で分ける式は、同じ窓の「組み立てる」＝表示ルールと同じ組み立てで作る。ここでは出さない: opts.kinds）。組み立てた物は式の字（list-formula.js の書き方）に変えるだけで、式の決まりは増やさない
      （計算・確かめは今までどおり list-formula.js の 1 か所。WaveLog と同じ書き方・同じ答え）。
    - 組み立ての形（KINDS）: 計算する・条件で分ける・文字をつなぐ・文字を取り出す・空なら別の値・数を丸める
    - 値の欄（項）は「列」か「数・文字を打つ」。打った字は数に読めれば数、読めなければ '文字'（' は '' にする）
@@ -121,14 +121,16 @@
   }
   /**
    * 置いた所（el）にビルダーを描く。opts: columns()（列の表示名）・preview(式) → 先頭の結果の字の並び・apply(式, how)（how: replace|insert）
+   *   ・kinds（出す形の名前の並び。省くと全部）・kind（最初の形）
    */
   function mount(el, opts) {
     let s = null;
     const cols = () => opts.columns();
+    const kinds = opts.kinds ? KINDS.filter(([k]) => opts.kinds.includes(k)) : KINDS;
     function paint() {
       if (!s) s = blank(opts.kind || "calc", cols());
       const f = build(s), chk = f && root.WL ? root.WL.formula.check(f) : null, pv = chk && chk.ok ? opts.preview(f) : [];
-      el.innerHTML = `<div class="fb-kinds" role="radiogroup" aria-label="作る形">${KINDS.map(([k, n, tip]) =>
+      el.innerHTML = `<div class="fb-kinds" role="radiogroup" aria-label="作る形">${kinds.map(([k, n, tip]) =>
         `<button type="button" role="radio" aria-checked="${s.kind === k}" data-kind="${k}" title="${esc(tip)}">${n}</button>`).join("")}</div>`
         + `<div class="fb-sentence">${sentenceHtml(s, cols())}</div>`
         + `<div class="fb-out"><span class="fb-lab">できる式</span><code class="fb-code${chk && !chk.ok ? " is-ng" : ""}">${esc(f || "（まだ組み立てていません）")}</code>`

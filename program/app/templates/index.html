@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-marks.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-formats.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-work.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-pivot.css') }}">
 </head>
 <body>
 <header>
@@ -97,6 +98,8 @@
     <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
     <div class="ll-status">
       <span id="llCount" class="ll-count">全 0件</span>
+      <!-- 一覧｜集計表・グラフ（ピボット集計。lotlist-pivot.js。7 案＋2 回目で選んだ: ui-proposals/2026-10-pivot* の M3） -->
+      <span id="llViewSwitch" class="pv-switch" role="tablist" aria-label="一覧と集計"></span>
       <!-- 作業実績のときだけ: 作業でまとめる（まとめない｜日ごと｜日＋直ごと）と、右の表で押した日・直の札（lotlist-work.js） -->
       <span id="llWorkSwitch" class="wk-switch" hidden></span>
       <!-- 頁の頭は置かない（題はタブ）。何の表か・元データの時刻・ロット番号を押すと何が起きるかを、件数と同じ行に -->
@@ -108,6 +111,8 @@
       <!-- 色付けの凡例（色・条件・全件で当たった数）。押すと、その色付けを消す／付ける（lotlist-marks.js） -->
       <span id="llMarkSum" class="mk-sum" hidden role="group" aria-label="色付け"></span>
       <span id="llGroupBar" class="ll-groupbar" hidden></span>
+      <!-- 見出しで決めた並べ替え（「並べ替え ① 重量 ▼ × ② 板厚 ▲ ×」）。まとめの段の後ろに続く順（lotlist.js の paintSortBar） -->
+      <span id="llSortBar" class="ll-groupbar ll-sortbar" hidden role="group" aria-label="並べ替え"></span>
       <span id="llCardShelf" class="lk-shelf" hidden role="toolbar" aria-label="開いているカード"></span>
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
       <!-- 右の組（拡大・頁）。件数の行が折り返しても、2 つは離れず右に寄る -->
@@ -139,15 +144,23 @@
       <style id="llTintStyle"></style>
       <div id="llNote" class="ll-note" hidden></div>
     </div>
+    <!-- 集計表・グラフ（一覧の場所に替えて出す。スライサーはそのまま効く） -->
+    <section id="llPivot" class="pv" hidden aria-label="集計表・グラフ"></section>
     <!-- 作業実績で作業でまとめているとき: 日・直ごとのロット数（押すと一覧をその日・直に絞る） -->
     <aside id="llWork" class="wk-pane" hidden aria-label="日・直ごとのロット数"></aside>
     </div>
     <!-- 登録した条件とプリセット -->
-    <div id="llPresetModal" class="ll-pm" hidden role="dialog" aria-modal="true" aria-label="登録した条件とプリセット">
+    <div id="llPresetModal" class="ll-pm" hidden role="dialog" aria-modal="true" aria-label="登録した条件・プリセット・保存した見方">
       <div class="ll-pm-card">
-        <div class="ll-pm-head"><b>登録した条件とプリセット</b><small>表: <span id="llPresetTable">-</span>。同じ「プリセット名」を付けた条件がひとまとまりになり、「プリセット」から切り替えられます。</small>
+        <div class="ll-pm-head"><b>登録した条件・プリセット・保存した見方</b><small>表: <span id="llPresetTable">-</span>。どれも「プリセット」から切り替えられます。同じ「プリセット名」を付けた条件がひとまとまりになります。</small>
           <button id="llPresetModalClose" type="button" class="fb-close" title="閉じる（Esc）">✕ 閉じる</button></div>
         <div class="ll-pm-body">
+          <h4 class="ll-pm-sec">保存した見方<small>条件・並べ替え・まとめ・スライサー・検索を名前を付けて保存した物。当てると、その形にまるごと入れ替わります</small></h4>
+          <table class="ll-pm-table ll-pm-views">
+            <thead><tr><th>名前</th><th>入っている物</th><th></th><th></th><th></th></tr></thead>
+            <tbody id="llViewRows"></tbody>
+          </table>
+          <h4 class="ll-pm-sec">登録した条件とプリセット</h4>
           <table class="ll-pm-table">
             <thead><tr><th>条件</th><th>プリセット名（組み合わせ）</th><th>いつも適用</th><th></th><th></th></tr></thead>
             <tbody id="llPresetRows"></tbody>
@@ -374,6 +387,7 @@
 <script src="{{ url_for('static', filename='js/lotdsp-url.js') }}"></script>
 <script src="{{ url_for('static', filename='js/xlsx-writer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-export.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-pivot.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master.js') }}"></script>

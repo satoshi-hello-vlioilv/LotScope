@@ -33,6 +33,7 @@
     adhocOpen: "tpa.lotlist.adhocOpen.v1",
     presets: "tpa.lotlist.presets.v1",    // 登録した条件（1条件ずつ。group が同じものが組み合わせ＝プリセット）
     presetSel: "tpa.lotlist.presetSel.v1",
+    views: "tpa.lotlist.views.v1",        // 保存した見方（条件・並べ替え・まとめ・スライサー・検索を名前を付けて。table が範囲）
     sorts: "tpa.lotlist.sorts.v1",
     pageSize: "tpa.lotlist.pageSize.v1",
     table: "tpa.lotlist.table.v1",
@@ -285,13 +286,18 @@
 
   /* ================= 読み込み ================= */
   /** 一覧の問い合わせ文字。over で頁・件数だけを替えられる（Excel に出力が全件を頁ごとに引く） */
-  function queryString(over = {}) {
+  /** 絞り込みの問い合わせ（元・表・検索・条件・列で絞り込む・スライサー）。一覧とピボット集計（lotlist-pivot.js）が同じ物を使う */
+  function filterParams() {
     const q = new URLSearchParams(S.src.params());
     if (S.table) q.set("table", S.table);
-    q.set("page", over.page ?? S.page); q.set("page_size", over.pageSize ?? S.pageSize);
     if (S.search) q.set("search", S.search);
     const list = baseFilters().concat(window.LotListSlicer.filters());
     if (list.length) q.set("filters", JSON.stringify(list));
+    return q;
+  }
+  function queryString(over = {}) {
+    const q = filterParams();
+    q.set("page", over.page ?? S.page); q.set("page_size", over.pageSize ?? S.pageSize);
     const sorts = effectiveSorts();
     if (sorts.length) q.set("sorts", JSON.stringify(sorts));
     if (serverGroup()) q.set("group", "1");
@@ -337,6 +343,7 @@
     S.loading = false;
     renderAll();
     window.LotListSlicer.refresh();   // 件数を今の絞り込みで数え直す
+    window.LotListPivot.refresh();    // 集計表・グラフを見ていれば、今の絞り込みで数え直す
   }
 
   /* ================= 範囲（表・作業実績は設備と表）ごとの覚え ================= */
@@ -358,6 +365,7 @@
     if (k === S.ctx && !force) return false;
     if (S.ctx != null && S.ctx !== k) saveActive();
     S.ctx = k;
+    window.LotListPivot.sync();         // 集計の組み方・一覧｜集計は範囲ごと
     S.genericFilters = (store.get(KEY.active, {})[k] || []).map((f) => ({ ...f }));
     S.sorts = (store.get(KEY.sorts, {})[k] || []).slice(0, MAX_SORTS);
     applyAlwaysOn();
@@ -381,6 +389,12 @@
 
   /* ================= 条件の操作 ================= */
   function reload() { S.page = 1; saveActive(); renderBar(); load(); }
+  /** 並べ替え（見出しで決めた分）を list にして引き直す。見出し・件数の行の札・表の見せ方から */
+  function setSorts(list) {
+    S.sorts = list.slice(0, MAX_SORTS); S.page = 1; saveActive();
+    if (!$("#llViewMenu").hidden) renderViewMenu();
+    renderPresetButton(); load();
+  }
   function addFilter(f) {
     if (!S.genericFilters.some((x) => filterKey(x) === filterKey(f))) S.genericFilters.push({ column: f.column, op: f.op, value: f.value });
     reload();
@@ -412,9 +426,75 @@
     return "saved";
   }
 
-  /* ================= プリセット（登録した条件の組み合わせ・切り替え） ================= */
+  /* ================= 保存した見方（7 案＋2 回目で選んだ: ui-proposals/2026-10-sortview* の M2） =================
+     条件・並べ替え・まとめ・スライサー（選んだ値ごと・開いているか）・検索、集計表・グラフの組み方（一覧｜集計も）、
+     作業実績の「作業でまとめる」の形（日ごと・日＋直ごと・日付の数え方・合計する列）に名前を付けて保存し、プリセットと同じ面で呼び出す。
+     呼び出すと、その形にまるごと入れ替わる（「いつも適用（固定）」の条件はそのまま。列で絞り込むの値は外す）。
+     その時だけの状態（列で絞り込むの値・畳んだまとまり・頁）は入れない。範囲（表・設備）ごと（table）。保存する前に、入る物を札で見せる */
+  const allViews = () => store.get(KEY.views, []);
+  const tableViews = () => { const k = scope(); return allViews().filter((v) => v.table === k); };
+  const saveViews = (list) => store.set(KEY.views, list.slice(0, 200));
+  const newId = (head) => head + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  function captureView() {
+    const A = arrange();
+    return {
+      filters: S.genericFilters.filter((f) => !f.locked).map(({ column, op, value }) => ({ column, op, value })),
+      sorts: S.sorts.map(({ column, dir }) => ({ column, dir })),
+      arrange: levels().length ? { levels: A.levels.map(({ column, dir, lot }) => ({ column, dir, lot: !!lot })), heads: A.heads, suppress: A.suppress } : null,
+      slicer: window.LotListSlicer.setupOf(scope(), { sel: true }),
+      slicerOpen: window.LotListSlicer.isOpen(),
+      search: S.search || "",
+      pivot: window.LotListPivot.stateOf(),
+      work: S.src.id === "work" ? (({ mode, basis, order, start, total }) => ({ mode, basis, order, start, total }))(window.LotListWork.conf()) : null,
+    };
+  }
+  /** 入っている物の札（「条件 1」「並べ替え 2」「まとめ なし」…） */
+  function viewTags(v) {
+    const n = (k, x) => `${k} ${x || "なし"}`, lv = v.arrange && v.arrange.levels ? v.arrange.levels.length : 0;
+    const wk = v.work && v.work.mode && v.work.mode !== "none" ? `作業でまとめる: ${v.work.mode === "day" ? "日ごと" : "日＋直ごと"}${v.work.total ? "・合計" : ""}` : "";
+    return [n("条件", (v.filters || []).length), n("並べ替え", (v.sorts || []).length), n("まとめ", lv ? `${lv}段` : 0),
+      n("スライサー", (v.slicer || []).filter((c) => (c.sel || []).length).length)].concat(v.search ? [`検索「${v.search}」`] : [])
+      .concat(v.pivot && v.pivot.view === "pivot" ? ["集計表・グラフ"] : []).concat(wk ? [wk] : []);
+  }
+  /* 見方の比べ方（変更ありか）。like（保存した見方）に無い部品は比べない（版 3.22.0 で保存した見方には、集計・作業でまとめるが無い） */
+  const viewSig = (v, like = v) => JSON.stringify([v.filters || [], v.sorts || [], (v.arrange && v.arrange.levels) || [],
+    (v.slicer || []).filter((c) => (c.sel || []).length).map((c) => [c.column, c.sel]), v.search || "",
+    "pivot" in like && v.pivot ? [v.pivot.view, v.pivot.rows, v.pivot.cols, v.pivot.measures, v.pivot.chart] : null,
+    like.work && v.work ? v.work : null, "slicerOpen" in like ? !!v.slicerOpen : null]);
+  function saveCurrentView() {
+    const cur = captureView(), list = allViews(), sel = selectedPresetKey();
+    const was = sel.startsWith("v:") ? list.find((v) => "v:" + v.id === sel) : null;
+    const name = (prompt(`いまの条件と並べ替えに名前を付けて保存します（同じ名前は上書き）\n入る物: ${viewTags(cur).join("・")}`, was ? was.name : "") || "").trim().slice(0, 40);
+    if (!name) return;
+    const same = list.find((v) => v.table === scope() && v.name === name);
+    if (same && !confirm(`保存した見方「${name}」を、いまの形で上書きします。よろしいですか？`)) return;
+    const v = { id: same ? same.id : newId("v"), name, table: scope(), savedAt: new Date().toISOString(), ...cur };
+    saveViews(same ? list.map((x) => (x === same ? v : x)) : [v, ...list]);
+    setSelectedPreset("v:" + v.id); renderPresetButton();
+    flash(`「${name}」として保存しました（${viewTags(cur).join("・")}）`, 4000);
+  }
+  function applyView(v) {
+    const have = (x) => !S.columns.length || S.columns.includes(x.column);
+    const locked = S.genericFilters.filter((f) => f.locked), seen = new Set(locked.map(filterKey));
+    S.genericFilters = locked.concat((v.filters || []).filter((f) => !seen.has(filterKey(f))).map(({ column, op, value }) => ({ column, op, value })));
+    S.sorts = cleanArrange({ sorts: v.sorts }).sorts.filter(have);
+    const a = cleanArrange(v.arrange || {});
+    saveArrange(v.arrange ? { levels: a.levels.filter(have), heads: a.heads, suppress: a.suppress } : { levels: [] });
+    if ((v.slicer || []).length) window.LotListSlicer.setSetup(scope(), v.slicer, { sel: true }); else window.LotListSlicer.clearAll();
+    S.search = String(v.search || ""); const box = $("#llSearch"); if (box) box.value = S.search;
+    resetAdhoc();
+    if (typeof v.slicerOpen === "boolean") window.LotListSlicer.setOpen(v.slicerOpen);
+    if (v.work && S.src.id === "work") window.LotListWork.setConf(v.work);
+    if (v.pivot) window.LotListPivot.setState(v.pivot);
+    setSelectedPreset("v:" + v.id);
+    if (!$("#llViewMenu").hidden) renderViewMenu();
+    reload();
+  }
+
+  /* ================= プリセット（登録した条件の組み合わせ・切り替え。保存した見方も同じ面で） ================= */
   function presetEntries() {
     const ps = tablePresets(), out = [], groups = new Map();
+    tableViews().forEach((v) => out.push({ kind: "view", key: "v:" + v.id, name: v.name, conds: v.filters || [], view: v }));
     ps.forEach((p) => { if (p.group) { if (!groups.has(p.group)) groups.set(p.group, []); groups.get(p.group).push(p); } });
     groups.forEach((list, g) => out.push({ kind: "combo", key: "g:" + g, name: g, conds: list.flatMap((p) => p.filters || []) }));
     ps.forEach((p) => out.push({ kind: "single", key: "p:" + p.id, name: p.name, conds: p.filters || [] }));
@@ -426,12 +506,14 @@
   }
   function setSelectedPreset(k) { const m = store.get(KEY.presetSel, {}), here = scope(); if (k) m[here] = k; else delete m[here]; store.set(KEY.presetSel, m); }
   /* 切り替え＝入れ替え（足すのではない）。前のプリセットの条件を外し、新しいプリセットの条件を入れる。
-     手で足した条件と「いつも適用（固定）」はそのまま。 */
+     手で足した条件と「いつも適用（固定）」はそのまま。
+     保存した見方は、その形にまるごと入れ替える（applyView）。見方から離れるときは、いまの形のまま印だけ外す */
   function switchPreset(key) {
     const entries = presetEntries();
     const prev = entries.find((e) => e.key === selectedPresetKey());
     const next = entries.find((e) => e.key === key);
-    if (prev) {
+    if (next && next.kind === "view") { applyView(next.view); return; }
+    if (prev && prev.kind !== "view") {
       const drop = new Set(prev.conds.map(filterKey));
       S.genericFilters = S.genericFilters.filter((f) => f.locked || !drop.has(filterKey(f)));
     }
@@ -446,6 +528,10 @@
     const entries = presetEntries();
     const cur = entries.find((e) => e.key === selectedPresetKey());
     if (!cur) return { name: "なし", total: 0, off: 0, empty: !entries.length, note: "" };
+    if (cur.kind === "view") {
+      const changed = viewSig(captureView(), cur.view) !== viewSig(cur.view);
+      return { name: cur.name, total: 1, off: changed ? 1 : 0, empty: false, note: changed ? "変更あり" : "", view: cur.view, changed };
+    }
     const active = new Set(S.genericFilters.map(filterKey));
     const off = cur.conds.filter((f) => !active.has(filterKey(f))).length;
     return { name: cur.name, total: cur.conds.length, off, empty: false, note: off ? `${off}件外し中` : "" };
@@ -692,8 +778,9 @@
     btn.classList.toggle("is-on", st.total > 0 && !st.off);
     btn.classList.toggle("is-partial", st.total > 0 && st.off > 0);
     btn.classList.toggle("is-none", !st.total);
-    btn.title = st.empty
-      ? "プリセット（登録した条件の組み合わせ）はまだありません。\n条件を登録して、「登録した条件とプリセット」で組み合わせに名前を付けると、ここで切り替えられます。"
+    btn.title = st.view ? `保存した見方「${st.name}」（${viewTags(st.view).join("・")}）` + (st.changed ? "\nいまは、条件・並べ替えなどを保存した形から変えています（もう一度押すと保存した形に戻ります）" : "")
+      : st.empty
+      ? "プリセット（登録した条件の組み合わせ）と保存した見方はまだありません。\n押して「いまの条件と並べ替えを名前を付けて保存…」で保存できます。"
       : st.total ? `プリセット「${st.name}」（条件${st.total}件${st.off ? `／うち${st.off}件は外しています` : ""}）\n押すと別のプリセットへ切り替えます。`
         : "プリセットを当てていません。押すと切り替えられます。";
   }
@@ -903,14 +990,17 @@
   function openPresetMenu(anchor) {
     if (presetMenuEl) { closePresetMenu(); return; }
     const entries = presetEntries(), cur = selectedPresetKey();
-    const combos = entries.filter((e) => e.kind === "combo"), ones = entries.filter((e) => e.kind === "single");
+    const combos = entries.filter((e) => e.kind === "combo"), ones = entries.filter((e) => e.kind === "single"), views = entries.filter((e) => e.kind === "view");
     const sub = (e) => `${e.conds.length}条件 ／ ` + e.conds.map(condLabel).join(" ・ ");
-    let body = '<p class="fb-preset-head">プリセット<small>登録した条件の組み合わせ。押すと切り替わります（足すのではなく入れ替え）</small></p>'
-      + pickHtml(PRESET_NONE, "なし", "プリセットの条件を入れません", !cur);
+    let body = '<p class="fb-preset-head">プリセット<small>押すと切り替わります（足すのではなく入れ替え）。保存した見方は、条件・並べ替えなどがその形になります</small></p>'
+      + pickHtml(PRESET_NONE, "なし", "プリセットの条件を入れません（保存した見方は、いまの形のまま外します）", !cur);
+    if (views.length) body += '<p class="fb-preset-sec">保存した見方（条件・並べ替え・まとめ・スライサー）</p>' + views.map((e) => pickHtml(e.key, e.name, viewTags(e.view).join("・"), e.key === cur)).join("");
     if (combos.length) body += '<p class="fb-preset-sec">組み合わせ</p>' + combos.map((e) => pickHtml(e.key, e.name, sub(e), e.key === cur)).join("");
     if (ones.length) body += '<p class="fb-preset-sec">登録した条件（1件ずつ当てる）</p>' + ones.map((e) => pickHtml(e.key, e.name, sub(e), e.key === cur)).join("");
-    if (!entries.length) body += '<p class="fb-preset-empty">登録した条件がまだありません。条件を作って「登録」すると、ここに並びます。</p>';
-    body += '<div class="fb-preset-foot"><button type="button" id="llPresetManage">登録した条件とプリセットを開く</button>'
+    if (!entries.length) body += '<p class="fb-preset-empty">登録した条件・保存した見方がまだありません。条件を作って「登録」するか、下でいまの形を保存すると、ここに並びます。</p>';
+    body += `<div class="fb-preset-now"><p class="fb-preset-sec">いまの形<small>保存すると入る物</small></p><div class="fb-preset-tags">${viewTags(captureView()).map((t) => `<i>${esc(t)}</i>`).join("")}</div>`
+      + '<button type="button" id="llViewSave" class="fb-preset-save">＋ いまの条件と並べ替えを名前を付けて保存…</button></div>'
+      + '<div class="fb-preset-foot"><button type="button" id="llPresetManage">登録した条件・プリセット・保存した見方を開く</button>'
       + "<small>「いつも適用（固定）」の条件は、切り替えても入ったままです。</small></div>";
     const menu = document.createElement("div");
     menu.className = "fb-preset-menu"; menu.setAttribute("role", "menu"); menu.innerHTML = body;
@@ -918,6 +1008,7 @@
     TPA.placeBelow(menu, anchor);
     $$("[data-preset-key]", menu).forEach((b) => { b.onclick = () => { const k = b.dataset.presetKey; closePresetMenu(); switchPreset(k); }; });
     $("#llPresetManage", menu).onclick = () => { closePresetMenu(); openPresetModal(); };
+    $("#llViewSave", menu).onclick = () => { closePresetMenu(); saveCurrentView(); };
     anchor.setAttribute("aria-expanded", "true");
     presetOff = TPA.dismissable(menu, closePresetMenu, { keep: anchor });
   }
@@ -929,7 +1020,30 @@
     requestAnimationFrame(() => $("#llPresetModalClose").focus());
   }
   function closePresetModal() { $("#llPresetModal").hidden = true; $("#llCondBtn")?.focus(); }
+  /* 保存した見方の行（名前を直す・当てる・いまの形で上書き・削除） */
+  function renderViewRows() {
+    const vs = tableViews(), body = $("#llViewRows");
+    body.innerHTML = vs.length ? vs.map((v) => `<tr data-id="${esc(v.id)}">
+        <td><input class="ll-pm-vname" value="${esc(v.name)}" maxlength="40" aria-label="保存した見方の名前"></td>
+        <td class="ll-pm-tags">${viewTags(v).map((t) => `<i>${esc(t)}</i>`).join("")}</td>
+        <td class="c"><button type="button" class="row-btn ll-pm-vapply">当てる</button></td>
+        <td class="c"><button type="button" class="row-btn ll-pm-vput" title="いまの条件・並べ替え・まとめ・スライサー・検索で上書きします">いまの形で上書き</button></td>
+        <td class="c"><button type="button" class="row-btn danger ll-pm-vdel">削除</button></td></tr>`).join("")
+      : '<tr><td colspan="5" class="ll-pm-empty">保存した見方はまだありません。「プリセット」の「いまの条件と並べ替えを名前を付けて保存…」で保存できます。</td></tr>';
+    $$("tr[data-id]", body).forEach((tr) => {
+      const id = tr.dataset.id, edit = (fn) => { saveViews(allViews().map((v) => (v.id === id ? fn(v) : v))); renderViewRows(); renderPresetButton(); };
+      const v = allViews().find((x) => x.id === id);
+      $(".ll-pm-vname", tr).onchange = (e) => { const n = e.target.value.trim().slice(0, 40); if (n) edit((x) => ({ ...x, name: n })); else e.target.value = v.name; };
+      $(".ll-pm-vapply", tr).onclick = () => applyView(v);
+      $(".ll-pm-vput", tr).onclick = () => { if (confirm(`保存した見方「${v.name}」を、いまの形（${viewTags(captureView()).join("・")}）で上書きします。よろしいですか？`)) edit((x) => ({ ...x, ...captureView(), savedAt: new Date().toISOString() })); };
+      $(".ll-pm-vdel", tr).onclick = () => {
+        if (!confirm(`保存した見方「${v.name}」を削除します。よろしいですか？（いまの条件・並べ替えはそのままです）`)) return;
+        saveViews(allViews().filter((x) => x.id !== id)); renderViewRows(); renderPresetButton();
+      };
+    });
+  }
   function renderPresetModal() {
+    renderViewRows();
     const ps = tablePresets(), groups = [...new Set(ps.map((p) => p.group).filter(Boolean))];
     $("#llPresetGroups").innerHTML = groups.map((g) => `<option value="${esc(g)}"></option>`).join("");
     $("#llPresetTable").textContent = S.table ? S.src.place(S.table) : "-";
@@ -1122,7 +1236,7 @@
     });
     $("#llGap").oninput = (e) => { LC.setRowGap(+e.target.value); $("#llGapLabel").textContent = LC.GAP[+e.target.value - 1][0]; renderGrid(); };
     $("#llPageSize").onchange = (e) => { S.pageSize = +e.target.value; store.set(KEY.pageSize, S.pageSize); S.page = 1; load(); };
-    $("#llSortClear")?.addEventListener("click", () => { S.sorts = []; S.page = 1; saveActive(); renderViewMenu(); load(); });
+    $("#llSortClear")?.addEventListener("click", () => setSorts([]));
     $("#llFeatLens").onchange = (e) => { setFeature("lens", e.target.checked); renderGrid(); paintLotHint(); };
     $("#llFeatCard").onchange = (e) => { setFeature("card", e.target.checked); if (!feat.card) window.LotListCard.close(); renderPager(); };
   }
@@ -1368,7 +1482,7 @@
         : `${LC.label(t, c)}${LC.label(t, c) !== c ? `（元: ${c}）` : ""}`)
         + (facts.length ? "\n― " + facts.join("\n― ") : "")
         + (calc ? "\nドラッグで列の入れ替え"
-          : "\n" + (li >= 0 ? "まとめている列: クリックで ▲／▼ を入れ替え" : `クリックで並び替え。Shift+クリックで並べ替えのキーを足します（段と合わせて最大${MAX_SORTS}つ）`)
+          : "\n" + (li >= 0 ? "まとめている列: クリックで ▲／▼ を入れ替え" : `クリックで ▲ 小さい順 → ▼ 大きい順 → 外す。Shift+クリックで並べ替えのキーを足します（段と合わせて最大${MAX_SORTS}つ）`)
             + "\nドラッグで列の入れ替え（どの列もどこへでも）・右クリックで「この列でまとめる」など");
       return `<th data-col="${esc(c)}" draggable="true" class="${c === S.lotColumn ? "ll-lotcol " : ""}${filtered.has(c) ? "col-filtered " : ""}${calc ? "is-calc " : ""}${li >= 0 ? "is-level " : ""}${sorted ? "is-sorted " : ""}al-h-${al.head}"`
         + `${li >= 0 ? ` data-lv="${li + 1}"` : ""}${sorted ? ` data-sort="${sorted}"` : ""} title="${esc(tip)}">`
@@ -1413,6 +1527,7 @@
       + `<button type="button" class="ll-gadd" data-gedit title="段を足す・順を変える・見せ方を変える（表の見せ方を開きます）">＋ 段・見せ方</button>`
       + (heads ? '<button type="button" data-gall="1">全部開く</button><button type="button" data-gall="0">全部畳む</button>' : "")
       + '<button type="button" data-goff title="まとめずに1行ずつ並べます">まとめない</button>' : "";
+    paintSortBar();
     $("#llCardHint").hidden = !feat.card || !S.rows.length;
     paintLotHint();
     $("#llRange").textContent = S.count ? `${from.toLocaleString()}–${to.toLocaleString()}` : "0";
@@ -1423,6 +1538,24 @@
     const sig = S.tables.join("\u001f");
     if (tsel.dataset.sig !== sig) { tsel.dataset.sig = sig; tsel.innerHTML = S.tables.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join(""); }
     tsel.value = S.table;
+  }
+  /* 件数の行の並べ替えの札（7 案＋2 回目で選んだ: ui-proposals/2026-10-sortview* の M2）。まとめの段の札と同じ形で、その後ろに置く。
+     番号はサーバーへ渡す並べ替えの順（段の後ろに続く）。▲／▼ で向きを替え、× で外す。キーの上限で効いていない分は淡く */
+  function paintSortBar() {
+    const bar = $("#llSortBar"), lv = new Set(levels().map((l) => l.column));
+    const list = S.sorts.filter((x) => !lv.has(x.column) && (!S.columns.length || S.columns.includes(x.column)));
+    bar.hidden = !list.length;
+    if (!list.length) { bar.innerHTML = ""; return; }
+    const eff = effectiveSorts(), t = layoutTarget();
+    bar.innerHTML = `<span class="ll-skey" title="見出しを押して決めた並べ替え（▲ → ▼ → 外す）">${grouped() ? "その中の並べ替え" : "並べ替え"}</span>`
+      + list.map((x, k) => {
+        const n = eff.findIndex((e) => e.column === x.column), name = window.LotListColumns.label(t, x.column);
+        return `${k ? '<i class="ll-gsep" aria-hidden="true">›</i>' : ""}<span class="ll-schip${n < 0 ? " is-off" : ""}"${n < 0 ? ` title="並べ替えのキーは段と合わせて${MAX_SORTS}つまでなので、効いていません"` : ""}>`
+          + `<b class="ll-sn">${n < 0 ? "－" : n + 1}</b>${esc(name)}`
+          + `<button type="button" data-sdir="${esc(x.column)}" title="押すと ▲ 小さい順／▼ 大きい順 を入れ替えます" aria-label="「${esc(name)}」の向きを入れ替える">${x.dir === "desc" ? "▼" : "▲"}</button>`
+          + `<button type="button" data-sx="${esc(x.column)}" title="この並べ替えを外します" aria-label="「${esc(name)}」の並べ替えを外す">×</button></span>`;
+      }).join("")
+      + '<button type="button" class="ll-soff" data-soff title="並べ替えを全部外し、元の順に戻します">並べ替えを外す</button>';
   }
   const hm = (sec) => {
     if (!sec) return "";
@@ -1547,12 +1680,14 @@
       if (levels().some((l) => l.column === col)) {        // まとめている列: その段の ▲／▼ を入れ替える（段はそのまま）
         setLevels(arrange().levels.map((l) => (l.column === col ? { ...l, dir: l.dir === "asc" ? "desc" : "asc" } : l))); load(); return;
       }
+      // ▲ 小さい順 → ▼ 大きい順 → 外す（3 回目で元の順へ。以前は ▲⇄▼ を回るだけで外せなかった）。Shift は足す（その列だけを回す）
+      const next = i < 0 ? "asc" : S.sorts[i].dir === "asc" ? "desc" : "";
       if (e.shiftKey) {
-        if (i >= 0) S.sorts[i].dir = S.sorts[i].dir === "asc" ? "desc" : "asc";
+        if (i >= 0) { if (next) S.sorts[i] = { column: col, dir: next }; else S.sorts.splice(i, 1); }
         else if (S.sorts.length < MAX_SORTS - sortingLevels().length) S.sorts.push({ column: col, dir: "asc" });
-        else flash(`並べ替えのキーは、まとめる段と合わせて${MAX_SORTS}つまでです`);
-      } else S.sorts = [{ column: col, dir: i >= 0 && S.sorts.length === 1 && S.sorts[0].dir === "asc" ? "desc" : "asc" }];
-      S.page = 1; saveActive(); load();
+        else { flash(`並べ替えのキーは、まとめる段と合わせて${MAX_SORTS}つまでです`); return; }
+      } else S.sorts = i >= 0 && S.sorts.length === 1 ? (next ? [{ column: col, dir: next }] : []) : [{ column: col, dir: "asc" }];
+      setSorts(S.sorts);
     });
     $("#llBody").addEventListener("click", (e) => {
       const w = e.target.closest(".wk-plus");
@@ -1581,6 +1716,12 @@
       else if (b.dataset.gdir) { const c = b.dataset.gdir; setLevels(arrange().levels.map((l, k) => (l.column === c ? { ...l, dir: dirOf(l, k) === "asc" ? "desc" : "asc" } : l))); load(); }
       else if (b.dataset.gx) { setLevels(arrange().levels.filter((l) => l.column !== b.dataset.gx)); load(); }
       else if (b.hasAttribute("data-goff")) { setLevels([]); load(); }
+    });
+    $("#llSortBar").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.sdir) setSorts(S.sorts.map((x) => (x.column === b.dataset.sdir ? { column: x.column, dir: x.dir === "desc" ? "asc" : "desc" } : x)));
+      else if (b.dataset.sx) setSorts(S.sorts.filter((x) => x.column !== b.dataset.sx));
+      else if (b.hasAttribute("data-soff")) setSorts([]);
     });
     root.addEventListener("click", (e) => {
       if (e.target.closest("[data-ll-clear-all]")) { dropAllFilters({ adhoc: true }); S.search = ""; $("#llSearch").value = ""; reload(); }
@@ -1693,7 +1834,7 @@
      異常ロット一覧と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   function activate({ source = "lot", currentLot } = {}) {
     const next = STATES[source] || STATES.lot;
-    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); }
+    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); window.LotListPivot.sync(); }
     S.currentLot = currentLot || S.currentLot || "";
     root.dataset.source = S.src.id;
     if (!S.activated && S.table) syncContext(true);
@@ -1739,6 +1880,18 @@
       $(`[data-equip="${CSS.escape(n.dataset.equip)}"]`, bar)?.focus();
     });
   }
+  /** Excel に出力の「出力の条件」（一覧の出力と集計表の出力が同じ物を使う） */
+  function exportConditions() {
+    return [["一覧", S.src.title], [S.src.id === "work" ? "設備・表" : "表", S.src.place(S.table)],
+      ["元データ", `${(S.source && S.source.remote) || "-"}${S.source && S.source.at ? `（${hm(S.source.at)} の版）` : ""}`],
+      ["検索", S.search || "（なし）"],
+      ...(condRows().length ? condRows().map((r) => ["条件", r.kind === "adhoc" ? `列で絞り込み: ${r.label}` : condLabel(r.f)]) : [["条件", "（なし）"]]),
+      ...window.LotListSlicer.summary().map(([c, v]) => [`スライサー: ${c}`, v]),
+      ...window.LotListMarks.summary(),
+      ["並べ替え", effectiveSorts().map((x) => `${window.LotListColumns.label(layoutTarget(), x.column)} ${x.dir === "desc" ? "▼" : "▲"}`).join("・") || "（元の順）"],
+      ...((S.src.id === "work" && window.LotListWork.exportInfo()?.conditions) || []),
+      ["絞り込みに当たる件数", `${S.count.toLocaleString()} 件`]];
+  }
   function mount(opts) {
     root = $("#lotListScreen");
     onPick = opts.onPick || onPick;
@@ -1762,6 +1915,7 @@
     });
     window.LotListWork.mount({
       scope, isWork: () => S.src.id === "work", toast: (m) => flash(m),
+      label: (c) => window.LotListColumns.label(layoutTarget(), c),
       reload: () => { S.page = 1; load(); },
       openMaster: (tab) => window.openMasterAt && window.openMasterAt(tab),
     });
@@ -1775,15 +1929,20 @@
       fileStem: () => `${S.src.fileStem}_${S.src.place(S.table)}`.replace(/[\\/:*?"<>|]/g, "_"),
       work: () => (S.src.id === "work" ? window.LotListWork.exportInfo() : null),
       marks: () => window.LotListMarks.exportPlan(),
-      conditions: () => [["一覧", S.src.title], [S.src.id === "work" ? "設備・表" : "表", S.src.place(S.table)],
-        ["元データ", `${(S.source && S.source.remote) || "-"}${S.source && S.source.at ? `（${hm(S.source.at)} の版）` : ""}`],
-        ["検索", S.search || "（なし）"],
-        ...(condRows().length ? condRows().map((r) => ["条件", r.kind === "adhoc" ? `列で絞り込み: ${r.label}` : condLabel(r.f)]) : [["条件", "（なし）"]]),
-        ...window.LotListSlicer.summary().map(([c, v]) => [`スライサー: ${c}`, v]),
-        ...window.LotListMarks.summary(),
-        ["並べ替え", effectiveSorts().map((x) => `${window.LotListColumns.label(layoutTarget(), x.column)} ${x.dir === "desc" ? "▼" : "▲"}`).join("・") || "（元の順）"],
-        ...((S.src.id === "work" && window.LotListWork.exportInfo()?.conditions) || []),
-        ["絞り込みに当たる件数", `${S.count.toLocaleString()} 件`]],
+      conditions: exportConditions,
+    });
+    window.LotListPivot.mount({
+      scope, api: () => S.src.api, isWork: () => S.src.id === "work",
+      base: () => { const q = new URLSearchParams(S.src.params()); if (S.table) q.set("table", S.table); return q.toString(); },
+      fieldsKey: () => `${S.equip}|${S.table}|${(S.source && S.source.copiedAt) || ""}`,
+      query: () => filterParams().toString(),
+      label: (c) => window.LotListColumns.label(layoutTarget(), c),
+      dateColumns: () => S.dateColumns,
+      workParams: () => { if (S.src.id !== "work") return {}; const c = window.LotListWork.conf(); return { basis: c.basis, start: c.start }; },
+      conditions: () => exportConditions().filter(([k]) => k !== "並べ替え"),
+      fileStem: () => `${S.src.fileStem}_${S.src.place(S.table)}`.replace(/[\\/:*?"<>|]/g, "_"),
+      toast: (m) => flash(m),
+      onView: (on) => { root.classList.toggle("is-pivot", on); $("#llPivot").hidden = !on; },
     });
     window.LotListCard.mount({
       rows: () => S.rows, target: layoutTarget, lotColumn: () => S.lotColumn, lotKey,
@@ -1799,7 +1958,7 @@
     });
   }
   /* ================= 共有の書式（lotlist-formats.js が呼ぶ）: いまの表示ルールを取り出す・ほかの所へ当てる =================
-     部品（services/display_formats.PARTS と同じ名前）: 表示列・読み替えルール・並び・まとめ・並べ替え・登録した条件・スライサー・列で絞り込む。
+     部品（services/display_formats.PARTS と同じ名前）: 表示列・読み替えルール・並び・まとめ・並べ替え・登録した条件・保存した見方・スライサー・列で絞り込む。
      その時だけの状態（効いている条件の値・スライサーで選んだ値・列で絞り込むの値・畳んだまとまり）は運ばない。
      当てる所（place）: {key: 範囲, target: 表示列の対象, label}。作業実績は設備ごと（その設備で最後に見た表。無ければ書式の表） */
   const isEmptyLayout = (l) => !l || Object.values(l).every((v) => (Array.isArray(v) ? !v.length : !Object.keys(v || {}).length));
@@ -1816,6 +1975,8 @@
     if (S.sorts.length) out.sorts = S.sorts.map(({ column, dir }) => ({ column, dir }));
     const ps = tablePresets().map(({ id: _id, table: _t, ...p }) => TPA.clone(p));
     if (ps.length) out.presets = ps;
+    const vs = tableViews().map(({ id: _id, table: _t, ...v }) => TPA.clone(v));
+    if (vs.length) out.views = vs;
     const cards = window.LotListSlicer.setupOf(k);
     if (cards.length) out.slicer = { cards };
     const marks = window.LotListMarks.setupOf(k);
@@ -1838,6 +1999,7 @@
   function snapshotPlace(pl) {
     const was = { columns: window.LotListColumns.layoutOf(pl.target), arrange: store.get(KEY.arrange, {})[pl.key] || null,
       sorts: store.get(KEY.sorts, {})[pl.key] || [], presets: S.presets.filter((p) => p.table === pl.key).map((p) => TPA.clone(p)),
+      views: allViews().filter((v) => v.table === pl.key).map((v) => TPA.clone(v)),
       slicer: { cards: window.LotListSlicer.setupOf(pl.key) }, marks: window.LotListMarks.setupOf(pl.key), adhoc: store.get(KEY.adhoc, {})[pl.key] || null };
     return { place: pl, was };
   }
@@ -1848,7 +2010,7 @@
     let rules = 0;
     Object.entries(body.rules || {}).forEach(([n, r]) => { if (LR.putRaw(n, r)) rules++; });   // ルールは名前で呼ぶので先に入れる
     const arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {});
-    let presets = S.presets;
+    let presets = S.presets, views = allViews();
     places.forEach((pl) => {
       if (body.columns) LC.replaceLayout(pl.target, body.columns);
       if (body.arrange) { const { sorts: _s, ...a } = cleanArrange(body.arrange); arr[pl.key] = a; }
@@ -1857,30 +2019,35 @@
         presets = presets.filter((p) => p.table !== pl.key).concat(body.presets.map((p, i) => ({ ...TPA.clone(p),
           id: "p" + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 5), table: pl.key })));
       }
+      if (Array.isArray(body.views)) {
+        views = views.filter((v) => v.table !== pl.key).concat(body.views.filter((v) => v && v.name).map((v) => ({ ...TPA.clone(v), id: newId("v"), table: pl.key })));
+      }
       if (body.slicer) window.LotListSlicer.setSetup(pl.key, body.slicer.cards);
       if (body.marks) window.LotListMarks.setSetup(pl.key, body.marks);
       if (body.adhoc) adh[pl.key] = { column: String(body.adhoc.column || ""), op: body.adhoc.op || "contains" };
     });
     store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
     if (body.presets) savePresets(presets.slice(0, 400));
+    if (Array.isArray(body.views)) saveViews(views);
     afterFormat(places);
     return { places: places.length, rules, undo };
   }
   /** 元に戻す: 当てる前の表示ルールへ（applyFormat の undo をそのまま） */
   function undoFormat(undo) {
     const LC = window.LotListColumns, arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {});
-    let presets = S.presets;
+    let presets = S.presets, views = allViews();
     undo.forEach(({ place: pl, was }) => {
       LC.replaceLayout(pl.target, was.columns);
       if (was.arrange) arr[pl.key] = was.arrange; else delete arr[pl.key];
       if (was.sorts.length) srt[pl.key] = was.sorts; else delete srt[pl.key];
       if (was.adhoc) adh[pl.key] = was.adhoc; else delete adh[pl.key];
       presets = presets.filter((p) => p.table !== pl.key).concat(was.presets);
+      views = views.filter((v) => v.table !== pl.key).concat(was.views || []);
       window.LotListSlicer.setSetup(pl.key, was.slicer.cards);
       window.LotListMarks.setSetup(pl.key, was.marks || []);
     });
     store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
-    savePresets(presets);
+    savePresets(presets); saveViews(views);
     afterFormat(undo.map((u) => u.place));
   }
   /** いまの所に当たったら、覚えを読み直して引き直す（ほかの所は、その設備を開いたときに効く） */

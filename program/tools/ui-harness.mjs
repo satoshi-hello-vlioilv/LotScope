@@ -50,6 +50,9 @@ const HEADERS = {
   active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] },
 };
 
+// 並べ替えの状態（sorted）: まとめず、重量 ▼ → 板厚 ▲ の 2 つで並べ、不良名が空欄でない行に絞る
+const SORTED = { sorts: { "仕掛": [{ column: "重量", dir: "desc" }, { column: "板厚", dir: "asc" }] }, active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] } };
+
 /** サーバーとブラウザーを起こす。{ browser, newPage(テーマ, 大きさ), close() } */
 export async function launch() {
   const port = 8765 + Math.floor(Math.random() * 1000);
@@ -99,7 +102,7 @@ export async function launch() {
 async function closeAll(page) {
   for (let i = 0; i < 3; i++) await page.keyboard.press("Escape");
   // Esc で閉じない窓（表示列の設定・マスタ管理）は閉じるボタンで
-  for (const sel of ["#llColumnPanel:not([hidden]) #lcClose", "#masterOverlay:not(.hidden) #masterCloseBtn"]) {
+  for (const sel of ["#llFxPanel:not([hidden]) [data-act=close]", "#llColumnPanel:not([hidden]) #lcClose", "#masterOverlay:not(.hidden) #masterCloseBtn"]) {
     const b = await page.$(sel);
     if (b) await b.click().catch(() => {});
   }
@@ -128,6 +131,19 @@ export const STATES = [
     await sleep(600);
   }, "[data-next], #llHead th"],
   ["viewmenu", async (p) => { await p.click("#llViewBtn"); await sleep(400); }, "[data-next], #llLvAdd"],
+  // 並べ替え（まとめずに 2 つのキー: 重量 ▼ → 板厚 ▲）と条件 1 つ。並べ替えの見え方・外し方、条件と並べ替えの保存の入口を見る
+  ["sorted", async (p) => {
+    await closeAll(p);
+    await p.evaluate(async ({ sorts, active }) => {
+      TPA.local.set("tpa.lotlist.arrange.v1", {}); TPA.local.set("tpa.lotlist.sorts.v1", sorts); TPA.local.set("tpa.lotlist.active.v1", active);
+      await TPA.saveUiState();
+    }, SORTED);
+    await p.reload();
+    await p.waitForSelector("#llBody tr[data-i]");
+    await sleep(600);
+  }, "[data-next], #llSortBar [data-soff]"],
+  // 並べ替えの状態で「プリセット」を開いたところ（保存した見方・いまの形の札・保存）
+  ["sorted-preset", async (p) => { await p.click("#llPresetBtn"); await sleep(400); }, "[data-next], #llViewSave"],
   ["card", async (p) => { await closeAll(p); await p.dblclick("#llBody tr[data-i] td:nth-child(3)"); await sleep(600); }, "[data-next], .lk-pin"],
   ["calc", async (p) => { await closeAll(p); await p.click("#tabCalc"); await sleep(500); }, "[data-next], #query"],
   // 作業実績（設備ごとの実績。設備を札で替える）: 開いた直後（前に見た設備か、読める最初の設備）
@@ -135,8 +151,12 @@ export const STATES = [
   // 作業実績を作業でまとめる（日＋直ごと。右に日×直のロット数）と、表の数を押してその日・直に絞ったところ
   ["worklog-work", async (p) => { await p.click('#llWorkSwitch [data-wk-mode="dayshift"]'); await p.waitForSelector("#llWork .wk-pv"); await sleep(600); }, "[data-next], #llWork [data-wk-shift]"],
   ["worklog-pick", async (p) => { await p.click("#llWork tbody tr:nth-child(4) [data-wk-shift]"); await sleep(900); }, "[data-next], #llWorkSwitch [data-wk-unpick]"],
+  // 集計表・グラフ（ピボット集計）: すぐに見る「作業日ごとのロット数・重量」（時系列）と、重量のヒストグラム
+  ["worklog-pivot", async (p) => { await p.click("#llWorkSwitch [data-wk-unpick]").catch(() => {}); await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick");
+    await p.click('#llPivot [data-pv-quick="0"]'); await p.waitForSelector("#llPivot .pv-table"); await sleep(700); }, "[data-next], #llPivot [data-pv-chart]"],
+  ["worklog-hist", async (p) => { await p.click('#llPivot [data-pv-chart="hist"]'); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
   // 共有の書式（作業実績の道具の行の「書式 ▾」）: 開いたところ・設備を選ぶところ・当てたところ（元に戻すが出る）
-  ["formats", async (p) => { await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
+  ["formats", async (p) => { await p.click('#llViewSwitch [data-pv-view="list"]').catch(() => {}); await sleep(300); await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-pick", async (p) => { await p.click('#llFormatPanel input[name="fmTo"][value="pick"]'); await sleep(300);
     for (const n of [1, 2, 3]) await p.click(`#llFormatPanel .fm-equips label:nth-of-type(${n + 1}) input`).catch(() => {}); await sleep(300); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-applied", async (p) => { await p.click("#llFormatPanel .fm-item:first-child .fm-apply"); await sleep(900); }, "[data-next], #llFormatPanel .fm-undo"],
@@ -150,8 +170,12 @@ export const STATES = [
   // 表示列の設定（一覧の「表示列」）: 開いた直後・列を 1 つ選んだところ
   ["columns", async (p) => { await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(600); }, "[data-next], #lcSave"],
   ["columns-detail", async (p) => { await p.click('#lcList li[data-col="発生日"]').catch(() => p.click("#lcList li[data-col]")); await sleep(500); }, "[data-next], #lcSave"],
-  // 表示列の「この列の作り方」（式の欄と式ビルダー）を開いたところ
-  ["columns-fx", async (p) => { await p.click('#lcList li[data-col="重量"]').catch(() => {}); await sleep(300); await p.click('.lc-step[data-step="fx"] > h4'); await sleep(500); }, "[data-next], #lcFormula"],
+  // 表示列の「この列の作り方」（いまの式の要約と「作り方を作る…」）を開いたところ
+  ["columns-fx", async (p) => { await p.click('#lcList li[data-col="重量"]').catch(() => {}); await sleep(300); await p.click('.lc-step[data-step="fx"] > h4'); await sleep(500); }, "[data-next], #lcFxOpen"],
+  // この列の作り方の窓（表示ルールと同じ組み立て）: 2 行（重量 ≧ 3000 かつ 板厚 ＜ 1 → 重・薄／重量 ≧ 3000 → 重）＋どれにも当てはまらないとき（軽）
+  ["columns-fxpanel", async (p) => { await p.click("#lcFxOpen"); await sleep(500); await buildWeight(p); await sleep(400); }, "[data-next], #llFxPanel [data-act=save]"],
+  // 同じ窓の「式を書く」（組み立てた式が入る。部品から作る・書き方）
+  ["columns-fxwrite", async (p) => { await p.click('#llFxPanel [data-tab="write"]'); await sleep(500); }, "[data-next], #llFxPanel [data-act=save]"],
   // マスタ管理: 設備・参照先・アクセス権限・利用状況・アプリの配布（タブは DOM で押す。区分ごとにタブを隠す案でも同じ所へ行けるように）
   ["master", async (p) => { await closeAll(p); await p.click("#masterBtn"); await sleep(900); }, "[data-next], #masterAddBtn"],
   ["master-paths", async (p) => { await tab(p, "paths"); await sleep(900); }, "[data-next], #masterSettings button"],
@@ -202,6 +226,25 @@ export async function walkSplash(page, visit, only = null) {
     await go(page);
     if (!only || only.includes(name)) await visit(name, next);
   }
+}
+
+/** この列の作り方の窓で、重量の列の作り方を組み立てる（表示ルールと同じ組み立て。状態 columns-fxpanel と評価関数 ui-eval-formula.mjs）:
+    1 行目 重量 ≧ 3000 かつ 板厚 ＜ 1 → 重・薄／2 行目 重量 ≧ 3000 → 重／どれにも当てはまらないとき → 軽 */
+export async function buildWeight(p) {
+  const P = "#llFxPanel .lr-rows", row = (i) => `${P} .lr-row[data-row="${i}"]`;
+  await p.click('#llFxPanel [data-act="row"]'); await p.click('#llFxPanel [data-act="default"]'); await sleep(150);
+  await p.selectOption(`${row(0)} .lr-op[data-path="0.0"]`, "ge");
+  await p.fill(`${row(0)} .lr-val[data-path="0.0"][data-side="right"]`, "3000");
+  await p.click(`${row(0)} .lr-row-then .lr-cond-add[data-join="and"]`); await sleep(100);
+  await p.selectOption(`${row(0)} .lr-kind[data-path="0.1"][data-side="left"]`, "column");
+  await p.selectOption(`${row(0)} .lr-col[data-path="0.1"]`, "板厚");
+  await p.selectOption(`${row(0)} .lr-op[data-path="0.1"]`, "lt");
+  await p.fill(`${row(0)} .lr-val[data-path="0.1"][data-side="right"]`, "1");
+  await p.fill(`${row(0)} .lr-text`, "重・薄");
+  await p.selectOption(`${row(1)} .lr-op[data-path="1.0"]`, "ge");
+  await p.fill(`${row(1)} .lr-val[data-path="1.0"][data-side="right"]`, "3000");
+  await p.fill(`${row(1)} .lr-text`, "重");
+  await p.fill(`${row(2)} .lr-text`, "軽");
 }
 
 /** マスタ管理のタブを押す（見えていなくても押す） */
@@ -269,7 +312,7 @@ export function measure(nextSelector) {
     return base;
   }
   // 開いている浮かぶ窓（重なる窓・メニュー）。あればその中だけを数える
-  const DIALOGS = ".master-form-overlay:not(.hidden), .master-overlay:not(.hidden), #llColumnPanel:not([hidden])";
+  const DIALOGS = ".master-form-overlay:not(.hidden), .master-overlay:not(.hidden), #llColumnPanel:not([hidden]), #llFxPanel:not([hidden]), #llRulePanel:not([hidden])";
   const pops = [...document.querySelectorAll(`${DIALOGS}, .ll-viewmenu:not([hidden]), .app-menu:not(.hidden), .fb-cond-menu:not([hidden])`)].filter(visible);
   // 重なる窓（いちばん上の 1 枚）。あればその中だけを数える
   const dialog = pops.filter((el) => el.matches(DIALOGS)).sort((a, b) => (Number(getComputedStyle(b).zIndex) || 0) - (Number(getComputedStyle(a).zIndex) || 0))[0] ?? null;
