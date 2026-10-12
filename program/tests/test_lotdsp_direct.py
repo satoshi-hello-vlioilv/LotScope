@@ -11,11 +11,13 @@ LotDsp の見本は LotData-Link の tests/fixtures/lotdsp_progress.html の写�
     python -m unittest discover -s tests
 """
 import http.server
+import json
 import os
 import socket
 import threading
 import time
 import unittest
+import urllib.request
 from pathlib import Path
 
 import tempfile
@@ -200,9 +202,12 @@ class LoginWindow(SiteServer):
         self.fail(f"段階 {stage} になりません（{seen}）")
 
     def user(self):
-        """利用者の手: 窓のページへ別につなぐ。"""
+        """利用者の手: 窓の LotDsp のページへ別につなぐ（新しいタブの部品のページなどが並ぶ版もあるので、LotDsp を出している物）。"""
         port = int((Path(self.profile) / "DevToolsActivePort").read_text().splitlines()[0])
-        return D._Cdp(D._page_ws(port), timeout=10)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=5) as r:
+            pages = json.loads(r.read().decode())
+        ws = next(t["webSocketDebuggerUrl"] for t in pages if t.get("type") == "page" and "/LotDspWeb/" in t.get("url", ""))
+        return D._Cdp(ws, timeout=10)
 
     def test_waits_for_the_user_to_log_in_then_reads(self):
         c = self.client()
@@ -253,6 +258,53 @@ class LoginWindow(SiteServer):
         r = self.client().post("/api/lots/fetch-lotdsp", json={"lot_no": "L7150C0"})
         self.assertEqual((r.status_code, r.get_json()["kind"]), (409, "login"), "頼まれなければ窓を出さずに引き返す（LotData-Link・窓の道は画面が選ぶ）")
         self.assertFalse(any(Path(self.profile).iterdir()), "窓のプロファイルは使っていない")
+
+    def page_lot(self, hand, limit=10):
+        """窓のページが出しているロット番号（検索の結果が出るまで待つ）。"""
+        end = time.time() + limit
+        while time.time() < end:
+            lot = hand.eval(D._PAGE_STATE)[2]
+            if lot:
+                return lot
+            time.sleep(0.1)
+        return ""
+
+    def test_show_opens_the_lot_in_the_window_without_reading(self):
+        """虫眼鏡（開くだけ）: 窓でそのロットを検索して前に出す。進度情報は読まない（タブを押さない）。2 回目は窓を使い回す。"""
+        c = self.client(query="")
+        r = c.post("/api/lots/show-lotdsp", json={"lot_no": "l7150c0"})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual(r.get_json(), {"lot": "L7150C0", "login": False})
+        hand = self.user()
+        self.assertEqual(self.page_lot(hand), "L7150C0", "窓がそのロットを出している")
+        self.assertEqual(hand.eval("__fake.searches"), 1, "「検索」は 1 回だけ")
+        self.assertEqual(hand.eval("__fake.tabClicks"), 0, "開くだけ: 進度情報のタブは押さない（読まない）")
+        self.assertEqual(hand.eval("document.visibilityState"), "visible", "窓は前に出ている（しまわない）")
+        hand.close()
+        r = c.post("/api/lots/fetch-lotdsp", json={"lot_no": "L7150C0"})
+        self.assertEqual(r.status_code, 200, f"続けて取り込むときも同じ窓を使い回す: {r.get_json()}")
+        self.assertTrue(D.status()["reused"])
+
+    def test_show_leaves_the_login_to_the_user(self):
+        """ログインが要る（VPN）: ロット番号だけを欄に入れて窓を前に出し、待たずに返す。ID・パスワードには触れず、押さない。"""
+        t0 = time.time()
+        r = self.client().post("/api/lots/show-lotdsp", json={"lot_no": "L7150C0"})
+        self.assertEqual((r.status_code, r.get_json()), (200, {"lot": "L7150C0", "login": True}), r.get_json())
+        self.assertLess(time.time() - t0, 30, "利用者のログインを待たない")
+        hand = self.user()
+        self.assertEqual(hand.eval("document.querySelector('#input_searchLtno').value"), "L7150C0", "ロット番号は欄に入れておく")
+        self.assertEqual(hand.eval("document.querySelector('#input_userId').value"), "", "ID の欄には触れない")
+        self.assertEqual((hand.eval("__fake.vpnSent.length"), hand.eval("__fake.loginClicks")), (0, 0), "送らない・押さない")
+        hand.close()
+        self.assertFalse(D.status()["busy"], "返したら次の操作を受けられる")
+
+    def test_show_needs_the_window(self):
+        c = self.client(query="")
+        c.application.config["APP_SETTINGS"]["lotdsp_import"]["direct"]["login_window"] = False
+        r = c.post("/api/lots/show-lotdsp", json={"lot_no": "L7150C0"})
+        self.assertEqual((r.status_code, r.get_json()["kind"]), (503, "disabled"), "窓を使わない設定なら、画面がいつものブラウザで開く")
+        r = c.post("/api/lots/show-lotdsp", json={"lot_no": "L7150-C0"})
+        self.assertEqual((r.status_code, r.get_json()["kind"]), (400, "invalid"))
 
     def test_config_tells_the_screen(self):
         c = self.client()

@@ -50,7 +50,7 @@
     btn.classList.toggle("has-now", !!st);
     btn.classList.toggle("is-newer", !!(st && st.newer));
     btn.title = st ? (st.newer ? `「${st.name}」が共有で上書きされています。開いて当て直せます` : `この所には共有の書式「${st.name}」を当てています`)
-      : "表示列・並び・条件・スライサーに名前を付けて共有に置き、ほかの設備・ほかの PC で呼び出します";
+      : "表示列・並び・条件・スライサー・色付けに名前を付けて共有に置き、ほかの設備・ほかの PC で呼び出します";
   }
 
   /* ---------------- 窓（2026-10-formats の K3: 上から 当てる所 → 結果と元に戻す → 書式の一覧 → 置く） ----------------
@@ -79,7 +79,7 @@
           ${others.map((p) => `<label><input type="checkbox" data-key="${esc(p.key)}"${picked.has(p.key) ? " checked" : ""}> ${esc(p.label)}${curOf(p)}</label>`).join("")}
         </div></fieldset>`;
     panel.innerHTML = `<div class="fm-head"><b>共有の書式</b>${list.shared ? '<span class="fm-shared">全員の PC</span>' : '<span class="fm-shared is-local">この PC だけ</span>'}
-        <small>表示列・並び・条件・スライサーに名前を付けて共有に置き、ほかの${work ? "設備・ほかの" : ""} PC で呼び出します</small></div>
+        <small>表示列・並び・条件・スライサー・色付けに名前を付けて共有に置き、ほかの${work ? "設備・ほかの" : ""} PC で呼び出します</small></div>
       ${toHtml}
       <p class="fm-msg" id="fmMsg" aria-live="polite"${msg ? "" : " hidden"}>${msg || ""}</p>
       <ul class="fm-list" role="list">${items || `<li class="fm-empty">まだ書式はありません。${list.canEdit ? "下で、いまの表示に名前を付けて置けます。" : ""}</li>`}</ul>

@@ -3,7 +3,8 @@
 
 - 表示の設定 … 画面が localStorage に覚えている名前のうち、一覧の見せ方に関わる物（PROFILE_KEYS）。
   画面はこの範囲を書き出し・読み込みでき、開発者は今の形を「初期設定」として置ける。範囲はここ 1 か所で決め、画面に渡す。
-  その時だけの状態（効いている条件・畳んだまとまり・窓の位置・色付け・拡大率）は入れない
+  その時だけの状態（効いている条件・畳んだまとまり・窓の位置・拡大率など）は入れない。色付け（条件付き書式。版 3.21.0）の組は、
+  スライサーと同じく作って使い続ける設定なので入れる
 - 初期設定 … MasterStore のマスタ `ui_defaults`（行は {名前, 値}）。共有フォルダがあれば共有（全員の PC に効く）、
   無ければ同梱の data/ui_defaults.json（配る版に入る）。画面の設定がまだ何も無い PC（入れたばかり）が開いたときに当てる
 """
@@ -20,6 +21,7 @@ PROFILE_KEYS = (
     "tpa.lotlist.arrange.v1", "tpa.lotlist.sorts.v1",   # 並び・まとめ・並べ替え
     "tpa.lotlist.pageSize.v1", "tpa.lotlist.features.v1",
     "tpa.lotlist.slicer.v1",       # スライサー（足した列・選んだ値・置き場）
+    "tpa.lotlist.marks.v1",        # 色付け（条件付き書式）の組
     "tpa.lotlist.zoomStep.v1",     # 拡大のつまみの刻み
     "tpa.lotlist.presets.v1",      # 登録した条件・プリセット
 )

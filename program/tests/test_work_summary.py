@@ -224,6 +224,20 @@ class Api(unittest.TestCase):
         self.assertEqual({(b["day"], b["shift"]): [b["works"], b["rows"], b["split"]] for b in asc["buckets"]}, oracle(self.stamps, "cal"))
         self.assertEqual([x[3] for x in asc["rows"]], sorted(x[3] for x in asc["rows"]))
 
+    def test_marks_follow_the_work_grouping(self):
+        """色付け（版 3.21.0）: 作業でまとめた並び（ページの境目で作業を切らない）でも、当たった行は同じ条件で絞ったときの行と同じ。"""
+        self.add_three()
+        rule = [{"column": "作業区分", "op": "eq", "value": "再処理"}]
+        for page in (1, 2):
+            d = self.get(page=page, page_size=150, marks=json.dumps([rule], ensure_ascii=False))
+            only = self.get(page_size=5000, filters=json.dumps(rule, ensure_ascii=False))
+            pool = [json.dumps(r, sort_keys=True, ensure_ascii=False) for r in only["rows"]]
+            want = [i for i, r in enumerate(d["rows"]) if json.dumps(r, sort_keys=True, ensure_ascii=False) in pool]
+            self.assertEqual(d["marks"], [want])
+            self.assertEqual(d["markCounts"], [only["count"]])
+            self.assertEqual(d["count"], len(self.stamps), "行は絞らない")
+        self.assertTrue(want, "当たる行のある条件で確かめている")
+
     def test_pick_a_day_or_a_shift_narrows_the_list_only(self):
         self.add_three()
         want = oracle(self.stamps, "work")

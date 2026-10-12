@@ -80,10 +80,9 @@ pub fn writer_marks(remote: &str) -> Vec<String> {
     v
 }
 
-/// 元をファイルとして丸ごと写す（SQLite として開かない・休まない）。Windows では、開いているあいだも書き手が
-/// 置き換え（os.replace）できる開き方（FILE_SHARE_DELETE。std の既定でも付くが、ここで明かす）。
-pub fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
-    use std::io::{Read, Write};
+/// 元を読むために開く。Windows では、開いているあいだも書き手が置き換え（os.replace）できる開き方
+/// （FILE_SHARE_DELETE。std の既定でも付くが、ここで明かす）。Python の open_shared_read と同じ。
+pub fn open_shared(remote: &str) -> std::io::Result<std::fs::File> {
     let mut o = std::fs::OpenOptions::new();
     o.read(true);
     #[cfg(windows)]
@@ -91,7 +90,13 @@ pub fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
         use std::os::windows::fs::OpenOptionsExt;
         o.share_mode(0x1 | 0x2 | 0x4).custom_flags(0x0800_0000); // 読み・書き・削除を許す／順に読む
     }
-    let mut src = o.open(remote)?;
+    o.open(remote)
+}
+
+/// 元をファイルとして丸ごと写す（SQLite として開かない・休まない。開き方は open_shared）。
+pub fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
+    use std::io::{Read, Write};
+    let mut src = open_shared(remote)?;
     let mut dst = std::fs::File::create(tmp)?;
     let mut buf = vec![0u8; COPY_CHUNK];
     loop {

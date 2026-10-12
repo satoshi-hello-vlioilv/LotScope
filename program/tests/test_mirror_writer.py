@@ -5,17 +5,16 @@ DataRelay の公開（lib/navi_publish.py）: 公開先の横へ隠しファイ�
 入れ替える。ほかが公開先を開いていると Windows では「使用中」になり、20 秒粘ってだめなら <名前>.pending_<日時> に保留する。
 ここではその手順をそのまま真似て、写しと同時に走らせる（Windows の本物の規則は CI の desktop.yml がこの試験を流して確かめる）。
 """
-import contextlib
 import os
 import shutil
 import sqlite3
 import tempfile
-import threading
 import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
+from app.fsio import open_shared_read
 from app.services import db_mirror, work_log
 from app.services.db_mirror import DbMirror, is_side_file, writer_marks
 
@@ -34,21 +33,35 @@ def make_version(path, n, mb=4):
     c.close()
 
 
-def publish(built, dst):
-    """DataRelay の publish と同じ手順。→ {published, attempts, pending}"""
-    incoming = dst.parent / f".{dst.name}.{os.getpid()}.incoming"
-    shutil.copyfile(built, incoming)
-    deadline, attempts = time.time() + REPLACE_DEADLINE, 0
-    while time.time() < deadline:
-        attempts += 1
+class Publish:
+    """DataRelay の publish と同じ手順（書きかけを置き、os.replace で入れ替える。だめなら間を空けて粘り、20 秒でだめなら保留）を、
+    1 回ずつ試せる形にした物（入れ替えの合間に、試験が読み手を動かせるように）。"""
+
+    def __init__(self, built, dst):
+        self.dst, self.attempts, self.waited = dst, 0, 0.0
+        self.incoming = dst.parent / f".{dst.name}.{os.getpid()}.incoming"
+        shutil.copyfile(built, self.incoming)
+
+    def attempt(self):
+        """1 回入れ替えを試す。→ True 入れ替えた／False まだ（間を空けた。次を試す）／None 20 秒粘っても入れ替わらず保留した"""
+        self.attempts += 1
         try:
-            os.replace(incoming, dst)
-            return {"published": True, "attempts": attempts}
+            os.replace(self.incoming, self.dst)
+            return True
         except OSError:
-            time.sleep(BACKOFF[min(attempts - 1, len(BACKOFF) - 1)])
-    pending = dst.parent / f"{dst.stem}.pending_{time.strftime('%Y%m%d_%H%M%S')}{dst.suffix}"
-    os.replace(incoming, pending)
-    return {"published": False, "attempts": attempts, "pending": str(pending)}
+            wait = BACKOFF[min(self.attempts - 1, len(BACKOFF) - 1)]
+            time.sleep(wait)
+            self.waited += wait
+        if self.waited < REPLACE_DEADLINE:
+            return False
+        pending = self.dst.parent / f"{self.dst.stem}.pending_{time.strftime('%Y%m%d_%H%M%S')}{self.dst.suffix}"
+        os.replace(self.incoming, pending)
+        return None
+
+    def run(self):
+        while (done := self.attempt()) is False:
+            pass
+        return done
 
 
 class Base(unittest.TestCase):
@@ -155,45 +168,38 @@ class Courtesy(Base):
 
 
 class WithPublisher(Base):
-    """写しを休まず繰り返しながら、DataRelay と同じ手順で公開を続ける（実際は 15 分ごと。ここはずっと厳しい）。"""
+    """写しと DataRelay の公開がぶつかる場面を、毎回同じ順に必ず起こす（実際の公開は 15 分ごと。ここは 6 回とも、読み手が
+    元を開いて写している最中に入れ替えを試みる）。
+    前はスレッドで休まず写し続けて入れ替えとぶつけていたが、入れ替えが「開いていない一瞬」に当たるかどうかが時の運で、
+    Windows では 20 秒のうちに一度も当たらずに保留になり、落ちることがあった。順を決めておけば、結果は時間に左右されない。"""
 
     def test_publishing_never_goes_pending_and_copies_are_whole(self):
-        versions = []
-        for n in range(1, 7):
-            p = self.tmp / f"built{n}.sqlite3"
-            make_version(p, n)
-            versions.append(p)
         m = DbMirror("work_log_CR1", self.dst, self.cache)
-        results, stop = [], threading.Event()
-
-        def publisher():
-            for p in versions:
-                results.append(publish(p, self.dst))
-                time.sleep(0.2)
-            stop.set()
-        th = threading.Thread(target=publisher)
-        th.start()
-        seen, busy = set(), 0
-        scratch = self.tmp / "hammer.bin"
-        while not stop.is_set():
+        self.assertTrue(m.refresh()["updated"])
+        replaced_while_open = []
+        for n in range(1, 7):
+            built = self.tmp / f"built{n}.sqlite3"
+            make_version(built, n, mb=1 + n)            # 版ごとに大きさを変える（元の印が必ず変わる）
+            before = self.dst.read_bytes()
+            with open_shared_read(self.dst) as reader:  # 写しの係と同じ開き方で、写している最中
+                got = reader.read(len(before) // 2)
+                p = Publish(built, self.dst)            # 書き手が書きかけを置いた
+                with mock.patch.object(db_mirror, "open_shared_read", side_effect=AssertionError("共有を開いた")):
+                    r = m.refresh()
+                self.assertFalse(r["updated"], f"版 {n}: 公開の最中は写さない（共有を開かない）: {r}")
+                first = p.attempt()                     # 読み手が開いている最中に入れ替えを試みる
+                if os.name != "nt":
+                    self.assertTrue(first, "Windows のほかでは、開いていても入れ替えられる")
+                got += reader.read()                    # 読み手が写し終えて閉じる
+            replaced_while_open.append(first)
+            self.assertEqual(got, before, f"版 {n}: 写している最中に入れ替わっても、写した物は前の版のまま欠けない")
+            self.assertTrue(first or p.run(), f"版 {n}: 読み手が閉じた後は入れ替わり、保留にならない（{p.attempts} 回）")
             r = m.refresh()
-            busy += bool(r.get("busy"))
-            if r["updated"]:
-                seen.add(self.version_of(m.read_path()))
-            # 「再読込」は元が変わったときしか写さない（SHARED_READ.md の R2）ので、同じ開き方で写すのを試験の側で
-            # 休まず続け、入れ替えとぶつけ続ける（入れ替えの一瞬に開けないことはある。そのときは次の回）
-            with contextlib.suppress(OSError):
-                DbMirror._copy(self.dst, scratch)
-        th.join()
-        m.refresh()
-        seen.add(self.version_of(m.read_path()))
-        pending = [r for r in results if not r["published"]]
-        retried = sum(r["attempts"] > 1 for r in results)
-        print(f"\n  公開 {len(results)} 回（入れ替えをやり直した {retried} 回・保留 {len(pending)} 回）・写しで見送った {busy} 回・写した版 {sorted(seen)}")
-        self.assertEqual(pending, [], "公開が保留にならない（20 秒のうちに必ず入れ替わる）")
-        self.assertTrue(seen <= set(range(0, 7)), f"書き切った版だけを写す: {seen}")
-        self.assertIn(6, seen, "最後の版まで写る")
-        self.assertFalse(list(self.dst.parent.glob("*.pending_*")))
+            self.assertTrue(r["updated"], f"版 {n}: {r}")
+            self.assertEqual(self.version_of(m.read_path()), n, "書き切った版を写す")
+        print(f"\n  公開 6 回（読み手が開いている最中に入れ替えられた {sum(replaced_while_open)} 回・閉じるのを待った {6 - sum(replaced_while_open)} 回）")
+        self.assertFalse(list(self.dst.parent.glob("*.pending_*")), "保留が無い")
+        self.assertFalse(writer_marks(self.dst), "書きかけが残らない")
 
 
 if __name__ == "__main__":

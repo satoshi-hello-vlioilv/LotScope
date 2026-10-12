@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from app import create_app
@@ -595,6 +596,69 @@ class GroupKeyedSqlTests(unittest.TestCase):
         view = lot_list.query(self.db, table="仕掛_ビュー", group=True, sorts='[{"column":"重量","dir":"desc"}]')
         table = lot_list.query(self.db, table="仕掛", group=True, sorts='[{"column":"重量","dir":"desc"}]')
         self.assertEqual((view["rows"], view["groups"], view["groupCount"]), (table["rows"], table["groups"], table["groupCount"]))
+
+
+class MarkTests(unittest.TestCase):
+    """色付け（条件付き書式）の評価関数: 組ごとに「当たった」とした行が、その組を絞り込みに足したときに出る行とちょうど同じか
+    （行は絞らない・判定は絞り込みと同じ）。全件で当たった数は、足して絞った件数と同じか。まとめ方・表・ページを替えて確かめる。"""
+
+    @classmethod
+    def setUpClass(cls):
+        from tests import lotlist_fixture
+        cls.fx = lotlist_fixture
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.db = os.path.join(cls.tmp.name, "fx.sqlite3")
+        lotlist_fixture.make(cls.db, 1500)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def check(self, marks, **kw):
+        today = self.fx.TODAY
+        out = lot_list.query(self.db, marks=json.dumps(marks, ensure_ascii=False), today=today, **kw)
+        base = json.loads(kw.pop("filters", "[]"))
+        kw.pop("page", None)
+        kw.pop("page_size", None)
+        hit_total = 0
+        for k, rule in enumerate(marks):
+            used = [x for f in (rule if isinstance(rule, list) else []) for x in (f.get("columns") or [f.get("column")])]
+            if not rule or not isinstance(rule, list) or any(x not in out["columns"] for x in used):
+                self.assertEqual((out["marks"][k], out["markCounts"][k]), ([], None), f"当てない組 {rule}")
+                continue
+            only = lot_list.query(self.db, filters=json.dumps(base + rule, ensure_ascii=False), page_size=100000, today=today, **kw)
+            pool = [json.dumps(r, sort_keys=True, ensure_ascii=False) for r in only["rows"]]
+            want = [i for i, r in enumerate(out["rows"]) if json.dumps(r, sort_keys=True, ensure_ascii=False) in pool]
+            self.assertEqual(out["marks"][k], want, f"組 {k}: {rule} {kw}")
+            self.assertEqual(out["markCounts"][k], only["count"], f"組 {k} の全件の数")
+            hit_total += len(want)
+        self.assertEqual(out["count"], lot_list.query(self.db, filters=json.dumps(base, ensure_ascii=False), today=today, **kw)["count"], "行は絞らない")
+        return hit_total
+
+    def test_marks_are_the_rows_the_same_filter_would_keep(self):
+        fx = self.fx
+        hits = 0
+        hits += self.check([fx.MARK_A, fx.MARK_B, fx.MARK_C, fx.MARK_D, fx.MARK_E])
+        hits += self.check([fx.MARK_A, fx.MARK_D], filters=fx._f(("設備", "neq", "L-1")), sorts=fx._s(("重量", "desc")), page=2, page_size=200)
+        hits += self.check([fx.MARK_B, fx.MARK_E, [{"column": "無い列", "op": "eq", "value": "x"}]], group=True, page=3, page_size=90, search="汚")
+        hits += self.check([fx.MARK_C, fx.MARK_E, []], table="仕掛_ビュー", group=True)
+        hits += self.check([fx.MARK_A, fx.MARK_B], table="保留")
+        self.assertGreater(hits, 200, "当たる行のある組で確かめている")
+
+    def test_many_rows_are_sent_in_parts(self):
+        """1 回に渡す値の数には上限がある（SQLite）。ページが大きくても分けて確かめ、答えは同じ。"""
+        fx = self.fx
+        whole = lot_list.query(self.db, page_size=5000, marks=json.dumps([fx.MARK_A, fx.MARK_D], ensure_ascii=False), today=fx.TODAY)
+        with mock.patch.object(lot_list, "MARK_VARS", 50):
+            parts = lot_list.query(self.db, page_size=5000, marks=json.dumps([fx.MARK_A, fx.MARK_D], ensure_ascii=False), today=fx.TODAY)
+        self.assertEqual(whole["marks"], parts["marks"])
+        self.assertGreater(len(whole["marks"][0]), 50)
+
+    def test_no_marks_no_answer(self):
+        self.assertNotIn("marks", lot_list.query(self.db))
+        self.assertNotIn("marks", lot_list.query(self.db, marks="壊れた"))
+        out = lot_list.query(self.db, marks='[[{"column": "設備", "op": "bad_op", "value": "x"}, {"column": "設備", "op": "eq", "value": "CR1"}]]')
+        self.assertEqual((out["marks"], out["markCounts"]), ([[]], [None]), "使えない条件を含む組は当てない（外すと広く当たる）")
 
 
 class SortKeyTests(unittest.TestCase):

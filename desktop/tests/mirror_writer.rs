@@ -5,13 +5,12 @@
 
 mod common;
 
-use da_core::mirror::{copy_shared, DbMirror};
+use da_core::mirror::{open_shared, writer_marks, DbMirror};
 use rusqlite::Connection;
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
+const REPLACE_DEADLINE: f64 = 20.0;
 const BACKOFF: [f64; 6] = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0];
 
 fn make_version(path: &Path, n: i64, mb: usize) {
@@ -31,21 +30,43 @@ fn version_of(path: &Path) -> i64 {
     Connection::open(path).unwrap().query_row("SELECT n FROM V", [], |r| r.get(0)).unwrap()
 }
 
-/// DataRelay の publish と同じ手順。→ (入れ替えた, 試した回数)
-fn publish(built: &Path, dst: &Path) -> (bool, usize) {
-    let incoming = dst.with_file_name(format!(".{}.{}.incoming", dst.file_name().unwrap().to_string_lossy(), std::process::id()));
-    std::fs::copy(built, &incoming).unwrap();
-    let deadline = Instant::now() + Duration::from_secs(20);
-    let mut attempts = 0;
-    while Instant::now() < deadline {
-        attempts += 1;
-        if std::fs::rename(&incoming, dst).is_ok() {
-            return (true, attempts);
-        }
-        std::thread::sleep(Duration::from_secs_f64(BACKOFF[(attempts - 1).min(BACKOFF.len() - 1)]));
+/// DataRelay の publish と同じ手順（書きかけを置き、置き換えで入れ替える。だめなら間を空けて粘り、20 秒でだめなら保留）を、
+/// 1 回ずつ試せる形にした物（入れ替えの合間に、試験が読み手を動かせるように）。Python の Publish と同じ。
+struct Publish {
+    incoming: PathBuf,
+    dst: PathBuf,
+    attempts: usize,
+    waited: f64,
+}
+
+impl Publish {
+    fn new(built: &Path, dst: &Path) -> Publish {
+        let incoming = dst.with_file_name(format!(".{}.{}.incoming", dst.file_name().unwrap().to_string_lossy(), std::process::id()));
+        std::fs::copy(built, &incoming).unwrap();
+        Publish { incoming, dst: dst.to_path_buf(), attempts: 0, waited: 0.0 }
     }
-    let _ = std::fs::remove_file(&incoming);
-    (false, attempts)
+    /// 1 回入れ替えを試す。→ Some(true) 入れ替えた／None まだ（間を空けた。次を試す）／Some(false) 20 秒粘っても入れ替わらず保留した
+    fn attempt(&mut self) -> Option<bool> {
+        self.attempts += 1;
+        if std::fs::rename(&self.incoming, &self.dst).is_ok() {
+            return Some(true);
+        }
+        let wait = BACKOFF[(self.attempts - 1).min(BACKOFF.len() - 1)];
+        std::thread::sleep(Duration::from_secs_f64(wait));
+        self.waited += wait;
+        if self.waited < REPLACE_DEADLINE {
+            return None;
+        }
+        let _ = std::fs::remove_file(&self.incoming);
+        Some(false)
+    }
+    fn run(&mut self) -> bool {
+        loop {
+            if let Some(done) = self.attempt() {
+                return done;
+            }
+        }
+    }
 }
 
 #[test]
@@ -67,58 +88,48 @@ fn does_not_copy_while_the_writer_is_publishing() {
     let _ = std::fs::remove_dir_all(&work);
 }
 
+/// 写しと DataRelay の公開がぶつかる場面を、毎回同じ順に必ず起こす（6 回とも、読み手が元を開いて写している最中に入れ替えを試みる）。
+/// 前はスレッドで休まず写し続けて入れ替えとぶつけていたが、入れ替えが「開いていない一瞬」に当たるかどうかが時の運で、
+/// Windows では 20 秒のうちに一度も当たらずに保留になり、落ちることがあった（Python 版で起きた）。順を決めれば時間に左右されない。
 #[test]
 fn publishing_never_goes_pending_and_copies_are_whole() {
+    use std::io::Read;
     let work = common::work("mirror-writer");
     let share = work.join("share");
     std::fs::create_dir_all(&share).unwrap();
     let dst = share.join("実績_CR1.sqlite3");
     make_version(&dst, 0, 1);
-    let built: Vec<_> = (1..=6)
-        .map(|n| {
-            let p = work.join(format!("built{n}.sqlite3"));
-            make_version(&p, n, 4);
-            p
-        })
-        .collect();
-    let m = DbMirror::new("work_log_CR1", &dst.display().to_string(), &work.join("cache"), 60, 36.0);
-    let stop = Arc::new(AtomicBool::new(false));
-    let (d2, s2) = (dst.clone(), stop.clone());
-    let th = std::thread::spawn(move || {
-        let out: Vec<(bool, usize)> = built
-            .iter()
-            .map(|p| {
-                let r = publish(p, &d2);
-                std::thread::sleep(Duration::from_millis(200));
-                r
-            })
-            .collect();
-        s2.store(true, Ordering::SeqCst);
-        out
-    });
-    let (mut seen, mut busy) = (std::collections::BTreeSet::new(), 0);
-    let (remote, scratch) = (dst.display().to_string(), work.join("hammer.bin"));
-    while !stop.load(Ordering::SeqCst) {
+    let remote = dst.display().to_string();
+    let m = DbMirror::new("work_log_CR1", &remote, &work.join("cache"), 60, 36.0);
+    assert_eq!(m.refresh()["updated"], true);
+    let mut replaced_while_open = 0;
+    for n in 1..=6 {
+        let built = work.join(format!("built{n}.sqlite3"));
+        make_version(&built, n, 1 + n as usize); // 版ごとに大きさを変える（元の印が必ず変わる）
+        let before = std::fs::read(&dst).unwrap();
+        let mut reader = open_shared(&remote).unwrap(); // 写しの係と同じ開き方で、写している最中
+        let mut got = vec![0u8; before.len() / 2];
+        reader.read_exact(&mut got).unwrap();
+        let mut p = Publish::new(&built, &dst); // 書き手が書きかけを置いた
         let r = m.refresh();
-        busy += r["busy"].as_bool().unwrap_or(false) as usize;
-        if r["updated"] == true {
-            seen.insert(version_of(&m.read_path().unwrap()));
+        assert_eq!(r["updated"], false, "版 {n}: 公開の最中は写さない: {r}");
+        let first = p.attempt() == Some(true); // 読み手が開いている最中に入れ替えを試みる
+        if !cfg!(windows) {
+            assert!(first, "Windows のほかでは、開いていても入れ替えられる");
         }
-        // 「再読込」は元が変わったときしか写さない（SHARED_READ.md の R2）ので、同じ開き方で写すのを試験の側で
-        // 休まず続け、入れ替えとぶつけ続ける（入れ替えの一瞬に開けないことはある。そのときは次の回）
-        let _ = copy_shared(&remote, &scratch);
+        reader.read_to_end(&mut got).unwrap();
+        drop(reader); // 読み手が写し終えて閉じる
+        replaced_while_open += first as usize;
+        assert!(got == before, "版 {n}: 写している最中に入れ替わっても、写した物は前の版のまま欠けない");
+        assert!(first || p.run(), "版 {n}: 読み手が閉じた後は入れ替わり、保留にならない（{} 回）", p.attempts);
+        let r = m.refresh();
+        assert_eq!(r["updated"], true, "版 {n}: {r}");
+        assert_eq!(version_of(&m.read_path().unwrap()), n, "書き切った版を写す");
     }
-    let results = th.join().unwrap();
-    m.refresh();
-    seen.insert(version_of(&m.read_path().unwrap()));
-    let pending = results.iter().filter(|(ok, _)| !ok).count();
-    let retried = results.iter().filter(|(_, a)| *a > 1).count();
     println!(
-        "公開 {} 回（入れ替えをやり直した {retried} 回・保留 {pending} 回）・写しで見送った {busy} 回・写した版 {seen:?}",
-        results.len()
+        "公開 6 回（読み手が開いている最中に入れ替えられた {replaced_while_open} 回・閉じるのを待った {} 回）",
+        6 - replaced_while_open
     );
-    assert_eq!(pending, 0, "公開が保留にならない（20 秒のうちに必ず入れ替わる）");
-    assert!(seen.iter().all(|n| (0..=6).contains(n)), "書き切った版だけを写す: {seen:?}");
-    assert!(seen.contains(&6), "最後の版まで写る");
+    assert!(writer_marks(&remote).is_empty(), "書きかけが残らない");
     let _ = std::fs::remove_dir_all(&work);
 }

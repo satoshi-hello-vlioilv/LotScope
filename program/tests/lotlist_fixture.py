@@ -111,6 +111,13 @@ def _s(*items):
     return json.dumps([{"column": c, "dir": d} for c, d in items], ensure_ascii=False)
 
 
+# 色付けの組（1 組＝条件の並び。かつ）
+MARK_A = [{"column": "不良名", "op": "eq", "value": "汚れ"}]
+MARK_B = [{"column": "重量", "op": "gte", "value": "3000"}, {"column": "板厚", "op": "lt", "value": "1"}]
+MARK_C = [{"column": "発生日", "op": "within_days", "value": "400"}, {"column": "客先", "op": "not_empty", "value": ""}]
+MARK_D = [_in("設備", ["CR1", ""]), {"op": "tuple_in", "columns": ["合金", "調質"], "value": json.dumps([["A1100", "H14"], ["A5052", "O"]])}]
+MARK_E = [{"column": "ロット番号", "op": "ends", "value": "C3"}, {"column": "発生日", "op": "within_years", "value": "2"}]
+
 # 問い合わせの組（lot_list.query の引数）。画面が送る形のまま（filters・sorts は JSON の文字）
 CASES = [
     {},
@@ -203,6 +210,15 @@ CASES = [
     {"filters": json.dumps([{"op": "tuple_in", "columns": ["比重"], "value": json.dumps([[2.73], [3], [0.30000000000000004], [12345678901234567]])}], ensure_ascii=False)},
     {"filters": json.dumps([{"op": "tuple_in", "columns": ["合金", "調質"], "value": json.dumps([["A1100"], [True, "O"], "x"])}], ensure_ascii=False)},
     {"filters": json.dumps([{"op": "tuple_in", "columns": ["無い列"], "value": "[]"}], ensure_ascii=False)},
+    # 色付け（条件付き書式・版 3.21.0）: 行は絞らず、組ごとに「ページで当たった行の位置」と「全件で当たった数」。判定は filters と同じ
+    {"marks": json.dumps([MARK_A, MARK_B, MARK_C], ensure_ascii=False)},
+    {"marks": json.dumps([MARK_A, [{"column": "無い列", "op": "eq", "value": "x"}], [], "x", MARK_D], ensure_ascii=False),
+     "filters": _f(("設備", "neq", "L-1")), "sorts": _s(("重量", "desc"))},
+    {"group": True, "page": 2, "page_size": 90, "search": "汚", "marks": json.dumps([MARK_B, MARK_D, MARK_E], ensure_ascii=False)},
+    {"table": "仕掛_ビュー", "group": True, "marks": json.dumps([MARK_C, MARK_E], ensure_ascii=False)},
+    {"table": "保留", "marks": json.dumps([MARK_A, MARK_B], ensure_ascii=False)},
+    {"marks": "壊れた"},
+    {"marks": json.dumps([[{"column": "設備", "op": "bad_op", "value": "x"}, {"column": "設備", "op": "eq", "value": "CR1"}]], ensure_ascii=False)},
 ]
 
 

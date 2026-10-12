@@ -114,7 +114,7 @@ def worklog_list():
         grouping = work_grouping(plan["equip"]["name"])
         out = lot_list.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"],
                              page=a.get("page", 1), page_size=a.get("page_size", plan["page_size"]),
-                             search=a.get("search", ""), filters=a.get("filters", ""), sorts=a.get("sorts", ""),
+                             search=a.get("search", ""), filters=a.get("filters", ""), sorts=a.get("sorts", ""), marks=a.get("marks", ""),
                              group=a.get("group") == "1", table_candidates=work_log.TABLE_CANDIDATES, grouping=grouping)
     except Exception as e:
         return error(str(e), 503, source=plan["source"], equip=plan["equip"])

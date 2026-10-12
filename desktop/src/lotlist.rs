@@ -17,6 +17,9 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 const MAX_FILTERS: usize = 20;
+/// 色付け（条件付き書式）の組の数・1 回に渡す値の数の上限（Python の MAX_MARKS・MARK_VARS と同じ）
+const MAX_MARKS: usize = 8;
+const MARK_VARS: usize = 30000;
 const MAX_SORTS: usize = 4;
 const PAGE_SIZE_MAX: i64 = 5000;
 pub const PAGE_SIZE_DEFAULT: i64 = 500;
@@ -65,6 +68,8 @@ pub struct Args {
     pub filters: String,
     pub sorts: String,
     pub group: bool,
+    /// 色付け（条件付き書式）の組の並び（JSON）。行は絞らない
+    pub marks: String,
 }
 
 impl Args {
@@ -80,6 +85,7 @@ impl Args {
                 "filters" => a.filters = v,
                 "sorts" => a.sorts = v,
                 "group" => a.group = v == "1",
+                "marks" => a.marks = v,
                 _ => {}
             }
         }
@@ -316,6 +322,11 @@ fn safe_filters(text: &str, cs: &[String]) -> Vec<Filter> {
         return vec![];
     }
     let Ok(Value::Array(items)) = serde_json::from_str::<Value>(text) else { return vec![] };
+    filters_of(&items, cs)
+}
+
+/// 条件の並び（JSON の配列）→ 使える条件だけ（Python の safe_filters に並びを渡したときと同じ）。
+fn filters_of(items: &[Value], cs: &[String]) -> Vec<Filter> {
     let mut out = vec![];
     for it in items.iter().take(MAX_FILTERS) {
         let Value::Object(it) = it else { continue };
@@ -333,6 +344,114 @@ fn safe_filters(text: &str, cs: &[String]) -> Vec<Filter> {
         }
     }
     out
+}
+
+/// 色付け（条件付き書式）の組の並び → [条件の並び または None]。組の中に、無い列・使えない比べ方の条件が 1 つでもあれば
+/// None（当てない。外して当てると、広く当たってしまう）。Python の safe_marks と同じ。
+fn safe_marks(text: &str, cs: &[String]) -> Vec<Option<Vec<Filter>>> {
+    if text.is_empty() {
+        return vec![];
+    }
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(text) else { return vec![] };
+    items
+        .iter()
+        .take(MAX_MARKS)
+        .map(|rule| {
+            let given: Vec<Value> = match rule {
+                Value::Array(fs) => fs.iter().filter(|f| f.is_object()).take(MAX_FILTERS).cloned().collect(),
+                _ => vec![],
+            };
+            let fl = filters_of(&given, cs);
+            (!given.is_empty() && fl.len() == given.len()).then_some(fl)
+        })
+        .collect()
+}
+
+fn sql_of_json(v: &Value) -> SqlValue {
+    match v {
+        Value::Null => SqlValue::Null,
+        Value::Bool(b) => SqlValue::Integer(*b as i64),
+        Value::Number(n) => n.as_i64().map(SqlValue::Integer).unwrap_or_else(|| SqlValue::Real(n.as_f64().unwrap_or(0.0))),
+        Value::String(t) => SqlValue::Text(t.clone()),
+        other => SqlValue::Text(other.to_string()),
+    }
+}
+
+/// 色付け: ページの行（{列: 値}）が、どの組に当たるか。→ 組ごとに当たった行の位置（0 から）の並び。
+/// 判定は絞り込みと同じ式（build_filter_where）を、その行の値だけを並べた表（VALUES）に当てる（Python の mark_rows と同じ）。
+fn mark_rows(c: &Connection, marks: &[Option<Vec<Filter>>], rows: &[Value], today: NaiveDate) -> Result<Vec<Vec<i64>>, String> {
+    let mut out: Vec<Vec<i64>> = vec![vec![]; marks.len()];
+    let mut live = vec![];
+    for (k, fl) in marks.iter().enumerate() {
+        if let Some(fl) = fl {
+            live.push((k, build_filter_where(fl, today)?));
+        }
+    }
+    if live.is_empty() || rows.is_empty() {
+        return Ok(out);
+    }
+    let mut cols: Vec<String> = live
+        .iter()
+        .flat_map(|(k, _)| marks[*k].as_ref().unwrap().iter())
+        .flat_map(|f| if f.op == "tuple_in" { f.columns.clone() } else { vec![f.column.clone()] })
+        .collect();
+    cols.sort();
+    cols.dedup();
+    let names: Vec<String> = std::iter::once("_tpa_i".to_string()).chain(cols.iter().cloned()).collect();
+    let sel = live.iter().map(|(_, (parts, _))| format!("({})", parts.join(" AND "))).collect::<Vec<_>>().join(", ");
+    let tail: Vec<SqlValue> = live.iter().flat_map(|(_, (_, ps))| ps.iter().cloned()).collect();
+    let step = (MARK_VARS.saturating_sub(tail.len()) / names.len()).max(1);
+    let head = names.iter().map(|n| qi(n)).collect::<Vec<_>>().join(", ");
+    let one = format!("({})", vec!["?"; names.len()].join(", "));
+    for (s, part) in rows.chunks(step).enumerate().map(|(i, p)| (i * step, p)) {
+        let vals = vec![one.as_str(); part.len()].join(", ");
+        let sql = format!("WITH m({head}) AS (VALUES {vals}) SELECT {}, {sel} FROM m", qi("_tpa_i"));
+        let mut args: Vec<SqlValue> = vec![];
+        for (i, r) in part.iter().enumerate() {
+            args.push(SqlValue::Integer((s + i) as i64));
+            args.extend(cols.iter().map(|x| r.get(x).map(sql_of_json).unwrap_or(SqlValue::Null)));
+        }
+        args.extend(tail.iter().cloned());
+        let mut st = c.prepare(&sql).map_err(sql_err)?;
+        let mut got = st.query(params_from_iter(args.iter())).map_err(sql_err)?;
+        while let Some(r) = got.next().map_err(sql_err)? {
+            let i: i64 = r.get(0).map_err(sql_err)?;
+            for (j, (k, _)) in live.iter().enumerate() {
+                if r.get::<_, Option<i64>>(1 + j).map_err(sql_err)?.unwrap_or(0) != 0 {
+                    out[*k].push(i);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// 色付け: 絞り込んだ全件のうち、組ごとに当たる行の数（当てない組は None。Python の mark_counts と同じ）。
+fn mark_counts(
+    c: &Connection,
+    t: &str,
+    marks: &[Option<Vec<Filter>>],
+    wh: &str,
+    params: &[SqlValue],
+    today: NaiveDate,
+) -> Result<Vec<Option<i64>>, String> {
+    let mut out = vec![];
+    for fl in marks {
+        let Some(fl) = fl else {
+            out.push(None);
+            continue;
+        };
+        let (parts, ps) = build_filter_where(fl, today)?;
+        let sql = format!(
+            "SELECT COUNT(*) FROM {}{}{}",
+            qi(t),
+            if wh.is_empty() { " WHERE " } else { "" },
+            if wh.is_empty() { parts.join(" AND ") } else { format!("{wh} AND {}", parts.join(" AND ")) }
+        );
+        let all: Vec<SqlValue> = params.iter().cloned().chain(ps).collect();
+        out.push(Some(count(c, &sql, &all)?));
+    }
+    Ok(out)
 }
 
 /// 計算列のスライサーが渡す列の並び → 実在する列だけ（1〜4 列・重ならない）。合わなければ空（Python の tuple_columns と同じ）。
@@ -919,6 +1038,11 @@ pub fn query(path: &Path, a: &Args, preferred_table: &str, default_page_size: i6
             Value::Object(m)
         })
         .collect();
+    let ml = safe_marks(&a.marks, &cs);
+    if !ml.is_empty() {
+        out.insert("marks".into(), json!(mark_rows(&c, &ml, &rows, today)?));
+        out.insert("markCounts".into(), json!(mark_counts(&c, &t, &ml, &wh, &params, today)?));
+    }
     let base = json!({
         "table": t, "tables": names, "columns": cs, "lotColumn": lot, "dateColumns": dcols,
         "today": today.format("%Y-%m-%d").to_string(), "dateHints": hints, "rows": rows,

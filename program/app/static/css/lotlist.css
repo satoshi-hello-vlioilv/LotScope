@@ -123,7 +123,7 @@
 /* ロット番号を押すと何が起きるか（次の行動）。藍の淡い札。まとめ・スライサー・カードの札が出ているあいだは、
    使い方の 2 つの添え書き（これと行のダブルクリック）はそちらに場所を譲る（もう使い始めている） */
 .ll-lothint{font-size:var(--fs-sm);font-weight:600;color:var(--h-input);background:var(--input-soft);padding:2px 10px;border-radius:999px}
-.ll-status:has(#llGroupBar:not([hidden]),#llSlicerSum:not([hidden]),#llCardShelf:not([hidden])) :is(.ll-lothint,#llCardHint){display:none!important}
+.ll-status:has(#llGroupBar:not([hidden]),#llSlicerSum:not([hidden]),#llMarkSum:not([hidden]),#llCardShelf:not([hidden])) :is(.ll-lothint,#llCardHint){display:none!important}
 .ll-count{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
 /* 一覧の拡大（一時的）。100% でないあいだは数字をアンバーの札にして、拡大中だと分かるようにする */
 .ll-zoom{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -180,6 +180,17 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
   color:var(--h-input);text-decoration:underline;text-decoration-color:rgba(63,101,145,.35);text-underline-offset:3px}
 .ll-lot:hover,.ll-lot:focus-visible{color:#1f3f66;text-decoration-color:currentColor;outline:none}
 .ll-lot:focus-visible{box-shadow:0 0 0 3px rgba(230,165,46,.35);border-radius:3px}
+/* 虫眼鏡（LotDsp で開くだけ。取り込まない）: セルの右端に置き、そのぶん列を広げる（lotlist.js の LENS_W）。
+   ふだんは淡く（主役の番号を邪魔しない）、行に乗せると藍で濃く（2026-10-lens の H2。7 案＋2 回目で選んだ） */
+.ll-grid td:has(> .ll-lens){position:relative;padding-right:26px!important}
+.ll-lens{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:20px;height:20px;padding:0;border:0;border-radius:5px;
+  background:transparent;color:#c4d1df;display:grid;place-items:center;cursor:pointer}
+.ll-lens svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}
+.ll-grid tbody tr:hover .ll-lens{color:var(--h-input)}
+.ll-lens:hover,.ll-lens:focus-visible{color:var(--h-input);background:#e6edf6;outline:none}
+.ll-lens.is-busy{color:var(--h-input);animation:ll-lens-busy 1s ease-in-out infinite}
+@keyframes ll-lens-busy{50%{opacity:.35}}
+.ll-lothint svg{width:12px;height:12px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .ll-note{position:sticky;left:0;margin:18px;padding:16px 18px;border-radius:9px;background:#fff6e6;color:var(--amber-ink);font-size:13.5px;line-height:1.6;max-width:880px}
 .ll-note small{color:var(--muted)}
 .ll-note-acts{margin-top:10px}
@@ -276,6 +287,8 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 .ll-bn{margin-left:6px;padding:0 6px;border-radius:999px;background:var(--surface);color:var(--h-input);font-size:var(--fs-xs);font-weight:800;font-variant-numeric:tabular-nums}
 .ll-grid td.ll-rep,.ll-grid td.ll-rep .ll-lot{color:transparent!important;text-decoration-color:transparent}
 .ll-grid tbody tr:hover td.ll-rep,.ll-grid tbody tr:hover td.ll-rep .ll-lot{color:var(--faint)!important}
+.ll-grid td.ll-rep .ll-lens{visibility:hidden}
+.ll-grid tbody tr:hover td.ll-rep .ll-lens{visibility:visible}
 /* 見出し行を付けないときの、まとまりの切れ目（上の段ほど濃い線） */
 .ll-grid tbody tr.gb-0 td{border-top:2px solid #9fb4c8}
 .ll-grid tbody tr.gb-1 td{border-top:1px solid #c3d3e2}

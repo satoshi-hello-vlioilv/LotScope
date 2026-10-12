@@ -4,11 +4,11 @@
    - 件数は「ほかの絞り込み（検索・条件・列で絞り込む・ほかのスライサー）のもとで」の件数（自分の選択は除く）
    - 選んだ値は in の絞り込みとして一覧へ渡す（lot_list.build_filter_where / lotlist.rs）。空欄も選べる（値 ""）
    - 日付だけ・年月・年の書式で見せている列は、見えている値でまとめる（鍵は一覧と同じ levelKeyKind）
-   - 置き場は左（既定）・右・上。足した列と選んだ値は表ごと、置き場と開閉は全体で、この PC に覚える
+   - 置き場は左（既定）・右・上。足した列と選んだ値は表ごと、開閉は画面ごと（異常ロット一覧・作業実績で別）、置き場は全体で、この PC に覚える
    - 計算列（表示列で式から作った列）も足せる。式は画面にしか無いので、式が使う元の列の値の組と件数をサーバーに尋ね（columns）、
      組ごとに一覧と同じ見えている値（書式・読み替えの後）を計算して件数を足す。選んだ値は、その値になる組の tuple_in として一覧へ渡す
      （lot_list.slicer_combos・tuple_in / lotlist.rs）。組がまだ読めていない選択は、読めたときに一覧を引き直して効かせる
-   一覧（lotlist.js）とは mount の引数だけでつながる: table（覚えの範囲）・api（問い合わせの頭）・params（どの設備か）・search・baseFilters・keyOf・label・onChange
+   一覧（lotlist.js）とは mount の引数だけでつながる: table（覚えの範囲）・screen（開閉を覚える画面）・api（問い合わせの頭）・params（どの設備か）・search・baseFilters・keyOf・label・onChange
      ・calcColumns（計算列の名前）・sourcesOf（計算列の式が使う元の列）・calcText（計算列の見えている値: 元の列の値の組 → 字）
    一覧の元（異常ロット一覧・作業実績の設備）を替えたら reset（前の元の値を出さない）
    ========================================================================= */
@@ -25,10 +25,16 @@
   const sent = {};              // 計算列 → 一覧へ渡した組（JSON）。読み直した組と違えば（まだ読めていない・ほかの絞り込みで組が変わった）一覧を引き直す
   const qs = {};                // 列 → 「値を探す」に打った字（描き直しても残す）
 
-  /* ---- 覚え: {open, place, tables: {表: [{column, key, sel: [...]}]}} ---- */
-  const load = () => { const s = TPA.local.get(KEY, {}); return { open: !!s.open, place: PLACES.some((p) => p[0] === s.place) ? s.place : "left", tables: s.tables || {} }; };
+  /* ---- 覚え: {open: {画面: 開いているか}, place, tables: {表: [{column, key, sel: [...]}]}} ----
+     開閉は画面ごと（版 3.20.0 まで全体で 1 つ。前の覚えは、どの画面にも引き継ぐ） */
+  const load = () => {
+    const s = TPA.local.get(KEY, {}), o = s.open;
+    return { open: o && typeof o === "object" ? o : { all: !!o }, place: PLACES.some((p) => p[0] === s.place) ? s.place : "left", tables: s.tables || {} };
+  };
   let st = load();
   const save = () => TPA.local.set(KEY, st);
+  const isOpen = () => !!(host && (host.screen() in st.open ? st.open[host.screen()] : st.open.all));
+  const setOpen = (v) => { st.open[host.screen()] = !!v; save(); };
   const cards = () => (st.tables[host.table()] || []);
   const setCards = (list) => { const t = host.table(); if (list.length) st.tables[t] = list; else delete st.tables[t]; save(); };
   const cardOf = (col) => cards().find((c) => c.column === col);
@@ -71,7 +77,7 @@
   async function refresh() {
     if (!host) return;
     paintEntry(); paintSum();
-    if (!st.open) return;
+    if (!isOpen()) return;
     const my = ++seq, list = cards().filter((c) => host.columns().includes(c.column) || isCalc(c.column));
     // 書式が変わって鍵が変わった列は、前の鍵で選んだ値が当たらないので選び直してもらう
     let changed = false;
@@ -118,10 +124,10 @@
   /* ---- 描く ---- */
   function render() {
     const pane = $("#llSlicer"), row = $("#llBodyRow");
-    pane.hidden = !st.open;
+    pane.hidden = !isOpen();
     row.dataset.place = st.place;
     paintEntry(); paintSum();
-    if (!st.open) return;
+    if (!isOpen()) return;
     const used = new Set(cards().map((c) => c.column));
     const addable = host.columns().concat(host.calcColumns()).filter((c) => !used.has(c));
     const head = `<div class="sx-head"><b>スライサー</b>
@@ -155,8 +161,8 @@
   function paintEntry() {
     const b = $("#llSlicerBtn"); if (!b) return;
     const n = active();
-    b.classList.toggle("is-on", st.open || n > 0);
-    b.setAttribute("aria-expanded", st.open);
+    b.classList.toggle("is-on", isOpen() || n > 0);
+    b.setAttribute("aria-expanded", isOpen());
     b.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="5" height="12" rx="1"/><path d="M9 3.5h5.5M9 6.5h5.5M9 9.5h5.5M9 12.5h5.5"/></svg>スライサー${n ? `<b>${n}</b>` : ""}`;
   }
   /** 件数の行の札: 「設備: CR1・L-1 ×」。スライサーを閉じても何で絞っているかが分かる */
@@ -182,14 +188,14 @@
   function clearAll() { cards().forEach((c) => { c.sel = []; }); save(); render(); }
   function clear(col) { const c = cardOf(col); if (!c || !c.sel.length) return; c.sel = []; save(); render(); host.onChange(); }
   function bind() {
-    $("#llSlicerBtn").addEventListener("click", () => { st.open = !st.open; save(); render(); refresh(); });
+    $("#llSlicerBtn").addEventListener("click", () => { setOpen(!isOpen()); render(); refresh(); });
     $("#llSlicerSum").addEventListener("click", (e) => { const b = e.target.closest("[data-clear]"); if (b) clear(b.dataset.clear); });
     const pane = $("#llSlicer");
     pane.addEventListener("click", (e) => {
       const t = e.target, card = t.closest(".sx-card"), col = card && card.dataset.col;
       const place = t.closest("button[data-place]");   // 枠（#llBodyRow）も data-place を持つので、ボタンに限る
       if (place) { st.place = place.dataset.place; save(); render(); return; }
-      if (t.closest("[data-close]")) { st.open = false; save(); render(); $("#llSlicerBtn").focus(); return; }
+      if (t.closest("[data-close]")) { setOpen(false); render(); $("#llSlicerBtn").focus(); return; }
       if (t.closest(".sx-v")) { toggleValue(col, t.closest(".sx-v").dataset.v); return; }
       if (t.closest("[data-clr]")) { clear(col); return; }
       if (t.closest("[data-rm]")) { const had = cardOf(col).sel.length; setCards(cards().filter((c) => c.column !== col)); delete vals[col]; render(); if (had) host.onChange(); }

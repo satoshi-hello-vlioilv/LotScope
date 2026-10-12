@@ -6,9 +6,10 @@
      値は一覧に見えているとおり（値の整え方・読み替え・計算列の結果）。ロット番号は字のまま
    - 作業でまとめているとき（作業実績）は、各行に作業日・直・分割の数を足し、「日・直ごとのロット数」のシートも出す
    - 「出力の条件」のシートに、どの一覧を・いつ・どの絞り込みで出したかを残す（あとで見た人が同じ物を出し直せる）
+   - 色付け（条件付き書式）は、画面と同じ色でセル・行を塗る（版 3.21.0。ページごとの答えの「当たった位置」を集める）
    - .xlsx を組むのは xlsx-writer.js。保存はほかの書き出しと同じ TPA.download（デスクトップ版は窓が保存し、置いた場所を知らせる）
    一覧（lotlist.js）とは mount の引数だけでつながる:
-     pageUrl(page, size)・count()・columns()・label(c)・text(c, row)・lotColumn()・title()・fileStem()・conditions()・work()・toast(m)
+     pageUrl(page, size)・count()・columns()・label(c)・text(c, row)・lotColumn()・title()・fileStem()・conditions()・work()・marks()・toast(m)
    ========================================================================= */
 (function () {
   const { $ } = TPA;
@@ -19,19 +20,34 @@
   const stamp = (d = new Date()) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   const when = (d = new Date()) => `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-  /** 全件を引く（ページを順に）。→ { rows, works }（works は作業でまとめているときの [鍵, 日, 直, 作業開始] の並び） */
+  /** 全件を引く（ページを順に）。→ { rows, works, hits }（works は作業でまとめているときの [鍵, 日, 直, 作業開始] の並び・
+      hits は行ごとに当たった色付けの組の番号の並び） */
   async function gather(total, w) {
-    const rows = [], works = [];
+    const rows = [], works = [], hits = [];
     for (let page = 1; rows.length < total; page++) {
       w.now(`一覧を引いています… ${rows.length.toLocaleString()} / ${total.toLocaleString()} 件`);
       const r = await fetch(host.pageUrl(page, PAGE), { cache: "no-store" });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "一覧を読めませんでした");
       if (!(d.rows || []).length) break;
+      const at = rows.length;
+      d.rows.forEach(() => hits.push(null));
+      (d.marks || []).forEach((list, k) => (list || []).forEach((i) => { const j = at + i; (hits[j] = hits[j] || []).push(k); }));
       rows.push(...d.rows);
       if (d.work && d.work.rows) works.push(...d.work.rows);
     }
-    return { rows, works };
+    return { rows, works, hits };
+  }
+  /** 色付けの塗り: 行 i（見出しが 0）・列 c → { tone, whole } か null。セルの組（その列を条件に使う）を先に、無ければ行全体の組。
+      どちらも上の組が優先（画面と同じ） */
+  function painter(hits, plan, cols, skip) {
+    if (!plan.length || !hits.some(Boolean)) return null;
+    return (i, c) => {
+      const h = hits[i - 1]; if (!h || c < skip) return null;
+      const col = cols[c - skip], rs = h.map((k) => plan[k]).filter(Boolean);
+      const cell = rs.find((r) => !r.whole && r.cols.includes(col));
+      return cell ? { tone: cell.tone, whole: false } : (rs.find((r) => r.whole) ? { tone: rs.find((r) => r.whole).tone, whole: true } : null);
+    };
   }
   /** 作業でまとめているとき: 日・直ごとのロット数の表（右の表と同じ数。日の並びも同じ） */
   function summarySheet(wk) {
@@ -57,7 +73,8 @@
       note: "いまの検索・条件・スライサー・並びのまま、全件を表示列の見え方で出します。" });
     try {
       const wk = host.work();
-      const { rows, works } = await gather(total, w);
+      const plan = host.marks();
+      const { rows, works, hits } = await gather(total, w);
       w.now(`Excel を組んでいます…（${rows.length.toLocaleString()} 行）`);
       const cols = host.columns(), lot = host.lotColumn();
       const extra = wk ? [`作業日（${wk.basisLabel}）`, ...(wk.withShift ? ["直"] : []), "分割（同じ作業開始の行）"] : [];
@@ -68,7 +85,8 @@
         ...(wk ? [wk.dayText((works[i] || [])[1] || ""), ...(wk.withShift ? [wk.shiftName((works[i] || [])[2] ?? -1)] : []), runs[i] > 1 ? runs[i] : ""] : []),
         ...cols.map((c) => (c === lot ? String(r[c] ?? "") : host.text(c, r))),
       ]);
-      const sheets = [{ name: host.title(), rows: [head, ...body] }];
+      const paint = painter(hits, plan, cols, extra.length);
+      const sheets = [{ name: host.title(), rows: [head, ...body], ...(paint ? { paint } : {}) }];
       if (wk) sheets.push(summarySheet(wk));
       sheets.push({ name: "出力の条件", header: false, rows: [...host.conditions(), ["出力した行", `${rows.length.toLocaleString()} 行`], ["出力した日時", when()]] });
       const bytes = await window.XlsxWriter.build(sheets);
