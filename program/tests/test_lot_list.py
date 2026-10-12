@@ -249,6 +249,33 @@ class QueryTests(Base):
         self.assertEqual(self.q(sorts=json.dumps([{"column": "無い列"}]))["sorts"], [])
 
 
+class CalcSlicerTests(Base):
+    """計算列のスライサー: 式が使う列の値の組と件数（slicer_combos）と、選んだ組で絞る tuple_in。"""
+
+    def tuple_in(self, cols, tuples, **kw):
+        f = [{"op": "tuple_in", "columns": cols, "value": json.dumps(tuples, ensure_ascii=False)}]
+        return [r["ロット番号"] for r in lot_list.query(self.share, filters=json.dumps(f, ensure_ascii=False), **kw)["rows"]]
+
+    def test_combos_count_each_pair_once_in_the_original_type(self):
+        out = lot_list.slicer_combos(self.share, use=json.dumps(["発生設備", "異常内容"], ensure_ascii=False))
+        got = {tuple(x["values"]): (x["count"], x["all"]) for x in out["combos"]}
+        self.assertEqual(got, {("CAL", "押し疵"): (1, 1), ("L-2", "汚れ"): (1, 1), ("TLV", "汚れ"): (1, 1), ("HOT", "ロール疵"): (1, 1), ("CAL", "汚れ"): (1, 1)})
+        self.assertEqual(sum(x["all"] for x in out["combos"]), 5)
+        one = lot_list.slicer_combos(self.share, use='["異常内容"]', filters=json.dumps([{"column": "発生設備", "op": "eq", "value": "CAL"}]))
+        self.assertEqual({x["values"][0]: (x["count"], x["all"]) for x in one["combos"]}["汚れ"], (1, 3), "件数はほかの絞り込みのもと・all は全体")
+        self.assertEqual(one["combos"][0]["count"], 1)
+        for bad in ('["無い列"]', '["発生設備", "発生設備"]', "[]", "壊れた", json.dumps(["ロット番号", "発生設備", "異常内容", "廃棄重量", "コメント"], ensure_ascii=False)):
+            with self.assertRaises(ValueError):
+                lot_list.slicer_combos(self.share, use=bad)
+
+    def test_tuple_in_matches_whole_pairs_and_empty(self):
+        self.assertEqual(self.tuple_in(["発生設備", "異常内容"], [["CAL", "汚れ"], ["TLV", "汚れ"]]), ["L7150C0", "L6183D2"], "組ごと（CAL・押し疵は当たらない）")
+        self.assertEqual(self.tuple_in(["コメント"], [[None], [""]]), ["L6183D1", "L6183D2"], "NULL と空は別の組（式は同じ空でも、組は元の値で比べる）")
+        self.assertEqual(self.tuple_in(["発生設備"], []), [], "組が無ければ何にも当たらない")
+        self.assertEqual(self.tuple_in(["発生設備"], [["CAL", "x"], [True], "x"]), [], "形の違う組は捨てる")
+        self.assertEqual(len(self.tuple_in(["無い列"], [["x"]])), 5, "表に無い列の tuple_in は外す（ほかの絞り込みと同じ）")
+
+
 class GroupTests(Base):
     """ロット番号でまとめる: 同じロットの行は続けて並び、ロットの順は「並べ替えでいちばん上に来る行」の順。
     ページの境目でロットを切らない（ロットはその先頭の行が入るページに丸ごと入る）。"""

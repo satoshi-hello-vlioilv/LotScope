@@ -55,15 +55,14 @@ def lotlist():
 
 @bp.get("/api/lotlist/slicer")
 def lotlist_slicer():
-    """スライサーに並べる値（column の重複なしの値と件数）。filters・search は、このスライサー自身を除いた今の絞り込み。
+    """スライサーに並べる値（column の重複なしの値と件数。columns なら計算列の値の組）。filters・search は、このスライサー自身を除いた今の絞り込み。
     デスクトップ版は Rust が同じ答えを作る（desktop/src/lotlist.rs の slicer）。"""
     plan, fail = lotlist_plan()
     if fail:
         return fail
     a = request.args
     try:
-        out = lot_list.slicer(plan["path"], column=a.get("column", ""), key=a.get("key", ""), table=a.get("table", ""),
-                              preferred_table=plan["table"], search=a.get("search", ""), filters=a.get("filters", ""))
+        out = lot_list.slicer_answer(plan["path"], a, preferred_table=plan["table"])
     except ValueError as e:
         return error(str(e), 400)
     except Exception as e:

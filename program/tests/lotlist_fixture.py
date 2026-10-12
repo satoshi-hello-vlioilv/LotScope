@@ -28,26 +28,31 @@ def _date_text(d, kind):
             f"{d.year}年{d.month}月{d.day}日", "", None, "不明", f"{d.year}.{d.month}.{d.day}"][kind]
 
 
-WORK_COLUMNS = ["ロット番号", "作業日", "開始", "終了", "作業区分", "作業者", "入側板厚", "出側板厚", "板幅", "重量", "速度", "合金", "調質", "備考"]
+WORK_COLUMNS = ["ロット番号", "BOX実績_作業開始_日付", "作業日", "開始", "終了", "作業区分", "作業者", "入側板厚", "出側板厚", "板幅", "重量", "速度",
+                "合金", "調質", "備考"]
 
 
 def make_work(path, equipment, n=400, seed=11):
-    """作業実績の試験用データ（設備ごとの実績 SQLite。表「実績」）。本物の列は分からないので、画面を確かめるための作り物。"""
+    """作業実績の試験用データ（設備ごとの実績 SQLite。表「実績」）。本物の列は分からないので、画面を確かめるための作り物。
+    BOX実績_作業開始_日付 は作業開始の日時（Access の日時の書き方: 2026/10/01 8:15:00）。4 回に 1 回ほどの作業は幅・丈で分割して、
+    同じ作業開始の行が 2〜4 行（別のロット番号）になる（作業実績の「作業でまとめる」で 1 作業と数える）。"""
     r = random.Random(f"{seed}-{equipment}")
     c = sqlite3.connect(path)
     c.execute("DROP TABLE IF EXISTS 実績")
     c.execute("CREATE TABLE 実績 (" + ",".join(f"[{x}]" for x in WORK_COLUMNS) + ")")
     rows = []
-    for i in range(n):
+    while len(rows) < n:
         d = TODAY - timedelta(days=r.randint(0, 120))
-        start = r.randint(0, 23 * 60)
+        start = r.randint(0, 24 * 60 - 1)
         t0, t1 = f"{start // 60:02d}:{start % 60:02d}", f"{(start + 40) // 60 % 24:02d}:{(start + 40) % 60:02d}"
+        stamp = f"{d:%Y/%m/%d} {start // 60}:{start % 60:02d}:00"
         th = r.choice([0.3, 0.5, 1.0, 2.0, 3.0])
-        rows.append([f"L{r.randint(1, 900):04d}C{r.randint(0, 9)}", d.strftime("%Y/%m/%d"), t0, t1, r.choice(["通常", "通常", "通常", "再処理", "試作"]),
-                     r.choice(["作業者A", "作業者B", "作業者C"]), th, round(th * r.uniform(0.5, 0.95), 3), r.randint(800, 1600),
-                     round(r.uniform(500, 6000), 1), r.randint(80, 600), r.choice(["A1100", "A5052", "A3004"]), r.choice(["H14", "O", "H24"]),
-                     r.choice(["", "", "", "速度落とし", "ロール替え後", None])])
-    c.executemany("INSERT INTO 実績 VALUES (" + ",".join("?" * len(WORK_COLUMNS)) + ")", rows)
+        lot, kind, who = r.randint(1, 900), r.choice(["通常", "通常", "通常", "再処理", "試作"]), r.choice(["作業者A", "作業者B", "作業者C"])
+        for k in range(r.choice([1, 1, 1, 2, 2, 3, 4]) if r.random() < 0.35 else 1):
+            rows.append([f"L{lot:04d}C{(r.randint(0, 9) + k) % 10}", stamp, d.strftime("%Y/%m/%d"), t0, t1, kind, who, th,
+                         round(th * r.uniform(0.5, 0.95), 3), r.randint(800, 1600), round(r.uniform(500, 6000), 1), r.randint(80, 600),
+                         r.choice(["A1100", "A5052", "A3004"]), r.choice(["H14", "O", "H24"]), r.choice(["", "", "", "速度落とし", "ロール替え後", None])])
+    c.executemany("INSERT INTO 実績 VALUES (" + ",".join("?" * len(WORK_COLUMNS)) + ")", rows[:n])
     c.commit()
     c.close()
 
@@ -187,6 +192,17 @@ CASES = [
     {"slicer": "重量"},
     {"slicer": "設備", "table": "保留"},
     {"slicer": "無い列"},
+    # 計算列のスライサー（combos）: 式が使う列の値の組と件数（元の型のまま・件数の多い順）と、選んだ組で絞る tuple_in
+    {"combos": json.dumps(["合金", "調質"], ensure_ascii=False)},
+    {"combos": json.dumps(["客先"], ensure_ascii=False), "filters": _fl(_in("設備", ["CR1"]))},
+    {"combos": json.dumps(["比重", "板厚"], ensure_ascii=False), "search": "1"},
+    {"combos": json.dumps(["無い列"], ensure_ascii=False)},
+    {"combos": json.dumps(["合金", "合金"], ensure_ascii=False)},
+    {"filters": json.dumps([{"op": "tuple_in", "columns": ["合金", "調質"], "value": json.dumps([["A1100", "H14"], ["A5052", "O"]])}], ensure_ascii=False)},
+    {"filters": json.dumps([{"op": "tuple_in", "columns": ["客先"], "value": json.dumps([[None], ["客先A"]], ensure_ascii=False)}], ensure_ascii=False)},
+    {"filters": json.dumps([{"op": "tuple_in", "columns": ["比重"], "value": json.dumps([[2.73], [3], [0.30000000000000004], [12345678901234567]])}], ensure_ascii=False)},
+    {"filters": json.dumps([{"op": "tuple_in", "columns": ["合金", "調質"], "value": json.dumps([["A1100"], [True, "O"], "x"])}], ensure_ascii=False)},
+    {"filters": json.dumps([{"op": "tuple_in", "columns": ["無い列"], "value": "[]"}], ensure_ascii=False)},
 ]
 
 

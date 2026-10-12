@@ -44,10 +44,15 @@ const ALLOWED_OPS: &[&str] = &[
     "within_years",
     // スライサー: 選んだ値のどれか（slice_key で比べる。空欄も選べる）
     "in",
+    // スライサーの計算列: 式が使う列（columns）の値の組のどれか（Python の tuple_in と同じ）
+    "tuple_in",
 ];
 /// スライサーで一度に選べる値の数・並べる値の数（Python の MAX_IN_VALUES・MAX_SLICER_VALUES と同じ）
 const MAX_IN_VALUES: usize = 1000;
 const MAX_SLICER_VALUES: usize = 1000;
+/// 計算列のスライサー: 式が使う列の数の上限・値の組を並べる数（Python の MAX_TUPLE_COLUMNS・MAX_COMBOS と同じ）
+const MAX_TUPLE_COLUMNS: usize = 4;
+const MAX_COMBOS: usize = 5000;
 const ROWID_NAMES: &[&str] = &["rowid", "_rowid_", "oid"];
 
 /// 画面が送る問い合わせ文字（/api/lotlist の引数）。無い物は None。
@@ -302,6 +307,8 @@ pub struct Filter {
     pub value: String,
     /// in のときだけ: 値をまとめる形（slice_key_kind）
     pub key: String,
+    /// tuple_in のときだけ: 値の組の列
+    pub columns: Vec<String>,
 }
 
 fn safe_filters(text: &str, cs: &[String]) -> Vec<Filter> {
@@ -313,12 +320,55 @@ fn safe_filters(text: &str, cs: &[String]) -> Vec<Filter> {
     for it in items.iter().take(MAX_FILTERS) {
         let Value::Object(it) = it else { continue };
         let (column, op, value) = (field(it, "column", ""), field(it, "op", "contains"), field(it, "value", ""));
+        if op == "tuple_in" {
+            let columns = tuple_columns(it.get("columns"), cs);
+            if !columns.is_empty() {
+                out.push(Filter { column, op, value, key: String::new(), columns });
+            }
+            continue;
+        }
         if cs.contains(&column) && ALLOWED_OPS.contains(&op.as_str()) {
             let key = if op == "in" { slice_key_kind(&it.get("key").map(json_str).unwrap_or_default()) } else { String::new() };
-            out.push(Filter { column, op, value, key });
+            out.push(Filter { column, op, value, key, columns: vec![] });
         }
     }
     out
+}
+
+/// 計算列のスライサーが渡す列の並び → 実在する列だけ（1〜4 列・重ならない）。合わなければ空（Python の tuple_columns と同じ）。
+fn tuple_columns(v: Option<&Value>, cs: &[String]) -> Vec<String> {
+    let Some(Value::Array(items)) = v else { return vec![] };
+    if items.is_empty() || items.len() > MAX_TUPLE_COLUMNS {
+        return vec![];
+    }
+    let cols: Vec<String> = items.iter().map(json_str).collect();
+    let mut seen = std::collections::HashSet::new();
+    if cols.iter().all(|c| cs.contains(c) && seen.insert(c.clone())) {
+        cols
+    } else {
+        vec![]
+    }
+}
+
+/// tuple_in の値（[[値, …], …] の JSON）→ 組の並び（長さ n の組だけ・数か字か null だけ。Python の tuple_values と同じ）。
+fn tuple_values(value: &str, n: usize) -> Vec<Vec<SqlValue>> {
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) else { return vec![] };
+    let one = |x: &Value| -> Option<SqlValue> {
+        match x {
+            Value::Null => Some(SqlValue::Null),
+            Value::String(s) => Some(SqlValue::Text(s.clone())),
+            Value::Number(k) => Some(k.as_i64().map(SqlValue::Integer).unwrap_or_else(|| SqlValue::Real(k.as_f64().unwrap_or(0.0)))),
+            _ => None,
+        }
+    };
+    items
+        .iter()
+        .filter_map(|t| match t {
+            Value::Array(xs) if xs.len() == n => xs.iter().map(one).collect::<Option<Vec<_>>>(),
+            _ => None,
+        })
+        .take(MAX_IN_VALUES)
+        .collect()
 }
 
 /// スライサーで値をまとめる形: 日付だけ・年月・年。ほかは ""（Python の slice_key_kind と同じ）。
@@ -457,6 +507,13 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
                 }
                 parts.push(if ors.is_empty() { "0=1".into() } else { format!("({})", ors.join(" OR ")) });
                 params.extend(some.into_iter().map(|v| text(v.clone())));
+            }
+            "tuple_in" => {
+                // 値の組のどれか。IS で比べる（空＝NULL の組も当たる・数は数で比べる）
+                let tuples = tuple_values(value, f.columns.len());
+                let one = format!("({})", f.columns.iter().map(|x| format!("{} IS ?", qi(x))).collect::<Vec<_>>().join(" AND "));
+                parts.push(if tuples.is_empty() { "0=1".into() } else { format!("({})", vec![one; tuples.len()].join(" OR ")) });
+                params.extend(tuples.into_iter().flatten());
             }
             _ if relative_unit(op).is_some() => {
                 parts.push(format!("ToDate({col}) >= ?"));
@@ -726,6 +783,63 @@ pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, preferred_table: &
         "table": t, "column": column, "key": kind, "values": values, "truncated": truncated,
         "timing": {"server": t0.elapsed().as_millis() as i64},
     }))
+}
+
+/// 計算列のスライサー: 式が使う列（columns の JSON）の値の組（重複なし・元の型のまま）と、ほかの絞り込みのもとでの件数
+/// （Python の lot_list.slicer_combos と同じ）。画面が組ごとに式を計算してスライサーの値にする。失敗は (状態, 理由)。
+pub fn slicer_combos(path: &Path, a: &Args, columns: &str, preferred_table: &str, today: NaiveDate) -> Result<Value, (u16, String)> {
+    let t0 = Instant::now();
+    let down = |e: String| (503, e);
+    let q = pyfmt::strip(&a.search).to_string();
+    let c = connect_ro(path).map_err(down)?;
+    let names = tables(&c).map_err(down)?;
+    let t = if names.contains(&a.table) { a.table.clone() } else { pick_table(&names, preferred_table) };
+    if t.is_empty() {
+        return Err((503, "表が 1 つもありません。".into()));
+    }
+    let cs = dedup(&raw_columns(&c, &t).map_err(down)?);
+    let cols = tuple_columns(serde_json::from_str::<Value>(columns).ok().as_ref(), &cs);
+    if cols.is_empty() {
+        return Err((400, format!("計算列のスライサーは、表にある列を 1〜{MAX_TUPLE_COLUMNS} 個使う式だけです。")));
+    }
+    let (mut where_parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
+    if !q.is_empty() {
+        where_parts.push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ?", qi(x))).collect::<Vec<_>>().join(" OR ")));
+        params.extend(cs.iter().map(|_| SqlValue::Text(format!("%{q}%"))));
+    }
+    let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today).map_err(down)?;
+    where_parts.extend(fp);
+    params.extend(fpp);
+    let hit = if where_parts.is_empty() {
+        "COUNT(*)".to_string()
+    } else {
+        format!("SUM(CASE WHEN {} THEN 1 ELSE 0 END)", where_parts.join(" AND "))
+    };
+    let keys = cols.iter().map(|x| qi(x)).collect::<Vec<_>>().join(", ");
+    let tie = cols.iter().map(|x| format!("SortKey({0}), {0}", qi(x))).collect::<Vec<_>>().join(", ");
+    let sql = format!(
+        "SELECT {keys}, {hit} AS n, COUNT(*) AS a FROM {} GROUP BY {keys} ORDER BY n DESC, a DESC, {tie} LIMIT {}",
+        qi(&t),
+        MAX_COMBOS + 1
+    );
+    let k = cols.len();
+    let mut st = c.prepare(&sql).map_err(|e| down(sql_err(e)))?;
+    let mut rows = st.query(rusqlite::params_from_iter(params.iter())).map_err(|e| down(sql_err(e)))?;
+    let mut combos = vec![];
+    while let Some(r) = rows.next().map_err(|e| down(sql_err(e)))? {
+        let mut values = vec![];
+        for i in 0..k {
+            values.push(json_of(r.get_ref(i).map_err(|e| down(sql_err(e)))?));
+        }
+        let n: Option<i64> = r.get(k).map_err(|e| down(sql_err(e)))?;
+        let all: i64 = r.get(k + 1).map_err(|e| down(sql_err(e)))?;
+        combos.push(json!({"values": values, "count": n.unwrap_or(0), "all": all}));
+    }
+    let truncated = combos.len() > MAX_COMBOS;
+    combos.truncate(MAX_COMBOS);
+    Ok(
+        json!({"table": t, "columns": cols, "combos": combos, "truncated": truncated, "timing": {"server": t0.elapsed().as_millis() as i64}}),
+    )
 }
 
 pub fn query(path: &Path, a: &Args, preferred_table: &str, default_page_size: i64, today: NaiveDate) -> Result<Value, String> {

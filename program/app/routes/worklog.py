@@ -7,7 +7,7 @@ import app_env
 
 from .. import effective_settings
 from ..repositories.master_store import MasterError
-from ..services import lot_list, work_log
+from ..services import lot_list, shifts, work_log, work_summary
 from .common import base_rev, bp, can_write, error, master_call, master_repo
 
 
@@ -85,21 +85,42 @@ def worklog_plan(need_copy=True):
             "source": m.source_info(), "equip": equip}, None
 
 
+def work_grouping(equip_name):
+    """「作業でまとめる」（work=1）の係。直はその設備の勤務体系（設備を書いた体系 → 全設備共通）。
+    start: 作業開始の列（無ければ既定の名前）・basis: work（現場歴）／cal（太陽暦）・order: desc（新しい順）／asc・
+    day（YYYY-MM-DD。"-" は日付なし）・shift（直の番号）: 帯で押した日・直に一覧を絞る（数の帯は絞らない）。"""
+    a = request.args
+    if a.get("work") != "1":
+        return None
+    pat = shifts.pattern_for(master_repo().shift_patterns(), equip_name)
+    brief = {k: pat[k] for k in ("id", "name", "equipmentText")} if pat else None
+    try:
+        shift = int(a["shift"]) if a.get("shift", "") != "" else None
+    except ValueError:
+        shift = None
+    return work_summary.Grouping(pat["segments"] if pat else [], column=a.get("start", ""), basis=a.get("basis", "work"),
+                                 order=a.get("order", "desc"), pattern=brief, day=a.get("day", ""), shift=shift)
+
+
 @bp.get("/api/worklog")
 def worklog_list():
-    """異常ロット一覧（/api/lotlist）と同じ引数（page, page_size, search, filters, sorts, group）で、その設備の写しから引く。"""
+    """異常ロット一覧（/api/lotlist）と同じ引数（page, page_size, search, filters, sorts, group）で、その設備の写しから引く。
+    work=1 なら作業（作業開始が同じ行）でまとめ、日・直ごとの数を work に入れる（services/work_summary.py）。"""
     plan, fail = worklog_plan()
     if fail:
         return fail
     a = request.args
     try:
+        grouping = work_grouping(plan["equip"]["name"])
         out = lot_list.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"],
                              page=a.get("page", 1), page_size=a.get("page_size", plan["page_size"]),
                              search=a.get("search", ""), filters=a.get("filters", ""), sorts=a.get("sorts", ""),
-                             group=a.get("group") == "1", table_candidates=work_log.TABLE_CANDIDATES)
+                             group=a.get("group") == "1", table_candidates=work_log.TABLE_CANDIDATES, grouping=grouping)
     except Exception as e:
         return error(str(e), 503, source=plan["source"], equip=plan["equip"])
     out["source"], out["equip"] = plan["source"], plan["equip"]
+    if grouping:
+        out["work"]["canEditShifts"] = can_write(shifts.NAME)
     return jsonify(out)
 
 
@@ -110,9 +131,7 @@ def worklog_slicer():
         return fail
     a = request.args
     try:
-        out = lot_list.slicer(plan["path"], column=a.get("column", ""), key=a.get("key", ""), table=a.get("table", ""),
-                              preferred_table=plan["table"], search=a.get("search", ""), filters=a.get("filters", ""),
-                              table_candidates=work_log.TABLE_CANDIDATES)
+        out = lot_list.slicer_answer(plan["path"], a, preferred_table=plan["table"], table_candidates=work_log.TABLE_CANDIDATES)
     except ValueError as e:
         return error(str(e), 400)
     except Exception as e:

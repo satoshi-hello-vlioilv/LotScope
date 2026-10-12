@@ -28,7 +28,7 @@ import app_env  # noqa: E402
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import access, display_formats, work_log  # noqa: E402
+from app.services import access, display_formats, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from app.web import serve_http  # noqa: E402
 from tests import lotlist_fixture  # noqa: E402
@@ -79,6 +79,10 @@ def main():
     # 設備を登録しておく（マスタ管理の「探す」と同じ）
     MasterRepository(app.config["MASTER_STORE"]).work_log_sync(work_log.scan(folder, settings["work_log"]["pattern"]))
     seed_formats(MasterRepository(app.config["MASTER_STORE"]))
+    # 勤務体系: 全設備共通の交替勤務(1,2,3直)と、CR2 だけの 4,5直（作業実績を日＋直でまとめる画面を撮るため）
+    repo = MasterRepository(app.config["MASTER_STORE"])
+    repo.shift_create(shifts.clean_row({"name": "交替勤務(1,2,3直)", "segments": shifts.TEMPLATES[1]["segments"], "note": "工場の基本"}))
+    repo.shift_create(shifts.clean_row({"name": "CR2 の 4,5直", "equipment": ["CR2"], "segments": shifts.TEMPLATES[2]["segments"]}))
     (folder / "実績_SL3.sqlite3").unlink()
     old = time.time() - 80 * 3600                    # 1 台（HOT）は更新が止まった形（80 時間前）
     os.utime(folder / "実績_HOT.sqlite3", (old, old))

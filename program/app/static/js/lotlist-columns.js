@@ -122,6 +122,24 @@
     return { raw: rawText, text: format(t, c, raw), color: "" };
   }
   const cell = (t, c, row) => cellWith(t, c, row, get(t).rules[c] || "");
+  /** 計算列 c の式が使う元の列（表示名は元の名前へ・計算列はその式の列へ 1 段たどる。baseRow と同じ深さ）。
+      読めない式・表に無い列を使う式は null（スライサーが計算列の値の組を尋ねるため: lotlist-slicer.js） */
+  function sourcesOf(t, c) {
+    const l = get(t), src = srcCols[t] || [], byName = {};
+    Object.entries(l.names).forEach(([k, n]) => { byName[n] = k; });
+    const used = (f) => { const chk = String(f || "").trim() ? window.WL.formula.check(f) : null; return chk && chk.ok ? chk.columns : null; };
+    const top = used(l.formulas[c]);
+    if (!top) return null;
+    const out = new Set();
+    for (const name of top) {
+      const k = src.includes(name) ? name : (byName[name] || name);
+      if (src.includes(k) && !(k in l.formulas && String(l.formulas[k]).trim())) { out.add(k); continue; }
+      const inner = k !== c && k in l.formulas ? used(l.formulas[k]) : null;
+      if (!inner) return null;
+      for (const n2 of inner) { const k2 = src.includes(n2) ? n2 : (byName[n2] || n2); if (!src.includes(k2)) return null; out.add(k2); }
+    }
+    return [...out];
+  }
   /* ルールを使っている列（保存した設定と、いま触っている途中の設定から）。 */
   function ruleUsage(name) {
     const out = [];
@@ -543,6 +561,9 @@
     $("#lcNote").textContent = isDirty(t) ? "一覧に反映しています（保存すると次に開いたときも同じ形で出ます）" : "";
     renderDetail();
   }
+  /* 作り方の段で開く方（式を書く｜組み立てる）。選んだ列のあいだは選んだ方のまま。式が空の列は組み立てるから（慣れていない人の入口） */
+  let fxMode = { col: null, mode: "" };
+  const fxModeOf = (c, src) => (fxMode.col === c && fxMode.mode ? fxMode.mode : String(src || "").trim() ? "write" : "build");
   function renderDetail() {
     const t = ctx.target, c = focusCol, box = $("#lcDetail");
     if (!c || !ctx.columns.includes(c)) { box.innerHTML = '<p class="lc-empty">左で列を選ぶと、ここで見え方を整えられます。</p>'; return; }
@@ -578,10 +599,17 @@
         <div class="lc-field"><span>見出しの揃え</span>${[["", "中央（既定）"], ["follow", "データに合わせる"], ["left", "左"], ["right", "右"]].map(([k, n]) => `<label class="lc-radio"><input type="radio" name="lcAH" value="${k}"${(a.head || "") === k ? " checked" : ""}>${n}</label>`).join("")}</div>
       </section>
       ${step("fx", "式", "この列の作り方", stepFx(t, c))}
+        <span class="lc-fxtabs" role="tablist" aria-label="式の作り方">${[["write", "式を書く"], ["build", "組み立てる"]].map(([k, n]) =>
+          `<button type="button" role="tab" data-fxmode="${k}" aria-selected="${fxModeOf(c, fsrc) === k}">${n}${k === "write" && !String(fsrc).trim() ? "<small>（式なし）</small>" : ""}</button>`).join("")}</span>
+        <div class="lc-fxbuild" id="lcFxBuild"${fxModeOf(c, fsrc) === "build" ? "" : " hidden"}>
+          ${String(fsrc).trim() ? "" : '<p class="lc-fxlead">式がまだ無いので、組み立てるから始めます。選んで組み立て、「式にする」と式の欄に入ります（式を書く人は「式を書く」へ）。</p>'}
+          <div class="fb" id="lcFxBuilder"></div></div>
+        <div class="lc-fxwrite"${fxModeOf(c, fsrc) === "write" ? "" : " hidden"}>
         <textarea id="lcFormula" rows="2" spellcheck="false" placeholder="例: [製造板厚] * [幅]　／　if([数量] > 100, '大', '小')">${esc(fsrc)}</textarea>
         <small id="lcFxState" class="lc-fxstate ${fchk && !fchk.ok ? "is-ng" : "is-ok"}">${!String(fsrc).trim() ? (calc ? "式を入れてください" : "元の値をそのまま出します") : fchk.ok ? `使える式です（使っている列: ${esc(fchk.columns.join("、") || "なし")}）` : esc(fchk.error)}</small>
         ${String(fsrc).trim() && fchk && fchk.ok ? `<div class="lc-fxtry"><span>先頭3件の結果</span>${ctx.rows.slice(0, 3).map((r) => `<code>${esc(String(rawOf(t, c, r) ?? "")) || "（空欄）"}</code>`).join("")}</div>` : ""}
         <details class="lc-help"><summary>書き方</summary><table>${window.WL.formula.help.map(([a, b]) => `<tr><td><code>${esc(a)}</code></td><td>${esc(b)}</td></tr>`).join("")}</table></details>
+        </div>
         ${calc ? '<button type="button" id="lcDelCol" class="lc-danger">この列を削除する</button>' : ""}
       </section>
       ${step("fmt", "2", "値の整え方", stepFmt(t, c))}
@@ -633,6 +661,25 @@
     $("#lcSuf")?.addEventListener("change", (e) => setF({ suffix: e.target.value.slice(0, 8) }));
     // 作り方の式: 読めるあいだだけ当て直す（書きかけで一覧が空にならないように）。関数・列名の候補は WaveLog と同じ
     const fx = $("#lcFormula");
+    // 式を書く｜組み立てる（形は 7 案＋2 回目で選んだ: ui-proposals/2026-10-fxbuilder*）。描き直してもその列の選んだ方のまま
+    $$("[data-fxmode]", box).forEach((b) => b.addEventListener("click", () => {
+      fxMode = { col: c, mode: b.dataset.fxmode };
+      $$("[data-fxmode]", box).forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+      $("#lcFxBuild").hidden = b.dataset.fxmode !== "build"; $(".lc-fxwrite", box).hidden = b.dataset.fxmode !== "write";
+      if (b.dataset.fxmode === "write") fx.focus();
+    }));
+    window.FormulaBuilder.mount($("#lcFxBuilder"), {
+      kind: calc ? "calc" : "if",
+      // 元の列はその列自身を先頭に（自分の値を整える式が多い）。計算列は自分を指せない（輪になる）ので外す
+      columns: () => (calc ? [] : [c]).concat(ctx.columns.filter((k) => k !== c)).map((k) => label(t, k)),
+      preview: (f) => { const cc = compiled(f); return cc ? ctx.rows.slice(0, 3).map((r) => String(cc.run(baseRow(t, r)) ?? "")) : []; },
+      apply: (f, how) => {      // 式にする（置き換え）／式の欄に足す（カーソルの所）。どちらも式を書く方へ移って、入ったことを見せる
+        const v = how === "insert" ? fx.value.slice(0, fx.selectionStart) + f + fx.value.slice(fx.selectionEnd) : f;
+        fxMode = { col: c, mode: "write" };
+        fx.value = v; fx.dispatchEvent(new Event("input"));
+      },
+    });
+    TPA.keepSize(fx, "lcFormula");      // 広げた大きさを覚える（打つたびに詳細を描き直すので、覚えないと元の 2 行へ戻る）
     window.WL.formula.suggest(fx, { columns: () => ctx.columns.map((k) => label(t, k)) });
     let fxTimer = null;
     TPA.onText(fx, () => {   // 変換中は当てない（描き直すと未確定の字が強制確定される）
@@ -831,7 +878,7 @@
   window.LotListColumns = {
     get, ordered, visible, label, alignOf, widthOf, tintCss, rowGap, setRowGap, rowPad, GAP,
     cellPad, setCellPad, overflow, setOverflow, OVERFLOWS, PAD_MAX, freeze, setFreeze, FREEZE_MAX, freezeCss,
-    allColumns, isComputed, cell,
+    allColumns, isComputed, cell, sourcesOf,
     setContext, bindHeader, toggle,
     /** 対象を人の読める名前にする関数を決める（一覧の元が増えても、ここは名前の付け方を知らない） */
     describe: (fn) => { describeTarget = fn; },

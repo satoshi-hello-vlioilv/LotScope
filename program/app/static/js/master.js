@@ -85,6 +85,9 @@ const MASTER_DEFS = {
   },
 };
 
+/* 勤務体系（直の時間帯。services/shifts.py）: 作業実績を「日＋直ごと」に数える決まり。WaveLog の勤務体系マスタの編集画面を移した（現場のマスタ）。
+   ナビは定義の順に見出しを作るので、同じ「データ」の設備・ロールの直後に置く。 */
+MASTER_DEFS.shifts = { name: "shift_patterns", label: "勤務体系", group: "データ", api: "/api/masters/shifts", custom: true, render: () => renderShifts() };
 /* 参照先（読みに行く場所）。表ではなくカードで出す特別なタブ（custom）。中身は /api/settings の items */
 MASTER_DEFS.paths = { name: "path_settings", label: "参照先", group: "つなぎ先", api: "/api/settings", custom: true, admin: true };
 /* 作業実績（設備ごとの実績ファイル）: フォルダを探して設備を見つけ、設備ごとに表示する・しない・結ぶファイルを決める（管理のマスタ）。
@@ -130,7 +133,7 @@ MASTER_DEFS.release = { name: "release", label: "アプリの配布", group: "�
 
 const mstate = {
   tab: "equipment",
-  data: { equipment: null, rolls: null, paths: null, worklog: null, access: null, presence: null, release: null },
+  data: { equipment: null, rolls: null, paths: null, worklog: null, shifts: null, access: null, presence: null, release: null },
   meta: {},           // タブごとの付き物（アクセス権限の選択欄・自分の行 など）
   me: null,           // /api/access/me（この PC・このログインの権限）
   loadedRev: { equipment: null, rolls: null, paths: null },   // 一覧を読んだときのマスタの版
@@ -779,6 +782,131 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
     });
   });
   if (!paths) ensureTabLoaded("paths").catch(() => {});   // フォルダを直したときの行の版（参照先）を用意しておく
+}
+
+/* ---------------- 勤務体系（親: 勤務体系 / 子: 勤務区分。WaveLog の master-data.js の勤務体系の画面を移した） ----------------
+   現場の言い方どおりの 2 階層で直す（日勤 → 日勤 8:15-17:05 ／ 交替勤務(1,2,3直) → 1直 7:00-15:00 …）。
+   - 時刻は input[type=time]（表記ゆれ・全角数字が入らない）。よくある体系はテンプレートからひと押し
+   - 24 時間の帯で、どの時間帯が埋まっているか・抜けているかを色で見せる（数字を見比べさせない）
+   - 日を跨ぐ区分（終了 <= 開始）だけ「日付の数え方」を出す（跨がない区分に効かない欄を置かない）
+   - 適用設備は作業実績の設備の札の入切。どれも選ばなければ全設備共通（設備を選んだ体系があれば、その設備ではそちらが先）
+   下書き（mstate.shiftDraft）に写してから描き直す（押すたびに欄の値を失わない）。 */
+const SHIFT_DAYOFF = [[-1, "前の日として数える（−1日）"], [0, "暦どおり（0日）"], [1, "翌日として数える（＋1日）"]];
+const hmMin = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || "")); return m ? +m[1] * 60 + +m[2] : null; };
+const shiftCross = (g) => { const a = hmMin(g.start), b = hmMin(g.end); return a != null && b != null && b <= a; };
+const shiftDraftOf = (p) => (p ? { id: p.id, rev: p.rev, name: p.name, equipment: [...p.equipment], note: p.note || "",
+  segments: p.segments.map((g) => ({ name: g.name, start: g.start, end: g.end, dayOffset: g.crosses ? g.dayOffset : null })) }
+  : { id: null, rev: 0, name: "", equipment: [], note: "", segments: [] });
+function shiftBar(segs) {
+  const pct = (v) => (v / 1440) * 100;
+  return segs.map((g, i) => {
+    const a = hmMin(g.start), b = hmMin(g.end);
+    if (a == null || b == null || a === b) return "";
+    const parts = b <= a ? [[a, 1440], [0, b]] : [[a, b]];
+    return parts.map(([x, y]) => `<span class="sh-piece sh-c${i % 6}" style="left:${pct(x)}%;width:${pct(y) - pct(x)}%" title="${escapeHtml(g.name)} ${escapeHtml(g.start)}〜${escapeHtml(g.end)}"></span>`).join("");
+  }).join("");
+}
+/** 24 時間のうち、どの区分にも入らない時間（分）。区分の重なりも数える（直は重ならない決まり） */
+function shiftCoverage(segs) {
+  const used = new Array(1440).fill(0);
+  segs.forEach((g) => { const a = hmMin(g.start), b = hmMin(g.end); if (a == null || b == null || a === b) return;
+    for (let m = a; m !== b; m = (m + 1) % 1440) used[m]++; });
+  return { gap: used.filter((x) => !x).length, over: used.filter((x) => x > 1).length };
+}
+async function renderShifts({ notice = null, keep = false } = {}) {
+  const box = $("#masterSettings");
+  if (!keep || !mstate.data.shifts) {
+    if (!mstate.data.shifts) box.innerHTML = '<p class="ps-loading">勤務体系を読んでいます…</p>';
+    const r = await masterRequest("/api/masters/shifts", { cache: "no-store" });
+    if (mstate.tab !== "shifts") return;
+    if (!r.ok) { box.innerHTML = `<p class="ps-loading">勤務体系を読めませんでした: ${escapeHtml(r.data.error || "")}</p>`; return; }
+    mstate.data.shifts = r.data;
+    mstate.loadedRev.shifts = r.data.revision;
+    const sel = mstate.shiftDraft && mstate.shiftDraft.id;
+    const now = r.data.items.find((x) => x.id === sel) || (mstate.shiftDraft && !mstate.shiftDraft.id ? null : r.data.items[0]);
+    if (!keep) mstate.shiftDraft = shiftDraftOf(now || null);
+  }
+  const d = mstate.data.shifts, dr = mstate.shiftDraft;
+  const can = d.canEdit && !shareDown() && canWrite("shifts"), dis = can ? "" : ` disabled title="${escapeHtml(shareDown() ? "共有フォルダに届かないため、いまは保存できません" : readOnlyWhy("shifts") + "のため変えられません")}"`;
+  const cov = shiftCoverage(dr.segments);
+  const eqs = Array.from(new Set([...(d.equipments || []), ...dr.equipment]));
+  const segRow = (g, i) => {
+    const cross = shiftCross(g), off = g.dayOffset == null ? d.dayOffsetDefault : g.dayOffset;
+    return `<div class="sh-seg" data-i="${i}"><i class="sh-dot sh-c${i % 6}" aria-hidden="true"></i>
+      <input class="sh-name" value="${escapeHtml(g.name)}" placeholder="例: 1直" aria-label="区分の名称"${dis}>
+      <span class="sh-time"><input type="time" class="sh-start" value="${escapeHtml(g.start)}" aria-label="開始"${dis}><span>〜</span><input type="time" class="sh-end" value="${escapeHtml(g.end)}" aria-label="終了"${dis}></span>
+      <span class="sh-next">${cross ? "翌日" : ""}</span>
+      ${cross ? `<select class="sh-off" title="日を跨いだ後の時間帯を、どの日として数えるか（作業実績の「現場歴」）"${dis}>${SHIFT_DAYOFF.map(([v, t]) => `<option value="${v}"${v === off ? " selected" : ""}>${t}</option>`).join("")}</select>`
+        : '<span class="sh-off is-na" title="日を跨がない区分なので、日付の数え方はありません">—</span>'}
+      <span class="sh-acts">${can ? `<button type="button" data-sh="up" title="上へ"${i ? "" : " disabled"}>▲</button><button type="button" data-sh="down" title="下へ"${i < dr.segments.length - 1 ? "" : " disabled"}>▼</button><button type="button" data-sh="del" title="この区分を消します">×</button>` : ""}</span></div>`;
+  };
+  box.innerHTML = `<section class="sh-page">
+    <p class="ps-lead">勤務体系（日勤・交替勤務など）の中に、直の時間帯を並べます。作業実績を<b>「日＋直ごと」</b>にまとめるとき、作業開始の時刻が入る直で数えます。
+      終了が開始より前（または同じ）の区分は翌日へ跨ぐ直で、<b>跨いだ後の時間帯は「日付の数え方」で決めた日</b>として数えます（3直 23:00〜翌7:00 を 1 つの日にまとめるため）。
+      適用設備を選ばなければ全設備共通、設備を選んだ体系があればその設備ではそちらが先です。</p>
+    <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="shNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
+    <div class="sh-editor">
+      <aside class="sh-list" aria-label="登録済みの勤務体系"><div class="sh-list-head">登録済みの勤務体系</div>
+        ${d.items.length ? d.items.map((p) => `<button type="button" class="sh-item${p.id === dr.id ? " is-on" : ""}" data-sh-pick="${p.id}"><b>${escapeHtml(p.name)}</b>
+          <small>${escapeHtml(p.equipmentText)}・${p.segments.length}区分</small></button>`).join("") : '<p class="sh-empty">まだありません。右のテンプレートから作れます。</p>'}
+        ${can ? '<button type="button" class="sh-new" data-sh-new>＋ 勤務体系を足す</button>' : ""}</aside>
+      <div class="sh-detail">
+        <div class="sh-mode">${dr.id ? `直している体系 <b>${escapeHtml(dr.name)}</b>` : "<b>新しい勤務体系</b>"}
+          ${can ? `<span class="sh-tmpl">テンプレート: ${d.templates.map((t, i) => `<button type="button" data-sh-tmpl="${i}" title="${escapeHtml(t.segments.map((g) => `${g.name} ${g.start}〜${g.end}`).join(" / "))}">${escapeHtml(t.label)}</button>`).join("")}</span>` : ""}</div>
+        <label class="sh-field"><span>勤務体系の名称</span><input id="shName" class="ps-input" value="${escapeHtml(dr.name)}" placeholder="例: 交替勤務(1,2,3直)"${dis}></label>
+        <div class="sh-field"><span>適用設備</span><div class="sh-eqs">
+          <span class="sh-eqsum">${dr.equipment.length ? `<b>${dr.equipment.length}</b> 設備に当てる` : "<b>全設備共通</b>（どれも選んでいないので既定として使います）"}</span>
+          ${eqs.map((n) => `<button type="button" class="sh-eq" data-sh-eq="${escapeHtml(n)}" aria-pressed="${dr.equipment.includes(n)}"${dis}>${escapeHtml(n)}</button>`).join("") || '<small>作業実績の設備がまだありません</small>'}</div></div>
+        <div class="sh-barwrap"><div class="sh-bar" title="24 時間のうち、どの時間帯がどの区分か">${shiftBar(dr.segments)}</div>
+          <div class="sh-scale"><span>0時</span><span>6時</span><span>12時</span><span>18時</span><span>24時</span></div>
+          <small class="sh-cov${cov.gap || cov.over ? " is-warn" : ""}">${!dr.segments.length ? "区分がありません" : cov.over ? `区分が ${Math.round(cov.over / 6) / 10} 時間重なっています（早い区分に数えます）` : cov.gap ? `どの区分にも入らない時間が ${Math.round(cov.gap / 6) / 10} 時間あります（その時刻の作業は「直の外」に数えます）` : "24 時間がすき間なく区分に入っています"}</small></div>
+        <div class="sh-segs">${dr.segments.length ? '<div class="sh-seg sh-seghead"><i></i><span>区分の名称</span><span>時間帯</span><span></span><span>日付の数え方</span><span></span></div>' + dr.segments.map(segRow).join("") : '<p class="sh-empty">区分がありません。「＋ 区分を足す」かテンプレートから入れてください。</p>'}</div>
+        <div class="sh-foot">${can ? '<button type="button" data-sh-add>＋ 区分を足す</button>' : ""}<span class="sh-gap"></span>
+          ${can && dr.id ? '<button type="button" class="pz-btn danger" data-sh-delete>この勤務体系を消す</button>' : ""}
+          ${can ? `<button type="button" class="btn-primary" data-sh-save>${dr.id ? "保存" : "足す"}</button>` : ""}</div>
+      </div></div></section>`;
+  const say = (cls, html) => { const n = $("#shNotice"); n.className = `ps-result ${cls}`; n.innerHTML = html; };
+  /* 欄の値を下書きへ（押す前に毎回） */
+  const sync = () => {
+    dr.name = $("#shName").value;
+    dr.segments = [...box.querySelectorAll(".sh-seg[data-i]")].map((el) => {
+      const off = el.querySelector("select.sh-off");
+      return { name: el.querySelector(".sh-name").value, start: el.querySelector(".sh-start").value, end: el.querySelector(".sh-end").value, dayOffset: off ? +off.value : null };
+    });
+  };
+  const redraw = () => renderShifts({ keep: true });
+  box.querySelector(".sh-editor").addEventListener("change", (e) => { if (e.target.matches(".sh-start,.sh-end,.sh-off")) { sync(); redraw(); } });
+  box.querySelector(".sh-editor").addEventListener("click", async (e) => {
+    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    if (b.dataset.shPick) { mstate.shiftDraft = shiftDraftOf(d.items.find((x) => x.id === +b.dataset.shPick)); redraw(); return; }
+    if (b.hasAttribute("data-sh-new")) { mstate.shiftDraft = shiftDraftOf(null); redraw(); return; }
+    sync();
+    if (b.dataset.shTmpl != null) { const t = d.templates[+b.dataset.shTmpl]; dr.name = dr.name || t.label; dr.segments = t.segments.map((g) => ({ dayOffset: null, ...g })); redraw(); return; }
+    if (b.dataset.shEq != null) { const n = b.dataset.shEq; dr.equipment = dr.equipment.includes(n) ? dr.equipment.filter((x) => x !== n) : dr.equipment.concat([n]); redraw(); return; }
+    if (b.hasAttribute("data-sh-add")) { const last = dr.segments[dr.segments.length - 1]; dr.segments.push({ name: "", start: last ? last.end : "08:00", end: "", dayOffset: null }); redraw(); return; }
+    const row = b.closest(".sh-seg[data-i]"), i = row ? +row.dataset.i : -1;
+    if (b.dataset.sh === "del") { dr.segments.splice(i, 1); redraw(); return; }
+    if (b.dataset.sh === "up" || b.dataset.sh === "down") { const j = i + (b.dataset.sh === "up" ? -1 : 1); [dr.segments[i], dr.segments[j]] = [dr.segments[j], dr.segments[i]]; redraw(); return; }
+    if (b.hasAttribute("data-sh-save")) {
+      const body = { name: dr.name, equipment: dr.equipment, segments: dr.segments, note: dr.note };
+      const res = await withLockWait(() => masterRequest(dr.id ? `/api/masters/shifts/${dr.id}` : "/api/masters/shifts",
+        TPA.json(dr.id ? "PUT" : "POST", dr.id ? { ...body, base_rev: dr.rev } : body)), (x) => say("wait", lockWaitText(x, "保存", boldName)));
+      if (res.status === 409 && res.data.kind === "conflict") { mstate.shiftDraft = null; renderShifts({ notice: ["ng", "開いたあとに、ほかの PC がこの勤務体系を直しました。読み直したので、もう一度直してください。"] }); return; }
+      if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "保存できませんでした。")); return; }
+      const id = dr.id || res.data.created;
+      mstate.data.shifts = null; mstate.shiftDraft = { id };
+      emit("tpa:masters-changed");
+      renderShifts({ notice: ["ok", `✓ 「${escapeHtml(dr.name)}」を保存しました（${dr.segments.length}区分）。作業実績の「日＋直ごと」にすぐ効きます`] });
+      return;
+    }
+    if (b.hasAttribute("data-sh-delete")) {
+      if (!confirm(`勤務体系「${dr.name}」を消します。よろしいですか？`)) return;
+      const res = await masterRequest(`/api/masters/shifts/${dr.id}?rev=${dr.rev}`, { method: "DELETE" });
+      if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "消せませんでした。")); return; }
+      mstate.data.shifts = null; mstate.shiftDraft = null; emit("tpa:masters-changed");
+      renderShifts({ notice: ["ok", `✓ 「${escapeHtml(dr.name)}」を消しました`] });
+    }
+  });
 }
 
 /* ---------------- アプリの配布（① 版を置く → ② 配る版を選ぶ → ③ 各 PC がそろう） ----------------

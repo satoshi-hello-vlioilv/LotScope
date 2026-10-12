@@ -128,12 +128,19 @@ impl Lot {
                 None if m.remote().is_empty() => (400, json!({"error": NO_SOURCE, "source": m.source_info()})),
                 // 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す（Python の lotlist_plan と同じ答え）
                 None => (503, json!({"error": m.not_ready_text(), "kind": "copying", "source": m.source_info()})),
-                // スライサーに並べる値（列の重複なしの値と件数）
+                // スライサーに並べる値（列の重複なしの値と件数・計算列は値の組）
                 Some(p) if path == "/api/lotlist/slicer" => {
                     let today = chrono::Local::now().date_naive();
                     let qs = lotlist::parse_query(query);
                     let arg = |k: &str| qs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
-                    match lotlist::slicer(&p, &Args::from_query(query), &arg("column"), &arg("key"), &s.table, today) {
+                    // columns があれば計算列の値の組（式が使う列）、無ければ列の値（Python の slicer_answer と同じ振り分け）
+                    let cols = arg("columns");
+                    let answer = if cols.is_empty() {
+                        lotlist::slicer(&p, &Args::from_query(query), &arg("column"), &arg("key"), &s.table, today)
+                    } else {
+                        lotlist::slicer_combos(&p, &Args::from_query(query), &cols, &s.table, today)
+                    };
+                    match answer {
                         Ok(v) => (200, v),
                         Err((400, e)) => (400, json!({"error": e})),
                         Err((st, e)) => (st, json!({"error": e, "source": m.source_info()})),

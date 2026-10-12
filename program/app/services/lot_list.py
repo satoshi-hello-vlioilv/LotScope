@@ -24,13 +24,17 @@ ALLOWED_OPS = {"contains", "not_contains", "eq", "neq", "starts", "starts_any", 
                # 今日から数えて N 日（週・か月・年）以内。日付と読める値だけが当たる（ToDate(列) >= 今日−N）
                "within_days", "within_weeks", "within_months", "within_years",
                # スライサー: 選んだ値のどれか（slice_key で比べる。空欄も選べる）
-               "in"}
+               "in",
+               # スライサーの計算列: 式が使う列（columns）の値の組のどれか（value は組の JSON 配列。画面が式の結果から選んだ組）
+               "tuple_in"}
 RELATIVE_OPS = {"within_days": "days", "within_weeks": "weeks", "within_months": "months", "within_years": "years"}
 DATE_SAMPLE = 60          # 日付の列か見分けるときに読む値の数
 DATE_RATIO = 0.8          # そのうち日付と読める割合がこれ以上なら日付の列
 MAX_FILTERS = 20
 MAX_IN_VALUES = 1000      # スライサーで一度に選べる値の数
 MAX_SLICER_VALUES = 1000  # スライサーに並べる値の数（超えたら truncated）
+MAX_TUPLE_COLUMNS = 4     # 計算列のスライサー: 式が使う列の数の上限
+MAX_COMBOS = 5000         # 計算列のスライサー: 値の組を並べる数（超えたら truncated）
 MAX_SORTS = 4
 PAGE_SIZE_MAX = 5000
 PAGE_SIZE_DEFAULT = 500
@@ -95,12 +99,40 @@ def safe_filters(text, cs):
         col = str(it.get("column") or "").strip()
         op = str(it.get("op") or "contains").strip()
         val = str(it.get("value") or "").strip()
+        if op == "tuple_in":
+            cols = tuple_columns(it.get("columns"), cs)
+            if cols:
+                out.append({"column": col, "op": op, "value": val, "columns": cols})
+            continue
         if col in cs and op in ALLOWED_OPS:
             f = {"column": col, "op": op, "value": val}
             if op == "in":
                 f["key"] = slice_key_kind(it.get("key"))
             out.append(f)
     return out
+
+
+def tuple_columns(v, cs):
+    """計算列のスライサーが渡す列の並び → 実在する列だけ（1〜4 列・重ならない）。合わなければ []。"""
+    if not isinstance(v, list) or not 1 <= len(v) <= MAX_TUPLE_COLUMNS:
+        return []
+    cols = [str(x) for x in v]
+    return cols if all(c in cs for c in cols) and len(set(cols)) == len(cols) else []
+
+
+def tuple_values(value, n):
+    """tuple_in の値（[[値, …], …] の JSON）→ 組の並び（長さ n の組だけ・数か字か null だけ・最大 MAX_IN_VALUES）。"""
+    try:
+        items = json.loads(value) if value else []
+    except ValueError:
+        return []
+    ok = (str, int, float, type(None))
+
+    def big(x):         # i64 を超える整数は実数（Rust と同じ）
+        return float(x) if isinstance(x, int) and not -2 ** 63 <= x < 2 ** 63 else x
+    out = [[big(x) for x in t] for t in (items if isinstance(items, list) else [])
+           if isinstance(t, list) and len(t) == n and all(isinstance(x, ok) and not isinstance(x, bool) for x in t)]
+    return out[:MAX_IN_VALUES]
 
 
 def slice_key_kind(v):
@@ -246,6 +278,13 @@ def build_filter_where(filters, today=None):
             ors = ([f"{k} IN ({','.join('?' * len(some))})"] if some else []) + ([f"{k} IS NULL"] if "" in vals else [])
             parts.append("(" + " OR ".join(ors) + ")" if ors else "0=1")
             params += some
+        elif op == "tuple_in":
+            # 値の組のどれか。IS で比べる（空＝NULL の組も当たる・数は数で比べる）
+            cols = [qi(x) for x in f["columns"]]
+            tuples = tuple_values(value, len(cols))
+            one = "(" + " AND ".join(f"{x} IS ?" for x in cols) + ")"
+            parts.append("(" + " OR ".join([one] * len(tuples)) + ")" if tuples else "0=1")
+            params += [v for t in tuples for v in t]
         elif op in RELATIVE_OPS:
             parts.append(f"ToDate({col}) >= ?")
             params.append(cutoff_date(op, value, today))
@@ -338,7 +377,7 @@ def rowid_name(c, t, raw_cs):
     return None
 
 
-def grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size):
+def grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, key_sql=None, lead=()):
     """ロット番号でまとめた並びの1ページ分。→ (行, [[そのロットの行数, ロットの中の何行目], ...], 最初の位置, 最後の位置)
 
     - ロットの順は、並べ替え（無ければ表の順）で「そのロットでいちばん上に来る行」の順。ロットの中も同じ並べ替えの順。
@@ -347,20 +386,24 @@ def grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size):
       大きいロットが次の区切りをまたいで、先頭の行が1つも入らない区切りができたら、その区切りは飛ばす（空のページを作らない）。
     - ロット番号が空の行はまとめない（1行ずつ）。
     - 並びは「行番号・並べ替えの順・ロットの見分け」だけで決め、そのページの行だけを後から読む（全部の列を窓関数の段ごとに
-      持ち回さない。3 万行 × 40 列で 1.6 秒 → 0.25 秒・答えは同じ）。行番号を読めない表（ビューなど）は全部の列で決める。"""
+      持ち回さない。3 万行 × 40 列で 1.6 秒 → 0.25 秒・答えは同じ）。行番号を読めない表（ビューなど）は全部の列で決める。
+    - key_sql・lead: ロット番号の代わりにまとめる鍵の式と、並べ替えの前に置く式（作業実績の「作業でまとめる」。query の grouping）。"""
     if sqlite3.sqlite_version_info < (3, 25):     # 窓関数（ROW_NUMBER など）は SQLite 3.25 から
         raise RuntimeError(f"この PC の SQLite（{sqlite3.sqlite_version}）では「ロット番号でまとめる」を使えません。"
                            "「表の見せ方」の「機能」でまとめるを外してください。")
-    got = c.execute(grouped_sql(t, raw_cs, lot, where, order_parts, size, rowid_name(c, t, raw_cs)), list(params) + [page]).fetchall()
+    got = c.execute(grouped_sql(t, raw_cs, lot, where, order_parts, size, rowid_name(c, t, raw_cs), key_sql, lead),
+                    list(params) + [page]).fetchall()
     n = len(raw_cs)
     rows = [r[:n] for r in got]
     groups = [[int(r[n]), int(r[n + 1])] for r in got]
     return rows, groups, (int(got[0][n + 2]) if got else 0), (int(got[-1][n + 2]) if got else 0)
 
 
-def grouped_sql(t, raw_cs, lot, where, order_parts, size, rid=None):
-    """まとめた並びの SQL（デスクトップ版の Rust・desktop/src/lotlist.rs も同じ文を作る）。最後の ? はページ。"""
-    over = ("ORDER BY " + order_sql(order_parts, lot)) if order_parts else ""
+def grouped_sql(t, raw_cs, lot, where, order_parts, size, rid=None, key_sql=None, lead=()):
+    """まとめた並びの SQL（デスクトップ版の Rust・desktop/src/lotlist.rs も同じ文を作る。key_sql・lead は Python だけ）。最後の ? はページ。"""
+    by = ",".join([*lead, order_sql(order_parts, lot)] if order_parts else list(lead))
+    over = ("ORDER BY " + by) if by else ""
+    key = key_sql or lot_key(lot)
     cols = ", ".join(qi(x) for x in raw_cs)
     steps = """
         k AS (SELECT *, CASE WHEN _tpa_k0 = '' THEN '#' || _tpa_rn ELSE _tpa_k0 END AS _tpa_k FROM b),
@@ -370,17 +413,17 @@ def grouped_sql(t, raw_cs, lot, where, order_parts, size, rid=None):
     page = f"r AS (SELECT *, DENSE_RANK() OVER (ORDER BY (_tpa_head - 1) / {int(size)}) AS _tpa_page FROM q)"
     if rid:
         tail = ", ".join(f"{qi(t)}.{qi(x)}" for x in raw_cs)
-        return (f"WITH b AS (SELECT {rid} AS _tpa_id, ROW_NUMBER() OVER ({over}) AS _tpa_rn, {lot_key(lot)} AS _tpa_k0 FROM {qi(t)}{where}),"
+        return (f"WITH b AS (SELECT {rid} AS _tpa_id, ROW_NUMBER() OVER ({over}) AS _tpa_rn, {key} AS _tpa_k0 FROM {qi(t)}{where}),"
                 f"{steps} {page} SELECT {tail}, r._tpa_n, r._tpa_pos - r._tpa_head + 1, r._tpa_pos FROM r "
                 f"JOIN {qi(t)} ON {qi(t)}.{rid} = r._tpa_id WHERE r._tpa_page = ? ORDER BY r._tpa_pos")
-    return (f"WITH b AS (SELECT *, ROW_NUMBER() OVER ({over}) AS _tpa_rn, {lot_key(lot)} AS _tpa_k0 FROM {qi(t)}{where}),"
+    return (f"WITH b AS (SELECT *, ROW_NUMBER() OVER ({over}) AS _tpa_rn, {key} AS _tpa_k0 FROM {qi(t)}{where}),"
             f"{steps} {page} SELECT {cols}, _tpa_n, _tpa_pos - _tpa_head + 1, _tpa_pos FROM r WHERE _tpa_page = ? ORDER BY _tpa_pos")
 
 
-def group_count(c, t, lot, where, params):
-    """まとめたときのロットの数（ロット番号が空の行は1行ずつ数える）。"""
+def group_count(c, t, lot, where, params, key_sql=None):
+    """まとめたときのロットの数（ロット番号が空の行は1行ずつ数える）。key_sql はロット番号の代わりの鍵（作業でまとめる）。"""
     return int(c.execute(f"SELECT COUNT(DISTINCT NULLIF(k, '')) + COALESCE(SUM(k = ''), 0) FROM "
-                         f"(SELECT {lot_key(lot)} AS k FROM {qi(t)}{where})", params).fetchone()[0])
+                         f"(SELECT {key_sql or lot_key(lot)} AS k FROM {qi(t)}{where})", params).fetchone()[0])
 
 
 def _json_value(v):
@@ -425,9 +468,60 @@ def slicer(path, *, column, key="", table="", preferred_table="", search="", fil
     }
 
 
+def slicer_combos(path, *, use, table="", preferred_table="", search="", filters="", today=None, table_candidates=TABLE_CANDIDATES):
+    """計算列のスライサー: 式が使う列（use: 列名の JSON 配列）の値の組（重複なし・元の型のまま）と、ほかの絞り込みのもとでの件数。
+    画面が組ごとに式を計算し、同じ結果を足してスライサーの値にする（式は画面にしか無い: list-formula.js）。並びは件数の多い順。"""
+    t0 = time.perf_counter()
+    q = (search or "").strip()
+    with connect_ro(path) as c:
+        names = tables(c)
+        t = table if table in names else pick_table(names, preferred_table, table_candidates)
+        if not t:
+            raise RuntimeError("表が 1 つもありません。")
+        cs = columns(c, t, raw_columns(c, t))
+        try:
+            want = json.loads(use) if isinstance(use, str) else use
+        except ValueError:
+            want = None
+        cols = tuple_columns(want, cs)
+        if not cols:
+            raise ValueError(f"計算列のスライサーは、表にある列を 1〜{MAX_TUPLE_COLUMNS} 個使う式だけです。")
+        where_parts, params = [], []
+        if q:
+            where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ?" for x in cs) + ")")
+            params += [f"%{q}%"] * len(cs)
+        fp, fpp = build_filter_where(safe_filters(filters, cs), today)
+        where_parts += fp
+        params += fpp
+        hit = f"SUM(CASE WHEN {' AND '.join(where_parts)} THEN 1 ELSE 0 END)" if where_parts else "COUNT(*)"
+        keys = ", ".join(qi(x) for x in cols)
+        # 件数が同じ組の順も決める（Rust の lotlist.rs と同じ並びにする）: 列ごとに SortKey → 元の値
+        tie = ", ".join(f"SortKey({qi(x)}), {qi(x)}" for x in cols)
+        rows = c.execute(f"SELECT {keys}, {hit} AS n, COUNT(*) AS a FROM {qi(t)} GROUP BY {keys} ORDER BY n DESC, a DESC, {tie} LIMIT {MAX_COMBOS + 1}",
+                         params).fetchall()
+    k = len(cols)
+    return {
+        "table": t, "columns": cols,
+        "combos": [{"values": [_json_value(v) for v in r[:k]], "count": int(r[k] or 0), "all": int(r[k + 1])} for r in rows[:MAX_COMBOS]],
+        "truncated": len(rows) > MAX_COMBOS,
+        "timing": {"server": round((time.perf_counter() - t0) * 1000)},
+    }
+
+
+def slicer_answer(path, args, **kw):
+    """スライサーの問い合わせ（一覧の元ごとの道が同じに呼ぶ）: columns があれば計算列の値の組（slicer_combos）、無ければ列の値（slicer）。"""
+    common = dict(table=args.get("table", ""), search=args.get("search", ""), filters=args.get("filters", ""), **kw)
+    if args.get("columns"):
+        return slicer_combos(path, use=args.get("columns"), **common)
+    return slicer(path, column=args.get("column", ""), key=args.get("key", ""), **common)
+
+
 def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEFAULT, search="",
-          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES):
-    """1 ページ分。表は table（あれば）→ preferred_table → table_candidates の順に探す（作業実績は別の候補を渡す）。"""
+          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES, grouping=None):
+    """1 ページ分。表は table（あれば）→ preferred_table → table_candidates の順に探す（作業実績は別の候補を渡す）。
+    grouping: ロット番号の代わりの鍵でまとめる係（作業実績の「作業でまとめる」。services/work_summary.py の Grouping）。
+        grouping.prepare(接続, 表, 列) → まとめるなら {"key": 鍵の式, "lead": [並べ替えの前に置く式], "where": ([式], [値])?}・まとめないなら None
+        grouping.extra(接続, 表, 列, 日付の列, where, params, 行) → 答えに足す物（dict。where は係の絞り込みを外した物）"""
     t0 = time.perf_counter()
     page = max(1, int(page or 1))
     size = min(PAGE_SIZE_MAX, max(1, int(page_size or PAGE_SIZE_DEFAULT)))
@@ -447,14 +541,24 @@ def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEF
         fp, fpp = build_filter_where(fl, today)
         where_parts += fp
         params += fpp
-        where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        base_where, base_params = (" WHERE " + " AND ".join(where_parts)) if where_parts else "", list(params)
         lot = lot_column(cs)
         order_parts = safe_sorts(sorts, cs)
-        order = (" ORDER BY " + order_sql(order_parts, lot)) if order_parts else ""
+        plan = grouping.prepare(c, t, cs) if grouping else None
+        if plan and plan.get("where"):             # まとめの係の絞り込み（作業実績の帯で押した日・直）。数の帯（extra）は外した物で数える
+            where_parts = where_parts + plan["where"][0]
+            params = params + plan["where"][1]
+        where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        lead = list(plan["lead"]) if plan else []
+        by = ",".join(lead + ([order_sql(order_parts, lot)] if order_parts else []))
+        order = (" ORDER BY " + by) if by else ""
         count = int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}" + where, params).fetchone()[0])
         start = (page - 1) * size
         grouped = {}
-        if group and lot:
+        if plan:
+            rows, groups, first, last = grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, plan["key"], lead)
+            grouped = {"groups": groups, "groupCount": group_count(c, t, lot, where, params, plan["key"])}
+        elif group and lot:
             rows, groups, first, last = grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size)
             grouped = {"groups": groups, "groupCount": group_count(c, t, lot, where, params)}
         else:
@@ -462,11 +566,13 @@ def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEF
             first, last = (start + 1, start + len(rows)) if rows else (0, 0)
         dcols = _date_columns_cached(path, c, t, cs)
         hints = date_hints(c, t, fl, today) if count == 0 else []
+        dict_rows = [{col: _json_value(v) for col, v in zip(raw_cs, r)} for r in rows]
+        extra = grouping.extra(c, t, cs, dcols, base_where, base_params, dict_rows) if grouping else {}
     return {
         "table": t, "tables": names, "columns": cs, "lotColumn": lot, "dateColumns": dcols,
         "today": (today or date.today()).isoformat(), "dateHints": hints,
-        "rows": [{col: _json_value(v) for col, v in zip(raw_cs, r)} for r in rows],
+        "rows": dict_rows,
         "count": count, "page": page, "page_size": size, "range": [first, last], **grouped,
         "filters_applied": len(fl), "sorts": [{"column": col, "dir": d.lower(), **({"key": k} if k else {})} for col, d, k in order_parts],
-        "timing": {"server": round((time.perf_counter() - t0) * 1000)},
+        "timing": {"server": round((time.perf_counter() - t0) * 1000)}, **extra,
     }

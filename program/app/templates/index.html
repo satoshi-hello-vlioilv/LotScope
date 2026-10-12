@@ -12,9 +12,11 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/master.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-columns.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/formula-builder.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-card.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-slicer.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-formats.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-work.css') }}">
 </head>
 <body>
 <header>
@@ -94,6 +96,8 @@
     <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
     <div class="ll-status">
       <span id="llCount" class="ll-count">全 0件</span>
+      <!-- 作業実績のときだけ: 作業でまとめる（まとめない｜日ごと｜日＋直ごと）と、右の表で押した日・直の札（lotlist-work.js） -->
+      <span id="llWorkSwitch" class="wk-switch" hidden></span>
       <!-- 頁の頭は置かない（題はタブ）。何の表か・元データの時刻・ロット番号を押すと何が起きるかを、件数と同じ行に -->
       <label class="ll-tablepick">表<select id="llTable" class="ll-table" aria-label="表" title="品質データの表" hidden></select></label>
       <button id="llFresh" type="button" class="ll-fresh">元データ 確認中</button>
@@ -132,6 +136,8 @@
       <style id="llTintStyle"></style>
       <div id="llNote" class="ll-note" hidden></div>
     </div>
+    <!-- 作業実績で作業でまとめているとき: 日・直ごとのロット数（押すと一覧をその日・直に絞る） -->
+    <aside id="llWork" class="wk-pane" hidden aria-label="日・直ごとのロット数"></aside>
     </div>
     <!-- 登録した条件とプリセット -->
     <div id="llPresetModal" class="ll-pm" hidden role="dialog" aria-modal="true" aria-label="登録した条件とプリセット">
@@ -353,12 +359,16 @@
 <script>window.TPA_UI_PROFILE = {{ ui_profile|tojson }};</script>
 <script src="{{ url_for('static', filename='js/shared.js') }}"></script>
 <script src="{{ url_for('static', filename='js/list-formula.js') }}"></script>
+<script src="{{ url_for('static', filename='js/formula-builder.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-rules.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-columns.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-card.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-slicer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-profile.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-formats.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-work.js') }}"></script>
+<script src="{{ url_for('static', filename='js/xlsx-writer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-export.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master.js') }}"></script>
