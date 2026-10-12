@@ -229,7 +229,7 @@
           <button type="button" role="tab" data-tab="build">組み立てる<small>条件で分ける（表示ルールと同じ組み立て）</small></button>
           <button type="button" role="tab" data-tab="write">式を書く<small>計算・文字の加工など何でも</small></button></div>` : "";
       const write = fx ? `<div class="lr-pane lr-writepane" data-pane="write" hidden>
-          <textarea class="lr-write" rows="7" spellcheck="false" aria-label="式" placeholder="例: [製造板厚] * [幅]　／　if([数量] > 100, '大', '小')"></textarea>
+          <div class="lr-writebox"><textarea class="lr-write" rows="7" spellcheck="false" aria-label="式" placeholder="例: [製造板厚] * [幅]　／　if([数量] > 100, '大', '小')"></textarea></div>
           <small class="lr-write-state"></small>
           <details class="lr-parts" open><summary>部品から作る<small>計算する・文字をつなぐ・取り出す・空なら別の値・丸める（作った式を欄に入れます）</small></summary><div class="lr-fbbox"></div></details>
           <details class="lc-help"><summary>書き方</summary><table>${F().help.map(([a, b]) => `<tr><td><code>${esc(a)}</code></td><td>${esc(b)}</td></tr>`).join("")}</table></details></div>` : "";

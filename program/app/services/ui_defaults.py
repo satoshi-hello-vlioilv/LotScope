@@ -24,7 +24,9 @@ PROFILE_KEYS = (
     "tpa.lotlist.marks.v1",        # 色付け（条件付き書式）の組
     "tpa.lotlist.zoomStep.v1",     # 拡大のつまみの刻み
     "tpa.lotlist.presets.v1",      # 登録した条件・プリセット
-    "tpa.lotlist.views.v1",        # 保存した見方（条件・並べ替え・まとめ・スライサー・検索に名前を付けた物）
+    "tpa.lotlist.views.v1",        # 保存した見方（条件・並べ替え・まとめ・スライサー・検索・集計・作業でまとめるに名前を付けた物）
+    "tpa.lotlist.pivot.v1",        # 集計表・グラフの組み方（範囲ごと。一覧｜集計も）
+    "tpa.worklog.count.v1",        # 作業実績の「作業でまとめる」（まとめ方・日付の数え方・並び・作業開始の列・合計する列）
 )
 MAX_BYTES = 2 * 1024 * 1024
 

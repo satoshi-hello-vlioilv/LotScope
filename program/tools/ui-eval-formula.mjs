@@ -5,16 +5,18 @@
 //    （[この列] は作り替える前の値。以前は自分の式をもう 1 度通した値と比べていた）
 // 2. 開き直すと組み立てるで開き、3 行が戻る。「式を書く」に組み立てた式が入る。部品から作る（数を丸める）で式の欄に足せる
 // 3. 入力のラグ: CPU を 4 分の 1 に落とし、式を書く欄に打つ間の 1 打鍵の遅れ（打ってから描くまで）と長いタスク・一覧の描き直しを測り、
-//    同じ画面の上の素の欄（何の処理も無い入力欄）と比べる
+//    同じ画面の上の素の欄（何の処理も無い入力欄）と比べる。1 回ずつだと順番（先に打った方が温まっていない）と揺れで結果が入れ替わるので、
+//    素の欄と窓を交互に 3 回ずつ打ち、全打鍵をまとめた平均と 95 パーセンタイルで比べる（最大の 1 打鍵は GC などで揺れるので表示だけ）
 //    （以前は表示列の窓の欄で打つたびに 350ms 後に一覧と窓を丸ごと描き直し、平均 61ms・最大 147ms・長いタスク 482ms だった）
 // 4. 読み替えルールの窓（同じ作り）も開いて閉じられる
 // 全部合えば終了コード 0。
 import { buildWeight, launch, sleep } from "./ui-harness.mjs";
 
 const EXPR = "if(cmp([重量], '3000') >= 0 and cmp([板厚], '1') < 0, '重・薄', if(cmp([重量], '3000') >= 0, '重', '軽'))";
-// 4 倍遅い CPU で、素の欄より多くかかってよい 1 打鍵の遅れ（ms）。長いタスクは表示するだけ（打つ手が止まった後の 1 回の描き直しは、
-// 後ろの一覧の大きさ＝500 行の描画に比例し、窓の作りでは減らせない）
-const LAG = { avg: 12, max: 50 };
+// 4 倍遅い CPU で、素の欄より多くかかってよい 1 打鍵の遅れ（ms。平均と 95 パーセンタイル）。長いタスクは表示するだけ
+// （打つ手が止まった後の 1 回の描き直しは、後ろの一覧の大きさ＝500 行の描画に比例し、窓の作りでは減らせない）
+const LAG = { avg: 12, p95: 30 };
+const ROUNDS = 3;
 const app = await launch();
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got)}`}`); if (!ok) fails.push(name); };
@@ -88,14 +90,27 @@ try {
     for (const ch of "if([重量] > 1000, 'a', 'b')") { await p.keyboard.type(ch); await sleep(pauses[k++ % pauses.length]); }
     await sleep(800);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
-    return p.evaluate(() => { window.__on = false; return { max: Math.round(Math.max(...window.__lat)), avg: Math.round(window.__lat.reduce((a, b) => a + b, 0) / window.__lat.length), long: Math.round(window.__long), redraw: window.__redraw }; });
+    return p.evaluate(() => { window.__on = false; return { lat: window.__lat, long: window.__long, redraw: window.__redraw }; });
   };
-  const bare = await typeOnce("#bareTa");
+  const pool = (runs) => {
+    const lat = runs.flatMap((r) => r.lat).sort((a, b) => a - b);
+    const at = (q) => lat[Math.min(lat.length - 1, Math.floor(q * lat.length))];
+    return { avg: Math.round(lat.reduce((a, b) => a + b, 0) / lat.length), p95: Math.round(at(0.95)), max: Math.round(lat[lat.length - 1]),
+      long: Math.round(runs.reduce((a, r) => a + r.long, 0) / runs.length), redraw: runs.reduce((a, r) => a + r.redraw, 0), n: lat.length };
+  };
+  const bareRuns = [], fxRuns = [];
+  for (let i = 0; i < ROUNDS; i++) {
+    await p.evaluate(() => { document.querySelector("#bareBox").style.display = ""; document.querySelector("#bareTa").value = ""; }); await sleep(200);
+    bareRuns.push(await typeOnce("#bareTa"));
+    await p.evaluate(() => { document.querySelector("#bareBox").style.display = "none"; }); await sleep(200);
+    await p.fill("#llFxPanel .lr-write", ""); await sleep(400);
+    fxRuns.push(await typeOnce("#llFxPanel .lr-write"));
+  }
   await p.evaluate(() => document.querySelector("#bareBox").remove()); await sleep(300);
-  const lag = await typeOnce("#llFxPanel .lr-write");
-  console.log("    入力のラグ（4 倍遅い CPU）: 作り方の窓", JSON.stringify(lag), "／ 素の欄", JSON.stringify(bare),
+  const bare = pool(bareRuns), lag = pool(fxRuns);
+  console.log(`    入力のラグ（4 倍遅い CPU・交互に ${ROUNDS} 回ずつ）: 作り方の窓`, JSON.stringify(lag), "／ 素の欄", JSON.stringify(bare),
     "／ 以前（表示列の窓の欄・版 3.21.1）は平均 61ms・最大 147ms・長いタスク 482ms＋打つ手が止まるたびに一覧を描き直し");
-  check(`窓が打鍵に足す遅れが小さい（素の欄＋平均 ${LAG.avg}ms・最大 ${LAG.max}ms まで）`, lag.avg <= bare.avg + LAG.avg && lag.max <= bare.max + LAG.max, { lag, bare });
+  check(`窓が打鍵に足す遅れが小さい（素の欄＋平均 ${LAG.avg}ms・95 パーセンタイル ${LAG.p95}ms まで）`, lag.avg <= bare.avg + LAG.avg && lag.p95 <= bare.p95 + LAG.p95, { lag, bare });
   check("打っている間は一覧を描き直さない", lag.redraw === 0, lag.redraw);
   const tryOut = await p.$$eval("#llFxPanel .lr-try-list li b", (xs) => [...new Set(xs.map((x) => x.textContent))].sort());
   check("打った式の結果が試した結果に出る", JSON.stringify(tryOut) === '["a","b"]' || JSON.stringify(tryOut) === '["a"]', tryOut);

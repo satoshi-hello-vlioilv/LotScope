@@ -396,10 +396,12 @@
   if(!sgEl){
    /* 候補は、画面いっぱいの透明な台（大きさを閉じ込めた .fx-suggest-host）の中に置く。body の直下に置くと、動かす・中身を変える
       たびに文書全体（後ろの大きな一覧）から配置を計算し直し、打つ手を待たせた（台で計算が止まる） */
+   /* 台そのものは固定配置（OOF）なので組み直しの区切りにならない。中に区切りになる普通の箱（.fx-suggest-layer）を挟む */
    const host=document.createElement('div');host.className='fx-suggest-host';document.body.appendChild(host);
+   const layer=document.createElement('div');layer.className='fx-suggest-layer';host.appendChild(layer);
    sgEl=document.createElement('div');
    sgEl.className='wl-menu fx-suggest';sgEl.setAttribute('role','listbox');sgEl.hidden=true;
-   host.appendChild(sgEl);
+   layer.appendChild(sgEl);
    sgEl.addEventListener('mousedown',e=>{
     const li=e.target.closest('[data-i]');if(!li)return;
     e.preventDefault();sgPick(+li.dataset.i);

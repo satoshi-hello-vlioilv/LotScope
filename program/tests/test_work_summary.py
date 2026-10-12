@@ -141,7 +141,7 @@ class Summarize(unittest.TestCase):
 
     def test_empty_and_unreadable_starts(self):
         got = work_summary.summarize([("", None), (None, None), ("不明", None), ("不明", None), ("2026/10/01", None)], shifts.Clock(segs(THREE)))
-        self.assertEqual(got["total"], {"works": 4, "rows": 5, "split": 1, "noTime": 1, "noStamp": 4},
+        self.assertEqual(got["total"], {"works": 4, "rows": 5, "split": 1, "noTime": 1, "noStamp": 4, "sum": 0.0},
                          "空は 1 行ずつ・同じ字は 1 作業・日付だけは時刻なし")
         self.assertEqual(got["buckets"][-1]["day"], "", "日付の無い作業は最後")
 

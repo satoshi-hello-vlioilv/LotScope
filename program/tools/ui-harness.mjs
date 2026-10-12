@@ -151,8 +151,12 @@ export const STATES = [
   // 作業実績を作業でまとめる（日＋直ごと。右に日×直のロット数）と、表の数を押してその日・直に絞ったところ
   ["worklog-work", async (p) => { await p.click('#llWorkSwitch [data-wk-mode="dayshift"]'); await p.waitForSelector("#llWork .wk-pv"); await sleep(600); }, "[data-next], #llWork [data-wk-shift]"],
   ["worklog-pick", async (p) => { await p.click("#llWork tbody tr:nth-child(4) [data-wk-shift]"); await sleep(900); }, "[data-next], #llWorkSwitch [data-wk-unpick]"],
+  // 集計表・グラフ（ピボット集計）: すぐに見る「作業日ごとのロット数・重量」（時系列）と、重量のヒストグラム
+  ["worklog-pivot", async (p) => { await p.click("#llWorkSwitch [data-wk-unpick]").catch(() => {}); await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick");
+    await p.click('#llPivot [data-pv-quick="0"]'); await p.waitForSelector("#llPivot .pv-table"); await sleep(700); }, "[data-next], #llPivot [data-pv-chart]"],
+  ["worklog-hist", async (p) => { await p.click('#llPivot [data-pv-chart="hist"]'); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
   // 共有の書式（作業実績の道具の行の「書式 ▾」）: 開いたところ・設備を選ぶところ・当てたところ（元に戻すが出る）
-  ["formats", async (p) => { await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
+  ["formats", async (p) => { await p.click('#llViewSwitch [data-pv-view="list"]').catch(() => {}); await sleep(300); await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-pick", async (p) => { await p.click('#llFormatPanel input[name="fmTo"][value="pick"]'); await sleep(300);
     for (const n of [1, 2, 3]) await p.click(`#llFormatPanel .fm-equips label:nth-of-type(${n + 1}) input`).catch(() => {}); await sleep(300); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-applied", async (p) => { await p.click("#llFormatPanel .fm-item:first-child .fm-apply"); await sleep(900); }, "[data-next], #llFormatPanel .fm-undo"],

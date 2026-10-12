@@ -301,7 +301,10 @@ td.cell-warn{background:#fff5e0!important}
 .ll-fxpanel .lr-fx{background:var(--surface-2);border-color:#c9d6e2}
 .lr-writepane{display:grid;gap:8px}
 .lr-pane[hidden]{display:none}
-.ll-rulepanel textarea.lr-write{width:100%;min-height:150px;font-size:14px}
+/* 式の欄は、包み（グリッドの子）の中で大きさを数で決めて閉じ込める（contain:strict）。グリッドの子のままだと 1 字ごとの組み直しが
+   窓の外（画面全体）まで及び、打つ手を待たせていた（ui-eval-formula.mjs の入力のラグ。素の欄と同じく欄の中だけで済む） */
+.lr-writebox{display:block;min-width:0}
+.ll-rulepanel textarea.lr-write{display:block;width:100%;height:180px;min-height:110px;resize:vertical;font-size:14px;contain:strict}
 .lr-write-state{font-size:12.5px}.lr-write-state.is-ok{color:var(--ok)}.lr-write-state.is-ng{color:var(--danger);font-weight:700}
 .lr-parts{border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:var(--surface-1)}
 .lr-parts summary{cursor:pointer;font-weight:800;color:var(--h-input);font-size:12.5px}
@@ -320,6 +323,7 @@ td.cell-warn{background:#fff5e0!important}
 
 /* 式の候補（WaveLog list-formula.js の suggest が出す器） */
 .fx-suggest-host{position:fixed;inset:0;z-index:100;pointer-events:none;contain:strict}
+.fx-suggest-layer{width:100%;height:100%;contain:strict}
 .fx-suggest{position:absolute;pointer-events:auto;min-width:260px;max-width:460px;background:var(--surface);border:1px solid var(--pop-line);border-radius:8px;box-shadow:0 14px 36px var(--pop-shadow);padding:4px;font-size:12.5px}
 /* 行の高さは list-formula.js の SG_ROW（26px）と同じに固定する（候補の高さを測らずに置き場を決めるため） */
 .fx-sg-item{display:flex;gap:6px;align-items:center;height:26px;box-sizing:border-box;padding:0 8px;border-radius:5px;cursor:pointer;white-space:nowrap;overflow:hidden}

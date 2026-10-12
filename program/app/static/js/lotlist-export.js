@@ -52,14 +52,19 @@
   /** 作業でまとめているとき: 日・直ごとのロット数の表（右の表と同じ数。日の並びも同じ） */
   function summarySheet(wk) {
     const P = wk.pivot();
-    const head = ["日" + (wk.basisLabel ? `（${wk.basisLabel}）` : ""), ...P.cols.map((i) => wk.shiftName(i)), "計（ロット）", "行", "うち分割した作業"];
-    const sum = (list, k) => list.reduce((a, b) => a + (b ? b[k] : 0), 0);
+    // 合計する列があれば、ロット数の列の後ろに直ごと・計の合計の列を足す（右の表と同じ数）
+    const tn = wk.totalName, T = (n) => `${n}（${tn}の合計）`;
+    const head = ["日" + (wk.basisLabel ? `（${wk.basisLabel}）` : ""), ...P.cols.map((i) => wk.shiftName(i)), "計（ロット）",
+      ...(tn ? [...P.cols.map((i) => T(wk.shiftName(i))), T("計")] : []), "行", "うち分割した作業"];
+    const sum = (list, k) => list.reduce((a, b) => a + (b ? b[k] || 0 : 0), 0);
     const rows = P.days.map((d) => {
       const list = Object.values(P.by[d]);
-      return [wk.dayText(d), ...P.cols.map((i) => (P.by[d][i] ? P.by[d][i].works : "")), sum(list, "works"), sum(list, "rows"), sum(list, "split")];
+      return [wk.dayText(d), ...P.cols.map((i) => (P.by[d][i] ? P.by[d][i].works : "")), sum(list, "works"),
+        ...(tn ? [...P.cols.map((i) => (P.by[d][i] ? P.by[d][i].sum : "")), sum(list, "sum")] : []), sum(list, "rows"), sum(list, "split")];
     });
     const all = wk.data.buckets;
-    rows.push(["合計", ...P.cols.map((i) => sum(all.filter((b) => b.shift === i), "works")), wk.data.total.works, wk.data.total.rows, wk.data.total.split]);
+    rows.push(["合計", ...P.cols.map((i) => sum(all.filter((b) => b.shift === i), "works")), wk.data.total.works,
+      ...(tn ? [...P.cols.map((i) => sum(all.filter((b) => b.shift === i), "sum")), wk.data.total.sum] : []), wk.data.total.rows, wk.data.total.split]);
     return { name: P.cols.length ? "日・直ごとのロット数" : "日ごとのロット数", rows: [head, ...rows] };
   }
 

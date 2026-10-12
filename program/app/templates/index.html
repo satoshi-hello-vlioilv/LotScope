@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-marks.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-formats.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-work.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-pivot.css') }}">
 </head>
 <body>
 <header>
@@ -97,6 +98,8 @@
     <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
     <div class="ll-status">
       <span id="llCount" class="ll-count">全 0件</span>
+      <!-- 一覧｜集計表・グラフ（ピボット集計。lotlist-pivot.js。7 案＋2 回目で選んだ: ui-proposals/2026-10-pivot* の M3） -->
+      <span id="llViewSwitch" class="pv-switch" role="tablist" aria-label="一覧と集計"></span>
       <!-- 作業実績のときだけ: 作業でまとめる（まとめない｜日ごと｜日＋直ごと）と、右の表で押した日・直の札（lotlist-work.js） -->
       <span id="llWorkSwitch" class="wk-switch" hidden></span>
       <!-- 頁の頭は置かない（題はタブ）。何の表か・元データの時刻・ロット番号を押すと何が起きるかを、件数と同じ行に -->
@@ -141,6 +144,8 @@
       <style id="llTintStyle"></style>
       <div id="llNote" class="ll-note" hidden></div>
     </div>
+    <!-- 集計表・グラフ（一覧の場所に替えて出す。スライサーはそのまま効く） -->
+    <section id="llPivot" class="pv" hidden aria-label="集計表・グラフ"></section>
     <!-- 作業実績で作業でまとめているとき: 日・直ごとのロット数（押すと一覧をその日・直に絞る） -->
     <aside id="llWork" class="wk-pane" hidden aria-label="日・直ごとのロット数"></aside>
     </div>
@@ -382,6 +387,7 @@
 <script src="{{ url_for('static', filename='js/lotdsp-url.js') }}"></script>
 <script src="{{ url_for('static', filename='js/xlsx-writer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-export.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-pivot.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master.js') }}"></script>

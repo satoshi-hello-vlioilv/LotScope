@@ -3,7 +3,7 @@
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings, lot_engine, lot_list_params
-from ..services import lot_list
+from ..services import lot_list, pivot
 from .common import bp, error
 
 
@@ -64,6 +64,26 @@ def lotlist_slicer():
     try:
         out = lot_list.slicer_answer(plan["path"], a, preferred_table=plan["table"])
     except ValueError as e:
+        return error(str(e), 400)
+    except Exception as e:
+        return error(str(e), 503, source=plan["source"])
+    return jsonify(out)
+
+
+@bp.get("/api/lotlist/pivot")
+def lotlist_pivot():
+    """ピボット集計（services/pivot.py）。一覧と同じ絞り込みに当たる全件を数える。fields=1 なら左のカラムの札の手がかり。
+    デスクトップ版でも Python が答える（窓の Rust は一覧・スライサーだけを受け持ち、写しの台帳は同じ物を読む）。"""
+    plan, fail = lotlist_plan()
+    if fail:
+        return fail
+    a = request.args
+    try:
+        if a.get("fields") == "1":
+            return jsonify(pivot.fields(plan["path"], table=a.get("table", ""), preferred_table=plan["table"]))
+        out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
+                          filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""))
+    except pivot.PivotError as e:
         return error(str(e), 400)
     except Exception as e:
         return error(str(e), 503, source=plan["source"])

@@ -7,7 +7,7 @@ import app_env
 
 from .. import effective_settings
 from ..repositories.master_store import MasterError
-from ..services import lot_list, shifts, work_log, work_summary
+from ..services import lot_list, pivot, shifts, work_log, work_summary
 from .common import base_rev, bp, can_write, error, master_call, master_repo
 
 
@@ -99,7 +99,7 @@ def work_grouping(equip_name):
     except ValueError:
         shift = None
     return work_summary.Grouping(pat["segments"] if pat else [], column=a.get("start", ""), basis=a.get("basis", "work"),
-                                 order=a.get("order", "desc"), pattern=brief, day=a.get("day", ""), shift=shift)
+                                 order=a.get("order", "desc"), pattern=brief, day=a.get("day", ""), shift=shift, total=a.get("total", ""))
 
 
 @bp.get("/api/worklog")
@@ -133,6 +133,32 @@ def worklog_slicer():
     try:
         out = lot_list.slicer_answer(plan["path"], a, preferred_table=plan["table"], table_candidates=work_log.TABLE_CANDIDATES)
     except ValueError as e:
+        return error(str(e), 400)
+    except Exception as e:
+        return error(str(e), 503, source=plan["source"])
+    return jsonify(out)
+
+
+@bp.get("/api/worklog/pivot")
+def worklog_pivot():
+    """ピボット集計（services/pivot.py）。一覧と同じ絞り込みに当たる全件を数える。作業日・直（@workday・@shift）と
+    ロット数（作業開始が同じ行を 1）は、作業でまとめるのと同じ作業開始の列（start）・日付の数え方（basis）・勤務体系で決める。
+    fields=1 なら、左のカラムの札の手がかり（値の種類の数・数の列か）。"""
+    plan, fail = worklog_plan()
+    if fail:
+        return fail
+    a = request.args
+    try:
+        if a.get("fields") == "1":
+            return jsonify(pivot.fields(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], table_candidates=work_log.TABLE_CANDIDATES))
+        pat = shifts.pattern_for(master_repo().shift_patterns(), plan["equip"]["name"])
+        work = {"clock": shifts.Clock(pat["segments"] if pat else []), "basis": a.get("basis", "work"), "start": a.get("start", ""),
+                "pattern": pat["name"] if pat else ""}
+        out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
+                          filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
+                          table_candidates=work_log.TABLE_CANDIDATES, work=work)
+        out["shiftPattern"] = work["pattern"]
+    except pivot.PivotError as e:
         return error(str(e), 400)
     except Exception as e:
         return error(str(e), 503, source=plan["source"])

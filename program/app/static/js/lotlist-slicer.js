@@ -236,5 +236,8 @@
   /** 選んでいる値の要約 [[列の表示名, 値・値…]]（Excel に出力の「出力の条件」） */
   const summary = () => cards().filter((c) => c.sel.length && (host.columns().includes(c.column) || isCalc(c.column)))
     .map((c) => [host.label(c.column) + (isCalc(c.column) ? "（式）" : ""), c.sel.map((v) => (v === "" ? BLANK : v)).join("・")]);
-  window.LotListSlicer = { mount, refresh, filters, render, clearAll, reset, setupOf, setSetup, summary };
+  /** 保存した見方（lotlist.js）: いまの画面でスライサーを開いているか・開く／閉じる */
+  const openState = () => isOpen();
+  function setOpenState(v) { if (!host) return; setOpen(!!v); render(); refresh(); }
+  window.LotListSlicer = { mount, refresh, filters, render, clearAll, reset, setupOf, setSetup, summary, isOpen: openState, setOpen: setOpenState };
 })();

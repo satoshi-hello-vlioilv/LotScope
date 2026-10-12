@@ -286,13 +286,18 @@
 
   /* ================= 読み込み ================= */
   /** 一覧の問い合わせ文字。over で頁・件数だけを替えられる（Excel に出力が全件を頁ごとに引く） */
-  function queryString(over = {}) {
+  /** 絞り込みの問い合わせ（元・表・検索・条件・列で絞り込む・スライサー）。一覧とピボット集計（lotlist-pivot.js）が同じ物を使う */
+  function filterParams() {
     const q = new URLSearchParams(S.src.params());
     if (S.table) q.set("table", S.table);
-    q.set("page", over.page ?? S.page); q.set("page_size", over.pageSize ?? S.pageSize);
     if (S.search) q.set("search", S.search);
     const list = baseFilters().concat(window.LotListSlicer.filters());
     if (list.length) q.set("filters", JSON.stringify(list));
+    return q;
+  }
+  function queryString(over = {}) {
+    const q = filterParams();
+    q.set("page", over.page ?? S.page); q.set("page_size", over.pageSize ?? S.pageSize);
     const sorts = effectiveSorts();
     if (sorts.length) q.set("sorts", JSON.stringify(sorts));
     if (serverGroup()) q.set("group", "1");
@@ -338,6 +343,7 @@
     S.loading = false;
     renderAll();
     window.LotListSlicer.refresh();   // 件数を今の絞り込みで数え直す
+    window.LotListPivot.refresh();    // 集計表・グラフを見ていれば、今の絞り込みで数え直す
   }
 
   /* ================= 範囲（表・作業実績は設備と表）ごとの覚え ================= */
@@ -359,6 +365,7 @@
     if (k === S.ctx && !force) return false;
     if (S.ctx != null && S.ctx !== k) saveActive();
     S.ctx = k;
+    window.LotListPivot.sync();         // 集計の組み方・一覧｜集計は範囲ごと
     S.genericFilters = (store.get(KEY.active, {})[k] || []).map((f) => ({ ...f }));
     S.sorts = (store.get(KEY.sorts, {})[k] || []).slice(0, MAX_SORTS);
     applyAlwaysOn();
@@ -420,7 +427,8 @@
   }
 
   /* ================= 保存した見方（7 案＋2 回目で選んだ: ui-proposals/2026-10-sortview* の M2） =================
-     条件・並べ替え・まとめ・スライサー（選んだ値ごと）・検索に名前を付けて保存し、プリセットと同じ面で呼び出す。
+     条件・並べ替え・まとめ・スライサー（選んだ値ごと・開いているか）・検索、集計表・グラフの組み方（一覧｜集計も）、
+     作業実績の「作業でまとめる」の形（日ごと・日＋直ごと・日付の数え方・合計する列）に名前を付けて保存し、プリセットと同じ面で呼び出す。
      呼び出すと、その形にまるごと入れ替わる（「いつも適用（固定）」の条件はそのまま。列で絞り込むの値は外す）。
      その時だけの状態（列で絞り込むの値・畳んだまとまり・頁）は入れない。範囲（表・設備）ごと（table）。保存する前に、入る物を札で見せる */
   const allViews = () => store.get(KEY.views, []);
@@ -434,17 +442,25 @@
       sorts: S.sorts.map(({ column, dir }) => ({ column, dir })),
       arrange: levels().length ? { levels: A.levels.map(({ column, dir, lot }) => ({ column, dir, lot: !!lot })), heads: A.heads, suppress: A.suppress } : null,
       slicer: window.LotListSlicer.setupOf(scope(), { sel: true }),
+      slicerOpen: window.LotListSlicer.isOpen(),
       search: S.search || "",
+      pivot: window.LotListPivot.stateOf(),
+      work: S.src.id === "work" ? (({ mode, basis, order, start, total }) => ({ mode, basis, order, start, total }))(window.LotListWork.conf()) : null,
     };
   }
   /** 入っている物の札（「条件 1」「並べ替え 2」「まとめ なし」…） */
   function viewTags(v) {
     const n = (k, x) => `${k} ${x || "なし"}`, lv = v.arrange && v.arrange.levels ? v.arrange.levels.length : 0;
+    const wk = v.work && v.work.mode && v.work.mode !== "none" ? `作業でまとめる: ${v.work.mode === "day" ? "日ごと" : "日＋直ごと"}${v.work.total ? "・合計" : ""}` : "";
     return [n("条件", (v.filters || []).length), n("並べ替え", (v.sorts || []).length), n("まとめ", lv ? `${lv}段` : 0),
-      n("スライサー", (v.slicer || []).filter((c) => (c.sel || []).length).length)].concat(v.search ? [`検索「${v.search}」`] : []);
+      n("スライサー", (v.slicer || []).filter((c) => (c.sel || []).length).length)].concat(v.search ? [`検索「${v.search}」`] : [])
+      .concat(v.pivot && v.pivot.view === "pivot" ? ["集計表・グラフ"] : []).concat(wk ? [wk] : []);
   }
-  const viewSig = (v) => JSON.stringify([v.filters || [], v.sorts || [], (v.arrange && v.arrange.levels) || [],
-    (v.slicer || []).filter((c) => (c.sel || []).length).map((c) => [c.column, c.sel]), v.search || ""]);
+  /* 見方の比べ方（変更ありか）。like（保存した見方）に無い部品は比べない（版 3.22.0 で保存した見方には、集計・作業でまとめるが無い） */
+  const viewSig = (v, like = v) => JSON.stringify([v.filters || [], v.sorts || [], (v.arrange && v.arrange.levels) || [],
+    (v.slicer || []).filter((c) => (c.sel || []).length).map((c) => [c.column, c.sel]), v.search || "",
+    "pivot" in like && v.pivot ? [v.pivot.view, v.pivot.rows, v.pivot.cols, v.pivot.measures, v.pivot.chart] : null,
+    like.work && v.work ? v.work : null, "slicerOpen" in like ? !!v.slicerOpen : null]);
   function saveCurrentView() {
     const cur = captureView(), list = allViews(), sel = selectedPresetKey();
     const was = sel.startsWith("v:") ? list.find((v) => "v:" + v.id === sel) : null;
@@ -467,6 +483,9 @@
     if ((v.slicer || []).length) window.LotListSlicer.setSetup(scope(), v.slicer, { sel: true }); else window.LotListSlicer.clearAll();
     S.search = String(v.search || ""); const box = $("#llSearch"); if (box) box.value = S.search;
     resetAdhoc();
+    if (typeof v.slicerOpen === "boolean") window.LotListSlicer.setOpen(v.slicerOpen);
+    if (v.work && S.src.id === "work") window.LotListWork.setConf(v.work);
+    if (v.pivot) window.LotListPivot.setState(v.pivot);
     setSelectedPreset("v:" + v.id);
     if (!$("#llViewMenu").hidden) renderViewMenu();
     reload();
@@ -510,7 +529,7 @@
     const cur = entries.find((e) => e.key === selectedPresetKey());
     if (!cur) return { name: "なし", total: 0, off: 0, empty: !entries.length, note: "" };
     if (cur.kind === "view") {
-      const changed = viewSig(captureView()) !== viewSig(cur.view);
+      const changed = viewSig(captureView(), cur.view) !== viewSig(cur.view);
       return { name: cur.name, total: 1, off: changed ? 1 : 0, empty: false, note: changed ? "変更あり" : "", view: cur.view, changed };
     }
     const active = new Set(S.genericFilters.map(filterKey));
@@ -1815,7 +1834,7 @@
      異常ロット一覧と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   function activate({ source = "lot", currentLot } = {}) {
     const next = STATES[source] || STATES.lot;
-    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); }
+    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); window.LotListPivot.sync(); }
     S.currentLot = currentLot || S.currentLot || "";
     root.dataset.source = S.src.id;
     if (!S.activated && S.table) syncContext(true);
@@ -1861,6 +1880,18 @@
       $(`[data-equip="${CSS.escape(n.dataset.equip)}"]`, bar)?.focus();
     });
   }
+  /** Excel に出力の「出力の条件」（一覧の出力と集計表の出力が同じ物を使う） */
+  function exportConditions() {
+    return [["一覧", S.src.title], [S.src.id === "work" ? "設備・表" : "表", S.src.place(S.table)],
+      ["元データ", `${(S.source && S.source.remote) || "-"}${S.source && S.source.at ? `（${hm(S.source.at)} の版）` : ""}`],
+      ["検索", S.search || "（なし）"],
+      ...(condRows().length ? condRows().map((r) => ["条件", r.kind === "adhoc" ? `列で絞り込み: ${r.label}` : condLabel(r.f)]) : [["条件", "（なし）"]]),
+      ...window.LotListSlicer.summary().map(([c, v]) => [`スライサー: ${c}`, v]),
+      ...window.LotListMarks.summary(),
+      ["並べ替え", effectiveSorts().map((x) => `${window.LotListColumns.label(layoutTarget(), x.column)} ${x.dir === "desc" ? "▼" : "▲"}`).join("・") || "（元の順）"],
+      ...((S.src.id === "work" && window.LotListWork.exportInfo()?.conditions) || []),
+      ["絞り込みに当たる件数", `${S.count.toLocaleString()} 件`]];
+  }
   function mount(opts) {
     root = $("#lotListScreen");
     onPick = opts.onPick || onPick;
@@ -1884,6 +1915,7 @@
     });
     window.LotListWork.mount({
       scope, isWork: () => S.src.id === "work", toast: (m) => flash(m),
+      label: (c) => window.LotListColumns.label(layoutTarget(), c),
       reload: () => { S.page = 1; load(); },
       openMaster: (tab) => window.openMasterAt && window.openMasterAt(tab),
     });
@@ -1897,15 +1929,20 @@
       fileStem: () => `${S.src.fileStem}_${S.src.place(S.table)}`.replace(/[\\/:*?"<>|]/g, "_"),
       work: () => (S.src.id === "work" ? window.LotListWork.exportInfo() : null),
       marks: () => window.LotListMarks.exportPlan(),
-      conditions: () => [["一覧", S.src.title], [S.src.id === "work" ? "設備・表" : "表", S.src.place(S.table)],
-        ["元データ", `${(S.source && S.source.remote) || "-"}${S.source && S.source.at ? `（${hm(S.source.at)} の版）` : ""}`],
-        ["検索", S.search || "（なし）"],
-        ...(condRows().length ? condRows().map((r) => ["条件", r.kind === "adhoc" ? `列で絞り込み: ${r.label}` : condLabel(r.f)]) : [["条件", "（なし）"]]),
-        ...window.LotListSlicer.summary().map(([c, v]) => [`スライサー: ${c}`, v]),
-        ...window.LotListMarks.summary(),
-        ["並べ替え", effectiveSorts().map((x) => `${window.LotListColumns.label(layoutTarget(), x.column)} ${x.dir === "desc" ? "▼" : "▲"}`).join("・") || "（元の順）"],
-        ...((S.src.id === "work" && window.LotListWork.exportInfo()?.conditions) || []),
-        ["絞り込みに当たる件数", `${S.count.toLocaleString()} 件`]],
+      conditions: exportConditions,
+    });
+    window.LotListPivot.mount({
+      scope, api: () => S.src.api, isWork: () => S.src.id === "work",
+      base: () => { const q = new URLSearchParams(S.src.params()); if (S.table) q.set("table", S.table); return q.toString(); },
+      fieldsKey: () => `${S.equip}|${S.table}|${(S.source && S.source.copiedAt) || ""}`,
+      query: () => filterParams().toString(),
+      label: (c) => window.LotListColumns.label(layoutTarget(), c),
+      dateColumns: () => S.dateColumns,
+      workParams: () => { if (S.src.id !== "work") return {}; const c = window.LotListWork.conf(); return { basis: c.basis, start: c.start }; },
+      conditions: () => exportConditions().filter(([k]) => k !== "並べ替え"),
+      fileStem: () => `${S.src.fileStem}_${S.src.place(S.table)}`.replace(/[\\/:*?"<>|]/g, "_"),
+      toast: (m) => flash(m),
+      onView: (on) => { root.classList.toggle("is-pivot", on); $("#llPivot").hidden = !on; },
     });
     window.LotListCard.mount({
       rows: () => S.rows, target: layoutTarget, lotColumn: () => S.lotColumn, lotKey,

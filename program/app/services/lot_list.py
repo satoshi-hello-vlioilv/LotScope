@@ -242,6 +242,17 @@ def date_hints(conn, table, filters, today=None):
     return out
 
 
+def search_filter_where(cs, search="", filters="", today=None):
+    """一覧・スライサー・ピボット集計に共通の絞り込み（検索＋条件）→ (WHERE の式の並び, 値の並び)。条件は safe_filters を通す"""
+    where_parts, params = [], []
+    q = (search or "").strip()
+    if q:
+        where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ?" for x in cs) + ")")
+        params += [f"%{q}%"] * len(cs)
+    fp, fpp = build_filter_where(safe_filters(filters, cs), today)
+    return where_parts + fp, params + fpp
+
+
 def build_filter_where(filters, today=None):
     parts, params = [], []
     for f in filters:
@@ -507,13 +518,7 @@ def slicer(path, *, column, key="", table="", preferred_table="", search="", fil
         if column not in cs:
             raise ValueError(f"列「{column}」がありません。")
         kind = slice_key_kind(key)
-        where_parts, params = [], []
-        if q:
-            where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ?" for x in cs) + ")")
-            params += [f"%{q}%"] * len(cs)
-        fp, fpp = build_filter_where(safe_filters(filters, cs), today)
-        where_parts += fp
-        params += fpp
+        where_parts, params = search_filter_where(cs, q, filters, today)
         hit = f"SUM(CASE WHEN {' AND '.join(where_parts)} THEN 1 ELSE 0 END)" if where_parts else "COUNT(*)"
         k = slice_key(column, kind)
         sql = (f"SELECT v, n, a FROM (SELECT {k} AS v, {hit} AS n, COUNT(*) AS a FROM {qi(t)} GROUP BY 1)"
@@ -545,13 +550,7 @@ def slicer_combos(path, *, use, table="", preferred_table="", search="", filters
         cols = tuple_columns(want, cs)
         if not cols:
             raise ValueError(f"計算列のスライサーは、表にある列を 1〜{MAX_TUPLE_COLUMNS} 個使う式だけです。")
-        where_parts, params = [], []
-        if q:
-            where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ?" for x in cs) + ")")
-            params += [f"%{q}%"] * len(cs)
-        fp, fpp = build_filter_where(safe_filters(filters, cs), today)
-        where_parts += fp
-        params += fpp
+        where_parts, params = search_filter_where(cs, q, filters, today)
         hit = f"SUM(CASE WHEN {' AND '.join(where_parts)} THEN 1 ELSE 0 END)" if where_parts else "COUNT(*)"
         keys = ", ".join(qi(x) for x in cols)
         # 件数が同じ組の順も決める（Rust の lotlist.rs と同じ並びにする）: 列ごとに SortKey → 元の値
@@ -592,14 +591,8 @@ def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEF
             raise RuntimeError(f"{'品質データ' if table_candidates is TABLE_CANDIDATES else 'データ'}にテーブルが1つもありません。")
         raw_cs = raw_columns(c, t)
         cs = columns(c, t, raw_cs)
-        where_parts, params = [], []
-        if q:
-            where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ?" for x in cs) + ")")
-            params += [f"%{q}%"] * len(cs)
         fl = safe_filters(filters, cs)
-        fp, fpp = build_filter_where(fl, today)
-        where_parts += fp
-        params += fpp
+        where_parts, params = search_filter_where(cs, q, fl, today)
         base_where, base_params = (" WHERE " + " AND ".join(where_parts)) if where_parts else "", list(params)
         lot = lot_column(cs)
         order_parts = safe_sorts(sorts, cs)

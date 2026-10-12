@@ -70,3 +70,13 @@
 .ll-grid tr.wk-sub > td:first-child{box-shadow:inset 3px 0 #7fa8d1}
 .ll-grid tr.wk-first:has(.wk-plus[aria-expanded="true"]) > td:first-child{box-shadow:inset 3px 0 #7fa8d1}
 .vm-wknote{margin:4px 0 6px;padding:6px 8px;border-radius:6px;background:var(--ll-pale);color:var(--ll-teal-dark);font-size:12px}
+
+/* 合計する列（版 3.23.0）: ロット数の下に合計を小さく（琥珀＝数の値の色。集計表の値と同じ）。日ごとのときは合計の列 */
+.wk-pv.has-sum th,.wk-pv.has-sum td{height:36px}
+.wk-pv .wk-sumv{display:block;font-size:10.5px;line-height:1.1;font-weight:600;color:#8a5f18}
+.wk-pv button b{display:block;line-height:1.15}
+.wk-pv .wk-tsum{color:#8a5f18;font-weight:700;padding:0 8px}
+.wk-pv thead .wk-tsum small{display:block;font-weight:500;font-size:10.5px}
+.wk-title small{font-size:12px;font-weight:600;color:#8a5f18;margin-left:2px}
+.wk-totalpick select{max-width:170px}
+.wk-pane:has(.wk-pv.has-sum){flex-basis:430px}
