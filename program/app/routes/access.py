@@ -19,7 +19,7 @@ def access_me():
 # 計算・一覧・取込・心拍は書き込みではないので止めない。切断された PC は冷却のあいだ書けない。
 _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls", "roll_master"),
             ("/api/masters/access", "access_permissions"), ("/api/settings/", "path_settings"), ("/api/masters/worklog", "work_log_files"),
-            ("/api/masters/formats", "display_formats"))
+            ("/api/masters/formats", "display_formats"), ("/api/masters/shifts", "shift_patterns"))
 
 
 @bp.before_app_request

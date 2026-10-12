@@ -5,7 +5,7 @@
   確認のつもりの1行が唯一の失敗原因になる。開けなかったときだけ理由を切り分ける。
 - UNC（\\\\server\\share\\…）は 4 スラッシュの file:////server/share/… にする
   （2 スラッシュだと server を URI の authority と読まれ、標準の sqlite3 は拒否する）。
-- WaveLog の SQL と同じ方言で書けるよう、Access 風の CStr / Val / Nz を登録する（ほかに ToDate・SortKey）。
+- WaveLog の SQL と同じ方言で書けるよう、Access 風の CStr / Val / Nz を登録する（ほかに ToDate・ToDateTime・SortKey）。
 - `with connect_ro(...) as c:` を抜けたら閉じる（標準の sqlite3 は with で閉じないので、閉じるのが
   ガベージコレクション任せになり、Windows では写しの古い世代を消せないことがある）。
 """
@@ -88,6 +88,32 @@ def to_date(v):
     return None
 
 
+_TIME_TAIL = re.compile(r"(?:^|[ T])(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*$")
+
+
+def to_minutes(v):
+    """値の終わりの時刻（8:15・08:15:30・1899/12/30 8:15:00 の時刻の所）→ (時, 分, 秒)。読めなければ None。"""
+    if v is None:
+        return None
+    m = _TIME_TAIL.search(str(v).strip())
+    if not m:
+        return None
+    h, mi, s = int(m.group(1)), int(m.group(2)), int(m.group(3) or 0)
+    return (h, mi, s) if h < 24 and mi < 60 and s < 60 else None
+
+
+def to_datetime(v, time_value=None):
+    """値を日時として読めれば 'YYYY-MM-DD HH:MM:SS'（時刻が無ければ 'YYYY-MM-DD'）、日付として読めなければ None（SQL では ToDateTime(列)）。
+    time_value は時刻が別の列にあるとき（値に時刻が無いときだけ使う）。文字のまま並べても日時の順になる。"""
+    d = to_date(v)
+    if d is None:
+        return None
+    hms = to_minutes(v)
+    if hms is None and time_value is not None:
+        hms = to_minutes(time_value)
+    return d if hms is None else f"{d} {hms[0]:02d}:{hms[1]:02d}:{hms[2]:02d}"
+
+
 def numeric_value(v):
     """Val(?) 相当。SQLite は型優先で比べるので、パラメータ側も数にして渡す。"""
     return _val(v)
@@ -125,5 +151,6 @@ def connect_ro(path, timeout=10):
     c.create_function("Val", 1, _val)
     c.create_function("Nz", 2, _nz)
     c.create_function("ToDate", 1, to_date, deterministic=True)
+    c.create_function("ToDateTime", 1, to_datetime, deterministic=True)
     c.create_function("SortKey", 1, sort_key, deterministic=True)
     return c

@@ -16,6 +16,8 @@
          同じ値の繰り返しを省く … まとめた列で、上の行（見出し）と同じ値を見せない（マウスを乗せると薄く出る）。
        ロット番号の段は、サーバーがロットを1か所に集め（lot_list.grouped_rows・group=1）、ページの境目で切らない。
        ロット番号の段だけ「並べ替えの順」（以前の「ロット番号でまとめる」と同じ: そのロットのいちばん上の行の順）を選べる。
+   - 作業実績の「作業でまとめる」（lotlist-work.js）: 作業開始が同じ行（分割したロット）を 1 行に畳み（「＋n」で開く）、右に日×直のロット数。
+       まとめている間は、段（並び・まとめ）は使わない（作業開始の順で並べる。見出しで決めた並べ替えは作業の中の順）。
    - 機能: 行のダブルクリックでカード … その1行をカードで見る（lotlist-card.js。Ctrl を押すと別のカードで）。
    - データの元（SOURCES）: 異常ロット一覧（品質データ）と作業実績（設備ごとの実績）の 2 つを、同じ部品・同じ画面で出す。
        元ごとに状態（S: 表・条件・ページ・検索…）を持ち、タブを行き来しても元ごとにそのまま残る。
@@ -125,7 +127,7 @@
       loading: false, error: "", seq: 0, currentLot: "", dateHints: [], today: "",
       groups: null, groupCount: 0, range: [0, 0], cardIdx: -1, cardSet: new Set(),
       ctx: null, adhoc: { column: "", op: "contains", value: "" }, adhocScope: null, activated: false,
-      equip: "", equips: null, equipError: "", equipEdit: false,
+      equip: "", equips: null, equipError: "", equipEdit: false, work: null, workOpen: new Set(),
     };
   }
   const STATES = { lot: newState("lot"), work: newState("work") };
@@ -164,7 +166,9 @@
     store.set(KEY.arrange, all);
   }
   /* 効いている段（この表にある列だけ・並べ替えのキーの上限まで） */
-  const levels = () => arrange().levels.filter((l) => !S.columns.length || S.columns.includes(l.column)).slice(0, MAX_SORTS);
+  /* 作業でまとめている（作業実績だけ。lotlist-work.js）。その間は段を使わない（並びは作業開始の順・サーバーが作業を 1 か所に集める） */
+  const workOn = () => S.src.id === "work" && window.LotListWork.on();
+  const levels = () => (workOn() ? [] : arrange().levels.filter((l) => !S.columns.length || S.columns.includes(l.column)).slice(0, MAX_SORTS));
   const grouped = () => levels().length > 0;
   /* 「並べ替えの順」で集められるのは、いちばん上の段のロット番号だけ（サーバーはロットを表全体で1か所に集めるので、
      上に別の段があると、その段の並びを崩す）。深い段で選ばれていたら ▲ として扱う */
@@ -213,7 +217,7 @@
   }
   /* いちばん上の段がロット番号なら、サーバーがロットを1か所に集め、ページの境目で切らない。
      深い段のロット番号は、上の段の並べ替えのあとに並べ替えるだけで続く（同じ上の段の中で集まる） */
-  const serverGroup = () => { const a = arrange(); return !!a.legacy || isLotLevel(a.levels[0]); };
+  const serverGroup = () => { if (workOn()) return false; const a = arrange(); return !!a.legacy || isLotLevel(a.levels[0]); };
   function setLevels(list) { saveArrange({ levels: list.slice(0, MAX_SORTS) }); S.page = 1; }
   const levelsApi = () => ({
     can: (c) => S.columns.includes(c),
@@ -272,16 +276,18 @@
   let root = null;
 
   /* ================= 読み込み ================= */
-  function queryString() {
+  /** 一覧の問い合わせ文字。over で頁・件数だけを替えられる（Excel に出力が全件を頁ごとに引く） */
+  function queryString(over = {}) {
     const q = new URLSearchParams(S.src.params());
     if (S.table) q.set("table", S.table);
-    q.set("page", S.page); q.set("page_size", S.pageSize);
+    q.set("page", over.page ?? S.page); q.set("page_size", over.pageSize ?? S.pageSize);
     if (S.search) q.set("search", S.search);
     const list = baseFilters().concat(window.LotListSlicer.filters());
     if (list.length) q.set("filters", JSON.stringify(list));
     const sorts = effectiveSorts();
     if (sorts.length) q.set("sorts", JSON.stringify(sorts));
     if (serverGroup()) q.set("group", "1");
+    if (S.src.id === "work") Object.entries(window.LotListWork.params()).forEach(([k, v]) => q.set(k, v));
     return q.toString();
   }
   async function load() {
@@ -296,7 +302,8 @@
       S.source = d.source || S.source;
       if (!r.ok) throw Object.assign(new Error(d.error || `${S.src.title}を読めませんでした`), { kind: d.kind });
       S.table = d.table; S.tables = d.tables || []; S.columns = d.columns || []; S.rows = d.rows || [];
-      S.lotColumn = d.lotColumn || ""; S.rows = clusterRows(S.rows);
+      S.lotColumn = d.lotColumn || ""; S.work = d.work || null;
+      if (!S.work) S.rows = clusterRows(S.rows);       // 作業でまとめた答えは、行と作業の印（work.rows）の並びを崩さない
       S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
       // 並べ替えはサーバーが確かめた形（実在する列だけ）。まとめているときは段の列を除いた、見出しで決めた分だけを持つ
       if (grouped()) { const have = new Set((d.columns || [])); S.sorts = S.sorts.filter((x) => have.has(x.column)); }
@@ -312,7 +319,7 @@
       }
     } catch (e) {
       if (me !== S || seq !== S.seq) return;
-      S.error = e.message; S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0];
+      S.error = e.message; S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0]; S.work = null;
       // 写しがまだ無い（共有は直接読まない）: 写し終えるまで、少し空けて引き直す
       if (e.kind === "copying") { clearTimeout(me.copyRetry); me.copyRetry = setTimeout(() => { if (me === S && seq === S.seq) load(); }, COPY_RETRY_MS); }
     } finally { wait?.done(); }
@@ -513,6 +520,8 @@
             <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11M10.5 2.5v11"/></svg>表示列</button>
           <button id="llViewBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="行間・並び・表示件数と、機能（ロット番号でまとめる・カード）の使う／使わないを決めます">表の見せ方 ▾</button>
           <button id="llProfileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="llProfileMenu" title="この PC の一覧の表示（表示列・スライサー・並び・見せ方・登録した条件）を書き出す・読み込む・初期設定に戻す">表示の設定 ▾</button>
+          <!-- Excel に出力（表示の道具の後ろ＝最後にする行動の位置。7 案＋2 回目で選んだ: ui-proposals/2026-10-excel*） -->
+          <button id="llExcelBtn" type="button" class="ll-xlbtn" title="いまの検索・条件・スライサー・並びに当たる全件を、表示列の見え方のまま Excel（.xlsx）に出します&#10;作業でまとめているときは、日・直ごとのロット数のシートも出します"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m-3-3 3 3 3-3M3 12.5h10"/></svg>Excel に出力</button>
         </div>
         <div class="ll-profile" id="llProfileMenu" hidden role="menu" aria-label="表示の設定"></div>
         <div class="ll-viewmenu" id="llViewMenu" hidden role="dialog" aria-label="表の見せ方"></div>
@@ -1007,6 +1016,7 @@
     const pad = LC.cellPad(), fz = LC.freeze(), ov = LC.overflow();
     m.innerHTML = `<p class="vm-head">表の見せ方</p>
       <section class="vm-sec" aria-label="並び・まとめ"><h4>並び・まとめ<small>上の段から順に並べ、値が同じ行をまとめます</small></h4>
+        ${workOn() ? '<p class="vm-wknote">いまは作業でまとめているので、段は使わず作業開始の順に並べています（件数の行の「まとめない」で段に戻ります）。</p>' : ""}
         <ol class="vm-levels" id="llLevels">${lvRows || '<li class="vm-lv-empty">まだまとめていません。下で列を選ぶと、その列の値ごとに並べてまとめます（いくつでも重ねられます）</li>'}</ol>
         <div class="vm-lvadd"><select id="llLvAdd"${lv.length >= MAX_SORTS ? ` disabled title="まとめる段は${MAX_SORTS}つまでです"` : ""} aria-label="まとめる列を足す">
           <option value="">＋ ${lv.length ? `${lv.length + 1}段目に` : ""}まとめる列を足す…</option>${addable.map((c) => `<option value="${esc(c)}">${esc(LC.label(t, c))}${c === S.lotColumn ? "（ロット番号）" : ""}</option>`).join("")}</select>
@@ -1208,6 +1218,30 @@
     }
     return out.join("");
   }
+  /* 作業でまとめた一覧（lotlist-work.js）: サーバーが同じ作業（作業開始が同じ行）を続けて返すので、2 行目からを畳む。
+     先頭の行のロット番号の横に「＋n」（押すと開く・畳む）。開いた作業は覚えておく（読み直しても開いたまま） */
+  const workBadgeCol = (cols) => (S.lotColumn && cols.includes(S.lotColumn) ? S.lotColumn : cols[0]);
+  const workSplit = () => !!S.work && S.work.rows.some((x, i) => i > 0 && x[0] && x[0] === S.work.rows[i - 1][0]);
+  function workBody(cols, aligns, cellsOf) {
+    const keys = S.work.rows.map((x) => x[0]), at = workBadgeCol(cols), out = [];
+    for (let i = 0; i < S.rows.length;) {
+      let j = i + 1;
+      if (keys[i]) while (j < S.rows.length && keys[j] === keys[i]) j++;
+      const k = keys[i], n = j - i, open = S.workOpen.has(k);
+      const tail = n > 1 ? `<button type="button" class="wk-plus" data-wk-open="${esc(k)}" aria-expanded="${open}" title="同じ作業開始（${esc(S.work.rows[i][3] || k)}）の分割したロットが、ほかに ${n - 1} 行あります（1 ロットと数えています）。押すと${open ? "畳みます" : "開きます"}">＋${n - 1}</button>` : "";
+      out.push(rowHtml(cols, aligns, S.rows[i], i, cellsOf(S.rows[i]), n > 1 ? "wk-first" : "", "", tail ? new Map([[at, { cls: "", tail }]]) : null));
+      for (let x = i + 1; x < j; x++) out.push(rowHtml(cols, aligns, S.rows[x], x, cellsOf(S.rows[x]), "wk-sub" + (x === j - 1 ? " wk-last" : ""), ` data-wk-of="${esc(k)}"${open ? "" : " hidden"}`));
+      i = j;
+    }
+    return out.join("");
+  }
+  function toggleWork(b) {
+    const k = b.dataset.wkOpen, open = !S.workOpen.has(k);
+    if (open) S.workOpen.add(k); else S.workOpen.delete(k);
+    b.setAttribute("aria-expanded", String(open));
+    b.title = b.title.replace(/押すと.*$/, `押すと${open ? "畳みます" : "開きます"}`);
+    $$(`#llBody tr[data-wk-of="${CSS.escape(k)}"]`).forEach((tr) => { tr.hidden = !open; });
+  }
   /* 畳む・開くのあと: 包む見出しのどれかが畳まれている行（深い段の見出しも）を隠す */
   function applyCollapse() {
     const body = $("#llBody"), shut = new Set($$("tr.ll-ghead[aria-expanded=false]", body).map((h) => h.dataset.g));
@@ -1262,10 +1296,12 @@
     const lv = levels(), A = arrange(), eff = effectiveSorts(), isGrouped = grouped(), withHeads = isGrouped && A.heads;
     const sortIdx = (c) => eff.findIndex((s) => s.column === c), lvIdx = (c) => lv.findIndex((l) => l.column === c);
     // 幅: <colgroup> に置き、表の幅は列の和（table-layout:fixed）。見出し行を付けるときは先頭の列に ▾・件数・字下げのぶんを足す
-    // 自動の幅には見出しの印（段の札・並べ替えの ▲①）のぶんを足す（印で列名が「…」に削られないように）
-    const markW = (c) => (L.widths[c] ? 0 : (lvIdx(c) >= 0 ? 30 : 0) + (sortIdx(c) >= 0 ? (eff.length > 1 ? 24 : 14) : 0));
+    // 見出しの印は列名の幅を取らない（下線と右下の小さな段の番号。2026-10-headers の H3）。段の番号のぶんだけ足す
+    const markW = (c) => (L.widths[c] ? 0 : lvIdx(c) >= 0 ? 8 : 0);
     const tagW = withHeads ? Math.max(...lv.map((l) => TPA.textWidth(LC.label(t, l.column), '700 11.5px "Yu Gothic UI","Meiryo UI",sans-serif'))) + 16 : 0;
-    const widths = cols.map((c, i) => LC.widthOf(t, c, S.rows) + markW(c) + (withHeads && i === 0 ? GROUP_HEAD_EXTRA + tagW + GROUP_INDENT * (lv.length - 1) : 0));
+    const wk = workOn() && S.work && S.work.rows.length === S.rows.length ? S.work : null, badgeAt = wk && workSplit() ? workBadgeCol(cols) : "";
+    const widths = cols.map((c, i) => LC.widthOf(t, c, S.rows) + markW(c) + (withHeads && i === 0 ? GROUP_HEAD_EXTRA + tagW + GROUP_INDENT * (lv.length - 1) : 0)
+      + (c === badgeAt && !L.widths[c] ? 38 : 0) + (wk && c === wk.column && !L.widths[c] ? 14 : 0));
     $("#llCols").innerHTML = cols.map((c, i) => `<col data-col="${esc(c)}" style="width:${widths[i]}px">`).join("");
     const grid = $("#llGrid");
     grid.style.width = widths.reduce((a, b) => a + b, 0) + "px";
@@ -1274,21 +1310,32 @@
     grid.dataset.overflow = LC.overflow();
     head.innerHTML = "<tr>" + cols.map((c) => {
       const i = sortIdx(c), s = eff[i], calc = LC.isComputed(t, c), al = LC.alignOf(t, c), li = lvIdx(c);
-      const first = li >= 0 && dirOf(lv[li], li) === LOT_ORDER;
-      const mark = (li >= 0 ? `<i class="ll-lvmark" title="まとめる段 ${li + 1}段目（表の見せ方で順を変えられます）">${li + 1}段</i>` : "")
-        + (first ? '<i class="ll-sort" title="ロットを、並べ替えでそのロットのいちばん上に来る行の順に並べています">≡</i>'
-          : i < 0 ? "" : `<i class="ll-sort">${s.dir === "desc" ? "▼" : "▲"}${eff.length > 1 ? CIRCLED[i] : ""}</i>`);
-      const tip = calc ? `${LC.label(t, c)}（計算列）\n表示だけの列です。並べ替え・絞り込みは元のデータの列で行います\nドラッグで列の入れ替え`
-        : `${LC.label(t, c)}${LC.label(t, c) !== c ? `（元: ${c}）` : ""}\n`
-          + (li >= 0 ? "まとめている列: クリックで ▲／▼ を入れ替え" : `クリックで並び替え。Shift+クリックで並べ替えのキーを足します（段と合わせて最大${MAX_SORTS}つ）`)
-          + "\nドラッグで列の入れ替え（どの列もどこへでも）・右クリックで「この列でまとめる」など";
-      return `<th data-col="${esc(c)}" draggable="true" class="${c === S.lotColumn ? "ll-lotcol " : ""}${filtered.has(c) ? "col-filtered " : ""}${calc ? "is-calc " : ""}${li >= 0 ? "is-level " : ""}al-h-${al.head}" title="${esc(tip)}">`
-        + `<i class="col-grip" aria-hidden="true">⠿</i><span class="th-in"><span>${esc(LC.label(t, c))}</span>${calc ? '<i class="ll-calcmark">式</i>' : ""}${mark}${filtered.has(c) ? '<i class="col-filter-badge" title="この列にフィルタが適用されています">▼</i>' : ""}</span>`
+      const first = li >= 0 && dirOf(lv[li], li) === LOT_ORDER, desc = wk && wk.order === "desc";
+      /* 見出しは列名を主役に（形は 7 案＋2 回目で選んだ: program/tools/ui-proposals/2026-10-headers*.mjs・.json）。
+         札（段・▲①・式・▼）は描かず、ふだんは静かな印だけ: 段＝青緑の下線と右下の小さな段の番号・並べ替え＝琥珀の下線・
+         計算列＝斜体・絞り込み＝見出しの地の色。何段目か・並べ替えの順番と向き・式かは、列名に乗せたときの説明で言う */
+      const sorted = wk && c === wk.column ? (desc ? "desc" : "asc") : first ? "first" : i < 0 ? "" : s.dir;
+      const facts = [
+        li >= 0 ? `まとめる段 ${li + 1}段目（表の見せ方・件数の行の帯で順を変えられます）` : "",
+        wk && c === wk.column ? `作業でまとめています: 作業開始の${desc ? "新しい順" : "古い順"}（押すと${desc ? "古い順" : "新しい順"}）`
+          : first ? "ロットを、並べ替えでそのロットのいちばん上に来る行の順に並べています"
+            : i >= 0 ? `並べ替え${eff.length > 1 ? ` ${i + 1}番目` : ""}: ${s.dir === "desc" ? "▼ 大きい順" : "▲ 小さい順"}` : "",
+        filtered.has(c) ? "この列で絞り込んでいます" : "",
+      ].filter(Boolean);
+      const tip = (calc ? `${LC.label(t, c)}（計算列・式）\n表示だけの列です。並べ替え・絞り込みは元のデータの列で行います`
+        : `${LC.label(t, c)}${LC.label(t, c) !== c ? `（元: ${c}）` : ""}`)
+        + (facts.length ? "\n― " + facts.join("\n― ") : "")
+        + (calc ? "\nドラッグで列の入れ替え"
+          : "\n" + (li >= 0 ? "まとめている列: クリックで ▲／▼ を入れ替え" : `クリックで並び替え。Shift+クリックで並べ替えのキーを足します（段と合わせて最大${MAX_SORTS}つ）`)
+            + "\nドラッグで列の入れ替え（どの列もどこへでも）・右クリックで「この列でまとめる」など");
+      return `<th data-col="${esc(c)}" draggable="true" class="${c === S.lotColumn ? "ll-lotcol " : ""}${filtered.has(c) ? "col-filtered " : ""}${calc ? "is-calc " : ""}${li >= 0 ? "is-level " : ""}${sorted ? "is-sorted " : ""}al-h-${al.head}"`
+        + `${li >= 0 ? ` data-lv="${li + 1}"` : ""}${sorted ? ` data-sort="${sorted}"` : ""} title="${esc(tip)}">`
+        + `<i class="col-grip" aria-hidden="true">⠿</i><span class="th-in"><span>${esc(LC.label(t, c))}</span></span>`
         + `<i class="col-resize${L.locks.includes(c) ? " is-locked" : ""}" title="${L.locks.includes(c) ? "この列は幅を固定しています（列の設定で解けます）" : "ドラッグで列幅を調整（ダブルクリックで既定へ）"}"></i></th>`;
     }).join("") + "</tr>";
     const aligns = cols.map((c) => LC.alignOf(t, c).data);
     const cellsOf = (r) => cols.map((c) => (c === S.lotColumn ? null : LC.cell(t, c, r)));
-    body.innerHTML = isGrouped ? arrangedBody(cols, aligns, cellsOf)
+    body.innerHTML = wk ? workBody(cols, aligns, cellsOf) : isGrouped ? arrangedBody(cols, aligns, cellsOf)
       : S.rows.map((r, i) => rowHtml(cols, aligns, r, i, cellsOf(r), "")).join("");
     grid.classList.toggle("is-grouped", isGrouped);
     grid.classList.toggle("has-heads", withHeads);
@@ -1310,7 +1357,9 @@
   function renderPager() {
     const [from, to] = S.range;       // まとめるとページの行数は表示件数から少しずれる（ロットを切らない）ので、サーバーの答えのまま
     const lots = grouped() && serverGroup() && S.groups ? `・${S.groupCount.toLocaleString()}ロット` : "";
-    $("#llCount").textContent = `全 ${S.count.toLocaleString()}件` + lots;
+    const works = workOn() && S.work && S.work.column;        // 作業でまとめている: 分割したロットを 1 と数えたロット数（行の数を添える）
+    $("#llCount").textContent = works ? `全 ${S.groupCount.toLocaleString()}ロット（${S.count.toLocaleString()}行）` : `全 ${S.count.toLocaleString()}件` + lots;
+    $("#llCount").title = works ? "作業開始が同じ行（幅・丈で分割したロット）を 1 ロットと数えています。（ ）は登録の行の数" : "";
     const gb = $("#llGroupBar"), heads = grouped() ? $$("tr.ll-ghead", $("#llBody")).length : 0;
     const names = levels().map((l) => window.LotListColumns.label(layoutTarget(), l.column));
     gb.hidden = !grouped();
@@ -1376,7 +1425,10 @@
       note.hidden = false;
     }
   }
-  function renderAll() { renderEquipBar(); renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh(); }
+  function renderAll() {
+    renderEquipBar(); renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh();
+    window.LotListWork.update(S.src.id === "work" ? S.work : null);
+  }
 
   async function refreshFromShare() {
     const b = $("#llFresh"); b.disabled = true; b.textContent = "共有から取り直しています…";
@@ -1447,6 +1499,7 @@
     $("#llHead").addEventListener("click", (e) => {
       const th = e.target.closest("th[data-col]"); if (!th || e.target.closest(".col-resize") || th.classList.contains("is-calc")) return;
       const col = th.dataset.col, i = S.sorts.findIndex((s) => s.column === col);
+      if (workOn() && S.work && col === S.work.column) { window.LotListWork.toggleOrder(); return; }   // 作業開始の列: 新しい順 ⇄ 古い順
       if (levels().some((l) => l.column === col)) {        // まとめている列: その段の ▲／▼ を入れ替える（段はそのまま）
         setLevels(arrange().levels.map((l) => (l.column === col ? { ...l, dir: l.dir === "asc" ? "desc" : "asc" } : l))); load(); return;
       }
@@ -1458,6 +1511,8 @@
       S.page = 1; saveActive(); load();
     });
     $("#llBody").addEventListener("click", (e) => {
+      const w = e.target.closest(".wk-plus");
+      if (w) { toggleWork(w); return; }
       const b = e.target.closest(".ll-lot");
       if (b) { S.currentLot = b.dataset.lot; onPick(b.dataset.lot); return; }
       const head = e.target.closest("tr.ll-ghead");     // 見出し行はどこを押しても畳む／開く
@@ -1645,9 +1700,36 @@
     window.LotListFormats?.mount();
     window.LotListSlicer.mount({
       table: scope, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,
+      // 計算列（表示列で式から作った列）: 名前・式が使う元の列・元の列の値の組 → 一覧と同じ見えている値
+      calcColumns: () => { const LC = window.LotListColumns, t = layoutTarget(); return LC.allColumns(t, S.columns).filter((c) => LC.isComputed(t, c)); },
+      sourcesOf: (c) => window.LotListColumns.sourcesOf(layoutTarget(), c),
+      calcText: (c, row) => window.LotListColumns.cell(layoutTarget(), c, row).text,
       api: () => S.src.api, params: () => S.src.params(),
       label: (c) => window.LotListColumns.label(layoutTarget(), c),
       onChange: () => { S.page = 1; load(); },
+    });
+    window.LotListWork.mount({
+      scope, isWork: () => S.src.id === "work", toast: (m) => flash(m),
+      reload: () => { S.page = 1; load(); },
+      openMaster: (tab) => window.openMasterAt && window.openMasterAt(tab),
+    });
+    window.LotListExport.mount({
+      pageUrl: (page, size) => S.src.api + "?" + queryString({ page, pageSize: size }),
+      count: () => S.count, lotColumn: () => S.lotColumn, toast: (m) => flash(m),
+      columns: () => { const LC = window.LotListColumns, t = layoutTarget(); return LC.visible(t, LC.allColumns(t, S.columns), S.lotColumn); },
+      label: (c) => window.LotListColumns.label(layoutTarget(), c),
+      text: (c, r) => window.LotListColumns.cell(layoutTarget(), c, r).text,
+      title: () => (S.src.id === "work" ? `${equipName(S.equip)}の作業実績` : S.src.title),
+      fileStem: () => `${S.src.fileStem}_${S.src.place(S.table)}`.replace(/[\\/:*?"<>|]/g, "_"),
+      work: () => (S.src.id === "work" ? window.LotListWork.exportInfo() : null),
+      conditions: () => [["一覧", S.src.title], [S.src.id === "work" ? "設備・表" : "表", S.src.place(S.table)],
+        ["元データ", `${(S.source && S.source.remote) || "-"}${S.source && S.source.at ? `（${hm(S.source.at)} の版）` : ""}`],
+        ["検索", S.search || "（なし）"],
+        ...(condRows().length ? condRows().map((r) => ["条件", r.kind === "adhoc" ? `列で絞り込み: ${r.label}` : condLabel(r.f)]) : [["条件", "（なし）"]]),
+        ...window.LotListSlicer.summary().map(([c, v]) => [`スライサー: ${c}`, v]),
+        ["並べ替え", effectiveSorts().map((x) => `${window.LotListColumns.label(layoutTarget(), x.column)} ${x.dir === "desc" ? "▼" : "▲"}`).join("・") || "（元の順）"],
+        ...((S.src.id === "work" && window.LotListWork.exportInfo()?.conditions) || []),
+        ["絞り込みに当たる件数", `${S.count.toLocaleString()} 件`]],
     });
     window.LotListCard.mount({
       rows: () => S.rows, target: layoutTarget, lotColumn: () => S.lotColumn, lotKey,

@@ -394,3 +394,49 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .dz-fresh.is-checking{background:var(--input-soft);color:var(--h-input)}
 .dz-fresh.is-checking .wait-spin{width:11px;height:11px;border-width:2px}
 .dz-fresh.is-ng{background:var(--warn-soft);color:var(--warn-ink)}
+
+/* ---- 勤務体系（master.js の renderShifts。WaveLog の勤務体系の画面を移した） ----
+   左に体系の一覧、右に名称・適用設備・24 時間の帯・区分の行。直の色は作業実績の右の表の見出しと同じ（1直 空色・2直 琥珀・3直 藍…） */
+.sh-page{display:flex;flex-direction:column;gap:10px}
+.sh-editor{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:start}
+.sh-list{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.sh-list-head{font-size:12px;font-weight:700;color:var(--muted)}
+.sh-item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font:inherit;text-align:left;cursor:pointer}
+.sh-item small{color:var(--muted);font-size:11.5px}
+.sh-item:hover{border-color:var(--h-input)}
+.sh-item.is-on{border-color:var(--h-input);box-shadow:inset 3px 0 var(--h-input);background:var(--input-soft)}
+.sh-new,.sh-foot > button:not(.btn-primary):not(.pz-btn),.sh-tmpl button{height:28px;padding:0 10px;border:1px dashed #b9c9d6;border-radius:7px;background:var(--surface);font:inherit;font-size:12.5px;color:var(--h-input);cursor:pointer}
+.sh-tmpl button{border-style:solid;margin-left:4px}
+.sh-new:hover,.sh-foot > button:not(.btn-primary):not(.pz-btn):hover,.sh-tmpl button:hover{border-color:var(--h-input);background:var(--input-soft)}
+.sh-empty{margin:4px 0;color:var(--muted);font-size:12.5px}
+.sh-detail{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--h-input);border-radius:10px;background:var(--surface)}
+.sh-mode{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.sh-mode b{color:var(--ink)}
+.sh-tmpl{margin-left:auto;font-size:12px}
+.sh-field{display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;gap:10px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.sh-eqs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-weight:500}
+.sh-eqsum{flex:0 0 100%;font-size:12px;color:var(--ink)}
+.sh-eq{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer}
+.sh-eq[aria-pressed="true"]{border-color:var(--h-input);background:var(--h-input);color:var(--on-fill);font-weight:700}
+.sh-barwrap{display:flex;flex-direction:column;gap:3px}
+.sh-bar{position:relative;height:18px;border-radius:5px;background:repeating-linear-gradient(90deg,var(--surface-4) 0 calc(100%/24 - 1px),var(--line) calc(100%/24 - 1px) calc(100%/24))}
+.sh-piece{position:absolute;top:2px;bottom:2px;border-radius:3px;background:var(--sh-c)}
+.sh-scale{display:flex;justify-content:space-between;font-size:11px;color:var(--faint)}
+.sh-cov{font-size:12px;color:var(--ok-ink)}.sh-cov.is-warn{color:var(--warn-ink)}
+.sh-c0{--sh-c:#8cc3ec}.sh-c1{--sh-c:#f0bf6a}.sh-c2{--sh-c:#9a90dc}.sh-c3{--sh-c:#8fd0a8}.sh-c4{--sh-c:#eda3b5}.sh-c5{--sh-c:#b6c2cc}
+.sh-segs{display:flex;flex-direction:column;gap:4px}
+.sh-seg{display:grid;grid-template-columns:14px minmax(90px,160px) auto 36px minmax(150px,220px) auto;align-items:center;gap:8px}
+.sh-seghead{font-size:11.5px;font-weight:700;color:var(--muted)}
+.sh-dot{width:12px;height:12px;border-radius:3px;background:var(--sh-c)}
+.sh-seg input,.sh-seg select{height:28px;border:1px solid var(--edit-line);border-radius:6px;background:var(--edit-field);font:inherit;font-size:13px;padding:0 6px;color:var(--ink);min-width:0}
+.sh-seg input:focus,.sh-seg select:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
+.sh-time{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+.sh-next{font-size:11.5px;font-weight:700;color:#4a3fa0}
+.sh-off.is-na{color:var(--faint);text-align:center}
+.sh-acts{display:inline-flex;gap:3px}
+.sh-acts button{width:26px;height:26px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--muted);cursor:pointer;font-size:11px}
+.sh-acts button:hover:not(:disabled){color:var(--ink);border-color:var(--h-input)}
+.sh-acts button:disabled{opacity:.35;cursor:default}
+.sh-foot{display:flex;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--line-soft)}
+.sh-gap{flex:1}
+.sh-foot .btn-primary{height:32px;padding:0 22px}

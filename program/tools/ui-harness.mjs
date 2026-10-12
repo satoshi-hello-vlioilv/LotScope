@@ -39,6 +39,17 @@ const RELEASE = {
 // まとめて見る（並び・まとめ）の状態で使う段: 設備 ▲ → 不良名 ▲、繰り返しを省く
 const ARRANGE = { "仕掛": { levels: [{ column: "設備", dir: "asc", lot: false }, { column: "不良名", dir: "asc", lot: false }], heads: false, suppress: true } };
 
+// 列の見出しの札の状態（headers）: 登録日（発生日の表示名）・設備・不良名の 3 段、重量の並べ替え、計算列 3 つ、狭い列の幅、絞り込み 1 つ
+const HEADERS = {
+  arrange: { "仕掛": { levels: [{ column: "発生日", dir: "asc", lot: false }, { column: "設備", dir: "asc", lot: false }, { column: "不良名", dir: "asc", lot: false }], heads: true, suppress: false } },
+  layout: { "lotlist:仕掛": { order: ["発生日", "切断長", "設備", "不良名", "ロット番号", "客先", "材調質", "製造寸法", "重量", "板厚", "板幅"],
+    hidden: [], widths: { "発生日": 92, "切断長": 58, "設備": 76, "不良名": 70, "ロット番号": 104, "客先": 96, "材調質": 92, "製造寸法": 112 }, locks: [],
+    names: { "発生日": "登録日時" }, formats: {}, aligns: {}, rules: {},
+    formulas: { "切断長": "[長さ]*2", "材調質": "[合金] & \"-\" & [調質]", "製造寸法": "[板厚] & \"x\" & [板幅]" } } },
+  sorts: { "仕掛": [{ column: "重量", dir: "desc" }] },
+  active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] },
+};
+
 /** サーバーとブラウザーを起こす。{ browser, newPage(テーマ, 大きさ), close() } */
 export async function launch() {
   const port = 8765 + Math.floor(Math.random() * 1000);
@@ -104,11 +115,26 @@ export const STATES = [
     await p.waitForSelector("#llBody tr[data-i]");
     await sleep(500);
   }, "[data-next], #llGroupBar [data-gedit]"],
+  // 列の見出しの札（段・並べ替え・式・絞り込み）: 列を狭め、3 段でまとめ、並べ替えと計算列を足したところ（利用者の画面の再現）
+  ["headers", async (p) => {
+    // 画面の設定はサーバーの控えと同期する（TPA.local）。控えへ書き終えてから読み直す
+    await p.evaluate(async ({ arrange, layout, sorts, active }) => {
+      TPA.local.set("tpa.lotlist.arrange.v1", arrange); TPA.local.set("tpa.lotlist.layout.v1", layout);
+      TPA.local.set("tpa.lotlist.sorts.v1", sorts); TPA.local.set("tpa.lotlist.active.v1", active);
+      await TPA.saveUiState();
+    }, HEADERS);
+    await p.reload();
+    await p.waitForSelector("#llBody tr[data-i]");
+    await sleep(600);
+  }, "[data-next], #llHead th"],
   ["viewmenu", async (p) => { await p.click("#llViewBtn"); await sleep(400); }, "[data-next], #llLvAdd"],
   ["card", async (p) => { await closeAll(p); await p.dblclick("#llBody tr[data-i] td:nth-child(3)"); await sleep(600); }, "[data-next], .lk-pin"],
   ["calc", async (p) => { await closeAll(p); await p.click("#tabCalc"); await sleep(500); }, "[data-next], #query"],
   // 作業実績（設備ごとの実績。設備を札で替える）: 開いた直後（前に見た設備か、読める最初の設備）
   ["worklog", async (p) => { await closeAll(p); await p.click("#tabWork"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(700); }, "[data-next], #llEquipBar [aria-selected=false]"],
+  // 作業実績を作業でまとめる（日＋直ごと。右に日×直のロット数）と、表の数を押してその日・直に絞ったところ
+  ["worklog-work", async (p) => { await p.click('#llWorkSwitch [data-wk-mode="dayshift"]'); await p.waitForSelector("#llWork .wk-pv"); await sleep(600); }, "[data-next], #llWork [data-wk-shift]"],
+  ["worklog-pick", async (p) => { await p.click("#llWork tbody tr:nth-child(4) [data-wk-shift]"); await sleep(900); }, "[data-next], #llWorkSwitch [data-wk-unpick]"],
   // 共有の書式（作業実績の道具の行の「書式 ▾」）: 開いたところ・設備を選ぶところ・当てたところ（元に戻すが出る）
   ["formats", async (p) => { await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-pick", async (p) => { await p.click('#llFormatPanel input[name="fmTo"][value="pick"]'); await sleep(300);
@@ -124,10 +150,13 @@ export const STATES = [
   // 表示列の設定（一覧の「表示列」）: 開いた直後・列を 1 つ選んだところ
   ["columns", async (p) => { await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(600); }, "[data-next], #lcSave"],
   ["columns-detail", async (p) => { await p.click('#lcList li[data-col="発生日"]').catch(() => p.click("#lcList li[data-col]")); await sleep(500); }, "[data-next], #lcSave"],
+  // 表示列の「この列の作り方」（式の欄と式ビルダー）を開いたところ
+  ["columns-fx", async (p) => { await p.click('#lcList li[data-col="重量"]').catch(() => {}); await sleep(300); await p.click('.lc-step[data-step="fx"] > h4'); await sleep(500); }, "[data-next], #lcFormula"],
   // マスタ管理: 設備・参照先・アクセス権限・利用状況・アプリの配布（タブは DOM で押す。区分ごとにタブを隠す案でも同じ所へ行けるように）
   ["master", async (p) => { await closeAll(p); await p.click("#masterBtn"); await sleep(900); }, "[data-next], #masterAddBtn"],
   ["master-paths", async (p) => { await tab(p, "paths"); await sleep(900); }, "[data-next], #masterSettings button"],
   ["master-worklog", async (p) => { await tab(p, "worklog"); await sleep(900); }, "[data-next], #wlScan"],
+  ["master-shifts", async (p) => { await tab(p, "shifts"); await sleep(900); }, "[data-next], [data-sh-save]"],
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   ["master-access", async (p) => { await tab(p, "access"); await sleep(800); }, "[data-next], #masterAddBtn"],
   ["master-presence", async (p) => { await tab(p, "presence"); await sleep(800); }, "[data-next], #masterSettings button"],

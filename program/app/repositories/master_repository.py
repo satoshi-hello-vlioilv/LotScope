@@ -10,7 +10,7 @@
 """
 from pathlib import Path
 
-from ..services import display_formats, equipment_names, work_log
+from ..services import display_formats, equipment_names, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
 
@@ -41,6 +41,8 @@ SPECS = {
     "work_log_files": {"fields": work_log.FIELDS, "renamed": {}, "unique": "キー"},
     # 共有の書式（services/display_formats.py）。名前は元（異常ロット一覧・作業実績）ごとに 1 つ（_check_row）
     "display_formats": {"fields": display_formats.FIELDS, "renamed": {}, "unique": None},
+    # 勤務体系（services/shifts.py）。名称は 1 つずつ。区分は JSON の字
+    "shift_patterns": {"fields": shifts.FIELDS, "renamed": {}, "unique": "名称"},
 }
 
 
@@ -298,6 +300,23 @@ class MasterRepository:
 
     def format_delete(self, item_id, base_rev=None):
         self._delete("display_formats", item_id, base_rev)
+
+    # -------------------------------------------------- 勤務体系（中身の決まりは services/shifts.py）
+    def shift_patterns(self):
+        return self._list("shift_patterns")
+
+    def shift_create(self, data):
+        """data はマスタの行の形（shifts.clean_row の答え）。表示順が無ければ最後（いまの最大 + 10）。"""
+        if not str(data.get("表示順") or "").strip():
+            data = {**data, "表示順": str(max((int(r.get("表示順") or 0) for r in self.shift_patterns() if str(r.get("表示順") or "").lstrip("-").isdigit()),
+                                           default=0) + 10)}
+        return self._create("shift_patterns", data)
+
+    def shift_update(self, item_id, data, base_rev=None):
+        return self._update("shift_patterns", item_id, data, base_rev)
+
+    def shift_delete(self, item_id, base_rev=None):
+        self._delete("shift_patterns", item_id, base_rev)
 
     # -------------------------------------------------- ロールマスタ
     def rolls(self):

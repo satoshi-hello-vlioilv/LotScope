@@ -4,7 +4,7 @@
 mod common;
 
 use chrono::NaiveDate;
-use da_core::lotlist::{query, slicer, Args};
+use da_core::lotlist::{query, slicer, slicer_combos, Args};
 use serde_json::Value;
 
 fn args(case: &Value) -> Args {
@@ -32,10 +32,14 @@ fn rust_answers_like_python() {
     for (i, (case, want)) in cases.iter().zip(expected).enumerate() {
         // Python の oracle と同じ渡し方（設定の件数は 500・設定の表は無し）
         let s = |k: &str| case.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
-        let answer = match case.get("slicer") {
+        let answer = if case.get("combos").is_some() {
+            // 計算列のスライサー（/api/lotlist/slicer の columns）
+            slicer_combos(&db, &args(case), &s("combos"), "", today).map_err(|(_, e)| e)
+        } else if case.get("slicer").is_some() {
             // スライサーに並べる値（/api/lotlist/slicer）
-            Some(_) => slicer(&db, &args(case), &s("slicer"), &s("key"), "", today).map_err(|(_, e)| e),
-            None => query(&db, &args(case), "", 500, today),
+            slicer(&db, &args(case), &s("slicer"), &s("key"), "", today).map_err(|(_, e)| e)
+        } else {
+            query(&db, &args(case), "", 500, today)
         };
         let got = match answer {
             Ok(mut v) => {

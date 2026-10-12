@@ -27,6 +27,10 @@ WaveLog の品質データ（`SIKADEF.sqlite3`）を一覧で開き、WaveLog �
 
 - `search`: 全列を `CStr(列) LIKE %q%` の OR
 - `filters`: `[{column, op, value}]` を AND（最大 20）。op と SQL は WaveLog と同じ（`contains` `not_contains` `eq` `neq` `starts` `starts_any` `ends` `gt` `gte` `lt` `lte` `empty` `not_empty`）。`gt〜lte` は `Val(CStr(列))` と数にしたパラメータで比べる
+- スライサー: `in`（選んだ値のどれか。`key` があれば見えている値で比べる）と、計算列の `tuple_in`（版 3.20.0〜）:
+  `{op:"tuple_in", columns:[式が使う元の列（1〜4）], value:"[[値, …], …]"}`。組ごとに `列 IS ?` の AND を OR でつなぐ（NULL の組も当たる・型のまま比べる）。
+  計算列の式は画面（`list-formula.js`）にしか無いので、`/slicer?columns=[…]` で元の列の値の組と件数（`slicer_combos`。件数の多い順・同じ件数は値の順）を返し、
+  画面が組ごとに見えている値を計算して足す。選んだ値になる組を `tuple_in` で返す。デスクトップ版の Rust（`lotlist.rs`）も同じ（`lotlist_parity.rs` が突き合わせる）
 - `sorts`: `[{column, dir}]`（最大 4）
 - 列名は実在するものだけを SQL に入れ（`[ ]` で括る）、値はすべてパラメータ
 - 表: 指定 → 設定 `lot_list.table` → `仕掛`・`品質情報`・`品質`・`保留` → 最初の表。ロット番号の列: `ロット番号`・`ﾛｯﾄ番号`・`ロット№`・`LTNO`
@@ -176,6 +180,16 @@ WaveLog の品質データ（`SIKADEF.sqlite3`）を一覧で開き、WaveLog �
 - `GET /api/worklog?equip=<キー>&…` … 一覧（引数と答えは `/api/lotlist` と同じ。表の候補は 実績 → 作業実績 → 名前に含む表 → 最初の表）。`/slicer`・`/source`・`POST /refresh` も同じ
 - 表示しない設備は 403（`hidden`）、登録に無い設備は 404、ファイルが見つからず写しも無いときは 404（`missing`）・フォルダに届かないときは 503（`unreachable`）。前に写した設備は、フォルダに届かなくても写しのまま見せる
 - マスタ管理: `GET /api/masters/worklog`（行と、まだ登録していないファイル）・`POST /api/masters/worklog/scan`（探して当てる）・`PUT/DELETE /api/masters/worklog/<id>`。書くのは管理のマスタを書ける PC（書き込みの門番 `routes/access.py`）
+
+### 作業でまとめる（版 3.20.0〜。`services/work_summary.py`・`services/shifts.py`・画面は `lotlist-work.js`）
+
+- 1 作業＝作業開始（既定の列 `BOX実績_作業開始_日付`。`〜_日付` に対する `〜_時刻` の列があれば時刻はそこから）が同じ行。幅・丈で分割したロットは登録は別でも作業は 1 回なので、1 ロットと数える。作業開始が空の行は 1 行ずつ、日時と読めない字は同じ字どうしを 1 作業
+- `GET /api/worklog?…&work=1&basis=work|cal&order=desc|asc[&start=列][&day=YYYY-MM-DD&shift=番号]` … 作業開始の順に並べ、同じ作業の行をサーバーが 1 か所に集める（`lot_list.query` の `grouping`。ロット番号でまとめる仕組みの鍵を作業に替えたもの・ページの境目で作業を切らない）。
+  答えの `work`: `rows`（ページの行ごとの [作業の鍵, 日, 直の番号, 作業開始]）・`buckets`（絞り込みに当たる全部の行の日・直ごとの作業数・行数・分割した作業数。`day`・`shift` の絞りは外して数える）・`total`・`shifts`・`pattern`・`candidates`（作業開始に選べる列）
+- 直: 勤務体系マスタ `shift_patterns`（WaveLog の勤務体系・勤務区分と同じ形。行＝体系、区分は JSON）。設備名を書いた体系 → 全設備共通の順で使う。日を跨ぐ区分の「跨いだ後の時間帯」に日付補正（既定 -1＝前の日・現場歴）。`basis=cal` は暦の日付のまま。どの区分にも入らない時刻は「直の外」（-1）、時刻の無い値は「時刻なし」（-2）
+- 決め方はサーバーの 1 か所（`Clock.place`）。画面は受け取った日・直で描くだけ。素朴な数え直し（`tests/test_work_summary.py` の oracle）と突き合わせる
+- 画面: 件数の行の「まとめない｜日ごと｜日＋直ごと」、一覧の右に日×直の表（数を押すとその日・直に絞る）、分割した行は 1 行に畳み「＋n」で開く。範囲（設備と表）ごとに、まとめ方・日付の数え方・並び・作業開始の列をこの PC に覚える
+- 勤務体系の読み書き: `GET/POST /api/masters/shifts`・`PUT/DELETE /api/masters/shifts/<id>`（現場のマスタ。書き込みの門番 `routes/access.py`）。マスタ管理の「勤務体系」で直す
 
 ### 画面
 

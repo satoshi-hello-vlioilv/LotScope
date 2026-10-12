@@ -1,0 +1,72 @@
+/* =========================================================================
+   作業実績の「作業でまとめる」（lotlist-work.js）
+   - 件数の行: まとめない｜日ごと｜日＋直ごと の切り替え（スライサーの置き場と同じ形の札）と、押した日・直の札
+   - 一覧の右: 日×直のロット数の表。数の地の濃さ（青緑）で多い・少ないを読まずに分かるように。直の色は見出しの細い帯だけ
+     （1直＝空色・2直＝琥珀・3直＝藍。昼から夜へ。色は札の飾りで、数の地には使わない＝数の濃さと混ざらない）
+   - 一覧: 分割したロットの「＋n」（藍の淡い札）。開いた分割の行は左に細い藍の線
+   ========================================================================= */
+.wk-switch{display:inline-flex;align-items:center;gap:8px}
+.wk-seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface)}
+.wk-seg button{border:0;background:var(--surface);padding:0 11px;height:26px;font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.wk-seg button + button{border-left:1px solid var(--line)}
+.wk-seg button[aria-checked="true"]{background:var(--ll-teal);color:var(--on-fill);font-weight:700}
+.wk-seg button:hover:not([aria-checked="true"]){color:var(--ink);background:var(--surface-4)}
+.wk-seg.sm button{height:22px;padding:0 9px;font-size:12px}
+.wk-pickchip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border:1px solid var(--ll-teal);border-radius:999px;
+  background:var(--ll-pale);color:var(--ll-teal-dark);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.wk-pickchip b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ll-teal);color:var(--on-fill);font-size:11px}
+.wk-pickchip:hover{background:#d6ece9}
+/* まとめているあいだは、件数の行の説明（ロット番号を押すと… など）を下げる（1536 幅でも 1 行に収める） */
+.ll-status:has(#llWorkSwitch:not([hidden]) [data-wk-mode="none"][aria-checked="false"]) :is(.ll-lothint,#llCardHint){display:none!important}
+
+/* ---- 右の表 ---- */
+.wk-pane{flex:0 0 300px;order:99;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:10px 10px 8px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:8px;font-size:13px}
+.ll-bodyrow[data-place="right"] .wk-pane{order:-1}
+.ll-bodyrow[data-place="top"] .wk-pane{flex:0 0 auto;max-height:240px}
+.wk-head{display:flex;align-items:center;gap:8px}
+.wk-title{margin:0 auto 0 0;font-size:13.5px;font-weight:800;color:var(--ink)}
+.wk-order{height:24px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:12px;color:var(--muted);padding:0 8px;cursor:pointer}
+.wk-order:hover{color:var(--ink);border-color:var(--ll-teal)}
+.wk-sub{margin:-2px 0 0;font-size:11.5px;color:var(--muted);line-height:1.45}
+.wk-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}
+.wk-meta b{color:var(--ink)}
+.wk-note{padding:7px 9px;border-radius:7px;background:var(--surface);border:1px solid var(--line);font-size:12px;line-height:1.5;color:var(--ink)}
+.wk-note.is-ask{background:var(--amber-pale);border-color:var(--amber-line);color:var(--amber-ink)}
+.wk-note small{display:block;color:var(--muted)}
+.wk-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.wk-acts button{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:12px;cursor:pointer}
+.wk-acts .btn-primary{border-color:var(--ll-teal);background:var(--ll-teal);color:var(--on-fill);font-weight:700}
+.wk-table{flex:1 1 auto;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:7px;background:var(--surface)}
+.wk-pv{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;font-size:13px}
+.wk-pv th,.wk-pv td{padding:0;height:26px;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap}
+.wk-pv thead th{position:sticky;top:0;z-index:1;background:var(--surface-4);font-size:12px;font-weight:700;color:var(--muted);padding:0 8px}
+.wk-pv thead .wk-sum > *{position:sticky;top:26px;z-index:1;background:#eef6f5;color:var(--ll-teal-dark);font-weight:800;padding:0 8px;border-bottom:1px solid var(--line)}
+.wk-pv thead .wk-sum th small{margin-left:4px;font-weight:500;color:var(--muted)}
+.wk-pv .wk-dh,.wk-pv tbody th,.wk-pv .wk-sum th{text-align:left}
+.wk-pv .wk-dh small{font-weight:500}
+.wk-pv thead .wk-s{box-shadow:inset 0 3px var(--wk-c, #c4ccd3);color:var(--wk-t, var(--muted))}
+.wk-s0{--wk-c:#8cc3ec;--wk-t:#1f5f99}.wk-s1{--wk-c:#f0bf6a;--wk-t:#8a5400}.wk-s2{--wk-c:#9a90dc;--wk-t:#4a3fa0}
+.wk-s3{--wk-c:#8fd0a8;--wk-t:#22704a}.wk-s4{--wk-c:#eda3b5;--wk-t:#9a2f4c}.wk-s5{--wk-c:#b6c2cc;--wk-t:#4a5a68}
+.wk-pv tbody td{background:rgba(47,125,120,calc(var(--wk-a, 0) * .26))}
+.wk-pv button{display:block;width:100%;height:100%;border:0;background:none;padding:0 8px;font:inherit;color:inherit;text-align:inherit;cursor:pointer}
+.wk-pv tbody th button{font-weight:600;color:var(--ink)}
+.wk-pv button:hover{box-shadow:inset 0 0 0 2px var(--ll-teal)}
+.wk-pv .wk-0{color:#c3ccd3;padding:0 8px}
+.wk-pv .wk-tot{font-weight:800;color:var(--ll-teal-dark);padding:0 8px;border-left:1px solid var(--line-soft)}
+.wk-pv thead th.wk-tot{color:var(--ll-teal-dark)}
+.wk-pv .wk-rows{color:var(--muted);padding:0 8px;font-size:12px}
+.wk-pv tr.is-pick > *,.wk-pv td.is-pick{box-shadow:inset 0 0 0 2px var(--ll-teal);background-color:#d9efec}
+.wk-pv tr.is-pick th button{color:var(--ll-teal-dark);font-weight:800}
+.wk-pv .wk-none{text-align:center;color:var(--muted);padding:12px}
+.wk-start{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.wk-start select{flex:1;min-width:0;height:24px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:12px;color:var(--ink)}
+
+/* ---- 一覧: 分割したロット ---- */
+.wk-plus{margin-left:6px;height:18px;padding:0 6px;border:1px solid #c5d7ea;border-radius:6px;background:var(--info-soft);color:var(--info-ink);
+  font:inherit;font-size:11.5px;font-weight:800;line-height:16px;cursor:pointer;vertical-align:1px}
+.wk-plus:hover{border-color:var(--info-ink)}
+.wk-plus[aria-expanded="true"]{background:var(--info-ink);border-color:var(--info-ink);color:var(--on-fill)}
+.ll-grid tr.wk-sub > td:first-child{box-shadow:inset 3px 0 #7fa8d1}
+.ll-grid tr.wk-first:has(.wk-plus[aria-expanded="true"]) > td:first-child{box-shadow:inset 3px 0 #7fa8d1}
+.vm-wknote{margin:4px 0 6px;padding:6px 8px;border-radius:6px;background:var(--ll-pale);color:var(--ll-teal-dark);font-size:12px}

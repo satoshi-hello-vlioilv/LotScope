@@ -206,6 +206,23 @@
       el.addEventListener("compositionend", (e) => fn(el, e));
     },
 
+    /** 欄の大きさ（右下の角で広げた高さ・幅）をこの PC に覚え、欄を作り直しても当て直す（key ごと）。
+        詳しい所を描き直す画面（表示列の「この列の作り方」など）では、打つたびに欄が作り直されて元の大きさへ戻っていた。
+        初めの 1 回（当て直した大きさの知らせ）は覚えない。窓が閉じて 0 になったときも覚えない */
+    keepSize(el, key, { width = false } = {}) {
+      if (!el || typeof ResizeObserver === "undefined") return;
+      const k = `tpa.ui.size.${key}.v1`, saved = TPA.local.get(k, null);
+      if (saved && saved.h) el.style.height = saved.h + "px";
+      if (width && saved && saved.w) el.style.width = saved.w + "px";
+      let first = true;
+      new ResizeObserver(() => {
+        if (first) { first = false; return; }
+        const r = el.getBoundingClientRect();
+        if (r.height < 8 || !el.isConnected) return;
+        TPA.local.set(k, { h: Math.round(r.height), ...(width ? { w: Math.round(r.width) } : {}) });
+      }).observe(el);
+    },
+
     /** 重なって開く窓を登録する。Esc（いちばん上の1枚）と、backdrop なら窓の外側（背景）を押したときに close()。 */
     layer(el, close, { backdrop = true } = {}) {
       const entry = { el, close };
