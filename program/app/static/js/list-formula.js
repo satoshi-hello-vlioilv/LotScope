@@ -364,8 +364,13 @@
       ・[ を打つと列名の候補（`opt.columns()`が答える。表示名でも元の名前でもよい）
       ・↑↓で選び、Enter／Tab で入れる。Esc で閉じる（押下は受けたと名乗る＝窓は閉じない）
     関数は`name(`まで入れて、引数の形を候補の中に言う（例: extract(x, 正規表現, 組)）。 */
- let sgEl=null,sgFor=null,sgItems=[],sgAt=0,sgSpan=null;
- function sgClose(){if(sgEl)sgEl.hidden=true;sgFor=null;sgItems=[];sgSpan=null}
+ let sgEl=null,sgFor=null,sgItems=[],sgAt=0,sgSpan=null,sgSig='',sgRaf=0;
+ function sgClose(){cancelAnimationFrame(sgRaf);if(sgEl)sgEl.hidden=true;sgFor=null;sgItems=[];sgSpan=null;sgSig=''}
+ /* 候補を出すのは 1 コマに 1 回（速く打っても、打鍵ごとに候補を作り直さない）。
+    測るのは入力欄の位置だけ（候補の高さ・幅は行の高さと最大幅から決める）。候補が前と同じなら中身は作り直さない。
+    （以前は打鍵ごとに 中身を作る→位置を測る→大きさを測る で、後ろの大きな一覧まで配置を計算し直し、打つ手を待たせた） */
+ const SG_ROW=26,SG_PAD=10,SG_MAXW=460;
+ function sgQueue(inp,opt){cancelAnimationFrame(sgRaf);sgRaf=requestAnimationFrame(()=>sgShow(inp,opt))}
  function sgWord(inp){
   const v=inp.value,c=inp.selectionStart||0,head=v.slice(0,c);
   const open=head.lastIndexOf('['),close=head.lastIndexOf(']');
@@ -389,22 +394,29 @@
   }
   if(!items.length||(w.kind==='fn'&&items.length===1&&items[0].label===q)){sgClose();return}
   if(!sgEl){
+   /* 候補は、画面いっぱいの透明な台（大きさを閉じ込めた .fx-suggest-host）の中に置く。body の直下に置くと、動かす・中身を変える
+      たびに文書全体（後ろの大きな一覧）から配置を計算し直し、打つ手を待たせた（台で計算が止まる） */
+   const host=document.createElement('div');host.className='fx-suggest-host';document.body.appendChild(host);
    sgEl=document.createElement('div');
    sgEl.className='wl-menu fx-suggest';sgEl.setAttribute('role','listbox');sgEl.hidden=true;
-   document.body.appendChild(sgEl);
+   host.appendChild(sgEl);
    sgEl.addEventListener('mousedown',e=>{
     const li=e.target.closest('[data-i]');if(!li)return;
     e.preventDefault();sgPick(+li.dataset.i);
    });
   }
-  sgFor=inp;sgItems=items.slice(0,12);sgSpan=w;sgAt=0;
-  sgEl.innerHTML=sgItems.map((it,i)=>`<div role="option" data-i="${i}" class="fx-sg-item${i===sgAt?' is-on':''}">`
-   +`<b>${escHtml(it.label)}</b>${it.args?`<code>(${escHtml(it.args)})</code>`:''}<small>${escHtml(it.note)}</small></div>`).join('');
   const r=inp.getBoundingClientRect();
-  sgEl.hidden=false;
-  const h=sgEl.offsetHeight,below=r.bottom+4+h<=innerHeight;
-  sgEl.style.left=`${Math.max(6,Math.min(r.left,innerWidth-sgEl.offsetWidth-6))}px`;
+  const next=items.slice(0,12),sig=next.map(it=>it.label).join('\u001f');
+  sgFor=inp;sgSpan=w;
+  if(sig!==sgSig||sgEl.hidden){
+   sgItems=next;sgAt=0;sgSig=sig;
+   sgEl.innerHTML=sgItems.map((it,i)=>`<div role="option" data-i="${i}" class="fx-sg-item${i===sgAt?' is-on':''}">`
+    +`<b>${escHtml(it.label)}</b>${it.args?`<code>(${escHtml(it.args)})</code>`:''}<small>${escHtml(it.note)}</small></div>`).join('');
+  }
+  const h=sgItems.length*SG_ROW+SG_PAD,below=r.bottom+4+h<=innerHeight;
+  sgEl.style.left=`${Math.max(6,Math.min(r.left,innerWidth-SG_MAXW-6))}px`;
   sgEl.style.top=`${below?r.bottom+4:Math.max(6,r.top-h-4)}px`;
+  sgEl.hidden=false;
  }
  function sgMark(){if(sgEl)sgEl.querySelectorAll('.fx-sg-item').forEach((el,i)=>el.classList.toggle('is-on',i===sgAt))}
  function sgPick(i){
@@ -428,9 +440,9 @@
   inp.setAttribute('autocomplete','off');
   const o=opt||{};
   /* 日本語入力の変換中は候補を出さず、確定してから出す（変換中に候補を動かすと、確定の Enter で候補を選んでしまう） */
-  inp.addEventListener('input',e=>{if(!window.TPA||!TPA.composing(e))sgShow(inp,o)});
-  inp.addEventListener('compositionend',()=>sgShow(inp,o));
-  inp.addEventListener('click',()=>sgShow(inp,o));
+  inp.addEventListener('input',e=>{if(!window.TPA||!TPA.composing(e))sgQueue(inp,o)});
+  inp.addEventListener('compositionend',()=>sgQueue(inp,o));
+  inp.addEventListener('click',()=>sgQueue(inp,o));
   inp.addEventListener('blur',()=>setTimeout(()=>{if(sgFor===inp&&document.activeElement!==inp)sgClose()},0));
   inp.addEventListener('keydown',e=>{
    if(sgFor!==inp||!sgEl||sgEl.hidden||e.isComposing||e.keyCode===229)return;

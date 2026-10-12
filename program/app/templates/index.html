@@ -108,6 +108,8 @@
       <!-- 色付けの凡例（色・条件・全件で当たった数）。押すと、その色付けを消す／付ける（lotlist-marks.js） -->
       <span id="llMarkSum" class="mk-sum" hidden role="group" aria-label="色付け"></span>
       <span id="llGroupBar" class="ll-groupbar" hidden></span>
+      <!-- 見出しで決めた並べ替え（「並べ替え ① 重量 ▼ × ② 板厚 ▲ ×」）。まとめの段の後ろに続く順（lotlist.js の paintSortBar） -->
+      <span id="llSortBar" class="ll-groupbar ll-sortbar" hidden role="group" aria-label="並べ替え"></span>
       <span id="llCardShelf" class="lk-shelf" hidden role="toolbar" aria-label="開いているカード"></span>
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
       <!-- 右の組（拡大・頁）。件数の行が折り返しても、2 つは離れず右に寄る -->
@@ -143,11 +145,17 @@
     <aside id="llWork" class="wk-pane" hidden aria-label="日・直ごとのロット数"></aside>
     </div>
     <!-- 登録した条件とプリセット -->
-    <div id="llPresetModal" class="ll-pm" hidden role="dialog" aria-modal="true" aria-label="登録した条件とプリセット">
+    <div id="llPresetModal" class="ll-pm" hidden role="dialog" aria-modal="true" aria-label="登録した条件・プリセット・保存した見方">
       <div class="ll-pm-card">
-        <div class="ll-pm-head"><b>登録した条件とプリセット</b><small>表: <span id="llPresetTable">-</span>。同じ「プリセット名」を付けた条件がひとまとまりになり、「プリセット」から切り替えられます。</small>
+        <div class="ll-pm-head"><b>登録した条件・プリセット・保存した見方</b><small>表: <span id="llPresetTable">-</span>。どれも「プリセット」から切り替えられます。同じ「プリセット名」を付けた条件がひとまとまりになります。</small>
           <button id="llPresetModalClose" type="button" class="fb-close" title="閉じる（Esc）">✕ 閉じる</button></div>
         <div class="ll-pm-body">
+          <h4 class="ll-pm-sec">保存した見方<small>条件・並べ替え・まとめ・スライサー・検索を名前を付けて保存した物。当てると、その形にまるごと入れ替わります</small></h4>
+          <table class="ll-pm-table ll-pm-views">
+            <thead><tr><th>名前</th><th>入っている物</th><th></th><th></th><th></th></tr></thead>
+            <tbody id="llViewRows"></tbody>
+          </table>
+          <h4 class="ll-pm-sec">登録した条件とプリセット</h4>
           <table class="ll-pm-table">
             <thead><tr><th>条件</th><th>プリセット名（組み合わせ）</th><th>いつも適用</th><th></th><th></th></tr></thead>
             <tbody id="llPresetRows"></tbody>

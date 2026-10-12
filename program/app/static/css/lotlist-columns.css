@@ -290,9 +290,39 @@ td.cell-warn{background:#fff5e0!important}
 .lr-fx-acts{display:flex;gap:6px}
 .ll-rulepanel .lr-delete{color:var(--danger);border-color:var(--danger-line)}
 
+/* ---------- この列の作り方の窓（読み替えルールの窓と同じ作り＋「組み立てる｜式を書く」） ---------- */
+.lr-tabs{display:flex;gap:0;margin:0 0 10px;border:1px solid var(--line);border-radius:9px;overflow:hidden;width:max-content;max-width:100%}
+.ll-rulepanel .lr-tabs button{height:auto;min-height:40px;border:0;border-radius:0;padding:5px 16px;display:grid;justify-items:start;gap:1px;font-weight:800;color:var(--muted);background:var(--surface-2)}
+.ll-rulepanel .lr-tabs button + button{border-left:1px solid var(--line)}
+.ll-rulepanel .lr-tabs button small{font-weight:400;font-size:11.5px}
+.ll-rulepanel .lr-tabs button[aria-selected="true"]{background:var(--h-input);color:var(--on-fill)}
+.ll-rulepanel .lr-tabs button[aria-selected="true"] small{opacity:.85}
+.lr-warn{margin:0 0 8px;padding:6px 10px;border-radius:7px;background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber-ink);font-size:12.5px;font-weight:700}
+.ll-fxpanel .lr-fx{background:var(--surface-2);border-color:#c9d6e2}
+.lr-writepane{display:grid;gap:8px}
+.lr-pane[hidden]{display:none}
+.ll-rulepanel textarea.lr-write{width:100%;min-height:150px;font-size:14px}
+.lr-write-state{font-size:12.5px}.lr-write-state.is-ok{color:var(--ok)}.lr-write-state.is-ng{color:var(--danger);font-weight:700}
+.lr-parts{border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:var(--surface-1)}
+.lr-parts summary{cursor:pointer;font-weight:800;color:var(--h-input);font-size:12.5px}
+.lr-parts summary small{font-weight:400;color:var(--muted);margin-left:8px}
+.lr-parts .fb{margin-top:6px}
+.lr-foot-note{color:var(--muted);font-size:12px}
+
+/* 表示列の窓の「この列の作り方」: いまの式の要約と、作り方の窓を開くボタン（打つのは窓の中） */
+.lc-fxsum{display:grid;gap:4px}
+.lc-fxcode{display:block;padding:6px 9px;border-radius:7px;background:var(--surface-3);border:1px solid var(--line);font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:96px;overflow:auto;color:var(--ink)}
+.lc-fxcode.is-none{color:var(--muted);font-family:inherit}
+.lc-fxcode.is-ng{border-color:var(--danger-line)}
+.lc-fxhow{color:var(--muted);font-size:12px}
+.lc-fxacts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ll-colpanel .lc-fxacts .lc-danger{margin-left:auto}
+
 /* 式の候補（WaveLog list-formula.js の suggest が出す器） */
-.fx-suggest{position:fixed;z-index:100;min-width:260px;max-width:460px;background:var(--surface);border:1px solid var(--pop-line);border-radius:8px;box-shadow:0 14px 36px var(--pop-shadow);padding:4px;font-size:12.5px}
-.fx-sg-item{display:flex;gap:6px;align-items:baseline;padding:4px 8px;border-radius:5px;cursor:pointer}
+.fx-suggest-host{position:fixed;inset:0;z-index:100;pointer-events:none;contain:strict}
+.fx-suggest{position:absolute;pointer-events:auto;min-width:260px;max-width:460px;background:var(--surface);border:1px solid var(--pop-line);border-radius:8px;box-shadow:0 14px 36px var(--pop-shadow);padding:4px;font-size:12.5px}
+/* 行の高さは list-formula.js の SG_ROW（26px）と同じに固定する（候補の高さを測らずに置き場を決めるため） */
+.fx-sg-item{display:flex;gap:6px;align-items:center;height:26px;box-sizing:border-box;padding:0 8px;border-radius:5px;cursor:pointer;white-space:nowrap;overflow:hidden}
 .fx-sg-item.is-on,.fx-sg-item:hover{background:var(--ll-pale)}
 .fx-sg-item code{color:#5a3e91}.fx-sg-item small{margin-left:auto;color:var(--muted)}
 
@@ -329,12 +359,3 @@ td.cell-warn{background:#fff5e0!important}
 .vm-freeze .vm-fz:disabled{opacity:.4;cursor:default}
 .vm-freeze .vm-fz-none{margin-right:6px;border-style:dashed}
 .vm-freeze .vm-fz-none[aria-pressed="true"]{background:var(--input-soft);border:1px solid var(--h-input);color:var(--h-input);font-weight:800}
-/* 作り方の段: 式を書く｜組み立てる（式ビルダー formula-builder.js。式が空の列は組み立てるから開く） */
-.lc-fxtabs{display:inline-flex;align-self:flex-start;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin-bottom:2px}
-.lc-fxtabs button{border:0;background:var(--surface);padding:0 12px;height:26px;font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer}
-.lc-fxtabs button + button{border-left:1px solid var(--line)}
-.lc-fxtabs button[aria-selected="true"]{background:var(--h-input);color:var(--on-fill);font-weight:700}
-.lc-fxtabs button small{margin-left:3px;font-size:10.5px;opacity:.85}
-.lc-fxwrite{display:flex;flex-direction:column;gap:6px}
-.lc-fxlead{margin:0 0 6px;font-size:12px;color:var(--muted);line-height:1.5}
-.lc-fxwrite[hidden],.lc-fxbuild[hidden]{display:none}
