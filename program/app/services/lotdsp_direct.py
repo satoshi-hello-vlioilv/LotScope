@@ -534,13 +534,11 @@ _PREFILL = """((lot) => {
 })(__LOT__)"""
 
 
-def _run_once(b, cfg, lot_no, mode="read"):
-    """ページの中の手順（lotdsp_direct.js）を走らせ、0.25 秒ごとに段階と結果を尋ねる（途中経過・中止のため）。
-    mode: read（進度情報を読み、画面の HTML を返す）／ show（「検索」を押したら読まずに終える。答えの dict を返す）"""
+def _run_once(b, cfg, lot_no):
+    """ページの中の手順（lotdsp_direct.js）を走らせ、0.25 秒ごとに段階と結果を尋ねる（途中経過・中止のため）。"""
     _stage("search")
     total_ms = int(max(10, cfg["timeout_seconds"] - 5) * 1000)
-    js = (SCRIPT.read_text(encoding="utf-8").replace("__LOT__", json.dumps(lot_no)).replace("__TOTAL_MS__", str(total_ms))
-          .replace("__MODE__", json.dumps(mode)))
+    js = SCRIPT.read_text(encoding="utf-8").replace("__LOT__", json.dumps(lot_no)).replace("__TOTAL_MS__", str(total_ms))
     b.cdp.eval(js, timeout=10)
     end = time.time() + cfg["timeout_seconds"]
     while True:
@@ -556,7 +554,7 @@ def _run_once(b, cfg, lot_no, mode="read"):
         if res:
             if not res.get("ok"):
                 raise DirectError(res.get("kind") or "screen", res.get("error") or "進度情報を読めませんでした")
-            return res["html"] if mode == "read" else res
+            return res["html"]
         if stage in STAGES:
             _stage(stage)
         if _CANCEL.is_set():
@@ -630,27 +628,3 @@ def fetch_progress_html(lot_no, cfg, window=False):
         if not cfg.get("keep_seconds", 0) > 0:
             shutdown()
         return html
-
-
-def show_lot(lot_no, cfg):
-    """ロット番号で LotDsp を検索し、LotDsp の窓に出して前に出す（取り込まない。一覧のロット番号の横の虫眼鏡）。
-    → {"lot": ロット番号, "login": ログインが要ったか}。
-    ログインが要るときは、空いているロット番号の欄にだけ入れて窓を前に出し、待たずに返す（ログインと「検索」は利用者が
-    窓で行う。アプリは何も押さない）。窓は読むときと同じ物（専用のプロファイル）を使い回し、見ている窓はしまわない。"""
-    lot_no = _checked_lot(lot_no)
-    if not (cfg.get("enabled") and cfg.get("login_window")):
-        raise DirectError("disabled", "LotDsp の窓を使わない設定です（lotdsp_import.direct の enabled・login_window）")
-
-    def show(b):
-        try:
-            _run_once(b, cfg, lot_no, mode="show")
-            login = False
-        except DirectError as e:
-            if e.kind != "login":
-                raise
-            _eval_quiet(b, _PREFILL.replace("__LOT__", json.dumps(lot_no)))
-            login = True
-        _window(b, "normal")
-        return login
-    with _turn(lot_no):
-        return {"lot": lot_no, "login": _drive(cfg, lot_no, True, show)}
