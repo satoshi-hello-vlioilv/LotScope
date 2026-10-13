@@ -249,6 +249,10 @@ WaveLog と同じく、ロット番号と鋳造番号の linkkey の URL で開�
 | 覚え | 範囲（表・設備）ごとにこの PC: `tpa.lotlist.pivot.v1` {view, rows, cols, measures, chart, sub, grand, chartAt}。表示の設定と保存した見方に入る |
 | 道 | `GET /api/lotlist/pivot`・`GET /api/worklog/pivot`（rows・cols・measures は JSON。作業実績は basis・start も）。`fields=1` は左の札の手がかり（値の種類の数・数の列か）。デスクトップ版でも Python が答える（窓の Rust は一覧・スライサーだけ） |
 
+- 押す・変える・打つの見張りは、枠（`#llPivot`）に `mount` で 1 回だけ付ける（中身は描くたびに作り直す）。版 3.24.0 までは中身を作るたびに
+  付け足していたので、設備を替えて集計を開き直すたびに見張りが増え、「押すと入る・もう一度で外す」札が偶数個のときは効かなかった
+  （`ui-eval-pivot.mjs` の ⑦ が、替える回数の偶数・奇数を両方試す）。
+
 作業実績の右の日・直の表には「合計する列」（版 3.23.0〜）: 選んだ数の列（例: BOX実績_良品重量）を日・直ごとに足し、ロット数と並べて出す
 （日＋直はセルのロット数の下に・日ごとは合計の列。行ごとの値を足す＝分割したロットも 1 行ずつ。`work_summary.summarize` の sum・`Grouping(total=)`）。
 覚えは `tpa.worklog.count.v1` の total。Excel の「日・直ごとのロット数」のシートにも合計の列が入る。

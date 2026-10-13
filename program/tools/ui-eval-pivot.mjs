@@ -7,6 +7,7 @@
 // ④ 作業実績の右の表で「合計する列」に重量 → 日・直のセルと合計の行に重量の合計（集計の総計と同じ）
 // ⑤ 保存した見方: 集計表の組み方・作業でまとめる形（合計する列）・スライサーの開閉を保存 → 変えて → 呼び出すと戻る
 // ⑥ 異常ロット一覧でも: すぐに見る（年月ごとの件数）で時系列。Excel に出力で「集計」「出力の条件」のシート
+// ⑦ 設備を替えて集計を開き直しても、［行］は 1 回で 1 つ入り、× は 1 つだけ外す（以前は開き直すたびに押した時の処理が増え、偶数個で効かなかった）
 // 全部合えば終了コード 0。
 import fs from "node:fs";
 import os from "node:os";
@@ -99,6 +100,27 @@ try {
   check("保存した見方の札に集計・作業でまとめる", tags.includes("集計表・グラフ") && tags.some((t) => t.startsWith("作業でまとめる: 日＋直ごと・合計")), tags);
   check("呼び出すと、集計の組み方・作業でまとめる形（合計する列）・スライサーの開閉が戻る",
     back.view === "pivot" && back.rows[0].startsWith("作業日") && back.vals.join() === "ロット数,重量" && wc.mode === "dayshift" && wc.total === "重量" && back.slicer, back);
+  // ⑦ 設備を替えて集計を開き直しても、札は 1 回押せば 1 回だけ効く（版 3.24.0 まで: 開き直すたびに押した時の処理が 1 つずつ増え、
+  //    偶数個のときは［行］を押しても入れてすぐ外して何も起きず、× は段をいくつも外した）。替える回数の偶数・奇数を両方試す
+  const equips = await p.$$eval("#llEquipBar [data-equip]:not([aria-disabled=true])", (xs) => xs.map((x) => x.dataset.equip));
+  const presses = [];
+  for (let k = 0; k < 4; k++) {
+    await p.click(`#llEquipBar [data-equip="${equips[(k + 1) % equips.length]}"]`); await sleep(1000);
+    if (!(await p.evaluate(() => window.LotListPivot.on()))) { await p.click('#llViewSwitch [data-pv-view="pivot"]'); await sleep(900); }
+    await p.evaluate(() => window.LotListPivot.setState({ ...window.LotListPivot.stateOf(), view: "pivot", rows: [], cols: [], measures: [] })); await sleep(600);
+    const rowsNow = () => p.evaluate(() => window.LotListPivot.stateOf().rows.map((d) => d.column));
+    const btns = await p.$$('#llPvFields .pv-f:not(.is-special) [data-pv-add="rows"]');
+    await btns[0].click(); await sleep(500); const one = await rowsNow();
+    await (await p.$$('#llPvFields .pv-f:not(.is-special) [data-pv-add="rows"]'))[1].click(); await sleep(500); const two = await rowsNow();
+    const x = await p.$('#llPvHead .pv-slot[data-role="rows"] [data-pv-x="rows"][data-i="0"]');   // 入らなかったときは × も無い
+    if (x) { await x.click(); await sleep(500); }
+    const x1 = await rowsNow();
+    presses.push({ k: k + 1, one: one.length, two: two.length, afterX: x1.length, kept: x1[0] === two[1] });
+  }
+  check("設備を替えて集計を開き直しても、［行］は 1 回で 1 つ入り、× は 1 つだけ外す（替える回数が奇数でも偶数でも）",
+    presses.every((x) => x.one === 1 && x.two === 2 && x.afterX === 1 && x.kept), presses);
+  await p.evaluate(() => window.LotListPivot.setState({ ...window.LotListPivot.stateOf(), view: "list", rows: [], cols: [], measures: [] }));
+
   // ⑥ 異常ロット一覧と Excel
   await p.click("#tabList"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(600);
   await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick"); await sleep(400);
