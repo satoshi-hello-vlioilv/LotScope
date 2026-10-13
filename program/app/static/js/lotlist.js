@@ -1290,7 +1290,8 @@
   function rowHtml(cols, aligns, r, i, cells, cls, attrs = "", deco = null) {
     const lot = S.lotColumn ? String(r[S.lotColumn] ?? "") : "";
     const M = window.LotListMarks;
-    const k = [cls, lot && lot.toUpperCase() === String(S.currentLot || "").toUpperCase() ? "is-current" : "", i === S.cardIdx || S.cardSet.has(i) ? "is-carded" : "", M.rowClass(r)].filter(Boolean).join(" ");
+    // 縞（is-odd）は行の番号で決める（描く範囲が動いても、畳んだ行があっても、縞がずれない）
+    const k = [cls, i % 2 ? "is-odd" : "", lot && lot.toUpperCase() === String(S.currentLot || "").toUpperCase() ? "is-current" : "", i === S.cardIdx || S.cardSet.has(i) ? "is-carded" : "", M.rowClass(r)].filter(Boolean).join(" ");
     return `<tr data-i="${i}"${k ? ` class="${k}"` : ""}${attrs}>` + cols.map((c, ci) => {
       const d = deco && deco.get(c), extra = (d ? d.cls : "") + M.cellClass(r, c), tail = d ? d.tail || "" : "";
       return c === S.lotColumn ? `<td class="ll-lotcol${extra}"${extra ? ` title="${esc(lot)}"` : ""}>${lotButton(lot, cls.includes("g-child"), r)}${tail}</td>` : cellTd(cells[ci], aligns[ci], extra, tail);
@@ -1302,8 +1303,9 @@
        違えば「n通り」を淡く。列の数は同じ（列の色・幅・固定がずれない）。畳むと、その下の行と深い段の見出しを隠す。
      - 繰り返しを省く: 段の列で、上の行（または包む見出し）と同じ値は見せない。
      - 見出しを付けないときは、まとまりの切れ目に線（上の段ほど濃い）。帯（g-alt）はいちばん上の段のまとまりごとに交互。
-     まとまりはこのページの中だけで数える（ロット番号の段のほかは、ページの境目で続くことがある）。 */
-  function arrangedBody(cols, aligns, cellsOf) {
+     まとまりはこのページの中だけで数える（ロット番号の段のほかは、ページの境目で続くことがある）。
+     返すのは行の一覧（{ key, html(), i, head, anc }。描くのは見える分だけ: showRows）。畳んだかどうかは groupOpen が持ち、描くときに読む */
+  function arrangedEntries(cols, aligns, cellsOf) {
     const t = layoutTarget(), LC = window.LotListColumns, A = arrange(), lv = levels(), n = lv.length, rows = S.rows, shut = collapsed();
     const keyOf = (r, c, i) => { const v = levelKey(r, c); return c === S.lotColumn && !v ? `\u0000#${i}` : v; };   // 見えている値。ロット番号が空の行はまとめない
     const paths = rows.map((r, i) => lv.map((l) => keyOf(r, l.column, i)));
@@ -1312,7 +1314,9 @@
     const runEnd = (i, d) => { let j = i + 1; while (j < rows.length && same(i, j, d)) j++; return j; };
     const out = [], stack = [];
     let gid = 0, band = -1;
-    const headRow = (i, end, d, id, key, anc, hide, open, alt) => {
+    groupOpen.clear();
+    const headRow = (i, end, d, id, key, anc, alt) => {
+      const open = groupOpen.get(id).open;
       const lc = lv[d].column, rs = rows.slice(i, end), len = end - i;
       const lvDepth = new Map(lv.map((l, k) => [l.column, k]));
       const shown = lc === S.lotColumn ? lotButton(String(rows[i][lc] ?? ""), false, rows[i])
@@ -1320,7 +1324,7 @@
       // 段の列が表に出ていれば値だけ（列の名前は見出しにある）。隠している列でまとめているときは列の名前を添える
       // 段の名前の札（どの段の見出しか）＋値。札の色の濃さで段の深さも分かる
       const label = `<small class="ll-gk ll-gk${Math.min(d, 2)}"${cols.includes(lc) ? "" : ' title="表に出していない列でまとめています"'}>${esc(LC.label(t, lc))}</small>` + shown;
-      return `<tr class="ll-ghead${alt}" data-g="${id}" data-gkey="${esc(key)}" data-depth="${d}"${anc ? ` data-anc="${anc}"` : ""} aria-expanded="${open}" style="--ind:${d}"${hide ? " hidden" : ""}>`
+      return `<tr class="ll-ghead${alt}" data-g="${id}" data-gkey="${esc(key)}" data-depth="${d}"${anc ? ` data-anc="${anc}"` : ""} aria-expanded="${open}" style="--ind:${d}">`
         + cols.map((c, ci) => {
           if (ci === 0) return `<td class="ll-gcell${c === S.lotColumn ? " ll-lotcol" : ""}"><button type="button" class="ll-gtog" aria-label="${open ? "畳む" : "開く"}" title="このまとまりの行を${open ? "畳みます" : "開きます"}">▾</button>`
             + `${label}<span class="ll-gn" title="このまとまりの行（このページの中）">${len}件</span></td>`;
@@ -1346,10 +1350,10 @@
         const end = runEnd(i, d);
         if (end - i < 2) break;                          // 1行だけのまとまりに見出しは付けない（深い段も1行）
         const id = ++gid, key = `${d}:${paths[i].slice(0, d + 1).join("\u001f")}`;
-        const anc = stack.map((x) => x.id).join(" "), hide = stack.some((x) => !x.open);
-        const open = !shut.has(key);
-        out.push(headRow(i, end, d, id, key, anc, hide, open, alt));
-        stack.push({ id, end, depth: d, open });
+        const ancIds = stack.map((x) => x.id), anc = ancIds.join(" "), at = i;
+        groupOpen.set(id, { key, open: !shut.has(key) });
+        out.push({ key: `g${id}`, i: -1, head: id, anc: ancIds, html: () => headRow(at, end, d, id, key, anc, alt) });
+        stack.push({ id, end, depth: d });
       }
       const covered = stack.length ? stack[stack.length - 1].depth : -1;
       // 繰り返しを省く: 上の行・包む見出しと同じ値は面（ll-rep）。見出しが無いときは、面の始まりに値（太字）と件数
@@ -1369,74 +1373,90 @@
       const inGroup = stack.length > 0;
       const last = inGroup && stack[stack.length - 1].end === i + 1;
       const cls = (inGroup ? "g-child" : "g-one") + alt + (last ? " g-last" : "") + (!A.heads && i > 0 && d0 < n ? ` gb gb-${Math.min(d0, 2)}` : "");
-      const anc = stack.map((x) => x.id).join(" "), hide = stack.some((x) => !x.open);
-      out.push(rowHtml(cols, aligns, rows[i], i, cells[i], cls, (anc ? ` data-anc="${anc}"` : "") + (inGroup ? ` style="--ind:${covered + 1}"` : "") + (hide ? " hidden" : ""), deco));
+      const ancIds = stack.map((x) => x.id), anc = ancIds.join(" "), at = i;
+      const attrs = (anc ? ` data-anc="${anc}"` : "") + (inGroup ? ` style="--ind:${covered + 1}"` : "");
+      out.push({ key: `r${i}`, i, anc: ancIds, html: () => rowHtml(cols, aligns, rows[at], at, cells[at], cls, attrs, deco) });
     }
-    return out.join("");
+    return out;
   }
   /* 作業でまとめた一覧（lotlist-work.js）: サーバーが同じ作業（作業開始が同じ行）を続けて返すので、2 行目からを畳む。
      先頭の行のロット番号の横に「＋n」（押すと開く・畳む）。開いた作業は覚えておく（読み直しても開いたまま） */
   const workBadgeCol = (cols) => (S.lotColumn && cols.includes(S.lotColumn) ? S.lotColumn : cols[0]);
   const workSplit = () => !!S.work && S.work.rows.some((x, i) => i > 0 && x[0] && x[0] === S.work.rows[i - 1][0]);
-  function workBody(cols, aligns, cellsOf) {
+  function workEntries(cols, aligns, cellsOf) {
     const keys = S.work.rows.map((x) => x[0]), at = workBadgeCol(cols), out = [];
     for (let i = 0; i < S.rows.length;) {
       let j = i + 1;
       if (keys[i]) while (j < S.rows.length && keys[j] === keys[i]) j++;
-      const k = keys[i], n = j - i, open = S.workOpen.has(k);
-      const tail = n > 1 ? `<button type="button" class="wk-plus" data-wk-open="${esc(k)}" aria-expanded="${open}" title="同じ作業開始（${esc(S.work.rows[i][3] || k)}）の分割したロットが、ほかに ${n - 1} 行あります（1 ロットと数えています）。押すと${open ? "畳みます" : "開きます"}">＋${n - 1}</button>` : "";
-      out.push(rowHtml(cols, aligns, S.rows[i], i, cellsOf(S.rows[i]), n > 1 ? "wk-first" : "", "", tail ? new Map([[at, { cls: "", tail }]]) : null));
-      for (let x = i + 1; x < j; x++) out.push(rowHtml(cols, aligns, S.rows[x], x, cellsOf(S.rows[x]), "wk-sub" + (x === j - 1 ? " wk-last" : ""), ` data-wk-of="${esc(k)}"${open ? "" : " hidden"}`));
+      const k = keys[i], n = j - i, first = i;
+      const tail = () => {        // 開いているかは描くときに読む（＋n を押すと、その行から描き直す）
+        const open = S.workOpen.has(k);
+        return `<button type="button" class="wk-plus" data-wk-open="${esc(k)}" aria-expanded="${open}" title="同じ作業開始（${esc(S.work.rows[first][3] || k)}）の分割したロットが、ほかに ${n - 1} 行あります（1 ロットと数えています）。押すと${open ? "畳みます" : "開きます"}">＋${n - 1}</button>`;
+      };
+      out.push({ key: `r${i}`, i, html: () => rowHtml(cols, aligns, S.rows[first], first, cellsOf(S.rows[first]), n > 1 ? "wk-first" : "", "", n > 1 ? new Map([[at, { cls: "", tail: tail() }]]) : null) });
+      for (let x = i + 1; x < j; x++) {
+        const cls = "wk-sub" + (x === j - 1 ? " wk-last" : ""), attrs = ` data-wk-of="${esc(k)}"`, me = x;
+        out.push({ key: `r${x}`, i: x, wk: k, html: () => rowHtml(cols, aligns, S.rows[me], me, cellsOf(S.rows[me]), cls, attrs) });
+      }
       i = j;
     }
-    return out.join("");
+    return out;
+  }
+  /* ---- 描く行（見える分＋上下に 1 ページずつだけ描く: virtual-rows.js） ----
+     model: 頁の全部の行（見出し行も。{ key, html(), i, head, anc, wk }）。畳んだまとまり・閉じた作業の行は描く一覧に入れない */
+  let model = [], rowsView = null, span = 1;
+  const groupOpen = new Map();       // まとまりの見出しの番号 → { key, open }
+  const shownEntry = (e) => !(e.anc && e.anc.some((g) => !groupOpen.get(g).open)) && !(e.wk && !S.workOpen.has(e.wk));
+  /** 描く一覧を作り直す。refocus: 押したボタン（描き直すと消えるので、同じボタンにフォーカスを戻す。キーボードで続けて押せる） */
+  function showRows({ keepHeights = true, refocus = "" } = {}) {
+    const had = refocus && document.activeElement?.closest?.("#llBody");
+    rowsView.set(model.filter(shownEntry), { keepHeights });
+    if (had) $(`#llBody ${refocus}`)?.focus({ preventScroll: true });
   }
   function toggleWork(b) {
-    const k = b.dataset.wkOpen, open = !S.workOpen.has(k);
-    if (open) S.workOpen.add(k); else S.workOpen.delete(k);
-    b.setAttribute("aria-expanded", String(open));
-    b.title = b.title.replace(/押すと.*$/, `押すと${open ? "畳みます" : "開きます"}`);
-    $$(`#llBody tr[data-wk-of="${CSS.escape(k)}"]`).forEach((tr) => { tr.hidden = !open; });
+    const k = b.dataset.wkOpen;
+    if (S.workOpen.has(k)) S.workOpen.delete(k); else S.workOpen.add(k);
+    showRows({ refocus: `.wk-plus[data-wk-open="${CSS.escape(k)}"]` });
   }
-  /* 畳む・開くのあと: 包む見出しのどれかが畳まれている行（深い段の見出しも）を隠す */
-  function applyCollapse() {
-    const body = $("#llBody"), shut = new Set($$("tr.ll-ghead[aria-expanded=false]", body).map((h) => h.dataset.g));
-    $$("tr[data-anc]", body).forEach((tr) => { tr.hidden = tr.dataset.anc.split(" ").some((g) => shut.has(g)); });
-  }
-  function toggleGroup(head, open = head.getAttribute("aria-expanded") !== "true", { apply = true } = {}) {
-    head.setAttribute("aria-expanded", String(open));
-    const tog = $(".ll-gtog", head); tog.setAttribute("aria-label", open ? "畳む" : "開く"); tog.title = `このまとまりの行を${open ? "畳みます" : "開きます"}`;
-    if (apply) applyCollapse();
+  /** まとまり（見出しの番号 id）を開く・畳む。覚えるのは段の値（読み直しても畳んだまま） */
+  function toggleGroup(id, open = !groupOpen.get(id).open) {
+    const g = groupOpen.get(id), shut = collapsed();
+    g.open = open;
+    if (open) shut.delete(g.key); else shut.add(g.key);
+    setCollapsed(shut); showRows({ refocus: `tr.ll-ghead[data-g="${id}"] .ll-gtog` });
   }
   function setAllGroups(open) {
-    const heads = $$("tr.ll-ghead", $("#llBody")), shut = collapsed();
-    heads.forEach((h) => { toggleGroup(h, open, { apply: false }); if (open) shut.delete(h.dataset.gkey); else shut.add(h.dataset.gkey); });
-    applyCollapse(); setCollapsed(shut);
+    const shut = collapsed();
+    groupOpen.forEach((g) => { g.open = open; if (open) shut.delete(g.key); else shut.add(g.key); });
+    setCollapsed(shut); showRows();
   }
-  /* カードで見ている行を一覧でも示す（描き直さずに印だけ替える）。list: カードで見ている行（いくつでも）、focus: いま触ったカードの行 */
+  /* カードで見ている行を一覧でも示す（描いている行は印だけ替え、まだ描いていない行は描くときに付く）。
+     list: カードで見ている行（いくつでも）、focus: いま触ったカードの行（畳んだ所なら開き、見える所まで送る） */
   function markCarded(list, focus = -1) {
     S.cardSet = new Set((Array.isArray(list) ? list : [list]).filter((i) => i >= 0));
     S.cardIdx = focus;
     $$("#llBody tr.is-carded").forEach((tr) => tr.classList.remove("is-carded"));
     S.cardSet.forEach((i) => $(`#llBody tr[data-i="${i}"]`)?.classList.add("is-carded"));
-    const tr = focus >= 0 ? $(`#llBody tr[data-i="${focus}"]`) : null;
-    if (!tr) return;
-    if (tr.hidden && tr.dataset.anc) {                   // 畳んだまとまりの中なら、包む見出しを開く
-      const sh = collapsed();
-      tr.dataset.anc.split(" ").forEach((g) => { const h = $(`#llBody tr.ll-ghead[data-g="${g}"]`); if (h) { toggleGroup(h, true, { apply: false }); sh.delete(h.dataset.gkey); } });
-      applyCollapse(); setCollapsed(sh);
+    const e = focus >= 0 ? model.find((x) => x.i === focus) : null;
+    if (!e) return;
+    if (!shownEntry(e)) {                                // 畳んだまとまり・閉じた作業の中なら開く
+      const shut = collapsed();
+      (e.anc || []).forEach((id) => { const g = groupOpen.get(id); g.open = true; shut.delete(g.key); });
+      if (e.wk) S.workOpen.add(e.wk);
+      setCollapsed(shut); showRows();
     }
-    tr.scrollIntoView({ block: "nearest" });
+    rowsView.scrollTo(e.key);
+    $(`#llBody tr[data-i="${focus}"]`)?.classList.add("is-carded");
   }
   function renderGrid() {
-    const head = $("#llHead"), body = $("#llBody"), note = $("#llNote");
+    const head = $("#llHead"), note = $("#llNote");
     if (S.src.id === "work" && !S.equip) {
-      head.innerHTML = ""; body.innerHTML = "";
+      head.innerHTML = ""; model = []; showRows({ keepHeights: false });
       if (S.equips == null) { note.hidden = true; return; }
       note.innerHTML = equipEmptyHtml(); note.hidden = false; return;
     }
     if (S.error) {
-      head.innerHTML = ""; body.innerHTML = "";
+      head.innerHTML = ""; model = []; showRows({ keepHeights: false });
       const canRefresh = S.src.id === "lot" || !!S.source;   // 作業実績は、まだ開けていない設備（ファイルが見つからない等）には取り直す物が無い
       note.innerHTML = `<b>${esc(S.src.title)}を読めませんでした。</b><br>${esc(S.error)}<br>`
         + `<small>元: ${esc((S.source && S.source.remote) || S.src.remoteHint)}</small><div class="ll-note-acts">`
@@ -1491,11 +1511,14 @@
     }).join("") + "</tr>";
     const aligns = cols.map((c) => LC.alignOf(t, c).data);
     const cellsOf = (r) => cols.map((c) => (c === S.lotColumn ? null : LC.cell(t, c, r)));
-    body.innerHTML = wk ? workBody(cols, aligns, cellsOf) : isGrouped ? arrangedBody(cols, aligns, cellsOf)
-      : S.rows.map((r, i) => rowHtml(cols, aligns, r, i, cellsOf(r), "")).join("");
     grid.classList.toggle("is-grouped", isGrouped);
     grid.classList.toggle("has-heads", withHeads);
     $("#llTintStyle").textContent = LC.tintCss(t, cols, "#llGrid") + LC.freezeCss("#llGrid", widths);
+    // 行は見える分＋上下に 1 ページずつだけ描く（列の幅・固定の CSS を当ててから。描いた行の高さを測るので）
+    span = cols.length;
+    model = wk ? workEntries(cols, aligns, cellsOf) : isGrouped ? arrangedEntries(cols, aligns, cellsOf)
+      : S.rows.map((r, i) => ({ key: `r${i}`, i, html: () => rowHtml(cols, aligns, r, i, cellsOf(r), "") }));
+    showRows({ keepHeights: false });
     if (!S.rows.length) {
       const conds = condRows();
       note.innerHTML = conds.length || S.search
@@ -1516,7 +1539,7 @@
     const works = workOn() && S.work && S.work.column;        // 作業でまとめている: 分割したロットを 1 と数えたロット数（行の数を添える）
     $("#llCount").textContent = works ? `全 ${S.groupCount.toLocaleString()}ロット（${S.count.toLocaleString()}行）` : `全 ${S.count.toLocaleString()}件` + lots;
     $("#llCount").title = works ? "作業開始が同じ行（幅・丈で分割したロット）を 1 ロットと数えています。（ ）は登録の行の数" : "";
-    const gb = $("#llGroupBar"), heads = grouped() ? $$("tr.ll-ghead", $("#llBody")).length : 0;
+    const gb = $("#llGroupBar"), heads = grouped() ? groupOpen.size : 0;
     const names = levels().map((l) => window.LotListColumns.label(layoutTarget(), l.column));
     gb.hidden = !grouped();
     // まとめているあいだ、件数の横にいつも段を出し、その場で直せるようにする（▲▼ を押して入れ替え・× で外す・＋ で足す）
@@ -1634,6 +1657,7 @@
     const s = zoomStep(), { min, max } = zoomRange(s);
     const z = Math.min(max, Math.max(min, 100 + Math.round(((+pct || 100) - 100) / s) * s));
     $("#llGrid").style.zoom = z === 100 ? "" : String(z / 100);
+    rowsView?.reflow();                                  // 行の高さ（見た目の px）が変わるので、測り直して描く範囲を決め直す
     $("#llZoomRange").value = z; $("#llZoomValue").textContent = `${z}%`;
     $("#llZoomMinus").disabled = z <= min; $("#llZoomPlus").disabled = z >= max;
     $("#llZoomReset").hidden = z === 100; $("#llZoom").classList.toggle("is-zoomed", z !== 100);
@@ -1671,6 +1695,7 @@
     setZoom(TPA.session.get(ZOOM.key, 100));
   }
   function bindGrid() {
+    rowsView = window.VirtualRows.create({ scroller: $(".ll-grid-wrap"), body: $("#llBody"), span: () => span, zoom: () => +($("#llGrid").style.zoom || 1) });
     bindZoom();
     window.LotListColumns.bindHeader($("#llHead"));
     $("#llHead").addEventListener("click", (e) => {
@@ -1697,11 +1722,7 @@
       const b = e.target.closest(".ll-lot");
       if (b) { S.currentLot = b.dataset.lot; onPick(b.dataset.lot); return; }
       const head = e.target.closest("tr.ll-ghead");     // 見出し行はどこを押しても畳む／開く
-      if (head) {
-        toggleGroup(head);
-        const shut = collapsed(); if (head.getAttribute("aria-expanded") === "true") shut.delete(head.dataset.gkey); else shut.add(head.dataset.gkey);
-        setCollapsed(shut);
-      }
+      if (head) toggleGroup(+head.dataset.g);
     });
     // 行のダブルクリック → カード（機能を使うときだけ）。ダブルクリックで字が選ばれないよう、2回目の押下は止める
     $("#llBody").addEventListener("mousedown", (e) => { if (feat.card && e.detail > 1 && e.target.closest("tr[data-i]")) e.preventDefault(); });

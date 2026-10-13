@@ -159,7 +159,11 @@
 .ll-pager button:disabled{opacity:.4;cursor:default}
 
 /* ---------- 一覧 ---------- */
-.ll-grid-wrap{position:relative;flex:1;min-height:0;overflow:auto;margin:0 16px 14px;border:1px solid var(--line);border-radius:8px}
+.ll-grid-wrap{position:relative;flex:1;min-height:0;overflow:auto;margin:0 16px 14px;border:1px solid var(--line);border-radius:8px;overflow-anchor:none}
+/* 行は見える分＋上下に 1 ページずつだけ描き、描かない行の高さは上下の空きの行で埋める（virtual-rows.js）。
+   ブラウザーの自動のスクロール合わせ（overflow-anchor）は切る（見ていた行を同じ所に残す合わせは virtual-rows.js がする）。
+   空きの行は列の固定（freezeCss の sticky）・縞・まとめの地の色を受けない（#llGrid で強くする） */
+#llGrid tbody tr.vr-pad td{position:static;padding:0;border:0;background:none;box-shadow:none}
 .ll-screen.is-loading .ll-grid-wrap{opacity:.55;transition:opacity .15s .15s}
 /* 幅・行の高さの決まりは lotlist-columns.css（後から読む）にある */
 table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
@@ -178,7 +182,7 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 .ll-grid thead th.is-calc .th-in > span{font-style:italic}
 .ll-sort{font-style:normal;margin-left:4px;color:#ffe3a6;font-size:11px}
 .col-filter-badge{font-style:normal;margin-left:4px;font-size:10px;color:#d8fff8}
-.ll-grid tbody tr:nth-child(even) td{background:#fafcfd}
+.ll-grid tbody tr.is-odd td{background:#fafcfd}      /* 縞は行の番号で（lotlist.js の rowHtml。描く範囲が動いてもずれない） */
 .ll-grid tbody tr:hover td{background:#eef6f8}
 .ll-grid tbody tr.is-current td{background:var(--amber-pale)}
 /* ロット番号: 押せる顔（藍＋下線）。見出しは藍の地で「押して検索する列」と分かるようにする。
@@ -263,20 +267,20 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
    「この見出しの下」を示す（Gestalt の連結）。帯はいちばん上の段のまとまりごとに交互（行ごとの縞は使わない）。
    まとまりの中で同じ値は見出しに出し、違う列は「n通り」と淡く書く（畳んでも共通の値は読める）。
    繰り返しを省いた値（ll-rep）は字を透明にする（列の位置と幅は保つ）。行にマウスを乗せると薄く出る（探させない）。 */
-.ll-grid.is-grouped tbody tr:nth-child(n) td{background-color:var(--surface)}
-.ll-grid.is-grouped tbody tr.g-alt:nth-child(n) td{background-color:var(--surface-2)}
-.ll-grid.is-grouped tbody tr.ll-ghead:nth-child(n) td{background-color:var(--input-soft);border-top:1px solid #c9d8e8;font-weight:700;color:var(--ro-ink);cursor:pointer}
-.ll-grid.is-grouped tbody tr.ll-ghead[data-depth="1"]:nth-child(n) td{background-color:#eef3f9}
-.ll-grid.is-grouped tbody tr.ll-ghead[data-depth="2"]:nth-child(n) td,.ll-grid.is-grouped tbody tr.ll-ghead[data-depth="3"]:nth-child(n) td{background-color:#f5f8fb}
+.ll-grid.is-grouped tbody tr:not(.vr-pad) td{background-color:var(--surface)}
+.ll-grid.is-grouped tbody tr.g-alt:not(.vr-pad) td{background-color:var(--surface-2)}
+.ll-grid.is-grouped tbody tr.ll-ghead:not(.vr-pad) td{background-color:var(--input-soft);border-top:1px solid #c9d8e8;font-weight:700;color:var(--ro-ink);cursor:pointer}
+.ll-grid.is-grouped tbody tr.ll-ghead[data-depth="1"]:not(.vr-pad) td{background-color:#eef3f9}
+.ll-grid.is-grouped tbody tr.ll-ghead[data-depth="2"]:not(.vr-pad) td,.ll-grid.is-grouped tbody tr.ll-ghead[data-depth="3"]:not(.vr-pad) td{background-color:#f5f8fb}
 .ll-grid.is-grouped tbody tr.ll-ghead:hover td{background-color:#d9e5f1}
-.ll-grid.is-grouped tbody tr:hover:nth-child(n):not(.ll-ghead) td{background-color:#eef6f8}
-.ll-grid.is-grouped tbody tr.is-current:nth-child(n) td{background-color:var(--amber-pale)}
+.ll-grid.is-grouped tbody tr:hover:not(.vr-pad):not(.ll-ghead) td{background-color:#eef6f8}
+.ll-grid.is-grouped tbody tr.is-current:not(.vr-pad) td{background-color:var(--amber-pale)}
 .ll-grid tr.ll-ghead > td:first-child{padding-left:calc(var(--ll-cell-padx,10px) + var(--ind,0) * 16px + 4px);background-image:linear-gradient(var(--h-input),var(--h-input));
   background-size:3px 100%;background-repeat:no-repeat;background-position:calc(var(--ind,0) * 16px) 0}
 .ll-grid tr.g-child > td:first-child{padding-left:calc(var(--ll-cell-padx,10px) + var(--ind,1) * 16px + 4px);background-image:linear-gradient(#a9bfd6,#a9bfd6);
   background-size:3px 100%;background-repeat:no-repeat;background-position:calc((var(--ind,1) - 1) * 16px) 0}
 .ll-grid tr.g-last td{border-bottom-color:#c9d8e8}
-.ll-grid.is-grouped tbody tr.ll-ghead:nth-child(n) td.ll-gdiff{color:var(--faint);font-weight:400}     /* 和文の斜体は字形が崩れるので、淡い色だけで「まとめられない」を示す */
+.ll-grid.is-grouped tbody tr.ll-ghead:not(.vr-pad) td.ll-gdiff{color:var(--faint);font-weight:400}     /* 和文の斜体は字形が崩れるので、淡い色だけで「まとめられない」を示す */
 .ll-gtog{width:18px;height:18px;margin:0 4px 0 -4px;padding:0;border:0;background:transparent;color:var(--h-input);font-size:12px;cursor:pointer;vertical-align:middle;transition:transform .15s}
 tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 /* 段の名前の札: 段が浅いほど濃い（見出しの階層を色の濃さでも示す） */
