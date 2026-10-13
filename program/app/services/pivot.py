@@ -16,7 +16,8 @@
     count（行の数）・lots（ロット数: 作業実績は作業開始が同じ行を 1、異常ロット一覧はロット番号が同じ行を 1。鍵が空の行は 1 行ずつ）・
     sum・avg・min・max（数に読める値だけ。読めない値は数えない）
 小計・総計: 行・列の段の頭（0〜n 段）の組すべてを数える（ロット数・平均は下の段から足し合わせられないので、組ごとに数える）。
-答え: {dims: {rows, cols}, measures, orders, labels, cells: [{r, c, v}], count, truncated, bins, stats}
+箱ひげ（版 3.27.0〜）: box=列 なら、行の段の葉（いちばん下の段まで決めた組）ごとに、その数の列の傾向（box_stats）を boxes に出す。
+答え: {dims: {rows, cols}, measures, orders, labels, cells: [{r, c, v}], count, truncated, bins, stats, boxes}
     orders … 段ごとの鍵の並び（表・グラフの並び。数・日付は小さい順・空欄は最後・直は勤務体系の順）
     labels … 段ごとの {鍵: 見せる字}（2026-10-12 → 2026/10/12(月)・区間 → 100〜150 など）
 """
@@ -112,6 +113,18 @@ def nice_width(lo, hi, n):
     e = 10 ** math.floor(math.log10(raw))
     w = min((m * e for m in (1, 2, 2.5, 5, 10)), key=lambda x: abs(math.log(x / raw)))
     return int(w) if w == int(w) else w
+
+
+def box_stats(values, max_out=30):
+    """箱ひげの数: describe に、ひげの端（四分位の範囲の 1.5 倍の内側でいちばん外の値）と外れ値（多ければ外側から max_out 個）を足す"""
+    d = describe(values)
+    if not d:
+        return None
+    iqr = d["q3"] - d["q1"]
+    lo_lim, hi_lim = d["q1"] - 1.5 * iqr, d["q3"] + 1.5 * iqr
+    inside = [x for x in values if lo_lim <= x <= hi_lim]
+    out = sorted((x for x in values if x < lo_lim or x > hi_lim), key=lambda x: -abs(x - d["median"]))
+    return {**d, "lo": min(inside) if inside else d["min"], "hi": max(inside) if inside else d["max"], "out": sorted(out[:max_out]), "outN": len(out)}
 
 
 def describe(values):
@@ -227,7 +240,7 @@ def day_dim(dims):
 
 
 def query(path, *, table="", preferred_table="", search="", filters="", rows="", cols="", measures="", today=None,
-          table_candidates=TABLE_CANDIDATES, work=None, month=""):
+          table_candidates=TABLE_CANDIDATES, work=None, month="", box=""):
     """ピボット集計の答え（モジュールの説明）。work は作業実績のとき {clock, basis, start}（作業開始の列は work_summary.start_column で決める）。
     month は "YYYY-MM"（月で絞る。行の 1 段目が日の段のときだけ効く）。"""
     t0 = time.perf_counter()
@@ -241,6 +254,9 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
         tcol = time_column(cs, start) if start else ""
         rd, cd = clean_dims(rows, cs, bool(start)), clean_dims(cols, cs, bool(start))
         ms = clean_measures(measures, cs)
+        box = str(box or "")
+        if box and box not in cs:
+            raise PivotError(f"箱ひげの列「{box}」がありません。")
         where_parts, params = search_filter_where(cs, search, filters, today)
         where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         # 読む列: 段の列・値の列・ロットの鍵の列（作業実績は作業開始と時刻・異常ロット一覧はロット番号）
@@ -259,6 +275,7 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
             else:
                 pos.append((use(d["column"]), -1))
         mpos = [use(m["column"]) if m["column"] else -1 for m in ms]
+        bpos = use(box) if box else -1
         lots_by = "work" if start else "lot" if lot else ""
         kpos = (use(start), use(tcol)) if lots_by == "work" else (use(lot), -1) if lots_by == "lot" else (-1, -1)
         total = int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}{where}", params).fetchone()[0])
@@ -295,6 +312,7 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
     nr, nc = len(rd), len(cd)
     # 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
     cells = {}
+    box_vals = {}                      # 箱ひげ: 行の葉 → 数の並び
     seen = [dict() for _ in dims]      # 段ごとの {鍵: (並べる鍵, 見せる字)}
     single = 0
     for row in data:
@@ -316,6 +334,10 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
             lk = single
         vals = [num(row[p]) if p >= 0 else None for p in mpos]
         rk, ck = ks[:nr], ks[nr:]
+        if bpos >= 0:
+            f = num(row[bpos])
+            if f is not None:
+                box_vals.setdefault(tuple(rk), []).append(f)
         for a in range(nr + 1):
             for b in range(nc + 1):
                 key = (tuple(rk[:a]), tuple(ck[:b]))
@@ -361,13 +383,15 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
     def clean(x):          # 足し算の誤差（1248967.0999999992）を丸める
         return round(x, 6) if isinstance(x, float) else x
     out_cells = [{"r": list(k[0]), "c": list(k[1]), "v": [clean(value(acc, j, m)) for j, m in enumerate(ms)]} for k, acc in cells.items()]
+    leaves = {k[0] for k in cells if len(k[0]) == nr}
+    boxes = [{"r": list(k), **box_stats(v)} for k, v in box_vals.items() if k in leaves] if box else []
     note = "" if lots_by or not any(m["agg"] == "lots" for m in ms) else "ロットを見分ける列（作業開始・ロット番号）が無いので、ロット数は行の数です。"
     return {
         "table": t, "count": len(data),
         "dims": {"rows": [{**d, "name": _dim_name(d)} for d in rd], "cols": [{**d, "name": _dim_name(d)} for d in cd]},
         "measures": [{**m, "name": _measure_name(m)} for m in ms],
         "orders": orders, "labels": labels, "cells": out_cells, "truncated": truncated,
-        "bins": bins, "stats": stats, "lotsBy": lots_by, "start": start, "note": note, "months": months, "month": month,
+        "bins": bins, "stats": stats, "box": box, "boxes": boxes, "lotsBy": lots_by, "start": start, "note": note, "months": months, "month": month,
         "timing": {"server": round((time.perf_counter() - t0) * 1000)},
     }
 

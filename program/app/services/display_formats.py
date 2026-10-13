@@ -19,17 +19,20 @@ import json
 NAME = "display_formats"
 FIELDS = ["名前", "元", "表", "作った所", "中身", "備考"]
 SOURCES = {"lot": "異常ロット一覧", "work": "作業実績"}
-# 中身の部品（画面の覚えの形）。その時だけの状態（効いている条件の値・スライサーで選んだ値・畳んだまとまり）は入れない
+# 中身の部品（画面の覚えの形）。畳んだまとまりなど、その時だけの状態は入れない。
+# 版 3.28.0 から絞り込みの状態（効いている条件・スライサーで選んだ値・列で絞り込むの値）も入れる（利用者の要望。当てるとその状態になる）。
+# 中身が空の部品（条件なし・並べ替えなし）は入れない: 当てても、当てた所のその部品は今のまま
 PARTS = {
     "columns": (dict, "表示列"),          # 列の設定 {order, hidden, widths, locks, names, formats, aligns, formulas, rules}
     "rules": (dict, "読み替えルール"),    # 表示列が使う読み替えルール {名前: {rows, self}}（ルールは名前で呼ぶので一緒に運ぶ）
     "arrange": (dict, "並び・まとめ"),    # {levels, heads, suppress}
     "sorts": (list, "並べ替え"),          # [{column, dir}]
+    "filters": (list, "条件"),            # 効いている条件 [{column, op, value}]（いつも適用〈固定〉の条件は入れない。当てる所の固定の条件はそのまま）
     "presets": (list, "登録した条件"),    # [{name, filters, group, always, …}]（当てる先の表に付け替える）
     "views": (list, "保存した見方"),      # [{name, filters, sorts, arrange, slicer, search, …}]（名前を付けた見方なので値ごと運ぶ。当てる先の表に付け替える）
-    "slicer": (dict, "スライサー"),       # {cards:[{column, …}]}（選んだ値は入れない）
+    "slicer": (dict, "スライサー"),       # {cards:[{column, key, sel?}]}（sel＝選んだ値。版 3.28.0 から）
     "marks": (list, "色付け"),            # 色付け（条件付き書式）の組 [{conds, tone, target, on}]
-    "adhoc": (dict, "列で絞り込む"),      # {column, op}（値は入れない）
+    "adhoc": (dict, "列で絞り込む"),      # {column, op, value?}（value＝打った値。版 3.28.0 から。当てるといまの所だけに効く）
 }
 MAX_BYTES = 512 * 1024
 NAME_MAX = 40
@@ -82,8 +85,20 @@ def clean_row(data, partial=False):
 
 
 def parts_of(body):
-    """中身にある部品の名前（人の言葉。表示順）。"""
-    return [label for k, (_t, label) in PARTS.items() if body.get(k)]
+    """中身にある部品の名前（人の言葉。表示順）。条件・並べ替えは数を、スライサー・列で絞り込むは選んだ値・打った値があればそれと分かる名前に"""
+    out = []
+    for k, (_t, label) in PARTS.items():
+        v = body.get(k)
+        if not v:
+            continue
+        if k in ("filters", "sorts"):
+            label = f"{label} {len(v)}"
+        elif k == "slicer" and any(isinstance(c, dict) and c.get("sel") for c in v.get("cards") or []):
+            label = "スライサー（選んだ値）"
+        elif k == "adhoc" and str(v.get("value") or "").strip():
+            label = "列で絞り込む（値）"
+        out.append(label)
+    return out
 
 
 def view(row):

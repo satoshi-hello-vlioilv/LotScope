@@ -10,7 +10,9 @@
 .fm-entry{position:relative}
 .fm-entry.is-newer::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:#dc7f2a;box-shadow:0 0 0 2px var(--surface)}
 
-.fm-panel{position:absolute;right:10px;top:calc(100% - 2px);z-index:46;width:440px;max-height:min(70vh,640px);overflow:auto;display:grid;gap:10px;padding:12px 14px;
+/* 面は開くボタンの下に、画面の中へ置く（fixed・TPA.placeBelow で右端をボタンにそろえる）。版 3.27.0 までは道具の行の右端から 10px に置いていたので、
+   窓が狭く道具の行が画面より広いとき面ごと画面の外へ出た。列は 1 本（minmax(0,1fr)）: 中の字が列を押し広げない */
+.fm-panel{position:fixed;z-index:60;width:440px;max-width:calc(100vw - 16px);max-height:min(70vh,640px);overflow:auto;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:12px 14px;
   background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 14px 36px var(--pop-shadow);font-size:12.5px;color:var(--ink)}
 .fm-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
 .fm-head b{font-size:14px}

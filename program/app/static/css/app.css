@@ -580,3 +580,11 @@ code.tpa-saved-p{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;
 .tpa-saved-msg{color:var(--muted);font-size:12px}.tpa-saved-msg:empty{display:none}
 .tpa-saved-x{position:absolute;right:8px;top:6px;width:24px;height:24px;border:0;border-radius:6px;background:none;color:var(--muted);font-size:16px;cursor:pointer}
 .tpa-saved-x:hover{background:var(--surface-4);color:var(--ink)}
+
+/* ---------- 引いて並べ替える（TPA.sortable。版 3.28.0: 作業実績の設備のタブ・マスタ管理の設備の一覧）----------
+   差し込む所に入力の藍の線（周りに淡い輪）。引いている物は持ち上げた形（影）で、元の所は淡く */
+.tpa-sort-mark{position:fixed;z-index:200;pointer-events:none;background:var(--h-input);border-radius:2px;box-shadow:0 0 0 3px color-mix(in srgb,var(--h-input) 20%,transparent)}
+.tpa-sort-mark.is-x{width:3px}
+.tpa-sort-mark.is-y{height:3px}
+.is-dragging{opacity:.55;box-shadow:0 8px 18px rgba(20,40,60,.22)}
+body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}

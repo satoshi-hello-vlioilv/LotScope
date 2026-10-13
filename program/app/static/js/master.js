@@ -667,6 +667,28 @@ const wlState = (x) => (x.stale ? chip("古い", "c-warn", `${Math.round(x.ageHo
   + wlFileState(x);
 const wlFileState = (x) => x.state === "ok" ? "" : x.state === "renamed" ? chip("名前が変わった", "c-warn", `登録の名前「${x.file}」→ いま「${x.now}」。同じファイルをたどって読みます（「探す」で登録の名前も直ります）`)
   : x.state === "missing" ? chip("見つからない", "c-off", `「${x.file}」がフォルダにありません。右の選択で、結ぶファイルを選び直してください`) : chip("確かめられない", "c-plain", "フォルダに届きません");
+/** 設備の並び替え（⋮⋮ を引く・⋮⋮ を選んで ↑↓）。枠（#masterSettings）は作り直さないので 1 回だけ付ける */
+function bindWorklogOrder(box) {
+  if (box.dataset.wlOrder) return;
+  box.dataset.wlOrder = "1";
+  const rows = () => [...box.querySelectorAll(".wl-tablelist tbody tr[data-key]")];
+  const save = async (keys, focusKey = "") => {
+    const res = await withLockWait(() => masterRequest("/api/masters/worklog/order", TPA.json("PUT", { keys })), () => {});
+    if (!res.ok) { renderWorklog({ notice: ["ng", "✕ " + escapeHtml(res.data.error || "並びを保存できませんでした。")] }); return; }
+    emit("tpa:worklog-changed");
+    await renderWorklog({ notice: ["ok", "✓ 設備の並びを変えました（作業実績のタブも同じ並びです）"] });
+    if (focusKey) box.querySelector(`tr[data-key="${CSS.escape(focusKey)}"] [data-wl-grip]`)?.focus();
+  };
+  TPA.sortable(box, { items: rows, keyOf: (tr) => tr.dataset.key, handle: "[data-wl-grip]", axis: "y",
+    enabled: () => mstate.tab === "worklog" && !!box.querySelector("[data-wl-grip]"), onOrder: (keys) => save(keys) });
+  box.addEventListener("keydown", (e) => {
+    const g = e.target.closest("[data-wl-grip]");
+    if (!g || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    e.preventDefault();
+    const k = g.closest("tr").dataset.key, keys = TPA.moveKey(rows().map((tr) => tr.dataset.key), k, e.key === "ArrowDown" ? 1 : -1);
+    if (keys) save(keys, k);
+  });
+}
 async function renderWorklog({ fresh = false, notice = null } = {}) {
   const box = $("#masterSettings");
   if (!mstate.data.worklog) box.innerHTML = '<p class="ps-loading">作業実績のフォルダを読んでいます…</p>';
@@ -680,7 +702,10 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
   const rev = (k) => ((paths || []).find((i) => i.key === k) || {}).rev || 0;
   const loose = d.new || [];
   const looseOpts = loose.map((f) => `<option value="${escapeHtml(f.file)}">${escapeHtml(f.file)}</option>`).join("");
-  const rows = d.items.map((x) => `<tr data-id="${x.id}" data-rev="${x.rev}" class="${x.visible ? "" : "is-off"}${x.state === "missing" ? " is-missing" : ""}">
+  // 並び（版 3.28.0。ui-proposals/2026-10-equiporder* の M1）: 行の ⋮⋮ をつかんで引く・⋮⋮ を選んで ↑↓。作業実績のタブと同じ並び（全員で 1 つ）
+  const sortable = can && d.items.length > 1;
+  const rows = d.items.map((x) => `<tr data-id="${x.id}" data-rev="${x.rev}" data-key="${escapeHtml(x.key)}" class="${x.visible ? "" : "is-off"}${x.state === "missing" ? " is-missing" : ""}">
+      ${sortable ? `<td class="wl-gripcell"><button type="button" class="wl-grip" data-wl-grip aria-label="「${escapeHtml(x.name)}」を動かす（↑↓）" title="つかんで並べ替え（選んで ↑↓ でも）">⋮⋮</button></td>` : ""}
       <td class="wl-vis"><label class="wl-switch" title="作業実績のタブで、この設備を選べるようにするか（いま: ${x.visible ? "表示する" : "表示しない"}）"><input type="checkbox" data-wl="vis" aria-label="${escapeHtml(x.name)} を表示する"${x.visible ? " checked" : ""}${dis}><i aria-hidden="true"></i></label></td>
       <td><input class="wl-name" data-wl="name" value="${escapeHtml(x.name)}" aria-label="設備名"${dis}></td>
       <td class="wl-file"><span class="m-ident">${escapeHtml(x.now || x.file)}</span> ${wlState(x)}
@@ -712,14 +737,16 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
     ${d.error ? `<div class="dz-bad"><b>フォルダに届きません。</b>${escapeHtml(d.error)}<br>場所・ネットワークのつながりを確かめてください。前に写した設備は、写しのまま見られます。</div>` : ""}
     ${todo.length ? `<div class="wl-todo" role="region" aria-label="直すこと"><b>直すことが ${todo.length} つあります</b>${todo.join("")}</div>` : ""}
     <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}
-      <small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small></div>
+      <small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>
+      ${sortable ? '<small class="wl-sorthint">⋮⋮ をつかんで並べ替え（選んで ↑↓ でも）。作業実績のタブも同じ並びになります</small>' : ""}</div>
     <div class="master-table-wrap pz-wrap"><table class="master-table wl-tablelist">
-      <thead><tr><th>表示</th><th>設備名</th><th>ファイル</th><th class="num">最後の更新</th><th class="num">大きさ</th><th>表</th><th class="grow"></th></tr></thead>
+      <thead><tr>${sortable ? '<th class="wl-gripcell" aria-label="並び"></th>' : ""}<th>表示</th><th>設備名</th><th>ファイル</th><th class="num">最後の更新</th><th class="num">大きさ</th><th>表</th><th class="grow"></th></tr></thead>
       <tbody>${rows}</tbody></table>
       ${d.items.length ? "" : `<div class="master-empty">まだ設備がありません。上のフォルダを確かめて「探す」を押すと、${escapeHtml(d.pattern)} に合うファイルを設備として並べます。</div>`}</div>
   </section>`;
   const say = (cls, html) => { const n = $("#wlNotice"); n.className = `ps-result ${cls}`; n.innerHTML = html; };
   const changed = () => emit("tpa:worklog-changed");
+  bindWorklogOrder(box);
   const scan = async () => {
     const w = TPA.waiting({ title: "作業実績のフォルダを探しています", from: $("#wlFolder").value, now: "決まりに合うファイルを探し、設備の登録に当てています…",
       note: "共有のフォルダを読むので、数秒かかることがあります。" });

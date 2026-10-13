@@ -60,6 +60,20 @@ class Match(unittest.TestCase):
         self.assertEqual((len(m["missing"]), len(m["new"])), (1, 1))
 
 
+class Order(unittest.TestCase):
+    """設備の並び（版 3.28.0）: 番号の順・番号の無い行は登録の順で後ろ・keys に無い行はいまの並びのまま後ろへ"""
+    ROWS = [{"キー": "a", "並び": ""}, {"キー": "b", "並び": "2"}, {"キー": "c", "並び": "1"}, {"キー": "d", "並び": "x"}]
+
+    def test_ordered_puts_numbered_rows_first(self):
+        self.assertEqual([r["キー"] for r in work_log.ordered(self.ROWS)], ["c", "b", "a", "d"])
+
+    def test_order_keys_numbers_from_one_and_keeps_the_rest(self):
+        # いまの並び c・b・a・d。a と d（タブに出ている物）だけを d・a の順に → a と d が占めていた所（3・4 番目）へ入れ直す
+        self.assertEqual(work_log.order_keys(self.ROWS, ["d", "a", "zz", "d"]), {"c": "1", "b": "2", "d": "3", "a": "4"},
+                         "知らないキー・重なりは無視し、keys に無い行（c・b）は今の所から動かない")
+        self.assertEqual(work_log.order_keys(self.ROWS, ["a", "b", "c", "d"]), {"a": "1", "b": "2", "c": "3", "d": "4"})
+
+
 class Api(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -96,6 +110,21 @@ class Api(unittest.TestCase):
         it = self.items()
         self.assertEqual(sorted(it), ["CR1", "L-1"])
         self.assertTrue(all(x["visible"] and x["state"] == "ok" and len(x["key"]) == 12 for x in it.values()))
+
+    def test_order_changes_the_tabs_and_the_master_list_for_everyone(self):
+        make_db(self.folder / "実績_ANF.sqlite3", ["A0001"])
+        self.scan()
+        def names():
+            return [x["name"] for x in self.c.get("/api/worklog/files").get_json()["items"]]
+        keys = {x["name"]: x["key"] for x in self.c.get("/api/worklog/files").get_json()["items"]}
+        r = self.c.put("/api/masters/worklog/order", json={"keys": [keys["L-1"], keys["ANF"], keys["CR1"]]})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual([x["name"] for x in r.get_json()["items"]], ["L-1", "ANF", "CR1"], "マスタ管理の一覧も同じ並び")
+        self.assertEqual(names(), ["L-1", "ANF", "CR1"], "作業実績のタブも同じ並び")
+        make_db(self.folder / "実績_ZZ.sqlite3", ["Z0001"])
+        self.scan()
+        self.assertEqual(names()[-1], "ZZ", "新しく見つけた設備は最後に付く")
+        self.assertEqual(self.c.put("/api/masters/worklog/order", json={"keys": []}).status_code, 400)
 
     def test_list_reads_the_mirror_with_the_same_shape_as_the_lot_list(self):
         self.scan()

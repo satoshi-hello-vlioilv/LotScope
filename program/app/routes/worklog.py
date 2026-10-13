@@ -156,7 +156,7 @@ def worklog_pivot():
                 "pattern": pat["name"] if pat else ""}
         out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
                           filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
-                          table_candidates=work_log.TABLE_CANDIDATES, work=work, month=a.get("month", ""))
+                          table_candidates=work_log.TABLE_CANDIDATES, work=work, month=a.get("month", ""), box=a.get("box", ""))
         out["shiftPattern"] = work["pattern"]
     except pivot.PivotError as e:
         return error(str(e), 400)
@@ -214,6 +214,20 @@ def worklog_scan():
         res = master_repo().work_log_sync(found)
         return {"result": {"added": [r.get("設備名") for r in res["added"]], "renamed": res["renamed"],
                            "missing": [r.get("設備名") for r in res["missing"]], "files": len(found)}, **_master_view()}
+    return master_call(run)
+
+
+@bp.put("/api/masters/worklog/order")
+def worklog_order():
+    """設備の並び（作業実績のタブ・マスタ管理の一覧。全員で 1 つ）を {keys: [キー…]} の順にする。書けるのは管理のマスタを書ける人（門番 routes/access.py）。"""
+    body = request.get_json(force=True) or {}
+
+    def run():
+        keys = body.get("keys")
+        if not isinstance(keys, list) or not keys:
+            raise ValueError("並べるキー（keys）がありません。")
+        master_repo().work_log_order(keys)
+        return _master_view()
     return master_call(run)
 
 

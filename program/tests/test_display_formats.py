@@ -20,8 +20,20 @@ class Body(unittest.TestCase):
     def test_keeps_only_known_parts(self):
         body, text = df.clean_body(BODY)
         self.assertNotIn("unknown", body)
-        self.assertEqual(df.parts_of(body), ["表示列", "読み替えルール", "並び・まとめ", "並べ替え", "スライサー"])
+        self.assertEqual(df.parts_of(body), ["表示列", "読み替えルール", "並び・まとめ", "並べ替え 1", "スライサー"])
         self.assertEqual(df.clean_body(text)[0], body, "JSON の字でも同じ")
+
+    def test_filter_state_is_kept_and_named(self):
+        """版 3.28.0: 絞り込みの状態（効いている条件・スライサーで選んだ値・列で絞り込むの値）も入れ、札でそれと分かる"""
+        body, _ = df.clean_body({**BODY, "filters": [{"column": "作業区分", "op": "eq", "value": "通常"}, {"column": "重量", "op": "ge", "value": "1000"}],
+                                 "slicer": {"cards": [{"column": "作業者", "sel": ["作業者A"]}]}, "adhoc": {"column": "ロット番号", "op": "contains", "value": "L00"}})
+        self.assertEqual(len(body["filters"]), 2)
+        parts = df.parts_of(body)
+        self.assertIn("条件 2", parts)
+        self.assertIn("スライサー（選んだ値）", parts)
+        self.assertIn("列で絞り込む（値）", parts)
+        self.assertNotIn("条件 0", df.parts_of({**body, "filters": []}), "空の部品は札にしない（当てても今のまま）")
+        self.assertEqual(df.clean_body({"filters": "x", "sorts": [{"column": "a", "dir": "asc"}]})[0], {"sorts": [{"column": "a", "dir": "asc"}]}, "形の違う部品は入れない")
 
     def test_refuses_empty_wrong_and_huge(self):
         for bad in ({}, {"columns": "x"}, "not json", [1]):

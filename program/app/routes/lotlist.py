@@ -83,7 +83,7 @@ def lotlist_pivot():
             return jsonify(pivot.fields(plan["path"], table=a.get("table", ""), preferred_table=plan["table"]))
         out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
                           filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
-                          month=a.get("month", ""))
+                          month=a.get("month", ""), box=a.get("box", ""))
     except pivot.PivotError as e:
         return error(str(e), 400)
     except Exception as e:

@@ -12,8 +12,11 @@
    - 版 3.26.0〜: 作業日の年月・年／月で区切る（日の段の上に年月の段・月の小計・グラフに月の境目）／月を選ぶ（◀ ▶）／数値ラベル／
      組み方のプリセット（共通・ログイン ID ごと・標準。サーバー: services/pivot_presets.py）。置き場は 7 案＋2 回目で選んだ
      （ui-proposals/2026-10-pvmonth* の M4）: 組み方は文の頭の「☆ 組み方 ▾」、数値ラベル・月で区切る・◀ 月 ▶ はグラフの見出しの右
+   - 版 3.27.0〜: グラフの形を 14 に（登録と描き方は lotlist-pivot-charts.js）。置き場は 7 案＋2 回目で選んだ（ui-proposals/2026-10-pvcharts* の M1）:
+     グラフの形の行に「グラフ ［絵］時系列 ▾」（目的の行に並べた面）・すぐに見るの札・「組み方 ▾」（文の頭から移した）。
+     組み方は 共通デフォルト（開発者・組み込みの物）・共通・ID。すぐに見る＝組み方から ID ごとに選んだ並び（/api/pivot-quick）
    - 覚え（この PC・範囲ごと）: tpa.lotlist.pivot.v1 {範囲: {view, rows, cols, measures, chart, sub, grand, chartAt, split, labels, month, preset}}
-   一覧（lotlist.js）とは mount の引数だけでつながる: scope・api・query（絞り込みの問い合わせ字）・label・dateColumns・isWork・
+   一覧（lotlist.js）とは mount の引数だけでつながる: scope・api・query（絞り込みの問い合わせ字）・label・dateColumns・isWork・lotColumn・
    workParams（作業開始の列・日付の数え方）・conditions（Excel の出力の条件）・fileStem・toast・onView（一覧｜集計を替えた）
    ========================================================================= */
 (function () {
@@ -25,11 +28,7 @@
   const NUM_PARTS = ["", "bin"];
   const WORKDAY_PARTS = ["", "ym", "year"], WORKDAY_NAME = { "": "日", ym: "年月", year: "年" };   // 作業日のまとめ（版 3.26.0〜: 月ごと・年ごと）
   const AGGS = [["sum", "合計"], ["avg", "平均"], ["min", "最小"], ["max", "最大"]];
-  const CHARTS = [["time", "時系列", "日付・年月・作業日の段を、時の流れのまま（間の日も空けて）描きます"], ["column", "縦棒", "行の段ごとに縦の棒で比べます"],
-    ["bar", "横棒", "行の段ごとに横の棒で比べます（名前が長いとき）"], ["hist", "ヒストグラム", "数の列を区間に分け、件数の山で傾向（ばらつき・偏り）を見ます"],
-    ["none", "表だけ", "グラフを出さず、表だけを広く出します"]];
-  const COLORS = ["#b5822a", "#2f7d78", "#4a62b0", "#c9564a", "#7658ae", "#5c8a2a", "#1f6aa8", "#8a5f18", "#5a6f77", "#d35d8e", "#0d8191", "#a5372c"];
-  const ADDITIVE = new Set(["count", "lots", "sum"]);
+  const C = window.LotListPivotCharts, { fmt, dayAt, isDay } = C;   // グラフの形の登録と描き方（lotlist-pivot-charts.js）
   const MAX_DIMS = 3, MAX_MEASURES = 4, SEP = "\u001f";
   let host = null, fields = null, fieldsSig = "", answer = null, seq = 0, fq = "", timer = 0, resizeObs = null;
 
@@ -58,11 +57,8 @@
   const workdayName = () => `作業日（${(host.workParams().basis || "work") === "cal" ? "太陽暦" : "現場歴"}）`;
   const WORK = () => [["@workday", workdayName(), "作業開始の日。日を跨ぐ直の数え方（現場歴／太陽暦）は、作業でまとめるのと同じです"], ["@shift", "直", "作業開始の時刻が入る直（マスタ管理の勤務体系）"]];
   const dimName = (d) => (d.column === "@workday" ? workdayName() + (d.part ? `（${WORKDAY_NAME[d.part]}）` : "") : d.column === "@shift" ? "直" : host.label(d.column) + (d.part ? `（${PART_NAME[d.part]}）` : ""));
-  /** 日の段か（日付の列の年月日・作業日の日）。月で区切る・月を選ぶのは、行の 1 段目が日の段のとき */
-  const isDay = (d) => !!d && ((d.column === "@workday" && !d.part) || (d.column !== "@workday" && !d.column.startsWith("@") && d.part === "date"));
+  /** 月で区切る・月を選ぶのは、行の 1 段目が日の段（日付の列の年月日・作業日の日）のとき */
   const canMonth = (s) => isDay(s.rows[0]);
-  /** 答えが月で区切った形か（行の 1 段目が年月・2 段目が同じ列の日）→ 日の段の番号（1）か 0 */
-  const dayAt = (d) => { const r = d.dims.rows; return r.length > 1 && r[0].part === "ym" && r[1].column === r[0].column && isDay(r[1]) ? 1 : 0; };
   const measName = (m) => (m.agg === "count" ? "件数" : m.agg === "lots" ? "ロット数" : `${host.label(m.column)}の${(AGGS.find((a) => a[0] === m.agg) || [])[1] || "合計"}`);
   function partsOf(col) {
     if (col === "@workday") return WORKDAY_PARTS;
@@ -100,11 +96,13 @@
     if (v === "pivot") refresh(true);
   }
 
-  /* ---- 組み方のプリセット（共通・ID ごと・標準。置き場はサーバーの 1 か所: services/pivot_presets.py・/api/pivot-presets） ----
+  /* ---- 組み方のプリセット（共通デフォルト・共通・ID ごと・標準。置き場はサーバーの 1 か所: services/pivot_presets.py・/api/pivot-presets） ----
      元（lot＝異常ロット一覧・work＝作業実績）ごとに読む。当てるとき、この設備・この表に無いカラムの段・値は外して知らせる。
-     標準: 組み方が空のまま集計表を開くと、その範囲で 1 回だけ当てる（自分の ID の標準 → 共通の標準。決めはサーバー） */
-  const BODY = ["rows", "cols", "measures", "chart", "sub", "grand", "chartAt", "split", "labels"];
-  const presets = { source: "", items: [], login: "", canEditCommon: false, standardId: null, loaded: false };
+     共通デフォルト: 開発者が置いた物と、組み込みの物（id が "b:…"。列は役 $weight などで書き、resolve がこの表の列に当てはめる）。
+     標準: 組み方が空のまま集計表を開くと、その範囲で 1 回だけ当てる（自分の ID → 共通 → 共通デフォルトの標準。決めはサーバー）。
+     すぐに見る: グラフの形の行に並べる組み方。ID ごとに選び（/api/pivot-quick）、選んでいなければ既定（共通デフォルトの物） */
+  const SCOPE_NAME = { me: "自分", all: "共通", default: "共通デフォルト" };
+  const presets = { source: "", items: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, quick: [], quickCustom: false, quickDefault: [], loaded: false, version: 0 };
   const autoTried = new Set();
   const sourceOf = () => (host.isWork() ? "work" : "lot");
   /** 組み方の中身（サーバーの clean_body と同じ形・同じ並び。いまの形と保存した形を比べる） */
@@ -120,23 +118,24 @@
     const r = await fetch(`/api/pivot-presets?source=${src}`, { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "組み方を読めませんでした");
-    Object.assign(presets, { source: src, items: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, standardId: d.standardId ?? null, loaded: true });
+    Object.assign(presets, { source: src, items: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, canEditDefault: !!d.canEditDefault,
+      standardId: d.standardId ?? null, quick: (d.quick || []).map(String), quickCustom: !!d.quickCustom, quickDefault: (d.quickDefault || []).map(String), loaded: true, version: presets.version + 1 });
     return presets;
   }
   /** いまの組み方に当たるプリセット（同じ中身）か、最後に当てたプリセット（変えたあと） */
   function presetNow() {
-    const s = st(), same = presets.items.find((p) => p.body && p.body.rows && sameBody(p.body, s));
+    const s = st(), same = items().find((p) => !p.missing.length && p.body && p.body.rows && sameBody(p.body, s));
     if (same) return { item: same, changed: false };
-    const last = presets.items.find((p) => p.id === s.preset);
+    const last = items().find((p) => p.id === s.preset);
     return last ? { item: last, changed: true } : { item: null, changed: false };
   }
-  /** 当てる: この表に無いカラムの段・値は外す（外した物を知らせる）。行の段が 1 つも残らなければ当てない */
+  /** 当てる（p は役を当てはめた物: items()）。この表に無いカラムの段・値は外す（外した物を知らせる）。行の段が 1 つも残らなければ当てない */
   function applyPreset(p, { quiet = false } = {}) {
-    const b = p.body || {}, ok = (c) => (c.startsWith("@") ? host.isWork() || c === "@lots" || c === "@count" : !!fieldOf(c));
-    const lost = [];
-    const keep = (list) => (list || []).filter((d) => (ok(d.column) ? true : (lost.push(host.label(d.column)), false)));
+    const b = p.body || {}, ok = (c) => !!c && (c.startsWith("@") ? host.isWork() || c === "@lots" || c === "@count" : !!fieldOf(c));
+    const lost = [...p.missing];
+    const keep = (list) => (list || []).filter((d) => (ok(d.column) ? true : (d.column && lost.push(host.label(d.column)), false)));
     const rows = keep(b.rows), cols = keep(b.cols);
-    const measures = (b.measures || []).filter((m) => (!m.column || ok(m.column) ? true : (lost.push(host.label(m.column)), false)));
+    const measures = (b.measures || []).filter((m) => (m.agg === "count" || m.agg === "lots" || ok(m.column) ? true : (m.column && lost.push(host.label(m.column)), false)));
     if (!rows.length) { host.toast(`組み方「${p.name}」の行の段（${lost.join("・") || "—"}）がこの表に無いので、当てられません`); return false; }
     save({ ...bodyOf({ ...blank(), ...b }), rows, cols, measures, month: "", preset: p.id });
     if (lost.length) host.toast(`組み方「${p.name}」を当てました。この表に無い ${lost.join("・")} は外しました`);
@@ -150,10 +149,10 @@
     if (autoTried.has(key) || st().rows.length) return false;
     autoTried.add(key);
     try { await loadPresets(); } catch { return false; }
-    const p = presets.items.find((x) => x.id === presets.standardId);
+    const p = itemOf(presets.standardId);
     if (!p || st().rows.length) return false;
     const ok = applyPreset(p, { quiet: true });
-    if (ok) host.toast(`標準の組み方「${p.name}」（${p.scope === "me" ? "自分" : "共通"}）を当てました`);
+    if (ok) host.toast(`標準の組み方「${p.name}」（${SCOPE_NAME[p.scope]}）を当てました`);
     return ok;
   }
   /** 書く（POST・PUT・DELETE）。誤りは知らせて、一覧を読み直す */
@@ -165,6 +164,15 @@
     if (!r.ok) { host.toast(d.error || "組み方を保存できませんでした"); return null; }
     return d;
   }
+  /** すぐに見るの並びを置く（ID ごと。keys が null なら既定に戻す）。置けたら描き直す */
+  async function setQuick(keys) {
+    const r = await fetch("/api/pivot-quick", TPA.json("PUT", keys ? { source: sourceOf(), keys } : { source: sourceOf(), reset: true }));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { host.toast(d.error || "すぐに見るを覚えられませんでした"); return false; }
+    await loadPresets(true).catch(() => {});
+    paintHead();
+    return true;
+  }
 
   /* ---- 読む ---- */
   function query() {
@@ -174,9 +182,12 @@
     p.set("rows", JSON.stringify(rows)); p.set("cols", JSON.stringify(s.cols));
     if (s.month && canMonth(s)) p.set("month", s.month);
     p.set("measures", JSON.stringify(s.measures.length ? s.measures : [{ agg: "count" }]));
+    if (s.chart === "box" && boxColumn(s)) p.set("box", boxColumn(s));   // 箱ひげ図: 値の数のカラムの分かれ方（四分位）も頼む
     Object.entries(host.workParams()).forEach(([k, v]) => { if (v) p.set(k, v); });
     return p.toString();
   }
+  /** 箱ひげ図に描く数のカラム（値のうち最初の数のカラム） */
+  const boxColumn = (s) => (s.measures.find((m) => m.column && isNum(m.column)) || {}).column || "";
   /** 一覧が読み直された（絞り込み・範囲が変わった）ときに呼ばれる。集計表を見ていなければ何もしない */
   function refresh(now) {
     if (!isOn()) return;
@@ -186,8 +197,10 @@
   async function load() {
     const me = ++seq, pane = $("#llPivot");
     if (!pane || !isOn()) return;
+    // カラムの手がかりと組み方（すぐに見るの並び）を一緒に読む。組み方を読めなくても集計は続ける
+    const pre = loadPresets().catch(() => null);
     try { await loadFields(); } catch (e) { if (me === seq) { fields = fields || []; paint(null, e.message); } return; }
-    if (!presets.loaded || presets.source !== sourceOf()) loadPresets().then(() => { if (isOn()) paintPresetBtn(); }).catch(() => {});
+    await pre;
     if (!st().rows.length && await applyStandard()) return;   // 標準を当てた（当てた組み方で読み直す）
     if (me !== seq) return;
     const s = st();
@@ -213,12 +226,6 @@
   }
 
   /* ---- 描く ---- */
-  const fmt = (v) => {
-    if (v == null || v === "") return "";
-    if (typeof v !== "number") return String(v);
-    if (Number.isInteger(v)) return v.toLocaleString("ja-JP");
-    return v.toLocaleString("ja-JP", { maximumFractionDigits: Math.abs(v) >= 1000 ? 1 : 3 });
-  };
   function fieldsHtml(s) {
     const used = (c) => (s.rows.some((d) => d.column === c) ? "rows" : s.cols.some((d) => d.column === c) ? "cols" : "");
     const meas = (agg, col = "") => s.measures.some((m) => m.agg === agg && m.column === col);
@@ -254,41 +261,76 @@
   }
   function sentenceHtml(s) {
     const slot = (role, html, ph) => `<span class="pv-slot" data-role="${role}">${html || `<span class="pv-ph">${ph}</span>`}</span>`;
-    return `<div class="pv-sent">${presetBtnHtml()}${slot("rows", s.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］を押す")}<span class="pv-w">ごとに、</span>`
+    return `<div class="pv-sent">${slot("rows", s.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］を押す")}<span class="pv-w">ごとに、</span>`
       + `${slot("cols", s.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`
       + `${slot("vals", s.measures.map(measChip).join(""), "件数")}<span class="pv-w">を出す</span><span class="pv-sp"></span>`
       + `<label class="pv-ck"><input type="checkbox" data-pv-opt="sub"${s.sub ? " checked" : ""}>小計</label><label class="pv-ck"><input type="checkbox" data-pv-opt="grand"${s.grand ? " checked" : ""}>総計</label>`
       + `<button type="button" class="pv-btn" data-pv-xlsx${answer && s.rows.length ? "" : " disabled"} title="この集計表を Excel（.xlsx）に出します（出力の条件のシートつき）">Excel に出力</button>`
       + `<button type="button" class="pv-link" data-pv-clear${s.rows.length || s.cols.length || s.measures.length ? "" : " disabled"}>すべて外す</button></div>`;
   }
-  /** 量を表す数の列（重量 → 数量・長さ・枚数 → 最初の数の列）。すぐに見る組み方とヒストグラムが同じ選び方をする */
-  function preferredNumeric() {
-    const nums = (fields || []).filter((f) => f.numeric && !isDate(f.column));
-    return nums.find((f) => /重量|重さ|質量/.test(f.column)) || nums.find((f) => /数量|長さ|枚数/.test(f.column)) || nums[0] || null;
+  /* ---- 列の役（組み込みの組み方の $weight など。services/pivot_presets.py の BUILTINS）。表が替わると当てはまる列も替わる ----
+     $weight … 量の数の列（重量 → 数量・長さ・枚数 → 最初の数の列）  $num2 … 2 つ目の数の列（厚さ・幅・長さ・速度を先に）
+     $date … 日付の列  $few1・$few2 … 種類の少ない（2〜12 種類）字の列（少ない順）  $lot … ロット番号の列 */
+  const ROLE_NAME = { $date: "日付の列", $weight: "量の数の列（重量など）", $num2: "2 つ目の数の列", $few1: "種類の少ない列", $few2: "2 つ目の種類の少ない列", $lot: "ロット番号の列" };
+  let rolesMemo = null, rolesSig = "";
+  function roles() {
+    if (rolesMemo && rolesSig === fieldsSig) return rolesMemo;
+    const F = fields || [], nums = F.filter((f) => f.numeric && !isDate(f.column));
+    const weight = nums.find((f) => /重量|重さ|質量/.test(f.column)) || nums.find((f) => /数量|長さ|枚数/.test(f.column)) || nums[0];
+    const rest = nums.filter((f) => f !== weight), num2 = rest.find((f) => /厚|幅|長さ|速度/.test(f.column)) || rest[0];
+    const few = F.filter((f) => !f.numeric && !isDate(f.column) && f.kinds >= 2 && f.kinds <= 12).sort((a, b) => a.kinds - b.kinds);
+    const lot = host.lotColumn() || (F.find((f) => /ロット/.test(f.column) && f.kinds > 12) || {}).column;
+    rolesSig = fieldsSig;
+    rolesMemo = { $date: (F.find((f) => isDate(f.column)) || {}).column, $weight: weight && weight.column, $num2: num2 && num2.column,
+      $few1: few[0] && few[0].column, $few2: few[1] && few[1].column, $lot: lot };
+    return rolesMemo;
   }
-  /* すぐに見る組み方（種類の少ない列・数の列・日付の列から。作業実績は作業日ごとのロット数・重量を先頭に） */
-  function quickPicks() {
-    const F = fields || [], few = F.filter((f) => !f.numeric && !isDate(f.column) && f.kinds >= 2 && f.kinds <= 12).sort((a, b) => a.kinds - b.kinds);
-    const weight = preferredNumeric();
-    const date = F.find((f) => isDate(f.column));
-    const out = [];
-    if (host.isWork()) {
-      out.push({ name: `作業日ごとのロット数${weight ? `・${host.label(weight.column)}` : ""}`, rows: [{ column: "@workday", part: "" }], cols: [],
-        measures: [{ agg: "lots" }].concat(weight ? [{ agg: "sum", column: weight.column }] : []), chart: "time" });
-      out.push({ name: "日×直のロット数", rows: [{ column: "@workday", part: "" }], cols: [{ column: "@shift", part: "" }], measures: [{ agg: "lots" }], chart: "time" });
-    } else if (date) {
-      out.push({ name: `${host.label(date.column)}（年月）ごとの件数`, rows: [{ column: date.column, part: "ym" }], cols: [], measures: [{ agg: "count" }, { agg: "lots" }], chart: "time" });
-    }
-    if (weight) out.push({ name: `${host.label(weight.column)}のヒストグラム`, rows: [{ column: weight.column, part: "bin" }], cols: [], measures: [{ agg: "count" }], chart: "hist" });
-    if (few.length >= 2) out.push({ name: `${host.label(few[0].column)}×${host.label(few[1].column)}の件数`, rows: [{ column: few[0].column, part: "" }], cols: [{ column: few[1].column, part: "" }], measures: [{ agg: "count" }], chart: "column" });
-    else if (few.length) out.push({ name: `${host.label(few[0].column)}ごとの件数`, rows: [{ column: few[0].column, part: "" }], cols: [], measures: [{ agg: "count" }], chart: "column" });
-    return out.slice(0, 4);
+  const preferredNumeric = () => { const c = roles().$weight; return c ? fieldOf(c) : null; };
+  /** 組み方の役を、この表の列に当てはめる → {body, name, missing（当てはまらなかった役の説明）} */
+  function resolve(p) {
+    const R = roles(), missing = [];
+    const col = (c) => { if (!c || !c.startsWith("$")) return c; if (!R[c] && !missing.includes(ROLE_NAME[c] || c)) missing.push(ROLE_NAME[c] || c); return R[c] || null; };
+    const b = p.body || {};
+    const dims = (list) => (list || []).map((d) => ({ ...d, column: col(d.column) }));
+    const body = { ...b, rows: dims(b.rows), cols: dims(b.cols), measures: (b.measures || []).map((m) => (m.column ? { ...m, column: col(m.column) } : m)) };
+    const name = String(p.name || "").replace(/\$(date|weight|num2|few1|few2|lot)/g, (k) => (R[k] ? host.label(R[k]) : ROLE_NAME[k] || k));
+    return { ...p, body, name, missing };
   }
+  /** 組み方の一覧（役を当てはめた物。fields・組み方が変わったら作り直す） */
+  let itemsMemo = null, itemsSig = "";
+  function items() {
+    const sig = fieldsSig + "|" + presets.version;
+    if (!itemsMemo || itemsSig !== sig) { itemsSig = sig; itemsMemo = presets.items.map(resolve); }
+    return itemsMemo;
+  }
+  const itemOf = (id) => items().find((p) => String(p.id) === String(id)) || null;
+  /** すぐに見るに並べる組み方（ID ごとの選び。選んでいなければ既定: services/pivot_presets.py の default_quick） */
+  const quickItems = () => presets.quick.map(itemOf).filter(Boolean);
+  /** すぐに見るの札（当てはまらない役がある物は押せない。いまの組み方に当たる物は印） */
+  function quickBtn(p) {
+    const now = presetNow(), hit = now.item && now.item.id === p.id, on = hit && !now.changed, moved = hit && now.changed;
+    const tip = p.missing.length ? `この表には ${p.missing.join("・")} が無いので使えません` : `${p.name}（${SCOPE_NAME[p.scope]}${p.builtin ? "・組み込み" : ""}）を当てます`;
+    const std = String(p.id) === String(presets.standardId);
+    const note = (std ? "\n★＝標準（組み方が空のまま集計表を開くと当てる）" : "") + (moved ? "\nいまは、当てたあとに変えています（押すと当て直します）" : "");
+    return `<button type="button" class="pv-quick${on ? " is-on" : moved ? " is-moved" : ""}" data-pv-quick="${esc(String(p.id))}" title="${esc(tip + note)}"${p.missing.length ? " disabled" : ""}>`
+      + `${C.iconSvg((p.body || {}).chart, 15)}<span>${esc(p.name)}</span>${std ? '<i class="pv-star is-std" aria-label="標準">★</i>' : ""}</button>`;
+  }
+  /* ---- グラフの形の行（7 案＋2 回目で選んだ: ui-proposals/2026-10-pvcharts* の M1）:
+     「グラフ ［絵］時系列 ▾」（押すと目的ごとの行に 14 形を並べた面）・すぐに見るの札（★＝標準）・「組み方 ▾」（すぐに見るに出す ☑・当てる・保存の面）。
+     すぐに見る＝組み方の一覧から ID ごとに選んだ物なので、入口は「組み方 ▾」1 つ（版 3.26.0 の文の頭の「☆ 組み方 ▾」はここへ移した） */
   function barHtml(s) {
-    const picks = quickPicks();
-    return `<div class="pv-bar"><span class="pv-tabs" role="radiogroup" aria-label="グラフの形">${CHARTS.map(([k, n, tip]) => `<button type="button" role="radio" aria-checked="${s.chart === k}" data-pv-chart="${k}" title="${esc(tip)}">${n}</button>`).join("")}</span>`
-      + `<span class="pv-sp"></span>${picks.length ? `<span class="pv-w">すぐに見る:</span>${picks.map((p, i) => `<button type="button" class="pv-quick" data-pv-quick="${i}">${esc(p.name)}</button>`).join("")}` : ""}</div>`;
+    const picks = quickItems(), def = C.get(s.chart) || C.DEFS[0], { item, changed } = presetNow();
+    // いまの組み方の名前は、すぐに見るの札に無いときだけボタンに出す（札にあれば札の印＝当てた・点線＝変えた）
+    const pname = item && !picks.some((p) => p.id === item.id) ? `: ${item.name}${changed ? "（変えた）" : ""}` : "";
+    const ptip = item ? `いまの組み方「${item.name}」（${SCOPE_NAME[item.scope]}${item.standard ? "・標準" : ""}）${changed ? "を当てたあとに変えています" : ""}\n` : "";
+    return `<div class="pv-bar"><span class="pv-k">グラフ</span><button type="button" id="llPvChartBtn" class="pv-cpick" data-pv-pick aria-haspopup="true" aria-expanded="${!!popOf("chart")}" title="${esc(def.tip)}\n押すと、ほかのグラフの形を目的ごとに選べます">`
+      + `${C.iconSvg(def.k, 18)}<b>${esc(def.n)}</b><i aria-hidden="true">▾</i></button>`
+      + `<span class="pv-k pv-qk">すぐに見る:</span>${picks.length ? picks.map(quickBtn).join("") : '<span class="pv-qnone">（なし。「組み方 ▾」で ☑ を付けると並びます）</span>'}`
+      + `<button type="button" id="llPvPreset" class="pv-pbtn${item && !changed ? " is-on" : ""}" data-pv-qpick aria-haspopup="true" aria-expanded="${!!popOf("preset")}" title="${esc(ptip)}組み方（行・列・値・グラフの形・小計・総計・月で区切る・数値ラベル）を当てる・保存する・すぐに見るに出す物を選ぶ">`
+      + `組み方<span class="pv-pname">${esc(pname)}</span>${pname && item.standard ? '<i class="pv-star is-std" aria-label="標準">★</i>' : ""}<i aria-hidden="true">▾</i></button></div>`;
   }
+  /** 文とグラフの形の行だけを描き直す（組み方・すぐに見るを替えたとき） */
+  function paintHead() { const h = $("#llPvHead"); if (h && host) h.innerHTML = sentenceHtml(st()) + barHtml(st()); }
   /** 全体を描く（busy は読み直している間: 前の答えのまま薄くする） */
   function paint(d, err = "", busy = false) {
     const pane = $("#llPivot"); if (!pane || !host) return;
@@ -299,7 +341,7 @@
         + '<div class="pv-main"><div id="llPvHead"></div><div class="pv-msg" id="llPvMsg" hidden></div><div class="pv-out" id="llPvOut"></div></div>';
     }
     $("#llPvFields").innerHTML = fieldsHtml(s);
-    $("#llPvHead").innerHTML = sentenceHtml(s) + barHtml(s);
+    paintHead();
     const msg = $("#llPvMsg"), out = $("#llPvOut");
     out.classList.toggle("is-busy", busy);
     if (busy) return;
@@ -321,22 +363,12 @@
     if (s.chart !== "none") paintChart(model, d, s);
   }
   function emptyHtml() {
-    const picks = quickPicks();
+    const picks = quickItems();
     return `<div class="pv-empty"><b>左のカラムの［行］を押すと、値ごとの件数が出ます</b><span>種類の少ないカラムが行・列に向いています。日付のカラムは年月日・年月などで、数のカラムは区間（ヒストグラム）でまとめられます。`
       + `${host.isWork() ? "作業実績では「作業日」「直」「ロット数」も使えます。" : ""}${picks.length ? "すぐに見るなら:" : ""}</span>`
-      + (picks.length ? `<div class="pv-quickbig">${picks.map((p, i) => `<button type="button" class="pv-quick" data-pv-quick="${i}">${esc(p.name)}</button>`).join("")}</div>` : "") + "</div>";
+      + (picks.length ? `<div class="pv-quickbig">${picks.map(quickBtn).join("")}</div>` : "") + "</div>";
   }
 
-  /* ---- 文の頭の「★ 組み方 名前 ▾」（いまの組み方に当たる物の名前。★は標準） ---- */
-  function presetBtnHtml() {
-    const { item, changed } = presetNow();
-    const name = item ? item.name + (changed ? "（変えた）" : "") : "なし";
-    const tip = item ? `組み方「${item.name}」（${item.scope === "me" ? "自分" : "共通"}${item.standard ? "・標準" : ""}）${changed ? "\nいまは、当てたあとに変えています" : ""}\n押すと、ほかの組み方を当てる・いまの形を保存する・標準にする`
-      : "組み方（行・列・値・グラフの形・小計・総計・月で区切る・数値ラベル）を、名前を付けて共通か自分の ID に保存し、呼び出します";
-    return `<button type="button" id="llPvPreset" class="pv-preset${item && !changed ? " is-on" : ""}" aria-haspopup="true" aria-expanded="${!!presetPop}" title="${esc(tip)}">`
-      + `<span class="pv-star${item && item.standard ? " is-std" : ""}" aria-hidden="true">${item && item.standard ? "★" : "☆"}</span><b>組み方</b><span class="pv-pname">${esc(name)}</span><i aria-hidden="true">▾</i></button>`;
-  }
-  function paintPresetBtn() { const b = $("#llPvPreset"); if (b) b.outerHTML = presetBtnHtml(); }
   /* ---- グラフの見出しの右（表だけのときは表の上）: 数値ラベル・月で区切る・◀ 月 ▶。月の物は行の 1 段目が日の段のときだけ ---- */
   const monthName = (k) => `${+k.slice(0, 4)}年${+k.slice(5, 7)}月`;
   /** ◀ ▶ で送る順: 月を古い順に並べ、最後に「すべての月」（◀ で新しい月から遡る・▶ で戻る） */
@@ -352,68 +384,142 @@
       + `<button type="button" data-pv-mstep="1" aria-label="次の月"${i < 0 || i >= seq.length - 1 ? " disabled" : ""}>▶</button></span>`;
     return `<span class="pv-copts">${lab}<label class="pv-ck" title="日の段の上に年月の段を足します（表に月の小計・グラフに月の境目の線と月の名前）"><input type="checkbox" data-pv-opt="split"${s.split ? " checked" : ""}>月で区切る</label>${months.length ? nav : ""}</span>`;
   }
-  /* ---- 組み方の面（ボタンの下に開く。当てる・保存・上書き・名前・標準・削除） ---- */
-  let presetPop = null, presetOff = null;
-  function closePresetPop() { if (!presetPop) return; presetOff && presetOff(); presetPop.remove(); presetPop = null; $("#llPvPreset")?.setAttribute("aria-expanded", "false"); }
-  async function togglePresetPop(anchor) {
-    if (presetPop) { closePresetPop(); return; }
-    presetPop = document.createElement("div");
-    presetPop.className = "pv-ppop"; presetPop.id = "llPvPresetPop"; presetPop.setAttribute("role", "dialog"); presetPop.setAttribute("aria-label", "組み方");
-    presetPop.innerHTML = '<p class="pv-pnote">読んでいます…</p>';
-    document.body.append(presetPop);
-    TPA.placeBelow(presetPop, anchor);
+  /* ---- 浮かぶ面（グラフの形・組み方）。開くのはいつも 1 つ。ボタンの下に開き、外を押すか Esc で閉じる ---- */
+  let pop = null;   // {kind, el, off}
+  const popOf = (kind) => (pop && pop.kind === kind ? pop.el : null);
+  function closePop() {
+    if (!pop) return;
+    const { el, off, anchorId } = pop; pop = null;
+    off && off(); el.remove(); $("#" + anchorId)?.setAttribute("aria-expanded", "false");
+  }
+  function openPop(kind, anchor, label, onClick) {
+    if (popOf(kind)) { closePop(); return null; }
+    closePop();
+    const el = document.createElement("div");
+    el.className = `pv-ppop is-${kind}`; el.id = kind === "chart" ? "llPvChartPop" : "llPvPresetPop";
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-label", label);
+    document.body.append(el);
+    // 開いたボタンは描き直しで作り直されるので、要素ではなく印（data-pv-pick・data-pv-qpick）で「外ではない」を見分ける
+    // （外を押したとして閉じ、同じ押しでまた開く、を起こさない）
+    const mark = anchor.hasAttribute("data-pv-pick") ? "[data-pv-pick]" : "[data-pv-qpick]";
+    pop = { kind, el, anchorId: anchor.id, off: TPA.dismissable(el, closePop, { keep: { contains: (t) => !!(t && t.closest && t.closest(mark)) } }) };
+    el.addEventListener("click", onClick);
+    el.addEventListener("change", onClick);
     anchor.setAttribute("aria-expanded", "true");
-    presetOff = TPA.dismissable(presetPop, closePresetPop, { keep: anchor });
-    presetPop.addEventListener("click", onPresetClick);
-    try { await loadPresets(true); } catch (e) { if (presetPop) presetPop.innerHTML = `<p class="pv-pnote">${esc(e.message)}</p>`; return; }
+    return el;
+  }
+  const placePop = (el, anchorId) => { const a = $("#" + anchorId); if (el && a) TPA.placeBelow(el, a); };
+
+  /* ---- グラフの形の面: 目的の行（推移を見る・比べる・内訳・ばらつき・関係・表）に形の札。いまの組み方に向く形に「向く」 ----
+     向くかどうかは形の登録（lotlist-pivot-charts.js の fit）が決める。向かない形も押せる（足りない段・値は setChart が入れて知らせる） */
+  function fitInfo(s) {
+    const r0 = s.rows[0], ms = s.measures.length ? s.measures : [{ agg: "count" }];
+    return { rows: s.rows.length, cols: s.cols.length, meas: ms.length, numMeas: ms.filter((m) => m.column && isNum(m.column)).length,
+      addMeas: ms.filter((m) => C.ADDITIVE.has(m.agg)).length, additive: C.ADDITIVE.has(ms[0].agg), time: !!r0 && C.isTimeDim(r0), bin: !!r0 && r0.part === "bin" };
+  }
+  function paintChartPop() {
+    const el = popOf("chart"); if (!el) return;
+    const s = st(), f = fitInfo(s);
+    el.innerHTML = '<div class="pv-phead"><b>グラフの形</b><small>目的から選びます。<span class="pv-fit">向く</span>＝いまの組み方（行・列・値）に向く形。向かない形を選ぶと、足りない段・値を入れて知らせます</small></div>'
+      + C.GROUPS.map(([g, gn]) => `<div class="pv-cgrp"><span class="pv-cgn">${gn}</span><span class="pv-cgi">${C.DEFS.filter((x) => x.g === g).map((x) => {
+        const why = x.fit(f), on = s.chart === x.k;
+        return `<button type="button" class="pv-cbtn${on ? " on" : ""}" data-pv-chart="${x.k}" aria-pressed="${on}" title="${esc(x.tip + (why ? `\n向く組み方: ${why}` : ""))}">${C.iconSvg(x.k, 17)}<span>${x.n}</span>${!why && !on && x.k !== "none" ? '<i class="pv-fit">向く</i>' : ""}</button>`;
+      }).join("")}</span></div>`).join("");
+  }
+  function toggleChartPop(anchor) {
+    const el = openPop("chart", anchor, "グラフの形", (e) => {
+      const b = e.type === "click" && e.target.closest("[data-pv-chart]"); if (!b) return;
+      closePop(); setChart(b.dataset.pvChart);
+    });
+    if (!el) return;
+    paintChartPop(); placePop(el, anchor.id);
+    el.querySelector(".pv-cbtn.on, .pv-cbtn")?.focus();
+  }
+
+  /* ---- 組み方の面: すぐに見るに出す物（☑・この順・▲▼）／組み方の一覧（自分・共通・共通デフォルト。押すと当てる・標準・上書き・名前・削除）／いまの形を保存 ---- */
+  const tags = (b) => [b.rows && b.rows.length ? b.rows.map((d) => (d.column ? dimName(d) : "—")).join(" ＞ ") : "", (C.get(b.chart) || {}).n, b.split ? "月で区切る" : "", b.labels ? "数値ラベル" : ""].filter(Boolean).join(" · ");
+  async function togglePresetPop(anchor) {
+    const el = openPop("preset", anchor, "組み方", onPresetClick);
+    if (!el) return;
+    el.innerHTML = '<p class="pv-pnote">読んでいます…</p>';
+    placePop(el, anchor.id);
+    try { await loadPresets(true); } catch (e) { if (popOf("preset")) el.innerHTML = `<p class="pv-pnote">${esc(e.message)}</p>`; return; }
     paintPresetPop();
   }
   function paintPresetPop() {
-    if (!presetPop) return;
-    const s = st(), now = presetNow(), mine = presets.items.filter((p) => p.scope === "me"), common = presets.items.filter((p) => p.scope === "all");
-    const tags = (b) => [b.rows && b.rows.length ? b.rows.map(dimName).join(" ＞ ") : "", (CHARTS.find((c) => c[0] === b.chart) || [])[1], b.split ? "月で区切る" : "", b.labels ? "数値ラベル" : ""].filter(Boolean).join(" · ");
-    const row = (p) => `<div class="pv-pi${p.id === (now.item || {}).id ? " is-now" : ""}${p.standard ? " is-std" : ""}">`
-      + `<button type="button" class="pv-papply" data-pv-papply="${p.id}" title="この組み方を当てます"><span class="pv-star${p.standard ? " is-std" : ""}">${p.standard ? "★" : ""}</span><b>${esc(p.name)}</b><small>${esc(tags(p.body || {}))}</small></button>`
-      + (p.canEdit ? `<span class="pv-pact"><button type="button" data-pv-pstd="${p.id}" aria-pressed="${p.standard}" title="${p.standard ? "標準を外す" : `標準にする（${p.scope === "me" ? "自分" : "全員"}の標準。組み方が空のまま集計表を開くと当てる）`}">${p.standard ? "★標準" : "☆標準"}</button>`
+    const el = popOf("preset"); if (!el) return;
+    const s = st(), now = presetNow(), all = items(), quick = presets.quick;
+    const pinned = (p) => quick.includes(String(p.id));
+    const row = (p) => `<div class="pv-pi${p.id === (now.item || {}).id ? " is-now" : ""}${p.missing.length ? " is-miss" : ""}">`
+      + `<label class="pv-pq" title="すぐに見るに出す（自分の ID ごと）"><input type="checkbox" data-pv-pin="${esc(String(p.id))}"${pinned(p) ? " checked" : ""}${presets.login ? "" : " disabled"} aria-label="「${esc(p.name)}」をすぐに見るに出す"></label>`
+      + `<button type="button" class="pv-papply" data-pv-papply="${esc(String(p.id))}"${p.missing.length ? ` disabled title="この表には ${esc(p.missing.join("・"))} が無いので使えません"` : ' title="この組み方を当てます"'}>${C.iconSvg((p.body || {}).chart, 15)}<b>${esc(p.name)}${p.standard ? ' <i class="pv-star is-std" aria-label="標準">★</i>' : ""}</b><small>${esc(tags(p.body || {}))}</small></button>`
+      + (p.canEdit ? `<span class="pv-pact"><button type="button" data-pv-pstd="${p.id}" aria-pressed="${p.standard}" title="${p.standard ? "標準を外す" : `${SCOPE_NAME[p.scope]}の標準にする（組み方が空のまま集計表を開くと当てる）`}">${p.standard ? "★標準" : "☆標準"}</button>`
         + `<button type="button" data-pv-pover="${p.id}" title="いまの組み方で上書きします"${s.rows.length ? "" : " disabled"}>上書き</button><button type="button" data-pv-pren="${p.id}">名前</button><button type="button" data-pv-pdel="${p.id}">削除</button></span>` : "")
       + "</div>";
     const sec = (title, list, empty) => `<p class="pv-psec">${title}</p>` + (list.length ? list.map(row).join("") : `<p class="pv-pnote">${empty}</p>`);
-    const std = presets.items.find((p) => p.id === presets.standardId);
-    presetPop.innerHTML = `<div class="pv-phead"><b>組み方</b><small>押すと当てます（この表に無いカラムは外します）。★＝標準: 組み方が空のまま集計表を開くと当てます${std ? `（いまは「${esc(std.name)}」）` : ""}。自分の標準があれば共通より先です</small></div>`
-      + sec(`自分（${esc(presets.login || "ID 不明")}）`, mine, "まだありません。下でいまの形を保存できます")
-      + sec("共通（全員）", common, "まだありません")
+    const order = quick.map(itemOf).filter(Boolean);
+    const std = itemOf(presets.standardId);
+    el.innerHTML = `<div class="pv-phead"><b>組み方</b><small>名前を押すと当てます（この表に無いカラムは外します）。☑＝グラフの形の行の「すぐに見る」に出す（${presets.login ? `${esc(presets.login)} の分。ほかの PC でも同じ` : "ログイン ID が分からないので選べません"}）。`
+      + `★＝標準: 組み方が空のまま集計表を開くと当てます${std ? `（いまは「${esc(std.name)}」）` : ""}</small></div>`
+      + `<div class="pv-qorder"><p class="pv-psec">すぐに見るの並び${presets.quickCustom ? "" : "（共通デフォルトのまま）"}</p>`
+      + (order.length ? order.map((p, i) => `<span class="pv-qo">${C.iconSvg((p.body || {}).chart, 14)}<span>${esc(p.name)}</span><button type="button" data-pv-qmove="${i}" data-d="-1" aria-label="「${esc(p.name)}」を前へ"${i ? "" : " disabled"}>◀</button><button type="button" data-pv-qmove="${i}" data-d="1" aria-label="「${esc(p.name)}」を後ろへ"${i < order.length - 1 ? "" : " disabled"}>▶</button></span>`).join("") : '<span class="pv-pnote">何も出していません。下の ☑ で選びます</span>')
+      + (presets.quickCustom ? '<button type="button" class="pv-link" data-pv-qreset title="自分の選びを消し、開発者が決めた共通デフォルトの並びに戻します">共通デフォルトに戻す</button>' : "") + "</div>"
+      + sec(`自分（${esc(presets.login || "ID 不明")}）`, all.filter((p) => p.scope === "me"), "まだありません。下でいまの形を保存できます")
+      + sec("共通（全員）", all.filter((p) => p.scope === "all"), "まだありません")
+      + sec("共通デフォルト（開発者が用意）", all.filter((p) => p.scope === "default"), "ありません")
       + `<div class="pv-psave"><p class="pv-psec">いまの組み方を保存</p>`
       + `<input id="llPvPName" type="text" maxlength="40" placeholder="名前（例: 月ごとの重量。同じ名前に入れ直すなら、上の「上書き」）" aria-label="組み方の名前">`
       + `<span class="pv-pto"><label><input type="radio" name="llPvPScope" value="me" checked>自分</label><label title="${presets.canEditCommon ? "全員に見えます" : "共通に保存できるのは、マスタを書ける権限（部分的編集可から）の人だけです"}"><input type="radio" name="llPvPScope" value="all"${presets.canEditCommon ? "" : " disabled"}>共通</label>`
-      + `<label><input type="checkbox" id="llPvPStd">標準にする</label></span>`
+      + (presets.canEditDefault ? '<label title="全員の既定（開発者だけ）。すぐに見るを選んでいない人に並びます"><input type="radio" name="llPvPScope" value="default">共通デフォルト</label>' : "")
+      + `<label><input type="checkbox" id="llPvPQuick"${presets.login ? " checked" : " disabled"}>すぐに見るに出す</label><label><input type="checkbox" id="llPvPStd">標準にする</label></span>`
       + `<button type="button" class="pv-btn" data-pv-psave${s.rows.length ? "" : ' disabled title="行の段が 1 つも無い組み方は保存できません"'}>保存</button></div>`;
   }
   async function onPresetClick(e) {
-    const b = e.target.closest("button"); if (!b || b.disabled) return;
-    const find = (id) => presets.items.find((p) => String(p.id) === String(id));
-    if (b.dataset.pvPapply) { const p = find(b.dataset.pvPapply); if (p) { closePresetPop(); await loadFields().catch(() => {}); applyPreset(p); } return; }
-    if (b.dataset.pvPstd) { const p = find(b.dataset.pvPstd); if (p && await writePreset("PUT", p.id, { standard: !p.standard, base_rev: p.rev })) host.toast(p.standard ? `「${p.name}」を標準から外しました` : `「${p.name}」を${p.scope === "me" ? "自分" : "全員"}の標準にしました`); paintPresetPop(); paintPresetBtn(); return; }
+    const t = e.target;
+    if (e.type === "change") {   // ☑ すぐに見るに出す（外す）。並びの最後に足す
+      if (!t.dataset.pvPin) return;
+      const id = t.dataset.pvPin, keys = presets.quick.filter((k) => k !== id).concat(t.checked ? [id] : []);
+      if (await setQuick(keys)) paintPresetPop();
+      return;
+    }
+    const b = t.closest("button"); if (!b || b.disabled) return;
+    const find = (id) => itemOf(id);
+    if (b.dataset.pvPapply) { const p = find(b.dataset.pvPapply); if (p) { closePop(); await loadFields().catch(() => {}); applyPreset(p); } return; }
+    if (b.dataset.pvQmove != null) {
+      const i = +b.dataset.pvQmove, j = i + +b.dataset.d, keys = presets.quick.map(itemOf).filter(Boolean).map((p) => String(p.id));
+      if (j < 0 || j >= keys.length) return;
+      [keys[i], keys[j]] = [keys[j], keys[i]];
+      if (await setQuick(keys)) paintPresetPop();
+      return;
+    }
+    if (b.hasAttribute("data-pv-qreset")) { if (await setQuick(null)) { host.toast("すぐに見るを共通デフォルトの並びに戻しました"); paintPresetPop(); } return; }
+    if (b.dataset.pvPstd) { const p = find(b.dataset.pvPstd); if (p && await writePreset("PUT", p.id, { standard: !p.standard, base_rev: p.rev })) host.toast(p.standard ? `「${p.name}」を標準から外しました` : `「${p.name}」を${SCOPE_NAME[p.scope]}の標準にしました`); paintPresetPop(); paintHead(); return; }
     if (b.dataset.pvPover) {
       const p = find(b.dataset.pvPover);
       if (p && confirm(`組み方「${p.name}」を、いまの形で上書きします。よろしいですか？`) && await writePreset("PUT", p.id, { body: bodyOf(st()), base_rev: p.rev })) { save({ preset: p.id }); host.toast(`「${p.name}」をいまの形で上書きしました`); }
-      paintPresetPop(); paintPresetBtn(); return;
+      paintPresetPop(); paintHead(); return;
     }
     if (b.dataset.pvPren) {
       const p = find(b.dataset.pvPren), name = p && (prompt("組み方の新しい名前", p.name) || "").trim();
       if (name && name !== p.name && await writePreset("PUT", p.id, { name, base_rev: p.rev })) host.toast(`名前を「${name}」にしました`);
-      paintPresetPop(); paintPresetBtn(); return;
+      paintPresetPop(); paintHead(); return;
     }
     if (b.dataset.pvPdel) {
       const p = find(b.dataset.pvPdel);
-      if (p && confirm(`組み方「${p.name}」（${p.scope === "me" ? "自分" : "共通"}）を消します。よろしいですか？`) && await writePreset("DELETE", `${p.id}?rev=${p.rev}`)) host.toast(`「${p.name}」を消しました`);
-      paintPresetPop(); paintPresetBtn(); return;
+      if (p && confirm(`組み方「${p.name}」（${SCOPE_NAME[p.scope]}）を消します。よろしいですか？`) && await writePreset("DELETE", `${p.id}?rev=${p.rev}`)) host.toast(`「${p.name}」を消しました`);
+      paintPresetPop(); paintHead(); return;
     }
     if (b.hasAttribute("data-pv-psave")) {
-      const name = ($("#llPvPName").value || "").trim(), scope = (presetPop.querySelector('input[name="llPvPScope"]:checked') || {}).value || "me", standard = $("#llPvPStd").checked;
+      const el = popOf("preset"), name = ($("#llPvPName").value || "").trim(), scope = (el.querySelector('input[name="llPvPScope"]:checked') || {}).value || "me";
+      const standard = $("#llPvPStd").checked, quick = $("#llPvPQuick").checked;
       if (!name) { $("#llPvPName").focus(); host.toast("名前を入れてください"); return; }
       const d = await writePreset("POST", "", { name, source: sourceOf(), scope, standard, body: bodyOf(st()) });
-      if (d) { save({ preset: d.id }); host.toast(`組み方「${name}」を${scope === "me" ? "自分" : "共通"}に保存しました${standard ? "（標準）" : ""}`); }
-      paintPresetPop(); paintPresetBtn();
+      if (d) {
+        save({ preset: d.id });
+        if (quick) await setQuick(presets.quick.concat([String(d.id)]));
+        host.toast(`組み方「${name}」を${SCOPE_NAME[scope]}に保存しました${standard ? "（標準）" : ""}${quick ? "。すぐに見るに出しました" : ""}`);
+      }
+      paintPresetPop(); paintHead();
     }
   }
 
@@ -490,200 +596,20 @@
       + (d.month ? ` ・ ${monthName(d.month)}だけ` : "") + (d.shiftPattern ? ` ・ 直: ${d.shiftPattern}` : "") + (d.timing ? ` ・ ${d.timing.server}ms` : "");
   }
 
-  /* ---- グラフ（SVG） ---- */
-  const TIME_PARTS = new Set(["date", "ym", "year", "hour"]);
-  function isTime(d) { const x = d.dims.rows[dayAt(d)]; return !!x && (x.column === "@workday" || TIME_PARTS.has(x.part)); }
-  /** 時系列の横の目盛り: 日付・年月は間も空けて並べる（無い日は値なし）。L は横に並べる段（月で区切ったときは 2 段目の日） */
-  function timeAxis(m, d, L = 0) {
-    const data = m.rows.filter((r) => r.type === "data");
-    const x = d.dims.rows[L], part = x.column === "@workday" ? ({ ym: "ym", year: "year" }[x.part] || "date") : x.part;
-    const keys = [...new Set(data.map((r) => r.path[L]).filter(Boolean))].sort();
-    if (!keys.length) return { ticks: [], at: () => -1 };
-    let ticks = keys;
-    if (part === "date" && /^\d{4}-\d{2}-\d{2}$/.test(keys[0])) {
-      const days = [], a = new Date(keys[0] + "T00:00:00"), b = new Date(keys[keys.length - 1] + "T00:00:00");
-      for (let t = new Date(a); t <= b && days.length < 2000; t.setDate(t.getDate() + 1)) days.push(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`);
-      ticks = days;
-    } else if (part === "ym" && /^\d{4}-\d{2}$/.test(keys[0])) {
-      const out = []; let [y, mo] = keys[0].split("-").map(Number); const [y2, m2] = keys[keys.length - 1].split("-").map(Number);
-      while ((y < y2 || (y === y2 && mo <= m2)) && out.length < 600) { out.push(`${y}-${String(mo).padStart(2, "0")}`); mo++; if (mo > 12) { mo = 1; y++; } }
-      ticks = out;
-    }
-    const pos = new Map(ticks.map((k, i) => [k, i]));
-    return { ticks, at: (k) => pos.get(k) ?? -1, part };
-  }
+  /* ---- グラフ（描き方は lotlist-pivot-charts.js の 1 か所。ここは枠と見出しと、大きさが変わったときの描き直し） ---- */
   function paintChart(m, d, s) {
     const box = $("#llPvChart"); if (!box) return;
-    const W = Math.max(600, box.clientWidth - 20), H = s.chart === "bar" ? Math.max(260, Math.min(900, 26 * m.rows.filter((r) => r.type === "data").length + 60)) : 300;
-    let svg = "", legend = "", side = "";
-    if (s.chart === "hist") ({ svg, side } = histChart(m, d, W, H));
-    else if (s.chart === "time" && isTime(d)) ({ svg, legend } = timeChart(m, d, W, H));
-    else ({ svg, legend } = barChart(m, d, W, H, s.chart === "bar" ? "bar" : "column", s.chart === "time"));
-    box.innerHTML = `<div class="pv-chead">${legend}${optsHtml(s, d, true)}</div><div class="pv-cbody">${svg}${side}</div>`;
+    const W = Math.max(600, box.clientWidth - 20);
+    const { svg, legend = "", side = "" } = C.draw(s.chart, { m, d, s, W, measName, dimName, label: host.label });
+    const def = C.get(s.chart), j = Math.min(s.chartAt || 0, d.measures.length - 1);
+    // グラフにする値（値が 2 つ以上で、1 つの値を描く形のとき）
+    const pickMeas = def && def.one && d.measures.length > 1 && !(m.nc === 0 && s.chart === "stack") ? `<label class="pv-ck">グラフにする値<select data-pv-chartat>${d.measures.map((x, k) => `<option value="${k}"${k === j ? " selected" : ""}>${esc(measName(x))}</option>`).join("")}</select></label>` : "";
+    box.innerHTML = `<div class="pv-chead">${legend}${pickMeas}${optsHtml(s, d, true)}</div><div class="pv-cbody">${svg}${side}</div>`;
     if (!resizeObs && typeof ResizeObserver !== "undefined") {
       let w0 = box.clientWidth;
       resizeObs = new ResizeObserver(() => { const b = $("#llPvChart"); if (b && Math.abs(b.clientWidth - w0) > 30 && answer) { w0 = b.clientWidth; paintChart(buildModel(answer, st()), answer, st()); } });
       resizeObs.observe($("#llPivot"));
     }
-  }
-  /* 目盛りの最大（4 等分した目盛りがきりの良い数になる物: 1・2・4・6・8・10 × 10^k） */
-  const niceMax = (v) => { if (v <= 0) return 1; const e = 10 ** Math.floor(Math.log10(v)); return [1, 2, 4, 6, 8, 10].map((k) => k * e).find((x) => x >= v); };
-  const legendHtml = (items) => `<span class="pv-legend">${items.map(([name, color, kind]) => `<span><i class="${kind === "line" ? "is-line" : ""}" style="--c:${color}"></i>${esc(name)}</span>`).join("")}</span>`;
-  function axisY(x0, y0, h, max, right, W, color = "#6b7680") {
-    return [0, 0.25, 0.5, 0.75, 1].map((f) => { const y = y0 + h * (1 - f); return `${right ? "" : `<line x1="${x0}" x2="${W - 56}" y1="${y}" y2="${y}" class="pv-grid"/>`}<text x="${right ? W - 50 : x0 - 6}" y="${y + 4}" text-anchor="${right ? "start" : "end"}" fill="${color}" class="pv-ax">${esc(short(max * f))}</text>`; }).join("");
-  }
-  const short = (v) => (Math.abs(v) >= 1e8 ? `${+(v / 1e8).toFixed(1)}億` : Math.abs(v) >= 1e4 ? `${+(v / 1e4).toFixed(1)}万` : fmt(Math.round(v * 100) / 100));
-  /** 時系列: 1 つ目の値＝棒（足し上げる値）か折れ線、2 つ目以降＝折れ線（右の目盛り）。列の段があれば 1 つ目の値を列ごとの折れ線に。
-      月で区切ったとき（日の段の上に年月の段）は、日を横に並べ、月の境目に線と月の名前。数値ラベルは棒の上・点の上（入り切る本数だけ） */
-  function timeChart(m, d, W, H) {
-    const s = st(), L = dayAt(d), ax = timeAxis(m, d, L), n = ax.ticks.length, months = L === 1 && ax.part === "date";
-    const pl = 60, pr = 60, pt = months ? 30 : s.labels ? 22 : 12, pb = 40, iw = W - pl - pr, ih = H - pt - pb;
-    const data = m.rows.filter((r) => r.type === "data" && r.path.length);
-    const x = (i) => pl + iw * (i + 0.5) / Math.max(n, 1), bw = Math.max(2, Math.min(40, iw / Math.max(n, 1) * 0.7));
-    // 系列: 列の段があれば列ごと（1 つ目の値）、無ければ値ごと
-    const series = [];
-    const colsData = m.cols.filter((c) => c.type === "data" || c.type === "all");
-    // 列の段があれば列ごと（1 つ目の値）: 足し上げる値は積み上げの棒（棒の高さ＝その日の合計）、平均などは折れ線
-    const stack = m.nc > 0 && ADDITIVE.has(d.measures[0].agg);
-    if (m.nc) colsData.slice(0, 12).forEach((c, k) => series.push({ name: m.colName(c), j: 0, c, axis: "left", kind: stack ? "stack" : "line", color: COLORS[(k + 1) % COLORS.length] }));
-    else d.measures.forEach((mm, j) => series.push({ name: measName(mm), j, c: colsData[0], axis: j === 0 ? "left" : "right", kind: j === 0 && ADDITIVE.has(mm.agg) ? "bar" : "line", color: COLORS[j % COLORS.length] }));
-    // 横に並べる段（日付など）ごとの値。その下にも段があれば、その段の小計を使う
-    const at = (r) => ax.at(r.path[L]);
-    const pick = (ser) => {
-      const v = new Array(n).fill(null);
-      const rowsAt = m.nr > L + 1 ? m.rows.filter((r) => r.type === "sub" && r.path.length === L + 1) : data;
-      rowsAt.forEach((r) => { const i = at(r); if (i >= 0) v[i] = m.value(r, ser.c, ser.j); });
-      if (m.nr > L + 1 && !rowsAt.length) data.forEach((r) => { const i = at(r); if (i >= 0) v[i] = (v[i] || 0) + (m.value(r, ser.c, ser.j) || 0); });
-      return v;
-    };
-    // 足し上げる値（件数・ロット数・合計）は、無い日を 0 にする（作業しなかった日＝0。線が途切れない）。平均・最小・最大は無いまま
-    series.forEach((s) => { s.v = pick(s); if (ADDITIVE.has(d.measures[s.j].agg)) s.v = s.v.map((v) => v ?? 0); });
-    const stacked = series.filter((s) => s.kind === "stack");
-    const tops = stacked.length ? ax.ticks.map((_, i) => stacked.reduce((a, s) => a + (s.v[i] || 0), 0)) : [];
-    const maxL = niceMax(Math.max(0, ...tops, ...series.filter((s) => s.axis === "left" && s.kind !== "stack").flatMap((s) => s.v.filter((v) => v != null))));
-    const maxR = niceMax(Math.max(0, ...series.filter((s) => s.axis === "right").flatMap((s) => s.v.filter((v) => v != null))));
-    const y = (v, s) => pt + ih * (1 - v / (s.axis === "left" ? maxL : maxR));
-    let g = axisY(pl, pt, ih, maxL, false, W, series.some((s) => s.axis === "left" && s.kind === "bar") ? COLORS[0] : "#6b7680");
-    if (series.some((s) => s.axis === "right")) g += axisY(pl, pt, ih, maxR, true, W, COLORS[1]);
-    const lab = (k) => m.lab(0, k);
-    if (stacked.length) ax.ticks.forEach((k, i) => {
-      let base = 0;
-      stacked.forEach((s) => { const v = s.v[i] || 0; if (!v) return; const y1 = y(base + v, s), y0 = y(base, s); g += `<rect x="${x(i) - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${s.color}" opacity=".88"><title>${esc(lab(k))}: ${esc(s.name)} ${esc(fmt(v))}（計 ${esc(fmt(tops[i]))}）</title></rect>`; base += v; });
-    });
-    series.filter((s) => s.kind === "bar").forEach((s) => { s.v.forEach((v, i) => { if (v) g += `<rect x="${x(i) - bw / 2}" y="${y(v, s)}" width="${bw}" height="${Math.max(0, pt + ih - y(v, s))}" fill="${s.color}" opacity=".82"><title>${esc(lab(ax.ticks[i]))}: ${esc(s.name)} ${esc(fmt(v))}</title></rect>`; }); });
-    series.filter((s) => s.kind === "line").forEach((s) => {
-      let dpath = "", pen = false;
-      s.v.forEach((v, i) => { if (v == null) { pen = false; return; } dpath += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v, s).toFixed(1)}`; pen = true; });
-      g += `<path d="${dpath}" fill="none" stroke="${s.color}" stroke-width="2.2"/>`;
-      if (n <= 120) s.v.forEach((v, i) => { if (v != null) g += `<circle cx="${x(i)}" cy="${y(v, s)}" r="2.8" fill="#fff" stroke="${s.color}" stroke-width="1.8"><title>${esc(lab(ax.ticks[i]))}: ${esc(s.name)} ${esc(fmt(v))}</title></circle>`; });
-    });
-    const every = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(iw / 70))));
-    ax.ticks.forEach((k, i) => { if (i % every === 0) g += `<text x="${x(i)}" y="${H - pb + 16}" text-anchor="middle" class="pv-ax">${esc(tickText(k, ax.part))}</text>`; });
-    g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
-    // 月の境目（月で区切ったとき）: 月が替わる所に縦の点線、月の真ん中の上に「2026年9月」
-    if (months) {
-      let from = 0;
-      ax.ticks.forEach((k, i) => {
-        const last = i === n - 1 || ax.ticks[i + 1].slice(0, 7) !== k.slice(0, 7);
-        if (!last) return;
-        if (i < n - 1) { const xb = (x(i) + x(i + 1)) / 2; g += `<line x1="${xb}" x2="${xb}" y1="${pt - 18}" y2="${pt + ih}" class="pv-msep"/>`; }
-        const name = `${+k.slice(0, 4)}年${+k.slice(5, 7)}月`, half = name.length * 6;     // 月の名前は描く所（左右の目盛りの内側）に収める
-        g += `<text x="${Math.min(W - pr - half, Math.max(pl + half, (x(from) + x(i)) / 2))}" y="${pt - 8}" text-anchor="middle" class="pv-mname">${esc(name)}</text>`;
-        from = i + 1;
-      });
-    }
-    // 数値ラベル: 1 つ目の系列（棒・積み上げの合計・折れ線の点）の上に。字が入り切らないときは間引き、その旨を添える
-    let thin = 1;
-    if (s.labels) {
-      const lead = stacked.length ? { v: tops, y: (v) => y(v, stacked[0]) } : series[0] ? { v: series[0].v, y: (v) => y(v, series[0]) } : null;
-      if (lead) {
-        const wMax = Math.max(0, ...lead.v.map((v) => (v ? short(v).length * 6.2 + 4 : 0)));
-        thin = Math.max(1, Math.ceil(wMax / (iw / Math.max(n, 1))));
-        lead.v.forEach((v, i) => { if (v && i % thin === 0) g += `<text x="${x(i)}" y="${lead.y(v) - 5}" text-anchor="middle" class="pv-vl">${esc(short(v))}</text>`; });
-      }
-    }
-    const legend = legendHtml(series.map((s) => [s.name + (series.some((q) => q.axis === "right") ? (s.axis === "left" ? "（左）" : "（右）") : ""), s.color, s.kind === "line" ? "line" : "bar"]))
-      + `<small class="pv-cnote">${n} 刻み・${esc(dimName(d.dims.rows[L]))}${m.nr > L + 1 ? "（上の段の小計で描きます）" : ""}${thin > 1 ? `・数値は ${thin} 本おき${s.month ? "" : "（月を選ぶと全部出ます）"}` : ""}</small>`;
-    return { svg: `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="時系列のグラフ">${g}</svg>`, legend };
-  }
-  function tickText(k, part) {
-    if (part === "date" && /^\d{4}-\d{2}-\d{2}$/.test(k)) return `${+k.slice(5, 7)}/${+k.slice(8, 10)}`;
-    if (part === "ym" && /^\d{4}-\d{2}$/.test(k)) return `${k.slice(2, 4)}/${k.slice(5, 7)}`;
-    return k;
-  }
-  /** 縦棒・横棒: 行の葉ごとに、列の葉（1 つ目の値）か値ごと（値を選ぶ）の棒 */
-  function barChart(m, d, W, H, dir, wanted) {
-    const s = st(), data = m.rows.filter((r) => r.type === "data").slice(0, 80);
-    const colsData = m.cols.filter((c) => c.type === "data" || c.type === "all").slice(0, 12);
-    const j = Math.min(s.chartAt || 0, d.measures.length - 1);
-    const series = m.nc ? colsData.map((c, k) => ({ name: m.colName(c), c, j, color: COLORS[k % COLORS.length] })) : [{ name: measName(d.measures[j]), c: colsData[0], j, color: COLORS[j % COLORS.length] }];
-    const vals = data.map((r) => series.map((x) => m.value(r, x.c, x.j) || 0));
-    const max = niceMax(Math.max(0, ...vals.flat()));
-    let g = "";
-    if (dir === "column") {
-      const pl = 60, pr = 20, pt = s.labels ? 22 : 12, pb = 56, iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
-      g += axisY(pl, pt, ih, max, false, W + 36);
-      const lw = Math.max(0, ...vals.flat().map((v) => (v ? short(v).length * 6.2 + 4 : 0)));   // 数値ラベルは棒の幅に入るときだけ（入らなければ間引く）
-      const thin = Math.max(1, Math.ceil(lw / Math.max(bw, 1)));
-      data.forEach((r, i) => {
-        series.forEach((x, k) => {
-          const v = vals[i][k], h = ih * v / max, bx = pl + gw * i + (gw - bw * series.length) / 2 + bw * k;
-          g += `<rect x="${bx}" y="${pt + ih - h}" width="${bw}" height="${h}" fill="${x.color}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(x.name)}` : ""}: ${esc(fmt(v))}</title></rect>`;
-          if (s.labels && v && (i * series.length + k) % thin === 0) g += `<text x="${bx + bw / 2}" y="${pt + ih - h - 4}" text-anchor="middle" class="pv-vl">${esc(short(v))}</text>`;
-        });
-        g += `<text x="${pl + gw * (i + 0.5)}" y="${H - pb + 16}" text-anchor="middle" class="pv-ax">${esc(clip(m.rowName(r), Math.max(4, Math.floor(gw / 8))))}</text>`;
-      });
-      g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
-    } else {
-      const pl = 160, pr = 70, pt = 8, rh = (H - 30) / Math.max(data.length, 1), bh = Math.max(3, Math.min(18, rh * 0.75 / series.length)), iw = W - pl - pr;
-      data.forEach((r, i) => {
-        g += `<text x="${pl - 8}" y="${pt + rh * (i + 0.5) + 4}" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), 20))}</text>`;
-        series.forEach((x, k) => { const v = vals[i][k], w = iw * v / max, by = pt + rh * i + (rh - bh * series.length) / 2 + bh * k; g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${x.color}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(x.name)}` : ""}: ${esc(fmt(v))}</title></rect>`
-          + (series.length === 1 || s.labels ? `<text x="${pl + w + 6}" y="${by + bh - 2}" class="${s.labels ? "pv-vl" : "pv-ax"}">${esc(fmt(v))}</text>` : ""); });
-      });
-    }
-    const pickMeas = !m.nc && d.measures.length > 1 ? `<label class="pv-ck">グラフにする値<select data-pv-chartat>${d.measures.map((x, k) => `<option value="${k}"${k === j ? " selected" : ""}>${esc(measName(x))}</option>`).join("")}</select></label>` : "";
-    const note = (wanted ? '<small class="pv-cnote">時系列は、行の 1 段目が日付（年月日・年月・年）か作業日のときに描けます。いまは棒で出しています</small>' : "")
-      + (m.rows.filter((r) => r.type === "data").length > 80 ? '<small class="pv-cnote">先頭 80 件まで描いています</small>' : "");
-    return { svg: `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="棒グラフ">${g}</svg>`, legend: (series.length > 1 ? legendHtml(series.map((x) => [x.name, x.color, "bar"])) : legendHtml([[series[0].name, series[0].color, "bar"]])) + pickMeas + note };
-  }
-  const clip = (t, n) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
-  /** ヒストグラム: 行の 1 段目が区間の列のとき。区間の幅を変えられ、横に傾向の数（平均・ばらつき・四分位） */
-  function histChart(m, d, W, H) {
-    const b = (d.bins || [])[0], x0 = d.dims.rows[0];
-    if (!b || !x0 || x0.part !== "bin") {
-      return { svg: '<div class="pv-cempty">ヒストグラムは、行の 1 段目を数のカラムの「区間」にすると描けます（上の「すぐに見る」か、数のカラムの［行］を押して、まとめ方を「区間」に）。</div>', side: "" };
-    }
-    const data = m.rows.filter((r) => r.type === "data" && r.path[0] !== "");
-    const sw = 250, w = W - sw, pl = 56, pr = 16, pt = st().labels ? 22 : 12, pb = 44, iw = w - pl - pr, ih = H - pt - pb;
-    const lo = b.origin, nb = Math.max(1, Math.round((b.max - lo) / b.width) + 1);
-    const counts = new Array(nb).fill(0);
-    data.forEach((r) => { const k = Math.round((Number(r.path[0]) - lo) / b.width); if (k >= 0 && k < nb) counts[k] = m.value(r, m.cols[m.cols.length - 1], 0) || 0; });
-    const max = niceMax(Math.max(1, ...counts)), bw = iw / nb;
-    let g = axisY(pl, pt, ih, max, false, w + 40);
-    const thin = Math.max(1, Math.ceil(Math.max(0, ...counts.map((v) => (v ? short(v).length * 6.2 + 4 : 0))) / Math.max(bw, 1)));
-    counts.forEach((v, i) => {
-      const h = ih * v / max;
-      g += `<rect x="${pl + bw * i + 0.5}" y="${pt + ih - h}" width="${Math.max(1, bw - 1)}" height="${h}" fill="${COLORS[2]}"><title>${esc(fmt(lo + b.width * i))}〜${esc(fmt(lo + b.width * (i + 1)))}: ${esc(fmt(v))}</title></rect>`;
-      if (st().labels && v && i % thin === 0) g += `<text x="${pl + bw * (i + 0.5)}" y="${pt + ih - h - 4}" text-anchor="middle" class="pv-vl">${esc(short(v))}</text>`;
-    });
-    const every = Math.max(1, Math.ceil(nb / Math.max(4, Math.floor(iw / 60))));
-    for (let i = 0; i <= nb; i += every) g += `<text x="${pl + bw * i}" y="${H - pb + 16}" text-anchor="middle" class="pv-ax">${esc(short(lo + b.width * i))}</text>`;
-    const st0 = (d.stats || {})[b.column];
-    // 平均（縦の線）と ±1σ の帯
-    if (st0 && st0.n) {
-      const xv = (v) => pl + iw * (v - lo) / (b.width * nb);
-      g += `<rect x="${xv(st0.mean - st0.sd)}" y="${pt}" width="${Math.max(0, xv(st0.mean + st0.sd) - xv(st0.mean - st0.sd))}" height="${ih}" fill="#2f7d78" opacity=".08"/>`
-        + `<line x1="${xv(st0.mean)}" x2="${xv(st0.mean)}" y1="${pt}" y2="${pt + ih}" stroke="#2f7d78" stroke-width="2" stroke-dasharray="4 3"><title>平均 ${esc(fmt(st0.mean))}</title></line>`;
-    }
-    g += `<line x1="${pl}" x2="${w - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
-    const row = (k, v) => `<tr><th>${k}</th><td>${esc(fmt(v))}</td></tr>`;
-    const side = `<div class="pv-stats"><b>${esc(host.label(b.column))} の傾向</b>`
-      + (st0 ? `<table>${row("件数", st0.n)}${row("平均", st0.mean)}${row("標準偏差", st0.sd)}${row("最小", st0.min)}${row("25%", st0.q1)}${row("中央値", st0.median)}${row("75%", st0.q3)}${row("最大", st0.max)}</table>` : "<p>数に読める値がありません</p>")
-      + `<label class="pv-binw">区間の幅<input type="number" min="0" step="any" value="${b.width}" data-pv-binw aria-label="区間の幅"><small>${b.auto ? "自動で決めた幅" : "決めた幅"}</small></label>`
-      + `<button type="button" class="pv-link" data-pv-binauto${b.auto ? " disabled" : ""}>幅を自動に戻す</button>`
-      + '<small class="pv-cnote">緑の点線は平均、淡い帯は平均±標準偏差</small></div>';
-    return { svg: `<svg viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" role="img" aria-label="ヒストグラム">${g}</svg>`, side };
   }
 
   /* ---- 操作 ----
@@ -703,10 +629,11 @@
       if (b.dataset.pvX) { const role = b.dataset.pvX; setDims(role, s[role].filter((_, i) => i !== +b.dataset.i)); return; }
       if (b.dataset.pvMx != null) { save({ measures: s.measures.filter((_, i) => i !== +b.dataset.pvMx) }); refresh(); return; }
       if (b.dataset.pvChart) { setChart(b.dataset.pvChart); return; }
-      if (b.dataset.pvQuick != null) { const p = quickPicks()[+b.dataset.pvQuick]; if (p) { save({ rows: p.rows, cols: p.cols, measures: p.measures, chart: p.chart }); refresh(true); } return; }
+      if (b.dataset.pvQuick != null) { const p = itemOf(b.dataset.pvQuick); if (p) applyPreset(p, { quiet: true }); return; }
       if (b.hasAttribute("data-pv-clear")) { save({ rows: [], cols: [], measures: [], month: "", preset: null }); refresh(true); return; }
       if (b.dataset.pvMstep) { const seq = monthSeq(), i = seq.indexOf(s.month); const to = seq[i + +b.dataset.pvMstep]; if (to !== undefined) setMonth(to); return; }
-      if (b.id === "llPvPreset") { togglePresetPop(b); return; }
+      if (b.hasAttribute("data-pv-qpick")) { togglePresetPop(b); return; }
+      if (b.hasAttribute("data-pv-pick")) { toggleChartPop(b); return; }
       if (b.hasAttribute("data-pv-xlsx")) { exportXlsx(); return; }
       if (b.hasAttribute("data-pv-binauto")) { save({ rows: s.rows.map((d, i) => (i === 0 ? { column: d.column, part: "bin" } : d)) }); refresh(true); }
     });
@@ -722,18 +649,45 @@
     });
     TPA.onText(pane, (_, e) => { if (e.target.id === "llPvSearch") $("#llPvFields").innerHTML = fieldsHtml(st()); });
   }
-  /** グラフの形。ヒストグラムを選んだのに区間の段が無ければ、数のカラム（値の列か、数の行）を区間にして件数を数える */
+  /** グラフの形を替える。その形に要る段・値が無ければ、向く物を入れて知らせる（入れ方を推測させない）:
+      ヒストグラム＝数のカラムを区間に・箱ひげ図＝値に数のカラムの平均（行が無ければ種類の少ない列）・散布図＝2 つの数のカラムの平均（行はロット番号）・
+      管理図＝行が無ければ日付の段・パレート図／ドーナツ／積み上げ＝行が無ければ種類の少ない列・ヒートマップ＝列が無ければ直か種類の少ない列 */
   function setChart(k) {
-    const s = st();
+    const s = st(), R = roles(), patch = { chart: k }, said = [];
+    const num = (c) => !!c && isNum(c);
+    const timeDim = host.isWork() ? { column: "@workday", part: "" } : R.$date ? { column: R.$date, part: "date" } : null;
+    const fewDim = R.$few1 ? { column: R.$few1, part: "" } : null;
     if (k === "hist" && !(s.rows[0] && s.rows[0].part === "bin")) {
-      const col = (s.rows.find((d) => isNum(d.column)) || {}).column || (s.measures.find((m) => m.column) || {}).column || (preferredNumeric() || {}).column;
+      const col = (s.rows.find((d) => isNum(d.column)) || {}).column || (s.measures.find((m) => m.column) || {}).column || R.$weight;
       if (!col) { host.toast("ヒストグラムにできる数のカラムがありません"); return; }
-      save({ chart: k, rows: [{ column: col, part: "bin" }], cols: [], measures: [{ agg: "count" }] });
-      host.toast(`「${host.label(col)}」を区間に分けて、件数のヒストグラムにしました`);
-      refresh(true); return;
+      Object.assign(patch, { rows: [{ column: col, part: "bin" }], cols: [], measures: [{ agg: "count" }] });
+      said.push(`「${host.label(col)}」を区間に分けて、件数のヒストグラムにしました`);
     }
-    save({ chart: k });
-    if (answer) paint(answer); else refresh(true);
+    if (k === "box" && !s.measures.some((m) => num(m.column))) {
+      if (!R.$weight) { host.toast("箱ひげ図にできる数のカラムがありません"); return; }
+      patch.measures = [{ agg: "avg", column: R.$weight }].concat(s.measures).slice(0, MAX_MEASURES);
+      said.push(`値に「${host.label(R.$weight)}」の平均を入れ、その分かれ方を描きます`);
+    }
+    if (k === "scatter" && s.measures.filter((m) => num(m.column)).length < 2) {
+      if (!R.$weight || !R.$num2) { host.toast("散布図にできる数のカラムが 2 つありません"); return; }
+      patch.measures = [{ agg: "avg", column: R.$weight }, { agg: "avg", column: R.$num2 }];
+      said.push(`値を「${host.label(R.$weight)}」と「${host.label(R.$num2)}」の平均にしました（1 つ目＝横・2 つ目＝縦）`);
+      if (!s.rows.length && R.$lot) { patch.rows = [{ column: R.$lot, part: "" }]; said.push("行はロットごと"); }
+    }
+    // 行が無いか、ヒストグラムの区間の段のまま別の形にしたとき（区間は形の都合で入れた物）は、その形に向く段に替える
+    if ((!s.rows.length || (k !== "hist" && s.rows[0].part === "bin" && s.chart === "hist")) && !patch.rows) {
+      const want = k === "control" || k === "line" || k === "time" ? timeDim : ["pareto", "donut", "stack", "stack100", "box", "column", "bar", "heat"].includes(k) ? fewDim : null;
+      if (want) { patch.rows = [want]; said.push(`行に「${dimName(want)}」を入れました`); }
+    }
+    if (k === "heat" && !s.cols.length) {
+      const rows = patch.rows || s.rows, used = (c) => rows.some((d) => d.column === c);
+      const col = host.isWork() && !used("@shift") ? { column: "@shift", part: "" } : [R.$few1, R.$few2].filter((c) => c && !used(c)).map((c) => ({ column: c, part: "" }))[0];
+      if (col) { patch.cols = [col]; said.push(`列に「${dimName(col)}」を入れました`); }
+    }
+    const reload = patch.rows || patch.cols || patch.measures || (k === "box") !== (s.chart === "box");   // 頼む中身が替わる（箱ひげは四分位も頼む）
+    save(patch);
+    if (said.length) host.toast(`${C.get(k).n}: ${said.join("。")}`);
+    if (reload || !answer) refresh(true); else paint(answer);
   }
   /** Excel に出力: 集計表（見出しは段をつないだ字）＋出力の条件 */
   async function exportXlsx() {
@@ -762,9 +716,12 @@
     paintSwitch();
   }
   /** 範囲（表・設備）が替わった: その範囲の組み方に替え、一覧｜集計を合わせる */
-  function sync() { closePresetPop(); answer = null; fields = null; paintSwitch(); host.onView(isOn()); const pane = $("#llPivot"); if (pane) pane.innerHTML = ""; }
+  function sync() { closePop(); answer = null; fields = null; paintSwitch(); host.onView(isOn()); const pane = $("#llPivot"); if (pane) pane.innerHTML = ""; }
   /** 保存した見方（lotlist.js）: 範囲の組み方を取り出す・入れる */
   const stateOf = () => { const s = st(); return { view: s.view, rows: s.rows, cols: s.cols, measures: s.measures, chart: s.chart, sub: s.sub, grand: s.grand, chartAt: s.chartAt, split: s.split, labels: s.labels, month: s.month }; };
   function setState(v) { if (!v || typeof v !== "object") return; save({ ...blank(), ...v }); sync(); if (isOn()) refresh(true); }
-  window.LotListPivot = { mount, refresh, sync, on: isOn, stateOf, setState, _buildModel: buildModel };
+  // _items・_apply は評価関数（ui-eval-pivot-charts.mjs）が組み込みの組み方を 1 つずつ当てるため
+  window.LotListPivot = { mount, refresh, sync, on: isOn, stateOf, setState, _buildModel: buildModel,
+    _items: () => items().map((p) => ({ id: String(p.id), name: p.name, scope: p.scope, builtin: !!p.builtin, chart: (p.body || {}).chart, missing: p.missing })),
+    _apply: (id) => { const p = itemOf(id); return p ? applyPreset(p, { quiet: true }) : false; } };
 })();

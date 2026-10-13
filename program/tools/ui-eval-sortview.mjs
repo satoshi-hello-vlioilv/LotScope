@@ -86,6 +86,13 @@ try {
   await p.click("#llPresetBtn"); await sleep(300); await p.click("#llPresetManage"); await sleep(400);
   const rows = await p.$$eval("#llViewRows tr[data-id]", (xs) => xs.length);
   check("管理の窓に保存した見方の行", rows === 1, rows);
+  // 行のボタン（当てる・上書き・削除）に、窓の見た目が当たっている（版 3.27.0 で直した: 版 3.14.0 から既定のボタンの見た目のままだった）。
+  // 角の丸み・左右の余白・同じ行の欄と同じ高さ（28px）・字が既定の黒でない（当てる＝藍）
+  const btns = await p.$$eval("#llPresetModal :is(.ll-pm-vapply, .ll-pm-vput, .ll-pm-vdel, .ll-pm-apply, .ll-pm-del)", (xs) => xs.map((x) => {
+    const c = getComputedStyle(x); return { text: x.textContent, radius: parseFloat(c.borderTopLeftRadius), pad: parseFloat(c.paddingLeft), h: Math.round(x.getBoundingClientRect().height), color: c.color, cursor: c.cursor };
+  }));
+  check("管理の窓の行のボタンに見た目が当たっている（角の丸み・余白・高さ 28px・押せる形）", btns.length >= 3 && btns.every((b) => b.radius >= 6 && b.pad >= 10 && b.h === 28 && b.cursor === "pointer")
+    && btns.find((b) => b.text === "当てる").color !== "rgb(0, 0, 0)", btns);
 } finally {
   await app.close();
 }

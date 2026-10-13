@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""集計表・グラフの組み方のプリセット（services/pivot_presets.py・/api/pivot-presets。版 3.26.0）。
+"""集計表・グラフの組み方のプリセット（services/pivot_presets.py・/api/pivot-presets・/api/pivot-quick。版 3.26.0・3.27.0）。
 
-共通（全員）と ID（ログイン ID ごと）の 2 つの置き場・標準（組ごとに 1 つ・ID の標準が共通の標準より先）・
-書ける人（共通はマスタを書ける権限・ID の分は本人だけ）・見える範囲（ほかの ID の分は見えない）を確かめる。"""
+共通デフォルト（開発者だけ書ける・組み込みの物）・共通（全員）と ID（ログイン ID ごと）の置き場・
+標準（組ごとに 1 つ・ID → 共通 → 共通デフォルトの順）・書ける人・見える範囲（ほかの ID の分は見えない）・
+すぐに見るの選び（ID・元ごと。選んでいなければ既定）を確かめる。"""
 import shutil
 import tempfile
 import unittest
@@ -42,6 +43,28 @@ class Body(unittest.TestCase):
         self.assertEqual(pp.standard_for(rows, "work", "hanako")["id"], 1, "無ければ共通の標準（ほかの ID の標準は使わない）")
         self.assertEqual(pp.standard_for(rows, "lot", "taro")["id"], 4, "元ごとに分ける")
         self.assertIsNone(pp.standard_for(rows[1:3], "work", "hanako"))
+        rows.append({"id": 5, "元": "work", "範囲": "共通デフォルト", "ログインID": "", "標準": "1"})
+        self.assertEqual(pp.standard_for(rows[1:], "work", "hanako")["id"], 5, "共通の標準も無ければ共通デフォルトの標準")
+        self.assertEqual(pp.standard_for(rows, "work", "hanako")["id"], 1, "共通の標準が共通デフォルトより先")
+
+    def test_builtins_are_valid_and_use_known_roles(self):
+        roles = {"$date", "$weight", "$num2", "$few1", "$few2", "$lot", "@workday", "@shift"}
+        for src, bs in pp.BUILTINS.items():
+            self.assertEqual(len({b["key"] for b in bs}), len(bs), "鍵は元ごとに 1 つずつ")
+            self.assertTrue(any(b["quick"] for b in bs), "すぐに見るの既定がある")
+            for b in bs:
+                cols = [d["column"] for d in b["body"]["rows"] + b["body"]["cols"]] + [m["column"] for m in b["body"]["measures"] if m.get("column")]
+                self.assertTrue(set(cols) <= roles, (src, b["key"], cols))
+                self.assertIn(b["body"]["chart"], pp.CHARTS)
+        charts = {b["body"]["chart"] for bs in pp.BUILTINS.values() for b in bs}
+        self.assertTrue({"pareto", "stack", "heat", "control", "box", "scatter", "donut"} <= charts, "増やした形を組み込みで試せる")
+
+    def test_quick_keys(self):
+        self.assertEqual(pp.clean_quick(["3", "b:hist", "3", "x", "b:", 7]), ["3", "b:hist", "7"], "数の id と b:鍵 だけ・重ねない")
+        with self.assertRaises(pp.PresetError):
+            pp.clean_quick("3")
+        with self.assertRaises(pp.PresetError):
+            pp.clean_quick([str(i) for i in range(pp.QUICK_MAX + 1)])
 
 
 class Api(unittest.TestCase):
@@ -59,8 +82,9 @@ class Api(unittest.TestCase):
         self.app = create_app({"TESTING": True, "MASTER_STORE": store})
         self.c = self.app.test_client()
         repo = MasterRepository(store)
-        for login, me in (("taro", "編集可"), ("jiro", "閲覧のみ"), ("hanako", "部分的編集可")):
-            repo.access_permissions_create({"ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": me, "有効": "有"})
+        for login, me, role in (("taro", "編集可", "一般ユーザー"), ("jiro", "閲覧のみ", "一般ユーザー"), ("hanako", "部分的編集可", "一般ユーザー"),
+                                ("dev", "編集可", "開発者")):
+            repo.access_permissions_create({"ログインID": login, "PC名": "", "権限区分": role, "マスタ編集": me, "有効": "有"})
         self.as_("taro")
 
     def tearDown(self):
@@ -76,8 +100,10 @@ class Api(unittest.TestCase):
     def save(self, **kw):
         return self.c.post("/api/pivot-presets", json={"name": "日ごとのロット数", "source": "work", "scope": "me", "body": BODY, **kw})
 
-    def items(self, source="work"):
-        return self.c.get(f"/api/pivot-presets?source={source}").get_json()
+    def items(self, source="work", builtin=False):
+        """一覧（builtin=False なら組み込みの物を除く: 置いた物だけを確かめる）"""
+        d = self.c.get(f"/api/pivot-presets?source={source}").get_json()
+        return d if builtin else {**d, "items": [x for x in d["items"] if not x["builtin"]]}
 
     def test_id_presets_are_only_for_the_owner(self):
         r = self.save(standard=True)
@@ -129,6 +155,52 @@ class Api(unittest.TestCase):
         self.assertEqual(self.c.delete(f"/api/pivot-presets/{p['id']}?rev=2").status_code, 200)
         self.assertEqual([x["name"] for x in self.items()["items"]], [])
         self.assertEqual(len(self.items("lot")["items"]), 1)
+
+    def test_default_scope_is_for_the_developer_only(self):
+        self.assertFalse(self.items()["canEditDefault"])
+        self.assertEqual(self.save(scope="default").status_code, 403, "マスタを書ける人でも、開発者でなければ共通デフォルトは置けない")
+        self.as_("dev")
+        self.assertTrue(self.items()["canEditDefault"])
+        r = self.save(scope="default", name="開発者の既定", standard=True)
+        self.assertEqual(r.status_code, 201, r.get_json())
+        self.assertEqual((r.get_json()["scope"], r.get_json()["login"]), ("default", ""))
+        self.as_("taro")
+        got = self.items()
+        mine = next(x for x in got["items"] if x["name"] == "開発者の既定")
+        self.assertEqual((mine["canEdit"], got["standardId"]), (False, mine["id"]), "全員に見え、共通デフォルトの標準が当たる")
+        self.assertEqual(self.c.put(f"/api/pivot-presets/{mine['id']}", json={"name": "x"}).status_code, 403)
+        self.assertEqual(self.c.delete(f"/api/pivot-presets/{mine['id']}").status_code, 403)
+        self.assertEqual(got["quick"][0], str(mine["id"]), "開発者が置いた共通デフォルトは、すぐに見るの既定の先頭")
+
+    def test_builtins_are_listed_last_and_read_only(self):
+        self.save()
+        got = self.items(builtin=True)
+        scopes = [x["scope"] for x in got["items"]]
+        self.assertEqual(scopes[0], "me")
+        built = [x for x in got["items"] if x["builtin"]]
+        self.assertEqual(len(built), len(pp.BUILTINS["work"]))
+        self.assertTrue(all(x["scope"] == "default" and not x["canEdit"] and str(x["id"]).startswith("b:") for x in built))
+        self.assertEqual(got["quick"], [f"b:{b['key']}" for b in pp.BUILTINS["work"] if b["quick"]], "選んでいなければ組み込みの quick の物")
+        self.assertFalse(got["quickCustom"])
+
+    def test_quick_is_chosen_per_id_and_source(self):
+        p = self.save().get_json()
+        r = self.c.put("/api/pivot-quick", json={"source": "work", "keys": [str(p["id"]), "b:pareto", "b:無い物"]})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        got = self.items()
+        self.assertEqual((got["quick"], got["quickCustom"]), ([str(p["id"]), "b:pareto"], True), "選んだ順のまま・無い物は出さない")
+        self.assertFalse(self.items("lot")["quickCustom"], "元ごとに分ける")
+        self.as_("jiro")
+        self.assertFalse(self.items()["quickCustom"], "ほかの ID には効かない")
+        self.assertEqual(self.c.put("/api/pivot-quick", json={"source": "work", "keys": []}).status_code, 200, "閲覧のみの人も自分の分は選べる")
+        self.assertEqual((self.items()["quick"], self.items()["quickCustom"]), ([], True), "空も選び（何も出さない）")
+        self.as_("taro")
+        self.c.put("/api/pivot-quick", json={"source": "work", "keys": ["b:hist"]})
+        self.assertEqual(self.items()["quick"], ["b:hist"], "選び直すと置き換わる（行は 1 つ）")
+        self.assertEqual(len([r for r in MasterRepository(self.app.config["MASTER_STORE"]).pivot_quick() if r["ログインID"] == "taro"]), 1)
+        r = self.c.put("/api/pivot-quick", json={"source": "work", "reset": True})
+        self.assertEqual((r.status_code, self.items()["quickCustom"]), (200, False), "既定に戻す")
+        self.assertEqual(self.c.put("/api/pivot-quick", json={"source": "x", "keys": []}).status_code, 400)
 
 
 if __name__ == "__main__":
