@@ -217,6 +217,20 @@ def worklog_scan():
     return master_call(run)
 
 
+@bp.put("/api/masters/worklog/order")
+def worklog_order():
+    """設備の並び（作業実績のタブ・マスタ管理の一覧。全員で 1 つ）を {keys: [キー…]} の順にする。書けるのは管理のマスタを書ける人（門番 routes/access.py）。"""
+    body = request.get_json(force=True) or {}
+
+    def run():
+        keys = body.get("keys")
+        if not isinstance(keys, list) or not keys:
+            raise ValueError("並べるキー（keys）がありません。")
+        master_repo().work_log_order(keys)
+        return _master_view()
+    return master_call(run)
+
+
 @bp.put("/api/masters/worklog/<int:item_id>")
 def worklog_update(item_id):
     """設備名・表示・表・備考と、結ぶファイル（見つからない行を、フォルダにあるファイルへ結び直す: ファイル名）を直す。"""

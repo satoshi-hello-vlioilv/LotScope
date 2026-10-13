@@ -66,7 +66,7 @@
 .sx-chip button:hover{background:rgba(63,101,145,.15)}
 
 /* ---------- 表示の設定（道具の行の「表示の設定 ▾」）: 4 つの操作に、何が起きるかを小さく添える ---------- */
-.ll-profile{position:absolute;right:10px;top:calc(100% - 2px);z-index:45;width:340px;display:grid;gap:2px;padding:6px;background:var(--surface);
+.ll-profile{position:fixed;z-index:60;width:340px;max-width:calc(100vw - 16px);display:grid;grid-template-columns:minmax(0,1fr);gap:2px;padding:6px;background:var(--surface);
   border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 14px 36px var(--pop-shadow);font-size:12.5px}
 .ll-screen .generic-filter-bar .ll-profile button{height:auto;display:grid;gap:1px;text-align:left;border:0;border-radius:7px;padding:7px 10px;background:none;color:var(--ink);cursor:pointer}
 .ll-screen .generic-filter-bar .ll-profile button:hover:not(:disabled),.ll-screen .generic-filter-bar .ll-profile button:focus-visible{background:var(--surface-4);outline:none}

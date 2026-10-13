@@ -960,6 +960,7 @@
       + (can ? `<div class="pf-dev">${item("publish", '今の表示を初期設定にする <i>開発者</i>', "新しく入れた PC が最初に開いたときの見せ方になります（全員の PC に効きます）")}</div>` : "")
       + '<p class="pf-msg" id="llProfileMsg" aria-live="polite" hidden></p>';
     m.hidden = false; b.setAttribute("aria-expanded", "true");
+    TPA.placeBelow(m, b, "right");   // 入口の下に、画面の中へ（版 3.28.0。道具の行の右端基準だと狭い窓で画面の外へ出た）
     const close = () => { m.hidden = true; b.setAttribute("aria-expanded", "false"); };
     TPA.dismissable(m, close, { keep: b });   // 外を押す・Esc で閉じる（項目を押しても開いたまま＝結果を読める）
     const say = (t, ng) => { const x = $("#llProfileMsg"); x.hidden = false; x.textContent = t; x.classList.toggle("is-ng", !!ng); };
@@ -1818,7 +1819,23 @@
     const chips = list.map((e) => `<button type="button" role="tab" class="eq-chip is-${e.state}${e.stale ? " is-stale" : ""}" data-equip="${esc(e.key)}" aria-selected="${e.key === S.equip}"`
       + ` data-when="${esc(whenText(e.mtime))}" tabindex="${e.key === S.equip ? 0 : -1}"${e.state === "missing" ? ' aria-disabled="true"' : ""} title="${esc(equipTip(e))}">`
       + `${esc(e.name)}${e.state === "missing" ? '<i class="eq-warn" aria-label="見つからない">!</i>' : ""}</button>`).join("");
-    bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips || '<span class="eq-wait">表示できる設備がありません</span>'}</div>${manage}`;
+    // 並べ替え（版 3.28.0。7 案＋2 回目で選んだ: ui-proposals/2026-10-equiporder* の M1）: 設備を管理できる人は、タブをつかんで引く・選んで Ctrl＋Shift＋← →。
+    // 並びは全員で 1 つ（マスタの「並び」）。マスタ管理の「作業実績」の一覧の ⋮⋮ と同じ並び
+    const hint = S.equipEdit && list.length > 1 ? '<span class="eq-hint" title="並びは全員の作業実績のタブと、マスタ管理の「作業実績」の一覧に効きます">つかんで並べ替え（選んで Ctrl＋Shift＋← → でも）</span>' : "";
+    bar.classList.toggle("is-sortable", !!S.equipEdit && list.length > 1);
+    bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips || '<span class="eq-wait">表示できる設備がありません</span>'}</div>${hint}${manage}`;
+  }
+  /** 設備の並びを置く（全員で 1 つ。サーバー: PUT /api/masters/worklog/order）。置けたらタブをその順に描き直し、マスタ管理にも知らせる */
+  async function saveEquipOrder(keys, focusKey = "") {
+    const before = S.equips.slice();
+    S.equips = keys.map((k) => before.find((e) => e.key === k)).filter(Boolean);   // 先に並べて見せる（失敗したら戻す）
+    renderEquipBar();
+    if (focusKey) $(`#llEquipBar [data-equip="${CSS.escape(focusKey)}"]`)?.focus();
+    const r = await fetch("/api/masters/worklog/order", TPA.json("PUT", { keys }));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { S.equips = before; renderEquipBar(); flash(d.error || "設備の並びを保存できませんでした"); return; }
+    STATES.work.equips = S.equips;
+    flash("設備の並びを変えました（全員の作業実績のタブと、マスタ管理の一覧に効きます）");
   }
   /** 設備がまだ無い・選べないときの案内（一覧の場所に、理由と次にすること）。
       フォルダに登録していない実績ファイルがあり、書ける PC なら、その場で「登録して開く」（マスタ管理を開かせない） */
@@ -1891,6 +1908,8 @@
   });
   function bindEquipBar() {
     const bar = $("#llEquipBar"); if (!bar) return;
+    TPA.sortable(bar, { items: () => $$("[data-equip]", bar), keyOf: (el) => el.dataset.equip, axis: "x",
+      enabled: () => !!S.equipEdit && S.src.id === "work" && (S.equips || []).length > 1, onOrder: (keys) => saveEquipOrder(keys) });
     bar.addEventListener("click", (e) => {
       const b = e.target.closest("[data-equip]");
       if (b && b.getAttribute("aria-disabled") !== "true") switchEquip(b.dataset.equip);
@@ -1898,6 +1917,13 @@
     // 札の並びはタブと同じ: ← → で隣の設備へ（見つからない設備は飛ばす）
     bar.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      // Ctrl＋Shift＋← →: 選んだタブを動かす（Alt＋← は WebView2 で「戻る」になるので使わない）
+      if (e.ctrlKey && e.shiftKey && S.equipEdit) {
+        const k = document.activeElement?.dataset?.equip, keys = k && TPA.moveKey((S.equips || []).map((x) => x.key), k, e.key === "ArrowRight" ? 1 : -1);
+        e.preventDefault();
+        if (keys) saveEquipOrder(keys, k);
+        return;
+      }
       const chips = $$("[data-equip]:not([aria-disabled=true])", bar), i = chips.indexOf(document.activeElement);
       if (i < 0) return;
       e.preventDefault();
@@ -1986,8 +2012,9 @@
     });
   }
   /* ================= 共有の書式（lotlist-formats.js が呼ぶ）: いまの表示ルールを取り出す・ほかの所へ当てる =================
-     部品（services/display_formats.PARTS と同じ名前）: 表示列・読み替えルール・並び・まとめ・並べ替え・登録した条件・保存した見方・スライサー・列で絞り込む。
-     その時だけの状態（効いている条件の値・スライサーで選んだ値・列で絞り込むの値・畳んだまとまり）は運ばない。
+     部品（services/display_formats.PARTS と同じ名前）: 表示列・読み替えルール・並び・まとめ・並べ替え・条件・登録した条件・保存した見方・スライサー・列で絞り込む。
+     版 3.28.0 から絞り込みの状態（効いている条件・スライサーで選んだ値・列で絞り込むの値）も運ぶ（利用者の要望）。畳んだまとまりは運ばない。
+     中身が空の部品（条件なし・並べ替えなし）は入れない＝当てても、当てた所のその部品は今のまま。
      当てる所（place）: {key: 範囲, target: 表示列の対象, label}。作業実績は設備ごと（その設備で最後に見た表。無ければ書式の表） */
   const isEmptyLayout = (l) => !l || Object.values(l).every((v) => (Array.isArray(v) ? !v.length : !Object.keys(v || {}).length));
   function captureFormat() {
@@ -2001,16 +2028,18 @@
     const a = store.get(KEY.arrange, {})[k];
     if (a) { const { sorts: _s, ...rest } = cleanArrange(a); out.arrange = rest; }
     if (S.sorts.length) out.sorts = S.sorts.map(({ column, dir }) => ({ column, dir }));
+    const filters = S.genericFilters.filter((f) => !f.locked).map(({ column, op, value }) => ({ column, op, value }));   // いつも適用（固定）は当てる所の物のまま
+    if (filters.length) out.filters = filters;
     const ps = tablePresets().map(({ id: _id, table: _t, ...p }) => TPA.clone(p));
     if (ps.length) out.presets = ps;
     const vs = tableViews().map(({ id: _id, table: _t, ...v }) => TPA.clone(v));
     if (vs.length) out.views = vs;
-    const cards = window.LotListSlicer.setupOf(k);
+    const cards = window.LotListSlicer.setupOf(k, { sel: true });   // 選んだ値ごと
     if (cards.length) out.slicer = { cards };
     const marks = window.LotListMarks.setupOf(k);
     if (marks.length) out.marks = marks;
     const ad = store.get(KEY.adhoc, {})[k];
-    if (ad && ad.column) out.adhoc = { column: ad.column, op: ad.op || "contains" };
+    if (ad && ad.column) out.adhoc = { column: ad.column, op: ad.op || "contains", ...(adhocActive() && S.adhoc.value ? { value: String(S.adhoc.value) } : {}) };
     return out;
   }
   /** 当てられる所（いまの所が先頭）。作業実績は表示する設備ごと、異常ロット一覧はいまの表だけ。
@@ -2026,21 +2055,27 @@
   /** 当てた所の、当てる前の表示ルール（元に戻す用）。当てるのと同じ形で持つ */
   function snapshotPlace(pl) {
     const was = { columns: window.LotListColumns.layoutOf(pl.target), arrange: store.get(KEY.arrange, {})[pl.key] || null,
-      sorts: store.get(KEY.sorts, {})[pl.key] || [], presets: S.presets.filter((p) => p.table === pl.key).map((p) => TPA.clone(p)),
+      sorts: store.get(KEY.sorts, {})[pl.key] || [], filters: store.get(KEY.active, {})[pl.key] || [],
+      adhocValue: pl.key === scope() ? String(S.adhoc.value || "") : "", presets: S.presets.filter((p) => p.table === pl.key).map((p) => TPA.clone(p)),
       views: allViews().filter((v) => v.table === pl.key).map((v) => TPA.clone(v)),
-      slicer: { cards: window.LotListSlicer.setupOf(pl.key) }, marks: window.LotListMarks.setupOf(pl.key), adhoc: store.get(KEY.adhoc, {})[pl.key] || null };
+      slicer: { cards: window.LotListSlicer.setupOf(pl.key, { sel: true }) }, marks: window.LotListMarks.setupOf(pl.key), adhoc: store.get(KEY.adhoc, {})[pl.key] || null };
     return { place: pl, was };
   }
   /** 書式 body を places へ当てる → {places, rules, undo}。書式に無い部品は、当てた所の今のまま */
   function applyFormat(body, places) {
     const LC = window.LotListColumns, LR = window.LotListRules;
+    saveActive(); saveAdhocSetup();   // いまの所の条件・並べ替え・列で絞り込むを覚えに入れてから（元に戻すの控えと、当てる先の覚えを同じ所に）
     const undo = places.map(snapshotPlace);
     let rules = 0;
     Object.entries(body.rules || {}).forEach(([n, r]) => { if (LR.putRaw(n, r)) rules++; });   // ルールは名前で呼ぶので先に入れる
-    const arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {});
+    const arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {}), act = store.get(KEY.active, {});
     let presets = S.presets, views = allViews();
     places.forEach((pl) => {
       if (body.columns) LC.replaceLayout(pl.target, body.columns);
+      if (Array.isArray(body.filters)) {
+        const fs = body.filters.filter((f) => f && f.column && f.op).map(({ column, op, value }) => ({ column: String(column), op: String(op), value: value == null ? "" : value }));
+        if (fs.length) act[pl.key] = fs; else delete act[pl.key];
+      }
       if (body.arrange) { const { sorts: _s, ...a } = cleanArrange(body.arrange); arr[pl.key] = a; }
       if (body.sorts) { const x = cleanArrange({ sorts: body.sorts }).sorts; if (x.length) srt[pl.key] = x; else delete srt[pl.key]; }
       if (body.presets) {
@@ -2050,38 +2085,42 @@
       if (Array.isArray(body.views)) {
         views = views.filter((v) => v.table !== pl.key).concat(body.views.filter((v) => v && v.name).map((v) => ({ ...TPA.clone(v), id: newId("v"), table: pl.key })));
       }
-      if (body.slicer) window.LotListSlicer.setSetup(pl.key, body.slicer.cards);
+      if (body.slicer) window.LotListSlicer.setSetup(pl.key, body.slicer.cards, { sel: true });   // 選んだ値ごと（版 3.27.0 までの書式は値が無い＝選ばない）
       if (body.marks) window.LotListMarks.setSetup(pl.key, body.marks);
       if (body.adhoc) adh[pl.key] = { column: String(body.adhoc.column || ""), op: body.adhoc.op || "contains" };
     });
-    store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
+    store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh); store.set(KEY.active, act);
     if (body.presets) savePresets(presets.slice(0, 400));
     if (Array.isArray(body.views)) saveViews(views);
-    afterFormat(places);
+    // 列で絞り込むの値は覚えに入れない（その場だけ）ので、いまの所に当てたときだけ入れる
+    afterFormat(places, body.adhoc && body.adhoc.value != null ? String(body.adhoc.value) : null);
     return { places: places.length, rules, undo };
   }
   /** 元に戻す: 当てる前の表示ルールへ（applyFormat の undo をそのまま） */
   function undoFormat(undo) {
-    const LC = window.LotListColumns, arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {});
-    let presets = S.presets, views = allViews();
+    const LC = window.LotListColumns, arr = store.get(KEY.arrange, {}), srt = store.get(KEY.sorts, {}), adh = store.get(KEY.adhoc, {}), act = store.get(KEY.active, {});
+    let presets = S.presets, views = allViews(), adhocValue = null;
     undo.forEach(({ place: pl, was }) => {
       LC.replaceLayout(pl.target, was.columns);
+      if ((was.filters || []).length) act[pl.key] = was.filters; else delete act[pl.key];
+      if (pl.key === scope()) adhocValue = was.adhocValue || "";
       if (was.arrange) arr[pl.key] = was.arrange; else delete arr[pl.key];
       if (was.sorts.length) srt[pl.key] = was.sorts; else delete srt[pl.key];
       if (was.adhoc) adh[pl.key] = was.adhoc; else delete adh[pl.key];
       presets = presets.filter((p) => p.table !== pl.key).concat(was.presets);
       views = views.filter((v) => v.table !== pl.key).concat(was.views || []);
-      window.LotListSlicer.setSetup(pl.key, was.slicer.cards);
+      window.LotListSlicer.setSetup(pl.key, was.slicer.cards, { sel: true });
       window.LotListMarks.setSetup(pl.key, was.marks || []);
     });
-    store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh);
+    store.set(KEY.arrange, arr); store.set(KEY.sorts, srt); store.set(KEY.adhoc, adh); store.set(KEY.active, act);
     savePresets(presets); saveViews(views);
-    afterFormat(undo.map((u) => u.place));
+    afterFormat(undo.map((u) => u.place), adhocValue);
   }
-  /** いまの所に当たったら、覚えを読み直して引き直す（ほかの所は、その設備を開いたときに効く） */
-  function afterFormat(places) {
+  /** いまの所に当たったら、覚えを読み直して引き直す（ほかの所は、その設備を開いたときに効く）。adhocValue は列で絞り込むに入れる値（null は今のまま空） */
+  function afterFormat(places, adhocValue = null) {
     if (!places.some((pl) => pl.key === scope())) return;
     S.adhocScope = null; syncContext(true);
+    if (adhocValue) { S.adhoc.value = adhocValue; const box = $("#llAdhocValue"); if (box) box.value = adhocValue; }
     if (!$("#llViewMenu").hidden) renderViewMenu();
     load();
   }

@@ -31,6 +31,10 @@
    共有の書式の名前が出ると、スライサー・色付けの字が縦に折れた）。狭いときに縮むのは、検索の欄（140px まで）・列で絞り込むの条件の字・
    書式の名前（… で省略。全部はボタンの説明に）だけ */
 .ll-screen .filter-search-row > *,.ll-screen .filter-search-row-actions > *{flex-shrink:0;white-space:nowrap}
+/* 道具の行から開く浮かぶ面は、行の「折り返さない」を受け継がない（版 3.28.0 で直した: 長い説明の字が面の幅を押し広げ、
+   共有の書式・表の見せ方・表示の設定の面に横のスクロールが出て、右の「当てる」などが切れていた。評価関数 ui-eval-popovers.mjs） */
+.ll-screen :is(.filter-search-row,.filter-search-row-actions) > :is(.fm-panel,.ll-viewmenu,.ll-profile,.mk-menu,.fb-cond-menu){white-space:normal}
+.ll-screen .generic-filter-bar :is(.fm-panel,.ll-viewmenu,.ll-profile) :is(small,p,li,.vm-lv-empty){white-space:normal}
 .ll-screen .filter-search-row > .lt-search{flex:0 40 300px;min-width:140px}            /* 縮む順: 検索の欄 → 書式の名前 → 列で絞り込むの字 */
 .ll-screen .filter-search-row > .filter-adhoc-toggle{flex-shrink:1;min-width:8em}       /* 「列で絞り込む」は省略しない幅まで */
 .ll-screen .filter-search-row > .filter-search-row-actions{flex-shrink:4;min-width:0}
@@ -414,6 +418,10 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 .eq-wait{padding-bottom:9px;color:var(--muted);font-size:13px}
 .eq-manage{flex:none;margin-bottom:6px;height:28px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--h-input);font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
 .eq-manage:hover{border-color:var(--h-input)}
+/* 並べ替え（版 3.28.0。設備を管理できる人だけ）: つかめる手のカーソルと、右の小さな案内（全員のタブの並び） */
+.ll-equipbar.is-sortable .eq-chip:not(.is-missing){cursor:grab}
+.eq-hint{flex:none;padding-bottom:9px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.eq-chip.is-dragging{background:var(--surface);color:var(--ink);border-color:var(--h-input)}
 /* Excel に出力（道具の行の右端）。Excel の緑を枠と字だけに（塗らない＝主の行動の藍・青緑と競わない）。出している間は押せない */
 .ll-xlbtn{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#1d6f42!important;border-color:#9cc9ad!important}
 .ll-xlbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7}

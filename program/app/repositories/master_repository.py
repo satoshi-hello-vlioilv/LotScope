@@ -267,6 +267,21 @@ class MasterRepository:
     def work_log_delete(self, item_id, base_rev=None):
         self._delete("work_log_files", item_id, base_rev)
 
+    def work_log_order(self, keys):
+        """設備の並びを keys（キーの並び）の順にする（1 回の書き込みで全部の行の番号を振り直す。決まりは work_log.order_keys）。
+        番号が変わった行だけ版を上げる。→ 並び替えたあとの行（並びの順）"""
+        spec = SPECS["work_log_files"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            nums = work_log.order_keys(rows, keys)
+            for r in rows:
+                n = nums.get(r.get("キー"))
+                if n and str(r.get("並び") or "") != n:
+                    r.update({"並び": n, "rev": int(r.get("rev", 1)) + 1, **stamp})
+            return [dict(r) for r in work_log.ordered(rows)]
+        return self.store.write("work_log_files", mutate)
+
     def work_log_sync(self, found):
         """フォルダで見つけたファイルを登録に当てる（1回の錠の中で）: 名前が変わったファイルは登録の名前を書き換え、
         ファイルID の無い行には入れ、新しいファイルは行を足す（表示は "有"・設備名はファイル名の * の所）。見つからない行は消さない。

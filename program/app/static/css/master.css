@@ -370,6 +370,13 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .wl-sum b{font-size:14.5px}
 .wl-sum small{color:var(--muted)}
 .wl-tablelist td{vertical-align:middle}
+/* 並べ替えの取っ手（版 3.28.0）: 行の左端の ⋮⋮。つかんで引く・選んで ↑↓ */
+.wl-tablelist .wl-gripcell{width:34px;padding-left:4px;padding-right:0}
+.wl-grip{width:28px;height:28px;border:1px solid transparent;border-radius:6px;background:transparent;color:#7d8b97;font-size:14px;font-weight:800;letter-spacing:-2px;cursor:grab;padding:0}
+.wl-grip:hover,.wl-grip:focus-visible{border-color:var(--line);background:var(--surface);color:var(--h-input);outline:none}
+.wl-grip:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--h-input) 22%,transparent)}
+.wl-tablelist tr.is-dragging td{background:color-mix(in srgb,var(--h-input) 7%,var(--surface))}
+.wl-sorthint{display:block;color:var(--muted)}
 .wl-tablelist tr.is-off td:not(.wl-vis){opacity:.55}
 .wl-tablelist input.wl-name,.wl-tablelist input.wl-table{width:100%;min-width:90px;height:28px;border:1px solid transparent;border-radius:6px;background:transparent;padding:0 6px;font-family:inherit;font-size:13.5px;color:var(--ink)}
 .wl-tablelist input.wl-name{font-weight:800}

@@ -12,6 +12,8 @@
     - ファイル名  … いま結んでいるファイル（フォルダの中の名前）
     - ファイルID  … ファイルそのものの見分け（OS のファイル番号。名前を変えても同じ）。名前が変わったファイルをたどるのに使う
     - 表示        … "有"（作業実績のタブで選べる）／"無"（選べない）。新しく見つけたファイルは "有"
+    - 並び        … 作業実績のタブ・マスタ管理の一覧の並び（1 から。版 3.28.0〜。全員で 1 つ）。空の行は、番号のある行の後ろに登録の順で
+                    （新しく見つけた設備は最後に付く）。並べ替えは order_keys（タブを引く・マスタ管理の ⋮⋮ を引く・Alt＋矢印）
 
 ファイルの名前が変わったとき
     1. 同じ名前のファイル → そのまま
@@ -37,7 +39,7 @@ from ..fsio import unquote_path
 from .db_mirror import DbMirror, is_side_file
 
 NAME = "work_log_files"
-FIELDS = ["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "備考"]
+FIELDS = ["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "備考", "並び"]
 DEFAULTS = {"folder": "\\\\Nlmsrvngy03\\Read\\【New】実績", "pattern": "実績_*.sqlite3", "table": "",
             "refresh_seconds": 60, "stale_hours": 36, "page_size": 500}
 # 表の既定（指定が無いとき）: 実績・作業実績 → 名前に含む表 → 最初の表
@@ -180,10 +182,35 @@ def new_key():
     return uuid.uuid4().hex[:12]
 
 
+def ordered(rows):
+    """並びの順（並びの番号 → 番号の無い行は登録の順で後ろに）。元の rows は変えない"""
+    def num(r):
+        try:
+            return int(str(r.get("並び") or "").strip())
+        except ValueError:
+            return None
+    return [r for _, r in sorted(enumerate(rows), key=lambda x: (num(x[1]) is None, num(x[1]) or 0, x[0]))]
+
+
+def order_keys(rows, keys):
+    """並び替え: keys（キーの並び）に入っている行だけを、その行たちがいま占めている所へ keys の順で入れ直し、全部に 1 から番号を振る。
+    keys に無い行（タブに出していない「表示しない」設備など）は、いまの所から動かない。知らないキー・重なりは無視。→ {キー: 新しい番号}"""
+    cur = [r.get("キー") for r in ordered(rows)]
+    seen, want = set(), []
+    for k in (str(k) for k in keys):
+        if k in cur and k not in seen:
+            seen.add(k)
+            want.append(k)
+    it = iter(want)
+    new = [next(it) if k in seen else k for k in cur]
+    return {k: str(i + 1) for i, k in enumerate(new)}
+
+
 def view(rows, found, folder_error=""):
     """マスタ管理・作業実績のタブへ出す形: 行ごとに、いま読むファイル（名前が変わっていればたどった先）と状態。
     state: "ok"（ある）・"renamed"（名前が変わったファイルをたどった）・"missing"（見つからない）・"unknown"（フォルダに届かない）"""
     items = []
+    rows = ordered(rows)
     m = match(rows, found) if not folder_error else {"linked": [], "renamed": [], "new": [], "missing": list(rows)}
     where = {id(r): ("ok", f) for r, f in m["linked"]}
     where.update({id(r): ("renamed", f) for r, f in m["renamed"]})

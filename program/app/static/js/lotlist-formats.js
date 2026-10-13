@@ -128,10 +128,14 @@
     panel.hidden = false; btn.setAttribute("aria-expanded", "true");
     TPA.dismissable(panel, close, { keep: btn });
     panel.innerHTML = '<p class="fm-loading">共有の書式を読んでいます…</p>';
+    place();
     try { await fetchList(); render(); } catch (e) { panel.innerHTML = `<p class="fm-msg is-ng">${esc(e.message)}</p>`; return; }
+    place();
     panel.querySelector(".fm-apply, #fmName")?.focus();
   }
   function close() { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+  /** 面を入口の下に、画面の中へ置く（右端を入口にそろえ、左右 8px の余白。下は画面の下端まで） */
+  const place = () => { if (!panel.hidden) TPA.placeBelow(panel, btn, "right"); };
 
   function bind() {
     panel.addEventListener("change", (e) => {
