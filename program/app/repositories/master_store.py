@@ -173,9 +173,10 @@ class MasterStore:
         # work_log_files: 作業実績の設備（どのファイルを・表示するか）。読みに行く場所と同じく全員で1つ
         # display_formats: 共有の書式（一覧の表示ルールに名前を付けて置く）。ほかの PC が呼び出すので全員で1つ
         # shift_patterns: 勤務体系（直の時間帯）。作業実績を日＋直で数える決まりなので全員で1つ
+        # pivot_presets: 集計表・グラフの組み方のプリセット（共通と ID ごと）。ほかの PC・ほかの設備で呼び出すので全員で1つ
         self.shared_names = set(cfg.get("masters") or ["roll_master", "equipment_master"]) | {"path_settings", "access_permissions", "app_seeds",
                                                                                               "ui_defaults", "work_log_files", "display_formats",
-                                                                                              "shift_patterns"}
+                                                                                              "shift_patterns", "pivot_presets"}
         self.lock_ttl = float(cfg.get("lock_ttl_seconds", LOCK_TTL_DEFAULT))
         self.refresh_sec = float(cfg.get("refresh_seconds", REFRESH_DEFAULT))
         root = Path(local_root) if local_root else app_env.local_root()
@@ -508,7 +509,7 @@ class MasterStore:
 
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
     def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",
-                                "shift_patterns")):
+                                "shift_patterns", "pivot_presets")):
         shared = self.share_dir is not None
         out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
                "configured": str(self.configured_dir or ""), "override": self.override_path.exists(),

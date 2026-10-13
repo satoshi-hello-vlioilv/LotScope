@@ -11,8 +11,9 @@
     worklog  … 作業実績（設備ごとの実績）と、その設備の登録
     formats  … 共有の書式（一覧の表示ルールを名前を付けて共有に置く）
     shifts   … 勤務体系（直の時間帯。作業実績を日＋直で数える決まり）
+    presets  … 集計表・グラフの組み方のプリセット（共通と ID ごと・標準）
 """
-from . import access, formats, lots, lotlist, masters, settings, shifts, system, worklog  # 読み込むと bp へ登録される
+from . import access, formats, lots, lotlist, masters, presets, settings, shifts, system, worklog  # 読み込むと bp へ登録される
 from .common import _REVOKE_CACHE, bp  # _REVOKE_CACHE はテストが切断の覚えを消すため
 
-__all__ = ["bp", "_REVOKE_CACHE", "access", "formats", "lots", "lotlist", "masters", "settings", "shifts", "system", "worklog"]
+__all__ = ["bp", "_REVOKE_CACHE", "access", "formats", "lots", "lotlist", "masters", "presets", "settings", "shifts", "system", "worklog"]
