@@ -5,7 +5,7 @@
 // 3. 保存した見方: 条件 1・並べ替え 2・まとめ 1 段・スライサーの選択・検索を保存 → 全部を外す → プリセットから呼ぶ → 同じ形に戻る
 //    （サーバーへ渡す問い合わせ＝件数も同じ）。変えると「変更あり」、もう一度押すと戻る。保存した見方は「表示の設定」の範囲に入る
 // 全部合えば終了コード 0。
-import { launch, sleep } from "./ui-harness.mjs";
+import { launch, openActive, sleep } from "./ui-harness.mjs";
 
 const app = await launch();
 const fails = [];
@@ -27,11 +27,11 @@ try {
   await head("板厚", "Shift");
   const chips = await p.$$eval("#llSortBar .ll-schip", (xs) => xs.map((x) => x.textContent.replace(/\s+/g, "")));
   check("件数の行に並べ替えの札が 2 つ（番号・名前・向き）", chips.length === 2 && chips[0].startsWith("1重量▲") && chips[1].startsWith("2板厚▲"), chips);
-  await p.click('#llSortBar [data-sdir="重量"]'); await sleep(700);
+  await openActive(p, "sort"); await p.click('#llSortBar [data-sdir="重量"]'); await sleep(700);
   const flipped = await sorts();
-  await p.click('#llSortBar [data-sx="板厚"]'); await sleep(700);
+  await openActive(p, "sort"); await p.click('#llSortBar [data-sx="板厚"]'); await sleep(700);
   const dropped = await sorts();
-  await p.click("#llSortBar [data-soff]"); await sleep(700);
+  await openActive(p, "sort"); await p.click("#llSortBar [data-soff]"); await sleep(700);
   const off = await sorts(), barHidden = await p.$eval("#llSortBar", (x) => x.hidden);
   check("札の ▲▼・×・並べ替えを外す", flipped === '[{"column":"重量","dir":"desc"},{"column":"板厚","dir":"asc"}]' && dropped === '[{"column":"重量","dir":"desc"}]' && off === "[]" && barHidden, { flipped, dropped, off, barHidden });
 
@@ -62,8 +62,8 @@ try {
   const saved = await p.evaluate(() => (TPA.local.get("tpa.lotlist.views.v1", []) || []).map((v) => v.name));
   check("保存した見方が 1 つ入る", JSON.stringify(saved) === '["不良あり・重い順"]', saved);
   // 全部を外す（条件・まとめ・並べ替え・スライサー・検索）
-  await p.click("#llSortBar [data-soff]"); await sleep(600);
-  await p.click('#llGroupBar [data-goff]'); await sleep(600);
+  await openActive(p, "sort"); await p.click("#llSortBar [data-soff]"); await sleep(600);
+  await openActive(p, "group"); await p.click('#llGroupBar [data-goff]'); await sleep(600);
   await p.click("#llCondBtn"); await sleep(200); await p.click("#llClearFilters"); await sleep(600);
   await p.fill("#llSearch", ""); await sleep(900);
   await p.evaluate(() => window.LotListSlicer.clearAll()); await sleep(200);

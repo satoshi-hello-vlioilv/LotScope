@@ -50,6 +50,12 @@ const HEADERS = {
   active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] },
 };
 
+// 件数の行が混んだ所（crowded。headers の続き）: スライサーで設備を 2 つ選び、色付けを 1 つ（不良名が汚れ）
+const CROWDED = {
+  slicer: { open: { lot: false }, place: "left", tables: { "仕掛": [{ column: "設備", sel: ["CR1", "L-1"] }, { column: "不良名", sel: [] }] } },
+  marks: { tables: { "仕掛": [{ id: "m1", conds: [{ column: "不良名", op: "eq", value: "汚れ" }], tone: "red", target: "cells", on: true }] } },
+};
+
 // 並べ替えの状態（sorted）: まとめず、重量 ▼ → 板厚 ▲ の 2 つで並べ、不良名が空欄でない行に絞る
 const SORTED = { sorts: { "仕掛": [{ column: "重量", dir: "desc" }, { column: "板厚", dir: "asc" }] }, active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] } };
 
@@ -117,7 +123,7 @@ export const STATES = [
     await p.reload();
     await p.waitForSelector("#llBody tr[data-i]");
     await sleep(500);
-  }, "[data-next], #llGroupBar [data-gedit]"],
+  }, '[data-next], #llActiveTabs [data-kind="group"]'],
   // 列の見出しの札（段・並べ替え・式・絞り込み）: 列を狭め、3 段でまとめ、並べ替えと計算列を足したところ（利用者の画面の再現）
   ["headers", async (p) => {
     // 画面の設定はサーバーの控えと同期する（TPA.local）。控えへ書き終えてから読み直す
@@ -130,6 +136,18 @@ export const STATES = [
     await p.waitForSelector("#llBody tr[data-i]");
     await sleep(600);
   }, "[data-next], #llHead th"],
+  // 件数の行が混んだ所（利用者の画面の再現: 3 段のまとめ＋並べ替え＋スライサーで選んだ値＋色付け＋共有の書式の札）。件数の行を 1 段に収める比べ
+  ["crowded", async (p) => {
+    await p.evaluate(async (c) => {
+      TPA.local.set("tpa.lotlist.slicer.v1", c.slicer); TPA.local.set("tpa.lotlist.marks.v1", c.marks);
+      await TPA.saveUiState();
+    }, CROWDED);
+    await p.reload();
+    await p.waitForSelector("#llBody tr[data-i]");
+    // 共有の書式を当てた所（上の段の「書式」に名前が出る。試験のサーバーには共有の書式が無いので、名前だけ当てた形にする）
+    await p.evaluate(() => { const b = document.querySelector("#llFormatBtn"); if (b) { b.querySelector(".fm-now").textContent = "異常ロット表示"; b.classList.add("has-now"); } });
+    await sleep(700);
+  }, '[data-next], #llActiveTabs [data-kind="group"]'],
   ["viewmenu", async (p) => { await p.click("#llViewBtn"); await sleep(400); }, "[data-next], #llLvAdd"],
   // 並べ替え（まとめずに 2 つのキー: 重量 ▼ → 板厚 ▲）と条件 1 つ。並べ替えの見え方・外し方、条件と並べ替えの保存の入口を見る
   ["sorted", async (p) => {
@@ -141,7 +159,7 @@ export const STATES = [
     await p.reload();
     await p.waitForSelector("#llBody tr[data-i]");
     await sleep(600);
-  }, "[data-next], #llSortBar [data-soff]"],
+  }, '[data-next], #llActiveTabs [data-kind="sort"]'],
   // 並べ替えの状態で「プリセット」を開いたところ（保存した見方・いまの形の札・保存）
   ["sorted-preset", async (p) => { await p.click("#llPresetBtn"); await sleep(400); }, "[data-next], #llViewSave"],
   ["card", async (p) => { await closeAll(p); await p.dblclick("#llBody tr[data-i] td:nth-child(3)"); await sleep(600); }, "[data-next], .lk-pin"],
@@ -226,6 +244,13 @@ export async function walkSplash(page, visit, only = null) {
     await go(page);
     if (!only || only.includes(name)) await visit(name, next);
   }
+}
+
+/** 件数の行の「効いている物」のタブ（まとめ group・並べ替え sort・選んだ値 slicer・色付け marks）を押して、その札の面を開く（開いていればそのまま）。
+    札（#llGroupBar・#llSortBar・#llSlicerSum・#llMarkSum）は版 3.25.0 からこの面の中にある */
+export async function openActive(p, kind) {
+  const open = await p.evaluate((k) => { const pp = document.querySelector("#llActivePop"); return !!pp && !pp.hidden && pp.dataset.kind === k; }, kind);
+  if (!open) { await p.click(`#llActiveTabs [data-kind="${kind}"]`); await sleep(250); }
 }
 
 /** この列の作り方の窓で、重量の列の作り方を組み立てる（表示ルールと同じ組み立て。状態 columns-fxpanel と評価関数 ui-eval-formula.mjs）:

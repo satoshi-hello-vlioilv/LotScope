@@ -12,7 +12,7 @@
 // 10. 重さ（表示するだけ）: 一覧のセルの数・4 倍遅い CPU でホイールで送ったときの長いタスク
 // 11. 集計表・グラフ、転写計算のタブから一覧へ戻ると、2 と同じ（隠している間に崩れない）
 // 全部合えば終了コード 0。
-import { launch, sleep } from "./ui-harness.mjs";
+import { launch, openActive, sleep } from "./ui-harness.mjs";
 
 const ARR_HEADS = { "仕掛": { levels: [{ column: "設備", dir: "asc", lot: false }, { column: "不良名", dir: "asc", lot: false }], heads: true, suppress: true } };
 const app = await launch();
@@ -171,10 +171,11 @@ try {
   await p.keyboard.press("Enter"); await frames(p);
   const kb2 = await p.evaluate(() => ({ g: document.activeElement.closest?.("tr.ll-ghead")?.dataset.g, open: document.activeElement.closest?.("tr.ll-ghead")?.getAttribute("aria-expanded") }));
   check("キーボードで ▾ を押しても、フォーカスが同じ見出しのボタンに残る", kb1.g === g1 && kb1.open === "false" && kb2.g === g1 && kb2.open === "true", { g1, kb1, kb2 });
-  await p.click('#llGroupBar [data-gall="0"]'); await frames(p);
+  await openActive(p, "group"); await p.click('#llGroupBar [data-gall="0"]'); await frames(p);
   const shut = await view(p);
   const shutRows = await p.$$eval("#llBody tr[data-i]", (x) => x.filter((tr) => !tr.hidden && tr.getBoundingClientRect().height > 0 && !tr.closest("tr.ll-ghead")).length);
-  await p.click('#llGroupBar [data-gall="1"]'); await frames(p);
+  await openActive(p, "group"); await p.click('#llGroupBar [data-gall="1"]'); await frames(p);
+  await p.keyboard.press("Escape");
   const opened = await view(p);
   check("全部畳む → 見える所は見出しと 1 行だけのまとまり・全部開く → 元の行が戻る", shut.gap <= 1 && shut.heads > 0 && shut.ids.filter((x) => typeof x === "string").length >= shut.ids.length / 2 && opened.rendered >= g0.rendered - 2,
     { heads: shut.heads, shown: shut.ids.length, shutRows, opened: opened.rendered, before: g0.rendered });

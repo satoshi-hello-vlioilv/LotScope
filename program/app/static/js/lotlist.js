@@ -1542,6 +1542,8 @@
     const gb = $("#llGroupBar"), heads = grouped() ? groupOpen.size : 0;
     const names = levels().map((l) => window.LotListColumns.label(layoutTarget(), l.column));
     gb.hidden = !grouped();
+    // 件数の行の「効いている物」のタブ（lotlist-active.js）が読む数と要約
+    gb.dataset.count = grouped() ? names.length : 0; gb.dataset.summary = names.join(" › ");
     // まとめているあいだ、件数の横にいつも段を出し、その場で直せるようにする（▲▼ を押して入れ替え・× で外す・＋ で足す）
     gb.innerHTML = grouped() ? '<span class="ll-gchip" title="上の段から順に並べ、値が同じ行をまとめています">まとめて表示中</span>'
       + levels().map((l, k) => `${k ? '<i class="ll-gsep" aria-hidden="true">›</i>' : ""}<span class="ll-glv"><b class="ll-glvn">${k + 1}</b>${esc(names[k])}`
@@ -1568,8 +1570,10 @@
     const bar = $("#llSortBar"), lv = new Set(levels().map((l) => l.column));
     const list = S.sorts.filter((x) => !lv.has(x.column) && (!S.columns.length || S.columns.includes(x.column)));
     bar.hidden = !list.length;
-    if (!list.length) { bar.innerHTML = ""; return; }
+    bar.dataset.count = list.length;
+    if (!list.length) { bar.innerHTML = ""; bar.dataset.summary = ""; return; }
     const eff = effectiveSorts(), t = layoutTarget();
+    bar.dataset.summary = list.map((x) => `${window.LotListColumns.label(t, x.column)} ${x.dir === "desc" ? "▼" : "▲"}`).join(" › ");
     bar.innerHTML = `<span class="ll-skey" title="見出しを押して決めた並べ替え（▲ → ▼ → 外す）">${grouped() ? "その中の並べ替え" : "並べ替え"}</span>`
       + list.map((x, k) => {
         const n = eff.findIndex((e) => e.column === x.column), name = window.LotListColumns.label(t, x.column);
@@ -1661,6 +1665,7 @@
     $("#llZoomRange").value = z; $("#llZoomValue").textContent = `${z}%`;
     $("#llZoomMinus").disabled = z <= min; $("#llZoomPlus").disabled = z >= max;
     $("#llZoomReset").hidden = z === 100; $("#llZoom").classList.toggle("is-zoomed", z !== 100);
+    $("#llZoomBtnValue").textContent = `${z}%`; $("#llZoomBtn").classList.toggle("is-zoomed", z !== 100);   // 件数の行のボタン（面は lotlist-active.js）
     TPA.session.set(ZOOM.key, z);
   }
   /** 刻みを当てる: つまみの範囲・刻み・目盛り（100% は長い線）・札の字 */
@@ -1952,6 +1957,7 @@
       marks: () => window.LotListMarks.exportPlan(),
       conditions: exportConditions,
     });
+    window.LotListActive.mount();       // 件数の行の「効いている物」のタブと面・拡大の面（件数の行を 1 段に）
     window.LotListPivot.mount({
       scope, api: () => S.src.api, isWork: () => S.src.id === "work",
       base: () => { const q = new URLSearchParams(S.src.params()); if (S.table) q.set("table", S.table); return q.toString(); },

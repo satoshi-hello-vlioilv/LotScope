@@ -27,6 +27,15 @@
 .ll-screen .generic-filter-bar button,.ll-screen .generic-filter-bar select,.ll-screen .generic-filter-bar input{font-family:inherit;font-size:var(--ll-fs)}
 .ll-screen .generic-filter-bar button{height:var(--ll-h);border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);cursor:pointer;padding:0 11px}
 .ll-screen .generic-filter-bar button:disabled{opacity:.5;cursor:default}
+/* 上の段は 1 段（版 3.25.0。件数の行を 1 段に収める比べ: ui-proposals/2026-10-toolbar*）。ボタンの字は折らない（以前はフル HD で
+   共有の書式の名前が出ると、スライサー・色付けの字が縦に折れた）。狭いときに縮むのは、検索の欄（140px まで）・列で絞り込むの条件の字・
+   書式の名前（… で省略。全部はボタンの説明に）だけ */
+.ll-screen .filter-search-row > *,.ll-screen .filter-search-row-actions > *{flex-shrink:0;white-space:nowrap}
+.ll-screen .filter-search-row > .lt-search{flex:0 40 300px;min-width:140px}            /* 縮む順: 検索の欄 → 書式の名前 → 列で絞り込むの字 */
+.ll-screen .filter-search-row > .filter-adhoc-toggle{flex-shrink:1;min-width:8em}       /* 「列で絞り込む」は省略しない幅まで */
+.ll-screen .filter-search-row > .filter-search-row-actions{flex-shrink:4;min-width:0}
+.ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:5.5em}
+.ll-screen .fm-entry.has-now .fm-now{min-width:0}
 .ll-screen .generic-filter-bar select,.ll-screen .generic-filter-bar input{height:var(--ll-h);border:1px solid var(--edit-line);border-radius:7px;background:var(--edit-field);padding:0 8px;color:var(--ink)}
 .ll-screen .generic-filter-bar input:focus,.ll-screen .generic-filter-bar select:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
 .lt-search{flex:0 1 300px;min-width:180px;position:relative;display:flex;align-items:center}
@@ -124,14 +133,51 @@
 .filter-builder-note{margin:0;font-size:12.5px;color:var(--muted)}
 
 /* ---------- 件数・ページ ---------- */
-/* 件数の行。部品は縮めず 1 行のまま（字を縦に折らない）。入り切らないときは行ごと折り返す（フル HD・125% でまとめているときなど） */
-.ll-status{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 18px 6px;flex:0 0 auto}
+/* 件数の行は、効いている物が増えても 1 段（版 3.25.0。7 案＋2 回目で選んだ: ui-proposals/2026-10-toolbar* の M2）。
+   部品は縮めず字を縦に折らない。入り切らないときに縮むのは、使い方の添え書き（先）と効いている物のタブの名前（次。種類と数は残す）だけ。
+   右の組（拡大・頁送り）は縮めず、いつも右端に見える */
+.ll-status{display:flex;flex-wrap:nowrap;align-items:center;gap:6px 12px;padding:8px 18px 6px;flex:0 0 auto;min-width:0}
 .ll-status > *{flex-shrink:0;white-space:nowrap}
-.ll-statusright{margin-left:auto;display:flex;align-items:center}
+.ll-statusright{margin-left:auto;display:flex;align-items:center;gap:10px}
+.ll-status > :is(.ll-lothint,#llCardHint){flex-shrink:20;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+/* 効いている物のタブ（lotlist-active.js）: 1 本の帯に種類ごとの区切り。色は札と同じ役割の色（まとめ＝青緑・並べ替え＝藍・選んだ値＝青・色付け＝その色） */
+.ll-status > .ll-active{flex:0 1 auto;min-width:0}
+.ll-active{display:inline-flex;align-items:center;height:30px;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.ll-active[hidden]{display:none}
+.ll-akey{padding:0 10px;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+.ll-atab{display:inline-flex;align-items:center;gap:5px;height:100%;min-width:0;flex:0 1 auto;padding:0 9px;border:0;border-left:1px solid var(--line);background:var(--atab-bg);
+  color:var(--atab-ink);font-family:inherit;font-size:12.5px;font-weight:700;white-space:nowrap;cursor:pointer}
+.ll-atab .ll-an{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--atab-bar);color:#fff;font-size:11px;font-weight:800;flex:0 0 auto}
+.ll-atab .ll-akind{flex:0 0 auto}
+.ll-atab .ll-aname{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:800}
+.ll-atab i{font-style:normal;font-size:10.5px;color:var(--muted);flex:0 0 auto}
+.ll-atab:hover{filter:brightness(.97)}
+.ll-atab:focus-visible{outline:2px solid var(--h-input);outline-offset:-2px}
+.ll-atab.is-open{box-shadow:inset 0 -3px 0 var(--atab-bar)}
+.ll-atab.is-group{--atab-bg:#f1faf8;--atab-ink:#1d5f5a;--atab-bar:var(--h-xfer)}
+.ll-atab.is-sort{--atab-bg:#f5f7fe;--atab-ink:#30447f;--atab-bar:#4a62b0}
+.ll-atab.is-slicer{--atab-bg:var(--input-soft);--atab-ink:var(--h-input);--atab-bar:var(--h-input)}
+.ll-atab.is-marks{--atab-bg:var(--mk-bg,#fdf2f1);--atab-ink:var(--mk-ink,#8a2f25);--atab-bar:var(--mk-bar,#c9564a)}
+/* タブで開く面（一覧に重ね、押し下げない）。押した種類の札だけを出し、札は折り返して並べる */
+.ll-activepop,.ll-zoompop{position:fixed;z-index:70;background:var(--surface);border:1px solid #cfd9e3;border-radius:10px;box-shadow:0 18px 44px rgba(20,40,60,.22);padding:10px 12px}
+.ll-activepop[hidden],.ll-zoompop[hidden]{display:none}
+.ll-activepop{max-width:min(760px,calc(100vw - 32px))}
+.ll-activepop > *{display:none!important}
+.ll-activepop[data-kind="group"] > #llGroupBar,.ll-activepop[data-kind="sort"] > #llSortBar,
+.ll-activepop[data-kind="slicer"] > #llSlicerSum,.ll-activepop[data-kind="marks"] > #llMarkSum{display:flex!important;flex-wrap:wrap;gap:8px 6px;align-items:center}
+/* 拡大: 件数の行は倍率のボタンだけ（100% でないときはアンバー）。つまみ・刻み・戻すは面に */
+.ll-zoombtn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);
+  color:var(--h-input);font-family:inherit;font-size:12.5px;cursor:pointer;font-variant-numeric:tabular-nums}
+.ll-zoombtn svg{width:15px;height:15px;fill:none;stroke:var(--h-input);stroke-width:1.6}
+.ll-zoombtn b{min-width:36px;text-align:right}
+.ll-zoombtn i{font-style:normal;font-size:10.5px;color:var(--muted)}
+.ll-zoombtn.is-zoomed{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.ll-zoombtn.is-zoomed svg{stroke:var(--accent-ink)}.ll-zoombtn.is-zoomed i{color:var(--accent-ink)}
 /* ロット番号を押すと何が起きるか（次の行動）。藍の淡い札。まとめ・スライサー・カードの札が出ているあいだは、
    使い方の 2 つの添え書き（これと行のダブルクリック）はそちらに場所を譲る（もう使い始めている） */
 .ll-lothint{font-size:var(--fs-sm);font-weight:600;color:var(--h-input);background:var(--input-soft);padding:2px 10px;border-radius:999px}
-.ll-status:has(#llGroupBar:not([hidden]),#llSortBar:not([hidden]),#llSlicerSum:not([hidden]),#llMarkSum:not([hidden]),#llCardShelf:not([hidden])) :is(.ll-lothint,#llCardHint){display:none!important}
+.ll-status:has(#llActiveTabs:not([hidden]),#llCardShelf:not([hidden])) :is(.ll-lothint,#llCardHint){display:none!important}
 .ll-count{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
 /* 一覧の拡大（一時的）。100% でないあいだは数字をアンバーの札にして、拡大中だと分かるようにする */
 .ll-zoom{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
