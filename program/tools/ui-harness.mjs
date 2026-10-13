@@ -171,14 +171,14 @@ export const STATES = [
   ["worklog-pick", async (p) => { await p.click("#llWork tbody tr:nth-child(4) [data-wk-shift]"); await sleep(900); }, "[data-next], #llWorkSwitch [data-wk-unpick]"],
   // 集計表・グラフ（ピボット集計）: すぐに見る「作業日ごとのロット数・重量」（時系列）と、重量のヒストグラム
   ["worklog-pivot", async (p) => { await p.click("#llWorkSwitch [data-wk-unpick]").catch(() => {}); await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick", { state: "attached" });
-    await quick(p); await p.waitForSelector("#llPivot .pv-table"); await sleep(700); }, "[data-next], #llPivot [data-pv-chart]"],
+    await quick(p); await p.waitForSelector("#llPivot .pv-table"); await sleep(700); }, "[data-next], #llPivot [data-pv-pick]"],
   ["worklog-hist", async (p) => { await pickChart(p, "hist"); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
   // 版 3.27.0: グラフの形を選ぶ所を開いた所（形が 14 に増えた）と、すぐに見るを選ぶ所を開いた所（ID ごとに選ぶ）。
   // 改良案（ui-variants）は body の data-ui-pick を見て、案の開いた形を出す
   ["pivot-pick", async (p) => { await closeAll(p); await quick(p); await sleep(800);
-    await p.evaluate(() => { document.body.dataset.uiPick = "chart"; }); await p.click("#llPivot [data-pv-pick]").catch(() => {}); await sleep(500); }, "[data-next], #llPivot [data-pv-chart]"],
+    await p.evaluate(() => { document.body.dataset.uiPick = "chart"; }); await p.click("#llPivot [data-pv-pick]").catch(() => {}); await sleep(500); }, "[data-next], #llPvChartPop [data-pv-chart]"],
   ["pivot-quickpick", async (p) => { await closeAll(p); await p.evaluate(() => { document.body.dataset.uiPick = "quick"; }); await p.click("#llPivot [data-pv-qpick]").catch(() => {}); await sleep(500); },
-    "[data-next], #llPvQuickPop input"],
+    "[data-next], #llPvPresetPop [data-pv-pin]"],
   // 共有の書式（作業実績の道具の行の「書式 ▾」）: 開いたところ・設備を選ぶところ・当てたところ（元に戻すが出る）
   ["formats", async (p) => { await closeAll(p); await p.evaluate(() => { delete document.body.dataset.uiPick; }); await p.click('#llViewSwitch [data-pv-view="list"]').catch(() => {}); await sleep(300); await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-pick", async (p) => { await p.click('#llFormatPanel input[name="fmTo"][value="pick"]'); await sleep(300);
