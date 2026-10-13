@@ -107,6 +107,10 @@
     if (sum) {
       const all = rules();
       sum.hidden = !all.length;
+      // 件数の行の「効いている物」のタブ（lotlist-active.js）が読む数・要約・色（使っている先頭の組の色）
+      sum.dataset.count = all.length;
+      sum.dataset.summary = all.map((r) => text(r) + (r.on ? "" : "（消している）")).join(" ／ ");
+      sum.dataset.tone = (all.find((r) => r.on) || {}).tone || "";
       sum.innerHTML = all.map((r) => {
         const n = countOf(r), t = text(r);
         const tip = `${t}（${targetName(r.target)}・${toneName(r.tone)}）\n${r.on ? (n == null ? "" : `全件で ${n.toLocaleString()} 行に当たります。`) + "押すと消します" : "押すと付けます"}（行は絞りません）`;

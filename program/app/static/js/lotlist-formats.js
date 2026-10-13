@@ -10,7 +10,7 @@
   const { $, esc } = TPA;
   const KEY = { applied: "tpa.lotlist.formatApplied.v1" };   // {範囲: {id, name, rev}}
   const F = () => window.LotList.formats;
-  let panel = null, btn = null, chip = null, list = { items: [], canEdit: false, shared: false }, to = "here", picked = new Set(), undo = null, busy = false;
+  let panel = null, btn = null, list = { items: [], canEdit: false, shared: false }, to = "here", picked = new Set(), undo = null, busy = false;
 
   const applied = () => TPA.local.get(KEY.applied, {});
   function remember(places, f) {
@@ -36,16 +36,11 @@
     list = { items: d.items || [], canEdit: !!d.canEdit, shared: !!d.shared };
     paintButton();
   }
-  /** 入口の札と、件数の行の札（いまの所に当てた書式の名前・共有で上書きされたら印）。当てていなければ件数の行の札は出さない */
+  /** 入口の札（いまの所に当てた書式の名前・共有で上書きされたら印）。件数の行の札は版 3.25.0 で外した（入口の札と同じ物が 2 か所にあった。
+      件数の行を 1 段に収める比べ: ui-proposals/2026-10-toolbar*） */
   function paintButton() {
     if (!btn) return;
     const st = hereState();
-    if (chip) {
-      chip.hidden = !st;
-      chip.classList.toggle("is-newer", !!(st && st.newer));
-      chip.innerHTML = st ? `<small>書式</small><b>${esc(st.name)}</b>${st.newer ? "<em>更新あり</em>" : ""}<i aria-hidden="true">▾</i>` : "";
-      chip.title = st ? (st.newer ? `共有の書式「${st.name}」が、当てたあとで上書きされています。押して当て直せます` : `この所には共有の書式「${st.name}」を当てています（押すと書式の窓）`) : "";
-    }
     btn.querySelector(".fm-now").textContent = st ? st.name : "";
     btn.classList.toggle("has-now", !!st);
     btn.classList.toggle("is-newer", !!(st && st.newer));
@@ -181,10 +176,6 @@
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "共有の書式");
     row.parentElement.append(panel);
     btn.onclick = open;
-    // 件数の行の札（2026-10-formats の G）: 窓を開かずに、いまの書式が分かる
-    chip = Object.assign(document.createElement("button"), { id: "llFormatNow", type: "button", className: "fm-now-chip", hidden: true });
-    $("#llCount")?.after(chip);
-    chip.onclick = (e) => { e.stopPropagation(); open(); };
     bind();
   }
   /** 元・設備・表が替わった: 札を描き直す（共有の一覧は、開いたとき・初めてだけ読む） */

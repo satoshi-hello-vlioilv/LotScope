@@ -15,7 +15,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { launch, sleep } from "./ui-harness.mjs";
+import { launch, openActive, sleep } from "./ui-harness.mjs";
 
 // .xlsx の 1 枚目のシート → [[値, 書式の番号], …] の行の並び（Python の標準の zipfile と xml で読む）
 const READ = String.raw`
@@ -72,9 +72,9 @@ try {
   const ok2 = narrowed < total && out.two.count === total && out.two.hit > 0 && out.two.wrong === 0 && out.two.adhocValue === "";
 
   // ③ 凡例の札で消す／付ける
-  await p.click("#llMarkSum .mk-chip >> nth=0"); await settle();
+  await openActive(p, "marks"); await p.click("#llMarkSum .mk-chip >> nth=0"); await settle();
   const offHit = (await cells("不良名")).filter(([, m]) => m).length;
-  await p.click("#llMarkSum .mk-chip >> nth=0"); await settle();
+  await openActive(p, "marks"); await p.click("#llMarkSum .mk-chip >> nth=0"); await settle();
   const onHit = (await cells("不良名")).filter(([, m]) => m).length;
   out.three = { offHit, onHit };
   const ok3 = offHit === 0 && onHit === hit1;

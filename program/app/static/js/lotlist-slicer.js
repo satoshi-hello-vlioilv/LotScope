@@ -170,6 +170,9 @@
     const box = $("#llSlicerSum"); if (!box) return;
     const on = cards().filter((c) => c.sel.length && (host.columns().includes(c.column) || isCalc(c.column)));
     box.hidden = !on.length;
+    // 件数の行の「効いている物」のタブ（lotlist-active.js）が読む数と要約
+    box.dataset.count = on.length;
+    box.dataset.summary = on.map((c) => `${host.label(c.column)} ${c.sel.map((v) => (v === "" ? BLANK : v)).join("・")}`).join(" ／ ");
     box.innerHTML = on.map((c) => {
       const names = c.sel.map((v) => (v === "" ? BLANK : v));
       const text = names.length > 3 ? `${names.slice(0, 3).join("・")} ほか ${names.length - 3}` : names.join("・");

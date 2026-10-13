@@ -213,7 +213,6 @@
       pane.innerHTML = `<aside class="pv-fields"><div class="pv-cap"><b>カラム</b><small>札を押すと上の文に入ります（もう一度押すと外れます）</small></div>`
         + '<input id="llPvSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><div class="pv-list" id="llPvFields"></div></aside>'
         + '<div class="pv-main"><div id="llPvHead"></div><div class="pv-msg" id="llPvMsg" hidden></div><div class="pv-out" id="llPvOut"></div></div>';
-      bind(pane);
     }
     $("#llPvFields").innerHTML = fieldsHtml(s);
     $("#llPvHead").innerHTML = sentenceHtml(s) + barHtml(s);
@@ -476,7 +475,10 @@
     return { svg: `<svg viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" role="img" aria-label="ヒストグラム">${g}</svg>`, side };
   }
 
-  /* ---- 操作 ---- */
+  /* ---- 操作 ----
+     枠（#llPivot）は作り直さないので、押す・変える・打つの見張りは mount で 1 回だけ付ける（中身は描くたびに作り直す）。
+     版 3.24.0 までは中身を作るたびに付け足していたので、設備を替えて集計を開くたびに見張りが 1 つずつ増え、
+     「押すと入る・もう一度で外す」札（行・列・値）が偶数個のときは入れてすぐ外し、押しても何も起きなかった（× は段をいくつも外した） */
   function bind(pane) {
     pane.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b || b.disabled) return;
@@ -503,7 +505,7 @@
       if (t.hasAttribute("data-pv-chartat")) { save({ chartAt: +t.value }); if (answer) paintChart(buildModel(answer, st()), answer, st()); return; }
       if (t.hasAttribute("data-pv-binw")) { const w = Math.max(0, +t.value || 0); save({ rows: s.rows.map((d, i) => (i === 0 ? { ...d, width: w, origin: null } : d)) }); refresh(true); }
     });
-    TPA.onText($("#llPvSearch", pane), () => { $("#llPvFields").innerHTML = fieldsHtml(st()); });
+    TPA.onText(pane, (_, e) => { if (e.target.id === "llPvSearch") $("#llPvFields").innerHTML = fieldsHtml(st()); });
   }
   /** グラフの形。ヒストグラムを選んだのに区間の段が無ければ、数のカラム（値の列か、数の行）を区間にして件数を数える */
   function setChart(k) {
@@ -540,6 +542,7 @@
   /* ---- 一覧から ---- */
   function mount(h) {
     host = h;
+    const pane = $("#llPivot"); if (pane) bind(pane);
     $("#llViewSwitch")?.addEventListener("click", (e) => { const b = e.target.closest("[data-pv-view]"); if (b && b.dataset.pvView !== st().view) setView(b.dataset.pvView); });
     paintSwitch();
   }

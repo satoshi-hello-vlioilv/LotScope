@@ -106,18 +106,36 @@
       <label class="ll-tablepick">表<select id="llTable" class="ll-table" aria-label="表" title="品質データの表" hidden></select></label>
       <button id="llFresh" type="button" class="ll-fresh">元データ 確認中</button>
       <span class="ll-lothint">ロット番号を押すと、計算へ移って取り込みます</span>
-      <!-- スライサーで選んでいる値（「設備: CR1・L-1 ×」）。スライサーを閉じても何で絞っているかが分かる -->
-      <span id="llSlicerSum" class="sx-sum" hidden></span>
-      <!-- 色付けの凡例（色・条件・全件で当たった数）。押すと、その色付けを消す／付ける（lotlist-marks.js） -->
-      <span id="llMarkSum" class="mk-sum" hidden role="group" aria-label="色付け"></span>
-      <span id="llGroupBar" class="ll-groupbar" hidden></span>
-      <!-- 見出しで決めた並べ替え（「並べ替え ① 重量 ▼ × ② 板厚 ▲ ×」）。まとめの段の後ろに続く順（lotlist.js の paintSortBar） -->
-      <span id="llSortBar" class="ll-groupbar ll-sortbar" hidden role="group" aria-label="並べ替え"></span>
+      <!-- 効いている物のタブ（まとめ・並べ替え・選んだ値・色付け。数と名前。狭いときは名前から省略）。押すと、その種類の札を下の面で開く
+           （7 案＋2 回目で選んだ: ui-proposals/2026-10-toolbar* の M2。件数の行は効いている物が増えても 1 段。lotlist-active.js） -->
+      <span id="llActiveTabs" class="ll-active" role="toolbar" aria-label="効いている物" hidden></span>
       <span id="llCardShelf" class="lk-shelf" hidden role="toolbar" aria-label="開いているカード"></span>
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
       <!-- 右の組（拡大・頁）。件数の行が折り返しても、2 つは離れず右に寄る -->
       <div class="ll-statusright">
-      <!-- 一覧だけを一時的に拡大（この窓を閉じると 100% に戻る）。100% でないときは数字を強めて「戻す」を出す -->
+      <!-- 一覧だけを一時的に拡大（この窓を閉じると 100% に戻る）。ボタンは倍率だけ（100% でないときは強める）、つまみ・刻み・戻すは押して開く面に -->
+      <button id="llZoomBtn" type="button" class="ll-zoombtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="llZoomPop" title="一覧だけを一時的に拡大・縮小します（窓を閉じると 100% に戻ります）">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg><b id="llZoomBtnValue">100%</b><i aria-hidden="true">▾</i></button>
+      <div class="ll-pager">
+        <button id="llPrev" type="button" aria-label="前のページ">◀</button>
+        <span id="llRange">0</span>
+        <button id="llNext" type="button" aria-label="次のページ">▶</button>
+      </div>
+      </div>
+    </div>
+    <!-- 効いている物の面（タブで押した種類の札だけを出す。札の作りと操作は今までどおり各部品: まとめ＝lotlist.js・並べ替え＝lotlist.js・
+         選んだ値＝lotlist-slicer.js・色付け＝lotlist-marks.js）。一覧に重ねて開き、押し下げない -->
+    <div id="llActivePop" class="ll-activepop" role="dialog" aria-label="効いている物" hidden>
+      <span id="llGroupBar" class="ll-groupbar" hidden></span>
+      <!-- 見出しで決めた並べ替え（「並べ替え ① 重量 ▼ × ② 板厚 ▲ ×」）。まとめの段の後ろに続く順（lotlist.js の paintSortBar） -->
+      <span id="llSortBar" class="ll-groupbar ll-sortbar" hidden role="group" aria-label="並べ替え"></span>
+      <!-- スライサーで選んでいる値（「設備: CR1・L-1 ×」）。スライサーを閉じても何で絞っているかが分かる -->
+      <span id="llSlicerSum" class="sx-sum" hidden></span>
+      <!-- 色付けの凡例（色・条件・全件で当たった数）。押すと、その色付けを消す／付ける（lotlist-marks.js） -->
+      <span id="llMarkSum" class="mk-sum" hidden role="group" aria-label="色付け"></span>
+    </div>
+    <!-- 拡大の面（つまみ・−・＋・刻み・100%に戻す） -->
+    <div id="llZoomPop" class="ll-zoompop" role="dialog" aria-label="一覧の拡大" hidden>
       <span id="llZoom" class="ll-zoom" title="一覧だけを一時的に拡大・縮小します（窓を閉じると 100% に戻ります）">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
         <button id="llZoomMinus" type="button" class="ll-zpm" aria-label="小さく">−</button>
@@ -129,12 +147,6 @@
         <span id="llZoomSteps" class="ll-zsteps" role="menu" hidden></span>
         <button id="llZoomReset" type="button" hidden title="100% に戻します">100%に戻す</button>
       </span>
-      <div class="ll-pager">
-        <button id="llPrev" type="button" aria-label="前のページ">◀</button>
-        <span id="llRange">0</span>
-        <button id="llNext" type="button" aria-label="次のページ">▶</button>
-      </div>
-      </div>
     </div>
     <!-- 表とスライサー（置き場は左・右・上。data-place） -->
     <div class="ll-bodyrow" id="llBodyRow" data-place="left">
@@ -388,6 +400,7 @@
 <script src="{{ url_for('static', filename='js/xlsx-writer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-export.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-pivot.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-active.js') }}"></script>
 <script src="{{ url_for('static', filename='js/virtual-rows.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
