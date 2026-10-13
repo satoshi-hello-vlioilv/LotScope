@@ -8,6 +8,7 @@
 保存の時点で違えば、ほかの PC（または同じ PC の別の画面）が先に直したとして `RowConflict` で断る
 （黙って上書きしない）。`base_rev` を送らない古い呼び出しは確かめない。
 """
+import json
 from pathlib import Path
 
 from ..services import display_formats, equipment_names, pivot_presets, shifts, work_log
@@ -45,6 +46,8 @@ SPECS = {
     "shift_patterns": {"fields": shifts.FIELDS, "renamed": {}, "unique": "名称"},
     # 集計表・グラフの組み方のプリセット（services/pivot_presets.py）。名前は (元・範囲・持ち主) ごとに 1 つ（_check_row）・標準は組ごとに 1 つ
     "pivot_presets": {"fields": pivot_presets.FIELDS, "renamed": {}, "unique": None},
+    # すぐに見るの選び（ログイン ID・元ごとに 1 行。並びは組み方の id の JSON。quick_set が 1 行にまとめる）
+    "pivot_quick": {"fields": pivot_presets.QUICK_FIELDS, "renamed": {}, "unique": None},
 }
 
 
@@ -352,6 +355,28 @@ class MasterRepository:
 
     def preset_delete(self, item_id, base_rev=None):
         self._delete("pivot_presets", item_id, base_rev)
+
+    def pivot_quick(self):
+        return self._list("pivot_quick")
+
+    def quick_set(self, login, source, keys):
+        """この ID・この元のすぐに見るの並びを置く（keys が None なら行を消して既定に戻す）。1 回の書き込みで行を 1 つにまとめる。"""
+        spec = SPECS["pivot_quick"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            mine = [r for r in rows if r.get("ログインID") == login and r.get("元") == source]
+            for r in mine[1:] + (mine[:1] if keys is None else []):
+                rows.remove(r)
+            if keys is None:
+                return None
+            row = mine[0] if mine else None
+            if row is None:
+                row = {"id": next_id(rows), "ログインID": login, "元": source, "rev": 0}
+                rows.append(row)
+            row.update(並び=json.dumps(keys, ensure_ascii=False), rev=int(row.get("rev", 0)) + 1, **stamp)
+            return dict(row)
+        return self.store.write("pivot_quick", mutate)
 
     # -------------------------------------------------- 勤務体系（中身の決まりは services/shifts.py）
     def shift_patterns(self):

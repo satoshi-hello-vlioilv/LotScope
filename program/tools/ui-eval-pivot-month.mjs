@@ -1,5 +1,6 @@
 // 評価関数（開発用）: 集計表・グラフの 月ごと・月で区切る・月を ◀ ▶ で送る・数値ラベル・組み方のプリセット（共通／ID・標準）
-// （版 3.26.0。置き場は 7 案＋2 回目で選んだ: ui-proposals/2026-10-pvmonth* の M4）。
+// （版 3.26.0。置き場は 7 案＋2 回目で選んだ: ui-proposals/2026-10-pvmonth* の M4。組み方の入口は版 3.27.0 でグラフの形の行の「組み方 ▾」へ移した:
+// いまの組み方の名前と★は、すぐに見るの札か「組み方: 名前 ▾」で見る）。
 //   node program/tools/ui-eval-pivot-month.mjs [画像を置くフォルダ]
 // ① 作業実績で「作業日ごとのロット数・重量」→ グラフの見出しの右に 数値ラベル・月で区切る・◀ すべての月 ▶（月の一覧＝サーバーの months）。
 //    文の頭に「☆ 組み方 なし ▾」。利用者の PC（1728×1152）とフル HD・125%（1536×864）で、文・グラフの形・グラフの見出しが各 1 段
@@ -15,7 +16,7 @@
 // 全部合えば終了コード 0。
 import fs from "node:fs";
 import path from "node:path";
-import { launch, sleep } from "./ui-harness.mjs";
+import { launch, pickChart, sleep } from "./ui-harness.mjs";
 
 const SHOT = process.argv[2] ? path.resolve(process.argv[2]) : "";
 if (SHOT) fs.mkdirSync(SHOT, { recursive: true });
@@ -34,7 +35,9 @@ const opts = (p) => p.evaluate(() => {
   const sel = o?.querySelector("[data-pv-month]");
   return { labels: !!o?.querySelector('[data-pv-opt="labels"]'), split: !!o?.querySelector('[data-pv-opt="split"]'), month: sel ? sel.value : null,
     months: sel ? [...sel.options].map((x) => x.value).filter(Boolean) : [], prev: o?.querySelector('[data-pv-mstep="-1"]')?.disabled, next: o?.querySelector('[data-pv-mstep="1"]')?.disabled,
-    preset: document.querySelector("#llPvPreset")?.textContent.replace(/\s+/g, " ").trim() || "", std: !!document.querySelector("#llPvPreset .pv-star.is-std"),
+    // いまの組み方: すぐに見るの札で印の付いた物か、グラフの形の行の「組み方: 名前 ▾」（版 3.27.0 で文の頭から移した）。★＝標準
+    preset: (document.querySelector("#llPivot .pv-bar .pv-quick.is-on") || document.querySelector("#llPvPreset"))?.textContent.replace(/\s+/g, " ").trim() || "",
+    std: !!document.querySelector("#llPivot .pv-bar .pv-quick.is-on .pv-star.is-std, #llPvPreset .pv-star.is-std"),
     hint: document.querySelector("#llPivot .pv-hint")?.textContent || "", note: document.querySelector("#llPvChart .pv-cnote")?.textContent || "" };
 });
 /** 文・グラフの形・グラフの見出しが何段か（子の縦の真ん中が 8px 以上ずれた数） */
@@ -58,12 +61,12 @@ try {
     // ① 作業実績 → 集計表 → 作業日ごとのロット数・重量
     await p.click("#tabWork"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(700);
     await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-empty"); await sleep(300);
-    await p.click('#llPivot .pv-quickbig [data-pv-quick="0"]'); await idle(p);
+    await p.click('#llPivot .pv-quickbig .pv-quick >> nth=0'); await idle(p);
     const o1 = await opts(p), t1 = await table(p);
     const days = t1.rows.filter((r) => r.kind === "data").map((r) => r.head[r.head.length - 1]);
     const wantMonths = [...new Set(days.map((d) => d.slice(0, 7).replace("/", "-")))].sort();
-    check(`${tag} グラフの見出しの右に 数値ラベル・月で区切る・◀ すべての月 ▶（月＝表の日の月）・文の頭に 組み方 なし`,
-      o1.labels && o1.split && o1.month === "" && o1.months.join() === wantMonths.join() && o1.prev === false && o1.next === true && o1.preset.includes("組み方") && o1.preset.includes("なし"), { o1, wantMonths });
+    check(`${tag} グラフの見出しの右に 数値ラベル・月で区切る・◀ すべての月 ▶（月＝表の日の月）・すぐに見るの札に当てた組み方の印`,
+      o1.labels && o1.split && o1.month === "" && o1.months.join() === wantMonths.join() && o1.prev === false && o1.next === true && o1.preset.startsWith("作業日ごとのロット数"), { o1, wantMonths });
     const grand1 = t1.rows.find((r) => r.kind === "grand").v;
     await p.check('#llPivot [data-pv-opt="labels"]'); await sleep(500);
     await p.check('#llPivot [data-pv-opt="split"]'); await idle(p);
@@ -108,20 +111,21 @@ try {
     await shot(p, "ym");
     await p.selectOption('#llPivot [data-pv-part="rows"][data-i="0"]', ""); await idle(p);
     // ⑤ 表だけ
-    await p.click('#llPivot [data-pv-chart="none"]'); await idle(p);
+    await pickChart(p, "none"); await idle(p);
     const t5 = await p.evaluate(() => ({ bar: !!document.querySelector("#llPivot .pv-tbar"), split: !!document.querySelector('#llPivot .pv-tbar [data-pv-opt="split"]'), nav: !!document.querySelector("#llPivot .pv-tbar [data-pv-month]"), labels: !!document.querySelector('#llPivot [data-pv-opt="labels"]') }));
     check("表だけ: 表の上の帯に 月で区切る・◀ 月 ▶（数値ラベルは出さない）", t5.bar && t5.split && t5.nav && !t5.labels, t5);
-    await p.click('#llPivot [data-pv-chart="time"]'); await idle(p);
+    await pickChart(p, "time"); await idle(p);
     // ⑥ 組み方を保存（自分・標準）→ すべて外す → 面から当てる
     await p.click("#llPvPreset"); await p.waitForSelector("#llPvPresetPop .pv-psave"); await sleep(200);
     await shot(p, "preset-empty");
     await p.fill("#llPvPName", "月で区切った重量（試験）"); await p.check("#llPvPStd");
     await p.click("#llPvPresetPop [data-pv-psave]"); await sleep(800);
-    const pop6 = await p.evaluate(() => ({ items: [...document.querySelectorAll("#llPvPresetPop .pv-pi")].map((x) => ({ name: x.querySelector("b").textContent, now: x.classList.contains("is-now"), std: x.classList.contains("is-std") })) }));
+    const pop6 = await p.evaluate(() => ({ items: [...document.querySelectorAll("#llPvPresetPop .pv-pi")].filter((x) => !x.querySelector("[data-pv-pin^='b:']"))
+      .map((x) => ({ name: x.querySelector("b").textContent.replace("★", "").trim(), now: x.classList.contains("is-now"), std: !!x.querySelector(".pv-star.is-std") })) }));
     await shot(p, "preset-saved");
     await p.keyboard.press("Escape"); await sleep(200);
     const o6 = await opts(p);
-    check("組み方: 自分に標準で保存 → 面に★で並び、ボタンに名前と★", pop6.items.length === 1 && pop6.items[0].now && pop6.items[0].std && o6.preset.includes("月で区切った重量（試験）") && o6.std, { pop6, o6 });
+    check("組み方: 自分に標準で保存 → 面に★で並び、すぐに見るの札に名前と★", pop6.items.length === 1 && pop6.items[0].now && pop6.items[0].std && o6.preset.includes("月で区切った重量（試験）") && o6.std, { pop6, o6 });
     await p.click("#llPivot [data-pv-clear]"); await idle(p);
     await p.click("#llPvPreset"); await p.waitForSelector("#llPvPresetPop [data-pv-papply]"); await sleep(200);
     await p.click("#llPvPresetPop [data-pv-papply]"); await idle(p);
@@ -155,7 +159,7 @@ try {
     await p.click("#llPvPreset"); await p.waitForSelector("#llPvPresetPop .pv-pi"); await sleep(200);
     await shot(p, "preset-list");
     await p.click(`#llPvPresetPop [data-pv-pdel="${mineStd.id}"]`); await sleep(900);
-    const names9 = await p.$$eval("#llPvPresetPop .pv-pi b", (xs) => xs.map((x) => x.textContent));
+    const names9 = await p.$$eval("#llPvPresetPop .pv-pi b", (xs) => xs.map((x) => x.textContent.replace("★", "").trim()));
     await p.keyboard.press("Escape");
     const list2 = await api(p, "GET", "/api/pivot-presets?source=work");
     const third = equips.find((e) => e !== cur && e !== other);

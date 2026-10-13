@@ -152,6 +152,33 @@ class Work(unittest.TestCase):
         self.assertEqual((fixed["bins"][0]["width"], fixed["bins"][0]["auto"]), (250, False))
         self.assertTrue(all(float(k) % 250 == 0 for k in fixed["orders"][0] if k))
 
+    def test_box_stats_per_row_leaf_match_the_oracle(self):
+        """箱ひげ（版 3.27.0）: 作業区分ごとの重量の四分位・ひげ・外れ値を素朴に数え直して突き合わせる"""
+        ans = self.ask([{"column": "作業区分"}], [], [{"agg": "avg", "column": "重量"}], box="重量")
+        groups = defaultdict(list)
+        for _, w, kind, _ in self.rows:
+            groups[str(kind)].append(float(w))
+        self.assertEqual(ans["box"], "重量")
+        self.assertEqual(len(ans["boxes"]), len(groups))
+        for b in ans["boxes"]:
+            xs = sorted(groups[b["r"][0][1:]])
+            q1, med, q3 = statistics.quantiles(xs, n=4, method="inclusive")
+            self.assertEqual(b["n"], len(xs))
+            for k, v in (("q1", q1), ("median", med), ("q3", q3), ("min", xs[0]), ("max", xs[-1])):
+                self.assertAlmostEqual(b[k], v, places=6, msg=(b["r"], k))
+            lo, hi = q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)
+            self.assertAlmostEqual(b["lo"], min(x for x in xs if x >= lo), places=6)
+            self.assertAlmostEqual(b["hi"], max(x for x in xs if x <= hi), places=6)
+            self.assertEqual(b["outN"], sum(1 for x in xs if x < lo or x > hi))
+        self.assertEqual(self.ask([{"column": "作業区分"}])["boxes"], [], "頼まなければ出さない")
+        with self.assertRaises(pivot.PivotError):
+            self.ask([{"column": "作業区分"}], box="無い列")
+
+    def test_box_outliers_are_listed(self):
+        b = pivot.box_stats([1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 100.0])
+        self.assertEqual((b["out"], b["outN"], b["hi"]), ([100.0], 1, 4.0), "四分位の範囲の 1.5 倍より外は外れ値・ひげは内側の端")
+        self.assertIsNone(pivot.box_stats([]))
+
     def test_filters_and_search_match_the_list(self):
         flt = json.dumps([{"column": "作業区分", "op": "eq", "value": "通常"}])
         ans = self.ask([{"column": "作業者"}], [], [{"agg": "count"}], filters=flt, search="A")

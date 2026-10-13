@@ -272,6 +272,14 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 .ll-pm-sec{margin:12px 0 2px;font-size:13.5px}
 .ll-pm-sec small{margin-left:10px;font-weight:400;color:var(--muted);font-size:12px}
 .ll-pm-vname{width:100%;height:28px;border:1px solid var(--edit-line);border-radius:6px;background:var(--edit-field);padding:0 8px;font-family:inherit;font-size:13px;font-weight:700}
+/* 行のボタン（版 3.27.0 で直した: 前は master.css の .row-btn を借りていて、版 3.14.0 でマスタ管理を作り直したときに見た目が外れていた）。
+   高さは同じ行の欄（28px）にそろえる。当てる＝入力の藍の字（その行でいちばん押す物）、削除は淡く、乗せたときだけ赤（毎行の赤で目を引かない） */
+.ll-pm-btn{height:28px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--h-input);
+  font:inherit;font-size:12.5px;font-weight:700;white-space:nowrap;cursor:pointer;transition:background .12s,border-color .12s,color .12s}
+.ll-pm-btn:hover{border-color:var(--h-input);background:color-mix(in srgb,var(--h-input) 8%,var(--surface))}
+.ll-pm-btn:focus-visible{outline:2px solid var(--h-input);outline-offset:1px}
+.ll-pm-btn.is-danger{color:var(--muted);font-weight:400}
+.ll-pm-btn.is-danger:hover{color:var(--danger);border-color:var(--danger-line);background:var(--danger-bg)}
 
 
 /* 「条件」の面はバーの中にあるので、バーのボタンの決まり（高さ・枠）より面の決まりを強くする */

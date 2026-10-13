@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { launch, sleep } from "./ui-harness.mjs";
+import { launch, pickChart, sleep } from "./ui-harness.mjs";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pv-"));
 const fails = [];
@@ -50,7 +50,7 @@ try {
   await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-empty"); await sleep(300);
   const quick = await p.$$eval("#llPivot .pv-quickbig .pv-quick", (xs) => xs.map((x) => x.textContent));
   check("集計表を開くと、何も置いていない案内と「すぐに見る」組み方", quick.length >= 3 && quick[0].startsWith("作業日ごとのロット数"), quick);
-  await p.click('#llPivot .pv-quickbig [data-pv-quick="0"]'); await p.waitForSelector("#llPivot .pv-table"); await sleep(500);
+  await p.click('#llPivot .pv-quickbig .pv-quick >> nth=0'); await p.waitForSelector("#llPivot .pv-table"); await sleep(500);
   const g1 = await grand(), w = await work();
   check("総計のロット数・重量の合計＝作業でまとめた数", g1 && +g1[0] === w.total.works && Math.abs(+g1[1] - w.total.sum) < 0.05, { g1, works: w.total.works, sum: w.total.sum });
   const days = new Set(w.buckets.map((b) => b.day).filter(Boolean)).size;
@@ -58,10 +58,10 @@ try {
   const span = (() => { const ds = w.buckets.map((b) => b.day).filter(Boolean).sort(); return Math.round((new Date(ds[ds.length - 1]) - new Date(ds[0])) / 864e5) + 1; })();
   check("時系列: 作業のあった日の棒＋重量の折れ線、横は最初から最後の日まで", chart.bars === days && chart.line && chart.note.startsWith(`${span} 刻み`), { chart, days, span });
   // ② 日×直・ヒストグラム
-  await p.click('#llPivot .pv-bar [data-pv-quick="1"]'); await sleep(900);
+  await p.click('#llPivot .pv-bar .pv-quick >> nth=1'); await sleep(900);
   const stack = await p.evaluate(() => ({ heads: [...document.querySelectorAll("#llPivot .pv-table thead th")].map((x) => x.textContent), legend: [...document.querySelectorAll("#llPvChart .pv-legend span")].map((x) => x.textContent) }));
   check("日×直: 列に直（1直・2直・3直・総計）、グラフは直ごとの積み上げ", ["1直", "2直", "3直", "総計"].every((x) => stack.heads.includes(x)) && stack.legend.join() === "1直,2直,3直", stack);
-  await p.click('#llPivot [data-pv-chart="hist"]'); await sleep(1000);
+  await pickChart(p, "hist"); await sleep(1000);
   const hist = await p.evaluate(() => ({ rows: document.querySelector("#llPivot .pv-chip.r b")?.textContent, part: document.querySelector("#llPivot .pv-chip.r select")?.value,
     stats: [...document.querySelectorAll("#llPivot .pv-stats th")].map((x) => x.textContent), width: document.querySelector("#llPivot [data-pv-binw]")?.value }));
   check("ヒストグラム: 数の列を区間に・傾向の数（平均・標準偏差・四分位）・区間の幅", hist.part === "bin" && hist.stats.includes("標準偏差") && hist.stats.includes("中央値") && +hist.width > 0, hist);
@@ -69,7 +69,7 @@ try {
   const labels = await p.$$eval("#llPivot .pv-table tbody th", (xs) => xs.map((x) => x.textContent).filter((t) => t.includes("〜")).slice(0, 3));
   check("区間の幅を 250 にすると、250 刻みで数え直す", labels.length === 3 && labels.every((t) => { const [a, b] = t.split("〜").map(Number); return b - a === 250 && a % 250 === 0; }), labels);
   // ③ 絞り込み
-  await p.click('#llPivot .pv-bar [data-pv-quick="0"]'); await sleep(800);
+  await p.click('#llPivot .pv-bar .pv-quick >> nth=0'); await sleep(800);
   await p.fill("#llSearch", "作業者A"); await sleep(1500);
   const g2 = await grand(), w2 = await work({ search: "作業者A" });
   check("検索で絞ると、集計も同じ絞り込みで数え直す", g2 && +g2[0] === w2.total.works && w2.total.works < w.total.works, { g2, works: w2.total.works });
@@ -125,7 +125,7 @@ try {
   await p.click("#tabList"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(600);
   await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick"); await sleep(400);
   const lotQuick = await p.$$eval("#llPivot .pv-quickbig .pv-quick", (xs) => xs.map((x) => x.textContent));
-  await p.click('#llPivot .pv-quickbig [data-pv-quick="0"]'); await p.waitForSelector("#llPivot .pv-table"); await sleep(600);
+  await p.click('#llPivot .pv-quickbig .pv-quick >> nth=0'); await p.waitForSelector("#llPivot .pv-table"); await sleep(600);
   const lot = await p.evaluate(() => ({ count: document.querySelector("#llPivot .pv-hint")?.textContent, svg: !!document.querySelector("#llPvChart svg"), vals: [...document.querySelectorAll("#llPivot .pv-chip.v b")].map((x) => x.textContent) }));
   check("異常ロット一覧: 年月ごとの件数・ロット数の時系列", /（年月）ごとの件数/.test(lotQuick[0]) && lot.svg && lot.vals.join() === "件数,ロット数", { lotQuick, lot });
   const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 60000 }), p.click("#llPivot [data-pv-xlsx]")]);

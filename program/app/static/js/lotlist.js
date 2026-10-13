@@ -1026,9 +1026,9 @@
     body.innerHTML = vs.length ? vs.map((v) => `<tr data-id="${esc(v.id)}">
         <td><input class="ll-pm-vname" value="${esc(v.name)}" maxlength="40" aria-label="保存した見方の名前"></td>
         <td class="ll-pm-tags">${viewTags(v).map((t) => `<i>${esc(t)}</i>`).join("")}</td>
-        <td class="c"><button type="button" class="row-btn ll-pm-vapply">当てる</button></td>
-        <td class="c"><button type="button" class="row-btn ll-pm-vput" title="いまの条件・並べ替え・まとめ・スライサー・検索で上書きします">いまの形で上書き</button></td>
-        <td class="c"><button type="button" class="row-btn danger ll-pm-vdel">削除</button></td></tr>`).join("")
+        <td class="c"><button type="button" class="ll-pm-btn ll-pm-vapply">当てる</button></td>
+        <td class="c"><button type="button" class="ll-pm-btn ll-pm-vput" title="いまの条件・並べ替え・まとめ・スライサー・検索で上書きします">いまの形で上書き</button></td>
+        <td class="c"><button type="button" class="ll-pm-btn is-danger ll-pm-vdel">削除</button></td></tr>`).join("")
       : '<tr><td colspan="5" class="ll-pm-empty">保存した見方はまだありません。「プリセット」の「いまの条件と並べ替えを名前を付けて保存…」で保存できます。</td></tr>';
     $$("tr[data-id]", body).forEach((tr) => {
       const id = tr.dataset.id, edit = (fn) => { saveViews(allViews().map((v) => (v.id === id ? fn(v) : v))); renderViewRows(); renderPresetButton(); };
@@ -1053,8 +1053,8 @@
         <td class="ll-pm-cond" title="${esc((p.filters || []).map(condLabel).join(" ・ "))}">${esc(p.name)}</td>
         <td><input class="ll-pm-group" list="llPresetGroups" value="${esc(p.group || "")}" placeholder="（組み合わせに入れない）" aria-label="プリセット（組み合わせ）の名前"></td>
         <td class="c"><label class="ll-pm-always"><input type="checkbox" class="ll-pm-lock"${p.always ? " checked" : ""}> いつも適用（固定）</label></td>
-        <td class="c"><button type="button" class="row-btn ll-pm-apply">当てる</button></td>
-        <td class="c"><button type="button" class="row-btn danger ll-pm-del">削除</button></td></tr>`).join("");
+        <td class="c"><button type="button" class="ll-pm-btn ll-pm-apply">当てる</button></td>
+        <td class="c"><button type="button" class="ll-pm-btn is-danger ll-pm-del">削除</button></td></tr>`).join("");
     $$("tr[data-id]", body).forEach((tr) => {
       const p = S.presets.find((x) => x.id === tr.dataset.id);
       $(".ll-pm-group", tr).onchange = (e) => { p.group = e.target.value.trim().slice(0, 40); savePresets(); renderPresetModal(); renderBar(); };
@@ -1962,6 +1962,7 @@
       scope, api: () => S.src.api, isWork: () => S.src.id === "work",
       base: () => { const q = new URLSearchParams(S.src.params()); if (S.table) q.set("table", S.table); return q.toString(); },
       fieldsKey: () => `${S.equip}|${S.table}|${(S.source && S.source.copiedAt) || ""}`,
+      lotColumn: () => S.lotColumn,
       query: () => filterParams().toString(),
       label: (c) => window.LotListColumns.label(layoutTarget(), c),
       dateColumns: () => S.dateColumns,

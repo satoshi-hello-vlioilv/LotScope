@@ -170,11 +170,17 @@ export const STATES = [
   ["worklog-work", async (p) => { await p.click('#llWorkSwitch [data-wk-mode="dayshift"]'); await p.waitForSelector("#llWork .wk-pv"); await sleep(600); }, "[data-next], #llWork [data-wk-shift]"],
   ["worklog-pick", async (p) => { await p.click("#llWork tbody tr:nth-child(4) [data-wk-shift]"); await sleep(900); }, "[data-next], #llWorkSwitch [data-wk-unpick]"],
   // 集計表・グラフ（ピボット集計）: すぐに見る「作業日ごとのロット数・重量」（時系列）と、重量のヒストグラム
-  ["worklog-pivot", async (p) => { await p.click("#llWorkSwitch [data-wk-unpick]").catch(() => {}); await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick");
-    await p.click('#llPivot [data-pv-quick="0"]'); await p.waitForSelector("#llPivot .pv-table"); await sleep(700); }, "[data-next], #llPivot [data-pv-chart]"],
-  ["worklog-hist", async (p) => { await p.click('#llPivot [data-pv-chart="hist"]'); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
+  ["worklog-pivot", async (p) => { await p.click("#llWorkSwitch [data-wk-unpick]").catch(() => {}); await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick", { state: "attached" });
+    await quick(p); await p.waitForSelector("#llPivot .pv-table"); await sleep(700); }, "[data-next], #llPivot [data-pv-chart]"],
+  ["worklog-hist", async (p) => { await pickChart(p, "hist"); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
+  // 版 3.27.0: グラフの形を選ぶ所を開いた所（形が 14 に増えた）と、すぐに見るを選ぶ所を開いた所（ID ごとに選ぶ）。
+  // 改良案（ui-variants）は body の data-ui-pick を見て、案の開いた形を出す
+  ["pivot-pick", async (p) => { await closeAll(p); await quick(p); await sleep(800);
+    await p.evaluate(() => { document.body.dataset.uiPick = "chart"; }); await p.click("#llPivot [data-pv-pick]").catch(() => {}); await sleep(500); }, "[data-next], #llPivot [data-pv-chart]"],
+  ["pivot-quickpick", async (p) => { await closeAll(p); await p.evaluate(() => { document.body.dataset.uiPick = "quick"; }); await p.click("#llPivot [data-pv-qpick]").catch(() => {}); await sleep(500); },
+    "[data-next], #llPvQuickPop input"],
   // 共有の書式（作業実績の道具の行の「書式 ▾」）: 開いたところ・設備を選ぶところ・当てたところ（元に戻すが出る）
-  ["formats", async (p) => { await p.click('#llViewSwitch [data-pv-view="list"]').catch(() => {}); await sleep(300); await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
+  ["formats", async (p) => { await closeAll(p); await p.evaluate(() => { delete document.body.dataset.uiPick; }); await p.click('#llViewSwitch [data-pv-view="list"]').catch(() => {}); await sleep(300); await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-item"); await sleep(400); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-pick", async (p) => { await p.click('#llFormatPanel input[name="fmTo"][value="pick"]'); await sleep(300);
     for (const n of [1, 2, 3]) await p.click(`#llFormatPanel .fm-equips label:nth-of-type(${n + 1}) input`).catch(() => {}); await sleep(300); }, "[data-next], #llFormatPanel .fm-apply"],
   ["formats-applied", async (p) => { await p.click("#llFormatPanel .fm-item:first-child .fm-apply"); await sleep(900); }, "[data-next], #llFormatPanel .fm-undo"],
@@ -244,6 +250,16 @@ export async function walkSplash(page, visit, only = null) {
     await go(page);
     if (!only || only.includes(name)) await visit(name, next);
   }
+}
+
+/** すぐに見るの最初の札を押す（改良案で札を別の所へ写しても効くよう、頁の中で押す） */
+const quick = (p) => p.evaluate(() => document.querySelector("#llPivot .pv-quick:not([disabled])").click());
+
+/** 集計表・グラフの形を選ぶ（形の札が見えていれば押す。無ければ形を選ぶ所〈[data-pv-pick]〉を開いて押す） */
+export async function pickChart(p, kind) {
+  const sel = `#llPivot [data-pv-chart="${kind}"], #llPvChartPop [data-pv-chart="${kind}"]`;
+  if (!(await p.$(sel).then((b) => b && b.isVisible()))) await p.click("#llPivot [data-pv-pick]").catch(() => {});
+  await p.click(sel);
 }
 
 /** 件数の行の「効いている物」のタブ（まとめ group・並べ替え sort・選んだ値 slicer・色付け marks）を押して、その札の面を開く（開いていればそのまま）。
