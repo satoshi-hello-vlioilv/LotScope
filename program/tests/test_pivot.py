@@ -79,6 +79,45 @@ class Work(unittest.TestCase):
         ans = self.ask([{"column": "@workday"}], [], [{"agg": "lots"}])
         self.assertEqual(cell(ans)[0], len({r[0] for r in self.rows}), "総計のロット数は全体の重複の無い作業開始（日ごとの和ではない）")
 
+    def test_workday_by_month_matches_the_oracle(self):
+        """作業日のまとめ「年月」（版 3.26.0）: 現場歴の作業日の頭 7 字ごとのロット数・重量"""
+        ans = self.ask([{"column": "@workday", "part": "ym"}], [], [{"agg": "lots"}, {"agg": "sum", "column": "重量"}])
+        works, weight = defaultdict(set), defaultdict(float)
+        for stamp, w, _, _ in self.rows:
+            m = place(stamp)[0][:7]
+            works[m].add(stamp)
+            weight[m] += w
+        self.assertEqual(ans["orders"][0], sorted(works))
+        for m in works:
+            got = cell(ans, [m])
+            self.assertEqual(got[0], len(works[m]), m)
+            self.assertAlmostEqual(got[1], weight[m], places=4)
+        self.assertRegex(ans["labels"][0][ans["orders"][0][0]], r"^\d{4}/\d{2}$")
+        self.assertEqual(ans["dims"]["rows"][0]["name"], "作業日（年月）")
+
+    def test_month_filter_counts_only_that_month_and_lists_the_months(self):
+        """月で絞る（版 3.26.0）: 日の段がその月の行だけ。months は絞る前の月の並び。月で区切る（年月の段の下に日の段）でも同じ"""
+        months = sorted({place(r[0])[0][:7] for r in self.rows})
+        pick = months[len(months) // 2]
+        want_days = defaultdict(set)
+        for stamp, _, _, _ in self.rows:
+            day = place(stamp)[0]
+            if day.startswith(pick):
+                want_days[day].add(stamp)
+        for rows in ([{"column": "@workday"}], [{"column": "@workday", "part": "ym"}, {"column": "@workday"}]):
+            ans = self.ask(rows, [], [{"agg": "lots"}], month=pick)
+            self.assertEqual((ans["months"], ans["month"]), (months, pick), rows)
+            day_level = len(rows) - 1
+            self.assertEqual(sorted(ans["orders"][day_level]), sorted(want_days), "その月の日だけ")
+            self.assertEqual(cell(ans)[0], len(set().union(*want_days.values())), "総計＝その月のロット数")
+            if day_level:
+                self.assertEqual(cell(ans, [pick])[0], cell(ans)[0], "月の小計（月で区切る）")
+        whole = self.ask([{"column": "@workday", "part": "ym"}, {"column": "@workday"}], [], [{"agg": "lots"}])
+        self.assertEqual(whole["month"], "", "月を選ばなければ全部")
+        for m in months:
+            self.assertEqual(cell(whole, [m])[0], len({r[0] for r in self.rows if place(r[0])[0].startswith(m)}), f"月の小計 {m}")
+        self.assertEqual(self.ask([{"column": "@shift"}], [], [{"agg": "count"}], month=pick)["month"], "", "日の段が無ければ月では絞らない")
+
     def test_date_parts_and_labels(self):
         ans = self.ask([{"column": "作業日", "part": "ym"}], [{"column": "作業日", "part": "weekday"}], [{"agg": "count"}])
         want = defaultdict(int)

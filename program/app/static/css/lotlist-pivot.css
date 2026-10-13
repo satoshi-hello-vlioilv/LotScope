@@ -79,6 +79,11 @@
 .pv-grid{stroke:#e6ebf0}
 .pv-axis{stroke:#9aa7b2}
 .pv-ax{font-size:11px;fill:#5d6b78}
+/* 数値ラベル（版 3.26.0）: 棒・点の上に小さく。下の棒・線と重なっても読めるよう白い縁取り */
+.pv-vl{font-size:10.5px;font-weight:700;fill:#2b3a47;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
+/* 月の境目（月で区切る）: 縦の点線と、月の真ん中の上の月の名前 */
+.pv-msep{stroke:#8a98a6;stroke-width:1;stroke-dasharray:3 3}
+.pv-mname{font-size:11.5px;font-weight:800;fill:#3e4d5a}
 .pv-stats{flex:0 0 230px;border:1px solid var(--line-soft);border-radius:9px;background:var(--surface-1);padding:8px 10px;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
 .pv-stats table{border-collapse:collapse}.pv-stats th{text-align:left;color:var(--muted);font-weight:700;padding:2px 10px 2px 0}.pv-stats td{text-align:right;font-variant-numeric:tabular-nums;padding:2px 0}
 .pv-binw{display:grid;gap:3px;color:var(--muted);font-weight:700}
@@ -107,3 +112,47 @@
 .pv-empty b{font-size:15px}.pv-empty span{color:var(--h-meta);line-height:1.6}
 .pv-quickbig{display:flex;flex-wrap:wrap;gap:8px}
 .pv-quickbig .pv-quick{height:34px;font-weight:700}
+
+/* ---- 版 3.26.0: 組み方のプリセット・数値ラベル・月で区切る・月を選ぶ（7 案＋2 回目で選んだ: ui-proposals/2026-10-pvmonth* の M4） ----
+   組み方（文の中身を入れ替える物）は文の頭に「★ 組み方 名前 ▾」1 つ。グラフの見た目の物（数値ラベル・月で区切る・◀ 月 ▶）は
+   グラフの見出しの右（表だけのときは表の上の帯）。どの行も 1 段のまま（グラフの形の行を増やさない） */
+.pv-preset{display:inline-flex;align-items:center;gap:6px;height:30px;max-width:300px;padding:0 10px;border:1px solid var(--line);border-radius:8px;
+  background:var(--surface);font:inherit;font-size:12.5px;color:var(--ink);cursor:pointer;flex:0 1 auto;min-width:0}
+.pv-preset b{white-space:nowrap}
+.pv-preset .pv-pname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--h-meta);min-width:0}
+.pv-preset.is-on{border-color:#d9b46a;background:#fdf7ea}
+.pv-preset.is-on .pv-pname{color:var(--ink);font-weight:700}
+.pv-preset i{font-style:normal;font-size:11px;color:var(--muted)}
+.pv-preset:hover,.pv-preset[aria-expanded="true"]{border-color:var(--h-input)}
+.pv-star{color:#9aa6b1;font-size:13px;line-height:1}
+.pv-star.is-std{color:#b5822a}
+.pv-copts{margin-left:auto;display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pv-tbar{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:6px 10px;margin:0}
+.pv-mnav{display:inline-flex;align-items:center;height:28px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.pv-mnav button{width:28px;height:28px;border:0;background:transparent;color:var(--h-input);font-size:11px;cursor:pointer}
+.pv-mnav button:hover:not(:disabled){background:var(--surface-3)}
+.pv-mnav button:disabled{color:#b8c2cb;cursor:default}
+.pv-mnav select{height:28px;border:0;border-inline:1px solid var(--line);border-radius:0;background:var(--surface);font:inherit;font-size:12.5px;font-weight:700;padding:0 6px;min-width:7.5em;cursor:pointer}
+/* 組み方の面 */
+.pv-ppop{position:fixed;z-index:60;width:520px;max-width:calc(100vw - 16px);max-height:min(70vh,640px);overflow:auto;background:var(--surface);border:1px solid var(--pop-line);
+  border-radius:10px;box-shadow:0 18px 44px var(--pop-shadow);padding:10px 12px;font-size:13px;display:flex;flex-direction:column;gap:4px}
+.pv-phead b{font-size:14px}.pv-phead small{display:block;color:var(--muted);font-size:11.5px;line-height:1.5}
+.pv-psec{margin:8px 0 2px;font-size:11.5px;font-weight:800;color:var(--h-meta)}
+.pv-pnote{margin:0;padding:4px 2px;color:var(--muted);font-size:12px}
+.pv-pi{display:flex;align-items:center;gap:6px;border:1px solid transparent;border-radius:8px;padding:2px}
+.pv-pi:hover{background:var(--surface-2)}
+.pv-pi.is-now{border-color:#d9b46a;background:#fdf7ea}
+.pv-papply{flex:1;min-width:0;display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:4px;text-align:left;border:0;background:transparent;font:inherit;padding:4px 6px;cursor:pointer;color:var(--ink)}
+.pv-papply b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv-papply small{grid-column:2;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv-pact{display:inline-flex;gap:3px;flex:0 0 auto}
+.pv-pact button{height:24px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:11.5px;padding:0 7px;cursor:pointer;color:var(--h-meta);white-space:nowrap}
+.pv-pact button:hover:not(:disabled){border-color:var(--h-input);color:var(--h-input)}
+.pv-pact button:disabled{opacity:.45;cursor:default}
+.pv-pact button[aria-pressed="true"]{color:#8f6418;border-color:#d9b46a;background:#fdf7ea;font-weight:700}
+.pv-psave{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:center;border-top:1px solid var(--line);margin-top:6px;padding-top:4px}
+.pv-psave .pv-psec{grid-column:1/-1}
+.pv-psave input[type=text]{height:30px;border:1px solid var(--edit-line);border-radius:6px;padding:0 8px;background:var(--edit-field);font:inherit;font-size:13px;min-width:0}
+.pv-pto{grid-column:1/-1;display:flex;gap:14px;font-size:12.5px;color:var(--h-meta)}
+.pv-pto label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.pv-psave .pv-btn{grid-row:2;grid-column:2}

@@ -156,7 +156,7 @@ def worklog_pivot():
                 "pattern": pat["name"] if pat else ""}
         out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
                           filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
-                          table_candidates=work_log.TABLE_CANDIDATES, work=work)
+                          table_candidates=work_log.TABLE_CANDIDATES, work=work, month=a.get("month", ""))
         out["shiftPattern"] = work["pattern"]
     except pivot.PivotError as e:
         return error(str(e), 400)

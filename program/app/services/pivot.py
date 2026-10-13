@@ -9,6 +9,9 @@
            日付のまとめ: year（年）・ym（年月）・date（年月日）・month（月）・weekday（曜日）・hour（時）
            数の区間: bin（ヒストグラム。幅 width・起点 origin。幅が 0 なら、データの範囲と件数から決める）
     作業実績だけの列: @workday（作業日。現場歴／太陽暦）・@shift（直）。作業開始の列と勤務体系で決める（work_summary.Grouping と同じ決め方）
+           作業日のまとめ（版 3.26.0〜）: ""（日）・ym（年月）・year（年）
+月で絞る（版 3.26.0〜）: month="YYYY-MM" なら、日の段（行の 1 段目が日付の列の年月日か作業日の日。月で区切るときは 2 段目）がその月の行だけを数える。
+    答えの months はその段に現れる月の並び（絞る前。画面の ◀ ▶ と月を選ぶ所）
 値（measures）: [{agg, column}] 最大 MAX_MEASURES。agg …
     count（行の数）・lots（ロット数: 作業実績は作業開始が同じ行を 1、異常ロット一覧はロット番号が同じ行を 1。鍵が空の行は 1 行ずつ）・
     sum・avg・min・max（数に読める値だけ。読めない値は数えない）
@@ -38,6 +41,7 @@ DATE_PARTS = ("year", "ym", "date", "month", "weekday", "hour")
 PARTS = ("",) + DATE_PARTS + ("bin",)
 AGGS = ("count", "lots", "sum", "avg", "min", "max")
 WORK_DIMS = ("@workday", "@shift")
+WORKDAY_PARTS = ("", "ym", "year")
 AGG_LABEL = {"count": "件数", "lots": "ロット数", "sum": "の合計", "avg": "の平均", "min": "の最小", "max": "の最大"}
 PART_LABEL = {"year": "年", "ym": "年月", "date": "年月日", "month": "月", "weekday": "曜日", "hour": "時", "bin": "区間"}
 WD = "月火水木金土日"      # date.weekday() の順（月曜＝0）
@@ -73,7 +77,7 @@ def clean_dims(text, cs, work_ok):
         if col in WORK_DIMS:
             if not work_ok:
                 raise PivotError("作業日・直は作業実績だけで使えます。")
-            part = ""
+            part = part if col == "@workday" and part in WORKDAY_PARTS else ""
         elif col not in cs:
             raise PivotError(f"列「{col}」がありません。")
         if part not in PARTS:
@@ -145,7 +149,13 @@ class _Keyer:
         if col in WORK_DIMS:
             day, idx = self.clock.place(to_datetime(v, tv), self.basis)
             if col == "@workday":
-                return (day, (0, day) if day else (1, ""), _day_label(day) if day else "日付なし")
+                if not day:
+                    return ("", (1, ""), "日付なし")
+                if part == "ym":
+                    return (day[:7], (0, day[:7]), f"{day[:4]}/{day[5:7]}")
+                if part == "year":
+                    return (day[:4], (0, day[:4]), f"{day[:4]}年")
+                return (day, (0, day), _day_label(day))
             name = (self.clock.segments[idx]["name"] if idx >= 0 else "直の外" if idx == OUTSIDE else "時刻なし")
             return (str(idx), (0, idx) if idx >= 0 else (1, -idx), name)
         if part == "":
@@ -192,7 +202,7 @@ def _day_label(day):
 def _dim_name(dim):
     col, part = dim["column"], dim["part"]
     if col == "@workday":
-        return "作業日"
+        return f"作業日（{PART_LABEL[part]}）" if part else "作業日"
     if col == "@shift":
         return "直"
     return f"{col}（{PART_LABEL[part]}）" if part else col
@@ -202,9 +212,24 @@ def _measure_name(m):
     return AGG_LABEL[m["agg"]] if m["agg"] in ("count", "lots") else f"{m['column']}{AGG_LABEL[m['agg']]}"
 
 
+def _is_day(d):
+    return (d["column"] == "@workday" and d["part"] == "") or (d["column"] != "@workday" and d["part"] == "date")
+
+
+def day_dim(dims):
+    """月で絞れる段（行の 1 段目が日の段: 日付の列の年月日か作業日の日）の番号。無ければ -1。
+    月で区切る（画面が日の段の上に同じ列の年月の段を足す）ときは、2 段目の日の段"""
+    if dims and _is_day(dims[0]):
+        return 0
+    if len(dims) > 1 and dims[0]["part"] == "ym" and dims[1]["column"] == dims[0]["column"] and _is_day(dims[1]):
+        return 1
+    return -1
+
+
 def query(path, *, table="", preferred_table="", search="", filters="", rows="", cols="", measures="", today=None,
-          table_candidates=TABLE_CANDIDATES, work=None):
-    """ピボット集計の答え（モジュールの説明）。work は作業実績のとき {clock, basis, start}（作業開始の列は work_summary.start_column で決める）。"""
+          table_candidates=TABLE_CANDIDATES, work=None, month=""):
+    """ピボット集計の答え（モジュールの説明）。work は作業実績のとき {clock, basis, start}（作業開始の列は work_summary.start_column で決める）。
+    month は "YYYY-MM"（月で絞る。行の 1 段目が日の段のときだけ効く）。"""
     t0 = time.perf_counter()
     with connect_ro(path) as c:
         names = tables(c)
@@ -240,6 +265,18 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
         if total > MAX_ROWS:
             raise PivotError(f"当たる行が多すぎます（{total:,} 行。{MAX_ROWS:,} 行まで）。条件で絞ってから集計してください。")
         data = c.execute(f"SELECT {', '.join(qi(x) for x in need) or '1'} FROM {qi(t)}{where}", params).fetchall() if need else [()] * total
+    clock, basis = (work or {}).get("clock"), (work or {}).get("basis", "work")
+    # 月で絞る: 日の段の鍵（YYYY-MM-DD）の頭 7 字で月を決め、選んだ月の行だけにする（区間・傾向の数も、その月の行で決める）
+    months, dd = [], day_dim(rd)
+    if dd >= 0:
+        dk, (a, b) = _Keyer(rd[dd], clock, basis), pos[dd]
+        mk = [dk.key(r[a] if a >= 0 else None, r[b] if b >= 0 else None)[0][:7] for r in data]
+        months = sorted({m for m in mk if m})
+        month = str(month or "")
+        if month:
+            data = [r for r, m in zip(data, mk) if m == month]
+    else:
+        month = ""
     # 区間の幅・起点を決める（幅 0 は自動）。傾向の数（平均・ばらつき・四分位）も出す
     bins, stats = [], {}
     for i, d in enumerate(dims):
@@ -254,7 +291,6 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
             d["origin"] = math.floor(lo / d["width"]) * d["width"]
         bins.append({"dim": i, "column": d["column"], "width": d["width"], "origin": d["origin"], "auto": bool(d.get("auto")), "min": lo, "max": hi})
         stats[d["column"]] = describe(vals)
-    clock, basis = (work or {}).get("clock"), (work or {}).get("basis", "work")
     keyers = [_Keyer(d, clock, basis) for d in dims]
     nr, nc = len(rd), len(cd)
     # 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
@@ -331,7 +367,7 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
         "dims": {"rows": [{**d, "name": _dim_name(d)} for d in rd], "cols": [{**d, "name": _dim_name(d)} for d in cd]},
         "measures": [{**m, "name": _measure_name(m)} for m in ms],
         "orders": orders, "labels": labels, "cells": out_cells, "truncated": truncated,
-        "bins": bins, "stats": stats, "lotsBy": lots_by, "start": start, "note": note,
+        "bins": bins, "stats": stats, "lotsBy": lots_by, "start": start, "note": note, "months": months, "month": month,
         "timing": {"server": round((time.perf_counter() - t0) * 1000)},
     }
 

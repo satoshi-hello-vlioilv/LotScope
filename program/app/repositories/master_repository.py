@@ -10,7 +10,7 @@
 """
 from pathlib import Path
 
-from ..services import display_formats, equipment_names, shifts, work_log
+from ..services import display_formats, equipment_names, pivot_presets, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
 
@@ -43,6 +43,8 @@ SPECS = {
     "display_formats": {"fields": display_formats.FIELDS, "renamed": {}, "unique": None},
     # 勤務体系（services/shifts.py）。名称は 1 つずつ。区分は JSON の字
     "shift_patterns": {"fields": shifts.FIELDS, "renamed": {}, "unique": "名称"},
+    # 集計表・グラフの組み方のプリセット（services/pivot_presets.py）。名前は (元・範囲・持ち主) ごとに 1 つ（_check_row）・標準は組ごとに 1 つ
+    "pivot_presets": {"fields": pivot_presets.FIELDS, "renamed": {}, "unique": None},
 }
 
 
@@ -108,6 +110,11 @@ class MasterRepository:
             for r in rows:
                 if r.get("id") != self_id and (_key(r.get("名前")), r.get("元")) == key:
                     raise DuplicateKey(f"書式「{data.get('名前')}」はもうあります。上書きするか、別の名前にしてください。")
+        if name == "pivot_presets":
+            g = pivot_presets.group_of(data)
+            for r in rows:
+                if r.get("id") != self_id and pivot_presets.group_of(r) == g and _key(r.get("名前")) == _key(data.get("名前")):
+                    raise DuplicateKey(f"組み方「{data.get('名前')}」はもうあります。上書きするか、別の名前にしてください。")
         if name == "equipment_master":
             msg = equipment_names.check_row(rows, data, self_id)
             if msg:
@@ -300,6 +307,51 @@ class MasterRepository:
 
     def format_delete(self, item_id, base_rev=None):
         self._delete("display_formats", item_id, base_rev)
+
+    # -------------------------------------------------- 集計表・グラフの組み方のプリセット（中身の決まりは services/pivot_presets.py）
+    def pivot_presets(self):
+        return self._list("pivot_presets")
+
+    def _preset_write(self, item_id, data, base_rev=None):
+        """作る（item_id が None）・直す。標準にしたら、同じ組（元・範囲・持ち主）のほかの標準を外す（1 回の書き込みで）。"""
+        spec = SPECS["pivot_presets"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            if item_id is None:
+                row = {"id": next_id(rows), **{k: "" for k in spec["fields"]}}
+                self._check_row("pivot_presets", rows, data)
+                rows.append(row)
+                row["rev"] = 0
+            else:
+                _, row = self._find(rows, item_id)
+                if row is None:
+                    if base_rev is not None:
+                        raise RowConflict(None)
+                    raise NotFound(f"id={item_id} が見つかりません。")
+                self._check_rev(row, base_rev)
+                self._check_row("pivot_presets", rows, {**row, **data}, self_id=item_id)
+            for k in spec["fields"]:
+                if k in data:
+                    row[k] = _clean(data.get(k))
+            row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
+            if row.get("標準") == "1":
+                g = pivot_presets.group_of(row)
+                for r in rows:
+                    if r is not row and r.get("標準") == "1" and pivot_presets.group_of(r) == g:
+                        r.update(標準="", rev=int(r.get("rev", 1)) + 1, **stamp)
+            return dict(row)
+        return self.store.write("pivot_presets", mutate)
+
+    def preset_create(self, data):
+        return self._preset_write(None, data)
+
+    def preset_update(self, item_id, data, base_rev=None):
+        """名前・中身（上書き）・標準・備考を直す（元・範囲・持ち主は作ったときのまま）。"""
+        return self._preset_write(item_id, {k: v for k, v in data.items() if k in ("名前", "中身", "標準", "備考")}, base_rev)
+
+    def preset_delete(self, item_id, base_rev=None):
+        self._delete("pivot_presets", item_id, base_rev)
 
     # -------------------------------------------------- 勤務体系（中身の決まりは services/shifts.py）
     def shift_patterns(self):
