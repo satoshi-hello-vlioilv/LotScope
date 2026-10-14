@@ -2,20 +2,29 @@
    異常ロット一覧のスライサー（lotlist-slicer.js）
    - 表とスライサーを 1 つの行（.ll-bodyrow）に置く。data-place で左（既定）・右・上
    - 値は 1 行ずつ: 名前は左・件数は右に揃え、件数の帯（淡い藍）で多い・少ないを読まずに分かるように
-   - 選んだ値は藍の地に白い字。0 件（今の絞り込みでは当たらない）は淡く（押せる）
+   - 選んだ値は淡い藍の地・藍の枠・太字に、行の頭の印（☑ いくつでも選ぶ／◉ 1 つだけ選ぶ）を塗る（版 3.30.0。選び方が値の行で見える）
+   - 0 件（今の絞り込みでは当たらない）は淡く（押せる）。カードの ⋯ で隠せる（値の下に「0 件 N 個を隠しています 出す」）
+   - 面と表の境目（.sx-edge）を引いて幅（上に置いたときは高さ）を変える。字の大きさは頭の 🔍（.sx-cards に zoom）
    ========================================================================= */
 .ll-bodyrow{flex:1;min-height:0;display:flex;gap:10px;margin:0 16px 14px}
 .ll-bodyrow > .ll-grid-wrap{flex:1;min-width:0;margin:0}
 .ll-bodyrow[data-place="right"]{flex-direction:row-reverse}
 .ll-bodyrow[data-place="top"]{flex-direction:column}
 
-.sx-pane{flex:0 0 250px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:10px;
+.sx-pane{flex:0 0 280px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:10px;
   background:var(--surface-2);border:1px solid var(--line);border-radius:8px;font-size:13px}
-.ll-bodyrow[data-place="top"] .sx-pane{flex:0 0 auto;max-height:260px}
-.sx-head{display:flex;align-items:center;gap:8px;flex:0 0 auto}
-.sx-head > b{font-size:13.5px;margin-right:auto}
+.ll-bodyrow[data-place="top"] .sx-pane{flex:0 0 260px}
+.sx-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 6px;flex:0 0 auto}   /* 狭くしても切らずに折り返す（既定の 280px で 1 行） */
+.sx-head > b{font-size:13.5px;margin-right:auto;white-space:nowrap}
+.sx-close{flex:none}
+.sx-zoombtn{display:inline-flex;align-items:center;gap:2px;height:24px;padding:0 4px;border:1px solid var(--line);border-radius:7px;background:var(--surface);
+  font:inherit;font-size:12px;color:var(--h-input);cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sx-zoombtn svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6}
+.sx-zoombtn i{font-style:normal;font-size:9.5px;color:var(--muted)}
+.sx-zoombtn:hover,.sx-zoombtn[aria-expanded="true"]{border-color:var(--h-input);background:var(--input-soft)}
+.sx-zoombtn.is-zoomed{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}.sx-zoombtn.is-zoomed i{color:var(--accent-ink)}
 .sx-place{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
-.sx-place button{border:0;background:var(--surface);padding:0 10px;height:24px;font:inherit;font-size:12px;color:var(--muted);cursor:pointer}
+.sx-place button{border:0;background:var(--surface);padding:0 6px;height:24px;font:inherit;font-size:12px;color:var(--muted);cursor:pointer}
 .sx-place button + button{border-left:1px solid var(--line)}
 .sx-place button[aria-checked="true"]{background:var(--h-input);color:var(--on-fill);font-weight:700}
 .sx-close{width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--muted);cursor:pointer;line-height:1}
@@ -23,10 +32,15 @@
 
 .sx-cards{display:flex;flex-direction:column;gap:10px}
 .ll-bodyrow[data-place="top"] .sx-cards{flex-direction:row;flex-wrap:wrap;align-items:flex-start}
-.ll-bodyrow[data-place="top"] .sx-card{flex:0 1 280px;max-height:200px;overflow:auto}
+.ll-bodyrow[data-place="top"] .sx-card{flex:0 1 280px;max-height:calc(var(--sx-h,260px) - 60px);overflow:auto}
 .sx-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px}
 .sx-ch{display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .sx-ch > b{font-size:13px;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sx-grip{flex:none;color:#8a97a3;font-weight:800;letter-spacing:-2px;font-size:12px;padding:0 3px 0 0;cursor:grab;user-select:none}
+.sx-grip:hover{color:var(--h-input)}
+.sx-card.is-dragging{opacity:.5}
+.sx-more-btn{flex:none;width:24px;height:22px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--h-input);font:inherit;font-weight:800;line-height:1;cursor:pointer}
+.sx-more-btn:hover,.sx-more-btn[aria-expanded="true"]{border-color:var(--h-input);background:var(--input-soft)}
 .sx-clr,.sx-rm{height:22px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font:inherit;font-size:11.5px;padding:0 8px;cursor:pointer;white-space:nowrap}
 .sx-clr{color:var(--h-input);font-weight:700;border-color:#b9c9d6;background:var(--input-soft)}
 .sx-rm{color:var(--muted)}
@@ -43,9 +57,22 @@
 .sx-v i{font-style:normal;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
 .sx-v:hover{border-color:var(--h-input)}
 .sx-v:focus-visible{outline:2px solid var(--h-input);outline-offset:1px}
-.sx-v.is-on{background:var(--h-input);border-color:var(--h-input);color:var(--on-fill);font-weight:700}
-.sx-v.is-on::before{background:rgba(255,255,255,.18)}
-.sx-v.is-on i{color:#dbe7f3}
+.sx-v span{display:flex;align-items:center;gap:7px}
+.sx-v.is-on{background:var(--input-soft);border-color:var(--h-input);color:var(--h-input);font-weight:700}
+.sx-v.is-on::before{background:rgba(63,101,145,.16)}
+.sx-v.is-on i{color:var(--h-input)}
+/* 行の頭の印: □ いくつでも選ぶ（選ぶと藍に ✓・一部なら ━）／○ 1 つだけ選ぶ（選ぶと藍の点） */
+.sx-mk{flex:none;position:relative;width:13px;height:13px;border:1.5px solid #8ea3b7;border-radius:3px;background:var(--surface);box-sizing:border-box}
+.sx-mk.is-one{border-radius:50%}
+.sx-mk.is-on:not(.is-one),.sx-mk.is-half{background:var(--h-input);border-color:var(--h-input)}
+.sx-mk.is-on:not(.is-one)::after{content:"";position:absolute;left:3.2px;top:.6px;width:3.5px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.sx-mk.is-half::after{content:"";position:absolute;left:2px;right:2px;top:4.2px;height:2px;background:#fff;border-radius:1px}
+.sx-mk.is-one.is-on{border-color:var(--h-input)}
+.sx-mk.is-one.is-on::after{content:"";position:absolute;inset:2.2px;border-radius:50%;background:var(--h-input)}
+.sx-v.sx-all{font-weight:700;background:var(--surface-2)}
+.sx-v.sx-all::before{display:none}
+.sx-zero{display:flex;align-items:center;gap:6px;margin:6px 2px 0;color:var(--muted);font-size:11.5px}
+.sx-zero button{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--h-input);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .sx-v.is-zero:not(.is-on){color:#8b98a3;background:var(--surface-3)}
 .sx-v[hidden]{display:none}
 .sx-empty,.sx-wait,.sx-more{margin:0;color:var(--muted);font-size:12px;line-height:1.6}
@@ -75,3 +102,26 @@
 .ll-profile i{font-style:normal;font-size:10.5px;background:#efe8ff;color:#5b3fb0;border-radius:999px;padding:0 6px;margin-left:4px;font-weight:700}
 .ll-profile .pf-dev{border-top:1px solid var(--line);margin-top:4px;padding-top:4px}
 .pf-msg{margin:4px 10px 2px;font-size:12px;color:var(--ok-ink)}.pf-msg.is-ng{color:var(--danger)}.sx-calc{margin-left:5px;padding:0 4px;border-radius:4px;background:var(--input-soft);color:var(--h-input);font-size:10px;font-weight:800;vertical-align:1px}
+
+/* ---------- カードの ⋯ のメニュー（選び方・0 件の値を隠す・並び） ---------- */
+.sx-menu{position:fixed;z-index:70;display:grid;min-width:190px;padding:5px;background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;
+  box-shadow:0 14px 34px var(--pop-shadow);font-size:12.5px}
+.sx-menu small{padding:5px 10px 2px;color:var(--muted);font-size:11px;font-weight:700}
+.sx-menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.sx-menu button{display:flex;align-items:center;gap:8px;padding:6px 10px;border:0;border-radius:7px;background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.sx-menu button:hover:not(:disabled),.sx-menu button:focus-visible{background:var(--surface-4);outline:none}
+.sx-menu button:disabled{color:var(--faint);cursor:default}
+.sx-menu button[aria-checked="true"]{font-weight:700;color:var(--h-input)}
+.sx-menu .sx-mk.is-many.is-on{background:var(--h-input);border-color:var(--h-input)}
+.sx-menu .sx-mk.is-many.is-on::after{content:"";position:absolute;left:3.2px;top:.6px;width:3.5px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+
+/* ---------- 面と表の境目（引いて幅・高さを変える） ---------- */
+.sx-edge{flex:0 0 10px;margin:0 -10px;position:relative;cursor:col-resize;outline:none;z-index:2}
+.sx-edge[hidden]{display:none}
+.sx-edge::before{content:"";position:absolute;left:50%;top:50%;width:4px;height:44px;margin:-22px 0 0 -2px;border-radius:2px;background:#b9c9d6;transition:background .12s}
+.sx-edge:hover::before,.sx-edge.is-dragging::before,.sx-edge:focus-visible::before{background:var(--h-input)}
+.sx-edge:focus-visible{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--h-input) 35%,transparent);border-radius:4px}
+.ll-bodyrow[data-place="top"] .sx-edge{margin:-10px 0;cursor:row-resize}
+.ll-bodyrow[data-place="top"] .sx-edge::before{width:44px;height:4px;margin:-2px 0 0 -22px}
+body.sx-resizing{cursor:col-resize;user-select:none}
+body.sx-resizing .ll-bodyrow[data-place="top"]{cursor:row-resize}
