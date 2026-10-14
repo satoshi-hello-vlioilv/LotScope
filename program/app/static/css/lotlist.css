@@ -41,16 +41,20 @@
    縮むのは決めた物だけ: 検索の欄（140px まで）→ 書式の名前（5.5em まで）→ 列で絞り込むの字 */
 .ll-screen .filter-search-row > .filter-search-row-actions{display:contents}
 .ll-screen .filter-search-row-actions > :first-child{margin-left:auto}
-/* 狭い窓（版 3.32.0）: 言葉は変えず、しまいもせず、ボタンの余白と間だけ詰めて 1 段に収める（字の大きさは本文と同じ） */
+.ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:9em}   /* 書式の名前が 3 字は読める幅（版 3.32.0） */
+.ll-screen .fm-entry.has-now .fm-now{min-width:0}
+/* 狭い窓（版 3.32.0。決め方: ui-proposals/2026-10-narrow* の 3 回目で M5）: 道具の行・件数の行だけ字を 12.5px に（表の字は変えない） */
 @media (max-width:1440px){
-  .ll-screen{--ll-fs:13px}
+  .ll-screen{--ll-fs:12.5px;--ll-h:28px}
+  .ll-status{font-size:12.5px}
+  .ll-fresh,.ll-zoombtn{font-size:12px}
+  .ll-atab{font-size:12px}
   .ll-screen .filter-search-row{gap:5px;padding:7px 8px}
   .ll-screen .generic-filter-bar .filter-search-row button{padding:0 8px}
-  .ll-screen .filter-search-row > .lt-search{min-width:110px}
-  .ll-screen .filter-search-row-actions > .fm-entry{min-width:7.5em}   /* 書式の名前は「異常…」まで読める幅を残す */
+  .ll-screen .filter-search-row > .lt-search{min-width:118px}
+  .ll-screen .filter-search-row-actions > .fm-entry{min-width:10.5em}   /* 書式の名前は「異常ロ…」まで読める幅を残す */
 }
-.ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:5.5em}
-.ll-screen .fm-entry.has-now .fm-now{min-width:0}
+.lt-search input{text-overflow:ellipsis}   /* 狭くて案内の字（一覧を検索）が入らないときは … で */
 .ll-screen .generic-filter-bar select,.ll-screen .generic-filter-bar input{height:var(--ll-h);border:1px solid var(--edit-line);border-radius:7px;background:var(--edit-field);padding:0 8px;color:var(--ink)}
 .ll-screen .generic-filter-bar input:focus,.ll-screen .generic-filter-bar select:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
 .lt-search{flex:0 1 300px;min-width:180px;position:relative;display:flex;align-items:center}
@@ -154,11 +158,11 @@
 .ll-status{display:flex;flex-wrap:nowrap;align-items:center;gap:6px 12px;padding:8px 18px 6px;flex:0 0 auto;min-width:0}
 .ll-status > *{flex-shrink:0;white-space:nowrap}
 .ll-statusright{margin-left:auto;display:flex;align-items:center;gap:10px}
-.ll-status > :is(.ll-lothint,#llCardHint){flex-shrink:20;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ll-status > :is(.ll-lothint,#llCardHint){flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 添え書きは余った幅だけを使う（ほかの札を縮めない。版 3.32.0） */
 
 /* 効いている物のタブ（lotlist-active.js）: 1 本の帯に種類ごとの区切り。色は札と同じ役割の色（まとめ＝青緑・並べ替え＝藍・選んだ値＝青・色付け＝その色） */
 .ll-status > .ll-active{flex:0 1 auto;min-width:0}
-.ll-active.is-tight :is(.ll-akey,.ll-aname){display:none}   /* 入りきらないとき（lotlist-active.js の fit）。種類と数は残す */
+.ll-active:is(.fold-key,.is-tight) .ll-akey,.ll-active.fold-names .ll-atab:not(.is-sort) .ll-aname,.ll-active.is-tight .ll-aname{display:none}   /* 入りきらないとき（lotlist-active.js の fit）。種類と数は残す */
 .ll-active.is-tighter .ll-atab{padding:0 6px;gap:3px}.ll-active.is-tighter .ll-atab i{display:none}   /* まだ入らないとき: ▾ と余白も詰める */
 .ll-active{display:inline-flex;align-items:center;height:30px;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
 .ll-active[hidden]{display:none}

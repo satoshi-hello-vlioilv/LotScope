@@ -34,11 +34,13 @@
     if (!tab) close(false); else TPA.placeBelow(pop, tab);
   }
   /** 入りきらないときは、前置き（効いている物）と中身の名前を畳む（種類と数は残す。全部はタブの説明に。版 3.32.0） */
+  /* 入りきらないときに畳む順（版 3.32.0）: 前置き（効いている物）→ まとめ・選んだ値・色付けの名前 → 並べ替えの列名 → ▾ と余白。
+     並べ替えの列名（何の順に並んでいるか）は最後まで残す。種類と数はいつも残す（全部はタブの説明に） */
+  const FOLDS = ["fold-key", "fold-names", "is-tight", "is-tighter"];
   function fit() {
-    tabs.classList.remove("is-tight", "is-tighter");
+    tabs.classList.remove(...FOLDS);
     const over = () => !tabs.hidden && tabs.scrollWidth > tabs.clientWidth + 1;
-    if (over()) tabs.classList.add("is-tight");
-    if (over()) tabs.classList.add("is-tighter");
+    for (const f of FOLDS) { if (!over()) break; tabs.classList.add(f); }
   }
   function show(kind) {
     if (off) off();

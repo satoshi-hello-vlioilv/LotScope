@@ -6,13 +6,14 @@
 // ③ 段: 1 段のはずの段（見出し帯・道具の行・件数の行・設備のタブ・3D の頭の行）が 2 段以上になっている
 // ④ 重なり: 3D の札どうし・札と凡例が重なっている／札が 3D の枠の外へ出ている（計算の 3D。見えている札だけ）
 // ⑤ 届く: 見出し帯の操作（画面のタブ・マスタ管理・アプリ・終了）がどれも画面の中にあって押せる
+// ⑥ 名前: 縮めて出す名前（書式の名前・効いている物の名前）が、出ているのに 3 字も読めない（「異…」のように 1〜2 字で切れる）
 // 全部 0 なら終了コード 0。
 import path from "node:path";
 import { launch, walk } from "./ui-harness.mjs";
 
 const OUT = process.argv[2] ? path.resolve(process.argv[2]) : "";
 const VIEWS = [{ width: 1728, height: 1152 }, { width: 1536, height: 864 }, { width: 1280, height: 720 }];
-const STATES = ["list", "crowded", "sorted", "card", "calc", "worklog", "worklog-work", "worklog-pivot", "slicer", "columns", "master", "calc3d", "worklog-many"];
+const STATES = ["list", "crowded", "sorted", "card", "calc", "worklog", "worklog-work", "worklog-pivot", "slicer", "profile", "columns", "master", "calc3d", "worklog-many"];
 
 /** 頁の中で数える（page.evaluate に渡す） */
 function inspect() {
@@ -68,7 +69,7 @@ function inspect() {
   // ③ 段: 子の縦の中心がいくつの段に分かれるか
   const lines = (box) => {
     if (!shown(box)) return 0;
-    const mids = [...box.children].filter(shown).map((x) => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; }).sort((a, b) => a - b);
+    const mids = [...box.children].filter((x) => shown(x) && !/^(absolute|fixed)$/.test(getComputedStyle(x).position)).map((x) => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; }).sort((a, b) => a - b);
     let n = 0, last = -1e9; for (const m of mids) { if (m - last > 10) n++; last = m; }
     return n;
   };
@@ -100,7 +101,14 @@ function inspect() {
     const top = document.elementFromPoint(Math.min(W - 1, Math.max(0, r.left + r.width / 2)), r.top + r.height / 2);
     if (r.right > W + 1 || r.left < -1 || !(top && (el === top || el.contains(top)))) reach.push(name(el));
   }
-  return { folded, cut, rows, overlap, reach };
+  // ⑥ 名前（出ているのに 3 字も読めない。畳んで出さないのはよい）
+  const names = [];
+  for (const el of document.querySelectorAll(".fm-entry.has-now .fm-now, #llActiveTabs .ll-aname")) {
+    if (!shown(el) || !el.textContent.trim()) continue;
+    const em = parseFloat(getComputedStyle(el).fontSize) || 13;
+    if (el.scrollWidth > el.clientWidth && el.clientWidth < em * 3) names.push(`${name(el.closest("button") || el)}（${Math.round(el.clientWidth)}px）`);
+  }
+  return { folded, cut, rows, overlap, reach, names };
 }
 
 const fails = [];
@@ -111,7 +119,7 @@ try {
     const tag = `${view.width}×${view.height}`;
     await walk(p, async (state) => {
       const got = await p.evaluate(inspect);
-      const bad = got.folded.length + got.cut.length + Object.keys(got.rows).length + got.overlap.length + got.reach.length;
+      const bad = got.folded.length + got.cut.length + Object.keys(got.rows).length + got.overlap.length + got.reach.length + got.names.length;
       console.log(`${bad ? "NG" : "OK"} ${tag} ${state}` + (bad ? `: ${JSON.stringify(got)}` : ""));
       if (bad) {
         fails.push(`${tag} ${state}`);

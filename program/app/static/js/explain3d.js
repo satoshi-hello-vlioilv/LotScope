@@ -258,7 +258,7 @@ function ensureView() {
   stage.appendChild(labels.domElement);
   // 凡例（色と形の意味を先に示す）。転写とピッチで中身を差し替える（setLegend）。模型に重ねず、3D の下の帯に置く（版 3.32.0）。
   // 3D が狭い・低いときは言い添えを畳んだ短い言葉で、全部の項目を 2 行までに（全文は帯の説明に）。隠した札の数は 3D の右上に出す（declutter）
-  stage.insertAdjacentHTML("beforeend", `<div class="x-legend"><div class="lg-items"></div></div><div class="x-hidden-note" hidden></div>`);
+  stage.insertAdjacentHTML("beforeend", `<div class="x-legend"><div class="lg-items"></div><div class="x-hidden-note" hidden></div></div>`);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 2, 0.1, 400);
@@ -338,11 +338,11 @@ function requestRender() {
 /* 札の重なりをほどく（版 3.32.0）: 3D の枠が小さい（フル HD・150% など）と、札は字の大きさのまま模型だけが小さくなり、札どうしが重なって読めない。
    大事な札（見ている工程の名 → 赤の札・発生／発見の名 → ほかの工程の名 → オフ → 流れ → 薄い注記）から置き、
    置いた札・凡例に重なる札と、枠からはみ出す札は隠す（近づける・回すと、空いた所にまた出る）。評価関数 ui-eval-narrow.mjs */
-const RANK = [".title.active", ".red, .title.origin, .title.found", ".title", ".off, .edge, .side, .pair", ".flow"];
+const RANK = [".title.active", ".red, .title.origin, .title.found", ".key", ".title", ".off, .edge, .side, .pair", ".flow"];   // key: 内径／外径・頭から何 m
 const rankOf = (el) => { const i = RANK.findIndex((sel) => el.matches(sel)); return i < 0 ? RANK.length : i; };
 function declutter() {
   const stage = ui.stage, box = view.labels.domElement.getBoundingClientRect(), note = stage.querySelector(".x-hidden-note");
-  const taken = [...stage.querySelectorAll(".x-legend, .x-hidden-note:not([hidden])")].map((el) => el.getBoundingClientRect());
+  const taken = [];
   const GAP = 2;   // 札のまわりに空ける幅（角が触れるだけでも読みにくい）
   const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > -GAP && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > -GAP;
   const labels = [...view.labels.domElement.querySelectorAll(".x-label")].filter((el) => el.style.display !== "none");
@@ -357,7 +357,8 @@ function declutter() {
     } else taken.push(r);
   });
   note.hidden = !n;
-  note.textContent = `重なる札 ${n} 個を隠しています（ホイールで近づけると出ます）`;
+  note.textContent = `重なる札 ${n} 個を隠し中`;
+  note.title = "札どうしが重なるので、大事な札（見ている工程の名・赤い札・内径／外径・頭から何 m）を残して隠しています。ホイールで近づけると出ます";
 }
 
 function disposeGroup(g) {
@@ -539,7 +540,7 @@ function buildScene() {
       pairMid = new THREE.Vector3((x1 + x2) / 2, yb, 0);
       label(isOrigin ? `発生: 1 周 ${fmt(s.spacing_m, 3)} m` : isFound ? `ラップ長さ（予測）${fmt(s.spacing_m, 3)} m` : `間隔 ${fmt(s.spacing_m, 3)} m（×${fmt(s.ratio_to_origin, 2)}）`,
         "red pair", new THREE.Vector3((x1 + x2) / 2, yb + 0.28, 0), st);
-      label(`A 側＝${s.a_end}・頭から ${fmt(s.marks[0].from_head_m, 1)} m`, "muted", new THREE.Vector3(x1, FLOOR + 0.02, half + 0.55), detail);
+      label(`A 側＝${s.a_end}・頭から ${fmt(s.marks[0].from_head_m, 1)} m`, "muted key", new THREE.Vector3(x1, FLOOR + 0.02, half + 0.55), detail);
     } else {
       label(`発生前`, "muted", new THREE.Vector3(sx + len / 2, FLOOR + 0.15, 0), st);
     }
@@ -580,7 +581,7 @@ function buildScene() {
     const role = isOrigin ? "（仮の発生）" : isFound ? "（発見）" : "";
     const title = label(`${p.no} ${p.equipment}${role}`, "title" + (isOrigin ? " origin" : isFound ? " found" : before ? " before" : ""),
       new THREE.Vector3(cx, coilTop + 0.28, cz), st);
-    label(`内径 ${fmt(p.inner_diameter_mm, 0)}／外径 ${fmt(outerR(p) * 2, 0)} mm・内側が頭`, `muted ${(wind ? wind.side : 1) > 0 ? "end" : "start"}`,   // コイルの外側へ伸ばす（コイルに被せない）
+    label(`内径 ${fmt(p.inner_diameter_mm, 0)}／外径 ${fmt(outerR(p) * 2, 0)} mm・内側が頭`, `muted key ${(wind ? wind.side : 1) > 0 ? "end" : "start"}`,   // コイルの外側へ伸ばす（コイルに被せない）
       new THREE.Vector3(cx - (wind ? wind.side : 1) * (rOut + 1.3), cy - rOut * 0.55, cz), detail);   // テールと反対の横（下流）
     if (wind) {
       // 札はテールの最後端（上流の側の中心の高さ）の外。先端には「尾」、その外に向きの説明

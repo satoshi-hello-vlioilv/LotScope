@@ -80,7 +80,7 @@ const COLS = [
   { key: "no", name: "No.", unit: "", hc: "meta", kind: "no", w: 40 },
   { key: "equipment", name: "設備", unit: "名称", hc: "meta", kind: "et", w: 78 },
   { key: "unwind", name: "巻出", unit: "方向", hc: "meta", kind: "es", opts: ["", "上", "下"], w: 56 },
-  { key: "rewind_master", name: "巻取", unit: "方向", hc: "input", kind: "es", opts: ["", "上", "下", "-"], blank: "自動", w: 60 },   // 空欄＝設備マスタ（AUTO_COLS）
+  { key: "rewind_master", name: "巻取", unit: "方向", hc: "input", kind: "es", opts: ["", "上", "下", "-"], blank: "自動", w: 68 },   // 空欄＝設備マスタ（AUTO_COLS）。幅は「自動」と ▾ が切れない 68（版 3.32.0）
   { key: "line_direction", name: "ライン", unit: "方向", hc: "meta", kind: "calc", fmt: esc, w: 50 },
   { key: "face_state", name: "面", unit: "", hc: "meta", kind: "calc", fmt: esc, w: 40 },
   { key: "side_state", name: "側", unit: "", hc: "meta", kind: "calc", fmt: esc, w: 40 },
