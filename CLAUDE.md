@@ -25,7 +25,7 @@
 
 ```sh
 # 1. 型・構文（JavaScript・Python・Rust）
-find program/app/static/js program/tools desktop/src -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
+bash program/tools/js-check.sh   # import を使う .js はモジュールとして確かめる（node --check だけでは見逃す）
 python -m compileall -q program
 (cd desktop && cargo build --locked)
 # 2. lint（Python・Rust）

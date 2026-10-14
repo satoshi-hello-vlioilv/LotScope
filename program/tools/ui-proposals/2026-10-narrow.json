@@ -1,6 +1,6 @@
 {
   "title": "2026-10 表示の下限を広げる（フル HD・150%）（版 3.32.0）",
-  "evaluator": "別のエージェント（採点者）。ui-variants.mjs で 1280×720 と 1728×1152 を自分で撮り、画像を 1 枚ずつ見て採点",
+  "evaluator": "別のエージェント（採点者）。ui-variants.mjs で 1280×720 と 1728×1152 を自分で撮り、画像を 1 枚ずつ見て採点。2 回目も別のエージェント（採点者）が、ui-variants.mjs で 1280×720 と 1728×1152 を撮り直し、画像を 1 枚ずつ（必要な所は切り抜いて拡大して）見て採点。本物の M1 は ui-eval-narrow.mjs も流した",
   "rounds": [
     {
       "name": "1 回目",
@@ -116,6 +116,139 @@
             {"kind": "overlap", "where": "calc3d-light-0.png 凡例が 4 段で模型の下半分を覆う"},
             {"kind": "overlap", "where": "calc3d-light-0.png 札（前工程までのオフ・テール・内径・以前の設備…）どうしが重なる"},
             {"kind": "unreadable", "where": "calc3d-light-0.png 重なった札と凡例の字が読めない"}
+          ],
+          "seen": "1280×720 では見出し帯・道具の行が入りきらず右端が切れ、計算の画面ではアプリ・終了が画面の外。作業実績は頁ごと横に送られる。設備 24 台は 2 段。3D は凡例が模型の下半分を覆い、札が重なって読めない。1728 では崩れない"
+        }
+      }
+    },
+    {
+      "name": "2 回目",
+      "images": "scratchpad/eval-narrow2/720（1280×720: list・crowded・worklog-many・calc3d）と scratchpad/eval-narrow2/1728（1728×1152: list・worklog-many・calc3d）。本物（M1）の評価関数 ui-eval-narrow.mjs は scratchpad/eval-narrow2/eval（終了コード 1・NG 1 か所: 1280×720 card）",
+      "proposals": {
+        "M1 土台: 飾りを畳む・余白を詰める・設備は ほか N 台・凡例は模型の下の帯（本物）": {
+          "score": {"order":  8, "chunk":  8, "hierarchy":  7, "visual":  7, "steps":  8, "effortless":  7, "intuitive":  8, "form":  8, "place":  8, "layout":  7, "tone":  7},
+          "minus": [
+            {"kind":  "cut", "where":  "crowded-light-M1.png 道具の行の右端「Excel に出力」が道具の行の枠（薄い地）から右へ約 7px はみ出す"},
+            {"kind":  "cut", "where":  "crowded-light-M1.png 道具の行の「書式 異」: 書式の名前（異常ロット表示）が 1 字で切れ、「…」も無い"},
+            {"kind":  "more_steps", "where":  "worklog-many-light-M1.png 設備の 21 台目より後（4 台）は「ほか 4 台 ▾」を開いてから"},
+            {"kind":  "more_steps", "where":  "1728/worklog-many-light-M1.png 利用者の PC でも「ほか 5 台 ▾」（今は 2 段で全部見えていた）。右の「つかんで並べ替え（選んで Ctrl+Shift+←→ でも）」の案内が 4 台ぶんの幅を取っている"},
+            {"kind":  "overlap", "where":  "calc3d-light-M1.png・1728/calc3d-light-M1.png 「肉厚 429.5 mm で混入 → 1 周 4.452 m で写る」の赤い札がコイルの巻きの下半分に被る"},
+            {"kind":  "cut", "where":  "calc3d-light-M1.png 模型の下の凡例の帯で「その工程の丈の…」が語の途中で薄れて「凡例をすべて ▸」の下に消える"},
+            {"kind":  "more_steps", "where":  "calc3d-light-M1.png 凡例 8 項目のうち 5 項目（両エッジのオフ・前工程までのオフ・次の工程へ・テール など）は「凡例をすべて ▸」を押してから"},
+            {"kind":  "overlap", "where":  "worklog-many-light-M1.png 設備の札の橙の点が「HOT」の T に被り「HO1」と読める（SL9 の 9 にも触れる）"},
+            {"kind":  "hidden_state", "where":  "worklog-many-light-M1.png 件数の行の「並べ替え 重…」と道具の行の「書式 検…」: 何で並べ替えているか・どの書式かが読めない"},
+            {"kind":  "cut", "where":  "ui-eval-narrow.mjs の NG（eval/card-1280.png）: 1280×720 でカードを開いた所、件数の行の「1 色付け 不良名＝汚れ ▾」の札が効いている物の枠の外へ出る"}
+          ],
+          "seen": "良い: list-light-M1.png で見出し帯（「アプリ ▾」「終了」まで）と道具の行（「Excel に出力」まで）が言葉を変えずに 1 段に収まる。calc3d-light-M1.png はロット番号のタブが付いても「終了」まで画面の中。worklog-many-light-M1.png は設備が 1 段で「ほか 4 台 ▾」と隠れた台数が読め、頁の横送りが無い。3D は凡例が模型の下の帯に出て模型に被らず、内径の札はコイルの外へ出た。隠した札の数を右上に出す（「重なる札 3 個を隠しています」）。1728 の list は今と同じ。評価関数は 1728・1536・1280 の 13 状態のうち 38 が OK。悪い: crowded では「Excel に出力」が道具の行の枠から少しはみ出し、書式の名前は「異」1 字で切れる。肉厚の赤い札はコイルの上に乗ったまま。凡例は 1 行に収めるため 5 項目が「すべて ▸」の奥で、最後の項目は語の途中で消える。1728 でも設備を「ほか 5 台」に畳み、今より 1 手増える（案内の字が場所を取る）"
+        },
+        "M2 M1＋設備は 2 段を許す（全部いつも見える）": {
+          "score": {"order":  7, "chunk":  7, "hierarchy":  7, "visual":  7, "steps":  9, "effortless":  8, "intuitive":  8, "form":  8, "place":  7, "layout":  6, "tone":  7},
+          "minus": [
+            {"kind":  "cut", "where":  "crowded-light-M2.png 道具の行の右端「Excel に出力」が道具の行の枠（薄い地）から右へ約 7px はみ出す"},
+            {"kind":  "cut", "where":  "crowded-light-M2.png 道具の行の「書式 異」: 書式の名前（異常ロット表示）が 1 字で切れ、「…」も無い"},
+            {"kind":  "wrap", "where":  "worklog-many-light-M2.png 設備 24 台が 2 段（NS12 から後が 2 段目）。一覧の行が 17 行→15 行に減る"},
+            {"kind":  "overlap", "where":  "calc3d-light-M2.png・1728/calc3d-light-M2.png 「肉厚 429.5 mm で混入 → 1 周 4.452 m で写る」の赤い札がコイルの巻きの下半分に被る"},
+            {"kind":  "cut", "where":  "calc3d-light-M2.png 模型の下の凡例の帯で「その工程の丈の…」が語の途中で薄れて「凡例をすべて ▸」の下に消える"},
+            {"kind":  "more_steps", "where":  "calc3d-light-M2.png 凡例 8 項目のうち 5 項目（両エッジのオフ・前工程までのオフ・次の工程へ・テール など）は「凡例をすべて ▸」を押してから"},
+            {"kind":  "overlap", "where":  "worklog-many-light-M2.png 設備の札の橙の点が「HOT」の T に被る（M1 と同じ）"},
+            {"kind":  "hidden_state", "where":  "worklog-many-light-M2.png 件数の行の「並べ替え 重…」・道具の行の「書式 検…」（M1 と同じ）"},
+            {"kind":  "cut", "where":  "ui-eval-narrow.mjs の NG: 1280×720 のカードで件数の行の「色付け」の札が枠の外（件数の行は M1 と同じ）"}
+          ],
+          "seen": "良い: worklog-many-light-M2.png・1728/worklog-many-light-M2.png で 24 台が全部見え、1 手で選べる。ほかの状態は M1 と画素まで同じ。悪い: 2 段で縦を 45px 食い、一覧が 2 行減る（利用者の不満の「2 段になる」そのもの）。「設備」の字が 2 段目の左へ落ち、1 段目の頭が空いて札の並びの始まりが揃わない。1728 でも 2 段のまま"
+        },
+        "M3 M1＋凡例は右の説明の頭へ（説明は開く）": {
+          "score": {"order":  7, "chunk":  8, "hierarchy":  7, "visual":  6, "steps":  8, "effortless":  7, "intuitive":  7, "form":  8, "place":  7, "layout":  6, "tone":  7},
+          "minus": [
+            {"kind":  "cut", "where":  "crowded-light-M3.png 道具の行の右端「Excel に出力」が道具の行の枠（薄い地）から右へ約 7px はみ出す"},
+            {"kind":  "cut", "where":  "crowded-light-M3.png 道具の行の「書式 異」: 書式の名前（異常ロット表示）が 1 字で切れ、「…」も無い"},
+            {"kind":  "more_steps", "where":  "worklog-many-light-M3.png 設備の 21 台目より後（4 台）は「ほか 4 台 ▾」を開いてから"},
+            {"kind":  "more_steps", "where":  "1728/worklog-many-light-M3.png 利用者の PC でも「ほか 5 台 ▾」（今は 2 段で全部見えていた）。右の「つかんで並べ替え（選んで Ctrl+Shift+←→ でも）」の案内が 4 台ぶんの幅を取っている"},
+            {"kind":  "cut", "where":  "calc3d-light-M3.png 説明を開いたぶん 3D が 440px に縮み、板の大半と「発生: 1 周 4.452 m」「肉厚…で写る」「全長…」の札が枠の外で見えない"},
+            {"kind":  "wrap", "where":  "calc3d-light-M3.png 右上の「重なる札 1 個を隠しています（ホイールで近づけると出ま／す）」が 2 行に折れる"},
+            {"kind":  "hidden_state", "where":  "calc3d-light-M3.png・1728/calc3d-light-M3.png 説明が開いているのにボタンは「説明を開く ▸」のまま"},
+            {"kind":  "scroll", "where":  "calc3d-light-M3.png 凡例が説明の頭を取り、肝心の計算の説明（仮の発生設備: 8 TLV…）は右の面を送らないと読めない"},
+            {"kind":  "overlap", "where":  "1728/calc3d-light-M3.png 「肉厚 429.5 mm で混入…」の札がコイルに被る"},
+            {"kind":  "overlap", "where":  "worklog-many-light-M3.png 設備の札の橙の点が「HOT」の T に被り「HO1」と読める（SL9 の 9 にも触れる）"},
+            {"kind":  "hidden_state", "where":  "worklog-many-light-M3.png 件数の行の「並べ替え 重…」と道具の行の「書式 検…」: 何で並べ替えているか・どの書式かが読めない"},
+            {"kind":  "cut", "where":  "ui-eval-narrow.mjs の NG: 1280×720 のカードで件数の行の「色付け」の札が枠の外（件数の行は M1 と同じ）"}
+          ],
+          "seen": "良い: calc3d-light-M3.png で凡例が全部（8 項目）読め、模型に被らない。1728/calc3d-light-M3.png は凡例と説明が右の 1 列にまとまり、広い画面では読みやすい。悪い: 720 では説明を開いたぶん 3D が細くなり、汚れの札も板も見えず、3D が何を言っているか分からない。凡例が説明を下へ押し、計算の説明は送らないと読めない。隠した札の案内が 2 行に折れ、ボタンの字は開閉の状態と逆"
+        },
+        "M4 M1＋3D の札は見ている工程の大事な物だけ（狭い窓では薄い注記を出さない）": {
+          "score": {"order":  8, "chunk":  8, "hierarchy":  8, "visual":  7, "steps":  8, "effortless":  7, "intuitive":  8, "form":  8, "place":  8, "layout":  7, "tone":  8},
+          "minus": [
+            {"kind":  "cut", "where":  "crowded-light-M4.png 道具の行の右端「Excel に出力」が道具の行の枠（薄い地）から右へ約 7px はみ出す"},
+            {"kind":  "cut", "where":  "crowded-light-M4.png 道具の行の「書式 異」: 書式の名前（異常ロット表示）が 1 字で切れ、「…」も無い"},
+            {"kind":  "more_steps", "where":  "worklog-many-light-M4.png 設備の 21 台目より後（4 台）は「ほか 4 台 ▾」を開いてから"},
+            {"kind":  "more_steps", "where":  "1728/worklog-many-light-M4.png 利用者の PC でも「ほか 5 台 ▾」（今は 2 段で全部見えていた）。右の「つかんで並べ替え（選んで Ctrl+Shift+←→ でも）」の案内が 4 台ぶんの幅を取っている"},
+            {"kind":  "overlap", "where":  "calc3d-light-M4.png 「肉厚 429.5 mm で混入 → 1 周 4.452 m で写る」の札がコイルに被る"},
+            {"kind":  "cut", "where":  "calc3d-light-M4.png 凡例の帯の「その工程の丈の…」が語の途中で消える"},
+            {"kind":  "more_steps", "where":  "calc3d-light-M4.png 凡例 5 項目は「凡例をすべて ▸」の奥"},
+            {"kind":  "hidden_state", "where":  "calc3d-light-M4.png 「内径 558／外径 1,593 mm」「展開」「A 側＝尾・頭から 2,638.4 m」が消えたのに、右上の数は「2 個を隠しています」で薄い注記を数えず、消えたことが分からない"},
+            {"kind":  "overlap", "where":  "worklog-many-light-M4.png 設備の札の橙の点が「HOT」の T に被り「HO1」と読める（SL9 の 9 にも触れる）"},
+            {"kind":  "hidden_state", "where":  "worklog-many-light-M4.png 件数の行の「並べ替え 重…」と道具の行の「書式 検…」: 何で並べ替えているか・どの書式かが読めない"},
+            {"kind":  "cut", "where":  "ui-eval-narrow.mjs の NG: 1280×720 のカードで件数の行の「色付け」の札が枠の外（件数の行は M1 と同じ）"}
+          ],
+          "seen": "良い: calc3d-light-M4.png は札が「肉厚…で写る」「発生」「全長」「尾」だけになり、模型がいちばんすっきり読める。1728 は M1 と画素まで同じ（広い画面は悪くしない）。ほかの状態は M1 と同じ。悪い: 内径・外径・頭から何 m という読み取りたい数が狭い窓では消え、消えたことも数に入らない。肉厚の札のコイルへの被りは残る"
+        },
+        "M5 M1＋道具の行・件数の行だけ字を 1 段小さく": {
+          "score": {"order":  8, "chunk":  8, "hierarchy":  7, "visual":  7, "steps":  8, "effortless":  8, "intuitive":  8, "form":  8, "place":  9, "layout":  8, "tone":  7},
+          "minus": [
+            {"kind":  "more_steps", "where":  "worklog-many-light-M5.png 設備の 21 台目より後（4 台）は「ほか 4 台 ▾」を開いてから"},
+            {"kind":  "more_steps", "where":  "1728/worklog-many-light-M5.png 利用者の PC でも「ほか 5 台 ▾」（今は 2 段で全部見えていた）。右の「つかんで並べ替え（選んで Ctrl+Shift+←→ でも）」の案内が 4 台ぶんの幅を取っている"},
+            {"kind":  "overlap", "where":  "calc3d-light-M5.png・1728/calc3d-light-M5.png 「肉厚 429.5 mm で混入 → 1 周 4.452 m で写る」の赤い札がコイルの巻きの下半分に被る"},
+            {"kind":  "cut", "where":  "calc3d-light-M5.png 模型の下の凡例の帯で「その工程の丈の…」が語の途中で薄れて「凡例をすべて ▸」の下に消える"},
+            {"kind":  "more_steps", "where":  "calc3d-light-M5.png 凡例 8 項目のうち 5 項目（両エッジのオフ・前工程までのオフ・次の工程へ・テール など）は「凡例をすべて ▸」を押してから"},
+            {"kind":  "overlap", "where":  "worklog-many-light-M5.png 設備の札の橙の点が「HOT」の T に被る（M1 と同じ）"},
+            {"kind":  "hidden_state", "where":  "worklog-many-light-M5.png 道具の行の「書式 検…」・crowded-light-M5.png の「書式 異常…」で書式の名前が読み切れない"}
+          ],
+          "seen": "良い: crowded-light-M5.png で「Excel に出力」が道具の行の枠の中に収まり、書式の名前も「異常…」と「…」付きで縮む（M1 の 1 字切れが直る）。worklog-many-light-M5.png は件数の行の「並べ替え 重量 ▼」が全部読める。list-light-M5.png は検索欄が広がる。字は 12.5px で読める大きさ、言葉も置き場も変わらない。1728 は M1 と画素まで同じ。悪い: 道具の行の字が表の字より小さく、上の段だけ一回り細く見える。設備の「ほか 4 台」（1728 でも「ほか 5 台」）・肉厚の札の被り・凡例の 1 行切りは M1 のまま。カードを開いた所の件数の行の NG（M1 の評価関数）は、この案では撮っていないので確かめていない"
+        },
+        "F 2 段を許す: 見出し帯・道具の行・設備を、整えて 2 段に": {
+          "score": {"order":  7, "chunk":  6, "hierarchy":  6, "visual":  7, "steps":  9, "effortless":  8, "intuitive":  8, "form":  8, "place":  6, "layout":  5, "tone":  7},
+          "minus": [
+            {"kind":  "wrap", "where":  "list-light-F.png 見出し帯が 2 段（題の下に画面のタブ）で 107px"},
+            {"kind":  "wrap", "where":  "list-light-F.png 道具の行が 2 段。1 段目は「列で絞り込む」の後が大きく空き、「スライサー」「色付け」だけ右に離れる"},
+            {"kind":  "more_steps", "where":  "worklog-many-light-F.png M1 の上では設備の 2 段が効かず「ほか 4 台 ▾」のまま"},
+            {"kind":  "more_steps", "where":  "1728/worklog-many-light-F.png 「ほか 5 台 ▾」（M1 と同じ）"},
+            {"kind":  "scroll", "where":  "calc3d-light-F.png 見出し帯 2 段のぶん計算の表が縮み、10 行目（KEN）が見えない"},
+            {"kind":  "overlap", "where":  "calc3d-light-F.png 「肉厚 429.5 mm で混入…」の札がコイルに被る"},
+            {"kind":  "cut", "where":  "calc3d-light-F.png 凡例の帯の「その工程の丈の…」が語の途中で消える"},
+            {"kind":  "more_steps", "where":  "calc3d-light-F.png 凡例 5 項目は「凡例をすべて ▸」の奥"},
+            {"kind":  "overlap", "where":  "worklog-many-light-F.png 設備の札の橙の点が「HOT」の T に被る"},
+            {"kind":  "hidden_state", "where":  "worklog-many-light-F.png 件数の行の「並べ替え 重…」"}
+          ],
+          "seen": "良い: list-light-F.png・crowded-light-F.png で字は今の大きさのまま何も切れず、書式の名前「異常ロット表示」も全部読める。1728 は M1 と画素まで同じ。悪い: 見出し帯と道具の行が 2 段で、一覧は 17 行→15 行（crowded は 14 行）。crowded では「色付け」が 2 段目の頭へ、「スライサー」だけ 1 段目の右端に残り、状態で置き場が動く。画面のタブが題の下へ動く。作業実績の設備は M1 の「ほか 4 台」になり、F の「2 段で全部見える」良さが消えた。計算の表は 9 行目までしか見えない"
+        },
+        "E 詰める: 狭いときは字と余白を 1 段小さく（0.9 倍の密度）": {
+          "score": {"order":  8, "chunk":  7, "hierarchy":  7, "visual":  7, "steps":  9, "effortless":  8, "intuitive":  9, "form":  8, "place":  9, "layout":  7, "tone":  6},
+          "minus": [
+            {"kind":  "more_steps", "where":  "1728/worklog-many-light-E.png 広い画面では詰めが効かず「ほか 5 台 ▾」（M1 と同じ）"},
+            {"kind":  "hidden_state", "where":  "worklog-many-light-E.png 「書式 検…」・crowded-light-E.png 「書式 異常ロッ…」で書式の名前が読み切れない"},
+            {"kind":  "overlap", "where":  "list-light-E.png 見出し帯の「アプリ」の更新の橙の点が ▾ に被る"},
+            {"kind":  "overlap", "where":  "worklog-many-light-E.png 設備の札の橙の点が「HOT」の T・「SL9」の 9 に被る（札が小さいぶん M1 より強い）"},
+            {"kind":  "unreadable", "where":  "calc3d-light-E.png 3D の札（内径・展開・A 側・後オフ 74 m）と凡例の字が 10px ほどで読みにくい"},
+            {"kind":  "overlap", "where":  "calc3d-light-E.png 「肉厚 429.5 mm で混入…」の札と「8 TLV（仮の発生）」の札がコイルに被る"},
+            {"kind":  "cut", "where":  "calc3d-light-E.png 凡例の帯の右端で次の項目の印が半分で切れ「凡例をすべて ▸」の下に消える"},
+            {"kind":  "more_steps", "where":  "calc3d-light-E.png 凡例の残りは「凡例をすべて ▸」の奥"}
+          ],
+          "seen": "良い: worklog-many-light-E.png で設備 24 台が 1 段に全部入る（「ほか」も 2 段も無い。7 案で 720 の作業実績はいちばん良い）。件数の行の「並べ替え 重量 ▼」も読める。crowded-light-E.png・list-light-E.png は道具の行が枠に収まり、計算の表は 10 行目と「KEN で最終工程です」の行まで見える。悪い: 全体の字が小さく、見出し帯・道具の行・3D の札が細く読む力が要る（3D の札は 10px ほど）。更新の点が ▾ や HOT の T に被る。1728 では効かず「ほか 5 台」。凡例の 1 行切りと肉厚の札の被りは残る"
+        }
+      },
+      "baseline": {
+        "今": {
+          "score": {"order":  6, "chunk":  6, "hierarchy":  6, "visual":  6, "steps":  7, "effortless":  5, "intuitive":  6, "form":  7, "place":  7, "layout":  4, "tone":  6},
+          "minus": [
+            {"kind":  "lost", "where":  "calc3d-light-0.png ロット番号のタブで見出し帯が伸び、「アプリ」「終了」が画面の外へ出て押せない（「マスタ管理」も切れる）"},
+            {"kind":  "cut", "where":  "list-light-0.png 見出し帯の右の「アプリ ▾」が画面の端で切れ、「終了」が見えない"},
+            {"kind":  "cut", "where":  "list-light-0.png 道具の行の右端「Excel に出力」が枠で切れる"},
+            {"kind":  "cut", "where":  "crowded-light-0.png 道具の行の「Excel に出力」が枠の外でほぼ見えない"},
+            {"kind":  "cut", "where":  "crowded-light-0.png 件数の行の「1 並べ替」の札"},
+            {"kind":  "scroll", "where":  "worklog-many-light-0.png・calc3d-light-0.png 頁が横に送られ、左端の題が欠け右に白い帯が出る"},
+            {"kind":  "wrap", "where":  "worklog-many-light-0.png 設備 24 台が 2 段（右に並べ替えの案内も場所を取る）"},
+            {"kind":  "overlap", "where":  "calc3d-light-0.png 凡例が 4 段で模型の下半分を覆う"},
+            {"kind":  "overlap", "where":  "calc3d-light-0.png 札（前工程までのオフ・テール・内径・以前の設備…）どうしが重なる"},
+            {"kind":  "unreadable", "where":  "calc3d-light-0.png 重なった札と凡例の字が読めない"}
           ],
           "seen": "1280×720 では見出し帯・道具の行が入りきらず右端が切れ、計算の画面ではアプリ・終了が画面の外。作業実績は頁ごと横に送られる。設備 24 台は 2 段。3D は凡例が模型の下半分を覆い、札が重なって読めない。1728 では崩れない"
         }

@@ -35,8 +35,10 @@
   }
   /** 入りきらないときは、前置き（効いている物）と中身の名前を畳む（種類と数は残す。全部はタブの説明に。版 3.32.0） */
   function fit() {
-    tabs.classList.remove("is-tight");
-    if (!tabs.hidden && tabs.scrollWidth > tabs.clientWidth + 1) tabs.classList.add("is-tight");
+    tabs.classList.remove("is-tight", "is-tighter");
+    const over = () => !tabs.hidden && tabs.scrollWidth > tabs.clientWidth + 1;
+    if (over()) tabs.classList.add("is-tight");
+    if (over()) tabs.classList.add("is-tighter");
   }
   function show(kind) {
     if (off) off();

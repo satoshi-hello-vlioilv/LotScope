@@ -1836,10 +1836,12 @@
     const bar = $("#llEquipBar"), box = bar && !bar.hidden && $(".eq-chips", bar);
     if (!box) return;
     closeEquipMore();
-    const chips = $$(".eq-chip", box);
+    const chips = $$(".eq-chip", box), hint = $(".eq-hint", bar);
     chips.forEach((c) => { c.hidden = false; });
     $(".eq-more", box)?.remove();
+    if (hint) hint.hidden = false;
     if (box.scrollWidth <= box.clientWidth + 1) return;
+    if (hint) { hint.hidden = true; if (box.scrollWidth <= box.clientWidth + 1) return; }   // 先に並べ替えの案内の字を畳む（つかんで並べ替えるのはそのまま）
     box.insertAdjacentHTML("beforeend", '<button type="button" class="eq-more" aria-haspopup="menu" aria-expanded="false" aria-controls="llEquipMenu"></button>');
     const more = $(".eq-more", box), hidden = [];
     for (let i = chips.length - 1; i >= 0 && (!hidden.length || box.scrollWidth > box.clientWidth + 1); i--) {

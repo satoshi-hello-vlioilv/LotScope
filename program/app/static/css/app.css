@@ -381,14 +381,13 @@ details[open]>summary .imp-more{transform:rotate(180deg)}
 .x-label.flow{background:#e6f2f1;color:var(--h-xfer);font-weight:600;font-size:11px}
 /* 凡例: 形と色の意味を先に示す（読む前に分かる） */
 /* 凡例は模型に重ねず、3D の下の帯（版 3.32.0。以前は模型の上に重ね、狭いと 3〜4 段に折れて模型の下半分を覆った）。
-   explain3d.js が帯の高さを引いて 3D を描く。狭い・低い 3D（is-short）では 1 行に畳み、「凡例をすべて ▸」で上へ開く（開いた間は模型に重ねる） */
-.x-legend{position:absolute;left:0;right:0;bottom:0;padding:5px 12px;background:var(--surface);border-top:1px solid var(--line-soft);display:flex;align-items:flex-start;gap:10px;
+   explain3d.js が帯の高さを引いて 3D を描く。狭い・低い 3D（is-short）では言い添え（.lg-x）と縮尺の注を畳み、全部の項目を 2 行までに */
+.x-legend{position:absolute;left:0;right:0;bottom:0;padding:5px 12px;background:var(--surface);border-top:1px solid var(--line-soft);
   font-size:var(--fs-xs);color:var(--muted);z-index:2}
-.x-legend .lg-items{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
-.x-legend .lg-all{display:none;flex:none;height:22px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--h-xfer);font:inherit;font-weight:700;padding:0 8px;cursor:pointer}
-.x-legend.is-short .lg-all{display:inline-block}
-.x-legend.is-short:not(.is-open) .lg-items{flex-wrap:nowrap;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
-.x-legend.is-open{box-shadow:0 -10px 24px rgba(20,40,60,.12)}
+.x-legend .lg-items{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+.x-legend small.lg-x{font-size:inherit}
+.x-legend.is-short .lg-items{gap:3px 12px}
+.x-legend.is-short :is(.lg-x,.lg-note){display:none}
 .x-hidden-note{position:absolute;top:6px;right:8px;z-index:2;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.88);border:1px solid var(--line);color:var(--muted);font-size:var(--fs-xs);pointer-events:none}
 .x-legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .x-legend .lg-dot{width:9px;height:9px;border-radius:50%;background:var(--x-defect);display:inline-block}

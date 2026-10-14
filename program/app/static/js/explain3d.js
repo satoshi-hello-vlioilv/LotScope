@@ -257,13 +257,8 @@ function ensureView() {
   Object.assign(labels.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none" });
   stage.appendChild(labels.domElement);
   // 凡例（色と形の意味を先に示す）。転写とピッチで中身を差し替える（setLegend）。模型に重ねず、3D の下の帯に置く（版 3.32.0）。
-  // 3D が狭い・低いときは 1 行に畳み、「凡例をすべて ▸」で開く。隠した札の数は 3D の右上に出す（declutter）
-  stage.insertAdjacentHTML("beforeend", `<div class="x-legend"><div class="lg-items"></div><button type="button" class="lg-all" aria-expanded="false">凡例をすべて ▸</button></div>
-    <div class="x-hidden-note" hidden></div>`);
-  stage.querySelector(".lg-all").addEventListener("click", (e) => {
-    const lg = e.currentTarget.parentElement, on = !lg.classList.contains("is-open");
-    lg.classList.toggle("is-open", on); e.currentTarget.setAttribute("aria-expanded", on); e.currentTarget.textContent = on ? "畳む ▾" : "凡例をすべて ▸";
-  });
+  // 3D が狭い・低いときは言い添えを畳んだ短い言葉で、全部の項目を 2 行までに（全文は帯の説明に）。隠した札の数は 3D の右上に出す（declutter）
+  stage.insertAdjacentHTML("beforeend", `<div class="x-legend"><div class="lg-items"></div></div><div class="x-hidden-note" hidden></div>`);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 2, 0.1, 400);
@@ -289,7 +284,7 @@ function ensureView() {
   const resize = () => {
     const lg = stage.querySelector(".x-legend");
     lg.classList.toggle("is-short", stage.clientWidth < 1000 || stage.clientHeight < 380);   // 狭い・低い 3D では凡例を 1 行に
-    const w = stage.clientWidth, h = stage.clientHeight - (lg.classList.contains("is-open") ? 0 : lg.offsetHeight);
+    const w = stage.clientWidth, h = stage.clientHeight - lg.offsetHeight;
     if (!w || h <= 0) return;
     renderer.setSize(w, h); labels.setSize(w, h);
     camera.aspect = w / h;
@@ -302,23 +297,29 @@ function ensureView() {
   return view;
 }
 
+// 凡例の項目。<small class="lg-x"> は詳しい言い添え（3D が狭い・低いときは畳み、帯は 2 行までに収める。全文は帯の説明〈title〉に）
 const LEGEND = {
-  transfer: `<span><i class="lg-line"></i><i class="lg-line"></i>汚れ（2 か所）</span><span><i class="lg-arrow">↻</i>仮の発生設備で 1 周して写る</span>
-    <span><i class="lg-dot"></i>以降の設備: 汚れのある肉厚の位置</span>
-    <span><i class="lg-sw lg-off" style="background:${offSwatch(COLOR.lengthOff, OFF_LOOK.now)};border-color:${cssHex(COLOR.lengthOffEdge)}"></i>その工程の丈のオフ（頭・尾）</span>
-    <span><i class="lg-sw lg-off" style="background:${offSwatch(COLOR.edgeOff, OFF_LOOK.now)};border-color:${cssHex(COLOR.edgeOffEdge)}"></i>その工程の両エッジのオフ</span>
-    <span><i class="lg-sw lg-off" style="background:${offSwatch(COLOR.lengthOff, OFF_LOOK.past)};border-color:${cssHex(COLOR.lengthOffEdge)}"></i>前工程までのオフ（その外側・淡く）</span>
-    <span><i class="lg-flow">→</i>次の工程へ（巻き替えで頭⇄尾）</span><span><i class="lg-dash">┄</i>間隔の広がり</span>
-    <span><i class="lg-sw" style="background:${cssRgba(COLOR.glassOuter, 0.35)};border:1px solid ${cssHex(COLOR.rimInner)}"></i>テール（最後端＝尾）: 巻取り後の姿。上巻き＝上・下巻き＝下から上流の側へ回り込み、先は中心の高さ</span>
+  transfer: `<span><i class="lg-line"></i><i class="lg-line"></i>汚れ<small class="lg-x">（2 か所）</small></span><span><i class="lg-arrow">↻</i><small class="lg-x">仮の発生設備で </small>1 周して写る</span>
+    <span><i class="lg-dot"></i><small class="lg-x">以降の設備: </small>汚れのある肉厚<small class="lg-x">の位置</small></span>
+    <span><i class="lg-sw lg-off" style="background:${offSwatch(COLOR.lengthOff, OFF_LOOK.now)};border-color:${cssHex(COLOR.lengthOffEdge)}"></i><small class="lg-x">その工程の</small>丈のオフ<small class="lg-x">（頭・尾）</small></span>
+    <span><i class="lg-sw lg-off" style="background:${offSwatch(COLOR.edgeOff, OFF_LOOK.now)};border-color:${cssHex(COLOR.edgeOffEdge)}"></i><small class="lg-x">その工程の</small>両エッジのオフ</span>
+    <span><i class="lg-sw lg-off" style="background:${offSwatch(COLOR.lengthOff, OFF_LOOK.past)};border-color:${cssHex(COLOR.lengthOffEdge)}"></i>前工程までのオフ<small class="lg-x">（その外側・淡く）</small></span>
+    <span><i class="lg-flow">→</i>次の工程へ<small class="lg-x">（巻き替えで頭⇄尾）</small></span><span><i class="lg-dash">┄</i>間隔の広がり</span>
+    <span><i class="lg-sw" style="background:${cssRgba(COLOR.glassOuter, 0.35)};border:1px solid ${cssHex(COLOR.rimInner)}"></i>テール<small class="lg-x">（最後端＝尾）: 巻取り後の姿。上巻き＝上・下巻き＝下から上流の側へ回り込み、先は中心の高さ</small></span>
     <span class="lg-note">板の長さ・厚さ・幅と径は全工程で同じ縮尺（長さ・厚さ・幅は平方根ほどに縮めて比べやすく）・工程の中の位置は実寸の比・2 本線の間隔は拡大（工程間の比は実寸）・巻き数は圧縮</span>`,
-  pitch: `<span><i class="lg-line"></i><i class="lg-line"></i><i class="lg-line"></i>ロールの跡（ピッチごと）</span>
-    <span><i class="lg-sw lg-divider"></i>板の左半分＝入側（前の工程の出側ピッチ）・右半分＝出側（その工程のピッチ）</span>
-    <span><i class="lg-flow">→</i>次の工程へ（板厚の比でピッチが伸びる）</span>
+  pitch: `<span><i class="lg-line"></i><i class="lg-line"></i><i class="lg-line"></i>ロールの跡<small class="lg-x">（ピッチごと）</small></span>
+    <span><i class="lg-sw lg-divider"></i>板の左半分＝入側<small class="lg-x">（前の工程の出側ピッチ）</small>・右半分＝出側<small class="lg-x">（その工程のピッチ）</small></span>
+    <span><i class="lg-flow">→</i>次の工程へ<small class="lg-x">（板厚の比でピッチが伸びる）</small></span>
     <span class="lg-note">板の長さ・厚さ・幅は全工程で同じ縮尺（長さ・厚さ・幅は平方根ほどに縮めて比べやすく）・跡の間隔は発見設備を基準にした実寸の比</span>`,
 };
 function setLegend(mode) {
   const el = view && ui.stage.querySelector(".x-legend");
-  if (el && el.dataset.mode !== mode) { el.dataset.mode = mode; el.querySelector(".lg-items").innerHTML = LEGEND[mode]; }
+  if (el && el.dataset.mode !== mode) {
+    el.dataset.mode = mode;
+    const items = el.querySelector(".lg-items");
+    items.innerHTML = LEGEND[mode];
+    el.title = [...items.children].map((x) => x.textContent.trim()).join("\n");
+  }
 }
 
 function requestRender() {
@@ -342,7 +343,8 @@ const rankOf = (el) => { const i = RANK.findIndex((sel) => el.matches(sel)); ret
 function declutter() {
   const stage = ui.stage, box = view.labels.domElement.getBoundingClientRect(), note = stage.querySelector(".x-hidden-note");
   const taken = [...stage.querySelectorAll(".x-legend, .x-hidden-note:not([hidden])")].map((el) => el.getBoundingClientRect());
-  const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
+  const GAP = 2;   // 札のまわりに空ける幅（角が触れるだけでも読みにくい）
+  const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > -GAP && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > -GAP;
   const labels = [...view.labels.domElement.querySelectorAll(".x-label")].filter((el) => el.style.display !== "none");
   labels.forEach((el) => el.classList.remove("x-hide"));
   let n = 0;   // 重なって隠した札の数（画面の外の工程の札は数えない）
@@ -563,11 +565,11 @@ function buildScene() {
         st.add(ring);
         glowDot(st, new THREE.Vector3(cx, cy + r2, cz), 0.045);
         arrowAlong(st, arcPoints(new THREE.Vector3(cx, cy, cz), (r1 + r2) / 2, up - 0.1, -(Math.PI * 2 - 0.3), 80), COLOR.arrow, 0.018);
-        label(`肉厚 ${fmt(s.marks[0].wall_mm, 1)} mm で混入 → 1 周 ${fmt(s.spacing_m, 3)} m で写る`, "red",
+        label(`肉厚 ${fmt(s.marks[0].wall_mm, 1)} mm で混入 → 1 周 ${fmt(s.spacing_m, 3)} m で写る`, "red end",   // コイルの左の外へ伸ばす
           new THREE.Vector3(cx - rOut - 1.25, cy + rOut * 0.35, zf), st);
       } else {
         // 以降の設備: 圧延・巻き替えで「1 周」の関係は崩れる。汚れのある肉厚の位置に 1 点だけ
-        label(`汚れの肉厚 ${fmt(s.marks[0].wall_mm, 1)} mm`, "muted", new THREE.Vector3(cx - rOut - 0.8, cy + rOut * 0.35, zf), detail);
+        label(`汚れの肉厚 ${fmt(s.marks[0].wall_mm, 1)} mm`, "muted end", new THREE.Vector3(cx - rOut - 0.8, cy + rOut * 0.35, zf), detail);
       }
     }
     arrowAlong(detail, [new THREE.Vector3(cx + rOut * 0.6, FLOOR + 0.04, zf), new THREE.Vector3(cx + rOut * 0.9, FLOOR + 0.12, (zf - half) / 2),
