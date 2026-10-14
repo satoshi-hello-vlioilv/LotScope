@@ -311,6 +311,7 @@
     if (S.src.id === "work" && !S.equip) { S.loading = false; renderAll(); return; }   // 設備を選ぶまでは読まない（設備の札が案内する）
     S.loading = true; paintBusy();
     const wait = S.src.id === "work" ? waitFirstCopy(me) : null;
+    const workAsked = S.src.id === "work" ? JSON.stringify(window.LotListWork.params()) : "";
     try {
       const r = await fetch(S.src.api + "?" + queryString(), { cache: "no-store" });
       const d = await r.json();
@@ -330,8 +331,11 @@
       S.src.saveTable(S.table);
       S.shownEquip = S.equip;
       if (fmtCtx !== scope()) { fmtCtx = scope(); window.LotListFormats?.refresh(); }   // 共有の書式の札（この所に当てた書式）を描き直す
-      // 表が初めて決まった（サーバーが既定の表を選んだ）ら、その表の覚えを戻して引き直す
-      if (S.ctx !== scope() && syncContext() && (S.genericFilters.length || S.sorts.length || adhocActive() || grouped() || window.LotListSlicer.filters().length)) {
+      // 表が初めて決まった（サーバーが既定の表を選んだ）ら、その表の覚えを戻して引き直す。
+      // 作業でまとめる覚え（日＋直ごと など）も範囲（設備と表）ごとなので、表を知らずに尋ねたまとめ方と違えば引き直す
+      // （引き直さないと、切り替えは覚えたまとめ方を描くのに、一覧と右の表はまとめないままになる。版 3.30.0 まで）
+      const workMoved = S.src.id === "work" && JSON.stringify(window.LotListWork.params()) !== workAsked;
+      if ((S.ctx !== scope() && syncContext() && (S.genericFilters.length || S.sorts.length || adhocActive() || grouped() || window.LotListSlicer.filters().length)) || workMoved) {
         S.loading = false; wait?.done(); return load();
       }
     } catch (e) {
@@ -445,7 +449,7 @@
       slicerOpen: window.LotListSlicer.isOpen(),
       search: S.search || "",
       pivot: window.LotListPivot.stateOf(),
-      work: S.src.id === "work" ? (({ mode, basis, order, start, total }) => ({ mode, basis, order, start, total }))(window.LotListWork.conf()) : null,
+      work: S.src.id === "work" ? (({ mode, basis, order, start, total, zero }) => ({ mode, basis, order, start, total, zero }))(window.LotListWork.conf()) : null,
     };
   }
   /** 入っている物の札（「条件 1」「並べ替え 2」「まとめ なし」…） */
@@ -1952,6 +1956,7 @@
     window.LotListFormats?.mount();
     window.LotListSlicer.mount({
       table: scope, screen: () => S.src.id, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,
+      dateColumns: () => S.dateColumns,     // タイムライン（期間で選ぶ）にできる列
       // 計算列（表示列で式から作った列）: 名前・式が使う元の列・元の列の値の組 → 一覧と同じ見えている値
       calcColumns: () => { const LC = window.LotListColumns, t = layoutTarget(); return LC.allColumns(t, S.columns).filter((c) => LC.isComputed(t, c)); },
       sourcesOf: (c) => window.LotListColumns.sourcesOf(layoutTarget(), c),

@@ -49,6 +49,8 @@ const ALLOWED_OPS: &[&str] = &[
     "in",
     // スライサーの計算列: 式が使う列（columns）の値の組のどれか（Python の tuple_in と同じ）
     "tuple_in",
+    // タイムライン: 日付と読める値が、その間（両端を含む）にある行（Python の date_range と同じ）
+    "date_range",
 ];
 /// スライサーで一度に選べる値の数・並べる値の数（Python の MAX_IN_VALUES・MAX_SLICER_VALUES と同じ）
 const MAX_IN_VALUES: usize = 1000;
@@ -521,6 +523,19 @@ fn in_values(value: &str) -> Vec<String> {
     }
 }
 
+/// date_range の値（"YYYY-MM-DD..YYYY-MM-DD"。片側は空でもよい）→ (始め, 終わり)。読めない側は None（Python の date_range と同じ）。
+fn date_range(value: &str) -> (Option<String>, Option<String>) {
+    let one = |x: &str| -> Option<String> {
+        let x = x.trim();
+        let b = x.as_bytes();
+        let shape = b.len() == 10 && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() });
+        let d = if shape { NaiveDate::parse_from_str(x, "%Y-%m-%d").ok()? } else { return None };
+        (d.year() >= 1).then(|| d.format("%Y-%m-%d").to_string())
+    };
+    let (head, tail) = value.split_once("..").unwrap_or((value, ""));
+    (one(head), one(tail))
+}
+
 fn relative_unit(op: &str) -> Option<&'static str> {
     match op {
         "within_days" => Some("days"),
@@ -633,6 +648,18 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
                 let one = format!("({})", f.columns.iter().map(|x| format!("{} IS ?", qi(x))).collect::<Vec<_>>().join(" AND "));
                 parts.push(if tuples.is_empty() { "0=1".into() } else { format!("({})", vec![one; tuples.len()].join(" OR ")) });
                 params.extend(tuples.into_iter().flatten());
+            }
+            "date_range" => {
+                // 日付と読める値だけが当たる（両側とも読めなければ、日付と読める行すべて）
+                let (lo, hi) = date_range(value);
+                let mut and = vec![format!("ToDate({col}) IS NOT NULL")];
+                for (sign, v) in [(">=", lo), ("<=", hi)] {
+                    if let Some(v) = v {
+                        and.push(format!("ToDate({col}) {sign} ?"));
+                        params.push(text(v));
+                    }
+                }
+                parts.push(format!("({})", and.join(" AND ")));
             }
             _ if relative_unit(op).is_some() => {
                 parts.push(format!("ToDate({col}) >= ?"));
@@ -1073,6 +1100,16 @@ mod tests {
         assert_eq!((a.search.as_str(), a.page.as_deref(), a.group, a.filters.as_str()), ("日 本", Some("2"), true, "[]"));
         assert_eq!(unquote("100%"), "100%");
         assert_eq!(unquote("%zz%4"), "%zz%4");
+    }
+
+    #[test]
+    fn date_range_like_python() {
+        let s = |x: &str| Some(x.to_string());
+        assert_eq!(date_range("2025-04-01..2025-09-30"), (s("2025-04-01"), s("2025-09-30")));
+        assert_eq!(date_range(" 2025-04-01 .."), (s("2025-04-01"), None), "片側だけ");
+        assert_eq!(date_range("..2025-02-30"), (None, None), "無い日は読まない");
+        assert_eq!(date_range("2025-4-1..0000-01-01"), (None, None), "形の違う字・0 年は読まない");
+        assert_eq!(date_range("2025-04-01"), (s("2025-04-01"), None), "区切りが無ければ始めだけ");
     }
 
     #[test]

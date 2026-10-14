@@ -145,6 +145,30 @@ class Summarize(unittest.TestCase):
                          "空は 1 行ずつ・同じ字は 1 作業・日付だけは時刻なし")
         self.assertEqual(got["buckets"][-1]["day"], "", "日付の無い作業は最後")
 
+    def test_fill_adds_the_days_without_work(self):
+        """fill: 最初の日から最後の日までの作業の無い日を、数 0・直 None の行として入れる（日の並びに入れる。日付の無い作業は最後のまま）"""
+        clock = shifts.Clock(segs(THREE))
+        pairs = [("2026/10/01 10:00:00", None), ("2026/10/04 10:00:00", None), ("2026/10/04 10:00:00", None), ("", None)]
+        plain = work_summary.summarize(pairs, clock)
+        self.assertEqual([b["day"] for b in plain["buckets"]], ["2026-10-04", "2026-10-01", ""], "fill しなければ作業のあった日だけ")
+        self.assertEqual(plain["empty"], 0)
+        got = work_summary.summarize(pairs, clock, fill=True)
+        self.assertEqual([b["day"] for b in got["buckets"]], ["2026-10-04", "2026-10-03", "2026-10-02", "2026-10-01", ""])
+        self.assertEqual(got["empty"], 2)
+        zero = [b for b in got["buckets"] if b["shift"] is None]
+        self.assertEqual(zero, [{"day": d, "shift": None, "works": 0, "rows": 0, "split": 0, "sum": 0.0} for d in ("2026-10-03", "2026-10-02")])
+        self.assertEqual(got["total"], plain["total"], "合計は変わらない")
+        asc = work_summary.summarize(pairs, clock, "work", "asc", fill=True)
+        self.assertEqual([b["day"] for b in asc["buckets"]], ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", ""], "古い順でも日の並びに入る")
+
+    def test_fill_skips_a_too_long_span(self):
+        """読み違えた古い日付で何万行にもしない: 最初から最後までが MAX_FILL_DAYS を超えたら埋めず、その日数を返す"""
+        self.assertEqual(work_summary.empty_days(["2026-10-01", "2026-10-03"]), (["2026-10-02"], 0))
+        self.assertEqual(work_summary.empty_days(["2026-10-01"]), ([], 0), "1 日だけなら埋める日は無い")
+        self.assertEqual(work_summary.empty_days(["1900-01-01", "2026-10-01"], limit=3660), ([], 46295))
+        got = work_summary.summarize([("1900/01/01 10:00:00", None), ("2026/10/01 10:00:00", None)], shifts.Clock(segs(THREE)), fill=True)
+        self.assertEqual((got["empty"], got["fillSkipped"]), (0, 46295))
+
 
 class Api(unittest.TestCase):
     """作業実績の一覧（/api/worklog?work=1）と勤務体系のマスタ（/api/masters/shifts）。"""

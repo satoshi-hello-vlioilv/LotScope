@@ -3,8 +3,9 @@
 
 絞り込み・並べ替え・ページの組み立ては WaveLog の /api/table（backend/routes/tables.py）と同じ:
     search  … どの列の字でも LIKE（列ごとに OR）
-    filters … [{column, op, value}] を AND（最大 20 件）。op は WaveLog と同じ 12 種＋starts_any＋in
+    filters … [{column, op, value}] を AND（最大 20 件）。op は WaveLog と同じ 12 種＋starts_any＋in＋date_range
               （in はスライサー: value は値の JSON 配列で、どれかに当たる行。"" は空欄。key があれば見えている値で比べる）
+              （date_range はタイムライン: value は "YYYY-MM-DD..YYYY-MM-DD"。日付と読める値のうち、その間（両端を含む）の行。片側は空でもよい）
     sorts   … [{column, dir}]（最大 4 キー）。実在する列だけを通す
     page / page_size … LIMIT / OFFSET
     group   … ロット番号でまとめる（grouped_rows）。並べ替えは効いたまま、ページの境目でロットを切らない
@@ -28,7 +29,9 @@ ALLOWED_OPS = {"contains", "not_contains", "eq", "neq", "starts", "starts_any", 
                # スライサー: 選んだ値のどれか（slice_key で比べる。空欄も選べる）
                "in",
                # スライサーの計算列: 式が使う列（columns）の値の組のどれか（value は組の JSON 配列。画面が式の結果から選んだ組）
-               "tuple_in"}
+               "tuple_in",
+               # タイムライン: 日付と読める値が、その間（両端を含む）にある行（value は "YYYY-MM-DD..YYYY-MM-DD"。片側は空でもよい）
+               "date_range"}
 RELATIVE_OPS = {"within_days": "days", "within_weeks": "weeks", "within_months": "months", "within_years": "years"}
 DATE_SAMPLE = 60          # 日付の列か見分けるときに読む値の数
 DATE_RATIO = 0.8          # そのうち日付と読める割合がこれ以上なら日付の列
@@ -163,6 +166,20 @@ def in_values(value):
     except ValueError:
         return []
     return [x for x in items if isinstance(x, str)][:MAX_IN_VALUES] if isinstance(items, list) else []
+
+
+def date_range(value):
+    """date_range の値（"YYYY-MM-DD..YYYY-MM-DD"。片側は空でもよい）→ (始め, 終わり)。読めない側は None（その側は限らない）。"""
+    def one(x):
+        x = x.strip()
+        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", x):
+            return None
+        try:
+            return date.fromisoformat(x).isoformat()
+        except ValueError:
+            return None
+    head, _, tail = str(value or "").partition("..")
+    return one(head), one(tail)
 
 
 def cutoff_date(op, value, today=None):
@@ -300,6 +317,11 @@ def build_filter_where(filters, today=None):
             one = "(" + " AND ".join(f"{x} IS ?" for x in cols) + ")"
             parts.append("(" + " OR ".join([one] * len(tuples)) + ")" if tuples else "0=1")
             params += [v for t in tuples for v in t]
+        elif op == "date_range":
+            # 日付と読める値だけが当たる（両側とも読めなければ、日付と読める行すべて）
+            lo, hi = date_range(value)
+            parts.append("(" + " AND ".join([f"ToDate({col}) IS NOT NULL"] + [f"ToDate({col}) {s} ?" for s, v in ((">=", lo), ("<=", hi)) if v]) + ")")
+            params += [v for v in (lo, hi) if v]
         elif op in RELATIVE_OPS:
             parts.append(f"ToDate({col}) >= ?")
             params.append(cutoff_date(op, value, today))

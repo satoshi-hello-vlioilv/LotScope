@@ -88,7 +88,8 @@ def worklog_plan(need_copy=True):
 def work_grouping(equip_name):
     """「作業でまとめる」（work=1）の係。直はその設備の勤務体系（設備を書いた体系 → 全設備共通）。
     start: 作業開始の列（無ければ既定の名前）・basis: work（現場歴）／cal（太陽暦）・order: desc（新しい順）／asc・
-    day（YYYY-MM-DD。"-" は日付なし）・shift（直の番号）: 帯で押した日・直に一覧を絞る（数の帯は絞らない）。"""
+    day（YYYY-MM-DD。"-" は日付なし）・shift（直の番号）: 帯で押した日・直に一覧を絞る（数の帯は絞らない）。
+    fill=1: 帯に作業の無い日（0 件の日）も出す。"""
     a = request.args
     if a.get("work") != "1":
         return None
@@ -99,7 +100,8 @@ def work_grouping(equip_name):
     except ValueError:
         shift = None
     return work_summary.Grouping(pat["segments"] if pat else [], column=a.get("start", ""), basis=a.get("basis", "work"),
-                                 order=a.get("order", "desc"), pattern=brief, day=a.get("day", ""), shift=shift, total=a.get("total", ""))
+                                 order=a.get("order", "desc"), pattern=brief, day=a.get("day", ""), shift=shift, total=a.get("total", ""),
+                                 fill=a.get("fill") == "1")
 
 
 @bp.get("/api/worklog")

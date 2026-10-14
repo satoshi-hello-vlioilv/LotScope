@@ -210,6 +210,14 @@ CASES = [
     {"filters": json.dumps([{"op": "tuple_in", "columns": ["比重"], "value": json.dumps([[2.73], [3], [0.30000000000000004], [12345678901234567]])}], ensure_ascii=False)},
     {"filters": json.dumps([{"op": "tuple_in", "columns": ["合金", "調質"], "value": json.dumps([["A1100"], [True, "O"], "x"])}], ensure_ascii=False)},
     {"filters": json.dumps([{"op": "tuple_in", "columns": ["無い列"], "value": "[]"}], ensure_ascii=False)},
+    # タイムライン（版 3.31.0）: 日付と読める値がその間（両端を含む）。片側だけ・読めない側は限らない・形の違う字は読まない。山は日付でまとめたスライサー
+    {"filters": _f(("発生日", "date_range", "2025-04-01..2025-09-30"))},
+    {"filters": _f(("発生日", "date_range", "2025-06-01.."), ("入力日時", "date_range", "..2026-01-31"))},
+    {"filters": _f(("発生日", "date_range", "2025-02-30..2025-4-1"))},
+    {"filters": _f(("発生日", "date_range", "0000-01-01..x"))},
+    {"group": True, "filters": _f(("発生日", "date_range", "2024-12-01..2025-03-31")), "sorts": _s(("重量", "desc"))},
+    {"slicer": "発生日", "key": "date", "filters": _f(("入力日時", "date_range", "2025-01-01..2025-12-31"))},
+    {"marks": json.dumps([[{"column": "発生日", "op": "date_range", "value": "2025-01-01..2025-06-30"}]], ensure_ascii=False)},
     # 色付け（条件付き書式・版 3.21.0）: 行は絞らず、組ごとに「ページで当たった行の位置」と「全件で当たった数」。判定は filters と同じ
     {"marks": json.dumps([MARK_A, MARK_B, MARK_C], ensure_ascii=False)},
     {"marks": json.dumps([MARK_A, [{"column": "無い列", "op": "eq", "value": "x"}], [], "x", MARK_D], ensure_ascii=False),
