@@ -37,9 +37,25 @@
 .ll-screen .generic-filter-bar :is(.fm-panel,.ll-viewmenu,.ll-profile) :is(small,p,li,.vm-lv-empty){white-space:normal}
 .ll-screen .filter-search-row > .lt-search{flex:0 40 300px;min-width:140px}            /* 縮む順: 検索の欄 → 書式の名前 → 列で絞り込むの字 */
 .ll-screen .filter-search-row > .filter-adhoc-toggle{flex-shrink:1;min-width:8em}       /* 「列で絞り込む」は省略しない幅まで */
-.ll-screen .filter-search-row > .filter-search-row-actions{flex-shrink:4;min-width:0}
-.ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:5.5em}
+/* 右の組は箱を作らず、中のボタンを行に直に並べる（版 3.32.0。箱があると、箱が中身より細く縮んで Excel が枠の外へ出た〈フル HD・150%〉）。
+   縮むのは決めた物だけ: 検索の欄（140px まで）→ 書式の名前（5.5em まで）→ 列で絞り込むの字 */
+.ll-screen .filter-search-row > .filter-search-row-actions{display:contents}
+.ll-screen .filter-search-row-actions > :first-child{margin-left:auto}
+.ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:0}
+.ll-screen .filter-search-row-actions > .fm-entry.has-now{min-width:9em}   /* 書式の名前が出ているときは 3 字は読める幅（版 3.32.0） */
 .ll-screen .fm-entry.has-now .fm-now{min-width:0}
+/* 狭い窓（版 3.32.0。決め方: ui-proposals/2026-10-narrow* の 3 回目で M5）: 道具の行・件数の行だけ字を 12.5px に（表の字は変えない） */
+@media (max-width:1440px){
+  .ll-screen{--ll-fs:12.5px;--ll-h:28px}
+  .ll-status{font-size:12.5px}
+  .ll-fresh,.ll-zoombtn{font-size:12px}
+  .ll-atab{font-size:12px}
+  .ll-screen .filter-search-row{gap:5px;padding:7px 8px}
+  .ll-screen .generic-filter-bar .filter-search-row button{padding:0 8px}
+  .ll-screen .filter-search-row > .lt-search{min-width:118px}
+  .ll-screen .filter-search-row-actions > .fm-entry.has-now{min-width:10.5em}   /* 書式の名前は「異常ロ…」まで読める幅を残す */
+}
+.lt-search input{text-overflow:ellipsis}   /* 狭くて案内の字（一覧を検索）が入らないときは … で */
 .ll-screen .generic-filter-bar select,.ll-screen .generic-filter-bar input{height:var(--ll-h);border:1px solid var(--edit-line);border-radius:7px;background:var(--edit-field);padding:0 8px;color:var(--ink)}
 .ll-screen .generic-filter-bar input:focus,.ll-screen .generic-filter-bar select:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
 .lt-search{flex:0 1 300px;min-width:180px;position:relative;display:flex;align-items:center}
@@ -143,10 +159,12 @@
 .ll-status{display:flex;flex-wrap:nowrap;align-items:center;gap:6px 12px;padding:8px 18px 6px;flex:0 0 auto;min-width:0}
 .ll-status > *{flex-shrink:0;white-space:nowrap}
 .ll-statusright{margin-left:auto;display:flex;align-items:center;gap:10px}
-.ll-status > :is(.ll-lothint,#llCardHint){flex-shrink:20;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ll-status > :is(.ll-lothint,#llCardHint){flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}   /* 添え書きは余った幅だけを使う（ほかの札を縮めない。版 3.32.0） */
 
 /* 効いている物のタブ（lotlist-active.js）: 1 本の帯に種類ごとの区切り。色は札と同じ役割の色（まとめ＝青緑・並べ替え＝藍・選んだ値＝青・色付け＝その色） */
 .ll-status > .ll-active{flex:0 1 auto;min-width:0}
+.ll-active:is(.fold-key,.is-tight) .ll-akey,.ll-active.fold-names .ll-atab:not(.is-sort) .ll-aname,.ll-active.is-tight .ll-aname{display:none}   /* 入りきらないとき（lotlist-active.js の fit）。種類と数は残す */
+.ll-active.is-tighter .ll-atab{padding:0 6px;gap:3px}.ll-active.is-tighter .ll-atab i{display:none}   /* まだ入らないとき: ▾ と余白も詰める */
 .ll-active{display:inline-flex;align-items:center;height:30px;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
 .ll-active[hidden]{display:none}
 .ll-akey{padding:0 10px;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
@@ -154,7 +172,7 @@
   color:var(--atab-ink);font-family:inherit;font-size:12.5px;font-weight:700;white-space:nowrap;cursor:pointer}
 .ll-atab .ll-an{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--atab-bar);color:#fff;font-size:11px;font-weight:800;flex:0 0 auto}
 .ll-atab .ll-akind{flex:0 0 auto}
-.ll-atab .ll-aname{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:800}
+.ll-atab .ll-aname{min-width:3em;overflow:hidden;text-overflow:ellipsis;font-weight:800}   /* 3 字読めないなら畳む（lotlist-active.js の fit。版 3.32.0） */
 .ll-atab i{font-style:normal;font-size:10.5px;color:var(--muted);flex:0 0 auto}
 .ll-atab:hover{filter:brightness(.97)}
 .ll-atab:focus-visible{outline:2px solid var(--h-input);outline-offset:-2px}
@@ -306,6 +324,7 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 .screen-tab small:empty{display:none}
 .screen-tab[aria-selected="true"] small{background:#e7eef5;color:var(--h-input)}
 .screen-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media (max-width:1440px){ .screen-tabs{margin-left:14px} .screen-tab{padding:0 12px} }   /* 狭い窓: タブの余白だけ詰める（字はそのまま。版 3.32.0） */
 
 /* 「以内」の条件は、今日を基準に毎日動くことを添える */
 .fb-cond-text em.fb-cond-rel{margin-left:6px;font-size:11.5px;color:var(--muted);padding:0 6px;border-radius:999px;background:#eef3f6}
@@ -405,14 +424,22 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 .ll-equipbar{display:flex;align-items:flex-end;gap:12px;margin:0;padding:8px 16px 0;background:#e9f0f3;border-bottom:1px solid var(--line);flex:0 0 auto;min-width:0}
 .ll-equipbar[hidden]{display:none}
 .eq-lab{flex:none;padding-bottom:9px;font-size:12.5px;font-weight:800;letter-spacing:.06em;color:var(--muted)}
-.eq-chips{display:flex;flex-wrap:wrap;gap:2px;min-width:0;flex:1}
+.eq-chips{display:flex;flex-wrap:nowrap;gap:2px;min-width:0;flex:1;overflow:hidden}   /* 1 段。入りきらない設備は「ほか N 台 ▾」（lotlist.js の fitEquip。版 3.32.0） */
+.eq-more{flex:none;align-self:center;height:28px;margin:0 0 4px 6px;padding:0 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--h-input);
+  font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.eq-more:hover,.eq-more[aria-expanded="true"]{border-color:var(--h-input);background:var(--input-soft)}
+.eq-menu{position:fixed;z-index:70;display:grid;grid-template-columns:repeat(4,minmax(64px,auto));gap:2px;padding:6px;background:var(--surface);
+  border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 14px 34px var(--pop-shadow)}
+.eq-menu .eq-chip{height:32px;border-radius:7px;border:1px solid transparent}
+.eq-menu .eq-chip:hover,.eq-menu .eq-chip:focus-visible{background:var(--surface-4);color:var(--ink)}
 .eq-chip{position:relative;height:34px;padding:0 14px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:transparent;color:var(--muted);
   font-family:inherit;font-size:13.5px;font-weight:700;white-space:nowrap;cursor:pointer;transition:background .12s,color .12s}
 .eq-chip:hover{background:rgba(255,255,255,.65);color:var(--ink)}
 .eq-chip[aria-selected="true"]{background:var(--surface);color:var(--ll-teal-dark);border-color:var(--line);box-shadow:inset 0 3px 0 var(--ll-teal);margin-bottom:-1px;height:35px}
 .eq-chip:focus-visible{outline:2px solid var(--accent,#e6a52e);outline-offset:-2px}
 .eq-chip.is-missing{font-weight:400;cursor:not-allowed}     /* 選べない設備。名は読める濃さのまま（4.5:1）、細い字・赤い「!」・カーソルで分ける */
-.eq-chip.is-stale::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#dc7f2a;box-shadow:0 0 0 2px #e9f0f3}
+.eq-chip.is-stale{padding-right:16px}   /* 更新が止まった印（橙の点）の場所を空けておく（字に被せない。版 3.32.0） */
+.eq-chip.is-stale::after{content:"";position:absolute;top:6px;right:4px;width:7px;height:7px;border-radius:50%;background:#dc7f2a;box-shadow:0 0 0 2px #e9f0f3}
 .eq-chip.is-stale[aria-selected="true"]::after{box-shadow:0 0 0 2px var(--surface)}
 .eq-warn{display:inline-grid;place-items:center;width:15px;height:15px;margin-left:6px;border-radius:50%;background:#c0392b;color:#fff;font-size:10px;font-style:normal;font-weight:800;vertical-align:1px}
 .eq-wait{padding-bottom:9px;color:var(--muted);font-size:13px}
@@ -422,6 +449,7 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 .ll-equipbar.is-sortable .eq-chip:not(.is-missing){cursor:grab}
 .eq-hint{flex:none;padding-bottom:9px;font-size:11.5px;color:var(--muted);white-space:nowrap}
 .eq-chip.is-dragging{background:var(--surface);color:var(--ink);border-color:var(--h-input)}
+@media (max-width:1440px){ .eq-chip{padding:0 7px;font-size:13px} .eq-chip.is-stale{padding-right:14px} .ll-equipbar{gap:8px;padding-left:12px;padding-right:12px} .eq-hint{display:none} }   /* 狭い窓: 余白を詰め、並べ替えの案内の字は畳む（つかんで並べ替えるのはそのまま） */
 /* Excel に出力（道具の行の右端）。Excel の緑を枠と字だけに（塗らない＝主の行動の藍・青緑と競わない）。出している間は押せない */
 .ll-xlbtn{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#1d6f42!important;border-color:#9cc9ad!important}
 .ll-xlbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7}

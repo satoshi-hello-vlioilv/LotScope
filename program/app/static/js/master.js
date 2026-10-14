@@ -260,7 +260,8 @@ function paintPlace(news) {
     const by = cur.updated_by && (cur.updated_by.pc || cur.updated_by.login)
       ? `・最終更新 ${escapeHtml(whoText(cur.updated_by))} ${hhmm(cur.updated_at)}` : "";
     html = `<span class="place-tag shared">共有</span><span class="place-dir">${escapeHtml(p.dir)}</span>
-      ${cur.revision != null ? `<span class="place-meta">版 ${cur.revision}${by}</span>` : ""}`;
+      ${cur.revision != null ? `<span class="place-meta">版 ${cur.revision}${by}</span>` : ""}
+      ${p.caution ? `<span class="place-caution" title="${escapeHtml(p.caution)}">⚠ 同期フォルダ（同時の保存で片方が消えることがあります）</span>` : ""}`;
   }
   html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える">置き場を変える ›</button>';
   if (news && news.length) html += `<span class="place-news">${news.map(escapeHtml).join(" ／ ")}</span>`;
@@ -1243,7 +1244,8 @@ function openMasterPlaceForm(d) {
     go.disabled = !last.ok;
     go.textContent = last.mode === "switch" ? "この置き場に切り替える" : "写して、この置き場に変える";
     if (!last.ok) say("ng", "✕ " + escapeHtml(last.problem || last.error || "変えられません。"));
-    else say("ok", "✓ " + escapeHtml(last.note || "") + "<small>変えたあと、ほかの PC はマスタを読みに行くついでに（数秒ごと）新しい置き場へ移ります。前の置き場のマスタは消しません。</small>");
+    else say(last.caution ? "wait" : "ok", (last.caution ? `⚠ ${escapeHtml(last.caution)}<br>` : "") + "✓ " + escapeHtml(last.note || "")
+      + "<small>変えたあと、ほかの PC はマスタを読みに行くついでに（数秒ごと）新しい置き場へ移ります。前の置き場のマスタは消しません。</small>");
   };
   const later = () => { clearTimeout(timer); timer = setTimeout(check, 350); };
   TPA.pathPick($("#mpParent"), { purpose: "master", title: "マスタの置き場を置く場所を選ぶ",

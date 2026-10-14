@@ -1,6 +1,6 @@
 [package]
 name = "defect-analyzer-desktop"
-version = "3.31.0"
+version = "3.32.0"
 description = "LotScope（転写距離・ピッチ解析）デスクトップ版の窓"
 edition = "2021"
 rust-version = "1.90"

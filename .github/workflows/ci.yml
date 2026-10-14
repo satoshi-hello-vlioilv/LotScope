@@ -24,7 +24,7 @@ jobs:
       - name: Chrome のサンドボックスを使えるようにする
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: 型・構文（画面の JS・道具の JS）
-        run: find program/app/static/js program/tools desktop/src -name '*.js' -o -name '*.mjs' | xargs -n1 node --check
+        run: bash program/tools/js-check.sh   # import を使う .js はモジュールとして確かめる（CLAUDE.md と同じ）
       - name: 型・構文（Python）
         run: python -m compileall -q program
       # 手元と同じ版の ruff（版が変わると決まりが増えて、手元で通った物が落ちる）

@@ -1,138 +1,191 @@
-"""画面の改良案の評価関数（開発用。決め方は CLAUDE.md の「UI/UX を変えるときは…」。元は Inventor の同じ名前の道具）。
+"""改良案の評価関数（開発用。決め方は CLAUDE.md の「改良するときは、別のエージェントが現物を撮って採点し、95 点以上の案に決める」）。
 
     python program/tools/ui_score.py program/tools/ui-proposals/比較.json
 
-採点は、案を画像にして（ui-variants.mjs）直接見比べてから付ける。採点のファイル（JSON）:
+採点は、案を作った者ではない別のエージェントが付ける。採点する者は自分で画面を撮り（ui-variants.mjs・ui-check.mjs）、
+画像を直接見てから付ける（画面に出ない改良は、動かして測った数を見てから）。採点のファイル（JSON）:
 
-    {"title": "…", "rounds": [
-      {"name": "1 回目", "proposals": {"A 案の名前": [7 基準の点（10 段階）], …}, "seen": {"A 案の名前": "画像で見えたこと"},
-       "added": ["F 案の名前", "G 案の名前"],
-       "baseline": {"現状": [7 基準の点]}},
-      {"name": "2 回目", "proposals": {…}, "essence": {"複合案の名前": "どの案のどのエッセンスを組んだか"}}]}
-    "added" は 1 回目の 5 案を見直して、偏りを崩すために足した方向の違う 2 案。
+    {"title": "…", "evaluator": "だれが・どう撮って採点したか",
+     "rounds": [
+      {"name": "1 回目", "images": "撮った画像のフォルダ",
+       "proposals": {"A 案の名前": {"score": {"order": 8, …（11 項目。0〜10）},
+                                     "minus": [{"kind": "cut", "where": "どの画像のどこで"}],
+                                     "seen": "画像で見えたこと（良い所・悪い所）"}, …},
+       "baseline": {"今": {同じ形}}},
+      {"name": "2 回目", …}],
+     "built": {"name": "作った後", "images": "…", "result": {同じ形}}}
+
     "baseline" は比べるための今の画面（案ではないので順位に入れない。どれだけ良くなるかを見る）。
-    "record" を書いたファイルは、いまの決まりの前の記録（回の組み方は確かめない）。
+    "built" は、決めた案を作った後の本物の画面を、同じ物差しで採点した結果（作る前の画像の再現と本物の差を見る）。
+    案の値が 7 つの数の並び（list）のファイルは、旧い決まり（7 基準・80 点・7 案）の記録として読む（判定はしない）。
 
-決め方（2 回で必ず 1 案に決める）:
-  1 回目は 7 案（まず 5 案を出し、方向が偏っていないかを見て、方向の違う 2 案を足す）。
-  1 位が十分に良く（GOOD 点以上）、2 位と僅差でなければ 1 位を選ぶ。
-  1 位でも点が低いか、2 位と僅差なら、案のエッセンスを抜き出して組み直した複合案を 4 つ作り、
-  1 回目の上位 3 案と合わせた 7 案で 2 回目を採点し、1 位に決める（同じ点なら、重い基準の点が高い方）。
-僅差の幅: 各基準の採点に ±1 段階のぶれがあるとすると、1 案の合計のぶれは σ1 = √Σ(w/10)²、2 案の差のぶれは
-σd = σ1·√2。差が 2σd 未満なら、採点のぶれで順位が入れ替わりうる。
-十分に良い（GOOD）: 全基準 8 段階（有料の製品として出せる水準）に当たる 80 点。
+点の付け方: 100 点満点の加点（4 分類・11 項目を 0〜10 で付け、重みを掛けて足す）から、減点（見つけた数だけ引く）を引く。
+決め方: 1 回の案は 5 案以上。1 位が 95 点以上なら 1 位に決める（同じ点なら、重い分類の点が高い方）。
+  95 点に届かなければ決めず、案出しからやり直す（前の回で効いた所は持ち越してよいが、新しい案を 3 案以上入れる）。
+  3 回やり直しても届かなければ、いちばん高い案に決め、足りない点とその理由を利用者に伝える。
 """
 
 import json
-import math
 import sys
 
-CRITERIA = [  # (名前, 重み)。並びは重い順（同じ点のときは、前の基準の点が高い方を上にする）
-    ("次の行動がすぐ分かる", 20),
-    ("状態と進み具合が見える", 15),
-    ("読む量・判断の数が少ない", 15),
-    ("どこに何があるかが一定", 15),
-    ("見栄え・視覚の階層", 15),
-    ("一覧・3D の見やすさ・操作の短さ", 10),  # Inventor では「3D の…」。このアプリの主役は異常ロット一覧と計算の 3D
-    ("作り直しの確かさ・保守性", 10),
+# 加点（4 分類・11 項目。重みの合計 100）。並びは重い分類の順（同じ点のとき、前の分類の点が高い方を上にする）
+CRITERIA = [  # (分類, 鍵, 名前, 重み)
+    ("わかりやすさ", "order", "順序（目と手が使う順に流れる）", 8),
+    ("わかりやすさ", "chunk", "チャンク（まとまりが一目で分かれる）", 8),
+    ("わかりやすさ", "hierarchy", "階層化（最初に見る物が 1 つ・主と従の差）", 8),
+    ("わかりやすさ", "visual", "視覚化（数・状態を形・色・位置で見せる）", 8),
+    ("使いやすさ", "steps", "ステップ数（目的までの手が少ない）", 10),
+    ("使いやすさ", "effortless", "考えさせない（探させない・思い出させない・推測させない）", 10),
+    ("使いやすさ", "intuitive", "直感的（見た目どおりに動く・慣れた型）", 10),
+    ("統一感", "form", "形と色（同じ物は同じ形・同じ色）", 10),
+    ("統一感", "place", "言葉と置き場（同じ物は同じ言葉・同じ場所）", 10),
+    ("美しさ", "layout", "整列・余白・釣り合い", 9),
+    ("美しさ", "tone", "色と文字の調子（色数・強弱・読みやすさ）", 9),
 ]
-WEIGHTS = [w for _, w in CRITERIA]
-SIGMA1 = math.sqrt(sum((w / 10) ** 2 for w in WEIGHTS))
-MARGIN = 2 * SIGMA1 * math.sqrt(2)
-GOOD = 80  # 1 回目で選んでよい 1 位の点の下限
-FIRST = 5  # 1 回目に最初に出す案の数
-ADDED = 2  # 偏りを崩すために足す、方向の違う案の数
-PROPOSALS = FIRST + ADDED  # 1 回目・2 回目の案の数
-COMPOSITES = 4  # 2 回目に作る複合案の数
-KEEP = PROPOSALS - COMPOSITES  # 2 回目に残す 1 回目の案の数（上位から）
+KEYS = [k for _, k, _, _ in CRITERIA]
+WEIGHT = {k: w for _, k, _, w in CRITERIA}
+GROUPS = list(dict.fromkeys(g for g, _, _, _ in CRITERIA))  # 重い順
+
+# 減点（1 か所ごとに引く）。どの画像のどこで見たかを "where" に書く
+DEDUCTIONS = {
+    "lost": ("機能が消える・届かなくなる", 10),
+    "cut": ("見切れ・はみ出し（字・ボタンが切れる、枠から出る）", 5),
+    "overlap": ("重なり（部品・字が被る）", 5),
+    "wrap": ("想定外の折り返し（1 段のはずが 2 段、ボタンの字が折れる）", 3),
+    "unreadable": ("読みにくい字（11px 未満・コントラスト 4.5 未満の本文）", 3),
+    "scroll": ("要らないスクロール（横に送る・二重のスクロール）", 3),
+    "hidden_state": ("状態が見えない（何が効いているか・待っているか）", 3),
+    "more_steps": ("前より手が増える（1 手ごと）", 2),
+    "color_only": ("色だけで区別している", 2),
+}
+
+PASS = 95  # 決めてよい点の下限
+MIN_PROPOSALS = 5  # 1 回に出す案の数の下限
+MIN_NEW = 3  # やり直しの回に入れる新しい案の数の下限
+MAX_ROUNDS = 3  # 届かなくても、この回で決める（足りない点を利用者に伝える）
+
+LEGACY_WEIGHTS = [20, 15, 15, 15, 15, 10, 10]  # 旧い決まりの 7 基準（記録を読むだけ）
 
 
-def total(scores):
-    """10 段階の採点 → 100 点満点"""
-    if len(scores) != len(WEIGHTS) or not all(0 <= s <= 10 for s in scores):
-        raise ValueError(f"採点は 0〜10 の {len(WEIGHTS)} 個: {scores}")
-    return round(sum(w * s / 10 for w, s in zip(WEIGHTS, scores)), 1)
+def plus(entry):
+    """加点（100 点満点）"""
+    score = entry["score"]
+    missing = [k for k in KEYS if k not in score]
+    if missing or not all(0 <= score[k] <= 10 for k in KEYS):
+        raise ValueError(f"加点は {len(KEYS)} 項目を 0〜10 で（足りない: {missing}）: {score}")
+    return sum(WEIGHT[k] * score[k] / 10 for k in KEYS)
+
+
+def minus(entry):
+    """減点（見つけた所ごと）"""
+    total = 0
+    for m in entry.get("minus", []):
+        if m.get("kind") not in DEDUCTIONS:
+            raise ValueError(f"減点の種類が無い: {m.get('kind')}（{'・'.join(DEDUCTIONS)} のどれか）")
+        if not m.get("where"):
+            raise ValueError(f"減点「{DEDUCTIONS[m['kind']][0]}」に、どの画像のどこで見たか（where）が無い")
+        total += DEDUCTIONS[m["kind"]][1]
+    return total
+
+
+def total(entry):
+    """加点 − 減点（0〜100 点）"""
+    if isinstance(entry, list):  # 旧い決まりの記録
+        return round(sum(w * s / 10 for w, s in zip(LEGACY_WEIGHTS, entry)), 1)
+    return round(max(0.0, plus(entry) - minus(entry)), 1)
+
+
+def group_points(entry):
+    """分類ごとの加点（重い分類の順）。同じ点のときの並べ替えに使う"""
+    if isinstance(entry, list):
+        return list(entry)
+    return [sum(WEIGHT[k] * entry["score"][k] / 10 for g, k, _, _ in CRITERIA if g == group) for group in GROUPS]
 
 
 def rank(proposals):
-    """[(合計, 名前, 採点)] を高い順に（同じ点なら重い基準の点が高い方）。1 位と 2 位が僅差か"""
-    rows = sorted(((total(s), name, s) for name, s in proposals.items()), key=lambda r: (-r[0], [-v for v in r[2]], r[1]))
-    return rows, rows[0][0] - rows[1][0] < MARGIN
+    """[(合計, 名前, 案)] を高い順に（同じ点なら、重い分類の点が高い方）"""
+    return sorted(((total(e), name, e) for name, e in proposals.items()), key=lambda r: (-r[0], [-v for v in group_points(r[2])], r[1]))
 
 
-def verdict(rows, close):
-    """1 回目の結果で選んでよいか。選べなければ理由"""
-    if rows[0][0] < GOOD:
-        return f"1 位でも {rows[0][0]:.1f} 点（{GOOD} 点に届かない）"
-    if close:
-        return f"1 位と 2 位が僅差（差 {rows[0][0] - rows[1][0]:.1f} 点 < {MARGIN:.1f} 点）"
-    return None
-
-
-def check_round(i, rnd, previous):
-    """回の組み方が決まりどおりか（違えば理由の文）"""
+def check_round(i, rnd, before):
+    """回の組み方が決まりどおりか（違えば理由の文）。before: 前の回までに出た案の名前"""
     proposals = rnd["proposals"]
-    if len(proposals) != PROPOSALS:
-        return f"案は {PROPOSALS} 案（いま {len(proposals)} 案）"
-    if i == 0:
-        added = rnd.get("added", [])
-        if len(added) != ADDED or not set(added) <= set(proposals):
-            return f"1 回目は 5 案に、方向の違う {ADDED} 案を足す（\"added\" に、足した {ADDED} 案の名前を書く）"
-        return None
-    if i > 1:
-        return "回は 2 回まで（2 回目で必ず決める）"
-    kept = [name for _, name, _ in previous[:KEEP]]
-    missing = [name for name in kept if name not in proposals]
-    new = [name for name in proposals if name not in {n for _, n, _ in previous}]
-    if missing:
-        return f"1 回目の上位 {KEEP} 案（{'・'.join(missing)}）が入っていない"
-    if len(new) != COMPOSITES:
-        return f"複合案は {COMPOSITES} つ（いま {len(new)} つ）"
+    if len(proposals) < MIN_PROPOSALS:
+        return f"案は {MIN_PROPOSALS} 案以上（いま {len(proposals)} 案）"
+    blind = [name for name, e in proposals.items() if not e.get("seen")]
+    if blind:
+        return f"画像で見えたこと（seen）が無い案: {'・'.join(blind)}"
+    new = [name for name in proposals if name not in before]
+    if i > 0 and len(new) < MIN_NEW:
+        return f"やり直しの回は、案出しからやり直す（新しい案を {MIN_NEW} 案以上。いま {len(new)} 案）"
     return None
 
 
-def decide(rounds, strict=True):
-    """回を順に判定する。返り値: ("選ぶ", 名前, 順位) か ("比べ直す", 残す案, 順位)。
-    strict: 回の組み方を確かめる（決まりの前の記録では確かめない）"""
-    previous = None
+def decide(data):
+    """回を順に判定する。返り値: ("選ぶ" | "届かずに選ぶ" | "出し直す" | "記録", 名前, 順位)"""
+    rounds = data["rounds"]
+    if any(isinstance(e, list) for rnd in rounds for e in rnd["proposals"].values()):
+        rows = rank(rounds[-1]["proposals"])
+        return "記録", rows[0][1], rows
+    if not data.get("evaluator"):
+        raise ValueError("採点した者（evaluator）が無い。採点は、案を作った者ではない別のエージェントが、自分で撮った画像を見て付ける")
+    if len(rounds) > MAX_ROUNDS:
+        raise ValueError(f"回は {MAX_ROUNDS} 回まで（{MAX_ROUNDS} 回目で必ず決める。いま {len(rounds)} 回）")
+    before = set()
     for i, rnd in enumerate(rounds):
-        problem = check_round(i, rnd, previous)
-        if problem and strict:
+        problem = check_round(i, rnd, before)
+        if problem:
             raise ValueError(f"{rnd['name']}: {problem}")
-        rows, close = rank(rnd["proposals"])
-        if i > 0 or not verdict(rows, close):
+        rows = rank(rnd["proposals"])
+        if rows[0][0] >= PASS:
+            if i < len(rounds) - 1:
+                raise ValueError(f"{rnd['name']} で {PASS} 点に届いて決まっているのに、後の回がある")
             return "選ぶ", rows[0][1], rows
-        previous = rows
-    return "比べ直す", [name for _, name, _ in previous[:KEEP]], previous
+        if i == MAX_ROUNDS - 1:
+            return "届かずに選ぶ", rows[0][1], rows
+        before |= set(rnd["proposals"])
+    return "出し直す", rows[0][1], rows
+
+
+def describe(entry):
+    """1 案の点の内訳（分類ごとの加点と減点）"""
+    if isinstance(entry, list):
+        return str(entry)
+    parts = [f"{g} {p:.1f}" for g, p in zip(GROUPS, group_points(entry))]
+    cuts = [f"{DEDUCTIONS[m['kind']][0].split('（')[0]} −{DEDUCTIONS[m['kind']][1]}（{m['where']}）" for m in entry.get("minus", [])]
+    return "・".join(parts) + (f"／減点: {'、'.join(cuts)}" if cuts else "")
 
 
 def report(data):
     print(f"# {data['title']}")
-    if data.get("record"):
-        print(f"（記録: {data['record']}）")
-    print(f"σ1 = {SIGMA1:.2f}、僅差の幅 2σd = {MARGIN:.1f} 点、選んでよい点 {GOOD} 点")
-    seen = {}  # 前の回から持ち越した案は、前の回で見えたことを出す
-    for i, rnd in enumerate(data["rounds"]):
-        rows, close = rank(rnd["proposals"])
-        print(f"== {rnd['name']}（{len(rows)} 案）")
-        seen.update(rnd.get("seen", {}))
-        notes = {**seen, **{k: f"［組み方］{v}" for k, v in rnd.get("essence", {}).items() if k not in seen}}
-        for t, name, s in rows:
-            mark = "＋" if name in rnd.get("added", []) else " "
-            print(f" {mark}{name:16s} {t:5.1f}  {s}  {notes.get(name, '')}")
-        for name, s in rnd.get("baseline", {}).items():
-            print(f"  （{name}）{'':{max(0, 14 - len(name))}s} {total(s):5.1f}  {s}  {rnd.get('seen', {}).get(name, '')}")
-        why = verdict(rows, close)
-        print(f"  1 位と 2 位の差 {rows[0][0] - rows[1][0]:.1f} 点 → {'僅差' if close else '差あり'}" + (f"・{why}" if i == 0 and why else ""))
-    kind, who, rows = decide(data["rounds"], strict=not data.get("record"))
-    if data.get("record"):
-        print("（以下は、いまの決まりで判定したら、の参考）")
+    kind, who, rows = decide(data)
+    if kind == "記録":
+        print("（旧い決まり〈7 基準・80 点・7 案〉の記録。いまの決まりでは判定しない）")
+        for t, name, _ in rows:
+            print(f"  {name:16s} {t:5.1f}")
+        print(f"→ 記録の 1 位: {who}")
+        return kind, who
+    print(f"採点: {data['evaluator']}")
+    print(f"決めてよい点 {PASS} 点・1 回 {MIN_PROPOSALS} 案以上・{MAX_ROUNDS} 回まで")
+    for rnd in data["rounds"]:
+        print(f"== {rnd['name']}（{len(rnd['proposals'])} 案）" + (f"  画像: {rnd['images']}" if rnd.get("images") else ""))
+        for t, name, e in rank(rnd["proposals"]):
+            print(f"  {name}\n      {t:5.1f} 点  {describe(e)}\n      見えたこと: {e['seen']}")
+        for name, e in rnd.get("baseline", {}).items():
+            print(f"  （{name}）\n      {total(e):5.1f} 点  {describe(e)}\n      見えたこと: {e.get('seen', '')}")
     if kind == "選ぶ":
-        note = "（2 回目で決める）" if len(data["rounds"]) > 1 else ""
-        print(f"→ 選ぶ{note}: {who}（{rows[0][0]:.1f} 点）")
+        print(f"→ 選ぶ: {who}（{rows[0][0]:.1f} 点）")
+    elif kind == "届かずに選ぶ":
+        print(f"→ {MAX_ROUNDS} 回で {PASS} 点に届かなかった。いちばん高い {who}（{rows[0][0]:.1f} 点）に決め、"
+              f"足りない {PASS - rows[0][0]:.1f} 点とその理由（減点・低い項目）を利用者に伝える")
     else:
-        print(f"→ まだ選ばない。案のエッセンスを抜き出して組み直した複合案を {COMPOSITES} つ作り、"
-              f"1 回目の上位 {KEEP} 案（{'・'.join(who)}）と合わせた {PROPOSALS} 案を画像にして 2 回目を採点する")
+        print(f"→ まだ選ばない（1 位 {rows[0][0]:.1f} 点 < {PASS} 点）。低い項目と減点を見直し、案出しからやり直す"
+              f"（{MIN_PROPOSALS} 案以上・新しい案 {MIN_NEW} 案以上）。採点はまた別のエージェントが、撮り直した画像で付ける")
+    built = data.get("built")
+    if built:
+        t = total(built["result"])
+        print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
+        print("→ 作った後も " + (f"{PASS} 点以上" if t >= PASS else f"{PASS} 点に届かない。減点の所を直して撮り直し、採点し直す"))
     return kind, who
 
 

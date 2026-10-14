@@ -28,9 +28,19 @@
         + ` aria-haspopup="dialog" aria-expanded="${open === k.kind}" aria-controls="llActivePop" title="${esc(`${k.name} ${n}: ${sum}\n${k.tip}`)}">`
         + `<b class="ll-an">${n}</b><span class="ll-akind">${k.name}</span><span class="ll-aname">${esc(sum)}</span><i aria-hidden="true">▾</i></button>`;
     }).join("") : "";
+    fit();
     if (!open) return;
     const tab = tabs.querySelector(`[data-kind="${open}"]`);
     if (!tab) close(false); else TPA.placeBelow(pop, tab);
+  }
+  /** 入りきらないときは、前置き（効いている物）と中身の名前を畳む（種類と数は残す。全部はタブの説明に。版 3.32.0） */
+  /* 入りきらないときに畳む順（版 3.32.0）: 前置き（効いている物）→ まとめ・選んだ値・色付けの名前 → 並べ替えの列名 → ▾ と余白。
+     並べ替えの列名（何の順に並んでいるか）は最後まで残す。種類と数はいつも残す（全部はタブの説明に） */
+  const FOLDS = ["fold-key", "fold-names", "is-tight", "is-tighter"];
+  function fit() {
+    tabs.classList.remove(...FOLDS);
+    const over = () => !tabs.hidden && tabs.scrollWidth > tabs.clientWidth + 1;
+    for (const f of FOLDS) { if (!over()) break; tabs.classList.add(f); }
   }
   function show(kind) {
     if (off) off();
@@ -73,7 +83,7 @@
     // 札が描き直された・出た・消えた → タブを描き直す（各部品は札の箱に数と要約を書くだけ）
     const watch = new MutationObserver(() => paint());
     KINDS.forEach((k) => { const el = $(k.bar); if (el) watch.observe(el, { attributes: true, attributeFilter: ["hidden", "data-count", "data-summary", "data-tone"], childList: true }); });
-    addEventListener("resize", () => { if (open) paint(); });
+    addEventListener("resize", () => { if (open) paint(); else fit(); });
     $("#llZoomBtn")?.addEventListener("click", toggleZoom);
     paint();
   }

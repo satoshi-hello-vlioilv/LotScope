@@ -77,6 +77,17 @@ class MasterPlaceTests(unittest.TestCase):
             self.assertIn(why, r["problem"], name)
         self.assertIn("届きません", master_place.plan(a, self.tmp / "無い", "X")["problem"])
 
+    def test_sync_folder_is_cautioned(self):
+        """クラウドの同期フォルダ（Box・OneDrive など）を置き場に選ぶと、同時の保存で片方が消えうることを言う（止めはしない）"""
+        for path, kind in ((r"C:\Users\u\Box\LotScope", "Box"), (r"C:\Users\u\OneDrive - 会社\共有", "OneDrive"),
+                           ("C:/boxdrive/Box/m", "Box"), (r"\\srv\share\masters", ""), (r"C:\Users\u\Boxes\m", "")):
+            self.assertEqual(master_place.sync_folder(path), kind, path)
+        (self.tmp / "Box").mkdir()
+        pl = master_place.plan(self.store("pcA"), self.tmp / "Box", "Masters")
+        self.assertTrue(pl["ok"], pl)
+        self.assertIn("片方の変更が消える", pl["caution"])
+        self.assertEqual(master_place.plan(self.store("pcA"), self.tmp / "nas", "Masters")["caution"], "", "ファイルサーバーには注意を出さない")
+
 
 if __name__ == "__main__":
     unittest.main()

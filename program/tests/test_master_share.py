@@ -8,7 +8,9 @@
   ② 書く前に共有から取り直す（ほかの PC の変更を踏み潰さない）・版番号が1つずつ上がる
   ③ 同じ行を後から保存したら断る（誰が・いつ変えたかを返す）。消された行も断る
   ④ 錠: ほかの PC が保存中なら「誰が・あと何秒」で断る。自分の残した錠は引き継ぐ。切れた錠は取れる。
-     名乗れない PC は自分と見なさない
+     名乗れない PC は自分と見なさない。錠の期限は相手の時計を信じず、この PC で見てからの経過で測る（時計のずれで保存中の錠をどけない）。
+     名乗りが同じ別の PC（手元の置き場が別）の錠は引き継がない。保存が錠の長さを超えて長引き、その間にほかの PC が保存したら、
+     長引いた方は書かずに断る（後の保存を黙って消さない）
   ⑤ 共有に届かない: 読みは写しで続け、書きは断る（写しだけ書くと PC ごとにずれる）
   ⑥ 2台×10件を同時に追加しても、全部残り、id が重ならない
   ⑦ API は 409（locked／conflict／duplicate）・503（unavailable）で理由を返す
@@ -40,9 +42,9 @@ class Env:
         self.share = self.tmp / "share"
         self.share.mkdir()
 
-    def store(self, pc, login="user", refresh=0.0, ttl=20.0, share=None):
+    def store(self, pc, login="user", refresh=0.0, ttl=20.0, share=None, root=None):
         cfg = {"dir": str(share or self.share), "refresh_seconds": refresh, "lock_ttl_seconds": ttl}
-        return MasterStore(self.base, local_root=self.tmp / f"local-{pc or 'noname'}", settings=cfg,
+        return MasterStore(self.base, local_root=self.tmp / (root or f"local-{pc or 'noname'}"), settings=cfg,
                            who={"pc": pc, "login": login})
 
     def repo(self, *a, **k):
@@ -51,15 +53,33 @@ class Env:
     def share_doc(self, name="roll_master"):
         return json.loads((self.share / f"{name}.json").read_text(encoding="utf-8"))
 
-    def put_lock(self, pc, login="user", seconds=10):
+    def put_lock(self, pc, login="user", seconds=10, instance=""):
         now = datetime.now()
         (self.share / "master.lock.json").write_text(json.dumps({
-            "token": "x", "holder_pc": pc, "holder_login": login,
+            "token": "x", "holder_pc": pc, "holder_login": login, "holder_instance": instance,
             "acquired_at": now.isoformat(), "expires_at": (now + timedelta(seconds=seconds)).isoformat()},
             ensure_ascii=False), encoding="utf-8")
 
+    @staticmethod
+    def seen_long_ago(store, token="x"):
+        """この PC が錠（token）を、錠の長さより前から見ていたことにする（見てからの経過で切れたかを測るので）"""
+        store._lock_seen[token] = time.monotonic() - 2 * store.lock_ttl
+
     def close(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+def save_until_done(save, limit=60):
+    """画面と同じく、錠待ちは粘って取り直す（諦めるまでを回数ではなく時間で決める。遅い CI でも揺れない）。できたら True"""
+    t0 = time.monotonic()
+    while True:
+        try:
+            save()
+            return True
+        except MasterLocked:
+            if time.monotonic() - t0 > limit:
+                return False
+            time.sleep(0.01)
 
 
 class Base(unittest.TestCase):
@@ -165,15 +185,39 @@ class Lock(Base):
     def test_own_leftover_lock_is_taken_over(self):
         a = self.env.repo("PC-A", login="me")
         a.rolls()
-        self.env.put_lock("PC-A", login="me", seconds=15)       # 前回うまく消せなかった自分の錠
+        self.env.put_lock("PC-A", login="me", seconds=15, instance=a.store.instance)   # 前回うまく消せなかった自分の錠
         a.rolls_update(1, {"備考": "引き継いで保存"})
         self.assertEqual({r["id"]: r for r in self.env.share_doc()["rows"]}[1]["備考"], "引き継いで保存")
+        again = self.env.store("PC-A", login="me")
+        self.assertEqual(again.instance, a.store.instance, "アプリの印は手元の置き場に残り、開き直しても同じ")
+
+    def test_same_name_on_another_pc_is_not_the_holder(self):
+        """名乗り（PC 名・ログイン ID）が同じでも、手元の置き場が別の PC（端末の名前を同じに付けた・複製した仮想 PC）の錠は
+        引き継がない（引き継ぐと、相手の保存中に書いて、どちらかの保存が黙って消える）。"""
+        a = self.env.store("PC-A", login="me", root="pc1")
+        twin = self.env.store("PC-A", login="me", root="pc2")
+        self.assertNotEqual(a.instance, twin.instance)
+        a._acquire_lock()
+        with self.assertRaises(MasterLocked):
+            twin._acquire_lock()
 
     def test_expired_lock_is_taken(self):
         a = self.env.repo("PC-A")
         a.rolls()
         self.env.put_lock("PC-B", seconds=-1)
+        self.env.seen_long_ago(a.store)
         a.rolls_update(1, {"備考": "切れた錠のあとで保存"})
+
+    def test_clock_ahead_does_not_take_a_live_lock(self):
+        """相手の錠に書かれた期限が（この PC の時計で）切れて見えても、この PC で見てから錠の長さが経つまではどけない
+        （時計が 30 秒進んだ PC が、保存中の錠をどけて書くと、保存中の方が取り直した古い中身で上書きして、こちらの保存が消える）。"""
+        a = self.env.repo("PC-A")
+        a.rolls()
+        self.env.put_lock("PC-B", seconds=-30)
+        with self.assertRaises(MasterLocked) as cm:
+            a.rolls_update(1, {"備考": "x"})
+        self.assertTrue(15 <= cm.exception.remaining <= 21, cm.exception.remaining)
+        self.assertEqual(json.loads((self.env.share / "master.lock.json").read_text(encoding="utf-8"))["holder_pc"], "PC-B")
 
     def test_nameless_pc_is_not_the_holder(self):
         a = self.env.repo("", login="")
@@ -206,13 +250,7 @@ class Concurrency(Base):
 
         def worker(repo, n):
             for i in range(10):
-                for _ in range(200):                             # 画面と同じく、錠待ちは粘って取り直す
-                    try:
-                        repo.rolls_create({"設備": f"{repo.store.who['pc']}", "ロール名": f"{n}-{i}"})
-                        break
-                    except MasterLocked:
-                        time.sleep(0.01)
-                else:
+                if not save_until_done(lambda: repo.rolls_create({"設備": f"{repo.store.who['pc']}", "ロール名": f"{n}-{i}"})):
                     errors.append((n, i))
 
         ts = [threading.Thread(target=worker, args=(r, r.store.who["pc"])) for r in repos]
@@ -262,6 +300,8 @@ class LockRaces(Base):
         """切れた錠を2台が同時に見つけても、引き継げるのは1台だけ。"""
         self.env.put_lock("PC-X", seconds=-5)
         a, b = self.stores()
+        self.env.seen_long_ago(a)
+        self.env.seen_long_ago(b)
         real = MasterStore._read_lock
         box = {}
 
@@ -283,6 +323,7 @@ class LockRaces(Base):
         a, b = self.env.store("PC-A", ttl=0.05), self.env.store("PC-B")
         a1 = a._acquire_lock()
         time.sleep(0.1)                           # A の錠が切れる
+        self.env.seen_long_ago(b, a1)             # B は A の錠を前から見ていた
         lock = self.env.share / "master.lock.json"
         box = {}
 
@@ -307,6 +348,29 @@ class LockRaces(Base):
         self.assertTrue(box.get("b"), "B が割り込んで錠を取った")
         self.assertTrue(lock.exists(), "B の錠が残っている")
         self.assertEqual(self.holder(), box["b"])
+
+    def test_slow_save_does_not_overwrite_a_later_save(self):
+        """A の保存が錠の長さを超えて長引き、その間に B が（切れた錠をどけて）保存した。A は取り直した時の古い中身で
+        上書きしてはいけない（B の保存が黙って消える）。A は書かずに断り、送り直せば B の保存の上に当たる。"""
+        a, b = self.env.repo("PC-A", ttl=0.3), self.env.repo("PC-B", ttl=0.3)
+        a.rolls()
+        b.rolls()
+        rows = {r["id"]: r for r in a.rolls()}
+        first, second = sorted(rows)[:2]
+
+        def slow(rows_, stamp):
+            for r in rows_:
+                if r["id"] == first:
+                    r["備考"] = "A（長引いた）"
+            self.assertTrue(save_until_done(lambda: b.rolls_update(second, {"備考": "B（後から）"}), limit=10), "B は錠が切れてから保存できる")
+        with self.assertRaises(MasterLocked):
+            a.store.write("roll_master", slow)
+        got = {r["id"]: r for r in self.env.share_doc()["rows"]}
+        self.assertEqual(got[second]["備考"], "B（後から）", "B の保存は消えない")
+        self.assertNotEqual(got[first]["備考"], "A（長引いた）", "A は書かなかった")
+        a.rolls_update(first, {"備考": "A（送り直し）"})
+        got = {r["id"]: r for r in self.env.share_doc()["rows"]}
+        self.assertEqual((got[first]["備考"], got[second]["備考"]), ("A（送り直し）", "B（後から）"), "送り直すと両方残る")
 
     def test_three_pcs_many_creates(self):
         """3 台が同時に 15 件ずつ追加しても、全部残り、版がちょうど件数ぶん進む。

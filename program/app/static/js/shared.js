@@ -410,10 +410,13 @@
         place() {
           let r = key ? TPA.local.get(key, null) : null;
           if (!r || r.w < minW || r.h < minH) r = null;
-          const pw = Math.min(innerWidth - 24, r ? r.w : w), ph = Math.min(innerHeight - 24, r ? r.h : h);
+          // 出すときは見出し帯（画面のタブ・マスタ管理・終了）を覆わない。低い画面（フル HD・150% の 720px など）では、上ではなく高さを縮める
+          // （以前は高さを窓に合わせて上端を 12px まで上げ、カードが見出し帯の操作を隠した。版 3.32.0。評価関数 ui-eval-narrow.mjs）
+          const floor = Math.round(document.querySelector("body > header")?.getBoundingClientRect().bottom || 0) + 8;
+          const pw = Math.min(innerWidth - 24, r ? r.w : w), ph = Math.max(Math.min(minH, innerHeight - floor - 12), Math.min(innerHeight - floor - 12, r ? r.h : h));
           Object.assign(panel.style, { width: pw + "px", height: ph + "px",
             left: Math.max(12, Math.min(r ? r.x : align === "right" ? innerWidth - pw - 24 : (innerWidth - pw) / 2, innerWidth - pw - 12)) + "px",
-            top: Math.max(12, Math.min(r ? r.y : top, innerHeight - ph - 12)) + "px" });
+            top: Math.max(floor, Math.min(r ? r.y : top, innerHeight - ph - 12)) + "px" });
         },
       };
     },

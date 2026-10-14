@@ -7,6 +7,7 @@
 // 起動画面（desktop/splash。窓が出す）は別の頁で、窓の代わりに splash.brand・step・fail を呼んで進める（SPLASH_STATES）。
 
 import { spawn, execSync } from "node:child_process";
+import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -230,6 +231,27 @@ export const STATES = [
       note: "BOX・共有の置き場は、読むのに数秒〜数十秒かかることがあります。2 回目からは前に読んだ内容をすぐ出し、裏で確かめ直します。" }); });
     await sleep(2300);
   }, "[data-next], .tpa-wait button"],
+  // 版 3.32.0: 計算の 3D（ロット L7150C0 を取り込み、汚れ位置 A・B を入れて、仮の発生設備の 3D と説明を出した所）。
+  // 狭い画面（フル HD・150% の 1280×720）で、3D の札どうし・札と凡例が重ならないかを見る（ui-eval-narrow.mjs）
+  ["calc3d", async (p) => {
+    await p.evaluate(() => window.__wait?.done?.()); await closeAll(p);
+    await p.click("#tabCalc"); await sleep(300);
+    await p.evaluate((html) => importLotdspHtml(html, "L7150C0", "試験の見本"), fs.readFileSync(path.join(PROGRAM, "tests/fixtures/lotdsp_progress_L7150C0.html"), "utf-8"));
+    await p.waitForFunction(() => document.querySelector("#foundEquipment")?.value);
+    await p.fill("#soilA", "660"); await p.press("#soilA", "Tab"); await p.fill("#soilB", "663.73"); await p.press("#soilB", "Tab");
+    await p.waitForSelector("#explainStage canvas"); await sleep(1500);
+  }, "[data-next], #explainTextToggle"],
+  // 版 3.32.0: 作業実績の設備が多い所（24 台。試験の 12 台に、作り物の 12 台を足して答える）。設備のタブが 1 段に収まるかを見る
+  ["worklog-many", async (p) => {
+    await p.route("**/api/worklog/files*", async (route) => {
+      const res = await route.fetch(), d = await res.json();
+      const base = (d.items || []).filter((x) => x.state !== "missing");
+      const more = Array.from({ length: 12 }, (_, i) => ({ ...base[i % base.length], key: `extra-${i}`, name: `${["FS", "AP", "NS", "LS", "CR", "SL"][i % 6]}${i + 4}` }));
+      await route.fulfill({ response: res, json: { ...d, items: [...(d.items || []), ...more] } });
+    });
+    await p.reload(); await p.waitForSelector("#llBody tr[data-i]");
+    await p.click("#tabWork"); await p.waitForSelector("#llEquipBar .eq-chip"); await sleep(900);
+  }, "[data-next], #llEquipBar [aria-selected=false]"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

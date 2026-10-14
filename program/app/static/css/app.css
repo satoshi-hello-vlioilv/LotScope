@@ -99,11 +99,20 @@ header{height:var(--header-h);padding:0 18px;
 .hstat .pill:last-child{border-radius:0 999px 999px 0}
 .hsep{width:1px;height:22px;background:rgba(255,255,255,.22);margin:0 6px}
 /* 終了はふだん静かに（押すと閉じる物を目立たせない）。乗せると赤 */
+/* 見出し帯のボタン・札は字を折らない・縮めない（版 3.32.0。以前はフル HD・150% で「マスタ管理」が「マ／ス／タ」に縦に折れた） */
+.header-right > *{flex:none;white-space:nowrap}
 .quit{height:32px;border:1px solid transparent;background:transparent;color:var(--on-fill);opacity:.85;
   border-radius:8px;padding:0 14px;font-weight:700;cursor:pointer;font-size:var(--fs-sm)}
 .quit:hover{background:var(--danger);border-color:var(--danger);opacity:1}
 .btn-ghost.on-dark{height:32px;border-color:var(--on-dark-line);color:var(--on-fill);background:var(--on-dark-fill)}
 .btn-ghost.on-dark:hover{background:var(--on-dark-hover)}
+/* 狭い窓（フル HD・150% の 1280 など。版 3.32.0。決め方: ui-proposals/2026-10-narrow*）: 見出し帯を 1 段に収める。言葉は変えず、
+   飾りの字（QUALITY ANALYSIS・副題・「データ元:」の前置き）を畳む。版の札（押すと更新履歴）・ボタンはそのまま。全部は説明（title）に */
+@media (max-width:1440px){
+  header{padding:0 12px}
+  .brand .eyebrow .eb-text,.brand h1 .brand-sub,.hstat .mb-key{display:none}
+  .brand .ver-badge{margin-left:0}
+}
 
 /* ---------- layout(1画面に収める基準) ---------- */
 .layout{display:grid;grid-template-columns:var(--left-w) minmax(0,1fr);gap:var(--gap);padding:var(--gap);
@@ -357,7 +366,9 @@ details[open]>summary .imp-more{transform:rotate(180deg)}
 .x-label.off{background:var(--warn-soft);color:var(--warn-ink)}
 .x-label.edge{background:#e8eef9;color:#34507a}
 .x-label.past{opacity:.85;font-weight:600;border:1px dashed currentColor;background:var(--surface)}   /* 前工程までのオフの札 */
-.x-label.muted{background:transparent;box-shadow:none;color:var(--muted);font-weight:600}
+.x-label.x-hide{visibility:hidden}   /* 重なる・枠からはみ出す札（explain3d.js の declutter） */
+.x-label.muted{background:rgba(247,250,252,.8);box-shadow:none;color:var(--muted);font-weight:600}   /* 線の上でも読める薄い地（版 3.32.0） */
+.x-label.end{translate:-50% 0}.x-label.start{translate:50% 0}   /* 置いた点から左（end）・右（start）へ伸ばす（コイルに被せない） */
 .x-label.title{font-size:13px;border:1px solid var(--line);color:var(--h-meta)}
 .x-label.title.found{color:var(--found);border-color:rgba(192,57,43,.45)}
 .x-label.title.active{background:var(--h-xfer);border-color:var(--h-xfer);color:var(--on-fill);font-size:14px}
@@ -369,8 +380,15 @@ details[open]>summary .imp-more{transform:rotate(180deg)}
 .x-label.side{font-size:11.5px;color:var(--h-xfer);border:1px solid var(--h-xfer);font-weight:800}   /* ピッチの板の入側・出側 */
 .x-label.flow{background:#e6f2f1;color:var(--h-xfer);font-weight:600;font-size:11px}
 /* 凡例: 形と色の意味を先に示す（読む前に分かる） */
-.x-legend{position:absolute;left:10px;bottom:8px;right:10px;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,.82);display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;
-  font-size:var(--fs-xs);color:var(--muted);pointer-events:none}
+/* 凡例は模型に重ねず、3D の下の帯（版 3.32.0。以前は模型の上に重ね、狭いと 3〜4 段に折れて模型の下半分を覆った）。
+   explain3d.js が帯の高さを引いて 3D を描く。狭い・低い 3D（is-short）では言い添え（.lg-x）と縮尺の注を畳み、全部の項目を 2 行までに */
+.x-legend{position:absolute;left:0;right:0;bottom:0;padding:5px 12px;background:var(--surface);border-top:1px solid var(--line-soft);
+  font-size:var(--fs-xs);color:var(--muted);z-index:2;display:flex;align-items:flex-start;gap:6px 14px}
+.x-legend .lg-items{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+.x-legend small.lg-x{font-size:inherit}
+.x-legend.is-short .lg-items{gap:3px 12px}
+.x-legend.is-short :is(.lg-x,.lg-note){display:none}
+.x-hidden-note{flex:none;white-space:nowrap;cursor:help;padding:0 8px;border-radius:999px;background:var(--surface-3);color:var(--muted);font-size:var(--fs-xs)}   /* 凡例の帯の右（模型に重ねない） */
 .x-legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .x-legend .lg-dot{width:9px;height:9px;border-radius:50%;background:var(--x-defect);display:inline-block}
 .x-legend .lg-arrow{color:var(--danger);font-style:normal;font-weight:800}
@@ -474,6 +492,9 @@ table.ws td.cands{text-align:left;white-space:normal;overflow:visible;height:aut
 td.edit input.auto,td.edit select.auto{color:var(--h-xfer);font-style:italic;font-weight:700;background:#eef7f6}
 td.edit.has-auto{position:relative}
 td.edit.has-auto::after{content:"自動";position:absolute;top:0;right:3px;font-size:9px;line-height:1;font-weight:800;color:var(--h-xfer);pointer-events:none}
+/* 選ぶ欄（巻取方向）が自動の値のときは ▾ を出さず、その場所に「自動」（字にも ▾ にも重ねない。押せば今までどおり選べる。版 3.32.0） */
+td.edit.has-auto:has(select)::after{top:50%;right:5px;transform:translateY(-50%)}
+td.edit select.auto{appearance:none;-webkit-appearance:none;padding-right:24px}
 .x-label.cand-list{background:rgba(255,255,255,.95);color:var(--h-pitch);font-weight:600;white-space:normal;max-width:520px;text-align:center}
 
 /* ---------- 版・自分の権限・切断（WaveLog から移した管理） ---------- */

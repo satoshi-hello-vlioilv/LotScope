@@ -1828,6 +1828,45 @@
     const hint = S.equipEdit && list.length > 1 ? '<span class="eq-hint" title="並びは全員の作業実績のタブと、マスタ管理の「作業実績」の一覧に効きます">つかんで並べ替え（選んで Ctrl＋Shift＋← → でも）</span>' : "";
     bar.classList.toggle("is-sortable", !!S.equipEdit && list.length > 1);
     bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips || '<span class="eq-wait">表示できる設備がありません</span>'}</div>${hint}${manage}`;
+    fitEquip();
+  }
+  /* 設備のタブは 1 段（版 3.32.0。決め方: ui-proposals/2026-10-narrow*）。入りきらないときは、後ろの設備から「ほか N 台 ▾」にまとめる
+     （いま見ている設備は残す）。押すと残りの設備を並べた面が出て、選ぶとその設備へ。隠した台数はボタンの字に、名前は説明に */
+  function fitEquip() {
+    const bar = $("#llEquipBar"), box = bar && !bar.hidden && $(".eq-chips", bar);
+    if (!box) return;
+    closeEquipMore();
+    const chips = $$(".eq-chip", box), hint = $(".eq-hint", bar);
+    chips.forEach((c) => { c.hidden = false; });
+    $(".eq-more", box)?.remove();
+    if (hint) hint.hidden = false;
+    if (box.scrollWidth <= box.clientWidth + 1) return;
+    if (hint) { hint.hidden = true; if (box.scrollWidth <= box.clientWidth + 1) return; }   // 先に並べ替えの案内の字を畳む（つかんで並べ替えるのはそのまま）
+    box.insertAdjacentHTML("beforeend", '<button type="button" class="eq-more" aria-haspopup="menu" aria-expanded="false" aria-controls="llEquipMenu"></button>');
+    const more = $(".eq-more", box), hidden = [];
+    for (let i = chips.length - 1; i >= 0 && (!hidden.length || box.scrollWidth > box.clientWidth + 1); i--) {
+      if (chips[i].getAttribute("aria-selected") === "true") continue;
+      chips[i].hidden = true; hidden.unshift(chips[i]);
+      more.textContent = `ほか ${hidden.length} 台 ▾`;
+    }
+    more.title = `入りきらない設備: ${hidden.map((c) => c.textContent).join("・")}`;
+  }
+  let equipMenuOff = null;
+  function closeEquipMore() {
+    if (equipMenuOff) { equipMenuOff(); equipMenuOff = null; }
+    $("#llEquipMenu")?.remove();
+    $("#llEquipBar .eq-more")?.setAttribute("aria-expanded", "false");
+  }
+  function openEquipMore(btn) {
+    closeEquipMore();
+    const items = $$(".eq-chip[hidden]", $("#llEquipBar"));
+    btn.insertAdjacentHTML("afterend", `<div id="llEquipMenu" class="eq-menu" role="menu" aria-label="ほかの設備">${items.map((c) =>
+      `<button type="button" role="menuitem" class="${c.className}" data-equip="${esc(c.dataset.equip)}" title="${esc(c.title)}"${c.getAttribute("aria-disabled") ? ' aria-disabled="true"' : ""}>${c.innerHTML}</button>`).join("")}</div>`);
+    const menu = $("#llEquipMenu");
+    TPA.placeBelow(menu, btn, "right");
+    btn.setAttribute("aria-expanded", "true");
+    equipMenuOff = TPA.dismissable(menu, closeEquipMore, { keep: btn });
+    menu.querySelector("button:not([aria-disabled])")?.focus();
   }
   /** 設備の並びを置く（全員で 1 つ。サーバー: PUT /api/masters/worklog/order）。置けたらタブをその順に描き直し、マスタ管理にも知らせる */
   async function saveEquipOrder(keys, focusKey = "") {
@@ -1912,12 +1951,16 @@
   });
   function bindEquipBar() {
     const bar = $("#llEquipBar"); if (!bar) return;
-    TPA.sortable(bar, { items: () => $$("[data-equip]", bar), keyOf: (el) => el.dataset.equip, axis: "x",
+    TPA.sortable(bar, { items: () => $$(".eq-chips > .eq-chip:not([hidden])", bar), keyOf: (el) => el.dataset.equip, axis: "x",
       enabled: () => !!S.equipEdit && S.src.id === "work" && (S.equips || []).length > 1, onOrder: (keys) => saveEquipOrder(keys) });
     bar.addEventListener("click", (e) => {
+      const more = e.target.closest(".eq-more");
+      if (more) { if ($("#llEquipMenu")) closeEquipMore(); else openEquipMore(more); return; }
       const b = e.target.closest("[data-equip]");
-      if (b && b.getAttribute("aria-disabled") !== "true") switchEquip(b.dataset.equip);
+      if (b && b.getAttribute("aria-disabled") !== "true") { closeEquipMore(); switchEquip(b.dataset.equip); }
     });
+    let fitTimer = 0;
+    addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitEquip, 120); });
     // 札の並びはタブと同じ: ← → で隣の設備へ（見つからない設備は飛ばす）
     bar.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
@@ -1928,7 +1971,8 @@
         if (keys) saveEquipOrder(keys, k);
         return;
       }
-      const chips = $$("[data-equip]:not([aria-disabled=true])", bar), i = chips.indexOf(document.activeElement);
+      if (e.target.closest("#llEquipMenu")) return;
+      const chips = $$(".eq-chips > .eq-chip:not([aria-disabled=true])", bar), i = chips.indexOf(document.activeElement);
       if (i < 0) return;
       e.preventDefault();
       const n = chips[(i + (e.key === "ArrowRight" ? 1 : chips.length - 1)) % chips.length];
