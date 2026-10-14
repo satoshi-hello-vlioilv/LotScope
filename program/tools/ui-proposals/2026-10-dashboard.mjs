@@ -40,35 +40,35 @@ const ICON = {
   bell: '<path d="M4 11V7a4 4 0 0 1 8 0v4l1.2 1.5H2.8zM6.5 13.5a1.6 1.6 0 0 0 3 0"/>',
   pin: '<path d="M6 2.5h4l-.6 4 2.1 2H4.5l2.1-2zM8 8.5V14"/>',
 };
-const svg = (k, s = 16) => `<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
-const STATUS = '<div class="hstat"><span class="pill">データ元: LotDsp（直接）</span><span class="pill conn-ok">接続 ●</span><span class="pill">待機中</span></div>';
-const RIGHT = `<div class="header-right">${STATUS}<i class="hsep"></i><button class="pill me-chip">開発者</button><button class="btn-ghost on-dark">マスタ管理</button><button class="btn-ghost on-dark">アプリ ▾</button><button class="quit">終了</button></div>`;
-const BRAND = '<div class="brand"><div class="eyebrow">QUALITY ANALYSIS <button class="ver-badge">VER3.32.0</button></div><h1>LotScope<span class="brand-sub">転写距離・ピッチ解析</span></h1></div>';
+export const svg = (k, s = 16) => `<svg viewBox="0 0 16 16" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+export const STATUS = '<div class="hstat"><span class="pill">データ元: LotDsp（直接）</span><span class="pill conn-ok">接続 ●</span><span class="pill">待機中</span></div>';
+export const RIGHT = `<div class="header-right">${STATUS}<i class="hsep"></i><button class="pill me-chip">開発者</button><button class="btn-ghost on-dark">マスタ管理</button><button class="btn-ghost on-dark">アプリ ▾</button><button class="quit">終了</button></div>`;
+export const BRAND = '<div class="brand"><div class="eyebrow">QUALITY ANALYSIS <button class="ver-badge">VER3.32.0</button></div><h1>LotScope<span class="brand-sub">転写距離・ピッチ解析</span></h1></div>';
 const tabs = (on, extra = []) => `<nav class="screen-tabs">${[...extra, ["list", "異常ロット一覧"], ["calc", "転写・ピッチ計算"], ["work", "作業実績"]]
   .map(([k, t]) => `<button class="screen-tab" aria-selected="${k === on}">${svg(k, 15)}${t}</button>`).join("")}</nav>`;
 const header = (on, extra) => `<header>${BRAND}${tabs(on, extra)}${RIGHT}</header>`;
 
 // 数の札（KPI）。tone: 注意 warn・悪い bad・良い ok・ふつう
-const kpi = (label, value, unit, sub, tone = "", spark = "") => `<div class="d-kpi ${tone}"><div class="d-kpi-l">${label}</div>
+export const kpi = (label, value, unit, sub, tone = "", spark = "") => `<div class="d-kpi ${tone}"><div class="d-kpi-l">${label}</div>
   <div class="d-kpi-v"><b>${value}</b><small>${unit}</small>${spark}</div><div class="d-kpi-s">${sub}</div></div>`;
-const sparkline = (vals, color = "var(--h-xfer)") => {
+export const sparkline = (vals, color = "var(--h-xfer)") => {
   const w = 96, h = 26, max = Math.max(...vals), pts = vals.map((v, i) => `${(i / (vals.length - 1)) * w},${h - (v / max) * (h - 3) - 1}`).join(" ");
   return `<svg class="d-spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8"/></svg>`;
 };
-const WEEK = [6, 9, 4, 12, 7, 11, 14, 8, 10, 13, 9, 16, 12, 18];
-const bars = (rows, color = "var(--h-input)") => {
+export const WEEK = [6, 9, 4, 12, 7, 11, 14, 8, 10, 13, 9, 16, 12, 18];
+export const bars = (rows, color = "var(--h-input)") => {
   const max = Math.max(...rows.map((r) => r[1]));
   return `<div class="d-bars">${rows.map(([k, v]) => `<div class="d-bar"><span>${k}</span><i style="width:${(v / max) * 100}%;background:${color}"></i><b>${v}</b></div>`).join("")}</div>`;
 };
-const DEFECTS = [["汚れ", 64], ["キズ", 58], ["異物", 51], ["打痕", 44], ["ロール跡", 39], ["ヘコミ", 31]];
-const EQUIP = [["CR1", 42], ["L-1", 38], ["DL2", 33], ["LS3", 29], ["TLV", 27], ["ﾛｰﾙ1", 24]];
+export const DEFECTS = [["汚れ", 64], ["キズ", 58], ["異物", 51], ["打痕", 44], ["ロール跡", 39], ["ヘコミ", 31]];
+export const EQUIP = [["CR1", 42], ["L-1", 38], ["DL2", 33], ["LS3", 29], ["TLV", 27], ["ﾛｰﾙ1", 24]];
 const column = (vals) => {
   const max = Math.max(...vals);
   return `<div class="d-cols">${vals.map((v, i) => `<i style="height:${(v / max) * 100}%" title="${i}"></i>`).join("")}</div>`;
 };
-const card = (title, body, { sub = "", act = "", cls = "" } = {}) => `<section class="d-card ${cls}"><div class="d-card-h"><h3>${title}</h3>${sub ? `<small>${sub}</small>` : ""}${act ? `<span class="d-act">${act}</span>` : ""}</div>${body}</section>`;
+export const card = (title, body, { sub = "", act = "", cls = "" } = {}) => `<section class="d-card ${cls}"><div class="d-card-h"><h3>${title}</h3>${sub ? `<small>${sub}</small>` : ""}${act ? `<span class="d-act">${act}</span>` : ""}</div>${body}</section>`;
 const entry = (icon, title, desc, meta, tone = "") => `<button class="d-entry ${tone}"><span class="d-ei">${svg(icon, 22)}</span><span class="d-et"><b>${title}</b><small>${desc}</small></span><span class="d-em">${meta}</span></button>`;
-const inbox = (tone, title, desc, go) => `<li class="d-in ${tone}"><i></i><span><b>${title}</b><small>${desc}</small></span><button>${go} ›</button></li>`;
+export const inbox = (tone, title, desc, go) => `<li class="d-in ${tone}"><i></i><span><b>${title}</b><small>${desc}</small></span><button>${go} ›</button></li>`;
 const ENTRIES = [
   entry("list", "異常ロット一覧", "品質データの異常ロットを絞り込み、ロット番号から計算へ", "新着 12 件"),
   entry("work", "作業実績", "設備ごとの作業実績（12 台）。日・直でまとめる", "⚠ 2 台", "warn"),
@@ -99,7 +99,7 @@ const RECENT = card("最近", `<ul class="d-recent">
   <li>${svg("work", 14)}<b>CR2 の日＋直ごと</b><small>作業実績・保存した見方</small><time>10/11</time></li>
   <li>${svg("calc", 14)}<b>L0730C0</b><small>計算・仮の発生 5 L-2（71.2%）</small><time>10/10</time></li></ul>`, { act: "すべて ›" });
 
-const PAGE_CSS = `
+export const PAGE_CSS = `
   body{overflow:hidden}
   .d-main{height:calc(100vh - var(--header-h));overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px}
   .d-hello{display:flex;align-items:baseline;gap:14px}
@@ -176,8 +176,8 @@ const PAGE_CSS = `
   .d-card .d-pin{color:var(--faint)}
 `;
 
-const page = (title, body) => `<!doctype html><html lang="ja"><meta charset="utf-8"><title>${title}</title>
-${CSS.map((h) => `<link rel="stylesheet" href="${h}">`).join("")}<style>${PAGE_CSS}</style><body>${body}</body></html>`;
+export const page = (title, body, extra = "") => `<!doctype html><html lang="ja"><meta charset="utf-8"><title>${title}</title>
+${CSS.map((h) => `<link rel="stylesheet" href="${h}">`).join("")}<style>${PAGE_CSS}${extra}</style><body>${body}</body></html>`;
 const homeTab = [["home", "ホーム"]];
 
 export const PROPOSALS = [
@@ -226,19 +226,20 @@ export const PROPOSALS = [
       <div class="d-entries">${ENTRIES.join("")}</div></main>` },
 ];
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  fs.mkdirSync(OUT, { recursive: true });
+/** 案の頁を作って撮る（home-案-幅.png）。extra: その回だけの CSS */
+export async function shoot(proposals, out, views, extra = "") {
+  fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch();
   try {
-    for (const [width, height] of VIEWS) {
+    for (const [width, height] of views) {
       const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1.25, locale: "ja-JP" });
       const p = await ctx.newPage();
-      for (const prop of PROPOSALS) {
-        const file = path.join(OUT, `${prop.key}.html`);
-        fs.writeFileSync(file, page(prop.name, prop.body()));
+      for (const prop of proposals) {
+        const file = path.join(out, `${prop.key}.html`);
+        fs.writeFileSync(file, page(prop.name, prop.body(), extra));
         await p.goto(pathToFileURL(file).href);
         await p.waitForTimeout(300);
-        await p.screenshot({ path: path.join(OUT, `home-${prop.key}-${width}.png`) });
+        await p.screenshot({ path: path.join(out, `home-${prop.key}-${width}.png`) });
         console.log(`home-${prop.key}-${width}.png`);
       }
       await ctx.close();
@@ -247,3 +248,5 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     await browser.close();
   }
 }
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) await shoot(PROPOSALS, OUT, VIEWS);
