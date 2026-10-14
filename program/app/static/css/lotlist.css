@@ -41,7 +41,8 @@
    縮むのは決めた物だけ: 検索の欄（140px まで）→ 書式の名前（5.5em まで）→ 列で絞り込むの字 */
 .ll-screen .filter-search-row > .filter-search-row-actions{display:contents}
 .ll-screen .filter-search-row-actions > :first-child{margin-left:auto}
-.ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:9em}   /* 書式の名前が 3 字は読める幅（版 3.32.0） */
+.ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:0}
+.ll-screen .filter-search-row-actions > .fm-entry.has-now{min-width:9em}   /* 書式の名前が出ているときは 3 字は読める幅（版 3.32.0） */
 .ll-screen .fm-entry.has-now .fm-now{min-width:0}
 /* 狭い窓（版 3.32.0。決め方: ui-proposals/2026-10-narrow* の 3 回目で M5）: 道具の行・件数の行だけ字を 12.5px に（表の字は変えない） */
 @media (max-width:1440px){
@@ -52,7 +53,7 @@
   .ll-screen .filter-search-row{gap:5px;padding:7px 8px}
   .ll-screen .generic-filter-bar .filter-search-row button{padding:0 8px}
   .ll-screen .filter-search-row > .lt-search{min-width:118px}
-  .ll-screen .filter-search-row-actions > .fm-entry{min-width:10.5em}   /* 書式の名前は「異常ロ…」まで読める幅を残す */
+  .ll-screen .filter-search-row-actions > .fm-entry.has-now{min-width:10.5em}   /* 書式の名前は「異常ロ…」まで読める幅を残す */
 }
 .lt-search input{text-overflow:ellipsis}   /* 狭くて案内の字（一覧を検索）が入らないときは … で */
 .ll-screen .generic-filter-bar select,.ll-screen .generic-filter-bar input{height:var(--ll-h);border:1px solid var(--edit-line);border-radius:7px;background:var(--edit-field);padding:0 8px;color:var(--ink)}
