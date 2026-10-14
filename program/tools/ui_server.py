@@ -73,6 +73,17 @@ def main():
     shutil.copytree(PROGRAM / "data", WORK / "base" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
     settings = app_env.load_settings(PROGRAM)
     settings["work_log"] = {**settings.get("work_log", {}), "folder": str(folder)}
+    # フォルダ・ファイルの欄の補助（参照… の窓・よく使う場所）を撮るための共有の形: 品質データの元ファイル・前のマスタの置き場・配布の置き場
+    shared = WORK / "共有"
+    for sub in ("検査データ", "旧_2025", "台帳"):
+        (shared / sub).mkdir(parents=True)
+    shutil.copy(share, shared / "台帳" / "SIKADEF.sqlite3")
+    (shared / "Masters_旧").mkdir()
+    (shared / "Masters_旧" / "path_settings.json").write_text('{"rows": []}', encoding="utf-8")
+    (shared / "配布" / "LotScope" / "3.27.0").mkdir(parents=True)
+    (shared / "配布" / "LotScope" / "3.27.0" / "release.json").write_text("{}", encoding="utf-8")
+    settings["lot_list"] = {**settings.get("lot_list", {}), "source": str(shared / "台帳" / "SIKADEF.sqlite3")}
+    settings["update"] = {**settings.get("update", {}), "source": str(shared / "配布" / "LotScope")}
     app = create_app({"MASTER_STORE": MasterStore(WORK / "base", local_root=WORK / "masters", settings={}),
                       "LOT_MIRROR": DbMirror("lot_list", share, WORK / "cache"), "APP_SETTINGS": settings,
                       "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log")})

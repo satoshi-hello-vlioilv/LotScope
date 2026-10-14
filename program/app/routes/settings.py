@@ -5,7 +5,7 @@ from ..web import current_app, jsonify, request
 import app_env
 
 from .. import effective_settings
-from ..services import access, master_place, path_settings, release_place
+from ..services import access, folder_browse, master_place, path_settings, release_place
 from .common import base_rev, bp, error, master_call, master_repo, me
 from .lotlist import lot_mirror
 
@@ -161,3 +161,44 @@ def master_place_move():
         return jsonify(master_place.move(current_app.config["MASTER_STORE"], *_master_place_args()))
     except ValueError as e:
         return error(str(e), 400, "invalid")
+
+
+# ---- フォルダ・ファイルの欄の補助（「参照…」の窓・よく使う場所。services/folder_browse.py）。読むだけ
+def _browse_gate():
+    """見てよいか: 参照先（管理のマスタ）を書ける PC だけ（フォルダ・ファイルの欄は、どれも参照先か置き場を変える所にある）。"""
+    try:
+        m = me()
+    except Exception as e:
+        return error(f"権限を読めないので、フォルダを見られません（{e}）。", 503, "unavailable")
+    if m["revoked"]:
+        return error("この PC は一時的に切断されています。", 403, "revoked")
+    if not access.master_edit_can(m["flags"]["masterEdit"], "write", access.master_scope(path_settings.NAME)):
+        return error(f"この PC のマスタ編集（{m['flags']['masterEdit']}）では、参照先を変えられないため、フォルダを見る補助は使えません。", 403, "forbidden")
+    return None
+
+
+@bp.post("/api/fs/browse")
+def fs_browse():
+    """そのフォルダの中（フォルダ・その欄で選べるファイル・目的ごとの印）と区切り。無ければ届いた所まで上がる。"""
+    denied = _browse_gate()
+    if denied:
+        return denied
+    b = request.get_json(silent=True) or {}
+    return jsonify(folder_browse.browse(b.get("path", ""), str(b.get("purpose") or "folder"), str(b.get("pattern") or "")))
+
+
+@bp.get("/api/fs/places")
+def fs_places():
+    """よく使う場所: このアプリが使っている場所（ファイルはそのフォルダ）と、この PC の場所（届く物だけ）。"""
+    denied = _browse_gate()
+    if denied:
+        return denied
+    s = effective_settings(current_app)
+    st = current_app.config["MASTER_STORE"]
+    src = str((s.get("lot_list") or {}).get("source") or "")
+    app_paths = [("master", "マスタの置き場", str(st.share_dir or "")),
+                 ("quality", "品質データのフォルダ", folder_browse.parent_of(src)),
+                 ("worklog", "作業実績のフォルダ", str((s.get("work_log") or {}).get("folder") or "")),
+                 ("release", "配布の置き場", str((s.get("update") or {}).get("source") or ""))]
+    app_paths += [("oldmaster", "前のマスタの置き場", h.get("dir") or "") for h in st.history()]
+    return jsonify(items=folder_browse.places(app_paths))
