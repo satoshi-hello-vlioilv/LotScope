@@ -256,8 +256,14 @@ function ensureView() {
   const labels = new CSS2DRenderer();
   Object.assign(labels.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none" });
   stage.appendChild(labels.domElement);
-  // 凡例（色と形の意味を先に示す）。転写とピッチで中身を差し替える（setLegend）
-  stage.insertAdjacentHTML("beforeend", `<div class="x-legend"></div>`);
+  // 凡例（色と形の意味を先に示す）。転写とピッチで中身を差し替える（setLegend）。模型に重ねず、3D の下の帯に置く（版 3.32.0）。
+  // 3D が狭い・低いときは 1 行に畳み、「凡例をすべて ▸」で開く。隠した札の数は 3D の右上に出す（declutter）
+  stage.insertAdjacentHTML("beforeend", `<div class="x-legend"><div class="lg-items"></div><button type="button" class="lg-all" aria-expanded="false">凡例をすべて ▸</button></div>
+    <div class="x-hidden-note" hidden></div>`);
+  stage.querySelector(".lg-all").addEventListener("click", (e) => {
+    const lg = e.currentTarget.parentElement, on = !lg.classList.contains("is-open");
+    lg.classList.toggle("is-open", on); e.currentTarget.setAttribute("aria-expanded", on); e.currentTarget.textContent = on ? "畳む ▾" : "凡例をすべて ▸";
+  });
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 2, 0.1, 400);
@@ -281,14 +287,17 @@ function ensureView() {
   view = { renderer, labels, scene, camera, controls, group, frame: 0, anims: new Set(), stations: new Map() };
 
   const resize = () => {
-    const w = stage.clientWidth, h = stage.clientHeight;
-    if (!w || !h) return;
+    const lg = stage.querySelector(".x-legend");
+    lg.classList.toggle("is-short", stage.clientWidth < 1000 || stage.clientHeight < 380);   // 狭い・低い 3D では凡例を 1 行に
+    const w = stage.clientWidth, h = stage.clientHeight - (lg.classList.contains("is-open") ? 0 : lg.offsetHeight);
+    if (!w || h <= 0) return;
     renderer.setSize(w, h); labels.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     requestRender();
   };
-  new ResizeObserver(resize).observe(stage);
+  const watch = new ResizeObserver(resize);
+  watch.observe(stage); watch.observe(stage.querySelector(".x-legend"));
   resize();
   return view;
 }
@@ -309,7 +318,7 @@ const LEGEND = {
 };
 function setLegend(mode) {
   const el = view && ui.stage.querySelector(".x-legend");
-  if (el && el.dataset.mode !== mode) { el.dataset.mode = mode; el.innerHTML = LEGEND[mode]; }
+  if (el && el.dataset.mode !== mode) { el.dataset.mode = mode; el.querySelector(".lg-items").innerHTML = LEGEND[mode]; }
 }
 
 function requestRender() {
@@ -331,16 +340,22 @@ function requestRender() {
 const RANK = [".title.active", ".red, .title.origin, .title.found", ".title", ".off, .edge, .side, .pair", ".flow"];
 const rankOf = (el) => { const i = RANK.findIndex((sel) => el.matches(sel)); return i < 0 ? RANK.length : i; };
 function declutter() {
-  const stage = ui.stage, box = stage.getBoundingClientRect();
-  const taken = [...stage.querySelectorAll(".x-legend")].filter((el) => el.offsetParent).map((el) => el.getBoundingClientRect());
+  const stage = ui.stage, box = view.labels.domElement.getBoundingClientRect(), note = stage.querySelector(".x-hidden-note");
+  const taken = [...stage.querySelectorAll(".x-legend, .x-hidden-note:not([hidden])")].map((el) => el.getBoundingClientRect());
   const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
   const labels = [...view.labels.domElement.querySelectorAll(".x-label")].filter((el) => el.style.display !== "none");
   labels.forEach((el) => el.classList.remove("x-hide"));
+  let n = 0;   // 重なって隠した札の数（画面の外の工程の札は数えない）
   labels.map((el) => [rankOf(el), el]).sort((a, b) => a[0] - b[0]).forEach(([, el]) => {
     const r = el.getBoundingClientRect();
-    if (r.left < box.left || r.right > box.right || r.top < box.top || r.bottom > box.bottom || taken.some((t) => hit(r, t))) el.classList.add("x-hide");
-    else taken.push(r);
+    const out = r.left < box.left || r.right > box.right || r.top < box.top || r.bottom > box.bottom;
+    if (out || taken.some((t) => hit(r, t))) {
+      el.classList.add("x-hide");
+      if (!out) n++;
+    } else taken.push(r);
   });
+  note.hidden = !n;
+  note.textContent = `重なる札 ${n} 個を隠しています（ホイールで近づけると出ます）`;
 }
 
 function disposeGroup(g) {
@@ -563,7 +578,7 @@ function buildScene() {
     const role = isOrigin ? "（仮の発生）" : isFound ? "（発見）" : "";
     const title = label(`${p.no} ${p.equipment}${role}`, "title" + (isOrigin ? " origin" : isFound ? " found" : before ? " before" : ""),
       new THREE.Vector3(cx, coilTop + 0.28, cz), st);
-    label(`内径 ${fmt(p.inner_diameter_mm, 0)}／外径 ${fmt(outerR(p) * 2, 0)} mm・内側が頭`, "muted",
+    label(`内径 ${fmt(p.inner_diameter_mm, 0)}／外径 ${fmt(outerR(p) * 2, 0)} mm・内側が頭`, `muted ${(wind ? wind.side : 1) > 0 ? "end" : "start"}`,   // コイルの外側へ伸ばす（コイルに被せない）
       new THREE.Vector3(cx - (wind ? wind.side : 1) * (rOut + 1.3), cy - rOut * 0.55, cz), detail);   // テールと反対の横（下流）
     if (wind) {
       // 札はテールの最後端（上流の側の中心の高さ）の外。先端には「尾」、その外に向きの説明

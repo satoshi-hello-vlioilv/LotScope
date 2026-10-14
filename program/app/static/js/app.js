@@ -861,8 +861,9 @@ function paintLotdspRoute() {
     : "LotDsp の画面を貼り付けて取り込みます（このアプリで読む設定が切ってあります）") + "（Enter でも検索）";
   const badge = $("#modeBadge");
   const api = state.config && state.config.lotdsp_api;
-  badge.textContent = apiReady() ? "データ元: LotDsp（API・ログインなし）" : winFirst ? "データ元: LotDsp（窓・ログインは利用者）"
-    : direct ? "データ元: LotDsp（直接）" : "データ元: LotDsp（貼り付け）";
+  // 「データ元:」は前置き（狭い窓では CSS で畳む。版 3.32.0）
+  const how = apiReady() ? "API・ログインなし" : winFirst ? "窓・ログインは利用者" : direct ? "直接" : "貼り付け";
+  badge.innerHTML = `<span class="mb-key">データ元: </span>LotDsp（${how}）`;
   badge.title = apiReady() ? "LotDsp の API をログインなしで読みます（Edge も要りません）。読めないときは、見えない Edge → LotDsp の窓 → 貼り付け の順に回ります。"
     : direct ? (api && api.enabled ? `LotDsp の API を学習中です（画面で読めるたびに同じロットを API でも引いて項目名を覚えます。まだ: ${(api.missing || []).slice(0, 4).join("、") || "—"}）。\n` : "")
       + "社内（ログイン不要）では、このアプリが Edge を画面に出さずに動かして LotDsp を読みます。"

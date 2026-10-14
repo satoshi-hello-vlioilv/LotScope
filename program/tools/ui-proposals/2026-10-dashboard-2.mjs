@@ -21,17 +21,17 @@ import { BRAND, RIGHT, bars, card, inbox, shoot, svg, sparkline, WEEK, DEFECTS, 
 const OUT = path.resolve(process.argv[2] ?? "dashboard-2");
 const VIEWS = (process.argv[3] ?? "1728x1152,1280x720").split(",").map((v) => v.split("x").map(Number));
 
-const DAYS = [3, 5, 2, 6, 4, 7, 5, 9, 4, 6, 8, 5, 7, 10, 6, 4, 8, 11, 7, 9, 6, 12, 8, 10, 9, 13, 7, 11, 9, 14];
+export const DAYS = [3, 5, 2, 6, 4, 7, 5, 9, 4, 6, 8, 5, 7, 10, 6, 4, 8, 11, 7, 9, 6, 12, 8, 10, 9, 13, 7, 11, 9, 14];
 /** 日ごとの柱（日付の目盛りつき。高さは枠に合わせて伸びる） */
-const daily = (vals = DAYS) => {
+export const daily = (vals = DAYS) => {
   const max = Math.max(...vals);
   const ticks = ["9/15", "9/22", "9/29", "10/6", "10/13"];
   return `<div class="e-chart"><div class="e-y"><span>${max}</span><span>${Math.round(max / 2)}</span><span>0</span></div><div class="e-plot"><div class="d-cols">${vals.map((v) => `<i style="height:${(v / max) * 100}%"></i>`).join("")}</div>
     <div class="e-x">${ticks.map((t) => `<span>${t}</span>`).join("")}</div></div></div>`;
 };
-const header = () => `<header>${BRAND}<div style="flex:1"></div>${RIGHT}</header>`;
+export const header = () => `<header>${BRAND}<div style="flex:1"></div>${RIGHT}</header>`;
 /** 左のナビ（狭いときは絵＋短い名前のレール。札は名前の右・レールでは絵の右上の枠の外） */
-const nav = (on = "home") => `<nav class="e-nav">
+export const nav = (on = "home") => `<nav class="e-nav">
   <button class="e-search">${svg("search", 15)}<span>ロット番号・画面を探す</span><kbd>Ctrl K</kbd></button>
   ${item("home", "home", "ホーム", "ホーム", on)}
   <h4>データ</h4>
@@ -43,31 +43,31 @@ const nav = (on = "home") => `<nav class="e-nav">
   ${item("calc", "calc", "転写・ピッチ計算", "転写計算", on)}
   <div class="e-foot">${item("gear", "gear", "マスタ管理", "マスタ", on)}</div>
 </nav>`;
-const item = (key, icon, label, short, on, badge = "") => `<a class="${key === on ? "on" : ""}">${svg(icon, 17)}<span class="e-l">${label}</span><span class="e-s">${short}</span>${badge}</a>`;
-const shell = (main, on) => `<style>${CSS}</style>${header()}<div class="e-shell">${nav(on)}<main class="d-main e-main">${main}</main></div>`;
-const hello = (title, sub) => `<div class="d-hello"><h2>${title}</h2><small>${sub}</small><span class="e-start">起動したら <b>ホーム ▾</b></span></div>`;
-const INBOX3 = `<ul class="d-inbox">
+export const item = (key, icon, label, short, on, badge = "") => `<a class="${key === on ? "on" : ""}">${svg(icon, 17)}<span class="e-l">${label}</span><span class="e-s">${short}</span>${badge}</a>`;
+export const shell = (main, on) => `<style>${CSS}</style>${header()}<div class="e-shell">${nav(on)}<main class="d-main e-main">${main}</main></div>`;
+export const hello = (title, sub) => `<div class="d-hello"><h2>${title}</h2><small>${sub}</small><span class="e-start">起動したら <b>ホーム ▾</b></span></div>`;
+export const INBOX3 = `<ul class="d-inbox">
   ${inbox("bad", "新しい異常ロット 12 件", "前回（10/13 17:40）より後。汚れ 5・キズ 4・異物 3", "一覧で見る")}
   ${inbox("warn", "作業実績の 2 台に注意", "SL3 のファイルが見つからない・HOT の更新が 41 時間止まっている", "設備を見る")}
   ${inbox("info", "計算していない異常ロット 3 件", "発見設備に検査計がある異常ロットのうち、まだ計算していない物", "計算する")}
 </ul>`;
-const INBOX5 = INBOX3.replace("</ul>", `${inbox("plain", "今週の異常ロット 48 件（先週より ＋9）", "汚れが先週の 1.6 倍。CR1 に多い", "集計表で見る")}
+export const INBOX5 = INBOX3.replace("</ul>", `${inbox("plain", "今週の異常ロット 48 件（先週より ＋9）", "汚れが先週の 1.6 倍。CR1 に多い", "集計表で見る")}
   ${inbox("ok", "新しい版 3.32.0 を取り込みました", "次に起動すると入れ替わります", "更新履歴")}</ul>`);
-const STRIP = `<div class="e-strip"><span><b>48</b> 件 今週の異常ロット <em class="bad">▲ ＋23%</em>${sparkline(WEEK, "var(--danger)")}</span><span><b>3</b> 件 計算待ち</span>
+export const STRIP = `<div class="e-strip"><span><b>48</b> 件 今週の異常ロット <em class="bad">▲ ＋23%</em>${sparkline(WEEK, "var(--danger)")}</span><span><b>3</b> 件 計算待ち</span>
   <span><b>10</b>/12 台 作業実績が読める</span><span class="e-fresh">品質データ 10/14 6:00 更新</span></div>`;
-const CONTINUE = `<div class="e-cont">${svg("calc", 18)}<span><b>前回の続き</b> L7150C0 の転写計算<small>今日 9:12・仮の発生 8 TLV（83.8%）</small></span><button>続きを開く</button></div>`;
-const RECENT = card("最近", `<ul class="d-recent">
+export const CONTINUE = `<div class="e-cont">${svg("calc", 18)}<span><b>前回の続き</b> L7150C0 の転写計算<small>今日 9:12・仮の発生 8 TLV（83.8%）</small></span><button>続きを開く</button></div>`;
+export const RECENT = card("最近", `<ul class="d-recent">
   <li>${svg("list", 14)}<b>汚れ・CR1 の今月</b><small>保存した見方・異常ロット一覧</small><time>昨日</time></li>
   <li>${svg("work", 14)}<b>CR2 の日＋直ごと</b><small>保存した見方・作業実績</small><time>10/11</time></li>
   <li>${svg("calc", 14)}<b>L0730C0</b><small>計算・仮の発生 5 L-2（71.2%）</small><time>10/10</time></li>
   <li>${svg("list", 14)}<b>キズ・L-1 の先月</b><small>保存した見方・異常ロット一覧</small><time>10/09</time></li>
   <li>${svg("calc", 14)}<b>L0409C9</b><small>計算・仮の発生 3 L-1（64.0%）</small><time>10/08</time></li></ul>`, { act: "すべて ›" });
-const PIN = (title, body, act = "開く ›", cls = "") => card(`${svg("pin", 13)} ${title}`, body, { act, cls: `e-pin ${cls}` });
-const PINS2 = `${PIN("不良名ごと（直近 30 日）", bars(DEFECTS))}${PIN("設備ごと（直近 30 日）", bars(EQUIP, "var(--h-xfer)"))}`;
-const PIN_DAILY = PIN("日ごとの異常ロット（直近 30 日）", daily(), "時系列で開く ›", "grow");
-const lotCard = (title, kv, act) => card(title, `<div class="d-kv">${kv.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join("")}</div>`, { act });
+export const PIN = (title, body, act = "開く ›", cls = "") => card(`${svg("pin", 13)} ${title}`, body, { act, cls: `e-pin ${cls}` });
+export const PINS2 = `${PIN("不良名ごと（直近 30 日）", bars(DEFECTS))}${PIN("設備ごと（直近 30 日）", bars(EQUIP, "var(--h-xfer)"))}`;
+export const PIN_DAILY = PIN("日ごとの異常ロット（直近 30 日）", daily(), "時系列で開く ›", "grow");
+export const lotCard = (title, kv, act) => card(title, `<div class="d-kv">${kv.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join("")}</div>`, { act });
 
-const CSS = `
+export const CSS = `
   .e-shell{display:grid;grid-template-columns:232px minmax(0,1fr);height:calc(100vh - var(--header-h))}
   .e-main{height:100%;display:flex;flex-direction:column}
   .e-nav{background:#e3eaef;border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
@@ -163,4 +163,4 @@ export const PROPOSALS = [
   ...FIRST.filter((p) => ["B", "G"].includes(p.key)),
 ];
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) await shoot(PROPOSALS, OUT, VIEWS);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await shoot(PROPOSALS, OUT, VIEWS);

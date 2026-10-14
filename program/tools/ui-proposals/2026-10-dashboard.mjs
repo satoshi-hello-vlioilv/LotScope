@@ -249,4 +249,4 @@ export async function shoot(proposals, out, views, extra = "") {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) await shoot(PROPOSALS, OUT, VIEWS);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await shoot(PROPOSALS, OUT, VIEWS);
