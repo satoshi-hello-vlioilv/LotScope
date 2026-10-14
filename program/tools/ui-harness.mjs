@@ -188,8 +188,10 @@ export const STATES = [
   ["changelog", async (p) => { await closeAll(p); await p.click("#verBadge"); await sleep(600); }, "[data-next], #clClose"],
   // スライサー（設備で CR1・L-1 を選び、不良名を足したところ）と、表示の設定（道具の行の「表示の設定 ▾」）
   ["slicer", async (p) => { await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llSlicerBtn"); await sleep(400);
-    for (const c of ["設備", "不良名"]) { await p.selectOption("#llSlicerAdd", c); await sleep(700); }
-    for (const v of ["CR1", "L-1"]) { await p.click(`#llSlicer .sx-card[data-col="設備"] .sx-v[data-v="${v}"]`); await sleep(700); } }, "[data-next], #llSlicerAdd"],
+    // 試験の覚え（TPA_UI_STATE）で既に足してある列・選んである値は、そのまま（足し直す・押し直すと外れる）
+    for (const c of ["設備", "不良名"]) if (!(await p.$(`#llSlicer .sx-card[data-col="${c}"]`))) { await p.selectOption("#llSlicerAdd", c); await sleep(700); }
+    for (const v of ["CR1", "L-1"]) { const b = `#llSlicer .sx-card[data-col="設備"] .sx-v[data-v="${v}"]`; await p.waitForSelector(b);
+      if ((await p.$eval(b, (x) => x.getAttribute("aria-pressed"))) !== "true") { await p.click(b); await sleep(700); } } }, "[data-next], #llSlicerAdd"],
   ["profile", async (p) => { await p.click("#llProfileBtn"); await sleep(600); }, "[data-next], #llProfileMenu button"],
   // 表示列の設定（一覧の「表示列」）: 開いた直後・列を 1 つ選んだところ
   ["columns", async (p) => { await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(600); }, "[data-next], #lcSave"],
@@ -206,6 +208,8 @@ export const STATES = [
   ["master-worklog", async (p) => { await tab(p, "worklog"); await sleep(900); }, "[data-next], #wlScan"],
   ["master-shifts", async (p) => { await tab(p, "shifts"); await sleep(900); }, "[data-next], [data-sh-save]"],
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
+  // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
+  ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],
   ["master-access", async (p) => { await tab(p, "access"); await sleep(800); }, "[data-next], #masterAddBtn"],
   ["master-presence", async (p) => { await tab(p, "presence"); await sleep(800); }, "[data-next], #masterSettings button"],
   ["master-release", async (p) => { await tab(p, "release"); await sleep(900); }, "[data-next], #masterSettings button"],

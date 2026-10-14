@@ -257,17 +257,18 @@
       el.style.left = `${Math.round(Math.max(8, Math.min(align === "right" ? r.right - w : r.left, innerWidth - w - 8)))}px`;
     },
     /** 引いて並べ替える（版 3.28.0。作業実績の設備のタブ・マスタ管理の設備の一覧）。中身を描き直しても効くよう、root に 1 回だけ付ける。
-        items(): 並べる要素の並び／keyOf(el): 要素の鍵／handle: つかめる所（CSS の選び方。省けば要素そのもの）／axis: "x"（横に並ぶ）か "y"
+        items(): 並べる要素の並び／keyOf(el): 要素の鍵／handle: つかめる所（CSS の選び方。省けば要素そのもの）／axis: "x"（横に並ぶ）か "y"（か、それを返す関数）
         onOrder(keys): 並びが変わったとき（鍵の並び）。5px より動かしたときだけ引いたとみなし、そのあとのクリックは食べる（タブが切り替わらない）。
         引いている間は、要素に is-dragging・差し込む所に縦か横の線（.tpa-sort-mark）。Esc で取りやめ */
-    sortable(root, { items, keyOf, handle = null, axis = "x", enabled = () => true, onOrder }) {
-      let drag = null;
+    sortable(root, { items, keyOf, handle = null, axis: axisOpt = "x", enabled = () => true, onOrder }) {
+      let drag = null, axis = "x";
       const mark = () => drag.mark || (drag.mark = document.body.appendChild(Object.assign(document.createElement("div"), { className: `tpa-sort-mark is-${axis}` })));
       const stop = () => { if (!drag) return; drag.el.classList.remove("is-dragging"); drag.mark?.remove(); document.body.classList.remove("tpa-sorting"); drag = null; };
       root.addEventListener("pointerdown", (e) => {
         if (e.button !== 0 || !enabled()) return;
         const grip = handle ? e.target.closest(handle) : null, el = items().find((x) => x.contains(e.target));
         if (!el || (handle && !grip) || e.target.closest("input,select,textarea,label")) return;
+        axis = typeof axisOpt === "function" ? axisOpt() : axisOpt;   // 置き場で向きが変わる物（スライサーのカード）は引き始めに読む
         drag = { el, x: e.clientX, y: e.clientY, on: false, at: -1, id: e.pointerId };
       });
       addEventListener("pointermove", (e) => {
@@ -287,7 +288,11 @@
         const { on, el, at } = drag;
         stop();
         if (!on) return;
-        addEventListener("click", (c) => { c.stopPropagation(); c.preventDefault(); }, { capture: true, once: true });   // 引いた後のクリックは食べる
+        // 引いた後のクリックは食べる。離した所が押した所と違うとクリックは起きないので、食べる見張りはこの入力の間だけ
+        // （残すと次の本物のクリックを食べる。クリックは pointerup と同じ入力の中で続けて届くので、次の順番で外す）
+        const eat = (c) => { c.stopPropagation(); c.preventDefault(); };
+        addEventListener("click", eat, { capture: true, once: true });
+        setTimeout(() => removeEventListener("click", eat, { capture: true }), 0);
         const keys = items().map(keyOf), from = keys.indexOf(keyOf(el));
         if (from < 0 || at < 0) return;
         const to = at > from ? at - 1 : at;

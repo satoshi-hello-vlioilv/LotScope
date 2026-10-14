@@ -394,8 +394,17 @@ function renderSettings() {
         <div class="ps-row"><a class="btn-ghost ps-tool" href="/lotdsp-link">LotDsp の項目を調べる</a></div></section>`;
   box.querySelectorAll(".ps-card[data-key]").forEach(bindSettingCard);
 }
+/* 参照先の項目のうち、フォルダ・ファイルを指す物に付ける補助（版 3.29.0。kind → 窓の目的） */
+const PATH_PICK = {
+  sqlite: { purpose: "sqlite", title: "元ファイル（品質データ .sqlite3）を選ぶ", note: "共有の .sqlite3 ファイルを選びます。" },
+  exe: { purpose: "exe", title: "ブラウザの実行ファイル（.exe）を選ぶ", note: "ふつうは空のままで構いません（Edge を自動で探します）。" },
+  release: { purpose: "release", title: "更新の置き場を選ぶ", note: "版ごとのフォルダ（release.json がある）が並ぶフォルダを選びます（印: 版の置き場）。", chips: true, exclude: ["release"] },
+};
 function bindSettingCard(card) {
   const key = card.dataset.key, input = card.querySelector(".ps-input"), out = card.querySelector(".ps-result");
+  const item = ((mstate.data.paths || {}).items || []).find((x) => x.key === key) || {}, pp = PATH_PICK[item.kind];
+  if (pp) TPA.pathPick(input, { ...pp, chipsAfter: pp.chips ? card.querySelector(".ps-row") : null,
+    disabled: !canWrite("paths") ? `${readOnlyWhy("paths")}のため、選べません` : false });
   const say = (kind, html) => { out.className = "ps-result " + kind; out.innerHTML = html; };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") card.querySelector(".ps-save").click(); });
   // 保存は、直したカードだけ主の色（黄）にする。並んだカードのどれを保存すればよいかが色で分かる
@@ -775,6 +784,9 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
     }
     scan();
   });
+  TPA.pathPick($("#wlFolder"), { purpose: "worklog", pattern: () => $("#wlPattern").value, title: "作業実績のフォルダを選ぶ",
+    note: "設備ごとの実績ファイルが並ぶフォルダを選びます（印: 決まりに合うファイルの数）。選んだら「探す」で設備を並べます。",
+    chipsAfter: box.querySelector(".wl-src"), exclude: ["worklog"] });
   ["#wlFolder", "#wlPattern"].forEach((sel) => $(sel)?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#wlScan").click(); }));
   box.querySelectorAll("[data-wl-scan]").forEach((b) => b.addEventListener("click", scan));
   /* 「結ぶファイルを選ぶ」: その行の選択欄へ（行は表の中のまま。並びを変えない） */
@@ -1064,6 +1076,16 @@ const splitPath = (p) => {
   const i = Math.max(s.lastIndexOf("\\"), s.lastIndexOf("/"));
   return i < 0 ? ["", s] : [s.slice(0, i) || s.slice(0, i + 1), s.slice(i + 1)];
 };
+/* 置き場の欄（上のフォルダ＋フォルダの名前）で、参照… の窓・よく使う場所の札から選んだとき（版 3.29.0）。
+   選んだのが既に置き場（印のあるフォルダ・前の置き場）なら、上のフォルダと名前に分けて入れる（＝写さずに切り替える）。
+   ふつうのフォルダなら、その中に置く（上のフォルダに入れ、名前はそのまま） */
+const placePick = (parentSel, nameSel, again = []) => (path, item) => {
+  const isPlace = (item.mark && item.mark.tone === "ok") || again.includes(item.key);
+  const [parent, name] = isPlace ? splitPath(path) : [path, null];
+  $(parentSel).value = parent;
+  if (name) $(nameSel).value = name;
+  $(parentSel).dispatchEvent(new Event("input", { bubbles: true }));
+};
 function bindReleasePlace(d) {
   const btn = $("#dzPlaceBtn"), box = $("#dzPlaceBox");
   if (!btn || !box) return;
@@ -1107,6 +1129,9 @@ function openReleasePlace(d) {
     else say("ok", "✓ " + escapeHtml(last.note || "") + (last.mode === "copy" ? `<small>写す量 ${last.files} ファイル・${MB(last.bytes)}</small>` : ""));
   };
   const later = () => { clearTimeout(timer); timer = setTimeout(check, 350); };
+  TPA.pathPick($("#dzPlParent"), { purpose: "release", title: "配布の置き場を置く場所を選ぶ",
+    note: "置き場のフォルダを入れる、上のフォルダを選びます。版の置き場（印のあるフォルダ）を選ぶと、そこへ切り替えます。",
+    chipsAfter: box.querySelector(".dz-pl-grid"), exclude: ["release"], onPick: placePick("#dzPlParent", "#dzPlName") });
   $("#dzPlParent").addEventListener("input", later);
   $("#dzPlName").addEventListener("input", later);
   $("#dzPlCopy").addEventListener("change", check);
@@ -1221,6 +1246,9 @@ function openMasterPlaceForm(d) {
     else say("ok", "✓ " + escapeHtml(last.note || "") + "<small>変えたあと、ほかの PC はマスタを読みに行くついでに（数秒ごと）新しい置き場へ移ります。前の置き場のマスタは消しません。</small>");
   };
   const later = () => { clearTimeout(timer); timer = setTimeout(check, 350); };
+  TPA.pathPick($("#mpParent"), { purpose: "master", title: "マスタの置き場を置く場所を選ぶ",
+    note: "マスタのフォルダを入れる、上のフォルダを選びます。マスタのあるフォルダ（印つき）を選ぶと、そこへ切り替えます。",
+    chipsAfter: form.querySelector(".dz-pl-grid"), exclude: ["master"], onPick: placePick("#mpParent", "#mpName", ["oldmaster"]) });
   $("#mpParent").addEventListener("input", later);
   $("#mpName").addEventListener("input", later);
   $("#mpGo").onclick = () => { if (last && last.ok) moveMasterPlace(cur, args(), last, say); };
