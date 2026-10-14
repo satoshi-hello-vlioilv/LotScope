@@ -192,6 +192,16 @@ export const STATES = [
     for (const c of ["設備", "不良名"]) if (!(await p.$(`#llSlicer .sx-card[data-col="${c}"]`))) { await p.selectOption("#llSlicerAdd", c); await sleep(700); }
     for (const v of ["CR1", "L-1"]) { const b = `#llSlicer .sx-card[data-col="設備"] .sx-v[data-v="${v}"]`; await p.waitForSelector(b);
       if ((await p.$eval(b, (x) => x.getAttribute("aria-pressed"))) !== "true") { await p.click(b); await sleep(700); } } }, "[data-next], #llSlicerAdd"],
+  // タイムライン（版 3.31.0）: 発生日を「タイムライン（期間で選ぶ）」で足し、始めの取っ手を 4 割の所まで引いたところ
+  ["slicer-time", async (p) => {
+    if (!(await p.$('#llSlicer .tl-card[data-col="発生日"]'))) {
+      await p.$eval("#llSlicerAdd", (s) => { const o = s.querySelector('option[data-kind="time"][value="発生日"]'); if (o) { o.selected = true; s.dispatchEvent(new Event("change", { bubbles: true })); } });
+      await p.waitForSelector('#llSlicer .tl-card[data-col="発生日"] [data-tl-track]'); await sleep(500);
+    }
+    const b = await (await p.$('#llSlicer .tl-card[data-col="発生日"] [data-tl-track]')).boundingBox();
+    await p.mouse.move(b.x + 1, b.y + b.height / 2); await p.mouse.down(); await p.mouse.move(b.x + b.width * 0.4, b.y + b.height / 2, { steps: 5 }); await p.mouse.up();
+    await sleep(1200);
+  }, '[data-next], #llSlicer .tl-card [data-tl-h="lo"]'],
   ["profile", async (p) => { await p.click("#llProfileBtn"); await sleep(600); }, "[data-next], #llProfileMenu button"],
   // 表示列の設定（一覧の「表示列」）: 開いた直後・列を 1 つ選んだところ
   ["columns", async (p) => { await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(600); }, "[data-next], #lcSave"],

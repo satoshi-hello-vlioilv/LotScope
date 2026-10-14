@@ -410,6 +410,19 @@ class RelativeDateTests(Base):
         self.assertEqual(out["dateColumns"], ["登録日時"], "8割以上が日付と読める列だけ")
         self.assertEqual(out["today"], "2026-09-29")
 
+    def test_date_range_is_the_timeline(self):
+        """タイムライン（date_range）: 書き方の違う日付も読み、その間（両端を含む）。片側だけ・読めない側は限らない。日付でない値は当たらない"""
+        def rng(v):
+            return self.lots("date_range", v)
+        self.assertEqual(rng("2026-08-30..2026-09-28"), ["D1", "D2", "D3"], "両端を含む（D1 は 9/28 10:00）")
+        self.assertEqual(rng("2026-09-01.."), ["D1", "D2", "D8"], "始めだけ")
+        self.assertEqual(rng("..2025-12-31"), ["D5"], "終わりだけ")
+        self.assertEqual(rng("2026-02-30..x"), ["D1", "D2", "D3", "D4", "D5", "D8"], "読めない側は限らない（日付と読める値すべて）")
+        slicer = lot_list.slicer(self.share, column="登録日時", key="date", table="日付", today=self.today,
+                                 filters=json.dumps([{"column": "登録日時", "op": "date_range", "value": "2026-09-01..2026-09-30"}]))
+        n = {v["value"]: v["count"] for v in slicer["values"]}
+        self.assertEqual((n["2026-09-28"], n["2026-08-30"], n["日付でない"]), (1, 0, 0), "タイムラインの山（日付でまとめた件数）も同じ絞り込み")
+
     def test_month_end_is_clamped(self):
         from datetime import date
         self.assertEqual(lot_list.cutoff_date("within_months", 1, date(2026, 3, 31)), "2026-02-28")

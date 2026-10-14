@@ -34,8 +34,11 @@
 .ll-bodyrow[data-place="top"] .sx-cards{flex-direction:row;flex-wrap:wrap;align-items:flex-start}
 .ll-bodyrow[data-place="top"] .sx-card{flex:0 1 280px;max-height:calc(var(--sx-h,260px) - 60px);overflow:auto}
 .sx-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px}
-.sx-ch{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.sx-ch > b{font-size:13px;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 見出し: 名前がボタンと 1 行に入らないときだけ、ボタンを次の行へ送る（版 3.31.0。名前を「…」で切らない・1 字ずつ縦に並べない）。
+   名前の幅の基準は字の長さそのもの（auto）なので、短い名前ならボタンと 1 行に収まる */
+.sx-ch{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-bottom:6px}
+.sx-ch > b{flex:1 1 auto;font-size:13px;min-width:0;overflow-wrap:anywhere;line-height:1.35}
+.sx-acts{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:6px}   /* ボタンはひとまとまり（折り返すときは一緒に次の行の右へ） */
 .sx-grip{flex:none;color:#8a97a3;font-weight:800;letter-spacing:-2px;font-size:12px;padding:0 3px 0 0;cursor:grab;user-select:none}
 .sx-grip:hover{color:var(--h-input)}
 .sx-card.is-dragging{opacity:.5}
@@ -53,7 +56,9 @@
   border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:12.5px;color:var(--ink);cursor:pointer;text-align:left}
 .sx-v::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--w,0);background:rgba(63,101,145,.11);pointer-events:none}
 .sx-v span,.sx-v i{position:relative}
-.sx-v span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sx-v span{min-width:0}
+.sx-v em{min-width:0;font-style:normal;overflow-wrap:anywhere;line-height:1.3;padding:3px 0}   /* 値の名前は折り返す（幅を縮めても切らない） */
+.sx-v > i{flex:none}
 .sx-v i{font-style:normal;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
 .sx-v:hover{border-color:var(--h-input)}
 .sx-v:focus-visible{outline:2px solid var(--h-input);outline-offset:1px}
@@ -125,3 +130,44 @@
 .ll-bodyrow[data-place="top"] .sx-edge::before{width:44px;height:4px;margin:-2px 0 0 -22px}
 body.sx-resizing{cursor:col-resize;user-select:none}
 body.sx-resizing .ll-bodyrow[data-place="top"]{cursor:row-resize}
+
+/* ---------- 値の並び（版 3.31.0）: 既定でないときの札と、手で並べるときの ⋮⋮ ---------- */
+.sx-ord{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:0 0 5px}
+.sx-ord button{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 4px 0 9px;border:0;border-radius:999px;background:var(--input-soft);
+  color:var(--h-input);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.sx-ord button b{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;font-weight:400}
+.sx-ord button:hover b{background:rgba(63,101,145,.15)}
+.sx-ord small{color:var(--muted);font-size:11px}
+.sx-v .sx-vgrip{flex:none;color:#8a97a3;font-weight:800;letter-spacing:-2px;font-size:11px;cursor:grab;margin-right:-2px;user-select:none}
+.sx-v .sx-vgrip:hover{color:var(--h-input)}
+.sx-v.is-dragging{opacity:.5}
+
+/* ---------- タイムライン（版 3.31.0）: 期間の字・件数の山（選んだ期間は藍）・2 点のスライダー・目盛り ---------- */
+.tl-tag{margin-left:5px;padding:0 4px;border-radius:4px;background:var(--ll-pale);color:var(--ll-teal-dark);font-size:10px;font-weight:800;vertical-align:1px}
+.tl-head{display:grid;gap:1px}
+.tl-range{justify-self:start;display:inline-flex;align-items:baseline;gap:5px;max-width:100%;padding:0;border:0;border-bottom:1px dashed #9fb3c6;background:none;
+  font:inherit;font-size:13px;color:var(--h-input);cursor:pointer;text-align:left;font-variant-numeric:tabular-nums}
+.tl-range b{overflow-wrap:anywhere}
+.tl-range i{font-style:normal;font-size:11px;color:var(--muted)}
+.tl-range.is-all{color:var(--ink)}.tl-range.is-all b{font-weight:600}
+.tl-range:hover,.tl-range[aria-expanded="true"]{border-bottom-color:var(--h-input)}
+.tl-sum{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.tl-edit{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:12px;color:var(--muted)}
+.tl-edit input{flex:1;min-width:0;height:26px;box-sizing:border-box;border:1px solid var(--edit-line);border-radius:6px;background:var(--edit-field);padding:0 4px;font:inherit;font-size:12px;color:var(--ink)}
+.tl-edit input:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
+.tl-bars{display:flex;align-items:flex-end;gap:1px;height:40px;margin:8px 7px 0}
+.tl-bars button{flex:1 1 0;min-width:0;height:100%;padding:0;border:0;background:none;cursor:pointer;position:relative}
+.tl-bars button::before{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--h);min-height:1px;border-radius:1px 1px 0 0;background:#cfd8e1}
+.tl-bars button.on::before{background:#3f6591}
+.tl-bars button:hover::before{background:#7f9bbb}.tl-bars button.on:hover::before{background:#2f5079}
+.tl-bars button:focus-visible{outline:2px solid var(--h-input);outline-offset:1px}
+.tl-track{position:relative;height:20px;margin:2px 7px 0;touch-action:none;cursor:pointer}
+.tl-track::before{content:"";position:absolute;left:0;right:0;top:8px;height:4px;border-radius:2px;background:#d6dee6}
+.tl-fill{position:absolute;top:8px;height:4px;border-radius:2px;background:#3f6591}
+.tl-h{position:absolute;top:2px;width:16px;height:16px;margin-left:-8px;box-sizing:border-box;border-radius:50%;background:#fff;border:2px solid #3f6591;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:ew-resize}
+.tl-h:focus-visible{outline:none;box-shadow:0 0 0 4px var(--focus-ring),0 1px 3px rgba(0,0,0,.25)}
+.tl-track.is-dragging .tl-h{cursor:ew-resize}
+.tl-axis{display:flex;margin:0 7px;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tl-axis span{min-width:0;overflow:hidden;white-space:nowrap;border-left:1px solid #c8d2dc;padding-left:3px;line-height:14px}
+.tl-card.is-on{border-color:#b9c9d6}

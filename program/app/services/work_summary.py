@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import math
 import time
+from datetime import date, timedelta
 
 from .shifts import NO_TIME, OUTSIDE, Clock
 from .sqlite_ro import qi, to_datetime
 
 START_CANDIDATES = ("BOX実績_作業開始_日付",)
+MAX_FILL_DAYS = 3660        # 0 件の日を埋める日数の上限（読み違えた古い日付で、何万行もの表にしない）
 BASES = ("work", "cal")
 ORDERS = ("desc", "asc")
 
@@ -83,7 +85,7 @@ def work_key(v, t=None):
 class Grouping:
     """lot_list.query に渡す係（prepare で鍵と並びを決め、extra で答えに日・直を足す）。"""
 
-    def __init__(self, segments, *, column="", basis="work", order="desc", pattern=None, day="", shift=None, total=""):
+    def __init__(self, segments, *, column="", basis="work", order="desc", pattern=None, day="", shift=None, total="", fill=False):
         self.clock = Clock(segments)
         self.day = day if isinstance(day, str) and (len(day) == 10 or day == "-") else ""     # 帯で押した日（"-" は日付なし）
         self.shift = shift if isinstance(shift, int) else None                                 # 帯で押した直の番号（日と組で）
@@ -92,6 +94,7 @@ class Grouping:
         self.order = order if order in ORDERS else "desc"
         self.pattern = pattern
         self.total = total if isinstance(total, str) else ""     # 日・直ごとに合計する数の列（例: BOX実績_良品重量）。無ければ ""
+        self.fill = bool(fill)                                    # 作業の無い日（0 件の日）も、最初の日から最後の日まで埋めて出す
         self.column = self.time_col = ""
 
     def _args(self):
@@ -125,7 +128,7 @@ class Grouping:
 
     def extra(self, c, t, cs, date_cols, where, params, rows):
         total_col = self.total if self.total in cs else ""
-        info = {"column": self.column, "timeColumn": self.time_col, "basis": self.basis, "order": self.order, "totalColumn": total_col,
+        info = {"column": self.column, "timeColumn": self.time_col, "basis": self.basis, "order": self.order, "totalColumn": total_col, "fill": self.fill,
                 "numeric": numeric_columns(c, t, cs),
                 "pick": {"day": self.day, "shift": self.shift} if self.day else None,
                 "candidates": [x for x in date_cols if x != self.time_col], "pattern": self.pattern,
@@ -136,18 +139,36 @@ class Grouping:
         info["rows"] = [list(self._place(r.get(self.column), r.get(tc) if tc else None)) for r in rows]
         t0 = time.perf_counter()
         pairs = c.execute(f"SELECT {qi(self.column)}, {qi(tc) if tc else 'NULL'}, {qi(total_col) if total_col else 'NULL'} FROM {qi(t)}{where}", params).fetchall()
-        info.update(summarize(pairs, self.clock, self.basis, self.order))
+        info.update(summarize(pairs, self.clock, self.basis, self.order, fill=self.fill))
         info["ms"] = round((time.perf_counter() - t0) * 1000)
         return {"work": info}
 
 
 def _shift_rank(idx):
+    if idx is None:                             # 0 件の日の行（直は無い）
+        return -1
     return idx if idx >= 0 else 1000 - idx      # 区分の順 → 直の外 → 時刻なし
 
 
-def summarize(pairs, clock, basis="work", order="desc"):
+def empty_days(days, limit=MAX_FILL_DAYS):
+    """作業のあった日（'YYYY-MM-DD'）の最初から最後までのうち、作業の無い日。→ (日の並び, 埋めなかった日数)。
+    最初から最後までが limit 日を超えるとき（読み違えた古い日付など）は埋めず、その日数を返す。"""
+    have = sorted({d for d in days if d})
+    if len(have) < 2:
+        return [], 0
+    first, last = date.fromisoformat(have[0]), date.fromisoformat(have[-1])
+    span = (last - first).days + 1
+    if span > limit:
+        return [], span
+    have = set(have)
+    return [d for d in ((first + timedelta(days=i)).isoformat() for i in range(span)) if d not in have], 0
+
+
+def summarize(pairs, clock, basis="work", order="desc", fill=False):
     """(作業開始, 時刻[, 合計する数]) の並び → 日・直ごとの作業の数。
-    → {"buckets": [{day, shift, works, rows, split, sum}], "total": {works, rows, split, noTime, noStamp, sum}}
+    → {"buckets": [{day, shift, works, rows, split, sum}], "total": {works, rows, split, noTime, noStamp, sum}, "empty": n, "fillSkipped": 日数}
+    fill: 作業の無い日（最初の日から最後の日までの間）も、数 0・直 None の行として入れる（日の表で 0 件の日を出す）。
+      empty はその日数。最初から最後までが MAX_FILL_DAYS を超えると埋めず、fillSkipped にその日数を入れる。
     works: 作業の数（同じ作業開始の行は 1）・rows: 行の数・split: 2 行以上の作業（分割したロット）の数。
     sum: 合計する数の列の、行ごとの値の合計（分割したロットも 1 行ずつ足す＝その日に作業した重量など。数に読めない値は足さない）。
     noTime: 時刻の無い作業の数（直を決められない）・noStamp: 作業開始が空か日時と読めない行の数。"""
@@ -182,7 +203,10 @@ def summarize(pairs, clock, basis="work", order="desc"):
         total["noStamp"] += 0 if stamp else n
     for b in list(buckets.values()) + [total]:
         b["sum"] = round(b["sum"], 6)          # 足し算の誤差を丸める
+    empty, skipped = empty_days([d for d, _ in buckets]) if fill else ([], 0)
+    for d in empty:
+        buckets[(d, None)] = {"day": d, "shift": None, "works": 0, "rows": 0, "split": 0, "sum": 0.0}
     days = sorted({d for d, _ in buckets if d}, reverse=order == "desc")
     rank = {d: i for i, d in enumerate(days)}
     out = sorted(buckets.values(), key=lambda b: (rank.get(b["day"], len(days)), _shift_rank(b["shift"])))
-    return {"buckets": out, "total": total, "outside": OUTSIDE, "noTimeIndex": NO_TIME}
+    return {"buckets": out, "total": total, "outside": OUTSIDE, "noTimeIndex": NO_TIME, "empty": len(empty), "fillSkipped": skipped}

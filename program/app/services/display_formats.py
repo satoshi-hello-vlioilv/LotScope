@@ -30,7 +30,7 @@ PARTS = {
     "filters": (list, "条件"),            # 効いている条件 [{column, op, value}]（いつも適用〈固定〉の条件は入れない。当てる所の固定の条件はそのまま）
     "presets": (list, "登録した条件"),    # [{name, filters, group, always, …}]（当てる先の表に付け替える）
     "views": (list, "保存した見方"),      # [{name, filters, sorts, arrange, slicer, search, …}]（名前を付けた見方なので値ごと運ぶ。当てる先の表に付け替える）
-    "slicer": (dict, "スライサー"),       # {cards:[{column, key, sel?, one?, hide0?}]}（sel＝選んだ値。版 3.28.0 から。one＝1 つだけ選ぶ・hide0＝0 件を隠す。版 3.30.0 から）
+    "slicer": (dict, "スライサー"),       # {cards:[{column, key, sel?, one?, hide0?, order?, manual?} | {column, kind:"time", from?, to?}]}（sel＝選んだ値。版 3.28.0 から。one＝1 つだけ選ぶ・hide0＝0 件を隠す。版 3.30.0 から。order・manual＝値の並び・タイムライン。版 3.31.0 から）
     "marks": (list, "色付け"),            # 色付け（条件付き書式）の組 [{conds, tone, target, on}]
     "adhoc": (dict, "列で絞り込む"),      # {column, op, value?}（value＝打った値。版 3.28.0 から。当てるといまの所だけに効く）
 }

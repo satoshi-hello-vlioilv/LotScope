@@ -8,7 +8,10 @@
    - 日付は現場歴（日を跨ぐ直の跨いだ後を前の日に数える。WaveLog と同じ）と太陽暦を選べる（跨ぐ直があるときだけ選び口を出す）
    - 合計する列（版 3.23.0）: ロット数と並べて、数の列（例: BOX実績_良品重量）の日・直ごとの合計を出す（その日にどれだけの重量を作業できたか）。
      合計は行ごとの値を足す（分割したロットも 1 行ずつ）。数え方はサーバー（work_summary.summarize）
-   - 覚えは範囲（設備と表）ごとにこの PC: まとめ方・日付の数え方・並び・作業開始の列・合計する列。押した日・直はその場だけ
+   - 0 件の日（版 3.31.0。7 案＋2 回目で選んだ Z1: ui-proposals/2026-10-zeroday*）: 作業の無い日も、最初の日から最後の日まで行を出す（既定）。
+     表の上の「☑ 0 件の日も出す」で切り替える。0 件の日は淡い行で、計に 0 と書く（押しても絞らない）。合計の行の日数は暦の日数。
+     埋めるのはサーバー（work_summary.summarize の fill）。ここは受け取った行を描くだけ
+   - 覚えは範囲（設備と表）ごとにこの PC: まとめ方・日付の数え方・並び・作業開始の列・合計する列・0 件の日を出すか。押した日・直はその場だけ
    一覧（lotlist.js）とは mount の引数だけでつながる: scope・isWork・reload・toast・openMaster
    ========================================================================= */
 (function () {
@@ -27,7 +30,7 @@
 
   /* ---- 覚え ---- */
   const all = () => TPA.local.get(KEY, {});
-  const conf = () => Object.assign({ mode: "none", basis: "work", order: "desc", start: "", total: "" }, all()[host.scope()] || {});
+  const conf = () => Object.assign({ mode: "none", basis: "work", order: "desc", start: "", total: "", zero: true }, all()[host.scope()] || {});
   function setConf(patch) { const a = all(); a[host.scope()] = Object.assign(conf(), patch); TPA.local.set(KEY, a); }
   const pick = () => picks[host.scope()] || null;
   const on = () => !!host && host.isWork() && conf().mode !== "none";
@@ -38,6 +41,7 @@
     const c = conf(), p = pick(), q = { work: "1", basis: c.basis, order: c.order };
     if (c.start) q.start = c.start;
     if (c.total) q.total = c.total;
+    if (c.zero) q.fill = "1";
     if (p) { q.day = p.day || "-"; if (p.shift != null) q.shift = String(p.shift); }
     return q;
   }
@@ -93,12 +97,14 @@
     const head = `<tr><th scope="col" class="wk-dh" title="${esc(basis[1])}">日<small>（${basis[0]}）</small></th>`
       + P.cols.map((i) => `<th scope="col" class="wk-s wk-s${i >= 0 ? i % 6 : "x"}" title="${esc(shiftTip(i))}">${esc(shiftName(i))}</th>`).join("")
       + `<th scope="col" class="wk-tot">${P.cols.length ? "計" : "ロット"}</th>${P.cols.length ? "" : (totalOn() ? `<th scope="col" class="wk-tsum" title="${esc(totalName())}の合計（分割したロットも 1 行ずつ足します）">${esc(clip(totalName(), 8))}<small>合計</small></th>` : "") + '<th scope="col" class="wk-rows" title="登録の行の数（分割したロットも 1 行ずつ）">行</th>'}</tr>`;
-    const totals = `<tr class="wk-sum"><th scope="row">合計<small>${P.days.length}日</small></th>`
+    const worked = P.days.filter((d) => Object.values(P.by[d]).some((b) => b.works)).length;
+    const totals = `<tr class="wk-sum"><th scope="row" title="${worked === P.days.length ? "" : `作業のあった日 ${worked} 日・0 件の日 ${P.days.length - worked} 日`}">合計<small>${P.days.length}日</small></th>`
       + P.cols.map((i) => { const l = work.buckets.filter((b) => b.shift === i); return `<td title="${esc(shiftName(i))} の合計 ${cellTip("", l)}">${cellNum(sum(l, "works"), l)}</td>`; }).join("")
       + `<td class="wk-tot" title="${esc(cellTip("", work.buckets))}">${P.cols.length ? cellNum(work.total.works, [work.total]) : work.total.works}</td>`
       + `${P.cols.length ? "" : (totalOn() ? `<td class="wk-tsum">${totalText(work.total.sum)}</td>` : "") + `<td class="wk-rows">${work.total.rows}</td>`}</tr>`;
     const rows = P.days.map((d) => {
       const list = Object.values(P.by[d]), n = sum(list, "works"), dkey = esc(d || "-");
+      if (d && !list.some((b) => b.works)) return emptyRow(d, P.cols.length);
       return `<tr${sel(d) ? ' class="is-pick"' : ""}><th scope="row"><button type="button" data-wk-day="${dkey}" title="${esc(dayText(d, true))}: ${esc(cellTip(d, list))}\n押すと、一覧をこの日に絞ります">${esc(dayText(d))}</button></th>`
         + P.cols.map((i) => {
           const b = P.by[d][i];
@@ -109,6 +115,20 @@
         + `${P.cols.length ? "" : (totalOn() ? `<td class="wk-tsum">${totalText(sum(list, "sum"))}</td>` : "") + `<td class="wk-rows">${sum(list, "rows")}</td>`}</tr>`;
     }).join("");
     return `<table class="wk-pv${totalOn() ? " has-sum" : ""}"><thead>${head}${totals}</thead><tbody>${rows || `<tr><td colspan="${P.cols.length + 4}" class="wk-none">当たる作業がありません</td></tr>`}</tbody></table>`;
+  }
+  /** 0 件の日の行: 淡い字。計（日ごとはロット）に 0 と書き、ほかは –。押しても 0 件なので、日付はボタンにしない */
+  function emptyRow(d, ncols) {
+    const dash = '<td class="wk-0">–</td>';
+    return `<tr class="wk-empty"><th scope="row"><span title="${esc(dayText(d, true))}: 作業がありません（0 件）">${esc(dayText(d))}</span></th>`
+      + dash.repeat(ncols) + '<td class="wk-tot">0</td>' + (ncols ? "" : (totalOn() ? dash : "") + dash) + "</tr>";
+  }
+  /** 表の上の切り替え: 0 件の日も出す（既定）。出しているときは何日を足したかも */
+  function zeroPick() {
+    const c = conf(), n = work.empty || 0;
+    const tip = c.zero ? "作業の無い日も、最初の日から最後の日まで行を出しています。外すと作業のあった日だけにします" : "作業の無い日（0 件の日）も行を出します";
+    return `<label class="wk-zero" title="${tip}"><input type="checkbox" data-wk-zero${c.zero ? " checked" : ""}>0 件の日も出す`
+      + (c.zero && n ? `<small>${n} 日</small>` : "") + "</label>"
+      + (c.zero && work.fillSkipped ? `<div class="wk-note">最初の日から最後の日までが ${work.fillSkipped} 日あり、長すぎるため 0 件の日は埋めていません（作業開始の日付を確かめてください）。</div>` : "");
   }
   /** 帯の上の案内（直が決まっていない・時刻が無い・作業開始が読めない） */
   function notesHtml() {
@@ -152,7 +172,7 @@
       + `<p class="wk-sub">分割したロット（作業開始が同じ行）は 1 と数えます。数を押すと一覧をその日${c.mode === "dayshift" && work.shifts.length ? "・直" : ""}に絞ります。</p>`
       + (work.pattern && c.mode === "dayshift" ? `<div class="wk-meta"><span title="この設備で使う勤務体系（マスタ管理の「勤務体系」）">直: <b>${esc(work.pattern.name)}</b></span>${basis}</div>`
         : crosses ? `<div class="wk-meta">${basis}</div>` : "")
-      + totalPick() + notesHtml() + `<div class="wk-table">${tableHtml()}</div>` + startPick();
+      + totalPick() + notesHtml() + zeroPick() + `<div class="wk-table">${tableHtml()}</div>` + startPick();
   }
 
   /* ---- 操作 ---- */
@@ -196,6 +216,7 @@
     pane?.addEventListener("change", (e) => {
       if (e.target.matches("[data-wk-start]")) choose({ start: e.target.value });
       if (e.target.matches("[data-wk-total]")) choose({ total: e.target.value }, { keepPick: true });
+      if (e.target.matches("[data-wk-zero]")) choose({ zero: e.target.checked }, { keepPick: true });
     });
   }
 
@@ -218,13 +239,15 @@
       conditions: [["作業でまとめる", `${(MODES.find((m) => m[0] === c.mode) || [])[1]}（作業開始「${work.column}」が同じ行を 1 ロット）`],
         ["日付の数え方", (BASIS[c.basis] || BASIS.work)[0] + (work.pattern ? `・直: ${work.pattern.name}` : "")],
         ...(totalOn() ? [["合計する列", totalName()]] : []),
+        ["0 件の日", c.zero ? "出す" : "出さない"],
         ...(p ? [["右の表で絞った日・直", pickText(p)]] : [])] };
   }
-  /** 保存した見方（lotlist.js）: まとめ方・日付の数え方・並び・作業開始の列・合計する列を入れる（押した日・直は外す） */
+  /** 保存した見方（lotlist.js）: まとめ方・日付の数え方・並び・作業開始の列・合計する列・0 件の日を入れる（押した日・直は外す） */
   function setConf2(v) {
     if (!host || !v || typeof v !== "object") return;
     const keep = {};
     ["mode", "basis", "order", "start", "total"].forEach((k) => { if (typeof v[k] === "string") keep[k] = v[k]; });
+    if (typeof v.zero === "boolean") keep.zero = v.zero;
     setConf(keep); delete picks[host.scope()]; paintSwitch();
   }
   window.LotListWork = { mount, params, on, update, toggleOrder, exportInfo, conf: () => conf(), setConf: setConf2, data: () => work, dayText, shiftName: (i) => (work ? shiftName(i) : "") };
