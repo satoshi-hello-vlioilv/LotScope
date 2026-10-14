@@ -34,7 +34,7 @@ from pathlib import Path
 
 import app_env
 
-from ..fsio import retrying, write_json_atomic
+from ..fsio import open_shared_read, retrying, write_json_atomic
 
 log = logging.getLogger("transfer-app")
 
@@ -47,6 +47,7 @@ LOCK_TRIES = 5                  # 錠を取る試み（外された直後・切�
 LOCK_MOVE_BUDGET_SEC = 0.5      # 錠をどける（名前を変える）のを、Windows でほかが開いている間に待つ長さ
 LOCK_TTL_DEFAULT = 20.0
 REFRESH_DEFAULT = 5.0
+INSTANCE_FILENAME = "instance_id"   # この PC のアプリの印（手元の置き場に 1 度だけ作る。錠が自分の物かを見分ける）
 SCHEMA = 1
 
 
@@ -125,8 +126,32 @@ def _iso(dt):
 
 
 def _read_json(path):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    """読む。Windows では、読んでいるあいだもほかの PC が os.replace で置き換えられる開き方で開く
+    （普通の open() だと、だれかが読んでいる瞬間の保存が「使用中」で断られる）。"""
+    with open_shared_read(path) as f:
+        return json.loads(f.read().decode("utf-8-sig"))
+
+
+def _instance_id(root):
+    """この PC のアプリの印（手元の置き場の instance_id。無ければ作る）。PC 名とログイン ID が同じ別の PC
+    （端末の名前を同じに付けた・複製した仮想 PC）を、錠の持ち主として取り違えないために使う。作れなければ、その回だけの印。"""
+    path = Path(root) / INSTANCE_FILENAME
+    try:
+        got = path.read_text(encoding="utf-8").strip()
+        if got:
+            return got
+    except OSError:
+        pass
+    mine = uuid.uuid4().hex
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        MasterStore._create_exclusive(path, mine.encode("utf-8"))   # 同時に起きた 2 つが別の印を書かない（先に作った方の印を使う）
+    except FileExistsError:
+        with contextlib.suppress(OSError):
+            return path.read_text(encoding="utf-8").strip() or mine
+    except OSError:
+        pass
+    return mine
 
 
 def _write_json_atomic(path, data):
@@ -194,6 +219,8 @@ class MasterStore:
         self.on_moved = None          # 置き場が変わったときに呼ぶ（利用状況の置き場を合わせる。app が入れる）
         self._moved_checked = 0.0
         self.who = who or identity()
+        self.instance = _instance_id(root)
+        self._lock_seen = {}    # ほかの PC の錠の印 -> この PC で最初に見た時刻（monotonic）。錠の期限は自分の時計の経過で測る
         self._write_lock = threading.RLock()   # この PC の中で書き込みを1本にまとめる
         self._state_lock = threading.Lock()
         self._checked = {}      # name -> 最後に共有を見た時刻（monotonic）
@@ -370,26 +397,45 @@ class MasterStore:
         except FileNotFoundError:
             return None
         except (OSError, ValueError):
-            # 書きかけ・壊れた錠。古ければ切れたものとして扱う
+            # 書きかけ・壊れた錠。中身の代わりに目印（更新時刻・大きさ）を印にし、期限はほかの錠と同じく見てからの経過で測る
             sig = _stat_sig(p)
-            if sig is None:
-                return None
-            age = time.time() - sig[0] / 1e9
-            return {"expires_at": _iso(_now() - timedelta(seconds=1))} if age > self.lock_ttl else {"expires_at": _iso(_now() + timedelta(seconds=2))}
+            return None if sig is None else {"token": f"broken:{sig[0]}:{sig[1]}", "expires_at": ""}
+
+    def _remaining(self, lock):
+        """錠の残り秒。**相手の PC の時計を信じない**: 錠に書かれた期限（相手の時計）と、この PC で最初に見てからの経過
+        （自分の monotonic）の、長く待つ方を使う（期限の方は長さ lock_ttl までに抑える）。時計が進んだ PC が、
+        保存中の錠を「切れた」と見てどける（後の保存が黙って消える）ことが無い。"""
+        token = lock.get("token") or ""
+        now = time.monotonic()
+        with self._state_lock:
+            for k in [k for k, t in self._lock_seen.items() if now - t > 10 * self.lock_ttl]:
+                del self._lock_seen[k]               # 昔に見た錠の印は捨てる（覚える数を増やさない）
+            first = self._lock_seen.setdefault(token, now)
+        return max(min(self._by_clock(lock), self.lock_ttl), self.lock_ttl - (now - first))
 
     @staticmethod
-    def _remaining(lock):
+    def _by_clock(lock):
+        """錠に書かれた期限までの秒（相手の時計とこの PC の時計が合っていれば正しい）"""
         try:
             return (datetime.fromisoformat(lock["expires_at"]) - _now()).total_seconds()
-        except Exception:
+        except (KeyError, TypeError, ValueError):
             return 0.0
 
+    def _wait(self, lock):
+        """画面に出す「あと何秒」（整数）。切れたかの判定は _remaining（長く待つ方）で、ここは見積もり:
+        書かれた期限がそれより短く筋が通っていれば、その秒（時計がずれていれば、その秒のあとにもう一度待たされる）。"""
+        left = self._remaining(lock)
+        by_clock = self._by_clock(lock)
+        return max(1, int(by_clock if 0 < by_clock <= left else left) + 1)
+
     def _is_mine(self, lock):
-        """持ち主が自分か。**名乗れない PC は自分と言わない**（WaveLog §9.384）。"""
+        """持ち主が自分（この PC のこのアプリ）か。**名乗れない PC は自分と言わない**（WaveLog §9.384）。
+        名乗り（PC 名・ログイン ID）に加えて、この PC のアプリの印（instance_id）も合うときだけ。名乗りが同じ別の PC の錠を、
+        自分が落ちて残した錠と取り違えて引き継がない。"""
         pc, login = self.who.get("pc", ""), self.who.get("login", "")
         if not pc or not login or not lock:
             return False
-        return lock.get("holder_pc") == pc and lock.get("holder_login") == login
+        return lock.get("holder_pc") == pc and lock.get("holder_login") == login and lock.get("holder_instance") == self.instance
 
     def _acquire_lock(self):
         """共有の錠を取る → 錠の印（token）。ほかの PC が持っていれば MasterLocked。
@@ -404,7 +450,7 @@ class MasterStore:
         p = self._lock_file()
         token = uuid.uuid4().hex
         now = _now()
-        payload = {"token": token, "holder_pc": self.who.get("pc", ""), "holder_login": self.who.get("login", ""),
+        payload = {"token": token, "holder_pc": self.who.get("pc", ""), "holder_login": self.who.get("login", ""), "holder_instance": self.instance,
                    "acquired_at": _iso(now), "expires_at": _iso(now + timedelta(seconds=self.lock_ttl))}
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         for _ in range(LOCK_TRIES):
@@ -416,8 +462,7 @@ class MasterStore:
                 if cur is None:
                     continue                      # 外された直後。もう一度「無ければ作る」で取る（上書きしない）
                 if self._remaining(cur) > 0 and not self._is_mine(cur):
-                    raise MasterLocked(cur.get("holder_pc", ""), cur.get("holder_login", ""),
-                                       max(1, int(self._remaining(cur)) + 1)) from None
+                    raise MasterLocked(cur.get("holder_pc", ""), cur.get("holder_login", ""), self._wait(cur)) from None
                 self._take_away(cur.get("token"))  # 切れた錠・自分の残した錠をどけてから取り直す
             except OSError as e:
                 raise ShareUnavailable(f"共有フォルダに錠を置けません: {e}") from e
@@ -479,7 +524,7 @@ class MasterStore:
         if not cur or self._remaining(cur) <= 0:
             return {"locked": False}
         return {"locked": True, "holder_pc": cur.get("holder_pc", ""), "holder_login": cur.get("holder_login", ""),
-                "remaining": max(1, int(self._remaining(cur)) + 1), "mine": self._is_mine(cur)}
+                "remaining": self._wait(cur), "mine": self._is_mine(cur)}
 
     # ---------------------------------------------------------- 書く（1回の書き込み＝1サイクル）
     def write(self, name, mutate):
@@ -496,9 +541,11 @@ class MasterStore:
             token = self._acquire_lock()
             try:
                 self._pull(name, force=True, have_lock=True)   # **当てる前に共有から取り直す**
+                pulled = _stat_sig(self._share_file(name))
                 doc = copy.deepcopy(self._cached(self._mirror(name)))
                 result = mutate(doc["rows"], stamp)
                 doc.update(schema=SCHEMA, revision=doc["revision"] + 1, **stamp)
+                self._still_mine(name, token, pulled)           # **置き換える直前に、錠も共有もそのままかを確かめる**
                 _write_json_atomic(self._share_file(name), doc)
                 _write_json_atomic(self._mirror(name), doc)
                 self._share_sig[name] = _stat_sig(self._share_file(name))
@@ -507,6 +554,15 @@ class MasterStore:
                 return result
             finally:
                 self._release_lock(token)
+
+    def _still_mine(self, name, token, pulled):
+        """置き換える直前の確かめ。保存が錠の長さを超えて長引き、その間にほかの PC が錠を取って保存していたら、
+        取り直した時の中身で上書きすると相手の保存が黙って消える。錠が自分の物でない・共有が取り直した時から変わったなら、
+        書かずに MasterLocked（画面は待って送り直し、送り直しは新しい中身の上で当てる）。"""
+        cur = self._read_lock() or {}
+        if cur.get("token") != token or _stat_sig(self._share_file(name)) != pulled:
+            log.warning("MASTER_WRITE_ABORT name=%s（保存の途中で錠か共有が変わった）holder=%s", name, cur.get("holder_pc", ""))
+            raise MasterLocked(cur.get("holder_pc", ""), cur.get("holder_login", ""), 2)
 
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
     def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",

@@ -320,7 +320,26 @@ function requestRender() {
     view.anims.forEach((f) => { if (f() === false) view.anims.delete(f); });
     view.renderer.render(view.scene, view.camera);
     view.labels.render(view.scene, view.camera);
+    declutter();
     if (damping || view.anims.size) requestRender();
+  });
+}
+
+/* 札の重なりをほどく（版 3.32.0）: 3D の枠が小さい（フル HD・150% など）と、札は字の大きさのまま模型だけが小さくなり、札どうしが重なって読めない。
+   大事な札（見ている工程の名 → 赤の札・発生／発見の名 → ほかの工程の名 → オフ → 流れ → 薄い注記）から置き、
+   置いた札・凡例に重なる札と、枠からはみ出す札は隠す（近づける・回すと、空いた所にまた出る）。評価関数 ui-eval-narrow.mjs */
+const RANK = [".title.active", ".red, .title.origin, .title.found", ".title", ".off, .edge, .side, .pair", ".flow"];
+const rankOf = (el) => { const i = RANK.findIndex((sel) => el.matches(sel)); return i < 0 ? RANK.length : i; };
+function declutter() {
+  const stage = ui.stage, box = stage.getBoundingClientRect();
+  const taken = [...stage.querySelectorAll(".x-legend")].filter((el) => el.offsetParent).map((el) => el.getBoundingClientRect());
+  const hit = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2;
+  const labels = [...view.labels.domElement.querySelectorAll(".x-label")].filter((el) => el.style.display !== "none");
+  labels.forEach((el) => el.classList.remove("x-hide"));
+  labels.map((el) => [rankOf(el), el]).sort((a, b) => a[0] - b[0]).forEach(([, el]) => {
+    const r = el.getBoundingClientRect();
+    if (r.left < box.left || r.right > box.right || r.top < box.top || r.bottom > box.bottom || taken.some((t) => hit(r, t))) el.classList.add("x-hide");
+    else taken.push(r);
   });
 }
 

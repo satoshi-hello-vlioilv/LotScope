@@ -37,7 +37,10 @@
 .ll-screen .generic-filter-bar :is(.fm-panel,.ll-viewmenu,.ll-profile) :is(small,p,li,.vm-lv-empty){white-space:normal}
 .ll-screen .filter-search-row > .lt-search{flex:0 40 300px;min-width:140px}            /* 縮む順: 検索の欄 → 書式の名前 → 列で絞り込むの字 */
 .ll-screen .filter-search-row > .filter-adhoc-toggle{flex-shrink:1;min-width:8em}       /* 「列で絞り込む」は省略しない幅まで */
-.ll-screen .filter-search-row > .filter-search-row-actions{flex-shrink:4;min-width:0}
+/* 右の組は箱を作らず、中のボタンを行に直に並べる（版 3.32.0。箱があると、箱が中身より細く縮んで Excel が枠の外へ出た〈フル HD・150%〉）。
+   縮むのは決めた物だけ: 検索の欄（140px まで）→ 書式の名前（5.5em まで）→ 列で絞り込むの字 */
+.ll-screen .filter-search-row > .filter-search-row-actions{display:contents}
+.ll-screen .filter-search-row-actions > :first-child{margin-left:auto}
 .ll-screen .filter-search-row-actions > .fm-entry{flex-shrink:1;min-width:5.5em}
 .ll-screen .fm-entry.has-now .fm-now{min-width:0}
 .ll-screen .generic-filter-bar select,.ll-screen .generic-filter-bar input{height:var(--ll-h);border:1px solid var(--edit-line);border-radius:7px;background:var(--edit-field);padding:0 8px;color:var(--ink)}

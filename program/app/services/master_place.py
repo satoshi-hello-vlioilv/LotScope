@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 
@@ -22,6 +23,29 @@ from ..repositories.master_store import MOVED_FILENAME, _iso, _now
 from .release_place import _inside, _same, check_name
 
 MASTER_MARKERS = ("equipment_master.json", "roll_master.json", "path_settings.json")   # 既にマスタの置き場か
+# クラウドの同期フォルダ（フォルダ名 → 呼び名）。同期フォルダでは錠が PC ごとに別々のファイルになり（同期は後から）、
+# 2 人が同時に保存すると片方の変更が消える・衝突のコピーができる（docs/MASTER_SHARE_DESIGN.md「ファイルサーバーを使う」）
+SYNC_FOLDERS = {"box": "Box", "boxdrive": "Box", "onedrive": "OneDrive", "dropbox": "Dropbox", "google drive": "Google ドライブ",
+                "googledrive": "Google ドライブ", "マイドライブ": "Google ドライブ", "my drive": "Google ドライブ", "icloud drive": "iCloud Drive"}
+SYNC_CAUTION = ("{kind} の同期フォルダです。同期フォルダでは、2 人がほぼ同時にマスタを保存すると、片方の変更が消えることがあります"
+                "（錠が PC ごとに別々になるため）。マスタは、ファイルサーバーの共有（\\\\サーバー\\共有）に置いてください。")
+
+
+def sync_folder(path) -> str:
+    """path がクラウドの同期フォルダの中なら、その呼び名（Box・OneDrive など）。違えば空。
+    OneDrive は「OneDrive - 会社名」のように名前が付くので、前の一致も見る。"""
+    for part in re.split(r"[\\/]+", str(path or "")):
+        low = part.strip().lower()
+        if low in SYNC_FOLDERS:
+            return SYNC_FOLDERS[low]
+        if low.startswith("onedrive"):
+            return "OneDrive"
+    return ""
+
+
+def sync_caution(path) -> str:
+    kind = sync_folder(path)
+    return SYNC_CAUTION.format(kind=kind) if kind else ""
 
 
 def is_master_place(folder: Path) -> bool:
@@ -62,16 +86,17 @@ def plan(store, parent, name) -> dict:
         if not dest.is_dir():
             return {"ok": False, "dest": str(dest), "problem": "同じ名前のファイルがあります。別の名前にしてください。"}
         if is_master_place(dest):
-            return {"ok": True, "mode": "switch", "dest": str(dest), "files": 0, "bytes": 0,
+            return {"ok": True, "mode": "switch", "dest": str(dest), "files": 0, "bytes": 0, "caution": sync_caution(dest),
                     "note": "既にマスタがある置き場です。写さずに切り替えます（その置き場のマスタを使います）。"}
         if any(dest.iterdir()):
             return {"ok": False, "dest": str(dest), "problem": "フォルダが空ではなく、マスタもありません。空のフォルダか、新しい名前にしてください。"}
+    caution = sync_caution(dest)
     docs = _docs(store)
     size = sum(len(json.dumps(d, ensure_ascii=False).encode("utf-8")) for d in docs.values())
     if not os.access(p, os.W_OK):
         return {"ok": False, "dest": str(dest), "problem": f"置く場所に書き込めません: {par}"}
     src = "共有の置き場" if cur else "この PC（手元のみ）"
-    return {"ok": True, "mode": "copy", "dest": str(dest), "files": len(docs), "bytes": size, "names": sorted(docs),
+    return {"ok": True, "mode": "copy", "dest": str(dest), "files": len(docs), "bytes": size, "names": sorted(docs), "caution": caution,
             "note": f"{src}のマスタを写してから切り替えます。"}
 
 

@@ -145,6 +145,7 @@ table.master-table tbody tr.is-sel td:first-child{box-shadow:inset 3px 0 0 var(-
 .master-place .place-dir{font-family:Consolas,"Yu Gothic UI",monospace;opacity:.9;word-break:break-all}
 .master-place .place-meta{opacity:.85}
 .master-place .place-news{color:#ffe7ae;font-weight:700}
+.master-place .place-caution{color:#ffd58a;font-weight:700;cursor:help}
 .master-place .place-btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--on-dark-line);
   background:var(--on-dark-fill);color:var(--on-fill);font:inherit;font-weight:700;cursor:pointer}
 .master-place .place-btn:hover{background:var(--on-dark-hover)}
@@ -309,6 +310,7 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .dz-pl-state:empty{display:none}
 .dz-pl-state.ok{background:#eef8f2;color:#1f6b3d}
 .dz-pl-state.ng{background:var(--danger-bg);color:#7a2418}
+.dz-pl-state.wait{background:var(--warn-soft);color:var(--warn-ink)}
 .dz-pl-state small{display:block;font-size:12px;opacity:.85}
 .dz-pl-acts{display:flex;gap:8px}
 .dz-pl-acts .btn-primary{height:32px;padding:0 16px}

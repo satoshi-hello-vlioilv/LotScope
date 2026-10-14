@@ -99,6 +99,8 @@ header{height:var(--header-h);padding:0 18px;
 .hstat .pill:last-child{border-radius:0 999px 999px 0}
 .hsep{width:1px;height:22px;background:rgba(255,255,255,.22);margin:0 6px}
 /* 終了はふだん静かに（押すと閉じる物を目立たせない）。乗せると赤 */
+/* 見出し帯のボタン・札は字を折らない・縮めない（版 3.32.0。以前はフル HD・150% で「マスタ管理」が「マ／ス／タ」に縦に折れた） */
+.header-right > *{flex:none;white-space:nowrap}
 .quit{height:32px;border:1px solid transparent;background:transparent;color:var(--on-fill);opacity:.85;
   border-radius:8px;padding:0 14px;font-weight:700;cursor:pointer;font-size:var(--fs-sm)}
 .quit:hover{background:var(--danger);border-color:var(--danger);opacity:1}
@@ -357,6 +359,7 @@ details[open]>summary .imp-more{transform:rotate(180deg)}
 .x-label.off{background:var(--warn-soft);color:var(--warn-ink)}
 .x-label.edge{background:#e8eef9;color:#34507a}
 .x-label.past{opacity:.85;font-weight:600;border:1px dashed currentColor;background:var(--surface)}   /* 前工程までのオフの札 */
+.x-label.x-hide{visibility:hidden}   /* 重なる・枠からはみ出す札（explain3d.js の declutter） */
 .x-label.muted{background:transparent;box-shadow:none;color:var(--muted);font-weight:600}
 .x-label.title{font-size:13px;border:1px solid var(--line);color:var(--h-meta)}
 .x-label.title.found{color:var(--found);border-color:rgba(192,57,43,.45)}
@@ -474,6 +477,7 @@ table.ws td.cands{text-align:left;white-space:normal;overflow:visible;height:aut
 td.edit input.auto,td.edit select.auto{color:var(--h-xfer);font-style:italic;font-weight:700;background:#eef7f6}
 td.edit.has-auto{position:relative}
 td.edit.has-auto::after{content:"自動";position:absolute;top:0;right:3px;font-size:9px;line-height:1;font-weight:800;color:var(--h-xfer);pointer-events:none}
+td.edit.has-auto:has(select)::after{right:auto;left:3px}   /* 選ぶ欄（巻取方向）は ▾ に重ねない（左上へ。版 3.32.0） */
 .x-label.cand-list{background:rgba(255,255,255,.95);color:var(--h-pitch);font-weight:600;white-space:normal;max-width:520px;text-align:center}
 
 /* ---------- 版・自分の権限・切断（WaveLog から移した管理） ---------- */
