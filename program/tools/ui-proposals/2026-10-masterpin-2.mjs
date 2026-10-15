@@ -6,7 +6,7 @@
 //   ③2 つの画面で題・ボタンの言葉・形がそろっていない ④ずれたときの直し方が「この PC の置き場を配る」の一方向だけ
 //   ⑤C は配布の画面で淡い 1 行だけで目立たない（変えるには画面を移る） ⑥流れの札に入れると字が折れ、手順のように読める
 // 2 回目で共通にした事: ボタンは「マスタの置き場を変える…」（配布の置き場の「置き場を変える…」と言葉を分ける）。帯は 1 行（説明は札に指を置くと出る）。
-//   2 つの画面で同じ題「全員のマスタの置き場」・同じ形・同じ札。ずれたときは橙の縁と「この PC: …」の札、手は「全員の置き場にそろえる」と「この PC の置き場を全員に配る」の 2 つ
+//   2 つの画面で同じ題「全員のマスタの置き場」・同じ形・同じ札。ずれたときは橙の縁と「この PC は別: …\\Apps\\LotScope」の札（字で言う）、手は「全員の置き場にそろえる」と「この PC の置き場を全員に配る」の 2 つ
 // 新しい案（3 つ）:
 //   H 1 行の帯: 配布の画面は流れの下、マスタの置き場の画面は上の帯の下。同じ形・同じ言葉
 //   I 置き場の 2 行: 配布の画面のいちばん上の「置き場 …」の行を「配布の置き場」「全員のマスタの置き場」の 2 行に並べる（同じ形の行。ボタンの言葉も分ける）
@@ -15,13 +15,17 @@
 // 材料（順位に入れない。ずれた形）: H!（H でこの PC が別の置き場）・I!（I で同じく）
 // 試験用の画面は、この PC が手元のみ。「この PC も同じ」の形は、この PC が配る版の置き場を使っているときの再現（札だけを描く）
 
-const PIN = "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Masters";
-const MINE = "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Apps\\LotScope";
+const PIN_FULL = "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Masters";
+const MINE_FULL = "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Apps\\LotScope";
+// パスは先頭（サーバー）と末尾の 2 段を残して真ん中を縮める（どの置き場かは末尾で分かる。全文は札に指を置くと出る）。
+// 1280×720 で右端を「…」で切ると、末尾（Masters か LotScope か）が読めなかった（2 回目の下見で見えた）
+const PIN = "\\\\nlmsrvngy03\\…\\検査データ\\Masters";
+const MINE = "…\\Apps\\LotScope";
 const TIP = "2026-10-15 14:30 user（PC-01）が配りました。配る版と一緒に全員の PC へ届き、各 PC は起動したとき・30 分ごとに受け取って、数秒でこの置き場へ移ります。マスタの置き場を変えると、ここも新しい置き場になります。";
 const css = `
 .pin-row{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;min-width:0;padding:8px 12px;margin-bottom:12px;border:1px solid var(--line);border-left:4px solid var(--h-input);border-radius:10px;background:var(--surface)}
 .pin-row > b{font-size:13.5px;color:var(--h-input);white-space:nowrap;flex:none}
-.pin-row code{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;background:var(--surface-4);padding:1px 6px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.pin-row code{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;background:var(--surface-4);padding:1px 6px;border-radius:4px;white-space:nowrap;flex:none}
 .pin-row .m-chip{flex:none;white-space:nowrap}
 .pin-row .pin-sp{flex:1 1 0}
 .pin-row .pz-btn{flex:none;white-space:nowrap}
@@ -31,7 +35,7 @@ const css = `
 .dz-where2{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
 .dz-where2 > div{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;font-size:13px;color:var(--ro-ink);min-width:0}
 .dz-where2 > div > b{width:11em;flex:none;color:var(--ink)}
-.dz-where2 code{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;background:var(--surface-4);padding:1px 6px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dz-where2 code{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;background:var(--surface-4);padding:1px 6px;border-radius:4px;white-space:nowrap;flex:none}
 .dz-where2 .m-chip{flex:none}
 .dz-where2 .pz-btn{flex:none;white-space:nowrap}
 .dz-where2 .is-off code{outline:2px solid var(--accent)}
@@ -41,8 +45,8 @@ const css = `
 const chip = (t, c) => `<span class="m-chip ${c}">${t}</span>`;
 const esc = (s) => s.replace(/\\/g, "\\\\");
 /** 1 行の帯（2 つの画面で同じ）。off: この PC が別の置き場 */
-const row = (off = false) => `<div class="pin-row${off ? " is-off" : ""}" title="${TIP}"><b>全員のマスタの置き場</b><code>${PIN}</code>`
-  + (off ? `${chip("この PC は別", "c-warn")}<span class="pin-mine">この PC: ${MINE}</span><span class="pin-sp"></span><button type="button" class="pz-btn dz-go">全員の置き場にそろえる</button><button type="button" class="pz-btn">この PC の置き場を全員に配る</button>`
+const row = (off = false) => `<div class="pin-row${off ? " is-off" : ""}" title="${TIP}"><b>全員のマスタの置き場</b><code title="${PIN_FULL}">${PIN}</code>`
+  + (off ? `<span class="m-chip c-warn" title="${MINE_FULL}">この PC は別: ${MINE}</span><span class="pin-sp"></span><button type="button" class="pz-btn dz-go">全員の置き場にそろえる</button><button type="button" class="pz-btn">この PC の置き場を全員に配る</button>`
     : `${chip("✓ この PC も同じ", "c-on")}<span class="pin-sp"></span><button type="button" class="pz-btn">マスタの置き場を変える…</button>`) + "</div>";
 
 // 画面は読み終えてから描き直す（中身を入れ替える）ので、描き直すたびに差し込み直す（印 data-pin で 2 度は入れない）
@@ -61,7 +65,7 @@ const twoLines = (off) => keep(`const w = document.querySelector("#masterSetting
   w.dataset.pin = "1"; const code = w.querySelector("code"); const fresh = w.querySelector(".dz-fresh");
   const box = document.createElement("div"); box.className = "dz-where2"; box.dataset.pin = "1";
   box.innerHTML = '<div><b>配布の置き場</b>' + (code ? code.outerHTML : "") + '<span class="m-chip c-on">届いています</span>' + (fresh ? fresh.outerHTML : "") + '<button type="button" class="pz-btn">配布の置き場を変える…</button></div>'
-    + '<div class="${off ? "is-off" : ""}" title="${TIP}"><b>全員のマスタの置き場</b><code>${esc(PIN)}</code>${off ? '<span class="m-chip c-warn">この PC は別</span><span class="pin-mine" style="font-size:12px;color:var(--amber-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">この PC: ' + esc(MINE) + '</span><button type="button" class="pz-btn dz-go">全員の置き場にそろえる</button><button type="button" class="pz-btn">この PC の置き場を全員に配る</button>' : '<span class="m-chip c-on">✓ この PC も同じ</span><button type="button" class="pz-btn">マスタの置き場を変える…</button>'}</div>';
+    + '<div class="${off ? "is-off" : ""}" title="${TIP}"><b>全員のマスタの置き場</b><code>${esc(PIN)}</code>${off ? '<span class="m-chip c-warn">この PC は別: ' + esc(MINE) + '</span><button type="button" class="pz-btn dz-go">全員の置き場にそろえる</button><button type="button" class="pz-btn">この PC の置き場を全員に配る</button>' : '<span class="m-chip c-on">✓ この PC も同じ</span><button type="button" class="pz-btn">マスタの置き場を変える…</button>'}</div>';
   w.hidden = true; w.after(box);`);
 // K: マスタ管理の見出し帯の札（どのタブでも）
 const headPin = ["script", `{ const put = () => { const t = document.querySelector("#masterOverlay .master-head"); if (!t || t.querySelector(".mh-pin")) return;
