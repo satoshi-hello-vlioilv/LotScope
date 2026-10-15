@@ -32,7 +32,9 @@ const INSTALL = {
 const BOX = "C:\\Users\\user\\Box\\LotScope";
 const RELEASE = {
   reachable: true, found: BOX, adjusted: false, folder: BOX, appFolder: BOX, problems: [],
-  distributed: { schema: 1, app_id: "defect-analyzer", version: "3.12.0", entry: "LotScope.exe", setAt: "2026-10-06T16:40:00", setBy: "user", setPc: "PC-01", previous: "3.11.0" },
+  distributed: { schema: 1, app_id: "defect-analyzer", version: "3.12.0", entry: "LotScope.exe", setAt: "2026-10-06T16:40:00", setBy: "user", setPc: "PC-01", previous: "3.11.0",
+    // 全員が使うマスタの置き場（版 3.34.0。配る版を決めた人の置き場）
+    masters: { dir: "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Masters", setAt: "2026-10-15T14:30:00", setBy: "user", setPc: "PC-01" } },
   versions: ["3.13.0", "3.12.0", "3.11.0"].map((v, i) => ({ version: v, placedAt: `2026-10-0${8 - i * 2}T12:30:00`, placedPc: "PC-01", placedBy: "user", source: "desktop-windows", zip: `LotScope-${v}-windows.zip`, bytes: 6816621, dir: `${BOX}\\${v}` })),
   entry: { exists: true, path: `${BOX}\\LotScope.exe` },
   me: { canRelease: true, role: "開発者" },
@@ -221,7 +223,7 @@ export const STATES = [
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
   ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],
-  ["master-access", async (p) => { await tab(p, "access"); await sleep(800); }, "[data-next], #masterAddBtn"],
+  ["master-access", async (p) => { await p.click('.pp-dlg [data-pp="close"]').catch(() => {}); await tab(p, "access"); await sleep(800); }, "[data-next], #masterAddBtn"],
   ["master-presence", async (p) => { await tab(p, "presence"); await sleep(800); }, "[data-next], #masterSettings button"],
   ["master-release", async (p) => { await tab(p, "release"); await sleep(900); }, "[data-next], #masterSettings button"],
   // 待ちの窓（TPA.waiting）: 配布の置き場を初めて読むときと同じ文で、すぐ出す

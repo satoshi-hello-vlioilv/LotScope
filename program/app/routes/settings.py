@@ -62,7 +62,8 @@ def settings_put(key):
 @bp.get("/api/update/settings")
 def update_settings():
     """デスクトップ版の Rust が尋ねる、更新の置き場（参照先マスタで変えた値を重ねたもの。取り込みは desktop/src/update.rs）と、
-    だれが（版を置く・配る版を決めてよいか。決めるのは services/access.py。置く・配るのは desktop/src/distribute.rs）。"""
+    だれが（版を置く・配る版を決めてよいか。決めるのは services/access.py。置く・配るのは desktop/src/distribute.rs）と、
+    この PC が使うマスタの置き場（配る版と一緒に全員へ配る。版 3.34.0）。"""
     up = effective_settings(current_app).get("update") or {}
     try:
         m = me()
@@ -70,7 +71,9 @@ def update_settings():
                "canRelease": m["caps"]["canRelease"] and not m["revoked"]}
     except Exception as e:      # 権限を読めないときは置かせない（置き場を読むことは止めない）
         who = {"login": "", "pc": "", "role": "", "canRelease": False, "error": str(e)}
-    return jsonify(source=str(up.get("source") or ""), who=who)
+    st = current_app.config["MASTER_STORE"]
+    # masters: この PC がいま使うマスタの置き場。配る版を決めるとき、全員が使う置き場として配る版の覚えに書く（desktop/src/distribute.rs）
+    return jsonify(source=str(up.get("source") or ""), who=who, masters={"dir": str(st.share_dir or "")})
 
 
 # ---- 配布の置き場を変える（場所・フォルダの名前）。写すのはここ、参照先 update.source を書き換えるのは画面（門番と行の版が効く）
@@ -141,7 +144,7 @@ def master_place_get():
     s = st.status()
     denied = _release_place_gate()
     return jsonify(mode=s["mode"], dir=s["dir"], configured=s["configured"], override=s["override"],
-                   reachable=s.get("reachable", True), history=st.history(), canChange=denied is None,
+                   reachable=s.get("reachable", True), history=st.history(), pin=s.get("pin"), canChange=denied is None,
                    why=(denied[0].get_json() or {}).get("error", "") if denied else "")
 
 

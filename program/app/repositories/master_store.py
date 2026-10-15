@@ -42,6 +42,10 @@ LOCK_FILENAME = "master.lock.json"
 MOVED_FILENAME = "_MOVED.json"        # 置き場を変えたとき、前の置き場に置く引っ越し先の印（{to, at, by}）。ほかの PC がたどる
 OVERRIDE_FILENAME = "master_share.json"   # この PC が使う置き場（設定ファイルの master_share.dir より先。作業場所に置く）
 MOVED_HOPS = 5                        # 引っ越し先を何回までたどるか（印が輪になっていても止まる）
+# 配る版の覚えの写し（窓の desktop/src/updater.rs が、配布の置き場の distribute.json を作業場所へ写す。presence.WANT_FILE と同じ）。
+# その masters（版 3.34.0）が、全員が使うマスタの置き場。引っ越し先の印より先に従う（MasterStore.follow_moved）
+PIN_FILENAME = "want.json"
+MASTER_MARKERS = ("equipment_master.json", "roll_master.json", "path_settings.json")   # マスタの置き場か（どれかがあれば）
 HISTORY_KEEP = 10                     # この PC が覚えておく、前の置き場の数
 LOCK_TRIES = 5                  # 錠を取る試み（外された直後・切れた錠をどけた直後に取り直す回数）
 LOCK_MOVE_BUDGET_SEC = 0.5      # 錠をどける（名前を変える）のを、Windows でほかが開いている間に待つ長さ
@@ -123,6 +127,11 @@ def _now():
 
 def _iso(dt):
     return dt.isoformat(timespec="seconds")
+
+
+def _norm(path):
+    """置き場の見分け（大文字・小文字と区切りの向きをそろえる。Windows の共有の名前は大文字・小文字を区別しない）。"""
+    return str(path).replace("/", "\\").rstrip("\\").lower()
 
 
 def _read_json(path):
@@ -209,6 +218,7 @@ class MasterStore:
         self.cache_dir = root / "master_cache"
         # この PC が覚えた置き場（画面で変えた・引っ越し先をたどった）があれば、設定ファイルの値より先に使う
         self.override_path = root / OVERRIDE_FILENAME
+        self.pin_path = root / PIN_FILENAME
         self.configured_dir = self.share_dir
         try:
             ov = str(_read_json(self.override_path).get("dir") or "").strip()
@@ -257,6 +267,11 @@ class MasterStore:
         return self._read_doc(name)["revision"]
 
     def _read_doc(self, name):
+        if self.share_dir is None and name in self.shared_names:
+            try:   # 手元のみの PC も、配る版の覚えに全員が使う置き場があれば移る（新しく入れた PC が設定ファイルを直さずにそろう）
+                self.follow_moved()
+            except Exception as e:
+                log.warning("MASTER_FOLLOW_PIN failed: %s", e)
         if self.is_shared(name):
             self._maybe_refresh(name)
             mirror = self._mirror(name)
@@ -277,8 +292,9 @@ class MasterStore:
         return doc
 
     # ---------------------------------------------------------- 置き場を変える（services/master_place.py）
-    def retarget(self, new_dir, persist=True):
-        """置き場を new_dir に切り替える（写しは次に読むときに新しい置き場から取り直す）。persist ならこの PC に覚える。"""
+    def retarget(self, new_dir, persist=True, chosen=False):
+        """置き場を new_dir に切り替える（写しは次に読むときに新しい置き場から取り直す）。persist ならこの PC に覚える。
+        chosen: この PC で人が選んだ（画面で置き場を変えた）。その時刻より古い配る版の覚えには従わない（follow_moved）"""
         with self._write_lock, self._state_lock:
             before = self.share_dir
             self.share_dir = Path(new_dir)
@@ -288,11 +304,43 @@ class MasterStore:
             self._last_error = ""
         if persist:
             hist = [{"dir": str(before or ""), "until": _iso(_now()), "by": dict(self.who)}] + self.history()
+            chosen_at = _iso(_now()) if chosen else self._chosen_at()
             _write_json_atomic(self.override_path, {"dir": str(new_dir), "at": _iso(_now()), "by": dict(self.who),
-                                                    "history": hist[:HISTORY_KEEP]})
+                                                    "history": hist[:HISTORY_KEEP], **({"chosenAt": chosen_at} if chosen_at else {})})
         log.info("MASTER_RETARGET dir=%s", new_dir)
         if self.on_moved:
             self.on_moved(Path(new_dir))
+
+    def _chosen_at(self):
+        """この PC で人が最後に置き場を選んだ時刻（無ければ ""）"""
+        try:
+            return str(_read_json(self.override_path).get("chosenAt") or "")
+        except (OSError, ValueError, AttributeError):
+            return ""
+
+    def pinned(self):
+        """配る版の覚えにある、全員が使うマスタの置き場 → {dir, setAt, setBy, setPc}。無ければ None。"""
+        try:
+            m = _read_json(self.pin_path).get("masters")
+        except (OSError, ValueError, AttributeError):
+            return None
+        return m if isinstance(m, dict) and str(m.get("dir") or "").strip() else None
+
+    def _pin_target(self):
+        """配る版の覚えの置き場へ移るべきなら、その場所（届いて、マスタがある置き場）。従わないなら None。
+        この PC で人が選んだ時刻の方が新しければ従わない（置き場を変えた直後、画面が配る版の覚えも書き換えるまでのあいだ、
+        古い覚えに引き戻されない）。"""
+        pin = self.pinned()
+        if not pin:
+            return None
+        chosen = self._chosen_at()
+        if chosen and str(pin.get("setAt") or "") <= chosen:
+            return None
+        d = Path(str(pin["dir"]).strip())
+        try:
+            return d if d.is_dir() and any((d / m).is_file() for m in MASTER_MARKERS) else None
+        except OSError:
+            return None
 
     def history(self):
         """この PC が前に使っていた置き場（新しい順）→ [{dir（空なら手元のみ）, until, by}]。前の置き場のマスタは消していない。"""
@@ -315,21 +363,40 @@ class MasterStore:
 
     def follow_moved(self, force=False):
         """いまの置き場に引っ越し先の印があり、引っ越し先に届けば、そちらへ移る（ほかの PC が置き場を変えたとき）。
-        数秒に 1 回だけ見る。移ったら True。"""
+        数秒に 1 回だけ見る。移ったら True。
+        印は、前にたどった印より新しい物だけをたどる（置き場を変えるたびに時刻が進むので、正しい道は時刻が増え続ける）。
+        前に使った置き場へ戻したとき、その置き場に残っていた古い印（版 3.33 までは消さなかった）をたどると輪になり、
+        5 回で止まった所＝輪の途中の古い置き場へ移り続けた（版 3.34.0 で直した）。"""
         now = time.monotonic()
-        if not self.share_dir or (not force and now - self._moved_checked < self.refresh_sec):
+        if not force and now - self._moved_checked < self.refresh_sec:
             return False
         self._moved_checked = now
-        cur, hops = self.share_dir, 0
+        # 配る版の覚えに全員が使う置き場があれば、それに従う（印をたどるより確か。版 3.34.0）
+        pin = self._pin_target()
+        if pin is not None:
+            if self.share_dir is not None and _norm(pin) == _norm(self.share_dir):
+                return False
+            log.info("MASTER_FOLLOW_PIN from=%s to=%s", self.share_dir, pin)
+            self.retarget(pin)
+            return True
+        if not self.share_dir:
+            return False
+        cur, hops, last_at, seen = self.share_dir, 0, None, {_norm(self.share_dir)}
         while hops < MOVED_HOPS:
             m = self.moved_to(cur)
             if not m:
                 break
+            at = str(m.get("at") or "")
+            if last_at is not None and at <= last_at:
+                break                    # 前の印より古い（使われなくなった）印。ここが今の置き場
             nxt = Path(str(m["to"]).strip())
-            if not nxt.is_dir() or str(nxt) == str(cur):
+            if not nxt.is_dir() or _norm(nxt) == _norm(cur):
                 break
-            cur, hops = nxt, hops + 1
-        if hops == 0:
+            cur, hops, last_at = nxt, hops + 1, at
+            if _norm(cur) in seen:
+                break
+            seen.add(_norm(cur))
+        if hops == 0 or _norm(cur) == _norm(self.share_dir):
             return False
         log.info("MASTER_FOLLOW_MOVED from=%s to=%s", self.share_dir, cur)
         self.retarget(cur)
@@ -569,7 +636,7 @@ class MasterStore:
                                 "shift_patterns", "pivot_presets", "pivot_quick")):
         shared = self.share_dir is not None
         out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
-               "configured": str(self.configured_dir or ""), "override": self.override_path.exists(),
+               "configured": str(self.configured_dir or ""), "override": self.override_path.exists(), "pin": self.pinned(),
                "who": dict(self.who), "masters": {}}
         if shared:
             for n in names:

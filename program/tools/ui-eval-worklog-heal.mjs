@@ -7,6 +7,7 @@
 // ③ 設備の登録が作り直された（キーが変わった。共有のマスタへ置き場を変えたときなど） → マスタ管理を開いて閉じると、同じ設備の一覧が出る
 // ④ 同じ形で、何もしなくても（少し待つと）同じ設備の一覧が出る。読めないあいだは「見つかりしだい開きます」と出る
 // ⑤ 見ている設備のファイルだけが一瞬見えない → ほかの設備へ移らない（前の写しで一覧は出たまま）。見えたら印が消える
+// ⑥ 読めないうちの最初の 30 秒は「待っている」と出す（「読めませんでした」と言わない） ⑦ 30 秒たっても読めなければ「読めませんでした」と理由
 // 全部合えば終了コード 0。
 import fs from "node:fs";
 import path from "node:path";
@@ -16,15 +17,20 @@ const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 400)}`}`); if (!ok) fails.push(name); };
 
 /** サーバーの側だけで、作業実績の決まり（ファイル名の決まり）を置く（画面へは知らせない＝ほかの PC・一瞬の不在の代わり） */
-const setPattern = (p, value) => p.evaluate(async (v) => {
-  const it = (await (await fetch("/api/settings")).json()).items.find((x) => x.key === "work_log.pattern");
-  const r = await fetch("/api/settings/work_log.pattern", TPA.json("PUT", { value: v, base_rev: it.rev || 0 }));
+const setSetting = (p, key, value) => p.evaluate(async ([k, v]) => {
+  const it = (await (await fetch("/api/settings")).json()).items.find((x) => x.key === k);
+  const r = await fetch(`/api/settings/${k}`, TPA.json("PUT", { value: v, base_rev: it.rev || 0 }));
   return r.status;
-}, value);
+}, [key, value]);
+const setPattern = (p, value) => setSetting(p, "work_log.pattern", value);
 /** 一覧が出ているか（行の数・知らせの字） */
 const state = (p) => p.evaluate(() => ({
   rows: document.querySelectorAll("#llBody tr[data-i]").length,
-  note: (document.querySelector("#llNote:not([hidden])")?.textContent || "").replace(/\s+/g, " ").slice(0, 120),
+  note: (document.querySelector("#llNote:not([hidden])")?.textContent || "").replace(/\s+/g, " ").slice(0, 160),
+  waiting: !!document.querySelector("#llNote:not([hidden]).is-wait"),
+  // 「元: …」の行と案内の行が、別の行に出ているか（版 3.33.0 は字がつながって「…KEN.sqlite3見つかりしだい…」と出た）
+  apart: (() => { const n = document.querySelector("#llNote:not([hidden])"), h = n && n.querySelector(".ll-heal"), f = n && n.querySelector(".ll-from");
+    return h && f ? h.getBoundingClientRect().top >= f.getBoundingClientRect().bottom - 1 : null; })(),
   equip: document.querySelector('#llEquipBar .eq-chip[aria-selected="true"]')?.textContent || "",
   missing: document.querySelectorAll("#llEquipBar .eq-chip.is-missing").length,
 }));
@@ -102,6 +108,24 @@ try {
   await page.click("#tabList"); await sleep(600); await page.click("#tabWork");
   const back = await until(page, 8000);
   check("⑤ 見えたら、同じ設備のまま印（!）が消える", back.ok && back.equip === name, { name, back });
+  // ⑥ ⑦ 読み込みを待っている／本当に読めなかったを分ける（版 3.34.0。利用者の声: 設備を切り替えると、待てば読めるのに「読めませんでした」が出る）
+  //    フォルダに届かない形にして、まだ開いていない設備を開く（前の写しが無いので読めない）
+  const folder0 = await page.evaluate(async () => (await (await fetch("/api/settings")).json()).items.find((x) => x.key === "work_log.folder").value);
+  await setSetting(page, "work_log.folder", "/無い/実績のフォルダ");
+  await sleep(10500);                                   // サーバーがフォルダの中身を覚える 10 秒を過ぎてから
+  const fresh = await page.$$eval("#llEquipBar .eq-chip", (cs) => cs.map((c) => c.textContent.replace("!", "")));
+  const pick = fresh[fresh.length - 1];
+  await page.click(`#llEquipBar .eq-chip:has-text("${pick}")`).catch(async () => { await page.click("#llEquipBar .eq-more"); await page.click(`#llEquipMenu [data-equip]:last-child`); });
+  await sleep(3000);
+  const early = await state(page);
+  check("⑥ 読めないうちの最初の 30 秒は「待っている」と出し、「読めませんでした」とは言わない",
+    early.waiting && !/読めませんでした/.test(early.note) && /読み込んで|待って/.test(early.note), early);
+  await sleep(30000);
+  const late = await state(page);
+  check("⑦ 30 秒たっても読めなければ「読めませんでした」と理由を出す（探し直しは続く）",
+    !late.waiting && /読めませんでした/.test(late.note) && /届きません/.test(late.note), late);
+  check("⑦ 「元: …」の行と「見つかりしだい開きます」の行が別の行に出る", late.apart === true, late);
+  await setSetting(page, "work_log.folder", folder0);
   check("頁の誤りが無い", !errors.length, errors);
 } catch (e) {
   console.error(e); fails.push(String(e).slice(0, 200));

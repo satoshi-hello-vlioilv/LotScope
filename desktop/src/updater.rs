@@ -267,7 +267,20 @@ impl Updater {
             return Err((403, "配る版を決められるのは、開発者・メンテナンス者だけです（切断中の PC も決められません）。".into()));
         }
         let (found, _) = release::locate_source(settings["source"].as_str().unwrap_or("")).map_err(|e| (400, e))?;
-        let r = distribute::set_distributed(&found, version, &brand().app_id, &who_of(settings)).map_err(|e| (400, e))?;
+        let masters = settings["masters"]["dir"].as_str().unwrap_or("");
+        let r = distribute::set_distributed(&found, version, &brand().app_id, &who_of(settings), masters).map_err(|e| (400, e))?;
+        self.wake();
+        Ok(r)
+    }
+
+    /// 全員が使うマスタの置き場を、配る版の覚えに書く（POST /__desktop/release/masters）。dir が空ならこの PC がいま使う置き場
+    pub fn set_masters(&self, settings: &Value, dir: &str) -> Result<Value, (u16, String)> {
+        if settings["who"]["canRelease"] != true {
+            return Err((403, "マスタの置き場を配れるのは、開発者・メンテナンス者だけです（切断中の PC も配れません）。".into()));
+        }
+        let dir = if dir.trim().is_empty() { settings["masters"]["dir"].as_str().unwrap_or("") } else { dir };
+        let (found, _) = release::locate_source(settings["source"].as_str().unwrap_or("")).map_err(|e| (400, e))?;
+        let r = distribute::set_masters(&found, &brand().app_id, dir, &who_of(settings)).map_err(|e| (400, e))?;
         self.wake();
         Ok(r)
     }

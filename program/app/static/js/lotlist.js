@@ -64,6 +64,8 @@
   const SOURCE_POLL_MS = 20000;
   const COPY_RETRY_MS = 4000;     // 写しがまだ無いとき、引き直すまで（写しの係は書き手が作業中なら 5 秒空けて写し直す）
   const HEAL_MS = 10000;          // 作業実績のファイルが見つからない・フォルダに届かないとき、探し直すまで（サーバーはフォルダの中身を 10 秒覚える）
+  const HEAL_FAST_MS = 3000;      // 読めなくなってから PATIENCE_MS のあいだは、早めに探し直す（設備を切り替えた直後の一時的な読めなさを早く抜ける）
+  const PATIENCE_MS = 30000;      // 読めないとき、これだけは「待っている」と出す。過ぎても読めなければ「読めませんでした」と理由を出す（版 3.34.0）
   let fmtCtx = null;              // 共有の書式の札を描いた範囲（替わったら描き直す）
   const MAX_SORTS = 4;
   const PRESET_NONE = "";
@@ -328,7 +330,7 @@
       S.lotColumn = d.lotColumn || ""; S.work = d.work || null;
       window.LotListMarks.take(S.rows, d.marks, d.markCounts);   // 色付けの印は、並べ替える前の行の並びで行そのものに結ぶ
       if (!S.work) S.rows = clusterRows(S.rows);       // 作業でまとめた答えは、行と作業の印（work.rows）の並びを崩さない
-      S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.errorKind = ""; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
+      S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.errorKind = ""; S.failSince = 0; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
       // 並べ替えはサーバーが確かめた形（実在する列だけ）。まとめているときは段の列を除いた、見出しで決めた分だけを持つ
       if (grouped()) { const have = new Set((d.columns || [])); S.sorts = S.sorts.filter((x) => have.has(x.column)); }
       else S.sorts = d.sorts || S.sorts;
@@ -346,7 +348,7 @@
       }
     } catch (e) {
       if (me !== S || seq !== S.seq) return;
-      S.error = e.message; S.errorKind = e.kind || ""; S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0]; S.work = null;
+      S.error = e.message; S.errorKind = e.kind || ""; S.failSince = S.failSince || Date.now(); S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0]; S.work = null;
       // 写しがまだ無い（共有は直接読まない）: 写し終えるまで、少し空けて引き直す
       if (e.kind === "copying") { clearTimeout(me.copyRetry); me.copyRetry = setTimeout(() => { if (me === S && seq === S.seq) load(); }, COPY_RETRY_MS); }
     } finally { wait?.done(); }
@@ -1469,9 +1471,21 @@
     }
     if (S.error) {
       head.innerHTML = ""; model = []; showRows({ keepHeights: false });
+      const from = `<small class="ll-from">元: ${esc((S.source && S.source.remote) || S.src.remoteHint)}</small>`;
+      note.classList.toggle("is-wait", waitingNow());
+      if (waitingNow()) {   // 読み込みを待っている（写している・設備を切り替えた直後に一時的に読めない）。「読めませんでした」とは言わない
+        const copying = S.errorKind === "copying", sec = Math.round((Date.now() - (S.failSince || Date.now())) / 1000);
+        note.setAttribute("role", "status");
+        note.innerHTML = `<b class="ll-wait-h"><i class="wait-spin" aria-hidden="true"></i>${esc(equipName(S.equip) || S.src.title)}の${esc(S.src.title)}を読み込んでいます…</b>`
+          + `<span class="ll-wait-why">${copying ? "共有の実績ファイルを手元へ写しています。写し終えると一覧が出ます（大きいファイルは数十秒）。"
+            : "設備の登録と実績ファイルを確かめています。見つかりしだい開きます。"}${sec >= 3 ? `（${sec} 秒）` : ""}</span>`
+          + `<small class="ll-wait-detail">${esc(S.error)}</small>${from}`;
+        note.hidden = false; return;
+      }
+      note.removeAttribute("role");
       const canRefresh = S.src.id === "lot" || !!S.source;   // 作業実績は、まだ開けていない設備（ファイルが見つからない等）には取り直す物が無い
       note.innerHTML = `<b>${esc(S.src.title)}を読めませんでした。</b><br>${esc(S.error)}<br>`
-        + `<small>元: ${esc((S.source && S.source.remote) || S.src.remoteHint)}</small>${healHtml()}<div class="ll-note-acts">`
+        + `${from}${healHtml()}<div class="ll-note-acts">`
         + (canRefresh ? '<button type="button" class="btn-primary" data-ll-refresh>共有から読み直す</button> ' : "")
         + `<button type="button"${canRefresh ? "" : ' class="btn-primary"'} data-ll-settings title="${esc(S.src.settingsTip)}">${esc(S.src.settingsLabel)}</button></div>`;
       note.hidden = false; return;
@@ -1824,10 +1838,16 @@
   function scheduleHeal() {
     if (!needsHeal()) { clearTimeout(healTimer); healTimer = null; return; }
     if (healTimer) return;
+    const patient = STATES.work.failSince && Date.now() - STATES.work.failSince < PATIENCE_MS;
     healTimer = setTimeout(() => {
       healTimer = null;
       if (needsHeal()) loadEquips().then(() => { if (S === STATES.work) { renderAll(); load(); } });
-    }, HEAL_MS);
+    }, patient ? HEAL_FAST_MS : HEAL_MS);
+  }
+  /** 読み込みを待っているか（本当に読めなかったのではない）: 写している最中・読めなくなってから PATIENCE_MS のあいだ */
+  function waitingNow() {
+    if (S.src.id !== "work" || !S.error) return false;
+    return S.errorKind === "copying" || (HEAL_KINDS.has(S.errorKind || "") && Date.now() - (S.failSince || 0) < PATIENCE_MS);
   }
   const healHtml = () => (needsHeal() ? `<small class="ll-heal">見つかりしだい開きます（${HEAL_MS / 1000} 秒ごとに探し直しています）。</small>` : "");
   /** 設備を読み直す（マスタ管理を閉じた・マスタの置き場を変えた・登録が変わった）。作業実績を見ていなければ、次に開くときに読む */
@@ -1843,7 +1863,7 @@
       saveActive(); saveAdhocSetup();
       S.equip = k; S.equipName = (equipOf(k) || {}).name || ""; store.set(KEY.workEquip, k);
       Object.assign(S, { table: S.src.loadTable(), tables: [], ctx: null, adhocScope: null, page: 1, rows: [], columns: [], count: 0,
-        source: null, error: "", errorKind: "", groups: null, range: [0, 0] });
+        source: null, error: "", errorKind: "", failSince: 0, groups: null, range: [0, 0] });
       window.LotListCard.close(); window.LotListSlicer.reset(); window.LotListMarks.reset();
       if (S.table) syncContext(true);
     }

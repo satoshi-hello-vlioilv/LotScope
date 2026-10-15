@@ -1274,14 +1274,27 @@ async function moveMasterPlace(cur, a, pl, say) {
   say("wait", pl.mode === "switch" ? "切り替えています…" : "写しています…");
   const r = await masterRequest("/api/masters/place/move", TPA.json("POST", a));
   if (!r.ok) { say("ng", "✕ " + escapeHtml(r.data.error || "変えられませんでした。")); go.disabled = false; return; }
+  // 配る版の覚えにも新しい置き場を書く（全員の PC が更新を確かめるたびに受け取って移る。版 3.34.0）。窓の外・配る版がまだ無いときは書けない
+  const pin = await pinMasters(r.data.dest);
   Object.keys(mstate.data).forEach((k) => { mstate.data[k] = null; });   // マスタは新しい置き場から読み直す
   mstate.loadedRev = {};
   await refreshPlace();
   buildMasterTabs();
   await renderMasterPlace();
-  const done = `✓ マスタの置き場を ${r.data.dest} に変えました。` + (r.data.warning ? `\n${r.data.warning}` : "");
-  $("#mpState")?.insertAdjacentHTML("beforebegin", `<div class="ps-result ${r.data.warning ? "wait" : "ok"}" style="white-space:pre-line">${escapeHtml(done)}</div>`);
+  const warn = [r.data.warning, pin.ok ? "" : `配る版の覚えに新しい置き場を書けませんでした（${pin.why}）。ほかの PC は前の置き場の印をたどって移ります。`].filter(Boolean).join("\n");
+  const done = `✓ マスタの置き場を ${r.data.dest} に変えました。` + (pin.ok ? "配る版の覚えにも書いたので、全員の PC が数秒〜30 分で移ります。" : "") + (warn ? `\n${warn}` : "");
+  $("#mpState")?.insertAdjacentHTML("beforebegin", `<div class="ps-result ${warn ? "wait" : "ok"}" style="white-space:pre-line">${escapeHtml(done)}</div>`);
   emit("tpa:settings-changed", { key: "master_place" });
+}
+/** 全員が使うマスタの置き場を、配る版の覚え（distribute.json の masters）に書く（desktop/src/distribute.rs の set_masters）。
+    dir が空なら、この PC がいま使う置き場。→ {ok, why, masters} */
+async function pinMasters(dir = "") {
+  try {
+    const r = await fetch("/__desktop/release/masters", TPA.json("POST", { dir }));
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) mstate.data.release = null;      // 配布の画面は次に開いたとき読み直す
+    return r.ok ? { ok: true, masters: d.masters } : { ok: false, why: d.error || (r.status === 404 ? "デスクトップ版の窓の中でだけ書けます" : `答え ${r.status}`) };
+  } catch (e) { return { ok: false, why: e.message }; }
 }
 const cmpVer = (a, b) => { const x = a.split(".").map(Number), y = b.split(".").map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
 function paintReleaseProgress() {

@@ -177,6 +177,11 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             let version = v["version"].as_str().unwrap_or("").to_string();
             Some(reply_of(update_settings(backend).map_err(|e| (503, e)).and_then(|s| upd.distribute(&s, &version))))
         }
+        ("POST", "/__desktop/release/masters") => {
+            let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
+            let dir = v["dir"].as_str().unwrap_or("").to_string();
+            Some(reply_of(update_settings(backend).map_err(|e| (503, e)).and_then(|s| upd.set_masters(&s, &dir))))
+        }
         ("POST", "/__desktop/release/remove") => {
             let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
             let version = v["version"].as_str().unwrap_or("").to_string();
