@@ -532,7 +532,7 @@ class ApiTests(Base):
         shutil.copytree(Path(__file__).resolve().parents[1] / "data", base / "data")
         self.c = create_app({"MASTER_STORE": MasterStore(base, local_root=self.tmp / "m2", settings={}),
                              "LOT_MIRROR": DbMirror("lot_list", self.share, self.cache)}).test_client()
-        body = {"keys": {"tpa.lotlist.slicer.v1": '{"open":true}', "tpa.lotlist.zoom.v1": "120", "他.名前": "x"}}
+        body = {"keys": {"tpa.lotlist.slicer.v1": '{"open":true}', "tpa.lotlist.zoom.v2": '{"lot":120}', "他.名前": "x"}}
         orig = access.flags
         try:
             access.flags = lambda rows, login, pc: {"role": "一般ユーザー", "masterEdit": "編集可", "masterEditStored": "", "matchedId": None}

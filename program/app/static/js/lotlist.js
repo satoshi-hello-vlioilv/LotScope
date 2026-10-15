@@ -38,7 +38,7 @@
     pageSize: "tpa.lotlist.pageSize.v1",
     table: "tpa.lotlist.table.v1",
     features: "tpa.lotlist.features.v1",  // 機能の使う／使わない（この PC）
-    collapsed: "tpa.lotlist.collapsed.v1", // 畳んだまとまり（表ごと・開いているあいだだけ）
+    collapsed: "tpa.lotlist.collapsed.v1", // 畳んだまとまり（表ごと。版 3.33.0 からこの PC に覚え、開き直しても畳んだまま）
     arrange: "tpa.lotlist.arrange.v1",    // 並び・まとめ（表ごと）{levels:[{column, dir, lot}], heads, suppress}
     workEquip: "tpa.worklog.equip.v1",    // 作業実績: 最後に見た設備（キー）
     workTable: "tpa.worklog.table.v1",    // 作業実績: 設備ごとに最後に見た表 {キー: 表}
@@ -62,8 +62,9 @@
   const ADHOC_DEBOUNCE_MS = 280;
   const SEARCH_DEBOUNCE_MS = 280;
   const SOURCE_POLL_MS = 20000;
-  const COPY_RETRY_MS = 4000;
-  let fmtCtx = null;              // 共有の書式の札を描いた範囲（替わったら描き直す）     // 写しがまだ無いとき、引き直すまで（写しの係は書き手が作業中なら 5 秒空けて写し直す）
+  const COPY_RETRY_MS = 4000;     // 写しがまだ無いとき、引き直すまで（写しの係は書き手が作業中なら 5 秒空けて写し直す）
+  const HEAL_MS = 10000;          // 作業実績のファイルが見つからない・フォルダに届かないとき、探し直すまで（サーバーはフォルダの中身を 10 秒覚える）
+  let fmtCtx = null;              // 共有の書式の札を描いた範囲（替わったら描き直す）
   const MAX_SORTS = 4;
   const PRESET_NONE = "";
 
@@ -271,8 +272,13 @@
     flash(`並び・まとめを読み込みました` + (skipped ? `（この表に無い ${skipped}列ぶんは飛ばしました）` : ""));
     load();
   }
-  const collapsed = () => new Set((TPA.session.get(KEY.collapsed, {})[scope()]) || []);
-  function setCollapsed(set) { const all = TPA.session.get(KEY.collapsed, {}); all[scope()] = [...set]; TPA.session.set(KEY.collapsed, all); }
+  const MAX_COLLAPSED = 300;     // 表ごとに覚える畳んだまとまりの数（無くなった値が溜まり続けないように、新しく畳んだ方を残す）
+  const collapsed = () => new Set((store.get(KEY.collapsed, {})[scope()]) || []);
+  function setCollapsed(set) {
+    const all = store.get(KEY.collapsed, {});
+    if (set.size) all[scope()] = [...set].slice(-MAX_COLLAPSED); else delete all[scope()];
+    store.set(KEY.collapsed, all);
+  }
   let onPick = () => {};
   let onLens = null;            // 虫眼鏡: LotDsp でそのロットを開くだけ（app.js の openLotDsp(ロット番号, 鋳造番号, タブ)。→ 知らせる文）
   const LENS_W = 22;            // 虫眼鏡のぶん、ロット番号の列を広げる（幅を決めていない列だけ）
@@ -308,7 +314,7 @@
   }
   async function load() {
     const me = S, seq = ++S.seq;
-    if (S.src.id === "work" && !S.equip) { S.loading = false; renderAll(); return; }   // 設備を選ぶまでは読まない（設備の札が案内する）
+    if (S.src.id === "work" && !S.equip) { S.loading = false; renderAll(); scheduleHeal(); return; }   // 設備を選ぶまでは読まない（設備の札が案内する）
     S.loading = true; paintBusy();
     const wait = S.src.id === "work" ? waitFirstCopy(me) : null;
     const workAsked = S.src.id === "work" ? JSON.stringify(window.LotListWork.params()) : "";
@@ -322,7 +328,7 @@
       S.lotColumn = d.lotColumn || ""; S.work = d.work || null;
       window.LotListMarks.take(S.rows, d.marks, d.markCounts);   // 色付けの印は、並べ替える前の行の並びで行そのものに結ぶ
       if (!S.work) S.rows = clusterRows(S.rows);       // 作業でまとめた答えは、行と作業の印（work.rows）の並びを崩さない
-      S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
+      S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.errorKind = ""; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
       // 並べ替えはサーバーが確かめた形（実在する列だけ）。まとめているときは段の列を除いた、見出しで決めた分だけを持つ
       if (grouped()) { const have = new Set((d.columns || [])); S.sorts = S.sorts.filter((x) => have.has(x.column)); }
       else S.sorts = d.sorts || S.sorts;
@@ -340,12 +346,13 @@
       }
     } catch (e) {
       if (me !== S || seq !== S.seq) return;
-      S.error = e.message; S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0]; S.work = null;
+      S.error = e.message; S.errorKind = e.kind || ""; S.rows = []; S.count = 0; S.groups = null; S.range = [0, 0]; S.work = null;
       // 写しがまだ無い（共有は直接読まない）: 写し終えるまで、少し空けて引き直す
       if (e.kind === "copying") { clearTimeout(me.copyRetry); me.copyRetry = setTimeout(() => { if (me === S && seq === S.seq) load(); }, COPY_RETRY_MS); }
     } finally { wait?.done(); }
     S.loading = false;
     renderAll();
+    scheduleHeal();
     window.LotListSlicer.refresh();   // 件数を今の絞り込みで数え直す
     window.LotListPivot.refresh();    // 集計表・グラフを見ていれば、今の絞り込みで数え直す
   }
@@ -1464,7 +1471,7 @@
       head.innerHTML = ""; model = []; showRows({ keepHeights: false });
       const canRefresh = S.src.id === "lot" || !!S.source;   // 作業実績は、まだ開けていない設備（ファイルが見つからない等）には取り直す物が無い
       note.innerHTML = `<b>${esc(S.src.title)}を読めませんでした。</b><br>${esc(S.error)}<br>`
-        + `<small>元: ${esc((S.source && S.source.remote) || S.src.remoteHint)}</small><div class="ll-note-acts">`
+        + `<small>元: ${esc((S.source && S.source.remote) || S.src.remoteHint)}</small>${healHtml()}<div class="ll-note-acts">`
         + (canRefresh ? '<button type="button" class="btn-primary" data-ll-refresh>共有から読み直す</button> ' : "")
         + `<button type="button"${canRefresh ? "" : ' class="btn-primary"'} data-ll-settings title="${esc(S.src.settingsTip)}">${esc(S.src.settingsLabel)}</button></div>`;
       note.hidden = false; return;
@@ -1641,6 +1648,8 @@
 
   async function refreshFromShare() {
     const b = $("#llFresh"); b.disabled = true; b.textContent = "共有から取り直しています…";
+    if (S.src.id === "work") await loadEquips({ fresh: true });   // 設備のファイルも探し直す（見つからない・届かないと覚えたままにしない）
+    if (S.src.id === "work" && !S.equip) { b.disabled = false; renderAll(); scheduleHeal(); return; }
     try {
       const r = await fetch(`${S.src.api}/refresh?${new URLSearchParams(S.src.params())}`, { method: "POST" });
       const d = await r.json(); S.source = d.source || S.source;
@@ -1656,22 +1665,26 @@
     } catch (_) { /* 次の周回で */ }
   }
 
-  /* ---- 一覧の拡大（一時的: この窓のあいだだけ覚え、閉じると 100%） ----
-     表に CSS の zoom を掛ける（列の幅・固定・見出しの貼り付きごと拡大する）。幅の覚えは拡大前の px のまま（lotlist-columns.js） */
-  const ZOOM = { key: "tpa.lotlist.zoom.v1", stepKey: "tpa.lotlist.zoomStep.v1", min: 60, max: 200, steps: [5, 10, 20, 25], step: 10 };
+  /* ---- 一覧の拡大（版 3.33.0 から、異常ロット一覧・作業実績で別に、この PC に覚える。開き直しても同じ拡大で出る） ----
+     表に CSS の zoom を掛ける（列の幅・固定・見出しの貼り付きごと拡大する）。幅の覚えは拡大前の px のまま（lotlist-columns.js）
+     覚え: {画面（lot・work）: %}。版 3.32 まではこの窓のあいだだけ（sessionStorage・両方の画面で 1 つ）で、閉じると 100% に戻った */
+  const ZOOM = { key: "tpa.lotlist.zoom.v2", stepKey: "tpa.lotlist.zoomStep.v1", min: 60, max: 200, steps: [5, 10, 20, 25], step: 10 };
+  const savedZoom = () => +(store.get(ZOOM.key, {})[S.src.id]) || 100;
   const zoomStep = () => { const s = +TPA.local.get(ZOOM.stepKey, ZOOM.step); return ZOOM.steps.includes(s) ? s : ZOOM.step; };
   /** 刻み s で動ける範囲（どの刻みでも 100% に止まるように、端を 100% から刻みで数えた所にする） */
   const zoomRange = (s) => ({ min: 100 - Math.floor((100 - ZOOM.min) / s) * s, max: 100 + Math.floor((ZOOM.max - 100) / s) * s });
-  function setZoom(pct) {
+  /** reflow: 描いている行を測り直す（画面を替えたときは、すぐ後に新しい画面の行を描き直すので測らない） */
+  function setZoom(pct, { reflow = true } = {}) {
     const s = zoomStep(), { min, max } = zoomRange(s);
     const z = Math.min(max, Math.max(min, 100 + Math.round(((+pct || 100) - 100) / s) * s));
     $("#llGrid").style.zoom = z === 100 ? "" : String(z / 100);
-    rowsView?.reflow();                                  // 行の高さ（見た目の px）が変わるので、測り直して描く範囲を決め直す
+    if (reflow) rowsView?.reflow();                      // 行の高さ（見た目の px）が変わるので、測り直して描く範囲を決め直す
     $("#llZoomRange").value = z; $("#llZoomValue").textContent = `${z}%`;
     $("#llZoomMinus").disabled = z <= min; $("#llZoomPlus").disabled = z >= max;
     $("#llZoomReset").hidden = z === 100; $("#llZoom").classList.toggle("is-zoomed", z !== 100);
     $("#llZoomBtnValue").textContent = `${z}%`; $("#llZoomBtn").classList.toggle("is-zoomed", z !== 100);   // 件数の行のボタン（面は lotlist-active.js）
-    TPA.session.set(ZOOM.key, z);
+    const all = store.get(ZOOM.key, {});
+    if ((all[S.src.id] || 100) !== z) { if (z === 100) delete all[S.src.id]; else all[S.src.id] = z; store.set(ZOOM.key, all); }
   }
   /** 刻みを当てる: つまみの範囲・刻み・目盛り（100% は長い線）・札の字 */
   function paintZoomStep() {
@@ -1702,7 +1715,7 @@
     $("#llZoomStep").addEventListener("click", () => ($("#llZoomSteps").hidden ? openZoomSteps() : $("#llZoomStep").focus()));
     $("#llZoomReset").addEventListener("click", () => { setZoom(100); $("#llZoomRange").focus(); });
     paintZoomStep();
-    setZoom(TPA.session.get(ZOOM.key, 100));
+    setZoom(savedZoom());
   }
   function bindGrid() {
     rowsView = window.VirtualRows.create({ scroller: $(".ll-grid-wrap"), body: $("#llBody"), span: () => span, zoom: () => +($("#llGrid").style.zoom || 1) });
@@ -1778,7 +1791,7 @@
      ファイルが見つからない設備は押せない（理由を札の説明に）。設備を替えると、その設備の覚え（条件・並び・表示列…）に入れ替わる。
      検索の字はそのまま（同じロットを設備を替えて探せる）。 */
   async function loadEquips({ fresh = false } = {}) {
-    const me = STATES.work;
+    const me = STATES.work, first = me.equips == null;
     try {
       const r = await fetch("/api/worklog/files" + (fresh ? "?fresh=1" : ""), { cache: "no-store" });
       const d = await r.json();
@@ -1787,19 +1800,50 @@
         equipLoose: d.new || [] });
     } catch (e) { Object.assign(me, { equips: [], equipError: e.message }); }
     const ok = (k) => me.equips.some((x) => x.key === k && x.state !== "missing");
-    if (!ok(me.equip)) {
-      const first = me.equips.find((x) => x.state !== "missing");
-      if (me === S) switchEquip(first ? first.key : "", { load: false }); else me.equip = first ? first.key : "";
+    // 読み直し（2 回目から）で、見ている設備のファイルが一瞬見えないだけなら、ほかの設備へ移らない（見つかりしだい開く: needsHeal）
+    if (!ok(me.equip) && (first || !me.equips.some((x) => x.key === me.equip))) {
+      // 見ていた設備のキーが無くなった（登録を作り直した・共有のマスタへ置き場を変えた）ときは、同じ名前の設備を開く
+      const usable = me.equips.filter((x) => x.state !== "missing");
+      const next = usable.find((x) => me.equipName && x.name === me.equipName) || usable[0];
+      if (me === S) switchEquip(next ? next.key : "", { load: false }); else me.equip = next ? next.key : "";
     }
+    if (me.equip) me.equipName = (me.equips.find((x) => x.key === me.equip) || {}).name || me.equipName;
+  }
+  /* 作業実績が「読めない」まま残らないように（版 3.33.0。入れた直後に、再起動するまで読めないことがあった）:
+     設備のファイルが見つからない・フォルダに届かない・登録に無い設備を見ているあいだは、HEAL_MS ごとに設備を探し直して引き直す
+     （共有のファイルは、書き手が入れ替える一瞬や、この PC が初めて共有へ触る最初の問い合わせで、見えないことがある）。
+     見つかれば止まる。作業実績を見ていないあいだは探さない。画面には「見つかりしだい開きます」と出す（healHtml） */
+  const HEAL_KINDS = new Set(["missing", "unreachable", "unknown"]);
+  let healTimer = null;
+  function needsHeal() {
+    const w = STATES.work;
+    if (S !== w || !root || root.classList.contains("hidden") || w.equips == null) return false;
+    if (w.equipError || HEAL_KINDS.has(w.errorKind || "")) return true;
+    return !w.equip && w.equips.some((x) => x.state === "missing" || x.state === "unknown");
+  }
+  function scheduleHeal() {
+    if (!needsHeal()) { clearTimeout(healTimer); healTimer = null; return; }
+    if (healTimer) return;
+    healTimer = setTimeout(() => {
+      healTimer = null;
+      if (needsHeal()) loadEquips().then(() => { if (S === STATES.work) { renderAll(); load(); } });
+    }, HEAL_MS);
+  }
+  const healHtml = () => (needsHeal() ? `<small class="ll-heal">見つかりしだい開きます（${HEAL_MS / 1000} 秒ごとに探し直しています）。</small>` : "");
+  /** 設備を読み直す（マスタ管理を閉じた・マスタの置き場を変えた・登録が変わった）。作業実績を見ていなければ、次に開くときに読む */
+  function reloadEquips({ fresh = false } = {}) {
+    const w = STATES.work;
+    if (S !== w || !root || root.classList.contains("hidden")) { w.equips = null; return; }
+    loadEquips({ fresh }).then(() => { if (S === w) { renderAll(); load(); } });
   }
   const equipOf = (k = S.equip) => (S.equips || []).find((x) => x.key === k) || null;
   function switchEquip(k, { load: reload = true } = {}) {
     if (S.src.id !== "work") return;
     if (k !== S.equip) {
       saveActive(); saveAdhocSetup();
-      S.equip = k; store.set(KEY.workEquip, k);
+      S.equip = k; S.equipName = (equipOf(k) || {}).name || ""; store.set(KEY.workEquip, k);
       Object.assign(S, { table: S.src.loadTable(), tables: [], ctx: null, adhocScope: null, page: 1, rows: [], columns: [], count: 0,
-        source: null, error: "", groups: null, range: [0, 0] });
+        source: null, error: "", errorKind: "", groups: null, range: [0, 0] });
       window.LotListCard.close(); window.LotListSlicer.reset(); window.LotListMarks.reset();
       if (S.table) syncContext(true);
     }
@@ -1892,7 +1936,7 @@
       ? `<div class="ll-note-acts">${adopt ? `<button type="button" class="btn-primary" data-wl-adopt>${loose.length} 台を設備として登録して開く</button> ` : ""}`
         + `<button type="button"${adopt ? "" : ' class="btn-primary"'} data-ll-settings>作業実績の設備を開く</button></div>`
       : "<small>設備の登録・表示する設備は、マスタ管理の「作業実績」で管理する人（参照先を書き換えられる人）が決めます。</small>";
-    return `<b>作業実績の設備を選べません。</b><br>${why}${next}`;
+    return `<b>作業実績の設備を選べません。</b><br>${why}${healHtml()}${next}`;
   }
   /** 見つけた実績ファイルを設備として登録し（マスタ管理の「探す」と同じ）、設備の札を読み直して最初の設備を開く */
   async function adoptLoose() {
@@ -1920,19 +1964,22 @@
      異常ロット一覧と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   function activate({ source = "lot", currentLot } = {}) {
     const next = STATES[source] || STATES.lot;
-    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); window.LotListPivot.sync(); }
+    if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); window.LotListPivot.sync(); setZoom(savedZoom(), { reflow: false }); }
     S.currentLot = currentLot || S.currentLot || "";
     root.dataset.source = S.src.id;
     if (!S.activated && S.table) syncContext(true);
     S.activated = true;
     renderAll();
     const me = S;
-    if (S.src.id === "work" && S.equips == null) loadEquips().then(() => { if (me === S) { renderAll(); load(); } });
+    // 作業実績は開くたびに設備を読み直す（サーバーはフォルダの中身を 10 秒覚えるので、共有を読み直すのはそのとき 1 回）。
+    // 前に開いたときの「見つからない」を覚えたままにしない
+    if (S.src.id === "work") loadEquips().then(() => { if (me === S) { renderAll(); load(); } });
     else load();                  // 戻ってきたら今の写しで引き直す（ページはそのまま）
     clearInterval(pollTimer); pollTimer = setInterval(pollSource, SOURCE_POLL_MS);
   }
   function deactivate() {
     clearInterval(pollTimer); pollTimer = null;
+    clearTimeout(healTimer); healTimer = null;
     closePresetMenu(); closeCondMenu(); window.LotListCard.close();
     saveActive(); saveAdhocSetup();
   }
@@ -1940,15 +1987,15 @@
   document.addEventListener("tpa:settings-changed", (e) => {
     const key = String((e.detail || {}).key || "");
     if (key.startsWith("work_log.")) STATES.work.equips = null;
+    if (key === "master_place") { reloadEquips({ fresh: true }); return; }   // 共有のマスタへ移った: 設備の登録（キー）も替わる
     if (!root || root.classList.contains("hidden") || !key.startsWith(S.src.settingsKey)) return;
     S.page = 1;
     if (S.src.id === "work") loadEquips({ fresh: true }).then(() => { renderAll(); load(); }); else load();
   });
   // マスタ管理の「作業実績」で設備の登録（表示する・しない・結ぶファイル）が変わった → 設備の札を読み直す
-  document.addEventListener("tpa:worklog-changed", () => {
-    STATES.work.equips = null;
-    if (S.src.id === "work" && root && !root.classList.contains("hidden")) loadEquips().then(() => { renderAll(); load(); });
-  });
+  document.addEventListener("tpa:worklog-changed", () => reloadEquips());
+  // マスタ管理を閉じた（「作業実績」でファイルの状態を確かめた・ほかのマスタを直した）→ 設備のファイルを探し直して引き直す
+  document.addEventListener("tpa:masters-closed", () => reloadEquips({ fresh: true }));
   function bindEquipBar() {
     const bar = $("#llEquipBar"); if (!bar) return;
     TPA.sortable(bar, { items: () => $$(".eq-chips > .eq-chip:not([hidden])", bar), keyOf: (el) => el.dataset.equip, axis: "x",

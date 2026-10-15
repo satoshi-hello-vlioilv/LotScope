@@ -114,8 +114,8 @@
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
       <!-- 右の組（拡大・頁）。件数の行が折り返しても、2 つは離れず右に寄る -->
       <div class="ll-statusright">
-      <!-- 一覧だけを一時的に拡大（この窓を閉じると 100% に戻る）。ボタンは倍率だけ（100% でないときは強める）、つまみ・刻み・戻すは押して開く面に -->
-      <button id="llZoomBtn" type="button" class="ll-zoombtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="llZoomPop" title="一覧だけを一時的に拡大・縮小します（窓を閉じると 100% に戻ります）">
+      <!-- 一覧だけを拡大（異常ロット一覧・作業実績で別に、この PC に覚える。開き直しても同じ拡大）。ボタンは倍率だけ（100% でないときは強める）、つまみ・刻み・戻すは押して開く面に -->
+      <button id="llZoomBtn" type="button" class="ll-zoombtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="llZoomPop" title="一覧だけを拡大・縮小します（異常ロット一覧・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg><b id="llZoomBtnValue">100%</b><i aria-hidden="true">▾</i></button>
       <div class="ll-pager">
         <button id="llPrev" type="button" aria-label="前のページ">◀</button>
@@ -137,7 +137,7 @@
     </div>
     <!-- 拡大の面（つまみ・−・＋・刻み・100%に戻す） -->
     <div id="llZoomPop" class="ll-zoompop" role="dialog" aria-label="一覧の拡大" hidden>
-      <span id="llZoom" class="ll-zoom" title="一覧だけを一時的に拡大・縮小します（窓を閉じると 100% に戻ります）">
+      <span id="llZoom" class="ll-zoom" title="一覧だけを拡大・縮小します（異常ロット一覧・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
         <button id="llZoomMinus" type="button" class="ll-zpm" aria-label="小さく">−</button>
         <span class="ll-ztrack"><input id="llZoomRange" type="range" min="60" max="200" step="10" value="100" aria-label="一覧の大きさ"><span id="llZoomTicks" class="ll-zticks" aria-hidden="true"></span></span>

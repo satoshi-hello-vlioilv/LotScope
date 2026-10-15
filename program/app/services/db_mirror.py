@@ -16,6 +16,8 @@
     3. 写した後にもう一度 (大きさ, 更新時刻) と作業中の印を見て、写す前と違う・印が出ていれば捨てる（入れ替え・書き込みをまたいだ写しを使わない）
     4. PRAGMA quick_check で検査し、壊れていれば捨てて前の写しを使い続ける
     1・3 で見送ったときは、少し空けて（RETRY_AFTER_BUSY_SEC）やり直す。
+    写しがまだ1つも無いあいだ（入れた直後・初めて開く設備）は、届かない・写せないが続いても、写す間隔を待たずに
+    RETRY_UNTIL_FIRST_COPY_SEC ごとにやり直す（画面は写し終えるのを待っている。間隔まるごと待たせると、開き直すまで出ないように見える）。
     この作法は WaveLog・DataRelay（ビュワー）と同じ「共有の写し方の約束」（program/docs/SHARED_READ.md）。
 
 世代名
@@ -60,6 +62,7 @@ FIRST_WAIT_SEC = 30
 STAT_RETRY_SEC = (0.3, 0.7, 1.5)          # 書き直しの最中の一瞬の不在は待って取り直す
 RETRY_AFTER_UNREACHABLE_SEC = 10          # 届かなくなった最初の1回は早めに取り直す
 RETRY_AFTER_BUSY_SEC = 5                  # 書き手が作業中・写すあいだに入れ替わったときは、少し空けて写し直す
+RETRY_UNTIL_FIRST_COPY_SEC = 10           # 写しがまだ1つも無いあいだ（入れた直後・初めて開く設備）は、何度しくじっても間隔を待たずに写し直す
 COPY_CHUNK = 4 * 1024 * 1024              # 一気に写す（休まない。開いている時間を短くする）
 REPLACE_BUDGET_SEC = 2.0
 DEFAULT_STALE_HOURS = 36                  # 毎日の更新が1回抜けたら気づく長さ（夜中の更新時刻のずれは許す）
@@ -341,6 +344,15 @@ class DbMirror:
             pass
         return None
 
+    def _mirrored(self):
+        """いまの元から作った写しがあるか → (台帳の印, 写しの場所, あるか)。共有は見ない。"""
+        sig = self._entry().get("signature") or {}
+        local = self.mirror_path()
+        try:
+            return sig, local, bool(local) and sig.get("source") == self.remote and local.exists()
+        except OSError:
+            return sig, local, False
+
     def not_ready_text(self):
         """写しがまだ無いときに画面へ出す文（なぜ無いか＋写し終えたら出ること）。"""
         with self._lock:
@@ -352,13 +364,7 @@ class DbMirror:
         取れないものは None（「分からない」を 0 や「たった今」にしない）。"""
         out = {"remote": self.remote, "at": None, "mirrored": False, "copiedAt": None,
                "checkedAt": None, "unreachable": False, "reason": "", "interval_sec": self.interval}
-        entry = self._entry()
-        sig = entry.get("signature") or {}
-        local = self.mirror_path()
-        try:
-            mirrored = bool(local) and sig.get("source") == self.remote and local.exists()
-        except OSError:
-            mirrored = False
+        sig, local, mirrored = self._mirrored()
         out["mirrored"] = mirrored
         if mirrored:
             if isinstance(sig.get("mtime_ns"), (int, float)):
@@ -390,6 +396,8 @@ class DbMirror:
             return min(self.interval, RETRY_AFTER_UNREACHABLE_SEC)
         if st.get("busy"):
             return min(self.interval, RETRY_AFTER_BUSY_SEC)
+        if not self._mirrored()[2]:
+            return min(self.interval, RETRY_UNTIL_FIRST_COPY_SEC)
         return self.interval
 
     def _loop(self):
