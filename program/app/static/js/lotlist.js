@@ -630,7 +630,7 @@
           <button id="llColBtn" type="button" class="ll-colbtn" title="この一覧に出す列・並び・幅・書式・読み替えをまとめて設定します">
             <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11M10.5 2.5v11"/></svg>表示列</button>
           <button id="llViewBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="行間・並び・表示件数と、機能（ロット番号でまとめる・カード）の使う／使わないを決めます">表の見せ方 ▾</button>
-          <button id="llProfileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="llProfileMenu" title="この PC の一覧の表示（表示列・スライサー・並び・見せ方・登録した条件）を書き出す・読み込む・初期設定に戻す">表示の設定 ▾</button>
+          <button id="llProfileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="llProfileMenu" title="この PC の表示（異常ロット一覧・作業実績の両方の表示列・スライサー・並び・見せ方・登録した条件）を書き出す・読み込む・初期設定に戻す">表示の設定 ▾</button>
           <!-- Excel に出力（表示の道具の後ろ＝最後にする行動の位置。7 案＋2 回目で選んだ: ui-proposals/2026-10-excel*） -->
           <button id="llExcelBtn" type="button" class="ll-xlbtn" title="いまの検索・条件・スライサー・並びに当たる全件を、表示列の見え方のまま Excel（.xlsx）に出します&#10;作業でまとめているときは、日・直ごとのロット数のシートも出します"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m-3-3 3 3 3-3M3 12.5h10"/></svg>Excel に出力</button>
         </div>
@@ -958,7 +958,7 @@
       window.TPA_UI_PROFILE = { keys: d.keys, defaults: d.defaults, updatedAt: d.updatedAt, updatedBy: d.updatedBy }; } catch (_) { /* 置けるかは分からない＝出さない */ }
     const who = P.defaultsWho();
     const item = (act, title, note, extra = "") => `<button type="button" role="menuitem" data-act="${act}"${extra}><b>${title}</b><small>${note}</small></button>`;
-    m.innerHTML = item("export", "書き出し…", "表示列・スライサー・並び・見せ方・登録した条件を 1 つのファイルに")
+    m.innerHTML = item("export", "書き出し…", "異常ロット一覧・作業実績の両方の表示列・スライサー・並び・見せ方・登録した条件を 1 つのファイルに")
       + item("import", "読み込み…", "書き出したファイルから、この PC の表示を置き換えます")
       + item("reset", "初期設定に戻す", P.hasDefaults() ? `開発者が配った見せ方（${esc(who)}）に戻します` : "初期設定はまだ配られていません", P.hasDefaults() ? "" : " disabled")
       + (can ? `<div class="pf-dev">${item("publish", '今の表示を初期設定にする <i>開発者</i>', "新しく入れた PC が最初に開いたときの見せ方になります（全員の PC に効きます）")}</div>` : "")
@@ -971,7 +971,7 @@
     m.onclick = async (e) => {
       const x = e.target.closest("[data-act]"); if (!x || x.disabled) return;
       try {
-        if (x.dataset.act === "export") { const n = P.exportFile(); say(`${n} 項目を書き出しました`); }
+        if (x.dataset.act === "export") { const name = P.fileName(), n = P.exportFile(name); say(`${n} 項目を「${name}」に書き出しました`); }
         else if (x.dataset.act === "import") { say("読み込んでいます…"); if ((await P.importFile()) == null) say("読み込みをやめました"); }
         else if (x.dataset.act === "reset") { if (confirm("この PC の一覧の表示を、開発者が配った初期設定に戻します（今の表示列・スライサー・並び・登録した条件は置き換わります）。よろしいですか？")) await P.resetToDefaults(); }
         else if (x.dataset.act === "publish") {

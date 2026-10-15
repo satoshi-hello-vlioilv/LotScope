@@ -25,7 +25,15 @@
     try { await TPA.saveUiState(); } catch (_) { /* 送れなくても手元には入った */ }
     location.reload();
   }
-  function exportFile(name = "異常ロット一覧_表示の設定.json") {
+  /** 書き出すファイルの名前: 「アプリ名_表示の設定_年-月-日.json」（版 3.32.1）。中身は異常ロット一覧と作業実績の両方の表示なので、
+      片方の画面の名前は付けない（以前は「異常ロット一覧_表示の設定.json」で、作業実績の設定も入っているのに名前が合わなかった）。
+      アプリ名は app/brand.json（画面の <meta name="tpa-app">）。日付はこの PC の日付（何度か書き出しても見分けられる） */
+  function fileName(now = new Date()) {
+    const app = document.querySelector('meta[name="tpa-app"]')?.content || "アプリ";
+    const p = (n) => String(n).padStart(2, "0");
+    return `${app}_表示の設定_${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}.json`;
+  }
+  function exportFile(name = fileName()) {
     const items = Object.entries(current()).map(([key, value]) => ({ key, value }));
     TPA.saveJson(KIND, items, name);
     return items.length;
@@ -57,5 +65,5 @@
     const at = String(p.updatedAt || "").slice(5, 16).replace("T", " ").replace("-", "/");
     return [at, by].filter(Boolean).join(" ");
   }
-  window.LotListProfile = { exportFile, importFile, resetToDefaults, publish, hasDefaults, defaultsWho, current };
+  window.LotListProfile = { exportFile, fileName, importFile, resetToDefaults, publish, hasDefaults, defaultsWho, current };
 })();
