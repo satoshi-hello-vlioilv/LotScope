@@ -263,7 +263,7 @@ function paintPlace(news) {
       ${cur.revision != null ? `<span class="place-meta">版 ${cur.revision}${by}</span>` : ""}
       ${p.caution ? `<span class="place-caution" title="${escapeHtml(p.caution)}">⚠ 同期フォルダ（同時の保存で片方が消えることがあります）</span>` : ""}`;
   }
-  html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える">置き場を変える ›</button>';
+  html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える。全員の PC がそろっているかも出ます">マスタの置き場 ›</button>';
   if (news && news.length) html += `<span class="place-news">${news.map(escapeHtml).join(" ／ ")}</span>`;
   el.innerHTML = html;
   const go = $("#masterPlaceGo");
@@ -1010,7 +1010,7 @@ function paintRelease(d, freshness) {
   const box = $("#masterSettings");
   const me = d.me || {};
   const placeBtn = me.canRelease && !mstate.releaseBusy
-    ? '<button type="button" class="pz-btn dz-place-btn" id="dzPlaceBtn" aria-expanded="false" aria-controls="dzPlaceBox" title="配布の置き場の場所・フォルダの名前を変えます（置いてある版を写して、全員の PC の参照先を切り替えます）">置き場を変える…</button>' : "";
+    ? '<button type="button" class="pz-btn dz-place-btn" id="dzPlaceBtn" aria-expanded="false" aria-controls="dzPlaceBox" title="配布の置き場の場所・フォルダの名前を変えます（置いてある版を写して、全員の PC の参照先を切り替えます）">配布の置き場を変える…</button>' : "";
   if (!d.reachable) {
     box.innerHTML = `<p class="dz-where">${releaseFreshHtml(d, freshness)}</p><div class="dz-bad"><b>更新の置き場に届きません。</b>${escapeHtml(d.why || "")}<br>
       「参照先」タブの「更新の置き場」を確かめてください（BOX の同期・権限も）。各 PC は届かないあいだ、いまの版のまま開きます。
@@ -1198,6 +1198,7 @@ async function renderMasterPlace() {
   if (mstate.tab !== "place") return;
   if (!r.ok) { box.innerHTML = `<p class="ps-loading">置き場を読めませんでした: ${escapeHtml(r.data.error || "")}</p>`; return; }
   const d = r.data, [tag, cls, what] = placeState(d), shared = d.mode === "shared";
+  mstate.placeInfo = d;
   const where = shared ? `<code>${escapeHtml(d.dir)}</code>` : "<b>この PC の中だけ</b>";
   const from = !shared ? "" : d.override ? "この PC で選んだ置き場です（設定ファイルより先に使います）。" : "設定ファイル（master_share.dir）で決めた置き場です。";
   const hist = (d.history || []).map((h) => `<li><span>${h.dir ? `<code>${escapeHtml(h.dir)}</code>` : "この PC の中だけ（手元のみ）"}</span>
@@ -1285,6 +1286,55 @@ async function moveMasterPlace(cur, a, pl, say) {
   const done = `✓ マスタの置き場を ${r.data.dest} に変えました。` + (pin.ok ? "配る版の覚えにも書いたので、全員の PC が数秒〜30 分で移ります。" : "") + (warn ? `\n${warn}` : "");
   $("#mpState")?.insertAdjacentHTML("beforebegin", `<div class="ps-result ${warn ? "wait" : "ok"}" style="white-space:pre-line">${escapeHtml(done)}</div>`);
   emit("tpa:settings-changed", { key: "master_place" });
+}
+/* ---------------- 全員のマスタの置き場（配る版の覚え distribute.json の masters。版 3.34.0） ----------------
+   配る版と一緒に全員の PC へ届き、各 PC はその置き場へ移る（MasterStore.follow_moved）。この PC の置き場（mstate.place.dir）と比べ、
+   ずれていれば直す 2 つの手: 「この PC をそろえる」（この PC を全員の置き場へ切り替える）・「この置き場を配る」（この PC の置き場を全員に） */
+const samePlace = (a, b) => String(a || "").replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase() === String(b || "").replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+/** 長いパスは先頭（サーバー）と末尾の 2 段を残して真ん中を縮める（どの置き場かは末尾で分かる。全文は title に） */
+function shortPath(p, keep = 2) {
+  const s = String(p || ""), unc = s.startsWith("\\\\"), parts = s.replace(/^\\\\/, "").split(/[\\/]/).filter(Boolean);
+  if (parts.length <= keep + 1) return s;
+  return (unc ? "\\\\" : "") + [parts[0], "…", ...parts.slice(-keep)].join("\\");
+}
+/** 全員のマスタの置き場の札（pin: {dir, setAt, setBy, setPc}）。→ {html, off} */
+function pinRow(pin, where) {
+  const mine = (mstate.place && mstate.place.mode === "shared" && mstate.place.dir) || "";
+  const off = !samePlace(pin.dir, mine);
+  const tip = `${stamp(pin.setAt) || ""} ${[pin.setBy, pin.setPc].filter(Boolean).join("（") + (pin.setPc && pin.setBy ? "）" : "")} が配りました。配る版と一緒に全員の PC へ届き、`
+    + "各 PC は起動したとき・30 分ごとに受け取って、数秒でこの置き場へ移ります。マスタの置き場を変えると、ここも新しい置き場になります。";
+  const can = !!(mstate.place && mstate.data.release && mstate.data.release.me && mstate.data.release.me.canRelease) || !!(mstate.placeInfo && mstate.placeInfo.canChange);
+  const mineText = mine ? shortPath(mine, 2) : "この PC の中だけ";
+  const fix = can ? '<button type="button" class="pz-btn dz-go" data-pin="follow" title="この PC のマスタの置き場を、全員の置き場に切り替えます（写さずに切り替える）">この PC をそろえる</button>'
+    + `<button type="button" class="pz-btn" data-pin="publish" title="この PC の置き場（${escapeHtml(mine || "手元のみ")}）を、配る版の覚えに書いて全員に配ります">この置き場を配る</button>` : "";
+  const html = `<div class="pin-row${off ? " is-off" : ""}${where === "place" ? " pin-place" : ""}" title="${escapeHtml(tip)}"><b>全員のマスタの置き場</b>`
+    + `<code title="${escapeHtml(pin.dir)}">${escapeHtml(shortPath(pin.dir))}</code>`
+    + (off ? `<span class="m-chip c-warn" title="${escapeHtml(mine || "手元のみ")}">この PC は別: ${escapeHtml(mineText)}</span><span class="pin-sp"></span>${fix}`
+      : `<span class="m-chip c-on">✓ この PC も同じ</span><span class="pin-sp"></span>${where === "release" ? '<button type="button" class="pz-btn" data-pin="go">マスタの置き場 ›</button>' : ""}`)
+    + "</div>";
+  return { html, off };
+}
+/** 札の手（data-pin）を結ぶ。done: 済んだら描き直す */
+function bindPinRow(box, pin, done) {
+  box.querySelectorAll("[data-pin]").forEach((b) => {
+    b.onclick = async () => {
+      if (b.dataset.pin === "go") { await openMasterAt("place"); return; }
+      b.disabled = true;
+      let ok, why = "";
+      if (b.dataset.pin === "follow") {
+        const s = String(pin.dir).replace(/[\\/]+$/, ""), i = Math.max(s.lastIndexOf("\\"), s.lastIndexOf("/"));
+        const r = await masterRequest("/api/masters/place/move", TPA.json("POST", { parent: s.slice(0, i), name: s.slice(i + 1) }));
+        ok = r.ok; why = r.data && r.data.error;
+        if (ok) { Object.keys(mstate.data).forEach((k) => { mstate.data[k] = null; }); mstate.loadedRev = {}; emit("tpa:settings-changed", { key: "master_place" }); }
+      } else {
+        const r = await pinMasters("");
+        ok = r.ok; why = r.why;
+      }
+      await refreshPlace();
+      if (!ok) { b.disabled = false; b.title = `できませんでした: ${why || ""}`; b.textContent = "できませんでした"; return; }
+      done();
+    };
+  });
 }
 /** 全員が使うマスタの置き場を、配る版の覚え（distribute.json の masters）に書く（desktop/src/distribute.rs の set_masters）。
     dir が空なら、この PC がいま使う置き場。→ {ok, why, masters} */
