@@ -1320,7 +1320,9 @@ function pinCount(dir) {
     そろっているときは軽く、ずれているときだけ橙の行と直す 2 つの手（この PC をそろえる・この PC の置き場を配る） */
 function pinLine(pin, { canPin, distributed }) {
   const mine = (mstate.place && mstate.place.mode === "shared" && mstate.place.dir) || "";
-  const publish = canPin && distributed ? `<button type="button" class="pz-btn" data-pin="publish" title="この PC の置き場（${escapeHtml(mine || "手元のみ")}）を、配る版の覚えに書いて全員に配ります">この PC の置き場を配る</button>` : "";
+  // この PC が手元のみなら、配る置き場が無い（窓は空の置き場を書かない）。ボタンは出さず、理由を出す
+  const publish = canPin && distributed && !mine ? '<span class="pin-none" title="この PC のマスタは手元のみ（この PC の中だけ）なので、全員へ配れません。全員へ配るには、マスタの置き場を共有フォルダにしてください">この PC は手元のみ（配れません）</span>'
+    : canPin && distributed ? `<button type="button" class="pz-btn" data-pin="publish" title="この PC の置き場（${escapeHtml(mine || "手元のみ")}）を、配る版の覚えに書いて全員に配ります">この PC の置き場を配る</button>` : "";
   if (!pin || !pin.dir) {
     return `<div class="pin-line"><b>全員のマスタの置き場</b><span class="pin-none">${distributed ? "まだ配っていません（各 PC は、前の置き場の印をたどって移ります）" : "配る版を決めると、決めた人の PC の置き場を一緒に全員へ配ります"}</span><span class="pin-sp"></span>${publish}</div>`;
   }

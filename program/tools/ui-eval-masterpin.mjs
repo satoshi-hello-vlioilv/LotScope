@@ -23,6 +23,7 @@ const look = (p) => p.evaluate(() => {
     over: pane ? pane.scrollWidth > pane.clientWidth + 1 : null,
     head: document.querySelector("#masterPlaceGo")?.textContent || "",
     note: [...document.querySelectorAll("#masterSettings .mp-sub")].map((x) => x.textContent).join(" "),
+    text: (document.querySelector("#masterSettings .pin-2")?.textContent || "").replace(/\s+/g, " "),
   };
 });
 
@@ -41,12 +42,23 @@ try {
     check(`① ${tag} 配布の画面のいちばん上が「配布の置き場」「全員のマスタの置き場」の 2 行`, rel.lines.length === 2 && a.head === "配布の置き場" && b.head === "全員のマスタの置き場", rel.lines);
     check(`① ${tag} 全員の行: 置き場の字が末尾まで読める・この PC は別・届かない札・ずれた行は橙`,
       /Masters$/.test(b.code) && !b.codeCut && b.chips.some((c) => /この PC は別/.test(c)) && b.chips.some((c) => /届きません/.test(c)) && b.off, b);
-    check(`① ${tag} ボタンの言葉が分かれている（配布の置き場を変える… ／ この PC の置き場を配る）`,
-      a.buttons.includes("配布の置き場を変える…") && b.buttons.includes("この PC の置き場を配る") && !b.buttons.includes("この PC をそろえる"), { a: a.buttons, b: b.buttons });
+    check(`① ${tag} ボタンの言葉が分かれている（配布の置き場を変える…）・手元のみの PC には「この PC の置き場を配る」を出さず、理由を出す`,
+      a.buttons.includes("配布の置き場を変える…") && !b.buttons.length && /手元のみ（配れません）/.test(rel.text), { a: a.buttons, b: b.buttons, text: rel.text });
     check(`③ ${tag} 見出し帯のボタンは「マスタの置き場 ›」`, rel.head === "マスタの置き場 ›", rel.head);
     check(`⑤ ${tag} 配布の画面が横にはみ出さない`, rel.over === false, rel.over);
-    await p.click('#masterSettings [data-pin="publish"]'); await sleep(1500);
-    check(`④ ${tag} 「この PC の置き場を配る」で /__desktop/release/masters へ送る（この PC の置き場＝空で送る）`, posted && posted.dir === "", posted);
+    // ④ 共有の置き場を使っている PC の形にして（mstate.place を共有に）、「この PC の置き場を配る」で /__desktop/release/masters へ送る
+    await p.evaluate(async () => {
+      const r = await fetch("/api/masters/status"); const d = await r.json();
+      d.mode = "shared"; d.dir = "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Apps\\LotScope";
+      const orig = window.fetch; window.fetch = (u, o) => (String(u).startsWith("/api/masters/status") ? Promise.resolve(new Response(JSON.stringify(d), { status: 200, headers: { "Content-Type": "application/json" } })) : orig(u, o));
+    });
+    await p.click("#masterCloseBtn"); await sleep(400); await p.click("#masterBtn"); await sleep(900);   // 開き直すと置き場を読み直す
+    await tab(p, "release");
+    const shared = await look(p);
+    const pinBtn = shared.lines[1] ? shared.lines[1].buttons : [];
+    check(`④ ${tag} 共有の置き場の PC には「この PC の置き場を配る」が出る`, pinBtn.includes("この PC の置き場を配る"), shared.lines[1]);
+    if (pinBtn.includes("この PC の置き場を配る")) { await p.click('#masterSettings [data-pin="publish"]'); await sleep(1500); }
+    check(`④ ${tag} 押すと /__desktop/release/masters へ送る（この PC の置き場＝空で送る）`, posted && posted.dir === "", posted);
     await tab(p, "place");
     const pl = await look(p);
     check(`② ${tag} マスタの置き場の画面に同じ形の行（同じ題・同じ札）`, pl.lines.length === 1 && pl.lines[0].head === "全員のマスタの置き場"
