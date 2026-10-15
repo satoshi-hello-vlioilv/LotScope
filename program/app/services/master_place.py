@@ -19,10 +19,9 @@ import uuid
 from pathlib import Path
 
 from ..fsio import unquote_path, write_json_atomic
-from ..repositories.master_store import MOVED_FILENAME, _iso, _now
+from ..repositories.master_store import MASTER_MARKERS, MOVED_FILENAME, _iso, _now
 from .release_place import _inside, _same, check_name
 
-MASTER_MARKERS = ("equipment_master.json", "roll_master.json", "path_settings.json")   # 既にマスタの置き場か
 # クラウドの同期フォルダ（フォルダ名 → 呼び名）。同期フォルダでは錠が PC ごとに別々のファイルになり（同期は後から）、
 # 2 人が同時に保存すると片方の変更が消える・衝突のコピーができる（docs/MASTER_SHARE_DESIGN.md「ファイルサーバーを使う」）
 SYNC_FOLDERS = {"box": "Box", "boxdrive": "Box", "onedrive": "OneDrive", "dropbox": "Dropbox", "google drive": "Google ドライブ",
@@ -122,7 +121,12 @@ def move(store, parent, name) -> dict:
             if tmp.exists():
                 tmp.rmdir()
             raise ValueError(f"写せませんでした: {e}") from e
-    store.retarget(dest)
+    # 戻した先（前に使っていた置き場）に残っている引っ越し先の印は、もう古い。残すとほかの PC がたどって輪になる（版 3.34.0）
+    try:
+        (dest / MOVED_FILENAME).unlink(missing_ok=True)
+    except OSError:
+        pl["warning"] = f"切り替えた置き場（{dest}）に残っていた前の引っ越し先の印を消せませんでした。"
+    store.retarget(dest, chosen=True)
     if old and old.is_dir() and not _same(old, dest):
         try:   # 前の置き場に引っ越し先の印（ほかの PC がたどる）
             write_json_atomic(old / MOVED_FILENAME, {"to": str(dest), "at": _iso(_now()), "by": dict(store.who)})

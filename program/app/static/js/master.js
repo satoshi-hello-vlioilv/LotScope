@@ -263,7 +263,7 @@ function paintPlace(news) {
       ${cur.revision != null ? `<span class="place-meta">版 ${cur.revision}${by}</span>` : ""}
       ${p.caution ? `<span class="place-caution" title="${escapeHtml(p.caution)}">⚠ 同期フォルダ（同時の保存で片方が消えることがあります）</span>` : ""}`;
   }
-  html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える">置き場を変える ›</button>';
+  html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える。全員の PC がそろっているかも出ます">マスタの置き場 ›</button>';
   if (news && news.length) html += `<span class="place-news">${news.map(escapeHtml).join(" ／ ")}</span>`;
   el.innerHTML = html;
   const go = $("#masterPlaceGo");
@@ -1010,7 +1010,7 @@ function paintRelease(d, freshness) {
   const box = $("#masterSettings");
   const me = d.me || {};
   const placeBtn = me.canRelease && !mstate.releaseBusy
-    ? '<button type="button" class="pz-btn dz-place-btn" id="dzPlaceBtn" aria-expanded="false" aria-controls="dzPlaceBox" title="配布の置き場の場所・フォルダの名前を変えます（置いてある版を写して、全員の PC の参照先を切り替えます）">置き場を変える…</button>' : "";
+    ? '<button type="button" class="pz-btn dz-place-btn" id="dzPlaceBtn" aria-expanded="false" aria-controls="dzPlaceBox" title="配布の置き場の場所・フォルダの名前を変えます（置いてある版を写して、全員の PC の参照先を切り替えます）">配布の置き場を変える…</button>' : "";
   if (!d.reachable) {
     box.innerHTML = `<p class="dz-where">${releaseFreshHtml(d, freshness)}</p><div class="dz-bad"><b>更新の置き場に届きません。</b>${escapeHtml(d.why || "")}<br>
       「参照先」タブの「更新の置き場」を確かめてください（BOX の同期・権限も）。各 PC は届かないあいだ、いまの版のまま開きます。
@@ -1052,7 +1052,10 @@ function paintRelease(d, freshness) {
       <td>${escapeHtml(stamp(v.placedAt) || "-")} ${escapeHtml([v.placedPc, v.placedBy].filter(Boolean).join("／"))}</td>
       <td><span class="m-ident">${escapeHtml(v.source || v.zip || "-")}</span></td><td class="num">${MB(v.bytes)}</td><td class="pz-acts">${act}</td></tr>`;
   }).join("");
-  box.innerHTML = `<p class="dz-where">置き場 <code>${escapeHtml(d.found)}</code>${d.adjusted ? "（この PC での BOX の見え方に合わせて探しました）" : ""} ${chip("届いています", "c-on")} ${releaseFreshHtml(d, freshness)} ${placeBtn}</p>
+  // いちばん上は 2 行（配布の置き場・全員のマスタの置き場）。配る版と一緒に全員へそろう物を、同じ形の行で並べる（版 3.34.0）
+  const pin = dist && dist.masters, pinOpt = { canPin: !!me.canRelease, distributed: !!cur };
+  box.innerHTML = `<div class="pin-2"><div class="pin-line"><b>配布の置き場</b><code title="${escapeHtml(d.found)}">${escapeHtml(d.found)}</code>${d.adjusted ? '<small class="pin-note">（この PC での BOX の見え方に合わせて探しました）</small>' : ""}${chip("届いています", "c-on")}${releaseFreshHtml(d, freshness)}<span class="pin-sp"></span>${placeBtn}</div>
+    <div class="pin-masters">${pinLine(pin, pinOpt)}</div></div>
     <div class="dz-place" id="dzPlaceBox" hidden></div>
     ${flow}${entry}<div class="dz-put">${put}</div>
     <div class="master-table-wrap pz-wrap"><table class="master-table pz-table">
@@ -1064,6 +1067,9 @@ function paintRelease(d, freshness) {
   const copy = $("#dzCopy"); if (copy) copy.onclick = () => navigator.clipboard.writeText(d.entry.path).then(() => { copy.textContent = "コピーしました"; });
   box.querySelectorAll("[data-dist]").forEach((b) => { b.onclick = () => distributeRelease(b.dataset.dist, d); });
   box.querySelectorAll("[data-remove]").forEach((b) => { b.onclick = () => armRemove(b); });
+  const paintPin = () => { const m = box.querySelector(".pin-masters"); if (!m) return; m.innerHTML = pinLine(pin, pinOpt); bindPinLine(m, pin || {}, () => renderRelease({ fresh: true })); };
+  paintPin();
+  if (!mstate.placeInfo) loadPlaceInfo().then(() => { if (mstate.tab === "release") paintPin(); });   // 置き場ごとに使っている PC の数（あとから）
   bindReleasePlace(d);
   paintReleaseProgress();
 }
@@ -1198,17 +1204,21 @@ async function renderMasterPlace() {
   if (mstate.tab !== "place") return;
   if (!r.ok) { box.innerHTML = `<p class="ps-loading">置き場を読めませんでした: ${escapeHtml(r.data.error || "")}</p>`; return; }
   const d = r.data, [tag, cls, what] = placeState(d), shared = d.mode === "shared";
+  mstate.placeInfo = d;
   const where = shared ? `<code>${escapeHtml(d.dir)}</code>` : "<b>この PC の中だけ</b>";
   const from = !shared ? "" : d.override ? "この PC で選んだ置き場です（設定ファイルより先に使います）。" : "設定ファイル（master_share.dir）で決めた置き場です。";
   const hist = (d.history || []).map((h) => `<li><span>${h.dir ? `<code>${escapeHtml(h.dir)}</code>` : "この PC の中だけ（手元のみ）"}</span>
     <small>${escapeHtml(stamp(h.until) || "")} まで${h.by && (h.by.pc || h.by.login) ? `・${escapeHtml(whoText(h.by))} が変えた` : ""}</small></li>`).join("");
+  const rel = mstate.data.release && mstate.data.release.distributed;
   box.innerHTML = `<section class="mp-page">
     <div class="mp-now"><span class="mp-tag ${cls}">${tag}</span><div><div class="mp-where">${where}</div><small>${escapeHtml(what)}${from ? " " + escapeHtml(from) : ""}</small></div></div>
-    <div class="mp-sec"><h3>置き場を変える</h3>${d.canChange ? '<div class="dz-place mp-form" id="mpForm"></div>'
+    <div class="pin-2 pin-masters">${pinLine(d.pin, { canPin: d.canChange, distributed: !!(rel || d.pin) })}</div>
+    <div class="mp-sec"><h3>置き場を変える</h3><small class="mp-sub">変えると、配る版の覚えにも新しい置き場を書きます。全員の PC が、起動したとき・30 分ごとに受け取って移ります。</small>${d.canChange ? '<div class="dz-place mp-form" id="mpForm"></div>'
       : `<p class="mp-why">${escapeHtml(d.why || "この PC では置き場を変えられません。")}<br>変えるときは、開発者・メンテナンス者の PC から変えてください。</p>`}</div>
     <div class="mp-sec"><h3>これまでの置き場</h3><small class="mp-sub">前の置き場のマスタは消さずに残しています。戻すときは、上で前の置き場を選ぶと写さずに切り替わります。</small>
       ${hist ? `<ul class="mp-hist">${hist}</ul>` : '<p class="mp-none">まだ変えていません。</p>'}</div>
   </section>`;
+  bindPinLine(box.querySelector(".pin-masters"), d.pin || {}, () => renderMasterPlace());
   if (d.canChange) openMasterPlaceForm(d);
 }
 function openMasterPlaceForm(d) {
@@ -1274,14 +1284,95 @@ async function moveMasterPlace(cur, a, pl, say) {
   say("wait", pl.mode === "switch" ? "切り替えています…" : "写しています…");
   const r = await masterRequest("/api/masters/place/move", TPA.json("POST", a));
   if (!r.ok) { say("ng", "✕ " + escapeHtml(r.data.error || "変えられませんでした。")); go.disabled = false; return; }
+  // 配る版の覚えにも新しい置き場を書く（全員の PC が更新を確かめるたびに受け取って移る。版 3.34.0）。窓の外・配る版がまだ無いときは書けない
+  const pin = await pinMasters(r.data.dest);
   Object.keys(mstate.data).forEach((k) => { mstate.data[k] = null; });   // マスタは新しい置き場から読み直す
   mstate.loadedRev = {};
   await refreshPlace();
   buildMasterTabs();
   await renderMasterPlace();
-  const done = `✓ マスタの置き場を ${r.data.dest} に変えました。` + (r.data.warning ? `\n${r.data.warning}` : "");
-  $("#mpState")?.insertAdjacentHTML("beforebegin", `<div class="ps-result ${r.data.warning ? "wait" : "ok"}" style="white-space:pre-line">${escapeHtml(done)}</div>`);
+  const warn = [r.data.warning, pin.ok ? "" : `配る版の覚えに新しい置き場を書けませんでした（${pin.why}）。ほかの PC は前の置き場の印をたどって移ります。`].filter(Boolean).join("\n");
+  const done = `✓ マスタの置き場を ${r.data.dest} に変えました。` + (pin.ok ? "配る版の覚えにも書いたので、全員の PC が数秒〜30 分で移ります。" : "") + (warn ? `\n${warn}` : "");
+  $("#mpState")?.insertAdjacentHTML("beforebegin", `<div class="ps-result ${warn ? "wait" : "ok"}" style="white-space:pre-line">${escapeHtml(done)}</div>`);
   emit("tpa:settings-changed", { key: "master_place" });
+}
+/* ---------------- 全員のマスタの置き場（配る版の覚え distribute.json の masters。版 3.34.0） ----------------
+   配る版と一緒に全員の PC へ届き、各 PC はその置き場へ移る（MasterStore.follow_moved）。この PC の置き場（mstate.place.dir）と比べ、
+   ずれていれば直す 2 つの手: 「この PC をそろえる」（この PC を全員の置き場へ切り替える）・「この置き場を配る」（この PC の置き場を全員に） */
+const samePlace = (a, b) => String(a || "").replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase() === String(b || "").replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+/** 長いパスは先頭（サーバー）と末尾の 2 段を残して真ん中を縮める（どの置き場かは末尾で分かる。全文は title に） */
+function shortPath(p, keep = 2) {
+  const s = String(p || ""), unc = s.startsWith("\\\\"), parts = s.replace(/^\\\\/, "").split(/[\\/]/).filter(Boolean);
+  if (parts.length <= keep + 1) return s;
+  return (unc ? "\\\\" : "") + [parts[0], "…", ...parts.slice(-keep)].join("\\");
+}
+/** 置き場ごとの「いま使っている PC」（/api/masters/place の using）から、その置き場の台数と、ほかの置き場に残っている台数 */
+function pinCount(dir) {
+  const using = (mstate.placeInfo && mstate.placeInfo.using) || [];
+  const here = using.find((u) => samePlace(u.dir, dir)), rest = using.filter((u) => !samePlace(u.dir, dir) && u.pcs.length);
+  const names = (list) => list.map((x) => x.pc || x.login).join("・");
+  const others = rest.reduce((n, u) => n + u.pcs.length, 0);
+  if (here && !here.reachable) return chip("この PC から届きません", "c-warn", `${dir} に届きません（この PC の見え方・つながりを確かめてください）。届かないあいだ、この PC は今の置き場のまま使います`);
+  return (here ? chip(`使っている PC ${here.pcs.length} 台`, "c-plain", here.pcs.length ? `いまこの置き場を使っている PC: ${names(here.pcs)}` : "いまこの置き場を使っている PC はありません") : "")
+    + (others ? chip(`前の置き場に ${others} 台`, "c-warn", rest.map((u) => `${u.dir}: ${names(u.pcs)}`).join("\n") + "\n（起動したとき・30 分ごとに、全員の置き場へ移ります）") : "");
+}
+/** 全員のマスタの置き場の行（配る版の覚えの masters。pin が無ければ、まだ配っていない）。I3（ui-proposals/2026-10-masterpin*: 3 回の比べで 1 位）。
+    そろっているときは軽く、ずれているときだけ橙の行と直す 2 つの手（この PC をそろえる・この PC の置き場を配る） */
+function pinLine(pin, { canPin, distributed }) {
+  const mine = (mstate.place && mstate.place.mode === "shared" && mstate.place.dir) || "";
+  // この PC が手元のみなら、配る置き場が無い（窓は空の置き場を書かない）。ボタンは出さず、理由を出す
+  const publish = canPin && distributed && !mine ? '<span class="pin-none" title="この PC のマスタは手元のみ（この PC の中だけ）なので、全員へ配れません。全員へ配るには、マスタの置き場を共有フォルダにしてください">この PC は手元のみ（配れません）</span>'
+    : canPin && distributed ? `<button type="button" class="pz-btn" data-pin="publish" title="この PC の置き場（${escapeHtml(mine || "手元のみ")}）を、配る版の覚えに書いて全員に配ります">この PC の置き場を配る</button>` : "";
+  if (!pin || !pin.dir) {
+    return `<div class="pin-line"><b>全員のマスタの置き場</b><span class="pin-none">${distributed ? "まだ配っていません（各 PC は、前の置き場の印をたどって移ります）" : "配る版を決めると、決めた人の PC の置き場を一緒に全員へ配ります"}</span><span class="pin-sp"></span>${publish}</div>`;
+  }
+  const off = !samePlace(pin.dir, mine);
+  const who = [pin.setBy, pin.setPc].filter(Boolean).join("・");
+  const tip = `${stamp(pin.setAt) || ""}${who ? ` ${who}` : ""} が配りました。配る版と一緒に全員の PC へ届き、各 PC は起動したとき・30 分ごとに受け取って、数秒でこの置き場へ移ります。マスタの置き場を変えると、ここも新しい置き場になります。`;
+  const using = ((mstate.placeInfo && mstate.placeInfo.using) || []).find((u) => samePlace(u.dir, pin.dir));
+  const reach = !using || using.reachable;   // 届かない置き場へは、そろえられない（そろえる手を出さない）
+  const fix = canPin && reach ? '<button type="button" class="pz-btn dz-go" data-pin="follow" title="この PC のマスタの置き場を、全員の置き場に切り替えます（写さずに切り替える）">この PC をそろえる</button>' + publish : canPin ? publish : "";
+  return `<div class="pin-line${off ? " is-off" : ""}" title="${escapeHtml(tip)}"><b>全員のマスタの置き場</b><code title="${escapeHtml(pin.dir)}">${escapeHtml(shortPath(pin.dir))}</code>`
+    + (off ? chip(`この PC は別: ${mine ? shortPath(mine, 2) : "手元のみ"}`, "c-warn", mine || "この PC の中だけ（手元のみ）") : chip("✓ この PC も同じ", "c-on"))
+    + pinCount(pin.dir) + `<span class="pin-sp"></span>${off ? fix : ""}</div>`;
+}
+/** 行の手（data-pin）を結ぶ。done: 済んだら描き直す */
+function bindPinLine(box, pin, done) {
+  box.querySelectorAll("[data-pin]").forEach((b) => {
+    b.onclick = async () => {
+      b.disabled = true;
+      let ok, why = "";
+      if (b.dataset.pin === "follow") {
+        const s = String(pin.dir).replace(/[\\/]+$/, ""), i = Math.max(s.lastIndexOf("\\"), s.lastIndexOf("/"));
+        const r = await masterRequest("/api/masters/place/move", TPA.json("POST", { parent: s.slice(0, i), name: s.slice(i + 1) }));
+        ok = r.ok; why = r.data && r.data.error;
+        if (ok) { Object.keys(mstate.data).forEach((k) => { if (k !== "release") mstate.data[k] = null; }); mstate.loadedRev = {}; emit("tpa:settings-changed", { key: "master_place" }); }
+      } else {
+        const r = await pinMasters("");
+        ok = r.ok; why = r.why;
+      }
+      await refreshPlace();
+      await loadPlaceInfo();
+      if (!ok) { b.disabled = false; b.title = `できませんでした: ${why || ""}`; b.textContent = "できませんでした"; return; }
+      done();
+    };
+  });
+}
+/** マスタの置き場の答え（/api/masters/place: この PC の置き場・配る版の覚えの置き場・置き場ごとに使っている PC）を読む */
+async function loadPlaceInfo() {
+  const r = await masterRequest("/api/masters/place", { cache: "no-store" });
+  if (r.ok) mstate.placeInfo = r.data;
+  return r.ok ? r.data : null;
+}
+/** 全員が使うマスタの置き場を、配る版の覚え（distribute.json の masters）に書く（desktop/src/distribute.rs の set_masters）。
+    dir が空なら、この PC がいま使う置き場。→ {ok, why, masters} */
+async function pinMasters(dir = "") {
+  try {
+    const r = await fetch("/__desktop/release/masters", TPA.json("POST", { dir }));
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) mstate.data.release = null;      // 配布の画面は次に開いたとき読み直す
+    return r.ok ? { ok: true, masters: d.masters } : { ok: false, why: d.error || (r.status === 404 ? "デスクトップ版の窓の中でだけ書けます" : `答え ${r.status}`) };
+  } catch (e) { return { ok: false, why: e.message }; }
 }
 const cmpVer = (a, b) => { const x = a.split(".").map(Number), y = b.split(".").map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
 function paintReleaseProgress() {

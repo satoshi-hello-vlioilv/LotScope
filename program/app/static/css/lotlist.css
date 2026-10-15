@@ -273,6 +273,11 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 .ll-lothint svg{width:12px;height:12px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .ll-note{position:sticky;left:0;margin:18px;padding:16px 18px;border-radius:9px;background:#fff6e6;color:var(--amber-ink);font-size:13.5px;line-height:1.6;max-width:880px}
 .ll-note small{color:var(--muted)}
+.ll-note .ll-from,.ll-note .ll-heal,.ll-note .ll-wait-detail{display:block;margin-top:2px}
+/* 読み込みを待っている（版 3.34.0）: 「読めませんでした」の橙ではなく、待ちの窓と同じ青の調子で回る印と一緒に出す */
+.ll-note.is-wait{background:var(--input-soft);color:var(--ink)}
+.ll-note .ll-wait-h{display:flex;align-items:center;gap:8px;color:var(--h-input)}
+.ll-note .ll-wait-why{display:block;margin-top:4px}
 .ll-note-acts{margin-top:10px}
 
 /* ---------- 登録した条件とプリセット ---------- */

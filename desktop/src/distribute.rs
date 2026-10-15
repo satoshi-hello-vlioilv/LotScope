@@ -4,7 +4,10 @@
 //! 置き場（release.rs と同じ形）:
 //! ```text
 //! <更新の置き場>\<アプリのフォルダ>\
-//!   distribute.json          { schema:1, app_id, version, entry, setAt, setBy, setPc, previous }
+//!   distribute.json          { schema:1, app_id, version, entry, setAt, setBy, setPc, previous, masters? }
+//!                            masters: { dir, setAt, setBy, setPc }（版 3.34.0）= 全員が使うマスタの置き場。各 PC の取り込みが want.json に写し、
+//!                            Python（MasterStore.follow_pin）がその置き場へ移る。配る版を決めるとき（決めた人の PC の置き場）と、
+//!                            マスタの置き場を変えたとき（set_masters）に書く
 //!   <exe>                    配る入口（配る版の ZIP の exe。新しい PC へはこのアドレスだけを渡す）
 //!   <版>\release.json        { schema:1, app_id, name, version, zip, sha256, exe, placedAt, placedBy, placedPc, source }
 //!   <版>\<name>-<版>-windows.zip
@@ -138,8 +141,15 @@ fn extract_exe(zip: &Path, exe: &str, to: &Path) -> Result<(), String> {
     std::fs::write(to, buf).map_err(|e| format!("{} を書けません: {e}", to.display()))
 }
 
+/// 全員が使うマスタの置き場の覚え（distribute.json の masters）。dir が空なら None
+fn masters_of(dir: &str, who: &Who) -> Option<Value> {
+    let dir = dir.trim();
+    (!dir.is_empty()).then(|| json!({"dir": dir, "setAt": now_text(), "setBy": who.login, "setPc": who.pc}))
+}
+
 /// 配る版を決める: distribute.json を書き、配る入口（その版の ZIP の exe）をアプリのフォルダの直下に置く。→ {version, notes}
-pub fn set_distributed(found: &Path, version: &str, app_id: &str, who: &Who) -> Result<Value, String> {
+/// masters: 決めた人の PC が使っているマスタの置き場（空なら前の覚えのまま）。配る版と一緒に、全員の PC をその置き場にそろえる
+pub fn set_distributed(found: &Path, version: &str, app_id: &str, who: &Who, masters: &str) -> Result<Value, String> {
     let scan = release::scan(found, app_id);
     let rel: &Release = scan.find(version).ok_or_else(|| format!("版 {version} は置き場にありません"))?;
     if sha256_file(&rel.zip_path()).map_err(|e| format!("版 {version} の ZIP を読めません: {e}"))? != rel.sha256 {
@@ -178,10 +188,27 @@ pub fn set_distributed(found: &Path, version: &str, app_id: &str, who: &Who) -> 
             let _ = std::fs::remove_file(folder.join(&old));
         }
     }
-    let d = json!({"schema": 1, "app_id": app_id, "version": version, "entry": rel.exe, "aliases": aliases, "setAt": now_text(),
+    let mut d = json!({"schema": 1, "app_id": app_id, "version": version, "entry": rel.exe, "aliases": aliases, "setAt": now_text(),
                    "setBy": who.login, "setPc": who.pc, "previous": previous});
+    if let Some(m) = masters_of(masters, who).or_else(|| prev.map(|p| p.raw["masters"].clone()).filter(|m| m.is_object())) {
+        d["masters"] = m;
+    }
     write_json(&folder.join(DISTRIBUTE), &d)?;
-    Ok(json!({"version": version, "notes": notes, "entry": entry}))
+    Ok(json!({"version": version, "notes": notes, "entry": entry, "masters": d["masters"]}))
+}
+
+/// 全員が使うマスタの置き場だけを書き換える（配る版はそのまま）。マスタの置き場を変えたとき、画面が続けて呼ぶ。→ {masters}
+/// 配る版がまだ無い置き場には書かない（各 PC が取り込むのは配る版の覚えなので、書いても届かない）
+pub fn set_masters(found: &Path, app_id: &str, dir: &str, who: &Who) -> Result<Value, String> {
+    let scan = release::scan(found, app_id);
+    let dist = scan.distribute.as_ref().ok_or(
+        "配る版がまだ決まっていません。先に「この版を配る」で配る版を決めてください（そのとき、いまのマスタの置き場も一緒に配ります）",
+    )?;
+    let m = masters_of(dir, who).ok_or("マスタの置き場が空です")?;
+    let mut d = dist.raw.clone();
+    d["masters"] = m.clone();
+    write_json(&dist.dir.join(DISTRIBUTE), &d)?;
+    Ok(json!({"masters": m, "version": dist.version}))
 }
 
 /// 置いた版を消す（配っている版は消さない）。→ {version, removed, notes}
@@ -332,16 +359,35 @@ mod tests {
         // 配る
         make_zip(&d.join("b.zip"), "3.10.1", "exe-2", ID);
         place(&p, &rels, &d.join("b.zip"), "b.zip", ID, &who, &none).unwrap();
-        let s = set_distributed(&rels, "3.10.1", ID, &who).unwrap();
+        let s = set_distributed(&rels, "3.10.1", ID, &who, "").unwrap();
         assert!(s["notes"].as_array().unwrap().is_empty(), "{s}");
         let entry = rels.join("App").join("App.exe");
         assert_eq!(std::fs::read_to_string(&entry).unwrap(), "exe-2", "配る入口はその版の exe");
-        let back = set_distributed(&rels, "3.10.0", ID, &who).unwrap();
+        let back = set_distributed(&rels, "3.10.0", ID, &who, "").unwrap();
         assert_eq!(back["version"], "3.10.0");
         let dj = read_json(&rels.join("App").join(DISTRIBUTE)).unwrap();
         assert_eq!((dj["version"].as_str(), dj["previous"].as_str()), (Some("3.10.0"), Some("3.10.1")), "戻すのも選び直し・前の版を覚える");
         assert_eq!(std::fs::read_to_string(&entry).unwrap(), "exe-1");
-        assert!(set_distributed(&rels, "9.9.9", ID, &who).is_err());
+        assert!(set_distributed(&rels, "9.9.9", ID, &who, "").is_err());
+        // 全員が使うマスタの置き場（版 3.34.0）: 配る版を決めるときに決めた人の置き場を書く・空なら前の覚えのまま・それだけを書き換えられる
+        assert!(dj["masters"].is_null(), "置き場を渡さなければ書かない");
+        set_distributed(&rels, "3.10.1", ID, &who, r"\\nas\Masters").unwrap();
+        let dj = read_json(&rels.join("App").join(DISTRIBUTE)).unwrap();
+        assert_eq!((dj["masters"]["dir"].as_str(), dj["masters"]["setBy"].as_str()), (Some(r"\\nas\Masters"), Some("maint")));
+        set_distributed(&rels, "3.10.0", ID, &who, "").unwrap();
+        let dj = read_json(&rels.join("App").join(DISTRIBUTE)).unwrap();
+        assert_eq!(dj["masters"]["dir"].as_str(), Some(r"\\nas\Masters"), "空で配ったら前の置き場のまま");
+        let m = set_masters(&rels, ID, r"\\nas\New", &who).unwrap();
+        let dj = read_json(&rels.join("App").join(DISTRIBUTE)).unwrap();
+        assert_eq!(
+            (dj["masters"]["dir"].as_str(), dj["version"].as_str(), m["version"].as_str()),
+            (Some(r"\\nas\New"), Some("3.10.0"), Some("3.10.0")),
+            "置き場だけを書き換え、配る版はそのまま"
+        );
+        assert!(set_masters(&rels, ID, "  ", &who).is_err(), "空の置き場は書かない");
+        let empty = d.join("Empty");
+        std::fs::create_dir_all(&empty).unwrap();
+        assert!(set_masters(&empty, ID, r"\\nas\New", &who).unwrap_err().contains("配る版がまだ"), "配る版が無い置き場には書かない");
         // 画面の答え
         let v = view(&rels, false, "src", ID, "App", json!({}));
         assert_eq!((v["versions"].as_array().unwrap().len(), v["entry"]["exists"].as_bool()), (2, Some(true)));
@@ -376,11 +422,11 @@ mod tests {
         let app = rels.join("App");
         make_zip(&d.join("a.zip"), "3.18.2", "old-exe", ID);
         place(&p, &rels, &d.join("a.zip"), "a.zip", ID, &who, &none).unwrap();
-        set_distributed(&rels, "3.18.2", ID, &who).unwrap();
+        set_distributed(&rels, "3.18.2", ID, &who, "").unwrap();
         // 名前を変えた版: 入口は New.exe、ZIP に前の名前の App.exe を同じ中身で入れる
         make_zip_named(&d.join("b.zip"), "3.19.0", "New.exe", "new-exe", ID, &["App.exe"]);
         place(&p, &rels, &d.join("b.zip"), "b.zip", ID, &who, &none).unwrap();
-        set_distributed(&rels, "3.19.0", ID, &who).unwrap();
+        set_distributed(&rels, "3.19.0", ID, &who, "").unwrap();
         assert_eq!(std::fs::read_to_string(app.join("New.exe")).unwrap(), "new-exe", "新しい名前の入口");
         assert_eq!(std::fs::read_to_string(app.join("App.exe")).unwrap(), "new-exe", "前の名前の入口は新しい中身で残す");
         assert_eq!(read_json(&app.join(DISTRIBUTE)).unwrap()["aliases"], json!(["App.exe"]));
@@ -389,7 +435,7 @@ mod tests {
         // 名前の歴史を外した版（ZIP に App.exe が無い）を配れば、前の名前の入口は消える
         make_zip_named(&d.join("c.zip"), "3.20.0", "New.exe", "newer", ID, &[]);
         place(&p, &rels, &d.join("c.zip"), "c.zip", ID, &who, &none).unwrap();
-        set_distributed(&rels, "3.20.0", ID, &who).unwrap();
+        set_distributed(&rels, "3.20.0", ID, &who, "").unwrap();
         assert!(!app.join("App.exe").exists() && read_json(&app.join(DISTRIBUTE)).unwrap()["aliases"] == json!([]));
         assert_eq!(entry_folder(&app.join("App.exe"), ID), None);
         let _ = std::fs::remove_dir_all(&d);
