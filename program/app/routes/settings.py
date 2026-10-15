@@ -5,7 +5,7 @@ from ..web import current_app, jsonify, request
 import app_env
 
 from .. import effective_settings
-from ..services import access, folder_browse, master_place, path_settings, release_place
+from ..services import access, folder_browse, master_place, path_settings, presence, release_place
 from .common import base_rev, bp, error, master_call, master_repo, me
 from .lotlist import lot_mirror
 
@@ -137,6 +137,21 @@ def _master_place_args():
     return b.get("parent", ""), b.get("name", "")
 
 
+def _master_using(st, pin):
+    """置き場ごとに、いま使っている PC（利用状況の印）→ [{dir, pcs, reachable}]。全員の置き場・この PC の置き場・これまでの置き場（共有の物）。
+    置き場を変えたあと、ほかの PC がそろったか（前の置き場に残っていないか）を画面で見せる（版 3.34.0）"""
+    dirs = [str((pin or {}).get("dir") or ""), str(st.share_dir or "")] + [str(h.get("dir") or "") for h in st.history()]
+    out, seen = [], set()
+    for d in dirs:
+        key = d.replace("/", "\\").rstrip("\\").lower()
+        if not d or key in seen:
+            continue
+        seen.add(key)
+        pcs = presence.online_in(d)
+        out.append({"dir": d, "reachable": pcs is not None, "pcs": pcs or []})
+    return out
+
+
 @bp.get("/api/masters/place")
 def master_place_get():
     """いまの置き場（共有か手元のみか・届くか・設定ファイルの値・この PC が覚えた値か）と、変えてよいか。"""
@@ -144,7 +159,8 @@ def master_place_get():
     s = st.status()
     denied = _release_place_gate()
     return jsonify(mode=s["mode"], dir=s["dir"], configured=s["configured"], override=s["override"],
-                   reachable=s.get("reachable", True), history=st.history(), pin=s.get("pin"), canChange=denied is None,
+                   reachable=s.get("reachable", True), history=st.history(), pin=s.get("pin"), using=_master_using(st, s.get("pin")),
+                   canChange=denied is None,
                    why=(denied[0].get_json() or {}).get("error", "") if denied else "")
 
 

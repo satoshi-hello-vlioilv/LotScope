@@ -449,3 +449,18 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sh-foot{display:flex;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--line-soft)}
 .sh-gap{flex:1}
 .sh-foot .btn-primary{height:32px;padding:0 22px}
+
+/* 配布の置き場・全員のマスタの置き場の 2 行（版 3.34.0。ui-proposals/2026-10-masterpin* の I3）。そろっているときは軽く、ずれた行だけ橙 */
+.pin-2{display:flex;flex-direction:column;margin:0 0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.mp-page .pin-2{margin:0;min-width:0}
+.pin-line{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;min-width:0;padding:7px 12px;font-size:13px;color:var(--ro-ink)}
+.pin-masters{display:block}
+.pin-2 > .pin-line + .pin-masters,.pin-2 > .pin-line + .pin-line{border-top:1px solid var(--line)}
+.pin-line > b{width:10.5em;flex:none;color:var(--ink);font-size:13px}
+.pin-line code{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;background:var(--surface-4);padding:1px 6px;border-radius:4px;white-space:nowrap;flex:none;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pin-line .m-chip,.pin-line .pz-btn,.pin-line .dz-fresh{flex:none;white-space:nowrap}
+.pin-line .pin-sp{flex:1 1 0}
+.pin-line .pin-none{color:var(--muted)}
+.pin-line .pin-note{color:var(--muted);font-size:12px;white-space:nowrap}
+.pin-line.is-off{background:var(--amber-soft);border-radius:0 0 9px 9px}
+.mp-page .pin-line.is-off{border-radius:9px}

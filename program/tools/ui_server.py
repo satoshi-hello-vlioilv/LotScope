@@ -12,6 +12,7 @@
 待ち受けを始めたら 1 行出す（台本はそれを待つ）。マスタ・手元の写し・画面の設定の控えは作業フォルダに置くので、
 リポジトリ（program/data など）を汚さない。
 """
+import json
 import os
 import shutil
 import sys
@@ -94,6 +95,11 @@ def main():
     repo = MasterRepository(app.config["MASTER_STORE"])
     repo.shift_create(shifts.clean_row({"name": "交替勤務(1,2,3直)", "segments": shifts.TEMPLATES[1]["segments"], "note": "工場の基本"}))
     repo.shift_create(shifts.clean_row({"name": "CR2 の 4,5直", "equipment": ["CR2"], "segments": shifts.TEMPLATES[2]["segments"]}))
+    # 配る版の覚えの写し（窓が作業場所へ写す want.json）: 全員のマスタの置き場（ui-harness.mjs の RELEASE と同じ。この PC は手元のみ＝ずれた形）
+    (WORK / "masters").mkdir(parents=True, exist_ok=True)
+    (WORK / "masters" / "want.json").write_text(json.dumps({"schema": 1, "version": "3.12.0", "masters": {
+        "dir": "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Masters", "setAt": "2026-10-15T14:30:00", "setBy": "user", "setPc": "PC-01"}},
+        ensure_ascii=False), encoding="utf-8")
     (folder / "実績_SL3.sqlite3").unlink()
     old = time.time() - 80 * 3600                    # 1 台（HOT）は更新が止まった形（80 時間前）
     os.utime(folder / "実績_HOT.sqlite3", (old, old))

@@ -13,7 +13,7 @@ import { launch, walk } from "./ui-harness.mjs";
 
 const OUT = process.argv[2] ? path.resolve(process.argv[2]) : "";
 const VIEWS = [{ width: 1728, height: 1152 }, { width: 1536, height: 864 }, { width: 1280, height: 720 }];
-const STATES = ["list", "crowded", "sorted", "card", "calc", "worklog", "worklog-work", "worklog-pivot", "slicer", "profile", "columns", "master", "calc3d", "worklog-many"];
+const STATES = ["list", "crowded", "sorted", "card", "calc", "worklog", "worklog-work", "worklog-pivot", "slicer", "profile", "columns", "master", "master-place", "master-release", "calc3d", "worklog-many"];
 
 /** 頁の中で数える（page.evaluate に渡す） */
 function inspect() {

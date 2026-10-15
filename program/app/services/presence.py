@@ -49,6 +49,9 @@ def _now():
     return datetime.now()
 
 
+SUBDIR = "presence_tpa"          # マスタの置き場の下の、利用状況のフォルダの名前
+
+
 def configure(dir_path):
     with _lock:
         _state["dir"] = Path(dir_path) if dir_path else None
@@ -365,8 +368,8 @@ def _sweep():
 
 
 # ------------------------------------------------------------------ 読む
-def _online():
-    d = presence_dir()
+def _online(d=None):
+    d = presence_dir() if d is None else d
     out = []
     if d is None or not d.exists():
         return out
@@ -380,6 +383,21 @@ def _online():
         if age is not None and age <= TTL_SEC:
             out.append(dict(data, idleSec=int(age)))
     return out
+
+
+def online_in(master_dir):
+    """そのマスタの置き場をいま使っている PC（その置き場の利用状況の印から。版 3.34.0）→ [{pc, login}]。届かなければ None。
+    置き場を変えたあと、ほかの PC が新しい置き場へ移ったか（前の置き場に残っていないか）を数える"""
+    try:
+        d = Path(master_dir) / SUBDIR
+        if not d.is_dir():
+            return None if not Path(master_dir).is_dir() else []
+    except OSError:
+        return None
+    seen = {}
+    for r in _online(d):
+        seen.setdefault((r.get("pc", ""), r.get("login", "")), {"pc": r.get("pc", ""), "login": r.get("login", "")})
+    return sorted(seen.values(), key=lambda x: (x["pc"], x["login"]))
 
 
 def _history():
