@@ -21,6 +21,8 @@ const FIRST_WAIT: Duration = Duration::from_secs(30);
 const STAT_RETRY_SEC: [f64; 3] = [0.3, 0.7, 1.5];
 const RETRY_AFTER_UNREACHABLE_SEC: i64 = 10;
 const RETRY_AFTER_BUSY_SEC: i64 = 5;
+/// 写しがまだ1つも無いあいだ（入れた直後）は、何度しくじっても間隔を待たずに写し直す（Python の RETRY_UNTIL_FIRST_COPY_SEC と同じ）
+const RETRY_UNTIL_FIRST_COPY_SEC: i64 = 10;
 const COPY_CHUNK: usize = 4 * 1024 * 1024;
 const REPLACE_BUDGET: f64 = 2.0;
 
@@ -449,6 +451,16 @@ impl DbMirror {
         self.mirror_path().filter(|p| p.exists())
     }
 
+    /// いまの元から作った写しがあるか（共有は見ない。台帳の印と手元のファイルだけ）。
+    fn mirrored(&self) -> bool {
+        let sig = self.entry().get("signature").and_then(Value::as_object).cloned().unwrap_or_default();
+        Self::is_mirrored(&sig, &self.remote(), self.mirror_path().as_deref())
+    }
+
+    fn is_mirrored(sig: &Map<String, Value>, remote: &str, local: Option<&Path>) -> bool {
+        sig.get("source").and_then(Value::as_str) == Some(remote) && local.is_some_and(|p| p.exists())
+    }
+
     /// 写しがまだ無いときに画面へ出す文（なぜ無いか＋写し終えたら出ること）。Python の not_ready_text と同じ。
     pub fn not_ready_text(&self) -> String {
         let why = self.state.lock().unwrap().get("reason").and_then(Value::as_str).unwrap_or("").to_string();
@@ -465,9 +477,7 @@ impl DbMirror {
         let entry = self.entry();
         let sig = entry.get("signature").and_then(Value::as_object).cloned().unwrap_or_default();
         let local = self.mirror_path();
-        let mirrored = local.is_some()
-            && sig.get("source").and_then(Value::as_str) == Some(remote.as_str())
-            && local.as_ref().is_some_and(|p| p.exists());
+        let mirrored = Self::is_mirrored(&sig, &remote, local.as_deref());
         let mut at = Value::Null;
         let mut copied = Value::Null;
         if mirrored {
@@ -508,6 +518,8 @@ impl DbMirror {
                 interval.min(RETRY_AFTER_UNREACHABLE_SEC)
             } else if st.get("busy").is_some_and(truthy) {
                 interval.min(RETRY_AFTER_BUSY_SEC)
+            } else if !self.mirrored() {
+                interval.min(RETRY_UNTIL_FIRST_COPY_SEC)
             } else {
                 interval
             };
@@ -611,6 +623,27 @@ mod tests {
         assert!(why.contains("書き始めた") && why.contains("SIKADEF.sqlite3-journal"), "{why}");
         std::fs::write(&remote, b"xy").unwrap();
         assert!(m.settled(&r, &sig).unwrap().contains("入れ替わった"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 写しがまだ無いあいだ（入れた直後）は、届かないが続いても間隔を待たずに写し直す。写せた後は間隔どおり（Python と同じ）
+    #[test]
+    fn retries_soon_until_the_first_copy() {
+        let dir = std::env::temp_dir().join(format!("qa-first-copy-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let remote = dir.join("SIKADEF.sqlite3");
+        let m = DbMirror::new("k", &remote.display().to_string(), &dir.join("cache"), 3600, 36.0);
+        for _ in 0..3 {
+            assert!(m.refresh()["unreachable"] == true);
+            assert_eq!(m.next_wait(), Duration::from_secs(RETRY_UNTIL_FIRST_COPY_SEC as u64), "写しが無いうちは 2 回目からも早めに");
+        }
+        let c = rusqlite::Connection::open(&remote).unwrap();
+        c.execute_batch("CREATE TABLE t (a TEXT); INSERT INTO t VALUES ('x');").unwrap();
+        drop(c);
+        assert!(m.refresh()["updated"] == true);
+        assert!(m.refresh()["updated"] == false);
+        assert_eq!(m.next_wait(), Duration::from_secs(3600), "写せた後は間隔どおり");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

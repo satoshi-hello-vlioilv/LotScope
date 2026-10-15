@@ -119,6 +119,25 @@ class Courtesy(Base):
         (self.dst.parent / f"{self.dst.name}-journal").unlink()
         self.assertTrue(m.refresh()["updated"], "印が消えたら次の回で写す")
 
+    def test_retries_soon_until_the_first_copy(self):
+        # 入れた直後・初めて開く設備: 写しがまだ1つも無いあいだは、届かないが続いても写す間隔（ここでは 1 時間）を待たない
+        # （待たせると、画面は「写し終えると出ます」のまま、開き直すまで出ないように見える。版 3.33.0）
+        gone = self.dst.with_name("仮_" + self.dst.name)
+        os.replace(self.dst, gone)
+        m = DbMirror("work_log_CR1", self.dst, self.cache, interval_sec=3600)
+        for _ in range(3):
+            self.assertTrue(m.refresh().get("unreachable"))
+            self.assertEqual(m._next_wait(), db_mirror.RETRY_UNTIL_FIRST_COPY_SEC, "写しが無いうちは、2 回目からも早めに")
+        os.replace(gone, self.dst)
+        self.assertTrue(m.refresh()["updated"])
+        self.assertTrue(m.refresh().get("skipped"))
+        self.assertEqual(m._next_wait(), 3600, "写せた後は間隔どおり")
+        os.replace(self.dst, gone)
+        self.assertTrue(m.refresh().get("unreachable"))
+        self.assertTrue(m.refresh().get("unreachable"))
+        self.assertEqual(m._next_wait(), 3600, "前の写しがあれば、届かないのが続いても間隔どおり（前の写しを見せ続ける）")
+        os.replace(gone, self.dst)
+
     def test_does_not_copy_while_the_writer_is_publishing(self):
         mark = self.dst.parent / f".{self.dst.name}.4242.incoming"
         mark.write_bytes(b"x")
