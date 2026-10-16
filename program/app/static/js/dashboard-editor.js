@@ -161,11 +161,12 @@
     return `${period}<div class="de-row de-top"><label class="de-l">条件</label><div class="db-crows">${rows || '<small class="de-hint">すべての行を数えます</small>'}</div></div>`
       + `<div class="de-row"><span class="de-l"></span><button type="button" class="pv-btn" data-de-fadd${cols.length ? "" : " disabled"}>＋ 条件を足す</button></div>`;
   }
+  /** 見せ方（形の札のすぐ下。作った後の採点の指摘: 並べ方の段の後ろでは見つけにくい） */
+  const lookHtml = () => `<div class="de-row"><span class="de-l">見せ方</span><label class="pv-ck" title="最初に見る数に（淡い藍の地と藍の枠）"><input type="checkbox" data-de-emph${p.emph ? " checked" : ""}>目立たせる</label></div>`;
   function sortHtml() {
-    const emph = `<label class="pv-ck" title="最初に見る数に（淡い藍の地と藍の枠）"><input type="checkbox" data-de-emph${p.emph ? " checked" : ""}>目立たせる</label>`;
-    if (p.visual === "kpi") return `<div class="de-row"><span class="de-l">見せ方</span>${emph}</div>`;
+    if (p.visual === "kpi") return "";
     return `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
-      + `<label class="pv-ck">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝パネルに入るだけ</small>${emph}</div>`;
+      + `<label class="pv-ck">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝パネルに入るだけ</small></div>`;
   }
   function dataHtml() {
     const src = srcOf(p.source);
@@ -181,7 +182,7 @@
         + `<span class="db-sp"></span><button type="button" class="btn-ghost" data-de-cancel>やめる</button><button type="button" class="btn-primary" data-de-apply>当てる</button></div>`
         + `<div class="de-body"><aside class="pv-fields de-fields"><div class="pv-cap"><b>カラム</b><small>札を押すと右の文に入ります（もう一度押すと外れます）</small></div>`
         + `<input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><div class="pv-list" id="deFields"></div></aside>`
-        + `<div class="de-main"><div id="deData"></div><div id="deSent"></div><div id="deVis"></div><div id="deCond"></div><div id="deSort"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`;
+        + `<div class="de-main"><div id="deData"></div><div id="deSent"></div><div id="deVis"></div><div id="deLook"></div><div id="deCond"></div><div id="deSort"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`;
       TPA.onText($("#deSearch"), (v) => { q = v; $("#deFields").innerHTML = fieldsHtml(); });
       TPA.onText($("#deTitle"), (v) => { p.title = v.slice(0, 60); host.onChange(TPA.clone(p)); });
     }
@@ -192,6 +193,7 @@
     $("#deData").innerHTML = dataHtml();
     $("#deSent").innerHTML = sentenceHtml();
     $("#deVis").innerHTML = visualsHtml();
+    $("#deLook").innerHTML = lookHtml();
     if (!el.contains(document.activeElement) || !document.activeElement.closest("#deCond")) $("#deCond").innerHTML = condHtml();
     $("#deSort").innerHTML = sortHtml();
   }
