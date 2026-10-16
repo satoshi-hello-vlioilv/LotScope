@@ -85,7 +85,7 @@ try {
   // ① 窓を閉じて開く: 同じ PC の覚えは残る・この窓のあいだの覚えは消える
   const again = await page.context().newPage();
   await page.close();
-  await again.goto(base); await ready(again);
+  await again.goto(`${base}/#screen=list`); await ready(again);   // 最初の画面はダッシュボード（版 3.37.0）。一覧から始める
   await compare("①", again);
   await again.context().close();
 
@@ -95,7 +95,7 @@ try {
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, body: "", headers: { "Content-Type": "text/css" } }));
   const fresh = await ctx.newPage();
   fresh.on("pageerror", (e) => errors.push(e.message));
-  await fresh.goto(base); await ready(fresh);
+  await fresh.goto(`${base}/#screen=list`); await ready(fresh);
   await compare("②", fresh);
   await ctx.close();
   check("頁の誤りが無い", !errors.length, errors);

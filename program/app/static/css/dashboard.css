@@ -1,65 +1,186 @@
-/* ダッシュボード（版 3.36.0。dashboard.js） */
-.db-screen{height:calc(100vh - var(--header-h));padding:var(--gap);display:flex;min-height:0}
-.db-panel{flex:1;min-width:0;overflow:auto}
-.db-grid{display:flex;flex-direction:column;gap:var(--gap)}
-.db-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
-.db-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.db-head h3{margin:0;font-size:16px;display:flex;align-items:baseline;gap:8px}
-.db-head h3 small{font-size:12.5px;color:var(--muted);font-weight:700}
-.db-total{font-size:22px;font-variant-numeric:tabular-nums;color:var(--ink)}
-.db-total small{font-size:12px;color:var(--muted);margin-left:3px}
+/* ダッシュボード（版 3.37.0。dashboard.js・dashboard-panels.js・dashboard-editor.js）
+   画面は窓の高さに収める（スクロールしない）: 道具の行 1 段＋グリッド（段の高さ＝残りの高さ ÷ 段の数）。
+   パネルの色は 1 つ（白い面・淡い影）。主の数（数字の形）だけを大きく、見出しは 1 行。編集のときだけ、マスの印・取っ手・影を出す */
+.db-screen{height:calc(100vh - var(--header-h));padding:10px var(--gap) var(--gap);display:flex;flex-direction:column;gap:8px;min-height:0;box-sizing:border-box}
+.db-screen.hidden{display:none}
 .db-sp{flex:1}
-.db-meta{margin:0;font-size:12.5px;color:var(--muted)}
-.db-ng{margin:0;color:#a3322a;font-size:13px}
-.db-none,.db-wait{color:var(--muted);font-size:13px}
-.db-cond{max-width:360px;height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface-3);font:inherit;font-size:12.5px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--ink)}
+
+/* ---- 道具の行（1 段） ---- */
+.db-tools{display:flex;align-items:center;gap:8px;min-height:34px;flex:0 0 auto;white-space:nowrap}
+.db-pick{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 10px 0 9px;border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  font:inherit;color:var(--ink);cursor:pointer;max-width:420px;box-shadow:var(--shadow-sm)}
+.db-pick svg{width:16px;height:16px;fill:none;stroke:var(--h-input);stroke-width:1.5;flex:0 0 auto}
+.db-pick b{font-size:15px;overflow:hidden;text-overflow:ellipsis}
+.db-pick small{font-size:12px;color:var(--muted);font-weight:700}
+.db-pick > i:last-child{font-style:normal;color:var(--muted);font-size:11px}
+.db-pick:hover,.db-pick[aria-expanded="true"]{border-color:var(--h-input)}
+.db-std{font-style:normal;color:#b5822a;font-size:13px}
+.db-when{color:var(--muted);font-size:12.5px}
+.db-msg{color:var(--h-meta);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.db-editing{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber-ink);font-size:12.5px;font-weight:800}
+.db-armed{color:#8a2a1c;font-weight:700;font-size:12.5px}
+.pv-btn.is-danger{color:#a3322a}
+.pv-btn.is-danger:hover:not(:disabled){border-color:#c0392b;color:#8a2a1c}
+.pv-btn.is-armed{background:#fbe7e3;border-color:#c0392b;color:#8a2a1c}
+.db-tools .btn-primary,.db-tools .btn-ghost{height:30px}
+
+/* ---- グリッド（横 12 列 × 縦 --rows 段） ---- */
+.db-stage{flex:1;min-height:0;display:flex;gap:10px}
+.db-grid{flex:1;min-width:0;min-height:0;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;position:relative}
+.db-wait{color:var(--muted);font-size:13px;margin:0}
+.db-cell{border:1.5px dashed #c9d4de;border-radius:8px;background:transparent;cursor:copy;min-width:0;min-height:0;padding:0;opacity:.75}
+.db-cell:hover{border-color:var(--h-input);background:var(--input-soft);opacity:1}
+.db-ghost{border:2px solid var(--h-input);background:rgba(63,101,145,.10);border-radius:10px;z-index:5;pointer-events:none;display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:var(--h-input);font-size:13px}
+.db-ghost.is-bad{border-color:#c0392b;background:rgba(192,57,43,.08);color:#8a2a1c}
+body.db-dragging{cursor:grabbing;user-select:none}
+
+/* ---- パネル ---- */
+.db-p{container-type:inline-size;position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);
+  border:1px solid var(--line-soft);padding:8px 12px 8px;box-sizing:border-box;overflow:hidden;outline:none}
+.db-p:focus-visible{box-shadow:0 0 0 3px var(--focus-ring),var(--shadow-sm)}
+.db-ph{display:flex;align-items:center;gap:8px;min-height:26px;flex:0 0 auto;white-space:nowrap;min-width:0}
+.db-ph h3{margin:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;min-width:3em;flex:0 1 auto}   /* 狭いときは題が縮む（操作の「⋯」を枠の外へ押し出さない） */
+.db-psub{flex:0 0 auto;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:-2px 0 2px 17px}
+.db-psub[hidden]{display:none}
+.dp-kmeta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-kpi.is-row{flex-direction:row;align-items:center;justify-content:flex-start;gap:14px}
+.dp-kpi.is-row .dp-kmeta{white-space:normal;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0}
+.db-pm{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1000 auto}
+.db-pb{flex:1;min-height:0;min-width:0;position:relative;overflow:hidden;transition:opacity .12s}
+.db-pb.is-busy{opacity:.55}
+.db-pf{flex:0 0 auto;font-size:11.5px;color:var(--h-meta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:2px}
+.db-pbtn{height:24px;padding:0 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:12px;font-weight:700;color:var(--h-meta);cursor:pointer;flex:0 0 auto}
+.db-pbtn:hover{border-color:var(--h-input);color:var(--h-input)}
+.db-pbtn.is-danger{color:#a3322a}
+.db-pbtn.is-armed{background:#fbe7e3;border-color:#c0392b;color:#8a2a1c}
+.db-quiet{opacity:0;transition:opacity .12s}
+.db-p:hover .db-quiet,.db-p:focus-within .db-quiet{opacity:1}
+.db-spin{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--h-input);border-radius:50%;animation:db-spin .8s linear infinite;flex:0 0 auto}
+@keyframes db-spin{to{transform:rotate(360deg)}}
+.db-rz{display:none}
+/* 編集のとき: 見出しを掴める・右下に取っ手・選んだパネルの枠 */
+.db-screen.is-edit .db-p{border:1.5px solid #c9d4de}
+.db-screen.is-edit .db-ph{cursor:grab}
+.db-screen.is-edit .db-p.is-sel{border-color:var(--h-input)}
+.db-screen.is-edit .db-p.is-editing{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
+.db-screen.is-edit .db-p.is-drag{opacity:.55}
+.db-screen.is-edit .db-rz{display:block;position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;
+  background:linear-gradient(135deg,transparent 50%,#9aa7b2 50%,#9aa7b2 58%,transparent 58%,transparent 70%,#9aa7b2 70%,#9aa7b2 78%,transparent 78%)}
+
+/* ---- 中身（dashboard-panels.js） ---- */
+.dp-wait,.dp-empty{color:var(--muted);font-size:13px;margin:0;padding:6px 0}
+.dp-ng{color:#a3322a;font-size:12.5px;margin:0}
+.dp-err{display:flex;flex-direction:column;align-items:flex-start;gap:6px;font-size:12.5px;color:#7a2d22;padding:4px 0}
+.dp-err span{color:var(--ro-ink);white-space:normal}
+.dp-kpi{height:100%;display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0}
+.dp-num{font-variant-numeric:tabular-nums;line-height:1.05;color:var(--ink);letter-spacing:-.01em;white-space:nowrap}
+.dp-num small{font-size:max(12px,.32em);color:var(--muted);margin-left:.18em;font-weight:700;letter-spacing:0}
+.dp-ksub{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px}
+.dp-ksub span{display:inline-flex;gap:6px;align-items:baseline}
+.dp-ksub small{color:var(--muted)}
+.dp-ksub b{font-variant-numeric:tabular-nums}
+.dp-legend{height:20px;overflow:hidden;white-space:nowrap}
+.dp-legend .pv-legend{flex-wrap:nowrap}
+.dp-chart{display:flex;align-items:flex-start;gap:10px;min-width:0}
+.dp-chart svg{display:block;flex:0 0 auto}
+.dp-chart .pv-dlist{flex:1;min-width:0}
+.dp-tbl{max-height:100%;overflow:hidden}
+.dp-tbl .pv-table{font-size:13px;width:100%}
+.dp-tbl .pv-table th,.dp-tbl .pv-table td{padding:var(--dp-pad,4px 8px)}
+
+/* ---- 1 枚の表（設備ごとの仕掛と前日の実績。版 3.36.0 の物） ---- */
+.db-boardhead{display:flex;align-items:center;gap:10px;min-height:22px;white-space:nowrap;overflow:hidden}
+.db-meta{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.db-cond{max-width:280px;height:24px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface-3);font:inherit;font-size:12px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--ink);flex:0 1 auto;min-width:0}
 .db-cond.is-on{background:var(--input-soft);border-color:#b9cde2;color:var(--h-input);font-weight:700}
-.db-bars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-.db-bars li{display:grid;grid-template-columns:7em minmax(0,1fr) 4.5em;align-items:center;gap:10px;font-size:13.5px}
-.db-eq{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.db-bar{height:14px;background:var(--surface-4);border-radius:4px;overflow:hidden}
-.db-bar i{display:block;height:100%;border-radius:4px}
-.db-bars b{text-align:right;font-variant-numeric:tabular-nums}
-.db-tablewrap{overflow-x:auto}
+.db-warn{font-size:12.5px;color:#7a2d22;font-weight:700;display:inline-flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis}
+.db-warn b{display:inline-block;padding:0 8px;border-radius:999px;background:#fbe7e3}
 .db-table{border-collapse:collapse;width:100%;font-size:13.5px}
-.db-table th,.db-table td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
-.db-table thead th{font-size:12.5px;color:var(--muted)}
+.db-table th,.db-table td{padding:var(--dp-pad,5px 10px);border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.db-table thead th{font-size:.92em;color:var(--muted)}
+.db-table thead small{display:block;font-weight:700;color:var(--ink);font-size:1em}
 .db-table .num{text-align:right;font-variant-numeric:tabular-nums}
-.db-table td.db-ng{white-space:normal;font-size:12.5px}
-.db-table .db-sum{font-weight:700}
-.db-editor{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px;font-size:13px}
-.db-crows{display:flex;flex-direction:column;gap:6px}
-.db-crow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto;gap:6px}
-.db-crow select,.db-crow input{height:30px;box-sizing:border-box;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;color:var(--ink);min-width:0}   /* データ元の欄と同じ形 */
-.db-crow select:focus,.db-crow input:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
-.db-cacts{display:flex;align-items:center;gap:8px}
-.db-msg{color:var(--muted)}
-.db-cond.is-open{outline:2px solid var(--h-input);outline-offset:1px}
-.db-warn{font-size:13px;color:#7a2d22;font-weight:700;display:inline-flex;align-items:center;gap:6px}
-.db-warn b{display:inline-block;padding:0 8px;border-radius:999px;background:#fbe7e3;margin-right:6px}
-.db-table thead small{display:block;font-weight:700;color:var(--ink);font-size:12.5px}
+.db-table td.db-ng{white-space:normal;font-size:12px}
 .db-table th[scope=row]{font-weight:700;width:110px}
 .db-table .db-grp{border-left:2px solid var(--line)}
-.db-table .db-lots{min-width:240px}
+.db-table .db-lots{min-width:200px}
 .db-table td.db-lots > div{display:flex;align-items:center;gap:10px}
-.db-table td.db-lots .db-bar{flex:1;height:12px}
+.db-table td.db-lots .db-bar{flex:1;height:.85em}
 .db-table td.db-lots b{width:3.6em;text-align:right;font-variant-numeric:tabular-nums}
-.db-bar i{background:var(--h-input)}
-.db-table .db-s{width:72px}
-.db-table .db-s span{display:inline-block;min-width:2.2em;padding:1px 6px;border-radius:4px;background:rgba(63,101,145,var(--h,0))}
-.db-table td.is-zero{color:#5f6e7c}
-.db-table td.is-na{color:#5f6e7c}
-.db-table .db-sum{width:96px}
+.db-bar{background:var(--surface-4);border-radius:4px;overflow:hidden}
+.db-bar i{display:block;height:100%;border-radius:4px;background:var(--h-input)}
+.db-table .db-s{width:68px}
+.db-table .db-s span{display:inline-block;min-width:2.2em;padding:1px 6px;border-radius:4px;background:rgba(47,125,120,var(--h,0))}   /* 実績＝青緑（パネルの色と同じ） */
+.db-table td.is-zero,.db-table td.is-na,.db-table td.db-na{color:#5f6e7c}
+.db-table .db-sum{width:90px;font-weight:700}
 .db-flag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:#fbe7e3;color:#7a2d22;font-style:normal;font-size:11.5px;font-weight:700}
-.db-table td.db-na{color:#5f6e7c;font-size:12.5px}
+
+/* ---- 浮かぶ面（ダッシュボードを選ぶ・名前を付けて保存・1 枚の表の条件） ---- */
+.db-pop{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 10px 28px var(--pop-shadow);
+  padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px;max-height:calc(100vh - 80px);overflow:auto;box-sizing:border-box}
+.db-pickpop{width:380px}.db-savepop{width:400px}.db-condpop{width:560px;max-width:calc(100vw - 24px)}
+.db-pophead b{display:block;font-size:14px}.db-pophead small{color:var(--muted);font-size:12px;line-height:1.45}
+.db-lg{display:flex;flex-direction:column;gap:3px}
+.db-lg > span{font-size:11.5px;color:var(--muted);font-weight:800;padding:2px 2px 0}
+.db-li{display:flex;align-items:center;gap:8px;height:32px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;padding:0 8px;cursor:pointer;text-align:left;color:var(--ink)}
+.db-li b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.db-li small{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+.db-li:hover{background:var(--surface-3)}
+.db-li.on{background:var(--input-soft);border-color:#b9cde2}
+.db-popacts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid var(--line-soft);padding-top:8px}
+.db-field{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--h-meta);font-weight:700}
+.db-field input{height:30px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13.5px;color:var(--ink)}
+.db-radio{display:flex;align-items:center;gap:6px;font-weight:400;color:var(--ink);cursor:pointer}
+.db-radio.is-off{color:var(--faint);cursor:default}
+.db-poperr{margin:0;color:#a3322a;font-size:12.5px;min-height:1em}
+.db-crows{display:flex;flex-direction:column;gap:6px}
+.db-crow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto;gap:6px}
+.db-crow select,.db-crow input{height:30px;box-sizing:border-box;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13px;color:var(--ink);min-width:0}
+.db-crow select:focus,.db-crow input:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
 .db-crow .icon-btn{border:1px solid var(--line);color:var(--muted);background:var(--surface-3);width:30px;height:30px;border-radius:6px;cursor:pointer}
 .db-crow .icon-btn:hover{color:var(--ink)}
-/* 広く高い窓（1728×1152 など。2026-10-dash の 3 回目で決めた S）: 行を高く・字を 15px に（下の空きを使う）。
-   1536×864・1280×720 は今のまま（縦に送らない）。読めない設備の知らせの行は、折れないよう字を大きくしない */
-@media (min-width:1441px) and (min-height:1000px){
-  .db-table th,.db-table td{padding:9px 12px;font-size:15px}
-  .db-table thead th,.db-table thead small{font-size:13.5px}
-  .db-table td.db-lots .db-bar{height:16px}
-  .db-table td.db-ng,.db-table td.db-na{font-size:12.5px}
-}
+
+/* ---- パネルを組む所（dashboard-editor.js）: 焦点（2026-10-grid の 1 回目で 1 位の D）。組む所は右に重ね、組むパネルは左に大きく、ほかは淡い幕の下。
+   グリッドは縮めない（ほかのパネルの字が切れない） ---- */
+.db-editor-pane{position:fixed;right:12px;top:calc(var(--header-h) + 54px);bottom:12px;width:720px;max-width:calc(100vw - 340px);z-index:21;display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--pop-line);border-radius:var(--radius);box-shadow:0 10px 30px var(--pop-shadow);overflow:hidden}
+.db-scrim{position:fixed;left:0;right:0;top:calc(var(--header-h) + 54px);bottom:0;z-index:19;background:rgba(238,242,245,.9)}
+.db-p.is-focus{z-index:20;box-shadow:0 12px 36px rgba(12,34,48,.22)!important}
+.db-editor-pane[hidden]{display:none}
+.de-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line-soft);background:var(--surface-1)}
+.de-head b{font-size:14px;white-space:nowrap}
+.de-title{flex:1;min-width:0;height:30px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13.5px;font-weight:700;color:var(--ink)}
+.de-title:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
+.de-body{flex:1;min-height:0;display:grid;grid-template-columns:210px minmax(0,1fr);gap:10px;padding:10px}
+.de-fields{min-height:0}
+.de-main{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto;padding-right:2px}
+.de-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.de-row.de-top{align-items:flex-start}
+.de-row select,.de-row input:not([type=checkbox]){height:30px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13px;color:var(--ink);min-width:0;max-width:100%}
+.de-l{width:52px;flex:0 0 52px;font-size:12.5px;font-weight:800;color:var(--h-meta)}
+.de-row .db-crows{flex:1;min-width:0}
+.de-n{width:64px}
+.de-hint{color:var(--muted);font-size:12px}
+.de-sent{padding:6px 8px}
+.de-vis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.de-vis .pv-cbtn{justify-content:flex-start;min-width:0}
+.de-vis .pv-cbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.de-msg{margin:0;color:var(--h-meta);font-size:12.5px;min-height:1em}
+/* 組む所を開いているあいだは、グリッドの空きのマスの印を出さない */
+.db-screen.has-editor .db-cell{display:none}
+
+/* ---- 2026-10-grid の 2 回目: 色＝データの種類の点・知らせの札・狭いパネルの「⋯」・1 枚の表を列に分ける ---- */
+.db-dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:0 0 auto}
+.db-warnb{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber-ink);
+  font-size:11.5px;font-weight:800;flex:0 0 auto;cursor:help}
+.db-more{width:30px;padding:0;font-size:15px;line-height:1}
+.db-morepop{width:200px;padding:6px}
+.db-li.is-danger b{color:#a3322a}
+.db-li.is-armed{background:#fbe7e3}
+.dp-flow{display:grid;grid-template-columns:repeat(var(--k,1),minmax(0,1fr));gap:0 10px;overflow:hidden;align-items:start}
+.dp-flow .dp-tbl + .dp-tbl{border-left:2px solid var(--line);padding-left:10px}
+/* 目立たせる（最初に見る数。2026-10-grid の 3 回目で決めた L・作るときに地を一段濃く・藍の枠） */
+.db-p.is-emph{background:#e6eef7;border:1.5px solid #9db5d2}
+.db-p.is-emph .dp-num{color:#24446a}

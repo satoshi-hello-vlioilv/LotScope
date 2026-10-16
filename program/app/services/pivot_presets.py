@@ -82,9 +82,11 @@ def clean_body(body):
     return out, text
 
 
-def clean_row(data, login, partial=False):
-    """画面から来た値 → マスタの行。scope は all（共通）か me（その ID）。partial は直すとき（来た物だけ）。"""
+def clean_row(data, login, partial=False, body_text=None, source_ok=is_screen_source):
+    """画面から来た値 → マスタの行。scope は all（共通）か me（その ID）。partial は直すとき（来た物だけ）。
+    body_text … 中身を確かめて JSON 字にする関数（既定は組み方の clean_body。ダッシュボード〈services/dashboard.py〉は自分の形で）"""
     d = data or {}
+    body_text = body_text or (lambda b: clean_body(b)[1])
     row = {}
     if not partial or "name" in d:
         name = str(d.get("name") or "").strip()
@@ -95,7 +97,7 @@ def clean_row(data, login, partial=False):
         row["名前"] = name
     if not partial:
         src = d.get("source")
-        if not is_screen_source(src):
+        if not source_ok(src):
             raise PresetError("元（lot・work・src:<キー>）が違います。")
         scope = d.get("scope")
         if scope not in SCOPES:
@@ -104,7 +106,7 @@ def clean_row(data, login, partial=False):
             raise PresetError("ログイン ID が分からないので、ID ごとには保存できません。")
         row.update({"元": src, "範囲": SCOPES[scope], "ログインID": login if scope == "me" else ""})
     if not partial or "body" in d:
-        row["中身"] = clean_body(d.get("body"))[1]
+        row["中身"] = body_text(d.get("body"))
     if not partial or "standard" in d:
         row["標準"] = "1" if d.get("standard") else ""
     if not partial or "note" in d:
@@ -132,11 +134,11 @@ def can_edit(row, login, common_ok, default_ok=False):
     return default_ok if scope == "default" else common_ok if scope == "all" else (bool(login) and row.get("ログインID") == login)
 
 
-def view(row, login="", common_ok=False, default_ok=False):
-    """マスタの行 → 画面の形。中身が壊れていれば body は {}。"""
+def view(row, login="", common_ok=False, default_ok=False, body_of=None):
+    """マスタの行 → 画面の形。中身が壊れていれば body は {}（body_of は中身の字 → dict。既定は組み方の clean_body）。"""
     try:
-        body = clean_body(row.get("中身") or "{}")[0]
-    except PresetError:
+        body = (body_of or (lambda t: clean_body(t)[0]))(row.get("中身") or "{}")
+    except ValueError:
         body = {}
     return {"id": row.get("id"), "name": row.get("名前", ""), "source": row.get("元", ""), "scope": scope_of(row),
             "login": row.get("ログインID", ""), "standard": row.get("標準") == "1", "body": body, "note": row.get("備考", ""),

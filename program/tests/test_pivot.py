@@ -214,6 +214,118 @@ class Work(unittest.TestCase):
         self.assertEqual(pivot.nice_width(3, 3, 10), 1.0, "範囲が 0 なら 1")
 
 
+class Many(unittest.TestCase):
+    """いくつかのファイルを 1 つの集計に（版 3.37.0。ダッシュボードの「作業実績 すべての設備」）・設備の段（@equip）・期間で絞る。
+    芯は素朴な数え直し: 設備ごとの答えを足した物と、まとめた答えが合うか（ロット数は設備ごとに見分ける）"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.files, self.rows = {}, {}
+        for eq in ("CR1", "CR2"):
+            p = self.tmp / f"{eq}.sqlite3"
+            lotlist_fixture.make_work(str(p), eq, n=300)
+            self.files[eq] = p
+            with sqlite3.connect(p) as c:
+                self.rows[eq] = c.execute("SELECT [BOX実績_作業開始_日付], [重量], [作業区分] FROM 実績").fetchall()
+        self.work = {"clock": shifts.Clock(segs(THREE)), "basis": "work", "start": ""}
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def parts(self, work=None):
+        return [pivot.Part(str(p), preferred_table="実績", table_candidates=work_log.TABLE_CANDIDATES, work=work or self.work, equip={"name": eq})
+                for eq, p in self.files.items()]
+
+    def many(self, rows, cols=(), measures=({"agg": "count"},), parts=None, **kw):
+        return pivot.query_many(parts or self.parts(), rows=json.dumps(list(rows)), cols=json.dumps(list(cols)), measures=json.dumps(list(measures)), **kw)
+
+    def test_equipment_by_workday_matches_each_file(self):
+        ans = self.many([{"column": "@equip"}], [{"column": "@shift"}], [{"agg": "lots"}, {"agg": "sum", "column": "重量"}, {"agg": "avg", "column": "重量"}])
+        self.assertEqual(ans["orders"][0], ["CR1", "CR2"], "設備はファイルの並び")
+        self.assertEqual(ans["dims"]["rows"][0]["name"], "設備")
+        for eq, rows in self.rows.items():
+            want_lots = len({r[0] for r in rows})
+            self.assertEqual(cell(ans, [eq])[0], want_lots, f"{eq} のロット数＝その設備の重複の無い作業開始")
+            self.assertAlmostEqual(cell(ans, [eq])[1], sum(r[1] for r in rows), places=4)
+        both = sum(len({r[0] for r in rows}) for rows in self.rows.values())
+        self.assertEqual(cell(ans)[0], both, "総計のロット数は設備ごとに見分けて足す（別の設備の同じ作業開始は別の作業）")
+        allw = [r[1] for rows in self.rows.values() for r in rows]
+        self.assertAlmostEqual(cell(ans)[2], sum(allw) / len(allw), places=4, msg="平均は全部の行で（設備の平均の平均ではない）")
+        self.assertEqual([p["name"] for p in ans["parts"]], ["CR1", "CR2"])
+        self.assertEqual([ans["labels"][1][k] for k in ans["orders"][1]], ["1直", "2直", "3直"], "直は名前で揃え、勤務体系の順")
+
+    def test_shifts_are_matched_by_name_across_patterns(self):
+        """設備で勤務体系が違う（CR2 だけ 4,5直）: 番号ではなく名前で見分ける（CR1 の 1直と CR2 の 4直を同じ列にしない）"""
+        two = shifts.segments_of(shifts.clean_row({"name": "4,5直", "segments": [
+            {"name": "4直", "start": "07:00", "end": "19:00", "dayOffset": 0}, {"name": "5直", "start": "19:00", "end": "07:00", "dayOffset": -1}]}))
+        parts = self.parts()
+        parts[1].work = {"clock": shifts.Clock(two), "basis": "work", "start": ""}
+        ans = self.many([{"column": "@equip"}], [{"column": "@shift"}], [{"agg": "count"}], parts=parts)
+        names = [ans["labels"][1][k] for k in ans["orders"][1]]
+        self.assertEqual(sorted(names), sorted(["1直", "2直", "3直", "4直", "5直"]), names)
+        self.assertIsNone(cell(ans, ["CR1"], ["4直"]), "CR1 に 4直は無い")
+        self.assertEqual(cell(ans, ["CR2"])[0], len(self.rows["CR2"]))
+
+    def test_period_yesterday_by_workday(self):
+        """期間「前日」（作業日・現場歴）: いまを勤務体系で現場歴の日にして、その 1 日前の行だけ"""
+        days = sorted({place(r[0])[0] for rows in self.rows.values() for r in rows})
+        target = days[-3]
+        now = datetime.fromisoformat(target) + timedelta(days=1, hours=3)      # 次の日の 3 時＝現場歴ではまだ target の日（3直）
+        ans = self.many([{"column": "@equip"}], [], [{"agg": "lots"}], period={"column": "@workday", "kind": "yesterday"}, now=now)
+        yday = (datetime.fromisoformat(target) - timedelta(days=1)).date().isoformat()
+        self.assertEqual(ans["period"]["ranges"], [{"from": yday, "to": yday}], "3 時は前の日の 3直なので、前日はその 1 日前")
+        for eq, rows in self.rows.items():
+            want = len({r[0] for r in rows if place(r[0])[0] == yday})
+            got = cell(ans, [eq])
+            self.assertEqual(got[0] if got else 0, want, eq)
+        week = self.many([], [], [{"agg": "count"}], period={"column": "@workday", "kind": "days", "n": 7}, now=now)
+        lo = (datetime.fromisoformat(target) - timedelta(days=6)).date().isoformat()
+        self.assertEqual(cell(week)[0], sum(1 for rows in self.rows.values() for r in rows if lo <= place(r[0])[0] <= target), "直近 7 日（今日を含む）")
+
+    def test_period_on_a_date_column_and_ranges(self):
+        self.assertEqual(pivot.period_range("this_month", 0, "2026-10-16"), ("2026-10-01", "2026-10-16"))
+        self.assertEqual(pivot.period_range("last_month", 0, "2026-03-31"), ("2026-02-01", "2026-02-28"))
+        self.assertEqual(pivot.period_range("days", 3, "2026-10-01"), ("2026-09-29", "2026-10-01"))
+        with self.assertRaises(pivot.PivotError):
+            pivot.period_range("week", 0, "2026-10-01")
+        now = datetime(2026, 10, 2, 12)
+        ans = self.many([], [], [{"agg": "count"}], parts=self.parts()[:1], period={"column": "作業日", "kind": "this_month"}, now=now)
+        with sqlite3.connect(self.files["CR1"]) as c:
+            want = sum(1 for (d,) in c.execute("SELECT [作業日] FROM 実績") if "2026/10/01" <= d <= "2026/10/02")
+        self.assertEqual((cell(ans) or [0])[0], want, "日付の列は暦の今日から")
+        with self.assertRaises(pivot.PivotError):
+            self.many([], [], [{"agg": "count"}], parts=self.parts()[:1], period={"column": "無い列", "kind": "today"})
+
+    def test_equipment_from_a_column_and_unknown_filters(self):
+        p = self.tmp / "wip.sqlite3"
+        lotlist_fixture.make_wip(str(p), n=400)
+        from app.services.data_sources import EquipmentMatcher
+        match = EquipmentMatcher(lotlist_fixture.WIP_EQUIPMENT, "前方一致")
+        part = pivot.Part(str(p), table_candidates=["仕掛"], equip={"column": "残仕掛設備ｺｰｽ", "match": match})
+        ans = pivot.query_many([part], rows=json.dumps([{"column": "@equip"}]), measures=json.dumps([{"agg": "lots"}]),
+                               filters=json.dumps([{"column": "無い列", "op": "eq", "value": "x"}]))
+        with sqlite3.connect(p) as c:
+            want = defaultdict(set)
+            for lot, course in c.execute("SELECT ロット番号, 残仕掛設備ｺｰｽ FROM 仕掛"):
+                want[match(course)].add(lot)
+        for eq, lots in want.items():
+            self.assertEqual(cell(ans, [eq])[0], len(lots), eq or "設備なし")
+        self.assertEqual(ans["labels"][0][""], "設備なし")
+        self.assertEqual(ans["ignoredFilters"], ["無い列"], "表に無い列の条件は効かないので、知らせる")
+        with self.assertRaises(pivot.PivotError):
+            pivot.query(str(p), table_candidates=["仕掛"], rows=json.dumps([{"column": "@equip"}]))
+
+    def test_a_broken_file_is_skipped_when_there_are_others(self):
+        bad = self.tmp / "bad.sqlite3"
+        bad.write_bytes(b"not a database")
+        parts = self.parts() + [pivot.Part(str(bad), equip={"name": "XX"})]
+        ans = self.many([{"column": "@equip"}], [], [{"agg": "count"}], parts=parts)
+        self.assertEqual([x["name"] for x in ans["skipped"]], ["XX"])
+        self.assertEqual(cell(ans)[0], sum(len(r) for r in self.rows.values()))
+        with self.assertRaises(Exception):
+            self.many([{"column": "@equip"}], parts=parts[2:])
+
+
 class Api(unittest.TestCase):
     """道（/api/worklog/pivot・fields=1・/api/worklog?work=1&total=）。勤務体系は交替勤務(1,2,3直)。"""
 

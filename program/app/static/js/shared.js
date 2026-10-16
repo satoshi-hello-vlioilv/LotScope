@@ -142,7 +142,22 @@
     };
   })();
 
+  /* 条件の比べ方（一覧の条件・ダッシュボードのパネルの条件で同じ。サーバーは services/lot_list.py の ALLOWED_OPS） */
+  const FILTER_OPS = [
+    ["contains", "含む"], ["not_contains", "含まない"], ["eq", "＝ 一致"], ["neq", "≠ 不一致"],
+    ["starts", "前方一致"], ["ends", "後方一致"], ["gt", "> より大きい"], ["gte", ">= 以上"], ["lt", "< より小さい"], ["lte", "<= 以下"], ["empty", "空欄"], ["not_empty", "空欄以外"],
+    // 日付と読める列だけ: 今日から数えて N 日（週・か月・年）以内（サーバーが ToDate(列) >= 今日−N で絞る）
+    ["within_days", "日以内（今日から）"], ["within_weeks", "週間以内（今日から）"], ["within_months", "か月以内（今日から）"], ["within_years", "年以内（今日から）"],
+  ];
+  const REL_UNIT = { within_days: "日", within_weeks: "週間", within_months: "か月", within_years: "年" };
+  const opLabel = (op) => (FILTER_OPS.find((x) => x[0] === op) || [op, op])[1];
+  const opShort = (op) => opLabel(op).split(" ")[0];
+  const noValueOp = (op) => op === "empty" || op === "not_empty";
+  const relText = (f) => `${f.value}${REL_UNIT[f.op]}以内` + (String(f.value) === "0" && f.op === "within_days" ? "（今日）" : "");
+  const condLabel = (f) => (f.op in REL_UNIT ? `${f.column} ${relText(f)}` : noValueOp(f.op) ? `${f.column} ${opShort(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
+
   window.TPA = {
+    FILTER_OPS, REL_UNIT, opLabel, opShort, noValueOp, relText, condLabel,
     /** HTML に差し込む文字を無害にする（& < > " ' ）。 */
     esc: (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ESC[c]),
     $: (s, r = document) => r.querySelector(s),

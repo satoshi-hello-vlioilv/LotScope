@@ -223,8 +223,8 @@ async function boot() {
   pollUpdate();
   loadInstall();
   // 起動時は検索しない（検索は LotDsp を読みに行くので、利用者が「検索」を押したときだけ）
-  // 最初の画面は異常ロット一覧
-  showScreen("list");
+  // 最初の画面はダッシュボード（版 3.37.0。利用者の要望）。#screen=list のように頁の印で始める画面を選べる（評価関数・ほかからの呼び出し）
+  showScreen(initialScreen());
 }
 
 /* ---------------- 版・自分の権限・切断（WaveLog と同じ管理。判定はサーバーの services/access.py の1箇所） ----------------
@@ -928,7 +928,7 @@ function hideImportNote() { $("#importNote").classList.add("hidden"); }
 function lotdspLotNo() { return $("#query").value.trim().toUpperCase(); }
 
 $("#searchBtn").onclick = runSearch;
-/* ---------------- 画面の切り替え（最初は異常ロット一覧） ----------------
+/* ---------------- 画面の切り替え（最初はダッシュボード。版 3.37.0） ----------------
    一覧でロット番号を押す → 計算画面へ移り、検索欄に入れて「検索」と同じ流れで取り込む。
    計算画面の検索欄からは、これまでどおり直接ロット問い合わせもできる。 */
 /* 異常ロット一覧（list）と作業実績（work）は同じ画面（#lotListScreen）を、一覧の元（source）を替えて使う（lotlist.js の SOURCES）。
@@ -940,6 +940,13 @@ const SCREENS = {
   work: { tab: "#tabWork", panel: "#lotListScreen", source: "work", key: "3" },
 };
 state.screen = null;
+/** 最初に出す画面: 頁の印 #screen=名前（list・work・calc・dash。データ元の画面 src:キー は、タブを作ったあとに移る）→ ダッシュボード */
+function initialScreen() {
+  const m = /(?:^|[#&])screen=([^&]+)/.exec(location.hash || "");
+  const want = m ? decodeURIComponent(m[1]) : "";
+  if (want.startsWith("src:")) { document.addEventListener("tpa:screens-ready", () => showScreen(want), { once: true }); return "dash"; }
+  return SCREENS[want] ? want : "dash";
+}
 function showScreen(name, { focus = true } = {}) {
   if (!SCREENS[name] || state.screen === name) return;
   const prev = state.screen;
@@ -991,6 +998,7 @@ async function loadSources() {
     b.title = `${d.name}（${d.place || "場所が決まっていません"}）を、異常ロット一覧と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
     SCREENS[d.screen] = { tab: `#${id}`, panel: "#lotListScreen", source: d.screen, key };
   });
+  document.dispatchEvent(new CustomEvent("tpa:screens-ready"));
 }
 loadSources();
 document.addEventListener("tpa:sources-changed", loadSources);

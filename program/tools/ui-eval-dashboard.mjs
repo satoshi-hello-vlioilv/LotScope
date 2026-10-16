@@ -1,88 +1,168 @@
-// 評価関数（開発用）: ダッシュボード（設備別の仕掛ロット数・前日〈現場歴〉の設備別・直ごとの実績本数。版 3.36.0）。
+// 評価関数（開発用）: ダッシュボード（版 3.37.0。最初の画面・グリッドのパネル・パネルを組む・保存。版 3.36.0 の 1 枚の表もパネルの 1 つ）。
 //   node program/tools/ui-eval-dashboard.mjs
 // 試験用のサーバーは「いま」を試験データの翌日（10/3 10:00）にしてあるので、前日は 10/2。
-// ① 見出しの「ダッシュボード」のタブで開く。1 枚の表で、設備ごとに仕掛のロット数と前日の直ごとの本数・計が並ぶ
-// ② 表の数がサーバーの答え（/api/dashboard）と合う（仕掛の数・前日の計・直の列の和＝計〈直の外も入れて〉）
-// ③ 仕掛があるのに前日 0 本の設備は「0 本」の札（色だけに頼らない）と、上の「前日 0 本」の行に名前が出る
-// ④ 条件: 「仕掛の対象」を押すと札のすぐ下に欄が開く。製造材質 ＝ A1100 で保存 → 仕掛の計がサーバーの答えと合って減る。すべてに戻す
-// ⑤ 「仕掛を開く ›」で仕掛のタブへ移る
-// ⑥ 1728×1152・1280×720 で、見出し（題・タブ・状態の札・終了）が 1 段で窓に収まる・表が横にはみ出さない
+// ① 頁の印なしで開くと、最初の画面はダッシュボード（タブが選ばれ、パネルが出る）
+// ② 1728×1152・1536×864・1280×720 で、スクロールしない（頁が窓より高くならない・グリッドが窓の中・パネルの中身がパネルからはみ出さない）
+//    ・見出しの字（題）が 11px 以上・パネルの見出しのボタンが切れない
+// ③ 標準のパネルの数がサーバーの答えと合う: 数字（仕掛ロット数・前日の実績本数）・仕掛区分ごとの横棒（値の大きい順）・1 枚の表（/api/dashboard）
+// ④ 大きさに合わせる: 編集で仕掛区分のパネルを Shift+← で狭め、Shift+↑ で低くしても、はみ出さず、入らない棒は「n / m を描いています」と出る
+// ⑤ 組む: 仕掛区分のパネルを「表」にすると、グリッドの中でその場で表になる。条件（製造材質 ＝ A1100）でサーバーと同じ数に減る。当てる → 元に戻すで戻る
+// ⑥ 動かす: パネルを 1 つ消して空けた所へ、ほかのパネルの見出しを掴んで動かせる。重なる所へは置けない（影が赤）
+// ⑦ 保存: 名前を付けて保存（自分・標準）→ 頁を開き直すと、保存した物が開く → いまの物を消す（2 回押し）→ 組み込みの標準に戻る
+// ⑧ 1 枚の表の集計対象（全員で 1 つ）: 「仕掛の対象」で製造材質 ＝ A1100 を保存すると仕掛の計が減り、すべてに戻せる
 // 全部合えば終了コード 0。
-import { launch, sleep, parseView } from "./ui-harness.mjs";
+import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
 
 const fails = [];
-const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 400)}`}`); if (!ok) fails.push(name); };
-const read = (p) => p.evaluate(() => {
-  const t = document.querySelector("#dashBody .db-table");
-  if (!t) return null;
-  const heads = [...t.querySelectorAll("thead tr:last-child th")].map((x) => x.textContent.trim());
-  const rows = [...t.querySelectorAll("tbody tr")].map((tr) => ({ eq: tr.querySelector("th")?.textContent.trim(),
-    lots: tr.querySelector(".db-lots b")?.textContent.trim(), cells: [...tr.querySelectorAll("td.db-s")].map((x) => x.textContent.trim()),
-    sum: tr.querySelector(".db-sum")?.childNodes[0]?.textContent.trim(), flag: !!tr.querySelector(".db-flag"), note: tr.querySelector(".db-ng, .db-na")?.textContent || "" }));
-  return { heads, rows, title: document.querySelector("#dashBody h3")?.textContent || "", warn: document.querySelector("#dashBody .db-warn")?.textContent || "",
-    lotsTotal: document.querySelector("#dashBody thead .db-lots small")?.textContent || "" };
+const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 500)}`}`); if (!ok) fails.push(name); };
+const P = (id) => `#dashGrid .db-p[data-id="${id}"]`;
+/** 頁の大きさ・はみ出し（② ④） */
+const fitOf = (p) => p.evaluate(() => {
+  const g = document.querySelector("#dashGrid").getBoundingClientRect();
+  const bad = [...document.querySelectorAll("#dashGrid .db-p")].map((el) => {
+    const b = el.querySelector(".db-pb"), r = el.getBoundingClientRect(), h = el.querySelector(".db-ph");
+    const btnCut = [...h.querySelectorAll("button")].some((x) => { const q = x.getBoundingClientRect(); return q.width > 0 && (q.right > r.right - 4 || q.left < r.left); });
+    const over = b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1;
+    const out = r.bottom > g.bottom + 1 || r.right > g.right + 1;
+    const small = parseFloat(getComputedStyle(h.querySelector("h3")).fontSize) < 11;
+    return { id: el.dataset.id, over, out, btnCut, small, sh: b.scrollHeight, ch: b.clientHeight, sw: b.scrollWidth, cw: b.clientWidth };
+  }).filter((x) => x.over || x.out || x.btnCut || x.small);
+  return { pageScroll: document.documentElement.scrollHeight > innerHeight + 1 || document.documentElement.scrollWidth > innerWidth + 1,
+    gridIn: g.bottom <= innerHeight + 1, bad };
 });
+const ask = (p, panel) => p.evaluate(async (x) => (await fetch("/api/dashboard/query", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ panel: x }) })).json(), panel);
+const total = (d) => (d.cells.find((c) => !c.r.length && !c.c.length) || { v: [null] }).v[0];
+const layout = (p) => p.evaluate(() => Dashboard._state().layout);
+const num = (t) => Number(String(t).replace(/[^\d.]/g, ""));
 
 const app = await launch();
+const errors = [];
 try {
-  for (const view of [parseView("1728x1152"), parseView("1280x720")]) {
-    const tag = `${view.width}×${view.height}`, big = view.width === 1728;
-    const p = await app.newPage("light", view);
-    const errors = []; p.on("pageerror", (e) => errors.push(e.message));
-    await p.click("#tabDash"); await p.waitForSelector("#dashBody .db-table", { timeout: 20000 }); await sleep(500);
-    const d = await read(p);
-    const api = await p.evaluate(async () => (await fetch("/api/dashboard")).json());
-    check(`① ${tag} 1 枚の表（前日 10/2・現場歴）`, !!d && /前日 10\/2・現場歴/.test(d.title) && d.heads.includes("計"), d && d.title);
-    const lots = Object.fromEntries(api.wip.items.map((x) => [x.equipment, x.lots]));
-    const work = Object.fromEntries(api.work.items.map((x) => [x.equipment, x]));
-    const badLots = d.rows.filter((r) => (lots[r.eq] || 0) !== (r.lots === "–" ? 0 : Number(r.lots.replace(/,/g, ""))));
-    check(`② ${tag} 仕掛のロット数がサーバーの答えと合う（計 ${api.wip.total}）`, !badLots.length && d.lotsTotal.includes(api.wip.total.toLocaleString()), badLots);
-    const badSum = d.rows.filter((r) => { const w = work[r.eq]; if (!w || w.error) return false;
-      const sum = r.cells.filter((c) => /^\d+$/.test(c)).reduce((a, c) => a + Number(c), 0);
-      return Number(r.sum) !== w.total.works || sum !== w.total.works; });
-    check(`② ${tag} 前日の計がサーバーと合い、直の列の和＝計（直の外も入れて）`, !badSum.length, badSum);
-    const zero = api.work.items.filter((x) => !x.error && !x.total.works && lots[x.equipment]).map((x) => x.equipment);
-    const flagged = d.rows.filter((r) => r.flag).map((r) => r.eq);
-    check(`③ ${tag} 仕掛があるのに前日 0 本の設備に「0 本」の札・上の行に名前`, zero.length > 0 && zero.every((e) => flagged.includes(e) && d.warn.includes(e)), { zero, flagged, warn: d.warn });
-    // ⑥ 見出しが 1 段で窓に収まる・表が横にはみ出さない
-    const fit = await p.evaluate(() => {
-      const h = document.querySelector("header").getBoundingClientRect(), q = document.querySelector("#quitBtn").getBoundingClientRect();
-      const brand = document.querySelector("header .brand h1"), tabs = [...document.querySelectorAll(".screen-tab")].map((b) => b.getBoundingClientRect());
-      const wrap = document.querySelector("#dashBody .db-tablewrap");
-      return { quit: q.right <= innerWidth + 0.5 && q.bottom <= h.bottom + 0.5, brand: brand.scrollWidth <= brand.clientWidth + 1,
-        oneRow: tabs.every((t) => Math.abs(t.top - tabs[0].top) < 2), table: wrap.scrollWidth <= wrap.clientWidth + 1 };
-    });
-    check(`⑥ ${tag} 見出しが 1 段で収まる（終了が窓の中・題が切れない）・表が横にはみ出さない`, fit.quit && fit.brand && fit.oneRow && fit.table, fit);
-    if (big) {
-      // ④ 条件
-      await p.click('[data-db-cond="wip"]'); await sleep(300);
-      const ed = await p.evaluate(() => { const e = document.querySelector("#dashBody .db-editor"), h = document.querySelector("#dashBody .db-head");
-        return { open: !!e, below: e && h ? e.getBoundingClientRect().top >= h.getBoundingClientRect().bottom - 1 : false }; });
-      check("④ 「仕掛の対象」を押すと、札のすぐ下に条件の欄が開く", ed.open && ed.below, ed);
-      await p.selectOption('#dashBody .db-editor [data-f="column"]', "製造材質");
-      await p.selectOption('#dashBody .db-editor [data-f="op"]', "eq");
-      await p.fill('#dashBody .db-editor [data-f="value"]', "A1100");
-      await p.click("#dashBody [data-db-save]"); await sleep(2500);
-      const api2 = await p.evaluate(async () => (await fetch("/api/dashboard?part=wip")).json());
-      const d2 = await read(p);
-      check("④ 条件で保存すると、仕掛の計がサーバーの答えと合って減り、札に条件が出る",
-        api2.wip.total < api.wip.total && d2.lotsTotal.includes(api2.wip.total.toLocaleString())
-        && /製造材質/.test(await p.$eval('[data-db-cond="wip"]', (b) => b.textContent)), { before: api.wip.total, after: api2.wip.total, shown: d2.lotsTotal });
-      await p.click('[data-db-cond="wip"]'); await sleep(300);
-      await p.click("#dashBody .db-editor [data-db-del]");
-      await p.click("#dashBody [data-db-save]"); await sleep(2500);
-      check("④ 条件を外して保存すると、すべてに戻る", /すべて/.test(await p.$eval('[data-db-cond="wip"]', (b) => b.textContent)), "");
-      // ⑤ 仕掛を開く
-      await p.click("#dashBody [data-db-open]"); await sleep(3000);
-      check("⑤ 「仕掛を開く ›」で仕掛のタブへ移る", (await p.evaluate(() => document.querySelector('[data-screen="src:wip"]').getAttribute("aria-selected"))) === "true", "");
-    }
-    check(`${tag} 頁の誤りが無い`, !errors.length, errors);
+  // ① 最初の画面
+  {
+    const ctx = await app.browser.newContext({ viewport: parseView("1728x1152"), deviceScaleFactor: 1.25, locale: "ja-JP" });
+    await ctx.route("**/__desktop/**", (r) => r.fulfill({ status: 404, json: { error: "作り物の窓は答えません" } }));
+    const p = await ctx.newPage(); p.on("pageerror", (e) => errors.push(e.message));
+    await p.goto(app.base); await waitDash(p);
+    const s = await p.evaluate(() => ({ tab: document.querySelector("#tabDash").getAttribute("aria-selected"), shown: !document.querySelector("#dashScreen").classList.contains("hidden"),
+      list: document.querySelector("#lotListScreen").classList.contains("hidden"), panels: document.querySelectorAll("#dashGrid .db-p").length }));
+    check("① 頁の印なしで開くと、最初の画面はダッシュボード", s.tab === "true" && s.shown && s.list && s.panels >= 5, s);
+    await ctx.close();
+  }
+  // ② スクロールしない（3 つの大きさ）
+  for (const v of ["1728x1152", "1536x864", "1280x720"]) {
+    const p = await app.newPage("light", parseView(v), { screen: "dash" }); p.on("pageerror", (e) => errors.push(e.message));
+    const f = await fitOf(p);
+    check(`② ${v} スクロールしない・パネルの中身がはみ出さない・見出しのボタンが切れない`, !f.pageScroll && f.gridIn && !f.bad.length, f);
+    await p.click("[data-db-editmode]"); await sleep(400);
+    const e = await fitOf(p);
+    check(`② ${v} 編集のときも同じ`, !e.pageScroll && e.gridIn && !e.bad.length, e);
     await p.context().close();
   }
+
+  const p = await app.newPage("light", parseView("1728x1152"), { screen: "dash" });
+  p.on("pageerror", (e) => errors.push(e.message));
+  // ③ 標準のパネルの数がサーバーと合う
+  const L = await layout(p), byId = Object.fromEntries(L.panels.map((x) => [x.id, x]));
+  const wipTotal = total(await ask(p, byId.wipTotal)), workTotal = total(await ask(p, byId.workTotal));
+  const kpi = await p.evaluate(() => ["wipTotal", "workTotal"].map((id) => document.querySelector(`#dashGrid .db-p[data-id="${id}"] .dp-num`)?.childNodes[0].textContent));
+  check(`③ 数字のパネルがサーバーと合う（仕掛 ${wipTotal}・前日 ${workTotal}）`, num(kpi[0]) === wipTotal && num(kpi[1]) === workTotal, kpi);
+  const cls = await ask(p, byId.wipClass);
+  const want = cls.orders[0].map((k) => [cls.labels[0][k], cls.cells.find((c) => c.r.length === 1 && c.r[0] === k && !c.c.length).v[0]]).sort((a, b) => b[1] - a[1]);
+  const bars = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} svg rect title`)].map((t) => t.textContent), P("wipClass"));
+  check("③ 仕掛区分ごとの横棒が、サーバーの数と同じで大きい順", bars.length === want.length && bars.every((t, i) => t === `${want[i][0]}: ${want[i][1].toLocaleString("ja-JP")}`), { bars, want });
+  const board = await p.evaluate(async () => (await fetch("/api/dashboard")).json());
+  const boardShown = await p.evaluate((sel) => document.querySelector(`${sel} thead .db-lots small`)?.textContent || "", P("board"));
+  check("③ 1 枚の表の仕掛の計が /api/dashboard と合う", boardShown.includes(board.wip.total.toLocaleString()), { boardShown, total: board.wip.total });
+
+  // ④ 大きさに合わせる
+  await p.click("[data-db-editmode]"); await sleep(300);
+  await p.focus(P("wipClass"));
+  for (let i = 0; i < 2; i++) { await p.keyboard.press("Shift+ArrowLeft"); await sleep(150); }
+  for (let i = 0; i < 2; i++) { await p.keyboard.press("Shift+ArrowUp"); await sleep(150); }
+  await sleep(1500);
+  const small = (await layout(p)).panels.find((x) => x.id === "wipClass");
+  const f4 = await fitOf(p);
+  const foot = await p.$eval(`${P("wipClass")} .db-pf`, (e) => (e.hidden ? "" : e.textContent));
+  const drawn = await p.$$eval(`${P("wipClass")} svg rect`, (x) => x.length);
+  check(`④ 狭く低くしても（${small.w}×${small.h}）はみ出さない`, small.w === 3 && small.h === 2 && !f4.bad.length, { small, f4 });
+  check(`④ 入らない棒は描かず、下に「n / m を描いています」（${drawn} 本）`, drawn < want.length ? /\d+ \/ \d+ を描いています/.test(foot) : true, { drawn, foot });
+  await p.click("[data-db-undo]"); await p.click("[data-db-undo]"); await p.click("[data-db-undo]"); await p.click("[data-db-undo]"); await sleep(800);
+  const back = (await layout(p)).panels.find((x) => x.id === "wipClass");
+  check("④ 元に戻す（4 回）で、大きさが戻る", back.w === 5 && back.h === 4, back);
+
+  // ⑤ 組む（その場で描き直る・条件・当てる・元に戻す）
+  await p.click(`${P("wipClass")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f");
+  await p.click('[data-de-vis="none"]'); await sleep(1500);
+  check("⑤ 「表」を選ぶと、グリッドの中のそのパネルがその場で表になる", await p.$(`${P("wipClass")} .pv-table`) !== null, "");
+  await p.click("[data-de-fadd]");
+  await p.selectOption('#deCond .db-crow [data-de-f="column"]', "製造材質");
+  await p.fill('#deCond .db-crow [data-de-f="value"]', "A1100"); await p.dispatchEvent('#deCond .db-crow [data-de-f="value"]', "change");
+  await sleep(1800);
+  const cond = { ...byId.wipClass, visual: "none", filters: [{ column: "製造材質", op: "eq", value: "A1100" }], body: { ...byId.wipClass.body, grand: true } };
+  const want5 = total(await ask(p, cond));
+  const shown5 = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} tr.is-grand td`)].map((t) => t.textContent)[0], P("wipClass"));
+  check(`⑤ 条件（製造材質 ＝ A1100）でサーバーと同じ総計（${want5}）に減る`, num(shown5) === want5 && want5 < wipTotal, { shown5, want5 });
+  await p.click("[data-de-apply]"); await sleep(600);
+  const applied = (await layout(p)).panels.find((x) => x.id === "wipClass");
+  check("⑤ 当てると組みに入る（表・条件 1 つ）", applied.visual === "none" && applied.filters.length === 1, applied);
+  await p.click("[data-db-undo]"); await sleep(1200);
+  const undone = (await layout(p)).panels.find((x) => x.id === "wipClass");
+  check("⑤ 元に戻すで、組む前（横棒・条件なし）に戻る", undone.visual === "bar" && !undone.filters.length, undone);
+
+  // ⑥ 動かす（消して空けた所へ、見出しを掴んで）
+  await p.click(`${P("wipTotal")} [data-db-del]`); await p.click(`${P("wipTotal")} [data-db-del]`); await sleep(400);
+  const drag = async (id, cell) => {
+    const h = await p.$(`${P(id)} .db-ph h3`), b = await h.boundingBox();
+    const c = await p.$(`#dashGrid .db-cell[data-cell="${cell}"]`), cb = c ? await c.boundingBox() : null;
+    await p.mouse.move(b.x + 10, b.y + b.height / 2); await p.mouse.down();
+    return { b, cb };
+  };
+  const wt = (await layout(p)).panels.find((x) => x.id === "workTotal");
+  let { b, cb } = await drag("workTotal", "0,0");
+  await p.mouse.move(cb.x + 10, b.y + b.height / 2, { steps: 6 }); await sleep(200);
+  const ghostOk = await p.$eval("#dbGhost", (g) => !g.classList.contains("is-bad")).catch(() => false);
+  await p.mouse.up(); await sleep(500);
+  const moved = (await layout(p)).panels.find((x) => x.id === "workTotal");
+  check(`⑥ 見出しを掴んで空いた所へ動かせる（${wt.x} 列 → ${moved.x} 列）`, ghostOk && moved.x === 0 && moved.y === wt.y, { wt, moved, ghostOk });
+  ({ b } = await drag("workTotal"));
+  const target = await p.$(`${P("wipClass")} .db-pb`), tb = await target.boundingBox();
+  await p.mouse.move(tb.x + 20, tb.y + 20, { steps: 6 }); await sleep(200);
+  const bad = await p.$eval("#dbGhost", (g) => g.classList.contains("is-bad")).catch(() => false);
+  await p.mouse.up(); await sleep(400);
+  const still = (await layout(p)).panels.find((x) => x.id === "workTotal");
+  check("⑥ 重なる所へは置けない（影が赤・動かない）", bad && still.x === 0, { bad, still });
+
+  // ⑦ 保存（自分・標準）→ 開き直す → 消す
+  await p.click("[data-db-saveas]"); await sleep(300);
+  await p.fill("#dbSaveName", "評価のダッシュボード");
+  await p.click("[data-db-dosave]"); await sleep(1200);
+  const saved = await p.evaluate(() => Dashboard._state());
+  await p.goto(`${app.base}/#screen=dash`); await waitDash(p);
+  const reopened = await p.evaluate(() => ({ name: document.querySelector(".db-pick b").textContent, n: Dashboard._state().layout.panels.length }));
+  check("⑦ 名前を付けて保存（自分・標準）→ 開き直すと、保存した物が開く", reopened.name === "評価のダッシュボード" && reopened.n === saved.layout.panels.length, reopened);
+  await p.click("[data-db-pick]"); await p.click("[data-db-remove]"); await p.click("[data-db-remove]"); await sleep(1200);
+  const after = await p.evaluate(() => ({ name: document.querySelector(".db-pick b").textContent, ids: Dashboard._state().layout.panels.map((x) => x.id) }));
+  check("⑦ いまの物を消す（2 回押し）と、組み込みの標準に戻る", after.name === "標準" && after.ids.includes("wipTotal"), after);
+
+  // ⑧ 1 枚の表の集計対象
+  await p.click('[data-db-cond="wip"]'); await sleep(300);
+  await p.selectOption('.db-condpop [data-f="column"]', "製造材質");
+  await p.selectOption('.db-condpop [data-f="op"]', "eq");
+  await p.fill('.db-condpop [data-f="value"]', "A1100");
+  await p.click("[data-db-condsave]"); await sleep(2500);
+  const b2 = await p.evaluate(async () => (await fetch("/api/dashboard?part=wip")).json());
+  const shown8 = await p.evaluate((sel) => document.querySelector(`${sel} thead .db-lots small`)?.textContent || "", P("board"));
+  check("⑧ 「仕掛の対象」で条件を保存すると、1 枚の表の仕掛の計が減り、札に条件が出る",
+    b2.wip.total < board.wip.total && shown8.includes(b2.wip.total.toLocaleString()) && /製造材質/.test(await p.$eval('[data-db-cond="wip"]', (x) => x.textContent)), { shown8, total: b2.wip.total });
+  await p.click('[data-db-cond="wip"]'); await sleep(300);
+  await p.click(".db-condpop [data-db-crowdel]"); await p.click("[data-db-condsave]"); await sleep(2500);
+  check("⑧ 条件を外して保存すると、すべてに戻る", /すべて/.test(await p.$eval('[data-db-cond="wip"]', (x) => x.textContent)), "");
+  check("頁の誤りが無い", !errors.length, errors);
 } catch (e) {
   console.error(e); fails.push(String(e).slice(0, 200));
 } finally {
   await app.close();
 }
-console.log(fails.length ? `NG ${fails.length} 件: ${fails.join(" / ")}` : "OK");
+console.log(fails.length ? `\nNG ${fails.length} 件` : "\nすべて OK");
 process.exit(fails.length ? 1 : 0);

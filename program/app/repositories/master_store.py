@@ -50,6 +50,9 @@ HISTORY_KEEP = 10                     # この PC が覚えておく、前の置
 LOCK_TRIES = 5                  # 錠を取る試み（外された直後・切れた錠をどけた直後に取り直す回数）
 LOCK_MOVE_BUDGET_SEC = 0.5      # 錠をどける（名前を変える）のを、Windows でほかが開いている間に待つ長さ
 LOCK_TTL_DEFAULT = 20.0
+# 共有フォルダがあればいつも共有するマスタ（設定 master_store.masters に書かなくても。全員で 1 つでないと決まりが PC ごとにずれる物）
+SHARED_ALWAYS = frozenset({"path_settings", "access_permissions", "app_seeds", "ui_defaults", "work_log_files", "display_formats",
+                           "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards"})
 REFRESH_DEFAULT = 5.0
 INSTANCE_FILENAME = "instance_id"   # この PC のアプリの印（手元の置き場に 1 度だけ作る。錠が自分の物かを見分ける）
 SCHEMA = 1
@@ -209,9 +212,9 @@ class MasterStore:
         # shift_patterns: 勤務体系（直の時間帯）。作業実績を日＋直で数える決まりなので全員で1つ
         # pivot_presets: 集計表・グラフの組み方のプリセット（共通デフォルト・共通・ID ごと）。ほかの PC・ほかの設備で呼び出すので全員で1つ
         # pivot_quick: すぐに見るの選び（ログイン ID ごと）。ほかの PC でも同じ並びを出すので全員で1つ
-        self.shared_names = set(cfg.get("masters") or ["roll_master", "equipment_master"]) | {"path_settings", "access_permissions", "app_seeds",
-                                                                                              "ui_defaults", "work_log_files", "display_formats",
-                                                                                              "shift_patterns", "pivot_presets", "pivot_quick"}
+        # data_sources: データ元（どこの何を読むか）。読みに行く場所と同じく全員で1つ（版 3.36.0 で入れ忘れていたのを 3.37.0 で足した）
+        # dashboard_settings: ダッシュボードの集計対象の条件（全員で1つ）・dashboards: ダッシュボードの組み（共通・ID ごと。ほかの PC でも同じ物を出す）
+        self.shared_names = set(cfg.get("masters") or ["roll_master", "equipment_master"]) | SHARED_ALWAYS
         self.lock_ttl = float(cfg.get("lock_ttl_seconds", LOCK_TTL_DEFAULT))
         self.refresh_sec = float(cfg.get("refresh_seconds", REFRESH_DEFAULT))
         root = Path(local_root) if local_root else app_env.local_root()
@@ -633,7 +636,7 @@ class MasterStore:
 
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
     def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",
-                                "shift_patterns", "pivot_presets", "pivot_quick")):
+                                "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards")):
         shared = self.share_dir is not None
         out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
                "configured": str(self.configured_dir or ""), "override": self.override_path.exists(), "pin": self.pinned(),

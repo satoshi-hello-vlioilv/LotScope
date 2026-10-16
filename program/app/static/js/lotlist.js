@@ -50,13 +50,8 @@
   const feat = Object.assign({}, FEATURES, store.get(KEY.features, {}));
   const legacyGroup = !!feat.group;
   function setFeature(k, v) { feat[k] = !!v; store.set(KEY.features, feat); }
-  const OPS = [
-    ["contains", "含む"], ["not_contains", "含まない"], ["eq", "＝ 一致"], ["neq", "≠ 不一致"],
-    ["starts", "前方一致"], ["ends", "後方一致"], ["gt", "> より大きい"], ["gte", ">= 以上"], ["lt", "< より小さい"], ["lte", "<= 以下"], ["empty", "空欄"], ["not_empty", "空欄以外"],
-    // 日付と読める列だけ: 今日から数えて N 日（週・か月・年）以内（サーバーが ToDate(列) >= 今日−N で絞る）
-    ["within_days", "日以内（今日から）"], ["within_weeks", "週間以内（今日から）"], ["within_months", "か月以内（今日から）"], ["within_years", "年以内（今日から）"],
-  ];
-  const REL_UNIT = { within_days: "日", within_weeks: "週間", within_months: "か月", within_years: "年" };
+  const OPS = TPA.FILTER_OPS;      // 条件の比べ方（shared.js の 1 か所。ダッシュボードのパネルの条件も同じ）
+  const REL_UNIT = TPA.REL_UNIT;
   const REL_PICKS = { within_days: [0, 1, 3, 7, 14, 30], within_weeks: [1, 2, 4], within_months: [1, 3, 6, 12], within_years: [1, 2, 3] };
   const isRel = (op) => op in REL_UNIT;
   const PAGE_SIZES = [200, 500, 1000, 2000];
@@ -71,13 +66,9 @@
   const MAX_SORTS = 4;
   const PRESET_NONE = "";
 
-  const opLabel = (op) => (OPS.find((x) => x[0] === op) || [op, op])[1];
-  const opShort = (op) => opLabel(op).split(" ")[0];
-  const noValueOp = (op) => op === "empty" || op === "not_empty";
+  const { opLabel, opShort, noValueOp } = TPA;
   const filterKey = (f) => [f.column, f.op, f.value].join("\u001f");
-  const relText = (f) => `${f.value}${REL_UNIT[f.op]}以内` + (String(f.value) === "0" && f.op === "within_days" ? "（今日）" : "");
-  const condLabel = (f) => isRel(f.op) ? `${f.column} ${relText(f)}`
-    : noValueOp(f.op) ? `${f.column} ${opShort(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`;
+  const relText = TPA.relText, condLabel = TPA.condLabel;
   const isDateCol = (c) => S.dateColumns.includes(c);
   /* 比べ方の選択欄: 日付の列でなければ「以内」を選べなくする（押しても何も当たらない物を出さない）。
      選んでいた比べ方が使えなくなったら「含む」へ戻す。 */

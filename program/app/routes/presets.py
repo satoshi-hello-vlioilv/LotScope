@@ -12,23 +12,24 @@ from .common import Forbidden, base_rev, bp, can_write, error, find_row, master_
 SCOPE_ORDER = {"me": 0, "all": 1, "default": 2}
 
 
-def _who():
-    """→ (ログインID, 共通を書けるか, 共通デフォルトを書けるか＝開発者か, 切断されているか)"""
+def _who(name=pp.NAME):
+    """→ (ログインID, 共通を書けるか, 共通デフォルトを書けるか＝開発者か, 切断されているか)。name は共通を書く権限を見るマスタ"""
     try:
         m = me()
     except Exception:
         return "", False, False, None
-    return m["login"], can_write(pp.NAME), m["flags"]["role"] == access.ROLE_DEVELOPER, m["revoked"]
+    return m["login"], can_write(name), m["flags"]["role"] == access.ROLE_DEVELOPER, m["revoked"]
 
 
-def _gate(row, login, common_ok, default_ok, revoked):
+def _gate(row, login, common_ok, default_ok, revoked, what="組み方"):
+    """書いてよいか（what は知らせの言葉。ダッシュボード〈routes/dashboard.py〉も同じ門を使う）"""
     if revoked:
-        raise Forbidden("この PC は一時的に切断されています。組み方を書き換えられません。")
+        raise Forbidden(f"この PC は一時的に切断されています。{what}を書き換えられません。")
     if not pp.can_edit(row, login, common_ok, default_ok):
         scope = pp.scope_of(row)
-        raise Forbidden("共通デフォルトの組み方を書き換えられるのは、開発者だけです。共通か自分の ID に保存してください。" if scope == "default"
-                        else "共通の組み方を書き換えられるのは、マスタを書ける権限（部分的編集可から）の人だけです。自分の ID に保存してください。"
-                        if scope == "all" else "ほかの ID の組み方は書き換えられません。")
+        raise Forbidden(f"共通デフォルトの{what}を書き換えられるのは、開発者だけです。共通か自分の ID に保存してください。" if scope == "default"
+                        else f"共通の{what}を書き換えられるのは、マスタを書ける権限（部分的編集可から）の人だけです。自分の ID に保存してください。"
+                        if scope == "all" else f"ほかの ID の{what}は書き換えられません。")
 
 
 @bp.get("/api/pivot-presets")
