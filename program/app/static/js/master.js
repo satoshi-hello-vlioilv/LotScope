@@ -1028,7 +1028,6 @@ function paintRelease(d, freshness) {
     <li class="dz-step"><b>① 版を置く</b><span>${d.versions.length} 版を置いてあります</span><small>GitHub Releases の ZIP を選ぶ</small></li>
     <li class="dz-arrow" aria-hidden="true"></li>
     <li class="dz-step${cur ? " is-set" : ""}"><b>② 配る版を選ぶ</b><span>${cur ? `配る版 <b>${escapeHtml(cur)}</b>${rec ? chip("↻ 推奨アップデート", "c-rec") : ""}` : "まだ決めていません"}</span>
-      ${rec ? `<small class="dz-rec-note" title="${escapeHtml(rec.note || "")}">理由: ${escapeHtml(rec.note || "（書いていません）")}</small>` : ""}
       <small>${cur ? escapeHtml(`${dist.setAt || ""} ${dist.setBy || ""}`.trim()) + (prev ? `・前は ${escapeHtml(prev)}` : "") : "一覧の「この版を配る」で決める"}</small></li>
     <li class="dz-arrow" aria-hidden="true"></li>
     <li class="dz-step${cur && me.current !== cur ? " is-pending" : ""}"><b>③ 各 PC がそろう</b><span>${step3}</span>
@@ -1052,7 +1051,7 @@ function paintRelease(d, freshness) {
         + `<button type="button" class="pz-btn dz-rm" data-remove="${escapeHtml(v.version)}" title="置き場からこの版を消します（配っている版は消せません）">消す</button>`
       : me.canRelease && !busy ? (rec
         ? '<button type="button" class="pz-btn" data-rec-off title="各 PC への知らせを止めます（配る版はそのまま）">推奨を外す</button>'
-        : '<button type="button" class="pz-btn" data-rec-on title="この版を使っていない PC に、更新を促す控えめな知らせを出します">推奨にする…</button>') : "";
+        : '<button type="button" class="pz-btn" data-rec-on title="この版を使っていない PC に、更新を促す控えめな知らせを出します（「推奨を外す」で止められます）">推奨にする</button>') : "";
     return `<tr class="${v.version === cur ? "is-live" : ""}"><td><b class="pz-ver">${escapeHtml(v.version)}</b></td><td>${tags}</td>
       <td>${escapeHtml(stamp(v.placedAt) || "-")} ${escapeHtml([v.placedPc, v.placedBy].filter(Boolean).join("／"))}</td>
       <td><span class="m-ident">${escapeHtml(v.source || v.zip || "-")}</span></td><td class="num">${MB(v.bytes)}</td><td class="pz-acts">${act}</td></tr>`;
@@ -1072,8 +1071,8 @@ function paintRelease(d, freshness) {
   const copy = $("#dzCopy"); if (copy) copy.onclick = () => navigator.clipboard.writeText(d.entry.path).then(() => { copy.textContent = "コピーしました"; });
   box.querySelectorAll("[data-dist]").forEach((b) => { b.onclick = () => distributeRelease(b.dataset.dist, d); });
   box.querySelectorAll("[data-remove]").forEach((b) => { b.onclick = () => armRemove(b); });
-  const recOn = box.querySelector("[data-rec-on]"); if (recOn) recOn.onclick = () => askRecommend(recOn.closest("td"), cur);
-  const recOff = box.querySelector("[data-rec-off]"); if (recOff) recOff.onclick = () => setRecommended(cur, false, "");
+  const recOn = box.querySelector("[data-rec-on]"); if (recOn) recOn.onclick = () => setRecommended(cur, true);
+  const recOff = box.querySelector("[data-rec-off]"); if (recOff) recOff.onclick = () => setRecommended(cur, false);
   const paintPin = () => { const m = box.querySelector(".pin-masters"); if (!m) return; m.innerHTML = pinLine(pin, pinOpt); bindPinLine(m, pin || {}, () => renderRelease({ fresh: true })); };
   paintPin();
   if (!mstate.placeInfo) loadPlaceInfo().then(() => { if (mstate.tab === "release") paintPin(); });   // 置き場ごとに使っている PC の数（あとから）
@@ -1432,33 +1431,10 @@ async function distributeRelease(version, d) {
     + "全員の PC が次に確かめたとき（起動・30 分ごと）に取り込み、開き直したときにそろいます。"
     + (cur ? `戻すときは、一覧の ${cur} の「この版に戻す」を押すだけです。` : "") + (r.data.notes || []).map((n) => `\n${n}`).join(""));
 }
-/* 推奨アップデートの札（版 3.35.0）。配っている版にだけ付け、理由を 1 行添える（各 PC の知らせに出る）。
+/* 推奨アップデートの札（版 3.35.0）。配っている版にだけ付ける（押すだけ。版 3.38.1 から理由は書かない＝利用者が決めた）。
    札は配る版の覚え（distribute.json）に書き、配る版を変えると外れる（新しい版は、改めて推奨にするかを決める） */
-const REC_NOTE_MAX = 120;
-/* 理由は、各 PC の一覧の上に出る知らせと同じ帯の形の中で書く（書いた物がそのまま見え方。2026-10-recask の 3 回目で決めた P2）。
-   帯は配っている版の行の下に 1 段で足す（表の最後の列に欄を入れると、狭い窓でボタンが表の外へ出た）。開いたら次の行まで見せる */
-function askRecommend(cell, version) {
-  const tr = cell.closest("tr"), tbody = tr.parentElement;
-  tbody.querySelectorAll(".dz-rec-row").forEach((r) => r.remove());
-  tr.classList.add("is-asking");
-  cell.innerHTML = '<span class="dz-rec-wait">↓ 帯に理由を書く</span>';
-  const row = document.createElement("tr");
-  row.className = "dz-rec-row";
-  row.innerHTML = `<td colspan="${tr.children.length}"><div class="dz-rec-band"><em class="rec-ic" aria-hidden="true">↻</em><b>推奨アップデート ${escapeHtml(version)}</b>
-    <span class="dz-rec-ask"><input type="text" class="ps-input" maxlength="${REC_NOTE_MAX}" aria-label="推奨にする理由" placeholder="理由（例: 〇〇の不具合を直しました）">
-    <button type="button" class="pz-btn dz-go" data-rec-put>推奨にする</button><button type="button" class="pz-btn" data-rec-cancel>やめる</button></span></div>
-    <small class="dz-rec-cap">各 PC の一覧の上に、この帯で出ます（Enter で推奨にする・Esc でやめる）</small></td>`;
-  tr.after(row);
-  const input = row.querySelector("input"), put = () => setRecommended(version, true, input.value);
-  input.focus();
-  requestAnimationFrame(() => (row.nextElementSibling || row).scrollIntoView({ block: "nearest" }));
-  // Esc は欄をやめるだけ（マスタ管理の窓まで閉じない）
-  input.onkeydown = (e) => { if (e.key === "Enter") put(); else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); renderRelease(); } };
-  row.querySelector("[data-rec-put]").onclick = put;
-  row.querySelector("[data-rec-cancel]").onclick = () => renderRelease();
-}
-async function setRecommended(version, on, note) {
-  const r = await masterRequest("/__desktop/release/recommend", TPA.json("POST", { version, on, note }));
+async function setRecommended(version, on) {
+  const r = await masterRequest("/__desktop/release/recommend", TPA.json("POST", { version, on }));
   await renderRelease({ fresh: true });
   if (!r.ok) { releaseNotice("ng", "✕ " + (r.data.error || "推奨の札を変えられませんでした。")); return; }
   releaseNotice("ok", on ? `✓ ${version} を推奨アップデートにしました。まだこの版でない PC に、次に確かめたとき（起動・30 分ごと）から控えめな知らせが出ます。`

@@ -117,6 +117,20 @@ class Api(unittest.TestCase):
         self.assertEqual(next(x for x in std if x["visual"] == "board")["groups"][0]["filters"], [], "組み込みの標準は条件なし（引き継がない）")
 
 
+    def test_counts_with_the_real_clock(self):
+        """本物の時計（DASHBOARD_NOW を入れない＝利用者の PC と同じ）でも数える。版 3.38.0 は時刻の関数を消し忘れ、どのパネルも 500 だった"""
+        self.app.config.pop("DASHBOARD_NOW", None)
+        kpi = {"visual": "kpi", "source": "src:wip", "body": {"rows": [], "measures": [{"agg": "lots"}]}}
+        for _ in range(30):
+            r = self.c.post("/api/dashboard/query", json={"panel": kpi})
+            if r.get_json().get("kind") != "copying":
+                break
+            time.sleep(0.1)
+        self.assertEqual((r.status_code, cell(r.get_json())), (200, [3]), r.get_json())
+        r = self.c.post("/api/dashboard/query", json={"panel": {"visual": "board", "id": "board", "w": 12, "h": 8}})
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True)[:300])
+        self.assertEqual(len(r.get_json()["groups"]), 2)
+
 def cell(ans, r=(), c=()):
     return next((x["v"] for x in ans["cells"] if x["r"] == list(r) and x["c"] == list(c)), None)
 
