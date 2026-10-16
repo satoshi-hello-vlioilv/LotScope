@@ -1716,4 +1716,8 @@ $("#masterDeleteConfirmBtn").onclick = async () => {
 
 /* ---------------- 解析画面への反映（解析画面が計算し直す） ---------------- */
 function afterMasterChange() { emit("tpa:masters-changed"); }
+
+// データ元のタブ（master-sources.js。版 3.36.0）に部品を渡して登録する
+if (window.MasterSources) window.MasterSources({ $, escapeHtml, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, lockWaitText, boldName,
+  canWrite, readOnlyWhy, shareDown, chip, goTab, ensureTabLoaded });
 })();

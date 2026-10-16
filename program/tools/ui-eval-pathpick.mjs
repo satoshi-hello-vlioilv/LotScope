@@ -5,7 +5,7 @@
 // ② 参照… の窓: 欄が空なら、このアプリで使っている場所の 1 つ上から始まる。左によく使う場所。マスタのあるフォルダに「マスタあり」の印
 // ③ マスタのあるフォルダを選ぶと、上のフォルダと名前に分けて入り、「この置き場に切り替える」になる
 // ④ 2 回押すと中へ・Backspace で上へ・区切りで戻る・届かないアドレスを打つと、届いた所まで上がって理由が出る・Esc は窓だけ閉じる
-// ⑤ 参照先: 元ファイル（.sqlite3）は「📄 参照…」でファイルを選ぶ（ほかのファイルは出ない）。選ぶと欄に入り、保存が主の色になる
+// ⑤ データ元: 品質データの元ファイル（.sqlite3）は「📄 参照…」でファイルを選ぶ（ほかのファイルは出ない）。選ぶと欄に入る（版 3.36.0 から参照先には出さない）
 // ⑥ 作業実績: いまのフォルダから始まり、決まりに合うファイルの数が印に出る
 // ⑦ 窓が画面に収まる（1728×1152・1536×864）・頁の誤りが無い
 // 全部合えば終了コード 0。
@@ -84,20 +84,23 @@ try {
     await p.keyboard.press("Escape"); await sleep(300);
     const esc = await p.evaluate(() => ({ dlg: !!document.querySelector(".pp-dlg"), master: !document.querySelector("#masterOverlay")?.classList.contains("hidden") }));
     check("Esc は窓だけ閉じる（マスタ管理は開いたまま）", !esc.dlg && esc.master, esc);
-    // ⑤ 参照先: 元ファイル
+    // ⑤ 参照先（更新の置き場・ブラウザ）と、データ元（品質データの元ファイル。版 3.36.0 から場所を直すのはデータ元だけ）
     await p.click('#masterOverlay [data-tab="paths"], #masterTabs [data-tab="paths"]').catch(() => p.evaluate(() => document.querySelector('[data-tab="paths"]')?.click()));
-    await p.waitForSelector('#masterSettings .ps-card[data-key="lot_list.source"] .pp-open'); await sleep(600);
+    await p.waitForSelector('#masterSettings .ps-card[data-key="update.source"] .pp-open'); await sleep(600);
     const btns = await p.$$eval("#masterSettings .ps-card", (cs) => cs.filter((c) => c.querySelector(".pp-open")).map((c) => `${c.dataset.key}:${c.querySelector(".pp-open").textContent}`));
-    check("参照先: 元ファイル・ブラウザは「📄 参照…」、更新の置き場は「📁 参照…」（ほかの項目には付かない）",
-      btns.join() === ["lot_list.source:📄 参照…", "update.source:📁 参照…", "lotdsp_import.direct.browser:📄 参照…"].join(), btns);
-    await p.click('#masterSettings .ps-card[data-key="lot_list.source"] .pp-open'); await idle(p);
+    check("参照先: 更新の置き場は「📁 参照…」、ブラウザは「📄 参照…」（品質データの元ファイルはデータ元で直すので出ない）",
+      btns.join() === ["update.source:📁 参照…", "lotdsp_import.direct.browser:📄 参照…"].join(), btns);
+    await p.evaluate(() => document.querySelector('[data-tab="sources"]')?.click());
+    await p.waitForSelector('#masterSettings [data-sr-edit="lot"]'); await sleep(400);
+    await p.click('#masterSettings [data-sr-edit="lot"]'); await sleep(400);
+    await p.click('#masterSettings .sr-card.is-open .pp-open'); await idle(p);
     d = await dlg(p);
-    check("元ファイルの窓: 品質データのフォルダで .sqlite3 だけが出る", d.here === "台帳" && d.rows.length === 1 && d.rows[0].file && d.rows[0].name === "SIKADEF.sqlite3", d);
+    check("データ元の元ファイルの窓: 品質データのフォルダで .sqlite3 だけが出る", d.here === "台帳" && d.rows.every((r) => r.file && r.name.endsWith(".sqlite3")) && d.rows.some((r) => r.name === "SIKADEF.sqlite3"), d);
     await shot(p, "paths-dlg");
     await p.dblclick(row("SIKADEF.sqlite3")); await sleep(400);
-    const st5 = await p.evaluate(() => { const c = document.querySelector('#masterSettings .ps-card[data-key="lot_list.source"]');
-      return { v: c.querySelector(".ps-input").value, dirty: c.querySelector(".ps-save").classList.contains("is-dirty"), open: !!document.querySelector(".pp-dlg") }; });
-    check("ファイルを 2 回押すと欄に入り、保存が主の色になる", st5.v.endsWith("SIKADEF.sqlite3") && st5.dirty && !st5.open, st5);
+    const st5 = await p.evaluate(() => { const c = document.querySelector("#masterSettings .sr-card.is-open");
+      return { v: c.querySelector('[data-sr="place"]').value, open: !!document.querySelector(".pp-dlg") }; });
+    check("ファイルを 2 回押すと欄に入り、窓が閉じる", st5.v.endsWith("SIKADEF.sqlite3") && !st5.open, st5);
     // ⑥ 作業実績
     await p.evaluate(() => document.querySelector('[data-tab="worklog"]')?.click());
     await p.waitForSelector("#masterSettings .wl-src .pp-open"); await sleep(600);

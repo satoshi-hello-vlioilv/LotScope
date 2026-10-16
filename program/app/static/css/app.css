@@ -78,7 +78,8 @@ button,input,select,textarea{font-family:inherit}
 header,.master-head,.lc-head{background:linear-gradient(110deg,#1c3550,#2b5f79)}
 header{height:var(--header-h);padding:0 18px;
   color:var(--on-fill);display:flex;align-items:center;justify-content:space-between;flex:0 0 auto}
-.brand .eyebrow{font-size:10px;letter-spacing:.22em}
+.brand{flex:none}   /* 題は縮めない（版の札・知らせの札が題の字に重ならない。版 3.36.0） */
+.brand .eyebrow{font-size:10px;letter-spacing:.22em;white-space:nowrap}
 /* 淡くするのは題の字と版の札だけ（知らせの札〈更新あり・推奨〉は淡くしない: 紺の上で読めるように・版 3.35.0） */
 .brand .eyebrow .eb-text,.brand .eyebrow .ver-badge{opacity:.7}
 .brand h1{font-size:var(--fs-xl);margin:0;font-weight:700;letter-spacing:.02em;display:flex;align-items:baseline;gap:10px;white-space:nowrap}

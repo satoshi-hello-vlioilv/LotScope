@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import json
 
+from .data_sources import is_screen_source
+
 NAME = "display_formats"
 FIELDS = ["名前", "元", "表", "作った所", "中身", "備考"]
 SOURCES = {"lot": "異常ロット一覧", "work": "作業実績"}
@@ -72,8 +74,8 @@ def clean_row(data, partial=False):
         out["名前"] = name
     if not partial:
         src = str(data.get("source") or "")
-        if src not in SOURCES:
-            raise FormatError("どの一覧の書式か（source: lot・work）が違います。")
+        if not is_screen_source(src):
+            raise FormatError("どの一覧の書式か（source: lot・work・src:<キー>）が違います。")
         out["元"] = src
         out["表"] = str(data.get("table") or "").strip()
         out["作った所"] = str(data.get("origin") or "").strip()[:80]

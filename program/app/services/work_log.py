@@ -244,11 +244,13 @@ def resolve(row, folder, found):
 
 # ------------------------------------------------------------------ 設備ごとの写し
 class Mirrors:
-    """設備ごとの写しの係（キー → DbMirror）。アプリに 1 つ。画面がその設備を開いたときに作って写し始める。"""
+    """設備ごとの写しの係（キー → DbMirror）。アプリに 1 つ。画面がその設備を開いたときに作って写し始める。
+    データ元（data_sources.py）の 1 ファイルの元も同じ係で写す（prefix="src"・置き場 db_cache/sources）。"""
 
-    def __init__(self, cache_dir, passive=False):
+    def __init__(self, cache_dir, passive=False, prefix="work_log"):
         self.cache_dir = Path(cache_dir)
         self.passive = passive
+        self.prefix = prefix          # 写しの名前の頭（作業実績 work_log_<キー>・データ元 src_<キー>）
         self._lock = threading.Lock()
         self._all = {}
 
@@ -256,7 +258,7 @@ class Mirrors:
         with self._lock:
             m = self._all.get(key)
             if m is None:
-                m = self._all[key] = DbMirror(f"work_log_{key}", str(remote), self.cache_dir, interval_sec=interval_sec,
+                m = self._all[key] = DbMirror(f"{self.prefix}_{key}", str(remote), self.cache_dir, interval_sec=interval_sec,
                                               stale_hours=stale_hours, passive=self.passive)
             else:
                 m.reconfigure(remote=str(remote), interval_sec=interval_sec, stale_hours=stale_hours)

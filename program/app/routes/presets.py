@@ -6,6 +6,7 @@ from ..web import jsonify, request
 
 from ..services import access
 from ..services import pivot_presets as pp
+from ..services.data_sources import is_screen_source
 from .common import Forbidden, base_rev, bp, can_write, error, find_row, master_call, master_repo, me
 
 SCOPE_ORDER = {"me": 0, "all": 1, "default": 2}
@@ -35,8 +36,8 @@ def presets_list():
     """組み方の一覧（source の分・自分の ID → 共通 → 共通デフォルト（置いた物 → 組み込み）の順）。
     standardId はいま当てる標準（ID → 共通 → 共通デフォルトの標準）。quick はすぐに見るに並べる id（選んでいなければ既定。quickCustom）。"""
     src = request.args.get("source", "")
-    if src not in pp.SOURCES:
-        return error("source は lot か work です。", 400)
+    if not is_screen_source(src):
+        return error("source は lot・work・src:<キー> のどれかです。", 400)
     login, common_ok, default_ok, _ = _who()
     repo = master_repo()
     rows = [r for r in repo.pivot_presets() if r.get("元") == src and pp.visible(r, login)]
@@ -58,8 +59,8 @@ def quick_put():
     def go():
         d = request.get_json(force=True) or {}
         src = d.get("source")
-        if src not in pp.SOURCES:
-            raise pp.PresetError("元（lot か work）が違います。")
+        if not is_screen_source(src):
+            raise pp.PresetError("元（lot・work・src:<キー>）が違います。")
         if revoked:
             raise Forbidden("この PC は一時的に切断されています。すぐに見るを書き換えられません。")
         if not login:

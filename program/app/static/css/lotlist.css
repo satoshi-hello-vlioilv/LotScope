@@ -330,6 +330,9 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 .screen-tab[aria-selected="true"] small{background:#e7eef5;color:var(--h-input)}
 .screen-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media (max-width:1440px){ .screen-tabs{margin-left:14px} .screen-tab{padding:0 12px} }   /* 狭い窓: タブの余白だけ詰める（字はそのまま。版 3.32.0） */
+/* タブが 5 つ以上（ダッシュボード・仕掛。版 3.36.0）の窓（フル HD・125% の 1536 も）: 絵を外して字を 14px に（字は略さない・状態の札は隠さない） */
+@media (max-width:1680px){ .screen-tabs{margin-left:10px;gap:3px} .screen-tab{padding:0 10px;font-size:14px} .screen-tab > svg{display:none} }
+@media (max-width:1440px){ .screen-tab{padding:0 8px} }   /* 1280 で計算のタブにロット番号が付いても、終了まで窓に収める */
 
 /* 「以内」の条件は、今日を基準に毎日動くことを添える */
 .fb-cond-text em.fb-cond-rel{margin-left:6px;font-size:11.5px;color:var(--muted);padding:0 6px;border-radius:999px;background:#eef3f6}

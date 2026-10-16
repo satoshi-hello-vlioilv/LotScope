@@ -469,3 +469,33 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .pin-line .pin-note{color:var(--muted);font-size:12px;white-space:nowrap}
 .pin-line.is-off{background:var(--amber-soft);border-radius:0 0 9px 9px}
 .mp-page .pin-line.is-off{border-radius:9px}
+
+/* ---------- データ元（版 3.36.0。master-sources.js。1 列のカード: ui-proposals/2026-10-sources*） ---------- */
+.sr-page{display:flex;flex-direction:column;gap:12px;max-width:1180px}
+.sr-cards{display:flex;flex-direction:column;gap:10px}
+.sr-card{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 14px;display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:6px 14px;align-items:center}
+.sr-card[data-sr-open]{cursor:pointer}
+.sr-card[data-sr-open]:hover{border-color:#b9cde2;background:#fbfdff}
+.sr-card.is-open{border-left:4px solid var(--h-input);padding-left:11px;cursor:default}
+.sr-name{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.sr-name b{font-size:15px}
+.sr-role{display:inline-block;padding:0 9px;border-radius:999px;font-size:12px;font-weight:700;background:#eef1f4;color:#44576a}
+.sr-where{min-width:0}
+.sr-path{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;color:var(--ro-ink);word-break:break-all}
+.sr-path b{color:var(--ink);font-weight:700}
+.sr-facts{grid-column:2 / 3;display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ro-ink)}
+.sr-facts b{color:var(--ink)}
+.sr-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.sr-state i{width:8px;height:8px;border-radius:50%;background:#9aa6b0;flex:none}
+.sr-state.ok i{background:var(--ok)} .sr-state.ng i{background:#c0392b}
+.sr-form{grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px;padding-top:4px}
+.sr-form label{display:flex;flex-direction:column;gap:4px;font-size:13px;min-width:0}
+.sr-form label > span:first-child{color:var(--ro-ink);font-weight:700}
+.sr-form .sr-w{grid-column:1 / -1}
+.sr-form .sr-row{display:flex;gap:6px;min-width:0}
+.sr-form select{height:32px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;color:var(--ink)}
+.sr-form select:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
+.sr-acts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sr-sp{flex:1}
+.sr-add{display:flex;align-items:center;gap:12px}
+.sr-add small{color:var(--muted)}

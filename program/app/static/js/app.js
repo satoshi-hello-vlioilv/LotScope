@@ -934,6 +934,7 @@ $("#searchBtn").onclick = runSearch;
 /* 異常ロット一覧（list）と作業実績（work）は同じ画面（#lotListScreen）を、一覧の元（source）を替えて使う（lotlist.js の SOURCES）。
    並び（見た目の順）と Alt の数字: 異常ロット一覧 Alt+1・転写・ピッチ計算 Alt+2・作業実績 Alt+3（前からの Alt+1・Alt+2 は変えない） */
 const SCREENS = {
+  dash: { tab: "#tabDash", panel: "#dashScreen", key: "0", show: () => window.Dashboard.activate(), hide: () => window.Dashboard.deactivate() },
   list: { tab: "#tabList", panel: "#lotListScreen", source: "lot", key: "1" },
   calc: { tab: "#tabCalc", panel: "#calcScreen", key: "2" },
   work: { tab: "#tabWork", panel: "#lotListScreen", source: "work", key: "3" },
@@ -951,12 +952,49 @@ function showScreen(name, { focus = true } = {}) {
   });
   $(panel).setAttribute("aria-labelledby", SCREENS[name].tab.slice(1));
   if (prev && SCREENS[prev].source) window.LotList.deactivate();
-  if (SCREENS[name].source) {
+  if (prev && SCREENS[prev] && SCREENS[prev].hide) SCREENS[prev].hide();
+  if (SCREENS[name].show) SCREENS[name].show();
+  else if (SCREENS[name].source) {
     window.LotList.activate({ source: SCREENS[name].source, currentLot: (state.lot && state.lot.lot_no) || "" });
     if (focus) window.LotList.focus();
   } else if (focus) { $("#query").focus(); $("#query").select(); }
 }
 Object.entries(SCREENS).forEach(([k, v]) => { $(v.tab).onclick = () => showScreen(k); });
+/* データ元（マスタ管理の「データ元」。版 3.36.0）のうち、1 ファイルの元で「画面: 有」の物（仕掛・足した元）を、作業実績の後ろのタブにする。
+   どれも異常ロット一覧と同じ画面（#lotListScreen）で、元（src:<キー>）を入れ替える。Alt＋4 からの番号を振る（9 まで） */
+const SRC_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h7l3 3v8H3z"/><path d="M5.5 8h5M5.5 10.5h5"/></svg>';
+async function loadSources() {
+  let list = [];
+  try { list = (await (await fetch("/api/sources")).json()).items || []; } catch (_) { return; }
+  state.sources = list;
+  window.LotList.defineSources(list);
+  const nav = $(".screen-tabs");
+  const want = list.filter((d) => d.listed && d.api.startsWith("/api/src/"));
+  // 消した・画面に出さなくした元のタブを外す（開いていたら異常ロット一覧へ）
+  Object.keys(SCREENS).filter((k) => k.startsWith("src:") && !want.some((d) => d.screen === k)).forEach((k) => {
+    if (state.screen === k) showScreen("list", { focus: false });
+    $(SCREENS[k].tab).remove(); delete SCREENS[k];
+  });
+  want.forEach((d, i) => {
+    const id = `tabSrc_${d.key}`;
+    let b = document.getElementById(id);
+    if (!b) {
+      b = document.createElement("button");
+      Object.assign(b, { id, className: "screen-tab", type: "button" });
+      b.setAttribute("role", "tab"); b.setAttribute("aria-selected", "false"); b.setAttribute("aria-controls", "lotListScreen");
+      b.dataset.screen = d.screen; b.tabIndex = -1;
+      b.onclick = () => showScreen(d.screen);
+      nav.appendChild(b);
+    }
+    const key = i + 4 <= 9 ? String(i + 4) : "";
+    b.innerHTML = SRC_ICON + esc(d.name);
+    b.title = `${d.name}（${d.place || "場所が決まっていません"}）を、異常ロット一覧と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
+    SCREENS[d.screen] = { tab: `#${id}`, panel: "#lotListScreen", source: d.screen, key };
+  });
+}
+loadSources();
+document.addEventListener("tpa:sources-changed", loadSources);
+document.addEventListener("tpa:show-screen", (e) => showScreen(String(e.detail || "")));
 // タブの並びは ← → でも移れる（WAI-ARIA のタブの作法）。Alt+1・Alt+2・Alt+3 でどこからでも切り替える
 $(".screen-tabs").addEventListener("keydown", (e) => {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;

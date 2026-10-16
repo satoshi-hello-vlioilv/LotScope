@@ -29,7 +29,7 @@ MASTER_EDIT_DEFAULT = ME_FULL
 ROLE_MASTER_EDIT_CAP = {ROLE_DEVELOPER: ME_FULL, ROLE_MAINTAINER: ME_FULL, ROLE_USER: ME_FULL, ROLE_OPERATOR: ME_HIDDEN}
 
 # マスタの区別（MasterStore の名前）。管理のマスタは「部分的編集可」では書けない
-ADMIN_MASTERS = ("access_permissions", "path_settings", "work_log_files")   # 作業実績の設備（どれを見せるか）も管理の決め事
+ADMIN_MASTERS = ("access_permissions", "path_settings", "work_log_files", "data_sources")   # 作業実績の設備（どれを見せるか）も管理の決め事
 
 
 def normalize_role(v):

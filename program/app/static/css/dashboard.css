@@ -1,0 +1,65 @@
+/* ダッシュボード（版 3.36.0。dashboard.js） */
+.db-screen{height:calc(100vh - var(--header-h));padding:var(--gap);display:flex;min-height:0}
+.db-panel{flex:1;min-width:0;overflow:auto}
+.db-grid{display:flex;flex-direction:column;gap:var(--gap)}
+.db-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.db-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.db-head h3{margin:0;font-size:16px;display:flex;align-items:baseline;gap:8px}
+.db-head h3 small{font-size:12.5px;color:var(--muted);font-weight:700}
+.db-total{font-size:22px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.db-total small{font-size:12px;color:var(--muted);margin-left:3px}
+.db-sp{flex:1}
+.db-meta{margin:0;font-size:12.5px;color:var(--muted)}
+.db-ng{margin:0;color:#a3322a;font-size:13px}
+.db-none,.db-wait{color:var(--muted);font-size:13px}
+.db-cond{max-width:360px;height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface-3);font:inherit;font-size:12.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--ink)}
+.db-cond.is-on{background:var(--input-soft);border-color:#b9cde2;color:var(--h-input);font-weight:700}
+.db-bars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.db-bars li{display:grid;grid-template-columns:7em minmax(0,1fr) 4.5em;align-items:center;gap:10px;font-size:13.5px}
+.db-eq{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.db-bar{height:14px;background:var(--surface-4);border-radius:4px;overflow:hidden}
+.db-bar i{display:block;height:100%;border-radius:4px}
+.db-bars b{text-align:right;font-variant-numeric:tabular-nums}
+.db-tablewrap{overflow-x:auto}
+.db-table{border-collapse:collapse;width:100%;font-size:13.5px}
+.db-table th,.db-table td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.db-table thead th{font-size:12.5px;color:var(--muted)}
+.db-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.db-table td.db-ng{white-space:normal;font-size:12.5px}
+.db-table .db-sum{font-weight:700}
+.db-editor{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.db-crows{display:flex;flex-direction:column;gap:6px}
+.db-crow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) auto;gap:6px}
+.db-crow select,.db-crow input{height:30px;box-sizing:border-box;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;color:var(--ink);min-width:0}   /* データ元の欄と同じ形 */
+.db-crow select:focus,.db-crow input:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
+.db-cacts{display:flex;align-items:center;gap:8px}
+.db-msg{color:var(--muted)}
+.db-cond.is-open{outline:2px solid var(--h-input);outline-offset:1px}
+.db-warn{font-size:13px;color:#7a2d22;font-weight:700;display:inline-flex;align-items:center;gap:6px}
+.db-warn b{display:inline-block;padding:0 8px;border-radius:999px;background:#fbe7e3;margin-right:6px}
+.db-table thead small{display:block;font-weight:700;color:var(--ink);font-size:12.5px}
+.db-table th[scope=row]{font-weight:700;width:110px}
+.db-table .db-grp{border-left:2px solid var(--line)}
+.db-table .db-lots{min-width:240px}
+.db-table td.db-lots > div{display:flex;align-items:center;gap:10px}
+.db-table td.db-lots .db-bar{flex:1;height:12px}
+.db-table td.db-lots b{width:3.6em;text-align:right;font-variant-numeric:tabular-nums}
+.db-bar i{background:var(--h-input)}
+.db-table .db-s{width:72px}
+.db-table .db-s span{display:inline-block;min-width:2.2em;padding:1px 6px;border-radius:4px;background:rgba(63,101,145,var(--h,0))}
+.db-table td.is-zero{color:#5f6e7c}
+.db-table td.is-na{color:#5f6e7c}
+.db-table .db-sum{width:96px}
+.db-flag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:#fbe7e3;color:#7a2d22;font-style:normal;font-size:11.5px;font-weight:700}
+.db-table td.db-na{color:#5f6e7c;font-size:12.5px}
+.db-crow .icon-btn{border:1px solid var(--line);color:var(--muted);background:var(--surface-3);width:30px;height:30px;border-radius:6px;cursor:pointer}
+.db-crow .icon-btn:hover{color:var(--ink)}
+/* 広く高い窓（1728×1152 など。2026-10-dash の 3 回目で決めた S）: 行を高く・字を 15px に（下の空きを使う）。
+   1536×864・1280×720 は今のまま（縦に送らない）。読めない設備の知らせの行は、折れないよう字を大きくしない */
+@media (min-width:1441px) and (min-height:1000px){
+  .db-table th,.db-table td{padding:9px 12px;font-size:15px}
+  .db-table thead th,.db-table thead small{font-size:13.5px}
+  .db-table td.db-lots .db-bar{height:16px}
+  .db-table td.db-ng,.db-table td.db-na{font-size:12.5px}
+}
