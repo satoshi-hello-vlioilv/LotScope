@@ -4,7 +4,8 @@
 // ① パネルを絞る: 見出しの「絞る」→ 値（製造材質 A1100）をチェック → パネルの計がサーバーと同じに減る・札が出る・開き直しても残る・札の × で戻る
 //    設備を 2 台選ぶ → サーバーの設備 2 台の計と同じ
 // ② 設備を複数選ぶ（組む所）: 「設備」から 2 台選ぶ → パネルの組み（equips）に入り、数がサーバーと同じ
-// ③ グラフの形を足す: 面・積み上げ面・X̄-R・ロリポップ・ツリーマップ・バイオリン・45度線管理図・バブルが、それぞれの印を描く（空の知らせにならない）
+// ③ グラフの形を足す: 面・積み上げ面・X̄-R・ロリポップ・ツリーマップ・バイオリン・45度線管理図・バブル・サンキー図・スイムレーン図が、
+//    それぞれの印を描く（空の知らせにならない）。サンキー図の流れの計・スイムレーン図の札の数は、サーバーの答えと同じ
 // ④ 統計: 中央値・標準偏差・90%点・種類の数の数字のパネルがサーバーと同じ。累計（表し方）の最後の値＝総計
 // ⑤ 計算列を組む所で作る: 名前と式を入れて「作る」→ カラムの札に「式 ✎」で出る → 値にすると、パネルの組みに式（own）が入り、サーバーがその列で数える
 // ⑥ 見せ方: 枠（色の帯）・数字の形（メーター・目標までの棒）・合わせた表の見せ方（積み上げ帯・信号・割合・点・小さな線）
@@ -106,6 +107,9 @@ try {
       groups: [{ title: "", source: "work", filters: [], search: "", period: { column: "@workday", kind: "days", n: 7 }, basis: "work", measure: { agg: "lots" }, cols: [{ column: "@shift", part: "" }], look: "stack", total: true, zero: false, color: "" },
         { title: "", source: "work", filters: [], search: "", period: { column: "@workday", kind: "days", n: 7 }, basis: "work", measure: { agg: "lots" }, cols: [], look: "signal", total: true, zero: false, color: "", limits: { warn: 5, alert: 2, dir: "low" } }] },
   ];
+  // サンキー図（作業区分 → 直 → 設備）・スイムレーン図（設備 × 作業日）
+  T.push(work("sankey", 6, 8, 3, 2, { visual: "sankey", body: { rows: [{ column: "作業区分", part: "" }, { column: "@shift", part: "" }, { column: "@equip", part: "" }], cols: [], measures: [{ agg: "lots" }] }, period: { column: "@workday", kind: "days", n: 7 } }),
+    work("swim", 9, 8, 3, 2, { visual: "swimlane", body: { rows: [{ column: "@equip", part: "" }, { column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots" }] }, period: { column: "@workday", kind: "days", n: 5 } }));
   await p.evaluate((panels) => Dashboard._setLayout({ rows: 10, panels }), T); await settle(p, 3000);
   const drawn = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll("#dashGrid .db-p")].map((el) => [el.dataset.id, {
     empty: !!el.querySelector(".pv-cempty, .dp-err, .dp-empty"), text: (el.querySelector(".pv-cempty, .dp-err") || {}).textContent || "",
@@ -120,8 +124,16 @@ try {
     lolli: !drawn.lolli.empty && drawn.lolli.circles >= 4, tree: !drawn.tree.empty && drawn.tree.rects >= 4, violin: !drawn.violin.empty && drawn.violin.paths >= 3,
     diag: !drawn.diag.empty && drawn.diag.cl >= 1 && drawn.diag.lim >= 2 && drawn.diag.circles >= 4, bubble: !drawn.bubble.empty && drawn.bubble.circles >= 4,
   };
-  check("③ 足した形（面・積み上げ面・X̄-R・ロリポップ・ツリーマップ・バイオリン・45度線・バブル）が、それぞれの印を描く", Object.values(ok3).every(Boolean),
-    { ok3, why: Object.fromEntries(Object.entries(drawn).filter(([k]) => k in ok3).map(([k, v]) => [k, v.text || v])) });
+  // サンキー図: 最初の段 → 次の段の帯（path の title）の量の計＝サーバーの総計。スイムレーン図: 札の数＝値のある（設備・日）の組の数
+  const sk = await p.evaluate(() => [...document.querySelectorAll('#dashGrid .db-p[data-id="sankey"] .db-pb svg path title')].map((t) => t.textContent));
+  const skTotal = total(await answer(p, "sankey"))[0];
+  const firstLinks = sk.filter((t) => /^[^→]+ → (\d+直|直の外|時刻なし)/.test(t) && !/^(\d+直|直の外|時刻なし)/.test(t)).map((t) => Number(t.split(": ")[1].split("（")[0].replace(/,/g, "")));
+  ok3.sankey = !drawn.sankey.empty && firstLinks.length > 0 && firstLinks.reduce((a, b) => a + b, 0) === skTotal;
+  const swAns = await answer(p, "swim"), swWant = swAns.cells.filter((c) => c.r.length === 2 && !c.c.length && c.v[0] > 0).length;
+  const swGot = await p.$$eval('#dashGrid .db-p[data-id="swim"] .db-pb svg rect[fill-opacity]', (x) => x.length);
+  ok3.swim = !drawn.swim.empty && swGot === swWant && swWant > 0;
+  check("③ 足した形（面・積み上げ面・X̄-R・ロリポップ・ツリーマップ・バイオリン・45度線・バブル・サンキー図・スイムレーン図）が、それぞれの印を描く（サンキー図の流れの計・スイムレーン図の札の数はサーバーと同じ）",
+    Object.values(ok3).every(Boolean), { ok3, skTotal, firstLinks: firstLinks.slice(0, 5), swGot, swWant, why: Object.fromEntries(Object.entries(drawn).filter(([k]) => k in ok3).map(([k, v]) => [k, v.text || v.empty])) });
   // ④ 統計
   const st = total(await ask(p, T.find((x) => x.id === "stats")));
   const shown = await p.evaluate(() => Dashboard._state().answers.stats.cells.find((c) => !c.r.length && !c.c.length).v);
