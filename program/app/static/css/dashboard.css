@@ -36,7 +36,7 @@
 body.db-dragging{cursor:grabbing;user-select:none}
 
 /* ---- パネル ---- */
-.db-p{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);
+.db-p{container-type:inline-size;position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-sm);
   border:1px solid var(--line-soft);padding:8px 12px 8px;box-sizing:border-box;overflow:hidden;outline:none}
 .db-p:focus-visible{box-shadow:0 0 0 3px var(--focus-ring),var(--shadow-sm)}
 .db-ph{display:flex;align-items:center;gap:8px;min-height:26px;flex:0 0 auto;white-space:nowrap;min-width:0}
@@ -107,7 +107,7 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .db-bar{background:var(--surface-4);border-radius:4px;overflow:hidden}
 .db-bar i{display:block;height:100%;border-radius:4px;background:var(--h-input)}
 .db-table .db-s{width:68px}
-.db-table .db-s span{display:inline-block;min-width:2.2em;padding:1px 6px;border-radius:4px;background:rgba(63,101,145,var(--h,0))}
+.db-table .db-s span{display:inline-block;min-width:2.2em;padding:1px 6px;border-radius:4px;background:rgba(47,125,120,var(--h,0))}   /* 実績＝青緑（パネルの色と同じ） */
 .db-table td.is-zero,.db-table td.is-na,.db-table td.db-na{color:#5f6e7c}
 .db-table .db-sum{width:90px;font-weight:700}
 .db-flag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:#fbe7e3;color:#7a2d22;font-style:normal;font-size:11.5px;font-weight:700}
@@ -137,15 +137,18 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .db-crow .icon-btn{border:1px solid var(--line);color:var(--muted);background:var(--surface-3);width:30px;height:30px;border-radius:6px;cursor:pointer}
 .db-crow .icon-btn:hover{color:var(--ink)}
 
-/* ---- パネルを組む所（dashboard-editor.js）: グリッドの右に並べる（組んでいるパネルはグリッドの中で描き直る） ---- */
-.db-editor-pane{flex:0 0 640px;min-height:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--pop-line);border-radius:var(--radius);
-  box-shadow:0 6px 20px var(--pop-shadow);overflow:hidden}
+/* ---- パネルを組む所（dashboard-editor.js）: 焦点（2026-10-grid の 1 回目で 1 位の D）。組む所は右に重ね、組むパネルは左に大きく、ほかは淡い幕の下。
+   グリッドは縮めない（ほかのパネルの字が切れない） ---- */
+.db-editor-pane{position:fixed;right:12px;top:calc(var(--header-h) + 54px);bottom:12px;width:720px;max-width:calc(100vw - 340px);z-index:21;display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--pop-line);border-radius:var(--radius);box-shadow:0 10px 30px var(--pop-shadow);overflow:hidden}
+.db-scrim{position:fixed;left:0;right:0;top:calc(var(--header-h) + 54px);bottom:0;z-index:19;background:rgba(238,242,245,.9)}
+.db-p.is-focus{z-index:20;box-shadow:0 12px 36px rgba(12,34,48,.22)!important}
 .db-editor-pane[hidden]{display:none}
 .de-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line-soft);background:var(--surface-1)}
 .de-head b{font-size:14px;white-space:nowrap}
 .de-title{flex:1;min-width:0;height:30px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13.5px;font-weight:700;color:var(--ink)}
 .de-title:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
-.de-body{flex:1;min-height:0;display:grid;grid-template-columns:220px minmax(0,1fr);gap:10px;padding:10px}
+.de-body{flex:1;min-height:0;display:grid;grid-template-columns:210px minmax(0,1fr);gap:10px;padding:10px}
 .de-fields{min-height:0}
 .de-main{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto;padding-right:2px}
 .de-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -156,9 +159,22 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .de-n{width:64px}
 .de-hint{color:var(--muted);font-size:12px}
 .de-sent{padding:6px 8px}
-.de-vis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.de-vis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
 .de-vis .pv-cbtn{justify-content:flex-start;min-width:0}
 .de-vis .pv-cbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .de-msg{margin:0;color:var(--h-meta);font-size:12.5px;min-height:1em}
-/* 組む所を開いているあいだは、グリッドの空きのマスの印を出さない（狭いので） */
+/* 組む所を開いているあいだは、グリッドの空きのマスの印を出さない */
 .db-screen.has-editor .db-cell{display:none}
+
+/* ---- 2026-10-grid の 2 回目: 色＝データの種類の点・知らせの札・狭いパネルの「⋯」・1 枚の表を列に分ける ---- */
+.db-dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:0 0 auto}
+.db-warnb{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber-ink);
+  font-size:11.5px;font-weight:800;flex:0 0 auto;cursor:help}
+.db-more{width:30px;padding:0;font-size:15px;line-height:1}
+.db-morepop{width:200px;padding:6px}
+.db-li.is-danger b{color:#a3322a}
+.db-li.is-armed{background:#fbe7e3}
+.dp-flow{display:grid;grid-template-columns:repeat(var(--k,1),minmax(0,1fr));gap:0 10px;overflow:hidden;align-items:start}
+.dp-flow .dp-tbl + .dp-tbl{border-left:2px solid var(--line);padding-left:10px}
+/* 狭いパネルは見出しの横の説明（元・期間）を出さない（1 字だけ覗かない。題を先に見せる） */
+@container (max-width:340px){.db-pm{display:none}}

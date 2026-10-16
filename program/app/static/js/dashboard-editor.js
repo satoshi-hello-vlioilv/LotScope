@@ -250,7 +250,8 @@
       el.innerHTML = ""; el.hidden = false; q = "";
       paint();
       await loadFields();
-      $("#deTitle")?.focus();
+      const t = $("#deTitle");
+      if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(0, 0); t.scrollLeft = 0; }   // 字の頭から見せる（欄が狭いと末尾へ送られて頭が欠ける）
     },
     close() { const el = $("#dbEditor"); if (el) { el.hidden = true; el.innerHTML = ""; } host = null; p = null; },
     isOpen: () => !!p,

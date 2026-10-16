@@ -14,6 +14,19 @@
   const C = window.LotListPivotCharts;
   const PART_NAME = { date: "年月日", ym: "年月", year: "年", month: "月", weekday: "曜日", hour: "時", bin: "区間" };
   const CATEGORY = new Set(["column", "bar", "pareto", "donut", "stack", "stack100", "box"]);   // 種類の段を並べる形（入る数だけ描く）
+  /* 色（2026-10-grid の 2 回目）: 色＝データの種類。仕掛（データ元）＝藍・作業実績＝青緑・品質データ＝琥珀（1 枚の表の仕掛の棒・実績の濃淡も同じ）。
+     種類の少ない段（8 つまで。仕掛区分など）の 1 系列の棒・ドーナツは、名前ごとに決まった色（どのパネルでも同じ名前は同じ色） */
+  const SOURCE_COLOR = { lot: "#b5822a", work: "#2f7d78", src: "#3f6591" };
+  const kindOf = (src) => (src === "lot" ? "lot" : src === "work" ? "work" : "src");
+  const colorOf = (src) => SOURCE_COLOR[kindOf(src)];
+  const CAT = ["#3f6591", "#2f7d78", "#b5822a", "#7658ae", "#c9564a", "#5c8a2a", "#0d8191", "#8a5f18", "#a5508a", "#5a6f77"];
+  const hash = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
+  /** その図の名前の並び → 名前ごとの色（名前で決まる色。図の中で同じ色が重なれば次の色へ＝同じ図に同じ色は出さない） */
+  function catColors(names) {
+    const used = new Set(), map = new Map();
+    names.forEach((n) => { let i = hash(n) % CAT.length; for (let k = 0; k < CAT.length && used.has(i); k++) i = (i + 1) % CAT.length; used.add(i); map.set(n, CAT[i]); });
+    return (n) => map.get(n) || CAT[hash(n) % CAT.length];
+  }
 
   /* ---- 名前（集計表と同じ言葉。列はそのままの名前） ---- */
   const workdayName = (p) => `作業日（${(p && p.basis) === "cal" ? "太陽暦" : "現場歴"}）`;
@@ -88,7 +101,9 @@
     // 凡例を描く高さ（列の段・値が 2 つ以上のときだけ。低いパネルでは出さない）
     const wantLegend = (m.nc > 0 || d.measures.length > 1) && H >= 150 && kind !== "donut";
     const gh = Math.max(60, H - (wantLegend ? 20 : 0));
-    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true });
+    const src = colorOf(p.source), colors = [src, ...C.COLORS.filter((c) => c !== src)];
+    const r0 = (d.dims.rows || [])[0], few = m.nr === 1 && m.nc === 0 && r0 && !r0.column.startsWith("@") && !C.isTimeDim(r0) && m.rows.filter((r) => r.type === "data").length <= 8;
+    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors, rowColor: few ? catColors(m.rows.filter((r) => r.type === "data").map((r) => m.rowName(r)).sort()) : null });
     const sideOk = out.side && kind === "donut" && W - (Math.min(gh / 2 - 6, W / 2 - 8, 160) * 2 + 16) >= 150;
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     box.innerHTML = `${legend}<div class="dp-chart">${out.svg}${sideOk ? out.side : ""}</div>`;
@@ -100,23 +115,18 @@
     const { m: m0 } = modelOf(p, d);
     const t = trimRows(m0, p, Infinity);
     box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName, dimName: (x) => dimName(x, p) })}</table></div>`;
-    return fitRows(box.querySelector(".dp-tbl"), H, "行");
+    return moreText(fitRows(box.querySelector(".dp-tbl"), H), "行");
   }
-  /** 表を高さ H に収める: 字を 14 → 11px まで詰め、それでも入らなければ下の行を隠して「ほか n 行」→ 知らせの字 */
-  function fitRows(wrap, H, what) {
-    if (!wrap) return "";
-    const tb = wrap.querySelector("table");
-    for (const fs of [14, 13, 12, 11.5, 11]) {
-      tb.style.fontSize = fs + "px";
-      tb.style.setProperty("--dp-pad", fs >= 13 ? "5px 8px" : fs >= 12 ? "3px 7px" : "2px 6px");
-      if (wrap.scrollHeight <= H + 1) return "";
-    }
-    const rows = [...tb.tBodies[0].rows];
-    const keepLast = rows.length && rows[rows.length - 1].classList.contains("is-grand") ? rows[rows.length - 1] : null;
+  /** 表を高さ H に収める: 字を 14 → 11px まで詰め、それでも入らなければ下の行を隠す → 隠した行の数 */
+  function fitRows(wrap, H) {
+    if (!wrap || !shrink(wrap, H)) return 0;
+    const rows = [...wrap.querySelector("table").tBodies[0].rows];
+    const keepLast = rows.length && rows[rows.length - 1].classList.contains("is-grand") ? 1 : 0;
     let hidden = 0;
-    for (let i = rows.length - 1 - (keepLast ? 1 : 0); i > 0 && wrap.scrollHeight > H + 1; i--) { rows[i].hidden = true; hidden++; }
-    return hidden ? `ほか ${hidden} ${what}（パネルを大きくすると出ます）` : "";
+    for (let i = rows.length - 1 - keepLast; i > 0 && wrap.scrollHeight > H + 1; i--) { rows[i].hidden = true; hidden++; }
+    return hidden;
   }
+  const moreText = (n, what) => (n ? `ほか ${n} ${what}（パネルを大きくすると出ます）` : "");
 
   /* ---- 1 枚の表（設備ごとの仕掛と前日の実績。版 3.36.0 の物。数は /api/dashboard） ---- */
   const ago = (sec) => { if (!sec) return ""; const t = new Date(sec * 1000), z = TPA.pad2; return `${t.getMonth() + 1}/${t.getDate()} ${z(t.getHours())}:${z(t.getMinutes())}`; };
@@ -136,10 +146,10 @@
     const zero = eqs.filter((e) => { const x = work[e]; return x && !x.error && x.total && !x.total.works && lots[e]; });
     const maxL = Math.max(1, ...Object.values(lots));
     const maxS = Math.max(1, ...workItems.flatMap((x) => (x.shifts || []).map((s) => s.works)));
-    const heat = (n) => (n ? ` style="--h:${(0.1 + 0.35 * n / maxS).toFixed(2)}"` : "");   // 字はいつも濃い色（地は淡い藍の濃淡まで）
+    const heat = (n) => (n ? ` style="--h:${(0.1 + 0.35 * n / maxS).toFixed(2)}"` : "");   // 字はいつも濃い色（地は淡い青緑＝作業実績の色の濃淡まで）
     const day = k.days && k.days.length === 1 ? k.days[0] : "";
     const works = workItems.reduce((a, x) => a + ((x.total && x.total.works) || 0), 0);
-    const rows = eqs.map((e) => {
+    const rowList = eqs.map((e) => {
       const x = work[e], n = lots[e] || 0;
       const lead = `<th scope="row">${esc(e)}</th><td class="db-lots"><div><span class="db-bar"><i style="width:${(n / maxL * 100).toFixed(1)}%"></i></span><b>${n ? n.toLocaleString() : "–"}</b></div></td>`;
       if (!x) return `<tr>${lead}<td class="db-grp db-na" colspan="${names.length + 1}">作業実績の設備にありません</td></tr>`;
@@ -150,19 +160,39 @@
       return `<tr>${lead}${names.map((nm, i) => (nm in by ? `<td class="num db-s${i ? "" : " db-grp"}${by[nm] ? "" : " is-zero"}"><span${heat(by[nm])}>${by[nm]}</span></td>`
         : `<td class="num db-s is-na${i ? "" : " db-grp"}" title="この設備の勤務体系に無い直">–</td>`)).join("")}
         <td class="num db-sum">${t}${!t && n ? '<em class="db-flag" title="仕掛があるのに、前日は 0 本でした">0 本</em>' : ""}</td></tr>`;
-    }).join("");
+    });
     const wipMeta = w.error ? `<span class="dp-ng">${esc(w.error)}</span>`
       : `設備は「${esc(w.equipColumn || "（なし）")}」の${(w.source || {}).equipMode === "前方一致" ? "先頭の設備" : "値"}・元 ${esc(ago(w.mirror && w.mirror.at))}${w.noEquipment ? `・設備なし ${w.noEquipment}` : ""}`;
     box.innerHTML = `<div class="db-boardhead">${zero.length ? `<span class="db-warn" title="仕掛があるのに、前日は 0 本だった設備"><b>前日 0 本</b>${zero.map(esc).join("・")}</span>` : ""}`
       + `<span class="db-sp"></span><small class="db-meta" title="前日の実績: 作業開始が同じ行（分割したロット）は 1 本。直は設備ごとの勤務体系で決めます。">仕掛: ${wipMeta}</small></div>`
       + (w.missingColumn ? `<p class="dp-ng">設備の列「${esc(w.missingColumn)}」が表にありません。「マスタ管理」の「データ元」で直してください。</p>` : "")
-      + `<div class="dp-tbl"><table class="db-table">
-        <thead><tr><th rowspan="2">設備</th><th rowspan="2" class="db-lots">仕掛ロット数<small>計 ${(w.total || 0).toLocaleString()}</small></th>
+      + '<div class="dp-flow"></div>';
+    const thead = `<thead><tr><th rowspan="2">設備</th><th rowspan="2" class="db-lots">仕掛ロット数<small>計 ${(w.total || 0).toLocaleString()}</small></th>
           <th class="db-grp" colspan="${names.length + 1}">前日 ${esc(md(day) || "-")} の実績本数（現場歴）<small>計 ${works.toLocaleString()} 本</small></th></tr>
-          <tr>${names.map((nm, i) => `<th class="num db-s${i ? "" : " db-grp"}">${esc(nm)}</th>`).join("")}<th class="num db-sum">計</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="${names.length + 3}" class="dp-empty">数える設備がありません。</td></tr>`}</tbody></table></div>`;
+          <tr>${names.map((nm, i) => `<th class="num db-s${i ? "" : " db-grp"}">${esc(nm)}</th>`).join("")}<th class="num db-sum">計</th></tr></thead>`;
     const head = box.querySelector(".db-boardhead");
-    return fitRows(box.querySelector(".dp-tbl"), H - (head ? head.offsetHeight + 4 : 0), "設備");
+    const flow = box.querySelector(".dp-flow"), avail = H - (head ? head.offsetHeight + 4 : 0);
+    flow.style.maxHeight = avail + "px";
+    if (!rowList.length) { flow.innerHTML = `<table class="db-table">${thead}<tbody><tr><td colspan="${names.length + 3}" class="dp-empty">数える設備がありません。</td></tr></tbody></table>`; return ""; }
+    // 入らなければ、字を詰める → 行を 2〜3 つの列に分けて横に並べる（幅が足りるとき）→ 下の行を隠す の順（2026-10-grid の 2 回目。どの設備も見えるように）
+    const W = box.clientWidth;
+    for (let k = 1; k <= 3; k++) {
+      if (k > 1 && W / k < 470) break;
+      const per = Math.ceil(rowList.length / k);
+      flow.style.setProperty("--k", k);
+      flow.innerHTML = Array.from({ length: k }, (_, i) => `<div class="dp-tbl"><table class="db-table">${thead}<tbody>${rowList.slice(i * per, (i + 1) * per).join("")}</tbody></table></div>`).join("");
+      if (!shrink(flow, avail)) return "";
+    }
+    return moreText([...flow.querySelectorAll(".dp-tbl")].reduce((a, t) => a + fitRows(t, avail), 0), "設備");
+  }
+  /** 字を 14 → 11px まで詰めて高さに入るか試す → 入らなければ true（詰めた最後のまま） */
+  function shrink(wrap, H) {
+    const tbs = [...wrap.querySelectorAll("table")];
+    for (const fs of [14, 13, 12, 11.5, 11]) {
+      tbs.forEach((tb) => { tb.style.fontSize = fs + "px"; tb.style.setProperty("--dp-pad", fs >= 13 ? "5px 8px" : fs >= 12 ? "3px 7px" : "2px 6px"); });
+      if (wrap.scrollHeight <= H + 1) return false;
+    }
+    return true;
   }
 
   /** パネルの中身を描く → 下に出す知らせの字（描かなかった行など） */
@@ -173,7 +203,7 @@
     return chart(box, p, d, W, H);
   }
 
-  /** パネルの下の知らせ（読めなかった設備・効かない条件・ロット数の注意） */
+  /** パネルの知らせ（読めなかった設備・効かない条件・ロット数の注意）。見出しの ⚠ の札に出す（中身の上に被せない） */
   function notes(d) {
     const out = [];
     const bad = [...(d.failed || []), ...(d.skipped || [])];
@@ -183,5 +213,5 @@
     return out;
   }
 
-  window.DashPanels = { render, board, notes, periodText, measName, dimName, md };
+  window.DashPanels = { render, board, notes, periodText, measName, dimName, md, colorOf, kindOf };
 })();

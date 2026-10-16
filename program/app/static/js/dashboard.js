@@ -101,6 +101,7 @@
         el.className = "db-p"; el.dataset.id = p.id;
         el.innerHTML = '<div class="db-ph"></div><div class="db-pb"></div><div class="db-pf" hidden></div><i class="db-rz" data-rz aria-hidden="true"></i>';
         g.append(el);
+        if (ro) ro.observe(el);
       }
       place(el, p);
     });
@@ -138,20 +139,26 @@
     const cond = (p.filters || []).length ? `条件 ${p.filters.length}` : "";
     return [src + (equip ? `・${equip}` : p.source === "work" ? "・全設備" : ""), per, cond].filter(Boolean).join("　");
   }
-  function headHtml(p, a) {
+  const NARROW = 360;      // これより狭いパネルの見出しは、操作を「⋯」1 つに畳む（ボタンが見出しからはみ出さない）
+  function headHtml(p, a, width) {
     const meta = metaOf(p, a);
-    const tools = S.edit
+    const warn = a && a.d ? P.notes(a.d).concat(a.err ? [`いまの数は前の物です（${a.err}）`] : []) : [];
+    const badge = warn.length ? `<span class="db-warnb" title="${esc(warn.join("\n"))}" aria-label="${esc(warn.join("。"))}">⚠ ${warn.length}</span>` : "";
+    const dot = p.visual === "board" ? "" : `<i class="db-dot" style="--c:${P.colorOf(p.source)}" aria-hidden="true"></i>`;
+    const tools = S.edit && width < NARROW
+      ? `<button type="button" class="db-pbtn db-more" data-db-more aria-haspopup="true" title="このパネルの操作（組む・複製・消す）" aria-label="このパネルの操作">⋯</button>`
+      : S.edit
       ? `<button type="button" class="db-pbtn" data-db-edit title="このパネルを組む（Enter）">組む</button><button type="button" class="db-pbtn" data-db-dup title="同じパネルを空いた所に足す">複製</button>`
         + `<button type="button" class="db-pbtn is-danger${S.confirm === "del:" + p.id ? " is-armed" : ""}" data-db-del title="このパネルを消す（Delete。もう一度押すと消えます）">${S.confirm === "del:" + p.id ? "消す？" : "消す"}</button>`
       : p.visual === "board" ? boardConds() : `<button type="button" class="db-pbtn db-quiet" data-db-edit title="このパネルを組み直す（編集に入ります）">組む</button>`;
-    return `<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3>${meta ? `<small class="db-pm" title="${esc(meta)}">${esc(meta)}</small>` : ""}<span class="db-sp"></span>`
-      + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + tools;
+    return `${dot}<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3>${meta ? `<small class="db-pm" title="${esc(meta)}">${esc(meta)}</small>` : ""}<span class="db-sp"></span>`
+      + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + tools;
   }
   function paintPanel(id) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
     if (!p || !el) return;
     const a = p.visual === "board" ? null : S.answers.get(id);
-    el.querySelector(".db-ph").innerHTML = headHtml(p, a);
+    el.querySelector(".db-ph").innerHTML = headHtml(p, a, el.clientWidth);
     el.setAttribute("aria-label", titleOf(p));
     const body = el.querySelector(".db-pb"), foot = el.querySelector(".db-pf");
     const size = { w: body.clientWidth, h: body.clientHeight };
@@ -162,8 +169,6 @@
     else {
       body.classList.toggle("is-busy", !!a.busy);
       note = P.render(body, p, a.d, size);
-      const extra = P.notes(a.d).concat(a.err ? [`いまの数は前の物です（${a.err}）`] : []);
-      if (extra.length) note = [note, ...extra].filter(Boolean).join("　");
     }
     foot.hidden = !note; foot.textContent = note || ""; foot.title = note || "";
     if (note && body.clientHeight < size.h - 2) {          // 下の知らせの分だけ低くなった: もう一度、新しい高さで描く
@@ -289,8 +294,14 @@
     if (t.hasAttribute("data-db-dosave")) { saveAs(); return; }
     if (t.hasAttribute("data-db-crowadd")) { popEl.querySelector(".db-crows").insertAdjacentHTML("beforeend", popEl.querySelector("template").innerHTML); return; }
     if (t.hasAttribute("data-db-crowdel")) { t.closest(".db-crow").remove(); return; }
-    if (t.dataset.dbCondsave) saveCond(t.dataset.dbCondsave);
+    if (t.dataset.dbCondsave) { saveCond(t.dataset.dbCondsave); return; }
+    const mid = popEl && popEl.dataset.panel;
+    if (mid && t.hasAttribute("data-db-edit")) { closePop(); openEditor(mid); return; }
+    if (mid && t.hasAttribute("data-db-dup")) { closePop(); duplicate(mid); return; }
+    if (mid && t.hasAttribute("data-db-del")) { if (S.confirm === "del:" + mid) { closePop(); remove(mid); } else { S.confirm = "del:" + mid; popEl.innerHTML = moreHtml(mid); } }
   }
+  const moreHtml = (id) => `<button type="button" class="db-li" data-db-edit><b>組む</b><small>Enter</small></button><button type="button" class="db-li" data-db-dup><b>複製</b></button>`
+    + `<button type="button" class="db-li is-danger${S.confirm === "del:" + id ? " is-armed" : ""}" data-db-del><b>${S.confirm === "del:" + id ? "もう一度押すと消えます" : "消す"}</b><small>Delete</small></button>`;
 
   /* ---------------- 保存 ---------------- */
   async function writeLayout(method, id, body, done) {
@@ -458,6 +469,7 @@
     if (!S.edit) { S.edit = true; }
     S.editing = id; S.sel = id; editBase = TPA.clone(p);
     $("#dashScreen").classList.add("has-editor");
+    focusFrame(id);
     paint();
     E.open({ panel: p, sources: S.sources, toast: say,
       onChange: (np) => { Object.assign(panelOf(id), np, { x: panelOf(id).x, y: panelOf(id).y, w: panelOf(id).w, h: panelOf(id).h }); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
@@ -470,8 +482,24 @@
       onCancel: () => { const cur = panelOf(id); if (cur && editBase) Object.assign(cur, editBase); closeEditor(); paint(); refresh(false); },
     });
   }
+  /** 焦点（2026-10-grid の 1 回目で 1 位の D）: 組む間、組むパネルをグリッドの左の空きに大きく出し（グリッドの大きさの 1.5 倍まで・
+      窓に収まる大きさ）、ほかのパネルは淡い幕で覆う。組む所は右に重ねる（グリッドは縮めない＝ほかのパネルの字が切れない） */
+  function focusFrame(id) {
+    const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), g = $("#dashGrid");
+    if (!el || !g) return;
+    const r = el.getBoundingClientRect(), gr = g.getBoundingClientRect(), ed = 720 + 24;
+    const aw = Math.max(320, innerWidth - ed - gr.left - 16), ah = gr.height;
+    const w = Math.min(aw, Math.max(520, r.width * 1.5)), h = Math.min(ah, Math.max(340, r.height * 1.5));
+    Object.assign(el.style, { position: "fixed", left: `${Math.round(gr.left + (aw - w) / 2)}px`, top: `${Math.round(gr.top + (ah - h) / 2)}px`, width: `${Math.round(w)}px`, height: `${Math.round(h)}px` });
+    el.classList.add("is-focus");
+    if (!$("#dbScrim")) $("#dashScreen").insertAdjacentHTML("beforeend", '<div id="dbScrim" class="db-scrim" aria-hidden="true"></div>');
+  }
+  function unfocus() {
+    document.querySelectorAll("#dashGrid .db-p.is-focus").forEach((el) => { el.classList.remove("is-focus"); ["position", "left", "top", "width", "height"].forEach((k) => { el.style[k] = ""; }); });
+    $("#dbScrim")?.remove();
+  }
   function closeEditor() {
-    S.editing = ""; editBase = null; E.close();
+    S.editing = ""; editBase = null; E.close(); unfocus();
     $("#dashScreen")?.classList.remove("has-editor");
     requestAnimationFrame(() => paint());
   }
@@ -497,6 +525,7 @@
     if (b.dataset.dbCond) { if (S.pop === "cond") closePop(); else openPop("cond", b, condHtml(b.dataset.dbCond), "db-condpop"); return; }
     const id = pEl && pEl.dataset.id;
     if (!id) return;
+    if (b.hasAttribute("data-db-more")) { if (S.pop === "more") closePop(); else { const el = openPop("more", b, moreHtml(id), "db-morepop"); el.dataset.panel = id; } return; }
     if (b.hasAttribute("data-db-edit")) { openEditor(id); return; }
     if (b.hasAttribute("data-db-dup")) { duplicate(id); return; }
     if (b.hasAttribute("data-db-del")) remove(id);
@@ -506,12 +535,21 @@
     if (t.matches && t.matches("[data-db-rows]")) { const n = +t.value; if (n >= minRows()) commit((L) => { L.rows = n; }); }
   }
 
-  /* ---------------- 大きさが変わったら描き直す（窓・グリッドの段） ---------------- */
+  /* ---------------- 大きさが変わったら描き直す（窓・グリッドの段・パネルそのもの〈焦点など〉） ---------------- */
   let ro = null, roT = 0;
+  const sizes = new Map();
   function watchSize() {
     if (ro || typeof ResizeObserver === "undefined") return;
-    ro = new ResizeObserver(() => { clearTimeout(roT); roT = setTimeout(() => { if (S.active && S.layout && !drag) S.layout.panels.forEach((p) => paintPanel(p.id)); }, 120); });
+    ro = new ResizeObserver(() => { clearTimeout(roT); roT = setTimeout(() => {
+      if (!S.active || !S.layout || drag) return;
+      S.layout.panels.forEach((p) => {      // 大きさが変わったパネルだけ描き直す
+        const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(p.id)}"]`); if (!el) return;
+        const k = `${el.clientWidth}x${el.clientHeight}`;
+        if (sizes.get(p.id) !== k) { sizes.set(p.id, k); paintPanel(p.id); }
+      });
+    }, 120); });
     ro.observe($("#dashGrid"));
+    document.querySelectorAll("#dashGrid .db-p").forEach((el) => ro.observe(el));
   }
 
   let bound = false;

@@ -10,7 +10,8 @@
 (function () {
   "use strict";
   const { esc } = TPA;
-  const COLORS = ["#b5822a", "#2f7d78", "#4a62b0", "#c9564a", "#7658ae", "#5c8a2a", "#1f6aa8", "#8a5f18", "#5a6f77", "#d35d8e", "#0d8191", "#a5372c"];
+  // 系列の色。ダッシュボードのパネルは draw の ctx.colors で替える（データの種類の色。描く間だけ差し替える: draw）
+  let COLORS = ["#b5822a", "#2f7d78", "#4a62b0", "#c9564a", "#7658ae", "#5c8a2a", "#1f6aa8", "#8a5f18", "#5a6f77", "#d35d8e", "#0d8191", "#a5372c"];
   const ALERT = "#c9564a", WARN = "#b5822a", MUTED = "#6b7680";
   const ADDITIVE = new Set(["count", "lots", "sum"]);
   const SEP = "\u001f";
@@ -40,10 +41,11 @@
   const legendHtml = (items) => `<span class="pv-legend">${items.map(([name, color, kind]) => `<span><i class="${kind === "line" ? "is-line" : ""}" style="--c:${color}"></i>${esc(name)}</span>`).join("")}</span>`;
   /** 左（か右）の目盛りと横の補助線（0〜max を 4 等分） */
   function axisY(x0, y0, h, max, right, W, color = MUTED, fmtv = short) {
-    return [0, 0.25, 0.5, 0.75, 1].map((f) => { const y = y0 + h * (1 - f); return `${right ? "" : `<line x1="${x0}" x2="${W - 56}" y1="${y}" y2="${y}" class="pv-grid"/>`}<text x="${right ? W - 50 : x0 - 6}" y="${y + 4}" text-anchor="${right ? "start" : "end"}" fill="${color}" class="pv-ax">${esc(fmtv(max * f))}</text>`; }).join("");
+    // 目盛りの字が重ならない数だけ（低いグラフ＝ダッシュボードの小さなパネルは 3 つか 2 つ）
+    return (h >= 110 ? [0, 0.25, 0.5, 0.75, 1] : h >= 54 ? [0, 0.5, 1] : [0, 1]).map((f) => { const y = y0 + h * (1 - f); return `${right ? "" : `<line x1="${x0}" x2="${W - 56}" y1="${y}" y2="${y}" class="pv-grid"/>`}<text x="${right ? W - 50 : x0 - 6}" y="${y + 4}" text-anchor="${right ? "start" : "end"}" fill="${color}" class="pv-ax">${esc(fmtv(max * f))}</text>`; }).join("");
   }
   /** 範囲の目盛り（niceRange）と補助線。y は値 → 縦の位置 */
-  const axisRange = (r, x0, x1, y) => r.ticks.map((t) => `<line x1="${x0}" x2="${x1}" y1="${y(t)}" y2="${y(t)}" class="pv-grid"/><text x="${x0 - 6}" y="${y(t) + 4}" text-anchor="end" class="pv-ax">${esc(short(t))}</text>`).join("");
+  const axisRange = (r, x0, x1, y) => r.ticks.filter((t, i, a) => a.length < 3 || Math.abs(y(a[0]) - y(a[a.length - 1])) / (a.length - 1) >= 16 || i % 2 === 0).map((t) => `<line x1="${x0}" x2="${x1}" y1="${y(t)}" y2="${y(t)}" class="pv-grid"/><text x="${x0 - 6}" y="${y(t) + 4}" text-anchor="end" class="pv-ax">${esc(short(t))}</text>`).join("");
   const svgOf = (W, H, g, label) => `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(label)}">${g}</svg>`;
   const empty = (text) => ({ svg: `<div class="pv-cempty">${text}</div>`, legend: "", side: "" });
   /** 余白（詰めた形は小さく）と、横の傾向の面の幅（詰めた形は 0） */
@@ -207,16 +209,20 @@
     const max = niceMax(Math.max(0, ...vals.flat()));
     let g = "";
     if (dir === "column") {
-      const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = s.labels ? 22 : 12, pb = pad(ctx, 56, 30), iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
+      // 詰めた形で名前が 1 本の幅に入らない（隣とくっついて読める）ときは、斜めに書く
+      const gw0 = (W - pad(ctx, 60, 44) - pad(ctx, 20, 10)) / Math.max(data.length, 1);
+      const tilt = !!ctx.compact && data.some((r) => m.rowName(r).length * 12 + 6 > gw0);
+      const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = s.labels ? 22 : 12, pb = tilt ? 48 : pad(ctx, 56, 30), iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
       g += axisY(pl, pt, ih, max, false, W + 36);
       const thin = thinOf(vals.flat(), bw);
       data.forEach((r, i) => {
         series.forEach((q, k) => {
           const v = vals[i][k], h = ih * v / max, bx = pl + gw * i + (gw - bw * series.length) / 2 + bw * k;
-          g += `<rect x="${bx}" y="${pt + ih - h}" width="${bw}" height="${h}" fill="${q.color}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`;
+          g += `<rect x="${bx}" y="${pt + ih - h}" width="${bw}" height="${h}" fill="${ctx.rowColor && series.length === 1 ? ctx.rowColor(m.rowName(r)) : q.color}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`;
           if (s.labels && v && (i * series.length + k) % thin === 0) g += `<text x="${bx + bw / 2}" y="${pt + ih - h - 4}" text-anchor="middle" class="pv-vl">${esc(short(v))}</text>`;
         });
-        g += `<text x="${pl + gw * (i + 0.5)}" y="${H - pb + 16}" text-anchor="middle" class="pv-ax">${esc(clip(m.rowName(r), Math.max(4, Math.floor(gw / 8))))}</text>`;
+        g += tilt ? `<text transform="translate(${pl + gw * (i + 0.5) + 4},${H - pb + 12}) rotate(-35)" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), 8))}</text>`
+          : `<text x="${pl + gw * (i + 0.5)}" y="${H - pb + 16}" text-anchor="middle" class="pv-ax">${esc(clip(m.rowName(r), Math.max(4, Math.floor(gw / 8))))}</text>`;
       });
       g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
     } else {
@@ -227,7 +233,7 @@
       const cut = ctx.compact ? Math.max(3, Math.floor((pl - 10) / 12.5)) : 20;
       data.forEach((r, i) => {
         g += `<text x="${pl - 8}" y="${pt + rh * (i + 0.5) + 4}" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), cut))}</text>`;
-        series.forEach((q, k) => { const v = vals[i][k], w = iw * v / max, by = pt + rh * i + (rh - bh * series.length) / 2 + bh * k; g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${q.color}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`
+        series.forEach((q, k) => { const v = vals[i][k], w = iw * v / max, by = pt + rh * i + (rh - bh * series.length) / 2 + bh * k; g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${ctx.rowColor && series.length === 1 ? ctx.rowColor(m.rowName(r)) : q.color}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`
           + (series.length === 1 || s.labels ? `<text x="${pl + w + 6}" y="${by + bh - 2}" class="${s.labels ? "pv-vl" : "pv-ax"}">${esc(fmt(v))}</text>` : ""); });
       });
     }
@@ -312,7 +318,7 @@
     const R = ctx.compact ? Math.max(20, Math.min(H / 2 - 6, W / 2 - 8, 160)) : Math.min(H / 2 - 12, 140), r0 = R * 0.58, cx = R + pad(ctx, 24, 8), cy = H / 2, w = cx + R + pad(ctx, 24, 8);
     let a = -Math.PI / 2, g = "";
     items.forEach((x, i) => {
-      x.color = x.rest ? "#a9b4be" : COLORS[i % COLORS.length];
+      x.color = x.rest ? "#a9b4be" : ctx.rowColor ? ctx.rowColor(x.name) : COLORS[i % COLORS.length];
       const da = (x.v / total) * Math.PI * 2, b = a + da, big = da > Math.PI ? 1 : 0;
       const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)},${(cy + rad * Math.sin(ang)).toFixed(2)}`;
       const path = items.length === 1 ? `M${p(R, 0)}A${R},${R} 0 1 1 ${p(R, Math.PI)}A${R},${R} 0 1 1 ${p(R, 0)}M${p(r0, 0)}A${r0},${r0} 0 1 0 ${p(r0, Math.PI)}A${r0},${r0} 0 1 0 ${p(r0, 0)}Z`
@@ -551,10 +557,14 @@
   const iconSvg = (k, size = 18) => { const x = byKey.get(k); return x ? `<svg class="pv-ico" viewBox="0 0 20 20" width="${size}" height="${size}" aria-hidden="true"><path d="${x.icon}"/></svg>` : ""; };
   /** 描く（形が分からなければ縦棒）。高さ: 横棒は行の数で伸ばす・ほかは 300 */
   /** ctx.H があればその高さ（ダッシュボードのパネル: パネルの大きさに合わせる） */
+  /** ctx.colors があれば、描く間だけ系列の色を替える（描くのは同じ流れの中で終わるので、ほかの描き方に漏れない）。
+      ctx.rowColor(名前) があれば、1 系列の棒を行ごとの色で塗る（ダッシュボード: 同じ種類はどのパネルでも同じ色） */
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
     const H = ctx.H || (kind === "bar" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : 300);
-    return def.draw({ ...ctx, H });
+    const keep = COLORS;
+    if (ctx.colors) COLORS = ctx.colors;
+    try { return def.draw({ ...ctx, H }); } finally { COLORS = keep; }
   }
   window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();

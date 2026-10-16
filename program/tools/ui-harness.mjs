@@ -288,7 +288,9 @@ export const STATES = [
   ["dash-cond", async (p) => { await p.click('[data-db-cond="wip"]'); await sleep(500); }, "[data-next], [data-db-condsave]"],
   ["dash-edit", async (p) => { await closeAll(p); await p.click("[data-db-editmode]"); await sleep(500); }, "[data-next], .db-cell"],
   ["dash-panel", async (p) => {
-    await p.evaluate(() => document.querySelector('#dashGrid .db-p[data-id="wipClass"] [data-db-edit]').click());
+    // 組む: 見出しの「組む」（狭いパネルは「⋯」に畳まれるので、選んで Enter）
+    const b = await p.$('#dashGrid .db-p[data-id="wipClass"] [data-db-edit]');
+    if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="wipClass"]'); await p.keyboard.press("Enter"); }
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
   }, "[data-next], [data-de-apply]"],
   // 仕掛（データ元 wip。版 3.36.0）: 見出しの「仕掛」のタブで、異常ロット一覧と同じ部品の一覧
