@@ -427,7 +427,9 @@
     const limits = g.look === "signal" ? `<div class="de-row"><span class="de-l"></span><label class="pv-ck">注意<input type="number" step="any" data-de-lwarn value="${lim.warn ?? ""}" class="de-n2" aria-label="注意のしきい値"></label>`
       + `<label class="pv-ck">要対応<input type="number" step="any" data-de-lalert value="${lim.alert ?? ""}" class="de-n2" aria-label="要対応のしきい値"></label>`
       + `<select data-de-ldir aria-label="悪い向き"><option value="high"${lim.dir !== "low" ? " selected" : ""}>大きいほど悪い</option><option value="low"${lim.dir === "low" ? " selected" : ""}>小さいほど悪い</option></select></div>` : "";
-    return `<div class="de-row"><span class="de-l">見せ方</span>${segs("look", looks, g.look, "見せ方")}</div>`
+    // 見せ方の札（8 つ）は、パネルの見せ方（枠）と同じ絵つきの札。字は折らず、入らなければ札ごと次の段へ（作った後の採点の指摘）
+    const lookChips = `<span class="de-frames" role="radiogroup" aria-label="見せ方">${looks.map(([k, n, tip]) => `<label class="de-frame${g.look === k ? " on" : ""}" title="${esc(tip)}"><input type="radio" name="de-look" value="${k}" data-de-look${g.look === k ? " checked" : ""}><i class="lk lk-${k}" aria-hidden="true"></i>${esc(n)}</label>`).join("")}</span>`;
+    return `<div class="de-row de-top"><span class="de-l">見せ方</span>${lookChips}</div>`
       + `<div class="de-row"><span class="de-l">色</span><span class="de-sws" aria-label="色">${colors}</span></div>${limits}`
       + `<div class="de-row"><span class="de-l"></span>${hasCols ? `<label class="pv-ck"><input type="checkbox" data-de-total${g.total ? " checked" : ""}>計の列</label>` : ""}`
       + `<label class="pv-ck" title="ほかのまとまりに数があるのに、このまとまりが 0 の行に印を付け、表の上に名前を出します"><input type="checkbox" data-de-zero${g.zero ? " checked" : ""}>0 の行に印</label>`
