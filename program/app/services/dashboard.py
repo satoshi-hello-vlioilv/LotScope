@@ -14,10 +14,10 @@ from __future__ import annotations
 import json
 import re
 
-from . import pivot_presets
+from . import aggregate, pivot_presets
 from .data_sources import is_screen_source
 from .formula import MAX_LEN
-from .pivot import PERIODS
+from .pivot import MAX_MEASURES, PERIODS
 
 NAME = "dashboard_settings"           # 版 3.36.0 の集計対象の条件（読むだけ。合わせた表へ引き継ぐ）
 FIELDS = ["キー", "条件", "備考"]
@@ -48,7 +48,14 @@ def condition_of(rows, key):
 #   basis  … 作業日の数え方（work＝現場歴・cal＝太陽暦）
 #   emph   … 目立たせる（最初に見る数。淡い藍の地と藍の枠。2026-10-grid の 3 回目で決めた L）
 #   calc   … 計算列（版 3.38.0）: {formulas: {列名: 式}, names: {元の列名: 表示名}}。組んだ PC の一覧の表示列の設定から、使う計算列の分だけ写す
-#            （共通のダッシュボードをほかの PC で開いても同じ数になる。式は services/formula.py で画面と同じ答え）
+#            （共通のダッシュボードをほかの PC で開いても同じ数になる。式は services/formula.py で画面と同じ答え）。
+#            版 3.39.0 からパネルを組む所でも作れる（own: パネルで作った計算列の名前。一覧の表示列には入れない）
+# 版 3.39.0（利用者の要望 2026-10）:
+#   equips … 数える設備の名前の並び（空はすべて。複数選べる）。作業実績は設備のファイル、データ元は設備の列の値で見分ける
+#   egroup … 設備のまとめ（合算）{mode, name, groups, set, rest}（clean_egroup）。合わせた表は表全体（行の段の設備）に効く
+#   fmt    … 書式（clean_fmt。数値ラベル・横軸の日付の形・桁・単位・縦軸の範囲・凡例・補助線・基準線・色の組・系列の色・字の大きさ・数字の形と目標）
+#   frame  … パネルの見せ方（FRAMES。emph は frame "emph" の前の版の書き方として読む）
+#   値（measures）は services/aggregate.py の種類（統計・表し方 show・p 点・規格 lsl/usl）
 # 置き場: マスタ dashboards（集計表の組み方のプリセットと同じ列・同じ決まり: 共通デフォルト・共通・ID・標準。元はいつも "dash"）。
 LAYOUT_NAME = "dashboards"
 LAYOUT_SOURCE = "dash"
@@ -73,11 +80,18 @@ def _int(v, lo, hi, default):
     return max(lo, min(hi, n))
 
 
+IN_MAX = 20000          # 値を選ぶ条件（in。値の並びの JSON）の字の長さ
+
+
 def _filters(v):
     out = []
     for f in (v if isinstance(v, list) else [])[:MAX_FILTERS]:
         if isinstance(f, dict) and str(f.get("column") or "").strip() and str(f.get("op") or "").strip():
-            out.append({"column": str(f["column"]).strip()[:200], "op": str(f["op"]).strip()[:20], "value": "" if f.get("value") is None else str(f["value"])[:400]})
+            op = str(f["op"]).strip()[:20]
+            x = {"column": str(f["column"]).strip()[:200], "op": op, "value": "" if f.get("value") is None else str(f["value"])[:IN_MAX if op == "in" else 400]}
+            if op == "in" and f.get("key") in ("date", "month", "year"):
+                x["key"] = f["key"]
+            out.append(x)
     return out
 
 
@@ -99,13 +113,135 @@ def clean_calc(v):
         items = list(d.items())[:n] if isinstance(d, dict) else []
         return {str(k)[:200]: str(x)[:size] for k, x in items if str(k).strip() and isinstance(x, str)}
     f = {k: x for k, x in strs(v.get("formulas"), MAX_CALC, MAX_LEN).items() if x.strip()}
-    return {"formulas": f, "names": strs(v.get("names"), 400, 200)} if f else None
+    if not f:
+        return None
+    own = [str(x)[:200] for x in (v.get("own") if isinstance(v.get("own"), list) else []) if str(x) in f][:MAX_CALC]
+    return {"formulas": f, "names": strs(v.get("names"), 400, 200), **({"own": own} if own else {})}
 
 
 def _measure(m):
-    if isinstance(m, dict) and m.get("agg") in ("count", "lots", "sum", "avg", "min", "max"):
-        return {"agg": m["agg"]} if m["agg"] in ("count", "lots") else {"agg": m["agg"], "column": str(m.get("column") or "")[:200]}
-    return None
+    """値（services/aggregate.py の形）。列があるかは数えるときに確かめる（ここは形だけ）。合わなければ None"""
+    if not isinstance(m, dict) or m.get("agg") not in aggregate.AGGS:
+        return None
+    try:
+        out = aggregate.clean({**m, "column": str(m.get("column") or "")[:200]}, lambda c: bool(c))
+    except ValueError:
+        return None
+    return {k: v for k, v in out.items() if not (k == "column" and not v)}
+
+
+# ---------------------------------------------------------------- 設備の選び・まとめ・書式（版 3.39.0）
+MAX_EQUIPS = 200
+EGROUP_MODES = ("", "sum", "panel", "master")
+EGROUP_RESTS = ("keep", "other", "hide")
+MAX_EGROUPS = 24
+SUM_NAME = "選んだ設備の計"
+
+
+def _names(v, n=MAX_EQUIPS):
+    out = []
+    for x in (v if isinstance(v, list) else [])[:n]:
+        t = str(x or "").strip()[:120]
+        if t and t not in out:
+            out.append(t)
+    return out
+
+
+def clean_egroup(v):
+    """設備のまとめ → {mode, name, groups, set, rest}。mode: ""（まとめない）・sum（選んだ設備〈無ければ全部〉を 1 つに合算。名前 name）・
+    panel（このパネルで決めたグループ groups: [{name, members}]）・master（設備グループのマスタのまとめ方 set）。
+    rest … どのグループにも入らない設備: keep（そのまま）・other（その他にまとめる）・hide（出さない）。まとめないなら None"""
+    if not isinstance(v, dict) or v.get("mode") not in EGROUP_MODES[1:]:
+        return None
+    mode = v["mode"]
+    out = {"mode": mode, "rest": v.get("rest") if v.get("rest") in EGROUP_RESTS else "keep"}
+    if mode == "sum":
+        out["name"] = str(v.get("name") or "").strip()[:40] or SUM_NAME
+    elif mode == "panel":
+        gs = []
+        for g in (v.get("groups") if isinstance(v.get("groups"), list) else [])[:MAX_EGROUPS]:
+            if isinstance(g, dict) and str(g.get("name") or "").strip():
+                gs.append({"name": str(g["name"]).strip()[:40], "members": _names(g.get("members"))})
+        if not gs:
+            return None
+        out["groups"] = gs
+    else:
+        out["set"] = str(v.get("set") or "").strip()[:40]
+        if not out["set"]:
+            return None
+    return out
+
+
+def resolve_egroup(eg, equips, group_rows_for):
+    """パネルの設備のまとめ → 数える形（pivot.query_many の egroups）。group_rows_for(set) → [{name, members}]（マスタ）"""
+    if not eg:
+        return None
+    if eg["mode"] == "sum":
+        return {"groups": [{"name": eg["name"], "members": list(equips or [])}], "rest": "other", "other": eg["name"]}
+    groups = eg["groups"] if eg["mode"] == "panel" else group_rows_for(eg["set"])
+    if not groups:
+        return None
+    return {"groups": groups, "rest": eg["rest"]}
+
+
+FRAMES = ("card", "emph", "accent", "plain", "tint")
+LABELS = ("auto", "none", "top", "inside", "both")
+XDATES = ("auto", "md", "mdw", "d", "dw", "ymd", "ym", "w")
+XROTS = ("auto", "0", "45", "90")
+UNITS = ("auto", "none", "k", "man")
+LEGENDS = ("auto", "none", "top", "bottom")
+SIZES = ("s", "m", "l")
+PALETTES = ("", "vivid", "calm", "cud", "mono", "warm", "cool")
+KPI_LOOKS = ("num", "bar", "gauge")
+MAX_REFS = 4
+MAX_COLORS = 40
+
+
+def _float(v):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f == f and abs(f) != float("inf") else None
+
+
+def clean_fmt(v):
+    """書式 → 既定と違う物だけの dict（無ければ None）。
+    labels（数値ラベル: auto・none・top〈上〉・inside〈棒の中。積み上げはそれぞれの段〉・both）・xdate（横軸の日付の形）・xrot（横軸の字の向き）・
+    digits（小数の桁。-1＝自動）・unit（単位: auto〈万・億〉・none・k〈千〉・man〈万〉）・ymin/ymax（縦軸の範囲）・legend・grid（補助線）・
+    refs（基準線 [{value, label, color}]）・palette（色の組）・colors（系列・項目の名前 → 色）・size（字の大きさ）・kpi（数字の形）・target（目標）"""
+    if not isinstance(v, dict):
+        return None
+    out = {}
+    for k, choices in (("labels", LABELS), ("xdate", XDATES), ("xrot", XROTS), ("unit", UNITS), ("legend", LEGENDS), ("size", SIZES),
+                       ("palette", PALETTES), ("kpi", KPI_LOOKS)):
+        x = str(v.get(k) or "")
+        if x in choices and x not in ("auto", "", "m", "num"):
+            out[k] = x
+    d = _int(v.get("digits"), -1, 4, -1)
+    if d >= 0:
+        out["digits"] = d
+    for k in ("ymin", "ymax", "target"):
+        f = _float(v.get(k))
+        if f is not None:
+            out[k] = f
+    if "ymin" in out and "ymax" in out and out["ymin"] >= out["ymax"]:
+        out.pop("ymax")
+    if v.get("grid") is False:
+        out["grid"] = False
+    refs = []
+    for r in (v.get("refs") if isinstance(v.get("refs"), list) else [])[:MAX_REFS]:
+        f = _float((r or {}).get("value")) if isinstance(r, dict) else None
+        if f is not None:
+            c = str(r.get("color") or "")
+            refs.append({"value": f, "label": str(r.get("label") or "").strip()[:20], "color": c if _COLOR.fullmatch(c) else ""})
+    if refs:
+        out["refs"] = refs
+    cs = {str(k)[:120]: str(c) for k, c in list((v.get("colors") if isinstance(v.get("colors"), dict) else {}).items())[:MAX_COLORS]
+          if str(k).strip() and _COLOR.fullmatch(str(c))}
+    if cs:
+        out["colors"] = cs
+    return out or None
 
 
 def _data(p, what):
@@ -115,6 +251,9 @@ def _data(p, what):
         raise LayoutError(f"{what}のデータ（lot・work・src:<キー>）が違います。")
     out = {"source": src, "equip": str(p.get("equip") or "")[:40], "filters": _filters(p.get("filters")), "search": str(p.get("search") or "").strip()[:200],
            "period": _period(p.get("period")), "basis": "cal" if p.get("basis") == "cal" else "work"}
+    eq = _names(p.get("equips"))
+    if eq:
+        out["equips"] = eq
     calc = clean_calc(p.get("calc"))
     if calc:
         out["calc"] = calc
@@ -125,11 +264,13 @@ def _data(p, what):
 # 行の段（rows。既定は設備）を共通にして、列のまとまり（groups。1〜4）を横に並べる 1 枚の表。まとまりごとにデータ・値・列の段・期間・条件を
 # ほかのパネルと同じ組み方で決める（数え方もほかのパネルと同じ 1 か所）。行は行の段の鍵（設備なら設備名）でそろえる。
 #   group: {title, source, equip, filters, search, period, basis, calc, measure: {agg, column}, cols: [段]（0〜2）,
-#           look: bar（棒と数）・heat（数と濃淡）・num（数だけ）, total: 列の段があるとき計の列を出す, zero: 計が 0 の行に印（ほかのまとまりに数がある行）,
-#           color: 色（"" ＝データの種類の色・#rrggbb）}
+#           look: bar（棒と数）・heat（数と濃淡）・num（数だけ）・stack（列の内訳を 1 本の帯に積む）・share（行の計に対する割合 %）・
+#                 dot（点と数）・signal（しきい値で 3 色の信号）・spark（列の段〈日など〉の移りを小さな線で）,
+#           total: 列の段があるとき計の列を出す, zero: 計が 0 の行に印（ほかのまとまりに数がある行）,
+#           color: 色（"" ＝データの種類の色・#rrggbb）, limits: {warn, alert, dir: high〈大きいと悪い〉・low}（信号・濃淡の色の境）}
 #   order: {by: value（まとまり group の計の大きい・小さい順 dir）・name（名前の順）・equip（作業実績の設備の並び〈マスタ管理で決めた順〉）・
 #           manual（手で並べた list の順。list に無い行は後ろに名前の順）, group, dir: desc|asc, list: [行の鍵], hide: [隠す行の鍵]}
-BOARD_LOOKS = ("bar", "heat", "num")
+BOARD_LOOKS = ("bar", "heat", "num", "stack", "share", "dot", "signal", "spark")   # 版 3.39.0 で 3 → 8
 BOARD_ORDERS = ("value", "name", "equip", "manual")
 MAX_GROUPS = 4
 MAX_ORDER = 200
@@ -148,6 +289,10 @@ def clean_group(g, i):
            "measure": _measure(g.get("measure")) or {"agg": "lots"}, "cols": pivot_presets._dims(g.get("cols"))[:2],
            "look": g.get("look") if g.get("look") in BOARD_LOOKS else "num", "total": bool(g.get("total", True)), "zero": bool(g.get("zero")),
            "color": str(g.get("color") or "") if _COLOR.fullmatch(str(g.get("color") or "")) else ""}
+    lim = g.get("limits") if isinstance(g.get("limits"), dict) else {}
+    lim = {k: f for k in ("warn", "alert") if (f := _float(lim.get(k))) is not None}, lim.get("dir")
+    if lim[0]:
+        out["limits"] = {**lim[0], "dir": "low" if lim[1] == "low" else "high"}
     return out
 
 
@@ -160,7 +305,8 @@ def clean_board(p, what):
     rows = pivot_presets._dims([p.get("rows")] if isinstance(p.get("rows"), dict) else [])
     o = p.get("order") if isinstance(p.get("order"), dict) else {}
     gs = [clean_group(g, i) for i, g in enumerate(groups)]
-    return {"rows": rows[0] if rows else {"column": "@equip", "part": ""}, "groups": gs,
+    extra = {k: v for k, v in (("equips", _names(p.get("equips"))), ("egroup", clean_egroup(p.get("egroup"))), ("filters", _filters(p.get("filters")))) if v}
+    return {**extra, "rows": rows[0] if rows else {"column": "@equip", "part": ""}, "groups": gs,
             "order": {"by": o.get("by") if o.get("by") in BOARD_ORDERS else "value", "group": _int(o.get("group"), 0, len(gs) - 1, 0),
                       "dir": "asc" if o.get("dir") == "asc" else "desc", "list": _keys(o.get("list")), "hide": _keys(o.get("hide"))}}
 
@@ -168,7 +314,10 @@ def clean_board(p, what):
 def board_query(board, i):
     """合わせた表の列のまとまり i → ふつうのパネルと同じ形（数えるため。routes/dashboard.py が 1 つずつ数える）"""
     g = board["groups"][i]
-    return {**{k: g[k] for k in ("source", "equip", "filters", "search", "period", "basis") if k in g}, **({"calc": g["calc"]} if g.get("calc") else {}),
+    # 表全体の設備の選び・まとめ・条件（版 3.39.0）は、どのまとまりにも効く（条件はまとまりの条件に足す）
+    whole = {k: board[k] for k in ("equips", "egroup") if board.get(k)}
+    return {**{k: g[k] for k in ("source", "equip", "search", "period", "basis") if k in g}, **({"calc": g["calc"]} if g.get("calc") else {}),
+            **({"equips": g["equips"]} if g.get("equips") else {}), **whole, "filters": (g.get("filters") or []) + (board.get("filters") or []),
             "visual": "none", "body": {"rows": [board["rows"]], "cols": g["cols"], "measures": [g["measure"]], "sub": False, "grand": True}}
 
 
@@ -210,20 +359,29 @@ def clean_panel(p, i, rows):
            "title": str(p.get("title") or "").strip()[:60]}
     visual = p.get("visual") if p.get("visual") in pivot_presets.CHARTS + EXTRA_VISUALS else "column"
     out["visual"] = visual
-    out["emph"] = bool(p.get("emph"))
+    frame = p.get("frame") if p.get("frame") in FRAMES else ("emph" if p.get("emph") else "card")
+    out["emph"] = frame == "emph"            # 前の版の画面のため（frame と同じ物）
+    if frame != "card":
+        out["frame"] = frame
+    fmt = clean_fmt(p.get("fmt"))
+    if fmt:
+        out["fmt"] = fmt
     what = f"パネル「{out['title'] or pid}」"
     if visual == "board":
         if not p.get("groups") or p.get("legacy"):
             out["legacy"] = True       # 前の版の 1 枚の表（前の版の条件を引き継ぐ印。組む所で組み直すと外れる）
         return {**out, **clean_board(p, what)}
     body = p.get("body") if isinstance(p.get("body"), dict) else {}
-    ms = [m for m in map(_measure, (body.get("measures") if isinstance(body.get("measures"), list) else [])[:4]) if m]
+    ms = [m for m in map(_measure, (body.get("measures") if isinstance(body.get("measures"), list) else [])[:MAX_MEASURES]) if m]
     out.update(_data(p, what),
                # 段は集計表の組み方と同じ形（pivot_presets._dims）
                body={"rows": pivot_presets._dims(body.get("rows")), "cols": pivot_presets._dims(body.get("cols")), "measures": ms or [{"agg": "lots"}],
                      "sub": False, "grand": bool(body.get("grand", visual in ("none", "kpi"))), "chartAt": _int(body.get("chartAt"), 0, 3, 0),
                      "labels": bool(body.get("labels", True))},
                sort=p.get("sort") if p.get("sort") in SORTS else "", top=_int(p.get("top"), 0, TOP_MAX, 0))
+    eg = clean_egroup(p.get("egroup"))
+    if eg:
+        out["egroup"] = eg
     if visual not in ("kpi", "none") and not out["body"]["rows"]:
         raise LayoutError(f"{what}は行の段が要ります（大きな数にするなら「数字」の形を選んでください）。")
     return out

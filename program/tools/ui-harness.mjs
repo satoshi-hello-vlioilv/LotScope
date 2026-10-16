@@ -243,6 +243,8 @@ export const STATES = [
   ["master-sources", async (p) => { await tab(p, "sources"); await sleep(1100); }, "[data-next], #srAdd"],
   ["master-sources-edit", async (p) => { await p.click('[data-sr-edit="wip"]'); await sleep(700); }, "[data-next], #srSave"],
   ["master-shifts", async (p) => { await tab(p, "shifts"); await sleep(900); }, "[data-next], [data-sh-save]"],
+  // 版 3.39.0: 設備グループ（ダッシュボードで設備を合算する組。まだ無いときは、足す所が開く）
+  ["master-egroups", async (p) => { await tab(p, "egroups"); await sleep(900); }, "[data-next], [data-eg-save]"],
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
   ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],
@@ -285,12 +287,26 @@ export const STATES = [
   }, "[data-next], #verNew"],
   // ダッシュボード（版 3.37.0 からグリッドのパネル・最初の画面）: 組み込みの標準を見る所・1 枚の表の条件の面・編集・パネルを組む所（仕掛区分ごと）
   ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400); }, "[data-next], [data-db-editmode]"],
-  ["dash-edit", async (p) => { await closeAll(p); await p.click("[data-db-editmode]"); await sleep(500); }, "[data-next], .db-cell"],
+  // 版 3.39.0: パネルを絞る面（見出しの「絞る」→ 設備・値で絞る〈製造材質の値の候補〉）
+  ["dash-filter", async (p) => {
+    await closeAll(p);
+    await p.evaluate(() => document.querySelector('#dashGrid .db-p[data-id="wipClass"] [data-db-filter]').click()); await p.waitForSelector("[data-df-col]"); await sleep(1500);
+    await p.evaluate(() => { const s = document.querySelector("[data-df-col]"); s.value = "製造材質"; s.dispatchEvent(new Event("change", { bubbles: true })); });
+    await p.waitForSelector("[data-ck-val]"); await sleep(400);
+  }, "[data-next], [data-df-close]"],
+  ["dash-edit", async (p) => { await closeAll(p); await p.evaluate(() => window.DashFilter && DashFilter.close()); await p.click("[data-db-editmode]"); await sleep(500); }, "[data-next], .db-cell"],
   ["dash-panel", async (p) => {
     // 組む: 見出しの「組む」（狭いパネルは「⋯」に畳まれるので、選んで Enter）
     const b = await p.$('#dashGrid .db-p[data-id="wipClass"] [data-db-edit]');
     if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="wipClass"]'); await p.keyboard.press("Enter"); }
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
+  }, "[data-next], [data-de-apply]"],
+  // 版 3.39.0: 組む所の書式（直近 14 日の実績本数の時系列を組み、書式の所まで送る。案の置き方が書式を別の所に出すなら tpa-show-fmt で知らせる）
+  ["dash-panel-fmt", async (p) => {
+    await p.click("[data-de-cancel]"); await sleep(400);
+    await p.focus('#dashGrid .db-p[data-id="workDays"]'); await p.keyboard.press("Enter");
+    await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
+    await p.evaluate(() => { document.dispatchEvent(new CustomEvent("tpa-show-fmt")); document.querySelector("#deFmt")?.scrollIntoView({ block: "center" }); }); await sleep(500);
   }, "[data-next], [data-de-apply]"],
   // 版 3.38.0: 合わせた表（設備ごとの仕掛と前日の実績）を組む所。表全体（行の段・並び・行の札）と、列のまとまり ②（前日の実績本数）
   ["dash-board", async (p) => {

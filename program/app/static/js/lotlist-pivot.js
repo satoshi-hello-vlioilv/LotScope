@@ -182,10 +182,11 @@
     p.set("rows", JSON.stringify(rows)); p.set("cols", JSON.stringify(s.cols));
     if (s.month && canMonth(s)) p.set("month", s.month);
     p.set("measures", JSON.stringify(s.measures.length ? s.measures : [{ agg: "count" }]));
-    if (s.chart === "box" && boxColumn(s)) p.set("box", boxColumn(s));   // 箱ひげ図: 値の数のカラムの分かれ方（四分位）も頼む
+    if (BOXY.has(s.chart) && boxColumn(s)) p.set("box", boxColumn(s));   // 箱ひげ図・バイオリン・X̄-R: 値の数のカラムの分かれ方（四分位・密度）も頼む
     Object.entries(host.workParams()).forEach(([k, v]) => { if (v) p.set(k, v); });
     return p.toString();
   }
+  const BOXY = new Set(["box", "violin", "xbar"]);     // 行ごとの分かれ方（boxes）を頼む形
   /** 箱ひげ図に描く数のカラム（値のうち最初の数のカラム） */
   const boxColumn = (s) => (s.measures.find((m) => m.column && isNum(m.column)) || {}).column || "";
   /** 一覧が読み直された（絞り込み・範囲が変わった）ときに呼ばれる。集計表を見ていなければ何もしない */
@@ -599,8 +600,8 @@
       Object.assign(patch, { rows: [{ column: col, part: "bin" }], cols: [], measures: [{ agg: "count" }] });
       said.push(`「${host.label(col)}」を区間に分けて、件数のヒストグラムにしました`);
     }
-    if (k === "box" && !s.measures.some((m) => num(m.column))) {
-      if (!R.$weight) { host.toast("箱ひげ図にできる数のカラムがありません"); return; }
+    if (BOXY.has(k) && !s.measures.some((m) => num(m.column))) {
+      if (!R.$weight) { host.toast(`${C.get(k).n}にできる数のカラムがありません`); return; }
       patch.measures = [{ agg: "avg", column: R.$weight }].concat(s.measures).slice(0, MAX_MEASURES);
       said.push(`値に「${host.label(R.$weight)}」の平均を入れ、その分かれ方を描きます`);
     }
@@ -620,7 +621,7 @@
       const col = host.isWork() && !used("@shift") ? { column: "@shift", part: "" } : [R.$few1, R.$few2].filter((c) => c && !used(c)).map((c) => ({ column: c, part: "" }))[0];
       if (col) { patch.cols = [col]; said.push(`列に「${dimName(col)}」を入れました`); }
     }
-    const reload = patch.rows || patch.cols || patch.measures || (k === "box") !== (s.chart === "box");   // 頼む中身が替わる（箱ひげは四分位も頼む）
+    const reload = patch.rows || patch.cols || patch.measures || BOXY.has(k) !== BOXY.has(s.chart);   // 頼む中身が替わる（箱ひげは四分位も頼む）
     save(patch);
     if (said.length) host.toast(`${C.get(k).n}: ${said.join("。")}`);
     if (reload || !answer) refresh(true); else paint(answer);

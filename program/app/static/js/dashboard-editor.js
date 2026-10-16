@@ -7,13 +7,16 @@
    合わせた表（版 3.38.0。visual board）: 上の札で「表全体」（行の段・行の並び・隠す行）と「列のまとまり」（1〜4）を切り替える。
    まとまりは、ふつうのパネルと同じ部品（カラムの札・文・データ・条件・期間）で組み（行の段は表全体で 1 つ・値は 1 つ）、見せ方（棒・濃淡・数・色・
    計の列・0 の印）を選ぶ。組む物（target）は、ふつうのパネルならパネル、合わせた表ならまとまりを写した形（groupView）で、変えるたびに書き戻す
+   版 3.39.0（利用者の要望 2026-10）: 値の統計（中央値・標準偏差・p%点・Cpk など）と表し方（割合・累計・差・順位）・設備を複数選ぶ・設備をまとめる
+   （選んだ設備の合算・このパネルのグループ・設備グループのマスタ）・見せ方（枠 5 つ・数字の形 3 つ・合わせた表 8 つ）・書式（数値ラベル・日付の形・
+   字の向き・桁・単位・縦軸・凡例・補助線・字の大きさ・基準線・色の組・系列の色）・計算列をここで作る・形は目的ごとに並べる
    ========================================================================= */
 (function () {
   "use strict";
   const { $, esc } = TPA;
   const C = window.LotListPivotCharts, P = window.DashPanels;
-  const MAX_DIMS = 3, MAX_MEASURES = 4, MAX_GROUPS = 4, MAX_GROUP_COLS = 2;
-  const AGGS = [["sum", "合計"], ["avg", "平均"], ["min", "最小"], ["max", "最大"]];
+  const MAX_DIMS = 3, MAX_MEASURES = 6, MAX_GROUPS = 4, MAX_GROUP_COLS = 2;
+  const Q = window.DashFilter;
   const DATE_PARTS = ["date", "ym", "year", "month", "weekday", "hour", ""], NUM_PARTS = ["", "bin"], WORKDAY_PARTS = ["", "ym", "year"];
   const PART_NAME = { "": "値のまま", date: "年月日", ym: "年月", year: "年", month: "月", weekday: "曜日", hour: "時", bin: "区間" };
   const WORKDAY_NAME = { "": "日", ym: "年月", year: "年" };
@@ -21,16 +24,31 @@
     { k: "none", n: "表", tip: "集計表（行・列・値）を、パネルの大きさに詰めて出します", icon: "M3 4h14v12H3zM3 8h14M3 12h14M8 4v12" },
     { k: "board", n: "合わせた表", tip: "行（設備など）をそろえて、いくつかのデータの数を横に並べた 1 枚の表（設備ごとの仕掛と前日の実績など）", icon: "M3 4h14v12H3zM3 8h14M7 4v12M12 4v12" }];
   const PERIODS = [["", "期間で絞らない"], ["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["this_month", "今月"], ["last_month", "先月"]];
-  const LOOKS = [["bar", "棒と数"], ["heat", "数と濃淡"], ["num", "数だけ"]];
+  // 合わせた表の見せ方（版 3.39.0 で 3 → 8）。cols … 列の段があるときだけ意味のある物
+  const LOOKS = [["bar", "棒と数", "棒の長さと数"], ["heat", "数と濃淡", "数の大きさを地の濃さで"], ["num", "数だけ", "数だけを並べる"],
+    ["stack", "積み上げ帯", "列の段（直など）の内訳を 1 本の帯に積む", true], ["share", "割合", "行の計に対する割合（%）"], ["dot", "点と数", "線の上の点の位置で大きさ"],
+    ["signal", "信号", "しきい値で ●よい・▲注意・✕要対応"], ["spark", "小さな線", "列の段（日など）の移りを 1 本の線で", true]];
+  // パネルの見せ方（枠）・数字の形
+  const FRAMES = [["card", "標準", "白い面"], ["emph", "目立たせる", "淡い藍の地と藍の枠（最初に見る数に）"], ["accent", "色の帯", "左に系列の色の帯"], ["plain", "枠なし", "地に溶け込む（補う数に）"], ["tint", "淡い地", "系列の色をごく淡く敷く"]];
+  const KPI_LOOKS = [["num", "数", "大きな数だけ"], ["bar", "目標までの棒", "目標に対する達成率を棒で"], ["gauge", "メーター", "目標に対する達成率を半円で"]];
+  // 書式の選び（サーバーの dashboard.clean_fmt と同じ鍵）
+  const LABELS = [["", "自動"], ["none", "なし"], ["top", "上"], ["inside", "棒の中"], ["both", "両方"]];
+  const XDATES = [["", "自動（10/2）"], ["md", "10/2"], ["mdw", "10/2(金)"], ["d", "2（日だけ）"], ["dw", "2(金)"], ["ymd", "2026/10/2"], ["w", "金（曜日）"]];
+  const XROTS = [["", "自動"], ["0", "横"], ["45", "45°"], ["90", "縦"]];
+  const UNITS = [["", "自動（万・億）"], ["none", "そのまま"], ["k", "千"], ["man", "万"]];
+  const LEGENDS = [["", "自動"], ["none", "出さない"], ["top", "上"], ["bottom", "下"]];
+  const SIZES = [["s", "小"], ["", "中"], ["l", "大"]];
+  const REF_COLORS = ["#c9564a", "#b5822a", "#2f7d78", "#3f6591", "#5a6f77"];
   // まとまりの色（"" はデータの種類の色＝仕掛は藍・作業実績は青緑・品質データは琥珀。ほかは区分の色と同じ並び）
   const GROUP_COLORS = ["", "#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#8e4f76"];
   let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", q = "", ctx = { formulas: {}, names: {} }, formOpen = false;
+  let eqOpen = false, eqItems = null, eqKey = "", eqSearch = "", calcEdit = null, fmtOpen = true;
 
   const isBoard = () => p && p.visual === "board";
   const inGroup = () => isBoard() && gi >= 0;
   /** 合わせた表のまとまり → 組む形（ふつうのパネルと同じ形。行の段は表全体の物・値は 1 つ） */
   function groupView(g) {
-    return { visual: "none", source: g.source, equip: g.equip || "", filters: g.filters || [], search: g.search || "", period: g.period || null, basis: g.basis || "work",
+    return { visual: "none", source: g.source, equip: g.equip || "", equips: g.equips || [], filters: g.filters || [], search: g.search || "", period: g.period || null, basis: g.basis || "work",
       ...(g.calc ? { calc: g.calc } : {}), body: { rows: [p.rows], cols: g.cols || [], measures: [g.measure || { agg: "lots" }], grand: true } };
   }
   /** 組んだ形 → まとまりへ書き戻す */
@@ -38,6 +56,7 @@
     if (!inGroup()) return;
     const g = p.groups[gi];
     Object.assign(g, { source: t.source, equip: t.equip, filters: t.filters, search: t.search, period: t.period, basis: t.basis, cols: t.body.cols, measure: t.body.measures[0] || { agg: "lots" } });
+    if ((t.equips || []).length) g.equips = t.equips; else delete g.equips;
     if (t.calc) g.calc = t.calc; else delete g.calc;
     delete p.legacy;              // 組み直した表は、前の版の条件を引き継がない
   }
@@ -55,22 +74,29 @@
     if (!LC || !LC.formulaContext) return t.calc || { formulas: {}, names: {} };
     const head = t.source === "lot" ? "lotlist:" : t.source === "work" ? (t.equip ? `worklog:${t.equip}:` : "worklog:") : `${t.source}:`;
     const mine = LC.formulaContext((k) => k.startsWith(head)), had = t.calc || { formulas: {}, names: {} };
-    // 組み直すと、この PC の一覧の今の式になる。この PC に無い計算列（ほかの人が組んだ物）は、パネルに写してある式のまま
-    return { formulas: { ...had.formulas, ...mine.formulas }, names: { ...had.names, ...mine.names } };
+    // 組み直すと、この PC の一覧の今の式になる。この PC に無い計算列（ほかの人が組んだ物）は、パネルに写してある式のまま。
+    // パネルで作った計算列（own。版 3.39.0）は、いつもパネルの式（一覧の同じ名前の式より先）
+    const own = ownOf(had);
+    return { formulas: { ...had.formulas, ...mine.formulas, ...own }, names: { ...had.names, ...mine.names }, own: Object.keys(own) };
   }
   const isCalc = (c) => !!(fieldOf(c) || {}).calc;
+  /** パネルで作った計算列 → {名前: 式} */
+  const ownOf = (c) => Object.fromEntries(((c && c.own) || []).filter((n) => c.formulas && c.formulas[n]).map((n) => [n, c.formulas[n]]));
   /** 組む物が使う計算列の式（＋その式が [名前] で読む式の列を 1 段。サーバーは画面の baseRow と同じ引き方で計算する）→ 無ければ null */
   function calcOf(x) {
     const b = x.body || {}, used = new Set([...(b.rows || []), ...(b.cols || [])].map((d) => d.column)
       .concat((b.measures || []).map((m) => m.column || ""), (x.filters || []).map((f) => f.column), [x.period ? x.period.column : ""]));
     const byName = Object.fromEntries(Object.entries(ctx.names).map(([c, n]) => [n, c]));
     const formulas = {};
-    [...used].filter((c) => c && isCalc(c) && ctx.formulas[c]).forEach((c) => {
+    // パネルで作った計算列は、使っていなくても持つ（カラムの札に残す）
+    (ctx.own || []).forEach((n) => { if (ctx.formulas[n]) used.add(n); });
+    [...used].filter((c) => c && (isCalc(c) || (ctx.own || []).includes(c)) && ctx.formulas[c]).forEach((c) => {
       formulas[c] = ctx.formulas[c];
       const chk = window.WL && WL.formula.check(ctx.formulas[c]);
       ((chk && chk.ok && chk.columns) || []).map((n) => byName[n] || n).forEach((n) => { if (ctx.formulas[n] && !(n in formulas)) formulas[n] = ctx.formulas[n]; });
     });
-    return Object.keys(formulas).length ? { formulas, names: ctx.names } : null;
+    const own = (ctx.own || []).filter((n) => formulas[n]);
+    return Object.keys(formulas).length ? { formulas, names: ctx.names, ...(own.length ? { own } : {}) } : null;
   }
   /** 使う計算列の式を組む物に写す（使わなくなったら外す） */
   function syncCalc() { if (t === p && isBoard()) return; const c = calcOf(t); if (c) t.calc = c; else delete t.calc; }
@@ -132,9 +158,18 @@
     const b = p.body;
     if (k !== "kpi" && k !== "none" && !b.rows.length) {   // 行の段が要る形: 向く段を 1 つ入れる（作業実績は作業日・ほかは設備か種類の少ない列）
       const sp = special().map((x) => x.column);
-      const pick = (k === "time" || k === "line" || k === "control") ? (sp.includes("@workday") ? "@workday" : ((fields && fields.fields) || []).find((f) => f.date)?.column)
+      const pick = (k === "time" || k === "line" || k === "area" || k === "stackarea" || k === "control" || k === "xbar") ? (sp.includes("@workday") ? "@workday" : ((fields && fields.fields) || []).find((f) => f.date)?.column)
         : sp.includes("@equip") ? "@equip" : ((fields && fields.fields) || []).filter((f) => !f.numeric && !f.date && f.kinds >= 2 && f.kinds <= 30).sort((a, c) => a.kinds - c.kinds)[0]?.column;
       if (pick) { b.rows = [{ column: pick, part: defaultPart(pick) }]; host.toast(`この形には行の段が要るので「${dimLabel(b.rows[0])}」を入れました`); }
+    }
+    // 値の数のカラムが要る形（箱ひげ・バイオリン・X̄-R は 1 つ、散布図・45度線は 2 つ、バブルは 3 つ）: 足りなければ数のカラムの平均を入れて知らせる
+    const need = { box: 1, violin: 1, xbar: 1, scatter: 2, diag45: 2, bubble: 3 }[k] || 0;
+    const have = b.measures.filter((m) => m.column && isNum(m.column));
+    if (have.length < need) {
+      const nums = ((fields && fields.fields) || []).filter((f) => f.numeric && !f.error).map((f) => f.column).filter((c) => !have.some((m) => m.column === c));
+      const add = nums.slice(0, need - have.length).map((c) => ({ agg: "avg", column: c }));
+      if (add.length) { b.measures = have.concat(add).slice(0, MAX_MEASURES); host.toast(`この形には数の値が ${need} つ要るので「${add.map(P.measName).join("」「")}」を入れました（値の札で替えられます）`); }
+      else host.toast(`この形には数のカラムの値が ${need} つ要ります`);
     }
     b.grand = k === "none" || k === "kpi";
     changed();
@@ -161,7 +196,9 @@
   async function setSource(key, equip = "") {
     if (key === t.source && equip === t.equip) return;
     const keepPeriod = t.period && t.period.column === "@workday" && key === "work";
-    Object.assign(t, { source: key, equip, filters: [], search: "", period: keepPeriod ? t.period : null });
+    Object.assign(t, { source: key, equip, equips: [], filters: [], search: "", period: keepPeriod ? t.period : null });
+    if (!inGroup()) delete p.egroup;
+    eqOpen = false;
     t.body = { ...t.body, rows: inGroup() ? t.body.rows : [], cols: [], measures: [{ agg: "lots" }] };
     if (!inGroup() && p.visual !== "kpi" && p.visual !== "none") p.visual = "kpi";
     await loadFields(); changed();
@@ -208,6 +245,60 @@
     changed(false);
   }
 
+  /* ---- 計算列をここで作る（版 3.39.0。要望 5）: 名前と式（式ビルダーで組み立てるか、式を書く）。パネルの計算列（calc.own）として持つ
+     （一覧の表示列には入れない。一覧の計算列と同じ書き方・同じ答え: list-formula.js / services/formula.py） ---- */
+  function calcHtml() {
+    if (!calcEdit) return "";
+    const chk = calcEdit.expr.trim() && window.WL ? WL.formula.check(calcEdit.expr) : null;
+    const dup = calcEdit.name.trim() && calcEdit.name.trim() !== calcEdit.was && ((fields && fields.fields) || []).some((f) => f.column === calcEdit.name.trim());
+    const ok = calcEdit.name.trim() && chk && chk.ok && !dup;
+    return `<div class="de-calc" role="dialog" aria-label="計算列を作る"><div class="de-calchead"><b>${calcEdit.was ? "計算列を直す" : "計算列を作る"}</b><small>このパネルだけの列です。左のカラムの札に並び、行・列・値・条件に使えます</small></div>`
+      + `<label class="de-row"><span class="de-l">名前</span><input id="deCalcName" value="${esc(calcEdit.name)}" maxlength="60" placeholder="例: 板厚の差" aria-label="計算列の名前"></label>`
+      + `<div class="de-row de-top"><span class="de-l">式</span><textarea id="deCalcExpr" rows="2" spellcheck="false" placeholder="例: [出側板厚] - [入側板厚]" aria-label="式">${esc(calcEdit.expr)}</textarea></div>`
+      + `<div class="de-row"><span class="de-l"></span><small class="de-hint${chk && !chk.ok ? " is-warn" : ""}" id="deCalcMsg">${dup ? "同じ名前の列があります。別の名前にしてください" : chk ? (chk.ok ? "✓ 読める式です" : esc(chk.error)) : "列は [名前]。＋ − × ÷・文字は '…'。下の「部品から作る」でも組み立てられます"}</small></div>`
+      + `<details class="de-fbwrap"${calcEdit.expr ? "" : " open"}><summary>部品から作る（式ビルダー）</summary><div class="fb" id="deCalcFb"></div></details>`
+      + `<div class="de-calcacts">${calcEdit.was ? '<button type="button" class="pv-btn is-danger" data-de-calcdel>この計算列を消す</button>' : ""}<span class="db-sp"></span>`
+      + `<button type="button" class="btn-ghost" data-de-calcx>やめる</button><button type="button" class="btn-primary" data-de-calcok${ok ? "" : " disabled"}>${calcEdit.was ? "直す" : "作る"}</button></div></div>`;
+  }
+  function openCalc(name = "") {
+    const own = ownOf(t.calc);
+    calcEdit = { was: name, name, expr: name ? own[name] || ctx.formulas[name] || "" : "" };
+    paintCalc();
+  }
+  function paintCalc() {
+    const box = $("#deCalcBox"); if (!box) return;
+    box.innerHTML = calcHtml(); box.hidden = !calcEdit;
+    if (!calcEdit) return;
+    const fb = $("#deCalcFb");
+    if (fb && window.FormulaBuilder) window.FormulaBuilder.mount(fb, { kind: "calc", kinds: ["calc", "if", "join", "cut", "fill", "round"],
+      columns: () => ((fields && fields.fields) || []).filter((f) => !f.error && f.column !== calcEdit.was).map((f) => f.column), preview: () => [],
+      apply: (f, how) => { const ta = $("#deCalcExpr"); calcEdit.expr = how === "insert" ? ta.value.slice(0, ta.selectionStart) + f + ta.value.slice(ta.selectionEnd) : f; paintCalc(); } });
+    const n = $("#deCalcName"); if (n && !calcEdit.name) n.focus();
+  }
+  /** 計算列を置く（名前を変えたら、使っている段・値・条件の列の名前も替える）・消す */
+  async function saveCalc(remove = false) {
+    const name = calcEdit.name.trim(), was = calcEdit.was, own = ownOf(t.calc);
+    if (was) delete own[was];
+    if (!remove) own[name] = calcEdit.expr.trim();
+    const swap = (c) => (c === was ? (remove ? null : name) : c);
+    if (was) {
+      const b = t.body;
+      ["rows", "cols"].forEach((r) => { b[r] = b[r].map((d) => ({ ...d, column: swap(d.column) })).filter((d) => d.column); });
+      b.measures = b.measures.map((m) => (m.column ? { ...m, column: swap(m.column) } : m)).filter((m) => m.column !== null);
+      if (!b.measures.length) b.measures = [{ agg: "lots" }];
+      t.filters = t.filters.map((f) => ({ ...f, column: swap(f.column) })).filter((f) => f.column);
+    }
+    const cur = t.calc || { formulas: {}, names: {} }, formulas = { ...cur.formulas };
+    if (was) delete formulas[was];
+    Object.assign(formulas, own);
+    t.calc = { formulas, names: cur.names || {}, own: Object.keys(own) };
+    if (!t.calc.own.length) delete t.calc.own;
+    calcEdit = null; paintCalc();
+    fieldsKey = ""; await loadFields();
+    changed();
+    host.toast(remove ? `計算列「${was}」を消しました` : `計算列「${name}」を${was ? "直しました" : "作りました。左のカラムの札から使えます"}`);
+  }
+
   async function loadFields() {
     if (isBoard() && gi < 0) return;
     ctx = calcContext();
@@ -229,6 +320,7 @@
   function fieldsHtml() {
     if (fieldsErr) return `<p class="pv-none">${esc(fieldsErr)}</p>`;
     if (!fields) return '<p class="pv-none">カラムを読んでいます…</p>';
+    const ownList = (t.calc && t.calc.own) || [];
     const b = t.body, used = (c) => (b.rows.some((d) => d.column === c) ? "rows" : b.cols.some((d) => d.column === c) ? "cols" : "");
     const rowBtn = (c, on) => (inGroup() ? "<i></i>" : btn("rows", c, on));
     const meas = (agg, col = "") => b.measures.some((m) => m.agg === agg && (m.column || "") === col);
@@ -244,8 +336,10 @@
       if (f.error) return `<div class="pv-f is-off" title="${esc(ctx.formulas[c] || "")}"><span><b>${esc(c)}<small class="sx-calc">式</small></b><small>${esc(f.error)}（一覧の「表示列」で直す）</small></span><i></i><i></i><i></i></div>`;
       const sub = (f.calc ? "式の列 · " : "") + (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : `${f.kinds} 種類`);
       const tip = f.calc ? `${c}（計算列。一覧の表示列で作った式）\n${ctx.formulas[c] || ""}` : c;
-      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"><span><b>${esc(c)}${f.calc ? '<small class="sx-calc">式</small>' : ""}</b><small>${sub}</small></span>`
-        + rowBtn(c, u === "rows") + btn("cols", c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・最小・最大に替えられます）"') : "<i></i>") + "</div>";
+      const mine = ownList.includes(c);
+      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"><span><b>${esc(c)}${f.calc ? (mine ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(c)}" title="このパネルで作った計算列。押すと直せます">式 ✎</button>` : '<small class="sx-calc">式</small>') : ""}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
+        + rowBtn(c, u === "rows") + btn("cols", c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・中央値・標準偏差などの統計に替えられます）"')
+          : btn("vals", c, anyVal, 'title="種類の数（重複の無い値の数）を値に足します"')) + "</div>";
     }).join("");
     return html || '<p class="pv-none">当たるカラムがありません</p>';
   }
@@ -254,10 +348,16 @@
     const sel = parts.length > 1 && !fixed ? `<select data-de-part="${role}" data-i="${i}" aria-label="まとめ方">${parts.map((x) => `<option value="${x}"${(d.part || "") === x ? " selected" : ""}>${pn[x]}</option>`).join("")}</select>` : "";
     return `<span class="pv-chip ${role === "rows" ? "r" : "c"}${fixed ? " is-fixed" : ""}"${fixed ? ' title="行の段は表全体で 1 つです（「表全体」で変えます）"' : ""}><b>${esc(dimLabel(d))}</b>${sel}${fixed ? "" : `<button type="button" data-de-x="${role}" data-i="${i}" aria-label="「${esc(dimLabel(d))}」を外す">×</button>`}</span>`;
   }
+  /** 値の札: 名前・集計のしかた（よく使う／統計／種類。数でない列は種類の数だけ）・決める数（p%点の p・Cpk の規格）・表し方（割合・累計など） */
   function measChip(m, i) {
-    const sel = m.agg === "count" || m.agg === "lots" ? "" : `<select data-de-agg="${i}" aria-label="集計のしかた">${AGGS.map(([k, n]) => `<option value="${k}"${m.agg === k ? " selected" : ""}>${n}</option>`).join("")}</select>`;
+    const num = m.column && isNum(m.column), grp = { basic: "よく使う", stat: "統計", kind: "種類" };
+    const opts = (g) => C.AGGS.filter((a) => a.g === g && (num || a.any)).map((a) => `<option value="${a.k}"${m.agg === a.k ? " selected" : ""} title="${esc(a.tip || "")}">${a.n}</option>`).join("");
+    const sel = m.agg === "count" || m.agg === "lots" ? "" : `<select data-de-agg="${i}" aria-label="集計のしかた">${Object.entries(grp).map(([g, n]) => { const o = opts(g); return o ? `<optgroup label="${n}">${o}</optgroup>` : ""; }).join("")}</select>`;
+    const par = m.agg === "pct" ? `<label class="de-par">p<input type="number" min="1" max="99" value="${m.p || 90}" data-de-mp="${i}" aria-label="何%点か"></label>`
+      : m.agg === "cpk" ? `<label class="de-par">下限<input type="number" step="any" value="${m.lsl ?? ""}" data-de-mlsl="${i}" aria-label="規格の下限"></label><label class="de-par">上限<input type="number" step="any" value="${m.usl ?? ""}" data-de-musl="${i}" aria-label="規格の上限"></label>` : "";
+    const show = `<select class="de-show" data-de-show="${i}" aria-label="表し方" title="表し方（割合・累計・前との差・順位）">${C.SHOWS.map(([k, n]) => `<option value="${k}"${(m.show || "") === k ? " selected" : ""}>${k ? n : "表し方"}</option>`).join("")}</select>`;
     const name = m.agg === "count" ? "件数" : m.agg === "lots" ? "ロット数" : m.column;
-    return `<span class="pv-chip v"><b>${esc(name)}</b>${sel}${inGroup() ? "" : `<button type="button" data-de-mx="${i}" aria-label="「${esc(P.measName(m))}」を外す">×</button>`}</span>`;
+    return `<span class="pv-chip v"><b>${esc(name)}</b>${sel}${par}${show}${inGroup() ? "" : `<button type="button" data-de-mx="${i}" aria-label="「${esc(P.measName(m))}」を外す">×</button>`}</span>`;
   }
   function sentenceHtml() {
     const b = t.body, slot = (role, html, ph) => `<span class="pv-slot" data-role="${role}">${html || `<span class="pv-ph">${ph}</span>`}</span>`;
@@ -266,15 +366,16 @@
       + `${slot("cols", b.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`}`
       + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>`;
   }
-  /** 形の札（16）。合わせた表は、表全体の札で「選んだ形の札 1 枚＋形を変える…」に畳む（押すと 16 の札が開く。
-      まとまりの札には出さない＝「ほかの形にすると ① の組みでグラフ」と読めて迷わない。2026-10-board の 3 回目で決めた CF） */
+  /** 形の札（版 3.39.0 で 25。目的の行に並べる: 数と表・推移を見る・比べる・内訳・ばらつき・関係。集計表のグラフの形の面と同じまとまり）。
+      合わせた表は、表全体の札で「選んだ形の札 1 枚＋形を変える…」に畳む（押すと全部の札が開く。2026-10-board の 3 回目で決めた CF） */
   function visualsHtml() {
     if (inGroup()) return "";
-    const all = EXTRA.concat(C.DEFS.filter((x) => x.k !== "none"));
     const ico = (x) => (x.icon && !C.get(x.k) ? `<svg class="pv-ico" viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="${x.icon}"/></svg>` : C.iconSvg(x.k, 17));
-    const grid = `<div class="de-vis" role="radiogroup" aria-label="形">${all.map((x) => `<button type="button" class="pv-cbtn${p.visual === x.k ? " on" : ""}" role="radio" aria-checked="${p.visual === x.k}" data-de-vis="${x.k}" title="${esc(x.tip || "")}">${ico(x)}<span>${esc(x.n)}</span></button>`).join("")}</div>`;
+    const btn = (x) => `<button type="button" class="pv-cbtn${p.visual === x.k ? " on" : ""}" role="radio" aria-checked="${p.visual === x.k}" data-de-vis="${x.k}" title="${esc(x.tip || "")}">${ico(x)}<span>${esc(x.n)}</span></button>`;
+    const rows = [["num", "数と表", EXTRA]].concat(C.GROUPS.filter(([g]) => g !== "table").map(([g, n]) => [g, n, C.DEFS.filter((x) => x.g === g)]));
+    const grid = `<div class="de-vis" role="radiogroup" aria-label="形">${rows.map(([g, n, xs]) => `<div class="de-vrow"><span class="de-vg">${esc(n)}</span><span class="de-vi">${xs.map(btn).join("")}</span></div>`).join("")}</div>`;
     if (!isBoard()) return grid;
-    const me = all.find((x) => x.k === "board");
+    const me = EXTRA.find((x) => x.k === "board");
     return `<div class="de-row de-form"><span class="de-l">形</span><span class="pv-cbtn on de-formcard" title="${esc(me.tip)}">${ico(me)}<span>${esc(me.n)}</span></span>`
       + `<button type="button" class="pv-btn" data-de-formmore aria-expanded="${formOpen}">${formOpen ? "閉じる" : "形を変える…"}</button><small class="de-hint">行をそろえて、データの数を横に並べる</small></div>`
       + (formOpen ? grid : "");
@@ -294,27 +395,149 @@
     return `${period}<div class="de-row de-top"><label class="de-l">条件</label><div class="db-crows">${rows || '<small class="de-hint">すべての行を数えます</small>'}</div></div>`
       + `<div class="de-row"><span class="de-l"></span><button type="button" class="pv-btn" data-de-fadd${cols.length ? "" : " disabled"}>＋ 条件を足す</button></div>`;
   }
-  /** 見せ方（形の札のすぐ下）。まとまりは 棒・濃淡・数・色・計の列・0 の印。ほかは目立たせる */
+  /** 選びの札（ラジオを札に見せる）。name … data-de-<name> */
+  const segs = (name, list, cur, label) => `<span class="de-segs" role="radiogroup" aria-label="${esc(label)}">${list.map(([k, n, tip]) =>
+    `<label class="de-seg${(cur || "") === k ? " on" : ""}"${tip ? ` title="${esc(tip)}"` : ""}><input type="radio" name="de-${name}" value="${k}" data-de-${name}${(cur || "") === k ? " checked" : ""}>${esc(n)}</label>`).join("")}</span>`;
+  /** 見せ方（形の札のすぐ下）。まとまりは 棒・濃淡・数・積み上げ帯・割合・点・信号・小さな線・色・計の列・0 の印・しきい値。ほかはパネルの枠（5 つ）と、数字の形（目標） */
   function lookHtml() {
-    if (!inGroup()) return `<div class="de-row"><span class="de-l">見せ方</span><label class="pv-ck" title="最初に見る数に（淡い藍の地と藍の枠）"><input type="checkbox" data-de-emph${p.emph ? " checked" : ""}>目立たせる</label></div>`;
-    const g = p.groups[gi], base = P.colorOf(g.source);
-    const looks = LOOKS.map(([k, n]) => `<label class="de-seg${g.look === k ? " on" : ""}"><input type="radio" name="deLook" value="${k}" data-de-look${g.look === k ? " checked" : ""}>${n}</label>`).join("");
+    if (!inGroup()) {
+      const frame = p.frame || (p.emph ? "emph" : "card"), fm = p.fmt || {};
+      const frames = `<span class="de-frames" role="radiogroup" aria-label="パネルの見せ方">${FRAMES.map(([k, n, tip]) => `<label class="de-frame${frame === k ? " on" : ""}" title="${esc(tip)}"><input type="radio" name="de-frame" value="${k}" data-de-frame${frame === k ? " checked" : ""}><i class="fr-${k}" aria-hidden="true"></i>${n}</label>`).join("")}</span>`;
+      const kpi = p.visual === "kpi" ? `<div class="de-row"><span class="de-l">数字</span>${segs("kpilook", KPI_LOOKS, fm.kpi || "num", "数字の形")}`
+        + (fm.kpi === "bar" || fm.kpi === "gauge" ? `<label class="pv-ck">目標<input type="number" step="any" data-de-target value="${fm.target ?? ""}" class="de-n2" aria-label="目標の値" placeholder="例 30"></label>${fm.target ? "" : '<small class="de-hint is-warn">目標を入れると出ます</small>'}` : "") + "</div>" : "";
+      return `<div class="de-row"><span class="de-l">見せ方</span>${frames}</div>${kpi}`;
+    }
+    const g = p.groups[gi], base = P.colorOf(g.source), hasCols = (g.cols || []).length > 0;
+    const looks = LOOKS.filter(([, , , cols]) => !cols || hasCols).map(([k, n, tip]) => [k, n, tip]);
     const colors = GROUP_COLORS.map((c) => `<button type="button" class="de-sw${(g.color || "") === c ? " on" : ""}" data-de-color="${c}" style="--sw:${c || base}" aria-label="${c ? `色 ${c}` : "データの種類の色"}" aria-pressed="${(g.color || "") === c}" title="${c ? "この色にする" : "データの種類の色（仕掛＝藍・作業実績＝青緑・品質データ＝琥珀）"}">${c ? "" : "自"}</button>`).join("");
-    return `<div class="de-row"><span class="de-l">見せ方</span><span class="de-segs" role="radiogroup" aria-label="見せ方">${looks}</span><span class="de-sws" aria-label="色">${colors}</span></div>`
-      + `<div class="de-row"><span class="de-l"></span>${g.cols.length ? `<label class="pv-ck"><input type="checkbox" data-de-total${g.total ? " checked" : ""}>計の列</label>` : ""}`
+    const lim = g.limits || {};
+    const limits = g.look === "signal" ? `<div class="de-row"><span class="de-l"></span><label class="pv-ck">注意<input type="number" step="any" data-de-lwarn value="${lim.warn ?? ""}" class="de-n2" aria-label="注意のしきい値"></label>`
+      + `<label class="pv-ck">要対応<input type="number" step="any" data-de-lalert value="${lim.alert ?? ""}" class="de-n2" aria-label="要対応のしきい値"></label>`
+      + `<select data-de-ldir aria-label="悪い向き"><option value="high"${lim.dir !== "low" ? " selected" : ""}>大きいほど悪い</option><option value="low"${lim.dir === "low" ? " selected" : ""}>小さいほど悪い</option></select></div>` : "";
+    return `<div class="de-row"><span class="de-l">見せ方</span>${segs("look", looks, g.look, "見せ方")}</div>`
+      + `<div class="de-row"><span class="de-l">色</span><span class="de-sws" aria-label="色">${colors}</span></div>${limits}`
+      + `<div class="de-row"><span class="de-l"></span>${hasCols ? `<label class="pv-ck"><input type="checkbox" data-de-total${g.total ? " checked" : ""}>計の列</label>` : ""}`
       + `<label class="pv-ck" title="ほかのまとまりに数があるのに、このまとまりが 0 の行に印を付け、表の上に名前を出します"><input type="checkbox" data-de-zero${g.zero ? " checked" : ""}>0 の行に印</label>`
       + `<label class="pv-ck de-gt">見出し<input data-de-gtitle value="${esc(g.title || "")}" placeholder="${esc(P.groupTitle(g, null))}" maxlength="40" aria-label="まとまりの見出し"></label></div>`;
+  }
+  /* ---- 書式（版 3.39.0。要望 7・8）: 数値ラベル・横軸（日付の形・字の向き）・数の形（桁・単位）・縦軸の範囲・凡例・補助線・字の大きさ・基準線・色 ---- */
+  /** いまの答えの系列（色を決められる名前）: 列の段があれば列の葉、1 系列で行が少なければ行の葉、ほかは値 */
+  function seriesNames() {
+    const d = host.answer && host.answer();
+    if (!d || !d.cells || !d.dims) return [];
+    const m = C.buildModel(d, { sub: false, grand: false });
+    if (m.nc) return m.cols.filter((c) => c.type === "data").slice(0, 12).map((c) => m.colName(c));
+    const rows = m.rows.filter((r) => r.type === "data");
+    if (["column", "bar", "lollipop", "donut", "treemap", "pareto", "bubble", "box", "violin"].includes(p.visual) && rows.length <= 16) return rows.map((r) => m.rowName(r));
+    return d.measures.map((x) => P.measName(x));
+  }
+  function fmtHtml() {
+    if (inGroup() || isBoard() || p.visual === "none") return "";
+    const fm = p.fmt || {}, kpi = p.visual === "kpi";
+    const sel = (name, list, cur, label) => `<select data-de-f${name} aria-label="${esc(label)}">${list.map(([k, n]) => `<option value="${k}"${String(cur ?? "") === k ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
+    const digits = sel("digits", [["", "自動"], ["0", "整数"], ["1", "0.1"], ["2", "0.01"], ["3", "0.001"]], fm.digits == null ? "" : String(fm.digits), "小数の桁");
+    const head = `<button type="button" class="de-fmthead" data-de-fmtopen aria-expanded="${fmtOpen}"><b>書式</b><small>${fmtSummary(fm)}</small><i aria-hidden="true">${fmtOpen ? "▴" : "▾"}</i></button>`;
+    if (!fmtOpen) return head;
+    if (kpi) return head + `<div class="de-fmt"><div class="de-row"><span class="de-l">数の形</span>${digits}${sel("unit", UNITS, fm.unit || "", "単位")}</div></div>`;
+    const pal = P.PALETTES, cur = fm.palette || "";
+    const palBtn = (k, n, cs) => `<button type="button" class="de-pal${cur === k ? " on" : ""}" data-de-pal="${k}" aria-pressed="${cur === k}" title="${esc(n)}"><span>${cs.slice(0, 5).map((c) => `<i style="background:${c}"></i>`).join("")}</span>${esc(n)}</button>`;
+    const pals = palBtn("", "データの種類", P.seriesColors({ source: p.source })) + Object.entries(pal).map(([k, x]) => palBtn(k, x.n, x.c)).join("");
+    const names = seriesNames(), colors = P.seriesColors(p);
+    const named = names.length ? names.map((n, i) => { const c = (fm.colors || {})[n]; return `<label class="de-scol${c ? " is-set" : ""}" title="${esc(n)}"><input type="color" value="${c || colors[i % colors.length]}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span>${c ? `<button type="button" class="icon-btn" data-de-scolx="${esc(n)}" aria-label="「${esc(n)}」の色を戻す">×</button>` : ""}</label>`; }).join("") : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
+    const refs = (fm.refs || []).map((r, i) => `<div class="de-ref" data-i="${i}"><input type="number" step="any" value="${r.value}" data-de-refv aria-label="基準線の値" class="de-n2"><input value="${esc(r.label || "")}" data-de-refl maxlength="20" placeholder="名前（目標・上限など）" aria-label="基準線の名前">`
+      + `<span class="de-sws">${REF_COLORS.map((c) => `<button type="button" class="de-sw${(r.color || REF_COLORS[0]) === c ? " on" : ""}" style="--sw:${c}" data-de-refc="${c}" aria-label="色 ${c}"></button>`).join("")}</span><button type="button" class="icon-btn" data-de-refdel="${i}" aria-label="この基準線を外す">×</button></div>`).join("");
+    return head + `<div class="de-fmt">`
+      + `<div class="de-row"><span class="de-l">数値</span>${segs("flabels", LABELS, fm.labels || "", "数値ラベル")}</div>`
+      + `<div class="de-row"><span class="de-l">横軸</span>${sel("xdate", XDATES, fm.xdate || "", "横軸の日付の形")}${segs("fxrot", XROTS, fm.xrot || "", "横軸の字の向き")}</div>`
+      + `<div class="de-row"><span class="de-l">数の形</span>${digits}${sel("unit", UNITS, fm.unit || "", "単位")}</div>`
+      + `<div class="de-row"><span class="de-l">縦軸</span><label class="pv-ck">最小<input type="number" step="any" data-de-fymin value="${fm.ymin ?? ""}" placeholder="自動" class="de-n2"></label><label class="pv-ck">最大<input type="number" step="any" data-de-fymax value="${fm.ymax ?? ""}" placeholder="自動" class="de-n2"></label>`
+      + `<label class="pv-ck"><input type="checkbox" data-de-fgrid${fm.grid === false ? "" : " checked"}>補助線</label></div>`
+      + `<div class="de-row"><span class="de-l">凡例</span>${segs("flegend", LEGENDS, fm.legend || "", "凡例")}<span class="de-l2">字</span>${segs("fsize", SIZES, fm.size || "", "字の大きさ")}</div>`
+      + `<div class="de-row de-top"><span class="de-l">基準線</span><div class="de-refs">${refs}<button type="button" class="pv-btn" data-de-refadd${(fm.refs || []).length >= 4 ? " disabled" : ""}>＋ 基準線（目標・規格）</button></div></div>`
+      + `<div class="de-row de-top"><span class="de-l">色の組</span><div class="de-pals">${pals}</div></div>`
+      + `<div class="de-row de-top"><span class="de-l">系列の色</span><div class="de-scols">${named}</div></div></div>`;
+  }
+  /** 書式の要約（畳んだときに、何が効いているかを見せる） */
+  function fmtSummary(fm) {
+    const out = [];
+    if (fm.labels) out.push(`数値 ${(LABELS.find((x) => x[0] === fm.labels) || ["", ""])[1]}`);
+    if (fm.xdate) out.push(`日付 ${(XDATES.find((x) => x[0] === fm.xdate) || ["", ""])[1]}`);
+    if (fm.digits != null || fm.unit) out.push("数の形");
+    if (fm.ymin != null || fm.ymax != null) out.push("縦軸");
+    if ((fm.refs || []).length) out.push(`基準線 ${fm.refs.length}`);
+    if (fm.palette) out.push(P.PALETTES[fm.palette].n);
+    if (fm.colors && Object.keys(fm.colors).length) out.push(`色 ${Object.keys(fm.colors).length}`);
+    return out.length ? esc(out.join("・")) : "既定のまま";
+  }
+  /** 書式を 1 つ変える（既定に戻す物は消す） */
+  function setFmt(k, v) {
+    const fm = { ...(p.fmt || {}) };
+    if (v === "" || v == null || (k === "grid" && v === true)) delete fm[k]; else fm[k] = v;
+    if (Object.keys(fm).length) p.fmt = fm; else delete p.fmt;
+    changed(false);
   }
   function sortHtml() {
     if (t.visual === "kpi" || inGroup()) return "";
     return `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
       + `<label class="pv-ck">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝パネルに入るだけ</small></div>`;
   }
+  /* ---- 設備（版 3.39.0。要望 2・9）: 複数選ぶ（チェックの並び。dashboard-filter.js と同じ部品）と、まとめる（合算・このパネルのグループ・マスタ） ---- */
+  /** 設備を選ぶ物（ふつうのパネル・まとまり＝組む物 t、合わせた表の表全体＝パネル p） */
+  const eqHost = () => (isBoard() && gi < 0 ? p : t);
+  function setEquips(list) {
+    const h = eqHost();
+    if (list.length) h.equips = list; else delete h.equips;
+    if (h === t && inGroup()) pushGroup();
+    changed(false);
+  }
+  const eqText = (list) => (!list || !list.length ? "すべての設備" : `${list.slice(0, 3).join("・")}${list.length > 3 ? ` ほか ${list.length - 3}` : ""}`);
+  /** 選べる設備（その元で数えた設備と件数。元ごとに 1 回） */
+  async function loadEquips() {
+    const base = isBoard() && gi < 0 ? (p.groups[0] || {}) : t, key = JSON.stringify([base.source, base.equip || "", base.filters || []]);
+    if (eqKey === key && eqItems) return;
+    eqKey = key; eqItems = null;
+    try { const items = await Q.equipsOf({ ...base, visual: "none" }); if (eqKey === key) eqItems = items; } catch (_) { if (eqKey === key) eqItems = []; }
+    paint(false);
+  }
+  function equipHtml() {
+    const h = eqHost(), list = h.equips || [];
+    const can = isBoard() && gi < 0 ? (p.rows || {}).column === "@equip" : !!(srcOf(t.source) || {}).equip;
+    if (!can) return "";
+    const picker = eqOpen ? `<div class="de-eqbox">${eqItems ? Q.checklistHtml(eqItems, new Set(list), { name: "deq", all: "すべての設備" }) : '<p class="df-none">設備を数えています…</p>'}</div>` : "";
+    return `<div class="de-row"><span class="de-l">設備</span><button type="button" class="de-eqbtn${list.length ? " is-on" : ""}" data-de-eqopen aria-expanded="${eqOpen}" title="数える設備を選びます（複数選べます）">${esc(eqText(list))}<i aria-hidden="true">${eqOpen ? "▴" : "▾"}</i></button>`
+      + (list.length ? `<button type="button" class="df-link" data-de-eqall>すべてに戻す</button>` : "") + `</div>${picker}`;
+  }
+  const EG_MODES = [["", "まとめない（1 台ずつ）"], ["sum", "選んだ設備を合算して 1 つに"], ["panel", "このパネルでグループを作って合算"], ["master", "設備グループのマスタから合算"]];
+  const EG_RESTS = [["keep", "そのまま 1 台ずつ出す"], ["other", "「その他の設備」にまとめる"], ["hide", "出さない"]];
+  /** 設備のまとめ（合わせた表は表全体、ふつうのパネルは設備の段があるときに効く） */
+  function egroupHtml() {
+    if (inGroup()) return "";
+    const can = isBoard() ? (p.rows || {}).column === "@equip" : !!(srcOf(p.source) || {}).equip;
+    if (!can) return "";
+    const eg = p.egroup || { mode: "" }, sets = host.egroupSets ? host.egroupSets() : [];
+    let body = "";
+    if (eg.mode === "sum") body = `<div class="de-row"><span class="de-l"></span><label class="pv-ck">名前<input data-de-egname value="${esc(eg.name || "")}" placeholder="選んだ設備の計" maxlength="40" aria-label="合算した設備の名前"></label><small class="de-hint">${esc(eqText(eqHost().equips))}を 1 つの行（値）にします</small></div>`;
+    if (eg.mode === "panel") {
+      const all = (eqItems || []).map((x) => x.value), used = new Map();
+      (eg.groups || []).forEach((g, k) => (g.members || []).forEach((m) => { if (!used.has(m)) used.set(m, k); }));
+      body = (eg.groups || []).map((g, k) => `<div class="de-eg" data-k="${k}"><input data-de-eggname value="${esc(g.name)}" maxlength="40" aria-label="グループの名前" placeholder="グループ ${k + 1}">`
+        + `<span class="de-egm">${(all.length ? all : g.members || []).map((n) => `<button type="button" class="sh-eq" data-de-egm="${esc(n)}" aria-pressed="${(g.members || []).includes(n)}"${used.has(n) && used.get(n) !== k ? ` title="グループ ${used.get(n) + 1} にも入っています（先のグループで数えます）"` : ""}>${esc(n)}</button>`).join("")}</span>`
+        + `<button type="button" class="icon-btn" data-de-egdel="${k}" aria-label="グループ「${esc(g.name)}」を外す">×</button></div>`).join("")
+        + `<div class="de-row"><span class="de-l"></span><button type="button" class="pv-btn" data-de-egadd>＋ グループ</button>${eqItems ? "" : '<small class="de-hint">設備を数えています…</small>'}</div>`;
+    }
+    if (eg.mode === "master") {
+      const cur = sets.find((x) => x.name === eg.set);
+      body = `<div class="de-row"><span class="de-l"></span><select data-de-egset aria-label="まとめ方">${sets.length ? "" : '<option value="">（設備グループがまだありません）</option>'}${sets.map((x) => `<option${x.name === eg.set ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`
+        + `<small class="de-hint">マスタ管理の「設備グループ」で足す・直す（直すと、このパネルにもすぐ効きます）</small></div>`
+        + (cur ? `<div class="de-row"><span class="de-l"></span><span class="de-egprev">${cur.groups.map((g) => `<span><b>${esc(g.name)}</b>${esc(g.equipment.join("・"))}</span>`).join("")}</span></div>` : "");
+    }
+    const rest = eg.mode === "panel" || eg.mode === "master" ? `<div class="de-row"><span class="de-l"></span><label class="pv-ck">グループに入らない設備<select data-de-egrest>${EG_RESTS.map(([k, n]) => `<option value="${k}"${(eg.rest || "keep") === k ? " selected" : ""}>${n}</option>`).join("")}</select></label></div>` : "";
+    return `<div class="de-row"><span class="de-l">まとめる</span><select data-de-egmode aria-label="設備をまとめる">${EG_MODES.map(([k, n]) => `<option value="${k}"${(eg.mode || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select></div>${body}${rest}`;
+  }
   function dataHtml() {
-    const src = srcOf(t.source);
-    const equips = src && src.equips ? `<select data-de-equip aria-label="設備"><option value="">すべての設備</option>${src.equips.map((e) => `<option value="${esc(e.key)}"${e.key === t.equip ? " selected" : ""}>${esc(e.name)}</option>`).join("")}</select>` : "";
     const basis = isWork() ? `<select data-de-basis aria-label="作業日の数え方"><option value="work"${t.basis !== "cal" ? " selected" : ""}>現場歴</option><option value="cal"${t.basis === "cal" ? " selected" : ""}>太陽暦</option></select>` : "";
-    return `<div class="de-row"><label class="de-l">データ</label><select data-de-src aria-label="データ">${sources.map((x) => `<option value="${esc(x.key)}"${x.key === t.source ? " selected" : ""}${x.place ? "" : " disabled"}>${esc(x.name)}${x.place ? "" : "（場所が未設定）"}</option>`).join("")}</select>${equips}${basis}</div>`;
+    return `<div class="de-row"><label class="de-l">データ</label><select data-de-src aria-label="データ">${sources.map((x) => `<option value="${esc(x.key)}"${x.key === t.source ? " selected" : ""}${x.place ? "" : " disabled"}>${esc(x.name)}${x.place ? "" : "（場所が未設定）"}</option>`).join("")}</select>${basis}</div>`
+      + equipHtml() + egroupHtml();
   }
   /** 合わせた表の札（表全体・まとまり ①②…・＋） */
   function tabsHtml() {
@@ -345,14 +568,17 @@
       + `<button type="button" class="pv-btn is-danger" data-de-gdel${p.groups.length > 1 ? "" : " disabled"}>このまとまりを外す</button></div>`;
   }
 
+  /** 欄に字を打っている間は、その欄のまとまりを描き直さない（打っている字・カーソルを失わない）。押す札・選ぶ欄は描き直す */
+  const typingIn = (sel) => { const a = document.activeElement; return !!(a && a.closest(sel) && a.matches("input:not([type=checkbox]):not([type=radio]):not([type=color]),textarea")); };
   function paint(repaintFields = true) {
     const el = $("#dbEditor"); if (!el || !p) return;
     if (!el.firstChild) {
       el.innerHTML = `<div class="de-head" data-drag><b>パネルを組む</b><input id="deTitle" class="de-title" autocomplete="off" aria-label="題" maxlength="60">`
         + `<span class="db-sp"></span><button type="button" class="btn-ghost" data-de-cancel>やめる</button><button type="button" class="btn-primary" data-de-apply>当てる</button></div>`
         + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields"><div class="pv-cap"><b>カラム</b><small>札を押すと右の文に入ります（もう一度押すと外れます）</small></div>`
-        + `<input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><div class="pv-list" id="deFields"></div></aside>`
-        + `<div class="de-main"><div id="deVis"></div><div id="deBoard"></div><div id="deData"></div><div id="deSent"></div><div id="deLook"></div><div id="deCond"></div><div id="deSort"></div><div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`;
+        + `<div class="de-fsearch"><input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><button type="button" class="pv-btn de-calcbtn" data-de-calcnew title="式から列を作り、このパネルで使います">＋ 計算列</button></div><div class="pv-list" id="deFields"></div></aside>`
+        + `<div class="de-main"><div id="deVis"></div><div id="deBoard"></div><div id="deData"></div><div id="deSent"></div><div id="deLook"></div><div id="deCond"></div><div id="deSort"></div><div id="deFmt"></div><div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`
+        + `<div id="deCalcBox" class="de-calcbox" hidden></div>`;
       TPA.onText($("#deSearch"), (v) => { q = v; $("#deFields").innerHTML = fieldsHtml(); });
       TPA.onText($("#deTitle"), (v) => { p.title = v.slice(0, 60); host.onChange(TPA.clone(p)); });
     }
@@ -370,11 +596,14 @@
       if (repaintFields) $("#deFields").innerHTML = fieldsHtml();
       $("#deData").innerHTML = dataHtml();
       $("#deSent").innerHTML = sentenceHtml();
-      if (!el.contains(document.activeElement) || !document.activeElement.closest("#deCond")) $("#deCond").innerHTML = condHtml();
+      if (!typingIn("#deCond")) $("#deCond").innerHTML = condHtml();
       $("#deSort").innerHTML = sortHtml();
     }
-    if (!el.contains(document.activeElement) || !document.activeElement.closest("#deLook")) $("#deLook").innerHTML = whole ? "" : lookHtml();
+    if (!typingIn("#deLook")) $("#deLook").innerHTML = whole ? "" : lookHtml();
+    if (!typingIn("#deFmt")) $("#deFmt").innerHTML = fmtHtml();
     $("#deGacts").innerHTML = groupActsHtml();
+    if (whole) { const b = $("#deBoard"); if (b && !b.querySelector("[data-de-egmode]")) b.insertAdjacentHTML("beforeend", equipHtml() + egroupHtml()); }
+    if ((eqOpen || (p.egroup && p.egroup.mode === "panel")) && !eqItems) loadEquips();
   }
   function message(text) { const m = $("#deMsg"); if (m) m.textContent = text || ""; }
 
@@ -390,9 +619,32 @@
       if (b.hasAttribute("data-de-gdel")) { removeGroup(gi); return; }
       if (b.dataset.deRup != null || b.dataset.deRdown != null) { const i = +(b.dataset.deRup ?? b.dataset.deRdown); moveRow(b.closest("[data-de-row]").dataset.deRow, b.dataset.deRup != null ? i - 1 : i + 1); return; }
       if (b.dataset.deColor != null) { p.groups[gi].color = b.dataset.deColor; changed(false); return; }
+      // 設備（複数）・まとめる
+      if (b.hasAttribute("data-de-eqopen")) { eqOpen = !eqOpen; if (eqOpen) loadEquips(); paint(false); return; }
+      if (b.hasAttribute("data-de-eqall") || b.hasAttribute("data-ck-deq-clear")) { setEquips([]); return; }
+      if (b.hasAttribute("data-de-egadd")) { const eg = p.egroup; eg.groups = (eg.groups || []).concat([{ name: `グループ ${(eg.groups || []).length + 1}`, members: [] }]); changed(false); return; }
+      if (b.dataset.deEgdel != null) { p.egroup.groups.splice(+b.dataset.deEgdel, 1); changed(false); return; }
+      if (b.dataset.deEgm != null) {
+        const g = p.egroup.groups[+b.closest(".de-eg").dataset.k], n = b.dataset.deEgm;
+        g.members = (g.members || []).includes(n) ? g.members.filter((x) => x !== n) : (g.members || []).concat([n]);
+        changed(false); return;
+      }
+      // 書式
+      if (b.hasAttribute("data-de-fmtopen")) { fmtOpen = !fmtOpen; $("#deFmt").innerHTML = fmtHtml(); return; }
+      if (b.dataset.dePal != null) { setFmt("palette", b.dataset.dePal); return; }
+      if (b.dataset.deScolx != null) { const cs = { ...((p.fmt || {}).colors || {}) }; delete cs[b.dataset.deScolx]; setFmt("colors", Object.keys(cs).length ? cs : ""); return; }
+      if (b.hasAttribute("data-de-refadd")) { const fm = p.fmt || {}; setFmt("refs", (fm.refs || []).concat([{ value: 0, label: "目標", color: REF_COLORS[0] }])); return; }
+      if (b.dataset.deRefdel != null) { const r = ((p.fmt || {}).refs || []).slice(); r.splice(+b.dataset.deRefdel, 1); setFmt("refs", r.length ? r : ""); return; }
+      if (b.dataset.deRefc != null) { const r = ((p.fmt || {}).refs || []).map((x) => ({ ...x })), i = +b.closest(".de-ref").dataset.i; r[i].color = b.dataset.deRefc; setFmt("refs", r); return; }
+      // 計算列
+      if (b.hasAttribute("data-de-calcnew")) { openCalc(""); return; }
+      if (b.dataset.deCalcopen != null) { e.stopPropagation(); openCalc(b.dataset.deCalcopen); return; }
+      if (b.hasAttribute("data-de-calcx")) { calcEdit = null; paintCalc(); return; }
+      if (b.hasAttribute("data-de-calcok")) { saveCalc(false); return; }
+      if (b.hasAttribute("data-de-calcdel")) { if (confirm(`計算列「${calcEdit.was}」を消します。使っている段・値・条件からも外します。よろしいですか？`)) saveCalc(true); return; }
       if (b.dataset.deAdd) {
         const role = b.dataset.deAdd, col = b.dataset.col;
-        if (role === "vals") addMeasure(col === "@lots" ? { agg: "lots" } : col === "@count" ? { agg: "count" } : { agg: "sum", column: col });
+        if (role === "vals") addMeasure(col === "@lots" ? { agg: "lots" } : col === "@count" ? { agg: "count" } : isNum(col) ? { agg: "sum", column: col } : { agg: "distinct", column: col });
         else addDim(role, col);
         return;
       }
@@ -408,7 +660,21 @@
       if (x.matches("[data-de-equip]")) { setSource(t.source, x.value); return; }
       if (x.matches("[data-de-basis]")) { t.basis = x.value; changed(false); return; }
       if (x.matches("[data-de-part]")) { t.body[x.dataset.dePart][+x.dataset.i].part = x.value; changed(false); return; }
-      if (x.matches("[data-de-agg]")) { t.body.measures[+x.dataset.deAgg].agg = x.value; changed(false); return; }
+      if (x.matches("[data-de-agg]")) {
+        const m = t.body.measures[+x.dataset.deAgg]; m.agg = x.value;
+        if (m.agg === "pct" && !m.p) m.p = 90;
+        if (m.agg === "cpk" && m.lsl == null && m.usl == null) { host.toast("Cpk は規格の下限か上限を入れると数えます"); paint(false); return; }
+        changed(false); return;
+      }
+      if (x.matches("[data-de-show]")) { const m = t.body.measures[+x.dataset.deShow]; if (x.value) m.show = x.value; else delete m.show; changed(false); return; }
+      if (x.matches("[data-de-mp]")) { t.body.measures[+x.dataset.deMp].p = Math.max(1, Math.min(99, +x.value || 90)); changed(false); return; }
+      if (x.matches("[data-de-mlsl],[data-de-musl]")) {
+        const i = +(x.dataset.deMlsl ?? x.dataset.deMusl), m = t.body.measures[i], k = x.dataset.deMlsl != null ? "lsl" : "usl";
+        if (x.value === "") delete m[k]; else m[k] = +x.value;
+        if (m.lsl == null && m.usl == null) { host.toast("Cpk は規格の下限か上限が要ります"); return; }
+        if (m.lsl != null && m.usl != null && m.lsl >= m.usl) { host.toast("規格は 下限 < 上限 にしてください"); return; }
+        changed(false); return;
+      }
       if (x.matches("[data-de-pkind]")) {
         const dates = special().some((s) => s.column === "@workday") ? "@workday" : (((fields && fields.fields) || []).find((f) => f.date) || {}).column || "";
         t.period = x.value ? { column: (t.period && t.period.column) || dates, kind: x.value, n: (t.period && t.period.n) || 7 } : null;
@@ -418,6 +684,48 @@
       if (x.matches("[data-de-pn]")) { t.period.n = Math.max(1, Math.min(3660, +x.value || 7)); changed(false); return; }
       if (x.matches("[data-de-sort]")) { p.sort = x.value; changed(false); return; }
       if (x.matches("[data-de-emph]")) { p.emph = x.checked; changed(false); return; }
+      if (x.matches("[data-de-frame]")) { if (x.value === "card") delete p.frame; else p.frame = x.value; p.emph = x.value === "emph"; changed(false); return; }
+      if (x.matches("[data-de-kpilook]")) { setFmt("kpi", x.value === "num" ? "" : x.value); return; }
+      if (x.matches("[data-de-target]")) { setFmt("target", x.value === "" ? "" : +x.value); return; }
+      if (x.dataset.ckDeq != null || x.matches("[data-ck-deq-all]")) {
+        if (x.matches("[data-ck-deq-all]")) { setEquips([]); return; }
+        const set = new Set(eqHost().equips || []); if (x.checked) set.add(x.dataset.ckDeq); else set.delete(x.dataset.ckDeq);
+        setEquips((eqItems || []).map((i) => i.value).filter((v) => set.has(v))); return;
+      }
+      if (x.matches("[data-de-egmode]")) {
+        if (!x.value) delete p.egroup;
+        else p.egroup = { mode: x.value, rest: (p.egroup || {}).rest || "keep", ...(x.value === "panel" ? { groups: (p.egroup || {}).groups || [{ name: "グループ 1", members: [] }] } : {}),
+          ...(x.value === "master" ? { set: ((host.egroupSets ? host.egroupSets() : [])[0] || {}).name || "" } : {}) };
+        if (x.value === "panel") loadEquips();
+        if (x.value === "sum" && !(eqHost().equips || []).length) host.toast("選んだ設備を合算します（設備を選ばなければ、すべての設備の計）");
+        changed(false); return;
+      }
+      if (x.matches("[data-de-egname]")) { p.egroup.name = x.value.trim().slice(0, 40); changed(false); return; }
+      if (x.matches("[data-de-eggname]")) { p.egroup.groups[+x.closest(".de-eg").dataset.k].name = x.value.trim().slice(0, 40) || `グループ ${+x.closest(".de-eg").dataset.k + 1}`; changed(false); return; }
+      if (x.matches("[data-de-egset]")) { p.egroup.set = x.value; changed(false); return; }
+      if (x.matches("[data-de-egrest]")) { p.egroup.rest = x.value; changed(false); return; }
+      if (x.matches("[data-de-flabels]")) { setFmt("labels", x.value); return; }
+      if (x.matches("[data-de-fxdate]")) { setFmt("xdate", x.value); return; }
+      if (x.matches("[data-de-fxrot]")) { setFmt("xrot", x.value); return; }
+      if (x.matches("[data-de-fdigits]")) { setFmt("digits", x.value === "" ? "" : +x.value); return; }
+      if (x.matches("[data-de-funit]")) { setFmt("unit", x.value); return; }
+      if (x.matches("[data-de-fymin],[data-de-fymax]")) { setFmt(x.matches("[data-de-fymin]") ? "ymin" : "ymax", x.value === "" ? "" : +x.value); return; }
+      if (x.matches("[data-de-fgrid]")) { setFmt("grid", x.checked ? "" : false); return; }
+      if (x.matches("[data-de-flegend]")) { setFmt("legend", x.value); return; }
+      if (x.matches("[data-de-fsize]")) { setFmt("size", x.value); return; }
+      if (x.matches("[data-de-refv],[data-de-refl]")) {
+        const r = ((p.fmt || {}).refs || []).map((y) => ({ ...y })), i = +x.closest(".de-ref").dataset.i;
+        if (x.matches("[data-de-refv]")) r[i].value = +x.value || 0; else r[i].label = x.value.trim().slice(0, 20);
+        setFmt("refs", r); return;
+      }
+      if (x.matches("[data-de-scol]")) { setFmt("colors", { ...((p.fmt || {}).colors || {}), [x.dataset.deScol]: x.value }); return; }
+      if (x.matches("[data-de-lwarn],[data-de-lalert],[data-de-ldir]")) {
+        const g = p.groups[gi], L = { ...(g.limits || {}) };
+        if (x.matches("[data-de-ldir]")) L.dir = x.value;
+        else { const k = x.matches("[data-de-lwarn]") ? "warn" : "alert"; if (x.value === "") delete L[k]; else L[k] = +x.value; }
+        if (L.warn == null && L.alert == null) delete g.limits; else g.limits = { dir: "high", ...L };
+        changed(false); return;
+      }
       if (x.matches("[data-de-top]")) { p.top = Math.max(0, Math.min(60, +x.value || 0)); changed(false); return; }
       if (x.matches("[data-de-look]")) { p.groups[gi].look = x.value; changed(false); return; }
       if (x.matches("[data-de-total]")) { p.groups[gi].total = x.checked; changed(false); return; }
@@ -432,6 +740,16 @@
         if (x.dataset.deF === "op") row.querySelector('[data-de-f="value"]').disabled = TPA.noValueOp(x.value);
         if (f.column) changed(false);
       }
+    });
+    el.addEventListener("input", (e) => {
+      if (!calcEdit) return;
+      if (e.target.id === "deCalcName") calcEdit.name = e.target.value;
+      else if (e.target.id === "deCalcExpr") calcEdit.expr = e.target.value;
+      else return;
+      // 欄は作り直さない（打っている字を失わない）。確かめの字と「作る」だけを替える
+      const tmp = document.createElement("div"); tmp.innerHTML = calcHtml();
+      $("#deCalcMsg").replaceWith(tmp.querySelector("#deCalcMsg"));
+      $("[data-de-calcok]").disabled = tmp.querySelector("[data-de-calcok]").disabled;
     });
     // 行の札を引いて並べる（落とした所の行の前へ）
     let dragKey = "";
@@ -459,6 +777,12 @@
         p.order = Object.assign({ by: "value", group: 0, dir: "desc", list: [], hide: [] }, p.order || {});
       }
       p.title = p.title || "";
+      // 前の版の設備の選び（作業実績の設備 1 つ: equip＝キー）は、設備の名前の並び（equips）にして組む（同じ数）
+      [p, ...(p.groups || [])].forEach((x) => {
+        const e = x.equip && x.source === "work" ? ((srcOf("work") || {}).equips || []).find((y) => y.key === x.equip) : null;
+        if (e) { x.equips = [e.name]; x.equip = ""; }
+      });
+      eqOpen = false; eqItems = null; eqKey = ""; calcEdit = null;
       const el = $("#dbEditor");
       if (!el.dataset.bound) { bind(el); el.dataset.bound = "1"; }
       el.innerHTML = ""; el.hidden = false; q = ""; fields = null; fieldsKey = ""; formOpen = false;

@@ -20,6 +20,7 @@ def access_me():
 _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls", "roll_master"),
             ("/api/masters/access", "access_permissions"), ("/api/settings/", "path_settings"), ("/api/masters/worklog", "work_log_files"),
             ("/api/masters/formats", "display_formats"), ("/api/masters/shifts", "shift_patterns"),
+            ("/api/masters/equipgroups", "equipment_groups"),
             ("/api/sources", "data_sources"))
 # ダッシュボードのパネルの問い合わせ・ダッシュボードの保存（自分の ID へも）は止めない（routes/dashboard.py が決める）
 

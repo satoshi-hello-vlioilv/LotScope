@@ -496,3 +496,8 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-sp{flex:1}
 .sr-add{display:flex;align-items:center;gap:12px}
 .sr-add small{color:var(--muted)}
+/* 設備グループ（版 3.39.0）: まとめ方ごとの見出しと、そのまとめ方へ足す札 */
+.eg-set{display:flex;flex-direction:column;gap:4px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+.eg-setname{font-size:12px;font-weight:800;color:var(--h-meta);padding:2px 2px 0}
+.eg-add{height:26px;padding:0 8px;border:1px dashed #b9c9d6;border-radius:7px;background:var(--surface);font:inherit;font-size:12px;color:var(--h-input);cursor:pointer;text-align:left}
+.eg-add:hover{border-color:var(--h-input);background:var(--input-soft)}

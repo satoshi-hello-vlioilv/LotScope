@@ -8,7 +8,8 @@ from datetime import datetime
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings
-from ..services import dashboard, data_sources, pivot, shifts, work_log
+from ..services import dashboard, data_sources, equip_groups, pivot, shifts, work_log
+from ..services.identity import normalize_part
 from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
 from .presets import _gate, _who
@@ -122,7 +123,7 @@ def _equip_of(src, repo, wl_rows):
     return {"column": col, "match": data_sources.EquipmentMatcher(_equipment_names(repo, wl_rows), src.get("equipMode"))}
 
 
-def panel_parts(source, equip="", basis="work"):
+def panel_parts(source, equip="", basis="work", equips=None):
     """パネルのデータ → (数える Part の並び, 読めなかった設備 [{name, error, kind}], 元の名前, 写しの様子の並び)。
     1 つも読めなければ _Fail（写し中が 1 つでもあれば、その答え＝画面は待って引き直す）"""
     settings = effective_settings(current_app)
@@ -130,7 +131,8 @@ def panel_parts(source, equip="", basis="work"):
     wl_rows = repo.work_logs()
     defs = data_sources.sources(settings, repo.data_source_rows())
     if source == "work":
-        rows = [r for r in _shown_work(wl_rows) if not equip or r.get("キー") == equip]
+        pick = {normalize_part(x) for x in equips or []}
+        rows = [r for r in _shown_work(wl_rows) if (not equip or r.get("キー") == equip) and (not pick or normalize_part(r.get("設備名")) in pick)]
         if not rows:
             raise _Fail(error("数える設備がありません（「マスタ管理」の「作業実績」で表示する設備を決めてください）。", 404, "unknown"))
         pats = repo.shift_patterns()
@@ -182,16 +184,28 @@ def _file_sig(path):
         return [str(path), 0, 0]
 
 
+BOX_VISUALS = ("box", "violin", "xbar")
+
+
+def _box_column(p):
+    """行ごとの分かれ方（四分位・密度）が要る形（箱ひげ・バイオリン・X̄-R 管理図）は、1 つ目の数の値の列で数える（版 3.39.0）"""
+    if p.get("visual") not in BOX_VISUALS:
+        return ""
+    return next((m.get("column") for m in p["body"]["measures"] if m.get("column") and m.get("agg") != "distinct"), "")
+
+
 def _answer(p, now):
     """1 つの組み（パネルか、合わせた表の列のまとまり）の数 → 答え（集計表と同じ形に、元の名前・写しの様子・読めなかった設備）。
     数えられなければ {error, kind, status}。同じ組み・同じ写し・同じ「今日」なら前の答え（パネルは 1 分ごとに引き直すため）"""
     try:
-        parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"])
+        parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"))
     except _Fail as f:
         return _fail(f.resp)
+    egroups = dashboard.resolve_egroup(p.get("egroup"), p.get("equips"),
+                                       lambda name: equip_groups.groups_for(master_repo().equip_groups(), name))
     stamp = now.strftime("%Y-%m-%d %H:%M:%S")
     days = [x.work["clock"].place(stamp, x.work["basis"])[0] if x.work else "" for x in parts]
-    key = json.dumps([p, [_file_sig(x.path) for x in parts], days, now.date().isoformat(), [f["name"] for f in failed]], ensure_ascii=False, sort_keys=True)
+    key = json.dumps([p, egroups, [_file_sig(x.path) for x in parts], days, now.date().isoformat(), [f["name"] for f in failed]], ensure_ascii=False, sort_keys=True)
     cache = _cache()
     hit = cache.get(key)
     if hit is None:
@@ -200,7 +214,7 @@ def _answer(p, now):
             hit = pivot.query_many(parts, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False),
                                    rows=json.dumps(b["rows"], ensure_ascii=False), cols=json.dumps(b["cols"], ensure_ascii=False),
                                    measures=json.dumps(b["measures"], ensure_ascii=False), today=now.date(), period=p["period"], now=now,
-                                   calc=p.get("calc"))
+                                   calc=p.get("calc"), equips=p.get("equips"), egroups=egroups, box=_box_column(p))
         except pivot.PivotError as e:
             return {"error": str(e), "kind": "invalid", "status": 400}
         except Exception as e:
@@ -210,7 +224,9 @@ def _answer(p, now):
             cache.popitem(last=False)
     else:
         cache.move_to_end(key)
-    return {**hit, "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp}
+    note = "設備のまとめのマスタ「" + p["egroup"]["set"] + "」にグループがありません（マスタ管理の「設備グループ」）。" \
+        if p.get("egroup") and p["egroup"]["mode"] == "master" and not egroups else ""
+    return {**hit, "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp, **({"note": " ".join(x for x in (hit.get("note"), note) if x)} if note else {})}
 
 
 @bp.post("/api/dashboard/query")
@@ -241,7 +257,7 @@ def dashboard_fields():
     a = (request.get_json(silent=True) or {}) if request.method == "POST" else request.args
     calc = dashboard.clean_calc(a.get("calc")) if request.method == "POST" else None
     try:
-        parts, failed, name, _ = panel_parts(a.get("source", ""), a.get("equip", ""))
+        parts, failed, name, _ = panel_parts(a.get("source", ""), a.get("equip", ""), equips=a.get("equips") if isinstance(a.get("equips"), list) else None)
     except _Fail as f:
         return f.resp
     merged, order, table = {}, [], ""
@@ -284,4 +300,5 @@ def dashboard_sources():
         if d["key"] == "work":
             x["equips"] = [{"key": r.get("キー"), "name": r.get("設備名")} for r in _shown_work(wl_rows)]
         out.append(x)
-    return jsonify(items=out, periods=pivot.PERIODS)
+    # 設備グループのマスタ（版 3.39.0）: パネルの「設備をまとめる」で選ぶまとめ方
+    return jsonify(items=out, periods=pivot.PERIODS, egroupSets=equip_groups.sets(repo.equip_groups()))

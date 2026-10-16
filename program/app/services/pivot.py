@@ -36,25 +36,27 @@ import math
 import time
 from datetime import date, datetime, timedelta
 
+from . import aggregate
 from .formula import CalcColumns
+from .identity import normalize_part
 from .lot_list import DATE_RATIO, TABLE_CANDIDATES, columns, date_columns, lot_column, pick_table, raw_columns, search_filter_where, tables
 from .shifts import OUTSIDE
 from .sqlite_ro import connect_ro, qi, sort_key, to_date, to_datetime
 from .work_summary import num, start_column, time_column, work_key
 
 MAX_DIMS = 3
-MAX_MEASURES = 4
+MAX_MEASURES = 6        # 値の数（版 3.39.0 で 4 → 6。統計を並べて比べる）
 MAX_ROW_KEYS = 2000       # 行のいちばん下の段の鍵の数（超えたら先頭から。truncated）
 MAX_COL_KEYS = 120        # 列のいちばん下の段の鍵の数
 MAX_ROWS = 1_000_000      # 数える行の上限（超えたら断る）
 DATE_PARTS = ("year", "ym", "date", "month", "weekday", "hour")
 PARTS = ("",) + DATE_PARTS + ("bin",)
-AGGS = ("count", "lots", "sum", "avg", "min", "max")
+AGGS = aggregate.AGGS          # 値の種類（版 3.39.0 で統計を足した。決め方は services/aggregate.py）
 WORK_DIMS = ("@workday", "@shift")
 EQUIP_DIM = "@equip"            # 設備（版 3.37.0。作業実績は設備ごとのファイル・データ元は設備の列。Part.equip）
 NO_EQUIP = "設備なし"
+OTHER_EQUIP = "その他の設備"     # 設備のまとめ（egroups）で、どのまとまりにも入らない設備を 1 つにまとめた名前
 WORKDAY_PARTS = ("", "ym", "year")
-AGG_LABEL = {"count": "件数", "lots": "ロット数", "sum": "の合計", "avg": "の平均", "min": "の最小", "max": "の最大"}
 PART_LABEL = {"year": "年", "ym": "年月", "date": "年月日", "month": "月", "weekday": "曜日", "hour": "時", "bin": "区間"}
 WD = "月火水木金土日"      # date.weekday() の順（月曜＝0）
 BLANK = "（空欄）"
@@ -109,12 +111,10 @@ def clean_dims(text, cs, work_ok, equip_ok=False):
 def clean_measures(text, cs):
     out = []
     for m in _parse_list(text, MAX_MEASURES, "値"):
-        agg, col = str(m.get("agg") or "count"), str(m.get("column") or "")
-        if agg not in AGGS:
-            agg = "count"
-        if agg in ("sum", "avg", "min", "max") and col not in cs:
-            raise PivotError(f"値の列「{col}」がありません。")
-        out.append({"agg": agg, "column": col if agg in ("sum", "avg", "min", "max") else ""})
+        try:
+            out.append(aggregate.clean(m, lambda c: c in cs))
+        except ValueError as e:
+            raise PivotError(str(e)) from None
     return out or [{"agg": "count", "column": ""}]
 
 
@@ -139,7 +139,32 @@ def box_stats(values, max_out=30):
     lo_lim, hi_lim = d["q1"] - 1.5 * iqr, d["q3"] + 1.5 * iqr
     inside = [x for x in values if lo_lim <= x <= hi_lim]
     out = sorted((x for x in values if x < lo_lim or x > hi_lim), key=lambda x: -abs(x - d["median"]))
-    return {**d, "lo": min(inside) if inside else d["min"], "hi": max(inside) if inside else d["max"], "out": sorted(out[:max_out]), "outN": len(out)}
+    return {**d, "lo": min(inside) if inside else d["min"], "hi": max(inside) if inside else d["max"], "out": sorted(out[:max_out]), "outN": len(out),
+            "dens": density(values, d)}
+
+
+DENS_POINTS = 24
+DENS_SAMPLE = 2000
+
+
+def density(values, d=None, points=DENS_POINTS):
+    """分布の形（バイオリン図。版 3.39.0）: ガウスの核で見積もった密度を、最小〜最大の points 点で（いちばん高い所を 1 に）。
+    幅はシルバーマンの目安（0.9・min(σ, 四分位範囲/1.34)・n^-1/5）。値が多ければ、並べた値から等間隔に DENS_SAMPLE 個を使う。
+    値が 2 つ未満・幅が 0 なら None"""
+    d = d or describe(values)
+    if not d or d["n"] < 2 or d["max"] <= d["min"]:
+        return None
+    xs = sorted(values)
+    if len(xs) > DENS_SAMPLE:
+        step = len(xs) / DENS_SAMPLE
+        xs = [xs[int(i * step)] for i in range(DENS_SAMPLE)]
+    spread = min(d["sd"], (d["q3"] - d["q1"]) / 1.34) or d["sd"] or (d["max"] - d["min"]) / 4
+    h = 0.9 * spread * len(xs) ** -0.2
+    lo, hi = d["min"], d["max"]
+    grid = [lo + (hi - lo) * i / (points - 1) for i in range(points)]
+    ys = [sum(math.exp(-0.5 * ((g - x) / h) ** 2) for x in xs) for g in grid]
+    top = max(ys) or 1
+    return {"lo": lo, "hi": hi, "d": [round(y / top, 4) for y in ys]}
 
 
 def describe(values):
@@ -161,11 +186,11 @@ def describe(values):
 class _Keyer:
     """1 つの段の鍵の作り方（値 → (鍵の字, 並べる鍵, 見せる字)）。同じ値は覚えて読み直さない"""
 
-    def __init__(self, dim, clock=None, basis="work", equip=None, order=0, by_name=False):
+    def __init__(self, dim, clock=None, basis="work", equip=None, order=0, by_name=False, groups=None):
         """equip・order … 設備の段の決め方（Part.equip）と、そのファイルの並び。by_name … 直を名前で見分ける（いくつかのファイルをまとめるとき。
-        設備で勤務体系が違うと、同じ番号が違う直になるため）"""
+        設備で勤務体系が違うと、同じ番号が違う直になるため）。groups … 設備のまとめ（EquipGroups。設備の段を、まとまりの名前にする）"""
         self.dim, self.part, self.clock, self.basis = dim, dim["part"], clock, basis
-        self.equip, self.order, self.by_name = equip or {}, order, by_name
+        self.equip, self.order, self.by_name, self.groups = equip or {}, order, by_name, groups
         self.memo = {}
 
     def key(self, v, tv=None):
@@ -181,6 +206,9 @@ class _Keyer:
             name = self.equip["name"] if "name" in self.equip else (self.equip["match"](v) if self.equip.get("match") else str(v or "").strip())
             if not name:
                 return ("", (1, 0, ""), NO_EQUIP)
+            if self.groups:
+                g, at = self.groups.place(name)
+                return (g, (0, at if at >= 0 else 10_000 + (self.order if "name" in self.equip else 0), g), g)
             return (name, (0, self.order if "name" in self.equip else 0, name), name)
         if col in WORK_DIMS:
             day, idx = self.clock.place(to_datetime(v, tv), self.basis)
@@ -248,7 +276,7 @@ def _dim_name(dim):
 
 
 def _measure_name(m):
-    return AGG_LABEL[m["agg"]] if m["agg"] in ("count", "lots") else f"{m['column']}{AGG_LABEL[m['agg']]}"
+    return aggregate.name(m)
 
 
 def _is_day(d):
@@ -297,6 +325,42 @@ def calc_exprs(conn, calc, cs):
         conn.create_function(f"TpaCalc{i}", len(deps), fn, deterministic=True)
         exprs[name] = f"TpaCalc{i}({', '.join(qi(d) for d in deps)})"
     return exprs, broken, cc
+
+
+class EquipGroups:
+    """設備のまとめ（版 3.39.0。ダッシュボードのパネル）: 設備をまとまり（合算した 1 つ）にして数える。
+    groups … [{name, members: [設備名]}]（並びがまとまりの並び。同じ設備が 2 つのまとまりにあれば先の方）。
+    rest … どのまとまりにも入らない設備: keep（その設備のまま）・other（other の名前〈既定「その他の設備」〉に合算）・hide（数えない）。
+    全部を 1 つに合算するときは、groups に members の無いまとまり 1 つ・rest＝other・other＝その名前
+    設備名は NFKC・大文字で比べる（設備マスタと列の書き方の揺れ）"""
+
+    def __init__(self, groups, rest="keep", other=""):
+        self.rest = rest if rest in ("keep", "other", "hide") else "keep"
+        self.other = str(other or "").strip() or OTHER_EQUIP
+        self.names, self.map = [], {}
+        for g in groups or []:
+            n = str(g.get("name") or "").strip()
+            if not n:
+                continue
+            if n not in self.names:
+                self.names.append(n)
+            for m in g.get("members") or []:
+                self.map.setdefault(normalize_part(m), n)
+
+    def __bool__(self):
+        return bool(self.names)
+
+    def place(self, name):
+        """設備名 → (まとまりの名前, 並び〈まとまりの番号。入らない設備は -1〉)"""
+        g = self.map.get(normalize_part(name))
+        if g is not None:
+            return g, self.names.index(g)
+        if self.rest == "other":
+            return self.other, self.names.index(self.other) if self.other in self.names else len(self.names)
+        return name, -1
+
+    def keeps(self, name):
+        return self.rest != "hide" or normalize_part(name) in self.map
 
 
 class Part:
@@ -349,7 +413,7 @@ def clean_period(period):
     return {"column": col, "kind": kind, "n": n}
 
 
-def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None):
+def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None, need_equip=False):
     """1 つのファイルを読む: 表と列を決め、段・値を確かめ、絞り込みに当たる行の要る列だけを読む → 状態の dict"""
     work = part.work
     with connect_ro(part.path) as c:
@@ -389,6 +453,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
             if col and col not in need:
                 need.append(col)
             return need.index(col) if col else -1
+        epos = use(equip.get("column", "")) if equip and need_equip else -1
         pos = []
         for d in rd + cd:
             if d["column"] in WORK_DIMS:
@@ -408,7 +473,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         data = c.execute(f"SELECT {', '.join(exprs.get(x) or qi(x) for x in need) or '1'} FROM {qi(t)}{where}", params).fetchall() if need else [()] * total
     return {"name": part.name, "table": t, "cs": cs, "rd": rd, "cd": cd, "ms": ms, "pos": pos, "mpos": mpos, "bpos": bpos, "lots_by": lots_by,
             "kpos": kpos, "ppos": ppos, "start": start, "data": data, "clock": (work or {}).get("clock"), "basis": (work or {}).get("basis", "work"),
-            "equip": equip, "ignored": ignored}
+            "equip": equip, "epos": epos, "ignored": ignored}
 
 
 def _filter_items(filters):
@@ -419,22 +484,28 @@ def _filter_items(filters):
     return [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
 
 
-def query_many(parts, *, search="", filters="", rows="", cols="", measures="", today=None, month="", box="", period=None, now=None, calc=None):
+def query_many(parts, *, search="", filters="", rows="", cols="", measures="", today=None, month="", box="", period=None, now=None, calc=None,
+               equips=None, egroups=None):
     """いくつかのファイル（Part の並び）を 1 つの集計にまとめる（版 3.37.0。ダッシュボードの「作業実績 すべての設備」など）。
     段・値の決め方・答えの形は 1 ファイルのときと同じ。ロット数はファイルごとに見分ける（別の設備の同じ作業開始は別の作業）。
     ファイルが 2 つ以上なら、読めない・列が無いファイルは飛ばして skipped に出す（1 つなら断る）。直の段は名前で揃える（設備で勤務体系が違うため）。
     period … {column: 日付の列か "@workday", kind: PERIODS の鍵, n}。その元の「いま」（now。作業日は勤務体系の現場歴）から日の範囲を決めて絞る。
-    設備の段 @equip … Part.equip で決める（作業実績は設備ごとのファイル・データ元は設備の列）"""
+    設備の段 @equip … Part.equip で決める（作業実績は設備ごとのファイル・データ元は設備の列）
+    equips（版 3.39.0）… 数える設備の名前の並び（空・None はすべて）。設備を見分けられない元では効かない（答えの equipIgnored）
+    egroups（版 3.39.0）… 設備のまとめ {groups: [{name, members}], rest}（EquipGroups）。設備の段がまとまりの名前になる"""
     t0 = time.perf_counter()
     period = clean_period(period)
     box = str(box or "")
     now = now or datetime.now()
     multi = len(parts) > 1
+    pick = {normalize_part(x) for x in (equips or []) if str(x).strip()}
+    groups = EquipGroups(egroups.get("groups"), egroups.get("rest"), egroups.get("other")) if egroups else None
+    need_equip = bool(pick) or bool(groups and groups.rest == "hide")
     states, skipped = [], []
     for part in parts:
         try:
             states.append(_open_part(part, search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today, box=box, period=period,
-                                     calc=calc))
+                                     calc=calc, need_equip=need_equip))
         except PivotError as e:
             if not multi:
                 raise
@@ -447,6 +518,19 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         raise PivotError("数えられるファイルがありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]))
     head = states[0]
     rd, cd, ms = head["rd"], head["cd"], head["ms"]
+    # 設備で絞る（選んだ設備・まとめで数えない設備）。設備を見分けられない元は絞れない（知らせる）
+    equip_ignored = False
+    if need_equip:
+        for s in states:
+            if not s["equip"]:
+                equip_ignored = True
+                continue
+            ek, a = _Keyer({"column": EQUIP_DIM, "part": ""}, equip=s["equip"]), s["epos"]
+
+            def keep(r, ek=ek, a=a):
+                name = ek.key(r[a] if a >= 0 else None)[2]
+                return (not pick or normalize_part(name) in pick) and (not groups or groups.keeps(name))
+            s["data"] = [r for r in s["data"] if keep(r)]
     # 期間で絞る: その元の「今日」（作業日は勤務体系で現場歴の日にする）から範囲を決め、範囲の日の行だけにする
     ranges = []
     if period:
@@ -496,7 +580,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     single = 0
     count = 0
     for pi, s in enumerate(states):
-        keyers = [_Keyer(d, s["clock"], s["basis"], equip=s["equip"], order=pi, by_name=multi) for d in s["rd"] + s["cd"]]
+        keyers = [_Keyer(d, s["clock"], s["basis"], equip=s["equip"], order=pi, by_name=multi, groups=groups) for d in s["rd"] + s["cd"]]
         pos, mpos, bpos, lots_by, kpos = s["pos"], s["mpos"], s["bpos"], s["lots_by"], s["kpos"]
         count += len(s["data"])
         for row in s["data"]:
@@ -518,7 +602,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
             else:
                 single += 1
                 lk = single
-            vals = [num(row[p]) if p >= 0 else None for p in mpos]
+            raws = [row[p] if p >= 0 else None for p in mpos]
+            vals = [num(v) if v is not None else None for v in raws]
             rk, ck = ks[:nr], ks[nr:]
             if bpos >= 0:
                 f = num(row[bpos])
@@ -529,18 +614,12 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
                     key = (tuple(rk[:a]), tuple(ck[:b]))
                     acc = cells.get(key)
                     if acc is None:
-                        acc = cells[key] = [0, set(), [[0.0, 0, None, None] for _ in ms]]
+                        acc = cells[key] = [0, set(), [aggregate.Acc(m["agg"]) for m in ms]]
                     acc[0] += 1
                     if lots_by and lots_on:
                         acc[1].add(lk)
                     for j, f in enumerate(vals):
-                        if f is None:
-                            continue
-                        x = acc[2][j]
-                        x[0] += f
-                        x[1] += 1
-                        x[2] = f if x[2] is None or f < x[2] else x[2]
-                        x[3] = f if x[3] is None or f > x[3] else x[3]
+                        acc[2][j].add(f, raws[j])
     lots_by = head["lots_by"] if all(s["lots_by"] for s in states) else ""
     # 鍵の並び（段ごと）と、いちばん下の段の数の上限
     orders = [sorted(seen[i], key=lambda k, i=i: seen[i][k][0]) for i in range(len(dims))]
@@ -563,14 +642,14 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
             return acc[0]
         if m["agg"] == "lots":
             return len(acc[1]) if lots_by else acc[0]
-        x = acc[2][j]
-        if not x[1]:
-            return None
-        return {"sum": x[0], "avg": x[0] / x[1], "min": x[2], "max": x[3]}[m["agg"]]
+        return acc[2][j].value(m)
 
     def clean(x):          # 足し算の誤差（1248967.0999999992）を丸める
         return round(x, 6) if isinstance(x, float) else x
     out_cells = [{"r": list(k[0]), "c": list(k[1]), "v": [clean(value(acc, j, m)) for j, m in enumerate(ms)]} for k, acc in cells.items()]
+    aggregate.apply_show(out_cells, ms, nr, nc, orders)
+    for x in out_cells:
+        x["v"] = [clean(v) for v in x["v"]]
     leaves = {k[0] for k in cells if len(k[0]) == nr}
     boxes = [{"r": list(k), **box_stats(v)} for k, v in box_vals.items() if k in leaves] if box else []
     note = "" if lots_by or not lots_on else "ロットを見分ける列（作業開始・ロット番号）が無いので、ロット数は行の数です。"
@@ -581,7 +660,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         "measures": [{**m, "name": _measure_name(m)} for m in ms],
         "orders": orders, "labels": labels, "cells": out_cells, "truncated": truncated,
         "bins": bins, "stats": stats, "box": box, "boxes": boxes, "lotsBy": lots_by, "start": head["start"], "note": note,
-        "months": sorted(months), "month": month, "ignoredFilters": ignored,
+        "months": sorted(months), "month": month, "ignoredFilters": ignored, "equipIgnored": equip_ignored,
         "timing": {"server": round((time.perf_counter() - t0) * 1000)},
     }
     if period:
