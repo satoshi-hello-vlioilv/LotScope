@@ -605,6 +605,34 @@
       patch.measures = [{ agg: "avg", column: R.$weight }].concat(s.measures).slice(0, MAX_MEASURES);
       said.push(`値に「${host.label(R.$weight)}」の平均を入れ、その分かれ方を描きます`);
     }
+    // 版 3.39.0 で足した形: 足りない段・値を入れて知らせる（ほかの形と同じ）
+    const addOnly = (ms) => ms.length && ms.every((m) => C.ADDITIVE.has(m.agg));
+    if ((k === "sankey" || k === "treemap") && !addOnly(s.measures)) {
+      patch.measures = [{ agg: "count" }];
+      said.push("値を件数にしました（流れ・内訳は足し上げる値で描きます）");
+    }
+    if (k === "sankey" && s.rows.length < 2 && !s.cols.length) {
+      const base = s.rows.length ? s.rows : fewDim ? [fewDim] : [];
+      const next = [R.$few2, R.$few1].filter((c) => c && !base.some((d) => d.column === c)).map((c) => ({ column: c, part: "" }))[0];
+      if (base.length && next) { patch.rows = base.concat([next]); said.push(`行に「${dimName(base[0])}」→「${dimName(next)}」の 2 段を入れました（から → へ）`); }
+    }
+    if (k === "swimlane" && s.rows.length < 2 && !s.cols.length && timeDim) {
+      const lane = s.rows.length && !C.isTimeDim(s.rows[0]) ? s.rows[0] : fewDim;
+      if (lane) { patch.rows = [lane, timeDim]; said.push(`行に「${dimName(lane)}」（レーン）と「${dimName(timeDim)}」（横）を入れました`); }
+    }
+    if (k === "xbar" && timeDim && !(s.rows[0] && C.isTimeDim(s.rows[0]))) {
+      patch.rows = [timeDim];
+      said.push(`行を「${dimName(timeDim)}」にしました（日ごとの群の平均と範囲）`);
+    }
+    if ((k === "diag45" || k === "bubble") && s.measures.filter((m) => num(m.column)).length < 2) {
+      if (!R.$weight || !R.$num2) { host.toast(`${C.get(k).n}にできる数のカラムが 2 つありません`); return; }
+      patch.measures = [{ agg: "avg", column: R.$weight }, { agg: "avg", column: R.$num2 }].concat(k === "bubble" ? [{ agg: "count" }] : []);
+      said.push(`値を「${host.label(R.$weight)}」と「${host.label(R.$num2)}」の平均${k === "bubble" ? "・件数（円の大きさ）" : ""}にしました`);
+      if (!s.rows.length && R.$lot) { patch.rows = [{ column: R.$lot, part: "" }]; said.push("行はロットごと"); }
+    } else if (k === "bubble" && s.measures.length < 3) {
+      patch.measures = s.measures.concat([{ agg: "count" }]).slice(0, MAX_MEASURES);
+      said.push("円の大きさに件数を足しました");
+    }
     if (k === "scatter" && s.measures.filter((m) => num(m.column)).length < 2) {
       if (!R.$weight || !R.$num2) { host.toast("散布図にできる数のカラムが 2 つありません"); return; }
       patch.measures = [{ agg: "avg", column: R.$weight }, { agg: "avg", column: R.$num2 }];

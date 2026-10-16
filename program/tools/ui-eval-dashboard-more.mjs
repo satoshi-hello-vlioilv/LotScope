@@ -126,12 +126,15 @@ try {
   };
   // サンキー図: 最初の段 → 次の段の帯（path の title）の量の計＝サーバーの総計。スイムレーン図: 札の数＝値のある（設備・日）の組の数
   const sk = await p.evaluate(() => [...document.querySelectorAll('#dashGrid .db-p[data-id="sankey"] .db-pb svg path title')].map((t) => t.textContent));
-  const skTotal = total(await answer(p, "sankey"))[0];
-  const firstLinks = sk.filter((t) => /^[^→]+ → (\d+直|直の外|時刻なし)/.test(t) && !/^(\d+直|直の外|時刻なし)/.test(t)).map((t) => Number(t.split(": ")[1].split("（")[0].replace(/,/g, "")));
+  const skAns = await answer(p, "sankey"), skTotal = total(skAns)[0], first = new Set(Object.values(skAns.labels[0]));
+  // 最初の段（作業区分。3 つなので「その他」にまとまらない）から出る帯の量の計＝総計
+  const firstLinks = sk.filter((t) => first.has(t.split(" → ")[0])).map((t) => Number(t.split(": ")[1].split("（")[0].replace(/,/g, "")));
   ok3.sankey = !drawn.sankey.empty && firstLinks.length > 0 && firstLinks.reduce((a, b) => a + b, 0) === skTotal;
-  const swAns = await answer(p, "swim"), swWant = swAns.cells.filter((c) => c.r.length === 2 && !c.c.length && c.v[0] > 0).length;
+  // スイムレーン図: 描いたレーン（左の名前）の、値のある日の数だけ札がある
+  const lanes = await p.$$eval('#dashGrid .db-p[data-id="swim"] .db-pb svg text[text-anchor="end"]', (x) => x.map((t) => t.textContent));
+  const swAns = await answer(p, "swim"), swWant = swAns.cells.filter((c) => c.r.length === 2 && !c.c.length && c.v[0] > 0 && lanes.includes(c.r[0])).length;
   const swGot = await p.$$eval('#dashGrid .db-p[data-id="swim"] .db-pb svg rect[fill-opacity]', (x) => x.length);
-  ok3.swim = !drawn.swim.empty && swGot === swWant && swWant > 0;
+  ok3.swim = !drawn.swim.empty && swGot === swWant && swWant > 0 && lanes.length >= 2;
   check("③ 足した形（面・積み上げ面・X̄-R・ロリポップ・ツリーマップ・バイオリン・45度線・バブル・サンキー図・スイムレーン図）が、それぞれの印を描く（サンキー図の流れの計・スイムレーン図の札の数はサーバーと同じ）",
     Object.values(ok3).every(Boolean), { ok3, skTotal, firstLinks: firstLinks.slice(0, 5), swGot, swWant, why: Object.fromEntries(Object.entries(drawn).filter(([k]) => k in ok3).map(([k, v]) => [k, v.text || v.empty])) });
   // ④ 統計

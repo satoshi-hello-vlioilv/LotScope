@@ -732,6 +732,122 @@
     return { svg: svgOf(W, H, g, "バブルチャート"), legend: `<span class="pv-legend"><span>円の大きさ＝${esc(zn)}</span></span>` };
   }
 
+  /* ================= 版 3.39.0（利用者の追加の要望）: サンキー図・スイムレーン図 ================= */
+  /** 段の並び（流れ・レーンに使う 2〜3 段）: 行の段が 2 つ以上なら行の段（3 つまで）、そうでなければ行の段と列の段。
+      → {names: [段の名前], flows: [[鍵の並び, 値]]}（いちばん下まで決めた組ごとの値）。値は数の答えのまま */
+  function levelsOf(ctx) {
+    const { m, d } = ctx, j = chartAt(ctx);
+    if (m.nr >= 2) {
+      const L = Math.min(3, m.nr);
+      const leaf = m.nr === L ? dataRows(m) : m.rows.filter((r) => r.type === "sub" && r.path.length === L);
+      const rows = leaf.length ? leaf : dataRows(m).map((r) => ({ ...r, path: r.path.slice(0, L) }));
+      return { names: d.dims.rows.slice(0, L).map(ctx.dimName), lab: (i, k) => m.lab(i, k), flows: rows.map((r) => [r.path.slice(0, L), m.value(r, ALL, j) || 0]),
+        order: (i) => d.orders[i] || [] };
+    }
+    if (m.nr === 1 && m.nc >= 1) {
+      const cs = m.cols.filter((c) => c.type === "data");
+      return { names: [ctx.dimName(d.dims.rows[0]), ctx.dimName(d.dims.cols[0])], lab: (i, k) => (i === 0 ? m.lab(0, k) : m.colName({ path: [k] })),
+        flows: dataRows(m).flatMap((r) => cs.map((c) => [[r.path[0], c.path.join(SEP)], m.value(r, c, j) || 0])),
+        order: (i) => (i === 0 ? d.orders[0] || [] : cs.map((c) => c.path.join(SEP))) };
+    }
+    return null;
+  }
+  /** サンキー図: 段から段への流れ（行の段 2〜3 つか、行の段と列の段）。帯の太さ＝値。節は段ごとに大きい順に縦に積む（入らない分は「その他」）。
+      足し上げる値のとき。帯の色は流れ出る節の色 */
+  function sankeyChart(ctx) {
+    const { d, W, H } = ctx, j = chartAt(ctx);
+    if (!ADDITIVE.has(d.measures[j].agg)) return empty("サンキー図（流れ）は、足し上げる値（件数・ロット数・合計・個数）で描けます。");
+    const lv = levelsOf(ctx);
+    if (!lv) return empty("サンキー図は、行に段を 2 つ（から → へ。3 つまで）入れるか、行と列に段を入れると描けます（例: 仕掛区分 → 設備）。");
+    const K = lv.names.length, flows = lv.flows.filter(([, v]) => v > 0);
+    if (!flows.length) return empty("流れにできる値（0 より大きい値）がありません。");
+    // 段ごとの節の量（入り・出のうち大きい方）。多ければ大きい順に MAXN−1 個＋その他
+    const MAXN = Math.max(3, Math.min(12, Math.floor((H - 20) / 22)));
+    const tot = Array.from({ length: K }, () => new Map());
+    flows.forEach(([ks, v]) => ks.forEach((k, i) => tot[i].set(k, (tot[i].get(k) || 0) + v)));
+    const keep = tot.map((mp) => { const ks = [...mp.entries()].sort((a, b) => b[1] - a[1]).map((x) => x[0]); return ks.length > MAXN ? new Set(ks.slice(0, MAXN - 1)) : new Set(ks); });
+    const OTHER = "\u0000その他";
+    const fold = (ks) => ks.map((k, i) => (keep[i].has(k) ? k : OTHER));
+    const links = new Map(), nodes = Array.from({ length: K }, () => new Map());
+    flows.forEach(([ks0, v]) => {
+      const ks = fold(ks0);
+      ks.forEach((k, i) => nodes[i].set(k, (nodes[i].get(k) || 0) + v));
+      for (let i = 0; i + 1 < K; i++) { const key = `${i}${SEP}${ks[i]}${SEP}${ks[i + 1]}`; links.set(key, (links.get(key) || 0) + v); }
+    });
+    const total = [...nodes[0].values()].reduce((a, b) => a + b, 0);
+    const name = (i, k) => (k === OTHER ? `その他（${tot[i].size - keep[i].size}）` : String(lv.lab(i, k)));
+    const labW = Math.min(150, Math.max(56, W * 0.16)), nw = 12, pt = 18, pb = 6, gap = 6, ih = H - pt - pb;
+    const xs = Array.from({ length: K }, (_, i) => labW + (W - labW * 2 - nw) * (K === 1 ? 0 : i / (K - 1)));
+    // 節の位置（大きい順に上から。どの段も同じ縮尺: 段の数の多い所の隙間を引いた高さで決める）
+    const maxN = Math.max(...nodes.map((mp) => mp.size)), scale = (ih - gap * (maxN - 1)) / total;
+    const pos = nodes.map((mp, i) => { let y = pt; const out = new Map(); [...mp.entries()].sort((a, b) => (a[0] === OTHER) - (b[0] === OTHER) || b[1] - a[1]).forEach(([k, v]) => { out.set(k, { y, h: Math.max(1.5, v * scale), v, out: 0, in: 0 }); y += Math.max(1.5, v * scale) + gap; }); return out; });
+    const colorOf = (i, k) => (k === OTHER ? "#a9b4be" : cof(name(i, k), ctx.rowColor && i === 0 ? ctx.rowColor(name(i, k)) : COLORS[[...pos[i].keys()].indexOf(k) % COLORS.length]));
+    let g = lv.names.map((n, i) => `<text x="${xs[i] + nw / 2}" y="12" text-anchor="${i === 0 ? "start" : i === K - 1 ? "end" : "middle"}" class="pv-axn">${esc(clip(n, 14))}</text>`).join("");
+    // 帯（大きい物を先に描くと、小さい帯が上に見える）
+    [...links.entries()].sort((a, b) => b[1] - a[1]).forEach(([key, v]) => {
+      const [i0, a, b] = key.split(SEP), i = +i0, s0 = pos[i].get(a), t0 = pos[i + 1].get(b), w = v * scale;
+      const y0 = s0.y + s0.out + w / 2, y1 = t0.y + t0.in + w / 2; s0.out += w; t0.in += w;
+      const x0 = xs[i] + nw, x1 = xs[i + 1], mx = (x0 + x1) / 2;
+      g += `<path d="M${x0},${y0}C${mx},${y0} ${mx},${y1} ${x1},${y1}" fill="none" stroke="${colorOf(i, a)}" stroke-opacity=".38" stroke-width="${Math.max(1, w)}"><title>${esc(name(i, a))} → ${esc(name(i + 1, b))}: ${esc(fmt(v))}（${pct(v / total)}）</title></path>`;
+    });
+    pos.forEach((mp, i) => mp.forEach((n, k) => {
+      g += `<rect x="${xs[i]}" y="${n.y}" width="${nw}" height="${n.h}" rx="2" fill="${colorOf(i, k)}"><title>${esc(name(i, k))}: ${esc(fmt(n.v))}</title></rect>`;
+      if (n.h >= 9 || mp.size <= 8) {
+        const tx = i === 0 ? xs[i] - 5 : xs[i] + nw + 5;      // 最初の段は節の左・ほかは右に名前
+        g += `<text x="${tx}" y="${n.y + n.h / 2 + 4}" text-anchor="${i === 0 ? "end" : "start"}" class="pv-ax pv-sk">${esc(clip(name(i, k), Math.max(3, Math.floor((labW - 8) / 12))))}${LBL.top || LBL.inside || !ctx.compact ? ` ${esc(nf(n.v))}` : ""}</text>`;
+      }
+    }));
+    return { svg: svgOf(W, H, g, "サンキー図"), legend: `<small class="pv-cnote">帯の太さ＝${esc(ctx.measName(d.measures[j]))}（計 ${esc(fmt(total))}）・${lv.names.map(esc).join(" → ")}</small>` };
+  }
+  /** スイムレーン図: 行の段の 1 段目（設備など）ごとに横の帯（レーン）を引き、時の段（日付・作業日など。行の 2 段目か列の段）に沿って、
+      値のある所に札を置く（濃さ・数＝値）。レーンごとの動き（いつ・どこで・どれだけ）を見る */
+  function swimlaneChart(ctx) {
+    const { m, d, W, H } = ctx, j = chartAt(ctx);
+    const lv = levelsOf(ctx);
+    if (!lv || lv.names.length < 2) return empty("スイムレーン図は、行の 1 段目にレーン（設備など）、行の 2 段目か列に時の段（日付・作業日など）を入れると描けます。");
+    const xDim = m.nr >= 2 ? d.dims.rows[1] : d.dims.cols[0], time = isTimeDim(xDim);
+    const lanesAll = [...new Set(lv.flows.map(([ks]) => ks[0]))];
+    const laneTot = new Map(); lv.flows.forEach(([ks, v]) => laneTot.set(ks[0], (laneTot.get(ks[0]) || 0) + (v || 0)));
+    const maxLanes = Math.max(2, Math.floor((H - 30) / 18)), lanes = lanesAll.slice(0, maxLanes);
+    // 横の並び: 時の段は日付の順（間の日も）、そうでなければ表の並び（直なら勤務体系の順）
+    const seen = new Set(lv.flows.map(([ks]) => ks[1]));
+    const rank = xDim.column === "@shift" && (d.shifts || []).length ? d.shifts.concat(lv.order(1)) : lv.order(1);   // 直は勤務体系の順（合わせた表と同じ）
+    let ticks = [...seen].sort((a, b) => { const x = rank.indexOf(a), y = rank.indexOf(b); return (x < 0 ? 1e9 : x) - (y < 0 ? 1e9 : y); }), part = "";
+    if (time) {
+      ticks.sort();
+      part = xDim.column === "@workday" ? ({ ym: "ym", year: "year" }[xDim.part] || "date") : xDim.part;
+      if (part === "date" && ticks.length && /^\d{4}-\d{2}-\d{2}$/.test(ticks[0])) {     // 間の日も空けて並べる
+        const days = [], a = new Date(ticks[0] + "T00:00:00"), b = new Date(ticks[ticks.length - 1] + "T00:00:00");
+        for (let t = new Date(a); t <= b && days.length < 400; t.setDate(t.getDate() + 1)) days.push(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`);
+        ticks = days;
+      }
+    }
+    const tickName = (k) => (time ? tickText(k, part) : String(lv.lab(1, k)));
+    const longest = Math.max(2, ...lanes.map((k) => Math.min(14, String(lv.lab(0, k)).length)));
+    const pl = Math.round(Math.max(48, Math.min(W * 0.3, longest * 12.5 + 14))), pr = 8, pt = 6, pb = 22 + tiltPad(ticks.map(tickName)), iw = W - pl - pr, ih = H - pt - pb;
+    const lh = ih / Math.max(lanes.length, 1), cw = iw / Math.max(ticks.length, 1), at = new Map(ticks.map((k, i) => [k, i]));
+    const vals = new Map(lv.flows.map(([ks, v]) => [ks[0] + SEP + ks[1], v]));
+    const max = Math.max(...lv.flows.map(([, v]) => (typeof v === "number" ? v : 0)), 1e-9);
+    let g = "";
+    lanes.forEach((lane, li) => {
+      const y = pt + lh * li, nm = String(lv.lab(0, lane)), c = cof(nm, ctx.rowColor ? ctx.rowColor(nm) : COLORS[li % COLORS.length]);
+      g += `<rect x="${pl}" y="${y}" width="${iw}" height="${lh}" fill="${li % 2 ? "#f6f8fa" : "#fff"}"/><text x="${pl - 8}" y="${y + lh / 2 + 4}" text-anchor="end" class="pv-ax">${esc(clip(nm, Math.max(3, Math.floor((pl - 10) / 12.5))))}</text>`;
+      ticks.forEach((k, i) => {
+        const v = vals.get(lane + SEP + k);
+        if (typeof v !== "number" || !v) return;
+        const bw = Math.max(2, cw * 0.86), bh = Math.max(3, lh * 0.66), x = pl + cw * i + (cw - bw) / 2, yy = y + (lh - bh) / 2;
+        g += `<rect x="${x}" y="${yy}" width="${bw}" height="${bh}" rx="${Math.min(4, bh / 3)}" fill="${c}" fill-opacity="${(0.25 + 0.75 * Math.max(0, v) / max).toFixed(2)}"><title>${esc(nm)} / ${esc(tickName(k))}: ${esc(fmt(v))}</title></rect>`;
+        const t = nf(v);
+        if ((LBL.top || LBL.inside || cw >= 26) && bw >= t.length * 6.4 + 4 && bh >= 12) g += `<text x="${x + bw / 2}" y="${yy + bh / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
+      });
+    });
+    g += `<line x1="${pl}" x2="${pl}" y1="${pt}" y2="${pt + ih}" class="pv-axis"/><line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
+    const every = Math.max(1, Math.ceil(ticks.length / Math.max(3, Math.floor(iw / (F.xrot && +F.xrot ? 18 : 64)))));
+    ticks.forEach((k, i) => { if (i % every === 0) g += xText(pl + cw * (i + 0.5), H - pb + 16, clip(tickName(k), 12)); });
+    const more = lanesAll.length - lanes.length;
+    return { svg: svgOf(W, H, g, "スイムレーン図"), legend: `<small class="pv-cnote">レーン＝${esc(lv.names[0])}・横＝${esc(lv.names[1])}・濃さ＝${esc(ctx.measName(d.measures[j]))}${more ? `・ほか ${more} レーン（パネルを大きくすると出ます）` : ""}</small>` };
+  }
+
   /* ---- 登録（目的のまとまり → 形）。icon は 20×20 の絵（線の太さは CSS）。one＝グラフにする値を 1 つ選ぶ形 ----
      fit(f): いまの組み方に向くか（"" なら向く・字は向く組み方の説明）。f = {rows, cols, meas, numMeas, addMeas, additive, time, bin}（lotlist-pivot.js の fitInfo） */
   const GROUPS = [["trend", "推移を見る"], ["compare", "比べる・順位"], ["part", "内訳を見る"], ["dist", "ばらつきを見る"], ["rel", "関係を見る"], ["table", "表"]];
@@ -746,6 +862,8 @@
       icon: "M3 5h14M3 15h14M3 10h14M4 11l3-3 3 4 3-5 3 3", fit: (f) => (f.time && !f.additive ? "" : "行が日付・作業日の段で、値が平均などのとき（ばらつきの管理）"), draw: controlChart },
     { k: "xbar", n: "X̄-R管理図", g: "trend", tip: "行の段（日・ロットなど）を群にして、群の平均 X̄ と範囲 R の管理図を上下に描きます（群の大きさから A2・D3・D4 で管理限界）",
       icon: "M3 3h14M3 9h14M4 7l3-2 3 3 3-3 3 2M3 12h14M3 17h14M4 15l3-1 3 1 3-2 3 1", fit: (f) => (f.rows && f.numMeas ? "" : "行が日・ロットなどの順の段で、値に数のカラム（平均など）があるとき"), draw: xbarChart },
+    { k: "swimlane", n: "スイムレーン", g: "trend", one: true, tip: "行の 1 段目（設備など）ごとのレーンに、時の段（日付・作業日）に沿って値の札を並べます（いつ・どこで・どれだけ）",
+      icon: "M2 3h16M2 8h16M2 13h16M2 18h16M4 5h3v2H4zM9 10h4v2H9zM6 15h3v2H6zM14 5h3v2h-3z", fit: (f) => ((f.rows >= 2 || (f.rows && f.cols)) ? "" : "行の 1 段目にレーン（設備など）、行の 2 段目か列に日付・作業日の段があるとき"), draw: swimlaneChart },
     { k: "column", n: "縦棒", g: "compare", one: true, tip: "行の段ごとに縦の棒で比べます", icon: "M3 17h14M5 15V9M9 15V5M13 15v-4M16 15V8",
       fit: (f) => (f.rows && !f.time && !f.bin ? "" : "行が種類の段（設備・不良名など）のとき"), draw: (c) => barChart(c, "column", false) },
     { k: "bar", n: "横棒", g: "compare", one: true, tip: "行の段ごとに横の棒で比べます（名前が長いとき）", icon: "M3 3v14M3 5h10M3 9h14M3 13h6",
@@ -762,6 +880,8 @@
       icon: "M3 17h14M3 15l4-3 4 1 6-4v8H3zM3 11l4-4 4 2 6-5", fit: (f) => (f.time && f.cols && f.additive ? "" : "行の 1 段目が日付・作業日で、列に段があり、値が件数・ロット数・合計のとき"), draw: (c) => (isTime(c.d) ? trendChart(c, "stackarea") : stackChart(c, false)) },
     { k: "donut", n: "ドーナツ", g: "part", one: true, tip: "行の段の割合を輪で見ます（大きい順に 9 つ＋その他）。足し上げる値のとき",
       icon: "M10 3a7 7 0 1 0 7 7h-4a3 3 0 1 1-3-3zM12 3.3a7 7 0 0 1 4.7 4.7h-4.2", fit: (f) => (f.rows && f.additive && !f.time && !f.bin && !f.cols ? "" : "行が種類の段（列なし）で、値が件数・ロット数・合計のとき"), draw: donutChart },
+    { k: "sankey", n: "サンキー図", g: "part", one: true, tip: "段から段への流れ（仕掛区分 → 設備など）を、太さが量の帯で描きます。行に段を 2〜3 つ（から → へ）か、行と列に段",
+      icon: "M3 4h2v5H3zM3 12h2v4H3zM15 3h2v7h-2zM15 13h2v3h-2zM5 6c5 0 5-2 10-2M5 7.5c5 0 5 4 10 4M5 14c5 0 5 1 10 1.5", fit: (f) => ((f.rows >= 2 || (f.rows && f.cols)) && f.additive ? "" : "行に段を 2 つ（から → へ）か、行と列に段があり、値が件数・ロット数・合計のとき"), draw: sankeyChart },
     { k: "treemap", n: "ツリーマップ", g: "part", one: true, tip: "行の段の割合を四角の面積で敷き詰めます（項目が多い内訳。大きい物から目に入る）",
       icon: "M3 3h14v14H3zM11 3v14M3 11h8M11 8h6M14 8v9", fit: (f) => (f.rows && f.additive && !f.time && !f.bin && !f.cols ? "" : "行が種類の段（列なし）で、値が件数・ロット数・合計のとき"), draw: treemapChart },
     { k: "hist", n: "ヒストグラム", g: "dist", tip: "数の列を区間に分け、件数の山で傾向（ばらつき・偏り）を見ます",

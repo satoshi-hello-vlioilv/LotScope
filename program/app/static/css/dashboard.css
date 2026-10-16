@@ -375,8 +375,33 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .dp-kbar.is-row{flex-direction:row;align-items:center;gap:12px}
 .dp-kbar.is-row .dp-track{flex:1;min-width:40px}
 .dp-krate small{font-weight:600;color:var(--muted);font-size:12px;margin-left:2px}
-/* 向く形の行（版 3.39.0。置き方の案で出す。既定は出さない） */
-.de-vfit{display:none;align-items:center;gap:4px;flex-wrap:wrap}
+/* ---- 組む所の置き方（2026-10-dashmore の 3 回目で決めた S3。3 回の案の比べで 87.3 点） ----
+   流れの順に 4 段（番号の見出し）・形は「選んだ形＋すべての形…」と「向く形」の 2 段（全部の札は開いたときだけ）・
+   文は意図した 2 行（［行］ごとに、［列］別の ／ ［値］を出す）・期間の 2 つ目の選びは値の列から始まる 2 段目 */
+.de-step{display:flex;align-items:baseline;gap:8px;margin-top:4px;padding-top:8px;border-top:1px solid var(--line-soft);font-size:13px;font-weight:800;color:var(--ink)}
+.de-step:first-child{border-top:0;margin-top:0;padding-top:0}
+.de-step small{font-weight:600;color:var(--muted);font-size:12px}
+.de-step i{font-style:normal;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--h-input);color:#fff;font-size:12px;flex:0 0 auto}
+#dbEditor.is-board .de-step{display:none}
+.de-vrow{grid-template-columns:86px minmax(0,1fr)}
+.de-vg{white-space:nowrap}
+.de-sent:has(.pv-slot[data-role="rows"])::after{content:"";flex-basis:100%;height:0;order:5}
+.de-sent:has(.pv-slot[data-role="rows"]) .pv-slot[data-role="vals"]{order:6}
+.de-sent:has(.pv-slot[data-role="rows"]) .pv-w:last-child{order:7}
+.de-sent{row-gap:6px}
+#deCond .de-row:has(select[data-de-pcol]){row-gap:6px;margin-bottom:8px}
+#deCond .de-row:has(select[data-de-pcol])::before{content:"";flex-basis:100%;height:0;order:8}
+#deCond .de-row > select[data-de-pcol]{order:9;margin-left:60px}
+/* 向く形の行（選んだ形・すべての形… ／ 向く形 4 つ） */
+.de-vfit{display:none;align-items:center;gap:4px;flex-wrap:wrap;row-gap:6px}
+#dbEditor:not(.is-board) .de-vfit{display:flex}
+#dbEditor:not(.is-board) .de-vis[data-open="false"]{display:none}
+.de-vfit > .de-l{display:none}
+.de-vfit > .pv-cbtn.on{order:1;min-width:0}
+.de-vfit > .de-vall{order:2;margin-left:8px}
+.de-vfit::after{content:"";flex-basis:100%;height:0;order:3}
+.de-vfit > .de-vfn{order:4;margin-left:0}
+.de-vfit > .pv-cbtn:not(.on){order:5}
 .de-vfit .pv-cbtn{flex:0 0 auto;padding:0 9px}
 .de-vfn{font-size:12px;color:var(--muted);margin:0 2px 0 8px}
-.de-vall{white-space:nowrap;margin-left:auto}
+.de-vall{white-space:nowrap}

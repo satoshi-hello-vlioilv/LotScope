@@ -213,3 +213,5 @@
 .pv-vl.pv-in{fill:#fff;stroke:rgba(0,0,0,.32);stroke-width:2.2px}
 .pv-tm{font-size:12px;font-weight:800;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.3);stroke-width:2.2px}.pv-tm.is-v{font-weight:600;font-size:11px}
 .pv-ref-t{font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:3px}
+/* サンキー図の節の名前（帯の上でも読めるよう白い縁） */
+.pv-sk{paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;font-weight:700;fill:#33414e}

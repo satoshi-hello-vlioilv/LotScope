@@ -492,7 +492,7 @@
   function sortHtml() {
     if (t.visual === "kpi" || inGroup()) return "";
     return `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
-      + `<label class="pv-ck">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝パネルに入るだけ</small></div>`;
+      + `<label class="pv-ck" title="0＝パネルに入るだけ">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝入るだけ</small></div>`;
   }
   /* ---- 設備（版 3.39.0。要望 2・9）: 複数選ぶ（チェックの並び。dashboard-filter.js と同じ部品）と、まとめる（合算・このパネルのグループ・マスタ） ---- */
   /** 設備を選ぶ物（ふつうのパネル・まとまり＝組む物 t、合わせた表の表全体＝パネル p） */
@@ -590,7 +590,11 @@
         + `<span class="db-sp"></span><button type="button" class="btn-ghost" data-de-cancel>やめる</button><button type="button" class="btn-primary" data-de-apply>当てる</button></div>`
         + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields"><div class="pv-cap"><b>カラム</b><small>札を押すと右の文に入ります（もう一度押すと外れます）</small></div>`
         + `<div class="de-fsearch"><input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><button type="button" class="pv-btn de-calcbtn" data-de-calcnew title="式から列を作り、このパネルで使います">＋ 計算列</button></div><div class="pv-list" id="deFields"></div></aside>`
-        + `<div class="de-main"><div id="deVis"></div><div id="deBoard"></div><div id="deData"></div><div id="deSent"></div><div id="deLook"></div><div id="deCond"></div><div id="deSort"></div><div id="deFmt"></div><div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`
+        // 流れの順に 4 段（2026-10-dashmore の 3 回目で決めた S3）: ① データ ② 数え方 ③ 形 ④ 見せ方・書式。段の見出しに番号（合わせた表は札で切り替えるので出さない）
+        + `<div class="de-main"><div class="de-step"><i>1</i>データ<small>何を数えるか</small></div><div id="deData"></div>`
+        + `<div class="de-step"><i>2</i>数え方<small>行・列・値・期間・条件</small></div><div id="deSent"></div><div id="deCond"></div><div id="deSort"></div>`
+        + `<div class="de-step"><i>3</i>形<small>どう描くか</small></div><div id="deVis"></div><div id="deBoard"></div>`
+        + `<div class="de-step"><i>4</i>見せ方・書式<small>枠・数値・軸・色</small></div><div id="deLook"></div><div id="deFmt"></div><div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`
         + `<div id="deCalcBox" class="de-calcbox" hidden></div>`;
       TPA.onText($("#deSearch"), (v) => { q = v; $("#deFields").innerHTML = fieldsHtml(); });
       TPA.onText($("#deTitle"), (v) => { p.title = v.slice(0, 60); host.onChange(TPA.clone(p)); });
@@ -615,7 +619,8 @@
     if (!typingIn("#deLook")) $("#deLook").innerHTML = whole ? "" : lookHtml();
     if (!typingIn("#deFmt")) $("#deFmt").innerHTML = fmtHtml();
     $("#deGacts").innerHTML = groupActsHtml();
-    if (whole) { const b = $("#deBoard"); if (b && !b.querySelector("[data-de-egmode]")) b.insertAdjacentHTML("beforeend", equipHtml() + egroupHtml()); }
+    // 表全体: 設備の選び・まとめは、行の段（設備）の選びのすぐ下（どちらも行の段に効く）
+    if (whole) { const b = $("#deBoard"), first = b && b.querySelector(".de-row"); if (first && !b.querySelector("[data-de-egmode]")) first.insertAdjacentHTML("afterend", equipHtml() + egroupHtml()); }
     if ((eqOpen || (p.egroup && p.egroup.mode === "panel")) && !eqItems) loadEquips();
   }
   function message(text) { const m = $("#deMsg"); if (m) m.textContent = text || ""; }
