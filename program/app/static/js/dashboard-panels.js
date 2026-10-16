@@ -20,7 +20,8 @@
   const kindOf = (src) => (src === "lot" ? "lot" : src === "work" ? "work" : "src");
   const colorOf = (src) => SOURCE_COLOR[kindOf(src)];
   // 名前ごとの色は、データの種類の色（藍・青緑・琥珀）を使わない（区分の色が「作業実績」などと読めないように。2026-10-grid の 2 回目の指摘）
-  const CAT = ["#7658ae", "#c9564a", "#5c8a2a", "#8a5f18", "#a5508a", "#5a6f77", "#d35d8e", "#7a7a1f"];
+  // 警告の赤（前日 0 本の札・読めない）と近い赤・桃も使わない（3 回目の指摘）
+  const CAT = ["#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#7a7a1f", "#8e4f76"];
   const hash = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
   /** その図の名前の並び → 名前ごとの色（名前で決まる色。図の中で同じ色が重なれば次の色へ＝同じ図に同じ色は出さない） */
   function catColors(names) {
@@ -83,7 +84,10 @@
     const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${esc(C.fmt(v))}</b></span>`).join("");
     box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${esc(text)}<small>${unit}</small></b>`
       + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")
-      + (sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}">${esc(sub0)}</small>` : "") + "</div>";
+      + (sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}" style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}">${esc(sub0)}</small>` : "") + "</div>";
+    // 描いた後に、いま居る面に収まるまで数を小さくする（測った時と面の大きさが違っても、はみ出さない）
+    const num = box.querySelector(".dp-num"), limit = box.clientHeight || H;
+    for (let f = size; f > 12 && (box.scrollHeight > limit + 1 || box.scrollWidth > box.clientWidth + 1); f -= 2) num.style.fontSize = `${f - 2}px`;
   }
 
   /* ---- グラフ ---- */

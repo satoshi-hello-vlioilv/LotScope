@@ -143,6 +143,7 @@ def now_local():
 #   filters・search … 数える行の条件（一覧と同じ形）。period … 期間（pivot.PERIODS）
 #   sort   … 行の並べ方（""＝決まった順・desc＝値の大きい順・asc＝小さい順）。top … 上位いくつ（0＝パネルの大きさに合わせる）
 #   basis  … 作業日の数え方（work＝現場歴・cal＝太陽暦）
+#   emph   … 目立たせる（最初に見る数。淡い藍の地と藍の枠。2026-10-grid の 3 回目で決めた L）
 # 置き場: マスタ dashboards（集計表の組み方のプリセットと同じ列・同じ決まり: 共通デフォルト・共通・ID・標準。元はいつも "dash"）。
 LAYOUT_NAME = "dashboards"
 LAYOUT_SOURCE = "dash"
@@ -192,6 +193,7 @@ def clean_panel(p, i, rows):
            "title": str(p.get("title") or "").strip()[:60]}
     visual = p.get("visual") if p.get("visual") in pivot_presets.CHARTS + EXTRA_VISUALS else "column"
     out["visual"] = visual
+    out["emph"] = bool(p.get("emph"))
     if visual == "board":
         return out
     src = str(p.get("source") or "")
@@ -280,7 +282,7 @@ YESTERDAY = {"column": "@workday", "kind": "yesterday"}
 # 設備ごとの仕掛ロット数は 1 枚の表の棒と同じ数なので、別のグラフにはしない（同じ数を 2 回見せない）
 BUILTIN_LAYOUTS = [
     {"key": "standard", "name": "標準", "body": {"rows": 8, "panels": [
-        _pv("wipTotal", 0, 0, 4, 1, "仕掛ロット数", "kpi", "src:wip"),
+        _pv("wipTotal", 0, 0, 4, 1, "仕掛ロット数", "kpi", "src:wip", emph=True),
         _pv("workTotal", 4, 0, 4, 1, "前日の実績本数", "kpi", "work", period=YESTERDAY),
         _pv("workMonth", 8, 0, 4, 1, "今月の実績本数", "kpi", "work", period={"column": "@workday", "kind": "this_month"}),
         _pv("wipClass", 0, 1, 5, 4, "仕掛区分ごとの仕掛ロット数", "bar", "src:wip", rows=[{"column": WIP_CLASS_COLUMN}], sort="desc"),

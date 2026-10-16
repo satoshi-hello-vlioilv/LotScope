@@ -6,7 +6,7 @@
 //    ・見出しの字（題）が 11px 以上・パネルの見出しのボタンが切れない
 // ③ 標準のパネルの数がサーバーの答えと合う: 数字（仕掛ロット数・前日の実績本数）・仕掛区分ごとの横棒（値の大きい順）・1 枚の表（/api/dashboard）
 // ④ 大きさに合わせる: 編集で仕掛区分のパネルを Shift+← で狭め、Shift+↑ で低くしても、はみ出さず、入らない棒は「n / m を描いています」と出る
-// ⑤ 組む: 設備ごとのパネルを「表」にすると、グリッドの中でその場で表になる。条件（製造材質 ＝ A1100）でサーバーと同じ数に減る。当てる → 元に戻すで戻る
+// ⑤ 組む: 仕掛区分のパネルを「表」にすると、グリッドの中でその場で表になる。条件（製造材質 ＝ A1100）でサーバーと同じ数に減る。当てる → 元に戻すで戻る
 // ⑥ 動かす: パネルを 1 つ消して空けた所へ、ほかのパネルの見出しを掴んで動かせる。重なる所へは置けない（影が赤）
 // ⑦ 保存: 名前を付けて保存（自分・標準）→ 頁を開き直すと、保存した物が開く → いまの物を消す（2 回押し）→ 組み込みの標準に戻る
 // ⑧ 1 枚の表の集計対象（全員で 1 つ）: 「仕掛の対象」で製造材質 ＝ A1100 を保存すると仕掛の計が減り、すべてに戻せる
@@ -85,30 +85,30 @@ try {
   const f4 = await fitOf(p);
   const foot = await p.$eval(`${P("wipClass")} .db-pf`, (e) => (e.hidden ? "" : e.textContent));
   const drawn = await p.$$eval(`${P("wipClass")} svg rect`, (x) => x.length);
-  check(`④ 狭く低くしても（${small.w}×${small.h}）はみ出さない`, small.w === 2 && small.h === 2 && !f4.bad.length, { small, f4 });
+  check(`④ 狭く低くしても（${small.w}×${small.h}）はみ出さない`, small.w === 3 && small.h === 2 && !f4.bad.length, { small, f4 });
   check(`④ 入らない棒は描かず、下に「n / m を描いています」（${drawn} 本）`, drawn < want.length ? /\d+ \/ \d+ を描いています/.test(foot) : true, { drawn, foot });
   await p.click("[data-db-undo]"); await p.click("[data-db-undo]"); await p.click("[data-db-undo]"); await p.click("[data-db-undo]"); await sleep(800);
   const back = (await layout(p)).panels.find((x) => x.id === "wipClass");
-  check("④ 元に戻す（4 回）で、大きさが戻る", back.w === 4 && back.h === 4, back);
+  check("④ 元に戻す（4 回）で、大きさが戻る", back.w === 5 && back.h === 4, back);
 
   // ⑤ 組む（その場で描き直る・条件・当てる・元に戻す）
-  await p.click(`${P("wipEquip")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f");
+  await p.click(`${P("wipClass")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f");
   await p.click('[data-de-vis="none"]'); await sleep(1500);
-  check("⑤ 「表」を選ぶと、グリッドの中のそのパネルがその場で表になる", await p.$(`${P("wipEquip")} .pv-table`) !== null, "");
+  check("⑤ 「表」を選ぶと、グリッドの中のそのパネルがその場で表になる", await p.$(`${P("wipClass")} .pv-table`) !== null, "");
   await p.click("[data-de-fadd]");
   await p.selectOption('#deCond .db-crow [data-de-f="column"]', "製造材質");
   await p.fill('#deCond .db-crow [data-de-f="value"]', "A1100"); await p.dispatchEvent('#deCond .db-crow [data-de-f="value"]', "change");
   await sleep(1800);
-  const cond = { ...byId.wipEquip, visual: "none", filters: [{ column: "製造材質", op: "eq", value: "A1100" }], body: { ...byId.wipEquip.body, grand: true } };
+  const cond = { ...byId.wipClass, visual: "none", filters: [{ column: "製造材質", op: "eq", value: "A1100" }], body: { ...byId.wipClass.body, grand: true } };
   const want5 = total(await ask(p, cond));
-  const shown5 = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} tr.is-grand td`)].map((t) => t.textContent)[0], P("wipEquip"));
+  const shown5 = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} tr.is-grand td`)].map((t) => t.textContent)[0], P("wipClass"));
   check(`⑤ 条件（製造材質 ＝ A1100）でサーバーと同じ総計（${want5}）に減る`, num(shown5) === want5 && want5 < wipTotal, { shown5, want5 });
   await p.click("[data-de-apply]"); await sleep(600);
-  const applied = (await layout(p)).panels.find((x) => x.id === "wipEquip");
+  const applied = (await layout(p)).panels.find((x) => x.id === "wipClass");
   check("⑤ 当てると組みに入る（表・条件 1 つ）", applied.visual === "none" && applied.filters.length === 1, applied);
   await p.click("[data-db-undo]"); await sleep(1200);
-  const undone = (await layout(p)).panels.find((x) => x.id === "wipEquip");
-  check("⑤ 元に戻すで、組む前（縦棒・条件なし）に戻る", undone.visual === "column" && !undone.filters.length, undone);
+  const undone = (await layout(p)).panels.find((x) => x.id === "wipClass");
+  check("⑤ 元に戻すで、組む前（横棒・条件なし）に戻る", undone.visual === "bar" && !undone.filters.length, undone);
 
   // ⑥ 動かす（消して空けた所へ、見出しを掴んで）
   await p.click(`${P("wipTotal")} [data-db-del]`); await p.click(`${P("wipTotal")} [data-db-del]`); await sleep(400);
@@ -127,7 +127,7 @@ try {
   check(`⑥ 見出しを掴んで空いた所へ動かせる（${wt.x} 列 → ${moved.x} 列）`, ghostOk && moved.x === 0 && moved.y === wt.y, { wt, moved, ghostOk });
   ({ b } = await drag("workTotal"));
   const target = await p.$(`${P("wipClass")} .db-pb`), tb = await target.boundingBox();
-  await p.mouse.move(tb.x + 20, b.y + b.height / 2, { steps: 6 }); await sleep(200);
+  await p.mouse.move(tb.x + 20, tb.y + 20, { steps: 6 }); await sleep(200);
   const bad = await p.$eval("#dbGhost", (g) => g.classList.contains("is-bad")).catch(() => false);
   await p.mouse.up(); await sleep(400);
   const still = (await layout(p)).panels.find((x) => x.id === "workTotal");

@@ -29,7 +29,7 @@
   const current = () => S.list.find((x) => String(x.id) === String(S.id)) || null;
   const dirty = () => !!S.layout && JSON.stringify(S.layout) !== S.saved;
   const panelOf = (id) => (S.layout ? S.layout.panels.find((x) => x.id === id) : null);
-  const qkey = (p) => JSON.stringify([p.visual, p.source, p.equip, p.body, p.filters, p.search, p.period, p.basis]);
+  const qkey = (p) => JSON.stringify([p.visual, p.source, p.equip, p.body, p.filters, p.search, p.period, p.basis]);   // 数を引き直す組み（題・目立たせる・置き場は入れない）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
@@ -114,6 +114,7 @@
     el.tabIndex = 0;
     el.classList.toggle("is-sel", S.edit && S.sel === p.id);
     el.classList.toggle("is-editing", S.editing === p.id);
+    el.classList.toggle("is-emph", !!p.emph);
   }
   /** 編集のとき: 空いたマスの印（押すと、そこにパネルを足す） */
   function paintCells() {
@@ -474,7 +475,7 @@
     focusFrame(id);
     paint();
     E.open({ panel: p, sources: S.sources, toast: say,
-      onChange: (np) => { Object.assign(panelOf(id), np, { x: panelOf(id).x, y: panelOf(id).y, w: panelOf(id).w, h: panelOf(id).h }); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
+      onChange: (np) => { Object.assign(panelOf(id), np, { x: panelOf(id).x, y: panelOf(id).y, w: panelOf(id).w, h: panelOf(id).h }); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
       onApply: (np) => {
         const cur = panelOf(id), base = editBase; closeEditor();
         if (!cur) return;

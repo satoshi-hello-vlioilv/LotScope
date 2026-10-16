@@ -162,9 +162,10 @@
       + `<div class="de-row"><span class="de-l"></span><button type="button" class="pv-btn" data-de-fadd${cols.length ? "" : " disabled"}>＋ 条件を足す</button></div>`;
   }
   function sortHtml() {
-    if (p.visual === "kpi") return "";
+    const emph = `<label class="pv-ck" title="最初に見る数に（淡い藍の地と藍の枠）"><input type="checkbox" data-de-emph${p.emph ? " checked" : ""}>目立たせる</label>`;
+    if (p.visual === "kpi") return `<div class="de-row"><span class="de-l">見せ方</span>${emph}</div>`;
     return `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
-      + `<label class="pv-ck">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝パネルに入るだけ</small></div>`;
+      + `<label class="pv-ck">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝パネルに入るだけ</small>${emph}</div>`;
   }
   function dataHtml() {
     const src = srcOf(p.source);
@@ -228,6 +229,7 @@
       if (t.matches("[data-de-pcol]")) { p.period.column = t.value; changed(false); return; }
       if (t.matches("[data-de-pn]")) { p.period.n = Math.max(1, Math.min(3660, +t.value || 7)); changed(false); return; }
       if (t.matches("[data-de-sort]")) { p.sort = t.value; changed(false); return; }
+      if (t.matches("[data-de-emph]")) { p.emph = t.checked; changed(false); return; }
       if (t.matches("[data-de-top]")) { p.top = Math.max(0, Math.min(60, +t.value || 0)); changed(false); return; }
       const row = t.closest(".db-crow");
       if (row && t.dataset.deF) {

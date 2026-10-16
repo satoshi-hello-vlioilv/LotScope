@@ -181,3 +181,6 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .db-li.is-armed{background:#fbe7e3}
 .dp-flow{display:grid;grid-template-columns:repeat(var(--k,1),minmax(0,1fr));gap:0 10px;overflow:hidden;align-items:start}
 .dp-flow .dp-tbl + .dp-tbl{border-left:2px solid var(--line);padding-left:10px}
+/* 目立たせる（最初に見る数。2026-10-grid の 3 回目で決めた L・作るときに地を一段濃く・藍の枠） */
+.db-p.is-emph{background:#e6eef7;border:1.5px solid #9db5d2}
+.db-p.is-emph .dp-num{color:#24446a}
