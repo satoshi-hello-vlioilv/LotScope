@@ -59,6 +59,15 @@ try {
     await p.click("[data-db-editmode]"); await sleep(400);
     const e = await fitOf(p);
     check(`② ${v} 編集のときも同じ`, !e.pageScroll && e.gridIn && !e.bad.length, e);
+    // 合わせた表を組む所で開くと、表を大きく出す。幅が足りなくても右の列（直の外・計）が切れない（版 3.38.0。列の幅 → 字と余白を詰める）
+    await p.click(`${P("board")} [data-db-edit]`); await p.waitForSelector("#deBoard .de-rowi[data-de-row]"); await sleep(800);
+    const wide = await p.evaluate((sel) => {
+      const el = document.querySelector(sel), r = el.getBoundingClientRect();
+      const tbls = [...el.querySelectorAll(".dp-tbl")].map((t) => ({ sw: t.scrollWidth, cw: t.clientWidth }));
+      const last = [...el.querySelectorAll("thead th.db-sum, thead th:last-child")].map((x) => x.getBoundingClientRect().right).reduce((a, b) => Math.max(a, b), 0);
+      return { tbls, lastRight: Math.round(last), panelRight: Math.round(r.right) };
+    }, P("board"));
+    check(`② ${v} 合わせた表を組む所で開いても、表の右（計）が切れない`, wide.tbls.every((t) => t.sw <= t.cw + 1) && wide.lastRight <= wide.panelRight, wide);
     await p.context().close();
   }
 

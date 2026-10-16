@@ -256,15 +256,26 @@
     const cols = 1 + gs.reduce((n, g, gi) => n + span(gi), 0);
     if (!rowList.length) { flow.innerHTML = `<table class="db-table">${thead}<tbody><tr><td colspan="${cols}" class="dp-empty">当たる行がありません。</td></tr></tbody></table>`; return ""; }
     // 入らなければ、字を詰める → 行を 2〜3 つの列に分けて横に並べる（幅が足りるとき）→ 下の行を隠す の順（2026-10-grid の 2 回目。どの行も見えるように）
+    // 幅が足りなければ、列の幅 → 字と余白を詰める（fitWidth。右の列が切れない）
     const W = box.clientWidth;
     for (let k = 1; k <= 3; k++) {
       if (k > 1 && W / k < 470) break;
       const per = Math.ceil(rowList.length / k);
       flow.style.setProperty("--k", k);
       flow.innerHTML = Array.from({ length: k }, (_, i) => `<div class="dp-tbl"><table class="db-table">${thead}<tbody>${rowList.slice(i * per, (i + 1) * per).join("")}</tbody></table></div>`).join("");
-      if (!shrink(flow, avail)) return "";
+      fitWidth(flow);
+      if (!shrink(flow, avail)) { fitWidth(flow); return ""; }
     }
+    fitWidth(flow);
     return moreText([...flow.querySelectorAll(".dp-tbl")].reduce((a, t) => a + fitRows(t, avail), 0), rowDim === "@equip" ? "設備" : "行");
+  }
+  /** 表の幅がパネルに入らなければ、詰める段（is-narrow → is-narrower）を 1 つずつ当てる */
+  function fitWidth(flow) {
+    const over = () => [...flow.querySelectorAll(".dp-tbl")].some((t) => t.scrollWidth > t.clientWidth + 1);
+    flow.classList.remove("is-narrow", "is-narrower");
+    if (!over()) return;
+    flow.classList.add("is-narrow");
+    if (over()) flow.classList.add("is-narrower");
   }
   /** 字を 14 → 11px まで詰めて高さに入るか試す → 入らなければ true（詰めた最後のまま） */
   /** 表を高さ H に合わせる: 入る中でいちばん大きな字（15 → 11px）にし、まだ下が空けば行の上下の余白で埋める（縦長のパネルの下が空かない）。

@@ -215,3 +215,15 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .pv-chip.is-fixed{opacity:.8}
 .de-vis{grid-template-columns:repeat(4,minmax(0,1fr))}
 .db-editor-pane.is-whole .de-body,#dbEditor.is-whole .de-body{grid-template-columns:minmax(0,1fr)}
+/* 幅が足りないとき（組む所を開いて大きく出したパネル・狭い窓）: 列の幅 → 字と余白 → 棒の順に詰める（board の fitWidth。右の列〈直の外・計〉が切れない） */
+.dp-flow.is-narrow .db-table th[scope=row]{width:auto}
+.dp-flow.is-narrow .db-table .db-lots{min-width:96px}
+.dp-flow.is-narrow .db-table td.db-lots > div{gap:6px}
+.dp-flow.is-narrow .db-table .db-s{width:auto}
+.dp-flow.is-narrow .db-table .db-s > span{min-width:1.6em;padding:1px 4px}
+.dp-flow.is-narrow .db-table .db-sum{width:auto}
+.dp-flow.is-narrow .db-table th,.dp-flow.is-narrow .db-table td{padding-left:5px;padding-right:5px}
+.dp-flow.is-narrower .db-table{font-size:11.5px !important}
+.dp-flow.is-narrower .db-table .db-lots{min-width:64px}
+.dp-flow.is-narrower .db-table th,.dp-flow.is-narrower .db-table td{padding-left:3px;padding-right:3px}
+.dp-flow.is-narrower .db-table .db-flag{margin-left:3px;padding:0 4px}
