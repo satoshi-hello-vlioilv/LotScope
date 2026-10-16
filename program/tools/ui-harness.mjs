@@ -316,13 +316,19 @@ export const STATES = [
     await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)");
     await tab(p, "release"); await sleep(900);
   }, "[data-next], #masterSettings button"],
-  // 版 3.38.0: 配っている版（推奨の札なし）の「推奨にする…」を押し、理由を書いている所（要望: 札を付けるときに表がはみ出す）
+  // 版 3.38.1: 配っている版（推奨の札なし）の「推奨にする」を押した直後（要望: 理由の欄でボタンが見切れる → 欄は無くし、押すだけで付く）
   ["master-release-recask", async (p) => {
-    await p.unroute(/\/__desktop\/release(\?|$)/);
+    let rec = null;
+    await p.route(/\/__desktop\/release(\?|$)/, (route) => route.fulfill({ json: { ...RELEASE, distributed: { ...RELEASE.distributed,
+      version: "3.13.0", previous: "3.12.0", setAt: "2026-10-15T09:05:00", ...(rec ? { recommended: rec } : {}) } } }));
+    await p.route("**/__desktop/release/recommend", (route) => {
+      const b = route.request().postDataJSON();
+      rec = b.on ? { setAt: "2026-10-16T22:21:00", setBy: "user", setPc: "PC-01" } : null;
+      return route.fulfill({ json: { version: b.version, recommended: rec } });
+    });
     await tab(p, "paths"); await sleep(300); await tab(p, "release"); await p.waitForSelector("[data-rec-on]"); await sleep(500);
-    await p.click("[data-rec-on]"); await sleep(300);
-    await p.fill(".dz-rec-ask input", "ほかの PC がマスタの置き場に追従しない不具合を直しました"); await sleep(300);
-  }, "[data-next], [data-rec-put]"],
+    await p.click("[data-rec-on]"); await p.waitForSelector("[data-rec-off]"); await sleep(500);
+  }, "[data-next], [data-rec-off]"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

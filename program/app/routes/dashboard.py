@@ -3,6 +3,7 @@
 import json
 import os
 from collections import OrderedDict
+from datetime import datetime
 
 from ..web import current_app, jsonify, request
 
@@ -105,7 +106,8 @@ class _Fail(Exception):
 
 
 def _now():
-    return current_app.config.get("DASHBOARD_NOW") or dashboard.now_local()   # 試験用のサーバーは試験データの日に合わせる
+    """いまの時刻（この PC の時計）。試験用のサーバー・試験は DASHBOARD_NOW で試験データの日に合わせる"""
+    return current_app.config.get("DASHBOARD_NOW") or datetime.now()
 
 
 def _shown_work(wl_rows):

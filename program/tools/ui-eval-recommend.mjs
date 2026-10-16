@@ -7,11 +7,11 @@
 // ③ 「あとで」→ 帯が畳まれ、見出しの札だけ残る。開き直しても（4 時間は）畳んだまま。札を押すと帯が戻る
 // ④ 「更新して開き直す」→ /__desktop/update/apply へ送る（取り込み済みのとき）。まだ取り込んでいないときは「取り込みの様子」（更新履歴の窓）
 // ⑤ 札が無い・この PC がもう配る版 → 帯も「推奨」の札も出ない
-// ⑥ 配布の画面: 配っている版に「推奨にする…」→ 理由を書いて「推奨にする」で /__desktop/release/recommend へ {version, on:true, note}。
-//    札が付いた版は「推奨」の札・②の札「推奨アップデート」・理由の行・「推奨を外す」（{on:false}）。両方のボタンは並ばない
+// ⑥ 配布の画面: 配っている版の「推奨にする」を押すだけで /__desktop/release/recommend へ {version, on:true}（版 3.38.1 から理由は書かない）。
+//    札が付いた版は「推奨」の札・②の札「推奨アップデート」・「推奨を外す」（{on:false}）。両方のボタンは並ばない。理由の欄・理由の行は無い
 // ⑦ 1728×1152・1280×720 で、帯が 1 段（高さ 34px 以下）・ボタンの字が折れない・窓の外へはみ出さない
-// ⑧ 推奨にする理由を書く帯（版 3.38.0。要望「推奨マークを付けるときにはみ出る」。2026-10-recask の 3 回目で決めた P2）: 1728・1280 で、
-//    帯は配っている版の行の下に 1 段・欄とボタンが表の枠と窓の中・書いた理由が欄に収まる・下の行（前に配った版）が見える・Esc でやめる
+// ⑧ 要望「推奨にするとコメント欄でボタンが見切れる。コメント欄は無くて良い」（版 3.38.1）: 1728・1280 で、
+//    押した後も配っている版の行のボタンが表の枠と窓の中（切れない・字が折れない）
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 
@@ -120,34 +120,20 @@ try {
           step: document.querySelectorAll("#masterSettings .dz-step")[1]?.textContent.replace(/\s+/g, " ") || "" };
       });
       const off = await row();
-      check(`⑥ ${tag} 札の無い配っている版に「推奨にする…」だけ（「推奨を外す」は並ばない）`, JSON.stringify(off.acts) === JSON.stringify(["推奨にする…"]), off);
-      await page.click("#masterSettings [data-rec-on]");
-      await page.fill("#masterSettings .dz-rec-ask input", NOTE); await sleep(300);
-      const band = await page.evaluate(() => {
-        const r = (el) => el.getBoundingClientRect(), wrap = r(document.querySelector("#masterSettings .pz-wrap"));
-        const row = document.querySelector("#masterSettings tr.dz-rec-row"), inp = row && row.querySelector("input");
-        const btns = row ? [...row.querySelectorAll("button")].map((b) => ({ t: b.textContent, ...JSON.parse(JSON.stringify(r(b))) })) : [];
-        const next = row && row.nextElementSibling;
-        let scroller = row && row.parentElement;
-        while (scroller && scroller !== document.body && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
-        const sr = scroller ? r(scroller) : { top: 0, bottom: innerHeight };
-        return { after: !!row && row.previousElementSibling.classList.contains("is-live"), btns, wrapRight: wrap.right, wrapLeft: wrap.left,
-          fits: inp ? inp.scrollWidth <= inp.clientWidth + 1 : false, bandH: row ? r(row.querySelector(".dz-rec-band")).height : 0,
-          nextSeen: next ? r(next).bottom <= Math.min(innerHeight, sr.bottom) + 1 && r(next).top >= sr.top - 1 : true };
-      });
-      check(`⑧ ${tag} 理由の帯は配っている版の行の下に 1 段（高さ ${Math.round(band.bandH)}px）`, band.after && band.bandH > 0 && band.bandH <= 40, band);
-      check(`⑧ ${tag} 「推奨にする」「やめる」が表の枠と窓の中（切れない）`, band.btns.length === 2 && band.btns.every((b) => b.right <= band.wrapRight + 0.5 && b.left >= band.wrapLeft && b.right <= view.width), band);
-      check(`⑧ ${tag} 書いた理由が欄に収まる（頭が隠れない）`, band.fits, band);
-      check(`⑧ ${tag} 下の行（前に配った版）が見える`, band.nextSeen, band);
-      await page.keyboard.press("Escape"); await sleep(1200);
-      check(`⑧ ${tag} Esc でやめると帯が消える`, !(await page.$("#masterSettings tr.dz-rec-row")), "");
-      await page.click("#masterSettings [data-rec-on]");
-      await page.fill("#masterSettings .dz-rec-ask input", NOTE);
-      await page.click("#masterSettings [data-rec-put]"); await sleep(1500);
-      check(`⑥ ${tag} 理由を書いて「推奨にする」→ {version, on:true, note} を送る`, sent.length === 1 && sent[0].version === "3.13.0" && sent[0].on === true && sent[0].note === NOTE, sent);
+      check(`⑥ ${tag} 札の無い配っている版に「推奨にする」だけ（「推奨を外す」は並ばない）`, JSON.stringify(off.acts) === JSON.stringify(["推奨にする"]), off);
+      await page.click("#masterSettings [data-rec-on]"); await sleep(1500);
+      check(`⑥ ${tag} 「推奨にする」を押すだけで {version, on:true} を送る（理由の欄は出さない・送らない）`,
+        sent.length === 1 && sent[0].version === "3.13.0" && sent[0].on === true && !("note" in sent[0]) && !(await page.$("#masterSettings input.ps-input:not([type=checkbox])")), sent);
       const on = await row();
-      check(`⑥ ${tag} 付いた版に「推奨」の札・②に「推奨アップデート」と理由・「推奨を外す」だけ`,
-        on.tags.includes("↻ 推奨") && /推奨アップデート/.test(on.step) && on.step.includes(NOTE) && JSON.stringify(on.acts) === JSON.stringify(["推奨を外す"]), on);
+      check(`⑥ ${tag} 付いた版に「推奨」の札・②に「推奨アップデート」・「推奨を外す」だけ（理由の行は無い）`,
+        on.tags.includes("↻ 推奨") && /推奨アップデート/.test(on.step) && !on.step.includes("理由") && JSON.stringify(on.acts) === JSON.stringify(["推奨を外す"]), on);
+      const fit = await page.evaluate(() => {
+        const wrap = document.querySelector("#masterSettings .pz-wrap").getBoundingClientRect();
+        return { wrapRight: wrap.right, scroll: document.querySelector("#masterSettings .pz-wrap").scrollWidth - document.querySelector("#masterSettings .pz-wrap").clientWidth,
+          btns: [...document.querySelectorAll("#masterSettings tr.is-live button")].map((b) => ({ t: b.textContent, right: b.getBoundingClientRect().right, h: b.getBoundingClientRect().height })) };
+      });
+      check(`⑧ ${tag} 配っている版の行のボタンが表の枠と窓の中（切れない・字が折れない）`,
+        fit.btns.length > 0 && fit.btns.every((b) => b.right <= fit.wrapRight + 0.5 && b.right <= view.width && b.h <= 34), fit);
       await page.click("#masterSettings [data-rec-off]"); await sleep(1500);
       const removed = await row();
       check(`⑥ ${tag} 「推奨を外す」→ {on:false} を送り、札が消える`, sent.length === 2 && sent[1].on === false && !removed.tags.includes("↻ 推奨"), { sent, removed });
