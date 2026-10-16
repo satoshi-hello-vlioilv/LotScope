@@ -61,7 +61,9 @@ def make_work(path, equipment, n=400, seed=11):
 # 先頭が今その設備に仕掛かっている（WaveLog の作業可否と同じ決まり）。設備名は作業実績の試験用の設備と同じ
 WIP_COLUMNS = ["ロット番号", "鋳造番号", "製造材質", "製造調質", "用途名", "BOX設計_設備名", "検査番号", "オーダー番号", "取引先", "納入先",
                "設計_設備ｺｰｽ", "実績_設備ｺｰｽ", "残仕掛設備ｺｰｽ", "ｺﾝﾏ5本ｶｰﾄﾞ区分"] + [f"親子管理_子カード{i}" for i in range(1, 11)] \
-    + [f"コンマ5本分割_切断巾{i}" for i in range(1, 11)]
+    + [f"コンマ5本分割_切断巾{i}" for i in range(1, 11)] + ["仕掛区分"]
+# 仕掛区分（版 3.37.0。ダッシュボードの仕掛区分ごとの数。本物の列の名前・値は確かめていない作り物）。ほかの列の値を変えないよう、乱数ではなく行の番号で決める
+WIP_CLASSES = ["生産", "生産", "生産", "保留", "検査待ち", "生産", "出荷待ち", "生産", "再処理", "保留", "生産"]
 WIP_EQUIPMENT = ["CR1", "CR2", "L-1", "L-2", "TLV", "LS3", "DL2", "CAL", "ANF", "HOT", "SL1"]
 
 
@@ -89,7 +91,7 @@ def make_wip(path, n=1200, seed=5):
         rows.append([f"W{i + 1:05d}", f"C{r.randint(1, 999):03d}", r.choice(["A1100", "A5052", "A3004"]), r.choice(["H14", "O", "H24", "H34"]),
                      r.choice(["一般用材", "缶材", "箔地"]), route[0], f"K{i + 1:05d}", f"J{r.randint(1, 99)}", r.choice(["取引先A", "取引先B", "ﾄﾘﾋｷｻｷC"]),
                      r.choice(["納入先A", "納入先B"]), " ".join(route), " ".join(route[:k]), course, r.choice(["", "", "1", None])]
-                    + [None] * 20)
+                    + [None] * 20 + [WIP_CLASSES[(i * 7 + i // 13) % len(WIP_CLASSES)]])
     c.executemany("INSERT INTO 仕掛 VALUES (" + ",".join("?" * len(WIP_COLUMNS)) + ")", rows)
     c.commit()
     c.close()

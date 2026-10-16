@@ -78,8 +78,11 @@ export async function launch() {
   const browser = await chromium.launch();
   return {
     browser,
-    /** 異常ロット一覧が出た頁（まとめていない・拡大していない・覚えた設定の無い、まっさらな状態） */
-    async newPage(theme, view = VIEW) {
+    base,
+    /** 異常ロット一覧が出た頁（まとめていない・拡大していない・覚えた設定の無い、まっさらな状態）。
+        最初の画面はダッシュボード（版 3.37.0）なので、頁の印 #screen=list で一覧から始める（読み直しても一覧のまま）。
+        screen: "dash" ならダッシュボードから（パネルが描き終わるまで待つ） */
+    async newPage(theme, view = VIEW, { screen = "list" } = {}) {
       const context = await browser.newContext({ viewport: view, deviceScaleFactor: 1.25, colorScheme: theme, locale: "ja-JP" });
       await context.route("**/__desktop/**", (route) => {
         const p = new URL(route.request().url()).pathname;
@@ -93,8 +96,9 @@ export async function launch() {
       await context.request.post(`${base}/api/ui-state`, { data: { changed: {}, removed: Object.keys(saved.keys) } });
       const page = await context.newPage();
       page.on("pageerror", (e) => console.warn(`[${theme}] page error: ${e.message}`));
-      await page.goto(base);
-      await page.waitForSelector("#llBody tr[data-i]", { timeout: 30000 });
+      await page.goto(`${base}/#screen=${screen}`);
+      if (screen === "dash") await waitDash(page);
+      else await page.waitForSelector("#llBody tr[data-i]", { timeout: 30000 });
       await sleep(500);
       return page;
     },
@@ -112,6 +116,15 @@ export async function launch() {
       server.kill();
     },
   };
+}
+
+/** ダッシュボードのパネルが描き終わるまで待つ（数えています・写しています の札が消える） */
+export async function waitDash(page, timeout = 30000) {
+  await page.waitForSelector("#dashGrid .db-p", { timeout });
+  await page.waitForFunction(() => {
+    const ps = [...document.querySelectorAll("#dashGrid .db-p")];
+    return ps.length && ps.every((p) => !p.querySelector(".dp-wait, .db-spin"));
+  }, null, { timeout });
 }
 
 /** 開いている浮かぶ窓・メニューを閉じる（次の状態の前に） */
@@ -270,9 +283,14 @@ export const STATES = [
     await p.click("#tabList"); await sleep(400);
     await p.evaluate(() => pollUpdate()); await sleep(900);
   }, "[data-next], #verNew"],
-  // ダッシュボード（版 3.36.0）: 設備別の仕掛ロット数・前日の実績本数。条件の欄を開いた所も
-  ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await sleep(3500); }, "[data-next], [data-db-cond]"],
-  ["dash-cond", async (p) => { await p.click('[data-db-cond="wip"]'); await sleep(500); }, "[data-next], [data-db-save]"],
+  // ダッシュボード（版 3.37.0 からグリッドのパネル・最初の画面）: 組み込みの標準を見る所・1 枚の表の条件の面・編集・パネルを組む所（仕掛区分ごと）
+  ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400); }, "[data-next], [data-db-editmode]"],
+  ["dash-cond", async (p) => { await p.click('[data-db-cond="wip"]'); await sleep(500); }, "[data-next], [data-db-condsave]"],
+  ["dash-edit", async (p) => { await closeAll(p); await p.click("[data-db-editmode]"); await sleep(500); }, "[data-next], .db-cell"],
+  ["dash-panel", async (p) => {
+    await p.evaluate(() => document.querySelector('#dashGrid .db-p[data-id="wipClass"] [data-db-edit]').click());
+    await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
+  }, "[data-next], [data-de-apply]"],
   // 仕掛（データ元 wip。版 3.36.0）: 見出しの「仕掛」のタブで、異常ロット一覧と同じ部品の一覧
   ["wip", async (p) => { await closeAll(p); await p.click('[data-screen="src:wip"]'); await sleep(3000); }, "[data-next], #llSearch"],
   // 同じ知らせを作業実績の画面で（どの画面でも同じ所に出るか）

@@ -20,7 +20,9 @@ def access_me():
 _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls", "roll_master"),
             ("/api/masters/access", "access_permissions"), ("/api/settings/", "path_settings"), ("/api/masters/worklog", "work_log_files"),
             ("/api/masters/formats", "display_formats"), ("/api/masters/shifts", "shift_patterns"),
-            ("/api/sources", "data_sources"), ("/api/dashboard", "dashboard_settings"))
+            ("/api/sources", "data_sources"),
+            # ダッシュボードは集計対象の条件（全員で 1 つ）だけ。パネルの問い合わせ・ダッシュボードの保存（自分の ID へも）は止めない（routes/dashboard.py が決める）
+            ("/api/dashboard/wip", "dashboard_settings"), ("/api/dashboard/work", "dashboard_settings"))
 
 
 @bp.before_app_request

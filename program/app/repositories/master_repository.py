@@ -52,6 +52,8 @@ SPECS = {
     "data_sources": {"fields": data_sources.FIELDS, "renamed": {}, "unique": "キー"},
     # ダッシュボードの条件（services/dashboard.py）。パネルごとに 1 行
     "dashboard_settings": {"fields": dashboard.FIELDS, "renamed": {}, "unique": "キー"},
+    # ダッシュボードの組み（services/dashboard.py の LAYOUT_*）。列と決まりは組み方のプリセットと同じ（名前は範囲・持ち主ごとに 1 つ・標準は 1 つ）
+    "dashboards": {"fields": pivot_presets.FIELDS, "renamed": {}, "unique": None},
 }
 
 
@@ -117,11 +119,12 @@ class MasterRepository:
             for r in rows:
                 if r.get("id") != self_id and (_key(r.get("名前")), r.get("元")) == key:
                     raise DuplicateKey(f"書式「{data.get('名前')}」はもうあります。上書きするか、別の名前にしてください。")
-        if name == "pivot_presets":
+        if name in ("pivot_presets", "dashboards"):
             g = pivot_presets.group_of(data)
             for r in rows:
                 if r.get("id") != self_id and pivot_presets.group_of(r) == g and _key(r.get("名前")) == _key(data.get("名前")):
-                    raise DuplicateKey(f"組み方「{data.get('名前')}」はもうあります。上書きするか、別の名前にしてください。")
+                    what = "組み方" if name == "pivot_presets" else "ダッシュボード"
+                    raise DuplicateKey(f"{what}「{data.get('名前')}」はもうあります。上書きするか、別の名前にしてください。")
         if name == "equipment_master":
             msg = equipment_names.check_row(rows, data, self_id)
             if msg:
@@ -393,15 +396,16 @@ class MasterRepository:
     def pivot_presets(self):
         return self._list("pivot_presets")
 
-    def _preset_write(self, item_id, data, base_rev=None):
-        """作る（item_id が None）・直す。標準にしたら、同じ組（元・範囲・持ち主）のほかの標準を外す（1 回の書き込みで）。"""
-        spec = SPECS["pivot_presets"]
+    def _preset_write(self, item_id, data, base_rev=None, name="pivot_presets"):
+        """作る（item_id が None）・直す。標準にしたら、同じ組（元・範囲・持ち主）のほかの標準を外す（1 回の書き込みで）。
+        name … pivot_presets（組み方）か dashboards（ダッシュボード。列と決まりが同じ）"""
+        spec = SPECS[name]
 
         def mutate(rows, stamp):
             _normalize_all(rows, spec)
             if item_id is None:
                 row = {"id": next_id(rows), **{k: "" for k in spec["fields"]}}
-                self._check_row("pivot_presets", rows, data)
+                self._check_row(name, rows, data)
                 rows.append(row)
                 row["rev"] = 0
             else:
@@ -411,7 +415,7 @@ class MasterRepository:
                         raise RowConflict(None)
                     raise NotFound(f"id={item_id} が見つかりません。")
                 self._check_rev(row, base_rev)
-                self._check_row("pivot_presets", rows, {**row, **data}, self_id=item_id)
+                self._check_row(name, rows, {**row, **data}, self_id=item_id)
             for k in spec["fields"]:
                 if k in data:
                     row[k] = _clean(data.get(k))
@@ -422,7 +426,7 @@ class MasterRepository:
                     if r is not row and r.get("標準") == "1" and pivot_presets.group_of(r) == g:
                         r.update(標準="", rev=int(r.get("rev", 1)) + 1, **stamp)
             return dict(row)
-        return self.store.write("pivot_presets", mutate)
+        return self.store.write(name, mutate)
 
     def preset_create(self, data):
         return self._preset_write(None, data)
@@ -433,6 +437,19 @@ class MasterRepository:
 
     def preset_delete(self, item_id, base_rev=None):
         self._delete("pivot_presets", item_id, base_rev)
+
+    # -------------------------------------------------- ダッシュボードの組み（列と決まりは組み方のプリセットと同じ。中身は services/dashboard.py）
+    def dashboards(self):
+        return self._list("dashboards")
+
+    def dashboard_create(self, data):
+        return self._preset_write(None, data, name="dashboards")
+
+    def dashboard_update(self, item_id, data, base_rev=None):
+        return self._preset_write(item_id, {k: v for k, v in data.items() if k in ("名前", "中身", "標準", "備考")}, base_rev, name="dashboards")
+
+    def dashboard_delete(self, item_id, base_rev=None):
+        self._delete("dashboards", item_id, base_rev)
 
     def pivot_quick(self):
         return self._list("pivot_quick")

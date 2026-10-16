@@ -3,7 +3,8 @@
    - グラフの形は DEFS の 1 か所に登録する（鍵・名前・目的のまとまり・絵・説明・向く組み方・描く関数）。
      画面の形を選ぶ所（lotlist-pivot.js）・組み方のプリセット（services/pivot_presets.py の CHARTS）は、この鍵で揃える
    - 目的のまとまり（GROUPS）: 推移を見る・比べる・内訳を見る・ばらつきを見る・関係を見る・表。形が増えても、まず目的で選べる
-   - 描く関数は ctx = {m: 表の形（buildModel）, d: サーバーの答え, s: 組み方, W, H, measName, dimName, label} → {svg, legend, side}
+   - 描く関数は ctx = {m: 表の形（buildModel）, d: サーバーの答え, s: 組み方, W, H, measName, dimName, label, compact} → {svg, legend, side}
+     compact（版 3.37.0。ダッシュボードのパネル）: 余白を詰め、横の傾向の面（side）の分を空けない（パネルの大きさに収める）
    - 数え方はサーバー（services/pivot.py）。ここでは足し上げ・並べ替え・割合・管理限界（I 管理図）・回帰の直線だけを数える
    ========================================================================= */
 (function () {
@@ -45,6 +46,9 @@
   const axisRange = (r, x0, x1, y) => r.ticks.map((t) => `<line x1="${x0}" x2="${x1}" y1="${y(t)}" y2="${y(t)}" class="pv-grid"/><text x="${x0 - 6}" y="${y(t) + 4}" text-anchor="end" class="pv-ax">${esc(short(t))}</text>`).join("");
   const svgOf = (W, H, g, label) => `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(label)}">${g}</svg>`;
   const empty = (text) => ({ svg: `<div class="pv-cempty">${text}</div>`, legend: "", side: "" });
+  /** 余白（詰めた形は小さく）と、横の傾向の面の幅（詰めた形は 0） */
+  const pad = (ctx, wide, tight) => (ctx.compact ? tight : wide);
+  const sideW = (ctx) => (ctx.compact ? 0 : 250);
   /** 数値ラベルの間引き: 字の幅が 1 本ぶんの幅に入らなければ、何本おきかに */
   const thinOf = (vals, slot, text = short) => Math.max(1, Math.ceil(Math.max(0, ...vals.map((v) => (v ? text(v).length * 6.2 + 4 : 0))) / Math.max(slot, 1)));
   const statsBox = (title, rows, note = "") => `<div class="pv-stats"><b>${esc(title)}</b><table>${rows.map(([k, v, cls]) => `<tr${cls ? ` class="${cls}"` : ""}><th>${esc(k)}</th><td>${esc(typeof v === "number" ? fmt(v) : v)}</td></tr>`).join("")}</table>${note ? `<small class="pv-cnote">${note}</small>` : ""}</div>`;
@@ -95,7 +99,7 @@
   function trendChart(ctx, lines) {
     const { m, d, s, W, H } = ctx, L = dayAt(d), ax = axisOf(m, d, L), n = ax.ticks.length, months = L === 1 && ax.part === "date";
     if (!n) return empty("描く行がありません。");
-    const pl = 60, pr = 60, pt = months ? 30 : s.labels ? 22 : 12, pb = 40, iw = W - pl - pr, ih = H - pt - pb;
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 60, 40), pt = months ? 30 : s.labels ? 22 : 12, pb = pad(ctx, 40, 26), iw = W - pl - pr, ih = H - pt - pb;
     const x = (i) => pl + iw * (i + 0.5) / Math.max(n, 1), bw = Math.max(2, Math.min(40, iw / Math.max(n, 1) * 0.7));
     const series = [], colsData = dataCols(m);
     const stack = !lines && m.nc > 0 && ADDITIVE.has(d.measures[0].agg);
@@ -173,7 +177,7 @@
       while (k < n && side !== 0 && Math.sign(vs[k] - mean) === side) k++;
       if (side !== 0 && k - i >= 9) for (let t = i; t < k; t++) run[t] = true;
     }
-    const sw = 250, w = W - sw, pl = 60, pr = 64, pt = 14, pb = 40, iw = w - pl - pr, ih = H - pt - pb;
+    const sw = sideW(ctx), w = W - sw, pl = pad(ctx, 60, 44), pr = pad(ctx, 64, 56), pt = 14, pb = pad(ctx, 40, 26), iw = w - pl - pr, ih = H - pt - pb;
     const r = niceRange(Math.min(lcl, ...vs), Math.max(ucl, ...vs));
     const y = (v) => pt + ih * (1 - (v - r.lo) / (r.hi - r.lo)), x = (i) => pl + iw * (i + 0.5) / n;
     let g = axisRange(r, pl, w - pr, y);
@@ -203,7 +207,7 @@
     const max = niceMax(Math.max(0, ...vals.flat()));
     let g = "";
     if (dir === "column") {
-      const pl = 60, pr = 20, pt = s.labels ? 22 : 12, pb = 56, iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
+      const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = s.labels ? 22 : 12, pb = pad(ctx, 56, 30), iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
       g += axisY(pl, pt, ih, max, false, W + 36);
       const thin = thinOf(vals.flat(), bw);
       data.forEach((r, i) => {
@@ -216,9 +220,13 @@
       });
       g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
     } else {
-      const pl = 160, pr = 70, pt = 8, rh = (H - 30) / Math.max(data.length, 1), bh = Math.max(3, Math.min(18, rh * 0.75 / series.length)), iw = W - pl - pr;
+      // 詰めた形: 名前の字の幅（いちばん長い名前。幅の 4 割まで）だけ左を空ける
+      const longest = Math.max(2, ...data.map((r) => Math.min(20, m.rowName(r).length)));
+      const pl = ctx.compact ? Math.round(Math.max(44, Math.min(W * 0.4, longest * 12.5 + 12))) : 160, pr = pad(ctx, 70, 52), pt = pad(ctx, 8, 4);
+      const rh = (H - pad(ctx, 30, 8)) / Math.max(data.length, 1), bh = Math.max(3, Math.min(18, rh * 0.75 / series.length)), iw = W - pl - pr;
+      const cut = ctx.compact ? Math.max(3, Math.floor((pl - 10) / 12.5)) : 20;
       data.forEach((r, i) => {
-        g += `<text x="${pl - 8}" y="${pt + rh * (i + 0.5) + 4}" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), 20))}</text>`;
+        g += `<text x="${pl - 8}" y="${pt + rh * (i + 0.5) + 4}" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), cut))}</text>`;
         series.forEach((q, k) => { const v = vals[i][k], w = iw * v / max, by = pt + rh * i + (rh - bh * series.length) / 2 + bh * k; g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${q.color}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`
           + (series.length === 1 || s.labels ? `<text x="${pl + w + 6}" y="${by + bh - 2}" class="${s.labels ? "pv-vl" : "pv-ax"}">${esc(fmt(v))}</text>` : ""); });
       });
@@ -233,7 +241,7 @@
     const { m, d, s, W, H } = ctx, j = chartAt(ctx), add = ADDITIVE.has(d.measures[j].agg);
     let items = dataRows(m).map((r) => ({ name: m.rowName(r), v: m.value(r, ALL, j) || 0 })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
     if (!items.length) return empty("パレート図にできる値（0 より大きい値）がありません。");
-    const pl = 60, pr = 56, pt = s.labels ? 24 : 14, pb = 56, iw = W - pl - pr, ih = H - pt - pb;
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 56, 44), pt = s.labels ? 24 : 14, pb = pad(ctx, 56, 30), iw = W - pl - pr, ih = H - pt - pb;
     const K = Math.min(items.length, Math.max(5, Math.min(30, Math.floor(iw / 38))));
     const total = items.reduce((a, x) => a + x.v, 0);
     if (items.length > K) items = add ? items.slice(0, K - 1).concat([{ name: `その他（${items.length - K + 1} 件）`, v: items.slice(K - 1).reduce((a, x) => a + x.v, 0), rest: true }]) : items.slice(0, K);
@@ -272,7 +280,7 @@
       series = (ms.length > 1 ? ms : [[d.measures[j], j]]).map(([x, k], i) => ({ name: ctx.measName(x), get: (r) => m.value(r, ALL, k) || 0, color: COLORS[i % COLORS.length] }));
     }
     const vals = data.map((r) => series.map((q) => Math.max(0, q.get(r)))), tops = vals.map((v) => v.reduce((a, b) => a + b, 0));
-    const pl = 60, pr = 20, pt = s.labels ? 22 : 12, pb = 56, iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(4, Math.min(56, gw * 0.72));
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = s.labels ? 22 : 12, pb = pad(ctx, 56, 30), iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(4, Math.min(56, gw * 0.72));
     const max = share ? 1 : niceMax(Math.max(0, ...tops));
     let g = axisY(pl, pt, ih, max, false, W + 36, MUTED, share ? (v) => `${Math.round(v * 100)}%` : short);
     data.forEach((r, i) => {
@@ -301,7 +309,7 @@
     if (!items.length) return empty("割合にできる値（0 より大きい値）がありません。");
     const total = items.reduce((a, x) => a + x.v, 0);
     if (items.length > 10) items = items.slice(0, 9).concat([{ name: `その他（${items.length - 9} 件）`, v: items.slice(9).reduce((a, x) => a + x.v, 0), rest: true }]);
-    const R = Math.min(H / 2 - 12, 140), r0 = R * 0.58, cx = R + 24, cy = H / 2, w = cx + R + 24;
+    const R = ctx.compact ? Math.max(20, Math.min(H / 2 - 6, W / 2 - 8, 160)) : Math.min(H / 2 - 12, 140), r0 = R * 0.58, cx = R + pad(ctx, 24, 8), cy = H / 2, w = cx + R + pad(ctx, 24, 8);
     let a = -Math.PI / 2, g = "";
     items.forEach((x, i) => {
       x.color = x.rest ? "#a9b4be" : COLORS[i % COLORS.length];
@@ -324,7 +332,7 @@
     const { m, d, s, W, H } = ctx, b = (d.bins || [])[0], x0 = d.dims.rows[0];
     if (!b || !x0 || x0.part !== "bin") return empty("ヒストグラムは、行の 1 段目を数のカラムの「区間」にすると描けます（グラフの形でヒストグラムを選ぶか、数のカラムの［行］を押して、まとめ方を「区間」に）。");
     const data = m.rows.filter((r) => r.type === "data" && r.path[0] !== "");
-    const sw = 250, w = W - sw, pl = 56, pr = 16, pt = s.labels ? 22 : 12, pb = 44, iw = w - pl - pr, ih = H - pt - pb;
+    const sw = sideW(ctx), w = W - sw, pl = pad(ctx, 56, 44), pr = 16, pt = s.labels ? 22 : 12, pb = pad(ctx, 44, 28), iw = w - pl - pr, ih = H - pt - pb;
     const lo = b.origin, nb = Math.max(1, Math.round((b.max - lo) / b.width) + 1);
     const counts = new Array(nb).fill(0);
     data.forEach((r) => { const k = Math.round((Number(r.path[0]) - lo) / b.width); if (k >= 0 && k < nb) counts[k] = m.value(r, m.cols[m.cols.length - 1], 0) || 0; });
@@ -360,7 +368,7 @@
     const byKey = new Map((d.boxes || []).map((b) => [b.r.join(SEP), b]));
     const items = dataRows(m).map((r) => ({ name: m.rowName(r), b: byKey.get(r.path.join(SEP)) })).filter((x) => x.b).slice(0, 40);
     if (!items.length) return empty(`「${esc(ctx.label(d.box))}」に数に読める値がありません。`);
-    const pl = 60, pr = 20, pt = s.labels ? 20 : 12, pb = 56, iw = W - pl - pr, ih = H - pt - pb, gw = iw / items.length, bw = Math.max(8, Math.min(46, gw * 0.55));
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = s.labels ? 20 : 12, pb = pad(ctx, 56, 30), iw = W - pl - pr, ih = H - pt - pb, gw = iw / items.length, bw = Math.max(8, Math.min(46, gw * 0.55));
     const r = niceRange(Math.min(...items.map((x) => Math.min(x.b.lo, ...x.b.out))), Math.max(...items.map((x) => Math.max(x.b.hi, ...x.b.out))));
     const y = (v) => pt + ih * (1 - (v - r.lo) / (r.hi - r.lo));
     let g = axisRange(r, pl, W - pr, y);
@@ -385,7 +393,12 @@
     const { m, d, s, W } = ctx, j = chartAt(ctx), rows = dataRows(m).slice(0, 80), cols = m.nc ? m.cols.filter((c) => c.type === "data").slice(0, 40) : [ALL];
     const vals = rows.map((r) => cols.map((c) => m.value(r, c, j)));
     const flat = vals.flat().filter((v) => v != null), lo = Math.min(0, ...flat), hi = Math.max(...flat, lo + 1e-9);
-    const pl = 170, pt = 46, cw = Math.max(18, Math.min(88, (W - pl - 10) / cols.length)), ch = rows.length > 40 ? 18 : 24, H = pt + ch * rows.length + 8, w = pl + cw * cols.length + 10;
+    // 詰めた形: 名前の字の幅だけ左を空け、行の高さをパネルの高さで割る（パネルに収める）
+    const longest = Math.max(2, ...rows.map((r) => Math.min(22, m.rowName(r).length)));
+    const pl = ctx.compact ? Math.round(Math.max(40, Math.min(W * 0.35, longest * 12.5 + 12))) : 170, pt = ctx.compact ? 26 : 46;
+    const cw = Math.max(ctx.compact ? 14 : 18, Math.min(88, (W - pl - 10) / cols.length));
+    const ch = ctx.compact ? Math.max(10, Math.min(30, (ctx.H - pt - 6) / Math.max(rows.length, 1))) : rows.length > 40 ? 18 : 24;
+    const H = ctx.compact ? ctx.H : pt + ch * rows.length + 8, w = pl + cw * cols.length + 10;
     const color = (v) => { const t = (v - lo) / (hi - lo); return `hsl(174 ${Math.round(30 + 32 * t)}% ${Math.round(96 - 66 * t)}%)`; };
     let g = "";
     cols.forEach((c, k) => {
@@ -394,11 +407,11 @@
     });
     rows.forEach((r, i) => {
       const y0 = pt + ch * i;
-      g += `<text x="${pl - 8}" y="${y0 + ch / 2 + 4}" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), 22))}</text>`;
+      g += `<text x="${pl - 8}" y="${y0 + ch / 2 + 4}" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), ctx.compact ? Math.max(3, Math.floor((pl - 10) / 12.5)) : 22))}</text>`;
       cols.forEach((c, k) => {
         const v = vals[i][k], x0 = pl + cw * k, t = v == null ? 0 : (v - lo) / (hi - lo);
         g += `<rect x="${x0 + 0.5}" y="${y0 + 0.5}" width="${cw - 1}" height="${ch - 1}" rx="2" fill="${v == null ? "#f3f5f7" : color(v)}"><title>${esc(m.rowName(r))}${m.nc ? ` / ${esc(m.colName(c))}` : ""}: ${esc(v == null ? "なし" : fmt(v))}</title></rect>`;
-        if (v != null && (s.labels || cw >= 40) && cw >= 30) g += `<text x="${x0 + cw / 2}" y="${y0 + ch / 2 + 4}" text-anchor="middle" class="pv-hv${t > 0.55 ? " is-dark" : ""}">${esc(short(v))}</text>`;
+        if (v != null && (s.labels || cw >= 40) && cw >= 30 && ch >= 14) g += `<text x="${x0 + cw / 2}" y="${y0 + ch / 2 + 4}" text-anchor="middle" class="pv-hv${t > 0.55 ? " is-dark" : ""}">${esc(short(v))}</text>`;
       });
     });
     const legend = `<span class="pv-legend"><span>${esc(ctx.measName(d.measures[j]))}</span><span class="pv-ramp" style="--a:${color(lo)};--b:${color(hi)}"><small>${esc(short(lo))}</small><i></i><small>${esc(short(hi))}</small></span></span>`
@@ -411,7 +424,7 @@
     if (d.measures.length < 2) return empty("散布図は、値を 2 つ入れると描けます（1 つ目＝横・2 つ目＝縦。行の葉ごとに 1 点）。");
     const pts = dataRows(m).map((r) => ({ r, x: m.value(r, ALL, 0), y: m.value(r, ALL, 1) })).filter((p) => p.x != null && p.y != null);
     if (pts.length < 2) return empty("両方の値がある点が 2 つ未満です。");
-    const sw = 250, w = W - sw, pl = 64, pr = 18, pt = 14, pb = 48, iw = w - pl - pr, ih = H - pt - pb;
+    const sw = sideW(ctx), w = W - sw, pl = pad(ctx, 64, 48), pr = 18, pt = 14, pb = pad(ctx, 48, 30), iw = w - pl - pr, ih = H - pt - pb;
     const rx = niceRange(Math.min(...pts.map((p) => p.x)), Math.max(...pts.map((p) => p.x))), ry = niceRange(Math.min(...pts.map((p) => p.y)), Math.max(...pts.map((p) => p.y)));
     const X = (v) => pl + iw * (v - rx.lo) / (rx.hi - rx.lo), Y = (v) => pt + ih * (1 - (v - ry.lo) / (ry.hi - ry.lo));
     let g = axisRange(ry, pl, w - pr, Y);
@@ -466,13 +479,82 @@
       icon: "M3 3v14h14M6 13h.1M8 10h.1M10 11h.1M12 7h.1M14 6h.1M9 14h.1", fit: (f) => (f.numMeas >= 2 ? "" : "値に数のカラムが 2 つあるとき"), draw: scatterChart },
     { k: "none", n: "表だけ", g: "table", tip: "グラフを出さず、表だけを広く出します", icon: "M3 4h14v12H3zM3 8h14M3 12h14M8 4v12", fit: () => "", draw: null },
   ];
+  /* ---- 答え → 表の形（行・列の葉。小計・総計を入れる）と表（集計表・ダッシュボードのパネルで同じ。版 3.37.0 で lotlist-pivot.js から移した） ---- */
+  function buildModel(d, s) {
+    const nr = d.dims.rows.length, nc = d.dims.cols.length, M = d.measures.length, split = dayAt(d) === 1;
+    const cellMap = new Map(d.cells.map((x) => [x.r.join(SEP) + "\u001e" + x.c.join(SEP), x.v]));
+    const lab = (i, k) => (d.labels[i] || {})[k] ?? k;
+    const leaves = (n, off, axis) => {
+      if (!n) return [{ type: "all", path: [] }];
+      const have = new Set(d.cells.filter((x) => x[axis].length === n).map((x) => x[axis].join(SEP)));
+      const rank = Array.from({ length: n }, (_, i) => new Map((d.orders[off + i] || []).map((k, j) => [k, j])));
+      const paths = [...have].map((p) => p.split(SEP)).sort((a, b) => { for (let i = 0; i < n; i++) { const x = rank[i].get(a[i]) ?? 1e9, y = rank[i].get(b[i]) ?? 1e9; if (x !== y) return x - y; } return 0; });
+      const out = [];
+      paths.forEach((p, k) => {
+        out.push({ type: "data", path: p });
+        // この段の頭が次の葉で変わる所に小計（下の段から）
+        // 月で区切ったときは、月（1 段目）の小計はいつも出す
+        if (s.sub || (axis === "r" && split)) for (let lv = s.sub ? n - 1 : 1; lv >= 1; lv--) {
+          const next = paths[k + 1];
+          if (!next || next.slice(0, lv).join(SEP) !== p.slice(0, lv).join(SEP)) out.push({ type: "sub", path: p.slice(0, lv) });
+        }
+      });
+      if (s.grand) out.push({ type: "grand", path: [] });
+      return out;
+    };
+    const rows = leaves(nr, 0, "r"), cols = leaves(nc, nr, "c");
+    const value = (r, c, j) => { const v = cellMap.get(r.path.join(SEP) + "\u001e" + c.path.join(SEP)); return v ? v[j] : null; };
+    return { nr, nc, M, rows, cols, value, lab, rowName: (r) => r.path.map((k, i) => lab(i, k)).join(" / "), colName: (c) => c.path.map((k, i) => lab(nr + i, k)).join(" / ") };
+  }
+  /** names: {measName, dimName}（値・段の見せる名前。一覧は列の表示名を使う） */
+  function tableHtml(m, d, { measName, dimName }) {
+    const { nr, nc, M, rows, cols } = m;
+    const mNames = d.measures.map((x) => measName(x));
+    // 見出し: 列の段ごとの行（同じ頭はまとめる）＋値の名前の行（値が 2 つ以上か、列が無いとき）
+    let head = "";
+    const withMeasRow = M > 1 || !nc;
+    const headRows = nc + (withMeasRow ? 1 : 0);
+    const corner = `<th class="pv-corner" rowspan="${headRows}" colspan="${Math.max(1, nr)}">${esc(d.dims.rows.map((x) => dimName(x)).join(" ＞ "))}${nc ? `<small>${esc(d.dims.cols.map((x) => dimName(x)).join(" ＞ "))} →</small>` : ""}</th>`;
+    for (let lv = 0; lv < nc; lv++) {
+      let tr = lv === 0 ? corner : "";
+      for (let i = 0; i < cols.length;) {
+        const c = cols[i];
+        if (c.type === "grand") { if (lv === 0) tr += `<th class="pv-gt" rowspan="${nc}" colspan="${M}">総計</th>`; i++; continue; }
+        if (c.type === "sub" && c.path.length <= lv) { if (c.path.length === lv) tr += `<th class="pv-st" rowspan="${nc - lv}" colspan="${M}">${esc(m.lab(nr + lv - 1, c.path[lv - 1]))} 小計</th>`; i++; continue; }
+        let j = i + 1;
+        const pref = c.path.slice(0, lv + 1).join(SEP);
+        while (j < cols.length && cols[j].type !== "grand" && cols[j].path.length > lv && cols[j].path.slice(0, lv + 1).join(SEP) === pref) j++;
+        tr += `<th colspan="${(j - i) * M}">${esc(m.lab(nr + lv, c.path[lv]))}</th>`;
+        i = j;
+      }
+      head += `<tr>${tr}</tr>`;
+    }
+    if (withMeasRow) head += `<tr>${nc ? "" : corner}${cols.map(() => mNames.map((n) => `<th class="pv-mh">${esc(n)}</th>`).join("")).join("")}</tr>`;
+    // 本文: 行の見出し（同じ頭は縦にまとめる）＋数
+    const span = (i, lv) => { let j = i + 1; const pref = rows[i].path.slice(0, lv + 1).join(SEP); while (j < rows.length && rows[j].type === "data" && rows[j].path.slice(0, lv + 1).join(SEP) === pref) j++; return j - i; };
+    const body = rows.map((r, i) => {
+      let th = "";
+      if (r.type === "grand") th = `<th colspan="${Math.max(1, nr)}" class="pv-gt">総計</th>`;
+      else if (r.type === "sub") th = `<th colspan="${nr}" class="pv-st">${esc(m.rowName(r))} 小計</th>`;   // 段の数に関わらず全段にまたがらせる（列がずれない）
+      else if (!nr) th = "<th>（全体）</th>";
+      else for (let lv = 0; lv < nr; lv++) {
+        const prev = rows[i - 1];
+        const cont = prev && prev.type === "data" && prev.path.slice(0, lv + 1).join(SEP) === r.path.slice(0, lv + 1).join(SEP);
+        if (!cont) th += `<th rowspan="${lv === nr - 1 ? 1 : span(i, lv)}">${esc(m.lab(lv, r.path[lv]))}</th>`;
+      }
+      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${fmt(v)}</td>`; }).join("")).join("");
+      return `<tr class="${r.type === "grand" ? "is-grand" : r.type === "sub" ? "is-sub" : ""}">${th}${tds}</tr>`;
+    }).join("");
+    return `<thead>${head}</thead><tbody>${body}</tbody>`;
+  }
   const byKey = new Map(DEFS.map((x) => [x.k, x]));
   const iconSvg = (k, size = 18) => { const x = byKey.get(k); return x ? `<svg class="pv-ico" viewBox="0 0 20 20" width="${size}" height="${size}" aria-hidden="true"><path d="${x.icon}"/></svg>` : ""; };
   /** 描く（形が分からなければ縦棒）。高さ: 横棒は行の数で伸ばす・ほかは 300 */
+  /** ctx.H があればその高さ（ダッシュボードのパネル: パネルの大きさに合わせる） */
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
-    const H = kind === "bar" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : 300;
+    const H = ctx.H || (kind === "bar" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : 300);
     return def.draw({ ...ctx, H });
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, dayAt, isDay, isTimeDim, ADDITIVE };
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();

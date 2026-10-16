@@ -29,7 +29,7 @@
   const WORKDAY_PARTS = ["", "ym", "year"], WORKDAY_NAME = { "": "日", ym: "年月", year: "年" };   // 作業日のまとめ（版 3.26.0〜: 月ごと・年ごと）
   const AGGS = [["sum", "合計"], ["avg", "平均"], ["min", "最小"], ["max", "最大"]];
   const C = window.LotListPivotCharts, { fmt, dayAt, isDay } = C;   // グラフの形の登録と描き方（lotlist-pivot-charts.js）
-  const MAX_DIMS = 3, MAX_MEASURES = 4, SEP = "\u001f";
+  const MAX_DIMS = 3, MAX_MEASURES = 4;
   let host = null, fields = null, fieldsSig = "", answer = null, seq = 0, fq = "", timer = 0, resizeObs = null;
 
   /* ---- 覚え ---- */
@@ -523,73 +523,9 @@
     }
   }
 
-  /* ---- 答え → 表の形（行・列の葉。小計・総計を入れる） ---- */
-  function buildModel(d, s) {
-    const nr = d.dims.rows.length, nc = d.dims.cols.length, M = d.measures.length, split = dayAt(d) === 1;
-    const cellMap = new Map(d.cells.map((x) => [x.r.join(SEP) + "\u001e" + x.c.join(SEP), x.v]));
-    const lab = (i, k) => (d.labels[i] || {})[k] ?? k;
-    const leaves = (n, off, axis) => {
-      if (!n) return [{ type: "all", path: [] }];
-      const have = new Set(d.cells.filter((x) => x[axis].length === n).map((x) => x[axis].join(SEP)));
-      const rank = Array.from({ length: n }, (_, i) => new Map((d.orders[off + i] || []).map((k, j) => [k, j])));
-      const paths = [...have].map((p) => p.split(SEP)).sort((a, b) => { for (let i = 0; i < n; i++) { const x = rank[i].get(a[i]) ?? 1e9, y = rank[i].get(b[i]) ?? 1e9; if (x !== y) return x - y; } return 0; });
-      const out = [];
-      paths.forEach((p, k) => {
-        out.push({ type: "data", path: p });
-        // この段の頭が次の葉で変わる所に小計（下の段から）
-        // 月で区切ったときは、月（1 段目）の小計はいつも出す
-        if (s.sub || (axis === "r" && split)) for (let lv = s.sub ? n - 1 : 1; lv >= 1; lv--) {
-          const next = paths[k + 1];
-          if (!next || next.slice(0, lv).join(SEP) !== p.slice(0, lv).join(SEP)) out.push({ type: "sub", path: p.slice(0, lv) });
-        }
-      });
-      if (s.grand) out.push({ type: "grand", path: [] });
-      return out;
-    };
-    const rows = leaves(nr, 0, "r"), cols = leaves(nc, nr, "c");
-    const value = (r, c, j) => { const v = cellMap.get(r.path.join(SEP) + "\u001e" + c.path.join(SEP)); return v ? v[j] : null; };
-    return { nr, nc, M, rows, cols, value, lab, rowName: (r) => r.path.map((k, i) => lab(i, k)).join(" / "), colName: (c) => c.path.map((k, i) => lab(nr + i, k)).join(" / ") };
-  }
-  function tableHtml(m, d) {
-    const { nr, nc, M, rows, cols } = m;
-    const mNames = d.measures.map((x) => measName(x));
-    // 見出し: 列の段ごとの行（同じ頭はまとめる）＋値の名前の行（値が 2 つ以上か、列が無いとき）
-    let head = "";
-    const withMeasRow = M > 1 || !nc;
-    const headRows = nc + (withMeasRow ? 1 : 0);
-    const corner = `<th class="pv-corner" rowspan="${headRows}" colspan="${Math.max(1, nr)}">${esc(d.dims.rows.map((x) => dimName(x)).join(" ＞ "))}${nc ? `<small>${esc(d.dims.cols.map((x) => dimName(x)).join(" ＞ "))} →</small>` : ""}</th>`;
-    for (let lv = 0; lv < nc; lv++) {
-      let tr = lv === 0 ? corner : "";
-      for (let i = 0; i < cols.length;) {
-        const c = cols[i];
-        if (c.type === "grand") { if (lv === 0) tr += `<th class="pv-gt" rowspan="${nc}" colspan="${M}">総計</th>`; i++; continue; }
-        if (c.type === "sub" && c.path.length <= lv) { if (c.path.length === lv) tr += `<th class="pv-st" rowspan="${nc - lv}" colspan="${M}">${esc(m.lab(nr + lv - 1, c.path[lv - 1]))} 小計</th>`; i++; continue; }
-        let j = i + 1;
-        const pref = c.path.slice(0, lv + 1).join(SEP);
-        while (j < cols.length && cols[j].type !== "grand" && cols[j].path.length > lv && cols[j].path.slice(0, lv + 1).join(SEP) === pref) j++;
-        tr += `<th colspan="${(j - i) * M}">${esc(m.lab(nr + lv, c.path[lv]))}</th>`;
-        i = j;
-      }
-      head += `<tr>${tr}</tr>`;
-    }
-    if (withMeasRow) head += `<tr>${nc ? "" : corner}${cols.map(() => mNames.map((n) => `<th class="pv-mh">${esc(n)}</th>`).join("")).join("")}</tr>`;
-    // 本文: 行の見出し（同じ頭は縦にまとめる）＋数
-    const span = (i, lv) => { let j = i + 1; const pref = rows[i].path.slice(0, lv + 1).join(SEP); while (j < rows.length && rows[j].type === "data" && rows[j].path.slice(0, lv + 1).join(SEP) === pref) j++; return j - i; };
-    const body = rows.map((r, i) => {
-      let th = "";
-      if (r.type === "grand") th = `<th colspan="${Math.max(1, nr)}" class="pv-gt">総計</th>`;
-      else if (r.type === "sub") th = `<th colspan="${nr}" class="pv-st">${esc(m.rowName(r))} 小計</th>`;   // 段の数に関わらず全段にまたがらせる（列がずれない）
-      else if (!nr) th = "<th>（全体）</th>";
-      else for (let lv = 0; lv < nr; lv++) {
-        const prev = rows[i - 1];
-        const cont = prev && prev.type === "data" && prev.path.slice(0, lv + 1).join(SEP) === r.path.slice(0, lv + 1).join(SEP);
-        if (!cont) th += `<th rowspan="${lv === nr - 1 ? 1 : span(i, lv)}">${esc(m.lab(lv, r.path[lv]))}</th>`;
-      }
-      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${fmt(v)}</td>`; }).join("")).join("");
-      return `<tr class="${r.type === "grand" ? "is-grand" : r.type === "sub" ? "is-sub" : ""}">${th}${tds}</tr>`;
-    }).join("");
-    return `<thead>${head}</thead><tbody>${body}</tbody>`;
-  }
+  /* ---- 答え → 表の形・表（描き方はグラフと同じ lotlist-pivot-charts.js の 1 か所。ダッシュボードのパネルも同じ物を使う） ---- */
+  const buildModel = C.buildModel;
+  const tableHtml = (m, d) => C.tableHtml(m, d, { measName, dimName });
   function hintText(m, d) {
     const nData = m.rows.filter((r) => r.type === "data").length, nCol = m.cols.filter((c) => c.type === "data" || c.type === "all").length;
     return `行 ${nData.toLocaleString()} × 列 ${nCol.toLocaleString()} ・ ${d.measures.map((x) => measName(x)).join("・")} ・ ${d.count.toLocaleString()} 行から（一覧と同じ絞り込み）`
