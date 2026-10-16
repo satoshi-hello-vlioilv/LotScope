@@ -1,6 +1,6 @@
 {
   "title": "2026-10 ダッシュボードの改良（版 3.39.0）: パネルを組む所（右の面）とパネルを絞る面の置き方",
-  "evaluator": "案を作っていない別のエージェント（Claude・採点だけを頼まれた者）。ui-variants.mjs で 2026-10-dashmore.mjs（6 案）と 2026-10-dashmore-base.mjs（土台）を、状態 dash・dash-filter・dash-panel・dash-panel-fmt で 1728×1152（scratchpad/grade1/prop・base）と 1280×720（scratchpad/grade1/prop720・base720）で自分で撮り（4 本とも終了コード 0）、一覧（sheet-*.png）と 1 枚ずつの画像を Read で直接見て、組む所の右側は PIL で切り出して並べて見比べた。dash・dash-filter は全案で右上の時刻の字だけが違い（PIL の差の枠が (1869,91)-(1909,104) だけ）、案はパネルを絞る面に手を入れていないので、絞る面の出来は全案同じ（減点なし）として、差は組む所で付けた。metrics.json の cut・hidden は全案 0。1280 の dash-panel-fmt で A・S・F・R・N は撮る道具の scrollIntoView が外の枠ごと送り、組む所の見出し（やめる・当てる）が窓の上に出ていたが、道具の送り方によるものなので減点しない。2 回目: 別の採点だけの者（Claude）が 2026-10-dashmore-2.mjs（6 案）と 2026-10-dashmore-base.mjs を、状態 dash・dash-filter・dash-panel・dash-panel-fmt で 1728×1152（scratchpad/grade2/v1728・b1728）と 1280×720（v1280・b1280）で自分で撮り（4 本とも終了コード 0）、一覧と 1 枚ずつを Read で見て、組む所を PIL で切り出して見比べた。dash・dash-filter は全案と土台で右上の時刻（「16:24 の数」と元の時刻）だけが違い、全案同じとして扱った。metrics.json の cut・hidden は全案 0。3 回目: 別の採点だけの者（Claude）が 2026-10-dashmore-3.mjs（5 案）と 2026-10-dashmore-base.mjs を、状態 dash・dash-filter・dash-panel・dash-panel-fmt で 1728×1152（scratchpad/grade3/v1728・b1728）と 1280×720（v1280・b1280）で自分で撮り（4 本とも終了コード 0）、一覧と 1 枚ずつを Read で見て、組む所を PIL で切り出して並べて見比べた。dash・dash-filter は全案で右上の時刻だけが違い（差の枠 (1869,91)-(1909,104) など）、全案同じとして扱った。metrics.json の cut・hidden は全案 0",
+  "evaluator": "案を作っていない別のエージェント（Claude・採点だけを頼まれた者）。ui-variants.mjs で 2026-10-dashmore.mjs（6 案）と 2026-10-dashmore-base.mjs（土台）を、状態 dash・dash-filter・dash-panel・dash-panel-fmt で 1728×1152（scratchpad/grade1/prop・base）と 1280×720（scratchpad/grade1/prop720・base720）で自分で撮り（4 本とも終了コード 0）、一覧（sheet-*.png）と 1 枚ずつの画像を Read で直接見て、組む所の右側は PIL で切り出して並べて見比べた。dash・dash-filter は全案で右上の時刻の字だけが違い（PIL の差の枠が (1869,91)-(1909,104) だけ）、案はパネルを絞る面に手を入れていないので、絞る面の出来は全案同じ（減点なし）として、差は組む所で付けた。metrics.json の cut・hidden は全案 0。1280 の dash-panel-fmt で A・S・F・R・N は撮る道具の scrollIntoView が外の枠ごと送り、組む所の見出し（やめる・当てる）が窓の上に出ていたが、道具の送り方によるものなので減点しない。2 回目: 別の採点だけの者（Claude）が 2026-10-dashmore-2.mjs（6 案）と 2026-10-dashmore-base.mjs を、状態 dash・dash-filter・dash-panel・dash-panel-fmt で 1728×1152（scratchpad/grade2/v1728・b1728）と 1280×720（v1280・b1280）で自分で撮り（4 本とも終了コード 0）、一覧と 1 枚ずつを Read で見て、組む所を PIL で切り出して見比べた。dash・dash-filter は全案と土台で右上の時刻（「16:24 の数」と元の時刻）だけが違い、全案同じとして扱った。metrics.json の cut・hidden は全案 0。3 回目: 別の採点だけの者（Claude）が 2026-10-dashmore-3.mjs（5 案）と 2026-10-dashmore-base.mjs を、状態 dash・dash-filter・dash-panel・dash-panel-fmt で 1728×1152（scratchpad/grade3/v1728・b1728）と 1280×720（v1280・b1280）で自分で撮り（4 本とも終了コード 0）、一覧と 1 枚ずつを Read で見て、組む所を PIL で切り出して並べて見比べた。dash・dash-filter は全案で右上の時刻だけが違い（差の枠 (1869,91)-(1909,104) など）、全案同じとして扱った。metrics.json の cut・hidden は全案 0。作った後: 別の採点だけの者（Claude・作っていない者）が、本物のコード（版 3.39.0）を 2026-10-dashmore-base.mjs（案の CSS を当てない土台）で、状態 dash・dash-filter・dash-panel・dash-panel-fmt・dash-board・dash-board-group を 1728×1152（scratchpad/built/b1728）と 1280×720（built/b1280）で自分で撮り（2 本とも終了コード 0。metrics.json の cut・hidden は全状態 0）、1 枚ずつを Read で見て、作る前（scratchpad/now・grade3/b1728・b1280）と 3 回目の S3 の再現（grade3/v1728・v1280）と見比べた。合わせた表の見せ方の段は PIL で切り出して見た（built/crop-group-mise.png）。作った後の直し: 同じ採点だけの者が、見せ方の札の直しの後に同じ 6 状態を 1728×1152（scratchpad/built2/b1728）と 1280×720（built2/b1280）で撮り直し（2 本とも終了コード 0。cut・hidden は全状態 0）、Read で見て、直す前（built/）との差の枠を PIL で出して変わった所を確かめた。2 度目の直しの後: 同じ採点だけの者が、まとめ役が撮った scratchpad/built3/1728x1152・1280x720（dash-panel・dash-panel-fmt・dash-board-group）を Read で直接見て、built/・built2/ との差の枠を PIL で出し、変わった所を確かめた",
   "rounds": [
     {
       "name": "1 回目",
@@ -571,5 +571,85 @@
         }
       }
     }
-  ]
+  ],
+  "built": {
+    "name": "作った後（見せ方の札の 2 度目の直しの後）",
+    "images": "/tmp/claude-0/-home-user-LotScope/b72c8843-d112-4e0f-bb1b-06213576b804/scratchpad/built3/1728x1152・/tmp/claude-0/-home-user-LotScope/b72c8843-d112-4e0f-bb1b-06213576b804/scratchpad/built3/1280x720（dash・dash-filter・dash-board はこの直しで変わらない部品なので scratchpad/built2/b1728・b1280 を使う）",
+    "result": {
+      "evaluator": "採点だけを頼まれた別のエージェント（Claude・作った後の 2 度目の撮り直し）。まとめ役が撮った 1728×1152 と 1280×720 の画像を直接見て、前の撮影との差を PIL で確かめた",
+      "score": {
+        "order": 9,
+        "chunk": 9,
+        "hierarchy": 9,
+        "visual": 8,
+        "steps": 9,
+        "effortless": 9,
+        "intuitive": 9,
+        "form": 9,
+        "place": 9,
+        "layout": 9,
+        "tone": 8
+      },
+      "minus": [],
+      "seen": "残っていた減点は消えた。dash-panel-light-now.png（1728 x≈1420〜1925・y≈870〜925）と dash-panel-fmt-light-now.png（1280 x≈975〜1520・y≈275〜340）の ④「見せ方」は見出しが札の上に戻り、5 つの札（標準・目立たせる・色の帯・枠なし・淡い地）が 1 段に入る。「淡い地」がひとりで 2 段目に落ちる所は無い。dash-board-group-light-now.png は built2/ との差が見出しの時刻（1728 は (797,180)-(1193,196)、1280 は (238,180)-(634,196)）だけ。合わせた表の見せ方は、絵つきの札 8 つが 4 つずつの 2 段のまま、字は折れず切れない。パネルと合わせた表の見せ方は同じ絵つきの札の形にそろったまま（形と色 9）。合わせた表は札が 8 つで、見出しを横に置いて 2 段に送る形なので、パネル（見出しが上・1 段）と見出しの置き方だけが違う。札の数に合わせた置き方として読め、減点はしない。見せ方の段の崩れが無くなったので、整列・余白・釣り合いを 8→9 に戻した。metrics.json の cut・hidden は全状態 0。新しい見切れ・重なり・折り返しは見当たらない"
+    },
+    "before_fix": {
+      "name": "作った後",
+      "images": "/tmp/claude-0/-home-user-LotScope/b72c8843-d112-4e0f-bb1b-06213576b804/scratchpad/built/b1728・/tmp/claude-0/-home-user-LotScope/b72c8843-d112-4e0f-bb1b-06213576b804/scratchpad/built/b1280（作る前は scratchpad/now、S3 の再現は scratchpad/grade3/v1728・v1280。切り出しは /tmp/claude-0/-home-user-LotScope/b72c8843-d112-4e0f-bb1b-06213576b804/scratchpad/built/crop-group-mise.png）",
+      "result": {
+        "evaluator": "採点だけを頼まれた別のエージェント（Claude・作った後）。1728×1152 と 1280×720 を自分で撮って見た",
+        "score": {
+          "order": 9,
+          "chunk": 9,
+          "hierarchy": 9,
+          "visual": 8,
+          "steps": 9,
+          "effortless": 9,
+          "intuitive": 9,
+          "form": 8,
+          "place": 9,
+          "layout": 8,
+          "tone": 8
+        },
+        "minus": [
+          {
+            "kind": "wrap",
+            "where": "dash-board-group-light-now.png（1728 は x≈1420〜1970・y≈675〜708、1280 は x≈975〜1568・y≈730〜765）: 合わせた表のまとまり ② 実績本数の「見せ方」の札 8 つ（棒と数・数と濃淡・数だけ・積み上げ帯・割合・点と数・信号・小さな線）が 1 段に詰められ、どの札も字が 2 段に折れる（「棒と／数」「数だ／け」「信／号」）"
+          },
+          {
+            "kind": "cut",
+            "where": "同じ所（1728 の切り出し crop-group-mise.png）: 折れた字が札の高さ（約 34px）に収まらず、1 段目の字の上端が札の枠で切れる（「棒と」「数と濃」「積み上げ」の頭）。すぐ下の「色」の見出しも札の段に寄って窮屈"
+          }
+        ],
+        "seen": "S3 の形は本物で再現どおり。dash-panel-light-now.png（1728）は ① データ（データ・設備・まとめる）→ ② 数え方（文・期間・条件・並べ方）→ ③ 形（塗った「横棒」と「すべての形（26）…」、2 段目に向く形 表・縦棒・ロリポップ・パレート図）→ ④ 見せ方・書式 の順で、番号つきの見出しと細い線でまとまりがはっきり。3 回目の指摘の直しも効いている: 「0＝入るだけ」は上位の欄の右（1728 x≈1840・y≈620、1280 x≈1430・y≈670）に 1 段で入り、下の行が 1 段減った。dash-panel-fmt-light-now.png の期間の 2 段目「作業日（勤務体系で決めた日）」と「条件」の間が空き（1728 で約 30px）、条件の選びに見えかける所が直った。dash-board-light-now.png の表全体は 行 → どのまとまりも… の説明 → 設備 → まとめる → 並び の順で、設備・まとめるが行の段のすぐ下に来た。1280 の dash-panel では S3 の再現で半分切れていた向く形の行が、0＝入るだけ を右へ寄せた分で全部見える（y≈830）。形は 26（サンキー図・スイムレーン図を足した数）と札に出る。dash・dash-filter は作る前と同じ並びで、各パネルの見出しに「絞る」が付き、絞る面（設備の件数つきの札・値で絞る）は 1728 で画面に収まる。作る前（版 3.38.1 の now/dash-panel）と比べ、形の札 16 個が最初を占めてデータが下に押されていた形から、数える物を先に決めて形は向く物から選ぶ流れになり、見せ方は標準・目立たせる…の絵つきの札、書式（数値・横軸・数の形・縦軸・凡例・基準線・色の組）も同じ面で見える。残る所: 合わせた表のまとまりのタブ（dash-board-group）の「見せ方」は、札が 3 つから 8 つに増えた分、1 段に押し込まれて字が折れ・切れる（減点 2 つ）。パネルの組む所の見せ方は絵つきの札、合わせた表の見せ方は詰めた区切りの札と、同じ「見せ方」の言葉で形が違う（形と色を 8）。1280 の dash-board-group では見せ方の段が組む所の下の方（y≈730）にあり、色・計の列の段まで送らずに見えるが、左へ・右へ・このまとまりを外す は送らないと見えない（送る面の端なので減点しない）"
+      }
+    },
+    "before_fix2": {
+      "name": "作った後（見せ方の札の直しの後）",
+      "images": "/tmp/claude-0/-home-user-LotScope/b72c8843-d112-4e0f-bb1b-06213576b804/scratchpad/built2/b1728・/tmp/claude-0/-home-user-LotScope/b72c8843-d112-4e0f-bb1b-06213576b804/scratchpad/built2/b1280（直す前は scratchpad/built/b1728・b1280）",
+      "result": {
+        "evaluator": "採点だけを頼まれた別のエージェント（Claude・作った後の撮り直し）。1728×1152 と 1280×720 を自分で撮って見た",
+        "score": {
+          "order": 9,
+          "chunk": 9,
+          "hierarchy": 9,
+          "visual": 8,
+          "steps": 9,
+          "effortless": 9,
+          "intuitive": 9,
+          "form": 9,
+          "place": 9,
+          "layout": 8,
+          "tone": 8
+        },
+        "minus": [
+          {
+            "kind": "wrap",
+            "where": "dash-panel-light-now.png・dash-panel-fmt-light-now.png（1728 は x≈1490〜1900・y≈860〜935、1280 は x≈1050〜1490・y≈262〜342）の ④ の「見せ方」: 直す前（built/）は 5 つの札（標準・目立たせる・色の帯・枠なし・淡い地）が 1 段に入っていたが、見出しが札の左に並ぶ形になった分、「淡い地」だけが 2 段目へひとりで落ちる"
+          }
+        ],
+        "seen": "直しは効いている。dash-board-group-light-now.png（1728 x≈1490〜1945・y≈645〜718、1280 x≈1050〜1540・y≈698〜775）の合わせた表の「見せ方」は、パネルの見せ方と同じ絵つきの札 8 つ（棒と数・数と濃淡・数だけ・積み上げ帯／割合・点と数・信号・小さな線）が 4 つずつの 2 段に並び、字は折れず、切れない。選んだ「数と濃淡」は青い地と枠で分かる。すぐ下の「色」の見出しとの間も空き、窮屈さが消えた。パネルと合わせた表で「見せ方」が同じ形になった（形と色を 9 に戻した）。dash・dash-filter・dash-board は直す前と時刻の字だけが違う（差の枠は右上の時刻と見出しの時刻だけ）。代わりに、パネルの組む所の ④ 見せ方（同じ部品の .de-frame）も見出しが左に並ぶ形に変わり、1728・1280 とも 5 つ目の「淡い地」がひとりで 2 段目に落ちる（減点 1 つ）。札の幅は足りており、見出しを上に戻すか、札の間を少し詰めれば 1 段に戻る。そのほかの S3 の形（① データ → ② 数え方 → ③ 形 → ④ 見せ方・書式、0＝入るだけ が上位の右、期間の 2 段目と条件の間の空き、表全体の 設備・まとめる が行のすぐ下）は直す前と同じで崩れはない"
+      }
+    }
+  }
 }
