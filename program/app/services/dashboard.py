@@ -276,15 +276,17 @@ def _pv(pid, x, y, w, h, title, visual, source, rows=(), cols=(), measures=({"ag
 
 
 YESTERDAY = {"column": "@workday", "kind": "yesterday"}
+# 並び（2026-10-grid の 2 回目で 1 位の J＋3 回目）: 上 1 段に数字 3 つ → 左にグラフ 2 つ（仕掛区分・直近 14 日）・右に縦長の 1 枚の表。
+# 設備ごとの仕掛ロット数は 1 枚の表の棒と同じ数なので、別のグラフにはしない（同じ数を 2 回見せない）
 BUILTIN_LAYOUTS = [
     {"key": "standard", "name": "標準", "body": {"rows": 8, "panels": [
-        _pv("wipTotal", 0, 0, 2, 2, "仕掛ロット数", "kpi", "src:wip"),
-        _pv("workTotal", 2, 0, 2, 2, "前日の実績本数", "kpi", "work", period=YESTERDAY),
-        _pv("wipClass", 4, 0, 4, 4, "仕掛区分ごとの仕掛ロット数", "bar", "src:wip", rows=[{"column": WIP_CLASS_COLUMN}], sort="desc"),
-        _pv("wipEquip", 8, 0, 4, 4, "設備ごとの仕掛ロット数", "column", "src:wip", rows=[{"column": "@equip"}], sort="desc"),
-        _pv("workDays", 0, 2, 4, 2, "直近 14 日の実績本数", "time", "work", rows=[{"column": "@workday"}],
+        _pv("wipTotal", 0, 0, 4, 1, "仕掛ロット数", "kpi", "src:wip"),
+        _pv("workTotal", 4, 0, 4, 1, "前日の実績本数", "kpi", "work", period=YESTERDAY),
+        _pv("workMonth", 8, 0, 4, 1, "今月の実績本数", "kpi", "work", period={"column": "@workday", "kind": "this_month"}),
+        _pv("wipClass", 0, 1, 5, 4, "仕掛区分ごとの仕掛ロット数", "bar", "src:wip", rows=[{"column": WIP_CLASS_COLUMN}], sort="desc"),
+        _pv("workDays", 0, 5, 5, 3, "直近 14 日の実績本数", "time", "work", rows=[{"column": "@workday"}],
             period={"column": "@workday", "kind": "days", "n": 14}),
-        {"id": "board", "x": 0, "y": 4, "w": 12, "h": 4, "title": "設備ごとの仕掛と前日の実績", "visual": "board"},
+        {"id": "board", "x": 5, "y": 1, "w": 7, "h": 7, "title": "設備ごとの仕掛と前日の実績", "visual": "board"},
     ]}},
 ]
 

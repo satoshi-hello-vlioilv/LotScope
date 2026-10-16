@@ -257,7 +257,7 @@ class Layouts(unittest.TestCase):
         r = self.c.post("/api/dashboards", json={"name": "わたしの", "scope": "me", "standard": True, "body": self.body})
         self.assertEqual(r.status_code, 201, r.get_json())
         mine = r.get_json()
-        self.assertEqual((mine["scope"], mine["login"], len(mine["body"]["panels"])), ("me", "taro", 6))
+        self.assertEqual((mine["scope"], mine["login"], len(mine["body"]["panels"])), ("me", "taro", len(self.body["panels"])))
         self.assertEqual(self.c.get("/api/dashboards").get_json()["standardId"], mine["id"], "自分の標準が先")
         self.assertTrue(self.store.is_shared("dashboards"), "ダッシュボードは全員で 1 つの置き場（ほかの PC でも同じ物）")
         self.as_("jiro")

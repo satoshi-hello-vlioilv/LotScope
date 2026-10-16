@@ -99,7 +99,7 @@
       if (!el) {
         el = document.createElement("section");
         el.className = "db-p"; el.dataset.id = p.id;
-        el.innerHTML = '<div class="db-ph"></div><div class="db-pb"></div><div class="db-pf" hidden></div><i class="db-rz" data-rz aria-hidden="true"></i>';
+        el.innerHTML = '<div class="db-ph"></div><div class="db-psub"></div><div class="db-pb"></div><div class="db-pf" hidden></div><i class="db-rz" data-rz aria-hidden="true"></i>';
         g.append(el);
         if (ro) ro.observe(el);
       }
@@ -141,7 +141,6 @@
   }
   const NARROW = 360;      // これより狭いパネルの見出しは、操作を「⋯」1 つに畳む（ボタンが見出しからはみ出さない）
   function headHtml(p, a, width) {
-    const meta = metaOf(p, a);
     const warn = a && a.d ? P.notes(a.d).concat(a.err ? [`いまの数は前の物です（${a.err}）`] : []) : [];
     const badge = warn.length ? `<span class="db-warnb" title="${esc(warn.join("\n"))}" aria-label="${esc(warn.join("。"))}">⚠ ${warn.length}</span>` : "";
     const dot = p.visual === "board" ? "" : `<i class="db-dot" style="--c:${P.colorOf(p.source)}" aria-hidden="true"></i>`;
@@ -151,7 +150,7 @@
       ? `<button type="button" class="db-pbtn" data-db-edit title="このパネルを組む（Enter）">組む</button><button type="button" class="db-pbtn" data-db-dup title="同じパネルを空いた所に足す">複製</button>`
         + `<button type="button" class="db-pbtn is-danger${S.confirm === "del:" + p.id ? " is-armed" : ""}" data-db-del title="このパネルを消す（Delete。もう一度押すと消えます）">${S.confirm === "del:" + p.id ? "消す？" : "消す"}</button>`
       : p.visual === "board" ? boardConds() : `<button type="button" class="db-pbtn db-quiet" data-db-edit title="このパネルを組み直す（編集に入ります）">組む</button>`;
-    return `${dot}<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3>${meta ? `<small class="db-pm" title="${esc(meta)}">${esc(meta)}</small>` : ""}<span class="db-sp"></span>`
+    return `${dot}<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3><span class="db-sp"></span>`
       + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + tools;
   }
   function paintPanel(id) {
@@ -160,6 +159,9 @@
     const a = p.visual === "board" ? null : S.answers.get(id);
     el.querySelector(".db-ph").innerHTML = headHtml(p, a, el.clientWidth);
     el.setAttribute("aria-label", titleOf(p));
+    // 添え書き（元・期間・条件）は見出しの下の 2 行目（見出しは題と操作だけで 1 行）。数字の形は数の下に出す
+    const meta = metaOf(p, a), subEl = el.querySelector(".db-psub");
+    subEl.hidden = !meta || p.visual === "kpi"; subEl.textContent = meta; subEl.title = meta;
     const body = el.querySelector(".db-pb"), foot = el.querySelector(".db-pf");
     const size = { w: body.clientWidth, h: body.clientHeight };
     let note = "";
@@ -168,12 +170,12 @@
     else if (a.err && !a.d) body.innerHTML = errHtml(a);
     else {
       body.classList.toggle("is-busy", !!a.busy);
-      note = P.render(body, p, a.d, size);
+      note = P.render(body, p, a.d, size, p.visual === "kpi" ? meta : "");
     }
     foot.hidden = !note; foot.textContent = note || ""; foot.title = note || "";
     if (note && body.clientHeight < size.h - 2) {          // 下の知らせの分だけ低くなった: もう一度、新しい高さで描く
       if (p.visual === "board") P.board(body, S.board, body.clientHeight);
-      else if (a && a.d) P.render(body, p, a.d, { w: body.clientWidth, h: body.clientHeight });
+      else if (a && a.d) P.render(body, p, a.d, { w: body.clientWidth, h: body.clientHeight }, p.visual === "kpi" ? meta : "");
     }
   }
   function errHtml(a) {

@@ -40,7 +40,12 @@ body.db-dragging{cursor:grabbing;user-select:none}
   border:1px solid var(--line-soft);padding:8px 12px 8px;box-sizing:border-box;overflow:hidden;outline:none}
 .db-p:focus-visible{box-shadow:0 0 0 3px var(--focus-ring),var(--shadow-sm)}
 .db-ph{display:flex;align-items:center;gap:8px;min-height:26px;flex:0 0 auto;white-space:nowrap;min-width:0}
-.db-ph h3{margin:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 0 auto;max-width:100%}   /* 題は削らず、横の説明（db-pm）から削る */
+.db-ph h3{margin:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;min-width:3em;flex:0 1 auto}   /* 狭いときは題が縮む（操作の「⋯」を枠の外へ押し出さない） */
+.db-psub{flex:0 0 auto;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:-2px 0 2px 17px}
+.db-psub[hidden]{display:none}
+.dp-kmeta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-kpi.is-row{flex-direction:row;align-items:center;justify-content:flex-start;gap:14px}
+.dp-kpi.is-row .dp-kmeta{white-space:normal;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-width:0}
 .db-pm{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1000 auto}
 .db-pb{flex:1;min-height:0;min-width:0;position:relative;overflow:hidden;transition:opacity .12s}
 .db-pb.is-busy{opacity:.55}
@@ -176,5 +181,3 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .db-li.is-armed{background:#fbe7e3}
 .dp-flow{display:grid;grid-template-columns:repeat(var(--k,1),minmax(0,1fr));gap:0 10px;overflow:hidden;align-items:start}
 .dp-flow .dp-tbl + .dp-tbl{border-left:2px solid var(--line);padding-left:10px}
-/* 狭いパネルは見出しの横の説明（元・期間）を出さない（1 字だけ覗かない。題を先に見せる） */
-@container (max-width:340px){.db-pm{display:none}}

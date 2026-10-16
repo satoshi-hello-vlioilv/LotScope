@@ -19,7 +19,8 @@
   const SOURCE_COLOR = { lot: "#b5822a", work: "#2f7d78", src: "#3f6591" };
   const kindOf = (src) => (src === "lot" ? "lot" : src === "work" ? "work" : "src");
   const colorOf = (src) => SOURCE_COLOR[kindOf(src)];
-  const CAT = ["#3f6591", "#2f7d78", "#b5822a", "#7658ae", "#c9564a", "#5c8a2a", "#0d8191", "#8a5f18", "#a5508a", "#5a6f77"];
+  // 名前ごとの色は、データの種類の色（藍・青緑・琥珀）を使わない（区分の色が「作業実績」などと読めないように。2026-10-grid の 2 回目の指摘）
+  const CAT = ["#7658ae", "#c9564a", "#5c8a2a", "#8a5f18", "#a5508a", "#5a6f77", "#d35d8e", "#7a7a1f"];
   const hash = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
   /** その図の名前の並び → 名前ごとの色（名前で決まる色。図の中で同じ色が重なれば次の色へ＝同じ図に同じ色は出さない） */
   function catColors(names) {
@@ -67,17 +68,22 @@
   }
 
   /* ---- 数字（kpi） ---- */
-  function kpi(box, p, d, W, H) {
+  function kpi(box, p, d, W, H, sub0 = "") {
     const cell = (d.cells || []).find((x) => !x.r.length && !x.c.length);
     const vals = cell ? cell.v : [];
     const main = vals[0], ms = d.measures || [];
     const text = main == null ? "–" : C.fmt(main);
     const unit = ms[0] ? (ms[0].agg === "lots" ? (p.source === "work" ? "本" : "ロット") : ms[0].agg === "count" ? "件" : "") : "";
     // 字の大きさ: 高さの 5 割・幅に収まる大きさ（数字 1 字 ≒ 0.6em・単位は 1 字 ≒ 0.34em〈字の 0.32 倍の大きさ〉）の小さい方。14〜88px
-    const size = Math.round(Math.max(14, Math.min(88, H * (vals.length > 1 ? 0.42 : 0.52), (W - 8) / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
+    // 低いパネル（1 段）は、数と添え書きを横に並べる（縦に積むと数が小さくなり、添え書きが下で切れる）
+    const row = H < 96 && W >= 240;
+    const room = row ? H : H - (sub0 ? 20 : 0);    // 添え書き（期間・元）の行の分
+    const wide = row ? W * 0.55 : W - 8;   // 横に並べるときは、数に幅の 55% まで（残りは添え書き）
+    const size = Math.round(Math.max(14, Math.min(88, room * (row ? 0.78 : vals.length > 1 ? 0.42 : 0.56), wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
     const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${esc(C.fmt(v))}</b></span>`).join("");
-    box.innerHTML = `<div class="dp-kpi"><b class="dp-num" style="font-size:${size}px">${esc(text)}<small>${unit}</small></b>`
-      + (sub && H > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "") + "</div>";
+    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${esc(text)}<small>${unit}</small></b>`
+      + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")
+      + (sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}">${esc(sub0)}</small>` : "") + "</div>";
   }
 
   /* ---- グラフ ---- */
@@ -186,19 +192,26 @@
     return moreText([...flow.querySelectorAll(".dp-tbl")].reduce((a, t) => a + fitRows(t, avail), 0), "設備");
   }
   /** 字を 14 → 11px まで詰めて高さに入るか試す → 入らなければ true（詰めた最後のまま） */
+  /** 表を高さ H に合わせる: 入る中でいちばん大きな字（15 → 11px）にし、まだ下が空けば行の上下の余白で埋める（縦長のパネルの下が空かない）。
+      11px でも入らなければ true（呼んだ所が列に分ける・行を隠す） */
   function shrink(wrap, H) {
     const tbs = [...wrap.querySelectorAll("table")];
-    for (const fs of [14, 13, 12, 11.5, 11]) {
-      tbs.forEach((tb) => { tb.style.fontSize = fs + "px"; tb.style.setProperty("--dp-pad", fs >= 13 ? "5px 8px" : fs >= 12 ? "3px 7px" : "2px 6px"); });
-      if (wrap.scrollHeight <= H + 1) return false;
+    const set = (fs, pv) => tbs.forEach((tb) => { tb.style.fontSize = fs + "px"; tb.style.setProperty("--dp-pad", `${pv}px ${fs >= 13 ? 8 : 6}px`); });
+    for (const fs of [15, 14, 13, 12, 11.5, 11]) {
+      const pv = fs >= 14 ? 5 : fs >= 13 ? 4 : fs >= 12 ? 3 : 2;
+      set(fs, pv);
+      if (wrap.scrollHeight > H + 1) continue;
+      const rows = Math.max(...tbs.map((tb) => tb.rows.length)), spare = H - wrap.scrollHeight;
+      if (spare > rows * 2) { set(fs, pv + Math.min(9, Math.floor(spare / rows / 2))); if (wrap.scrollHeight > H + 1) set(fs, pv); }
+      return false;
     }
     return true;
   }
 
-  /** パネルの中身を描く → 下に出す知らせの字（描かなかった行など） */
-  function render(box, p, d, size) {
+  /** パネルの中身を描く（sub: 数字の形の下に出す添え書き〈期間・元〉）→ 下に出す知らせの字（描かなかった行など） */
+  function render(box, p, d, size, sub = "") {
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
-    if (p.visual === "kpi") { kpi(box, p, d, W, H); return ""; }
+    if (p.visual === "kpi") { kpi(box, p, d, W, H, sub); return ""; }
     if (p.visual === "none") return table(box, p, d, W, H);
     return chart(box, p, d, W, H);
   }
