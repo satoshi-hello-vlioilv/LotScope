@@ -373,12 +373,25 @@
     const ico = (x) => (x.icon && !C.get(x.k) ? `<svg class="pv-ico" viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="${x.icon}"/></svg>` : C.iconSvg(x.k, 17));
     const btn = (x) => `<button type="button" class="pv-cbtn${p.visual === x.k ? " on" : ""}" role="radio" aria-checked="${p.visual === x.k}" data-de-vis="${x.k}" title="${esc(x.tip || "")}">${ico(x)}<span>${esc(x.n)}</span></button>`;
     const rows = [["num", "数と表", EXTRA]].concat(C.GROUPS.filter(([g]) => g !== "table").map(([g, n]) => [g, n, C.DEFS.filter((x) => x.g === g)]));
-    const grid = `<div class="de-vis" role="radiogroup" aria-label="形">${rows.map(([g, n, xs]) => `<div class="de-vrow"><span class="de-vg">${esc(n)}</span><span class="de-vi">${xs.map(btn).join("")}</span></div>`).join("")}</div>`;
-    if (!isBoard()) return grid;
+    const grid = `<div class="de-vis" role="radiogroup" aria-label="形" data-open="${formOpen}">${rows.map(([g, n, xs]) => `<div class="de-vrow"><span class="de-vg">${esc(n)}</span><span class="de-vi">${xs.map(btn).join("")}</span></div>`).join("")}</div>`;
+    if (!isBoard()) {
+      // 向く形の行（版 3.39.0）: 選んだ形と、いまの組み方（行・列・値）に向く形を名前つきで 4 つまで。全部の形は「すべての形…」で開く
+      const f = fitInfo(), all = EXTRA.concat(C.DEFS.filter((x) => x.k !== "none"));
+      const cur = all.find((x) => x.k === p.visual), fit = all.filter((x) => x.k !== p.visual && x.k !== "board" && (x.fit ? !x.fit(f) : x.k === "none" ? f.rows : !f.rows)).slice(0, 4);
+      const row = `<div class="de-vfit"><span class="de-l">形</span>${cur ? btn(cur) : ""}${fit.length ? `<span class="de-vfn">向く形</span>${fit.map(btn).join("")}` : ""}`
+        + `<button type="button" class="pv-btn de-vall" data-de-formmore aria-expanded="${formOpen}">${formOpen ? "閉じる" : `すべての形（${all.length}）…`}</button></div>`;
+      return row + grid;
+    }
     const me = EXTRA.find((x) => x.k === "board");
     return `<div class="de-row de-form"><span class="de-l">形</span><span class="pv-cbtn on de-formcard" title="${esc(me.tip)}">${ico(me)}<span>${esc(me.n)}</span></span>`
       + `<button type="button" class="pv-btn" data-de-formmore aria-expanded="${formOpen}">${formOpen ? "閉じる" : "形を変える…"}</button><small class="de-hint">行をそろえて、データの数を横に並べる</small></div>`
       + (formOpen ? grid : "");
+  }
+  /** いまの組み方（形の登録 DEFS の fit に渡す形。一覧の集計表の fitInfo と同じ鍵） */
+  function fitInfo() {
+    const b = p.body || {}, r0 = (b.rows || [])[0], ms = b.measures && b.measures.length ? b.measures : [{ agg: "lots" }];
+    return { rows: (b.rows || []).length, cols: (b.cols || []).length, meas: ms.length, numMeas: ms.filter((m) => m.column && isNum(m.column)).length,
+      addMeas: ms.filter((m) => C.ADDITIVE.has(m.agg)).length, additive: C.ADDITIVE.has(ms[0].agg), time: !!r0 && C.isTimeDim(r0), bin: !!r0 && r0.part === "bin" };
   }
   function condHtml() {
     const cols = ((fields && fields.fields) || []).filter((f) => !f.error).map((f) => f.column);

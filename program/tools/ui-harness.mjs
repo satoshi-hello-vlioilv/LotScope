@@ -306,7 +306,11 @@ export const STATES = [
     await p.click("[data-de-cancel]"); await sleep(400);
     await p.focus('#dashGrid .db-p[data-id="workDays"]'); await p.keyboard.press("Enter");
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
-    await p.evaluate(() => { document.dispatchEvent(new CustomEvent("tpa-show-fmt")); document.querySelector("#deFmt")?.scrollIntoView({ block: "center" }); }); await sleep(500);
+    // 組む所の中だけを送る（scrollIntoView は外の枠まで送り、組む所の見出し〈やめる・当てる〉が窓の上に出ていた: 2026-10-dashmore の 1 回目の採点）
+    await p.evaluate(() => { document.dispatchEvent(new CustomEvent("tpa-show-fmt"));
+      const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deFmt");
+      if (m && f && f.offsetParent) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 120);
+      window.scrollTo(0, 0); }); await sleep(500);
   }, "[data-next], [data-de-apply]"],
   // 版 3.38.0: 合わせた表（設備ごとの仕掛と前日の実績）を組む所。表全体（行の段・並び・行の札）と、列のまとまり ②（前日の実績本数）
   ["dash-board", async (p) => {

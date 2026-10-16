@@ -375,3 +375,8 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .dp-kbar.is-row{flex-direction:row;align-items:center;gap:12px}
 .dp-kbar.is-row .dp-track{flex:1;min-width:40px}
 .dp-krate small{font-weight:600;color:var(--muted);font-size:12px;margin-left:2px}
+/* 向く形の行（版 3.39.0。置き方の案で出す。既定は出さない） */
+.de-vfit{display:none;align-items:center;gap:4px;flex-wrap:wrap}
+.de-vfit .pv-cbtn{flex:0 0 auto;padding:0 9px}
+.de-vfn{font-size:12px;color:var(--muted);margin:0 2px 0 8px}
+.de-vall{white-space:nowrap;margin-left:auto}
