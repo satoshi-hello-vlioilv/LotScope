@@ -13,7 +13,7 @@
 // 新しい案（4 つ）:
 //   H  S2＋段の見出しの右に、今の設定の要約（データ「仕掛・すべての設備」・形「横棒」・見せ方「標準・書式は既定」）
 //   B  S2＋上に今の組みの要約の帯（1 行・押すとその段へ）
-//   W  S2＋書式を 2 列（左に数値・横軸・数の形・縦軸・凡例、右に基準線・色の組・系列の色）にして、送らずに見える所を増やす
+//   W  S2＋組む所を 880px に広げ、書式を 2 列（左に数値・横軸・数の形・縦軸・凡例、右に基準線・色の組・系列の色）にして、送らずに見える所を増やす
 //   P  S2＋形の札を見本の絵つき（絵 24px・名前の 2 段の札）で、向く形を大きく
 
 let seq = 0;      // 同じ所に当てる仕掛けが 2 つあっても、それぞれ 1 回ずつ動くように印を分ける
@@ -48,7 +48,8 @@ const reorder = watch("#dbEditor .de-main", `(m) => {
   ["#deData", "#deSent", "#deCond", "#deSort", "#deVis", "#deBoard", "#deLook", "#deFmt", "#deGacts", "#deMsg"].forEach((s) => { const el = m.querySelector(s); if (el) m.append(el); });
 }`);
 const stepHeads = heads([["#deData", "<i>1</i>データ<small>何を数えるか</small>"], ["#deSent", "<i>2</i>数え方<small>行・列・値・期間・条件</small>"], ["#deVis", "<i>3</i>形<small>どう描くか</small>"], ["#deLook", "<i>4</i>見せ方・書式<small>枠・数値・軸・色</small>"]]);
-const S2css = sentence + fitRow + headCss;
+const S2css = sentence + fitRow + headCss + `
+#dbEditor .de-vfit > .de-l{display:none}`;      // 段の見出し「3 形」があるので、行の頭の「形」は重ねない
 const S2ops = [reorder, stepHeads];
 
 // 今の設定の要約（データ・数え方・形・見せ方と書式）を、組む所の画面から読む（H の見出し・B の帯・T2 のタブで使う）
@@ -91,14 +92,21 @@ const B = {
 };
 // W: 書式を 2 列（基準線・色の組・系列の色を右へ）
 const W = `
-#dbEditor .de-fmt{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 14px;align-items:start}
+#dbEditor{width:880px}
+#dbEditor .de-fmt{display:grid;grid-template-columns:minmax(340px,1.3fr) minmax(0,1fr);gap:8px 14px;align-items:start}
+#dbEditor .de-fmt .de-seg{padding:0 7px;white-space:nowrap}
+#dbEditor .de-fmt .de-segs{flex:0 0 auto}
 #dbEditor .de-fmt > .de-row{grid-column:1}
-#dbEditor .de-fmt > .de-row.de-top{grid-column:2;grid-row:auto}
-#dbEditor .de-fmt > .de-row.de-top:nth-last-child(3){grid-row:1 / span 2}
-#dbEditor .de-fmt > .de-row.de-top:nth-last-child(2){grid-row:3 / span 2}
+#dbEditor .de-fmt > .de-row.de-top{grid-column:2;flex-direction:column;align-items:stretch;gap:4px}
+#dbEditor .de-fmt > .de-row.de-top > .de-l{width:auto;flex:0 0 auto}
+#dbEditor .de-fmt > .de-row.de-top:nth-last-child(3){grid-row:1}
+#dbEditor .de-fmt > .de-row.de-top:nth-last-child(2){grid-row:2 / span 3}
 #dbEditor .de-fmt > .de-row.de-top:nth-last-child(1){grid-row:5 / span 2}
-#dbEditor .de-fmt .de-row{flex-wrap:wrap}
-#dbEditor .de-fmt .de-scols{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+#dbEditor .de-fmt .de-pals{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+#dbEditor .de-fmt .de-pal{padding:0 6px;font-size:12px;white-space:nowrap;overflow:hidden}
+#dbEditor .de-fmt .de-pal span i{width:6px}
+#dbEditor .de-fmt .de-scols{grid-template-columns:1fr 1fr}
+#dbEditor .de-fmt .de-refs .pv-btn{white-space:nowrap}
 #dbEditor .de-fmt .de-l2{margin-left:0}`;
 // P: 形の札を見本の絵つき（大きめ）で、向く形を 6 つまで（組む所の行の札を大きく見せる。7 つ目以降は CSS で隠す）
 const P = `
@@ -135,6 +143,6 @@ export const PROPOSALS = [
   { key: "T2", name: "T を直した物（3 つのタブに今の設定の要約・向く形の札・文は 2 行）", css: sentence + fitRow + T2.css, ops: [T2.op] },
   { key: "H", name: "S2＋段の見出しの右に今の設定の要約", css: S2css + H.css, ops: [...S2ops, H.op] },
   { key: "B", name: "S2＋上に今の組みの要約の帯（押すとその段へ）", css: S2css + B.css, ops: [...S2ops, B.op] },
-  { key: "W", name: "S2＋書式を 2 列（右に基準線・色の組・系列の色）", css: S2css + W, ops: S2ops },
+  { key: "W", name: "S2＋組む所を広げて書式を 2 列（右に基準線・色の組・系列の色）", css: S2css + W, ops: S2ops },
   { key: "P", name: "S2＋形の札を見本の絵つき（大きめ）", css: S2css + P, ops: S2ops },
 ];
