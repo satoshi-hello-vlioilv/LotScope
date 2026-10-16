@@ -885,6 +885,17 @@
     describe: (fn) => { describeTarget = fn; },
     /** 共有の書式（lotlist-formats.js）: 対象 t の保存した列の設定（触っている途中は入れない）と、その置き換え */
     layoutOf: (t) => norm(saved[t]),
+    /** ダッシュボード（版 3.38.0）: 保存した列の設定のうち match(対象) に当たる物の式と表示名を合わせる（先に見つけた方。作業実績は設備ごとの設定）。
+        → {formulas: {列名: 式}, names: {元の列名: 表示名}}。計算列（表に無い列の式）を、サーバーが画面と同じに計算するため */
+    formulaContext(match) {
+      const out = { formulas: {}, names: {} };
+      Object.keys(saved).filter(match).sort().forEach((t) => {
+        const l = norm(saved[t]);
+        Object.entries(l.formulas).forEach(([c, f]) => { if (String(f || "").trim() && !(c in out.formulas)) out.formulas[c] = String(f); });
+        Object.entries(l.names).forEach(([c, n]) => { if (n && !(c in out.names)) out.names[c] = n; });
+      });
+      return out;
+    },
     replaceLayout: (t, l) => { saved[t] = norm(l); delete draft[t]; delete live[t]; writeSaved(); },
     // テスト・評価用
     _formatValue: formatValue, _parseDateTime: parseDateTime,

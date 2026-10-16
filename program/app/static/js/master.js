@@ -1435,14 +1435,27 @@ async function distributeRelease(version, d) {
 /* 推奨アップデートの札（版 3.35.0）。配っている版にだけ付け、理由を 1 行添える（各 PC の知らせに出る）。
    札は配る版の覚え（distribute.json）に書き、配る版を変えると外れる（新しい版は、改めて推奨にするかを決める） */
 const REC_NOTE_MAX = 120;
+/* 理由は、各 PC の一覧の上に出る知らせと同じ帯の形の中で書く（書いた物がそのまま見え方。2026-10-recask の 3 回目で決めた P2）。
+   帯は配っている版の行の下に 1 段で足す（表の最後の列に欄を入れると、狭い窓でボタンが表の外へ出た）。開いたら次の行まで見せる */
 function askRecommend(cell, version) {
-  cell.innerHTML = `<span class="dz-rec-ask"><input type="text" class="ps-input" maxlength="${REC_NOTE_MAX}" placeholder="理由（各 PC の知らせに出ます。例: 〇〇の不具合を直しました）">
-    <button type="button" class="pz-btn dz-go" data-rec-put>推奨にする</button><button type="button" class="pz-btn" data-rec-cancel>やめる</button></span>`;
-  const input = cell.querySelector("input"), put = () => setRecommended(version, true, input.value);
+  const tr = cell.closest("tr"), tbody = tr.parentElement;
+  tbody.querySelectorAll(".dz-rec-row").forEach((r) => r.remove());
+  tr.classList.add("is-asking");
+  cell.innerHTML = '<span class="dz-rec-wait">↓ 帯に理由を書く</span>';
+  const row = document.createElement("tr");
+  row.className = "dz-rec-row";
+  row.innerHTML = `<td colspan="${tr.children.length}"><div class="dz-rec-band"><em class="rec-ic" aria-hidden="true">↻</em><b>推奨アップデート ${escapeHtml(version)}</b>
+    <span class="dz-rec-ask"><input type="text" class="ps-input" maxlength="${REC_NOTE_MAX}" aria-label="推奨にする理由" placeholder="理由（例: 〇〇の不具合を直しました）">
+    <button type="button" class="pz-btn dz-go" data-rec-put>推奨にする</button><button type="button" class="pz-btn" data-rec-cancel>やめる</button></span></div>
+    <small class="dz-rec-cap">各 PC の一覧の上に、この帯で出ます（Enter で推奨にする・Esc でやめる）</small></td>`;
+  tr.after(row);
+  const input = row.querySelector("input"), put = () => setRecommended(version, true, input.value);
   input.focus();
-  input.onkeydown = (e) => { if (e.key === "Enter") put(); else if (e.key === "Escape") renderRelease(); };
-  cell.querySelector("[data-rec-put]").onclick = put;
-  cell.querySelector("[data-rec-cancel]").onclick = () => renderRelease();
+  requestAnimationFrame(() => (row.nextElementSibling || row).scrollIntoView({ block: "nearest" }));
+  // Esc は欄をやめるだけ（マスタ管理の窓まで閉じない）
+  input.onkeydown = (e) => { if (e.key === "Enter") put(); else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); renderRelease(); } };
+  row.querySelector("[data-rec-put]").onclick = put;
+  row.querySelector("[data-rec-cancel]").onclick = () => renderRelease();
 }
 async function setRecommended(version, on, note) {
   const r = await masterRequest("/__desktop/release/recommend", TPA.json("POST", { version, on, note }));

@@ -7,13 +7,12 @@
 利用者の PC を真似る: 作業場所（TRANSFER_LOCAL_ROOT）はまっさら、配る形は共有を真似たフォルダ、更新の置き場は BOX を真似たフォルダ。
 窓は自己診断（TPA_SELFTEST）で起こし、結果のファイル（selftest.js が更新の係の状態と、動いている exe・program を添える）を読む。
 
-  1. 共有の exe を開く → この PC の app へ写り、版ごとの写しの窓で開く。使っている間に置き場の次の版（+1）を取り込む（ready）
+  1. 共有の exe を開く → この PC の app へ写り、版ごとの写しの窓で開く。使っている間に置き場の次の版（+1）を取り込む（ready）。置き場を控える
   2. app の exe（ショートカットの行き先）を開く → 起動の最初に +1 へ入れ替わり、その版で開く。直前の版は控えに
-  3. 起動できない版（+2）を置いて開く → 使っている間に取り込む
-  4. もう一度開く → +2 へ入れ替えるが起動できず、控え（+1）へ戻して開き直す。+2 には印が付き、もう取り込まない
-  5. 配る版を前の版（distribute.json）に戻す → 使っている間に戻す向きで取り込み、配る版を作業場所に覚える（want.json）
-  6. 開き直すと配る版になる
-  7. 新しい PC（まっさらな作業場所）が配る入口を開くだけで、配る版をこの PC へ入れて開き、入口の置き場を控える
+  3. 閉じている間に次の版（+2）を置く → ショートカットから 1 回開くだけで +2 になる（起動の最初に取り込んで入れ替える・版 3.38.0）
+  4. 閉じている間に起動できない版（+3）を置いて 1 回開く → +3 へ入れ替えるが起動できず、控え（+2）へ戻して開き直す。+3 には印が付き、もう取り込まない
+  5. 配る版を前の版（+1。distribute.json）に戻す → 1 回開くだけで配る版になり、配る版を作業場所に覚える（want.json）
+  6. 新しい PC（まっさらな作業場所）が配る入口を開くだけで、配る版をこの PC へ入れて開き、入口の置き場を控える
   ショートカット: 無ければ画面が尋ねる・共有を指すショートカットは次の起動でこの PC の app（作業フォルダも）に直す
   あわせて: 共有の配る形は 1 ファイルも変わらない・終わったあと Python が残らない。
 """
@@ -207,46 +206,48 @@ def update(exe: Path, work: Path) -> bool:
     ok &= check(bool(got) and same(got[0], app / b["exe"]) and same(got[1], app),
                 "2. 共有を指していたショートカットを、この PC の app（作業フォルダも app）に直した", got)
 
-    # 3. 起動できない版を置き、使っている間に取り込ませる
-    place(Path(built["stage"]), v2, rel_root, broken=True)
-    r = run.open(app / b["exe"], "stage-broken")
-    upd = r.get("update") or {}
-    ok &= check(r.get("ok") is True and upd.get("ready") == v2, f"3. {v2} を取り込んだ（まだ {v1} で動く）", json.dumps(upd, ensure_ascii=False)[:300])
+    ok &= check((local / "update" / "source.json").is_file(), "2. 更新の置き場を控えた（次の起動の最初に、中身を起こす前に確かめる）")
 
-    # 4. 開く → 入れ替えるが起動できず、控えへ戻して開き直す
+    # 3. 閉じている間に次の版を置く → ショートカットから 1 回開くだけで入れ替わる（要望 2026-10: 以前は 2 回開く必要があった）
+    v3 = bump(v0, 3)
+    place(Path(built["stage"]), v2, rel_root)
+    r = run.open(app / b["exe"], "closed-new")
+    info, upd = r.get("info") or {}, r.get("update") or {}
+    ok &= check(r.get("ok") is True and info.get("version") == v2, f"3. 閉じている間に置いた {v2} に、1 回の起動で入れ替わった", info.get("version"))
+    ok &= check(upd.get("state") == "latest", "3. 開いたあとは置き場の最新を使っている", upd.get("state"))
+
+    # 4. 閉じている間に起動できない版を置いて 1 回開く → 入れ替えるが起動できず、控えへ戻して開き直す
+    place(Path(built["stage"]), v3, rel_root, broken=True)
     r = run.open(app / b["exe"], "revert")
     info, upd = r.get("info") or {}, r.get("update") or {}
-    ok &= check(r.get("ok") is True and info.get("version") == v1, f"4. {v2} は起動できず、{v1} に戻して開き直した", info.get("version"))
+    ok &= check(r.get("ok") is True and info.get("version") == v2, f"4. {v3} は起動できず、{v2} に戻して開き直した", info.get("version"))
     failed = json.loads((local / "update" / "FAILED.json").read_text(encoding="utf-8")).get("versions", []) if (local / "update" / "FAILED.json").exists() else []
-    ok &= check(failed == [v2], f"4. {v2} に起動できなかった印", failed)
-    ok &= check(upd.get("state") == "latest" and v2 in (upd.get("failed") or []), "4. 起動できなかった版はもう取り込まない", json.dumps(upd, ensure_ascii=False)[:300])
+    ok &= check(failed == [v3], f"4. {v3} に起動できなかった印", failed)
+    ok &= check(upd.get("state") == "latest" and v3 in (upd.get("failed") or []), "4. 起動できなかった版はもう取り込まない", json.dumps(upd, ensure_ascii=False)[:300])
 
-    # 5. 配る版を前の版（v0）に戻す → 使っている間に取り込み（戻す向き）、配る版を作業場所に覚える
+    # 5. 配る版を前の版（v1）に戻す → 1 回開くだけで配る版になり、配る版を作業場所に覚える
     (rel_root / b["name"] / "distribute.json").write_text(json.dumps(
-        {"schema": 1, "app_id": b["app_id"], "version": v0, "entry": b["exe"], "setAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
-         "setBy": "verify", "setPc": "verify", "previous": v1}, ensure_ascii=False), encoding="utf-8")
+        {"schema": 1, "app_id": b["app_id"], "version": v1, "entry": b["exe"], "setAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+         "setBy": "verify", "setPc": "verify", "previous": v2}, ensure_ascii=False), encoding="utf-8")
     r = run.open(app / b["exe"], "distribute-down")
-    upd = r.get("update") or {}
+    info, upd = r.get("info") or {}, r.get("update") or {}
     want = json.loads((local / "want.json").read_text(encoding="utf-8")) if (local / "want.json").exists() else {}
-    ok &= check(r.get("ok") is True and upd.get("ready") == v0 and upd.get("direction") == "down", f"5. 配る版 {v0} を戻す向きで取り込んだ",
-                json.dumps(upd, ensure_ascii=False)[:300])
-    ok &= check(want.get("version") == v0, "5. 配る版を作業場所に覚えた（Python の利用状況が最新版に使う）", want)
-    r = run.open(app / b["exe"], "distribute-open")
-    ok &= check(r.get("ok") is True and (r.get("info") or {}).get("version") == v0, f"6. 開き直すと配る版 {v0} になる",
-                (r.get("info") or {}).get("version"))
+    ok &= check(r.get("ok") is True and info.get("version") == v1, f"5. 配る版を {v1} に戻すと、1 回の起動でその版になる", info.get("version"))
+    ok &= check(want.get("version") == v1, "5. 配る版を作業場所に覚えた（Python の利用状況が最新版に使う）", want)
+    ok &= check(upd.get("state") == "latest", "5. 開いたあとは配る版を使っている", json.dumps(upd, ensure_ascii=False)[:300])
 
-    # 7. 新しい PC: 配る入口（置き場のアプリのフォルダの exe）を開くだけで、配る版を取り込んでこの PC で開く
+    # 6. 新しい PC: 配る入口（置き場のアプリのフォルダの exe）を開くだけで、配る版を取り込んでこの PC で開く
     entry = rel_root / b["name"] / b["exe"]
     shutil.copy2(share_exe, entry)
     local2 = work / "local-new-pc"
     run2 = Run(work, {**env, "TRANSFER_LOCAL_ROOT": str(local2), "TPA_LINK_DIRS": os.pathsep.join(str(work / "links2" / n) for n in ("Desktop", "Programs"))})
     r = run2.open(entry, "entry")
     info = r.get("info") or {}
-    ok &= check(r.get("ok") is True and info.get("version") == v0 and info.get("installed") is True,
-                f"7. 配る入口を開くと、配る版 {v0} をこの PC の app に入れて開く", json.dumps(info, ensure_ascii=False)[:300])
-    ok &= check(Path(info.get("program", "")).resolve() == (local2 / "app" / "program").resolve(), "7. 動くのはこの PC の app", info.get("program"))
+    ok &= check(r.get("ok") is True and info.get("version") == v1 and info.get("installed") is True,
+                f"6. 配る入口を開くと、配る版 {v1} をこの PC の app に入れて開く", json.dumps(info, ensure_ascii=False)[:300])
+    ok &= check(Path(info.get("program", "")).resolve() == (local2 / "app" / "program").resolve(), "6. 動くのはこの PC の app", info.get("program"))
     remembered = json.loads((local2 / "entry.json").read_text(encoding="utf-8")).get("dir") if (local2 / "entry.json").exists() else None
-    ok &= check(remembered and same(remembered, rel_root / b["name"]), "7. 入口の置き場を控えた（参照先の置き場が見えない PC でも更新が届く）", remembered)
+    ok &= check(remembered and same(remembered, rel_root / b["name"]), "6. 入口の置き場を控えた（参照先の置き場が見えない PC でも更新が届く）", remembered)
 
     ok &= check(tree_digest(share_app) == share_digest, "共有の配る形は 1 ファイルも変わらない")
     left = leftover_python(work)

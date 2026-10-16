@@ -285,7 +285,6 @@ export const STATES = [
   }, "[data-next], #verNew"],
   // ダッシュボード（版 3.37.0 からグリッドのパネル・最初の画面）: 組み込みの標準を見る所・1 枚の表の条件の面・編集・パネルを組む所（仕掛区分ごと）
   ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400); }, "[data-next], [data-db-editmode]"],
-  ["dash-cond", async (p) => { await p.click('[data-db-cond="wip"]'); await sleep(500); }, "[data-next], [data-db-condsave]"],
   ["dash-edit", async (p) => { await closeAll(p); await p.click("[data-db-editmode]"); await sleep(500); }, "[data-next], .db-cell"],
   ["dash-panel", async (p) => {
     // 組む: 見出しの「組む」（狭いパネルは「⋯」に畳まれるので、選んで Enter）
@@ -293,6 +292,14 @@ export const STATES = [
     if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="wipClass"]'); await p.keyboard.press("Enter"); }
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
   }, "[data-next], [data-de-apply]"],
+  // 版 3.38.0: 合わせた表（設備ごとの仕掛と前日の実績）を組む所。表全体（行の段・並び・行の札）と、列のまとまり ②（前日の実績本数）
+  ["dash-board", async (p) => {
+    await p.click("[data-de-cancel]"); await sleep(400);
+    const b = await p.$('#dashGrid .db-p[data-id="board"] [data-db-edit]');
+    if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="board"]'); await p.keyboard.press("Enter"); }
+    await p.waitForSelector("#deBoard .de-rowi[data-de-row]"); await waitDash(p); await sleep(400);
+  }, "[data-next], [data-de-apply]"],
+  ["dash-board-group", async (p) => { await p.click('[data-de-tab="1"]'); await p.waitForSelector("#deFields .pv-f"); await sleep(600); }, "[data-next], [data-de-apply]"],
   // 仕掛（データ元 wip。版 3.36.0）: 見出しの「仕掛」のタブで、異常ロット一覧と同じ部品の一覧
   ["wip", async (p) => { await closeAll(p); await p.click('[data-screen="src:wip"]'); await sleep(3000); }, "[data-next], #llSearch"],
   // 同じ知らせを作業実績の画面で（どの画面でも同じ所に出るか）
@@ -309,6 +316,13 @@ export const STATES = [
     await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)");
     await tab(p, "release"); await sleep(900);
   }, "[data-next], #masterSettings button"],
+  // 版 3.38.0: 配っている版（推奨の札なし）の「推奨にする…」を押し、理由を書いている所（要望: 札を付けるときに表がはみ出す）
+  ["master-release-recask", async (p) => {
+    await p.unroute(/\/__desktop\/release(\?|$)/);
+    await tab(p, "paths"); await sleep(300); await tab(p, "release"); await p.waitForSelector("[data-rec-on]"); await sleep(500);
+    await p.click("[data-rec-on]"); await sleep(300);
+    await p.fill(".dz-rec-ask input", "ほかの PC がマスタの置き場に追従しない不具合を直しました"); await sleep(300);
+  }, "[data-next], [data-rec-put]"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

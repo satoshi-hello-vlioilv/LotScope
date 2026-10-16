@@ -10,6 +10,8 @@
 // ⑥ 配布の画面: 配っている版に「推奨にする…」→ 理由を書いて「推奨にする」で /__desktop/release/recommend へ {version, on:true, note}。
 //    札が付いた版は「推奨」の札・②の札「推奨アップデート」・理由の行・「推奨を外す」（{on:false}）。両方のボタンは並ばない
 // ⑦ 1728×1152・1280×720 で、帯が 1 段（高さ 34px 以下）・ボタンの字が折れない・窓の外へはみ出さない
+// ⑧ 推奨にする理由を書く帯（版 3.38.0。要望「推奨マークを付けるときにはみ出る」。2026-10-recask の 3 回目で決めた P2）: 1728・1280 で、
+//    帯は配っている版の行の下に 1 段・欄とボタンが表の枠と窓の中・書いた理由が欄に収まる・下の行（前に配った版）が見える・Esc でやめる
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 
@@ -101,8 +103,8 @@ try {
     const plain = await look(page);
     check(`⑤ ${tag} 推奨の札が無ければ、帯は出ず、札はこれまでの「更新あり 3.13.0」`, !plain.shown && plain.chip === "更新あり 3.13.0" && !plain.chipRec, plain);
 
-    // ⑥ 配布の画面
-    if (view.width === 1728) {
+    // ⑥ 配布の画面（⑧ は両方の大きさ）
+    {
       let rec = null; const sent = [];
       await page.route(/\/__desktop\/release(\?|$)/, (route) => route.fulfill({ json: release(rec) }));
       await page.route("**/__desktop/release/recommend", async (route) => {
@@ -118,17 +120,37 @@ try {
           step: document.querySelectorAll("#masterSettings .dz-step")[1]?.textContent.replace(/\s+/g, " ") || "" };
       });
       const off = await row();
-      check("⑥ 札の無い配っている版に「推奨にする…」だけ（「推奨を外す」は並ばない）", JSON.stringify(off.acts) === JSON.stringify(["推奨にする…"]), off);
+      check(`⑥ ${tag} 札の無い配っている版に「推奨にする…」だけ（「推奨を外す」は並ばない）`, JSON.stringify(off.acts) === JSON.stringify(["推奨にする…"]), off);
+      await page.click("#masterSettings [data-rec-on]");
+      await page.fill("#masterSettings .dz-rec-ask input", NOTE); await sleep(300);
+      const band = await page.evaluate(() => {
+        const r = (el) => el.getBoundingClientRect(), wrap = r(document.querySelector("#masterSettings .pz-wrap"));
+        const row = document.querySelector("#masterSettings tr.dz-rec-row"), inp = row && row.querySelector("input");
+        const btns = row ? [...row.querySelectorAll("button")].map((b) => ({ t: b.textContent, ...JSON.parse(JSON.stringify(r(b))) })) : [];
+        const next = row && row.nextElementSibling;
+        let scroller = row && row.parentElement;
+        while (scroller && scroller !== document.body && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+        const sr = scroller ? r(scroller) : { top: 0, bottom: innerHeight };
+        return { after: !!row && row.previousElementSibling.classList.contains("is-live"), btns, wrapRight: wrap.right, wrapLeft: wrap.left,
+          fits: inp ? inp.scrollWidth <= inp.clientWidth + 1 : false, bandH: row ? r(row.querySelector(".dz-rec-band")).height : 0,
+          nextSeen: next ? r(next).bottom <= Math.min(innerHeight, sr.bottom) + 1 && r(next).top >= sr.top - 1 : true };
+      });
+      check(`⑧ ${tag} 理由の帯は配っている版の行の下に 1 段（高さ ${Math.round(band.bandH)}px）`, band.after && band.bandH > 0 && band.bandH <= 40, band);
+      check(`⑧ ${tag} 「推奨にする」「やめる」が表の枠と窓の中（切れない）`, band.btns.length === 2 && band.btns.every((b) => b.right <= band.wrapRight + 0.5 && b.left >= band.wrapLeft && b.right <= view.width), band);
+      check(`⑧ ${tag} 書いた理由が欄に収まる（頭が隠れない）`, band.fits, band);
+      check(`⑧ ${tag} 下の行（前に配った版）が見える`, band.nextSeen, band);
+      await page.keyboard.press("Escape"); await sleep(1200);
+      check(`⑧ ${tag} Esc でやめると帯が消える`, !(await page.$("#masterSettings tr.dz-rec-row")), "");
       await page.click("#masterSettings [data-rec-on]");
       await page.fill("#masterSettings .dz-rec-ask input", NOTE);
       await page.click("#masterSettings [data-rec-put]"); await sleep(1500);
-      check("⑥ 理由を書いて「推奨にする」→ {version, on:true, note} を送る", sent.length === 1 && sent[0].version === "3.13.0" && sent[0].on === true && sent[0].note === NOTE, sent);
+      check(`⑥ ${tag} 理由を書いて「推奨にする」→ {version, on:true, note} を送る`, sent.length === 1 && sent[0].version === "3.13.0" && sent[0].on === true && sent[0].note === NOTE, sent);
       const on = await row();
-      check("⑥ 付いた版に「推奨」の札・②に「推奨アップデート」と理由・「推奨を外す」だけ",
+      check(`⑥ ${tag} 付いた版に「推奨」の札・②に「推奨アップデート」と理由・「推奨を外す」だけ`,
         on.tags.includes("↻ 推奨") && /推奨アップデート/.test(on.step) && on.step.includes(NOTE) && JSON.stringify(on.acts) === JSON.stringify(["推奨を外す"]), on);
       await page.click("#masterSettings [data-rec-off]"); await sleep(1500);
       const removed = await row();
-      check("⑥ 「推奨を外す」→ {on:false} を送り、札が消える", sent.length === 2 && sent[1].on === false && !removed.tags.includes("↻ 推奨"), { sent, removed });
+      check(`⑥ ${tag} 「推奨を外す」→ {on:false} を送り、札が消える`, sent.length === 2 && sent[1].on === false && !removed.tags.includes("↻ 推奨"), { sent, removed });
     }
     check(`${tag} 頁の誤りが無い`, !errors.length, errors);
     await page.context().close();

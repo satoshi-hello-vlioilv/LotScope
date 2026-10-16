@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-"""ダッシュボード（services/dashboard.py）: 設備別の仕掛ロット数・前日（現場歴）の設備別（日＋直）の実績本数と、集計対象の条件（版 3.36.0）。
-版 3.37.0〜: ダッシュボードの組み（グリッドのパネル。共通デフォルト・共通・ID・標準）と、パネルの数（どのデータ元でも同じ集計 pivot.query_many）。"""
+"""ダッシュボード（services/dashboard.py）: ダッシュボードの組み（グリッドのパネル。共通デフォルト・共通・ID・標準）と、
+パネルの数（どのデータ元でも同じ集計 pivot.query_many）。版 3.38.0 から「設備ごとの仕掛と前日の実績」も汎用の合わせた表（visual board）。"""
 import json
 import os
 from collections import OrderedDict
@@ -8,17 +7,12 @@ from collections import OrderedDict
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings
-from ..repositories.master_store import MasterError
 from ..services import dashboard, data_sources, pivot, shifts, work_log
-from .common import base_rev, bp, can_write, error, find_row, master_call, master_repo
+from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
 from .presets import _gate, _who
 from .sources import src_plan
 from .worklog import worklog_plan
-
-
-class ConditionInvalid(MasterError):
-    kind, status = "invalid", 400
 
 
 def _fail(fail):
@@ -29,88 +23,9 @@ def _fail(fail):
 
 
 def _equipment_names(repo, wl_rows):
-    """設備の名前（作業実績の設備 → 設備マスタ）。仕掛の設備の列の値を、この名前で見分ける"""
-    names = [str(r.get("設備名") or "") for r in wl_rows] + [str(r.get("設備名") or "") for r in repo.equipment()]
-    return [n for n in names if n.strip()]
-
-
-def wip_panel(repo, wl_rows, cond):
-    settings = effective_settings(current_app)
-    src = data_sources.of_role(settings, repo.data_source_rows(), "仕掛")
-    head = {"source": {k: src.get(k) for k in ("key", "name", "place", "equipColumn", "equipMode", "screen")} if src else None, "condition": cond}
-    if not src:
-        return {**head, "error": "役割「仕掛」のデータ元がありません。「マスタ管理」の「データ元」で決めてください。", "kind": "unset"}
-    plan, fail = src_plan(src["key"])
-    if fail:
-        return {**head, **_fail(fail)}
-    try:
-        out = dashboard.wip_by_equipment(plan["path"], table=plan["table"], candidates=data_sources.TABLE_CANDIDATES,
-                                         equip_column=src["equipColumn"], equip_mode=src["equipMode"],
-                                         names=_equipment_names(repo, wl_rows), cond=cond)
-    except Exception as e:
-        return {**head, "error": str(e), "kind": "error"}
-    return {**head, **out, "mirror": plan["source"]}
-
-
-def work_panel(repo, wl_rows, cond):
-    pats = repo.shift_patterns()
-    now = current_app.config.get("DASHBOARD_NOW") or dashboard.now_local()   # 試験用のサーバーは試験データの日に合わせる
-    items = []
-    for row in work_log.ordered([r for r in wl_rows if str(r.get("表示") or "有") != "無"]):
-        name = str(row.get("設備名") or "")
-        pat = shifts.pattern_for(pats, name)
-        segs = pat["segments"] if pat else []
-        day = dashboard.yesterday_of(now, segs)
-        it = {"key": row.get("キー"), "equipment": name, "day": day, "pattern": pat["name"] if pat else ""}
-        plan, fail = worklog_plan(key=row.get("キー"), rows=wl_rows)
-        if fail:
-            items.append({**it, **_fail(fail)})
-            continue
-        try:
-            items.append({**it, **dashboard.works_on(plan["path"], day=day, segments=segs, table=plan["table"],
-                                                     candidates=work_log.TABLE_CANDIDATES, cond=cond), "mirror": plan["source"]})
-        except Exception as e:
-            items.append({**it, "error": str(e), "kind": "error"})
-    days = sorted({x["day"] for x in items})
-    # 条件の列の選び口: 読めた設備の列を合わせた物（設備で列が違っても選べる）。答えの設備ごとの列は外す（重いので）
-    cols = []
-    for x in items:
-        for c in x.pop("columns", []) or []:
-            if c not in cols:
-                cols.append(c)
-    return {"items": items, "days": days, "basis": "work", "condition": cond, "columns": cols}
-
-
-@bp.get("/api/dashboard")
-def dashboard_get():
-    """2 つのパネル（仕掛・前日の実績）を 1 回で。part=wip|work で片方だけ。"""
-    repo = master_repo()
-    rows = repo.dashboard_rows()
-    wl_rows = repo.work_logs()
-    part = request.args.get("part", "")
-    st = current_app.config["MASTER_STORE"]
-    out = {"canEdit": can_write(dashboard.NAME), "shared": st.is_shared(dashboard.NAME)}
-    if part in ("", "wip"):
-        out["wip"] = wip_panel(repo, wl_rows, dashboard.condition_of(rows, "wip"))
-    if part in ("", "work"):
-        out["work"] = work_panel(repo, wl_rows, dashboard.condition_of(rows, "work"))
-    return jsonify(out)
-
-
-@bp.put("/api/dashboard/<panel>")
-def dashboard_put(panel):
-    """そのパネルの集計対象の条件を置く（全員で 1 つ）。本文 {filters, search, base_rev}。"""
-    if panel not in dashboard.PANELS:
-        return error("知らないパネルです。", 404)
-    body = request.get_json(silent=True) or {}
-
-    def run():
-        try:
-            cond = dashboard.clean_condition(body)
-        except (ValueError, TypeError) as e:
-            raise ConditionInvalid(str(e)) from None
-        return {"row": master_repo().dashboard_put(panel, cond, base_rev())}
-    return master_call(run)
+    """設備の名前（作業実績の設備 → 設備マスタ）。データ元の設備の列の値を、この名前で見分ける。並びは合わせた表の「設備の並び」"""
+    names = [str(r.get("設備名") or "") for r in work_log.ordered(wl_rows)] + [str(r.get("設備名") or "") for r in repo.equipment()]
+    return list(dict.fromkeys(n for n in names if n.strip()))
 
 
 # ================================================================== ダッシュボードの組み（版 3.37.0）
@@ -126,6 +41,9 @@ def dashboards_list():
     std = dashboard.pivot_presets.standard_for(rows, dashboard.LAYOUT_SOURCE, login)
     items = sorted((dashboard.layout_view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
     items += dashboard.builtin_layouts()
+    legacy = master_repo().dashboard_rows()       # 版 3.36.0 の 1 枚の表の条件（前の版で保存した 1 枚の表へ引き継ぐ）
+    for x in items:
+        dashboard.with_legacy_conditions(x["body"], legacy)
     return jsonify(items=items, login=login, canEditCommon=common_ok, canEditDefault=default_ok,
                    standardId=std.get("id") if std else items[-1]["id"], cols=dashboard.GRID_COLS,
                    rowsRange=[dashboard.ROWS_MIN, dashboard.ROWS_MAX])
@@ -262,22 +180,13 @@ def _file_sig(path):
         return [str(path), 0, 0]
 
 
-@bp.post("/api/dashboard/query")
-def dashboard_query():
-    """1 枚のパネルの数（本文 {panel}）。答えは集計表と同じ形（pivot.query）に、元の名前・写しの様子・読めなかった設備を足す。
-    同じ組み・同じ写し・同じ「今日」なら前の答えを返す（パネルは 1 分ごとに引き直すため）。"""
-    body = request.get_json(silent=True) or {}
-    try:
-        p = dashboard.clean_panel(body.get("panel") or {}, 0, dashboard.ROWS_MAX)
-    except dashboard.LayoutError as e:
-        return error(str(e), 400)
-    if p["visual"] == "board":
-        return error("この形は /api/dashboard が答えます。", 400)
+def _answer(p, now):
+    """1 つの組み（パネルか、合わせた表の列のまとまり）の数 → 答え（集計表と同じ形に、元の名前・写しの様子・読めなかった設備）。
+    数えられなければ {error, kind, status}。同じ組み・同じ写し・同じ「今日」なら前の答え（パネルは 1 分ごとに引き直すため）"""
     try:
         parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"])
     except _Fail as f:
-        return f.resp
-    now = _now()
+        return _fail(f.resp)
     stamp = now.strftime("%Y-%m-%d %H:%M:%S")
     days = [x.work["clock"].place(stamp, x.work["basis"])[0] if x.work else "" for x in parts]
     key = json.dumps([p, [_file_sig(x.path) for x in parts], days, now.date().isoformat(), [f["name"] for f in failed]], ensure_ascii=False, sort_keys=True)
@@ -288,24 +197,47 @@ def dashboard_query():
         try:
             hit = pivot.query_many(parts, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False),
                                    rows=json.dumps(b["rows"], ensure_ascii=False), cols=json.dumps(b["cols"], ensure_ascii=False),
-                                   measures=json.dumps(b["measures"], ensure_ascii=False), today=now.date(), period=p["period"], now=now)
+                                   measures=json.dumps(b["measures"], ensure_ascii=False), today=now.date(), period=p["period"], now=now,
+                                   calc=p.get("calc"))
         except pivot.PivotError as e:
-            return error(str(e), 400, "invalid")
+            return {"error": str(e), "kind": "invalid", "status": 400}
         except Exception as e:
-            return error(str(e), 503, "error")
+            return {"error": str(e), "kind": "error", "status": 503}
         cache[key] = hit
         while len(cache) > 96:
             cache.popitem(last=False)
     else:
         cache.move_to_end(key)
-    return jsonify({**hit, "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp})
+    return {**hit, "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp}
 
 
-@bp.get("/api/dashboard/fields")
+@bp.post("/api/dashboard/query")
+def dashboard_query():
+    """1 枚のパネルの数（本文 {panel}）。答えは集計表と同じ形（pivot.query）。
+    合わせた表（visual board）は {groups: [列のまとまりごとの答え（数えられなければ {error, kind}）], equipOrder: 設備の並び, now}"""
+    body = request.get_json(silent=True) or {}
+    try:
+        p = dashboard.clean_panel(body.get("panel") or {}, 0, dashboard.ROWS_MAX)
+    except dashboard.LayoutError as e:
+        return error(str(e), 400)
+    now = _now()
+    if p["visual"] == "board":
+        repo = master_repo()
+        groups = [_answer(dashboard.board_query(p, i), now) for i in range(len(p["groups"]))]
+        return jsonify(groups=groups, equipOrder=_equipment_names(repo, repo.work_logs()), now=now.strftime("%Y-%m-%d %H:%M:%S"))
+    a = _answer(p, now)
+    if "status" in a and "cells" not in a:
+        return error(a["error"], a["status"], a["kind"])
+    return jsonify(a)
+
+
+@bp.route("/api/dashboard/fields", methods=["GET", "POST"])
 def dashboard_fields():
     """パネルを組む所の左のカラムの札（source・equip）: 列ごとの手がかり（種類の数・数・日付）と、特別な段（設備・作業日・直）。
-    作業実績のすべての設備は、読めた設備の列を合わせる（設備で列が違っても選べる）。"""
-    a = request.args
+    作業実績のすべての設備は、読めた設備の列を合わせる（設備で列が違っても選べる）。
+    POST {source, equip, calc}（版 3.38.0）: 計算列（一覧の表示列の設定の式）も同じ手がかりで後ろに並べる（calc: true）"""
+    a = (request.get_json(silent=True) or {}) if request.method == "POST" else request.args
+    calc = dashboard.clean_calc(a.get("calc")) if request.method == "POST" else None
     try:
         parts, failed, name, _ = panel_parts(a.get("source", ""), a.get("equip", ""))
     except _Fail as f:
@@ -313,7 +245,7 @@ def dashboard_fields():
     merged, order, table = {}, [], ""
     for x in parts[:12]:
         try:
-            d = pivot.fields(x.path, preferred_table=x.preferred_table, table_candidates=x.table_candidates)
+            d = pivot.fields(x.path, preferred_table=x.preferred_table, table_candidates=x.table_candidates, calc=calc)
         except Exception as e:
             failed.append({"name": x.name, "error": str(e), "kind": "error"})
             continue
@@ -325,6 +257,8 @@ def dashboard_fields():
                 order.append(f["column"])
             else:
                 m.update(kinds=max(m["kinds"], f["kinds"]), many=m["many"] or f["many"], numeric=m["numeric"] and f["numeric"], date=m["date"] or f["date"])
+                if m.get("error") and not f.get("error"):
+                    m.pop("error")
     special = []
     if all(x.equip for x in parts):
         col = parts[0].equip.get("column")

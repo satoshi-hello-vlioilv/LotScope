@@ -1,5 +1,5 @@
 /* =========================================================================
-   転写距離・ピッチ解析  UI
+   LotScope（仕掛・作業実績・品質の見える化）  UI
    設計方針
    - 情報アーキテクチャ : 左=操作/条件・基本情報・結果、右=データ(ワークシート)。
                           切替はタブ2つに絞り、詳細列は「列表示」で必要な時だけ開く
@@ -78,12 +78,14 @@ button,input,select,textarea{font-family:inherit}
 header,.master-head,.lc-head{background:linear-gradient(110deg,#1c3550,#2b5f79)}
 header{height:var(--header-h);padding:0 18px;
   color:var(--on-fill);display:flex;align-items:center;justify-content:space-between;flex:0 0 auto}
-.brand{flex:none}   /* 題は縮めない（版の札・知らせの札が題の字に重ならない。版 3.36.0） */
-.brand .eyebrow{font-size:10px;letter-spacing:.22em;white-space:nowrap}
-/* 淡くするのは題の字と版の札だけ（知らせの札〈更新あり・推奨〉は淡くしない: 紺の上で読めるように・版 3.35.0） */
-.brand .eyebrow .eb-text,.brand .eyebrow .ver-badge{opacity:.7}
-.brand h1{font-size:var(--fs-xl);margin:0;font-weight:700;letter-spacing:.02em;display:flex;align-items:baseline;gap:10px;white-space:nowrap}
-.brand h1 .brand-sub{font-size:var(--fs-sm);font-weight:500;letter-spacing:.04em;opacity:.78}
+/* 題は縮めない（版の札・知らせの札が題の字に重ならない。版 3.36.0）。1 段目＝名前と版の札・2 段目＝副題（版 3.38.0。2026-10-subtitle の S3c） */
+.brand{flex:none;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.brand .brand-r1{display:flex;align-items:center;gap:8px}
+.brand .eyebrow{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.06em;white-space:nowrap}
+/* 淡くするのは版の札だけ（知らせの札〈更新あり・推奨〉は淡くしない: 紺の上で読めるように・版 3.35.0） */
+.brand .eyebrow .ver-badge{opacity:.7}
+.brand h1{font-size:var(--fs-xl);margin:0;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.brand .brand-sub{font-size:12px;font-weight:500;letter-spacing:.04em;opacity:.78;line-height:1.2;white-space:nowrap}
 .header-right{display:flex;align-items:center;gap:8px}
 .pill{font-size:var(--fs-sm);padding:4px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.3);white-space:nowrap}
 .pill.conn-ok{background:rgba(31,122,77,.28);border-color:rgba(120,220,170,.55)}
@@ -110,10 +112,11 @@ header{height:var(--header-h);padding:0 18px;
 .btn-ghost.on-dark{height:32px;border-color:var(--on-dark-line);color:var(--on-fill);background:var(--on-dark-fill)}
 .btn-ghost.on-dark:hover{background:var(--on-dark-hover)}
 /* 狭い窓（フル HD・150% の 1280 など。版 3.32.0。決め方: ui-proposals/2026-10-narrow*）: 見出し帯を 1 段に収める。言葉は変えず、
-   飾りの字（QUALITY ANALYSIS・副題・「データ元:」の前置き）を畳む。版の札（押すと更新履歴）・ボタンはそのまま。全部は説明（title）に */
+   飾りの字（副題・「データ元:」の前置き）を畳み、版の札は名前の上へ（名前の右に並べると帯の右の「終了」が窓の外へ出る）。全部は説明（title）に */
 @media (max-width:1440px){
   header{padding:0 12px}
-  .brand .eyebrow .eb-text,.brand h1 .brand-sub,.hstat .mb-key{display:none}
+  .brand .brand-r1{flex-direction:column-reverse;align-items:flex-start;gap:0}
+  .brand .brand-sub,.hstat .mb-key{display:none}
   .brand .ver-badge{margin-left:0}
 }
 
@@ -501,7 +504,7 @@ td.edit select.auto{appearance:none;-webkit-appearance:none;padding-right:24px}
 .x-label.cand-list{background:rgba(255,255,255,.95);color:var(--h-pitch);font-weight:600;white-space:normal;max-width:520px;text-align:center}
 
 /* ---------- 版・自分の権限・切断（WaveLog から移した管理） ---------- */
-.ver-badge{margin-left:8px;border:1px solid rgba(255,255,255,.35);background:var(--on-dark-fill);color:#dfe9f2;border-radius:4px;
+.ver-badge{margin-left:0;border:1px solid rgba(255,255,255,.35);background:var(--on-dark-fill);color:#dfe9f2;border-radius:4px;
   font:700 10px/1 "Segoe UI",sans-serif;letter-spacing:.06em;padding:2px 6px;cursor:pointer;vertical-align:1px}
 .ver-badge:hover{background:var(--on-dark-hover)}
 .ver-new{margin-left:4px;border:0;background:var(--accent);color:var(--accent-ink);border-radius:4px;font:700 10px/1 "Segoe UI","Yu Gothic UI",sans-serif;

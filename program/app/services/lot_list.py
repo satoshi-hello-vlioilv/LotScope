@@ -90,7 +90,8 @@ def lot_column(cs, candidates=LOT_COLUMN_CANDIDATES):
     return ""
 
 
-def safe_filters(text, cs):
+def safe_filters(text, cs, calc=()):
+    """calc … 計算列の名前（版 3.38.0。ダッシュボード。式は呼ぶ所が SQL の式にして build_filter_where の exprs で渡す）"""
     if not text:
         return []
     try:
@@ -111,7 +112,7 @@ def safe_filters(text, cs):
             if cols:
                 out.append({"column": col, "op": op, "value": val, "columns": cols})
             continue
-        if col in cs and op in ALLOWED_OPS:
+        if (col in cs or col in calc) and op in ALLOWED_OPS:
             f = {"column": col, "op": op, "value": val}
             if op == "in":
                 f["key"] = slice_key_kind(it.get("key"))
@@ -148,10 +149,11 @@ def slice_key_kind(v):
     return k if k in SORT_KEYS else ""
 
 
-def slice_key(col, key=""):
+def slice_key(col, key="", expr=None):
     """スライサーの値（見えている値）の式。前後の空白を除き、空は NULL。
-    日付だけ・年月・年で見せている列は、日付と読める値をその形に（時刻が違っても同じ日は 1 つ）。読めない値はそのまま。"""
-    q = qi(col)
+    日付だけ・年月・年で見せている列は、日付と読める値をその形に（時刻が違っても同じ日は 1 つ）。読めない値はそのまま。
+    expr … 列の代わりの SQL の式（計算列）"""
+    q = expr or qi(col)
     plain = f"NULLIF(TRIM(CStr({q})), '')"
     if key in SORT_KEYS:
         head = {"date": f"ToDate({q})", "month": f"SUBSTR(ToDate({q}), 1, 7)", "year": f"SUBSTR(ToDate({q}), 1, 4)"}[key]
@@ -259,21 +261,23 @@ def date_hints(conn, table, filters, today=None):
     return out
 
 
-def search_filter_where(cs, search="", filters="", today=None):
-    """一覧・スライサー・ピボット集計に共通の絞り込み（検索＋条件）→ (WHERE の式の並び, 値の並び)。条件は safe_filters を通す"""
+def search_filter_where(cs, search="", filters="", today=None, exprs=None):
+    """一覧・スライサー・ピボット集計に共通の絞り込み（検索＋条件）→ (WHERE の式の並び, 値の並び)。条件は safe_filters を通す。
+    exprs … 計算列の名前 → SQL の式（版 3.38.0。条件に使える。検索は表の列だけ＝一覧と同じ）"""
     where_parts, params = [], []
     q = (search or "").strip()
     if q:
         where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ?" for x in cs) + ")")
         params += [f"%{q}%"] * len(cs)
-    fp, fpp = build_filter_where(safe_filters(filters, cs), today)
+    fp, fpp = build_filter_where(safe_filters(filters, cs, tuple(exprs or ())), today, exprs)
     return where_parts + fp, params + fpp
 
 
-def build_filter_where(filters, today=None):
+def build_filter_where(filters, today=None, exprs=None):
     parts, params = [], []
+    exprs = exprs or {}
     for f in filters:
-        col, op, value = qi(f["column"]), f["op"], f["value"]
+        col, op, value = exprs.get(f["column"]) or qi(f["column"]), f["op"], f["value"]
         if op == "contains":
             parts.append(f"CStr({col}) LIKE ?")
             params.append(f"%{value}%")
@@ -305,7 +309,7 @@ def build_filter_where(filters, today=None):
             parts.append(f"({col} IS NOT NULL AND CStr({col})<>'')")
         elif op == "in":
             vals = in_values(value)
-            k = slice_key(f["column"], f.get("key", ""))
+            k = slice_key(f["column"], f.get("key", ""), exprs.get(f["column"]))
             some = [v for v in vals if v != ""]
             ors = ([f"{k} IN ({','.join('?' * len(some))})"] if some else []) + ([f"{k} IS NULL"] if "" in vals else [])
             parts.append("(" + " OR ".join(ors) + ")" if ors else "0=1")

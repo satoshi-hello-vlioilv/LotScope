@@ -211,8 +211,17 @@ table.master-table tbody tr.is-sel td:first-child{box-shadow:inset 3px 0 0 var(-
 .m-chip.c-rec{background:var(--input-soft);color:var(--h-input)}
 .dz-step .m-chip.c-rec{margin-left:8px}
 .dz-rec-note{color:var(--h-input);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dz-rec-ask{display:inline-flex;gap:6px;align-items:center}
-.dz-rec-ask .ps-input{flex:none;width:22em}
+/* 推奨にする理由を書く帯（知らせの帯 .rec-band と同じ印・同じ言葉。配っている版の行の下に 1 段。2026-10-recask の 3 回目で決めた P2） */
+.pz-table tr.is-asking td,.pz-table tr.dz-rec-row td{background:var(--input-soft)}
+.pz-table tr.dz-rec-row td{padding:0 12px 8px;border-top:0;cursor:default}
+.dz-rec-band{display:flex;align-items:center;gap:8px;min-width:0;height:36px;padding:0 6px 0 10px;border:1px solid #c5d4e6;border-radius:8px;background:#fff}
+.dz-rec-band .rec-ic{flex:none;width:18px;height:18px;border-radius:50%;background:var(--h-input);color:#fff;font:700 12px/18px sans-serif;text-align:center;font-style:normal}
+.dz-rec-band > b{flex:none;color:var(--h-input);font-size:13.5px;white-space:nowrap}
+.dz-rec-ask{display:flex;flex:1 1 auto;min-width:0;gap:6px;align-items:center}
+.dz-rec-ask .ps-input{flex:1 1 auto;min-width:0;width:auto;height:28px}
+.dz-rec-ask .pz-btn{flex:none;white-space:nowrap}
+.dz-rec-cap{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.dz-rec-wait{color:var(--h-input);font-size:12.5px;font-weight:700;white-space:nowrap}
 .m-chip.c-me{margin-left:8px;background:var(--input-soft);color:var(--h-input);height:18px;font-size:11px;padding:0 7px}
 .pz-summary{display:grid;grid-template-columns:repeat(4,minmax(0,160px));gap:10px;align-items:stretch;margin-bottom:10px}
 .pz-kpi{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px}

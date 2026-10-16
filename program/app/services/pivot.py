@@ -22,6 +22,9 @@
     期間 period … {column: 日付の列か @workday, kind: today/yesterday/days/this_month/last_month, n}。その元の「いま」から日の範囲を決めて絞る
     （作業日は設備ごとの勤務体系で現場歴の今日を決めるので、設備で範囲が違うことがある。答えの period.ranges）
     表に無い列の条件は効かない（一覧と同じく外す）ので、答えの ignoredFilters で知らせる
+計算列（版 3.38.0。ダッシュボード）: calc={formulas: {列名: 式}, names: {元の列名: 表示名}}（一覧の表示列の設定と同じ形）。表に無い列の式＝計算列は、
+    段・値・条件・期間・箱ひげにふつうの列と同じ名前で使える。式は services/formula.py（画面の list-formula.js と同じ答え）で、
+    SQLite の関数として登録し、列の代わりにその式を読む（同じ値の組は 1 回だけ計算する）
 答え: {dims: {rows, cols}, measures, orders, labels, cells: [{r, c, v}], count, truncated, bins, stats, boxes}
     orders … 段ごとの鍵の並び（表・グラフの並び。数・日付は小さい順・空欄は最後・直は勤務体系の順）
     labels … 段ごとの {鍵: 見せる字}（2026-10-12 → 2026/10/12(月)・区間 → 100〜150 など）
@@ -33,9 +36,10 @@ import math
 import time
 from datetime import date, datetime, timedelta
 
-from .lot_list import TABLE_CANDIDATES, columns, date_columns, lot_column, pick_table, raw_columns, search_filter_where, tables
+from .formula import CalcColumns
+from .lot_list import DATE_RATIO, TABLE_CANDIDATES, columns, date_columns, lot_column, pick_table, raw_columns, search_filter_where, tables
 from .shifts import OUTSIDE
-from .sqlite_ro import connect_ro, qi, sort_key, to_datetime
+from .sqlite_ro import connect_ro, qi, sort_key, to_date, to_datetime
 from .work_summary import num, start_column, time_column, work_key
 
 MAX_DIMS = 3
@@ -262,12 +266,37 @@ def day_dim(dims):
 
 
 def query(path, *, table="", preferred_table="", search="", filters="", rows="", cols="", measures="", today=None,
-          table_candidates=TABLE_CANDIDATES, work=None, month="", box="", equip=None, period=None, now=None):
+          table_candidates=TABLE_CANDIDATES, work=None, month="", box="", equip=None, period=None, now=None, calc=None):
     """ピボット集計の答え（モジュールの説明）。work は作業実績のとき {clock, basis, start}（作業開始の列は work_summary.start_column で決める）。
-    month は "YYYY-MM"（月で絞る。行の 1 段目が日の段のときだけ効く）。equip・period は query_many の説明。"""
+    month は "YYYY-MM"（月で絞る。行の 1 段目が日の段のときだけ効く）。equip・period・calc は query_many の説明。"""
     part = Part(path, table=table, preferred_table=preferred_table, table_candidates=table_candidates, work=work, equip=equip)
     return query_many([part], search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today,
-                      month=month, box=box, period=period, now=now)
+                      month=month, box=box, period=period, now=now, calc=calc)
+
+
+def calc_exprs(conn, calc, cs):
+    """計算列を接続に登録する → (計算列の名前 → SQL の式, 読めない計算列の名前の並び, CalcColumns か None)。calc は {formulas, names}"""
+    if not calc or not calc.get("formulas"):
+        return {}, [], None
+    cc = CalcColumns(calc.get("formulas"), calc.get("names"), cs)
+    exprs, broken = {}, []
+    for i, name in enumerate(cc.calcs):
+        if cc.broken(name):
+            broken.append(name)
+            continue
+        run, deps = cc.runner(name)
+        memo = {}
+
+        def fn(*vals, run=run, memo=memo):
+            hit = memo.get(vals, memo)
+            if hit is memo:
+                if len(memo) > 200_000:
+                    memo.clear()
+                hit = memo[vals] = run(*vals)
+            return hit
+        conn.create_function(f"TpaCalc{i}", len(deps), fn, deterministic=True)
+        exprs[name] = f"TpaCalc{i}({', '.join(qi(d) for d in deps)})"
+    return exprs, broken, cc
 
 
 class Part:
@@ -320,7 +349,7 @@ def clean_period(period):
     return {"column": col, "kind": kind, "n": n}
 
 
-def _open_part(part, *, search, filters, rows, cols, measures, today, box, period):
+def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None):
     """1 つのファイルを読む: 表と列を決め、段・値を確かめ、絞り込みに当たる行の要る列だけを読む → 状態の dict"""
     work = part.work
     with connect_ro(part.path) as c:
@@ -328,7 +357,13 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         t = part.table if part.table in names else pick_table(names, part.preferred_table, part.table_candidates)
         if not t:
             raise RuntimeError("表が 1 つもありません。")
-        cs = columns(c, t, raw_columns(c, t))
+        raw_cs = columns(c, t, raw_columns(c, t))
+        exprs, broken, _ = calc_exprs(c, calc, raw_cs)
+        used = {str(d.get("column") or "") for d in _filter_items(rows) + _filter_items(cols)} | {str(m.get("column") or "") for m in _filter_items(measures)}
+        bad = sorted(used & set(broken))
+        if bad:
+            raise PivotError(f"計算列「{'」「'.join(bad)}」の式が読めません（一覧の「表示列」で式を直してください）。")
+        cs = raw_cs + [x for x in exprs if x not in raw_cs]          # 計算列もふつうの列と同じ名前で使う
         start = start_column(cs, (work or {}).get("start", "")) if work else ""
         tcol = time_column(cs, start) if start else ""
         equip = part.equip or None
@@ -344,7 +379,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
             raise PivotError("作業日の期間は作業実績だけで使えます。")
         ignored = [str(f.get("column") or "") for f in _filter_items(filters) if str(f.get("column") or "") and f.get("op") != "tuple_in"
                    and str(f.get("column")) not in cs]
-        where_parts, params = search_filter_where(cs, search, filters, today)
+        where_parts, params = search_filter_where(raw_cs, search, filters, today, exprs)
         where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         # 読む列: 段の列・値の列・ロットの鍵の列（作業実績は作業開始と時刻・異常ロット一覧はロット番号）・期間の列
         lot = lot_column(cs)
@@ -370,7 +405,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         total = int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}{where}", params).fetchone()[0])
         if total > MAX_ROWS:
             raise PivotError(f"当たる行が多すぎます（{total:,} 行。{MAX_ROWS:,} 行まで）。条件で絞ってから集計してください。")
-        data = c.execute(f"SELECT {', '.join(qi(x) for x in need) or '1'} FROM {qi(t)}{where}", params).fetchall() if need else [()] * total
+        data = c.execute(f"SELECT {', '.join(exprs.get(x) or qi(x) for x in need) or '1'} FROM {qi(t)}{where}", params).fetchall() if need else [()] * total
     return {"name": part.name, "table": t, "cs": cs, "rd": rd, "cd": cd, "ms": ms, "pos": pos, "mpos": mpos, "bpos": bpos, "lots_by": lots_by,
             "kpos": kpos, "ppos": ppos, "start": start, "data": data, "clock": (work or {}).get("clock"), "basis": (work or {}).get("basis", "work"),
             "equip": equip, "ignored": ignored}
@@ -384,7 +419,7 @@ def _filter_items(filters):
     return [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
 
 
-def query_many(parts, *, search="", filters="", rows="", cols="", measures="", today=None, month="", box="", period=None, now=None):
+def query_many(parts, *, search="", filters="", rows="", cols="", measures="", today=None, month="", box="", period=None, now=None, calc=None):
     """いくつかのファイル（Part の並び）を 1 つの集計にまとめる（版 3.37.0。ダッシュボードの「作業実績 すべての設備」など）。
     段・値の決め方・答えの形は 1 ファイルのときと同じ。ロット数はファイルごとに見分ける（別の設備の同じ作業開始は別の作業）。
     ファイルが 2 つ以上なら、読めない・列が無いファイルは飛ばして skipped に出す（1 つなら断る）。直の段は名前で揃える（設備で勤務体系が違うため）。
@@ -398,7 +433,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     states, skipped = [], []
     for part in parts:
         try:
-            states.append(_open_part(part, search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today, box=box, period=period))
+            states.append(_open_part(part, search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today, box=box, period=period,
+                                     calc=calc))
         except PivotError as e:
             if not multi:
                 raise
@@ -550,14 +586,19 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     }
     if period:
         out["period"] = {**period, "name": PERIODS[period["kind"]], "ranges": [{"from": a, "to": b} for a, b in ranges]}
+    if any(s["clock"] for s in states):
+        # 勤務体系の直の名前（ファイルごと・合わせた並び）。行の無い直も列に並べ、勤務体系に無い直を見分けるため（ダッシュボードの合わせた表）
+        out["shifts"] = list(dict.fromkeys(seg["name"] for s in states if s["clock"] for seg in s["clock"].segments))
     if multi:
-        out["parts"] = [{"name": s["name"], "table": s["table"], "count": len(s["data"])} for s in states]
+        out["parts"] = [{"name": s["name"], "table": s["table"], "count": len(s["data"]),
+                         "shifts": [seg["name"] for seg in s["clock"].segments] if s["clock"] else []} for s in states]
         out["skipped"] = skipped
     return out
 
 
-def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, sample=300):
-    """集計の左のカラムの札に出す手がかり: 列ごとの値の種類の数（多ければ 1000+）と、数の列か（読める値がみな数）・日付の列か。"""
+def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, sample=300, calc=None):
+    """集計の左のカラムの札に出す手がかり: 列ごとの値の種類の数（多ければ 1000+）と、数の列か（読める値がみな数）・日付の列か。
+    calc（版 3.38.0）… 計算列も同じ手がかりで後ろに並べる（calc: true・式が読む列 deps。式が読めなければ error）"""
     with connect_ro(path) as c:
         names = tables(c)
         t = table if table in names else pick_table(names, preferred_table, table_candidates)
@@ -567,9 +608,23 @@ def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDA
         cs = columns(c, t, raw)
         dates = set(date_columns(c, t, cs))
         out = []
-        for col in cs:
-            kinds = int(c.execute(f"SELECT COUNT(*) FROM (SELECT DISTINCT {qi(col)} FROM {qi(t)} LIMIT 1001)").fetchone()[0])
-            vals = [r[0] for r in c.execute(f"SELECT {qi(col)} FROM {qi(t)} WHERE TRIM(CStr({qi(col)})) <> '' LIMIT {int(sample)}")]
+
+        def hint(col, sql):
+            kinds = int(c.execute(f"SELECT COUNT(*) FROM (SELECT DISTINCT {sql} FROM {qi(t)} LIMIT 1001)").fetchone()[0])
+            vals = [r[0] for r in c.execute(f"SELECT {sql} FROM {qi(t)} WHERE TRIM(CStr({sql})) <> '' LIMIT {int(sample)}")]
             numeric = bool(vals) and all(num(v) is not None for v in vals)
-            out.append({"column": col, "kinds": kinds, "many": kinds > 1000, "numeric": numeric, "date": col in dates})
+            return {"column": col, "kinds": kinds, "many": kinds > 1000, "numeric": numeric, "vals": vals}
+        for col in cs:
+            h = hint(col, qi(col))
+            h.pop("vals")
+            out.append({**h, "date": col in dates})
+        exprs, broken, cc = calc_exprs(c, calc, cs)
+        for col in (cc.calcs if cc else []):
+            if col in broken:
+                out.append({"column": col, "calc": True, "kinds": 0, "many": False, "numeric": False, "date": False, "error": "式が読めません"})
+                continue
+            h = hint(col, exprs[col])
+            vals = h.pop("vals")
+            dated = vals and sum(1 for v in vals[:60] if to_date(v)) / len(vals[:60]) >= DATE_RATIO
+            out.append({**h, "date": bool(dated) and not h["numeric"], "calc": True, "deps": cc.raw_deps(col)})
     return {"table": t, "fields": out}

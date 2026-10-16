@@ -2,7 +2,8 @@
 //!
 //! - 確かめる: 中身が起動した直後・30 分ごと・画面の「確かめる」（参照先で更新の置き場を保存したとき）
 //! - 置き場（参照先 update.source）は中身（Python）に尋ねる（GET /api/update/settings。共有のマスタにあるため）
-//! - 配る版が決まっていればその版（前の版へ戻すときも）、決まっていなければいちばん新しい版を、使っている間に取り込む
+//! - 配る版が決まっていればその版（前の版へ戻すときも）、決まっていなければいちばん新しい版を、使っている間に取り込む（決め方は update::pick）
+//! - 置き場を控える（update::remember_source）。次の起動の最初に、中身を起こす前にも確かめる（起動していない間に配った版を 1 回の起動で入れる）
 //! - 画面: GET /__desktop/update（状態）・POST /__desktop/update/check・POST /__desktop/update/apply（開き直す）・
 //!   POST /__desktop/update/probe（参照先の「確かめる」: この PC での見え方で置き場を探す）
 //! - 配布の画面（GET /__desktop/release）は、置き場をたどった結果を覚える（裏の確認がたどった結果も）。cached=1 なら覚えた結果を
@@ -10,7 +11,7 @@
 
 use crate::brand::brand;
 use da_core::distribute::{self, Who};
-use da_core::release::{self, newer};
+use da_core::release;
 use da_core::update::{self, Paths};
 use serde_json::{json, Map, Value};
 use std::sync::{Arc, Condvar, Mutex};
@@ -132,6 +133,8 @@ impl Updater {
             s.insert("source".into(), json!(source));
             s.insert("checkedAt".into(), json!(checked));
         }
+        // 起動の最初（中身を起こす前）にも同じ置き場を確かめられるよう、控える（update::launch_check）
+        update::remember_source(&self.paths, &source);
         if source.trim().is_empty() {
             let _ = std::fs::remove_file(self.paths.want());
             return self.set(json!({"state": "off"}));
@@ -157,29 +160,20 @@ impl Updater {
                 let _ = std::fs::remove_file(self.paths.want());
             }
         }
-        let failed = update::failed_versions(&self.paths);
-        let target = match &scan.distribute {
-            Some(d) => scan.find(&d.version).filter(|r| !failed.contains(&r.version)),
-            None => scan.by_version().into_iter().find(|r| !failed.contains(&r.version)),
-        };
-        let Some(target) = target else {
-            let why = match &scan.distribute {
-                Some(d) if failed.contains(&d.version) => format!("配る版 {} はこの PC で起動できなかったので使いません", d.version),
-                Some(d) => format!("配る版 {} がまだ置き場にありません（BOX の同期待ちかもしれません）", d.version),
-                None => "置き場にこのアプリの版がありません".into(),
-            };
-            return self.set(json!({"state": "latest", "detail": why}));
-        };
-        let distributed = scan.distribute.is_some();
-        if target.version == self.current || (!distributed && !newer(&target.version, &self.current)) {
-            // 取り込みかけの別の版は捨てる（配る版が戻された等）
-            if update::staged(&self.paths).is_some_and(|s| s["version"] != json!(target.version)) {
-                let _ = std::fs::remove_dir_all(self.paths.stage());
-                let _ = std::fs::remove_file(self.paths.stage_record());
+        let (target, direction) = match update::pick(&scan, &update::failed_versions(&self.paths), &self.current) {
+            update::Pick::Take(t, d) => (t, d),
+            update::Pick::Stay(why) => {
+                // いまの版が最新なら、取り込みかけの別の版は捨てる（配る版が戻された等）
+                if why.is_none() && update::staged(&self.paths).is_some() {
+                    let _ = std::fs::remove_dir_all(self.paths.stage());
+                    let _ = std::fs::remove_file(self.paths.stage_record());
+                }
+                return self.set(match why {
+                    Some(w) => json!({"state": "latest", "detail": w}),
+                    None => json!({"state": "latest"}),
+                });
             }
-            return self.set(json!({"state": "latest"}));
-        }
-        let direction = if newer(&target.version, &self.current) { "up" } else { "down" };
+        };
         if update::staged(&self.paths).is_some_and(|s| s["version"] == json!(target.version)) {
             return self.set(json!({"state": "ready", "ready": target.version, "direction": direction}));
         }
