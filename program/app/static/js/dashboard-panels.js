@@ -249,7 +249,8 @@
     const head2 = gs.map((g, gi) => (models[gi].cols.length ? models[gi].cols.map((c, ci) => `<th class="num db-s${ci || !gi ? "" : " db-grp"}">${esc(c.label)}</th>`).join("") + (g.total ? '<th class="num db-sum">計</th>' : "") : "")).join("");
     const thead = `<thead><tr><th rowspan="2">${esc(rowName)}</th>${head1}</tr><tr>${head2}</tr></thead>`;
     const warn = gs.map((g, gi) => (flags[gi].length ? `<span class="db-warn" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 だった${rowDim === "@equip" ? "設備" : "行"}"><b>${esc(groupTitle(g, d.groups[gi]).replace(/ .*$/, ""))} 0 ${unitOf(g)}</b>${flags[gi].map(esc).join("・")}</span>` : "")).join("");
-    const meta = models.map((m, gi) => { const a = (d.groups || [])[gi] || {}, at = (a.mirrors || [])[0]; return `${esc(a.sourceName || "")}${at && at.at ? ` 元 ${esc(ago(at.at))}` : ""}${m.none ? `・${rowDim === "@equip" ? "設備なし" : "空欄"} ${C.fmt(m.none)}` : ""}`; }).filter(Boolean).join("　");
+    // まとまりごとの添え書き（元・設備なし・条件の数。ふつうのパネルの添え書きと同じ「条件 n」）
+    const meta = models.map((m, gi) => { const a = (d.groups || [])[gi] || {}, at = (a.mirrors || [])[0], nf = (gs[gi].filters || []).length; return `${esc(a.sourceName || "")}${at && at.at ? ` 元 ${esc(ago(at.at))}` : ""}${m.none ? `・${rowDim === "@equip" ? "設備なし" : "空欄"} ${C.fmt(m.none)}` : ""}${nf ? `・条件 ${nf}` : ""}`; }).filter(Boolean).join("　");
     box.innerHTML = `<div class="db-boardhead">${warn}<span class="db-sp"></span><small class="db-meta" title="${esc(meta)}">${meta}</small></div><div class="dp-flow"></div>`;
     const head = box.querySelector(".db-boardhead"), flow = box.querySelector(".dp-flow"), avail = H - (head ? head.offsetHeight + 4 : 0);
     flow.style.maxHeight = avail + "px";

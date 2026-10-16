@@ -187,13 +187,19 @@ body.db-dragging{cursor:grabbing;user-select:none}
 /* ---- 合わせた表（版 3.38.0）: 小さな棒・組む所の札（表全体・まとまり）・見せ方・行の札 ---- */
 .db-table .db-mini{display:inline-block;width:2.4em;height:.55em;margin-right:6px;border-radius:3px;background:var(--surface-4);overflow:hidden;vertical-align:middle}
 .db-table .db-mini i{display:block;height:100%;background:var(--gc,var(--h-input))}
-.de-tabs{display:flex;gap:4px;padding:8px 10px 0;border-bottom:1px solid var(--line-soft);overflow:hidden}
-.de-tab{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;max-width:220px;padding:5px 10px 6px;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;
-  background:var(--surface-3);font:inherit;font-size:12.5px;font-weight:800;color:var(--h-meta);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;top:1px}
+/* 札（表全体・まとまり ①②…）。頭の色の線＝表のそのまとまりの色（2026-10-board の CF〈C2 の札〉） */
+.de-tabs{display:flex;gap:0;padding:10px 10px 0;border-bottom:1px solid var(--line-soft);overflow:hidden}
+.de-tab{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-width:0;max-width:220px;margin-left:-1px;padding:7px 12px 6px;border:1px solid var(--line);border-bottom:0;border-radius:0;
+  background:var(--surface-2,#f4f6f8);font:inherit;font-size:12.5px;font-weight:800;color:var(--h-meta);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;top:1px}
+.de-tab:first-child{border-radius:8px 0 0 0;margin-left:0}
+.de-tab:not(.is-add):last-of-type{border-radius:0 8px 0 0}
 .de-tab small{font-size:11px;font-weight:600;color:var(--muted)}
-.de-tab i{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gc)}
-.de-tab.on{background:var(--surface);color:var(--ink)}
-.de-tab.is-add{justify-content:center;flex-direction:row;color:var(--h-input);background:transparent;border-style:dashed}
+.de-tab i{position:absolute;left:0;right:0;top:0;height:4px;background:var(--gc)}
+.de-tab.on{background:var(--surface);color:var(--ink);box-shadow:inset 0 -3px 0 var(--h-input);z-index:1}
+.de-tab.is-add{justify-content:center;flex-direction:row;margin-left:8px;border-radius:8px 8px 0 0;color:var(--h-input);background:transparent;border-style:dashed}
+/* 形の札 1 枚と「形を変える…」（合わせた表の表全体） */
+.de-form .de-formcard{flex:0 0 auto;min-width:180px;justify-content:flex-start;cursor:default}
+#deVis{display:flex;flex-direction:column;gap:8px}
 .de-segs{display:inline-flex;border:1px solid var(--edit-line);border-radius:7px;overflow:hidden}
 .de-seg{display:inline-flex;align-items:center;height:28px;padding:0 10px;font-size:12.5px;font-weight:700;color:var(--h-meta);cursor:pointer;background:var(--edit-field)}
 .de-seg + .de-seg{border-left:1px solid var(--edit-line)}
@@ -204,8 +210,11 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .de-sw.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--surface) inset}
 .de-gt{flex:1;min-width:200px}.de-gt input{flex:1;min-width:0}
 .de-gacts{padding-top:4px;border-top:1px dashed var(--line)}
-.de-rows{list-style:none;margin:0;padding:0;flex:1;min-width:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px}
-.de-rowi{display:flex;align-items:center;gap:6px;height:30px;padding:0 6px;border:1px solid var(--line);border-radius:7px;background:var(--surface);cursor:grab}
+/* 行の札: 1 列・順位つき（表の行と同じ並び。送るのは組む所全体で 1 つ） */
+.de-rows{list-style:none;margin:0;padding:0;flex:1;min-width:0;max-width:380px;display:grid;grid-template-columns:minmax(0,1fr);gap:4px;counter-reset:rk}
+.de-rowi{display:flex;align-items:center;gap:6px;height:30px;padding:0 6px;border:1px solid var(--line);border-radius:7px;background:var(--surface);cursor:grab;counter-increment:rk}
+.de-rowi::before{content:counter(rk);width:1.6em;text-align:right;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+#deBoard .de-row .de-hint{flex-basis:100%;margin-left:60px}
 .de-rowi b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .de-rowi .icon-btn{width:22px;height:22px;font-size:12px}
 .de-rowi.is-hidden{background:var(--surface-3)}.de-rowi.is-hidden b{color:var(--muted);text-decoration:line-through}

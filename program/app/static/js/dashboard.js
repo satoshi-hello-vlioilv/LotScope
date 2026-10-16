@@ -154,7 +154,8 @@
   function paintPanel(id) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
     if (!p || !el) return;
-    const a = S.answers.get(id);
+    // 形を替えた直後は、前の形の答え（合わせた表の答えとふつうの答えは形が違う）では描かない（引き直した答えを待つ）
+    const a0 = S.answers.get(id), a = a0 && a0.d && (p.visual === "board") !== !!a0.d.groups ? { ...a0, d: null, err: "" } : a0;
     el.querySelector(".db-ph").innerHTML = headHtml(p, a, el.clientWidth);
     el.setAttribute("aria-label", titleOf(p));
     // 添え書き（元・期間・条件）は見出しの下の 2 行目（見出しは題と操作だけで 1 行）。数字の形は数の下に出す
@@ -430,6 +431,12 @@
 
   /* ---------------- 組む所（dashboard-editor.js） ---------------- */
   let editBase = null;      // 組む前のパネル（やめたら戻す）
+  /** パネルの中身を np に置き換える（置き場 x・y・w・h は今のまま）。形を替えると項目が変わる（合わせた表 ↔ ふつうのパネル）ので、無くなった項目は消す */
+  function replacePanel(cur, np) {
+    const at = { x: cur.x, y: cur.y, w: cur.w, h: cur.h };
+    Object.keys(cur).forEach((k) => { if (!(k in np)) delete cur[k]; });
+    return Object.assign(cur, np, at);
+  }
   function openEditor(id) {
     const p = panelOf(id); if (!p) return;
     if (!S.edit) { S.edit = true; }
@@ -438,14 +445,14 @@
     focusFrame(id);
     paint();
     E.open({ panel: p, sources: S.sources, toast: say, answer: () => (S.answers.get(id) || {}).d,
-      onChange: (np) => { Object.assign(panelOf(id), np, { x: panelOf(id).x, y: panelOf(id).y, w: panelOf(id).w, h: panelOf(id).h }); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
+      onChange: (np) => { replacePanel(panelOf(id), np); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
       onApply: (np) => {
         const cur = panelOf(id), base = editBase; closeEditor();
         if (!cur) return;
-        Object.assign(cur, base);           // 元に戻す の履歴に「組む前」を残してから当てる
-        commit((L) => Object.assign(L.panels.find((x) => x.id === id), np, { x: cur.x, y: cur.y, w: cur.w, h: cur.h }), "当てました（保存するまでは、この PC の画面だけです）");
+        replacePanel(cur, base);           // 元に戻す の履歴に「組む前」を残してから当てる
+        commit((L) => replacePanel(L.panels.find((x) => x.id === id), np), "当てました（保存するまでは、この PC の画面だけです）");
       },
-      onCancel: () => { const cur = panelOf(id); if (cur && editBase) Object.assign(cur, editBase); closeEditor(); paint(); refresh(false); },
+      onCancel: () => { const cur = panelOf(id); if (cur && editBase) replacePanel(cur, editBase); closeEditor(); paint(); refresh(false); },
     });
   }
   /** 焦点（2026-10-grid の 1 回目で 1 位の D）: 組む間、組むパネルをグリッドの左の空きに大きく出し（グリッドの大きさの 1.5 倍まで・

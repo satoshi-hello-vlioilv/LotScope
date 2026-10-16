@@ -138,7 +138,7 @@ class Parity(unittest.TestCase):
 
     def test_pages_and_files(self):
         page = self.assert_same("GET", "/")
-        self.assertIn("転写距離・ピッチ解析".encode("utf-8"), page)
+        self.assertIn(json.loads((ROOT / "app" / "brand.json").read_text(encoding="utf-8"))["subtitle"].encode("utf-8"), page)
         self.assert_same("GET", "/static/js/shared.js?v=x")
         self.assert_same("GET", "/lotdsp-link")
         self.assert_same("GET", "/no/such/page")

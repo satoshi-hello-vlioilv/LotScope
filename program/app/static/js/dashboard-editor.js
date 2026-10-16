@@ -24,7 +24,7 @@
   const LOOKS = [["bar", "棒と数"], ["heat", "数と濃淡"], ["num", "数だけ"]];
   // まとまりの色（"" はデータの種類の色＝仕掛は藍・作業実績は青緑・品質データは琥珀。ほかは区分の色と同じ並び）
   const GROUP_COLORS = ["", "#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#8e4f76"];
-  let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", q = "", ctx = { formulas: {}, names: {} };
+  let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", q = "", ctx = { formulas: {}, names: {} }, formOpen = false;
 
   const isBoard = () => p && p.visual === "board";
   const inGroup = () => isBoard() && gi >= 0;
@@ -266,11 +266,18 @@
       + `${slot("cols", b.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`}`
       + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>`;
   }
+  /** 形の札（16）。合わせた表は、表全体の札で「選んだ形の札 1 枚＋形を変える…」に畳む（押すと 16 の札が開く。
+      まとまりの札には出さない＝「ほかの形にすると ① の組みでグラフ」と読めて迷わない。2026-10-board の 3 回目で決めた CF） */
   function visualsHtml() {
     if (inGroup()) return "";
     const all = EXTRA.concat(C.DEFS.filter((x) => x.k !== "none"));
     const ico = (x) => (x.icon && !C.get(x.k) ? `<svg class="pv-ico" viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="${x.icon}"/></svg>` : C.iconSvg(x.k, 17));
-    return `<div class="de-vis" role="radiogroup" aria-label="形">${all.map((x) => `<button type="button" class="pv-cbtn${p.visual === x.k ? " on" : ""}" role="radio" aria-checked="${p.visual === x.k}" data-de-vis="${x.k}" title="${esc(x.tip || "")}">${ico(x)}<span>${esc(x.n)}</span></button>`).join("")}</div>`;
+    const grid = `<div class="de-vis" role="radiogroup" aria-label="形">${all.map((x) => `<button type="button" class="pv-cbtn${p.visual === x.k ? " on" : ""}" role="radio" aria-checked="${p.visual === x.k}" data-de-vis="${x.k}" title="${esc(x.tip || "")}">${ico(x)}<span>${esc(x.n)}</span></button>`).join("")}</div>`;
+    if (!isBoard()) return grid;
+    const me = all.find((x) => x.k === "board");
+    return `<div class="de-row de-form"><span class="de-l">形</span><span class="pv-cbtn on de-formcard" title="${esc(me.tip)}">${ico(me)}<span>${esc(me.n)}</span></span>`
+      + `<button type="button" class="pv-btn" data-de-formmore aria-expanded="${formOpen}">${formOpen ? "閉じる" : "形を変える…"}</button><small class="de-hint">行をそろえて、データの数を横に並べる</small></div>`
+      + (formOpen ? grid : "");
   }
   function condHtml() {
     const cols = ((fields && fields.fields) || []).filter((f) => !f.error).map((f) => f.column);
@@ -377,6 +384,7 @@
       if (b.hasAttribute("data-de-cancel")) { host.onCancel(); return; }
       if (b.hasAttribute("data-de-apply")) { host.onApply(TPA.clone(p)); return; }
       if (b.dataset.deTab != null) { select(+b.dataset.deTab); return; }
+      if (b.hasAttribute("data-de-formmore")) { formOpen = !formOpen; $("#deVis").innerHTML = visualsHtml(); return; }
       if (b.hasAttribute("data-de-gadd")) { addGroup(); return; }
       if (b.dataset.deGmove) { moveGroup(gi, +b.dataset.deGmove); return; }
       if (b.hasAttribute("data-de-gdel")) { removeGroup(gi); return; }
@@ -453,7 +461,7 @@
       p.title = p.title || "";
       const el = $("#dbEditor");
       if (!el.dataset.bound) { bind(el); el.dataset.bound = "1"; }
-      el.innerHTML = ""; el.hidden = false; q = ""; fields = null; fieldsKey = "";
+      el.innerHTML = ""; el.hidden = false; q = ""; fields = null; fieldsKey = ""; formOpen = false;
       gi = -1; t = p;
       paint();
       await loadFields();

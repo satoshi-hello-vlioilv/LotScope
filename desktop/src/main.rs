@@ -1,4 +1,4 @@
-//! LotScope（転写距離・ピッチ解析）デスクトップ版の窓（Tauri）。設計は program/docs/DESKTOP_MIGRATION_DESIGN.md。
+//! LotScope（仕掛・作業実績・品質の見える化）デスクトップ版の窓（Tauri）。設計は program/docs/DESKTOP_MIGRATION_DESIGN.md。
 //!
 //! 役割の分け方（得意な分野ごと）:
 //!   - Rust（この exe）: 窓・起動と終了・1つだけ起動・静的ファイル・中身（Python）の監督と起こし直し・外のリンク

@@ -1,0 +1,365 @@
+{
+  "title": "2026-10 アプリ名の副題（QUALITY ANALYSIS・転写距離・ピッチ解析）が今のアプリに合わない（版 3.38.0・要望 4）",
+  "evaluator": "案を作っていない別のエージェント（Claude・採点だけを頼まれた者）。ui-variants.mjs で 2026-10-subtitle.mjs の dash・list を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade1/subtitle）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade1/subtitle-1280）で自分で撮り、一覧（sheet-*.png）と 1 枚ずつの画像の見出し帯を PIL で切り出し、案を縦に並べて拡大した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade1/crop/sub-*・s5-1280-*）を Read で直接見て採点した。1280 は今の CSS（max-width:1440px）で英字・副題を畳むので、S5 以外は S0 と同じ見出しになることを画像で確かめた。副題は窓の題名・ショートカットの説明・起動画面にも出る（program/app/brand.json の subtitle）ので、言葉の合い方はそこも含めて「考えさせない」「言葉と置き場」で見た。最小の字 10px は全案に残る（版の札など）ので、英字の飾りが残る S0・S4 だけ英字の 10px を減点した。 2 回目: 案を作っていない別のエージェント（Claude・採点だけを頼まれた者。1 回目とも別）が、ui-variants.mjs で 2026-10-subtitle-2.mjs の dash・list を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade2/subtitle2）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade2/subtitle2-1280）で自分で撮り、見出し帯を PIL で切り出して案を縦に並べた物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade2/crop/sub-*・s8-dash-right.png）を Read で直接見て採点した。副題の字のコントラストは画素で測り、どの案も 6.9 以上（読みにくい字には当たらない）。1280 は今の CSS（max-width:1440px）で英字・副題を畳むので、5 案とも見出しが同じになることを画像で確かめた。 3 回目: 2 回目と同じ採点者（案を作っていない者）が、2026-10-subtitle-3.mjs の dash・list を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade3/subtitle3）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade3/subtitle3-1280）で撮り、推奨の知らせが出た状態（update-recommended。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade3/subtitle3-rec）も 1728 で撮って、見出し帯を切り出し案を縦に並べた物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade3/crop/sub-*）を Read で直接見て採点した。2 段目の副題のコントラストは 8.3。S3b・S10 は 2 回目と同じ形なので、2 回目と同じ点にした。",
+  "rounds": [
+    {
+      "name": "1 回目",
+      "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade1/subtitle と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade1/subtitle-1280",
+      "baseline": {
+        "S0 今（QUALITY ANALYSIS・転写距離・ピッチ解析）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 7,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 5,
+            "intuitive": 8,
+            "form": 8,
+            "place": 5,
+            "layout": 7,
+            "tone": 6
+          },
+          "minus": [
+            {
+              "kind": "unreadable",
+              "where": "subtitle/dash-light-S0.png・list-light-S0.png（1728）見出しの左上の英字「QUALITY ANALYSIS」が 10px・字間を空けた薄い字で、アプリの説明の役なのに読みにくい"
+            }
+          ],
+          "seen": "見出しの左が 3 段（英字「QUALITY ANALYSIS」と版の札・推奨の札／LotScope と副題「転写距離・ピッチ解析」）。副題のすぐ右のタブが「転写・ピッチ計算」で、副題とタブが同じ物を違う言葉（距離・解析／計算）で言い、最初の画面のダッシュボード（仕掛・実績）や作業実績・仕掛とは合わない。英字と和文が混ざり、飾りの字が多い。1280 では英字・副題とも畳まれ、名前と札だけになる"
+        }
+      },
+      "proposals": {
+        "S1 どちらも消す（名前と版の札だけ）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 9,
+            "place": 8,
+            "layout": 7,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "見出しの左は版の札（と推奨の札）の下に LotScope だけ。名前が 1 つだけ目に入り、合わない言葉は消える。1728 と 1280 で見出しの形が同じになる。タブが左へ約 170px 寄る。悪い所: 名前の右が空き、札の段と名前の段の幅がそろわず左が軽い。窓の題名・ショートカット・起動画面が LotScope だけになり、初めての人には何のアプリか推測させる"
+        },
+        "S2 英字を消し、副題「生産・品質の見える化」": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 8,
+            "intuitive": 8,
+            "form": 9,
+            "place": 8,
+            "layout": 8,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "札の段の下に LotScope と副題「生産・品質の見える化」。名前が主、副題が従の差がはっきりし、2 段の幅もそろう。言葉はアプリ全体を広く覆い、ダッシュボード・異常ロット一覧どちらの画面でも外れない。悪い所: 「生産」はタブやデータ元の言葉（仕掛・作業実績）に無く、何が見えるかは言っていない。1280 では畳まれて S0 と同じ"
+        },
+        "S3 英字を消し、副題「仕掛・実績・品質の見える化」": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 9,
+            "intuitive": 8,
+            "form": 9,
+            "place": 9,
+            "layout": 7,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "LotScope の右に「仕掛・実績・品質の見える化」。仕掛（仕掛のタブ）・実績（作業実績のタブ）・品質（異常ロット一覧の品質データ）とタブの言葉に合い、何が見えるかが具体的に読める。窓の題名・ショートカットにしても意味が通る。悪い所: いちばん長い副題で見出しの左が広がり、タブの始まりが S2 より約 50px 右。「実績」とタブの「作業実績」で言葉が少し違う。機能が増えると、また合わなくなるおそれがある。1280 では畳まれて S0 と同じ"
+        },
+        "S4 英字を「MANUFACTURING DATA」に、副題を消す": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 7,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 5,
+            "intuitive": 8,
+            "form": 8,
+            "place": 6,
+            "layout": 7,
+            "tone": 6
+          },
+          "minus": [
+            {
+              "kind": "unreadable",
+              "where": "subtitle/dash-light-S4.png・list-light-S4.png（1728）見出しの左上の英字「MANUFACTURING DATA」が 10px・字間を空けた薄い字で読みにくい"
+            }
+          ],
+          "seen": "S0 と同じ 3 段の形で、英字だけ「MANUFACTURING DATA」に変わり、和文の副題は消える。英字の飾りが残り、画面の中で英字の説明はここだけで、和文の画面と調子が合わない。窓の題名・ショートカットの和名が無くなり、英字の意味（製造データ）も漠然として何が見えるか分からない。1280 では畳まれて S0 と同じ"
+        },
+        "S5 英字・副題を消し、名前と版の札を 1 段に": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 9,
+            "place": 7,
+            "layout": 9,
+            "tone": 9
+          },
+          "minus": [
+            {
+              "kind": "lost",
+              "where": "subtitle-1280/dash-light-S5.png 名前と札が 1 段で横に広がった分、見出し帯の右端の「終了」が画面の外へ押し出され見えない（belowFold 2）"
+            },
+            {
+              "kind": "cut",
+              "where": "subtitle-1280/dash-light-S5.png 「アプリ ▾」が画面の右端で切れる（タブの「仕掛」もデータ元の札に詰まって触れる）"
+            }
+          ],
+          "seen": "1728 では LotScope・版の札・推奨の札が 1 段に並び、見出しの左が軽く、帯の上下の中心がそろって美しい。名前が 1 つだけ目に入る。悪い所: 1280 のダッシュボード（推奨の札がある形）では左が広がり、見出し帯の右の「アプリ」が切れ「終了」が画面の外へ出る（一覧の画面は推奨の札が無く収まる）。S1 と同じく窓の題名・ショートカットに何のアプリかの言葉が無い"
+        },
+        "S6 英字を消し、副題「ロットの見える化と分析」": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 9,
+            "place": 8,
+            "layout": 8,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "LotScope の右に「ロットの見える化と分析」。名前（Lot・Scope）の意味を和名で言い、2 段の形は S2 と同じで整う。悪い所: 何のロットの何が見えるか（仕掛・実績・品質）は言わず、どの画面にも言える抽象の言葉で、副題から中身を推測させる。「見える化と分析」は 2 つの言い方が並んで少し冗長。1280 では畳まれて S0 と同じ"
+        }
+      }
+    },
+    {
+      "name": "2 回目",
+      "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade2/subtitle2 と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade2/subtitle2-1280",
+      "proposals": {
+        "S3b 「仕掛・作業実績・品質の見える化」（小さく・薄く）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 9,
+            "intuitive": 8,
+            "form": 9,
+            "place": 9,
+            "layout": 8,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "LotScope の右に 12px・薄めの「仕掛・作業実績・品質の見える化」。名前が主・副題が従の差が 1 回目の S3 よりはっきりし、言葉はタブ（作業実績・仕掛）と同じ（① 直った）。コントラストは約 7 で読める。悪い所: まだ 5 案でいちばん長く、ダッシュボードのタブの始まりが S10 より約 130px、S7 より約 60px 右（② は字を小さくしても幅が残る）。1280 では畳まれ、5 案とも同じ見出し"
+        },
+        "S7 「現場データの見える化」（短い言い替え）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 9,
+            "place": 8,
+            "layout": 8,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "LotScope の右に「現場データの見える化」。短く、タブの始まりは今とほぼ同じで、2 段の幅もそろう。悪い所: 「現場データ」はタブにもデータ元にも無い言葉で、何のデータ（仕掛・作業実績・品質）が見えるかは言わず推測させる。字の大きさは今のままで、副題の従の感じは S3b より弱い"
+        },
+        "S8 広い窓だけ名前と版を 1 段＋「仕掛・作業実績・品質」": {
+          "score": {
+            "order": 8,
+            "chunk": 7,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 8,
+            "intuitive": 8,
+            "form": 8,
+            "place": 7,
+            "layout": 6,
+            "tone": 9
+          },
+          "minus": [
+            {
+              "kind": "lost",
+              "where": "subtitle2/dash-light-S8.png（1728）名前・副題・版の札・推奨の札が 1 段に広がった分、見出し帯の右端の「終了」が画面の外へ押し出され見えない"
+            },
+            {
+              "kind": "cut",
+              "where": "subtitle2/dash-light-S8.png（1728）「アプリ ▾」が画面の右端に接し、データ元の札が「仕掛」のタブに詰まって触れる"
+            }
+          ],
+          "seen": "1728 で LotScope・「仕掛・作業実績・品質」・版の札・推奨の札が 1 段に並び、見出しの左は低く軽い。一覧の画面（推奨の札が無い）では収まる。悪い所: 利用者の PC の大きさ（1728）のダッシュボードで、推奨の札がある日は「終了」が画面の外へ出て押せない（1 回目の S5 と同じ欠けが、1280 から 1728 へ移っただけ）。版の札の置き場が窓の幅で変わる（1440 以下は名前の上）"
+        },
+        "S9 英字の段を和字の小さな案内「仕掛・作業実績・品質データ」に（名前の横は外す）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 8,
+            "intuitive": 8,
+            "form": 8,
+            "place": 8,
+            "layout": 7,
+            "tone": 8
+          },
+          "minus": [],
+          "seen": "名前の上の段（今の英字の所）に 11px の「仕掛・作業実績・品質データ」、その右に版の札・推奨の札、下に LotScope。英字の飾りは消え、言葉はタブに合う。悪い所: 上の段が長くなり版の札が右へ寄るので、上の段が下の名前より広く、左の釣り合いが崩れ、タブの始まりも約 120px 右。版の札の置き場が 1728 と 1280（案内が畳まれ札が左）で変わる。11px は下限ぎりぎりで、案内の字が名前の上で目立たない"
+        },
+        "S10 どちらも外す（副題は窓の題名・ショートカットだけ）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 9,
+            "place": 9,
+            "layout": 7,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "版の札の段の下に LotScope だけ。1728 と 1280 で見出しの形が同じで、名前が 1 つだけ目に入り、タブはいちばん左から始まる。悪い所: 画面の中で何のアプリかを言う字が無く、初めての人には推測させる（窓の題名・ショートカットに残すのは画面には見えない）。名前の右が空き、札の段と名前の段の幅がそろわず左が軽い（1 回目の S1 と同じ形）"
+        }
+      }
+    },
+    {
+      "name": "3 回目",
+      "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade3/subtitle3・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade3/subtitle3-1280・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/grade3/subtitle3-rec",
+      "proposals": {
+        "S3c 2 段目に「仕掛・作業実績・品質の見える化」（名前と版の札が 1 段目）": {
+          "score": {
+            "order": 9,
+            "chunk": 9,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 9,
+            "intuitive": 8,
+            "form": 9,
+            "place": 8,
+            "layout": 8,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "1728 で 1 段目に LotScope・VER3.38.0・↻ 推奨 3.13.0、2 段目に 12px の「仕掛・作業実績・品質の見える化」。名前→札→副題の順に目が流れ、主と従の差がはっきり。英字が消え、言葉はタブ（作業実績・仕掛）と合う。ダッシュボードのタブの始まりは S3b より約 15px 左、推奨の知らせが出た状態でも「終了」まで収まる。1280 は今の畳み方で 5 案同じ。悪い所: 推奨の札がある日は 1 段目が長く、タブの始まりは S10 より約 110px 右のまま（2 回目の指摘の『ずれない』は半分）。一覧の画面では副題の段が 1 段目より少し長く、左の幅を副題が決める。版の札の置き場が 1728（名前の右）と 1280（名前の上）で変わる"
+        },
+        "S7c 2 段目に「現場データの見える化」": {
+          "score": {
+            "order": 9,
+            "chunk": 9,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 9,
+            "place": 8,
+            "layout": 9,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "形は S3c と同じで、2 段目が短く、どの画面でも 1 段目が左の幅を決めて整う。悪い所: 「現場データ」はタブにもデータ元にも無い言葉で、何が見えるかを推測させる（2 回目の S7 と同じ）。版の札の置き場が窓の幅で変わる"
+        },
+        "S11c 2 段目に「仕掛・作業実績・品質」": {
+          "score": {
+            "order": 9,
+            "chunk": 9,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 8,
+            "intuitive": 8,
+            "form": 9,
+            "place": 8,
+            "layout": 9,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "形は S3c と同じで、2 段目は 1 段目より短く、左の幅は名前と札で決まり整う。言葉はタブと同じ。悪い所: 何をするアプリか（見える化）は言わず、データの名を並べるだけで、窓の題名・ショートカットにしたとき意味が弱い。版の札の置き場が窓の幅で変わる"
+        },
+        "S3b 名前の右に「仕掛・作業実績・品質の見える化」（小さく・薄く。2 回目の 1 位）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 9,
+            "intuitive": 8,
+            "form": 9,
+            "place": 9,
+            "layout": 8,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "2 回目と同じ形（版の札が名前の上、名前の右に 12px の副題）。推奨の知らせが出た状態でも収まる。悪い所: 5 案でいちばん左が広く、ダッシュボードのタブの始まりが S10 より約 125px 右"
+        },
+        "S10 どちらも外す（副題は窓の題名・ショートカットだけ。2 回目の 2 位）": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 9,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 9,
+            "place": 9,
+            "layout": 7,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "2 回目と同じ形（版の札の下に LotScope だけ）。タブがいちばん左から始まり、1728 と 1280 で同じ形。悪い所: 画面の中に何のアプリかを言う字が無い。名前の右が空き左が軽い"
+        }
+      }
+    }
+  ],
+  "built": {
+    "name": "作った後（S3c 2 段目に「仕掛・作業実績・品質の見える化」・名前と版の札が 1 段目・1440px 以下は副題を畳む）",
+    "images": "作った後: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/new（1728×1152）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/new-1280（1280×720）。比べた作る前: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/old と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/old-1280（版 3.37.0）。状態は list（異常ロット一覧）・dash（ダッシュボード。推奨の札あり）、ほかの状態（master-release-recask・dash-board）の見出しも見た",
+    "evaluator": "案を作っていない別のエージェント（Claude・作った後の採点だけを頼まれた者）。作る前（版 3.37.0 の本物）と作った後（今の本物）を、同じ道具 ui-variants.mjs で案を当てずに撮った画像（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/old・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/old-1280・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/new・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built/new-1280）を 1728 と 1280 の両方で 1 枚ずつ Read で直接見た。細部は切り出して拡大した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/bgrade/）と、3 回目の採点の再現の画像（grade3・grade4）を並べて見比べ、字のコントラストは画素で測った。 3 回目の S3c の再現（grade3/subtitle3 の list・dash-light-S3c.png）と作った後の見出し帯を切り出して縦に並べた（bgrade/s3c-vs-built.png・sub-1728.png・sub-1280.png）。program/app/brand.json の subtitle も「仕掛・作業実績・品質の見える化」になっていることを確かめた。",
+    "result": {
+      "score": {
+        "order": 9,
+        "chunk": 9,
+        "hierarchy": 9,
+        "visual": 7,
+        "steps": 9,
+        "effortless": 9,
+        "intuitive": 8,
+        "form": 9,
+        "place": 8,
+        "layout": 8,
+        "tone": 9
+      },
+      "minus": [],
+      "seen": "作る前（old/list・dash-light-now.png）は見出しの左が英字「QUALITY ANALYSIS」（10px・字間の広い薄い字）と版の札・推奨の札／LotScope と「転写距離・ピッチ解析」の 3 つの飾りで、副題がすぐ右のタブ「転写・ピッチ計算」と違う言葉だった。作った後（new）は 1 段目に LotScope・VER3.38.0（推奨のある日は ↻ 推奨 3.13.0 も）、2 段目に「仕掛・作業実績・品質の見える化」。英字が消え、言葉はタブ（作業実績・仕掛）と合い、名前→札→副題の順に目が流れる。2 段目の副題は紺の地に淡い字でコントラストは画素で 8.3。3 回目の S3c の再現と並べると形は同じで、版の札と推奨の札が約 10px 左に詰まり、ダッシュボードのタブの始まりも約 10px 左になった（作る前より一覧で約 45px・ダッシュボードで約 50px 左）。配布の画面（master-release-recask）・組む所（dash-board）でも同じ見出しで、どれも「終了」まで 1 段に収まる。1280（new-1280）は 1440px 以下の畳み方で副題が消え、版の札が名前の上の形になり、作る前（old-1280）と同じ見出し（切れ・折れは無い）。残る弱み（減点ではない）: 推奨の札がある日は 1 段目が長く、タブの始まりは名前だけの形より右のまま。一覧の画面では副題の段が 1 段目より少し長く、左の幅を副題が決める。版の札の置き場が 1728（名前の右）と 1280（名前の上）で変わる。数・状態を形で見せる部分は無い（副題なので）。"
+    }
+  }
+}

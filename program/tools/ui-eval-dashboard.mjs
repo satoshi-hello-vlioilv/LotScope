@@ -185,6 +185,8 @@ try {
   const want8 = total((await ask(p, g8)).groups[0]);
   const head8 = await p.evaluate((sel) => document.querySelector(`${sel} thead tr:first-child th[colspan] small`)?.textContent, P("board"));
   check(`⑧ ① の条件（製造材質 ＝ A1100）で、① の計がサーバーと同じ（${want8}）に減る`, num(head8) === want8 && want8 < wipTotal, { head8, want8 });
+  const meta8 = await p.evaluate((sel) => document.querySelector(`${sel} .db-meta`)?.textContent || "", P("board"));
+  check("⑧ 表の上の添え書きで、条件が効いていると分かる（① の所に「条件 1」・② には出ない）", /^[^　]*条件 1/.test(meta8) && !/　.*条件/.test(meta8), { meta8 });
   await p.click("[data-de-apply]"); await sleep(800);
   const b8 = (await layout(p)).panels.find((x) => x.id === "board");
   check("⑧ 当てると組みに入る（名前の順・隠す XYZ・① は数だけ・条件 1 つ）",
@@ -192,6 +194,18 @@ try {
   await p.click("[data-db-undo]"); await sleep(1500);
   const u8 = (await layout(p)).panels.find((x) => x.id === "board");
   check("⑧ 元に戻すで、組む前（値の大きい順・隠す無し・棒）に戻る", u8.order.by === "value" && !u8.order.hide.length && u8.groups[0].look === "bar", u8.order);
+  // 形: 表全体の札は「合わせた表」の札 1 枚と「形を変える…」（2026-10-board の 3 回目で決めた CF）。開くと 16 の形・ほかの形にするとふつうのパネル・やめると戻る
+  await p.click(`${P("board")} [data-db-edit]`); await p.waitForSelector("#deBoard .de-rowi[data-de-row]"); await sleep(400);
+  const f0 = await p.evaluate(() => ({ card: document.querySelector("#deVis .de-formcard")?.textContent.trim(), grid: document.querySelectorAll("#deVis .de-vis [data-de-vis]").length }));
+  await p.click("[data-de-formmore]"); await sleep(300);
+  const f1 = await p.$$eval("#deVis .de-vis [data-de-vis]", (x) => x.length);
+  check("⑧ 形は「合わせた表」の札 1 枚（16 の形は畳む）・「形を変える…」で 16 の形が開く", f0.card === "合わせた表" && f0.grid === 0 && f1 === 16, { f0, f1 });
+  await p.click('#deVis [data-de-vis="none"]'); await sleep(2000);
+  const t8 = await p.evaluate((sel) => ({ table: !!document.querySelector(`${sel} .pv-table`), tabs: !!document.querySelector("#deTabs .de-tab") }), P("board"));
+  check("⑧ ほかの形（表）にすると、① の組みのふつうのパネルになり、札が消える", t8.table && !t8.tabs, t8);
+  await p.click("[data-de-cancel]"); await sleep(1500);
+  const c8 = (await layout(p)).panels.find((x) => x.id === "board");
+  check("⑧ やめると、合わせた表（まとまり 2 つ）に戻る", c8.visual === "board" && c8.groups.length === 2 && (await p.$$eval(`${P("board")} .db-table`, (x) => x.length)) > 0, c8.visual);
   await p.click("[data-db-leave]").catch(() => {}); await sleep(300);
   await p.click("[data-db-discard]").catch(() => {}); await sleep(300);
 

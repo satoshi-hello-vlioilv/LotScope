@@ -24,14 +24,18 @@
 </head>
 <body>
 <header>
+  <!-- 1 段目＝アプリ名（英名）と版の札、2 段目＝副題（和名。小さく）。名前は app/brand.json の 1 か所（2026-10-subtitle の 3 回目で決めた S3c）。
+       狭い窓（1440px 以下）は副題を畳み、版の札を名前の上へ（見出し帯を 1 段に収める） -->
   <div class="brand">
-    <div class="eyebrow"><span class="eb-text">QUALITY ANALYSIS</span>
-      <!-- 版（押すと更新履歴）。新しい版を取り込み済みなら「更新あり」、ほかの人がもっと新しい版を使っていれば「新しい版あり」（止めはしない） -->
-      <button type="button" id="verBadge" class="ver-badge" title="更新履歴を開く">VER{{ app_version }}</button>
-      <button type="button" id="verNew" class="ver-new hidden">新しい版あり</button>
+    <div class="brand-r1">
+      <h1>{{ brand.name }}</h1>
+      <div class="eyebrow">
+        <!-- 版（押すと更新履歴）。新しい版を取り込み済みなら「更新あり」、ほかの人がもっと新しい版を使っていれば「新しい版あり」（止めはしない） -->
+        <button type="button" id="verBadge" class="ver-badge" title="更新履歴を開く">VER{{ app_version }}</button>
+        <button type="button" id="verNew" class="ver-new hidden">新しい版あり</button>
+      </div>
     </div>
-    <!-- アプリ名（英名）と副題（和名）。名前は app/brand.json の 1 か所 -->
-    <h1>{{ brand.name }}<span class="brand-sub">{{ brand.subtitle }}</span></h1>
+    <div class="brand-sub">{{ brand.subtitle }}</div>
   </div>
   <!-- 画面の切り替え（最初は異常ロット一覧）。計算画面からも検索欄で直接ロット問い合わせできる -->
   <nav class="screen-tabs" role="tablist" aria-label="画面">

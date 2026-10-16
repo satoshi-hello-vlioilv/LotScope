@@ -1,7 +1,7 @@
 {
   "_about": "アプリの名前（1か所の定義）。name・subtitle・exe は変えてよい（exe を変えたら desktop/Cargo.toml の [[bin]] name と desktop/tauri.conf.json の mainBinaryName、name を変えたら productName も同じにする。tests/test_brand.py が食い違いを止める）。app_id は変えない（更新の置き場で「このアプリの版」を見分ける・WebView の保存先）。data_dir（この PC の作業場所のフォルダ名）を変えたら、前の名前を legacy_data_dir に足す（起動のはじめに前の場所から移す）。 名前を変えたら、前の name を legacy_names に、前の exe を legacy_exe に足す（名前の歴史）。",
   "name": "LotScope",
-  "subtitle": "転写距離・ピッチ解析",
+  "subtitle": "仕掛・作業実績・品質の見える化",
   "exe": "LotScope.exe",
   "app_id": "local.transferpitchanalyzer.desktop",
   "data_dir": "LotScope",
