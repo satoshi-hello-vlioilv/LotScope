@@ -10,11 +10,16 @@
 //! update\old\             直前の版の控え
 //! update\applied.json     入れ替えた直後の印（中身が起動できたら消す。起動できなければ控えへ戻す）
 //! update\FAILED.json      起動できなかった版（もう取り込まない）
+//! update\source.json      更新の置き場（裏の確かめが中身に尋ねた物を控える。起動の最初に、中身を起こす前に確かめるため・版 3.38.0）
 //! want.json               配る版（Python の利用状況が「最新版」に使う・presence.WANT_FILE）
 //! ```
+//!
+//! 起動の最初（版 3.38.0。利用者の要望「起動していないときに配られても、ショートカットから 1 回開けば新しい版になるように」）:
+//! 控えた置き場を確かめ（届くのに時間が掛かれば待たない・launch_check）、新しい版があればその場で取り込んでから入れ替える。
+//! 以前は取り込みが中身の起動のあと（裏の糸）だけだったので、起動していない間に配った版は、1 回目の起動で取り込み、2 回目で入れ替わった。
 //! ここは窓に依らない処理だけ（試験から直に呼ぶ）。窓の係（裏の糸・画面への答え）は src/updater.rs。
 
-use crate::release::{newer, parse_version, Release};
+use crate::release::{self, newer, parse_version, Release, Scan};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::io::Read;
@@ -63,6 +68,9 @@ impl Paths {
     }
     pub fn want(&self) -> PathBuf {
         self.root.join("want.json")
+    }
+    pub fn source_record(&self) -> PathBuf {
+        self.work().join("source.json")
     }
 }
 
@@ -329,6 +337,96 @@ pub fn confirm(p: &Paths) {
     let _ = std::fs::remove_file(p.applied());
 }
 
+/// 置き場を探した結果から、取り込む版を決める（裏の確かめと起動の最初で同じ決め方）。
+#[derive(Debug, PartialEq)]
+pub enum Pick<'a> {
+    /// 取り込む版が無い（理由。いまの版が最新なら None）
+    Stay(Option<String>),
+    /// この版を取り込む（向き: up＝新しい版へ・down＝配る版を前の版に戻した）
+    Take(&'a Release, &'static str),
+}
+
+/// 配る版が決まっていればその版（前の版へ戻すときも）、決まっていなければいちばん新しい版。起動できなかった版は選ばない。
+pub fn pick<'a>(scan: &'a Scan, failed: &[String], current: &str) -> Pick<'a> {
+    let target = match &scan.distribute {
+        Some(d) => scan.find(&d.version).filter(|r| !failed.contains(&r.version)),
+        None => scan.by_version().into_iter().find(|r| !failed.contains(&r.version)),
+    };
+    let Some(target) = target else {
+        return Pick::Stay(Some(match &scan.distribute {
+            Some(d) if failed.contains(&d.version) => format!("配る版 {} はこの PC で起動できなかったので使いません", d.version),
+            Some(d) => format!("配る版 {} がまだ置き場にありません（BOX の同期待ちかもしれません）", d.version),
+            None => "置き場にこのアプリの版がありません".into(),
+        }));
+    };
+    if target.version == current || (scan.distribute.is_none() && !newer(&target.version, current)) {
+        return Pick::Stay(None);
+    }
+    Pick::Take(target, if newer(&target.version, current) { "up" } else { "down" })
+}
+
+/// 更新の置き場を控える（裏の確かめが中身に尋ねた物。空なら控えを消す＝起動の最初には確かめない）。
+pub fn remember_source(p: &Paths, source: &str) {
+    if source.trim().is_empty() {
+        let _ = std::fs::remove_file(p.source_record());
+    } else if remembered_source(p).as_deref() != Some(source) {
+        let _ = write_json(&p.source_record(), &json!({"source": source, "at": now_text()}));
+    }
+}
+
+/// 控えた更新の置き場（無ければ None）。
+pub fn remembered_source(p: &Paths) -> Option<String> {
+    read_json(&p.source_record())?["source"].as_str().map(str::to_string).filter(|s| !s.trim().is_empty())
+}
+
+/// 起動の最初に確かめた結果。
+#[derive(Debug, PartialEq)]
+pub enum Launch {
+    /// 確かめなかった・取り込む版が無い（理由）
+    Nothing(String),
+    /// 置き場に届くのに時間が掛かるので待たなかった（裏の確かめに任せる）
+    Slow,
+    /// 取り込んだ（または取り込み済みだった）版。このあと apply_staged が入れ替える
+    Staged(String),
+    /// 取り込めなかった（理由。いまの版のまま開く）
+    Failed(String),
+}
+
+/// 起動の最初（中身を起こす前）: 置き場（source。区切りの候補つき）を探し、取り込む版があれば取り込む。
+/// 置き場を探すのは別の糸で、wait を過ぎたら待たない（届かない共有で起動を待たせない）。取り込みは進み具合を progress に言いながら待つ。
+/// 配る版を作業場所に覚える（want.json。裏の確かめと同じ）。
+pub fn launch_check(p: &Paths, source: &str, app_id: &str, current: &str, wait: Duration, progress: &dyn Fn(&str)) -> Launch {
+    if source.trim().is_empty() {
+        return Launch::Nothing("更新の置き場を控えていません".into());
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (src, id) = (source.to_string(), app_id.to_string());
+    std::thread::spawn(move || {
+        let _ = tx.send(release::locate_source(&src).map(|(found, _)| release::scan(&found, &id)));
+    });
+    let scan = match rx.recv_timeout(wait) {
+        Ok(Ok(scan)) => scan,
+        Ok(Err(e)) => return Launch::Nothing(e),
+        Err(_) => return Launch::Slow,
+    };
+    match &scan.distribute {
+        Some(d) => {
+            let _ = write_json(&p.want(), &d.raw);
+        }
+        None => {
+            let _ = std::fs::remove_file(p.want());
+        }
+    }
+    match pick(&scan, &failed_versions(p), current) {
+        Pick::Stay(why) => Launch::Nothing(why.unwrap_or_else(|| format!("版 {current} が最新です"))),
+        Pick::Take(rel, _) if staged(p).is_some_and(|s| s["version"] == json!(rel.version)) => Launch::Staged(rel.version.clone()),
+        Pick::Take(rel, _) => match stage_release(p, rel, app_id, progress) {
+            Ok(_) => Launch::Staged(rel.version.clone()),
+            Err(e) => Launch::Failed(format!("版 {} を取り込めません: {e}", rel.version)),
+        },
+    }
+}
+
 /// 写した exe から「インターネットから来た」印（Zone.Identifier）を外す（開くたびの実行前の警告を出さない・設計書 §14.3）。
 /// Windows の写し方は印も写すので、出どころの分かっている自分で写した物だけ外す。ほかの OS には印が無い。
 pub fn drop_web_mark(path: &Path) {
@@ -587,6 +685,97 @@ mod tests {
         assert!(left.is_empty(), "途中の物を残さない: {left:?}");
         assert!(staged(&p).is_none());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// 置き場（rel/App/<版>/）に版を置く（release.json と ZIP）
+    fn put_release(d: &Path, rel: &Path, version: &str) {
+        let src = d.join(format!("src-{version}"));
+        dist(&src, version, &format!("exe-{version}"));
+        let dir = rel.join("App").join(version);
+        std::fs::create_dir_all(&dir).unwrap();
+        let sha = zip_of(&src, "App", &dir.join("App.zip"));
+        let v = json!({"schema": 1, "app_id": ID, "name": "App", "version": version, "zip": "App.zip", "sha256": sha, "exe": EXE});
+        std::fs::write(dir.join(crate::release::MARKER), serde_json::to_vec(&v).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn launch_check_stages_a_version_distributed_while_closed() {
+        // 要望（2026-10）: 起動していない間に配った版を、ショートカットから 1 回開くだけで入れる
+        let d = tmp("launch");
+        let p = Paths::new(&d.join("local"));
+        dist(&d.join("share"), "3.9.0", "exe-3.9.0");
+        localize(&p, &d.join("share"), EXE, ID).unwrap();
+        let rel = d.join("Releases");
+        put_release(&d, &rel, "3.9.0");
+        let src = rel.display().to_string();
+        let wait = Duration::from_secs(10);
+        assert_eq!(launch_check(&p, "", ID, "3.9.0", wait, &|_| {}), Launch::Nothing("更新の置き場を控えていません".into()));
+        assert!(matches!(launch_check(&p, &src, ID, "3.9.0", wait, &|_| {}), Launch::Nothing(_)), "いまの版が最新なら取り込まない");
+        // 閉じている間に 3.10.0 を置いた → 起動の最初に取り込み、入れ替える（1 回の起動）
+        put_release(&d, &rel, "3.10.0");
+        let said = std::cell::RefCell::new(vec![]);
+        assert_eq!(launch_check(&p, &src, ID, "3.9.0", wait, &|t| said.borrow_mut().push(t.to_string())), Launch::Staged("3.10.0".into()));
+        assert!(!said.borrow().is_empty(), "取り込みの進み具合を起動画面へ言う");
+        assert_eq!(apply_staged(&p, EXE).unwrap().map(|a| a.to), Some("3.10.0".into()));
+        // 配る版を前の版に戻した → 戻す向きでも 1 回の起動で入る。配る版を覚える
+        std::fs::write(
+            rel.join("App").join(crate::release::DISTRIBUTE),
+            serde_json::to_vec(&json!({"schema": 1, "app_id": ID, "version": "3.9.0", "setAt": "2026-10-16T10:00:00"})).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(launch_check(&p, &src, ID, "3.10.0", wait, &|_| {}), Launch::Staged("3.9.0".into()));
+        assert_eq!(read_json(&p.want()).unwrap()["version"], "3.9.0", "配る版を作業場所に覚える");
+        // 起動できなかった版は取り込まない
+        mark_failed(&p, "3.9.0");
+        assert!(matches!(launch_check(&p, &src, ID, "3.10.0", wait, &|_| {}), Launch::Nothing(w) if w.contains("起動できなかった")));
+        // 届かない置き場は理由を言うだけ（いまの版で開く）
+        assert!(matches!(launch_check(&p, &d.join("無い").display().to_string(), ID, "3.10.0", wait, &|_| {}), Launch::Nothing(_)));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn launch_check_does_not_wait_for_a_slow_place() {
+        // 置き場を探すのが待つ長さを過ぎたら、待たずに開く（裏の確かめに任せる）
+        let d = tmp("slow");
+        let p = Paths::new(&d.join("local"));
+        let t0 = std::time::Instant::now();
+        let r = launch_check(&p, &d.display().to_string(), ID, "3.9.0", Duration::ZERO, &|_| {});
+        assert!(matches!(r, Launch::Slow | Launch::Nothing(_)), "{r:?}");
+        assert!(t0.elapsed() < Duration::from_secs(2));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn the_source_is_remembered_for_the_next_launch() {
+        let d = tmp("source");
+        let p = Paths::new(&d.join("local"));
+        assert_eq!(remembered_source(&p), None);
+        remember_source(&p, "C:\\Box\\LotScope;D:\\rel");
+        assert_eq!(remembered_source(&p).as_deref(), Some("C:\\Box\\LotScope;D:\\rel"));
+        remember_source(&p, " ");
+        assert_eq!(remembered_source(&p), None, "置き場を外したら、起動の最初にも確かめない");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn pick_follows_the_distributed_version_and_skips_failed_ones() {
+        let r = |v: &str| release(Path::new("x"), v, "s");
+        let scan = Scan { versions: vec![r("3.9.0"), r("3.11.0"), r("3.10.0")], distribute: None, problems: vec![] };
+        assert!(matches!(pick(&scan, &[], "3.9.0"), Pick::Take(x, "up") if x.version == "3.11.0"), "配る版が無ければいちばん新しい版");
+        assert!(
+            matches!(pick(&scan, &["3.11.0".into()], "3.9.0"), Pick::Take(x, "up") if x.version == "3.10.0"),
+            "起動できなかった版は飛ばす"
+        );
+        assert_eq!(pick(&scan, &[], "3.11.0"), Pick::Stay(None));
+        assert_eq!(pick(&scan, &[], "3.12.0"), Pick::Stay(None), "配る版が無ければ古い版へは戻さない");
+        let down = Scan {
+            distribute: Some(crate::release::Distribute { dir: "x".into(), version: "3.10.0".into(), raw: Value::Null }),
+            ..scan.clone()
+        };
+        assert!(matches!(pick(&down, &[], "3.11.0"), Pick::Take(x, "down") if x.version == "3.10.0"), "配る版へは戻す向きでも");
+        let missing =
+            Scan { distribute: Some(crate::release::Distribute { dir: "x".into(), version: "3.12.0".into(), raw: Value::Null }), ..scan };
+        assert!(matches!(pick(&missing, &[], "3.11.0"), Pick::Stay(Some(w)) if w.contains("まだ置き場にありません")));
     }
 
     #[test]

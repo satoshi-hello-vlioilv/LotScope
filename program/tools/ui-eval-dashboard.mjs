@@ -4,12 +4,14 @@
 // ① 頁の印なしで開くと、最初の画面はダッシュボード（タブが選ばれ、パネルが出る）
 // ② 1728×1152・1536×864・1280×720 で、スクロールしない（頁が窓より高くならない・グリッドが窓の中・パネルの中身がパネルからはみ出さない）
 //    ・見出しの字（題）が 11px 以上・パネルの見出しのボタンが切れない
-// ③ 標準のパネルの数がサーバーの答えと合う: 数字（仕掛ロット数・前日の実績本数）・仕掛区分ごとの横棒（値の大きい順）・1 枚の表（/api/dashboard）
+// ③ 標準のパネルの数がサーバーの答えと合う: 数字（仕掛ロット数・前日の実績本数）・仕掛区分ごとの横棒（値の大きい順）・合わせた表（まとまりごとの計・0 本の印）
 // ④ 大きさに合わせる: 編集で仕掛区分のパネルを Shift+← で狭め、Shift+↑ で低くしても、はみ出さず、入らない棒は「n / m を描いています」と出る
 // ⑤ 組む: 仕掛区分のパネルを「表」にすると、グリッドの中でその場で表になる。条件（製造材質 ＝ A1100）でサーバーと同じ数に減る。当てる → 元に戻すで戻る
 // ⑥ 動かす: パネルを 1 つ消して空けた所へ、ほかのパネルの見出しを掴んで動かせる。重なる所へは置けない（影が赤）
 // ⑦ 保存: 名前を付けて保存（自分・標準）→ 頁を開き直すと、保存した物が開く → いまの物を消す（2 回押し）→ 組み込みの標準に戻る
-// ⑧ 1 枚の表の集計対象（全員で 1 つ）: 「仕掛の対象」で製造材質 ＝ A1100 を保存すると仕掛の計が減り、すべてに戻せる
+// ⑧ 合わせた表（版 3.38.0。設備ごとの仕掛と前日の実績）を組む: 行の札で並べ替える（↓・手で並べた順）・隠す・名前の順・まとまりの見せ方（数だけ）・
+//    まとまりの条件でサーバーと同じ計・当てると組みに入る・元に戻す
+// ⑨ 計算列（版 3.38.0）: 一覧の表示列で作った式の列を、組む所の札に出し、行の段に使える
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
 
@@ -71,9 +73,12 @@ try {
   const want = cls.orders[0].map((k) => [cls.labels[0][k], cls.cells.find((c) => c.r.length === 1 && c.r[0] === k && !c.c.length).v[0]]).sort((a, b) => b[1] - a[1]);
   const bars = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} svg rect title`)].map((t) => t.textContent), P("wipClass"));
   check("③ 仕掛区分ごとの横棒が、サーバーの数と同じで大きい順", bars.length === want.length && bars.every((t, i) => t === `${want[i][0]}: ${want[i][1].toLocaleString("ja-JP")}`), { bars, want });
-  const board = await p.evaluate(async () => (await fetch("/api/dashboard")).json());
-  const boardShown = await p.evaluate((sel) => document.querySelector(`${sel} thead .db-lots small`)?.textContent || "", P("board"));
-  check("③ 1 枚の表の仕掛の計が /api/dashboard と合う", boardShown.includes(board.wip.total.toLocaleString()), { boardShown, total: board.wip.total });
+  const board = await ask(p, byId.board);
+  const heads = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} thead tr:first-child th[colspan] small`)].map((x) => x.textContent), P("board"));
+  const gtot = board.groups.map((g) => total(g));
+  check(`③ 合わせた表のまとまりごとの計がサーバーと合う（${gtot.join("・")}）`, heads.length === 2 && heads.every((h, i) => num(h) === gtot[i]) && gtot[0] === wipTotal && gtot[1] === workTotal, { heads, gtot });
+  const flags = await p.$$eval(`${P("board")} .db-flag`, (x) => x.length);
+  check("③ 仕掛があるのに前日 0 本の設備に印（前の版の 1 枚の表と同じ）", flags > 0, flags);
 
   // ④ 大きさに合わせる
   await p.click("[data-db-editmode]"); await sleep(300);
@@ -145,19 +150,65 @@ try {
   const after = await p.evaluate(() => ({ name: document.querySelector(".db-pick b").textContent, ids: Dashboard._state().layout.panels.map((x) => x.id) }));
   check("⑦ いまの物を消す（2 回押し）と、組み込みの標準に戻る", after.name === "標準" && after.ids.includes("wipTotal"), after);
 
-  // ⑧ 1 枚の表の集計対象
-  await p.click('[data-db-cond="wip"]'); await sleep(300);
-  await p.selectOption('.db-condpop [data-f="column"]', "製造材質");
-  await p.selectOption('.db-condpop [data-f="op"]', "eq");
-  await p.fill('.db-condpop [data-f="value"]', "A1100");
-  await p.click("[data-db-condsave]"); await sleep(2500);
-  const b2 = await p.evaluate(async () => (await fetch("/api/dashboard?part=wip")).json());
-  const shown8 = await p.evaluate((sel) => document.querySelector(`${sel} thead .db-lots small`)?.textContent || "", P("board"));
-  check("⑧ 「仕掛の対象」で条件を保存すると、1 枚の表の仕掛の計が減り、札に条件が出る",
-    b2.wip.total < board.wip.total && shown8.includes(b2.wip.total.toLocaleString()) && /製造材質/.test(await p.$eval('[data-db-cond="wip"]', (x) => x.textContent)), { shown8, total: b2.wip.total });
-  await p.click('[data-db-cond="wip"]'); await sleep(300);
-  await p.click(".db-condpop [data-db-crowdel]"); await p.click("[data-db-condsave]"); await sleep(2500);
-  check("⑧ 条件を外して保存すると、すべてに戻る", /すべて/.test(await p.$eval('[data-db-cond="wip"]', (x) => x.textContent)), "");
+  // ⑧ 合わせた表を組む
+  const rowsOf = () => p.$$eval(`${P("board")} tbody th[scope=row]`, (x) => x.map((t) => t.textContent));
+  await p.click("[data-db-editmode]"); await sleep(300);
+  await p.click(`${P("board")} [data-db-edit]`); await p.waitForSelector("#deBoard .de-rowi[data-de-row]"); await sleep(600);
+  const list0 = await p.$$eval("#deBoard .de-rowi[data-de-row]", (x) => x.map((li) => li.dataset.deRow)), rows0 = await rowsOf();
+  check("⑧ 表全体の行の札が、表の行と同じ並び", JSON.stringify(list0.slice(0, rows0.length)) === JSON.stringify(rows0), { list0, rows0 });
+  await p.click('#deBoard .de-rowi:first-child [data-de-rdown]'); await sleep(1500);
+  const rows1 = await rowsOf(), o1 = await p.$eval("[data-de-border]", (x) => x.value);
+  check("⑧ 行の札の ↓ で、表の 1 行目と 2 行目が入れ替わり、並びが「手で並べた順」になる", rows1[0] === rows0[1] && rows1[1] === rows0[0] && o1 === "manual", { rows1: rows1.slice(0, 3), o1 });
+  await p.click('#deBoard .de-rowi[data-de-row="XYZ"] [data-de-rshow]'); await sleep(1500);
+  const rows2 = await rowsOf();
+  check("⑧ 「出す」を外すと、その行が表から消える", !rows2.includes("XYZ") && rows0.includes("XYZ"), rows2);
+  await p.selectOption("[data-de-border]", "name"); await sleep(1500);
+  const rows3 = await rowsOf();
+  check("⑧ 名前の順にすると、表の行が名前の順", JSON.stringify(rows3) === JSON.stringify([...rows3].sort((a, b) => a.localeCompare(b, "ja"))), rows3);
+  await p.click('[data-de-tab="0"]'); await p.waitForSelector("#deFields .pv-f"); await sleep(300);
+  await p.click('[data-de-look][value="num"]', { force: true }).catch(async () => { await p.click('.de-seg:nth-child(3)'); }); await sleep(1500);
+  check("⑧ ① の見せ方を「数だけ」にすると、棒が消える", (await p.$$eval(`${P("board")} .db-bar`, (x) => x.length)) === 0, "");
+  await p.click("[data-de-fadd]");
+  await p.selectOption('#deCond .db-crow [data-de-f="column"]', "製造材質");
+  await p.fill('#deCond .db-crow [data-de-f="value"]', "A1100"); await p.dispatchEvent('#deCond .db-crow [data-de-f="value"]', "change");
+  await sleep(2500);
+  const g8 = { ...byId.board, groups: [{ ...byId.board.groups[0], filters: [{ column: "製造材質", op: "eq", value: "A1100" }] }, byId.board.groups[1]] };
+  const want8 = total((await ask(p, g8)).groups[0]);
+  const head8 = await p.evaluate((sel) => document.querySelector(`${sel} thead tr:first-child th[colspan] small`)?.textContent, P("board"));
+  check(`⑧ ① の条件（製造材質 ＝ A1100）で、① の計がサーバーと同じ（${want8}）に減る`, num(head8) === want8 && want8 < wipTotal, { head8, want8 });
+  await p.click("[data-de-apply]"); await sleep(800);
+  const b8 = (await layout(p)).panels.find((x) => x.id === "board");
+  check("⑧ 当てると組みに入る（名前の順・隠す XYZ・① は数だけ・条件 1 つ）",
+    b8.order.by === "name" && b8.order.hide.includes("XYZ") && b8.groups[0].look === "num" && b8.groups[0].filters.length === 1, b8.order);
+  await p.click("[data-db-undo]"); await sleep(1500);
+  const u8 = (await layout(p)).panels.find((x) => x.id === "board");
+  check("⑧ 元に戻すで、組む前（値の大きい順・隠す無し・棒）に戻る", u8.order.by === "value" && !u8.order.hide.length && u8.groups[0].look === "bar", u8.order);
+  await p.click("[data-db-leave]").catch(() => {}); await sleep(300);
+  await p.click("[data-db-discard]").catch(() => {}); await sleep(300);
+
+  // ⑨ 計算列（版 3.38.0。要望「ダッシュボードに使えるカラムは追加した列も」）: 仕掛の一覧の表示列で式から作った列を、組む所の札に出し、行の段に使える
+  await p.evaluate(() => {
+    const k = "tpa.lotlist.layout.v1", all = JSON.parse(localStorage.getItem(k) || "{}");
+    all["src:wip:仕掛"] = { ...(all["src:wip:仕掛"] || {}), formulas: { "設備の頭": "left([残仕掛設備ｺｰｽ], 3)", "ロット数の倍": "2" } };
+    localStorage.setItem(k, JSON.stringify(all));
+  });
+  await p.reload(); await waitDash(p);           // 表示列の設定は頁を開いたときに読む
+  await p.click("[data-db-editmode]"); await sleep(300);
+  await p.click(`${P("wipClass")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f.is-calc");
+  const calcCards = await p.$$eval("#deFields .pv-f.is-calc b", (x) => x.map((b) => b.textContent));
+  check("⑨ 組む所のカラムの札に、一覧で作った計算列が「式」の印つきで出る", calcCards.includes("設備の頭式") && calcCards.includes("ロット数の倍式"), calcCards);
+  await p.click('#deFields .pv-f.is-calc[title^="設備の頭"] [data-de-add="rows"]'); await sleep(300);
+  await p.click('.de-sent [data-de-x="rows"][data-i="0"]'); await sleep(2000);
+  await p.click("[data-de-apply]"); await sleep(1500);
+  const used9 = (await layout(p)).panels.find((x) => x.id === "wipClass");
+  const ans9 = await ask(p, used9);
+  const labels9 = ans9.orders[0].map((k) => ans9.labels[0][k]);
+  const sum9 = ans9.cells.filter((c) => c.r.length === 1 && !c.c.length).reduce((a, c) => a + c.v[0], 0);
+  check("⑨ 計算列を行の段にすると、パネルに式（使う物だけ）が写り、サーバーが式の値で数える（計は仕掛の総数と同じ）",
+    used9.body.rows[0].column === "設備の頭" && Object.keys((used9.calc || {}).formulas || {}).join() === "設備の頭" && labels9.every((t) => [...t].length <= 3 || t === "（空欄）") && sum9 === wipTotal,
+    { rows: used9.body.rows, calc: used9.calc, labels9, sum9, wipTotal });
+  const bars9 = await p.evaluate((sel) => [...document.querySelectorAll(`${sel} svg rect title`)].length, P("wipClass"));
+  check("⑨ パネルが計算列の段で描き直る", bars9 > 0, bars9);
   check("頁の誤りが無い", !errors.length, errors);
 } catch (e) {
   console.error(e); fails.push(String(e).slice(0, 200));

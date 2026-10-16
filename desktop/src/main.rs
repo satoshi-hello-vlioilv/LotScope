@@ -451,6 +451,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     let installed = same_dir(&program, &paths.app().join("program"));
     let mut notes = vec![];
     if installed {
+        launch_update(&app, &splash, &paths, &mut notes);
         match update::apply_staged(&paths, &brand().exe) {
             Ok(Some(a)) => {
                 log(&format!("UPDATE {} → {} に入れ替えました", a.from, a.to));
@@ -551,7 +552,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         native: native(app.clone(), info, lot.clone(), upd.clone()),
         after: after(lot.clone(), upd.clone()),
     });
-    // 更新の係: 使っている間に置き場を確かめ、新しい版を取り込んでおく（入れ替えは次の起動の最初）
+    // 更新の係: 使っている間に置き場を確かめ、新しい版を取り込んでおく（入れ替えは次の起動の最初。起動の最初にも確かめる: launch_update）
     let ask_slot = slot.clone();
     upd.run(move || ask_slot.get().ok_or("起動中です".to_string()).and_then(|r| update_settings(&r.backend)), log);
     // 起動の直後から写し始める（一覧を開いたときに待たせない）
@@ -564,6 +565,32 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     splash.step(&app, "open", "now", "画面を開いています…");
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.navigate(app_url("/"));
+    }
+}
+
+/// 起動の最初に置き場を確かめるとき、置き場に届くのを待つ長さ（過ぎたら待たずに開き、裏の確かめに任せる）。
+const LAUNCH_CHECK_WAIT: Duration = Duration::from_secs(8);
+
+/// 起動の最初（中身を起こす前）: 控えた置き場に新しい版（配る版）があれば、その場で取り込む（このあと apply_staged が入れ替える）。
+/// 起動していない間に配った版も、ショートカットから 1 回開くだけで入る（以前は 1 回目で取り込み、2 回目で入れ替わった）。
+fn launch_update(app: &AppHandle, splash: &Splash, paths: &Paths, notes: &mut Vec<String>) {
+    let source = updater::source_with_entry(paths, &update::remembered_source(paths).unwrap_or_default());
+    if source.trim().is_empty() {
+        return;
+    }
+    let current = update::program_version(&paths.app().join("program")).unwrap_or_default();
+    splash.step(app, "program", "now", "新しい版が配られていないか確かめています…");
+    let progress = |t: &str| splash.step(app, "program", "now", &format!("{t}…"));
+    match update::launch_check(paths, &source, &brand().app_id, &current, LAUNCH_CHECK_WAIT, &progress) {
+        update::Launch::Staged(v) => log(&format!("UPDATE 起動の最初に版 {v} を取り込みました")),
+        update::Launch::Nothing(why) => log(&format!("UPDATE 起動の最初の確かめ: {why}")),
+        update::Launch::Slow => {
+            log(&format!("UPDATE 起動の最初の確かめ: 置き場に {} 秒で届かないので、裏で確かめます", LAUNCH_CHECK_WAIT.as_secs()))
+        }
+        update::Launch::Failed(e) => {
+            log(&format!("UPDATE 起動の最初の確かめ: {e}"));
+            notes.push(format!("{e}（使っている間に、もう一度試します）"));
+        }
     }
 }
 

@@ -92,7 +92,7 @@ jobs:
               print("ERROR:", r["error"])
           sys.exit(0 if r.get("ok") else 1)
           PY
-      # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す
+      # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す
       - name: 更新の通し（本物の窓・WebKitGTK）
         run: xvfb-run -a python desktop/bundle/verify.py update --exe desktop/target/debug/$(python desktop/bundle/bundle.py brand exe | sed 's/\.exe$//') --work "$RUNNER_TEMP/verify"
       - name: 記録

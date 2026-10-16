@@ -69,7 +69,7 @@ jobs:
           Start-Sleep -Seconds 3
           if (Get-Process python -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*hostedtoolcache*" }) { Write-Host "Python が残っています（窓を閉じても中身が終わっていない）"; exit 4 }
           if (-not $r.ok) { exit 1 }
-      # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す
+      # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す
       - name: 更新の通し（本物の WebView2）
         run: python desktop\bundle\verify.py update --exe "desktop\target\release\$env:EXE" --work "$env:RUNNER_TEMP\verify"
       - name: 配る ZIP を作る

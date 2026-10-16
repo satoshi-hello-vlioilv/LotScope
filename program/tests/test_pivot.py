@@ -194,6 +194,31 @@ class Work(unittest.TestCase):
         with self.assertRaises(pivot.PivotError):
             pivot.query(str(self.db), preferred_table="実績", rows=json.dumps([{"column": "@workday"}]), table_candidates=work_log.TABLE_CANDIDATES)
 
+    def test_calc_columns_count_like_the_list_shows_them(self):
+        """計算列（版 3.38.0）: 段・値・条件・期間に、表示列で作った式の列を使える。素朴な数え直しと合う"""
+        calc = {"formulas": {"重さ": "if([重さの元] >= 1000, '重', '軽')", "倍": "[重量] * 2", "壊れ": "if(1"}, "names": {"重量": "重さの元"}}
+        ans = self.ask([{"column": "重さ"}], [], [{"agg": "count"}, {"agg": "sum", "column": "倍"}], calc=calc,
+                       filters=json.dumps([{"column": "倍", "op": "gte", "value": "100"}]))
+        want_n, want_w = defaultdict(int), defaultdict(float)
+        for _, w, _, _ in self.rows:
+            if w * 2 >= 100:
+                k = "重" if w >= 1000 else "軽"
+                want_n[k] += 1
+                want_w[k] += w * 2
+        for k in want_n:
+            got = cell(ans, ["$" + k])
+            self.assertEqual(got[0], want_n[k], f"{k} の行の数（表示名で書いた式・計算列の条件）")
+            self.assertAlmostEqual(got[1], want_w[k], places=3, msg=f"{k} の計算列の合計")
+        self.assertEqual(ans["ignoredFilters"], [], "計算列の条件は効く")
+        with self.assertRaisesRegex(pivot.PivotError, "壊れ"):
+            self.ask([{"column": "壊れ"}], calc=calc)
+        f = pivot.fields(str(self.db), preferred_table="実績", table_candidates=work_log.TABLE_CANDIDATES, calc=calc)
+        by = {x["column"]: x for x in f["fields"]}
+        self.assertEqual((by["重さ"]["calc"], by["重さ"]["kinds"], by["重さ"]["deps"]), (True, 2, ["重量"]))
+        self.assertTrue(by["倍"]["numeric"] and not by["倍"]["date"], "数の計算列は値に使える")
+        self.assertEqual(by["壊れ"].get("error"), "式が読めません")
+        self.assertNotIn("重量", [x["column"] for x in f["fields"] if x.get("calc")], "表にある列の式（作り替え）は計算列ではない")
+
     def test_summarize_adds_the_total_column(self):
         clock = self.work["clock"]
         got = work_summary.summarize([(s, None, w) for s, w, _, _ in self.rows], clock, "work")

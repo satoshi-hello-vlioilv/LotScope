@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""ダッシュボード（services/dashboard.py・routes/dashboard.py）: 設備別の仕掛ロット数（残仕掛設備ｺｰｽ の先頭で見分ける）と、
-前日（現場歴）の設備別・直ごとの実績本数（作業開始が同じ行は 1 本）。集計対象の条件（全員で 1 つ）。"""
+"""ダッシュボード（services/dashboard.py・routes/dashboard.py）: パネルの数（どの元も pivot.query_many）と、合わせた表（版 3.38.0。
+標準の組みは版 3.36.0 の 1 枚の表と同じ: 設備別の仕掛ロット数〈残仕掛設備ｺｰｽ の先頭で見分ける〉と、前日〈現場歴〉の直ごとの実績本数
+〈作業開始が同じ行は 1 本〉。前の版の集計対象の条件を引き継ぐ）と、ダッシュボードの組みの置き場。"""
 import json
 import shutil
 import sqlite3
 import tempfile
+import time
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -37,56 +39,6 @@ def make_work(path, starts):
     c.close()
 
 
-class Counts(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_wip_is_counted_by_the_head_of_the_remaining_course(self):
-        p = self.tmp / "w.sqlite3"
-        make_wip(p, [("A1", "CR1 L-1", "A1100"), ("A2", "CR1", "A5052"), ("A3", "CR2 CR1", "A1100"), ("A4", "ＣＲ１ LS3", "A1100"),
-                     ("A4", "ＣＲ１ LS3", "A1100"), ("A5", "", "A1100"), ("A6", None, "A1100"), ("A7", "XYZ CR1", "A1100")])
-        out = dashboard.wip_by_equipment(p, candidates=["仕掛"], equip_column="残仕掛設備ｺｰｽ", equip_mode="前方一致", names=["CR1", "CR2", "L-1"])
-        self.assertEqual({x["equipment"]: x["lots"] for x in out["items"]}, {"CR1": 3, "CR2": 1, "XYZ": 1},
-                         "先頭の設備で数える・全角も同じ・同じロットの 2 行は 1・知らない設備も落とさない")
-        self.assertEqual(out["items"][0]["equipment"], "CR1", "多い順")
-        self.assertEqual((out["noEquipment"], out["total"]), (2, 7))
-        only = dashboard.wip_by_equipment(p, candidates=["仕掛"], equip_column="残仕掛設備ｺｰｽ", names=["CR1"], equip_mode="前方一致",
-                                          cond={"filters": [{"column": "製造材質", "op": "eq", "value": "A5052"}]})
-        self.assertEqual(only["items"], [{"equipment": "CR1", "lots": 1}], "集計対象の条件で絞る")
-        miss = dashboard.wip_by_equipment(p, candidates=["仕掛"], equip_column="無い列", names=[])
-        self.assertEqual((miss["missingColumn"], miss["noEquipment"]), ("無い列", 7), "設備の列が無ければ全部を設備なしに")
-
-    def test_yesterday_is_the_day_before_today_on_the_shop_calendar(self):
-        at = lambda s: datetime.strptime(s, "%Y-%m-%d %H:%M")      # noqa: E731
-        self.assertEqual(dashboard.yesterday_of(at("2026-10-16 10:00"), THREE), "2026-10-15")
-        self.assertEqual(dashboard.yesterday_of(at("2026-10-16 03:00"), THREE), "2026-10-14", "3 直の跨いだ後は前の日の現場歴")
-        self.assertEqual(dashboard.yesterday_of(at("2026-10-16 23:30"), THREE), "2026-10-15")
-        self.assertEqual(dashboard.yesterday_of(at("2026-10-16 03:00"), []), "2026-10-15", "勤務体系が無ければ暦の前日")
-
-    def test_works_on_counts_one_per_work_start_by_shift(self):
-        p = self.tmp / "実績_CR1.sqlite3"
-        make_work(p, [("L1", "2026/10/15 8:00:00", "通常"), ("L2", "2026/10/15 8:00:00", "通常"),     # 分割: 1 本
-                      ("L3", "2026/10/15 16:00:00", "再処理"), ("L4", "2026/10/16 2:00:00", "通常"),    # 3 直（翌 2 時は 15 日の現場歴）
-                      ("L5", "2026/10/16 9:00:00", "通常"), ("L6", "2026/10/14 23:30:00", "通常")])     # 16 日・14 日（15 日ではない）
-        out = dashboard.works_on(p, day="2026-10-15", segments=THREE, candidates=["実績"])
-        self.assertEqual([(s["name"], s["works"], s["rows"]) for s in out["shifts"]], [("1直", 1, 2), ("2直", 1, 1), ("3直", 1, 1)])
-        self.assertEqual(out["total"], {"works": 3, "rows": 4})
-        f = dashboard.works_on(p, day="2026-10-15", segments=THREE, candidates=["実績"],
-                               cond={"filters": [{"column": "作業区分", "op": "eq", "value": "通常"}]})
-        self.assertEqual(f["total"]["works"], 2, "集計対象の条件で絞る")
-
-    def test_condition_is_cleaned(self):
-        self.assertEqual(json.loads(dashboard.clean_condition({"filters": [{"column": " 製造材質 ", "op": "eq", "value": 5}], "search": " x "})),
-                         {"filters": [{"column": "製造材質", "op": "eq", "value": "5"}], "search": "x"})
-        with self.assertRaises(ValueError):
-            dashboard.clean_condition({"filters": [{"column": "", "op": "eq"}]})
-        with self.assertRaises(ValueError):
-            dashboard.clean_condition({"filters": [{"column": "a", "op": "eq"}] * 21})
-
-
 class Api(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -112,26 +64,57 @@ class Api(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_both_panels(self):
-        with mock.patch.object(dashboard, "now_local", return_value=datetime(2026, 10, 16, 10, 0)):
-            d = self.c.get("/api/dashboard").get_json()
-        self.assertEqual({x["equipment"]: x["lots"] for x in d["wip"]["items"]}, {"L-1": 2, "CR1": 1})
-        self.assertEqual(d["wip"]["source"]["key"], "wip")
-        work = {x["equipment"]: x for x in d["work"]["items"]}
-        self.assertEqual(work["CR1"]["day"], "2026-10-15")
-        self.assertEqual([(s["name"], s["works"]) for s in work["CR1"]["shifts"]], [("1直", 1), ("2直", 1), ("3直", 0)])
-        self.assertEqual(work["L-1"]["total"]["works"], 0, "前日に作業の無い設備は 0")
+    def board(self, **panel):
+        self.app.config["DASHBOARD_NOW"] = datetime(2026, 10, 16, 10, 0)
+        for _ in range(30):            # 写しが無ければ写し終えるまで（共有は直接読まない）
+            r = self.c.post("/api/dashboard/query", json={"panel": {"visual": "board", **panel}})
+            d = r.get_json()
+            if r.status_code != 200 or not any(g.get("kind") == "copying" for g in d["groups"]):
+                break
+            time.sleep(0.1)
+        self.assertEqual(r.status_code, 200, d)
+        return d
 
-    def test_condition_is_shared_and_applied(self):
-        r = self.c.put("/api/dashboard/wip", json={"filters": [{"column": "製造材質", "op": "eq", "value": "A5052"}], "base_rev": 0})
-        self.assertEqual(r.status_code, 200, r.get_json())
-        d = self.c.get("/api/dashboard", query_string={"part": "wip"}).get_json()
-        self.assertEqual(d["wip"]["items"], [{"equipment": "L-1", "lots": 1}])
-        self.assertEqual(d["wip"]["condition"]["filters"][0]["value"], "A5052")
-        self.assertNotIn("work", d)
-        self.assertEqual(self.c.put("/api/dashboard/wip", json={"filters": [], "base_rev": 0}).status_code, 409, "ほかの PC が先に変えた版では書かない")
-        self.assertEqual(self.c.put("/api/dashboard/zz", json={}).status_code, 404)
+    def test_board_counts_wip_and_yesterday_like_the_old_table(self):
+        """合わせた表（版 3.38.0）の標準の組み＝版 3.36.0 の 1 枚の表: 設備ごとの仕掛ロット数（残仕掛設備ｺｰｽ の先頭の設備）と、
+        前日（現場歴）の直ごとの実績本数（作業開始が同じ行は 1 本）。素朴に数え直した数と合う"""
+        d = self.board()
+        wip, work = d["groups"]
+        self.assertEqual({k: cell(wip, [k])[0] for k in wip["orders"][0]}, {"CR1": 1, "L-1": 2}, "仕掛: 先頭の設備で数える")
+        self.assertEqual(cell(wip)[0], 3)
+        self.assertEqual([(work["labels"][1][k], cell(work, ["CR1"], [k])[0]) for k in work["orders"][1]], [("1直", 1), ("2直", 1)],
+                         "前日 10/15 の CR1: 1 直は分割の 2 行で 1 本・2 直 1 本")
+        self.assertIsNone(cell(work, ["L-1"]), "前日に作業の無い設備は行が無い（表では 0）")
+        self.assertEqual(work["period"]["ranges"], [{"from": "2026-10-15", "to": "2026-10-15"}])
+        self.assertEqual(d["equipOrder"][:2], ["CR1", "L-1"], "設備の並び（作業実績の設備の並び）も返す")
 
+    def test_board_groups_are_generic(self):
+        """列のまとまりは、ほかのパネルと同じ組み方（データ・値・列の段・条件）。4 つまで"""
+        g = {"source": "src:wip", "measure": {"agg": "lots"}, "filters": [{"column": "製造材質", "op": "eq", "value": "A5052"}]}
+        d = self.board(groups=[g, {**g, "filters": [], "cols": [{"column": "製造材質"}], "look": "heat"}])
+        self.assertEqual(cell(d["groups"][0])[0], 1, "まとまりごとの条件（A5052 のロット）")
+        self.assertEqual(cell(d["groups"][1], ["L-1"], ["$A1100"])[0], 1, "列の段（製造材質）")
+        r = self.c.post("/api/dashboard/query", json={"panel": {"visual": "board", "groups": [g] * 5}})
+        self.assertEqual(r.status_code, 400)
+        r = self.c.post("/api/dashboard/query", json={"panel": {"visual": "board", "groups": [{**g, "source": "nowhere"}]}})
+        self.assertEqual(r.status_code, 400)
+        bad = self.board(groups=[g, {**g, "cols": [{"column": "無い列"}]}])
+        self.assertTrue(bad["groups"][0]["cells"] and "無い列" in bad["groups"][1]["error"], "数えられないまとまりは、そのまとまりだけ理由")
+
+    def test_old_conditions_move_into_the_board(self):
+        """版 3.36.0 の集計対象の条件（全員で 1 つ）は、前の版で保存した 1 枚の表の列のまとまりの条件へ引き継ぐ"""
+        def put(rows, stamp):
+            rows.append({"id": 1, "キー": "wip", "条件": json.dumps({"filters": [{"column": "製造材質", "op": "eq", "value": "A5052"}]}), "rev": 1, **stamp})
+        self.app.config["MASTER_STORE"].write("dashboard_settings", put)
+        old = {"id": "board", "x": 0, "y": 0, "w": 12, "h": 8, "visual": "board"}       # 前の版で保存した形（列のまとまりが無い）
+        r = self.c.post("/api/dashboards", json={"name": "前の版", "scope": "me", "body": {"rows": 8, "panels": [old]}})
+        self.assertEqual(r.status_code, 201, r.get_json())
+        items = self.c.get("/api/dashboards").get_json()["items"]
+        mine = next(x for x in items if x["name"] == "前の版")["body"]["panels"][0]
+        self.assertEqual(mine["groups"][0]["filters"][0]["value"], "A5052", "仕掛の条件が仕掛のまとまりへ")
+        self.assertEqual(mine["groups"][1]["filters"], [], "実績の条件は無いまま")
+        std = next(x for x in items if x.get("builtin"))["body"]["panels"]
+        self.assertEqual(next(x for x in std if x["visual"] == "board")["groups"][0]["filters"], [], "組み込みの標準は条件なし（引き継がない）")
 
 
 def cell(ans, r=(), c=()):
@@ -173,25 +156,23 @@ class Panels(Api):
         self.assertEqual((cell(d, ["$生産"]), cell(d, ["$保留"]), cell(d)), ([2], [1], [3]), "仕掛区分ごとのロット数（同じロットの 2 行は 1）")
         self.assertEqual(d["sourceName"], "仕掛")
         e = self.ok(source="src:wip", body={"rows": [{"column": "@equip"}], "measures": [{"agg": "lots"}]})
-        board = self.c.get("/api/dashboard", query_string={"part": "wip"}).get_json()["wip"]
-        self.assertEqual({k: cell(e, [k])[0] for k in e["orders"][0]}, {x["equipment"]: x["lots"] for x in board["items"]},
-                         "設備ごとの数は 1 枚の表（残仕掛設備ｺｰｽ の先頭の設備）と同じ")
+        self.assertEqual({k: cell(e, [k])[0] for k in e["orders"][0]}, {"L-1": 2, "CR1": 1}, "設備ごとの数（残仕掛設備ｺｰｽ の先頭の設備）")
         miss = self.ask(source="src:wip", body={"rows": [{"column": "無い区分"}]})
         self.assertEqual(miss[0], 400)
         self.assertIn("無い区分", miss[1]["error"], "列が無ければ、どの列かを言う")
 
-    def test_work_all_equipment_yesterday_matches_the_board(self):
+    def test_work_all_equipment_yesterday(self):
         d = self.ok(source="work", body={"rows": [{"column": "@equip"}], "cols": [{"column": "@shift"}], "measures": [{"agg": "lots"}]},
                     period={"column": "@workday", "kind": "yesterday"})
-        board = {x["equipment"]: x for x in self.c.get("/api/dashboard", query_string={"part": "work"}).get_json()["work"]["items"]}
-        self.assertEqual(cell(d, ["CR1"])[0], board["CR1"]["total"]["works"])
+        self.assertEqual(cell(d, ["CR1"])[0], 2, "前日 10/15 の CR1 は 2 本")
         self.assertEqual(cell(d, ["CR1"], ["1直"])[0], 1, "分割（作業開始が同じ 2 行）は 1 本")
         self.assertIsNone(cell(d, ["L-1"]), "前日に作業の無い設備は行が無い")
         self.assertEqual(d["period"]["ranges"], [{"from": "2026-10-15", "to": "2026-10-15"}])
         self.assertEqual([x["name"] for x in d["parts"]], ["CR1", "L-1"])
         kpi = self.ok(visual="kpi", source="work", body={"measures": [{"agg": "lots"}]}, period={"column": "@workday", "kind": "yesterday"})
-        self.assertEqual(cell(kpi)[0], sum(x["total"]["works"] for x in board.values()), "数字の形（行なし）＝総計")
-        one = self.ok(visual="kpi", source="work", equip=board["L-1"]["key"], body={"measures": [{"agg": "count"}]})
+        self.assertEqual(cell(kpi)[0], 2, "数字の形（行なし）＝総計")
+        keys = {x["name"]: x["key"] for x in self.c.get("/api/dashboard/sources").get_json()["items"][1]["equips"]}
+        one = self.ok(visual="kpi", source="work", equip=keys["L-1"], body={"measures": [{"agg": "count"}]})
         self.assertEqual(cell(one)[0], 1, "設備を 1 つに絞る")
 
     def test_fields_and_sources(self):
@@ -207,7 +188,6 @@ class Panels(Api):
 
     def test_bad_panels(self):
         self.assertEqual(self.ask(source="nowhere", body={"rows": [{"column": "a"}]})[0], 400)
-        self.assertEqual(self.ask(visual="board")[0], 400)
         self.assertEqual(self.ask(source="src:wip", body={})[0], 400, "グラフには行の段が要る")
 
 
@@ -266,7 +246,6 @@ class Layouts(unittest.TestCase):
                          "閲覧のみの人は共通に置けない")
         r = self.c.post("/api/dashboards", json={"name": "じろう", "scope": "me", "body": self.body})
         self.assertEqual(r.status_code, 201, "閲覧のみの人も自分の ID には置ける（門番に止められない）")
-        self.assertEqual(self.c.put("/api/dashboard/wip", json={"filters": []}).status_code, 403, "集計対象の条件（全員で 1 つ）はマスタの権限")
         self.as_("taro")
         self.assertEqual(self.c.put(f"/api/dashboards/{mine['id']}", json={"name": "わたしの2", "base_rev": mine["rev"]}).status_code, 200)
         self.assertEqual(self.c.put(f"/api/dashboards/{mine['id']}", json={"name": "x", "base_rev": mine["rev"]}).status_code, 409, "古い版では書かない")

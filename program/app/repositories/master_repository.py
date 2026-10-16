@@ -296,26 +296,9 @@ class MasterRepository:
             return None
         self.store.write("data_sources", mutate)
 
-    # -------------------------------------------------- ダッシュボードの条件（中身の決まりは services/dashboard.py）
+    # -------------------------------------------------- ダッシュボードの条件（版 3.36.0。読むだけ: 合わせた表へ引き継ぐ。services/dashboard.py）
     def dashboard_rows(self):
         return self._list("dashboard_settings")
-
-    def dashboard_put(self, key, condition, base_rev=None):
-        """パネル key の条件（JSON の字）を置く（有れば直す・無ければ足す）。base_rev は行の版（無かったときは 0）。"""
-        spec = SPECS["dashboard_settings"]
-
-        def mutate(rows, stamp):
-            _normalize_all(rows, spec)
-            row = next((r for r in rows if r.get("キー") == key), None)
-            if base_rev is not None and (int(row.get("rev", 1)) if row else 0) != int(base_rev):
-                raise RowConflict(dict(row) if row else None)
-            if row is None:
-                row = {"id": next_id(rows), "キー": key, "rev": 0}
-                rows.append(row)
-            row["条件"] = condition
-            row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
-            return dict(row)
-        return self.store.write("dashboard_settings", mutate)
 
     # -------------------------------------------------- 作業実績の設備（中身の決まりは services/work_log.py）
     def work_logs(self):

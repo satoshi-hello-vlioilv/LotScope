@@ -213,7 +213,7 @@ class MasterStore:
         # pivot_presets: 集計表・グラフの組み方のプリセット（共通デフォルト・共通・ID ごと）。ほかの PC・ほかの設備で呼び出すので全員で1つ
         # pivot_quick: すぐに見るの選び（ログイン ID ごと）。ほかの PC でも同じ並びを出すので全員で1つ
         # data_sources: データ元（どこの何を読むか）。読みに行く場所と同じく全員で1つ（版 3.36.0 で入れ忘れていたのを 3.37.0 で足した）
-        # dashboard_settings: ダッシュボードの集計対象の条件（全員で1つ）・dashboards: ダッシュボードの組み（共通・ID ごと。ほかの PC でも同じ物を出す）
+        # dashboard_settings: 版 3.36.0 のダッシュボードの集計対象の条件（全員で1つ。版 3.38.0 から読むだけ）・dashboards: ダッシュボードの組み（共通・ID ごと。ほかの PC でも同じ物を出す）
         self.shared_names = set(cfg.get("masters") or ["roll_master", "equipment_master"]) | SHARED_ALWAYS
         self.lock_ttl = float(cfg.get("lock_ttl_seconds", LOCK_TTL_DEFAULT))
         self.refresh_sec = float(cfg.get("refresh_seconds", REFRESH_DEFAULT))

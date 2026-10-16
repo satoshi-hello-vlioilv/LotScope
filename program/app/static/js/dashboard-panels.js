@@ -5,7 +5,7 @@
      グラフ        … 集計表と同じ描き方（lotlist-pivot-charts.js）を、パネルの幅・高さ・詰めた形（compact）で。
                      種類の段（設備・仕掛区分など）は、入る数だけ（大きい順にしていれば上位）を描き、残りの数を下に出す
      表（none）    … 集計表と同じ表。字と行の高さを詰めて収め、それでも入らない行は「ほか n 行」
-     1 枚の表（board）… 設備ごとの仕掛と前日の実績（版 3.36.0 の物）。表と同じ詰め方
+     合わせた表（board）… 行の段を共通にして列のまとまりを横に並べる（版 3.38.0。設備ごとの仕掛と前日の実績はこの形）。表と同じ詰め方
    数え方はサーバー（POST /api/dashboard/query → services/pivot.py の query_many）。ここは答えを描くだけ
    ========================================================================= */
 (function () {
@@ -138,53 +138,124 @@
   }
   const moreText = (n, what) => (n ? `ほか ${n} ${what}（パネルを大きくすると出ます）` : "");
 
-  /* ---- 1 枚の表（設備ごとの仕掛と前日の実績。版 3.36.0 の物。数は /api/dashboard） ---- */
+  /* ---- 合わせた表（visual board。版 3.38.0）。行の段（既定は設備）を共通にして、列のまとまり（それぞれほかのパネルと同じ組み方で数えた答え）を
+     横に並べる。版 3.36.0 の「設備ごとの仕掛と前日の実績」は、この形の標準の組み（仕掛ロット数〈棒〉＋前日の直ごとの実績本数〈濃淡・計・0 本の印〉）。
+     行の並び: 値の大きい順（どのまとまりの計で）・名前の順・設備の並び（作業実績の設備の並び）・手で並べる（list。隠す hide） ---- */
   const ago = (sec) => { if (!sec) return ""; const t = new Date(sec * 1000), z = TPA.pad2; return `${t.getMonth() + 1}/${t.getDate()} ${z(t.getHours())}:${z(t.getMinutes())}`; };
-  function board(box, data, H) {
-    if (!data) { box.innerHTML = '<p class="dp-wait">数えています…</p>'; return ""; }
-    if (data.error) { box.innerHTML = `<p class="dp-ng">読めませんでした: ${esc(data.error)}</p>`; return ""; }
-    const w = data.wip || {}, k = data.work || {}, wipItems = w.items || [], workItems = k.items || [];
-    const lots = Object.fromEntries(wipItems.map((x) => [x.equipment, x.lots]));
-    const work = Object.fromEntries(workItems.map((x) => [x.equipment, x]));
-    const names = [];
-    workItems.forEach((x) => (x.shifts || []).forEach((s) => { if (!names.includes(s.name)) names.push(s.name); }));
-    // 勤務体系の時間帯に入らない作業（直の外）も計には入るので、ある日だけ列を出す（計と列の和を合わせる）
-    const OUT = "直の外", anyOut = workItems.some((x) => x.outside);
-    if (anyOut) names.push(OUT);
-    const eqs = [...new Set([...wipItems.map((x) => x.equipment), ...workItems.map((x) => x.equipment)])]
-      .sort((a, b) => (lots[b] || 0) - (lots[a] || 0) || a.localeCompare(b, "ja"));
-    const zero = eqs.filter((e) => { const x = work[e]; return x && !x.error && x.total && !x.total.works && lots[e]; });
-    const maxL = Math.max(1, ...Object.values(lots));
-    const maxS = Math.max(1, ...workItems.flatMap((x) => (x.shifts || []).map((s) => s.works)));
-    const heat = (n) => (n ? ` style="--h:${(0.1 + 0.35 * n / maxS).toFixed(2)}"` : "");   // 字はいつも濃い色（地は淡い青緑＝作業実績の色の濃淡まで）
-    const day = k.days && k.days.length === 1 ? k.days[0] : "";
-    const works = workItems.reduce((a, x) => a + ((x.total && x.total.works) || 0), 0);
-    const rowList = eqs.map((e) => {
-      const x = work[e], n = lots[e] || 0;
-      const lead = `<th scope="row">${esc(e)}</th><td class="db-lots"><div><span class="db-bar"><i style="width:${(n / maxL * 100).toFixed(1)}%"></i></span><b>${n ? n.toLocaleString() : "–"}</b></div></td>`;
-      if (!x) return `<tr>${lead}<td class="db-grp db-na" colspan="${names.length + 1}">作業実績の設備にありません</td></tr>`;
-      if (x.error) return `<tr>${lead}<td class="db-grp db-ng" colspan="${names.length + 1}">${esc(x.error)}</td></tr>`;
-      const by = Object.fromEntries((x.shifts || []).map((s) => [s.name, s.works]));
-      if (anyOut) by[OUT] = x.outside || 0;
-      const t = (x.total && x.total.works) || 0;
-      return `<tr>${lead}${names.map((nm, i) => (nm in by ? `<td class="num db-s${i ? "" : " db-grp"}${by[nm] ? "" : " is-zero"}"><span${heat(by[nm])}>${by[nm]}</span></td>`
-        : `<td class="num db-s is-na${i ? "" : " db-grp"}" title="この設備の勤務体系に無い直">–</td>`)).join("")}
-        <td class="num db-sum">${t}${!t && n ? '<em class="db-flag" title="仕掛があるのに、前日は 0 本でした">0 本</em>' : ""}</td></tr>`;
-    });
-    const wipMeta = w.error ? `<span class="dp-ng">${esc(w.error)}</span>`
-      : `設備は「${esc(w.equipColumn || "（なし）")}」の${(w.source || {}).equipMode === "前方一致" ? "先頭の設備" : "値"}・元 ${esc(ago(w.mirror && w.mirror.at))}${w.noEquipment ? `・設備なし ${w.noEquipment}` : ""}`;
-    box.innerHTML = `<div class="db-boardhead">${zero.length ? `<span class="db-warn" title="仕掛があるのに、前日は 0 本だった設備"><b>前日 0 本</b>${zero.map(esc).join("・")}</span>` : ""}`
-      + `<span class="db-sp"></span><small class="db-meta" title="前日の実績: 作業開始が同じ行（分割したロット）は 1 本。直は設備ごとの勤務体系で決めます。">仕掛: ${wipMeta}</small></div>`
-      + (w.missingColumn ? `<p class="dp-ng">設備の列「${esc(w.missingColumn)}」が表にありません。「マスタ管理」の「データ元」で直してください。</p>` : "")
-      + '<div class="dp-flow"></div>';
-    const thead = `<thead><tr><th rowspan="2">設備</th><th rowspan="2" class="db-lots">仕掛ロット数<small>計 ${(w.total || 0).toLocaleString()}</small></th>
-          <th class="db-grp" colspan="${names.length + 1}">前日 ${esc(md(day) || "-")} の実績本数（現場歴）<small>計 ${works.toLocaleString()} 本</small></th></tr>
-          <tr>${names.map((nm, i) => `<th class="num db-s${i ? "" : " db-grp"}">${esc(nm)}</th>`).join("")}<th class="num db-sum">計</th></tr></thead>`;
-    const head = box.querySelector(".db-boardhead");
-    const flow = box.querySelector(".dp-flow"), avail = H - (head ? head.offsetHeight + 4 : 0);
+  const cellOf = (a, r, c) => ((a.cells || []).find((x) => x.r.length === r.length && x.c.length === c.length && x.r.every((k, i) => k === r[i]) && x.c.every((k, i) => k === c[i])) || {}).v;
+  const unitOf = (g) => (g.measure.agg === "lots" ? (g.source === "work" ? "本" : "ロット") : g.measure.agg === "count" ? "件" : "");
+  const groupColor = (g) => g.color || colorOf(g.source);
+  /** まとまりの題（空なら組み方から: 「前日 10/15 の実績本数（現場歴）」「仕掛のロット数」） */
+  function groupTitle(g, a) {
+    if (g.title) return g.title;
+    const word = g.measure.agg === "lots" ? (g.source === "work" ? "実績本数" : "ロット数") : measName(g.measure);
+    const pr = a && a.period, r = pr && (pr.ranges || [])[0];
+    if (pr && r) {
+      const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
+      return `${name} ${span} の${word}${pr.column === "@workday" ? `（${g.basis === "cal" ? "太陽暦" : "現場歴"}）` : ""}`;
+    }
+    return `${(a && a.sourceName) || ""}${a && a.sourceName ? "の" : ""}${word}`;
+  }
+  /** 1 つのまとまりの答え → {rows: Map(行の鍵 → {label, v: [列ごとの値], total}), cols: [{key, label}], total, missing: Set, failed: Map, none} */
+  function groupModel(g, a, rowDim) {
+    const out = { rows: new Map(), cols: [], total: null, failed: new Map(), parts: null, none: 0, err: a && a.error ? a : null };
+    if (!a || a.error) return out;
+    const nc = (a.dims.cols || []).length, labels = a.labels || [], orders = a.orders || [];
+    if (nc) {
+      const leaves = (a.cells || []).filter((x) => x.r.length === 1 && x.c.length === nc).map((x) => JSON.stringify(x.c));
+      const rank = (path) => path.map((k, i) => (orders[1 + i] || []).indexOf(k));
+      out.cols = [...new Set(leaves)].map((j) => JSON.parse(j)).sort((x, y) => { const p = rank(x), q = rank(y); for (let i = 0; i < p.length; i++) if (p[i] !== q[i]) return p[i] - q[i]; return 0; })
+        .map((path) => ({ path, label: path.map((k, i) => (labels[1 + i] || {})[k] ?? k).join("・") }));
+      // 直の段: 勤務体系の直は、前日に作業が無くても列に並べる（勤務体系の順。直の外・時刻なしは後ろ）
+      if (nc === 1 && a.dims.cols[0].column === "@shift" && (a.shifts || []).length) {
+        const have = new Set(out.cols.map((c) => c.label)), at = (c) => { const i = a.shifts.indexOf(c.label); return i < 0 ? 1e6 + out.cols.indexOf(c) : i; };
+        out.cols = out.cols.concat(a.shifts.filter((n) => !have.has(n)).map((n) => ({ path: ["\u0000" + n], label: n }))).sort((x, y) => at(x) - at(y));
+        out.shiftsOf = new Map((a.parts || []).map((x) => [x.name, new Set(x.shifts || [])]));
+      }
+    }
+    for (const k of orders[0] || []) {
+      const label = (labels[0] || {})[k] ?? k;
+      if (rowDim === "@equip" && k === "") { out.none = (cellOf(a, [k], []) || [0])[0] || 0; continue; }   // 設備の分からない行は表に出さず、数だけ言う
+      out.rows.set(label, { v: out.cols.map((c) => (cellOf(a, [k], c.path) || [null])[0]), total: (cellOf(a, [k], []) || [null])[0] });
+    }
+    out.total = (cellOf(a, [], []) || [null])[0];
+    (a.failed || []).concat(a.skipped || []).forEach((f) => out.failed.set(f.name, f.error));
+    if (a.parts) out.parts = new Set(a.parts.map((x) => x.name));
+    return out;
+  }
+  function boardOrder(p, keys, models, equipOrder) {
+    const o = p.order || {}, by = o.by || "value", hide = new Set(o.hide || []);
+    const name = (a, b) => a.localeCompare(b, "ja");
+    const shown = keys.filter((k) => !hide.has(k));
+    if (by === "name") return shown.sort(name);
+    if (by === "equip" || by === "manual") {
+      const list = by === "manual" ? (o.list || []) : (equipOrder || []), at = (k) => { const i = list.indexOf(k); return i < 0 ? Infinity : i; };
+      return shown.sort((a, b) => at(a) - at(b) || name(a, b));
+    }
+    const m = models[Math.min(o.group || 0, models.length - 1)], val = (k) => { const r = m && m.rows.get(k); return r && r.total != null ? r.total : 0; };
+    return shown.sort((a, b) => (o.dir === "asc" ? val(a) - val(b) : val(b) - val(a)) || name(a, b));
+  }
+  /** 合わせた表の行の鍵（いまの並び。隠した行も入れる）。組む所の行の札に使う */
+  function boardKeys(p, d) {
+    const gs = p.groups || [], rowDim = (p.rows || {}).column || "@equip";
+    const models = gs.map((g, i) => groupModel(g, ((d && d.groups) || [])[i], rowDim));
+    const keys = [...new Set(models.flatMap((m) => [...m.rows.keys(), ...(rowDim === "@equip" ? [...m.failed.keys()] : [])]))];
+    return boardOrder({ ...p, order: { ...(p.order || {}), hide: [] } }, keys, models, d && d.equipOrder);
+  }
+  /** 合わせた表を描く（d = {groups: [答え], equipOrder}）→ 下に出す知らせの字 */
+  function board(box, p, d, H) {
+    if (!d) { box.innerHTML = '<p class="dp-wait">数えています…</p>'; return ""; }
+    const gs = p.groups || [], rowDim = (p.rows || {}).column || "@equip";
+    const models = gs.map((g, i) => groupModel(g, (d.groups || [])[i], rowDim));
+    const keys = [...new Set(models.flatMap((m) => [...m.rows.keys(), ...(rowDim === "@equip" ? [...m.failed.keys()] : [])]))];
+    const order = boardOrder(p, keys, models, d.equipOrder);
+    // 0 の印: まとまりの計が 0（行が無い＝0）で、ほかのまとまりに数がある行
+    const zeroOf = (gi, k) => { const r = models[gi].rows.get(k); return !(r && r.total) && models.some((m, j) => j !== gi && ((m.rows.get(k) || {}).total || 0) > 0); };
+    const flags = gs.map((g, gi) => (g.zero && !models[gi].err ? order.filter((k) => zeroOf(gi, k) && !models[gi].failed.has(k) && !(models[gi].parts && !models[gi].parts.has(k))) : []));
+    const span = (gi) => Math.max(1, models[gi].cols.length + (models[gi].cols.length && gs[gi].total ? 1 : 0));
+    const fmtN = (n) => (n == null ? "–" : C.fmt(n));
+    const groupCells = (g, gi, k) => {
+      const m = models[gi], r = m.rows.get(k), col = groupColor(g), grp = gi ? " db-grp" : "";
+      if (m.err) return `<td class="db-ng${grp}" colspan="${span(gi)}">${gi === 0 || k === order[0] ? esc(m.err.error) : ""}</td>`;
+      if (m.failed.has(k)) return `<td class="db-ng${grp}" colspan="${span(gi)}">${esc(m.failed.get(k))}</td>`;
+      if (!r && m.parts && !m.parts.has(k)) return `<td class="db-na${grp}" colspan="${span(gi)}">${esc((d.groups[gi] || {}).sourceName || "")}の${rowDim === "@equip" ? "設備" : "行"}にありません</td>`;
+      const maxOf = (vals) => Math.max(1, ...vals.filter((v) => typeof v === "number"));
+      if (!m.cols.length) {
+        const v = r ? r.total : 0;
+        if (g.look === "bar") {
+          const mx = maxOf([...m.rows.values()].map((x) => x.total));
+          return `<td class="db-lots${grp}" style="--gc:${col}"><div><span class="db-bar"><i style="width:${((v || 0) / mx * 100).toFixed(1)}%"></i></span><b>${v ? fmtN(v) : "–"}</b></div></td>`;
+        }
+        return `<td class="num db-s${grp}${v ? "" : " is-zero"}" style="--gc:${col}">${g.look === "heat" && v ? `<span style="--h:${(0.1 + 0.35 * v / maxOf([...m.rows.values()].map((x) => x.total))).toFixed(2)}">${fmtN(v)}</span>` : fmtN(v || 0)}</td>`;
+      }
+      const mx = maxOf([...m.rows.values()].flatMap((x) => x.v));
+      const cells = m.cols.map((c, ci) => {
+        const v = r ? r.v[ci] : 0, gl = ci ? "" : grp;
+        const own = m.shiftsOf && m.shiftsOf.get(k);
+        if (own && own.size && !own.has(c.label) && (d.groups[gi].shifts || []).includes(c.label)) return `<td class="num db-s is-na${gl}" title="この設備の勤務体系に無い直">–</td>`;
+        const n = v || 0;
+        return `<td class="num db-s${gl}${n ? "" : " is-zero"}" style="--gc:${col}">${g.look === "heat" && n ? `<span style="--h:${(0.1 + 0.35 * n / mx).toFixed(2)}">${fmtN(n)}</span>` : g.look === "bar" && n ? `<span class="db-mini"><i style="width:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtN(n)}` : fmtN(n)}</td>`;
+      }).join("");
+      const t = r ? r.total || 0 : 0;
+      return cells + (g.total ? `<td class="num db-sum">${fmtN(t)}${flags[gi].includes(k) ? `<em class="db-flag" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 でした">0 ${unitOf(g)}</em>` : ""}</td>` : "");
+    };
+    const rowName = rowDim === "@equip" ? "設備" : dimName(p.rows || { column: rowDim }, p);
+    const rowList = order.map((k) => `<tr><th scope="row">${esc(k)}</th>${gs.map((g, gi) => groupCells(g, gi, k)).join("")}</tr>`);
+    const head1 = gs.map((g, gi) => {
+      const m = models[gi], a = (d.groups || [])[gi] || {}, cls = gi ? "db-grp" : "";
+      const tip = [a.sourceName, ...(a.mirrors || []).slice(0, 1).map((x) => x && x.at ? `元 ${ago(x.at)}` : ""), m.none ? `${rowDim === "@equip" ? "設備なし" : "空欄"} ${C.fmt(m.none)}` : ""].filter(Boolean).join("・");
+      return `<th class="${cls}${m.cols.length ? "" : (g.look === "bar" ? " db-lots" : " num")}" colspan="${span(gi)}"${m.cols.length ? "" : ' rowspan="2"'} title="${esc(tip)}">${esc(groupTitle(g, a))}<small>計 ${m.total == null ? "–" : C.fmt(m.total)}${unitOf(g) ? ` ${unitOf(g)}` : ""}</small></th>`;
+    }).join("");
+    const head2 = gs.map((g, gi) => (models[gi].cols.length ? models[gi].cols.map((c, ci) => `<th class="num db-s${ci || !gi ? "" : " db-grp"}">${esc(c.label)}</th>`).join("") + (g.total ? '<th class="num db-sum">計</th>' : "") : "")).join("");
+    const thead = `<thead><tr><th rowspan="2">${esc(rowName)}</th>${head1}</tr><tr>${head2}</tr></thead>`;
+    const warn = gs.map((g, gi) => (flags[gi].length ? `<span class="db-warn" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 だった${rowDim === "@equip" ? "設備" : "行"}"><b>${esc(groupTitle(g, d.groups[gi]).replace(/ .*$/, ""))} 0 ${unitOf(g)}</b>${flags[gi].map(esc).join("・")}</span>` : "")).join("");
+    const meta = models.map((m, gi) => { const a = (d.groups || [])[gi] || {}, at = (a.mirrors || [])[0]; return `${esc(a.sourceName || "")}${at && at.at ? ` 元 ${esc(ago(at.at))}` : ""}${m.none ? `・${rowDim === "@equip" ? "設備なし" : "空欄"} ${C.fmt(m.none)}` : ""}`; }).filter(Boolean).join("　");
+    box.innerHTML = `<div class="db-boardhead">${warn}<span class="db-sp"></span><small class="db-meta" title="${esc(meta)}">${meta}</small></div><div class="dp-flow"></div>`;
+    const head = box.querySelector(".db-boardhead"), flow = box.querySelector(".dp-flow"), avail = H - (head ? head.offsetHeight + 4 : 0);
     flow.style.maxHeight = avail + "px";
-    if (!rowList.length) { flow.innerHTML = `<table class="db-table">${thead}<tbody><tr><td colspan="${names.length + 3}" class="dp-empty">数える設備がありません。</td></tr></tbody></table>`; return ""; }
-    // 入らなければ、字を詰める → 行を 2〜3 つの列に分けて横に並べる（幅が足りるとき）→ 下の行を隠す の順（2026-10-grid の 2 回目。どの設備も見えるように）
+    const cols = 1 + gs.reduce((n, g, gi) => n + span(gi), 0);
+    if (!rowList.length) { flow.innerHTML = `<table class="db-table">${thead}<tbody><tr><td colspan="${cols}" class="dp-empty">当たる行がありません。</td></tr></tbody></table>`; return ""; }
+    // 入らなければ、字を詰める → 行を 2〜3 つの列に分けて横に並べる（幅が足りるとき）→ 下の行を隠す の順（2026-10-grid の 2 回目。どの行も見えるように）
     const W = box.clientWidth;
     for (let k = 1; k <= 3; k++) {
       if (k > 1 && W / k < 470) break;
@@ -193,7 +264,7 @@
       flow.innerHTML = Array.from({ length: k }, (_, i) => `<div class="dp-tbl"><table class="db-table">${thead}<tbody>${rowList.slice(i * per, (i + 1) * per).join("")}</tbody></table></div>`).join("");
       if (!shrink(flow, avail)) return "";
     }
-    return moreText([...flow.querySelectorAll(".dp-tbl")].reduce((a, t) => a + fitRows(t, avail), 0), "設備");
+    return moreText([...flow.querySelectorAll(".dp-tbl")].reduce((a, t) => a + fitRows(t, avail), 0), rowDim === "@equip" ? "設備" : "行");
   }
   /** 字を 14 → 11px まで詰めて高さに入るか試す → 入らなければ true（詰めた最後のまま） */
   /** 表を高さ H に合わせる: 入る中でいちばん大きな字（15 → 11px）にし、まだ下が空けば行の上下の余白で埋める（縦長のパネルの下が空かない）。
@@ -230,5 +301,5 @@
     return out;
   }
 
-  window.DashPanels = { render, board, notes, periodText, measName, dimName, md, colorOf, kindOf };
+  window.DashPanels = { render, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, SOURCE_COLOR };
 })();

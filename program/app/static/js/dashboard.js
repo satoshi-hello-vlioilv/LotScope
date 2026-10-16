@@ -4,7 +4,7 @@
      （各一覧の集計表・グラフを組むのと同じ感じで。Power BI のように）。スクロールしない（どの大きさの窓でも全部が見える）
    - グリッド: 横 12 列 × 縦 rows 段（4〜16。既定 8）。段の高さ＝窓の高さを段の数で割る。パネルは {x, y, w, h}（列・段の数）
    - パネルの中身は dashboard-panels.js（大きさに合わせて描く）・組む所は dashboard-editor.js（変えるとグリッドの中のパネルがすぐ描き直る）
-   - 数はサーバー（POST /api/dashboard/query。1 枚の表は /api/dashboard）。出ているあいだは 1 分ごとに引き直す（サーバーは写しから数え、
+   - 数はサーバー（POST /api/dashboard/query。合わせた表〈版 3.38.0〉も同じ道）。出ているあいだは 1 分ごとに引き直す（サーバーは写しから数え、
      同じ組み・同じ写しなら前の答えを返す）
    - ダッシュボードの置き場は /api/dashboards（共通デフォルト・共通・ID・標準。集計表の組み方と同じ決まり）。組み込みの「標準」は書き換えられず、
      直したら「別名で保存」。最後に開いた物をこの PC で覚える（tpa.dash.v1）
@@ -20,7 +20,7 @@
   const S = {
     list: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, rowsRange: [4, 16],
     id: null, layout: null, saved: "", edit: false, history: [], sel: "", sources: [],
-    answers: new Map(), board: null, at: 0, timer: null, active: false, loading: false, msg: "", confirm: "", pop: null, editing: "",
+    answers: new Map(), at: 0, timer: null, active: false, loading: false, msg: "", confirm: "", pop: null, editing: "",
   };
 
   /* ---------------- 覚え・置き場 ---------------- */
@@ -29,7 +29,7 @@
   const current = () => S.list.find((x) => String(x.id) === String(S.id)) || null;
   const dirty = () => !!S.layout && JSON.stringify(S.layout) !== S.saved;
   const panelOf = (id) => (S.layout ? S.layout.panels.find((x) => x.id === id) : null);
-  const qkey = (p) => JSON.stringify([p.visual, p.source, p.equip, p.body, p.filters, p.search, p.period, p.basis]);   // 数を引き直す組み（題・目立たせる・置き場は入れない）
+  const qkey = (p) => JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups] : [p.visual, p.source, p.equip, p.body, p.filters, p.search, p.period, p.basis, p.calc]);   // 数を引き直す組み（題・目立たせる・置き場は入れない）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
@@ -66,19 +66,16 @@
     if (!now || qkey(now) !== k) return;                 // 引いている間に組みが変わった（新しい方が引き直す）
     S.answers.set(p.id, a);
     paintPanel(p.id);
-    if (a.kind === "copying") setTimeout(() => { const q = panelOf(p.id); if (q && S.active && qkey(q) === k) queryPanel(q); }, RETRY_MS);
-  }
-  async function loadBoard() {
-    try { S.board = await (await fetch("/api/dashboard", { cache: "no-store" })).json(); } catch (e) { S.board = { error: String(e) }; }
-    S.layout && S.layout.panels.filter((p) => p.visual === "board").forEach((p) => paintPanel(p.id));
+    if (S.editing === p.id && E.isOpen()) E.answered();
+    const copying = a.kind === "copying" || (a.d && (a.d.groups || []).some((g) => g.kind === "copying"));   // 合わせた表はまとまりごと
+    if (copying) setTimeout(() => { const q = panelOf(p.id); if (q && S.active && qkey(q) === k) queryPanel(q); }, RETRY_MS);
   }
   /** 全部を引き直す（force でなければ、組みが変わったパネルだけ） */
   function refresh(force = true) {
     if (!S.layout) return;
     S.at = Date.now();
     const ps = S.layout.panels;
-    if (ps.some((p) => p.visual === "board") && (force || !S.board)) loadBoard();
-    ps.filter((p) => p.visual !== "board").forEach((p) => { const a = S.answers.get(p.id); if (force || !a || a.key !== qkey(p)) queryPanel(p); });
+    ps.forEach((p) => { const a = S.answers.get(p.id); if (force || !a || a.key !== qkey(p)) queryPanel(p); });
     paintBar();
   }
 
@@ -150,14 +147,14 @@
       : S.edit
       ? `<button type="button" class="db-pbtn" data-db-edit title="このパネルを組む（Enter）">組む</button><button type="button" class="db-pbtn" data-db-dup title="同じパネルを空いた所に足す">複製</button>`
         + `<button type="button" class="db-pbtn is-danger${S.confirm === "del:" + p.id ? " is-armed" : ""}" data-db-del title="このパネルを消す（Delete。もう一度押すと消えます）">${S.confirm === "del:" + p.id ? "消す？" : "消す"}</button>`
-      : p.visual === "board" ? boardConds() : `<button type="button" class="db-pbtn db-quiet" data-db-edit title="このパネルを組み直す（編集に入ります）">組む</button>`;
+      : `<button type="button" class="db-pbtn db-quiet" data-db-edit title="このパネルを組み直す（編集に入ります）">組む</button>`;
     return `${dot}<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3><span class="db-sp"></span>`
       + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + tools;
   }
   function paintPanel(id) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
     if (!p || !el) return;
-    const a = p.visual === "board" ? null : S.answers.get(id);
+    const a = S.answers.get(id);
     el.querySelector(".db-ph").innerHTML = headHtml(p, a, el.clientWidth);
     el.setAttribute("aria-label", titleOf(p));
     // 添え書き（元・期間・条件）は見出しの下の 2 行目（見出しは題と操作だけで 1 行）。数字の形は数の下に出す
@@ -166,16 +163,15 @@
     const body = el.querySelector(".db-pb"), foot = el.querySelector(".db-pf");
     const size = { w: body.clientWidth, h: body.clientHeight };
     let note = "";
-    if (p.visual === "board") note = P.board(body, S.board, size.h);
-    else if (!a || (!a.d && !a.err)) body.innerHTML = '<p class="dp-wait">数えています…</p>';
+    if (!a || (!a.d && !a.err)) body.innerHTML = '<p class="dp-wait">数えています…</p>';
     else if (a.err && !a.d) body.innerHTML = errHtml(a);
     else {
       body.classList.toggle("is-busy", !!a.busy);
-      note = P.render(body, p, a.d, size, p.visual === "kpi" ? meta : "");
+      note = p.visual === "board" ? P.board(body, p, a.d, size.h) : P.render(body, p, a.d, size, p.visual === "kpi" ? meta : "");
     }
     foot.hidden = !note; foot.textContent = note || ""; foot.title = note || "";
     if (note && body.clientHeight < size.h - 2) {          // 下の知らせの分だけ低くなった: もう一度、新しい高さで描く
-      if (p.visual === "board") P.board(body, S.board, body.clientHeight);
+      if (a && a.d && p.visual === "board") P.board(body, p, a.d, body.clientHeight);
       else if (a && a.d) P.render(body, p, a.d, { w: body.clientWidth, h: body.clientHeight }, p.visual === "kpi" ? meta : "");
     }
   }
@@ -253,35 +249,6 @@
       + `<label class="pv-ck"><input type="checkbox" id="dbSaveStd" checked>標準にする（アプリを開いたときに、これを出す）</label>`
       + `<div class="db-popacts"><span class="db-sp"></span><button type="button" class="btn-primary" data-db-dosave>保存</button></div><p class="db-poperr" aria-live="polite"></p>`;
   }
-  /* 1 枚の表の集計対象（全員で 1 つ。版 3.36.0 の条件。マスタ dashboard_settings） */
-  const condText = (c) => (c && c.filters && c.filters.length ? c.filters.map((f) => TPA.condLabel(f)).join("・") : "すべて");
-  function boardConds() {
-    const w = (S.board || {}).wip || {}, k = (S.board || {}).work || {};
-    const b = (panel, c) => `<button type="button" class="db-cond${c && c.filters && c.filters.length ? " is-on" : ""}" data-db-cond="${panel}" aria-haspopup="true" title="${esc(condText(c))}">${panel === "wip" ? "仕掛" : "実績"}の対象: ${esc(condText(c))}</button>`;
-    return b("wip", w.condition) + b("work", k.condition)
-      + (w.source && w.source.screen ? `<button type="button" class="db-pbtn db-quiet" data-db-goto="${esc(w.source.screen)}">${esc(w.source.name)}を開く ›</button>` : "");
-  }
-  function condHtml(panel) {
-    const p = (S.board || {})[panel] || {}, c = p.condition || { filters: [] }, cols = p.columns || [];
-    const colOpts = (cur) => [`<option value="">列を選ぶ</option>`, ...cols.map((x) => `<option${x === cur ? " selected" : ""}>${esc(x)}</option>`)].join("");
-    const opOpts = (cur) => TPA.FILTER_OPS.map(([v, l]) => `<option value="${v}"${v === cur ? " selected" : ""}>${esc(l)}</option>`).join("");
-    const row = (f) => `<div class="db-crow"><select data-f="column">${colOpts(f.column)}</select><select data-f="op">${opOpts(f.op || "eq")}</select>
-      <input data-f="value" value="${esc(f.value || "")}" placeholder="値"><button type="button" class="icon-btn" data-db-crowdel aria-label="この条件を外す">×</button></div>`;
-    return `<div class="db-pophead"><b>${panel === "wip" ? "仕掛" : "前日の実績"}を数えるロットの条件</b><small>全員で 1 つ（この表だけに効きます）</small></div>`
-      + `<div class="db-crows" data-panel="${panel}">${(c.filters.length ? c.filters : [{}]).map(row).join("")}</div>`
-      + `<div class="db-popacts"><button type="button" class="pv-btn" data-db-crowadd>＋ 条件を足す</button><span class="db-sp"></span><button type="button" class="btn-primary" data-db-condsave="${panel}">保存して数え直す</button></div>`
-      + `<p class="db-poperr" aria-live="polite"></p><template>${row({})}</template>`;
-  }
-  async function saveCond(panel) {
-    const filters = [...popEl.querySelectorAll(".db-crow")].map((r) => ({ column: r.querySelector('[data-f="column"]').value, op: r.querySelector('[data-f="op"]').value,
-      value: r.querySelector('[data-f="value"]').value })).filter((f) => f.column);
-    const err = popEl.querySelector(".db-poperr");
-    err.textContent = "保存しています…";
-    const r = await fetch(`/api/dashboard/${panel}`, TPA.json("PUT", { filters, base_rev: (((S.board || {})[panel] || {}).condition || {}).rev || 0 }));
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { err.textContent = "✕ " + (d.error || (r.status === 409 ? "ほかの PC が先に条件を変えました。開き直してください。" : "保存できませんでした")); return; }
-    closePop(); S.board = null; loadBoard();
-  }
   async function onPopClick(e) {
     const t = e.target.closest("button"); if (!t) return;
     if (t.dataset.dbOpen) { if (S.edit && dirty()) { say("編集中の変えた所を保存するか、やめてから開いてください"); return; } closePop(); open(t.dataset.dbOpen); return; }
@@ -295,9 +262,6 @@
       await loadList(); open(S.standardId); say(`「${it.name}」を消しました`); return;
     }
     if (t.hasAttribute("data-db-dosave")) { saveAs(); return; }
-    if (t.hasAttribute("data-db-crowadd")) { popEl.querySelector(".db-crows").insertAdjacentHTML("beforeend", popEl.querySelector("template").innerHTML); return; }
-    if (t.hasAttribute("data-db-crowdel")) { t.closest(".db-crow").remove(); return; }
-    if (t.dataset.dbCondsave) { saveCond(t.dataset.dbCondsave); return; }
     const mid = popEl && popEl.dataset.panel;
     if (mid && t.hasAttribute("data-db-edit")) { closePop(); openEditor(mid); return; }
     if (mid && t.hasAttribute("data-db-dup")) { closePop(); duplicate(mid); return; }
@@ -468,13 +432,12 @@
   let editBase = null;      // 組む前のパネル（やめたら戻す）
   function openEditor(id) {
     const p = panelOf(id); if (!p) return;
-    if (p.visual === "board") { say("この表は組み替えられません。条件は表の上の「対象」で変えます"); return; }
     if (!S.edit) { S.edit = true; }
     S.editing = id; S.sel = id; editBase = TPA.clone(p);
     $("#dashScreen").classList.add("has-editor");
     focusFrame(id);
     paint();
-    E.open({ panel: p, sources: S.sources, toast: say,
+    E.open({ panel: p, sources: S.sources, toast: say, answer: () => (S.answers.get(id) || {}).d,
       onChange: (np) => { Object.assign(panelOf(id), np, { x: panelOf(id).x, y: panelOf(id).y, w: panelOf(id).w, h: panelOf(id).h }); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
       onApply: (np) => {
         const cur = panelOf(id), base = editBase; closeEditor();
@@ -524,8 +487,6 @@
     if (b.hasAttribute("data-db-add")) { addPanel(); return; }
     if (b.hasAttribute("data-db-undo")) { undo(); return; }
     if (b.dataset.cell) { const [x, y] = b.dataset.cell.split(",").map(Number); addPanel({ x, y }); return; }
-    if (b.dataset.dbGoto) { document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: b.dataset.dbGoto })); return; }
-    if (b.dataset.dbCond) { if (S.pop === "cond") closePop(); else openPop("cond", b, condHtml(b.dataset.dbCond), "db-condpop"); return; }
     const id = pEl && pEl.dataset.id;
     if (!id) return;
     if (b.hasAttribute("data-db-more")) { if (S.pop === "more") closePop(); else { const el = openPop("more", b, moreHtml(id), "db-morepop"); el.dataset.panel = id; } return; }

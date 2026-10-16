@@ -76,6 +76,7 @@ GitHub の Releases に、版ごとに配る ZIP（`LotScope-<版>-windows.zip`�
 1. アプリが起動の直後と 30 分ごとに置き場を確かめ、配る版がこの PC に無ければ作業場所（`%LOCALAPPDATA%\LotScope\update`）へ取り込みます。そのあいだも今の版で使えます。
 2. 取り込むと、見出しの版の札の横に緑の「**更新あり 〈版〉**」（戻すときは「**配る版 〈版〉 に戻す**」）が出ます。押すだけで、その版で開き直します（版 3.19.0〜。確かめの窓は出ません）。
 3. 押さなくても、次にショートカットから開いたときにその版で開きます。この PC へ写したアプリもその版に入れ替わります。
+4. アプリを開いていない間に配られた版も、ショートカットから **1 回開くだけ**でその版になります（版 3.38.0〜。起動の最初に、前に確かめた置き場をもう一度確かめ、新しい版があればその場で取り込んでから開きます。起動画面に「新しい版が配られていないか確かめています…」と出ます）。置き場に 8 秒で届かないとき（BOX・共有が遅い）は待たずに今の版で開き、使っている間に取り込みます。
 
 - 取り込む前に、指紋（`release.json` の `sha256`）と中身（exe・アプリの中身・同梱の Python がどれもその版を名乗るか）を確かめ、合わない ZIP は取り込みません。理由は更新履歴の窓（版の札を押す）に出ます。
 - 配る版が起動できなかったときは、その版を使わず今の版のまま開きます（更新履歴の窓に出ます）。要らない版は片付けます。
@@ -261,7 +262,7 @@ WaveLog の品質データと同じ SQLite（既定 `\\Nlmsrvngy03\Read\【New�
 
 - Python は同梱しません。各 PC に入れた Python（PATH・Microsoft Store 版も）を使います。
 - 配る ZIP: `python desktop/bundle/bundle.py build --exe <exe> --out <出力先>`（ZIP・release.json・.sha256。Windows の CI（`.github/workflows/desktop.yml`）が作って Artifacts に置き、main に入ったときは GitHub の Releases にも版の札 `v<版>` で載せます。説明はその版の更新履歴から作ります。同じ版の札が既にあれば上書きしないので、配る物を変えたときは版を上げます）。
-- 更新の通し: `python desktop/bundle/verify.py update --exe <exe>`（本物の窓で、共有から写る → 裏で取り込む → 次の起動で入れ替わる → 壊れた版は前の版へ戻す → 配る版を戻す → 新しい PC が配る入口から入る・ショートカットを直す、の 25 項目。CI が Linux と Windows で流します）。
+- 更新の通し: `python desktop/bundle/verify.py update --exe <exe>`（本物の窓で、共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は前の版へ戻す → 配る版を戻す → 新しい PC が配る入口から入る・ショートカットを直す、の 26 項目。CI が Linux と Windows で流します）。
 
 - 作る: `cd desktop && cargo build`（Linux は `libwebkit2gtk-4.1-dev` などが要ります。`.github/workflows/ci.yml` を参照）。exe は上へたどって `program/sidecar.py` を探します。
 - 自己診断: `TPA_SELFTEST=<結果のファイル> desktop/target/debug/LotScope` で起こすと、本物の窓の中で 27 項目を確かめて結果を書き、終わります（CI が Linux と Windows で毎回流します）。
