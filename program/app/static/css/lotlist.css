@@ -340,6 +340,15 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 
 /* 元データが古いときの帯（アンバー＝注意。何が起きていそうか・次にすること・取り直すボタン） */
 .ll-stale{margin:8px 16px 0;padding:9px 14px;border-radius:8px;background:var(--amber-pale);border:1px solid var(--amber-line);color:var(--amber-ink);font-size:13.5px;line-height:1.6;flex:0 0 auto}
+/* 推奨アップデートの知らせ（版 3.35.0）。藍（入力・案内の色）の淡い面で、注意の橙・赤と分ける。32px の 1 段で、一覧を押し下げすぎない */
+.rec-band{display:flex;align-items:center;gap:10px;min-width:0;height:32px;box-sizing:border-box;margin:6px 16px 0;padding:0 4px 0 10px;flex:0 0 auto;
+  border-radius:8px;background:var(--input-soft);border:1px solid #b9cde2;border-left:4px solid var(--h-input);font-size:13px;color:var(--ink)}
+.rec-band[hidden]{display:none}
+.rec-band .rec-ic{flex:none;width:18px;height:18px;border-radius:50%;background:var(--h-input);color:#fff;font:700 12px/18px sans-serif;text-align:center;font-style:normal}
+.rec-band b{color:var(--h-input);font-size:13.5px;white-space:nowrap;flex:none}
+.rec-band .rec-note{color:#41566c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.rec-band .rec-sp{flex:1 1 0}
+.rec-band button{flex:none;white-space:nowrap;height:24px;padding:0 10px;font-size:12.5px}
 .ll-stale small{display:block;color:#8a6a2f}
 .ll-stale button{margin-top:6px;height:28px;border:1px solid #c98a12;border-radius:7px;background:var(--surface);color:var(--amber-ink);font-weight:700;cursor:pointer;font-family:inherit}
 .ll-stale button:hover{background:#ffe9b8}

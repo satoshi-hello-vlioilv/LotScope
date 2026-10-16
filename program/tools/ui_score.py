@@ -1,4 +1,4 @@
-"""改良案の評価関数（開発用。決め方は CLAUDE.md の「改良するときは、別のエージェントが現物を撮って採点し、95 点以上の案に決める」）。
+"""改良案の評価関数（開発用。決め方は CLAUDE.md の「改良するときは、別のエージェントが現物を撮って採点し、合格点以上の案に決める」）。
 
     python program/tools/ui_score.py program/tools/ui-proposals/比較.json
 
@@ -20,8 +20,9 @@
     案の値が 7 つの数の並び（list）のファイルは、旧い決まり（7 基準・80 点・7 案）の記録として読む（判定はしない）。
 
 点の付け方: 100 点満点の加点（4 分類・11 項目を 0〜10 で付け、重みを掛けて足す）から、減点（見つけた数だけ引く）を引く。
-決め方: 1 回の案は 5 案以上。1 位が 95 点以上なら 1 位に決める（同じ点なら、重い分類の点が高い方）。
-  95 点に届かなければ決めず、案出しからやり直す（前の回で効いた所は持ち越してよいが、新しい案を 3 案以上入れる）。
+決め方: 1 回の案は 5 案以上。1 位が合格点以上なら 1 位に決める（同じ点なら、重い分類の点が高い方）。
+  合格点は回で変わる: 1 回目 95 点・2 回目 90 点・3 回目から 80 点（利用者が決めた。2026-10）。
+  合格点に届かなければ決めず、案出しからやり直す（前の回で効いた所は持ち越してよいが、新しい案を 3 案以上入れる）。
   3 回やり直しても届かなければ、いちばん高い案に決め、足りない点とその理由を利用者に伝える。
 """
 
@@ -59,7 +60,8 @@ DEDUCTIONS = {
     "color_only": ("色だけで区別している", 2),
 }
 
-PASS = 95  # 決めてよい点の下限
+PASS_BY_ROUND = (95, 90, 80)  # 決めてよい点の下限（1 回目・2 回目・3 回目から）
+PASS = PASS_BY_ROUND[0]
 MIN_PROPOSALS = 5  # 1 回に出す案の数の下限
 MIN_NEW = 3  # やり直しの回に入れる新しい案の数の下限
 MAX_ROUNDS = 3  # 届かなくても、この回で決める（足りない点を利用者に伝える）
@@ -107,6 +109,11 @@ def rank(proposals):
     return sorted(((total(e), name, e) for name, e in proposals.items()), key=lambda r: (-r[0], [-v for v in group_points(r[2])], r[1]))
 
 
+def pass_mark(i):
+    """i 回目（0 から）の合格点"""
+    return PASS_BY_ROUND[min(i, len(PASS_BY_ROUND) - 1)]
+
+
 def check_round(i, rnd, before):
     """回の組み方が決まりどおりか（違えば理由の文）。before: 前の回までに出た案の名前"""
     proposals = rnd["proposals"]
@@ -137,9 +144,9 @@ def decide(data):
         if problem:
             raise ValueError(f"{rnd['name']}: {problem}")
         rows = rank(rnd["proposals"])
-        if rows[0][0] >= PASS:
+        if rows[0][0] >= pass_mark(i):
             if i < len(rounds) - 1:
-                raise ValueError(f"{rnd['name']} で {PASS} 点に届いて決まっているのに、後の回がある")
+                raise ValueError(f"{rnd['name']} で {pass_mark(i)} 点に届いて決まっているのに、後の回がある")
             return "選ぶ", rows[0][1], rows
         if i == MAX_ROUNDS - 1:
             return "届かずに選ぶ", rows[0][1], rows
@@ -166,7 +173,8 @@ def report(data):
         print(f"→ 記録の 1 位: {who}")
         return kind, who
     print(f"採点: {data['evaluator']}")
-    print(f"決めてよい点 {PASS} 点・1 回 {MIN_PROPOSALS} 案以上・{MAX_ROUNDS} 回まで")
+    print(f"決めてよい点 {'・'.join(f'{i + 1} 回目 {p}' for i, p in enumerate(PASS_BY_ROUND))} 点（以降も {PASS_BY_ROUND[-1]}）・1 回 {MIN_PROPOSALS} 案以上・{MAX_ROUNDS} 回まで")
+    mark = pass_mark(len(data["rounds"]) - 1)
     for rnd in data["rounds"]:
         print(f"== {rnd['name']}（{len(rnd['proposals'])} 案）" + (f"  画像: {rnd['images']}" if rnd.get("images") else ""))
         for t, name, e in rank(rnd["proposals"]):
@@ -176,16 +184,16 @@ def report(data):
     if kind == "選ぶ":
         print(f"→ 選ぶ: {who}（{rows[0][0]:.1f} 点）")
     elif kind == "届かずに選ぶ":
-        print(f"→ {MAX_ROUNDS} 回で {PASS} 点に届かなかった。いちばん高い {who}（{rows[0][0]:.1f} 点）に決め、"
-              f"足りない {PASS - rows[0][0]:.1f} 点とその理由（減点・低い項目）を利用者に伝える")
+        print(f"→ {MAX_ROUNDS} 回で合格点 {mark} 点に届かなかった。いちばん高い {who}（{rows[0][0]:.1f} 点）に決め、"
+              f"足りない {mark - rows[0][0]:.1f} 点とその理由（減点・低い項目）を利用者に伝える")
     else:
-        print(f"→ まだ選ばない（1 位 {rows[0][0]:.1f} 点 < {PASS} 点）。低い項目と減点を見直し、案出しからやり直す"
+        print(f"→ まだ選ばない（1 位 {rows[0][0]:.1f} 点 < この回の合格点 {mark} 点。次の回は {pass_mark(len(data['rounds']))} 点）。低い項目と減点を見直し、案出しからやり直す"
               f"（{MIN_PROPOSALS} 案以上・新しい案 {MIN_NEW} 案以上）。採点はまた別のエージェントが、撮り直した画像で付ける")
     built = data.get("built")
     if built:
         t = total(built["result"])
         print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
-        print("→ 作った後も " + (f"{PASS} 点以上" if t >= PASS else f"{PASS} 点に届かない。減点の所を直して撮り直し、採点し直す"))
+        print("→ 作った後も " + (f"{mark} 点以上（決めた回の合格点）" if t >= mark else f"{mark} 点（決めた回の合格点）に届かない。減点の所を直して撮り直し、採点し直す"))
     return kind, who
 
 

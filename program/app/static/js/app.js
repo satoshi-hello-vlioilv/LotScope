@@ -270,14 +270,49 @@ function paintVersionNotice() {
   const v = state.versionNotice, u = state.update, btn = $("#verNew");
   if (state.quitting) return;              // 開き直している間は札を描き直さない（「開き直しています…」のまま）
   const ready = u && u.state === "ready", outdated = v && v.outdated, back = ready && u.direction === "down";
-  btn.classList.toggle("hidden", !(ready || outdated));
-  btn.classList.toggle("is-ready", !!ready);
-  btn.textContent = back ? `配る版 ${u.ready} に戻す` : ready ? `更新あり ${u.ready}` : v && v.distributed ? `配る版 ${v.latestVersion}` : "新しい版あり";
+  const rec = recommended();
+  btn.classList.toggle("hidden", !(ready || outdated || rec));
+  btn.classList.toggle("is-ready", !!ready && !rec);
+  btn.classList.toggle("is-rec", !!rec);
+  btn.textContent = rec ? `↻ 推奨 ${rec.version}` : back ? `配る版 ${u.ready} に戻す` : ready ? `更新あり ${u.ready}` : v && v.distributed ? `配る版 ${v.latestVersion}` : "新しい版あり";
   btn.title = back ? `配る版が ${u.ready} に戻されました（取り込み済み）。押すとすぐ ${u.ready} で開き直します`
     : ready ? `新しい版 ${u.ready} を取り込みました。押すとすぐ新しい版で開き直します（押すまでは今の版のまま）`
     : outdated ? (v.distributed ? `配る版は ${v.latestVersion}・いまの版は ${v.myVersion} です。押すと更新のこと`
       : `ほかの人が新しい版（${v.latestVersion}）を使っています。いまの版は ${v.myVersion} です。押すと更新のしかた`) : "";
+  if (rec) btn.title = `推奨アップデート ${rec.version}${rec.note ? `（${rec.note}）` : ""}。押すと知らせを開きます`;
+  paintRecommend(rec);
   if (!$("#changelogModal").classList.contains("hidden")) paintUpdateBox();
+}
+/* 推奨アップデート（版 3.35.0）。配る版に推奨の札が付き、この PC がまだその版でなければ、一覧の面のいちばん上に 1 段の帯で知らせる
+   （表示を邪魔しない: 窓を出さない・一覧を覆わない）。「あとで」は版ごとに 4 時間畳み、見出しの札「↻ 推奨 …」だけ残す（押すと帯が戻る）。
+   取り込み済みなら「更新して開き直す」、まだなら取り込みを待つ（取り込めない理由は更新履歴の窓） */
+const REC_SNOOZE = "tpa.recommend.later", REC_SNOOZE_MS = 4 * 3600 * 1000;
+function recommended() {
+  const u = state.update, d = u && u.distributed, r = d && d.recommended;
+  if (!r || !d.version || d.version === u.current) return null;
+  return { version: d.version, note: r.note || "", ready: u.state === "ready" && u.ready === d.version };
+}
+const recSnoozed = (version) => { const s = TPA.local.get(REC_SNOOZE, null); return !!s && s.version === version && Date.now() < s.until; };
+function paintRecommend(rec) {
+  const band = $("#recBand");
+  if (!band) return;
+  const show = !!rec && !recSnoozed(rec.version);
+  band.hidden = !show;
+  if (!show) return;
+  const key = `${rec.version}|${rec.note}|${rec.ready}`;
+  if (band.dataset.key === key) return;      // 1 分ごとの問い合わせで描き直さない（押しかけのボタンを消さない）
+  band.dataset.key = key;
+  band.innerHTML = `<em class="rec-ic" aria-hidden="true">↻</em><b>推奨アップデート ${esc(rec.version)}</b>`
+    + (rec.note ? `<span class="rec-note" title="${esc(rec.note)}">${esc(rec.note)}</span>` : "") + '<span class="rec-sp"></span>'
+    + '<button type="button" class="btn-ghost" data-rec-later title="4 時間は帯を出しません（見出しの札は残ります）">あとで</button>'
+    + (rec.ready ? '<button type="button" class="btn-primary" data-rec-go title="今の作業の覚え（表示の設定・選んだ値）はそのままです">更新して開き直す</button>'
+      : '<button type="button" class="btn-primary" data-rec-go title="新しい版を取り込んでいます。様子と取り込めないときの理由は更新履歴の窓で">取り込みの様子</button>');
+  band.querySelector("[data-rec-later]").onclick = () => {
+    TPA.local.set(REC_SNOOZE, { version: rec.version, until: Date.now() + REC_SNOOZE_MS });
+    paintRecommend(rec);
+  };
+  const go = band.querySelector("[data-rec-go]");
+  go.onclick = () => (rec.ready ? applyUpdate(go) : openChangelog());
 }
 /* 更新の係（窓の Rust・desktop/src/update.rs）の今。取り込み中は短い間隔で、ふだんは 1 分ごとに尋ねる */
 let updTimer = null;
@@ -486,6 +521,8 @@ $("#verNew").onclick = onVerNew;
 /* 見出しの版の札。取り込み済みの版があれば、押すだけで開き直す（更新履歴の窓を挟まない・版 3.19.0）。
    まだ取り込めていない・古いだけのときは、何をすればよいかを更新履歴の窓で言う */
 function onVerNew() {
+  const rec = recommended();
+  if (rec && recSnoozed(rec.version)) { TPA.local.remove(REC_SNOOZE); paintRecommend(rec); return; }   // 畳んだ帯を戻す
   if (state.update && state.update.state === "ready") applyUpdate($("#verNew"));
   else openChangelog();
 }

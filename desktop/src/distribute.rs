@@ -8,6 +8,8 @@
 //!                            masters: { dir, setAt, setBy, setPc }（版 3.34.0）= 全員が使うマスタの置き場。各 PC の取り込みが want.json に写し、
 //!                            Python（MasterStore.follow_pin）がその置き場へ移る。配る版を決めるとき（決めた人の PC の置き場）と、
 //!                            マスタの置き場を変えたとき（set_masters）に書く
+//!                            recommended: { note, setAt, setBy, setPc }（版 3.35.0）= 推奨アップデートの札。各 PC は、配る版に札が付いていて
+//!                            まだその版でなければ、開き直しを促す知らせを出す（画面 app.js）。配る版を選び直すと外れる（版ごとの決め）
 //!   <exe>                    配る入口（配る版の ZIP の exe。新しい PC へはこのアドレスだけを渡す）
 //!   <版>\release.json        { schema:1, app_id, name, version, zip, sha256, exe, placedAt, placedBy, placedPc, source }
 //!   <版>\<name>-<版>-windows.zip
@@ -211,6 +213,30 @@ pub fn set_masters(found: &Path, app_id: &str, dir: &str, who: &Who) -> Result<V
     Ok(json!({"masters": m, "version": dist.version}))
 }
 
+/// 推奨アップデートの札を付ける・外す（配っている版にだけ。配る版はそのまま）。note は知らせに添える短い理由（120 字まで）。→ {version, recommended}
+pub fn set_recommended(found: &Path, app_id: &str, version: &str, on: bool, note: &str, who: &Who) -> Result<Value, String> {
+    let scan = release::scan(found, app_id);
+    let dist = scan.distribute.as_ref().ok_or("配る版がまだ決まっていません。先に「この版を配る」で配る版を決めてください")?;
+    if dist.version != version {
+        return Err(format!("推奨の札は、配っている版（{}）にだけ付けられます（版 {version} は配っていません）", dist.version));
+    }
+    let mut d = dist.raw.clone();
+    let rec = on.then(|| {
+        let note: String = note.trim().chars().take(120).collect();
+        json!({"note": note, "setAt": now_text(), "setBy": who.login, "setPc": who.pc})
+    });
+    match &rec {
+        Some(r) => d["recommended"] = r.clone(),
+        None => {
+            if let Some(o) = d.as_object_mut() {
+                o.remove("recommended");
+            }
+        }
+    }
+    write_json(&dist.dir.join(DISTRIBUTE), &d)?;
+    Ok(json!({"version": dist.version, "recommended": rec}))
+}
+
 /// 置いた版を消す（配っている版は消さない）。→ {version, removed, notes}
 /// 版のフォルダを `.<版>.removing-<pid>` に変えてから消す。名前を変えた時点で各 PC からは見えない（scan は「.」で始まる物を見ない）ので、
 /// 中身を消しきれなくても（BOX の同期・だれかが開いている）消しかけの版を取り込む PC は無い。残った物は理由を添えて言う。
@@ -388,7 +414,23 @@ mod tests {
         let empty = d.join("Empty");
         std::fs::create_dir_all(&empty).unwrap();
         assert!(set_masters(&empty, ID, r"\\nas\New", &who).unwrap_err().contains("配る版がまだ"), "配る版が無い置き場には書かない");
-        // 画面の答え
+        // 推奨アップデートの札（版 3.35.0）: 配っている版にだけ付く・理由を添える・外せる・配る版を選び直すと外れる
+        assert!(set_recommended(&rels, ID, "3.10.1", true, "", &who).unwrap_err().contains("配っている版"), "配っていない版には付けない");
+        let r = set_recommended(&rels, ID, "3.10.0", true, "  マスタの置き場の直し  ", &who).unwrap();
+        let dj = read_json(&rels.join("App").join(DISTRIBUTE)).unwrap();
+        assert_eq!(
+            (dj["recommended"]["note"].as_str(), dj["version"].as_str(), dj["masters"]["dir"].as_str()),
+            (Some("マスタの置き場の直し"), Some("3.10.0"), Some(r"\\nas\New")),
+            "札だけを足し、ほかはそのまま: {r}"
+        );
+        set_recommended(&rels, ID, "3.10.0", false, "", &who).unwrap();
+        assert!(read_json(&rels.join("App").join(DISTRIBUTE)).unwrap()["recommended"].is_null(), "外せる");
+        set_recommended(&rels, ID, "3.10.0", true, "", &who).unwrap();
+        set_distributed(&rels, "3.10.1", ID, &who, "").unwrap();
+        let dj = read_json(&rels.join("App").join(DISTRIBUTE)).unwrap();
+        assert!(dj["recommended"].is_null() && dj["masters"]["dir"].as_str() == Some(r"\\nas\New"), "選び直すと札は外れる（置き場は残る）");
+        set_distributed(&rels, "3.10.0", ID, &who, "").unwrap(); // 後の確かめのため、配る版を 3.10.0 に戻す
+                                                                 // 画面の答え
         let v = view(&rels, false, "src", ID, "App", json!({}));
         assert_eq!((v["versions"].as_array().unwrap().len(), v["entry"]["exists"].as_bool()), (2, Some(true)));
         // 新しい PC: 入口を開くだけで配る版を取り込み、app に据える

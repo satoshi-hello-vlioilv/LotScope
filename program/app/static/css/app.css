@@ -78,7 +78,9 @@ button,input,select,textarea{font-family:inherit}
 header,.master-head,.lc-head{background:linear-gradient(110deg,#1c3550,#2b5f79)}
 header{height:var(--header-h);padding:0 18px;
   color:var(--on-fill);display:flex;align-items:center;justify-content:space-between;flex:0 0 auto}
-.brand .eyebrow{font-size:10px;letter-spacing:.22em;opacity:.7}
+.brand .eyebrow{font-size:10px;letter-spacing:.22em}
+/* 淡くするのは題の字と版の札だけ（知らせの札〈更新あり・推奨〉は淡くしない: 紺の上で読めるように・版 3.35.0） */
+.brand .eyebrow .eb-text,.brand .eyebrow .ver-badge{opacity:.7}
 .brand h1{font-size:var(--fs-xl);margin:0;font-weight:700;letter-spacing:.02em;display:flex;align-items:baseline;gap:10px;white-space:nowrap}
 .brand h1 .brand-sub{font-size:var(--fs-sm);font-weight:500;letter-spacing:.04em;opacity:.78}
 .header-right{display:flex;align-items:center;gap:8px}
@@ -504,6 +506,7 @@ td.edit select.auto{appearance:none;-webkit-appearance:none;padding-right:24px}
 .ver-new{margin-left:4px;border:0;background:var(--accent);color:var(--accent-ink);border-radius:4px;font:700 10px/1 "Segoe UI","Yu Gothic UI",sans-serif;
   padding:3px 6px;cursor:pointer;vertical-align:1px}
 .ver-new.is-ready{background:var(--ok);color:#fff}
+.ver-new.is-rec{background:var(--input-soft);color:var(--h-input);font-size:11px;letter-spacing:.02em}   /* 推奨アップデート（知らせの帯と同じ藍） */
 .me-chip{background:var(--on-dark-fill);color:var(--on-fill);cursor:pointer;font-family:inherit}
 .me-chip:hover{background:rgba(255,255,255,.18)}
 .me-chip.role-dev{border-color:#b9a4ff}
