@@ -182,10 +182,11 @@
     p.set("rows", JSON.stringify(rows)); p.set("cols", JSON.stringify(s.cols));
     if (s.month && canMonth(s)) p.set("month", s.month);
     p.set("measures", JSON.stringify(s.measures.length ? s.measures : [{ agg: "count" }]));
-    if (s.chart === "box" && boxColumn(s)) p.set("box", boxColumn(s));   // 箱ひげ図: 値の数のカラムの分かれ方（四分位）も頼む
+    if (BOXY.has(s.chart) && boxColumn(s)) p.set("box", boxColumn(s));   // 箱ひげ図・バイオリン・X̄-R: 値の数のカラムの分かれ方（四分位・密度）も頼む
     Object.entries(host.workParams()).forEach(([k, v]) => { if (v) p.set(k, v); });
     return p.toString();
   }
+  const BOXY = new Set(["box", "violin", "xbar"]);     // 行ごとの分かれ方（boxes）を頼む形
   /** 箱ひげ図に描く数のカラム（値のうち最初の数のカラム） */
   const boxColumn = (s) => (s.measures.find((m) => m.column && isNum(m.column)) || {}).column || "";
   /** 一覧が読み直された（絞り込み・範囲が変わった）ときに呼ばれる。集計表を見ていなければ何もしない */
@@ -599,10 +600,38 @@
       Object.assign(patch, { rows: [{ column: col, part: "bin" }], cols: [], measures: [{ agg: "count" }] });
       said.push(`「${host.label(col)}」を区間に分けて、件数のヒストグラムにしました`);
     }
-    if (k === "box" && !s.measures.some((m) => num(m.column))) {
-      if (!R.$weight) { host.toast("箱ひげ図にできる数のカラムがありません"); return; }
+    if (BOXY.has(k) && !s.measures.some((m) => num(m.column))) {
+      if (!R.$weight) { host.toast(`${C.get(k).n}にできる数のカラムがありません`); return; }
       patch.measures = [{ agg: "avg", column: R.$weight }].concat(s.measures).slice(0, MAX_MEASURES);
       said.push(`値に「${host.label(R.$weight)}」の平均を入れ、その分かれ方を描きます`);
+    }
+    // 版 3.39.0 で足した形: 足りない段・値を入れて知らせる（ほかの形と同じ）
+    const addOnly = (ms) => ms.length && ms.every((m) => C.ADDITIVE.has(m.agg));
+    if ((k === "sankey" || k === "treemap") && !addOnly(s.measures)) {
+      patch.measures = [{ agg: "count" }];
+      said.push("値を件数にしました（流れ・内訳は足し上げる値で描きます）");
+    }
+    if (k === "sankey" && s.rows.length < 2 && !s.cols.length) {
+      const base = s.rows.length ? s.rows : fewDim ? [fewDim] : [];
+      const next = [R.$few2, R.$few1].filter((c) => c && !base.some((d) => d.column === c)).map((c) => ({ column: c, part: "" }))[0];
+      if (base.length && next) { patch.rows = base.concat([next]); said.push(`行に「${dimName(base[0])}」→「${dimName(next)}」の 2 段を入れました（から → へ）`); }
+    }
+    if (k === "swimlane" && s.rows.length < 2 && !s.cols.length && timeDim) {
+      const lane = s.rows.length && !C.isTimeDim(s.rows[0]) ? s.rows[0] : fewDim;
+      if (lane) { patch.rows = [lane, timeDim]; said.push(`行に「${dimName(lane)}」（レーン）と「${dimName(timeDim)}」（横）を入れました`); }
+    }
+    if (k === "xbar" && timeDim && !(s.rows[0] && C.isTimeDim(s.rows[0]))) {
+      patch.rows = [timeDim];
+      said.push(`行を「${dimName(timeDim)}」にしました（日ごとの群の平均と範囲）`);
+    }
+    if ((k === "diag45" || k === "bubble") && s.measures.filter((m) => num(m.column)).length < 2) {
+      if (!R.$weight || !R.$num2) { host.toast(`${C.get(k).n}にできる数のカラムが 2 つありません`); return; }
+      patch.measures = [{ agg: "avg", column: R.$weight }, { agg: "avg", column: R.$num2 }].concat(k === "bubble" ? [{ agg: "count" }] : []);
+      said.push(`値を「${host.label(R.$weight)}」と「${host.label(R.$num2)}」の平均${k === "bubble" ? "・件数（円の大きさ）" : ""}にしました`);
+      if (!s.rows.length && R.$lot) { patch.rows = [{ column: R.$lot, part: "" }]; said.push("行はロットごと"); }
+    } else if (k === "bubble" && s.measures.length < 3) {
+      patch.measures = s.measures.concat([{ agg: "count" }]).slice(0, MAX_MEASURES);
+      said.push("円の大きさに件数を足しました");
     }
     if (k === "scatter" && s.measures.filter((m) => num(m.column)).length < 2) {
       if (!R.$weight || !R.$num2) { host.toast("散布図にできる数のカラムが 2 つありません"); return; }
@@ -620,7 +649,7 @@
       const col = host.isWork() && !used("@shift") ? { column: "@shift", part: "" } : [R.$few1, R.$few2].filter((c) => c && !used(c)).map((c) => ({ column: c, part: "" }))[0];
       if (col) { patch.cols = [col]; said.push(`列に「${dimName(col)}」を入れました`); }
     }
-    const reload = patch.rows || patch.cols || patch.measures || (k === "box") !== (s.chart === "box");   // 頼む中身が替わる（箱ひげは四分位も頼む）
+    const reload = patch.rows || patch.cols || patch.measures || BOXY.has(k) !== BOXY.has(s.chart);   // 頼む中身が替わる（箱ひげは四分位も頼む）
     save(patch);
     if (said.length) host.toast(`${C.get(k).n}: ${said.join("。")}`);
     if (reload || !answer) refresh(true); else paint(answer);

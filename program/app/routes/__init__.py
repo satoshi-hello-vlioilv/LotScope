@@ -11,11 +11,12 @@
     worklog  … 作業実績（設備ごとの実績）と、その設備の登録
     formats  … 共有の書式（一覧の表示ルールを名前を付けて共有に置く）
     shifts   … 勤務体系（直の時間帯。作業実績を日＋直で数える決まり）
+    equipgroups … 設備グループ（ダッシュボードで設備を合算する組）
     presets  … 集計表・グラフの組み方のプリセット（共通と ID ごと・標準）
     sources  … データ元（品質データ・作業実績・仕掛・足した元）と、1 ファイルの元の一覧
     dashboard… ダッシュボード（設備別の仕掛ロット数・前日の実績本数）と集計対象の条件
 """
-from . import access, dashboard, formats, lots, lotlist, masters, presets, settings, shifts, sources, system, worklog  # 読み込むと bp へ登録される
+from . import access, dashboard, equipgroups, formats, lots, lotlist, masters, presets, settings, shifts, sources, system, worklog  # 読み込むと bp へ登録される
 from .common import _REVOKE_CACHE, bp  # _REVOKE_CACHE はテストが切断の覚えを消すため
 
-__all__ = ["bp", "_REVOKE_CACHE", "access", "dashboard", "formats", "lots", "lotlist", "masters", "presets", "settings", "shifts", "sources", "system", "worklog"]
+__all__ = ["bp", "_REVOKE_CACHE", "access", "dashboard", "equipgroups", "formats", "lots", "lotlist", "masters", "presets", "settings", "shifts", "sources", "system", "worklog"]

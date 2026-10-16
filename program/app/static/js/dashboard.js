@@ -13,7 +13,7 @@
    ========================================================================= */
 (() => {
   const { $, esc } = TPA;
-  const P = window.DashPanels, E = window.DashEditor;
+  const P = window.DashPanels, E = window.DashEditor, Q = window.DashFilter;
   const KEY = "tpa.dash.v1";
   const POLL_MS = 60000, RETRY_MS = 4000, COLS = 12, GAP = 10, HISTORY = 30;
   const SCOPE_NAME = { me: "自分", all: "共通", default: "共通デフォルト" };
@@ -29,7 +29,17 @@
   const current = () => S.list.find((x) => String(x.id) === String(S.id)) || null;
   const dirty = () => !!S.layout && JSON.stringify(S.layout) !== S.saved;
   const panelOf = (id) => (S.layout ? S.layout.panels.find((x) => x.id === id) : null);
-  const qkey = (p) => JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups] : [p.visual, p.source, p.equip, p.body, p.filters, p.search, p.period, p.basis, p.calc]);   // 数を引き直す組み（題・目立たせる・置き場は入れない）
+  /* この PC の絞り込み（版 3.39.0。パネルを絞る: dashboard-filter.js）。ダッシュボードごと・パネルごとに覚える（tpa.dash.v1 の quick） */
+  const quickOf = (id) => ((mem().quick || {})[String(S.id)] || {})[id] || null;
+  function setQuick(id, q) {
+    const all = { ...(mem().quick || {}) }, mine = { ...(all[String(S.id)] || {}) };
+    if (Q.isEmpty(q)) delete mine[id]; else mine[id] = q;
+    all[String(S.id)] = mine;
+    remember({ quick: all });
+  }
+  /** 数えるときのパネル（組んだパネル＋この PC の絞り込み） */
+  const asked = (p) => Q.merge(p, quickOf(p.id));
+  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.body, p.filters, p.search, p.period, p.basis, p.calc]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
@@ -39,7 +49,7 @@
       standardId: d.standardId, rowsRange: d.rowsRange || [4, 16] });
   }
   async function loadSources() {
-    try { const d = await (await fetch("/api/dashboard/sources", { cache: "no-store" })).json(); S.sources = d.items || []; } catch (_) { S.sources = []; }
+    try { const d = await (await fetch("/api/dashboard/sources", { cache: "no-store" })).json(); S.sources = d.items || []; S.egroupSets = d.egroupSets || []; } catch (_) { S.sources = []; S.egroupSets = []; }
   }
   /** 開く: 覚えた物 → 標準 → 組み込み */
   function open(id, { keepEdit = false } = {}) {
@@ -58,7 +68,7 @@
     paintPanel(p.id);
     let a;
     try {
-      const r = await fetch("/api/dashboard/query", TPA.json("POST", { panel: p }));
+      const r = await fetch("/api/dashboard/query", TPA.json("POST", { panel: asked(p) }));
       const d = await r.json().catch(() => ({}));
       a = r.ok ? { key: k, d } : { key: k, err: d.error || `読めませんでした（${r.status}）`, kind: d.kind || "error", d: old && old.key === k ? old.d : null };
     } catch (e) { a = { key: k, err: String(e), kind: "error" }; }
@@ -96,7 +106,7 @@
       if (!el) {
         el = document.createElement("section");
         el.className = "db-p"; el.dataset.id = p.id;
-        el.innerHTML = '<div class="db-ph"></div><div class="db-psub"></div><div class="db-pb"></div><div class="db-pf" hidden></div><i class="db-rz" data-rz aria-hidden="true"></i>';
+        el.innerHTML = '<div class="db-ph"></div><div class="db-psub"></div><div class="db-pq" hidden></div><div class="db-pb"></div><div class="db-pf" hidden></div><i class="db-rz" data-rz aria-hidden="true"></i>';
         g.append(el);
         if (ro) ro.observe(el);
       }
@@ -111,7 +121,10 @@
     el.tabIndex = 0;
     el.classList.toggle("is-sel", S.edit && S.sel === p.id);
     el.classList.toggle("is-editing", S.editing === p.id);
-    el.classList.toggle("is-emph", !!p.emph);
+    const frame = p.frame || (p.emph ? "emph" : "card");
+    el.classList.toggle("is-emph", frame === "emph");
+    ["accent", "plain", "tint"].forEach((f) => el.classList.toggle(`is-frame-${f}`, frame === f));
+    el.style.setProperty("--pc", P.seriesColors(p.visual === "board" ? { ...p, source: ((p.groups || [])[0] || {}).source } : p)[0]);
   }
   /** 編集のとき: 空いたマスの印（押すと、そこにパネルを足す） */
   function paintCells() {
@@ -148,8 +161,12 @@
       ? `<button type="button" class="db-pbtn" data-db-edit title="このパネルを組む（Enter）">組む</button><button type="button" class="db-pbtn" data-db-dup title="同じパネルを空いた所に足す">複製</button>`
         + `<button type="button" class="db-pbtn is-danger${S.confirm === "del:" + p.id ? " is-armed" : ""}" data-db-del title="このパネルを消す（Delete。もう一度押すと消えます）">${S.confirm === "del:" + p.id ? "消す？" : "消す"}</button>`
       : `<button type="button" class="db-pbtn db-quiet" data-db-edit title="このパネルを組み直す（編集に入ります）">組む</button>`;
+    // 絞る（見ているとき・編集のときとも。この PC の見え方）。効いていれば数を出す（状態が見える）
+    const qn = Q.chips(quickOf(p.id)).length;
+    const filt = width < NARROW && S.edit ? "" : `<button type="button" class="db-pbtn db-filt${qn ? " is-on" : ""}" data-db-filter aria-haspopup="dialog" title="このパネルだけを、設備・期間・値で絞ります（この PC の見え方）">`
+      + `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${qn ? `絞り込み ${qn}` : "絞る"}</button>`;
     return `${dot}<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3><span class="db-sp"></span>`
-      + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + tools;
+      + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + filt + tools;
   }
   function paintPanel(id) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
@@ -161,6 +178,10 @@
     // 添え書き（元・期間・条件）は見出しの下の 2 行目（見出しは題と操作だけで 1 行）。数字の形は数の下に出す
     const meta = metaOf(p, a), subEl = el.querySelector(".db-psub");
     subEl.hidden = !meta || p.visual === "kpi"; subEl.textContent = meta; subEl.title = meta;
+    // 効いている絞り込みの札（見出しの下。× で 1 つずつ外す）
+    const qc = Q.chips(quickOf(id)), qEl = el.querySelector(".db-pq");
+    qEl.hidden = !qc.length;
+    qEl.innerHTML = qc.map((c) => `<span class="db-qchip">${esc(c.text)}<button type="button" data-db-qdrop="${esc(c.key)}" aria-label="「${esc(c.text)}」の絞り込みを外す">×</button></span>`).join("");
     const body = el.querySelector(".db-pb"), foot = el.querySelector(".db-pf");
     const size = { w: body.clientWidth, h: body.clientHeight };
     let note = "";
@@ -444,7 +465,7 @@
     $("#dashScreen").classList.add("has-editor");
     focusFrame(id);
     paint();
-    E.open({ panel: p, sources: S.sources, toast: say, answer: () => (S.answers.get(id) || {}).d,
+    E.open({ panel: p, sources: S.sources, toast: say, answer: () => (S.answers.get(id) || {}).d, egroupSets: () => S.egroupSets || [],
       onChange: (np) => { replacePanel(panelOf(id), np); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
       onApply: (np) => {
         const cur = panelOf(id), base = editBase; closeEditor();
@@ -477,6 +498,20 @@
     requestAnimationFrame(() => paint());
   }
 
+  /* ---------------- パネルを絞る（dashboard-filter.js） ---------------- */
+  function openFilter(id, anchor) {
+    const p = panelOf(id); if (!p) return;
+    if (Q.isOpen()) { Q.close(); return; }
+    const a = S.answers.get(id), keys = p.visual === "board" && a && a.d && a.d.groups ? P.boardKeys(p, a.d) : null;
+    Q.open({ anchor, panel: p, quick: quickOf(id), sources: S.sources, boardKeys: keys, canMove: S.edit,
+      onChange: (q) => { setQuick(id, q); refresh(false); paintPanel(id); },
+      onMove: () => {          // この PC の絞り込みを、組んだ条件へ移す（保存すると全員に効く）
+        const q = quickOf(id); if (!q) return;
+        setQuick(id, null);
+        commit((L) => { const x = L.panels.find((y) => y.id === id); Object.assign(x, Q.merge(x, q)); }, "絞り込みをパネルの条件にしました（保存すると全員に効きます）");
+      } });
+  }
+
   /* ---------------- 押す ---------------- */
   function onClick(e) {
     const t = e.target; if (!t.closest) return;
@@ -496,6 +531,8 @@
     if (b.dataset.cell) { const [x, y] = b.dataset.cell.split(",").map(Number); addPanel({ x, y }); return; }
     const id = pEl && pEl.dataset.id;
     if (!id) return;
+    if (b.hasAttribute("data-db-filter")) { openFilter(id, b); return; }
+    if (b.dataset.dbQdrop) { setQuick(id, Q.drop(quickOf(id), b.dataset.dbQdrop)); refresh(false); paintPanel(id); return; }
     if (b.hasAttribute("data-db-more")) { if (S.pop === "more") closePop(); else { const el = openPop("more", b, moreHtml(id), "db-morepop"); el.dataset.panel = id; } return; }
     if (b.hasAttribute("data-db-edit")) { openEditor(id); return; }
     if (b.hasAttribute("data-db-dup")) { duplicate(id); return; }
@@ -531,6 +568,8 @@
     box.addEventListener("change", onChange);
     $("#dashGrid").addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
+    // マスタ（設備グループなど）が変わったら、選び（まとめ方）を読み直し、出ていれば数え直す（版 3.39.0）
+    document.addEventListener("tpa:masters-changed", () => { loadSources().then(() => { if (S.active && S.layout) refresh(true); }); });
     watchSize();
   }
 

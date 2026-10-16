@@ -2,7 +2,7 @@
 // 置き場は 7 案＋2 回目で選んだ: ui-proposals/2026-10-pvcharts* の M1）。
 //   node program/tools/ui-eval-pivot-charts.mjs [画像を置くフォルダ]
 // ① グラフの形の行: 「グラフ ［絵］時系列 ▾」・すぐに見るの札（共通デフォルト＝組み込みの quick の物）・「組み方 ▾」が 1 段（1728×1152・1536×864）
-// ② グラフの形の面: 目的の行 6 つに 14 形・いまの形が押されている・向くの印（日の段に ロット数＋重量の合計 → 折れ線は向く・縦棒は向かない）。
+// ② グラフの形の面: 目的の行 6 つに全部の形（登録 DEFS の数。版 3.39.0 で 24）・いまの形が押されている・向くの印（日の段に ロット数＋重量の合計 → 折れ線は向く・縦棒は向かない）。
 //    もう一度押すと閉じる（外を押したとして閉じ、同じ押しでまた開く、を起こさない）
 // ③ 組み込みの組み方（共通デフォルト）を作業実績・異常ロット一覧で 1 つずつ当てる → どれも描ける（描けない案内が出ない）・形のボタンの名前が替わる
 // ④ グラフの数と表の数を突き合わせる: パレート図（大きい順・値＝表・累積の最後が 100%）／ドーナツ（真ん中＝総計・割合の和 100%）／
@@ -72,8 +72,9 @@ try {
   await shot(p, "chart-pop");
   const pop2 = await p.evaluate(() => ({ groups: [...document.querySelectorAll("#llPvChartPop .pv-cgn")].map((x) => x.textContent), charts: [...document.querySelectorAll("#llPvChartPop .pv-cbtn")].map((x) => x.dataset.pvChart),
     on: [...document.querySelectorAll('#llPvChartPop .pv-cbtn[aria-pressed="true"]')].map((x) => x.dataset.pvChart), fit: [...document.querySelectorAll("#llPvChartPop .pv-cbtn")].filter((x) => x.querySelector(".pv-fit")).map((x) => x.dataset.pvChart) }));
-  check("形の面: 目的の行 6 つに 14 形・いまの形が押されている・向く（折れ線は向く・縦棒とパレート図は向かない）",
-    pop2.groups.length === 6 && pop2.charts.length === 14 && new Set(pop2.charts).size === 14 && pop2.on.join() === "time" && pop2.fit.includes("line") && !pop2.fit.includes("column") && !pop2.fit.includes("pareto"), pop2);
+  const nDefs = await p.evaluate(() => LotListPivotCharts.DEFS.length);
+  check(`形の面: 目的の行 6 つに ${nDefs} 形・いまの形が押されている・向く（折れ線は向く・縦棒とパレート図は向かない）`,
+    pop2.groups.length === 6 && pop2.charts.length === nDefs && nDefs >= 24 && new Set(pop2.charts).size === nDefs && pop2.on.join() === "time" && pop2.fit.includes("line") && !pop2.fit.includes("column") && !pop2.fit.includes("pareto"), pop2);
   await p.click("#llPvChartBtn"); await sleep(300);
   check("形のボタンをもう一度押すと面が閉じる（開き直さない）", !(await p.$("#llPvChartPop")), "open");
   await pickChart(p, "line"); await idle(p);
@@ -92,7 +93,7 @@ try {
   const bad = drawn.filter((x) => !x.svg || x.empty || x.missing.length);
   const charts = new Set(drawn.map((x) => x.chart));
   check(`組み込みの組み方 ${drawn.length} 個を当てると、どれも描ける（形: ${[...charts].join("・")}）`, !bad.length && charts.size >= 10, bad);
-  // 組み込みに無い形（折れ線・横棒・100% 積み上げ）は、いまの組み方（ロットごとの散布図の次に担当×合金の積み上げ）で形の面から選ぶ
+  // 組み込みに無い形は、いまの組み方（担当×合金の積み上げ）で形の面から選ぶ（足りない段・値は setChart が入れる）
   await applyBuiltin(p, "few-pair");
   const rest = [];
   for (const k of (await p.evaluate(() => window.LotListPivotCharts.DEFS.map((x) => x.k))).filter((k) => !charts.has(k) && k !== "none")) {

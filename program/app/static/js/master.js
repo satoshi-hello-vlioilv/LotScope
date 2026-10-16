@@ -88,6 +88,9 @@ const MASTER_DEFS = {
 /* 勤務体系（直の時間帯。services/shifts.py）: 作業実績を「日＋直ごと」に数える決まり。WaveLog の勤務体系マスタの編集画面を移した（現場のマスタ）。
    ナビは定義の順に見出しを作るので、同じ「データ」の設備・ロールの直後に置く。 */
 MASTER_DEFS.shifts = { name: "shift_patterns", label: "勤務体系", group: "データ", api: "/api/masters/shifts", custom: true, render: () => renderShifts() };
+/* 設備グループ（版 3.39.0。services/equip_groups.py）: いくつかの設備を 1 つのグループにして、ダッシュボードのパネルで合算して出す（現場のマスタ）。
+   勤務体系と同じ形（左に登録済み・右に直す所）。まとめ方（ライン別・工場別など）ごとにグループを並べる */
+MASTER_DEFS.egroups = { name: "equipment_groups", label: "設備グループ", group: "データ", api: "/api/masters/equipgroups", custom: true, render: () => renderEquipGroups() };
 /* 参照先（読みに行く場所）。表ではなくカードで出す特別なタブ（custom）。中身は /api/settings の items */
 MASTER_DEFS.paths = { name: "path_settings", label: "参照先", group: "つなぎ先", api: "/api/settings", custom: true, admin: true };
 /* 作業実績（設備ごとの実績ファイル）: フォルダを探して設備を見つけ、設備ごとに表示する・しない・結ぶファイルを決める（管理のマスタ）。
@@ -133,7 +136,7 @@ MASTER_DEFS.release = { name: "release", label: "アプリの配布", group: "�
 
 const mstate = {
   tab: "equipment",
-  data: { equipment: null, rolls: null, paths: null, worklog: null, shifts: null, access: null, presence: null, release: null },
+  data: { equipment: null, rolls: null, paths: null, worklog: null, shifts: null, egroups: null, access: null, presence: null, release: null },
   meta: {},           // タブごとの付き物（アクセス権限の選択欄・自分の行 など）
   me: null,           // /api/access/me（この PC・このログインの権限）
   loadedRev: { equipment: null, rolls: null, paths: null },   // 一覧を読んだときのマスタの版
@@ -945,6 +948,82 @@ async function renderShifts({ notice = null, keep = false } = {}) {
       if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "消せませんでした。")); return; }
       mstate.data.shifts = null; mstate.shiftDraft = null; emit("tpa:masters-changed");
       renderShifts({ notice: ["ok", `✓ 「${escapeHtml(dr.name)}」を消しました`] });
+    }
+  });
+}
+
+/* ---------------- 設備グループ（版 3.39.0）: まとめ方 → グループ（名称・設備）。ダッシュボードの「設備をまとめる → 設備グループのマスタから」で使う ----------------
+   - 設備は作業実績の設備の札の入切（勤務体系の適用設備と同じ部品）。1 つ以上選ぶ
+   - 同じまとめ方の中で名称は 1 つずつ（サーバーが確かめる）。保存すると、そのまとめ方を使うパネルにすぐ効く */
+const egDraftOf = (g, set = "") => (g ? { id: g.id, rev: g.rev, name: g.name, set: g.set, equipment: [...g.equipment], note: g.note || "" }
+  : { id: null, rev: 0, name: "", set, equipment: [], note: "" });
+async function renderEquipGroups({ notice = null, keep = false } = {}) {
+  const box = $("#masterSettings");
+  if (!keep || !mstate.data.egroups) {
+    if (!mstate.data.egroups) box.innerHTML = '<p class="ps-loading">設備グループを読んでいます…</p>';
+    const r = await masterRequest("/api/masters/equipgroups", { cache: "no-store" });
+    if (mstate.tab !== "egroups") return;
+    if (!r.ok) { box.innerHTML = `<p class="ps-loading">設備グループを読めませんでした: ${escapeHtml(r.data.error || "")}</p>`; return; }
+    mstate.data.egroups = r.data;
+    const sel = mstate.egDraft && mstate.egDraft.id;
+    const now = r.data.items.find((x) => x.id === sel) || (mstate.egDraft && !mstate.egDraft.id ? null : r.data.items[0]);
+    if (!keep) mstate.egDraft = egDraftOf(now || null, (mstate.egDraft && mstate.egDraft.set) || "");
+  }
+  const d = mstate.data.egroups, dr = mstate.egDraft;
+  const can = d.canEdit && !shareDown() && canWrite("egroups"), dis = can ? "" : ` disabled title="${escapeHtml(shareDown() ? "共有フォルダに届かないため、いまは保存できません" : readOnlyWhy("egroups") + "のため変えられません")}"`;
+  const eqs = Array.from(new Set([...(d.equipments || []), ...dr.equipment]));
+  const setNames = d.sets.map((x) => x.name);
+  box.innerHTML = `<section class="sh-page">
+    <p class="ps-lead">いくつかの設備を <b>1 つのグループ</b>にして、ダッシュボードのパネルで<b>合算</b>して出します（パネルを組む所の「まとめる」→「設備グループのマスタから合算」）。
+      グループは<b>まとめ方</b>（ライン別・工場別など）ごとに並べ、パネルはまとめ方を 1 つ選びます。ここで直すと、そのまとめ方を使うパネルにすぐ効きます。</p>
+    <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="egNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
+    <div class="sh-editor">
+      <aside class="sh-list" aria-label="登録済みの設備グループ"><div class="sh-list-head">登録済みの設備グループ</div>
+        ${d.sets.length ? d.sets.map((x) => `<div class="eg-set"><span class="eg-setname">${escapeHtml(x.name)}</span>${x.groups.map((g) => `<button type="button" class="sh-item${g.id === dr.id ? " is-on" : ""}" data-eg-pick="${g.id}"><b>${escapeHtml(g.name)}</b>
+          <small>${escapeHtml(g.equipment.join("・"))}</small></button>`).join("")}${can ? `<button type="button" class="eg-add" data-eg-newin="${escapeHtml(x.name)}">＋ 「${escapeHtml(x.name)}」にグループを足す</button>` : ""}</div>`).join("")
+          : '<p class="sh-empty">まだありません。右で名前と設備を決めて足します。</p>'}
+        ${can ? '<button type="button" class="sh-new" data-eg-new>＋ 新しいまとめ方で足す</button>' : ""}</aside>
+      <div class="sh-detail">
+        <div class="sh-mode">${dr.id ? `直しているグループ <b>${escapeHtml(dr.name)}</b>` : "<b>新しいグループ</b>"}</div>
+        <label class="sh-field"><span>まとめ方</span><input id="egSet" class="ps-input" list="egSets" value="${escapeHtml(dr.set)}" placeholder="例: ライン別（同じまとめ方のグループが、パネルで一緒に出ます）"${dis}>
+          <datalist id="egSets">${setNames.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist></label>
+        <label class="sh-field"><span>グループの名称</span><input id="egName" class="ps-input" value="${escapeHtml(dr.name)}" placeholder="例: CR ライン"${dis}></label>
+        <div class="sh-field"><span>設備</span><div class="sh-eqs">
+          <span class="sh-eqsum">${dr.equipment.length ? `<b>${dr.equipment.length}</b> 設備を合算します` : "<b>設備を選んでください</b>（1 つ以上）"}</span>
+          ${eqs.map((n) => `<button type="button" class="sh-eq" data-eg-eq="${escapeHtml(n)}" aria-pressed="${dr.equipment.includes(n)}"${dis}>${escapeHtml(n)}</button>`).join("") || '<small>作業実績の設備がまだありません</small>'}</div></div>
+        <label class="sh-field"><span>備考</span><input id="egNote" class="ps-input" value="${escapeHtml(dr.note)}" maxlength="200"${dis}></label>
+        <div class="sh-foot"><span class="sh-gap"></span>
+          ${can && dr.id ? '<button type="button" class="pz-btn danger" data-eg-delete>このグループを消す</button>' : ""}
+          ${can ? `<button type="button" class="btn-primary" data-eg-save>${dr.id ? "保存" : "足す"}</button>` : ""}</div>
+      </div></div></section>`;
+  const say = (cls, html) => { const n = $("#egNotice"); n.className = `ps-result ${cls}`; n.innerHTML = html; };
+  const sync = () => { dr.name = $("#egName").value; dr.set = $("#egSet").value; dr.note = $("#egNote").value; };
+  const redraw = () => renderEquipGroups({ keep: true });
+  box.querySelector(".sh-editor").addEventListener("click", async (e) => {
+    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    if (b.dataset.egPick) { mstate.egDraft = egDraftOf(d.items.find((x) => x.id === +b.dataset.egPick)); redraw(); return; }
+    if (b.hasAttribute("data-eg-new")) { mstate.egDraft = egDraftOf(null); redraw(); $("#egSet").focus(); return; }
+    if (b.dataset.egNewin != null) { mstate.egDraft = egDraftOf(null, b.dataset.egNewin); redraw(); $("#egName").focus(); return; }
+    sync();
+    if (b.dataset.egEq != null) { const n = b.dataset.egEq; dr.equipment = dr.equipment.includes(n) ? dr.equipment.filter((x) => x !== n) : dr.equipment.concat([n]); redraw(); return; }
+    if (b.hasAttribute("data-eg-save")) {
+      const body = { name: dr.name, set: dr.set, equipment: dr.equipment, note: dr.note };
+      const res = await withLockWait(() => masterRequest(dr.id ? `/api/masters/equipgroups/${dr.id}` : "/api/masters/equipgroups",
+        TPA.json(dr.id ? "PUT" : "POST", dr.id ? { ...body, base_rev: dr.rev } : body)), (x) => say("wait", lockWaitText(x, "保存", boldName)));
+      if (res.status === 409 && res.data.kind === "conflict") { mstate.egDraft = null; renderEquipGroups({ notice: ["ng", "開いたあとに、ほかの PC がこのグループを直しました。読み直したので、もう一度直してください。"] }); return; }
+      if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "保存できませんでした。")); return; }
+      const id = dr.id || res.data.created;
+      mstate.data.egroups = null; mstate.egDraft = { id };
+      emit("tpa:masters-changed");
+      renderEquipGroups({ notice: ["ok", `✓ 「${escapeHtml(dr.name)}」を保存しました（${dr.equipment.length} 設備）。このまとめ方を使うパネルにすぐ効きます`] });
+      return;
+    }
+    if (b.hasAttribute("data-eg-delete")) {
+      if (!confirm(`設備グループ「${dr.name}」を消します。よろしいですか？`)) return;
+      const res = await masterRequest(`/api/masters/equipgroups/${dr.id}?rev=${dr.rev}`, { method: "DELETE" });
+      if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "消せませんでした。")); return; }
+      mstate.data.egroups = null; mstate.egDraft = null; emit("tpa:masters-changed");
+      renderEquipGroups({ notice: ["ok", `✓ 「${escapeHtml(dr.name)}」を消しました`] });
     }
   });
 }

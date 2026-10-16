@@ -194,12 +194,12 @@ try {
   await p.click("[data-db-undo]"); await sleep(1500);
   const u8 = (await layout(p)).panels.find((x) => x.id === "board");
   check("⑧ 元に戻すで、組む前（値の大きい順・隠す無し・棒）に戻る", u8.order.by === "value" && !u8.order.hide.length && u8.groups[0].look === "bar", u8.order);
-  // 形: 表全体の札は「合わせた表」の札 1 枚と「形を変える…」（2026-10-board の 3 回目で決めた CF）。開くと 16 の形・ほかの形にするとふつうのパネル・やめると戻る
+  // 形: 表全体の札は「合わせた表」の札 1 枚と「形を変える…」（2026-10-board の 3 回目で決めた CF）。開くと全部の形（数字・表・合わせた表と、グラフの形の登録 DEFS。版 3.39.0 で 24）・ほかの形にするとふつうのパネル・やめると戻る
   await p.click(`${P("board")} [data-db-edit]`); await p.waitForSelector("#deBoard .de-rowi[data-de-row]"); await sleep(400);
   const f0 = await p.evaluate(() => ({ card: document.querySelector("#deVis .de-formcard")?.textContent.trim(), grid: document.querySelectorAll("#deVis .de-vis [data-de-vis]").length }));
   await p.click("[data-de-formmore]"); await sleep(300);
-  const f1 = await p.$$eval("#deVis .de-vis [data-de-vis]", (x) => x.length);
-  check("⑧ 形は「合わせた表」の札 1 枚（16 の形は畳む）・「形を変える…」で 16 の形が開く", f0.card === "合わせた表" && f0.grid === 0 && f1 === 16, { f0, f1 });
+  const f1 = await p.$$eval("#deVis .de-vis [data-de-vis]", (x) => x.length), all = await p.evaluate(() => 3 + LotListPivotCharts.DEFS.filter((x) => x.k !== "none").length);
+  check(`⑧ 形は「合わせた表」の札 1 枚（${all} の形は畳む）・「形を変える…」で ${all} の形が開く`, f0.card === "合わせた表" && f0.grid === 0 && f1 === all && all >= 24, { f0, f1, all });
   await p.click('#deVis [data-de-vis="none"]'); await sleep(2000);
   const t8 = await p.evaluate((sel) => ({ table: !!document.querySelector(`${sel} .pv-table`), tabs: !!document.querySelector("#deTabs .de-tab") }), P("board"));
   check("⑧ ほかの形（表）にすると、① の組みのふつうのパネルになり、札が消える", t8.table && !t8.tabs, t8);
