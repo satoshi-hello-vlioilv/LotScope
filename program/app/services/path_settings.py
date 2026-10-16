@@ -22,10 +22,10 @@ from ..fsio import unquote_path
 NAME = "path_settings"
 
 ITEMS = [
-    {"key": "lot_list.source", "label": "異常ロット一覧の元ファイル（品質データ）", "kind": "sqlite",
+    {"key": "lot_list.source", "label": "異常ロット一覧の元ファイル（品質データ）", "kind": "sqlite", "page": "sources",
      "hint": "共有の .sqlite3 ファイル。WaveLog の品質データと同じファイルを指します（例: \\\\Nlmsrvngy03\\Read\\【New】仕掛\\台帳\\SIKADEF.sqlite3）。"
              "保存するとすぐ、このファイルを手元へ写し直して一覧に使います。"},
-    {"key": "lot_list.table", "label": "異常ロット一覧の表", "kind": "text",
+    {"key": "lot_list.table", "label": "異常ロット一覧の表", "kind": "text", "page": "sources",
      "hint": "元ファイルの中の表の名前。空なら 仕掛 → 品質情報 → 品質 → 保留 の順に探します。"},
     {"key": "lot_list.refresh_seconds", "label": "元ファイルを確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600,
      "hint": "この間隔で元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},
@@ -50,6 +50,7 @@ ITEMS = [
              "Edge（C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe）を自動で使います。"},
 ]
 # page: その項目を直す頁（マスタ管理のタブ）。ある項目は「参照先」に並べない（同じ値を直す所を 1 つにする）。
+#       品質データの場所・表は「データ元」（版 3.36.0。master-sources.js）、作業実績のフォルダ・決まりは「作業実績」
 #       値の置き場・確かめ方・版はほかの項目と同じ（PUT /api/settings/<key>）
 BY_KEY = {i["key"]: i for i in ITEMS}
 

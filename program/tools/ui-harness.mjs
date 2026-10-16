@@ -42,6 +42,13 @@ const RELEASE = {
 // まとめて見る（並び・まとめ）の状態で使う段: 設備 ▲ → 不良名 ▲、繰り返しを省く
 const ARRANGE = { "仕掛": { levels: [{ column: "設備", dir: "asc", lot: false }, { column: "不良名", dir: "asc", lot: false }], heads: false, suppress: true } };
 
+// 推奨アップデートの札が付いた配る版（3.13.0）を取り込み済み（窓の /__desktop/update の答えの作り物）
+const UPDATE_RECOMMENDED = {
+  state: "ready", ready: "3.13.0", direction: "up", current: "3.12.0", source: BOX, found: BOX, checkedAt: "2026-10-15 09:12", failed: [], notes: [],
+  distributed: { ...RELEASE.distributed, version: "3.13.0", previous: "3.12.0", setAt: "2026-10-15T09:05:00",
+    recommended: { note: "ほかの PC がマスタの置き場に追従しない不具合を直しました", setAt: "2026-10-15T09:06:00", setBy: "user", setPc: "PC-01" } },
+};
+
 // 列の見出しの札の状態（headers）: 登録日（発生日の表示名）・設備・不良名の 3 段、重量の並べ替え、計算列 3 つ、狭い列の幅、絞り込み 1 つ
 const HEADERS = {
   arrange: { "仕掛": { levels: [{ column: "発生日", dir: "asc", lot: false }, { column: "設備", dir: "asc", lot: false }, { column: "不良名", dir: "asc", lot: false }], heads: true, suppress: false } },
@@ -219,6 +226,9 @@ export const STATES = [
   ["master", async (p) => { await closeAll(p); await p.click("#masterBtn"); await sleep(900); }, "[data-next], #masterAddBtn"],
   ["master-paths", async (p) => { await tab(p, "paths"); await sleep(900); }, "[data-next], #masterSettings button"],
   ["master-worklog", async (p) => { await tab(p, "worklog"); await sleep(900); }, "[data-next], #wlScan"],
+  // データ元（版 3.36.0）: 品質データ・作業実績・仕掛の表と、仕掛を「変える…」で開いた欄
+  ["master-sources", async (p) => { await tab(p, "sources"); await sleep(1100); }, "[data-next], #srAdd"],
+  ["master-sources-edit", async (p) => { await p.click('[data-sr-edit="wip"]'); await sleep(700); }, "[data-next], #srSave"],
   ["master-shifts", async (p) => { await tab(p, "shifts"); await sleep(900); }, "[data-next], [data-sh-save]"],
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
@@ -254,6 +264,31 @@ export const STATES = [
     await p.reload(); await p.waitForSelector("#llBody tr[data-i]");
     await p.click("#tabWork"); await p.waitForSelector("#llEquipBar .eq-chip"); await sleep(900);
   }, "[data-next], #llEquipBar [aria-selected=false]"],
+  // 版 3.35.0: 推奨アップデートの札が付いた版（3.13.0）が配られ、この PC が取り込み済み（開き直せば新しい版）。異常ロット一覧で使っている所
+  ["update-recommended", async (p) => {
+    await p.route("**/__desktop/update", (route) => route.fulfill({ json: UPDATE_RECOMMENDED }));
+    await p.click("#tabList"); await sleep(400);
+    await p.evaluate(() => pollUpdate()); await sleep(900);
+  }, "[data-next], #verNew"],
+  // ダッシュボード（版 3.36.0）: 設備別の仕掛ロット数・前日の実績本数。条件の欄を開いた所も
+  ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await sleep(3500); }, "[data-next], [data-db-cond]"],
+  ["dash-cond", async (p) => { await p.click('[data-db-cond="wip"]'); await sleep(500); }, "[data-next], [data-db-save]"],
+  // 仕掛（データ元 wip。版 3.36.0）: 見出しの「仕掛」のタブで、異常ロット一覧と同じ部品の一覧
+  ["wip", async (p) => { await closeAll(p); await p.click('[data-screen="src:wip"]'); await sleep(3000); }, "[data-next], #llSearch"],
+  // 同じ知らせを作業実績の画面で（どの画面でも同じ所に出るか）
+  ["update-recommended-work", async (p) => {
+    await p.route("**/__desktop/update", (route) => route.fulfill({ json: UPDATE_RECOMMENDED }));
+    await p.click("#tabWork"); await sleep(2500);
+    await p.evaluate(() => pollUpdate()); await sleep(900);
+  }, "[data-next], #verNew"],
+  // 配布の画面で、配っている版（3.13.0）に推奨の札が付いている所（update-recommended の知らせと同じ版）
+  ["master-release-recommended", async (p) => {
+    await p.route(/\/__desktop\/release(\?|$)/, (route) => route.fulfill({ json: { ...RELEASE, distributed: { ...RELEASE.distributed,
+      version: "3.13.0", previous: "3.12.0", setAt: "2026-10-15T09:05:00",
+      recommended: { note: "ほかの PC がマスタの置き場に追従しない不具合を直しました", setAt: "2026-10-15T09:06:00", setBy: "user", setPc: "PC-01" } } } }));
+    await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)");
+    await tab(p, "release"); await sleep(900);
+  }, "[data-next], #masterSettings button"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

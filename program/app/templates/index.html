@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-formats.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-work.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-pivot.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
 <body>
 <header>
@@ -34,6 +35,10 @@
   </div>
   <!-- 画面の切り替え（最初は異常ロット一覧）。計算画面からも検索欄で直接ロット問い合わせできる -->
   <nav class="screen-tabs" role="tablist" aria-label="画面">
+    <!-- ダッシュボード（版 3.36.0）: 設備別の仕掛ロット数・前日の実績本数 -->
+    <button id="tabDash" class="screen-tab" role="tab" aria-selected="false" aria-controls="dashScreen" data-screen="dash"
+            title="設備別の仕掛ロット数と、前日（現場歴）の設備別・直ごとの実績本数（Alt+0）">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>ダッシュボード</button>
     <button id="tabList" class="screen-tab" role="tab" aria-selected="true" aria-controls="lotListScreen" data-screen="list"
             title="品質データの異常ロットを絞り込み、ロット番号を押して計算へ（Alt+1）">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>異常ロット一覧</button>
@@ -89,11 +94,16 @@
   </div>
 </div>
 
+<!-- ============ ダッシュボード（版 3.36.0。dashboard.js） ============ -->
+<div id="dashScreen" class="db-screen hidden" role="tabpanel" aria-labelledby="tabDash"><div class="db-panel" id="dashBody"></div></div>
+
 <!-- ============ 異常ロット一覧（最初の画面。品質データの手元の写し・WaveLog と同じ絞り込み） ============ -->
 <div id="lotListScreen" class="ll-screen" role="tabpanel" aria-labelledby="tabList">
   <div class="ll-panel">
     <!-- 元データが古い（毎日更新されるはずの元ファイルの更新が止まっている）ときの警告 -->
     <div id="llStale" class="ll-stale" role="alert" hidden></div>
+    <!-- 推奨アップデート（配る版に推奨の札が付き、この PC がまだその版でないとき。「あとで」で畳むと見出しの札だけ残る・版 3.35.0） -->
+    <div id="recBand" class="rec-band" role="status" hidden></div>
     <!-- 作業実績のときだけ: どの設備を見るか（札の並び。いま見ている設備は塗る） -->
     <nav id="llEquipBar" class="ll-equipbar" aria-label="設備" hidden></nav>
     <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
@@ -405,8 +415,10 @@
 <script src="{{ url_for('static', filename='js/lotlist-active.js') }}"></script>
 <script src="{{ url_for('static', filename='js/virtual-rows.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pathpick.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master-sources.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master.js') }}"></script>
 </body>
 </html>

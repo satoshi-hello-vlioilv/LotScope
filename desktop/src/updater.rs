@@ -285,6 +285,17 @@ impl Updater {
         Ok(r)
     }
 
+    /// 推奨アップデートの札を付ける・外す（POST /__desktop/release/recommend {version, on, note}）
+    pub fn set_recommended(&self, settings: &Value, version: &str, on: bool, note: &str) -> Result<Value, (u16, String)> {
+        if settings["who"]["canRelease"] != true {
+            return Err((403, "推奨の札を付けられるのは、開発者・メンテナンス者だけです（切断中の PC も付けられません）。".into()));
+        }
+        let (found, _) = release::locate_source(settings["source"].as_str().unwrap_or("")).map_err(|e| (400, e))?;
+        let r = distribute::set_recommended(&found, &brand().app_id, version, on, note, &who_of(settings)).map_err(|e| (400, e))?;
+        self.wake();
+        Ok(r)
+    }
+
     /// 置いた版を消す（POST /__desktop/release/remove）。配っている版は消さない。
     pub fn remove(&self, settings: &Value, version: &str) -> Result<Value, (u16, String)> {
         if settings["who"]["canRelease"] != true {

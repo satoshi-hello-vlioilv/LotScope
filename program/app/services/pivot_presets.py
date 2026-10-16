@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import json
 
+from .data_sources import is_screen_source
+
 NAME = "pivot_presets"
 FIELDS = ["名前", "元", "範囲", "ログインID", "標準", "中身", "備考"]
 SOURCES = {"lot": "異常ロット一覧", "work": "作業実績"}
@@ -93,8 +95,8 @@ def clean_row(data, login, partial=False):
         row["名前"] = name
     if not partial:
         src = d.get("source")
-        if src not in SOURCES:
-            raise PresetError("元（lot か work）が違います。")
+        if not is_screen_source(src):
+            raise PresetError("元（lot・work・src:<キー>）が違います。")
         scope = d.get("scope")
         if scope not in SCOPES:
             raise PresetError("置き場（all か me）が違います。")

@@ -11,7 +11,7 @@
 import json
 from pathlib import Path
 
-from ..services import display_formats, equipment_names, pivot_presets, shifts, work_log
+from ..services import dashboard, data_sources, display_formats, equipment_names, pivot_presets, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
 
@@ -48,6 +48,10 @@ SPECS = {
     "pivot_presets": {"fields": pivot_presets.FIELDS, "renamed": {}, "unique": None},
     # すぐに見るの選び（ログイン ID・元ごとに 1 行。並びは組み方の id の JSON。quick_set が 1 行にまとめる）
     "pivot_quick": {"fields": pivot_presets.QUICK_FIELDS, "renamed": {}, "unique": None},
+    # データ元（services/data_sources.py）。キーごとに 1 行（決まった元は、変えたときだけ行がある）
+    "data_sources": {"fields": data_sources.FIELDS, "renamed": {}, "unique": "キー"},
+    # ダッシュボードの条件（services/dashboard.py）。パネルごとに 1 行
+    "dashboard_settings": {"fields": dashboard.FIELDS, "renamed": {}, "unique": "キー"},
 }
 
 
@@ -250,6 +254,65 @@ class MasterRepository:
             row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
             return dict(row)
         return self.store.write("path_settings", mutate)
+
+    # -------------------------------------------------- データ元（中身の決まりは services/data_sources.py）
+    def data_source_rows(self):
+        return self._list("data_sources")
+
+    def data_source_put(self, key, data, base_rev=None):
+        """キー key の行を置く（有れば直す・無ければ足す。1 回の錠の中で）。data は clean_row 済みの行。
+        base_rev: 画面が開いたときの行の版（行が無かったときは 0）。違えば RowConflict（ほかの PC が先に直した）。"""
+        spec = SPECS["data_sources"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            row = next((r for r in rows if r.get("キー") == key), None)
+            if base_rev is not None and (int(row.get("rev", 1)) if row else 0) != int(base_rev):
+                raise RowConflict(dict(row) if row else None)
+            if row is None:
+                self._check_unique(rows, spec, {"キー": key})
+                row = {"id": next_id(rows), "rev": 0}
+                rows.append(row)
+            row.update({k: _clean(data.get(k)) for k in spec["fields"]})
+            row["キー"] = key
+            row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
+            return dict(row)
+        return self.store.write("data_sources", mutate)
+
+    def data_source_delete(self, key, base_rev=None):
+        """キー key の行を消す（決まった元なら既定へ戻す・足した元なら消す）。もう無ければ何もしない。"""
+        spec = SPECS["data_sources"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            i = next((k for k, r in enumerate(rows) if r.get("キー") == key), -1)
+            if i < 0:
+                return None
+            self._check_rev(rows[i], base_rev)
+            rows.pop(i)
+            return None
+        self.store.write("data_sources", mutate)
+
+    # -------------------------------------------------- ダッシュボードの条件（中身の決まりは services/dashboard.py）
+    def dashboard_rows(self):
+        return self._list("dashboard_settings")
+
+    def dashboard_put(self, key, condition, base_rev=None):
+        """パネル key の条件（JSON の字）を置く（有れば直す・無ければ足す）。base_rev は行の版（無かったときは 0）。"""
+        spec = SPECS["dashboard_settings"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            row = next((r for r in rows if r.get("キー") == key), None)
+            if base_rev is not None and (int(row.get("rev", 1)) if row else 0) != int(base_rev):
+                raise RowConflict(dict(row) if row else None)
+            if row is None:
+                row = {"id": next_id(rows), "キー": key, "rev": 0}
+                rows.append(row)
+            row["条件"] = condition
+            row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
+            return dict(row)
+        return self.store.write("dashboard_settings", mutate)
 
     # -------------------------------------------------- 作業実績の設備（中身の決まりは services/work_log.py）
     def work_logs(self):

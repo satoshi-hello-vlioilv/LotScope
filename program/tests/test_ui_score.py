@@ -27,7 +27,9 @@ class UiScore(unittest.TestCase):
     def test_points(self):
         self.assertEqual(sum(ui.WEIGHT.values()), 100, "加点は 100 点満点")
         self.assertEqual(ui.GROUPS, ["わかりやすさ", "使いやすさ", "統一感", "美しさ"], "CLAUDE.md の 4 分類")
-        self.assertEqual((ui.PASS, ui.MIN_PROPOSALS, ui.MIN_NEW, ui.MAX_ROUNDS), (95, 5, 3, 3), "CLAUDE.md の 95 点・5 案以上・新しい案 3 案・3 回")
+        self.assertEqual((ui.PASS_BY_ROUND, ui.MIN_PROPOSALS, ui.MIN_NEW, ui.MAX_ROUNDS), ((95, 90, 80), 5, 3, 3),
+                         "CLAUDE.md の合格点（1 回目 95・2 回目 90・3 回目から 80）・5 案以上・新しい案 3 案・3 回")
+        self.assertEqual([ui.pass_mark(i) for i in range(5)], [95, 90, 80, 80, 80], "3 回目から先は 80 点")
         self.assertEqual(ui.total(entry(10)), 100)
         self.assertEqual(ui.total(entry(10, minus=("cut", "wrap"))), 92, "見切れ −5・折り返し −3")
         self.assertEqual(ui.total(entry(0, minus=("lost",))), 0, "0 点より下にはしない")
@@ -53,11 +55,23 @@ class UiScore(unittest.TestCase):
         two = round_("2 回目", entry(9), entry(10), entry(9), entry(8), entry(7), names="AXYZW")
         self.assertEqual(ui.decide(data(one, two))[:2], ("選ぶ", "X"))
 
-    def test_third_round_decides_even_below_95(self):
-        r = [round_(f"{i + 1} 回目", entry(9), entry(8), entry(8), entry(7), entry(6), names=[f"{i}{c}" for c in "ABCDE"]) for i in range(3)]
+    def test_pass_mark_eases_by_round(self):
+        """合格点は回で下がる: 1 回目 95 点・2 回目 90 点・3 回目 80 点"""
+        one = round_("1 回目", entry(9), entry(8), entry(7), entry(6), entry(5))
+        two = round_("2 回目", entry(8), entry(9), entry(7), entry(6), entry(5), names="AVWXY")
+        self.assertEqual(ui.decide(data(one, two))[:2], ("選ぶ", "V"), "2 回目は 90 点で決める（1 回目なら決めない点）")
+        two = round_("2 回目", entry(8), entry(8, form=9), entry(7), entry(6), entry(5), names="AVWXY")
+        self.assertEqual(ui.decide(data(one, two))[0], "出し直す", "2 回目の 89 点では決めない")
+        three = round_("3 回目", entry(8), entry(7), entry(7), entry(6), entry(5), names="PQRST")
+        self.assertEqual(ui.decide(data(one, two, three))[:2], ("選ぶ", "P"), "3 回目は 80 点で決める")
+        with self.assertRaisesRegex(ValueError, "90 点に届いて決まっている"):
+            ui.decide(data(one, round_("2 回目", entry(9), entry(8), entry(7), entry(6), entry(5), names="AVWXY"), three))
+
+    def test_third_round_decides_even_below_the_mark(self):
+        r = [round_(f"{i + 1} 回目", entry(7), entry(6), entry(6), entry(5), entry(4), names=[f"{i}{c}" for c in "ABCDE"]) for i in range(3)]
         self.assertEqual(ui.decide(data(*r))[:2], ("届かずに選ぶ", "2A"), "3 回で届かなければ 1 位に決め、足りない点を伝える")
         with self.assertRaisesRegex(ValueError, "3 回まで"):
-            ui.decide(data(*r[:2], round_("3 回目", entry(9), entry(8), entry(8), entry(7), entry(6), names="VWXYZ"),
+            ui.decide(data(*r[:2], round_("3 回目", entry(7), entry(6), entry(6), entry(5), entry(4), names="VWXYZ"),
                            round_("4 回目", entry(10), entry(9), entry(9), entry(9), entry(9), names="PQRST")))
 
     def test_ties_go_to_the_heavier_group(self):

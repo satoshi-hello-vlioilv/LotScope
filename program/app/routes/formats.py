@@ -4,6 +4,7 @@
 from ..web import jsonify, request
 
 from ..services import display_formats as df
+from ..services.data_sources import is_screen_source
 from .common import base_rev, bp, can_write, error, master_call, master_repo
 
 
@@ -11,8 +12,8 @@ from .common import base_rev, bp, can_write, error, master_call, master_repo
 def formats_list():
     """書式の一覧（source を付けるとその一覧の分だけ）。canEdit は、この PC が保存・上書き・削除できるか。"""
     src = request.args.get("source", "")
-    if src and src not in df.SOURCES:
-        return error("source は lot か work です。", 400)
+    if src and not is_screen_source(src):
+        return error("source は lot・work・src:<キー> のどれかです。", 400)
     st = master_repo().store
     items = [df.view(r) for r in master_repo().formats() if not src or r.get("元") == src]
     items.sort(key=lambda x: x["name"])

@@ -19,12 +19,13 @@ def access_me():
 # 計算・一覧・取込・心拍は書き込みではないので止めない。切断された PC は冷却のあいだ書けない。
 _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls", "roll_master"),
             ("/api/masters/access", "access_permissions"), ("/api/settings/", "path_settings"), ("/api/masters/worklog", "work_log_files"),
-            ("/api/masters/formats", "display_formats"), ("/api/masters/shifts", "shift_patterns"))
+            ("/api/masters/formats", "display_formats"), ("/api/masters/shifts", "shift_patterns"),
+            ("/api/sources", "data_sources"), ("/api/dashboard", "dashboard_settings"))
 
 
 @bp.before_app_request
 def _access_guard():
-    if request.method in ("GET", "HEAD", "OPTIONS") or request.path == "/api/settings/check":
+    if request.method in ("GET", "HEAD", "OPTIONS") or request.path in ("/api/settings/check", "/api/sources/check"):
         return None
     name = next((n for pfx, n in _GUARDED if request.path.startswith(pfx)), None)
     if not name:
@@ -39,7 +40,7 @@ def _access_guard():
                      + (f"理由: {r['reason']}" if r.get("reason") else ""), 403, "revoked")
     scope = access.master_scope(name)
     if not access.master_edit_can(m["flags"]["masterEdit"], "write", scope):
-        what = "管理のマスタ（アクセス権限・参照先・作業実績の設備）" if scope == "admin" else "マスタ"
+        what = "管理のマスタ（アクセス権限・参照先・作業実績の設備・データ元）" if scope == "admin" else "マスタ"
         return error(f"この PC の権限（{m['flags']['role']}・マスタ編集「{m['flags']['masterEdit']}」）では{what}を書き換えられません。",
                      403, "forbidden")
     return None

@@ -54,12 +54,13 @@ def worklog_files():
     return jsonify(folder=wl["folder"], pattern=wl["pattern"], canEdit=can_write(work_log.NAME), staleHours=wl["stale_hours"], **v)
 
 
-def worklog_plan(need_copy=True):
+def worklog_plan(need_copy=True, key=None, rows=None):
     """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
-    段取り: 写しの係・読むファイル（写し）・既定の表・既定の件数・設備の行。need_copy=False は写しがまだ無くてもよい（再読込）。"""
-    key = request.args.get("equip", "")
+    段取り: 写しの係・読むファイル（写し）・既定の表・既定の件数・設備の行。need_copy=False は写しがまだ無くてもよい（再読込）。
+    key: 設備（登録のキー。省けば問い合わせの equip）。rows: 読み終えた登録（ダッシュボードが設備ごとに呼ぶとき、毎回読み直さない）"""
+    key = request.args.get("equip", "") if key is None else key
     wl = _params()
-    row = next((r for r in master_repo().work_logs() if r.get("キー") == key), None)
+    row = next((r for r in (master_repo().work_logs() if rows is None else rows) if r.get("キー") == key), None)
     if not key or row is None:
         return None, error("その設備は作業実績に登録されていません。「マスタ管理」の「作業実績」でフォルダを探してください。", 404, "unknown")
     if str(row.get("表示") or "有") == "無":

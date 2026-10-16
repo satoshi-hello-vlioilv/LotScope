@@ -42,6 +42,7 @@
     arrange: "tpa.lotlist.arrange.v1",    // 並び・まとめ（表ごと）{levels:[{column, dir, lot}], heads, suppress}
     workEquip: "tpa.worklog.equip.v1",    // 作業実績: 最後に見た設備（キー）
     workTable: "tpa.worklog.table.v1",    // 作業実績: 設備ごとに最後に見た表 {キー: 表}
+    srcTable: "tpa.src.table.v1",         // データ元（仕掛・足した元）: 元ごとに最後に見た表 {キー: 表}
   };
   /* 機能の既定: カードは使う（ダブルクリックは今まで何もしなかった操作）。
      以前の「ロット番号でまとめる」（features.group）は、並び・まとめを一度も決めていない表で「ロット番号の段1つ」として引き継ぐ */
@@ -100,11 +101,11 @@
   const SOURCES = {
     lot: {
       id: "lot", api: "/api/lotlist", title: "異常ロット一覧", noun: "品質データ", fileStem: "異常ロット一覧",
-      params: () => ({}), scope: (t) => t, target: (t) => "lotlist:" + (t || ""), owns: (k) => !k.startsWith("wl:"),
+      params: () => ({}), scope: (t) => t, target: (t) => "lotlist:" + (t || ""), owns: (k) => !k.startsWith("wl:") && !k.startsWith("src:"),
       colTable: (t) => t, place: (t) => t,
       loadTable: () => store.get(KEY.table, ""), saveTable: (t) => store.set(KEY.table, t),
-      settingsKey: "lot_list.", settingsTab: "paths", settingsLabel: "参照先を開く",
-      settingsTip: "元ファイルの場所・名前を「マスタ管理」の「参照先」で直します",
+      settingsKey: "lot_list.", settingsTab: "sources", settingsLabel: "データ元を開く",
+      settingsTip: "元ファイルの場所・名前を「マスタ管理」の「データ元」で直します",
       remoteHint: "（設定 lot_list.source）", reading: "品質データを読んでいます…",
       firstNote: "初めて開いたときは、共有の元ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
       staleWhat: "最近の異常ロットは一覧に出ません。",
@@ -123,6 +124,23 @@
       staleWhat: "最近の作業実績は一覧に出ません。",
     },
   };
+  /* 1 ファイルのデータ元（仕掛・マスタ管理の「データ元」で足した元。版 3.36.0）。動きは異常ロット一覧と同じで、問い合わせの頭と覚えの範囲だけが違う。
+     覚えの範囲は src:<キー>:<表>（キーは変わらない名前。表示名を変えても、場所を変えても覚えは離れない） */
+  function fileSource(def) {
+    const id = `src:${def.key}`, k = def.key, name = def.name || def.key;
+    return {
+      id, api: def.api || `/api/src/${k}`, title: name, noun: name, fileStem: name,
+      params: () => ({}), scope: (t) => `${id}:${t || ""}`, target: (t) => `${id}:${t || ""}`, owns: (x) => x.startsWith(`${id}:`),
+      colTable: (t) => `${id}:${t || ""}`, place: (t) => t,
+      loadTable: () => (store.get(KEY.srcTable, {})[k] || ""),
+      saveTable: (t) => { const m = store.get(KEY.srcTable, {}); if (t) m[k] = t; else delete m[k]; store.set(KEY.srcTable, m); },
+      settingsKey: `sources.${k}`, settingsTab: "sources", settingsLabel: "データ元を開く",
+      settingsTip: `${name}の場所（共有のファイル）を「マスタ管理」の「データ元」で直します`,
+      remoteHint: "（データ元）", reading: `${name}を読んでいます…`,
+      firstNote: "初めて開いたときは、共有のファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
+      staleWhat: `最近の${name}は一覧に出ません。`,
+    };
+  }
   function newState(src) {
     return {
       src: SOURCES[src], table: "", tables: [], columns: [], rows: [], count: 0, lotColumn: "",
@@ -389,7 +407,7 @@
   function tablePresets() { const k = scope(); return S.presets.filter((p) => p.table === k); }
   /* 登録した条件は、元（異常ロット一覧・作業実績）をまたいで 1 つの覚え（どの範囲の条件かは table で見分ける）。
      両方の元が同じ並びを持つ（別々に持つと、片方で登録した条件を、もう片方の保存が消してしまう） */
-  function savePresets(list = S.presets) { STATES.lot.presets = STATES.work.presets = list; store.set(KEY.presets, list); }
+  function savePresets(list = S.presets) { Object.values(STATES).forEach((x) => { x.presets = list; }); store.set(KEY.presets, list); }
   /* 「いつも適用（固定）」は開くたびに入り、手で外せても開き直すと戻る（WaveLog §9.190 と同じ）。 */
   function applyAlwaysOn() {
     const seen = new Set(S.genericFilters.map(filterKey));
@@ -1483,7 +1501,7 @@
         note.hidden = false; return;
       }
       note.removeAttribute("role");
-      const canRefresh = S.src.id === "lot" || !!S.source;   // 作業実績は、まだ開けていない設備（ファイルが見つからない等）には取り直す物が無い
+      const canRefresh = S.src.id !== "work" || !!S.source;   // 作業実績は、まだ開けていない設備（ファイルが見つからない等）には取り直す物が無い
       note.innerHTML = `<b>${esc(S.src.title)}を読めませんでした。</b><br>${esc(S.error)}<br>`
         + `${from}${healHtml()}<div class="ll-note-acts">`
         + (canRefresh ? '<button type="button" class="btn-primary" data-ll-refresh>共有から読み直す</button> ' : "")
@@ -1982,6 +2000,16 @@
      （戻るたびに1ページ目へ戻すと、どこまで見たかを思い出させることになる）。
      「いつも適用（固定）」は、その元を開いた最初の1回に当てる（外した固定は、アプリを開き直すと戻る）。
      異常ロット一覧と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
+  /* データ元の並び（app.js が /api/sources から渡す）。1 ファイルの元は、初めて開くときに状態を作る（名前が変わったら札だけ直す） */
+  function defineSources(list) {
+    (list || []).filter((d) => d.api && d.api.startsWith("/api/src/")).forEach((d) => {
+      const src = fileSource(d);
+      SOURCES[src.id] = src;
+      if (STATES[src.id]) { STATES[src.id].src = src; return; }
+      STATES[src.id] = Object.assign(newState(src.id), { presets: STATES.lot.presets });
+      STATES[src.id].table = src.loadTable();
+    });
+  }
   function activate({ source = "lot", currentLot } = {}) {
     const next = STATES[source] || STATES.lot;
     if (next !== S) { closeViewMenu(); S = next; window.LotListSlicer.reset(); window.LotListMarks.reset(); window.LotListPivot.sync(); setZoom(savedZoom(), { reflow: false }); }
@@ -2241,7 +2269,7 @@
     load();
   }
 
-  window.LotList = { mount, activate, deactivate, focus: () => $("#llSearch")?.focus(), source: () => S.src.id,
+  window.LotList = { mount, activate, deactivate, defineSources, focus: () => $("#llSearch")?.focus(), source: () => S.src.id,
     formats: { capture: captureFormat, places: formatPlaces, apply: applyFormat, undo: undoFormat,
       here: () => ({ source: S.src.id, table: S.table, origin: S.src.place(S.table), equip: S.equip, title: S.src.title }) } };
 })();

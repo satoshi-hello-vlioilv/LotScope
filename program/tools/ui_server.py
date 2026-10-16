@@ -1,6 +1,6 @@
 """画面だけを確かめるための開発用サーバー（窓 desktop/ の代わり。利用者の起動の道ではない）。
 
-試験用の品質データ（tests/lotlist_fixture.py の 1500 行）と作業実績（設備 4 台ぶん）を作業フォルダに作って参照先にし、アプリ（create_app）を
+試験用の品質データ（tests/lotlist_fixture.py の 1500 行）と作業実績（設備 12 台ぶん）と仕掛（1200 ロット）を作業フォルダに作って参照先にし、アプリ（create_app）を
 標準の http.server で配る。program/tools/ui-check.mjs・ui-variants.mjs が撮影と測定に使う（ui-harness.mjs が起こす）。
 窓だけが答える /__desktop/* は、撮影の台本（ui-harness.mjs）が Playwright で作り物の答えを返す。
 
@@ -18,6 +18,7 @@ import shutil
 import sys
 import tempfile
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
@@ -79,15 +80,21 @@ def main():
     for sub in ("検査データ", "旧_2025", "台帳"):
         (shared / sub).mkdir(parents=True)
     shutil.copy(share, shared / "台帳" / "SIKADEF.sqlite3")
+    lotlist_fixture.make_wip(str(shared / "台帳" / "LOTNOW.sqlite3"))       # 仕掛（データ元 wip の既定と同じ名前）
     (shared / "Masters_旧").mkdir()
     (shared / "Masters_旧" / "path_settings.json").write_text('{"rows": []}', encoding="utf-8")
     (shared / "配布" / "LotScope" / "3.27.0").mkdir(parents=True)
     (shared / "配布" / "LotScope" / "3.27.0" / "release.json").write_text("{}", encoding="utf-8")
     settings["lot_list"] = {**settings.get("lot_list", {}), "source": str(shared / "台帳" / "SIKADEF.sqlite3")}
     settings["update"] = {**settings.get("update", {}), "source": str(shared / "配布" / "LotScope")}
+    settings["sources"] = {**settings.get("sources", {}), "wip": {**settings.get("sources", {}).get("wip", {}),
+                                                                  "source": str(shared / "台帳" / "LOTNOW.sqlite3")}}
     app = create_app({"MASTER_STORE": MasterStore(WORK / "base", local_root=WORK / "masters", settings={}),
                       "LOT_MIRROR": DbMirror("lot_list", share, WORK / "cache"), "APP_SETTINGS": settings,
-                      "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log")})
+                      "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log"),
+                      "SRC_MIRRORS": work_log.Mirrors(WORK / "cache" / "sources", prefix="src"),
+                      # ダッシュボードの「前日」: 試験用の作業実績は TODAY（10/2）までなので、その翌日の朝を「いま」にする
+                      "DASHBOARD_NOW": datetime.combine(lotlist_fixture.TODAY + timedelta(days=1), datetime.min.time()).replace(hour=10)})
     # 設備を登録しておく（マスタ管理の「探す」と同じ）
     MasterRepository(app.config["MASTER_STORE"]).work_log_sync(work_log.scan(folder, settings["work_log"]["pattern"]))
     seed_formats(MasterRepository(app.config["MASTER_STORE"]))

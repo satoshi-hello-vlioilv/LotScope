@@ -57,6 +57,44 @@ def make_work(path, equipment, n=400, seed=11):
     c.close()
 
 
+# 仕掛（WaveLog の仕掛 SIKALOTNOW と同じ 34 列の頭。本物は 200 列ほど）。残仕掛設備ｺｰｽ は「次の設備 その次 …」（空白区切り）で、
+# 先頭が今その設備に仕掛かっている（WaveLog の作業可否と同じ決まり）。設備名は作業実績の試験用の設備と同じ
+WIP_COLUMNS = ["ロット番号", "鋳造番号", "製造材質", "製造調質", "用途名", "BOX設計_設備名", "検査番号", "オーダー番号", "取引先", "納入先",
+               "設計_設備ｺｰｽ", "実績_設備ｺｰｽ", "残仕掛設備ｺｰｽ", "ｺﾝﾏ5本ｶｰﾄﾞ区分"] + [f"親子管理_子カード{i}" for i in range(1, 11)] \
+    + [f"コンマ5本分割_切断巾{i}" for i in range(1, 11)]
+WIP_EQUIPMENT = ["CR1", "CR2", "L-1", "L-2", "TLV", "LS3", "DL2", "CAL", "ANF", "HOT", "SL1"]
+
+
+def make_wip(path, n=1200, seed=5):
+    """仕掛の試験用データ（表「仕掛」。1 行 1 ロット）。設備ごとの仕掛の数がばらつくように、先頭の設備は重みを付けて選ぶ。
+    数行は残仕掛設備ｺｰｽ が空（もう流れ終わった）・知らない設備（XYZ）・全角（ＣＲ１）。"""
+    r = random.Random(seed)
+    c = sqlite3.connect(path)
+    c.execute("DROP TABLE IF EXISTS 仕掛")
+    c.execute("CREATE TABLE 仕掛 (" + ",".join(f"[{x}]" for x in WIP_COLUMNS) + ")")
+    weights = [9, 4, 12, 6, 3, 8, 5, 2, 7, 1, 3]
+    rows = []
+    for i in range(n):
+        route = r.sample(WIP_EQUIPMENT, r.randint(3, 6))
+        k = r.randint(0, len(route) - 1)
+        head = r.choices(WIP_EQUIPMENT, weights)[0]
+        rest = [head] + [x for x in route[k + 1:] if x != head]
+        course = " ".join(rest)
+        if i % 97 == 0:
+            course = ""
+        elif i % 89 == 0:
+            course = "XYZ " + course
+        elif i % 83 == 0:
+            course = course.replace("CR1", "ＣＲ１")
+        rows.append([f"W{i + 1:05d}", f"C{r.randint(1, 999):03d}", r.choice(["A1100", "A5052", "A3004"]), r.choice(["H14", "O", "H24", "H34"]),
+                     r.choice(["一般用材", "缶材", "箔地"]), route[0], f"K{i + 1:05d}", f"J{r.randint(1, 99)}", r.choice(["取引先A", "取引先B", "ﾄﾘﾋｷｻｷC"]),
+                     r.choice(["納入先A", "納入先B"]), " ".join(route), " ".join(route[:k]), course, r.choice(["", "", "1", None])]
+                    + [None] * 20)
+    c.executemany("INSERT INTO 仕掛 VALUES (" + ",".join("?" * len(WIP_COLUMNS)) + ")", rows)
+    c.commit()
+    c.close()
+
+
 def make(path, n=3000, extra_columns=20, seed=7):
     """n 行 ×（20＋extra_columns）列の表「仕掛」と、ビュー「仕掛_ビュー」・WITHOUT ROWID の表「保留」を作る。"""
     r = random.Random(seed)
