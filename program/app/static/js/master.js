@@ -999,7 +999,7 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
     + `<button type="button" class="icon-btn" data-eg-rdel="${i}" aria-label="このルールを外す"${dis}>×</button></div>`).join("");
   const setNames = d.sets.map((x) => x.name);
   box.innerHTML = `<section class="sh-page">
-    <p class="ps-lead">いくつかの設備を <b>1 つのグループ</b>にして、ダッシュボードのパネルで<b>合算</b>や<b>グループごとの小計</b>を出します（パネルを組む所の「出し方」→「グループで合算」、または行・列の「設備グループ」の札）。
+    <p class="ps-lead">いくつかの設備を <b>1 つのグループ</b>にして、ダッシュボードのパネルで<b>合算</b>や<b>グループごとの小計</b>を出します（パネルを組む所の「出し方」→「グループ合算」、または行・列の「設備グループ」の札）。
       グループは<b>まとめ方</b>（ライン別・工場別など）ごとに並べ、パネルはまとめ方を 1 つ選びます。ここで直すと、そのまとめ方を使うパネルにすぐ効きます。</p>
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="egNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     <div class="sh-editor">

@@ -142,7 +142,7 @@
     }
   }
   function titleOf(p) { return p.title || E.autoTitle(p); }
-  const SPLIT_NAME = { series: "設備ごとに重ねる", facet: "設備ごとに並べる", sum: "合算" };
+  const SPLIT_NAME = { series: "設備ごとの系列", facet: "設備ごとに並べる", sum: "合算" };
   function metaOf(p, a) {
     if (p.visual === "board") return "";
     const name = (k) => (S.sources.find((x) => x.key === k) || {}).name || k;

@@ -266,7 +266,15 @@
       const lead = stacked.length ? { v: tops, y: (v) => y(v, stacked[0]) } : series[0] ? { v: series[0].v, y: (v) => y(v, series[0]) } : null;
       if (lead) {
         thin = thinOf(lead.v, iw / Math.max(n, 1));
-        lead.v.forEach((v, i) => { if (v && i % thin === 0) g += `<text x="${x(i)}" y="${lead.y(v) - 5}" text-anchor="middle" class="pv-vl">${esc(nf(v))}</text>`; });
+        // 線（2 つ目の値）の点がラベルの所を通るなら、ラベルは棒の中へ（入らなければ出さない。値は棒の title で見える）。
+        // 目標の棒と実績の線を重ねたとき、線が数字を横切っていた（2026-10-dashlink の 2 回目の採点）
+        const lines = series.filter((q) => q.kind === "line" || q.kind === "area");
+        lead.v.forEach((v, i) => {
+          if (!v || i % thin) return;
+          const ly = lead.y(v) - 5, hit = lines.some((q) => q.v[i] != null && Math.abs(y(q.v[i], q) - (ly - 4)) < 13);
+          if (!hit) { g += `<text x="${x(i)}" y="${ly}" text-anchor="middle" class="pv-vl">${esc(nf(v))}</text>`; return; }
+          if (!stacked.length && base0 - lead.y(v) >= 18 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i)}" y="${lead.y(v) + 14}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
+        });
       }
     }
     const legend = legendHtml(series.map((q) => [q.name + (series.some((r) => r.axis === "right") ? (q.axis === "left" ? "（左）" : "（右）") : ""), q.color, q.kind === "line" ? "line" : "bar"]))

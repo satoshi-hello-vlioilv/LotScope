@@ -446,3 +446,16 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .de-lnk-go:hover{color:var(--h-input)}
 .de-lnkt .de-seg{height:24px;padding:0 7px;font-size:12px}
 .de-subrow{margin:6px 0 0;padding-left:2px}
+/* 合わせ方のデータのカード（版 3.40.0。2026-10-dashlink の 2 回目の R4）: 左に役割の色の帯・役割・軸と値・作り方・グラフのどこに出るか */
+.de-lnkc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.de-lnkcard{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;padding:9px 10px 9px 14px;border:1px solid var(--line);border-radius:10px;
+  box-shadow:inset 5px 0 0 var(--rc);background:color-mix(in srgb,var(--rc) 5%,#fff)}
+.de-lnkkv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;font-size:12.5px}
+.de-lnkkv span{color:var(--muted)}
+.de-lnkkv b{font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.de-lnkwhere{font-size:12.5px;font-weight:700;color:var(--ink)}
+.de-lnkwhere b{color:var(--rc)}
+.de-lnkcard .de-seg{height:26px;padding:0 9px;font-size:12px}
+/* 出し方の札は 1 段に（1280 で「グループ合算」が 2 段目へ落ちた）: 札を詰め、字は折らない */
+.de-splits{flex-wrap:nowrap}
+.de-splits .de-frame{padding:0 8px;gap:5px}

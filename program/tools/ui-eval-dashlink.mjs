@@ -1,11 +1,11 @@
 // 評価関数（開発用）: ダッシュボードの版 3.40.0（利用者の要望 2026-10 の 6 つ）を本物の画面で確かめる。
 //   node program/tools/ui-eval-dashlink.mjs
 // どの数も、画面と同じ組みをサーバー（/api/dashboard/query）へ直接問い合わせた答えと突き合わせる（画面の数を手で決め打ちしない）。
-// ① 設備を 3 つ選ぶと、出し方は「重ねる」（設備ごとの系列 3 つ。合算しない）。凡例に 3 つの名前・パネルの添え書きに「設備ごとに重ねる」
+// ① 設備を 3 つ選ぶと、出し方は「系列に分ける」（設備ごとの系列 3 つ。合算しない）。凡例に 3 つの名前・パネルの添え書きに「設備ごとの系列」
 //    「並べる」→ 設備ごとの小さな図 3 つ（見出しが設備名）・それぞれの計がサーバーの設備 1 台の計と同じ。「合算」→ 1 系列で 3 台の計
 // ② 「行に置く」で設備が行の段の頭に入る（カラムの札の「設備」も 行 が選ばれる）。出し方の札の代わりに「行に置いています」
 // ③ 別のデータと合わせる: 札が「全体・① 目標・② 実績」・② の軸を設備にして作り方を積み上げ → パネルの値が 2 つ（目標：…・実績：…（積み上げ））で、
-//    サーバーへ同じ組みを問うた答えと同じ・全体の表に 2 行・差を足すと値が 3 つ・やめると 1 つのデータに戻る
+//    サーバーへ同じ組みを問うた答えと同じ・全体にデータのカード 2 枚・差を足すと値が 3 つ・「1 つのデータ」で戻る
 // ④ 設備グループのマスタ: 設備の札が、サーバーの「実際に出てくる設備」と同じ数（作業実績だけの 12 台より多い）・ルールで入る設備に ≈ の印
 //    ルールを足すと（名前が「C」で始まる）その場で当たる設備が増える（保存しない）
 // ⑤ 設備グループ → 設備の表と小計: 小計の行がグループのすぐ下・総計＝小計の和＝サーバーの総計
@@ -42,8 +42,8 @@ try {
   const on = await p.$eval("input[data-de-split]:checked", (x) => x.value);
   const legend = await p.$eval(`${W} .dp-legend`, (x) => x.textContent).catch(() => "");
   const sub = await p.$eval(`${W} .db-psub`, (x) => x.textContent);
-  check("① 3 つ選ぶと出し方は「重ねる」・設備ごとの系列 3 つ（凡例に 3 つの名前・添え書き「設備ごとに重ねる」）",
-    on === "series" && d.esplit === "series" && d.dims.cols[0].column === "@equip" && three.every((n) => legend.includes(n)) && sub.includes("設備ごとに重ねる"), { on, esplit: d.esplit, legend, sub });
+  check("① 3 つ選ぶと出し方は「系列に分ける」・設備ごとの系列 3 つ（凡例に 3 つの名前・添え書き「設備ごとの系列」）",
+    on === "series" && d.esplit === "series" && d.dims.cols[0].column === "@equip" && three.every((n) => legend.includes(n)) && sub.includes("設備ごとの系列"), { on, esplit: d.esplit, legend, sub });
   const pan = await panelOf(p, "workDays");
   const one = async (n) => total(await ask(p, { ...pan, equips: [n], esplit: "sum", visual: "none", body: { ...pan.body, grand: true } }))[0];
   const each = {}; for (const n of three) each[n] = await one(n);
@@ -69,7 +69,7 @@ try {
   await click(p, '[data-de-x="rows"][data-i="0"]'); await settle(p, 800);
 
   // ③ 別のデータと合わせる
-  await click(p, "[data-de-link]"); await p.waitForSelector("#deFields .pv-f"); await settle(p, 1500);
+  await click(p, 'input[data-de-linkmode][value="link"]'); await p.waitForSelector("#deFields .pv-f"); await settle(p, 1500);
   const tabs = await p.$$eval("#deTabs .de-tab", (xs) => xs.map((x) => x.textContent.replace(/\s+/g, "")));
   check("③ 札が「全体・① 目標・② 実績・＋ データ」", tabs.length === 4 && tabs[0].startsWith("全体") && tabs[1].includes("目標") && tabs[2].includes("実績"), tabs);
   await p.evaluate(() => document.querySelector('input[name="de-build-1"][value="cum"]').click()); await settle(p, 1200);
@@ -81,14 +81,14 @@ try {
   const last = d.cells.filter((c) => c.r.length).map((c) => c.v[1]).pop();
   check("③ 積み上げの最後の値＝積み上げの計", last === total(d)[1], { last, t: total(d) });
   await click(p, '[data-de-tab="-1"]'); await sleep(600);
-  const lrows = await p.$$eval("#deData .de-lnkt tbody tr", (xs) => xs.length);
+  const lrows = await p.$$eval("#deData .de-lnkcard", (xs) => xs.length);
   await p.evaluate(() => document.querySelector('[data-de-extra="diff"]').click()); await settle(p, 1200);
   d = await answer(p, "workDays");
-  check("③ 全体の表にデータ 2 行・差を足すと値が 3 つ（差＝実績−目標）", lrows === 2 && d.measures.length === 3 && d.measures[2].role === "diff"
+  check("③ 全体にデータのカード 2 枚・差を足すと値が 3 つ（差＝実績−目標）", lrows === 2 && d.measures.length === 3 && d.measures[2].role === "diff"
     && d.cells.filter((c) => c.r.length && c.v[0] != null && c.v[1] != null).every((c) => Math.abs(c.v[2] - (c.v[1] - c.v[0])) < 1e-9), { lrows, n: d.measures.length });
-  await click(p, "[data-de-unlink]"); await settle(p, 1200);
+  await click(p, 'input[data-de-linkmode][value="one"]'); await settle(p, 1200);
   lp = await panelOf(p, "workDays");
-  check("③ 「合わせるのをやめる」で 1 つのデータのパネルに戻る（札が消える）", !lp.link && !(await p.$("#deTabs .de-tab")), lp.link);
+  check("③ 「1 つのデータ」を選ぶと 1 つのデータのパネルに戻る（札が消える）", !lp.link && !(await p.$("#deTabs .de-tab")), lp.link);
   await click(p, "[data-de-cancel]"); await sleep(500);
 
   // ⑤ 設備グループ → 設備の表と小計
