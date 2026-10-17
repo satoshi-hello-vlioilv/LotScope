@@ -371,9 +371,9 @@ td.cell-warn{background:#fff5e0!important}
 .lc-cvlab{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:#d6efea;color:#0f5f58;font-size:11.5px;font-weight:800}
 .lc-cvtxt{min-width:0;overflow:hidden;text-overflow:ellipsis}.lc-cvtxt b{font-weight:800}
 .lc-sp{flex:1}
-.lc-cvgo{height:30px;padding:0 12px;border:1px solid #0f766e;border-radius:8px;background:#0f766e;color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
-.lc-cvgo:disabled{opacity:.5;cursor:default}
-.lc-cvmore{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.ll-colpanel .lc-cvgo{height:30px;padding:0 12px;border:1px solid #0f766e;border-radius:8px;background:#0f766e;color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.ll-colpanel .lc-cvgo:disabled{opacity:.5;cursor:default}
+.ll-colpanel .lc-cvmore{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
 .lc-cvpick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 10px;margin-top:8px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:12.5px}
 .lc-cvi{display:grid;grid-template-columns:18px auto minmax(0,1fr);align-items:center;gap:6px;padding:4px;border-radius:6px;cursor:pointer;min-width:0}
 .lc-cvi small{color:#4b5f72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

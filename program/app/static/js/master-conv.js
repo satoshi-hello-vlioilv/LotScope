@@ -136,8 +136,7 @@ function paint() {
   const a = x.apply || {}, ok = otherKind(x);
   const expr = window.Conversions && x.name ? `conv('${x.name}', ${x.inputs.map((i) => `[${i.name}]`).join(", ")})` : "";
   box.innerHTML = `<section class="sh-page cv-page">
-    <p class="ps-lead">コードの読み替えや、いくつかの列から区分を決める<b>判定表</b>に名前を付けて置き、一覧の「表示列」の<b>変換表…</b>で列に当てます（列の値を作り替える・列を足す）。
-      表は<b>上から順</b>に見て、最初に当たった行の値を出します。行の中の条件は「かつ」、1 つのセルに並べた条件は「または」です。ここで直すと、全員の一覧にすぐ効きます。</p>
+    <p class="ps-lead">表は<b>上から順</b>に見て、最初に当たった行の値を出します（行の中は「かつ」、1 つのセルに並べた条件は「または」）。一覧の「表示列」の帯から列に当てます。ここで直すと全員の一覧にすぐ効きます。</p>
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="cvNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     <div class="sh-editor cv-editor">
       <aside class="sh-list" aria-label="登録済みの変換表"><div class="sh-list-head">登録済みの変換表</div>${listHtml(d)}</aside>
@@ -167,6 +166,14 @@ function paint() {
         <label class="sh-field"><span>備考</span><input id="cvNote" class="ps-input" value="${esc(x.note || "")}" maxlength="300"${di}></label>
       </div></div></section>`;
   bind();
+  fitGrid();
+}
+/* 判定表は表の中だけを横に送る。送れる先があれば右に影（is-more）・セルを直す欄は見えている幅に収める */
+function fitGrid() {
+  const w = $("#masterSettings .cv-gridwrap"); if (!w) return;
+  const mark = () => w.classList.toggle("is-more", w.scrollLeft + w.clientWidth < w.scrollWidth - 2);
+  w.addEventListener("scroll", mark, { passive: true }); mark();
+  const ed = w.querySelector(".cv-celled"); if (ed) ed.style.width = `${Math.max(320, w.clientWidth - 44)}px`;
 }
 
 /* ---------------- 操作 ---------------- */

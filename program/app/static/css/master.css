@@ -533,7 +533,7 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-ins{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .cv-in{display:inline-flex;align-items:center;gap:3px;padding:3px 5px;border:1px solid #d5e0ec;border-radius:8px;background:#f5f8fb}
 .cv-in .ps-input{flex:0 0 auto;height:26px;font-size:12.5px;padding:0 6px}
-.cv-in [data-cv-iname]{width:96px;font-weight:800}.cv-in select{width:52px}.cv-in .cv-cands{width:150px;color:var(--muted)}
+.cv-in [data-cv-iname]{width:88px;font-weight:800}.cv-in select{width:48px}.cv-in .cv-cands{width:110px;color:var(--muted)}
 .cv-gridwrap{overflow:auto;border:1px solid var(--line);border-radius:9px;max-height:min(56vh,620px)}
 .cv-grid{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
 .cv-grid th{position:sticky;top:0;z-index:1;background:var(--surface-4);color:#4b5f72;font-weight:800;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -544,10 +544,10 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-cbtn{display:block;width:100%;min-height:26px;padding:2px 4px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;text-align:left;cursor:pointer}
 .cv-cbtn:hover:not(:disabled){border-color:#9fb8d6;background:#fff}
 .cv-cond.is-on .cv-cbtn{border-color:var(--h-input);background:#fff;box-shadow:0 0 0 2px rgba(42,82,128,.15)}
-.cv-c{display:table;max-width:100%;margin:1px 0;padding:1px 7px;border-radius:6px;background:#eef3f9;color:#244569;overflow-wrap:anywhere}
+.cv-c{display:table;white-space:nowrap;margin:1px 0;padding:1px 7px;border-radius:6px;background:#eef3f9;color:#244569;}
 .cv-or{display:block;color:#5c6b7a;font-size:11px;line-height:1.3}
 .cv-any{color:#6b7785}
-.cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{width:150px;height:28px;font-weight:800;color:#163a5f}
+.cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{width:132px;height:28px;font-weight:800;color:#163a5f}
 .cv-note{display:inline-block;width:16px;height:16px;margin-left:4px;border-radius:50%;background:#fff3d6;color:#8a5a00;font-size:11px;font-weight:800;line-height:16px;text-align:center;cursor:help}
 .cv-ra{white-space:nowrap;width:1%}.cv-ra .icon-btn{display:inline-grid;width:22px;height:22px;font-size:12px;vertical-align:middle}
 .cv-edrow > td{background:#f7fafd}
@@ -574,5 +574,8 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-grid tr.cv-edrow > td:nth-child(2){position:static}
 /* 左の表の一覧の説明は 1 行（折れて「つ）」だけが次の段に出ない）。判定表は横に送れることを影で示す */
 .cv-editor .sh-item small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cv-gridwrap{background:linear-gradient(to left,var(--surface) 30%,rgba(255,255,255,0)) right/24px 100% no-repeat local,
-  linear-gradient(to left,rgba(16,40,70,.14),rgba(16,40,70,0)) right/10px 100% no-repeat scroll;background-color:var(--surface)}
+.cv-gridwrap{position:relative}
+.cv-gridwrap.is-more{box-shadow:inset -14px 0 12px -10px rgba(16,40,70,.35)}
+.cv-celled{position:sticky;left:30px;box-sizing:border-box}
+.cv-ra .icon-btn{color:#4b5f72;border:1px solid #d9e1ea;background:var(--surface)}
+.cv-page .ps-lead{margin-bottom:4px}

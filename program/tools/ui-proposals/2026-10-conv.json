@@ -575,5 +575,44 @@
     }
    }
   }
- ]
+ ],
+ "built": {
+  "name": "作った後",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built-eval（1728×1152）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built-eval-1280（1280×720）。作る前は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-now",
+  "result": {
+   "evaluator": "同じ採点者（案を作っていない者）が、何もしない案の定義（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built.mjs）で本物の画面の columns-detail・columns-conv・master-conv・master-conv-cell を 1728×1152 と 1280×720 で自分で撮り、1 枚ずつ Read で見て採点した",
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 9,
+    "intuitive": 9,
+    "form": 8,
+    "place": 9,
+    "layout": 6,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "wrap",
+     "where": "master-conv-light-built.png（1728）の判定表: 条件の列が狭く、「T で始ま／らない」「＝／HOT・2HI」「＝ NFCE・／NSCR」「30 ＜ 〜／75」と札の字が途中で折れる。右の用途ｺｰﾄﾞの列には大きな空きが残っている（列幅の配分の問題）"
+    },
+    {
+     "kind": "wrap",
+     "where": "master-conv-light-built.png・master-conv-cell-light-built.png（1280）の判定表: 札が「T で／始ま／らな／い」「＝／NFCE／・／NSCR」と 4 段に折れ、1 行の高さが 3〜4 倍になる"
+    },
+    {
+     "kind": "scroll",
+     "where": "master-conv-light-built.png（1280）: 入力が 1 つずつ 6 段に積まれ（形状区分だけが 1 段目）、上の説明も 3 行あるため、最初の画面に判定表が 1 行（並純箔）しか見えない。条件を見るのに送らないといけない"
+    },
+    {
+     "kind": "cut",
+     "where": "master-conv-cell-light-built.png（1280）のセルを直す欄: 欄の右端が表の外へ出て、「不問にする」の右の「閉じる」が切れて見えない"
+    }
+   ],
+   "seen": "作る前（columns-detail-light-now.png・master-egroups-light-now.png）には、変換表を当てる入口も、判定表を見る所も無かった。作った後は次のとおり。表示列の設定: 列の一覧の上に白地・灰の線の帯「変換表 当てられる変換表 1（1 列を足す）［まとめて当てる］［選ぶ ▾］」。案の M と同じく 1728・1280 とも 1 段で切れない。ただし「まとめて当てる」が白い普通のボタンで、案の緑の主ボタンほど目立たない（階層化を 1 点下げた）。まとめて当てた所（columns-conv）: 帯は「変換表を 1 つ当てています」に変わり、選びは 2 列（列がありません〈元の列名〉／課名 当てた〈設備_課〉）、右下に「変換表を直す（マスタ管理）」。列の一覧に「設備_課 ＋列課名」の行が足され、下の段に「変換表を 1 つ当てました（列を足す 1）。保存で確定します（閉じると元に戻ります）」。後ろの一覧にも冷延課・その他の列が出ていて、状態がよく見える。マスタ（master-conv）: 説明の段、左に登録済みの変換表（説明は 1 行で … にしてあり、案で残っていた折れは直った）、右に名前・当て方・足す列の名前・置き場・当たらないとき・入力（字／数の選び）・判定表（番号と出す値が左）。1728 では条件の列が狭くて札の字が折れ、右に空きが余る。1280 では入力が 6 段に積まれて、判定表が最初の画面に 1 行しか見えない。セルを直す所（master-conv-cell）: 行の下に「1 行目・ｵｰﾀﾞｰ材質（字で比べます）」の欄（＋ または・不問にする・閉じる）、下の「試す」で値を入れると「→ ｸﾘﾔｰ材（32 行目に当たりました）」と答えが出て、マスタで条件を確かめる目的によく合う。ただし 1280 では欄の右端が切れる。1728 では 4 行目のｵｰﾀﾞｰ材質のセルに空の入力枠が出ていて、行の右端の道具の印もごく淡い。横に送れることを示す影は、どちらの大きさの画像でも見分けられなかった。"
+  }
+ }
 }
