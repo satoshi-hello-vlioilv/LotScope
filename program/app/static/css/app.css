@@ -647,3 +647,22 @@ body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}
 .us-acts .pv-btn,.us-acts .btn-primary{width:150px;height:34px;padding:0 14px;white-space:nowrap}
 .us-acts button:focus{outline:2px solid #8fb0d4;outline-offset:2px;box-shadow:none}   /* 焦点（最初は「戻る」）: 枠の色は変えず、細い藍の輪を外に（主のボタンと強さを競わない） */
 .us-discard{color:#a33a2c}
+/* 右クリックのメニュー（版 3.44.0。TPA.menu: 表示列の窓・ダッシュボード）。左に印の列・右にキー。消す物は赤、まとまりは見出しと線で分ける */
+.tpa-menu{position:fixed;z-index:120;min-width:230px;max-width:340px;max-height:calc(100vh - 16px);overflow:auto;background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;
+  box-shadow:0 18px 44px var(--pop-shadow);padding:5px;font-size:13px}
+.tpa-menu .tm-head{margin:4px 8px 5px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tpa-menu .tm-group{margin:6px 8px 2px;padding-top:6px;border-top:1px solid var(--line-soft);color:var(--muted);font-weight:800;font-size:12px}
+.tpa-menu .tm-head + .tm-group{border-top:0;padding-top:0}
+.tpa-menu .tm-sep{margin:5px 6px;border:0;border-top:1px solid var(--line-soft)}
+.tpa-menu button{display:flex;align-items:center;gap:8px;width:100%;min-height:30px;text-align:left;border:0;background:transparent;border-radius:6px;padding:4px 10px 4px 6px;
+  cursor:pointer;font:inherit;color:var(--ink)}
+.tpa-menu button > span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tpa-menu .tm-why{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;line-height:1.35;color:#6b7782}   /* 押せない理由（灰色の項目の下に、乗せなくても見える） */
+.tpa-menu .tm-ico{flex:0 0 18px;text-align:center;font-style:normal;color:var(--muted);font-size:13px}
+.tpa-menu button.is-on .tm-ico{color:var(--h-xfer);font-weight:800}
+.tpa-menu kbd{flex:none;font:12px/1 Consolas,"BIZ UDGothic",monospace;color:var(--muted);background:none;border:0;padding:0}
+.tpa-menu button:hover:not(:disabled),.tpa-menu button:focus-visible{background:var(--ll-pale);outline:none}
+.tpa-menu button:disabled{color:#97a3ad;cursor:not-allowed}
+.tpa-menu button:disabled .tm-ico{color:#b4bec6}
+.tpa-menu button.is-danger{color:#b42318}.tpa-menu button.is-danger .tm-ico{color:#b42318}
+.tpa-menu button.is-danger:hover:not(:disabled),.tpa-menu button.is-danger:focus-visible{background:#fdecea}

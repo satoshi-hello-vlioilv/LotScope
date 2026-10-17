@@ -233,8 +233,15 @@ export const STATES = [
   ["columns-detail", async (p) => { await p.click('#lcList li[data-col="発生日"]').catch(() => p.click("#lcList li[data-col]")); await sleep(500); }, "[data-next], #lcSave"],
   // 版 3.42.0: 表示列の設定の変換表の帯で「選ぶ」を開き、まとめて当てた所（当てた列の行に札）
   ["columns-conv", async (p) => { await p.click("[data-cv-more]"); await sleep(300); const b = await p.$("[data-cv-apply]:not([disabled])"); if (b) await b.click(); await sleep(600); }, "[data-next], #lcSave"],
+  // 版 3.44.0: 表示列の窓の列の一覧で、作った列（変換表で足した列）を右クリックしたメニュー（作った列が無ければ 3 行目）
+  ["columns-menu", async (p) => {
+    await p.click('[data-cv-more][aria-expanded="true"]').catch(() => {}); await sleep(200);   // 変換表の選びを畳む（列の一覧を見せる）
+    const row = (await p.$("#lcList li[data-col]:has(.lc-del)")) || (await p.$("#lcList li[data-col]:nth-child(3)"));
+    await row.scrollIntoViewIfNeeded(); await sleep(100);
+    const b = await row.boundingBox(); await p.mouse.click(b.x + 90, b.y + b.height / 2, { button: "right" }); await sleep(400);
+  }, "[data-next], .tpa-menu button"],
   // 表示列の「この列の作り方」（いまの式の要約と「作り方を作る…」）を開いたところ
-  ["columns-fx", async (p) => { await p.click('#lcList li[data-col="重量"]').catch(() => {}); await sleep(300); await p.click('.lc-step[data-step="fx"] > h4'); await sleep(500); }, "[data-next], #lcFxOpen"],
+  ["columns-fx", async (p) => { await p.keyboard.press("Escape"); await sleep(150); await p.click('#lcList li[data-col="重量"]').catch(() => {}); await sleep(300); await p.click('.lc-step[data-step="fx"] > h4'); await sleep(500); }, "[data-next], #lcFxOpen"],
   // この列の作り方の窓（表示ルールと同じ組み立て）: 2 行（重量 ≧ 3000 かつ 板厚 ＜ 1 → 重・薄／重量 ≧ 3000 → 重）＋どれにも当てはまらないとき（軽）
   ["columns-fxpanel", async (p) => { await p.click("#lcFxOpen"); await sleep(500); await buildWeight(p); await sleep(400); }, "[data-next], #llFxPanel [data-act=save]"],
   // 同じ窓の「式を書く」（組み立てた式が入る。部品から作る・書き方）
@@ -258,7 +265,9 @@ export const STATES = [
     for (const [i, v] of [[0, "4HIｺｲﾙ"], [1, "A1100"], [3, "0.5"], [4, "1200"], [5, "F975"]]) await p.fill(`[data-cv-try="${i}"]`, v);
     await sleep(300);
   }, "[data-next], [data-cv-close]"],
-  ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
+  // 版 3.44.0: 入力（ｵｰﾀﾞｰ材質）の当てる列を選ぶ面（データ元ごとの実際の列と値の見本）
+  ["master-conv-cols", async (p) => { await p.click("[data-cv-close]").catch(() => {}); await sleep(200); await p.click('[data-cv-cols="1"]'); await p.waitForSelector(".cv-cpi"); await sleep(400); }, "[data-next], [data-cp-close]"],
+  ["master-place", async (p) => { await p.keyboard.press("Escape"); await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
   ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],
   ["master-access", async (p) => { await p.click('.pp-dlg [data-pp="close"]').catch(() => {}); await tab(p, "access"); await sleep(800); }, "[data-next], #masterAddBtn"],
@@ -300,15 +309,26 @@ export const STATES = [
   }, "[data-next], #verNew"],
   // ダッシュボード（版 3.37.0 からグリッドのパネル・最初の画面）: 組み込みの標準を見る所・1 枚の表の条件の面・編集・パネルを組む所（仕掛区分ごと）
   ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400); }, "[data-next], [data-db-editmode]"],
+  // 版 3.44.0: パネル（仕掛区分ごと）を右クリックしたメニュー
+  ["dash-menu", async (p) => {
+    const b = await (await p.$('#dashGrid .db-p[data-id="wipClass"]')).boundingBox(); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2, { button: "right" }); await sleep(400);
+  }, "[data-next], .tpa-menu button"],
   // 版 3.39.0: パネルを絞る面（見出しの「絞る」→ 設備・値で絞る〈製造材質の値の候補〉）
   ["dash-filter", async (p) => {
-    await closeAll(p);
+    await p.keyboard.press("Escape"); await closeAll(p);
     await p.evaluate(() => document.querySelector('#dashGrid .db-p[data-id="wipClass"] [data-db-filter]').click()); await p.waitForSelector("[data-df-col]"); await sleep(1500);
     await p.evaluate(() => { const s = document.querySelector("[data-df-col]"); s.value = "製造材質"; s.dispatchEvent(new Event("change", { bubbles: true })); });
     await p.waitForSelector("[data-ck-val]"); await sleep(400);
   }, "[data-next], [data-df-close]"],
   ["dash-edit", async (p) => { await closeAll(p); await p.evaluate(() => window.DashFilter && DashFilter.close()); await p.click("[data-db-editmode]"); await sleep(500); }, "[data-next], .db-cell"],
+  // 版 3.44.0: 編集で空いたマスを右クリックしたメニュー（ここにパネルを足す・貼り付け）
+  ["dash-gridmenu", async (p) => {
+    // 空いたマスが無ければ（組み込みの標準は埋まっている）、パネルの間のすき間を右クリック
+    const c = await p.$(".db-cell"), b = c ? await c.boundingBox() : await (await p.$('#dashGrid .db-p[data-id="wipClass"]')).boundingBox();
+    await p.mouse.click(c ? b.x + b.width / 2 : b.x + b.width + 5, b.y + b.height / 2, { button: "right" }); await sleep(400);
+  }, "[data-next], .tpa-menu button"],
   ["dash-panel", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(150);
     // 組む: 見出しの「組む」（狭いパネルは「⋯」に畳まれるので、選んで Enter）
     const b = await p.$('#dashGrid .db-p[data-id="wipClass"] [data-db-edit]');
     if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="wipClass"]'); await p.keyboard.press("Enter"); }

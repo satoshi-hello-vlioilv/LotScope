@@ -127,5 +127,5 @@
   if (root.TPA_CONVERSIONS) take(root.TPA_CONVERSIONS);
   root.Conversions = { take, refresh, items: () => items, get: (n) => byName.get(n) || null, revision: () => revision,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    plan, planAll, applyTo, formulaFor, matchColumn, summary };
+    plan, planAll, applyTo, formulaFor, matchColumn, summary, norm };
 })(typeof window !== "undefined" ? window : globalThis);

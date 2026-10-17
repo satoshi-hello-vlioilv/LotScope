@@ -16,20 +16,28 @@ def entry(n, minus=(), **override):
 
 def round_(name, *entries, names=None):
     names = names or "ABCDEFG"
-    return {"name": name, "proposals": {names[i]: e for i, e in enumerate(entries)}}
+    return {"name": name, "proposals": {names[i]: e for i, e in enumerate(entries)}, "self_check": "撮った画像を自分で見て、切れ・重なりを直した"}
 
 
-def data(*rounds):
-    return {"title": "試し", "evaluator": "別のエージェント", "rounds": list(rounds)}
+def data(*rounds, rule="2026-10-17"):
+    return {"title": "試し", "rule": rule, "evaluator": "別のエージェント", "rounds": list(rounds)}
+
+
+def old(*rounds):
+    """前の決まり（"rule" が無いファイル。1 回目 95・2 回目 90・3 回目から 80 点）"""
+    d = data(*rounds)
+    del d["rule"]
+    return d
 
 
 class UiScore(unittest.TestCase):
     def test_points(self):
         self.assertEqual(sum(ui.WEIGHT.values()), 100, "加点は 100 点満点")
         self.assertEqual(ui.GROUPS, ["わかりやすさ", "使いやすさ", "統一感", "美しさ"], "CLAUDE.md の 4 分類")
-        self.assertEqual((ui.PASS_BY_ROUND, ui.MIN_PROPOSALS, ui.MIN_NEW, ui.MAX_ROUNDS), ((95, 90, 80), 5, 3, 3),
-                         "CLAUDE.md の合格点（1 回目 95・2 回目 90・3 回目から 80）・5 案以上・新しい案 3 案・3 回")
-        self.assertEqual([ui.pass_mark(i) for i in range(5)], [95, 90, 80, 80, 80], "3 回目から先は 80 点")
+        self.assertEqual((ui.PASS_BY_ROUND, ui.MIN_PROPOSALS, ui.MIN_NEW, ui.MAX_ROUNDS), ((80,), 5, 3, 3),
+                         "CLAUDE.md の合格点（回によらず 80）・5 案以上・新しい案 3 案・3 回")
+        self.assertEqual([ui.pass_mark(i) for i in range(5)], [80] * 5, "どの回も 80 点")
+        self.assertEqual([ui.pass_mark(i, ui.RULES["2026-10"]) for i in range(5)], [95, 90, 80, 80, 80], "前の決まり: 3 回目から先は 80 点")
         self.assertEqual(ui.total(entry(10)), 100)
         self.assertEqual(ui.total(entry(10, minus=("cut", "wrap"))), 92, "見切れ −5・折り返し −3")
         self.assertEqual(ui.total(entry(0, minus=("lost",))), 0, "0 点より下にはしない")
@@ -40,32 +48,46 @@ class UiScore(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "減点の種類"):
             ui.total({"score": entry(9)["score"], "minus": [{"kind": "ugly", "where": "x"}]})
 
-    def test_winner_at_95_is_chosen(self):
-        kind, who, _ = ui.decide(data(round_("1 回目", entry(9), entry(10), entry(8), entry(7), entry(6))))
-        self.assertEqual((kind, who), ("選ぶ", "B"))
+    def test_winner_at_80_is_chosen_in_any_round(self):
+        kind, who, _ = ui.decide(data(round_("1 回目", entry(7), entry(8), entry(6), entry(5), entry(4))))
+        self.assertEqual((kind, who), ("選ぶ", "B"), "1 回目でも 80 点で決める")
+        one = round_("1 回目", entry(7), entry(7, form=9), entry(6), entry(5), entry(4))
+        self.assertEqual(ui.decide(data(one))[0], "出し直す", "79 点では決めない")
+        with self.assertRaisesRegex(ValueError, "80 点に届いて決まっている"):
+            ui.decide(data(round_("1 回目", entry(8), entry(7), entry(6), entry(5), entry(4)), round_("2 回目", entry(9), entry(8), entry(7), entry(6), entry(5), names="VWXYZ")))
 
-    def test_below_95_starts_over_with_new_proposals(self):
+    def test_self_check_before_scoring(self):
+        """いまの決まり: 採点に渡す前に、案を作った者が自分で画像を確かめたこと（self_check）が要る。前の決まりの記録には要らない"""
+        r = round_("1 回目", entry(9), entry(8), entry(7), entry(6), entry(5))
+        del r["self_check"]
+        with self.assertRaisesRegex(ValueError, "self_check"):
+            ui.decide(data(r))
+        self.assertEqual(ui.decide(old(r))[0], "出し直す", "前の決まりは 95 点")
+        with self.assertRaisesRegex(ValueError, "決まりの名前"):
+            ui.decide(data(r, rule="なし"))
+
+    def test_old_rule_below_95_starts_over_with_new_proposals(self):
         one = round_("1 回目", entry(9), entry(8), entry(7), entry(6), entry(5))
-        kind, who, _ = ui.decide(data(one))
-        self.assertEqual((kind, who), ("出し直す", "A"), "90 点では決めない")
+        kind, who, _ = ui.decide(old(one))
+        self.assertEqual((kind, who), ("出し直す", "A"), "前の決まりでは 90 点では決めない")
         # やり直しは新しい案を 3 案以上。前の案を 3 案持ち越して新しい案が 2 案では足りない
         two = round_("2 回目", entry(9), entry(8), entry(7), entry(10), entry(9), names="ABCXY")
         with self.assertRaisesRegex(ValueError, "新しい案を 3 案以上"):
-            ui.decide(data(one, two))
+            ui.decide(old(one, two))
         two = round_("2 回目", entry(9), entry(10), entry(9), entry(8), entry(7), names="AXYZW")
-        self.assertEqual(ui.decide(data(one, two))[:2], ("選ぶ", "X"))
+        self.assertEqual(ui.decide(old(one, two))[:2], ("選ぶ", "X"))
 
-    def test_pass_mark_eases_by_round(self):
-        """合格点は回で下がる: 1 回目 95 点・2 回目 90 点・3 回目 80 点"""
+    def test_old_rule_pass_mark_eases_by_round(self):
+        """前の決まり: 合格点は回で下がる（1 回目 95 点・2 回目 90 点・3 回目 80 点）"""
         one = round_("1 回目", entry(9), entry(8), entry(7), entry(6), entry(5))
         two = round_("2 回目", entry(8), entry(9), entry(7), entry(6), entry(5), names="AVWXY")
-        self.assertEqual(ui.decide(data(one, two))[:2], ("選ぶ", "V"), "2 回目は 90 点で決める（1 回目なら決めない点）")
+        self.assertEqual(ui.decide(old(one, two))[:2], ("選ぶ", "V"), "2 回目は 90 点で決める（1 回目なら決めない点）")
         two = round_("2 回目", entry(8), entry(8, form=9), entry(7), entry(6), entry(5), names="AVWXY")
-        self.assertEqual(ui.decide(data(one, two))[0], "出し直す", "2 回目の 89 点では決めない")
+        self.assertEqual(ui.decide(old(one, two))[0], "出し直す", "2 回目の 89 点では決めない")
         three = round_("3 回目", entry(8), entry(7), entry(7), entry(6), entry(5), names="PQRST")
-        self.assertEqual(ui.decide(data(one, two, three))[:2], ("選ぶ", "P"), "3 回目は 80 点で決める")
+        self.assertEqual(ui.decide(old(one, two, three))[:2], ("選ぶ", "P"), "3 回目は 80 点で決める")
         with self.assertRaisesRegex(ValueError, "90 点に届いて決まっている"):
-            ui.decide(data(one, round_("2 回目", entry(9), entry(8), entry(7), entry(6), entry(5), names="AVWXY"), three))
+            ui.decide(old(one, round_("2 回目", entry(9), entry(8), entry(7), entry(6), entry(5), names="AVWXY"), three))
 
     def test_third_round_decides_even_below_the_mark(self):
         r = [round_(f"{i + 1} 回目", entry(7), entry(6), entry(6), entry(5), entry(4), names=[f"{i}{c}" for c in "ABCDE"]) for i in range(3)]
