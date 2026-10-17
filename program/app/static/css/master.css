@@ -566,3 +566,9 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-try label{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#2f6b64;font-weight:700}
 .cv-try .ps-input{flex:0 0 auto;width:90px;height:28px}
 .cv-tryout{font-size:13.5px;color:#0f4f49}.cv-tryout small{margin-left:6px;color:#2f6b64}
+/* 番号と出す値は左に貼り付ける（表の中だけを横に送っても、出す値が見えたまま。2026-10-conv の 3 回目） */
+.cv-grid th:nth-child(-n+2),.cv-grid td:nth-child(-n+2){position:sticky;z-index:1;background:var(--surface)}
+.cv-grid th:nth-child(1),.cv-grid td:nth-child(1){left:0}.cv-grid th:nth-child(2),.cv-grid td:nth-child(2){left:26px}
+.cv-grid th:nth-child(-n+2){background:var(--surface-4);z-index:2}
+.cv-grid tr.is-cell > td:nth-child(-n+2){background:#f7fafd}
+.cv-grid tr.cv-edrow > td:nth-child(2){position:static}

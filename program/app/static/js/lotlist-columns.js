@@ -478,6 +478,7 @@
             <button type="button" id="lcFitAll" title="いま並んでいる列の手で決めた幅を外して、内容に合わせます">幅を内容に合わせる</button>
           </div>
           <div class="lc-chips" id="lcChips"></div>
+          <div class="lc-conv" id="lcConv" hidden></div>
           <div class="lc-listhead"><label title="いま並んでいる列をまとめて出す／隠す"><input type="checkbox" id="lcAll"></label>
             <span title="上下にドラッグで並べ替え。Ctrl・Shift を押しながらクリックでまとめて選ぶ">列（ドラッグで並べ替え）</span><span>表示名</span><span>見え方（実データ 1 件）</span></div>
           <ol class="lc-list" id="lcList"></ol>
@@ -554,7 +555,7 @@
         + `<input type="checkbox" class="lc-vis"${!hidden.has(c) || isLot ? " checked" : ""}${isLot ? ' disabled title="ロット番号の列は押して検索するので、隠せません（並びはどこへでも動かせます）"' : ""} aria-label="「${esc(label(t, c))}」を出す">`
         + '<span class="lc-grip" title="ドラッグで並べ替え">⠿</span>'
         + `<span class="lc-name"><i class="lc-dot ${calc ? "is-calc" : "is-src"}" title="${calc ? "計算・操作（この画面で作った列）" : "元データ"}"></i>${esc(c)}`
-        + `${chg.length ? `<i class="lc-chg" title="変えたこと: ${esc(chg.join("・"))}" aria-label="変えた列"></i>` : ""}</span>`
+        + `${chg.length ? `<i class="lc-chg" title="変えたこと: ${esc(chg.join("・"))}" aria-label="変えた列"></i>` : ""}${convTag(t, c, calc)}</span>`
         + `<span class="lc-inl">${inl}</span>`
         + `<span class="lc-sample" title="${esc(v == null ? "" : v)}">${smp}</span></li>`;
     }).join("") || '<li class="lc-empty">当たる列がありません</li>';
@@ -565,7 +566,76 @@
     if (ps.some((p) => p.name === cur)) $("#lcPresetSel").value = cur;
     $("#lcPresetDel").disabled = !$("#lcPresetSel").value;
     $("#lcNote").textContent = isDirty(t) ? "一覧に反映しています（保存すると次に開いたときも同じ形で出ます）" : "";
+    renderConv();
     renderDetail();
+  }
+  /* ---------------- 変換表（版 3.42.0。conversions.js・決め方: ui-proposals/2026-10-conv*） ----------------
+     列の一覧の上の帯: この表に当てられる変換表の数と「まとめて当てる」。「選ぶ」で帯の下に表ごとの選び（列の一覧は隠さない）。
+     当てた列の行には札（作り替えた列＝読み替え・足した列＝＋列）。札は式の conv('表', …) から読む（手で書いた式も同じ） */
+  let convOpen = false, convOff = new Set();
+  const CONV_RE = /^\s*conv\(\s*(['"])(.*?)\1/;
+  function convTag(t, c, calc) {
+    const m = String(get(t).formulas[c] || "").match(CONV_RE);
+    if (!m) return "";
+    return calc ? `<span class="lc-cvtag is-add" title="変換表「${esc(m[2])}」で足した列">＋列 ${esc(m[2])}</span>`
+      : `<span class="lc-cvtag" title="変換表「${esc(m[2])}」で値を読み替えています">読み替え ${esc(m[2])}</span>`;
+  }
+  function renderConv() {
+    const box = $("#lcConv"), C = window.Conversions;
+    const items = C ? C.items() : [];
+    if (!items.length) { box.hidden = true; return; }
+    const plans = conversionPlans(items.map((x) => x.name)), ready = plans.filter((p) => p.ok && !p.done);
+    const pick = ready.filter((p) => !convOff.has(p.name)), done = plans.filter((p) => p.done);
+    const nRep = pick.filter((p) => p.mode === "replace").reduce((n, p) => n + p.targets.length, 0), nAdd = pick.filter((p) => p.mode !== "replace").reduce((n, p) => n + p.targets.length, 0);
+    const what = [nRep ? `${nRep} 列を読み替え` : "", nAdd ? `${nAdd} 列を足す` : ""].filter(Boolean).join("・");
+    box.hidden = false;
+    box.innerHTML = `<div class="lc-cvbar"><span class="lc-cvlab">変換表</span><span class="lc-cvtxt">${ready.length
+      ? `当てられる変換表 <b>${ready.length}</b>${what ? `（${what}）` : ""}${done.length ? `・当てた ${done.length}` : ""}`
+      : done.length ? `変換表を <b>${done.length}</b> つ当てています` : "この表に当てられる変換表はありません"}</span><span class="lc-sp"></span>`
+      + (ready.length ? `<button type="button" class="lc-cvgo" data-cv-apply${pick.length ? "" : " disabled"} title="選んだ変換表を、この表の列に当てます（保存で確定。閉じると元に戻ります）">${pick.length === ready.length ? "まとめて当てる" : `選んだ ${pick.length} つを当てる`}</button>` : "")
+      + `<button type="button" class="lc-cvmore" data-cv-more aria-expanded="${convOpen}" title="変換表ごとに、当てるか・何をするかを見て選びます">${convOpen ? "選ぶ ▴" : "選ぶ ▾"}</button></div>`
+      + (convOpen ? `<div class="lc-cvpick">${plans.map((p) => {
+        const x = C.get(p.name), st = p.done ? "done" : p.ok ? "ok" : "none";
+        const how = p.mode === "replace" ? `読み替え: ${p.targets.map((tg) => tg.column).join("・")}` : `列を足す: ${p.targets.map((tg) => tg.column).join("・")}`;
+        const why = st === "none" ? `列がありません（${p.missing.join("・")}）` : st === "done" ? `当てた（${how.replace(/^[^:]+: /, "")}）` : how;
+        return `<label class="lc-cvi is-${st}" title="${esc(C.summary(x))}"><input type="checkbox" data-cv-pick="${esc(p.name)}"${st === "ok" && !convOff.has(p.name) ? " checked" : ""}${st === "ok" ? "" : " disabled"}${st === "done" ? " checked" : ""}>`
+          + `<b>${esc(p.name)}</b><small>${esc(why)}</small></label>`;
+      }).join("")}<a class="lc-cvmaster" href="#" data-cv-master>変換表を直す（マスタ管理）</a></div>` : "");
+  }
+  function bindConv() {
+    const box = $("#lcConv");
+    box.addEventListener("click", (e) => {
+      if (e.target.closest("[data-cv-more]")) { convOpen = !convOpen; renderConv(); return; }
+      if (e.target.closest("[data-cv-master]")) { e.preventDefault(); document.getElementById("masterBtn")?.click(); setTimeout(() => document.querySelector('#masterTabs [data-tab="conv"]')?.click(), 300); return; }
+      if (!e.target.closest("[data-cv-apply]")) return;
+      const names = window.Conversions.items().map((x) => x.name).filter((n) => !convOff.has(n));
+      const plans = applyConversions(names);
+      const nRep = plans.filter((p) => p.mode === "replace").length;
+      $("#lcNote").textContent = plans.length ? `変換表を ${plans.length} つ当てました（${nRep ? `読み替え ${nRep}・` : ""}列を足す ${plans.length - nRep}）。保存で確定します（閉じると元に戻ります）` : "";
+    });
+    box.addEventListener("change", (e) => {
+      const cb = e.target.closest("[data-cv-pick]"); if (!cb) return;
+      if (cb.checked) convOff.delete(cb.dataset.cvPick); else convOff.add(cb.dataset.cvPick);
+      renderConv();
+    });
+  }
+  /** 変換表（版 3.42.0。conversions.js）を、いま開いている表に当てる（下書き。表示列の設定の「保存」で確定）。
+      names は表の名前の並び（この順に計画する: 先に足した列を後の表が使う）。→ 当てた計画の並び */
+  function applyConversions(names) {
+    if (!ctx || !window.Conversions) return [];
+    const t = ctx.target, L = get(t), order = ordered(t, allColumns(t, ctx.columns), ctx.lotColumn);
+    const plans = window.Conversions.planAll(names, order, L.formulas).filter((p) => p.ok && !p.done);
+    if (!plans.length) return [];
+    const next = window.Conversions.applyTo(plans, { formulas: L.formulas, order });
+    stage(t, next);
+    ctx.rerender(); if (panel && !panel.hidden) renderPanel();
+    return plans;
+  }
+  /** いま開いている表で、変換表 names の計画（当てられるか・何をするか）。表が開いていなければ [] */
+  function conversionPlans(names) {
+    if (!ctx || !window.Conversions) return [];
+    const t = ctx.target, L = get(t);
+    return window.Conversions.planAll(names, ordered(t, allColumns(t, ctx.columns), ctx.lotColumn), L.formulas);
   }
   function renderDetail() {
     const t = ctx.target, c = focusCol, box = $("#lcDetail");
@@ -732,6 +802,7 @@
   }
   function bindPanel() {
     $("#lcClose").onclick = () => closePanel();
+    bindConv();
     const more = $("#lcMore"), pop = $("#lcPresets");
     const showMore = (on) => { pop.hidden = !on; more.setAttribute("aria-expanded", on); if (on) requestAnimationFrame(() => $("#lcPresetSel").focus()); };
     more.onclick = () => showMore(pop.hidden);
@@ -887,24 +958,7 @@
     layoutOf: (t) => norm(saved[t]),
     /** ダッシュボード（版 3.38.0）: 保存した列の設定のうち match(対象) に当たる物の式と表示名を合わせる（先に見つけた方。作業実績は設備ごとの設定）。
         → {formulas: {列名: 式}, names: {元の列名: 表示名}}。計算列（表に無い列の式）を、サーバーが画面と同じに計算するため */
-    /** 変換表（版 3.42.0。conversions.js）を、いま開いている表に当てる（下書き。表示列の設定の「保存」で確定）。
-        names は表の名前の並び（この順に計画する: 先に足した列を後の表が使う）。→ 当てた計画の並び */
-    applyConversions(names) {
-      if (!ctx || !window.Conversions) return [];
-      const t = ctx.target, L = get(t), order = ordered(t, allColumns(t, ctx.columns), ctx.lotColumn);
-      const plans = window.Conversions.planAll(names, order, L.formulas).filter((p) => p.ok && !p.done);
-      if (!plans.length) return [];
-      const next = window.Conversions.applyTo(plans, { formulas: L.formulas, order });
-      stage(t, next);
-      ctx.rerender(); if (panel && !panel.hidden) renderPanel();
-      return plans;
-    },
-    /** いま開いている表で、変換表 names の計画（当てられるか・何をするか）。表が開いていなければ [] */
-    conversionPlans(names) {
-      if (!ctx || !window.Conversions) return [];
-      const t = ctx.target, L = get(t);
-      return window.Conversions.planAll(names, ordered(t, allColumns(t, ctx.columns), ctx.lotColumn), L.formulas);
-    },
+    applyConversions, conversionPlans,
     /** 計算列 names をサーバーで計算するための式（版 3.42.0。一覧の並べ替え）。その式が [名前] で読む式の列を 1 段足す（サーバーは baseRow と同じ引き方）。
         → {formulas, names}（計算列が無ければ null） */
     calcFor(t, names) {
