@@ -29,6 +29,12 @@
   const current = () => S.list.find((x) => String(x.id) === String(S.id)) || null;
   const dirty = () => !!S.layout && JSON.stringify(S.layout) !== S.saved;
   const panelOf = (id) => (S.layout ? S.layout.panels.find((x) => x.id === id) : null);
+  // 保存していない変更の見張り（版 3.43.0。unsaved.js）: 画面を移る・アプリを閉じる前に聞く。保存せずに進むなら、保存した並びへ戻して編集を出る
+  TPA.unsaved.watch("dash:layout", { scope: "dash", dirty: () => S.edit && dirty(),
+    label: () => `ダッシュボード「${(current() || {}).name || ""}」の並び・パネル`,
+    canSave: () => { const it = current(); return !!(it && !it.builtin && it.canEdit); },
+    save: async () => { if (S.editing) closeEditor(); await save(); return !dirty(); },
+    discard: () => { if (S.editing) closeEditor(); if (S.id != null) open(S.id); } });
   /* この PC の絞り込み（版 3.39.0。パネルを絞る: dashboard-filter.js）。ダッシュボードごと・パネルごとに覚える（tpa.dash.v1 の quick） */
   const quickOf = (id) => ((mem().quick || {})[String(S.id)] || {})[id] || null;
   function setQuick(id, q) {
@@ -596,7 +602,7 @@
     focusFrame(id);
     paint();
     E.open({ panel: p, sources: S.sources, toast: say, answer: () => (S.answers.get(id) || {}).d, egroupSets: () => S.egroupSets || [],
-      onChange: (np) => { replacePanel(panelOf(id), np); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id); if (q) queryPanel(q); }, 250); },
+      onChange: (np) => { replacePanel(panelOf(id), np); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id), a = S.answers.get(id); if (q && (!a || a.key !== qkey(q))) queryPanel(q); }, 250); },   // 題・見せ方・書式だけなら引き直さない（版 3.43.0）
       onApply: (np) => {
         const cur = panelOf(id), base = editBase; closeEditor();
         if (!cur) return;
@@ -666,7 +672,12 @@
     if (b.hasAttribute("data-db-stay")) { S.confirm = ""; paintBar(); return; }
     if (b.hasAttribute("data-db-discard")) { S.confirm = ""; closeEditor(); const id = S.id; S.edit = false; if (id != null) open(id); else open(S.standardId); return; }
     if (b.hasAttribute("data-db-save")) { save(); return; }
-    if (b.hasAttribute("data-db-saveas")) { if (S.pop === "saveas") closePop(); else { openPop("saveas", b, saveAsHtml(), "db-savepop"); popEl.querySelector("#dbSaveName").select(); } return; }
+    if (b.hasAttribute("data-db-saveas")) { if (S.pop === "saveas") closePop(); else {
+      openPop("saveas", b, saveAsHtml(), "db-savepop");
+      const nm = popEl.querySelector("#dbSaveName");
+      nm.select();
+      nm.addEventListener("keydown", (e) => { if (e.key === "Enter" && !TPA.composing(e)) { e.preventDefault(); saveAs(); } });   // 名前を打って Enter で保存（版 3.43.0）
+    } return; }
     if (b.hasAttribute("data-db-add")) { addPanel(); return; }
     if (b.hasAttribute("data-db-undo")) { undo(); return; }
     if (b.dataset.cell) { const [x, y] = b.dataset.cell.split(",").map(Number); addPanel({ x, y }); return; }

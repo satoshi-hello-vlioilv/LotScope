@@ -1,6 +1,6 @@
 "use strict";
 /* WaveLog（satoshi-hello-vlioilv/WaveLog）の static/js/list/list-formula.js をそのまま持ち込んだもの。
-   異常ロット一覧の計算列・読み替えルールの式で、WaveLog と同じ書き方・同じ答えにするため。直すときは WaveLog と揃える。 */
+   品質異常の計算列・読み替えルールの式で、WaveLog と同じ書き方・同じ答えにするため。直すときは WaveLog と揃える。 */
 /* list-formula.js: 一覧へ「計算で作る列」を足す(§9.111 ⑦)。
 
 要望は「計算式で様々な条件を追加できるが、元の列がないと使えないので、

@@ -3,7 +3,7 @@
 // ① マスタ管理の「データ元」: 3 枚のカード（品質データ・作業実績・仕掛）。場所はファイル名まで出る・品質データは「写した … ・N 行」
 // ② 仕掛のカードを押すと直す欄に変わる（変える… でも）。設備の列を変えて保存 → カードに出る。「既定に戻す」で既定に戻る
 // ③ データ元を足す（共有の .sqlite3 を 1 つ）→ 見出しにタブが出る → 開くと一覧が出る → 消すとタブが消える
-// ④ 見出しの「仕掛」のタブ: 異常ロット一覧と同じ部品で 1,200 件・ロット番号の列。品質データの「元ファイルを直す」案内はデータ元を開く
+// ④ 見出しの「仕掛」のタブ: 品質異常と同じ部品で 1,200 件・ロット番号の列。品質データの「元ファイルを直す」案内はデータ元を開く
 // ⑤ 参照先には品質データの場所が出ない（直す所は 1 つ）
 // ⑥ 1728×1152・1280×720 で、データ元の頁が横にはみ出さない・カードの場所が切れない
 // 全部合えば終了コード 0。
@@ -57,13 +57,13 @@ try {
       await p.click("#masterCloseBtn"); await sleep(300);
       await p.click(`.screen-tabs [data-screen="src:${added.key}"]`); await sleep(3500);
       const rows = await p.evaluate(() => ({ rows: document.querySelectorAll("#llBody tr[data-i]").length, count: document.querySelector("#llCount")?.textContent || "" }));
-      check("③ 足した元のタブを開くと、異常ロット一覧と同じ部品で一覧が出る", rows.rows > 0 && /1,500/.test(rows.count), rows);
+      check("③ 足した元のタブを開くと、品質異常と同じ部品で一覧が出る", rows.rows > 0 && /1,500/.test(rows.count), rows);
       await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)"); await openTab(p, "sources");
       await p.click(`#masterSettings [data-sr-edit="${added.key}"]`); await sleep(300);
       p.once("dialog", (d) => d.accept());
       await p.click("#masterSettings .sr-card.is-open [data-sr-del]"); await sleep(1800);
       const gone = await p.$$eval(".screen-tabs [data-screen^='src:']", (bs) => bs.map((b) => b.textContent.trim()));
-      check("③ 消すとカードとタブが消え、開いていた画面は異常ロット一覧へ戻る",
+      check("③ 消すとカードとタブが消え、開いていた画面は品質異常へ戻る",
         !(await cards(p)).some((c) => c.name === "品質の控え") && !gone.includes("品質の控え") && (await p.evaluate(() => document.querySelector("#tabList").getAttribute("aria-selected"))) === "true", gone);
       // ⑤ 参照先に品質データの場所が出ない
       await openTab(p, "paths");

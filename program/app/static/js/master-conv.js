@@ -17,7 +17,9 @@ const { $, escapeHtml: esc, emit, MASTER_DEFS, mstate, masterRequest, withLockWa
 })();
 mstate.data.conv = null;
 let draft = null, cell = null, tryVals = [], notice = null;     // 直している表・開いているセル {r, k}・試す値・知らせ [cls, html]
+let incoming = null;                                              // 取り込む前に見せている表の並び（取り込む・やめるまで）
 
+const IO_KIND = "tpa-conversions";                             // 書き出すファイルの種類（TPA.saveJson・pickJson）
 const OP_ORDER = ["eq", "ne", "starts", "nstarts", "ends", "nends", "contains", "ncontains", "range", "empty", "filled"];
 const OP_NAME = { eq: "と同じ", ne: "と違う", starts: "で始まる", nstarts: "で始まらない", ends: "で終わる", nends: "で終わらない",
   contains: "を含む", ncontains: "を含まない", range: "の範囲", empty: "空欄", filled: "空欄でない" };
@@ -50,11 +52,24 @@ const outText = (o) => (o === "" ? "（空欄）" : String(o));
 const isKeep = (x) => x.other === `=[${(x.inputs[0] || {}).name}]`;
 const otherKind = (x) => (isKeep(x) ? "keep" : x.other === "" ? "blank" : String(x.other).startsWith("=") ? "formula" : "text");
 function blank() {
-  return { id: null, name: "", inputs: [{ name: "入力", type: "text", columns: [] }], rows: [{ when: {}, out: "" }], other: "=[入力]", apply: { mode: "replace" }, note: "" };
+  return { id: null, name: "", inputs: [{ name: "入力", type: "text", columns: [] }], rows: [{ when: {}, out: "" }], other: "=[入力]", apply: { mode: "replace" } };
 }
 const can = () => { const d = mstate.data.conv; return !!(d && d.canEdit) && !shareDown() && canWrite("conv"); };
 const dis = () => (can() ? "" : ` disabled title="${esc(shareDown() ? "共有フォルダに届かないため、いまは保存できません" : readOnlyWhy("conv") + "のため変えられません")}"`);
 
+/* 保存していない変更の見張り（版 3.43.0）: 下書きと、保存した表（新しい表なら空の表）を比べる。欄の値を下書きへ写してから比べる */
+// 値を入れていない条件（セルを開いただけの「＝ 」）は比べない（保存するときも外す: cleanCell）
+const filled = (t) => (!Array.isArray(t.v) || t.v.some((v) => v !== "")) && (t.op !== "range" || String(t.min ?? "") !== "" || String(t.max ?? "") !== "");
+const rowsOf = (rows) => rows.map((r) => ({ out: r.out, when: Object.fromEntries(Object.entries(r.when || {}).map(([k, ts]) => [k, ts.filter(filled)]).filter(([, ts]) => ts.length)) }));
+const shape = (x) => TPA.unsaved.key({ name: x.name, inputs: x.inputs, rows: rowsOf(x.rows), other: x.other, apply: x.apply });
+function dirty() {
+  if (mstate.tab !== "conv" || !draft || !mstate.data.conv || !$("#masterSettings .cv-editor")) return false;
+  sync();
+  const saved = draft.id ? mstate.data.conv.items.find((y) => y.id === draft.id) : blank();
+  return !!saved && shape(draft) !== shape(saved);
+}
+TPA.unsaved.watch("master:conv", { scope: "master", dirty, label: () => `変換表「${(draft && draft.name) || "新しい表"}」`,
+  discard: () => { draft = null; cell = null; }, save: async () => { await save(); return !dirty(); } });
 async function load() {
   const r = await masterRequest("/api/masters/conversions", { cache: "no-store" });
   if (!r.ok) throw new Error(r.data.error || "変換表を読めませんでした");
@@ -83,14 +98,23 @@ function listHtml(d) {
     if (!xs.length) return "";
     return `<div class="cv-lgrp">${title}</div>` + xs.map((x) => `<button type="button" class="sh-item${draft && x.id === draft.id ? " is-on" : ""}" data-cv-pick="${x.id}">`
       + `<b>${esc(x.name)}</b><small>${esc(window.Conversions ? window.Conversions.summary(x) : "")}</small></button>`).join("");
-  }).join("") + (can() ? '<button type="button" class="sh-new" data-cv-new>＋ 変換表を足す</button>' : "");
+  }).join("") + (can() ? '<button type="button" class="sh-new" data-cv-new>＋ 変換表を足す</button>' : "") + ioHtml(d);
+}
+/* 書き出す・取り込む・標準（版 3.43.0）。標準は「標準に戻す」で戻る中身。取り込んだ表を標準にでき、同梱のプリセットへも戻せる */
+function ioHtml(d) {
+  const w = can();
+  return `<div class="cv-io"><div class="cv-iorow"><button type="button" class="pv-btn" data-cv-export title="今の変換表をすべて、1 つのファイル（JSON）に書き出します">↓ 書き出す</button>`
+    + (w ? '<button type="button" class="pv-btn" data-cv-import title="書き出したファイルを読み、同じ名前の表は置き換え、無い名前は足します（読む前に中身を見せます）">↑ 取り込む…</button>' : "") + "</div>"
+    + `<div class="cv-std"><span>標準: <b>${d.customDefaults ? "取り込んだ表" : "同梱のプリセット"}</b></span>`
+    + (w ? '<button type="button" class="cv-link" data-cv-stdnow title="今の表をすべて標準にします（「標準に戻す」でこの中身へ戻ります）">今の表を標準に</button>'
+      + (d.customDefaults ? '<button type="button" class="cv-link" data-cv-stdbundled title="標準を、アプリに同梱のプリセットへ戻します">同梱に戻す</button>' : "") : "")
+    + "</div></div>";
 }
 function gridHtml(x) {
   const d = dis();
   // 出す値は番号の次（いちばん大事な列を、表が横に長くても切らない。2026-10-conv の 2 回目）
   const head = `<tr><th class="cv-no"></th><th>出す値</th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small>数</small>' : ""}</th>`).join("")}<th class="cv-ra"></th></tr>`;
-  const outTd = (r, i) => `<td class="cv-out"><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" title="${esc(r.out)}" aria-label="${i + 1} 行目の出す値"${d}>`
-    + (r.note ? `<span class="cv-note" title="${esc(r.note)}">!</span>` : "") + "</td>";
+  const outTd = (r, i) => `<td class="cv-out"><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" title="${esc(r.out)}" aria-label="${i + 1} 行目の出す値"${d}></td>`;
   const rows = x.rows.map((r, i) => `<tr data-r="${i}"${cell && cell.r === i ? ' class="is-cell"' : ""}><td class="cv-no">${i + 1}</td>${outTd(r, i)}`
     + x.inputs.map((inp) => {
       const ts = (r.when || {})[inp.name] || [], on = cell && cell.r === i && cell.k === inp.name;
@@ -99,7 +123,6 @@ function gridHtml(x) {
     }).join("")
     + `<td class="cv-ra"><button type="button" class="icon-btn" data-cv-up="${i}" title="上へ" aria-label="${i + 1} 行目を上へ"${d}>↑</button>`
     + `<button type="button" class="icon-btn" data-cv-down="${i}" title="下へ" aria-label="${i + 1} 行目を下へ"${d}>↓</button>`
-    + `<button type="button" class="icon-btn" data-cv-noteed="${i}" title="この行の備考（${esc(r.note || "なし")}）" aria-label="${i + 1} 行目の備考"${d}>✎</button>`
     + `<button type="button" class="icon-btn" data-cv-rdel="${i}" title="この行を消す" aria-label="${i + 1} 行目を消す"${d}>×</button></td></tr>`
     + (cell && cell.r === i ? `<tr class="cv-edrow"><td></td><td colspan="${x.inputs.length + 2}">${cellEditor(x, i, cell.k)}</td></tr>` : "")).join("");
   return `<div class="cv-gridwrap"><table class="cv-grid"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
@@ -138,6 +161,7 @@ function paint() {
   box.innerHTML = `<section class="sh-page cv-page">
     <p class="ps-lead">表は<b>上から順</b>に見て、最初に当たった行の値を出します（行の中は「かつ」、1 つのセルに並べた条件は「または」）。一覧の「表示列」の帯から列に当てます。ここで直すと全員の一覧にすぐ効きます。</p>
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="cvNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
+    ${incoming ? importHtml(d) : ""}
     <div class="sh-editor cv-editor">
       <aside class="sh-list" aria-label="登録済みの変換表"><div class="sh-list-head">登録済みの変換表</div>${listHtml(d)}</aside>
       <div class="sh-detail cv-detail">
@@ -163,10 +187,20 @@ function paint() {
         <div class="cv-foot2">${can() ? '<button type="button" class="pv-btn" data-cv-radd>＋ 行を足す</button>' : ""}<span class="cv-other">どれにも当たらないとき → <b>${esc(ok === "keep" ? "元の値のまま" : ok === "blank" ? "（空欄）" : outText(x.other))}</b></span>
           <span class="sp"></span>${expr ? `<code class="cv-expr" title="一覧の式ではこう書きます（表示列の「この列の作り方」でも）">${esc(expr)}</code>` : ""}</div>
         ${tryHtml(x)}
-        <label class="sh-field"><span>備考</span><input id="cvNote" class="ps-input" value="${esc(x.note || "")}" maxlength="300"${di}></label>
       </div></div></section>`;
   bind();
   fitGrid();
+}
+/** 取り込む前の確かめ: どの表を置き換え・足すか。標準にもするかは押すボタンで選ぶ */
+function importHtml(d) {
+  const have = new Set(d.items.map((x) => x.name)), rep = incoming.filter((x) => have.has(x.name)), add = incoming.filter((x) => !have.has(x.name));
+  const names = (xs) => xs.map((x) => `「${esc(x.name)}」`).join("");
+  return `<div class="cv-imp" role="group" aria-label="取り込む前の確かめ"><b>${incoming.length} 表を取り込みます</b>`
+    + (rep.length ? `<div><span class="cv-imptag rep">置き換え ${rep.length}</span>${names(rep)}</div>` : "")
+    + (add.length ? `<div><span class="cv-imptag add">足す ${add.length}</span>${names(add)}</div>` : "")
+    + '<div class="cv-impbtns"><button type="button" class="btn-primary" data-cv-impgo>取り込む</button>'
+    + '<button type="button" class="pv-btn" data-cv-impstd title="取り込んだ表を、「標準に戻す」で戻る中身にもします">取り込んで標準にもする</button>'
+    + '<button type="button" class="pv-btn" data-cv-impno>やめる</button></div></div>';
 }
 /* 判定表は表の中だけを横に送る。送れる先があれば右に影（is-more）・セルを直す欄は見えている幅に収める */
 function fitGrid() {
@@ -180,7 +214,6 @@ function fitGrid() {
 function sync() {
   const x = draft, v = (id) => { const el = $(id); return el ? el.value : null; };
   if (v("#cvName") != null) x.name = v("#cvName").trim();
-  x.note = v("#cvNote") ?? x.note;
   const mode = v("#cvMode");
   if (mode) x.apply = mode === "replace" ? { mode } : { mode, column: v("#cvCol") ?? x.apply.column ?? "", place: v("#cvPlace") || x.apply.place || "end" };
   const ok = v("#cvOtherKind"), first = (x.inputs[0] || {}).name;
@@ -198,7 +231,46 @@ function renameInput(i, name) {
   if (cell && cell.k === old) cell.k = name;
 }
 const say = (cls, html) => { notice = [cls, html]; const n = $("#cvNotice"); if (n) { n.className = `ps-result ${cls}`; n.innerHTML = html; } };
+function fileName(now = new Date()) {
+  const app = document.querySelector('meta[name="tpa-app"]')?.content || "アプリ", p = (n) => String(n).padStart(2, "0");
+  return `${app}_変換表_${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}.json`;
+}
+async function io(ds) {
+  if (ds.cvExport != null) {
+    const r = await masterRequest("/api/masters/conversions/export", { cache: "no-store" });
+    if (!r.ok) { say("ng", "✕ " + esc(r.data.error || "書き出せませんでした")); return; }
+    TPA.saveJson(IO_KIND, r.data.items, fileName());
+    say("ok", `✓ ${r.data.items.length} 表を書き出しました`); return;
+  }
+  if (ds.cvImport != null) {
+    let items;
+    try { items = await TPA.pickJson(IO_KIND, "変換表"); } catch (e) { say("ng", "✕ " + esc(e.message)); return; }
+    if (!items) return;
+    incoming = items; notice = null; paint(); return;
+  }
+  if (ds.cvImpno != null) { incoming = null; paint(); return; }
+  if (ds.cvImpgo != null || ds.cvImpstd != null) {
+    const res = await withLockWait(() => masterRequest("/api/masters/conversions/import", TPA.json("POST", { items: incoming, asDefault: ds.cvImpstd != null })),
+      (r) => say("wait", lockWaitText(r, "取り込み", boldName)));
+    if (!res.ok) { say("ng", "✕ " + esc(res.data.error || "取り込めませんでした。")); return; }
+    incoming = null;
+    const at = draft && draft.name;
+    if (!(await after(res, `✓ 取り込みました（置き換え ${res.data.replaced}・足す ${res.data.added}）${ds.cvImpstd != null ? "。標準にもしました" : ""}`))) return;
+    draft = clone(res.data.items.find((y) => y.name === at) || res.data.items[0]); cell = null; tryVals = []; paint(); return;
+  }
+  if (ds.cvStdnow != null || ds.cvStdbundled != null) {
+    const now = ds.cvStdnow != null;
+    if (!confirm(now ? "今の変換表をすべて標準にします（「標準に戻す」でこの中身へ戻ります）。よろしいですか？" : "標準を、アプリに同梱のプリセットへ戻します。よろしいですか？")) return;
+    const res = await masterRequest("/api/masters/conversions/defaults", TPA.json("POST", { from: now ? "current" : "bundled" }));
+    if (await after(res, now ? "✓ 今の表を標準にしました" : "✓ 標準を同梱のプリセットに戻しました")) paint();
+  }
+}
 function bind() {
+  $("#masterSettings .cv-page").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    const ds = b.dataset;
+    if (["cvExport", "cvImport", "cvImpno", "cvImpgo", "cvImpstd", "cvStdnow", "cvStdbundled"].some((k) => ds[k] != null)) { e.stopPropagation(); io(ds); }
+  }, true);
   const box = $("#masterSettings .cv-editor"), x = draft;
   const redraw = () => { sync(); paint(); };
   box.addEventListener("change", (e) => {
@@ -229,6 +301,7 @@ function bind() {
   box.addEventListener("click", async (e) => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
     const ds = b.dataset;
+    if ((ds.cvPick || ds.cvNew != null) && !(await TPA.unsaved.leave("master:conv", "ほかの表へ移る"))) return;
     if (ds.cvPick) { const it = mstate.data.conv.items.find((y) => y.id === +ds.cvPick); draft = clone(it); cell = null; tryVals = []; notice = null; paint(); return; }
     if (ds.cvNew != null) { draft = blank(); cell = null; tryVals = []; notice = null; paint(); $("#cvName").focus(); return; }
     sync();
@@ -246,7 +319,6 @@ function bind() {
       if (j < 0 || j >= x.rows.length) return;
       [x.rows[i], x.rows[j]] = [x.rows[j], x.rows[i]]; cell = null; paint(); return;
     }
-    if (ds.cvNoteed != null) { const r = x.rows[+ds.cvNoteed], v = prompt(`${+ds.cvNoteed + 1} 行目の備考（空にすると消します）`, r.note || ""); if (v == null) return; if (v.trim()) r.note = v.trim(); else delete r.note; paint(); return; }
     if (ds.cvIadd != null) { let n = "入力" + (x.inputs.length + 1); while (x.inputs.some((a) => a.name === n)) n += "'"; x.inputs.push({ name: n, type: "text", columns: [] }); paint(); return; }
     if (ds.cvIdel != null) { const old = x.inputs.splice(+ds.cvIdel, 1)[0]; x.rows.forEach((r) => { if (r.when) delete r.when[old.name]; }); cell = null; paint(); return; }
     if (ds.cvSave != null) { await save(); return; }
@@ -272,7 +344,7 @@ async function after(res, okText) {
 }
 async function save() {
   cleanCell(); cell = null;
-  const x = draft, body = { name: x.name, inputs: x.inputs, rows: x.rows, other: x.other, apply: x.apply, note: x.note };
+  const x = draft, body = { name: x.name, inputs: x.inputs, rows: x.rows, other: x.other, apply: x.apply };
   const res = await withLockWait(() => masterRequest(x.id ? `/api/masters/conversions/${x.id}` : "/api/masters/conversions",
     TPA.json(x.id ? "PUT" : "POST", x.id ? { ...body, base_rev: x.rev } : body)), (r) => say("wait", lockWaitText(r, "保存", boldName)));
   if (!(await after(res, `✓ 「${esc(x.name)}」を保存しました（${x.rows.length} 行）。この PC の一覧にすぐ効き、ほかの PC には数秒で届きます`))) return;

@@ -202,6 +202,14 @@
     let ruleName = "", toFormulaCb = null;                                   // 読み替えルールだけ
     let tab = "build", written = "", synced = "", computed = false;           // この列の作り方だけ
     let tryTimer = 0;                                                        // 打つ手が止まるのを待つ
+    let shot = "";                                                           // 開いたときの中身（保存していない変更の見張り。版 3.43.0）
+    const now = () => JSON.stringify([draft, mode, fx && tab === "write" ? written : ""]);
+    const isDirty = () => !!panel && !panel.hidden && now() !== shot;
+    const key = fx ? "list:fx" : "list:rule";
+    TPA.unsaved.watch(key, { scope: "list", dirty: isDirty, label: () => (q(".lr-title") || {}).textContent || cfg.label,
+      save: async () => { save(); return !isDirty(); }, discard: () => close() });
+    /** × と Esc で閉じる: 直していれば聞く（「やめる」は言葉どおり捨てる） */
+    const tryClose = async () => { if (await TPA.unsaved.leave(key, "窓を閉じる")) close(); };
     const q = (s) => panel.querySelector(s), qa = (s) => $$(s, panel);
     const srcColumns = () => (src && src.columns ? src.columns() : []);
     const labelOf = (c) => (src && src.labelOf ? src.labelOf(c) : c);
@@ -236,7 +244,7 @@
       panel.innerHTML = `
         <div class="lc-head" data-drag><div><small class="lc-eyebrow">${fx ? "この列の作り方" : "読み替えルール"}</small><h3 class="lr-title"></h3>
           <small class="lr-usage"></small></div>
-          <button type="button" class="lc-x" data-act="close" title="閉じる（保存していない変更は捨てます）" aria-label="閉じる">×</button></div>
+          <button type="button" class="lc-x" data-act="close" title="閉じる（保存していない変更があれば、どうするかを聞きます）" aria-label="閉じる">×</button></div>
         <div class="lr-body">
           <aside class="lr-try" aria-label="試した結果"></aside>
           <div class="lr-main">${tabs}
@@ -262,11 +270,11 @@
         const b = e.target.closest("[data-act], [data-mode], [data-tab]"); if (!b || b.disabled || !panel.contains(b)) return;
         if (b.dataset.tab) { setTab(b.dataset.tab); return; }
         if (b.dataset.mode) { mode = b.dataset.mode; paintMode(); refreshCounts(); return; }
-        ({ close, cancel: close, save, delete: remove, clear: clearFormula,
+        ({ close: tryClose, cancel: close, save, delete: remove, clear: clearFormula,
           row: () => addRow(blankRow()), default: () => addRow(defaultRow()),
           fx: () => { const box = q(".lr-fx"); box.hidden = !box.hidden; b.setAttribute("aria-expanded", String(!box.hidden)); renderFx(); } })[b.dataset.act]?.();
       });
-      panel.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); e.stopPropagation(); close(); } });
+      panel.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); e.stopPropagation(); tryClose(); } });
       if (fx) {
         const ta = q(".lr-write");
         TPA.onText(ta, () => { written = ta.value; scheduleTry(); });   // 打つ手が止まったら、式の確かめと試した結果（先頭12件）だけを描き直す
@@ -619,6 +627,7 @@
         mountParts();
         panel.hidden = false;
         renderUsage(); render(); setTab(tab, true);
+        shot = now();
         return;
       }
       toFormulaCb = o.toFormula || null;
@@ -636,6 +645,7 @@
       q('[data-act="delete"]').hidden = !saved.length;
       panel.hidden = false;
       renderUsage(); render();
+      shot = now();
     }
     return { open, close, isOpen: () => !!panel && !panel.hidden };
   }

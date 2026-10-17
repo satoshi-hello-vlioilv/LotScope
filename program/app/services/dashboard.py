@@ -184,7 +184,7 @@ FRAMES = ("card", "emph", "accent", "plain", "tint")
 LABELS = ("auto", "none", "top", "inside", "both")
 XDATES = ("auto", "md", "mdw", "d", "dw", "ymd", "ym", "w")
 XROTS = ("auto", "0", "45", "90")
-UNITS = ("auto", "none", "k", "man")
+UNITS = ("auto", "none", "k", "man", "m", "oku")
 LEGENDS = ("auto", "none", "top", "bottom")
 SIZES = ("s", "m", "l")
 PALETTES = ("", "vivid", "calm", "cud", "mono", "warm", "cool")
@@ -192,6 +192,13 @@ KPI_LOOKS = ("num", "bar", "gauge")
 MAX_REFS = 4
 MAX_COLORS = 40
 SERIES_LABELS = ("top", "below", "off")
+# 値の表示形式と見せ方（版 3.43.0。Excel のセルの書式設定の「表示形式」「配置」「フォント」に当たる。画面は static/js/num-format.js）
+NUM_MAX = 160
+NUM_CATS = ("num", "cur", "pct", "sci", "custom")
+NUM_NEGS = ("minus", "tri", "paren", "red", "redtri")
+ALIGNS = ("left", "center", "right")
+VALIGNS = ("top", "middle", "bottom")
+NSIZES = ("s", "l", "xl")
 
 
 def _float(v):
@@ -207,7 +214,9 @@ def clean_fmt(v):
     labels（数値ラベル: auto・none・top〈上〉・inside〈棒の中。積み上げはそれぞれの段〉・both）・xdate（横軸の日付の形）・xrot（横軸の字の向き）・
     digits（小数の桁。-1＝自動）・unit（単位: auto〈万・億〉・none・k〈千〉・man〈万〉）・ymin/ymax（縦軸の範囲）・legend・grid（補助線）・
     refs（基準線 [{value, label, color}]）・palette（色の組）・colors（系列・項目の名前 → 色）・size（字の大きさ）・kpi（数字の形）・target（目標）・
-    series（版 3.41.0。系列の名前 → {label: top〈上〉・below〈下〉・off〈出さない〉, dash: True〈破線〉}）"""
+    series（版 3.41.0。系列の名前 → {label: top〈上〉・below〈下〉・off〈出さない〉, dash: True〈破線〉}）・
+    num（版 3.43.0。表示形式: Excel の書式コード）と numUi（その選び {cat, dec, sep, neg, pre, suf}）・align（横の配置）・valign（縦の配置）・
+    nsize（字の大きさ s・l・xl）・bold（off で太字にしない）・ncolor（字の色）"""
     if not isinstance(v, dict):
         return None
     out = {}
@@ -246,6 +255,22 @@ def clean_fmt(v):
             ss[str(k)[:120]] = one
     if ss:
         out["series"] = ss
+    code = str(v.get("num") or "").strip()[:NUM_MAX]
+    if code:
+        out["num"] = code
+        ui = v.get("numUi") if isinstance(v.get("numUi"), dict) else {}
+        if ui.get("cat") in NUM_CATS:
+            out["numUi"] = {"cat": ui["cat"], "dec": _int(ui.get("dec"), 0, 6, 0), "sep": ui.get("sep") is not False,
+                            "neg": ui.get("neg") if ui.get("neg") in NUM_NEGS else "minus",
+                            "pre": str(ui.get("pre") or "")[:12], "suf": str(ui.get("suf") or "")[:12]}
+    for k, choices in (("align", ALIGNS), ("valign", VALIGNS), ("nsize", NSIZES)):
+        if v.get(k) in choices:
+            out[k] = v[k]
+    if v.get("bold") == "off":
+        out["bold"] = "off"
+    c = str(v.get("ncolor") or "")
+    if _COLOR.fullmatch(c):
+        out["ncolor"] = c
     return out or None
 
 

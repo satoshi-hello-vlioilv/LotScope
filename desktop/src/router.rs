@@ -55,7 +55,7 @@ pub fn error_reply(status: u16, kind: &str, message: &str) -> Reply {
 }
 
 /// 窓そのものが答える問い合わせ。None ならほかへ回す。中身（Python）に尋ねたいときは backend を使う
-/// （例: 異常ロット一覧は設定を Python に尋ねてから Rust が答える・lot.rs）。
+/// （例: 品質異常は設定を Python に尋ねてから Rust が答える・lot.rs）。
 pub struct Req<'a> {
     pub method: &'a str,
     pub path: &'a str,

@@ -1,8 +1,8 @@
 // 評価関数（開発用）: 表示の設定の書き出し（版 3.32.1）。
 //   node program/tools/ui-eval-profile.mjs
 // ① 名前: 「表示の設定 ▾ → 書き出し…」で出るファイルの名前が「アプリ名_表示の設定_年-月-日.json」（app/brand.json の名前・今日の日付）。
-//    中身は異常ロット一覧と作業実績の両方の表示なので、片方の画面の名前（異常ロット一覧・作業実績）を名乗らない
-// ② どの画面から: 異常ロット一覧から書き出しても、作業実績から書き出しても、同じ名前
+//    中身は品質異常と作業実績の両方の表示なので、片方の画面の名前（品質異常・作業実績）を名乗らない
+// ② どの画面から: 品質異常から書き出しても、作業実績から書き出しても、同じ名前
 // ③ 中身: kind が tpa-lotlist-display で、items が 1 件以上（{key, value}）。知らせの文に、書き出した名前が出る
 // 全部合えば終了コード 0。
 import fs from "node:fs";
@@ -40,8 +40,8 @@ try {
   // 表示の設定を 1 つ持たせる（まっさらな PC は書き出す物が 0 件）: 重量 ▼ で並べる
   await page.evaluate(() => TPA.local.set("tpa.lotlist.sorts.v1", { "仕掛": [{ column: "重量", dir: "desc" }] }));
   const list = await exportFrom(page);
-  check(`① 異常ロット一覧から: 名前が「${want}」`, list.name === want, list.name);
-  check("① 片方の画面の名前を名乗らない", !/異常ロット一覧|作業実績/.test(list.name), list.name);
+  check(`① 品質異常から: 名前が「${want}」`, list.name === want, list.name);
+  check("① 片方の画面の名前を名乗らない", !/品質異常|作業実績/.test(list.name), list.name);
   check("③ 中身: kind が tpa-lotlist-display・items が 1 件以上（key と value）",
     list.body.kind === "tpa-lotlist-display" && Array.isArray(list.body.items) && list.body.items.length > 0
       && list.body.items.every((x) => typeof x.key === "string" && typeof x.value === "string"), { kind: list.body.kind, n: list.body.items?.length });

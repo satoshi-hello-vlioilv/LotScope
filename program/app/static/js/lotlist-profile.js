@@ -21,12 +21,15 @@
   }
   /** 表示の設定を keys で置き換え、控えへ送り終えてから開き直す */
   async function replaceWith(values) {
+    if (!(await TPA.unsaved.leave("*", "表示の設定を入れ替えて開き直す"))) return false;
+    window.__tpaQuitting = true;
     keys().forEach((k) => { if (k in values) TPA.local.setRaw(k, values[k]); else TPA.local.remove(k); });
     try { await TPA.saveUiState(); } catch (_) { /* 送れなくても手元には入った */ }
     location.reload();
+    return true;
   }
-  /** 書き出すファイルの名前: 「アプリ名_表示の設定_年-月-日.json」（版 3.32.1）。中身は異常ロット一覧と作業実績の両方の表示なので、
-      片方の画面の名前は付けない（以前は「異常ロット一覧_表示の設定.json」で、作業実績の設定も入っているのに名前が合わなかった）。
+  /** 書き出すファイルの名前: 「アプリ名_表示の設定_年-月-日.json」（版 3.32.1）。中身は品質異常と作業実績の両方の表示なので、
+      片方の画面の名前は付けない（以前は「品質異常_表示の設定.json」で、作業実績の設定も入っているのに名前が合わなかった）。
       アプリ名は app/brand.json（画面の <meta name="tpa-app">）。日付はこの PC の日付（何度か書き出しても見分けられる） */
   function fileName(now = new Date()) {
     const app = document.querySelector('meta[name="tpa-app"]')?.content || "アプリ";
@@ -45,7 +48,7 @@
     const allowed = new Set(keys()), values = {};
     items.forEach((x) => { if (allowed.has(x.key) && typeof x.value === "string") values[x.key] = x.value; });
     if (!Object.keys(values).length) throw new Error("このファイルには、一覧の表示の設定が入っていません");
-    await replaceWith(values);
+    if (!(await replaceWith(values))) return null;
     return Object.keys(values).length;
   }
   const hasDefaults = () => Object.keys(profile().defaults || {}).length > 0;

@@ -93,6 +93,22 @@
     return { m: { ...m, rows: rows.concat(other) }, rest, total: data.length };
   }
 
+  /* ---- 値の見せ方（版 3.43.0。書式の配置・字。Excel のセルの書式の「配置」「フォント」に当たる） ----
+     align: left・center・right（数字・表のセルの横の置き場）・valign: top・middle・bottom（数字の縦の置き場）・
+     nsize: s・l・xl（字の大きさ。数字は入りきらなければ縮める）・bold: off（太字にしない）・ncolor: 字の色（表示形式の [赤] などが先） */
+  const SIZE_RATE = { s: 0.75, l: 1.25, xl: 1.5 };
+  function look(box, fm) {
+    const f = fm || {};
+    const set = (k, v) => { if (v) box.dataset[k] = v; else delete box.dataset[k]; };
+    set("al", f.align); set("va", f.valign); set("nz", f.nsize); set("nb", f.bold === "off" ? "off" : "");
+    if (f.ncolor) box.style.setProperty("--dp-nc", f.ncolor); else box.style.removeProperty("--dp-nc");
+  }
+  /** 数字の自動の単位（本・ロット・件）。表示形式に単位の字（"本" など）を入れたら、そちらに任せて出さない */
+  const autoUnit = (p, m) => {
+    if (!m || ((p.fmt || {}).num && window.NumFormat && NumFormat.hasLiteral(p.fmt.num))) return "";
+    return m.agg === "lots" ? (p.source === "work" ? "本" : "ロット") : m.agg === "count" ? "件" : "";
+  };
+
   /* ---- 数字（kpi） ---- */
   function kpi(box, p, d, W, H, sub0 = "") {
     const cell = (d.cells || []).find((x) => !x.r.length && !x.c.length);
@@ -100,15 +116,16 @@
     const main = vals[0], ms = d.measures || [], fm = p.fmt || {};
     if ((fm.kpi === "bar" || fm.kpi === "gauge") && typeof main === "number" && fm.target) return kpiTarget(box, p, d, W, H, sub0, main);
     const text = main == null ? "–" : C.numText(main, fm);
-    const unit = ms[0] ? (ms[0].agg === "lots" ? (p.source === "work" ? "本" : "ロット") : ms[0].agg === "count" ? "件" : "") : "";
+    const unit = autoUnit(p, ms[0]);
     // 字の大きさ: 高さの 5 割・幅に収まる大きさ（数字 1 字 ≒ 0.6em・単位は 1 字 ≒ 0.34em〈字の 0.32 倍の大きさ〉）の小さい方。14〜88px
     // 低いパネル（1 段）は、数と添え書きを横に並べる（縦に積むと数が小さくなり、添え書きが下で切れる）
     const row = H < 96 && W >= 240;
     const room = row ? H : H - (sub0 ? 20 : 0);    // 添え書き（期間・元）の行の分
     const wide = row ? W * 0.55 : W - 8;   // 横に並べるときは、数に幅の 55% まで（残りは添え書き）
-    const size = Math.round(Math.max(14, Math.min(88, room * (row ? 0.92 : vals.length > 1 ? 0.42 : 0.56), wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
-    const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${esc(C.numText(v, fm))}</b></span>`).join("");
-    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${esc(text)}<small>${unit}</small></b>`
+    const z = SIZE_RATE[fm.nsize] || 1;    // 書式の字の大きさ（版 3.43.0）。入りきらなければ下で縮める
+    const size = Math.round(Math.max(14, Math.min(88 * z, room * (row ? 0.92 : vals.length > 1 ? 0.42 : 0.56) * z, wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
+    const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${C.numHtml(v, fm)}</b></span>`).join("");
+    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${main == null ? "–" : C.numHtml(main, fm)}<small>${unit}</small></b>`
       + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")
       + (sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}" style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}">${esc(sub0)}</small>` : "") + "</div>";
     // 描いた後に、いま居る面に収まるまで数を小さくする（測った時と面の大きさが違っても、はみ出さない）
@@ -121,7 +138,7 @@
   /** 数字の形（版 3.39.0。書式 kpi）: 目標に対する進み。bar＝数と、目標までの横の棒（達成率）・gauge＝半円のメーター（真ん中に数・下に達成率） */
   function kpiTarget(box, p, d, W, H, sub0, v) {
     const fm = p.fmt, t = fm.target, rate = v / t, col = seriesColors(p)[0], fill = Math.max(0, Math.min(1, rate));
-    const unit = (d.measures[0] || {}).agg === "lots" ? (p.source === "work" ? "本" : "ロット") : (d.measures[0] || {}).agg === "count" ? "件" : "";
+    const unit = autoUnit(p, d.measures[0]);
     const rateText = `${Math.round(rate * 1000) / 10}%`, ok = rate >= 1;
     if (fm.kpi === "gauge") {
       const R = Math.max(24, Math.min(H - 34, W / 2 - 12)), cx = W / 2, cy = R + 6, a = Math.PI * (1 - fill);
@@ -135,13 +152,13 @@
     }
     if (H < 90) {          // 低いパネル（1 段）: 数・棒・達成率を 1 行に（添え書きは札の題に）
       const sz = Math.round(Math.max(14, Math.min(40, H * 0.62)));
-      box.innerHTML = `<div class="dp-kbar is-row" title="目標 ${esc(C.numText(t, fm))}${unit}${sub0 ? `　${esc(sub0)}` : ""}"><b class="dp-num" style="font-size:${sz}px">${esc(C.numText(v, fm))}<small>${unit}</small></b>`
+      box.innerHTML = `<div class="dp-kbar is-row" title="目標 ${esc(C.numText(t, fm))}${unit}${sub0 ? `　${esc(sub0)}` : ""}"><b class="dp-num" style="font-size:${sz}px">${C.numHtml(v, fm)}<small>${unit}</small></b>`
         + `<div class="dp-track" role="img" aria-label="目標 ${esc(C.numText(t, fm))} に対して ${esc(rateText)}"><i style="width:${(fill * 100).toFixed(1)}%;background:${col}"></i></div>`
         + `<span class="dp-krate${ok ? " is-ok" : ""}">${ok ? "✓ " : ""}${esc(rateText)}<small>／${esc(C.numText(t, fm))}${unit}</small></span></div>`;
       return;
     }
     const size = Math.round(Math.max(14, Math.min(64, (H - 40) * 0.62, (W - 8) / Math.max(2, C.numText(v, fm).length * 0.62 + 1))));
-    box.innerHTML = `<div class="dp-kbar"><div class="dp-krow"><b class="dp-num" style="font-size:${size}px">${esc(C.numText(v, fm))}<small>${unit}</small></b><span class="dp-krate${ok ? " is-ok" : ""}">${ok ? "✓ " : ""}${esc(rateText)}</span></div>`
+    box.innerHTML = `<div class="dp-kbar"><div class="dp-krow"><b class="dp-num" style="font-size:${size}px">${C.numHtml(v, fm)}<small>${unit}</small></b><span class="dp-krate${ok ? " is-ok" : ""}">${ok ? "✓ " : ""}${esc(rateText)}</span></div>`
       + `<div class="dp-track" role="img" aria-label="目標 ${esc(C.numText(t, fm))} に対して ${esc(rateText)}"><i style="width:${(fill * 100).toFixed(1)}%;background:${col}"></i></div>`
       + `<small class="dp-kmeta">目標 ${esc(C.numText(t, fm))}${unit}${sub0 ? `　${esc(sub0)}` : ""}</small></div>`;
   }
@@ -189,7 +206,7 @@
   function table(box, p, d, W, H) {
     const { m: m0 } = modelOf(p, d);
     const t = trimRows(m0, p, Infinity);
-    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName, dimName: (x) => dimName(x, p) })}</table></div>`;
+    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName, dimName: (x) => dimName(x, p), num: (v) => C.numHtml(v, p.fmt) })}</table></div>`;
     return moreText(fitRows(box.querySelector(".dp-tbl"), H), "行");
   }
   /** 表を高さ H に収める: 字を 14 → 11px まで詰め、それでも入らなければ下の行を隠す → 隠した行の数 */
@@ -291,6 +308,7 @@
   const boardKeys = (p, d) => boardTree(p, d).flatMap((g) => g.keys);
   /** 合わせた表を描く（d = {groups: [答え], equipOrder}）→ 下に出す知らせの字 */
   function board(box, p, d, H) {
+    look(box, p.fmt);
     if (!d) { box.innerHTML = '<p class="dp-wait">数えています…</p>'; return ""; }
     const gs = p.groups || [], rowDim = (p.rows || {}).column || "@equip";
     const models = gs.map((g, i) => groupModel(g, (d.groups || [])[i], rowDim));
@@ -303,7 +321,7 @@
     const ROWLOOK = new Set(["stack", "spark"]);
     const folded = (gi) => ROWLOOK.has(gs[gi].look) && models[gi].cols.length > 0;
     const span = (gi) => (folded(gi) ? 1 + (gs[gi].total ? 1 : 0) : Math.max(1, models[gi].cols.length + (models[gi].cols.length && gs[gi].total ? 1 : 0)));
-    const fmtN = (n) => (n == null ? "–" : C.numText(n, p.fmt));
+    const fmtN = (n) => (n == null ? "–" : C.numText(n, p.fmt)), fmtH = (n) => C.numHtml(n, p.fmt);   // 字（題・見出し）と、セルの字（表示形式の色つき）
     const SEG = PALETTES.calm.c;
     /** 信号（しきい値 limits: warn・alert・dir〈high＝大きいと悪い・low＝小さいと悪い〉）→ ok・warn・alert か ""（決めていない） */
     const levelOf = (g, v) => {
@@ -315,12 +333,12 @@
     /** 1 つの数の札（見せ方ごと）。mx … その段の最大・base … 割合の分母 */
     const valHtml = (g, v, mx, base) => {
       const n = v || 0;
-      if (g.look === "heat" && n) return `<span style="--h:${(0.1 + 0.35 * n / mx).toFixed(2)}">${fmtN(n)}</span>`;
-      if (g.look === "bar" && n) return `<span class="db-mini"><i style="width:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtN(n)}`;
-      if (g.look === "dot") return `<span class="db-dotl"><i style="left:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtN(n)}`;
+      if (g.look === "heat" && n) return `<span style="--h:${(0.1 + 0.35 * n / mx).toFixed(2)}">${fmtH(n)}</span>`;
+      if (g.look === "bar" && n) return `<span class="db-mini"><i style="width:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtH(n)}`;
+      if (g.look === "dot") return `<span class="db-dotl"><i style="left:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtH(n)}`;
       if (g.look === "share") return base ? `<span title="${esc(fmtN(n))}">${(Math.round(n / base * 1000) / 10).toFixed(1)}%</span>` : "–";
-      if (g.look === "signal") { const lv = levelOf(g, n); return lv ? `<span class="db-sig is-${lv}" title="${SIG[lv][1]}">${SIG[lv][0]}</span>${fmtN(n)}` : fmtN(n); }
-      return fmtN(n);
+      if (g.look === "signal") { const lv = levelOf(g, n); return lv ? `<span class="db-sig is-${lv}" title="${SIG[lv][1]}">${SIG[lv][0]}</span>${fmtH(n)}` : fmtH(n); }
+      return fmtH(n);
     };
     const groupCells = (g, gi, k) => {
       const m = models[gi], r = m.rows.get(k), col = groupColor(g), grp = gi ? " db-grp" : "";
@@ -333,13 +351,13 @@
         const v = r ? r.total : 0;
         if (g.look === "bar" || g.look === "stack") {
           const mx = maxOf(totals);
-          return `<td class="db-lots${grp}" style="--gc:${col}"><div><span class="db-bar"><i style="width:${((v || 0) / mx * 100).toFixed(1)}%"></i></span><b>${v ? fmtN(v) : "–"}</b></div></td>`;
+          return `<td class="db-lots${grp}" style="--gc:${col}"><div><span class="db-bar"><i style="width:${((v || 0) / mx * 100).toFixed(1)}%"></i></span><b>${v ? fmtH(v) : "–"}</b></div></td>`;
         }
         const sum = totals.reduce((a, x) => a + (x || 0), 0);
         return `<td class="num db-s${grp}${v ? "" : " is-zero"} db-l-${g.look}" style="--gc:${col}">${valHtml(g, v, maxOf(totals), sum)}</td>`;
       }
       const t = r ? r.total || 0 : 0;
-      const sumCell = g.total ? `<td class="num db-sum">${fmtN(t)}${flags[gi].includes(k) ? `<em class="db-flag" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 でした">0 ${unitOf(g)}</em>` : ""}</td>` : "";
+      const sumCell = g.total ? `<td class="num db-sum">${fmtH(t)}${flags[gi].includes(k) ? `<em class="db-flag" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 でした">0 ${unitOf(g)}</em>` : ""}</td>` : "";
       if (folded(gi)) {
         const vs = m.cols.map((c, ci) => (r ? r.v[ci] || 0 : 0));
         if (g.look === "stack") {
@@ -462,6 +480,7 @@
   /** パネルの中身を描く（sub: 数字の形の下に出す添え書き〈期間・元〉）→ 下に出す知らせの字（描かなかった行など） */
   function render(box, p, d, size, sub = "") {
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
+    look(box, p.fmt);
     if (d.facets) return facets(box, p, d, W, H);
     if (p.visual === "kpi") { kpi(box, p, d, W, H, sub); return ""; }
     if (p.visual === "none") return table(box, p, d, W, H);

@@ -377,6 +377,8 @@ function paintUpdateBox() {
   if (noLink) $("#clShortcut").onclick = () => { closeChangelog(); openShortcut(); };
 }
 async function applyUpdate(btn = $("#clApply")) {
+  if (!(await TPA.unsaved.leave("*", "更新して開き直す"))) return;
+  window.__tpaQuitting = true;
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = "開き直しています…";
   TPA.saveUiState();
@@ -387,6 +389,7 @@ async function applyUpdate(btn = $("#clApply")) {
     state.quitting = true;                   // 窓はこのあと閉じ、新しい版の窓が開く
     if (hbTimer) clearInterval(hbTimer);
   } catch (e) {
+    window.__tpaQuitting = false;
     btn.disabled = false; btn.textContent = label;
     fail(e.message);
   }
@@ -938,8 +941,8 @@ $("#searchBtn").onclick = runSearch;
 /* ---------------- 画面の切り替え（最初はダッシュボード。版 3.37.0） ----------------
    一覧でロット番号を押す → 計算画面へ移り、検索欄に入れて「検索」と同じ流れで取り込む。
    計算画面の検索欄からは、これまでどおり直接ロット問い合わせもできる。 */
-/* 異常ロット一覧（list）と作業実績（work）は同じ画面（#lotListScreen）を、一覧の元（source）を替えて使う（lotlist.js の SOURCES）。
-   並び（見た目の順）と Alt の数字: 異常ロット一覧 Alt+1・転写・ピッチ計算 Alt+2・作業実績 Alt+3（前からの Alt+1・Alt+2 は変えない） */
+/* 品質異常（list）と作業実績（work）は同じ画面（#lotListScreen）を、一覧の元（source）を替えて使う（lotlist.js の SOURCES）。
+   並び（見た目の順）と Alt の数字: 品質異常 Alt+1・転写・ピッチ計算 Alt+2・作業実績 Alt+3（前からの Alt+1・Alt+2 は変えない） */
 const SCREENS = {
   dash: { tab: "#tabDash", panel: "#dashScreen", key: "0", show: () => window.Dashboard.activate(), hide: () => window.Dashboard.deactivate() },
   list: { tab: "#tabList", panel: "#lotListScreen", source: "lot", key: "1" },
@@ -954,7 +957,16 @@ function initialScreen() {
   if (want.startsWith("src:")) { document.addEventListener("tpa:screens-ready", () => showScreen(want), { once: true }); return "dash"; }
   return SCREENS[want] ? want : "dash";
 }
-function showScreen(name, { focus = true } = {}) {
+function showScreen(name, opts = {}) {
+  if (!SCREENS[name] || state.screen === name) return;
+  // 保存していない変更（ダッシュボードの編集・表示列やルールの窓）があれば、移る前に聞く（版 3.43.0。何も無ければすぐ移る）
+  if (state.screen && TPA.unsaved.pending(["dash", "list"]).length) {
+    TPA.unsaved.leave(["dash", "list"], "画面を移る").then((ok) => { if (ok) moveTo(name, opts); });
+    return;
+  }
+  moveTo(name, opts);
+}
+function moveTo(name, { focus = true } = {}) {
   if (!SCREENS[name] || state.screen === name) return;
   const prev = state.screen;
   state.screen = name;
@@ -975,7 +987,7 @@ function showScreen(name, { focus = true } = {}) {
 }
 Object.entries(SCREENS).forEach(([k, v]) => { $(v.tab).onclick = () => showScreen(k); });
 /* データ元（マスタ管理の「データ元」。版 3.36.0）のうち、1 ファイルの元で「画面: 有」の物（仕掛・足した元）を、作業実績の後ろのタブにする。
-   どれも異常ロット一覧と同じ画面（#lotListScreen）で、元（src:<キー>）を入れ替える。Alt＋4 からの番号を振る（9 まで） */
+   どれも品質異常と同じ画面（#lotListScreen）で、元（src:<キー>）を入れ替える。Alt＋4 からの番号を振る（9 まで） */
 const SRC_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h7l3 3v8H3z"/><path d="M5.5 8h5M5.5 10.5h5"/></svg>';
 async function loadSources() {
   let list = [];
@@ -984,7 +996,7 @@ async function loadSources() {
   window.LotList.defineSources(list);
   const nav = $(".screen-tabs");
   const want = list.filter((d) => d.listed && d.api.startsWith("/api/src/"));
-  // 消した・画面に出さなくした元のタブを外す（開いていたら異常ロット一覧へ）
+  // 消した・画面に出さなくした元のタブを外す（開いていたら品質異常へ）
   Object.keys(SCREENS).filter((k) => k.startsWith("src:") && !want.some((d) => d.screen === k)).forEach((k) => {
     if (state.screen === k) showScreen("list", { focus: false });
     $(SCREENS[k].tab).remove(); delete SCREENS[k];
@@ -1002,7 +1014,7 @@ async function loadSources() {
     }
     const key = i + 4 <= 9 ? String(i + 4) : "";
     b.innerHTML = SRC_ICON + esc(d.name);
-    b.title = `${d.name}（${d.place || "場所が決まっていません"}）を、異常ロット一覧と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
+    b.title = `${d.name}（${d.place || "場所が決まっていません"}）を、品質異常と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
     SCREENS[d.screen] = { tab: `#${id}`, panel: "#lotListScreen", source: d.screen, key };
   });
   document.dispatchEvent(new CustomEvent("tpa:screens-ready"));
@@ -1464,13 +1476,19 @@ $("#exportCsv").onclick = () => {
 
 /* ---------------- 終了 ----------------
    窓（Rust）が /api/shutdown に答えてから自分で閉じる。中身（Python）は入力が閉じて自分で終わる。
-   確かめない（版 3.19.0）: 画面の状態は閉じる前に覚え、次に開けば同じ所から続けられるので、取り返しがつく。 */
-$("#quitBtn").onclick = async () => {
-  state.quitting = true;
+   画面の状態は閉じる前に覚え、次に開けば同じ所から続けられるので確かめない（版 3.19.0）。ただし保存していない設定の変更（マスタ・
+   ダッシュボードの編集・表示列の窓など）は覚えないので、あれば聞く（版 3.43.0） */
+async function quit(what = "アプリを終了する") {
+  if (!(await TPA.unsaved.leave("*", what))) return;
+  state.quitting = true; window.__tpaQuitting = true;
   if (hbTimer) clearInterval(hbTimer);
   TPA.saveUiState();
   try { await fetch("/api/shutdown", { method: "POST", keepalive: true }); } catch (e) { /* 閉じれば届かない */ }
-};
+}
+$("#quitBtn").onclick = () => quit();
+/* 窓の ×（版 3.43.0）: 窓（desktop/src/main.rs）は閉じる前にここへ知らせる。保存していない変更があれば聞き、進むなら終了と同じに閉じる
+   （画面が答えないときは、窓の × をもう一度押せば聞かずに閉じる） */
+window.addEventListener("tpa:close-requested", () => quit("アプリを閉じる"));
 
 /* 参照先マスタで LotDsp の URL などが変わったら、設定を取り直す（「LotDsp を開く」がすぐ新しい場所を開く）。
    更新の置き場を変えたら、その場で確かめる（ほかの PC は次に確かめるとき＝30 分以内か次の起動で） */

@@ -149,7 +149,7 @@ try {
   });
   check(`⑥ 幅 ${narrow.w}px: 値の名前は切れずに折り返し、見出しの名前は潰れない・面の外に出ない`, narrow.w === 200 && !narrow.cut.length && !narrow.out && !narrow.thin.length && narrow.wrapped > 0, narrow);
   await shot(p, "slicer-200");
-  check("頁の誤りが無い（異常ロット一覧）", !errors.length, errors);
+  check("頁の誤りが無い（品質異常）", !errors.length, errors);
 
   // ⑦ 作業実績の 0 件の日
   const w = await app.newPage("light");
@@ -171,7 +171,7 @@ try {
     await w.click("#llWork [data-wk-zero]"); await sleep(900);
     tb = await table();
     check(`⑦ ${mode}: ☑ を外すと作業のあった日だけ`, tb.zero === false && !tb.days.some((d) => d.empty) && tb.days.length === dated.length - empty.length, { rows: tb.days.length, dated: dated.length, empty: empty.length });
-    await reload(w); await w.waitForSelector("#llBody tr[data-i]"); await w.click("#tabWork"); await w.waitForSelector("#llWork .wk-pv"); await sleep(900);   // 読み直すと異常ロット一覧から
+    await reload(w); await w.waitForSelector("#llBody tr[data-i]"); await w.click("#tabWork"); await w.waitForSelector("#llWork .wk-pv"); await sleep(900);   // 読み直すと品質異常から
     const back = await w.evaluate(() => ({ pane: !document.querySelector("#llWork").hidden, mode: document.querySelector("#llWorkSwitch [aria-checked=true]")?.dataset.wkMode }));
     check(`⑦ ${mode}: 読み直して開くと、覚えたまとめ方で右の表が出て（版 3.30.0 までは出なかった）、外したことも覚えている`, back.pane && back.mode === mode && (await table()).zero === false, { back, t: await table() });
     await w.click("#llWork [data-wk-zero]"); await sleep(900);

@@ -1,6 +1,6 @@
 // 評価関数（開発用）: 一覧の「Excel に出力」が、いまの絞り込みに当たる全件を表示列の見え方のまま出すか（版 3.20.0）。
 //   node program/tools/ui-eval-excel.mjs
-// ① 異常ロット一覧: 設備＝CR1 で絞り、表示名を 1 つ変え、出力 → 行の数＝件数・見出しに表示名・ロット番号の並び＝サーバーの並び
+// ① 品質異常: 設備＝CR1 で絞り、表示名を 1 つ変え、出力 → 行の数＝件数・見出しに表示名・ロット番号の並び＝サーバーの並び
 // ② 作業実績: 日＋直ごとにまとめて出力 → 一覧のシートの行＝行の数・「日・直ごとのロット数」の合計＝右の表の合計・出力の条件のシート
 // .xlsx は Python の標準の zipfile と xml で読み戻す。全部合えば終了コード 0。
 import fs from "node:fs";
@@ -36,7 +36,7 @@ const app = await launch();
 let ok = false;
 try {
   const p = await app.newPage("light");
-  // ① 異常ロット一覧（設備＝CR1・発生日の表示名を「登録日」に）
+  // ① 品質異常（設備＝CR1・発生日の表示名を「登録日」に）
   await p.evaluate(async () => {
     TPA.local.set("tpa.lotlist.layout.v1", { "lotlist:仕掛": { order: [], hidden: ["備考"], widths: {}, locks: [], names: { "発生日": "登録日" }, formats: {}, aligns: {}, rules: {}, formulas: {} } });
     TPA.local.set("tpa.lotlist.active.v1", { "仕掛": [{ column: "設備", op: "eq", value: "CR1" }] });
@@ -53,7 +53,7 @@ try {
   const r1 = { names: x1.names, rows: body.length, want: want.count, head: head.slice(0, 4), noHidden: !head.includes("備考"),
     sameOrder: JSON.stringify(body.map((r) => r[lotCol] ?? "")) === JSON.stringify(want.lots),
     cond: x1.sheets[x1.sheets.length - 1].map((r) => Object.values(r).join(": ")).filter((t) => /条件|件数/.test(t)) };
-  const ok1 = r1.rows === want.count && head.includes("登録日") && r1.noHidden && r1.sameOrder && x1.names.join("|") === "異常ロット一覧|出力の条件";
+  const ok1 = r1.rows === want.count && head.includes("登録日") && r1.noHidden && r1.sameOrder && x1.names.join("|") === "品質異常|出力の条件";
   // ② 作業実績（日＋直ごと）
   await p.click("#tabWork"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(600);
   await p.click('#llWorkSwitch [data-wk-mode="dayshift"]'); await p.waitForSelector("#llWork .wk-pv"); await sleep(600);
@@ -65,7 +65,7 @@ try {
   const r2 = { names: x2.names, rows: x2.sheets[0].length - 1, want: tot, head: Object.values(x2.sheets[0][0]).slice(0, 4), total: last[totCol], first: Object.values(last)[0] };
   const ok2 = r2.rows === tot.rows && +r2.total === tot.works && r2.first === "合計" && r2.head[0].startsWith("作業日") && r2.head[1] === "直" && x2.names.length === 3;
   ok = ok1 && ok2;
-  console.log(JSON.stringify({ lot: r1, work: r2 }), ok ? "OK" : `NG${ok1 ? "" : " 異常ロット一覧"}${ok2 ? "" : " 作業実績"}`);
+  console.log(JSON.stringify({ lot: r1, work: r2 }), ok ? "OK" : `NG${ok1 ? "" : " 品質異常"}${ok2 ? "" : " 作業実績"}`);
 } finally {
   await app.close();
 }

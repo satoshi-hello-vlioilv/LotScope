@@ -13,7 +13,7 @@
 月で絞る（版 3.26.0〜）: month="YYYY-MM" なら、日の段（行の 1 段目が日付の列の年月日か作業日の日。月で区切るときは 2 段目）がその月の行だけを数える。
     答えの months はその段に現れる月の並び（絞る前。画面の ◀ ▶ と月を選ぶ所）
 値（measures）: [{agg, column}] 最大 MAX_MEASURES。agg …
-    count（行の数）・lots（ロット数: 作業実績は作業開始が同じ行を 1、異常ロット一覧はロット番号が同じ行を 1。鍵が空の行は 1 行ずつ）・
+    count（行の数）・lots（ロット数: 作業実績は作業開始が同じ行を 1、品質異常はロット番号が同じ行を 1。鍵が空の行は 1 行ずつ）・
     sum・avg・min・max（数に読める値だけ。読めない値は数えない）
 小計・総計: 行・列の段の頭（0〜n 段）の組すべてを数える（ロット数・平均は下の段から足し合わせられないので、組ごとに数える）。
 箱ひげ（版 3.27.0〜）: box=列 なら、行の段の葉（いちばん下の段まで決めた組）ごとに、その数の列の傾向（box_stats）を boxes に出す。
@@ -36,6 +36,7 @@ import math
 import re
 import time
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 
 from . import aggregate
 from .formula import register as register_calc
@@ -194,14 +195,16 @@ def describe(values):
 class _Keyer:
     """1 つの段の鍵の作り方（値 → (鍵の字, 並べる鍵, 見せる字)）。同じ値は覚えて読み直さない"""
 
-    def __init__(self, dim, clock=None, basis="work", equip=None, order=0, by_name=False, groups=None, sets=None):
+    def __init__(self, dim, clock=None, basis="work", equip=None, order=0, by_name=False, groups=None, sets=None, places=None):
         """equip・order … 設備の段の決め方（Part.equip）と、そのファイルの並び。by_name … 直を名前で見分ける（いくつかのファイルをまとめるとき。
         設備で勤務体系が違うと、同じ番号が違う直になるため）。groups … 設備のまとめ（EquipGroups。設備の段を、まとまりの名前にする）。
-        sets … 設備グループの段（@egroup）のまとめ方の名前 → EquipGroups（版 3.40.0）"""
+        sets … 設備グループの段（@egroup）のまとめ方の名前 → EquipGroups（版 3.40.0）。
+        places … (作業開始, 時刻) → (作業日, 直) の控え。1 つのファイルの段どうし・期間の絞り込みで分け合う（同じ日時を何度も読み解かない。版 3.43.0）"""
         self.dim, self.part, self.clock, self.basis = dim, dim["part"], clock, basis
         self.equip, self.order, self.by_name, self.groups = equip or {}, order, by_name, groups
         self.sets = sets or {}
         self.memo = {}
+        self.places = {} if places is None else places
 
     def key(self, v, tv=None):
         mk = (v, tv) if self.dim["column"] in WORK_DIMS else v
@@ -232,7 +235,10 @@ class _Keyer:
                 return (g, (0, at if at >= 0 else 10_000 + (self.order if "name" in self.equip else 0), g), g)
             return (name, (0, self.order if "name" in self.equip else 0, name), name)
         if col in WORK_DIMS:
-            day, idx = self.clock.place(to_datetime(v, tv), self.basis)
+            got = self.places.get((v, tv))
+            if got is None:
+                got = self.places[(v, tv)] = self.clock.place(to_datetime(v, tv), self.basis)
+            day, idx = got
             if col == "@workday":
                 if not day:
                     return ("", (1, ""), "日付なし")
@@ -280,6 +286,7 @@ class _Keyer:
         return ("", (1, ""), BLANK)
 
 
+@lru_cache(maxsize=4096)
 def _day_label(day):
     d = date.fromisoformat(day)
     return f"{day[:4]}/{day[5:7]}/{day[8:10]}({'月火水木金土日'[d.weekday()]})"
@@ -462,8 +469,38 @@ def clean_period(period):
     return {"column": col, "kind": kind, "n": n}
 
 
-def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None, need_equip=False):
-    """1 つのファイルを読む: 表と列を決め、段・値を確かめ、絞り込みに当たる行の要る列だけを読む → 状態の dict"""
+# 期間の先絞り（版 3.43.0）: 日付の字が「YYYY/MM/DD…」「YYYY-MM-DD…」の形の行だけを、SQLite で期間の前後 PRE_MARGIN 日に絞る。
+# 形の違う行（2026/9/5・数・空白で始まる字など）は今までどおり読み、Python が日付を読み解いて決める（答えは変わらず、外す行だけが減る）。
+# 前は前日・今月のパネルでも全期間の全行の日時を 1 行ずつ読み解いていて、読み込みの時間のほとんどがそれだった。
+# 前後 PRE_MARGIN 日は、作業日（現場歴）が暦の日付から 1 日ずれる直のため
+PRE_MARGIN = 2
+_PRE_GLOB = "[0-9][0-9][0-9][0-9][-/.][0-9][0-9][-/.][0-9][0-9]*"
+
+
+def period_prefilter(col, span):
+    """日付の列と（はじめ, おわり）→ (WHERE の式, 値の並び)。span が無ければ ("", [])"""
+    if not span:
+        return "", []
+    lo, hi = (date.fromisoformat(x) for x in span)
+    lo, hi = (lo - timedelta(days=PRE_MARGIN)).isoformat(), (hi + timedelta(days=PRE_MARGIN)).isoformat()
+    t = f"CAST({qi(col)} AS TEXT)"
+    return (f"({qi(col)} IS NULL OR NOT ({t} GLOB '{_PRE_GLOB}') OR (substr({t}, 1, 4) || '-' || substr({t}, 6, 2) || '-' || substr({t}, 9, 2)) BETWEEN ? AND ?)",
+            [lo, hi])
+
+
+def _part_span(part, period, now):
+    """そのファイルの期間の日の範囲（query_many の期間で絞ると同じ決め方）"""
+    if not period:
+        return None
+    work = part.work or {}
+    stamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    day = (work["clock"].place(stamp, work.get("basis", "work"))[0] if period["column"] == "@workday" and work.get("clock") else "") or now.date().isoformat()
+    return period_range(period["kind"], period["n"], day)
+
+
+def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None, need_equip=False, span=None):
+    """1 つのファイルを読む: 表と列を決め、段・値を確かめ、絞り込みに当たる行の要る列だけを読む → 状態の dict。
+    span … 期間の日の範囲（period_prefilter で先に絞る。期間の列が計算列なら絞らない）"""
     work = part.work
     with connect_ro(part.path) as c:
         names = tables(c)
@@ -493,8 +530,13 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         ignored = [str(f.get("column") or "") for f in _filter_items(filters) if str(f.get("column") or "") and f.get("op") != "tuple_in"
                    and str(f.get("column")) not in cs]
         where_parts, params = search_filter_where(raw_cs, search, filters, today, exprs)
+        pcol = (start if period["column"] == "@workday" else period["column"]) if period else ""
+        if pcol and pcol in raw_cs:
+            w, wp = period_prefilter(pcol, span)
+            if w:
+                where_parts, params = where_parts + [w], params + wp
         where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
-        # 読む列: 段の列・値の列・ロットの鍵の列（作業実績は作業開始と時刻・異常ロット一覧はロット番号）・期間の列
+        # 読む列: 段の列・値の列・ロットの鍵の列（作業実績は作業開始と時刻・品質異常はロット番号）・期間の列
         lot = lot_column(cs)
         need = []
 
@@ -522,7 +564,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         data = c.execute(f"SELECT {', '.join(exprs.get(x) or qi(x) for x in need) or '1'} FROM {qi(t)}{where}", params).fetchall() if need else [()] * total
     return {"name": part.name, "table": t, "cs": cs, "rd": rd, "cd": cd, "ms": ms, "pos": pos, "mpos": mpos, "bpos": bpos, "lots_by": lots_by,
             "kpos": kpos, "ppos": ppos, "start": start, "data": data, "clock": (work or {}).get("clock"), "basis": (work or {}).get("basis", "work"),
-            "equip": equip, "epos": epos, "ignored": ignored}
+            "equip": equip, "epos": epos, "ignored": ignored, "places": {}}
 
 
 def _filter_items(filters):
@@ -557,7 +599,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     for part in parts:
         try:
             states.append(_open_part(part, search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today, box=box, period=period,
-                                     calc=calc, need_equip=need_equip))
+                                     calc=calc, need_equip=need_equip, span=_part_span(part, period, now)))
         except PivotError as e:
             if not multi:
                 raise
@@ -591,7 +633,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         for s in states:
             today_day = (s["clock"].place(stamp, s["basis"])[0] if period["column"] == "@workday" and s["clock"] else "") or now.date().isoformat()
             lo, hi = period_range(period["kind"], period["n"], today_day)
-            pk, (a, b) = _Keyer(pdim, s["clock"], s["basis"]), s["ppos"]
+            pk, (a, b) = _Keyer(pdim, s["clock"], s["basis"], places=s["places"]), s["ppos"]
             s["data"] = [r for r in s["data"] if lo <= (pk.key(r[a] if a >= 0 else None, r[b] if b >= 0 else None)[0] or "~") <= hi]
             if (lo, hi) not in ranges:
                 ranges.append((lo, hi))
@@ -600,7 +642,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     month = str(month or "") if dd >= 0 else ""
     if dd >= 0:
         for s in states:
-            dk, (a, b) = _Keyer(s["rd"][dd], s["clock"], s["basis"]), s["pos"][dd]
+            dk, (a, b) = _Keyer(s["rd"][dd], s["clock"], s["basis"], places=s["places"]), s["pos"][dd]
             mk = [dk.key(r[a] if a >= 0 else None, r[b] if b >= 0 else None)[0][:7] for r in s["data"]]
             months |= {m for m in mk if m}
             if month:
@@ -632,7 +674,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     single = 0
     count = 0
     for pi, s in enumerate(states):
-        keyers = [_Keyer(d, s["clock"], s["basis"], equip=s["equip"], order=pi, by_name=multi, groups=groups, sets=gsets) for d in s["rd"] + s["cd"]]
+        keyers = [_Keyer(d, s["clock"], s["basis"], equip=s["equip"], order=pi, by_name=multi, groups=groups, sets=gsets, places=s["places"])
+                  for d in s["rd"] + s["cd"]]
         pos, mpos, bpos, lots_by, kpos = s["pos"], s["mpos"], s["bpos"], s["lots_by"], s["kpos"]
         count += len(s["data"])
         for row in s["data"]:

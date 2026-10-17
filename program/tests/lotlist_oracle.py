@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""異常ロット一覧の「正しい答え」を出す係（デスクトップ版の Rust との突き合わせ・desktop/tests/lotlist_parity.rs が呼ぶ）。
+"""品質異常の「正しい答え」を出す係（デスクトップ版の Rust との突き合わせ・desktop/tests/lotlist_parity.rs が呼ぶ）。
 
     python tests/lotlist_oracle.py 作業フォルダ [行数]
 

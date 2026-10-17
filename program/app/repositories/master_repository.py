@@ -40,7 +40,7 @@ SPECS = {
     "access_permissions": {"fields": ["ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考"], "renamed": {}, "unique": None},
     # 作業実績の設備（services/work_log.py）。ファイルごとに1行。表示ルールは変わらないキーに結ぶ
     "work_log_files": {"fields": work_log.FIELDS, "renamed": {}, "unique": "キー"},
-    # 共有の書式（services/display_formats.py）。名前は元（異常ロット一覧・作業実績）ごとに 1 つ（_check_row）
+    # 共有の書式（services/display_formats.py）。名前は元（品質異常・作業実績）ごとに 1 つ（_check_row）
     "display_formats": {"fields": display_formats.FIELDS, "renamed": {}, "unique": None},
     # 勤務体系（services/shifts.py）。名称は 1 つずつ。区分は JSON の字
     "shift_patterns": {"fields": shifts.FIELDS, "renamed": {}, "unique": "名称"},
@@ -48,6 +48,8 @@ SPECS = {
     "equipment_groups": {"fields": equip_groups.FIELDS, "renamed": {}, "unique": None},
     # 変換表（services/conversions.py。版 3.42.0）。名前は 1 つずつ（式の conv('名前', …) で引く。_check_row）
     "conversions": {"fields": conversions.FIELDS, "renamed": {}, "unique": None},
+    # 変換表の標準（版 3.43.0）。「標準に戻す」で戻る中身。取り込んだ表を標準にすると置き、空なら同梱のプリセット
+    "conversion_defaults": {"fields": conversions.FIELDS, "renamed": {}, "unique": None},
     # 集計表・グラフの組み方のプリセット（services/pivot_presets.py）。名前は (元・範囲・持ち主) ごとに 1 つ（_check_row）・標準は組ごとに 1 つ
     "pivot_presets": {"fields": pivot_presets.FIELDS, "renamed": {}, "unique": None},
     # すぐに見るの選び（ログイン ID・元ごとに 1 行。並びは組み方の id の JSON。quick_set が 1 行にまとめる）
@@ -520,12 +522,59 @@ class MasterRepository:
     def conversion_delete(self, item_id, base_rev=None):
         self._delete("conversions", item_id, base_rev)
 
-    def conversion_presets(self):
-        """同梱のプリセット（app/master_defaults/conversions.json。最初の中身・標準に戻す）"""
+    def conversion_bundled(self):
+        """同梱のプリセット（app/master_defaults/conversions.json。最初の中身）"""
         try:
             return [_normalize(r, SPECS["conversions"]) for r in json.loads(self.store.defaults("conversions").read_text(encoding="utf-8"))]
         except (OSError, ValueError):
             return []
+
+    def conversion_presets(self):
+        """標準（「標準に戻す」で戻る中身）。取り込んで標準にした表があればそれ、無ければ同梱のプリセット（版 3.43.0）"""
+        own = self._list("conversion_defaults")
+        return own if own else self.conversion_bundled()
+
+    def conversion_defaults_custom(self):
+        return bool(self._list("conversion_defaults"))
+
+    def conversion_defaults_set(self, rows):
+        """標準を、この表の並び（マスタの行の形）に置き換える。空の並びなら同梱のプリセットに戻る"""
+        spec = SPECS["conversion_defaults"]
+
+        def mutate(cur, stamp):
+            cur.clear()
+            for i, data in enumerate(rows, 1):
+                cur.append({"id": i, **{k: _clean(data.get(k)) for k in spec["fields"]}, "rev": 1, **stamp})
+            return len(cur)
+        return self.store.write("conversion_defaults", mutate)
+
+    def conversion_import(self, rows):
+        """取り込む（マスタの行の形の並び）。同じ名前の表は中身を置き換え（版を 1 つ上げる）、無い名前は後ろに足す。1 回の書き込みで行う。
+        → {"added": 足した数, "replaced": 置き換えた数}"""
+        spec = SPECS["conversions"]
+
+        def mutate(cur, stamp):
+            _normalize_all(cur, spec)
+            by = {str(r.get("名前") or ""): r for r in cur}
+            top = max((int(r.get("表示順") or 0) for r in cur if str(r.get("表示順") or "").lstrip("-").isdigit()), default=0)
+            added = replaced = 0
+            for data in rows:
+                old = by.get(str(data.get("名前") or ""))
+                if old is not None:
+                    for k in spec["fields"]:
+                        if k in data and k != "表示順":
+                            old[k] = _clean(data.get(k))
+                    old.update(rev=int(old.get("rev", 1)) + 1, **stamp)
+                    replaced += 1
+                else:
+                    top += 10
+                    row = {"id": next_id(cur), **{k: _clean(data.get(k)) for k in spec["fields"]}, "rev": 1, **stamp}
+                    row["表示順"] = str(top)
+                    cur.append(row)
+                    by[row["名前"]] = row
+                    added += 1
+            return {"added": added, "replaced": replaced}
+        return self.store.write("conversions", mutate)
 
     # -------------------------------------------------- ロールマスタ
     def rolls(self):

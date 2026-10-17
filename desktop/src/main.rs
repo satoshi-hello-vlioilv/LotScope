@@ -39,6 +39,19 @@ const SELFTEST_JS: &str = include_str!("selftest.js");
 const SELFTEST_LIMIT: Duration = Duration::from_secs(180);
 /// 終了（/api/shutdown）を受けてから窓を閉じるまで。答えが画面へ届いてから閉じる。
 const QUIT_DELAY: Duration = Duration::from_millis(150);
+/// 窓の × を押したとき（版 3.43.0）: 画面に「保存していない変更」が無いかを聞いてから閉じる（画面が tpa:close-requested を受け、
+/// 無ければ・聞いて進むなら /api/shutdown で閉じる）。画面が答えない（読み込み前・止まっている）ときも閉じられるよう、
+/// この長さのうちにもう一度 × を押せば、聞かずに閉じる。
+const CLOSE_AGAIN: Duration = Duration::from_secs(5);
+
+/// × を押した → 聞かずに閉じてよいか（前に押してから CLOSE_AGAIN のうちなら true）。押した時刻を覚える
+fn close_now(last: &Mutex<Option<Instant>>, now: Instant) -> bool {
+    let mut l = last.lock().unwrap_or_else(|e| e.into_inner());
+    let again = l.is_some_and(|t| now.duration_since(t) < CLOSE_AGAIN);
+    *l = Some(now);
+    again
+}
+
 /// 自己診断のときだけ、画面の読み込みより前に入れる見張り（画面のエラーを残す。selftest.js が読む）。
 const ERROR_WATCH_JS: &str = "window.__tpaErrors=[];addEventListener('error',e=>__tpaErrors.push(String(e.message||e.type)));\
 addEventListener('unhandledrejection',e=>__tpaErrors.push('promise: '+String(e.reason&&(e.reason.message||e.reason))));";
@@ -123,7 +136,7 @@ fn selftest_finish(app: &AppHandle, result: &serde_json::Value) {
     }
 }
 
-/// 窓そのものが答える問い合わせ（終了・窓の情報・自己診断の受け口・異常ロット一覧）。
+/// 窓そのものが答える問い合わせ（終了・窓の情報・自己診断の受け口・品質異常）。
 fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updater>) -> Native {
     Box::new(move |req, backend| match (req.method, req.path) {
         // 画面の「終了」・版が混ざったときの「再起動する」。答えてから閉じる（中身の Python は入力が閉じて自分で終わる）
@@ -248,7 +261,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
     })
 }
 
-/// 異常ロット一覧の設定を中身（Python）に尋ねる（lot.rs が 10 秒覚える）。
+/// 品質異常の設定を中身（Python）に尋ねる（lot.rs が 10 秒覚える）。
 fn lot_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
     let r = backend.ask(&Ask { method: "GET", path: "/api/lotlist/settings", query: "", headers: vec![], body: &[] });
     if r.status != 200 {
@@ -544,7 +557,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     });
     let upd = Updater::new(paths, installed, version.clone(), notes);
     let static_dir = program.join("app").join("static");
-    // 異常ロット一覧（写しは作業場所の db_cache・Python と同じ台帳）
+    // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
     let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
     let _ = slot.set(Router {
         static_dir,
@@ -853,20 +866,40 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("起動できません");
 
-    app.run(move |_app, event| {
-        if let RunEvent::Exit = event {
+    let last_close: Mutex<Option<Instant>> = Mutex::new(None);
+    app.run(move |app, event| match event {
+        // 窓の ×: 画面が出ていれば、先に画面へ聞く（保存していない変更。画面が閉じる）。もう一度押せば聞かずに閉じる
+        RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. } if label == "main" => {
+            let Some(w) = app.get_webview_window("main") else { return };
+            let shown = w.url().map(|u| is_app_url(&u)).unwrap_or(false);
+            if shown && !close_now(&last_close, Instant::now()) {
+                api.prevent_close();
+                let _ = w.eval("window.dispatchEvent(new CustomEvent('tpa:close-requested'))");
+            }
+        }
+        RunEvent::Exit => {
             // 中身の Python を止める（入力を閉じる → 片付けて自分で終わる。終わらなければ止める）
             if let Some(r) = slot.get() {
                 r.backend.stop();
             }
             log("EXIT 窓を閉じた");
         }
+        _ => {}
     });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn close_asks_first_then_closes_on_a_second_press() {
+        let last = Mutex::new(None);
+        let t0 = Instant::now();
+        assert!(!close_now(&last, t0), "1 回目は画面に聞く");
+        assert!(close_now(&last, t0 + Duration::from_secs(2)), "5 秒のうちにもう一度押せば閉じる");
+        assert!(!close_now(&last, t0 + Duration::from_secs(20)), "間が空けば、また聞く");
+    }
 
     #[test]
     fn urls_of_the_app_and_the_splash() {

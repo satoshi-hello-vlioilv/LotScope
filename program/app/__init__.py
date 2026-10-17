@@ -28,7 +28,7 @@ def lot_list_params(settings):
 
 
 def lot_engine(settings):
-    """デスクトップ版で異常ロット一覧（写しと問い合わせ）を受け持つ係。"rust"（既定）か "python"（設定 desktop.lotlist_engine）。"""
+    """デスクトップ版で品質異常（写しと問い合わせ）を受け持つ係。"rust"（既定）か "python"（設定 desktop.lotlist_engine）。"""
     return (settings.get("desktop") or {}).get("lotlist_engine", "rust")
 
 
@@ -41,7 +41,7 @@ def shell_serves():
 
 
 def mirror_is_external(settings):
-    """品質データの写しを、このプロセスの外（デスクトップ版の Rust）が作るか。窓が異常ロット一覧（lotlist）を受け持つと名乗り、
+    """品質データの写しを、このプロセスの外（デスクトップ版の Rust）が作るか。窓が品質異常（lotlist）を受け持つと名乗り、
     設定も rust のときだけ。そのときこのプロセスは写さず、同じ台帳を読むだけにする（同じ PC で写しの係を2つ動かさない）。"""
     return "lotlist" in shell_serves() and lot_engine(settings) == "rust"
 

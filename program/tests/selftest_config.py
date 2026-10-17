@@ -2,7 +2,7 @@
 """自己診断（desktop/src/selftest.js）用の設定を書く: 配った設定の見本に、品質データの元を試験用のファイルにして重ねる。
 
     python tests/selftest_config.py 品質データ.sqlite3 出力.json [更新の置き場]
-CI が窓を TRANSFER_APP_CONFIG=出力.json で起こし、異常ロット一覧を Rust と Python で引き比べる。マスタの共有は出力の隣の masters（リポジトリを汚さない）。
+CI が窓を TRANSFER_APP_CONFIG=出力.json で起こし、品質異常を Rust と Python で引き比べる。マスタの共有は出力の隣の masters（リポジトリを汚さない）。
 更新の置き場を渡すと参照先 update.source にする（desktop/bundle/verify.py の更新の通し）。
 """
 import json

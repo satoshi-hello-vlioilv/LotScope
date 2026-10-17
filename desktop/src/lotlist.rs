@@ -1,4 +1,4 @@
-//! 異常ロット一覧を品質データ（SQLite）から引く。Python 版（program/app/services/lot_list.py）と**同じ答え**を作る。
+//! 品質異常を品質データ（SQLite）から引く。Python 版（program/app/services/lot_list.py）と**同じ答え**を作る。
 //!
 //! 絞り込み・並べ替え・ページ・まとめ（ロット番号）・日付の列・0 件の手がかりの決まりは Python 版の写し。SQL の文も同じ物を作り、
 //! SQL の中の CStr・Val・ToDate・Nz は Rust の関数（pyfmt）として SQLite に入れる（Python 版は行×列の回数だけ Python の関数を

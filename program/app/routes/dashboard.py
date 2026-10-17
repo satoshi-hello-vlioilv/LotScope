@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import threading
 from collections import OrderedDict
 from datetime import datetime
 
@@ -247,24 +248,39 @@ def _answer(p, now):
     cache = _cache()
     hit = cache.get(key)
     if hit is None:
-        b = p["body"]
-        try:
-            hit = pivot.query_many(parts, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False),
-                                   rows=json.dumps(b["rows"], ensure_ascii=False), cols=json.dumps(b["cols"], ensure_ascii=False),
-                                   measures=json.dumps(b["measures"], ensure_ascii=False), today=now.date(), period=p["period"], now=now,
-                                   calc=p.get("calc"), equips=p.get("equips"), egroups=egroups, box=_box_column(p), sets=sets)
-        except pivot.PivotError as e:
-            return {"error": str(e), "kind": "invalid", "status": 400}
-        except Exception as e:
-            return {"error": str(e), "kind": "error", "status": 503}
-        cache[key] = hit
-        while len(cache) > 96:
-            cache.popitem(last=False)
+        with _COUNT_LOCK:             # 重い集計は 1 つずつ（待っている間に同じ組みを数え終えていれば、その答え）
+            hit = cache.get(key)
+            if hit is None:
+                hit = _count(p, parts, now, egroups, sets)
+                if "error" in hit:
+                    return hit
+                cache[key] = hit
+                while len(cache) > 96:
+                    cache.popitem(last=False)
     else:
         cache.move_to_end(key)
     note = "設備のまとめのマスタ「" + p["egroup"]["set"] + "」にグループがありません（マスタ管理の「設備グループ」）。" \
         if p.get("egroup") and p["egroup"]["mode"] == "master" and not egroups else ""
     return {**hit, "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp, **({"note": " ".join(x for x in (hit.get("note"), note) if x)} if note else {})}
+
+
+# 画面は全部のパネルを一度に問い合わせる。重い集計（Python の 1 行ずつの数え）を同時に走らせると取り合って、順に数えるより
+# 4 倍ほど遅かった（版 3.43.0 の tools/dash-bench.py: 6 枚で順に 4.8 秒・一度に 21.7 秒）。数えるのは 1 つずつにする
+_COUNT_LOCK = threading.Lock()
+
+
+def _count(p, parts, now, egroups, sets):
+    """数える（pivot.query_many）。数えられなければ {error, kind, status}"""
+    b = p["body"]
+    try:
+        return pivot.query_many(parts, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False),
+                                rows=json.dumps(b["rows"], ensure_ascii=False), cols=json.dumps(b["cols"], ensure_ascii=False),
+                                measures=json.dumps(b["measures"], ensure_ascii=False), today=now.date(), period=p["period"], now=now,
+                                calc=p.get("calc"), equips=p.get("equips"), egroups=egroups, box=_box_column(p), sets=sets)
+    except pivot.PivotError as e:
+        return {"error": str(e), "kind": "invalid", "status": 400}
+    except Exception as e:
+        return {"error": str(e), "kind": "error", "status": 503}
 
 
 def _group_sets(p):

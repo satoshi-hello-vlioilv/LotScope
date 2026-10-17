@@ -209,8 +209,8 @@ async function openMaster() {
   clearInterval(mstate.pollTimer);
   mstate.pollTimer = setInterval(refreshPlace, MASTER_POLL_MS);
 }
-function closeMaster() {
-  if (!leaveOk()) return;
+async function closeMaster() {
+  if (!(await leaveOk("マスタ管理を閉じる"))) return;
   emit("tpa:masters-closed");   // 設備マスタ（検査計など）を直したかもしれない → 画面が引き直す
   $("#masterOverlay").classList.add("hidden");
   clearInterval(mstate.pollTimer);
@@ -234,6 +234,8 @@ async function refreshPlace() {
       settingsNotice(`この間に <b>${escapeHtml(whoText(m.updated_by))}</b> が参照先を更新しました（${hhmm(m.updated_at)}）。保存するときに、直している項目が変わっていないかを確かめます。`);
       continue;
     }
+    // 勤務体系・設備グループ・変換表・データ元を直している途中なら、読み直して下書きを消さない（保存するときに版を確かめる。版 3.43.0）
+    if (tab === mstate.tab && MASTER_DEFS[tab].custom && TPA.unsaved.pending("master").length) continue;
     if (mstate.editing && mstate.editing.tab === tab && formDirty()) {
       showFormNotice("wait", `この間に <b>${escapeHtml(whoText(m.updated_by))}</b> が${MASTER_DEFS[tab].label}を更新しました（${hhmm(m.updated_at)}）。
         保存するときに、開いている行が変わっていないかを確かめます。`);
@@ -300,8 +302,8 @@ function buildMasterTabs() {
   tabs.querySelectorAll(".tab").forEach((b) => b.onclick = () => goTab(b.dataset.tab));
   paintPlaceNav();
 }
-function goTab(tab) {
-  if (tab === mstate.tab || !leaveOk()) return;
+async function goTab(tab) {
+  if (tab === mstate.tab || !(await leaveOk("ほかのタブへ移る"))) return;
   mstate.tab = tab;
   mstate.editing = null; mstate.selId = null;   // 行の番号はマスタごとなので、移ったら先頭から
   mstate.search = "";
@@ -445,8 +447,9 @@ function bindSettingCard(card) {
     if (confirm("この項目を配った設定（既定）に戻します。全員の PC に効きます。よろしいですか？")) send("", +card.dataset.rev || 0);
   };
 }
-/* ほかの画面から「参照先」を開く（異常ロット一覧で元ファイルが読めない・古いとき） */
+/* ほかの画面から「参照先」を開く（品質異常で元ファイルが読めない・古いとき） */
 async function openMasterAt(tab) {
+  if (!$("#masterOverlay").classList.contains("hidden") && tab !== mstate.tab && !(await leaveOk("ほかのタブへ移る"))) return;
   mstate.tab = tab;
   await openMaster();
 }
@@ -477,10 +480,10 @@ function renderMasterTable() {
   paintPlace();
   const rowOf = (id) => (mstate.data[mstate.tab] || []).find((r) => r.id === Number(id));
   $("#masterBody").querySelectorAll("tr[data-id]").forEach((tr) => {
-    tr.onclick = () => { if (Number(tr.dataset.id) !== mstate.selId && leaveOk()) openForm(mstate.tab, rowOf(tr.dataset.id), { focus: false }); };
+    tr.onclick = async () => { if (Number(tr.dataset.id) !== mstate.selId && await leaveOk("ほかの行へ移る")) openForm(mstate.tab, rowOf(tr.dataset.id), { focus: false }); };
     tr.onkeydown = (e) => {
       if (e.target !== tr) return;
-      if (e.key === "Enter") { e.preventDefault(); if (Number(tr.dataset.id) === mstate.selId || leaveOk()) openForm(mstate.tab, rowOf(tr.dataset.id)); }
+      if (e.key === "Enter") { e.preventDefault(); (Number(tr.dataset.id) === mstate.selId ? Promise.resolve(true) : leaveOk("ほかの行へ移る")).then((ok) => { if (ok) openForm(mstate.tab, rowOf(tr.dataset.id)); }); }
       else if (e.key === "Delete" && !shareDown() && canWrite(mstate.tab)) { e.preventDefault(); openDeleteConfirm(mstate.tab, rowOf(tr.dataset.id)); }
       else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
@@ -918,9 +921,11 @@ async function renderShifts({ notice = null, keep = false } = {}) {
     });
   };
   const redraw = () => renderShifts({ keep: true });
+  mstate.shiftSync = sync;
   box.querySelector(".sh-editor").addEventListener("change", (e) => { if (e.target.matches(".sh-start,.sh-end,.sh-off")) { sync(); redraw(); } });
   box.querySelector(".sh-editor").addEventListener("click", async (e) => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
+    if ((b.dataset.shPick || b.hasAttribute("data-sh-new")) && !(await TPA.unsaved.leave("master:shifts", "ほかの勤務体系へ移る"))) return;
     if (b.dataset.shPick) { mstate.shiftDraft = shiftDraftOf(d.items.find((x) => x.id === +b.dataset.shPick)); redraw(); return; }
     if (b.hasAttribute("data-sh-new")) { mstate.shiftDraft = shiftDraftOf(null); redraw(); return; }
     sync();
@@ -1039,6 +1044,7 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
     box.querySelectorAll(".eg-rule").forEach((row) => { const r = dr.rules[+row.dataset.i]; r.value = row.querySelector("[data-eg-rv]").value; r.op = row.querySelector("[data-eg-rop]").value; });
   };
   const redraw = () => renderEquipGroups({ keep: true });
+  mstate.egSync = sync;
   const sh = box.querySelector(".sh-editor");
   sh.addEventListener("change", (e) => { if (e.target.matches("[data-eg-rv],[data-eg-rop]")) { sync(); redraw(); } });
   sh.addEventListener("input", (e) => {
@@ -1049,6 +1055,7 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
   });
   sh.addEventListener("click", async (e) => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
+    if ((b.dataset.egPick || b.hasAttribute("data-eg-new") || b.dataset.egNewin != null) && !(await TPA.unsaved.leave("master:egroups", "ほかのグループへ移る"))) return;
     if (b.dataset.egPick) { mstate.egDraft = egDraftOf(d.items.find((x) => x.id === +b.dataset.egPick)); redraw(); return; }
     if (b.hasAttribute("data-eg-new")) { mstate.egDraft = egDraftOf(null); redraw(); $("#egSet").focus(); return; }
     if (b.dataset.egNewin != null) { mstate.egDraft = egDraftOf(null, b.dataset.egNewin); redraw(); $("#egName").focus(); return; }
@@ -1651,7 +1658,7 @@ TPA.onText($("#masterSearch"), (el) => { mstate.search = el.value; renderMasterT
 $("#masterBtn").onclick = openMaster;
 $("#masterCloseBtn").onclick = closeMaster;
 TPA.layer($("#masterOverlay"), closeMaster);
-$("#masterAddBtn").onclick = () => { if (!leaveOk()) return; mstate.prevSel = mstate.selId; openForm(mstate.tab, null); };
+$("#masterAddBtn").onclick = async () => { if (!(await leaveOk("新しい行を足す"))) return; mstate.prevSel = mstate.selId; openForm(mstate.tab, null); };
 
 /* ---------------- 追加・編集フォーム ---------------- */
 /* 右の詳細に行（row）を出す。row が無ければ追加の空の欄。focus: 最初の欄へ移るか（行を押しただけなら移らない） */
@@ -1714,13 +1721,48 @@ function formDirty() {
   const ed = mstate.editing;
   return !!ed && !!ed.orig && JSON.stringify(formValues()) !== ed.orig;
 }
-/** 直している途中なら、捨ててよいかを聞く（行・タブを移る・閉じる前） */
-function leaveOk() {
-  if (!formDirty()) return true;
-  if (!confirm("右の詳細に保存していない変更があります。捨てて移りますか？")) return false;
-  mstate.editing = null;
-  return true;
+/** 直している途中なら、どうするかを聞く（行・タブを移る・閉じる前）。マスタ管理の中の下書き（右の詳細・参照先・勤務体系・設備グループ・
+    変換表・データ元・作業実績のフォルダ）を、共通の窓（unsaved.js）で 1 度に聞く（版 3.43.0。前は右の詳細だけを confirm で聞き、ほかは黙って捨てていた） */
+const leaveOk = (what = "移る") => TPA.unsaved.leave("master", what);
+/** 保存のボタンを押し、保存し終えるまで待つ → 保存できたか（ボタンの処理は押した後に答えを返さないので、下書きが消えるか、知らせが ✕ になるかで見る） */
+async function saveBy(sel, dirty, noticeSel) {
+  const b = $(sel); if (!b || b.disabled) return false;
+  const n0 = $(noticeSel), before = n0 ? n0.textContent : "";
+  b.click();
+  for (let i = 0; i < 200; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    if (!dirty()) return true;
+    const n = $(noticeSel);
+    if (n && n.classList.contains("ng") && n.textContent !== before) return false;
+  }
+  return false;
 }
+/* マスタ管理の下書きの見張り（どれも scope "master"。そのタブを開いているときだけ、欄から読む） */
+const shiftDirty = () => {
+  const dr = mstate.shiftDraft, d = mstate.data.shifts;
+  if (mstate.tab !== "shifts" || !dr || !d || !$("#shName")) return false;
+  mstate.shiftSync && mstate.shiftSync();
+  const base = shiftDraftOf(d.items.find((x) => x.id === dr.id) || null);
+  return !TPA.unsaved.same({ ...dr, rev: 0 }, { ...base, rev: 0 });
+};
+const egDirty = () => {
+  const dr = mstate.egDraft, d = mstate.data.egroups;
+  if (mstate.tab !== "egroups" || !dr || !d || !$("#egName")) return false;
+  mstate.egSync && mstate.egSync();
+  const base = egDraftOf(d.items.find((x) => x.id === dr.id) || null, dr.id ? "" : dr.set);
+  return !TPA.unsaved.same({ ...dr, rev: 0 }, { ...base, rev: 0 });
+};
+TPA.unsaved.watch("master:form", { scope: "master", dirty: formDirty, discard: () => { mstate.editing = null; },
+  label: () => `${(MASTER_DEFS[(mstate.editing || {}).tab] || {}).label || "マスタ"}の右の詳細`,
+  save: () => saveBy("#masterFormSaveBtn", formDirty, "#masterFormNotice") });
+TPA.unsaved.watch("master:worklog", { scope: "master", label: "作業実績のフォルダ・ファイル名の決まり（「探す」で保存）",
+  dirty: () => { const d = mstate.data.worklog, f = $("#wlFolder"), pt = $("#wlPattern");
+    return mstate.tab === "worklog" && !!d && !!f && (f.value.trim() !== String(d.folder || "") || (!!pt && pt.value.trim() !== String(d.pattern || ""))); } });
+TPA.unsaved.watch("master:paths", { scope: "master", dirty: () => mstate.tab === "paths" && settingsDirty(), label: "参照先の欄（カードごとに「保存」）" });
+TPA.unsaved.watch("master:shifts", { scope: "master", dirty: shiftDirty, label: () => `勤務体系「${(mstate.shiftDraft || {}).name || "新しい勤務体系"}」`,
+  discard: () => { mstate.shiftDraft = null; }, save: () => saveBy("[data-sh-save]", shiftDirty, "#shNotice") });
+TPA.unsaved.watch("master:egroups", { scope: "master", dirty: egDirty, label: () => `設備グループ「${(mstate.egDraft || {}).name || "新しいグループ"}」`,
+  discard: () => { mstate.egDraft = null; }, save: () => saveBy("[data-eg-save]", egDirty, "#egNotice") });
 function showFormNotice(kind, html) { const n = $("#masterFormNotice"); n.className = "master-notice " + kind; n.innerHTML = html; }
 function hideFormNotice() { const n = $("#masterFormNotice"); n.className = "master-notice hidden"; n.innerHTML = ""; }
 function formValues() {
@@ -1845,5 +1887,5 @@ function afterMasterChange() { emit("tpa:masters-changed"); }
 if (window.MasterConv) window.MasterConv({ $, escapeHtml, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, lockWaitText, boldName,
   canWrite, readOnlyWhy, shareDown });
 if (window.MasterSources) window.MasterSources({ $, escapeHtml, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, lockWaitText, boldName,
-  canWrite, readOnlyWhy, shareDown, chip, goTab, ensureTabLoaded });
+  canWrite, readOnlyWhy, shareDown, chip, goTab, ensureTabLoaded, saveBy });
 })();

@@ -581,3 +581,36 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .db-sbadge.is-icon{font-size:0;gap:0;padding:0 5px}
 .db-sbadge.is-icon svg{width:12px;height:12px}
 .dp-kpi.is-row .dp-num{line-height:1}
+
+/* 値の見せ方（版 3.43.0。書式の配置・字）: 箱（パネルの中身）の data-al・data-va・data-nz・data-nb と --dp-nc で決める */
+.dp-num{color:var(--dp-nc,var(--ink))}
+[data-nb="off"] .dp-num,[data-nb="off"] .pv-table td,[data-nb="off"] .db-table td b{font-weight:400}
+[data-al="left"] .dp-kpi:not(.is-row),[data-al="left"] .dp-kbar:not(.is-row){align-items:flex-start;text-align:left}
+[data-al="center"] .dp-kpi:not(.is-row),[data-al="center"] .dp-kbar:not(.is-row){align-items:center;text-align:center}
+[data-al="right"] .dp-kpi:not(.is-row),[data-al="right"] .dp-kbar:not(.is-row){align-items:flex-end;text-align:right}
+[data-al="center"] .dp-kpi.is-row,[data-al="center"] .dp-kbar .dp-krow,[data-al="center"] .dp-ksub{justify-content:center}
+[data-al="right"] .dp-kpi.is-row,[data-al="right"] .dp-kbar .dp-krow,[data-al="right"] .dp-ksub{justify-content:flex-end}
+[data-al="center"] .dp-kbar .dp-track,[data-al="right"] .dp-kbar .dp-track{align-self:stretch}
+[data-va="top"] .dp-kpi:not(.is-row),[data-va="top"] .dp-kbar:not(.is-row){justify-content:flex-start}
+[data-va="bottom"] .dp-kpi:not(.is-row),[data-va="bottom"] .dp-kbar:not(.is-row){justify-content:flex-end}
+[data-va="top"] .dp-kpi.is-row{align-items:flex-start}
+[data-va="bottom"] .dp-kpi.is-row{align-items:flex-end}
+[data-al="left"] .pv-table td,[data-al="left"] .db-table td.num{text-align:left}
+[data-al="center"] .pv-table td,[data-al="center"] .db-table td.num{text-align:center}
+[data-al="right"] .pv-table td,[data-al="right"] .db-table td.num{text-align:right}
+[data-nz="s"] .dp-tbl .pv-table,[data-nz="s"] .db-table{font-size:11.5px}
+[data-nz="l"] .dp-tbl .pv-table,[data-nz="l"] .db-table{font-size:15px}
+[data-nz="xl"] .dp-tbl .pv-table,[data-nz="xl"] .db-table{font-size:17px}
+.pv-table td,.db-table td.num{color:var(--dp-nc,inherit)}
+/* 組む所の表示形式（版 3.43.0） */
+#dbEditor .de-ntx{width:132px}
+#dbEditor .de-ncode{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+#dbEditor .de-ncodein{width:100%;box-sizing:border-box;height:30px;padding:0 8px;border:1px solid var(--line);border-radius:6px;font:13px/1 ui-monospace,Consolas,monospace}
+#dbEditor .de-nex{display:flex;flex-wrap:wrap;gap:4px}
+#dbEditor .de-chip{height:24px;padding:0 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font:12px ui-monospace,Consolas,monospace;color:var(--h-input);cursor:pointer}
+#dbEditor .de-chip:hover{border-color:var(--h-input);background:var(--input-soft)}
+#dbEditor .de-nsample{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;font-variant-numeric:tabular-nums;font-weight:700}
+#dbEditor .de-nsample small{font-weight:400;color:var(--muted)}
+#dbEditor .de-nwarn{flex-basis:100%;font-style:normal;font-weight:400;font-size:12px;color:#a33a2c}
+#dbEditor .de-ncol{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted)}
+#dbEditor .de-ncol input{width:28px;height:24px;padding:0;border:1px solid var(--line);border-radius:4px;background:none}

@@ -102,9 +102,44 @@ def to_minutes(v):
     return (h, mi, s) if h < 24 and mi < 60 and s < 60 else None
 
 
+# よくある形（2026/10/01 8:15:00・2026-10-01・2026-10-01T08:15）を 1 回の照合で読む近道（版 3.43.0。ダッシュボードの集計は
+# 1 行ずつ日時を読むので、そこがいちばん重かった）。当たらない形は下の読み方（to_date・to_minutes）。答えは同じ
+_FAST_DT = re.compile(r"(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?")
+_DAYS = {}
+
+
+def _iso_day(y, mo, d):
+    k = (y, mo, d)
+    hit = _DAYS.get(k)
+    if hit is None:
+        try:
+            hit = _dt.date(int(y), int(mo), int(d)).isoformat()
+        except ValueError:
+            hit = ""
+        if len(_DAYS) > 20000:
+            _DAYS.clear()
+        _DAYS[k] = hit
+    return hit or None
+
+
 def to_datetime(v, time_value=None):
     """値を日時として読めれば 'YYYY-MM-DD HH:MM:SS'（時刻が無ければ 'YYYY-MM-DD'）、日付として読めなければ None（SQL では ToDateTime(列)）。
     time_value は時刻が別の列にあるとき（値に時刻が無いときだけ使う）。文字のまま並べても日時の順になる。"""
+    if isinstance(v, str):
+        s = v.strip()
+        m = _FAST_DT.fullmatch(s)
+        if m:
+            y, mo, dd, h, mi, sec = m.groups()
+            d = _iso_day(y, mo, dd)
+            if d is None:
+                return None
+            if h is not None and int(h) < 24 and int(mi) < 60 and int(sec or 0) < 60:
+                return f"{d} {int(h):02d}:{mi}:{int(sec or 0):02d}"
+            if h is None and time_value is not None:
+                hms = to_minutes(time_value)
+                return d if hms is None else f"{d} {hms[0]:02d}:{hms[1]:02d}:{hms[2]:02d}"
+            if h is None:
+                return d
     d = to_date(v)
     if d is None:
         return None

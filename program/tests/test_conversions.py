@@ -20,6 +20,9 @@ from app.services import formula as F
 ROOT = Path(__file__).resolve().parents[1]
 PRESETS = json.loads((ROOT / "app" / "master_defaults" / "conversions.json").read_text(encoding="utf-8"))
 TABLES = cv.tables(PRESETS)
+# 元の式のまま残した、どの値でも当たらない行（0 から数えた行の番号）。管理分類の 27 行目（板厚 0.33 以下 かつ 3.0 以上）・
+# 33 行目（板幅 700 以下は上の 28 行目で決まる）。版 3.42.0 は行のメモに書いていた（版 3.43.0 でメモをやめた）
+UNREACHABLE = {"管理分類": (26, 32)}
 TOOL = ROOT / "tools" / "formula-parity.mjs"
 
 
@@ -270,13 +273,13 @@ class PresetsMatchTheMCode(unittest.TestCase):
         self.assertGreater(len(cases()), 50000, "管理分類は値の組を 5 万通り以上試す")
 
     def test_every_row_is_reached_or_marked(self):
-        """管理分類・課名の行は、どれも試した値のどれかで当たる（当たらない行は、そう書いた行だけ）。
+        """管理分類・課名の行は、どれも試した値のどれかで当たる（当たらない行は UNREACHABLE に書いた行だけ）。
         出す値を行の番号にした表で、最初に当たった行を調べる"""
         for name, combos in (("管理分類", kanri_cases()), ("課名", [(e,) for e in EQUIP])):
             tb = TABLES[name]
             numbered = {name: {**tb, "rows": [{**r, "out": str(i)} for i, r in enumerate(tb["rows"])], "other": "-"}}
             hits = {conv(name, *vals, tables=numbered) for vals in combos}
-            marked = {str(i) for i, r in enumerate(tb["rows"]) if "到達しない" in r.get("note", "") or "1 件も当たりません" in r.get("note", "")}
+            marked = {str(i) for i in UNREACHABLE.get(name, ())}
             missed = {str(i) for i in range(len(tb["rows"]))} - hits - marked
             self.assertFalse(missed, f"{name}: 試した値で当たらない行 {sorted(int(i) + 1 for i in missed)}")
             self.assertFalse(marked & hits, f"{name}: 当たらないと書いた行が当たった {sorted(int(i) + 1 for i in marked & hits)}")
@@ -332,9 +335,10 @@ class CleanRow(unittest.TestCase):
 
     def test_shape(self):
         r = cv.clean_row(self.base(apply={"mode": "add", "column": "{列}_読", "place": "after"}, order=20, note=" メモ "))
+        self.assertNotIn("備考", r, "備考は持たない（版 3.43.0）")
         self.assertEqual(json.loads(r["入力"]), [{"name": "x", "type": "text", "columns": ["x"]}], "列の候補が無ければ入力の名前")
         self.assertEqual(json.loads(r["当て方"]), {"mode": "add", "column": "{列}_読", "place": "after"})
-        self.assertEqual((r["表示順"], r["備考"]), ("20", "メモ"))
+        self.assertEqual(r["表示順"], "20")
         self.assertEqual(cv.check_unique([{"id": 1, "名前": "表"}], r, None)[:5], "変換表「表")
         self.assertEqual(cv.check_unique([{"id": 1, "名前": "表"}], r, 1), "")
 
@@ -392,7 +396,7 @@ class Api(unittest.TestCase):
         ji = self.items()["地取区分"]
         r = self.c.put(f"/api/masters/conversions/{ji['id']}", json={"inputs": ji["inputs"], "rows": ji["rows"][:1], "other": "", "base_rev": ji["rev"]})
         self.assertEqual(r.status_code, 200, r.get_json())
-        self.assertEqual(self.c.put(f"/api/masters/conversions/{ji['id']}", json={"note": "x", "base_rev": ji["rev"]}).status_code, 409, "古い版からは直さない")
+        self.assertEqual(self.c.put(f"/api/masters/conversions/{ji['id']}", json={"name": ji["name"], "base_rev": ji["rev"]}).status_code, 409, "古い版からは直さない")
         now = self.items()["地取区分"]
         self.assertEqual((len(now["rows"]), now["other"]), (1, ""))
         r = self.c.post(f"/api/masters/conversions/{now['id']}/preset", json={"base_rev": now["rev"]})
@@ -401,6 +405,41 @@ class Api(unittest.TestCase):
         self.assertEqual(self.c.post(f"/api/masters/conversions/{mine['id']}/preset", json={}).status_code, 400, "プリセットでない表は戻せない")
         self.assertEqual(self.c.delete(f"/api/masters/conversions/{mine['id']}?rev={self.items()['異常の重さ']['rev']}").status_code, 200)
         self.assertNotIn("異常の重さ", self.items())
+
+    def test_export_import_defaults(self):
+        """書き出す → 中身を変えて取り込む（同じ名前は置き換え・無い名前は足す）→ 標準にする → 標準に戻すと取り込んだ中身 → 同梱に戻す（版 3.43.0）"""
+        out = self.c.get("/api/masters/conversions/export").get_json()["items"]
+        self.assertEqual(out[0]["name"], "ｺﾝﾏ5本区分")
+        self.assertFalse({"id", "order", "note"} & set(out[0]), "書き出す形に id・表示順・メモは入れない")
+        ji = next(x for x in out if x["name"] == "地取区分")
+        mine = {**ji, "rows": ji["rows"][:2], "other": ""}
+        new = {"name": "新しい表", "inputs": [{"name": "x"}], "rows": [{"when": {"x": [{"op": "eq", "v": ["1"]}]}, "out": "一"}], "other": ""}
+        bad = {"name": "壊れた表", "inputs": [], "rows": [], "other": ""}
+        r = self.c.post("/api/masters/conversions/import", json={"items": [mine, bad]})
+        self.assertEqual(r.status_code, 400, "1 つでも壊れていれば何も取り込まない")
+        self.assertIn("壊れた表", r.get_json()["error"])
+        self.assertEqual(len(self.items()["地取区分"]["rows"]), 5)
+        self.assertEqual(self.c.post("/api/masters/conversions/import", json={"items": [mine, mine]}).status_code, 400, "同じ名前が 2 つ")
+        r = self.c.post("/api/masters/conversions/import", json={"items": [mine, new], "asDefault": True})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        d = r.get_json()
+        self.assertEqual((d["added"], d["replaced"], d["customDefaults"]), (1, 1, True))
+        now = self.items()
+        self.assertEqual((len(now["地取区分"]["rows"]), now["地取区分"]["other"]), (2, ""), "同じ名前は置き換え")
+        self.assertEqual(list(now)[-1], "新しい表", "無い名前は後ろに足す")
+        self.assertTrue(now["新しい表"]["preset"] and not now["ｺﾝﾏ5本区分"]["preset"], "標準は取り込んだ表だけ")
+        self.assertEqual([x["name"] for x in self.c.get("/api/masters/conversions/export?which=defaults").get_json()["items"]], ["地取区分", "新しい表"])
+        # 直してから標準に戻すと、取り込んだ中身へ戻る
+        ji = self.items()["地取区分"]
+        self.c.put(f"/api/masters/conversions/{ji['id']}", json={"other": "x", "inputs": ji["inputs"], "rows": [], "base_rev": ji["rev"]})
+        self.c.post(f"/api/masters/conversions/{ji['id']}/preset", json={})
+        self.assertEqual((len(self.items()["地取区分"]["rows"]), self.items()["地取区分"]["other"]), (2, ""))
+        # 今の表をすべて標準にする → 同梱に戻す
+        self.assertTrue(all(x["preset"] for x in self.c.post("/api/masters/conversions/defaults", json={"from": "current"}).get_json()["items"]))
+        d = self.c.post("/api/masters/conversions/defaults", json={"from": "bundled"}).get_json()
+        self.assertFalse(d["customDefaults"])
+        self.assertFalse(self.items()["新しい表"]["preset"], "同梱のプリセットに無い表は標準に戻せない")
+        self.assertEqual(self.c.post("/api/masters/conversions/defaults", json={"from": "x"}).status_code, 400)
 
     def test_table_source_refreshes(self):
         t = [0.0]

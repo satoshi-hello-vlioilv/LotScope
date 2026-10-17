@@ -1,6 +1,6 @@
 // 評価関数（開発用）: 開き直したとき、閉じる前の見え方に戻るか（版 3.33.0）。
 //   node program/tools/ui-eval-reopen.mjs
-// 異常ロット一覧と作業実績で、画面の操作で次を変えてから、2 とおりに開き直し、同じに戻るかを数える。
+// 品質異常と作業実績で、画面の操作で次を変えてから、2 とおりに開き直し、同じに戻るかを数える。
 //   スライサー: 開閉（画面ごと）・足した列・選んだ値・置き場・字の大きさ／一覧の拡大（画面ごと）／畳んだまとまり（まとめた表で）
 // 開き直し ① 窓を閉じて開く（同じ PC の覚え〈localStorage〉は残り、この窓のあいだの覚え〈sessionStorage〉は消える）
 //         ② WebView の作業場所が消えた PC（覚えは空。サーバーの画面の設定の控えから戻す）
@@ -46,7 +46,7 @@ try {
   await page.evaluate(async (a) => { TPA.local.set("tpa.lotlist.arrange.v1", a); await TPA.saveUiState(); }, ARRANGE);
   await page.reload(); await ready(page);
 
-  // 異常ロット一覧: スライサーを開き、設備を足して 2 つ選び、上に置き、字を 120%。一覧を 120%。まとまりを 1 つ畳む
+  // 品質異常: スライサーを開き、設備を足して 2 つ選び、上に置き、字を 120%。一覧を 120%。まとまりを 1 つ畳む
   await page.click("#llSlicerBtn"); await sleep(400);
   await page.selectOption("#llSlicerAdd", "設備"); await sleep(1200);
   const vals = await page.$$eval('#llSlicer .sx-card[data-col="設備"] .sx-v[data-v]', (b) => b.filter((x) => +x.dataset.n > 0).slice(0, 2).map((x) => x.dataset.v));
@@ -59,7 +59,7 @@ try {
   const head = await page.$("#llBody tr.ll-ghead .ll-gtog");
   if (head) { await head.click(); await sleep(500); }
   const list = await look(page);
-  // 作業実績: スライサーは閉じたまま、一覧を 90%（異常ロット一覧と別に覚えるか）
+  // 作業実績: スライサーは閉じたまま、一覧を 90%（品質異常と別に覚えるか）
   await go(page, "#tabWork");
   await page.click("#llZoomBtn"); await page.waitForSelector("#llZoomPop:not([hidden])");
   await page.click("#llZoomMinus"); await page.keyboard.press("Escape"); await sleep(300);
@@ -71,12 +71,12 @@ try {
 
   const compare = async (tag, p) => {
     const l = await look(p);
-    check(`${tag} 異常ロット一覧: スライサーの開閉・足した列・選んだ値`, l.slicerOpen === list.slicerOpen && JSON.stringify(l.cards) === JSON.stringify(list.cards)
+    check(`${tag} 品質異常: スライサーの開閉・足した列・選んだ値`, l.slicerOpen === list.slicerOpen && JSON.stringify(l.cards) === JSON.stringify(list.cards)
       && JSON.stringify(l.picked) === JSON.stringify(list.picked), { now: l, was: list });
-    check(`${tag} 異常ロット一覧: スライサーの置き場・字の大きさ`, l.place === list.place && l.slicerZoom === list.slicerZoom, { now: l, was: list });
-    check(`${tag} 異常ロット一覧: 選んだ値で絞った件数`, l.count === list.count, { now: l.count, was: list.count });
-    check(`${tag} 異常ロット一覧: 一覧の拡大 ${list.zoom}`, l.zoom === list.zoom && l.gridZoom === list.gridZoom, { now: [l.zoom, l.gridZoom], was: [list.zoom, list.gridZoom] });
-    check(`${tag} 異常ロット一覧: 畳んだまとまり`, l.shut === list.shut, { now: l.shut, was: list.shut });
+    check(`${tag} 品質異常: スライサーの置き場・字の大きさ`, l.place === list.place && l.slicerZoom === list.slicerZoom, { now: l, was: list });
+    check(`${tag} 品質異常: 選んだ値で絞った件数`, l.count === list.count, { now: l.count, was: list.count });
+    check(`${tag} 品質異常: 一覧の拡大 ${list.zoom}`, l.zoom === list.zoom && l.gridZoom === list.gridZoom, { now: [l.zoom, l.gridZoom], was: [list.zoom, list.gridZoom] });
+    check(`${tag} 品質異常: 畳んだまとまり`, l.shut === list.shut, { now: l.shut, was: list.shut });
     await go(p, "#tabWork");
     const w = await look(p);
     check(`${tag} 作業実績: スライサーは閉じたまま・一覧の拡大 ${work.zoom}`, w.slicerOpen === work.slicerOpen && w.zoom === work.zoom && w.gridZoom === work.gridZoom, { now: w, was: work });

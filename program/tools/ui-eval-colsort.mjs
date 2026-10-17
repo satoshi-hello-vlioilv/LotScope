@@ -1,7 +1,7 @@
 // 評価関数（開発用）: 列の幅の取っ手と、計算列の並べ替え（版 3.42.0）。
 //   node program/tools/ui-eval-colsort.mjs
 // 幅（利用者の要望 2026-10: 仕掛の一覧で、いちばん左に持ってきた列の幅を狭められない）
-// 1. 異常ロット一覧・仕掛（データ元 wip）で、いちばん左へ動かした列の取っ手を左へ 40px 引くと、その列がちょうど 40px 狭まる
+// 1. 品質異常・仕掛（データ元 wip）で、いちばん左へ動かした列の取っ手を左へ 40px 引くと、その列がちょうど 40px 狭まる
 // 2. まとめて見出し行を付けた表（左端の列に畳むボタン・件数・字下げのぶんを足して描く）でも、左へ 60px 引くたびに 60px 狭まる
 //    （前は覚える幅に足し分が入り込み、引くたびに逆に広がった）。いちばん狭い 20px まで狭められ、覚えた幅と描いた幅が同じ
 // 3. 取っ手のダブルクリックで自動の幅に戻る（足し分も戻る）
@@ -18,7 +18,7 @@ import { launch, sleep } from "./ui-harness.mjs";
 const app = await launch();
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 600)}`}`); if (!ok) fails.push(name); };
-// 表示列の設定は「lotlist:表」・並び（まとめ・並べ替え）は表の名前で覚える（異常ロット一覧）。仕掛はどちらも「src:wip:表」
+// 表示列の設定は「lotlist:表」・並び（まとめ・並べ替え）は表の名前で覚える（品質異常）。仕掛はどちらも「src:wip:表」
 const LOT = "lotlist:仕掛", LOT_ARR = "仕掛", WIP = "src:wip:仕掛";
 const head = (p) => p.evaluate(() => [...document.querySelectorAll("#llHead th")].map((th) => ({ c: th.dataset.col, w: th.offsetWidth, sort: th.dataset.sort || "" })));
 /** 設定（表示列・並び）を置いて読み直す。screen は "list" か "wip" */
@@ -79,7 +79,7 @@ try {
   await drag(p, "設備", -60);
   check("4. 150% に拡大: 左へ 60px 引くと 40px（60÷1.5）狭まる", Math.abs((await stored(p, LOT, "設備")) - 120) <= 1, await stored(p, LOT, "設備"));
 
-  // ---------- 5〜7. 計算列の並べ替え（異常ロット一覧）
+  // ---------- 5〜7. 計算列の並べ替え（品質異常）
   const calcLayout = layoutOf(["ロット番号", "長さ2倍", "合金調質", "重量", "設備"], { formulas: { "長さ2倍": "[長さ]*2", "合金調質": "[合金] + '-' + [調質]" } });
   await setup(p, { layout: { [LOT]: calcLayout } });
   const asked = [];

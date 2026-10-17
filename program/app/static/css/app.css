@@ -628,3 +628,20 @@ body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}
   #hcPrint .hc-cap{display:flex;justify-content:space-between;font:12px sans-serif;color:#000;margin:0 0 4px}
   #hcPrint img{display:block;width:100%;height:auto;max-height:180mm;object-fit:contain}
 }
+
+/* 保存していない変更の窓（版 3.43.0。static/js/unsaved.js）。マスタ管理・組む所より手前に出す */
+.us-overlay{position:fixed;inset:0;z-index:4000;display:grid;place-items:center;background:rgba(18,30,44,.42)}
+.us-card{width:min(480px,calc(100vw - 32px));box-sizing:border-box;padding:18px 20px 16px;border-radius:12px;background:var(--surface);box-shadow:0 18px 48px rgba(10,20,32,.32);border-top:4px solid #c27a12}
+.us-head{display:flex;align-items:center;gap:10px}
+.us-head h3{margin:0;font-size:16px;color:var(--ink)}
+.us-ico{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#fff1d6;color:#8a5200;font-weight:800;flex:0 0 auto}
+.us-body{margin:10px 0 0 34px;font-size:13.5px;color:var(--ink)}
+.us-body p{margin:0 0 6px}
+.us-body ul{margin:0;padding-left:1.2em;max-height:180px;overflow:auto}
+.us-body li{margin:2px 0;font-weight:700}
+.us-err{min-height:0;margin:8px 0 0 34px;color:#a33a2c;font-size:12.5px}
+.us-err:empty{display:none}
+.us-acts{display:flex;align-items:center;gap:8px;margin-top:16px}
+.us-sp{flex:1}
+.us-acts .pv-btn,.us-acts .btn-primary{height:34px;padding:0 14px;white-space:nowrap}
+.us-discard{color:#a33a2c}

@@ -37,11 +37,14 @@
   let F = {};
   const LBL = { top: false, inside: false };
   /** 数値ラベル・目盛りの字（書式の桁・単位。無ければ short と同じ） */
+  // 単位で割る（千・万・百万・億）。表示形式（F.num。Excel の書式コード・num-format.js）があれば、割った数をその形で書く（単位の字はコードに入れる）
+  const DIVS = { k: [1e3, "千"], man: [1e4, "万"], m: [1e6, "百万"], oku: [1e8, "億"], none: [1, ""] };
   function nf(v) {
     if (v == null || v === "" || typeof v !== "number") return v == null ? "" : String(v);
     const u = F.unit || "auto", dg = F.digits;
+    if (F.num && window.NumFormat) return NumFormat.text(v / (DIVS[u] || [1])[0], F.num);
     if (u === "auto" && dg == null) return short(v);
-    const [div, suf] = u === "k" ? [1e3, "千"] : u === "man" ? [1e4, "万"] : u === "none" ? [1, ""] : Math.abs(v) >= 1e8 ? [1e8, "億"] : Math.abs(v) >= 1e4 ? [1e4, "万"] : [1, ""];
+    const [div, suf] = DIVS[u] || (Math.abs(v) >= 1e8 ? [1e8, "億"] : Math.abs(v) >= 1e4 ? [1e4, "万"] : [1, ""]);
     const x = v / div;
     return (dg == null ? fmt(Math.round(x * 100) / 100) : x.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg })) + suf;
   }
@@ -982,7 +985,7 @@
     return { nr, nc, M, rows, cols, value, lab, rowName: (r) => r.path.map((k, i) => lab(i, k)).join(" / "), colName: (c) => c.path.map((k, i) => lab(nr + i, k)).join(" / ") };
   }
   /** names: {measName, dimName}（値・段の見せる名前。一覧は列の表示名を使う） */
-  function tableHtml(m, d, { measName, dimName }) {
+  function tableHtml(m, d, { measName, dimName, num = fmt }) {
     const { nr, nc, M, rows, cols } = m;
     const mNames = d.measures.map((x) => measName(x));
     // 見出し: 列の段ごとの行（同じ頭はまとめる）＋値の名前の行（値が 2 つ以上か、列が無いとき）
@@ -1017,7 +1020,7 @@
         const cont = prev && prev.type === "data" && prev.path.slice(0, lv + 1).join(SEP) === r.path.slice(0, lv + 1).join(SEP);
         if (!cont) th += `<th rowspan="${lv === nr - 1 ? 1 : span(i, lv)}">${esc(m.lab(lv, r.path[lv]))}</th>`;
       }
-      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${fmt(v)}</td>`; }).join("")).join("");
+      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${num(v)}</td>`; }).join("")).join("");
       return `<tr class="${r.type === "grand" ? "is-grand" : r.type === "sub" ? "is-sub" : ""}">${th}${tds}</tr>`;
     }).join("");
     return `<thead>${head}</thead><tbody>${body}</tbody>`;
@@ -1049,9 +1052,16 @@
       ctx.rowColor(名前) があれば、1 系列の棒を行ごとの色で塗る（ダッシュボード: 同じ種類はどのパネルでも同じ色） */
   /** 書式（fmt の桁・単位）で数を字にする（ダッシュボードの数字・合わせた表）。fmt が空なら fmt と同じ見せ方（丸めない） */
   function numText(v, fm) {
-    if (!fm || (fm.digits == null && !fm.unit)) return fmt(v);
+    if (!fm || (fm.digits == null && !fm.unit && !fm.num)) return fmt(v);
     const keep = F; F = fm;
     try { return nf(v); } finally { F = keep; }
+  }
+  /** 表のセル・数字の字（HTML）: 表示形式の色（[赤] など）か、書式の字の色（fm.ncolor）を付ける */
+  function numHtml(v, fm) {
+    if (v == null) return "–";
+    const t = esc(numText(v, fm));
+    const c = fm && fm.num && window.NumFormat && typeof v === "number" ? NumFormat.format(v / (DIVS[fm.unit] || [1])[0], fm.num).color : "";
+    return c ? `<span style="color:${c}">${t}</span>` : t;
   }
   /** ctx.fmt（版 3.39.0）があれば、描く間だけ書式を当てる（数値ラベル・日付の形・桁・単位・縦軸・基準線・名前ごとの色） */
   function draw(kind, ctx) {
@@ -1065,5 +1075,5 @@
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
     try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, AGGS, SHOWS, aggOf, measLabel, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, AGGS, SHOWS, aggOf, measLabel, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();

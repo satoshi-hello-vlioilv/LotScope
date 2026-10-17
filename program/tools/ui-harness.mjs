@@ -3,7 +3,7 @@
 // 窓の代わりの開発用サーバー（ui_server.py。試験用の品質データ 1500 行）を起こし、Playwright の Chromium（WebView2 と同じ系統）で、
 // 利用者の画面と同じ大きさ（2160×1440・表示倍率 125% → 1728×1152）の頁を開く。
 // 窓だけが答える /__desktop/*（ショートカットの様子など）は作り物で答える（デスクトップのショートカットだけが欠けた PC）。
-// 状態（STATES）は、異常ロット一覧 → … → 作業実績 → … → 更新履歴 → 表示列の設定 → マスタ管理 → 待ちの窓 の順に 1 つの頁で進める。
+// 状態（STATES）は、品質異常 → … → 作業実績 → … → 更新履歴 → 表示列の設定 → マスタ管理 → 待ちの窓 の順に 1 つの頁で進める。
 // 起動画面（desktop/splash。窓が出す）は別の頁で、窓の代わりに splash.brand・step・fail を呼んで進める（SPLASH_STATES）。
 
 import { spawn, execSync } from "node:child_process";
@@ -79,7 +79,7 @@ export async function launch() {
   return {
     browser,
     base,
-    /** 異常ロット一覧が出た頁（まとめていない・拡大していない・覚えた設定の無い、まっさらな状態）。
+    /** 品質異常が出た頁（まとめていない・拡大していない・覚えた設定の無い、まっさらな状態）。
         最初の画面はダッシュボード（版 3.37.0）なので、頁の印 #screen=list で一覧から始める（読み直しても一覧のまま）。
         screen: "dash" ならダッシュボードから（パネルが描き終わるまで待つ） */
     async newPage(theme, view = VIEW, { screen = "list" } = {}) {
@@ -129,6 +129,8 @@ export async function waitDash(page, timeout = 30000) {
 
 /** 開いている浮かぶ窓・メニューを閉じる（次の状態の前に） */
 async function closeAll(page) {
+  // 前の状態で直した物（保存していない変更）は捨ててから閉じる（版 3.43.0。捨てないと、閉じる・移る前の確かめの窓で止まる）
+  await page.evaluate(() => { if (window.TPA && TPA.unsaved) TPA.unsaved.pending("*").forEach((w) => { try { w.discard && w.discard(); } catch (_) { /* 撮るだけ */ } }); document.querySelector('.us-card [data-us="discard"]')?.click(); }).catch(() => {});
   for (let i = 0; i < 3; i++) await page.keyboard.press("Escape");
   // Esc で閉じない窓（表示列の設定・マスタ管理）は閉じるボタンで
   for (const sel of ["#llFxPanel:not([hidden]) [data-act=close]", "#llColumnPanel:not([hidden]) #lcClose", "#masterOverlay:not(.hidden) #masterCloseBtn"]) {
@@ -290,7 +292,7 @@ export const STATES = [
     await p.reload(); await p.waitForSelector("#llBody tr[data-i]");
     await p.click("#tabWork"); await p.waitForSelector("#llEquipBar .eq-chip"); await sleep(900);
   }, "[data-next], #llEquipBar [aria-selected=false]"],
-  // 版 3.35.0: 推奨アップデートの札が付いた版（3.13.0）が配られ、この PC が取り込み済み（開き直せば新しい版）。異常ロット一覧で使っている所
+  // 版 3.35.0: 推奨アップデートの札が付いた版（3.13.0）が配られ、この PC が取り込み済み（開き直せば新しい版）。品質異常で使っている所
   ["update-recommended", async (p) => {
     await p.route("**/__desktop/update", (route) => route.fulfill({ json: UPDATE_RECOMMENDED }));
     await p.click("#tabList"); await sleep(400);
@@ -405,7 +407,20 @@ export const STATES = [
     const b = await p.evaluate(() => { const e = document.querySelector('#dashGrid .db-p[data-id="wipClass"] .db-pb').getBoundingClientRect(); return [e.x + e.width / 2, e.y + e.height / 2]; });
     await p.mouse.click(...b); await p.mouse.move(b[0] + 5, b[1]); await sleep(300);
   }, "[data-next], .db-cell"],
-  // 仕掛（データ元 wip。版 3.36.0）: 見出しの「仕掛」のタブで、異常ロット一覧と同じ部品の一覧
+  // 版 3.43.0: 数字のパネル（前日の実績本数）を組み、書式の表示形式を「数値・小数 1 桁・後ろに本」にした所（書式の所まで送る）
+  ["dash-kpi-fmt", async (p) => {
+    await p.focus('#dashGrid .db-p[data-id="workTotal"]'); await p.keyboard.press("Enter");
+    await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(300);
+    const pick = (sel, v) => p.evaluate(([s, x]) => { const e = document.querySelector(s); e.focus(); e.value = x; e.dispatchEvent(new Event("change", { bubbles: true })); }, [sel, v]);
+    await pick("#dbEditor [data-de-fncat]", "num"); await sleep(300);
+    await pick("#dbEditor [data-de-fndec]", "1"); await sleep(300);
+    await p.fill("#dbEditor [data-de-nsuf]", "本"); await sleep(600); await waitDash(p);
+    await p.evaluate(() => { document.dispatchEvent(new CustomEvent("tpa-show-fmt"));
+      const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deFmt");
+      if (m && f && f.offsetParent) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 120);
+      window.scrollTo(0, 0); }); await sleep(400);
+  }, "[data-next], [data-de-apply]"],
+  // 仕掛（データ元 wip。版 3.36.0）: 見出しの「仕掛」のタブで、品質異常と同じ部品の一覧
   ["wip", async (p) => { await closeAll(p); await p.click('[data-screen="src:wip"]'); await sleep(3000); }, "[data-next], #llSearch"],
   // 同じ知らせを作業実績の画面で（どの画面でも同じ所に出るか）
   ["update-recommended-work", async (p) => {
@@ -434,6 +449,12 @@ export const STATES = [
     await tab(p, "paths"); await sleep(300); await tab(p, "release"); await p.waitForSelector("[data-rec-on]"); await sleep(500);
     await p.click("[data-rec-on]"); await p.waitForSelector("[data-rec-off]"); await sleep(500);
   }, "[data-next], [data-rec-off]"],
+  // 版 3.43.0: 保存していない変更の窓（変換表の名前を変えて、勤務体系のタブを押した所）
+  ["unsaved", async (p) => {
+    await tab(p, "conv"); await p.waitForSelector("[data-cv-save]"); await sleep(400);
+    await p.fill("#cvName", "管理分類（直した）"); await p.press("#cvName", "Tab");
+    await tab(p, "shifts"); await p.waitForSelector(".us-card"); await sleep(300);
+  }, "[data-next], .us-card [data-us=back]"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ
