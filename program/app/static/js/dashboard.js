@@ -173,6 +173,8 @@
   function titleOf(p) { return p.title || E.autoTitle(p); }
   /* スライサーで期間を替えたパネルは、題の期間の言葉（前日・今月など）をスライサーの期間に置き換えて見せる（版 3.41.0。2026-10-dashslice の 1 回目の採点:
      先月を選ぶと「前日の実績本数」に先月の数が出て、言葉と数が食い違った）。置き換えた所は印を付け、元の題は札の説明に残す */
+  /** パネルが組んだ期間の短い言葉（前日・今月・直近 14 日。合わせた表は期間を組んだ最初のまとまり） */
+  const ownPeriod = (p) => { const o = (p.visual === "board" ? p.groups || [] : p.link ? p.link.sides || [] : [p]).find((x) => x.period && x.period.kind); return o ? sliceWord(o.period) : ""; };
   const PERIOD_WORD = /前日|昨日|今日|本日|今月|先月|直近\s*\d+\s*日/;
   function titleHtml(p) {
     const t = titleOf(p), hit = Q.sliceHits(p, sliceOf(p), canEquip);
@@ -197,11 +199,11 @@
     return [src + (equip ? `・${equip}` : p.source === "work" ? "・全設備" : "") + split, per, cond].filter(Boolean).join("　");
   }
   const NARROW = 360;      // これより狭いパネルの見出しは、操作を「⋯」1 つに畳む（ボタンが見出しからはみ出さない）
-  function headHtml(p, a, width) {
+  function headHtml(p, a, width, fold = false) {
     const warn = a && a.d ? P.notes(a.d).concat(a.err ? [`いまの数は前の物です（${a.err}）`] : []) : [];
     const badge = warn.length ? `<span class="db-warnb" title="${esc(warn.join("\n"))}" aria-label="${esc(warn.join("。"))}">⚠ ${warn.length}</span>` : "";
     const dot = p.visual === "board" ? "" : `<i class="db-dot" style="--c:${P.colorOf(p.source)}" aria-hidden="true"></i>`;
-    const tools = S.edit && width < NARROW
+    const tools = S.edit && (width < NARROW || fold)
       ? `<button type="button" class="db-pbtn db-more" data-db-more aria-haspopup="true" title="このパネルの操作（組む・複製・消す）" aria-label="このパネルの操作">⋯</button>`
       : S.edit
       ? `<button type="button" class="db-pbtn" data-db-edit title="このパネルを組む（Enter）">組む</button><button type="button" class="db-pbtn" data-db-dup title="同じパネルを空いた所に足す">複製</button>`
@@ -209,7 +211,7 @@
       : `<button type="button" class="db-pbtn db-quiet" data-db-edit title="このパネルを組み直す（編集に入ります）">組む</button>`;
     // 絞る（見ているとき・編集のときとも。この PC の見え方）。効いていれば数を出す（状態が見える）
     const qn = Q.chips(quickOf(p.id)).length;
-    const filt = width < NARROW && S.edit ? "" : `<button type="button" class="db-pbtn db-filt${qn ? " is-on" : ""}" data-db-filter aria-haspopup="dialog" title="このパネルだけを、設備・期間・値で絞ります（この PC の見え方）">`
+    const filt = (width < NARROW || fold) && S.edit ? "" : `<button type="button" class="db-pbtn db-filt${qn ? " is-on" : ""}" data-db-filter aria-haspopup="dialog" title="このパネルだけを、設備・期間・値で絞ります（この PC の見え方）">`
       + `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${qn ? `絞り込み ${qn}` : "絞る"}</button>`;
     return `${dot}<h3 title="${esc(titleOf(p))}">${titleHtml(p)}</h3><span class="db-sp"></span>`
       + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + filt + tools;
@@ -224,7 +226,8 @@
     el._sig = sig;
     // 形を替えた直後は、前の形の答え（合わせた表の答えとふつうの答えは形が違う）では描かない（引き直した答えを待つ）
     const a0 = S.answers.get(id), a = a0 && a0.d && (p.visual === "board") !== !!a0.d.groups ? { ...a0, d: null, err: "" } : a0;
-    el.querySelector(".db-ph").innerHTML = headHtml(p, a, el.clientWidth);
+    const ph = el.querySelector(".db-ph");
+    ph.innerHTML = headHtml(p, a, el.clientWidth);
     el.setAttribute("aria-label", titleOf(p));
     // 添え書き（元・期間・条件）は見出しの下の 2 行目（見出しは題と操作だけで 1 行）。数字の形は数の下に出す
     const meta = metaOf(asked(p), a), subEl = el.querySelector(".db-psub");
@@ -233,10 +236,18 @@
     const qc = Q.chips(quickOf(id)), qEl = el.querySelector(".db-pq"), hit = Q.sliceHits(p, sliceOf(p), canEquip), sl = sliceState();
     // スライサーが効いているパネルには札（外すのは道具の行のスライサーで）
     // スライサーが効いているパネルは、見出しの題の横に札（段を増やさない: 1 段の数字のパネルで数が隠れた）。外すのは道具の行のスライサーで
-    const sw = hit.period || hit.equip ? [hit.period ? sliceWord(sl.period) : "", hit.equip ? eqWord(sl.equips) : ""].filter(Boolean).join("・") : "";
+    // 期間は「元の期間→スライサーの期間」（前日→9月・今月→9月。2 回目の採点: 前日と今月のパネルが同じ題と数に見えた）
+    const sw = hit.period || hit.equip ? [hit.period ? `${ownPeriod(p) ? ownPeriod(p) + "→" : ""}${sliceWord(sl.period)}` : "", hit.equip ? eqWord(sl.equips) : ""].filter(Boolean).join("・") : "";
     el.classList.toggle("is-sliced", !!sw);
     const h3 = el.querySelector(".db-ph h3");
-    if (sw && h3) h3.insertAdjacentHTML("afterend", `<span class="db-sbadge" title="ダッシュボードのスライサー（${esc(sw)}）で数えています。道具の行で外せます"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${esc(sw)}</span>`);
+    const badgeHtml = sw ? `<span class="db-sbadge" title="ダッシュボードのスライサー（${esc(sw)}）で数えています。道具の行で外せます"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${esc(sw)}</span>` : "";
+    if (sw && h3) h3.insertAdjacentHTML("afterend", badgeHtml);
+    // 編集で題が切れるなら、操作を「⋯」1 つに畳む（2026-10-dashslice の 2 回目の採点: 1280 の数字のパネルで題が「前日の実績…」と切れた）
+    const t3 = el.querySelector(".db-ph h3");
+    if (S.edit && t3 && t3.scrollWidth > t3.clientWidth + 1 && !ph.querySelector("[data-db-more]")) {
+      ph.innerHTML = headHtml(p, a, el.clientWidth, true);
+      if (sw) ph.querySelector("h3").insertAdjacentHTML("afterend", badgeHtml);
+    }
     qEl.hidden = !qc.length;
     qEl.innerHTML = qc.map((c) => `<span class="db-qchip">${esc(c.text)}<button type="button" data-db-qdrop="${esc(c.key)}" aria-label="「${esc(c.text)}」の絞り込みを外す">×</button></span>`).join("");
     const body = el.querySelector(".db-pb"), foot = el.querySelector(".db-pf");
