@@ -577,10 +577,10 @@
   }
  ],
  "built": {
-  "name": "作った後（直した後）",
-  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built2-eval（1728×1152）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built2-eval-1280（1280×720）。作る前は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-now、直す前の作った後は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built-eval",
+  "name": "作った後（見切れを直した後）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built3-eval（1728×1152）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built3-eval-1280（1280×720）〈master-conv・master-conv-cell〉。表示列の設定（columns-detail・columns-conv）は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/conv-built2-eval の画像。作る前は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-now",
   "result": {
-   "evaluator": "同じ採点者（案を作っていない者）が、何もしない案の定義（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built.mjs）で本物の画面の columns-detail・columns-conv・master-conv・master-conv-cell を 1728×1152 と 1280×720 で撮り直し、1 枚ずつ Read で見て採点した",
+   "evaluator": "同じ採点者（案を作っていない者）が、何もしない案の定義（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built.mjs）で本物の画面の columns-detail・columns-conv・master-conv・master-conv-cell を 1728×1152 と 1280×720 で撮り直し、1 枚ずつ Read で見て採点した。見切れを直した後は、master-conv・master-conv-cell だけを 1728・1280 で撮り直して見た",
    "score": {
     "order": 9,
     "chunk": 9,
@@ -594,13 +594,8 @@
     "layout": 8,
     "tone": 8
    },
-   "minus": [
-    {
-     "kind": "cut",
-     "where": "master-conv-light-built.png・master-conv-cell-light-built.png（1728）の 14 行目: 出す値の欄が「52S_2.0-3.0mm(」で切れ、閉じ括弧から先が読めない（出す値の欄の幅が固定のため。ほかに長い出す値の行があれば同じ）"
-    }
-   ],
-   "seen": "作った後に指摘した 4 つの減点は消えた。判定表（master-conv）: 条件の札は 1 行のまま折れない（「T で始まらない」「30 ＜ 〜 ≦ 75」「＝ HOT・2HI」）。1728 では 15 行が見える。1280 では入力が 2 列 3 段に詰まり、上の説明も 2 行になって、最初の画面に判定表が 7 行見える。右の列は表の中で切れて送る形で、窓の外には出ない。ただし右の影は画像では淡く、はっきりとは見分けにくい。セルを直す所（master-conv-cell）: 欄が見えている幅に収まり、1280 でも「＋ または・不問にする・閉じる」がそろって見える。「試す」の答え（→ ｸﾘﾔｰ材〈32 行目に当たりました〉）も 1280 で見える。表示列の設定（columns-detail・columns-conv）: 帯の「まとめて当てる」が緑の主ボタンになり、帯の中でいちばん目立つ（案の M と同じ）。1728・1280 とも帯は 1 段。当てた後の行の札（＋列課名）・下の段の「保存で確定します」・後ろの一覧に足された列も、前と同じくよく見える。残る所: 14 行目の出す値「52S_2.0-3.0mm(」が欄の幅で切れる。1728 の master-conv-cell では 4 行目のｵｰﾀﾞｰ材質のセルに空の入力枠（–）が出ている（撮った時のカーソルの当たりかもしれないので、減点はしない）。1728 の上の説明は、最後の「す。」だけが 2 行目に落ちる（文の段なので減点はしない）。"
+   "minus": [],
+   "seen": "見切れを直した後: 14 行目の出す値「52S_2.0-3.0mm(押加工焼鈍)」が欄に全部入り、切れない（master-conv-light-built.png・1728）。出す値の欄は中身の長さで幅が変わる。1728 では 7 つの入力の列が全部見え、札も折れない。1280（master-conv-cell-light-built.png）では出す値の列が広がった分、板厚から右が表の中で切れて送る形になる。窓の外には出ず、右に影も見える（前の回と同じ扱いで減点しない）。前の回に 1728 の 4 行目に出ていた空の入力枠は、今回は出ていない。新しい減点は見つからなかった。以下は前の回（直した後）の見えたこと: 作った後に指摘した 4 つの減点は消えた。判定表（master-conv）: 条件の札は 1 行のまま折れない（「T で始まらない」「30 ＜ 〜 ≦ 75」「＝ HOT・2HI」）。1728 では 15 行が見える。1280 では入力が 2 列 3 段に詰まり、上の説明も 2 行になって、最初の画面に判定表が 7 行見える。右の列は表の中で切れて送る形で、窓の外には出ない。ただし右の影は画像では淡く、はっきりとは見分けにくい。セルを直す所（master-conv-cell）: 欄が見えている幅に収まり、1280 でも「＋ または・不問にする・閉じる」がそろって見える。「試す」の答え（→ ｸﾘﾔｰ材〈32 行目に当たりました〉）も 1280 で見える。表示列の設定（columns-detail・columns-conv）: 帯の「まとめて当てる」が緑の主ボタンになり、帯の中でいちばん目立つ（案の M と同じ）。1728・1280 とも帯は 1 段。当てた後の行の札（＋列課名）・下の段の「保存で確定します」・後ろの一覧に足された列も、前と同じくよく見える。残る所: 14 行目の出す値「52S_2.0-3.0mm(」が欄の幅で切れる。1728 の master-conv-cell では 4 行目のｵｰﾀﾞｰ材質のセルに空の入力枠（–）が出ている（撮った時のカーソルの当たりかもしれないので、減点はしない）。1728 の上の説明は、最後の「す。」だけが 2 行目に落ちる（文の段なので減点はしない）。"
   }
  }
 }
