@@ -71,7 +71,7 @@
   }
   /** 数えるときのパネル（組んだパネル＋スライサー＋この PC のパネルの絞り込み） */
   const asked = (p) => Q.merge(Q.slice(p, sliceOf(p), canEquip), quickOf(p.id));
-  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない）
+  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters, p.order, p.calc] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない。サーバーが読む項目は全部入れる: 合わせた表の order〈見出しの設備グループ〉も。版 3.43.0）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
