@@ -242,11 +242,14 @@
     const h3 = el.querySelector(".db-ph h3");
     const badgeHtml = sw ? `<span class="db-sbadge" title="ダッシュボードのスライサー（${esc(sw)}）で数えています。道具の行で外せます"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${esc(sw)}</span>` : "";
     if (sw && h3) h3.insertAdjacentHTML("afterend", badgeHtml);
+    // 題が切れるなら、印を絵だけに畳む（中身は印の説明に。3 回目の採点: 1280 の数字のパネルで「9月 の実績…」と切れた）
+    const tb = el.querySelector(".db-ph h3"), sb = el.querySelector(".db-ph .db-sbadge");
+    if (tb && sb && tb.scrollWidth > tb.clientWidth + 1) sb.classList.add("is-icon");
     // 編集で題が切れるなら、操作を「⋯」1 つに畳む（2026-10-dashslice の 2 回目の採点: 1280 の数字のパネルで題が「前日の実績…」と切れた）
     const t3 = el.querySelector(".db-ph h3");
     if (S.edit && t3 && t3.scrollWidth > t3.clientWidth + 1 && !ph.querySelector("[data-db-more]")) {
       ph.innerHTML = headHtml(p, a, el.clientWidth, true);
-      if (sw) ph.querySelector("h3").insertAdjacentHTML("afterend", badgeHtml);
+      if (sw) ph.querySelector("h3").insertAdjacentHTML("afterend", badgeHtml.replace('class="db-sbadge"', 'class="db-sbadge is-icon"'));
     }
     qEl.hidden = !qc.length;
     qEl.innerHTML = qc.map((c) => `<span class="db-qchip">${esc(c.text)}<button type="button" data-db-qdrop="${esc(c.key)}" aria-label="「${esc(c.text)}」の絞り込みを外す">×</button></span>`).join("");
@@ -283,12 +286,10 @@
       + `<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
     const msg = `<span class="db-msg" aria-live="polite">${esc(S.msg)}</span>`;
     if (!S.edit) {
-      bar.innerHTML = pick + `<div class="ds-wrap" id="dashSlicer">${D.barHtml(sliceState(), sliceInfo())}</div>` + msg + `<span class="db-sp"></span><small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
+      bar.innerHTML = pick + msg + `<span class="db-sp"></span><small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
         + `<button type="button" class="pv-btn" data-db-refresh title="いま引き直す">↻ 引き直す</button>`
         + `<button type="button" class="btn-primary db-editbtn" data-db-editmode title="パネルを足す・動かす・大きさを変える・組む">編集</button>`;
-      // 入り切らなければ（1280 など）詰めた形に
-      const w = bar.querySelector("#dashSlicer");
-      if (w && w.scrollWidth > w.clientWidth + 1) w.innerHTML = D.compactHtml(sliceState(), sliceInfo());
+      paintSlicer();
       return;
     }
     const rows = `<label class="pv-ck" title="グリッドの段の数（多いほど 1 段が低い）">段<select data-db-rows>${Array.from({ length: S.rowsRange[1] - S.rowsRange[0] + 1 }, (_, i) => S.rowsRange[0] + i)
@@ -297,6 +298,7 @@
     const leave = S.confirm === "leave"
       ? `<span class="db-armed">変えた所を捨てますか</span><button type="button" class="btn-ghost" data-db-stay>戻る</button><button type="button" class="pv-btn is-danger" data-db-discard>捨てる</button>`
       : `<button type="button" class="btn-ghost" data-db-leave>${dirty() ? "やめる" : "編集を終える"}</button>`;
+    paintSlicer();
     const sl = sliceState(), sw = sl ? [sl.period && sl.period.kind ? sliceWord(sl.period) : "", (sl.equips || []).length ? eqWord(sl.equips) : ""].filter(Boolean).join("・") : "";
     bar.innerHTML = pick + `<span class="db-editing">編集中</span>`
       + (sw ? `<button type="button" class="ds-mini" data-ds-clear title="スライサー（${esc(sw)}）が効いています。押すと外します">スライサー ${esc(sw)} ×</button>` : "")
@@ -305,6 +307,15 @@
       + msg + `<span class="db-sp"></span>${leave}`
       + (canSave ? `<button type="button" class="btn-primary" data-db-save${dirty() ? "" : " disabled"}>保存</button>` : "")
       + `<button type="button" class="${canSave ? "pv-btn" : "btn-primary"}" data-db-saveas aria-haspopup="true" title="${it && it.builtin ? "組み込みの物は書き換えられないので、名前を付けて保存します" : "名前を付けて、別のダッシュボードとして保存します"}">名前を付けて保存…</button>`;
+  }
+  /** スライサーの帯（道具の行の下の細い帯。2026-10-dashslice の 3 回目で決めた C2）。編集のときは出さない（道具の行の「スライサー … ×」で分かる）。
+      帯にも入り切らない狭い窓だけ、詰めた形（選ぶ欄） */
+  function paintSlicer() {
+    const w = $("#dashSlicer"); if (!w) return;
+    w.hidden = !!S.edit || !S.layout;
+    if (w.hidden) return;
+    w.innerHTML = D.barHtml(sliceState(), sliceInfo());
+    if (w.scrollWidth > w.clientWidth + 1) w.innerHTML = D.compactHtml(sliceState(), sliceInfo());
   }
   const say = (t) => { S.msg = t || ""; const m = document.querySelector("#dashBar .db-msg"); if (m) m.textContent = S.msg; clearTimeout(say.t); if (t) say.t = setTimeout(() => { S.msg = ""; const n = document.querySelector("#dashBar .db-msg"); if (n) n.textContent = ""; }, 6000); };
 

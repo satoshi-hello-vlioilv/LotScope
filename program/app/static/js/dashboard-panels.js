@@ -106,7 +106,7 @@
     const row = H < 96 && W >= 240;
     const room = row ? H : H - (sub0 ? 20 : 0);    // 添え書き（期間・元）の行の分
     const wide = row ? W * 0.55 : W - 8;   // 横に並べるときは、数に幅の 55% まで（残りは添え書き）
-    const size = Math.round(Math.max(14, Math.min(88, room * (row ? 0.78 : vals.length > 1 ? 0.42 : 0.56), wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
+    const size = Math.round(Math.max(14, Math.min(88, room * (row ? 0.92 : vals.length > 1 ? 0.42 : 0.56), wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
     const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${esc(C.numText(v, fm))}</b></span>`).join("");
     box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${esc(text)}<small>${unit}</small></b>`
       + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")

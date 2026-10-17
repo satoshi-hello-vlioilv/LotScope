@@ -8,7 +8,7 @@
 // ⑤ 四隅のどの角でも大きさが変わる（向かいの角は動かない）・Alt＋Shift＋矢印で左上の角
 // ⑥ スライサー: 先月＋L ラインで、効くパネルの数がサーバーへ同じ組み（期間＝先月・設備＝L ラインの設備の計）を問い合わせた答えと合う。
 //    期間を組んでいない仕掛のパネルは期間が変わらない・「スライサーに従わない」パネルは変わらない・◀ で 2 か月前（名前が月）・外すと戻る・開き直しても覚えている。
-//    1280×720 では詰めた形で道具の行に収まり、はみ出さない。パネルの見出しに効いている印
+//    スライサーは道具の行の下の細い帯（3 回目で決めた C2）。1280×720 でも 1728 と同じ札の形で 1 段に収まり、題が切れない。編集のときは帯を出さない。パネルの見出しに効いている印
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
 
@@ -212,17 +212,24 @@ try {
   await p.click("[data-ds-clear]"); await sleep(500);
   await p.close();
 
-  // 1280×720: 詰めた形で収まる
+  // 1280×720: 帯（3 回目で決めた C2）に、1728 と同じ札の形で 1 段に収まる
   const q = await app.newPage("light", parseView("1280x720"), { screen: "dash" });
   q.on("pageerror", (e) => errors.push(e.message));
-  await q.selectOption("[data-ds-psel]", "last_month"); await sleep(400); await waitDash(q);
-  await q.selectOption("[data-ds-gsel]", "L ライン"); await sleep(600); await waitDash(q);
-  const fit = await q.evaluate(() => { const bar = document.querySelector("#dashBar"), w = document.querySelector("#dashSlicer"); const r = bar.getBoundingClientRect();
-    const cut = [...bar.querySelectorAll("button,select")].filter((b) => { const x = b.getBoundingClientRect(); return x.width && (x.right > r.right + 1 || x.right > w.getBoundingClientRect().right + 1 && w.contains(b)); }).map((b) => b.textContent.trim());
-    return { compact: !!w.querySelector(".is-compact"), cut, oneRow: bar.getBoundingClientRect().height < 46, over: w.scrollWidth > w.clientWidth + 1 }; });
-  check("⑥ 1280×720: 詰めた形で道具の行に 1 段で収まる（切れるボタンが無い）", fit.compact && !fit.cut.length && fit.oneRow && !fit.over, fit);
-  const kp = await q.evaluate(() => [...document.querySelectorAll('#dashGrid .db-p .dp-num')].map((n) => parseFloat(n.style.fontSize)));
-  check("⑥ 1280×720: 1 段の数字のパネルの数が 20px 以上（印で数が隠れない・縮まない）", kp.length >= 3 && kp.every((f) => f >= 20), kp);
+  await q.click('[data-ds-period="last_month"]'); await sleep(400); await waitDash(q);
+  await q.click('[data-ds-group="L ライン"]'); await sleep(600); await waitDash(q);
+  const fit = await q.evaluate(() => { const w = document.querySelector("#dashSlicer"), r = w.getBoundingClientRect();
+    const cut = [...w.querySelectorAll("button,select,small")].filter((b) => { const x = b.getBoundingClientRect(); return x.width && (x.right > r.right + 1 || x.bottom > r.bottom + 1); }).map((b) => b.textContent.trim());
+    return { strip: w.classList.contains("ds-strip") && !w.hidden, compact: !!w.querySelector(".is-compact"), cut, oneRow: r.height < 40, over: w.scrollWidth > w.clientWidth + 1, hits: (w.querySelector(".ds-hits") || {}).textContent }; });
+  check("⑥ 1280×720: スライサーの帯に、1728 と同じ札の形で 1 段に収まる（切れる物が無い・効いている枚数も出る）", fit.strip && !fit.compact && !fit.cut.length && fit.oneRow && !fit.over && /6 \/ 6/.test(fit.hits || ""), fit);
+  const titles = await q.evaluate(() => [...document.querySelectorAll("#dashGrid .db-ph h3")].filter((h) => h.scrollWidth > h.clientWidth + 1).map((h) => h.textContent));
+  check("⑥ 1280×720: スライサーが効いても、パネルの題が切れない（印は絵だけに畳む）", !titles.length, titles);
+  await q.click("[data-db-editmode]"); await sleep(400);
+  const ed = await q.evaluate(() => ({ hidden: document.querySelector("#dashSlicer").hidden, mini: (document.querySelector("#dashBar .ds-mini") || {}).textContent || "" }));
+  check("⑥ 編集のときは帯を出さず、道具の行に「スライサー … ×」", ed.hidden && /スライサー/.test(ed.mini), ed);
+  await q.click("[data-db-leave]"); await sleep(400);
+  // 数は、居る段の高さいっぱい（添え書きや印に押されて縮まない。前は添え書きがはみ出して 14px まで縮んだ）。14px より小さくしない
+  const kp = await q.evaluate(() => [...document.querySelectorAll('#dashGrid .dp-kpi.is-row')].map((k) => ({ f: parseFloat(k.querySelector(".dp-num").style.fontSize), h: k.closest(".db-pb").clientHeight })));
+  check("⑥ 1280×720: 1 段の数字のパネルの数が段の高さいっぱい（85% 以上・14px 以上）", kp.length >= 3 && kp.every((x) => x.f >= 14 && x.f >= x.h * 0.85), kp);
   check("頁の誤りが無い", !errors.length, errors);
 } finally {
   await app.close();
