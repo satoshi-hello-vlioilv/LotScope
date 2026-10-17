@@ -60,6 +60,7 @@
   async function loadTree() {
     try { const r = await fetch("/api/dashboard/equip-tree", { cache: "no-store" }); if (r.ok) S.tree = await r.json(); } catch (_) { /* 設備の札が出ないだけ */ }
     paintBar();
+    if (S.layout) S.layout.panels.forEach((p) => paintPanel(p.id, true));     // 添え書きの設備をグループの名前で（設備グループが分かってから）
     if (popEl && S.pop === "slice") { popEl.innerHTML = D.pickHtml(sliceState(), sliceInfo()); D.mixed(popEl); }
   }
   /** 数えるときのパネル（組んだパネル＋スライサー＋この PC のパネルの絞り込み） */
@@ -170,6 +171,15 @@
     }
   }
   function titleOf(p) { return p.title || E.autoTitle(p); }
+  /* スライサーで期間を替えたパネルは、題の期間の言葉（前日・今月など）をスライサーの期間に置き換えて見せる（版 3.41.0。2026-10-dashslice の 1 回目の採点:
+     先月を選ぶと「前日の実績本数」に先月の数が出て、言葉と数が食い違った）。置き換えた所は印を付け、元の題は札の説明に残す */
+  const PERIOD_WORD = /前日|昨日|今日|本日|今月|先月|直近\s*\d+\s*日/;
+  function titleHtml(p) {
+    const t = titleOf(p), hit = Q.sliceHits(p, sliceOf(p), canEquip);
+    if (!hit.period || !PERIOD_WORD.test(t)) return esc(t);
+    const m = PERIOD_WORD.exec(t);
+    return `${esc(t.slice(0, m.index))}<mark class="db-tsw" title="スライサーで「${esc(m[0])}」から替えています">${esc(sliceWord(sliceState().period))}</mark>${esc(t.slice(m.index + m[0].length))}`;
+  }
   const SPLIT_NAME = { series: "設備ごとの系列", facet: "設備ごとに並べる", sum: "合算" };
   function metaOf(p, a) {
     if (p.visual === "board") return "";
@@ -201,7 +211,7 @@
     const qn = Q.chips(quickOf(p.id)).length;
     const filt = width < NARROW && S.edit ? "" : `<button type="button" class="db-pbtn db-filt${qn ? " is-on" : ""}" data-db-filter aria-haspopup="dialog" title="このパネルだけを、設備・期間・値で絞ります（この PC の見え方）">`
       + `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${qn ? `絞り込み ${qn}` : "絞る"}</button>`;
-    return `${dot}<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3><span class="db-sp"></span>`
+    return `${dot}<h3 title="${esc(titleOf(p))}">${titleHtml(p)}</h3><span class="db-sp"></span>`
       + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + filt + tools;
   }
   /** パネルを描く。組み・答え・大きさ・編集の様子が前に描いた時と同じなら描かない（force で必ず） */
@@ -290,8 +300,12 @@
   /* ---------------- 浮かぶ面（ダッシュボードを選ぶ・名前を付けて保存・1 枚の表の条件） ---------------- */
   let popEl = null, popOff = null;
   function closePop() { if (popOff) popOff(); popOff = null; if (popEl) popEl.remove(); popEl = null; S.pop = null; paintBar(); }
+  /** anchor … 開く元の要素か、その選び方（字）。前の面を閉じると道具の行を描き直すので、要素はそのあとで探し直す
+      （描き直しで外れた要素の下に開いて、面が左上に出ていた: 2026-10-dashslice の 1 回目の採点） */
   function openPop(kind, anchor, html, cls = "") {
+    const sel = typeof anchor === "string" ? anchor : null;
     closePop();
+    if (sel || !anchor.isConnected) anchor = document.querySelector(sel || `[data-db-${kind}]`) || anchor;
     S.pop = kind;
     popEl = document.createElement("div");
     popEl.className = `db-pop ${cls}`; popEl.setAttribute("role", "dialog");
@@ -623,9 +637,9 @@
       const on = g && cur.length === g.members.length && g.members.every((m) => cur.includes(m));
       setSlice({ ...(sliceState() || {}), equips: on || !g ? [] : g.members.slice() }); return;
     }
-    if (b.hasAttribute("data-ds-pick")) { if (S.pop === "slice") closePop(); else { const el = openPop("slice", b, D.pickHtml(sliceState(), sliceInfo()), "db-slicepop"); D.mixed(el); if (!S.tree) loadTree(); } return; }
+    if (b.hasAttribute("data-ds-pick")) { if (S.pop === "slice") closePop(); else { const el = openPop("slice", "#dashSlicer [data-ds-pick]:not([hidden])", D.pickHtml(sliceState(), sliceInfo()), "db-slicepop"); D.mixed(el); if (!S.tree) loadTree(); } return; }
     if (b.hasAttribute("data-ds-clear")) { setSlice({ set: (sliceState() || {}).set }); say("スライサーを外しました"); return; }
-    if (b.hasAttribute("data-db-editmode")) { S.edit = true; S.confirm = ""; paint(); say("見出しを掴んで動かし、四隅の角で大きさを変えます。空いたマスを押すとパネルを足せます"); return; }
+    if (b.hasAttribute("data-db-editmode")) { S.edit = true; S.confirm = ""; paint(); say("見出しで動かす・四隅で大きさ・空いたマスで足す"); return; }
     if (b.hasAttribute("data-db-leave")) { if (dirty()) { S.confirm = "leave"; paintBar(); } else { S.edit = false; closeEditor(); paint(); } return; }
     if (b.hasAttribute("data-db-stay")) { S.confirm = ""; paintBar(); return; }
     if (b.hasAttribute("data-db-discard")) { S.confirm = ""; closeEditor(); const id = S.id; S.edit = false; if (id != null) open(id); else open(S.standardId); return; }
@@ -647,7 +661,7 @@
     const t = e.target;
     if (t.matches && t.matches("[data-ds-psel]")) { const [k, n] = t.value.split(":"); setSlice({ ...(sliceState() || {}), period: k ? { kind: k, ...(k === "days" ? { n: 7 } : n ? { n: +n } : {}) } : null }); return; }
     if (t.matches && t.matches("[data-ds-gsel]")) {
-      if (t.value === "@pick") { const b = $("#dashSlicer [data-ds-pick]"); paintBar(); const nb = $("#dashSlicer [data-ds-pick]") || b; const el = openPop("slice", $("#dashSlicer") || nb, D.pickHtml(sliceState(), sliceInfo()), "db-slicepop"); D.mixed(el); return; }
+      if (t.value === "@pick") { const el = openPop("slice", "#dashSlicer [data-ds-gsel]", D.pickHtml(sliceState(), sliceInfo()), "db-slicepop"); D.mixed(el); return; }
       if (t.value === "@custom") return;
       const g = D.groupsOf(S.tree || {}, (sliceState() || {}).set).find((x) => x.name === t.value);
       setSlice({ ...(sliceState() || {}), equips: g ? g.members.slice() : [] }); return;

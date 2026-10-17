@@ -1012,14 +1012,17 @@
     if (!li) return;
     e.preventDefault();
     const isGroup = !li.matches("[data-de-row]"), list = li.parentElement;
-    const r = li.getBoundingClientRect();
-    const ghost = li.cloneNode(true);
-    ghost.classList.add("de-ghost"); ghost.removeAttribute("data-de-row"); ghost.removeAttribute("data-de-rgrp");
-    Object.assign(ghost.style, { position: "fixed", left: `${r.left + 18}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${Math.min(r.height, 220)}px`, zIndex: 60, pointerEvents: "none" });
+    const r = li.getBoundingClientRect(), lr = list.getBoundingClientRect();
+    // ゴーストは名前だけの小さな札にして、並びの右の外に、入る所の線の高さで出す（並びの札を覆わない。2026-10-dashslice の 1 回目の採点:
+    // 札の写しが入る所の直前の札を覆い、番号が 3 つ食い違った）。札に「ここへ n 番目」
+    const ghost = document.createElement("div");
+    ghost.className = "de-ghost";
+    ghost.innerHTML = `<span class="de-gname"><i aria-hidden="true">⋮⋮</i>${esc(isGroup ? li.dataset.deRgrp : li.dataset.deRow)}</span><b class="de-gto"></b>`;
+    Object.assign(ghost.style, { position: "fixed", left: `${Math.round(lr.right + 14)}px`, top: `${r.top}px`, zIndex: 60, pointerEvents: "none" });
     document.body.append(ghost);
     const line = document.createElement("div"); line.className = "de-dropline"; list.append(line);
     li.classList.add("is-src");
-    rd = { li, list, isGroup, key: isGroup ? li.dataset.deRgrp : li.dataset.deRow, dy: e.clientY - r.top, ghost, line, to: -1 };
+    rd = { li, list, isGroup, key: isGroup ? li.dataset.deRgrp : li.dataset.deRow, ghost, line, to: -1 };
     document.body.classList.add("db-dragging");
     window.addEventListener("pointermove", rowDragMove);
     window.addEventListener("pointerup", rowDragEnd, { once: true });
@@ -1034,23 +1037,32 @@
   }
   function rowDragMove(e) {
     if (!rd) return;
-    rd.ghost.style.top = `${e.clientY - rd.dy}px`;
     const sel = rd.isGroup ? ":scope > [data-de-rgrp]:not(.is-none)" : ":scope > [data-de-row]";
     const items = [...rd.list.querySelectorAll(sel)].filter((x) => x !== rd.li);
     const lr = rd.list.getBoundingClientRect();
-    const inside = e.clientX >= lr.left - 40 && e.clientX <= lr.right + 40 && e.clientY >= lr.top - 24 && e.clientY <= lr.bottom + 24;
+    const inside = e.clientX >= lr.left - 40 && e.clientX <= lr.right + 160 && e.clientY >= lr.top - 24 && e.clientY <= lr.bottom + 24;
     rd.to = inside ? dropIndex(items, e.clientY) : -1;
     rd.ghost.classList.toggle("is-bad", !inside);
     rd.line.hidden = !inside;
+    let y = e.clientY;
     if (inside) {
       const ref = items[rd.to], last = items[items.length - 1];
-      const y = ref ? ref.getBoundingClientRect().top - 3 : last ? last.getBoundingClientRect().bottom + 1 : lr.top;
+      y = ref ? ref.getBoundingClientRect().top - 3 : last ? last.getBoundingClientRect().bottom + 1 : lr.top;
       rd.line.style.top = `${y - lr.top + rd.list.scrollTop}px`;
     }
+    rd.ghost.style.top = `${Math.round(y - rd.ghost.offsetHeight / 2)}px`;
+    rd.ghost.querySelector(".de-gto").textContent = inside ? `◀ ここへ ${targetRank(rd)} 番目${rd.isGroup ? "のグループ" : ""}` : (rd.isGroup ? "グループの並びの中へ" : "同じグループの中へ");
     // 組む所の端に近ければ送る（長い並びでも、見えていない所へ落とせる）
     const main = rd.list.closest(".de-main");
     if (main) { const mr = main.getBoundingClientRect(); if (e.clientY < mr.top + 30) main.scrollTop -= 12; else if (e.clientY > mr.bottom - 30) main.scrollTop += 12; }
   }
+  /** 落とした所（並び全体〈隠した行も〉での番目。引いた札を除いた並びでの位置）→ 札の番目は at＋1 */
+  function targetAt(d) {
+    if (d.isGroup) return d.to;
+    const keys = rowKeys().filter((x) => x.key !== d.key), same = keys.filter((x) => x.group === (d.li.dataset.deRg || ""));
+    return d.to < same.length ? keys.indexOf(same[d.to]) : same.length ? keys.indexOf(same[same.length - 1]) + 1 : 0;
+  }
+  const targetRank = (d) => targetAt(d) + 1;
   function rowDragKey(e) { if (e.key === "Escape" && rd) { e.preventDefault(); e.stopPropagation(); rowDragDone(); } }
   function rowDragDone() {
     window.removeEventListener("pointermove", rowDragMove);
@@ -1065,9 +1077,7 @@
     const d = rowDragDone();
     if (!d || d.to < 0) return;
     if (d.isGroup) { moveGroupRow(d.key, d.to); return; }
-    // 並び全体（隠した行も）での位置: 同じグループの札（引いた札を除く）の d.to 番目の前。グループの最後なら、そのグループの最後の札の後ろ
-    const keys = rowKeys().filter((x) => x.key !== d.key), same = keys.filter((x) => x.group === (d.li.dataset.deRg || ""));
-    const at = d.to < same.length ? keys.indexOf(same[d.to]) : same.length ? keys.indexOf(same[same.length - 1]) + 1 : 0;
+    const at = targetAt(d);
     const now = rowKeys().map((x) => x.key).indexOf(d.key);
     if (at === now) return;
     moveRow(d.key, at);

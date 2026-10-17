@@ -68,7 +68,7 @@
       + `<span class="ds-month${k != null && k > 1 ? " on" : ""}" role="group" aria-label="月を送る"><button type="button" class="ds-step" data-ds-back="1" aria-label="前の月へ" title="前の月へ">◀</button>`
       + `<button type="button" class="ds-step" data-ds-back="-1"${k == null || k <= 0 ? " disabled" : ""} aria-label="次の月へ" title="次の月へ">▶</button></span>`
       + `<label class="ds-l">設備<select data-ds-gsel aria-label="設備">${gopt}</select></label><button type="button" class="ds-pickhold" data-ds-pick hidden aria-hidden="true" tabindex="-1"></button>`
-      + (active ? `<button type="button" class="ds-clear" data-ds-clear title="スライサーを外して、組んだままに戻します（${info.hits} / ${info.total} 枚に効いています）">× 外す</button>` : "") + "</div>";
+      + (active ? `<small class="ds-hits" title="スライサーが効いているパネルの数">${info.hits} / ${info.total} 枚</small><button type="button" class="ds-clear" data-ds-clear title="スライサーを外して、組んだままに戻します">× 外す</button>` : "") + "</div>";
   }
   /** 「設備…」の面: 設備グループの見出しの下に設備のチェック（見出しのチェックでグループをまとめて） */
   function pickHtml(sl, info) {

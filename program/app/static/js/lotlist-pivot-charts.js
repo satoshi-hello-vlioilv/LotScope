@@ -295,15 +295,28 @@
     // 置き場は系列ごとの書式（上・下）か、自動（その点で値がいちばん小さい系列は下・ほかは上）。ほかのラベルと重なれば反対側、それも重なれば出さない。
     // 系列が 2 つ以上なら、字を系列の色にする（どの線の数か分かる）
     const lineQ = series.filter((q) => (q.kind === "line" || q.kind === "area") && labelWant(q.name));
+    // 点は障りにする（ラベルが点に被らない）・線の脚は避けられれば避ける（2026-10-dashslice の 1 回目の採点: 同じ日の近い値で字が重なり、線と被った）
+    const allLines = series.filter((q) => q.kind === "line" || q.kind === "area");
+    allLines.forEach((q) => q.v.forEach((v, i) => { if (v != null) placed.push({ x0: x(i) - 3.5, x1: x(i) + 3.5, y0: y(v, q) - 3.5, y1: y(v, q) + 3.5, pt: true }); }));
+    const segs = allLines.flatMap((q) => q.v.map((v, i) => (v != null && q.v[i + 1] != null ? [x(i), y(v, q), x(i + 1), y(q.v[i + 1], q)] : null)).filter(Boolean));
+    const crosses = (b) => segs.some(([ax, ay, bx, by]) => { for (let t = 0; t <= 1; t += 0.125) { const px = ax + (bx - ax) * t, py = ay + (by - ay) * t; if (px > b.x0 && px < b.x1 && py > b.y0 && py < b.y1) return true; } return false; });
+    const shown = new Map();         // 同じ日に同じ値の系列は、ラベルを 1 つにまとめる（字の色は墨）
     lineQ.forEach((q) => {
       const th = thinOf(q.v, iw / Math.max(n, 1)), pos = serFmt(q.name).label, tint = series.length > 1 ? q.color : "";
       thin = Math.max(thin, th);
       q.v.forEach((v, i) => {
         if (v == null || i % th) return;
-        const cy = y(v, q), others = lineQ.filter((r) => r !== q && r.v[i] != null).map((r) => r.v[i]);
+        const same = lineQ.filter((r) => r !== q && r.v[i] === v);
+        if (same.length && shown.has(`${i}:${v}`)) return;
+        const cy = y(v, q), others = lineQ.filter((r) => r !== q && r.v[i] != null && r.v[i] !== v).map((r) => r.v[i]);
         const low = pos === "below" || (pos !== "top" && others.length > 0 && others.every((o) => v < o));
-        const up = labelAt(placed, x(i), cy - 7, nf(v), tint, W, Math.max(1, pt - 14), base0), down = labelAt(placed, x(i), cy + 15, nf(v), tint, W, Math.max(1, pt - 14), base0);
-        g += (low ? down || up : up || down);
+        const at = (by) => { const w = String(nf(v)).length * 6.4 + 4; return { x0: x(i) - w / 2, x1: x(i) + w / 2, y0: by - 11, y1: by + 2 }; };
+        const tries = (low ? [cy + 15, cy - 7] : [cy - 7, cy + 15]);
+        const clear = tries.find((by) => !crosses(at(by))) ?? tries[0];
+        const order = [clear, ...tries.filter((t) => t !== clear)];
+        let txt = "";
+        for (const by of order) { txt = labelAt(placed, x(i), by, nf(v), same.length ? "" : tint, W, Math.max(1, pt - 14), base0); if (txt) break; }
+        if (txt) { g += txt; if (same.length) shown.set(`${i}:${v}`, true); }
       });
     });
     const legend = legendHtml(series.map((q) => [q.name + (series.some((r) => r.axis === "right") ? (q.axis === "left" ? "（左）" : "（右）") : ""), q.color, q.kind === "line" ? "line" : "bar"]))
