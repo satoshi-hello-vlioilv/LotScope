@@ -8,19 +8,19 @@
      同じ組み・同じ写しなら前の答えを返す）
    - ダッシュボードの置き場は /api/dashboards（共通デフォルト・共通・ID・標準。集計表の組み方と同じ決まり）。組み込みの「標準」は書き換えられず、
      直したら「別名で保存」。最後に開いた物をこの PC で覚える（tpa.dash.v1）
-   - 編集: 「編集」で入る。見出しを掴んで動かす・右下の角で大きさ・パネルを選んで 矢印＝動かす／Shift+矢印＝大きさ／Enter＝組む／Delete＝消す（2 回押し）。
+   - 編集: 「編集」で入る。見出しを掴んで動かす・四隅の角で大きさ（版 3.41.0。前は右下だけ）・パネルを選んで 矢印＝動かす／Shift+矢印＝大きさ（右下の角）／Alt+Shift+矢印＝大きさ（左上の角）／Enter＝組む／Delete＝消す（2 回押し）。
      Ctrl+Z＝元に戻す。重なる所には置けない（影が赤になる）
    ========================================================================= */
 (() => {
   const { $, esc } = TPA;
-  const P = window.DashPanels, E = window.DashEditor, Q = window.DashFilter;
+  const P = window.DashPanels, E = window.DashEditor, Q = window.DashFilter, D = window.DashSlicer;
   const KEY = "tpa.dash.v1";
   const POLL_MS = 60000, RETRY_MS = 4000, COLS = 12, GAP = 10, HISTORY = 30;
   const SCOPE_NAME = { me: "自分", all: "共通", default: "共通デフォルト" };
   const S = {
     list: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, rowsRange: [4, 16],
     id: null, layout: null, saved: "", edit: false, history: [], sel: "", sources: [],
-    answers: new Map(), at: 0, timer: null, active: false, loading: false, msg: "", confirm: "", pop: null, editing: "",
+    tree: null, answers: new Map(), at: 0, timer: null, active: false, loading: false, msg: "", confirm: "", pop: null, editing: "",
   };
 
   /* ---------------- 覚え・置き場 ---------------- */
@@ -37,8 +37,34 @@
     all[String(S.id)] = mine;
     remember({ quick: all });
   }
-  /** 数えるときのパネル（組んだパネル＋この PC の絞り込み） */
-  const asked = (p) => Q.merge(p, quickOf(p.id));
+  /* スライサー（版 3.41.0。利用者の要望 6）: ダッシュボード全体の期間・設備。この PC の見え方として、ダッシュボードごとに覚える（tpa.dash.v1 の slice） */
+  const sliceState = () => ((mem().slice || {})[String(S.id)]) || null;
+  function setSlice(v) {
+    const all = { ...(mem().slice || {}) }, x = { ...(v || {}) };
+    if (!x.period || !x.period.kind) delete x.period;
+    if (!(x.equips || []).length) delete x.equips;
+    if (x.period || x.equips || x.set) all[String(S.id)] = x; else delete all[String(S.id)];
+    remember({ slice: all });
+    refresh(false); paintBar();
+    if (popEl && S.pop === "slice") { popEl.innerHTML = D.pickHtml(sliceState(), sliceInfo()); D.mixed(popEl); }
+  }
+  const canEquip = (src) => !!(S.sources.find((x) => x.key === src) || {}).equip;
+  const sliceOf = (p) => (p.noslice ? null : sliceState());
+  /** 答えの「いま」（月の名前を、サーバーのいまで決める） */
+  const today = () => { for (const a of S.answers.values()) { const n = a && a.d && (a.d.now || ((a.d.groups || [])[0] || {}).now); if (n) return n.slice(0, 10); } return ""; };
+  function sliceInfo() {
+    const sl = sliceState(), ps = S.layout ? S.layout.panels : [];
+    const hits = ps.filter((p) => { const h = Q.sliceHits(p, sl, canEquip); return h.period || h.equip; }).length;
+    return { tree: S.tree || {}, today: today(), hits, total: ps.length, open: S.pop === "slice" };
+  }
+  async function loadTree() {
+    try { const r = await fetch("/api/dashboard/equip-tree", { cache: "no-store" }); if (r.ok) S.tree = await r.json(); } catch (_) { /* 設備の札が出ないだけ */ }
+    paintBar();
+    if (S.layout) S.layout.panels.forEach((p) => paintPanel(p.id, true));     // 添え書きの設備をグループの名前で（設備グループが分かってから）
+    if (popEl && S.pop === "slice") { popEl.innerHTML = D.pickHtml(sliceState(), sliceInfo()); D.mixed(popEl); }
+  }
+  /** 数えるときのパネル（組んだパネル＋スライサー＋この PC のパネルの絞り込み） */
+  const asked = (p) => Q.merge(Q.slice(p, sliceOf(p), canEquip), quickOf(p.id));
   const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない）
 
   async function loadList() {
@@ -62,9 +88,12 @@
   }
 
   /* ---------------- 数を引く ---------------- */
+  // 答えに通し番号を付ける（描き直すかの決め手。版 3.41.0: 組み替え・保存のたびに全部のパネルを描き直していた）
+  let ansSeq = 0;
+  const setAnswer = (id, a) => { a.n = ++ansSeq; S.answers.set(id, a); };
   async function queryPanel(p) {
     const k = qkey(p), old = S.answers.get(p.id);
-    S.answers.set(p.id, { ...(old || {}), key: k, busy: true });
+    setAnswer(p.id, { ...(old || {}), key: k, busy: true });
     paintPanel(p.id);
     let a;
     try {
@@ -74,7 +103,7 @@
     } catch (e) { a = { key: k, err: String(e), kind: "error" }; }
     const now = panelOf(p.id);
     if (!now || qkey(now) !== k) return;                 // 引いている間に組みが変わった（新しい方が引き直す）
-    S.answers.set(p.id, a);
+    setAnswer(p.id, a);
     paintPanel(p.id);
     if (S.editing === p.id && E.isOpen()) E.answered();
     const copying = a.kind === "copying" || (a.d && (a.d.groups || []).some((g) => g.kind === "copying"));   // 合わせた表はまとまりごと
@@ -106,7 +135,7 @@
       if (!el) {
         el = document.createElement("section");
         el.className = "db-p"; el.dataset.id = p.id;
-        el.innerHTML = '<div class="db-ph"></div><div class="db-psub"></div><div class="db-pq" hidden></div><div class="db-pb"></div><div class="db-pf" hidden></div><i class="db-rz" data-rz aria-hidden="true"></i>';
+        el.innerHTML = '<div class="db-ph"></div><div class="db-psub"></div><div class="db-pq" hidden></div><div class="db-pb"></div><div class="db-pf" hidden></div>' + ["nw", "ne", "sw", "se"].map((d) => `<i class="db-rz" data-rz="${d}" aria-hidden="true"></i>`).join("");
         g.append(el);
         if (ro) ro.observe(el);
       }
@@ -142,6 +171,17 @@
     }
   }
   function titleOf(p) { return p.title || E.autoTitle(p); }
+  /* スライサーで期間を替えたパネルは、題の期間の言葉（前日・今月など）をスライサーの期間に置き換えて見せる（版 3.41.0。2026-10-dashslice の 1 回目の採点:
+     先月を選ぶと「前日の実績本数」に先月の数が出て、言葉と数が食い違った）。置き換えた所は印を付け、元の題は札の説明に残す */
+  /** パネルが組んだ期間の短い言葉（前日・今月・直近 14 日。合わせた表は期間を組んだ最初のまとまり） */
+  const ownPeriod = (p) => { const o = (p.visual === "board" ? p.groups || [] : p.link ? p.link.sides || [] : [p]).find((x) => x.period && x.period.kind); return o ? sliceWord(o.period) : ""; };
+  const PERIOD_WORD = /前日|昨日|今日|本日|今月|先月|直近\s*\d+\s*日/;
+  function titleHtml(p) {
+    const t = titleOf(p), hit = Q.sliceHits(p, sliceOf(p), canEquip);
+    if (!hit.period || !PERIOD_WORD.test(t)) return esc(t);
+    const m = PERIOD_WORD.exec(t);
+    return `${esc(t.slice(0, m.index))}<mark class="db-tsw" title="スライサーで「${esc(m[0])}」から替えています">${esc(sliceWord(sliceState().period))}</mark>${esc(t.slice(m.index + m[0].length))}`;
+  }
   const SPLIT_NAME = { series: "設備ごとの系列", facet: "設備ごとに並べる", sum: "合算" };
   function metaOf(p, a) {
     if (p.visual === "board") return "";
@@ -152,18 +192,18 @@
     }
     const src = name(p.source) || (a && a.d && a.d.sourceName);
     const equip = p.equip ? ((S.sources.find((x) => x.key === "work") || {}).equips || []).find((e) => e.key === p.equip)?.name
-      : (p.equips || []).length ? `${p.equips.slice(0, 3).join("・")}${p.equips.length > 3 ? ` ほか ${p.equips.length - 3}` : ""}` : "";
+      : (p.equips || []).length ? eqWord(p.equips) : "";
     const split = a && a.d && a.d.esplit && (p.equips || []).length !== 1 ? `（${SPLIT_NAME[a.d.esplit] || ""}）` : "";
     const per = a && a.d ? P.periodText(p, a.d) : "";
     const cond = (p.filters || []).length ? `条件 ${p.filters.length}` : "";
     return [src + (equip ? `・${equip}` : p.source === "work" ? "・全設備" : "") + split, per, cond].filter(Boolean).join("　");
   }
   const NARROW = 360;      // これより狭いパネルの見出しは、操作を「⋯」1 つに畳む（ボタンが見出しからはみ出さない）
-  function headHtml(p, a, width) {
+  function headHtml(p, a, width, fold = false) {
     const warn = a && a.d ? P.notes(a.d).concat(a.err ? [`いまの数は前の物です（${a.err}）`] : []) : [];
     const badge = warn.length ? `<span class="db-warnb" title="${esc(warn.join("\n"))}" aria-label="${esc(warn.join("。"))}">⚠ ${warn.length}</span>` : "";
     const dot = p.visual === "board" ? "" : `<i class="db-dot" style="--c:${P.colorOf(p.source)}" aria-hidden="true"></i>`;
-    const tools = S.edit && width < NARROW
+    const tools = S.edit && (width < NARROW || fold)
       ? `<button type="button" class="db-pbtn db-more" data-db-more aria-haspopup="true" title="このパネルの操作（組む・複製・消す）" aria-label="このパネルの操作">⋯</button>`
       : S.edit
       ? `<button type="button" class="db-pbtn" data-db-edit title="このパネルを組む（Enter）">組む</button><button type="button" class="db-pbtn" data-db-dup title="同じパネルを空いた所に足す">複製</button>`
@@ -171,23 +211,46 @@
       : `<button type="button" class="db-pbtn db-quiet" data-db-edit title="このパネルを組み直す（編集に入ります）">組む</button>`;
     // 絞る（見ているとき・編集のときとも。この PC の見え方）。効いていれば数を出す（状態が見える）
     const qn = Q.chips(quickOf(p.id)).length;
-    const filt = width < NARROW && S.edit ? "" : `<button type="button" class="db-pbtn db-filt${qn ? " is-on" : ""}" data-db-filter aria-haspopup="dialog" title="このパネルだけを、設備・期間・値で絞ります（この PC の見え方）">`
+    const filt = (width < NARROW || fold) && S.edit ? "" : `<button type="button" class="db-pbtn db-filt${qn ? " is-on" : ""}" data-db-filter aria-haspopup="dialog" title="このパネルだけを、設備・期間・値で絞ります（この PC の見え方）">`
       + `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${qn ? `絞り込み ${qn}` : "絞る"}</button>`;
-    return `${dot}<h3 title="${esc(titleOf(p))}">${esc(titleOf(p))}</h3><span class="db-sp"></span>`
+    return `${dot}<h3 title="${esc(titleOf(p))}">${titleHtml(p)}</h3><span class="db-sp"></span>`
       + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + filt + tools;
   }
-  function paintPanel(id) {
+  /** パネルを描く。組み・答え・大きさ・編集の様子が前に描いた時と同じなら描かない（force で必ず） */
+  function paintPanel(id, force = false) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
     if (!p || !el) return;
+    const a1 = S.answers.get(id), bd = el.querySelector(".db-pb");
+    const sig = JSON.stringify([{ ...p, x: 0, y: 0 }, a1 ? a1.n : 0, el.clientWidth, el.clientHeight, bd.clientWidth, bd.clientHeight, S.edit, S.confirm, quickOf(id), sliceOf(p), S.sources.length]);
+    if (!force && el._sig === sig) return;
+    el._sig = sig;
     // 形を替えた直後は、前の形の答え（合わせた表の答えとふつうの答えは形が違う）では描かない（引き直した答えを待つ）
     const a0 = S.answers.get(id), a = a0 && a0.d && (p.visual === "board") !== !!a0.d.groups ? { ...a0, d: null, err: "" } : a0;
-    el.querySelector(".db-ph").innerHTML = headHtml(p, a, el.clientWidth);
+    const ph = el.querySelector(".db-ph");
+    ph.innerHTML = headHtml(p, a, el.clientWidth);
     el.setAttribute("aria-label", titleOf(p));
     // 添え書き（元・期間・条件）は見出しの下の 2 行目（見出しは題と操作だけで 1 行）。数字の形は数の下に出す
-    const meta = metaOf(p, a), subEl = el.querySelector(".db-psub");
+    const meta = metaOf(asked(p), a), subEl = el.querySelector(".db-psub");
     subEl.hidden = !meta || p.visual === "kpi"; subEl.textContent = meta; subEl.title = meta;
     // 効いている絞り込みの札（見出しの下。× で 1 つずつ外す）
-    const qc = Q.chips(quickOf(id)), qEl = el.querySelector(".db-pq");
+    const qc = Q.chips(quickOf(id)), qEl = el.querySelector(".db-pq"), hit = Q.sliceHits(p, sliceOf(p), canEquip), sl = sliceState();
+    // スライサーが効いているパネルには札（外すのは道具の行のスライサーで）
+    // スライサーが効いているパネルは、見出しの題の横に札（段を増やさない: 1 段の数字のパネルで数が隠れた）。外すのは道具の行のスライサーで
+    // 期間は「元の期間→スライサーの期間」（前日→9月・今月→9月。2 回目の採点: 前日と今月のパネルが同じ題と数に見えた）
+    const sw = hit.period || hit.equip ? [hit.period ? `${ownPeriod(p) ? ownPeriod(p) + "→" : ""}${sliceWord(sl.period)}` : "", hit.equip ? eqWord(sl.equips) : ""].filter(Boolean).join("・") : "";
+    el.classList.toggle("is-sliced", !!sw);
+    const h3 = el.querySelector(".db-ph h3");
+    const badgeHtml = sw ? `<span class="db-sbadge" title="ダッシュボードのスライサー（${esc(sw)}）で数えています。道具の行で外せます"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${esc(sw)}</span>` : "";
+    if (sw && h3) h3.insertAdjacentHTML("afterend", badgeHtml);
+    // 題が切れるなら、印を絵だけに畳む（中身は印の説明に。3 回目の採点: 1280 の数字のパネルで「9月 の実績…」と切れた）
+    const tb = el.querySelector(".db-ph h3"), sb = el.querySelector(".db-ph .db-sbadge");
+    if (tb && sb && tb.scrollWidth > tb.clientWidth + 1) sb.classList.add("is-icon");
+    // 編集で題が切れるなら、操作を「⋯」1 つに畳む（2026-10-dashslice の 2 回目の採点: 1280 の数字のパネルで題が「前日の実績…」と切れた）
+    const t3 = el.querySelector(".db-ph h3");
+    if (S.edit && t3 && t3.scrollWidth > t3.clientWidth + 1 && !ph.querySelector("[data-db-more]")) {
+      ph.innerHTML = headHtml(p, a, el.clientWidth, true);
+      if (sw) ph.querySelector("h3").insertAdjacentHTML("afterend", badgeHtml.replace('class="db-sbadge"', 'class="db-sbadge is-icon"'));
+    }
     qEl.hidden = !qc.length;
     qEl.innerHTML = qc.map((c) => `<span class="db-qchip">${esc(c.text)}<button type="button" data-db-qdrop="${esc(c.key)}" aria-label="「${esc(c.text)}」の絞り込みを外す">×</button></span>`).join("");
     const body = el.querySelector(".db-pb"), foot = el.querySelector(".db-pf");
@@ -205,6 +268,9 @@
       else if (a && a.d) P.render(body, p, a.d, { w: body.clientWidth, h: body.clientHeight }, p.visual === "kpi" ? meta : "");
     }
   }
+  const sliceWord = (per) => (per.kind === "days" ? `直近 ${per.n || 7} 日` : per.kind === "month" || per.kind === "this_month" || per.kind === "last_month" ? D.monthName(D.backOf(per), today()) : { today: "今日", yesterday: "前日" }[per.kind] || "");
+  /** 設備の並びの短い字: 設備グループとちょうど同じならグループの名前（スライサーの札と同じ言葉）、ほかは 3 つまで */
+  const eqWord = (list) => { const g = D.groupsOf(S.tree || {}, (sliceState() || {}).set).find((x) => !x.none && D.same(x.members, list)); return g ? g.name : `${list.slice(0, 3).join("・")}${list.length > 3 ? ` ほか ${list.length - 3}` : ""}`; };
   function errHtml(a) {
     if (a.kind === "copying") return '<p class="dp-wait">共有から写しています。写し終えると出ます…</p>';
     return `<div class="dp-err"><b>数えられませんでした</b><span>${esc(a.err)}</span><button type="button" class="pv-btn" data-db-edit>パネルを組み直す</button></div>`;
@@ -223,6 +289,7 @@
       bar.innerHTML = pick + msg + `<span class="db-sp"></span><small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
         + `<button type="button" class="pv-btn" data-db-refresh title="いま引き直す">↻ 引き直す</button>`
         + `<button type="button" class="btn-primary db-editbtn" data-db-editmode title="パネルを足す・動かす・大きさを変える・組む">編集</button>`;
+      paintSlicer();
       return;
     }
     const rows = `<label class="pv-ck" title="グリッドの段の数（多いほど 1 段が低い）">段<select data-db-rows>${Array.from({ length: S.rowsRange[1] - S.rowsRange[0] + 1 }, (_, i) => S.rowsRange[0] + i)
@@ -231,28 +298,45 @@
     const leave = S.confirm === "leave"
       ? `<span class="db-armed">変えた所を捨てますか</span><button type="button" class="btn-ghost" data-db-stay>戻る</button><button type="button" class="pv-btn is-danger" data-db-discard>捨てる</button>`
       : `<button type="button" class="btn-ghost" data-db-leave>${dirty() ? "やめる" : "編集を終える"}</button>`;
+    paintSlicer();
+    const sl = sliceState(), sw = sl ? [sl.period && sl.period.kind ? sliceWord(sl.period) : "", (sl.equips || []).length ? eqWord(sl.equips) : ""].filter(Boolean).join("・") : "";
     bar.innerHTML = pick + `<span class="db-editing">編集中</span>`
+      + (sw ? `<button type="button" class="ds-mini" data-ds-clear title="スライサー（${esc(sw)}）が効いています。押すと外します">スライサー ${esc(sw)} ×</button>` : "")
       + `<button type="button" class="pv-btn" data-db-add title="空いた所にパネルを足して、組む所を開きます">＋ パネル</button>${rows}`
       + `<button type="button" class="pv-btn" data-db-undo${S.history.length ? "" : " disabled"} title="元に戻す（Ctrl+Z）">元に戻す</button>`
       + msg + `<span class="db-sp"></span>${leave}`
       + (canSave ? `<button type="button" class="btn-primary" data-db-save${dirty() ? "" : " disabled"}>保存</button>` : "")
       + `<button type="button" class="${canSave ? "pv-btn" : "btn-primary"}" data-db-saveas aria-haspopup="true" title="${it && it.builtin ? "組み込みの物は書き換えられないので、名前を付けて保存します" : "名前を付けて、別のダッシュボードとして保存します"}">名前を付けて保存…</button>`;
   }
+  /** スライサーの帯（道具の行の下の細い帯。2026-10-dashslice の 3 回目で決めた C2）。編集のときは出さない（道具の行の「スライサー … ×」で分かる）。
+      帯にも入り切らない狭い窓だけ、詰めた形（選ぶ欄） */
+  function paintSlicer() {
+    const w = $("#dashSlicer"); if (!w) return;
+    w.hidden = !!S.edit || !S.layout;
+    if (w.hidden) return;
+    w.innerHTML = D.barHtml(sliceState(), sliceInfo());
+    if (w.scrollWidth > w.clientWidth + 1) w.innerHTML = D.compactHtml(sliceState(), sliceInfo());
+  }
   const say = (t) => { S.msg = t || ""; const m = document.querySelector("#dashBar .db-msg"); if (m) m.textContent = S.msg; clearTimeout(say.t); if (t) say.t = setTimeout(() => { S.msg = ""; const n = document.querySelector("#dashBar .db-msg"); if (n) n.textContent = ""; }, 6000); };
 
   /* ---------------- 浮かぶ面（ダッシュボードを選ぶ・名前を付けて保存・1 枚の表の条件） ---------------- */
   let popEl = null, popOff = null;
   function closePop() { if (popOff) popOff(); popOff = null; if (popEl) popEl.remove(); popEl = null; S.pop = null; paintBar(); }
+  /** anchor … 開く元の要素か、その選び方（字）。前の面を閉じると道具の行を描き直すので、要素はそのあとで探し直す
+      （描き直しで外れた要素の下に開いて、面が左上に出ていた: 2026-10-dashslice の 1 回目の採点） */
   function openPop(kind, anchor, html, cls = "") {
+    const sel = typeof anchor === "string" ? anchor : null;
     closePop();
+    if (sel || !anchor.isConnected) anchor = document.querySelector(sel || `[data-db-${kind}]`) || anchor;
     S.pop = kind;
     popEl = document.createElement("div");
     popEl.className = `db-pop ${cls}`; popEl.setAttribute("role", "dialog");
     popEl.innerHTML = html;
     document.body.append(popEl);
     TPA.placeBelow(popEl, anchor);
-    popOff = TPA.dismissable(popEl, closePop, { keep: { contains: (t) => !!(t && t.closest && t.closest(`[data-db-${kind}]`)) } });
+    popOff = TPA.dismissable(popEl, closePop, { keep: { contains: (t) => !!(t && t.closest && t.closest(kind === "slice" ? "[data-ds-pick]" : `[data-db-${kind}]`)) } });
     popEl.addEventListener("click", onPopClick);
+    popEl.addEventListener("change", onPopChange);
     paintBar();
     return popEl;
   }
@@ -279,8 +363,20 @@
       + `<label class="pv-ck"><input type="checkbox" id="dbSaveStd" checked>標準にする（アプリを開いたときに、これを出す）</label>`
       + `<div class="db-popacts"><span class="db-sp"></span><button type="button" class="btn-primary" data-db-dosave>保存</button></div><p class="db-poperr" aria-live="polite"></p>`;
   }
+  /** スライサーの「設備…」の面のチェック */
+  function onPopChange(e) {
+    const x = e.target, sl = { ...(sliceState() || {}) }, eq = new Set(sl.equips || []);
+    if (x.matches("[data-ds-set]")) { setSlice({ ...sl, set: x.value }); return; }
+    if (x.matches("[data-ds-eq]")) { if (x.checked) eq.add(x.dataset.dsEq); else eq.delete(x.dataset.dsEq); }
+    else if (x.matches("[data-ds-gck]")) { const g = D.groupsOf(S.tree || {}, sl.set).find((y) => y.name === x.dataset.dsGck); (g ? g.members : []).forEach((m) => (x.checked ? eq.add(m) : eq.delete(m))); }
+    else return;
+    const names = (S.tree && S.tree.names) || [];
+    setSlice({ ...sl, equips: names.filter((n) => eq.has(n)) });
+  }
   async function onPopClick(e) {
     const t = e.target.closest("button"); if (!t) return;
+    if (t.hasAttribute("data-ds-done")) { closePop(); return; }
+    if (t.hasAttribute("data-ds-all")) { setSlice({ ...(sliceState() || {}), equips: [] }); return; }
     if (t.dataset.dbOpen) { if (S.edit && dirty()) { say("編集中の変えた所を保存するか、やめてから開いてください"); return; } closePop(); open(t.dataset.dbOpen); return; }
     if (t.hasAttribute("data-db-std")) { await writeLayout("PUT", current().id, { standard: true }, "標準にしました"); closePop(); return; }
     if (t.hasAttribute("data-db-new")) { closePop(); startBlank(); return; }
@@ -301,23 +397,39 @@
     + `<button type="button" class="db-li is-danger${S.confirm === "del:" + id ? " is-armed" : ""}" data-db-del><b>${S.confirm === "del:" + id ? "もう一度押すと消えます" : "消す"}</b><small>Delete</small></button>`;
 
   /* ---------------- 保存 ---------------- */
-  async function writeLayout(method, id, body, done) {
+  /** 置き場へ書く。local（中身だけの上書き）なら並びを読み直さず、答えの 1 件だけを差し替える（版 3.41.0: 保存のたびに全部のダッシュボードを読み直し、
+      全部のパネルを描き直していた）。描き直すのは、サーバーが直した中身が今の組みと違うときだけ */
+  async function writeLayout(method, id, body, done, { local = false } = {}) {
     const r = await fetch(id ? `/api/dashboards/${id}` : "/api/dashboards", TPA.json(method, body));
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       const why = d.error || (r.status === 409 ? "ほかの PC が先に直しました。開き直してから直してください。" : `保存できませんでした（${r.status}）`);
       return { error: why };
     }
-    await loadList();
+    const i = local ? S.list.findIndex((x) => String(x.id) === String(d.id)) : -1;
+    if (i >= 0) S.list[i] = d; else await loadList();
     S.id = d.id; remember({ id: d.id });
-    S.layout = TPA.clone(d.body); S.saved = JSON.stringify(S.layout);
-    paint(); say(done);
+    const same = canon(d.body) === canon(S.layout);
+    if (!same) S.layout = TPA.clone(d.body);
+    S.saved = JSON.stringify(S.layout);
+    if (same) paintBar(); else paint();
+    say(done);
     return { ok: d };
   }
+  /** 鍵の順によらない字（サーバーは鍵を並べて返す） */
+  const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x));
+  let saving = false;
   async function save() {
-    const it = current(); if (!it || it.builtin) return;
-    const r = await writeLayout("PUT", it.id, { body: S.layout, base_rev: it.rev }, "保存しました");
-    if (r.error) say("✕ " + r.error);
+    const it = current(); if (!it || it.builtin || saving) return;
+    saving = true;
+    // 押したらすぐ「保存しています…」（共有のマスタが遅くても、押せたかが分かる）
+    const btn = document.querySelector("[data-db-save]");
+    if (btn) { btn.disabled = true; btn.textContent = "保存しています…"; }
+    say("保存しています…");
+    try {
+      const r = await writeLayout("PUT", it.id, { body: S.layout, base_rev: it.rev }, "保存しました", { local: !S.layout.panels.some((x) => x.legacy) });   // 前の版の 1 枚の表は、並びを読み直して前の版の条件を入れ直す
+      if (r.error) { say("✕ " + r.error); paintBar(); }
+    } finally { saving = false; }
   }
   async function saveAs() {
     const name = (popEl.querySelector("#dbSaveName").value || "").trim(), scope = (popEl.querySelector('input[name="dbScope"]:checked') || {}).value || "me";
@@ -414,18 +526,27 @@
     e.preventDefault();
     S.sel = p.id;
     const { cw, ch } = cellSize();
-    drag = { id: p.id, mode: rz ? "size" : "move", x0: e.clientX, y0: e.clientY, r0: { x: p.x, y: p.y, w: p.w, h: p.h }, cw: cw + GAP, ch: ch + GAP, r: null };
+    drag = { id: p.id, mode: rz ? "size" : "move", dir: rz ? rz.dataset.rz || "se" : "", x0: e.clientX, y0: e.clientY, r0: { x: p.x, y: p.y, w: p.w, h: p.h }, cw: cw + GAP, ch: ch + GAP, r: null };
     el.classList.add("is-drag");
     document.body.classList.add("db-dragging");
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp, { once: true });
+  }
+  /** 角（nw・ne・sw・se）を dx・dy マス引いた大きさ（向かいの角は動かない。1 マスより小さく・グリッドの外へはしない） */
+  function sized(r0, dir, dx, dy) {
+    const r = { ...r0 };
+    if (dir.includes("e")) r.w = Math.max(1, Math.min(COLS - r0.x, r0.w + dx));
+    if (dir.includes("w")) { const x = Math.max(0, Math.min(r0.x + r0.w - 1, r0.x + dx)); r.w = r0.x + r0.w - x; r.x = x; }
+    if (dir.includes("s")) r.h = Math.max(1, Math.min(S.layout.rows - r0.y, r0.h + dy));
+    if (dir.includes("n")) { const y = Math.max(0, Math.min(r0.y + r0.h - 1, r0.y + dy)); r.h = r0.y + r0.h - y; r.y = y; }
+    return r;
   }
   function onMove(e) {
     if (!drag) return;
     const dx = Math.round((e.clientX - drag.x0) / drag.cw), dy = Math.round((e.clientY - drag.y0) / drag.ch), r0 = drag.r0;
     const r = drag.mode === "move"
       ? { ...r0, x: Math.max(0, Math.min(COLS - r0.w, r0.x + dx)), y: Math.max(0, Math.min(S.layout.rows - r0.h, r0.y + dy)) }
-      : { ...r0, w: Math.max(1, Math.min(COLS - r0.x, r0.w + dx)), h: Math.max(1, Math.min(S.layout.rows - r0.y, r0.h + dy)) };
+      : sized(r0, drag.dir, dx, dy);
     drag.r = r; drag.ok = fits(r, drag.id);
     ghost(r, drag.ok);
   }
@@ -448,7 +569,8 @@
     const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (dir) {
       e.preventDefault();
-      const r = e.shiftKey ? { ...p, w: p.w + dir[0], h: p.h + dir[1] } : { ...p, x: p.x + dir[0], y: p.y + dir[1] };
+      // Shift＋矢印＝右下の角・Alt＋Shift＋矢印＝左上の角（版 3.41.0。四隅から大きさを変えるのと同じ）
+      const r = e.shiftKey && e.altKey ? sized(p, dir[0] ? "w" : "n", dir[0], dir[1]) : e.shiftKey ? { ...p, w: p.w + dir[0], h: p.h + dir[1] } : { ...p, x: p.x + dir[0], y: p.y + dir[1] };
       if (fits(r, p.id)) { commit((L) => Object.assign(L.panels.find((x) => x.id === p.id), { x: r.x, y: r.y, w: r.w, h: r.h })); focusPanel(p.id); }
       else say(e.shiftKey ? "それ以上は大きくできません（ほかのパネルか、グリッドの端）" : "そこへは動かせません（ほかのパネルか、グリッドの端）");
       return;
@@ -528,7 +650,18 @@
     if (!b) return;
     if (b.hasAttribute("data-db-pick")) { if (S.pop === "pick") closePop(); else { S.confirm = ""; openPop("pick", b, pickHtml(), "db-pickpop"); } return; }
     if (b.hasAttribute("data-db-refresh")) { refresh(true); return; }
-    if (b.hasAttribute("data-db-editmode")) { S.edit = true; S.confirm = ""; paint(); say("見出しを掴んで動かし、右下の角で大きさを変えます。空いたマスを押すとパネルを足せます"); return; }
+    // スライサー
+    if (b.dataset.dsPeriod != null) { const k = b.dataset.dsPeriod; setSlice({ ...(sliceState() || {}), period: k ? { kind: k, ...(k === "days" ? { n: 7 } : {}) } : null }); return; }
+    if (b.dataset.dsBack != null) { const k0 = D.backOf((sliceState() || {}).period); setSlice({ ...(sliceState() || {}), period: D.periodBack(Math.max(0, (k0 ?? 0) + +b.dataset.dsBack)) }); return; }
+    if (b.hasAttribute("data-ds-all")) { setSlice({ ...(sliceState() || {}), equips: [] }); return; }
+    if (b.dataset.dsGroup != null) {
+      const g = D.groupsOf(S.tree || {}, (sliceState() || {}).set).find((x) => x.name === b.dataset.dsGroup), cur = (sliceState() || {}).equips || [];
+      const on = g && cur.length === g.members.length && g.members.every((m) => cur.includes(m));
+      setSlice({ ...(sliceState() || {}), equips: on || !g ? [] : g.members.slice() }); return;
+    }
+    if (b.hasAttribute("data-ds-pick")) { if (S.pop === "slice") closePop(); else { const el = openPop("slice", "#dashSlicer [data-ds-pick]:not([hidden])", D.pickHtml(sliceState(), sliceInfo()), "db-slicepop"); D.mixed(el); if (!S.tree) loadTree(); } return; }
+    if (b.hasAttribute("data-ds-clear")) { setSlice({ set: (sliceState() || {}).set }); say("スライサーを外しました"); return; }
+    if (b.hasAttribute("data-db-editmode")) { S.edit = true; S.confirm = ""; paint(); say("見出しで動かす・四隅で大きさ・空いたマスで足す"); return; }
     if (b.hasAttribute("data-db-leave")) { if (dirty()) { S.confirm = "leave"; paintBar(); } else { S.edit = false; closeEditor(); paint(); } return; }
     if (b.hasAttribute("data-db-stay")) { S.confirm = ""; paintBar(); return; }
     if (b.hasAttribute("data-db-discard")) { S.confirm = ""; closeEditor(); const id = S.id; S.edit = false; if (id != null) open(id); else open(S.standardId); return; }
@@ -548,6 +681,13 @@
   }
   function onChange(e) {
     const t = e.target;
+    if (t.matches && t.matches("[data-ds-psel]")) { const [k, n] = t.value.split(":"); setSlice({ ...(sliceState() || {}), period: k ? { kind: k, ...(k === "days" ? { n: 7 } : n ? { n: +n } : {}) } : null }); return; }
+    if (t.matches && t.matches("[data-ds-gsel]")) {
+      if (t.value === "@pick") { const el = openPop("slice", "#dashSlicer [data-ds-gsel]", D.pickHtml(sliceState(), sliceInfo()), "db-slicepop"); D.mixed(el); return; }
+      if (t.value === "@custom") return;
+      const g = D.groupsOf(S.tree || {}, (sliceState() || {}).set).find((x) => x.name === t.value);
+      setSlice({ ...(sliceState() || {}), equips: g ? g.members.slice() : [] }); return;
+    }
     if (t.matches && t.matches("[data-db-rows]")) { const n = +t.value; if (n >= minRows()) commit((L) => { L.rows = n; }); }
   }
 
@@ -576,8 +716,9 @@
     box.addEventListener("change", onChange);
     $("#dashGrid").addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", () => { clearTimeout(bind.rt); bind.rt = setTimeout(() => { if (S.active) paintBar(); }, 150); });
     // マスタ（設備グループなど）が変わったら、選び（まとめ方）を読み直し、出ていれば数え直す（版 3.39.0）
-    document.addEventListener("tpa:masters-changed", () => { loadSources().then(() => { if (S.active && S.layout) refresh(true); }); });
+    document.addEventListener("tpa:masters-changed", () => { loadTree(); loadSources().then(() => { if (S.active && S.layout) refresh(true); }); });
     watchSize();
   }
 
@@ -587,6 +728,7 @@
     S.loading = true;
     try {
       await Promise.all([loadList(), loadSources()]);
+      loadTree();
       if (!S.layout) open(mem().id);
       else { paint(); refresh(false); }
     } catch (e) { S.msg = String(e.message || e); paint(); }
@@ -604,6 +746,8 @@
     deactivate() { S.active = false; clearInterval(S.timer); S.timer = null; closePop(); },
     /** 評価関数・試験から: いまの組みと答え */
     /** 案を撮る道具（ui-variants.mjs）から: 組みを置き換えて描く（保存はしない） */
+    /** 案を撮る道具から: スライサーの字（compact で詰めた形）。置き場を替える案が、道具の行の外に描くため */
+    _slicerHtml: (compact = false) => (compact ? D.compactHtml : D.barHtml)(sliceState(), sliceInfo()),
     _setLayout(l) { S.layout = TPA.clone(l); S.saved = JSON.stringify(S.layout); S.answers.clear(); paint(); refresh(true); },
     _state: () => ({ id: S.id, edit: S.edit, layout: TPA.clone(S.layout), answers: Object.fromEntries([...S.answers].map(([k, v]) => [k, v.d || { error: v.err }])) }),
   };
