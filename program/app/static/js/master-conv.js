@@ -87,15 +87,16 @@ function listHtml(d) {
 }
 function gridHtml(x) {
   const d = dis();
-  const head = `<tr><th class="cv-no"></th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small>数</small>' : ""}</th>`).join("")}<th>出す値</th><th class="cv-ra"></th></tr>`;
-  const rows = x.rows.map((r, i) => `<tr data-r="${i}"${cell && cell.r === i ? ' class="is-cell"' : ""}><td class="cv-no">${i + 1}</td>`
+  // 出す値は番号の次（いちばん大事な列を、表が横に長くても切らない。2026-10-conv の 2 回目）
+  const head = `<tr><th class="cv-no"></th><th>出す値</th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small>数</small>' : ""}</th>`).join("")}<th class="cv-ra"></th></tr>`;
+  const outTd = (r, i) => `<td class="cv-out"><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" aria-label="${i + 1} 行目の出す値"${d}>`
+    + (r.note ? `<span class="cv-note" title="${esc(r.note)}">!</span>` : "") + "</td>";
+  const rows = x.rows.map((r, i) => `<tr data-r="${i}"${cell && cell.r === i ? ' class="is-cell"' : ""}><td class="cv-no">${i + 1}</td>${outTd(r, i)}`
     + x.inputs.map((inp) => {
       const ts = (r.when || {})[inp.name] || [], on = cell && cell.r === i && cell.k === inp.name;
       return `<td class="cv-cond${on ? " is-on" : ""}"><button type="button" class="cv-cbtn" data-cv-cell="${i}|${esc(inp.name)}" title="押すと、この条件を直します（並べた条件は「または」）"${d}>`
-        + (ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c">${esc(testText(t))}</span>`).join("") : '<span class="cv-any">不問</span>') + "</button></td>";
+        + (ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c">${esc(testText(t))}</span>`).join("") : '<span class="cv-any" title="不問（この入力は見ません）">–</span>') + "</button></td>";
     }).join("")
-    + `<td class="cv-out"><span class="cv-arrow">→</span><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" aria-label="${i + 1} 行目の出す値"${d}>`
-    + (r.note ? `<span class="cv-note" title="${esc(r.note)}">!</span>` : "") + "</td>"
     + `<td class="cv-ra"><button type="button" class="icon-btn" data-cv-up="${i}" title="上へ" aria-label="${i + 1} 行目を上へ"${d}>↑</button>`
     + `<button type="button" class="icon-btn" data-cv-down="${i}" title="下へ" aria-label="${i + 1} 行目を下へ"${d}>↓</button>`
     + `<button type="button" class="icon-btn" data-cv-noteed="${i}" title="この行の備考（${esc(r.note || "なし")}）" aria-label="${i + 1} 行目の備考"${d}>✎</button>`

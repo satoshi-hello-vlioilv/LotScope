@@ -544,16 +544,16 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-cbtn{display:block;width:100%;min-height:26px;padding:2px 4px;border:1px solid transparent;border-radius:7px;background:transparent;font:inherit;text-align:left;cursor:pointer}
 .cv-cbtn:hover:not(:disabled){border-color:#9fb8d6;background:#fff}
 .cv-cond.is-on .cv-cbtn{border-color:var(--h-input);background:#fff;box-shadow:0 0 0 2px rgba(42,82,128,.15)}
-.cv-c{display:inline-block;margin:1px 3px 1px 0;padding:1px 7px;border-radius:6px;background:#eef3f9;color:#244569;overflow-wrap:anywhere}
-.cv-or{color:var(--faint);margin:0 3px;font-size:11px}
-.cv-any{color:#b4bcc6}
-.cv-out{white-space:nowrap}.cv-out .ps-input{width:150px;height:28px;font-weight:800;color:#163a5f}
-.cv-arrow{color:var(--faint);margin-right:4px}
+.cv-c{display:table;max-width:100%;margin:1px 0;padding:1px 7px;border-radius:6px;background:#eef3f9;color:#244569;overflow-wrap:anywhere}
+.cv-or{display:block;color:#5c6b7a;font-size:11px;line-height:1.3}
+.cv-any{color:#6b7785}
+.cv-out{white-space:nowrap;border-right:1px solid #e3e8ee}.cv-out .ps-input{width:150px;height:28px;font-weight:800;color:#163a5f}
 .cv-note{display:inline-block;width:16px;height:16px;margin-left:4px;border-radius:50%;background:#fff3d6;color:#8a5a00;font-size:11px;font-weight:800;line-height:16px;text-align:center;cursor:help}
 .cv-ra{white-space:nowrap;width:1%}.cv-ra .icon-btn{display:inline-grid;width:22px;height:22px;font-size:12px;vertical-align:middle}
 .cv-edrow > td{background:#f7fafd}
 .cv-celled{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--h-input);border-radius:9px;background:#fff}
 .cv-celledhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.cv-celledhead small{color:var(--muted)}
+.cv-test .cv-or{display:inline;min-width:84px}
 .cv-test{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .cv-test .ps-input{flex:0 0 auto;height:28px}.cv-test [data-cv-tv]{width:300px}.cv-test .cv-num{width:80px}
 .cv-tk{min-width:84px;font-weight:800;color:#244569}
