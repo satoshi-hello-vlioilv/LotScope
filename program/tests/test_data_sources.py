@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """データ元（services/data_sources.py・routes/sources.py）: 品質データ・作業実績・仕掛・足した元を 1 つの並びで扱い、
-1 ファイルの元（仕掛・足した元）を異常ロット一覧と同じ形で引く。設備の見分け（そのまま・前方一致）。"""
+1 ファイルの元（仕掛・足した元）を品質異常と同じ形で引く。設備の見分け（そのまま・前方一致）。"""
 import shutil
 import sqlite3
 import tempfile

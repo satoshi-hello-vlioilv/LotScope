@@ -19,7 +19,7 @@
 (function () {
   "use strict";
   const { $, esc } = TPA;
-  const C = window.LotListPivotCharts, P = window.DashPanels;
+  const C = window.LotListPivotCharts, P = window.DashPanels, N = window.NumFormat;
   const MAX_DIMS = 3, MAX_MEASURES = 6, MAX_GROUPS = 4, MAX_GROUP_COLS = 2;
   const Q = window.DashFilter;
   const DATE_PARTS = ["date", "ym", "year", "month", "weekday", "hour", ""], NUM_PARTS = ["", "bin"], WORKDAY_PARTS = ["", "ym", "year"];
@@ -46,14 +46,20 @@
   const SER_DASH = [["", "実線"], ["1", "破線"]];
   const XDATES = [["", "自動（10/2）"], ["md", "10/2"], ["mdw", "10/2(金)"], ["d", "2（日だけ）"], ["dw", "2(金)"], ["ymd", "2026/10/2"], ["w", "金（曜日）"]];
   const XROTS = [["", "自動"], ["0", "横"], ["45", "45°"], ["90", "縦"]];
-  const UNITS = [["", "自動（万・億）"], ["none", "そのまま"], ["k", "千"], ["man", "万"]];
+  const UNITS = [["", "自動（万・億）"], ["none", "そのまま"], ["k", "千"], ["man", "万"], ["m", "百万"], ["oku", "億"]];
+  // 表示形式（版 3.43.0。Excel のセルの書式設定と同じ書式コード。static/js/num-format.js）で割る単位（自動〈万・億〉は無い: コードが字を決める）
+  const DIVS = [["", "割らない"], ["k", "千"], ["man", "万"], ["m", "百万"], ["oku", "億"]];
+  const ALIGNS = [["left", "左"], ["center", "中央"], ["right", "右"]], VALIGNS = [["top", "上"], ["middle", "中央"], ["bottom", "下"]];
+  const NSIZES = [["s", "小"], ["", "中"], ["l", "大"], ["xl", "特大"]];
+  // ユーザー定義の例（よく使う形。押すとコードに入る）
+  const CODE_EXAMPLES = ['#,##0"本"', "#,##0.0", "0.0%", '#,##0;[赤]"▲"#,##0', '[>=1000]#,##0,"千";0', '#,##0" kg"', '0.00E+00', 'G/標準"件"'];
   const LEGENDS = [["", "自動"], ["none", "出さない"], ["top", "上"], ["bottom", "下"]];
   const SIZES = [["s", "小"], ["", "中"], ["l", "大"]];
   const REF_COLORS = ["#c9564a", "#b5822a", "#2f7d78", "#3f6591", "#5a6f77"];
   // まとまりの色（"" はデータの種類の色＝仕掛は藍・作業実績は青緑・品質データは琥珀。ほかは区分の色と同じ並び）
   const GROUP_COLORS = ["", "#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#8e4f76"];
   let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", q = "", ctx = { formulas: {}, names: {} }, formOpen = false;
-  let eqOpen = false, eqItems = null, eqKey = "", eqSearch = "", calcEdit = null, fmtOpen = true;
+  let eqOpen = false, eqItems = null, eqKey = "", eqSearch = "", calcEdit = null, fmtOpen = true, numTimer = 0;
 
   const isBoard = () => p && p.visual === "board";
   const isLink = () => !!(p && p.link && (p.link.sides || []).length);
@@ -160,7 +166,10 @@
   }
 
   /* ---- 変える（変えるたびに host.onChange でグリッドのパネルを描き直す） ---- */
-  function changed(repaintFields = true) { syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields); }
+  function changed(repaintFields = true) {
+    syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
+    const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
+  }
   function addDim(role, col) {
     const b = t.body, other = role === "rows" ? "cols" : "rows", max = inGroup() ? MAX_GROUP_COLS : MAX_DIMS;
     if (inSide()) {                                                  // 合わせるデータの軸は 1 つ（押した物に替える）。列の段は無い
@@ -555,13 +564,13 @@
     return d.measures.map((x) => P.measName(x));
   }
   function fmtHtml() {
-    if (inGroup() || isBoard() || p.visual === "none") return "";
-    const fm = p.fmt || {}, kpi = p.visual === "kpi";
+    if (inGroup()) return "";
+    const fm = p.fmt || {}, kpi = p.visual === "kpi", tableish = isBoard() || p.visual === "none";
     const sel = (name, list, cur, label) => `<select data-de-f${name} aria-label="${esc(label)}">${list.map(([k, n]) => `<option value="${k}"${String(cur ?? "") === k ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
     const digits = sel("digits", [["", "自動"], ["0", "整数"], ["1", "0.1"], ["2", "0.01"], ["3", "0.001"]], fm.digits == null ? "" : String(fm.digits), "小数の桁");
     const head = `<button type="button" class="de-fmthead" data-de-fmtopen aria-expanded="${fmtOpen}"><b>書式</b><small>${fmtSummary(fm)}</small><i aria-hidden="true">${fmtOpen ? "▴" : "▾"}</i></button>`;
     if (!fmtOpen) return head;
-    if (kpi) return head + `<div class="de-fmt"><div class="de-row"><span class="de-l">数の形</span>${digits}${sel("unit", UNITS, fm.unit || "", "単位")}</div></div>`;
+    if (kpi || tableish) return head + `<div class="de-fmt">${numFmtHtml(fm, digits, sel)}${alignHtml(fm, kpi)}</div>`;
     const pal = P.PALETTES, cur = fm.palette || "";
     const palBtn = (k, n, cs) => `<button type="button" class="de-pal${cur === k ? " on" : ""}" data-de-pal="${k}" aria-pressed="${cur === k}" title="${esc(n)}"><span>${cs.slice(0, 5).map((c) => `<i style="background:${c}"></i>`).join("")}</span>${esc(n)}</button>`;
     const pals = palBtn("", "データの種類", P.seriesColors({ source: p.source })) + Object.entries(pal).map(([k, x]) => palBtn(k, x.n, x.c)).join("");
@@ -582,7 +591,7 @@
     return head + `<div class="de-fmt">`
       + `<div class="de-row"><span class="de-l">数値</span>${segs("flabels", LINE_VIS.has(p.visual) ? LINE_LABELS : LABELS, fm.labels || "", "数値ラベル")}<small class="de-hint">系列ごとには下の「系列」で</small></div>`
       + `<div class="de-row"><span class="de-l">横軸</span>${sel("xdate", XDATES, fm.xdate || "", "横軸の日付の形")}${segs("fxrot", XROTS, fm.xrot || "", "横軸の字の向き")}</div>`
-      + `<div class="de-row"><span class="de-l">数の形</span>${digits}${sel("unit", UNITS, fm.unit || "", "単位")}</div>`
+      + numFmtHtml(fm, digits, sel)
       + `<div class="de-row"><span class="de-l">縦軸</span><label class="pv-ck">最小<input type="number" step="any" data-de-fymin value="${fm.ymin ?? ""}" placeholder="自動" class="de-n2"></label><label class="pv-ck">最大<input type="number" step="any" data-de-fymax value="${fm.ymax ?? ""}" placeholder="自動" class="de-n2"></label>`
       + `<label class="pv-ck"><input type="checkbox" data-de-fgrid${fm.grid === false ? "" : " checked"}>補助線</label></div>`
       + `<div class="de-row"><span class="de-l">凡例</span>${segs("flegend", LEGENDS, fm.legend || "", "凡例")}<span class="de-l2">字</span>${segs("fsize", SIZES, fm.size || "", "字の大きさ")}</div>`
@@ -595,13 +604,77 @@
     const out = [];
     if (fm.labels) out.push(`数値 ${(LABELS.find((x) => x[0] === fm.labels) || ["", ""])[1]}`);
     if (fm.xdate) out.push(`日付 ${(XDATES.find((x) => x[0] === fm.xdate) || ["", ""])[1]}`);
-    if (fm.digits != null || fm.unit) out.push("数の形");
+    if (fm.num) out.push(`表示形式 ${fm.num.length > 18 ? fm.num.slice(0, 18) + "…" : fm.num}`);
+    else if (fm.digits != null || fm.unit) out.push("数の形");
+    if (fm.align || fm.valign) out.push("配置");
+    if (fm.nsize || fm.bold || fm.ncolor) out.push("字");
     if (fm.ymin != null || fm.ymax != null) out.push("縦軸");
     if ((fm.refs || []).length) out.push(`基準線 ${fm.refs.length}`);
     if (fm.palette) out.push(P.PALETTES[fm.palette].n);
     if (fm.colors && Object.keys(fm.colors).length) out.push(`色 ${Object.keys(fm.colors).length}`);
     if (fm.series && Object.keys(fm.series).length) out.push(`系列 ${Object.keys(fm.series).length}`);
     return out.length ? esc(out.join("・")) : "既定のまま";
+  }
+  /** 表示形式（版 3.43.0。Excel の「表示形式」）: 分類 → 小数・桁区切り・負の数・前後の字・単位で割る（ユーザー定義はコードを書く）と見本 */
+  function numFmtHtml(fm, digits, sel) {
+    const ui = fm.numUi || (fm.num ? { cat: "custom", code: fm.num } : { cat: "" }), cat = ui.cat || "";
+    const catSel = sel("ncat", N.CATS, cat, "表示形式の分類");
+    if (!cat) return `<div class="de-row"><span class="de-l">表示形式</span>${catSel}<span class="de-l2">小数</span>${digits}<span class="de-l2">単位</span>${sel("unit", UNITS, fm.unit || "", "単位")}</div>`;
+    const decSel = sel("ndec", [0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), n ? `${n} 桁` : "整数"]), String(ui.dec ?? 0), "小数の桁");
+    const txt = (k, v, ph, label) => `<input class="de-n2 de-ntx" data-de-n${k} value="${esc(v || "")}" maxlength="12" placeholder="${esc(ph)}" aria-label="${esc(label)}">`;
+    let body = "";
+    if (cat === "custom") {
+      body = `<div class="de-row de-top"><span class="de-l">コード</span><div class="de-ncode"><input class="de-ncodein" data-de-ncode value="${esc(fm.num || "")}" maxlength="160" spellcheck="false" placeholder='例: #,##0"本";[赤]"▲"#,##0' aria-label="書式コード（Excel と同じ）">`
+        + `<span class="de-nex">${CODE_EXAMPLES.map((c) => `<button type="button" class="de-chip" data-de-nex="${esc(c)}" title="このコードにする">${esc(c)}</button>`).join("")}</span>`
+        + '<small class="de-hint">Excel と同じ書き方: 正;負;0;文字 の区分・0 # ? , . % E+00・"字"・[赤] [青]・[>=100] の条件</small></div></div>';
+    } else {
+      body = `<div class="de-row"><span class="de-l"></span><span class="de-l2">小数</span>${decSel}`
+        + (cat === "num" || cat === "cur" ? `<label class="pv-ck"><input type="checkbox" data-de-nsep${ui.sep === false ? "" : " checked"}>桁区切り（,）</label><span class="de-l2">負の数</span>${sel("nneg", N.NEGS, ui.neg || "minus", "負の数の形")}` : "")
+        + "</div>"
+        + `<div class="de-row"><span class="de-l"></span><span class="de-l2">前に</span>${txt("pre", cat === "cur" ? ui.pre ?? "¥" : ui.pre, cat === "cur" ? "¥" : "例: 約", "数の前に付ける字")}`
+        + `<span class="de-l2">後ろに</span>${txt("suf", ui.suf, "例: 本・kg・件", "数の後ろに付ける字（単位）")}</div>`;
+    }
+    return `<div class="de-row"><span class="de-l">表示形式</span>${catSel}<span class="de-l2">単位で割る</span>${sel("unit", DIVS, fm.unit && fm.unit !== "none" ? fm.unit : "", "単位で割る（千・万・百万・億）")}</div>`
+      + body + `<div class="de-row"><span class="de-l">見本</span><span class="de-nsample" id="deNumSample">${numSample(fm)}</span></div>`;
+  }
+  /** 見本: いまの答えの数（無ければ 1234.5）と、負の数・0 を、いまの表示形式で */
+  function numSample(fm) {
+    const d = host.answer && host.answer(), cell0 = d && d.cells && d.cells.find((x) => !x.r.length && !x.c.length);
+    const v = cell0 && typeof cell0.v[0] === "number" ? cell0.v[0] : 1234.5;
+    const warn = fm.num ? N.check(fm.num) : [];
+    const one = (x) => `<span><small>${esc(C.fmt(x))} →</small> ${C.numHtml(x, fm)}</span>`;
+    return [v, -Math.abs(v) || -1234.5, 0].map(one).join("") + (warn.length ? `<em class="de-nwarn">${esc(warn.join("・"))}</em>` : "");
+  }
+  /** 配置と字（版 3.43.0。数字・表・合わせた表）: 横（左・中央・右）・縦（数字だけ）・字の大きさ・太字・色 */
+  function alignHtml(fm, kpi) {
+    return `<div class="de-row"><span class="de-l">配置</span>${segs("falign", [["", "自動"], ...ALIGNS], fm.align || "", "横の配置")}`
+      + (kpi ? `<span class="de-l2">縦</span>${segs("fvalign", [["", "自動"], ...VALIGNS], fm.valign || "", "縦の配置")}` : "") + "</div>"
+      + `<div class="de-row"><span class="de-l">字</span>${segs("fnsize", NSIZES, fm.nsize || "", "字の大きさ")}`
+      + `<label class="pv-ck"><input type="checkbox" data-de-fbold${fm.bold === "off" ? "" : " checked"}>太字</label>`
+      + `<label class="de-ncol" title="数の字の色（表示形式の [赤] などがあれば、そちらが先）"><input type="color" data-de-fncolor value="${fm.ncolor || "#1f2933"}" aria-label="数の字の色">色</label>`
+      + (fm.ncolor ? '<button type="button" class="pv-btn" data-de-fncolorx>色を戻す</button>' : "") + "</div>";
+  }
+  /** 表示形式の選び（numUi）を変えて、コード（num）を組み直す */
+  function setNum(change) {
+    const fm = p.fmt || {}, was = fm.numUi || (fm.num ? { cat: "custom", code: fm.num } : { cat: "" });
+    let ui = { ...was, ...change };
+    if (change.cat !== undefined && change.cat !== was.cat) {      // 分類を替えたときの初め（Excel の分類を替えたときと同じ見当）
+      const code = fm.num || "";
+      ui = change.cat === "custom" ? { cat: "custom", code: code || "#,##0" }
+        : { cat: change.cat, dec: change.cat === "pct" ? 1 : change.cat === "sci" ? 2 : was.dec || 0, sep: true, neg: "minus", pre: change.cat === "cur" ? "¥" : "", suf: was.suf || "" };
+    }
+    const next = { ...fm };
+    if (!ui.cat) { delete next.num; delete next.numUi; }
+    else {
+      const code = N.build(ui);
+      if (code) next.num = code; else delete next.num;
+      next.numUi = ui.cat === "custom" ? { cat: "custom" } : { cat: ui.cat, dec: +ui.dec || 0, sep: ui.sep !== false, neg: ui.neg || "minus", pre: ui.pre || "", suf: ui.suf || "" };
+      if (ui.cat === "custom") next.numUi.code = ui.code;
+      if (next.unit === "" || next.unit === "auto") delete next.unit;
+    }
+    if (JSON.stringify(next) === JSON.stringify(fm)) return;     // 同じなら描き直さない（欄を離れた時の確定で、押した欄が作り替えられて押したのが消えないように）
+    if (Object.keys(next).length) p.fmt = next; else delete p.fmt;
+    changed(false);
   }
   /** 書式を 1 つ変える（既定に戻す物は消す） */
   function setFmt(k, v) {
@@ -765,8 +838,9 @@
         + `<div class="de-step"><i>3</i>形<small>どう描くか</small></div><div id="deVis"></div><div id="deBoard"></div>`
         + `<div class="de-step"><i>4</i>見せ方・書式<small>枠・数値・軸・色</small></div><div id="deLook"></div><div id="deFmt"></div><div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`
         + `<div id="deCalcBox" class="de-calcbox" hidden></div>`;
-      TPA.onText($("#deSearch"), (v) => { q = v; $("#deFields").innerHTML = fieldsHtml(); });
-      TPA.onText($("#deTitle"), (v) => { p.title = v.slice(0, 60); host.onChange(TPA.clone(p)); });
+      // TPA.onText は fn(欄, 出来事) を呼ぶ（値ではない）。前は値のつもりで v.slice と書いて打つたびに止まり、題が変えられず、検索も当たらなかった（版 3.43.0）
+      TPA.onText($("#deSearch"), (el) => { q = el.value; $("#deFields").innerHTML = fieldsHtml(); });
+      TPA.onText($("#deTitle"), (el) => { p.title = el.value.slice(0, 60); host.onChange(TPA.clone(p)); });
     }
     const whole = !!parts() && gi < 0;
     el.classList.toggle("is-board", isBoard()); el.classList.toggle("is-link", isLink()); el.classList.toggle("is-whole", whole);
@@ -834,6 +908,8 @@
       }
       // 書式
       if (b.hasAttribute("data-de-fmtopen")) { fmtOpen = !fmtOpen; $("#deFmt").innerHTML = fmtHtml(); return; }
+      if (b.dataset.deNex != null) { setNum({ cat: "custom", code: b.dataset.deNex }); return; }
+      if (b.hasAttribute("data-de-fncolorx")) { setFmt("ncolor", ""); return; }
       if (b.dataset.dePal != null) { setFmt("palette", b.dataset.dePal); return; }
       if (b.dataset.deSerx != null) {
         const n = b.dataset.deSerx, cs = { ...((p.fmt || {}).colors || {}) }, ss = { ...((p.fmt || {}).series || {}) };
@@ -947,6 +1023,18 @@
       if (x.matches("[data-de-fxrot]")) { setFmt("xrot", x.value); return; }
       if (x.matches("[data-de-fdigits]")) { setFmt("digits", x.value === "" ? "" : +x.value); return; }
       if (x.matches("[data-de-funit]")) { setFmt("unit", x.value); return; }
+      if (x.matches("[data-de-fncat]")) { setNum({ cat: x.value }); return; }
+      if (x.matches("[data-de-fndec]")) { setNum({ dec: +x.value }); return; }
+      if (x.matches("[data-de-nsep]")) { setNum({ sep: x.checked }); return; }
+      if (x.matches("[data-de-fnneg]")) { setNum({ neg: x.value }); return; }
+      if (x.matches("[data-de-npre]")) { clearTimeout(numTimer); setNum({ pre: x.value.trim() }); return; }
+      if (x.matches("[data-de-nsuf]")) { clearTimeout(numTimer); setNum({ suf: x.value.trim() }); return; }
+      if (x.matches("[data-de-ncode]")) { clearTimeout(numTimer); setNum({ cat: "custom", code: x.value.trim() }); return; }
+      if (x.matches("[data-de-falign]")) { setFmt("align", x.value); return; }
+      if (x.matches("[data-de-fvalign]")) { setFmt("valign", x.value); return; }
+      if (x.matches("[data-de-fnsize]")) { setFmt("nsize", x.value); return; }
+      if (x.matches("[data-de-fbold]")) { setFmt("bold", x.checked ? "" : "off"); return; }
+      if (x.matches("[data-de-fncolor]")) { setFmt("ncolor", x.value); return; }
       if (x.matches("[data-de-fymin],[data-de-fymax]")) { setFmt(x.matches("[data-de-fymin]") ? "ymin" : "ymax", x.value === "" ? "" : +x.value); return; }
       if (x.matches("[data-de-fgrid]")) { setFmt("grid", x.checked ? "" : false); return; }
       if (x.matches("[data-de-flegend]")) { setFmt("legend", x.value); return; }
@@ -988,6 +1076,14 @@
       }
     });
     el.addEventListener("input", (e) => {
+      // 書式コードを打つ間は、見本だけをその場で替える（欄は作り直さない。確かめて当てるのは change）
+      // 前後の字・書式コードは打つ間に当てる（パネルも見本もその場で変わる。数は引き直さない）
+      const nt = e.target;
+      if (nt.matches("[data-de-ncode],[data-de-npre],[data-de-nsuf]")) {
+        clearTimeout(numTimer);
+        numTimer = setTimeout(() => setNum(nt.matches("[data-de-ncode]") ? { cat: "custom", code: nt.value.trim() } : { [nt.matches("[data-de-npre]") ? "pre" : "suf"]: nt.value.trim() }), 200);
+        return;
+      }
       if (!calcEdit) return;
       if (e.target.id === "deCalcName") calcEdit.name = e.target.value;
       else if (e.target.id === "deCalcExpr") calcEdit.expr = e.target.value;

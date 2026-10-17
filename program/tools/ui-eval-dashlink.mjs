@@ -9,7 +9,7 @@
 // ④ 設備グループのマスタ: 設備の札が、サーバーの「実際に出てくる設備」と同じ数（作業実績だけの 12 台より多い）・ルールで入る設備に ≈ の印
 //    ルールを足すと（名前が「C」で始まる）その場で当たる設備が増える（保存しない）
 // ⑤ 設備グループ → 設備の表と小計: 小計の行がグループのすぐ下・総計＝小計の和＝サーバーの総計
-// ⑥ 画面の印刷・ハードコピー: アプリのメニューに 3 つ・どの画面（ダッシュボード・異常ロット一覧・マスタ管理）も窓の大きさの PNG になる（白紙でない）
+// ⑥ 画面の印刷・ハードコピー: アプリのメニューに 3 つ・どの画面（ダッシュボード・品質異常・マスタ管理）も窓の大きさの PNG になる（白紙でない）
 //    印刷は、印刷の時だけ画面の画像（#hcPrint）を出す CSS
 // 頁の誤りが無いこと。全部合えば終了コード 0。
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
@@ -122,7 +122,7 @@ try {
     const px = g.getImageData(0, 0, 64, 64).data; let dark = 0; for (let i = 0; i < px.length; i += 4) if (px[i] + px[i + 1] + px[i + 2] < 600) dark++;
     return { type: b.type, w: bmp.width, h: bmp.height, want: [Math.round(document.documentElement.clientWidth * devicePixelRatio), Math.round(document.documentElement.clientHeight * devicePixelRatio)], dark };
   });
-  for (const [name, go] of [["ダッシュボード", null], ["異常ロット一覧", "#tabList"], ["マスタ管理", "#masterBtn"]]) {
+  for (const [name, go] of [["ダッシュボード", null], ["品質異常", "#tabList"], ["マスタ管理", "#masterBtn"]]) {
     if (go) { await p.click(go).catch(() => p.evaluate((s) => document.querySelector(s).click(), go)); await sleep(2500); }
     const r = await shoot().catch((e) => ({ error: String(e) }));
     check(`⑥ ${name}を窓の大きさの PNG にできる（白紙でない）`, r.type === "image/png" && r.w === r.want[0] && r.h === r.want[1] && r.dark > 200, r);

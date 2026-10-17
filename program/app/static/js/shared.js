@@ -194,9 +194,12 @@
         kind が null なら種類を問わない（表示列: WaveLog など、前から読めていたファイルを読めなくしない）。 */
     pickJson(kind, what) {
       return new Promise((resolve, reject) => {
-        const input = Object.assign(document.createElement("input"), { type: "file", accept: ".json,application/json" });
-        input.addEventListener("cancel", () => resolve(null));
+        // 選ぶ間だけ頁に付ける（頁に付けない欄は、ブラウザによって選んだ後の change が届かない。版 3.43.0）
+        const input = Object.assign(document.createElement("input"), { type: "file", accept: ".json,application/json", hidden: true });
+        document.body.appendChild(input);
+        input.addEventListener("cancel", () => { input.remove(); resolve(null); });
         input.addEventListener("change", async () => {
+          input.remove();
           const file = input.files[0]; if (!file) { resolve(null); return; }
           try {
             let d;

@@ -22,10 +22,10 @@ from ..fsio import unquote_path
 NAME = "path_settings"
 
 ITEMS = [
-    {"key": "lot_list.source", "label": "異常ロット一覧の元ファイル（品質データ）", "kind": "sqlite", "page": "sources",
+    {"key": "lot_list.source", "label": "品質異常の元ファイル（品質データ）", "kind": "sqlite", "page": "sources",
      "hint": "共有の .sqlite3 ファイル。WaveLog の品質データと同じファイルを指します（例: \\\\Nlmsrvngy03\\Read\\【New】仕掛\\台帳\\SIKADEF.sqlite3）。"
              "保存するとすぐ、このファイルを手元へ写し直して一覧に使います。"},
-    {"key": "lot_list.table", "label": "異常ロット一覧の表", "kind": "text", "page": "sources",
+    {"key": "lot_list.table", "label": "品質異常の表", "kind": "text", "page": "sources",
      "hint": "元ファイルの中の表の名前。空なら 仕掛 → 品質情報 → 品質 → 保留 の順に探します。"},
     {"key": "lot_list.refresh_seconds", "label": "元ファイルを確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600,
      "hint": "この間隔で元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},

@@ -37,7 +37,7 @@
     </div>
     <div class="brand-sub">{{ brand.subtitle }}</div>
   </div>
-  <!-- 画面の切り替え（最初は異常ロット一覧）。計算画面からも検索欄で直接ロット問い合わせできる -->
+  <!-- 画面の切り替え（最初は品質異常）。計算画面からも検索欄で直接ロット問い合わせできる -->
   <nav class="screen-tabs" role="tablist" aria-label="画面">
     <!-- ダッシュボード（版 3.36.0。3.37.0 からグリッドのパネル・最初の画面） -->
     <button id="tabDash" class="screen-tab" role="tab" aria-selected="false" aria-controls="dashScreen" data-screen="dash"
@@ -45,13 +45,13 @@
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>ダッシュボード</button>
     <button id="tabList" class="screen-tab" role="tab" aria-selected="false" aria-controls="lotListScreen" data-screen="list"
             title="品質データの異常ロットを絞り込み、ロット番号を押して計算へ（Alt+1）">
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>異常ロット一覧</button>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h8"/></svg>品質異常</button>
     <button id="tabCalc" class="screen-tab" role="tab" aria-selected="false" aria-controls="calcScreen" data-screen="calc"
             title="転写・ピッチ計算。検索欄でロット番号を直接問い合わせることもできます（Alt+2）">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13V8M8 13V3M13 13V6"/></svg>転写・ピッチ計算<small id="tabCalcLot"></small></button>
-    <!-- 作業実績（設備ごとの実績 SQLite）。異常ロット一覧と同じ画面・同じ部品で、設備を札で替える -->
+    <!-- 作業実績（設備ごとの実績 SQLite）。品質異常と同じ画面・同じ部品で、設備を札で替える -->
     <button id="tabWork" class="screen-tab" role="tab" aria-selected="false" aria-controls="lotListScreen" data-screen="work"
-            title="設備ごとの作業実績を、異常ロット一覧と同じ絞り込み・表示列で見ます（Alt+3）">
+            title="設備ごとの作業実績を、品質異常と同じ絞り込み・表示列で見ます（Alt+3）">
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M5 6h6M5 8.5h6M5 11h3.5"/></svg>作業実績</button>
   </nav>
   <div class="header-right">
@@ -105,7 +105,7 @@
   <div class="db-stage"><div class="db-grid" id="dashGrid"></div><aside id="dbEditor" class="db-editor-pane" aria-label="パネルを組む" hidden></aside></div>
 </div>
 
-<!-- ============ 異常ロット一覧（品質データの手元の写し・WaveLog と同じ絞り込み） ============ -->
+<!-- ============ 品質異常（品質データの手元の写し・WaveLog と同じ絞り込み） ============ -->
 <div id="lotListScreen" class="ll-screen hidden" role="tabpanel" aria-labelledby="tabList">
   <div class="ll-panel">
     <!-- 元データが古い（毎日更新されるはずの元ファイルの更新が止まっている）ときの警告 -->
@@ -132,8 +132,8 @@
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
       <!-- 右の組（拡大・頁）。件数の行が折り返しても、2 つは離れず右に寄る -->
       <div class="ll-statusright">
-      <!-- 一覧だけを拡大（異常ロット一覧・作業実績で別に、この PC に覚える。開き直しても同じ拡大）。ボタンは倍率だけ（100% でないときは強める）、つまみ・刻み・戻すは押して開く面に -->
-      <button id="llZoomBtn" type="button" class="ll-zoombtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="llZoomPop" title="一覧だけを拡大・縮小します（異常ロット一覧・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
+      <!-- 一覧だけを拡大（品質異常・作業実績で別に、この PC に覚える。開き直しても同じ拡大）。ボタンは倍率だけ（100% でないときは強める）、つまみ・刻み・戻すは押して開く面に -->
+      <button id="llZoomBtn" type="button" class="ll-zoombtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="llZoomPop" title="一覧だけを拡大・縮小します（品質異常・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg><b id="llZoomBtnValue">100%</b><i aria-hidden="true">▾</i></button>
       <div class="ll-pager">
         <button id="llPrev" type="button" aria-label="前のページ">◀</button>
@@ -155,7 +155,7 @@
     </div>
     <!-- 拡大の面（つまみ・−・＋・刻み・100%に戻す） -->
     <div id="llZoomPop" class="ll-zoompop" role="dialog" aria-label="一覧の拡大" hidden>
-      <span id="llZoom" class="ll-zoom" title="一覧だけを拡大・縮小します（異常ロット一覧・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
+      <span id="llZoom" class="ll-zoom" title="一覧だけを拡大・縮小します（品質異常・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
         <button id="llZoomMinus" type="button" class="ll-zpm" aria-label="小さく">−</button>
         <span class="ll-ztrack"><input id="llZoomRange" type="range" min="60" max="200" step="10" value="100" aria-label="一覧の大きさ"><span id="llZoomTicks" class="ll-zticks" aria-hidden="true"></span></span>
@@ -306,7 +306,7 @@
   <div class="master-panel">
     <div class="master-head">
       <div class="master-title">
-        <h2 title="設備マスタ・ロールマスタの追加・修正・削除と、参照先（読みに行く場所）の変更。変更はすぐ保存され、解析画面と異常ロット一覧に効きます。">マスタ管理</h2>
+        <h2 title="設備マスタ・ロールマスタの追加・修正・削除と、参照先（読みに行く場所）の変更。変更はすぐ保存され、解析画面と品質異常に効きます。">マスタ管理</h2>
         <!-- 置き場（手元のみ／共有／共有に届かない）と版。共有のときは数秒ごとにほかの PC の変更を取り込む -->
         <div id="masterPlace" class="master-place" aria-live="polite"></div>
       </div>
@@ -406,6 +406,7 @@
 <script>window.TPA_UI_PROFILE = {{ ui_profile|tojson }};</script>
 <script>window.TPA_CONVERSIONS = {{ conversions|tojson }};</script>
 <script src="{{ url_for('static', filename='js/shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/unsaved.js') }}"></script>
 <script src="{{ url_for('static', filename='js/list-formula.js') }}"></script>
 <script src="{{ url_for('static', filename='js/conversions.js') }}"></script>
 <script src="{{ url_for('static', filename='js/formula-builder.js') }}"></script>
@@ -420,6 +421,7 @@
 <script src="{{ url_for('static', filename='js/lotdsp-url.js') }}"></script>
 <script src="{{ url_for('static', filename='js/xlsx-writer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-export.js') }}"></script>
+<script src="{{ url_for('static', filename='js/num-format.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-pivot-charts.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-pivot.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-active.js') }}"></script>

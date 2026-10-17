@@ -30,6 +30,18 @@ def place(stamp, basis="work"):
     return day, shift
 
 
+def to_datetime_plain(v, time_value=None):
+    """近道の無い日時の読み方（sqlite_ro.to_datetime の版 3.42.0 までの形）"""
+    from app.services.sqlite_ro import to_date, to_minutes
+    d = to_date(v)
+    if d is None:
+        return None
+    hms = to_minutes(v)
+    if hms is None and time_value is not None:
+        hms = to_minutes(time_value)
+    return d if hms is None else f"{d} {hms[0]:02d}:{hms[1]:02d}:{hms[2]:02d}"
+
+
 def cell(ans, r=(), c=()):
     """答えの段の頭 (r, c) の値の並び。無ければ None"""
     for x in ans["cells"]:
@@ -320,6 +332,40 @@ class Many(unittest.TestCase):
         self.assertEqual((cell(ans) or [0])[0], want, "日付の列は暦の今日から")
         with self.assertRaises(pivot.PivotError):
             self.many([], [], [{"agg": "count"}], parts=self.parts()[:1], period={"column": "無い列", "kind": "today"})
+
+    def test_period_prefilter_keeps_odd_formats(self):
+        """期間の先絞り（版 3.43.0）: 形の決まった日付は SQLite で前後 2 日に絞るが、形の違う日付（1 桁の月・空白で始まる・ISO・
+        Excel の数・2 桁の年・8 桁）は外さず Python が決める。答えは先絞りをしないとき（素朴な数え直し）と同じ"""
+        p = self.tmp / "odd.sqlite3"
+        odd = ["2026/10/01 8:00:00", "2026/9/30 23:30:00", " 2026/10/01 9:00:00", "2026-10-01T10:00:00", "2026.10.01 11:00",
+               "26/10/01 12:00:00", "20261001", "2026/10/01", "2026/08/01 8:00:00", "2026/10/05 8:00:00", None, "", "あ", 46000.5, "2026/13/01 8:00:00"]
+        with sqlite3.connect(p) as c:
+            c.execute("CREATE TABLE 実績 (ロット番号 TEXT, [BOX実績_作業開始_日付], 作業日)")
+            c.executemany("INSERT INTO 実績 VALUES (?, ?, ?)", [(f"L{i}", v, v) for i, v in enumerate(odd)])
+        part = pivot.Part(str(p), preferred_table="実績", table_candidates=work_log.TABLE_CANDIDATES, work=self.work, equip={"name": "X"})
+        now = datetime(2026, 10, 2, 10)
+        for col in ("@workday", "作業日"):
+            got = self.many([], [], [{"agg": "count"}], parts=[part], period={"column": col, "kind": "yesterday"}, now=now)
+            day = "2026-10-01"
+            if col == "@workday":
+                want = sum(1 for v in odd if (self.work["clock"].place(to_datetime_plain(v), "work")[0] == day))
+            else:
+                want = sum(1 for v in odd if (to_datetime_plain(v) or "")[:10] == day)
+            self.assertEqual((cell(got) or [0])[0], want, col)
+            self.assertGreater(want, 4, "形の違う日付も数えた")
+        w, prm = pivot.period_prefilter("d", ("2026-10-01", "2026-10-01"))
+        self.assertEqual(prm, ["2026-09-29", "2026-10-03"], "前後 2 日")
+
+    def test_fast_datetime_matches_the_plain_reading(self):
+        """日時の近道（sqlite_ro.to_datetime の 1 回の照合）は、近道の無い読み方と同じ答え"""
+        from app.services import sqlite_ro
+        vals = ["2026/10/01 8:15:00", "2026/1/5 23:59:59", "2026-10-01T08:15", "2026-10-01T08:15:30.123", "2026.10.01 7:05", " 2026/10/01 8:15:00 ",
+                "2026/10/01", "2026/02/30 8:00:00", "2026/10/01 24:00:00", "2026/10/01 8:61:00", "2026/10/01 8:15:00 extra", "26/10/01 1:02:03",
+                "2026年10月1日 8:00", "20261001", "", None, 45000, "x2026/10/01", "2026/10/01 8:15:00.5"]
+        for v in vals:
+            for tv in (None, "9:30", "bad"):
+                with self.subTest(v=v, tv=tv):
+                    self.assertEqual(sqlite_ro.to_datetime(v, tv), to_datetime_plain(v, tv))
 
     def test_equipment_from_a_column_and_unknown_filters(self):
         p = self.tmp / "wip.sqlite3"

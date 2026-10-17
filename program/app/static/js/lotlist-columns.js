@@ -1,6 +1,6 @@
 "use strict";
 /* =========================================================================
-   異常ロット一覧の表示列（WaveLog の「表示列」＝ static/js/list/list-columns.js と WL.columnLayout と同じ作り）
+   品質異常の表示列（WaveLog の「表示列」＝ static/js/list/list-columns.js と WL.columnLayout と同じ作り）
    - 1つの表（対象 `lotlist:<表>`）ごとに「列の設定」を持つ:
        { order, hidden, widths, locks, names, formats, aligns }
    - 3層で持つ: saved（保存した形）／draft（窓で触っている途中。保存するまで元に戻せる）／live（見出しをドラッグ中）
@@ -57,6 +57,8 @@
   function stage(t, patch) { draft[t] = Object.assign(draft[t] || {}, patch); }
   function discard(t) { delete draft[t]; }
   function isDirty(t) { return !!draft[t] && Object.keys(draft[t]).length > 0; }
+  /** 保存した設定と本当に違うか（同じ値を入れ直しただけなら違わない。保存していない変更の見張り: 版 3.43.0） */
+  function changedFrom(t) { const base = norm(saved[t]); return !!draft[t] && Object.keys(draft[t]).some((k) => !TPA.unsaved.same(draft[t][k], base[k])); }
   function save(t) { saved[t] = get(t); delete draft[t]; writeSaved(); }
   function patch(t, p) { saved[t] = Object.assign(norm(saved[t]), p); writeSaved(); }
   function hold(t, p) { live[t] = Object.assign(live[t] || {}, p); }
@@ -468,7 +470,7 @@
     panel.innerHTML = `
       <div class="lc-head" data-drag>
         <div><small class="lc-eyebrow">一覧の見せ方</small><h3 id="lcTitle">表示列の設定</h3></div>
-        <button type="button" class="lc-x" id="lcClose" title="閉じる（保存していない変更は元に戻ります）" aria-label="閉じる">×</button>
+        <button type="button" class="lc-x" id="lcClose" title="閉じる（保存していない変更があれば、どうするかを聞きます）" aria-label="閉じる">×</button>
       </div>
       <div class="lc-body">
         <div class="lc-left">
@@ -518,7 +520,13 @@
     if (!keep && ctx) { discard(ctx.target); ctx.rerender(); }
     win.remember(); panel.hidden = true;      // 隠す前に覚える（隠したあとは大きさ 0 になる）
   }
-  const toggle = () => (panel && !panel.hidden ? closePanel() : openPanel());
+  /** 閉じる（× ・Esc・道具の行のボタン）: 直していれば聞く。作り方の窓の下書きも一緒に聞く */
+  async function tryClose() { if (await TPA.unsaved.leave(["list:columns", "list:fx"], "表示列の窓を閉じる")) closePanel(); }
+  const toggle = () => (panel && !panel.hidden ? tryClose() : openPanel());
+  TPA.unsaved.watch("list:columns", { scope: "list", dirty: () => !!panel && !panel.hidden && !!ctx && changedFrom(ctx.target),
+    label: () => ($("#lcTitle") || {}).textContent || "表示列の設定",
+    save: async () => { save(ctx.target); closePanel({ keep: true }); ctx.rerender(); return true; },
+    discard: () => closePanel() });
   function sampleRow(c) { return ctx.rows.find((x) => { const v = rawOf(ctx.target, c, x); return v != null && String(v).trim() !== ""; }) || null; }
   function listCols() {
     const t = ctx.target, l = get(t), hidden = new Set(l.hidden), q = nameQ.trim().toLowerCase();
@@ -533,7 +541,7 @@
   function renderPanel() {
     if (!panel || panel.hidden || !ctx) return;
     const t = ctx.target, l = get(t), all = ordered(t, ctx.columns, ctx.lotColumn), hidden = new Set(l.hidden);
-    $("#lcTitle").textContent = `表示列の設定（${ctx.title || `異常ロット一覧：${describeTarget(t)}`}）`;
+    $("#lcTitle").textContent = `表示列の設定（${ctx.title || `品質異常：${describeTarget(t)}`}）`;
     const nShown = all.filter((c) => !hidden.has(c) || c === ctx.lotColumn).length;
     const nCalc = all.filter((c) => isComputed(t, c)).length;
     $("#lcChips").innerHTML = [["", `すべて ${all.length}`], ["src", `元データ ${all.length - nCalc}`], ["calc", `計算・操作 ${nCalc}`], ["shown", `表示中 ${nShown}`], ["hidden", `非表示中 ${all.length - nShown}`]]
@@ -801,7 +809,7 @@
     };
   }
   function bindPanel() {
-    $("#lcClose").onclick = () => closePanel();
+    $("#lcClose").onclick = () => tryClose();
     bindConv();
     const more = $("#lcMore"), pop = $("#lcPresets");
     const showMore = (on) => { pop.hidden = !on; more.setAttribute("aria-expanded", on); if (on) requestAnimationFrame(() => $("#lcPresetSel").focus()); };
@@ -810,7 +818,7 @@
     panel.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       e.preventDefault(); e.stopPropagation();
-      if (!pop.hidden) { showMore(false); more.focus(); } else closePanel();   // Esc は内側から 1 段ずつ
+      if (!pop.hidden) { showMore(false); more.focus(); } else tryClose();   // Esc は内側から 1 段ずつ
     });
     TPA.onText($("#lcFilter"), (el) => { nameQ = el.value; renderPanel(); });
     $("#lcChips").addEventListener("click", (e) => {
@@ -920,7 +928,7 @@
     $("#lcExport").onclick = () => {
       const scopeAll = confirm("すべての表の設定を書き出しますか？\n［OK］すべての一覧　［キャンセル］この一覧だけ");
       const items = scopeAll ? Object.keys(saved).map((t) => ({ target: t, body: saved[t] })) : [{ target: ctx.target, body: get(ctx.target) }];
-      TPA.saveJson("tpa-lotlist-column-layouts", items, `${ctx.fileStem || "異常ロット一覧"}_表示列_${scopeAll ? "すべて" : ctx.place || ctx.table}.json`);
+      TPA.saveJson("tpa-lotlist-column-layouts", items, `${ctx.fileStem || "品質異常"}_表示列_${scopeAll ? "すべて" : ctx.place || ctx.table}.json`);
     };
     $("#lcImport").onclick = async () => {
       try {

@@ -3,7 +3,7 @@
 // 利用者の指摘: 共有の書式の面が見切れる・表の見せ方の面に横のスクロールが出る。
 // 原因は 2 つ: ① 道具の行の子に掛けた「折り返さない」（white-space:nowrap）を面が受け継ぎ、長い説明の字が面の幅を押し広げていた
 //   ② 共有の書式の面は「道具の行の右端から 10px」に置いていたので、窓が狭く道具の行が画面より広いとき、面ごと画面の外へ出ていた。
-// 確かめること（作業実績と異常ロット一覧、窓の幅 1728・1536・1280・1100）:
+// 確かめること（作業実績と品質異常、窓の幅 1728・1536・1280・1100）:
 //   面の左右が窓の中（8px の余白）・面の中に横の送り（scrollWidth − clientWidth）が無い・面の中の字が面の右からはみ出さない
 // 全部合えば終了コード 0。
 import fs from "node:fs";
@@ -50,8 +50,8 @@ try {
         if (!ok) bad.push({ name, ...m });
         if (SHOT) await p.screenshot({ path: path.join(SHOT, `${src}-${width}-${name}.png`) });
       }
-      check(`${src === "work" ? "作業実績" : "異常ロット一覧"} ${width}px: 5 つの面が窓に収まり、横に送らずに読める`, !bad.length, bad);
-      check(`${src === "work" ? "作業実績" : "異常ロット一覧"} ${width}px: 頁の誤りが無い`, !errors.length, errors);
+      check(`${src === "work" ? "作業実績" : "品質異常"} ${width}px: 5 つの面が窓に収まり、横に送らずに読める`, !bad.length, bad);
+      check(`${src === "work" ? "作業実績" : "品質異常"} ${width}px: 頁の誤りが無い`, !errors.length, errors);
       await p.context().close();
     }
   }

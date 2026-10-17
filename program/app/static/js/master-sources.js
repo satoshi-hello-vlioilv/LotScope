@@ -10,7 +10,7 @@
 window.MasterSources = (M) => {
 "use strict";
 const { $, escapeHtml, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, lockWaitText, boldName, readOnlyWhy,
-  shareDown, goTab, ensureTabLoaded } = M;
+  shareDown, goTab, ensureTabLoaded, saveBy } = M;
 /* ナビは定義の順に見出しを作るので、「つなぎ先」の参照先・作業実績の後ろへ差し込む（後ろの定義をいったん外して付け直す） */
 (() => {
   const keys = Object.keys(MASTER_DEFS), at = keys.indexOf("worklog") + 1, rest = keys.slice(at).map((k) => [k, MASTER_DEFS[k]]);
@@ -21,6 +21,12 @@ const { $, escapeHtml, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, l
 })();
 mstate.data.sources = null;
 let openKey = null;     // いま直す欄に変えているカード（"+" は足す欄）
+let openSnap = "";      // 開いたときの欄の値（保存していない変更の見張り。版 3.43.0）
+const formNow = () => JSON.stringify([...document.querySelectorAll("#masterSettings .sr-card.is-open [data-sr]")].map((x) => x.value));
+const srDirty = () => mstate.tab === "sources" && openKey != null && !!document.querySelector("#masterSettings .sr-card.is-open [data-sr]") && formNow() !== openSnap;
+TPA.unsaved.watch("master:sources", { scope: "master", dirty: srDirty, discard: () => { openKey = null; },
+  label: () => (openKey === "+" ? "データ元を足す欄" : `データ元「${((mstate.data.sources || { items: [] }).items.find((x) => x.key === openKey) || {}).name || openKey}」の欄`),
+  save: () => saveBy("#masterSettings .sr-card.is-open [data-sr-save]", srDirty, "#masterSettings .sr-card.is-open [data-sr-result]") });
 
 const sepOf = (p) => (String(p).includes("\\") ? "\\" : "/");
 const whereOf = (s) => (s.kind === "folder" ? s.place + sepOf(s.place) + (s.pattern || "") : s.place);
@@ -38,7 +44,7 @@ function stateOf(s) {
   if (m.unreachable) return `<span class="sr-state ng"><i></i>届きません・写した ${when(m.copiedAt || m.at)} の物で見ています</span>`;
   return `<span class="sr-state ok"><i></i>写した ${when(m.copiedAt || m.at)}${s.rows != null ? `・${s.rows.toLocaleString()} 行` : ""}</span>`;
 }
-const tabOf = (s) => (s.screen === "list" ? "異常ロット一覧" : s.screen === "work" ? "作業実績" : s.listed ? s.name : "出さない");
+const tabOf = (s) => (s.screen === "list" ? "品質異常" : s.screen === "work" ? "作業実績" : s.listed ? s.name : "出さない");
 const roleChip = (s) => (s.name.includes(s.role) ? "" : `<span class="sr-role">${escapeHtml(s.role)}</span>`);
 
 async function renderSources({ notice = null } = {}) {
@@ -70,10 +76,10 @@ function paintSources(notice = null) {
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="srNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     <div class="sr-cards">${d.items.map(card).join("")}
       ${openKey === "+" ? `<section class="sr-card is-open" data-key=""><div class="sr-name"><b>データ元を足す</b></div><div></div><span></span>${formOf(null, can)}</section>` : ""}</div>
-    ${can && openKey !== "+" ? '<div class="sr-add"><button type="button" class="btn-primary" id="srAdd">＋ データ元を足す</button><small>共有の .sqlite3 ファイルを 1 つ選んで、異常ロット一覧と同じ形で見られるようにします。</small></div>' : ""}
+    ${can && openKey !== "+" ? '<div class="sr-add"><button type="button" class="btn-primary" id="srAdd">＋ データ元を足す</button><small>共有の .sqlite3 ファイルを 1 つ選んで、品質異常と同じ形で見られるようにします。</small></div>' : ""}
   </section>`;
-  box.querySelectorAll("[data-sr-open]").forEach((c) => { c.onclick = (e) => { if (e.target.closest("a")) return; openKey = c.dataset.srOpen; paintSources(); }; });
-  const add = $("#srAdd"); if (add) add.onclick = () => { openKey = "+"; paintSources(); };
+  box.querySelectorAll("[data-sr-open]").forEach((c) => { c.onclick = async (e) => { if (e.target.closest("a") || !(await TPA.unsaved.leave("master:sources", "ほかのデータ元を開く"))) return; openKey = c.dataset.srOpen; paintSources(); }; });
+  const add = $("#srAdd"); if (add) add.onclick = async () => { if (!(await TPA.unsaved.leave("master:sources", "データ元を足す"))) return; openKey = "+"; paintSources(); };
   const open = box.querySelector(".sr-card.is-open");
   if (open) bindSourceForm(open, d.items.find((x) => x.key === openKey) || null, can);
 }
@@ -109,8 +115,9 @@ function bindSourceForm(card, s, can) {
   const q = (k) => card.querySelector(`[data-sr="${k}"]`), val = (k) => (q(k) ? q(k).value.trim() : "");
   const out = card.querySelector("[data-sr-result]");
   const say = (cls, html) => { if (!out) return; out.className = `ps-result ${cls} sr-w`; out.innerHTML = html; };
-  card.querySelectorAll("[data-sr-close]").forEach((b) => { b.onclick = () => { openKey = null; paintSources(); }; });
+  card.querySelectorAll("[data-sr-close]").forEach((b) => { b.onclick = async () => { if (!(await TPA.unsaved.leave("master:sources", "欄を閉じる"))) return; openKey = null; paintSources(); }; });
   const work = card.querySelector("[data-sr-work]"); if (work) work.onclick = () => goTab("worklog");
+  openSnap = formNow();
   if (!q("place")) return;
   TPA.pathPick(q("place"), { purpose: "sqlite", title: "データ元のファイル（.sqlite3）を選ぶ", note: "共有の .sqlite3 ファイルを選びます。",
     disabled: can ? false : `${readOnlyWhy("sources")}のため、選べません` });

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""異常ロット一覧の速さを測る（Python）。desktop/examples/lotbench.rs（Rust）と同じ問い合わせ・同じ回数（各 5 回の中央値・JSON にするまで）。
+"""品質異常の速さを測る（Python）。desktop/examples/lotbench.rs（Rust）と同じ問い合わせ・同じ回数（各 5 回の中央値・JSON にするまで）。
 
     python tests/lotlist_bench.py 品質データ.sqlite3
 """

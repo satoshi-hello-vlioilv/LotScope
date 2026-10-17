@@ -7,11 +7,11 @@
 最初の中身（プリセット）は同梱の app/master_defaults/conversions.json（共有にまだ無いとき、最初の版として置く: master_store._seed）。
 「標準に戻す」はその同梱の中身へ戻す（preset_of）。
 
-1 行＝1 つの表 {名前, 入力, 判定, その他, 当て方, 表示順, 備考}（入力・判定・当て方は JSON の字）
+1 行＝1 つの表 {名前, 入力, 判定, その他, 当て方, 表示順}（入力・判定・当て方は JSON の字。版 3.43.0 で備考と行のメモをやめた）
     入力   … [{name, type, columns}]。name は表の中の呼び名（判定の when の鍵・出す値の式の [名前]）。type は text か num
               （num は 数で比べる: 26 と 26.0 は同じ・範囲）。columns はその入力に当てる列の名前の候補（当てるとき、
               一覧の列から探す。半角・全角の違いは見ない: match_column）
-    判定   … [{when: {入力の名前: [試し…]}, out, note}]。上から順に見て、最初に当たった行の out を出す。試しの形は
+    判定   … [{when: {入力の名前: [試し…]}, out}]。上から順に見て、最初に当たった行の out を出す。試しの形は
               static/js/list-formula.js の conv の説明（eq・ne・starts・nstarts・ends・nends・contains・ncontains・empty・filled・range）
     その他 … どの行にも当たらないときに出す値。out と同じ書き方（= で始まれば式。=[入力] なら元の値のまま。空なら空欄）
     当て方 … 一覧へ当てるときの形 {mode, column, place}。mode: replace（入力の列の値を作り替える）・add（列を足す）。
@@ -29,7 +29,7 @@ import unicodedata
 from .formula import FormulaError, compile_formula
 
 NAME = "conversions"
-FIELDS = ["名前", "入力", "判定", "その他", "当て方", "表示順", "備考"]
+FIELDS = ["名前", "入力", "判定", "その他", "当て方", "表示順"]
 NAME_MAX = 40
 MAX_INPUTS = 8
 MAX_ROWS = 300
@@ -37,7 +37,7 @@ MAX_TESTS = 12
 MAX_VALUES = 60
 VALUE_MAX = 100
 OUT_MAX = 500
-NOTE_MAX = 300
+MAX_IMPORT = 200
 OPS = {"eq": "と同じ", "ne": "と違う", "starts": "で始まる", "nstarts": "で始まらない", "ends": "で終わる", "nends": "で終わらない",
        "contains": "を含む", "ncontains": "を含まない", "empty": "空欄", "filled": "空欄でない", "range": "の範囲"}
 LIST_OPS = {"eq", "ne", "starts", "nstarts", "ends", "nends", "contains", "ncontains"}
@@ -174,11 +174,7 @@ def clean_rows(v, inputs):
             tests = [clean_test(t) for t in (ts if isinstance(ts, list) else [])][:MAX_TESTS]
             if tests:
                 when[k] = tests
-        row = {"when": when, "out": _check_out(r.get("out"), names, f"{i + 1} 行目の出す値")}
-        note = _text(r.get("note"), NOTE_MAX)
-        if note:
-            row["note"] = note
-        out.append(row)
+        out.append({"when": when, "out": _check_out(r.get("out"), names, f"{i + 1} 行目の出す値")})
     return out
 
 
@@ -193,7 +189,7 @@ def clean_apply(v):
 
 
 def clean_row(data, partial=False):
-    """画面から来た値（name・inputs・rows・other・apply・order・note）→ マスタの行。partial は直すとき（来た物だけ）。"""
+    """画面から来た値（name・inputs・rows・other・apply・order）→ マスタの行。partial は直すとき（来た物だけ）。"""
     out = {}
     if not partial or "name" in data:
         name = _text(data.get("name"), NAME_MAX)
@@ -215,9 +211,34 @@ def clean_row(data, partial=False):
             out["表示順"] = str(int(data.get("order")))
         except (TypeError, ValueError):
             out["表示順"] = ""
-    if not partial or "note" in data:
-        out["備考"] = _text(data.get("note"), NOTE_MAX)
     return out
+
+
+def clean_import(items):
+    """書き出したファイルの表の並び（画面の形 {name, inputs, rows, other, apply}）→ マスタの行の並び（版 3.43.0）。
+    1 つでも誤りがあれば、どの表の何が違うかを言って断る（半分だけ取り込まない）。ファイルの中で同じ名前が 2 つあっても断る"""
+    if not isinstance(items, list) or not items:
+        raise ConversionError("取り込む変換表がありません。")
+    if len(items) > MAX_IMPORT:
+        raise ConversionError(f"取り込めるのは {MAX_IMPORT} 表までです。")
+    out, seen = [], set()
+    for i, x in enumerate(items):
+        if not isinstance(x, dict):
+            raise ConversionError(f"{i + 1} つ目は変換表の形ではありません。")
+        try:
+            row = clean_row({k: x.get(k) for k in ("name", "inputs", "rows", "other", "apply")})
+        except ConversionError as e:
+            raise ConversionError(f"「{x.get('name') or f'{i + 1} つ目'}」: {e}") from None
+        if row["名前"] in seen:
+            raise ConversionError(f"ファイルの中に「{row['名前']}」が 2 つあります。")
+        seen.add(row["名前"])
+        out.append(row)
+    return out
+
+
+def export_items(rows):
+    """マスタの行 → 書き出す形（画面の形から id・版・表示順を除いた物。表示順は並びの順で表す）"""
+    return [{k: v for k, v in view(r).items() if k not in ("id", "order")} for r in ordered(rows)]
 
 
 def check_unique(rows, row, self_id=None):
@@ -230,16 +251,20 @@ def check_unique(rows, row, self_id=None):
 
 
 # ---------------------------------------------------------------- 読む
+def _rows(v):
+    """判定の行は when と out だけを読む（版 3.42.0 の共有のマスタに残る行のメモ note は見せない）"""
+    return [{"when": x.get("when") if isinstance(x.get("when"), dict) else {}, "out": x.get("out", "")} for x in _j(v, []) if isinstance(x, dict)]
+
+
 def view(r):
-    """マスタの行 → 画面・計算の形 {id, name, inputs, rows, other, apply, order, note}"""
+    """マスタの行 → 画面・計算の形 {id, name, inputs, rows, other, apply, order}"""
     def order(x):
         try:
             return int(x)
         except (TypeError, ValueError):
             return 0
-    return {"id": r.get("id"), "name": str(r.get("名前") or ""), "inputs": _j(r.get("入力"), []), "rows": _j(r.get("判定"), []),
-            "other": str(r.get("その他") or ""), "apply": _j(r.get("当て方"), {}), "order": order(r.get("表示順")),
-            "note": str(r.get("備考") or "")}
+    return {"id": r.get("id"), "name": str(r.get("名前") or ""), "inputs": _j(r.get("入力"), []), "rows": _rows(r.get("判定")),
+            "other": str(r.get("その他") or ""), "apply": _j(r.get("当て方"), {}), "order": order(r.get("表示順"))}
 
 
 def ordered(rows):

@@ -1,7 +1,7 @@
 /* 自己診断（環境変数 TPA_SELFTEST=結果のファイル で起動したときだけ、窓が画面に流し込む）。
    本物の WebView の中から、窓（Rust）と中身（Python）の組が正しく動くかを確かめて /__desktop/selftest へ送る。窓は結果を書いて終わる。
    調べること: 起動が終わる・振り分け（部品は Rust・画面と API は Python・窓のことは Rust）・使い回しの決まり・大きな日本語の本文・
-   日本語の問い合わせ文字・40 本同時・安全な文脈・保存領域・保存（ダウンロード）・窓の情報・異常ロット一覧（Rust と Python の突き合わせ）・
+   日本語の問い合わせ文字・40 本同時・安全な文脈・保存領域・保存（ダウンロード）・窓の情報・品質異常（Rust と Python の突き合わせ）・
    画面のエラーが無い・速さ。 */
 (async () => {
   const res = [];
@@ -87,7 +87,7 @@
        `protocol ${info.protocol}/${ready.protocol} serves=${JSON.stringify(info.serves)} root=${info.local_root}`);
     ok("窓の版と中身の版が同じ", info.shell_version === ready.version, `${info.shell_version} / ${ready.version}`);
 
-    // 10) 異常ロット一覧（Rust が写しから引く・lot.rs）。同じ問い合わせを Python（engine=python）でも引き、答えが同じか
+    // 10) 品質異常（Rust が写しから引く・lot.rs）。同じ問い合わせを Python（engine=python）でも引き、答えが同じか
     const ll = await get("/api/lotlist?page=1");
     ok("一覧は Rust が答える", ll.by === "shell", `${ll.by} ${ll.r.status}`);
     const llSrc = await get("/api/lotlist/source");

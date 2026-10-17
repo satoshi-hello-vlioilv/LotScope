@@ -4,7 +4,7 @@
 // ① グラフの形の行: 「グラフ ［絵］時系列 ▾」・すぐに見るの札（共通デフォルト＝組み込みの quick の物）・「組み方 ▾」が 1 段（1728×1152・1536×864）
 // ② グラフの形の面: 目的の行 6 つに全部の形（登録 DEFS の数。版 3.39.0 で 24）・いまの形が押されている・向くの印（日の段に ロット数＋重量の合計 → 折れ線は向く・縦棒は向かない）。
 //    もう一度押すと閉じる（外を押したとして閉じ、同じ押しでまた開く、を起こさない）
-// ③ 組み込みの組み方（共通デフォルト）を作業実績・異常ロット一覧で 1 つずつ当てる → どれも描ける（描けない案内が出ない）・形のボタンの名前が替わる
+// ③ 組み込みの組み方（共通デフォルト）を作業実績・品質異常で 1 つずつ当てる → どれも描ける（描けない案内が出ない）・形のボタンの名前が替わる
 // ④ グラフの数と表の数を突き合わせる: パレート図（大きい順・値＝表・累積の最後が 100%）／ドーナツ（真ん中＝総計・割合の和 100%）／
 //    ヒートマップ（升の数＝行×列・値＝表）／管理図（中心線＝表の値の平均・UCL−CL＝3×移動範囲の平均÷1.128）／
 //    箱ひげ図（箱の数＝表の行・箱の平均＝表の平均）／散布図（点の数・相関係数＝表の 2 つの値から数え直した r）／積み上げ（凡例＝表の列）
@@ -79,7 +79,7 @@ try {
   check("形のボタンをもう一度押すと面が閉じる（開き直さない）", !(await p.$("#llPvChartPop")), "open");
   await pickChart(p, "line"); await idle(p);
   check("面から折れ線を選ぶと、面が閉じ、ボタンの名前が「折れ線」に", !(await p.$("#llPvChartPop")) && (await p.$eval("#llPvChartBtn b", (x) => x.textContent)) === "折れ線", "line");
-  // ③ 組み込みの組み方を 1 つずつ（作業実績・異常ロット一覧）
+  // ③ 組み込みの組み方を 1 つずつ（作業実績・品質異常）
   const drawn = [];
   for (const src of ["work", "lot"]) {
     if (src === "lot") await toSrc(p, "#tabList");
@@ -127,7 +127,7 @@ try {
   await applyBuiltin(p, "few-pair");
   const t4s = await table(p), legend = await p.$$eval("#llPvChart .pv-legend span", (xs) => xs.map((x) => x.textContent));
   check("積み上げ: 凡例＝表の列（総計を除く）", legend.join() === t4s.heads.filter((h) => !/総計|→/.test(h) && !t4s.heads[0].startsWith(h)).join(), { legend, heads: t4s.heads });
-  // ④ 異常ロット一覧: ドーナツ・散布図
+  // ④ 品質異常: ドーナツ・散布図
   await toSrc(p, "#tabList");
   await applyBuiltin(p, "donut");
   const t4d = await table(p), dn = await p.evaluate(() => ({ total: document.querySelector("#llPvChart .pv-dtot")?.textContent, pct: [...document.querySelectorAll("#llPvChart .pv-dlist small")].map((x) => +x.textContent.replace("%", "")) }));
@@ -156,7 +156,7 @@ try {
   await toSrc(p, "#tabWork");
   const q5c = await quick(p), srv = (await api(p, "GET", "/api/pivot-presets?source=work")).json;
   check("読み直しても同じ並び（ID ごとにサーバーへ覚える）", q5c.map((x) => x.id).join() === q5b.map((x) => x.id).join() && srv.quickCustom && srv.login, { q5c, srv: srv.quick });
-  check("異常ロット一覧のすぐに見るは別（元ごと）", !(await api(p, "GET", "/api/pivot-presets?source=lot")).json.quickCustom, "lot");
+  check("品質異常のすぐに見るは別（元ごと）", !(await api(p, "GET", "/api/pivot-presets?source=lot")).json.quickCustom, "lot");
   await openPresetPop(p);
   await p.uncheck('#llPvPresetPop [data-pv-pin="b:work-shift"]'); await sleep(900);
   const q5d = await quick(p);

@@ -1,4 +1,4 @@
-//! 異常ロット一覧の 3 つの問い合わせに窓（Rust）が答える係: 一覧（GET /api/lotlist）・データの時刻（GET /api/lotlist/source）・
+//! 品質異常の 3 つの問い合わせに窓（Rust）が答える係: 一覧（GET /api/lotlist）・データの時刻（GET /api/lotlist/source）・
 //! 再読込（POST /api/lotlist/refresh）。答えの形は Python 版（program/app/routes/lotlist.py）と同じ。
 //!
 //! - 設定（元ファイル・写す間隔・古さのしきい・既定の表と件数・係）は Python に尋ねる（GET /api/lotlist/settings。参照先マスタは

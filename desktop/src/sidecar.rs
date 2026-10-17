@@ -38,7 +38,7 @@ pub struct Ask<'a> {
 /// 枠の約束の版。program/sidecar.py の PROTOCOL と同じ数（枠の形を変えたら両方を1つ上げる）。
 pub const PROTOCOL: u64 = 1;
 /// 窓（Rust）が受け持つこと。中身（Python）へ TPA_SHELL_SERVES で伝える（app/__init__.py の shell_serves）。
-/// lotlist: 異常ロット一覧の問い合わせと品質データの写し（src/lot.rs。Python は写さず同じ台帳を読む）。
+/// lotlist: 品質異常の問い合わせと品質データの写し（src/lot.rs。Python は写さず同じ台帳を読む）。
 pub const SERVES: &[&str] = &["lotlist"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);

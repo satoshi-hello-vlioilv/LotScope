@@ -3,7 +3,8 @@
 - 式ビルダー（static/js/formula-builder.js）: 組み立てた物が式の決まり（list-formula.js）で読め、思ったとおりの値になる（formula-builder-check.mjs）
 - Excel を組む部品（static/js/xlsx-writer.js）: 書いた .xlsx を標準の zipfile・xml で読み戻し、値・型・見出しの固定などが合う（xlsx-check.mjs）
 - LotDsp を開く URL（static/js/lotdsp-url.js）: WaveLog と同じ URL（ロット番号・鋳造番号の linkkey・タブ）を作る（lotdsp-url-check.mjs）
-- 変換表を一覧の列に当てる計画（static/js/conversions.js）: 列の見つけ方・足す所・当て直し・当てた式の答え（conv-plan-check.mjs）"""
+- 変換表を一覧の列に当てる計画（static/js/conversions.js）: 列の見つけ方・足す所・当て直し・当てた式の答え（conv-plan-check.mjs）
+- 数の表示形式（static/js/num-format.js）: Excel の書式コード（区分・条件・色・桁・桁区切り・%・指数・字）と同じ字（num-format-check.mjs）"""
 import shutil
 import subprocess
 import unittest
@@ -31,6 +32,9 @@ class ScreenParts(unittest.TestCase):
 
     def test_conversion_plan(self):
         self.run_tool("conv-plan-check.mjs")
+
+    def test_number_format_codes_like_excel(self):
+        self.run_tool("num-format-check.mjs")
 
 
 if __name__ == "__main__":

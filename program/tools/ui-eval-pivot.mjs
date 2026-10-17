@@ -6,7 +6,7 @@
 // ③ 絞り込み（検索）を変えると、集計も同じ件数で数え直す（一覧と同じ絞り込み）
 // ④ 作業実績の右の表で「合計する列」に重量 → 日・直のセルと合計の行に重量の合計（集計の総計と同じ）
 // ⑤ 保存した見方: 集計表の組み方・作業でまとめる形（合計する列）・スライサーの開閉を保存 → 変えて → 呼び出すと戻る
-// ⑥ 異常ロット一覧でも: すぐに見る（年月ごとの件数）で時系列。Excel に出力で「集計」「出力の条件」のシート
+// ⑥ 品質異常でも: すぐに見る（年月ごとの件数）で時系列。Excel に出力で「集計」「出力の条件」のシート
 // ⑦ 設備を替えて集計を開き直しても、［行］は 1 回で 1 つ入り、× は 1 つだけ外す（以前は開き直すたびに押した時の処理が増え、偶数個で効かなかった）
 // 全部合えば終了コード 0。
 import fs from "node:fs";
@@ -121,13 +121,13 @@ try {
     presses.every((x) => x.one === 1 && x.two === 2 && x.afterX === 1 && x.kept), presses);
   await p.evaluate(() => window.LotListPivot.setState({ ...window.LotListPivot.stateOf(), view: "list", rows: [], cols: [], measures: [] }));
 
-  // ⑥ 異常ロット一覧と Excel
+  // ⑥ 品質異常と Excel
   await p.click("#tabList"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(600);
   await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick"); await sleep(400);
   const lotQuick = await p.$$eval("#llPivot .pv-quickbig .pv-quick", (xs) => xs.map((x) => x.textContent));
   await p.click('#llPivot .pv-quickbig .pv-quick >> nth=0'); await p.waitForSelector("#llPivot .pv-table"); await sleep(600);
   const lot = await p.evaluate(() => ({ count: document.querySelector("#llPivot .pv-hint")?.textContent, svg: !!document.querySelector("#llPvChart svg"), vals: [...document.querySelectorAll("#llPivot .pv-chip.v b")].map((x) => x.textContent) }));
-  check("異常ロット一覧: 年月ごとの件数・ロット数の時系列", /（年月）ごとの件数/.test(lotQuick[0]) && lot.svg && lot.vals.join() === "件数,ロット数", { lotQuick, lot });
+  check("品質異常: 年月ごとの件数・ロット数の時系列", /（年月）ごとの件数/.test(lotQuick[0]) && lot.svg && lot.vals.join() === "件数,ロット数", { lotQuick, lot });
   const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 60000 }), p.click("#llPivot [data-pv-xlsx]")]);
   const f = path.join(dir, dl.suggestedFilename()); await dl.saveAs(f);
   const x = JSON.parse(execFileSync("python3", ["-c", READ, f], { encoding: "utf8" }));

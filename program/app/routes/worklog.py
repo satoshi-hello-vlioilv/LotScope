@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""作業実績（設備ごとの実績 SQLite。services/work_log.py）。一覧の問い合わせの形は異常ロット一覧（lotlist.py）と同じで、
+"""作業実績（設備ごとの実績 SQLite。services/work_log.py）。一覧の問い合わせの形は品質異常（lotlist.py）と同じで、
 どの設備かを equip（登録のキー）で渡す。設備の登録（表示する・しない）はマスタ管理の「作業実績」（管理のマスタ）。"""
 from ..web import current_app, jsonify, request
 
@@ -107,7 +107,7 @@ def work_grouping(equip_name):
 
 @bp.get("/api/worklog")
 def worklog_list():
-    """異常ロット一覧（/api/lotlist）と同じ引数（page, page_size, search, filters, sorts, group）で、その設備の写しから引く。
+    """品質異常（/api/lotlist）と同じ引数（page, page_size, search, filters, sorts, group）で、その設備の写しから引く。
     work=1 なら作業（作業開始が同じ行）でまとめ、日・直ごとの数を work に入れる（services/work_summary.py）。"""
     plan, fail = worklog_plan()
     if fail:

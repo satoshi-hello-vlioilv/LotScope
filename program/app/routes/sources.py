@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """データ元（services/data_sources.py）。並び・足す・直す・消す・確かめると、1 ファイルの元（仕掛・足した元）の一覧の問い合わせ。
 
-一覧の問い合わせの形は異常ロット一覧（lotlist.py）と同じ（page, page_size, search, filters, sorts, group）。
+一覧の問い合わせの形は品質異常（lotlist.py）と同じ（page, page_size, search, filters, sorts, group）。
 品質データ・作業実績は、これまでの口（/api/lotlist・/api/worklog）が答える。ここは /api/src/<キー> の元だけ。"""
 from pathlib import Path
 

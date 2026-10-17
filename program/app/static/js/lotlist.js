@@ -19,9 +19,9 @@
    - 作業実績の「作業でまとめる」（lotlist-work.js）: 作業開始が同じ行（分割したロット）を 1 行に畳み（「＋n」で開く）、右に日×直のロット数。
        まとめている間は、段（並び・まとめ）は使わない（作業開始の順で並べる。見出しで決めた並べ替えは作業の中の順）。
    - 機能: 行のダブルクリックでカード … その1行をカードで見る（lotlist-card.js。Ctrl を押すと別のカードで）。
-   - データの元（SOURCES）: 異常ロット一覧（品質データ）と作業実績（設備ごとの実績）の 2 つを、同じ部品・同じ画面で出す。
+   - データの元（SOURCES）: 品質異常（品質データ）と作業実績（設備ごとの実績）の 2 つを、同じ部品・同じ画面で出す。
        元ごとに状態（S: 表・条件・ページ・検索…）を持ち、タブを行き来しても元ごとにそのまま残る。
-       覚え（条件・並び・表示列・スライサー…）は「範囲」ごと（scope()）。異常ロット一覧の範囲は表の名前のまま（前からの覚えを使い続ける）、
+       覚え（条件・並び・表示列・スライサー…）は「範囲」ごと（scope()）。品質異常の範囲は表の名前のまま（前からの覚えを使い続ける）、
        作業実績は `wl:<設備のキー>:<表>`（表示列は `worklog:<設備のキー>:<表>`）。設備のキーは登録の行で決まり、ファイルの名前が変わっても同じ。
    ========================================================================= */
 (function () {
@@ -85,13 +85,13 @@
   const colOption = (c) => `<option value="${esc(c)}">${esc(c)}${isDateCol(c) ? "（日付）" : ""}</option>`;
   const presetName = (f) => condLabel(f).slice(0, 60);
 
-  /* ================= データの元（異常ロット一覧・作業実績） =================
+  /* ================= データの元（品質異常・作業実績） =================
      api: 一覧の問い合わせの頭（/slicer・/source・/refresh も同じ頭）。params: どの設備か（作業実績だけ）。
      scope(表): 覚えの範囲。target(表): 表示列の対象。owns(範囲): その元の範囲か（書き出しの「すべての表」を元ごとにする）。 */
   const equipName = (k) => ((S && S.equips || []).find((e) => e.key === k) || {}).name || "";
   const SOURCES = {
     lot: {
-      id: "lot", api: "/api/lotlist", title: "異常ロット一覧", noun: "品質データ", fileStem: "異常ロット一覧",
+      id: "lot", api: "/api/lotlist", title: "品質異常", noun: "品質データ", fileStem: "品質異常",
       params: () => ({}), scope: (t) => t, target: (t) => "lotlist:" + (t || ""), owns: (k) => !k.startsWith("wl:") && !k.startsWith("src:"),
       colTable: (t) => t, place: (t) => t,
       loadTable: () => store.get(KEY.table, ""), saveTable: (t) => store.set(KEY.table, t),
@@ -115,7 +115,7 @@
       staleWhat: "最近の作業実績は一覧に出ません。",
     },
   };
-  /* 1 ファイルのデータ元（仕掛・マスタ管理の「データ元」で足した元。版 3.36.0）。動きは異常ロット一覧と同じで、問い合わせの頭と覚えの範囲だけが違う。
+  /* 1 ファイルのデータ元（仕掛・マスタ管理の「データ元」で足した元。版 3.36.0）。動きは品質異常と同じで、問い合わせの頭と覚えの範囲だけが違う。
      覚えの範囲は src:<キー>:<表>（キーは変わらない名前。表示名を変えても、場所を変えても覚えは離れない） */
   function fileSource(def) {
     const id = `src:${def.key}`, k = def.key, name = def.name || def.key;
@@ -401,7 +401,7 @@
     return true;
   }
   function tablePresets() { const k = scope(); return S.presets.filter((p) => p.table === k); }
-  /* 登録した条件は、元（異常ロット一覧・作業実績）をまたいで 1 つの覚え（どの範囲の条件かは table で見分ける）。
+  /* 登録した条件は、元（品質異常・作業実績）をまたいで 1 つの覚え（どの範囲の条件かは table で見分ける）。
      両方の元が同じ並びを持つ（別々に持つと、片方で登録した条件を、もう片方の保存が消してしまう） */
   function savePresets(list = S.presets) { Object.values(STATES).forEach((x) => { x.presets = list; }); store.set(KEY.presets, list); }
   /* 「いつも適用（固定）」は開くたびに入り、手で外せても開き直すと戻る（WaveLog §9.190 と同じ）。 */
@@ -653,7 +653,7 @@
           <button id="llColBtn" type="button" class="ll-colbtn" title="この一覧に出す列・並び・幅・書式・読み替えをまとめて設定します">
             <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11M10.5 2.5v11"/></svg>表示列</button>
           <button id="llViewBtn" type="button" aria-haspopup="dialog" aria-expanded="false" title="行間・並び・表示件数と、機能（ロット番号でまとめる・カード）の使う／使わないを決めます">表の見せ方 ▾</button>
-          <button id="llProfileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="llProfileMenu" title="この PC の表示（異常ロット一覧・作業実績の両方の表示列・スライサー・並び・見せ方・登録した条件）を書き出す・読み込む・初期設定に戻す">表示の設定 ▾</button>
+          <button id="llProfileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="llProfileMenu" title="この PC の表示（品質異常・作業実績の両方の表示列・スライサー・並び・見せ方・登録した条件）を書き出す・読み込む・初期設定に戻す">表示の設定 ▾</button>
           <!-- Excel に出力（表示の道具の後ろ＝最後にする行動の位置。7 案＋2 回目で選んだ: ui-proposals/2026-10-excel*） -->
           <button id="llExcelBtn" type="button" class="ll-xlbtn" title="いまの検索・条件・スライサー・並びに当たる全件を、表示列の見え方のまま Excel（.xlsx）に出します&#10;作業でまとめているときは、日・直ごとのロット数のシートも出します"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m-3-3 3 3 3-3M3 12.5h10"/></svg>Excel に出力</button>
         </div>
@@ -981,7 +981,7 @@
       window.TPA_UI_PROFILE = { keys: d.keys, defaults: d.defaults, updatedAt: d.updatedAt, updatedBy: d.updatedBy }; } catch (_) { /* 置けるかは分からない＝出さない */ }
     const who = P.defaultsWho();
     const item = (act, title, note, extra = "") => `<button type="button" role="menuitem" data-act="${act}"${extra}><b>${title}</b><small>${note}</small></button>`;
-    m.innerHTML = item("export", "書き出し…", "異常ロット一覧・作業実績の両方の表示列・スライサー・並び・見せ方・登録した条件を 1 つのファイルに")
+    m.innerHTML = item("export", "書き出し…", "品質異常・作業実績の両方の表示列・スライサー・並び・見せ方・登録した条件を 1 つのファイルに")
       + item("import", "読み込み…", "書き出したファイルから、この PC の表示を置き換えます")
       + item("reset", "初期設定に戻す", P.hasDefaults() ? `開発者が配った見せ方（${esc(who)}）に戻します` : "初期設定はまだ配られていません", P.hasDefaults() ? "" : " disabled")
       + (can ? `<div class="pf-dev">${item("publish", '今の表示を初期設定にする <i>開発者</i>', "新しく入れた PC が最初に開いたときの見せ方になります（全員の PC に効きます）")}</div>` : "")
@@ -1695,7 +1695,7 @@
     } catch (_) { /* 次の周回で */ }
   }
 
-  /* ---- 一覧の拡大（版 3.33.0 から、異常ロット一覧・作業実績で別に、この PC に覚える。開き直しても同じ拡大で出る） ----
+  /* ---- 一覧の拡大（版 3.33.0 から、品質異常・作業実績で別に、この PC に覚える。開き直しても同じ拡大で出る） ----
      表に CSS の zoom を掛ける（列の幅・固定・見出しの貼り付きごと拡大する）。幅の覚えは拡大前の px のまま（lotlist-columns.js）
      覚え: {画面（lot・work）: %}。版 3.32 まではこの窓のあいだだけ（sessionStorage・両方の画面で 1 つ）で、閉じると 100% に戻った */
   const ZOOM = { key: "tpa.lotlist.zoom.v2", stepKey: "tpa.lotlist.zoomStep.v1", min: 60, max: 200, steps: [5, 10, 20, 25], step: 10 };
@@ -1997,7 +1997,7 @@
      一覧は窓ではなく「最初の画面」。計算画面と行き来しても、ページ・条件・並べ替えはそのまま残す
      （戻るたびに1ページ目へ戻すと、どこまで見たかを思い出させることになる）。
      「いつも適用（固定）」は、その元を開いた最初の1回に当てる（外した固定は、アプリを開き直すと戻る）。
-     異常ロット一覧と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
+     品質異常と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   /* データ元の並び（app.js が /api/sources から渡す）。1 ファイルの元は、初めて開くときに状態を作る（名前が変わったら札だけ直す） */
   function defineSources(list) {
     (list || []).filter((d) => d.api && d.api.startsWith("/api/src/")).forEach((d) => {
@@ -2184,7 +2184,7 @@
     if (ad && ad.column) out.adhoc = { column: ad.column, op: ad.op || "contains", ...(adhocActive() && S.adhoc.value ? { value: String(S.adhoc.value) } : {}) };
     return out;
   }
-  /** 当てられる所（いまの所が先頭）。作業実績は表示する設備ごと、異常ロット一覧はいまの表だけ。
+  /** 当てられる所（いまの所が先頭）。作業実績は表示する設備ごと、品質異常はいまの表だけ。
       まだ開いていない設備の表は分からないので、table（書式を作った表。無ければいまの表）にする */
   function formatPlaces(table = S.table) {
     if (S.src.id !== "work") return [{ key: scope(), target: layoutTarget(), label: S.table || "（表）", here: true }];
