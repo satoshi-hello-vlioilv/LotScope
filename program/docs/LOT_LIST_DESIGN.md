@@ -223,7 +223,7 @@ WaveLog と同じく、ロット番号と鋳造番号の linkkey の URL で開�
 
 - 1つの表ごとに `{order, hidden, widths, locks, names, formats, aligns, formulas, rules, builds}`（対象 `lotlist:<表>`・localStorage `tpa.lotlist.layout.v1`）。saved／draft（窓で触っている途中）／live（見出しをドラッグ中）の3層。
 - 値の段取り: 作り方の式 → 読み替え（当たればその言葉と色で確定）→ 当たらなければ値の整え方 → 整えられなければ元の値。
-- 計算列は表示だけ（並べ替え・絞り込みの対象にしない。見出しに「式」）。式は `eval` を使わない自前の計算器。
+- 計算列は元のデータに無い列（見出しは斜体）。並べ替えは、画面が使う式を `calc` に添え、サーバー（`services/formula.py`。画面と同じ答え）が同じ式で計算して並べる（版 3.42.0。窓の Rust は式を持たないので、その問い合わせだけ `engine=python` で Python が答える）。絞り込みはスライサー（値の組 `tuple_in`）。式は `eval` を使わない自前の計算器。
 - 読み替えルール: localStorage `tpa.lotlist.rules.v1`。行＝上から順（最初に当たった行）・条件の無い行＝既定。
   行の中の条件は `join`（"and"／"or"。無ければ "and"＝以前のルールと同じ）でつなぎ、and が or より先に結ぶ（`orGroups`: or で区切ったまとまりのどれかが、中の条件すべてに当たれば、その行）。「式にする」は `(… and …) or (…)` を作る。
   かっこ＝まとまり `{ join, items: [...] }`（items は条件かまた別のかっこ。画面では3段まで）。判定 `holds` と式 `logic` は同じ再帰で、かっこの中を先に決める。

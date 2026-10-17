@@ -64,7 +64,7 @@
 
   /* ================= 計算列・読み替え（式は WaveLog と同じ list-formula.js） =================
      値の段取り（WaveLog の cellFormat と同じ）: 作り方の式 → 読み替え（当たればその言葉で確定）→ 当たらなければ値の整え方。
-     計算列は表示だけの列。並べ替え・絞り込みは元のデータの列で行う（できないことは見出しに書く）。 */
+     計算列は元のデータに無い列。並べ替えはサーバーが同じ式で計算して行う（版 3.42.0。calcFor）。 */
   const srcCols = {};                                  // 対象ごとの元のデータの列（setContext が入れる）
   const compiled = (src) => (src ? window.LotListRules.compile(src) : null);   // 読み解いた式は読み替えルール側の1箇所に覚える
   function allColumns(t, source) {
@@ -474,7 +474,7 @@
         <div class="lc-left">
           <div class="lc-tools">
             <input id="lcFilter" type="search" placeholder="列名で絞り込み" autocomplete="off" aria-label="列名で絞り込み">
-            <button type="button" id="lcAddCol" title="元のデータの列から式で作る列を足します（表示だけの列）">＋ 列を作る</button>
+            <button type="button" id="lcAddCol" title="元のデータの列から式で作る列を足します（見出しを押すと、式の答えで並べ替えられます）">＋ 列を作る</button>
             <button type="button" id="lcFitAll" title="いま並んでいる列の手で決めた幅を外して、内容に合わせます">幅を内容に合わせる</button>
           </div>
           <div class="lc-chips" id="lcChips"></div>
@@ -591,7 +591,7 @@
       + `<span class="lc-now${sum.set ? " is-set" : ""}">${esc(sum.text)}</span><b class="lc-chev" aria-hidden="true"></b></h4>`;
     box.innerHTML = `
       <div class="lc-card"><b>${esc(label(t, c))}</b>
-        <dl><dt>${calc ? "作った列" : "元の項目名"}</dt><dd>${esc(c)}${calc ? "（表示だけの列。並べ替え・絞り込みは元のデータの列で行います）" : ""}</dd><dt>値のある行</dt><dd>${vals.length} / ${ctx.rows.length}（空欄 ${ctx.rows.length - vals.length}）</dd>
+        <dl><dt>${calc ? "作った列" : "元の項目名"}</dt><dd>${esc(c)}${calc ? "（式で作る列。見出しを押すと、式の答えで並べ替えます）" : ""}</dd><dt>値のある行</dt><dd>${vals.length} / ${ctx.rows.length}（空欄 ${ctx.rows.length - vals.length}）</dd>
         <dt>値の種類</dt><dd>${guess}</dd>${c === ctx.lotColumn ? "<dt>この列について</dt><dd>押すとそのロットを検索します。隠せません（並びはどこへでも動かせます）。</dd>" : ""}</dl></div>
       ${step("look", "1", "見せ方", stepLook(t, c))}
         <label>表示名<input id="lcName" value="${esc(l.names[c] || "")}" placeholder="${esc(c)}" maxlength="40"></label>
@@ -887,6 +887,17 @@
     layoutOf: (t) => norm(saved[t]),
     /** ダッシュボード（版 3.38.0）: 保存した列の設定のうち match(対象) に当たる物の式と表示名を合わせる（先に見つけた方。作業実績は設備ごとの設定）。
         → {formulas: {列名: 式}, names: {元の列名: 表示名}}。計算列（表に無い列の式）を、サーバーが画面と同じに計算するため */
+    /** 計算列 names をサーバーで計算するための式（版 3.42.0。一覧の並べ替え）。その式が [名前] で読む式の列を 1 段足す（サーバーは baseRow と同じ引き方）。
+        → {formulas, names}（計算列が無ければ null） */
+    calcFor(t, names) {
+      const l = get(t), byName = Object.fromEntries(Object.entries(l.names).map(([c, n]) => [n, c])), formulas = {};
+      names.filter((c) => isComputed(t, c) && String(l.formulas[c] || "").trim()).forEach((c) => {
+        formulas[c] = l.formulas[c];
+        const chk = window.WL.formula.check(l.formulas[c]);
+        ((chk.ok && chk.columns) || []).map((n) => byName[n] || n).forEach((n) => { if (String(l.formulas[n] || "").trim() && !(n in formulas)) formulas[n] = l.formulas[n]; });
+      });
+      return Object.keys(formulas).length ? { formulas, names: l.names } : null;
+    },
     formulaContext(match) {
       const out = { formulas: {}, names: {} };
       Object.keys(saved).filter(match).sort().forEach((t) => {

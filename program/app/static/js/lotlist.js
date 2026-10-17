@@ -183,6 +183,8 @@
   const workOn = () => S.src.id === "work" && window.LotListWork.on();
   const levels = () => (workOn() ? [] : arrange().levels.filter((l) => !S.columns.length || S.columns.includes(l.column)).slice(0, MAX_SORTS));
   const grouped = () => levels().length > 0;
+  /* 並べ替えられる列: 表の列と計算列（版 3.42.0。計算列はサーバーが同じ式で計算して並べる: lot_list.query の calc） */
+  const sortable = () => new Set(window.LotListColumns.allColumns(layoutTarget(), S.columns));
   /* 「並べ替えの順」で集められるのは、いちばん上の段のロット番号だけ（サーバーはロットを表全体で1か所に集めるので、
      上に別の段があると、その段の並びを崩す）。深い段で選ばれていたら ▲ として扱う */
   const isLotLevel = (l) => !!l && (l.lot || (!!S.lotColumn && l.column === S.lotColumn));
@@ -317,6 +319,9 @@
     q.set("page", over.page ?? S.page); q.set("page_size", over.pageSize ?? S.pageSize);
     const sorts = effectiveSorts();
     if (sorts.length) q.set("sorts", JSON.stringify(sorts));
+    // 計算列で並べ替えるときは、その式を添える（サーバーが同じ式で計算して並べる）。窓の Rust は式を持たないので、その 1 回は Python が答える
+    const calc = window.LotListColumns.calcFor(layoutTarget(), sorts.map((x) => x.column));
+    if (calc) { q.set("calc", JSON.stringify(calc)); q.set("engine", "python"); }
     if (serverGroup()) q.set("group", "1");
     const marks = window.LotListMarks.param();
     if (marks) q.set("marks", marks);
@@ -341,7 +346,7 @@
       if (!S.work) S.rows = clusterRows(S.rows);       // 作業でまとめた答えは、行と作業の印（work.rows）の並びを崩さない
       S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.errorKind = ""; S.failSince = 0; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
       // 並べ替えはサーバーが確かめた形（実在する列だけ）。まとめているときは段の列を除いた、見出しで決めた分だけを持つ
-      if (grouped()) { const have = new Set((d.columns || [])); S.sorts = S.sorts.filter((x) => have.has(x.column)); }
+      if (grouped()) { const have = sortable(); S.sorts = S.sorts.filter((x) => have.has(x.column)); }
       else S.sorts = d.sorts || S.sorts;
       S.groups = d.groups || null; S.groupCount = d.groupCount || 0; S.range = d.range || [0, 0];
       S.loadedAt = (S.source && S.source.copiedAt) || null;
@@ -1349,7 +1354,7 @@
       const label = `<small class="ll-gk ll-gk${Math.min(d, 2)}"${cols.includes(lc) ? "" : ' title="表に出していない列でまとめています"'}>${esc(LC.label(t, lc))}</small>` + shown;
       return `<tr class="ll-ghead${alt}" data-g="${id}" data-gkey="${esc(key)}" data-depth="${d}"${anc ? ` data-anc="${anc}"` : ""} aria-expanded="${open}" style="--ind:${d}">`
         + cols.map((c, ci) => {
-          if (ci === 0) return `<td class="ll-gcell${c === S.lotColumn ? " ll-lotcol" : ""}"><button type="button" class="ll-gtog" aria-label="${open ? "畳む" : "開く"}" title="このまとまりの行を${open ? "畳みます" : "開きます"}">▾</button>`
+          if (ci === 0) return `<td class="ll-gcell${c === S.lotColumn ? " ll-lotcol" : ""}" title="${esc(`${LC.label(t, lc)}: ${LC.cell(t, lc, rows[i]).text || "（空欄）"}（${len}件）`)}"><button type="button" class="ll-gtog" aria-label="${open ? "畳む" : "開く"}" title="このまとまりの行を${open ? "畳みます" : "開きます"}">▾</button>`
             + `${label}<span class="ll-gn" title="このまとまりの行（このページの中）">${len}件</span></td>`;
           const ld = lvDepth.get(c);
           const rep = A.suppress && ld != null && ld < d ? " ll-rep" + blk(ld) : "";     // 外側の段の値は外側の見出しにある（面にする）
@@ -1508,11 +1513,14 @@
     const sortIdx = (c) => eff.findIndex((s) => s.column === c), lvIdx = (c) => lv.findIndex((l) => l.column === c);
     // 幅: <colgroup> に置き、表の幅は列の和（table-layout:fixed）。見出し行を付けるときは先頭の列に ▾・件数・字下げのぶんを足す
     // 見出しの印は列名の幅を取らない（下線と右下の小さな段の番号。2026-10-headers の H3）。段の番号のぶんだけ足す
-    const markW = (c) => (L.widths[c] ? 0 : lvIdx(c) >= 0 ? 8 : 0);
+    const markW = (c) => (lvIdx(c) >= 0 ? 8 : 0);
     const tagW = withHeads ? Math.max(...lv.map((l) => TPA.textWidth(LC.label(t, l.column), '700 11.5px "Yu Gothic UI","Meiryo UI",sans-serif'))) + 16 : 0;
     const wk = workOn() && S.work && S.work.rows.length === S.rows.length ? S.work : null, badgeAt = wk && workSplit() ? workBadgeCol(cols) : "";
-    const widths = cols.map((c, i) => LC.widthOf(t, c, S.rows) + markW(c) + (withHeads && i === 0 ? GROUP_HEAD_EXTRA + tagW + GROUP_INDENT * (lv.length - 1) : 0)
-      + (c === badgeAt && !L.widths[c] ? 38 : 0) + (wk && c === wk.column && !L.widths[c] ? 14 : 0) + (lensOn() && c === S.lotColumn && !L.widths[c] ? LENS_W : 0));
+    // 足す幅（見出し行の畳むボタン・件数・字下げ・段の番号・作業の札・虫眼鏡）は、幅を自動にしている列だけ。
+    // 幅を決めた列は決めた幅のまま描く（取っ手で引いた幅と描く幅が同じ。左端の列に見出し行の分を足し続けると狭められなかった）
+    const extra = (c, i) => (L.widths[c] ? 0 : markW(c) + (withHeads && i === 0 ? GROUP_HEAD_EXTRA + tagW + GROUP_INDENT * (lv.length - 1) : 0)
+      + (c === badgeAt ? 38 : 0) + (wk && c === wk.column ? 14 : 0) + (lensOn() && c === S.lotColumn ? LENS_W : 0));
+    const widths = cols.map((c, i) => LC.widthOf(t, c, S.rows) + extra(c, i));
     $("#llCols").innerHTML = cols.map((c, i) => `<col data-col="${esc(c)}" style="width:${widths[i]}px">`).join("");
     const grid = $("#llGrid");
     grid.style.width = widths.reduce((a, b) => a + b, 0) + "px";
@@ -1533,12 +1541,11 @@
             : i >= 0 ? `並べ替え${eff.length > 1 ? ` ${i + 1}番目` : ""}: ${s.dir === "desc" ? "▼ 大きい順" : "▲ 小さい順"}` : "",
         filtered.has(c) ? "この列で絞り込んでいます" : "",
       ].filter(Boolean);
-      const tip = (calc ? `${LC.label(t, c)}（計算列・式）\n表示だけの列です。並べ替え・絞り込みは元のデータの列で行います`
-        : `${LC.label(t, c)}${LC.label(t, c) !== c ? `（元: ${c}）` : ""}`)
+      const tip = (calc ? `${LC.label(t, c)}（計算列・式）` : `${LC.label(t, c)}${LC.label(t, c) !== c ? `（元: ${c}）` : ""}`)
         + (facts.length ? "\n― " + facts.join("\n― ") : "")
-        + (calc ? "\nドラッグで列の入れ替え"
-          : "\n" + (li >= 0 ? "まとめている列: クリックで ▲／▼ を入れ替え" : `クリックで ▲ 小さい順 → ▼ 大きい順 → 外す。Shift+クリックで並べ替えのキーを足します（段と合わせて最大${MAX_SORTS}つ）`)
-            + "\nドラッグで列の入れ替え（どの列もどこへでも）・右クリックで「この列でまとめる」など");
+        + "\n" + (li >= 0 ? "まとめている列: クリックで ▲／▼ を入れ替え" : `クリックで ▲ 小さい順 → ▼ 大きい順 → 外す。Shift+クリックで並べ替えのキーを足します（段と合わせて最大${MAX_SORTS}つ）`)
+        + (calc ? "\n計算列は式の答えで並べます" : "")
+        + "\nドラッグで列の入れ替え（どの列もどこへでも）・右クリックで「この列でまとめる」など";
       return `<th data-col="${esc(c)}" draggable="true" class="${c === S.lotColumn ? "ll-lotcol " : ""}${filtered.has(c) ? "col-filtered " : ""}${calc ? "is-calc " : ""}${li >= 0 ? "is-level " : ""}${sorted ? "is-sorted " : ""}al-h-${al.head}"`
         + `${li >= 0 ? ` data-lv="${li + 1}"` : ""}${sorted ? ` data-sort="${sorted}"` : ""} title="${esc(tip)}">`
         + `<i class="col-grip" aria-hidden="true">⠿</i><span class="th-in"><span>${esc(LC.label(t, c))}</span></span>`
@@ -1603,7 +1610,7 @@
      番号はサーバーへ渡す並べ替えの順（段の後ろに続く）。▲／▼ で向きを替え、× で外す。キーの上限で効いていない分は淡く */
   function paintSortBar() {
     const bar = $("#llSortBar"), lv = new Set(levels().map((l) => l.column));
-    const list = S.sorts.filter((x) => !lv.has(x.column) && (!S.columns.length || S.columns.includes(x.column)));
+    const have = sortable(), list = S.sorts.filter((x) => !lv.has(x.column) && (!S.columns.length || have.has(x.column)));
     bar.hidden = !list.length;
     bar.dataset.count = list.length;
     if (!list.length) { bar.innerHTML = ""; bar.dataset.summary = ""; return; }
@@ -1745,7 +1752,7 @@
     bindZoom();
     window.LotListColumns.bindHeader($("#llHead"));
     $("#llHead").addEventListener("click", (e) => {
-      const th = e.target.closest("th[data-col]"); if (!th || e.target.closest(".col-resize") || th.classList.contains("is-calc")) return;
+      const th = e.target.closest("th[data-col]"); if (!th || e.target.closest(".col-resize")) return;
       const col = th.dataset.col, i = S.sorts.findIndex((s) => s.column === col);
       if (workOn() && S.work && col === S.work.column) { window.LotListWork.toggleOrder(); return; }   // 作業開始の列: 新しい順 ⇄ 古い順
       if (levels().some((l) => l.column === col)) {        // まとめている列: その段の ▲／▼ を入れ替える（段はそのまま）

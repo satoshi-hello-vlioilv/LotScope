@@ -17,6 +17,7 @@ U+10000 以上の字（絵文字など）を正規表現で扱うとき（JavaSc
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 import unicodedata
@@ -786,3 +787,54 @@ class CalcColumns:
                 return raw.get(k)
             return sql_value(f.run(look))
         return run, deps
+
+
+# ---------------------------------------------------------------- 計算列を SQLite の式にする（一覧の並べ替え・ダッシュボードの集計が同じ物を使う）
+MAX_CALC = 40
+
+
+def clean_calc(v):
+    """画面が送る計算列 {formulas: {列名: 式}, names: {元の列名: 表示名}, own?: [名前]}（JSON の字でもよい）→ 字だけ・数と長さを限った形。無ければ None"""
+    if isinstance(v, str):
+        try:
+            v = json.loads(v) if v.strip() else None
+        except ValueError:
+            return None
+    if not isinstance(v, dict):
+        return None
+
+    def strs(d, n, size):
+        items = list(d.items())[:n] if isinstance(d, dict) else []
+        return {str(k)[:200]: str(x)[:size] for k, x in items if str(k).strip() and isinstance(x, str)}
+    f = {k: x for k, x in strs(v.get("formulas"), MAX_CALC, MAX_LEN).items() if x.strip()}
+    if not f:
+        return None
+    own = [str(x)[:200] for x in (v.get("own") if isinstance(v.get("own"), list) else []) if str(x) in f][:MAX_CALC]
+    return {"formulas": f, "names": strs(v.get("names"), 400, 200), **({"own": own} if own else {})}
+
+
+def register(conn, calc, cs, qi):
+    """計算列を接続に SQLite の関数として登録する → (計算列の名前 → SQL の式, 読めない計算列の名前の並び, CalcColumns か None)。
+    calc は clean_calc の形。qi は列名を括る関数（sqlite_ro.qi）。同じ値の組の答えは覚えて使い回す（20 万組まで）"""
+    if not calc or not calc.get("formulas"):
+        return {}, [], None
+    cc = CalcColumns(calc.get("formulas"), calc.get("names"), cs)
+    exprs, broken = {}, []
+    for i, name in enumerate(cc.calcs):
+        if cc.broken(name):
+            broken.append(name)
+            continue
+        run, deps = cc.runner(name)
+        memo = {}
+
+        def fn(*vals, run=run, memo=memo):
+            hit = memo.get(vals, memo)
+            if hit is memo:
+                if len(memo) > 200_000:
+                    memo.clear()
+                hit = memo[vals] = run(*vals)
+            return hit
+        conn.create_function(f"TpaCalc{i}", len(deps), fn, deterministic=True)
+        exprs[name] = f"TpaCalc{i}({', '.join(qi(d) for d in deps)})"
+    return exprs, broken, cc
+

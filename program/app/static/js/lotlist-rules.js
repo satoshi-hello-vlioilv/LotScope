@@ -534,7 +534,7 @@
     }
     function renderUsage() {
       const el = q(".lr-usage");
-      if (fx) { el.textContent = computed ? "式で作る列（表示だけの列）。組み立てるか、式を書いて作ります" : "元のデータの値を、組み立てた式・書いた式で作り替えます"; return; }
+      if (fx) { el.textContent = computed ? "式で作る列（元のデータに無い列。並べ替えもできます）。組み立てるか、式を書いて作ります" : "元のデータの値を、組み立てた式・書いた式で作り替えます"; return; }
       const used = src && src.usage ? src.usage(ruleName) : null;
       el.textContent = !used ? "" : !used.length ? "まだどの列でも使っていません" : `使っている列: ${used.slice(0, 4).join("、")}${used.length > 4 ? ` ほか${used.length - 4}件` : ""}（直すと全部に効きます）`;
     }
