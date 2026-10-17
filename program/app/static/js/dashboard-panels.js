@@ -192,8 +192,13 @@
     if (!wrap || !shrink(wrap, H)) return 0;
     const rows = [...wrap.querySelector("table").tBodies[0].rows];
     const keepLast = rows.length && rows[rows.length - 1].classList.contains("is-grand") ? 1 : 0;
+    // 縦にまたがる見出し（小計のある表の上の段）は、隠した行の分だけまたがりを縮める（縮めないと下の行の字の列がずれた: 3 回目の採点の 1280 の小計の表）
+    const spans = rows.flatMap((tr, r) => [...tr.cells].filter((c) => c.rowSpan > 1).map((c) => ({ c, r })));
     let hidden = 0;
-    for (let i = rows.length - 1 - keepLast; i > 0 && wrap.scrollHeight > H + 1; i--) { rows[i].hidden = true; hidden++; }
+    for (let i = rows.length - 1 - keepLast; i > 0 && wrap.scrollHeight > H + 1; i--) {
+      rows[i].hidden = true; hidden++;
+      spans.forEach((x) => { if (x.r < i && x.r + x.c.rowSpan > i) x.c.rowSpan -= 1; });
+    }
     return hidden;
   }
   const moreText = (n, what) => (n ? `ほか ${n} ${what}（パネルを大きくすると出ます）` : "");

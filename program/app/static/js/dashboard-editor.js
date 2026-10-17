@@ -548,7 +548,9 @@
     const pal = P.PALETTES, cur = fm.palette || "";
     const palBtn = (k, n, cs) => `<button type="button" class="de-pal${cur === k ? " on" : ""}" data-de-pal="${k}" aria-pressed="${cur === k}" title="${esc(n)}"><span>${cs.slice(0, 5).map((c) => `<i style="background:${c}"></i>`).join("")}</span>${esc(n)}</button>`;
     const pals = palBtn("", "データの種類", P.seriesColors({ source: p.source })) + Object.entries(pal).map(([k, x]) => palBtn(k, x.n, x.c)).join("");
-    const names = seriesNames(), colors = P.seriesColors(p);
+    // 合わせたデータは役割の色（グラフ・札と同じ。3 回目の採点: 見本だけ別の色だった）
+    const d0 = host.answer && host.answer();
+    const names = seriesNames(), colors = isLink() && d0 && d0.measures ? d0.measures.map((x) => P.ROLE_COLOR[x.role] || "#5a6f77") : P.seriesColors(p);
     const named = names.length ? names.map((n, i) => { const c = (fm.colors || {})[n]; return `<label class="de-scol${c ? " is-set" : ""}" title="${esc(n)}"><input type="color" value="${c || colors[i % colors.length]}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span>${c ? `<button type="button" class="icon-btn" data-de-scolx="${esc(n)}" aria-label="「${esc(n)}」の色を戻す">×</button>` : ""}</label>`; }).join("") : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
     const refs = (fm.refs || []).map((r, i) => `<div class="de-ref" data-i="${i}"><input type="number" step="any" value="${r.value}" data-de-refv aria-label="基準線の値" class="de-n2"><input value="${esc(r.label || "")}" data-de-refl maxlength="20" placeholder="名前（目標・上限など）" aria-label="基準線の名前">`
       + `<span class="de-sws">${REF_COLORS.map((c) => `<button type="button" class="de-sw${(r.color || REF_COLORS[0]) === c ? " on" : ""}" style="--sw:${c}" data-de-refc="${c}" aria-label="色 ${c}"></button>`).join("")}</span><button type="button" class="icon-btn" data-de-refdel="${i}" aria-label="この基準線を外す">×</button></div>`).join("");

@@ -994,9 +994,13 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
   const seen = new Map((d.seen || []).map((x) => [x.name, x])), q = egNorm(mstate.egSearch || "");
   const byRule = new Set(egMembers({ ...dr, equipment: [] }, eqs)), members = egMembers(dr, eqs);
   const tipOf = (n) => { const x = seen.get(n); return x ? `${x.from.join("・") || "グループに書いてある名前"}${x.n ? `（${x.n.toLocaleString()} 件）` : ""}` : ""; };
-  const ruleRows = dr.rules.map((r, i) => `<div class="eg-rule" data-i="${i}"><span>名前が</span><input class="ps-input" data-eg-rv value="${escapeHtml(r.value)}" placeholder="例: L-" aria-label="比べる字"${dis}>`
+  // ルールの行の右に、そのルールでいま当てはまる設備（2026-10-dashlink の 3 回目で決めた S3。除いた設備は数えない）
+  const hitsOf = (r) => (String(r.value || "").trim() ? egMembers({ rules: [r], except: dr.except }, eqs) : []);
+  const ruleRows = dr.rules.map((r, i) => { const hits = hitsOf(r);
+    return `<div class="eg-rule" data-i="${i}"><span>名前が</span><input class="ps-input" data-eg-rv value="${escapeHtml(r.value)}" placeholder="例: L-" aria-label="比べる字"${dis}>`
     + `<select class="ps-input" data-eg-rop aria-label="比べ方"${dis}>${EG_OPS.map(([k, n]) => `<option value="${k}"${r.op === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
-    + `<button type="button" class="icon-btn" data-eg-rdel="${i}" aria-label="このルールを外す"${dis}>×</button></div>`).join("");
+    + `<button type="button" class="icon-btn" data-eg-rdel="${i}" aria-label="このルールを外す"${dis}>×</button>`
+    + (String(r.value || "").trim() ? `<span class="eg-hit">→ いま ${hits.length} 設備${hits.length ? `: ${escapeHtml(hits.join("・"))}` : "（当たる設備がありません）"}</span>` : "") + "</div>"; }).join("");
   const setNames = d.sets.map((x) => x.name);
   box.innerHTML = `<section class="sh-page">
     <p class="ps-lead">いくつかの設備を <b>1 つのグループ</b>にして、ダッシュボードのパネルで<b>合算</b>や<b>グループごとの小計</b>を出します（パネルを組む所の「出し方」→「グループ合算」、または行・列の「設備グループ」の札）。
@@ -1017,7 +1021,7 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
           ${ruleRows || '<small class="eg-hint">名前の決まりで入れる設備（例: 名前が「L-」で始まる）。あとから増えた設備も、当たればそのまま入ります</small>'}
           <button type="button" class="pv-btn" data-eg-radd${dis}>＋ ルールを足す</button></div></div>
         <div class="sh-field"><span>設備</span><div class="sh-eqs">
-          <span class="sh-eqsum">${members.length ? `<b>${members.length}</b> 設備を合算します${dr.rules.length ? `（ルールで ${[...byRule].filter((n) => !dr.except.includes(n)).length}・選んで ${dr.equipment.length}）` : ""}` : "<b>設備を選ぶか、ルールを足してください</b>"}
+          <span class="sh-eqsum">${members.length ? `<b>${members.length}</b> 設備を合算します${dr.rules.length && dr.equipment.length ? `（ルールのほかに選んだ ${dr.equipment.length}）` : ""}` : "<b>設備を選ぶか、ルールを足してください</b>"}
             <input class="ps-input eg-search" id="egSearch" type="search" value="${escapeHtml(mstate.egSearch || "")}" placeholder="設備を探す" aria-label="設備を探す"></span>
           ${eqs.filter((n) => !q || egNorm(n).includes(q)).map((n) => {
             const rule = byRule.has(n), out = rule && dr.except.includes(n), on = dr.equipment.includes(n) || (rule && !out);

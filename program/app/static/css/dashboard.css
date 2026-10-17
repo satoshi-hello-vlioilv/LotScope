@@ -445,7 +445,10 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .de-lnk-go{border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
 .de-lnk-go:hover{color:var(--h-input)}
 .de-lnkt .de-seg{height:24px;padding:0 7px;font-size:12px}
-.de-subrow{margin:6px 0 0;padding-left:2px}
+/* 小計は入切の札（2026-10-dashlink の 3 回目で決めた S3）。② の枠の中の文と同じ左の線にそろえる */
+.de-subrow{margin:8px 0 0;padding-left:12px}
+.de-subrow .pv-ck{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--edit-line);border-radius:999px;background:var(--edit-field);font-weight:700;cursor:pointer}
+.de-subrow .pv-ck:has(input:checked){border-color:var(--h-input);background:var(--input-soft);color:var(--h-input)}
 /* 合わせ方のデータのカード（版 3.40.0。2026-10-dashlink の 2 回目の R4）: 左に役割の色の帯・役割・軸と値・作り方・グラフのどこに出るか */
 .de-lnkc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .de-lnkcard{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;padding:9px 10px 9px 14px;border:1px solid var(--line);border-radius:10px;

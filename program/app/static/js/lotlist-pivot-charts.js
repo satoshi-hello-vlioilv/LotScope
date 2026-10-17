@@ -273,7 +273,8 @@
           if (!v || i % thin) return;
           const ly = lead.y(v) - 5, hit = lines.some((q) => q.v[i] != null && Math.abs(y(q.v[i], q) - (ly - 4)) < 13);
           if (!hit) { g += `<text x="${x(i)}" y="${ly}" text-anchor="middle" class="pv-vl">${esc(nf(v))}</text>`; return; }
-          if (!stacked.length && base0 - lead.y(v) >= 18 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i)}" y="${lead.y(v) + 14}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
+          // 棒の中の字には棒の色の縁（線の脚が字を横切っても、字の所だけ線が隠れる。3 回目の採点: 山の点で線の脚が字に掛かった）
+          if (!stacked.length && base0 - lead.y(v) >= 18 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i)}" y="${lead.y(v) + 15}" text-anchor="middle" class="pv-vl pv-in" style="stroke:${series[0].color};stroke-width:4px;paint-order:stroke;stroke-linejoin:round">${esc(nf(v))}</text>`;
         });
       }
     }
