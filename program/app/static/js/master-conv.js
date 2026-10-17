@@ -89,7 +89,7 @@ function gridHtml(x) {
   const d = dis();
   // 出す値は番号の次（いちばん大事な列を、表が横に長くても切らない。2026-10-conv の 2 回目）
   const head = `<tr><th class="cv-no"></th><th>出す値</th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small>数</small>' : ""}</th>`).join("")}<th class="cv-ra"></th></tr>`;
-  const outTd = (r, i) => `<td class="cv-out"><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" aria-label="${i + 1} 行目の出す値"${d}>`
+  const outTd = (r, i) => `<td class="cv-out"><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" title="${esc(r.out)}" aria-label="${i + 1} 行目の出す値"${d}>`
     + (r.note ? `<span class="cv-note" title="${esc(r.note)}">!</span>` : "") + "</td>";
   const rows = x.rows.map((r, i) => `<tr data-r="${i}"${cell && cell.r === i ? ' class="is-cell"' : ""}><td class="cv-no">${i + 1}</td>${outTd(r, i)}`
     + x.inputs.map((inp) => {
