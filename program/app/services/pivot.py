@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 from datetime import date, datetime, timedelta
 
@@ -54,6 +55,10 @@ PARTS = ("",) + DATE_PARTS + ("bin",)
 AGGS = aggregate.AGGS          # 値の種類（版 3.39.0 で統計を足した。決め方は services/aggregate.py）
 WORK_DIMS = ("@workday", "@shift")
 EQUIP_DIM = "@equip"            # 設備（版 3.37.0。作業実績は設備ごとのファイル・データ元は設備の列。Part.equip）
+EGROUP_DIM = "@egroup"          # 設備グループ（版 3.40.0）。part＝まとめ方の名前（設備グループのマスタ）か PANEL_SET（このパネルのグループ）
+PANEL_SET = "@panel"
+NO_GROUP = "グループなし"
+NO_GROUP_KEY = "!none"           # グループに入らない設備の鍵（空の字にしない: 画面は鍵を並べてつなぐので、空だと総計の鍵と同じになる）
 NO_EQUIP = "設備なし"
 OTHER_EQUIP = "その他の設備"     # 設備のまとめ（egroups）で、どのまとまりにも入らない設備を 1 つにまとめた名前
 WORKDAY_PARTS = ("", "ym", "year")
@@ -88,9 +93,12 @@ def clean_dims(text, cs, work_ok, equip_ok=False):
     out = []
     for d in _parse_list(text, MAX_DIMS, "行・列"):
         col, part = str(d.get("column") or ""), str(d.get("part") or "")
-        if col == EQUIP_DIM:
+        if col in (EQUIP_DIM, EGROUP_DIM):
             if not equip_ok:
-                raise PivotError("設備の段は、設備を見分けられる元（作業実績・設備の列を決めたデータ元）だけで使えます。")
+                raise PivotError("設備・設備グループの段は、設備を見分けられる元（作業実績・設備の列を決めたデータ元）だけで使えます。")
+            if col == EGROUP_DIM:
+                out.append({"column": col, "part": part.strip()[:40]})     # part はまとめ方の名前（PARTS ではない）
+                continue
             part = ""
         elif col in WORK_DIMS:
             if not work_ok:
@@ -186,11 +194,13 @@ def describe(values):
 class _Keyer:
     """1 つの段の鍵の作り方（値 → (鍵の字, 並べる鍵, 見せる字)）。同じ値は覚えて読み直さない"""
 
-    def __init__(self, dim, clock=None, basis="work", equip=None, order=0, by_name=False, groups=None):
+    def __init__(self, dim, clock=None, basis="work", equip=None, order=0, by_name=False, groups=None, sets=None):
         """equip・order … 設備の段の決め方（Part.equip）と、そのファイルの並び。by_name … 直を名前で見分ける（いくつかのファイルをまとめるとき。
-        設備で勤務体系が違うと、同じ番号が違う直になるため）。groups … 設備のまとめ（EquipGroups。設備の段を、まとまりの名前にする）"""
+        設備で勤務体系が違うと、同じ番号が違う直になるため）。groups … 設備のまとめ（EquipGroups。設備の段を、まとまりの名前にする）。
+        sets … 設備グループの段（@egroup）のまとめ方の名前 → EquipGroups（版 3.40.0）"""
         self.dim, self.part, self.clock, self.basis = dim, dim["part"], clock, basis
         self.equip, self.order, self.by_name, self.groups = equip or {}, order, by_name, groups
+        self.sets = sets or {}
         self.memo = {}
 
     def key(self, v, tv=None):
@@ -200,10 +210,21 @@ class _Keyer:
             hit = self.memo[mk] = self._make(v, tv)
         return hit
 
+    def equip_name(self, v):
+        """設備の段の値 → 設備名（ファイルが 1 設備ならその名前・列の値なら見分けた名前）"""
+        return self.equip["name"] if "name" in self.equip else (self.equip["match"](v) if self.equip.get("match") else str(v or "").strip())
+
     def _make(self, v, tv):
         col, part = self.dim["column"], self.part
+        if col == EGROUP_DIM:
+            # 設備グループの段（版 3.40.0）: 設備（まとめる前の 1 台）が入るグループ。入らない設備は「グループなし」（後ろ）
+            name, grp = self.equip_name(v), self.sets.get(part)
+            g, at = grp.place(name) if grp and name else ("", -1)
+            if at < 0:
+                return (NO_GROUP_KEY, (1, 0, ""), NO_GROUP)
+            return (g, (0, at, g), g)
         if col == EQUIP_DIM:
-            name = self.equip["name"] if "name" in self.equip else (self.equip["match"](v) if self.equip.get("match") else str(v or "").strip())
+            name = self.equip_name(v)
             if not name:
                 return ("", (1, 0, ""), NO_EQUIP)
             if self.groups:
@@ -268,6 +289,8 @@ def _dim_name(dim):
     col, part = dim["column"], dim["part"]
     if col == EQUIP_DIM:
         return "設備"
+    if col == EGROUP_DIM:
+        return "設備グループ" + ("" if part in ("", PANEL_SET) else f"（{part}）")
     if col == "@workday":
         return f"作業日（{PART_LABEL[part]}）" if part else "作業日"
     if col == "@shift":
@@ -329,7 +352,9 @@ def calc_exprs(conn, calc, cs):
 
 class EquipGroups:
     """設備のまとめ（版 3.39.0。ダッシュボードのパネル）: 設備をまとまり（合算した 1 つ）にして数える。
-    groups … [{name, members: [設備名]}]（並びがまとまりの並び。同じ設備が 2 つのまとまりにあれば先の方）。
+    groups … [{name, members: [設備名], rules: [{op, value}], except: [設備名]}]（並びがまとまりの並び。同じ設備が 2 つのまとまりにあれば先の方）。
+    rules（版 3.40.0）… 名前の決まりで入れる設備（match_rules。どれか 1 つに当たれば入る）。members に書いた設備はいつも入り、except の設備は入らない。
+    名前で決まるので、あとから増えた設備も決まりに当たれば入る。
     rest … どのまとまりにも入らない設備: keep（その設備のまま）・other（other の名前〈既定「その他の設備」〉に合算）・hide（数えない）。
     全部を 1 つに合算するときは、groups に members の無いまとまり 1 つ・rest＝other・other＝その名前
     設備名は NFKC・大文字で比べる（設備マスタと列の書き方の揺れ）"""
@@ -337,7 +362,7 @@ class EquipGroups:
     def __init__(self, groups, rest="keep", other=""):
         self.rest = rest if rest in ("keep", "other", "hide") else "keep"
         self.other = str(other or "").strip() or OTHER_EQUIP
-        self.names, self.map = [], {}
+        self.names, self.map, self.rules, self.memo = [], {}, [], {}
         for g in groups or []:
             n = str(g.get("name") or "").strip()
             if not n:
@@ -346,13 +371,26 @@ class EquipGroups:
                 self.names.append(n)
             for m in g.get("members") or []:
                 self.map.setdefault(normalize_part(m), n)
+            if g.get("rules"):
+                self.rules.append((n, compile_rules(g["rules"]), {normalize_part(x) for x in g.get("except") or []}))
 
     def __bool__(self):
         return bool(self.names)
 
+    def group_of(self, name):
+        """設備名 → 入るまとまりの名前（無ければ None）。書いた設備 → 決まりの順"""
+        k = normalize_part(name)
+        if k in self.memo:
+            return self.memo[k]
+        g = self.map.get(k)
+        if g is None:
+            g = next((n for n, test, ex in self.rules if k not in ex and test(k)), None)
+        self.memo[k] = g
+        return g
+
     def place(self, name):
         """設備名 → (まとまりの名前, 並び〈まとまりの番号。入らない設備は -1〉)"""
-        g = self.map.get(normalize_part(name))
+        g = self.group_of(name)
         if g is not None:
             return g, self.names.index(g)
         if self.rest == "other":
@@ -360,7 +398,31 @@ class EquipGroups:
         return name, -1
 
     def keeps(self, name):
-        return self.rest != "hide" or normalize_part(name) in self.map
+        return self.rest != "hide" or self.group_of(name) is not None
+
+
+RULE_OPS = {"prefix": "で始まる", "suffix": "で終わる", "contains": "を含む", "equals": "と同じ", "regex": "に当たる（正規表現）"}
+
+
+def compile_rules(rules):
+    """設備グループの決まり [{op, value}]（版 3.40.0）→ 比べる関数（設備名〈normalize_part 済み〉→ どれかに当たれば True）。
+    比べ方は NFKC・大文字（設備名の書き方の揺れ）。正規表現は大文字・小文字を見ない。読めない正規表現・空の値は当たらない"""
+    tests = []
+    for r in rules or []:
+        op, v = str((r or {}).get("op") or ""), str((r or {}).get("value") or "").strip()
+        if not v or op not in RULE_OPS:
+            continue
+        if op == "regex":
+            try:
+                rx = re.compile(v, re.IGNORECASE)
+            except re.error:
+                continue
+            tests.append(lambda k, rx=rx: bool(rx.search(k)))
+            continue
+        nv = normalize_part(v)
+        tests.append({"prefix": lambda k, nv=nv: k.startswith(nv), "suffix": lambda k, nv=nv: k.endswith(nv),
+                      "contains": lambda k, nv=nv: nv in k, "equals": lambda k, nv=nv: k == nv}[op])
+    return lambda k: any(t(k) for t in tests)
 
 
 class Part:
@@ -458,7 +520,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         for d in rd + cd:
             if d["column"] in WORK_DIMS:
                 pos.append((use(start), use(tcol)))
-            elif d["column"] == EQUIP_DIM:
+            elif d["column"] in (EQUIP_DIM, EGROUP_DIM):
                 pos.append((use(equip.get("column", "")), -1))
             else:
                 pos.append((use(d["column"]), -1))
@@ -485,14 +547,16 @@ def _filter_items(filters):
 
 
 def query_many(parts, *, search="", filters="", rows="", cols="", measures="", today=None, month="", box="", period=None, now=None, calc=None,
-               equips=None, egroups=None):
+               equips=None, egroups=None, sets=None):
     """いくつかのファイル（Part の並び）を 1 つの集計にまとめる（版 3.37.0。ダッシュボードの「作業実績 すべての設備」など）。
     段・値の決め方・答えの形は 1 ファイルのときと同じ。ロット数はファイルごとに見分ける（別の設備の同じ作業開始は別の作業）。
     ファイルが 2 つ以上なら、読めない・列が無いファイルは飛ばして skipped に出す（1 つなら断る）。直の段は名前で揃える（設備で勤務体系が違うため）。
     period … {column: 日付の列か "@workday", kind: PERIODS の鍵, n}。その元の「いま」（now。作業日は勤務体系の現場歴）から日の範囲を決めて絞る。
     設備の段 @equip … Part.equip で決める（作業実績は設備ごとのファイル・データ元は設備の列）
     equips（版 3.39.0）… 数える設備の名前の並び（空・None はすべて）。設備を見分けられない元では効かない（答えの equipIgnored）
-    egroups（版 3.39.0）… 設備のまとめ {groups: [{name, members}], rest}（EquipGroups）。設備の段がまとまりの名前になる"""
+    egroups（版 3.39.0）… 設備のまとめ {groups: [{name, members}], rest}（EquipGroups）。設備の段がまとまりの名前になる
+    sets（版 3.40.0）… 設備グループの段（@egroup）のまとめ方の名前 → [{name, members, rules, except}]。設備の段（まとめる前の 1 台）と
+        並べて置けば、グループごとの小計が出る（小計は行・列の段の頭の組を数える、いつもの決め方）"""
     t0 = time.perf_counter()
     period = clean_period(period)
     box = str(box or "")
@@ -500,6 +564,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     multi = len(parts) > 1
     pick = {normalize_part(x) for x in (equips or []) if str(x).strip()}
     groups = EquipGroups(egroups.get("groups"), egroups.get("rest"), egroups.get("other")) if egroups else None
+    gsets = {k: EquipGroups(v) for k, v in (sets or {}).items()}
     need_equip = bool(pick) or bool(groups and groups.rest == "hide")
     states, skipped = [], []
     for part in parts:
@@ -580,7 +645,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     single = 0
     count = 0
     for pi, s in enumerate(states):
-        keyers = [_Keyer(d, s["clock"], s["basis"], equip=s["equip"], order=pi, by_name=multi, groups=groups) for d in s["rd"] + s["cd"]]
+        keyers = [_Keyer(d, s["clock"], s["basis"], equip=s["equip"], order=pi, by_name=multi, groups=groups, sets=gsets) for d in s["rd"] + s["cd"]]
         pos, mpos, bpos, lots_by, kpos = s["pos"], s["mpos"], s["bpos"], s["lots_by"], s["kpos"]
         count += len(s["data"])
         for row in s["data"]:

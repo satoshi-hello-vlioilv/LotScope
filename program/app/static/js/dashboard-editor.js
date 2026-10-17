@@ -10,6 +10,11 @@
    版 3.39.0（利用者の要望 2026-10）: 値の統計（中央値・標準偏差・p%点・Cpk など）と表し方（割合・累計・差・順位）・設備を複数選ぶ・設備をまとめる
    （選んだ設備の合算・このパネルのグループ・設備グループのマスタ）・見せ方（枠 5 つ・数字の形 3 つ・合わせた表 8 つ）・書式（数値ラベル・日付の形・
    字の向き・桁・単位・縦軸・凡例・補助線・字の大きさ・基準線・色の組・系列の色）・計算列をここで作る・形は目的ごとに並べる
+   版 3.40.0（利用者の要望 2026-10）:
+   - 設備の出し方（esplit・egroup）: 系列に分ける（設備ごとの系列）・図を並べる（設備ごとの小さな表・グラフ）・合算して 1 つ・グループ合算。
+     設備は行・列にも置ける（「行に置く」「列に置く」）。設備グループの段（@egroup）と表の小計
+   - 別のデータを合わせる（link）: 上の札で「全体」（軸のそろえ方・役割・作り方・差と達成率）と「データ」（1〜4）を切り替える。
+     データ（側）は、合わせた表のまとまりと同じ部品で組む（行の段＝軸 1 つ・値 1 つ）
    ========================================================================= */
 (function () {
   "use strict";
@@ -45,26 +50,34 @@
   let eqOpen = false, eqItems = null, eqKey = "", eqSearch = "", calcEdit = null, fmtOpen = true;
 
   const isBoard = () => p && p.visual === "board";
-  const inGroup = () => isBoard() && gi >= 0;
+  const isLink = () => !!(p && p.link && (p.link.sides || []).length);
+  /** 札で切り替えて組む物（合わせた表のまとまり・合わせるデータ） */
+  const parts = () => (isLink() ? p.link.sides : isBoard() ? p.groups : null);
+  const inGroup = () => !!parts() && gi >= 0;
+  const inSide = () => isLink() && gi >= 0;
+  const ROLES = [["target", "目標", "計画・目標の数（45度線管理図では横）"], ["actual", "実績", "実際の数（45度線管理図では縦）"], ["", "比べる", "目標・実績ではなく並べて比べる"]];
+  const ROLE_COLOR = P.ROLE_COLOR;             // 役割の色（グラフの系列と同じ。dashboard-panels.js）
+  const BUILDS = [["as", "そのまま", "軸の値ごとの数"], ["cum", "積み上げ", "軸の並び（日なら古い順）に足していく累計"]];
   /** 合わせた表のまとまり → 組む形（ふつうのパネルと同じ形。行の段は表全体の物・値は 1 つ） */
   function groupView(g) {
     return { visual: "none", source: g.source, equip: g.equip || "", equips: g.equips || [], filters: g.filters || [], search: g.search || "", period: g.period || null, basis: g.basis || "work",
-      ...(g.calc ? { calc: g.calc } : {}), body: { rows: [p.rows], cols: g.cols || [], measures: [g.measure || { agg: "lots" }], grand: true } };
+      ...(g.calc ? { calc: g.calc } : {}), body: { rows: isLink() ? (g.key ? [g.key] : []) : [p.rows], cols: isLink() ? [] : g.cols || [], measures: [g.measure || { agg: "lots" }], grand: true } };
   }
-  /** 組んだ形 → まとまりへ書き戻す */
+  /** 組んだ形 → まとまり（合わせるデータなら軸と値）へ書き戻す */
   function pushGroup() {
     if (!inGroup()) return;
-    const g = p.groups[gi];
-    Object.assign(g, { source: t.source, equip: t.equip, filters: t.filters, search: t.search, period: t.period, basis: t.basis, cols: t.body.cols, measure: t.body.measures[0] || { agg: "lots" } });
+    const g = parts()[gi];
+    Object.assign(g, { source: t.source, equip: t.equip, filters: t.filters, search: t.search, period: t.period, basis: t.basis, measure: t.body.measures[0] || { agg: "lots" } });
+    if (isLink()) g.key = t.body.rows[0] || null; else g.cols = t.body.cols;
     if ((t.equips || []).length) g.equips = t.equips; else delete g.equips;
     if (t.calc) g.calc = t.calc; else delete g.calc;
     delete p.legacy;              // 組み直した表は、前の版の条件を引き継がない
   }
   function select(i) {
-    gi = isBoard() ? Math.max(-1, Math.min(i, p.groups.length - 1)) : -1;
-    t = inGroup() ? groupView(p.groups[gi]) : p;
-    q = "";
-    paint(); if (t !== p || !isBoard()) loadFields();
+    gi = parts() ? Math.max(-1, Math.min(i, parts().length - 1)) : -1;
+    t = inGroup() ? groupView(parts()[gi]) : p;
+    q = ""; eqOpen = false; eqItems = null; eqKey = "";
+    paint(); if (t !== p || !parts()) loadFields();
   }
 
   /* ---- 計算列（版 3.38.0。一覧の表示列で式から作った列）。この PC の表示列の設定の式を、そのデータの分だけ集める
@@ -99,7 +112,7 @@
     return Object.keys(formulas).length ? { formulas, names: ctx.names, ...(own.length ? { own } : {}) } : null;
   }
   /** 使う計算列の式を組む物に写す（使わなくなったら外す） */
-  function syncCalc() { if (t === p && isBoard()) return; const c = calcOf(t); if (c) t.calc = c; else delete t.calc; }
+  function syncCalc() { if (t === p && parts()) return; const c = calcOf(t); if (c) t.calc = c; else delete t.calc; }
 
   const srcOf = (k) => sources.find((x) => x.key === k) || null;
   const isWork = () => t.source === "work";
@@ -107,23 +120,31 @@
   const fieldOf = (c) => ((fields && fields.fields) || []).find((f) => f.column === c) || null;
   const isDate = (c) => (c === "@workday") || !!(fieldOf(c) || {}).date;
   const isNum = (c) => !!(fieldOf(c) || {}).numeric;
+  /** 設備グループの段のまとめ方（マスタのまとめ方の名前・このパネルのグループ） */
+  const egSets = () => ((special().find((x) => x.column === "@egroup") || {}).sets || []).concat(p.egroup && p.egroup.mode === "panel" ? ["@panel"] : []);
   function partsOf(c) {
     if (c === "@workday") return WORKDAY_PARTS;
+    if (c === "@egroup") return egSets().length ? egSets() : [""];
     if (c.startsWith("@")) return [""];
     if (isDate(c)) return DATE_PARTS;
     if (isNum(c)) return NUM_PARTS;
     return [""];
   }
   function defaultPart(c) {
+    if (c === "@egroup") return egSets()[0] || "";
     if (c.startsWith("@")) return "";
     if (isDate(c)) return "date";
     const f = fieldOf(c);
     return f && f.numeric && (f.many || f.kinds > 30) ? "bin" : "";
   }
-  const dimLabel = (d) => (d.column === "@equip" ? "設備" : d.column === "@workday" ? "作業日" : d.column === "@shift" ? "直" : d.column);
+  const dimLabel = (d) => (d.column === "@equip" ? "設備" : d.column === "@egroup" ? "設備グループ" : d.column === "@workday" ? "作業日" : d.column === "@shift" ? "直" : d.column);
 
   /** 題が空のときの名前（組み方から作る。パネルの見出しにも同じ物） */
   function autoTitle(x) {
+    if (x.link && (x.link.sides || []).length) {
+      const ss = x.link.sides, role = (r) => (ROLES.find((y) => y[0] === r) || [, ""])[1];
+      return `${ss[0].key ? dimLabel(ss[0].key) + "ごとの" : ""}${ss.map((y) => (y.role ? role(y.role) : y.title || (srcOf(y.source) || {}).name || "データ")).join("と")}`;
+    }
     if (x.visual === "board") return (x.groups || []).length ? `${dimLabel(x.rows || { column: "@equip" })}ごとの${x.groups.map((g) => g.title || P.groupTitle(g, null)).join("と")}` : "合わせた表";
     const b = x.body || {}, ms = (b.measures || []).map(P.measName).join("・") || "ロット数";
     const pr = x.period && x.period.kind ? `${x.period.kind === "days" ? `直近 ${x.period.n || 7} 日` : (PERIODS.find((k) => k[0] === x.period.kind) || [, ""])[1]}の` : "";
@@ -136,6 +157,11 @@
   function changed(repaintFields = true) { syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields); }
   function addDim(role, col) {
     const b = t.body, other = role === "rows" ? "cols" : "rows", max = inGroup() ? MAX_GROUP_COLS : MAX_DIMS;
+    if (inSide()) {                                                  // 合わせるデータの軸は 1 つ（押した物に替える）。列の段は無い
+      if (role !== "rows") return;
+      b.rows = b.rows.some((d) => d.column === col) ? [] : [{ column: col, part: defaultPart(col) }];
+      changed(); return;
+    }
     if (inGroup() && role === "rows") return;                        // 行の段は表全体で 1 つ（「表全体」で決める）
     if (b[role].some((d) => d.column === col)) { b[role] = b[role].filter((d) => d.column !== col); changed(); return; }
     if (b[role].length >= max) { host.toast(`${role === "rows" ? "行" : "列"}の段は ${max} つまでです`); return; }
@@ -152,10 +178,11 @@
     t.body.measures = ms.concat([m]); changed();
   }
   function setVisual(k) {
-    if (k === "board") { toBoard(); return; }
+    if (k === "board") { if (isLink()) unlink(); toBoard(); return; }
     if (isBoard()) fromBoard();
     p.visual = k;
     const b = p.body;
+    if (isLink()) { b.grand = k === "none" || k === "kpi"; changed(false); return; }    // 行・値は合わせるデータの軸と値
     if (k !== "kpi" && k !== "none" && !b.rows.length) {   // 行の段が要る形: 向く段を 1 つ入れる（作業実績は作業日・ほかは設備か種類の少ない列）
       const sp = special().map((x) => x.column);
       const pick = (k === "time" || k === "line" || k === "area" || k === "stackarea" || k === "control" || k === "xbar") ? (sp.includes("@workday") ? "@workday" : ((fields && fields.fields) || []).find((f) => f.date)?.column)
@@ -199,28 +226,80 @@
     Object.assign(t, { source: key, equip, equips: [], filters: [], search: "", period: keepPeriod ? t.period : null });
     if (!inGroup()) delete p.egroup;
     eqOpen = false;
-    t.body = { ...t.body, rows: inGroup() ? t.body.rows : [], cols: [], measures: [{ agg: "lots" }] };
+    t.body = { ...t.body, rows: inGroup() && !inSide() ? t.body.rows : [], cols: [], measures: [{ agg: "lots" }] };
     if (!inGroup() && p.visual !== "kpi" && p.visual !== "none") p.visual = "kpi";
-    await loadFields(); changed();
+    await loadFields();
+    if (inSide()) t.body.rows = [sideKey()];
+    changed();
   }
 
-  /* ---- 合わせた表: 表全体（行の段・並び・隠す行）とまとまりの並び ---- */
+  /* ---- 別のデータを合わせる（版 3.40.0。link）: 全体（軸のそろえ方・役割・作り方・差と達成率）とデータ（1〜4） ---- */
+  /** このデータの軸の既定: ほかのデータの軸と同じ種類（日・設備）があればそれ、無ければ作業日・設備・日付の列 */
+  function sideKey() {
+    const other = (p.link.sides.find((x, i) => i !== gi && x.key) || {}).key, sp = special().map((x) => x.column), dates = ((fields && fields.fields) || []).filter((f) => f.date).map((f) => f.column);
+    const day = other && (other.column === "@workday" ? !other.part : other.part === "date");
+    if (other && other.column === "@equip" && sp.includes("@equip")) return { column: "@equip", part: "" };
+    if (day || !other) { if (sp.includes("@workday")) return { column: "@workday", part: "" }; if (dates[0]) return { column: dates[0], part: "date" }; }
+    if (other && (fieldOf(other.column) || sp.includes(other.column))) return { ...other };
+    return sp.includes("@equip") ? { column: "@equip", part: "" } : dates[0] ? { column: dates[0], part: "date" } : null;
+  }
+  /** いまの組みを 1 つ目のデータ（目標）にして、2 つ目（実績。作業実績）を足す */
+  function startLink() {
+    const b = p.body || {}, key = (b.rows || [])[0] || (special().some((x) => x.column === "@workday") ? { column: "@workday", part: "" } : { column: "@equip", part: "" });
+    const first = { title: "", role: "target", build: "as", source: p.source, equip: p.equip || "", equips: p.equips || [], filters: p.filters || [], search: p.search || "",
+      period: p.period || null, basis: p.basis || "work", ...(p.calc ? { calc: p.calc } : {}), key, measure: (b.measures || [])[0] || { agg: "lots" } };
+    p.link = { sides: [first, { ...TPA.clone(first), role: "actual", source: "work", equip: "", equips: [], filters: [], search: "", calc: undefined, measure: { agg: "lots" } }] };
+    delete p.link.sides[1].calc; delete p.egroup; delete p.esplit;
+    if (!["diag45", "time", "line", "area", "column", "bar", "none", "scatter"].includes(p.visual)) p.visual = "diag45";
+    host.toast("① 目標・② 実績 にしました（上の札で切り替えて決めます）");
+    gi = 1; t = groupView(p.link.sides[1]); fields = null; fieldsKey = "";
+    loadFields().then(() => { if (!t.body.rows.length) { t.body.rows = [sideKey()].filter(Boolean); } changed(); });
+  }
+  /** 合わせるのをやめる（1 つ目のデータの組みで、ふつうのパネルに戻す） */
+  function unlink() {
+    const x = p.link.sides[0];
+    Object.assign(p, { source: x.source, equip: x.equip || "", equips: x.equips || [], filters: x.filters || [], search: x.search || "", period: x.period || null, basis: x.basis || "work",
+      ...(x.calc ? { calc: x.calc } : {}), body: { ...(p.body || {}), rows: x.key ? [x.key] : [], cols: [], measures: [x.measure || { agg: "lots" }] } });
+    delete p.link; gi = -1; t = p;
+  }
+  /** ① の頭の 2 択（数える物: 1 つのデータ／別のデータと合わせる）。合わせた後も同じ所に残す（押すと 1 つに戻る） */
+  const linkPick = () => `<div class="de-row de-linkpick"><span class="de-l">数える物</span>${segs("linkmode", [["one", "1 つのデータ", "1 つのデータの数を出します"], ["link", "別のデータと合わせる（目標と実績）", "別のデータ（元・条件・値）の数を同じ軸でそろえて 1 つのパネルに出します（45度線管理図など）"]], isLink() ? "link" : "one", "数える物")}</div>`;
+  /** 全体の札: データごとのカード（役割の色の帯・役割・軸・値・作り方・グラフのどこに出るか）と、差・達成率。
+      2026-10-dashlink の 2 回目で 1 位の R4（表 → カード。横軸／縦軸を読める大きさで） */
+  function linkHtml() {
+    const ss = p.link.sides, ex = new Set(p.link.extra || []), n = "①②③④";
+    const both = ss.some((x) => x.role === "target") && ss.some((x) => x.role === "actual");
+    const diag = ["diag45", "scatter"].includes(p.visual);
+    const where = (r) => (r === "target" ? (diag ? "→ 45度線の<b>横軸</b>" : "→ グラフの<b>棒</b>") : r === "actual" ? (diag ? "→ 45度線の<b>縦軸</b>" : "→ グラフの<b>線</b>") : "→ 並べて比べる");
+    const keyText = (k) => (k ? dimLabel(k) + (k.part ? `（${(k.column === "@workday" ? WORKDAY_NAME : PART_NAME)[k.part] || k.part}）` : "") : "（軸を選ぶ）");
+    const cards = ss.map((x, i) => `<div class="de-lnkcard" style="--rc:${ROLE_COLOR[x.role || ""]}"><button type="button" class="de-lnk-go" data-de-tab="${i}" title="このデータを組む">${n[i]} ${esc(x.title || (srcOf(x.source) || {}).name || "")}</button>`
+      + `<div class="de-lnkrow">${segs(`role-${i}`, ROLES, x.role || "", "役割")}</div>`
+      + `<div class="de-lnkkv"><span>軸</span><b>${esc(keyText(x.key))}</b><span>値</span><b>${esc(P.measName(x.measure || { agg: "lots" }))}</b></div>`
+      + `<div class="de-lnkrow">${segs(`build-${i}`, BUILDS, x.build || "as", "作り方")}</div><div class="de-lnkwhere">${where(x.role || "")}</div></div>`).join("");
+    return linkPick() + `<div class="de-row de-top"><span class="de-l">合わせ方</span><div class="de-lnk"><div class="de-lnkc">${cards}</div>`
+      + `<small class="de-hint">軸の値（日・年月・設備名・字）が同じ行をそろえます。カードの名前を押すと、そのデータを組みます</small></div></div>`
+      + `<div class="de-row"><span class="de-l">足す値</span><label class="pv-ck"${both ? "" : ' title="目標と実績を 1 つずつ決めると使えます"'}><input type="checkbox" data-de-extra="diff"${ex.has("diff") ? " checked" : ""}${both ? "" : " disabled"}>差（実績−目標）</label>`
+      + `<label class="pv-ck"><input type="checkbox" data-de-extra="rate"${ex.has("rate") ? " checked" : ""}${both ? "" : " disabled"}>達成率（実績÷目標 %）</label></div>`;
+  }
   function addGroup() {
-    if (p.groups.length >= MAX_GROUPS) { host.toast(`列のまとまりは ${MAX_GROUPS} つまでです`); return; }
-    const last = p.groups[p.groups.length - 1] || {};
-    p.groups.push({ title: "", source: last.source || "work", equip: "", filters: [], search: "", period: null, basis: "work", measure: { agg: "lots" }, cols: [], look: "num", total: true, zero: false, color: "" });
-    delete p.legacy; host.onChange(TPA.clone(p)); select(p.groups.length - 1);
+    const gs = parts(), what = isLink() ? "合わせるデータ" : "列のまとまり";
+    if (gs.length >= MAX_GROUPS) { host.toast(`${what}は ${MAX_GROUPS} つまでです`); return; }
+    const last = gs[gs.length - 1] || {};
+    if (isLink()) gs.push({ title: "", role: "", build: "as", source: last.source || "work", equip: "", filters: [], search: "", period: null, basis: "work", key: last.key || null, measure: { agg: "lots" } });
+    else gs.push({ title: "", source: last.source || "work", equip: "", filters: [], search: "", period: null, basis: "work", measure: { agg: "lots" }, cols: [], look: "num", total: true, zero: false, color: "" });
+    delete p.legacy; host.onChange(TPA.clone(p)); select(gs.length - 1);
   }
   function moveGroup(i, d) {
-    const j = i + d; if (j < 0 || j >= p.groups.length) return;
-    [p.groups[i], p.groups[j]] = [p.groups[j], p.groups[i]];
-    const o = p.order; if (o.group === i) o.group = j; else if (o.group === j) o.group = i;
-    gi = j; t = groupView(p.groups[gi]); changed(false);
+    const gs = parts(), j = i + d; if (j < 0 || j >= gs.length) return;
+    [gs[i], gs[j]] = [gs[j], gs[i]];
+    const o = p.order; if (o) { if (o.group === i) o.group = j; else if (o.group === j) o.group = i; }
+    gi = j; t = groupView(gs[gi]); changed(false);
   }
   function removeGroup(i) {
-    if (p.groups.length <= 1) { host.toast("まとまりは 1 つ以上要ります（表をやめるときは、ほかの形を選びます）"); return; }
-    p.groups.splice(i, 1);
-    p.order.group = Math.min(p.order.group, p.groups.length - 1);
+    const gs = parts();
+    if (gs.length <= (isLink() ? 2 : 1)) { host.toast(isLink() ? "合わせるデータは 2 つ以上要ります（やめるときは「全体」の「合わせるのをやめる」）" : "まとまりは 1 つ以上要ります（表をやめるときは、ほかの形を選びます）"); return; }
+    gs.splice(i, 1);
+    if (p.order) p.order.group = Math.min(p.order.group, gs.length - 1);
     gi = -1; t = p; changed(false);
   }
   /** 行の鍵の並び（いまの答えから。隠した行も）→ [{key, hidden}] */
@@ -300,7 +379,7 @@
   }
 
   async function loadFields() {
-    if (isBoard() && gi < 0) return;
+    if (parts() && gi < 0) return;
     ctx = calcContext();
     const key = JSON.stringify([t.source, t.equip, ctx]);
     if (fields && fieldsKey === key) return;
@@ -322,11 +401,12 @@
     if (!fields) return '<p class="pv-none">カラムを読んでいます…</p>';
     const ownList = (t.calc && t.calc.own) || [];
     const b = t.body, used = (c) => (b.rows.some((d) => d.column === c) ? "rows" : b.cols.some((d) => d.column === c) ? "cols" : "");
-    const rowBtn = (c, on) => (inGroup() ? "<i></i>" : btn("rows", c, on));
+    const rowBtn = (c, on) => (inGroup() && !inSide() ? "<i></i>" : btn("rows", c, on, inSide() ? 'title="このデータの軸（そろえる段）にします"' : ""));
+    const colBtn = (c, on) => (inSide() ? "<i></i>" : btn("cols", c, on));
     const meas = (agg, col = "") => b.measures.some((m) => m.agg === agg && (m.column || "") === col);
     const ql = q.trim().toLowerCase(), hit = (n) => !ql || n.toLowerCase().includes(ql);
     let html = special().filter((x) => hit(x.name)).map((x) => `<div class="pv-f is-special${used(x.column) ? " is-used" : ""}" title="${esc(x.hint || "")}"><span><b>${esc(x.name)}</b><small>${esc(x.hint || "")}</small></span>`
-      + `${rowBtn(x.column, used(x.column) === "rows")}${btn("cols", x.column, used(x.column) === "cols")}<i></i></div>`).join("");
+      + `${rowBtn(x.column, used(x.column) === "rows")}${colBtn(x.column, used(x.column) === "cols")}<i></i></div>`).join("");
     if (hit("ロット数 件数")) {
       html += `<div class="pv-f is-special${meas("lots") ? " is-used" : ""}"><span><b>ロット数</b><small>${isWork() ? "作業の数（作業開始が同じ行は 1）" : "重複の無いロット番号"}</small></span><i></i><i></i>${btn("vals", "@lots", meas("lots"))}</div>`
         + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}"><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
@@ -338,14 +418,15 @@
       const tip = f.calc ? `${c}（計算列。一覧の表示列で作った式）\n${ctx.formulas[c] || ""}` : c;
       const mine = ownList.includes(c);
       return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"><span><b>${esc(c)}${f.calc ? (mine ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(c)}" title="このパネルで作った計算列。押すと直せます">式 ✎</button>` : '<small class="sx-calc">式</small>') : ""}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
-        + rowBtn(c, u === "rows") + btn("cols", c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・中央値・標準偏差などの統計に替えられます）"')
+        + rowBtn(c, u === "rows") + colBtn(c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・中央値・標準偏差などの統計に替えられます）"')
           : btn("vals", c, anyVal, 'title="種類の数（重複の無い値の数）を値に足します"')) + "</div>";
     }).join("");
     return html || '<p class="pv-none">当たるカラムがありません</p>';
   }
   function dimChip(d, role, i) {
-    const parts = partsOf(d.column), pn = d.column === "@workday" ? WORKDAY_NAME : PART_NAME, fixed = inGroup() && role === "rows";
-    const sel = parts.length > 1 && !fixed ? `<select data-de-part="${role}" data-i="${i}" aria-label="まとめ方">${parts.map((x) => `<option value="${x}"${(d.part || "") === x ? " selected" : ""}>${pn[x]}</option>`).join("")}</select>` : "";
+    const ps = partsOf(d.column), pn = d.column === "@workday" ? WORKDAY_NAME : d.column === "@egroup" ? { "@panel": "このパネルのグループ", "": "（まとめ方なし）" } : PART_NAME;
+    const fixed = isBoard() && inGroup() && role === "rows";
+    const sel = (ps.length > 1 || d.column === "@egroup") && !fixed ? `<select data-de-part="${role}" data-i="${i}" aria-label="まとめ方">${ps.map((x) => `<option value="${esc(x)}"${(d.part || "") === x ? " selected" : ""}>${esc(pn[x] || x)}</option>`).join("")}</select>` : "";
     return `<span class="pv-chip ${role === "rows" ? "r" : "c"}${fixed ? " is-fixed" : ""}"${fixed ? ' title="行の段は表全体で 1 つです（「表全体」で変えます）"' : ""}><b>${esc(dimLabel(d))}</b>${sel}${fixed ? "" : `<button type="button" data-de-x="${role}" data-i="${i}" aria-label="「${esc(dimLabel(d))}」を外す">×</button>`}</span>`;
   }
   /** 値の札: 名前・集計のしかた（よく使う／統計／種類。数でない列は種類の数だけ）・決める数（p%点の p・Cpk の規格）・表し方（割合・累計など） */
@@ -362,9 +443,14 @@
   function sentenceHtml() {
     const b = t.body, slot = (role, html, ph) => `<span class="pv-slot" data-role="${role}">${html || `<span class="pv-ph">${ph}</span>`}</span>`;
     const kpi = t.visual === "kpi";
+    if (inSide()) return `<div class="pv-sent de-sent">${slot("rows", b.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］で軸を選ぶ")}<span class="pv-w">ごとの</span>`
+      + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を合わせる</span></div>`;
+    // 小計（版 3.40.0。要望 5）: 表で行の段が 2 つ以上（設備グループ → 設備 など）。行の段の文のすぐ下（何ごとの小計かを、段の札の近くで決める）
+    const sub = !inGroup() && !isLink() && p.visual === "none" && (b.rows || []).length > 1
+      ? `<div class="de-subrow"><label class="pv-ck" title="行の段の上の段ごとに小計の行を出します"><input type="checkbox" data-de-sub${b.sub ? " checked" : ""}>${esc(dimLabel(b.rows[0]))}ごとの小計を出す</label></div>` : "";
     return `<div class="pv-sent de-sent">${kpi ? '<span class="pv-w">全体の</span>' : `${slot("rows", b.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］")}<span class="pv-w">ごとに、</span>`
       + `${slot("cols", b.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`}`
-      + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>`;
+      + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>${sub}`;
   }
   /** 形の札（版 3.39.0 で 25。目的の行に並べる: 数と表・推移を見る・比べる・内訳・ばらつき・関係。集計表のグラフの形の面と同じまとまり）。
       合わせた表は、表全体の札で「選んだ形の札 1 枚＋形を変える…」に畳む（押すと全部の札が開く。2026-10-board の 3 回目で決めた CF） */
@@ -389,6 +475,10 @@
   }
   /** いまの組み方（形の登録 DEFS の fit に渡す形。一覧の集計表の fitInfo と同じ鍵） */
   function fitInfo() {
+    if (isLink()) {        // 合わせたデータ: 値＝データの数（どれも数）。軸が日なら時の形
+      const ss = p.link.sides, k = ss[0].key;
+      return { rows: 1, cols: 0, meas: ss.length, numMeas: ss.length, addMeas: ss.length, additive: true, time: !!k && C.isTimeDim(k), bin: false };
+    }
     const b = p.body || {}, r0 = (b.rows || [])[0], ms = b.measures && b.measures.length ? b.measures : [{ agg: "lots" }];
     return { rows: (b.rows || []).length, cols: (b.cols || []).length, meas: ms.length, numMeas: ms.filter((m) => m.column && isNum(m.column)).length,
       addMeas: ms.filter((m) => C.ADDITIVE.has(m.agg)).length, additive: C.ADDITIVE.has(ms[0].agg), time: !!r0 && C.isTimeDim(r0), bin: !!r0 && r0.part === "bin" };
@@ -413,6 +503,7 @@
     `<label class="de-seg${(cur || "") === k ? " on" : ""}"${tip ? ` title="${esc(tip)}"` : ""}><input type="radio" name="de-${name}" value="${k}" data-de-${name}${(cur || "") === k ? " checked" : ""}>${esc(n)}</label>`).join("")}</span>`;
   /** 見せ方（形の札のすぐ下）。まとまりは 棒・濃淡・数・積み上げ帯・割合・点・信号・小さな線・色・計の列・0 の印・しきい値。ほかはパネルの枠（5 つ）と、数字の形（目標） */
   function lookHtml() {
+    if (inSide()) return "";
     if (!inGroup()) {
       const frame = p.frame || (p.emph ? "emph" : "card"), fm = p.fmt || {};
       const frames = `<span class="de-frames" role="radiogroup" aria-label="パネルの見せ方">${FRAMES.map(([k, n, tip]) => `<label class="de-frame${frame === k ? " on" : ""}" title="${esc(tip)}"><input type="radio" name="de-frame" value="${k}" data-de-frame${frame === k ? " checked" : ""}><i class="fr-${k}" aria-hidden="true"></i>${n}</label>`).join("")}</span>`;
@@ -457,7 +548,9 @@
     const pal = P.PALETTES, cur = fm.palette || "";
     const palBtn = (k, n, cs) => `<button type="button" class="de-pal${cur === k ? " on" : ""}" data-de-pal="${k}" aria-pressed="${cur === k}" title="${esc(n)}"><span>${cs.slice(0, 5).map((c) => `<i style="background:${c}"></i>`).join("")}</span>${esc(n)}</button>`;
     const pals = palBtn("", "データの種類", P.seriesColors({ source: p.source })) + Object.entries(pal).map(([k, x]) => palBtn(k, x.n, x.c)).join("");
-    const names = seriesNames(), colors = P.seriesColors(p);
+    // 合わせたデータは役割の色（グラフ・札と同じ。3 回目の採点: 見本だけ別の色だった）
+    const d0 = host.answer && host.answer();
+    const names = seriesNames(), colors = isLink() && d0 && d0.measures ? d0.measures.map((x) => P.ROLE_COLOR[x.role] || "#5a6f77") : P.seriesColors(p);
     const named = names.length ? names.map((n, i) => { const c = (fm.colors || {})[n]; return `<label class="de-scol${c ? " is-set" : ""}" title="${esc(n)}"><input type="color" value="${c || colors[i % colors.length]}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span>${c ? `<button type="button" class="icon-btn" data-de-scolx="${esc(n)}" aria-label="「${esc(n)}」の色を戻す">×</button>` : ""}</label>`; }).join("") : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
     const refs = (fm.refs || []).map((r, i) => `<div class="de-ref" data-i="${i}"><input type="number" step="any" value="${r.value}" data-de-refv aria-label="基準線の値" class="de-n2"><input value="${esc(r.label || "")}" data-de-refl maxlength="20" placeholder="名前（目標・上限など）" aria-label="基準線の名前">`
       + `<span class="de-sws">${REF_COLORS.map((c) => `<button type="button" class="de-sw${(r.color || REF_COLORS[0]) === c ? " on" : ""}" style="--sw:${c}" data-de-refc="${c}" aria-label="色 ${c}"></button>`).join("")}</span><button type="button" class="icon-btn" data-de-refdel="${i}" aria-label="この基準線を外す">×</button></div>`).join("");
@@ -493,6 +586,7 @@
   }
   function sortHtml() {
     if (t.visual === "kpi" || inGroup()) return "";
+    // 小計（版 3.40.0。要望 5）: 表で行の段が 2 つ以上（設備グループ → 設備 など）
     return `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
       + `<label class="pv-ck" title="0＝パネルに入るだけ">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝入るだけ</small></div>`;
   }
@@ -522,42 +616,78 @@
     return `<div class="de-row"><span class="de-l">設備</span><button type="button" class="de-eqbtn${list.length ? " is-on" : ""}" data-de-eqopen aria-expanded="${eqOpen}" title="数える設備を選びます（複数選べます）">${esc(eqText(list))}<i aria-hidden="true">${eqOpen ? "▴" : "▾"}</i></button>`
       + (list.length ? `<button type="button" class="df-link" data-de-eqall>すべてに戻す</button>` : "") + `</div>${picker}`;
   }
-  const EG_MODES = [["", "まとめない（1 台ずつ）"], ["sum", "選んだ設備を合算して 1 つに"], ["panel", "このパネルでグループを作って合算"], ["master", "設備グループのマスタから合算"]];
+  // 設備の出し方（版 3.40.0。利用者の要望 1: まとめないのに勝手に合算された）。絵つきの札で、出し方の違いを見て選ぶ
+  // 言葉は形と合わせる（「重ねる」は積み上げの棒に見えて食い違った: 2026-10-dashlink の 2 回目の採点）
+  const SPLITS = [["series", "系列に分ける", "設備ごとの系列（グラフは設備ごとの色の棒・線、表は設備ごとの列）", "M3 16V9h2v7M7 16V6h2v10M11 16v-5h2v5M15 16V4h2v12"],
+    ["facet", "図を並べる", "設備ごとに小さな表・グラフを並べる（縦軸は同じ）", "M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"],
+    ["sum", "合算", "選んだ設備（選ばなければすべて）を合わせて 1 つ", "M4 16V5h12v11"],
+    ["group", "グループ合算", "グループ（このパネルで作る・マスタの設備グループ）ごとに合わせる", "M3 16V8h5v8M12 16V4h5v12M3 6h5M12 2h5"]];
+  const EG_SRCS = [["panel", "このパネルで作る"], ["master", "設備グループのマスタ"]];
   const EG_RESTS = [["keep", "そのまま 1 台ずつ出す"], ["other", "「その他の設備」にまとめる"], ["hide", "出さない"]];
   /** 設備のまとめ（合わせた表は表全体、ふつうのパネルは設備の段があるときに効く） */
+  /** いまの出し方（サーバーの dashboard.split_of と同じ決め方） */
+  function splitOf() {
+    const eg = p.egroup || {};
+    if (eg.mode === "sum") return "sum";
+    if (eg.mode === "panel" || eg.mode === "master") return "group";
+    return p.esplit || ((p.equips || []).length >= 2 ? "series" : "sum");
+  }
+  const dimsOf = (b) => [...((b && b.rows) || []), ...((b && b.cols) || [])];
   function egroupHtml() {
-    if (inGroup()) return "";
+    if (inGroup() || isLink()) return "";
     const can = isBoard() ? (p.rows || {}).column === "@equip" : !!(srcOf(p.source) || {}).equip;
     if (!can) return "";
     const eg = p.egroup || { mode: "" }, sets = host.egroupSets ? host.egroupSets() : [];
+    // 設備を行・列に置いた（要望 2）なら、それで設備ごとに出る。出し方の札の代わりに、どこに置いたかを言う
+    const placed = !isBoard() && dimsOf(p.body).find((d) => d.column === "@equip" || d.column === "@egroup");
+    const put = isBoard() ? "" : `<span class="de-eqput">${placed ? `<small class="de-hint">設備は「${(p.body.rows || []).includes(placed) ? "行" : "列"}」に置いています（${esc(dimLabel(placed))}ごとに出ます）</small>`
+      : `<small class="de-hint">設備を</small><button type="button" class="pv-btn" data-de-eqput="rows" title="設備を行の段の頭に置きます（設備ごとの行）">行に置く</button><button type="button" class="pv-btn" data-de-eqput="cols" title="設備を列の段の頭に置きます（設備ごとの列・系列）">列に置く</button>`}</span>`;
+    const cur = splitOf();
+    const chips = isBoard() ? `<select data-de-egmode aria-label="設備をまとめる">${[["", "まとめない（1 台ずつ）"], ["sum", "選んだ設備を合算して 1 つに"], ["panel", "このパネルでグループを作って合算"], ["master", "設備グループのマスタから合算"]].map(([k, n]) => `<option value="${k}"${(eg.mode || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
+      : `<span class="de-frames de-splits" role="radiogroup" aria-label="設備の出し方">${SPLITS.map(([k, n, tip, ico]) => `<label class="de-frame${cur === k ? " on" : ""}" title="${esc(tip)}"><input type="radio" name="de-split" value="${k}" data-de-split${cur === k ? " checked" : ""}><svg class="de-sico" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="${ico}"/></svg>${n}</label>`).join("")}</span>`;
     let body = "";
-    if (eg.mode === "sum") body = `<div class="de-row"><span class="de-l"></span><label class="pv-ck">名前<input data-de-egname value="${esc(eg.name || "")}" placeholder="選んだ設備の計" maxlength="40" aria-label="合算した設備の名前"></label><small class="de-hint">${esc(eqText(eqHost().equips))}を 1 つの行（値）にします</small></div>`;
+    if (!isBoard() && cur === "group") body = `<div class="de-row"><span class="de-l"></span>${segs("egsrc", EG_SRCS, eg.mode, "グループの決め方")}</div>`;
+    if (eg.mode === "sum") body += `<div class="de-row"><span class="de-l"></span><label class="pv-ck">名前<input data-de-egname value="${esc(eg.name || "")}" placeholder="選んだ設備の計" maxlength="40" aria-label="合算した設備の名前"></label><small class="de-hint">${esc(eqText(eqHost().equips))}を 1 つの行（値）にします</small></div>`;
     if (eg.mode === "panel") {
       const all = (eqItems || []).map((x) => x.value), used = new Map();
       (eg.groups || []).forEach((g, k) => (g.members || []).forEach((m) => { if (!used.has(m)) used.set(m, k); }));
-      body = (eg.groups || []).map((g, k) => `<div class="de-eg" data-k="${k}"><input data-de-eggname value="${esc(g.name)}" maxlength="40" aria-label="グループの名前" placeholder="グループ ${k + 1}">`
+      body += (eg.groups || []).map((g, k) => `<div class="de-eg" data-k="${k}"><input data-de-eggname value="${esc(g.name)}" maxlength="40" aria-label="グループの名前" placeholder="グループ ${k + 1}">`
         + `<span class="de-egm">${(all.length ? all : g.members || []).map((n) => `<button type="button" class="sh-eq" data-de-egm="${esc(n)}" aria-pressed="${(g.members || []).includes(n)}"${used.has(n) && used.get(n) !== k ? ` title="グループ ${used.get(n) + 1} にも入っています（先のグループで数えます）"` : ""}>${esc(n)}</button>`).join("")}</span>`
         + `<button type="button" class="icon-btn" data-de-egdel="${k}" aria-label="グループ「${esc(g.name)}」を外す">×</button></div>`).join("")
         + `<div class="de-row"><span class="de-l"></span><button type="button" class="pv-btn" data-de-egadd>＋ グループ</button>${eqItems ? "" : '<small class="de-hint">設備を数えています…</small>'}</div>`;
     }
     if (eg.mode === "master") {
       const cur = sets.find((x) => x.name === eg.set);
-      body = `<div class="de-row"><span class="de-l"></span><select data-de-egset aria-label="まとめ方">${sets.length ? "" : '<option value="">（設備グループがまだありません）</option>'}${sets.map((x) => `<option${x.name === eg.set ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`
+      body += `<div class="de-row"><span class="de-l"></span><select data-de-egset aria-label="まとめ方">${sets.length ? "" : '<option value="">（設備グループがまだありません）</option>'}${sets.map((x) => `<option${x.name === eg.set ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`
         + `<small class="de-hint">マスタ管理の「設備グループ」で足す・直す（直すと、このパネルにもすぐ効きます）</small></div>`
-        + (cur ? `<div class="de-row"><span class="de-l"></span><span class="de-egprev">${cur.groups.map((g) => `<span><b>${esc(g.name)}</b>${esc(g.equipment.join("・"))}</span>`).join("")}</span></div>` : "");
+        + (cur ? `<div class="de-row"><span class="de-l"></span><span class="de-egprev">${cur.groups.map((g) => `<span><b>${esc(g.name)}</b>${esc([...g.equipment, ...(g.rules || []).map(ruleText)].join("・"))}</span>`).join("")}</span></div>` : "");
     }
     const rest = eg.mode === "panel" || eg.mode === "master" ? `<div class="de-row"><span class="de-l"></span><label class="pv-ck">グループに入らない設備<select data-de-egrest>${EG_RESTS.map(([k, n]) => `<option value="${k}"${(eg.rest || "keep") === k ? " selected" : ""}>${n}</option>`).join("")}</select></label></div>` : "";
-    return `<div class="de-row"><span class="de-l">まとめる</span><select data-de-egmode aria-label="設備をまとめる">${EG_MODES.map(([k, n]) => `<option value="${k}"${(eg.mode || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select></div>${body}${rest}`;
+    if (placed) return `<div class="de-row"><span class="de-l">出し方</span>${put}</div>`;
+    const why = isBoard() ? "" : `<small class="de-hint de-splitwhy">${esc((SPLITS.find((x) => x[0] === cur) || [, , ""])[2])}</small>`;
+    return `<div class="de-row de-top"><span class="de-l">${isBoard() ? "まとめる" : "出し方"}</span><div class="de-splitbox">${chips}${why}${put}</div></div>${body}${rest}`;
   }
+  const RULE_WORD = { prefix: "で始まる", suffix: "で終わる", contains: "を含む", equals: "と同じ", regex: "に当たる" };
+  const ruleText = (r) => `「${r.value}」${RULE_WORD[r.op] || ""}`;
   function dataHtml() {
     const basis = isWork() ? `<select data-de-basis aria-label="作業日の数え方"><option value="work"${t.basis !== "cal" ? " selected" : ""}>現場歴</option><option value="cal"${t.basis === "cal" ? " selected" : ""}>太陽暦</option></select>` : "";
-    return `<div class="de-row"><label class="de-l">データ</label><select data-de-src aria-label="データ">${sources.map((x) => `<option value="${esc(x.key)}"${x.key === t.source ? " selected" : ""}${x.place ? "" : " disabled"}>${esc(x.name)}${x.place ? "" : "（場所が未設定）"}</option>`).join("")}</select>${basis}</div>`
+    const g = inSide() ? p.link.sides[gi] : null;
+    // 合わせるデータ（版 3.40.0）: 役割（目標・実績）と作り方（そのまま・積み上げ）は、データの選びの上（何のデータかを先に決める）
+    const side = g ? `<div class="de-row"><span class="de-l">役割</span>${segs(`role-${gi}`, ROLES, g.role || "", "役割")}<label class="pv-ck de-gt">名前<input data-de-stitle value="${esc(g.title || "")}" placeholder="${esc((srcOf(g.source) || {}).name || "")}" maxlength="40" aria-label="このデータの名前"></label></div>`
+      + `<div class="de-row"><span class="de-l">作り方</span>${segs(`build-${gi}`, BUILDS, g.build || "as", "作り方")}<small class="de-hint">${g.build === "cum" ? "軸の並びに足していく（累計）" : "軸の値ごとの数のまま"}</small></div>` : "";
+    return (!parts() && p.visual !== "board" ? linkPick() : "") + side + `<div class="de-row"><label class="de-l">データ</label><select data-de-src aria-label="データ">${sources.map((x) => `<option value="${esc(x.key)}"${x.key === t.source ? " selected" : ""}${x.place ? "" : " disabled"}>${esc(x.name)}${x.place ? "" : "（場所が未設定）"}</option>`).join("")}</select>${basis}</div>`
       + equipHtml() + egroupHtml();
   }
   /** 合わせた表の札（表全体・まとまり ①②…・＋） */
   function tabsHtml() {
-    if (!isBoard()) return "";
+    if (!parts()) return "";
     const n = "①②③④";
+    if (isLink()) {
+      const role = (r) => (ROLES.find((y) => y[0] === r) || [, ""])[1];
+      return `<div class="de-tabs" role="tablist" aria-label="合わせるデータ"><button type="button" role="tab" class="de-tab${gi < 0 ? " on" : ""}" aria-selected="${gi < 0}" data-de-tab="-1">全体<small>合わせ方・形</small></button>`
+        + p.link.sides.map((g, i) => `<button type="button" role="tab" class="de-tab is-side${gi === i ? " on" : ""}" aria-selected="${gi === i}" data-de-tab="${i}" style="--gc:${ROLE_COLOR[g.role || ""]}"><i aria-hidden="true"></i>${n[i]} ${esc(g.role ? role(g.role) : g.title || "比べる")}<small>${esc(g.title && g.role ? g.title : (srcOf(g.source) || {}).name || "")}</small></button>`).join("")
+        + (p.link.sides.length < MAX_GROUPS ? '<button type="button" class="de-tab is-add" data-de-gadd title="合わせるデータを足します（4 つまで）">＋ データ</button>' : "") + "</div>";
+    }
     return `<div class="de-tabs" role="tablist" aria-label="合わせた表の組み"><button type="button" role="tab" class="de-tab${gi < 0 ? " on" : ""}" aria-selected="${gi < 0}" data-de-tab="-1">表全体<small>行・並び</small></button>`
       + p.groups.map((g, i) => `<button type="button" role="tab" class="de-tab${gi === i ? " on" : ""}" aria-selected="${gi === i}" data-de-tab="${i}" style="--gc:${g.color || P.colorOf(g.source)}"><i aria-hidden="true"></i>${n[i]} ${esc(g.title || P.groupTitle(g, null))}<small>${esc((srcOf(g.source) || {}).name || "")}</small></button>`).join("")
       + (p.groups.length < MAX_GROUPS ? '<button type="button" class="de-tab is-add" data-de-gadd title="データの数を横に足します（4 つまで）">＋ まとまり</button>' : "") + "</div>";
@@ -579,8 +709,9 @@
   }
   function groupActsHtml() {
     if (!inGroup()) return "";
-    return `<div class="de-row de-gacts"><span class="de-l"></span><button type="button" class="pv-btn" data-de-gmove="-1"${gi ? "" : " disabled"}>← 左へ</button><button type="button" class="pv-btn" data-de-gmove="1"${gi < p.groups.length - 1 ? "" : " disabled"}>右へ →</button>`
-      + `<button type="button" class="pv-btn is-danger" data-de-gdel${p.groups.length > 1 ? "" : " disabled"}>このまとまりを外す</button></div>`;
+    const gs = parts(), what = isLink() ? "データ" : "まとまり";
+    return `<div class="de-row de-gacts"><span class="de-l"></span><button type="button" class="pv-btn" data-de-gmove="-1"${gi ? "" : " disabled"}>← 左へ</button><button type="button" class="pv-btn" data-de-gmove="1"${gi < gs.length - 1 ? "" : " disabled"}>右へ →</button>`
+      + `<button type="button" class="pv-btn is-danger" data-de-gdel${gs.length > (isLink() ? 2 : 1) ? "" : " disabled"}>この${what}を外す</button></div>`;
   }
 
   /** 欄に字を打っている間は、その欄のまとまりを描き直さない（打っている字・カーソルを失わない）。押す札・選ぶ欄は描き直す */
@@ -601,16 +732,23 @@
       TPA.onText($("#deSearch"), (v) => { q = v; $("#deFields").innerHTML = fieldsHtml(); });
       TPA.onText($("#deTitle"), (v) => { p.title = v.slice(0, 60); host.onChange(TPA.clone(p)); });
     }
-    const whole = isBoard() && gi < 0;
-    el.classList.toggle("is-board", isBoard()); el.classList.toggle("is-whole", whole);
+    const whole = !!parts() && gi < 0;
+    el.classList.toggle("is-board", isBoard()); el.classList.toggle("is-link", isLink()); el.classList.toggle("is-whole", whole);
     const ti = $("#deTitle");
     if (document.activeElement !== ti) ti.value = p.title || "";
     ti.placeholder = autoTitle(p);
     $("#deTabs").innerHTML = tabsHtml();
     $("#deVis").innerHTML = visualsHtml();
-    $("#deBoard").innerHTML = whole ? boardHtml() : "";
+    if (!typingIn("#deBoard")) $("#deBoard").innerHTML = whole && isBoard() ? boardHtml() : "";
     $(".de-fields").hidden = whole;
     ["#deData", "#deSent", "#deCond", "#deSort"].forEach((s) => { $(s).hidden = whole; });
+    // 段の見出し: 合わせたデータの「全体」は ① を「合わせ方」にし ② を出さない・「データ」の札は ③ ④（形・見せ方は全体で決める）を出さない
+    const steps = el.querySelectorAll(".de-step"), lw = isLink() && whole;
+    steps[0].innerHTML = lw ? "<i>1</i>合わせ方<small>データ・役割・軸・作り方</small>" : "<i>1</i>データ<small>何を数えるか</small>";
+    steps[1].hidden = lw; steps[2].hidden = steps[3].hidden = inSide();
+    // 番号は見えている段の順（全体の札は ① 合わせ方 → ② 形 → ③ 見せ方。① → ③ と飛ばない）
+    let no = 0; steps.forEach((st) => { if (!st.hidden) { const i = st.querySelector("i"); if (i) i.textContent = String(++no); } });
+    if (lw) { const d = $("#deData"); d.hidden = false; if (!typingIn("#deData")) d.innerHTML = linkHtml(); }
     if (!whole) {
       if (repaintFields) $("#deFields").innerHTML = fieldsHtml();
       $("#deData").innerHTML = dataHtml();
@@ -622,7 +760,7 @@
     if (!typingIn("#deFmt")) $("#deFmt").innerHTML = fmtHtml();
     $("#deGacts").innerHTML = groupActsHtml();
     // 表全体: 設備の選び・まとめは、行の段（設備）の選びのすぐ下（どちらも行の段に効く）
-    if (whole) { const b = $("#deBoard"), first = b && b.querySelector(".de-row"); if (first && !b.querySelector("[data-de-egmode]")) first.insertAdjacentHTML("afterend", equipHtml() + egroupHtml()); }
+    if (whole && isBoard()) { const b = $("#deBoard"), first = b && b.querySelector(".de-row"); if (first && !b.querySelector("[data-de-egmode]")) first.insertAdjacentHTML("afterend", equipHtml() + egroupHtml()); }
     if ((eqOpen || (p.egroup && p.egroup.mode === "panel")) && !eqItems) loadEquips();
   }
   function message(text) { const m = $("#deMsg"); if (m) m.textContent = text || ""; }
@@ -635,6 +773,15 @@
       if (b.dataset.deTab != null) { select(+b.dataset.deTab); return; }
       if (b.hasAttribute("data-de-formmore")) { formOpen = !formOpen; $("#deVis").innerHTML = visualsHtml(); return; }
       if (b.hasAttribute("data-de-gadd")) { addGroup(); return; }
+
+      if (b.dataset.deEqput) {          // 設備を行・列の段の頭に置く（要望 2）
+        const role = b.dataset.deEqput, bd = p.body;
+        if (bd[role].length >= MAX_DIMS) { host.toast(`${role === "rows" ? "行" : "列"}の段は ${MAX_DIMS} つまでです`); return; }
+        bd[role === "rows" ? "cols" : "rows"] = bd[role === "rows" ? "cols" : "rows"].filter((d) => d.column !== "@equip");
+        bd[role] = [{ column: "@equip", part: "" }].concat(bd[role].filter((d) => d.column !== "@equip"));
+        if (p.visual === "kpi") p.visual = role === "rows" ? "column" : "none";
+        delete p.esplit; changed(); return;
+      }
       if (b.dataset.deGmove) { moveGroup(gi, +b.dataset.deGmove); return; }
       if (b.hasAttribute("data-de-gdel")) { removeGroup(gi); return; }
       if (b.dataset.deRup != null || b.dataset.deRdown != null) { const i = +(b.dataset.deRup ?? b.dataset.deRdown); moveRow(b.closest("[data-de-row]").dataset.deRow, b.dataset.deRup != null ? i - 1 : i + 1); return; }
@@ -712,6 +859,33 @@
         const set = new Set(eqHost().equips || []); if (x.checked) set.add(x.dataset.ckDeq); else set.delete(x.dataset.ckDeq);
         setEquips((eqItems || []).map((i) => i.value).filter((v) => set.has(v))); return;
       }
+      if (x.matches("[data-de-split]")) {
+        const v = x.value, eg = p.egroup || {};
+        if (v === "sum") { p.egroup = { mode: "sum", rest: "keep", ...(eg.mode === "sum" ? { name: eg.name } : {}) }; delete p.esplit; }
+        else if (v === "group") { p.egroup = eg.mode === "panel" || eg.mode === "master" ? eg : { mode: (host.egroupSets && host.egroupSets().length) ? "master" : "panel", rest: "keep", set: ((host.egroupSets ? host.egroupSets() : [])[0] || {}).name || "", groups: [{ name: "グループ 1", members: [] }] }; delete p.esplit; loadEquips(); }
+        else { delete p.egroup; p.esplit = v; }
+        changed(false); return;
+      }
+      if (x.matches("[data-de-egsrc]")) {
+        const eg = p.egroup; eg.mode = x.value;
+        if (x.value === "panel" && !(eg.groups || []).length) eg.groups = [{ name: "グループ 1", members: [] }];
+        if (x.value === "master" && !eg.set) eg.set = ((host.egroupSets ? host.egroupSets() : [])[0] || {}).name || "";
+        if (x.value === "panel") loadEquips();
+        changed(false); return;
+      }
+      if (x.matches("[data-de-linkmode]")) {           // 数える物: 1 つのデータ ⇔ 別のデータと合わせる
+        if (x.value === "link" && !isLink()) startLink();
+        else if (x.value === "one" && isLink()) { unlink(); host.toast("1 つ目のデータだけのパネルに戻しました"); loadFields(); changed(); }
+        return;
+      }
+      if (x.matches("[data-de-sub]")) { p.body.sub = x.checked; changed(false); return; }
+      if (x.name && /^de-(role|build)-\d+$/.test(x.name)) {
+        const [, k, i] = /^de-(role|build)-(\d+)$/.exec(x.name), g = p.link.sides[+i];
+        if (k === "role" && x.value) p.link.sides.forEach((y, j) => { if (j !== +i && y.role === x.value) y.role = ""; });    // 目標・実績は 1 つずつ
+        g[k] = x.value; changed(false); return;
+      }
+      if (x.matches("[data-de-extra]")) { const ex = new Set(p.link.extra || []); if (x.checked) ex.add(x.dataset.deExtra); else ex.delete(x.dataset.deExtra); p.link.extra = [...ex]; changed(false); return; }
+      if (x.matches("[data-de-stitle]")) { p.link.sides[gi].title = x.value.trim().slice(0, 40); changed(false); return; }
       if (x.matches("[data-de-egmode]")) {
         if (!x.value) delete p.egroup;
         else p.egroup = { mode: x.value, rest: (p.egroup || {}).rest || "keep", ...(x.value === "panel" ? { groups: (p.egroup || {}).groups || [{ name: "グループ 1", members: [] }] } : {}),
@@ -798,7 +972,7 @@
       }
       p.title = p.title || "";
       // 前の版の設備の選び（作業実績の設備 1 つ: equip＝キー）は、設備の名前の並び（equips）にして組む（同じ数）
-      [p, ...(p.groups || [])].forEach((x) => {
+      [p, ...(p.groups || []), ...((p.link || {}).sides || [])].forEach((x) => {
         const e = x.equip && x.source === "work" ? ((srcOf("work") || {}).equips || []).find((y) => y.key === x.equip) : null;
         if (e) { x.equips = [e.name]; x.equip = ""; }
       });

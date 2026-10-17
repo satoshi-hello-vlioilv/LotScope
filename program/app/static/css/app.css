@@ -616,3 +616,15 @@ code.tpa-saved-p{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;
 .tpa-sort-mark.is-y{height:3px}
 .is-dragging{opacity:.55;box-shadow:0 8px 18px rgba(20,40,60,.22)}
 body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}
+/* 画面の印刷・ハードコピー（版 3.40.0。hardcopy.js）: メニューの区切り・知らせ・印刷の時は画面の画像だけ（用紙 横 1 枚） */
+.app-menu .am-sep{height:1px;background:var(--line);margin:4px 6px}
+.hc-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:120;padding:9px 16px;border-radius:8px;background:#1b2733;color:#fff;font-size:13px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#hcPrint{display:none}
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  body{overflow:visible !important;background:#fff !important}
+  body > *:not(#hcPrint){display:none !important}
+  #hcPrint{display:block}
+  #hcPrint .hc-cap{display:flex;justify-content:space-between;font:12px sans-serif;color:#000;margin:0 0 4px}
+  #hcPrint img{display:block;width:100%;height:auto;max-height:180mm;object-fit:contain}
+}

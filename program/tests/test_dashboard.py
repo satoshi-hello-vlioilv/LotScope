@@ -191,10 +191,10 @@ class Panels(Api):
 
     def test_fields_and_sources(self):
         f = self.c.get("/api/dashboard/fields", query_string={"source": "work"}).get_json()
-        self.assertEqual([x["column"] for x in f["special"]], ["@equip", "@workday", "@shift"])
+        self.assertEqual([x["column"] for x in f["special"]], ["@equip", "@egroup", "@workday", "@shift"], "版 3.40.0 から設備グループの段も")
         self.assertTrue(next(x for x in f["fields"] if x["column"] == "BOX実績_作業開始_日付")["date"], "日付の列の印")
         w = self.c.get("/api/dashboard/fields", query_string={"source": "src:wip"}).get_json()
-        self.assertEqual([x["column"] for x in w["special"]], ["@equip"])
+        self.assertEqual([x["column"] for x in w["special"]], ["@equip", "@egroup"])
         self.assertIn("仕掛区分", [x["column"] for x in w["fields"]])
         s = self.c.get("/api/dashboard/sources").get_json()
         self.assertEqual([x["key"] for x in s["items"]], ["lot", "work", "src:wip"])

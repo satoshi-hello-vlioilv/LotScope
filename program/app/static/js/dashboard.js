@@ -39,7 +39,7 @@
   }
   /** 数えるときのパネル（組んだパネル＋この PC の絞り込み） */
   const asked = (p) => Q.merge(p, quickOf(p.id));
-  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.body, p.filters, p.search, p.period, p.basis, p.calc]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない）
+  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
@@ -142,13 +142,21 @@
     }
   }
   function titleOf(p) { return p.title || E.autoTitle(p); }
+  const SPLIT_NAME = { series: "設備ごとの系列", facet: "設備ごとに並べる", sum: "合算" };
   function metaOf(p, a) {
     if (p.visual === "board") return "";
-    const src = (S.sources.find((x) => x.key === p.source) || {}).name || (a && a.d && a.d.sourceName) || p.source;
-    const equip = p.equip ? ((S.sources.find((x) => x.key === "work") || {}).equips || []).find((e) => e.key === p.equip)?.name : "";
+    const name = (k) => (S.sources.find((x) => x.key === k) || {}).name || k;
+    if (p.link && (p.link.sides || []).length) {     // 別のデータを合わせたパネル（版 3.40.0）: データごとの役割・元・作り方
+      const role = { target: "目標", actual: "実績" };
+      return p.link.sides.map((x) => `${role[x.role] ? role[x.role] + " " : ""}${x.title || name(x.source)}${x.build === "cum" ? "（積み上げ）" : ""}`).join(" ／ ");
+    }
+    const src = name(p.source) || (a && a.d && a.d.sourceName);
+    const equip = p.equip ? ((S.sources.find((x) => x.key === "work") || {}).equips || []).find((e) => e.key === p.equip)?.name
+      : (p.equips || []).length ? `${p.equips.slice(0, 3).join("・")}${p.equips.length > 3 ? ` ほか ${p.equips.length - 3}` : ""}` : "";
+    const split = a && a.d && a.d.esplit && (p.equips || []).length !== 1 ? `（${SPLIT_NAME[a.d.esplit] || ""}）` : "";
     const per = a && a.d ? P.periodText(p, a.d) : "";
     const cond = (p.filters || []).length ? `条件 ${p.filters.length}` : "";
-    return [src + (equip ? `・${equip}` : p.source === "work" ? "・全設備" : ""), per, cond].filter(Boolean).join("　");
+    return [src + (equip ? `・${equip}` : p.source === "work" ? "・全設備" : "") + split, per, cond].filter(Boolean).join("　");
   }
   const NARROW = 360;      // これより狭いパネルの見出しは、操作を「⋯」1 つに畳む（ボタンが見出しからはみ出さない）
   function headHtml(p, a, width) {

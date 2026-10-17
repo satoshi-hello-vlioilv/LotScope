@@ -88,6 +88,12 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .dp-tbl{max-height:100%;overflow:hidden}
 .dp-tbl .pv-table{font-size:13px;width:100%}
 .dp-tbl .pv-table th,.dp-tbl .pv-table td{padding:var(--dp-pad,4px 8px)}
+/* 設備ごとに並べる（版 3.40.0。esplit facet）: 小さな図の格子。見出しは設備名（同じ大きさ・同じ形で比べる） */
+.dp-facets{display:grid;grid-template-columns:repeat(var(--fc,2),minmax(0,1fr));gap:8px;height:100%;min-height:0}
+.dp-facet{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:8px;padding:2px 6px 4px;background:#fbfcfd}
+.dp-facet h4{margin:0;font-size:12.5px;line-height:18px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-facet h4::before{content:"";display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--fc0,var(--muted));margin-right:6px;vertical-align:0}
+.dp-fbox{flex:1;min-height:0;overflow:hidden}
 
 /* ---- 合わせた表（版 3.38.0。設備ごとの仕掛と前日の実績はこの形） ---- */
 .db-boardhead{display:flex;align-items:center;gap:10px;min-height:22px;white-space:nowrap;overflow:hidden}
@@ -418,3 +424,41 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .lk-dot::after{content:"";position:absolute;left:58%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:var(--h-input)}
 .lk-signal::after{content:"●";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#1d6b46}
 .lk-spark{background:linear-gradient(135deg,transparent 46%,var(--h-input) 46% 56%,transparent 56%) 0 0/50% 100% repeat-x #fff!important}
+
+/* ---- 版 3.40.0: 設備の出し方・別のデータを合わせる ---- */
+/* 設備の出し方（重ねる・並べる・合算・グループで合算）: 絵つきの札＋選んだ物の説明＋「行に置く・列に置く」 */
+.de-splitbox{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.de-sico{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round;flex:0 0 auto}
+.de-splitwhy{margin:0}
+.de-eqput{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.de-eqput .pv-btn{height:26px}
+/* 合わせるデータの札: 上の色の帯＝役割の色（目標＝紫・実績＝青緑・比べる＝灰） */
+.de-tab.is-side small{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.de-linkbtn{font-weight:700}
+/* 全体の札の「合わせ方」: 行＝データ・列＝項目（役割・軸・値・作り方）の表。行の頭に役割の色 */
+.de-lnk{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
+.de-lnkt{border-collapse:collapse;width:100%;font-size:12.5px}
+.de-lnkt th,.de-lnkt td{padding:5px 6px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:middle;white-space:nowrap}
+.de-lnkt thead th{font-size:11.5px;color:var(--muted);font-weight:700}
+.de-lnkt tbody tr{box-shadow:inset 4px 0 0 var(--rc)}
+.de-lnkt tbody th{padding-left:10px}
+.de-lnk-go{border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.de-lnk-go:hover{color:var(--h-input)}
+.de-lnkt .de-seg{height:24px;padding:0 7px;font-size:12px}
+/* 小計は入切の札（2026-10-dashlink の 3 回目で決めた S3）。② の枠の中の文と同じ左の線にそろえる */
+.de-subrow{margin:8px 0 0;padding-left:12px}
+.de-subrow .pv-ck{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--edit-line);border-radius:999px;background:var(--edit-field);font-weight:700;cursor:pointer}
+.de-subrow .pv-ck:has(input:checked){border-color:var(--h-input);background:var(--input-soft);color:var(--h-input)}
+/* 合わせ方のデータのカード（版 3.40.0。2026-10-dashlink の 2 回目の R4）: 左に役割の色の帯・役割・軸と値・作り方・グラフのどこに出るか */
+.de-lnkc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.de-lnkcard{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;padding:9px 10px 9px 14px;border:1px solid var(--line);border-radius:10px;
+  box-shadow:inset 5px 0 0 var(--rc);background:color-mix(in srgb,var(--rc) 5%,#fff)}
+.de-lnkkv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;font-size:12.5px}
+.de-lnkkv span{color:var(--muted)}
+.de-lnkkv b{font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.de-lnkwhere{font-size:12.5px;font-weight:700;color:var(--ink)}
+.de-lnkwhere b{color:var(--rc)}
+.de-lnkcard .de-seg{height:26px;padding:0 9px;font-size:12px}
+/* 出し方の札は 1 段に（1280 で「グループ合算」が 2 段目へ落ちた）: 札を詰め、字は折らない */
+.de-splits{flex-wrap:nowrap}
+.de-splits .de-frame{padding:0 8px;gap:5px}

@@ -4,15 +4,32 @@
 from ..web import jsonify, request
 
 from ..services import equip_groups
+from ..services.identity import normalize_part
 from .common import base_rev, bp, can_write, master_call, master_repo
-from .shifts import _equipments
+from .dashboard import equipment_seen
 
 
 def _listing():
+    """一覧。選べる設備（equipments）は実際に出てくる設備すべて（版 3.40.0。routes/dashboard.py の equipment_seen。どこで見たか seen）＋
+    グループに書いてある名前（もう出てこない設備も外せるように）。グループごとに、いま当てはまる設備（matched。ルールの答え）"""
     st = master_repo().store
     rows = master_repo().equip_groups()
     items = [equip_groups.view(r) for r in equip_groups.ordered(rows)]
-    return {"items": items, "sets": equip_groups.sets(rows), "equipments": _equipments(items), "canEdit": can_write(equip_groups.NAME),
+    seen = equipment_seen()
+    names = [x["name"] for x in seen]
+    have = {normalize_part(n) for n in names}
+    for n in (n for x in items for n in x["equipment"]):
+        if normalize_part(n) not in have:
+            have.add(normalize_part(n))
+            names.append(n)
+            seen.append({"name": n, "from": [], "n": 0})
+    for x in items:
+        x["matched"] = equip_groups.members_in(x, names)
+    sets = equip_groups.sets(rows)
+    for st_ in sets:
+        for g in st_["groups"]:
+            g["matched"] = equip_groups.members_in(g, names)
+    return {"items": items, "sets": sets, "equipments": names, "seen": seen, "ruleOps": equip_groups.RULE_OPS, "canEdit": can_write(equip_groups.NAME),
             "shared": st.is_shared(equip_groups.NAME), "revision": st.revision(equip_groups.NAME)}
 
 
@@ -24,7 +41,7 @@ def equipgroups_list():
 
 @bp.post("/api/masters/equipgroups")
 def equipgroups_create():
-    """{name, set, equipment, note} を新しいグループとして置く。→ 一覧（足した行の id は created）。"""
+    """{name, set, equipment, rules, except, note} を新しいグループとして置く。→ 一覧（足した行の id は created）。"""
     body = request.get_json(force=True) or {}
 
     def run():

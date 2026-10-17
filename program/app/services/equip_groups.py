@@ -1,20 +1,28 @@
 # -*- coding: utf-8 -*-
 """設備グループ（版 3.39.0。現場のマスタ）: いくつかの設備を 1 つのまとまり（グループ）にして、ダッシュボードのパネルで合算して出す。
 
-1 行＝1 つのグループ {名称, まとめ方, 設備, 表示順, 備考}。
+1 行＝1 つのグループ {名称, まとめ方, 設備, ルール, 表示順, 備考}。
     まとめ方 … グループの組の名前（例: 「ライン別」に「CR ライン」「L ライン」、「工場別」に「第 1 工場」…）。
                パネルは、まとめ方を 1 つ選ぶと、その中のグループで設備を合算する（groups_for）。同じまとめ方の中で名称は 1 つずつ
     設備   … 設備名のカンマ区切り（勤務体系の適用設備と同じ書き方。services/shifts.py の equipment_list）
+    ルール … 名前の決まりで入れる設備（版 3.40.0。JSON {"rules": [{op, value}], "except": [設備名]}）。op は pivot.RULE_OPS
+             （で始まる・で終わる・を含む・と同じ・正規表現）。どれか 1 つに当たる設備が入る（設備に書いた設備もいつも入る・except は入らない）。
+             名前で決まるので、あとから増えた設備（例: L- で始まる L-4）も、マスタを直さずに入る
 パネルの側の決め方（このパネルだけのグループ・選んだ設備を合算）は services/dashboard.py の egroup。数え方は services/pivot.py の EquipGroups。
 """
 from __future__ import annotations
 
+import json
+import re
+
 from .identity import normalize_part
+from .pivot import RULE_OPS, compile_rules
 from .shifts import equipment_list
 
 NAME = "equipment_groups"
-FIELDS = ["名称", "まとめ方", "設備", "表示順", "備考"]
+FIELDS = ["名称", "まとめ方", "設備", "ルール", "表示順", "備考"]
 NAME_MAX = 40
+MAX_RULES = 12
 SET_DEFAULT = "グループ"
 
 
@@ -32,11 +40,14 @@ def clean_row(data, partial=False):
         out["名称"] = name[:NAME_MAX]
     if not partial or "set" in data:
         out["まとめ方"] = (str(data.get("set") or "").strip() or SET_DEFAULT)[:NAME_MAX]
-    if not partial or "equipment" in data:
+    if not partial or "equipment" in data or "rules" in data:
         eq = equipment_list(data.get("equipment"))
-        if not eq:
-            raise GroupError("グループに入れる設備を 1 つ以上選んでください。")
+        rules = clean_rules(data.get("rules"))
+        if not eq and not rules:
+            raise GroupError("グループに入れる設備を 1 つ以上選ぶか、設備の名前の決まり（ルール）を 1 つ以上入れてください。")
         out["設備"] = ",".join(eq)
+        ex = equipment_list(data.get("except")) if rules else []
+        out["ルール"] = json.dumps({"rules": rules, **({"except": ex} if ex else {})}, ensure_ascii=False) if rules else ""
     if "order" in data:
         try:
             out["表示順"] = str(int(data.get("order")))
@@ -45,6 +56,47 @@ def clean_row(data, partial=False):
     if not partial or "note" in data:
         out["備考"] = str(data.get("note") or "").strip()[:200]
     return out
+
+
+def clean_rules(v):
+    """画面から来た決まり → [{op, value}]（知らない op・空の値は外す。正規表現は読めなければ断る）"""
+    out = []
+    for r in (v if isinstance(v, list) else [])[:MAX_RULES]:
+        if not isinstance(r, dict) or r.get("op") not in RULE_OPS:
+            continue
+        val = str(r.get("value") or "").strip()[:80]
+        if not val:
+            continue
+        if r["op"] == "regex":
+            try:
+                re.compile(val)
+            except re.error as e:
+                raise GroupError(f"正規表現「{val}」が読めません（{e}）。") from None
+        x = {"op": r["op"], "value": val}
+        if x not in out:
+            out.append(x)
+    return out
+
+
+def rules_of(row):
+    """マスタの行 → ({rules, except})（無い・壊れていれば空）"""
+    try:
+        d = json.loads(row.get("ルール") or "{}")
+    except (TypeError, ValueError):
+        d = {}
+    d = d if isinstance(d, dict) else {}
+    try:
+        rules = clean_rules(d.get("rules"))
+    except GroupError:
+        rules = []
+    return {"rules": rules, "except": equipment_list(d.get("except")) if rules else []}
+
+
+def members_in(group, names):
+    """グループ（view の形）に入る設備（names の中で。書いた設備＋決まりに当たる設備〈除く設備は外す〉）"""
+    test, ex = compile_rules(group.get("rules")), {normalize_part(x) for x in group.get("except") or []}
+    mine = {normalize_part(x) for x in group.get("equipment") or []}
+    return [n for n in names if normalize_part(n) in mine or (normalize_part(n) not in ex and test(normalize_part(n)))]
 
 
 def check_unique(rows, data, self_id=None):
@@ -70,7 +122,7 @@ def ordered(rows):
 def view(row):
     """画面へ出す形"""
     return {"id": row.get("id"), "name": row.get("名称") or "", "set": row.get("まとめ方") or SET_DEFAULT,
-            "equipment": equipment_list(row.get("設備")), "order": _order(row), "note": row.get("備考") or "", "rev": row.get("rev", 1),
+            "equipment": equipment_list(row.get("設備")), **rules_of(row), "order": _order(row), "note": row.get("備考") or "", "rev": row.get("rev", 1),
             "updated_at": row.get("updated_at", ""), "updated_by": row.get("updated_by") or {}}
 
 
@@ -84,6 +136,7 @@ def sets(rows):
 
 
 def groups_for(rows, set_name):
-    """まとめ方 set_name のグループ → [{name, members}]（pivot.EquipGroups の形）。無ければ空"""
+    """まとめ方 set_name のグループ → [{name, members, rules, except}]（pivot.EquipGroups の形）。無ければ空"""
     key = normalize_part(set_name)
-    return [{"name": v["name"], "members": v["equipment"]} for v in map(view, ordered(rows)) if normalize_part(v["set"]) == key]
+    return [{"name": v["name"], "members": v["equipment"], **({"rules": v["rules"], "except": v["except"]} if v["rules"] else {})}
+            for v in map(view, ordered(rows)) if normalize_part(v["set"]) == key]

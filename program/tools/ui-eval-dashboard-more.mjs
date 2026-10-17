@@ -71,10 +71,12 @@ try {
   for (const n of two) { await p.evaluate((v) => [...document.querySelectorAll("[data-ck-deq]")].find((x) => x.dataset.ckDeq === v).click(), n); await sleep(400); }
   await settle(p, 1200);
   const eqBtn = await p.$eval("[data-de-eqopen]", (x) => x.textContent);
-  const got3 = await p.evaluate(() => { const a = Dashboard._state().answers.workDays; return a.cells.filter((c) => c.r.length === 1).reduce((s, c) => s + c.v[0], 0); });
+  // 版 3.40.0: 2 台選ぶと設備ごとの系列（列の段に設備）になる。行ごとの計（列の段の無いセル）を足す
+  const got3 = await p.evaluate(() => { const a = Dashboard._state().answers.workDays; return a.cells.filter((c) => c.r.length === 1 && !c.c.length).reduce((s, c) => s + c.v[0], 0); });
   check(`② 組む所の「設備」で 2 台選ぶと、ボタンに 2 台の名前・数がサーバーと同じ（${want2}）`, two.every((n) => eqBtn.includes(n)) && got3 === want2, { eqBtn, got3, want2 });
   // ⑨ 設備をまとめる（選んだ 2 台を合算）→ 行を設備にして 1 行
-  await pick(p, "[data-de-egmode]", "sum"); await sleep(300);
+  // 版 3.40.0 から「まとめる」の選びは「出し方」の絵の札（重ねる・並べる・合算・グループで合算）
+  await click(p, 'input[data-de-split][value="sum"]'); await sleep(300);
   await p.evaluate(() => document.querySelector('[data-de-add="rows"][data-col="@equip"]').click()); await sleep(300);   // 行を 作業日 → 外さずに設備を足すと 2 段
   await settle(p, 1500);
   const sumL = await p.evaluate(() => { const a = Dashboard._state().answers.workDays; return a.labels.map((l) => Object.values(l)); });
