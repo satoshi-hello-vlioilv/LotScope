@@ -5,9 +5,9 @@ from ..web import current_app, jsonify, render_template, request
 from .. import effective_settings
 from ..brand import BRAND
 from ..models import DEFAULT_UNWIND
-from ..services import access, lotdsp_api, lotdsp_direct, presence, ui_defaults, ui_state
+from ..services import access, conversions, lotdsp_api, lotdsp_direct, presence, ui_defaults, ui_state
 from ..version import APP_VERSION, CHANGELOG
-from .common import api_map, api_settings, bp, error, me, roles_from
+from .common import api_map, api_settings, bp, error, master_repo, me, roles_from
 
 
 def ui_profile():
@@ -19,11 +19,21 @@ def ui_profile():
     return {"keys": list(ui_defaults.PROFILE_KEYS), "defaults": d["keys"], "updatedAt": d["updated_at"], "updatedBy": d["updated_by"]}
 
 
+def conversion_tables():
+    """変換表（版 3.42.0。画面に埋める。式の conv が一覧の最初の描画から使える）。読めなくても画面は開く"""
+    try:
+        repo = master_repo()
+        return {"items": [conversions.view(r) for r in conversions.ordered(repo.conversions())], "revision": repo.store.revision(conversions.NAME)}
+    except Exception:
+        return {"items": [], "revision": None}
+
+
 @bp.get("/")
 def index():
     # 画面の設定の控え（services/ui_state.py）を画面に埋めておく。画面の部品が設定を読む前に戻せる（読み直しが要らない）
     resp = current_app.make_response(render_template("index.html", app_version=APP_VERSION, build=current_app.config.get("BUILD", ""),
-                                                     ui_state=ui_state.load(), ui_profile=ui_profile()))
+                                                     ui_state=ui_state.load(), ui_profile=ui_profile(),
+                                                     conversions=conversion_tables()))
     resp.headers["Cache-Control"] = "no-store"      # 画面はいつもサーバーから（古い画面を使い回さない）
     return resp
 

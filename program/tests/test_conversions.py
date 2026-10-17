@@ -357,8 +357,6 @@ class Api(unittest.TestCase):
         (self.tmp / "app" / "data").mkdir(parents=True)
         for n in ("equipment_master", "roll_master", "path_settings"):
             shutil.copy(ROOT / "data" / f"{n}.json", self.tmp / "app" / "data" / f"{n}.json")
-        (self.tmp / "app" / "app" / "master_defaults").mkdir(parents=True)
-        shutil.copy(ROOT / "app" / "master_defaults" / "conversions.json", self.tmp / "app" / "app" / "master_defaults" / "conversions.json")
         self.db = self.tmp / "q.sqlite3"
         make_db(self.db)
         store = MasterStore(self.tmp / "app", local_root=self.tmp / "local", settings={"refresh_seconds": 0}, who={"pc": "PC-A", "login": "a"})

@@ -1,0 +1,288 @@
+/* マスタ管理の「変換表」（版 3.42.0。services/conversions.py・routes/conversions.py。決め方: ui-proposals/2026-10-conv*）。
+   コードの読み替え（地取区分 0 → 0:一般 など）と、いくつかの列から区分を決める判定表（形状区分・管理分類・課名）を、
+   左に表の一覧・右に判定表（入力ごとの列 × 行。セルは「＝ NFCE・NSCR」「T で始まらない」「≦ 30」の札）で見せ、その場で直す。
+   - セルを押すと、そのセルの条件（並びの中は「または」）を直す欄が開く。出す値は行の右の欄（= で始まれば式。[入力の名前] で入力を読む）
+   - 「試す」に入力の値を入れると、保存する前の表で答えと当たった行が出る（list-formula.js の convWith。一覧と同じ計算）
+   - 保存するとマスタ（全員で 1 つ）に書き、この PC の一覧の式（conv）にすぐ効く（Conversions.take）
+   master.js の部品は、master.js が読み終えたときに渡す（master-sources.js と同じ）。 */
+window.MasterConv = (M) => {
+"use strict";
+const { $, escapeHtml: esc, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, lockWaitText, boldName, readOnlyWhy, shareDown, canWrite } = M;
+/* ナビは定義の順に見出しを作るので、「データ」の設備グループの後ろへ差し込む */
+(() => {
+  const keys = Object.keys(MASTER_DEFS), at = keys.indexOf("egroups") + 1, rest = keys.slice(at).map((k) => [k, MASTER_DEFS[k]]);
+  rest.forEach(([k]) => delete MASTER_DEFS[k]);
+  MASTER_DEFS.conv = { name: "conversions", label: "変換表", group: "データ", api: "/api/masters/conversions", custom: true, render: () => render() };
+  rest.forEach(([k, v]) => { MASTER_DEFS[k] = v; });
+})();
+mstate.data.conv = null;
+let draft = null, cell = null, tryVals = [], notice = null;     // 直している表・開いているセル {r, k}・試す値・知らせ [cls, html]
+
+const OP_ORDER = ["eq", "ne", "starts", "nstarts", "ends", "nends", "contains", "ncontains", "range", "empty", "filled"];
+const OP_NAME = { eq: "と同じ", ne: "と違う", starts: "で始まる", nstarts: "で始まらない", ends: "で終わる", nends: "で終わらない",
+  contains: "を含む", ncontains: "を含まない", range: "の範囲", empty: "空欄", filled: "空欄でない" };
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const splitVals = (s) => String(s).split(/[,、，・]/).map((x) => x.trim()).filter((x, i, a) => x !== "" || a.length === 1);
+/** 条件 1 つ → 札の字（＝ NFCE・NSCR／T で始まらない／≦ 30／8 〜 10） */
+function testText(t) {
+  const v = (t.v || []).map((x) => (x === "" ? "（空）" : x)).join("・");
+  switch (t.op) {
+    case "eq": return `＝ ${v}`;
+    case "ne": return `≠ ${v}`;
+    case "starts": return `${v} で始まる`;
+    case "nstarts": return `${v} で始まらない`;
+    case "ends": return `${v} で終わる`;
+    case "nends": return `${v} で終わらない`;
+    case "contains": return `${v} を含む`;
+    case "ncontains": return `${v} を含まない`;
+    case "empty": return "空欄";
+    case "filled": return "空欄でない";
+    case "range": {
+      const lo = t.min != null && t.min !== "", hi = t.max != null && t.max !== "";
+      if (lo && hi) return `${t.min}${t.minInc === false ? " ＜" : ""} 〜 ${t.maxInc === false ? "＜ " : ""}${t.max}`;
+      if (lo) return `${t.minInc === false ? "＞" : "≧"} ${t.min}`;
+      return `${t.maxInc === false ? "＜" : "≦"} ${t.max}`;
+    }
+  }
+  return "?";
+}
+const outText = (o) => (o === "" ? "（空欄）" : String(o));
+const isKeep = (x) => x.other === `=[${(x.inputs[0] || {}).name}]`;
+const otherKind = (x) => (isKeep(x) ? "keep" : x.other === "" ? "blank" : String(x.other).startsWith("=") ? "formula" : "text");
+function blank() {
+  return { id: null, name: "", inputs: [{ name: "入力", type: "text", columns: [] }], rows: [{ when: {}, out: "" }], other: "=[入力]", apply: { mode: "replace" }, note: "" };
+}
+const can = () => { const d = mstate.data.conv; return !!(d && d.canEdit) && !shareDown() && canWrite("conv"); };
+const dis = () => (can() ? "" : ` disabled title="${esc(shareDown() ? "共有フォルダに届かないため、いまは保存できません" : readOnlyWhy("conv") + "のため変えられません")}"`);
+
+async function load() {
+  const r = await masterRequest("/api/masters/conversions", { cache: "no-store" });
+  if (!r.ok) throw new Error(r.data.error || "変換表を読めませんでした");
+  mstate.data.conv = r.data;
+  window.Conversions?.take(r.data);          // この PC の一覧の式（conv）に、読んだ表を渡す
+  return r.data;
+}
+async function render({ keep = false } = {}) {
+  const box = $("#masterSettings");
+  if (!keep || !mstate.data.conv) {
+    if (!mstate.data.conv) box.innerHTML = '<p class="ps-loading">変換表を読んでいます…</p>';
+    try { await load(); } catch (e) { if (mstate.tab === "conv") box.innerHTML = `<p class="ps-loading">${esc(e.message)}</p>`; return; }
+    if (mstate.tab !== "conv") return;
+    const d = mstate.data.conv, sel = draft && draft.id;
+    const now = d.items.find((x) => x.id === sel) || (draft && !draft.id ? null : d.items.find((x) => x.name === "管理分類") || d.items[0]);
+    if (!keep) { draft = now ? clone(now) : blank(); cell = null; tryVals = []; }
+  }
+  paint();
+}
+
+/* ---------------- 描く ---------------- */
+function listHtml(d) {
+  const groups = [["replace", "コードの読み替え（列の値を作り替える）"], ["add", "判定して列を足す"]];
+  return groups.map(([m, title]) => {
+    const xs = d.items.filter((x) => ((x.apply || {}).mode === "replace" ? "replace" : "add") === m);
+    if (!xs.length) return "";
+    return `<div class="cv-lgrp">${title}</div>` + xs.map((x) => `<button type="button" class="sh-item${draft && x.id === draft.id ? " is-on" : ""}" data-cv-pick="${x.id}">`
+      + `<b>${esc(x.name)}</b><small>${esc(window.Conversions ? window.Conversions.summary(x) : "")}</small></button>`).join("");
+  }).join("") + (can() ? '<button type="button" class="sh-new" data-cv-new>＋ 変換表を足す</button>' : "");
+}
+function gridHtml(x) {
+  const d = dis();
+  const head = `<tr><th class="cv-no"></th>${x.inputs.map((inp) => `<th>${esc(inp.name)}${inp.type === "num" ? ' <small>数</small>' : ""}</th>`).join("")}<th>出す値</th><th class="cv-ra"></th></tr>`;
+  const rows = x.rows.map((r, i) => `<tr data-r="${i}"${cell && cell.r === i ? ' class="is-cell"' : ""}><td class="cv-no">${i + 1}</td>`
+    + x.inputs.map((inp) => {
+      const ts = (r.when || {})[inp.name] || [], on = cell && cell.r === i && cell.k === inp.name;
+      return `<td class="cv-cond${on ? " is-on" : ""}"><button type="button" class="cv-cbtn" data-cv-cell="${i}|${esc(inp.name)}" title="押すと、この条件を直します（並べた条件は「または」）"${d}>`
+        + (ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c">${esc(testText(t))}</span>`).join("") : '<span class="cv-any">不問</span>') + "</button></td>";
+    }).join("")
+    + `<td class="cv-out"><span class="cv-arrow">→</span><input class="ps-input" data-cv-out="${i}" value="${esc(r.out)}" placeholder="（空欄）" aria-label="${i + 1} 行目の出す値"${d}>`
+    + (r.note ? `<span class="cv-note" title="${esc(r.note)}">!</span>` : "") + "</td>"
+    + `<td class="cv-ra"><button type="button" class="icon-btn" data-cv-up="${i}" title="上へ" aria-label="${i + 1} 行目を上へ"${d}>↑</button>`
+    + `<button type="button" class="icon-btn" data-cv-down="${i}" title="下へ" aria-label="${i + 1} 行目を下へ"${d}>↓</button>`
+    + `<button type="button" class="icon-btn" data-cv-noteed="${i}" title="この行の備考（${esc(r.note || "なし")}）" aria-label="${i + 1} 行目の備考"${d}>✎</button>`
+    + `<button type="button" class="icon-btn" data-cv-rdel="${i}" title="この行を消す" aria-label="${i + 1} 行目を消す"${d}>×</button></td></tr>`
+    + (cell && cell.r === i ? `<tr class="cv-edrow"><td></td><td colspan="${x.inputs.length + 2}">${cellEditor(x, i, cell.k)}</td></tr>` : "")).join("");
+  return `<div class="cv-gridwrap"><table class="cv-grid"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+}
+function cellEditor(x, i, k) {
+  const ts = (x.rows[i].when || {})[k] || [], inp = x.inputs.find((a) => a.name === k) || {};
+  const opSel = (t, j) => `<select class="ps-input" data-cv-top="${j}" aria-label="比べ方">${OP_ORDER.map((o) => `<option value="${o}"${t.op === o ? " selected" : ""}>${OP_NAME[o]}</option>`).join("")}</select>`;
+  const body = ts.map((t, j) => `<div class="cv-test">${j ? '<small class="cv-or">または</small>' : `<span class="cv-tk">${esc(k)}が</span>`}`
+    + (t.op === "range"
+      ? `<input class="ps-input cv-num" data-cv-tmin="${j}" value="${esc(t.min ?? "")}" placeholder="下" aria-label="下の端"><label class="cv-inc"><input type="checkbox" data-cv-tmininc="${j}"${t.minInc === false ? "" : " checked"}>以上</label>`
+        + `<span>〜</span><input class="ps-input cv-num" data-cv-tmax="${j}" value="${esc(t.max ?? "")}" placeholder="上" aria-label="上の端"><label class="cv-inc"><input type="checkbox" data-cv-tmaxinc="${j}"${t.maxInc === false ? "" : " checked"}>以下</label>`
+      : t.op === "empty" || t.op === "filled" ? ""
+        : `<input class="ps-input" data-cv-tv="${j}" value="${esc((t.v || []).join("・"))}" placeholder="値（いくつかは ・ か , で区切る）" aria-label="値">`)
+    + opSel(t, j) + `<button type="button" class="icon-btn" data-cv-tdel="${j}" title="この条件を外す" aria-label="この条件を外す">×</button></div>`).join("");
+  return `<div class="cv-celled" data-cv-celled><div class="cv-celledhead"><b>${i + 1} 行目 ・ ${esc(k)}</b>${inp.type === "num" ? "<small>（数で比べます）</small>" : "<small>（字で比べます。前後の空白は見ません）</small>"}<span class="sp"></span>`
+    + '<button type="button" class="pv-btn" data-cv-tadd>＋ または</button><button type="button" class="pv-btn" data-cv-tany>不問にする</button><button type="button" class="pv-btn" data-cv-close>閉じる</button></div>'
+    + (body || '<small class="cv-hint">不問（この入力は見ません）。「＋ または」で条件を足します</small>') + "</div>";
+}
+function tryHtml(x) {
+  const F = window.WL && WL.formula;
+  const vals = x.inputs.map((_, i) => tryVals[i] ?? "");
+  let res = "", hit = -1;
+  if (F && vals.some((v) => v !== "")) {
+    const numbered = { ...x, rows: x.rows.map((r, i) => ({ ...r, out: `=${i}` })), other: "=-1" };
+    hit = +F.convWith(numbered, vals);
+    const v = F.convWith(x, vals);
+    res = `<span class="cv-tryout">→ <b>${esc(v == null ? "（空欄）" : outText(v))}</b><small>${hit >= 0 ? `（${hit + 1} 行目に当たりました）` : "（どの行にも当たらず、どれにも当たらないときの値）"}</small></span>`;
+  }
+  return `<div class="cv-try"><span class="cv-lab">試す</span>${x.inputs.map((inp, i) => `<label>${esc(inp.name)}<input class="ps-input" data-cv-try="${i}" value="${esc(vals[i])}" aria-label="試す値: ${esc(inp.name)}"></label>`).join("")}${res || '<small class="cv-hint">値を入れると、保存する前の表で答えを出します</small>'}</div>`;
+}
+function paint() {
+  const box = $("#masterSettings"), d = mstate.data.conv, x = draft, di = dis();
+  const preset = x.id && d.items.find((y) => y.id === x.id)?.preset;
+  const a = x.apply || {}, ok = otherKind(x);
+  const expr = window.Conversions && x.name ? `conv('${x.name}', ${x.inputs.map((i) => `[${i.name}]`).join(", ")})` : "";
+  box.innerHTML = `<section class="sh-page cv-page">
+    <p class="ps-lead">コードの読み替えや、いくつかの列から区分を決める<b>判定表</b>に名前を付けて置き、一覧の「表示列」の<b>変換表…</b>で列に当てます（列の値を作り替える・列を足す）。
+      表は<b>上から順</b>に見て、最初に当たった行の値を出します。行の中の条件は「かつ」、1 つのセルに並べた条件は「または」です。ここで直すと、全員の一覧にすぐ効きます。</p>
+    <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="cvNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
+    <div class="sh-editor cv-editor">
+      <aside class="sh-list" aria-label="登録済みの変換表"><div class="sh-list-head">登録済みの変換表</div>${listHtml(d)}</aside>
+      <div class="sh-detail cv-detail">
+        <div class="cv-top"><input class="ps-input cv-name" id="cvName" value="${esc(x.name)}" placeholder="変換表の名前（例: 地取区分）" aria-label="変換表の名前"${di}>
+          ${preset ? '<span class="cv-tag">プリセット</span>' : x.id ? "" : '<span class="cv-tag">新しい表</span>'}<span class="sp"></span>
+          ${can() && preset ? '<button type="button" class="pv-btn" data-cv-reset title="同梱のプリセットの中身に戻します">標準に戻す</button>' : ""}
+          ${can() && x.id ? '<button type="button" class="pz-btn danger" data-cv-delete>この表を消す</button>' : ""}
+          ${can() ? `<button type="button" class="btn-primary" data-cv-save>${x.id ? "保存" : "足す"}</button>` : ""}</div>
+        <div class="cv-meta">
+          <label>当て方<select class="ps-input" id="cvMode"${di}><option value="replace"${a.mode === "replace" ? " selected" : ""}>列の値を作り替える</option><option value="add"${a.mode !== "replace" ? " selected" : ""}>列を足す</option></select></label>
+          ${a.mode === "replace" ? "" : `<label>足す列の名前<input class="ps-input" id="cvCol" value="${esc(a.column || "")}" placeholder="${esc(x.name || "例: 管理分類")}（{列} は元の列の名前）"${di}></label>
+          <label>置き場<select class="ps-input" id="cvPlace"${di}>${[["left", "いちばん左"], ["after", "元の列の右"], ["end", "右の端"]].map(([k, n]) => `<option value="${k}"${(a.place || "end") === k ? " selected" : ""}>${n}</option>`).join("")}</select></label>`}
+          <label>どれにも当たらないとき<select class="ps-input" id="cvOtherKind"${di}>${[["keep", "元の値のまま"], ["blank", "空欄"], ["text", "字を出す"], ["formula", "式"]].map(([k, n]) => `<option value="${k}"${ok === k ? " selected" : ""}>${n}</option>`).join("")}</select>
+            ${ok === "text" || ok === "formula" ? `<input class="ps-input" id="cvOther" value="${esc(ok === "formula" ? String(x.other).slice(1) : x.other)}" aria-label="どれにも当たらないときの値"${di}>` : ""}</label>
+        </div>
+        <div class="cv-ins"><span class="cv-lab">入力</span>${x.inputs.map((inp, i) => `<span class="cv-in">`
+          + `<input class="ps-input" data-cv-iname="${i}" value="${esc(inp.name)}" aria-label="入力の名前"${di}>`
+          + `<select class="ps-input" data-cv-itype="${i}" aria-label="比べ方（字・数）"${di}><option value="text"${inp.type !== "num" ? " selected" : ""}>字</option><option value="num"${inp.type === "num" ? " selected" : ""}>数</option></select>`
+          + `<input class="ps-input cv-cands" data-cv-icols="${i}" value="${esc((inp.columns || []).join("・"))}" placeholder="当てる列の名前（候補）" title="一覧のこの名前の列に当てます（いくつかは ・ で区切る。半角・全角の違いは見ません）"${di}>`
+          + (x.inputs.length > 1 ? `<button type="button" class="icon-btn" data-cv-idel="${i}" title="この入力を外す（行の条件からも外します）" aria-label="入力を外す"${di}>×</button>` : "") + "</span>").join("")}
+          ${x.inputs.length < 8 ? `<button type="button" class="pv-btn" data-cv-iadd${di}>＋ 入力</button>` : ""}</div>
+        ${gridHtml(x)}
+        <div class="cv-foot2">${can() ? '<button type="button" class="pv-btn" data-cv-radd>＋ 行を足す</button>' : ""}<span class="cv-other">どれにも当たらないとき → <b>${esc(ok === "keep" ? "元の値のまま" : ok === "blank" ? "（空欄）" : outText(x.other))}</b></span>
+          <span class="sp"></span>${expr ? `<code class="cv-expr" title="一覧の式ではこう書きます（表示列の「この列の作り方」でも）">${esc(expr)}</code>` : ""}</div>
+        ${tryHtml(x)}
+        <label class="sh-field"><span>備考</span><input id="cvNote" class="ps-input" value="${esc(x.note || "")}" maxlength="300"${di}></label>
+      </div></div></section>`;
+  bind();
+}
+
+/* ---------------- 操作 ---------------- */
+function sync() {
+  const x = draft, v = (id) => { const el = $(id); return el ? el.value : null; };
+  if (v("#cvName") != null) x.name = v("#cvName").trim();
+  x.note = v("#cvNote") ?? x.note;
+  const mode = v("#cvMode");
+  if (mode) x.apply = mode === "replace" ? { mode } : { mode, column: v("#cvCol") ?? x.apply.column ?? "", place: v("#cvPlace") || x.apply.place || "end" };
+  const ok = v("#cvOtherKind"), first = (x.inputs[0] || {}).name;
+  if (ok === "keep") x.other = `=[${first}]`;
+  else if (ok === "blank") x.other = "";
+  else if (ok === "text") x.other = v("#cvOther") ?? (otherKind(x) === "text" ? x.other : "その他");
+  else if (ok === "formula") x.other = "=" + (v("#cvOther") ?? (otherKind(x) === "formula" ? String(x.other).slice(1) : `[${first}]`));
+}
+function renameInput(i, name) {
+  const x = draft, old = x.inputs[i].name;
+  if (!name || name === old || x.inputs.some((a) => a.name === name)) return;
+  x.inputs[i].name = name;
+  x.rows.forEach((r) => { if (r.when && old in r.when) { r.when[name] = r.when[old]; delete r.when[old]; } });
+  if (x.other === `=[${old}]`) x.other = `=[${name}]`;
+  if (cell && cell.k === old) cell.k = name;
+}
+const say = (cls, html) => { notice = [cls, html]; const n = $("#cvNotice"); if (n) { n.className = `ps-result ${cls}`; n.innerHTML = html; } };
+function bind() {
+  const box = $("#masterSettings .cv-editor"), x = draft;
+  const redraw = () => { sync(); paint(); };
+  box.addEventListener("change", (e) => {
+    const t = e.target, ds = t.dataset;
+    if (ds.cvIname != null) { renameInput(+ds.cvIname, t.value.trim()); redraw(); return; }
+    if (ds.cvItype != null) { x.inputs[+ds.cvItype].type = t.value; redraw(); return; }
+    if (ds.cvIcols != null) { x.inputs[+ds.cvIcols].columns = splitVals(t.value).filter(Boolean); redraw(); return; }
+    if (ds.cvOut != null) { x.rows[+ds.cvOut].out = t.value; redraw(); return; }
+    const ts = cell && ((x.rows[cell.r].when ||= {})[cell.k] ||= []);
+    if (ts) {
+      if (ds.cvTop != null) { const j = +ds.cvTop, was = ts[j]; ts[j] = t.value === "range" ? { op: "range", min: "", max: "" } : ["empty", "filled"].includes(t.value) ? { op: t.value } : { op: t.value, v: was.v || [""] }; redraw(); return; }
+      if (ds.cvTv != null) { ts[+ds.cvTv].v = splitVals(t.value); redraw(); return; }
+      if (ds.cvTmin != null) { ts[+ds.cvTmin].min = t.value.trim(); redraw(); return; }
+      if (ds.cvTmax != null) { ts[+ds.cvTmax].max = t.value.trim(); redraw(); return; }
+      if (ds.cvTmininc != null) { if (t.checked) delete ts[+ds.cvTmininc].minInc; else ts[+ds.cvTmininc].minInc = false; redraw(); return; }
+      if (ds.cvTmaxinc != null) { if (t.checked) delete ts[+ds.cvTmaxinc].maxInc; else ts[+ds.cvTmaxinc].maxInc = false; redraw(); return; }
+    }
+    if (["cvMode", "cvPlace", "cvOtherKind", "cvOther", "cvCol"].includes(t.id)) redraw();
+  });
+  box.addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.dataset.cvTry == null) return;
+    tryVals[+t.dataset.cvTry] = t.value;
+    const at = t.selectionStart, i = t.dataset.cvTry;
+    sync(); paint();
+    const n = $(`[data-cv-try="${i}"]`); if (n) { n.focus(); n.setSelectionRange(at, at); }
+  });
+  box.addEventListener("click", async (e) => {
+    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    const ds = b.dataset;
+    if (ds.cvPick) { const it = mstate.data.conv.items.find((y) => y.id === +ds.cvPick); draft = clone(it); cell = null; tryVals = []; notice = null; paint(); return; }
+    if (ds.cvNew != null) { draft = blank(); cell = null; tryVals = []; notice = null; paint(); $("#cvName").focus(); return; }
+    sync();
+    if (ds.cvCell) { const [r, ...k] = ds.cvCell.split("|"); const same = cell && cell.r === +r && cell.k === k.join("|"); cleanCell(); cell = same ? null : { r: +r, k: k.join("|") };
+      if (cell && !((x.rows[cell.r].when || {})[cell.k] || []).length) ((x.rows[cell.r].when ||= {})[cell.k] = [{ op: "eq", v: [""] }]);
+      paint(); return; }
+    if (ds.cvClose != null) { cleanCell(); cell = null; paint(); return; }
+    if (ds.cvTany != null) { delete x.rows[cell.r].when[cell.k]; cell = null; paint(); return; }
+    if (ds.cvTadd != null) { x.rows[cell.r].when[cell.k].push({ op: "eq", v: [""] }); paint(); return; }
+    if (ds.cvTdel != null) { x.rows[cell.r].when[cell.k].splice(+ds.cvTdel, 1); if (!x.rows[cell.r].when[cell.k].length) delete x.rows[cell.r].when[cell.k]; paint(); return; }
+    if (ds.cvRadd != null) { cleanCell(); x.rows.push({ when: {}, out: "" }); cell = null; paint(); return; }
+    if (ds.cvRdel != null) { x.rows.splice(+ds.cvRdel, 1); cell = null; paint(); return; }
+    if (ds.cvUp != null || ds.cvDown != null) {
+      const i = +(ds.cvUp ?? ds.cvDown), j = ds.cvUp != null ? i - 1 : i + 1;
+      if (j < 0 || j >= x.rows.length) return;
+      [x.rows[i], x.rows[j]] = [x.rows[j], x.rows[i]]; cell = null; paint(); return;
+    }
+    if (ds.cvNoteed != null) { const r = x.rows[+ds.cvNoteed], v = prompt(`${+ds.cvNoteed + 1} 行目の備考（空にすると消します）`, r.note || ""); if (v == null) return; if (v.trim()) r.note = v.trim(); else delete r.note; paint(); return; }
+    if (ds.cvIadd != null) { let n = "入力" + (x.inputs.length + 1); while (x.inputs.some((a) => a.name === n)) n += "'"; x.inputs.push({ name: n, type: "text", columns: [] }); paint(); return; }
+    if (ds.cvIdel != null) { const old = x.inputs.splice(+ds.cvIdel, 1)[0]; x.rows.forEach((r) => { if (r.when) delete r.when[old.name]; }); cell = null; paint(); return; }
+    if (ds.cvSave != null) { await save(); return; }
+    if (ds.cvReset != null) { await reset(); return; }
+    if (ds.cvDelete != null) { await remove(); }
+  });
+}
+/* 開いていたセルの、値を入れなかった条件は外す（条件が残らなければ不問）。空欄を比べるときは「空欄」を選ぶ */
+function cleanCell() {
+  if (!cell) return;
+  const r = draft.rows[cell.r], ts = ((r && r.when) || {})[cell.k];
+  if (!ts) return;
+  const kept = ts.filter((t) => !Array.isArray(t.v) || t.v.some((v) => v !== ""))
+    .filter((t) => t.op !== "range" || String(t.min ?? "") !== "" || String(t.max ?? "") !== "");
+  if (kept.length) r.when[cell.k] = kept; else delete r.when[cell.k];
+}
+async function after(res, okText) {
+  if (res.status === 409 && res.data.kind === "conflict") { mstate.data.conv = null; notice = ["ng", "開いたあとに、ほかの PC がこの変換表を直しました。読み直したので、もう一度直してください。"]; await render(); return false; }
+  if (!res.ok) { say("ng", "✕ " + esc(res.data.error || "保存できませんでした。")); return false; }
+  mstate.data.conv = res.data; window.Conversions?.take(res.data);
+  emit("tpa:masters-changed");
+  notice = ["ok", okText]; return true;
+}
+async function save() {
+  cleanCell(); cell = null;
+  const x = draft, body = { name: x.name, inputs: x.inputs, rows: x.rows, other: x.other, apply: x.apply, note: x.note };
+  const res = await withLockWait(() => masterRequest(x.id ? `/api/masters/conversions/${x.id}` : "/api/masters/conversions",
+    TPA.json(x.id ? "PUT" : "POST", x.id ? { ...body, base_rev: x.rev } : body)), (r) => say("wait", lockWaitText(r, "保存", boldName)));
+  if (!(await after(res, `✓ 「${esc(x.name)}」を保存しました（${x.rows.length} 行）。この PC の一覧にすぐ効き、ほかの PC には数秒で届きます`))) return;
+  const id = x.id || res.data.created;
+  draft = clone(res.data.items.find((y) => y.id === id) || x); paint();
+}
+async function reset() {
+  const x = draft;
+  if (!confirm(`変換表「${x.name}」を、同梱のプリセットの中身に戻します。直した所は消えます。よろしいですか？`)) return;
+  const res = await masterRequest(`/api/masters/conversions/${x.id}/preset`, TPA.json("POST", { base_rev: x.rev }));
+  if (!(await after(res, `✓ 「${esc(x.name)}」を標準（プリセット）に戻しました`))) return;
+  draft = clone(res.data.items.find((y) => y.id === x.id)); tryVals = []; paint();
+}
+async function remove() {
+  const x = draft;
+  if (!confirm(`変換表「${x.name}」を消します。この表を使う列（conv('${x.name}', …)）は空になります。よろしいですか？`)) return;
+  const res = await masterRequest(`/api/masters/conversions/${x.id}?rev=${x.rev}`, { method: "DELETE" });
+  if (!(await after(res, `✓ 「${esc(x.name)}」を消しました`))) return;
+  draft = res.data.items[0] ? clone(res.data.items[0]) : blank(); paint();
+}
+};

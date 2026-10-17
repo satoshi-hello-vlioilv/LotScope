@@ -2267,6 +2267,8 @@
     load();
   }
 
+  // 変換表（式の conv が引く表）が変わったら、いま出している行を描き直す（読み直しは要らない。並べ替えは次に読むときから）
+  window.Conversions?.onChange(() => { if (root && S.rows && S.rows.length) renderGrid(); });
   window.LotList = { mount, activate, deactivate, defineSources, focus: () => $("#llSearch")?.focus(), source: () => S.src.id,
     formats: { capture: captureFormat, places: formatPlaces, apply: applyFormat, undo: undoFormat,
       here: () => ({ source: S.src.id, table: S.table, origin: S.src.place(S.table), equip: S.equip, title: S.src.title }) } };

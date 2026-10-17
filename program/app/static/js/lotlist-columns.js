@@ -887,6 +887,24 @@
     layoutOf: (t) => norm(saved[t]),
     /** ダッシュボード（版 3.38.0）: 保存した列の設定のうち match(対象) に当たる物の式と表示名を合わせる（先に見つけた方。作業実績は設備ごとの設定）。
         → {formulas: {列名: 式}, names: {元の列名: 表示名}}。計算列（表に無い列の式）を、サーバーが画面と同じに計算するため */
+    /** 変換表（版 3.42.0。conversions.js）を、いま開いている表に当てる（下書き。表示列の設定の「保存」で確定）。
+        names は表の名前の並び（この順に計画する: 先に足した列を後の表が使う）。→ 当てた計画の並び */
+    applyConversions(names) {
+      if (!ctx || !window.Conversions) return [];
+      const t = ctx.target, L = get(t), order = ordered(t, allColumns(t, ctx.columns), ctx.lotColumn);
+      const plans = window.Conversions.planAll(names, order, L.formulas).filter((p) => p.ok && !p.done);
+      if (!plans.length) return [];
+      const next = window.Conversions.applyTo(plans, { formulas: L.formulas, order });
+      stage(t, next);
+      ctx.rerender(); if (panel && !panel.hidden) renderPanel();
+      return plans;
+    },
+    /** いま開いている表で、変換表 names の計画（当てられるか・何をするか）。表が開いていなければ [] */
+    conversionPlans(names) {
+      if (!ctx || !window.Conversions) return [];
+      const t = ctx.target, L = get(t);
+      return window.Conversions.planAll(names, ordered(t, allColumns(t, ctx.columns), ctx.lotColumn), L.formulas);
+    },
     /** 計算列 names をサーバーで計算するための式（版 3.42.0。一覧の並べ替え）。その式が [名前] で読む式の列を 1 段足す（サーバーは baseRow と同じ引き方）。
         → {formulas, names}（計算列が無ければ null） */
     calcFor(t, names) {

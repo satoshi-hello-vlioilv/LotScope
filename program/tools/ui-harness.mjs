@@ -247,6 +247,13 @@ export const STATES = [
   ["master-egroups", async (p) => { await tab(p, "egroups"); await sleep(900); }, "[data-next], [data-eg-save]"],
   // 版 3.40.0: ルールで決めたグループ（L ライン: 名前が L- で始まる）を開いた所
   ["master-egroups-rule", async (p) => { await p.evaluate(() => [...document.querySelectorAll("[data-eg-pick]")].find((b) => b.textContent.includes("L ライン")).click()); await sleep(600); }, "[data-next], [data-eg-save]"],
+  // 版 3.42.0: 変換表（管理分類の判定表）と、1 行目の「形状区分」のセルを開いて直す所・試すに値を入れた所
+  ["master-conv", async (p) => { await tab(p, "conv"); await sleep(900); }, "[data-next], [data-cv-save]"],
+  ["master-conv-cell", async (p) => {
+    await p.click(`[data-cv-cell="0|ｵｰﾀﾞｰ材質"]`); await sleep(300);
+    for (const [i, v] of [[0, "4HIｺｲﾙ"], [1, "A1100"], [3, "0.5"], [4, "1200"], [5, "F975"]]) await p.fill(`[data-cv-try="${i}"]`, v);
+    await sleep(300);
+  }, "[data-next], [data-cv-close]"],
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
   ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],

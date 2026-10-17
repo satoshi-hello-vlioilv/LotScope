@@ -57,6 +57,7 @@ SHARED_ALWAYS = frozenset({"path_settings", "access_permissions", "app_seeds", "
 REFRESH_DEFAULT = 5.0
 INSTANCE_FILENAME = "instance_id"   # この PC のアプリの印（手元の置き場に 1 度だけ作る。錠が自分の物かを見分ける）
 SCHEMA = 1
+DEFAULTS_DIR = Path(__file__).resolve().parents[1] / "master_defaults"   # マスタの最初の中身（コードと一緒に配る。置き場がどこでも同じ）
 
 
 def next_id(rows):
@@ -254,7 +255,7 @@ class MasterStore:
 
     def defaults(self, name):
         """マスタの最初の中身（プログラムに同梱し、書き換えない。版 3.42.0。例: 変換表のプリセット app/master_defaults/conversions.json）"""
-        return self.base / "app" / "master_defaults" / f"{name}.json"
+        return DEFAULTS_DIR / f"{name}.json"
 
     def _initial(self, name):
         """共有・写しが無いときに読む物: 同梱の data/（手元だけの PC はここへ書く）→ 無ければ最初の中身"""

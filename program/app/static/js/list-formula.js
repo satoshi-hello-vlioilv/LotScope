@@ -269,11 +269,12 @@
   if(!o.f)return o.text;
   const v=o.f.run(vals);return v===undefined?null:v;
  }
- function convRun(a){
-  const tb=convSource(textOf(a[0]));
+ function convRun(a){return convWith(convSource(textOf(a[0])),a.slice(1))}
+ /* 表 tb に値の並びを渡した答え（マスタの変換表の「試す」も使う: 保存する前の表で試す） */
+ function convWith(tb,values){
   if(!tb||typeof tb!=='object'||Array.isArray(tb))return null;
   const c=convPrep(tb),vals={};
-  c.inputs.forEach((x,i)=>{vals[x.name]=i+1<a.length?a[i+1]:null});
+  c.inputs.forEach((x,i)=>{vals[x.name]=i<values.length?values[i]:null});
   for(const r of c.rows){
    if(c.inputs.every(x=>{const ts=r.when[x.name];return !Array.isArray(ts)||!ts.length||ts.some(t=>!!t&&typeof t==='object'&&convTest(t,vals[x.name],x.type))}))
     return convGive(r.out,vals);
@@ -532,7 +533,7 @@
  }
  /* 変換表を渡す（名前 → 表。無ければ null）。渡し直すと、次に計算する行から新しい表を使う */
  function setTables(fn){convSource=typeof fn==='function'?fn:()=>null}
- window.WL.formula={compile,check,parse,sigs:SIGS,truthy,cmp,MAX_LEN,suggest,setTables,
+ window.WL.formula={compile,check,parse,sigs:SIGS,truthy,cmp,MAX_LEN,suggest,setTables,convWith,
              /* 説明文をパネルとドキュメントで共用する(2箇所に書かない)。 */
              help:[
               ['[列名]','その行のその列の値'],
