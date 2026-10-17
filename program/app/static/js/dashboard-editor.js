@@ -38,6 +38,12 @@
   const KPI_LOOKS = [["num", "数", "大きな数だけ"], ["bar", "目標までの棒", "目標に対する達成率を棒で"], ["gauge", "メーター", "目標に対する達成率を半円で"]];
   // 書式の選び（サーバーの dashboard.clean_fmt と同じ鍵）
   const LABELS = [["", "自動"], ["none", "なし"], ["top", "上"], ["inside", "棒の中"], ["both", "両方"]];
+  // 線・面の形（棒の無い形）の数値ラベルは、付けるか付けないかだけ（「棒の中」「両方」は線では効かず、迷わせた: 版 3.41.0）
+  const LINE_VIS = new Set(["line", "area"]);
+  const LINE_LABELS = [["", "自動"], ["none", "なし"], ["top", "付ける"]];
+  // 系列ごとの数値ラベル・線（版 3.41.0）。"" はパネルの「数値」に従う
+  const SER_LABELS = [["", "パネルに従う"], ["top", "上"], ["below", "下"], ["off", "出さない"]];
+  const SER_DASH = [["", "実線"], ["1", "破線"]];
   const XDATES = [["", "自動（10/2）"], ["md", "10/2"], ["mdw", "10/2(金)"], ["d", "2（日だけ）"], ["dw", "2(金)"], ["ymd", "2026/10/2"], ["w", "金（曜日）"]];
   const XROTS = [["", "自動"], ["0", "横"], ["45", "45°"], ["90", "縦"]];
   const UNITS = [["", "自動（万・億）"], ["none", "そのまま"], ["k", "千"], ["man", "万"]];
@@ -302,19 +308,28 @@
     if (p.order) p.order.group = Math.min(p.order.group, gs.length - 1);
     gi = -1; t = p; changed(false);
   }
-  /** 行の鍵の並び（いまの答えから。隠した行も）→ [{key, hidden}] */
+  /** 行の鍵の並び（いまの答えから。隠した行も・グループの順）→ [{key, hidden, group}] */
   function rowKeys() {
     const d = host.answer && host.answer();
-    const all = d ? P.boardKeys(p, d) : [];
     const hide = new Set(p.order.hide || []);
-    return all.map((k) => ({ key: k, hidden: hide.has(k) }));
+    return (d ? P.boardTree(p, d) : []).flatMap((g) => g.keys.map((k) => ({ key: k, hidden: hide.has(k), group: g.name })));
   }
-  /** 手で並べる: いまの見え方の並び（隠した行も）を list にして、i を d だけ動かす */
+  /** 手で並べる: いまの見え方の並び（隠した行も）を list にして、key を to 番目（key を抜いた並びでの位置）へ */
   function moveRow(key, to) {
     const keys = rowKeys().map((x) => x.key), from = keys.indexOf(key);
-    if (from < 0 || to < 0 || to >= keys.length) return;
-    keys.splice(to, 0, keys.splice(from, 1)[0]);
+    if (from < 0) return;
+    keys.splice(from, 1);
+    keys.splice(Math.max(0, Math.min(keys.length, to)), 0, key);
     Object.assign(p.order, { by: "manual", list: keys });
+    changed(false);
+  }
+  /** グループを to 番目（name を抜いた並びでの位置）へ（グループの順 glist） */
+  function moveGroupRow(name, to) {
+    const d = host.answer && host.answer(), names = (d ? P.boardTree(p, d) : []).map((g) => g.name).filter((n) => n !== P.NONE_GROUP), from = names.indexOf(name);
+    if (from < 0) return;
+    names.splice(from, 1);
+    names.splice(Math.max(0, Math.min(names.length, to)), 0, name);
+    p.order.glist = names;
     changed(false);
   }
   function toggleRow(key) {
@@ -509,7 +524,7 @@
       const frames = `<span class="de-frames" role="radiogroup" aria-label="パネルの見せ方">${FRAMES.map(([k, n, tip]) => `<label class="de-frame${frame === k ? " on" : ""}" title="${esc(tip)}"><input type="radio" name="de-frame" value="${k}" data-de-frame${frame === k ? " checked" : ""}><i class="fr-${k}" aria-hidden="true"></i>${n}</label>`).join("")}</span>`;
       const kpi = p.visual === "kpi" ? `<div class="de-row"><span class="de-l">数字</span>${segs("kpilook", KPI_LOOKS, fm.kpi || "num", "数字の形")}`
         + (fm.kpi === "bar" || fm.kpi === "gauge" ? `<label class="pv-ck">目標<input type="number" step="any" data-de-target value="${fm.target ?? ""}" class="de-n2" aria-label="目標の値" placeholder="例 30"></label>${fm.target ? "" : '<small class="de-hint is-warn">目標を入れると出ます</small>'}` : "") + "</div>" : "";
-      return `<div class="de-row"><span class="de-l">見せ方</span>${frames}</div>${kpi}`;
+      return `<div class="de-row"><span class="de-l">見せ方</span>${frames}</div>${kpi}${sliceRow()}`;
     }
     const g = p.groups[gi], base = P.colorOf(g.source), hasCols = (g.cols || []).length > 0;
     const looks = LOOKS.filter(([, , , cols]) => !cols || hasCols).map(([k, n, tip]) => [k, n, tip]);
@@ -526,6 +541,8 @@
       + `<label class="pv-ck" title="ほかのまとまりに数があるのに、このまとまりが 0 の行に印を付け、表の上に名前を出します"><input type="checkbox" data-de-zero${g.zero ? " checked" : ""}>0 の行に印</label>`
       + `<label class="pv-ck de-gt">見出し<input data-de-gtitle value="${esc(g.title || "")}" placeholder="${esc(P.groupTitle(g, null))}" maxlength="40" aria-label="まとまりの見出し"></label></div>`;
   }
+  /** ダッシュボードのスライサーに従うか（版 3.41.0） */
+  const sliceRow = () => `<div class="de-row"><span class="de-l">連動</span><label class="pv-ck" title="道具の行のスライサー（期間・設備）で、このパネルも切り替えます。外すと、組んだ期間・設備のまま"><input type="checkbox" data-de-slice${p.noslice ? "" : " checked"}>ダッシュボードのスライサーに従う</label></div>`;
   /* ---- 書式（版 3.39.0。要望 7・8）: 数値ラベル・横軸（日付の形・字の向き）・数の形（桁・単位）・縦軸の範囲・凡例・補助線・字の大きさ・基準線・色 ---- */
   /** いまの答えの系列（色を決められる名前）: 列の段があれば列の葉、1 系列で行が少なければ行の葉、ほかは値 */
   function seriesNames() {
@@ -551,11 +568,19 @@
     // 合わせたデータは役割の色（グラフ・札と同じ。3 回目の採点: 見本だけ別の色だった）
     const d0 = host.answer && host.answer();
     const names = seriesNames(), colors = isLink() && d0 && d0.measures ? d0.measures.map((x) => P.ROLE_COLOR[x.role] || "#5a6f77") : P.seriesColors(p);
-    const named = names.length ? names.map((n, i) => { const c = (fm.colors || {})[n]; return `<label class="de-scol${c ? " is-set" : ""}" title="${esc(n)}"><input type="color" value="${c || colors[i % colors.length]}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span>${c ? `<button type="button" class="icon-btn" data-de-scolx="${esc(n)}" aria-label="「${esc(n)}」の色を戻す">×</button>` : ""}</label>`; }).join("") : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
+    // 系列ごと（版 3.41.0。利用者の要望 1: 個別に詳細も決める）: 色（見本は描いた色そのもの）・数値ラベル（パネルの数値に従う・上・下・出さない）・線（実線・破線）
+    const lineish = LINE_VIS.has(p.visual);
+    const named = names.length ? `<div class="de-sers" role="table" aria-label="系列ごとの書式">${names.map((n, i) => {
+      const c = (fm.colors || {})[n], sf = (fm.series || {})[n] || {}, shown = c || (isLink() ? colors[i % colors.length] : P.drawnColor(p.id, n) || colors[i % colors.length]);
+      return `<div class="de-ser${c || sf.label || sf.dash ? " is-set" : ""}" role="row" data-de-ser="${esc(n)}"><label class="de-scol" title="「${esc(n)}」の色"><input type="color" value="${shown}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span></label>`
+        + segs(`slab-${i}`, SER_LABELS, sf.label || "", `「${n}」の数値ラベル`).replace(/data-de-slab-\d+/g, "data-de-slab")
+        + (lineish ? segs(`sdash-${i}`, SER_DASH, sf.dash ? "1" : "", `「${n}」の線`).replace(/data-de-sdash-\d+/g, "data-de-sdash") : "")
+        + (c || sf.label || sf.dash ? `<button type="button" class="icon-btn" data-de-serx="${esc(n)}" aria-label="「${esc(n)}」の書式を戻す" title="この系列の色・ラベル・線を既定に戻す">×</button>` : "") + "</div>";
+    }).join("")}</div>` : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
     const refs = (fm.refs || []).map((r, i) => `<div class="de-ref" data-i="${i}"><input type="number" step="any" value="${r.value}" data-de-refv aria-label="基準線の値" class="de-n2"><input value="${esc(r.label || "")}" data-de-refl maxlength="20" placeholder="名前（目標・上限など）" aria-label="基準線の名前">`
       + `<span class="de-sws">${REF_COLORS.map((c) => `<button type="button" class="de-sw${(r.color || REF_COLORS[0]) === c ? " on" : ""}" style="--sw:${c}" data-de-refc="${c}" aria-label="色 ${c}"></button>`).join("")}</span><button type="button" class="icon-btn" data-de-refdel="${i}" aria-label="この基準線を外す">×</button></div>`).join("");
     return head + `<div class="de-fmt">`
-      + `<div class="de-row"><span class="de-l">数値</span>${segs("flabels", LABELS, fm.labels || "", "数値ラベル")}</div>`
+      + `<div class="de-row"><span class="de-l">数値</span>${segs("flabels", LINE_VIS.has(p.visual) ? LINE_LABELS : LABELS, fm.labels || "", "数値ラベル")}<small class="de-hint">系列ごとには下の「系列」で</small></div>`
       + `<div class="de-row"><span class="de-l">横軸</span>${sel("xdate", XDATES, fm.xdate || "", "横軸の日付の形")}${segs("fxrot", XROTS, fm.xrot || "", "横軸の字の向き")}</div>`
       + `<div class="de-row"><span class="de-l">数の形</span>${digits}${sel("unit", UNITS, fm.unit || "", "単位")}</div>`
       + `<div class="de-row"><span class="de-l">縦軸</span><label class="pv-ck">最小<input type="number" step="any" data-de-fymin value="${fm.ymin ?? ""}" placeholder="自動" class="de-n2"></label><label class="pv-ck">最大<input type="number" step="any" data-de-fymax value="${fm.ymax ?? ""}" placeholder="自動" class="de-n2"></label>`
@@ -563,7 +588,7 @@
       + `<div class="de-row"><span class="de-l">凡例</span>${segs("flegend", LEGENDS, fm.legend || "", "凡例")}<span class="de-l2">字</span>${segs("fsize", SIZES, fm.size || "", "字の大きさ")}</div>`
       + `<div class="de-row de-top"><span class="de-l">基準線</span><div class="de-refs">${refs}<button type="button" class="pv-btn" data-de-refadd${(fm.refs || []).length >= 4 ? " disabled" : ""}>＋ 基準線（目標・規格）</button></div></div>`
       + `<div class="de-row de-top"><span class="de-l">色の組</span><div class="de-pals">${pals}</div></div>`
-      + `<div class="de-row de-top"><span class="de-l">系列の色</span><div class="de-scols">${named}</div></div></div>`;
+      + `<div class="de-row de-top"><span class="de-l">系列</span>${named}</div></div>`;
   }
   /** 書式の要約（畳んだときに、何が効いているかを見せる） */
   function fmtSummary(fm) {
@@ -575,6 +600,7 @@
     if ((fm.refs || []).length) out.push(`基準線 ${fm.refs.length}`);
     if (fm.palette) out.push(P.PALETTES[fm.palette].n);
     if (fm.colors && Object.keys(fm.colors).length) out.push(`色 ${Object.keys(fm.colors).length}`);
+    if (fm.series && Object.keys(fm.series).length) out.push(`系列 ${Object.keys(fm.series).length}`);
     return out.length ? esc(out.join("・")) : "既定のまま";
   }
   /** 書式を 1 つ変える（既定に戻す物は消す） */
@@ -699,13 +725,23 @@
     const cur = o.by === "value" ? `value:${o.dir}` : o.by;
     const rowsSel = `<select data-de-brows aria-label="行の段"><option value="@equip"${p.rows.column === "@equip" ? " selected" : ""}>設備</option>`
       + (p.rows.column !== "@equip" ? `<option selected>${esc(p.rows.column)}</option>` : "") + "</select>";
-    const list = keys.length ? keys.map((x, i) => `<li class="de-rowi${x.hidden ? " is-hidden" : ""}" draggable="true" data-de-row="${esc(x.key)}"><span class="de-grip" aria-hidden="true">⋮⋮</span><b>${esc(x.key)}</b>`
-      + `<button type="button" class="icon-btn" data-de-rup="${i}" aria-label="「${esc(x.key)}」を上へ"${i ? "" : " disabled"}>↑</button><button type="button" class="icon-btn" data-de-rdown="${i}" aria-label="「${esc(x.key)}」を下へ"${i < keys.length - 1 ? "" : " disabled"}>↓</button>`
-      + `<label class="pv-ck"><input type="checkbox" data-de-rshow${x.hidden ? "" : " checked"}>出す</label></li>`).join("") : '<li class="de-hint">数え終えると、行がここに並びます</li>';
+    // 行の札（版 3.41.0。利用者の要望 4）: 設備グループの見出しの下に並べる（見出しも引いて並べられる）。⋮⋮ を引くと、札の写し（ゴースト）が付いてきて、
+    // 落とす所に線が出る。↑↓ でも 1 つずつ（グループの中で）
+    const groups = []; keys.forEach((x, i) => { const g = groups[groups.length - 1]; if (!g || g.name !== x.group) groups.push({ name: x.group, items: [] }); groups[groups.length - 1].items.push({ ...x, i }); });
+    const item = (x, k, n) => `<li class="de-rowi${x.hidden ? " is-hidden" : ""}" data-de-row="${esc(x.key)}" data-de-rg="${esc(x.group)}"><span class="de-grip" data-de-grip title="引いて並べる" aria-hidden="true">⋮⋮</span><b>${esc(x.key)}</b>`
+      + `<button type="button" class="icon-btn" data-de-rup="${x.i}" aria-label="「${esc(x.key)}」を上へ"${k ? "" : " disabled"}>↑</button><button type="button" class="icon-btn" data-de-rdown="${x.i}" aria-label="「${esc(x.key)}」を下へ"${k < n - 1 ? "" : " disabled"}>↓</button>`
+      + `<label class="pv-ck"><input type="checkbox" data-de-rshow${x.hidden ? "" : " checked"}>出す</label></li>`;
+    const list = !keys.length ? '<li class="de-hint">数え終えると、行がここに並びます</li>'
+      : groups.map((g) => (g.name ? `<li class="de-rgrp${g.name === P.NONE_GROUP ? " is-none" : ""}" data-de-rgrp="${esc(g.name)}">`
+        + `<div class="de-rgh">${g.name === P.NONE_GROUP ? '<span class="de-grip is-off" aria-hidden="true"></span>' : '<span class="de-grip" data-de-grip title="引いてグループごと並べる" aria-hidden="true">⋮⋮</span>'}<b>${esc(g.name)}</b><small>${g.items.length} 台</small></div>`
+        + `<ol class="de-rsub">${g.items.map((x, k) => item(x, k, g.items.length)).join("")}</ol></li>` : g.items.map((x, k) => item(x, k, g.items.length)).join(""))).join("");
+    const sets = host.egroupSets ? host.egroupSets() : [];
+    const tree = p.rows.column === "@equip" && sets.length ? `<div class="de-row"><label class="de-l">見出し</label><select data-de-btree aria-label="行を設備グループの見出しの下にまとめる">`
+      + `<option value="">まとめない</option>${sets.map((x) => `<option${x.name === p.order.tree ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select><small class="de-hint">設備グループの見出しの下に行をまとめます（表にも見出しが出ます）</small></div>` : "";
     return `<div class="de-row"><label class="de-l">行</label>${rowsSel}<small class="de-hint">どのまとまりも、この段でそろえます</small></div>`
       + `<div class="de-row"><label class="de-l">並び</label><select data-de-border aria-label="行の並び">${by.map(([k, nm]) => `<option value="${k}"${k === cur ? " selected" : ""}>${nm}</option>`).join("")}</select>`
       + (o.by === "value" ? `<select data-de-bgroup aria-label="どのまとまりの計で">${p.groups.map((g, i) => `<option value="${i}"${o.group === i ? " selected" : ""}>${n[i]} ${esc(g.title || P.groupTitle(g, null))}の計</option>`).join("")}</select>` : "")
-      + `</div><div class="de-row de-top"><span class="de-l"></span><ol class="de-rows" aria-label="行（引いて並べる・出すを外すと隠す）">${list}</ol></div>`;
+      + `</div>${tree}${sliceRow()}<div class="de-row de-top"><span class="de-l"></span><ol class="de-rows${groups.some((g) => g.name) ? " is-tree" : ""}" aria-label="行（⋮⋮ を引いて並べる・出すを外すと隠す）">${list}</ol></div>`;
   }
   function groupActsHtml() {
     if (!inGroup()) return "";
@@ -799,6 +835,14 @@
       // 書式
       if (b.hasAttribute("data-de-fmtopen")) { fmtOpen = !fmtOpen; $("#deFmt").innerHTML = fmtHtml(); return; }
       if (b.dataset.dePal != null) { setFmt("palette", b.dataset.dePal); return; }
+      if (b.dataset.deSerx != null) {
+        const n = b.dataset.deSerx, cs = { ...((p.fmt || {}).colors || {}) }, ss = { ...((p.fmt || {}).series || {}) };
+        delete cs[n]; delete ss[n];
+        p.fmt = { ...(p.fmt || {}), colors: cs, series: ss };
+        ["colors", "series"].forEach((k) => { if (!Object.keys(p.fmt[k]).length) delete p.fmt[k]; });
+        if (!Object.keys(p.fmt).length) delete p.fmt;
+        changed(false); return;
+      }
       if (b.dataset.deScolx != null) { const cs = { ...((p.fmt || {}).colors || {}) }; delete cs[b.dataset.deScolx]; setFmt("colors", Object.keys(cs).length ? cs : ""); return; }
       if (b.hasAttribute("data-de-refadd")) { const fm = p.fmt || {}; setFmt("refs", (fm.refs || []).concat([{ value: 0, label: "目標", color: REF_COLORS[0] }])); return; }
       if (b.dataset.deRefdel != null) { const r = ((p.fmt || {}).refs || []).slice(); r.splice(+b.dataset.deRefdel, 1); setFmt("refs", r.length ? r : ""); return; }
@@ -912,6 +956,12 @@
         if (x.matches("[data-de-refv]")) r[i].value = +x.value || 0; else r[i].label = x.value.trim().slice(0, 20);
         setFmt("refs", r); return;
       }
+      if (x.matches("[data-de-slab],[data-de-sdash]")) {
+        const n = x.closest("[data-de-ser]").dataset.deSer, ss = { ...((p.fmt || {}).series || {}) }, one = { ...(ss[n] || {}) };
+        if (x.matches("[data-de-slab]")) { if (x.value) one.label = x.value; else delete one.label; } else if (x.value) one.dash = true; else delete one.dash;
+        if (Object.keys(one).length) ss[n] = one; else delete ss[n];
+        setFmt("series", Object.keys(ss).length ? ss : ""); return;
+      }
       if (x.matches("[data-de-scol]")) { setFmt("colors", { ...((p.fmt || {}).colors || {}), [x.dataset.deScol]: x.value }); return; }
       if (x.matches("[data-de-lwarn],[data-de-lalert],[data-de-ldir]")) {
         const g = p.groups[gi], L = { ...(g.limits || {}) };
@@ -926,6 +976,8 @@
       if (x.matches("[data-de-zero]")) { p.groups[gi].zero = x.checked; changed(false); return; }
       if (x.matches("[data-de-gtitle]")) { p.groups[gi].title = x.value.trim().slice(0, 40); changed(false); return; }
       if (x.matches("[data-de-border]")) { const [by, dir] = x.value.split(":"); Object.assign(p.order, { by, ...(dir ? { dir } : {}) }); if (by === "manual" && !p.order.list.length) p.order.list = rowKeys().map((r) => r.key); changed(false); return; }
+      if (x.matches("[data-de-slice]")) { if (x.checked) delete p.noslice; else p.noslice = true; changed(false); return; }
+      if (x.matches("[data-de-btree]")) { if (x.value) p.order.tree = x.value; else { delete p.order.tree; delete p.order.glist; } changed(false); return; }
       if (x.matches("[data-de-bgroup]")) { p.order.group = +x.value; changed(false); return; }
       if (x.matches("[data-de-rshow]")) { toggleRow(x.closest("[data-de-row]").dataset.deRow); return; }
       const row = x.closest(".db-crow");
@@ -945,18 +997,81 @@
       $("#deCalcMsg").replaceWith(tmp.querySelector("#deCalcMsg"));
       $("[data-de-calcok]").disabled = tmp.querySelector("[data-de-calcok]").disabled;
     });
-    // 行の札を引いて並べる（落とした所の行の前へ）
-    let dragKey = "";
-    el.addEventListener("dragstart", (e) => { const li = e.target.closest && e.target.closest("[data-de-row]"); if (!li) return; dragKey = li.dataset.deRow; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragKey); li.classList.add("is-drag"); });
-    el.addEventListener("dragover", (e) => { if (dragKey && e.target.closest && e.target.closest("[data-de-row]")) { e.preventDefault(); el.querySelectorAll(".de-rowi.is-over").forEach((x) => x.classList.remove("is-over")); e.target.closest("[data-de-row]").classList.add("is-over"); } });
-    el.addEventListener("drop", (e) => {
-      const li = e.target.closest && e.target.closest("[data-de-row]"); if (!dragKey || !li) return;
-      e.preventDefault();
-      const keys = rowKeys().map((r) => r.key);
-      moveRow(dragKey, keys.indexOf(li.dataset.deRow));
-      dragKey = "";
-    });
-    el.addEventListener("dragend", () => { dragKey = ""; el.querySelectorAll(".is-drag,.is-over").forEach((x) => x.classList.remove("is-drag", "is-over")); });
+    el.addEventListener("pointerdown", rowDragStart);
+  }
+
+  /* ---- 行の札を引いて並べる（版 3.41.0。利用者の要望 4: 思った所と入る所がずれた・分かりにくい）
+     前は HTML の引いて落とすで、下へ引くと落とした札の「後ろ」、上へ引くと「前」に入っていた（向きで食い違う）。
+     いまは: 札の写し（ゴースト）が指に付いてくる・元の所は点線の空き・入る所に線。入る所は、指の高さがどの札の真ん中より上か（上へ引いても下へ引いても同じ決まり）。
+     設備の札は同じグループの中だけ（グループはマスタで決まる）。グループの見出しを引くと、グループごと並ぶ。Esc でやめる ---- */
+  let rd = null;
+  function rowDragStart(e) {
+    const grip = e.target.closest && e.target.closest("[data-de-grip]");
+    if (!grip || e.button !== 0) return;
+    const li = grip.closest("[data-de-row]") || grip.closest("[data-de-rgrp]");
+    if (!li) return;
+    e.preventDefault();
+    const isGroup = !li.matches("[data-de-row]"), list = li.parentElement;
+    const r = li.getBoundingClientRect();
+    const ghost = li.cloneNode(true);
+    ghost.classList.add("de-ghost"); ghost.removeAttribute("data-de-row"); ghost.removeAttribute("data-de-rgrp");
+    Object.assign(ghost.style, { position: "fixed", left: `${r.left + 18}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${Math.min(r.height, 220)}px`, zIndex: 60, pointerEvents: "none" });
+    document.body.append(ghost);
+    const line = document.createElement("div"); line.className = "de-dropline"; list.append(line);
+    li.classList.add("is-src");
+    rd = { li, list, isGroup, key: isGroup ? li.dataset.deRgrp : li.dataset.deRow, dy: e.clientY - r.top, ghost, line, to: -1 };
+    document.body.classList.add("db-dragging");
+    window.addEventListener("pointermove", rowDragMove);
+    window.addEventListener("pointerup", rowDragEnd, { once: true });
+    window.addEventListener("keydown", rowDragKey, true);
+    rowDragMove(e);
+  }
+  /** 並びの札（引いている札を除く）と、指の高さ → 入る番目（札の真ん中より上なら、その札の前） */
+  function dropIndex(items, y) {
+    let i = 0;
+    for (const it of items) { const r = it.getBoundingClientRect(); if (y < r.top + r.height / 2) break; i++; }
+    return i;
+  }
+  function rowDragMove(e) {
+    if (!rd) return;
+    rd.ghost.style.top = `${e.clientY - rd.dy}px`;
+    const sel = rd.isGroup ? ":scope > [data-de-rgrp]:not(.is-none)" : ":scope > [data-de-row]";
+    const items = [...rd.list.querySelectorAll(sel)].filter((x) => x !== rd.li);
+    const lr = rd.list.getBoundingClientRect();
+    const inside = e.clientX >= lr.left - 40 && e.clientX <= lr.right + 40 && e.clientY >= lr.top - 24 && e.clientY <= lr.bottom + 24;
+    rd.to = inside ? dropIndex(items, e.clientY) : -1;
+    rd.ghost.classList.toggle("is-bad", !inside);
+    rd.line.hidden = !inside;
+    if (inside) {
+      const ref = items[rd.to], last = items[items.length - 1];
+      const y = ref ? ref.getBoundingClientRect().top - 3 : last ? last.getBoundingClientRect().bottom + 1 : lr.top;
+      rd.line.style.top = `${y - lr.top + rd.list.scrollTop}px`;
+    }
+    // 組む所の端に近ければ送る（長い並びでも、見えていない所へ落とせる）
+    const main = rd.list.closest(".de-main");
+    if (main) { const mr = main.getBoundingClientRect(); if (e.clientY < mr.top + 30) main.scrollTop -= 12; else if (e.clientY > mr.bottom - 30) main.scrollTop += 12; }
+  }
+  function rowDragKey(e) { if (e.key === "Escape" && rd) { e.preventDefault(); e.stopPropagation(); rowDragDone(); } }
+  function rowDragDone() {
+    window.removeEventListener("pointermove", rowDragMove);
+    window.removeEventListener("keydown", rowDragKey, true);
+    document.body.classList.remove("db-dragging");
+    if (!rd) return null;
+    const d = rd; rd = null;
+    d.ghost.remove(); d.line.remove(); d.li.classList.remove("is-src");
+    return d;
+  }
+  function rowDragEnd() {
+    const d = rowDragDone();
+    if (!d || d.to < 0) return;
+    if (d.isGroup) { moveGroupRow(d.key, d.to); return; }
+    // 並び全体（隠した行も）での位置: 同じグループの札（引いた札を除く）の d.to 番目の前。グループの最後なら、そのグループの最後の札の後ろ
+    const keys = rowKeys().filter((x) => x.key !== d.key), same = keys.filter((x) => x.group === (d.li.dataset.deRg || ""));
+    const at = d.to < same.length ? keys.indexOf(same[d.to]) : same.length ? keys.indexOf(same[same.length - 1]) + 1 : 0;
+    const now = rowKeys().map((x) => x.key).indexOf(d.key);
+    if (at === now) return;
+    moveRow(d.key, at);
+    host.toast("並べました（手で並べた順）");
   }
 
   window.DashEditor = {
@@ -990,7 +1105,10 @@
     isOpen: () => !!p,
     panelId: () => (p ? p.id : ""),
     /** 答えが変わった（合わせた表の行の札を、数えた行で並べ直す） */
-    answered() { if (isBoard() && gi < 0) paint(false); },
+    answered() {
+      if (isBoard() && gi < 0) paint(false);
+      else if (!typingIn("#deFmt") && $("#deFmt")) $("#deFmt").innerHTML = fmtHtml();   // 系列の名前と描いた色（描き終えてから分かる）
+    },
     message, autoTitle,
     setSources(list) { sources = list || []; },
   };

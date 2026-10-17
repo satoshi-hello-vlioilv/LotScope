@@ -345,6 +345,57 @@ export const STATES = [
     await p.click('[data-de-add="rows"][data-col="@equip"]'); await sleep(300);
     await p.click("[data-de-sub]"); await sleep(800); await waitDash(p); await sleep(400);
   }, "[data-next], [data-de-apply]"],
+  // 版 3.41.0: ダッシュボードのスライサー（期間＝先月・設備＝L ライン）・「設備…」の面・系列ごとの書式（設備 3 つの折れ線・数値を付ける）・
+  // 合わせた表の行を設備グループの見出しの下に（ライン別）まとめて引いている途中（ゴーストと入る所の線）・四隅の取っ手
+  ["dash-slicer", async (p) => {
+    await p.click("[data-de-cancel]").catch(() => {}); await sleep(400);
+    await p.click("[data-db-leave]").catch(() => {}); await sleep(300);
+    if (await p.$("[data-db-discard]")) { await p.click("[data-db-discard]"); await sleep(600); }
+    await waitDash(p);
+    if (await p.$('[data-ds-period="last_month"]')) await p.click('[data-ds-period="last_month"]'); else await p.selectOption("[data-ds-psel]", "last_month");
+    await sleep(400); await waitDash(p);
+    if (await p.$('[data-ds-group="L ライン"]')) await p.click('[data-ds-group="L ライン"]'); else await p.selectOption("[data-ds-gsel]", "L ライン");
+    await sleep(600); await waitDash(p); await sleep(400);
+  }, "[data-next], #dashSlicer, [data-ds-clear]"],
+  ["dash-slicer-pick", async (p) => {
+    if (await p.$("[data-ds-pick]:not([hidden])")) await p.click("[data-ds-pick]"); else await p.selectOption("[data-ds-gsel]", "@pick");
+    await p.waitForSelector(".db-slicepop [data-ds-eq]"); await sleep(400);
+  }, "[data-next], [data-ds-done]"],
+  ["dash-series", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(200);
+    if (await p.$("[data-ds-clear]")) { await p.click("[data-ds-clear]"); await sleep(500); await waitDash(p); }
+    await p.click("[data-db-editmode]"); await sleep(400);
+    await p.focus('#dashGrid .db-p[data-id="workDays"]'); await p.keyboard.press("Enter");
+    await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(300);
+    await p.click("[data-de-eqopen]"); await p.waitForSelector("[data-ck-deq]"); await sleep(300);
+    for (const n of ["CR1", "L-1", "L-2"]) await p.evaluate((n) => document.querySelector(`[data-ck-deq="${n}"]`).click(), n);
+    await p.click("[data-de-eqopen]"); await sleep(600); await waitDash(p);
+    await p.evaluate(() => { if (!document.querySelector('[data-de-vis="line"]')) document.querySelector("[data-de-formmore]").click(); document.querySelector('[data-de-vis="line"]').click(); });
+    await sleep(800); await waitDash(p);
+    await p.evaluate(() => document.querySelector('input[data-de-flabels][value="top"]').click()); await sleep(800); await waitDash(p); await sleep(300);
+    await p.evaluate(() => { document.dispatchEvent(new CustomEvent("tpa-show-series"));
+      const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#dbEditor .de-sers") || document.querySelector("#deFmt");
+      if (m && f && f.offsetParent) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 260);
+      window.scrollTo(0, 0); }); await sleep(400);
+  }, "[data-next], [data-de-apply]"],
+  ["dash-tree", async (p) => {
+    await p.click("[data-de-cancel]"); await sleep(400);
+    await p.focus('#dashGrid .db-p[data-id="board"]'); await p.keyboard.press("Enter");
+    await p.waitForSelector("#deBoard .de-rowi[data-de-row]"); await waitDash(p); await sleep(300);
+    await p.selectOption("[data-de-btree]", "ライン別"); await sleep(1200); await waitDash(p); await sleep(400);
+    // 「グループなし」の 1 つ目を 3 つ目の下へ引いている途中（指を離さずに撮る）
+    const r = await p.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), lis = [...document.querySelectorAll("#deBoard [data-de-row]")].filter((x) => x.closest(".de-rgrp.is-none"));
+      if (!lis.length) return null; m.scrollTop = Math.max(0, lis[0].getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 200);
+      const g = lis[0].querySelector("[data-de-grip]").getBoundingClientRect(), t = lis[2].getBoundingClientRect(); return { a: [g.x + g.width / 2, g.y + g.height / 2], b: [t.x + 80, t.y + t.height * 0.8] }; });
+    if (!r) return;
+    await p.mouse.move(...r.a); await p.mouse.down(); await p.mouse.move(r.a[0], r.a[1] + 8, { steps: 2 }); await p.mouse.move(...r.b, { steps: 6 }); await sleep(300);
+  }, "[data-next], [data-de-apply]"],
+  ["dash-corners", async (p) => {
+    await p.keyboard.press("Escape"); await p.mouse.up(); await sleep(300);
+    await p.click("[data-de-cancel]").catch(() => {}); await sleep(500); await waitDash(p);
+    const b = await p.evaluate(() => { const e = document.querySelector('#dashGrid .db-p[data-id="wipClass"] .db-pb').getBoundingClientRect(); return [e.x + e.width / 2, e.y + e.height / 2]; });
+    await p.mouse.click(...b); await p.mouse.move(b[0] + 5, b[1]); await sleep(300);
+  }, "[data-next], .db-cell"],
   // 仕掛（データ元 wip。版 3.36.0）: 見出しの「仕掛」のタブで、異常ロット一覧と同じ部品の一覧
   ["wip", async (p) => { await closeAll(p); await p.click('[data-screen="src:wip"]'); await sleep(3000); }, "[data-next], #llSearch"],
   // 同じ知らせを作業実績の画面で（どの画面でも同じ所に出るか）

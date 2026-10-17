@@ -34,6 +34,8 @@
     warm: { n: "暖色の濃淡", c: ["#7a2e0e", "#a8461a", "#cf6a2c", "#e3934d", "#efbb80", "#f6dcb5"] },
     cool: { n: "寒色の濃淡", c: ["#0f4a46", "#16706a", "#23968c", "#55b8ad", "#92d3ca", "#c7e9e3"] },
   };
+  /** パネルごとに描いた系列・項目の色（名前 → 色）。組む所の「系列」の見本に使う（描いた色そのもの） */
+  const drawn = new Map();
   const hash = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
   /** その図の名前の並び → 名前ごとの色（名前で決まる色。図の中で同じ色が重なれば次の色へ＝同じ図に同じ色は出さない） */
   function catColors(names, list = CAT) {
@@ -111,7 +113,9 @@
       + (sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}" style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}">${esc(sub0)}</small>` : "") + "</div>";
     // 描いた後に、いま居る面に収まるまで数を小さくする（測った時と面の大きさが違っても、はみ出さない）
     const num = box.querySelector(".dp-num"), limit = box.clientHeight || H;
-    for (let f = size; f > 12 && (box.scrollHeight > limit + 1 || box.scrollWidth > box.clientWidth + 1); f -= 2) num.style.fontSize = `${f - 2}px`;
+    // 横に並べる形は、数そのものが収まるかだけを見る（添え書きは 2 行で切る。添え書きが長いと数が 14px まで縮んだ: 版 3.41.0）
+    const over = row ? () => box.scrollHeight > limit + 1 || num.getBoundingClientRect().height > limit + 1 || num.offsetWidth > W * 0.62 : () => box.scrollHeight > limit + 1 || box.scrollWidth > box.clientWidth + 1;
+    for (let f = size; f > 12 && over(); f -= 2) num.style.fontSize = `${f - 2}px`;
   }
 
   /** 数字の形（版 3.39.0。書式 kpi）: 目標に対する進み。bar＝数と、目標までの横の棒（達成率）・gauge＝半円のメーター（真ん中に数・下に達成率） */
@@ -173,6 +177,7 @@
     const link = !!d.link;
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
     const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, fmt: fm, oneAxis: link });
+    if (!p._facetColor) drawn.set(p.id, new Map(out.used || []));
     const sideOk = out.side && (kind === "donut" ? W - (Math.min(gh / 2 - 6, W / 2 - 8, 160) * 2 + 16) >= 150 : W >= 760);
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     const cls = `dp-chart${fm.grid === false ? " no-grid" : ""}${fm.size ? ` fs-${fm.size}` : ""}`;
@@ -260,20 +265,37 @@
     const m = models[Math.min(o.group || 0, models.length - 1)], val = (k) => { const r = m && m.rows.get(k); return r && r.total != null ? r.total : 0; };
     return shown.sort((a, b) => (o.dir === "asc" ? val(a) - val(b) : val(b) - val(a)) || name(a, b));
   }
-  /** 合わせた表の行の鍵（いまの並び。隠した行も入れる）。組む所の行の札に使う */
-  function boardKeys(p, d) {
+  const NONE_GROUP = "（グループなし）";
+  /** 並べた行の鍵を設備グループ（order.tree。答えの d.tree）の見出しの下にまとめる → [{name, keys, none}]（まとめないなら 1 つ・name ""）。
+      グループの並びは手で並べた順（order.glist）→ マスタの並び。グループに入らない行は最後の「グループなし」（版 3.41.0。利用者の要望 4） */
+  function groupRows(p, flat, d) {
+    const o = p.order || {}, tree = o.tree && d && d.tree;
+    if (!tree) return [{ name: "", keys: flat }];
+    const of = new Map();
+    tree.forEach((g) => g.members.forEach((m) => { if (!of.has(m)) of.set(m, g.name); }));
+    const gl = o.glist || [], at = (n) => { const i = gl.indexOf(n); return i < 0 ? Infinity : i; };
+    const names = tree.map((g) => g.name).filter((n, i, a) => a.indexOf(n) === i && flat.some((k) => of.get(k) === n));
+    names.sort((a, b) => at(a) - at(b) || names.indexOf(a) - names.indexOf(b));
+    const out = names.map((n) => ({ name: n, keys: flat.filter((k) => of.get(k) === n) }));
+    const rest = flat.filter((k) => !of.has(k));
+    return rest.length ? out.concat([{ name: NONE_GROUP, keys: rest, none: true }]) : out;
+  }
+  /** 合わせた表の行の鍵（いまの並び。隠した行も入れる）をグループごとに → [{name, keys}]。組む所の行の札に使う */
+  function boardTree(p, d) {
     const gs = p.groups || [], rowDim = (p.rows || {}).column || "@equip";
     const models = gs.map((g, i) => groupModel(g, ((d && d.groups) || [])[i], rowDim));
     const keys = [...new Set(models.flatMap((m) => [...m.rows.keys(), ...(rowDim === "@equip" ? [...m.failed.keys()] : [])]))];
-    return boardOrder({ ...p, order: { ...(p.order || {}), hide: [] } }, keys, models, d && d.equipOrder);
+    return groupRows(p, boardOrder({ ...p, order: { ...(p.order || {}), hide: [] } }, keys, models, d && d.equipOrder), d);
   }
+  /** 合わせた表の行の鍵（いまの並び。隠した行も入れる・グループの順） */
+  const boardKeys = (p, d) => boardTree(p, d).flatMap((g) => g.keys);
   /** 合わせた表を描く（d = {groups: [答え], equipOrder}）→ 下に出す知らせの字 */
   function board(box, p, d, H) {
     if (!d) { box.innerHTML = '<p class="dp-wait">数えています…</p>'; return ""; }
     const gs = p.groups || [], rowDim = (p.rows || {}).column || "@equip";
     const models = gs.map((g, i) => groupModel(g, (d.groups || [])[i], rowDim));
     const keys = [...new Set(models.flatMap((m) => [...m.rows.keys(), ...(rowDim === "@equip" ? [...m.failed.keys()] : [])]))];
-    const order = boardOrder(p, keys, models, d.equipOrder);
+    const tree = groupRows(p, boardOrder(p, keys, models, d.equipOrder), d), order = tree.flatMap((g) => g.keys);
     // 0 の印: まとまりの計が 0（行が無い＝0）で、ほかのまとまりに数がある行
     const zeroOf = (gi, k) => { const r = models[gi].rows.get(k); return !(r && r.total) && models.some((m, j) => j !== gi && ((m.rows.get(k) || {}).total || 0) > 0); };
     const flags = gs.map((g, gi) => (g.zero && !models[gi].err ? order.filter((k) => zeroOf(gi, k) && !models[gi].failed.has(k) && !(models[gi].parts && !models[gi].parts.has(k))) : []));
@@ -340,7 +362,10 @@
       return cells + sumCell;
     };
     const rowName = rowDim === "@equip" ? "設備" : dimName(p.rows || { column: rowDim }, p);
-    const rowList = order.map((k) => `<tr><th scope="row">${esc(k)}</th>${gs.map((g, gi) => groupCells(g, gi, k)).join("")}</tr>`);
+    const allCols = 1 + gs.reduce((n, g, gi) => n + span(gi), 0);
+    // 設備グループの見出しの行（版 3.41.0）: グループの名前と台数。行の頭は字下げ（どのグループの設備か、形で分かる）
+    const rowList = tree.flatMap((t) => (t.name ? [`<tr class="db-gtr${t.none ? " is-none" : ""}"><th colspan="${allCols}" scope="rowgroup"><span>${esc(t.name)}</span><small>${t.keys.length} 台</small></th></tr>`] : [])
+      .concat(t.keys.map((k) => `<tr${t.name ? ' class="db-gin"' : ""}><th scope="row">${esc(k)}</th>${gs.map((g, gi) => groupCells(g, gi, k)).join("")}</tr>`)));
     const head1 = gs.map((g, gi) => {
       const m = models[gi], a = (d.groups || [])[gi] || {}, cls = gi ? "db-grp" : "";
       const tip = [a.sourceName, ...(a.mirrors || []).slice(0, 1).map((x) => x && x.at ? `元 ${ago(x.at)}` : ""), m.none ? `${rowDim === "@equip" ? "設備なし" : "空欄"} ${C.fmt(m.none)}` : ""].filter(Boolean).join("・");
@@ -369,7 +394,10 @@
       if (k > 1 && W / k < 470) break;
       const per = Math.ceil(rowList.length / k);
       flow.style.setProperty("--k", k);
-      flow.innerHTML = Array.from({ length: k }, (_, i) => `<div class="dp-tbl"><table class="db-table">${thead}<tbody>${rowList.slice(i * per, (i + 1) * per).join("")}</tbody></table></div>`).join("");
+      // 列に分けた続きがグループの途中から始まるなら、そのグループの見出しを「（続き）」で頭に置く
+      const headAt = (j) => { for (let x = j; x >= 0; x--) if (rowList[x].startsWith('<tr class="db-gtr')) return rowList[x].replace("</span>", "（続き）</span>"); return ""; };
+      flow.innerHTML = Array.from({ length: k }, (_, i) => { const a = i * per, cont = a > 0 && rowList[a] && rowList[a].startsWith('<tr class="db-gin"') ? headAt(a) : "";
+        return `<div class="dp-tbl"><table class="db-table">${thead}<tbody>${cont}${rowList.slice(a, (i + 1) * per).join("")}</tbody></table></div>`; }).join("");
       fitWidth(flow);
       if (!shrink(flow, avail)) { fitWidth(flow); return ""; }
     }
@@ -451,5 +479,5 @@
     return out;
   }
 
-  window.DashPanels = { ROLE_COLOR, render, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, SOURCE_COLOR, PALETTES, seriesColors };
+  window.DashPanels = { ROLE_COLOR, render, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name) };
 })();

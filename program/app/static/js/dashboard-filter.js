@@ -25,6 +25,32 @@
     if (x.visual !== "board" && q.period && q.period.kind) x.period = { column: q.period.column, kind: q.period.kind, n: q.period.n || 7 };
     return x;
   }
+  /** ダッシュボードのスライサー（版 3.41.0。利用者の要望 6）をパネルに当てる → 数えるときのパネル（当たらなければ p のまま）。
+      sl = {period: {kind, n}, equips: [設備名]}。期間は、期間を組んだパネル（合わせた表・合わせたデータは、期間を組んだまとまり・データ）だけに効く
+      （仕掛のように「いま」を数えるパネルは変えない）。設備は、設備を見分けられるデータのパネルに効き、パネルが設備を選んでいれば重なる設備だけ。
+      パネルの「スライサーに従わない」（noslice）なら当てない */
+  function slice(p, sl, canEquip) {
+    const hit = sliceHits(p, sl, canEquip);
+    if (!hit.period && !hit.equip) return p;
+    const x = TPA.clone(p), per = sl.period;
+    const setPer = (o) => { if (hit.period && o && o.period && o.period.kind) o.period = { column: o.period.column, kind: per.kind, n: per.n || 7 }; };
+    // 設備はスライサーで「絞る」だけ（パネルが設備を選んでいなければ、選んだ設備の計。設備ごとに分けるのはパネルの組みで決める）
+    const setEq = (o) => { if (!hit.equip) return; const own = o.equips || []; if (!own.length && !o.esplit && !o.egroup && o !== x.link) o.esplit = "sum"; o.equips = own.length ? own.filter((e) => sl.equips.includes(e)) : sl.equips.slice(); if (!o.equips.length) o.equips = ["（スライサーの設備に当たりません）"]; };
+    if (x.visual === "board") { (x.groups || []).forEach(setPer); setEq(x); }
+    else if (x.link) (x.link.sides || []).forEach((sd) => { setPer(sd); if (canEquip(sd.source)) setEq(sd); });
+    else { setPer(x); setEq(x); }
+    return x;
+  }
+  /** スライサーがそのパネルに効くか → {period, equip} */
+  function sliceHits(p, sl, canEquip) {
+    const out = { period: false, equip: false };
+    if (!sl || p.noslice) return out;
+    const per = !!(sl.period && sl.period.kind), eq = (sl.equips || []).length > 0;
+    const parts = p.visual === "board" ? p.groups || [] : p.link ? p.link.sides || [] : [p];
+    out.period = per && parts.some((o) => o.period && o.period.kind);
+    out.equip = eq && (p.visual === "board" ? ((p.rows || {}).column || "@equip") === "@equip" : parts.some((o) => canEquip(o.source)));
+    return out;
+  }
   /** 絞り込みの短い字（見出しの下の札） → [{key, text}]（key で 1 つずつ外す） */
   function chips(q) {
     if (isEmpty(q)) return [];
@@ -193,5 +219,5 @@
   }
   function onInput(e) { if (e.target.matches("[data-df-search]")) { st.search = e.target.value; paint(); } }
 
-  window.DashFilter = { open, close, merge, chips, drop, isEmpty, checklistHtml, equipsOf, valuesOf, isOpen: () => !!el };
+  window.DashFilter = { open, close, merge, slice, sliceHits, chips, drop, isEmpty, checklistHtml, equipsOf, valuesOf, isOpen: () => !!el };
 })();

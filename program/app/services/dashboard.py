@@ -62,6 +62,9 @@ def condition_of(rows, key):
 #   body.sub … 小計（表。行の段が 2 つ以上のとき。設備グループの段〈@egroup〉と設備を並べると、グループごとの小計）
 #   link   … 別のデータを合わせる（clean_link。45度線管理図の目標と実績など）。データ（側）ごとに元・軸（合わせる段）・値・作り方
 #            （そのまま／積み上げ）・役割（目標／実績）を決め、軸の値でそろえて 1 つの答えにする（routes/dashboard.py の _link_answer）
+# 版 3.41.0（利用者の要望 2026-10）:
+#   noslice … ダッシュボードのスライサー（画面の道具の行。期間・設備）に従わない。fmt.series … 系列ごとの数値ラベル・線
+#   board の order.tree・glist … 行を設備グループの見出しの下にまとめる・グループの手で並べた順
 # 置き場: マスタ dashboards（集計表の組み方のプリセットと同じ列・同じ決まり: 共通デフォルト・共通・ID・標準。元はいつも "dash"）。
 LAYOUT_NAME = "dashboards"
 LAYOUT_SOURCE = "dash"
@@ -201,6 +204,7 @@ PALETTES = ("", "vivid", "calm", "cud", "mono", "warm", "cool")
 KPI_LOOKS = ("num", "bar", "gauge")
 MAX_REFS = 4
 MAX_COLORS = 40
+SERIES_LABELS = ("top", "below", "off")
 
 
 def _float(v):
@@ -215,7 +219,8 @@ def clean_fmt(v):
     """書式 → 既定と違う物だけの dict（無ければ None）。
     labels（数値ラベル: auto・none・top〈上〉・inside〈棒の中。積み上げはそれぞれの段〉・both）・xdate（横軸の日付の形）・xrot（横軸の字の向き）・
     digits（小数の桁。-1＝自動）・unit（単位: auto〈万・億〉・none・k〈千〉・man〈万〉）・ymin/ymax（縦軸の範囲）・legend・grid（補助線）・
-    refs（基準線 [{value, label, color}]）・palette（色の組）・colors（系列・項目の名前 → 色）・size（字の大きさ）・kpi（数字の形）・target（目標）"""
+    refs（基準線 [{value, label, color}]）・palette（色の組）・colors（系列・項目の名前 → 色）・size（字の大きさ）・kpi（数字の形）・target（目標）・
+    series（版 3.41.0。系列の名前 → {label: top〈上〉・below〈下〉・off〈出さない〉, dash: True〈破線〉}）"""
     if not isinstance(v, dict):
         return None
     out = {}
@@ -247,6 +252,13 @@ def clean_fmt(v):
           if str(k).strip() and _COLOR.fullmatch(str(c))}
     if cs:
         out["colors"] = cs
+    ss = {}
+    for k, x in list((v.get("series") if isinstance(v.get("series"), dict) else {}).items())[:MAX_COLORS]:
+        one = {**({"label": x["label"]} if x.get("label") in SERIES_LABELS else {}), **({"dash": True} if x.get("dash") is True else {})} if isinstance(x, dict) else {}
+        if str(k).strip() and one:
+            ss[str(k)[:120]] = one
+    if ss:
+        out["series"] = ss
     return out or None
 
 
@@ -379,7 +391,13 @@ def clean_board(p, what):
     extra = {k: v for k, v in (("equips", _names(p.get("equips"))), ("egroup", clean_egroup(p.get("egroup"))), ("filters", _filters(p.get("filters")))) if v}
     return {**extra, "rows": rows[0] if rows else {"column": "@equip", "part": ""}, "groups": gs,
             "order": {"by": o.get("by") if o.get("by") in BOARD_ORDERS else "value", "group": _int(o.get("group"), 0, len(gs) - 1, 0),
-                      "dir": "asc" if o.get("dir") == "asc" else "desc", "list": _keys(o.get("list")), "hide": _keys(o.get("hide"))}}
+                      "dir": "asc" if o.get("dir") == "asc" else "desc", "list": _keys(o.get("list")), "hide": _keys(o.get("hide")),
+                      # tree（版 3.41.0）… 行を設備グループ（まとめ方の名前）の見出しの下にまとめる。glist … 手で並べたグループの順
+                      **({"tree": str(o["tree"]).strip()[:40], "glist": _keys(o.get("glist"))} if rows_is_equip(rows) and str(o.get("tree") or "").strip() else {})}}
+
+
+def rows_is_equip(rows):
+    return not rows or rows[0].get("column") == "@equip"
 
 
 def board_query(board, i):
@@ -437,6 +455,8 @@ def clean_panel(p, i, rows):
     fmt = clean_fmt(p.get("fmt"))
     if fmt:
         out["fmt"] = fmt
+    if p.get("noslice") is True:
+        out["noslice"] = True          # ダッシュボードのスライサーに従わない（版 3.41.0）
     what = f"パネル「{out['title'] or pid}」"
     if visual == "board":
         if not p.get("groups") or p.get("legacy"):

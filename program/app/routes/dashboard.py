@@ -436,7 +436,11 @@ def dashboard_query():
     if p["visual"] == "board":
         repo = master_repo()
         groups = [_answer(dashboard.board_query(p, i), now) for i in range(len(p["groups"]))]
-        return jsonify(groups=groups, equipOrder=_equipment_names(repo, repo.work_logs()), now=now.strftime("%Y-%m-%d %H:%M:%S"))
+        extra = {}
+        if p["order"].get("tree"):     # 行をグループの見出しの下にまとめる（版 3.41.0）: 表に出る行の名前で、グループの入り方を決める
+            keys = list(dict.fromkeys(str((a.get("labels") or [{}])[0].get(k, k)) for a in groups if "orders" in a for k in a["orders"][0] if k != ""))
+            extra["tree"] = (equip_tree(keys, p["order"]["tree"]) or [{"groups": []}])[0]["groups"]
+        return jsonify(groups=groups, equipOrder=_equipment_names(repo, repo.work_logs()), now=now.strftime("%Y-%m-%d %H:%M:%S"), **extra)
     a = _link_answer(p, now) if p.get("link") else _split_answer(p, now)
     if "status" in a and "cells" not in a:
         return error(a["error"], a["status"], a["kind"])
@@ -483,6 +487,24 @@ def dashboard_fields():
         special += [{"column": "@workday", "name": "作業日", "hint": "作業開始の日（現場歴／太陽暦）", "date": True},
                     {"column": "@shift", "name": "直", "hint": "作業開始の時刻が入る直（マスタ管理の勤務体系）"}]
     return jsonify(fields=[merged[c] for c in order], special=special, table=table, sourceName=name, failed=failed)
+
+
+def equip_tree(names, set_name=None):
+    """設備グループのまとめ方ごとに、names の設備がどのグループに入るか（ルールも当てる）→ [{name, groups: [{name, members}]}]。
+    set_name を決めればそのまとめ方だけ。どのグループにも入らない設備は、呼んだ所が「グループなし」にする（版 3.41.0）"""
+    out = []
+    for st in equip_groups.sets(master_repo().equip_groups()):
+        if set_name and st["name"] != set_name:
+            continue
+        out.append({"name": st["name"], "groups": [{"name": g["name"], "members": equip_groups.members_in(g, names)} for g in st["groups"]]})
+    return out
+
+
+@bp.get("/api/dashboard/equip-tree")
+def dashboard_equip_tree():
+    """ダッシュボードのスライサーの設備（版 3.41.0）: 実際に出てくる設備（equipment_seen と同じ）と、設備グループのまとめ方ごとの入り方"""
+    names = [x["name"] for x in equipment_seen()]
+    return jsonify(names=names, sets=equip_tree(names))
 
 
 @bp.get("/api/dashboard/sources")

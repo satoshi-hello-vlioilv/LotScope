@@ -436,7 +436,8 @@ class Part:
 
 
 # 期間（版 3.37.0。ダッシュボードのパネル）: 日付の列か作業日（現場歴／太陽暦）の「いま」から決める日の範囲
-PERIODS = {"today": "今日", "yesterday": "前日", "days": "直近 n 日", "this_month": "今月", "last_month": "先月"}
+PERIODS = {"today": "今日", "yesterday": "前日", "days": "直近 n 日", "this_month": "今月", "last_month": "先月",
+           "month": "n か月前"}     # month（版 3.41.0。ダッシュボードのスライサーで月を送る）… n か月前の月のはじめから終わりまで
 PERIOD_MAX_DAYS = 3660
 
 
@@ -456,6 +457,12 @@ def period_range(kind, n, today):
     if kind == "last_month":
         last = d.replace(day=1) - timedelta(days=1)
         return last.replace(day=1).isoformat(), last.isoformat()
+    if kind == "month":
+        back = max(1, min(120, int(n or 1)))
+        y, m = divmod(d.year * 12 + d.month - 1 - back, 12)
+        first = date(y, m + 1, 1)
+        nxt = date(y + (m + 1) // 12, (m + 1) % 12 + 1, 1)
+        return first.isoformat(), (nxt - timedelta(days=1)).isoformat()
     raise PivotError("期間の種類が違います。")
 
 
@@ -729,7 +736,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         "timing": {"server": round((time.perf_counter() - t0) * 1000)},
     }
     if period:
-        out["period"] = {**period, "name": PERIODS[period["kind"]], "ranges": [{"from": a, "to": b} for a, b in ranges]}
+        name = PERIODS[period["kind"]] if period["kind"] != "month" or not ranges else f"{int(ranges[0][0][:4])}年{int(ranges[0][0][5:7])}月"
+        out["period"] = {**period, "name": name, "ranges": [{"from": a, "to": b} for a, b in ranges]}
     if any(s["clock"] for s in states):
         # 勤務体系の直の名前（ファイルごと・合わせた並び）。行の無い直も列に並べ、勤務体系に無い直を見分けるため（ダッシュボードの合わせた表）
         out["shifts"] = list(dict.fromkeys(seg["name"] for s in states if s["clock"] for seg in s["clock"].segments))
