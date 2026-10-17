@@ -53,7 +53,7 @@ LOCK_TTL_DEFAULT = 20.0
 # 共有フォルダがあればいつも共有するマスタ（設定 master_store.masters に書かなくても。全員で 1 つでないと決まりが PC ごとにずれる物）
 SHARED_ALWAYS = frozenset({"path_settings", "access_permissions", "app_seeds", "ui_defaults", "work_log_files", "display_formats",
                            "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards",
-                           "equipment_groups"})
+                           "equipment_groups", "conversions"})
 REFRESH_DEFAULT = 5.0
 INSTANCE_FILENAME = "instance_id"   # この PC のアプリの印（手元の置き場に 1 度だけ作る。錠が自分の物かを見分ける）
 SCHEMA = 1
@@ -215,6 +215,7 @@ class MasterStore:
         # pivot_quick: すぐに見るの選び（ログイン ID ごと）。ほかの PC でも同じ並びを出すので全員で1つ
         # data_sources: データ元（どこの何を読むか）。読みに行く場所と同じく全員で1つ（版 3.36.0 で入れ忘れていたのを 3.37.0 で足した）
         # equipment_groups: 設備グループ（ダッシュボードで設備を合算する組。版 3.39.0）。ほかの PC でも同じ合算にするので全員で1つ
+        # conversions: 変換表（コードの読み替え・判定表。版 3.42.0）。式の conv がどの PC でも同じ答えになるよう全員で1つ
         # dashboard_settings: 版 3.36.0 のダッシュボードの集計対象の条件（全員で1つ。版 3.38.0 から読むだけ）・dashboards: ダッシュボードの組み（共通・ID ごと。ほかの PC でも同じ物を出す）
         self.shared_names = set(cfg.get("masters") or ["roll_master", "equipment_master"]) | SHARED_ALWAYS
         self.lock_ttl = float(cfg.get("lock_ttl_seconds", LOCK_TTL_DEFAULT))
@@ -251,6 +252,15 @@ class MasterStore:
     def _bundled(self, name):
         return self.base / "data" / f"{name}.json"
 
+    def defaults(self, name):
+        """マスタの最初の中身（プログラムに同梱し、書き換えない。版 3.42.0。例: 変換表のプリセット app/master_defaults/conversions.json）"""
+        return self.base / "app" / "master_defaults" / f"{name}.json"
+
+    def _initial(self, name):
+        """共有・写しが無いときに読む物: 同梱の data/（手元だけの PC はここへ書く）→ 無ければ最初の中身"""
+        path = self._bundled(name)
+        return path if path.exists() else self.defaults(name)
+
     def _share_file(self, name):
         return self.share_dir / f"{name}.json"
 
@@ -283,7 +293,7 @@ class MasterStore:
             if mirror.exists():
                 return self._cached(mirror)
             # 共有にも写しにも無い（初回で共有に届かない）。同梱のデータで読むだけは続ける。
-        path = self._bundled(name)
+        path = self._initial(name)
         return self._cached(path) if path.exists() else _doc([])
 
     def _cached(self, path):
@@ -453,7 +463,7 @@ class MasterStore:
             src = self._share_file(name)
             if _stat_sig(src) is not None:
                 return
-            seed = self._mirror(name) if self._mirror(name).exists() else self._bundled(name)
+            seed = self._mirror(name) if self._mirror(name).exists() else self._initial(name)
             doc = _as_doc(_read_json(seed)) if seed.exists() else _doc([])
             doc.update(revision=max(1, doc["revision"]), updated_at=_iso(_now()), updated_by=dict(self.who))
             _write_json_atomic(src, doc)
@@ -604,8 +614,8 @@ class MasterStore:
         with self._write_lock:
             stamp = {"updated_at": _iso(_now()), "updated_by": dict(self.who)}
             if not self.is_shared(name):
-                path = self._bundled(name)
-                doc = _as_doc(_read_json(path)) if path.exists() else _doc([])
+                path, first = self._bundled(name), self._initial(name)
+                doc = _as_doc(_read_json(first)) if first.exists() else _doc([])
                 result = mutate(doc["rows"], stamp)
                 # 同梱の data/ は昔からの形（行の配列）のまま保つ
                 _write_json_atomic(path, doc["rows"])
@@ -639,7 +649,7 @@ class MasterStore:
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
     def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",
                                 "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards",
-                                "equipment_groups")):
+                                "equipment_groups", "conversions")):
         shared = self.share_dir is not None
         out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
                "configured": str(self.configured_dir or ""), "override": self.override_path.exists(), "pin": self.pinned(),

@@ -80,7 +80,7 @@ try {
   check("4. 150% に拡大: 左へ 60px 引くと 40px（60÷1.5）狭まる", Math.abs((await stored(p, LOT, "設備")) - 120) <= 1, await stored(p, LOT, "設備"));
 
   // ---------- 5〜7. 計算列の並べ替え（異常ロット一覧）
-  const calcLayout = layoutOf(["ロット番号", "長さ2倍", "合金調質", "重量", "設備"], { formulas: { "長さ2倍": "[長さ]*2", "合金調質": "[合金] & '-' & [調質]" } });
+  const calcLayout = layoutOf(["ロット番号", "長さ2倍", "合金調質", "重量", "設備"], { formulas: { "長さ2倍": "[長さ]*2", "合金調質": "[合金] + '-' + [調質]" } });
   await setup(p, { layout: { [LOT]: calcLayout } });
   const asked = [];
   p.on("request", (r) => { const u = new URL(r.url()); if (/^\/api\/(lotlist|src\/[^/]+)$/.test(u.pathname)) asked.push(u.searchParams); });
@@ -90,6 +90,12 @@ try {
       const t = tr.children[i].textContent.trim(); return num ? Number(t.replace(/,/g, "")) : t;
     });
   }, { c, num });
+  /** 同じ問い合わせ（式つき）でサーバーの全件を引き、その列を式で計算した値の並び（ページの行と突き合わせる） */
+  const fullCalc = (api, qs, col, src) => p.evaluate(async ({ api, qs, col, src }) => {
+    const u = new URLSearchParams(qs); u.set("page", "1"); u.set("page_size", "5000");
+    const r = await (await fetch(`${api}?${u}`)).json(), f = WL.formula.compile(src);
+    return r.rows.map((row) => String(f.run(row) ?? ""));
+  }, { api, qs: qs ? qs.toString() : "", col, src });
   const sortedBy = (v, dir, num) => v.every((x, k) => k === 0 || (num ? (dir === "asc" ? v[k - 1] <= x : v[k - 1] >= x) : (dir === "asc" ? v[k - 1] <= x : v[k - 1] >= x)));
   const clickHead = async (c, mod) => { asked.length = 0; await p.click(`#llHead th[data-col="${c}"] .th-in`, mod ? { modifiers: [mod] } : {}); await p.waitForFunction(() => !document.querySelector("#llBody.is-busy, .ll-busy"), null, { timeout: 15000 }).catch(() => {}); await sleep(900); };
   await clickHead("長さ2倍");
@@ -112,7 +118,10 @@ try {
   // 6. 字の式・Shift で組む
   await clickHead("合金調質");
   v = await colVals("合金調質");
-  check("6. 字の式「合金調質」→ 字の順", sortedBy(v, "asc"), v.slice(0, 5));
+  q = asked[asked.length - 1];
+  let full = await fullCalc("/api/lotlist", q, "合金調質", "[合金] + '-' + [調質]");
+  check("6. 字の式「合金調質」→ 字の順（全件で字の順・値は 2 通り以上・ページの行は全件の先頭と同じ）",
+    sortedBy(full, "asc") && new Set(full).size > 1 && v.length > 0 && v.every((x, k) => x === full[k]), { page: v.slice(0, 3), full: [...new Set(full)].slice(0, 6) });
   await clickHead("重量", "Shift");
   const pairs = (await colVals("合金調質")).map((x, k) => [x, v[k]]), w = await colVals("重量", true), al = await colVals("合金調質");
   const inner = al.every((x, k) => k === 0 || x !== al[k - 1] || w[k - 1] <= w[k]);
@@ -128,11 +137,13 @@ try {
   check("7. まとめた表の中の並べ替え（設備ごとに 長さ2倍 ▼）が効き、読み直しても札に残る", /長さ2倍 ▼/.test(bar) && sameEquipDesc && grp.length > 0, { bar, head: grp.slice(0, 4) });
 
   // ---------- 8. 仕掛（データ元 wip）
-  await setup(p, { layout: { [WIP]: layoutOf(["ロット番号", "材質調質", "製造材質"], { formulas: { "材質調質": "[製造材質] & '/' & [製造調質]" } }) } }, "wip");
+  await setup(p, { layout: { [WIP]: layoutOf(["ロット番号", "材質調質", "製造材質"], { formulas: { "材質調質": "[製造材質] + '/' + [製造調質]" } }) } }, "wip");
   await clickHead("材質調質");
   q = asked[asked.length - 1];
   v = await colVals("材質調質");
-  check("8. 仕掛の計算列「材質調質」でも ▲ に並ぶ（/api/src/wip に式を添える）", sortedBy(v, "asc") && v.length > 0 && !!q && !!q.get("calc"), { head: v.slice(0, 4), q: q && Object.fromEntries(q) });
+  full = await fullCalc("/api/src/wip", q, "材質調質", "[製造材質] + '/' + [製造調質]");
+  check("8. 仕掛の計算列「材質調質」でも ▲ に並ぶ（/api/src/wip に式を添える。全件で字の順・ページは全件の先頭）",
+    sortedBy(full, "asc") && new Set(full).size > 1 && v.length > 0 && v.every((x, k) => x === full[k]) && !!q && !!q.get("calc"), { page: v.slice(0, 3), full: [...new Set(full)].slice(0, 6) });
 } catch (e) {
   console.error(e); fails.push(String(e));
 } finally {
