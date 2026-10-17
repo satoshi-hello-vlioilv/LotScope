@@ -404,8 +404,10 @@
 <!-- 画面の設定の控え（WebView の作業場所が消えても戻す。以前のブラウザ版で使い込んだ設定も引き継ぐ。shared.js が最初に戻す） -->
 <script>window.TPA_UI_STATE = {{ ui_state|tojson }};</script>
 <script>window.TPA_UI_PROFILE = {{ ui_profile|tojson }};</script>
+<script>window.TPA_CONVERSIONS = {{ conversions|tojson }};</script>
 <script src="{{ url_for('static', filename='js/shared.js') }}"></script>
 <script src="{{ url_for('static', filename='js/list-formula.js') }}"></script>
+<script src="{{ url_for('static', filename='js/conversions.js') }}"></script>
 <script src="{{ url_for('static', filename='js/formula-builder.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-rules.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-columns.js') }}"></script>
@@ -432,6 +434,7 @@
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pathpick.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master-sources.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master-conv.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master.js') }}"></script>
 </body>
 </html>

@@ -14,9 +14,8 @@ from __future__ import annotations
 import json
 import re
 
-from . import aggregate, pivot_presets
+from . import aggregate, formula, pivot_presets
 from .data_sources import is_screen_source
-from .formula import MAX_LEN
 from .pivot import MAX_MEASURES, PERIODS
 
 NAME = "dashboard_settings"           # 版 3.36.0 の集計対象の条件（読むだけ。合わせた表へ引き継ぐ）
@@ -110,22 +109,10 @@ def _period(v):
     return {"column": str(v["column"]).strip()[:200], "kind": v["kind"], "n": _int(v.get("n"), 1, 3660, 7)}
 
 
-MAX_CALC = 40
-
 
 def clean_calc(v):
-    """パネルの計算列 → {formulas, names}（字だけ・数と長さを限る）。無ければ None"""
-    if not isinstance(v, dict):
-        return None
-
-    def strs(d, n, size):
-        items = list(d.items())[:n] if isinstance(d, dict) else []
-        return {str(k)[:200]: str(x)[:size] for k, x in items if str(k).strip() and isinstance(x, str)}
-    f = {k: x for k, x in strs(v.get("formulas"), MAX_CALC, MAX_LEN).items() if x.strip()}
-    if not f:
-        return None
-    own = [str(x)[:200] for x in (v.get("own") if isinstance(v.get("own"), list) else []) if str(x) in f][:MAX_CALC]
-    return {"formulas": f, "names": strs(v.get("names"), 400, 200), **({"own": own} if own else {})}
+    """パネルの計算列 → {formulas, names}（字だけ・数と長さを限る）。無ければ None（一覧の並べ替えと同じ: formula.clean_calc）"""
+    return formula.clean_calc(v) if isinstance(v, dict) else None
 
 
 def _measure(m):

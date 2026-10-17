@@ -229,6 +229,8 @@ export const STATES = [
   // 表示列の設定（一覧の「表示列」）: 開いた直後・列を 1 つ選んだところ
   ["columns", async (p) => { await closeAll(p); await p.click("#tabList"); await sleep(300); await p.click("#llColBtn"); await sleep(600); }, "[data-next], #lcSave"],
   ["columns-detail", async (p) => { await p.click('#lcList li[data-col="発生日"]').catch(() => p.click("#lcList li[data-col]")); await sleep(500); }, "[data-next], #lcSave"],
+  // 版 3.42.0: 表示列の設定の変換表の帯で「選ぶ」を開き、まとめて当てた所（当てた列の行に札）
+  ["columns-conv", async (p) => { await p.click("[data-cv-more]"); await sleep(300); const b = await p.$("[data-cv-apply]:not([disabled])"); if (b) await b.click(); await sleep(600); }, "[data-next], #lcSave"],
   // 表示列の「この列の作り方」（いまの式の要約と「作り方を作る…」）を開いたところ
   ["columns-fx", async (p) => { await p.click('#lcList li[data-col="重量"]').catch(() => {}); await sleep(300); await p.click('.lc-step[data-step="fx"] > h4'); await sleep(500); }, "[data-next], #lcFxOpen"],
   // この列の作り方の窓（表示ルールと同じ組み立て）: 2 行（重量 ≧ 3000 かつ 板厚 ＜ 1 → 重・薄／重量 ≧ 3000 → 重）＋どれにも当てはまらないとき（軽）
@@ -247,6 +249,13 @@ export const STATES = [
   ["master-egroups", async (p) => { await tab(p, "egroups"); await sleep(900); }, "[data-next], [data-eg-save]"],
   // 版 3.40.0: ルールで決めたグループ（L ライン: 名前が L- で始まる）を開いた所
   ["master-egroups-rule", async (p) => { await p.evaluate(() => [...document.querySelectorAll("[data-eg-pick]")].find((b) => b.textContent.includes("L ライン")).click()); await sleep(600); }, "[data-next], [data-eg-save]"],
+  // 版 3.42.0: 変換表（管理分類の判定表）と、1 行目の「形状区分」のセルを開いて直す所・試すに値を入れた所
+  ["master-conv", async (p) => { await tab(p, "conv"); await sleep(900); }, "[data-next], [data-cv-save]"],
+  ["master-conv-cell", async (p) => {
+    await p.click(`[data-cv-cell="0|ｵｰﾀﾞｰ材質"]`); await sleep(300);
+    for (const [i, v] of [[0, "4HIｺｲﾙ"], [1, "A1100"], [3, "0.5"], [4, "1200"], [5, "F975"]]) await p.fill(`[data-cv-try="${i}"]`, v);
+    await sleep(300);
+  }, "[data-next], [data-cv-close]"],
   ["master-place", async (p) => { await tab(p, "place"); await sleep(900); }, "[data-next], #mpGo"],
   // マスタの置き場の「📁 参照…」の窓（版 3.29.0。よく使う場所・中身の印）
   ["master-place-pick", async (p) => { await p.click("#mpForm .pp-open"); await sleep(1300); }, "[data-next], .pp-dlg .pp-go"],

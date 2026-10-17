@@ -17,6 +17,7 @@ U+10000 以上の字（絵文字など）を正規表現で扱うとき（JavaSc
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 import unicodedata
@@ -408,7 +409,7 @@ def _lex(src):
 
 ARITY = {"cmp": 2, "num": 1, "text": 1, "abs": 1, "round": 2, "len": 1, "left": 2, "right": 2, "trim": 1, "upper": 1, "lower": 1,
          "find": 2, "replace": 3, "match": 2, "regreplace": 3, "split": 3, "contains": 2, "startswith": 2, "endswith": 2, "hankaku": 1}
-ARITY_RANGE = {"mid": (2, 3), "extract": (2, 3), "padleft": (2, 3)}
+ARITY_RANGE = {"mid": (2, 3), "extract": (2, 3), "padleft": (2, 3), "conv": (2, 9)}
 REGEX_FUNCS = {"extract", "match", "regreplace"}
 
 
@@ -597,6 +598,115 @@ def _coalesce(a):
     return ""
 
 
+# ---------------------------------------------------------------- 変換表（版 3.42.0。list-formula.js の conv と同じ決まり・同じ答え）
+# conv('表の名前', 値1, …): 値を表の入力の順に渡し、上から順に見て最初に当たった行の出す値（= で始まれば式）。当たらなければ「その他」。
+# 表は use_tables で渡す（アプリはマスタ「変換表」を読む係: services/conversions.py の tables）。表の形は list-formula.js の説明
+_TABLES = [lambda name: None]
+_CONV_CACHE = {}
+
+
+def use_tables(fn):
+    """変換表の引き方（名前 → 表の dict か None）を決める。表は dict のまま（同じ dict は 1 度だけ読み解く）"""
+    _TABLES[0] = fn if callable(fn) else (lambda name: None)
+    _CONV_CACHE.clear()
+
+
+def _conv_text(v):
+    return js_trim(text_of(v))
+
+
+def _conv_eq(s, x, kind):
+    t = js_trim(str(x))
+    if kind == "num":
+        a, b = _loose_num(s), _loose_num(t)
+        if a is not None and b is not None:
+            return a == b
+    return s == t
+
+
+def _conv_bound(v):
+    return None if v is None or v == "" else _loose_num(v)
+
+
+def _conv_test(t, v, kind):
+    s = _conv_text(v)
+    vs = [text_of(x) for x in t["v"]] if isinstance(t.get("v"), list) else []
+
+    def any_(f):
+        return any(x != "" and f(x) for x in vs)
+    op = t.get("op")
+    if op == "eq":
+        return any(_conv_eq(s, x, kind) for x in vs)
+    if op == "ne":
+        return not any(_conv_eq(s, x, kind) for x in vs)
+    if op in ("starts", "nstarts"):
+        return any_(s.startswith) == (op == "starts")
+    if op in ("ends", "nends"):
+        return any_(s.endswith) == (op == "ends")
+    if op in ("contains", "ncontains"):
+        return any_(lambda x: x in s) == (op == "contains")
+    if op == "empty":
+        return s == ""
+    if op == "filled":
+        return s != ""
+    if op == "range":
+        n = _loose_num(s)
+        if n is None:
+            return False
+        lo, hi = _conv_bound(t.get("min")), _conv_bound(t.get("max"))
+        if lo is not None and not (n > lo if t.get("minInc") is False else n >= lo):
+            return False
+        if hi is not None and not (n < hi if t.get("maxInc") is False else n <= hi):
+            return False
+        return True
+    return False
+
+
+def _conv_out(o):
+    t = "" if o is None else str(o)
+    if not t.startswith("="):
+        return ("text", t)
+    try:
+        return ("f", Formula(t[1:]))
+    except FormulaError:
+        return ("bad", None)
+
+
+def _conv_prep(tb):
+    hit = _CONV_CACHE.get(id(tb))
+    if hit and hit[0] is tb:
+        return hit[1]
+    inputs = [(str(x.get("name")), "num" if x.get("type") == "num" else "text") for x in (tb.get("inputs") or []) if isinstance(x, dict)]
+    rows = [((r.get("when") if isinstance(r.get("when"), dict) else {}), _conv_out(r.get("out"))) for r in (tb.get("rows") or []) if isinstance(r, dict)]
+    c = (inputs, rows, _conv_out(tb.get("other")))
+    if len(_CONV_CACHE) > 200:
+        _CONV_CACHE.clear()
+    _CONV_CACHE[id(tb)] = (tb, c)
+    return c
+
+
+def _conv_give(o, vals):
+    kind, x = o
+    if kind == "bad":
+        return None
+    if kind == "text":
+        return x
+    return x.run(lambda c: vals.get(c))
+
+
+def _conv(a):
+    tb = _TABLES[0](text_of(a[0]))
+    if not isinstance(tb, dict):
+        return None
+    inputs, rows, other = _conv_prep(tb)
+    vals = {name: (a[i + 1] if i + 1 < len(a) else None) for i, (name, _) in enumerate(inputs)}
+    for when, out in rows:
+        if all(not isinstance(when.get(name), list) or not when.get(name)
+               or any(_conv_test(t, vals[name], kind) for t in when[name] if isinstance(t, dict)) for name, kind in inputs):
+            return _conv_give(out, vals)
+    return _conv_give(other, vals)
+
+
 FUNCS = {
     "num": lambda a: num_of(a[0]),
     "text": lambda a: text_of(a[0]),
@@ -623,6 +733,7 @@ FUNCS = {
     "endswith": lambda a: 1.0 if text_of(a[0]).endswith(text_of(a[1])) else 0.0,
     "hankaku": lambda a: unicodedata.normalize("NFKC", text_of(a[0])),
     "padleft": _padleft,
+    "conv": _conv,
 }
 
 
@@ -786,3 +897,54 @@ class CalcColumns:
                 return raw.get(k)
             return sql_value(f.run(look))
         return run, deps
+
+
+# ---------------------------------------------------------------- 計算列を SQLite の式にする（一覧の並べ替え・ダッシュボードの集計が同じ物を使う）
+MAX_CALC = 40
+
+
+def clean_calc(v):
+    """画面が送る計算列 {formulas: {列名: 式}, names: {元の列名: 表示名}, own?: [名前]}（JSON の字でもよい）→ 字だけ・数と長さを限った形。無ければ None"""
+    if isinstance(v, str):
+        try:
+            v = json.loads(v) if v.strip() else None
+        except ValueError:
+            return None
+    if not isinstance(v, dict):
+        return None
+
+    def strs(d, n, size):
+        items = list(d.items())[:n] if isinstance(d, dict) else []
+        return {str(k)[:200]: str(x)[:size] for k, x in items if str(k).strip() and isinstance(x, str)}
+    f = {k: x for k, x in strs(v.get("formulas"), MAX_CALC, MAX_LEN).items() if x.strip()}
+    if not f:
+        return None
+    own = [str(x)[:200] for x in (v.get("own") if isinstance(v.get("own"), list) else []) if str(x) in f][:MAX_CALC]
+    return {"formulas": f, "names": strs(v.get("names"), 400, 200), **({"own": own} if own else {})}
+
+
+def register(conn, calc, cs, qi):
+    """計算列を接続に SQLite の関数として登録する → (計算列の名前 → SQL の式, 読めない計算列の名前の並び, CalcColumns か None)。
+    calc は clean_calc の形。qi は列名を括る関数（sqlite_ro.qi）。同じ値の組の答えは覚えて使い回す（20 万組まで）"""
+    if not calc or not calc.get("formulas"):
+        return {}, [], None
+    cc = CalcColumns(calc.get("formulas"), calc.get("names"), cs)
+    exprs, broken = {}, []
+    for i, name in enumerate(cc.calcs):
+        if cc.broken(name):
+            broken.append(name)
+            continue
+        run, deps = cc.runner(name)
+        memo = {}
+
+        def fn(*vals, run=run, memo=memo):
+            hit = memo.get(vals, memo)
+            if hit is memo:
+                if len(memo) > 200_000:
+                    memo.clear()
+                hit = memo[vals] = run(*vals)
+            return hit
+        conn.create_function(f"TpaCalc{i}", len(deps), fn, deterministic=True)
+        exprs[name] = f"TpaCalc{i}({', '.join(qi(d) for d in deps)})"
+    return exprs, broken, cc
+

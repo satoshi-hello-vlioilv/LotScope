@@ -38,7 +38,7 @@ import time
 from datetime import date, datetime, timedelta
 
 from . import aggregate
-from .formula import CalcColumns
+from .formula import register as register_calc
 from .identity import normalize_part
 from .lot_list import DATE_RATIO, TABLE_CANDIDATES, columns, date_columns, lot_column, pick_table, raw_columns, search_filter_where, tables
 from .shifts import OUTSIDE
@@ -327,27 +327,7 @@ def query(path, *, table="", preferred_table="", search="", filters="", rows="",
 
 def calc_exprs(conn, calc, cs):
     """計算列を接続に登録する → (計算列の名前 → SQL の式, 読めない計算列の名前の並び, CalcColumns か None)。calc は {formulas, names}"""
-    if not calc or not calc.get("formulas"):
-        return {}, [], None
-    cc = CalcColumns(calc.get("formulas"), calc.get("names"), cs)
-    exprs, broken = {}, []
-    for i, name in enumerate(cc.calcs):
-        if cc.broken(name):
-            broken.append(name)
-            continue
-        run, deps = cc.runner(name)
-        memo = {}
-
-        def fn(*vals, run=run, memo=memo):
-            hit = memo.get(vals, memo)
-            if hit is memo:
-                if len(memo) > 200_000:
-                    memo.clear()
-                hit = memo[vals] = run(*vals)
-            return hit
-        conn.create_function(f"TpaCalc{i}", len(deps), fn, deterministic=True)
-        exprs[name] = f"TpaCalc{i}({', '.join(qi(d) for d in deps)})"
-    return exprs, broken, cc
+    return register_calc(conn, calc, cs, qi)
 
 
 class EquipGroups:

@@ -20,6 +20,8 @@ import sqlite3
 import time
 from datetime import date, datetime, timedelta
 
+from .formula import clean_calc
+from .formula import register as register_calc
 from .sqlite_ro import connect_ro, numeric_value, qi, to_date
 
 ALLOWED_OPS = {"contains", "not_contains", "eq", "neq", "starts", "starts_any", "ends",
@@ -424,13 +426,14 @@ def safe_sorts(text, cs):
     return out
 
 
-def order_key(col, lot="", key=""):
+def order_key(col, lot="", key="", expr=None):
     """並べ替えに使う式（「並び・まとめ」の見分けと同じ鍵。→ 式の並び）。
     - ふだん: SortKey(列)（空欄は1つ・数に読める字は数・前後の空白を除く）。ロット番号の列は大小を同じに見る
     - 画面がその列を日付だけ（date）・年月（month）・年（year）で見せているとき: ToDate(列) の頭。時刻が違っても同じ日は隣り合う。
       日付と読めない値はその後ろで SortKey（読めた値には効かない＝下の段の並びを崩さない）
-    - 小数 N 桁で見せているとき（round:N）: 数は丸めた値、数でない値は SortKey"""
-    q = qi(col)
+    - 小数 N 桁で見せているとき（round:N）: 数は丸めた値、数でない値は SortKey
+    expr … 列の代わりの SQL の式（計算列。formula.register）"""
+    q = expr or qi(col)
     if key in SORT_KEYS:
         head = {"date": f"ToDate({q})", "month": f"SUBSTR(ToDate({q}), 1, 7)", "year": f"SUBSTR(ToDate({q}), 1, 4)"}[key]
         return [head, f"CASE WHEN ToDate({q}) IS NULL THEN SortKey({q}) END"]
@@ -440,12 +443,12 @@ def order_key(col, lot="", key=""):
     return [f"SortKey(UPPER(CStr({q})))" if col == lot else f"SortKey({q})"]
 
 
-def order_sql(order_parts, lot):
-    """[(列, 向き[, 鍵の形])] → ORDER BY の後ろ（無ければ ''）。"""
+def order_sql(order_parts, lot, exprs=None):
+    """[(列, 向き[, 鍵の形])] → ORDER BY の後ろ（無ければ ''）。exprs … 計算列の名前 → SQL の式"""
     out = []
     for part in order_parts:
         col, d, key = (tuple(part) + ("",))[:3]
-        out += [f"{x} {d}" for x in order_key(col, lot, key)]
+        out += [f"{x} {d}" for x in order_key(col, lot, key, (exprs or {}).get(col))]
     return ",".join(out)
 
 
@@ -473,7 +476,7 @@ def rowid_name(c, t, raw_cs):
     return None
 
 
-def grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, key_sql=None, lead=()):
+def grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, key_sql=None, lead=(), exprs=None):
     """ロット番号でまとめた並びの1ページ分。→ (行, [[そのロットの行数, ロットの中の何行目], ...], 最初の位置, 最後の位置)
 
     - ロットの順は、並べ替え（無ければ表の順）で「そのロットでいちばん上に来る行」の順。ロットの中も同じ並べ替えの順。
@@ -487,7 +490,7 @@ def grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, key_
     if sqlite3.sqlite_version_info < (3, 25):     # 窓関数（ROW_NUMBER など）は SQLite 3.25 から
         raise RuntimeError(f"この PC の SQLite（{sqlite3.sqlite_version}）では「ロット番号でまとめる」を使えません。"
                            "「表の見せ方」の「機能」でまとめるを外してください。")
-    got = c.execute(grouped_sql(t, raw_cs, lot, where, order_parts, size, rowid_name(c, t, raw_cs), key_sql, lead),
+    got = c.execute(grouped_sql(t, raw_cs, lot, where, order_parts, size, rowid_name(c, t, raw_cs), key_sql, lead, exprs),
                     list(params) + [page]).fetchall()
     n = len(raw_cs)
     rows = [r[:n] for r in got]
@@ -495,9 +498,9 @@ def grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, key_
     return rows, groups, (int(got[0][n + 2]) if got else 0), (int(got[-1][n + 2]) if got else 0)
 
 
-def grouped_sql(t, raw_cs, lot, where, order_parts, size, rid=None, key_sql=None, lead=()):
-    """まとめた並びの SQL（デスクトップ版の Rust・desktop/src/lotlist.rs も同じ文を作る。key_sql・lead は Python だけ）。最後の ? はページ。"""
-    by = ",".join([*lead, order_sql(order_parts, lot)] if order_parts else list(lead))
+def grouped_sql(t, raw_cs, lot, where, order_parts, size, rid=None, key_sql=None, lead=(), exprs=None):
+    """まとめた並びの SQL（デスクトップ版の Rust・desktop/src/lotlist.rs も同じ文を作る。key_sql・lead・exprs は Python だけ）。最後の ? はページ。"""
+    by = ",".join([*lead, order_sql(order_parts, lot, exprs)] if order_parts else list(lead))
     over = ("ORDER BY " + by) if by else ""
     key = key_sql or lot_key(lot)
     cols = ", ".join(qi(x) for x in raw_cs)
@@ -601,11 +604,13 @@ def slicer_answer(path, args, **kw):
 
 
 def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEFAULT, search="",
-          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES, grouping=None, marks=""):
+          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES, grouping=None, marks="", calc=None):
     """1 ページ分。表は table（あれば）→ preferred_table → table_candidates の順に探す（作業実績は別の候補を渡す）。
     grouping: ロット番号の代わりの鍵でまとめる係（作業実績の「作業でまとめる」。services/work_summary.py の Grouping）。
         grouping.prepare(接続, 表, 列) → まとめるなら {"key": 鍵の式, "lead": [並べ替えの前に置く式], "where": ([式], [値])?}・まとめないなら None
-        grouping.extra(接続, 表, 列, 日付の列, where, params, 行) → 答えに足す物（dict。where は係の絞り込みを外した物）"""
+        grouping.extra(接続, 表, 列, 日付の列, where, params, 行) → 答えに足す物（dict。where は係の絞り込みを外した物）
+    calc: 計算列（表示列の設定の式。{formulas, names} か その JSON の字。formula.clean_calc）。並べ替えに計算列を使える（版 3.42.0。
+        画面は計算列で並べ替えるときだけ送る。デスクトップ版の Rust は式を持たないので、その問い合わせは Python が答える: engine=python）"""
     t0 = time.perf_counter()
     page = max(1, int(page or 1))
     size = min(PAGE_SIZE_MAX, max(1, int(page_size or PAGE_SIZE_DEFAULT)))
@@ -621,23 +626,24 @@ def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEF
         where_parts, params = search_filter_where(cs, q, fl, today)
         base_where, base_params = (" WHERE " + " AND ".join(where_parts)) if where_parts else "", list(params)
         lot = lot_column(cs)
-        order_parts = safe_sorts(sorts, cs)
+        exprs, _, _ = register_calc(c, clean_calc(calc), raw_cs, qi)
+        order_parts = safe_sorts(sorts, cs + [x for x in exprs if x not in cs])
         plan = grouping.prepare(c, t, cs) if grouping else None
         if plan and plan.get("where"):             # まとめの係の絞り込み（作業実績の帯で押した日・直）。数の帯（extra）は外した物で数える
             where_parts = where_parts + plan["where"][0]
             params = params + plan["where"][1]
         where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         lead = list(plan["lead"]) if plan else []
-        by = ",".join(lead + ([order_sql(order_parts, lot)] if order_parts else []))
+        by = ",".join(lead + ([order_sql(order_parts, lot, exprs)] if order_parts else []))
         order = (" ORDER BY " + by) if by else ""
         count = int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}" + where, params).fetchone()[0])
         start = (page - 1) * size
         grouped = {}
         if plan:
-            rows, groups, first, last = grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, plan["key"], lead)
+            rows, groups, first, last = grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, plan["key"], lead, exprs)
             grouped = {"groups": groups, "groupCount": group_count(c, t, lot, where, params, plan["key"])}
         elif group and lot:
-            rows, groups, first, last = grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size)
+            rows, groups, first, last = grouped_rows(c, t, raw_cs, lot, where, params, order_parts, page, size, exprs=exprs)
             grouped = {"groups": groups, "groupCount": group_count(c, t, lot, where, params)}
         else:
             rows = c.execute(f"SELECT * FROM {qi(t)}" + where + order + f" LIMIT {size} OFFSET {start}", params).fetchall()

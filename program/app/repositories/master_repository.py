@@ -11,7 +11,7 @@
 import json
 from pathlib import Path
 
-from ..services import dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, shifts, work_log
+from ..services import conversions, dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
 
@@ -46,6 +46,8 @@ SPECS = {
     "shift_patterns": {"fields": shifts.FIELDS, "renamed": {}, "unique": "名称"},
     # 設備グループ（services/equip_groups.py。版 3.39.0）。名称はまとめ方ごとに 1 つ（_check_row）
     "equipment_groups": {"fields": equip_groups.FIELDS, "renamed": {}, "unique": None},
+    # 変換表（services/conversions.py。版 3.42.0）。名前は 1 つずつ（式の conv('名前', …) で引く。_check_row）
+    "conversions": {"fields": conversions.FIELDS, "renamed": {}, "unique": None},
     # 集計表・グラフの組み方のプリセット（services/pivot_presets.py）。名前は (元・範囲・持ち主) ごとに 1 つ（_check_row）・標準は組ごとに 1 つ
     "pivot_presets": {"fields": pivot_presets.FIELDS, "renamed": {}, "unique": None},
     # すぐに見るの選び（ログイン ID・元ごとに 1 行。並びは組み方の id の JSON。quick_set が 1 行にまとめる）
@@ -130,6 +132,10 @@ class MasterRepository:
         if name == "equipment_groups" and ("名称" in data or "まとめ方" in data):
             old = next((r for r in rows if r.get("id") == self_id), {})
             msg = equip_groups.check_unique(rows, {**old, **data}, self_id)
+            if msg:
+                raise DuplicateKey(msg)
+        if name == "conversions" and "名前" in data:
+            msg = conversions.check_unique(rows, data, self_id)
             if msg:
                 raise DuplicateKey(msg)
         if name == "equipment_master":
@@ -496,6 +502,30 @@ class MasterRepository:
 
     def equip_group_delete(self, item_id, base_rev=None):
         self._delete("equipment_groups", item_id, base_rev)
+
+    # -------------------------------------------------- 変換表（中身の決まりは services/conversions.py）
+    def conversions(self):
+        return self._list("conversions")
+
+    def conversion_create(self, data):
+        """data はマスタの行の形（conversions.clean_row の答え）。表示順が無ければ最後（いまの最大 + 10）。"""
+        if not str(data.get("表示順") or "").strip():
+            data = {**data, "表示順": str(max((int(r.get("表示順") or 0) for r in self.conversions() if str(r.get("表示順") or "").lstrip("-").isdigit()),
+                                           default=0) + 10)}
+        return self._create("conversions", data)
+
+    def conversion_update(self, item_id, data, base_rev=None):
+        return self._update("conversions", item_id, data, base_rev)
+
+    def conversion_delete(self, item_id, base_rev=None):
+        self._delete("conversions", item_id, base_rev)
+
+    def conversion_presets(self):
+        """同梱のプリセット（app/master_defaults/conversions.json。最初の中身・標準に戻す）"""
+        try:
+            return [_normalize(r, SPECS["conversions"]) for r in json.loads(self.store.defaults("conversions").read_text(encoding="utf-8"))]
+        except (OSError, ValueError):
+            return []
 
     # -------------------------------------------------- ロールマスタ
     def rolls(self):

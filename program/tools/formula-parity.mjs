@@ -1,6 +1,7 @@
 // 評価関数（開発用）: 画面の式（static/js/list-formula.js）の答えを出す。サーバーの式（services/formula.py）が同じ答えかを
 // tests/test_formula_parity.py が突き合わせる（版 3.38.0。ダッシュボードで計算列を使うため、同じ式をサーバーでも計算する）。
 //   node program/tools/formula-parity.mjs 入力.json   … 入力 [{expr, row}] → 標準出力へ [{ok, value | error}]
+//   入力は {cases: [{expr, row}], tables: {名前: 変換表}} でもよい（版 3.42.0。式の conv が引く変換表: tests/test_conversions.py）
 // value は数（有限）・字・null。数でない数（Infinity）は字 "Infinity" にして返す（JSON に書けないため）。
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +14,10 @@ ctx.window = ctx; ctx.WL = {};
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(JS, "list-formula.js"), "utf8"), ctx, { filename: "list-formula.js" });
 const F = ctx.WL.formula;
-const cases = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const given = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const cases = Array.isArray(given) ? given : given.cases;
+const tables = Array.isArray(given) ? {} : given.tables || {};
+F.setTables((name) => (Object.prototype.hasOwnProperty.call(tables, name) ? tables[name] : null));
 const out = cases.map(({ expr, row }) => {
   const chk = F.check(expr);
   if (!chk.ok) return { ok: false, error: chk.error };

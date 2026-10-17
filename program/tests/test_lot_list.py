@@ -204,6 +204,19 @@ class QueryTests(Base):
     def f(self, *conds, **kw):
         return self.lots(filters=json.dumps([{"column": c, "op": o, "value": v} for c, o, v in conds]), **kw)
 
+    def test_sort_by_calc_column(self):
+        """計算列で並べ替える（版 3.42.0。利用者の要望 2026-10: 計算列でも見出しを押して並べ替え）。式は画面が添える（calc）。
+        全件をサーバーが同じ式で計算して並べ、ロット番号でまとめても効く。表に無い・読めない式の列は並べ替えに使わない"""
+        calc = json.dumps({"formulas": {"倍": "num([廃棄重量]) * 2", "頭": "left([異常内容], 1)", "壊れ": "[廃棄重量"}, "names": {}})
+        srt = lambda *x: json.dumps([{"column": c, "dir": d} for c, d in x])   # noqa: E731
+        self.assertEqual(self.lots(sorts=srt(("倍", "desc")), calc=calc), ["M0001A0", "L6183D0", "L6183D2", "L6183D1", "L7150C0"], "数の大きい順（空は後ろ）")
+        out = self.q(sorts=srt(("頭", "asc"), ("倍", "asc")), calc=calc)
+        self.assertEqual([r["ロット番号"] for r in out["rows"]], ["M0001A0", "L6183D0", "L7150C0", "L6183D1", "L6183D2"], "字の順（ロ・押・汚）→ 同じ字の中は 2 つ目のキー（空が先）")
+        self.assertEqual(out["sorts"], [{"column": "頭", "dir": "asc"}, {"column": "倍", "dir": "asc"}], "効いた並べ替えを返す（画面が覚える）")
+        self.assertEqual(self.lots(sorts=srt(("倍", "asc")), calc=calc, group=True), ["L7150C0", "L6183D1", "L6183D2", "L6183D0", "M0001A0"], "ロットでまとめても効く（空・17・190・240・2000）")
+        self.assertEqual(self.q(sorts=srt(("壊れ", "asc"), ("無い", "asc")), calc=calc)["sorts"], [], "読めない式・無い列は外す")
+        self.assertEqual(self.q(sorts=srt(("倍", "asc")))["sorts"], [], "式を添えなければ計算列は無い列")
+
     def test_picks_table_and_lot_column(self):
         out = self.q()
         self.assertEqual(out["table"], "仕掛")

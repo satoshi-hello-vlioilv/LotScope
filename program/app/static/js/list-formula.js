@@ -207,6 +207,80 @@
   reCache.set(k,re);
   return re;
  }
+ /* ---------- 変換表（版 3.42.0。LotScope だけ。マスタ「変換表」: コードの読み替え・条件の判定表） ----------
+    conv('表の名前', 値1, 値2, …) … 値を表の「入力」の順に渡すと、上から順に見て最初に当たった行の「出す値」を返す。
+    どの行にも当たらなければ「その他」。出す値が = で始まれば式（[入力の名前] で入力の値を読む。例: =[地取区分] は元の値のまま）。
+    表は画面が変換表のマスタを読んで setTables で渡す（サーバーは services/formula.py の use_tables。同じ決まり・同じ答え）。
+    表の形: {inputs:[{name, type:'text'|'num'}], rows:[{when:{入力の名前:[試し…]}, out}], other}
+      行の when は 入力ごとの試しの並び（並びの中は「または」・入力どうしは「かつ」。書いていない入力は不問。when が空なら必ず当たる）
+      試し {op, v:[値…]}: eq（どれかと同じ）・ne（どれとも違う）・starts・nstarts（で始まる／始まらない）・ends・nends・contains・ncontains・
+        empty（空欄）・filled（空欄でない）・range（{min, max, minInc, maxInc}。数に読める値だけ）
+      字は前後の空白を除いて比べる（大小は区別する）。eq・ne は、入力が数（type:'num'）なら数で比べる（26 と 26.0 は同じ）
+    表が無い・壊れているときは空（その行だけ空にする決まりと同じ） */
+ let convSource=()=>null;
+ const convCompiled=new WeakMap();
+ const convText=v=>textOf(v).trim();
+ function convEq(s,x,type){
+  const t=String(x).trim();
+  if(type==='num'){const a=looseNum(s),b=looseNum(t);if(a!==null&&b!==null)return a===b}
+  return s===t;
+ }
+ function convTest(t,v,type){
+  const s=convText(v),vs=Array.isArray(t.v)?t.v.map(textOf):[];
+  const any=f=>vs.some(x=>x!==''&&f(x));
+  switch(t.op){
+   case 'eq':return vs.some(x=>convEq(s,x,type));
+   case 'ne':return !vs.some(x=>convEq(s,x,type));
+   case 'starts':return any(x=>s.startsWith(x));
+   case 'nstarts':return !any(x=>s.startsWith(x));
+   case 'ends':return any(x=>s.endsWith(x));
+   case 'nends':return !any(x=>s.endsWith(x));
+   case 'contains':return any(x=>s.includes(x));
+   case 'ncontains':return !any(x=>s.includes(x));
+   case 'empty':return s==='';
+   case 'filled':return s!=='';
+   case 'range':{
+    const n=looseNum(s);if(n===null)return false;
+    const lo=t.min==null||t.min===''?null:looseNum(t.min),hi=t.max==null||t.max===''?null:looseNum(t.max);
+    if(lo!==null&&(t.minInc===false?!(n>lo):!(n>=lo)))return false;
+    if(hi!==null&&(t.maxInc===false?!(n<hi):!(n<=hi)))return false;
+    return true;
+   }
+  }
+  return false;
+ }
+ /* 出す値（= で始まれば式）を 1 度だけ読む。読めない式は null（当たったら空） */
+ function convOut(o){
+  const t=o==null?'':String(o);
+  if(!t.startsWith('='))return {text:t};
+  try{return {f:compile(t.slice(1))}}catch(e){return {bad:true}}
+ }
+ function convPrep(tb){
+  let c=convCompiled.get(tb);
+  if(c)return c;
+  const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x),list=v=>(Array.isArray(v)?v:[]).filter(obj);
+  const inputs=list(tb.inputs).map(x=>({name:String(x.name),type:x.type==='num'?'num':'text'}));
+  c={inputs,rows:list(tb.rows).map(r=>({when:obj(r.when)?r.when:{},out:convOut(r.out)})),other:convOut(tb.other)};
+  convCompiled.set(tb,c);
+  return c;
+ }
+ function convGive(o,vals){
+  if(o.bad)return null;
+  if(!o.f)return o.text;
+  const v=o.f.run(vals);return v===undefined?null:v;
+ }
+ function convRun(a){return convWith(convSource(textOf(a[0])),a.slice(1))}
+ /* 表 tb に値の並びを渡した答え（マスタの変換表の「試す」も使う: 保存する前の表で試す） */
+ function convWith(tb,values){
+  if(!tb||typeof tb!=='object'||Array.isArray(tb))return null;
+  const c=convPrep(tb),vals={};
+  c.inputs.forEach((x,i)=>{vals[x.name]=i<values.length?values[i]:null});
+  for(const r of c.rows){
+   if(c.inputs.every(x=>{const ts=r.when[x.name];return !Array.isArray(ts)||!ts.length||ts.some(t=>!!t&&typeof t==='object'&&convTest(t,vals[x.name],x.type))}))
+    return convGive(r.out,vals);
+  }
+  return convGive(c.other,vals);
+ }
  /* 位置は**1から数える**（Excelの MID／FIND と同じ・現場の数え方）。 */
  const posOf=v=>{const n=numOf(v);return n===null?1:Math.max(1,Math.floor(n))};
  const FUNCS={
@@ -249,13 +323,15 @@
   /* 全角の英数記号・空白を半角へ（NFKC）。半角カナは全角カナになる（NFKCの決まり）。 */
   hankaku:a=>textOf(a[0]).normalize('NFKC'),
   /* padleft(x, 桁, 埋める字)。埋める字を省くと0。 */
+  /* conv('変換表の名前', 値…)。変換表で読み替える（上の説明）。 */
+  conv:a=>convRun(a),
   padleft:a=>textOf(a[0]).padStart(Math.max(0,Math.min(64,numOf(a[1])||0)),a.length>2?(textOf(a[2])||'0'):'0'),
  };
  const ARITY={cmp:2,num:1,text:1,abs:1,round:2,len:1,left:2,right:2,trim:1,upper:1,lower:1,
               find:2,replace:3,match:2,regreplace:3,split:3,contains:2,startswith:2,endswith:2,
               hankaku:1};
  /* 引数の数に幅がある関数（下限〜上限）。 */
- const ARITY_RANGE={mid:[2,3],extract:[2,3],padleft:[2,3]};
+ const ARITY_RANGE={mid:[2,3],extract:[2,3],padleft:[2,3],conv:[2,9]};
  const REGEX_FUNCS=new Set(['extract','match','regreplace']);
 
  function evalNode(n,row){
@@ -355,6 +431,7 @@
   ['hankaku','x','全角の英数を半角へ'],['padleft','x, 桁, 字','左を字で埋める'],
   ['extract','x, 正規表現, 組','正規表現で抜き出す'],['match','x, 正規表現','正規表現に合うか'],
   ['contains','x, 字','字を含むか'],['cmp','a, b','比べる（数に読めれば数で・-1／0／1）'],['startswith','x, 字','字で始まるか'],['endswith','x, 字','字で終わるか'],
+  ['conv',"'変換表', 値…",'変換表で読み替える（マスタ「変換表」）'],
  ];
  /* ---------- 書いている最中の候補（§9.474、利用者の指示「条件式の部分もさらに使いやすく、関数などは
     特にサジェスト機能なども組み込んで」） ----------
@@ -454,7 +531,9 @@
    else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();sgClose()}
   });
  }
- window.WL.formula={compile,check,parse,sigs:SIGS,truthy,cmp,MAX_LEN,suggest,
+ /* 変換表を渡す（名前 → 表。無ければ null）。渡し直すと、次に計算する行から新しい表を使う */
+ function setTables(fn){convSource=typeof fn==='function'?fn:()=>null}
+ window.WL.formula={compile,check,parse,sigs:SIGS,truthy,cmp,MAX_LEN,suggest,setTables,convWith,
              /* 説明文をパネルとドキュメントで共用する(2箇所に書かない)。 */
              help:[
               ['[列名]','その行のその列の値'],
@@ -468,5 +547,6 @@
               ['mid(x,何文字目,文字数) find(x,字) split(x,区切り,何番目)','切り出す（位置は1から）'],
               ['replace(x,字,置く字) regreplace(x,正規表現,置く字) hankaku(x) padleft(x,桁,字)','変換する'],
               ['extract(x,正規表現[,組]) match(x,正規表現) contains(x,字)','抜き出す・合うか'],
+              ["conv('変換表', 値…)",'変換表（マスタ）で読み替える'],
              ]};
 })();
