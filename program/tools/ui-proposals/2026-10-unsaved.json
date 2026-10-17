@@ -1,6 +1,6 @@
 {
  "title": "2026-10 保存していない変更の警告の窓（版 3.43.0）",
- "evaluator": "採点だけを頼まれた別のエージェント（Claude。案を作っていない者）。ui-variants.mjs で 2026-10-unsaved.mjs の unsaved を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/us-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/us-1280）で自分で撮り、一覧（sheet-unsaved-light.png）と 1 枚ずつの画像を Read で直接見た（窓は切り出して拡大して見た）。案はモック（押しても動かない）なので、見た目と流れで採点した。 2 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-unsaved-2.mjs の unsaved を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/us2-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/us2-1280）で自分で撮り、一覧と 1 枚ずつの画像（窓は切り出して拡大）を Read で直接見て採点した（1 回目と同じ物差しの重さ）。 3 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-unsaved-3.mjs の unsaved を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/us3-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/us3-1280）で自分で撮り、一覧と 1 枚ずつの画像（書式・窓の所は切り出して拡大）を Read で直接見て採点した（1・2 回目と同じ物差しの重さ）。",
+ "evaluator": "採点だけを頼まれた別のエージェント（Claude。案を作っていない者）。ui-variants.mjs で 2026-10-unsaved.mjs の unsaved を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/us-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/us-1280）で自分で撮り、一覧（sheet-unsaved-light.png）と 1 枚ずつの画像を Read で直接見た（窓は切り出して拡大して見た）。案はモック（押しても動かない）なので、見た目と流れで採点した。 2 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-unsaved-2.mjs の unsaved を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/us2-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/us2-1280）で自分で撮り、一覧と 1 枚ずつの画像（窓は切り出して拡大）を Read で直接見て採点した（1 回目と同じ物差しの重さ）。 3 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-unsaved-3.mjs の unsaved を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/us3-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/us3-1280）で自分で撮り、一覧と 1 枚ずつの画像（書式・窓の所は切り出して拡大）を Read で直接見て採点した（1・2 回目と同じ物差しの重さ）。 作った後（版 3.43.1）も、作っていない別のエージェント（Claude）が、ui-harness.mjs の walk で dash-kpi-fmt と unsaved だけを撮る小さな道具（snap.mjs）で本物の画面を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-built/b-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-built/b-1280）で自分で撮り、1 枚ずつ Read で直接見た（書式の所は切り出して拡大）。モック（score-3430-r3）と並べて差を見た。動きは ui-eval-unsaved.mjs・ui-eval-dashfmt.mjs を流して確かめ（どちらも終了コード 0）、崩れの原因は Playwright で DOM と計算された CSS を測った。",
  "rounds": [
   {
    "name": "1 回目",
@@ -308,5 +308,26 @@
     }
    }
   }
- ]
+ ],
+ "built": {
+  "name": "作った後（D3）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-built",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 9,
+    "hierarchy": 9,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 10,
+    "intuitive": 10,
+    "form": 9,
+    "place": 9,
+    "layout": 9,
+    "tone": 9
+   },
+   "minus": [],
+   "seen": "モック D3 と同じ形で作られた。「保存していない変更があります」の題、「勤務体系のタブへ移る前に、次の変更をどうしますか。」と移る先の名前、変更の箇条（変換表「管理分類（直した）」）。縦に［保存して進む］（橙の主）・［保存せずに進む］（赤い字）・［戻る］が同じ幅・同じ高さで並び、右に「保存してから移ります」「直した所は消えます」「この画面に残ります」。モックの指摘だった焦点の輪は、ボタンの枠から離した細い藍の輪になり、［戻る］の枠と重ならず、橙の主と強さが競わない（1728・1280 とも）。1280 でも窓は画面に収まり、切れ・折り返し・重なりは無い。ui-eval-unsaved.mjs で、焦点が最初「戻る」・Esc で戻る（直した名前のまま）・保存して進む／保存せずに進む・× と終了でも聞く、を確かめた（終了コード 0）。弱い所: 縦 3 段で窓の背がやや高い。結果の一言は灰の小さな字で、ボタンより弱い（読めるが目は先にボタンへ行く）。"
+  }
+ }
 }

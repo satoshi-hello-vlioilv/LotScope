@@ -618,8 +618,10 @@ body.db-dragging{cursor:grabbing;user-select:none}
 #dbEditor .de-gc{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
 #dbEditor .de-gc select{width:auto}
 #dbEditor .de-gwide{grid-column:2 / -1}
-#dbEditor .de-ngrid .de-segs{flex-wrap:wrap}
-#dbEditor .de-ngrid .de-seg{white-space:nowrap}   /* 札の字は途中で折らない（1280 で「標/準」と折れた）。入らなければ札ごと次の段へ */
+#dbEditor .de-ngrid .de-segs{flex-wrap:nowrap}
+#dbEditor .de-ngrid .de-seg{white-space:nowrap;padding:0 8px}   /* 札の字は途中で折らない（1280 で「標/準」と折れた）。札の組は 1 段（作った後の採点: 「ユーザー定義」だけが 2 段目に折れた） */
+/* 格子の欄は .de-row の外なので、.de-row の欄と同じ形を当てる（作った後の採点: ブラウザの既定の四角い欄に戻っていた） */
+#dbEditor .de-ngrid select,#dbEditor .de-ngrid input:not([type=checkbox]):not([type=color]):not([type=radio]){height:30px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13px;color:var(--ink);min-width:0;max-width:100%}
 #dbEditor .de-gfill{grid-column:3 / -1}
 #dbEditor .de-negs .de-seg{font-variant-numeric:tabular-nums;font-weight:700}
 #dbEditor .de-negs .de-seg.is-red{color:#c62828}

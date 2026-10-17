@@ -1,6 +1,6 @@
 {
  "title": "2026-10 値の表示形式（ダッシュボードのパネルを組む所の書式。版 3.43.0）",
- "evaluator": "採点だけを頼まれた別のエージェント（Claude。案を作っていない者）。ui-variants.mjs で 2026-10-numfmt.mjs の dash-kpi-fmt を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/nf-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/nf-1280）で自分で撮り、一覧（sheet-dash-kpi-fmt-light.png）と 1 枚ずつの画像を Read で直接見た（書式の所は切り出して拡大して見た）。案はモック（押しても動かない）なので、見た目と流れ（目的までの手の数・探させないか・同じ物が同じ形か）で採点した。 2 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-numfmt-2.mjs の dash-kpi-fmt を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/nf2-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/nf2-1280）で自分で撮り、一覧と 1 枚ずつの画像（書式の所は切り出して拡大）を Read で直接見て採点した（1 回目と同じ物差しの重さ）。 3 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-numfmt-3.mjs の dash-kpi-fmt を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/nf3-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/nf3-1280）で自分で撮り、一覧と 1 枚ずつの画像（書式・窓の所は切り出して拡大）を Read で直接見て採点した（1・2 回目と同じ物差しの重さ）。",
+ "evaluator": "採点だけを頼まれた別のエージェント（Claude。案を作っていない者）。ui-variants.mjs で 2026-10-numfmt.mjs の dash-kpi-fmt を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/nf-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430/nf-1280）で自分で撮り、一覧（sheet-dash-kpi-fmt-light.png）と 1 枚ずつの画像を Read で直接見た（書式の所は切り出して拡大して見た）。案はモック（押しても動かない）なので、見た目と流れ（目的までの手の数・探させないか・同じ物が同じ形か）で採点した。 2 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-numfmt-2.mjs の dash-kpi-fmt を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/nf2-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r2/nf2-1280）で自分で撮り、一覧と 1 枚ずつの画像（書式の所は切り出して拡大）を Read で直接見て採点した（1 回目と同じ物差しの重さ）。 3 回目も、案を作っていない別のエージェント（Claude）が、ui-variants.mjs で 2026-10-numfmt-3.mjs の dash-kpi-fmt を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/nf3-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-r3/nf3-1280）で自分で撮り、一覧と 1 枚ずつの画像（書式・窓の所は切り出して拡大）を Read で直接見て採点した（1・2 回目と同じ物差しの重さ）。 作った後（版 3.43.1）も、作っていない別のエージェント（Claude）が、ui-harness.mjs の walk で dash-kpi-fmt と unsaved だけを撮る小さな道具（snap.mjs）で本物の画面を 1728×1152（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-built/b-1728）と 1280×720（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-built/b-1280）で自分で撮り、1 枚ずつ Read で直接見た（書式の所は切り出して拡大）。モック（score-3430-r3）と並べて差を見た。動きは ui-eval-unsaved.mjs・ui-eval-dashfmt.mjs を流して確かめ（どちらも終了コード 0）、崩れの原因は Playwright で DOM と計算された CSS を測った。",
  "rounds": [
   {
    "name": "1 回目",
@@ -431,5 +431,39 @@
     }
    }
   }
- ]
+ ],
+ "built": {
+  "name": "作った後（S）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3430-built",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 7,
+    "hierarchy": 8,
+    "visual": 9,
+    "steps": 10,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 6,
+    "place": 9,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "wrap",
+     "where": "b-1728/dash-kpi-fmt.png の書式の「表示形式」: 分類の札が 1 段に収まらず「ユーザー定義」だけ 2 段目へ折れ、橙の枠の右に空きが残る（モック S は 1 段）"
+    },
+    {
+     "kind": "wrap",
+     "where": "b-1280/dash-kpi-fmt.png の書式の「表示形式」: 同じく「ユーザー定義」が 2 段目へ折れる"
+    },
+    {
+     "kind": "scroll",
+     "where": "b-1280/dash-kpi-fmt.png の組む所の下端: 「字」の行が半分切れ、送らないと見えない（モック S は 1280 でも字の行まで送らずに見えた。表示形式の 2 段と配置の 2 行で背が伸びた）"
+    }
+   ],
+   "seen": "良い所: 見本の表（いまの数・負の数・0）が頭にあり、白い地は消えた。前に｜後ろに が同じ行の組になり、名前の列（表示形式・単位で割る・桁区切り・負の数・前に・配置 横・配置 縦・字）が左にそろう。「単位で割る」は 1728・1280 とも折れない。select は中身の幅。負の数の札は ▲・括弧・赤の字で形も違い、色だけではない。悪い所: (1) 格子（.de-ngrid）の中の select と入力欄がアプリの形を失い、ブラウザ既定の形（高さ 20〜22px・灰 #767676 の 1px 枠・角が四角・白地）になった。上の「期間」の select（高さ 30px・角丸・淡い地）と形が違い、小さく細い。原因は dashboard.css 163 行の『.de-row select, .de-row input』が .de-row の中だけに効き、格子は .de-row ではないこと（測った: select の高さ 20px・border-radius 0・枠 rgb(118,118,118)）。(2) 表示形式の札が 1 段に収まらず「ユーザー定義」が 2 段目へ折れ、外の枠が 2 段の箱になって札の組に見えにくい（測った: 札の組の幅 382px＝欄の幅いっぱい）。(3) 配置の横・縦が別の行になり、字の行まで縦に長い。1280 では字の行が下で切れて送る。(4) 書式の見出しの要約が「数値・小数 1 桁」のままで、後ろに入れた「本」が出ない（見本には出る。入力中に要約が描き直されない。モックは『後ろに「本」』まで出た）。動き（ui-eval-dashfmt.mjs）は OK。モックとの差: 細かい所の組と名前の列は良くなったが、欄の形が既定の形に戻り、札が折れ、背が伸びた分だけモックより下がる。"
+  }
+ }
 }

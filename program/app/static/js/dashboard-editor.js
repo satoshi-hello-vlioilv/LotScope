@@ -169,6 +169,7 @@
   function changed(repaintFields = true) {
     syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
     const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
+    const sum = $("#dbEditor .de-fmthead small"); if (sum) sum.innerHTML = fmtSummary(p.fmt || {});   // 見出しの要約も（作った後の採点: 後ろに「本」を入れても要約が変わらなかった）
   }
   function addDim(role, col) {
     const b = t.body, other = role === "rows" ? "cols" : "rows", max = inGroup() ? MAX_GROUP_COLS : MAX_DIMS;
@@ -667,8 +668,9 @@
   /** 配置と字（版 3.43.0。数字・表・合わせた表）: 横（左・中央・右）・縦（数字だけ）・字の大きさ・太字・色。表示形式と同じ格子に並べる */
   function alignHtml(fm, kpi) {
     return '<div class="de-ngrid">'
-      + `<span class="de-gl">配置 横</span><span class="de-gc de-gwide">${segs("falign", [["", "自動"], ...ALIGNS], fm.align || "", "横の配置")}</span>`
-      + (kpi ? `<span class="de-gl">配置 縦</span><span class="de-gc de-gwide">${segs("fvalign", [["", "自動"], ...VALIGNS], fm.valign || "", "縦の配置")}</span>` : "")
+      // 横と縦は 1 行（作った後の採点: 1280 で下の「字」の行が送らないと見えなかった）
+      + `<span class="de-gl">配置 横</span><span class="de-gc${kpi ? "" : " de-gwide"}">${segs("falign", [["", "自動"], ...ALIGNS], fm.align || "", "横の配置")}</span>`
+      + (kpi ? `<span class="de-gl de-gl2">縦</span><span class="de-gc">${segs("fvalign", [["", "自動"], ...VALIGNS], fm.valign || "", "縦の配置")}</span>` : "")
       + `<span class="de-gl">字</span><span class="de-gc de-gwide">${segs("fnsize", NSIZES, fm.nsize || "", "字の大きさ")}`
       + `<label class="pv-ck"><input type="checkbox" data-de-fbold${fm.bold === "off" ? "" : " checked"}>太字</label>`
       + `<label class="de-ncol" title="数の字の色（表示形式の [赤] などがあれば、そちらが先）"><input type="color" data-de-fncolor value="${fm.ncolor || "#1f2933"}" aria-label="数の字の色">色</label>`
