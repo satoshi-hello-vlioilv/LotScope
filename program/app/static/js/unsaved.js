@@ -3,7 +3,8 @@
      label … 窓に出す名前（例: 変換表「管理分類」）。dirty … 保存した中身と違えば真。save … 保存する（成功で true）。省けば「保存して進む」を出さない。
      canSave … いま保存できるか（省けば save があれば保存できる）。discard … 保存せずに進むときに下書きを捨てる（省けば何もしない）。scope … どの操作で確かめるか（"master"・"dash"・"list" など。移る・閉じる操作が渡す）
    - 閉じる・移る操作は await TPA.unsaved.leave(scope, "マスタ管理を閉じる") が true のときだけ進む。見張りが無ければ窓を出さずに true
-   - 窓: 何が保存されていないか（名前の並び）と、[保存して進む]・[保存せずに進む]・[戻る]。焦点は「戻る」（いちばん安全）。Esc でも戻る
+   - 窓（2026-10-unsaved の 3 回目で決めた D3）: 移る先（what）・何が保存されていないか（名前の並び）と、縦に [保存して進む]・[保存せずに進む]・[戻る]。
+     どのボタンも右に、押した後に何が起きるかを一言。焦点は「戻る」（いちばん安全。細い藍の輪）。Esc でも戻る
    - アプリを閉じる・読み直す（beforeunload）は、ブラウザの決まりの確かめ（文言は選べない）
    ========================================================================= */
 (function () {
@@ -18,6 +19,9 @@
     return [...watchers.values()].filter((w) => (want.includes("*") || want.includes(w.scope) || want.includes(w.key)) && isDirty(w));
   }
 
+  /** 「勤務体系のタブへ移る」→「移ります」（ボタンの右の一言）。知らない形は「進みます」 */
+  const VERBS = [["移る", "移ります"], ["閉じる", "閉じます"], ["終了する", "終了します"], ["開き直す", "開き直します"], ["足す", "足します"], ["開く", "開きます"]];
+  const polite = (what) => (VERBS.find(([v]) => String(what).endsWith(v)) || ["", "進みます"])[1];
   let open = null;     // 出ている窓の約束（同時に 2 つ出さない）
   function ask(list, what) {
     if (open) return open;
@@ -28,9 +32,9 @@
       <div class="us-head"><span class="us-ico" aria-hidden="true">!</span><h3 id="usTitle">保存していない変更があります</h3></div>
       <div id="usBody" class="us-body"><p>${esc(what)}前に、次の変更をどうしますか。</p><ul>${list.map((w) => `<li>${esc(typeof w.label === "function" ? w.label() : w.label)}</li>`).join("")}</ul></div>
       <p class="us-err" aria-live="polite"></p>
-      <div class="us-acts">${canSave ? '<button type="button" class="btn-primary" data-us="save">保存して進む</button>' : ""}
-        <button type="button" class="pv-btn us-discard" data-us="discard">保存せずに進む</button><span class="us-sp"></span>
-        <button type="button" class="pv-btn" data-us="back">戻る</button></div></div>`;
+      <div class="us-acts">${canSave ? `<span class="us-act"><button type="button" class="btn-primary" data-us="save">保存して進む</button><small>保存してから${esc(polite(what))}</small></span>` : ""}
+        <span class="us-act"><button type="button" class="pv-btn us-discard" data-us="discard">保存せずに進む</button><small>直した所は消えます</small></span>
+        <span class="us-act"><button type="button" class="pv-btn" data-us="back">戻る</button><small>この画面に残ります</small></span></div></div>`;
     document.body.appendChild(box);
     const back = box.querySelector('[data-us="back"]');
     back.focus();

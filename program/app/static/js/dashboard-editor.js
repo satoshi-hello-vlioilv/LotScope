@@ -169,6 +169,7 @@
   function changed(repaintFields = true) {
     syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
     const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
+    const sum = $("#dbEditor .de-fmthead small"); if (sum) sum.innerHTML = fmtSummary(p.fmt || {});   // 見出しの要約も（作った後の採点: 後ろに「本」を入れても要約が変わらなかった）
   }
   function addDim(role, col) {
     const b = t.body, other = role === "rows" ? "cols" : "rows", max = inGroup() ? MAX_GROUP_COLS : MAX_DIMS;
@@ -599,12 +600,20 @@
       + `<div class="de-row de-top"><span class="de-l">色の組</span><div class="de-pals">${pals}</div></div>`
       + `<div class="de-row de-top"><span class="de-l">系列</span>${named}</div></div>`;
   }
+  /** 表示形式の要約（言葉で。書式の符号は Excel を知らないと読めない: 2026-10-numfmt の 1 回目の指摘）。ユーザー定義はコードのまま */
+  function numWords(fm) {
+    const ui = fm.numUi || { cat: "custom" }, name = (N.CATS.find((c) => c[0] === ui.cat) || ["", "表示形式"])[1];
+    if (ui.cat === "custom") return `ユーザー定義 ${fm.num.length > 16 ? fm.num.slice(0, 16) + "…" : fm.num}`;
+    const div = (DIVS.find((x) => x[0] === fm.unit) || ["", ""])[1];
+    return [name, ui.dec ? `小数 ${ui.dec} 桁` : "整数", div && fm.unit ? `${div}で割る` : "", ui.neg && ui.neg !== "minus" ? `負の数 ${(N.NEGS.find((x) => x[0] === ui.neg) || ["", ""])[1]}` : "",
+      ui.pre ? `前に「${ui.pre}」` : "", ui.suf ? `後ろに「${ui.suf}」` : ""].filter(Boolean).join("・");
+  }
   /** 書式の要約（畳んだときに、何が効いているかを見せる） */
   function fmtSummary(fm) {
     const out = [];
     if (fm.labels) out.push(`数値 ${(LABELS.find((x) => x[0] === fm.labels) || ["", ""])[1]}`);
     if (fm.xdate) out.push(`日付 ${(XDATES.find((x) => x[0] === fm.xdate) || ["", ""])[1]}`);
-    if (fm.num) out.push(`表示形式 ${fm.num.length > 18 ? fm.num.slice(0, 18) + "…" : fm.num}`);
+    if (fm.num) out.push(numWords(fm));
     else if (fm.digits != null || fm.unit) out.push("数の形");
     if (fm.align || fm.valign) out.push("配置");
     if (fm.nsize || fm.bold || fm.ncolor) out.push("字");
@@ -617,42 +626,55 @@
   }
   /** 表示形式（版 3.43.0。Excel の「表示形式」）: 分類 → 小数・桁区切り・負の数・前後の字・単位で割る（ユーザー定義はコードを書く）と見本 */
   function numFmtHtml(fm, digits, sel) {
+    // 2026-10-numfmt の 3 回目で決めた S: 見本の表を頭に → 分類の札 → 細かい所は「名前と欄」の組を 2 つずつ並べる格子（名前の列は左にそろえる）
     const ui = fm.numUi || (fm.num ? { cat: "custom", code: fm.num } : { cat: "" }), cat = ui.cat || "";
-    const catSel = sel("ncat", N.CATS, cat, "表示形式の分類");
-    if (!cat) return `<div class="de-row"><span class="de-l">表示形式</span>${catSel}<span class="de-l2">小数</span>${digits}<span class="de-l2">単位</span>${sel("unit", UNITS, fm.unit || "", "単位")}</div>`;
+    const pair = (label, ctl, label2 = "", ctl2 = "") => `<span class="de-gl">${label}</span><span class="de-gc">${ctl}</span>`
+      + (label2 ? `<span class="de-gl de-gl2">${label2}</span><span class="de-gc">${ctl2}</span>` : '<span class="de-gfill"></span>');
+    const wide = (label, ctl) => `<span class="de-gl">${label}</span><span class="de-gc de-gwide">${ctl}</span>`;
+    const head = `<div class="de-nsbox"><b>見本</b><span id="deNumSample">${numSample(fm)}</span></div>`
+      + `<div class="de-ngrid">${wide("表示形式", segs("fncat", N.CATS, cat, "表示形式の分類"))}`;
+    if (!cat) return head + pair("単位", sel("unit", UNITS, fm.unit || "", "単位"), "小数", digits) + "</div>";
     const decSel = sel("ndec", [0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), n ? `${n} 桁` : "整数"]), String(ui.dec ?? 0), "小数の桁");
+    const divSel = sel("unit", DIVS, fm.unit && fm.unit !== "none" ? fm.unit : "", "単位で割る（千・万・百万・億）");
     const txt = (k, v, ph, label) => `<input class="de-n2 de-ntx" data-de-n${k} value="${esc(v || "")}" maxlength="12" placeholder="${esc(ph)}" aria-label="${esc(label)}">`;
-    let body = "";
     if (cat === "custom") {
-      body = `<div class="de-row de-top"><span class="de-l">コード</span><div class="de-ncode"><input class="de-ncodein" data-de-ncode value="${esc(fm.num || "")}" maxlength="160" spellcheck="false" placeholder='例: #,##0"本";[赤]"▲"#,##0' aria-label="書式コード（Excel と同じ）">`
-        + `<span class="de-nex">${CODE_EXAMPLES.map((c) => `<button type="button" class="de-chip" data-de-nex="${esc(c)}" title="このコードにする">${esc(c)}</button>`).join("")}</span>`
-        + '<small class="de-hint">Excel と同じ書き方: 正;負;0;文字 の区分・0 # ? , . % E+00・"字"・[赤] [青]・[>=100] の条件</small></div></div>';
-    } else {
-      body = `<div class="de-row"><span class="de-l"></span><span class="de-l2">小数</span>${decSel}`
-        + (cat === "num" || cat === "cur" ? `<label class="pv-ck"><input type="checkbox" data-de-nsep${ui.sep === false ? "" : " checked"}>桁区切り（,）</label><span class="de-l2">負の数</span>${sel("nneg", N.NEGS, ui.neg || "minus", "負の数の形")}` : "")
-        + "</div>"
-        + `<div class="de-row"><span class="de-l"></span><span class="de-l2">前に</span>${txt("pre", cat === "cur" ? ui.pre ?? "¥" : ui.pre, cat === "cur" ? "¥" : "例: 約", "数の前に付ける字")}`
-        + `<span class="de-l2">後ろに</span>${txt("suf", ui.suf, "例: 本・kg・件", "数の後ろに付ける字（単位）")}</div>`;
+      return head + pair("単位で割る", divSel)
+        + wide("コード", `<div class="de-ncode"><input class="de-ncodein" data-de-ncode value="${esc(fm.num || "")}" maxlength="160" spellcheck="false" placeholder='例: #,##0"本";[赤]"▲"#,##0' aria-label="書式コード（Excel と同じ）">`
+          + `<span class="de-nex">${CODE_EXAMPLES.map((c) => `<button type="button" class="de-chip" data-de-nex="${esc(c)}" title="このコードにする">${esc(c)}</button>`).join("")}</span>`
+          + '<small class="de-hint">Excel と同じ書き方: 正;負;0;文字 の区分・0 # ? , . % E+00・"字"・[赤] [青]・[>=100] の条件</small></div>') + "</div>";
     }
-    return `<div class="de-row"><span class="de-l">表示形式</span>${catSel}<span class="de-l2">単位で割る</span>${sel("unit", DIVS, fm.unit && fm.unit !== "none" ? fm.unit : "", "単位で割る（千・万・百万・億）")}</div>`
-      + body + `<div class="de-row"><span class="de-l">見本</span><span class="de-nsample" id="deNumSample">${numSample(fm)}</span></div>`;
+    let out = head + pair("単位で割る", divSel, "小数", decSel);
+    if (cat === "num" || cat === "cur") {
+      // 負の数は見本の札（その形で書いた -1234。赤の形は「赤」の字も添える: 色だけで区別しない）
+      const negs = N.NEGS.map(([k]) => {
+        const f = N.format(-1234, N.build({ cat: "num", dec: 0, sep: true, neg: k })), red = /red/.test(k);
+        return [k, f.text, red];
+      });
+      const negSegs = `<span class="de-segs de-negs" role="radiogroup" aria-label="負の数の形">${negs.map(([k, t, red]) => `<label class="de-seg${(ui.neg || "minus") === k ? " on" : ""}${red ? " is-red" : ""}"><input type="radio" name="de-fnneg" value="${k}" data-de-fnneg${(ui.neg || "minus") === k ? " checked" : ""}>${esc(t)}${red ? "<small>赤</small>" : ""}</label>`).join("")}</span>`;
+      out += pair("桁区切り", `<label class="pv-ck"><input type="checkbox" data-de-nsep${ui.sep === false ? "" : " checked"}>1,234 のように区切る</label>`) + wide("負の数", negSegs);
+    }
+    return out + pair("前に", txt("pre", cat === "cur" ? ui.pre ?? "¥" : ui.pre, cat === "cur" ? "¥" : "例: 約", "数の前に付ける字"),
+      "後ろに", txt("suf", ui.suf, "例: 本・kg・件", "数の後ろに付ける字（単位）")) + "</div>";
   }
-  /** 見本: いまの答えの数（無ければ 1234.5）と、負の数・0 を、いまの表示形式で */
+  /** 見本: いまの答えの数（無ければ 1234.5）と、負の数・0 を、いまの表示形式で（表: いまの数・負の数・0） */
   function numSample(fm) {
     const d = host.answer && host.answer(), cell0 = d && d.cells && d.cells.find((x) => !x.r.length && !x.c.length);
     const v = cell0 && typeof cell0.v[0] === "number" ? cell0.v[0] : 1234.5;
     const warn = fm.num ? N.check(fm.num) : [];
-    const one = (x) => `<span><small>${esc(C.fmt(x))} →</small> ${C.numHtml(x, fm)}</span>`;
-    return [v, -Math.abs(v) || -1234.5, 0].map(one).join("") + (warn.length ? `<em class="de-nwarn">${esc(warn.join("・"))}</em>` : "");
+    const vals = [v, -Math.abs(v) || -1234.5, 0];
+    return `<table class="de-nstbl"><tr>${["いまの数", "負の数", "0"].map((h, i) => `<th title="${esc(C.fmt(vals[i]))}">${h}</th>`).join("")}</tr>`
+      + `<tr>${vals.map((x) => `<td>${C.numHtml(x, fm)}</td>`).join("")}</tr></table>` + (warn.length ? `<em class="de-nwarn">${esc(warn.join("・"))}</em>` : "");
   }
-  /** 配置と字（版 3.43.0。数字・表・合わせた表）: 横（左・中央・右）・縦（数字だけ）・字の大きさ・太字・色 */
+  /** 配置と字（版 3.43.0。数字・表・合わせた表）: 横（左・中央・右）・縦（数字だけ）・字の大きさ・太字・色。表示形式と同じ格子に並べる */
   function alignHtml(fm, kpi) {
-    return `<div class="de-row"><span class="de-l">配置</span>${segs("falign", [["", "自動"], ...ALIGNS], fm.align || "", "横の配置")}`
-      + (kpi ? `<span class="de-l2">縦</span>${segs("fvalign", [["", "自動"], ...VALIGNS], fm.valign || "", "縦の配置")}` : "") + "</div>"
-      + `<div class="de-row"><span class="de-l">字</span>${segs("fnsize", NSIZES, fm.nsize || "", "字の大きさ")}`
+    return '<div class="de-ngrid">'
+      // 横と縦は 1 行（作った後の採点: 1280 で下の「字」の行が送らないと見えなかった）
+      + `<span class="de-gl">配置 横</span><span class="de-gc${kpi ? "" : " de-gwide"}">${segs("falign", [["", "自動"], ...ALIGNS], fm.align || "", "横の配置")}</span>`
+      + (kpi ? `<span class="de-gl de-gl2">縦</span><span class="de-gc">${segs("fvalign", [["", "自動"], ...VALIGNS], fm.valign || "", "縦の配置")}</span>` : "")
+      + `<span class="de-gl">字</span><span class="de-gc de-gwide">${segs("fnsize", NSIZES, fm.nsize || "", "字の大きさ")}`
       + `<label class="pv-ck"><input type="checkbox" data-de-fbold${fm.bold === "off" ? "" : " checked"}>太字</label>`
       + `<label class="de-ncol" title="数の字の色（表示形式の [赤] などがあれば、そちらが先）"><input type="color" data-de-fncolor value="${fm.ncolor || "#1f2933"}" aria-label="数の字の色">色</label>`
-      + (fm.ncolor ? '<button type="button" class="pv-btn" data-de-fncolorx>色を戻す</button>' : "") + "</div>";
+      + (fm.ncolor ? '<button type="button" class="pv-btn" data-de-fncolorx>色を戻す</button>' : "") + "</span></div>";
   }
   /** 表示形式の選び（numUi）を変えて、コード（num）を組み直す */
   function setNum(change) {
@@ -675,6 +697,8 @@
     if (JSON.stringify(next) === JSON.stringify(fm)) return;     // 同じなら描き直さない（欄を離れた時の確定で、押した欄が作り替えられて押したのが消えないように）
     if (Object.keys(next).length) p.fmt = next; else delete p.fmt;
     changed(false);
+    // 分類を替えたら、ほかの欄に焦点が残っていても書式の欄を描き直す（分類ごとに欄が違う）
+    if (change.cat !== undefined && change.cat !== was.cat && $("#deFmt")) $("#deFmt").innerHTML = fmtHtml();
   }
   /** 書式を 1 つ変える（既定に戻す物は消す） */
   function setFmt(k, v) {

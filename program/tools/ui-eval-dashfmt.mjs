@@ -19,7 +19,9 @@ async function openEditor(p, id) {
   await p.focus(P(id)); await p.keyboard.press("Enter");
   await p.waitForSelector(id === "board" ? "#deBoard .de-rowi[data-de-row]" : "#deFields .pv-f"); await waitDash(p); await sleep(300);
 }
-const pick = (p, sel, value) => p.evaluate(([s, v]) => { const x = document.querySelector(s); x.focus(); x.value = v; x.dispatchEvent(new Event("change", { bubbles: true })); }, [sel, value]);
+// 選びの欄（select）は値を入れて change。札（ラジオ: 表示形式の分類・負の数）は、その値の札を押す
+const pick = (p, sel, value) => p.evaluate(([s, v]) => { const x = document.querySelector(s); if (x.type === "radio") { document.querySelector(`${s}[value="${v}"]`).click(); return; }
+  x.focus(); x.value = v; x.dispatchEvent(new Event("change", { bubbles: true })); }, [sel, value]);
 const radio = (p, attr, value) => p.evaluate(([a, v]) => document.querySelector(`#dbEditor input[${a}][value="${v}"]`).click(), [attr, value]);
 const typeIn = async (p, sel, text) => { await p.fill(sel, text); await p.evaluate((s) => document.querySelector(s).dispatchEvent(new Event("change", { bubbles: true })), sel); await sleep(400); };
 
@@ -57,7 +59,7 @@ try {
   // ユーザー定義: [赤]"▲" → 見本の負の数が赤・日付のコードは知らせる
   await pick(p, "#dbEditor [data-de-fncat]", "custom"); await sleep(400);
   await typeIn(p, "#dbEditor [data-de-ncode]", '#,##0"本";[赤]"▲"#,##0"本"');
-  const red = await p.$$eval("#deNumSample span span", (xs) => xs.map((x) => [x.textContent, getComputedStyle(x).color]));
+  const red = await p.$$eval("#deNumSample td span", (xs) => xs.map((x) => [x.textContent, getComputedStyle(x).color]));
   check("② ユーザー定義の [赤]\"▲\": 見本の負の数が ▲ で赤", red.some(([t, c]) => t.startsWith("▲") && c === "rgb(198, 40, 40)"), red);
   await typeIn(p, "#dbEditor [data-de-ncode]", "yyyy/mm/dd");
   const warn = await p.$eval("#deNumSample", (x) => x.textContent);

@@ -412,7 +412,7 @@ export const STATES = [
     await p.focus('#dashGrid .db-p[data-id="workTotal"]'); await p.keyboard.press("Enter");
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(300);
     const pick = (sel, v) => p.evaluate(([s, x]) => { const e = document.querySelector(s); e.focus(); e.value = x; e.dispatchEvent(new Event("change", { bubbles: true })); }, [sel, v]);
-    await pick("#dbEditor [data-de-fncat]", "num"); await sleep(300);
+    await p.click('#dbEditor input[data-de-fncat][value="num"]', { force: true }); await sleep(300);
     await pick("#dbEditor [data-de-fndec]", "1"); await sleep(300);
     await p.fill("#dbEditor [data-de-nsuf]", "本"); await sleep(600); await waitDash(p);
     await p.evaluate(() => { document.dispatchEvent(new CustomEvent("tpa-show-fmt"));

@@ -609,8 +609,27 @@ body.db-dragging{cursor:grabbing;user-select:none}
 #dbEditor .de-nex{display:flex;flex-wrap:wrap;gap:4px}
 #dbEditor .de-chip{height:24px;padding:0 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font:12px ui-monospace,Consolas,monospace;color:var(--h-input);cursor:pointer}
 #dbEditor .de-chip:hover{border-color:var(--h-input);background:var(--input-soft)}
-#dbEditor .de-nsample{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;font-variant-numeric:tabular-nums;font-weight:700}
-#dbEditor .de-nsample small{font-weight:400;color:var(--muted)}
 #dbEditor .de-nwarn{flex-basis:100%;font-style:normal;font-weight:400;font-size:12px;color:#a33a2c}
 #dbEditor .de-ncol{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted)}
 #dbEditor .de-ncol input{width:28px;height:24px;padding:0;border:1px solid var(--line);border-radius:4px;background:none}
+/* 表示形式・配置と字の格子（版 3.43.0。2026-10-numfmt の 3 回目で決めた S）: 名前 | 欄 | 名前 | 欄。名前の列の幅はどの格子でも同じ（左にそろう） */
+#dbEditor .de-ngrid{display:grid;grid-template-columns:84px max-content 56px minmax(0,1fr);gap:8px 10px;align-items:center;margin:6px 0}
+#dbEditor .de-gl{font-size:12.5px;font-weight:800;color:var(--h-meta);white-space:nowrap}
+#dbEditor .de-gc{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+#dbEditor .de-gc select{width:auto}
+#dbEditor .de-gwide{grid-column:2 / -1}
+#dbEditor .de-ngrid .de-segs{flex-wrap:nowrap}
+#dbEditor .de-ngrid .de-seg{white-space:nowrap;padding:0 8px}   /* 札の字は途中で折らない（1280 で「標/準」と折れた）。札の組は 1 段（作った後の採点: 「ユーザー定義」だけが 2 段目に折れた） */
+/* 格子の欄は .de-row の外なので、.de-row の欄と同じ形を当てる（作った後の採点: ブラウザの既定の四角い欄に戻っていた） */
+#dbEditor .de-ngrid select,#dbEditor .de-ngrid input:not([type=checkbox]):not([type=color]):not([type=radio]){height:30px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13px;color:var(--ink);min-width:0;max-width:100%}
+#dbEditor .de-gfill{grid-column:3 / -1}
+#dbEditor .de-negs .de-seg{font-variant-numeric:tabular-nums;font-weight:700}
+#dbEditor .de-negs .de-seg.is-red{color:#c62828}
+#dbEditor .de-negs .de-seg small{margin-left:3px;font-size:11px;font-weight:700}
+/* 見本の表（いまの数・負の数・0）: 灰の枠の中。パネルの大きな数と形を変える（二重に見せない） */
+#dbEditor .de-nsbox{display:flex;align-items:center;gap:14px;margin:4px 0 8px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+#dbEditor .de-nsbox > b{font-size:12.5px;color:var(--h-meta);flex:0 0 auto}
+#dbEditor .de-nstbl{border-collapse:collapse;font-variant-numeric:tabular-nums;background:transparent}
+#dbEditor .de-nstbl th{font-size:12px;font-weight:600;color:#4b5a68;text-align:left;padding:0 18px 2px 0;background:transparent}
+#dbEditor .de-nstbl td{font-size:16px;font-weight:800;color:var(--ink);padding:0 18px 0 0;background:transparent;white-space:nowrap}
+#dbEditor .de-nsbox .de-nwarn{flex-basis:100%}

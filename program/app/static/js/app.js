@@ -961,7 +961,7 @@ function showScreen(name, opts = {}) {
   if (!SCREENS[name] || state.screen === name) return;
   // 保存していない変更（ダッシュボードの編集・表示列やルールの窓）があれば、移る前に聞く（版 3.43.0。何も無ければすぐ移る）
   if (state.screen && TPA.unsaved.pending(["dash", "list"]).length) {
-    TPA.unsaved.leave(["dash", "list"], "画面を移る").then((ok) => { if (ok) moveTo(name, opts); });
+    TPA.unsaved.leave(["dash", "list"], `「${$(SCREENS[name].tab).textContent.trim()}」の画面へ移る`).then((ok) => { if (ok) moveTo(name, opts); });
     return;
   }
   moveTo(name, opts);
