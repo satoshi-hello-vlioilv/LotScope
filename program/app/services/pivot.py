@@ -771,6 +771,20 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     return out
 
 
+def column_names(path, *, preferred_table="", table_candidates=TABLE_CANDIDATES, samples=3):
+    """表の列の名前と、値の見本（空でない値を samples 個まで）→ [{column, samples}]（版 3.44.0。変換表の当てる列を、実際の列から選ぶ）。
+    手がかり（fields）と違い、種類を数えないので軽い"""
+    with connect_ro(path) as c:
+        t = pick_table(tables(c), preferred_table, table_candidates)
+        if not t:
+            raise RuntimeError("表が 1 つもありません。")
+        out = []
+        for col in columns(c, t, raw_columns(c, t)):
+            vals = [r[0] for r in c.execute(f"SELECT DISTINCT {qi(col)} FROM {qi(t)} WHERE TRIM(CStr({qi(col)})) <> '' LIMIT {int(samples)}")]
+            out.append({"column": col, "samples": [str(v) for v in vals]})
+    return out
+
+
 def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, sample=300, calc=None):
     """集計の左のカラムの札に出す手がかり: 列ごとの値の種類の数（多ければ 1000+）と、数の列か（読める値がみな数）・日付の列か。
     calc（版 3.38.0）… 計算列も同じ手がかりで後ろに並べる（calc: true・式が読む列 deps。式が読めなければ error）"""

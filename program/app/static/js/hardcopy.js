@@ -59,22 +59,24 @@
     const body = new XMLSerializer().serializeToString(html).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, " ");
     return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject x="0" y="0" width="100%" height="100%">${body}</foreignObject></svg>`, W, H };
   }
-  /** いまの画面 → PNG の Blob（大きさは窓の中身・表示倍率のまま） */
-  async function capture() {
+  /** いまの画面 → PNG の Blob（大きさは窓の中身・表示倍率のまま）。el を渡すと、その要素の所だけを切り出す（版 3.44.0。ダッシュボードのパネル 1 枚） */
+  async function capture(el = null) {
     const { svg, W, H } = svgOf(), r = window.devicePixelRatio || 1;
     const img = new Image();
     img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
     await img.decode();
+    const b = el ? el.getBoundingClientRect() : { left: 0, top: 0, width: W, height: H };
+    const x = Math.max(0, b.left), y = Math.max(0, b.top), w = Math.min(W, b.left + b.width) - x, h = Math.min(H, b.top + b.height) - y;
     const cv = document.createElement("canvas");
-    cv.width = Math.round(W * r); cv.height = Math.round(H * r);
+    cv.width = Math.round(w * r); cv.height = Math.round(h * r);
     const g = cv.getContext("2d");
     g.scale(r, r);
     g.fillStyle = getComputedStyle(document.body).backgroundColor || "#fff";
-    g.fillRect(0, 0, W, H);
-    g.drawImage(img, 0, 0, W, H);
+    g.fillRect(0, 0, w, h);
+    g.drawImage(img, x, y, w, h, 0, 0, w, h);
     return new Promise((ok, ng) => cv.toBlob((b) => (b ? ok(b) : ng(new Error("画像にできませんでした"))), "image/png"));
   }
-  const fileName = () => `${appName()}_${screenName().replace(/[\\/:*?"<>|\s]+/g, "")}_${stamp()}.png`;
+  const fileName = (part = "") => `${appName()}_${(screenName() + (part ? `_${part}` : "")).replace(/[\\/:*?"<>|\s]+/g, "")}_${stamp()}.png`;
   /** 短い知らせ（下の真ん中に 4 秒。読み上げにも届く） */
   function toast(t) {
     let el = document.querySelector(".hc-toast");
@@ -83,19 +85,19 @@
     clearTimeout(toast.at); toast.at = setTimeout(() => { el.hidden = true; }, 4000);
   }
 
-  /** 画像で保存 */
-  async function save() {
-    try { TPA.download(await capture(), fileName()); } catch (e) { toast(`画面を画像にできませんでした（${e.message}）`); }
+  /** 画像で保存（el・part: 要素の所だけ・ファイルの名前に添える字） */
+  async function save(el = null, part = "") {
+    try { TPA.download(await capture(el), fileName(part)); } catch (e) { toast(`画面を画像にできませんでした（${e.message}）`); }
   }
   /** 画像をコピー（クリップボード）。できなければ保存に替える */
-  async function copy() {
+  async function copy(el = null, part = "") {
     let blob;
-    try { blob = await capture(); } catch (e) { toast(`画面を画像にできませんでした（${e.message}）`); return; }
+    try { blob = await capture(el); } catch (e) { toast(`画面を画像にできませんでした（${e.message}）`); return; }
     try {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-      toast("画面の画像をコピーしました（Excel・メール・チャットに貼り付けられます）");
+      toast(`${el ? "パネル" : "画面"}の画像をコピーしました（Excel・メール・チャットに貼り付けられます）`);
     } catch (_) {
-      TPA.download(blob, fileName());
+      TPA.download(blob, fileName(part));
       toast("この PC ではクリップボードに入れられなかったので、画像で保存しました");
     }
   }
@@ -123,5 +125,5 @@
     else if (k === "s" && e.shiftKey) { e.preventDefault(); save(); }
   });
 
-  window.Hardcopy = { capture, svgOf, save, copy, print, fileName };
+  window.Hardcopy = { capture, svgOf, save, copy, print, fileName, toast };
 })();

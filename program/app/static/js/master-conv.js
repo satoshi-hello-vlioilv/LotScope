@@ -79,6 +79,7 @@ async function load() {
 }
 async function render({ keep = false } = {}) {
   const box = $("#masterSettings");
+  if (!keep) loadCols(true).then(() => { if (mstate.tab === "conv") paintColBtns(); });   // 列の印（どのデータにあるか）は読めたら出す
   if (!keep || !mstate.data.conv) {
     if (!mstate.data.conv) box.innerHTML = '<p class="ps-loading">変換表を読んでいます…</p>';
     try { await load(); } catch (e) { if (mstate.tab === "conv") box.innerHTML = `<p class="ps-loading">${esc(e.message)}</p>`; return; }
@@ -119,13 +120,17 @@ function gridHtml(x) {
     + x.inputs.map((inp) => {
       const ts = (r.when || {})[inp.name] || [], on = cell && cell.r === i && cell.k === inp.name;
       return `<td class="cv-cond${on ? " is-on" : ""}"><button type="button" class="cv-cbtn" data-cv-cell="${i}|${esc(inp.name)}" title="押すと、この条件を直します（並べた条件は「または」）"${d}>`
-        + (ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c">${esc(testText(t))}</span>`).join("") : '<span class="cv-any" title="不問（この入力は見ません）">–</span>') + "</button></td>";
+        + chipsHtml(ts) + "</button></td>";
     }).join("")
     + `<td class="cv-ra"><button type="button" class="icon-btn" data-cv-up="${i}" title="上へ" aria-label="${i + 1} 行目を上へ"${d}>↑</button>`
     + `<button type="button" class="icon-btn" data-cv-down="${i}" title="下へ" aria-label="${i + 1} 行目を下へ"${d}>↓</button>`
     + `<button type="button" class="icon-btn" data-cv-rdel="${i}" title="この行を消す" aria-label="${i + 1} 行目を消す"${d}>×</button></td></tr>`
     + (cell && cell.r === i ? `<tr class="cv-edrow"><td></td><td colspan="${x.inputs.length + 2}">${cellEditor(x, i, cell.k)}</td></tr>` : "")).join("");
   return `<div class="cv-gridwrap"><table class="cv-grid"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+}
+/** セルの札（並べた条件は「または」。条件が無ければ不問の –） */
+function chipsHtml(ts) {
+  return ts.length ? ts.map((t, k) => (k ? '<small class="cv-or">または</small>' : "") + `<span class="cv-c">${esc(testText(t))}</span>`).join("") : '<span class="cv-any" title="不問（この入力は見ません）">–</span>';
 }
 function cellEditor(x, i, k) {
   const ts = (x.rows[i].when || {})[k] || [], inp = x.inputs.find((a) => a.name === k) || {};
@@ -141,19 +146,20 @@ function cellEditor(x, i, k) {
     + '<button type="button" class="pv-btn" data-cv-tadd>＋ または</button><button type="button" class="pv-btn" data-cv-tany>不問にする</button><button type="button" class="pv-btn" data-cv-close>閉じる</button></div>'
     + (body || '<small class="cv-hint">不問（この入力は見ません）。「＋ または」で条件を足します</small>') + "</div>";
 }
-function tryHtml(x) {
-  const F = window.WL && WL.formula;
-  const vals = x.inputs.map((_, i) => tryVals[i] ?? "");
-  let res = "", hit = -1;
-  if (F && vals.some((v) => v !== "")) {
-    const numbered = { ...x, rows: x.rows.map((r, i) => ({ ...r, out: `=${i}` })), other: "=-1" };
-    hit = +F.convWith(numbered, vals);
-    const v = F.convWith(x, vals);
-    res = `<span class="cv-tryout">→ <b>${esc(v == null ? "（空欄）" : outText(v))}</b><small>${hit >= 0 ? `（${hit + 1} 行目に当たりました）` : "（どの行にも当たらず、どれにも当たらないときの値）"}</small></span>`;
-  }
-  return `<div class="cv-try"><span class="cv-lab">試す</span>${x.inputs.map((inp, i) => `<label>${esc(inp.name)}<input class="ps-input" data-cv-try="${i}" value="${esc(vals[i])}" aria-label="試す値: ${esc(inp.name)}"></label>`).join("")}${res || '<small class="cv-hint">値を入れると、保存する前の表で答えを出します</small>'}</div>`;
+/** 試すの答え（保存する前の表で。値が無ければ案内） */
+function tryRes(x) {
+  const F = window.WL && WL.formula, vals = x.inputs.map((_, i) => tryVals[i] ?? "");
+  if (!F || !vals.some((v) => v !== "")) return '<small class="cv-hint">値を入れると、保存する前の表で答えを出します</small>';
+  const numbered = { ...x, rows: x.rows.map((r, i) => ({ ...r, out: `=${i}` })), other: "=-1" };
+  const hit = +F.convWith(numbered, vals), v = F.convWith(x, vals);
+  return `<span class="cv-tryout">→ <b>${esc(v == null ? "（空欄）" : outText(v))}</b><small>${hit >= 0 ? `（${hit + 1} 行目に当たりました）` : "（どの行にも当たらず、どれにも当たらないときの値）"}</small></span>`;
 }
+function tryHtml(x) {
+  return `<div class="cv-try"><span class="cv-lab">試す</span>${x.inputs.map((inp, i) => `<label>${esc(inp.name)}<input class="ps-input" data-cv-try="${i}" value="${esc(tryVals[i] ?? "")}" aria-label="試す値: ${esc(inp.name)}"></label>`).join("")}<span class="cv-tryres">${tryRes(x)}</span></div>`;
+}
+const otherText = (x) => { const ok = otherKind(x); return ok === "keep" ? "元の値のまま" : ok === "blank" ? "（空欄）" : outText(x.other); };
 function paint() {
+  if (colPop && (colPop.d !== draft || !draft.inputs[colPop.i])) closeCols();
   const box = $("#masterSettings"), d = mstate.data.conv, x = draft, di = dis();
   const preset = x.id && d.items.find((y) => y.id === x.id)?.preset;
   const a = x.apply || {}, ok = otherKind(x);
@@ -180,11 +186,11 @@ function paint() {
         <div class="cv-ins"><span class="cv-lab">入力</span>${x.inputs.map((inp, i) => `<span class="cv-in">`
           + `<input class="ps-input" data-cv-iname="${i}" value="${esc(inp.name)}" aria-label="入力の名前"${di}>`
           + `<select class="ps-input" data-cv-itype="${i}" aria-label="比べ方（字・数）"${di}><option value="text"${inp.type !== "num" ? " selected" : ""}>字</option><option value="num"${inp.type === "num" ? " selected" : ""}>数</option></select>`
-          + `<input class="ps-input cv-cands" data-cv-icols="${i}" value="${esc((inp.columns || []).join("・"))}" placeholder="当てる列の名前（候補）" title="一覧のこの名前の列に当てます（いくつかは ・ で区切る。半角・全角の違いは見ません）"${di}>`
+          + colsBtn(inp, i, di)
           + (x.inputs.length > 1 ? `<button type="button" class="icon-btn" data-cv-idel="${i}" title="この入力を外す（行の条件からも外します）" aria-label="入力を外す"${di}>×</button>` : "") + "</span>").join("")}
           ${x.inputs.length < 8 ? `<button type="button" class="pv-btn" data-cv-iadd${di}>＋ 入力</button>` : ""}</div>
         ${gridHtml(x)}
-        <div class="cv-foot2">${can() ? '<button type="button" class="pv-btn" data-cv-radd>＋ 行を足す</button>' : ""}<span class="cv-other">どれにも当たらないとき → <b>${esc(ok === "keep" ? "元の値のまま" : ok === "blank" ? "（空欄）" : outText(x.other))}</b></span>
+        <div class="cv-foot2">${can() ? '<button type="button" class="pv-btn" data-cv-radd>＋ 行を足す</button>' : ""}<span class="cv-other">どれにも当たらないとき → <b>${esc(otherText(x))}</b></span>
           <span class="sp"></span>${expr ? `<code class="cv-expr" title="一覧の式ではこう書きます（表示列の「この列の作り方」でも）">${esc(expr)}</code>` : ""}</div>
         ${tryHtml(x)}
       </div></div></section>`;
@@ -208,6 +214,141 @@ function fitGrid() {
   const mark = () => w.classList.toggle("is-more", w.scrollLeft + w.clientWidth < w.scrollWidth - 2);
   w.addEventListener("scroll", mark, { passive: true }); mark();
   const ed = w.querySelector(".cv-celled"); if (ed) ed.style.width = `${Math.max(320, w.clientWidth - 44)}px`;
+}
+
+/* ---------------- 当てる列を、取り込んでいるデータの列から選ぶ（版 3.44.0。利用者の要望 2026-10-17 の 3） ----------------
+   入力の「当てる列」は、データ元ごとの実際の列（/api/data/columns。値の見本つき）から選ぶ。データで名前が違う同じ意味の列
+   （品質データの「ｵｰﾀﾞｰ材質」・仕掛の「製造材質」など）は、みな選んでおけば、一覧ごとに有る方へ当たる（上から順。conversions.js の matchColumn）。
+   選んだ列の札には、その列が有るデータの印（データの色と頭の字。ダッシュボードと同じ色）。どのデータにも無い名前は「!」（計算列の名前などは手で足せる） */
+let dataCols = null, colPop = null;                                // データ元ごとの列 [{key, name, columns:[{column, samples}], error}]・開いている選ぶ面
+const NORM = (v) => (window.Conversions ? Conversions.norm(v) : String(v));
+const srcColor = (key) => (window.DashPanels ? DashPanels.colorOf(key) : "#5a6f77");
+async function loadCols(force = false) {
+  if (dataCols && !force) return dataCols;
+  try { const r = await fetch("/api/data/columns", { cache: "no-store" }); const d = await r.json(); if (r.ok) dataCols = d.sources || []; } catch { /* 読めなければ印を出さない（手で書ける） */ }
+  return dataCols;
+}
+/** 名前 a が有るデータ元の並び */
+const whereIs = (a) => (dataCols || []).filter((s) => s.columns.some((c) => NORM(c.column) === NORM(a)));
+function srcTags(a) {
+  if (!dataCols) return "";
+  const at = whereIs(a);
+  return at.length ? at.map((s) => `<i class="cv-src" style="--c:${srcColor(s.key)}" title="${esc(s.name)}にある列">${esc(s.name.slice(0, 1))}</i>`).join("")
+    : '<i class="cv-src is-none" title="取り込んでいるデータに、この名前の列はありません（計算列の名前なら、一覧で当たります）">!</i>';
+}
+function colsBtn(inp, i, di = "") {
+  const cs = inp.columns || [];
+  return `<button type="button" class="cv-colsbtn" data-cv-cols="${i}" aria-haspopup="dialog" title="当てる列を、取り込んでいるデータの列から選びます（いくつでも。上から順に、一覧に有る列へ当てます）"${di}>`
+    + (cs.length ? cs.map((a) => `<span class="cv-alias"><b>${esc(a)}</b>${srcTags(a)}</span>`).join("") : `<span class="cv-colsph">${esc(inp.name)}（列を選ぶ）</span>`) + '<i class="cv-caret" aria-hidden="true">▾</i></button>';
+}
+const paintColBtns = () => draft && document.querySelectorAll("#masterSettings [data-cv-cols]").forEach((b) => { const i = +b.dataset.cvCols; if (draft.inputs[i]) b.outerHTML = colsBtn(draft.inputs[i], i, dis()); });
+function closeCols() { if (!colPop) return; colPop.off(); colPop.el.remove(); colPop = null; }
+function colPopHtml(i, q = "") {
+  const inp = draft.inputs[i], cs = inp.columns || [], has = new Set(cs.map(NORM)), qq = NORM(q);
+  // 同じ名前の列がほかのデータにも有れば、名前の右にそのデータの印（同じ列だと結び付けて見せる。2026-10-convcols の 1 回目の採点）
+  const also = (s, col) => (dataCols || []).filter((o) => o !== s && o.columns.some((c) => NORM(c.column) === NORM(col)))
+    .map((o) => `<i class="cv-src" style="--c:${srcColor(o.key)}" title="${esc(o.name)}にも同じ名前の列があります">${esc(o.name.slice(0, 1))}</i>`).join("");
+  const srcs = (dataCols || []).map((s) => {
+    const list = s.columns.filter((c) => !qq || NORM(c.column).includes(qq) || c.samples.some((v) => NORM(v).includes(qq)));
+    return `<section class="cv-cpsrc" style="--c:${srcColor(s.key)}"><h5><i></i>${esc(s.name)}<small>${s.error && !s.columns.length ? esc(s.error) : `${list.length}${qq ? ` / ${s.columns.length}` : ""} 列`}</small></h5><div class="cv-cplist">`
+      + list.map((c) => `<label class="cv-cpi${has.has(NORM(c.column)) ? " is-on" : ""}" title="${esc(c.column)}${c.samples.length ? `（値の例: ${esc(c.samples.join("・"))}）` : ""}"><input type="checkbox" data-cp-col="${esc(c.column)}"${has.has(NORM(c.column)) ? " checked" : ""}>`
+        + `<b>${esc(c.column)}<span class="cv-also">${also(s, c.column)}</span></b><small>${esc(c.samples.join("・") || "（値なし）")}</small></label>`).join("")
+      + (list.length ? "" : '<p class="cv-hint">当たる列がありません</p>') + "</div></section>";
+  }).join("");
+  return `<div class="cv-cphead"><b>「${esc(inp.name)}」に当てる列</b><small>名前が違う同じ意味の列は、データごとに選びます（上から順に当たります）</small><span class="sp"></span><button type="button" class="pv-btn" data-cp-close>閉じる</button></div>`
+    + `<div class="cv-cpbar"><input type="search" class="ps-input cv-cpq" data-cp-q value="${esc(q)}" placeholder="列の名前・値で探す" aria-label="列を探す">`
+    + `<div class="cv-cpchosen"><span class="cv-lab">選んだ列</span>${cs.length ? cs.map((a, k) => `<span class="cv-alias">${k ? '<button type="button" class="cv-cpup" data-cp-up="' + k + '" title="上へ（先に当てる）" aria-label="上へ">↑</button>' : ""}<b>${esc(a)}</b>${srcTags(a)}<button type="button" class="cv-cpx" data-cp-drop="${k}" title="外す" aria-label="「${esc(a)}」を外す">×</button></span>`).join("") : '<small class="cv-hint">まだありません（無ければ、入力の名前「' + esc(inp.name) + '」の列に当てます）</small>'}</div></div>`
+    + `<div class="cv-cpsrcs">${dataCols ? srcs || '<p class="cv-hint">データ元がありません</p>' : '<p class="cv-hint">データの列を読んでいます…</p>'}</div>`
+    + '<div class="cv-cpfoot"><input class="ps-input" data-cp-own placeholder="データに無い名前を足す（計算列など）" aria-label="手で足す列の名前"><button type="button" class="pv-btn" data-cp-add>足す</button></div>';
+}
+/** 面を札の下に、マスタ管理の窓の中へ収めて置く（窓の右端・下端から出さない。1 回目の採点: 窓の右へ 130px 出ていた） */
+function place(el, anchor) {
+  const box = (document.querySelector("#masterOverlay .master-panel") || document.body).getBoundingClientRect(), r = anchor.getBoundingClientRect();
+  const w = Math.min(820, box.width - 24), top = Math.round(r.bottom + 6);
+  el.style.width = `${w}px`;
+  el.style.left = `${Math.round(Math.max(box.left + 12, Math.min(r.left, box.right - w - 12)))}px`;
+  el.style.top = `${top}px`;
+  el.style.maxHeight = `${Math.max(260, box.bottom - top - 12)}px`;
+}
+async function openCols(i, anchor) {
+  if (colPop && colPop.i === i) { closeCols(); return; }
+  closeCols();
+  const el = document.createElement("div");
+  el.className = "cv-colpop"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "当てる列を選ぶ");
+  document.body.append(el);
+  colPop = { i, el, q: "", d: draft, off: TPA.dismissable(el, closeCols, { keep: $("#masterSettings .cv-ins") || anchor, event: "mousedown" }) };
+  const draw = () => {
+    if (!colPop || colPop.el !== el) return;
+    const at = el.querySelector("[data-cp-q]"), caret = at && document.activeElement === at ? at.selectionStart : null, top = el.querySelector(".cv-cpsrcs")?.scrollTop || 0;
+    el.innerHTML = colPopHtml(i, colPop.q);
+    place(el, document.querySelector(`#masterSettings [data-cv-cols="${i}"]`) || anchor);
+    const lists = el.querySelector(".cv-cpsrcs"); if (lists) lists.scrollTop = top;
+    if (caret != null) { const n = el.querySelector("[data-cp-q]"); n.focus(); n.setSelectionRange(caret, caret); }
+  };
+  colPop.draw = draw;
+  const set = (cs) => { draft.inputs[i].columns = cs; paintColBtns(); draw(); };
+  el.addEventListener("change", (e) => {
+    const cb = e.target.closest("[data-cp-col]"); if (!cb) return;
+    const name = cb.dataset.cpCol, cs = (draft.inputs[i].columns || []).filter((a) => NORM(a) !== NORM(name));
+    set(cb.checked ? [...cs, name] : cs);
+  });
+  el.addEventListener("input", (e) => { if (e.target.matches("[data-cp-q]")) { colPop.q = e.target.value; draw(); } });
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("[data-cp-own]") && !TPA.composing(e)) { e.preventDefault(); el.querySelector("[data-cp-add]").click(); } });
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const cs = (draft.inputs[i].columns || []).slice(), ds = b.dataset;
+    if (ds.cpClose != null) { closeCols(); document.querySelector(`#masterSettings [data-cv-cols="${i}"]`)?.focus(); return; }
+    if (ds.cpDrop != null) { cs.splice(+ds.cpDrop, 1); set(cs); return; }
+    if (ds.cpUp != null) { const k = +ds.cpUp; [cs[k - 1], cs[k]] = [cs[k], cs[k - 1]]; set(cs); return; }
+    if (ds.cpAdd != null) {
+      const v = el.querySelector("[data-cp-own]").value.trim();
+      if (v && !cs.some((a) => NORM(a) === NORM(v))) set([...cs, v]);
+    }
+  });
+  draw();
+  requestAnimationFrame(() => el.querySelector("[data-cp-q]")?.focus());
+  if (!dataCols) { await loadCols(); paintColBtns(); draw(); }
+}
+
+/* ---------------- 描き直しても、見ている所と焦点を保つ（版 3.44.0。利用者の要望 2026-10-17 の 1） ----------------
+   条件の値を直した直後に別の欄を押すと、描き直しで判定表（.cv-gridwrap）が作り直され、送り位置が上まで戻り、押した欄も消えていた。
+   - 値だけの直し（条件の値・出す値・当てる列・試す）は描き直さず、そこから決まる字（セルの札・試すの答え・どれにも当たらないとき）だけを替える（live）
+   - 形が変わる直し（入力の名前・比べ方・行や条件を足す など）は描き直すが、判定表とマスタの面の送り位置と、焦点の欄・打っていた位置を戻す（keepView）
+   - 欄を離れたこと（change）で描き直すときは、押している間は待つ（押したボタン・欄が描き直しで消えて、押したことが無くなるため: soon） */
+const focusKey = (el) => {
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  const kv = Object.entries(el.dataset).find(([k]) => k.startsWith("cv"));
+  return kv ? `[data-${kv[0].replace(/[A-Z]/g, (m) => "-" + m.toLowerCase())}="${CSS.escape(kv[1])}"]` : null;
+};
+function keepView(fn) {
+  const box = $("#masterSettings"), g = box.querySelector(".cv-gridwrap"), a = document.activeElement;
+  const at = { top: box.scrollTop, gt: g ? g.scrollTop : 0, gl: g ? g.scrollLeft : 0 };
+  const key = a && a !== document.body && box.contains(a) ? focusKey(a) : null;
+  const caret = key && typeof a.selectionStart === "number" ? [a.selectionStart, a.selectionEnd] : null;
+  fn();
+  const g2 = box.querySelector(".cv-gridwrap");
+  box.scrollTop = at.top;
+  if (g2) { g2.scrollTop = at.gt; g2.scrollLeft = at.gl; }
+  const n = key && box.querySelector(key);
+  if (n) { n.focus({ preventScroll: true }); if (caret && n.setSelectionRange) { try { n.setSelectionRange(...caret); } catch { /* 数の欄は位置を持たない */ } } }
+}
+let pressing = false;
+document.addEventListener("pointerdown", () => { pressing = true; }, true);
+document.addEventListener("pointerup", () => { setTimeout(() => { pressing = false; }, 0); }, true);
+function soon(fn) {
+  if (!pressing) { fn(); return; }
+  const go = () => { document.removeEventListener("pointerup", go, true); setTimeout(fn, 0); };   // 押し終えた後（click の後）に
+  document.addEventListener("pointerup", go, true);
+}
+/** 値だけを直した後: 描き直さず、値から決まる字だけを替える */
+function live() {
+  const box = $("#masterSettings"), x = draft; if (!box || !x) return;
+  if (cell) {
+    const b = [...box.querySelectorAll("[data-cv-cell]")].find((el) => el.dataset.cvCell === `${cell.r}|${cell.k}`);
+    if (b) b.innerHTML = chipsHtml(((x.rows[cell.r] || {}).when || {})[cell.k] || []);
+  }
+  const res = box.querySelector(".cv-tryres"); if (res) res.innerHTML = tryRes(x);
+  const other = box.querySelector(".cv-other b"); if (other) other.textContent = otherText(x);
 }
 
 /* ---------------- 操作 ---------------- */
@@ -272,31 +413,29 @@ function bind() {
     if (["cvExport", "cvImport", "cvImpno", "cvImpgo", "cvImpstd", "cvStdnow", "cvStdbundled"].some((k) => ds[k] != null)) { e.stopPropagation(); io(ds); }
   }, true);
   const box = $("#masterSettings .cv-editor"), x = draft;
-  const redraw = () => { sync(); paint(); };
+  const redraw = () => soon(() => { if (draft !== x || !$("#masterSettings .cv-editor")) return; sync(); keepView(paint); });
   box.addEventListener("change", (e) => {
     const t = e.target, ds = t.dataset;
     if (ds.cvIname != null) { renameInput(+ds.cvIname, t.value.trim()); redraw(); return; }
     if (ds.cvItype != null) { x.inputs[+ds.cvItype].type = t.value; redraw(); return; }
-    if (ds.cvIcols != null) { x.inputs[+ds.cvIcols].columns = splitVals(t.value).filter(Boolean); redraw(); return; }
-    if (ds.cvOut != null) { x.rows[+ds.cvOut].out = t.value; redraw(); return; }
+    if (ds.cvOut != null) { x.rows[+ds.cvOut].out = t.value; t.title = t.value; return; }
     const ts = cell && ((x.rows[cell.r].when ||= {})[cell.k] ||= []);
     if (ts) {
       if (ds.cvTop != null) { const j = +ds.cvTop, was = ts[j]; ts[j] = t.value === "range" ? { op: "range", min: "", max: "" } : ["empty", "filled"].includes(t.value) ? { op: t.value } : { op: t.value, v: was.v || [""] }; redraw(); return; }
-      if (ds.cvTv != null) { ts[+ds.cvTv].v = splitVals(t.value); redraw(); return; }
-      if (ds.cvTmin != null) { ts[+ds.cvTmin].min = t.value.trim(); redraw(); return; }
-      if (ds.cvTmax != null) { ts[+ds.cvTmax].max = t.value.trim(); redraw(); return; }
-      if (ds.cvTmininc != null) { if (t.checked) delete ts[+ds.cvTmininc].minInc; else ts[+ds.cvTmininc].minInc = false; redraw(); return; }
-      if (ds.cvTmaxinc != null) { if (t.checked) delete ts[+ds.cvTmaxinc].maxInc; else ts[+ds.cvTmaxinc].maxInc = false; redraw(); return; }
+      if (ds.cvTv != null) { ts[+ds.cvTv].v = splitVals(t.value); live(); return; }
+      if (ds.cvTmin != null) { ts[+ds.cvTmin].min = t.value.trim(); live(); return; }
+      if (ds.cvTmax != null) { ts[+ds.cvTmax].max = t.value.trim(); live(); return; }
+      if (ds.cvTmininc != null) { if (t.checked) delete ts[+ds.cvTmininc].minInc; else ts[+ds.cvTmininc].minInc = false; live(); return; }
+      if (ds.cvTmaxinc != null) { if (t.checked) delete ts[+ds.cvTmaxinc].maxInc; else ts[+ds.cvTmaxinc].maxInc = false; live(); return; }
     }
-    if (["cvMode", "cvPlace", "cvOtherKind", "cvOther", "cvCol"].includes(t.id)) redraw();
+    if (["cvOther", "cvCol"].includes(t.id)) { sync(); live(); return; }
+    if (["cvMode", "cvPlace", "cvOtherKind"].includes(t.id)) redraw();
   });
   box.addEventListener("input", (e) => {
     const t = e.target;
     if (t.dataset.cvTry == null) return;
     tryVals[+t.dataset.cvTry] = t.value;
-    const at = t.selectionStart, i = t.dataset.cvTry;
-    sync(); paint();
-    const n = $(`[data-cv-try="${i}"]`); if (n) { n.focus(); n.setSelectionRange(at, at); }
+    live();
   });
   box.addEventListener("click", async (e) => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
@@ -307,20 +446,21 @@ function bind() {
     sync();
     if (ds.cvCell) { const [r, ...k] = ds.cvCell.split("|"); const same = cell && cell.r === +r && cell.k === k.join("|"); cleanCell(); cell = same ? null : { r: +r, k: k.join("|") };
       if (cell && !((x.rows[cell.r].when || {})[cell.k] || []).length) ((x.rows[cell.r].when ||= {})[cell.k] = [{ op: "eq", v: [""] }]);
-      paint(); return; }
-    if (ds.cvClose != null) { cleanCell(); cell = null; paint(); return; }
-    if (ds.cvTany != null) { delete x.rows[cell.r].when[cell.k]; cell = null; paint(); return; }
-    if (ds.cvTadd != null) { x.rows[cell.r].when[cell.k].push({ op: "eq", v: [""] }); paint(); return; }
-    if (ds.cvTdel != null) { x.rows[cell.r].when[cell.k].splice(+ds.cvTdel, 1); if (!x.rows[cell.r].when[cell.k].length) delete x.rows[cell.r].when[cell.k]; paint(); return; }
-    if (ds.cvRadd != null) { cleanCell(); x.rows.push({ when: {}, out: "" }); cell = null; paint(); return; }
-    if (ds.cvRdel != null) { x.rows.splice(+ds.cvRdel, 1); cell = null; paint(); return; }
+      keepView(paint); return; }
+    if (ds.cvClose != null) { cleanCell(); cell = null; keepView(paint); return; }
+    if (ds.cvTany != null) { delete x.rows[cell.r].when[cell.k]; cell = null; keepView(paint); return; }
+    if (ds.cvTadd != null) { x.rows[cell.r].when[cell.k].push({ op: "eq", v: [""] }); keepView(paint); return; }
+    if (ds.cvTdel != null) { x.rows[cell.r].when[cell.k].splice(+ds.cvTdel, 1); if (!x.rows[cell.r].when[cell.k].length) delete x.rows[cell.r].when[cell.k]; keepView(paint); return; }
+    if (ds.cvRadd != null) { cleanCell(); x.rows.push({ when: {}, out: "" }); cell = null; keepView(paint); return; }
+    if (ds.cvRdel != null) { x.rows.splice(+ds.cvRdel, 1); cell = null; keepView(paint); return; }
     if (ds.cvUp != null || ds.cvDown != null) {
       const i = +(ds.cvUp ?? ds.cvDown), j = ds.cvUp != null ? i - 1 : i + 1;
       if (j < 0 || j >= x.rows.length) return;
-      [x.rows[i], x.rows[j]] = [x.rows[j], x.rows[i]]; cell = null; paint(); return;
+      [x.rows[i], x.rows[j]] = [x.rows[j], x.rows[i]]; cell = null; keepView(paint); return;
     }
-    if (ds.cvIadd != null) { let n = "入力" + (x.inputs.length + 1); while (x.inputs.some((a) => a.name === n)) n += "'"; x.inputs.push({ name: n, type: "text", columns: [] }); paint(); return; }
-    if (ds.cvIdel != null) { const old = x.inputs.splice(+ds.cvIdel, 1)[0]; x.rows.forEach((r) => { if (r.when) delete r.when[old.name]; }); cell = null; paint(); return; }
+    if (ds.cvIadd != null) { let n = "入力" + (x.inputs.length + 1); while (x.inputs.some((a) => a.name === n)) n += "'"; x.inputs.push({ name: n, type: "text", columns: [] }); keepView(paint); return; }
+    if (ds.cvIdel != null) { const old = x.inputs.splice(+ds.cvIdel, 1)[0]; x.rows.forEach((r) => { if (r.when) delete r.when[old.name]; }); cell = null; keepView(paint); return; }
+    if (ds.cvCols != null) { openCols(+ds.cvCols, b); return; }
     if (ds.cvSave != null) { await save(); return; }
     if (ds.cvReset != null) { await reset(); return; }
     if (ds.cvDelete != null) { await remove(); }

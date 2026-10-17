@@ -5,9 +5,10 @@
 採点は、案を作った者ではない別のエージェントが付ける。採点する者は自分で画面を撮り（ui-variants.mjs・ui-check.mjs）、
 画像を直接見てから付ける（画面に出ない改良は、動かして測った数を見てから）。採点のファイル（JSON）:
 
-    {"title": "…", "evaluator": "だれが・どう撮って採点したか",
+    {"title": "…", "rule": "2026-10-17", "evaluator": "だれが・どう撮って採点したか",
      "rounds": [
       {"name": "1 回目", "images": "撮った画像のフォルダ",
+       "self_check": "案を作った者が、採点に渡す前に自分で画像を見て確かめたこと（直した所）",
        "proposals": {"A 案の名前": {"score": {"order": 8, …（11 項目。0〜10）},
                                      "minus": [{"kind": "cut", "where": "どの画像のどこで"}],
                                      "seen": "画像で見えたこと（良い所・悪い所）"}, …},
@@ -21,7 +22,9 @@
 
 点の付け方: 100 点満点の加点（4 分類・11 項目を 0〜10 で付け、重みを掛けて足す）から、減点（見つけた数だけ引く）を引く。
 決め方: 1 回の案は 5 案以上。1 位が合格点以上なら 1 位に決める（同じ点なら、重い分類の点が高い方）。
-  合格点は回で変わる: 1 回目 95 点・2 回目 90 点・3 回目から 80 点（利用者が決めた。2026-10）。
+  合格点は回によらず 80 点（利用者が決めた。2026-10-17。"rule": "2026-10-17"）。案を作った者は、採点に渡す前に自分で画像を見て確かめ、
+  確かめたことを回の "self_check" に書く（無ければ判定しない）。
+  "rule" が無いファイルは前の決まり（1 回目 95 点・2 回目 90 点・3 回目から 80 点。self_check は無くてよい）の記録として、その決まりで判定する。
   合格点に届かなければ決めず、案出しからやり直す（前の回で効いた所は持ち越してよいが、新しい案を 3 案以上入れる）。
   3 回やり直しても届かなければ、いちばん高い案に決め、足りない点とその理由を利用者に伝える。
 """
@@ -60,7 +63,13 @@ DEDUCTIONS = {
     "color_only": ("色だけで区別している", 2),
 }
 
-PASS_BY_ROUND = (95, 90, 80)  # 決めてよい点の下限（1 回目・2 回目・3 回目から）
+# 決めてよい点の下限（回ごと。最後の値が以降も続く）と、採点に渡す前の自分の確かめが要るか。決まりの名前ごと
+RULES = {
+    "2026-10": {"pass": (95, 90, 80), "self_check": False},  # 前の決まり（"rule" が無いファイル）
+    "2026-10-17": {"pass": (80,), "self_check": True},  # いまの決まり: 回によらず 80 点・渡す前に自分で画像を見る
+}
+CURRENT_RULE = "2026-10-17"
+PASS_BY_ROUND = RULES[CURRENT_RULE]["pass"]
 PASS = PASS_BY_ROUND[0]
 MIN_PROPOSALS = 5  # 1 回に出す案の数の下限
 MIN_NEW = 3  # やり直しの回に入れる新しい案の数の下限
@@ -109,12 +118,21 @@ def rank(proposals):
     return sorted(((total(e), name, e) for name, e in proposals.items()), key=lambda r: (-r[0], [-v for v in group_points(r[2])], r[1]))
 
 
-def pass_mark(i):
+def rule_of(data):
+    """ファイルの決まり（"rule" が無ければ前の決まり）"""
+    name = data.get("rule", "2026-10")
+    if name not in RULES:
+        raise ValueError(f"決まりの名前が無い: {name}（{'・'.join(RULES)} のどれか）")
+    return RULES[name]
+
+
+def pass_mark(i, rule=None):
     """i 回目（0 から）の合格点"""
-    return PASS_BY_ROUND[min(i, len(PASS_BY_ROUND) - 1)]
+    marks = (rule or RULES[CURRENT_RULE])["pass"]
+    return marks[min(i, len(marks) - 1)]
 
 
-def check_round(i, rnd, before):
+def check_round(i, rnd, before, rule=None):
     """回の組み方が決まりどおりか（違えば理由の文）。before: 前の回までに出た案の名前"""
     proposals = rnd["proposals"]
     if len(proposals) < MIN_PROPOSALS:
@@ -122,6 +140,8 @@ def check_round(i, rnd, before):
     blind = [name for name, e in proposals.items() if not e.get("seen")]
     if blind:
         return f"画像で見えたこと（seen）が無い案: {'・'.join(blind)}"
+    if (rule or RULES[CURRENT_RULE])["self_check"] and not str(rnd.get("self_check", "")).strip():
+        return "採点に渡す前に、案を作った者が自分で画像を見て確かめたこと（self_check）が無い"
     new = [name for name in proposals if name not in before]
     if i > 0 and len(new) < MIN_NEW:
         return f"やり直しの回は、案出しからやり直す（新しい案を {MIN_NEW} 案以上。いま {len(new)} 案）"
@@ -138,15 +158,15 @@ def decide(data):
         raise ValueError("採点した者（evaluator）が無い。採点は、案を作った者ではない別のエージェントが、自分で撮った画像を見て付ける")
     if len(rounds) > MAX_ROUNDS:
         raise ValueError(f"回は {MAX_ROUNDS} 回まで（{MAX_ROUNDS} 回目で必ず決める。いま {len(rounds)} 回）")
-    before = set()
+    rule, before = rule_of(data), set()
     for i, rnd in enumerate(rounds):
-        problem = check_round(i, rnd, before)
+        problem = check_round(i, rnd, before, rule)
         if problem:
             raise ValueError(f"{rnd['name']}: {problem}")
         rows = rank(rnd["proposals"])
-        if rows[0][0] >= pass_mark(i):
+        if rows[0][0] >= pass_mark(i, rule):
             if i < len(rounds) - 1:
-                raise ValueError(f"{rnd['name']} で {pass_mark(i)} 点に届いて決まっているのに、後の回がある")
+                raise ValueError(f"{rnd['name']} で {pass_mark(i, rule)} 点に届いて決まっているのに、後の回がある")
             return "選ぶ", rows[0][1], rows
         if i == MAX_ROUNDS - 1:
             return "届かずに選ぶ", rows[0][1], rows
@@ -173,10 +193,15 @@ def report(data):
         print(f"→ 記録の 1 位: {who}")
         return kind, who
     print(f"採点: {data['evaluator']}")
-    print(f"決めてよい点 {'・'.join(f'{i + 1} 回目 {p}' for i, p in enumerate(PASS_BY_ROUND))} 点（以降も {PASS_BY_ROUND[-1]}）・1 回 {MIN_PROPOSALS} 案以上・{MAX_ROUNDS} 回まで")
-    mark = pass_mark(len(data["rounds"]) - 1)
+    rule = rule_of(data)
+    marks = rule["pass"]
+    when = f"回によらず {marks[0]}" if len(marks) == 1 else f"{'・'.join(f'{i + 1} 回目 {p}' for i, p in enumerate(marks))} 点（以降も {marks[-1]}）"
+    print(f"決めてよい点 {when} 点・1 回 {MIN_PROPOSALS} 案以上・{MAX_ROUNDS} 回まで" + ("・渡す前に自分で画像を確かめる" if rule["self_check"] else "（前の決まり）"))
+    mark = pass_mark(len(data["rounds"]) - 1, rule)
     for rnd in data["rounds"]:
         print(f"== {rnd['name']}（{len(rnd['proposals'])} 案）" + (f"  画像: {rnd['images']}" if rnd.get("images") else ""))
+        if rnd.get("self_check"):
+            print(f"  渡す前の自分の確かめ: {rnd['self_check']}")
         for t, name, e in rank(rnd["proposals"]):
             print(f"  {name}\n      {t:5.1f} 点  {describe(e)}\n      見えたこと: {e['seen']}")
         for name, e in rnd.get("baseline", {}).items():
@@ -187,7 +212,7 @@ def report(data):
         print(f"→ {MAX_ROUNDS} 回で合格点 {mark} 点に届かなかった。いちばん高い {who}（{rows[0][0]:.1f} 点）に決め、"
               f"足りない {mark - rows[0][0]:.1f} 点とその理由（減点・低い項目）を利用者に伝える")
     else:
-        print(f"→ まだ選ばない（1 位 {rows[0][0]:.1f} 点 < この回の合格点 {mark} 点。次の回は {pass_mark(len(data['rounds']))} 点）。低い項目と減点を見直し、案出しからやり直す"
+        print(f"→ まだ選ばない（1 位 {rows[0][0]:.1f} 点 < この回の合格点 {mark} 点。次の回は {pass_mark(len(data['rounds']), rule)} 点）。低い項目と減点を見直し、案出しからやり直す"
               f"（{MIN_PROPOSALS} 案以上・新しい案 {MIN_NEW} 案以上）。採点はまた別のエージェントが、撮り直した画像で付ける")
     built = data.get("built")
     if built:
