@@ -56,6 +56,12 @@ def condition_of(rows, key):
 #   fmt    … 書式（clean_fmt。数値ラベル・横軸の日付の形・桁・単位・縦軸の範囲・凡例・補助線・基準線・色の組・系列の色・字の大きさ・数字の形と目標）
 #   frame  … パネルの見せ方（FRAMES。emph は frame "emph" の前の版の書き方として読む）
 #   値（measures）は services/aggregate.py の種類（統計・表し方 show・p 点・規格 lsl/usl）
+# 版 3.40.0（利用者の要望 2026-10）:
+#   esplit … 設備の分け方（split_of）: series（設備ごとに系列＝列の段に設備）・facet（設備ごとに小さな表・グラフを並べる）・sum（合算して 1 つ）。
+#            空なら、設備を 2 つ以上選んだとき（グループでまとめたときも）は series、ほかは sum（今までどおり）
+#   body.sub … 小計（表。行の段が 2 つ以上のとき。設備グループの段〈@egroup〉と設備を並べると、グループごとの小計）
+#   link   … 別のデータを合わせる（clean_link。45度線管理図の目標と実績など）。データ（側）ごとに元・軸（合わせる段）・値・作り方
+#            （そのまま／積み上げ）・役割（目標／実績）を決め、軸の値でそろえて 1 つの答えにする（routes/dashboard.py の _link_answer）
 # 置き場: マスタ dashboards（集計表の組み方のプリセットと同じ列・同じ決まり: 共通デフォルト・共通・ID・標準。元はいつも "dash"）。
 LAYOUT_NAME = "dashboards"
 LAYOUT_SOURCE = "dash"
@@ -244,6 +250,71 @@ def clean_fmt(v):
     return out or None
 
 
+ESPLITS = ("", "series", "facet", "sum")
+MAX_FACETS = 24
+
+
+def split_of(p):
+    """パネルの設備の分け方（esplit が空なら決める）→ series・facet・sum・""（分けない: 段に設備・設備グループがある・設備を見分けない形）"""
+    body = p.get("body") or {}
+    if p.get("link") or any(d.get("column") in ("@equip", "@egroup") for d in (body.get("rows") or []) + (body.get("cols") or [])):
+        return ""
+    eg = p.get("egroup") or {}
+    if eg.get("mode") == "sum":
+        return "sum"
+    want = p.get("esplit") or ""
+    if want:
+        return want
+    return "series" if len(p.get("equips") or []) >= 2 or eg.get("mode") in ("panel", "master") else "sum"
+
+
+# ---------------------------------------------------------------- 別のデータを合わせる（版 3.40.0。link）
+# 利用者の要望（2026-10）: 45度線管理図などの 2 つのデータが要る形は、1 つのデータの中の 2 つの値ではなく、別のデータ（例: 計画のデータ元と作業実績）
+# から取る。どの段で軸を合わせるか・合わせた後にそのまま出すか積み上げる（累計）か・どちらが目標でどちらが実績かを、データ（側）ごとに決める。
+#   link: {sides: [side（2〜4）], extra: [diff（実績−目標）・rate（実績÷目標 %）]}
+#   side: {title, role: target（目標）・actual（実績）・""（比べる）, build: as（そのまま）・cum（積み上げ）, key: 段（軸。日付の列・作業日・設備など）,
+#          measure: 値 1 つ, source・equip・equips・filters・search・period・basis・calc（ふつうのパネルと同じ）}
+# 軸の値は、日（作業日の日・日付の列の年月日）・年月・年・設備名・字の値で、データが違っても同じ値なら同じ行にそろう（routes の _link_key）
+LINK_ROLES = ("target", "actual", "")
+LINK_BUILDS = ("as", "cum")
+LINK_EXTRAS = ("diff", "rate")
+MAX_SIDES = 4
+
+
+def clean_link(v, what):
+    """パネルの link → 置く形（無ければ None）。データが 2 つ未満・軸が無ければ LayoutError"""
+    if not isinstance(v, dict):
+        return None
+    raw = v.get("sides") if isinstance(v.get("sides"), list) else []
+    if not raw:
+        return None
+    if not 2 <= len(raw) <= MAX_SIDES:
+        raise LayoutError(f"{what}の合わせるデータは 2〜{MAX_SIDES} つです。")
+    sides = []
+    for i, x in enumerate(raw):
+        if not isinstance(x, dict):
+            raise LayoutError(f"{what}の合わせるデータの形が違います。")
+        key = pivot_presets._dims([x.get("key")] if isinstance(x.get("key"), dict) else [])
+        if not key:
+            raise LayoutError(f"{what}の合わせるデータ {i + 1} に、軸（合わせる段）がありません。")
+        m = _measure(x.get("measure")) or {"agg": "lots"}
+        m.pop("show", None)            # 表し方（割合・累計など）は使わない（積み上げは build で決める）
+        sides.append({**_data(x, f"{what}の合わせるデータ {i + 1}"), "title": str(x.get("title") or "").strip()[:40],
+                      "role": x.get("role") if x.get("role") in LINK_ROLES else "", "build": x.get("build") if x.get("build") in LINK_BUILDS else "as",
+                      "key": key[0], "measure": m})
+    extra = [e for e in LINK_EXTRAS if e in (v.get("extra") if isinstance(v.get("extra"), list) else [])]
+    return {"sides": sides, **({"extra": extra} if extra else {})}
+
+
+def side_query(link, i, panel):
+    """合わせるデータ i → ふつうのパネルと同じ形（数えるため）。パネルの絞り込み（設備・条件）は、どのデータにも足す"""
+    x = link["sides"][i]
+    return {**{k: x[k] for k in ("source", "equip", "search", "period", "basis") if k in x}, **({"calc": x["calc"]} if x.get("calc") else {}),
+            **({"equips": panel.get("equips") or x["equips"]} if panel.get("equips") or x.get("equips") else {}),
+            "filters": (x.get("filters") or []) + (panel.get("filters") or []),
+            "visual": "none", "body": {"rows": [x["key"]], "cols": [], "measures": [x["measure"]], "sub": False, "grand": True}}
+
+
 def _data(p, what):
     """数える元と行の決め方（パネルと、合わせた表の列のまとまりで同じ形）: source・equip・filters・search・period・basis・calc"""
     src = str(p.get("source") or "")
@@ -373,15 +444,22 @@ def clean_panel(p, i, rows):
         return {**out, **clean_board(p, what)}
     body = p.get("body") if isinstance(p.get("body"), dict) else {}
     ms = [m for m in map(_measure, (body.get("measures") if isinstance(body.get("measures"), list) else [])[:MAX_MEASURES]) if m]
+    rows_ = pivot_presets._dims(body.get("rows"))
     out.update(_data(p, what),
-               # 段は集計表の組み方と同じ形（pivot_presets._dims）
-               body={"rows": pivot_presets._dims(body.get("rows")), "cols": pivot_presets._dims(body.get("cols")), "measures": ms or [{"agg": "lots"}],
-                     "sub": False, "grand": bool(body.get("grand", visual in ("none", "kpi"))), "chartAt": _int(body.get("chartAt"), 0, 3, 0),
-                     "labels": bool(body.get("labels", True))},
+               # 段は集計表の組み方と同じ形（pivot_presets._dims）。小計は表で行の段が 2 つ以上のとき（版 3.40.0）
+               body={"rows": rows_, "cols": pivot_presets._dims(body.get("cols")), "measures": ms or [{"agg": "lots"}],
+                     "sub": bool(body.get("sub")) and visual == "none" and len(rows_) > 1, "grand": bool(body.get("grand", visual in ("none", "kpi"))),
+                     "chartAt": _int(body.get("chartAt"), 0, 3, 0), "labels": bool(body.get("labels", True))},
                sort=p.get("sort") if p.get("sort") in SORTS else "", top=_int(p.get("top"), 0, TOP_MAX, 0))
     eg = clean_egroup(p.get("egroup"))
     if eg:
         out["egroup"] = eg
+    if p.get("esplit") in ESPLITS[1:]:
+        out["esplit"] = p["esplit"]
+    link = clean_link(p.get("link"), what)
+    if link:
+        out["link"] = link
+        return out
     if visual not in ("kpi", "none") and not out["body"]["rows"]:
         raise LayoutError(f"{what}は行の段が要ります（大きな数にするなら「数字」の形を選んでください）。")
     return out

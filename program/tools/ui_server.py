@@ -30,7 +30,7 @@ import app_env  # noqa: E402
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import access, display_formats, shifts, work_log  # noqa: E402
+from app.services import access, display_formats, equip_groups, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from app.web import serve_http  # noqa: E402
 from tests import lotlist_fixture  # noqa: E402
@@ -102,6 +102,10 @@ def main():
     repo = MasterRepository(app.config["MASTER_STORE"])
     repo.shift_create(shifts.clean_row({"name": "交替勤務(1,2,3直)", "segments": shifts.TEMPLATES[1]["segments"], "note": "工場の基本"}))
     repo.shift_create(shifts.clean_row({"name": "CR2 の 4,5直", "equipment": ["CR2"], "segments": shifts.TEMPLATES[2]["segments"]}))
+    # 設備グループ（版 3.40.0）: 選んで決めたグループと、ルール（名前が L- で始まる）で決めたグループ
+    repo.equip_group_create(equip_groups.clean_row({"name": "CR ライン", "set": "ライン別", "equipment": ["CR1", "CR2"]}))
+    repo.equip_group_create(equip_groups.clean_row({"name": "L ライン", "set": "ライン別", "equipment": [], "rules": [{"op": "prefix", "value": "L-"}],
+                                                    "note": "名前が L- で始まる設備"}))
     # 配る版の覚えの写し（窓が作業場所へ写す want.json）: 全員のマスタの置き場（ui-harness.mjs の RELEASE と同じ。この PC は手元のみ＝ずれた形）
     (WORK / "masters").mkdir(parents=True, exist_ok=True)
     (WORK / "masters" / "want.json").write_text(json.dumps({"schema": 1, "version": "3.12.0", "masters": {

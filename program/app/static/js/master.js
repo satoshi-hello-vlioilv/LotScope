@@ -953,10 +953,29 @@ async function renderShifts({ notice = null, keep = false } = {}) {
 }
 
 /* ---------------- 設備グループ（版 3.39.0）: まとめ方 → グループ（名称・設備）。ダッシュボードの「設備をまとめる → 設備グループのマスタから」で使う ----------------
-   - 設備は作業実績の設備の札の入切（勤務体系の適用設備と同じ部品）。1 つ以上選ぶ
-   - 同じまとめ方の中で名称は 1 つずつ（サーバーが確かめる）。保存すると、そのまとめ方を使うパネルにすぐ効く */
-const egDraftOf = (g, set = "") => (g ? { id: g.id, rev: g.rev, name: g.name, set: g.set, equipment: [...g.equipment], note: g.note || "" }
-  : { id: null, rev: 0, name: "", set, equipment: [], note: "" });
+   - 設備は実際に出てくる設備すべて（版 3.40.0。作業実績・設備マスタ・データ元の設備の列の値。札の title にどこで見たか）の札の入切
+   - ルール（版 3.40.0）: 名前が「…」で始まる・で終わる・を含む・と同じ・正規表現。どれかに当たる設備が入る（あとから増えた設備も）。除く設備は札で外す。
+     いま当てはまる設備をその場で出す（サーバーの pivot.compile_rules と同じ比べ方: NFKC・大文字）
+   - 設備かルールのどちらかが要る。同じまとめ方の中で名称は 1 つずつ（サーバーが確かめる）。保存すると、そのまとめ方を使うパネルにすぐ効く */
+const egDraftOf = (g, set = "") => (g ? { id: g.id, rev: g.rev, name: g.name, set: g.set, equipment: [...g.equipment], rules: (g.rules || []).map((r) => ({ ...r })), except: [...(g.except || [])], note: g.note || "" }
+  : { id: null, rev: 0, name: "", set, equipment: [], rules: [], except: [], note: "" });
+const egNorm = (v) => String(v || "").normalize("NFKC").trim().toUpperCase();
+const EG_OPS = [["prefix", "で始まる"], ["suffix", "で終わる"], ["contains", "を含む"], ["equals", "と同じ"], ["regex", "に当たる（正規表現）"]];
+/** ルールの比べ方（サーバーの pivot.compile_rules と同じ）→ 設備名 → 当たるか */
+function egTest(rules) {
+  const ts = (rules || []).filter((r) => String(r.value || "").trim()).map((r) => {
+    const v = egNorm(r.value);
+    if (r.op === "regex") { try { const rx = new RegExp(String(r.value).trim(), "i"); return (k) => rx.test(k); } catch (_) { return () => false; } }
+    return { prefix: (k) => k.startsWith(v), suffix: (k) => k.endsWith(v), contains: (k) => k.includes(v), equals: (k) => k === v }[r.op] || (() => false);
+  });
+  return (name) => ts.some((t) => t(egNorm(name)));
+}
+/** グループに入る設備（書いた設備＋ルールに当たる設備。除く設備は外す） */
+function egMembers(g, names) {
+  const test = egTest(g.rules), mine = new Set((g.equipment || []).map(egNorm)), ex = new Set((g.except || []).map(egNorm));
+  return names.filter((n) => mine.has(egNorm(n)) || (!ex.has(egNorm(n)) && test(n)));
+}
+const egRuleText = (r) => `「${r.value}」${(EG_OPS.find((x) => x[0] === r.op) || ["", ""])[1]}`;
 async function renderEquipGroups({ notice = null, keep = false } = {}) {
   const box = $("#masterSettings");
   if (!keep || !mstate.data.egroups) {
@@ -972,15 +991,21 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
   const d = mstate.data.egroups, dr = mstate.egDraft;
   const can = d.canEdit && !shareDown() && canWrite("egroups"), dis = can ? "" : ` disabled title="${escapeHtml(shareDown() ? "共有フォルダに届かないため、いまは保存できません" : readOnlyWhy("egroups") + "のため変えられません")}"`;
   const eqs = Array.from(new Set([...(d.equipments || []), ...dr.equipment]));
+  const seen = new Map((d.seen || []).map((x) => [x.name, x])), q = egNorm(mstate.egSearch || "");
+  const byRule = new Set(egMembers({ ...dr, equipment: [] }, eqs)), members = egMembers(dr, eqs);
+  const tipOf = (n) => { const x = seen.get(n); return x ? `${x.from.join("・") || "グループに書いてある名前"}${x.n ? `（${x.n.toLocaleString()} 件）` : ""}` : ""; };
+  const ruleRows = dr.rules.map((r, i) => `<div class="eg-rule" data-i="${i}"><span>名前が</span><input class="ps-input" data-eg-rv value="${escapeHtml(r.value)}" placeholder="例: L-" aria-label="比べる字"${dis}>`
+    + `<select class="ps-input" data-eg-rop aria-label="比べ方"${dis}>${EG_OPS.map(([k, n]) => `<option value="${k}"${r.op === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
+    + `<button type="button" class="icon-btn" data-eg-rdel="${i}" aria-label="このルールを外す"${dis}>×</button></div>`).join("");
   const setNames = d.sets.map((x) => x.name);
   box.innerHTML = `<section class="sh-page">
-    <p class="ps-lead">いくつかの設備を <b>1 つのグループ</b>にして、ダッシュボードのパネルで<b>合算</b>して出します（パネルを組む所の「まとめる」→「設備グループのマスタから合算」）。
+    <p class="ps-lead">いくつかの設備を <b>1 つのグループ</b>にして、ダッシュボードのパネルで<b>合算</b>や<b>グループごとの小計</b>を出します（パネルを組む所の「出し方」→「グループで合算」、または行・列の「設備グループ」の札）。
       グループは<b>まとめ方</b>（ライン別・工場別など）ごとに並べ、パネルはまとめ方を 1 つ選びます。ここで直すと、そのまとめ方を使うパネルにすぐ効きます。</p>
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="egNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     <div class="sh-editor">
       <aside class="sh-list" aria-label="登録済みの設備グループ"><div class="sh-list-head">登録済みの設備グループ</div>
         ${d.sets.length ? d.sets.map((x) => `<div class="eg-set"><span class="eg-setname">${escapeHtml(x.name)}</span>${x.groups.map((g) => `<button type="button" class="sh-item${g.id === dr.id ? " is-on" : ""}" data-eg-pick="${g.id}"><b>${escapeHtml(g.name)}</b>
-          <small>${escapeHtml(g.equipment.join("・"))}</small></button>`).join("")}${can ? `<button type="button" class="eg-add" data-eg-newin="${escapeHtml(x.name)}">＋ 「${escapeHtml(x.name)}」にグループを足す</button>` : ""}</div>`).join("")
+          <small>${escapeHtml([...g.equipment, ...(g.rules || []).map(egRuleText)].join("・"))}${(g.rules || []).length ? `<em class="eg-n">${(g.matched || []).length} 設備</em>` : ""}</small></button>`).join("")}${can ? `<button type="button" class="eg-add" data-eg-newin="${escapeHtml(x.name)}">＋ 「${escapeHtml(x.name)}」にグループを足す</button>` : ""}</div>`).join("")
           : '<p class="sh-empty">まだありません。右で名前と設備を決めて足します。</p>'}
         ${can ? '<button type="button" class="sh-new" data-eg-new>＋ 新しいまとめ方で足す</button>' : ""}</aside>
       <div class="sh-detail">
@@ -988,26 +1013,53 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
         <label class="sh-field"><span>まとめ方</span><input id="egSet" class="ps-input" list="egSets" value="${escapeHtml(dr.set)}" placeholder="例: ライン別（同じまとめ方のグループが、パネルで一緒に出ます）"${dis}>
           <datalist id="egSets">${setNames.map((n) => `<option value="${escapeHtml(n)}">`).join("")}</datalist></label>
         <label class="sh-field"><span>グループの名称</span><input id="egName" class="ps-input" value="${escapeHtml(dr.name)}" placeholder="例: CR ライン"${dis}></label>
+        <div class="sh-field"><span>ルール</span><div class="eg-rules">
+          ${ruleRows || '<small class="eg-hint">名前の決まりで入れる設備（例: 名前が「L-」で始まる）。あとから増えた設備も、当たればそのまま入ります</small>'}
+          <button type="button" class="pv-btn" data-eg-radd${dis}>＋ ルールを足す</button></div></div>
         <div class="sh-field"><span>設備</span><div class="sh-eqs">
-          <span class="sh-eqsum">${dr.equipment.length ? `<b>${dr.equipment.length}</b> 設備を合算します` : "<b>設備を選んでください</b>（1 つ以上）"}</span>
-          ${eqs.map((n) => `<button type="button" class="sh-eq" data-eg-eq="${escapeHtml(n)}" aria-pressed="${dr.equipment.includes(n)}"${dis}>${escapeHtml(n)}</button>`).join("") || '<small>作業実績の設備がまだありません</small>'}</div></div>
+          <span class="sh-eqsum">${members.length ? `<b>${members.length}</b> 設備を合算します${dr.rules.length ? `（ルールで ${[...byRule].filter((n) => !dr.except.includes(n)).length}・選んで ${dr.equipment.length}）` : ""}` : "<b>設備を選ぶか、ルールを足してください</b>"}
+            <input class="ps-input eg-search" id="egSearch" type="search" value="${escapeHtml(mstate.egSearch || "")}" placeholder="設備を探す" aria-label="設備を探す"></span>
+          ${eqs.filter((n) => !q || egNorm(n).includes(q)).map((n) => {
+            const rule = byRule.has(n), out = rule && dr.except.includes(n), on = dr.equipment.includes(n) || (rule && !out);
+            return `<button type="button" class="sh-eq${rule ? " is-rule" : ""}${out ? " is-out" : ""}" data-eg-eq="${escapeHtml(n)}" aria-pressed="${on}" title="${escapeHtml(tipOf(n) + (rule ? (out ? "・ルールに当たるが除いています（押すと入れる）" : "・ルールで入っています（押すと除く）") : ""))}"${dis}>${rule ? '<i aria-hidden="true">≈</i>' : ""}${escapeHtml(n)}</button>`;
+          }).join("") || '<small>当たる設備がありません</small>'}
+          <small class="eg-hint eg-legend"><i>≈</i> ルールで入る設備・どれも、作業実績・設備マスタ・データ元（仕掛など）に出てくる設備です</small></div></div>
         <label class="sh-field"><span>備考</span><input id="egNote" class="ps-input" value="${escapeHtml(dr.note)}" maxlength="200"${dis}></label>
         <div class="sh-foot"><span class="sh-gap"></span>
           ${can && dr.id ? '<button type="button" class="pz-btn danger" data-eg-delete>このグループを消す</button>' : ""}
           ${can ? `<button type="button" class="btn-primary" data-eg-save>${dr.id ? "保存" : "足す"}</button>` : ""}</div>
       </div></div></section>`;
   const say = (cls, html) => { const n = $("#egNotice"); n.className = `ps-result ${cls}`; n.innerHTML = html; };
-  const sync = () => { dr.name = $("#egName").value; dr.set = $("#egSet").value; dr.note = $("#egNote").value; };
+  const sync = () => {
+    dr.name = $("#egName").value; dr.set = $("#egSet").value; dr.note = $("#egNote").value;
+    box.querySelectorAll(".eg-rule").forEach((row) => { const r = dr.rules[+row.dataset.i]; r.value = row.querySelector("[data-eg-rv]").value; r.op = row.querySelector("[data-eg-rop]").value; });
+  };
   const redraw = () => renderEquipGroups({ keep: true });
-  box.querySelector(".sh-editor").addEventListener("click", async (e) => {
+  const sh = box.querySelector(".sh-editor");
+  sh.addEventListener("change", (e) => { if (e.target.matches("[data-eg-rv],[data-eg-rop]")) { sync(); redraw(); } });
+  sh.addEventListener("input", (e) => {
+    if (e.target.id !== "egSearch") return;
+    mstate.egSearch = e.target.value; sync();
+    const at = e.target.selectionStart; redraw();
+    const n = $("#egSearch"); if (n) { n.focus(); n.setSelectionRange(at, at); }
+  });
+  sh.addEventListener("click", async (e) => {
     const b = e.target.closest("button"); if (!b || b.disabled) return;
     if (b.dataset.egPick) { mstate.egDraft = egDraftOf(d.items.find((x) => x.id === +b.dataset.egPick)); redraw(); return; }
     if (b.hasAttribute("data-eg-new")) { mstate.egDraft = egDraftOf(null); redraw(); $("#egSet").focus(); return; }
     if (b.dataset.egNewin != null) { mstate.egDraft = egDraftOf(null, b.dataset.egNewin); redraw(); $("#egName").focus(); return; }
     sync();
-    if (b.dataset.egEq != null) { const n = b.dataset.egEq; dr.equipment = dr.equipment.includes(n) ? dr.equipment.filter((x) => x !== n) : dr.equipment.concat([n]); redraw(); return; }
+    if (b.dataset.egEq != null) {
+      const n = b.dataset.egEq;
+      if (egTest(dr.rules)(n) && !dr.equipment.includes(n)) dr.except = dr.except.includes(n) ? dr.except.filter((x) => x !== n) : dr.except.concat([n]);   // ルールで入る設備は、押すと除く・もう一度で戻す
+      else dr.equipment = dr.equipment.includes(n) ? dr.equipment.filter((x) => x !== n) : dr.equipment.concat([n]);
+      redraw(); return;
+    }
+    if (b.hasAttribute("data-eg-radd")) { dr.rules.push({ op: "prefix", value: "" }); redraw(); const r = box.querySelectorAll("[data-eg-rv]"); if (r.length) r[r.length - 1].focus(); return; }
+    if (b.dataset.egRdel != null) { dr.rules.splice(+b.dataset.egRdel, 1); redraw(); return; }
     if (b.hasAttribute("data-eg-save")) {
-      const body = { name: dr.name, set: dr.set, equipment: dr.equipment, note: dr.note };
+      const rules = dr.rules.filter((r) => String(r.value || "").trim());
+      const body = { name: dr.name, set: dr.set, equipment: dr.equipment, rules, except: rules.length ? dr.except : [], note: dr.note };
       const res = await withLockWait(() => masterRequest(dr.id ? `/api/masters/equipgroups/${dr.id}` : "/api/masters/equipgroups",
         TPA.json(dr.id ? "PUT" : "POST", dr.id ? { ...body, base_rev: dr.rev } : body)), (x) => say("wait", lockWaitText(x, "保存", boldName)));
       if (res.status === 409 && res.data.kind === "conflict") { mstate.egDraft = null; renderEquipGroups({ notice: ["ng", "開いたあとに、ほかの PC がこのグループを直しました。読み直したので、もう一度直してください。"] }); return; }
@@ -1015,7 +1067,7 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
       const id = dr.id || res.data.created;
       mstate.data.egroups = null; mstate.egDraft = { id };
       emit("tpa:masters-changed");
-      renderEquipGroups({ notice: ["ok", `✓ 「${escapeHtml(dr.name)}」を保存しました（${dr.equipment.length} 設備）。このまとめ方を使うパネルにすぐ効きます`] });
+      renderEquipGroups({ notice: ["ok", `✓ 「${escapeHtml(dr.name)}」を保存しました（${members.length} 設備${rules.length ? `・ルール ${rules.length}` : ""}）。このまとめ方を使うパネルにすぐ効きます`] });
       return;
     }
     if (b.hasAttribute("data-eg-delete")) {

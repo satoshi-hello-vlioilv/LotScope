@@ -468,8 +468,15 @@ async function openAppMenu() {
     const sub = !i ? "デスクトップ版の窓で使えます" : !i.installed ? "この PC のアプリがまだありません（共有・BOX の exe から一度開くと作れます）"
       : places.map((x) => `${x.name} ${x.ok ? "✓" : "✕"}`).join("・") || "作る場所が分かりません";
     m.innerHTML = `<button type="button" role="menuitem" id="amShortcut"${missing ? ' class="is-warn"' : ""}${i && i.installed ? "" : " disabled"}><b>ショートカットを作る</b><small>${esc(sub)}</small></button>
-      <button type="button" role="menuitem" id="amChangelog"><b>更新履歴</b><small>いまの版 ${esc($("#verBadge").textContent.replace(/^VER/, ""))}</small></button>`;
+      <button type="button" role="menuitem" id="amChangelog"><b>更新履歴</b><small>いまの版 ${esc($("#verBadge").textContent.replace(/^VER/, ""))}</small></button>
+      <div class="am-sep" role="separator"></div>
+      <button type="button" role="menuitem" id="amPrint"><b>画面を印刷…</b><small>いま見えている画面を用紙 1 枚に（Ctrl＋P）</small></button>
+      <button type="button" role="menuitem" id="amShot"><b>画面を画像で保存</b><small>ハードコピー（PNG。Ctrl＋Shift＋S）</small></button>
+      <button type="button" role="menuitem" id="amCopy"><b>画面の画像をコピー</b><small>Excel・メール・チャットに貼り付ける</small></button>`;
     $("#amShortcut").onclick = () => { closeAppMenu(); openShortcut(); };
+    // 画面の印刷・ハードコピー（版 3.40.0。hardcopy.js）: メニューを閉じて描き終えてから撮る（メニューが写らない）
+    const shoot = (f) => () => { closeAppMenu(); requestAnimationFrame(() => requestAnimationFrame(() => Hardcopy[f]())); };
+    $("#amPrint").onclick = shoot("print"); $("#amShot").onclick = shoot("save"); $("#amCopy").onclick = shoot("copy");
     $("#amChangelog").onclick = () => { closeAppMenu(); openChangelog(); };
   };
   paint(state.install);

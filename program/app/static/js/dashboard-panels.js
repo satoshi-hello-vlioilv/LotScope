@@ -49,10 +49,11 @@
 
   /* ---- 名前（集計表と同じ言葉。列はそのままの名前） ---- */
   const workdayName = (p) => `作業日（${(p && p.basis) === "cal" ? "太陽暦" : "現場歴"}）`;
-  const dimName = (x, p) => (x.column === "@equip" ? "設備" : x.column === "@shift" ? "直"
+  const dimName = (x, p) => (x.column === "@equip" ? "設備" : x.column === "@egroup" ? `設備グループ${x.part && x.part !== "@panel" ? `（${x.part}）` : ""}` : x.column === "@shift" ? "直"
     : x.column === "@workday" ? workdayName(p) + (x.part ? `（${{ ym: "年月", year: "年" }[x.part] || ""}）` : "")
       : x.column + (x.part ? `（${PART_NAME[x.part] || x.part}）` : ""));
-  const measName = (m) => C.measLabel(m);
+  // 別のデータを合わせた答え（版 3.40.0。link）の値は、サーバーが役割つきの名前（目標：仕掛のロット数 など）を付ける
+  const measName = (m) => (m.role != null && m.name ? m.name : C.measLabel(m));
   const md = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ""); return m ? `${+m[2]}/${+m[3]}` : iso || ""; };
   /** 期間の見せ方（「前日 10/15（現場歴）」「直近 14 日 10/2〜10/15」）。設備で日が違えば、いちばん多い範囲 */
   function periodText(p, d) {
@@ -67,12 +68,14 @@
   /* ---- 表の形（集計表と同じ buildModel）。種類の段は並べ替え・上位 N を当てる ---- */
   function modelOf(p, d) {
     const b = p.body || {};
-    const s = { sub: false, grand: !!b.grand, chart: p.visual, chartAt: b.chartAt || 0, labels: (p.fmt || {}).labels ? (p.fmt.labels !== "none") : b.labels !== false, split: false, month: "" };
+    const s = { sub: !!b.sub && p.visual === "none", grand: !!b.grand, chart: p.visual, chartAt: b.chartAt || 0, labels: (p.fmt || {}).labels ? (p.fmt.labels !== "none") : b.labels !== false, split: false, month: "" };
     const m = C.buildModel(d, s);
     return { m, s };
   }
   /** 行の葉を並べ替え（大きい順・小さい順）、入る数（fit）か上位 N（top）に切る → {m, rest}（rest＝描かなかった行の数） */
   function trimRows(m, p, fit) {
+    // 小計のある表（版 3.40.0）は、グループの下に小計が来る並びのまま（並べ替え・上位で小計の行が後ろへ回らない）
+    if (m.rows.some((r) => r.type === "sub")) return { m, rest: 0, total: m.rows.filter((r) => r.type === "data").length };
     const data = m.rows.filter((r) => r.type === "data"), other = m.rows.filter((r) => r.type !== "data");
     const j = Math.min((p.body || {}).chartAt || 0, Math.max(0, m.M - 1)), all = m.cols.find((c) => c.type === "all") || m.cols[m.cols.length - 1] || { type: "all", path: [] };
     const val = (r) => { const v = m.value(r, { type: "all", path: [] }, j); return v == null ? (m.value(r, all, j) || 0) : v; };
@@ -387,9 +390,35 @@
     return true;
   }
 
+  /* ---- 設備ごとに並べる（版 3.40.0。esplit facet）: 設備ごとの答え（d.facets）を、同じ形の小さな表・グラフ・数字にして格子に並べる。
+     格子の列の数は、パネルの縦横の比に合う数（小さな図がなるべく正方形に近い）。入らない設備は「ほか n 設備」 ---- */
+  function facets(box, p, d, W, H) {
+    const fs = d.facets || [];
+    if (!fs.length) { box.innerHTML = '<p class="dp-empty">当たる設備がありません（設備・条件・期間を見直してください）</p>'; return ""; }
+    const kpiLike = p.visual === "kpi", minW = kpiLike ? 120 : 200, minH = kpiLike ? 64 : 120;
+    let best = null;
+    for (let cols = 1; cols <= fs.length; cols++) {
+      const rows = Math.ceil(fs.length / cols), w = (W - (cols - 1) * 8) / cols, h = (H - (rows - 1) * 8) / rows;
+      const fit = Math.min(fs.length, Math.max(1, Math.floor(W / (minW + 8))) * Math.max(1, Math.floor(H / (minH + 8))));
+      const score = (w >= minW && h >= minH ? 1e6 : 0) - Math.abs(Math.log((w / h) / (kpiLike ? 2.2 : 1.4)));
+      if (!best || score > best.score) best = { cols, rows, w, h, score, fit };
+    }
+    const shown = best.w >= minW && best.h >= minH ? fs : fs.slice(0, best.fit);
+    const cols = shown === fs ? best.cols : Math.max(1, Math.floor(W / (minW + 8))), rows = Math.ceil(shown.length / cols);
+    const cw = (W - (cols - 1) * 8) / cols, ch = (H - (rows - 1) * 8) / rows;
+    box.innerHTML = `<div class="dp-facets" style="--fc:${cols}">${shown.map((f, i) => `<section class="dp-facet" data-i="${i}"><h4 title="${esc(f.name)}">${esc(f.name)}</h4><div class="dp-fbox"></div></section>`).join("")}</div>`;
+    const one = { ...p, esplit: "", fmt: { ...(p.fmt || {}), legend: (p.fmt || {}).legend || (kpiLike ? "none" : "") } };
+    box.querySelectorAll(".dp-facet").forEach((sec, i) => {
+      const inner = sec.querySelector(".dp-fbox");
+      render(inner, one, shown[i].answer, { w: cw - 2, h: ch - 22 });
+    });
+    return fs.length > shown.length ? `ほか ${fs.length - shown.length} 設備（パネルを大きくすると出ます）` : "";
+  }
+
   /** パネルの中身を描く（sub: 数字の形の下に出す添え書き〈期間・元〉）→ 下に出す知らせの字（描かなかった行など） */
   function render(box, p, d, size, sub = "") {
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
+    if (d.facets) return facets(box, p, d, W, H);
     if (p.visual === "kpi") { kpi(box, p, d, W, H, sub); return ""; }
     if (p.visual === "none") return table(box, p, d, W, H);
     return chart(box, p, d, W, H);
