@@ -177,14 +177,18 @@
     if (!n) return empty("描く行がありません。");
     const lab = (k) => m.lab(L, k);
     const tickOf = (k) => (ax.cat ? clip(lab(k), 12) : tickText(k, ax.part));
-    const pl = pad(ctx, 60, 44), pr = pad(ctx, 60, 40), pt = months ? 30 : LBL.top ? 22 : 12, pb = pad(ctx, 40, 26) + tiltPad(ax.ticks.map(tickOf)), iw = W - pl - pr, ih = H - pt - pb;
+    // 右の目盛り（2 つ目の値）を描くときは、目盛りの字の分だけ右を空ける（詰めた形の 40px では字が棒に重なった: 2026-10-dashlink の採点）
+    const oneAxis = (j) => ctx.oneAxis && d.measures[j].role !== "rate";
+    const hasRight = !m.nc && d.measures.some((_, j) => j > 0 && !oneAxis(j));
+    const pl = pad(ctx, 60, 44), pr = hasRight ? Math.max(56, pad(ctx, 60, 40)) : pad(ctx, 60, 40), pt = months ? 30 : LBL.top ? 22 : 12, pb = pad(ctx, 40, 26) + tiltPad(ax.ticks.map(tickOf)), iw = W - pl - pr, ih = H - pt - pb;
     const x = (i) => pl + iw * (i + 0.5) / Math.max(n, 1), bw = Math.max(2, Math.min(40, iw / Math.max(n, 1) * 0.7));
     const series = [], colsData = dataCols(m);
     const additive0 = ADDITIVE.has(d.measures[0].agg) && !d.measures[0].show;
     const stack = m.nc > 0 && additive0 && (mode === "time" || mode === "stackarea");
     const kind0 = mode === "time" ? (stack ? "stack" : "bar") : mode === "stackarea" && stack ? "sarea" : mode === "area" || mode === "stackarea" ? "area" : "line";
     if (m.nc) colsData.forEach((c, k) => { const nm = m.colName(c); series.push({ name: nm, j: 0, c, axis: "left", kind: stack ? (mode === "time" ? "stack" : "sarea") : kind0 === "bar" ? "line" : kind0, color: cof(nm, COLORS[(k + 1) % COLORS.length]) }); });
-    else d.measures.forEach((mm, j) => { const nm = ctx.measName(mm); series.push({ name: nm, j, c: ALL, axis: j === 0 ? "left" : "right", kind: j === 0 ? (kind0 === "bar" && !ADDITIVE.has(mm.agg) ? "line" : kind0 === "sarea" ? "area" : kind0) : "line", color: cof(nm, COLORS[j % COLORS.length]) }); });
+    // ctx.oneAxis（別のデータを合わせた答え。目標と実績は同じ単位）: 達成率（%）のほかは左の同じ目盛り
+    else d.measures.forEach((mm, j) => { const nm = ctx.measName(mm); series.push({ name: nm, j, c: ALL, axis: j === 0 || oneAxis(j) ? "left" : "right", kind: j === 0 ? (kind0 === "bar" && !ADDITIVE.has(mm.agg) ? "line" : kind0 === "sarea" ? "area" : kind0) : "line", color: cof(nm, COLORS[j % COLORS.length]) }); });
     // 横に並べる段（日付など）ごとの値。その下にも段があれば、その段の小計（段の頭の組の数）を使う
     const at = (r) => ax.at(r.path[L]);
     const pick = (ser) => {

@@ -92,6 +92,7 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .dp-facets{display:grid;grid-template-columns:repeat(var(--fc,2),minmax(0,1fr));gap:8px;height:100%;min-height:0}
 .dp-facet{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line-soft);border-radius:8px;padding:2px 6px 4px;background:#fbfcfd}
 .dp-facet h4{margin:0;font-size:12.5px;line-height:18px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-facet h4::before{content:"";display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--fc0,var(--muted));margin-right:6px;vertical-align:0}
 .dp-fbox{flex:1;min-height:0;overflow:hidden}
 
 /* ---- 合わせた表（版 3.38.0。設備ごとの仕掛と前日の実績はこの形） ---- */
@@ -444,3 +445,4 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .de-lnk-go{border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
 .de-lnk-go:hover{color:var(--h-input)}
 .de-lnkt .de-seg{height:24px;padding:0 7px;font-size:12px}
+.de-subrow{margin:6px 0 0;padding-left:2px}

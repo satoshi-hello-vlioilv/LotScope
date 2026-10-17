@@ -17,6 +17,8 @@
   /* 色（2026-10-grid の 2 回目）: 色＝データの種類。仕掛（データ元）＝藍・作業実績＝青緑・品質データ＝琥珀（1 枚の表の仕掛の棒・実績の濃淡も同じ）。
      種類の少ない段（8 つまで。仕掛区分など）の 1 系列の棒・ドーナツは、名前ごとに決まった色（どのパネルでも同じ名前は同じ色） */
   const SOURCE_COLOR = { lot: "#b5822a", work: "#2f7d78", src: "#3f6591" };
+  // 合わせるデータの役割の色（組む所の札・全体の表の行の頭・グラフの系列で同じ）。差＝灰・達成率＝琥珀
+  const ROLE_COLOR = { target: "#7658ae", actual: "#2f7d78", "": "#5a6f77", diff: "#5a6f77", rate: "#b5822a" };
   const kindOf = (src) => (src === "lot" ? "lot" : src === "work" ? "work" : "src");
   const colorOf = (src) => SOURCE_COLOR[kindOf(src)];
   // 名前ごとの色は、データの種類の色（藍・青緑・琥珀）を使わない（区分の色が「作業実績」などと読めないように。2026-10-grid の 2 回目の指摘）
@@ -41,6 +43,7 @@
   }
   /** パネルの系列の色の並び（色の組を選んでいればその組。無ければデータの種類の色から） */
   function seriesColors(p) {
+    if (p._facetColor) return [p._facetColor, ...C.COLORS.filter((c) => c !== p._facetColor)];   // 並べる: その設備の色（重ねるときの系列の色と同じ）
     const pal = PALETTES[((p.fmt || {}).palette) || ""];
     if (pal) return pal.c.concat(C.COLORS.filter((c) => !pal.c.includes(c)));
     const src = colorOf(p.source);
@@ -166,7 +169,10 @@
     const r0 = (d.dims.rows || [])[0], few = m.nr === 1 && m.nc === 0 && r0 && !r0.column.startsWith("@") && !C.isTimeDim(r0) && m.rows.filter((r) => r.type === "data").length <= 8;
     const rowColor = few || (pal && ["column", "bar", "lollipop", "donut", "treemap", "bubble"].includes(kind) && m.nc === 0)
       ? catColors(m.rows.filter((r) => r.type === "data").map((r) => m.rowName(r)).sort(), pal ? pal.c : CAT) : null;
-    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors, rowColor, fmt: fm });
+    // 別のデータを合わせた答え（版 3.40.0）: 色は役割の色（組む所の札と同じ: 目標＝紫・実績＝青緑）・目標と実績は同じ目盛り
+    const link = !!d.link;
+    const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
+    const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, fmt: fm, oneAxis: link });
     const sideOk = out.side && (kind === "donut" ? W - (Math.min(gh / 2 - 6, W / 2 - 8, 160) * 2 + 16) >= 150 : W >= 760);
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     const cls = `dp-chart${fm.grid === false ? " no-grid" : ""}${fm.size ? ` fs-${fm.size}` : ""}`;
@@ -407,10 +413,15 @@
     const cols = shown === fs ? best.cols : Math.max(1, Math.floor(W / (minW + 8))), rows = Math.ceil(shown.length / cols);
     const cw = (W - (cols - 1) * 8) / cols, ch = (H - (rows - 1) * 8) / rows;
     box.innerHTML = `<div class="dp-facets" style="--fc:${cols}">${shown.map((f, i) => `<section class="dp-facet" data-i="${i}"><h4 title="${esc(f.name)}">${esc(f.name)}</h4><div class="dp-fbox"></div></section>`).join("")}</div>`;
-    const one = { ...p, esplit: "", fmt: { ...(p.fmt || {}), legend: (p.fmt || {}).legend || (kpiLike ? "none" : "") } };
+    // 縦軸は全部の小さな図で同じ（設備どうしを高さで比べられる。2026-10-dashlink の採点）。色は重ねるときのその設備の色
+    const fm0 = p.fmt || {}, j = Math.min((p.body || {}).chartAt || 0, ((d.measures || []).length || 1) - 1);
+    const leafMax = (a) => { const nr = a.dims.rows.length, nc = a.dims.cols.length; return Math.max(0, ...a.cells.filter((c) => c.r.length === nr && c.c.length === (nc && ["time", "stack", "stack100", "stackarea"].includes(p.visual) ? 0 : nc)).map((c) => +c.v[j] || 0)); };
+    const top = Math.max(...shown.map((f) => leafMax(f.answer)));
+    const pal = seriesColors(p), base = (n, i) => (fm0.colors || {})[n] || pal[(i + 1) % pal.length];
+    const one = (f, i) => ({ ...p, esplit: "", _facetColor: base(f.name, i), fmt: { ...fm0, legend: fm0.legend || (kpiLike ? "none" : ""), ...(fm0.ymax == null && top > 0 && !kpiLike && p.visual !== "none" ? { ymax: top } : {}) } });
     box.querySelectorAll(".dp-facet").forEach((sec, i) => {
-      const inner = sec.querySelector(".dp-fbox");
-      render(inner, one, shown[i].answer, { w: cw - 2, h: ch - 22 });
+      sec.style.setProperty("--fc0", base(shown[i].name, i));
+      render(sec.querySelector(".dp-fbox"), one(shown[i], i), shown[i].answer, { w: cw - 2, h: ch - 22 });
     });
     return fs.length > shown.length ? `ほか ${fs.length - shown.length} 設備（パネルを大きくすると出ます）` : "";
   }
@@ -435,5 +446,5 @@
     return out;
   }
 
-  window.DashPanels = { render, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, SOURCE_COLOR, PALETTES, seriesColors };
+  window.DashPanels = { ROLE_COLOR, render, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, SOURCE_COLOR, PALETTES, seriesColors };
 })();

@@ -56,7 +56,7 @@
   const inGroup = () => !!parts() && gi >= 0;
   const inSide = () => isLink() && gi >= 0;
   const ROLES = [["target", "目標", "計画・目標の数（45度線管理図では横）"], ["actual", "実績", "実際の数（45度線管理図では縦）"], ["", "比べる", "目標・実績ではなく並べて比べる"]];
-  const ROLE_COLOR = { target: "#7658ae", actual: "#2f7d78", "": "#5a6f77" };
+  const ROLE_COLOR = P.ROLE_COLOR;             // 役割の色（グラフの系列と同じ。dashboard-panels.js）
   const BUILDS = [["as", "そのまま", "軸の値ごとの数"], ["cum", "積み上げ", "軸の並び（日なら古い順）に足していく累計"]];
   /** 合わせた表のまとまり → 組む形（ふつうのパネルと同じ形。行の段は表全体の物・値は 1 つ） */
   function groupView(g) {
@@ -251,7 +251,7 @@
     p.link = { sides: [first, { ...TPA.clone(first), role: "actual", source: "work", equip: "", equips: [], filters: [], search: "", calc: undefined, measure: { agg: "lots" } }] };
     delete p.link.sides[1].calc; delete p.egroup; delete p.esplit;
     if (!["diag45", "time", "line", "area", "column", "bar", "none", "scatter"].includes(p.visual)) p.visual = "diag45";
-    host.toast("いまの組みを ① 目標 に、② 実績（作業実績）を足しました。札で切り替えて、それぞれのデータ・軸・値を決めます");
+    host.toast("① 目標・② 実績 にしました（上の札で切り替えて決めます）");
     gi = 1; t = groupView(p.link.sides[1]); fields = null; fieldsKey = "";
     loadFields().then(() => { if (!t.body.rows.length) { t.body.rows = [sideKey()].filter(Boolean); } changed(); });
   }
@@ -441,9 +441,12 @@
     const kpi = t.visual === "kpi";
     if (inSide()) return `<div class="pv-sent de-sent">${slot("rows", b.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］で軸を選ぶ")}<span class="pv-w">ごとの</span>`
       + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を合わせる</span></div>`;
+    // 小計（版 3.40.0。要望 5）: 表で行の段が 2 つ以上（設備グループ → 設備 など）。行の段の文のすぐ下（何ごとの小計かを、段の札の近くで決める）
+    const sub = !inGroup() && !isLink() && p.visual === "none" && (b.rows || []).length > 1
+      ? `<div class="de-subrow"><label class="pv-ck" title="行の段の上の段ごとに小計の行を出します"><input type="checkbox" data-de-sub${b.sub ? " checked" : ""}>${esc(dimLabel(b.rows[0]))}ごとの小計を出す</label></div>` : "";
     return `<div class="pv-sent de-sent">${kpi ? '<span class="pv-w">全体の</span>' : `${slot("rows", b.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］")}<span class="pv-w">ごとに、</span>`
       + `${slot("cols", b.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`}`
-      + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>`;
+      + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>${sub}`;
   }
   /** 形の札（版 3.39.0 で 25。目的の行に並べる: 数と表・推移を見る・比べる・内訳・ばらつき・関係。集計表のグラフの形の面と同じまとまり）。
       合わせた表は、表全体の札で「選んだ形の札 1 枚＋形を変える…」に畳む（押すと全部の札が開く。2026-10-board の 3 回目で決めた CF） */
@@ -578,9 +581,7 @@
   function sortHtml() {
     if (t.visual === "kpi" || inGroup()) return "";
     // 小計（版 3.40.0。要望 5）: 表で行の段が 2 つ以上（設備グループ → 設備 など）
-    const sub = p.visual === "none" && !isLink() && (p.body.rows || []).length > 1
-      ? `<div class="de-row"><span class="de-l"></span><label class="pv-ck" title="行の段の上の段（設備グループなど）ごとに小計の行を出します"><input type="checkbox" data-de-sub${p.body.sub ? " checked" : ""}>${esc(dimLabel(p.body.rows[0]))}ごとの小計</label></div>` : "";
-    return sub + `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
+    return `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
       + `<label class="pv-ck" title="0＝パネルに入るだけ">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝入るだけ</small></div>`;
   }
   /* ---- 設備（版 3.39.0。要望 2・9）: 複数選ぶ（チェックの並び。dashboard-filter.js と同じ部品）と、まとめる（合算・このパネルのグループ・マスタ） ---- */
@@ -739,6 +740,8 @@
     const steps = el.querySelectorAll(".de-step"), lw = isLink() && whole;
     steps[0].innerHTML = lw ? "<i>1</i>合わせ方<small>データ・役割・軸・作り方</small>" : "<i>1</i>データ<small>何を数えるか</small>";
     steps[1].hidden = lw; steps[2].hidden = steps[3].hidden = inSide();
+    // 番号は見えている段の順（全体の札は ① 合わせ方 → ② 形 → ③ 見せ方。① → ③ と飛ばない）
+    let no = 0; steps.forEach((st) => { if (!st.hidden) { const i = st.querySelector("i"); if (i) i.textContent = String(++no); } });
     if (lw) { const d = $("#deData"); d.hidden = false; if (!typingIn("#deData")) d.innerHTML = linkHtml(); }
     if (!whole) {
       if (repaintFields) $("#deFields").innerHTML = fieldsHtml();
