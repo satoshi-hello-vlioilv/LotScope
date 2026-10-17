@@ -303,7 +303,7 @@ function buildMasterTabs() {
   paintPlaceNav();
 }
 async function goTab(tab) {
-  if (tab === mstate.tab || !(await leaveOk("ほかのタブへ移る"))) return;
+  if (tab === mstate.tab || !(await leaveOk(`${(MASTER_DEFS[tab] || {}).label || "ほか"}のタブへ移る`))) return;
   mstate.tab = tab;
   mstate.editing = null; mstate.selId = null;   // 行の番号はマスタごとなので、移ったら先頭から
   mstate.search = "";
@@ -449,7 +449,7 @@ function bindSettingCard(card) {
 }
 /* ほかの画面から「参照先」を開く（品質異常で元ファイルが読めない・古いとき） */
 async function openMasterAt(tab) {
-  if (!$("#masterOverlay").classList.contains("hidden") && tab !== mstate.tab && !(await leaveOk("ほかのタブへ移る"))) return;
+  if (!$("#masterOverlay").classList.contains("hidden") && tab !== mstate.tab && !(await leaveOk(`${(MASTER_DEFS[tab] || {}).label || "ほか"}のタブへ移る`))) return;
   mstate.tab = tab;
   await openMaster();
 }

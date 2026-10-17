@@ -641,7 +641,9 @@ body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}
 .us-body li{margin:2px 0;font-weight:700}
 .us-err{min-height:0;margin:8px 0 0 34px;color:#a33a2c;font-size:12.5px}
 .us-err:empty{display:none}
-.us-acts{display:flex;align-items:center;gap:8px;margin-top:16px}
-.us-sp{flex:1}
-.us-acts .pv-btn,.us-acts .btn-primary{height:34px;padding:0 14px;white-space:nowrap}
+.us-acts{display:flex;flex-direction:column;gap:8px;margin:16px 0 0 34px}
+.us-act{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:12px}
+.us-act small{font-size:12.5px;color:#4b5a68}
+.us-acts .pv-btn,.us-acts .btn-primary{width:150px;height:34px;padding:0 14px;white-space:nowrap}
+.us-acts button:focus{outline:2px solid #8fb0d4;outline-offset:2px;box-shadow:none}   /* 焦点（最初は「戻る」）: 枠の色は変えず、細い藍の輪を外に（主のボタンと強さを競わない） */
 .us-discard{color:#a33a2c}
