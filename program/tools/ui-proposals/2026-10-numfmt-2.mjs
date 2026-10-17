@@ -10,6 +10,10 @@ let seq = 0;
 const watch = (sel, fn) => { const k = `nf2${++seq}`; return ["script", `{ const run = () => { document.querySelectorAll(${JSON.stringify(sel)}).forEach((el) => { if (el.dataset.${k}) return; el.dataset.${k} = "1"; (${fn})(el); }); };
   new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true }); run(); }`]; };
 
+// 見本は書式を変えるたびに描き直されるので、印（data-nf2）の無い見本を見つけるたびに写し直す
+const live = (sel, fn) => ["script", `{ const run = () => { document.querySelectorAll(${JSON.stringify(sel)}).forEach((el) => { if (el.querySelector("[data-nf2]")) return;
+  (${fn})(el); el.insertAdjacentHTML("beforeend", "<i data-nf2 hidden></i>"); }); };
+  new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true, characterData: true }); run(); }`];
 const rowOf = (label) => `[...el.querySelectorAll(".de-row")].find((r) => (r.querySelector(".de-l") || {}).textContent === ${JSON.stringify(label)})`;
 // F（分類を横の札）・横の名前・言葉の要約。どの案も先に当てる
 const BASE = [
@@ -30,36 +34,38 @@ export const PROPOSALS = [
   {
     key: "F2", name: "F2 分類の札＋見本を太く（単位まで）・横の名前・言葉の要約",
     css: `${BIG} #deNumSample{gap:4px 18px!important;align-items:baseline}`,
-    ops: [...BASE, watch("#deNumSample", `(el) => { el.innerHTML = (${SAMPLE})(el); }`)],
+    ops: [...BASE, live("#deNumSample", `(el) => { el.innerHTML = (${SAMPLE})(el); }`)],
   },
   {
     key: "G", name: "G 見本を分類の右の箱に（選ぶ所と結果が隣り合う）",
     css: `${BIG} .nfG-box{display:flex;flex-direction:column;gap:2px;margin-left:auto;padding:8px 14px;border:1px solid var(--line);border-radius:10px;background:var(--input-soft);min-width:170px}`,
-    ops: [...BASE, watch("#deNumSample", `(el) => { const row = el.closest(".de-row"), first = el.closest(".de-fmt").querySelector(".de-row");
-      const box = document.createElement("div"); box.className = "nfG-box"; box.innerHTML = '<small style="color:var(--muted)">見本</small>' + (${SAMPLE})(el);
-      first.append(box); first.style.alignItems = "flex-start"; row.style.display = "none"; }`)],
+    ops: [...BASE, live("#deNumSample", `(el) => { const row = el.closest(".de-row"), fmt = el.closest(".de-fmt"), first = fmt.querySelector(".de-row");
+      let box = fmt.querySelector(".nfG-box"); if (!box) { box = document.createElement("div"); box.className = "nfG-box"; first.append(box); first.style.alignItems = "flex-start"; }
+      box.innerHTML = '<small style="color:var(--muted)">見本</small>' + (${SAMPLE})(el); row.style.display = "none"; }`)],
   },
   {
     key: "H", name: "H 負の数を見本の札で選ぶ（-1,234・▲1,234・(1,234)・赤）",
     css: `${BIG} .nfH{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}.nfH span{padding:4px 10px;font-weight:700;font-variant-numeric:tabular-nums;border-left:1px solid var(--line)}.nfH span:first-child{border-left:0}.nfH span.on{background:var(--input-soft);color:var(--h-input)}`,
-    ops: [...BASE, watch("#deNumSample", `(el) => { el.innerHTML = (${SAMPLE})(el); }`),
+    ops: [...BASE, live("#deNumSample", `(el) => { el.innerHTML = (${SAMPLE})(el); }`),
       watch("#dbEditor [data-de-fnneg]", `(el) => { el.style.display = "none"; el.insertAdjacentHTML("afterend", '<span class="nfH"><span class="on">-1,234</span><span>▲1,234</span><span>(1,234)</span><span style="color:#c62828">-1,234</span><span style="color:#c62828">▲1,234</span></span>'); }`)],
   },
   {
     key: "I", name: "I 見本を書式の頭の帯に（最初に見る物）",
     css: `${BIG} .nfI{display:flex;gap:6px 18px;align-items:baseline;flex-wrap:wrap;margin:2px 0 10px;padding:10px 14px;border-radius:10px;background:var(--input-soft)}.nfI b{font-size:12px;color:var(--h-input)}`,
-    ops: [...BASE, watch("#deNumSample", `(el) => { const row = el.closest(".de-row"), fmt = el.closest(".de-fmt");
-      const band = document.createElement("div"); band.className = "nfI"; band.innerHTML = "<b>見本</b>" + (${SAMPLE})(el); fmt.prepend(band); row.style.display = "none"; }`)],
+    ops: [...BASE, live("#deNumSample", `(el) => { const row = el.closest(".de-row"), fmt = el.closest(".de-fmt");
+      let band = fmt.querySelector(".nfI"); if (!band) { band = document.createElement("div"); band.className = "nfI"; fmt.prepend(band); }
+      band.innerHTML = "<b>見本</b>" + (${SAMPLE})(el); row.style.display = "none"; }`)],
   },
   {
     key: "J", name: "J 左に選び・右に見本の札（パネルと同じ大きな数）",
     css: `.nfJ{display:grid;grid-template-columns:1fr 190px;gap:14px;align-items:start}.nfJ-card{position:sticky;top:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
       .nfJ-card .t{font-size:12px;color:var(--muted)}.nfJ-card .n{font-size:34px;font-weight:800;line-height:1.1;color:var(--ink)}.nfJ-card .s{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-weight:700;font-size:13px}`,
-    ops: [...BASE, watch("#deNumSample", `(el) => { const row = el.closest(".de-row"), fmt = el.closest(".de-fmt"), spans = [...el.querySelectorAll(":scope > span")];
+    ops: [...BASE, live("#deNumSample", `(el) => { const row = el.closest(".de-row"), fmt = el.closest(".de-fmt"), spans = [...el.querySelectorAll(":scope > span")];
       const main = spans[0] ? spans[0].innerHTML.replace(/<small>.*?<\\/small>/, "") : "";
-      const g = document.createElement("div"); g.className = "nfJ"; const left = document.createElement("div");
-      [...fmt.children].forEach((c) => left.append(c)); g.append(left);
+      let g = fmt.querySelector(".nfJ"); if (!g) { g = document.createElement("div"); g.className = "nfJ"; const left = document.createElement("div");
+        [...fmt.children].forEach((c) => left.append(c)); g.append(left); fmt.append(g); }
+      g.querySelector(".nfJ-card")?.remove();
       g.insertAdjacentHTML("beforeend", '<div class="nfJ-card"><div class="t">見本（いまの数）</div><div class="n">' + main + '</div><div class="s">' + spans.slice(1).map((s) => s.innerHTML.replace(/<small>(.*?)<\\/small>/, "<small style=\\"color:var(--muted);font-weight:400\\">$1</small>")).map((h) => "<span>" + h + "</span>").join("") + "</div></div>");
-      fmt.append(g); row.style.display = "none"; }`)],
+      row.style.display = "none"; }`)],
   },
 ];
