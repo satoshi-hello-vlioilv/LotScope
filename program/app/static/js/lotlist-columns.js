@@ -694,7 +694,7 @@
         </div>
         <div class="lc-fxacts"><button type="button" id="lcFxOpen" class="lc-primary" title="別の窓で、組み立てるか式を書いて作ります（窓の中で打っている間は一覧を描き直しません）">${String(fsrc).trim() ? "作り方を開く…" : "作り方を作る…"}</button>
           ${!calc && String(fsrc).trim() ? '<button type="button" id="lcFxClear" title="式を外し、元のデータの値をそのまま出します">式を外す</button>' : ""}
-          ${calc ? `<button type="button" id="lcDelCol" class="lc-danger lc-carddel" title="Delete。保存するまでは元に戻せます">${TRASH}この列を削除</button>` : ""}</div>
+</div>
       </section>
       ${step("fmt", "2", "値の整え方", stepFmt(t, c))}
         <div class="lc-field"><span>種類</span>${[["", "そのまま"], ["number", "数値"], ["datetime", "日付・時刻"], ["text", "文字"]].map(([k, n]) => `<label class="lc-radio"><input type="radio" name="lcK" value="${k}"${(f.kind || "") === k ? " checked" : ""}>${n}</label>`).join("")}</div>
@@ -746,7 +746,6 @@
     // この列の作り方: 別の窓（lotlist-rules.js の作り方の窓。表示ルールと同じ組み立て＋式を書く）で作り、「当てる」で下書きへ
     $("#lcFxOpen").addEventListener("click", () => openFormula(c));
     $("#lcFxClear")?.addEventListener("click", () => setFormula(c, { formula: "", build: null }));
-    $("#lcDelCol")?.addEventListener("click", () => removeCols([c]));
     $("[data-lc-cdel]", box)?.addEventListener("click", () => removeCols([c]));
     // 読み替え: 選ぶ／新しく作る／編集する（編集の窓は lotlist-rules.js）
     const openRule = (name) => window.LotListRules.open({ name, column: c, source: ruleSource(), toFormula: (expr) => setFormula(c, { formula: expr, build: null }),
@@ -759,7 +758,7 @@
     $("#lcRuleEdit").addEventListener("click", () => { if (get(t).rules[c]) openRule(get(t).rules[c]); });
   }
   /* ---------------- 作った列を消す・足す・動かす（版 3.44.0。利用者の要望 2026-10-17 の 4・5） ----------------
-     消す入口: 一覧の行の 🗑・右クリック・Delete キー・右の札の「削除」・作り方の段の「この列を削除する」（どれも removeCols）。
+     消す入口: 一覧の行の 🗑・右クリック・Delete キー・右の札の「削除」（どれも removeCols。同じ絵と言葉）。
      元データの列は消せない（隠す）。保存するまでは下書きなので、閉じれば元に戻る */
   function removeCols(cols) {
     const t = ctx.target, calc = cols.filter((c) => isComputed(t, c));
