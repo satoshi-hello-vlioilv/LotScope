@@ -570,6 +570,9 @@
     if (!S.active) return;
     if (S.edit && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.target.closest("input,select,textarea")) { e.preventDefault(); undo(); return; }
     const el = e.target.closest && e.target.closest(".db-p");
+    if (el && e.target === el && !S.editing && (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) {   // キーで右クリックのメニュー
+      e.preventDefault(); const r = el.getBoundingClientRect(); panelMenu(el.dataset.id, r.left + 24, r.top + 30); return;
+    }
     if (!S.edit || !el || e.target !== el) return;
     const p = panelOf(el.dataset.id); if (!p) return;
     const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
@@ -646,6 +649,94 @@
         setQuick(id, null);
         commit((L) => { const x = L.panels.find((y) => y.id === id); Object.assign(x, Q.merge(x, q)); }, "絞り込みをパネルの条件にしました（保存すると全員に効きます）");
       } });
+  }
+
+  /* ---------------- 右クリックのメニュー（版 3.44.0。利用者の要望 2026-10-17 の 6。TPA.menu: 表示列の窓と同じ形） ----------------
+     パネルの上: 見る（引き直す・絞る・絞り込みを外す）・写す（画像をコピー・画像で保存・表の値をコピー）・組む（組む・題・複製・パネルをコピー）・消す。
+     空いた所: ここにパネルを足す・貼り付け・すべて引き直す・画面の画像をコピー・元に戻す。
+     組み・並びを変える項目は、見ているときに選んでも編集に入ってから行う（保存するまでは、この PC の画面だけ）。
+     「パネルをコピー」はこの PC に覚え（tpa.dash.clip.v1）、ほかのダッシュボードにも貼り付けられる */
+  const CLIP = "tpa.dash.clip.v1";
+  const clip = () => TPA.local.get(CLIP, null);
+  const editing = () => { if (!S.edit) { S.edit = true; S.confirm = ""; paint(); } };
+  const panelEl = (id) => document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
+  /** パネルの表（数字・グラフは数の並び）を、Excel に貼れる形（タブ区切り）に。表が無ければ "" */
+  function tableTsv(el) {
+    const t = el && el.querySelector(".db-pb table"); if (!t) return "";
+    return [...t.rows].map((r) => [...r.cells].map((c) => c.innerText.replace(/\s+/g, " ").trim()).join("\t")).join("\r\n");
+  }
+  async function copyText(text, done) {
+    try { await navigator.clipboard.writeText(text); say(done); } catch (_) { say("この PC ではクリップボードに入れられませんでした"); }
+  }
+  /** 写したパネルを置く（at のマスから・無ければ空いた所）。大きさは写した時のまま、入らなければ小さく */
+  function paste(at) {
+    const c = clip(); if (!c || !S.layout) return;
+    editing();
+    let spot = null;
+    if (at) for (const [w, h] of [[c.w, c.h], [Math.min(c.w, 4), Math.min(c.h, 2)], [2, 2], [2, 1], [1, 1]]) if (fits({ x: at.x, y: at.y, w, h })) { spot = { x: at.x, y: at.y, w, h }; break; }
+    spot = spot || freeSpot(c.w, c.h);
+    if (!spot) { say("空きがありません。パネルを小さくするか、段を増やしてください"); return; }
+    const p = { ...TPA.clone(c.panel), id: newId(), ...spot };
+    commit((L) => L.panels.push(p), `「${titleOf(p)}」を貼り付けました（元に戻す で戻せます）`);
+    S.sel = p.id; focusPanel(p.id);
+  }
+  /** 押した所のマス（グリッドの外なら null） */
+  function cellAt(x, y) {
+    if (!S.layout) return null;
+    const { g, cw, ch } = cellSize(), cx = Math.floor((x - g.left) / (cw + GAP)), cy = Math.floor((y - g.top) / (ch + GAP));
+    return cx >= 0 && cy >= 0 && cx < COLS && cy < S.layout.rows ? { x: cx, y: cy } : null;
+  }
+  const shot = (f, el, part) => requestAnimationFrame(() => requestAnimationFrame(() => window.Hardcopy && Hardcopy[f](el, part)));   // メニューが消えてから写す
+  function panelMenu(id, x, y) {
+    const p = panelOf(id), el = panelEl(id); if (!p || !el) return;
+    const qn = Q.chips(quickOf(id)).length, tsv = tableTsv(el), c = clip(), name = titleOf(p), room = !!freeSpot(p.w, p.h);
+    S.sel = id; document.querySelectorAll("#dashGrid .db-p").forEach((x2) => x2.classList.toggle("is-sel", S.edit && x2 === el));
+    el.classList.add("is-menu");            // どのパネルのメニューかを枠で見せる（閉じたら外す）
+    TPA.menu({ x, y, head: name, onClose: () => el.classList.remove("is-menu"), items: [
+      { group: "見る" },
+      { icon: "↻", label: "このパネルを引き直す", run: () => queryPanel(p) },
+      { icon: "⏷", label: qn ? `絞り込みを直す（${qn}）…` : "このパネルを絞る…", run: () => openFilter(id, el.querySelector("[data-db-filter]") || el.querySelector(".db-ph")) },
+      qn ? { icon: "×", label: "絞り込みを外す", run: () => { setQuick(id, null); refresh(false); paintPanel(id); } } : null,
+      { group: "写す" },
+      { icon: "🖼", label: "パネルの画像をコピー", why: "Excel・メール・チャットに貼り付けられます", run: () => shot("copy", el, name) },
+      { icon: "⤓", label: "パネルの画像を保存", run: () => shot("save", el, name) },
+      { icon: "▦", label: "表の値をコピー", disabled: !tsv, why: tsv ? "タブ区切りで、Excel にそのまま貼り付けられます" : "表の形のパネルだけです（数字・グラフは画像でコピーできます）",
+        run: () => copyText(tsv, "表の値をコピーしました（Excel に貼り付けられます）") },
+      { group: "組む" },
+      { icon: "✎", label: "組む…", key: "Enter", run: () => openEditor(id) },
+      { icon: "Ａ", label: "題を変える…", run: () => {
+        const v = prompt("パネルの題（空にすると、組みから自動で付けます）", p.title || name); if (v == null) return;
+        editing(); commit((L) => { L.panels.find((q) => q.id === id).title = v.trim().slice(0, 60); }, "題を変えました（保存するまでは、この PC の画面だけです）");
+      } },
+      { icon: "⧉", label: "複製", disabled: !room, why: room ? "同じパネルを、空いた所に足します" : "空きがありません（パネルを小さくするか、段を増やしてください）", run: () => { editing(); duplicate(id); } },
+      { icon: "⎘", label: "パネルをコピー", why: "ほかのダッシュボードにも貼り付けられます（右クリック →「貼り付け」）",
+        run: () => { const { x: _x, y: _y, id: _i, ...rest } = TPA.clone(p); TPA.local.set(CLIP, { panel: rest, w: p.w, h: p.h, name }); say(`「${name}」をコピーしました（空いた所を右クリック →「貼り付け」）`); } },
+      c ? { icon: "📋", label: `貼り付け「${c.name}」`, disabled: !room, why: room ? "空いた所に置きます" : "空きがありません", run: () => paste(null) } : null,
+      { sep: true },
+      { icon: "🗑", label: "このパネルを消す", key: "Delete", danger: true, why: "元に戻す（Ctrl+Z）で戻せます",
+        run: () => { editing(); S.confirm = "del:" + id; remove(id); } },
+    ] });
+  }
+  function gridMenu(x, y) {
+    const at = cellAt(x, y), free = at && fits({ ...at, w: 1, h: 1 }), c = clip(), room = !!freeSpot(1, 1);
+    TPA.menu({ x, y, head: (current() || {}).name || "ダッシュボード", items: [
+      { group: "パネル" },
+      { icon: "＋", label: free ? "ここにパネルを足す" : "パネルを足す", disabled: !room, why: room ? "" : "空きがありません（段を増やすか、パネルを小さく）", run: () => { editing(); addPanel(free ? at : null); } },
+      { icon: "📋", label: c ? `貼り付け「${c.name}」` : "貼り付け", disabled: !c || !room, why: !c ? "パネルを右クリック →「パネルをコピー」で写せます" : !room ? "空きがありません" : free ? "ここに置きます" : "空いた所に置きます",
+        run: () => paste(free ? at : null) },
+      { icon: "↶", label: "元に戻す", key: "Ctrl+Z", disabled: !S.edit || !S.history.length, run: () => undo() },
+      { group: "画面" },
+      { icon: "↻", label: "すべて引き直す", run: () => refresh(true) },
+      { icon: "🖼", label: "画面の画像をコピー", run: () => shot("copy") },
+      S.edit ? null : { icon: "✎", label: "編集に入る", run: () => { editing(); say("見出しで動かす・四隅で大きさ・空いたマスで足す"); } },
+    ] });
+  }
+  function onMenu(e) {
+    if (!S.active || !S.layout || S.editing || drag) return;
+    const t = e.target; if (!t.closest || t.closest("input,select,textarea")) return;
+    const pEl = t.closest(".db-p");
+    if (pEl) { e.preventDefault(); panelMenu(pEl.dataset.id, e.clientX, e.clientY); return; }
+    if (t.closest("#dashGrid")) { e.preventDefault(); gridMenu(e.clientX, e.clientY); }
   }
 
   /* ---------------- 押す ---------------- */
@@ -726,6 +817,7 @@
     box.addEventListener("click", onClick);
     box.addEventListener("change", onChange);
     $("#dashGrid").addEventListener("pointerdown", onDown);
+    $("#dashGrid").addEventListener("contextmenu", onMenu);
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", () => { clearTimeout(bind.rt); bind.rt = setTimeout(() => { if (S.active) paintBar(); }, 150); });
     // マスタ（設備グループなど）が変わったら、選び（まとめ方）を読み直し、出ていれば数え直す（版 3.39.0）

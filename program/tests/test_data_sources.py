@@ -115,6 +115,18 @@ class Api(unittest.TestCase):
         self.assertEqual(self.c.get("/api/src/wip/source").status_code, 200)
         self.assertEqual(self.c.post("/api/src/wip/refresh").status_code, 200)
 
+    def test_data_columns_lists_the_real_columns_per_source(self):
+        """変換表の当てる列（版 3.44.0）: データ元ごとの実際の列と値の見本。読めないデータ元は列が空で理由を返す"""
+        self.c.get("/api/src/wip", query_string={"page_size": 1})          # 写しを作る
+        d = {x["key"]: x for x in self.c.get("/api/data/columns").get_json()["sources"]}
+        self.assertEqual(set(d), {"lot", "work", "src:wip"})
+        wip = {c["column"]: c["samples"] for c in d["src:wip"]["columns"]}
+        self.assertIn("製造材質", wip)
+        self.assertTrue(1 <= len(wip["製造材質"]) <= 3 and all(v.strip() for v in wip["製造材質"]), wip["製造材質"])
+        self.assertEqual(d["src:wip"]["error"], "")
+        self.assertEqual(d["lot"]["columns"], [])
+        self.assertTrue(d["lot"]["error"], "品質データの場所が無ければ理由")
+
     def test_unknown_and_unset_sources(self):
         self.assertEqual(self.c.get("/api/src/zz").status_code, 404)
         self.assertEqual(self.c.get("/api/src/lot").status_code, 404, "品質データは /api/lotlist が答える")

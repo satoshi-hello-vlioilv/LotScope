@@ -29,6 +29,8 @@
   // builds: 作り方を組み立てた行（表示ルールと同じ形。lotlist-rules.js）。式がその組み立てから作った物のときだけ、組み立てるで開き直す
   const KEYS = ["order", "hidden", "widths", "locks", "names", "formats", "aligns", "formulas", "rules", "builds"];
   const empty = () => ({ order: [], hidden: [], widths: {}, locks: [], names: {}, formats: {}, aligns: {}, formulas: {}, rules: {}, builds: {} });
+  // 作った列を消す印（行のごみ箱・札の「削除」・作り方の段の「この列を削除」で同じ絵。版 3.44.0）
+  const TRASH = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v4M9 7v4"/></svg>';
   const W_MIN = 20, W_MAX = 900, AUTO_MIN = 30, AUTO_MAX = 320, GRIP_SETTLE_MS = 300;
   const TINTS = [
     ["gray", "灰", "#8a96a0", "目立たせない"], ["stone", "石", "#a39585", "参考"], ["teal", "青緑", "#2f7d78", "転写・注目"],
@@ -483,7 +485,7 @@
           <div class="lc-conv" id="lcConv" hidden></div>
           <div class="lc-listhead"><label title="いま並んでいる列をまとめて出す／隠す"><input type="checkbox" id="lcAll"></label>
             <span title="上下にドラッグで並べ替え。Ctrl・Shift を押しながらクリックでまとめて選ぶ">列（ドラッグで並べ替え）</span><span>表示名</span><span>見え方（実データ 1 件）</span></div>
-          <ol class="lc-list" id="lcList"></ol>
+          <ol class="lc-list" id="lcList" tabindex="0" aria-label="列の一覧（右クリック・Shift+F10 で操作のメニュー）"></ol>
         </div>
         <div class="lc-right" id="lcDetail"></div>
       </div>
@@ -565,7 +567,9 @@
         + `<span class="lc-name"><i class="lc-dot ${calc ? "is-calc" : "is-src"}" title="${calc ? "計算・操作（この画面で作った列）" : "元データ"}"></i>${esc(c)}`
         + `${chg.length ? `<i class="lc-chg" title="変えたこと: ${esc(chg.join("・"))}" aria-label="変えた列"></i>` : ""}${convTag(t, c, calc)}</span>`
         + `<span class="lc-inl">${inl}</span>`
-        + `<span class="lc-sample" title="${esc(v == null ? "" : v)}">${smp}</span></li>`;
+        + `<span class="lc-sample" title="${esc(v == null ? "" : v)}">${smp}</span>`
+        + (calc ? `<button type="button" class="lc-del" data-lc-del title="この列を削除（Delete。保存するまでは元に戻せます）" aria-label="「${esc(label(t, c))}」を削除">${TRASH}</button>` : '<span class="lc-del-sp"></span>')
+        + "</li>";
     }).join("") || '<li class="lc-empty">当たる列がありません</li>';
     $("#lcCount").textContent = `${nShown} / ${all.length} 列` + (sel.size > 1 ? `／ ${sel.size}列を選択中（そのままドラッグでまとめて移動）` : "");
     const ps = LS.get(KEY.presets, []).filter((p) => p.table === ctx.table);
@@ -631,7 +635,8 @@
       names は表の名前の並び（この順に計画する: 先に足した列を後の表が使う）。→ 当てた計画の並び */
   function applyConversions(names) {
     if (!ctx || !window.Conversions) return [];
-    const t = ctx.target, L = get(t), order = ordered(t, allColumns(t, ctx.columns), ctx.lotColumn);
+    // ctx.columns は計算列を含む並び（allColumns を通すと、元のデータの列〈srcCols〉に計算列が混ざり、計算列を元データと見誤る。版 3.44.0 で直した）
+    const t = ctx.target, L = get(t), order = ordered(t, ctx.columns, ctx.lotColumn);
     const plans = window.Conversions.planAll(names, order, L.formulas).filter((p) => p.ok && !p.done);
     if (!plans.length) return [];
     const next = window.Conversions.applyTo(plans, { formulas: L.formulas, order });
@@ -643,7 +648,7 @@
   function conversionPlans(names) {
     if (!ctx || !window.Conversions) return [];
     const t = ctx.target, L = get(t);
-    return window.Conversions.planAll(names, ordered(t, allColumns(t, ctx.columns), ctx.lotColumn), L.formulas);
+    return window.Conversions.planAll(names, ordered(t, ctx.columns, ctx.lotColumn), L.formulas);
   }
   function renderDetail() {
     const t = ctx.target, c = focusCol, box = $("#lcDetail");
@@ -668,7 +673,7 @@
       + `<h4 role="button" tabindex="0" aria-expanded="${openStep === key}">${mark ? `<i>${mark}</i>` : ""}${title}`
       + `<span class="lc-now${sum.set ? " is-set" : ""}">${esc(sum.text)}</span><b class="lc-chev" aria-hidden="true"></b></h4>`;
     box.innerHTML = `
-      <div class="lc-card"><b>${esc(label(t, c))}</b>
+      <div class="lc-card"><div class="lc-cardhead"><b>${esc(label(t, c))}</b>${calc ? `<button type="button" class="lc-danger lc-carddel" data-lc-cdel title="この作った列を削除します（Delete。保存するまでは元に戻せます）">${TRASH}削除</button>` : ""}</div>
         <dl><dt>${calc ? "作った列" : "元の項目名"}</dt><dd>${esc(c)}${calc ? "（式で作る列。見出しを押すと、式の答えで並べ替えます）" : ""}</dd><dt>値のある行</dt><dd>${vals.length} / ${ctx.rows.length}（空欄 ${ctx.rows.length - vals.length}）</dd>
         <dt>値の種類</dt><dd>${guess}</dd>${c === ctx.lotColumn ? "<dt>この列について</dt><dd>押すとそのロットを検索します。隠せません（並びはどこへでも動かせます）。</dd>" : ""}</dl></div>
       ${step("look", "1", "見せ方", stepLook(t, c))}
@@ -689,7 +694,7 @@
         </div>
         <div class="lc-fxacts"><button type="button" id="lcFxOpen" class="lc-primary" title="別の窓で、組み立てるか式を書いて作ります（窓の中で打っている間は一覧を描き直しません）">${String(fsrc).trim() ? "作り方を開く…" : "作り方を作る…"}</button>
           ${!calc && String(fsrc).trim() ? '<button type="button" id="lcFxClear" title="式を外し、元のデータの値をそのまま出します">式を外す</button>' : ""}
-          ${calc ? '<button type="button" id="lcDelCol" class="lc-danger">この列を削除する</button>' : ""}</div>
+          ${calc ? `<button type="button" id="lcDelCol" class="lc-danger lc-carddel" title="Delete。保存するまでは元に戻せます">${TRASH}この列を削除</button>` : ""}</div>
       </section>
       ${step("fmt", "2", "値の整え方", stepFmt(t, c))}
         <div class="lc-field"><span>種類</span>${[["", "そのまま"], ["number", "数値"], ["datetime", "日付・時刻"], ["text", "文字"]].map(([k, n]) => `<label class="lc-radio"><input type="radio" name="lcK" value="${k}"${(f.kind || "") === k ? " checked" : ""}>${n}</label>`).join("")}</div>
@@ -741,14 +746,8 @@
     // この列の作り方: 別の窓（lotlist-rules.js の作り方の窓。表示ルールと同じ組み立て＋式を書く）で作り、「当てる」で下書きへ
     $("#lcFxOpen").addEventListener("click", () => openFormula(c));
     $("#lcFxClear")?.addEventListener("click", () => setFormula(c, { formula: "", build: null }));
-    $("#lcDelCol")?.addEventListener("click", () => {
-      if (!confirm(`計算列「${label(t, c)}」を削除します（保存するまでは元に戻せます）。よろしいですか？`)) return;
-      const L = get(t), drop = (o) => { const x = Object.assign({}, o); delete x[c]; return x; };
-      focusCol = null;
-      window.LotListRules.closeFormula();
-      setL({ formulas: drop(L.formulas), builds: drop(L.builds), names: drop(L.names), formats: drop(L.formats), aligns: drop(L.aligns), widths: drop(L.widths), rules: drop(L.rules),
-        order: L.order.filter((k) => k !== c), hidden: L.hidden.filter((k) => k !== c), locks: L.locks.filter((k) => k !== c) });
-    });
+    $("#lcDelCol")?.addEventListener("click", () => removeCols([c]));
+    $("[data-lc-cdel]", box)?.addEventListener("click", () => removeCols([c]));
     // 読み替え: 選ぶ／新しく作る／編集する（編集の窓は lotlist-rules.js）
     const openRule = (name) => window.LotListRules.open({ name, column: c, source: ruleSource(), toFormula: (expr) => setFormula(c, { formula: expr, build: null }),
       onDone: (saved) => { const Rr = Object.assign({}, get(t).rules); if (saved) Rr[c] = saved; else if (Rr[c] === name) delete Rr[c]; setL({ rules: Rr }); } });
@@ -758,6 +757,105 @@
       const Rr = Object.assign({}, get(t).rules); if (v) Rr[c] = v; else delete Rr[c]; setL({ rules: Rr });
     });
     $("#lcRuleEdit").addEventListener("click", () => { if (get(t).rules[c]) openRule(get(t).rules[c]); });
+  }
+  /* ---------------- 作った列を消す・足す・動かす（版 3.44.0。利用者の要望 2026-10-17 の 4・5） ----------------
+     消す入口: 一覧の行の 🗑・右クリック・Delete キー・右の札の「削除」・作り方の段の「この列を削除する」（どれも removeCols）。
+     元データの列は消せない（隠す）。保存するまでは下書きなので、閉じれば元に戻る */
+  function removeCols(cols) {
+    const t = ctx.target, calc = cols.filter((c) => isComputed(t, c));
+    if (!calc.length) return false;
+    const names = calc.slice(0, 5).map((c) => `「${label(t, c)}」`).join("") + (calc.length > 5 ? ` ほか ${calc.length - 5} 列` : "");
+    if (!confirm(`作った列 ${names} を削除します（保存するまでは元に戻せます）。よろしいですか？`)) return false;
+    const L = get(t), gone = new Set(calc), drop = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !gone.has(k))), keep = (a) => a.filter((k) => !gone.has(k));
+    const list = listCols(), at = list.indexOf(calc[0]);
+    focusCol = gone.has(focusCol) ? list.filter((k) => !gone.has(k))[Math.max(0, at - 1)] || null : focusCol;
+    sel = new Set(keep([...sel]));
+    window.LotListRules.closeFormula();
+    stage(t, { formulas: drop(L.formulas), builds: drop(L.builds), names: drop(L.names), formats: drop(L.formats), aligns: drop(L.aligns), widths: drop(L.widths), rules: drop(L.rules),
+      order: keep(L.order), hidden: keep(L.hidden), locks: keep(L.locks) });
+    ctx.rerender(); renderPanel();
+    $("#lcNote").textContent = `${calc.length} 列を削除しました（保存で確定します。閉じると元に戻ります）`;
+    return true;
+  }
+  /** 作った列を足す（名前が重なれば 2・3… を付ける）。after の右・無ければ末尾。足した列を選んで、作り方の窓を開く（formula が空のとき） */
+  function addCalc(name, { formula = "", after = null, copyOf = null } = {}) {
+    const t = ctx.target, taken = new Set(ctx.columns);
+    name = String(name).trim().slice(0, 40); if (!name) return;
+    if (taken.has(name)) { let i = 2; while (taken.has(`${name}${i}`)) i++; name = `${name}${i}`; }
+    const L = get(t), order = ordered(t, ctx.columns, ctx.lotColumn);
+    order.splice(after && order.includes(after) ? order.indexOf(after) + 1 : order.length, 0, name);
+    const p = { formulas: Object.assign({}, L.formulas, { [name]: formula }), order };
+    if (copyOf) ["builds", "formats", "aligns", "rules"].forEach((k) => { if (L[k][copyOf] != null) p[k] = Object.assign({}, L[k], { [name]: TPA.clone(L[k][copyOf]) }); });
+    stage(t, p);
+    focusCol = name; sel = new Set([name]); openStep = "fx"; ctx.rerender(); renderPanel();
+    if (!formula) openFormula(name);
+  }
+  /** 列を並びの いちばん上・1 つ上・1 つ下・いちばん下 へ（選んだ列はまとめて。並びは表全体の並び） */
+  function moveCols(cols, where) {
+    const t = ctx.target, full = ordered(t, ctx.columns, ctx.lotColumn), moving = full.filter((k) => cols.includes(k));
+    const rest = full.filter((k) => !cols.includes(k));
+    let at = where === "top" ? 0 : where === "bottom" ? rest.length : full.indexOf(moving[0]) + (where === "up" ? -1 : 1);
+    if (where === "down") at = Math.min(rest.length, full.indexOf(moving[moving.length - 1]) + 2 - moving.length);
+    at = Math.max(0, Math.min(rest.length, at));
+    rest.splice(at, 0, ...moving);
+    if (rest.join("\u0000") === full.join("\u0000")) return;
+    stage(t, { order: rest }); ctx.rerender(); renderPanel();
+  }
+  const setHidden = (cols, hide) => {
+    const t = ctx.target, H = new Set(get(t).hidden);
+    cols.filter((c) => c !== ctx.lotColumn).forEach((c) => (hide ? H.add(c) : H.delete(c)));
+    stage(t, { hidden: [...H] }); ctx.rerender(); renderPanel();
+  };
+  /** 列 c の見せ方・値の整え方・読み替え・幅を戻す（作り方〈式〉と並び・表示は残す） */
+  function resetCol(c) {
+    const t = ctx.target, L = get(t), drop = (o) => { const x = Object.assign({}, o); delete x[c]; return x; };
+    stage(t, { names: drop(L.names), formats: drop(L.formats), aligns: drop(L.aligns), widths: drop(L.widths), rules: drop(L.rules), locks: L.locks.filter((k) => k !== c) });
+    ctx.rerender(); renderPanel();
+  }
+  /** 表示名をその場で直す（一覧の行の欄に焦点） */
+  function renameInline(c) {
+    focusCol = c; sel = new Set([c]); renderPanel();
+    requestAnimationFrame(() => { const n = $("#lcList .lc-row.is-focus .lc-inl input"); if (n) { n.focus(); n.select(); } });
+  }
+  /** 一覧の行の右クリックのメニュー（選んだ列が 2 つ以上なら、まとめての操作） */
+  function rowMenu(c, x, y) {
+    const t = ctx.target, l = get(t), many = sel.has(c) && sel.size > 1;
+    const cols = many ? listCols().filter((k) => sel.has(k)) : [c], calcs = cols.filter((k) => isComputed(t, k));
+    if (many) {
+      const hid = cols.filter((k) => l.hidden.includes(k) && k !== ctx.lotColumn).length, shown = cols.filter((k) => !l.hidden.includes(k) && k !== ctx.lotColumn).length;
+      return TPA.menu({ x, y, head: `${cols.length} 列を選んでいます`, items: [
+        { group: "表示" },
+        { icon: "◉", label: `選んだ列をすべて出す${hid ? `（${hid}）` : ""}`, disabled: !hid, run: () => setHidden(cols, false) },
+        { icon: "○", label: `選んだ列をすべて隠す${shown ? `（${shown}）` : ""}`, disabled: !shown, run: () => setHidden(cols, true) },
+        { group: "並び" },
+        { icon: "⤒", label: "いちばん上へ", run: () => moveCols(cols, "top") },
+        { icon: "⤓", label: "いちばん下へ", run: () => moveCols(cols, "bottom") },
+        { sep: true },
+        { icon: "🗑", label: calcs.length ? `選んだ作った列 ${calcs.length} 列を削除` : "削除できる列がありません", danger: !!calcs.length, disabled: !calcs.length, key: "Delete",
+          why: calcs.length ? "保存するまでは元に戻せます" : "元データの列は削除できません（隠せます）", run: () => removeCols(calcs) },
+      ] });
+    }
+    const calc = isComputed(t, c), isLot = c === ctx.lotColumn, hidden = l.hidden.includes(c) && !isLot, fx = String(l.formulas[c] || "").trim(), ord = ordered(t, ctx.columns, ctx.lotColumn), i = ord.indexOf(c);
+    const changed = !!(l.names[c] || l.formats[c] || l.aligns[c] || l.widths[c] || l.rules[c] || l.locks.includes(c));
+    return TPA.menu({ x, y, head: `${label(t, c)}${calc ? "（作った列）" : ""}`, items: [
+      { group: "表示" },
+      { icon: hidden ? "◉" : "○", label: hidden ? "一覧に出す" : "一覧から隠す", disabled: isLot, why: isLot ? "ロット番号の列は押して検索するので、隠せません" : "", run: () => setHidden([c], !hidden) },
+      { icon: "✎", label: "表示名を変える", key: "F2", run: () => renameInline(c) },
+      { group: "並び" },
+      { icon: "⤒", label: "いちばん上へ", disabled: i <= 0, run: () => moveCols([c], "top") },
+      { icon: "↑", label: "1 つ上へ", key: "Alt+↑", disabled: i <= 0, run: () => moveCols([c], "up") },
+      { icon: "↓", label: "1 つ下へ", key: "Alt+↓", disabled: i >= ord.length - 1, run: () => moveCols([c], "down") },
+      { icon: "⤓", label: "いちばん下へ", disabled: i >= ord.length - 1, run: () => moveCols([c], "bottom") },
+      { group: "作る・整える" },
+      { icon: "ƒ", label: fx ? "作り方を開く…" : calc ? "作り方を作る…" : "作り方（式）を付ける…", run: () => { focusCol = c; openStep = "fx"; renderPanel(); openFormula(c); } },
+      { icon: "＋", label: "この列から新しい列を作る…", why: `「${label(t, c)}」を読む式の列を、この列の右に足します`, run: () => addCalc(`${label(t, c)}2`, { formula: `[${c}]`, after: c }) },
+      calc ? { icon: "⧉", label: "この列を複製", why: "式・値の整え方・揃え・読み替えを写した列を、右に足します", run: () => addCalc(`${label(t, c)}のコピー`, { formula: String(l.formulas[c] || ""), after: c, copyOf: c }) } : null,
+      { icon: "↺", label: "見せ方・整え方を戻す", disabled: !changed, why: changed ? "表示名・幅・揃え・値の整え方・読み替えを外します（式は残します）" : "変えていません", run: () => resetCol(c) },
+      { sep: true },
+      calc ? { icon: "🗑", label: "この列を削除", key: "Delete", danger: true, why: "保存するまでは元に戻せます", run: () => removeCols([c]) }
+        : fx ? { icon: "⌫", label: "式を外す（元の値に戻す）", danger: true, run: () => setFormula(c, { formula: "", build: null }) }
+        : { icon: "🗑", label: "この列を削除", disabled: true, why: "元データの列は削除できません（「一覧から隠す」で隠せます）", run: () => {} },
+    ] });
   }
   /** 列 c の式が、保存してある組み立てから作った物か（そうなら作り方の窓を組み立てるで開く） */
   function isBuilt(t, c) {
@@ -816,6 +914,19 @@
     more.onclick = () => showMore(pop.hidden);
     panel.addEventListener("mousedown", (e) => { if (!pop.hidden && !e.target.closest(".lc-more")) showMore(false); });
     panel.addEventListener("keydown", (e) => {
+      // 列の一覧の操作のキー（欄で打っている間は効かせない）: Delete＝作った列を削除・F2＝表示名・Alt+↑↓＝動かす・Shift+F10／メニューキー＝右クリックのメニュー
+      if (!e.target.closest("input,select,textarea") && focusCol && !$(".tpa-menu")) {
+        const cols = sel.size ? listCols().filter((k) => sel.has(k)) : [focusCol];
+        if (e.key === "Delete") { if (removeCols(cols) !== false) e.preventDefault(); return; }
+        if (e.key === "F2") { e.preventDefault(); renameInline(focusCol); return; }
+        if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); moveCols(cols, e.key === "ArrowUp" ? "up" : "down"); return; }
+        if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+          e.preventDefault();
+          const r = $(`#lcList li[data-col="${CSS.escape(focusCol)}"]`)?.getBoundingClientRect();
+          if (r) rowMenu(focusCol, r.left + 40, r.bottom - 4);
+          return;
+        }
+      }
       if (e.key !== "Escape") return;
       e.preventDefault(); e.stopPropagation();
       if (!pop.hidden) { showMore(false); more.focus(); } else tryClose();   // Esc は内側から 1 段ずつ
@@ -831,17 +942,8 @@
       stage(t, { hidden: [...H] }); ctx.rerender(); renderPanel();
     });
     $("#lcAddCol").onclick = () => {
-      const t = ctx.target;
-      let name = (prompt("計算列を作る\n新しい列の名前", "計算列") || "").trim().slice(0, 40);
-      if (!name) return;
-      const taken = new Set(ctx.columns);
-      if (taken.has(name)) { let i = 2; while (taken.has(`${name}${i}`)) i++; name = `${name}${i}`; }
-      const L = get(t), after = focusCol && ctx.columns.includes(focusCol) ? focusCol : null;
-      const order = ordered(t, ctx.columns, ctx.lotColumn);
-      order.splice(after ? order.indexOf(after) + 1 : order.length, 0, name);
-      stage(t, { formulas: Object.assign({}, L.formulas, { [name]: "" }), order });
-      focusCol = name; openStep = "fx"; ctx.rerender(); renderPanel();
-      openFormula(name);
+      const name = (prompt("計算列を作る\n新しい列の名前", "計算列") || "").trim();
+      if (name) addCalc(name, { after: focusCol && ctx.columns.includes(focusCol) ? focusCol : null });
     };
     $("#lcFitAll").onclick = () => {
       const t = ctx.target, L = get(t), cols = listCols(), W = Object.assign({}, L.widths);
@@ -850,7 +952,21 @@
       $("#lcNote").textContent = `${n}列の幅を内容に合わせました（保存するまでは元に戻せます）`;
     };
     const list = $("#lcList");
-    list.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.closest(".lc-inl input")) { e.preventDefault(); e.target.blur(); } });
+    list.addEventListener("keydown", (e) => {
+      const nm = e.target.closest(".lc-inl input"); if (!nm) return;
+      if (e.key === "Enter") { e.preventDefault(); nm.blur(); }
+      // Esc は打った名前を捨てて欄を離れる（窓は閉じない。F2 で直し始めたのをやめる）
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); nm.value = get(ctx.target).names[nm.closest("li").dataset.col] || ""; nm.blur(); list.focus(); }
+    });
+    list.addEventListener("click", (e) => { const b = e.target.closest("[data-lc-del]"); if (b) removeCols([b.closest("li").dataset.col]); });
+    // 右クリック: 選んでいない行なら、その行だけを選んでからメニュー（選んだ行の上なら、まとめての操作）
+    list.addEventListener("contextmenu", (e) => {
+      const li = e.target.closest("li[data-col]"); if (!li || e.target.closest(".lc-inl input")) return;
+      e.preventDefault();
+      const c = li.dataset.col;
+      if (!sel.has(c)) { sel = new Set([c]); anchor = c; focusCol = c; renderPanel(); }
+      rowMenu(c, e.clientX, e.clientY);
+    });
     list.addEventListener("change", (e) => {
       const nm = e.target.closest(".lc-inl input"); if (nm) { setName(nm.closest("li").dataset.col, nm.value); return; }
       const cb = e.target.closest(".lc-vis"); if (!cb) return;
@@ -860,7 +976,7 @@
     });
     // 選ぶ（クリック・Ctrl で足す・Shift で範囲）とドラッグで並べ替え（選んだ列はまとめて動く）
     list.addEventListener("mousedown", (e) => {
-      const li = e.target.closest("li[data-col]"); if (!li || e.target.closest("input")) return;
+      const li = e.target.closest("li[data-col]"); if (!li || e.target.closest("input,button") || e.button !== 0) return;
       const c = li.dataset.col, cols = listCols();
       if (e.shiftKey && anchor) {
         const a = cols.indexOf(anchor), b = cols.indexOf(c);

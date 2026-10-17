@@ -328,6 +328,43 @@
       const out = keys.slice(); out.splice(j, 0, out.splice(i, 1)[0]);
       return out;
     },
+    /** 右クリックのメニュー（版 3.44.0。表示列の窓・ダッシュボードで同じ形）。押した位置に出し、外側・Esc で閉じる。
+        items: [{ label, run, key?（右に添えるキーの字）, icon?（左の 1 字）, danger?, disabled?, why?（押せない理由・説明）, on?（いま効いている印 ✓）} |
+                { group: "見出し" }（まとまりの見出し。前に線） | { sep: true }（線）]
+        head: いちばん上の太字（何に対するメニューか）。矢印・Home・End で移り、Enter で押す。戻り値: 閉じる関数 */
+    menu({ x, y, head = "", items, onClose = null }) {
+      document.querySelector(".tpa-menu")?._close?.();
+      const m = document.createElement("div");
+      m.className = "tpa-menu"; m.setAttribute("role", "menu");
+      const acts = [];
+      m.innerHTML = (head ? `<p class="tm-head">${TPA.esc(head)}</p>` : "") + items.filter(Boolean).map((it) => {
+        if (it.sep) return '<hr class="tm-sep">';
+        if (it.group) return `<p class="tm-group">${TPA.esc(it.group)}</p>`;
+        acts.push(it);
+        return `<button type="button" role="menuitem" data-i="${acts.length - 1}" class="${it.danger ? "is-danger" : ""}${it.on ? " is-on" : ""}"${it.disabled ? " disabled" : ""}${it.why ? ` title="${TPA.esc(it.why)}"` : ""}>`
+          + `<i class="tm-ico" aria-hidden="true">${it.on ? "✓" : TPA.esc(it.icon || "")}</i><span>${TPA.esc(it.label)}${it.disabled && it.why ? `<small class="tm-why">${TPA.esc(it.why)}</small>` : ""}</span>${it.key ? `<kbd>${TPA.esc(it.key)}</kbd>` : ""}</button>`;
+      }).join("");
+      document.body.append(m);
+      // 下に入らなければ、押した所の上に開く（押した行をメニューで覆わない）。上にも入らなければ画面に収める
+      TPA.placeAt(m, x, y + m.offsetHeight > innerHeight - 8 && y - m.offsetHeight >= 8 ? y - m.offsetHeight : y);
+      let off = null;
+      const close = () => { if (!m.isConnected) return; off?.(); m.remove(); onClose?.(); };
+      m._close = close;
+      off = TPA.dismissable(m, close, { event: "mousedown" });
+      m.addEventListener("contextmenu", (e) => e.preventDefault());
+      m.addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-i]"); if (!b || b.disabled) return;
+        close(); acts[+b.dataset.i].run();
+      });
+      m.addEventListener("keydown", (e) => {
+        const bs = [...m.querySelectorAll("button:not(:disabled)")], i = bs.indexOf(document.activeElement);
+        const go = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: bs.length - 1 }[e.key];
+        if (go == null) return;
+        e.preventDefault(); bs[(go + bs.length) % bs.length]?.focus();
+      });
+      requestAnimationFrame(() => m.querySelector("button:not(:disabled)")?.focus({ preventScroll: true }));
+      return close;
+    },
     /** メニューを押した位置に置く（画面からはみ出さない）。 */
     placeAt(el, x, y) {
       el.style.left = `${Math.round(Math.max(8, Math.min(x, innerWidth - el.offsetWidth - 8)))}px`;

@@ -505,6 +505,36 @@ def dashboard_fields():
     return jsonify(fields=[merged[c] for c in order], special=special, table=table, sourceName=name, failed=failed)
 
 
+@bp.get("/api/data/columns")
+def data_columns():
+    """データ元ごとの、実際の列の名前と値の見本（版 3.44.0。変換表の「当てる列」を、取り込んでいるデータの列から選ぶ）。
+    → {sources: [{key, name, columns: [{column, samples}], error}]}。作業実績は読めた設備の列を合わせる（設備で列が違っても選べる）"""
+    out = []
+    for src in source_items(master_repo()):
+        x = {"key": src["key"], "name": src["name"], "columns": [], "error": ""}
+        try:
+            parts, failed, _, _ = panel_parts(src["key"])
+        except _Fail as f:
+            x["error"] = _fail(f.resp)["error"]
+            out.append(x)
+            continue
+        seen = {}
+        for part in parts[:12]:
+            try:
+                cols = pivot.column_names(part.path, preferred_table=part.preferred_table, table_candidates=part.table_candidates)
+            except Exception as e:  # 読めない設備は飛ばす（ほかの設備の列で選べる）
+                x["error"] = x["error"] or f"{part.name}: {e}"
+                continue
+            for col in cols:
+                m = seen.setdefault(col["column"], {"column": col["column"], "samples": []})
+                m["samples"] = list(dict.fromkeys(m["samples"] + col["samples"]))[:3]
+        x["columns"] = list(seen.values())
+        if not x["columns"] and failed:
+            x["error"] = x["error"] or failed[0]["error"]
+        out.append(x)
+    return jsonify(sources=out)
+
+
 def equip_tree(names, set_name=None):
     """設備グループのまとめ方ごとに、names の設備がどのグループに入るか（ルールも当てる）→ [{name, groups: [{name, members}]}]。
     set_name を決めればそのまとめ方だけ。どのグループにも入らない設備は、呼んだ所が「グループなし」にする（版 3.41.0）"""
@@ -523,11 +553,9 @@ def dashboard_equip_tree():
     return jsonify(names=names, sets=equip_tree(names))
 
 
-@bp.get("/api/dashboard/sources")
-def dashboard_sources():
-    """パネルに使えるデータ（データ元の並び）。作業実績は表示する設備も（設備を 1 つに絞れる）。"""
+def source_items(repo):
+    """パネルに使えるデータ（データ元の並び）。作業実績は表示する設備も"""
     settings = effective_settings(current_app)
-    repo = master_repo()
     wl_rows = repo.work_logs()
     out = []
     for d in data_sources.sources(settings, repo.data_source_rows()):
@@ -536,5 +564,12 @@ def dashboard_sources():
         if d["key"] == "work":
             x["equips"] = [{"key": r.get("キー"), "name": r.get("設備名")} for r in _shown_work(wl_rows)]
         out.append(x)
+    return out
+
+
+@bp.get("/api/dashboard/sources")
+def dashboard_sources():
+    """パネルに使えるデータ（データ元の並び）。作業実績は表示する設備も（設備を 1 つに絞れる）。"""
+    repo = master_repo()
     # 設備グループのマスタ（版 3.39.0）: パネルの「設備をまとめる」で選ぶまとめ方
-    return jsonify(items=out, periods=pivot.PERIODS, egroupSets=equip_groups.sets(repo.equip_groups()))
+    return jsonify(items=source_items(repo), periods=pivot.PERIODS, egroupSets=equip_groups.sets(repo.equip_groups()))

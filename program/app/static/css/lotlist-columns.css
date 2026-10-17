@@ -149,9 +149,10 @@ td.cell-warn{background:#fff5e0!important}
 .ll-colpanel .lc-chip.is-on{background:var(--ll-pale);border-color:var(--h-xfer);color:var(--ll-teal-dark);font-weight:700}
 .lc-q{font-size:12px;color:var(--muted)}
 .ll-colpanel .lc-q button{height:22px;font-size:11.5px;margin-left:4px}
-.lc-listhead{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,.75fr) minmax(0,.9fr);gap:6px;align-items:center;padding:5px 12px;background:#f3f6f8;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted);font-weight:700}
+.lc-listhead{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,.75fr) minmax(0,.9fr) 24px;gap:6px;align-items:center;padding:5px 12px;background:#f3f6f8;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted);font-weight:700}
 .lc-list{list-style:none;margin:0;padding:0;overflow:auto;flex:1;position:relative}
-.lc-row{display:grid;grid-template-columns:22px 18px minmax(0,1fr) minmax(0,.75fr) minmax(0,.9fr);gap:6px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;user-select:none}
+.lc-list:focus{outline:none}.lc-list:focus-visible{box-shadow:inset 0 0 0 2px var(--h-xfer)}
+.lc-row{display:grid;grid-template-columns:22px 18px minmax(0,1fr) minmax(0,.75fr) minmax(0,.9fr) 24px;gap:6px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;user-select:none}
 .lc-row:hover{background:#f6fafb}
 .lc-row.is-sel{background:var(--ll-pale)}
 .lc-row.is-focus{box-shadow:inset 3px 0 0 var(--h-xfer)}
@@ -169,6 +170,15 @@ td.cell-warn{background:#fff5e0!important}
 .lc-sample{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--h-meta);font-size:12.5px}
 .lc-sample s{color:#aab4bc}
 .lc-none{color:#aab4bc;font-style:normal}
+/* 作った列の削除（版 3.44.0）: 行の右端のごみ箱。乗せた行・選んだ行で濃く、押す所は赤（元データの列には出さない＝消せない物に押す所を見せない） */
+.ll-colpanel .lc-del{width:24px;height:24px;padding:0;display:grid;place-items:center;border:1px solid transparent;border-radius:6px;background:transparent;color:#8a96a0;cursor:pointer}
+.lc-del svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.lc-row:not(:hover):not(.is-sel):not(.is-focus) .lc-del{opacity:.6}
+.lc-row:is(:hover,.is-sel,.is-focus) .lc-del{color:#b42318}
+.ll-colpanel .lc-del:hover,.ll-colpanel .lc-del:focus-visible{color:var(--danger);border-color:var(--danger-line);background:#fdecea;opacity:1}
+.lc-cardhead{display:flex;align-items:center;gap:8px}.lc-cardhead > b{font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ll-colpanel .lc-carddel{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 10px;font-size:12px}
+.lc-carddel svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .lc-ghost{position:fixed;z-index:95;pointer-events:none;background:#1f3b54;color:var(--on-fill);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;box-shadow:var(--shadow)}
 .lc-dropline{position:absolute;left:8px;right:8px;height:3px;border-radius:2px;background:var(--accent);pointer-events:none}
 
