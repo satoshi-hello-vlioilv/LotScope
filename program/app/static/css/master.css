@@ -572,3 +572,7 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .cv-grid th:nth-child(-n+2){background:var(--surface-4);z-index:2}
 .cv-grid tr.is-cell > td:nth-child(-n+2){background:#f7fafd}
 .cv-grid tr.cv-edrow > td:nth-child(2){position:static}
+/* 左の表の一覧の説明は 1 行（折れて「つ）」だけが次の段に出ない）。判定表は横に送れることを影で示す */
+.cv-editor .sh-item small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv-gridwrap{background:linear-gradient(to left,var(--surface) 30%,rgba(255,255,255,0)) right/24px 100% no-repeat local,
+  linear-gradient(to left,rgba(16,40,70,.14),rgba(16,40,70,0)) right/10px 100% no-repeat scroll;background-color:var(--surface)}

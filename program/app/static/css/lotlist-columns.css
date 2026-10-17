@@ -366,14 +366,15 @@ td.cell-warn{background:#fff5e0!important}
 
 /* 変換表（版 3.42.0。lotlist-columns.js の renderConv。決め方: tools/ui-proposals/2026-10-conv*） */
 .lc-conv{margin:0 12px 8px}
-.lc-cvbar{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border:1px solid #b9e0da;border-radius:9px;background:#eef8f6;color:#0f4f49;font-size:13px;white-space:nowrap}
+/* 色は減らす（3 回目で決めた M: 白地・灰の線。緑は「変換表」の札と主のボタンだけ） */
+.lc-cvbar{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-size:13px;white-space:nowrap}
 .lc-cvlab{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:#d6efea;color:#0f5f58;font-size:11.5px;font-weight:800}
 .lc-cvtxt{min-width:0;overflow:hidden;text-overflow:ellipsis}.lc-cvtxt b{font-weight:800}
 .lc-sp{flex:1}
 .lc-cvgo{height:30px;padding:0 12px;border:1px solid #0f766e;border-radius:8px;background:#0f766e;color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
 .lc-cvgo:disabled{opacity:.5;cursor:default}
-.lc-cvmore{height:30px;padding:0 10px;border:1px solid #b9e0da;border-radius:8px;background:#fff;color:#0f4f49;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
-.lc-cvpick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 10px;margin-top:4px;padding:6px 8px;border:1px solid #b9e0da;border-radius:9px;background:#fff;font-size:12.5px}
+.lc-cvmore{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.lc-cvpick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 10px;margin-top:8px;padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:12.5px}
 .lc-cvi{display:grid;grid-template-columns:18px auto minmax(0,1fr);align-items:center;gap:6px;padding:4px;border-radius:6px;cursor:pointer;min-width:0}
 .lc-cvi small{color:#4b5f72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lc-cvi.is-none{color:#6b7785;cursor:default}.lc-cvi.is-done small{color:#0f5f58}
