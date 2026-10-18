@@ -68,6 +68,9 @@
 
   const { opLabel, opShort, noValueOp } = TPA;
   const filterKey = (f) => [f.column, f.op, f.value].join("\u001f");
+  /** 覚える・送る条件の形（値を選ぶ条件〈in〉は比べ方の鍵 key も。日付の列は日ごと など） */
+  const condOf = (f) => Object.assign({ column: f.column, op: f.op, value: f.value }, f.key ? { key: f.key } : null,
+    f.op === "tuple_in" ? { columns: f.columns, names: f.names } : null);   // 計算列の値で絞る: 式が使う列と、選んだ値の名前（見せる字）
   const relText = TPA.relText, condLabel = TPA.condLabel;
   const isDateCol = (c) => S.dateColumns.includes(c);
   /* 比べ方の選択欄: 日付の列でなければ「以内」を選べなくする（押しても何も当たらない物を出さない）。
@@ -378,7 +381,7 @@
     const k = S.ctx;
     if (k == null) return;
     const all = store.get(KEY.active, {});
-    const keep = S.genericFilters.filter((f) => !f.locked).map((f) => ({ column: f.column, op: f.op, value: f.value }));
+    const keep = S.genericFilters.filter((f) => !f.locked).map(condOf);
     if (keep.length) all[k] = keep; else delete all[k];
     store.set(KEY.active, all);
     const srt = store.get(KEY.sorts, {});
@@ -416,6 +419,67 @@
 
   /* ================= 条件の操作 ================= */
   function reload() { S.page = 1; saveActive(); renderBar(); load(); }
+  /* ---- 列の値で絞る（版 3.45.0。利用者の要望 1: Excel のフィルタ。列の見出しの ▼・右クリックの「値で絞る」） ----
+     その列の値（重複なし）と件数を、ほかの絞り込みのもとで数えて並べ（スライサーと同じ問い合わせ）、チェックで選ぶ。
+     条件（含む・以上・空欄…）も同じ面で。選んだ値は「値を選ぶ条件」（in。計算列は式が使う列の値の組 tuple_in）として条件に入る */
+  const colFilters = (c) => S.genericFilters.filter((f) => f.column === c && !f.locked);
+  function openColumnFilter(c, at) {
+    const LC = window.LotListColumns, t = layoutTarget(), calc = LC.isComputed(t, c);
+    const key = calc ? "" : levelKeyKind(c), mine = colFilters(c);
+    const tup = mine.find((f) => f.op === "tuple_in"), cur = ValueFilter.fromFilters(c, mine);
+    const lvl = levels().find((l) => l.column === c), si = S.sorts.findIndex((x) => x.column === c);
+    let combos = null;       // 計算列: 見えている値 → 元の列の値の組
+    ValueFilter.open({
+      ...at, column: c, label: LC.label(t, c), date: isDateCol(c), had: mine.length > 0,
+      picked: tup ? (tup.names || []) : cur.picked, conds: cur.conds,
+      ops: calc ? [] : undefined,
+      locked: S.genericFilters.filter((f) => f.column === c && f.locked).map(condLabel),
+      sort: workOn() ? null : { dir: lvl ? lvl.dir : si >= 0 ? S.sorts[si].dir : "", set: (dir) => {
+        if (lvl) { if (dir) { setLevels(arrange().levels.map((l) => (l.column === c ? { ...l, dir } : l))); load(); } return; }
+        setSorts(dir ? [{ column: c, dir }] : S.sorts.filter((x) => x.column !== c));
+      } },
+      serverSearch: false,
+      load: async ({ search }) => {
+        if (!calc) return columnValues(c, key, search);
+        const uses = LC.sourcesOf(t, c);
+        if (!uses || !uses.length || uses.length > 4) throw new Error("この計算列は値の一覧を出せません（式が表の列を 1〜4 つ使うときだけ出せます）");
+        const d = await askSlicer({ columns: JSON.stringify(uses) }, c);
+        const by = new Map();
+        (d.combos || []).forEach((x) => {
+          const text = String(LC.cell(t, c, Object.fromEntries(uses.map((k, i) => [k, x.values[i]]))).text ?? "").trim();
+          const b = by.get(text) || { value: text, count: 0, all: 0, tuples: [] };
+          b.count += x.count; b.all += x.all; b.tuples.push(x.values); by.set(text, b);
+        });
+        combos = { uses, by };
+        return { values: [...by.values()].sort((a, b) => (a.value === "") - (b.value === "") || String(a.value).localeCompare(String(b.value), "ja", { numeric: true })), truncated: !!d.truncated };
+      },
+      onApply: (r) => {
+        let add = [];
+        if (calc) {
+          if (r.picked && combos) add = [{ column: c, op: "tuple_in", columns: combos.uses, value: JSON.stringify(r.picked.flatMap((v) => (combos.by.get(v) || {}).tuples || []).slice(0, 1000)), names: r.picked }];
+          else if (r.picked && tup) add = [tup];
+        } else add = ValueFilter.toFilters(c, r, key);
+        S.genericFilters = S.genericFilters.filter((f) => f.locked || f.column !== c).concat(add);
+        reload();
+      },
+    });
+  }
+  /** 一覧の元の値の問い合わせ（スライサーと同じ /slicer）。その列の自分の条件は除いた絞り込みで数える */
+  async function askSlicer(extra, c, search = "") {
+    const q = new URLSearchParams({ ...S.src.params(), table: S.table, ...extra });
+    if (S.search) q.set("search", S.search);
+    const f = baseFilters().filter((x) => x.column !== c).concat(window.LotListSlicer.filters())
+      .concat(search ? [{ column: c, op: "contains", value: search }] : []);
+    if (f.length) q.set("filters", JSON.stringify(f));
+    const r = await fetch(`${S.src.api}/slicer?` + q, { cache: "no-store" });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "値を読めませんでした");
+    return d;
+  }
+  async function columnValues(c, key, search) {
+    const d = await askSlicer({ column: c, ...(key ? { key } : {}) }, c, search);
+    return { values: d.values || [], truncated: !!d.truncated };
+  }
   /** 並べ替え（見出しで決めた分）を list にして引き直す。見出し・件数の行の札・表の見せ方から */
   function setSorts(list) {
     S.sorts = list.slice(0, MAX_SORTS); S.page = 1; saveActive();
@@ -423,7 +487,7 @@
     renderPresetButton(); load();
   }
   function addFilter(f) {
-    if (!S.genericFilters.some((x) => filterKey(x) === filterKey(f))) S.genericFilters.push({ column: f.column, op: f.op, value: f.value });
+    if (!S.genericFilters.some((x) => filterKey(x) === filterKey(f))) S.genericFilters.push(condOf(f));
     reload();
   }
   function confirmLocked(list) {
@@ -448,7 +512,7 @@
   function saveOne(f) {
     if (registeredPreset(f)) return "dup";
     S.presets.unshift({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: presetName(f),
-      table: scope(), filters: [{ column: f.column, op: f.op, value: f.value }], group: "", always: false });
+      table: scope(), filters: [condOf(f)], group: "", always: false });
     savePresets(S.presets.slice(0, 200));
     return "saved";
   }
@@ -465,7 +529,7 @@
   function captureView() {
     const A = arrange();
     return {
-      filters: S.genericFilters.filter((f) => !f.locked).map(({ column, op, value }) => ({ column, op, value })),
+      filters: S.genericFilters.filter((f) => !f.locked).map(condOf),
       sorts: S.sorts.map(({ column, dir }) => ({ column, dir })),
       arrange: levels().length ? { levels: A.levels.map(({ column, dir, lot }) => ({ column, dir, lot: !!lot })), heads: A.heads, suppress: A.suppress } : null,
       slicer: window.LotListSlicer.setupOf(scope(), { sel: true }),
@@ -503,7 +567,7 @@
   function applyView(v) {
     const have = (x) => !S.columns.length || S.columns.includes(x.column);
     const locked = S.genericFilters.filter((f) => f.locked), seen = new Set(locked.map(filterKey));
-    S.genericFilters = locked.concat((v.filters || []).filter((f) => !seen.has(filterKey(f))).map(({ column, op, value }) => ({ column, op, value })));
+    S.genericFilters = locked.concat((v.filters || []).filter((f) => !seen.has(filterKey(f))).map(condOf));
     S.sorts = cleanArrange({ sorts: v.sorts }).sorts.filter(have);
     const a = cleanArrange(v.arrange || {});
     saveArrange(v.arrange ? { levels: a.levels.filter(have), heads: a.heads, suppress: a.suppress } : { levels: [] });
@@ -546,7 +610,7 @@
     }
     if (next) {
       const seen = new Set(S.genericFilters.map(filterKey));
-      next.conds.forEach((f) => { if (!seen.has(filterKey(f))) { seen.add(filterKey(f)); S.genericFilters.push({ column: f.column, op: f.op, value: f.value }); } });
+      next.conds.forEach((f) => { if (!seen.has(filterKey(f))) { seen.add(filterKey(f)); S.genericFilters.push(condOf(f)); } });
     }
     setSelectedPreset(next ? key : PRESET_NONE);
     reload();
@@ -586,7 +650,7 @@
   const adhocActive = () => adhocColumnOk() && (noValueOp(S.adhoc.op)
     || (isRel(S.adhoc.op) ? /^\d+$/.test(String(S.adhoc.value || "").trim()) : !!String(S.adhoc.value || "").trim()));
   /** スライサーより前の絞り込み（条件・列で絞り込む）。スライサーが自分の件数を数えるときにも使う */
-  const baseFilters = () => S.genericFilters.map(({ column, op, value }) => ({ column, op, value })).concat(adhocFilters());
+  const baseFilters = () => S.genericFilters.map(condOf).concat(adhocFilters());
   const adhocFilters = () => adhocActive() ? [{ column: S.adhoc.column, op: S.adhoc.op, value: noValueOp(S.adhoc.op) ? "" : String(S.adhoc.value).trim() }] : [];
   const adhocLabel = () => S.adhoc.column ? condLabel({ column: S.adhoc.column, op: S.adhoc.op, value: String(S.adhoc.value || "").trim() }) : "";
   function applyAdhoc(now) {
@@ -837,6 +901,7 @@
       return `<div class="fb-cond-row${r.locked ? " is-locked" : ""}">`
         + (r.locked ? '<span class="fb-cond-badge is-lock" title="いつも適用（固定）。一覧を開くたびに入ります">🔒 固定</span>' : "")
         + `<span class="fb-cond-text">${esc(r.f.column)} ${isRel(r.f.op) ? `<b>${esc(relText(r.f))}</b><em class="fb-cond-rel">今日から</em>`
+          : r.f.op === "in" || r.f.op === "tuple_in" ? `<b>＝</b> <em title="${esc((r.f.op === "in" ? ValueFilter.inValues(r.f) : r.f.names || []).map((v) => v || "（空欄）").join("\n"))}">${esc(TPA.inText(r.f))}</em>`
           : `<b>${esc(opLabel(r.f.op))}</b>${noValueOp(r.f.op) ? "" : ` <em>${esc(r.f.value)}</em>`}`}</span>`
         + (r.locked ? "" : `<button type="button" class="fb-cond-save${known ? " is-saved" : ""}" data-cond-save="${r.i}" title="${known ? "登録済み（「登録した条件とプリセット」にあります）" : "この条件を登録します。登録すると組み合わせ（プリセット）に入れられます"}">${known ? "★" : "☆"}</button>`)
         + `<button type="button" class="fb-cond-x" data-cond-x="${r.i}" title="この条件を外します">×</button></div>`;
@@ -1113,7 +1178,10 @@
     return { target: layoutTarget(), table: S.src.colTable(S.table), title: `${S.src.title}：${S.src.place(S.table)}`, fileStem: S.src.fileStem,
       place: S.src.place(S.table), columns: window.LotListColumns.allColumns(layoutTarget(), S.columns),
       sourceColumns: S.columns, rows: S.rows, lotColumn: S.lotColumn, grid: $("#llGrid"),
-      rerender: () => renderGrid(), toast: (m) => flash(m), levels: levelsApi() };
+      rerender: () => renderGrid(), toast: (m) => flash(m), levels: levelsApi(),
+      // 列の値で絞る（見出しの右クリックの「値で絞る…」「この列の絞り込みを外す」）
+      filter: { open: (c, x, y) => openColumnFilter(c, { x, y }), has: (c) => colFilters(c).length > 0,
+        clear: (c) => { S.genericFilters = S.genericFilters.filter((f) => f.locked || f.column !== c); reload(); } } };
   }
   /** 件数の行の案内: ロット番号を押したとき・虫眼鏡を押したときに起きること（押す前に違いが分かるように） */
   function paintLotHint() {
@@ -1549,8 +1617,18 @@
       return `<th data-col="${esc(c)}" draggable="true" class="${c === S.lotColumn ? "ll-lotcol " : ""}${filtered.has(c) ? "col-filtered " : ""}${calc ? "is-calc " : ""}${li >= 0 ? "is-level " : ""}${sorted ? "is-sorted " : ""}al-h-${al.head}"`
         + `${li >= 0 ? ` data-lv="${li + 1}"` : ""}${sorted ? ` data-sort="${sorted}"` : ""} title="${esc(tip)}">`
         + `<i class="col-grip" aria-hidden="true">⠿</i><span class="th-in"><span>${esc(LC.label(t, c))}</span></span>`
+
         + `<i class="col-resize${L.locks.includes(c) ? " is-locked" : ""}" title="${L.locks.includes(c) ? "この列は幅を固定しています（列の設定で解けます）" : "ドラッグで列幅を調整（ダブルクリックで既定へ）"}"></i></th>`;
-    }).join("") + "</tr>";
+    }).join("") + "</tr>"
+      // 値で絞る段（版 3.45.0。2026-10-colfilter の 2 回目で決めた C2）: 見出しの下の細い段に、列ごとの ▾ をいつも出す（探させない・列名の幅を取らない）。
+      // 絞っている列は、何で絞っているかの短い字（「CR1・DL2 ほか 1」）を青緑で出す
+      + '<tr class="ll-frow">' + cols.map((c) => {
+        const fs = colFilters(c), on = fs.length > 0, txt = on ? fs.map((f) => condLabel(f).slice(f.column.length + 1)).join("・") : "";
+        return `<th data-fcol="${esc(c)}"${on ? ' class="on"' : ""}><button type="button" class="ll-fbtn" data-th-filter aria-label="「${esc(LC.label(t, c))}」を値で絞る${on ? `（いま: ${esc(txt)}）` : ""}"`
+          + ` title="${on ? `この列で絞り込んでいます: ${esc(txt)}\n` : ""}押すと、値にチェックを入れて絞れます（Excel のフィルタ）。条件・並べ替えも">${on ? `<span>${esc(txt)}</span>` : ""}<i aria-hidden="true">▾</i></button></th>`;
+      }).join("") + "</tr>";
+    const h1 = head.rows[0];
+    if (h1) grid.style.setProperty("--ll-h1", `${h1.offsetHeight}px`);     // 値で絞る段は、見出しの段のすぐ下に貼り付く
     const aligns = cols.map((c) => LC.alignOf(t, c).data);
     const cellsOf = (r) => cols.map((c) => (c === S.lotColumn ? null : LC.cell(t, c, r)));
     grid.classList.toggle("is-grouped", isGrouped);
@@ -1752,7 +1830,10 @@
     bindZoom();
     window.LotListColumns.bindHeader($("#llHead"));
     $("#llHead").addEventListener("click", (e) => {
+      const fth = e.target.closest("th[data-fcol]");          // 値で絞る段の ▾ → その列の「値で絞る」の面（段の下に開く）
+      if (fth) { openColumnFilter(fth.dataset.fcol, { anchor: fth, align: "left" }); return; }
       const th = e.target.closest("th[data-col]"); if (!th || e.target.closest(".col-resize")) return;
+
       const col = th.dataset.col, i = S.sorts.findIndex((s) => s.column === col);
       if (workOn() && S.work && col === S.work.column) { window.LotListWork.toggleOrder(); return; }   // 作業開始の列: 新しい順 ⇄ 古い順
       if (levels().some((l) => l.column === col)) {        // まとめている列: その段の ▲／▼ を入れ替える（段はそのまま）
@@ -2170,7 +2251,7 @@
     const a = store.get(KEY.arrange, {})[k];
     if (a) { const { sorts: _s, ...rest } = cleanArrange(a); out.arrange = rest; }
     if (S.sorts.length) out.sorts = S.sorts.map(({ column, dir }) => ({ column, dir }));
-    const filters = S.genericFilters.filter((f) => !f.locked).map(({ column, op, value }) => ({ column, op, value }));   // いつも適用（固定）は当てる所の物のまま
+    const filters = S.genericFilters.filter((f) => !f.locked).map(condOf);   // いつも適用（固定）は当てる所の物のまま
     if (filters.length) out.filters = filters;
     const ps = tablePresets().map(({ id: _id, table: _t, ...p }) => TPA.clone(p));
     if (ps.length) out.presets = ps;

@@ -472,3 +472,11 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 .ll-xlbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7}
 .ll-xlbtn:hover:not(:disabled){background:#eaf5ee!important;border-color:#1d6f42!important}
 .ll-xlbtn[aria-busy="true"]{opacity:.6;cursor:progress}
+/* タブの名前を直す欄・引いているタブ（版 3.45.0。タブの名前と並び: app.js の applyTabs） */
+.screen-tab .tab-edit{height:26px;padding:0 6px;border:1px solid var(--accent);border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:14px;font-weight:700;outline:none;box-shadow:0 0 0 3px var(--focus-ring)}
+.screen-tab.is-dragging{opacity:.55}
+body.tpa-sorting .screen-tab{cursor:grabbing}
+/* 変えた名前が長ければ「…」で切る（全部は乗せたときに出す。元の名前は切らない）。狭い窓ほど短く（1280 でも見出しを 1 段に収める） */
+.screen-tab.is-renamed .tab-name{max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:1680px){ .screen-tab.is-renamed .tab-name{max-width:8em} }
+@media (max-width:1440px){ .screen-tab.is-renamed .tab-name{max-width:6.5em} }

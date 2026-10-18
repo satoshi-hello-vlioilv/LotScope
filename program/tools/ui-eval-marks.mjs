@@ -41,8 +41,9 @@ try {
   const settle = async () => { await sleep(300); await p.waitForFunction(() => !document.querySelector("#lotListScreen").classList.contains("is-loading")); await sleep(500); };
   /** 列 c のセル: [字, 色が付いているか] */
   const cells = (c) => p.evaluate((col) => {
-    const at = [...document.querySelectorAll("#llHead th")].findIndex((th) => th.dataset.col === col);
-    return [...document.querySelectorAll("#llBody tr[data-i]")].map((tr) => [tr.children[at].textContent.trim(), tr.children[at].classList.contains("mk-cell")]);
+    const at = [...document.querySelectorAll("#llHead tr:first-child th")].findIndex((th) => th.dataset.col === col);
+    // 比べるのは先頭の 60 行（描く行の数は見える所の高さで変わる: 見出しの段の数でも 1 行ずれる。色付けの正しさだけを比べる）
+    return [...document.querySelectorAll("#llBody tr[data-i]")].filter((tr) => +tr.dataset.i < 60).map((tr) => [tr.children[at].textContent.trim(), tr.children[at].classList.contains("mk-cell")]);
   }, c);
   const server = (f) => p.evaluate(async (fl) => (await (await fetch("/api/lotlist?page_size=1&filters=" + encodeURIComponent(JSON.stringify(fl)))).json()).count, f);
 
@@ -83,13 +84,13 @@ try {
   await p.click("#llMarkBtn"); await sleep(300);
   await p.selectOption("#llMarkMenu .mk-item >> nth=0 >> [data-mk-target]", "row"); await settle();
   await p.keyboard.press("Escape");
-  out.four = { rows: await p.$$eval("#llBody tr.mk-row", (x) => x.length) };
+  out.four = { rows: await p.$$eval("#llBody tr.mk-row", (x) => x.filter((tr) => +tr.dataset.i < 60).length) };
   const ok4 = out.four.rows === hit1;
 
   // ⑤ 開き直す
   await p.evaluate(() => TPA.saveUiState());
   await p.reload(); await p.waitForSelector("#llBody tr[data-i]"); await settle();
-  out.five = { rows: await p.$$eval("#llBody tr.mk-row", (x) => x.length), chips: await p.$$eval("#llMarkSum .mk-chip", (x) => x.length) };
+  out.five = { rows: await p.$$eval("#llBody tr.mk-row", (x) => x.filter((tr) => +tr.dataset.i < 60).length), chips: await p.$$eval("#llMarkSum .mk-chip", (x) => x.length) };
   const ok5 = out.five.rows === hit1 && out.five.chips === 2;
 
   // ⑥ 設備でまとめる（画面が行を並べ替える）: 行全体を元のセルに戻して確かめる

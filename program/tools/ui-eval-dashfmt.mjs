@@ -46,16 +46,19 @@ try {
   if (!fmtOpen) { await p.click("#dbEditor [data-de-fmtopen]"); await sleep(200); }
   await pick(p, "#dbEditor [data-de-fncat]", "num"); await sleep(500);
   await pick(p, "#dbEditor [data-de-fndec]", "1"); await sleep(400);
-  await typeIn(p, "#dbEditor [data-de-nsuf]", "本"); await waitDash(p);
+  // 版 3.45.0: 数字のパネルの後ろの字は「単位」の 1 か所（表示形式の「後ろに」は出さない）
+  check("② 数字のパネルには表示形式の「後ろに」が無い（単位の欄で決める）", !(await p.$("#dbEditor [data-de-nsuf]")) && !!(await p.$("#dbEditor [data-de-futext]")), "");
+  await p.fill("#dbEditor [data-de-futext]", "本/日"); await sleep(600); await waitDash(p);
   const st = await p.evaluate(() => Dashboard._state());
   const fm = st.layout.panels.find((x) => x.id === "workTotal").fmt || {};
   const v = (st.answers.workTotal.cells.find((c) => !c.r.length && !c.c.length) || { v: [0] }).v[0];
-  const want = `${v.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}本`;
+  const want = `${v.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}本/日`;
   const num = await p.$eval(`${P("workTotal")} .dp-num`, (b) => b.textContent);
-  check("② 表示形式のコードが組まれる（#,##0.0\"本\"）", fm.num === '#,##0.0"本"', fm);
+  check("② 表示形式のコードが組まれる（#,##0.0）・単位は「本/日」", fm.num === "#,##0.0" && fm.utext === "本/日", fm);
   check(`② 数字がその形（${want}）・自動の単位「本」を重ねない`, num === want, num);
   const sample = await p.$eval("#deNumSample", (x) => x.textContent);
-  check("② 見本に、いまの数・負の数・0 が出る", sample.includes(want) && sample.includes(`-${want}`) && sample.includes("0.0本"), sample);
+  check("② 見本に、いまの数・負の数・0 が出る（単位も添えて）", sample.includes(want) && sample.includes(`-${want}`) && sample.includes("0.0本/日"), sample);
+  await p.click("#dbEditor [data-de-futextx]"); await sleep(400);     // 単位を自動に戻す（下のユーザー定義のコードに字を入れるので）
   // ユーザー定義: [赤]"▲" → 見本の負の数が赤・日付のコードは知らせる
   await pick(p, "#dbEditor [data-de-fncat]", "custom"); await sleep(400);
   await typeIn(p, "#dbEditor [data-de-ncode]", '#,##0"本";[赤]"▲"#,##0"本"');

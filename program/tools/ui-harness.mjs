@@ -143,7 +143,23 @@ async function closeAll(page) {
 // 状態: [名前, そこへ行く操作, 次に押すべきもの（新しい画面の data-next → 前の画面の部品 の順に探す）]
 export const STATES = [
   ["list", async () => {}, "[data-next], #llBody .ll-lot"],
+  // 版 3.45.0: 見出しの下の値で絞る段の ▾ で開く「値で絞る」（設備。CR1・DL2・L-1 を選び、条件で絞るを開いた所）
+  ["list-colfilter", async (p) => {
+    await p.click('#llHead th[data-fcol="設備"] [data-th-filter]'); await p.waitForSelector(".vf-pop [data-vf-v]"); await sleep(200);
+    await p.click(".vf-pop [data-vf-all]");
+    for (const v of ["CR1", "DL2", "L-1"]) await p.click(`.vf-pop [data-vf-v="${v}"]`);
+    await p.click(".vf-pop [data-vf-ctog]"); await sleep(250);
+  }, "[data-next], .vf-pop [data-vf-ok]"],
+  // 版 3.45.0: 見出しのタブの名前と並び（品質異常を「異常ロット」に変え、仕掛を 2 番目へ。作業実績のタブを右クリックしたメニュー）
+  ["tabs-menu", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(150);
+    await p.evaluate(() => { TPA.local.set("tpa.tabs.v1", { order: ["dash", "src:wip", "list", "calc", "work"], names: { list: "異常ロット" } }); document.dispatchEvent(new CustomEvent("tpa:sources-changed")); });
+    await sleep(600);
+    const b = await (await p.$('.screen-tabs [data-screen="work"]')).boundingBox(); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2, { button: "right" }); await sleep(400);
+  }, "[data-next], .tpa-menu button"],
   ["grouped", async (p) => {
+    await p.keyboard.press("Escape");
+    await p.evaluate(() => TPA.local.set("tpa.tabs.v1", {}));
     await p.evaluate((a) => localStorage.setItem("tpa.lotlist.arrange.v1", JSON.stringify(a)), ARRANGE);
     await p.reload();
     await p.waitForSelector("#llBody tr[data-i]");
@@ -318,7 +334,7 @@ export const STATES = [
     await p.keyboard.press("Escape"); await closeAll(p);
     await p.evaluate(() => document.querySelector('#dashGrid .db-p[data-id="wipClass"] [data-db-filter]').click()); await p.waitForSelector("[data-df-col]"); await sleep(1500);
     await p.evaluate(() => { const s = document.querySelector("[data-df-col]"); s.value = "製造材質"; s.dispatchEvent(new Event("change", { bubbles: true })); });
-    await p.waitForSelector("[data-ck-val]"); await sleep(400);
+    await p.waitForSelector(".df-vf [data-vf-v]"); await sleep(400);
   }, "[data-next], [data-df-close]"],
   ["dash-edit", async (p) => { await closeAll(p); await p.evaluate(() => window.DashFilter && DashFilter.close()); await p.click("[data-db-editmode]"); await sleep(500); }, "[data-next], .db-cell"],
   // 版 3.44.0: 編集で空いたマスを右クリックしたメニュー（ここにパネルを足す・貼り付け）
@@ -334,9 +350,16 @@ export const STATES = [
     if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="wipClass"]'); await p.keyboard.press("Enter"); }
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
   }, "[data-next], [data-de-apply]"],
+  // 版 3.45.0: 組む所の条件（製造材質の値で絞る面を開き、A5052 を外した所。カラムの欄を広げた形）
+  ["dash-cond", async (p) => {
+    await p.focus("#dbEditor .de-split"); await p.keyboard.press("Shift+ArrowRight"); await sleep(400);   // カラムの欄を 64px 広げる
+    await p.selectOption("#deCond [data-de-fpick]", "製造材質"); await p.waitForSelector(".vf-pop [data-vf-v]"); await sleep(300);
+    await p.click('.vf-pop [data-vf-v="A5052"]'); await sleep(300);
+  }, "[data-next], .vf-pop [data-vf-ok]"],
   // 版 3.39.0: 組む所の書式（直近 14 日の実績本数の時系列を組み、書式の所まで送る。案の置き方が書式を別の所に出すなら tpa-show-fmt で知らせる）
   ["dash-panel-fmt", async (p) => {
     await p.click("[data-de-cancel]"); await sleep(400);
+    await p.evaluate(() => TPA.local.set("tpa.dash.editor.v1", {}));
     await p.focus('#dashGrid .db-p[data-id="workDays"]'); await p.keyboard.press("Enter");
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
     // 組む所の中だけを送る（scrollIntoView は外の枠まで送り、組む所の見出し〈やめる・当てる〉が窓の上に出ていた: 2026-10-dashmore の 1 回目の採点）
@@ -427,14 +450,15 @@ export const STATES = [
     const b = await p.evaluate(() => { const e = document.querySelector('#dashGrid .db-p[data-id="wipClass"] .db-pb').getBoundingClientRect(); return [e.x + e.width / 2, e.y + e.height / 2]; });
     await p.mouse.click(...b); await p.mouse.move(b[0] + 5, b[1]); await sleep(300);
   }, "[data-next], .db-cell"],
-  // 版 3.43.0: 数字のパネル（前日の実績本数）を組み、書式の表示形式を「数値・小数 1 桁・後ろに本」にした所（書式の所まで送る）
+  // 版 3.43.0: 数字のパネル（前日の実績本数）を組み、書式の表示形式を「数値・小数 1 桁」・単位を「本/日」にした所（版 3.45.0 から数字の後ろの字は単位の欄）（書式の所まで送る）
   ["dash-kpi-fmt", async (p) => {
     await p.focus('#dashGrid .db-p[data-id="workTotal"]'); await p.keyboard.press("Enter");
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(300);
     const pick = (sel, v) => p.evaluate(([s, x]) => { const e = document.querySelector(s); e.focus(); e.value = x; e.dispatchEvent(new Event("change", { bubbles: true })); }, [sel, v]);
     await p.click('#dbEditor input[data-de-fncat][value="num"]', { force: true }); await sleep(300);
     await pick("#dbEditor [data-de-fndec]", "1"); await sleep(300);
-    await p.fill("#dbEditor [data-de-nsuf]", "本"); await sleep(600); await waitDash(p);
+    await p.fill("#dbEditor [data-de-futext]", "本/日"); await sleep(600); await waitDash(p);   // 版 3.45.0: 数字の後ろの字は単位の欄
+    await p.fill("#dbEditor [data-de-fexpr]", "×10"); await sleep(700); await waitDash(p);       // 版 3.45.0: 数の計算（値×10）
     await p.evaluate(() => { document.dispatchEvent(new CustomEvent("tpa-show-fmt"));
       const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deFmt");
       if (m && f && f.offsetParent) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 120);

@@ -215,5 +215,39 @@
     if (neg === "redtri") return `${body};[赤]"▲"${body}`;
     return body;
   }
-  window.NumFormat = { format, text, check, hasLiteral, build, compile, CATS, NEGS, COLORS };
+  /* ---------- 値の計算（版 3.45.0。利用者の要望 3: 数に四則演算を足す。ダッシュボードの書式の「計算」） ----------
+     値は x（「値」「X」も同じ）。演算子から書けば前に値を置く（「÷1000」＝x÷1000・「×100」・「+5」・「-3」）。
+     使える物: 数・小数点・＋ − × ÷ ^（累乗）・かっこ・全角の字。式は読むだけ（eval を使わない）。→ {fn(x)|null, error, text} */
+  const ZEN = /[０-９．（）＋－＊／＾]/g;
+  function expr(src) {
+    let s = String(src == null ? "" : src).trim();
+    if (!s) return { fn: null, error: "", text: "" };
+    s = s.replace(ZEN, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[×✕]/g, "*").replace(/÷/g, "/").replace(/[−–]/g, "-")
+      .replace(/値|ｘ|Ｘ|X/g, "x").replace(/\s+/g, "");
+    if (/^[*/+^]/.test(s) || (/^-/.test(s) && !s.includes("x"))) s = "x" + s;
+    const toks = [], bad = s.replace(/(\d+\.?\d*|\.\d+)|([x+\-*/^()])/g, (m, n, o) => { toks.push(n != null ? { n: +n } : { o }); return ""; });
+    if (bad) return { fn: null, error: `使えない字です: ${[...new Set(bad)].join(" ")}`, text: "" };
+    let i = 0, usesX = false;
+    const peek = () => toks[i], eat = (o) => (toks[i] && toks[i].o === o ? (i++, true) : false);
+    const fail = (m) => { throw new Error(m); };
+    function sum() { let a = prod(); for (;;) { if (eat("+")) { const l = a, r = prod(); a = (x) => l(x) + r(x); } else if (eat("-")) { const l = a, r = prod(); a = (x) => l(x) - r(x); } else return a; } }
+    function prod() { let a = pow(); for (;;) { if (eat("*")) { const l = a, r = pow(); a = (x) => l(x) * r(x); } else if (eat("/")) { const l = a, r = pow(); a = (x) => l(x) / r(x); } else return a; } }
+    function pow() { const a = unary(); if (eat("^")) { const b = pow(); return (x) => a(x) ** b(x); } return a; }
+    function unary() { if (eat("-")) { const a = unary(); return (x) => -a(x); } if (eat("+")) return unary(); return atom(); }
+    function atom() {
+      const t = peek(); if (!t) fail("式が途中で終わっています");
+      if (t.n != null) { i++; return () => t.n; }
+      if (eat("x")) { usesX = true; return (x) => x; }
+      if (eat("(")) { const a = sum(); if (!eat(")")) fail("かっこが閉じていません"); return a; }
+      return fail(`「${t.o}」の前に数か値がありません`);
+    }
+    try {
+      const f = sum();
+      if (i < toks.length) fail(`「${toks[i].o ?? toks[i].n}」の前に演算子がありません`);
+      if (!usesX) fail("値（x）を使っていません。例: ÷1000・x×100");
+      const text = s.replace(/\*/g, "×").replace(/\//g, "÷").replace(/x/g, "値");
+      return { fn: (x) => { const v = f(x); return Number.isFinite(v) ? v : null; }, error: "", text };
+    } catch (e) { return { fn: null, error: e.message, text: "" }; }
+  }
+  window.NumFormat = { format, text, check, hasLiteral, build, compile, expr, CATS, NEGS, COLORS };
 })();

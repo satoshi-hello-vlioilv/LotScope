@@ -613,6 +613,8 @@
         commit((L) => replacePanel(L.panels.find((x) => x.id === id), np), "当てました（保存するまでは、この PC の画面だけです）");
       },
       onCancel: () => { const cur = panelOf(id); if (cur && editBase) replacePanel(cur, editBase); closeEditor(); paint(); refresh(false); },
+      // 組む所の幅を変えた → 組むパネルを左の空きに置き直して描き直す
+      onResize: () => { unfocus(); focusFrame(id); paintPanel(id); },
     });
   }
   /** 焦点（2026-10-grid の 1 回目で 1 位の D）: 組む間、組むパネルをグリッドの左の空きに大きく出し（グリッドの大きさの 1.5 倍まで・
@@ -620,7 +622,7 @@
   function focusFrame(id) {
     const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), g = $("#dashGrid");
     if (!el || !g) return;
-    const r = el.getBoundingClientRect(), gr = g.getBoundingClientRect(), ed = 720 + 24;
+    const r = el.getBoundingClientRect(), gr = g.getBoundingClientRect(), ed = E.width() + 24;   // 組む所の幅は引いて変えられる（版 3.45.0）
     const aw = Math.max(320, innerWidth - ed - gr.left - 16), ah = gr.height;
     const w = Math.min(aw, Math.max(520, r.width * 1.5)), h = Math.min(ah, Math.max(340, r.height * 1.5));
     Object.assign(el.style, { position: "fixed", left: `${Math.round(gr.left + (aw - w) / 2)}px`, top: `${Math.round(gr.top + (ah - h) / 2)}px`, width: `${Math.round(w)}px`, height: `${Math.round(h)}px` });

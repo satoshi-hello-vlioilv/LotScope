@@ -16,6 +16,11 @@
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
 
 const fails = [];
+/** 組む所の条件を足す（版 3.45.0: 列を選ぶ → 値で絞るの面で A1100 だけにチェック → OK） */
+const addA1100 = async (p) => {
+  await p.selectOption("#deCond [data-de-fpick]", "製造材質"); await p.waitForSelector(".vf-pop [data-vf-v]");
+  await p.click(".vf-pop [data-vf-all]"); await p.click('.vf-pop [data-vf-v="A1100"]'); await p.click(".vf-pop [data-vf-ok]");
+};
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 500)}`}`); if (!ok) fails.push(name); };
 const P = (id) => `#dashGrid .db-p[data-id="${id}"]`;
 /** 頁の大きさ・はみ出し（② ④） */
@@ -109,9 +114,7 @@ try {
   await p.click(`${P("wipClass")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f");
   await p.click('[data-de-vis="none"]'); await sleep(1500);
   check("⑤ 「表」を選ぶと、グリッドの中のそのパネルがその場で表になる", await p.$(`${P("wipClass")} .pv-table`) !== null, "");
-  await p.click("[data-de-fadd]");
-  await p.selectOption('#deCond .db-crow [data-de-f="column"]', "製造材質");
-  await p.fill('#deCond .db-crow [data-de-f="value"]', "A1100"); await p.dispatchEvent('#deCond .db-crow [data-de-f="value"]', "change");
+  await addA1100(p);
   await sleep(1800);
   const cond = { ...byId.wipClass, visual: "none", filters: [{ column: "製造材質", op: "eq", value: "A1100" }], body: { ...byId.wipClass.body, grand: true } };
   const want5 = total(await ask(p, cond));
@@ -177,9 +180,7 @@ try {
   await p.click('[data-de-tab="0"]'); await p.waitForSelector("#deFields .pv-f"); await sleep(300);
   await p.click('[data-de-look][value="num"]', { force: true }).catch(async () => { await p.click('.de-seg:nth-child(3)'); }); await sleep(1500);
   check("⑧ ① の見せ方を「数だけ」にすると、棒が消える", (await p.$$eval(`${P("board")} .db-bar`, (x) => x.length)) === 0, "");
-  await p.click("[data-de-fadd]");
-  await p.selectOption('#deCond .db-crow [data-de-f="column"]', "製造材質");
-  await p.fill('#deCond .db-crow [data-de-f="value"]', "A1100"); await p.dispatchEvent('#deCond .db-crow [data-de-f="value"]', "change");
+  await addA1100(p);
   await sleep(2500);
   const g8 = { ...byId.board, groups: [{ ...byId.board.groups[0], filters: [{ column: "製造材質", op: "eq", value: "A1100" }] }, byId.board.groups[1]] };
   const want8 = total((await ask(p, g8)).groups[0]);
