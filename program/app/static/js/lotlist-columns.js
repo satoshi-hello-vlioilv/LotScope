@@ -282,7 +282,7 @@
       const k = map[c]; if (!k) return "";
       const hex = (TINTS.find((x) => x[0] === k) || [])[2]; if (!hex) return "";
       const n = i + 1;
-      return `${scope} thead th:nth-child(${n}){background:${hex};box-shadow:inset 0 -3px 0 color-mix(in srgb,${hex} 60%,#000)}`
+      return `${scope} thead tr:first-child th:nth-child(${n}){background:${hex};box-shadow:inset 0 -3px 0 color-mix(in srgb,${hex} 60%,#000)}`
         + `${scope} tbody td:nth-child(${n}){background:color-mix(in srgb,${hex} 14%,#fff)!important}`;
     }).join("");
   }
@@ -415,6 +415,8 @@
     const m = document.createElement("div");
     m.className = "ll-colmenu"; m.setAttribute("role", "menu");
     m.innerHTML = `<p class="cm-head">${esc(label(t, c))}</p>`
+      + (ctx.filter ? `<button type="button" data-a="filter" title="値にチェックを入れて絞ります（Excel のフィルタ）。条件・並べ替えも同じ面で">値で絞る…</button>`
+        + (ctx.filter.has(c) ? '<button type="button" data-a="unfilter">この列の絞り込みを外す</button>' : "") : "")
       + `<button type="button" data-a="hide"${isLot ? ' disabled title="ロット番号の列は押して検索するので隠せません"' : ""}>この列を隠す</button>`
       + (ctx.levels && ctx.levels.can(c) ? (ctx.levels.has(c)
         ? '<button type="button" data-a="ungroup" title="この列でまとめるのをやめます（ほかの段はそのまま）">この列のまとめを外す</button>'
@@ -455,6 +457,8 @@
       else if (b.dataset.show) patch(t, { hidden: L.hidden.filter((k) => k !== b.dataset.show) });
       else if (a === "showAll") patch(t, { hidden: [] });
       else if (a === "panel") { closeMenu(); openPanel(); return; }
+      else if (a === "filter") { closeMenu(); ctx.filter.open(c, x, y); return; }
+      else if (a === "unfilter") { closeMenu(); ctx.filter.clear(c); return; }
       else if (a === "group" || a === "ungroup") { closeMenu(); if (a === "group") ctx.levels.add(c); else ctx.levels.remove(c); return; }
       closeMenu(); ctx.rerender();
     });

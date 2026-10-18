@@ -105,6 +105,8 @@
   }
   /** 数字の自動の単位（本・ロット・件）。表示形式に単位の字（"本" など）を入れたら、そちらに任せて出さない */
   const autoUnit = (p, m) => {
+    const u = (p.fmt || {}).utext;
+    if (u != null) return esc(u);          // 書式の「単位」で決めた字（版 3.45.0。空なら単位を出さない）
     if (!m || ((p.fmt || {}).num && window.NumFormat && NumFormat.hasLiteral(p.fmt.num))) return "";
     return m.agg === "lots" ? (p.source === "work" ? "本" : "ロット") : m.agg === "count" ? "件" : "";
   };
@@ -478,7 +480,17 @@
   }
 
   /** パネルの中身を描く（sub: 数字の形の下に出す添え書き〈期間・元〉）→ 下に出す知らせの字（描かなかった行など） */
+  /** 値の計算（版 3.45.0。要望 3: 書式の「計算」＝ 値÷1000・値×100 など）。答えの数（cells の v）を式で置き換えた写し。
+      設備ごとに並べる形は、設備ごとの答えに当てる。同じ写しに 2 度当てない（並べる形は 1 枚ずつ render を通る） */
+  const CALCD = Symbol("calcd");
+  function calcd(p, d) {
+    const fn = window.NumFormat && (p.fmt || {}).expr ? NumFormat.expr(p.fmt.expr).fn : null;
+    if (!fn || !d || d[CALCD]) return d;
+    const one = (a) => (a && a.cells ? { ...a, cells: a.cells.map((c) => ({ ...c, v: c.v.map((x) => (typeof x === "number" ? fn(x) : x)) })), [CALCD]: true } : a);
+    return d.facets ? { ...d, facets: d.facets.map((f) => ({ ...f, answer: one(f.answer) })), [CALCD]: true } : one(d);
+  }
   function render(box, p, d, size, sub = "") {
+    d = calcd(p, d);
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
     look(box, p.fmt);
     if (d.facets) return facets(box, p, d, W, H);
@@ -498,5 +510,5 @@
     return out;
   }
 
-  window.DashPanels = { ROLE_COLOR, render, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name) };
+  window.DashPanels = { ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name) };
 })();

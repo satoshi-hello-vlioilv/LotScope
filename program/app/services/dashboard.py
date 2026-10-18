@@ -209,6 +209,12 @@ def _float(v):
     return f if f == f and abs(f) != float("inf") else None
 
 
+EXPR_MAX = 60
+UNIT_MAX = 12
+# 数の計算に使える字（数・小数点・値〈x・X・値・全角〉・四則と累乗・かっこ・空白。全角の数と記号も）
+_EXPR = re.compile(r"[0-9.xX値ｘＸ+\-*/^()×÷−–✕＋－＊／＾（）０-９．\s]+")
+
+
 def clean_fmt(v):
     """書式 → 既定と違う物だけの dict（無ければ None）。
     labels（数値ラベル: auto・none・top〈上〉・inside〈棒の中。積み上げはそれぞれの段〉・both）・xdate（横軸の日付の形）・xrot（横軸の字の向き）・
@@ -271,6 +277,12 @@ def clean_fmt(v):
     c = str(v.get("ncolor") or "")
     if _COLOR.fullmatch(c):
         out["ncolor"] = c
+    # 版 3.45.0: expr（数の計算。画面が読む式〈num-format.js の expr〉。使える字だけ）・utext（数字の後ろの単位。空＝単位を出さない）
+    e = str(v.get("expr") or "").strip()[:EXPR_MAX]
+    if e and _EXPR.fullmatch(e):
+        out["expr"] = e
+    if isinstance(v.get("utext"), str):
+        out["utext"] = v["utext"].strip()[:UNIT_MAX]
     return out or None
 
 

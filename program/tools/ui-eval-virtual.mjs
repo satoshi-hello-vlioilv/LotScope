@@ -24,7 +24,7 @@ const frames = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(
 const view = (p) => p.evaluate(() => {
   const w = document.querySelector(".ll-grid-wrap"), wr = w.getBoundingClientRect();
   // 見出しは th が貼り付く（thead の箱は動く）。下の端は、行が見える所の下端か表の終わりの上の方
-  const th = document.querySelector("#llHead th"), body = document.querySelector("#llBody").getBoundingClientRect();
+  const th = document.querySelector("#llHead tr:last-child th"), body = document.querySelector("#llBody").getBoundingClientRect();   // 見出しの下の段（版 3.45.0 から値で絞る段）まで
   const top = Math.max(wr.top, th ? th.getBoundingClientRect().bottom : wr.top), bottom = Math.min(wr.top + w.clientHeight, body.bottom);
   const trs = [...document.querySelectorAll("#llBody > tr")].filter((tr) => !tr.hidden && (tr.dataset.i != null || tr.classList.contains("ll-ghead")));
   const rects = trs.map((tr) => ({ tr, r: tr.getBoundingClientRect() })).filter((x) => x.r.height > 0);

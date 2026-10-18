@@ -154,10 +154,13 @@
   const opShort = (op) => opLabel(op).split(" ")[0];
   const noValueOp = (op) => op === "empty" || op === "not_empty";
   const relText = (f) => `${f.value}${REL_UNIT[f.op]}以内` + (String(f.value) === "0" && f.op === "within_days" ? "（今日）" : "");
-  const condLabel = (f) => (f.op in REL_UNIT ? `${f.column} ${relText(f)}` : noValueOp(f.op) ? `${f.column} ${opShort(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
+  /** 値を選ぶ条件（op "in"。値の並びの JSON）の短い字: 「CR1・CR2 ほか 3」（版 3.45.0。列の値のチェックで絞る） */
+  const inText = (f) => { let v = []; if (f.op === "tuple_in") v = f.names || []; else try { v = JSON.parse(f.value || "[]"); } catch (_) { /* 読めない並び */ } v = Array.isArray(v) ? v.map((x) => (x === "" ? "（空欄）" : String(x))) : [];
+    return v.length ? v.slice(0, 2).join("・") + (v.length > 2 ? ` ほか ${v.length - 2}` : "") : "（どれも選んでいません）"; };
+  const condLabel = (f) => (f.op === "in" || f.op === "tuple_in" ? `${f.column} = ${inText(f)}` : f.op in REL_UNIT ? `${f.column} ${relText(f)}` : noValueOp(f.op) ? `${f.column} ${opShort(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
 
   window.TPA = {
-    FILTER_OPS, REL_UNIT, opLabel, opShort, noValueOp, relText, condLabel,
+    FILTER_OPS, REL_UNIT, opLabel, opShort, noValueOp, relText, condLabel, inText,
     /** HTML に差し込む文字を無害にする（& < > " ' ）。 */
     esc: (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ESC[c]),
     $: (s, r = document) => r.querySelector(s),

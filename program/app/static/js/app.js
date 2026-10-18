@@ -1013,11 +1013,101 @@ async function loadSources() {
       nav.appendChild(b);
     }
     const key = i + 4 <= 9 ? String(i + 4) : "";
-    b.innerHTML = SRC_ICON + esc(d.name);
+    b.innerHTML = SRC_ICON + `<span class="tab-name">${esc(d.name)}</span>`;
+    b.dataset.def = d.name;
     b.title = `${d.name}（${d.place || "場所が決まっていません"}）を、品質異常と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
     SCREENS[d.screen] = { tab: `#${id}`, panel: "#lotListScreen", source: d.screen, key };
   });
+  applyTabs();
   document.dispatchEvent(new CustomEvent("tpa:screens-ready"));
+}
+/* ---------------- タブの名前と並び（版 3.45.0。利用者の要望 4） ----------------
+   見出しのタブ（ダッシュボード・品質異常・転写・ピッチ計算・作業実績・仕掛…）の表示名を変え、並べ替える。この PC に覚える（TPA.local）。
+   操作: タブをつかんで引く（並べ替え）・右クリックのメニュー（名前を変える・左へ・右へ・元の名前に戻す・並びと名前を元に戻す）・
+   選んだタブで F2（名前を変える）・Ctrl＋Shift＋← →（動かす。作業実績の設備のタブと同じ）。Alt＋数字は、並びを変えても画面ごとに同じ */
+const TABS_KEY = "tpa.tabs.v1";
+const tabPrefs = () => { const v = TPA.local.get(TABS_KEY, {}) || {}; return { order: Array.isArray(v.order) ? v.order : [], names: v.names && typeof v.names === "object" ? v.names : {} }; };
+function saveTabPrefs(v) {
+  const out = {};
+  if (v.order.length) out.order = v.order;
+  if (Object.keys(v.names).length) out.names = v.names;
+  TPA.local.set(TABS_KEY, out); applyTabs();
+}
+const tabEls = () => [...document.querySelectorAll(".screen-tabs [data-screen]")];
+const tabDef = (b) => { if (!b.dataset.def) b.dataset.def = b.querySelector(".tab-name")?.textContent || ""; return b.dataset.def; };
+const tabName = (b) => tabPrefs().names[b.dataset.screen] || tabDef(b);
+/** 覚えた名前と並びをタブに当てる（覚えに無いタブ〈足したデータ元〉は、元の並びのまま後ろへ） */
+function applyTabs() {
+  const nav = $(".screen-tabs"), v = tabPrefs(), els = tabEls();
+  els.forEach((b) => {
+    const n = b.querySelector(".tab-name"), def = tabDef(b), name = v.names[b.dataset.screen] || def;
+    if (n && n.textContent !== name) n.textContent = name;
+    b.classList.toggle("is-renamed", name !== def);
+    if (n) n.title = name !== def ? `${name}（元の名前: ${def}）` : "";      // 長い名前は「…」で切るので、全部は乗せたときに
+    b.dataset.tabName = name;
+  });
+  // 覚えに無いタブは元の並び（決まった画面 → データ元の登録の順）
+  const base = ["dash", "list", "calc", "work", ...(state.sources || []).map((d) => d.screen)];
+  const rank = (b) => { const i = v.order.indexOf(b.dataset.screen), d = base.indexOf(b.dataset.screen); return i >= 0 ? i : 1000 + (d < 0 ? 999 : d); };
+  const want = [...els].sort((a, b) => rank(a) - rank(b));
+  if (want.some((b, i) => b !== els[i])) want.forEach((b) => nav.appendChild(b));
+}
+function moveTab(screen, dir) {
+  const keys = tabEls().map((b) => b.dataset.screen), i = keys.indexOf(screen), j = i + dir;
+  if (i < 0 || j < 0 || j >= keys.length) return;
+  [keys[i], keys[j]] = [keys[j], keys[i]];
+  saveTabPrefs({ ...tabPrefs(), order: keys });
+  document.querySelector(`.screen-tabs [data-screen="${CSS.escape(screen)}"]`)?.focus();
+}
+function setTabName(screen, name) {
+  const v = tabPrefs(), b = document.querySelector(`.screen-tabs [data-screen="${CSS.escape(screen)}"]`); if (!b) return;
+  const n = String(name || "").trim().slice(0, 24);
+  if (!n || n === tabDef(b)) delete v.names[screen]; else v.names[screen] = n;
+  saveTabPrefs(v);
+}
+/** タブの名前をその場で直す（Enter で決める・Esc でやめる・外を押すと決める。空にすると元の名前） */
+function renameTab(screen) {
+  const b = document.querySelector(`.screen-tabs [data-screen="${CSS.escape(screen)}"]`), n = b && b.querySelector(".tab-name");
+  if (!n || b.querySelector(".tab-edit")) return;
+  const inp = Object.assign(document.createElement("input"), { className: "tab-edit", value: tabName(b), maxLength: 24 });
+  inp.setAttribute("aria-label", `「${tabDef(b)}」のタブの名前（空にすると元の名前）`);
+  inp.style.width = `${Math.max(96, n.offsetWidth + 28)}px`;
+  n.hidden = true; n.after(inp); inp.focus(); inp.select();
+  let done = false;
+  const end = (ok) => { if (done) return; done = true; const v = inp.value; inp.remove(); n.hidden = false; if (ok) setTabName(screen, v); b.focus(); };
+  inp.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); end(true); } else if (e.key === "Escape") { e.preventDefault(); end(false); } });
+  inp.addEventListener("blur", () => end(true));
+  ["click", "pointerdown", "mousedown"].forEach((k) => inp.addEventListener(k, (e) => e.stopPropagation()));
+}
+function tabMenu(b, x, y) {
+  const screen = b.dataset.screen, keys = tabEls().map((t) => t.dataset.screen), i = keys.indexOf(screen), v = tabPrefs();
+  TPA.menu({ x, y, head: `タブ「${tabName(b)}」`, items: [
+    { label: "名前を変える…", icon: "✎", key: "F2", run: () => renameTab(screen) },
+    { label: "元の名前に戻す", icon: "↺", disabled: !v.names[screen], why: v.names[screen] ? `「${tabDef(b)}」に戻します` : "名前は変えていません", run: () => setTabName(screen, "") },
+    { sep: true },
+    { label: "左へ移す", icon: "←", key: "Ctrl+⇧+←", disabled: i <= 0, why: i <= 0 ? "いちばん左です" : "", run: () => moveTab(screen, -1) },
+    { label: "右へ移す", icon: "→", key: "Ctrl+⇧+→", disabled: i >= keys.length - 1, why: i >= keys.length - 1 ? "いちばん右です" : "", run: () => moveTab(screen, 1) },
+    { sep: true },
+    { label: "タブの並びと名前を元に戻す", icon: "⟲", disabled: !v.order.length && !Object.keys(v.names).length, why: "並びも名前も元のままです", run: () => saveTabPrefs({ order: [], names: {} }) },
+  ] });
+}
+{
+  const nav = $(".screen-tabs");
+  nav.title = "タブはつかんで並べ替え・右クリックで名前を変えられます（この PC に覚えます）";
+  TPA.sortable(nav, { items: tabEls, keyOf: (el) => el.dataset.screen, axis: "x", onOrder: (keys) => saveTabPrefs({ ...tabPrefs(), order: keys }) });
+  nav.addEventListener("contextmenu", (e) => {
+    const b = e.target.closest("[data-screen]"); if (!b || e.target.closest(".tab-edit")) return;
+    // タブの真下に出す（押した位置に出すと、メニューがそのタブの名前を覆った: 2026-10-tabs の自分の確かめ）
+    e.preventDefault(); tabMenu(b, Math.max(e.clientX - 40, b.getBoundingClientRect().left), b.getBoundingClientRect().bottom + 2);
+  });
+  nav.addEventListener("dblclick", (e) => { const b = e.target.closest("[data-screen]"); if (b && e.target.closest(".tab-name")) renameTab(b.dataset.screen); });
+  nav.addEventListener("keydown", (e) => {
+    const b = e.target.closest("[data-screen]"); if (!b || e.target.closest(".tab-edit")) return;
+    if (e.key === "F2") { e.preventDefault(); renameTab(b.dataset.screen); return; }
+    if ((e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) { e.preventDefault(); const r = b.getBoundingClientRect(); tabMenu(b, r.left, r.bottom); return; }
+    if (e.ctrlKey && e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); e.stopImmediatePropagation(); moveTab(b.dataset.screen, e.key === "ArrowRight" ? 1 : -1); }
+  }, true);
+  applyTabs();
 }
 loadSources();
 document.addEventListener("tpa:sources-changed", loadSources);

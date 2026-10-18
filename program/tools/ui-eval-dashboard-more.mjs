@@ -38,8 +38,8 @@ try {
 
   // ① パネルを絞る（値）
   await click(p, `${P("wipClass")} [data-db-filter]`); await p.waitForSelector("[data-df-col]"); await sleep(1500);
-  await pick(p, "[data-df-col]", "製造材質"); await p.waitForSelector("[data-ck-val]"); await sleep(300);
-  await p.evaluate(() => [...document.querySelectorAll("[data-ck-val]")].find((x) => x.dataset.ckVal === "A1100").click()); await sleep(400);
+  await pick(p, "[data-df-col]", "製造材質"); await p.waitForSelector(".df-vf [data-vf-v]"); await sleep(300);
+  await p.evaluate(() => { document.querySelector(".df-vf [data-vf-all]").click(); document.querySelector('.df-vf [data-vf-v="A1100"]').click(); }); await sleep(600);
   await click(p, "[data-df-close]"); await settle(p);
   const base = await panelOf(p, "wipClass");
   const want1 = total(await ask(p, { ...base, visual: "none", body: { ...base.body, grand: true }, filters: [{ column: "製造材質", op: "in", value: JSON.stringify(["A1100"]) }] }))[0];
@@ -53,9 +53,12 @@ try {
   const back = await p.evaluate(() => { const a = Dashboard._state().answers.wipClass; return (a.cells.find((c) => !c.r.length && !c.c.length) || { v: [null] }).v[0]; });
   check("① 札の × で絞り込みが外れ、元の計（1,200）に戻る", back === 1200, back);
   // ① 設備を 2 台
-  await click(p, `${P("workDays")} [data-db-filter]`); await p.waitForSelector("[data-ck-eq]"); await sleep(400);
-  const two = await p.evaluate(() => [...document.querySelectorAll("[data-ck-eq]")].slice(0, 2).map((x) => x.dataset.ckEq));
-  for (const n of two) { await p.evaluate((v) => [...document.querySelectorAll("[data-ck-eq]")].find((x) => x.dataset.ckEq === v).click(), n); await sleep(300); }
+  // 版 3.45.0: 設備は畳める段の中の「値で絞る」の部品（（すべて選択）を外して 2 台にチェック）
+  await click(p, `${P("workDays")} [data-db-filter]`); await p.waitForSelector('[data-df-sec="eq"]'); await sleep(400);
+  await p.click('[data-df-sec="eq"]'); await p.waitForSelector(".df-eqvf [data-vf-v]"); await sleep(300);
+  const two = await p.evaluate(() => [...document.querySelectorAll(".df-eqvf [data-vf-v]")].slice(0, 2).map((x) => x.dataset.vfV));
+  await p.click(".df-eqvf [data-vf-all]"); await sleep(200);
+  for (const n of two) { await p.evaluate((v) => [...document.querySelectorAll(".df-eqvf [data-vf-v]")].find((x) => x.dataset.vfV === v).click(), n); await sleep(300); }
   await click(p, "[data-df-close]"); await settle(p, 1200);
   const wd = await panelOf(p, "workDays");
   const want2 = total(await ask(p, { ...wd, visual: "none", body: { ...wd.body, grand: true }, equips: two }))[0];

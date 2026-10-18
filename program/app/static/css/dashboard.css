@@ -146,7 +146,7 @@ body.db-dragging{cursor:grabbing;user-select:none}
 
 /* ---- パネルを組む所（dashboard-editor.js）: 焦点（2026-10-grid の 1 回目で 1 位の D）。組む所は右に重ね、組むパネルは左に大きく、ほかは淡い幕の下。
    グリッドは縮めない（ほかのパネルの字が切れない） ---- */
-.db-editor-pane{position:fixed;right:12px;top:calc(var(--header-h) + 54px);bottom:12px;width:720px;max-width:calc(100vw - 340px);z-index:21;display:flex;flex-direction:column;
+.db-editor-pane{position:fixed;right:12px;top:calc(var(--header-h) + 54px);bottom:12px;width:720px;max-width:calc(100vw - 260px);z-index:21;display:flex;flex-direction:column;
   background:var(--surface);border:1px solid var(--pop-line);border-radius:var(--radius);box-shadow:0 10px 30px var(--pop-shadow);overflow:hidden;overflow:clip}
 .db-scrim{position:fixed;left:0;right:0;top:calc(var(--header-h) + 54px);bottom:0;z-index:19;background:rgba(238,242,245,.9)}
 .db-p.is-focus{z-index:20;box-shadow:0 12px 36px rgba(12,34,48,.22)!important}
@@ -155,7 +155,17 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .de-head b{font-size:14px;white-space:nowrap}
 .de-title{flex:1;min-width:0;height:30px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;font-size:13.5px;font-weight:700;color:var(--ink)}
 .de-title:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
-.de-body{flex:1;min-height:0;display:grid;grid-template-columns:210px minmax(0,1fr);gap:10px;padding:10px}
+.de-body{position:relative;flex:1;min-height:0;display:grid;grid-template-columns:var(--de-fw,210px) minmax(0,1fr);gap:10px;padding:10px}
+/* 幅の取っ手（版 3.45.0）: 組む所の左の縁と、カラムの欄と右の境。乗せると線が濃くなる。引いている間は字を選ばない */
+.de-wgrip{position:absolute;left:0;top:0;bottom:0;width:8px;z-index:3;cursor:col-resize}
+.de-split{position:absolute;top:10px;bottom:10px;left:calc(10px + var(--de-fw,210px));width:10px;z-index:2;cursor:col-resize}
+/* 取っ手は、いつも見える縦の点の帯（⋮ を縦に並べた形。前の淡い短い線は見つけにくかった: 2026-10-dashedit の 1 回目）。乗せると青緑で長く */
+.de-wgrip::after,.de-split::after{content:"";position:absolute;top:50%;height:56px;margin-top:-28px;width:4px;border-radius:2px;background:radial-gradient(circle,#7f97a8 1.3px,transparent 1.6px) 0 0/4px 7px repeat-y;transition:background .12s,height .12s}
+.de-wgrip::after{left:2px}.de-split::after{left:3px}
+.de-wgrip:hover::after,.de-split:hover::after,.de-wgrip:focus-visible::after,.de-split:focus-visible::after,body.de-sizing .de-wgrip::after,body.de-sizing .de-split::after{background:var(--ll-teal);height:72px;margin-top:-36px}
+.de-wgrip:focus-visible,.de-split:focus-visible{outline:none}
+body.de-sizing{user-select:none;cursor:col-resize}
+.db-editor-pane.is-whole .de-split,#dbEditor.is-whole .de-split{display:none}
 .de-fields{min-height:0}
 .de-main{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto;padding-right:2px}
 .de-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -295,7 +305,14 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .df-sec h4{margin:0;font-size:13px;display:flex;align-items:baseline;gap:8px}
 .df-sec h4 small{font-weight:400;color:var(--muted);font-size:12px}
 .df-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.df-row select,.df-row input[type=search]{height:28px;font:inherit;font-size:13px}
+/* 選びの欄・数の欄（版 3.45.0。要望 5: 形が当たっておらず、素の選択欄に見えていた）。組む所の欄と同じ形 */
+.df-sel,.df-num{height:30px;box-sizing:border-box;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:0 8px;font:inherit;font-size:13px;color:var(--ink);min-width:0}
+.df-sel{max-width:100%;cursor:pointer}
+.df-sel[data-df-col]{flex:1}
+.df-num{width:72px}
+.df-sel:hover,.df-num:hover{border-color:#b6c6d2}
+.df-sel:focus,.df-num:focus{outline:none;border-color:var(--ll-teal);box-shadow:0 0 0 3px rgba(47,125,120,.18)}
+.df-vf{margin-top:2px;padding:10px;border:1px solid var(--line);border-left:3px solid var(--ll-teal);border-radius:8px;background:var(--surface-1)}
 .df-ck{display:flex;align-items:center;gap:10px}
 .df-all{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:13px;cursor:pointer}
 .df-n{color:var(--muted);font-size:12px}
@@ -309,6 +326,9 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .df-chips{display:flex;flex-wrap:wrap;gap:6px}
 .df-chip{display:inline-flex;align-items:center;gap:6px;padding:2px 2px 2px 9px;border-radius:999px;background:var(--input-soft,#eef3f9);border:1px solid #c7d5e6;font-size:12.5px;max-width:100%}
 .df-chip b{color:var(--h-input)}
+.df-chipb{display:inline-flex;gap:6px;align-items:center;min-width:0;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:none;padding:0;font:inherit;color:var(--ink);cursor:pointer}
+.df-chip.on{border-color:var(--ll-teal);background:var(--ll-pale);box-shadow:0 0 0 2px rgba(47,125,120,.15)}
+.df-chip.on b{color:var(--ll-teal-dark)}
 .df-chip button{border:0;background:none;cursor:pointer;width:20px;height:20px;border-radius:50%;font:inherit}
 
 /* ---- 組む所（版 3.39.0）: 形は目的の行・見せ方の枠・値の札の統計・設備の選びとまとめ・書式・計算列 ---- */
@@ -635,3 +655,43 @@ body.db-dragging{cursor:grabbing;user-select:none}
 #dbEditor .de-nsbox .de-nwarn{flex-basis:100%}
 /* 右クリックのメニューを開いているパネル（版 3.44.0）: 枠を強めて、どのパネルの操作かを見せる */
 .db-p.is-menu{box-shadow:0 0 0 2px var(--h-xfer),0 6px 18px rgba(12,34,48,.12)}
+.df-top{display:flex;flex-direction:column;gap:8px}
+.de-fpick{align-self:flex-start;width:min(100%,320px)}
+/* 計算と単位（版 3.45.0。書式の表示形式の上） */
+#dbEditor .de-fcalc,#dbEditor .de-unit{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:6px;min-width:0}
+#dbEditor .de-cin{width:220px}
+#dbEditor .de-cex{display:inline-flex;gap:4px}
+#dbEditor .de-cmsg{flex-basis:100%}
+#dbEditor .de-ntx.is-bad{border-color:var(--danger);box-shadow:0 0 0 3px rgba(192,57,43,.14)}
+#dbEditor .de-unit .de-ntx{width:150px}
+#dbEditor .de-link{border:0;background:none;padding:0;font:inherit;font-size:12px;color:var(--h-input);text-decoration:underline;cursor:pointer}
+/* 絞る面の下のボタン（すべて外す・閉じる）は、面が窓より高く中を送るときも下に見えたまま（1280×720 で閉じるが送らないと見えなかった: 2026-10-colfilter の自分の確かめ） */
+.df-pop .df-bottom{position:sticky;bottom:-10px;margin:0 -12px -10px;padding:0 12px 10px;background:var(--surface);z-index:2}
+/* 絞る面の段（版 3.45.0）: 設備・期間・値と条件を畳め、開くのは 1 つ。畳んだ段の見出しに、いま選んでいる物の要約（絞っていれば青緑） */
+.df-pop .df-sec{gap:0;padding-top:0}
+.df-sech{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 4px;border:0;background:transparent;font:inherit;color:var(--ink);text-align:left;cursor:pointer;border-radius:6px}
+.df-sech:hover{background:var(--surface-2)}
+.df-sech i{font-style:normal;color:var(--muted);width:10px;flex:none}
+.df-sech b{font-size:13.5px;flex:none}
+.df-sum{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12.5px;text-align:right}
+.df-sum.on{color:var(--ll-teal-dark);font-weight:700}
+.df-sec:not(.is-open) .df-secb{display:none}
+.df-secb{display:flex;flex-direction:column;gap:8px;padding:2px 2px 10px}
+.df-eqvf{padding:10px;border:1px solid var(--line);border-left:3px solid var(--ll-teal);border-radius:8px;background:var(--surface-1)}
+/* 組む所の 3 回目の土台（版 3.45.0。2026-10-dashedit の 2 回目の指摘）: カラム名は 2 行まで折り返す（幅を変えなくても読める。測るときだけ 1 行）・
+   「⇔ 名前に合わせる」の札・右の組み立ての左に間（取っ手の点の帯が字にくっつかない）・計算の名前は上にそろえる（2 行の欄の真ん中に浮かない） */
+#deFields .pv-f > span > b{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
+#dbEditor.de-measure #deFields .pv-f > span > b{white-space:nowrap;display:block;-webkit-line-clamp:unset}
+.de-fields .pv-cap{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+.de-fields .pv-cap small{flex-basis:100%}
+.de-fitbtn{margin-left:auto;height:22px;padding:0 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--h-input);font:inherit;font-size:11.5px;white-space:nowrap;cursor:pointer}
+.de-fitbtn:hover{border-color:var(--h-input);background:var(--input-soft)}
+#dbEditor .de-main{padding-left:6px}
+#dbEditor .de-gl:has(> .de-gtop){align-self:start;padding-top:7px}
+/* 低い窓（1280×720）では、絞る面の値の並びを縮めて、段の下まで送らずに見える（2026-10-colfilter の 2 回目の指摘） */
+.df-pop .vf-embed .vf-items{max-height:clamp(100px,calc(100vh - 580px),260px)}
+/* 計算の変わり方（2026-10-dashedit の 3 回目で決めた E3）: いまの数 → 計算した数 */
+#dbEditor .de-cprev{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;background:var(--ll-pale);color:var(--ll-teal-dark);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+#dbEditor .de-cprev:empty{display:none}
+#dbEditor .de-cprev i{font-style:normal;color:var(--muted);font-weight:400}
+#dbEditor .de-cprev small{color:var(--muted);font-weight:400}

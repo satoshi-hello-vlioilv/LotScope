@@ -57,16 +57,25 @@
     const out = [];
     if ((q.equips || []).length) out.push({ key: "equips", text: `設備 ${q.equips.slice(0, 3).join("・")}${q.equips.length > 3 ? ` ほか ${q.equips.length - 3}` : ""}` });
     if (q.period && q.period.kind) out.push({ key: "period", text: `期間 ${q.period.kind === "days" ? `直近 ${q.period.n || 7} 日` : (PERIODS.find((x) => x[0] === q.period.kind) || ["", ""])[1]}` });
-    (q.filters || []).forEach((f, i) => { const vs = inValues(f); out.push({ key: `f${i}`, text: `${f.column} ${vs.slice(0, 2).map((v) => v || "（空欄）").join("・")}${vs.length > 2 ? ` ほか ${vs.length - 2}` : ""}` }); });
+    byColumn(q.filters).forEach(([col, fs]) => out.push({ key: `c:${col}`, text: colText(col, fs) }));
     return out;
   }
   function drop(q, key) {
     const x = TPA.clone(q || {});
     if (key === "equips") x.equips = [];
     else if (key === "period") x.period = null;
+    else if (key.startsWith("c:")) x.filters = (x.filters || []).filter((f) => f.column !== key.slice(2));
     else if (/^f\d+$/.test(key)) x.filters.splice(+key.slice(1), 1);
     return x;
   }
+  /** 条件を列ごとにまとめる → [[列, [条件]]]（並びは最初に出た順） */
+  function byColumn(filters) {
+    const m = new Map();
+    (filters || []).forEach((f) => { if (!m.has(f.column)) m.set(f.column, []); m.get(f.column).push(f); });
+    return [...m];
+  }
+  /** 列の条件の短い字（値の選び「A1100・A3004 ほか 1」と条件「含む ab」を「・」で） */
+  const colText = (col, fs) => `${col} ${fs.map((f) => (f.op === "in" ? TPA.inText(f) : TPA.condLabel({ ...f, column: "" }).trim())).join("・")}`;
   const inValues = (f) => { try { const v = JSON.parse(f.value || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; } };
 
   /* ---- 候補（サーバーで数える） ---- */
@@ -77,8 +86,8 @@
     return d;
   }
   /** その組みの列の値と件数 → [{value, label, n}]（多い順ではなく、決まった順＝日付・名前の順）。date … 日付の列（日ごと） */
-  async function valuesOf(p, column, { date = false, without = -1, q = null } = {}) {
-    const b = baseOf(p), own = (q && q.filters ? q.filters : []).filter((_, i) => i !== without);
+  async function valuesOf(p, column, { date = false, without = -1, except = "", q = null } = {}) {
+    const b = baseOf(p), own = (q && q.filters ? q.filters : []).filter((f, i) => i !== without && (!except || f.column !== except));
     const panel = { visual: "none", source: b.source, equip: b.equip || "", equips: (q && (q.equips || []).length ? q.equips : b.equips) || [], calc: b.calc, search: b.search || "",
       filters: (b.filters || []).concat(own), period: b.period || null, basis: b.basis || "work",
       body: { rows: [{ column, part: date ? "date" : "" }], cols: [], measures: [{ agg: "count" }], grand: false } };
@@ -114,101 +123,151 @@
   }
   const C = window.LotListPivotCharts;
 
-  /* ---- 面 ---- */
-  let el = null, off = null, st = null;
-  function close() { if (off) off(); off = null; if (el) el.remove(); el = null; st = null; }
-  /** 開く。h = {anchor, panel, quick, sources, canMove, onChange(quick), onMove()} */
+  /* ---- 面 ----
+     3 つのまとまり（設備・期間・値と条件）を畳める段にし、開くのは 1 つだけ（版 3.45.0。1280×720 で値のチェックが面の下に隠れた: 2026-10-colfilter の 1 回目）。
+     畳んだ段の見出しには、いま選んでいる物の要約を出す（開かなくても何で絞っているかが見える）。
+     設備と値は同じ「値で絞る」の部品（value-filter.js の埋め込み）で、同じ形・同じ言葉（（すべて選択）・件数の帯）。
+     埋め込みの部品は、段を開いたとき・列を替えたときだけ作り直す（チェックのたびに作り直すと、値の読み直し・送り位置・打っている欄が失われる） */
+  let el = null, off = null, st = null, vf = null, vfEq = null;
+  function close() {
+    if (off) off(); off = null;
+    if (st && st.ro) st.ro.disconnect();
+    [vf, vfEq].forEach((x) => x && x.destroy()); vf = vfEq = null;      // 待っている選びを渡してから
+    if (st && emit.t) { clearTimeout(emit.t); emit.t = 0; st.onChange(TPA.clone(st.q)); }   // 閉じる前の最後の変更も効かせる（すぐ閉じると捨てていた）
+    if (el) el.remove(); el = null; st = null;
+  }
+  /** 開く。h = {anchor, panel, quick, sources, canMove, onChange(quick), onMove(), boardKeys?} */
   async function open(h) {
     close();
-    st = { ...h, q: TPA.clone(h.quick || { filters: [], equips: [], period: null }), equipItems: null, fields: null, col: "", vals: null, search: "", esearch: "", err: "" };
+    st = { ...h, q: TPA.clone(h.quick || { filters: [], equips: [], period: null }), equipItems: null, fields: null, col: "", err: "", sec: "" };
     st.q.filters = st.q.filters || []; st.q.equips = st.q.equips || [];
     el = document.createElement("div");
     el.className = "db-pop df-pop"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "このパネルを絞る");
+    el.innerHTML = '<div class="df-top"></div>'
+      + '<section class="df-sec" data-sec="eq" hidden><button type="button" class="df-sech" data-df-sec="eq"></button><div class="df-secb"><div class="df-eqvf"></div></div></section>'
+      + '<section class="df-sec" data-sec="per" hidden><button type="button" class="df-sech" data-df-sec="per"></button><div class="df-secb df-perb"></div></section>'
+      + '<section class="df-sec" data-sec="val"><button type="button" class="df-sech" data-df-sec="val"></button><div class="df-secb"><div class="df-valtop"></div><div class="df-vf" hidden></div></div></section>'
+      + '<div class="df-bottom"></div>';
     document.body.append(el);
     paint();
-    TPA.placeBelow(el, h.anchor);
+    place();
+    // 中身の高さが変わったら（段を開く・値を読み終える）置き直す
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(place.raf); place.raf = requestAnimationFrame(place); });
+    el.querySelectorAll(".df-top,.df-sec,.df-bottom").forEach((x) => ro.observe(x));
+    st.ro = ro;
     off = TPA.dismissable(el, close, { keep: { contains: (t) => !!(t && t.closest && (t === h.anchor || t.closest("[data-db-filter]"))) } });
-    el.addEventListener("click", onClick); el.addEventListener("change", onChange); el.addEventListener("input", onInput);
+    el.addEventListener("click", onClick); el.addEventListener("change", onChange);
     const src = (h.sources || []).find((x) => x.key === baseOf(h.panel).source) || {};
-    st.hasEquip = h.panel.visual === "board" ? (h.panel.rows || {}).column !== "@equip" ? false : true : !!src.equip;
+    st.hasEquip = h.panel.visual === "board" ? (h.panel.rows || {}).column === "@equip" : !!src.equip;
     try {
       const [eq, f] = await Promise.all([st.hasEquip ? (h.boardKeys ? Promise.resolve(h.boardKeys.map((k) => ({ value: k, label: k, n: null }))) : equipsOf(h.panel)) : Promise.resolve(null), fieldsOf(h.panel)]);
       if (!st) return;
       st.equipItems = eq; st.fields = f;
+      // 開く段: 値で絞っていればその列・設備を選んでいれば設備・どちらも無ければ値と条件（設備は見出しの要約で見える）
+      const first = byColumn(st.q.filters)[0];
+      openSec(first || !(st.q.equips || []).length ? "val" : "eq");
+      if (first) pickCol(first[0]);
     } catch (e) { if (st) st.err = String(e.message || e); }
-    if (st) { paint(); TPA.placeBelow(el, h.anchor); }
+    if (st) { paint(); place(); }
   }
-  const emit = () => { clearTimeout(emit.t); const q = TPA.clone(st.q); emit.t = setTimeout(() => st && st.onChange(q), 200); };
+  /** 基準のボタンの下に置き、下に入りきらなければ上へずらす（見出しの下まで）。それでも入らなければ中を送る
+      （1280×720 で、値と条件の段の下が下のボタンの行に隠れた: 2026-10-colfilter の作った後の採点） */
+  function place() {
+    if (!el || !st) return;
+    el.style.maxHeight = ""; el.style.top = "";
+    TPA.placeBelow(el, st.anchor);
+    const floor = Math.round(document.querySelector("body > header")?.getBoundingClientRect().bottom || 0) + 8;
+    const need = el.scrollHeight, top = el.getBoundingClientRect().top;
+    if (need > innerHeight - top - 8) {
+      const t = Math.max(floor, innerHeight - need - 8);
+      el.style.top = `${t}px`; el.style.maxHeight = `${innerHeight - t - 8}px`;
+    }
+  }
+  const emit = () => { clearTimeout(emit.t); const q = TPA.clone(st.q); emit.t = setTimeout(() => { emit.t = 0; if (st) st.onChange(q); }, 200); };
+  const sel = (attr, opts, cur, label) => `<select class="df-sel" ${attr} aria-label="${esc(label)}">${opts.map(([k, n]) => `<option value="${esc(k)}"${k === cur ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
+  const perText = (pr) => (pr && pr.kind ? (pr.kind === "days" ? `直近 ${pr.n || 7} 日` : (PERIODS.find((x) => x[0] === pr.kind) || ["", ""])[1]) : "組んだ期間のまま");
+  /** 段の見出し（名前・要約・開閉の印） */
+  const secHead = (name, sum, on, open) => `<i aria-hidden="true">${open ? "▾" : "▸"}</i><b>${name}</b><span class="df-sum${on ? " on" : ""}" title="${esc(sum)}">${esc(sum)}</span>`;
   function paint() {
     if (!el || !st) return;
-    const q = st.q, p = st.panel, dates = ((st.fields && st.fields.fields) || []).filter((f) => f.date && !f.error);
-    const cols = ((st.fields && st.fields.fields) || []).filter((f) => !f.error);
+    const q = st.q, p = st.panel, fl = (st.fields && st.fields.fields) || [], dates = fl.filter((f) => f.date && !f.error);
+    const cols = fl.filter((f) => !f.error);
     const work = baseOf(p).source === "work";
     const periodCols = [...(work ? [["@workday", "作業日"]] : []), ...dates.map((f) => [f.column, f.column])];
-    const pr = q.period || {};
-    const sec = (title, body, hint = "") => `<section class="df-sec"><h4>${title}${hint ? `<small>${hint}</small>` : ""}</h4>${body}</section>`;
-    let html = `<div class="db-pophead"><b>このパネルを絞る</b><small>この PC の見え方だけです。組んだ条件に足して効きます（共通のダッシュボードは変わりません）</small></div>`;
-    if (st.err) html += `<p class="db-poperr">${esc(st.err)}</p>`;
-    if (st.hasEquip) html += sec("設備", st.equipItems ? checklistHtml(st.equipItems, new Set(q.equips), { name: "eq", all: "すべての設備" }) : '<p class="df-none">設備を数えています…</p>', "複数選べます");
-    if (p.visual !== "board" && periodCols.length) {
-      html += sec("期間", `<div class="df-row"><select data-df-pkind aria-label="期間">${PERIODS.map(([k, n]) => `<option value="${k}"${(pr.kind || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
-        + (pr.kind === "days" ? `<input type="number" min="1" max="3660" value="${pr.n || 7}" data-df-pn aria-label="日の数" class="de-n">日` : "")
-        + (pr.kind ? `<select data-df-pcol aria-label="期間で絞る日付">${periodCols.map(([c, n]) => `<option value="${esc(c)}"${c === pr.column ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>` : "") + "</div>");
-    }
-    const had = q.filters.map((f, i) => `<span class="df-chip"><b>${esc(f.column)}</b>${esc(inValues(f).slice(0, 3).map((v) => v || "（空欄）").join("・"))}${inValues(f).length > 3 ? ` ほか ${inValues(f).length - 3}` : ""}<button type="button" data-df-fdel="${i}" aria-label="「${esc(f.column)}」の絞り込みを外す">×</button></span>`).join("");
-    const pick = `<div class="df-row"><select data-df-col aria-label="値で絞る列"><option value="">列を選ぶ…</option>${cols.map((f) => `<option value="${esc(f.column)}"${f.column === st.col ? " selected" : ""}>${esc(f.column)}${f.calc ? "（式）" : ""}</option>`).join("")}</select>`
-      + (st.col ? `<input type="search" data-df-search value="${esc(st.search)}" placeholder="値を検索" aria-label="値を検索">` : "") + "</div>";
-    const cur = st.col ? q.filters.findIndex((f) => f.column === st.col) : -1;
-    const vals = st.col ? (st.vals ? checklistHtml(st.vals, new Set(cur >= 0 ? inValues(q.filters[cur]) : []), { name: "val", search: st.search, all: "すべての値" }) : '<p class="df-none">値を数えています…</p>') : "";
-    html += sec("値で絞る", (had ? `<div class="df-chips">${had}</div>` : "") + (st.fields ? pick + vals : '<p class="df-none">カラムを読んでいます…</p>'), "列を選び、出す値にチェック");
-    html += `<div class="db-popacts"><button type="button" class="pv-btn" data-df-clear${isEmpty(q) ? " disabled" : ""}>すべて外す</button><span class="db-sp"></span>`
+    const pr = q.period || {}, groups = byColumn(q.filters);
+    el.querySelector(".df-top").innerHTML = `<div class="db-pophead"><b>このパネルを絞る</b><small>この PC の見え方だけです。組んだ条件に足して効きます（共通のダッシュボードは変わりません）</small></div>`
+      + (st.err ? `<p class="db-poperr">${esc(st.err)}</p>` : "");
+    const secEl = (k) => el.querySelector(`[data-sec="${k}"]`);
+    // 設備
+    secEl("eq").hidden = !st.hasEquip;
+    secEl("eq").querySelector(".df-sech").innerHTML = secHead("設備", q.equips.length ? VF().pickedText(q.equips, 3) : "すべての設備", q.equips.length > 0, st.sec === "eq");
+    // 期間
+    const perOk = p.visual !== "board" && periodCols.length > 0;
+    secEl("per").hidden = !perOk;
+    secEl("per").querySelector(".df-sech").innerHTML = secHead("期間", perText(pr), !!pr.kind, st.sec === "per");
+    if (perOk) el.querySelector(".df-perb").innerHTML = `<div class="df-row">${sel("data-df-pkind", PERIODS, pr.kind || "", "期間")}`
+      + (pr.kind === "days" ? `<input type="number" min="1" max="3660" value="${pr.n || 7}" data-df-pn aria-label="日の数" class="df-num">日` : "")
+      + (pr.kind ? sel("data-df-pcol", periodCols, pr.column, "期間で絞る日付") : "") + "</div>";
+    // 値と条件
+    secEl("val").querySelector(".df-sech").innerHTML = secHead("値・条件", groups.length ? groups.map(([c, fs]) => colText(c, fs)).join("／") : "絞っていません", groups.length > 0, st.sec === "val");
+    const had = groups.map(([col, fs]) => `<span class="df-chip${col === st.col ? " on" : ""}"><button type="button" class="df-chipb" data-df-fcol="${esc(col)}" title="この列の絞り込みを直す">`
+      + `<b>${esc(col)}</b>${esc(colText(col, fs).slice(col.length + 1))}</button><button type="button" data-df-fdel="${esc(col)}" aria-label="「${esc(col)}」の絞り込みを外す" title="外す">×</button></span>`).join("");
+    const pick = `<div class="df-row">${sel("data-df-col", [["", "列を選ぶ…"], ...cols.map((f) => [f.column, `${f.column}${f.calc ? "（式）" : ""}${q.filters.some((x) => x.column === f.column) ? "  ●" : ""}`])], st.col, "値・条件で絞る列")}</div>`;
+    el.querySelector(".df-valtop").innerHTML = (had ? `<div class="df-chips">${had}</div>` : "") + (st.fields ? pick : '<p class="df-none">カラムを読んでいます…</p>');
+    ["eq", "per", "val"].forEach((k) => { secEl(k).classList.toggle("is-open", st.sec === k); secEl(k).querySelector(".df-sech").setAttribute("aria-expanded", String(st.sec === k)); });
+    el.querySelector(".df-bottom").innerHTML = `<div class="db-popacts"><button type="button" class="pv-btn" data-df-clear${isEmpty(q) ? " disabled" : ""}>すべて外す</button><span class="db-sp"></span>`
       + (st.canMove ? `<button type="button" class="pv-btn" data-df-move${isEmpty(q) ? " disabled" : ""} title="この絞り込みを、組む所の条件（保存すると全員に効く）へ移します">パネルの条件にする</button>` : "")
       + `<button type="button" class="btn-primary" data-df-close>閉じる</button></div>`;
-    const keep = el.querySelector("[data-df-search]") === document.activeElement;
-    el.innerHTML = html;
-    if (keep) { const s = el.querySelector("[data-df-search]"); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
   }
-  async function loadValues() {
-    const col = st.col, f = (st.fields.fields || []).find((x) => x.column === col) || {};
-    st.vals = null; paint();
-    const cur = st.q.filters.findIndex((x) => x.column === col);
-    try {
-      const vals = await valuesOf(st.panel, col, { date: !!f.date, without: cur, q: st.q });
-      if (st && st.col === col) { st.vals = vals; st.date = !!f.date; paint(); }
-    } catch (e) { if (st) { st.err = String(e.message || e); paint(); } }
-  }
-  function setValues(col, list) {
-    const i = st.q.filters.findIndex((f) => f.column === col);
-    if (!list.length) { if (i >= 0) st.q.filters.splice(i, 1); }
-    else {
-      const f = { column: col, op: "in", value: JSON.stringify(list), ...(st.date ? { key: "date" } : {}) };
-      if (i >= 0) st.q.filters[i] = f; else st.q.filters.push(f);
+  const VF = () => window.ValueFilter;
+  /** 段を開く（1 つだけ）。設備の段を初めて開くとき、設備の値で絞る部品を作る */
+  function openSec(k) {
+    st.sec = st.sec === k ? "" : k;
+    if (st.sec === "eq" && !vfEq && st.equipItems) {
+      vfEq = VF().mount(el.querySelector(".df-eqvf"), {
+        column: "@equip", label: "設備", picked: st.q.equips.length ? st.q.equips.slice() : null, ops: [],
+        load: async () => ({ values: st.equipItems.map((x) => ({ value: x.value, label: x.label, count: x.n })) }),
+        onChange: (r) => { if (!st || st.clearing) return; st.q.equips = r.picked || []; emit(); paint(); },
+      });
     }
-    emit(); paint();
+    paint();
+  }
+  /** 値で絞る列を選ぶ（埋め込みの面を作り直す。空なら畳む） */
+  function pickCol(col) {
+    st.col = col;
+    if (vf) { vf.destroy(); vf = null; }
+    const box = el.querySelector(".df-vf");
+    box.hidden = !col;
+    if (!col) return;
+    const f = ((st.fields && st.fields.fields) || []).find((x) => x.column === col) || {}, date = !!f.date;
+    const cur = VF().fromFilters(col, st.q.filters);
+    vf = VF().mount(box, {
+      column: col, label: col, date, picked: cur.picked, conds: cur.conds,
+      load: async () => ({ values: (await valuesOf(st.panel, col, { date, except: col, q: st.q })).map((x) => ({ value: x.value, label: x.label, count: x.n })) }),
+      onChange: (r) => {
+        if (!st || st.col !== col) return;
+        st.q.filters = st.q.filters.filter((x) => x.column !== col).concat(VF().toFilters(col, r, date ? "date" : ""));
+        emit(); paint();
+      },
+    });
   }
   function onClick(e) {
-    const b = e.target.closest("button"); if (!b) return;
+    const b = e.target.closest("button"); if (!b || b.closest(".df-eqvf,.df-vf")) return;
+    if (b.dataset.dfSec) { openSec(b.dataset.dfSec); return; }
     if (b.hasAttribute("data-df-close")) { close(); return; }
-    if (b.hasAttribute("data-df-clear")) { st.q = { filters: [], equips: [], period: null }; emit(); paint(); return; }
+    if (b.hasAttribute("data-df-clear")) {
+      st.clearing = true; pickCol(""); if (vfEq) vfEq.destroy(); st.clearing = false;      // 待っていた選びは捨てる（すべて外すが先）
+      st.q = { filters: [], equips: [], period: null }; emit();
+      if (vfEq) { vfEq = null; if (st.sec === "eq") { st.sec = ""; openSec("eq"); return; } }
+      paint(); return;
+    }
     if (b.hasAttribute("data-df-move")) { const h = st; close(); h.onMove(); return; }
-    if (b.dataset.dfFdel != null) { st.q.filters.splice(+b.dataset.dfFdel, 1); if (st.col) loadValues(); emit(); paint(); return; }
-    if (b.hasAttribute("data-ck-eq-clear")) { st.q.equips = []; emit(); paint(); return; }
-    if (b.hasAttribute("data-ck-val-clear")) { setValues(st.col, []); }
+    if (b.dataset.dfFcol != null) { pickCol(b.dataset.dfFcol); paint(); return; }
+    if (b.dataset.dfFdel != null) { const c = b.dataset.dfFdel; st.q.filters = st.q.filters.filter((x) => x.column !== c); if (st.col === c) pickCol(c); emit(); paint(); }
   }
   function onChange(e) {
-    const x = e.target;
-    if (x.matches("[data-ck-eq-all]")) { st.q.equips = []; emit(); paint(); return; }
-    if (x.dataset.ckEq != null) {
-      const set = new Set(st.q.equips); if (x.checked) set.add(x.dataset.ckEq); else set.delete(x.dataset.ckEq);
-      st.q.equips = st.equipItems.map((i) => i.value).filter((v) => set.has(v)); emit(); paint(); return;
-    }
-    if (x.matches("[data-ck-val-all]")) { setValues(st.col, []); return; }
-    if (x.dataset.ckVal != null) {
-      const i = st.q.filters.findIndex((f) => f.column === st.col), set = new Set(i >= 0 ? inValues(st.q.filters[i]) : []);
-      if (x.checked) set.add(x.dataset.ckVal); else set.delete(x.dataset.ckVal);
-      setValues(st.col, st.vals.map((v) => v.value).filter((v) => set.has(v))); return;
-    }
-    if (x.matches("[data-df-col]")) { st.col = x.value; st.search = ""; if (st.col) loadValues(); else paint(); return; }
+    const x = e.target; if (x.closest(".df-eqvf,.df-vf")) return;
+    if (x.matches("[data-df-col]")) { pickCol(x.value); paint(); return; }
     if (x.matches("[data-df-pkind]")) {
       const work = baseOf(st.panel).source === "work", first = ((st.fields && st.fields.fields) || []).find((f) => f.date);
       st.q.period = x.value ? { column: (st.q.period && st.q.period.column) || (work ? "@workday" : first ? first.column : ""), kind: x.value, n: (st.q.period && st.q.period.n) || 7 } : null;
@@ -217,7 +276,6 @@
     if (x.matches("[data-df-pcol]")) { st.q.period.column = x.value; emit(); return; }
     if (x.matches("[data-df-pn]")) { st.q.period.n = Math.max(1, Math.min(3660, +x.value || 7)); emit(); }
   }
-  function onInput(e) { if (e.target.matches("[data-df-search]")) { st.search = e.target.value; paint(); } }
 
-  window.DashFilter = { open, close, merge, slice, sliceHits, chips, drop, isEmpty, checklistHtml, equipsOf, valuesOf, isOpen: () => !!el };
+  window.DashFilter = { open, close, merge, slice, sliceHits, chips, drop, isEmpty, checklistHtml, equipsOf, valuesOf, byColumn, colText, isOpen: () => !!el };
 })();

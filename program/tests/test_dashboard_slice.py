@@ -22,6 +22,14 @@ class Month(unittest.TestCase):
 
 
 class Clean(unittest.TestCase):
+    def test_clean_fmt_keeps_calc_and_unit(self):
+        """数の計算（expr）と単位（utext。空は単位を出さない）を覚える。使えない字の式は捨てる（版 3.45.0）"""
+        f = dashboard.clean_fmt({"expr": "(値-10)×2", "utext": "本/日"})
+        self.assertEqual(f, {"expr": "(値-10)×2", "utext": "本/日"})
+        self.assertEqual(dashboard.clean_fmt({"utext": ""}), {"utext": ""})
+        self.assertIsNone(dashboard.clean_fmt({"expr": "alert(1)"}))
+        self.assertEqual(dashboard.clean_fmt({"expr": "÷１０００"}), {"expr": "÷１０００"})
+
     def test_series_fmt(self):
         f = dashboard.clean_fmt({"series": {"CR1": {"label": "below", "dash": True}, "L-1": {"label": "off"}, "X": {"label": "?"}, "": {"label": "top"}}})
         self.assertEqual(f, {"series": {"CR1": {"label": "below", "dash": True}, "L-1": {"label": "off"}}})

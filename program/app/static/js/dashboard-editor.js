@@ -18,7 +18,7 @@
    ========================================================================= */
 (function () {
   "use strict";
-  const { $, esc } = TPA;
+  const { $, $$, esc } = TPA;
   const C = window.LotListPivotCharts, P = window.DashPanels, N = window.NumFormat;
   const MAX_DIMS = 3, MAX_MEASURES = 6, MAX_GROUPS = 4, MAX_GROUP_COLS = 2;
   const Q = window.DashFilter;
@@ -169,6 +169,7 @@
   function changed(repaintFields = true) {
     syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
     const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
+    syncUnit(); paintPrev();
     const sum = $("#dbEditor .de-fmthead small"); if (sum) sum.innerHTML = fmtSummary(p.fmt || {});   // 見出しの要約も（作った後の採点: 後ろに「本」を入れても要約が変わらなかった）
   }
   function addDim(role, col) {
@@ -508,20 +509,36 @@
     return { rows: (b.rows || []).length, cols: (b.cols || []).length, meas: ms.length, numMeas: ms.filter((m) => m.column && isNum(m.column)).length,
       addMeas: ms.filter((m) => C.ADDITIVE.has(m.agg)).length, additive: C.ADDITIVE.has(ms[0].agg), time: !!r0 && C.isTimeDim(r0), bin: !!r0 && r0.part === "bin" };
   }
+  /** 条件を 1 列ぶん直す（value-filter.js の面。値はこの組み〈その列の条件を除く〉に当たる行の値と件数） */
+  function editCond(col, anchor) {
+    const f = ((fields && fields.fields) || []).find((x) => x.column === col) || {}, date = !!f.date, cur = ValueFilter.fromFilters(col, t.filters);
+    const host = t;
+    ValueFilter.open({
+      anchor, column: col, label: col, date, picked: cur.picked, conds: cur.conds, had: t.filters.some((x) => x.column === col),
+      load: async () => ({ values: (await Q.valuesOf({ ...host, equips: eqHost().equips, filters: host.filters.filter((x) => x.column !== col) }, col, { date })).map((x) => ({ value: x.value, label: x.label, count: x.n })) }),
+      onApply: (r) => {
+        if (host !== t) return;           // 面を開いている間に、組む物（まとまり）を替えた
+        const at = t.filters.findIndex((x) => x.column === col), keep = t.filters.filter((x) => x.column !== col), add = ValueFilter.toFilters(col, r, date ? "date" : "");
+        keep.splice(at < 0 ? keep.length : at, 0, ...add);      // 列の並びは保つ（直した列はもとの位置に）
+        t.filters = keep;
+        $("#deCond").innerHTML = condHtml(); changed(false);
+      },
+    });
+  }
   function condHtml() {
-    const cols = ((fields && fields.fields) || []).filter((f) => !f.error).map((f) => f.column);
-    const colOpts = (cur) => [`<option value="">列を選ぶ</option>`, ...cols.map((x) => `<option${x === cur ? " selected" : ""}>${esc(x)}</option>`)].join("");
-    const opOpts = (cur) => TPA.FILTER_OPS.map(([v, l]) => `<option value="${v}"${v === cur ? " selected" : ""}>${esc(l)}</option>`).join("");
-    const rows = t.filters.map((f, i) => `<div class="db-crow" data-i="${i}"><select data-de-f="column">${colOpts(f.column)}</select><select data-de-f="op">${opOpts(f.op || "eq")}</select>`
-      + `<input data-de-f="value" value="${esc(f.value || "")}" placeholder="値"${TPA.noValueOp(f.op) ? " disabled" : ""}><button type="button" class="icon-btn" data-de-fdel="${i}" aria-label="この条件を外す">×</button></div>`).join("");
+    const cols = ((fields && fields.fields) || []).filter((f) => !f.error);
+    // 条件（版 3.45.0。要望 6）: 列ごとの札（値の選び・条件の要約）。札を押すと、一覧の列と同じ「値で絞る」の面（値のチェック・検索・条件）で直す
+    const chips = Q.byColumn(t.filters).map(([col, fs]) => `<span class="df-chip"><button type="button" class="df-chipb" data-de-fedit="${esc(col)}" title="押して直す（値にチェック・条件）">`
+      + `<b>${esc(col)}</b>${esc(Q.colText(col, fs).slice(col.length + 1))}</button><button type="button" data-de-fdel="${esc(col)}" aria-label="「${esc(col)}」の条件を外す" title="外す">×</button></span>`).join("");
+    const pick = `<select class="df-sel de-fpick" data-de-fpick aria-label="条件を足す列"${cols.length ? "" : " disabled"}><option value="">＋ 列を選んで条件を足す…</option>`
+      + cols.map((f) => `<option value="${esc(f.column)}">${esc(f.column)}${f.calc ? "（式）" : ""}</option>`).join("") + "</select>";
     const dates = [...(special().some((x) => x.column === "@workday") ? [["@workday", "作業日（勤務体系で決めた日）"]] : []), ...((fields && fields.fields) || []).filter((f) => f.date).map((f) => [f.column, f.column])];
     const pr = t.period || {}, kind = pr.kind || "";
     const period = `<div class="de-row"><label class="de-l">期間</label><select data-de-pkind aria-label="期間">${PERIODS.map(([k, n]) => `<option value="${k}"${k === kind ? " selected" : ""}>${n}</option>`).join("")}</select>`
       + (kind === "days" ? `<input type="number" min="1" max="3660" data-de-pn value="${pr.n || 7}" aria-label="日の数" class="de-n">日` : "")
       + (kind ? `<select data-de-pcol aria-label="期間で絞る日付">${dates.map(([c, n]) => `<option value="${esc(c)}"${c === pr.column ? " selected" : ""}>${esc(n)}</option>`).join("") || '<option value="">（日付の列がありません）</option>'}</select>` : "")
       + "</div>";
-    return `${period}<div class="de-row de-top"><label class="de-l">条件</label><div class="db-crows">${rows || '<small class="de-hint">すべての行を数えます</small>'}</div></div>`
-      + `<div class="de-row"><span class="de-l"></span><button type="button" class="pv-btn" data-de-fadd${cols.length ? "" : " disabled"}>＋ 条件を足す</button></div>`;
+    return `${period}<div class="de-row de-top"><label class="de-l">条件</label><div class="db-crows">${chips ? `<div class="df-chips">${chips}</div>` : '<small class="de-hint">すべての行を数えます</small>'}${pick}</div></div>`;
   }
   /** 選びの札（ラジオを札に見せる）。name … data-de-<name> */
   const segs = (name, list, cur, label) => `<span class="de-segs" role="radiogroup" aria-label="${esc(label)}">${list.map(([k, n, tip]) =>
@@ -615,6 +632,8 @@
     if (fm.xdate) out.push(`日付 ${(XDATES.find((x) => x[0] === fm.xdate) || ["", ""])[1]}`);
     if (fm.num) out.push(numWords(fm));
     else if (fm.digits != null || fm.unit) out.push("数の形");
+    if (fm.expr) out.push(`計算 ${N.expr(fm.expr).text || fm.expr}`);
+    if (fm.utext != null) out.push(fm.utext ? `単位「${fm.utext}」` : "単位なし");
     if (fm.align || fm.valign) out.push("配置");
     if (fm.nsize || fm.bold || fm.ncolor) out.push("字");
     if (fm.ymin != null || fm.ymax != null) out.push("縦軸");
@@ -632,18 +651,18 @@
       + (label2 ? `<span class="de-gl de-gl2">${label2}</span><span class="de-gc">${ctl2}</span>` : '<span class="de-gfill"></span>');
     const wide = (label, ctl) => `<span class="de-gl">${label}</span><span class="de-gc de-gwide">${ctl}</span>`;
     const head = `<div class="de-nsbox"><b>見本</b><span id="deNumSample">${numSample(fm)}</span></div>`
-      + `<div class="de-ngrid">${wide("表示形式", segs("fncat", N.CATS, cat, "表示形式の分類"))}`;
+      + `<div class="de-ngrid">${calcRows(fm, wide, pair)}${wide("表示形式", segs("fncat", N.CATS, cat, "表示形式の分類"))}`;
     if (!cat) return head + pair("単位", sel("unit", UNITS, fm.unit || "", "単位"), "小数", digits) + "</div>";
     const decSel = sel("ndec", [0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), n ? `${n} 桁` : "整数"]), String(ui.dec ?? 0), "小数の桁");
-    const divSel = sel("unit", DIVS, fm.unit && fm.unit !== "none" ? fm.unit : "", "単位で割る（千・万・百万・億）");
+    const divSel = sel("unit", DIVS, fm.unit && fm.unit !== "none" ? fm.unit : "", "千・万で割る（千・万・百万・億）");
     const txt = (k, v, ph, label) => `<input class="de-n2 de-ntx" data-de-n${k} value="${esc(v || "")}" maxlength="12" placeholder="${esc(ph)}" aria-label="${esc(label)}">`;
     if (cat === "custom") {
-      return head + pair("単位で割る", divSel)
+      return head + pair("千・万で割る", divSel)
         + wide("コード", `<div class="de-ncode"><input class="de-ncodein" data-de-ncode value="${esc(fm.num || "")}" maxlength="160" spellcheck="false" placeholder='例: #,##0"本";[赤]"▲"#,##0' aria-label="書式コード（Excel と同じ）">`
           + `<span class="de-nex">${CODE_EXAMPLES.map((c) => `<button type="button" class="de-chip" data-de-nex="${esc(c)}" title="このコードにする">${esc(c)}</button>`).join("")}</span>`
           + '<small class="de-hint">Excel と同じ書き方: 正;負;0;文字 の区分・0 # ? , . % E+00・"字"・[赤] [青]・[>=100] の条件</small></div>') + "</div>";
     }
-    let out = head + pair("単位で割る", divSel, "小数", decSel);
+    let out = head + pair("千・万で割る", divSel, "小数", decSel);
     if (cat === "num" || cat === "cur") {
       // 負の数は見本の札（その形で書いた -1234。赤の形は「赤」の字も添える: 色だけで区別しない）
       const negs = N.NEGS.map(([k]) => {
@@ -653,17 +672,52 @@
       const negSegs = `<span class="de-segs de-negs" role="radiogroup" aria-label="負の数の形">${negs.map(([k, t, red]) => `<label class="de-seg${(ui.neg || "minus") === k ? " on" : ""}${red ? " is-red" : ""}"><input type="radio" name="de-fnneg" value="${k}" data-de-fnneg${(ui.neg || "minus") === k ? " checked" : ""}>${esc(t)}${red ? "<small>赤</small>" : ""}</label>`).join("")}</span>`;
       out += pair("桁区切り", `<label class="pv-ck"><input type="checkbox" data-de-nsep${ui.sep === false ? "" : " checked"}>1,234 のように区切る</label>`) + wide("負の数", negSegs);
     }
-    return out + pair("前に", txt("pre", cat === "cur" ? ui.pre ?? "¥" : ui.pre, cat === "cur" ? "¥" : "例: 約", "数の前に付ける字"),
-      "後ろに", txt("suf", ui.suf, "例: 本・kg・件", "数の後ろに付ける字（単位）")) + "</div>";
+    // 数字のパネルは、後ろの字（単位）を上の「単位」の 1 か所で決める（2 か所あると、どちらが効くか迷った: 2026-10-dashedit の 1 回目）
+    const pre = txt("pre", cat === "cur" ? ui.pre ?? "¥" : ui.pre, cat === "cur" ? "¥" : "例: 約", "数の前に付ける字");
+    return out + (p.visual === "kpi" ? pair("前に", pre) : pair("前に", pre, "後ろに", txt("suf", ui.suf, "例: 本・kg・件", "数の後ろに付ける字（単位）"))) + "</div>";
   }
+  /** 計算と単位（版 3.45.0。利用者の要望 3）: 計算 … 数に四則演算（値÷1000・値×100 など。合わせた表は行ごとに数える物が違うので出さない）・
+      単位 … 数字の後ろに添える字（数字の形だけ。いまの字をそのまま欄に出し、直すとその字に。空にすると出さない・「自動に戻す」で本・ロット・件） */
+  function calcRows(fm, wide, pair) {
+    if (isBoard()) return "";
+    const ex = N.expr(fm.expr || ""), auto = P.autoUnit({ ...p, fmt: { ...fm, utext: undefined } }, (p.body && p.body.measures || [])[0] || { agg: "lots" });
+    const calc = `<span class="de-fcalc"><input class="de-ntx de-cin${ex.error ? " is-bad" : ""}" data-de-fexpr value="${esc(fm.expr || "")}" maxlength="60" spellcheck="false" placeholder="例: ÷1000・×100・(値−10)×2" aria-label="数の計算（四則演算）">`
+      + `<span class="de-cprev" id="deCalcPrev" aria-live="polite">${calcPrev(fm, ex.fn)}</span>`
+      + `<span class="de-cex">${["÷1000", "×100", "÷60"].map((c) => `<button type="button" class="de-chip" data-de-fexq="${c}" title="${c} にする">${c}</button>`).join("")}</span>`
+      + `<small class="de-hint de-cmsg" id="deCalcMsg">${ex.error ? `<em class="de-nwarn">${esc(ex.error)}</em>` : ex.text ? `${esc(ex.text)} を出します` : "演算子から書くと前に値が入ります（÷1000 ＝ 値÷1000）"}</small></span>`;
+    const unit = p.visual === "kpi" ? `<span class="de-unit"><input class="de-ntx" data-de-futext value="${esc(fm.utext ?? ((fm.numUi && fm.numUi.suf) || auto))}" maxlength="12" placeholder="${unitHint(fm)}" aria-label="数字の後ろに添える単位">`
+      + unitSide(fm, auto) + "</span>" : "";
+    return wide('<span class="de-gtop">計算</span>', calc) + (unit ? wide("単位", unit) : "");
+  }
+  /** 単位の欄の薄い字: 表示形式に字（後ろに「本」など）があれば、そちらを使っていると言う */
+  const unitHint = (fm) => (fm.num && N.hasLiteral(fm.num) ? "（表示形式の字を使っています）" : "（出さない）");
+  /** 表示形式を変えた後、単位の欄（自動のとき）を今の自動の字にそろえる（打っている欄の書式を描き直さないときも） */
+  function syncUnit() {
+    const u = $("#dbEditor [data-de-futext]"), fm = p.fmt || {};
+    if (!u || fm.utext != null || document.activeElement === u) return;
+    u.value = P.autoUnit({ ...p, fmt: { ...fm, utext: undefined } }, (p.body.measures || [])[0] || { agg: "lots" }); u.placeholder = unitHint(fm);
+  }
+  /** 計算の変わり方（2026-10-dashedit の 3 回目で決めた E3）: いまの数 → 計算した数 を、表示形式の形で欄のすぐ横に（どう変わるかを見せる） */
+  function calcPrev(fm, fn) {
+    const d = host.answer && host.answer(), c0 = d && d.cells && d.cells.find((x) => !x.r.length && !x.c.length);
+    const raw = c0 && typeof c0.v[0] === "number" ? c0.v[0] : null;
+    if (raw == null) return "";
+    const f = { ...fm }; delete f.expr;
+    const to = fn ? fn(raw) : null;
+    return `${esc(C.numText(raw, f))}<i aria-hidden="true">→</i>${fn ? (to == null ? "–" : esc(C.numText(to, f))) : '<small>計算なし</small>'}`;
+  }
+  const paintPrev = (fn) => { const el = $("#deCalcPrev"); if (el) el.innerHTML = calcPrev(p.fmt || {}, fn === undefined ? N.expr((p.fmt || {}).expr || "").fn : fn); };
+  const unitSide = (fm, auto) => (fm.utext != null ? `<button type="button" class="de-link" data-de-futextx title="データに合わせた単位（${esc(auto || "なし")}）に戻す">自動に戻す</button>` : '<small class="de-hint">自動</small>');
   /** 見本: いまの答えの数（無ければ 1234.5）と、負の数・0 を、いまの表示形式で（表: いまの数・負の数・0） */
   function numSample(fm) {
     const d = host.answer && host.answer(), cell0 = d && d.cells && d.cells.find((x) => !x.r.length && !x.c.length);
-    const v = cell0 && typeof cell0.v[0] === "number" ? cell0.v[0] : 1234.5;
+    const fx = N.expr(fm.expr || "").fn, raw = cell0 && typeof cell0.v[0] === "number" ? cell0.v[0] : 1234.5;
+    const v = fx ? fx(raw) ?? raw : raw;      // 計算を当てた数（書式の見本も、パネルに出る数で）
     const warn = fm.num ? N.check(fm.num) : [];
     const vals = [v, -Math.abs(v) || -1234.5, 0];
+    const u = p && p.visual === "kpi" ? P.autoUnit({ ...p, fmt: fm }, (p.body.measures || [])[0] || { agg: "lots" }) : "";   // 数字のパネルは単位も添えて（パネルに出る形）
     return `<table class="de-nstbl"><tr>${["いまの数", "負の数", "0"].map((h, i) => `<th title="${esc(C.fmt(vals[i]))}">${h}</th>`).join("")}</tr>`
-      + `<tr>${vals.map((x) => `<td>${C.numHtml(x, fm)}</td>`).join("")}</tr></table>` + (warn.length ? `<em class="de-nwarn">${esc(warn.join("・"))}</em>` : "");
+      + `<tr>${vals.map((x) => `<td>${C.numHtml(x, fm)}${u ? `<small>${u}</small>` : ""}</td>`).join("")}</tr></table>` + (warn.length ? `<em class="de-nwarn">${esc(warn.join("・"))}</em>` : "");
   }
   /** 配置と字（版 3.43.0。数字・表・合わせた表）: 横（左・中央・右）・縦（数字だけ）・字の大きさ・太字・色。表示形式と同じ格子に並べる */
   function alignHtml(fm, kpi) {
@@ -847,15 +901,78 @@
       + `<button type="button" class="pv-btn is-danger" data-de-gdel${gs.length > (isLink() ? 2 : 1) ? "" : " disabled"}>この${what}を外す</button></div>`;
   }
 
+  /* ---- 組む所の幅（版 3.45.0。利用者の要望 2: カラム名が切れて読めない → 組む所の幅と、カラムの欄の幅を引いて変える。この PC に覚える）----
+     左の縁（.de-wgrip）を引くと組む所の幅、カラムの欄と右の境（.de-split）を引くとカラムの欄の幅。← →（Shift で大きく）でも、ダブルクリックで元の幅 */
+  // 右（組み立て）の幅はいつも MAIN_MIN 以上: カラムの欄を広げると、組む所もその分だけ広がる（右を押し縮めると「出し方」の札が切れた: 2026-10-dashedit の自分の確かめ）
+  const SIZE_KEY = "tpa.dash.editor.v1", W_DEF = 720, W_MIN = 600, FW_DEF = 210, FW_MIN = 170, MAIN_MIN = 480, PAD = 32;   // 既定（720・210）の右と同じ 480 を下限に
+  const sizes = () => { const s = TPA.local.get(SIZE_KEY, {}) || {}; return { w: +s.w || W_DEF, fw: +s.fw || FW_DEF }; };
+  const wMax = () => Math.max(W_MIN, innerWidth - 260);
+  const fwMax = () => Math.max(FW_MIN, wMax() - MAIN_MIN - PAD);
+  /** 覚えた幅 → 描く幅（窓に収め、右の組み立てに MAIN_MIN を残す） */
+  function fit(s) {
+    const fw = Math.max(FW_MIN, Math.min(s.fw, fwMax()));
+    return { fw, w: Math.min(wMax(), Math.max(W_MIN, s.w, fw + MAIN_MIN + PAD)) };
+  }
+  function applySize(el = $("#dbEditor"), s = sizes()) {
+    if (!el) return;
+    const f = fit(s);
+    el.style.width = `${f.w}px`; el.style.setProperty("--de-fw", `${f.fw}px`);
+  }
+  function saveSize(ch) {
+    const s = { ...sizes(), ...ch };
+    if (s.w === W_DEF) delete s.w;
+    if (s.fw === FW_DEF) delete s.fw;
+    TPA.local.set(SIZE_KEY, s); applySize();
+    if (host && host.onResize) host.onResize();
+  }
+  /** 「⇔ 名前に合わせる」: いちばん長いカラム名が 1 行で入る幅まで、カラムの欄を一度で広げる（窓に入る所まで。組む所もその分広がる） */
+  function fitColumns() {
+    const el = $("#dbEditor"), names = $$("#deFields .pv-f > span > b", el); if (!names.length) return;
+    el.classList.add("de-measure");                  // 折り返さずに測る
+    const over = Math.max(0, ...names.map((b) => b.scrollWidth - b.clientWidth));
+    el.classList.remove("de-measure");
+    const f = fit(sizes()), fw = Math.max(FW_MIN, Math.min(fwMax(), f.fw + over + 8));
+    saveSize({ fw, w: Math.max(f.w, fw + MAIN_MIN + PAD) });
+    if (fw < f.fw + over + 8) host.toast("窓に入る幅まで広げました（長い名前は 2 行で出します）");
+  }
+  function bindSize(el) {
+    let drag = null;
+    el.addEventListener("pointerdown", (e) => {
+      const g = e.target.closest(".de-wgrip,.de-split"); if (!g || e.button !== 0) return;
+      e.preventDefault(); g.setPointerCapture(e.pointerId);
+      const f = fit(sizes());
+      drag = { g, x: e.clientX, w: f.w, fw: f.fw, wide: g.classList.contains("de-wgrip") };
+      document.body.classList.add("de-sizing");
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      if (drag.wide) drag.now = { w: Math.round(Math.max(W_MIN, drag.fw + MAIN_MIN + PAD, Math.min(wMax(), drag.w - dx))) };    // 左の縁: 左へ引くと広がる
+      else { const fw = Math.round(Math.max(FW_MIN, Math.min(fwMax(), drag.fw + dx))); drag.now = { fw, w: Math.max(drag.w, fw + MAIN_MIN + PAD) }; }   // 境: 組む所も広がる
+      applySize(el, { ...sizes(), ...drag.now });
+    });
+    const end = () => { if (!drag) return; const n = drag.now; drag = null; document.body.classList.remove("de-sizing"); if (n) saveSize(n); };
+    el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+    el.addEventListener("dblclick", (e) => { const g = e.target.closest(".de-wgrip,.de-split"); if (g) saveSize(g.classList.contains("de-wgrip") ? { w: W_DEF } : { fw: FW_DEF }); });
+    el.addEventListener("keydown", (e) => {
+      const g = e.target.closest(".de-wgrip,.de-split"); if (!g || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+      e.preventDefault();
+      const f = fit(sizes()), step = (e.shiftKey ? 64 : 16) * (e.key === "ArrowLeft" ? -1 : 1);
+      if (g.classList.contains("de-wgrip")) saveSize({ w: Math.max(W_MIN, f.fw + MAIN_MIN + PAD, Math.min(wMax(), f.w - step)) });
+      else { const fw = Math.max(FW_MIN, Math.min(fwMax(), f.fw + step)); saveSize({ fw, w: Math.max(f.w, fw + MAIN_MIN + PAD) }); }
+    });
+  }
   /** 欄に字を打っている間は、その欄のまとまりを描き直さない（打っている字・カーソルを失わない）。押す札・選ぶ欄は描き直す */
   const typingIn = (sel) => { const a = document.activeElement; return !!(a && a.closest(sel) && a.matches("input:not([type=checkbox]):not([type=radio]):not([type=color]),textarea")); };
   function paint(repaintFields = true) {
     const el = $("#dbEditor"); if (!el || !p) return;
     if (!el.firstChild) {
-      el.innerHTML = `<div class="de-head" data-drag><b>パネルを組む</b><input id="deTitle" class="de-title" autocomplete="off" aria-label="題" maxlength="60">`
+      el.innerHTML = '<i class="de-wgrip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="組む所の幅" title="引いて組む所の幅を変える（← → でも。ダブルクリックで元の幅）"></i>'
+        + `<div class="de-head" data-drag><b>パネルを組む</b><input id="deTitle" class="de-title" autocomplete="off" aria-label="題" maxlength="60">`
         + `<span class="db-sp"></span><button type="button" class="btn-ghost" data-de-cancel>やめる</button><button type="button" class="btn-primary" data-de-apply>当てる</button></div>`
-        + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields"><div class="pv-cap"><b>カラム</b><small>札を押すと右の文に入ります（もう一度押すと外れます）</small></div>`
+        + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields"><div class="pv-cap"><b>カラム</b><button type="button" class="de-fitbtn" data-de-fitcols title="いちばん長いカラム名が 1 行で入る幅に、カラムの欄を広げます（境を引いても変えられます）">⇔ 名前に合わせる</button><small>札を押すと右の文に入ります（もう一度押すと外れます）</small></div>`
         + `<div class="de-fsearch"><input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><button type="button" class="pv-btn de-calcbtn" data-de-calcnew title="式から列を作り、このパネルで使います">＋ 計算列</button></div><div class="pv-list" id="deFields"></div></aside>`
+        + '<i class="de-split" role="separator" aria-orientation="vertical" tabindex="0" aria-label="カラムの欄の幅" title="引いてカラムの欄の幅を変える（← → でも。ダブルクリックで元の幅）"></i>'
         // 流れの順に 4 段（2026-10-dashmore の 3 回目で決めた S3）: ① データ ② 数え方 ③ 形 ④ 見せ方・書式。段の見出しに番号（合わせた表は札で切り替えるので出さない）
         + `<div class="de-main"><div class="de-step"><i>1</i>データ<small>何を数えるか</small></div><div id="deData"></div>`
         + `<div class="de-step"><i>2</i>数え方<small>行・列・値・期間・条件</small></div><div id="deSent"></div><div id="deCond"></div><div id="deSort"></div>`
@@ -934,6 +1051,9 @@
       if (b.hasAttribute("data-de-fmtopen")) { fmtOpen = !fmtOpen; $("#deFmt").innerHTML = fmtHtml(); return; }
       if (b.dataset.deNex != null) { setNum({ cat: "custom", code: b.dataset.deNex }); return; }
       if (b.hasAttribute("data-de-fncolorx")) { setFmt("ncolor", ""); return; }
+      if (b.hasAttribute("data-de-fitcols")) { fitColumns(); return; }
+      if (b.dataset.deFexq) { setFmt("expr", b.dataset.deFexq); $("#deFmt").innerHTML = fmtHtml(); return; }
+      if (b.hasAttribute("data-de-futextx")) { setFmt("utext", ""); $("#deFmt").innerHTML = fmtHtml(); return; }
       if (b.dataset.dePal != null) { setFmt("palette", b.dataset.dePal); return; }
       if (b.dataset.deSerx != null) {
         const n = b.dataset.deSerx, cs = { ...((p.fmt || {}).colors || {}) }, ss = { ...((p.fmt || {}).series || {}) };
@@ -962,8 +1082,8 @@
       if (b.dataset.deX) { t.body[b.dataset.deX].splice(+b.dataset.i, 1); changed(); return; }
       if (b.dataset.deMx != null) { t.body.measures.splice(+b.dataset.deMx, 1); if (!t.body.measures.length) t.body.measures = [{ agg: "lots" }]; changed(); return; }
       if (b.dataset.deVis) { setVisual(b.dataset.deVis); return; }
-      if (b.hasAttribute("data-de-fadd")) { t.filters.push({ column: "", op: "eq", value: "" }); $("#deCond").innerHTML = condHtml(); return; }
-      if (b.dataset.deFdel != null) { t.filters.splice(+b.dataset.deFdel, 1); $("#deCond").innerHTML = condHtml(); changed(false); }
+      if (b.dataset.deFedit != null) { editCond(b.dataset.deFedit, b); return; }
+      if (b.dataset.deFdel != null) { const c = b.dataset.deFdel; t.filters = t.filters.filter((f) => f.column !== c); $("#deCond").innerHTML = condHtml(); changed(false); }
     });
     el.addEventListener("change", (e) => {
       const x = e.target; if (!p) return;
@@ -1092,17 +1212,38 @@
       if (x.matches("[data-de-btree]")) { if (x.value) p.order.tree = x.value; else { delete p.order.tree; delete p.order.glist; } changed(false); return; }
       if (x.matches("[data-de-bgroup]")) { p.order.group = +x.value; changed(false); return; }
       if (x.matches("[data-de-rshow]")) { toggleRow(x.closest("[data-de-row]").dataset.deRow); return; }
-      const row = x.closest(".db-crow");
-      if (row && x.dataset.deF) {
-        const f = t.filters[+row.dataset.i]; f[x.dataset.deF] = x.value;
-        if (x.dataset.deF === "op") row.querySelector('[data-de-f="value"]').disabled = TPA.noValueOp(x.value);
-        if (f.column) changed(false);
-      }
+      if (x.matches("[data-de-fpick]")) { const c = x.value; x.value = ""; if (c) editCond(c, x); }
     });
     el.addEventListener("input", (e) => {
       // 書式コードを打つ間は、見本だけをその場で替える（欄は作り直さない。確かめて当てるのは change）
       // 前後の字・書式コードは打つ間に当てる（パネルも見本もその場で変わる。数は引き直さない）
       const nt = e.target;
+      // 計算（版 3.45.0）: 打つ間に式を確かめ、読める式（か空）なら当てる。読めない式は知らせだけ（パネルは前の式のまま）
+      if (nt.matches("[data-de-fexpr]")) {
+        const ex = N.expr(nt.value), msg = $("#deCalcMsg");
+        nt.classList.toggle("is-bad", !!ex.error);
+        if (msg) msg.innerHTML = ex.error ? `<em class="de-nwarn">${esc(ex.error)}</em>` : ex.text ? `${esc(ex.text)} を出します` : "演算子から書くと前に値が入ります（÷1000 ＝ 値÷1000）";
+        if (!ex.error) paintPrev(ex.fn);
+        clearTimeout(numTimer);
+        if (!ex.error) numTimer = setTimeout(() => setFmt("expr", nt.value.trim()), 250);
+        return;
+      }
+      // 単位: 自動の字と同じなら自動のまま（覚えない）・空なら単位を出さない
+      if (nt.matches("[data-de-futext]")) {
+        clearTimeout(numTimer);
+        numTimer = setTimeout(() => {
+          const fm = { ...(p.fmt || {}) }, auto = P.autoUnit({ ...p, fmt: { ...fm, utext: undefined } }, (p.body.measures || [])[0] || { agg: "lots" }), v = nt.value.trim();
+          if (fm.numUi && fm.numUi.suf) { fm.numUi = { ...fm.numUi, suf: "" }; const code = N.build(fm.numUi); if (code) fm.num = code; else delete fm.num; }   // 前の版で表示形式の「後ろに」に入れた字は、単位へ移す
+          if (v === auto) delete fm.utext; else fm.utext = v;
+          // 欄の横（自動・自動に戻す）は、打っている欄を作り直さずにその場で替える
+          const side = nt.parentElement.querySelector("[data-de-futextx], small");
+          if (side) side.outerHTML = unitSide(fm, auto);
+          if (JSON.stringify(fm) === JSON.stringify(p.fmt || {})) return;
+          if (Object.keys(fm).length) p.fmt = fm; else delete p.fmt;
+          changed(false);
+        }, 200);
+        return;
+      }
       if (nt.matches("[data-de-ncode],[data-de-npre],[data-de-nsuf]")) {
         clearTimeout(numTimer);
         numTimer = setTimeout(() => setNum(nt.matches("[data-de-ncode]") ? { cat: "custom", code: nt.value.trim() } : { [nt.matches("[data-de-npre]") ? "pre" : "suf"]: nt.value.trim() }), 200);
@@ -1223,8 +1364,8 @@
       });
       eqOpen = false; eqItems = null; eqKey = ""; calcEdit = null;
       const el = $("#dbEditor");
-      if (!el.dataset.bound) { bind(el); el.dataset.bound = "1"; }
-      el.innerHTML = ""; el.hidden = false; q = ""; fields = null; fieldsKey = ""; formOpen = false;
+      if (!el.dataset.bound) { bind(el); bindSize(el); el.dataset.bound = "1"; }
+      el.innerHTML = ""; el.hidden = false; applySize(el); q = ""; fields = null; fieldsKey = ""; formOpen = false;
       gi = -1; t = p;
       paint();
       await loadFields();
@@ -1233,11 +1374,14 @@
     },
     close() { const el = $("#dbEditor"); if (el) { el.hidden = true; el.innerHTML = ""; } host = null; p = null; t = null; },
     isOpen: () => !!p,
+    /** 組む所の幅（窓に収まる幅。グリッドの組むパネルを左の空きに置くため） */
+    width: () => fit(sizes()).w,
     panelId: () => (p ? p.id : ""),
     /** 答えが変わった（合わせた表の行の札を、数えた行で並べ直す） */
     answered() {
       if (isBoard() && gi < 0) paint(false);
       else if (!typingIn("#deFmt") && $("#deFmt")) $("#deFmt").innerHTML = fmtHtml();   // 系列の名前と描いた色（描き終えてから分かる）
+      else paintPrev();                                                                   // 打っている間も、計算の変わり方は今の答えで
     },
     message, autoTitle,
     setSources(list) { sources = list || []; },

@@ -1,0 +1,77 @@
+/* 値で絞る（value-filter.js。版 3.45.0）: 一覧の列の見出しの ▼ と、ダッシュボードの「絞る」・組む所の条件で同じ形。
+   色: 絞り込みは一覧の見出しの「絞り込んでいる列」と同じ青緑（--ll-teal）。件数の帯は淡い青緑・0 件の値は薄く */
+.vf-pop{position:fixed;z-index:60;width:356px;max-width:calc(100vw - 16px);max-height:min(620px,calc(100vh - 16px));display:flex;flex-direction:column;gap:8px;
+  padding:12px;border:1px solid var(--pop-line);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px var(--pop-shadow);color:var(--ink);font-size:var(--fs-sm)}
+.vf-pop > *{flex-shrink:0}
+.vf-pop > .vf-list{flex-shrink:1;min-height:120px}    /* 窓が低いときは値の並びだけが縮む（OK はいつも見える） */
+.vf-embed{display:flex;flex-direction:column;gap:8px;min-width:0}
+.vf-head{display:flex;align-items:baseline;gap:8px;min-width:0;padding-bottom:6px;border-bottom:1px solid var(--line-soft)}
+.vf-head b{font-size:var(--fs-md);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vf-state{margin-left:auto;flex:none;color:var(--muted);font-size:var(--fs-xs)}
+.vf-sort{display:flex;gap:6px;flex-wrap:wrap}
+.vf-sort button,.vf-cadd,.vf-ctog{font:inherit;cursor:pointer}
+.vf-sort button{flex:1 1 auto;min-height:28px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--ink)}
+.vf-sort button:hover{border-color:var(--ll-teal)}
+.vf-sort button.on{background:var(--ll-pale);border-color:var(--ll-teal);color:var(--ll-teal-dark);font-weight:700}
+.vf-locked{margin:0;padding:4px 8px;border-radius:6px;background:var(--amber-pale);color:var(--amber-ink);font-size:var(--fs-xs)}
+/* 条件で絞る（畳む） */
+.vf-conds{border:1px solid var(--line-soft);border-radius:8px;background:var(--surface-1)}
+.vf-conds.is-open{border-color:var(--line)}
+.vf-ctog{display:flex;align-items:center;gap:6px;width:100%;min-height:30px;padding:0 10px;border:0;background:transparent;color:var(--ink);font-weight:700;text-align:left}
+.vf-ctog i{font-style:normal;color:var(--muted);width:10px}
+.vf-ctog small{margin-left:auto;color:var(--muted);font-weight:400}
+.vf-cbody{display:flex;flex-direction:column;gap:6px;padding:0 10px 10px}
+.vf-crow{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center}
+.vf-crow:not(:has(.vf-and)){grid-template-columns:minmax(0,44%) 1fr auto}
+.vf-crow:has(.vf-and){grid-template-columns:auto minmax(0,40%) 1fr auto}
+.vf-and{font-size:var(--fs-xs);color:var(--muted);font-weight:700}
+.vf-pop select,.vf-pop input:not([type=checkbox]),.vf-embed select,.vf-embed input:not([type=checkbox]){min-width:0;height:30px;padding:0 8px;border:1px solid var(--line);border-radius:6px;
+  background:var(--surface);color:var(--ink);font:inherit;font-size:var(--fs-sm)}
+.vf-pop select:focus,.vf-pop input:focus,.vf-embed select:focus,.vf-embed input:focus{outline:none;border-color:var(--ll-teal);box-shadow:0 0 0 3px rgba(47,125,120,.18)}
+.vf-pop input:disabled,.vf-embed input:disabled{background:var(--surface-3);color:var(--faint)}
+.vf-x{width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:15px;cursor:pointer}
+.vf-x:hover{background:var(--danger-bg);color:var(--danger)}
+.vf-cadd{align-self:flex-start;min-height:26px;padding:0 10px;border:1px dashed var(--line);border-radius:6px;background:transparent;color:var(--ll-teal-dark)}
+.vf-cadd:hover{border-color:var(--ll-teal);background:var(--ll-pale)}
+/* 検索と値の並び */
+.vf-search{display:flex;flex-direction:column;gap:4px}
+.vf-search input{width:100%}
+.vf-add{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--fs-xs)}
+.vf-list{display:flex;flex-direction:column;min-height:0;flex:1 1 auto;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.vf-all{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line-soft);background:var(--surface-2);font-weight:700;cursor:pointer}
+.vf-items{flex:1 1 auto;overflow:auto;max-height:300px;min-height:60px;padding:2px 0}
+.vf-embed .vf-items{max-height:260px}
+.vf-it{display:grid;grid-template-columns:auto minmax(0,1fr) 104px;align-items:center;gap:8px;min-height:28px;padding:0 10px;cursor:pointer}
+.vf-it:hover{background:var(--ll-pale)}
+.vf-lab{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vf-lab.is-blank{color:var(--muted);font-style:italic}
+/* 件数: 左に長さの帯（いちばん多い値を満たす）・右に数（帯と数を重ねない） */
+.vf-n{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--muted)}
+.vf-n i{display:block;justify-self:start;height:7px;min-width:2px;border-radius:2px;background:#cfe7e3}
+.vf-n b{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.vf-it.on .vf-n i{background:#9fd3cb}
+.vf-it.is-zero{color:var(--faint)}
+.vf-it.is-zero .vf-n i{display:none}
+.vf-pop input[type=checkbox],.vf-embed input[type=checkbox]{width:15px;height:15px;margin:0;accent-color:var(--ll-teal)}
+.vf-none,.vf-wait,.vf-err{margin:0;padding:12px 10px;color:var(--muted)}
+.vf-err{color:var(--danger)}
+.vf-wait{display:flex;align-items:center;gap:8px}
+.vf-more{display:block;padding:6px 10px;border-top:1px solid var(--line-soft);color:var(--warn-ink);font-size:var(--fs-xs)}
+.vf-foot{display:flex;align-items:center;gap:6px;padding-top:4px}
+.vf-foot button{white-space:nowrap;min-height:30px}
+.vf-foot [data-vf-ok]{min-width:72px}
+.vf-sp{flex:1}
+.vf-estate{display:flex;align-items:center;gap:10px}
+.vf-estate .vf-state{margin-left:0}
+.vf-link{border:0;background:transparent;padding:0;color:var(--ll-teal-dark);font:inherit;font-size:var(--fs-xs);text-decoration:underline;cursor:pointer}
+
+/* 一覧の値で絞る段（版 3.45.0。2026-10-colfilter の 2 回目で決めた C2）: 見出しの段のすぐ下の細い段に、列ごとの ▾ をいつも出す。
+   列名の幅は取らない。絞っている列は青緑の地に、何で絞っているかの短い字（「CR1・DL2 ほか 1」） */
+.ll-grid thead tr.ll-frow th{top:var(--ll-h1,34px);height:22px;padding:0 3px;background:#e9eff3;color:var(--h-meta);border-bottom:1px solid var(--line);cursor:pointer;font-weight:600}
+.ll-grid thead tr.ll-frow th:hover{background:#dde7ee}
+.ll-grid thead tr.ll-frow th.on{background:var(--ll-pale);color:var(--ll-teal-dark)}
+.ll-fbtn{display:flex;align-items:center;justify-content:flex-end;gap:4px;width:100%;height:20px;padding:0 2px;border:0;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer;min-width:0}
+.ll-fbtn span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;font-weight:700}
+.ll-fbtn i{font-style:normal;flex:none;font-size:11px;opacity:.75}
+.ll-grid thead tr.ll-frow th.on .ll-fbtn i{opacity:1}
+.ll-fbtn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:3px}
