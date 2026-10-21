@@ -71,6 +71,8 @@ def main():
     folder.mkdir()
     for eq in WORK_EQUIPMENT + ("SL3",):
         lotlist_fixture.make_work(str(folder / f"実績_{eq}.sqlite3"), eq)
+    # 焼鈍炉（ANF。版 3.47.0）: 1 回の作業が 20〜50 時間・作業終了の時刻は年月日時分秒の列（14 桁）だけ・書き忘れ 2 回・いま炉の中（ガントの「区間なし」「作業中」「前から続く」を撮る）
+    lotlist_fixture.make_work_box(str(folder / "実績_ANF.sqlite3"), "ANF")
     # 手元のみのマスタは base/data に書く。同梱のマスタを作業フォルダへ写して渡す（画面で直してもリポジトリを汚さない）
     shutil.copytree(PROGRAM / "data", WORK / "base" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
     settings = app_env.load_settings(PROGRAM)

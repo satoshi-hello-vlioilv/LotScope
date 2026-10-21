@@ -69,8 +69,9 @@ const CROWDED = {
 // 並べ替えの状態（sorted）: まとめず、重量 ▼ → 板厚 ▲ の 2 つで並べ、不良名が空欄でない行に絞る
 // 版 3.46.0: 稼働のガントチャート（前日・全設備・作業区分で色分け）と ABC 分析・換算係数（合金）を並べたダッシュボード（保存しない: Dashboard._setLayout）
 const OPS_LAYOUT = { rows: 8, panels: [
-  { id: "gantt", x: 0, y: 0, w: 12, h: 5, title: "", visual: "gantt", source: "work", period: { column: "@workday", kind: "yesterday", n: 1 }, ops: { color: "作業区分" }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } },
-  { id: "abc", x: 0, y: 5, w: 12, h: 3, title: "", visual: "abc", source: "work", ops: { cls: "合金" }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } }] };
+  // 直近 4 日（版 3.47.0）: 焼鈍炉 ANF の作業終了の書き忘れ（区間なし）・いま炉の中（作業中）と、ほかの設備の前から続く作業が入る
+  { id: "gantt", x: 0, y: 0, w: 12, h: 5, title: "", visual: "gantt", source: "work", period: { column: "@workday", kind: "days", n: 4 }, ops: { color: "作業区分" }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } },
+  { id: "abc", x: 0, y: 5, w: 12, h: 3, title: "", visual: "abc", source: "work", ops: { cls: ["合金", "調質"] }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } }] };
 // 組み合わせのグラフ（直近 14 日のロット数＝棒・重量の平均＝線〈右〉）と、設備ごとの組み合わせ（本数・速度の平均）
 const COMBO_LAYOUT = { rows: 8, panels: [
   { id: "combo", x: 0, y: 0, w: 7, h: 8, title: "", visual: "combo", source: "work", period: { column: "@workday", kind: "days", n: 14 }, body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots" }, { agg: "avg", column: "重量" }] },
@@ -336,6 +337,11 @@ export const STATES = [
   ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400); }, "[data-next], [data-db-editmode]"],
   // 版 3.46.0: 稼働（ガント）と ABC 分析・換算係数のパネル
   ["dash-ops", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), OPS_LAYOUT); await sleep(500); await waitDash(p); await sleep(600); }, "[data-next], [data-db-editmode]"],
+  // 版 3.47.0: 組む所の ABC の品種（合金 × 調質 の組み合わせの札）
+  ["dash-ops-edit", async (p) => {
+    await p.click("[data-db-editmode]"); await sleep(400);
+    await p.click('#dashGrid .db-p[data-id="abc"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
+  }, "[data-next], [data-de-apply]"],
   // 版 3.46.0: 組み合わせのグラフと、組む所の書式の「系列」（系列ごとの形・目盛り）
   ["dash-combo", async (p) => {
     await p.evaluate((l) => Dashboard._setLayout(l), COMBO_LAYOUT); await sleep(500); await waitDash(p);

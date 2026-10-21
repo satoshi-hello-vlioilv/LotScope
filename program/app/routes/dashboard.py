@@ -529,17 +529,18 @@ def _ops_answer(p, now):
 def _ops_count(p, parts, o, period, now):
     pats = master_repo().shift_patterns()
     qty = o.get("qty") or "lots"
-    cols = [o.get("label") or "", o.get("color") or "", o.get("cls") or "", qty if qty not in operation.QTYS else ""]
+    cls = operation.cls_list(o.get("cls"))
+    cols = [o.get("label") or "", o.get("color") or "", *cls, qty if qty not in operation.QTYS else ""]
     equips, skipped, every, rng, start_col, end_col = [], [], [], None, "", ""
     for part in parts:
         try:
             r = operation.read_ops(part, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False), today=now.date(), calc=p.get("calc"),
-                                   period=period, now=now, end=o.get("end", ""), cols=[c for c in cols if c])
-        except pivot.PivotError as e:
+                                   period=period, now=now, end=o.get("end", ""), cols=[c for c in cols if c], reach=p["visual"] == "gantt")
+        except Exception as e:      # 読めない設備は飛ばし、理由をガントの行・知らせに出す
             skipped.append({"name": part.name, "error": str(e)})
-            continue
-        except Exception as e:
-            skipped.append({"name": part.name, "error": str(e)})
+            if p["visual"] == "gantt":     # ガントは読めない設備も行に出す（前は行ごと消え、「出ない設備がある」になった。版 3.47.0）
+                equips.append({"name": part.name, "error": str(e), "ops": [], "windows": [], "view": None, "rate": None, "shiftMin": 0, "busyMin": 0,
+                               "outsideMin": 0, "byShift": [], "noEnd": 0, "why": {}, "count": 0, "carry": 0, "truncated": False, "pattern": ""})
             continue
         start_col, end_col, rng = start_col or r["start"], end_col or r["end"], rng or r["range"]
         if p["visual"] == "gantt":
@@ -551,10 +552,10 @@ def _ops_count(p, parts, o, period, now):
             g = operation.gantt(part.name, r, wins, label=label, color=o.get("color") or "")
             equips.append({**g, "pattern": pat["name"] if pat else ""})
         else:
-            a = operation.abc(r["ops"], o.get("cls") or "", qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
+            a = operation.abc(r["ops"], cls, qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
             equips.append({"name": part.name, **a})
             every += r["ops"]
-    if not equips:
+    if not any("error" not in e for e in equips):
         return {"error": "数えられる設備がありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]), "kind": "invalid", "status": 400}
     # 期間はほかのパネルと同じ形（画面の periodText が読む: 名前と日の範囲）
     per = {**period, "name": pivot.PERIODS.get(period["kind"], ""), "ranges": [{"from": rng[0], "to": rng[1]}] if rng else []} if period else None
@@ -562,10 +563,10 @@ def _ops_count(p, parts, o, period, now):
     if p["visual"] == "gantt":
         sm, bm = sum(e["shiftMin"] for e in equips), sum(e["busyMin"] for e in equips)
         out["total"] = {"shiftMin": round(sm, 2), "busyMin": round(bm, 2), "rate": round(bm / sm, 4) if sm else None,
-                        "noPattern": [e["name"] for e in equips if not e["pattern"]], "noEnd": sum(e["noEnd"] for e in equips)}
+                        "noPattern": [e["name"] for e in equips if not e["pattern"] and "error" not in e], "noEnd": sum(e["noEnd"] for e in equips)}
     else:
-        out["all"] = operation.abc(every, o.get("cls") or "", qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
-        out["cls"], out["qty"] = o.get("cls") or "", qty
+        out["all"] = operation.abc(every, cls, qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
+        out["cls"], out["clsList"], out["qty"] = operation.KEY_SEP.join(cls), cls, qty
     return out
 
 

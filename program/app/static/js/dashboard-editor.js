@@ -118,12 +118,28 @@
     return { formulas: { ...had.formulas, ...mine.formulas, ...own }, names: { ...had.names, ...mine.names }, own: Object.keys(own) };
   }
   const isCalc = (c) => !!(fieldOf(c) || {}).calc;
+  const MAX_CLS = 4;
+  /** 品種の列の並び（ops.cls は 1 つなら字・組み合わせなら並び） */
+  const clsOf = (x) => [].concat((x.ops || {}).cls || []).filter(Boolean);
+  /** 色分け・品種に選べる列: 日付でなく、数の列なら種類が少ない物（板厚の区分の数など。60 種類まで） */
+  // 日時の列（年月日時分秒の 14 桁は数の列に見える）は除く
+  const pickable = (f) => !f.date && !/年月日|日時|時分秒|時刻/.test(f.column) && (!f.numeric || (f.kinds >= 1 && f.kinds <= 60));
+  /** 品種の列を決める（1 つなら字で持つ: 前の版と同じ形） */
+  function setCls(cls, repaint = false) {
+    const o = { ...(p.ops || {}) }, xs = [...new Set(cls)].slice(0, MAX_CLS);
+    if (!xs.length) delete o.cls; else o.cls = xs.length === 1 ? xs[0] : xs;
+    if (o.base && o.base !== "avg" && o.base !== "top") delete o.base;      // 品種の鍵が替わるので、品種で決めた換算の基準は外す
+    p.ops = o; changed(repaint);
+  }
   /** パネルで作った計算列 → {名前: 式} */
   const ownOf = (c) => Object.fromEntries(((c && c.own) || []).filter((n) => c.formulas && c.formulas[n]).map((n) => [n, c.formulas[n]]));
   /** 組む物が使う計算列の式（＋その式が [名前] で読む式の列を 1 段。サーバーは画面の baseRow と同じ引き方で計算する）→ 無ければ null */
   function calcOf(x) {
+    // 稼働を見る形（ガント・ABC）の列（色分け・棒の字・作業終了・品種・量の数の列）も入れる（版 3.47.0。利用者の要望 2026-10-21 の 2 回目の 2:
+    // 前は入れておらず、計算列〈追加した列〉で色分けしても式がサーバーへ届かず、色が付かなかった）
+    const o = x.ops || {}, opsCols = [o.color, o.label, o.end, o.qty, ...[].concat(o.cls || [])].filter(Boolean);
     const b = x.body || {}, used = new Set([...(b.rows || []), ...(b.cols || [])].map((d) => d.column)
-      .concat((b.measures || []).map((m) => m.column || ""), (x.filters || []).map((f) => f.column), [x.period ? x.period.column : ""]));
+      .concat((b.measures || []).map((m) => m.column || ""), (x.filters || []).map((f) => f.column), [x.period ? x.period.column : ""], opsCols));
     const byName = Object.fromEntries(Object.entries(ctx.names).map(([c, n]) => [n, c]));
     const formulas = {};
     // パネルで作った計算列は、使っていなくても持つ（カラムの札に残す）
@@ -171,7 +187,7 @@
       return `${ss[0].key ? dimLabel(ss[0].key) + "ごとの" : ""}${ss.map((y) => (y.role ? role(y.role) : y.title || (srcOf(y.source) || {}).name || "データ")).join("と")}`;
     }
     if (x.visual === "gantt") return `${x.period && x.period.kind ? `${x.period.kind === "days" ? `直近 ${x.period.n || 7} 日` : (PERIODS.find((k) => k[0] === x.period.kind) || [, ""])[1]}の` : ""}設備の稼働と稼働率`;
-    if (x.visual === "abc") return `${(x.ops || {}).cls ? `${x.ops.cls}の` : "品種の"}ABC 分析と換算係数`;
+    if (x.visual === "abc") { const c = [].concat((x.ops || {}).cls || []); return `${c.length ? `${c.join(" × ")}の` : "品種の"}ABC 分析と換算係数`; }
     if (x.visual === "board") return (x.groups || []).length ? `${dimLabel(x.rows || { column: "@equip" })}ごとの${x.groups.map((g) => g.title || P.groupTitle(g, null)).join("と")}` : "合わせた表";
     const b = x.body || {}, ms = (b.measures || []).map(P.measName).join("・") || "ロット数";
     const pr = x.period && x.period.kind ? `${x.period.kind === "days" ? `直近 ${x.period.n || 7} 日` : (PERIODS.find((k) => k[0] === x.period.kind) || [, ""])[1]}の` : "";
@@ -449,12 +465,12 @@
     if (fieldsErr) return `<p class="pv-none">${esc(fieldsErr)}</p>`;
     if (!fields) return '<p class="pv-none">カラムを読んでいます…</p>';
     if (isOps(p) && !inGroup()) {          // 稼働を見る形: 札は 1 つ（ガント＝棒の色分け・ABC＝品種）。押すとその列にする（もう一度で外す）
-      const k = p.visual === "gantt" ? "color" : "cls", word = p.visual === "gantt" ? "色" : "品種", cur = (p.ops || {})[k] || "";
+      const gantt = p.visual === "gantt", word = gantt ? "色" : "品種", on = (c) => (gantt ? (p.ops || {}).color === c : clsOf(p).includes(c));
       const ql = q.trim().toLowerCase();
-      const list = fields.fields.filter((f) => !f.error && !f.numeric && !f.date && (!ql || f.column.toLowerCase().includes(ql)));
-      return `<p class="de-ophint">${p.visual === "gantt" ? "［色］を押すと、その列の値ごとに棒の色を分けます" : "［品種］を押すと、その列の値ごとに ABC に分けます"}</p>`
-        + list.map((f) => `<div class="pv-f${cur === f.column ? " is-used" : ""}"><span><b>${esc(f.column)}</b><small>${f.many ? "1,000 種類以上" : `${f.kinds} 種類`}</small></span><i></i><i></i>`
-          + `<button type="button" class="pv-r r-rows${cur === f.column ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${cur === f.column}">${word}</button></div>`).join("");
+      const list = fields.fields.filter((f) => !f.error && pickable(f) && (!ql || f.column.toLowerCase().includes(ql)));
+      return `<p class="de-ophint">${gantt ? "［色］を押すと、その列の値ごとに棒の色を分けます（計算列も使えます）" : "［品種］を押すと、その列の値ごとに ABC に分けます。2 つ以上押すと、その組み合わせ（合金 × 調質 など）で分けます"}</p>`
+        + list.map((f) => `<div class="pv-f${on(f.column) ? " is-used" : ""}${f.calc ? " is-calc" : ""}"><span><b>${esc(f.column)}${f.calc ? '<small class="sx-calc">式</small>' : ""}</b><small>${f.many ? "1,000 種類以上" : `${f.numeric ? "数 · " : ""}${f.kinds} 種類`}</small></span><i></i><i></i>`
+          + `<button type="button" class="pv-r r-rows${on(f.column) ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${on(f.column)}">${word}</button></div>`).join("");
     }
     const ownList = (t.calc && t.calc.own) || [];
     const b = t.body, used = (c) => (b.rows.some((d) => d.column === c) ? "rows" : b.cols.some((d) => d.column === c) ? "cols" : "");
@@ -502,10 +518,10 @@
     const o = p.ops || {}, fs = ((fields && fields.fields) || []).filter((f) => !f.error);
     const opt = (v, n, cur) => `<option value="${esc(v)}"${(cur || "") === v ? " selected" : ""}>${esc(n)}</option>`;
     const a = host.answer ? host.answer() : null, found = a && a.kind === p.visual ? a.endColumn : "";
-    const dates = fs.filter((f) => f.date).map((f) => f.column);
+    const dates = fs.filter((f) => f.date || /作業終了|終了|完了/.test(f.column)).map((f) => f.column);     // 年月日時分秒（14 桁）は日付の列と見分けられないので名前でも
     const endSel = `<div class="de-row"><label class="de-l">作業終了</label><select data-de-oend aria-label="作業終了の列">${opt("", `自動${found ? `（${found}）` : "（作業終了の列を探す）"}`, o.end)}${dates.map((c) => opt(c, c, o.end)).join("")}</select>`
       + `<small class="de-hint">作業開始は「${esc((a && a.startColumn) || "BOX実績_作業開始_日付")}」</small></div>`;
-    const few = fs.filter((f) => !f.numeric && !f.date && f.kinds >= 1 && f.kinds <= 60).map((f) => f.column);
+    const few = fs.filter((f) => pickable(f) && f.kinds >= 1 && f.kinds <= 60).map((f) => f.column);
     if (p.visual === "gantt") {
       return `<div class="de-ops">${endSel}`
         + `<div class="de-row"><label class="de-l">色分け</label><select data-de-ocolor aria-label="棒の色分け">${opt("", "なし（作業は 1 色）", o.color)}${few.map((c) => opt(c, c, o.color)).join("")}</select>`
@@ -516,14 +532,24 @@
     const items = a && a.kind === "abc" ? ((a.all || {}).items || []).map((x) => x.key).filter(Boolean) : [];
     const base = o.base || "avg";
     return `<div class="de-ops">`
-      + `<div class="de-row"><label class="de-l">品種</label><select data-de-ocls aria-label="品種の列"${o.cls ? "" : ' class="is-need"'}>${opt("", "（品種の列を選ぶ）", o.cls)}${few.map((c) => opt(c, c, o.cls)).join("")}</select><small class="de-hint">何ごとに分けるか（合金・板厚の区分など。計算列も使えます）</small></div>`
+      + clsRow(few)
       + `<div class="de-row"><label class="de-l">量</label>${segs("oqty", [["lots", "本数", "作業の本数（分割したロットは 1 本）"], ["time", "作業時間", "作業開始〜作業終了の時間の合計"]], qty === "lots" || qty === "time" ? qty : "", "量")}`
       + `<select data-de-oqcol aria-label="数の列の合計"><option value="">数の列の合計…</option>${nums.map((c) => opt(c, `${c}の合計`, qty)).join("")}</select></div>`
-      + `<div class="de-row"><label class="de-l">換算の基準</label><select data-de-obase aria-label="換算係数の基準">${opt("avg", "全作業の平均作業時間 ＝ 1.00", base)}${opt("top", "いちばん本数の多い品種 ＝ 1.00", base)}`
+      + `<div class="de-row"><label class="de-l" title="換算の基準">換算基準</label><select data-de-obase aria-label="換算係数の基準">${opt("avg", "全作業の平均作業時間 ＝ 1.00", base)}${opt("top", "いちばん本数の多い品種 ＝ 1.00", base)}`
       + `${items.map((k) => opt(k, `品種「${k}」＝ 1.00`, base)).join("")}${base !== "avg" && base !== "top" && !items.includes(base) ? opt(base, `品種「${base}」＝ 1.00`, base) : ""}</select></div>`
-      + `<div class="de-row"><label class="de-l">ABC の線</label><label class="pv-ck">A ≦<input type="number" min="1" max="99" step="1" data-de-oa value="${o.a ?? 70}" class="de-n" aria-label="A の線（累積構成比 %）">%</label>`
+      + `<div class="de-row"><label class="de-l" title="ABC の線（累積構成比）">ABC線</label><label class="pv-ck">A ≦<input type="number" min="1" max="99" step="1" data-de-oa value="${o.a ?? 70}" class="de-n" aria-label="A の線（累積構成比 %）">%</label>`
       + `<label class="pv-ck">B ≦<input type="number" min="1" max="100" step="1" data-de-ob value="${o.b ?? 90}" class="de-n" aria-label="B の線（累積構成比 %）">%</label><small class="de-hint">残りが C</small></div>`
       + `<p class="de-ophint">換算係数 ＝ その品種の 1 本あたりの平均作業時間 ÷ 基準の作業時間。換算本数 ＝ 本数 × 換算係数。</p></div>`;
+  }
+  /** 品種の列（版 3.47.0。要望 3）: 選んだ列の札（× で外す・左右で順を替える）と「＋ 組み合わせる列」。1 つなら今までと同じ */
+  function clsRow(few) {
+    const cls = clsOf(p), rest = few.filter((c) => !cls.includes(c));
+    const chips = cls.map((c, i) => `<span class="pv-chip r de-clsc"><b>${esc(c)}</b>${i ? `<button type="button" data-de-clsl="${i}" aria-label="「${esc(c)}」を前へ" title="前へ（組み合わせの順）">←</button>` : ""}`
+      + `<button type="button" data-de-clsx="${i}" aria-label="「${esc(c)}」を外す">×</button></span>${i < cls.length - 1 ? '<span class="de-clsx">×</span>' : ""}`).join("");
+    const add = cls.length < MAX_CLS && rest.length ? `<select data-de-ocls aria-label="${cls.length ? "組み合わせる列を足す" : "品種の列"}"${cls.length ? "" : ' class="is-need"'}>`
+      + `${`<option value="">${cls.length ? "＋ 組み合わせる列" : "（品種の列を選ぶ）"}</option>`}${rest.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select>` : "";
+    return `<div class="de-row de-clsrow"><label class="de-l">品種</label><span class="de-clss">${chips}${add}</span>`
+      + `<small class="de-hint">${cls.length > 1 ? `${cls.length} つの列の値の組み合わせで分けます` : "何ごとに分けるか（合金・板厚の区分など。計算列も使えます。2 つ以上選ぶと組み合わせ）"}</small></div>`;
   }
   function sentenceHtml() {
     if (isOps(p) && !inGroup()) return opsHtml();
@@ -1146,11 +1172,15 @@
       if (b.hasAttribute("data-de-calcx")) { calcEdit = null; paintCalc(); return; }
       if (b.hasAttribute("data-de-calcok")) { saveCalc(false); return; }
       if (b.hasAttribute("data-de-calcdel")) { if (confirm(`計算列「${calcEdit.was}」を消します。使っている段・値・条件からも外します。よろしいですか？`)) saveCalc(true); return; }
-      if (b.dataset.deOpick != null) {       // 稼働を見る形の札（色分け・品種）
-        const k = p.visual === "gantt" ? "color" : "cls", o = { ...(p.ops || {}) };
-        if (o[k] === b.dataset.deOpick) delete o[k]; else o[k] = b.dataset.deOpick;
+      if (b.dataset.deOpick != null) {       // 稼働を見る形の札（色分け: 押した列にする・品種: 押した列を足す／外す〈組み合わせ〉）
+        const c = b.dataset.deOpick;
+        if (p.visual !== "gantt") { const cls = clsOf(p); setCls(cls.includes(c) ? cls.filter((x) => x !== c) : cls.concat([c]), true); return; }
+        const o = { ...(p.ops || {}) };
+        if (o.color === c) delete o.color; else o.color = c;
         p.ops = o; changed(); return;
       }
+      if (b.dataset.deClsx != null) { const cls = clsOf(p); cls.splice(+b.dataset.deClsx, 1); setCls(cls, true); return; }
+      if (b.dataset.deClsl != null) { const cls = clsOf(p), i = +b.dataset.deClsl; [cls[i - 1], cls[i]] = [cls[i], cls[i - 1]]; setCls(cls, true); return; }
       if (b.dataset.deAdd) {
         const role = b.dataset.deAdd, col = b.dataset.col;
         if (role === "vals") addMeasure(col === "@lots" ? { agg: "lots" } : col === "@count" ? { agg: "count" } : isNum(col) ? { agg: "sum", column: col } : { agg: "distinct", column: col });
@@ -1195,7 +1225,7 @@
       if (x.matches("[data-de-oend]")) { setOps("end", x.value); return; }
       if (x.matches("[data-de-ocolor]")) { setOps("color", x.value); return; }
       if (x.matches("[data-de-olabel]")) { setOps("label", x.value); return; }
-      if (x.matches("[data-de-ocls]")) { setOps("cls", x.value); return; }
+      if (x.matches("[data-de-ocls]")) { if (x.value) setCls(clsOf(p).concat([x.value])); return; }
       if (x.matches("[data-de-oqty]")) { setOps("qty", x.value); return; }
       if (x.matches("[data-de-oqcol]")) { if (x.value) setOps("qty", x.value); return; }
       if (x.matches("[data-de-obase]")) { setOps("base", x.value === "avg" ? "" : x.value); return; }

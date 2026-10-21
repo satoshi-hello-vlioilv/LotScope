@@ -522,7 +522,7 @@ def clean_panel(p, i, rows):
 
 
 # ---------------------------------------------------------------- 稼働・ABC 分析（版 3.46.0。visual gantt・abc）
-# ops: {end: 作業終了の列（"" は見つける）, label: 棒の字の列, color: 棒の色分けの列, cls: 品種の列（ABC・換算係数）,
+# ops: {end: 作業終了の列（"" は見つける）, label: 棒の字の列, color: 棒の色分けの列, cls: 品種の列（ABC・換算係数。字か、組み合わせる列の並び）,
 #       qty: 量（lots＝本数・time＝作業時間・数の列の名前＝その合計）, base: 換算の基準（avg・top・品種の値）, a・b: ABC の線（累積構成比 %）}
 ABC_A, ABC_B = 70.0, 90.0
 
@@ -534,7 +534,12 @@ def clean_ops(v):
     b = _float(v.get("b"))
     a = min(99.0, max(1.0, a if a is not None else ABC_A))
     b = min(100.0, max(a, b if b is not None else ABC_B))
-    out = {k: col(k) for k in ("end", "label", "color", "cls") if col(k)}
+    out = {k: col(k) for k in ("end", "label", "color") if col(k)}
+    # 品種の列（版 3.47.0）: 1 つなら字・いくつか（組み合わせで分ける。operation.MAX_CLS まで）なら列の並び
+    cls = [str(x or "").strip()[:200] for x in v.get("cls")] if isinstance(v.get("cls"), list) else [col("cls")]
+    cls = [x for x in dict.fromkeys(cls) if x][:4]
+    if cls:
+        out["cls"] = cls[0] if len(cls) == 1 else cls
     qty, base = col("qty"), str(v.get("base") or "").strip()[:120]
     out.update({"qty": qty or "lots", "base": base or "avg"})
     if (a, b) != (ABC_A, ABC_B):
