@@ -364,7 +364,7 @@
         + `<div class="db-tabs" role="tablist" aria-label="セットのダッシュボード">${ds.map((x, i) => `<button type="button" role="tab" class="db-tab${String(x.id) === String(S.id) ? " on" : ""}" aria-selected="${String(x.id) === String(S.id)}" data-db-tab="${esc(String(x.id))}" title="${esc(x.name)}">${esc(x.name)}</button>`).join("")}`
         + (it && !ds.some((x) => String(x.id) === String(it.id)) ? `<button type="button" role="tab" class="db-tab is-out on" aria-selected="true" title="セットに入っていないダッシュボード（▾ の面でセットに入れられます）">${esc(it.name)}</button>` : "") + "</div></div>"
       : `<button type="button" class="db-pick" data-db-pick aria-haspopup="true" aria-expanded="${S.pop === "pick"}" title="ほかのダッシュボードを開く・標準にする・名前を変える・消す・セットを使う">`
-      + `${icon}<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
+      + `${icon}<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : it.replaces ? "・組み込みと入れ替え" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
     const msg = `<span class="db-msg" aria-live="polite">${esc(S.msg)}</span>`;
     if (!S.edit) {
       bar.innerHTML = pick + msg + `<span class="db-sp"></span><small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`

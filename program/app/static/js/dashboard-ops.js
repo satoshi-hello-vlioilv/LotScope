@@ -192,11 +192,14 @@
       + (show("factor") || show("conv") ? `<span class="oa-fb" title="換算係数の基準">基準: ${esc(base.name || "–")}${base.minutes ? ` ${base.minutes.toFixed(1)} 分 ＝ 1.00` : ""}</span>` : "")
       + (show("conv") ? `<span class="oa-fc">換算本数の計 <b>${(cur.conv || 0).toFixed(1)}</b>（実${unit}数 ${cur.lots || 0}）</span>` : "")
       // 作業時間の分からない作業（換算係数・平均作業に入らない）の数と理由（版 3.47.0。前は黙って「–」だった）
+      + "\u0000NOCHART\u0000"
       + `${cur.noEnd ? `<span class="oa-nend" title="${esc(`区間（作業開始〜作業終了）が分からないので、平均作業・換算係数に入れていない${lead ? "ロット" : "作業"}: ${Object.entries(cur.why || {}).map(([k, n]) => `${k} ${n} ${unit}`).join("・")}`)}">区間なし ${cur.noEnd} ${unit}</span>` : ""}<span class="oa-rest"></span></div>`;
     // パレート図の棒の数: 棒の下の名前（組み合わせなら列ごとの段のいちばん長い値）が入る幅で（版 3.47.0。前は 1 本 22px で、名前が「A11…」と切れた）
     const nameW = Math.max(18, ...items.slice(0, 30).flatMap((x) => (x.parts && x.parts.length > 1 ? x.parts : [x.key || "空"]).map((v) => textW(v || "空", 11))));
     const chart = show("chart") && wide && H - tabH - footH >= 96 ? pareto(items.slice(0, Math.max(3, Math.min(items.length, Math.floor((chartW - 82) / Math.max(22, nameW + 8))))), chartW, H - tabH - footH, o, items.length, show("rank")) : "";
-    box.innerHTML = `<div class="oa-wrap">${tabs}<div class="oa-main">${chart}<div class="oa-tbl"><table class="oa-table"><thead>${head}</thead><tbody>${body || `<tr><td colspan="${2 + COLS.length + (split ? cl.length - 1 : 0)}" class="dp-empty">当たる作業がありません</td></tr>`}</tbody></table></div></div>${foot}</div>`;
+    // パレート図を出す項目に入れているのに、パネルが狭い・低いので描けないときは、そう言う（✓ と見た目を食い違わせない。2026-10-dash8 の作った後の採点）
+    const noChart = show("chart") && !chart && items.length ? `<span class="oa-nochart" title="パレート図は、パネルの幅が 680px 以上・高さが足りるときに出します（パネルを広げると出ます）">パレート図はパネルが狭いので省いています</span>` : "";
+    box.innerHTML = `<div class="oa-wrap">${tabs}${noChart && !show("foot") ? `<div class="oa-notes">${noChart}</div>` : ""}<div class="oa-main">${chart}<div class="oa-tbl"><table class="oa-table"><thead>${head}</thead><tbody>${body || `<tr><td colspan="${2 + COLS.length + (split ? cl.length - 1 : 0)}" class="dp-empty">当たる作業がありません</td></tr>`}</tbody></table></div></div>${foot.replace("\u0000NOCHART\u0000", noChart)}</div>`;
     const wrap = box.querySelector(".oa-wrap"), tw = box.querySelector(".oa-tbl"), tb = box.querySelector(".oa-table tbody");
     // 幅: 表の列（oa-x1〜4 の順に隠す）・設備の札（入らなければ選ぶ欄に替える）・下の段（基準 → 換算本数の計 → ABC の数の順に隠す）
     for (let k = 1; k <= 4 && tw && tw.scrollWidth > tw.clientWidth + 1; k++) wrap.classList.add(`no-x${k}`);
@@ -206,6 +209,8 @@
     }
     const ft = box.querySelector(".oa-foot");
     ["oa-fb", "oa-fc", "oa-fa"].forEach((c) => { if (ft && ft.scrollWidth > ft.clientWidth + 1) { const x = ft.querySelector(`.${c}`); if (x) x.hidden = true; } });
+    const nc = box.querySelector(".oa-foot .oa-nochart");
+    if (nc && ft.scrollWidth > ft.clientWidth + 1) nc.textContent = "パレート図は省略（狭い）";
     // 入る行だけ（描いた高さで測る）。入らない品種は下に「ほか n 品種」
     let rest = items.length - rows.length;
     while (tw && tb && tb.rows.length > 1 && tw.scrollHeight > tw.clientHeight + 1) { tb.deleteRow(-1); rest++; }

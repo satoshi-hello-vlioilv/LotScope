@@ -855,3 +855,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-hid .db-hidli b{font-size:13px}
 .db-hid .db-hidli small{color:var(--muted);flex:1 1 auto}
 .db-swap{font-style:normal;font-size:11.5px;font-weight:700;color:#24446a;border:1px solid #9fb0c6;border-radius:999px;padding:0 7px;margin-left:6px;line-height:18px;white-space:nowrap}
+/* パレート図を出す項目に入れているのに、狭くて描けないときの知らせ（2026-10-dash8 の作った後の採点） */
+.oa-nochart{color:#5a6f77;font-weight:700}
+.oa-nochart::before{content:"ⓘ ";font-weight:400}
+.oa-notes{font-size:12px;line-height:18px;flex:0 0 auto}

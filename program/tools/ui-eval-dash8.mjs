@@ -105,6 +105,9 @@ try {
   await p.click(`${P("abc")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
   const fit = await p.evaluate(() => { const ed = document.querySelector("#dbEditor .de-main"), ops = document.querySelector("#dbEditor .de-ops"); return ed && ops ? { sw: ops.scrollWidth, cw: ops.clientWidth, right: ops.getBoundingClientRect().right, edr: ed.getBoundingClientRect().right } : null; });
   check("組む所の稼働の欄が横に切れない", fit && fit.sw <= fit.cw + 1 && fit.right <= fit.edr + 1, fit);
+  // 出す項目にパレート図を入れているのに、組む所を開いて狭まったパネルで図を描けないなら、そう言う（✓ と見た目を食い違わせない）
+  const nc = await p.evaluate((sel) => { const el = document.querySelector(sel); return { chart: !!el.querySelector(".oa-chart"), note: (el.querySelector(".oa-nochart") || {}).textContent || "" }; }, P("abc"));
+  check("⑤ パレート図を描けないときは、狭いので省いたと知らせる（描けたときは知らせない）", nc.chart ? !nc.note : /パレート図/.test(nc.note), nc);
   for (const k of ["conv", "chart", "rank"]) { await p.click(`[data-de-ohide="${k}"]`); await sleep(150); }
   await waitDash(p); await sleep(600);
   const heads = await p.$$eval(`${P("abc")} .oa-table thead th`, (ts) => ts.map((t) => t.textContent));
