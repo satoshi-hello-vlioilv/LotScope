@@ -54,7 +54,7 @@
       const dt = new Date(t), h = dt.getHours();
       if (t < x0) continue;
       const x = X(t), midnight = h === 0;
-      if (midnight) g.push(`<line class="og-day" x1="${x}" x2="${x}" y1="${AX - 14}" y2="${AX + shown.length * rh}"/>`);
+      if (midnight) g.push(`<line class="og-day" x1="${x}" x2="${x}" y1="${AX + 1}" y2="${AX + shown.length * rh}"/>`);   // 目盛りの字「0」に掛けない
       if (h % stepH === 0) g.push(`<text class="og-tick" x="${x}" y="${AX - 4}" text-anchor="middle">${h}</text>`);
       if (midnight && days > 1.05) g.push(`<text class="og-dayl" x="${x + 3}" y="11">${dayText(t)}</text>`);
     }
@@ -63,7 +63,7 @@
     g.push(`<text class="og-head" x="${LW + TW + 10}" y="${AX - 4}">稼働率${RW >= 156 ? '<tspan class="og-headsub" dx="40">稼働/勤務 h</tspan>' : ""}<title>稼働率 ＝ 作業していた時間 ÷ 勤務時間（直の時間）</title></text>`);
     shown.forEach((e, i) => {
       const y = AX + i * rh, bh = Math.max(8, Math.round(rh * 0.62)), by = y + (rh - bh) / 2;
-      g.push(`<g class="og-row" data-i="${i}"><rect class="og-off" x="${LW}" y="${y + 1}" width="${TW}" height="${rh - 2}"/>`);
+      g.push(`<g class="og-row${i % 2 ? " is-alt" : ""}" data-i="${i}"><rect class="og-off" x="${LW}" y="${y + 1}" width="${TW}" height="${rh - 2}"/>`);
       (e.windows || []).forEach((w, k) => {
         const a = X(ms(w[0])), b = X(ms(w[1]));
         g.push(`<rect class="og-on" x="${a}" y="${y + 1}" width="${Math.max(0, b - a)}" height="${rh - 2}"><title>${esc(`${w[2]}（${w[3].slice(5).replace("-", "/")}）${hm(ms(w[0]))}〜${hm(ms(w[1]))}`)}</title></rect>`);
@@ -91,9 +91,6 @@
     // いま（期間が今日を含むとき）
     const now = ms(d.now || "");
     if (now > x0 && now < x1) g.push(`<line class="og-now" x1="${X(now)}" x2="${X(now)}" y1="${AX - 2}" y2="${AX + shown.length * rh}"/><text class="og-nowl" x="${X(now) + 3}" y="${AX - 16}">いま</text>`);
-    const tot = d.total || {};
-    // 全体の稼働率はいちばん上の段の右（最初に見る数。2026-10-ops の 1 回目の採点: 足の小さな字で主役になっていなかった）
-    g.push(`<text class="og-total" x="${W - 4}" y="15" text-anchor="end"><tspan class="og-totl">全体の稼働率</tspan><tspan class="og-totv" dx="6">${pct(tot.rate)}</tspan><tspan class="og-totl" dx="8">稼働 ${hours(tot.busyMin || 0)} ／ 勤務 ${hours(tot.shiftMin || 0)}</tspan><title>全部の設備の稼働 ÷ 勤務時間</title></text>`);
     const leg = legend ? `<span class="og-leg">${cats.slice(0, 8).map((c) => `<span><i style="background:${colorOf.get(c)}"></i>${esc(c)}</span>`).join("")}${cats.length > 8 ? `<span>ほか ${cats.length - 8}</span>` : ""}</span>` : "";
     box.innerHTML = `<div class="og-wrap"><svg class="og-svg" viewBox="0 0 ${W} ${AX + shown.length * rh + 2}" width="${W}" height="${AX + shown.length * rh + 2}" role="img" aria-label="設備の稼働のガントチャート">`
       + `<defs><pattern id="ogHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#f3f4f5"/><line x1="0" y1="0" x2="0" y2="6" stroke="#dde1e4" stroke-width="2"/></pattern></defs>`
@@ -143,6 +140,11 @@
     let rest = items.length - rows.length;
     while (tw && tb && tb.rows.length > 1 && tw.scrollHeight > tw.clientHeight + 1) { tb.deleteRow(-1); rest++; }
     if (rest > 0) box.querySelector(".oa-rest").textContent = `ほか ${rest} 品種（パネルを高くすると出ます）`;
+    // 品種が少なくて下が空くときは、行を高くして埋める（17〜28px。2026-10-ops の 3 回目で決めた G: 表の下が大きく空いていた）
+    else if (tw && tb && tb.rows.length) {
+      const free = tw.clientHeight - tw.querySelector("thead").offsetHeight, rh = Math.max(17, Math.min(28, Math.floor(free / tb.rows.length) - 1));
+      if (rh > 17) tw.style.setProperty("--oa-rh", `${rh}px`);
+    }
     if (!box.dataset.oaBound) {
       box.dataset.oaBound = "1";
       box.addEventListener("click", (e) => {
@@ -175,5 +177,13 @@
     return `<svg class="oa-chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="パレート図（品種の量の大きい順と累積構成比）">${g.join("")}</svg>`;
   }
 
-  window.DashOps = { gantt, abc, RANK };
+  /** 見出しの題の横の札: 稼働のパネルは全体の稼働率と内訳（いちばん最初に見る数。2026-10-ops の 3 回目で決めた G。
+      前は図のいちばん上の右の字で、題から離れていた）。dashboard.js が見出しを描くたびに呼ぶ */
+  function badge(p, d) {
+    if (p.visual !== "gantt" || !d || d.kind !== "gantt" || !d.total) return "";
+    const t = d.total;
+    return `<span class="og-badge" title="全部の設備の稼働 ÷ 勤務時間（直の時間）">全体の稼働率<b>${pct(t.rate)}</b><small>稼働 ${hours(t.busyMin || 0)} ／ 勤務 ${hours(t.shiftMin || 0)}</small></span>`;
+  }
+
+  window.DashOps = { gantt, abc, badge, RANK };
 })();

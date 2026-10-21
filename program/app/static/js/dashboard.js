@@ -288,14 +288,19 @@
     el.classList.toggle("is-sliced", !!sw);
     const h3 = el.querySelector(".db-ph h3");
     const badgeHtml = sw ? `<span class="db-sbadge" title="ダッシュボードのスライサー（${esc(sw)}）で数えています。道具の行で外せます"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${esc(sw)}</span>` : "";
+    // 形ごとの題の横の札（稼働のパネルは全体の稼働率。dashboard-ops.js）
+    const own = a && a.d && window.DashOps ? DashOps.badge(p, a.d) : "";
+    if (own && h3) h3.insertAdjacentHTML("afterend", own);
     if (sw && h3) h3.insertAdjacentHTML("afterend", badgeHtml);
-    // 題が切れるなら、印を絵だけに畳む（中身は印の説明に。3 回目の採点: 1280 の数字のパネルで「9月 の実績…」と切れた）
-    const tb = el.querySelector(".db-ph h3"), sb = el.querySelector(".db-ph .db-sbadge");
+    // 題が切れるなら、印を絵だけに畳む（中身は印の説明に。3 回目の採点: 1280 の数字のパネルで「9月 の実績…」と切れた）・形の札は内訳を隠す
+    const tb = el.querySelector(".db-ph h3"), sb = el.querySelector(".db-ph .db-sbadge"), ob = el.querySelector(".db-ph .og-badge");
+    if (tb && ob && tb.scrollWidth > tb.clientWidth + 1) ob.classList.add("is-short");
     if (tb && sb && tb.scrollWidth > tb.clientWidth + 1) sb.classList.add("is-icon");
     // 編集で題が切れるなら、操作を「⋯」1 つに畳む（2026-10-dashslice の 2 回目の採点: 1280 の数字のパネルで題が「前日の実績…」と切れた）
     const t3 = el.querySelector(".db-ph h3");
     if (S.edit && t3 && t3.scrollWidth > t3.clientWidth + 1 && !ph.querySelector("[data-db-more]")) {
       ph.innerHTML = headHtml(p, a, el.clientWidth, true);
+      if (own) ph.querySelector("h3").insertAdjacentHTML("afterend", own.replace('class="og-badge"', 'class="og-badge is-short"'));
       if (sw) ph.querySelector("h3").insertAdjacentHTML("afterend", badgeHtml.replace('class="db-sbadge"', 'class="db-sbadge is-icon"'));
     }
     qEl.hidden = !qc.length;

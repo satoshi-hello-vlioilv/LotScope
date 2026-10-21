@@ -105,12 +105,14 @@
   /** その系列に数値ラベルを付けるか（系列の書式で上・下を決めていれば、パネルの数値が「なし」でも付ける） */
   const labelWant = (name) => { const l = serFmt(name).label; return l === "off" ? false : l === "top" || l === "below" ? true : LBL.top; };
   /** 数値ラベルを 1 つ置く: ほかのラベル（placed）と重なる・描く所（top〜bottom・左右）を出るなら置かない → <text> か "" */
-  function labelAt(placed, cx, by, text, color, W, top = -Infinity, bottom = Infinity) {
+  function labelAt(placed, cx, by, text, color, W, top = -Infinity, bottom = Infinity, plate = false) {
     const w = String(text).length * 6.4 + 4, b = { x0: cx - w / 2, x1: cx + w / 2, y0: by - 11, y1: by + 2 };
     if (b.x0 < 0 || b.x1 > W || b.y0 < top || b.y1 > bottom + 14) return "";
     if (placed.some((o) => b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1)) return "";
     placed.push(b);
-    return `<text x="${cx}" y="${by}" text-anchor="middle" class="pv-vl"${color ? ` style="fill:${color}"` : ""}>${esc(text)}</text>`;
+    // plate: 線を避けられないときは、字の下に白い札を敷く（線の切れ端が字に掛からない）
+    return (plate ? `<rect x="${b.x0 - 1}" y="${b.y0 - 1}" width="${w + 2}" height="${b.y1 - b.y0 + 3}" rx="3" fill="#fff" opacity=".94"/>` : "")
+      + `<text x="${cx}" y="${by}" text-anchor="middle" class="pv-vl"${color ? ` style="fill:${color}"` : ""}>${esc(text)}</text>`;
   }
   /** 横の字を傾けたときに下に足す余白（いちばん長い字から） */
   const tiltPad = (names) => { const rot = F.xrot ? +F.xrot : 0, len = Math.min(14, Math.max(2, ...names.map((t) => String(t).length))); return rot === 90 ? len * 8 : rot === 45 ? len * 5.5 : 0; };
@@ -313,7 +315,11 @@
     const allLines = series.filter((q) => q.kind === "line" || q.kind === "area");
     allLines.forEach((q) => q.v.forEach((v, i) => { if (v != null) placed.push({ x0: x(i) - 3.5, x1: x(i) + 3.5, y0: y(v, q) - 3.5, y1: y(v, q) + 3.5, pt: true }); }));
     const segs = allLines.flatMap((q) => q.v.map((v, i) => (v != null && q.v[i + 1] != null ? [x(i), y(v, q), x(i + 1), y(q.v[i + 1], q)] : null)).filter(Boolean));
-    const crosses = (b) => segs.some(([ax, ay, bx, by]) => { for (let t = 0; t <= 1; t += 0.125) { const px = ax + (bx - ax) * t, py = ay + (by - ay) * t; if (px > b.x0 && px < b.x1 && py > b.y0 && py < b.y1) return true; } return false; });
+    // 線の脚は 2px おきに調べる（8 等分では、長い脚が字の枠をすり抜けた: 2026-10-combo の 2 回目の採点）
+    const crosses = (b) => segs.some(([ax, ay, bx, by]) => { const k = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay) / 2)); for (let s = 0; s <= k; s++) { const px = ax + (bx - ax) * s / k, py = ay + (by - ay) * s / k; if (px > b.x0 - 1 && px < b.x1 + 1 && py > b.y0 - 1 && py < b.y1 + 1) return true; } return false; });
+    // 棒も障り（線のラベルが棒の頭に被らない。同じ 2 回目の採点: 「2,864.6」が棒の上に被った）
+    const bars = barQ.flatMap((q) => q.v.map((v, i) => (v ? { x0: x(i) - bw / 2, x1: x(i) + bw / 2, y0: y(v, q), y1: base0 } : null)).filter(Boolean));
+    const onBar = (b) => bars.some((o) => b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1);
     const shown = new Map();         // 同じ日に同じ値の系列は、ラベルを 1 つにまとめる（字の色は墨）
     lineQ.forEach((q) => {
       const th = thinOf(q.v, iw / Math.max(n, 1)), pos = serFmt(q.name).label, tint = series.length > 1 ? q.color : "";
@@ -324,12 +330,18 @@
         if (same.length && shown.has(`${i}:${v}`)) return;
         const cy = y(v, q), others = lineQ.filter((r) => r !== q && r.v[i] != null && r.v[i] !== v).map((r) => r.v[i]);
         const low = pos === "below" || (pos !== "top" && others.length > 0 && others.every((o) => v < o));
-        const at = (by) => { const w = String(nf(v)).length * 6.4 + 4; return { x0: x(i) - w / 2, x1: x(i) + w / 2, y0: by - 11, y1: by + 2 }; };
-        const tries = (low ? [cy + 15, cy - 7] : [cy - 7, cy + 15]);
-        const clear = tries.find((by) => !crosses(at(by))) ?? tries[0];
-        const order = [clear, ...tries.filter((t) => t !== clear)];
+        // 置き場の候補: 上・下（自動は値の小さい系列が下）、次に点の右上・左上・右下・左下。
+        // 順に: 線の脚も棒も避けられる所 → 上・下で棒を避けられる所に白い札を敷いて（線は札の下をくぐる）→ 棒の上でも線を避けられる所 → 上・下に札
+        const w = String(nf(v)).length * 6.4 + 4, side = w / 2 + 6;
+        const ud = (low ? [[0, 15], [0, -7]] : [[0, -7], [0, 15]]).map(([dx, dy]) => [x(i) + dx, cy + dy]);
+        const tries = [...ud, ...[[side, -5], [-side, -5], [side, 13], [-side, 13]].map(([dx, dy]) => [x(i) + dx, cy + dy])];
+        const at = ([cx, by]) => ({ x0: cx - w / 2, x1: cx + w / 2, y0: by - 11, y1: by + 2 });
+        const free = (t) => !crosses(at(t));
+        const order = [...tries.filter((t) => free(t) && !onBar(at(t))).map((t) => [t, false]), ...ud.filter((t) => !onBar(at(t))).map((t) => [t, true]),
+          ...tries.filter((t) => free(t) && onBar(at(t))).map((t) => [t, false]), ...ud.map((t) => [t, true])];
+        const put = (t, plate) => labelAt(placed, t[0], t[1], nf(v), same.length ? "" : tint, W, Math.max(1, pt - 14), base0, plate);
         let txt = "";
-        for (const by of order) { txt = labelAt(placed, x(i), by, nf(v), same.length ? "" : tint, W, Math.max(1, pt - 14), base0); if (txt) break; }
+        for (const [t, plate] of order) { txt = put(t, plate); if (txt) break; }
         if (txt) { g += txt; if (same.length) shown.set(`${i}:${v}`, true); }
       });
     });

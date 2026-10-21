@@ -358,7 +358,8 @@ export const STATES = [
       await fetch("/api/dashboard-sets", TPA.json("POST", { name: "品質の会議", scope: "default", body: { items: ["b:standard", String(a)] } }));
       TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
     }, [OPS_LAYOUT]);
-    await p.reload(); await waitDash(p); await sleep(800);
+    // 開き直すと頁の印（#screen=list）で一覧が開くので、ダッシュボードへ移ってから待つ
+    await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(800);
   }, "[data-next], [data-db-tab]"],
   ["dash-set-pop", async (p) => { await p.click("[data-db-pick]"); await sleep(500); }, "[data-next], [data-db-setsave]"],
   // 後片付け（撮らない）: セットとセットのために作ったダッシュボードを消し、標準のダッシュボードに戻す（ほかの状態の道具の行に、セットのタブを出さない）

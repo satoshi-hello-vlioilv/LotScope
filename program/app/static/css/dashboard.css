@@ -701,20 +701,25 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .og-svg{display:block;flex:0 0 auto;font-family:inherit}
 .og-off{fill:url(#ogHatch)}
 .og-on{fill:#edf4f3}
-.og-sep{stroke:#c9d6d4;stroke-width:1}
-.og-day{stroke:#9aa7ad;stroke-width:1;stroke-dasharray:3 2}
+.og-row.is-alt .og-on{fill:#e3eeec}
+.og-sep{stroke:#8fa9a5;stroke-width:1.2}
+.og-day{stroke:#5f6f76;stroke-width:1;stroke-dasharray:3 2}
 .og-tick{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
 .og-unit{fill:#8a969c}
 .og-dayl{font-size:11.5px;font-weight:700;fill:var(--ink)}
 .og-head{font-size:11px;fill:var(--muted);font-weight:700}
 .og-headsub{font-weight:400}
-.og-total{fill:var(--ink)}.og-totl{font-size:11.5px;fill:var(--muted)}.og-totv{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+/* 見出しの題の横の札: 全体の稼働率（数を大きく）と内訳 */
+.og-badge{display:inline-flex;align-items:baseline;gap:6px;padding:0 10px;height:24px;line-height:22px;border-radius:999px;background:#eef1f3;border:1px solid #c9d1d6;font-size:12px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.og-badge b{font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.og-badge small{font-size:12px;color:#4a5a63;font-variant-numeric:tabular-nums}
+.og-badge.is-short small{display:none}
 .og-name{font-size:12.5px;font-weight:700;fill:var(--ink)}
 .og-bar{stroke:#ffffff;stroke-width:.6}
 .og-bl{font-size:11px;fill:#ffffff;pointer-events:none}
 .og-rate{font-size:12.5px;font-weight:700;fill:var(--ink);font-variant-numeric:tabular-nums}
-.og-rtrack{fill:#e3e8ea}
-.og-rfill{fill:#2f7d78}
+.og-rtrack{fill:#e6e9eb}
+.og-rfill{fill:#5b6770}   /* 稼働率は量なので墨の濃淡（作業の棒の青緑と分ける） */
 .og-rsub{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
 .og-now{stroke:#c9564a;stroke-width:1.4;stroke-dasharray:4 3}
 .og-nowl{font-size:11px;fill:#a3322a;font-weight:700}
@@ -741,9 +746,11 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-xl{font-size:11px;fill:var(--ink)}
 .oa-line{fill:none;stroke:#3d4a52;stroke-width:1.6}
 .oa-dot{fill:#3d4a52}
-.oa-tbl{flex:1 1 auto;min-width:0;overflow:hidden}
+.oa-tbl{flex:1 1 auto;min-width:0;overflow:hidden;display:flex;flex-direction:column}
+.oa-table{flex:0 0 auto}
 .oa-table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
 .oa-table th,.oa-table td{padding:1px 6px;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap;height:17px;line-height:15px}
+.oa-table tbody th,.oa-table tbody td{height:var(--oa-rh,17px)}
 .oa-table thead th{font-size:11.5px;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);vertical-align:bottom}
 .oa-table thead th small{display:block;font-weight:400;font-size:11px}
 .oa-table th[scope=row],.oa-table thead th:first-child{text-align:left;max-width:12em;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
@@ -753,7 +760,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-rank.is-s{min-width:16px;height:16px;margin-right:3px;font-size:11px}
 .oa-f.is-far{font-weight:700;color:#8a4b12}
 .oa-foot{display:flex;gap:4px 16px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;flex:0 0 20px}
-.oa-foot b{color:var(--ink)}
+.oa-foot b:not(.oa-rank){color:var(--ink)}
 .de-ops{display:flex;flex-direction:column;gap:2px}
 .de-ophint{margin:2px 0 4px;font-size:12px;color:var(--muted);line-height:1.5}
 .de-ops select.is-need{border-color:#b5822a;box-shadow:0 0 0 2px #f6e7c8}
