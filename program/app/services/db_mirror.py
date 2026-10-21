@@ -326,12 +326,13 @@ class DbMirror:
         return res
 
     # ------------------------------------------------------------ 読む側
-    def read_path(self):
-        """実際に読む場所 = その元から作った写し。まだ無ければ None（共有は直接読まない。理由は source_info の reason）。"""
+    def read_path(self, wait=True):
+        """実際に読む場所 = その元から作った写し。まだ無ければ None（共有は直接読まない。理由は source_info の reason）。
+        wait … 起動して最初の周回が済むまで待つ（FIRST_WAIT_SEC まで）。False は待たない（呼ぶ側が wait_first でまとめて待った後）。"""
         if not self.enabled:
             return None
-        if not self._first.is_set() and self._thread is not None and self._thread.is_alive():
-            self._first.wait(FIRST_WAIT_SEC)
+        if wait:
+            self.wait_first(FIRST_WAIT_SEC)
         entry = self._entry()
         sig = entry.get("signature") or {}
         if str(sig.get("source") or "") != self.remote:
@@ -343,6 +344,12 @@ class DbMirror:
         except OSError:
             pass
         return None
+
+    def wait_first(self, timeout):
+        """起動して最初の周回（写し）が済むまで、timeout 秒まで待つ。済んだ（か、写しの係が動いていない）なら True"""
+        if self._first.is_set() or self._thread is None or not self._thread.is_alive():
+            return True
+        return self._first.wait(max(0.0, timeout))
 
     def _mirrored(self):
         """いまの元から作った写しがあるか → (台帳の印, 写しの場所, あるか)。共有は見ない。"""

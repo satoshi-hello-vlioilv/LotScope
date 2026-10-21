@@ -580,7 +580,7 @@
       const host = q(".lr-fbbox"), el = document.createElement("div"), ta = q(".lr-write");
       el.className = "fb"; host.replaceChildren(el);
       window.FormulaBuilder.mount(el, {
-        kind: "calc", kinds: ["calc", "join", "cut", "fill", "round"],
+        kind: "calc", kinds: ["calc", "join", "cut", "fill", "round", "count", "span"],
         columns: () => (src && src.names ? src.names() : srcColumns()),
         preview: (f) => { const c = calcOf(f); return c ? (src.rows() || []).slice(0, 3).map((r) => String(c.run(src.formulaRow(r)) ?? "")) : []; },
         apply: (f, how) => {      // 式にする（置き換え）／式の欄に足す（カーソルの所）

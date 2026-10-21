@@ -67,6 +67,15 @@ const CROWDED = {
 };
 
 // 並べ替えの状態（sorted）: まとめず、重量 ▼ → 板厚 ▲ の 2 つで並べ、不良名が空欄でない行に絞る
+// 版 3.46.0: 稼働のガントチャート（前日・全設備・作業区分で色分け）と ABC 分析・換算係数（合金）を並べたダッシュボード（保存しない: Dashboard._setLayout）
+const OPS_LAYOUT = { rows: 8, panels: [
+  { id: "gantt", x: 0, y: 0, w: 12, h: 5, title: "", visual: "gantt", source: "work", period: { column: "@workday", kind: "yesterday", n: 1 }, ops: { color: "作業区分" }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } },
+  { id: "abc", x: 0, y: 5, w: 12, h: 3, title: "", visual: "abc", source: "work", ops: { cls: "合金" }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } }] };
+// 組み合わせのグラフ（直近 14 日のロット数＝棒・重量の平均＝線〈右〉）と、設備ごとの組み合わせ（本数・速度の平均）
+const COMBO_LAYOUT = { rows: 8, panels: [
+  { id: "combo", x: 0, y: 0, w: 7, h: 8, title: "", visual: "combo", source: "work", period: { column: "@workday", kind: "days", n: 14 }, body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots" }, { agg: "avg", column: "重量" }] },
+    fmt: { series: { "重量の平均": { kind: "line", axis: "right", dash: true } } } },
+  { id: "combo2", x: 7, y: 0, w: 5, h: 8, title: "", visual: "combo", source: "work", body: { rows: [{ column: "@equip", part: "" }], cols: [], measures: [{ agg: "lots" }, { agg: "avg", column: "速度" }] } }] };
 const SORTED = { sorts: { "仕掛": [{ column: "重量", dir: "desc" }, { column: "板厚", dir: "asc" }] }, active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] } };
 
 /** サーバーとブラウザーを起こす。{ browser, newPage(テーマ, 大きさ), close() } */
@@ -325,6 +334,46 @@ export const STATES = [
   }, "[data-next], #verNew"],
   // ダッシュボード（版 3.37.0 からグリッドのパネル・最初の画面）: 組み込みの標準を見る所・1 枚の表の条件の面・編集・パネルを組む所（仕掛区分ごと）
   ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400); }, "[data-next], [data-db-editmode]"],
+  // 版 3.46.0: 稼働（ガント）と ABC 分析・換算係数のパネル
+  ["dash-ops", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), OPS_LAYOUT); await sleep(500); await waitDash(p); await sleep(600); }, "[data-next], [data-db-editmode]"],
+  // 版 3.46.0: 組み合わせのグラフと、組む所の書式の「系列」（系列ごとの形・目盛り）
+  ["dash-combo", async (p) => {
+    await p.evaluate((l) => Dashboard._setLayout(l), COMBO_LAYOUT); await sleep(500); await waitDash(p);
+    await p.click("[data-db-editmode]"); await sleep(400);
+    await p.click('#dashGrid .db-p[data-id="combo"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
+    await p.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#dbEditor .de-sers");
+      if (m && f) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 160); }); await sleep(400);
+  }, "[data-next], [data-de-apply]"],
+  // 版 3.46.0: ダッシュボードのセット（標準のセット「現場の朝」＝標準・稼働・品種の ABC をタブで）と、セットの面
+  ["dash-set", async (p) => {
+    await p.click("[data-de-cancel]").catch(() => {}); await sleep(300);
+    await p.click("[data-db-leave]").catch(() => {}); await p.click("[data-db-discard]").catch(() => {}); await sleep(300);
+    await p.evaluate(async ([ops]) => {
+      // 前の案で作ったセット・ダッシュボードを片付けてから作る（撮影は案ごとに同じサーバーで続けてたどるので、名前がぶつかる）
+      for (const x of (await (await fetch("/api/dashboard-sets")).json()).items || []) await fetch(`/api/dashboard-sets/${x.id}`, { method: "DELETE" });
+      for (const x of ((await (await fetch("/api/dashboards")).json()).items || []).filter((y) => !y.builtin)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      const mk = async (name, panels) => (await (await fetch("/api/dashboards", TPA.json("POST", { name, scope: "all", body: { rows: 8, panels } }))).json()).id;
+      const g = await mk("稼働", [{ ...ops.panels[0], h: 8 }]), a = await mk("品種の ABC", [{ ...ops.panels[1], y: 0, h: 8 }]);
+      await fetch("/api/dashboard-sets", TPA.json("POST", { name: "現場の朝", scope: "default", standard: true, body: { items: ["b:standard", String(g), String(a)] } }));
+      await fetch("/api/dashboard-sets", TPA.json("POST", { name: "品質の会議", scope: "default", body: { items: ["b:standard", String(a)] } }));
+      TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
+    }, [OPS_LAYOUT]);
+    // 開き直すと頁の印（#screen=list）で一覧が開くので、ダッシュボードへ移ってから待つ
+    await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(800);
+  }, "[data-next], [data-db-tab]"],
+  ["dash-set-pop", async (p) => { await p.click("[data-db-pick]"); await sleep(500); }, "[data-next], [data-db-setsave]"],
+  // 後片付け（撮らない）: セットとセットのために作ったダッシュボードを消し、標準のダッシュボードに戻す（ほかの状態の道具の行に、セットのタブを出さない）
+  ["dash-set-off", async (p) => {
+    await p.keyboard.press("Escape");
+    await p.evaluate(async () => {
+      const sets = (await (await fetch("/api/dashboard-sets")).json()).items || [];
+      for (const x of sets) await fetch(`/api/dashboard-sets/${x.id}`, { method: "DELETE" });
+      const ds = (await (await fetch("/api/dashboards")).json()).items || [];
+      for (const x of ds.filter((y) => !y.builtin)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
+    });
+    await p.reload(); await waitDash(p); await sleep(400);
+  }, "[data-next], [data-db-editmode]"],
   // 版 3.44.0: パネル（仕掛区分ごと）を右クリックしたメニュー
   ["dash-menu", async (p) => {
     const b = await (await p.$('#dashGrid .db-p[data-id="wipClass"]')).boundingBox(); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2, { button: "right" }); await sleep(400);
@@ -577,10 +626,12 @@ function tab(p, key) {
 }
 
 /** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ） */
-export async function walk(page, visit, only = null) {
+export async function walk(page, visit, only = null, from = "") {
   page.setDefaultTimeout(5000);   // 見つからない部品で 30 秒止まらない
   const last = only ? Math.max(...STATES.map(([name], i) => (only.includes(name) ? i : -1))) : STATES.length - 1;
-  for (const [name, go, next] of STATES.slice(0, last + 1)) {   // 撮る状態のうち最後の物まで（その先へは進まない）
+  // from（版 3.46.0）… その状態からたどる（前の状態の積み重ねが要らない状態だけを撮るとき。ダッシュボードの状態は "dash" から）
+  const first = from ? Math.max(0, STATES.findIndex(([name]) => name === from)) : 0;
+  for (const [name, go, next] of STATES.slice(first, last + 1)) {   // 撮る状態のうち最後の物まで（その先へは進まない）
     try {
       await go(page);
     } catch (e) {

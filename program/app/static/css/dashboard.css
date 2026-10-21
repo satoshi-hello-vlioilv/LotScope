@@ -695,3 +695,108 @@ body.de-sizing{user-select:none;cursor:col-resize}
 #dbEditor .de-cprev:empty{display:none}
 #dbEditor .de-cprev i{font-style:normal;color:var(--muted);font-weight:400}
 #dbEditor .de-cprev small{color:var(--muted);font-weight:400}
+
+/* ---- 稼働（ガントチャート）・ABC 分析と換算係数（版 3.46.0。dashboard-ops.js） ---- */
+.og-wrap{display:flex;flex-direction:column;height:100%;min-height:0}
+.og-svg{display:block;flex:0 0 auto;font-family:inherit}
+.og-off{fill:url(#ogHatch)}
+.og-on{fill:#edf4f3}
+.og-row.is-alt .og-on{fill:#e3eeec}
+.og-sep{stroke:#8fa9a5;stroke-width:1.2}
+.og-day{stroke:#5f6f76;stroke-width:1;stroke-dasharray:3 2}
+.og-tick{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
+.og-unit{fill:#8a969c}
+.og-dayl{font-size:11.5px;font-weight:700;fill:var(--ink)}
+.og-head{font-size:11px;fill:var(--muted);font-weight:700}
+.og-headsub{font-weight:400}
+/* 見出しの題の横の札: 全体の稼働率（数を大きく）と内訳 */
+.og-badge{display:inline-flex;align-items:baseline;gap:6px;padding:0 10px;height:22px;line-height:20px;border-radius:999px;background:#eef1f3;border:1px solid #c9d1d6;font-size:12px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.og-badge b{font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.og-badge small{font-size:12px;color:#4a5a63;font-variant-numeric:tabular-nums}
+.og-badge.is-short small{display:none}
+.og-name{font-size:12.5px;font-weight:700;fill:var(--ink)}
+.og-bar{stroke:#ffffff;stroke-width:.6}
+.og-bl{font-size:11px;fill:#ffffff;pointer-events:none}
+.og-rate{font-size:12.5px;font-weight:700;fill:var(--ink);font-variant-numeric:tabular-nums}
+.og-rtrack{fill:#e6e9eb}
+.og-rfill{fill:#5b6770}   /* 稼働率は量なので墨の濃淡（作業の棒の青緑と分ける） */
+.og-rsub{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
+.og-now{stroke:#c9564a;stroke-width:1.4;stroke-dasharray:4 3}
+.og-nowl{font-size:11px;fill:#a3322a;font-weight:700}
+.og-foot{display:flex;align-items:center;gap:6px 16px;flex-wrap:nowrap;overflow:hidden;font-size:12px;color:var(--muted);height:20px;white-space:nowrap;margin-top:auto}
+.og-all{color:var(--ink)}
+.og-all b{font-size:13px;font-variant-numeric:tabular-nums;margin:0 4px}
+.og-all small{color:var(--muted);font-size:11.5px}
+.og-key,.og-leg{display:inline-flex;gap:10px;align-items:center}
+.og-key span,.og-leg span{display:inline-flex;gap:4px;align-items:center}
+.og-key i,.og-leg i{width:12px;height:9px;border-radius:2px;display:inline-block}
+.og-k-on{background:#edf4f3;border:1px solid #c9d6d4}
+.og-k-off{background:repeating-linear-gradient(45deg,#f3f4f5 0 3px,#dde1e4 3px 5px);border:1px solid #dde1e4}
+
+.oa-wrap{display:flex;flex-direction:column;height:100%;min-height:0;gap:4px}
+.oa-tabs{display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;flex:0 0 auto}
+.oa-tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:1px 10px;font-size:12px;line-height:22px;color:var(--ink);cursor:pointer;white-space:nowrap}
+.oa-tab:hover{border-color:#8fb8b3}
+.oa-tab.on{background:#2f7d78;border-color:#2f7d78;color:#fff;font-weight:700}
+.oa-main{display:flex;gap:10px;min-height:0;flex:1 1 auto;overflow:hidden}
+.oa-chart{flex:0 0 auto;display:block}
+.oa-ax{stroke:#9aa7ad}
+.oa-lim{stroke:#9aa7ad;stroke-dasharray:4 3}
+.oa-liml,.oa-axl{font-size:11px;fill:var(--muted)}
+.oa-xl{font-size:11px;fill:var(--ink)}
+.oa-line{fill:none;stroke:#3d4a52;stroke-width:1.6}
+.oa-dot{fill:#3d4a52}
+.oa-tbl{flex:1 1 auto;min-width:0;overflow:hidden;display:flex;flex-direction:column}
+.oa-table{flex:0 0 auto}
+.oa-table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.oa-table th,.oa-table td{padding:1px 6px;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap;height:17px;line-height:15px}
+.oa-table tbody th,.oa-table tbody td{height:var(--oa-rh,17px)}
+.oa-table thead th{font-size:11.5px;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);vertical-align:bottom}
+.oa-table thead th small{display:block;font-weight:400;font-size:11px}
+.oa-table th[scope=row],.oa-table thead th:first-child{text-align:left;max-width:12em;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.oa-cum{display:inline-block;width:38px;height:6px;border-radius:3px;background:#e3e8ea;margin-right:5px;vertical-align:1px;overflow:hidden}
+.oa-cum i{display:block;height:100%}
+.oa-rank{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:16px;border-radius:4px;background:var(--rc);color:var(--rf,#fff);font-size:11.5px;font-weight:700}
+.oa-rank.is-s{min-width:16px;height:16px;margin-right:3px;font-size:11px}
+.oa-f.is-far{font-weight:700;color:#8a4b12}
+.oa-foot{display:flex;gap:4px 16px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;flex:0 0 20px}
+.oa-foot b:not(.oa-rank){color:var(--ink)}
+.de-ops{display:flex;flex-direction:column;gap:2px}
+.de-ophint{margin:2px 0 4px;font-size:12px;color:var(--muted);line-height:1.5}
+.de-ops select.is-need{border-color:#b5822a;box-shadow:0 0 0 2px #f6e7c8}
+/* 系列の行（版 3.46.0）: 形と軸の札を足したので、名前（色）を 1 段目いっぱい・選びを 2 段目に折り返す（横にはみ出さない） */
+.de-ser{flex-wrap:wrap;row-gap:4px}
+.de-ser .de-scol{flex:1 1 100%}
+.de-ser:has([data-de-skind]) .de-segs + .de-segs{margin-left:2px}
+
+/* ---- セット（版 3.46.0）: 道具の行のタブ（セットのダッシュボード）と、面のセットの段 ---- */
+.db-tabs{display:flex;align-items:flex-end;gap:2px;min-width:0;flex:0 1 auto;overflow:hidden;height:34px;border-bottom:2px solid var(--line-soft);margin-left:2px}
+.db-tab{height:30px;padding:0 14px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:transparent;font:inherit;font-size:13.5px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;margin-bottom:-2px}
+.db-tab:hover{color:var(--ink);background:var(--surface-3)}
+.db-tab.on{color:var(--ink);background:var(--surface);border-color:var(--line);border-bottom:2px solid var(--surface);box-shadow:inset 0 3px 0 var(--h-input)}
+.db-tab.is-out{border-style:dashed;color:var(--muted)}
+.db-pick.is-set{background:var(--input-soft)}
+.db-setacts .pv-btn[disabled]{opacity:.45}
+/* 系列の札の組の見出し（形・目盛り・数値・線）と、押した札をはっきり（版 3.46.0。2026-10-combo の 1 回目の採点） */
+.de-sgrp{display:inline-flex;align-items:center;gap:4px}
+.de-sgrp > small{font-size:11px;color:var(--muted);font-weight:700;min-width:2.2em}
+.de-ser .de-seg.on{font-weight:800;box-shadow:inset 0 0 0 1.5px #3f6591;color:#24446a}
+
+/* セットの面: 操作が効くダッシュボードの名前・いまのセットに入っている印（版 3.46.0。2026-10-sets の 1 回目の採点） */
+.db-setfor{font-size:12px;color:var(--muted);align-self:center;margin-right:2px;white-space:nowrap;max-width:14em;overflow:hidden;text-overflow:ellipsis}
+.db-inset{font-style:normal;font-size:11px;font-weight:700;color:#24446a;background:#e6edf5;border:1px solid #b7c7da;border-radius:4px;padding:0 5px;line-height:16px;margin-left:6px}
+/* 組み合わせの系列の名前の行: いま描いている形の印（系列の色）と目盛り。右端にそろえる（2026-10-combo の 3 回目で決めた E） */
+.de-scol .de-snow{display:inline-flex;align-items:center;gap:5px;margin-left:auto;flex:0 0 auto;padding-left:10px;font-size:12.5px;color:var(--ink);white-space:nowrap}
+.de-scol .de-snow b{font-weight:700}
+.de-sico{width:16px;height:13px;flex:0 0 auto}
+.de-scol:has(.de-snow) > span:not(.de-snow){flex:0 1 auto}
+/* セット（2026-10-sets の 2 回目で決めた G）: 札とタブを 1 つの枠に（札の枠は消して二重にしない・左端は下の段とそろう）・面は 2 列・セットの行に中身の名前 */
+.db-setbox{display:inline-flex;align-items:flex-end;gap:4px;min-width:0;flex:0 1 auto;border:1px solid #c9d3de;border-radius:9px;background:#f6f8fb;padding:0 8px 0 0}
+.db-setbox .db-pick.is-set{border-color:transparent;background:transparent;align-self:center}
+.db-setbox .db-pick.is-set:hover,.db-setbox .db-pick.is-set[aria-expanded="true"]{border-color:var(--h-input)}
+.db-setbox .db-tabs{border-bottom:0;height:36px}
+.db-pickpop:has(> .db-pcol){width:min(780px,calc(100vw - 24px));display:grid;grid-template-columns:1fr 1fr;column-gap:18px;align-content:start}
+.db-pcol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.db-pcol + .db-pcol{border-left:1px solid var(--line-soft);padding-left:16px}
+.db-setli{flex-wrap:wrap;height:auto;min-height:32px;padding:4px 8px;row-gap:1px}
+.db-setin{flex:1 1 100%;font-size:11.5px;color:var(--muted);font-weight:400;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

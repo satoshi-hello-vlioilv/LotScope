@@ -1,6 +1,6 @@
 // 改良案を画像で比べる（開発用。見た目を変えるときは、案を必ずこれで画像にして見比べてから選ぶ: CLAUDE.md。元は Inventor の同じ名前の道具）。
 //
-//   node program/tools/ui-variants.mjs 出力フォルダ 案の定義.mjs [--states list,grouped,calc] [--themes light,dark] [--only A,B] [--view 1536x864]
+//   node program/tools/ui-variants.mjs 出力フォルダ 案の定義.mjs [--states list,grouped,calc] [--themes light,dark] [--only A,B] [--view 1536x864] [--from dash]
 //
 // 案の定義（ES モジュール）は PROPOSALS = [{ key, name, css, ops }] を書き出す（例: ui-proposals/2026-10-shortcut.mjs）。
 // 起動画面（desktop/splash）の案は --states splash,splash-fail で撮る（案の CSS・ops は起動画面に当たる。例: ui-proposals/2026-10-splash.mjs）。
@@ -38,6 +38,7 @@ const SPLASH = STATES.every((s) => SPLASH_NAMES.includes(s)); // 起動画面の
 const THEMES = option("themes", "light");
 const ONLY = option("only", "");
 const VIEW = parseView(option("view", "")[0]);
+const FROM = option("from", "")[0];      // --from 状態の名前: その状態からたどる（ダッシュボードの状態は --from dash）
 const { PROPOSALS } = await import(pathToFileURL(path.resolve(defsArg)).href);
 const TAKE = PROPOSALS.filter((p) => !ONLY[0] || ONLY.includes(p.key)); // 一覧の画像には、撮り直さなかった案も前の画像で並べる
 
@@ -116,7 +117,7 @@ try {
         await page.screenshot({ path: path.join(OUT, `${id}.png`) });
         metrics[id] = await page.evaluate(measure, next);
         console.log(id, JSON.stringify({ primaries: metrics[id].primaries, list: metrics[id].list, text: metrics[id].text, hidden: metrics[id].hidden, cut: metrics[id].cut }));
-      }, STATES);
+      }, STATES, FROM);
       await page.context().close();
     }
     for (const state of STATES) await contactSheet(app.browser, state, theme, metrics);

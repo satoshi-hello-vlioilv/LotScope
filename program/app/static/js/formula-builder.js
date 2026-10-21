@@ -4,7 +4,7 @@
    - 表示列の「この列の作り方」の窓（lotlist-rules.js）の「式を書く」の「部品から作る」で、文のように選んで組み立て、
      「式にする」で式の欄へ入れる（条件で分ける式は、同じ窓の「組み立てる」＝表示ルールと同じ組み立てで作る。ここでは出さない: opts.kinds）。組み立てた物は式の字（list-formula.js の書き方）に変えるだけで、式の決まりは増やさない
      （計算・確かめは今までどおり list-formula.js の 1 か所。WaveLog と同じ書き方・同じ答え）。
-   - 組み立ての形（KINDS）: 計算する・条件で分ける・文字をつなぐ・文字を取り出す・空なら別の値・数を丸める
+   - 組み立ての形（KINDS）: 計算する・条件で分ける・文字をつなぐ・文字を取り出す・空なら別の値・数を丸める・文字を数える・時間の差（版 3.46.0）
    - 値の欄（項）は「列」か「数・文字を打つ」。打った字は数に読めれば数、読めなければ '文字'（' は '' にする）
    - build(spec) は DOM を使わない（評価関数 program/tools/formula-builder-check.mjs が node で確かめる）
    ========================================================================= */
@@ -16,11 +16,16 @@
     ["cut", "文字を取り出す", "左から・右から・途中から、何文字かを取り出します"],
     ["fill", "空なら別の値", "空欄のときだけ、別の列や文字を出します"],
     ["round", "数を丸める", "小数の桁を決めて四捨五入します"],
+    // 版 3.46.0（利用者の要望 2026-10-21 の 5: 文字列のカウント）
+    ["count", "文字を数える", "文字数・ある字が何回出てくるか・バイト数（全角 2・半角 1）を数えます"],
+    ["span", "時間の差", "2 つの日時の差を、分・時間・日で出します（例: 作業開始から作業終了までの分）"],
   ];
   const OPS = [["+", "＋"], ["-", "−"], ["*", "×"], ["/", "÷"]];
   const CMPS = [["=", "と同じ"], ["<>", "と違う"], [">", "より大きい"], [">=", "以上"], ["<", "より小さい"], ["<=", "以下"],
     ["contains", "を含む"], ["startswith", "で始まる"], ["endswith", "で終わる"], ["empty", "が空欄"], ["notempty", "が空欄でない"]];
   const CUTS = [["left", "左から"], ["right", "右から"], ["mid", "途中（何文字目から）"]];
+  const COUNTS = [["len", "の文字数"], ["count", "の中の字の数"], ["lenb", "のバイト数"]];
+  const SPANS = [["m", "分"], ["h", "時間"], ["d", "日"]];
 
   /** 文字 → 式の文字の書き方。式の決まりは '…' か "…" で、中で引用符を重ねる書き方は無い（list-formula.js の lex）。
       ' を含めば "…"、両方を含めば ' の所で分けて concat でつなぐ */
@@ -67,6 +72,8 @@
     }
     if (s.kind === "fill") return `coalesce(${term(s.from)}, ${term(s.alt)})`;
     if (s.kind === "round") return `round(${term(s.from)}, ${Math.max(0, Math.min(8, +s.decimals || 0))})`;
+    if (s.kind === "count") return s.how === "count" ? `count(${term(s.from)}, ${term(s.what)})` : `${s.how === "lenb" ? "lenb" : "len"}(${term(s.from)})`;
+    if (s.kind === "span") return `datediff(${term(s.from)}, ${term(s.to)}, '${SPANS.some((x) => x[0] === s.unit) ? s.unit : "m"}')`;
     return "";
   }
   /** 形ごとの最初の組み立て（列は 1 つ目・2 つ目の列で埋める＝何も選ばなくても式の形が見える） */
@@ -79,6 +86,8 @@
       cut: { kind, from: a, how: "left", count: 2, start: 1 },
       fill: { kind, from: a, alt: { val: "-" } },
       round: { kind, from: a, decimals: 1 },
+      count: { kind, from: a, how: "len", what: { val: "、" } },
+      span: { kind, from: a, to: b, unit: "m" },
     }[kind];
   }
 
@@ -110,6 +119,9 @@
       + `<input data-k="count" type="number" min="0" value="${esc(s.count)}" class="fb-num" aria-label="文字数"><span class="fb-w">文字</span>`;
     if (s.kind === "fill") return `${termHtml(s.from, cols, "from")}<span class="fb-w">が空なら</span>${termHtml(s.alt, cols, "alt")}<span class="fb-w">を出す</span>`;
     if (s.kind === "round") return `${termHtml(s.from, cols, "from")}<span class="fb-w">を小数</span>${sel("decimals", [0, 1, 2, 3, 4, 5].map((n) => [n, `${n}桁`]), s.decimals, "小数")}<span class="fb-w">に丸める</span>`;
+    if (s.kind === "count") return `${termHtml(s.from, cols, "from")}${sel("how", COUNTS, s.how, "数え方")}`
+      + (s.how === "count" ? `<span class="fb-w">（数える字</span>${termHtml(s.what, cols, "what")}<span class="fb-w">）</span>` : "");
+    if (s.kind === "span") return `${termHtml(s.from, cols, "from")}<span class="fb-w">から</span>${termHtml(s.to, cols, "to")}<span class="fb-w">までを</span>${sel("unit", SPANS, s.unit, "単位")}<span class="fb-w">で</span>`;
     return "";
   }
   /* 欄の値 → 組み立て（path は "terms.1"・"left" など） */

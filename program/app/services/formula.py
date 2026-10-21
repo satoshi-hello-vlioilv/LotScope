@@ -408,9 +408,14 @@ def _lex(src):
 
 
 ARITY = {"cmp": 2, "num": 1, "text": 1, "abs": 1, "round": 2, "len": 1, "left": 2, "right": 2, "trim": 1, "upper": 1, "lower": 1,
-         "find": 2, "replace": 3, "match": 2, "regreplace": 3, "split": 3, "contains": 2, "startswith": 2, "endswith": 2, "hankaku": 1}
-ARITY_RANGE = {"mid": (2, 3), "extract": (2, 3), "padleft": (2, 3), "conv": (2, 9)}
-REGEX_FUNCS = {"extract", "match", "regreplace"}
+         "find": 2, "replace": 3, "match": 2, "regreplace": 3, "split": 3, "contains": 2, "startswith": 2, "endswith": 2, "hankaku": 1,
+         # 版 3.46.0
+         "count": 2, "regcount": 2, "lenb": 1, "rept": 2, "int": 1, "ceil": 1, "sqrt": 1, "isnum": 1, "isblank": 1,
+         "year": 1, "month": 1, "day": 1, "hour": 1, "minute": 1, "weekday": 1, "date": 1}
+ARITY_RANGE = {"mid": (2, 3), "extract": (2, 3), "padleft": (2, 3), "conv": (2, 9),
+               "roundup": (1, 2), "rounddown": (1, 2), "datediff": (2, 3), "ifs": (2, 40), "switch": (3, 41),
+               "min": (1, 30), "max": (1, 30), "sum": (1, 30), "avg": (1, 30)}
+REGEX_FUNCS = {"extract", "match", "regreplace", "regcount"}
 
 
 def parse(src):
@@ -707,6 +712,132 @@ def _conv(a):
     return _conv_give(other, vals)
 
 
+# ---------------------------------------------------------------- 版 3.46.0 で足した関数（利用者の要望 2026-10-21 の 5: 文字列のカウント・ほかの便利な関数）
+# 画面（list-formula.js）と同じ決まり・同じ答え（tests/test_formula_parity.py が突き合わせる）
+REPT_MAX = 10000          # rept の答えの長さ（UTF-16 の単位）
+LENB_ONE = re.compile(r"[\x00-\x7f\uff61-\uff9f]")   # lenb で 1 と数える字（半角の英数記号・半角カナ）。ほかは 2（Excel の LENB と同じ数え方）
+
+
+def _fsum(xs):
+    """左から順に足す（JavaScript の reduce と同じ丸め。math.fsum は使わない）"""
+    t = 0.0
+    for x in xs:
+        t += x
+    return t
+
+
+def _nums(a):
+    return [n for n in map(num_of, a) if n is not None]
+
+
+def _digits(v):
+    """roundup・rounddown の桁（0〜8 の整数。小数は 0 の側へ切る）"""
+    return int(max(0.0, min(8.0, num_of(v) or 0.0)))
+
+
+def _round_dir(a, up):
+    """Excel の ROUNDUP（0 から遠い側）・ROUNDDOWN（0 の側）。x×10^桁 の小さな誤差（1.1×10＝11.000000000000002）は 15 桁で丸めてから切る"""
+    n = num_of(a[0])
+    if n is None:
+        return None
+    p = float(10 ** (_digits(a[1]) if len(a) > 1 else 0))
+    t = float("%.15g" % (abs(n) * p))
+    return (-1.0 if n < 0 else 1.0) * (math.ceil(t) if up else math.floor(t)) / p
+
+
+def _rept(a):
+    t, n = text_of(a[0]), int(max(0.0, min(1000.0, num_of(a[1]) or 0.0)))
+    if t and u16len(t) * n > REPT_MAX:
+        n = REPT_MAX // u16len(t)
+    return t * n
+
+
+def _switch(a):
+    """switch(x, 値1, 答え1, 値2, 答え2, …[, どれでもない時])。値は = と同じ比べ方"""
+    for i in range(1, len(a) - 1, 2):
+        if _cmp_op("=", a[0], a[i]):
+            return a[i + 1]
+    return a[-1] if len(a) % 2 == 0 else ""
+
+
+def _ifs(a):
+    """ifs(条件1, 答え1, 条件2, 答え2, …[, どれでもない時])"""
+    for i in range(0, len(a) - 1, 2):
+        if truthy(a[i]):
+            return a[i + 1]
+    return a[-1] if len(a) % 2 else ""
+
+
+# 日時（年月日・時刻）。数字は半角だけ。区切りは - / . 年月日 と、日と時刻の間の T・空白（全角の空白も）
+_D_YMD = re.compile(r"([0-9]{4})[-/.年]([0-9]{1,2})[-/.月]([0-9]{1,2})日?(?:[T \u3000]+([0-9]{1,2})[:時]([0-9]{1,2})(?:[:分]([0-9]{1,2})(?:\.[0-9]+)?秒?)?)?")
+_D_YY = re.compile(r"([0-9]{2})/([0-9]{1,2})/([0-9]{1,2})(?:[T \u3000]+([0-9]{1,2}):([0-9]{1,2})(?::([0-9]{1,2}))?)?")
+_D_8 = re.compile(r"([0-9]{4})([0-9]{2})([0-9]{2})")
+_D_T = re.compile(r"([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?")
+_DIM = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+
+def _days(y, m, d):
+    """1970-01-01 からの日数（Howard Hinnant の days_from_civil。整数だけで計算する: 画面の JavaScript と同じ答え）"""
+    y -= m <= 2
+    era = y // 400
+    yoe = y - era * 400
+    doy = (153 * (m + (-3 if m > 2 else 9)) + 2) // 5 + d - 1
+    return era * 146097 + yoe * 365 + yoe // 4 - yoe // 100 + doy - 719468
+
+
+def when(v):
+    """値 → (年, 月, 日, 時, 分, 秒, 日付がある)。日時と読めなければ None（時刻だけは 1970-01-01 の時刻）"""
+    t = js_trim(text_of(v))
+    m = _D_YMD.fullmatch(t) or _D_YY.fullmatch(t) or _D_8.fullmatch(t)
+    if m:
+        g = [int(x) if x else 0 for x in m.groups()] + [0] * (6 - len(m.groups()))
+        y = g[0] + 2000 if m.re is _D_YY else g[0]
+        has = True
+    else:
+        m = _D_T.fullmatch(t)
+        if not m:
+            return None
+        g, y, has = [1970, 1, 1] + [int(x) if x else 0 for x in m.groups()], 1970, False
+    mo, d, h, mi, sec = g[1], g[2], g[3], g[4], g[5]
+    dim = 29 if mo == 2 and (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else _DIM[mo - 1] if 1 <= mo <= 12 else 0
+    if not (1 <= d <= dim and h <= 23 and mi <= 59 and sec <= 59):
+        return None
+    return y, mo, d, h, mi, sec, has
+
+
+def _sec(w):
+    return _days(w[0], w[1], w[2]) * 86400 + w[3] * 3600 + w[4] * 60 + w[5]
+
+
+DATEDIFF_UNITS = {"d": 86400, "日": 86400, "h": 3600, "時": 3600, "時間": 3600, "m": 60, "分": 60, "s": 1, "秒": 1}
+
+
+def _datediff(a):
+    """datediff(始め, 終わり[, 単位])＝終わり−始め（d＝日〈既定〉・h＝時間・m＝分・s＝秒）"""
+    x, y = when(a[0]), when(a[1])
+    u = DATEDIFF_UNITS.get(js_trim(text_of(a[2])).lower() if len(a) > 2 else "d")
+    if x is None or y is None or u is None:
+        return None
+    return (_sec(y) - _sec(x)) / u
+
+
+def _part(i, need_date=True):
+    def f(a):
+        w = when(a[0])
+        return None if w is None or (need_date and not w[6]) else float(w[i])
+    return f
+
+
+def _weekday(a):
+    w = when(a[0])
+    return None if w is None or not w[6] else float((_days(w[0], w[1], w[2]) % 7 + 4) % 7 + 1)
+
+
+def _date(a):
+    w = when(a[0])
+    return None if w is None or not w[6] else f"{w[0]:04d}-{w[1]:02d}-{w[2]:02d}"
+
+
 FUNCS = {
     "num": lambda a: num_of(a[0]),
     "text": lambda a: text_of(a[0]),
@@ -734,6 +865,28 @@ FUNCS = {
     "hankaku": lambda a: unicodedata.normalize("NFKC", text_of(a[0])),
     "padleft": _padleft,
     "conv": _conv,
+    # 版 3.46.0
+    "count": lambda a: float(text_of(a[0]).count(text_of(a[1]))) if text_of(a[1]) else 0.0,
+    "regcount": lambda a: float(sum(1 for _ in js_regex(text_of(a[1]), "g").finditer(text_of(a[0])))),
+    "lenb": lambda a: float(sum(1 if LENB_ONE.fullmatch(c) else 2 for c in _u16list(text_of(a[0])))),
+    "rept": _rept,
+    "min": lambda a: min(_nums(a)) if _nums(a) else None,
+    "max": lambda a: max(_nums(a)) if _nums(a) else None,
+    "sum": lambda a: _fsum(_nums(a)) if _nums(a) else None,
+    "avg": lambda a: _fsum(_nums(a)) / len(_nums(a)) if _nums(a) else None,
+    "int": lambda a: None if num_of(a[0]) is None else float(math.floor(num_of(a[0]))),
+    "ceil": lambda a: None if num_of(a[0]) is None else float(math.ceil(num_of(a[0]))),
+    "roundup": lambda a: _round_dir(a, True),
+    "rounddown": lambda a: _round_dir(a, False),
+    "sqrt": lambda a: None if num_of(a[0]) is None or num_of(a[0]) < 0 else math.sqrt(num_of(a[0])),
+    "isnum": lambda a: 0.0 if _strict_num(a[0]) is None else 1.0,
+    "isblank": lambda a: 1.0 if js_trim(text_of(a[0])) == "" else 0.0,
+    "ifs": _ifs,
+    "switch": _switch,
+    "year": _part(0), "month": _part(1), "day": _part(2), "hour": _part(3, False), "minute": _part(4, False),
+    "weekday": _weekday,
+    "date": _date,
+    "datediff": _datediff,
 }
 
 

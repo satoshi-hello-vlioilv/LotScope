@@ -51,6 +51,7 @@
   /** 系列・項目の色（書式で名前に色を決めていれば、その色） */
   // 描いた色は USED に控える（版 3.41.0。組む所の「系列」の見本は、描いた色そのもの: 見本と線の色が食い違っていた）
   let USED = null;
+  let SER = null;      // 描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」に使う。版 3.46.0）
   const cof = (name, fallback) => { const c = (F.colors && F.colors[name]) || fallback; if (USED && !USED.has(name)) USED.set(name, c); return c; };
   /** 縦軸の上の端（書式の ymax か、きりの良い最大）と下の端（ymin か 0） */
   const topOf = (v) => (F.ymax != null ? F.ymax : niceMax(v));
@@ -104,12 +105,14 @@
   /** その系列に数値ラベルを付けるか（系列の書式で上・下を決めていれば、パネルの数値が「なし」でも付ける） */
   const labelWant = (name) => { const l = serFmt(name).label; return l === "off" ? false : l === "top" || l === "below" ? true : LBL.top; };
   /** 数値ラベルを 1 つ置く: ほかのラベル（placed）と重なる・描く所（top〜bottom・左右）を出るなら置かない → <text> か "" */
-  function labelAt(placed, cx, by, text, color, W, top = -Infinity, bottom = Infinity) {
+  function labelAt(placed, cx, by, text, color, W, top = -Infinity, bottom = Infinity, plate = false) {
     const w = String(text).length * 6.4 + 4, b = { x0: cx - w / 2, x1: cx + w / 2, y0: by - 11, y1: by + 2 };
     if (b.x0 < 0 || b.x1 > W || b.y0 < top || b.y1 > bottom + 14) return "";
     if (placed.some((o) => b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1)) return "";
     placed.push(b);
-    return `<text x="${cx}" y="${by}" text-anchor="middle" class="pv-vl"${color ? ` style="fill:${color}"` : ""}>${esc(text)}</text>`;
+    // plate: 線を避けられないときは、字の下に白い札を敷く（線の切れ端が字に掛からない）
+    return (plate ? `<rect x="${b.x0 - 1}" y="${b.y0 - 1}" width="${w + 2}" height="${b.y1 - b.y0 + 3}" rx="3" fill="#fff" opacity=".94"/>` : "")
+      + `<text x="${cx}" y="${by}" text-anchor="middle" class="pv-vl"${color ? ` style="fill:${color}"` : ""}>${esc(text)}</text>`;
   }
   /** 横の字を傾けたときに下に足す余白（いちばん長い字から） */
   const tiltPad = (names) => { const rot = F.xrot ? +F.xrot : 0, len = Math.min(14, Math.max(2, ...names.map((t) => String(t).length))); return rot === 90 ? len * 8 : rot === 45 ? len * 5.5 : 0; };
@@ -206,6 +209,10 @@
     if (m.nc) colsData.forEach((c, k) => { const nm = m.colName(c); series.push({ name: nm, j: 0, c, axis: "left", kind: stack ? (mode === "time" ? "stack" : "sarea") : kind0 === "bar" ? "line" : kind0, color: cof(nm, COLORS[(k + 1) % COLORS.length]) }); });
     // ctx.oneAxis（別のデータを合わせた答え。目標と実績は同じ単位）: 達成率（%）のほかは左の同じ目盛り
     else d.measures.forEach((mm, j) => { const nm = ctx.measName(mm); series.push({ name: nm, j, c: ALL, axis: j === 0 || oneAxis(j) ? "left" : "right", kind: j === 0 ? (kind0 === "bar" && !ADDITIVE.has(mm.agg) ? "line" : kind0 === "sarea" ? "area" : kind0) : "line", color: cof(nm, COLORS[j % COLORS.length]) }); });
+    // 組み合わせ（版 3.46.0。利用者の要望 2026-10-21 の 3: グラフ同士を汎用に組み合わせる）: 1 つ目の系列は棒・ほかは折れ線（既定）。
+    // どの形でも、書式の「系列」で系列ごとに形（棒・線・面）と軸（左・右）を決められる（値・列の段・設備ごとの系列・別のデータ〈目標と実績〉のどれでも）
+    const combo = mode === "combo";
+    series.forEach((q, i) => { const f = serFmt(q.name); if (f.kind) q.kind = f.kind; else if (combo) q.kind = i === 0 ? "bar" : "line"; if (f.axis) q.axis = f.axis; else if (combo && !oneAxis(q.j)) q.axis = "auto"; });
     // 横に並べる段（日付など）ごとの値。その下にも段があれば、その段の小計（段の頭の組の数）を使う
     const at = (r) => ax.at(r.path[L]);
     const pick = (ser) => {
@@ -217,6 +224,10 @@
     };
     // 時の段の足し上げる値（件数・ロット数・合計）は、無い日を 0 に（作業しなかった日＝0。線が途切れない）。平均などは無いまま
     series.forEach((q) => { q.v = pick(q); if (!ax.cat && ADDITIVE.has(d.measures[q.j].agg) && !d.measures[q.j].show) q.v = q.v.map((v) => v ?? 0); });
+    // 組み合わせの軸の既定: 1 つ目の系列と桁が 3 倍より違う系列は右の目盛り（同じくらいなら左の目盛りで重ねて比べる）
+    const peak = (q) => Math.max(0, ...q.v.filter((v) => v != null).map(Math.abs));
+    series.forEach((q, i) => { if (q.axis !== "auto") return; const a = peak(series[0]), b = peak(q); q.axis = i === 0 || !a || !b || (b / a <= 3 && a / b <= 3) ? "left" : "right"; });
+    if (SER) series.forEach((q) => SER.set(q.name, { kind: q.kind === "stack" ? "bar" : q.kind === "sarea" ? "area" : q.kind, axis: q.axis }));
     const stacked = series.filter((q) => q.kind === "stack" || q.kind === "sarea");
     const tops = stacked.length ? ax.ticks.map((_, i) => stacked.reduce((a, q) => a + (q.v[i] || 0), 0)) : [];
     const maxL = topOf(Math.max(0, ...tops, ...series.filter((q) => q.axis === "left" && !stacked.includes(q)).flatMap((q) => q.v.filter((v) => v != null))));
@@ -247,10 +258,12 @@
         hi.forEach((v, i) => { acc[i] = v; });
       });
     }
-    series.filter((q) => q.kind === "bar").forEach((q) => { q.v.forEach((v, i) => {
+    // 棒の系列が 2 つ以上（組み合わせで棒にした系列）は、横に並べる（重ねて隠さない）
+    const barQ = series.filter((q) => q.kind === "bar"), nb = barQ.length, sw = nb > 1 ? bw / nb : bw;
+    barQ.forEach((q, k) => { const off = -bw / 2 + k * sw; q.v.forEach((v, i) => {
       if (!v) return;
-      g += `<rect x="${x(i) - bw / 2}" y="${y(v, q)}" width="${bw}" height="${Math.max(0, base0 - y(v, q))}" fill="${q.color}" opacity=".82"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></rect>`;
-      if (LBL.inside && base0 - y(v, q) >= 16 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i)}" y="${y(v, q) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
+      g += `<rect x="${x(i) + off}" y="${y(v, q)}" width="${nb > 1 ? Math.max(1, sw - 1) : bw}" height="${Math.max(0, base0 - y(v, q))}" fill="${q.color}" opacity=".82"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></rect>`;
+      if (LBL.inside && base0 - y(v, q) >= 16 && sw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i) + off + sw / 2}" y="${y(v, q) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
     }); });
     series.filter((q) => q.kind === "area").forEach((q) => {
       const pts = q.v.map((v, i) => (v == null ? null : [x(i), y(v, q)])).filter(Boolean);
@@ -302,7 +315,11 @@
     const allLines = series.filter((q) => q.kind === "line" || q.kind === "area");
     allLines.forEach((q) => q.v.forEach((v, i) => { if (v != null) placed.push({ x0: x(i) - 3.5, x1: x(i) + 3.5, y0: y(v, q) - 3.5, y1: y(v, q) + 3.5, pt: true }); }));
     const segs = allLines.flatMap((q) => q.v.map((v, i) => (v != null && q.v[i + 1] != null ? [x(i), y(v, q), x(i + 1), y(q.v[i + 1], q)] : null)).filter(Boolean));
-    const crosses = (b) => segs.some(([ax, ay, bx, by]) => { for (let t = 0; t <= 1; t += 0.125) { const px = ax + (bx - ax) * t, py = ay + (by - ay) * t; if (px > b.x0 && px < b.x1 && py > b.y0 && py < b.y1) return true; } return false; });
+    // 線の脚は 2px おきに調べる（8 等分では、長い脚が字の枠をすり抜けた: 2026-10-combo の 2 回目の採点）
+    const crosses = (b) => segs.some(([ax, ay, bx, by]) => { const k = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay) / 2)); for (let s = 0; s <= k; s++) { const px = ax + (bx - ax) * s / k, py = ay + (by - ay) * s / k; if (px > b.x0 - 1 && px < b.x1 + 1 && py > b.y0 - 1 && py < b.y1 + 1) return true; } return false; });
+    // 棒も障り（線のラベルが棒の頭に被らない。同じ 2 回目の採点: 「2,864.6」が棒の上に被った）
+    const bars = barQ.flatMap((q) => q.v.map((v, i) => (v ? { x0: x(i) - bw / 2, x1: x(i) + bw / 2, y0: y(v, q), y1: base0 } : null)).filter(Boolean));
+    const onBar = (b) => bars.some((o) => b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1);
     const shown = new Map();         // 同じ日に同じ値の系列は、ラベルを 1 つにまとめる（字の色は墨）
     lineQ.forEach((q) => {
       const th = thinOf(q.v, iw / Math.max(n, 1)), pos = serFmt(q.name).label, tint = series.length > 1 ? q.color : "";
@@ -313,18 +330,26 @@
         if (same.length && shown.has(`${i}:${v}`)) return;
         const cy = y(v, q), others = lineQ.filter((r) => r !== q && r.v[i] != null && r.v[i] !== v).map((r) => r.v[i]);
         const low = pos === "below" || (pos !== "top" && others.length > 0 && others.every((o) => v < o));
-        const at = (by) => { const w = String(nf(v)).length * 6.4 + 4; return { x0: x(i) - w / 2, x1: x(i) + w / 2, y0: by - 11, y1: by + 2 }; };
-        const tries = (low ? [cy + 15, cy - 7] : [cy - 7, cy + 15]);
-        const clear = tries.find((by) => !crosses(at(by))) ?? tries[0];
-        const order = [clear, ...tries.filter((t) => t !== clear)];
+        // 置き場の候補: 上・下（自動は値の小さい系列が下）、次に点の右上・左上・右下・左下。
+        // 順に: 線の脚も棒も避けられる所 → 上・下で棒を避けられる所に白い札を敷いて（線は札の下をくぐる）→ 棒の上でも線を避けられる所 → 上・下に札
+        const w = String(nf(v)).length * 6.4 + 4, side = w / 2 + 6;
+        const ud = (low ? [[0, 15], [0, -7]] : [[0, -7], [0, 15]]).map(([dx, dy]) => [x(i) + dx, cy + dy]);
+        const tries = [...ud, ...[[side, -5], [-side, -5], [side, 13], [-side, 13]].map(([dx, dy]) => [x(i) + dx, cy + dy])];
+        const at = ([cx, by]) => ({ x0: cx - w / 2, x1: cx + w / 2, y0: by - 11, y1: by + 2 });
+        const free = (t) => !crosses(at(t));
+        // 系列の書式で上・下を決めていれば、その向きを守る（横へは逃がさない。線と重なれば札を敷く）。逃げるのは置けないときだけ反対側
+        const order = pos === "top" || pos === "below" ? ud.map((t) => [t, !free(t)])
+          : [...tries.filter((t) => free(t) && !onBar(at(t))).map((t) => [t, false]), ...ud.filter((t) => !onBar(at(t))).map((t) => [t, true]),
+            ...tries.filter((t) => free(t) && onBar(at(t))).map((t) => [t, false]), ...ud.map((t) => [t, true])];
+        const put = (t, plate) => labelAt(placed, t[0], t[1], nf(v), same.length ? "" : tint, W, Math.max(1, pt - 14), base0, plate);
         let txt = "";
-        for (const by of order) { txt = labelAt(placed, x(i), by, nf(v), same.length ? "" : tint, W, Math.max(1, pt - 14), base0); if (txt) break; }
+        for (const [t, plate] of order) { txt = put(t, plate); if (txt) break; }
         if (txt) { g += txt; if (same.length) shown.set(`${i}:${v}`, true); }
       });
     });
     const legend = legendHtml(series.map((q) => [q.name + (series.some((r) => r.axis === "right") ? (q.axis === "left" ? "（左）" : "（右）") : ""), q.color, q.kind === "line" ? "line" : "bar"]))
       + `<small class="pv-cnote">${n} 刻み・${esc(ctx.dimName(d.dims.rows[L]))}${m.nr > L + 1 ? "（上の段の小計で描きます）" : ""}${thin > 1 ? `・数値は ${thin} 本おき${s.month ? "" : "（月を選ぶと全部出ます）"}` : ""}</small>`;
-    return { svg: svgOf(W, H, g, { time: "時系列のグラフ", line: "折れ線グラフ", area: "面グラフ", stackarea: "積み上げ面グラフ" }[mode] || "グラフ"), legend };
+    return { svg: svgOf(W, H, g, { time: "時系列のグラフ", line: "折れ線グラフ", area: "面グラフ", stackarea: "積み上げ面グラフ", combo: "組み合わせのグラフ" }[mode] || "グラフ"), legend };
   }
   /** 管理図（I 管理図・個々の値）: 行の葉を並びのまま点にし、中心線＝平均、管理限界＝平均 ± 3σ（σ＝隣どうしの差〈移動範囲〉の平均 ÷ 1.128）。
       限界の外の点は赤、中心線の同じ側に 9 点以上続く所（連）は橙（JIS Z 9020-2 の判定ルール 1・2） */
@@ -921,6 +946,8 @@
       icon: "M3 3h14M3 9h14M4 7l3-2 3 3 3-3 3 2M3 12h14M3 17h14M4 15l3-1 3 1 3-2 3 1", fit: (f) => (f.rows && f.numMeas ? "" : "行が日・ロットなどの順の段で、値に数のカラム（平均など）があるとき"), draw: xbarChart },
     { k: "swimlane", n: "スイムレーン", g: "trend", one: true, tip: "行の 1 段目（設備など）ごとのレーンに、時の段（日付・作業日）に沿って値の札を並べます（いつ・どこで・どれだけ）",
       icon: "M2 3h16M2 8h16M2 13h16M2 18h16M4 5h3v2H4zM9 10h4v2H9zM6 15h3v2H6zM14 5h3v2h-3z", fit: (f) => ((f.rows >= 2 || (f.rows && f.cols)) ? "" : "行の 1 段目にレーン（設備など）、行の 2 段目か列に日付・作業日の段があるとき"), draw: swimlaneChart },
+    { k: "combo", n: "組み合わせ", g: "compare", tip: "値（系列）ごとに 棒・線・面 と 左・右の目盛り を組み合わせて 1 つのグラフに重ねます（本数の棒と平均の線、目標の線と実績の棒など。書式の「系列」で系列ごとに決められます）",
+      icon: "M3 17h14M5 15v-5M9 15V8M13 15v-6M3 9l4-3 4 2 6-4", fit: (f) => (f.rows && (f.meas > 1 || f.cols) ? "" : "値が 2 つ以上（か列の段がある）とき"), draw: (c) => trendChart(c, "combo") },
     { k: "column", n: "縦棒", g: "compare", one: true, tip: "行の段ごとに縦の棒で比べます", icon: "M3 17h14M5 15V9M9 15V5M13 15v-4M16 15V8",
       fit: (f) => (f.rows && !f.time && !f.bin ? "" : "行が種類の段（設備・不良名など）のとき"), draw: (c) => barChart(c, "column", false) },
     { k: "bar", n: "横棒", g: "compare", one: true, tip: "行の段ごとに横の棒で比べます（名前が長いとき）", icon: "M3 3v14M3 5h10M3 9h14M3 13h6",
@@ -1067,13 +1094,13 @@
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
     const H = ctx.H || (kind === "bar" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : kind === "diag45" ? 420 : kind === "xbar" ? 380 : 300);
-    const keep = [COLORS, F, LBL.top, LBL.inside, USED];
+    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER];
     if (ctx.colors) COLORS = ctx.colors;
-    USED = new Map();
+    USED = new Map(); SER = new Map();
     F = ctx.fmt || {};
     const lb = F.labels || (ctx.s && ctx.s.labels ? "top" : "none");
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
-    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED] = keep; }
+    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER] = keep; }
   }
   window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, AGGS, SHOWS, aggOf, measLabel, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();

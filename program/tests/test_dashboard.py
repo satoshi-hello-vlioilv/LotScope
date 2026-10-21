@@ -280,5 +280,33 @@ class Layouts(unittest.TestCase):
             dashboard.clean_layout({"panels": [{"visual": "kpi", "source": "x"}]})
         self.assertEqual(self.c.post("/api/dashboards", json={"name": "", "scope": "me", "body": self.body}).status_code, 400, "名前が要る")
 
+    def test_sets_have_developer_standards_and_personal_patterns(self):
+        """セット（版 3.46.0。要望 7）: 開発者は標準のセット（共通デフォルト）をいくつでも作れ、★ はその範囲で 1 つ。
+        個人は自分のセット（切り替えのパターン）を置け、★ を付ければ自分の分が先。ダッシュボードの一覧には出ない"""
+        mine = self.c.post("/api/dashboards", json={"name": "わたしの", "scope": "me", "body": self.body}).get_json()
+        self.as_("dev")
+        a = self.c.post("/api/dashboard-sets", json={"name": "現場の朝", "scope": "default", "standard": True, "body": {"items": ["b:standard", "b:standard", "x"]}})
+        self.assertEqual(a.status_code, 201, a.get_json())
+        self.assertEqual(a.get_json()["body"]["items"], ["b:standard"], "同じ物・形の違う物は外す")
+        b = self.c.post("/api/dashboard-sets", json={"name": "品質の会議", "scope": "default", "standard": True, "body": {"items": ["b:standard"]}}).get_json()
+        d = self.c.get("/api/dashboard-sets").get_json()
+        self.assertEqual(([x["name"] for x in d["items"]], d["standardId"]), (["品質の会議", "現場の朝"], b["id"]), "標準のセットは何個でも・★ は 1 つ")
+        self.assertNotIn("dashset", {x["source"] for x in self.c.get("/api/dashboards").get_json()["items"]}, "ダッシュボードの一覧にセットは出ない")
+        self.as_("taro")
+        self.assertEqual(self.c.post("/api/dashboard-sets", json={"name": "x", "scope": "default", "body": {"items": ["b:standard"]}}).status_code, 403,
+                         "標準のセットを置けるのは開発者だけ")
+        self.assertEqual(self.c.get("/api/dashboard-sets").get_json()["standardId"], b["id"], "自分の ★ が無ければ標準のセット")
+        m = self.c.post("/api/dashboard-sets", json={"name": "わたしの切り替え", "scope": "me", "standard": True, "body": {"items": [str(mine["id"]), "b:standard"]}}).get_json()
+        d = self.c.get("/api/dashboard-sets").get_json()
+        self.assertEqual((d["standardId"], d["items"][0]["name"]), (m["id"], "わたしの切り替え"), "自分の ★ が先・自分のセットが先頭")
+        r = self.c.put(f"/api/dashboard-sets/{m['id']}", json={"body": {"items": ["b:standard", str(mine["id"])]}, "base_rev": m["rev"]})
+        self.assertEqual(r.get_json()["body"]["items"], ["b:standard", str(mine["id"])], "並べ替え")
+        self.assertEqual(self.c.put(f"/api/dashboard-sets/{m['id']}", json={"body": {"items": []}}).status_code, 400, "空のセットは置けない")
+        self.assertEqual(self.c.put(f"/api/dashboard-sets/{b['id']}", json={"name": "y"}).status_code, 403, "標準のセットは個人は直せない")
+        self.assertEqual(self.c.put(f"/api/dashboards/{m['id']}", json={"name": "z"}).status_code, 400, "セットはダッシュボードの道では直せない")
+        self.assertEqual(self.c.delete(f"/api/dashboard-sets/{m['id']}").status_code, 200)
+        self.as_("jiro")
+        self.assertEqual([x["name"] for x in self.c.get("/api/dashboard-sets").get_json()["items"]], ["品質の会議", "現場の朝"], "ほかの人の自分のセットは見えない")
+
 if __name__ == "__main__":
     unittest.main()

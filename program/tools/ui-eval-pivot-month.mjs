@@ -92,7 +92,8 @@ try {
     check("◀: 新しい月（最後の月）だけを数える（表の日はその月だけ・総計＝その月の小計・添え書きに◯年◯月だけ）",
       o4.month === last && d4.every((r) => r.head[r.head.length - 1].startsWith(last.replace("-", "/"))) && g4[0] === lastSub[0] && Math.abs(g4[1] - lastSub[1]) < 0.05 && o4.hint.includes(`${+last.slice(0, 4)}年${+last.slice(5)}月だけ`) && o4.next === false,
       { o4, last, g4, lastSub });
-    const vl = await p.$$eval("#llPvChart .pv-vl", (xs) => xs.map((x) => x.textContent));
+    // 棒の数値ラベルだけ（線の系列のラベルは系列の色の字〈style の fill〉。版 3.46.0 から線のラベルは横にも置ける）
+    const vl = await p.$$eval("#llPvChart .pv-vl", (xs) => xs.filter((x) => !x.style.fill).map((x) => x.textContent));
     const want = d4.map((r) => r.v[0]).filter((v) => v > 0).map(String);
     check("月を選ぶと数値ラベルは間引かず、棒のある日の数だけ・字は表のロット数と同じ", vl.length === want.length && [...vl].sort().join() === [...want].sort().join() && !o4.note.includes("本おき"), { vl, want, note: o4.note });
     for (let k = 0; k < wantMonths.length + 2; k++) { if ((await opts(p)).prev) break; await p.click('#llPivot [data-pv-mstep="-1"]'); await idle(p); }

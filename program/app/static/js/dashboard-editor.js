@@ -28,6 +28,10 @@
   const EXTRA = [{ k: "kpi", n: "数字", tip: "値の総計を大きな数で出します（行の段は要りません）", icon: "M4 15V5l-2 2M8 6a2 2 0 1 1 4 0c0 2-4 4-4 9h4M14 5h4l-3 4a3 3 0 1 1-2 5" },
     { k: "none", n: "表", tip: "集計表（行・列・値）を、パネルの大きさに詰めて出します", icon: "M3 4h14v12H3zM3 8h14M3 12h14M8 4v12" },
     { k: "board", n: "合わせた表", tip: "行（設備など）をそろえて、いくつかのデータの数を横に並べた 1 枚の表（設備ごとの仕掛と前日の実績など）", icon: "M3 4h14v12H3zM3 8h14M7 4v12M12 4v12" }];
+  // 稼働を見る形（版 3.46.0。利用者の要望 2026-10-21 の 1・2。作業実績の作業開始・作業終了から: services/operation.py・dashboard-ops.js）
+  const OPS_VIS = [{ k: "gantt", n: "稼働（ガント）", tip: "選んだ設備の作業を 1 枚のガントチャートに並べ、設備ごとの稼働率（勤務時間に対する稼働の割合）を出します", icon: "M3 5h7M6 9h9M3 13h5M10 13h6M3 17h14" },
+    { k: "abc", n: "ABC 分析", tip: "設備ごとに、品種を量の大きい順に並べて A・B・C に分け、作業時間から換算係数を出します", icon: "M3 17h14M4 15V4M8 15V8M12 15v-4M16 15v-2M4 5c3-1 8 0 12 6" }];
+  const isOps = (x) => !!x && (x.visual === "gantt" || x.visual === "abc");
   const PERIODS = [["", "期間で絞らない"], ["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["this_month", "今月"], ["last_month", "先月"]];
   // 合わせた表の見せ方（版 3.39.0 で 3 → 8）。cols … 列の段があるときだけ意味のある物
   const LOOKS = [["bar", "棒と数", "棒の長さと数"], ["heat", "数と濃淡", "数の大きさを地の濃さで"], ["num", "数だけ", "数だけを並べる"],
@@ -44,6 +48,15 @@
   // 系列ごとの数値ラベル・線（版 3.41.0）。"" はパネルの「数値」に従う
   const SER_LABELS = [["", "パネルに従う"], ["top", "上"], ["below", "下"], ["off", "出さない"]];
   const SER_DASH = [["", "実線"], ["1", "破線"]];
+  // 系列ごとの形と軸（版 3.46.0。要望 3: グラフ同士を組み合わせる）。推移を見る形（時系列・折れ線・面）と「組み合わせ」で効く
+  const SER_KINDS = [["", "自動"], ["bar", "棒"], ["line", "線"], ["area", "面"]], SER_AXES = [["", "自動"], ["left", "左"], ["right", "右"]];
+  /** 系列の形の印（色 → SVG）。組む所の系列の名前の行に出す */
+  const SER_ICON = {
+    bar: (c) => `<svg class="de-sico" viewBox="0 0 14 12" aria-hidden="true"><rect x="1" y="4" width="3" height="8" fill="${c}"/><rect x="6" y="1" width="3" height="11" fill="${c}"/><rect x="11" y="6" width="2" height="6" fill="${c}"/></svg>`,
+    line: (c) => `<svg class="de-sico" viewBox="0 0 14 12" aria-hidden="true"><path d="M1 10l4-5 3 3 5-6" fill="none" stroke="${c}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
+    area: (c) => `<svg class="de-sico" viewBox="0 0 14 12" aria-hidden="true"><path d="M1 12V9l4-5 3 3 5-6v11z" fill="${c}"/></svg>`,
+  };
+  const COMBO_VIS = new Set(["combo", "time", "line", "area"]);
   const XDATES = [["", "自動（10/2）"], ["md", "10/2"], ["mdw", "10/2(金)"], ["d", "2（日だけ）"], ["dw", "2(金)"], ["ymd", "2026/10/2"], ["w", "金（曜日）"]];
   const XROTS = [["", "自動"], ["0", "横"], ["45", "45°"], ["90", "縦"]];
   const UNITS = [["", "自動（万・億）"], ["none", "そのまま"], ["k", "千"], ["man", "万"], ["m", "百万"], ["oku", "億"]];
@@ -157,6 +170,8 @@
       const ss = x.link.sides, role = (r) => (ROLES.find((y) => y[0] === r) || [, ""])[1];
       return `${ss[0].key ? dimLabel(ss[0].key) + "ごとの" : ""}${ss.map((y) => (y.role ? role(y.role) : y.title || (srcOf(y.source) || {}).name || "データ")).join("と")}`;
     }
+    if (x.visual === "gantt") return `${x.period && x.period.kind ? `${x.period.kind === "days" ? `直近 ${x.period.n || 7} 日` : (PERIODS.find((k) => k[0] === x.period.kind) || [, ""])[1]}の` : ""}設備の稼働と稼働率`;
+    if (x.visual === "abc") return `${(x.ops || {}).cls ? `${x.ops.cls}の` : "品種の"}ABC 分析と換算係数`;
     if (x.visual === "board") return (x.groups || []).length ? `${dimLabel(x.rows || { column: "@equip" })}ごとの${x.groups.map((g) => g.title || P.groupTitle(g, null)).join("と")}` : "合わせた表";
     const b = x.body || {}, ms = (b.measures || []).map(P.measName).join("・") || "ロット数";
     const pr = x.period && x.period.kind ? `${x.period.kind === "days" ? `直近 ${x.period.n || 7} 日` : (PERIODS.find((k) => k[0] === x.period.kind) || [, ""])[1]}の` : "";
@@ -197,6 +212,14 @@
   function setVisual(k) {
     if (k === "board") { if (isLink()) unlink(); toBoard(); return; }
     if (isBoard()) fromBoard();
+    if (k === "gantt" || k === "abc") {           // 稼働を見る形: 作業実績（作業開始と作業終了）で数える。ガントは期間が要る（無ければ前日）
+      if (isLink()) unlink();
+      p.visual = k; p.ops = p.ops || {};
+      if (p.source !== "work") { p.source = "work"; delete p.equip; delete p.calc; p.filters = []; p.search = ""; host.toast("稼働は作業実績から数えるので、データを作業実績にしました"); }
+      if (k === "gantt" && !(p.period && p.period.kind)) p.period = { column: "@workday", kind: "yesterday", n: 7 };
+      delete p.egroup; delete p.esplit;
+      changed(); return;
+    }
     p.visual = k;
     const b = p.body;
     if (isLink()) { b.grand = k === "none" || k === "kpi"; changed(false); return; }    // 行・値は合わせるデータの軸と値
@@ -375,7 +398,7 @@
     box.innerHTML = calcHtml(); box.hidden = !calcEdit;
     if (!calcEdit) return;
     const fb = $("#deCalcFb");
-    if (fb && window.FormulaBuilder) window.FormulaBuilder.mount(fb, { kind: "calc", kinds: ["calc", "if", "join", "cut", "fill", "round"],
+    if (fb && window.FormulaBuilder) window.FormulaBuilder.mount(fb, { kind: "calc", kinds: ["calc", "if", "join", "cut", "fill", "round", "count", "span"],
       columns: () => ((fields && fields.fields) || []).filter((f) => !f.error && f.column !== calcEdit.was).map((f) => f.column), preview: () => [],
       apply: (f, how) => { const ta = $("#deCalcExpr"); calcEdit.expr = how === "insert" ? ta.value.slice(0, ta.selectionStart) + f + ta.value.slice(ta.selectionEnd) : f; paintCalc(); } });
     const n = $("#deCalcName"); if (n && !calcEdit.name) n.focus();
@@ -425,6 +448,14 @@
   function fieldsHtml() {
     if (fieldsErr) return `<p class="pv-none">${esc(fieldsErr)}</p>`;
     if (!fields) return '<p class="pv-none">カラムを読んでいます…</p>';
+    if (isOps(p) && !inGroup()) {          // 稼働を見る形: 札は 1 つ（ガント＝棒の色分け・ABC＝品種）。押すとその列にする（もう一度で外す）
+      const k = p.visual === "gantt" ? "color" : "cls", word = p.visual === "gantt" ? "色" : "品種", cur = (p.ops || {})[k] || "";
+      const ql = q.trim().toLowerCase();
+      const list = fields.fields.filter((f) => !f.error && !f.numeric && !f.date && (!ql || f.column.toLowerCase().includes(ql)));
+      return `<p class="de-ophint">${p.visual === "gantt" ? "［色］を押すと、その列の値ごとに棒の色を分けます" : "［品種］を押すと、その列の値ごとに ABC に分けます"}</p>`
+        + list.map((f) => `<div class="pv-f${cur === f.column ? " is-used" : ""}"><span><b>${esc(f.column)}</b><small>${f.many ? "1,000 種類以上" : `${f.kinds} 種類`}</small></span><i></i><i></i>`
+          + `<button type="button" class="pv-r r-rows${cur === f.column ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${cur === f.column}">${word}</button></div>`).join("");
+    }
     const ownList = (t.calc && t.calc.own) || [];
     const b = t.body, used = (c) => (b.rows.some((d) => d.column === c) ? "rows" : b.cols.some((d) => d.column === c) ? "cols" : "");
     const rowBtn = (c, on) => (inGroup() && !inSide() ? "<i></i>" : btn("rows", c, on, inSide() ? 'title="このデータの軸（そろえる段）にします"' : ""));
@@ -466,7 +497,36 @@
     const name = m.agg === "count" ? "件数" : m.agg === "lots" ? "ロット数" : m.column;
     return `<span class="pv-chip v"><b>${esc(name)}</b>${sel}${par}${show}${inGroup() ? "" : `<button type="button" data-de-mx="${i}" aria-label="「${esc(P.measName(m))}」を外す">×</button>`}</span>`;
   }
+  /** 稼働を見る形の数え方（行・列・値の文の代わり）: ガント＝作業終了の列・棒の色分け・棒の字／ABC＝品種の列・量・換算の基準・A と B の線 */
+  function opsHtml() {
+    const o = p.ops || {}, fs = ((fields && fields.fields) || []).filter((f) => !f.error);
+    const opt = (v, n, cur) => `<option value="${esc(v)}"${(cur || "") === v ? " selected" : ""}>${esc(n)}</option>`;
+    const a = host.answer ? host.answer() : null, found = a && a.kind === p.visual ? a.endColumn : "";
+    const dates = fs.filter((f) => f.date).map((f) => f.column);
+    const endSel = `<div class="de-row"><label class="de-l">作業終了</label><select data-de-oend aria-label="作業終了の列">${opt("", `自動${found ? `（${found}）` : "（作業終了の列を探す）"}`, o.end)}${dates.map((c) => opt(c, c, o.end)).join("")}</select>`
+      + `<small class="de-hint">作業開始は「${esc((a && a.startColumn) || "BOX実績_作業開始_日付")}」</small></div>`;
+    const few = fs.filter((f) => !f.numeric && !f.date && f.kinds >= 1 && f.kinds <= 60).map((f) => f.column);
+    if (p.visual === "gantt") {
+      return `<div class="de-ops">${endSel}`
+        + `<div class="de-row"><label class="de-l">色分け</label><select data-de-ocolor aria-label="棒の色分け">${opt("", "なし（作業は 1 色）", o.color)}${few.map((c) => opt(c, c, o.color)).join("")}</select>`
+        + `<label class="pv-ck">棒の字<select data-de-olabel aria-label="棒に出す字">${opt("", "ロット番号", o.label)}${fs.filter((f) => !f.numeric).map((f) => opt(f.column, f.column, o.label)).join("")}</select></label></div>`
+        + `<p class="de-ophint">稼働率 ＝ 作業していた時間 ÷ 勤務時間（マスタ管理の「勤務体系」の直の時間。勤務の外の稼働は分母にも入れず、行の説明に出します）。分割したロット（作業開始が同じ行）は 1 作業です。</p></div>`;
+    }
+    const nums = fs.filter((f) => f.numeric).map((f) => f.column), qty = o.qty || "lots";
+    const items = a && a.kind === "abc" ? ((a.all || {}).items || []).map((x) => x.key).filter(Boolean) : [];
+    const base = o.base || "avg";
+    return `<div class="de-ops">`
+      + `<div class="de-row"><label class="de-l">品種</label><select data-de-ocls aria-label="品種の列"${o.cls ? "" : ' class="is-need"'}>${opt("", "（品種の列を選ぶ）", o.cls)}${few.map((c) => opt(c, c, o.cls)).join("")}</select><small class="de-hint">何ごとに分けるか（合金・板厚の区分など。計算列も使えます）</small></div>`
+      + `<div class="de-row"><label class="de-l">量</label>${segs("oqty", [["lots", "本数", "作業の本数（分割したロットは 1 本）"], ["time", "作業時間", "作業開始〜作業終了の時間の合計"]], qty === "lots" || qty === "time" ? qty : "", "量")}`
+      + `<select data-de-oqcol aria-label="数の列の合計"><option value="">数の列の合計…</option>${nums.map((c) => opt(c, `${c}の合計`, qty)).join("")}</select></div>`
+      + `<div class="de-row"><label class="de-l">換算の基準</label><select data-de-obase aria-label="換算係数の基準">${opt("avg", "全作業の平均作業時間 ＝ 1.00", base)}${opt("top", "いちばん本数の多い品種 ＝ 1.00", base)}`
+      + `${items.map((k) => opt(k, `品種「${k}」＝ 1.00`, base)).join("")}${base !== "avg" && base !== "top" && !items.includes(base) ? opt(base, `品種「${base}」＝ 1.00`, base) : ""}</select></div>`
+      + `<div class="de-row"><label class="de-l">ABC の線</label><label class="pv-ck">A ≦<input type="number" min="1" max="99" step="1" data-de-oa value="${o.a ?? 70}" class="de-n" aria-label="A の線（累積構成比 %）">%</label>`
+      + `<label class="pv-ck">B ≦<input type="number" min="1" max="100" step="1" data-de-ob value="${o.b ?? 90}" class="de-n" aria-label="B の線（累積構成比 %）">%</label><small class="de-hint">残りが C</small></div>`
+      + `<p class="de-ophint">換算係数 ＝ その品種の 1 本あたりの平均作業時間 ÷ 基準の作業時間。換算本数 ＝ 本数 × 換算係数。</p></div>`;
+  }
   function sentenceHtml() {
+    if (isOps(p) && !inGroup()) return opsHtml();
     const b = t.body, slot = (role, html, ph) => `<span class="pv-slot" data-role="${role}">${html || `<span class="pv-ph">${ph}</span>`}</span>`;
     const kpi = t.visual === "kpi";
     if (inSide()) return `<div class="pv-sent de-sent">${slot("rows", b.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］で軸を選ぶ")}<span class="pv-w">ごとの</span>`
@@ -484,12 +544,13 @@
     if (inGroup()) return "";
     const ico = (x) => (x.icon && !C.get(x.k) ? `<svg class="pv-ico" viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="${x.icon}"/></svg>` : C.iconSvg(x.k, 17));
     const btn = (x) => `<button type="button" class="pv-cbtn${p.visual === x.k ? " on" : ""}" role="radio" aria-checked="${p.visual === x.k}" data-de-vis="${x.k}" title="${esc(x.tip || "")}">${ico(x)}<span>${esc(x.n)}</span></button>`;
-    const rows = [["num", "数と表", EXTRA]].concat(C.GROUPS.filter(([g]) => g !== "table").map(([g, n]) => [g, n, C.DEFS.filter((x) => x.g === g)]));
+    const rows = [["num", "数と表", EXTRA], ["ops", "稼働", OPS_VIS]].concat(C.GROUPS.filter(([g]) => g !== "table").map(([g, n]) => [g, n, C.DEFS.filter((x) => x.g === g)]));
     const grid = `<div class="de-vis" role="radiogroup" aria-label="形" data-open="${formOpen}">${rows.map(([g, n, xs]) => `<div class="de-vrow"><span class="de-vg">${esc(n)}</span><span class="de-vi">${xs.map(btn).join("")}</span></div>`).join("")}</div>`;
     if (!isBoard()) {
       // 向く形の行（版 3.39.0）: 選んだ形と、いまの組み方（行・列・値）に向く形を名前つきで 4 つまで。全部の形は「すべての形…」で開く
-      const f = fitInfo(), all = EXTRA.concat(C.DEFS.filter((x) => x.k !== "none"));
-      const cur = all.find((x) => x.k === p.visual), fit = all.filter((x) => x.k !== p.visual && x.k !== "board" && (x.fit ? !x.fit(f) : x.k === "none" ? f.rows : !f.rows)).slice(0, 4);
+      const f = fitInfo(), all = EXTRA.concat(OPS_VIS, C.DEFS.filter((x) => x.k !== "none"));
+      const cur = all.find((x) => x.k === p.visual), fit = isOps(p) ? OPS_VIS.filter((x) => x.k !== p.visual)
+        : all.filter((x) => x.k !== p.visual && x.k !== "board" && !isOps(x) && (x.fit ? !x.fit(f) : x.k === "none" ? f.rows : !f.rows)).slice(0, 4);
       const row = `<div class="de-vfit"><span class="de-l">形</span>${cur ? btn(cur) : ""}${fit.length ? `<span class="de-vfn">向く形</span>${fit.map(btn).join("")}` : ""}`
         + `<button type="button" class="pv-btn de-vall" data-de-formmore aria-expanded="${formOpen}">${formOpen ? "閉じる" : `すべての形（${all.length}）…`}</button></div>`;
       return row + grid;
@@ -582,7 +643,7 @@
     return d.measures.map((x) => P.measName(x));
   }
   function fmtHtml() {
-    if (inGroup()) return "";
+    if (inGroup() || isOps(p)) return "";                    // 稼働の形は数の書式を使わない（稼働率・換算係数は決まった形）
     const fm = p.fmt || {}, kpi = p.visual === "kpi", tableish = isBoard() || p.visual === "none";
     const sel = (name, list, cur, label) => `<select data-de-f${name} aria-label="${esc(label)}">${list.map(([k, n]) => `<option value="${k}"${String(cur ?? "") === k ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
     const digits = sel("digits", [["", "自動"], ["0", "整数"], ["1", "0.1"], ["2", "0.01"], ["3", "0.001"]], fm.digits == null ? "" : String(fm.digits), "小数の桁");
@@ -596,13 +657,25 @@
     const d0 = host.answer && host.answer();
     const names = seriesNames(), colors = isLink() && d0 && d0.measures ? d0.measures.map((x) => P.ROLE_COLOR[x.role] || "#5a6f77") : P.seriesColors(p);
     // 系列ごと（版 3.41.0。利用者の要望 1: 個別に詳細も決める）: 色（見本は描いた色そのもの）・数値ラベル（パネルの数値に従う・上・下・出さない）・線（実線・破線）
-    const lineish = LINE_VIS.has(p.visual);
+    const lineish = LINE_VIS.has(p.visual), combo = COMBO_VIS.has(p.visual);
+    const group = (name, html) => `<span class="de-sgrp"><small>${name}</small>${html}</span>`;
+    const AUTO_NAME = { bar: "棒", line: "線", area: "面", left: "左", right: "右" };
+    // 手で決めた系列は「自動」とだけ（「線」を押したのに「自動（線）」も並ぶと、差が分からない: 2026-10-combo の 2 回目の採点）
+    const autoOf = (list, cur, chosen) => list.map(([k, n]) => (k === "" && !chosen && AUTO_NAME[cur] ? [k, `自動（${AUTO_NAME[cur]}）`] : [k, n]));
     const named = names.length ? `<div class="de-sers" role="table" aria-label="系列ごとの書式">${names.map((n, i) => {
       const c = (fm.colors || {})[n], sf = (fm.series || {})[n] || {}, shown = c || (isLink() ? colors[i % colors.length] : P.drawnColor(p.id, n) || colors[i % colors.length]);
-      return `<div class="de-ser${c || sf.label || sf.dash ? " is-set" : ""}" role="row" data-de-ser="${esc(n)}"><label class="de-scol" title="「${esc(n)}」の色"><input type="color" value="${shown}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span></label>`
-        + segs(`slab-${i}`, SER_LABELS, sf.label || "", `「${n}」の数値ラベル`).replace(/data-de-slab-\d+/g, "data-de-slab")
-        + (lineish ? segs(`sdash-${i}`, SER_DASH, sf.dash ? "1" : "", `「${n}」の線`).replace(/data-de-sdash-\d+/g, "data-de-sdash") : "")
-        + (c || sf.label || sf.dash ? `<button type="button" class="icon-btn" data-de-serx="${esc(n)}" aria-label="「${esc(n)}」の書式を戻す" title="この系列の色・ラベル・線を既定に戻す">×</button>` : "") + "</div>";
+      const set = c || sf.label || sf.dash || sf.kind || sf.axis, drawnS = P.drawnSeries(p.id, n) || {};
+      // 組み合わせは、名前の行の右端に、いま描いている形の印（系列の色。グラフの凡例と同じ印）と目盛り（2026-10-combo の 3 回目で決めた E）
+      const kNow = sf.kind || drawnS.kind, aNow = sf.axis || drawnS.axis;
+      const now = combo && SER_ICON[kNow] ? `<span class="de-snow" title="「${esc(n)}」は${AUTO_NAME[kNow]}で、${aNow === "right" ? "右" : "左"}の目盛りに描いています">${SER_ICON[kNow](shown)}<b>${AUTO_NAME[kNow]}・${aNow === "right" ? "右" : "左"}の目盛り</b></span>` : "";
+      return `<div class="de-ser${set ? " is-set" : ""}" role="row" data-de-ser="${esc(n)}"><label class="de-scol" title="「${esc(n)}」の色"><input type="color" value="${shown}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span>${now}</label>`
+        // 札の組には見出し（形・目盛り・数値・線）。「自動」は、いま描いている形・目盛りを添える（自動（棒）。2026-10-combo の 1 回目の採点: 推測させた）
+        + (combo ? group("形", segs(`skind-${i}`, autoOf(SER_KINDS, drawnS.kind, sf.kind), sf.kind || "", `「${n}」の形`).replace(/data-de-skind-\d+/g, "data-de-skind"))
+          + group("目盛り", segs(`saxis-${i}`, autoOf(SER_AXES, drawnS.axis, sf.axis), sf.axis || "", `「${n}」の目盛り`).replace(/data-de-saxis-\d+/g, "data-de-saxis")) : "")
+        + group("数値", segs(`slab-${i}`, SER_LABELS, sf.label || "", `「${n}」の数値ラベル`).replace(/data-de-slab-\d+/g, "data-de-slab"))
+        // 線（実線・破線）は線・面で描く系列だけ（棒には効かないので出さない）
+        + ((lineish && !combo) || (combo && (sf.kind || drawnS.kind) && (sf.kind || drawnS.kind) !== "bar") ? group("線", segs(`sdash-${i}`, SER_DASH, sf.dash ? "1" : "", `「${n}」の線`).replace(/data-de-sdash-\d+/g, "data-de-sdash")) : "")
+        + (set ? `<button type="button" class="icon-btn" data-de-serx="${esc(n)}" aria-label="「${esc(n)}」の書式を戻す" title="この系列の色・ラベル・線を既定に戻す">×</button>` : "") + "</div>";
     }).join("")}</div>` : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
     const refs = (fm.refs || []).map((r, i) => `<div class="de-ref" data-i="${i}"><input type="number" step="any" value="${r.value}" data-de-refv aria-label="基準線の値" class="de-n2"><input value="${esc(r.label || "")}" data-de-refl maxlength="20" placeholder="名前（目標・上限など）" aria-label="基準線の名前">`
       + `<span class="de-sws">${REF_COLORS.map((c) => `<button type="button" class="de-sw${(r.color || REF_COLORS[0]) === c ? " on" : ""}" style="--sw:${c}" data-de-refc="${c}" aria-label="色 ${c}"></button>`).join("")}</span><button type="button" class="icon-btn" data-de-refdel="${i}" aria-label="この基準線を外す">×</button></div>`).join("");
@@ -762,7 +835,7 @@
     changed(false);
   }
   function sortHtml() {
-    if (t.visual === "kpi" || inGroup()) return "";
+    if (t.visual === "kpi" || inGroup() || isOps(t)) return "";
     // 小計（版 3.40.0。要望 5）: 表で行の段が 2 つ以上（設備グループ → 設備 など）
     return `<div class="de-row"><label class="de-l">並べ方</label><select data-de-sort aria-label="並べ方">${[["", "決まった順（名前・日付）"], ["desc", "値の大きい順"], ["asc", "値の小さい順"]].map(([k, n]) => `<option value="${k}"${(p.sort || "") === k ? " selected" : ""}>${n}</option>`).join("")}</select>`
       + `<label class="pv-ck" title="0＝パネルに入るだけ">上位<input type="number" min="0" max="60" data-de-top value="${p.top || 0}" class="de-n" aria-label="上位いくつ（0＝パネルに入るだけ）"></label><small class="de-hint">0＝入るだけ</small></div>`;
@@ -811,7 +884,7 @@
   }
   const dimsOf = (b) => [...((b && b.rows) || []), ...((b && b.cols) || [])];
   function egroupHtml() {
-    if (inGroup() || isLink()) return "";
+    if (inGroup() || isLink() || isOps(p)) return "";       // 稼働の形は設備ごとの行（まとめない）
     const can = isBoard() ? (p.rows || {}).column === "@equip" : !!(srcOf(p.source) || {}).equip;
     if (!can) return "";
     const eg = p.egroup || { mode: "" }, sets = host.egroupSets ? host.egroupSets() : [];
@@ -1073,6 +1146,11 @@
       if (b.hasAttribute("data-de-calcx")) { calcEdit = null; paintCalc(); return; }
       if (b.hasAttribute("data-de-calcok")) { saveCalc(false); return; }
       if (b.hasAttribute("data-de-calcdel")) { if (confirm(`計算列「${calcEdit.was}」を消します。使っている段・値・条件からも外します。よろしいですか？`)) saveCalc(true); return; }
+      if (b.dataset.deOpick != null) {       // 稼働を見る形の札（色分け・品種）
+        const k = p.visual === "gantt" ? "color" : "cls", o = { ...(p.ops || {}) };
+        if (o[k] === b.dataset.deOpick) delete o[k]; else o[k] = b.dataset.deOpick;
+        p.ops = o; changed(); return;
+      }
       if (b.dataset.deAdd) {
         const role = b.dataset.deAdd, col = b.dataset.col;
         if (role === "vals") addMeasure(col === "@lots" ? { agg: "lots" } : col === "@count" ? { agg: "count" } : isNum(col) ? { agg: "sum", column: col } : { agg: "distinct", column: col });
@@ -1112,6 +1190,19 @@
         $("#deCond").innerHTML = condHtml(); changed(false); return;
       }
       if (x.matches("[data-de-pcol]")) { t.period.column = x.value; changed(false); return; }
+      // 稼働を見る形（版 3.46.0）
+      const setOps = (k, v) => { const o = { ...(p.ops || {}) }; if (v === "" || v == null) delete o[k]; else o[k] = v; p.ops = o; changed(false); };
+      if (x.matches("[data-de-oend]")) { setOps("end", x.value); return; }
+      if (x.matches("[data-de-ocolor]")) { setOps("color", x.value); return; }
+      if (x.matches("[data-de-olabel]")) { setOps("label", x.value); return; }
+      if (x.matches("[data-de-ocls]")) { setOps("cls", x.value); return; }
+      if (x.matches("[data-de-oqty]")) { setOps("qty", x.value); return; }
+      if (x.matches("[data-de-oqcol]")) { if (x.value) setOps("qty", x.value); return; }
+      if (x.matches("[data-de-obase]")) { setOps("base", x.value === "avg" ? "" : x.value); return; }
+      if (x.matches("[data-de-oa],[data-de-ob]")) {
+        const a = Math.max(1, Math.min(99, +($("[data-de-oa]") || {}).value || 70)), b = Math.max(a, Math.min(100, +($("[data-de-ob]") || {}).value || 90));
+        p.ops = { ...(p.ops || {}), a, b }; changed(false); return;
+      }
       if (x.matches("[data-de-pn]")) { t.period.n = Math.max(1, Math.min(3660, +x.value || 7)); changed(false); return; }
       if (x.matches("[data-de-sort]")) { p.sort = x.value; changed(false); return; }
       if (x.matches("[data-de-emph]")) { p.emph = x.checked; changed(false); return; }
@@ -1188,9 +1279,10 @@
         if (x.matches("[data-de-refv]")) r[i].value = +x.value || 0; else r[i].label = x.value.trim().slice(0, 20);
         setFmt("refs", r); return;
       }
-      if (x.matches("[data-de-slab],[data-de-sdash]")) {
+      if (x.matches("[data-de-slab],[data-de-sdash],[data-de-skind],[data-de-saxis]")) {
         const n = x.closest("[data-de-ser]").dataset.deSer, ss = { ...((p.fmt || {}).series || {}) }, one = { ...(ss[n] || {}) };
-        if (x.matches("[data-de-slab]")) { if (x.value) one.label = x.value; else delete one.label; } else if (x.value) one.dash = true; else delete one.dash;
+        const k = x.matches("[data-de-slab]") ? "label" : x.matches("[data-de-skind]") ? "kind" : x.matches("[data-de-saxis]") ? "axis" : "";
+        if (k) { if (x.value) one[k] = x.value; else delete one[k]; } else if (x.value) one.dash = true; else delete one.dash;
         if (Object.keys(one).length) ss[n] = one; else delete ss[n];
         setFmt("series", Object.keys(ss).length ? ss : ""); return;
       }

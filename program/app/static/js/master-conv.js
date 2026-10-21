@@ -292,7 +292,7 @@ async function openCols(i, anchor) {
     const name = cb.dataset.cpCol, cs = (draft.inputs[i].columns || []).filter((a) => NORM(a) !== NORM(name));
     set(cb.checked ? [...cs, name] : cs);
   });
-  el.addEventListener("input", (e) => { if (e.target.matches("[data-cp-q]")) { colPop.q = e.target.value; draw(); } });
+  TPA.onTextIn(el, "[data-cp-q]", (x) => { colPop.q = x.value; draw(); });   // 変換中は描き直さない（版 3.46.0）
   el.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("[data-cp-own]") && !TPA.composing(e)) { e.preventDefault(); el.querySelector("[data-cp-add]").click(); } });
   el.addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;

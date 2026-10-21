@@ -36,6 +36,7 @@
   };
   /** パネルごとに描いた系列・項目の色（名前 → 色）。組む所の「系列」の見本に使う（描いた色そのもの） */
   const drawn = new Map();
+  const drawnSer = new Map();     // パネルごとに描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」。版 3.46.0）
   const hash = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
   /** その図の名前の並び → 名前ごとの色（名前で決まる色。図の中で同じ色が重なれば次の色へ＝同じ図に同じ色は出さない） */
   function catColors(names, list = CAT) {
@@ -196,7 +197,7 @@
     const link = !!d.link;
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
     const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, fmt: fm, oneAxis: link });
-    if (!p._facetColor) drawn.set(p.id, new Map(out.used || []));
+    if (!p._facetColor) { drawn.set(p.id, new Map(out.used || [])); drawnSer.set(p.id, new Map(out.ser || [])); }
     const sideOk = out.side && (kind === "donut" ? W - (Math.min(gh / 2 - 6, W / 2 - 8, 160) * 2 + 16) >= 150 : W >= 760);
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     const cls = `dp-chart${fm.grid === false ? " no-grid" : ""}${fm.size ? ` fs-${fm.size}` : ""}`;
@@ -268,7 +269,7 @@
       out.rows.set(label, { v: out.cols.map((c) => (cellOf(a, [k], c.path) || [null])[0]), total: (cellOf(a, [k], []) || [null])[0] });
     }
     out.total = (cellOf(a, [], []) || [null])[0];
-    (a.failed || []).concat(a.skipped || []).forEach((f) => out.failed.set(f.name, f.error));
+    (a.failed || []).concat(a.skipped || []).forEach((f) => out.failed.set(f.name, f.kind === "copying" ? "写しています…" : f.error));
     if (a.parts) out.parts = new Set(a.parts.map((x) => x.name));
     return out;
   }
@@ -485,7 +486,7 @@
   const CALCD = Symbol("calcd");
   function calcd(p, d) {
     const fn = window.NumFormat && (p.fmt || {}).expr ? NumFormat.expr(p.fmt.expr).fn : null;
-    if (!fn || !d || d[CALCD]) return d;
+    if (!fn || !d || d[CALCD] || d.equips) return d;
     const one = (a) => (a && a.cells ? { ...a, cells: a.cells.map((c) => ({ ...c, v: c.v.map((x) => (typeof x === "number" ? fn(x) : x)) })), [CALCD]: true } : a);
     return d.facets ? { ...d, facets: d.facets.map((f) => ({ ...f, answer: one(f.answer) })), [CALCD]: true } : one(d);
   }
@@ -493,6 +494,7 @@
     d = calcd(p, d);
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
     look(box, p.fmt);
+    if (p.visual === "gantt" || p.visual === "abc") return d.kind === p.visual ? window.DashOps[p.visual](box, p, d, W, H) : "";   // 稼働・ABC 分析（版 3.46.0。dashboard-ops.js）
     if (d.facets) return facets(box, p, d, W, H);
     if (p.visual === "kpi") { kpi(box, p, d, W, H, sub); return ""; }
     if (p.visual === "none") return table(box, p, d, W, H);
@@ -502,7 +504,9 @@
   /** パネルの知らせ（読めなかった設備・効かない条件・ロット数の注意）。見出しの ⚠ の札に出す（中身の上に被せない） */
   function notes(d) {
     const out = [];
-    const bad = [...(d.failed || []), ...(d.skipped || [])];
+    const all = [...(d.failed || []), ...(d.skipped || [])], bad = all.filter((x) => x.kind !== "copying"), wait = all.filter((x) => x.kind === "copying");
+    // 入れた直後など、共有から写している最中の設備は「読めない」ではなく待ち（写し終えると数に入る。画面は 4 秒ごとに引き直す。版 3.46.0）
+    if (wait.length) out.push(`写しています（写し終えると数に入ります）: ${wait.map((x) => x.name).join("・")}`);
     if (bad.length) out.push(`読めない設備: ${bad.map((x) => x.name).join("・")}`);
     if ((d.ignoredFilters || []).length) out.push(`効かない条件（表に無い列）: ${d.ignoredFilters.join("・")}`);
     if (d.equipIgnored) out.push("このデータは設備を見分けられないので、設備の選び・まとめは効きません（データ元で設備の列を決めてください）");
@@ -510,5 +514,6 @@
     return out;
   }
 
-  window.DashPanels = { ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name) };
+  window.DashPanels = { ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
+    drawnSeries: (id, name) => (drawnSer.get(id) || new Map()).get(name) || null };
 })();

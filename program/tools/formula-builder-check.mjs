@@ -13,7 +13,7 @@ vm.createContext(ctx);
 for (const f of ["list-formula.js", "formula-builder.js"]) vm.runInContext(fs.readFileSync(path.join(JS, f), "utf8"), ctx, { filename: f });
 const { build } = ctx.FormulaBuilder, F = ctx.WL.formula;
 
-const row = { "重量": 1200, "板幅": 400, "合金": "A5052", "調質": "H24", "備考": "", "客先": null, "ロット番号": "L0123C4", "名": "O'Neil" };
+const row = { "開始": "2026/10/01 8:15:00", "終了": "2026/10/01 9:45:30", "重量": 1200, "板幅": 400, "合金": "A5052", "調質": "H24", "備考": "", "客先": null, "ロット番号": "L0123C4", "名": "O'Neil" };
 const C = (col) => ({ col }), V = (val) => ({ val });
 const cases = [
   ["割り算", { kind: "calc", terms: [C("重量"), { ...C("板幅"), op: "/" }], decimals: "" }, "[重量] / [板幅]", 3],
@@ -32,6 +32,11 @@ const cases = [
   ["途中", { kind: "cut", from: C("ロット番号"), how: "mid", start: 2, count: 4 }, "mid([ロット番号], 2, 4)", "0123"],
   ["空なら", { kind: "fill", from: C("客先"), alt: V("-") }, "coalesce([客先], '-')", "-"],
   ["丸める", { kind: "round", from: C("重量"), decimals: 0 }, "round([重量], 0)", 1200],
+  ["文字数", { kind: "count", from: C("ロット番号"), how: "len", what: V("") }, "len([ロット番号])", 7],
+  ["字の数", { kind: "count", from: C("ロット番号"), how: "count", what: V("C") }, "count([ロット番号], 'C')", 1],
+  ["バイト数", { kind: "count", from: V("ｱ漢"), how: "lenb", what: V("") }, "lenb('ｱ漢')", 3],
+  ["時間の差（分）", { kind: "span", from: C("開始"), to: C("終了"), unit: "m" }, "datediff([開始], [終了], 'm')", 90.5],
+  ["時間の差（時間）", { kind: "span", from: C("開始"), to: C("終了"), unit: "h" }, null, 1.5083333333333333],
   ["' を含む文字", { kind: "if", left: C("名"), cmp: "=", right: V("O'Neil"), then: V("it's"), else: V("") }, `if([名] = "O'Neil", "it's", '')`, "it's"],
   ["' と \" を両方含む文字", { kind: "fill", from: C("備考"), alt: V(`a'b"c`) }, `coalesce([備考], concat('a', "'", 'b"c'))`, `a'b"c`],
 ];

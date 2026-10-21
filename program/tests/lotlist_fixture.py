@@ -14,7 +14,7 @@ import json
 import random
 import sqlite3
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 TODAY = date(2026, 10, 2)      # 「〜日以内」の基準日（問い合わせに today として渡す）
 EQUIPMENT = ["L-1", "L-2", "TLV", "LS3", "DL2", "CR1", "ＣＲ２", "ﾛｰﾙ1"]
@@ -29,7 +29,7 @@ def _date_text(d, kind):
 
 
 WORK_COLUMNS = ["ロット番号", "BOX実績_作業開始_日付", "作業日", "開始", "終了", "作業区分", "作業者", "入側板厚", "出側板厚", "板幅", "重量", "速度",
-                "合金", "調質", "備考"]
+                "合金", "調質", "備考", "BOX実績_作業終了_日付"]
 
 
 def make_work(path, equipment, n=400, seed=11):
@@ -41,6 +41,10 @@ def make_work(path, equipment, n=400, seed=11):
     c.execute("DROP TABLE IF EXISTS 実績")
     c.execute("CREATE TABLE 実績 (" + ",".join(f"[{x}]" for x in WORK_COLUMNS) + ")")
     rows = []
+    # 作業終了（版 3.46.0。ガントチャート・稼働率・換算係数）: 作業開始から、板厚と重量で決まる作業時間の後。乱数を使わない（ほかの列の値を変えない）
+    def end_of(d, start, th, weight):
+        t = datetime(d.year, d.month, d.day) + timedelta(minutes=start + round(12 + weight / 70 * (1 + 1 / th)))
+        return f"{t:%Y/%m/%d} {t.hour}:{t.minute:02d}:00"
     while len(rows) < n:
         d = TODAY - timedelta(days=r.randint(0, 120))
         start = r.randint(0, 24 * 60 - 1)
@@ -49,9 +53,10 @@ def make_work(path, equipment, n=400, seed=11):
         th = r.choice([0.3, 0.5, 1.0, 2.0, 3.0])
         lot, kind, who = r.randint(1, 900), r.choice(["通常", "通常", "通常", "再処理", "試作"]), r.choice(["作業者A", "作業者B", "作業者C"])
         for k in range(r.choice([1, 1, 1, 2, 2, 3, 4]) if r.random() < 0.35 else 1):
-            rows.append([f"L{lot:04d}C{(r.randint(0, 9) + k) % 10}", stamp, d.strftime("%Y/%m/%d"), t0, t1, kind, who, th,
-                         round(th * r.uniform(0.5, 0.95), 3), r.randint(800, 1600), round(r.uniform(500, 6000), 1), r.randint(80, 600),
-                         r.choice(["A1100", "A5052", "A3004"]), r.choice(["H14", "O", "H24"]), r.choice(["", "", "", "速度落とし", "ロール替え後", None])])
+            row = [f"L{lot:04d}C{(r.randint(0, 9) + k) % 10}", stamp, d.strftime("%Y/%m/%d"), t0, t1, kind, who, th,
+                   round(th * r.uniform(0.5, 0.95), 3), r.randint(800, 1600), round(r.uniform(500, 6000), 1), r.randint(80, 600),
+                   r.choice(["A1100", "A5052", "A3004"]), r.choice(["H14", "O", "H24"]), r.choice(["", "", "", "速度落とし", "ロール替え後", None])]
+            rows.append(row + [end_of(d, start, th, row[10])])
     c.executemany("INSERT INTO 実績 VALUES (" + ",".join("?" * len(WORK_COLUMNS)) + ")", rows[:n])
     c.commit()
     c.close()
