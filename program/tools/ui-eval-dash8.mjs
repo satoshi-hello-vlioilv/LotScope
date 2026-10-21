@@ -136,6 +136,14 @@ try {
   check("③ → で 1 つ後ろへ（札の並び）", after[0] === before[1] && after[1] === before[0], { before, after });
   check("③ ガントの行が手で並べた順", JSON.stringify(rows) === JSON.stringify(after.slice(0, rows.length)), { rows, after });
   check("③ 答えの設備の順も同じ", JSON.stringify((await answer(p, "gantt")).equips.map((e) => e.name)) === JSON.stringify(after), null);
+  // ⋮⋮ を引いて並べる（2026-10-dash8 の J）: 1 つ目の札を 3 つ目の札の下半分へ落とすと、3 番目に入る
+  const g0 = await (await p.$(".de-eoc:nth-child(1) [data-de-eogrip]")).boundingBox(), t3 = await (await p.$(".de-eoc:nth-child(3)")).boundingBox();
+  await p.mouse.move(g0.x + g0.width / 2, g0.y + g0.height / 2); await p.mouse.down();
+  await p.mouse.move(t3.x + 40, t3.y + t3.height * 0.75, { steps: 6 }); await p.mouse.up(); await sleep(300); await waitDash(p); await sleep(600);
+  const dragged = await p.$$eval(".de-eoc b", (bs) => bs.map((b) => b.textContent));
+  check("③ ⋮⋮ を引いて並べる（1 つ目 → 3 つ目の下へ）", dragged[2] === after[0] && dragged[0] === after[1] && dragged[1] === after[2], { after: after.slice(0, 4), dragged: dragged.slice(0, 4) });
+  const rows2 = await p.$$eval(`${P("gantt")} .og-name`, (ts) => ts.map((t) => t.firstChild.nodeValue));
+  check("③ 引いた順がガントの行に効く", JSON.stringify(rows2) === JSON.stringify(dragged.slice(0, rows2.length)), rows2);
   await p.click("[data-de-cancel]"); await sleep(300);
   check("画面の誤り（pageerror）が無い", !errors.length, errors);
 } finally {

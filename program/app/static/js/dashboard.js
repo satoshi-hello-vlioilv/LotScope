@@ -369,7 +369,8 @@
     if (!S.edit) {
       bar.innerHTML = pick + msg + `<span class="db-sp"></span><small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
         + `<button type="button" class="pv-btn" data-db-refresh title="いま引き直す">↻ 引き直す</button>`
-        + `<button type="button" class="btn-primary db-editbtn" data-db-editmode title="パネルを足す・動かす・大きさを変える・組む">編集</button>`;
+        // ダッシュボードが 1 つも無いときは「編集」を出さない（何を編集するのか分からない。空の画面の知らせから作る・戻す）
+        + (it ? `<button type="button" class="btn-primary db-editbtn" data-db-editmode title="パネルを足す・動かす・大きさを変える・組む">編集</button>` : "");
       paintSlicer();
       return;
     }
@@ -427,6 +428,7 @@
     const row = (x) => `<button type="button" class="db-li${String(x.id) === String(S.id) ? " on" : ""}" data-db-open="${esc(String(x.id))}">`
       + `<b>${esc(x.name)}</b>${String(x.id) === String(S.standardId) ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}`
       // いまのセットのタブに入っている物に印（同じ採点: 面の中で、どれがセットに入っているかが見えなかった）
+      + `${x.replaces ? `<i class="db-swap" title="組み込みの「${esc(x.name)}」の代わりに出しています（▾ の「組み込みに戻す」で戻せます）">組み込みと入れ替え</i>` : ""}`
       + `${inItems(st, x) ? `<i class="db-inset" title="いまのセット「${esc(st.name)}」のタブに入っています">タブ</i>` : ""}<small>${x.body.panels.length} 枚${x.builtin ? "・組み込み" : ""}</small></button>`;
     const list = groups.map(([k, n]) => { const xs = S.list.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const canStd = it && !it.builtin && it.canEdit && String(it.id) !== String(S.standardId);

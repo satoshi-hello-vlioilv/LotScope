@@ -791,10 +791,26 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .de-clsx{color:var(--muted);font-weight:700;font-size:12px}
 .de-clsrow .de-hint{flex-basis:100%;margin-left:60px}
 /* 設備の並び（版 3.48.0）: 手で並べるときの設備の札（番号・名前・← →）。ABC の出す項目のチェック */
-.de-eord{display:inline-flex;flex-wrap:wrap;gap:4px;min-width:0}
-.de-eoc .de-eon{font-style:normal;font-size:11px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:rgba(255,255,255,.28)}
-.de-eoc button:disabled{opacity:.35;cursor:default}
+/* 2026-10-dash8 の 2 回目で決めた J: 枠で囲んだ番号つきの表（⋮⋮・番号・名前・↑↓ を 1 行。行 26px・1 つおきの縞）。13 台からは 2 段組み */
+.de-eord{position:relative;list-style:none;margin:0;padding:0;width:100%;max-width:320px;border:1px solid #d5dde3;border-radius:8px;background:#fff;overflow:hidden}
+.de-eord.is-many{max-width:520px;column-count:2;column-gap:0;column-rule:1px solid #edf1f4}
+.de-eoc{display:flex;align-items:center;gap:4px;height:26px;padding:0 4px 0 6px;border-bottom:1px solid #edf1f4;break-inside:avoid;font-size:12.5px}
+.de-eoc:nth-child(even){background:#f7f9fa}
+.de-eoc:last-of-type{border-bottom:0}
+.de-eoc .de-grip{cursor:grab;padding:3px 2px;color:#6f7f88;touch-action:none}
+.de-eoc .de-eon{font-style:normal;font-size:11.5px;color:#5a6f77;min-width:18px;text-align:right}
+.de-eoc b{flex:1 1 auto;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.de-eoc .icon-btn{width:24px;height:22px;font-size:13px}
+.de-eoc .icon-btn:disabled{opacity:.3;cursor:default}
+.de-eoc.is-src{opacity:.45}
 .de-ochk{display:inline-flex;flex-wrap:wrap;gap:2px 12px;min-width:0}
+/* 出す項目は見出しと同じ段（チェックは見出しの右の列で折り返す）・「全設備の時間」の見出しは 1 段（2026-10-dash8 の 2 回目） */
+.de-ops .de-ochkrow{flex-wrap:nowrap;align-items:flex-start}
+.de-ops .de-ochkrow .de-l{padding-top:3px}
+.de-ops .de-ochkrow .de-ochk{flex:1 1 0}
+.de-ops .de-l.de-lnw{white-space:nowrap;flex:0 0 auto;width:auto}
+.de-ops .de-spanrow{flex-wrap:wrap}
+.de-ops .de-spanrow .de-hint{flex-basis:100%;margin-left:60px}
 /* 系列の行（版 3.46.0）: 形と軸の札を足したので、名前（色）を 1 段目いっぱい・選びを 2 段目に折り返す（横にはみ出さない） */
 .de-ser{flex-wrap:wrap;row-gap:4px}
 .de-ser .de-scol{flex:1 1 100%}
@@ -838,3 +854,4 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-hid .db-hidli{display:flex;align-items:center;gap:8px;padding:4px 8px}
 .db-hid .db-hidli b{font-size:13px}
 .db-hid .db-hidli small{color:var(--muted);flex:1 1 auto}
+.db-swap{font-style:normal;font-size:11.5px;font-weight:700;color:#24446a;border:1px solid #9fb0c6;border-radius:999px;padding:0 7px;margin-left:6px;line-height:18px;white-space:nowrap}
