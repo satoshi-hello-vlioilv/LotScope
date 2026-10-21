@@ -87,7 +87,8 @@ try {
   await p.click("[data-de-apply]"); await sleep(400);
   await p.click("#tabList"); await sleep(400);
   dg = await dialog(p);
-  check("③ ダッシュボードを直して品質異常へ移ると窓（組み込みは保存できないので「保存して進む」は出さない）", !!dg && dg.items.some((t) => t.includes("ダッシュボード")) && !dg.save, dg);
+  // 版 3.48.0 から組み込みも保存できる（直した物と入れ替える。利用者の要望 2026-10-21 の 3 回目の 1）ので「保存して進む」も出る
+  check("③ ダッシュボードを直して品質異常へ移ると窓（組み込みも入れ替えて保存できるので「保存して進む」も出る）", !!dg && dg.items.some((t) => t.includes("ダッシュボード")) && dg.save, dg);
   await press(p, "back");
   check("③ 戻るでダッシュボードのまま", await p.$eval("#tabDash", (t) => t.getAttribute("aria-selected") === "true"), null);
   await p.click("#tabList"); await sleep(300); await press(p, "discard"); await sleep(400);
