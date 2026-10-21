@@ -349,6 +349,9 @@ export const STATES = [
     await p.click("[data-de-cancel]").catch(() => {}); await sleep(300);
     await p.click("[data-db-leave]").catch(() => {}); await p.click("[data-db-discard]").catch(() => {}); await sleep(300);
     await p.evaluate(async ([ops]) => {
+      // 前の案で作ったセット・ダッシュボードを片付けてから作る（撮影は案ごとに同じサーバーで続けてたどるので、名前がぶつかる）
+      for (const x of (await (await fetch("/api/dashboard-sets")).json()).items || []) await fetch(`/api/dashboard-sets/${x.id}`, { method: "DELETE" });
+      for (const x of ((await (await fetch("/api/dashboards")).json()).items || []).filter((y) => !y.builtin)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
       const mk = async (name, panels) => (await (await fetch("/api/dashboards", TPA.json("POST", { name, scope: "all", body: { rows: 8, panels } }))).json()).id;
       const g = await mk("稼働", [{ ...ops.panels[0], h: 8 }]), a = await mk("品種の ABC", [{ ...ops.panels[1], y: 0, h: 8 }]);
       await fetch("/api/dashboard-sets", TPA.json("POST", { name: "現場の朝", scope: "default", standard: true, body: { items: ["b:standard", String(g), String(a)] } }));
