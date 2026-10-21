@@ -400,10 +400,12 @@
     return popEl;
   }
   function pickHtml() {
-    const it = current();
+    const it = current(), st = curSet();
     const groups = [["me", "自分（この ID）"], ["all", "共通"], ["default", "共通デフォルト"]];
     const row = (x) => `<button type="button" class="db-li${String(x.id) === String(S.id) ? " on" : ""}" data-db-open="${esc(String(x.id))}">`
-      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.standardId) ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<small>${x.body.panels.length} 枚${x.builtin ? "・組み込み" : ""}</small></button>`;
+      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.standardId) ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}`
+      // いまのセットのタブに入っている物に印（同じ採点: 面の中で、どれがセットに入っているかが見えなかった）
+      + `${st && st.body.items.includes(String(x.id)) ? `<i class="db-inset" title="いまのセット「${esc(st.name)}」のタブに入っています">タブ</i>` : ""}<small>${x.body.panels.length} 枚${x.builtin ? "・組み込み" : ""}</small></button>`;
     const list = groups.map(([k, n]) => { const xs = S.list.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const canStd = it && !it.builtin && it.canEdit && String(it.id) !== String(S.standardId);
     const canDel = it && !it.builtin && it.canEdit;
@@ -415,20 +417,22 @@
   /** セットの段（面の上）: セットの並び（自分・共通・共通デフォルト。★標準）と「使わない」・いまのセットの操作 */
   function setsHtml() {
     const st = curSet(), it = current(), ds = setDash(st), inSet = !!(st && it && st.body.items.includes(String(it.id)));
-    const groups = [["me", "自分のセット"], ["all", "共通のセット"], ["default", "標準のセット（開発者）"]];
+    // 置き場の言葉はダッシュボードと同じ（自分・共通・共通デフォルト。2026-10-sets の 1 回目の採点: 札は「共通デフォルト」・面は「標準のセット」で揃っていなかった）
+    const groups = [["me", "自分のセット"], ["all", "共通のセット"], ["default", "共通デフォルトのセット"]];
     const row = (x) => `<button type="button" class="db-li db-setli${String(x.id) === String(S.setId) ? " on" : ""}" data-db-set="${esc(String(x.id))}">`
       + `<b>${esc(x.name)}</b>${String(x.id) === String(S.setStd) ? '<i class="db-std" title="標準のセット（アプリを開いたときに出す物）">★</i>' : ""}<small>${setDash(x).length} 枚</small></button>`;
     const list = groups.map(([k, n]) => { const xs = S.sets.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const none = `<button type="button" class="db-li${S.setId == null ? " on" : ""}" data-db-set=""><b>セットを使わない</b><small>1 枚ずつ開く</small></button>`;
     const pos = st && it ? st.body.items.indexOf(String(it.id)) : -1;
     const acts = st ? `<div class="db-popacts db-setacts">`
-      + (st.canEdit ? (inSet ? `<button type="button" class="pv-btn" data-db-setout title="いまのダッシュボードを、このセットのタブから外します">− セットから外す</button>`
-        + `<button type="button" class="pv-btn" data-db-setmove="-1"${pos > 0 ? "" : " disabled"} title="タブを左へ">← 左へ</button><button type="button" class="pv-btn" data-db-setmove="1"${pos >= 0 && pos < st.body.items.length - 1 ? "" : " disabled"} title="タブを右へ">右へ →</button>`
-        : `<button type="button" class="pv-btn" data-db-setin${it && ds.length < S.setMax ? "" : " disabled"} title="いまのダッシュボードを、このセットのタブの最後に足します">＋ いまの物をセットに入れる</button>`) : "")
+      // 何に効くかを名前で言う（同じ 1 回目の採点: 外す・左へ・右へが、どのダッシュボードに効くのかを推測させた）
+      + (st.canEdit ? (inSet ? `<span class="db-setfor">「${esc(it.name)}」のタブ</span><button type="button" class="pv-btn" data-db-setmove="-1"${pos > 0 ? "" : " disabled"} title="「${esc(it.name)}」のタブを左へ">← 左へ</button><button type="button" class="pv-btn" data-db-setmove="1"${pos >= 0 && pos < st.body.items.length - 1 ? "" : " disabled"} title="「${esc(it.name)}」のタブを右へ">右へ →</button>`
+        + `<button type="button" class="pv-btn" data-db-setout title="「${esc(it.name)}」を、このセットのタブから外します">− セットから外す</button>`
+        : `<button type="button" class="pv-btn" data-db-setin${it && ds.length < S.setMax ? "" : " disabled"} title="いまのダッシュボードを、このセットのタブの最後に足します">＋「${esc(it ? it.name : "")}」をセットに入れる</button>`) : "")
       + (String(st.id) !== String(S.setStd) && st.canEdit ? '<button type="button" class="pv-btn" data-db-setstd title="アプリを開いたときに、このセットを出します">★ このセットを標準に</button>' : "")
       + (st.canEdit ? `<button type="button" class="pv-btn is-danger${S.confirm === "setdel" ? " is-armed" : ""}" data-db-setdel>${S.confirm === "setdel" ? "もう一度押すと消えます" : "このセットを消す"}</button>` : "")
       + "</div>" : "";
-    return `<div class="db-pophead"><b>セット</b><small>いくつかのダッシュボードの束。道具の行のタブで切り替えます（★＝アプリを開いたときのセット。自分 → 共通 → 標準の順）</small></div>`
+    return `<div class="db-pophead"><b>セット</b><small>いくつかのダッシュボードの束。道具の行のタブで切り替えます（★＝アプリを開いたときのセット。自分 → 共通 → 共通デフォルトの順）</small></div>`
       + `<div class="db-lg">${none}</div>${list}${acts}`
       + `<div class="db-popacts"><button type="button" class="pv-btn" data-db-setsave title="${st ? "いまのセットのタブの並びを、名前を付けて別のセットとして置きます" : "いまのダッシュボードから、新しいセットを作ります"}">＋ セットとして保存…</button></div><div class="db-popsep" role="separator"></div>`;
   }
@@ -440,7 +444,7 @@
     return `<div class="db-pophead"><b>セットとして保存</b><small>${esc(names.join("・") || "（ダッシュボードがありません）")} をタブに並べたセットを置きます</small></div>`
       + `<label class="db-field">名前<input id="dbSetName" maxlength="40" value="${esc(st ? `${st.name} のコピー` : "わたしのセット")}"></label>`
       + `<div class="db-field"><span>置き場</span>${opt("me", "自分（この ID だけ。切り替えのパターン）", !!S.login, "ログイン ID が分かりません")}${opt("all", "共通（全員）", S.canEditCommon, "共通に置けるのは、マスタを書ける権限の人だけです")}`
-      + `${S.canEditDefault ? opt("default", "標準のセット（開発者。全員の既定）", true, "") : ""}</div>`
+      + `${S.canEditDefault ? opt("default", "共通デフォルト（開発者。全員の既定）", true, "") : ""}</div>`
       + `<label class="pv-ck"><input type="checkbox" id="dbSetStd" checked>標準にする（アプリを開いたときに、このセットを出す）</label>`
       + `<div class="db-popacts"><span class="db-sp"></span><button type="button" class="btn-primary" data-db-dosetsave data-items="${esc(JSON.stringify(items))}">保存</button></div><p class="db-poperr" aria-live="polite"></p>`;
   }

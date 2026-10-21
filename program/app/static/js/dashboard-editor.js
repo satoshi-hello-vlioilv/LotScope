@@ -50,6 +50,12 @@
   const SER_DASH = [["", "実線"], ["1", "破線"]];
   // 系列ごとの形と軸（版 3.46.0。要望 3: グラフ同士を組み合わせる）。推移を見る形（時系列・折れ線・面）と「組み合わせ」で効く
   const SER_KINDS = [["", "自動"], ["bar", "棒"], ["line", "線"], ["area", "面"]], SER_AXES = [["", "自動"], ["left", "左"], ["right", "右"]];
+  /** 系列の形の印（色 → SVG）。組む所の系列の名前の行に出す */
+  const SER_ICON = {
+    bar: (c) => `<svg class="de-sico" viewBox="0 0 14 12" aria-hidden="true"><rect x="1" y="4" width="3" height="8" fill="${c}"/><rect x="6" y="1" width="3" height="11" fill="${c}"/><rect x="11" y="6" width="2" height="6" fill="${c}"/></svg>`,
+    line: (c) => `<svg class="de-sico" viewBox="0 0 14 12" aria-hidden="true"><path d="M1 10l4-5 3 3 5-6" fill="none" stroke="${c}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>`,
+    area: (c) => `<svg class="de-sico" viewBox="0 0 14 12" aria-hidden="true"><path d="M1 12V9l4-5 3 3 5-6v11z" fill="${c}"/></svg>`,
+  };
   const COMBO_VIS = new Set(["combo", "time", "line", "area"]);
   const XDATES = [["", "自動（10/2）"], ["md", "10/2"], ["mdw", "10/2(金)"], ["d", "2（日だけ）"], ["dw", "2(金)"], ["ymd", "2026/10/2"], ["w", "金（曜日）"]];
   const XROTS = [["", "自動"], ["0", "横"], ["45", "45°"], ["90", "縦"]];
@@ -659,7 +665,10 @@
     const named = names.length ? `<div class="de-sers" role="table" aria-label="系列ごとの書式">${names.map((n, i) => {
       const c = (fm.colors || {})[n], sf = (fm.series || {})[n] || {}, shown = c || (isLink() ? colors[i % colors.length] : P.drawnColor(p.id, n) || colors[i % colors.length]);
       const set = c || sf.label || sf.dash || sf.kind || sf.axis, drawnS = P.drawnSeries(p.id, n) || {};
-      return `<div class="de-ser${set ? " is-set" : ""}" role="row" data-de-ser="${esc(n)}"><label class="de-scol" title="「${esc(n)}」の色"><input type="color" value="${shown}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span></label>`
+      // 組み合わせは、名前の行の右端に、いま描いている形の印（系列の色。グラフの凡例と同じ印）と目盛り（2026-10-combo の 3 回目で決めた E）
+      const kNow = sf.kind || drawnS.kind, aNow = sf.axis || drawnS.axis;
+      const now = combo && SER_ICON[kNow] ? `<span class="de-snow" title="「${esc(n)}」は${AUTO_NAME[kNow]}で、${aNow === "right" ? "右" : "左"}の目盛りに描いています">${SER_ICON[kNow](shown)}<b>${AUTO_NAME[kNow]}・${aNow === "right" ? "右" : "左"}の目盛り</b></span>` : "";
+      return `<div class="de-ser${set ? " is-set" : ""}" role="row" data-de-ser="${esc(n)}"><label class="de-scol" title="「${esc(n)}」の色"><input type="color" value="${shown}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span>${now}</label>`
         // 札の組には見出し（形・目盛り・数値・線）。「自動」は、いま描いている形・目盛りを添える（自動（棒）。2026-10-combo の 1 回目の採点: 推測させた）
         + (combo ? group("形", segs(`skind-${i}`, autoOf(SER_KINDS, drawnS.kind, sf.kind), sf.kind || "", `「${n}」の形`).replace(/data-de-skind-\d+/g, "data-de-skind"))
           + group("目盛り", segs(`saxis-${i}`, autoOf(SER_AXES, drawnS.axis, sf.axis), sf.axis || "", `「${n}」の目盛り`).replace(/data-de-saxis-\d+/g, "data-de-saxis")) : "")
