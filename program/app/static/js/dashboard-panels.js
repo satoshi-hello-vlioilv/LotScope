@@ -36,6 +36,7 @@
   };
   /** パネルごとに描いた系列・項目の色（名前 → 色）。組む所の「系列」の見本に使う（描いた色そのもの） */
   const drawn = new Map();
+  const drawnSer = new Map();     // パネルごとに描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」。版 3.46.0）
   const hash = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
   /** その図の名前の並び → 名前ごとの色（名前で決まる色。図の中で同じ色が重なれば次の色へ＝同じ図に同じ色は出さない） */
   function catColors(names, list = CAT) {
@@ -196,7 +197,7 @@
     const link = !!d.link;
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
     const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, fmt: fm, oneAxis: link });
-    if (!p._facetColor) drawn.set(p.id, new Map(out.used || []));
+    if (!p._facetColor) { drawn.set(p.id, new Map(out.used || [])); drawnSer.set(p.id, new Map(out.ser || [])); }
     const sideOk = out.side && (kind === "donut" ? W - (Math.min(gh / 2 - 6, W / 2 - 8, 160) * 2 + 16) >= 150 : W >= 760);
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     const cls = `dp-chart${fm.grid === false ? " no-grid" : ""}${fm.size ? ` fs-${fm.size}` : ""}`;
@@ -513,5 +514,6 @@
     return out;
   }
 
-  window.DashPanels = { ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name) };
+  window.DashPanels = { ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
+    drawnSeries: (id, name) => (drawnSer.get(id) || new Map()).get(name) || null };
 })();

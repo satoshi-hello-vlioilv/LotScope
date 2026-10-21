@@ -652,13 +652,19 @@
     const names = seriesNames(), colors = isLink() && d0 && d0.measures ? d0.measures.map((x) => P.ROLE_COLOR[x.role] || "#5a6f77") : P.seriesColors(p);
     // 系列ごと（版 3.41.0。利用者の要望 1: 個別に詳細も決める）: 色（見本は描いた色そのもの）・数値ラベル（パネルの数値に従う・上・下・出さない）・線（実線・破線）
     const lineish = LINE_VIS.has(p.visual), combo = COMBO_VIS.has(p.visual);
+    const group = (name, html) => `<span class="de-sgrp"><small>${name}</small>${html}</span>`;
+    const AUTO_NAME = { bar: "棒", line: "線", area: "面", left: "左", right: "右" };
+    const autoOf = (list, cur) => list.map(([k, n]) => (k === "" && AUTO_NAME[cur] ? [k, `自動（${AUTO_NAME[cur]}）`] : [k, n]));
     const named = names.length ? `<div class="de-sers" role="table" aria-label="系列ごとの書式">${names.map((n, i) => {
       const c = (fm.colors || {})[n], sf = (fm.series || {})[n] || {}, shown = c || (isLink() ? colors[i % colors.length] : P.drawnColor(p.id, n) || colors[i % colors.length]);
-      const set = c || sf.label || sf.dash || sf.kind || sf.axis;
+      const set = c || sf.label || sf.dash || sf.kind || sf.axis, drawnS = P.drawnSeries(p.id, n) || {};
       return `<div class="de-ser${set ? " is-set" : ""}" role="row" data-de-ser="${esc(n)}"><label class="de-scol" title="「${esc(n)}」の色"><input type="color" value="${shown}" data-de-scol="${esc(n)}" aria-label="「${esc(n)}」の色"><span>${esc(n)}</span></label>`
-        + (combo ? segs(`skind-${i}`, SER_KINDS, sf.kind || "", `「${n}」の形`).replace(/data-de-skind-\d+/g, "data-de-skind") + segs(`saxis-${i}`, SER_AXES, sf.axis || "", `「${n}」の目盛り`).replace(/data-de-saxis-\d+/g, "data-de-saxis") : "")
-        + segs(`slab-${i}`, SER_LABELS, sf.label || "", `「${n}」の数値ラベル`).replace(/data-de-slab-\d+/g, "data-de-slab")
-        + (lineish || (combo && sf.kind !== "bar") ? segs(`sdash-${i}`, SER_DASH, sf.dash ? "1" : "", `「${n}」の線`).replace(/data-de-sdash-\d+/g, "data-de-sdash") : "")
+        // 札の組には見出し（形・目盛り・数値・線）。「自動」は、いま描いている形・目盛りを添える（自動（棒）。2026-10-combo の 1 回目の採点: 推測させた）
+        + (combo ? group("形", segs(`skind-${i}`, autoOf(SER_KINDS, drawnS.kind), sf.kind || "", `「${n}」の形`).replace(/data-de-skind-\d+/g, "data-de-skind"))
+          + group("目盛り", segs(`saxis-${i}`, autoOf(SER_AXES, drawnS.axis), sf.axis || "", `「${n}」の目盛り`).replace(/data-de-saxis-\d+/g, "data-de-saxis")) : "")
+        + group("数値", segs(`slab-${i}`, SER_LABELS, sf.label || "", `「${n}」の数値ラベル`).replace(/data-de-slab-\d+/g, "data-de-slab"))
+        // 線（実線・破線）は線・面で描く系列だけ（棒には効かないので出さない）
+        + ((lineish && !combo) || (combo && (sf.kind || drawnS.kind) && (sf.kind || drawnS.kind) !== "bar") ? group("線", segs(`sdash-${i}`, SER_DASH, sf.dash ? "1" : "", `「${n}」の線`).replace(/data-de-sdash-\d+/g, "data-de-sdash")) : "")
         + (set ? `<button type="button" class="icon-btn" data-de-serx="${esc(n)}" aria-label="「${esc(n)}」の書式を戻す" title="この系列の色・ラベル・線を既定に戻す">×</button>` : "") + "</div>";
     }).join("")}</div>` : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
     const refs = (fm.refs || []).map((r, i) => `<div class="de-ref" data-i="${i}"><input type="number" step="any" value="${r.value}" data-de-refv aria-label="基準線の値" class="de-n2"><input value="${esc(r.label || "")}" data-de-refl maxlength="20" placeholder="名前（目標・上限など）" aria-label="基準線の名前">`

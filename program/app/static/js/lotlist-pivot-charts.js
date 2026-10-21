@@ -51,6 +51,7 @@
   /** 系列・項目の色（書式で名前に色を決めていれば、その色） */
   // 描いた色は USED に控える（版 3.41.0。組む所の「系列」の見本は、描いた色そのもの: 見本と線の色が食い違っていた）
   let USED = null;
+  let SER = null;      // 描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」に使う。版 3.46.0）
   const cof = (name, fallback) => { const c = (F.colors && F.colors[name]) || fallback; if (USED && !USED.has(name)) USED.set(name, c); return c; };
   /** 縦軸の上の端（書式の ymax か、きりの良い最大）と下の端（ymin か 0） */
   const topOf = (v) => (F.ymax != null ? F.ymax : niceMax(v));
@@ -224,6 +225,7 @@
     // 組み合わせの軸の既定: 1 つ目の系列と桁が 3 倍より違う系列は右の目盛り（同じくらいなら左の目盛りで重ねて比べる）
     const peak = (q) => Math.max(0, ...q.v.filter((v) => v != null).map(Math.abs));
     series.forEach((q, i) => { if (q.axis !== "auto") return; const a = peak(series[0]), b = peak(q); q.axis = i === 0 || !a || !b || (b / a <= 3 && a / b <= 3) ? "left" : "right"; });
+    if (SER) series.forEach((q) => SER.set(q.name, { kind: q.kind === "stack" ? "bar" : q.kind === "sarea" ? "area" : q.kind, axis: q.axis }));
     const stacked = series.filter((q) => q.kind === "stack" || q.kind === "sarea");
     const tops = stacked.length ? ax.ticks.map((_, i) => stacked.reduce((a, q) => a + (q.v[i] || 0), 0)) : [];
     const maxL = topOf(Math.max(0, ...tops, ...series.filter((q) => q.axis === "left" && !stacked.includes(q)).flatMap((q) => q.v.filter((v) => v != null))));
@@ -1078,13 +1080,13 @@
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
     const H = ctx.H || (kind === "bar" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : kind === "diag45" ? 420 : kind === "xbar" ? 380 : 300);
-    const keep = [COLORS, F, LBL.top, LBL.inside, USED];
+    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER];
     if (ctx.colors) COLORS = ctx.colors;
-    USED = new Map();
+    USED = new Map(); SER = new Map();
     F = ctx.fmt || {};
     const lb = F.labels || (ctx.s && ctx.s.labels ? "top" : "none");
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
-    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED] = keep; }
+    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER] = keep; }
   }
   window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, AGGS, SHOWS, aggOf, measLabel, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();

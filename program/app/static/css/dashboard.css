@@ -771,3 +771,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-pick.is-set{background:var(--input-soft)}
 .db-popsep{height:1px;background:var(--line);margin:2px 0}
 .db-setacts .pv-btn[disabled]{opacity:.45}
+/* 系列の札の組の見出し（形・目盛り・数値・線）と、押した札をはっきり（版 3.46.0。2026-10-combo の 1 回目の採点） */
+.de-sgrp{display:inline-flex;align-items:center;gap:4px}
+.de-sgrp > small{font-size:11px;color:var(--muted);font-weight:700;min-width:2.2em}
+.de-ser .de-seg.on{font-weight:800;box-shadow:inset 0 0 0 1.5px #3f6591;color:#24446a}

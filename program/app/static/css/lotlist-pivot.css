@@ -76,7 +76,7 @@
 .pv-axis{stroke:#9aa7b2}
 .pv-ax{font-size:11px;fill:#5d6b78}
 /* 数値ラベル（版 3.26.0）: 棒・点の上に小さく。下の棒・線と重なっても読めるよう白い縁取り */
-.pv-vl{font-size:11px;font-weight:700;fill:#2b3a47;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
+.pv-vl{font-size:11px;font-weight:700;fill:#2b3a47;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;font-variant-numeric:tabular-nums}
 /* 月の境目（月で区切る）: 縦の点線と、月の真ん中の上の月の名前 */
 .pv-msep{stroke:#8a98a6;stroke-width:1;stroke-dasharray:3 3}
 .pv-mname{font-size:11.5px;font-weight:800;fill:#3e4d5a}
