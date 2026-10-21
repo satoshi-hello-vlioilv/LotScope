@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """作業実績（設備ごとの実績 SQLite。services/work_log.py）。一覧の問い合わせの形は品質異常（lotlist.py）と同じで、
 どの設備かを equip（登録のキー）で渡す。設備の登録（表示する・しない）はマスタ管理の「作業実績」（管理のマスタ）。"""
+import json
+
 from ..web import current_app, jsonify, request
 
 import app_env
@@ -54,10 +56,11 @@ def worklog_files():
     return jsonify(folder=wl["folder"], pattern=wl["pattern"], canEdit=can_write(work_log.NAME), staleHours=wl["stale_hours"], **v)
 
 
-def worklog_plan(need_copy=True, key=None, rows=None):
+def worklog_plan(need_copy=True, key=None, rows=None, wait=True):
     """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
     段取り: 写しの係・読むファイル（写し）・既定の表・既定の件数・設備の行。need_copy=False は写しがまだ無くてもよい（再読込）。
-    key: 設備（登録のキー。省けば問い合わせの equip）。rows: 読み終えた登録（ダッシュボードが設備ごとに呼ぶとき、毎回読み直さない）"""
+    key: 設備（登録のキー。省けば問い合わせの equip）。rows: 読み終えた登録（ダッシュボードが設備ごとに呼ぶとき、毎回読み直さない）。
+    wait: 初めての写しを待つ（False は待たない。いくつもの設備をまとめて待つ所: start_mirrors）"""
     key = request.args.get("equip", "") if key is None else key
     wl = _params()
     row = next((r for r in (master_repo().work_logs() if rows is None else rows) if r.get("キー") == key), None)
@@ -77,13 +80,24 @@ def worklog_plan(need_copy=True, key=None, rows=None):
                           "「マスタ管理」の「作業実績」で結ぶファイルを選び直してください。")
             return None, error(why, 404 if not err else 503, "missing" if not err else "unreachable",
                                equip={"key": key, "name": row.get("設備名"), "file": row.get("ファイル名")})
-    read = m.read_path()
+    read = m.read_path(wait=wait)
     equip = {"key": key, "name": row.get("設備名") or "", "file": path.name if path else row.get("ファイル名") or "",
              "renamed": bool(path and path.name != row.get("ファイル名"))}
     if read is None and need_copy:  # 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す
         return None, error(m.not_ready_text(), 503, "copying", source=m.source_info(), equip=equip)
     return {"mirror": m, "path": str(read), "table": row.get("表") or wl["table"], "page_size": wl["page_size"],
             "source": m.source_info(), "equip": equip}, None
+
+
+def start_mirrors(rows, timeout):
+    """いくつもの設備の写しを一度に始め、初めての写しを全部で timeout 秒まで待つ（版 3.46.0）。
+    この後の worklog_plan(wait=False) は待たない（写し終えていない設備は「写しています」と答える）"""
+    keys = []
+    for r in rows:
+        _, fail = worklog_plan(key=r.get("キー"), rows=rows, wait=False)       # 写しの係を起こす（待たない）
+        if fail is None or json.loads(fail[0].get_data(as_text=True) or "{}").get("kind") == "copying":
+            keys.append(r.get("キー"))
+    _mirrors().wait_first(keys, timeout)
 
 
 def work_grouping(equip_name):

@@ -22,13 +22,16 @@ TOOL = Path(__file__).resolve().parents[1] / "tools" / "formula-parity.mjs"
 
 VALUES = [None, "", " ", 0, 1, -1, 2.5, 10, 1200, 0.1, 1e21, 1e-7, 123456789012, "0", "010", "10", "1.0", "1,000", " 5 ", "+5", "-3.5e2", "12abc",
           "abc", "ABC def", "A5052", "H24", "L0123C4", "ｱｲｳ", "１２３", "　全角の空白　", "😀x", "x😀y", "Infinity", "1e3", ".5",
-          "2026/10/16 08:30", "仕掛", "検査待ち", "O'Neil", "a,b,c", "CR1 L-1 LS3", "﻿BOM", "ß", "İ"]
+          "2026/10/16 08:30", "2026/10/01 8:15:00", "2026-10-01T09:45", "26/10/02 23:48:54", "2026年10月3日", "20261003", "8:15", "2026/02/30", "仕掛", "検査待ち", "O'Neil", "a,b,c", "CR1 L-1 LS3", "﻿BOM", "ß", "İ"]
 COLUMNS = ["A", "B", "C", "日本"]
 REGEX = ["[0-9]+", "\\\\d+", "^L", "C(\\\\d)", "\\\\s", "(?<n>\\\\d)", ".", "\\\\w+$", "[^]", "a|b", "^$", "(x)?y", "[A-Z]{2,}", "\\\\.", "\\\\bdef"]
 REPL = ["$1", "$&", "[$`]", "$'", "$<n>", "$$", "$9", "-", ""]
-FUNCS1 = ["num", "text", "abs", "len", "trim", "upper", "lower", "hankaku"]
-FUNCS2 = ["round", "left", "right", "find", "contains", "startswith", "endswith", "cmp", "mid", "padleft", "extract", "match"]
-FUNCS3 = ["replace", "split", "mid", "padleft", "extract", "regreplace"]
+FUNCS1 = ["num", "text", "abs", "len", "trim", "upper", "lower", "hankaku",
+          "lenb", "int", "ceil", "sqrt", "isnum", "isblank", "year", "month", "day", "hour", "minute", "weekday", "date", "roundup", "rounddown",
+          "min", "max", "sum", "avg"]
+FUNCS2 = ["round", "left", "right", "find", "contains", "startswith", "endswith", "cmp", "mid", "padleft", "extract", "match",
+          "count", "regcount", "rept", "roundup", "rounddown", "datediff", "ifs", "min", "max", "sum", "avg"]
+FUNCS3 = ["replace", "split", "mid", "padleft", "extract", "regreplace", "datediff", "switch", "ifs", "min", "sum"]
 
 WRITTEN = [
     "[A] + [B]", "[A] - [B]", "[A] * [B]", "[A] / [B]", "[A] % [B]", "-[A]", "not [A]", "[A] and [B]", "[A] or [B]",
@@ -46,8 +49,19 @@ WRITTEN = [
     "if([A] > 1000, '重', '軽')", "if([A], 1)", "if([A] = '010', 'x', 'y')", "cmp([A], [B])", "cmp('5', '05')", "[A] = 10",
     "num('12abc')", "num('1,000')", "num('Infinity')", "num(' 3')", "num('.5e1x')", "text(1/3)", "text(100000000000000000000)",
     "'a' < 'b'", "'😀' > '￿'", "abs(-0)", "-0", "0 * -1", "[日本] + 1", "[無い列]", "[A] + [無い列]",
+    # 版 3.46.0 で足した関数
+    "count('1、2、3', '、')", "count('aaaa', 'aa')", "count('abc', '')", "count('😀😀x', '😀')", "regcount('a1b22c333', '[0-9]+')", "regcount('abc', 'x*')",
+    "lenb('ｱ漢x12')", "lenb('😀')", "lenb('')", "rept('ab', 3)", "rept('ab', 2.9)", "rept('x', -1)", "len(rept('abc', 5000))",
+    "min(3, [A], 1)", "max('a', 'b')", "sum(1, 2, '3x')", "avg(1, 2, 4)", "sum(0.1, 0.2, 0.3)", "int(-1.5)", "int('2.7')", "ceil(1.000001)", "ceil(-1.5)",
+    "roundup(1.1, 1)", "roundup(1.11, 1)", "roundup(-2.01, 1)", "rounddown(-1.19, 1)", "rounddown(2.999, 2)", "roundup(0.1 + 0.2, 1)", "roundup(3)", "rounddown(9.99, 8.5)",
+    "sqrt(2)", "sqrt(-1)", "isnum('010')", "isnum('10')", "isnum(1.5)", "isblank('　')", "isblank([A])",
+    "ifs([A] > 5, '大', [A] > 1, '中', '小')", "ifs(0, 'x')", "switch([A], 10, 'ten', '010', 'zero', 'other')", "switch('B', 'A', 1, 'B', 2)",
+    "year('2026/10/01 8:15:00')", "month('2026年10月3日')", "day('20261003')", "hour('2026-10-01T09:45')", "minute('8:15')", "year('8:15')",
+    "weekday('2026/10/01')", "weekday('1969/12/31')", "weekday('0000/03/01')", "date('26/10/02 23:48:54')", "date('2026/02/30')", "date('2024/02/29')",
+    "datediff('2026/10/01 8:15:00', '2026-10-01T09:45', 'm')", "datediff('26/10/02 23:48:54', '2026年10月3日')", "datediff('8:00', '9:30', '時間')",
+    "datediff('2026/10/01', '2026/10/02', 'x')", "datediff([A], [B], 's')",
     # 読めない式（理由が同じか）
-    "", "[A", "'abc", "foo(1)", "if(1)", "round(1)", "left('a')", "match('a', '[')", "1 +", "(1", "1 2", "#", "mid('a')",
+    "", "[A", "'abc", "foo(1)", "if(1)", "round(1)", "left('a')", "match('a', '[')", "1 +", "(1", "1 2", "#", "mid('a')", "count('a')", "ifs(1)", "switch(1, 2)", "regcount('a', '(')", "min()",
 ]
 
 

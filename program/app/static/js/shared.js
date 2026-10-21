@@ -7,6 +7,14 @@
 (function () {
   "use strict";
   const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  /* 日本語の変換中か（どの欄でも。TPA.afterIme が、確定まで描き直しを待つ）。確定の後、その欄の確定の受け手（compositionend）の後で、待たせた物を呼ぶ */
+  let imeNow = false;
+  const imeLater = new Map();
+  document.addEventListener("compositionstart", () => { imeNow = true; }, true);
+  document.addEventListener("compositionend", () => {
+    imeNow = false;
+    setTimeout(() => { if (imeNow) return; const fs = [...imeLater.values()]; imeLater.clear(); fs.forEach((f) => f()); }, 0);
+  }, true);
 
   /* 覚える場所（localStorage / sessionStorage）。プライベート・容量切れ・止められた PC でも投げずに既定で動く。
      get/set は JSON で、getRaw/setRaw は文字のまま（以前から文字で覚えている項目のため）。
@@ -225,6 +233,19 @@
     onText(el, fn) {
       el.addEventListener("input", (e) => { if (!TPA.composing(e)) fn(el, e); });
       el.addEventListener("compositionend", (e) => fn(el, e));
+    },
+    /** onText の、描き直す面の中の欄（selector に合う欄）に効く形。面ごと描き直す欄は、こちらで受ける
+        （版 3.46.0。値で絞る面・変換表の当てる列・設備グループの設備を探す欄が、打つたびに面を作り直して変換を壊していた） */
+    onTextIn(root, selector, fn) {
+      const at = (e) => { const el = e.target.closest ? e.target.closest(selector) : null; return el && root.contains(el) ? el : null; };
+      root.addEventListener("input", (e) => { const el = at(e); if (el && !TPA.composing(e)) fn(el, e); });
+      root.addEventListener("compositionend", (e) => { const el = at(e); if (el) fn(el, e); });
+    },
+    /** 日本語の変換中なら、確定してから fn を呼ぶ（key ごとに最後の 1 つ）。裏で値を読み直した後の描き直しなどに使う
+        （変換中に欄を作り直すと、未確定の字が確定されてしまう）。変換中でなければすぐ呼ぶ */
+    afterIme(key, fn) {
+      if (!imeNow) return fn();
+      imeLater.set(key, fn);
     },
 
     /** 欄の大きさ（右下の角で広げた高さ・幅）をこの PC に覚え、欄を作り直しても当て直す（key ごと）。

@@ -155,15 +155,14 @@
         paint(); changed();
       }
     });
-    root.addEventListener("input", (e) => {
-      const x = e.target;
-      if (x.matches("[data-vf-search]")) { c.setSearch(x.value); paint(); changed(); return; }
-      if (x.matches("[data-vf-val]")) { c.st.conds[+x.closest(".vf-crow").dataset.i].value = x.value; changed(true); }
-    });
+    // 打った字は、変換中は受けず確定してから（変換中に面を作り直すと、未確定の字が確定されてローマ字・漢字で打てない。版 3.46.0）
+    TPA.onTextIn(root, "[data-vf-search]", (x) => { c.setSearch(x.value); paint(); changed(); });
+    TPA.onTextIn(root, "[data-vf-val]", (x) => { c.st.conds[+x.closest(".vf-crow").dataset.i].value = x.value; changed(true); });
     root.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.isComposing && ok && !e.target.matches("button")) { e.preventDefault(); if (!root.querySelector("[data-vf-ok]")?.disabled) ok(); }
     });
-    function paint() { repaint(root, c.html()); if (after) after(); }
+    // 裏で値を読み直した後の描き直しも、変換中なら確定まで待つ
+    function paint() { TPA.afterIme(root, () => { repaint(root, c.html()); if (after) after(); }); }
     return paint;
   }
 

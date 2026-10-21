@@ -265,6 +265,16 @@ class Mirrors:
         m.start()
         return m
 
+    def wait_first(self, keys, timeout):
+        """keys の設備の写しの係が、最初の写しを済ませるまで待つ（全部で timeout 秒まで。1 台ずつ timeout 秒ずつ待たない）。
+        版 3.46.0（利用者の要望 2026-10-21 の 6: 入れた直後の作業実績が不安定）: ダッシュボードが全部の設備を数えるとき、
+        1 台目の写しを待ってから 2 台目の写しを始めていた（11 台なら写す時間の 11 倍待った）。先に全部の係を起こしてから、まとめて待つ"""
+        end = time.monotonic() + timeout
+        for k in keys:
+            m = self.peek(k)
+            if m is not None:
+                m.wait_first(end - time.monotonic())
+
     def peek(self, key):
         with self._lock:
             return self._all.get(key)

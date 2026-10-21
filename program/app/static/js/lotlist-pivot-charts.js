@@ -206,6 +206,10 @@
     if (m.nc) colsData.forEach((c, k) => { const nm = m.colName(c); series.push({ name: nm, j: 0, c, axis: "left", kind: stack ? (mode === "time" ? "stack" : "sarea") : kind0 === "bar" ? "line" : kind0, color: cof(nm, COLORS[(k + 1) % COLORS.length]) }); });
     // ctx.oneAxis（別のデータを合わせた答え。目標と実績は同じ単位）: 達成率（%）のほかは左の同じ目盛り
     else d.measures.forEach((mm, j) => { const nm = ctx.measName(mm); series.push({ name: nm, j, c: ALL, axis: j === 0 || oneAxis(j) ? "left" : "right", kind: j === 0 ? (kind0 === "bar" && !ADDITIVE.has(mm.agg) ? "line" : kind0 === "sarea" ? "area" : kind0) : "line", color: cof(nm, COLORS[j % COLORS.length]) }); });
+    // 組み合わせ（版 3.46.0。利用者の要望 2026-10-21 の 3: グラフ同士を汎用に組み合わせる）: 1 つ目の系列は棒・ほかは折れ線（既定）。
+    // どの形でも、書式の「系列」で系列ごとに形（棒・線・面）と軸（左・右）を決められる（値・列の段・設備ごとの系列・別のデータ〈目標と実績〉のどれでも）
+    const combo = mode === "combo";
+    series.forEach((q, i) => { const f = serFmt(q.name); if (f.kind) q.kind = f.kind; else if (combo) q.kind = i === 0 ? "bar" : "line"; if (f.axis) q.axis = f.axis; else if (combo && !oneAxis(q.j)) q.axis = "auto"; });
     // 横に並べる段（日付など）ごとの値。その下にも段があれば、その段の小計（段の頭の組の数）を使う
     const at = (r) => ax.at(r.path[L]);
     const pick = (ser) => {
@@ -217,6 +221,9 @@
     };
     // 時の段の足し上げる値（件数・ロット数・合計）は、無い日を 0 に（作業しなかった日＝0。線が途切れない）。平均などは無いまま
     series.forEach((q) => { q.v = pick(q); if (!ax.cat && ADDITIVE.has(d.measures[q.j].agg) && !d.measures[q.j].show) q.v = q.v.map((v) => v ?? 0); });
+    // 組み合わせの軸の既定: 1 つ目の系列と桁が 3 倍より違う系列は右の目盛り（同じくらいなら左の目盛りで重ねて比べる）
+    const peak = (q) => Math.max(0, ...q.v.filter((v) => v != null).map(Math.abs));
+    series.forEach((q, i) => { if (q.axis !== "auto") return; const a = peak(series[0]), b = peak(q); q.axis = i === 0 || !a || !b || (b / a <= 3 && a / b <= 3) ? "left" : "right"; });
     const stacked = series.filter((q) => q.kind === "stack" || q.kind === "sarea");
     const tops = stacked.length ? ax.ticks.map((_, i) => stacked.reduce((a, q) => a + (q.v[i] || 0), 0)) : [];
     const maxL = topOf(Math.max(0, ...tops, ...series.filter((q) => q.axis === "left" && !stacked.includes(q)).flatMap((q) => q.v.filter((v) => v != null))));
@@ -247,10 +254,12 @@
         hi.forEach((v, i) => { acc[i] = v; });
       });
     }
-    series.filter((q) => q.kind === "bar").forEach((q) => { q.v.forEach((v, i) => {
+    // 棒の系列が 2 つ以上（組み合わせで棒にした系列）は、横に並べる（重ねて隠さない）
+    const barQ = series.filter((q) => q.kind === "bar"), nb = barQ.length, sw = nb > 1 ? bw / nb : bw;
+    barQ.forEach((q, k) => { const off = -bw / 2 + k * sw; q.v.forEach((v, i) => {
       if (!v) return;
-      g += `<rect x="${x(i) - bw / 2}" y="${y(v, q)}" width="${bw}" height="${Math.max(0, base0 - y(v, q))}" fill="${q.color}" opacity=".82"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></rect>`;
-      if (LBL.inside && base0 - y(v, q) >= 16 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i)}" y="${y(v, q) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
+      g += `<rect x="${x(i) + off}" y="${y(v, q)}" width="${nb > 1 ? Math.max(1, sw - 1) : bw}" height="${Math.max(0, base0 - y(v, q))}" fill="${q.color}" opacity=".82"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></rect>`;
+      if (LBL.inside && base0 - y(v, q) >= 16 && sw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i) + off + sw / 2}" y="${y(v, q) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
     }); });
     series.filter((q) => q.kind === "area").forEach((q) => {
       const pts = q.v.map((v, i) => (v == null ? null : [x(i), y(v, q)])).filter(Boolean);
@@ -324,7 +333,7 @@
     });
     const legend = legendHtml(series.map((q) => [q.name + (series.some((r) => r.axis === "right") ? (q.axis === "left" ? "（左）" : "（右）") : ""), q.color, q.kind === "line" ? "line" : "bar"]))
       + `<small class="pv-cnote">${n} 刻み・${esc(ctx.dimName(d.dims.rows[L]))}${m.nr > L + 1 ? "（上の段の小計で描きます）" : ""}${thin > 1 ? `・数値は ${thin} 本おき${s.month ? "" : "（月を選ぶと全部出ます）"}` : ""}</small>`;
-    return { svg: svgOf(W, H, g, { time: "時系列のグラフ", line: "折れ線グラフ", area: "面グラフ", stackarea: "積み上げ面グラフ" }[mode] || "グラフ"), legend };
+    return { svg: svgOf(W, H, g, { time: "時系列のグラフ", line: "折れ線グラフ", area: "面グラフ", stackarea: "積み上げ面グラフ", combo: "組み合わせのグラフ" }[mode] || "グラフ"), legend };
   }
   /** 管理図（I 管理図・個々の値）: 行の葉を並びのまま点にし、中心線＝平均、管理限界＝平均 ± 3σ（σ＝隣どうしの差〈移動範囲〉の平均 ÷ 1.128）。
       限界の外の点は赤、中心線の同じ側に 9 点以上続く所（連）は橙（JIS Z 9020-2 の判定ルール 1・2） */
@@ -921,6 +930,8 @@
       icon: "M3 3h14M3 9h14M4 7l3-2 3 3 3-3 3 2M3 12h14M3 17h14M4 15l3-1 3 1 3-2 3 1", fit: (f) => (f.rows && f.numMeas ? "" : "行が日・ロットなどの順の段で、値に数のカラム（平均など）があるとき"), draw: xbarChart },
     { k: "swimlane", n: "スイムレーン", g: "trend", one: true, tip: "行の 1 段目（設備など）ごとのレーンに、時の段（日付・作業日）に沿って値の札を並べます（いつ・どこで・どれだけ）",
       icon: "M2 3h16M2 8h16M2 13h16M2 18h16M4 5h3v2H4zM9 10h4v2H9zM6 15h3v2H6zM14 5h3v2h-3z", fit: (f) => ((f.rows >= 2 || (f.rows && f.cols)) ? "" : "行の 1 段目にレーン（設備など）、行の 2 段目か列に日付・作業日の段があるとき"), draw: swimlaneChart },
+    { k: "combo", n: "組み合わせ", g: "compare", tip: "値（系列）ごとに 棒・線・面 と 左・右の目盛り を組み合わせて 1 つのグラフに重ねます（本数の棒と平均の線、目標の線と実績の棒など。書式の「系列」で系列ごとに決められます）",
+      icon: "M3 17h14M5 15v-5M9 15V8M13 15v-6M3 9l4-3 4 2 6-4", fit: (f) => (f.rows && (f.meas > 1 || f.cols) ? "" : "値が 2 つ以上（か列の段がある）とき"), draw: (c) => trendChart(c, "combo") },
     { k: "column", n: "縦棒", g: "compare", one: true, tip: "行の段ごとに縦の棒で比べます", icon: "M3 17h14M5 15V9M9 15V5M13 15v-4M16 15V8",
       fit: (f) => (f.rows && !f.time && !f.bin ? "" : "行が種類の段（設備・不良名など）のとき"), draw: (c) => barChart(c, "column", false) },
     { k: "bar", n: "横棒", g: "compare", one: true, tip: "行の段ごとに横の棒で比べます（名前が長いとき）", icon: "M3 3v14M3 5h10M3 9h14M3 13h6",

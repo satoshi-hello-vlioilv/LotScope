@@ -21,6 +21,7 @@
     list: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, rowsRange: [4, 16],
     id: null, layout: null, saved: "", edit: false, history: [], sel: "", sources: [],
     tree: null, answers: new Map(), at: 0, timer: null, active: false, loading: false, msg: "", confirm: "", pop: null, editing: "",
+    sets: [], setStd: null, setId: null, setMax: 12,
   };
 
   /* ---------------- 覚え・置き場 ---------------- */
@@ -71,7 +72,7 @@
   }
   /** 数えるときのパネル（組んだパネル＋スライサー＋この PC のパネルの絞り込み） */
   const asked = (p) => Q.merge(Q.slice(p, sliceOf(p), canEquip), quickOf(p.id));
-  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters, p.order, p.calc] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない。サーバーが読む項目は全部入れる: 合わせた表の order〈見出しの設備グループ〉も。版 3.43.0）
+  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters, p.order, p.calc] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc, p.ops]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない。サーバーが読む項目は全部入れる: 合わせた表の order〈見出しの設備グループ〉も。版 3.43.0）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
@@ -79,6 +80,42 @@
     if (!r.ok) throw new Error(d.error || "ダッシュボードを読めませんでした");
     Object.assign(S, { list: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, canEditDefault: !!d.canEditDefault,
       standardId: d.standardId, rowsRange: d.rowsRange || [4, 16] });
+  }
+  /* ---------------- セット（版 3.46.0。利用者の要望 2026-10-21 の 7）: いくつかのダッシュボードの束を、道具の行のタブで切り替える。
+     置き場は /api/dashboard-sets（共通デフォルト＝開発者の標準のセット・共通・自分のパターンと ★標準。ダッシュボードと同じ決まり）。
+     いま使っているセットはこの PC に覚える（tpa.dash.v1 の set。"" はセットを使わない）。覚えが無ければ ★標準のセット ---------------- */
+  async function loadSets() {
+    try {
+      const r = await fetch("/api/dashboard-sets", { cache: "no-store" }), d = await r.json();
+      if (r.ok) Object.assign(S, { sets: d.items || [], setStd: d.standardId ?? null, setMax: d.max || 12 });
+    } catch (_) { S.sets = []; }
+    const m = mem();
+    const want = m.set === "" ? null : m.set != null ? m.set : S.setStd;
+    S.setId = S.sets.some((x) => String(x.id) === String(want)) ? want : m.set === "" ? null : S.setStd;
+  }
+  const curSet = () => S.sets.find((x) => String(x.id) === String(S.setId)) || null;
+  /** セットのダッシュボード（見えない物・消えた物は飛ばす） */
+  const setDash = (st = curSet()) => (st ? st.body.items.map((k) => S.list.find((x) => String(x.id) === String(k))).filter(Boolean) : []);
+  function useSet(id) {
+    S.setId = id == null ? null : id; remember({ set: id == null ? "" : id });
+    const ds = setDash();
+    if (ds.length && !ds.some((x) => String(x.id) === String(S.id))) open(ds[0].id); else paintBar();
+  }
+  async function writeSet(method, id, body, done) {
+    const r = await fetch(id ? `/api/dashboard-sets/${id}` : "/api/dashboard-sets", method === "DELETE" ? { method } : TPA.json(method, body));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { say("✕ " + (d.error || (r.status === 409 ? "ほかの PC が先に直しました。開き直してください。" : `保存できませんでした（${r.status}）`))); return null; }
+    await loadSets();
+    if (method === "POST") useSet(d.id); else paintBar();
+    if (done) say(done);
+    return d;
+  }
+  /** いまのセットの並びを書き換える（入れる・外す・左右へ）。書けないセットなら、自分のセットとして作るように知らせる */
+  async function editSet(items, done) {
+    const st = curSet(); if (!st) return;
+    if (!st.canEdit) { say(`「${st.name}」は書き換えられません（${SCOPE_NAME[st.scope]}）。「セットとして保存…」で自分のセットにしてください`); return; }
+    if (!items.length) { say("セットには 1 つ以上のダッシュボードが要ります（セットを消すときは「このセットを消す」）"); return; }
+    await writeSet("PUT", st.id, { body: { items }, base_rev: st.rev }, done);
   }
   async function loadSources() {
     try { const d = await (await fetch("/api/dashboard/sources", { cache: "no-store" })).json(); S.sources = d.items || []; S.egroupSets = d.egroupSets || []; } catch (_) { S.sources = []; S.egroupSets = []; }
@@ -112,7 +149,9 @@
     setAnswer(p.id, a);
     paintPanel(p.id);
     if (S.editing === p.id && E.isOpen()) E.answered();
-    const copying = a.kind === "copying" || (a.d && (a.d.groups || []).some((g) => g.kind === "copying"));   // 合わせた表はまとまりごと
+    // 写している最中: 答え全部（kind）か、合わせた表のまとまりか、写し終えていない設備がある（写し終えた設備だけの途中の数。版 3.46.0）
+    const stillCopying = (x) => !!x && (x.kind === "copying" || (x.failed || []).some((f) => f.kind === "copying"));
+    const copying = stillCopying(a) || (a.d && (stillCopying(a.d) || (a.d.groups || []).some(stillCopying)));
     if (copying) setTimeout(() => { const q = panelOf(p.id); if (q && S.active && qkey(q) === k) queryPanel(q); }, RETRY_MS);
   }
   /** 全部を引き直す（force でなければ、組みが変わったパネルだけ） */
@@ -125,6 +164,8 @@
   }
 
   /* ---------------- 描く ---------------- */
+  // パネルの中の札で見せ方を替えた（ABC 分析の設備の札など。版 3.46.0）: そのパネルだけ描き直す（数は引き直さない）
+  document.addEventListener("dash:repaint", (e) => { const el = e.target.closest && e.target.closest(".db-p"); if (el) paintPanel(el.dataset.id, true); });
   function paint() {
     const box = $("#dashScreen");
     if (!box) return;
@@ -287,9 +328,16 @@
     const bar = $("#dashBar"); if (!bar) return;   // 道具の行（.db-tools）
     const it = current(), std = it && String(it.id) === String(S.standardId);
     const t = S.at ? new Date(S.at) : null, when = t ? `${TPA.pad2(t.getHours())}:${TPA.pad2(t.getMinutes())}` : "";
-    const pick = `<button type="button" class="db-pick" data-db-pick aria-haspopup="true" aria-expanded="${S.pop === "pick"}" title="ほかのダッシュボードを開く・標準にする・名前を変える・消す">`
-      + `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`
-      + `<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
+    const st = curSet(), ds = setDash(st);
+    const icon = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
+    // セットを使っているとき（版 3.46.0）: 選ぶ札はセットの名前、ダッシュボードは右のタブ（いまの物がセットの外なら、点線のタブで足して見せる）
+    const pick = st && !S.edit
+      ? `<button type="button" class="db-pick is-set" data-db-pick aria-haspopup="true" aria-expanded="${S.pop === "pick"}" title="セットを替える・作る・★標準にする／ダッシュボードをセットに入れる・外す">`
+        + `${icon}<b>${esc(st.name)}</b><small>セット・${esc(SCOPE_NAME[st.scope] || "")}</small>${String(st.id) === String(S.setStd) ? '<i class="db-std" title="標準のセット（アプリを開いたときに出す物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`
+        + `<div class="db-tabs" role="tablist" aria-label="セットのダッシュボード">${ds.map((x, i) => `<button type="button" role="tab" class="db-tab${String(x.id) === String(S.id) ? " on" : ""}" aria-selected="${String(x.id) === String(S.id)}" data-db-tab="${esc(String(x.id))}" title="${esc(x.name)}">${esc(x.name)}</button>`).join("")}`
+        + (it && !ds.some((x) => String(x.id) === String(it.id)) ? `<button type="button" role="tab" class="db-tab is-out on" aria-selected="true" title="セットに入っていないダッシュボード（▾ の面でセットに入れられます）">${esc(it.name)}</button>` : "") + "</div>"
+      : `<button type="button" class="db-pick" data-db-pick aria-haspopup="true" aria-expanded="${S.pop === "pick"}" title="ほかのダッシュボードを開く・標準にする・名前を変える・消す・セットを使う">`
+      + `${icon}<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
     const msg = `<span class="db-msg" aria-live="polite">${esc(S.msg)}</span>`;
     if (!S.edit) {
       bar.innerHTML = pick + msg + `<span class="db-sp"></span><small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
@@ -354,10 +402,42 @@
     const list = groups.map(([k, n]) => { const xs = S.list.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const canStd = it && !it.builtin && it.canEdit && String(it.id) !== String(S.standardId);
     const canDel = it && !it.builtin && it.canEdit;
-    return `<div class="db-pophead"><b>ダッシュボード</b><small>★＝標準（アプリを開いたときに出す物。自分 → 共通 → 共通デフォルトの順に決まります）</small></div>${list}`
+    return setsHtml() + `<div class="db-pophead"><b>ダッシュボード</b><small>★＝標準（アプリを開いたときに出す物。自分 → 共通 → 共通デフォルトの順に決まります）</small></div>${list}`
       + `<div class="db-popacts">${canStd ? '<button type="button" class="pv-btn" data-db-std>★ いまの物を標準にする</button>' : ""}`
       + `<button type="button" class="pv-btn" data-db-new title="パネルの無いダッシュボードを、編集で作り始めます">＋ 空から作る</button>`
       + (canDel ? `<button type="button" class="pv-btn is-danger${S.confirm === "remove" ? " is-armed" : ""}" data-db-remove>${S.confirm === "remove" ? "もう一度押すと消えます" : "いまの物を消す"}</button>` : "") + "</div>";
+  }
+  /** セットの段（面の上）: セットの並び（自分・共通・共通デフォルト。★標準）と「使わない」・いまのセットの操作 */
+  function setsHtml() {
+    const st = curSet(), it = current(), ds = setDash(st), inSet = !!(st && it && st.body.items.includes(String(it.id)));
+    const groups = [["me", "自分のセット"], ["all", "共通のセット"], ["default", "標準のセット（開発者）"]];
+    const row = (x) => `<button type="button" class="db-li db-setli${String(x.id) === String(S.setId) ? " on" : ""}" data-db-set="${esc(String(x.id))}">`
+      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.setStd) ? '<i class="db-std" title="標準のセット（アプリを開いたときに出す物）">★</i>' : ""}<small>${setDash(x).length} 枚</small></button>`;
+    const list = groups.map(([k, n]) => { const xs = S.sets.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
+    const none = `<button type="button" class="db-li${S.setId == null ? " on" : ""}" data-db-set=""><b>セットを使わない</b><small>1 枚ずつ開く</small></button>`;
+    const pos = st && it ? st.body.items.indexOf(String(it.id)) : -1;
+    const acts = st ? `<div class="db-popacts db-setacts">`
+      + (st.canEdit ? (inSet ? `<button type="button" class="pv-btn" data-db-setout title="いまのダッシュボードを、このセットのタブから外します">− セットから外す</button>`
+        + `<button type="button" class="pv-btn" data-db-setmove="-1"${pos > 0 ? "" : " disabled"} title="タブを左へ">← 左へ</button><button type="button" class="pv-btn" data-db-setmove="1"${pos >= 0 && pos < st.body.items.length - 1 ? "" : " disabled"} title="タブを右へ">右へ →</button>`
+        : `<button type="button" class="pv-btn" data-db-setin${it && ds.length < S.setMax ? "" : " disabled"} title="いまのダッシュボードを、このセットのタブの最後に足します">＋ いまの物をセットに入れる</button>`) : "")
+      + (String(st.id) !== String(S.setStd) && st.canEdit ? '<button type="button" class="pv-btn" data-db-setstd title="アプリを開いたときに、このセットを出します">★ このセットを標準に</button>' : "")
+      + (st.canEdit ? `<button type="button" class="pv-btn is-danger${S.confirm === "setdel" ? " is-armed" : ""}" data-db-setdel>${S.confirm === "setdel" ? "もう一度押すと消えます" : "このセットを消す"}</button>` : "")
+      + "</div>" : "";
+    return `<div class="db-pophead"><b>セット</b><small>いくつかのダッシュボードの束。道具の行のタブで切り替えます（★＝アプリを開いたときのセット。自分 → 共通 → 標準の順）</small></div>`
+      + `<div class="db-lg">${none}</div>${list}${acts}`
+      + `<div class="db-popacts"><button type="button" class="pv-btn" data-db-setsave title="${st ? "いまのセットのタブの並びを、名前を付けて別のセットとして置きます" : "いまのダッシュボードから、新しいセットを作ります"}">＋ セットとして保存…</button></div><div class="db-popsep" role="separator"></div>`;
+  }
+  function setSaveHtml() {
+    const st = curSet(), it = current();
+    const items = st ? st.body.items.slice() : it ? [String(it.id)] : [];
+    const opt = (k, n, ok, why) => `<label class="db-radio${ok ? "" : " is-off"}" title="${esc(ok ? "" : why)}"><input type="radio" name="dbSetScope" value="${k}"${k === (S.canEditDefault ? "default" : "me") ? " checked" : ""}${ok ? "" : " disabled"}>${n}</label>`;
+    const names = items.map((k) => (S.list.find((x) => String(x.id) === String(k)) || {}).name).filter(Boolean);
+    return `<div class="db-pophead"><b>セットとして保存</b><small>${esc(names.join("・") || "（ダッシュボードがありません）")} をタブに並べたセットを置きます</small></div>`
+      + `<label class="db-field">名前<input id="dbSetName" maxlength="40" value="${esc(st ? `${st.name} のコピー` : "わたしのセット")}"></label>`
+      + `<div class="db-field"><span>置き場</span>${opt("me", "自分（この ID だけ。切り替えのパターン）", !!S.login, "ログイン ID が分かりません")}${opt("all", "共通（全員）", S.canEditCommon, "共通に置けるのは、マスタを書ける権限の人だけです")}`
+      + `${S.canEditDefault ? opt("default", "標準のセット（開発者。全員の既定）", true, "") : ""}</div>`
+      + `<label class="pv-ck"><input type="checkbox" id="dbSetStd" checked>標準にする（アプリを開いたときに、このセットを出す）</label>`
+      + `<div class="db-popacts"><span class="db-sp"></span><button type="button" class="btn-primary" data-db-dosetsave data-items="${esc(JSON.stringify(items))}">保存</button></div><p class="db-poperr" aria-live="polite"></p>`;
   }
   function saveAsHtml() {
     const it = current();
@@ -394,6 +474,33 @@
       await loadList(); open(S.standardId); say(`「${it.name}」を消しました`); return;
     }
     if (t.hasAttribute("data-db-dosave")) { saveAs(); return; }
+    // セット（版 3.46.0）
+    if (t.dataset.dbSet != null) { if (S.edit && dirty()) { say("編集中の変えた所を保存するか、やめてから替えてください"); return; } closePop(); useSet(t.dataset.dbSet || null); return; }
+    if (t.hasAttribute("data-db-setsave")) { openPop("setsave", "[data-db-pick]", setSaveHtml(), "db-savepop"); popEl.querySelector("#dbSetName")?.select(); return; }
+    if (t.hasAttribute("data-db-dosetsave")) {
+      const name = (popEl.querySelector("#dbSetName").value || "").trim(), scope = (popEl.querySelector('input[name="dbSetScope"]:checked') || {}).value || "me", err = popEl.querySelector(".db-poperr");
+      if (!name) { err.textContent = "名前を入れてください"; return; }
+      err.textContent = "保存しています…";
+      const d = await writeSet("POST", null, { name, scope, standard: popEl.querySelector("#dbSetStd").checked, body: { items: JSON.parse(t.dataset.items || "[]") } }, `セット「${name}」を保存しました`);
+      if (d) closePop(); else err.textContent = "✕ 保存できませんでした（道具の行の知らせ）";
+      return;
+    }
+    const st = curSet(), it = current();
+    if (st && t.hasAttribute("data-db-setin")) { await editSet(st.body.items.concat([String(it.id)]), `「${it.name}」をセット「${st.name}」に入れました`); if (popEl) popEl.innerHTML = pickHtml(); return; }
+    if (st && t.hasAttribute("data-db-setout")) { await editSet(st.body.items.filter((k) => k !== String(it.id)), `「${it.name}」をセット「${st.name}」から外しました`); if (popEl) popEl.innerHTML = pickHtml(); return; }
+    if (st && t.dataset.dbSetmove) {
+      const xs = st.body.items.slice(), i = xs.indexOf(String(it.id)), j = i + +t.dataset.dbSetmove;
+      if (i < 0 || j < 0 || j >= xs.length) return;
+      xs.splice(j, 0, xs.splice(i, 1)[0]); await editSet(xs, ""); if (popEl) popEl.innerHTML = pickHtml(); return;
+    }
+    if (st && t.hasAttribute("data-db-setstd")) { await writeSet("PUT", st.id, { standard: true, base_rev: st.rev }, `セット「${st.name}」を標準にしました`); if (popEl) popEl.innerHTML = pickHtml(); return; }
+    if (st && t.hasAttribute("data-db-setdel")) {
+      if (S.confirm !== "setdel") { S.confirm = "setdel"; popEl.innerHTML = pickHtml(); return; }
+      S.confirm = ""; closePop();
+      const r = await fetch(`/api/dashboard-sets/${st.id}?rev=${st.rev}`, { method: "DELETE" });
+      if (!r.ok) { say("消せませんでした: " + ((await r.json().catch(() => ({}))).error || r.status)); return; }
+      await loadSets(); useSet(S.setId); say(`セット「${st.name}」を消しました`); return;
+    }
     const mid = popEl && popEl.dataset.panel;
     if (mid && t.hasAttribute("data-db-edit")) { closePop(); openEditor(mid); return; }
     if (mid && t.hasAttribute("data-db-dup")) { closePop(); duplicate(mid); return; }
@@ -747,6 +854,7 @@
     const b = t.closest("button"); const pEl = t.closest(".db-p");
     if (S.edit && pEl && !b && !S.editing) { S.sel = pEl.dataset.id; document.querySelectorAll("#dashGrid .db-p").forEach((x) => x.classList.toggle("is-sel", x === pEl)); }
     if (!b) return;
+    if (b.dataset.dbTab) { if (S.edit && dirty()) { say("編集中の変えた所を保存するか、やめてから開いてください"); return; } open(b.dataset.dbTab); return; }
     if (b.hasAttribute("data-db-pick")) { if (S.pop === "pick") closePop(); else { S.confirm = ""; openPop("pick", b, pickHtml(), "db-pickpop"); } return; }
     if (b.hasAttribute("data-db-refresh")) { refresh(true); return; }
     // スライサー
@@ -833,8 +941,11 @@
     S.loading = true;
     try {
       await Promise.all([loadList(), loadSources()]);
+      await loadSets();
       loadTree();
-      if (!S.layout) open(mem().id);
+      // セットを使っていれば、覚えたダッシュボード（セットの中なら）か、セットの 1 つ目を開く
+      const ds = setDash(), m = mem();
+      if (!S.layout) open(ds.length && !ds.some((x) => String(x.id) === String(m.id)) ? ds[0].id : m.id);
       else { paint(); refresh(false); }
     } catch (e) { S.msg = String(e.message || e); paint(); }
     S.loading = false;

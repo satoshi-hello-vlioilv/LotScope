@@ -33,7 +33,7 @@ MAX_BYTES = 64 * 1024
 NAME_MAX = 40
 # グラフの形（画面の CHARTS と同じ鍵。版 3.27.0 で 5 → 14・版 3.39.0 で 24。登録は lotlist-pivot-charts.js の DEFS）
 CHARTS = ("time", "line", "area", "control", "xbar", "swimlane", "column", "bar", "lollipop", "pareto", "stack", "stack100", "stackarea", "donut",
-          "treemap", "sankey", "hist", "box", "violin", "heat", "scatter", "bubble", "diag45", "none")
+          "treemap", "sankey", "hist", "box", "violin", "heat", "scatter", "bubble", "diag45", "combo", "none")
 # 中身に入れる物（画面の組み方の覚えの形）。一覧｜集計の切り替え・選んだ月はその時だけの状態なので入れない
 BODY_KEYS = ("rows", "cols", "measures", "chart", "sub", "grand", "chartAt", "split", "labels")
 

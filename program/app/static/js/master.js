@@ -1047,10 +1047,9 @@ async function renderEquipGroups({ notice = null, keep = false } = {}) {
   mstate.egSync = sync;
   const sh = box.querySelector(".sh-editor");
   sh.addEventListener("change", (e) => { if (e.target.matches("[data-eg-rv],[data-eg-rop]")) { sync(); redraw(); } });
-  sh.addEventListener("input", (e) => {
-    if (e.target.id !== "egSearch") return;
-    mstate.egSearch = e.target.value; sync();
-    const at = e.target.selectionStart; redraw();
+  TPA.onTextIn(sh, "#egSearch", (x) => {        // 変換中は描き直さない（確定してから。版 3.46.0）
+    mstate.egSearch = x.value; sync();
+    const at = x.selectionStart; redraw();
     const n = $("#egSearch"); if (n) { n.focus(); n.setSelectionRange(at, at); }
   });
   sh.addEventListener("click", async (e) => {

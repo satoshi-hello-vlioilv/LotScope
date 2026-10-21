@@ -268,7 +268,7 @@
       out.rows.set(label, { v: out.cols.map((c) => (cellOf(a, [k], c.path) || [null])[0]), total: (cellOf(a, [k], []) || [null])[0] });
     }
     out.total = (cellOf(a, [], []) || [null])[0];
-    (a.failed || []).concat(a.skipped || []).forEach((f) => out.failed.set(f.name, f.error));
+    (a.failed || []).concat(a.skipped || []).forEach((f) => out.failed.set(f.name, f.kind === "copying" ? "写しています…" : f.error));
     if (a.parts) out.parts = new Set(a.parts.map((x) => x.name));
     return out;
   }
@@ -485,7 +485,7 @@
   const CALCD = Symbol("calcd");
   function calcd(p, d) {
     const fn = window.NumFormat && (p.fmt || {}).expr ? NumFormat.expr(p.fmt.expr).fn : null;
-    if (!fn || !d || d[CALCD]) return d;
+    if (!fn || !d || d[CALCD] || d.equips) return d;
     const one = (a) => (a && a.cells ? { ...a, cells: a.cells.map((c) => ({ ...c, v: c.v.map((x) => (typeof x === "number" ? fn(x) : x)) })), [CALCD]: true } : a);
     return d.facets ? { ...d, facets: d.facets.map((f) => ({ ...f, answer: one(f.answer) })), [CALCD]: true } : one(d);
   }
@@ -493,6 +493,7 @@
     d = calcd(p, d);
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
     look(box, p.fmt);
+    if (p.visual === "gantt" || p.visual === "abc") return d.kind === p.visual ? window.DashOps[p.visual](box, p, d, W, H) : "";   // 稼働・ABC 分析（版 3.46.0。dashboard-ops.js）
     if (d.facets) return facets(box, p, d, W, H);
     if (p.visual === "kpi") { kpi(box, p, d, W, H, sub); return ""; }
     if (p.visual === "none") return table(box, p, d, W, H);
@@ -502,7 +503,9 @@
   /** パネルの知らせ（読めなかった設備・効かない条件・ロット数の注意）。見出しの ⚠ の札に出す（中身の上に被せない） */
   function notes(d) {
     const out = [];
-    const bad = [...(d.failed || []), ...(d.skipped || [])];
+    const all = [...(d.failed || []), ...(d.skipped || [])], bad = all.filter((x) => x.kind !== "copying"), wait = all.filter((x) => x.kind === "copying");
+    // 入れた直後など、共有から写している最中の設備は「読めない」ではなく待ち（写し終えると数に入る。画面は 4 秒ごとに引き直す。版 3.46.0）
+    if (wait.length) out.push(`写しています（写し終えると数に入ります）: ${wait.map((x) => x.name).join("・")}`);
     if (bad.length) out.push(`読めない設備: ${bad.map((x) => x.name).join("・")}`);
     if ((d.ignoredFilters || []).length) out.push(`効かない条件（表に無い列）: ${d.ignoredFilters.join("・")}`);
     if (d.equipIgnored) out.push("このデータは設備を見分けられないので、設備の選び・まとめは効きません（データ元で設備の列を決めてください）");

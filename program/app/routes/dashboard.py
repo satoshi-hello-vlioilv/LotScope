@@ -5,18 +5,18 @@ import os
 import re
 import threading
 from collections import OrderedDict
-from datetime import datetime
+from datetime import date, datetime
 
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings
-from ..services import aggregate, dashboard, data_sources, equip_groups, pivot, shifts, work_log
+from ..services import aggregate, dashboard, data_sources, db_mirror, equip_groups, operation, pivot, shifts, work_log
 from ..services.identity import normalize_part
 from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
 from .presets import _gate, _who
 from .sources import src_plan
-from .worklog import worklog_plan
+from .worklog import start_mirrors, worklog_plan
 
 
 def _fail(fail):
@@ -113,7 +113,7 @@ def dashboards_update(item_id):
 
     def go():
         old = find_row(master_repo().dashboards(), item_id)
-        if old is None:
+        if old is None or old.get("元") != dashboard.LAYOUT_SOURCE:       # セット（元 dashset）はセットの道で直す
             raise dashboard.LayoutError(f"id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
         _gate(old, login, common_ok, default_ok, revoked, "ダッシュボード")
         row = master_repo().dashboard_update(item_id, dashboard.clean_layout_row(request.get_json(force=True) or {}, login, partial=True), base)
@@ -128,8 +128,70 @@ def dashboards_delete(item_id):
 
     def go():
         old = find_row(master_repo().dashboards(), item_id)
-        if old is not None:
+        if old is not None and old.get("元") == dashboard.LAYOUT_SOURCE:
             _gate(old, login, common_ok, default_ok, revoked, "ダッシュボード")
+            master_repo().dashboard_delete(item_id, base)
+        return {"ok": True}
+    return master_call(go)
+
+
+# ---------------------------------------------------------------- ダッシュボードのセット（版 3.46.0。services/dashboard.py の SET_SOURCE）
+def _set_rows(login):
+    return [r for r in master_repo().dashboards() if r.get("元") == dashboard.SET_SOURCE and dashboard.pivot_presets.visible(r, login)]
+
+
+@bp.get("/api/dashboard-sets")
+def dashboard_sets_list():
+    """セットの並び（自分の ID → 共通 → 共通デフォルト）と、いま開く標準のセット（standardId。無ければ null＝セットを使わない）"""
+    login, common_ok, default_ok, _ = _who(dashboard.LAYOUT_NAME)
+    rows = _set_rows(login)
+    std = dashboard.pivot_presets.standard_for(rows, dashboard.SET_SOURCE, login)
+    items = sorted((dashboard.set_view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
+    return jsonify(items=items, standardId=std.get("id") if std else None, login=login, canEditCommon=common_ok, canEditDefault=default_ok,
+                   max=dashboard.MAX_SET_ITEMS)
+
+
+def _old_set(item_id):
+    old = find_row(master_repo().dashboards(), item_id)
+    if old is None or old.get("元") != dashboard.SET_SOURCE:
+        raise dashboard.LayoutError(f"セット id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
+    return old
+
+
+@bp.post("/api/dashboard-sets")
+def dashboard_sets_create():
+    """{name, scope: default|all|me, standard, body: {items}, note} を新しいセットとして置く"""
+    login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
+
+    def go():
+        row = dashboard.clean_set_row(request.get_json(force=True) or {}, login)
+        _gate(row, login, common_ok, default_ok, revoked, "ダッシュボードのセット")
+        return dashboard.set_view(master_repo().dashboard_create(row), login, common_ok, default_ok)
+    return master_call(go, 201)
+
+
+@bp.put("/api/dashboard-sets/<int:item_id>")
+def dashboard_sets_update(item_id):
+    """名前・中身（ダッシュボードの並び）・標準を直す。base_rev が今の版と違えば 409"""
+    login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
+    base = base_rev()
+
+    def go():
+        _gate(_old_set(item_id), login, common_ok, default_ok, revoked, "ダッシュボードのセット")
+        row = master_repo().dashboard_update(item_id, dashboard.clean_set_row(request.get_json(force=True) or {}, login, partial=True), base)
+        return dashboard.set_view(row, login, common_ok, default_ok)
+    return master_call(go)
+
+
+@bp.delete("/api/dashboard-sets/<int:item_id>")
+def dashboard_sets_delete(item_id):
+    login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
+    base = base_rev()
+
+    def go():
+        old = find_row(master_repo().dashboards(), item_id)
+        if old is not None and old.get("元") == dashboard.SET_SOURCE:
+            _gate(old, login, common_ok, default_ok, revoked, "ダッシュボードのセット")
             master_repo().dashboard_delete(item_id, base)
         return {"ok": True}
     return master_call(go)
@@ -175,9 +237,10 @@ def panel_parts(source, equip="", basis="work", equips=None):
             raise _Fail(error("数える設備がありません（「マスタ管理」の「作業実績」で表示する設備を決めてください）。", 404, "unknown"))
         pats = repo.shift_patterns()
         parts, failed, mirrors, first = [], [], [], None
+        start_mirrors(rows, db_mirror.FIRST_WAIT_SEC)        # 全部の設備の写しを一度に始めて、まとめて待つ（1 台ずつ順に待たない。版 3.46.0）
         for row in rows:
             name = str(row.get("設備名") or "")
-            plan, fail = worklog_plan(key=row.get("キー"), rows=wl_rows)
+            plan, fail = worklog_plan(key=row.get("キー"), rows=wl_rows, wait=False)
             if fail:
                 f = _fail(fail)
                 failed.append({"name": name, **f})
@@ -431,6 +494,81 @@ def _link_answer(p, now):
                                for i, x in enumerate(sides)]}}
 
 
+# ---------------------------------------------------------------- 稼働・ABC 分析（版 3.46.0。services/operation.py）
+GANTT_PERIOD = {"column": "@workday", "kind": "yesterday", "n": 1}
+
+
+def _ops_answer(p, now):
+    """稼働（gantt）・ABC 分析と換算係数（abc）のパネル → 設備ごとの答え（作業開始と作業終了から）。
+    gantt … {kind, equips: [{name, ops, windows, shiftMin, busyMin, outsideMin, rate, byShift, noEnd, count}], range, total}
+    abc   … {kind, equips: [{name, items, total, base, conv, lots}], all: 全設備を合わせた答え}。期間が無ければ全期間。
+    同じ組み・同じ写し・同じ「今日」なら前の答え（_answer と同じ控え）"""
+    try:
+        parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"))
+    except _Fail as f:
+        return _fail(f.resp)
+    o = p.get("ops") or {}
+    period = p["period"] or (GANTT_PERIOD if p["visual"] == "gantt" else None)
+    stamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    days = [x.work["clock"].place(stamp, x.work["basis"])[0] if x.work else "" for x in parts]
+    key = json.dumps(["ops", p, period, [_file_sig(x.path) for x in parts], days, now.date().isoformat(), now.hour if p["visual"] == "gantt" else 0,
+                      [f["name"] for f in failed]], ensure_ascii=False, sort_keys=True, default=str)
+    cache = _cache()
+    hit = cache.get(key)
+    if hit is None:
+        with _COUNT_LOCK:
+            hit = _ops_count(p, parts, o, period, now)
+        if "error" in hit:
+            return hit
+        cache[key] = hit
+        while len(cache) > 96:
+            cache.popitem(last=False)
+    return {**hit, "failed": failed + hit.get("skipped", []), "sourceName": name, "mirrors": mirrors, "now": stamp}
+
+
+def _ops_count(p, parts, o, period, now):
+    pats = master_repo().shift_patterns()
+    qty = o.get("qty") or "lots"
+    cols = [o.get("label") or "", o.get("color") or "", o.get("cls") or "", qty if qty not in operation.QTYS else ""]
+    equips, skipped, every, rng, start_col, end_col = [], [], [], None, "", ""
+    for part in parts:
+        try:
+            r = operation.read_ops(part, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False), today=now.date(), calc=p.get("calc"),
+                                   period=period, now=now, end=o.get("end", ""), cols=[c for c in cols if c])
+        except pivot.PivotError as e:
+            skipped.append({"name": part.name, "error": str(e)})
+            continue
+        except Exception as e:
+            skipped.append({"name": part.name, "error": str(e)})
+            continue
+        start_col, end_col, rng = start_col or r["start"], end_col or r["end"], rng or r["range"]
+        if p["visual"] == "gantt":
+            if r["range"] and (date.fromisoformat(r["range"][1]) - date.fromisoformat(r["range"][0])).days + 1 > operation.MAX_DAYS:
+                return {"error": f"ガントチャートの期間は {operation.MAX_DAYS} 日までです（期間を短くしてください）。", "kind": "invalid", "status": 400}
+            pat = shifts.pattern_for(pats, part.name)
+            wins = operation.shift_windows(pat["segments"], *r["range"], part.work.get("basis", "work")) if pat and r["range"] else []
+            label = o.get("label") or r["lot"] or ""
+            g = operation.gantt(part.name, r, wins, label=label, color=o.get("color") or "")
+            equips.append({**g, "pattern": pat["name"] if pat else ""})
+        else:
+            a = operation.abc(r["ops"], o.get("cls") or "", qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
+            equips.append({"name": part.name, **a})
+            every += r["ops"]
+    if not equips:
+        return {"error": "数えられる設備がありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]), "kind": "invalid", "status": 400}
+    # 期間はほかのパネルと同じ形（画面の periodText が読む: 名前と日の範囲）
+    per = {**period, "name": pivot.PERIODS.get(period["kind"], ""), "ranges": [{"from": rng[0], "to": rng[1]}] if rng else []} if period else None
+    out = {"kind": p["visual"], "equips": equips, "skipped": skipped, "range": rng, "startColumn": start_col, "endColumn": end_col, "period": per}
+    if p["visual"] == "gantt":
+        sm, bm = sum(e["shiftMin"] for e in equips), sum(e["busyMin"] for e in equips)
+        out["total"] = {"shiftMin": round(sm, 2), "busyMin": round(bm, 2), "rate": round(bm / sm, 4) if sm else None,
+                        "noPattern": [e["name"] for e in equips if not e["pattern"]], "noEnd": sum(e["noEnd"] for e in equips)}
+    else:
+        out["all"] = operation.abc(every, o.get("cls") or "", qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
+        out["cls"], out["qty"] = o.get("cls") or "", qty
+    return out
+
+
 def aggregate_name(m, source):
     """値の名前（ロット数は作業実績なら実績本数）"""
 
@@ -457,7 +595,7 @@ def dashboard_query():
             keys = list(dict.fromkeys(str((a.get("labels") or [{}])[0].get(k, k)) for a in groups if "orders" in a for k in a["orders"][0] if k != ""))
             extra["tree"] = (equip_tree(keys, p["order"]["tree"]) or [{"groups": []}])[0]["groups"]
         return jsonify(groups=groups, equipOrder=_equipment_names(repo, repo.work_logs()), now=now.strftime("%Y-%m-%d %H:%M:%S"), **extra)
-    a = _link_answer(p, now) if p.get("link") else _split_answer(p, now)
+    a = _ops_answer(p, now) if p["visual"] in dashboard.OPS_VISUALS else _link_answer(p, now) if p.get("link") else _split_answer(p, now)
     if "status" in a and "cells" not in a:
         return error(a["error"], a["status"], a["kind"])
     return jsonify(a)

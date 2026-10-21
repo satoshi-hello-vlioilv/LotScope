@@ -70,7 +70,8 @@ LAYOUT_SOURCE = "dash"
 GRID_COLS = 12
 ROWS_MIN, ROWS_MAX, ROWS_DEFAULT = 4, 16, 8
 MAX_PANELS = 24
-EXTRA_VISUALS = ("kpi", "board")
+EXTRA_VISUALS = ("kpi", "board", "gantt", "abc")
+OPS_VISUALS = ("gantt", "abc")          # 稼働（ガントチャートと稼働率）・ABC 分析と換算係数（版 3.46.0。services/operation.py）
 SORTS = ("", "desc", "asc")
 TOP_MAX = 60
 _ID = re.compile(r"[A-Za-z0-9_-]{1,16}")
@@ -192,6 +193,8 @@ KPI_LOOKS = ("num", "bar", "gauge")
 MAX_REFS = 4
 MAX_COLORS = 40
 SERIES_LABELS = ("top", "below", "off")
+SERIES_KINDS = ("bar", "line", "area")        # 系列ごとの形（版 3.46.0。組み合わせのグラフ。どの推移・組み合わせの形でも効く）
+SERIES_AXES = ("left", "right")
 # 値の表示形式と見せ方（版 3.43.0。Excel のセルの書式設定の「表示形式」「配置」「フォント」に当たる。画面は static/js/num-format.js）
 NUM_MAX = 160
 NUM_CATS = ("num", "cur", "pct", "sci", "custom")
@@ -220,7 +223,7 @@ def clean_fmt(v):
     labels（数値ラベル: auto・none・top〈上〉・inside〈棒の中。積み上げはそれぞれの段〉・both）・xdate（横軸の日付の形）・xrot（横軸の字の向き）・
     digits（小数の桁。-1＝自動）・unit（単位: auto〈万・億〉・none・k〈千〉・man〈万〉）・ymin/ymax（縦軸の範囲）・legend・grid（補助線）・
     refs（基準線 [{value, label, color}]）・palette（色の組）・colors（系列・項目の名前 → 色）・size（字の大きさ）・kpi（数字の形）・target（目標）・
-    series（版 3.41.0。系列の名前 → {label: top〈上〉・below〈下〉・off〈出さない〉, dash: True〈破線〉}）・
+    series（版 3.41.0。系列の名前 → {label: top〈上〉・below〈下〉・off〈出さない〉, dash: True〈破線〉, kind: bar・line・area〈形。版 3.46.0〉, axis: left・right}）・
     num（版 3.43.0。表示形式: Excel の書式コード）と numUi（その選び {cat, dec, sep, neg, pre, suf}）・align（横の配置）・valign（縦の配置）・
     nsize（字の大きさ s・l・xl）・bold（off で太字にしない）・ncolor（字の色）"""
     if not isinstance(v, dict):
@@ -256,7 +259,8 @@ def clean_fmt(v):
         out["colors"] = cs
     ss = {}
     for k, x in list((v.get("series") if isinstance(v.get("series"), dict) else {}).items())[:MAX_COLORS]:
-        one = {**({"label": x["label"]} if x.get("label") in SERIES_LABELS else {}), **({"dash": True} if x.get("dash") is True else {})} if isinstance(x, dict) else {}
+        one = {**({"label": x["label"]} if x.get("label") in SERIES_LABELS else {}), **({"dash": True} if x.get("dash") is True else {}),
+               **({"kind": x["kind"]} if x.get("kind") in SERIES_KINDS else {}), **({"axis": x["axis"]} if x.get("axis") in SERIES_AXES else {})} if isinstance(x, dict) else {}
         if str(k).strip() and one:
             ss[str(k)[:120]] = one
     if ss:
@@ -500,12 +504,41 @@ def clean_panel(p, i, rows):
         out["egroup"] = eg
     if p.get("esplit") in ESPLITS[1:]:
         out["esplit"] = p["esplit"]
+    if visual in OPS_VISUALS:
+        if out["source"] != "work":
+            raise LayoutError(f"{what}の稼働・ABC 分析は、作業実績（作業開始と作業終了がある）で使えます。")
+        out["ops"] = clean_ops(p.get("ops"))
+        out["body"]["rows"], out["body"]["cols"] = [], []
+        out.pop("egroup", None)
+        out.pop("esplit", None)
+        return out
     link = clean_link(p.get("link"), what)
     if link:
         out["link"] = link
         return out
     if visual not in ("kpi", "none") and not out["body"]["rows"]:
         raise LayoutError(f"{what}は行の段が要ります（大きな数にするなら「数字」の形を選んでください）。")
+    return out
+
+
+# ---------------------------------------------------------------- 稼働・ABC 分析（版 3.46.0。visual gantt・abc）
+# ops: {end: 作業終了の列（"" は見つける）, label: 棒の字の列, color: 棒の色分けの列, cls: 品種の列（ABC・換算係数）,
+#       qty: 量（lots＝本数・time＝作業時間・数の列の名前＝その合計）, base: 換算の基準（avg・top・品種の値）, a・b: ABC の線（累積構成比 %）}
+ABC_A, ABC_B = 70.0, 90.0
+
+
+def clean_ops(v):
+    v = v if isinstance(v, dict) else {}
+    col = lambda k: str(v.get(k) or "").strip()[:200]       # noqa: E731
+    a = _float(v.get("a"))
+    b = _float(v.get("b"))
+    a = min(99.0, max(1.0, a if a is not None else ABC_A))
+    b = min(100.0, max(a, b if b is not None else ABC_B))
+    out = {k: col(k) for k in ("end", "label", "color", "cls") if col(k)}
+    qty, base = col("qty"), str(v.get("base") or "").strip()[:120]
+    out.update({"qty": qty or "lots", "base": base or "avg"})
+    if (a, b) != (ABC_A, ABC_B):
+        out.update(a=a, b=b)
     return out
 
 
@@ -556,6 +589,47 @@ def layout_view(row, login="", common_ok=False, default_ok=False):
     """マスタの行 → 画面の形（中身が壊れていれば panels は空）"""
     v = pivot_presets.view(row, login, common_ok, default_ok, body_of=lambda t: clean_layout(t)[0])
     return v if v["body"] else {**v, "body": {"rows": ROWS_DEFAULT, "panels": []}}
+
+
+# ---------------------------------------------------------------- ダッシュボードのセット（版 3.46.0。利用者の要望 2026-10-21 の 7）
+# いくつかのダッシュボードを 1 つの束（セット）にして、道具の行のタブで切り替える。置き場はダッシュボードと同じマスタ dashboards（元 "dashset"）で、
+# 決まりもダッシュボード・集計表の組み方と同じ: 共通デフォルト（開発者が作る標準のセット。いくつでも）・共通・自分の ID（個人の切り替えのパターン）と、
+# 範囲ごとの ★標準（アプリを開いたときのセット。自分 → 共通 → 共通デフォルトの順に決まる）。
+# 中身: {items: [ダッシュボードの id（数の字）か組み込みの "b:鍵"]}（並びがタブの順。見えないダッシュボードは画面が飛ばす）
+SET_SOURCE = "dashset"
+MAX_SET_ITEMS = 12
+_SET_ITEM = re.compile(r"\d{1,9}|b:[A-Za-z0-9_-]{1,32}")
+
+
+def clean_set_body(body):
+    """セットの中身（dict か JSON 字）→ (dict, JSON 字)。ダッシュボードが 1 つも無い・多すぎれば LayoutError"""
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except ValueError as e:
+            raise LayoutError("セットの中身の形が違います。") from e
+    raw = body.get("items") if isinstance(body, dict) else None
+    items = list(dict.fromkeys(str(x) for x in (raw if isinstance(raw, list) else []) if _SET_ITEM.fullmatch(str(x))))
+    if not items:
+        raise LayoutError("セットに入れるダッシュボードを 1 つ以上選んでください。")
+    if len(items) > MAX_SET_ITEMS:
+        raise LayoutError(f"セットに入れられるダッシュボードは {MAX_SET_ITEMS} までです。")
+    out = {"items": items}
+    return out, json.dumps(out, ensure_ascii=False)
+
+
+def clean_set_row(data, login, partial=False):
+    """画面から来た値 → マスタ dashboards の行（元 dashset。名前・範囲・標準はダッシュボードと同じ決まり）"""
+    try:
+        return pivot_presets.clean_row({**(data or {}), "source": SET_SOURCE}, login, partial,
+                                       body_text=lambda b: clean_set_body(b)[1], source_ok=lambda s: s == SET_SOURCE)
+    except pivot_presets.PresetError as e:
+        raise LayoutError(str(e)) from None
+
+
+def set_view(row, login="", common_ok=False, default_ok=False):
+    v = pivot_presets.view(row, login, common_ok, default_ok, body_of=lambda t: clean_set_body(t)[0])
+    return v if v["body"] else {**v, "body": {"items": []}}
 
 
 # ---------------------------------------------------------------- 組み込みの標準（共通デフォルト。開発者がコードに書く）
