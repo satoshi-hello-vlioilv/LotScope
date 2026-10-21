@@ -295,12 +295,14 @@
     // 題が切れるなら、印を絵だけに畳む（中身は印の説明に。3 回目の採点: 1280 の数字のパネルで「9月 の実績…」と切れた）・形の札は内訳を隠す
     const tb = el.querySelector(".db-ph h3"), sb = el.querySelector(".db-ph .db-sbadge"), ob = el.querySelector(".db-ph .og-badge");
     if (tb && ob && tb.scrollWidth > tb.clientWidth + 1) ob.classList.add("is-short");
+    const nb = el.querySelector(".db-ph .og-nbadge");                // 区間なしの札も、題が切れるなら設備の名前を隠す（説明に残る）
+    if (tb && nb && tb.scrollWidth > tb.clientWidth + 1) nb.classList.add("is-short");
     if (tb && sb && tb.scrollWidth > tb.clientWidth + 1) sb.classList.add("is-icon");
     // 編集で題が切れるなら、操作を「⋯」1 つに畳む（2026-10-dashslice の 2 回目の採点: 1280 の数字のパネルで題が「前日の実績…」と切れた）
     const t3 = el.querySelector(".db-ph h3");
     if (S.edit && t3 && t3.scrollWidth > t3.clientWidth + 1 && !ph.querySelector("[data-db-more]")) {
       ph.innerHTML = headHtml(p, a, el.clientWidth, true);
-      if (own) ph.querySelector("h3").insertAdjacentHTML("afterend", own.replace('class="og-badge"', 'class="og-badge is-short"'));
+      if (own) ph.querySelector("h3").insertAdjacentHTML("afterend", own.replace('class="og-badge"', 'class="og-badge is-short"').replace('class="og-nbadge"', 'class="og-nbadge is-short"'));
       if (sw) ph.querySelector("h3").insertAdjacentHTML("afterend", badgeHtml.replace('class="db-sbadge"', 'class="db-sbadge is-icon"'));
     }
     qEl.hidden = !qc.length;

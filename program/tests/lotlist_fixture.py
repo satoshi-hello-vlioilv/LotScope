@@ -62,6 +62,40 @@ def make_work(path, equipment, n=400, seed=11):
     c.close()
 
 
+def make_work_box(path, equipment="ANF", seed=17, now=None):
+    """焼鈍炉（BOX）の作業実績の試験用データ（版 3.47.0。ガント・換算係数の「出ない設備」を画面で撮るため。本物の列の名前に合わせた作り物）。
+    1 回の作業（炉に入れて出すまで）が 20〜50 時間・1 回に 3〜6 ロット（作業開始が同じ）。作業開始_日付 は日時、作業終了_日付 は日付だけで、
+    時刻まで持つのは 年月日時分秒 の列（14 桁）。2 回は作業終了の書き忘れ（空）・いちばん新しい作業は、いま炉の中（作業終了がまだ無い）。
+    ほかの列はほかの設備と同じ（WORK_COLUMNS。計算列・ほかのパネルがその列を使う）"""
+    r = random.Random(f"{seed}-{equipment}")
+    now = now or datetime.combine(TODAY + timedelta(days=1), datetime.min.time()).replace(hour=10)
+    cols = WORK_COLUMNS + ["BOX実績_作業開始_年月日時分秒", "BOX実績_作業終了_年月日時分秒"]      # ほかの設備と同じ列（計算列・ほかのパネルが使う）＋ 14 桁の列
+    c = sqlite3.connect(path)
+    c.execute("DROP TABLE IF EXISTS 実績")
+    c.execute("CREATE TABLE 実績 (" + ",".join(f"[{x}]" for x in cols) + ")")
+    rows, t, k, lot, forgot = [], now - timedelta(days=60), 0, 0, False
+    while t < now:
+        dur = timedelta(hours=r.randint(20, 50))
+        miss = k == 7 or (not forgot and t.date() >= TODAY - timedelta(days=1))   # 7 回目と、前日ごろに入れた 1 回は書き忘れ。最後はいま炉の中
+        forgot = forgot or miss and k != 7
+        end = t + dur if t + dur < now and not miss else None
+        alloy, temper = r.choice(["A1100", "A5052", "A3004", "A8079"]), r.choice(["O", "H24"])
+        th, kind, who = r.choice([0.3, 0.5, 1.0]), r.choice(["通常", "通常", "再処理"]), r.choice(["作業者A", "作業者B"])     # 1 回の作業の中では同じ
+        for _ in range(r.randint(3, 6)):
+            lot += 1
+            v = {"ロット番号": f"B{lot:05d}", "BOX実績_作業開始_日付": f"{t:%Y/%m/%d} {t.hour}:{t.minute:02d}:00", "作業日": f"{t:%Y/%m/%d}",
+                 "開始": f"{t:%H:%M}", "終了": f"{end:%H:%M}" if end else "", "作業区分": kind, "作業者": who,
+                 "入側板厚": th, "出側板厚": th, "板幅": r.randint(800, 1600), "重量": round(r.uniform(2000, 9000), 1), "速度": 0,
+                 "合金": alloy, "調質": temper, "備考": "", "BOX実績_作業終了_日付": f"{end:%Y/%m/%d}" if end else "",
+                 "BOX実績_作業開始_年月日時分秒": f"{t:%Y%m%d%H%M%S}", "BOX実績_作業終了_年月日時分秒": f"{end:%Y%m%d%H%M%S}" if end else ""}
+            rows.append([v[x] for x in cols])
+        t = t + dur + timedelta(minutes=r.randint(40, 180))
+        k += 1
+    c.executemany("INSERT INTO 実績 VALUES (" + ",".join("?" * len(cols)) + ")", rows)
+    c.commit()
+    c.close()
+
+
 # 仕掛（WaveLog の仕掛 SIKALOTNOW と同じ 34 列の頭。本物は 200 列ほど）。残仕掛設備ｺｰｽ は「次の設備 その次 …」（空白区切り）で、
 # 先頭が今その設備に仕掛かっている（WaveLog の作業可否と同じ決まり）。設備名は作業実績の試験用の設備と同じ
 WIP_COLUMNS = ["ロット番号", "鋳造番号", "製造材質", "製造調質", "用途名", "BOX設計_設備名", "検査番号", "オーダー番号", "取引先", "納入先",

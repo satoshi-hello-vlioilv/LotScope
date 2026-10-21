@@ -3,6 +3,8 @@
 ダッシュボードのパネル（visual gantt・abc）の問い合わせ。素朴に数え直した数と突き合わせる。"""
 import shutil
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -14,6 +16,7 @@ from app.repositories.master_repository import MasterRepository
 from app.repositories.master_store import MasterStore
 from app.services import dashboard, operation, shifts, work_log
 from app.services.db_mirror import DbMirror
+from app.services.sqlite_ro import to_datetime
 
 ROOT = Path(__file__).resolve().parents[1]
 THREE = shifts.segments_of(shifts.clean_row({"name": "交替", "segments": shifts.TEMPLATES[1]["segments"]}))
@@ -61,6 +64,41 @@ class Utilization(unittest.TestCase):
         self.assertEqual(operation.end_column(["作業開始日時", "作業終了日時"], start="作業開始日時"), "作業終了日時")
         self.assertEqual(operation.end_column(["開始", "終わり"], preferred="終わり"), "終わり")
         self.assertEqual(operation.end_column(["開始"]), "")
+
+
+class Stamps(unittest.TestCase):
+    """作業開始・作業終了の書き方（版 3.47.0。利用者の要望 2026-10-21 の 2 回目の 1・4）"""
+
+    def test_compact_and_meridiem(self):
+        self.assertEqual(to_datetime("20261002201500"), "2026-10-02 20:15:00")          # 年月日時分秒の 14 桁
+        self.assertEqual(to_datetime(20261002201500), "2026-10-02 20:15:00")
+        self.assertIsNone(to_datetime("20261302201500"), "13 月は無い")
+        self.assertEqual(to_datetime("2026/10/02 午後 8:15:00"), "2026-10-02 20:15:00")   # 前は 8:15 と読んだ
+        self.assertEqual(to_datetime("2026/10/02 午前 12:05:00"), "2026-10-02 00:05:00")
+        self.assertEqual(to_datetime("2026/10/02 8:15:00 PM"), "2026-10-02 20:15:00")
+        self.assertEqual(to_datetime("2026/10/02 12:15:00 PM"), "2026-10-02 12:15:00")
+        self.assertEqual(to_datetime("2026/10/02", "午後 3:00:00"), "2026-10-02 15:00:00")
+        self.assertEqual(to_datetime("2026/10/02 20:15:00"), "2026-10-02 20:15:00")       # 24 時の書き方はそのまま
+        self.assertEqual(to_datetime("20261002"), "2026-10-02")
+
+    def test_read_stamp_falls_back_to_the_next_column(self):
+        """選んだ列が日付だけなら、次の列（年月日時分秒）で時刻まで読む。日時の数も読む"""
+        self.assertEqual(operation.read_stamp([("2026/10/02", None), ("20261002081500", None)])[0], T("2026-10-02 08:15"))
+        self.assertEqual(operation.read_stamp([(46297.34375, None)])[0], T("2026-10-02 08:15"))
+        self.assertEqual(operation.read_stamp([("2026/10/02", None)])[1:], ("2026-10-02", "notime"))
+        self.assertEqual(operation.read_stamp([("", None), (None, None)])[2], "blank")
+        self.assertEqual(operation.read_stamp([("不明", None)])[2], "unread")
+
+    def test_stamp_columns(self):
+        cs = ["BOX実績_作業終了_日付", "BOX実績_作業終了_直", "BOX実績_作業終了_年月日時分秒", "BOX実績_作業終了_時刻", "合金"]
+        self.assertEqual(operation.stamp_columns(cs, "BOX実績_作業終了_日付", "作業終了"),
+                         [("BOX実績_作業終了_日付", "BOX実績_作業終了_時刻"), ("BOX実績_作業終了_年月日時分秒", "")])
+
+    def test_every_format_gets_spans(self):
+        """評価関数 tools/ops-bench.py: 設備ごとに違う 9 つの書き方（14 桁・午後・日時の数・時刻の列・焼鈍炉・日跨ぎ・空の作業終了 …）の
+        どれでも、ガントの棒・稼働の分・作業時間の分かる本数が正しい数と合い、区間を出せない作業の数と理由を答えが持つ"""
+        r = subprocess.run([sys.executable, str(ROOT / "tools" / "ops-bench.py")], capture_output=True, text=True, encoding="utf-8", timeout=300)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 def op(k, start, minutes, n=1):
@@ -143,25 +181,56 @@ class Api(unittest.TestCase):
         self.fail(d)
 
     def test_gantt_yesterday(self):
-        """前日（現場歴 10/15）: CR1 の作業は 3 つ（分割 2 本は 1 作業）＋作業終了の無い 1 つ。稼働は重ねて 8:00〜10:00（1直の 7:00〜）と 16:00〜17:00"""
+        """前日（現場歴 10/15）: CR1 の作業は 3 つ（分割 2 本は 1 作業）＋作業終了がまだ無いいちばん新しい 1 つ（18:00〜。いま 10/16 10:00 まで動いている。
+        版 3.47.0 から、いままでの棒〈印 r〉にする）。稼働は重ねて 8:00〜10:00（1直の 7:00〜）と 16:00〜17:00 と 18:00〜勤務時間の終わり（10/16 7:00）"""
         d = self.ask(visual="gantt", period={"column": "@workday", "kind": "yesterday"})
         self.assertEqual(d["kind"], "gantt")
         self.assertEqual(d["range"], ["2026-10-15", "2026-10-15"])
         cr1 = next(e for e in d["equips"] if e["name"] == "CR1")
-        self.assertEqual([(o[0], o[1], o[2], o[4]) for o in cr1["ops"]], [("2026-10-15 08:00:00", "2026-10-15 09:00:00", "L1", 2),
-                                                                        ("2026-10-15 08:30:00", "2026-10-15 10:00:00", "L3", 1),
-                                                                        ("2026-10-15 16:00:00", "2026-10-15 17:00:00", "L4", 1)])
-        self.assertEqual((cr1["noEnd"], cr1["count"], cr1["shiftMin"], cr1["busyMin"]), (1, 4, 1440, 180))
-        self.assertEqual(cr1["rate"], round(180 / 1440, 4))
+        self.assertEqual([(o[0], o[1], o[2], o[4], o[5]) for o in cr1["ops"]], [("2026-10-15 08:00:00", "2026-10-15 09:00:00", "L1", 2, ""),
+                                                                              ("2026-10-15 08:30:00", "2026-10-15 10:00:00", "L3", 1, ""),
+                                                                              ("2026-10-15 16:00:00", "2026-10-15 17:00:00", "L4", 1, ""),
+                                                                              ("2026-10-15 18:00:00", "2026-10-16 10:00:00", "L5", 1, "r")])
+        busy = 180 + 13 * 60
+        self.assertEqual((cr1["noEnd"], cr1["count"], cr1["shiftMin"], cr1["busyMin"]), (0, 4, 1440, busy))
+        self.assertEqual(cr1["rate"], round(busy / 1440, 4))
+        self.assertEqual(cr1["view"], ["2026-10-15 07:00:00", "2026-10-16 07:00:00"])
         l1 = next(e for e in d["equips"] if e["name"] == "L-1")
         self.assertEqual((l1["busyMin"], l1["rate"]), (480, round(480 / 1440, 4)))
-        self.assertEqual(d["total"]["rate"], round((180 + 480) / 2880, 4))
+        self.assertEqual(d["total"]["rate"], round((busy + 480) / 2880, 4))
         self.assertEqual(d["endColumn"], "BOX実績_作業終了_日付")
+
+    def test_gantt_today_shows_carry_over(self):
+        """今日（10/16）: 前日 18:00 に始まり、まだ動いている L5 は、期間より前から続く作業として今日の見る範囲にも出る（数には入れない）"""
+        d = self.ask(visual="gantt", period={"column": "@workday", "kind": "today"})
+        cr1 = next(e for e in d["equips"] if e["name"] == "CR1")
+        self.assertEqual([(o[2], o[5]) for o in cr1["ops"]], [("L5", "r")])
+        self.assertEqual((cr1["count"], cr1["busyMin"]), (0, 180))         # 10/16 7:00〜10:00
+
+    def test_unreadable_equipment_stays_as_a_row(self):
+        """作業終了の列が無い設備も、ガントの行に理由と一緒に出す（前は行ごと消えた）"""
+        folder = self.tmp / "実績"
+        c = sqlite3.connect(folder / "実績_L-1.sqlite3")
+        c.execute("DROP TABLE 実績")
+        c.execute("CREATE TABLE 実績 (ロット番号 TEXT, BOX実績_作業開始_日付 TEXT)")
+        c.execute("INSERT INTO 実績 VALUES ('M1', '2026/10/15 7:00:00')")
+        c.commit()
+        c.close()
+        d = self.ask(visual="gantt", period={"column": "@workday", "kind": "yesterday"})
+        l1 = next(e for e in d["equips"] if e["name"] == "L-1")
+        self.assertIn("作業終了の列が見つかりません", l1["error"])
+        self.assertEqual(d["total"]["noPattern"], [])
 
     def test_gantt_color_and_equips(self):
         d = self.ask(visual="gantt", equips=["CR1"], ops={"color": "合金"}, period={"column": "@workday", "kind": "yesterday"})
         self.assertEqual([e["name"] for e in d["equips"]], ["CR1"])
-        self.assertEqual([o[3] for o in d["equips"][0]["ops"]], ["A1100", "A5052", "A1100"])
+        self.assertEqual([o[3] for o in d["equips"][0]["ops"]], ["A1100", "A5052", "A1100", "A5052"])
+
+    def test_gantt_color_by_calc_column(self):
+        """色分けに計算列（一覧の表示列で作った式の列。版 3.47.0。要望 2）: 式をパネルに添えれば、その値で色を分ける"""
+        d = self.ask(visual="gantt", equips=["CR1"], ops={"color": "系統"}, period={"column": "@workday", "kind": "yesterday"},
+                     calc={"formulas": {"系統": 'left([合金], 3)'}, "names": {}})
+        self.assertEqual([o[3] for o in d["equips"][0]["ops"]], ["A11", "A50", "A11", "A50"])
 
     def test_abc_per_equipment_and_all(self):
         d = self.ask(visual="abc", ops={"cls": "合金"})
@@ -171,6 +240,18 @@ class Api(unittest.TestCase):
         a1100 = next(x for x in cr1["items"] if x["key"] == "A1100")
         self.assertEqual(a1100["avg"], 60.0)          # 8:00〜9:00・16:00〜17:00・10/13 8:00〜9:00
         self.assertEqual(cr1["base"]["minutes"], 67.5)   # (60×3＋90) ÷ 4（作業終了の無い 1 本は入れない）
+
+    def test_abc_by_combination(self):
+        """品種を 2 つの列の組み合わせで分ける（版 3.47.0。要望 3）: 鍵は「合金／ロット番号の頭」・列ごとの値は parts"""
+        d = self.ask(visual="abc", equips=["CR1"], ops={"cls": ["合金", "ロット番号"]})
+        cr1 = d["equips"][0]
+        self.assertEqual(d["clsList"], ["合金", "ロット番号"])
+        self.assertEqual(sorted(x["key"] for x in cr1["items"]), ["A1100／L1", "A1100／L4", "A1100／L9", "A5052／L3", "A5052／L5"])
+        self.assertEqual(next(x["parts"] for x in cr1["items"] if x["key"] == "A5052／L3"), ["A5052", "L3"])
+        self.assertEqual((cr1["noEnd"], cr1["why"]), (1, {"作業終了が空": 1}))      # ABC は作業中を作業時間に入れない
+        body, _ = dashboard.clean_layout({"rows": 8, "panels": [{"id": "g", "x": 0, "y": 0, "w": 6, "h": 3, "visual": "abc", "source": "work",
+                                                                   "ops": {"cls": ["合金", "", "合金", "調質"]}}]})
+        self.assertEqual(body["panels"][0]["ops"]["cls"], ["合金", "調質"])
 
     def test_needs_work_log(self):
         r = self.c.post("/api/dashboard/query", json={"panel": {"visual": "gantt", "source": "src:wip"}})

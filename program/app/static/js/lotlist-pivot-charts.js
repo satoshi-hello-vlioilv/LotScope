@@ -28,6 +28,69 @@
   const short = (v) => (Math.abs(v) >= 1e8 ? `${+(v / 1e8).toFixed(1)}億` : Math.abs(v) >= 1e4 ? `${+(v / 1e4).toFixed(1)}万` : fmt(Math.round(v * 100) / 100));
   const pct = (v) => `${(Math.round(v * 1000) / 10).toFixed(1)}%`;
   const clip = (t, n) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+  /* ---- 字の幅で決める名前（版 3.47.0。利用者の要望 2026-10-21 の 2 回目の 5。評価関数 tools/ui-eval-labels.mjs） ----
+     前は項目の名前を字の数で切っていた（12 字・1 本の幅 ÷ 8 字 など）。字の幅（全角・半角）も余白も見ないので、入る名前も「…」になり、
+     斜めにした字は図の下からはみ出し、積み上げでは隣と重なった。いまは字の幅を測り、入れば切らない。入らないときだけ、使える幅で「…」 */
+  const AXPX = () => (F.size === "l" ? 13 : 11);          // 軸の字の大きさ（.pv-ax。書式の字の大きさ「大」は 13px）
+  let MEAS = null;
+  /** 字の幅（px）。画面の字（体の字体）で測る。測れなければ全角 1・半角 0.58 のおおよそ */
+  function textW(t, px = AXPX(), weight = 400) {
+    const str = String(t ?? "");
+    try {
+      if (!MEAS) { MEAS = document.createElement("canvas").getContext("2d"); MEAS.fam = getComputedStyle(document.body).fontFamily || "sans-serif"; }
+      MEAS.font = `${weight} ${px}px ${MEAS.fam}`;
+      return MEAS.measureText(str).width;
+    } catch (e) { return [...str].reduce((w, ch) => w + (/[ -~｡-ﾟ]/.test(ch) ? 0.58 : 1), 0) * px; }
+  }
+  /** 幅 w（px）に入る名前: 入ればそのまま・入らなければ入るところまでで「…」 */
+  function fitW(t, w, px = AXPX(), weight = 400) {
+    const str = String(t ?? "");
+    if (textW(str, px, weight) <= w) return str;
+    const cs = [...str];
+    let lo = 1, hi = Math.max(1, cs.length - 1);
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (textW(cs.slice(0, mid).join("") + "…", px, weight) <= w) lo = mid; else hi = mid - 1; }
+    return cs.slice(0, lo).join("") + "…";
+  }
+  /** lines 段まで折る: 段ごとに幅 w に入るところまで（後ろ 6 割に区切りの字〈空白・・・-・（〉があれば、そこで）→ 段の並び（最後の段は残り全部。入るかは呼ぶ側が測る） */
+  function wrapN(t, w, lines, px = AXPX()) {
+    let cs = [...String(t ?? "")];
+    const out = [];
+    while (out.length < lines - 1 && cs.length) {
+      let k = cs.length;
+      while (k > 1 && textW(cs.slice(0, k).join(""), px) > w) k--;
+      if (k >= cs.length) break;
+      const brk = cs.slice(0, k).map((ch, i) => (/[\s・･\-_/（(]/.test(ch) ? i : -1)).filter((i) => i >= k * 0.4).pop();
+      if (brk != null && brk > 0) k = /[（(]/.test(cs[brk]) ? brk : brk + 1;
+      out.push(cs.slice(0, k).join("").trimEnd());
+      cs = [...cs.slice(k).join("").trimStart()];
+    }
+    if (cs.length) out.push(cs.join(""));
+    return out;
+  }
+  /** 横軸の項目の名前の置き方（縦棒・パレート・積み上げ・箱ひげ・バイオリン・項目の折れ線）: names・iw（軸の長さ）・H・step（何個おきに書くか）
+      → {extra（下の余白に足す高さ）, every（何個おきに書くか）, text(i, x, y)（y は 1 段目の字の下の線）}。
+      書式で字の向き（xrot）を決めていなければ、1 段で入る → 2 段で入る → 斜め（35°。下の余白に入る長さまで切る）の順に選ぶ */
+  function catAxis(names, iw, H, ctx, step = 1) {
+    const px = AXPX(), gw = (iw / Math.max(1, names.length)) * step, slot = gw - 6, rot = F.xrot ? +F.xrot : 0;
+    const need = Math.max(0, ...names.map((t) => textW(t, px)));
+    if (!rot && need <= slot) return { extra: 0, every: step, text: (i, x, y) => `<text x="${x}" y="${y}" text-anchor="middle" class="pv-ax">${esc(names[i])}</text>` };
+    // 2 段（高いグラフは 3 段）まで折って入るなら折る（横に読める。斜めより目が動かない）
+    for (let k = 2; !rot && slot >= 40 && k <= (H >= 200 ? 3 : 2); k++) {
+      const ls = names.map((t) => wrapN(t, slot, k, px));
+      if (ls.every((l) => l.length <= k && textW(l[l.length - 1], px) <= slot)) {
+        const rows = Math.max(...ls.map((l) => l.length));
+        return { extra: (px + 2) * (rows - 1), every: step,
+          text: (i, x, y) => `<text x="${x}" y="${y}" text-anchor="middle" class="pv-ax">${ls[i].map((t, j) => (j ? `<tspan x="${x}" dy="${px + 2}">${esc(t)}</tspan>` : esc(t))).join("")}</text>` };
+      }
+    }
+    const deg = rot || 35, rad = (deg * Math.PI) / 180, sn = Math.sin(rad), cs = Math.cos(rad);
+    const room = Math.max(40, Math.min(ctx.compact ? H * 0.42 : 150, 170));            // 斜めの字に使える下の余白の高さ
+    const L = Math.max(px * 2, Math.min(need, (room - 12 - px * cs) / sn));             // 字の長さの上限
+    const every = step * Math.max(1, Math.ceil((px + 2) / Math.max(1, gw * sn)));        // 平らに並ぶ字の間（幅 × sin）が字の高さより狭ければ間引く
+    return { extra: Math.max(0, Math.ceil(8 + L * sn + px * cs + 2) - 24), every,
+      // 左の端: 字の上の端は傾きの分だけ左へ出る（px × sin）。図の左の端を越えない長さまで
+      text: (i, x, y) => `<text transform="translate(${x + 3},${y - 8}) rotate(-${deg})" text-anchor="end" class="pv-ax">${esc(fitW(names[i], cs > 0.01 ? Math.min(L, (x + 3 - px * sn - 1) / cs - 1) : L, px))}</text>` };
+  }
 
   /* ---- 書式（版 3.39.0。ダッシュボードのパネルの書式 fmt。描く間だけ draw が置く。一覧の集計表は空＝今までの描き方） ----
      labels … 数値ラベル（none・top〈上〉・inside〈棒の中。積み上げはそれぞれの段〉・both。空なら組み方の「数値ラベル」で top か none）
@@ -196,11 +259,13 @@
     const { m, d, s, W, H } = ctx, L = dayAt(d), ax = axisOf(m, d, L), n = ax.ticks.length, months = L === 1 && ax.part === "date";
     if (!n) return empty("描く行がありません。");
     const lab = (k) => m.lab(L, k);
-    const tickOf = (k) => (ax.cat ? clip(lab(k), 12) : tickText(k, ax.part));
+    const tickOf = (k) => (ax.cat ? lab(k) : tickText(k, ax.part));
     // 右の目盛り（2 つ目の値）を描くときは、目盛りの字の分だけ右を空ける（詰めた形の 40px では字が棒に重なった: 2026-10-dashlink の採点）
     const oneAxis = (j) => ctx.oneAxis && d.measures[j].role !== "rate";
     const hasRight = !m.nc && d.measures.some((_, j) => j > 0 && !oneAxis(j));
-    const pl = pad(ctx, 60, 44), pr = hasRight ? Math.max(56, pad(ctx, 60, 40)) : pad(ctx, 60, 40), pt = months ? 30 : LBL.top ? 22 : 12, pb = pad(ctx, 40, 26) + tiltPad(ax.ticks.map(tickOf)), iw = W - pl - pr, ih = H - pt - pb;
+    const pl = pad(ctx, 60, 44), pr = hasRight ? Math.max(56, pad(ctx, 60, 40)) : pad(ctx, 60, 40), pt = months ? 30 : LBL.top ? 22 : 12, iw = W - pl - pr;
+    const cat = ax.cat ? catAxis(ax.ticks.map(tickOf), iw, H, ctx) : null;      // 項目の軸は字の幅で置き方を決める（版 3.47.0）
+    const pb = pad(ctx, 40, 26) + (cat ? cat.extra : tiltPad(ax.ticks.map(tickOf))), ih = H - pt - pb;
     const x = (i) => pl + iw * (i + 0.5) / Math.max(n, 1), bw = Math.max(2, Math.min(40, iw / Math.max(n, 1) * 0.7));
     const series = [], colsData = dataCols(m);
     const additive0 = ADDITIVE.has(d.measures[0].agg) && !d.measures[0].show;
@@ -275,8 +340,8 @@
       g += `<path d="${path}" fill="none" stroke="${q.color}" stroke-width="2.2"${serFmt(q.name).dash ? ' stroke-dasharray="6 4"' : ""}/>`;
       if (n <= 120) q.v.forEach((v, i) => { if (v != null) g += `<circle cx="${x(i)}" cy="${y(v, q)}" r="${q.kind === "area" ? 2.2 : 2.8}" fill="#fff" stroke="${q.color}" stroke-width="1.8"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></circle>`; });
     });
-    const every = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(iw / (F.xrot && +F.xrot ? 18 : ax.cat ? 90 : 70)))));
-    ax.ticks.forEach((k, i) => { if (i % every === 0) g += xText(x(i), H - pb + 16, tickOf(k)); });
+    const every = cat ? cat.every : Math.max(1, Math.ceil(n / Math.max(4, Math.floor(iw / (F.xrot && +F.xrot ? 18 : 70)))));
+    ax.ticks.forEach((k, i) => { if (i % every === 0) g += cat ? cat.text(i, x(i), H - pb + 16) : xText(x(i), H - pb + 16, fitW(tickOf(k), (iw / n) * every - 4)); });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${base0}" y2="${base0}" class="pv-axis"/>`;
     const leftQ = series.find((q) => q.axis === "left") || series[0];
     g += refLines((v) => y(v, leftQ), pl, W - pr, pt, base0);
@@ -377,7 +442,7 @@
     vs.forEach((v, i) => { const c = out[i] ? ALERT : run[i] ? WARN : COLORS[2]; g += `<circle cx="${x(i)}" cy="${y(v)}" r="${out[i] || run[i] ? 4.2 : 3}" fill="${out[i] || run[i] ? c : "#fff"}" stroke="${c}" stroke-width="1.8"><title>${esc(m.rowName(pts[i].r))}: ${esc(fmt(v))}${out[i] ? "（管理限界の外）" : run[i] ? "（中心線の同じ側に 9 点以上）" : ""}</title></circle>`; });
     if (LBL.top) { const thin = thinOf(vs, iw / n); vs.forEach((v, i) => { if (i % thin === 0) g += `<text x="${x(i)}" y="${y(v) - 7}" text-anchor="middle" class="pv-vl">${esc(nf(v))}</text>`; }); }
     const every = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(iw / (F.xrot && +F.xrot ? 18 : 80)))));
-    pts.forEach((p, i) => { if (i % every === 0) g += xText(x(i), H - pb + 16, clip(tickLabel(m, d, p.r), 12)); });
+    pts.forEach((p, i) => { if (i % every === 0) g += xText(x(i), H - pb + 16, F.xrot && +F.xrot ? fitW(tickLabel(m, d, p.r), 150) : fitW(tickLabel(m, d, p.r), (iw / n) * every - 4)); });
     g += `<line x1="${pl}" x2="${w - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
     const nOut = out.filter(Boolean).length, nRun = run.filter(Boolean).length;
     const side = statsBox(`${ctx.measName(d.measures[j])} の管理図`, [["点の数", n], ["中心線（平均）", mean], ["UCL（＋3σ）", ucl], ["LCL（−3σ）", lcl], ["σ（移動範囲から）", sigma],
@@ -403,10 +468,9 @@
     const names = data.map((r) => catName(m, d, r));
     let g = "";
     if (dir !== "bar") {
-      // 詰めた形で名前が 1 本の幅に入らない（隣とくっついて読める）ときは、斜めに書く（書式で向きを決めていれば、その向き）
-      const gw0 = (W - pad(ctx, 60, 44) - pad(ctx, 20, 10)) / Math.max(data.length, 1);
-      const tilt = !F.xrot && !!ctx.compact && names.some((t) => t.length * 12 + 6 > gw0);
-      const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 22 : 12, pb = (tilt ? 48 : pad(ctx, 56, 30)) + tiltPad(names), iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
+      // 名前の置き方は字の幅で決める（1 段 → 2 段 → 斜め。書式で向きを決めていれば、その向き。版 3.47.0）
+      const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 22 : 12, iw = W - pl - pr, cat = catAxis(names, iw, H, ctx);
+      const pb = pad(ctx, 56, 30) + cat.extra, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(2, Math.min(36, gw * 0.8 / series.length));
       g += axisY(pl, pt, ih, max, false, W + 36, MUTED, nf, lo);
       const thin = thinOf(vals.flat(), bw);
       data.forEach((r, i) => {
@@ -418,18 +482,16 @@
           if (labelWant(q.name) && serFmt(q.name).label !== "below" && v && (i * series.length + k) % thin === 0) g += `<text x="${bx + bw / 2}" y="${pt + ih - h - (dir === "lollipop" ? 9 : 4)}" text-anchor="middle" class="pv-vl">${esc(nf(v))}</text>`;
           if (LBL.inside && dir !== "lollipop" && v && h >= 16 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${bx + bw / 2}" y="${pt + ih - h + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
         });
-        g += tilt ? `<text transform="translate(${pl + gw * (i + 0.5) + 4},${H - pb + 12}) rotate(-35)" text-anchor="end" class="pv-ax">${esc(clip(names[i], 8))}</text>`
-          : xText(pl + gw * (i + 0.5), H - pb + 16, F.xrot && +F.xrot ? clip(names[i], 14) : clip(names[i], Math.max(4, Math.floor(gw / 8))));
+        if (i % cat.every === 0) g += cat.text(i, pl + gw * (i + 0.5), H - pb + 16);
       });
       g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>` + refLines((v) => pt + ih * (1 - frac(v)), pl, W - pr, pt, pt + ih);
     } else {
-      // 詰めた形: 名前の字の幅（いちばん長い名前。幅の 4 割まで）だけ左を空ける
-      const longest = Math.max(2, ...names.map((t) => Math.min(20, t.length)));
-      const pl = ctx.compact ? Math.round(Math.max(44, Math.min(W * 0.4, longest * 12.5 + 12))) : 160, pr = pad(ctx, 70, 52), pt = pad(ctx, 8, 4);
+      // 名前の字の幅（いちばん長い名前を測る。幅の 4 割まで）だけ左を空ける（版 3.47.0。前は字の数 × 12.5px・詰めない形は 160px 決め打ちで、長い名前が左へはみ出した）
+      const longest = Math.max(0, ...names.map((t) => textW(t)));
+      const pl = Math.round(Math.max(ctx.compact ? 44 : 80, Math.min(W * 0.4, longest + 16))), pr = pad(ctx, 70, 52), pt = pad(ctx, 8, 4);
       const rh = (H - pad(ctx, 30, 8)) / Math.max(data.length, 1), bh = Math.max(3, Math.min(18, rh * 0.75 / series.length)), iw = W - pl - pr;
-      const cut = ctx.compact ? Math.max(3, Math.floor((pl - 10) / 12.5)) : 20;
       data.forEach((r, i) => {
-        g += `<text x="${pl - 8}" y="${pt + rh * (i + 0.5) + 4}" text-anchor="end" class="pv-ax">${esc(clip(names[i], cut))}</text>`;
+        g += `<text x="${pl - 8}" y="${pt + rh * (i + 0.5) + 4}" text-anchor="end" class="pv-ax">${esc(fitW(names[i], pl - 10))}</text>`;
         series.forEach((q, k) => {
           const v = vals[i][k], w = iw * frac(v), by = pt + rh * i + (rh - bh * series.length) / 2 + bh * k;
           g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${fill(r, q)}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`;
@@ -449,12 +511,13 @@
     const { m, d, s, W, H } = ctx, j = chartAt(ctx), add = ADDITIVE.has(d.measures[j].agg);
     let items = dataRows(m).map((r) => ({ name: m.rowName(r), v: m.value(r, ALL, j) || 0 })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
     if (!items.length) return empty("パレート図にできる値（0 より大きい値）がありません。");
-    const pl = pad(ctx, 60, 44), pr = pad(ctx, 56, 44), pt = LBL.top ? 24 : 14, pb = pad(ctx, 56, 30), iw = W - pl - pr, ih = H - pt - pb;
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 56, 44), pt = LBL.top ? 24 : 14, iw = W - pl - pr;
     const K = Math.min(items.length, Math.max(5, Math.min(30, Math.floor(iw / 38))));
     const total = items.reduce((a, x) => a + x.v, 0);
     if (items.length > K) items = add ? items.slice(0, K - 1).concat([{ name: `その他（${items.length - K + 1} 件）`, v: items.slice(K - 1).reduce((a, x) => a + x.v, 0), rest: true }]) : items.slice(0, K);
     let cum = 0;
     items.forEach((x) => { cum += x.v; x.cum = cum / total; });
+    const cat = catAxis(items.map((x) => x.name), iw, H, ctx), pb = pad(ctx, 56, 30) + cat.extra, ih = H - pt - pb;
     const max = niceMax(items[0].v), n = items.length, gw = iw / n, bw = Math.max(4, Math.min(48, gw * 0.78));
     const y = (v) => pt + ih * (1 - v / max), yp = (p) => pt + ih * (1 - p);
     let g = axisY(pl, pt, ih, max, false, W - pr + 56, COLORS[0]);
@@ -464,7 +527,7 @@
     items.forEach((x, i) => {
       const cx = pl + gw * (i + 0.5);
       g += `<rect x="${cx - bw / 2}" y="${y(x.v)}" width="${bw}" height="${pt + ih - y(x.v)}" fill="${x.rest ? "#a9b4be" : cof(x.name, COLORS[0])}" opacity="${i <= k80 || x.rest ? 1 : 0.55}"><title>${esc(x.name)}: ${esc(fmt(x.v))}（${pct(x.v / total)}・累積 ${pct(x.cum)}）</title></rect>`;
-      g += `<text x="${cx}" y="${H - pb + 16}" text-anchor="middle" class="pv-ax">${esc(clip(x.name, Math.max(3, Math.floor(gw / 8))))}</text>`;
+      if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
       if (LBL.top) g += `<text x="${cx}" y="${y(x.v) - 5}" text-anchor="middle" class="pv-vl">${esc(nf(x.v))}</text>`;
       if (LBL.inside && pt + ih - y(x.v) >= 16 && bw >= nf(x.v).length * 6.2 + 2) g += `<text x="${cx}" y="${y(x.v) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(x.v))}</text>`;
     });
@@ -491,7 +554,8 @@
     }
     const vals = data.map((r) => series.map((q) => Math.max(0, q.get(r)))), tops = vals.map((v) => v.reduce((a, b) => a + b, 0));
     const names = data.map((r) => catName(m, d, r));
-    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 22 : 12, pb = pad(ctx, 56, 30) + tiltPad(names), iw = W - pl - pr, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(4, Math.min(56, gw * 0.72));
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 22 : 12, iw = W - pl - pr, cat = catAxis(names, iw, H, ctx);
+    const pb = pad(ctx, 56, 30) + cat.extra, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(4, Math.min(56, gw * 0.72));
     const max = share ? 1 : topOf(Math.max(0, ...tops)), lo = share ? 0 : lowOf(max);
     const yOf = (v) => pt + ih * (1 - Math.max(0, Math.min(1, (v - lo) / (max - lo))));
     let g = axisY(pl, pt, ih, max, false, W + 36, MUTED, share ? (v) => `${Math.round(v * 100)}%` : nf, lo);
@@ -508,7 +572,7 @@
         base += v;
       });
       if (LBL.top && !share && tops[i]) g += `<text x="${cx}" y="${yOf(tops[i]) - 4}" text-anchor="middle" class="pv-vl">${esc(nf(tops[i]))}</text>`;
-      g += xText(cx, H - pb + 16, F.xrot && +F.xrot ? clip(names[i], 14) : clip(names[i], Math.max(4, Math.floor(gw / 8))));
+      if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
     });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>` + (share ? "" : refLines(yOf, pl, W - pr, pt, pt + ih));
     const note = (series.length < 2 ? `<small class="pv-cnote">内訳を積むには、［列］に段を入れるか、足し上げる値（件数・ロット数・合計）を 2 つ以上にしてください</small>` : "")
@@ -535,7 +599,7 @@
       if (da > 0.32) { const mid = (a + b) / 2, rr = (R + r0) / 2; g += `<text x="${cx + rr * Math.cos(mid)}" y="${cy + rr * Math.sin(mid) + 4}" text-anchor="middle" class="pv-dl">${pct(x.v / total)}</text>`; }
       a = b;
     });
-    g += `<text x="${cx}" y="${cy - 4}" text-anchor="middle" class="pv-dtot">${esc(nf(total))}</text><text x="${cx}" y="${cy + 16}" text-anchor="middle" class="pv-ax">${esc(clip(ctx.measName(d.measures[j]), 14))}の計</text>`;
+    g += `<text x="${cx}" y="${cy - 4}" text-anchor="middle" class="pv-dtot">${esc(nf(total))}</text><text x="${cx}" y="${cy + 16}" text-anchor="middle" class="pv-ax">${esc(fitW(ctx.measName(d.measures[j]), Math.max(40, (Math.min(H / 2 - 6, w / 2 - 8, 160) - 18) * 2 - textW("の計"))))}の計</text>`;
     const side = `<div class="pv-dlist">${items.map((x) => `<div><i style="--c:${x.color}"></i><span title="${esc(x.name)}">${esc(x.name)}</span><b>${esc(fmt(x.v))}</b><small>${pct(x.v / total)}</small></div>`).join("")}</div>`;
     return { svg: svgOf(w, H, g, "ドーナツグラフ"), legend: `<small class="pv-cnote">大きい順${items.some((x) => x.rest) ? "・10 位から下は「その他」" : ""}・合計 ${esc(fmt(total))}</small>`, side };
   }
@@ -582,7 +646,8 @@
     const byKey = new Map((d.boxes || []).map((b) => [b.r.join(SEP), b]));
     const items = dataRows(m).map((r) => ({ name: m.rowName(r), b: byKey.get(r.path.join(SEP)) })).filter((x) => x.b).slice(0, 40);
     if (!items.length) return empty(`「${esc(ctx.label(d.box))}」に数に読める値がありません。`);
-    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 20 : 12, pb = pad(ctx, 56, 30) + tiltPad(items.map((x) => x.name)), iw = W - pl - pr, ih = H - pt - pb, gw = iw / items.length, bw = Math.max(8, Math.min(46, gw * 0.55));
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 20 : 12, iw0 = W - pl - pr, cat = catAxis(items.map((x) => x.name), iw0, H, ctx);
+    const pb = pad(ctx, 56, 30) + cat.extra, iw = iw0, ih = H - pt - pb, gw = iw / items.length, bw = Math.max(8, Math.min(46, gw * 0.55));
     const r = rangeFix(niceRange(Math.min(...items.map((x) => Math.min(x.b.lo, ...x.b.out))), Math.max(...items.map((x) => Math.max(x.b.hi, ...x.b.out)))));
     const y = (v) => pt + ih * (1 - (v - r.lo) / (r.hi - r.lo));
     let g = axisRange(r, pl, W - pr, y) + refLines(y, pl, W - pr, pt, pt + ih);
@@ -595,7 +660,7 @@
         + `<path d="M${cx},${y(b.mean) - 4.5}l4.5,4.5l-4.5,4.5l-4.5,-4.5z" fill="${COLORS[0]}"/></g>`;
       b.out.forEach((v) => { g += `<circle cx="${cx}" cy="${y(v)}" r="2.6" fill="#fff" stroke="${ALERT}" stroke-width="1.4"><title>${esc(x.name)}: 外れ値 ${esc(fmt(v))}</title></circle>`; });
       if (LBL.top || LBL.inside) g += `<text x="${cx + bw / 2 + 3}" y="${y(b.median) + 4}" class="pv-vl">${esc(nf(b.median))}</text>`;
-      g += xText(cx, H - pb + 16, clip(x.name, F.xrot && +F.xrot ? 14 : Math.max(4, Math.floor(gw / 8))));
+      if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
     });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
     return { svg: svgOf(W, H, g, "箱ひげ図"), legend: `<span class="pv-legend"><span><b>${esc(ctx.label(d.box))}</b> の分かれ方</span></span><small class="pv-cnote">箱＝25〜75%・太線＝中央値・◆＝平均・ひげ＝箱の幅の 1.5 倍の内側の端・○＝外れ値${dataRows(m).length > 40 ? "・先頭 40 件まで" : ""}</small>` };
@@ -608,8 +673,8 @@
     const vals = rows.map((r) => cols.map((c) => m.value(r, c, j)));
     const flat = vals.flat().filter((v) => v != null), lo = Math.min(0, ...flat), hi = Math.max(...flat, lo + 1e-9);
     // 詰めた形: 名前の字の幅だけ左を空け、行の高さをパネルの高さで割る（パネルに収める）
-    const longest = Math.max(2, ...rows.map((r) => Math.min(22, m.rowName(r).length)));
-    const pl = ctx.compact ? Math.round(Math.max(40, Math.min(W * 0.35, longest * 12.5 + 12))) : 170, pt = ctx.compact ? 26 : 46;
+    const longest = Math.max(0, ...rows.map((r) => textW(m.rowName(r))));        // 名前の字の幅を測る（版 3.47.0）
+    const pl = Math.round(Math.max(ctx.compact ? 40 : 90, Math.min(W * 0.35, longest + 16))), pt = ctx.compact ? 26 : 46;
     const cw = Math.max(ctx.compact ? 14 : 18, Math.min(88, (W - pl - 10) / cols.length));
     const ch = ctx.compact ? Math.max(10, Math.min(30, (ctx.H - pt - 6) / Math.max(rows.length, 1))) : rows.length > 40 ? 18 : 24;
     const H = ctx.compact ? ctx.H : pt + ch * rows.length + 8, w = pl + cw * cols.length + 10;
@@ -617,11 +682,11 @@
     let g = "";
     cols.forEach((c, k) => {
       const name = m.nc ? m.colName(c) : ctx.measName(d.measures[j]), cx = pl + cw * (k + 0.5);
-      g += cw < 46 ? `<text transform="translate(${cx + 3},${pt - 6}) rotate(-45)" class="pv-ax">${esc(clip(name, 10))}</text>` : `<text x="${cx}" y="${pt - 8}" text-anchor="middle" class="pv-ax">${esc(clip(name, Math.floor(cw / 7)))}</text>`;
+      g += cw < 46 ? `<text transform="translate(${cx + 3},${pt - 6}) rotate(-45)" class="pv-ax">${esc(fitW(name, Math.min((pt - 8) / 0.707, (W - cx) / 0.707 - 4)))}</text>` : `<text x="${cx}" y="${pt - 8}" text-anchor="middle" class="pv-ax">${esc(fitW(name, cw - 6))}</text>`;
     });
     rows.forEach((r, i) => {
       const y0 = pt + ch * i;
-      g += `<text x="${pl - 8}" y="${y0 + ch / 2 + 4}" text-anchor="end" class="pv-ax">${esc(clip(m.rowName(r), ctx.compact ? Math.max(3, Math.floor((pl - 10) / 12.5)) : 22))}</text>`;
+      g += `<text x="${pl - 8}" y="${y0 + ch / 2 + 4}" text-anchor="end" class="pv-ax">${esc(fitW(m.rowName(r), pl - 10))}</text>`;
       cols.forEach((c, k) => {
         const v = vals[i][k], x0 = pl + cw * k, t = v == null ? 0 : (v - lo) / (hi - lo);
         g += `<rect x="${x0 + 0.5}" y="${y0 + 0.5}" width="${cw - 1}" height="${ch - 1}" rx="2" fill="${v == null ? "#f3f5f7" : color(v)}"><title>${esc(m.rowName(r))}${m.nc ? ` / ${esc(m.colName(c))}` : ""}: ${esc(v == null ? "なし" : fmt(v))}</title></rect>`;
@@ -691,7 +756,7 @@
       const c = cof(x.name, ctx.rowColor ? ctx.rowColor(x.name) : COLORS[i % COLORS.length]);
       g += `<rect x="${x.x + 1}" y="${x.y + 1}" width="${Math.max(0, x.w - 2)}" height="${Math.max(0, x.h - 2)}" rx="3" fill="${c}" opacity=".9"><title>${esc(x.name)}: ${esc(fmt(x.v))}（${pct(x.v / total)}）</title></rect>`;
       if (x.w >= 46 && x.h >= 30) {
-        g += `<text x="${x.x + 7}" y="${x.y + 18}" class="pv-tm">${esc(clip(x.name, Math.max(2, Math.floor((x.w - 10) / 12))))}</text>`;
+        g += `<text x="${x.x + 7}" y="${x.y + 18}" class="pv-tm">${esc(fitW(x.name, x.w - 12, 12, 800))}</text>`;
         const vt = `${nf(x.v)}・${pct(x.v / total)}`, vs = x.w - 14 >= vt.length * 6.6 ? vt : x.w - 14 >= nf(x.v).length * 6.6 ? nf(x.v) : "";
         if ((LBL.top || LBL.inside || !ctx.compact) && x.h >= 46 && vs) g += `<text x="${x.x + 7}" y="${x.y + 36}" class="pv-tm is-v">${esc(vs)}</text>`;
       }
@@ -705,7 +770,8 @@
     const byKey = new Map((d.boxes || []).map((b) => [b.r.join(SEP), b]));
     const items = dataRows(m).map((r) => ({ name: catName(m, d, r), b: byKey.get(r.path.join(SEP)) })).filter((x) => x.b).slice(0, 40);
     if (!items.length) return empty(`「${esc(ctx.label(d.box))}」に数に読める値がありません。`);
-    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = 12, pb = pad(ctx, 56, 30) + tiltPad(items.map((x) => x.name)), iw = W - pl - pr, ih = H - pt - pb, gw = iw / items.length, half = Math.max(5, Math.min(44, gw * 0.42));
+    const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = 12, iw0 = W - pl - pr, cat = catAxis(items.map((x) => x.name), iw0, H, ctx);
+    const pb = pad(ctx, 56, 30) + cat.extra, iw = iw0, ih = H - pt - pb, gw = iw / items.length, half = Math.max(5, Math.min(44, gw * 0.42));
     const r = rangeFix(niceRange(Math.min(...items.map((x) => x.b.min)), Math.max(...items.map((x) => x.b.max))));
     const y = (v) => pt + ih * (1 - (v - r.lo) / (r.hi - r.lo));
     let g = axisRange(r, pl, W - pr, y) + refLines(y, pl, W - pr, pt, pt + ih);
@@ -720,7 +786,7 @@
       } else g += `<line x1="${cx}" x2="${cx}" y1="${y(b.min)}" y2="${y(b.max)}" stroke="${c}" stroke-width="2"><title>${esc(tip)}</title></line>`;
       g += `<rect x="${cx - 3}" y="${y(b.q3)}" width="6" height="${Math.max(1, y(b.q1) - y(b.q3))}" fill="#33404d" rx="1.5"/><circle cx="${cx}" cy="${y(b.median)}" r="3.2" fill="#fff" stroke="#33404d" stroke-width="1.4"><title>${esc(tip)}</title></circle>`;
       if ((LBL.top || LBL.inside) && gw - half * 2 >= nf(b.median).length * 6.6 + 8) g += `<text x="${cx + half + 3}" y="${y(b.median) + 4}" class="pv-vl">${esc(nf(b.median))}</text>`;
-      g += xText(cx, H - pb + 16, clip(x.name, F.xrot && +F.xrot ? 14 : Math.max(4, Math.floor(gw / 8))));
+      if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
     });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
     return { svg: svgOf(W, H, g, "バイオリン図"), legend: `<span class="pv-legend"><span><b>${esc(ctx.label(d.box))}</b> の分布の形</span></span><small class="pv-cnote">幅＝その値のあたりの多さ・中の黒い棒＝25〜75%・白い点＝中央値${dataRows(m).length > 40 ? "・先頭 40 件まで" : ""}</small>` };
@@ -758,7 +824,7 @@
     };
     const outX = panel(xs, tx, hx, xbb, lim.xu, lim.xl, "X̄"), outR = panel(rs, tr, hr, rb, lim.ru, lim.rl, "R");
     const every = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(iw / (F.xrot && +F.xrot ? 18 : 80)))));
-    pts.forEach((p, i) => { if (i % every === 0) g += xText(x(i), H - pb + 16, clip(tickLabel(m, d, p.r), 12)); });
+    pts.forEach((p, i) => { if (i % every === 0) g += xText(x(i), H - pb + 16, F.xrot && +F.xrot ? fitW(tickLabel(m, d, p.r), 150) : fitW(tickLabel(m, d, p.r), (iw / n) * every - 4)); });
     const side = statsBox(`${ctx.label(d.box)} の X̄-R 管理図`, [["群の数", n], ["群の大きさ n̄", nbar], ["X̿（中心線）", xbb], ["X̄ の UCL", lim.xu], ["X̄ の LCL", lim.xl], ["R̄", rb], ["R の UCL", lim.ru],
       ["限界の外（X̄）", `${outX} 点`, outX ? "is-alert" : ""], ["限界の外（R）", `${outR} 点`, outR ? "is-alert" : ""]], `A2=${A2}・D3=${D3}・D4=${D4}（n=${nbar}）。赤＝管理限界の外`);
     return { svg: svgOf(w, H, g, "X̄-R 管理図"), legend: legendHtml([[`${ctx.label(d.box)} の群の平均 X̄・範囲 R`, COLORS[2], "line"], ["管理限界", ALERT, "line"]]), side };
@@ -784,7 +850,7 @@
     pts.forEach((p, i) => { const bad = ds[i] > up + 1e-9 || ds[i] < dn - 1e-9, c = bad ? ALERT : cof(m.rowName(p.r), COLORS[2]); g += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${bad ? 4.2 : 3.4}" fill="${c}" fill-opacity="${bad ? 1 : 0.6}" stroke="${c}" stroke-width="1"><title>${esc(m.rowName(p.r))}: 横 ${esc(fmt(p.x))}・縦 ${esc(fmt(p.y))}・差 ${esc(fmt(ds[i]))}${bad ? "（帯の外）" : ""}</title></circle>`; });
     if ((LBL.top || LBL.inside) && n <= 60) g += freeLabels(pts.map((p) => ({ x: X(p.x), y: Y(p.y), r: 4, text: clip(m.rowName(p.r), 10) })), w, H);
     const xn = ctx.measName(d.measures[0]), yn = ctx.measName(d.measures[1]);
-    g += `<text x="${pl + iw / 2}" y="${H - 6}" text-anchor="middle" class="pv-axn">${esc(clip(xn, Math.max(6, Math.floor(iw / 12))))} →</text><text transform="translate(14,${pt + ih / 2}) rotate(-90)" text-anchor="middle" class="pv-axn">${esc(clip(yn, Math.max(6, Math.floor(ih / 12))))} →</text>`;
+    g += `<text x="${pl + iw / 2}" y="${H - 6}" text-anchor="middle" class="pv-axn">${esc(fitW(xn, iw - 24, 12, 700))} →</text><text transform="translate(14,${pt + ih / 2}) rotate(-90)" text-anchor="middle" class="pv-axn">${esc(clip(yn, Math.max(6, Math.floor(ih / 12))))} →</text>`;
     const nOut = ds.filter((v) => v > up + 1e-9 || v < dn - 1e-9).length;
     const sideHtml = statsBox("45度線管理図", [["点の数", n], ["差（縦−横）の平均", md], ["差の σ", sd], ["帯の上（＋3σ）", up], ["帯の下（−3σ）", dn], ["帯の外", `${nOut} 点`, nOut ? "is-alert" : ""]],
       "点が 45 度の線に乗れば 2 つの値は一致。線からずれた帯は偏り、帯の幅はばらつき。赤＝帯の外");
@@ -864,7 +930,7 @@
     const maxN = Math.max(...nodes.map((mp) => mp.size)), scale = (ih - gap * (maxN - 1)) / total;
     const pos = nodes.map((mp, i) => { let y = pt; const out = new Map(); [...mp.entries()].sort((a, b) => (a[0] === OTHER) - (b[0] === OTHER) || b[1] - a[1]).forEach(([k, v]) => { out.set(k, { y, h: Math.max(1.5, v * scale), v, out: 0, in: 0 }); y += Math.max(1.5, v * scale) + gap; }); return out; });
     const colorOf = (i, k) => (k === OTHER ? "#a9b4be" : cof(name(i, k), ctx.rowColor && i === 0 ? ctx.rowColor(name(i, k)) : COLORS[[...pos[i].keys()].indexOf(k) % COLORS.length]));
-    let g = lv.names.map((n, i) => `<text x="${xs[i] + nw / 2}" y="12" text-anchor="${i === 0 ? "start" : i === K - 1 ? "end" : "middle"}" class="pv-axn">${esc(clip(n, 14))}</text>`).join("");
+    let g = lv.names.map((n, i) => `<text x="${xs[i] + nw / 2}" y="12" text-anchor="${i === 0 ? "start" : i === K - 1 ? "end" : "middle"}" class="pv-axn">${esc(fitW(n, K === 1 ? W : (W - labW * 2) / Math.max(1, K - 1), 12, 700))}</text>`).join("");
     // 帯（大きい物を先に描くと、小さい帯が上に見える）
     [...links.entries()].sort((a, b) => b[1] - a[1]).forEach(([key, v]) => {
       const [i0, a, b] = key.split(SEP), i = +i0, s0 = pos[i].get(a), t0 = pos[i + 1].get(b), w = v * scale;
@@ -876,7 +942,7 @@
       g += `<rect x="${xs[i]}" y="${n.y}" width="${nw}" height="${n.h}" rx="2" fill="${colorOf(i, k)}"><title>${esc(name(i, k))}: ${esc(fmt(n.v))}</title></rect>`;
       if (n.h >= 9 || mp.size <= 8) {
         const tx = i === 0 ? xs[i] - 5 : xs[i] + nw + 5;      // 最初の段は節の左・ほかは右に名前
-        g += `<text x="${tx}" y="${n.y + n.h / 2 + 4}" text-anchor="${i === 0 ? "end" : "start"}" class="pv-ax pv-sk">${esc(clip(name(i, k), Math.max(3, Math.floor((labW - 8) / 12))))}${LBL.top || LBL.inside || !ctx.compact ? ` ${esc(nf(n.v))}` : ""}</text>`;
+        g += `<text x="${tx}" y="${n.y + n.h / 2 + 4}" text-anchor="${i === 0 ? "end" : "start"}" class="pv-ax pv-sk">${esc(fitW(name(i, k), labW - 8 - (LBL.top || LBL.inside || !ctx.compact ? textW(` ${nf(n.v)}`) : 0)))}${LBL.top || LBL.inside || !ctx.compact ? ` ${esc(nf(n.v))}` : ""}</text>`;
       }
     }));
     return { svg: svgOf(W, H, g, "サンキー図"), legend: `<small class="pv-cnote">帯の太さ＝${esc(ctx.measName(d.measures[j]))}（計 ${esc(fmt(total))}）・${lv.names.map(esc).join(" → ")}</small>` };
@@ -905,15 +971,15 @@
       }
     }
     const tickName = (k) => (time ? tickText(k, part) : String(lv.lab(1, k)));
-    const longest = Math.max(2, ...lanes.map((k) => Math.min(14, String(lv.lab(0, k)).length)));
-    const pl = Math.round(Math.max(48, Math.min(W * 0.3, longest * 12.5 + 14))), pr = 8, pt = 6, pb = 22 + tiltPad(ticks.map(tickName)), iw = W - pl - pr, ih = H - pt - pb;
+    const longest = Math.max(0, ...lanes.map((k) => textW(String(lv.lab(0, k)))));
+    const pl = Math.round(Math.max(48, Math.min(W * 0.3, longest + 16))), pr = 8, pt = 6, pb = 22 + tiltPad(ticks.map(tickName)), iw = W - pl - pr, ih = H - pt - pb;
     const lh = ih / Math.max(lanes.length, 1), cw = iw / Math.max(ticks.length, 1), at = new Map(ticks.map((k, i) => [k, i]));
     const vals = new Map(lv.flows.map(([ks, v]) => [ks[0] + SEP + ks[1], v]));
     const max = Math.max(...lv.flows.map(([, v]) => (typeof v === "number" ? v : 0)), 1e-9);
     let g = "";
     lanes.forEach((lane, li) => {
       const y = pt + lh * li, nm = String(lv.lab(0, lane)), c = cof(nm, ctx.rowColor ? ctx.rowColor(nm) : COLORS[li % COLORS.length]);
-      g += `<rect x="${pl}" y="${y}" width="${iw}" height="${lh}" fill="${li % 2 ? "#f6f8fa" : "#fff"}"/><text x="${pl - 8}" y="${y + lh / 2 + 4}" text-anchor="end" class="pv-ax">${esc(clip(nm, Math.max(3, Math.floor((pl - 10) / 12.5))))}</text>`;
+      g += `<rect x="${pl}" y="${y}" width="${iw}" height="${lh}" fill="${li % 2 ? "#f6f8fa" : "#fff"}"/><text x="${pl - 8}" y="${y + lh / 2 + 4}" text-anchor="end" class="pv-ax">${esc(fitW(nm, pl - 10))}</text>`;
       ticks.forEach((k, i) => {
         const v = vals.get(lane + SEP + k);
         if (typeof v !== "number" || !v) return;
@@ -925,7 +991,7 @@
     });
     g += `<line x1="${pl}" x2="${pl}" y1="${pt}" y2="${pt + ih}" class="pv-axis"/><line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
     const every = Math.max(1, Math.ceil(ticks.length / Math.max(3, Math.floor(iw / (F.xrot && +F.xrot ? 18 : 64)))));
-    ticks.forEach((k, i) => { if (i % every === 0) g += xText(pl + cw * (i + 0.5), H - pb + 16, clip(tickName(k), 12)); });
+    ticks.forEach((k, i) => { if (i % every === 0) g += xText(pl + cw * (i + 0.5), H - pb + 16, F.xrot && +F.xrot ? fitW(tickName(k), 150) : fitW(tickName(k), cw * every - 4)); });
     const more = lanesAll.length - lanes.length;
     return { svg: svgOf(W, H, g, "スイムレーン図"), legend: `<small class="pv-cnote">レーン＝${esc(lv.names[0])}・横＝${esc(lv.names[1])}・濃さ＝${esc(ctx.measName(d.measures[j]))}${more ? `・ほか ${more} レーン（パネルを大きくすると出ます）` : ""}</small>` };
   }
@@ -1102,5 +1168,5 @@
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
     try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, AGGS, SHOWS, aggOf, measLabel, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();
