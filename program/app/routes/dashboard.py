@@ -77,16 +77,53 @@ def dashboards_list():
     """ダッシュボードの並び（自分の ID → 共通 → 共通デフォルト〈置いた物 → 組み込み〉）。standardId はいま開く標準
     （ID → 共通 → 共通デフォルトの標準。無ければ組み込みの「標準」）。"""
     login, common_ok, default_ok, _ = _who(dashboard.LAYOUT_NAME)
-    rows = [r for r in master_repo().dashboards() if pp_visible(r, login)]
+    every = master_repo().dashboards()
+    rows = [r for r in every if pp_visible(r, login)]
     std = dashboard.pivot_presets.standard_for(rows, dashboard.LAYOUT_SOURCE, login)
     items = sorted((dashboard.layout_view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
-    items += dashboard.builtin_layouts()
+    # 組み込みは、外した物・入れ替えた物を出さない（版 3.48.0）。入れ替えた物は replaces（"b:鍵"。セットのタブ・覚えた id がそれを開く）
+    off, swapped = dashboard.builtin_skip(every, login)
+    items += dashboard.builtin_layouts(skip=set(off) | swapped)
+    for x in items:
+        if x["body"].get("replaces"):
+            x["replaces"] = f"b:{x['body']['replaces']}"
+    names = {b["key"]: b["name"] for b in dashboard.BUILTIN_LAYOUTS}
     legacy = master_repo().dashboard_rows()       # 版 3.36.0 の 1 枚の表の条件（前の版で保存した 1 枚の表へ引き継ぐ）
     for x in items:
         dashboard.with_legacy_conditions(x["body"], legacy)
     return jsonify(items=items, login=login, canEditCommon=common_ok, canEditDefault=default_ok,
-                   standardId=std.get("id") if std else items[-1]["id"], cols=dashboard.GRID_COLS,
-                   rowsRange=[dashboard.ROWS_MIN, dashboard.ROWS_MAX])
+                   standardId=std.get("id") if std else (items[-1]["id"] if items else None), cols=dashboard.GRID_COLS,
+                   rowsRange=[dashboard.ROWS_MIN, dashboard.ROWS_MAX],
+                   hidden=[{"id": f"b:{k}", "name": names.get(k, k), "scope": sc} for k, sc in off.items()])
+
+
+@bp.put("/api/dashboards-hidden")
+def dashboards_hidden():
+    """組み込みのダッシュボードを外す・戻す（版 3.48.0）。{scope: default（開発者。全員の一覧から）| me（自分の一覧から）, keys: [外す組み込みの鍵]}。
+    keys が空なら、その置き場の「外した組み込み」の行を消す（全部戻す）"""
+    login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
+    d = request.get_json(force=True) or {}
+
+    def go():
+        scope = d.get("scope") if d.get("scope") in ("default", "me") else ""
+        if not scope:
+            raise dashboard.LayoutError("置き場（default か me）が違います。")
+        want = {"元": dashboard.HIDE_SOURCE, "範囲": dashboard.pivot_presets.SCOPES[scope], "ログインID": login if scope == "me" else ""}
+        _gate(want, login, common_ok, default_ok, revoked, "組み込みのダッシュボード")
+        repo = master_repo()
+        old = next((r for r in repo.dashboards() if dashboard.pivot_presets.group_of(r) == dashboard.pivot_presets.group_of(want)), None)
+        keys = dashboard.clean_hide_body({"keys": d.get("keys") or []})[0]["keys"]
+        if not keys:
+            if old:
+                repo.dashboard_delete(old["id"])
+            return {"ok": True, "keys": []}
+        row = dashboard.clean_hide_row({"name": dashboard.HIDE_NAME, "scope": scope, "body": {"keys": keys}}, login)
+        if old:
+            repo.dashboard_update(old["id"], {"中身": row["中身"]})
+        else:
+            repo.dashboard_create(row)
+        return {"ok": True, "keys": keys}
+    return master_call(go)
 
 
 def pp_visible(row, login):
@@ -324,7 +361,7 @@ def _answer(p, now):
         cache.move_to_end(key)
     note = "設備のまとめのマスタ「" + p["egroup"]["set"] + "」にグループがありません（マスタ管理の「設備グループ」）。" \
         if p.get("egroup") and p["egroup"]["mode"] == "master" and not egroups else ""
-    return {**hit, "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp, **({"note": " ".join(x for x in (hit.get("note"), note) if x)} if note else {})}
+    return {**with_eorder(hit, p), "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp, **({"note": " ".join(x for x in (hit.get("note"), note) if x)} if note else {})}
 
 
 # 画面は全部のパネルを一度に問い合わせる。重い集計（Python の 1 行ずつの数え）を同時に走らせると取り合って、順に数えるより
@@ -494,6 +531,33 @@ def _link_answer(p, now):
                                for i, x in enumerate(sides)]}}
 
 
+# ---------------------------------------------------------------- 設備の手で並べた順（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 3）
+def order_names(names, eorder):
+    """名前の並び → 手で並べた順（eorder にある名前をその順に先へ・無い名前は今の順のまま後ろへ）。eorder が空なら今の順"""
+    if not eorder:
+        return list(names)
+    at = {normalize_part(n): i for i, n in enumerate(eorder)}
+    return sorted(names, key=lambda n: (0, at[normalize_part(n)]) if normalize_part(n) in at else (1, 0))
+
+
+def order_parts(parts, eorder):
+    """数える設備のファイル（Part）を手で並べた順に（ガントの行・ABC の設備の札の順）"""
+    if not eorder:
+        return parts
+    names = order_names([x.name for x in parts], eorder)
+    return sorted(parts, key=lambda x: names.index(x.name))
+
+
+def with_eorder(a, p):
+    """集計の答えの設備の段（@equip）の鍵の並びを、パネルの手で並べた順に（表・グラフの並び・系列の順・並べる図の順。答えは控えと分けて作る）"""
+    eo = p.get("eorder")
+    if not eo or "orders" not in a:
+        return a
+    dims = a["dims"]["rows"] + a["dims"]["cols"]
+    orders = [order_names(o, eo) if i < len(dims) and dims[i].get("column") == pivot.EQUIP_DIM else o for i, o in enumerate(a["orders"])]
+    return {**a, "orders": orders}
+
+
 # ---------------------------------------------------------------- 稼働・ABC 分析（版 3.46.0。services/operation.py）
 GANTT_PERIOD = {"column": "@workday", "kind": "yesterday", "n": 1}
 
@@ -531,11 +595,13 @@ def _ops_count(p, parts, o, period, now):
     qty = o.get("qty") or "lots"
     cls = operation.cls_list(o.get("cls"))
     cols = [o.get("label") or "", o.get("color") or "", *cls, qty if qty not in operation.QTYS else ""]
-    equips, skipped, every, rng, start_col, end_col = [], [], [], None, "", ""
-    for part in parts:
+    equips, skipped, every, reads, rng, start_col, end_col = [], [], [], [], None, "", ""
+    lead = p["visual"] == "abc" and o.get("span") == "lead"
+    for part in order_parts(parts, p.get("eorder")):
         try:
             r = operation.read_ops(part, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False), today=now.date(), calc=p.get("calc"),
-                                   period=period, now=now, end=o.get("end", ""), cols=[c for c in cols if c], reach=p["visual"] == "gantt")
+                                   period=period, now=now, end=o.get("end", ""), start=o.get("start", ""), cols=[c for c in cols if c],
+                                   reach=p["visual"] == "gantt", lots=lead)
         except Exception as e:      # 読めない設備は飛ばし、理由をガントの行・知らせに出す
             skipped.append({"name": part.name, "error": str(e)})
             if p["visual"] == "gantt":     # ガントは読めない設備も行に出す（前は行ごと消え、「出ない設備がある」になった。版 3.47.0）
@@ -547,25 +613,34 @@ def _ops_count(p, parts, o, period, now):
             if r["range"] and (date.fromisoformat(r["range"][1]) - date.fromisoformat(r["range"][0])).days + 1 > operation.MAX_DAYS:
                 return {"error": f"ガントチャートの期間は {operation.MAX_DAYS} 日までです（期間を短くしてください）。", "kind": "invalid", "status": 400}
             pat = shifts.pattern_for(pats, part.name)
-            wins = operation.shift_windows(pat["segments"], *r["range"], part.work.get("basis", "work")) if pat and r["range"] else []
+            basis = part.work.get("basis", "work")
+            wins = operation.shift_windows(pat["segments"], *r["range"], basis) if pat and r["range"] else []
+            days = operation.work_days(pat["segments"] if pat else [], *r["range"], basis) if r["range"] else []
             label = o.get("label") or r["lot"] or ""
-            g = operation.gantt(part.name, r, wins, label=label, color=o.get("color") or "")
+            g = operation.gantt(part.name, r, wins, label=label, color=o.get("color") or "", days=days)
             equips.append({**g, "pattern": pat["name"] if pat else ""})
         else:
             a = operation.abc(r["ops"], cls, qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
             equips.append({"name": part.name, **a})
             every += r["ops"]
+            reads.append(r)
     if not any("error" not in e for e in equips):
         return {"error": "数えられる設備がありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]), "kind": "invalid", "status": 400}
     # 期間はほかのパネルと同じ形（画面の periodText が読む: 名前と日の範囲）
     per = {**period, "name": pivot.PERIODS.get(period["kind"], ""), "ranges": [{"from": rng[0], "to": rng[1]}] if rng else []} if period else None
-    out = {"kind": p["visual"], "equips": equips, "skipped": skipped, "range": rng, "startColumn": start_col, "endColumn": end_col, "period": per}
+    out = {"kind": p["visual"], "equips": equips, "skipped": skipped, "range": rng, "startColumn": start_col, "endColumn": end_col, "period": per,
+           "basis": p["basis"]}
     if p["visual"] == "gantt":
         sm, bm = sum(e["shiftMin"] for e in equips), sum(e["busyMin"] for e in equips)
         out["total"] = {"shiftMin": round(sm, 2), "busyMin": round(bm, 2), "rate": round(bm / sm, 4) if sm else None,
                         "noPattern": [e["name"] for e in equips if not e["pattern"] and "error" not in e], "noEnd": sum(e["noEnd"] for e in equips)}
     else:
-        out["all"] = operation.abc(every, cls, qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
+        # 全設備の作業時間（版 3.48.0。要望 6）: 各設備の積み上げ（作業 1 本ずつ）か、ロットごとのリードタイム（全設備の作業開始の MIN〜作業終了の MAX）
+        if lead and not any(r["lot"] for r in reads):
+            return {"error": "ロット番号の列が無いので、リードタイム（同じロットの最初の作業開始〜最後の作業終了）を出せません。", "kind": "invalid", "status": 400}
+        out["all"] = operation.abc(operation.lead_ops(reads) if lead else every, cls, qty, o.get("base") or "avg",
+                                   (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
+        out["span"] = "lead" if lead else "sum"
         out["cls"], out["clsList"], out["qty"] = operation.KEY_SEP.join(cls), cls, qty
     return out
 

@@ -31,8 +31,8 @@ SOURCES = {"lot": "品質異常", "work": "作業実績"}
 SCOPES = {"default": "共通デフォルト", "all": "共通", "me": "ID"}          # 画面の言葉 → マスタの値（並びは標準を決める順の逆）
 MAX_BYTES = 64 * 1024
 NAME_MAX = 40
-# グラフの形（画面の CHARTS と同じ鍵。版 3.27.0 で 5 → 14・版 3.39.0 で 24。登録は lotlist-pivot-charts.js の DEFS）
-CHARTS = ("time", "line", "area", "control", "xbar", "swimlane", "column", "bar", "lollipop", "pareto", "stack", "stack100", "stackarea", "donut",
+# グラフの形（画面の CHARTS と同じ鍵。版 3.27.0 で 5 → 14・版 3.39.0 で 24・版 3.48.0 で積み上げ横棒の 2 つを足して 26。登録は lotlist-pivot-charts.js の DEFS）
+CHARTS = ("time", "line", "area", "control", "xbar", "swimlane", "column", "bar", "lollipop", "pareto", "stack", "stack100", "hstack", "hstack100", "stackarea", "donut",
           "treemap", "sankey", "hist", "box", "violin", "heat", "scatter", "bubble", "diag45", "combo", "none")
 # 中身に入れる物（画面の組み方の覚えの形）。一覧｜集計の切り替え・選んだ月はその時だけの状態なので入れない
 BODY_KEYS = ("rows", "cols", "measures", "chart", "sub", "grand", "chartAt", "split", "labels")

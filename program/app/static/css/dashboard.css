@@ -703,7 +703,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .og-on{fill:#edf4f3}
 .og-row.is-alt .og-on{fill:#e3eeec}
 .og-sep{stroke:#8fa9a5;stroke-width:1.2}
-.og-day{stroke:#5f6f76;stroke-width:1;stroke-dasharray:3 2}
+.og-day{stroke:#5f6f76;stroke-width:1;stroke-dasharray:3 2}.og-day.is-own{stroke-opacity:.7}
 .og-tick{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
 .og-unit{fill:#8a969c}
 .og-dayl{font-size:11.5px;font-weight:700;fill:var(--ink)}
@@ -781,6 +781,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-f.is-far{font-weight:700;color:#8a4b12}
 .oa-foot{display:flex;gap:4px 16px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;flex:0 0 20px}
 .oa-foot b:not(.oa-rank){color:var(--ink)}
+.oa-flt{color:#24446a;font-weight:700;border:1px solid #9fb0c6;border-radius:999px;padding:0 8px;line-height:18px}
 .de-ops{display:flex;flex-direction:column;gap:2px}
 .de-ophint{margin:2px 0 4px;font-size:12px;color:var(--muted);line-height:1.5}
 .de-ops select.is-need{border-color:#b5822a;box-shadow:0 0 0 2px #f6e7c8}
@@ -789,6 +790,27 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .de-clss{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 4px;min-width:0}
 .de-clsx{color:var(--muted);font-weight:700;font-size:12px}
 .de-clsrow .de-hint{flex-basis:100%;margin-left:60px}
+/* 設備の並び（版 3.48.0）: 手で並べるときの設備の札（番号・名前・← →）。ABC の出す項目のチェック */
+/* 2026-10-dash8 の 2 回目で決めた J: 枠で囲んだ番号つきの表（⋮⋮・番号・名前・↑↓ を 1 行。行 26px・1 つおきの縞）。13 台からは 2 段組み */
+.de-eord{position:relative;list-style:none;margin:0;padding:0;width:100%;max-width:320px;border:1px solid #d5dde3;border-radius:8px;background:#fff;overflow:hidden}
+.de-eord.is-many{max-width:520px;column-count:2;column-gap:0;column-rule:1px solid #edf1f4}
+.de-eoc{display:flex;align-items:center;gap:4px;height:26px;padding:0 4px 0 6px;border-bottom:1px solid #edf1f4;break-inside:avoid;font-size:12.5px}
+.de-eoc:nth-child(even){background:#f7f9fa}
+.de-eoc:last-of-type{border-bottom:0}
+.de-eoc .de-grip{cursor:grab;padding:3px 2px;color:#6f7f88;touch-action:none}
+.de-eoc .de-eon{font-style:normal;font-size:11.5px;color:#5a6f77;min-width:18px;text-align:right}
+.de-eoc b{flex:1 1 auto;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.de-eoc .icon-btn{width:24px;height:22px;font-size:13px}
+.de-eoc .icon-btn:disabled{opacity:.3;cursor:default}
+.de-eoc.is-src{opacity:.45}
+.de-ochk{display:inline-flex;flex-wrap:wrap;gap:2px 12px;min-width:0}
+/* 出す項目は見出しと同じ段（チェックは見出しの右の列で折り返す）・「全設備の時間」の見出しは 1 段（2026-10-dash8 の 2 回目） */
+.de-ops .de-ochkrow{flex-wrap:nowrap;align-items:flex-start}
+.de-ops .de-ochkrow .de-l{padding-top:3px}
+.de-ops .de-ochkrow .de-ochk{flex:1 1 0}
+.de-ops .de-l.de-lnw{white-space:nowrap;flex:0 0 auto;width:auto}
+.de-ops .de-spanrow{flex-wrap:wrap}
+.de-ops .de-spanrow .de-hint{flex-basis:100%;margin-left:60px}
 /* 系列の行（版 3.46.0）: 形と軸の札を足したので、名前（色）を 1 段目いっぱい・選びを 2 段目に折り返す（横にはみ出さない） */
 .de-ser{flex-wrap:wrap;row-gap:4px}
 .de-ser .de-scol{flex:1 1 100%}
@@ -825,3 +847,15 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-pcol + .db-pcol{border-left:1px solid var(--line-soft);padding-left:16px}
 .db-setli{flex-wrap:wrap;height:auto;min-height:32px;padding:4px 8px;row-gap:1px}
 .db-setin{flex:1 1 100%;font-size:11.5px;color:var(--muted);font-weight:400;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- 組み込みを外す・入れ替える（版 3.48.0） ---- */
+.db-none{grid-column:1/-1;grid-row:1/-1;align-self:center;justify-self:center;display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 32px;background:var(--panel,#fff);border:1px dashed #b8c3cc;border-radius:12px;color:var(--muted)}
+.db-none b{font-size:16px;color:var(--ink)}
+.db-hid .db-hidli{display:flex;align-items:center;gap:8px;padding:4px 8px}
+.db-hid .db-hidli b{font-size:13px}
+.db-hid .db-hidli small{color:var(--muted);flex:1 1 auto}
+.db-swap{font-style:normal;font-size:11.5px;font-weight:700;color:#24446a;border:1px solid #9fb0c6;border-radius:999px;padding:0 7px;margin-left:6px;line-height:18px;white-space:nowrap}
+/* パレート図を出す項目に入れているのに、狭くて描けないときの知らせ（2026-10-dash8 の作った後の採点） */
+.oa-nochart{color:#5a6f77;font-weight:700}
+.oa-nochart::before{content:"ⓘ ";font-weight:400}
+.oa-notes{font-size:12px;line-height:18px;flex:0 0 auto}

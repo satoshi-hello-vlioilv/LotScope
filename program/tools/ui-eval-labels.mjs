@@ -18,7 +18,7 @@ if (SHOT) fs.mkdirSync(SHOT, { recursive: true });
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 1600)}`}`); if (!ok) fails.push(name); };
 
-const KINDS = ["column", "lollipop", "pareto", "bar", "line", "combo", "area", "stack", "stack100", "heat", "donut", "treemap"];
+const KINDS = ["column", "lollipop", "pareto", "bar", "line", "combo", "area", "stack", "stack100", "hstack", "hstack100", "heat", "donut", "treemap"];
 // 大きさ: ダッシュボードのパネル（詰めた形）3 つと、一覧の集計表（詰めない形）
 const SIZES = [{ W: 420, H: 240, compact: true }, { W: 660, H: 300, compact: true }, { W: 980, H: 360, compact: true }, { W: 1240, H: 320, compact: false }];
 const NAMES = {
@@ -52,7 +52,7 @@ try {
         };
         const out = [];
         for (const kind of kinds) {
-          const withCols = ["stack", "stack100", "heat"].includes(kind);
+          const withCols = ["stack", "stack100", "hstack", "hstack100", "heat"].includes(kind);
           const d = mk(withCols), s = { sub: false, grand: true, labels: false };
           let svg = "";
           try {

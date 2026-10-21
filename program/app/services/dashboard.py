@@ -64,6 +64,8 @@ def condition_of(rows, key):
 # 版 3.41.0（利用者の要望 2026-10）:
 #   noslice … ダッシュボードのスライサー（画面の道具の行。期間・設備）に従わない。fmt.series … 系列ごとの数値ラベル・線
 #   board の order.tree・glist … 行を設備グループの見出しの下にまとめる・グループの手で並べた順
+# 版 3.48.0（利用者の要望 2026-10-21 の 3 回目）:
+#   eorder … 設備を手で並べた順（設備の名前の並び。並びに無い設備は後ろに今の順。合わせた表は order.manual）
 # 置き場: マスタ dashboards（集計表の組み方のプリセットと同じ列・同じ決まり: 共通デフォルト・共通・ID・標準。元はいつも "dash"）。
 LAYOUT_NAME = "dashboards"
 LAYOUT_SOURCE = "dash"
@@ -504,6 +506,9 @@ def clean_panel(p, i, rows):
         out["egroup"] = eg
     if p.get("esplit") in ESPLITS[1:]:
         out["esplit"] = p["esplit"]
+    eo = _names(p.get("eorder"))
+    if eo:
+        out["eorder"] = eo           # 設備を手で並べた順（版 3.48.0。表・グラフ・系列・ガントの行・ABC の設備の札）
     if visual in OPS_VISUALS:
         if out["source"] != "work":
             raise LayoutError(f"{what}の稼働・ABC 分析は、作業実績（作業開始と作業終了がある）で使えます。")
@@ -524,7 +529,12 @@ def clean_panel(p, i, rows):
 # ---------------------------------------------------------------- 稼働・ABC 分析（版 3.46.0。visual gantt・abc）
 # ops: {end: 作業終了の列（"" は見つける）, label: 棒の字の列, color: 棒の色分けの列, cls: 品種の列（ABC・換算係数。字か、組み合わせる列の並び）,
 #       qty: 量（lots＝本数・time＝作業時間・数の列の名前＝その合計）, base: 換算の基準（avg・top・品種の値）, a・b: ABC の線（累積構成比 %）}
+# 版 3.48.0（利用者の要望 2026-10-21 の 3 回目の 5・6・7）:
+#       start: 作業開始の列（"" は見つける）・span: 全設備の作業時間の取り方（sum＝各設備の積み上げ・lead＝リードタイム。operation.SPANS）・
+#       hide: ABC 分析の出さない項目（ABC_ITEMS の鍵の並び）
 ABC_A, ABC_B = 70.0, 90.0
+# ABC 分析の表示項目（出す・出さないを選べる物）: 構成比・累積・ABC（ランク。棒の色と A・B の線も）・平均作業・換算係数・換算本数・パレート図・下の段の計
+ABC_ITEMS = ("share", "cum", "rank", "avg", "factor", "conv", "chart", "foot")
 
 
 def clean_ops(v):
@@ -534,7 +544,12 @@ def clean_ops(v):
     b = _float(v.get("b"))
     a = min(99.0, max(1.0, a if a is not None else ABC_A))
     b = min(100.0, max(a, b if b is not None else ABC_B))
-    out = {k: col(k) for k in ("end", "label", "color") if col(k)}
+    out = {k: col(k) for k in ("start", "end", "label", "color") if col(k)}
+    if v.get("span") == "lead":
+        out["span"] = "lead"
+    hide = [x for x in ABC_ITEMS if x in (v.get("hide") if isinstance(v.get("hide"), list) else [])]
+    if hide:
+        out["hide"] = hide
     # 品種の列（版 3.47.0）: 1 つなら字・いくつか（組み合わせで分ける。operation.MAX_CLS まで）なら列の並び
     cls = [str(x or "").strip()[:200] for x in v.get("cls")] if isinstance(v.get("cls"), list) else [col("cls")]
     cls = [x for x in dict.fromkeys(cls) if x][:4]
@@ -575,6 +590,8 @@ def clean_layout(body):
             raise LayoutError(f"パネル「{x['title'] or x['id']}」と「{hit['title'] or hit['id']}」が重なっています。")
         panels.append(x)
     out = {"rows": rows, "panels": panels}
+    if str(body.get("replaces") or "") in BUILTIN_KEYS:
+        out["replaces"] = body["replaces"]      # 組み込みのダッシュボードと入れ替えた物（版 3.48.0。その組み込みの代わりに出す）
     text = json.dumps(out, ensure_ascii=False, sort_keys=True)
     if len(text.encode("utf-8")) > pivot_presets.MAX_BYTES * 2:
         raise LayoutError("ダッシュボードが大きすぎます。")
@@ -663,8 +680,62 @@ BUILTIN_LAYOUTS = [
 ]
 
 
-def builtin_layouts():
-    """組み込みのダッシュボード → 画面の形（id は "b:鍵"。書き換えられない）"""
+BUILTIN_KEYS = tuple(b["key"] for b in BUILTIN_LAYOUTS)
+
+
+def builtin_layouts(skip=()):
+    """組み込みのダッシュボード → 画面の形（id は "b:鍵"。中身はコードの物）。skip … 出さない組み込みの鍵（外した・入れ替えた物）"""
     return [{"id": f"b:{b['key']}", "name": b["name"], "source": LAYOUT_SOURCE, "scope": "default", "login": "", "standard": False,
              "body": clean_layout(b["body"])[0], "note": "", "rev": 0, "updatedAt": "", "updatedBy": {}, "canEdit": False, "builtin": True}
-            for b in BUILTIN_LAYOUTS]
+            for b in BUILTIN_LAYOUTS if b["key"] not in skip]
+
+
+# ---------------------------------------------------------------- 組み込みを外す・入れ替える（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 1）
+# 組み込み（コードに書いた標準）は、次の 2 つで一覧から退ける（コードは書き換えない。消した物は戻せる）:
+#   入れ替える … 組み込みを直して保存すると、中身に replaces（組み込みの鍵）を持つダッシュボードとして置き、その組み込みの代わりに出す
+#                （セットのタブ "b:鍵" もそれを開く）。置き場は共通デフォルト（開発者＝全員）か自分の ID（自分だけ）
+#   外す     … マスタ dashboards の元 "dashoff" の行（中身 {keys: [外す組み込みの鍵]}）。共通デフォルト（開発者＝全員）・自分の ID（自分だけ）
+HIDE_SOURCE = "dashoff"
+HIDE_NAME = "外した組み込み"
+
+
+def clean_hide_body(body):
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except ValueError:
+            body = {}
+    keys = [k for k in dict.fromkeys(str(x) for x in ((body or {}).get("keys") or []) if isinstance(body, dict)) if k in BUILTIN_KEYS]
+    out = {"keys": keys}
+    return out, json.dumps(out, ensure_ascii=False)
+
+
+def clean_hide_row(data, login):
+    try:
+        return pivot_presets.clean_row({**(data or {}), "source": HIDE_SOURCE}, login, False,
+                                       body_text=lambda b: clean_hide_body(b)[1], source_ok=lambda s: s == HIDE_SOURCE)
+    except pivot_presets.PresetError as e:
+        raise LayoutError(str(e)) from None
+
+
+def hidden_rows(rows, login):
+    """この ID に効く「外した組み込み」の行（共通デフォルト・自分の ID）"""
+    return [r for r in rows if r.get("元") == HIDE_SOURCE and pivot_presets.visible(r, login)]
+
+
+def builtin_skip(rows, login):
+    """一覧に出さない組み込みの鍵 → (外した鍵 {鍵: 範囲}, 入れ替えた鍵 set)。rows はマスタの行（見える物だけを見る）"""
+    off = {}
+    for r in hidden_rows(rows, login):
+        for k in clean_hide_body(r.get("中身") or "{}")[0]["keys"]:
+            off.setdefault(k, pivot_presets.scope_of(r))
+    swapped = set()
+    for r in rows:
+        if r.get("元") == LAYOUT_SOURCE and pivot_presets.visible(r, login):
+            try:
+                k = json.loads(r.get("中身") or "{}").get("replaces")
+            except (TypeError, ValueError, AttributeError):
+                k = None
+            if k in BUILTIN_KEYS:
+                swapped.add(k)
+    return off, swapped

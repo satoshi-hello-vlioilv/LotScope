@@ -13,7 +13,7 @@
   const { esc } = TPA;
   const C = window.LotListPivotCharts;
   const PART_NAME = { date: "年月日", ym: "年月", year: "年", month: "月", weekday: "曜日", hour: "時", bin: "区間" };
-  const CATEGORY = new Set(["column", "bar", "lollipop", "pareto", "donut", "treemap", "stack", "stack100", "box", "violin"]);   // 種類の段を並べる形（入る数だけ描く）
+  const CATEGORY = new Set(["column", "bar", "lollipop", "pareto", "donut", "treemap", "stack", "stack100", "hstack", "hstack100", "box", "violin"]);   // 種類の段を並べる形（入る数だけ描く）
   /* 色（2026-10-grid の 2 回目）: 色＝データの種類。仕掛（データ元）＝藍・作業実績＝青緑・品質データ＝琥珀（1 枚の表の仕掛の棒・実績の濃淡も同じ）。
      種類の少ない段（8 つまで。仕掛区分など）の 1 系列の棒・ドーナツは、名前ごとに決まった色（どのパネルでも同じ名前は同じ色） */
   const SOURCE_COLOR = { lot: "#b5822a", work: "#2f7d78", src: "#3f6591" };
@@ -168,7 +168,7 @@
 
   /* ---- グラフ ---- */
   function fitCount(kind, W, H) {
-    if (kind === "bar") return Math.max(2, Math.floor((H - 8) / 17));
+    if (kind === "bar" || kind === "hstack" || kind === "hstack100") return Math.max(2, Math.floor((H - 28) / 17));     // 横の形: 1 行 17px（積み上げ横棒は下に目盛り）
     if (kind === "donut") return 10;
     if (kind === "box" || kind === "violin") return Math.max(2, Math.floor((W - 54) / 34));
     if (kind === "treemap") return 40;
@@ -469,7 +469,7 @@
     box.innerHTML = `<div class="dp-facets" style="--fc:${cols}">${shown.map((f, i) => `<section class="dp-facet" data-i="${i}"><h4 title="${esc(f.name)}">${esc(f.name)}</h4><div class="dp-fbox"></div></section>`).join("")}</div>`;
     // 縦軸は全部の小さな図で同じ（設備どうしを高さで比べられる。2026-10-dashlink の採点）。色は重ねるときのその設備の色
     const fm0 = p.fmt || {}, j = Math.min((p.body || {}).chartAt || 0, ((d.measures || []).length || 1) - 1);
-    const leafMax = (a) => { const nr = a.dims.rows.length, nc = a.dims.cols.length; return Math.max(0, ...a.cells.filter((c) => c.r.length === nr && c.c.length === (nc && ["time", "stack", "stack100", "stackarea"].includes(p.visual) ? 0 : nc)).map((c) => +c.v[j] || 0)); };
+    const leafMax = (a) => { const nr = a.dims.rows.length, nc = a.dims.cols.length; return Math.max(0, ...a.cells.filter((c) => c.r.length === nr && c.c.length === (nc && ["time", "stack", "stack100", "hstack", "hstack100", "stackarea"].includes(p.visual) ? 0 : nc)).map((c) => +c.v[j] || 0)); };
     const top = Math.max(...shown.map((f) => leafMax(f.answer)));
     const pal = seriesColors(p), base = (n, i) => (fm0.colors || {})[n] || pal[(i + 1) % pal.length];
     const one = (f, i) => ({ ...p, esplit: "", _facetColor: base(f.name, i), fmt: { ...fm0, legend: fm0.legend || (kpiLike ? "none" : ""), ...(fm0.ymax == null && top > 0 && !kpiLike && p.visual !== "none" ? { ymax: top } : {}) } });

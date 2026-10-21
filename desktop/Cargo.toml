@@ -1,6 +1,6 @@
 [package]
 name = "defect-analyzer-desktop"
-version = "3.47.0"
+version = "3.48.0"
 description = "LotScope（仕掛・作業実績・品質の見える化）デスクトップ版の窓"
 edition = "2021"
 rust-version = "1.90"

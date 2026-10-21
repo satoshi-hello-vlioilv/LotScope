@@ -32,6 +32,9 @@
   const OPS_VIS = [{ k: "gantt", n: "稼働（ガント）", tip: "選んだ設備の作業を 1 枚のガントチャートに並べ、設備ごとの稼働率（勤務時間に対する稼働の割合）を出します", icon: "M3 5h7M6 9h9M3 13h5M10 13h6M3 17h14" },
     { k: "abc", n: "ABC 分析", tip: "設備ごとに、品種を量の大きい順に並べて A・B・C に分け、作業時間から換算係数を出します", icon: "M3 17h14M4 15V4M8 15V8M12 15v-4M16 15v-2M4 5c3-1 8 0 12 6" }];
   const isOps = (x) => !!x && (x.visual === "gantt" || x.visual === "abc");
+  // ABC 分析の表示項目（版 3.48.0。サーバーの dashboard.ABC_ITEMS と同じ鍵）。チェックを外すと出さない（ops.hide）
+  const ABC_ITEMS = [["share", "構成比"], ["cum", "累積"], ["rank", "ABC", "ABC の札・棒の色・A と B の線・下の段の品種の数"], ["avg", "平均作業"], ["factor", "換算係数"],
+    ["conv", "換算本数"], ["chart", "パレート図"], ["foot", "下の段", "ABC の品種の数・基準・換算本数の計・区間なし"]];
   const PERIODS = [["", "期間で絞らない"], ["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["this_month", "今月"], ["last_month", "先月"]];
   // 合わせた表の見せ方（版 3.39.0 で 3 → 8）。cols … 列の段があるときだけ意味のある物
   const LOOKS = [["bar", "棒と数", "棒の長さと数"], ["heat", "数と濃淡", "数の大きさを地の濃さで"], ["num", "数だけ", "数だけを並べる"],
@@ -72,6 +75,7 @@
   // まとまりの色（"" はデータの種類の色＝仕掛は藍・作業実績は青緑・品質データは琥珀。ほかは区分の色と同じ並び）
   const GROUP_COLORS = ["", "#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#8e4f76"];
   let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", q = "", ctx = { formulas: {}, names: {} }, formOpen = false;
+  let eoAll = null, eoKey = "";      // 並べる設備（期間・条件によらないその元のすべての設備。版 3.48.0）
   let eqOpen = false, eqItems = null, eqKey = "", eqSearch = "", calcEdit = null, fmtOpen = true, numTimer = 0;
 
   const isBoard = () => p && p.visual === "board";
@@ -137,7 +141,7 @@
   function calcOf(x) {
     // 稼働を見る形（ガント・ABC）の列（色分け・棒の字・作業終了・品種・量の数の列）も入れる（版 3.47.0。利用者の要望 2026-10-21 の 2 回目の 2:
     // 前は入れておらず、計算列〈追加した列〉で色分けしても式がサーバーへ届かず、色が付かなかった）
-    const o = x.ops || {}, opsCols = [o.color, o.label, o.end, o.qty, ...[].concat(o.cls || [])].filter(Boolean);
+    const o = x.ops || {}, opsCols = [o.color, o.label, o.start, o.end, o.qty, ...[].concat(o.cls || [])].filter(Boolean);
     const b = x.body || {}, used = new Set([...(b.rows || []), ...(b.cols || [])].map((d) => d.column)
       .concat((b.measures || []).map((m) => m.column || ""), (x.filters || []).map((f) => f.column), [x.period ? x.period.column : ""], opsCols));
     const byName = Object.fromEntries(Object.entries(ctx.names).map(([c, n]) => [n, c]));
@@ -280,6 +284,7 @@
     if (key === t.source && equip === t.equip) return;
     const keepPeriod = t.period && t.period.column === "@workday" && key === "work";
     Object.assign(t, { source: key, equip, equips: [], filters: [], search: "", period: keepPeriod ? t.period : null });
+    eoAll = null; delete p.eorder;          // 設備の並びは元ごと（ほかの元の設備の名前は持ち越さない）
     if (!inGroup()) delete p.egroup;
     eqOpen = false;
     t.body = { ...t.body, rows: inGroup() && !inSide() ? t.body.rows : [], cols: [], measures: [{ agg: "lots" }] };
@@ -517,10 +522,12 @@
   function opsHtml() {
     const o = p.ops || {}, fs = ((fields && fields.fields) || []).filter((f) => !f.error);
     const opt = (v, n, cur) => `<option value="${esc(v)}"${(cur || "") === v ? " selected" : ""}>${esc(n)}</option>`;
-    const a = host.answer ? host.answer() : null, found = a && a.kind === p.visual ? a.endColumn : "";
-    const dates = fs.filter((f) => f.date || /作業終了|終了|完了/.test(f.column)).map((f) => f.column);     // 年月日時分秒（14 桁）は日付の列と見分けられないので名前でも
-    const endSel = `<div class="de-row"><label class="de-l">作業終了</label><select data-de-oend aria-label="作業終了の列">${opt("", `自動${found ? `（${found}）` : "（作業終了の列を探す）"}`, o.end)}${dates.map((c) => opt(c, c, o.end)).join("")}</select>`
-      + `<small class="de-hint">作業開始は「${esc((a && a.startColumn) || "BOX実績_作業開始_日付")}」</small></div>`;
+    const a = host.answer ? host.answer() : null, mine = a && a.kind === p.visual, found = mine ? a.endColumn : "", foundS = mine ? a.startColumn : "";
+    // 作業開始・作業終了の列（版 3.48.0。要望 7: 作業開始も選べる）。年月日時分秒（14 桁）は日付の列と見分けられないので名前でも
+    const stamps = (re) => fs.filter((f) => f.date || re.test(f.column)).map((f) => f.column);
+    const colSel = (k, word, auto, list) => `<select data-de-o${k} aria-label="${word}の列">${opt("", `自動${auto ? `（${auto}）` : `（${word}の列を探す）`}`, o[k])}${list.map((c) => opt(c, c, o[k])).join("")}</select>`;
+    const endSel = `<div class="de-row"><label class="de-l">作業開始</label>${colSel("start", "作業開始", foundS, stamps(/作業開始|開始|着手/))}</div>`
+      + `<div class="de-row"><label class="de-l">作業終了</label>${colSel("end", "作業終了", found, stamps(/作業終了|終了|完了/))}</div>`;
     const few = fs.filter((f) => pickable(f) && f.kinds >= 1 && f.kinds <= 60).map((f) => f.column);
     if (p.visual === "gantt") {
       return `<div class="de-ops">${endSel}`
@@ -531,14 +538,20 @@
     const nums = fs.filter((f) => f.numeric).map((f) => f.column), qty = o.qty || "lots";
     const items = a && a.kind === "abc" ? ((a.all || {}).items || []).map((x) => x.key).filter(Boolean) : [];
     const base = o.base || "avg";
+    // 並び（2026-10-dash8 の 2 回目で決めた形）: 何で分けるか（品種）→ 作業の区間（作業開始・作業終了）→ 量 → 換算 → ABC の線 → 全設備の時間 → 出す項目
     return `<div class="de-ops">`
-      + clsRow(few)
+      + clsRow(few) + endSel
       + `<div class="de-row"><label class="de-l">量</label>${segs("oqty", [["lots", "本数", "作業の本数（分割したロットは 1 本）"], ["time", "作業時間", "作業開始〜作業終了の時間の合計"]], qty === "lots" || qty === "time" ? qty : "", "量")}`
       + `<select data-de-oqcol aria-label="数の列の合計"><option value="">数の列の合計…</option>${nums.map((c) => opt(c, `${c}の合計`, qty)).join("")}</select></div>`
       + `<div class="de-row"><label class="de-l" title="換算の基準">換算基準</label><select data-de-obase aria-label="換算係数の基準">${opt("avg", "全作業の平均作業時間 ＝ 1.00", base)}${opt("top", "いちばん本数の多い品種 ＝ 1.00", base)}`
       + `${items.map((k) => opt(k, `品種「${k}」＝ 1.00`, base)).join("")}${base !== "avg" && base !== "top" && !items.includes(base) ? opt(base, `品種「${base}」＝ 1.00`, base) : ""}</select></div>`
       + `<div class="de-row"><label class="de-l" title="ABC の線（累積構成比）">ABC線</label><label class="pv-ck">A ≦<input type="number" min="1" max="99" step="1" data-de-oa value="${o.a ?? 70}" class="de-n" aria-label="A の線（累積構成比 %）">%</label>`
       + `<label class="pv-ck">B ≦<input type="number" min="1" max="100" step="1" data-de-ob value="${o.b ?? 90}" class="de-n" aria-label="B の線（累積構成比 %）">%</label><small class="de-hint">残りが C</small></div>`
+      // 全設備の作業時間（版 3.48.0。要望 6）・表示項目（要望 5）
+      + `<div class="de-row de-spanrow"><label class="de-l de-lnw" title="「全設備」の札の作業時間の取り方">全設備の時間</label>${segs("ospan", [["", "各設備の積み上げ", "作業 1 本ずつの作業時間を、全部の設備で足す（1 本＝1 作業）"], ["lead", "リードタイム", "同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（1 本＝1 ロット）"]], o.span === "lead" ? "lead" : "", "全設備の作業時間")}`
+      + `<small class="de-hint">${o.span === "lead" ? "最初の作業開始〜最後の作業終了（MIN〜MAX）" : "設備ごとの作業時間の合計"}</small></div>`
+      // 全設備をリードタイムにしたら、表の見出しと同じ「平均 LT」（2026-10-dash8 の 2 回目の採点: 出す項目と見出しの言葉が違った）
+      + `<div class="de-row de-top de-ochkrow"><label class="de-l">出す項目</label><span class="de-ochk">${ABC_ITEMS.map(([k, n0, tip]) => [k, k === "avg" && o.span === "lead" ? "平均作業・平均 LT" : n0, tip]).map(([k, n, tip]) => `<label class="pv-ck"${tip ? ` title="${esc(tip)}"` : ""}><input type="checkbox" data-de-ohide="${k}"${(o.hide || []).includes(k) ? "" : " checked"}>${n}</label>`).join("")}</span></div>`
       + `<p class="de-ophint">換算係数 ＝ その品種の 1 本あたりの平均作業時間 ÷ 基準の作業時間。換算本数 ＝ 本数 × 換算係数。</p></div>`;
   }
   /** 品種の列（版 3.47.0。要望 3）: 選んだ列の札（× で外す・左右で順を替える）と「＋ 組み合わせる列」。1 つなら今までと同じ */
@@ -890,7 +903,33 @@
     if (!can) return "";
     const picker = eqOpen ? `<div class="de-eqbox">${eqItems ? Q.checklistHtml(eqItems, new Set(list), { name: "deq", all: "すべての設備" }) : '<p class="df-none">設備を数えています…</p>'}</div>` : "";
     return `<div class="de-row"><span class="de-l">設備</span><button type="button" class="de-eqbtn${list.length ? " is-on" : ""}" data-de-eqopen aria-expanded="${eqOpen}" title="数える設備を選びます（複数選べます）">${esc(eqText(list))}<i aria-hidden="true">${eqOpen ? "▴" : "▾"}</i></button>`
-      + (list.length ? `<button type="button" class="df-link" data-de-eqall>すべてに戻す</button>` : "") + `</div>${picker}`;
+      + (list.length ? `<button type="button" class="df-link" data-de-eqall>すべてに戻す</button>` : "") + `</div>${picker}${eorderHtml()}`;
+  }
+  /* ---- 設備の並び（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 3）: 決まった順（作業実績の設備の並び）か、手で並べた順（eorder）。
+     表・グラフの設備の段・系列の順・並べる図・ガントの行・ABC の設備の札に効く（サーバーの with_eorder・order_parts）。合わせた表は「表全体」の並び ---- */
+  /** 並べる設備（選んだ設備か、その元のすべての設備）を、いまの手で並べた順に */
+  function eorderKeys() {
+    const base = (p.equips || []).length ? p.equips.slice() : (eoAll || []).map((x) => x.value);
+    const eo = p.eorder || [], at = new Map(eo.map((n, i) => [n, i]));
+    return base.map((n, i) => [n, i]).sort((a, b) => (at.has(a[0]) ? at.get(a[0]) : 1e6 + a[1]) - (at.has(b[0]) ? at.get(b[0]) : 1e6 + b[1])).map((x) => x[0]);
+  }
+  /** 並べる設備を読む（期間・条件で絞らない: その期間に作業の無い設備もガントの行・表の行に出るので、並べられるように） */
+  async function loadEoAll() {
+    const key = JSON.stringify([t.source, t.equip || ""]);
+    if (eoKey === key && eoAll) return;
+    eoKey = key; eoAll = null;
+    try { const items = await Q.equipsOf({ source: t.source, equip: t.equip || "", calc: t.calc, visual: "none" }); if (eoKey === key) eoAll = items; } catch (_) { if (eoKey === key) eoAll = []; }
+    paint(false);
+  }
+  function eorderHtml() {
+    if (isBoard() || inGroup() || inSide()) return "";
+    const hand = (p.eorder || []).length > 0, keys = hand ? eorderKeys() : [];
+    // 枠で囲んだ番号つきの表（2026-10-dash8 の 2 回目で決めた J）: ⋮⋮（引いて並べる）・番号・名前・↑↓ を 1 行に。13 台からは 2 段組み（上から下へ読む）
+    const chips = hand ? `<div class="de-row de-top"><span class="de-l"></span>${keys.length ? `<ol class="de-eord${keys.length > 12 ? " is-many" : ""}" aria-label="設備の並び（⋮⋮ を引くか ↑↓ で並べる）">${keys.map((n, i) => `<li class="de-eoc" data-de-eoname="${esc(n)}"><span class="de-grip" data-de-eogrip title="引いて並べる" aria-hidden="true">⋮⋮</span><i class="de-eon">${i + 1}</i><b>${esc(n)}</b>`
+      + `<button type="button" class="icon-btn" data-de-eomove="${i}" data-d="-1" aria-label="「${esc(n)}」を上へ（1 つ前）"${i ? "" : " disabled"}>↑</button><button type="button" class="icon-btn" data-de-eomove="${i}" data-d="1" aria-label="「${esc(n)}」を下へ（1 つ後ろ）"${i < keys.length - 1 ? "" : " disabled"}>↓</button></li>`).join("")}</ol>`
+      : '<small class="de-hint">設備を数えています…</small>'}</div>` : "";
+    return `<div class="de-row"><span class="de-l">並び</span>${segs("eord", [["", "決まった順", "作業実績の設備の並び（マスタ管理で決めた順）・データ元は名前の順"], ["hand", "手で並べる", "設備の順を ⋮⋮ を引くか ↑↓ で決めます（表・グラフ・系列・ガントの行・ABC の設備）"]], hand ? "hand" : "", "設備の並び")}`
+      + `<small class="de-hint">${isOps(p) ? (p.visual === "gantt" ? "ガントの行の順" : "設備の札の順") : hand ? "値の大きい順にしていれば、そちらが先です" : "設備の段・系列の順"}</small></div>${chips}`;
   }
   // 設備の出し方（版 3.40.0。利用者の要望 1: まとめないのに勝手に合算された）。絵つきの札で、出し方の違いを見て選ぶ
   // 言葉は形と合わせる（「重ねる」は積み上げの棒に見えて食い違った: 2026-10-dashlink の 2 回目の採点）
@@ -1112,6 +1151,7 @@
     // 表全体: 設備の選び・まとめは、行の段（設備）の選びのすぐ下（どちらも行の段に効く）
     if (whole && isBoard()) { const b = $("#deBoard"), first = b && b.querySelector(".de-row"); if (first && !b.querySelector("[data-de-egmode]")) first.insertAdjacentHTML("afterend", equipHtml() + egroupHtml()); }
     if ((eqOpen || (p.egroup && p.egroup.mode === "panel")) && !eqItems) loadEquips();
+    if ((p.eorder || []).length && !eoAll) loadEoAll();
   }
   function message(text) { const m = $("#deMsg"); if (m) m.textContent = text || ""; }
 
@@ -1139,6 +1179,11 @@
       // 設備（複数）・まとめる
       if (b.hasAttribute("data-de-eqopen")) { eqOpen = !eqOpen; if (eqOpen) loadEquips(); paint(false); return; }
       if (b.hasAttribute("data-de-eqall") || b.hasAttribute("data-ck-deq-clear")) { setEquips([]); return; }
+      if (b.dataset.deEomove != null) {         // 設備の並び（版 3.48.0）: 1 つ前・後ろへ
+        const ks = eorderKeys(), i = +b.dataset.deEomove, j = i + +b.dataset.d;
+        if (j < 0 || j >= ks.length) return;
+        ks.splice(j, 0, ks.splice(i, 1)[0]); p.eorder = ks; changed(false); return;
+      }
       if (b.hasAttribute("data-de-egadd")) { const eg = p.egroup; eg.groups = (eg.groups || []).concat([{ name: `グループ ${(eg.groups || []).length + 1}`, members: [] }]); changed(false); return; }
       if (b.dataset.deEgdel != null) { p.egroup.groups.splice(+b.dataset.deEgdel, 1); changed(false); return; }
       if (b.dataset.deEgm != null) {
@@ -1223,6 +1268,17 @@
       // 稼働を見る形（版 3.46.0）
       const setOps = (k, v) => { const o = { ...(p.ops || {}) }; if (v === "" || v == null) delete o[k]; else o[k] = v; p.ops = o; changed(false); };
       if (x.matches("[data-de-oend]")) { setOps("end", x.value); return; }
+      if (x.matches("[data-de-ostart]")) { setOps("start", x.value); return; }
+      if (x.matches("[data-de-ospan]")) { setOps("span", x.value === "lead" ? "lead" : ""); return; }
+      if (x.matches("[data-de-ohide]")) {          // ABC の表示項目（版 3.48.0）: チェックを外した項目を hide に
+        const hide = new Set((p.ops || {}).hide || []); if (x.checked) hide.delete(x.dataset.deOhide); else hide.add(x.dataset.deOhide);
+        setOps("hide", hide.size ? ABC_ITEMS.map((y) => y[0]).filter((k) => hide.has(k)) : ""); return;
+      }
+      if (x.matches("[data-de-eord]")) {          // 設備の並び（版 3.48.0）: 手で並べる＝いまの並びから始める
+        if (x.value !== "hand") { delete p.eorder; changed(false); return; }
+        (async () => { await loadEoAll(); p.eorder = eorderKeys(); if (!p.eorder.length) host.toast("並べる設備がありません"); changed(false); })();
+        return;
+      }
       if (x.matches("[data-de-ocolor]")) { setOps("color", x.value); return; }
       if (x.matches("[data-de-olabel]")) { setOps("label", x.value); return; }
       if (x.matches("[data-de-ocls]")) { if (x.value) setCls(clsOf(p).concat([x.value])); return; }
@@ -1388,7 +1444,45 @@
      いまは: 札の写し（ゴースト）が指に付いてくる・元の所は点線の空き・入る所に線。入る所は、指の高さがどの札の真ん中より上か（上へ引いても下へ引いても同じ決まり）。
      設備の札は同じグループの中だけ（グループはマスタで決まる）。グループの見出しを引くと、グループごと並ぶ。Esc でやめる ---- */
   let rd = null;
+  /* ---- 設備の並び（版 3.48.0）の ⋮⋮ を引く: 行の札と同じ決まり（入る所に線・指の高さが札の真ん中より上ならその前・Esc でやめる） ---- */
+  let ed8 = null;
+  function eoDragStart(e) {
+    const grip = e.target.closest && e.target.closest("[data-de-eogrip]");
+    if (!grip || e.button !== 0) return false;
+    const li = grip.closest("[data-de-eoname]"), list = li && li.parentElement;
+    if (!li) return false;
+    e.preventDefault();
+    const line = document.createElement("div"); line.className = "de-dropline"; line.hidden = true; list.append(line);
+    li.classList.add("is-src"); document.body.classList.add("db-dragging");
+    ed8 = { li, list, line, to: -1 };
+    const move = (ev) => {
+      const items = [...list.querySelectorAll(":scope > [data-de-eoname]")].filter((x) => x !== li), lr = list.getBoundingClientRect();
+      const inside = ev.clientX >= lr.left - 40 && ev.clientX <= lr.right + 40 && ev.clientY >= lr.top - 20 && ev.clientY <= lr.bottom + 20;
+      // 2 段組み（is-many）でも、指に近い札の前後で決める（真ん中より上・左ならその前）
+      let i = items.length, best = Infinity;
+      items.forEach((it, k) => { const r = it.getBoundingClientRect(), d = Math.hypot(Math.max(r.left - ev.clientX, 0, ev.clientX - r.right), ev.clientY - (r.top + r.height / 2)); if (d < best) { best = d; i = ev.clientY < r.top + r.height / 2 ? k : k + 1; } });
+      ed8.to = inside ? i : -1; line.hidden = !inside;
+      if (inside) { const ref = items[i] || items[items.length - 1], r = ref.getBoundingClientRect(); line.style.top = `${(items[i] ? r.top - 2 : r.bottom) - lr.top + list.scrollTop}px`; line.style.left = `${r.left - lr.left}px`; line.style.width = `${r.width}px`; }
+    };
+    const done = (apply) => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("keydown", key, true);
+      document.body.classList.remove("db-dragging"); line.remove(); li.classList.remove("is-src");
+      const d = ed8; ed8 = null;
+      if (!apply || !d || d.to < 0) return;
+      const ks = eorderKeys(), name = li.dataset.deEoname, from = ks.indexOf(name);
+      ks.splice(from, 1); ks.splice(d.to, 0, name);
+      if (ks.indexOf(name) === from) return;
+      p.eorder = ks; changed(false);
+    };
+    const key = (ev) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); done(false); } };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", () => done(true), { once: true });
+    window.addEventListener("keydown", key, true);
+    move(e);
+    return true;
+  }
   function rowDragStart(e) {
+    if (eoDragStart(e)) return;
     const grip = e.target.closest && e.target.closest("[data-de-grip]");
     if (!grip || e.button !== 0) return;
     const li = grip.closest("[data-de-row]") || grip.closest("[data-de-rgrp]");
@@ -1484,7 +1578,7 @@
         const e = x.equip && x.source === "work" ? ((srcOf("work") || {}).equips || []).find((y) => y.key === x.equip) : null;
         if (e) { x.equips = [e.name]; x.equip = ""; }
       });
-      eqOpen = false; eqItems = null; eqKey = ""; calcEdit = null;
+      eqOpen = false; eqItems = null; eqKey = ""; eoAll = null; eoKey = ""; calcEdit = null;
       const el = $("#dbEditor");
       if (!el.dataset.bound) { bind(el); bindSize(el); el.dataset.bound = "1"; }
       el.innerHTML = ""; el.hidden = false; applySize(el); q = ""; fields = null; fieldsKey = ""; formOpen = false;

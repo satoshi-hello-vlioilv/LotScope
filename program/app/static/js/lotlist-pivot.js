@@ -641,7 +641,7 @@
     }
     // 行が無いか、ヒストグラムの区間の段のまま別の形にしたとき（区間は形の都合で入れた物）は、その形に向く段に替える
     if ((!s.rows.length || (k !== "hist" && s.rows[0].part === "bin" && s.chart === "hist")) && !patch.rows) {
-      const want = k === "control" || k === "line" || k === "time" ? timeDim : ["pareto", "donut", "stack", "stack100", "box", "column", "bar", "heat"].includes(k) ? fewDim : null;
+      const want = k === "control" || k === "line" || k === "time" ? timeDim : ["pareto", "donut", "stack", "stack100", "hstack", "hstack100", "box", "column", "bar", "heat"].includes(k) ? fewDim : null;
       if (want) { patch.rows = [want]; said.push(`行に「${dimName(want)}」を入れました`); }
     }
     if (k === "heat" && !s.cols.length) {
