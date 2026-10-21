@@ -776,7 +776,6 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-tab.on{color:var(--ink);background:var(--surface);border-color:var(--line);border-bottom:2px solid var(--surface);box-shadow:inset 0 3px 0 var(--h-input)}
 .db-tab.is-out{border-style:dashed;color:var(--muted)}
 .db-pick.is-set{background:var(--input-soft)}
-.db-popsep{height:1px;background:var(--line);margin:2px 0}
 .db-setacts .pv-btn[disabled]{opacity:.45}
 /* 系列の札の組の見出し（形・目盛り・数値・線）と、押した札をはっきり（版 3.46.0。2026-10-combo の 1 回目の採点） */
 .de-sgrp{display:inline-flex;align-items:center;gap:4px}
@@ -791,3 +790,13 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .de-scol .de-snow b{font-weight:700}
 .de-sico{width:16px;height:13px;flex:0 0 auto}
 .de-scol:has(.de-snow) > span:not(.de-snow){flex:0 1 auto}
+/* セット（2026-10-sets の 2 回目で決めた G）: 札とタブを 1 つの枠に（札の枠は消して二重にしない・左端は下の段とそろう）・面は 2 列・セットの行に中身の名前 */
+.db-setbox{display:inline-flex;align-items:flex-end;gap:4px;min-width:0;flex:0 1 auto;border:1px solid #c9d3de;border-radius:9px;background:#f6f8fb;padding:0 8px 0 0}
+.db-setbox .db-pick.is-set{border-color:transparent;background:transparent;align-self:center}
+.db-setbox .db-pick.is-set:hover,.db-setbox .db-pick.is-set[aria-expanded="true"]{border-color:var(--h-input)}
+.db-setbox .db-tabs{border-bottom:0;height:36px}
+.db-pickpop:has(> .db-pcol){width:min(780px,calc(100vw - 24px));display:grid;grid-template-columns:1fr 1fr;column-gap:18px;align-content:start}
+.db-pcol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.db-pcol + .db-pcol{border-left:1px solid var(--line-soft);padding-left:16px}
+.db-setli{flex-wrap:wrap;height:auto;min-height:32px;padding:4px 8px;row-gap:1px}
+.db-setin{flex:1 1 100%;font-size:11.5px;color:var(--muted);font-weight:400;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

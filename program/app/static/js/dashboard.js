@@ -336,11 +336,12 @@
     const st = curSet(), ds = setDash(st);
     const icon = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
     // セットを使っているとき（版 3.46.0）: 選ぶ札はセットの名前、ダッシュボードは右のタブ（いまの物がセットの外なら、点線のタブで足して見せる）
+    // セットの札とタブは 1 つの枠（束の名前とその中身を 1 つの塊に。同じ G）
     const pick = st && !S.edit
-      ? `<button type="button" class="db-pick is-set" data-db-pick aria-haspopup="true" aria-expanded="${S.pop === "pick"}" title="セットを替える・作る・★標準にする／ダッシュボードをセットに入れる・外す">`
+      ? `<div class="db-setbox"><button type="button" class="db-pick is-set" data-db-pick aria-haspopup="true" aria-expanded="${S.pop === "pick"}" title="セットを替える・作る・★標準にする／ダッシュボードをセットに入れる・外す">`
         + `${icon}<b>${esc(st.name)}</b><small>セット・${esc(SCOPE_NAME[st.scope] || "")}</small>${String(st.id) === String(S.setStd) ? '<i class="db-std" title="標準のセット（アプリを開いたときに出す物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`
         + `<div class="db-tabs" role="tablist" aria-label="セットのダッシュボード">${ds.map((x, i) => `<button type="button" role="tab" class="db-tab${String(x.id) === String(S.id) ? " on" : ""}" aria-selected="${String(x.id) === String(S.id)}" data-db-tab="${esc(String(x.id))}" title="${esc(x.name)}">${esc(x.name)}</button>`).join("")}`
-        + (it && !ds.some((x) => String(x.id) === String(it.id)) ? `<button type="button" role="tab" class="db-tab is-out on" aria-selected="true" title="セットに入っていないダッシュボード（▾ の面でセットに入れられます）">${esc(it.name)}</button>` : "") + "</div>"
+        + (it && !ds.some((x) => String(x.id) === String(it.id)) ? `<button type="button" role="tab" class="db-tab is-out on" aria-selected="true" title="セットに入っていないダッシュボード（▾ の面でセットに入れられます）">${esc(it.name)}</button>` : "") + "</div></div>"
       : `<button type="button" class="db-pick" data-db-pick aria-haspopup="true" aria-expanded="${S.pop === "pick"}" title="ほかのダッシュボードを開く・標準にする・名前を変える・消す・セットを使う">`
       + `${icon}<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
     const msg = `<span class="db-msg" aria-live="polite">${esc(S.msg)}</span>`;
@@ -409,10 +410,11 @@
     const list = groups.map(([k, n]) => { const xs = S.list.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const canStd = it && !it.builtin && it.canEdit && String(it.id) !== String(S.standardId);
     const canDel = it && !it.builtin && it.canEdit;
-    return setsHtml() + `<div class="db-pophead"><b>ダッシュボード</b><small>★＝標準（アプリを開いたときに出す物。自分 → 共通 → 共通デフォルトの順に決まります）</small></div>${list}`
+    // 面は 2 列（左＝セット・右＝ダッシュボード。2026-10-sets の 2 回目で決めた G: 1 列では 1280 で面の下が画面の外へ切れた）
+    return `<div class="db-pcol">${setsHtml()}</div><div class="db-pcol"><div class="db-pophead"><b>ダッシュボード</b><small>★＝標準（アプリを開いたときに出す物。自分 → 共通 → 共通デフォルトの順に決まります）</small></div>${list}`
       + `<div class="db-popacts">${canStd ? '<button type="button" class="pv-btn" data-db-std>★ いまの物を標準にする</button>' : ""}`
       + `<button type="button" class="pv-btn" data-db-new title="パネルの無いダッシュボードを、編集で作り始めます">＋ 空から作る</button>`
-      + (canDel ? `<button type="button" class="pv-btn is-danger${S.confirm === "remove" ? " is-armed" : ""}" data-db-remove>${S.confirm === "remove" ? "もう一度押すと消えます" : "いまの物を消す"}</button>` : "") + "</div>";
+      + (canDel ? `<button type="button" class="pv-btn is-danger${S.confirm === "remove" ? " is-armed" : ""}" data-db-remove>${S.confirm === "remove" ? "もう一度押すと消えます" : "いまの物を消す"}</button>` : "") + "</div></div>";
   }
   /** セットの段（面の上）: セットの並び（自分・共通・共通デフォルト。★標準）と「使わない」・いまのセットの操作 */
   function setsHtml() {
@@ -420,7 +422,9 @@
     // 置き場の言葉はダッシュボードと同じ（自分・共通・共通デフォルト。2026-10-sets の 1 回目の採点: 札は「共通デフォルト」・面は「標準のセット」で揃っていなかった）
     const groups = [["me", "自分のセット"], ["all", "共通のセット"], ["default", "共通デフォルトのセット"]];
     const row = (x) => `<button type="button" class="db-li db-setli${String(x.id) === String(S.setId) ? " on" : ""}" data-db-set="${esc(String(x.id))}">`
-      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.setStd) ? '<i class="db-std" title="標準のセット（アプリを開いたときに出す物）">★</i>' : ""}<small>${setDash(x).length} 枚</small></button>`;
+      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.setStd) ? '<i class="db-std" title="標準のセット（アプリを開いたときに出す物）">★</i>' : ""}<small>${setDash(x).length} 枚</small>`
+      // 中のダッシュボードの名前（開かずに中身が分かる。同じ G）
+      + `<span class="db-setin">${esc(setDash(x).map((d) => d.name).join("・"))}</span></button>`;
     const list = groups.map(([k, n]) => { const xs = S.sets.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const none = `<button type="button" class="db-li${S.setId == null ? " on" : ""}" data-db-set=""><b>セットを使わない</b><small>1 枚ずつ開く</small></button>`;
     const pos = st && it ? st.body.items.indexOf(String(it.id)) : -1;
@@ -434,7 +438,7 @@
       + "</div>" : "";
     return `<div class="db-pophead"><b>セット</b><small>いくつかのダッシュボードの束。道具の行のタブで切り替えます（★＝アプリを開いたときのセット。自分 → 共通 → 共通デフォルトの順）</small></div>`
       + `<div class="db-lg">${none}</div>${list}${acts}`
-      + `<div class="db-popacts"><button type="button" class="pv-btn" data-db-setsave title="${st ? "いまのセットのタブの並びを、名前を付けて別のセットとして置きます" : "いまのダッシュボードから、新しいセットを作ります"}">＋ セットとして保存…</button></div><div class="db-popsep" role="separator"></div>`;
+      + `<div class="db-popacts"><button type="button" class="pv-btn" data-db-setsave title="${st ? "いまのセットのタブの並びを、名前を付けて別のセットとして置きます" : "いまのダッシュボードから、新しいセットを作ります"}">＋ セットとして保存…</button></div>`;
   }
   function setSaveHtml() {
     const st = curSet(), it = current();

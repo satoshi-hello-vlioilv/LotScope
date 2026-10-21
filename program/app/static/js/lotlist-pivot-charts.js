@@ -337,8 +337,10 @@
         const tries = [...ud, ...[[side, -5], [-side, -5], [side, 13], [-side, 13]].map(([dx, dy]) => [x(i) + dx, cy + dy])];
         const at = ([cx, by]) => ({ x0: cx - w / 2, x1: cx + w / 2, y0: by - 11, y1: by + 2 });
         const free = (t) => !crosses(at(t));
-        const order = [...tries.filter((t) => free(t) && !onBar(at(t))).map((t) => [t, false]), ...ud.filter((t) => !onBar(at(t))).map((t) => [t, true]),
-          ...tries.filter((t) => free(t) && onBar(at(t))).map((t) => [t, false]), ...ud.map((t) => [t, true])];
+        // 系列の書式で上・下を決めていれば、その向きを守る（横へは逃がさない。線と重なれば札を敷く）。逃げるのは置けないときだけ反対側
+        const order = pos === "top" || pos === "below" ? ud.map((t) => [t, !free(t)])
+          : [...tries.filter((t) => free(t) && !onBar(at(t))).map((t) => [t, false]), ...ud.filter((t) => !onBar(at(t))).map((t) => [t, true]),
+            ...tries.filter((t) => free(t) && onBar(at(t))).map((t) => [t, false]), ...ud.map((t) => [t, true])];
         const put = (t, plate) => labelAt(placed, t[0], t[1], nf(v), same.length ? "" : tint, W, Math.max(1, pt - 14), base0, plate);
         let txt = "";
         for (const [t, plate] of order) { txt = put(t, plate); if (txt) break; }

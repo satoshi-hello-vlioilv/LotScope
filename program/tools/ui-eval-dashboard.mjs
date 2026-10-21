@@ -199,7 +199,7 @@ try {
   await p.click(`${P("board")} [data-db-edit]`); await p.waitForSelector("#deBoard .de-rowi[data-de-row]"); await sleep(400);
   const f0 = await p.evaluate(() => ({ card: document.querySelector("#deVis .de-formcard")?.textContent.trim(), grid: document.querySelectorAll("#deVis .de-vis [data-de-vis]").length }));
   await p.click("[data-de-formmore]"); await sleep(300);
-  const f1 = await p.$$eval("#deVis .de-vis [data-de-vis]", (x) => x.length), all = await p.evaluate(() => 3 + LotListPivotCharts.DEFS.filter((x) => x.k !== "none").length);
+  const f1 = await p.$$eval("#deVis .de-vis [data-de-vis]", (x) => x.length), all = await p.evaluate(() => 3 + LotListPivotCharts.DEFS.filter((x) => x.k !== "none").length + Object.keys(window.DashOps || {}).filter((k) => k === "gantt" || k === "abc").length);   // ＋稼働・ABC（版 3.46.0）
   check(`⑧ 形は「合わせた表」の札 1 枚（${all} の形は畳む）・「形を変える…」で ${all} の形が開く`, f0.card === "合わせた表" && f0.grid === 0 && f1 === all && all >= 24, { f0, f1, all });
   await p.click('#deVis [data-de-vis="none"]'); await sleep(2000);
   const t8 = await p.evaluate((sel) => ({ table: !!document.querySelector(`${sel} .pv-table`), tabs: !!document.querySelector("#deTabs .de-tab") }), P("board"));
