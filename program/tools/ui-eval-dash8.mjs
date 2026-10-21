@@ -112,7 +112,7 @@ try {
   await waitDash(p); await sleep(600);
   const heads = await p.$$eval(`${P("abc")} .oa-table thead th`, (ts) => ts.map((t) => t.textContent));
   const chart = await p.$(`${P("abc")} .oa-chart`), ranks = await p.$$(`${P("abc")} .oa-table .oa-rank`);
-  check("⑤ 外した項目（換算本数・ABC）が表に無く、パレート図も無い", !heads.includes("換算本数") && !heads.includes("ABC") && heads.includes("構成比") && !chart && !ranks.length, heads);
+  check("⑤ 外した項目（換算本数・ABC）が表に無く、パレート図も無い", !heads.includes("換算本数") && !heads.includes("ABC") && heads.includes("本数比") && !chart && !ranks.length, heads);
   await p.click('.de-seg:has([data-de-ospan][value="lead"])'); await sleep(200); await waitDash(p); await sleep(600);
   const st = await p.evaluate(() => { const s = Dashboard._state(); return { panel: s.layout.panels.find((x) => x.id === "abc") }; });
   const a2 = await answer(p, "abc");
@@ -121,7 +121,7 @@ try {
   const firstRow = await p.$$eval(`${P("abc")} .oa-table tbody tr:first-child > *`, (ts) => ts.map((t) => t.textContent));
   const top = server.all.items[0];
   check("⑥ リードタイム: 答えの span・見出し（ロット数・平均 LT）・下の段の印", a2.span === "lead" && heads2.includes("ロット数") && heads2.includes("平均 LT") && !!(await p.$(`${P("abc")} .oa-flt`)), { span: a2.span, heads2 });
-  check("⑥ リードタイムの数がサーバーへ同じ組みを問い合わせた答えと同じ（1 行目の品種・ロット数・平均）", firstRow[0] === top.key && +firstRow[1].replace(/,/g, "") === top.lots && firstRow.some((x) => x === `${top.avg.toFixed(1)} 分`), { firstRow, top: [top.key, top.lots, top.avg] });
+  check("⑥ リードタイムの数がサーバーへ同じ組みを問い合わせた答えと同じ（1 行目の品種・ロット数・平均）", firstRow[0] === top.key && +firstRow[1].replace(/,/g, "") === top.lots && firstRow.some((x) => x === (server.all.items.some((y) => y.avg >= 600) ? `${(top.avg / 60).toFixed(1)}h` : `${top.avg.toFixed(1)} 分`)), { firstRow, top: [top.key, top.lots, top.avg] });
   check("⑥ 積み上げとリードタイムで全設備の本数が違う（1 本＝作業／1 本＝ロット）", server.all.lots !== (await ask(p, OPS.panels[1])).all.lots, null);
   const opts = await p.$$eval("[data-de-ostart] option", (os) => os.map((o) => o.value));
   check("⑦ 作業開始の列を選べる（候補に開始の列）", opts.includes("開始"), opts);

@@ -101,7 +101,8 @@
      共通デフォルト: 開発者が置いた物と、組み込みの物（id が "b:…"。列は役 $weight などで書き、resolve がこの表の列に当てはめる）。
      標準: 組み方が空のまま集計表を開くと、その範囲で 1 回だけ当てる（自分の ID → 共通 → 共通デフォルトの標準。決めはサーバー）。
      すぐに見る: グラフの形の行に並べる組み方。ID ごとに選び（/api/pivot-quick）、選んでいなければ既定（共通デフォルトの物） */
-  const SCOPE_NAME = { me: "自分", all: "共通", default: "共通デフォルト" };
+  // 置き場の言葉と印は shared.js の TPA.scope（ダッシュボードと同じ。版 3.49.0）。★は「最初に当てる」
+  const SCOPE_NAME = TPA.scope.NAME;
   const presets = { source: "", items: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, quick: [], quickCustom: false, quickDefault: [], loaded: false, version: 0 };
   const autoTried = new Set();
   const sourceOf = () => (host.isWork() ? "work" : "lot");
@@ -152,7 +153,7 @@
     const p = itemOf(presets.standardId);
     if (!p || st().rows.length) return false;
     const ok = applyPreset(p, { quiet: true });
-    if (ok) host.toast(`標準の組み方「${p.name}」（${SCOPE_NAME[p.scope]}）を当てました`);
+    if (ok) host.toast(`最初に当てる組み方「${p.name}」〔${SCOPE_NAME[p.scope]}〕を当てました`);
     return ok;
   }
   /** 書く（POST・PUT・DELETE）。誤りは知らせて、一覧を読み直す */
@@ -310,11 +311,11 @@
   /** すぐに見るの札（当てはまらない役がある物は押せない。いまの組み方に当たる物は印） */
   function quickBtn(p) {
     const now = presetNow(), hit = now.item && now.item.id === p.id, on = hit && !now.changed, moved = hit && now.changed;
-    const tip = p.missing.length ? `この表には ${p.missing.join("・")} が無いので使えません` : `${p.name}（${SCOPE_NAME[p.scope]}${p.builtin ? "・組み込み" : ""}）を当てます`;
+    const tip = p.missing.length ? `この表には ${p.missing.join("・")} が無いので使えません` : `${p.name}〔${SCOPE_NAME[p.scope]}${p.builtin ? "・組み込み" : ""}〕を当てます`;
     const std = String(p.id) === String(presets.standardId);
-    const note = (std ? "\n★＝標準（組み方が空のまま集計表を開くと当てる）" : "") + (moved ? "\nいまは、当てたあとに変えています（押すと当て直します）" : "");
+    const note = (std ? "\n★＝最初に当てる（組み方が空のまま集計表を開くと当てる）" : "") + (moved ? "\nいまは、当てたあとに変えています（押すと当て直します）" : "");
     return `<button type="button" class="pv-quick${on ? " is-on" : moved ? " is-moved" : ""}" data-pv-quick="${esc(String(p.id))}" title="${esc(tip + note)}"${p.missing.length ? " disabled" : ""}>`
-      + `${C.iconSvg((p.body || {}).chart, 15)}<span>${esc(p.name)}</span>${std ? '<i class="pv-star is-std" aria-label="標準">★</i>' : ""}</button>`;
+      + `${C.iconSvg((p.body || {}).chart, 15)}<span>${esc(p.name)}</span>${std ? '<i class="pv-star is-std" aria-label="最初に当てる">★</i>' : ""}</button>`;
   }
   /* ---- グラフの形の行（7 案＋2 回目で選んだ: ui-proposals/2026-10-pvcharts* の M1）:
      「グラフ ［絵］時系列 ▾」（押すと目的ごとの行に 14 形を並べた面）・すぐに見るの札（★＝標準）・「組み方 ▾」（すぐに見るに出す ☑・当てる・保存の面）。
@@ -323,12 +324,12 @@
     const picks = quickItems(), def = C.get(s.chart) || C.DEFS[0], { item, changed } = presetNow();
     // いまの組み方の名前は、すぐに見るの札に無いときだけボタンに出す（札にあれば札の印＝当てた・点線＝変えた）
     const pname = item && !picks.some((p) => p.id === item.id) ? `: ${item.name}${changed ? "（変えた）" : ""}` : "";
-    const ptip = item ? `いまの組み方「${item.name}」（${SCOPE_NAME[item.scope]}${item.standard ? "・標準" : ""}）${changed ? "を当てたあとに変えています" : ""}\n` : "";
+    const ptip = item ? `いまの組み方「${item.name}」〔${SCOPE_NAME[item.scope]}${item.standard ? "・★最初に当てる" : ""}〕${changed ? "を当てたあとに変えています" : ""}\n` : "";
     return `<div class="pv-bar"><span class="pv-k">グラフ</span><button type="button" id="llPvChartBtn" class="pv-cpick" data-pv-pick aria-haspopup="true" aria-expanded="${!!popOf("chart")}" title="${esc(def.tip)}\n押すと、ほかのグラフの形を目的ごとに選べます">`
       + `${C.iconSvg(def.k, 18)}<b>${esc(def.n)}</b><i aria-hidden="true">▾</i></button>`
       + `<span class="pv-k pv-qk">すぐに見る:</span>${picks.length ? picks.map(quickBtn).join("") : '<span class="pv-qnone">（なし。「組み方 ▾」で ☑ を付けると並びます）</span>'}`
       + `<button type="button" id="llPvPreset" class="pv-pbtn${item && !changed ? " is-on" : ""}" data-pv-qpick aria-haspopup="true" aria-expanded="${!!popOf("preset")}" title="${esc(ptip)}組み方（行・列・値・グラフの形・小計・総計・月で区切る・数値ラベル）を当てる・保存する・すぐに見るに出す物を選ぶ">`
-      + `組み方<span class="pv-pname">${esc(pname)}</span>${pname && item.standard ? '<i class="pv-star is-std" aria-label="標準">★</i>' : ""}<i aria-hidden="true">▾</i></button></div>`;
+      + `組み方<span class="pv-pname">${esc(pname)}</span>${pname && item.standard ? '<i class="pv-star is-std" aria-label="最初に当てる">★</i>' : ""}<i aria-hidden="true">▾</i></button></div>`;
   }
   /** 文とグラフの形の行だけを描き直す（組み方・すぐに見るを替えたとき） */
   function paintHead() { const h = $("#llPvHead"); if (h && host) h.innerHTML = sentenceHtml(st()) + barHtml(st()); }
@@ -437,7 +438,7 @@
     el.querySelector(".pv-cbtn.on, .pv-cbtn")?.focus();
   }
 
-  /* ---- 組み方の面: すぐに見るに出す物（☑・この順・▲▼）／組み方の一覧（自分・共通・共通デフォルト。押すと当てる・標準・上書き・名前・削除）／いまの形を保存 ---- */
+  /* ---- 組み方の面: すぐに見るに出す物（☑・この順・▲▼）／組み方の一覧（自分だけ・全員（共有）・全員の既定。押すと当てる・★最初に当てる・上書き・名前・削除）／いまの形を保存 ---- */
   const tags = (b) => [b.rows && b.rows.length ? b.rows.map((d) => (d.column ? dimName(d) : "—")).join(" ＞ ") : "", (C.get(b.chart) || {}).n, b.split ? "月で区切る" : "", b.labels ? "数値ラベル" : ""].filter(Boolean).join(" · ");
   async function togglePresetPop(anchor) {
     const el = openPop("preset", anchor, "組み方", onPresetClick);
@@ -453,26 +454,29 @@
     const pinned = (p) => quick.includes(String(p.id));
     const row = (p) => `<div class="pv-pi${p.id === (now.item || {}).id ? " is-now" : ""}${p.missing.length ? " is-miss" : ""}">`
       + `<label class="pv-pq" title="すぐに見るに出す（自分の ID ごと）"><input type="checkbox" data-pv-pin="${esc(String(p.id))}"${pinned(p) ? " checked" : ""}${presets.login ? "" : " disabled"} aria-label="「${esc(p.name)}」をすぐに見るに出す"></label>`
-      + `<button type="button" class="pv-papply" data-pv-papply="${esc(String(p.id))}"${p.missing.length ? ` disabled title="この表には ${esc(p.missing.join("・"))} が無いので使えません"` : ' title="この組み方を当てます"'}>${C.iconSvg((p.body || {}).chart, 15)}<b>${esc(p.name)}${p.standard ? ' <i class="pv-star is-std" aria-label="標準">★</i>' : ""}</b><small>${esc(tags(p.body || {}))}</small></button>`
-      + (p.canEdit ? `<span class="pv-pact"><button type="button" data-pv-pstd="${p.id}" aria-pressed="${p.standard}" title="${p.standard ? "標準を外す" : `${SCOPE_NAME[p.scope]}の標準にする（組み方が空のまま集計表を開くと当てる）`}">${p.standard ? "★標準" : "☆標準"}</button>`
+      + `<button type="button" class="pv-papply" data-pv-papply="${esc(String(p.id))}"${p.missing.length ? ` disabled title="この表には ${esc(p.missing.join("・"))} が無いので使えません"` : ' title="この組み方を当てます"'}>${C.iconSvg((p.body || {}).chart, 15)}<b>${esc(p.name)}${p.standard ? ` <i class="pv-star is-std${String(p.id) === String(presets.standardId) ? "" : " is-off"}" aria-label="最初に当てる" title="${String(p.id) === String(presets.standardId) ? "最初に当てる組み方" : `★を付けていますが、先の置き場の★が先に効いています（${TPA.scope.RULE}）`}">${String(p.id) === String(presets.standardId) ? "★" : "☆"}</i>` : ""}</b><small>${esc(tags(p.body || {}))}</small></button>`
+      + (p.canEdit ? `<span class="pv-pact"><button type="button" data-pv-pstd="${p.id}" aria-pressed="${p.standard}" title="${p.standard ? "★を外す" : `〔${SCOPE_NAME[p.scope]}〕で最初に当てる組み方にする（組み方が空のまま集計表を開くと当てる）`}">${p.standard ? "★最初に当てる" : "☆最初に当てる"}</button>`
         + `<button type="button" data-pv-pover="${p.id}" title="いまの組み方で上書きします"${s.rows.length ? "" : " disabled"}>上書き</button><button type="button" data-pv-pren="${p.id}">名前</button><button type="button" data-pv-pdel="${p.id}">削除</button></span>` : "")
       + "</div>";
-    const sec = (title, list, empty) => `<p class="pv-psec">${title}</p>` + (list.length ? list.map(row).join("") : `<p class="pv-pnote">${empty}</p>`);
+    const sec = (k, list, empty) => `<p class="pv-psec">${TPA.scope.head(k, k === "me" && presets.login ? `（${esc(presets.login)}）` : "")}</p>` + (list.length ? list.map(row).join("") : `<p class="pv-pnote">${empty}</p>`);
     const order = quick.map(itemOf).filter(Boolean);
     const std = itemOf(presets.standardId);
     el.innerHTML = `<div class="pv-phead"><b>組み方</b><small>名前を押すと当てます（この表に無いカラムは外します）。☑＝グラフの形の行の「すぐに見る」に出す（${presets.login ? `${esc(presets.login)} の分。ほかの PC でも同じ` : "ログイン ID が分からないので選べません"}）。`
-      + `★＝標準: 組み方が空のまま集計表を開くと当てます${std ? `（いまは「${esc(std.name)}」）` : ""}</small></div>`
-      + `<div class="pv-qorder"><p class="pv-psec">すぐに見るの並び${presets.quickCustom ? "" : "（共通デフォルトのまま）"}</p>`
+      + `★＝最初に当てる: 組み方が空のまま集計表を開くと当てます${std ? `（いまは「${esc(std.name)}」）` : ""}。${TPA.scope.RULE}</small></div>`
+      + `<div class="pv-qorder"><p class="pv-psec">すぐに見るの並び${presets.quickCustom ? "" : "（全員の既定のまま）"}</p>`
       + (order.length ? order.map((p, i) => `<span class="pv-qo">${C.iconSvg((p.body || {}).chart, 14)}<span>${esc(p.name)}</span><button type="button" data-pv-qmove="${i}" data-d="-1" aria-label="「${esc(p.name)}」を前へ"${i ? "" : " disabled"}>◀</button><button type="button" data-pv-qmove="${i}" data-d="1" aria-label="「${esc(p.name)}」を後ろへ"${i < order.length - 1 ? "" : " disabled"}>▶</button></span>`).join("") : '<span class="pv-pnote">何も出していません。下の ☑ で選びます</span>')
-      + (presets.quickCustom ? '<button type="button" class="pv-link" data-pv-qreset title="自分の選びを消し、開発者が決めた共通デフォルトの並びに戻します">共通デフォルトに戻す</button>' : "") + "</div>"
-      + sec(`自分（${esc(presets.login || "ID 不明")}）`, all.filter((p) => p.scope === "me"), "まだありません。下でいまの形を保存できます")
-      + sec("共通（全員）", all.filter((p) => p.scope === "all"), "まだありません")
-      + sec("共通デフォルト（開発者が用意）", all.filter((p) => p.scope === "default"), "ありません")
+      + (presets.quickCustom ? '<button type="button" class="pv-link" data-pv-qreset title="自分の選びを消し、開発者が決めた全員の既定の並びに戻します">全員の既定に戻す</button>' : "") + "</div>"
+      + sec("me", all.filter((p) => p.scope === "me"), presets.login ? "まだありません。下でいまの形を保存できます" : "ログイン ID が分からないので置けません")
+      + sec("all", all.filter((p) => p.scope === "all"), "まだありません")
+      + sec("default", all.filter((p) => p.scope === "default"), "ありません")
       + `<div class="pv-psave"><p class="pv-psec">いまの組み方を保存</p>`
       + `<input id="llPvPName" type="text" maxlength="40" placeholder="名前（例: 月ごとの重量。同じ名前に入れ直すなら、上の「上書き」）" aria-label="組み方の名前">`
-      + `<span class="pv-pto"><label><input type="radio" name="llPvPScope" value="me" checked>自分</label><label title="${presets.canEditCommon ? "全員に見えます" : "共通に保存できるのは、マスタを書ける権限（部分的編集可から）の人だけです"}"><input type="radio" name="llPvPScope" value="all"${presets.canEditCommon ? "" : " disabled"}>共通</label>`
-      + (presets.canEditDefault ? '<label title="全員の既定（開発者だけ）。すぐに見るを選んでいない人に並びます"><input type="radio" name="llPvPScope" value="default">共通デフォルト</label>' : "")
-      + `<label><input type="checkbox" id="llPvPQuick"${presets.login ? " checked" : " disabled"}>すぐに見るに出す</label><label><input type="checkbox" id="llPvPStd">標準にする</label></span>`
+      + `<span class="pv-pto">${TPA.scope.ORDER.filter((k) => k !== "default" || presets.canEditDefault).map((k) => {
+        const ok = k === "me" || (k === "all" ? presets.canEditCommon : presets.canEditDefault);
+        const tip = ok ? `${TPA.scope.who(k)}${k === "default" ? "。すぐに見るを選んでいない人に並びます" : ""}` : "全員（共有）に置けるのは、マスタを書ける権限（部分的編集可から）の人だけです";
+        return `<label title="${tip}"><input type="radio" name="llPvPScope" value="${k}"${k === "me" ? " checked" : ""}${ok ? "" : " disabled"}>${TPA.scope.icon(k)}${SCOPE_NAME[k]}</label>`;
+      }).join("")}<i class="pv-pbr" aria-hidden="true"></i>`
+      + `<label><input type="checkbox" id="llPvPQuick"${presets.login ? " checked" : " disabled"}>すぐに見るに出す</label><label><input type="checkbox" id="llPvPStd">★ 最初に当てる</label></span>`
       + `<button type="button" class="pv-btn" data-pv-psave${s.rows.length ? "" : ' disabled title="行の段が 1 つも無い組み方は保存できません"'}>保存</button></div>`;
   }
   async function onPresetClick(e) {
@@ -493,8 +497,8 @@
       if (await setQuick(keys)) paintPresetPop();
       return;
     }
-    if (b.hasAttribute("data-pv-qreset")) { if (await setQuick(null)) { host.toast("すぐに見るを共通デフォルトの並びに戻しました"); paintPresetPop(); } return; }
-    if (b.dataset.pvPstd) { const p = find(b.dataset.pvPstd); if (p && await writePreset("PUT", p.id, { standard: !p.standard, base_rev: p.rev })) host.toast(p.standard ? `「${p.name}」を標準から外しました` : `「${p.name}」を${SCOPE_NAME[p.scope]}の標準にしました`); paintPresetPop(); paintHead(); return; }
+    if (b.hasAttribute("data-pv-qreset")) { if (await setQuick(null)) { host.toast("すぐに見るを全員の既定の並びに戻しました"); paintPresetPop(); } return; }
+    if (b.dataset.pvPstd) { const p = find(b.dataset.pvPstd); if (p && await writePreset("PUT", p.id, { standard: !p.standard, base_rev: p.rev })) host.toast(p.standard ? `「${p.name}」の★を外しました` : `「${p.name}」を〔${SCOPE_NAME[p.scope]}〕で最初に当てる組み方にしました`); paintPresetPop(); paintHead(); return; }
     if (b.dataset.pvPover) {
       const p = find(b.dataset.pvPover);
       if (p && confirm(`組み方「${p.name}」を、いまの形で上書きします。よろしいですか？`) && await writePreset("PUT", p.id, { body: bodyOf(st()), base_rev: p.rev })) { save({ preset: p.id }); host.toast(`「${p.name}」をいまの形で上書きしました`); }
@@ -507,7 +511,7 @@
     }
     if (b.dataset.pvPdel) {
       const p = find(b.dataset.pvPdel);
-      if (p && confirm(`組み方「${p.name}」（${SCOPE_NAME[p.scope]}）を消します。よろしいですか？`) && await writePreset("DELETE", `${p.id}?rev=${p.rev}`)) host.toast(`「${p.name}」を消しました`);
+      if (p && confirm(`組み方「${p.name}」〔${SCOPE_NAME[p.scope]}〕を消します。よろしいですか？`) && await writePreset("DELETE", `${p.id}?rev=${p.rev}`)) host.toast(`「${p.name}」を消しました`);
       paintPresetPop(); paintHead(); return;
     }
     if (b.hasAttribute("data-pv-psave")) {
@@ -518,7 +522,7 @@
       if (d) {
         save({ preset: d.id });
         if (quick) await setQuick(presets.quick.concat([String(d.id)]));
-        host.toast(`組み方「${name}」を${SCOPE_NAME[scope]}に保存しました${standard ? "（標準）" : ""}${quick ? "。すぐに見るに出しました" : ""}`);
+        host.toast(`組み方「${name}」を〔${SCOPE_NAME[scope]}〕に保存しました${standard ? "（★最初に当てる）" : ""}${quick ? "。すぐに見るに出しました" : ""}`);
       }
       paintPresetPop(); paintHead();
     }

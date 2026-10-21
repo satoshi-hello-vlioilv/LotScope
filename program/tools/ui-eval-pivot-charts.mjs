@@ -182,8 +182,8 @@ try {
     await p.fill("#llPvPName", "開発者の既定（試験）"); await p.check('#llPvPresetPop input[name="llPvPScope"][value="default"]'); await p.uncheck("#llPvPQuick");
     await p.click("#llPvPresetPop [data-pv-psave]"); await sleep(1200);
     const secs = await p.$$eval("#llPvPresetPop .pv-psec", (xs) => xs.map((x) => x.textContent));
-    const inDefault = await p.evaluate(() => { const items = [...document.querySelectorAll("#llPvPresetPop .pv-psec, #llPvPresetPop .pv-pi")]; let sec = ""; return items.map((x) => (x.classList.contains("pv-psec") ? ((sec = x.textContent), null) : [sec, x.querySelector("b").textContent])).filter(Boolean).filter(([s]) => s.startsWith("共通デフォルト")).map(([, n]) => n); });
-    check("開発者が共通デフォルトに保存 → 面の「共通デフォルト」に並ぶ", inDefault.includes("開発者の既定（試験）") && secs.some((x) => x.startsWith("共通デフォルト")), { inDefault, secs });
+    const inDefault = await p.evaluate(() => { const items = [...document.querySelectorAll("#llPvPresetPop .pv-psec, #llPvPresetPop .pv-pi")]; let sec = ""; return items.map((x) => (x.classList.contains("pv-psec") ? ((sec = x.textContent), null) : [sec, x.querySelector("b").textContent])).filter(Boolean).filter(([s]) => s.startsWith("全員の既定")).map(([, n]) => n); });
+    check("開発者が全員の既定に保存 → 面の「全員の既定」に並ぶ（版 3.49.0 で共通デフォルトから言葉を改めた）", inDefault.includes("開発者の既定（試験）") && secs.some((x) => x.startsWith("全員の既定")), { inDefault, secs });
     await p.keyboard.press("Escape");
   }
   check("頁の誤りが無い", !errors.length, errors);

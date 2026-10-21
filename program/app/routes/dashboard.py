@@ -80,7 +80,8 @@ def dashboards_list():
     every = master_repo().dashboards()
     rows = [r for r in every if pp_visible(r, login)]
     std = dashboard.pivot_presets.standard_for(rows, dashboard.LAYOUT_SOURCE, login)
-    items = sorted((dashboard.layout_view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
+    items = sorted((dashboard.layout_view(dashboard.with_builtin_replace(r), login, common_ok, default_ok) for r in rows),
+                   key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
     # 組み込みは、外した物・入れ替えた物を出さない（版 3.48.0）。入れ替えた物は replaces（"b:鍵"。セットのタブ・覚えた id がそれを開く）
     off, swapped = dashboard.builtin_skip(every, login)
     items += dashboard.builtin_layouts(skip=set(off) | swapped)
@@ -136,7 +137,7 @@ def dashboards_create():
     login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
 
     def go():
-        row = dashboard.clean_layout_row(request.get_json(force=True) or {}, login)
+        row = dashboard.with_builtin_replace(dashboard.clean_layout_row(request.get_json(force=True) or {}, login))
         _gate(row, login, common_ok, default_ok, revoked, "ダッシュボード")
         return dashboard.layout_view(master_repo().dashboard_create(row), login, common_ok, default_ok)
     return master_call(go, 201)
@@ -153,7 +154,8 @@ def dashboards_update(item_id):
         if old is None or old.get("元") != dashboard.LAYOUT_SOURCE:       # セット（元 dashset）はセットの道で直す
             raise dashboard.LayoutError(f"id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
         _gate(old, login, common_ok, default_ok, revoked, "ダッシュボード")
-        row = master_repo().dashboard_update(item_id, dashboard.clean_layout_row(request.get_json(force=True) or {}, login, partial=True), base)
+        data = dashboard.with_builtin_replace(dashboard.clean_layout_row(request.get_json(force=True) or {}, login, partial=True), old)
+        row = master_repo().dashboard_update(item_id, data, base)
         return dashboard.layout_view(row, login, common_ok, default_ok)
     return master_call(go)
 
@@ -591,58 +593,94 @@ def _ops_answer(p, now):
 
 
 def _ops_count(p, parts, o, period, now):
+    if p["visual"] == "abc":
+        return _abc_count(p, parts, o, period, now)
     pats = master_repo().shift_patterns()
+    cols = [o.get("label") or "", o.get("color") or ""]
+    equips, skipped, rng, start_col, end_col = [], [], None, "", ""
+    for part in order_parts(parts, p.get("eorder")):
+        try:
+            r = operation.read_ops(part, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False), today=now.date(), calc=p.get("calc"),
+                                   period=period, now=now, end=o.get("end", ""), start=o.get("start", ""), cols=[c for c in cols if c], reach=True)
+        except Exception as e:      # 読めない設備は飛ばし、理由をガントの行・知らせに出す
+            skipped.append({"name": part.name, "error": str(e)})
+            # ガントは読めない設備も行に出す（前は行ごと消え、「出ない設備がある」になった。版 3.47.0）
+            equips.append({"name": part.name, "error": str(e), "ops": [], "windows": [], "view": None, "rate": None, "shiftMin": 0, "busyMin": 0,
+                           "outsideMin": 0, "byShift": [], "noEnd": 0, "why": {}, "count": 0, "carry": 0, "truncated": False, "pattern": ""})
+            continue
+        start_col, end_col, rng = start_col or r["start"], end_col or r["end"], rng or r["range"]
+        if r["range"] and (date.fromisoformat(r["range"][1]) - date.fromisoformat(r["range"][0])).days + 1 > operation.MAX_DAYS:
+            return {"error": f"ガントチャートの期間は {operation.MAX_DAYS} 日までです（期間を短くしてください）。", "kind": "invalid", "status": 400}
+        pat = shifts.pattern_for(pats, part.name)
+        basis = part.work.get("basis", "work")
+        wins = operation.shift_windows(pat["segments"], *r["range"], basis) if pat and r["range"] else []
+        days = operation.work_days(pat["segments"] if pat else [], *r["range"], basis) if r["range"] else []
+        label = o.get("label") or r["lot"] or ""
+        g = operation.gantt(part.name, r, wins, label=label, color=o.get("color") or "", days=days)
+        equips.append({**g, "pattern": pat["name"] if pat else ""})
+    if not any("error" not in e for e in equips):
+        return {"error": "数えられる設備がありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]), "kind": "invalid", "status": 400}
+    sm, bm = sum(e["shiftMin"] for e in equips), sum(e["busyMin"] for e in equips)
+    return {**_ops_head(p, period, rng, start_col, end_col, equips, skipped),
+            "total": {"shiftMin": round(sm, 2), "busyMin": round(bm, 2), "rate": round(bm / sm, 4) if sm else None,
+                      "noPattern": [e["name"] for e in equips if not e["pattern"] and "error" not in e], "noEnd": sum(e["noEnd"] for e in equips)}}
+
+
+def _ops_head(p, period, rng, start_col, end_col, equips, skipped):
+    # 期間はほかのパネルと同じ形（画面の periodText が読む: 名前と日の範囲）
+    per = {**period, "name": pivot.PERIODS.get(period["kind"], ""), "ranges": [{"from": rng[0], "to": rng[1]}] if rng else []} if period else None
+    return {"kind": p["visual"], "equips": equips, "skipped": skipped, "range": rng, "startColumn": start_col, "endColumn": end_col, "period": per,
+            "basis": p["basis"]}
+
+
+def _abc_pass(p, parts, o, period, now):
+    """ABC 分析を 1 つの期間で数える → (設備ごとの答え, 全設備の答え, 読めなかった設備, 日の範囲, 作業開始の列, 作業終了の列) か {error}。
+    全設備の作業時間（版 3.48.0。要望 6）: 各設備の積み上げ（作業 1 本ずつ）か、ロットごとのリードタイム（全設備の作業開始の MIN〜作業終了の MAX）。
+    リードタイムは期間の前後も読み（版 3.49.0）、最後の工程が期間に入るロット（その期間にできあがったロット）を数える"""
     qty = o.get("qty") or "lots"
     cls = operation.cls_list(o.get("cls"))
-    cols = [o.get("label") or "", o.get("color") or "", *cls, qty if qty not in operation.QTYS else ""]
+    cols = [*cls, qty if qty not in operation.QTYS else ""]
+    lead = o.get("span") == "lead"
+    args = (cls, qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
     equips, skipped, every, reads, rng, start_col, end_col = [], [], [], [], None, "", ""
-    lead = p["visual"] == "abc" and o.get("span") == "lead"
     for part in order_parts(parts, p.get("eorder")):
         try:
             r = operation.read_ops(part, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False), today=now.date(), calc=p.get("calc"),
                                    period=period, now=now, end=o.get("end", ""), start=o.get("start", ""), cols=[c for c in cols if c],
-                                   reach=p["visual"] == "gantt", lots=lead)
-        except Exception as e:      # 読めない設備は飛ばし、理由をガントの行・知らせに出す
+                                   lots=lead, around=operation.LEAD_AROUND_DAYS if lead and period else 0)
+        except Exception as e:      # 読めない設備は飛ばし、理由を知らせに出す
             skipped.append({"name": part.name, "error": str(e)})
-            if p["visual"] == "gantt":     # ガントは読めない設備も行に出す（前は行ごと消え、「出ない設備がある」になった。版 3.47.0）
-                equips.append({"name": part.name, "error": str(e), "ops": [], "windows": [], "view": None, "rate": None, "shiftMin": 0, "busyMin": 0,
-                               "outsideMin": 0, "byShift": [], "noEnd": 0, "why": {}, "count": 0, "carry": 0, "truncated": False, "pattern": ""})
             continue
         start_col, end_col, rng = start_col or r["start"], end_col or r["end"], rng or r["range"]
-        if p["visual"] == "gantt":
-            if r["range"] and (date.fromisoformat(r["range"][1]) - date.fromisoformat(r["range"][0])).days + 1 > operation.MAX_DAYS:
-                return {"error": f"ガントチャートの期間は {operation.MAX_DAYS} 日までです（期間を短くしてください）。", "kind": "invalid", "status": 400}
-            pat = shifts.pattern_for(pats, part.name)
-            basis = part.work.get("basis", "work")
-            wins = operation.shift_windows(pat["segments"], *r["range"], basis) if pat and r["range"] else []
-            days = operation.work_days(pat["segments"] if pat else [], *r["range"], basis) if r["range"] else []
-            label = o.get("label") or r["lot"] or ""
-            g = operation.gantt(part.name, r, wins, label=label, color=o.get("color") or "", days=days)
-            equips.append({**g, "pattern": pat["name"] if pat else ""})
-        else:
-            a = operation.abc(r["ops"], cls, qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
-            equips.append({"name": part.name, **a})
-            every += r["ops"]
-            reads.append(r)
-    if not any("error" not in e for e in equips):
+        mine = [x for x in r["ops"] if not x.get("carry") and not x.get("after")]     # 設備ごとの答えは、期間の中の作業だけ
+        equips.append({"name": part.name, **operation.abc(mine, *args)})
+        every += mine
+        reads.append(r)
+    if not equips:
         return {"error": "数えられる設備がありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]), "kind": "invalid", "status": 400}
-    # 期間はほかのパネルと同じ形（画面の periodText が読む: 名前と日の範囲）
-    per = {**period, "name": pivot.PERIODS.get(period["kind"], ""), "ranges": [{"from": rng[0], "to": rng[1]}] if rng else []} if period else None
-    out = {"kind": p["visual"], "equips": equips, "skipped": skipped, "range": rng, "startColumn": start_col, "endColumn": end_col, "period": per,
-           "basis": p["basis"]}
-    if p["visual"] == "gantt":
-        sm, bm = sum(e["shiftMin"] for e in equips), sum(e["busyMin"] for e in equips)
-        out["total"] = {"shiftMin": round(sm, 2), "busyMin": round(bm, 2), "rate": round(bm / sm, 4) if sm else None,
-                        "noPattern": [e["name"] for e in equips if not e["pattern"] and "error" not in e], "noEnd": sum(e["noEnd"] for e in equips)}
-    else:
-        # 全設備の作業時間（版 3.48.0。要望 6）: 各設備の積み上げ（作業 1 本ずつ）か、ロットごとのリードタイム（全設備の作業開始の MIN〜作業終了の MAX）
-        if lead and not any(r["lot"] for r in reads):
-            return {"error": "ロット番号の列が無いので、リードタイム（同じロットの最初の作業開始〜最後の作業終了）を出せません。", "kind": "invalid", "status": 400}
-        out["all"] = operation.abc(operation.lead_ops(reads) if lead else every, cls, qty, o.get("base") or "avg",
-                                   (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
-        out["span"] = "lead" if lead else "sum"
-        out["cls"], out["clsList"], out["qty"] = operation.KEY_SEP.join(cls), cls, qty
-    return out
+    if lead and not any(r["lot"] for r in reads):
+        return {"error": "ロット番号の列が無いので、リードタイム（同じロットの最初の作業開始〜最後の作業終了）を出せません。", "kind": "invalid", "status": 400}
+    return equips, operation.abc(operation.lead_ops(reads) if lead else every, *args), skipped, rng, start_col, end_col
+
+
+def _abc_count(p, parts, o, period, now):
+    """ABC 分析と換算係数。基準の期間（ops.refPeriod。地点 A。版 3.49.0）があれば、その期間の換算係数で、いまの期間（地点 B）の本数を換算する"""
+    got = _abc_pass(p, parts, o, period, now)
+    if isinstance(got, dict):
+        return got
+    equips, every, skipped, rng, start_col, end_col = got
+    ref = o.get("refPeriod")
+    if ref:
+        a = _abc_pass(p, parts, o, ref, now)
+        if isinstance(a, dict):
+            return {**a, "error": "基準の期間（地点 A）: " + a["error"]}
+        by = {e["name"]: e for e in a[0]}
+        for e in equips:
+            operation.apply_ref(e, by.get(e["name"]) or {}, a[3])
+        operation.apply_ref(every, a[1], a[3])
+    qty, cls = o.get("qty") or "lots", operation.cls_list(o.get("cls"))
+    return {**_ops_head(p, period, rng, start_col, end_col, equips, skipped), "all": every, "span": "lead" if o.get("span") == "lead" else "sum",
+            "cls": operation.KEY_SEP.join(cls), "clsList": cls, "qty": qty}
 
 
 def aggregate_name(m, source):

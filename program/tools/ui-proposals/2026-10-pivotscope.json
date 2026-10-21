@@ -1,0 +1,50 @@
+{
+  "title": "集計表の組み方の置き場の言葉をダッシュボードにそろえる",
+  "rule": "2026-10-17",
+  "evaluator": "作っていない別のエージェント（Claude Opus 5.5 の採点役）。案の CSS を当てず、ui-harness.mjs の walk で本物の画面（pivot-quickpick）を 1728×1152・1536×864・1280×720 で自分で撮り、#llPvPresetPop を下まで送った画像も自分のスクリプト（r2/pvscroll.mjs）で撮った。作る前は HEAD（版 3.49.0 の言葉）を別の作業場所に出して同じ手で撮った。PIL で切り抜いて見た",
+  "rounds": [],
+  "built": {
+    "name": "作った後（保存の段を直した後）",
+    "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/r2/pvbuilt2/v1728・v1536・v1280（pivot-quickpick.png・pivot-quickpick-bottom.png）・c-bottom1728.png",
+    "result": {
+      "score": {
+        "order": 8,
+        "chunk": 9,
+        "hierarchy": 8,
+        "visual": 8,
+        "steps": 8,
+        "effortless": 8,
+        "intuitive": 8,
+        "form": 9,
+        "place": 9,
+        "layout": 8,
+        "tone": 8
+      },
+      "minus": [],
+      "evaluator": "作っていない別のエージェント（Claude Opus 5.5 の採点役）。案の CSS を当てず、ui-harness.mjs の walk で本物の画面（pivot-quickpick）を 1728×1152・1536×864・1280×720 で自分で撮り（r2/shot2.mjs）、#llPvPresetPop を下まで送った画像も r2/pvscroll.mjs で撮った（出力 r2/pvbuilt2）。PIL で保存の段を切り抜いて見た。ダッシュボードの面 r2/built/v1728/dash-save-pop.png と並べて比べた",
+      "seen": "面の見出し（pvbuilt2/v1728/pivot-quickpick.png 右・v1280/pivot-quickpick.png）: 置き場が「自分だけ（root）／全員（共有）／全員の既定」と人・二人・錠の印、「見える … 直せる …」が 1 段ずつに収まり、ダッシュボードの面（built/v1728/dash-save-pop.png）と同じ印・言葉・並び・字の強弱。冒頭の★の説明もダッシュボードの「先にある★が勝ちます」と同じ言い方。面の下の「いまの組み方を保存」（pvbuilt2/c-bottom1728.png・v1536/pivot-quickpick-bottom.png・v1280/pivot-quickpick-bottom.png）: 1 段目に名前の欄と「保存」、2 段目に置き場の丸 3 つ（印付き。自分だけ・全員（共有）・全員の既定）、3 段目に「すぐに見るに出す」「★ 最初に当てる」のチェックが分かれ、3 つの大きさのどれでも札の中の字は 1 行で折れない。丸と字の縦の位置もそろい、置き場（どれか 1 つ）と付け足し（いくつでも）が丸と四角の形でも段でも分かれて、作る前の 1 段より意味のまとまりがはっきりした。面の下端との余白も 1728・1536・1280 で切れずに残る。気になる所: 1280 では「組み方 ▾」のボタンがグラフの行の 2 段目に落ちる（v1280/pivot-quickpick.png）が、作る前の画面も同じ並びで今回の変更ではないので減点しない。この試験の状態では★の付いた組み方が無く、行の★・☆は画像で確かめられなかった。前の採点 75.0 点（保存の段の折れ −3×2）から直した"
+    }
+  },
+  "applies": "2026-10-dashsave.json",
+  "self_check": "作った者が 1728・1280 の作った後の面を自分で開き、見出しの印・見える・直せるが 1 段に収まり、ダッシュボードの面と同じ形であることを確かめた。新しい案出しはせず、2026-10-dashsave で決めた G をそのまま当てた",
+  "baseline": {
+    "今": {
+      "score": {
+        "order": 8,
+        "chunk": 7,
+        "hierarchy": 7,
+        "visual": 6,
+        "steps": 8,
+        "effortless": 6,
+        "intuitive": 7,
+        "form": 7,
+        "place": 5,
+        "layout": 8,
+        "tone": 8
+      },
+      "minus": [],
+      "evaluator": "作っていない別のエージェント（Claude Opus 5.5 の採点役）。案の CSS を当てず、ui-harness.mjs の walk で本物の画面（pivot-quickpick）を 1728×1152・1536×864・1280×720 で自分で撮り、#llPvPresetPop を下まで送った画像も自分のスクリプト（r2/pvscroll.mjs）で撮った。作る前は HEAD（版 3.49.0 の言葉）を別の作業場所に出して同じ手で撮った。PIL で切り抜いて見た",
+      "seen": "作る前（r2/pv-before/pivot-quickpick.png・pv-before-1280・pvbefore-b）: 置き場の見出しは「自分（root）／共通（全員）／共通デフォルト（開発者が用意）」の字だけで、印も、だれに見えてだれが直せるかも無い。★は「標準」と呼び、どの★が勝つかの説明が無い。ダッシュボード（版 3.49.0 で「自分だけ・全員（共有）・全員の既定」「最初に開く」）と言葉が違い、同じ物を 2 つの名前で覚えさせる。下の保存の段は「自分・共通・共通デフォルト・すぐに見るに出す・標準にする」が 1 段に収まり、整っている。切れ・重なりは無い"
+    }
+  }
+}

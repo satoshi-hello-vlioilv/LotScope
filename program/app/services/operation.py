@@ -210,12 +210,14 @@ def read_stamp(vals):
     return None, day, why
 
 
-def read_ops(part, *, search="", filters="", today=None, calc=None, period=None, now=None, end="", cols=(), reach=False, start="", lots=False):
+def read_ops(part, *, search="", filters="", today=None, calc=None, period=None, now=None, end="", cols=(), reach=False, start="", lots=False, around=0):
     """1 つのファイル（作業実績の 1 設備）→ {ops: [{start, end, key, n, values: {列: 最初の行の値}, nums: {列: 合計}, why, carry, running}], columns, start, end, range}。
     期間 period は作業日（@workday）か日付の列。作業日の範囲（range）に作業開始の作業日が入る作業だけ。cols … 作業ごとに持たせる列。
     reach（ガント）… 期間より前に始まって期間にも動いている作業（carry）と、作業終了がまだ無いいちばん新しい作業（running: いままで動いている）も読む。
     start・end … 作業開始・作業終了の列（"" は見つける。版 3.48.0 で作業開始も選べる）。
-    lots（リードタイム。版 3.48.0）… 作業ごとに、入っているロット番号 → その行の数の列の値 {列: 値} を lots に持つ"""
+    lots（リードタイム。版 3.48.0）… 作業ごとに、入っているロット番号 → その行の数の列の値 {列: 値} を lots に持つ。
+    around（リードタイム。版 3.49.0）… 期間の前後 around 日の作業も読み、前を carry・後を after の印にする（期間をまたぐロットの
+    最初の作業開始・その後の作業を知るため。数・作業時間には入れない）"""
     work = part.work or {}
     clock, basis = work.get("clock") or Clock([]), work.get("basis", "work")
     now = now or datetime.now()
@@ -244,13 +246,14 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
         span = None
         if period:
             day = clock.place(now.strftime("%Y-%m-%d %H:%M:%S"), basis)[0] if period["column"] == "@workday" else now.date().isoformat()
-            span = period_range(period["kind"], period.get("n"), day or now.date().isoformat())
+            span = period_range(period["kind"], period.get("n"), day or now.date().isoformat(), period.get("from", ""), period.get("to", ""))
             pcol = start if period["column"] == "@workday" else period["column"]
             if pcol not in cs:
                 raise PivotError(f"期間で絞る列「{pcol}」がありません。")
             if pcol in raw:
-                lo = (date.fromisoformat(span[0]) - back).isoformat()[:10] if reach else span[0]
-                w, wp = period_prefilter(pcol, (lo, span[1]))
+                lo = (date.fromisoformat(span[0]) - (timedelta(days=around) if around else back)).isoformat()[:10] if reach or around else span[0]
+                hi = (date.fromisoformat(span[1]) + timedelta(days=around)).isoformat() if around else span[1]
+                w, wp = period_prefilter(pcol, (lo, hi))
                 if w:
                     where_parts, params = where_parts + [w], params + wp
         where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
@@ -263,14 +266,15 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
     ns, ne = len(s_cols) * 2, len(e_cols) * 2
     pairs = lambda row, a, k: [(row[a + 2 * i], row[a + 2 * i + 1]) for i in range(k)]      # noqa: E731
     ops = {}
-    lo_carry = (datetime.fromisoformat(span[0]) - back).date().isoformat() if span and reach else ""
+    lo_carry = (datetime.fromisoformat(span[0]) - (timedelta(days=around) if around else back)).date().isoformat() if span and (reach or around) else ""
+    hi_after = (date.fromisoformat(span[1]) + timedelta(days=around)).isoformat() if span and around else ""
     last_any = None                       # 読んだ行でいちばん新しい作業開始（いま動いている作業を決める）
     for row in data:
         s_dt, s_day, _ = read_stamp(pairs(row, 0, len(s_cols)))
         stamp = _iso(s_dt) if s_dt else s_day
         if s_dt and (last_any is None or s_dt > last_any):
             last_any = s_dt
-        carry = False
+        carry = after = False
         if period:
             if pc:
                 day = (to_datetime(row[ns + ne + len(want)]) or "")[:10]
@@ -279,16 +283,19 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
             if not day:
                 continue
             if not span[0] <= day <= span[1]:
-                if not (reach and lo_carry <= day < span[0] and s_dt):
+                if (reach or around) and lo_carry <= day < span[0] and s_dt:
+                    carry = True
+                elif around and span[1] < day <= hi_after and s_dt:
+                    after = True
+                else:
                     continue
-                carry = True
         k = stamp if s_dt else work_key(row[0], row[1])
         if not k:
             k = f"#{len(ops)}"                 # 作業開始が空の行は 1 行で 1 作業
         o = ops.get(k)
         if o is None:
             o = ops[k] = {"key": k, "start": s_dt, "end": None, "n": 0, "values": {}, "nums": {}, "day": clock.place(stamp, basis)[0] if stamp else "",
-                          "why": "" if s_dt else "nostart", "carry": carry}
+                          "why": "" if s_dt else "nostart", "carry": carry, **({"after": True} if after else {})}
         o["n"] += 1
         e, _, why = read_stamp(pairs(row, ns, len(e_cols)))
         if e is not None and o["start"] is not None and e < o["start"] and e.date() == o["start"].date():
@@ -330,7 +337,8 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
     newest = next((o for o in reversed(out) if o["start"] is not None), None)
     if reach and newest and newest["end"] is None and newest["why"] == "blank" and newest["start"] == last_any and timedelta(0) < now - newest["start"] <= timedelta(hours=MAX_HOURS):
         newest.update(end=now, running=True, why="")
-    out = [o for o in out if not (o["carry"] and o["end"] is None)]      # 期間より前に始まり、区間の分からない作業は出さない（数にも入れない）
+    if reach:
+        out = [o for o in out if not (o["carry"] and o["end"] is None)]      # 期間より前に始まり、区間の分からない作業は出さない（数にも入れない）
     return {"ops": out, "columns": cs, "start": start, "end": stop, "range": span, "lot": lot}
 
 
@@ -388,12 +396,15 @@ def gantt(name, read, windows, *, label="", color="", days=()):
 #   sum  … 各設備の作業時間の積み上げ（作業 1 本ずつ。今までどおり）
 #   lead … リードタイム: 同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（MIN と MAX の差）。1 本＝1 ロット
 SPANS = ("sum", "lead")
+LEAD_AROUND_DAYS = 62     # リードタイムで期間の前後に読む日数（期間をまたぐロットの最初の作業開始・期間の後の作業を知る）
 
 
 def lead_ops(reads):
     """設備ごとの read_ops（lots=True で読んだ物）→ ロットごとの作業 1 本の並び（abc にそのまま渡せる形）。
     作業開始はいちばん早い作業開始・作業終了はいちばん遅い作業終了。いちばん後に始まった作業の作業終了が分からなければ、区間を持たない（why last）。
-    品種・数の列の値は、そのロットのいちばん早い作業の行の値（同じロットを設備ごとに足さない）"""
+    品種・数の列の値は、そのロットのいちばん早い作業の行の値（同じロットを設備ごとに足さない）。
+    期間の前後も読んだとき（read_ops の around。版 3.49.0）: ロットは、いちばん後に始まった作業（最後の工程）が期間に入る物だけ（その期間に
+    できあがったロット）。期間の前の作業も最初の作業開始に入れる（前は期間の中の作業だけで、期間をまたぐロットの LT が短く出た）"""
     by = {}
     for r in reads:
         for o in r["ops"]:
@@ -403,10 +414,14 @@ def lead_ops(reads):
     for ln, xs in by.items():
         timed = [x for x in xs if x[0]["start"] is not None]
         if not timed:
+            if all(x[0].get("carry") or x[0].get("after") for x in xs):
+                continue
             out.append({"key": ln, "start": None, "end": None, "n": 1, "values": xs[0][1], "nums": _nums(xs[0][1]), "why": "nostart", "steps": len(xs)})
             continue
         timed.sort(key=lambda x: x[0]["start"])
         first, last = timed[0], timed[-1]
+        if last[0].get("carry") or last[0].get("after"):
+            continue                           # 最後の工程が期間の外（前の期間・後の期間にできあがったロット）
         a = first[0]["start"]
         ends = [x[0]["end"] for x in timed if x[0]["end"] is not None]
         b, why = (max(ends), "") if ends and last[0]["end"] is not None else (None, "last" if len(timed) > 1 else last[0]["why"] or "blank")
@@ -442,7 +457,11 @@ def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0)):
     """作業の並び → 品種ごとの {key, parts（列ごとの値）, lots, timed, minutes（作業時間の合計）, avg（1 本の平均作業時間）, qty, share, cum, rank（A/B/C）, factor, conv}。
     量の大きい順。lots は作業の本数（分割ロットは 1）。avg・factor は作業時間が分かる作業だけで出す。
     cls … 品種の列。列の並びなら、その値の組み合わせ（合金 × 調質 など。版 3.47.0）を 1 つの品種とする。
-    答えの noEnd・why … 作業時間の分からない本数と理由（換算係数に入らない作業。黙って捨てない）"""
+    答えの noEnd・why … 作業時間の分からない本数と理由（換算係数に入らない作業。黙って捨てない）。
+    占有時間（occ。版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 2）… 本数 × 平均作業時間（リードタイムなら平均 LT）＝その品種が工場を
+    占める時間の見積もり（区間の分からない作業も、その品種の平均で見積もる）。量を「作業時間」にしたときは占有時間で並べる
+    （前は区間の分かる作業の作業時間を足した数で、区間の分からない作業が多い品種ほど小さく出た）。lotShare・occShare … 本数・占有時間の構成比。
+    換算本数 ＝ 本数 × 換算係数 ＝ 占有時間 ÷ 基準の作業時間（換算本数の計 × 基準 ＝ 占有時間の計）"""
     cols = cls_list(cls)
     by = {}
     for o in ops:
@@ -459,7 +478,8 @@ def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0)):
     items = list(by.values())
     for x in items:
         x["avg"] = x["minutes"] / x["timed"] if x["timed"] else None
-        x["qty"] = x["lots"] if qty == "lots" else x["minutes"] if qty == "time" else x["sum"]
+        x["occ"] = x["lots"] * x["avg"] if x["avg"] is not None else None
+        x["qty"] = x["lots"] if qty == "lots" else (x["occ"] or 0.0) if qty == "time" else x["sum"]
     items.sort(key=lambda x: (-x["qty"], x["key"]))
     total = sum(x["qty"] for x in items)
     a_lim, b_lim = limits
@@ -470,6 +490,10 @@ def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0)):
         x["cum"] = round(run / total * 100, 4) if total else 0.0
         # 累積構成比が A の線までを A・B の線までを B・残りを C（いちばん大きい品種は、それだけで線を超えても A）
         x["rank"] = "A" if i == 0 or x["cum"] <= a_lim + 1e-9 else "B" if x["cum"] <= b_lim + 1e-9 else "C"
+    lots_all, occ_all = sum(x["lots"] for x in items), sum(x["occ"] or 0.0 for x in items)
+    for x in items:
+        x["lotShare"] = round(x["lots"] / lots_all * 100, 4) if lots_all else 0.0
+        x["occShare"] = round((x["occ"] or 0.0) / occ_all * 100, 4) if occ_all else 0.0
     timed = [x for x in items if x["avg"] is not None]
     if base == "avg":
         n = sum(x["timed"] for x in timed)
@@ -486,7 +510,26 @@ def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0)):
         x["conv"] = round(x["lots"] * x["factor"], 4) if x["factor"] is not None else None
         x["avg"] = round(x["avg"], 2) if x["avg"] is not None else None
         x["minutes"] = round(x["minutes"], 2)
+        x["occ"] = round(x["occ"], 2) if x["occ"] is not None else None
         x.pop("sum", None)
     return {"items": items, "total": total, "base": {"minutes": round(ref, 2) if ref else None, "name": ref_name},
-            "conv": round(sum(x["conv"] or 0 for x in items), 4), "lots": sum(x["lots"] for x in items),
+            "conv": round(sum(x["conv"] or 0 for x in items), 4), "lots": lots_all, "occ": round(occ_all, 2),
             "noEnd": sum(1 for o in ops if minutes(o) is None), "why": reasons(ops), "cls": cols}
+
+
+# ---------------------------------------------------------------- 地点 A の換算係数で地点 B を換算する（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 3）
+def apply_ref(cur, ref, ref_range=None):
+    """いまの期間（地点 B）の abc の答え cur に、基準の期間（地点 A）の abc の答え ref の換算係数を当てる（cur を書き換えて返す）。
+    品種ごとに refFactor（A の係数）・refConv（B の本数 × A の係数）。A に無い品種（refFactor が None）は 1.00 で数え、その本数を refMissing に。
+    答えに ref: {range, base, conv（B の本数を A の係数で換算した計）, missing, lots}"""
+    fac = {x["key"]: x["factor"] for x in ref.get("items") or [] if x.get("factor") is not None}
+    conv, missing = 0.0, 0
+    for x in cur.get("items") or []:
+        f = fac.get(x["key"])
+        x["refFactor"] = f
+        x["refConv"] = round(x["lots"] * (f if f is not None else 1.0), 4)
+        conv += x["refConv"]
+        if f is None:
+            missing += x["lots"]
+    cur["ref"] = {"range": list(ref_range) if ref_range else None, "base": ref.get("base"), "conv": round(conv, 4), "missing": missing, "lots": cur.get("lots", 0)}
+    return cur

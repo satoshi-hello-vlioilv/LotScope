@@ -122,7 +122,7 @@ body.db-dragging{cursor:grabbing;user-select:none}
 /* ---- 浮かぶ面（ダッシュボードを選ぶ・名前を付けて保存・1 枚の表の条件） ---- */
 .db-pop{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 10px 28px var(--pop-shadow);
   padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px;max-height:calc(100vh - 80px);overflow:auto;box-sizing:border-box}
-.db-pickpop{width:380px}.db-savepop{width:400px}
+.db-pickpop{width:380px}.db-savepop{width:440px}
 .db-pophead b{display:block;font-size:14px}.db-pophead small{color:var(--muted);font-size:12px;line-height:1.45}
 .db-lg{display:flex;flex-direction:column;gap:3px}
 .db-lg > span{font-size:11.5px;color:var(--muted);font-weight:800;padding:2px 2px 0}
@@ -174,6 +174,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .de-l{width:52px;flex:0 0 52px;font-size:12.5px;font-weight:800;color:var(--h-meta)}
 .de-row .db-crows{flex:1;min-width:0}
 .de-n{width:64px}
+.de-date{width:136px}
 .de-hint{color:var(--muted);font-size:12px}
 .de-sent{padding:6px 8px}
 .de-vis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
@@ -773,6 +774,9 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-rank{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:16px;border-radius:4px;background:var(--rc);color:var(--rf,#fff);font-size:11.5px;font-weight:700}
 .oa-nend{color:#7a4310;font-weight:700}
 .oa-wrap.no-x1 .oa-x1,.oa-wrap.no-x2 .oa-x2,.oa-wrap.no-x3 .oa-x3,.oa-wrap.no-x4 .oa-x4{display:none}
+.oa-table td.is-up{color:#7a4310;font-weight:700}
+.oa-table td.is-none{color:#5a6f77}
+.oa-fref{color:#24446a}
 .oa-tsel{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:700}
 .oa-tsel select{height:24px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12.5px;color:var(--ink);padding:0 6px;background:#fff}
 .oa-table td.oa-k{text-align:left;max-width:9em;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
@@ -859,3 +863,23 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-nochart{color:#5a6f77;font-weight:700}
 .oa-nochart::before{content:"ⓘ ";font-weight:400}
 .oa-notes{font-size:12px;line-height:18px;flex:0 0 auto}
+/* 置き場の見出し・★の効き・名前を付けて保存（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 1。2026-10-dashsave の 2 回目で決めた G） */
+.db-radio small i{font-style:normal;font-weight:700;color:var(--h-meta);margin-right:4px}
+.db-std{white-space:nowrap}
+.db-li .db-std{font-size:12px;font-weight:700}
+.db-std.is-off{color:#8a7a5c}
+.db-savepop{width:540px}
+.db-savepop .db-field:has(.db-radio){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.db-savepop .db-field:has(.db-radio) > span{grid-column:1/-1}
+.db-savepop .db-radio{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px;border:1px solid #d5dde3;border-radius:8px;padding:8px 9px;background:#fff}
+.db-savepop .db-radio input{margin:0}
+.db-savepop .db-radio b{font-size:13px;white-space:nowrap}
+.db-savepop .db-radio small{grid-column:1/-1;font-size:12px;color:var(--muted);font-weight:400;line-height:1.5}
+.db-savepop .db-radio:has(input:checked){border-color:#2f7d78;background:#eef6f5;box-shadow:inset 0 0 0 1px #2f7d78}
+.db-savepop .db-radio.is-off{background:#f5f7f8}
+.db-radio.is-off b,.db-radio.is-off small{color:var(--faint)}
+.db-saveplan{font-size:12.5px;line-height:1.5;color:var(--ink);border-radius:7px;padding:6px 8px;background:#fbf3e4}
+.db-saveplan:empty{display:none}
+.db-planno{color:#a3322a;font-weight:700}
+.db-unstar{display:grid!important;grid-template-columns:auto 1fr;column-gap:6px;font-weight:700}
+.db-unstar small{grid-column:2;color:var(--muted);font-weight:400;font-size:12px}

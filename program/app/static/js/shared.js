@@ -167,7 +167,26 @@
     return v.length ? v.slice(0, 2).join("・") + (v.length > 2 ? ` ほか ${v.length - 2}` : "") : "（どれも選んでいません）"; };
   const condLabel = (f) => (f.op === "in" || f.op === "tuple_in" ? `${f.column} = ${inText(f)}` : f.op in REL_UNIT ? `${f.column} ${relText(f)}` : noValueOp(f.op) ? `${f.column} ${opShort(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
 
+  /* 置き場の言葉（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 1: 「共通」と「共通デフォルト」の違いが分からなかった）。
+     ダッシュボード・セット・集計表の組み方で同じ言葉と形にする（2026-10-dashsave の 2 回目で決めた G: 人の印と「見える」「直せる」）。
+     マスタの値（ID・共通・共通デフォルト）は変えない。★（最初に開く物・当てる物）は ORDER の順に先にある物が勝つ */
+  const SCOPES = {
+    me: { name: "自分だけ", see: "この ID にだけ", edit: "自分で", icon: "M8 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 15c0-3 3-5 6-5s6 2 6 5" },
+    all: { name: "全員（共有）", see: "全員", edit: "マスタを書ける人", icon: "M5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM11 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M6.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" },
+    default: { name: "全員の既定", see: "全員", edit: "開発者だけ", icon: "M3 7h10v8H3zM5 7V5a3 3 0 0 1 6 0v2" },
+  };
+  const scope = {
+    SCOPES, ORDER: ["me", "all", "default"],
+    NAME: Object.fromEntries(Object.entries(SCOPES).map(([k, v]) => [k, v.name])),
+    RULE: "自分だけ → 全員（共有）→ 全員の既定 の順に、先にある★が勝ちます",
+    icon: (k) => `<svg class="tpa-sci" viewBox="0 0 16 16" aria-hidden="true"><path d="${SCOPES[k].icon}"/></svg>`,
+    /** 見出し（印・名前・見える・直せる。CSS は common の .tpa-sch） */
+    head: (k, extra = "") => `<span class="tpa-sch"><b>${scope.icon(k)}${SCOPES[k].name}${extra}</b><small><i>見える</i>${SCOPES[k].see}　<i>直せる</i>${SCOPES[k].edit}</small></span>`,
+    who: (k) => `見える: ${SCOPES[k].see}・直せる: ${SCOPES[k].edit}`,
+  };
+
   window.TPA = {
+    scope,
     FILTER_OPS, REL_UNIT, opLabel, opShort, noValueOp, relText, condLabel, inText,
     /** HTML に差し込む文字を無害にする（& < > " ' ）。 */
     esc: (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ESC[c]),

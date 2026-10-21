@@ -434,6 +434,35 @@ export const STATES = [
     });
     await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(400);
   }, "[data-next], [data-db-editmode]"],
+  // 版 3.49.0（利用者の要望 2026-10-21 の 4 回目の 1）: 組み込みの「標準」を直して「名前を付けて保存」を重ねた形（共通に「標準」★・共通デフォルトに「標準」
+  // 「標準ダッシュボード」）の面と、同じ名前「標準」を共通デフォルトへ名前を付けて保存しようとした所。dash-save-off が片付ける
+  ["dash-save-pop", async (p) => {
+    await p.evaluate(async (l) => {
+      const mk = (name, scope, standard) => fetch("/api/dashboards", TPA.json("POST", { name, scope, standard, body: l }));
+      await mk("標準", "default", false); await mk("標準ダッシュボード", "default", false); await mk("標準", "all", true);
+      TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
+    }, HSTACK_LAYOUT);
+    await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(500);
+    await p.click("[data-db-pick]"); await sleep(500);
+  }, "[data-next], [data-db-open]"],
+  ["dash-saveas", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(200);
+    await p.click("[data-db-editmode]"); await sleep(400);
+    await p.click("[data-db-saveas]"); await sleep(400);
+    await p.fill("#dbSaveName", "標準"); await p.dispatchEvent("#dbSaveName", "input");
+    await p.check('input[name="dbScope"][value="default"]'); await sleep(400);
+  }, "[data-next], [data-db-dosave]"],
+  // 後片付け（撮らない）
+  ["dash-save-off", async (p) => {
+    await p.keyboard.press("Escape");
+    await p.click("[data-db-leave]").catch(() => {}); await p.click("[data-db-discard]").catch(() => {});
+    await p.evaluate(async () => {
+      for (const x of ((await (await fetch("/api/dashboards")).json()).items || []).filter((y) => !y.builtin)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      for (const scope of ["default", "me"]) await fetch("/api/dashboards-hidden", TPA.json("PUT", { scope, keys: [] }));
+      TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
+    });
+    await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(400);
+  }, "[data-next], [data-db-editmode]"],
   // 版 3.44.0: パネル（仕掛区分ごと）を右クリックしたメニュー
   ["dash-menu", async (p) => {
     const b = await (await p.$('#dashGrid .db-p[data-id="wipClass"]')).boundingBox(); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2, { button: "right" }); await sleep(400);

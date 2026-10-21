@@ -27,8 +27,8 @@ def _gate(row, login, common_ok, default_ok, revoked, what="組み方"):
         raise Forbidden(f"この PC は一時的に切断されています。{what}を書き換えられません。")
     if not pp.can_edit(row, login, common_ok, default_ok):
         scope = pp.scope_of(row)
-        raise Forbidden(f"共通デフォルトの{what}を書き換えられるのは、開発者だけです。共通か自分の ID に保存してください。" if scope == "default"
-                        else f"共通の{what}を書き換えられるのは、マスタを書ける権限（部分的編集可から）の人だけです。自分の ID に保存してください。"
+        raise Forbidden(f"全員の既定の{what}を書き換えられるのは、開発者だけです。全員（共有）か自分だけに保存してください。" if scope == "default"
+                        else f"全員（共有）の{what}を書き換えられるのは、マスタを書ける権限（部分的編集可から）の人だけです。自分だけに保存してください。"
                         if scope == "all" else f"ほかの ID の{what}は書き換えられません。")
 
 
