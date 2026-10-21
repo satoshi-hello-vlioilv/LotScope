@@ -38,6 +38,14 @@ class Windows(unittest.TestCase):
         w = operation.shift_windows(THREE, "2026-10-02", "2026-10-02", basis="cal")
         self.assertEqual((w[0][0], w[-1][1]), (T("2026-10-02 00:00"), T("2026-10-03 00:00")))
 
+    def test_work_days_follow_the_workday(self):
+        """作業日の区切り（版 3.48.0。要望 4）: 現場歴は 7:00〜翌 7:00（交替勤務）・日勤だけなら勤務の外の時刻は暦の日（0 時〜）・太陽暦は 0 時〜"""
+        self.assertEqual(operation.work_days(THREE, "2026-10-02", "2026-10-03"),
+                         [(T("2026-10-02 07:00"), T("2026-10-03 07:00"), "2026-10-02"), (T("2026-10-03 07:00"), T("2026-10-04 07:00"), "2026-10-03")])
+        self.assertEqual(operation.work_days(THREE, "2026-10-02", "2026-10-02", "cal"), [(T("2026-10-02 00:00"), T("2026-10-03 00:00"), "2026-10-02")])
+        self.assertEqual(operation.work_days(DAY, "2026-10-02", "2026-10-02"), [(T("2026-10-02 00:00"), T("2026-10-03 00:00"), "2026-10-02")])
+        self.assertEqual(operation.work_days([], "2026-10-02", "2026-10-02"), [(T("2026-10-02 00:00"), T("2026-10-03 00:00"), "2026-10-02")])
+
     def test_day_shift_only(self):
         w = operation.shift_windows(DAY, "2026-10-01", "2026-10-02")
         self.assertEqual([(a, b) for a, b, _, _ in w], [(T("2026-10-01 08:15"), T("2026-10-01 17:05")), (T("2026-10-02 08:15"), T("2026-10-02 17:05"))])
@@ -253,6 +261,72 @@ class Api(unittest.TestCase):
                                                                    "ops": {"cls": ["合金", "", "合金", "調質"]}}]})
         self.assertEqual(body["panels"][0]["ops"]["cls"], ["合金", "調質"])
 
+    def test_gantt_view_is_the_workday(self):
+        """ガントの横の範囲（版 3.48.0。要望 4）: 現場歴の作業日の区切り（7:00〜翌 7:00）そのもの。範囲の外へ出る作業は切って出す（範囲を広げない）。
+        太陽暦なら 0 時〜翌 0 時。日の区切り（days）も答えに持つ"""
+        d = self.ask(visual="gantt", equips=["CR1"], period={"column": "@workday", "kind": "yesterday"})
+        cr1 = d["equips"][0]
+        self.assertEqual(cr1["view"], ["2026-10-15 07:00:00", "2026-10-16 07:00:00"])
+        self.assertEqual(cr1["days"], [["2026-10-15 07:00:00", "2026-10-16 07:00:00", "2026-10-15"]])
+        c = self.ask(visual="gantt", equips=["CR1"], basis="cal", period={"column": "@workday", "kind": "yesterday"})["equips"][0]
+        self.assertEqual(c["view"], ["2026-10-15 00:00:00", "2026-10-16 00:00:00"])
+
+    def test_start_column_can_be_chosen(self):
+        """作業開始の列を選ぶ（版 3.48.0。要望 7）: 選んだ列で作業の区間を決める。選ばなければ今までどおり見つける"""
+        folder = self.tmp / "実績"
+        c = sqlite3.connect(folder / "実績_L-1.sqlite3")
+        c.execute("ALTER TABLE 実績 ADD COLUMN 段取開始_日付 TEXT")
+        c.execute("UPDATE 実績 SET 段取開始_日付 = '2026/10/15 6:00:00'")
+        c.commit()
+        c.close()
+        auto = self.ask(visual="gantt", equips=["L-1"], period={"column": "@workday", "kind": "yesterday"})
+        self.assertEqual((auto["startColumn"], auto["equips"][0]["busyMin"]), ("BOX実績_作業開始_日付", 480))
+        d = self.ask(visual="gantt", equips=["L-1"], ops={"start": "段取開始_日付"}, period={"column": "@workday", "kind": "yesterday"})
+        self.assertEqual(d["startColumn"], "段取開始_日付")
+        l1 = d["equips"][0]
+        self.assertEqual(l1["ops"][0][:2], ["2026-10-15 06:00:00", "2026-10-15 15:00:00"])
+        a = self.ask(visual="abc", equips=["L-1"], ops={"cls": "合金", "start": "段取開始_日付"})
+        self.assertEqual(a["equips"][0]["items"][0]["avg"], 540.0)
+
+    def test_abc_lead_time_for_all_equipment(self):
+        """全設備の作業時間（版 3.48.0。要望 6）: 積み上げ（作業ごとの作業時間）か、リードタイム（同じロットの全設備の作業開始の MIN〜作業終了の MAX）。
+        L1 は CR1 で 8:00〜9:00、L-1 で 10:30〜12:00 → 積み上げ 60＋90 分・リードタイム 240 分"""
+        (self.tmp / "実績" / "実績_L-1.sqlite3").unlink()
+        make_work(self.tmp / "実績" / "実績_L-1.sqlite3", [("L1", "2026/10/15 10:30:00", "2026/10/15 12:00:00", "A1100"), ("M1", "2026/10/15 7:00:00", "2026/10/15 15:00:00", "A3004")])
+        s = self.ask(visual="abc", ops={"cls": "合金", "qty": "time"})
+        self.assertEqual(s["span"], "sum")
+        a1100 = next(x for x in s["all"]["items"] if x["key"] == "A1100")
+        self.assertEqual((a1100["lots"], a1100["minutes"]), (4, 60 + 60 + 60 + 90))      # 作業 4 本（CR1 の 3 本＋L-1 の 1 本）
+        d = self.ask(visual="abc", ops={"cls": "合金", "qty": "time", "span": "lead"})
+        self.assertEqual(d["span"], "lead")
+        items = {x["key"]: x for x in d["all"]["items"]}
+        # ロット: A1100 は L1（8:00〜12:00 ＝ 240 分）・L2（分割で L1 と同じ作業 8:00〜9:00 ＝ 60 分）・L4（60 分）・L9（60 分）
+        self.assertEqual((items["A1100"]["lots"], items["A1100"]["minutes"]), (4, 240 + 60 + 60 + 60))
+        self.assertEqual((items["A5052"]["lots"], items["A5052"]["timed"]), (2, 1))       # L5 は作業終了が空（区間なし）
+        self.assertEqual(d["all"]["why"], {"作業終了が空": 1})
+        cr1 = next(e for e in d["equips"] if e["name"] == "CR1")
+        self.assertEqual(next(x for x in cr1["items"] if x["key"] == "A1100")["lots"], 3, "設備ごとの答えは今までどおり作業の本数")
+
+    def test_lead_ops_needs_the_last_end(self):
+        """リードタイムは、いちばん後に始まった作業の作業終了が無ければ区間を持たない（途中の工程で止まっているロットを短く数えない）"""
+        a = {"start": T("2026-10-01 08:00"), "end": T("2026-10-01 09:00"), "why": "", "lots": {"X": {"品種": "P", "重量": "5"}}}
+        b = {"start": T("2026-10-01 10:00"), "end": None, "why": "blank", "lots": {"X": {"品種": "P", "重量": "5"}}}
+        ops = operation.lead_ops([{"ops": [a]}, {"ops": [b]}])
+        self.assertEqual((ops[0]["end"], ops[0]["why"], ops[0]["nums"]), (None, "last", {"重量": 5.0}))
+        ops = operation.lead_ops([{"ops": [a]}, {"ops": [{**b, "end": T("2026-10-01 11:30")}]}])
+        self.assertEqual((ops[0]["start"], ops[0]["end"], ops[0]["steps"]), (T("2026-10-01 08:00"), T("2026-10-01 11:30"), 2))
+
+    def test_equipment_order_by_hand(self):
+        """設備を手で並べた順（版 3.48.0。要望 3）: ガントの行・ABC の設備・集計の設備の段の並び。並びに無い設備は後ろ"""
+        d = self.ask(visual="gantt", eorder=["L-1", "CR1"], period={"column": "@workday", "kind": "yesterday"})
+        self.assertEqual([e["name"] for e in d["equips"]], ["L-1", "CR1"])
+        a = self.ask(visual="abc", eorder=["L-1"], ops={"cls": "合金"})
+        self.assertEqual([e["name"] for e in a["equips"]], ["L-1", "CR1"])
+        t = self.ask(visual="bar", eorder=["L-1"], body={"rows": [{"column": "@equip"}], "measures": [{"agg": "lots"}]})
+        self.assertEqual(t["orders"][0], ["L-1", "CR1"])
+        u = self.ask(visual="bar", body={"rows": [{"column": "@equip"}], "measures": [{"agg": "lots"}]})
+        self.assertEqual(u["orders"][0], ["CR1", "L-1"])
+
     def test_needs_work_log(self):
         r = self.c.post("/api/dashboard/query", json={"panel": {"visual": "gantt", "source": "src:wip"}})
         self.assertEqual(r.status_code, 400)
@@ -261,6 +335,10 @@ class Api(unittest.TestCase):
         body, _ = dashboard.clean_layout({"rows": 8, "panels": [{"id": "g", "x": 0, "y": 0, "w": 6, "h": 3, "visual": "abc", "source": "work",
                                                                    "ops": {"cls": "合金", "qty": "time", "a": 60, "b": 95, "junk": 1}}]})
         self.assertEqual(body["panels"][0]["ops"], {"cls": "合金", "qty": "time", "base": "avg", "a": 60.0, "b": 95.0})
+        body, _ = dashboard.clean_layout({"rows": 8, "panels": [{"id": "g", "x": 0, "y": 0, "w": 6, "h": 3, "visual": "abc", "source": "work", "eorder": ["CR1", "", "CR1", "L-1"],
+                                                                   "ops": {"start": "段取開始", "span": "lead", "hide": ["rank", "junk", "chart"]}}]})
+        p = body["panels"][0]
+        self.assertEqual((p["ops"]["start"], p["ops"]["span"], p["ops"]["hide"], p["eorder"]), ("段取開始", "lead", ["rank", "chart"], ["CR1", "L-1"]))
 
     def test_combo_series_kind_and_axis(self):
         """組み合わせ（版 3.46.0。要望 3）: 系列ごとの形（棒・線・面）と目盛り（左・右）を書式に置ける。知らない値は外す"""

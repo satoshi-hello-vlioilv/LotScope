@@ -72,6 +72,12 @@ const OPS_LAYOUT = { rows: 8, panels: [
   // 直近 4 日（版 3.47.0）: 焼鈍炉 ANF の作業終了の書き忘れ（区間なし）・いま炉の中（作業中）と、ほかの設備の前から続く作業が入る
   { id: "gantt", x: 0, y: 0, w: 12, h: 5, title: "", visual: "gantt", source: "work", period: { column: "@workday", kind: "days", n: 4 }, ops: { color: "作業区分" }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } },
   { id: "abc", x: 0, y: 5, w: 12, h: 3, title: "", visual: "abc", source: "work", ops: { cls: ["合金", "調質"] }, body: { rows: [], cols: [], measures: [{ agg: "lots" }] } }] };
+// 積み上げ横棒（版 3.48.0）: 設備ごとの直の内訳（直近 7 日）と、作業区分ごとの直の割合（100%）。設備は手で並べた順（CR2・CR1 を先に）
+const HSTACK_LAYOUT = { rows: 8, panels: [
+  { id: "hs", x: 0, y: 0, w: 7, h: 8, title: "", visual: "hstack", source: "work", period: { column: "@workday", kind: "days", n: 7 }, eorder: ["CR2", "CR1"],
+    body: { rows: [{ column: "@equip", part: "" }], cols: [{ column: "@shift", part: "" }], measures: [{ agg: "lots" }] }, fmt: { labels: "inside" } },
+  { id: "hs100", x: 7, y: 0, w: 5, h: 8, title: "", visual: "hstack100", source: "work", period: { column: "@workday", kind: "days", n: 7 },
+    body: { rows: [{ column: "作業区分", part: "" }], cols: [{ column: "@shift", part: "" }], measures: [{ agg: "lots" }] } }] };
 // 組み合わせのグラフ（直近 14 日のロット数＝棒・重量の平均＝線〈右〉）と、設備ごとの組み合わせ（本数・速度の平均）
 const COMBO_LAYOUT = { rows: 8, panels: [
   { id: "combo", x: 0, y: 0, w: 7, h: 8, title: "", visual: "combo", source: "work", period: { column: "@workday", kind: "days", n: 14 }, body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots" }, { agg: "avg", column: "重量" }] },
@@ -334,13 +340,36 @@ export const STATES = [
     await p.evaluate(() => pollUpdate()); await sleep(900);
   }, "[data-next], #verNew"],
   // ダッシュボード（版 3.37.0 からグリッドのパネル・最初の画面）: 組み込みの標準を見る所・1 枚の表の条件の面・編集・パネルを組む所（仕掛区分ごと）
-  ["dash", async (p) => { await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400); }, "[data-next], [data-db-editmode]"],
+  ["dash", async (p) => {
+    // 前の案の撮影で入れ替えた・外した組み込みの標準を戻す（版 3.48.0。案ごとに同じサーバーで続けてたどるので）
+    const reset = await p.evaluate(async () => {
+      const d = await (await fetch("/api/dashboards")).json();
+      if (!(d.hidden || []).length && !(d.items || []).some((x) => x.replaces)) return false;
+      for (const x of (d.items || []).filter((y) => y.replaces)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      for (const scope of ["default", "me"]) await fetch("/api/dashboards-hidden", TPA.json("PUT", { scope, keys: [] }));
+      TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState(); return true;
+    });
+    if (reset) await p.reload();
+    await closeAll(p); await p.click("#tabDash"); await waitDash(p); await sleep(400);
+  }, "[data-next], [data-db-editmode]"],
   // 版 3.46.0: 稼働（ガント）と ABC 分析・換算係数のパネル
   ["dash-ops", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), OPS_LAYOUT); await sleep(500); await waitDash(p); await sleep(600); }, "[data-next], [data-db-editmode]"],
   // 版 3.47.0: 組む所の ABC の品種（合金 × 調質 の組み合わせの札）
   ["dash-ops-edit", async (p) => {
     await p.click("[data-db-editmode]"); await sleep(400);
     await p.click('#dashGrid .db-p[data-id="abc"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
+  }, "[data-next], [data-de-apply]"],
+  // 版 3.48.0: 組む所の ABC で、全設備の時間をリードタイムにし、出す項目の「換算本数」「下の段」を外した所（パネルも描き直る）
+  ["dash-ops-lead", async (p) => {
+    await p.click('.de-seg:has([data-de-ospan][value="lead"])'); await sleep(300);
+    await p.click('[data-de-ohide="conv"]'); await p.click('[data-de-ohide="foot"]'); await waitDash(p); await sleep(900);
+  }, "[data-next], [data-de-apply]"],
+  // 版 3.48.0: ガントのパネルを組む所で、設備の並びを「手で並べる」にした所（設備の札と ← →）
+  ["dash-eorder", async (p) => {
+    await p.click("[data-de-cancel]"); await sleep(400);
+    await p.click('#dashGrid .db-p[data-id="gantt"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(400);
+    await p.click('.de-seg:has([data-de-eord][value="hand"])'); await p.waitForSelector("[data-de-eomove]"); await sleep(300);
+    await p.click('[data-de-eomove="4"][data-d="-1"]'); await waitDash(p); await sleep(900);
   }, "[data-next], [data-de-apply]"],
   // 版 3.46.0: 組み合わせのグラフと、組む所の書式の「系列」（系列ごとの形・目盛り）
   ["dash-combo", async (p) => {
@@ -378,7 +407,32 @@ export const STATES = [
       for (const x of ds.filter((y) => !y.builtin)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
       TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
     });
-    await p.reload(); await waitDash(p); await sleep(400);
+    // 開き直すと頁の印（#screen=list）で一覧が開くので、ダッシュボードへ移ってから待つ（版 3.48.0 で直した: 前は待ち切れなかった）
+    await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(400);
+  }, "[data-next], [data-db-editmode]"],
+  // 版 3.48.0: 積み上げ横棒・100%積み上げ横棒（設備 × 直・作業区分 × 直）と、組み込みの標準を入れ替えた所・外した所の面
+  ["dash-hstack", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), HSTACK_LAYOUT); await sleep(500); await waitDash(p); await sleep(600); }, "[data-next], [data-db-editmode]"],
+  ["dash-swap-pop", async (p) => {
+    await p.evaluate(async (l) => {
+      await fetch("/api/dashboards", TPA.json("POST", { name: "標準", scope: "default", standard: true, body: { ...l, replaces: "standard" } }));
+      TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
+    }, HSTACK_LAYOUT);
+    await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(500);
+    await p.click("[data-db-pick]"); await sleep(500);
+  }, "[data-next], [data-db-unswap]"],
+  ["dash-hide-pop", async (p) => {
+    await p.click("[data-db-remove]"); await sleep(200); await p.click("[data-db-remove]"); await sleep(900);
+    await p.click("[data-db-pick]"); await sleep(500);
+  }, "[data-next], [data-db-unhide]"],
+  // 後片付け（撮らない）: 入れ替えた物・外した組み込みを戻す
+  ["dash-swap-off", async (p) => {
+    await p.keyboard.press("Escape");
+    await p.evaluate(async () => {
+      for (const x of ((await (await fetch("/api/dashboards")).json()).items || []).filter((y) => !y.builtin)) await fetch(`/api/dashboards/${x.id}`, { method: "DELETE" });
+      for (const scope of ["default", "me"]) await fetch("/api/dashboards-hidden", TPA.json("PUT", { scope, keys: [] }));
+      TPA.local.set("tpa.dash.v1", {}); await TPA.saveUiState();
+    });
+    await p.reload(); await p.click("#tabDash"); await waitDash(p); await sleep(400);
   }, "[data-next], [data-db-editmode]"],
   // 版 3.44.0: パネル（仕掛区分ごと）を右クリックしたメニュー
   ["dash-menu", async (p) => {

@@ -541,7 +541,7 @@
   /* ================= 内訳を見る ================= */
   /** 積み上げ縦棒・100% 積み上げ: 行の葉ごとの棒を、列の葉（1 つ目の値）か値（足し上げる値が 2 つ以上）で積む。列が 12 を超えたら残りを「その他」に。
       棒の中のラベル（書式 inside。100% は今までどおり数値ラベルで）: 段ごとに、入る高さ・幅なら値（100% は割合） */
-  function stackChart(ctx, share) {
+  function stackChart(ctx, share, horiz = false) {
     const { m, d, W, H } = ctx, data = dataRows(m).slice(0, 60), j = chartAt(ctx);
     let series;
     if (m.nc) {
@@ -554,9 +554,43 @@
     }
     const vals = data.map((r) => series.map((q) => Math.max(0, q.get(r)))), tops = vals.map((v) => v.reduce((a, b) => a + b, 0));
     const names = data.map((r) => catName(m, d, r));
+    const max = share ? 1 : topOf(Math.max(0, ...tops)), lo = share ? 0 : lowOf(max);
+    const note = (series.length < 2 ? `<small class="pv-cnote">内訳を積むには、［列］に段を入れるか、足し上げる値（件数・ロット数・合計）を 2 つ以上にしてください</small>` : "")
+      + (dataRows(m).length > 60 ? '<small class="pv-cnote">先頭 60 件まで描いています</small>' : "");
+    const kindName = `${share ? "100% " : ""}積み上げ${horiz ? "横" : ""}棒グラフ`;
+    if (horiz) {
+      // 横の積み上げ（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 2）: 行の段を縦に並べ、内訳を左から右へ積む（名前が長い・項目が多いとき）。
+      // 左は名前の字の幅（横棒と同じ決め方）・下に目盛り・右に合計の数
+      const longest = Math.max(0, ...names.map((t) => textW(t)));
+      const pl = Math.round(Math.max(ctx.compact ? 44 : 80, Math.min(W * 0.4, longest + 16))), pr = share ? pad(ctx, 20, 10) : pad(ctx, 64, 48), pt = pad(ctx, 8, 4), pb = 20;
+      const iw = Math.max(20, W - pl - pr), rh = (H - pt - pb) / Math.max(data.length, 1), bh = Math.max(3, Math.min(44, rh * 0.62));
+      const xOf = (v) => pl + iw * Math.max(0, Math.min(1, (v - lo) / (max - lo)));
+      let g = "";
+      const fv = share ? (v) => `${Math.round(v * 100)}%` : nf;
+      (iw >= 220 ? [0, 0.25, 0.5, 0.75, 1] : iw >= 110 ? [0, 0.5, 1] : [0, 1]).forEach((f) => {
+        const x = pl + iw * f;
+        g += `${F.grid === false ? "" : `<line x1="${x}" x2="${x}" y1="${pt}" y2="${H - pb}" class="pv-grid"/>`}<text x="${x}" y="${H - pb + 14}" text-anchor="${f === 0 ? "start" : f === 1 ? "end" : "middle"}" class="pv-ax">${esc(fv(lo + (max - lo) * f))}</text>`;
+      });
+      const inside = share ? LBL.top || LBL.inside : LBL.inside;
+      data.forEach((r, i) => {
+        let base = 0;
+        const cy = pt + rh * (i + 0.5), by = cy - bh / 2, sum = tops[i] || 1;
+        g += `<text x="${pl - 8}" y="${cy + 4}" text-anchor="end" class="pv-ax">${esc(fitW(names[i], pl - 10))}</text>`;
+        series.forEach((q, k) => {
+          const raw = vals[i][k], v = share ? raw / sum : raw; if (!raw) return;
+          const x0 = xOf(base), x1 = xOf(base + v);
+          g += `<rect x="${x0}" y="${by}" width="${Math.max(0, x1 - x0)}" height="${bh}" fill="${q.color}" opacity=".9"><title>${esc(m.rowName(r))} / ${esc(q.name)}: ${esc(fmt(raw))}（${pct(raw / sum)}）</title></rect>`;
+          const t = share ? pct(raw / sum) : nf(raw);
+          if (inside && bh >= 12 && x1 - x0 >= textW(t) + 6) g += `<text x="${(x0 + x1) / 2}" y="${cy + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
+          base += v;
+        });
+        if (!share && tops[i] && (LBL.top || series.length > 1)) g += `<text x="${xOf(tops[i]) + 5}" y="${cy + 4}" class="${LBL.top ? "pv-vl" : "pv-ax"}">${esc(nf(tops[i]))}</text>`;
+      });
+      g += `<line x1="${pl}" x2="${pl}" y1="${pt}" y2="${H - pb}" class="pv-axis"/>` + (share ? "" : refLinesX(xOf, pt, H - pb, pl, pl + iw));
+      return { svg: svgOf(W, H, g, kindName), legend: legendHtml(series.map((q) => [q.name, q.color, "bar"])) + note };
+    }
     const pl = pad(ctx, 60, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 22 : 12, iw = W - pl - pr, cat = catAxis(names, iw, H, ctx);
     const pb = pad(ctx, 56, 30) + cat.extra, ih = H - pt - pb, gw = iw / Math.max(data.length, 1), bw = Math.max(4, Math.min(56, gw * 0.72));
-    const max = share ? 1 : topOf(Math.max(0, ...tops)), lo = share ? 0 : lowOf(max);
     const yOf = (v) => pt + ih * (1 - Math.max(0, Math.min(1, (v - lo) / (max - lo))));
     let g = axisY(pl, pt, ih, max, false, W + 36, MUTED, share ? (v) => `${Math.round(v * 100)}%` : nf, lo);
     const inside = share ? LBL.top || LBL.inside : LBL.inside;
@@ -575,9 +609,7 @@
       if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
     });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>` + (share ? "" : refLines(yOf, pl, W - pr, pt, pt + ih));
-    const note = (series.length < 2 ? `<small class="pv-cnote">内訳を積むには、［列］に段を入れるか、足し上げる値（件数・ロット数・合計）を 2 つ以上にしてください</small>` : "")
-      + (dataRows(m).length > 60 ? '<small class="pv-cnote">先頭 60 件まで描いています</small>' : "");
-    return { svg: svgOf(W, H, g, share ? "100% 積み上げ棒グラフ" : "積み上げ棒グラフ"), legend: legendHtml(series.map((q) => [q.name, q.color, "bar"])) + note };
+    return { svg: svgOf(W, H, g, kindName), legend: legendHtml(series.map((q) => [q.name, q.color, "bar"])) + note };
   }
   /** ドーナツ: 行の葉の割合（グラフにする値・列は全体）。大きい順に 9 つ＋その他。真ん中に合計 */
   function donutChart(ctx) {
@@ -1026,6 +1058,10 @@
       icon: "M3 17h14M5 15v-4M5 11V7M10 15V9M10 9V4M15 15v-3M15 12V9", fit: (f) => (f.rows && (f.cols || f.addMeas > 1) && f.additive ? "" : "列に段があり（か足し上げる値が 2 つ以上）、値が件数・ロット数・合計のとき"), draw: (c) => stackChart(c, false) },
     { k: "stack100", n: "100%積み上げ", g: "part", one: true, tip: "積み上げを 100% にそろえ、行の段ごとの内訳の割合を比べます",
       icon: "M3 3h14M3 17h14M5 17V3M10 17V3M15 17V3M5 10h5M10 7h5M15 12h0", fit: (f) => (f.rows && (f.cols || f.addMeas > 1) && f.additive ? "" : "列に段があり（か足し上げる値が 2 つ以上）、値が件数・ロット数・合計のとき"), draw: (c) => stackChart(c, true) },
+    { k: "hstack", n: "積み上げ横棒", g: "part", one: true, tip: "行の段ごとの横の棒を、列の段（か 2 つ以上の足し上げる値）で左から右へ積み上げます。長さ＝合計（名前が長い・項目が多いとき）",
+      icon: "M3 3v14M3 5h5M8 5h4M3 10h8M11 10h5M3 15h3M6 15h4", fit: (f) => (f.rows && (f.cols || f.addMeas > 1) && f.additive ? "" : "列に段があり（か足し上げる値が 2 つ以上）、値が件数・ロット数・合計のとき"), draw: (c) => stackChart(c, false, true) },
+    { k: "hstack100", n: "100%積み上げ横棒", g: "part", one: true, tip: "横の積み上げを 100% にそろえ、行の段ごとの内訳の割合を比べます（名前が長い・項目が多いとき）",
+      icon: "M3 3v14M17 3v14M3 5h6M9 5h8M3 10h10M13 10h4M3 15h4M7 15h10", fit: (f) => (f.rows && (f.cols || f.addMeas > 1) && f.additive ? "" : "列に段があり（か足し上げる値が 2 つ以上）、値が件数・ロット数・合計のとき"), draw: (c) => stackChart(c, true, true) },
     { k: "stackarea", n: "積み上げ面", g: "part", one: true, tip: "時の流れに沿って、列の段の内訳を面で積み上げます（高さ＝合計。内訳の移り変わり）",
       icon: "M3 17h14M3 15l4-3 4 1 6-4v8H3zM3 11l4-4 4 2 6-5", fit: (f) => (f.time && f.cols && f.additive ? "" : "行の 1 段目が日付・作業日で、列に段があり、値が件数・ロット数・合計のとき"), draw: (c) => (isTime(c.d) ? trendChart(c, "stackarea") : stackChart(c, false)) },
     { k: "donut", n: "ドーナツ", g: "part", one: true, tip: "行の段の割合を輪で見ます（大きい順に 9 つ＋その他）。足し上げる値のとき",
@@ -1159,7 +1195,7 @@
   /** ctx.fmt（版 3.39.0）があれば、描く間だけ書式を当てる（数値ラベル・日付の形・桁・単位・縦軸・基準線・名前ごとの色） */
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
-    const H = ctx.H || (kind === "bar" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : kind === "diag45" ? 420 : kind === "xbar" ? 380 : 300);
+    const H = ctx.H || (kind === "bar" || kind === "hstack" || kind === "hstack100" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : kind === "diag45" ? 420 : kind === "xbar" ? 380 : 300);
     const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER];
     if (ctx.colors) COLORS = ctx.colors;
     USED = new Map(); SER = new Map();

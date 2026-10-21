@@ -266,6 +266,43 @@ class Layouts(unittest.TestCase):
         self.assertEqual(self.c.put(f"/api/dashboards/{r.get_json()['id']}", json={"name": "x"}).status_code, 403, "ほかの ID の物は直せない")
         self.assertEqual(self.c.delete(f"/api/dashboards/{mine['id']}").status_code, 200)
 
+    def test_builtin_can_be_replaced_and_hidden(self):
+        """組み込みを入れ替える・外す（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 1）:
+        入れ替え … 中身に replaces を持つダッシュボードを置くと、組み込みの代わりに出る（replaces で "b:鍵" と分かる）。消すと組み込みが戻る
+        外す … 開発者は全員の一覧から（共通デフォルト）・ほかの人は自分の一覧から。戻せる。外していない人には出る"""
+        self.as_("dev")
+        r = self.c.post("/api/dashboards", json={"name": "標準", "scope": "default", "standard": True, "body": {**self.body, "replaces": "standard"}})
+        self.assertEqual(r.status_code, 201, r.get_json())
+        mine = r.get_json()
+        d = self.c.get("/api/dashboards").get_json()
+        self.assertEqual([(x["id"], x.get("replaces")) for x in d["items"]], [(mine["id"], "b:standard")], "組み込みの代わりに出る")
+        self.assertEqual(d["standardId"], mine["id"])
+        self.as_("taro")
+        self.assertEqual([x["id"] for x in self.c.get("/api/dashboards").get_json()["items"]], [mine["id"]], "共通デフォルトの入れ替えは全員に効く")
+        self.assertEqual(self.c.post("/api/dashboards", json={"name": "x", "scope": "default", "body": {**self.body, "replaces": "standard"}}).status_code, 403)
+        self.as_("dev")
+        self.assertEqual(self.c.delete(f"/api/dashboards/{mine['id']}").status_code, 200)
+        self.assertEqual([x["id"] for x in self.c.get("/api/dashboards").get_json()["items"]], ["b:standard"], "消すと組み込みが戻る")
+        self.assertNotIn("replaces", dashboard.clean_layout({**self.body, "replaces": "nothing"})[0], "知らない組み込みの鍵は外す")
+        # 外す: 自分の一覧から（taro）
+        self.as_("taro")
+        r = self.c.put("/api/dashboards-hidden", json={"scope": "me", "keys": ["standard", "junk"]})
+        self.assertEqual((r.status_code, r.get_json()["keys"]), (200, ["standard"]))
+        d = self.c.get("/api/dashboards").get_json()
+        self.assertEqual((d["items"], d["standardId"], d["hidden"]), ([], None, [{"id": "b:standard", "name": "標準", "scope": "me"}]))
+        self.assertEqual(self.c.put("/api/dashboards-hidden", json={"scope": "default", "keys": ["standard"]}).status_code, 403, "全員の一覧から外せるのは開発者だけ")
+        self.as_("jiro")
+        self.assertEqual([x["id"] for x in self.c.get("/api/dashboards").get_json()["items"]], ["b:standard"], "ほかの人には出る")
+        self.as_("taro")
+        self.assertEqual(self.c.put("/api/dashboards-hidden", json={"scope": "me", "keys": []}).status_code, 200)
+        self.assertEqual([x["id"] for x in self.c.get("/api/dashboards").get_json()["items"]], ["b:standard"], "戻せる")
+        self.assertEqual([r for r in MasterRepository(self.store).dashboards() if r.get("元") == dashboard.HIDE_SOURCE], [], "戻すと行は残らない")
+        # 開発者が全員の一覧から外す
+        self.as_("dev")
+        self.assertEqual(self.c.put("/api/dashboards-hidden", json={"scope": "default", "keys": ["standard"]}).status_code, 200)
+        self.as_("jiro")
+        self.assertEqual(self.c.get("/api/dashboards").get_json()["items"], [])
+
     def test_layouts_are_checked(self):
         bad = {"rows": 8, "panels": [{"id": "a", "x": 0, "y": 0, "w": 4, "h": 2, "visual": "kpi", "source": "work"},
                                      {"id": "b", "x": 3, "y": 1, "w": 4, "h": 2, "visual": "kpi", "source": "work"}]}

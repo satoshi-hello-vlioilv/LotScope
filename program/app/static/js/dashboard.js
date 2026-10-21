@@ -21,19 +21,25 @@
     list: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, rowsRange: [4, 16],
     id: null, layout: null, saved: "", edit: false, history: [], sel: "", sources: [],
     tree: null, answers: new Map(), at: 0, timer: null, active: false, loading: false, msg: "", confirm: "", pop: null, editing: "",
-    sets: [], setStd: null, setId: null, setMax: 12,
+    sets: [], setStd: null, setId: null, setMax: 12, hidden: [],
   };
 
   /* ---------------- 覚え・置き場 ---------------- */
   const mem = () => TPA.local.get(KEY, {});
   const remember = (patch) => TPA.local.set(KEY, { ...mem(), ...patch });
-  const current = () => S.list.find((x) => String(x.id) === String(S.id)) || null;
+  /** id（数の字・"b:鍵"）→ ダッシュボード。組み込みを入れ替えた物は、組み込みの id（replaces）でも見つかる（セットのタブ・覚えた id。版 3.48.0） */
+  const byId = (id) => (id == null ? null : S.list.find((x) => String(x.id) === String(id)) || S.list.find((x) => x.replaces && x.replaces === String(id)) || null);
+  const current = () => byId(S.id);
+  /** 保存できるか: 書ける物・組み込み（開発者は全員の分を、ほかの人は自分の分を入れ替える。版 3.48.0） */
+  const canSaveIt = (it) => !!it && (it.builtin ? !!(S.canEditDefault || S.login) : it.canEdit);
+  /** 組み込みを入れ替える置き場（開発者＝共通デフォルト〈全員〉・ほかの人＝自分の ID） */
+  const swapScope = () => (S.canEditDefault ? "default" : "me");
   const dirty = () => !!S.layout && JSON.stringify(S.layout) !== S.saved;
   const panelOf = (id) => (S.layout ? S.layout.panels.find((x) => x.id === id) : null);
   // 保存していない変更の見張り（版 3.43.0。unsaved.js）: 画面を移る・アプリを閉じる前に聞く。保存せずに進むなら、保存した並びへ戻して編集を出る
   TPA.unsaved.watch("dash:layout", { scope: "dash", dirty: () => S.edit && dirty(),
     label: () => `ダッシュボード「${(current() || {}).name || ""}」の並び・パネル`,
-    canSave: () => { const it = current(); return !!(it && !it.builtin && it.canEdit); },
+    canSave: () => canSaveIt(current()),
     save: async () => { if (S.editing) closeEditor(); await save(); return !dirty(); },
     discard: () => { if (S.editing) closeEditor(); if (S.id != null) open(S.id); } });
   /* この PC の絞り込み（版 3.39.0。パネルを絞る: dashboard-filter.js）。ダッシュボードごと・パネルごとに覚える（tpa.dash.v1 の quick） */
@@ -72,14 +78,14 @@
   }
   /** 数えるときのパネル（組んだパネル＋スライサー＋この PC のパネルの絞り込み） */
   const asked = (p) => Q.merge(Q.slice(p, sliceOf(p), canEquip), quickOf(p.id));
-  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters, p.order, p.calc] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc, p.ops]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない。サーバーが読む項目は全部入れる: 合わせた表の order〈見出しの設備グループ〉も。版 3.43.0）
+  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters, p.order, p.calc] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc, p.ops, p.eorder]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない。サーバーが読む項目は全部入れる: 合わせた表の order〈見出しの設備グループ〉も。版 3.43.0）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "ダッシュボードを読めませんでした");
     Object.assign(S, { list: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, canEditDefault: !!d.canEditDefault,
-      standardId: d.standardId, rowsRange: d.rowsRange || [4, 16] });
+      standardId: d.standardId, rowsRange: d.rowsRange || [4, 16], hidden: d.hidden || [] });
   }
   /* ---------------- セット（版 3.46.0。利用者の要望 2026-10-21 の 7）: いくつかのダッシュボードの束を、道具の行のタブで切り替える。
      置き場は /api/dashboard-sets（共通デフォルト＝開発者の標準のセット・共通・自分のパターンと ★標準。ダッシュボードと同じ決まり）。
@@ -95,7 +101,10 @@
   }
   const curSet = () => S.sets.find((x) => String(x.id) === String(S.setId)) || null;
   /** セットのダッシュボード（見えない物・消えた物は飛ばす） */
-  const setDash = (st = curSet()) => (st ? st.body.items.map((k) => S.list.find((x) => String(x.id) === String(k))).filter(Boolean) : []);
+  const setDash = (st = curSet()) => (st ? [...new Set(st.body.items.map(byId).filter(Boolean))] : []);
+  /** セットのタブに入っているか（組み込みを入れ替えた物は、組み込みの id でも） */
+  const inItems = (st, x) => !!(st && x && (st.body.items.includes(String(x.id)) || (x.replaces && st.body.items.includes(x.replaces))));
+  const itemKey = (st, x) => (st.body.items.includes(String(x.id)) ? String(x.id) : x.replaces || String(x.id));
   function useSet(id) {
     S.setId = id == null ? null : id; remember({ set: id == null ? "" : id });
     const ds = setDash();
@@ -122,8 +131,11 @@
   }
   /** 開く: 覚えた物 → 標準 → 組み込み */
   function open(id, { keepEdit = false } = {}) {
-    const it = S.list.find((x) => String(x.id) === String(id)) || S.list.find((x) => String(x.id) === String(S.standardId)) || S.list[S.list.length - 1];
-    if (!it) return;
+    const it = byId(id) || byId(S.standardId) || S.list[S.list.length - 1];
+    if (!it) {           // ダッシュボードが 1 つも無い（組み込みも外した。版 3.48.0）: 空のグリッドに、作る・戻すの知らせ
+      S.id = null; S.layout = { rows: 8, panels: [] }; S.saved = JSON.stringify(S.layout); S.history = []; S.sel = ""; S.edit = false;
+      paint(); return;
+    }
     S.id = it.id; S.layout = TPA.clone(it.body); S.saved = JSON.stringify(S.layout); S.history = []; S.sel = "";
     if (!keepEdit) S.edit = false;
     remember({ id: it.id });
@@ -190,6 +202,13 @@
     });
     paintCells();
     S.layout.panels.forEach((p) => paintPanel(p.id));
+    // ダッシュボードが 1 つも無い（組み込みも外した。版 3.48.0）: 何をすればよいかをグリッドの真ん中に
+    let none = g.querySelector(".db-none");
+    if (!S.edit && !current() && !S.layout.panels.length) {
+      if (!none) { none = document.createElement("div"); none.className = "db-none"; g.append(none); }
+      none.innerHTML = `<b>ダッシュボードがありません</b><span>左上の ▾ から「＋ 空から作る」か、${(S.hidden || []).length ? "「外した組み込み」を戻してください" : "ほかのダッシュボードを開いてください"}</span>`
+        + `<button type="button" class="btn-primary" data-db-pick>ダッシュボードを選ぶ ▾</button>`;
+    } else if (none) none.remove();
   }
   function place(el, p) {
     el.style.gridColumn = `${p.x + 1} / span ${p.w}`;
@@ -356,7 +375,7 @@
     }
     const rows = `<label class="pv-ck" title="グリッドの段の数（多いほど 1 段が低い）">段<select data-db-rows>${Array.from({ length: S.rowsRange[1] - S.rowsRange[0] + 1 }, (_, i) => S.rowsRange[0] + i)
       .map((n) => `<option${n === S.layout.rows ? " selected" : ""}${n < minRows() ? " disabled" : ""}>${n}</option>`).join("")}</select></label>`;
-    const canSave = it && !it.builtin && it.canEdit;
+    const canSave = canSaveIt(it);
     const leave = S.confirm === "leave"
       ? `<span class="db-armed">変えた所を捨てますか</span><button type="button" class="btn-ghost" data-db-stay>戻る</button><button type="button" class="pv-btn is-danger" data-db-discard>捨てる</button>`
       : `<button type="button" class="btn-ghost" data-db-leave>${dirty() ? "やめる" : "編集を終える"}</button>`;
@@ -367,8 +386,8 @@
       + `<button type="button" class="pv-btn" data-db-add title="空いた所にパネルを足して、組む所を開きます">＋ パネル</button>${rows}`
       + `<button type="button" class="pv-btn" data-db-undo${S.history.length ? "" : " disabled"} title="元に戻す（Ctrl+Z）">元に戻す</button>`
       + msg + `<span class="db-sp"></span>${leave}`
-      + (canSave ? `<button type="button" class="btn-primary" data-db-save${dirty() ? "" : " disabled"}>保存</button>` : "")
-      + `<button type="button" class="${canSave ? "pv-btn" : "btn-primary"}" data-db-saveas aria-haspopup="true" title="${it && it.builtin ? "組み込みの物は書き換えられないので、名前を付けて保存します" : "名前を付けて、別のダッシュボードとして保存します"}">名前を付けて保存…</button>`;
+      + (canSave ? `<button type="button" class="btn-primary" data-db-save${dirty() ? "" : " disabled"}${it.builtin ? ` title="${esc(swapWord(it))}"` : ""}>保存</button>` : "")
+      + `<button type="button" class="${canSave ? "pv-btn" : "btn-primary"}" data-db-saveas aria-haspopup="true" title="名前を付けて、別のダッシュボードとして保存します">名前を付けて保存…</button>`;
   }
   /** スライサーの帯（道具の行の下の細い帯。2026-10-dashslice の 3 回目で決めた C2）。編集のときは出さない（道具の行の「スライサー … ×」で分かる）。
       帯にも入り切らない狭い窓だけ、詰めた形（選ぶ欄） */
@@ -408,19 +427,42 @@
     const row = (x) => `<button type="button" class="db-li${String(x.id) === String(S.id) ? " on" : ""}" data-db-open="${esc(String(x.id))}">`
       + `<b>${esc(x.name)}</b>${String(x.id) === String(S.standardId) ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}`
       // いまのセットのタブに入っている物に印（同じ採点: 面の中で、どれがセットに入っているかが見えなかった）
-      + `${st && st.body.items.includes(String(x.id)) ? `<i class="db-inset" title="いまのセット「${esc(st.name)}」のタブに入っています">タブ</i>` : ""}<small>${x.body.panels.length} 枚${x.builtin ? "・組み込み" : ""}</small></button>`;
+      + `${inItems(st, x) ? `<i class="db-inset" title="いまのセット「${esc(st.name)}」のタブに入っています">タブ</i>` : ""}<small>${x.body.panels.length} 枚${x.builtin ? "・組み込み" : ""}</small></button>`;
     const list = groups.map(([k, n]) => { const xs = S.list.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const canStd = it && !it.builtin && it.canEdit && String(it.id) !== String(S.standardId);
-    const canDel = it && !it.builtin && it.canEdit;
+    // 消す（版 3.48.0）: 組み込みは一覧から外す（開発者は全員の・ほかの人は自分の）。入れ替えた物は「組み込みに戻す」も
+    const canDel = it && (it.builtin ? canSaveIt(it) : it.canEdit);
+    const swapped = it && it.replaces && it.canEdit;
     // 面は 2 列（左＝セット・右＝ダッシュボード。2026-10-sets の 2 回目で決めた G: 1 列では 1280 で面の下が画面の外へ切れた）
     return `<div class="db-pcol">${setsHtml()}</div><div class="db-pcol"><div class="db-pophead"><b>ダッシュボード</b><small>★＝標準（アプリを開いたときに出す物。自分 → 共通 → 共通デフォルトの順に決まります）</small></div>${list}`
       + `<div class="db-popacts">${canStd ? '<button type="button" class="pv-btn" data-db-std>★ いまの物を標準にする</button>' : ""}`
       + `<button type="button" class="pv-btn" data-db-new title="パネルの無いダッシュボードを、編集で作り始めます">＋ 空から作る</button>`
-      + (canDel ? `<button type="button" class="pv-btn is-danger${S.confirm === "remove" ? " is-armed" : ""}" data-db-remove>${S.confirm === "remove" ? "もう一度押すと消えます" : "いまの物を消す"}</button>` : "") + "</div></div>";
+      + (swapped ? `<button type="button" class="pv-btn" data-db-unswap title="入れ替えた物を消して、組み込みの「${esc(it.name)}」に戻します">組み込みに戻す</button>` : "")
+      + (canDel ? `<button type="button" class="pv-btn is-danger${S.confirm === "remove" ? " is-armed" : ""}" data-db-remove title="${esc(it.builtin || it.replaces ? `${hideWord()}（「外した組み込み」から戻せます）` : "")}">${S.confirm === "remove" ? "もう一度押すと消えます" : "いまの物を消す"}</button>` : "") + "</div>"
+      + hiddenHtml() + "</div>";
   }
+  /* ---- 組み込みを外す・入れ替える（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 1） ---- */
+  const swapWord = (it) => `組み込みの「${it.name}」を、直した物と入れ替えます（${S.canEditDefault ? "全員の一覧で。共通デフォルト" : "自分の一覧だけ"}）`;
+  const hideWord = () => (S.canEditDefault ? "全員の一覧から外します（共通デフォルト）" : "自分の一覧から外します");
+  /** 外した組み込みの並びと「戻す」（戻せるのは、外した置き場を書ける人） */
+  function hiddenHtml() {
+    const xs = S.hidden || [];
+    if (!xs.length) return "";
+    const ok = (x) => (x.scope === "default" ? S.canEditDefault : !!S.login);
+    return `<div class="db-lg db-hid"><span>外した組み込み</span>${xs.map((x) => `<div class="db-hidli"><b>${esc(x.name)}</b><small>${x.scope === "default" ? "全員の一覧から" : "自分の一覧から"}</small>`
+      + `<button type="button" class="pv-btn" data-db-unhide="${esc(x.id)}" data-scope="${x.scope}"${ok(x) ? "" : ' disabled title="全員の一覧から外した物を戻せるのは、開発者だけです"'}>戻す</button></div>`).join("")}</div>`;
+  }
+  /** 外した組み込みの鍵を書く（scope の分を keys に） */
+  async function writeHidden(scope, keys) {
+    const r = await fetch("/api/dashboards-hidden", TPA.json("PUT", { scope, keys }));
+    if (!r.ok) { say("✕ " + ((await r.json().catch(() => ({}))).error || `書けませんでした（${r.status}）`)); return false; }
+    await loadList();
+    return true;
+  }
+  const hiddenKeys = (scope) => (S.hidden || []).filter((x) => x.scope === scope).map((x) => x.id.slice(2));
   /** セットの段（面の上）: セットの並び（自分・共通・共通デフォルト。★標準）と「使わない」・いまのセットの操作 */
   function setsHtml() {
-    const st = curSet(), it = current(), ds = setDash(st), inSet = !!(st && it && st.body.items.includes(String(it.id)));
+    const st = curSet(), it = current(), ds = setDash(st), inSet = inItems(st, it);
     // 置き場の言葉はダッシュボードと同じ（自分・共通・共通デフォルト。2026-10-sets の 1 回目の採点: 札は「共通デフォルト」・面は「標準のセット」で揃っていなかった）
     const groups = [["me", "自分のセット"], ["all", "共通のセット"], ["default", "共通デフォルトのセット"]];
     const row = (x) => `<button type="button" class="db-li db-setli${String(x.id) === String(S.setId) ? " on" : ""}" data-db-set="${esc(String(x.id))}">`
@@ -429,7 +471,7 @@
       + `<span class="db-setin">${esc(setDash(x).map((d) => d.name).join("・"))}</span></button>`;
     const list = groups.map(([k, n]) => { const xs = S.sets.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
     const none = `<button type="button" class="db-li${S.setId == null ? " on" : ""}" data-db-set=""><b>セットを使わない</b><small>1 枚ずつ開く</small></button>`;
-    const pos = st && it ? st.body.items.indexOf(String(it.id)) : -1;
+    const pos = st && it ? st.body.items.indexOf(itemKey(st, it)) : -1;
     const acts = st ? `<div class="db-popacts db-setacts">`
       // 何に効くかを名前で言う（同じ 1 回目の採点: 外す・左へ・右へが、どのダッシュボードに効くのかを推測させた）
       + (st.canEdit ? (inSet ? `<span class="db-setfor">「${esc(it.name)}」のタブ</span><button type="button" class="pv-btn" data-db-setmove="-1"${pos > 0 ? "" : " disabled"} title="「${esc(it.name)}」のタブを左へ">← 左へ</button><button type="button" class="pv-btn" data-db-setmove="1"${pos >= 0 && pos < st.body.items.length - 1 ? "" : " disabled"} title="「${esc(it.name)}」のタブを右へ">右へ →</button>`
@@ -484,9 +526,26 @@
     if (t.hasAttribute("data-db-remove")) {
       if (S.confirm !== "remove") { S.confirm = "remove"; popEl.innerHTML = pickHtml(); return; }
       S.confirm = ""; const it = current(); closePop();
+      if (!it.builtin) {
+        const r = await fetch(`/api/dashboards/${it.id}?rev=${it.rev}`, { method: "DELETE" });
+        if (!r.ok) { say("消せませんでした: " + ((await r.json().catch(() => ({}))).error || r.status)); return; }
+      }
+      // 組み込み・組み込みを入れ替えた物は、組み込みも一覧から外す（コードの物は消せないので外す。戻せる）
+      const key = it.builtin ? String(it.id).slice(2) : (it.replaces || "").slice(2);
+      if (key) { const scope = S.canEditDefault ? "default" : "me"; if (!(await writeHidden(scope, [...new Set(hiddenKeys(scope).concat([key]))]))) return; }
+      else await loadList();
+      open(S.standardId); say(`「${it.name}」を${key ? "一覧から外しました（▾ の「外した組み込み」から戻せます）" : "消しました"}`); return;
+    }
+    if (t.hasAttribute("data-db-unswap")) {        // 入れ替えた物を消して、組み込みに戻す
+      const it = current(); closePop();
       const r = await fetch(`/api/dashboards/${it.id}?rev=${it.rev}`, { method: "DELETE" });
-      if (!r.ok) { say("消せませんでした: " + ((await r.json().catch(() => ({}))).error || r.status)); return; }
-      await loadList(); open(S.standardId); say(`「${it.name}」を消しました`); return;
+      if (!r.ok) { say("戻せませんでした: " + ((await r.json().catch(() => ({}))).error || r.status)); return; }
+      await loadList(); open(it.replaces); say(`組み込みの「${it.name}」に戻しました`); return;
+    }
+    if (t.dataset.dbUnhide) {                       // 外した組み込みを戻す
+      const scope = t.dataset.scope, id = t.dataset.dbUnhide;
+      if (!(await writeHidden(scope, hiddenKeys(scope).filter((k) => k !== id.slice(2))))) return;
+      closePop(); open(id); say("組み込みを一覧に戻しました"); return;
     }
     if (t.hasAttribute("data-db-dosave")) { saveAs(); return; }
     // セット（版 3.46.0）
@@ -502,9 +561,9 @@
     }
     const st = curSet(), it = current();
     if (st && t.hasAttribute("data-db-setin")) { await editSet(st.body.items.concat([String(it.id)]), `「${it.name}」をセット「${st.name}」に入れました`); if (popEl) popEl.innerHTML = pickHtml(); return; }
-    if (st && t.hasAttribute("data-db-setout")) { await editSet(st.body.items.filter((k) => k !== String(it.id)), `「${it.name}」をセット「${st.name}」から外しました`); if (popEl) popEl.innerHTML = pickHtml(); return; }
+    if (st && t.hasAttribute("data-db-setout")) { await editSet(st.body.items.filter((k) => k !== itemKey(st, it)), `「${it.name}」をセット「${st.name}」から外しました`); if (popEl) popEl.innerHTML = pickHtml(); return; }
     if (st && t.dataset.dbSetmove) {
-      const xs = st.body.items.slice(), i = xs.indexOf(String(it.id)), j = i + +t.dataset.dbSetmove;
+      const xs = st.body.items.slice(), i = xs.indexOf(itemKey(st, it)), j = i + +t.dataset.dbSetmove;
       if (i < 0 || j < 0 || j >= xs.length) return;
       xs.splice(j, 0, xs.splice(i, 1)[0]); await editSet(xs, ""); if (popEl) popEl.innerHTML = pickHtml(); return;
     }
@@ -548,14 +607,18 @@
   const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x));
   let saving = false;
   async function save() {
-    const it = current(); if (!it || it.builtin || saving) return;
+    const it = current(); if (!it || saving || !canSaveIt(it)) return;
     saving = true;
     // 押したらすぐ「保存しています…」（共有のマスタが遅くても、押せたかが分かる）
     const btn = document.querySelector("[data-db-save]");
     if (btn) { btn.disabled = true; btn.textContent = "保存しています…"; }
     say("保存しています…");
     try {
-      const r = await writeLayout("PUT", it.id, { body: S.layout, base_rev: it.rev }, "保存しました", { local: !S.layout.panels.some((x) => x.legacy) });   // 前の版の 1 枚の表は、並びを読み直して前の版の条件を入れ直す
+      // 組み込み（版 3.48.0）: 直した物を、その組み込みと入れ替える物として置く（開発者は共通デフォルト＝全員・ほかの人は自分の ID）。標準だったら標準のまま
+      const r = it.builtin
+        ? await writeLayout("POST", null, { name: it.name, scope: swapScope(), standard: String(it.id) === String(S.standardId), body: { ...S.layout, replaces: String(it.id).slice(2) } },
+          `組み込みの「${it.name}」を直した物と入れ替えました（${S.canEditDefault ? "全員" : "自分の一覧"}。▾ の「組み込みに戻す」で戻せます）`)
+        : await writeLayout("PUT", it.id, { body: S.layout, base_rev: it.rev }, "保存しました", { local: !S.layout.panels.some((x) => x.legacy) });   // 前の版の 1 枚の表は、並びを読み直して前の版の条件を入れ直す
       if (r.error) { say("✕ " + r.error); paintBar(); }
     } finally { saving = false; }
   }

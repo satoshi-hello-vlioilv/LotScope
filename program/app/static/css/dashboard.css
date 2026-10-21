@@ -703,7 +703,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .og-on{fill:#edf4f3}
 .og-row.is-alt .og-on{fill:#e3eeec}
 .og-sep{stroke:#8fa9a5;stroke-width:1.2}
-.og-day{stroke:#5f6f76;stroke-width:1;stroke-dasharray:3 2}
+.og-day{stroke:#5f6f76;stroke-width:1;stroke-dasharray:3 2}.og-day.is-own{stroke-opacity:.7}
 .og-tick{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
 .og-unit{fill:#8a969c}
 .og-dayl{font-size:11.5px;font-weight:700;fill:var(--ink)}
@@ -781,6 +781,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-f.is-far{font-weight:700;color:#8a4b12}
 .oa-foot{display:flex;gap:4px 16px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;flex:0 0 20px}
 .oa-foot b:not(.oa-rank){color:var(--ink)}
+.oa-flt{color:#24446a;font-weight:700;border:1px solid #9fb0c6;border-radius:999px;padding:0 8px;line-height:18px}
 .de-ops{display:flex;flex-direction:column;gap:2px}
 .de-ophint{margin:2px 0 4px;font-size:12px;color:var(--muted);line-height:1.5}
 .de-ops select.is-need{border-color:#b5822a;box-shadow:0 0 0 2px #f6e7c8}
@@ -789,6 +790,11 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .de-clss{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 4px;min-width:0}
 .de-clsx{color:var(--muted);font-weight:700;font-size:12px}
 .de-clsrow .de-hint{flex-basis:100%;margin-left:60px}
+/* 設備の並び（版 3.48.0）: 手で並べるときの設備の札（番号・名前・← →）。ABC の出す項目のチェック */
+.de-eord{display:inline-flex;flex-wrap:wrap;gap:4px;min-width:0}
+.de-eoc .de-eon{font-style:normal;font-size:11px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;border-radius:8px;background:rgba(255,255,255,.28)}
+.de-eoc button:disabled{opacity:.35;cursor:default}
+.de-ochk{display:inline-flex;flex-wrap:wrap;gap:2px 12px;min-width:0}
 /* 系列の行（版 3.46.0）: 形と軸の札を足したので、名前（色）を 1 段目いっぱい・選びを 2 段目に折り返す（横にはみ出さない） */
 .de-ser{flex-wrap:wrap;row-gap:4px}
 .de-ser .de-scol{flex:1 1 100%}
@@ -825,3 +831,10 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-pcol + .db-pcol{border-left:1px solid var(--line-soft);padding-left:16px}
 .db-setli{flex-wrap:wrap;height:auto;min-height:32px;padding:4px 8px;row-gap:1px}
 .db-setin{flex:1 1 100%;font-size:11.5px;color:var(--muted);font-weight:400;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- 組み込みを外す・入れ替える（版 3.48.0） ---- */
+.db-none{grid-column:1/-1;grid-row:1/-1;align-self:center;justify-self:center;display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 32px;background:var(--panel,#fff);border:1px dashed #b8c3cc;border-radius:12px;color:var(--muted)}
+.db-none b{font-size:16px;color:var(--ink)}
+.db-hid .db-hidli{display:flex;align-items:center;gap:8px;padding:4px 8px}
+.db-hid .db-hidli b{font-size:13px}
+.db-hid .db-hidli small{color:var(--muted);flex:1 1 auto}

@@ -7,8 +7,9 @@
     [作業開始, その行たちの作業終了のいちばん遅い時刻)。作業終了が無い・作業開始より前・MAX_HOURS を超える作業は区間を持たない（noEnd に数え、
     理由ごとの数を why に。版 3.47.0）。日時は選んだ列 → 同じ言葉のほかの日時の列（年月日時分秒）→ 日付＋時刻の列の順に読む（stamp_columns）。
     日を跨いだ作業で作業終了の日付が作業開始の日のままなら翌日と読む
-ガントの見る範囲（版 3.47.0）
-    期間（既定は前日）の勤務時間の最初〜最後。期間より前に始まって期間にも動いている作業（carry）と、作業終了がまだ無い
+ガントの見る範囲（版 3.48.0）
+    期間（既定は前日）の作業日の区切り（work_days。現場歴なら交替勤務の 7:00〜翌 7:00・太陽暦なら 0 時〜翌 0 時）。範囲の外へ出る作業は端で切る。
+    期間より前に始まって期間にも動いている作業（carry）と、作業終了がまだ無い
     いちばん新しい作業（running: いままで）も棒にする（数・作業時間・換算係数には入れない）
 稼働率（利用者が決めた: 分母は勤務時間＝直の時間）
     勤務時間 … その設備の勤務体系（マスタ管理の「勤務体系」。設備を書いた体系 → 全設備共通）の区分を、期間の作業日（現場歴か太陽暦）ごとに並べた時間。
@@ -20,6 +21,8 @@
     avg（その設備の全作業の 1 本あたりの平均）・top（いちばん本数の多い品種の平均）・値（その品種の平均）。換算量＝本数 × 係数
 ABC 分析
     品種を量（本数・作業時間・数の列の合計）の大きい順に並べ、累積構成比が A の線（既定 70%）までを A、B の線（既定 90%）までを B、残りを C
+全設備の作業時間（版 3.48.0）
+    各設備の作業時間の積み上げ（sum）か、ロットごとのリードタイム（lead: 全設備の作業開始の MIN〜作業終了の MAX。lead_ops）
 """
 from __future__ import annotations
 
@@ -92,6 +95,29 @@ def shift_windows(segments, first, last, basis="work"):
     return out
 
 
+def work_days(segments, first, last, basis="work"):
+    """作業日 first〜last（両端を含む）の区切り → [(始め, 終わり, 作業日)]（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 4）。
+    現場歴（basis="work"）は、その作業日に入る時刻（Clock.place で同じ日になる時刻）の始め〜次の作業日の始め（交替勤務なら 7:00〜翌 7:00）。
+    太陽暦・勤務体系が無ければ 0 時〜翌 0 時。区分の始め・終わりの時刻の間は作業日が変わらないので、その時刻だけを調べる"""
+    clock = Clock(segments)
+    lo, hi = date.fromisoformat(first), date.fromisoformat(last)
+    marks = sorted({0} | {hm(s["start"]) for s in segments} | {hm(s["end"]) for s in segments}) if segments and basis == "work" else [0]
+
+    def begin(d):
+        for c in (d - timedelta(days=1), d, d + timedelta(days=1)):
+            base = datetime(c.year, c.month, c.day)
+            for m in marks:
+                t = base + timedelta(minutes=m)
+                if clock.place(_iso(t), basis)[0] == d.isoformat():
+                    return t
+        return datetime(d.year, d.month, d.day)
+    out, d = [], lo
+    while d <= hi:
+        out.append((begin(d), begin(d + timedelta(days=1)), d.isoformat()))
+        d += timedelta(days=1)
+    return out
+
+
 def merge(spans):
     """区間 [(始め, 終わり)] を重ねる（同じ時刻に 2 つの作業が動いても 1 と数える）"""
     out = []
@@ -142,7 +168,7 @@ def utilization(ops, windows, clip=None):
 #   前は選んだ列が日付だけ・14 桁・日時の数の設備で、作業が 1 つも区間を持たず、ガントの棒も換算係数も出なかった
 SERIAL_RANGE = (20000.0, 80000.0)      # 日時の数として読む範囲（1954〜2119 年）
 WHY = {"blank": "作業終了が空", "notime": "作業終了に時刻が無い", "unread": "作業終了が日時と読めない", "before": "作業終了が作業開始より前",
-       "long": f"{MAX_HOURS // 24} 日より長い", "nostart": "作業開始が日時と読めない"}
+       "long": f"{MAX_HOURS // 24} 日より長い", "nostart": "作業開始が日時と読めない", "last": "最後の作業の作業終了が空"}
 WHY_RANK = {"": 0, "blank": 1, "unread": 2, "notime": 3}
 
 
@@ -184,10 +210,12 @@ def read_stamp(vals):
     return None, day, why
 
 
-def read_ops(part, *, search="", filters="", today=None, calc=None, period=None, now=None, end="", cols=(), reach=False):
+def read_ops(part, *, search="", filters="", today=None, calc=None, period=None, now=None, end="", cols=(), reach=False, start="", lots=False):
     """1 つのファイル（作業実績の 1 設備）→ {ops: [{start, end, key, n, values: {列: 最初の行の値}, nums: {列: 合計}, why, carry, running}], columns, start, end, range}。
     期間 period は作業日（@workday）か日付の列。作業日の範囲（range）に作業開始の作業日が入る作業だけ。cols … 作業ごとに持たせる列。
-    reach（ガント）… 期間より前に始まって期間にも動いている作業（carry）と、作業終了がまだ無いいちばん新しい作業（running: いままで動いている）も読む"""
+    reach（ガント）… 期間より前に始まって期間にも動いている作業（carry）と、作業終了がまだ無いいちばん新しい作業（running: いままで動いている）も読む。
+    start・end … 作業開始・作業終了の列（"" は見つける。版 3.48.0 で作業開始も選べる）。
+    lots（リードタイム。版 3.48.0）… 作業ごとに、入っているロット番号 → その行の数の列の値 {列: 値} を lots に持つ"""
     work = part.work or {}
     clock, basis = work.get("clock") or Clock([]), work.get("basis", "work")
     now = now or datetime.now()
@@ -200,9 +228,9 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
         raw = columns(c, t, raw_columns(c, t))
         exprs, broken, _ = calc_exprs(c, calc, raw)
         cs = raw + [x for x in exprs if x not in raw]
-        start = start_column(cs, work.get("start", ""))
+        start = start_column(cs, start or work.get("start", ""))
         if not start:
-            raise PivotError("作業開始の列がありません（作業実績だけで使えます）。")
+            raise PivotError("作業開始の列がありません（作業実績だけで使えます。組む所の「作業開始」で選んでください）。")
         stop = end_column(cs, end, start)
         if not stop:
             raise PivotError("作業終了の列が見つかりません（組む所の「作業終了の列」で選んでください）。")
@@ -269,6 +297,10 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
             o["end"] = e
         elif e is None and o["end"] is None and WHY_RANK.get(why, 0) > WHY_RANK.get(o["why"], 0):
             o["why"] = why                     # 分割した行のうち、いちばん分かることの多い理由（時刻が無い ＞ 読めない ＞ 空）
+        if lots and lot:
+            ln = str(row[ns + ne + want.index(lot)] or "").strip()
+            if ln:
+                o.setdefault("lots", {}).setdefault(ln, {c: row[ns + ne + i] for i, c in enumerate(want)})
         for i, col in enumerate(want):
             v = row[ns + ne + i]
             o["values"].setdefault(col, v)
@@ -316,29 +348,24 @@ def reasons(ops):
 
 
 # ---------------------------------------------------------------- ガントチャート
-VIEW_OVER = timedelta(hours=6)      # 期間の作業が勤務時間の後ろへはみ出すとき、見る範囲を広げる上限（焼鈍炉の何十時間もの作業で図が縮まない）
-
-
-def view_of(read, windows):
-    """見る範囲（横の時間）: 勤務時間の最初〜最後（無ければ期間の日の 0 時〜翌 0 時）を、期間の作業の始め・終わりまで広げる（後ろは VIEW_OVER まで）"""
+def view_of(read, days):
+    """見る範囲（横の時間）: 期間の作業日の区切り（work_days。現場歴なら 7:00〜翌 7:00 など）の最初の始め〜最後の終わり（版 3.48.0。
+    利用者の要望 2026-10-21 の 3 回目の 4: 前は勤務時間の最初〜最後を作業の始め・終わりまで広げ、現場歴の日と範囲がずれた）。
+    範囲の外へ出る作業は、画面が端で切って「続く」の印を付ける"""
+    if days:
+        return days[0][0], days[-1][1]
     r = read["range"]
-    if windows:
-        a, b = windows[0][0], max(w[1] for w in windows)
-    elif r:
-        a, b = datetime.fromisoformat(r[0]), datetime.fromisoformat(r[1]) + timedelta(days=1)
-    else:
-        return None
-    mine = [o for o in read["ops"] if not o.get("carry") and o["start"] is not None]
-    a = min([a] + [o["start"] for o in mine])
-    b = max([b] + [min(o["end"], b + VIEW_OVER) for o in mine if o["end"] is not None and not o.get("running")])     # 動いている作業では広げない
-    return a, b
+    if r:
+        return datetime.fromisoformat(r[0]), datetime.fromisoformat(r[1]) + timedelta(days=1)
+    return None
 
 
-def gantt(name, read, windows, *, label="", color=""):
-    """1 台の答え → {name, ops: [[始め, 終わり, 字, 色の値, 本数, 印]], windows: [[始め, 終わり, 直, 作業日]], view, noEnd, why, count, carry, truncated, …稼働率}。
-    印 … "c"＝期間より前から続く・"r"＝いま動いている（作業終了がまだ無い）・""。棒は見る範囲（view）に掛かる作業だけ"""
+def gantt(name, read, windows, *, label="", color="", days=()):
+    """1 台の答え → {name, ops: [[始め, 終わり, 字, 色の値, 本数, 印]], windows: [[始め, 終わり, 直, 作業日]], days: [[始め, 終わり, 作業日]], view, noEnd, why, count, carry, truncated, …稼働率}。
+    印 … "c"＝期間より前から続く・"r"＝いま動いている（作業終了がまだ無い）・""。棒は見る範囲（view）に掛かる作業だけ。
+    days … 作業日の区切り（work_days。画面は日の境の線と日付の札をここに引く）"""
     ops = read["ops"]
-    view = view_of(read, windows)
+    view = view_of(read, days)
     mine = [o for o in ops if not o.get("carry")]
     u = utilization(ops, windows, clip=view)
     bars = []
@@ -351,8 +378,53 @@ def gantt(name, read, windows, *, label="", color=""):
                          "r" if o.get("running") else "c" if o.get("carry") else ""])
     no_end = sum(1 for o in mine if o["end"] is None)
     return {"name": name, **u, "ops": bars, "windows": [[_iso(a), _iso(b), s, d] for a, b, s, d in windows], "view": [_iso(view[0]), _iso(view[1])] if view else None,
+            "days": [[_iso(a), _iso(b), d] for a, b, d in days],
             "noEnd": no_end, "why": reasons(mine), "count": len(mine), "carry": sum(1 for o in ops if o.get("carry")),
             "truncated": len([o for o in ops if o["end"] is not None]) > MAX_OPS}
+
+
+# ---------------------------------------------------------------- 全設備のリードタイム（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 6）
+# 全設備の ABC 分析・換算係数の作業時間の取り方:
+#   sum  … 各設備の作業時間の積み上げ（作業 1 本ずつ。今までどおり）
+#   lead … リードタイム: 同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（MIN と MAX の差）。1 本＝1 ロット
+SPANS = ("sum", "lead")
+
+
+def lead_ops(reads):
+    """設備ごとの read_ops（lots=True で読んだ物）→ ロットごとの作業 1 本の並び（abc にそのまま渡せる形）。
+    作業開始はいちばん早い作業開始・作業終了はいちばん遅い作業終了。いちばん後に始まった作業の作業終了が分からなければ、区間を持たない（why last）。
+    品種・数の列の値は、そのロットのいちばん早い作業の行の値（同じロットを設備ごとに足さない）"""
+    by = {}
+    for r in reads:
+        for o in r["ops"]:
+            for ln, vals in (o.get("lots") or {}).items():
+                by.setdefault(ln, []).append((o, vals))
+    out = []
+    for ln, xs in by.items():
+        timed = [x for x in xs if x[0]["start"] is not None]
+        if not timed:
+            out.append({"key": ln, "start": None, "end": None, "n": 1, "values": xs[0][1], "nums": _nums(xs[0][1]), "why": "nostart", "steps": len(xs)})
+            continue
+        timed.sort(key=lambda x: x[0]["start"])
+        first, last = timed[0], timed[-1]
+        a = first[0]["start"]
+        ends = [x[0]["end"] for x in timed if x[0]["end"] is not None]
+        b, why = (max(ends), "") if ends and last[0]["end"] is not None else (None, "last" if len(timed) > 1 else last[0]["why"] or "blank")
+        if b is not None and b <= a:
+            b, why = None, "before"
+        out.append({"key": ln, "start": a, "end": b, "n": 1, "values": first[1], "nums": _nums(first[1]), "why": why, "steps": len(timed)})
+    out.sort(key=lambda o: (o["start"] is None, o["start"] or datetime.min))
+    return out
+
+
+def _nums(vals):
+    out = {}
+    for k, v in (vals or {}).items():
+        try:
+            out[k] = float(v)
+        except (TypeError, ValueError):
+            continue
+    return out
 
 
 # ---------------------------------------------------------------- ABC 分析と換算係数

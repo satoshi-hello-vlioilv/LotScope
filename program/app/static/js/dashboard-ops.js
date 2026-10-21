@@ -55,18 +55,27 @@
     if (rh < 14) { rh = 14; shown = eqs.slice(0, Math.max(1, Math.floor(avail / 14))); }
     const X = (t) => LW + ((t - x0) / span) * TW;
     const g = [];
-    // 時刻の目盛り（幅に合わせて 1・2・3・6・12 時間おき）と、日の境（2 日以上のとき日付）
+    // 時刻の目盛り（幅に合わせて 1・2・3・6・12 時間おき）
     const days = (x1 - x0) / 86400000, stepH = [1, 2, 3, 4, 6, 12, 24].find((h) => (TW / (span / 3600000)) * h >= (days > 1.5 ? 34 : 30)) || 24;
     const first = new Date(x0); first.setMinutes(0, 0, 0);
     for (let t = first.getTime(); t <= x1; t += 3600000) {
-      const dt = new Date(t), h = dt.getHours();
       if (t < x0) continue;
-      const x = X(t), midnight = h === 0;
-      if (midnight) g.push(`<line class="og-day" x1="${x}" x2="${x}" y1="${AX + 1}" y2="${AX + shown.length * rh}"/>`);   // 目盛りの字「0」に掛けない
-      if (h % stepH === 0) g.push(`<text class="og-tick" x="${x}" y="${AX - 4}" text-anchor="middle">${h}</text>`);
-      if (midnight && days > 1.05) g.push(`<text class="og-dayl" x="${x + 3}" y="11">${dayText(t)}</text>`);
+      const h = new Date(t).getHours();
+      if (h % stepH === 0) g.push(`<text class="og-tick" x="${X(t)}" y="${AX - 4}" text-anchor="middle">${h}</text>`);
     }
-    if (days <= 1.05) g.push(`<text class="og-dayl" x="${LW}" y="11">${dayText(x0 + 6 * 3600000)}</text>`);
+    // 日の区切り（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 4）: サーバーの作業日の区切り（現場歴なら 7:00〜翌 7:00・太陽暦なら 0 時〜）に
+    // 境の線と日付の札を引く（前は現場歴でも暦の 0 時に引き、日付の札が作業日とずれた）。設備で区切りが違えば（勤務体系が違う）、その行だけ自分の区切り
+    const dayKey = (e) => (e.days || []).map((x) => x[0]).join();
+    const counts = new Map(); eqs.forEach((e) => { if ((e.days || []).length) counts.set(dayKey(e), (counts.get(dayKey(e)) || 0) + 1); });
+    const mainKey = [...counts.entries()].sort((u, v) => v[1] - u[1])[0]?.[0] || "";
+    const mainDays = (eqs.find((e) => dayKey(e) === mainKey) || {}).days || [];
+    const basisWord = d.basis === "cal" ? "太陽暦" : "現場歴";
+    mainDays.forEach((x, i) => {
+      const a = Math.max(LW, X(ms(x[0]))), b = Math.min(LW + TW, X(ms(x[1])));
+      if (i) g.push(`<line class="og-day" x1="${a}" x2="${a}" y1="${AX + 1}" y2="${AX + shown.length * rh}"/>`);      // 目盛りの字に掛けない
+      const t = ms(`${x[2]} 12:00:00`), lbl = mainDays.length > 1 || i === 0 ? dayText(t) : "";
+      if (lbl && b - a > textW(lbl, 12, 700) + 6) g.push(`<text class="og-dayl" x="${a + 3}" y="11">${lbl}<title>${esc(`${dayText(t)} の作業日（${basisWord}）: ${hm(ms(x[0]))}〜翌 ${hm(ms(x[1]))}`)}</title></text>`);
+    });
     g.push(`<text class="og-tick og-unit" x="${LW - 6}" y="${AX - 4}" text-anchor="end">時</text>`);
     g.push(`<text class="og-head" x="${LW + TW + 10}" y="${AX - 4}">稼働率${RW >= 156 ? '<tspan class="og-headsub" dx="40">稼働/勤務 h</tspan>' : ""}<title>稼働率 ＝ 作業していた時間 ÷ 勤務時間（直の時間）</title></text>`);
     shown.forEach((e, i) => {
@@ -77,6 +86,7 @@
         g.push(`<rect class="og-on" x="${a}" y="${y + 1}" width="${Math.max(0, b - a)}" height="${rh - 2}"><title>${esc(`${w[2]}（${w[3].slice(5).replace("-", "/")}）${hm(ms(w[0]))}〜${hm(ms(w[1]))}`)}</title></rect>`);
         if (k) g.push(`<line class="og-sep" x1="${a}" x2="${a}" y1="${y + 1}" y2="${y + rh - 1}"/>`);
       });
+      if ((e.days || []).length && dayKey(e) !== mainKey) e.days.slice(1).forEach((x) => { const a = X(ms(x[0])); if (a > LW && a < LW + TW) g.push(`<line class="og-day is-own" x1="${a}" x2="${a}" y1="${y + 1}" y2="${y + rh - 1}"><title>${esc(`${e.name} の作業日の区切り（勤務体系 ${e.pattern || "なし"}）`)}</title></line>`); });
       // 棒の字は、次の棒の始まりまでに入るときだけ（版 3.47.0。前は棒の幅だけを見て、重なる次の棒が字の上に描かれた）
       const starts = (e.ops || []).map((o) => X(Math.max(ms(o[0]), x0))).sort((u, v) => u - v);
       (e.ops || []).forEach((o) => {
@@ -145,8 +155,8 @@
       return `<button type="button" role="tab" class="oa-tab${on ? " on" : ""}" aria-selected="${on}" data-oa-eq="${esc(e.name)}">${esc(e.name || "全設備")}</button>`;
     }).join("")}</div>` : "";
     const items = cur.items || [];
-    const wide = W >= 680, chartW = wide ? Math.round(Math.min(W * 0.42, 420)) : 0;
-    const tabH = tabs ? 30 : 0, footH = 20, headH = 24;
+    const wide = W >= 680 && !(o.hide || []).includes("chart"), chartW = wide ? Math.round(Math.min(W * 0.42, 420)) : 0;
+    const tabH = tabs ? 30 : 0, footH = (o.hide || []).includes("foot") ? 0 : 20, headH = 24;
     const rows = items.slice(0, Math.max(1, Math.floor((H - tabH - footH - headH) / 17)));
     // 狭いパネルで入らない列は、描いた後に測って要らない順に隠す（構成比 → 換算本数 → 累積の帯 → 平均作業。版 3.47.0: 前は幅を決め打ちで
     // 判断し、組む所を開いて狭まった 1280 の画面で表の右が切れた）。印 oa-x1〜4
@@ -156,25 +166,37 @@
       : `<th scope="col" title="品種の列: ${esc(cl.join(" × "))}">${esc(cl.join(" × "))}</th>`;
     const keyCells = (x) => (split ? (x.parts || [x.key]).map((v, i) => `<${i ? "td" : "th scope=\"row\""} class="oa-k" title="${esc(v || "（空欄）")}">${esc(v || "（空欄）")}</${i ? "td" : "th"}>`).join("")
       : `<th scope="row" title="${esc(x.key || "（空欄）")}">${esc((x.parts || [x.key]).map((v) => v || "（空欄）").join("／"))}</th>`);
-    const head = `<tr>${keyHead}<th scope="col">${qtyName(q)}</th><th scope="col" class="oa-x1">構成比</th><th scope="col">累積</th><th scope="col" title="累積構成比で A（〜${o.a || 70}%）・B（〜${o.b || 90}%）・C">ABC</th>`
-      + `<th scope="col" class="oa-x4" title="1 本あたりの平均作業時間（作業開始〜作業終了）">平均作業</th><th scope="col" title="平均作業時間 ÷ 基準の作業時間">換算係数</th><th scope="col" class="oa-x2" title="本数 × 換算係数">換算本数</th></tr>`;
+    // 表示項目（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 5）: 組む所で出さないと決めた項目（o.hide）は列・図・下の段から外す。
+    // ABC（rank）を出さなければ、棒・累積の帯は 1 つの色で、A・B の線も引かない
+    const off = new Set(o.hide || []), show = (k) => !off.has(k), plain = RANK.B;
+    const lead = want === "" && d.span === "lead";       // 全設備のリードタイム（版 3.48.0。要望 6）: 1 本＝1 ロット・作業時間＝最初の作業開始〜最後の作業終了
+    const qn = lead && q === "lots" ? "ロット数" : lead && q === "time" ? "リードタイム" : qtyName(q);
+    const COLS = [
+      ["share", '<th scope="col" class="oa-x1">構成比</th>', (x) => `<td class="oa-x1">${x.share.toFixed(1)}%</td>`],
+      ["cum", '<th scope="col">累積</th>', (x, r) => `<td><span class="oa-cum oa-x3"><i style="width:${Math.min(100, x.cum)}%;background:${show("rank") ? r.c : plain.c}"></i></span>${x.cum.toFixed(1)}%</td>`],
+      ["rank", `<th scope="col" title="累積構成比で A（〜${o.a || 70}%）・B（〜${o.b || 90}%）・C">ABC</th>`, (x, r) => `<td><b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b></td>`],
+      ["avg", `<th scope="col" class="oa-x4" title="${lead ? "1 ロットあたりの平均リードタイム（全設備の最初の作業開始〜最後の作業終了）" : "1 本あたりの平均作業時間（作業開始〜作業終了）"}">${lead ? "平均 LT" : "平均作業"}</th>`, (x) => `<td class="oa-x4">${x.avg == null ? "–" : `${x.avg.toFixed(1)} 分`}</td>`],
+      ["factor", '<th scope="col" title="平均作業時間 ÷ 基準の作業時間">換算係数</th>', (x) => `<td class="oa-f${x.factor != null && Math.abs(x.factor - 1) >= 0.15 ? " is-far" : ""}">${x.factor == null ? "–" : x.factor.toFixed(2)}</td>`],
+      ["conv", '<th scope="col" class="oa-x2" title="本数 × 換算係数">換算本数</th>', (x) => `<td class="oa-x2">${x.conv == null ? "–" : x.conv.toFixed(1)}</td>`],
+    ].filter(([k]) => show(k));
+    const head = `<tr>${keyHead}<th scope="col"${lead ? ' title="同じロット番号を 1 本と数えます（全設備のリードタイム）"' : ""}>${qn}</th>${COLS.map((c) => c[1]).join("")}</tr>`;
     const body = rows.map((x) => {
       const r = RANK[x.rank] || RANK.C;
-      return `<tr class="oa-r-${x.rank}">${keyCells(x)}<td>${qtyText(q, x.qty)}</td><td class="oa-x1">${x.share.toFixed(1)}%</td>`
-        + `<td><span class="oa-cum oa-x3"><i style="width:${Math.min(100, x.cum)}%;background:${r.c}"></i></span>${x.cum.toFixed(1)}%</td><td><b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b></td>`
-        + `<td class="oa-x4">${x.avg == null ? "–" : `${x.avg.toFixed(1)} 分`}</td><td class="oa-f${x.factor != null && Math.abs(x.factor - 1) >= 0.15 ? " is-far" : ""}">${x.factor == null ? "–" : x.factor.toFixed(2)}</td><td class="oa-x2">${x.conv == null ? "–" : x.conv.toFixed(1)}</td></tr>`;
+      return `<tr class="oa-r-${x.rank}">${keyCells(x)}<td>${qtyText(q, x.qty)}</td>${COLS.map((c) => c[2](x, r)).join("")}</tr>`;
     }).join("");
     const counts = ["A", "B", "C"].map((k) => [k, items.filter((x) => x.rank === k).length]);
     const base = cur.base || {};
-    const foot = `<div class="oa-foot"><span class="oa-fa">${counts.map(([k, n]) => `<b class="oa-rank is-s" style="--rc:${RANK[k].c};--rf:${RANK[k].f}">${k}</b>${n} 品種`).join("　")}</span>`
-      + `<span class="oa-fb" title="換算係数の基準">基準: ${esc(base.name || "–")}${base.minutes ? ` ${base.minutes.toFixed(1)} 分 ＝ 1.00` : ""}</span>`
-      + `<span class="oa-fc">換算本数の計 <b>${(cur.conv || 0).toFixed(1)}</b>（実本数 ${cur.lots || 0}）</span>`
+    const unit = lead ? "ロット" : "本";
+    const foot = !show("foot") ? "" : `<div class="oa-foot">${show("rank") ? `<span class="oa-fa">${counts.map(([k, n]) => `<b class="oa-rank is-s" style="--rc:${RANK[k].c};--rf:${RANK[k].f}">${k}</b>${n} 品種`).join("　")}</span>` : ""}`
+      + (lead ? '<span class="oa-flt" title="全設備の作業時間: 同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（組む所の「全設備の時間」で積み上げに替えられます）">リードタイム</span>' : "")
+      + (show("factor") || show("conv") ? `<span class="oa-fb" title="換算係数の基準">基準: ${esc(base.name || "–")}${base.minutes ? ` ${base.minutes.toFixed(1)} 分 ＝ 1.00` : ""}</span>` : "")
+      + (show("conv") ? `<span class="oa-fc">換算本数の計 <b>${(cur.conv || 0).toFixed(1)}</b>（実${unit}数 ${cur.lots || 0}）</span>` : "")
       // 作業時間の分からない作業（換算係数・平均作業に入らない）の数と理由（版 3.47.0。前は黙って「–」だった）
-      + `${cur.noEnd ? `<span class="oa-nend" title="${esc(`区間（作業開始〜作業終了）が分からないので、平均作業・換算係数に入れていない作業: ${Object.entries(cur.why || {}).map(([k, n]) => `${k} ${n} 本`).join("・")}`)}">区間なし ${cur.noEnd} 本</span>` : ""}<span class="oa-rest"></span></div>`;
+      + `${cur.noEnd ? `<span class="oa-nend" title="${esc(`区間（作業開始〜作業終了）が分からないので、平均作業・換算係数に入れていない${lead ? "ロット" : "作業"}: ${Object.entries(cur.why || {}).map(([k, n]) => `${k} ${n} ${unit}`).join("・")}`)}">区間なし ${cur.noEnd} ${unit}</span>` : ""}<span class="oa-rest"></span></div>`;
     // パレート図の棒の数: 棒の下の名前（組み合わせなら列ごとの段のいちばん長い値）が入る幅で（版 3.47.0。前は 1 本 22px で、名前が「A11…」と切れた）
     const nameW = Math.max(18, ...items.slice(0, 30).flatMap((x) => (x.parts && x.parts.length > 1 ? x.parts : [x.key || "空"]).map((v) => textW(v || "空", 11))));
-    const chart = wide && H - tabH - footH >= 96 ? pareto(items.slice(0, Math.max(3, Math.min(items.length, Math.floor((chartW - 82) / Math.max(22, nameW + 8))))), chartW, H - tabH - footH, o, items.length) : "";
-    box.innerHTML = `<div class="oa-wrap">${tabs}<div class="oa-main">${chart}<div class="oa-tbl"><table class="oa-table"><thead>${head}</thead><tbody>${body || `<tr><td colspan="${8 + (split ? cl.length - 1 : 0)}" class="dp-empty">当たる作業がありません</td></tr>`}</tbody></table></div></div>${foot}</div>`;
+    const chart = show("chart") && wide && H - tabH - footH >= 96 ? pareto(items.slice(0, Math.max(3, Math.min(items.length, Math.floor((chartW - 82) / Math.max(22, nameW + 8))))), chartW, H - tabH - footH, o, items.length, show("rank")) : "";
+    box.innerHTML = `<div class="oa-wrap">${tabs}<div class="oa-main">${chart}<div class="oa-tbl"><table class="oa-table"><thead>${head}</thead><tbody>${body || `<tr><td colspan="${2 + COLS.length + (split ? cl.length - 1 : 0)}" class="dp-empty">当たる作業がありません</td></tr>`}</tbody></table></div></div>${foot}</div>`;
     const wrap = box.querySelector(".oa-wrap"), tw = box.querySelector(".oa-tbl"), tb = box.querySelector(".oa-table tbody");
     // 幅: 表の列（oa-x1〜4 の順に隠す）・設備の札（入らなければ選ぶ欄に替える）・下の段（基準 → 換算本数の計 → ABC の数の順に隠す）
     for (let k = 1; k <= 4 && tw && tw.scrollWidth > tw.clientWidth + 1; k++) wrap.classList.add(`no-x${k}`);
@@ -209,7 +231,7 @@
     return "";
   }
   /** パレート図（棒＝量の大きい順・ABC の色。線＝累積構成比。A・B の線） */
-  function pareto(items, W, H, o, all = items.length) {
+  function pareto(items, W, H, o, all = items.length, ranks = true) {
     if (!items.length || H < 80) return "";
     const cut = all > items.length;       // 棒にしたのが上位だけなら、図の左上にそう書く（版 3.47.0。省いたことが見えなかった: 2026-10-ops4 の 2 回目の採点）
     // 品種が組み合わせ（版 3.47.0）なら、棒の下の名前を列ごとの段にする（A1100 と H14。1 段の「A1100／H14」より棒の幅に入る）
@@ -220,17 +242,17 @@
     const g = [`<line class="oa-ax" x1="${L}" x2="${L + iw}" y1="${T + ih}" y2="${T + ih}"/>`];
     // A・B の線の字は、近ければ A を線の下・B を線の上へ逃がす（低いパネルで重なった）
     const near = yc(o.a || 70) - yc(o.b || 90) < 12;
-    [[o.a || 70, "A", near ? 11 : 4], [o.b || 90, "B", near ? -3 : 4]].forEach(([v, k, dy]) => g.push(`<line class="oa-lim" x1="${L}" x2="${L + iw}" y1="${yc(v)}" y2="${yc(v)}"/><text class="oa-liml" x="${L + iw + 4}" y="${yc(v) + dy}">${k} ${v}%</text>`));
+    if (ranks) [[o.a || 70, "A", near ? 11 : 4], [o.b || 90, "B", near ? -3 : 4]].forEach(([v, k, dy]) => g.push(`<line class="oa-lim" x1="${L}" x2="${L + iw}" y1="${yc(v)}" y2="${yc(v)}"/><text class="oa-liml" x="${L + iw + 4}" y="${yc(v) + dy}">${k} ${v}%</text>`));
     items.forEach((x, i) => {
-      const r = RANK[x.rank] || RANK.C, h = T + ih - y(x.qty);
-      g.push(`<rect x="${L + i * bw + bw * 0.14}" y="${y(x.qty)}" width="${bw * 0.72}" height="${Math.max(0, h)}" fill="${r.c}" rx="1.5"><title>${esc(`${x.key || "（空欄）"}: ${x.rank}・構成比 ${x.share.toFixed(1)}%・累積 ${x.cum.toFixed(1)}%`)}</title></rect>`);
+      const r = ranks ? RANK[x.rank] || RANK.C : RANK.B, h = T + ih - y(x.qty);
+      g.push(`<rect x="${L + i * bw + bw * 0.14}" y="${y(x.qty)}" width="${bw * 0.72}" height="${Math.max(0, h)}" fill="${r.c}" rx="1.5"><title>${esc(`${x.key || "（空欄）"}: ${ranks ? `${x.rank}・` : ""}構成比 ${x.share.toFixed(1)}%・累積 ${x.cum.toFixed(1)}%`)}</title></rect>`);
       const cx = L + i * bw + bw / 2, ps = rows > 1 ? (x.parts || [x.key]).slice(0, rows) : [x.key];
       if (bw >= 24) g.push(`<text class="oa-xl" x="${cx}" y="${T + ih + 13}" text-anchor="middle">${ps.map((v, k) => `${k ? `<tspan x="${cx}" dy="12">` : ""}${esc(fitW(v || "空", bw - 4, 11))}${k ? "</tspan>" : ""}`).join("")}</text>`);
     });
     const pts = items.map((x, i) => `${L + i * bw + bw / 2},${yc(x.cum)}`).join(" ");
     g.push(`<polyline class="oa-line" points="${pts}"/>` + items.map((x, i) => `<circle class="oa-dot" cx="${L + i * bw + bw / 2}" cy="${yc(x.cum)}" r="2.6"/>`).join(""));
     g.push(`<text class="oa-axl" x="${L - 4}" y="${T + 4}" text-anchor="end">${(Math.round(max * 10) / 10).toLocaleString("ja-JP")}</text><text class="oa-axl" x="${L - 4}" y="${T + ih + 4}" text-anchor="end">0</text>`);
-    if (yc(o.b || 90) - T > 16) g.push(`<text class="oa-axl" x="${L + iw + 4}" y="${T + 4}">100%</text>`);   // B の線の字と重なるなら出さない
+    if (!ranks || yc(o.b || 90) - T > 16) g.push(`<text class="oa-axl" x="${L + iw + 4}" y="${T + 4}">100%</text>`);   // B の線の字と重なるなら出さない
     if (cut) g.push(`<text class="oa-axl oa-cut" x="${L}" y="11">上位 ${items.length} / 全 ${all} 品種</text>`);
     return `<svg class="oa-chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="パレート図（品種の量の大きい順と累積構成比）">${g.join("")}</svg>`;
   }
