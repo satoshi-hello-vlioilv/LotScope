@@ -666,3 +666,10 @@ body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}
 .tpa-menu button:disabled .tm-ico{color:#b4bec6}
 .tpa-menu button.is-danger{color:#b42318}.tpa-menu button.is-danger .tm-ico{color:#b42318}
 .tpa-menu button.is-danger:hover:not(:disabled),.tpa-menu button.is-danger:focus-visible{background:#fdecea}
+
+/* 置き場の見出し（版 3.49.0。shared.js の TPA.scope.head。ダッシュボード・セット・集計表の組み方で同じ形） */
+.tpa-sci{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;vertical-align:-2px;margin-right:5px}
+.tpa-sch{display:flex;align-items:baseline;gap:10px;padding:2px 2px 0;flex-wrap:wrap}
+.tpa-sch b{font-size:12px;color:var(--h-meta);font-weight:800;white-space:nowrap}
+.tpa-sch small{font-size:11.5px;color:var(--muted);font-weight:400}
+.tpa-sch small i{font-style:normal;font-weight:700;color:var(--h-meta);margin-right:4px}

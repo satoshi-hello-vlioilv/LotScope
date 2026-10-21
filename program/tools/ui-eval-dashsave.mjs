@@ -62,7 +62,7 @@ try {
   check("② 全員（共有）の★が全員の既定の★より先に効く", (l.items.find((x) => x.id === l.standardId) || {}).scope === "all", l.standardId);
   await p.click("[data-db-pick]"); await sleep(400);
   const pop = await p.evaluate(() => { const el = document.querySelector(".db-pickpop"), r = el.getBoundingClientRect();
-    return { heads: [...el.querySelectorAll(".db-pcol:last-child .db-lgh b")].map((b) => b.textContent), who: [...el.querySelectorAll(".db-pcol:last-child .db-lgh small")].map((b) => b.textContent),
+    return { heads: [...el.querySelectorAll(".db-pcol:last-child .tpa-sch b")].map((b) => b.textContent), who: [...el.querySelectorAll(".db-pcol:last-child .tpa-sch small")].map((b) => b.textContent),
       on: (el.querySelector(".db-li.is-std") || {}).textContent || "", off: el.querySelectorAll(".db-std.is-off").length, fit: r.right <= innerWidth && r.bottom <= innerHeight && r.left >= 0 }; });
   check("③ 面の置き場の見出しと、だれが直せるか", JSON.stringify(pop.heads) === JSON.stringify(["自分だけ", "全員（共有）", "全員の既定"]) && pop.who.every((w) => /直せる/.test(w)), pop);
   check("③ ★の効いている物に「最初に開く」・負けている★は白抜き", /現場.*最初に開く/.test(pop.on) && pop.off === 1, pop);

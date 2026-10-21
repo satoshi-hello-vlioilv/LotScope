@@ -141,7 +141,7 @@ try {
     if (!(await p.evaluate(() => window.LotListPivot.on()))) await p.click('#llViewSwitch [data-pv-view="pivot"]');
     await idle(p); await sleep(400);
     const o7 = await opts(p), f7 = await flash(p);
-    check(`別の設備（${other}）で集計表を開くと、自分の標準を当てる（知らせる）`, o7.preset.includes("月で区切った重量（試験）") && o7.split && f7.includes("標準の組み方") && f7.includes("自分"), { o7, f7 });
+    check(`別の設備（${other}）で集計表を開くと、自分の標準を当てる（知らせる）`, o7.preset.includes("月で区切った重量（試験）") && o7.split && f7.includes("最初に当てる組み方") && f7.includes("自分だけ"), { o7, f7 });
     // ⑧ この表に無いカラムを含む組み方
     const bad = await api(p, "POST", "/api/pivot-presets", { name: "無いカラム入り", source: "work", scope: "me", body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots" }, { agg: "sum", column: "無いカラム" }], chart: "time" } });
     const none = await api(p, "POST", "/api/pivot-presets", { name: "行が無いカラム", source: "work", scope: "me", body: { rows: [{ column: "無いカラム", part: "" }], measures: [{ agg: "count" }], chart: "column" } });

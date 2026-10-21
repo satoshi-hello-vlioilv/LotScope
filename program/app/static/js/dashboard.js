@@ -19,16 +19,10 @@
   // 置き場の言葉（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 1: 「共通」と「共通デフォルト」の違いが分からなかった）。
   // 違いは「だれに見えるか」ではなく「だれが直せるか」と「★の強さ」なので、名前と添え書きでそれを言う。マスタの値（ID・共通・共通デフォルト）は変えない
   // 2026-10-dashsave の 2 回目で決めた G: 置き場は人の印と「見える」「直せる」の 2 行（面の見出しと保存の窓の札で同じ形）
-  const SCOPES = {
-    me: { name: "自分だけ", see: "この ID にだけ", edit: "自分で", icon: "M8 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 15c0-3 3-5 6-5s6 2 6 5" },
-    all: { name: "全員（共有）", see: "全員", edit: "マスタを書ける人", icon: "M5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM11 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M6.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" },
-    default: { name: "全員の既定", see: "全員", edit: "開発者だけ", icon: "M3 7h10v8H3zM5 7V5a3 3 0 0 1 6 0v2" },
-  };
-  const scopeIcon = (k) => `<svg class="db-sci" viewBox="0 0 16 16" aria-hidden="true"><path d="${SCOPES[k].icon}"/></svg>`;
-  const scopeWho = (k) => `<i>見える</i>${SCOPES[k].see}　<i>直せる</i>${SCOPES[k].edit}`;
-  const SCOPE_NAME = Object.fromEntries(Object.entries(SCOPES).map(([k, v]) => [k, v.name]));
-  const SCOPE_ORDER = ["me", "all", "default"];      // ★（最初に開く物）は、この順に先にある物が勝つ
-  const STAR_RULE = "★＝アプリを開いたときに最初に出す物。自分だけ → 全員（共有）→ 全員の既定 の順に、先にある★が勝ちます";
+  // 言葉と印は shared.js の TPA.scope（集計表の組み方と同じ）
+  const { SCOPES, NAME: SCOPE_NAME, ORDER: SCOPE_ORDER } = TPA.scope;
+  const scopeIcon = TPA.scope.icon;
+  const STAR_RULE = `★＝アプリを開いたときに最初に出す物。${TPA.scope.RULE}`;
   const S = {
     list: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, rowsRange: [4, 16],
     id: null, layout: null, saved: "", edit: false, history: [], sel: "", sources: [],
@@ -455,7 +449,7 @@
       + hiddenHtml() + "</div>";
   }
   /** 置き場の見出し（名前と、だれに見えて・だれが直せるか） */
-  const groupHead = (k) => `<span class="db-lgh"><b>${scopeIcon(k)}${SCOPES[k].name}</b><small>${scopeWho(k)}</small></span>`;
+  const groupHead = (k) => TPA.scope.head(k);
   /** ★: いま効いている物（最初に開く）は塗り、★を付けたが先の置き場の★に負けている物は白抜き（なぜ開かないかが見える） */
   const starHtml = (x) => (String(x.id) === String(S.standardId) ? '<i class="db-std" title="アプリを開いたときに最初に出す物">★ 最初に開く</i>'
     : x.standard ? `<i class="db-std is-off" title="★を付けていますが、${esc(SCOPE_NAME[(byId(S.standardId) || {}).scope] || "先の置き場")}の★が先に効いています">☆</i>` : "");

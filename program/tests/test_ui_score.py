@@ -115,12 +115,20 @@ class UiScore(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "別のエージェント"):
             ui.decide(nobody)
 
+    def test_applied_record(self):
+        """ほかの比較で決めた形を当てた記録（applies。版 3.49.0）: 作った後が 80 点以上なら「当てた」、届かなければ「直す」"""
+        good = {k: 9 for k in ui.KEYS}
+        d = {"title": "t", "rule": "2026-10-17", "evaluator": "e", "applies": "x.json", "rounds": [], "built": {"name": "作った後", "result": {"score": good, "seen": "s"}}}
+        self.assertEqual(ui.decide(d)[0], "当てた")
+        d["built"]["result"]["minus"] = [{"kind": "cut", "where": "w"}] * 3
+        self.assertEqual(ui.decide(d)[0], "直す")
+
     def test_old_records_still_read(self):
         """旧い決まり（7 基準の数の並び）の記録も読める（判定はしない）"""
         for path in (Path(__file__).resolve().parents[1] / "tools" / "ui-proposals").glob("*.json"):
             d = json.loads(path.read_text(encoding="utf-8"))
             kind, _, _ = ui.decide(d)
-            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す"), path.name)
+            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す", "当てた"), path.name)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,8 @@
 
     "baseline" は比べるための今の画面（案ではないので順位に入れない。どれだけ良くなるかを見る）。
     "built" は、決めた案を作った後の本物の画面を、同じ物差しで採点した結果（作る前の画像の再現と本物の差を見る）。
+    "applies": "決めた採点のファイル名" … ほかの比較で決めた形を、別の画面にそろえて当てただけのとき（案出しの回は持たず、
+    "rounds" は空）。決めたファイルの判定を引き、"baseline"（今）と "built"（作った後）だけを同じ物差しで採点する（版 3.49.0）。
     案の値が 7 つの数の並び（list）のファイルは、旧い決まり（7 基準・80 点・7 案）の記録として読む（判定はしない）。
 
 点の付け方: 100 点満点の加点（4 分類・11 項目を 0〜10 で付け、重みを掛けて足す）から、減点（見つけた数だけ引く）を引く。
@@ -150,6 +152,10 @@ def check_round(i, rnd, before, rule=None):
 
 def decide(data):
     """回を順に判定する。返り値: ("選ぶ" | "届かずに選ぶ" | "出し直す" | "記録", 名前, 順位)"""
+    if data.get("applies"):           # ほかの比較で決めた形を当てた記録: 作った後が合格点以上か
+        built = data.get("built") or {}
+        t = total(built["result"]) if built.get("result") else 0
+        return ("当てた" if t >= rule_of(data)["pass"][-1] else "直す"), data["applies"], [(t, built.get("name", ""), built.get("result"))]
     rounds = data["rounds"]
     if any(isinstance(e, list) for rnd in rounds for e in rnd["proposals"].values()):
         rows = rank(rounds[-1]["proposals"])
@@ -185,6 +191,8 @@ def describe(entry):
 
 def report(data):
     print(f"# {data['title']}")
+    if data.get("applies"):
+        return report_applied(data)
     kind, who, rows = decide(data)
     if kind == "記録":
         print("（旧い決まり〈7 基準・80 点・7 案〉の記録。いまの決まりでは判定しない）")
@@ -220,6 +228,29 @@ def report(data):
         print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
         print("→ 作った後も " + (f"{mark} 点以上（決めた回の合格点）" if t >= mark else f"{mark} 点（決めた回の合格点）に届かない。減点の所を直して撮り直し、採点し直す"))
     return kind, who
+
+
+def report_applied(data):
+    """ほかの比較で決めた形を当てた記録: 決めたファイルの判定を引き、今と作った後だけを採点する"""
+    import os
+    if not data.get("evaluator"):
+        raise ValueError("採点した者（evaluator）が無い")
+    src = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), data["applies"])
+    with open(src, encoding="utf-8") as f:
+        kind, who, rows = decide(json.load(f))
+    if kind not in ("選ぶ", "届かずに選ぶ"):
+        raise ValueError(f"{data['applies']} はまだ決まっていない（{kind}）")
+    print(f"採点: {data['evaluator']}\n当てた形: {data['applies']} で決めた {who}（{rows[0][0]:.1f} 点）")
+    mark = rule_of(data)["pass"][-1]
+    for name, e in data.get("baseline", {}).items():
+        print(f"  （{name}）\n      {total(e):5.1f} 点  {describe(e)}\n      見えたこと: {e.get('seen', '')}")
+    built = data.get("built")
+    if not built:
+        raise ValueError("作った後（built）が無い")
+    t = total(built["result"])
+    print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
+    print("→ 作った後も " + (f"{mark} 点以上" if t >= mark else f"{mark} 点に届かない。減点の所を直して撮り直し、採点し直す"))
+    return ("当てた" if t >= mark else "直す"), who
 
 
 if __name__ == "__main__":
