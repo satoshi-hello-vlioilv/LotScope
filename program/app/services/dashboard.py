@@ -109,7 +109,18 @@ def _filters(v):
 def _period(v):
     if not isinstance(v, dict) or v.get("kind") not in PERIODS_KEYS or not str(v.get("column") or "").strip():
         return None
-    return {"column": str(v["column"]).strip()[:200], "kind": v["kind"], "n": _int(v.get("n"), 1, 3660, 7)}
+    out = {"column": str(v["column"]).strip()[:200], "kind": v["kind"], "n": _int(v.get("n"), 1, 3660, 7)}
+    if v["kind"] == "range":          # 日付で決める（版 3.49.0）
+        days = [x for x in (_day(v.get("from")), _day(v.get("to"))) if x]
+        if not days:
+            return None
+        out.update({"from": min(days), "to": max(days)})
+    return out
+
+
+def _day(v):
+    t = str(v or "")[:10]
+    return t if re.fullmatch(r"\d{4}-\d{2}-\d{2}", t) else ""
 
 
 
@@ -534,7 +545,7 @@ def clean_panel(p, i, rows):
 #       hide: ABC 分析の出さない項目（ABC_ITEMS の鍵の並び）
 ABC_A, ABC_B = 70.0, 90.0
 # ABC 分析の表示項目（出す・出さないを選べる物）: 構成比・累積・ABC（ランク。棒の色と A・B の線も）・平均作業・換算係数・換算本数・パレート図・下の段の計
-ABC_ITEMS = ("share", "cum", "rank", "avg", "factor", "conv", "chart", "foot")
+ABC_ITEMS = ("share", "occ", "lshare", "cum", "rank", "avg", "factor", "conv", "chart", "foot")     # occ・lshare（占有時間・負荷構成比）は版 3.49.0
 
 
 def clean_ops(v):
@@ -547,6 +558,10 @@ def clean_ops(v):
     out = {k: col(k) for k in ("start", "end", "label", "color") if col(k)}
     if v.get("span") == "lead":
         out["span"] = "lead"
+    # 基準の期間（地点 A。版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 3）: この期間の換算係数で、パネルの期間（地点 B）の本数を換算する
+    ref = _period({**v["refPeriod"], "column": "@workday"}) if isinstance(v.get("refPeriod"), dict) else None
+    if ref:
+        out["refPeriod"] = ref
     hide = [x for x in ABC_ITEMS if x in (v.get("hide") if isinstance(v.get("hide"), list) else [])]
     if hide:
         out["hide"] = hide
@@ -605,6 +620,28 @@ def clean_layout_row(data, login, partial=False):
                                        body_text=lambda b: clean_layout(b)[1], source_ok=lambda s: s == LAYOUT_SOURCE)
     except pivot_presets.PresetError as e:
         raise LayoutError(str(e)) from None
+
+
+def builtin_named(row):
+    """組み込みと同じ名前で、自分の ID か共通デフォルトに置く行なら、その組み込みの鍵（無ければ ""）。版 3.49.0（利用者の要望 2026-10-21 の 4 回目の 1:
+    組み込みの「標準」を直して同じ名前「標準」で保存しても上書きにならず、「標準」が 2 つ 3 つに増えた）。共通は組み込みより先に並ぶ別の段なので入れ替えない"""
+    if row.get("範囲") not in (pivot_presets.SCOPES["default"], pivot_presets.SCOPES["me"]):
+        return ""
+    name = str(row.get("名前") or "").strip()
+    return next((b["key"] for b in BUILTIN_LAYOUTS if b["name"] == name), "")
+
+
+def with_builtin_replace(row, old=None):
+    """行の中身に replaces（入れ替える組み込みの鍵）を入れる: 組み込みと同じ名前で置く物は、その組み込みの代わり（上書き）にする。
+    old … 直すときの前の行（名前・範囲・中身の無い所を補う）。中身を書かない（名前だけ・標準だけを直す）ときも、前の中身に入れて書く"""
+    whole = {**(old or {}), **row}
+    key = builtin_named(whole)
+    if not key:
+        return row
+    body = clean_layout(whole.get("中身") or "{}")[0]
+    if body.get("replaces") == key:
+        return row
+    return {**row, "中身": clean_layout({**body, "replaces": key})[1]}
 
 
 def layout_view(row, login="", common_ok=False, default_ok=False):
@@ -738,4 +775,6 @@ def builtin_skip(rows, login):
                 k = None
             if k in BUILTIN_KEYS:
                 swapped.add(k)
+            elif builtin_named(r):            # 版 3.49.0 より前に、組み込みと同じ名前で置いた物も入れ替えた物として扱う
+                swapped.add(builtin_named(r))
     return off, swapped

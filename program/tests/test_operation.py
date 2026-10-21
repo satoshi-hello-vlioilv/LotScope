@@ -137,9 +137,33 @@ class Abc(unittest.TestCase):
         self.assertEqual(top, {"X": 1.0, "Y": 2.0})
         by_y = {x["key"]: x["factor"] for x in operation.abc(ops, "品種", base="Y")["items"]}
         self.assertEqual(by_y, {"X": 0.5, "Y": 1.0})
+        # 量を作業時間にすると占有時間（本数 × 平均作業時間。版 3.49.0）で並べる: X＝3×60＝180・Y＝2×120＝240（区間の分からない 1 本も平均で見積もる）
         t = operation.abc(ops, "品種", qty="time")
-        self.assertEqual([x["key"] for x in t["items"]], ["X", "Y"])
+        self.assertEqual([(x["key"], x["occ"]) for x in t["items"]], [("Y", 240.0), ("X", 180.0)])
         self.assertEqual(operation.abc(ops, "品種", qty="重量")["items"][0]["qty"], 30.0)
+
+
+class Occupancy(unittest.TestCase):
+    """占有時間・構成比・換算本数のつじつま（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 2）と、地点 A の換算係数で地点 B を換算する（同じく 3）"""
+
+    def test_occupancy_and_conversion_agree(self):
+        ops = [op("X", "2026-10-01 08:00", 60) for _ in range(3)] + [op("Y", "2026-10-01 08:00", 120), op("Y", "2026-10-01 08:00", None)]
+        a = operation.abc(ops, "品種")
+        by = {x["key"]: x for x in a["items"]}
+        self.assertEqual((by["X"]["occ"], by["Y"]["occ"], a["occ"]), (180.0, 240.0, 420.0))
+        self.assertEqual((by["X"]["lotShare"], by["Y"]["lotShare"]), (60.0, 40.0))
+        self.assertAlmostEqual(by["Y"]["occShare"], 240 / 420 * 100, places=3)
+        # 換算本数の計 × 基準 ＝ 占有時間の計（区間の分かる作業だけの平均 75 分が基準。換算本数＝本数 × 係数）
+        self.assertAlmostEqual(a["conv"] * a["base"]["minutes"], 3 * 60 + 2 * 120, places=2)
+
+    def test_reference_factors_convert_another_mix(self):
+        """地点 A（X 60 分・Y 120 分。平均 80 分 → 係数 X 0.75・Y 1.5）の係数で、地点 B（X 1 本・Y 4 本・Z 2 本）を換算する。A に無い Z は 1.00"""
+        a = operation.abc([op("X", "2026-09-01 08:00", 60), op("X", "2026-09-01 08:00", 60), op("Y", "2026-09-01 08:00", 120)], "品種")
+        b = operation.abc([op("X", "2026-10-01 08:00", 30)] + [op("Y", "2026-10-01 08:00", 30) for _ in range(4)] + [op("Z", "2026-10-01 08:00", 30) for _ in range(2)], "品種")
+        operation.apply_ref(b, a, ("2026-09-01", "2026-09-30"))
+        by = {x["key"]: x for x in b["items"]}
+        self.assertEqual((by["X"]["refFactor"], by["Y"]["refFactor"], by["Z"]["refFactor"]), (0.75, 1.5, None))
+        self.assertEqual(b["ref"], {"range": ["2026-09-01", "2026-09-30"], "base": a["base"], "conv": 0.75 + 4 * 1.5 + 2, "missing": 2, "lots": 7})
 
 
 def make_work(path, rows):
@@ -306,6 +330,35 @@ class Api(unittest.TestCase):
         self.assertEqual(d["all"]["why"], {"作業終了が空": 1})
         cr1 = next(e for e in d["equips"] if e["name"] == "CR1")
         self.assertEqual(next(x for x in cr1["items"] if x["key"] == "A1100")["lots"], 3, "設備ごとの答えは今までどおり作業の本数")
+
+    def test_lead_time_spans_the_period_edge(self):
+        """リードタイム（版 3.49.0）: 期間の前に始まったロットも、最初の作業開始から数える。最後の工程が期間の後のロットは、その期間の物とする。
+        L1: 10/14 の L-1（前日の前）で 10:00 に始まり、10/15 の CR1 で 9:00 に終わる → 前日（10/15）の LT は 23 時間（前は 10/15 の作業だけで 60 分）。
+        L4: 10/15 の CR1 の後に 10/16 の L-1 がある → 最後の工程は 10/16 なので、前日（10/15）のロットに入れない"""
+        (self.tmp / "実績" / "実績_L-1.sqlite3").unlink()
+        make_work(self.tmp / "実績" / "実績_L-1.sqlite3", [("L1", "2026/10/14 10:00:00", "2026/10/14 12:00:00", "A1100"),
+                                                         ("L4", "2026/10/16 8:00:00", "2026/10/16 9:00:00", "A1100")])
+        d = self.ask(visual="abc", ops={"cls": "ロット番号", "span": "lead"}, period={"column": "@workday", "kind": "yesterday"})
+        items = {x["key"]: x for x in d["all"]["items"]}
+        self.assertEqual(items["L1"]["avg"], 23 * 60.0)
+        self.assertNotIn("L4", items)
+        self.assertIn("L3", items)
+        cr1 = next(e for e in d["equips"] if e["name"] == "CR1")
+        self.assertIn("L4", {x["key"] for x in cr1["items"]}, "設備ごとの答えは期間の中の作業だけ（前後の作業は入れない）")
+        self.assertNotIn("L1", {x["key"] for x in next(e for e in d["equips"] if e["name"] == "L-1")["items"]})
+
+    def test_reference_period(self):
+        """基準の期間（地点 A。版 3.49.0）: その期間の換算係数で、パネルの期間（地点 B）の本数を換算する。日付で決める期間（range）も"""
+        d = self.ask(visual="abc", ops={"cls": "合金", "refPeriod": {"kind": "range", "from": "2026-10-13", "to": "2026-10-13"}},
+                     period={"column": "@workday", "kind": "yesterday"})
+        ref = d["all"]["ref"]
+        self.assertEqual(ref["range"], ["2026-10-13", "2026-10-13"])
+        a1100 = next(x for x in d["all"]["items"] if x["key"] == "A1100")
+        self.assertEqual(a1100["refFactor"], 1.0)      # 10/13 は A1100 だけ（その平均が基準）
+        self.assertEqual(ref["missing"], sum(x["lots"] for x in d["all"]["items"] if x["key"] != "A1100"))
+        body, _ = dashboard.clean_layout({"rows": 8, "panels": [{"id": "g", "x": 0, "y": 0, "w": 6, "h": 3, "visual": "abc", "source": "work",
+                                                                   "ops": {"refPeriod": {"kind": "range", "from": "2026-09-30", "to": "2026-09-01"}}}]})
+        self.assertEqual(body["panels"][0]["ops"]["refPeriod"], {"column": "@workday", "kind": "range", "n": 7, "from": "2026-09-01", "to": "2026-09-30"})
 
     def test_lead_ops_needs_the_last_end(self):
         """リードタイムは、いちばん後に始まった作業の作業終了が無ければ区間を持たない（途中の工程で止まっているロットを短く数えない）"""

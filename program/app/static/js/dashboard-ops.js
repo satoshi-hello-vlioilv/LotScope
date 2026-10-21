@@ -141,6 +141,8 @@
 
   /* ---------------- ABC 分析と換算係数 ---------------- */
   const picked = new Map();          // パネルの id → 見ている設備（"" は全設備）。この画面のあいだだけ覚える
+  const md = (s) => { const m = /^\d{4}-(\d{2})-(\d{2})/.exec(s || ""); return m ? `${+m[1]}/${+m[2]}` : ""; };
+  const rangeText = (r) => (r && r[0] ? (r[0] === r[1] ? md(r[0]) : `${md(r[0])}〜${md(r[1])}`) : "");
   const qtyName = (q) => (q === "lots" ? "本数" : q === "time" ? "作業時間" : `${q}の計`);
   const qtyText = (q, v) => (v == null ? "–" : q === "time" ? `${(v / 60).toFixed(1)}h` : (Math.round(v * 10) / 10).toLocaleString("ja-JP"));
   function abc(box, p, d, W, H) {
@@ -170,27 +172,43 @@
     // ABC（rank）を出さなければ、棒・累積の帯は 1 つの色で、A・B の線も引かない
     const off = new Set(o.hide || []), show = (k) => !off.has(k), plain = RANK.B;
     const lead = want === "" && d.span === "lead";       // 全設備のリードタイム（版 3.48.0。要望 6）: 1 本＝1 ロット・作業時間＝最初の作業開始〜最後の作業終了
-    const qn = lead && q === "lots" ? "ロット数" : lead && q === "time" ? "リードタイム" : qtyName(q);
+    // 列（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 2）: 負荷を見積もる流れの順に 本数 → 平均作業（平均 LT）→ 占有時間（本数 × 平均）→ 構成比（本数・負荷）
+    // → 累積と ABC（並べた量で）→ 換算係数（平均 ÷ 基準）→ 換算本数（本数 × 係数 ＝ 占有時間 ÷ 基準）。前は量の列 1 つだけで、量を作業時間にすると
+    // 本数が出ず、作業時間の合計（区間の分かる作業だけ）を「リードタイム」と呼んでいた
+    const unit = lead ? "ロット" : "本", ref = cur.ref;
+    // 1 本あたりの時間: 列の中で 10 時間を超える物があれば列ごと時間で（11915.1 分 → 198.6h）、無ければ分。1 つの列で単位を混ぜない
+    const inH = items.some((x) => x.avg != null && x.avg >= 600);
+    const dur = (m) => (m == null ? "–" : inH ? `${(m / 60).toFixed(1)}h` : `${m.toFixed(1)} 分`);
+    const hrs = (m) => (m == null ? "–" : `${(m / 60).toLocaleString("ja-JP", { maximumFractionDigits: m >= 6000 ? 0 : 1 })}h`);
+    const lt = lead ? "平均 LT" : "平均作業", qWord = q === "lots" ? "本数" : q === "time" ? "負荷" : `${q}`;
     const COLS = [
-      ["share", '<th scope="col" class="oa-x1">構成比</th>', (x) => `<td class="oa-x1">${x.share.toFixed(1)}%</td>`],
-      ["cum", '<th scope="col">累積</th>', (x, r) => `<td><span class="oa-cum oa-x3"><i style="width:${Math.min(100, x.cum)}%;background:${show("rank") ? r.c : plain.c}"></i></span>${x.cum.toFixed(1)}%</td>`],
-      ["rank", `<th scope="col" title="累積構成比で A（〜${o.a || 70}%）・B（〜${o.b || 90}%）・C">ABC</th>`, (x, r) => `<td><b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b></td>`],
-      ["avg", `<th scope="col" class="oa-x4" title="${lead ? "1 ロットあたりの平均リードタイム（全設備の最初の作業開始〜最後の作業終了）" : "1 本あたりの平均作業時間（作業開始〜作業終了）"}">${lead ? "平均 LT" : "平均作業"}</th>`, (x) => `<td class="oa-x4">${x.avg == null ? "–" : `${x.avg.toFixed(1)} 分`}</td>`],
-      ["factor", '<th scope="col" title="平均作業時間 ÷ 基準の作業時間">換算係数</th>', (x) => `<td class="oa-f${x.factor != null && Math.abs(x.factor - 1) >= 0.15 ? " is-far" : ""}">${x.factor == null ? "–" : x.factor.toFixed(2)}</td>`],
-      ["conv", '<th scope="col" class="oa-x2" title="本数 × 換算係数">換算本数</th>', (x) => `<td class="oa-x2">${x.conv == null ? "–" : x.conv.toFixed(1)}</td>`],
-    ].filter(([k]) => show(k));
-    const head = `<tr>${keyHead}<th scope="col"${lead ? ' title="同じロット番号を 1 本と数えます（全設備のリードタイム）"' : ""}>${qn}</th>${COLS.map((c) => c[1]).join("")}</tr>`;
+      q !== "lots" && q !== "time" ? ["qty", `<th scope="col" title="ABC の並びに使う量">${esc(qtyName(q))}</th>`, (x) => `<td>${qtyText(q, x.qty)}</td>`] : null,
+      ["lots", `<th scope="col" title="${lead ? "同じロット番号を 1 本と数えます（全設備のリードタイム）" : "作業の本数（分割したロットは 1 本）"}">${lead ? "ロット数" : "本数"}</th>`, (x) => `<td>${x.lots.toLocaleString("ja-JP")}</td>`],
+      ["avg", `<th scope="col" class="oa-x4" title="${lead ? "1 ロットあたりの平均リードタイム（全設備の最初の作業開始〜最後の作業終了）" : "1 本あたりの平均作業時間（作業開始〜作業終了）"}">${lt}</th>`, (x) => `<td class="oa-x4">${dur(x.avg)}</td>`],
+      ["occ", `<th scope="col" title="占有時間 ＝ ${lead ? "ロット数" : "本数"} × ${lt}（工場をその品種が占める時間の見積もり。区間の分からない${unit}も平均で見積もる）">占有時間</th>`, (x) => `<td>${hrs(x.occ)}</td>`],
+      ["share", `<th scope="col" class="oa-x1" title="${lead ? "ロット数" : "本数"}の構成比">本数比</th>`, (x) => `<td class="oa-x1">${(x.lotShare ?? x.share).toFixed(1)}%</td>`],
+      ["lshare", '<th scope="col" class="oa-x3" title="占有時間の構成比（負荷の割合。本数比と比べると、手間のかかる品種が分かる）">負荷比</th>', (x) => `<td class="oa-x3${x.occShare - (x.lotShare ?? 0) >= 2 ? " is-up" : ""}">${(x.occShare ?? 0).toFixed(1)}%</td>`],
+      ["cum", `<th scope="col" title="${qWord}の累積構成比（ABC の分け方）">累積（${qWord}）</th>`, (x, r) => `<td><span class="oa-cum oa-x2"><i style="width:${Math.min(100, x.cum)}%;background:${show("rank") ? r.c : plain.c}"></i></span>${x.cum.toFixed(1)}%</td>`],
+      ["rank", `<th scope="col" title="${qWord}の累積構成比で A（〜${o.a || 70}%）・B（〜${o.b || 90}%）・C">ABC</th>`, (x, r) => `<td><b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b></td>`],
+      ["factor", ref ? `<th scope="col" title="地点 A（基準の期間 ${esc(rangeText(ref.range))}）の換算係数 ＝ A の${lt} ÷ A の基準">係数（A）</th>` : `<th scope="col" title="${lt} ÷ 基準の作業時間（基準を 1.00 としたときの何倍か）">換算係数</th>`,
+        (x) => { const f = ref ? x.refFactor : x.factor; return `<td class="oa-f${f != null && Math.abs(f - 1) >= 0.15 ? " is-far" : ""}${ref && f == null ? " is-none" : ""}"${ref && f == null ? ' title="地点 A に無い品種（1.00 で換算）"' : ""}>${f == null ? (ref ? "1.00*" : "–") : f.toFixed(2)}</td>`; }],
+      ["conv", ref ? `<th scope="col" title="${lead ? "ロット数" : "本数"}（地点 B ＝ パネルの期間）× 地点 A の係数">換算本数（A）</th>` : `<th scope="col" title="${lead ? "ロット数" : "本数"} × 換算係数（＝ 占有時間 ÷ 基準）">換算本数</th>`,
+        (x) => { const v = ref ? x.refConv : x.conv; return `<td>${v == null ? "–" : v.toFixed(1)}</td>`; }],
+    ].filter((c) => c && (c[0] === "qty" || c[0] === "lots" || show(c[0])));
+    const head = `<tr>${keyHead}${COLS.map((c) => c[1]).join("")}</tr>`;
     const body = rows.map((x) => {
       const r = RANK[x.rank] || RANK.C;
-      return `<tr class="oa-r-${x.rank}">${keyCells(x)}<td>${qtyText(q, x.qty)}</td>${COLS.map((c) => c[2](x, r)).join("")}</tr>`;
+      return `<tr class="oa-r-${x.rank}">${keyCells(x)}${COLS.map((c) => c[2](x, r)).join("")}</tr>`;
     }).join("");
     const counts = ["A", "B", "C"].map((k) => [k, items.filter((x) => x.rank === k).length]);
-    const base = cur.base || {};
-    const unit = lead ? "ロット" : "本";
+    const base = (ref ? ref.base : cur.base) || {};
     const foot = !show("foot") ? "" : `<div class="oa-foot">${show("rank") ? `<span class="oa-fa">${counts.map(([k, n]) => `<b class="oa-rank is-s" style="--rc:${RANK[k].c};--rf:${RANK[k].f}">${k}</b>${n} 品種`).join("　")}</span>` : ""}`
       + (lead ? '<span class="oa-flt" title="全設備の作業時間: 同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（組む所の「全設備の時間」で積み上げに替えられます）">リードタイム</span>' : "")
-      + (show("factor") || show("conv") ? `<span class="oa-fb" title="換算係数の基準">基準: ${esc(base.name || "–")}${base.minutes ? ` ${base.minutes.toFixed(1)} 分 ＝ 1.00` : ""}</span>` : "")
-      + (show("conv") ? `<span class="oa-fc">換算本数の計 <b>${(cur.conv || 0).toFixed(1)}</b>（実${unit}数 ${cur.lots || 0}）</span>` : "")
+      + (show("occ") ? `<span class="oa-fo" title="占有時間の計 ＝ 換算本数の計 × 基準の作業時間">占有時間の計 <b>${hrs(cur.occ)}</b></span>` : "")
+      // 地点 A の係数で換算したとき（版 3.49.0）: A の期間と、B の本数の換算本数の計・A に無い品種の本数
+      + (ref ? `<span class="oa-fc oa-fref" title="${esc(`地点 A（${rangeText(ref.range)}）の換算係数で、この期間（地点 B）の${unit}数を換算した計。A に無い品種 ${ref.missing} ${unit}は 1.00 で数えています`)}">A（${esc(rangeText(ref.range))}）の係数で換算 <b>${ref.conv.toFixed(1)}</b>（実${unit}数 ${ref.lots}${ref.missing ? `・A に無い ${ref.missing}` : ""}）</span>` : "")
+      + (show("factor") || show("conv") ? `<span class="oa-fb" title="換算係数の基準${ref ? "（地点 A）" : ""}">基準${ref ? "（A）" : ""}: ${esc(base.name || "–")}${base.minutes ? ` ${base.minutes.toFixed(1)} 分 ＝ 1.00` : ""}</span>` : "")
+      + (show("conv") && !ref ? `<span class="oa-fc">換算本数の計 <b>${(cur.conv || 0).toFixed(1)}</b>（実${unit}数 ${cur.lots || 0}）</span>` : "")
       // 作業時間の分からない作業（換算係数・平均作業に入らない）の数と理由（版 3.47.0。前は黙って「–」だった）
       + "\u0000NOCHART\u0000"
       + `${cur.noEnd ? `<span class="oa-nend" title="${esc(`区間（作業開始〜作業終了）が分からないので、平均作業・換算係数に入れていない${lead ? "ロット" : "作業"}: ${Object.entries(cur.why || {}).map(([k, n]) => `${k} ${n} ${unit}`).join("・")}`)}">区間なし ${cur.noEnd} ${unit}</span>` : ""}<span class="oa-rest"></span></div>`;
@@ -208,7 +226,7 @@
       tl.innerHTML = `<label class="oa-tsel">設備<select data-oa-sel aria-label="設備">${[{ name: "" }].concat(eqs).map((e) => `<option value="${esc(e.name)}"${(e.name || "") === (want === "" ? "" : cur.name) ? " selected" : ""}>${esc(e.name || "全設備")}</option>`).join("")}</select></label>`;
     }
     const ft = box.querySelector(".oa-foot");
-    ["oa-fb", "oa-fc", "oa-fa"].forEach((c) => { if (ft && ft.scrollWidth > ft.clientWidth + 1) { const x = ft.querySelector(`.${c}`); if (x) x.hidden = true; } });
+    ["oa-fb", "oa-fo", "oa-fc", "oa-fa"].forEach((c) => { if (ft && ft.scrollWidth > ft.clientWidth + 1) { const x = ft.querySelector(`.${c}`); if (x) x.hidden = true; } });
     const nc = box.querySelector(".oa-foot .oa-nochart");
     if (nc && ft.scrollWidth > ft.clientWidth + 1) nc.textContent = "パレート図は省略（狭い）";
     // 入る行だけ（描いた高さで測る）。入らない品種は下に「ほか n 品種」

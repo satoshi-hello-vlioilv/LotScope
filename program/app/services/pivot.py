@@ -424,12 +424,18 @@ class Part:
 
 # 期間（版 3.37.0。ダッシュボードのパネル）: 日付の列か作業日（現場歴／太陽暦）の「いま」から決める日の範囲
 PERIODS = {"today": "今日", "yesterday": "前日", "days": "直近 n 日", "this_month": "今月", "last_month": "先月",
-           "month": "n か月前"}     # month（版 3.41.0。ダッシュボードのスライサーで月を送る）… n か月前の月のはじめから終わりまで
+           "month": "n か月前", "range": "日付で決める"}     # range（版 3.49.0）… from〜to（'YYYY-MM-DD'。両端を含む）     # month（版 3.41.0。ダッシュボードのスライサーで月を送る）… n か月前の月のはじめから終わりまで
 PERIOD_MAX_DAYS = 3660
 
 
-def period_range(kind, n, today):
-    """期間の種類 → (はじめ, おわり)（'YYYY-MM-DD'。両端を含む）。today はその元の「今日」（作業日なら勤務体系で決めた現場歴の日）"""
+def period_range(kind, n, today, frm="", to=""):
+    """期間の種類 → (はじめ, おわり)（'YYYY-MM-DD'。両端を含む）。today はその元の「今日」（作業日なら勤務体系で決めた現場歴の日）。
+    range（版 3.49.0）は frm〜to（逆なら入れ替える。片方が無ければ同じ日）"""
+    if kind == "range":
+        a, b = _iso_day(frm) or _iso_day(to), _iso_day(to) or _iso_day(frm)
+        if not a:
+            raise PivotError("期間の日付（から・まで）を入れてください。")
+        return (a, b) if a <= b else (b, a)
     d = date.fromisoformat(today)
     if kind == "today":
         return today, today
@@ -453,6 +459,13 @@ def period_range(kind, n, today):
     raise PivotError("期間の種類が違います。")
 
 
+def _iso_day(v):
+    try:
+        return date.fromisoformat(str(v or "")[:10]).isoformat()
+    except ValueError:
+        return ""
+
+
 def clean_period(period):
     """{column, kind, n} を確かめる（無い・kind が空なら None）"""
     if not isinstance(period, dict) or not period.get("kind"):
@@ -466,7 +479,10 @@ def clean_period(period):
         n = int(period.get("n") or 7)
     except (TypeError, ValueError):
         n = 7
-    return {"column": col, "kind": kind, "n": n}
+    out = {"column": col, "kind": kind, "n": n}
+    if kind == "range":
+        out.update({"from": _iso_day(period.get("from")), "to": _iso_day(period.get("to"))})
+    return out
 
 
 # 期間の先絞り（版 3.43.0）: 日付の字が「YYYY/MM/DD…」「YYYY-MM-DD…」の形の行だけを、SQLite で期間の前後 PRE_MARGIN 日に絞る。
@@ -495,7 +511,7 @@ def _part_span(part, period, now):
     work = part.work or {}
     stamp = now.strftime("%Y-%m-%d %H:%M:%S")
     day = (work["clock"].place(stamp, work.get("basis", "work"))[0] if period["column"] == "@workday" and work.get("clock") else "") or now.date().isoformat()
-    return period_range(period["kind"], period["n"], day)
+    return period_range(period["kind"], period["n"], day, period.get("from", ""), period.get("to", ""))
 
 
 def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None, need_equip=False, span=None):
@@ -632,7 +648,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         pdim = {"column": period["column"], "part": "" if period["column"] == "@workday" else "date"}
         for s in states:
             today_day = (s["clock"].place(stamp, s["basis"])[0] if period["column"] == "@workday" and s["clock"] else "") or now.date().isoformat()
-            lo, hi = period_range(period["kind"], period["n"], today_day)
+            lo, hi = period_range(period["kind"], period["n"], today_day, period.get("from", ""), period.get("to", ""))
             pk, (a, b) = _Keyer(pdim, s["clock"], s["basis"], places=s["places"]), s["ppos"]
             s["data"] = [r for r in s["data"] if lo <= (pk.key(r[a] if a >= 0 else None, r[b] if b >= 0 else None)[0] or "~") <= hi]
             if (lo, hi) not in ranges:

@@ -33,9 +33,27 @@
     { k: "abc", n: "ABC 分析", tip: "設備ごとに、品種を量の大きい順に並べて A・B・C に分け、作業時間から換算係数を出します", icon: "M3 17h14M4 15V4M8 15V8M12 15v-4M16 15v-2M4 5c3-1 8 0 12 6" }];
   const isOps = (x) => !!x && (x.visual === "gantt" || x.visual === "abc");
   // ABC 分析の表示項目（版 3.48.0。サーバーの dashboard.ABC_ITEMS と同じ鍵）。チェックを外すと出さない（ops.hide）
-  const ABC_ITEMS = [["share", "構成比"], ["cum", "累積"], ["rank", "ABC", "ABC の札・棒の色・A と B の線・下の段の品種の数"], ["avg", "平均作業"], ["factor", "換算係数"],
-    ["conv", "換算本数"], ["chart", "パレート図"], ["foot", "下の段", "ABC の品種の数・基準・換算本数の計・区間なし"]];
-  const PERIODS = [["", "期間で絞らない"], ["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["this_month", "今月"], ["last_month", "先月"]];
+  // 版 3.49.0: 表の列の順（本数 → 平均 → 占有時間 → 本数比 → 負荷比 → 累積 → ABC → 換算係数 → 換算本数）に並べ、占有時間・負荷比を足した
+  const ABC_ITEMS = [["avg", "平均作業"], ["occ", "占有時間", "本数 × 平均作業（工場をその品種が占める時間の見積もり）"], ["share", "本数比"],
+    ["lshare", "負荷比", "占有時間の構成比（本数比と比べると、手間のかかる品種が分かる）"], ["cum", "累積"], ["rank", "ABC", "ABC の札・棒の色・A と B の線・下の段の品種の数"],
+    ["factor", "換算係数"], ["conv", "換算本数"], ["chart", "パレート図"], ["foot", "下の段", "ABC の品種の数・占有時間の計・基準・換算本数の計・区間なし"]];
+  const PERIODS = [["", "期間で絞らない"], ["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["this_month", "今月"], ["last_month", "先月"], ["range", "日付で決める（から〜まで）"]];
+  /** 期間の言葉（直近 n 日・日付で決めた 10/1〜10/15・今月 など） */
+  const mdOf = (s) => { const m = /^\d{4}-(\d{2})-(\d{2})/.exec(s || ""); return m ? `${+m[1]}/${+m[2]}` : ""; };
+  const perName = (pr) => (!pr || !pr.kind ? "" : pr.kind === "days" ? `直近 ${pr.n || 7} 日` : pr.kind === "range" ? [mdOf(pr.from), mdOf(pr.to)].filter((v, i, a) => v && a.indexOf(v) === i).join("〜") || "日付で決める"
+    : (PERIODS.find((k) => k[0] === pr.kind) || [, ""])[1]);
+  /** 今日から back 日前の日（YYYY-MM-DD。この PC の日付）。日付で決めるを選んだときの最初の値 */
+  const isoBack = (back) => { const d = new Date(Date.now() - back * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  /** 期間の欄（種類・日の数・日付で決める から〜まで）。attr … data-de-<attr>kind・<attr>n・<attr>from・<attr>to。list … 種類の選び */
+  const periodCtl = (pr, attr, list, label) => {
+    const kind = (pr && pr.kind) || "";
+    return `<select data-de-${attr}kind aria-label="${label}">${list.map(([k, n]) => `<option value="${k}"${k === kind ? " selected" : ""}>${n}</option>`).join("")}</select>`
+      + (kind === "days" ? `<input type="number" min="1" max="3660" data-de-${attr}n value="${pr.n || 7}" aria-label="日の数" class="de-n">日` : "")
+      + (kind === "range" ? `<input type="date" data-de-${attr}from value="${esc(pr.from || "")}" aria-label="${label}のはじめ" class="de-date">〜<input type="date" data-de-${attr}to value="${esc(pr.to || "")}" aria-label="${label}のおわり" class="de-date">` : "");
+  };
+  /** 種類を選び直したときの期間（日付で決めるは直近 30 日から始める） */
+  const periodOf = (old, kind, column) => (!kind ? null : { column, kind, n: (old && old.n) || 7,
+    ...(kind === "range" ? { from: (old && old.from) || isoBack(29), to: (old && old.to) || isoBack(0) } : {}) });
   // 合わせた表の見せ方（版 3.39.0 で 3 → 8）。cols … 列の段があるときだけ意味のある物
   const LOOKS = [["bar", "棒と数", "棒の長さと数"], ["heat", "数と濃淡", "数の大きさを地の濃さで"], ["num", "数だけ", "数だけを並べる"],
     ["stack", "積み上げ帯", "列の段（直など）の内訳を 1 本の帯に積む", true], ["share", "割合", "行の計に対する割合（%）"], ["dot", "点と数", "線の上の点の位置で大きさ"],
@@ -190,11 +208,11 @@
       const ss = x.link.sides, role = (r) => (ROLES.find((y) => y[0] === r) || [, ""])[1];
       return `${ss[0].key ? dimLabel(ss[0].key) + "ごとの" : ""}${ss.map((y) => (y.role ? role(y.role) : y.title || (srcOf(y.source) || {}).name || "データ")).join("と")}`;
     }
-    if (x.visual === "gantt") return `${x.period && x.period.kind ? `${x.period.kind === "days" ? `直近 ${x.period.n || 7} 日` : (PERIODS.find((k) => k[0] === x.period.kind) || [, ""])[1]}の` : ""}設備の稼働と稼働率`;
+    if (x.visual === "gantt") return `${x.period && x.period.kind ? `${perName(x.period)}の` : ""}設備の稼働と稼働率`;
     if (x.visual === "abc") { const c = [].concat((x.ops || {}).cls || []); return `${c.length ? `${c.join(" × ")}の` : "品種の"}ABC 分析と換算係数`; }
     if (x.visual === "board") return (x.groups || []).length ? `${dimLabel(x.rows || { column: "@equip" })}ごとの${x.groups.map((g) => g.title || P.groupTitle(g, null)).join("と")}` : "合わせた表";
     const b = x.body || {}, ms = (b.measures || []).map(P.measName).join("・") || "ロット数";
-    const pr = x.period && x.period.kind ? `${x.period.kind === "days" ? `直近 ${x.period.n || 7} 日` : (PERIODS.find((k) => k[0] === x.period.kind) || [, ""])[1]}の` : "";
+    const pr = x.period && x.period.kind ? `${perName(x.period)}の` : "";
     const src = (srcOf(x.source) || {}).name || "";
     if (!(b.rows || []).length) return `${pr}${src ? src + "の" : ""}${ms}`;
     return `${pr}${b.rows.map(dimLabel).join("・")}ごとの${(b.cols || []).length ? b.cols.map(dimLabel).join("・") + "別の" : ""}${ms}`;
@@ -552,7 +570,11 @@
       + `<small class="de-hint">${o.span === "lead" ? "最初の作業開始〜最後の作業終了（MIN〜MAX）" : "設備ごとの作業時間の合計"}</small></div>`
       // 全設備をリードタイムにしたら、表の見出しと同じ「平均 LT」（2026-10-dash8 の 2 回目の採点: 出す項目と見出しの言葉が違った）
       + `<div class="de-row de-top de-ochkrow"><label class="de-l">出す項目</label><span class="de-ochk">${ABC_ITEMS.map(([k, n0, tip]) => [k, k === "avg" && o.span === "lead" ? "平均作業・平均 LT" : n0, tip]).map(([k, n, tip]) => `<label class="pv-ck"${tip ? ` title="${esc(tip)}"` : ""}><input type="checkbox" data-de-ohide="${k}"${(o.hide || []).includes(k) ? "" : " checked"}>${n}</label>`).join("")}</span></div>`
-      + `<p class="de-ophint">換算係数 ＝ その品種の 1 本あたりの平均作業時間 ÷ 基準の作業時間。換算本数 ＝ 本数 × 換算係数。</p></div>`;
+      // 換算係数の期間（地点 A。版 3.49.0。要望 3）: 別の期間の係数で、パネルの期間（地点 B）の本数を換算する
+      + `<div class="de-row de-wrap"><label class="de-l de-lnw" title="換算係数を出す期間（地点 A）。パネルの期間（地点 B）の本数に、A の係数を掛けます">係数の期間</label>`
+      + `${periodCtl(o.refPeriod, "r", [["", "パネルの期間と同じ"], ...PERIODS.slice(1)], "換算係数の期間（地点 A）")}</div>`
+      + `<p class="de-ophint">占有時間 ＝ 本数 × 平均作業。換算係数 ＝ 品種の平均作業 ÷ 基準。換算本数 ＝ 本数 × 換算係数（＝ 占有時間 ÷ 基準）。`
+      + `${o.refPeriod ? "係数の期間（地点 A）を決めると、係数は A で出し、本数はパネルの期間（地点 B）で数えます（A に無い品種は 1.00）。" : "係数の期間を決めると、過去（地点 A）の係数でいまの本数を換算できます。"}</p></div>`;
   }
   /** 品種の列（版 3.47.0。要望 3）: 選んだ列の札（× で外す・左右で順を替える）と「＋ 組み合わせる列」。1 つなら今までと同じ */
   function clsRow(few) {
@@ -634,8 +656,7 @@
       + cols.map((f) => `<option value="${esc(f.column)}">${esc(f.column)}${f.calc ? "（式）" : ""}</option>`).join("") + "</select>";
     const dates = [...(special().some((x) => x.column === "@workday") ? [["@workday", "作業日（勤務体系で決めた日）"]] : []), ...((fields && fields.fields) || []).filter((f) => f.date).map((f) => [f.column, f.column])];
     const pr = t.period || {}, kind = pr.kind || "";
-    const period = `<div class="de-row"><label class="de-l">期間</label><select data-de-pkind aria-label="期間">${PERIODS.map(([k, n]) => `<option value="${k}"${k === kind ? " selected" : ""}>${n}</option>`).join("")}</select>`
-      + (kind === "days" ? `<input type="number" min="1" max="3660" data-de-pn value="${pr.n || 7}" aria-label="日の数" class="de-n">日` : "")
+    const period = `<div class="de-row de-wrap"><label class="de-l">期間</label>${periodCtl(pr, "p", PERIODS, "期間")}`
       + (kind ? `<select data-de-pcol aria-label="期間で絞る日付">${dates.map(([c, n]) => `<option value="${esc(c)}"${c === pr.column ? " selected" : ""}>${esc(n)}</option>`).join("") || '<option value="">（日付の列がありません）</option>'}</select>` : "")
       + "</div>";
     return `${period}<div class="de-row de-top"><label class="de-l">条件</label><div class="db-crows">${chips ? `<div class="df-chips">${chips}</div>` : '<small class="de-hint">すべての行を数えます</small>'}${pick}</div></div>`;
@@ -1261,7 +1282,7 @@
       }
       if (x.matches("[data-de-pkind]")) {
         const dates = special().some((s) => s.column === "@workday") ? "@workday" : (((fields && fields.fields) || []).find((f) => f.date) || {}).column || "";
-        t.period = x.value ? { column: (t.period && t.period.column) || dates, kind: x.value, n: (t.period && t.period.n) || 7 } : null;
+        t.period = periodOf(t.period, x.value, (t.period && t.period.column) || dates);
         $("#deCond").innerHTML = condHtml(); changed(false); return;
       }
       if (x.matches("[data-de-pcol]")) { t.period.column = x.value; changed(false); return; }
@@ -1269,6 +1290,10 @@
       const setOps = (k, v) => { const o = { ...(p.ops || {}) }; if (v === "" || v == null) delete o[k]; else o[k] = v; p.ops = o; changed(false); };
       if (x.matches("[data-de-oend]")) { setOps("end", x.value); return; }
       if (x.matches("[data-de-ostart]")) { setOps("start", x.value); return; }
+      // 換算係数の期間（地点 A。版 3.49.0）: 係数だけをこの期間で出し、パネルの期間（地点 B）の本数に掛ける
+      if (x.matches("[data-de-rkind]")) { setOps("refPeriod", periodOf((p.ops || {}).refPeriod, x.value, "@workday")); return; }
+      if (x.matches("[data-de-rn]")) { setOps("refPeriod", { ...p.ops.refPeriod, n: Math.max(1, Math.min(3660, +x.value || 7)) }); return; }
+      if (x.matches("[data-de-rfrom],[data-de-rto]")) { setOps("refPeriod", { ...p.ops.refPeriod, [x.matches("[data-de-rfrom]") ? "from" : "to"]: x.value }); return; }
       if (x.matches("[data-de-ospan]")) { setOps("span", x.value === "lead" ? "lead" : ""); return; }
       if (x.matches("[data-de-ohide]")) {          // ABC の表示項目（版 3.48.0）: チェックを外した項目を hide に
         const hide = new Set((p.ops || {}).hide || []); if (x.checked) hide.delete(x.dataset.deOhide); else hide.add(x.dataset.deOhide);
@@ -1289,6 +1314,7 @@
         const a = Math.max(1, Math.min(99, +($("[data-de-oa]") || {}).value || 70)), b = Math.max(a, Math.min(100, +($("[data-de-ob]") || {}).value || 90));
         p.ops = { ...(p.ops || {}), a, b }; changed(false); return;
       }
+      if (x.matches("[data-de-pfrom],[data-de-pto]")) { t.period[x.matches("[data-de-pfrom]") ? "from" : "to"] = x.value; changed(false); return; }
       if (x.matches("[data-de-pn]")) { t.period.n = Math.max(1, Math.min(3660, +x.value || 7)); changed(false); return; }
       if (x.matches("[data-de-sort]")) { p.sort = x.value; changed(false); return; }
       if (x.matches("[data-de-emph]")) { p.emph = x.checked; changed(false); return; }

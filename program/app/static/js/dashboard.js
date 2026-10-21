@@ -16,7 +16,19 @@
   const P = window.DashPanels, E = window.DashEditor, Q = window.DashFilter, D = window.DashSlicer;
   const KEY = "tpa.dash.v1";
   const POLL_MS = 60000, RETRY_MS = 4000, COLS = 12, GAP = 10, HISTORY = 30;
-  const SCOPE_NAME = { me: "自分", all: "共通", default: "共通デフォルト" };
+  // 置き場の言葉（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 1: 「共通」と「共通デフォルト」の違いが分からなかった）。
+  // 違いは「だれに見えるか」ではなく「だれが直せるか」と「★の強さ」なので、名前と添え書きでそれを言う。マスタの値（ID・共通・共通デフォルト）は変えない
+  // 2026-10-dashsave の 2 回目で決めた G: 置き場は人の印と「見える」「直せる」の 2 行（面の見出しと保存の窓の札で同じ形）
+  const SCOPES = {
+    me: { name: "自分だけ", see: "この ID にだけ", edit: "自分で", icon: "M8 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 15c0-3 3-5 6-5s6 2 6 5" },
+    all: { name: "全員（共有）", see: "全員", edit: "マスタを書ける人", icon: "M5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM11 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M6.5 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" },
+    default: { name: "全員の既定", see: "全員", edit: "開発者だけ", icon: "M3 7h10v8H3zM5 7V5a3 3 0 0 1 6 0v2" },
+  };
+  const scopeIcon = (k) => `<svg class="db-sci" viewBox="0 0 16 16" aria-hidden="true"><path d="${SCOPES[k].icon}"/></svg>`;
+  const scopeWho = (k) => `<i>見える</i>${SCOPES[k].see}　<i>直せる</i>${SCOPES[k].edit}`;
+  const SCOPE_NAME = Object.fromEntries(Object.entries(SCOPES).map(([k, v]) => [k, v.name]));
+  const SCOPE_ORDER = ["me", "all", "default"];      // ★（最初に開く物）は、この順に先にある物が勝つ
+  const STAR_RULE = "★＝アプリを開いたときに最初に出す物。自分だけ → 全員（共有）→ 全員の既定 の順に、先にある★が勝ちます";
   const S = {
     list: [], login: "", canEditCommon: false, canEditDefault: false, standardId: null, rowsRange: [4, 16],
     id: null, layout: null, saved: "", edit: false, history: [], sel: "", sources: [],
@@ -424,28 +436,32 @@
   }
   function pickHtml() {
     const it = current(), st = curSet();
-    const groups = [["me", "自分（この ID）"], ["all", "共通"], ["default", "共通デフォルト"]];
-    const row = (x) => `<button type="button" class="db-li${String(x.id) === String(S.id) ? " on" : ""}" data-db-open="${esc(String(x.id))}">`
-      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.standardId) ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}`
+    const row = (x) => `<button type="button" class="db-li${String(x.id) === String(S.standardId) ? " is-std" : ""}${String(x.id) === String(S.id) ? " on" : ""}" data-db-open="${esc(String(x.id))}">`
+      + `<b>${esc(x.name)}</b>${starHtml(x)}`
       // いまのセットのタブに入っている物に印（同じ採点: 面の中で、どれがセットに入っているかが見えなかった）
       + `${x.replaces ? `<i class="db-swap" title="組み込みの「${esc(x.name)}」の代わりに出しています（▾ の「組み込みに戻す」で戻せます）">組み込みと入れ替え</i>` : ""}`
       + `${inItems(st, x) ? `<i class="db-inset" title="いまのセット「${esc(st.name)}」のタブに入っています">タブ</i>` : ""}<small>${x.body.panels.length} 枚${x.builtin ? "・組み込み" : ""}</small></button>`;
-    const list = groups.map(([k, n]) => { const xs = S.list.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
+    const list = SCOPE_ORDER.map((k) => { const xs = S.list.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg">${groupHead(k)}${xs.map(row).join("")}</div>` : ""; }).join("");
     const canStd = it && !it.builtin && it.canEdit && String(it.id) !== String(S.standardId);
     // 消す（版 3.48.0）: 組み込みは一覧から外す（開発者は全員の・ほかの人は自分の）。入れ替えた物は「組み込みに戻す」も
     const canDel = it && (it.builtin ? canSaveIt(it) : it.canEdit);
     const swapped = it && it.replaces && it.canEdit;
     // 面は 2 列（左＝セット・右＝ダッシュボード。2026-10-sets の 2 回目で決めた G: 1 列では 1280 で面の下が画面の外へ切れた）
-    return `<div class="db-pcol">${setsHtml()}</div><div class="db-pcol"><div class="db-pophead"><b>ダッシュボード</b><small>★＝標準（アプリを開いたときに出す物。自分 → 共通 → 共通デフォルトの順に決まります）</small></div>${list}`
-      + `<div class="db-popacts">${canStd ? '<button type="button" class="pv-btn" data-db-std>★ いまの物を標準にする</button>' : ""}`
+    return `<div class="db-pcol">${setsHtml()}</div><div class="db-pcol"><div class="db-pophead"><b>ダッシュボード</b><small>${STAR_RULE}</small></div>${list}`
+      + `<div class="db-popacts">${canStd ? `<button type="button" class="pv-btn" data-db-std title="アプリを開いたときに「${esc(it.name)}」を出します（${esc(SCOPE_NAME[it.scope])}の★）">★ 最初に開く物にする</button>` : ""}`
       + `<button type="button" class="pv-btn" data-db-new title="パネルの無いダッシュボードを、編集で作り始めます">＋ 空から作る</button>`
       + (swapped ? `<button type="button" class="pv-btn" data-db-unswap title="入れ替えた物を消して、組み込みの「${esc(it.name)}」に戻します">組み込みに戻す</button>` : "")
       + (canDel ? `<button type="button" class="pv-btn is-danger${S.confirm === "remove" ? " is-armed" : ""}" data-db-remove title="${esc(it.builtin || it.replaces ? `${hideWord()}（「外した組み込み」から戻せます）` : "")}">${S.confirm === "remove" ? "もう一度押すと消えます" : "いまの物を消す"}</button>` : "") + "</div>"
       + hiddenHtml() + "</div>";
   }
+  /** 置き場の見出し（名前と、だれに見えて・だれが直せるか） */
+  const groupHead = (k) => `<span class="db-lgh"><b>${scopeIcon(k)}${SCOPES[k].name}</b><small>${scopeWho(k)}</small></span>`;
+  /** ★: いま効いている物（最初に開く）は塗り、★を付けたが先の置き場の★に負けている物は白抜き（なぜ開かないかが見える） */
+  const starHtml = (x) => (String(x.id) === String(S.standardId) ? '<i class="db-std" title="アプリを開いたときに最初に出す物">★ 最初に開く</i>'
+    : x.standard ? `<i class="db-std is-off" title="★を付けていますが、${esc(SCOPE_NAME[(byId(S.standardId) || {}).scope] || "先の置き場")}の★が先に効いています">☆</i>` : "");
   /* ---- 組み込みを外す・入れ替える（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 1） ---- */
-  const swapWord = (it) => `組み込みの「${it.name}」を、直した物と入れ替えます（${S.canEditDefault ? "全員の一覧で。共通デフォルト" : "自分の一覧だけ"}）`;
-  const hideWord = () => (S.canEditDefault ? "全員の一覧から外します（共通デフォルト）" : "自分の一覧から外します");
+  const swapWord = (it) => `組み込みの「${it.name}」を、直した物と入れ替えます（${S.canEditDefault ? "全員の一覧で。全員の既定" : "自分の一覧だけ"}）`;
+  const hideWord = () => (S.canEditDefault ? "全員の一覧から外します（全員の既定）" : "自分の一覧から外します");
   /** 外した組み込みの並びと「戻す」（戻せるのは、外した置き場を書ける人） */
   function hiddenHtml() {
     const xs = S.hidden || [];
@@ -466,12 +482,11 @@
   function setsHtml() {
     const st = curSet(), it = current(), ds = setDash(st), inSet = inItems(st, it);
     // 置き場の言葉はダッシュボードと同じ（自分・共通・共通デフォルト。2026-10-sets の 1 回目の採点: 札は「共通デフォルト」・面は「標準のセット」で揃っていなかった）
-    const groups = [["me", "自分のセット"], ["all", "共通のセット"], ["default", "共通デフォルトのセット"]];
     const row = (x) => `<button type="button" class="db-li db-setli${String(x.id) === String(S.setId) ? " on" : ""}" data-db-set="${esc(String(x.id))}">`
-      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.setStd) ? '<i class="db-std" title="標準のセット（アプリを開いたときに出す物）">★</i>' : ""}<small>${setDash(x).length} 枚</small>`
+      + `<b>${esc(x.name)}</b>${String(x.id) === String(S.setStd) ? '<i class="db-std" title="アプリを開いたときに最初に出すセット">★ 最初に開く</i>' : ""}<small>${setDash(x).length} 枚</small>`
       // 中のダッシュボードの名前（開かずに中身が分かる。同じ G）
       + `<span class="db-setin">${esc(setDash(x).map((d) => d.name).join("・"))}</span></button>`;
-    const list = groups.map(([k, n]) => { const xs = S.sets.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg"><span>${n}</span>${xs.map(row).join("")}</div>` : ""; }).join("");
+    const list = SCOPE_ORDER.map((k) => { const xs = S.sets.filter((x) => x.scope === k); return xs.length ? `<div class="db-lg">${groupHead(k)}${xs.map(row).join("")}</div>` : ""; }).join("");
     const none = `<button type="button" class="db-li${S.setId == null ? " on" : ""}" data-db-set=""><b>セットを使わない</b><small>1 枚ずつ開く</small></button>`;
     const pos = st && it ? st.body.items.indexOf(itemKey(st, it)) : -1;
     const acts = st ? `<div class="db-popacts db-setacts">`
@@ -479,10 +494,10 @@
       + (st.canEdit ? (inSet ? `<span class="db-setfor">「${esc(it.name)}」のタブ</span><button type="button" class="pv-btn" data-db-setmove="-1"${pos > 0 ? "" : " disabled"} title="「${esc(it.name)}」のタブを左へ">← 左へ</button><button type="button" class="pv-btn" data-db-setmove="1"${pos >= 0 && pos < st.body.items.length - 1 ? "" : " disabled"} title="「${esc(it.name)}」のタブを右へ">右へ →</button>`
         + `<button type="button" class="pv-btn" data-db-setout title="「${esc(it.name)}」を、このセットのタブから外します">− セットから外す</button>`
         : `<button type="button" class="pv-btn" data-db-setin${it && ds.length < S.setMax ? "" : " disabled"} title="いまのダッシュボードを、このセットのタブの最後に足します">＋「${esc(it ? it.name : "")}」をセットに入れる</button>`) : "")
-      + (String(st.id) !== String(S.setStd) && st.canEdit ? '<button type="button" class="pv-btn" data-db-setstd title="アプリを開いたときに、このセットを出します">★ このセットを標準に</button>' : "")
+      + (String(st.id) !== String(S.setStd) && st.canEdit ? '<button type="button" class="pv-btn" data-db-setstd title="アプリを開いたときに、このセットを出します">★ 最初に開くセットにする</button>' : "")
       + (st.canEdit ? `<button type="button" class="pv-btn is-danger${S.confirm === "setdel" ? " is-armed" : ""}" data-db-setdel>${S.confirm === "setdel" ? "もう一度押すと消えます" : "このセットを消す"}</button>` : "")
       + "</div>" : "";
-    return `<div class="db-pophead"><b>セット</b><small>いくつかのダッシュボードの束。道具の行のタブで切り替えます（★＝アプリを開いたときのセット。自分 → 共通 → 共通デフォルトの順）</small></div>`
+    return `<div class="db-pophead"><b>セット</b><small>いくつかのダッシュボードの束。道具の行のタブで切り替えます（★の決まりはダッシュボードと同じ）</small></div>`
       + `<div class="db-lg">${none}</div>${list}${acts}`
       + `<div class="db-popacts"><button type="button" class="pv-btn" data-db-setsave title="${st ? "いまのセットのタブの並びを、名前を付けて別のセットとして置きます" : "いまのダッシュボードから、新しいセットを作ります"}">＋ セットとして保存…</button></div>`;
   }
@@ -493,24 +508,63 @@
     const names = items.map((k) => (S.list.find((x) => String(x.id) === String(k)) || {}).name).filter(Boolean);
     return `<div class="db-pophead"><b>セットとして保存</b><small>${esc(names.join("・") || "（ダッシュボードがありません）")} をタブに並べたセットを置きます</small></div>`
       + `<label class="db-field">名前<input id="dbSetName" maxlength="40" value="${esc(st ? `${st.name} のコピー` : "わたしのセット")}"></label>`
-      + `<div class="db-field"><span>置き場</span>${opt("me", "自分（この ID だけ。切り替えのパターン）", !!S.login, "ログイン ID が分かりません")}${opt("all", "共通（全員）", S.canEditCommon, "共通に置けるのは、マスタを書ける権限の人だけです")}`
-      + `${S.canEditDefault ? opt("default", "共通デフォルト（開発者。全員の既定）", true, "") : ""}</div>`
-      + `<label class="pv-ck"><input type="checkbox" id="dbSetStd" checked>標準にする（アプリを開いたときに、このセットを出す）</label>`
+      + scopeField("dbSetScope", S.canEditDefault ? "default" : "me")
+      + `<label class="pv-ck"><input type="checkbox" id="dbSetStd" checked>★ 最初に開くセットにする</label>`
       + `<div class="db-popacts"><span class="db-sp"></span><button type="button" class="btn-primary" data-db-dosetsave data-items="${esc(JSON.stringify(items))}">保存</button></div><p class="db-poperr" aria-live="polite"></p>`;
+  }
+  /** 置き場の選び（名前と、だれに見えて・だれが直せるか。書けない置き場は理由を添えて押せない） */
+  function scopeField(name, cur) {
+    const ok = { me: [!!S.login, "ログイン ID が分かりません"], all: [S.canEditCommon, "全員（共有）に置けるのは、マスタを書ける権限の人だけです"], default: [S.canEditDefault, ""] };
+    return `<div class="db-field"><span>置き場</span>${SCOPE_ORDER.filter((k) => k !== "default" || S.canEditDefault).map((k) => `<label class="db-radio${ok[k][0] ? "" : " is-off"}" title="${esc(ok[k][0] ? "" : ok[k][1])}">`
+      + `<input type="radio" name="${name}" value="${k}"${k === cur ? " checked" : ""}${ok[k][0] ? "" : " disabled"}><b>${scopeIcon(k)}${SCOPES[k].name}</b>`
+      + `<small><i>見える</i>${SCOPES[k].see}<br><i>直せる</i>${SCOPES[k].edit}</small></label>`).join("")}</div>`;
   }
   function saveAsHtml() {
     const it = current();
-    const opt = (k, n, ok, why) => `<label class="db-radio${ok ? "" : " is-off"}" title="${esc(ok ? "" : why)}"><input type="radio" name="dbScope" value="${k}"${k === "me" ? " checked" : ""}${ok ? "" : " disabled"}>${n}</label>`;
-    return `<div class="db-pophead"><b>名前を付けて保存</b><small>いまのパネルの並び・組みを、新しいダッシュボードとして置きます</small></div>`
-      + `<label class="db-field">名前<input id="dbSaveName" maxlength="40" value="${esc(it && !it.builtin ? `${it.name} のコピー` : "わたしのダッシュボード")}"></label>`
-      + `<div class="db-field"><span>置き場</span>${opt("me", "自分（この ID だけ）", !!S.login, "ログイン ID が分かりません")}${opt("all", "共通（全員）", S.canEditCommon, "共通に置けるのは、マスタを書ける権限の人だけです")}`
-      + `${S.canEditDefault ? opt("default", "共通デフォルト（開発者）", true, "") : ""}</div>`
-      + `<label class="pv-ck"><input type="checkbox" id="dbSaveStd" checked>標準にする（アプリを開いたときに、これを出す）</label>`
+    // 最初の置き場と名前: いまの物の置き場（書けるなら）と名前。同じ名前なら「上書き」と出る（版 3.49.0: 前は必ず「〜 のコピー」・自分で、
+    // 「標準」と打ち直しても別の物が増えた）
+    const scope = it && (it.builtin ? swapScope() : it.canEdit ? it.scope : "me") || "me";
+    return `<div class="db-pophead"><b>名前を付けて保存</b><small>同じ置き場に同じ名前があれば上書きします</small></div>`
+      + `<label class="db-field">名前<input id="dbSaveName" maxlength="40" value="${esc(it ? it.name : "わたしのダッシュボード")}"></label>`
+      + scopeField("dbScope", scope)
+      + `<label class="pv-ck"><input type="checkbox" id="dbSaveStd"${it && String(it.id) === String(S.standardId) ? " checked" : ""}>★ 最初に開く物にする</label>`
+      + `<div class="db-saveplan" id="dbSavePlan" aria-live="polite"></div>`
       + `<div class="db-popacts"><span class="db-sp"></span><button type="button" class="btn-primary" data-db-dosave>保存</button></div><p class="db-poperr" aria-live="polite"></p>`;
+  }
+  /** 名前を付けて保存の行き先（版 3.49.0）: 同じ置き場の同じ名前 → 上書き／組み込みと同じ名前（自分だけ・全員の既定）→ 組み込みの代わり（上書き）／ほか → 新しく。
+      ★を付けるとき、先の置き場に★があれば、その★に負けることと、外せるなら外す選びを返す */
+  function savePlan(name, scope, star) {
+    const same = S.list.find((x) => !x.builtin && x.scope === scope && x.name === name);
+    const builtinNames = new Set(S.list.filter((x) => x.builtin || x.replaces).map((x) => x.name).concat((S.hidden || []).map((x) => x.name)));
+    const plan = same ? { kind: "over", row: same, ok: same.canEdit }
+      : scope !== "all" && builtinNames.has(name) ? { kind: "swap", ok: true } : { kind: "new", ok: true };
+    const top = byId(S.standardId);
+    plan.beaten = star && top && !top.builtin && SCOPE_ORDER.indexOf(top.scope) < SCOPE_ORDER.indexOf(scope) && (!same || String(top.id) !== String(same.id)) ? top : null;
+    return plan;
+  }
+  function paintSavePlan() {
+    const el = popEl && popEl.querySelector("#dbSavePlan"); if (!el) return;
+    const name = (popEl.querySelector("#dbSaveName").value || "").trim(), scope = (popEl.querySelector('input[name="dbScope"]:checked') || {}).value || "me";
+    const p = savePlan(name, scope, popEl.querySelector("#dbSaveStd").checked), btn = popEl.querySelector("[data-db-dosave]");
+    const where = `「${esc(name)}」〔${SCOPE_NAME[scope]}〕`;
+    el.className = `db-saveplan is-${p.kind}`;
+    // 行き先（新しく・上書き）は主のボタンが言う（2026-10-dashsave の G）。帯は、書けない・★が負けるときだけ
+    el.innerHTML = (name && !p.ok ? `<span class="db-planno">${where}は直せない置き場の物です。別の名前にしてください</span>` : "")
+      + (p.beaten ? `<label class="pv-ck db-unstar"><input type="checkbox" id="dbUnstar"${p.beaten.canEdit ? " checked" : " disabled"}>`
+        + `「${esc(p.beaten.name)}」〔${SCOPE_NAME[p.beaten.scope]}〕の★を外す<small>${p.beaten.canEdit ? "外さないと、アプリを開いたときはそちらが先に出ます" : "その★が先に効くので、アプリを開いたときはそちらが出ます（外せるのは直せる人だけ）"}</small></label>` : "");
+    if (btn) {
+      const at = `「${name}」〔${SCOPE_NAME[scope]}〕`;
+      btn.textContent = name ? `${at}に${p.kind === "new" ? "保存" : "上書き保存"}` : "保存";
+      btn.dataset.plan = p.kind;
+      btn.title = p.kind === "swap" ? `組み込みの「${name}」を、いまの並びで置き換えます（${scope === "me" ? "自分の一覧だけ" : "全員の一覧"}。▾ の「組み込みに戻す」で戻せます）`
+        : p.kind === "over" ? `${at}を、いまの並びで上書きします` : `${at}として新しく置きます`;
+      btn.disabled = !name || !p.ok;
+    }
   }
   /** スライサーの「設備…」の面のチェック */
   function onPopChange(e) {
     const x = e.target, sl = { ...(sliceState() || {}) }, eq = new Set(sl.equips || []);
+    if (x.matches("#dbSaveName, [name=dbScope], #dbSaveStd")) { paintSavePlan(); return; }
     if (x.matches("[data-ds-set]")) { setSlice({ ...sl, set: x.value }); return; }
     if (x.matches("[data-ds-eq]")) { if (x.checked) eq.add(x.dataset.dsEq); else eq.delete(x.dataset.dsEq); }
     else if (x.matches("[data-ds-gck]")) { const g = D.groupsOf(S.tree || {}, sl.set).find((y) => y.name === x.dataset.dsGck); (g ? g.members : []).forEach((m) => (x.checked ? eq.add(m) : eq.delete(m))); }
@@ -626,11 +680,23 @@
   }
   async function saveAs() {
     const name = (popEl.querySelector("#dbSaveName").value || "").trim(), scope = (popEl.querySelector('input[name="dbScope"]:checked') || {}).value || "me";
-    const err = popEl.querySelector(".db-poperr");
+    const err = popEl.querySelector(".db-poperr"), star = popEl.querySelector("#dbSaveStd").checked, unstar = popEl.querySelector("#dbUnstar");
     if (!name) { err.textContent = "名前を入れてください"; return; }
+    const p = savePlan(name, scope, star);
+    if (!p.ok) return;
     err.textContent = "保存しています…";
-    const r = await writeLayout("POST", null, { name, scope, standard: popEl.querySelector("#dbSaveStd").checked, body: S.layout }, `「${name}」を保存しました`);
+    // 上書きは、その物の中身と★だけを書く（組み込みの代わりの印〈replaces〉はサーバーが名前から付ける）
+    const what = p.kind === "new" ? "保存しました" : "上書きしました";
+    const r = p.kind === "over"
+      ? await writeLayout("PUT", p.row.id, { body: S.layout, base_rev: p.row.rev, ...(star ? { standard: true } : {}) }, `「${name}」を${what}`)
+      : await writeLayout("POST", null, { name, scope, standard: star, body: S.layout }, `「${name}」を${what}`);
     if (r.error) { err.textContent = "✕ " + r.error; return; }
+    if (p.beaten && unstar && unstar.checked) {
+      // ★を外すだけ（開いている物・並びは替えない）
+      const b = await fetch(`/api/dashboards/${p.beaten.id}`, TPA.json("PUT", { standard: false, base_rev: p.beaten.rev }));
+      await loadList(); paintBar();
+      say(b.ok ? `「${name}」を${what}（「${p.beaten.name}」の★を外しました）` : `「${name}」を${what}。「${p.beaten.name}」の★は外せませんでした（${b.status}）`);
+    }
     closePop();
   }
 
@@ -954,7 +1020,8 @@
     if (b.hasAttribute("data-db-discard")) { S.confirm = ""; closeEditor(); const id = S.id; S.edit = false; if (id != null) open(id); else open(S.standardId); return; }
     if (b.hasAttribute("data-db-save")) { save(); return; }
     if (b.hasAttribute("data-db-saveas")) { if (S.pop === "saveas") closePop(); else {
-      openPop("saveas", b, saveAsHtml(), "db-savepop");
+      openPop("saveas", b, saveAsHtml(), "db-savepop"); paintSavePlan();
+      popEl.addEventListener("input", (e) => { if (e.target.id === "dbSaveName") paintSavePlan(); });
       const nm = popEl.querySelector("#dbSaveName");
       nm.select();
       nm.addEventListener("keydown", (e) => { if (e.key === "Enter" && !TPA.composing(e)) { e.preventDefault(); saveAs(); } });   // 名前を打って Enter で保存（版 3.43.0）

@@ -266,6 +266,30 @@ class Layouts(unittest.TestCase):
         self.assertEqual(self.c.put(f"/api/dashboards/{r.get_json()['id']}", json={"name": "x"}).status_code, 403, "ほかの ID の物は直せない")
         self.assertEqual(self.c.delete(f"/api/dashboards/{mine['id']}").status_code, 200)
 
+    def test_same_name_as_builtin_overwrites_it(self):
+        """組み込みと同じ名前で保存すると上書き（入れ替え）になる（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 1: 「標準」と名前を付けても
+        上書きにならず 2 つ 3 つに増えた）。共通デフォルト・自分の ID は入れ替える。共通は別の段なので入れ替えない。同じ置き場の同じ名前は書けない"""
+        self.as_("dev")
+        r = self.c.post("/api/dashboards", json={"name": "標準", "scope": "default", "body": self.body})
+        self.assertEqual(r.status_code, 201, r.get_json())
+        mine = r.get_json()
+        self.assertEqual(mine["body"].get("replaces"), "standard", "名前が同じなら、組み込みの代わり")
+        d = self.c.get("/api/dashboards").get_json()
+        self.assertEqual([x["id"] for x in d["items"]], [mine["id"]], "組み込みの「標準」は並ばない（2 つにならない）")
+        self.assertEqual(self.c.post("/api/dashboards", json={"name": "標準", "scope": "default", "body": self.body}).status_code, 409, "同じ置き場の同じ名前は書かない（上書きは PUT）")
+        r = self.c.put(f"/api/dashboards/{mine['id']}", json={"body": {**self.body, "rows": 10}, "standard": True, "base_rev": mine["rev"]})
+        self.assertEqual((r.status_code, r.get_json()["body"].get("replaces"), r.get_json()["body"]["rows"]), (200, "standard", 10), "上書きしても入れ替えたまま")
+        r = self.c.post("/api/dashboards", json={"name": "標準", "scope": "all", "body": self.body})
+        self.assertEqual((r.status_code, r.get_json()["body"].get("replaces")), (201, None), "共通は入れ替えない")
+        # 版 3.49.0 より前に置いた同じ名前の行（中身に replaces が無い）も、組み込みの代わりとして並ぶ
+        repo = MasterRepository(self.store)
+        old = next(x for x in repo.dashboards() if x["id"] == mine["id"])
+        repo.dashboard_update(mine["id"], {"中身": json.dumps(self.body, ensure_ascii=False)})
+        self.assertNotIn("replaces", json.loads(next(x for x in repo.dashboards() if x["id"] == mine["id"])["中身"]))
+        d = self.c.get("/api/dashboards").get_json()
+        self.assertEqual(sorted((x["scope"], x.get("replaces")) for x in d["items"]), [("all", None), ("default", "b:standard")])
+        self.assertTrue(old)
+
     def test_builtin_can_be_replaced_and_hidden(self):
         """組み込みを入れ替える・外す（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 1）:
         入れ替え … 中身に replaces を持つダッシュボードを置くと、組み込みの代わりに出る（replaces で "b:鍵" と分かる）。消すと組み込みが戻る
