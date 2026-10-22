@@ -564,8 +564,7 @@
       + `<select data-de-oqcol aria-label="数の列の合計"><option value="">数の列の合計…</option>${nums.map((c) => opt(c, `${c}の合計`, qty)).join("")}</select></div>`
       + `<div class="de-row"><label class="de-l" title="換算の基準">換算基準</label><select data-de-obase aria-label="換算係数の基準">${opt("avg", "全作業の平均作業時間 ＝ 1.00", base)}${opt("top", "いちばん本数の多い品種 ＝ 1.00", base)}`
       + `${items.map((k) => opt(k, `品種「${k}」＝ 1.00`, base)).join("")}${base !== "avg" && base !== "top" && !items.includes(base) ? opt(base, `品種「${base}」＝ 1.00`, base) : ""}</select></div>`
-      + `<div class="de-row"><label class="de-l" title="ABC の線（累積構成比）">ABC線</label><label class="pv-ck">A ≦<input type="number" min="1" max="99" step="1" data-de-oa value="${o.a ?? 70}" class="de-n" aria-label="A の線（累積構成比 %）">%</label>`
-      + `<label class="pv-ck">B ≦<input type="number" min="1" max="100" step="1" data-de-ob value="${o.b ?? 90}" class="de-n" aria-label="B の線（累積構成比 %）">%</label><small class="de-hint">残りが C</small></div>`
+      + abcRow(o, a && a.kind === "abc" ? a : null)
       // 全設備の作業時間（版 3.48.0。要望 6）・表示項目（要望 5）
       + `<div class="de-row de-spanrow"><label class="de-l de-lnw" title="「全設備」の札の作業時間の取り方">全設備の時間</label>${segs("ospan", [["", "各設備の積み上げ", "作業 1 本ずつの作業時間を、全部の設備で足す（1 本＝1 作業）"], ["lead", "リードタイム", "同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（1 本＝1 ロット）"]], o.span === "lead" ? "lead" : "", "全設備の作業時間")}`
       + `<small class="de-hint">${o.span === "lead" ? "最初の作業開始〜最後の作業終了（MIN〜MAX）" : "設備ごとの作業時間の合計"}</small></div>`
@@ -577,6 +576,35 @@
       + `<p class="de-ophint">占有時間 ＝ 本数 × 平均作業。換算係数 ＝ 品種の平均作業 ÷ 基準。換算本数 ＝ 本数 × 換算係数（＝ 占有時間 ÷ 基準）。`
       + `${o.refPeriod ? "係数の期間（地点 A）を決めると、係数は A で出し、本数はパネルの期間（地点 B）で数えます（A に無い品種は 1.00）。" : "係数の期間を決めると、過去（地点 A）の係数でいまの本数を換算できます。"}</p></div>`;
   }
+  /** ABC の段（版 3.51.0。利用者の要望 2026-10-22: A・B・C の 3 つに限らない。2026-10-abcrank の 1 回目で決めた A）:
+      分け方［線で分ける｜品種ごと］と段の数。線で分けるときは、線ごとの札（段の名前 ≦ 数 % ×）と「＋ 線」、最後に「残りが 段」。
+      札の名前と色はパネルの ABC の列と同じ（DashOps.rankStyle）。品種ごとは線を隠し、段の数を出す（線は覚えていて、戻すと戻る） */
+  /** 線の並びを入れる（昇順に並べ直す。札の名前は描き直しで振り直る）。既定（70・90）なら書かない。前の a・b は捨てる */
+  function setLims(xs) {
+    const lims = [...new Set(xs.map(Number).filter((v) => v > 0 && v <= 100))].sort((x, y) => x - y).slice(0, ABC_LIMS_MAX);
+    const o = { ...(p.ops || {}) }; delete o.a; delete o.b;
+    if (lims.length && lims.join() !== "70,90") o.lims = lims; else delete o.lims;
+    p.ops = o; changed(false);
+  }
+  function abcRow(o, a) {
+    const lims = abcLims(o), each = o.rankBy === "each", n = lims.length + 1, R = window.DashOps;
+    const badge = (i, cnt) => { const r = R.rankStyle(i, cnt, R.rankName(i)); return `<b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b>`; };
+    const items = a && a.all && a.all.items ? a.all.items.length : 0;
+    const count = each ? items : n;
+    const head = `<span class="de-abchead">${segs("rankby", [["", "線で分ける", "累積構成比の線で分けます（線の数＋1 の段）"], ["each", "品種ごと", "量の大きい順に、品種 1 つずつに A, B, C … と付けます（Z の次は AA）"]], each ? "each" : "", "ABC の分け方")}`
+      + `<small class="de-hint de-abcn">${each ? `品種ごとに A, B, C …${items ? `（いま ${items} 段）` : ""}` : `${n} 段（A〜${R.rankName(n - 1)}）`}</small>`
+      // 読めない線の知らせは段の数のすぐ横（線が多くて札が長くなっても、見える所に出す）
+      + `${each ? "" : '<small class="de-limerr" data-de-limerr role="status"></small>'}</span>`;
+    const lines = each ? "" : `<span class="de-lims">${lims.map((v, i) => `<span class="de-lim">${badge(i, count)}<span aria-hidden="true">≦</span>`
+      + `<input type="number" min="0.1" max="100" step="any" data-de-lim="${i}" value="${+v}" class="de-n de-limn" aria-label="${R.rankName(i)} の線（累積構成比 %）">%`
+      + `${lims.length > 1 ? `<button type="button" class="de-limx" data-de-limx="${i}" title="${R.rankName(i)} の線（${+v}%）を外す" aria-label="${R.rankName(i)} の線（${+v}%）を外す">×</button>` : ""}</span>`).join("")}`
+      + `${lims[lims.length - 1] < 100 && lims.length < ABC_LIMS_MAX ? '<button type="button" class="de-limadd" data-de-limadd title="最後の線と 100% の中ほどに線を足します（段が 1 つ増えます）">＋ 線</button>' : ""}`
+      + `<span class="de-lim de-limrest"><small>残りが</small>${badge(n - 1, count)}</span></span>`;
+    return `<div class="de-row de-abcrow" data-de-abcrow><label class="de-l" title="ABC の段の分け方">ABC</label><div class="de-abcbox">${head}${lines}</div></div>`;
+  }
+  /** ABC の線（版 3.51.0。前に保存した a・b は線の並びとして読む） */
+  const abcLims = (o) => { const xs = Array.isArray(o.lims) && o.lims.length ? o.lims : [o.a ?? 70, o.b ?? 90]; return [...new Set(xs.map(Number).filter((v) => v > 0 && v <= 100))].sort((x, y) => x - y); };
+  const ABC_LIMS_MAX = 50;
   /** 品種の列（版 3.47.0。要望 3）: 選んだ列の札（× で外す・左右で順を替える）と「＋ 組み合わせる列」。1 つなら今までと同じ */
   function clsRow(few) {
     const cls = clsOf(p), rest = few.filter((c) => !cls.includes(c));
@@ -1282,6 +1310,14 @@
         if (o.color === c) delete o.color; else o.color = c;
         p.ops = o; changed(); return;
       }
+      if (b.hasAttribute("data-de-limadd")) {     // 線を足す（版 3.51.0）: 最後の線と 100% の中ほど。足した欄に焦点を移す
+        const xs = abcLims(p.ops || {}), last = xs[xs.length - 1], v = Math.round(((last + 100) / 2) * 10) / 10;
+        if (v <= last || v > 100) return;
+        setLims(xs.concat([v]));
+        const k = xs.length; requestAnimationFrame(() => { const f = $(`[data-de-lim="${k}"]`); if (f) { f.focus(); f.select(); } });
+        return;
+      }
+      if (b.dataset.deLimx != null) { const xs = abcLims(p.ops || {}); xs.splice(+b.dataset.deLimx, 1); setLims(xs); return; }
       if (b.dataset.deClsx != null) { const cls = clsOf(p); cls.splice(+b.dataset.deClsx, 1); setCls(cls, true); return; }
       if (b.dataset.deClsl != null) { const cls = clsOf(p), i = +b.dataset.deClsl; [cls[i - 1], cls[i]] = [cls[i], cls[i - 1]]; setCls(cls, true); return; }
       if (b.dataset.deAdd) {
@@ -1348,9 +1384,14 @@
       if (x.matches("[data-de-oqty]")) { setOps("qty", x.value); return; }
       if (x.matches("[data-de-oqcol]")) { if (x.value) setOps("qty", x.value); return; }
       if (x.matches("[data-de-obase]")) { setOps("base", x.value === "avg" ? "" : x.value); return; }
-      if (x.matches("[data-de-oa],[data-de-ob]")) {
-        const a = Math.max(1, Math.min(99, +($("[data-de-oa]") || {}).value || 70)), b = Math.max(a, Math.min(100, +($("[data-de-ob]") || {}).value || 90));
-        p.ops = { ...(p.ops || {}), a, b }; changed(false); return;
+      if (x.matches("[data-de-rankby]")) { setOps("rankBy", x.value === "each" ? "each" : ""); return; }
+      if (x.matches("[data-de-lim]")) {         // 線の数（版 3.51.0）: 0 より大きく 100 以下・同じ線は 2 本置かない。読めなければ欄を赤くして字で知らせ、当てない
+        const vs = [...document.querySelectorAll("[data-de-lim]")].map((y) => +y.value), v = +x.value, i = +x.dataset.deLim;
+        const why = !(v > 0 && v <= 100) ? "線は 0 より大きく 100 以下の % で書きます" : vs.some((w, j) => j !== i && w === v) ? `${v}% の線はもうあります` : "";
+        x.classList.toggle("is-bad", !!why); x.setAttribute("aria-invalid", why ? "true" : "false");
+        const er = $("[data-de-limerr]"); if (er) er.textContent = why;
+        if (why) return;
+        setLims(vs); return;
       }
       if (x.matches("[data-de-pfrom],[data-de-pto]")) { t.period[x.matches("[data-de-pfrom]") ? "from" : "to"] = x.value; changed(false); return; }
       if (x.matches("[data-de-pn]")) { t.period.n = Math.max(1, Math.min(3660, +x.value || 7)); changed(false); return; }

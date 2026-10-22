@@ -391,6 +391,26 @@ export const STATES = [
     await p.click('#dashGrid .db-p[data-id="abc"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
     await p.evaluate(() => { const r = document.querySelector("[data-de-abcrow], [data-de-oa]"); if (r) r.closest(".de-row").scrollIntoView({ block: "center" }); }); await sleep(300);
   }, "[data-next], [data-de-apply]"],
+  // 線 26 本（A〜AA の 27 段）で組む所を開いた所（線の札が折り返しても組む所に収まるか）。前の dash-ops-ranks-edit の続き
+  ["dash-ops-ranks-many", async (p) => {
+    const l = JSON.parse(JSON.stringify(OPS_LAYOUT)); l.panels[1].ops.lims = Array.from({ length: 26 }, (_, i) => Math.round((i + 1) * 3.5 * 10) / 10);
+    await p.click("[data-de-cancel]").catch(() => {}); await sleep(300);
+    await p.evaluate((x) => Dashboard._setLayout(x), l); await sleep(500); await waitDash(p); await sleep(400);
+    if (!(await p.$("#dashScreen.is-edit"))) { await p.click("[data-db-editmode]"); await sleep(300); }
+    await p.click('#dashGrid .db-p[data-id="abc"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
+    await p.evaluate(() => { const r = document.querySelector("[data-de-abcrow]"); if (r) r.scrollIntoView({ block: "center" }); }); await sleep(300);
+  }, "[data-next], [data-de-apply]"],
+  // 品種ごとに切り替えた所（線の札が隠れ「品種ごとに A, B, C …（いま n 段）」）と、線で分けるへ戻して同じ線（60%）を打った所（赤い欄と知らせ）
+  ["dash-ops-ranks-each", async (p) => {
+    await p.click('.de-seg:has([data-de-rankby][value="each"])'); await waitDash(p); await sleep(700);
+    await p.evaluate(() => { const r = document.querySelector("[data-de-abcrow]"); if (r) r.scrollIntoView({ block: "center" }); }); await sleep(300);
+  }, "[data-next], [data-de-apply]"],
+  ["dash-ops-ranks-err", async (p) => {
+    await p.click('.de-seg:has([data-de-rankby][value=""])'); await waitDash(p); await sleep(600);
+    const f = await p.$('[data-de-lim="0"]'), v = await p.$eval('[data-de-lim="1"]', (x) => x.value).catch(() => "60");
+    if (f) { await f.fill(v); await f.press("Enter"); } await sleep(400);
+    await p.evaluate(() => { const r = document.querySelector("[data-de-abcrow]"); if (r) r.scrollIntoView({ block: "center" }); }); await sleep(300);
+  }, "[data-next], [data-de-apply]"],
   ["dash-ops-edit", async (p) => {
     await p.click("[data-db-editmode]"); await sleep(400);
     await p.click('#dashGrid .db-p[data-id="abc"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);

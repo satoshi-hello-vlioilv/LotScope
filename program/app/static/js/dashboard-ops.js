@@ -280,7 +280,9 @@
     const cut = all > items.length;       // 棒にしたのが上位だけなら、図の左上にそう書く（版 3.47.0。省いたことが見えなかった: 2026-10-ops4 の 2 回目の採点）
     // 品種が組み合わせ（版 3.47.0）なら、棒の下の名前を列ごとの段にする（A1100 と H14。1 段の「A1100／H14」より棒の幅に入る）
     const rows = Math.min(3, Math.max(1, ...items.map((x) => (x.parts || [x.key]).length)));
-    const L = 34, R = 48, T = cut ? 26 : 12, B = 10 + 12 * rows, iw = W - L - R, ih = H - T - B, n = items.length, bw = iw / n;
+    // 右の余白は、線の札（「W 80.5%」など）のいちばん長い字が入る幅（版 3.51.0。線が増えて名前が 2 字・小数の % になると、48px では右端が切れた）
+    const limTxt = ranks && !RK.each ? RK.lims.filter((v) => v < 100).map((v, i) => `${rankName(i)} ${+v}%`) : [];
+    const L = 34, R = Math.max(48, ...limTxt.map((t) => Math.ceil(textW(t, 11)) + 8)), T = cut ? 26 : 12, B = 10 + 12 * rows, iw = W - L - R, ih = H - T - B, n = items.length, bw = iw / n;
     const max = Math.max(...items.map((x) => x.qty)) || 1;
     const y = (v) => T + ih - (v / max) * ih, yc = (c) => T + ih - (c / 100) * ih;
     const g = [`<line class="oa-ax" x1="${L}" x2="${L + iw}" y1="${T + ih}" y2="${T + ih}"/>`];
@@ -292,7 +294,7 @@
     lims.forEach((v, i) => {
       const k = rankName(i), dy = near ? (i ? -3 : 11) : 4, ty = yc(v) + dy;
       g.push(`<line class="oa-lim" x1="${L}" x2="${L + iw}" y1="${yc(v)}" y2="${yc(v)}"><title>${esc(`${k} の線 ${+v}%`)}</title></line>`);
-      if (near || lastY - ty >= 11) { g.push(`<text class="oa-liml" x="${L + iw + 4}" y="${ty}">${k} ${+v}%</text>`); lastY = ty; }
+      if (near || lastY - ty >= 14) { g.push(`<text class="oa-liml" x="${L + iw + 4}" y="${ty}">${k} ${+v}%</text>`); lastY = ty; }
     });
     items.forEach((x, i) => {
       const r = ranks ? rs(x) : RANK.B, h = T + ih - y(x.qty);
