@@ -4,6 +4,7 @@
 - Excel を組む部品（static/js/xlsx-writer.js）: 書いた .xlsx を標準の zipfile・xml で読み戻し、値・型・見出しの固定などが合う（xlsx-check.mjs）
 - LotDsp を開く URL（static/js/lotdsp-url.js）: WaveLog と同じ URL（ロット番号・鋳造番号の linkkey・タブ）を作る（lotdsp-url-check.mjs）
 - 変換表を一覧の列に当てる計画（static/js/conversions.js）: 列の見つけ方・足す所・当て直し・当てた式の答え（conv-plan-check.mjs）
+- 行・列・値の札を引いて組み替える決まり（static/js/pivot-dnd.js）: 並べ替え・行 ⇔ 列・カラムの札から足す・入れ替え（pivot-dnd-check.mjs）
 - 数の表示形式（static/js/num-format.js）: Excel の書式コード（区分・条件・色・桁・桁区切り・%・指数・字）と同じ字（num-format-check.mjs）"""
 import shutil
 import subprocess
@@ -35,6 +36,9 @@ class ScreenParts(unittest.TestCase):
 
     def test_number_format_codes_like_excel(self):
         self.run_tool("num-format-check.mjs")
+
+    def test_pivot_drag_and_drop_rules(self):
+        self.run_tool("pivot-dnd-check.mjs")
 
 
 if __name__ == "__main__":

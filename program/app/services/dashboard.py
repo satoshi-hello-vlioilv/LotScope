@@ -133,10 +133,13 @@ def _measure(m):
     """値（services/aggregate.py の形）。列があるかは数えるときに確かめる（ここは形だけ）。合わなければ None"""
     if not isinstance(m, dict) or m.get("agg") not in aggregate.AGGS:
         return None
+    m = {**m, "column": str(m.get("column") or "")[:200]}
     try:
-        out = aggregate.clean({**m, "column": str(m.get("column") or "")[:200]}, lambda c: bool(c))
+        out = aggregate.clean(m, lambda c: bool(c))
     except ValueError:
-        return None
+        if not m.get("expr"):
+            return None
+        return _measure({k: v for k, v in m.items() if k != "expr"})     # 読めない計算は外す（値そのものは残す）
     return {k: v for k, v in out.items() if not (k == "column" and not v)}
 
 
@@ -543,7 +546,9 @@ def clean_panel(p, i, rows):
 # 版 3.48.0（利用者の要望 2026-10-21 の 3 回目の 5・6・7）:
 #       start: 作業開始の列（"" は見つける）・span: 全設備の作業時間の取り方（sum＝各設備の積み上げ・lead＝リードタイム。operation.SPANS）・
 #       hide: ABC 分析の出さない項目（ABC_ITEMS の鍵の並び）
+#       lims: ABC の線（累積構成比 % の昇順の並び。いくつでも。版 3.51.0。前の a・b は lims [a, b] として読む）・rankBy: "each"＝品種ごとに 1 段（A, B, C, … 上限なし）
 ABC_A, ABC_B = 70.0, 90.0
+ABC_LIMS_MAX = 50         # 線の数の上限（51 段。段の名前は A〜Z の次が AA・AB …）
 # ABC 分析の表示項目（出す・出さないを選べる物）: 構成比・累積・ABC（ランク。棒の色と A・B の線も）・平均作業・換算係数・換算本数・パレート図・下の段の計
 ABC_ITEMS = ("share", "occ", "lshare", "cum", "rank", "avg", "factor", "conv", "chart", "foot")     # occ・lshare（占有時間・負荷構成比）は版 3.49.0
 
@@ -551,10 +556,7 @@ ABC_ITEMS = ("share", "occ", "lshare", "cum", "rank", "avg", "factor", "conv", "
 def clean_ops(v):
     v = v if isinstance(v, dict) else {}
     col = lambda k: str(v.get(k) or "").strip()[:200]       # noqa: E731
-    a = _float(v.get("a"))
-    b = _float(v.get("b"))
-    a = min(99.0, max(1.0, a if a is not None else ABC_A))
-    b = min(100.0, max(a, b if b is not None else ABC_B))
+    lims = abc_lims(v)
     out = {k: col(k) for k in ("start", "end", "label", "color") if col(k)}
     if v.get("span") == "lead":
         out["span"] = "lead"
@@ -572,9 +574,18 @@ def clean_ops(v):
         out["cls"] = cls[0] if len(cls) == 1 else cls
     qty, base = col("qty"), str(v.get("base") or "").strip()[:120]
     out.update({"qty": qty or "lots", "base": base or "avg"})
-    if (a, b) != (ABC_A, ABC_B):
-        out.update(a=a, b=b)
+    if lims != [ABC_A, ABC_B]:
+        out["lims"] = lims
+    if v.get("rankBy") == "each":
+        out["rankBy"] = "each"
     return out
+
+
+def abc_lims(v):
+    """ABC の線（lims。無ければ前の a・b）→ 0 より大きく 100 以下・同じ線は 1 本・昇順の並び（ABC_LIMS_MAX 本まで）。1 本も無ければ既定の [70, 90]"""
+    raw = v.get("lims") if isinstance(v.get("lims"), list) else [v.get("a", ABC_A), v.get("b", ABC_B)]
+    xs = sorted({round(min(100.0, x), 4) for x in (_float(r) for r in raw) if x is not None and x > 0})
+    return xs[:ABC_LIMS_MAX] or [ABC_A, ABC_B]
 
 
 def overlaps(a, b):

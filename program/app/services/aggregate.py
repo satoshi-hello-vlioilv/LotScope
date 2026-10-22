@@ -11,11 +11,16 @@
 表し方（show。値ごと）: ""（そのまま）・pct_total（総計に対する %）・pct_row（行の計に対する %）・pct_col（列の計に対する %）・
     cum（累計）・diff（前との差）・rank（順位。大きい順に 1〜） … 数え終えたセルの値から決める（apply_show）。
     累計・差・順位は、同じ親（1 つ上の段の鍵）の中で、行の並び（orders）の順に決める
+桁（dec。値ごと。版 3.50.1）: 小数の桁 0〜6。値は丸めず、見せる字だけをその桁にそろえる（表・グラフ・Excel の表示形式。Excel のセルの書式と同じ考え）。
+計算（expr。値ごと。版 3.50.0）: 数え終えたセルの値に四則演算を当てる（÷1000・×100・(値−10)×2 など。services/num_expr.py）。
+    小計・総計のセルにも同じ式を当てる。表し方（割合・累計など）は、計算した後の値から決める（apply_expr → apply_show）
 """
 from __future__ import annotations
 
 import math
 from collections import Counter
+
+from app.services import num_expr
 
 COUNTS = ("count", "lots")
 SIMPLE = ("sum", "avg", "min", "max", "n", "range")
@@ -29,6 +34,8 @@ SHOWS = ("", "pct_total", "pct_row", "pct_col", "cum", "diff", "rank")
 LABEL = {"count": "件数", "lots": "ロット数", "sum": "合計", "avg": "平均", "min": "最小", "max": "最大", "n": "個数", "range": "範囲",
          "sd": "標準偏差", "var": "分散", "cv": "変動係数(%)", "cpk": "Cpk", "median": "中央値", "q1": "25%点", "q3": "75%点",
          "iqr": "四分位範囲", "pct": "%点", "mode": "最頻値", "distinct": "種類の数"}
+EXPR_MAX = 60
+DEC_MAX = 6
 SHOW_LABEL = {"pct_total": "総計に対する%", "pct_row": "行の計に対する%", "pct_col": "列の計に対する%", "cum": "累計", "diff": "前との差", "rank": "順位"}
 
 
@@ -41,7 +48,7 @@ def _num(v):
 
 
 def clean(m, has_column):
-    """画面から来た値 → {agg, column, p?, lsl?, usl?, show?}。has_column(列) → その列があるか。合わなければ ValueError（理由の字）"""
+    """画面から来た値 → {agg, column, p?, lsl?, usl?, show?, expr?}。has_column(列) → その列があるか。合わなければ ValueError（理由の字）"""
     agg = str(m.get("agg") or "count")
     if agg not in AGGS:
         agg = "count"
@@ -62,6 +69,15 @@ def clean(m, has_column):
     show = str(m.get("show") or "")
     if show in SHOWS and show:
         out["show"] = show
+    expr = str(m.get("expr") or "").strip()[:EXPR_MAX]
+    if expr:
+        _fn, err, _text = num_expr.compile_expr(expr)
+        if err:
+            raise ValueError(f"「{name(out)}」の計算「{expr}」が読めません（{err}）。")
+        out["expr"] = expr
+    dec = _num(m.get("dec"))
+    if dec is not None:
+        out["dec"] = int(min(DEC_MAX, max(0, round(dec))))
     return out
 
 
@@ -69,7 +85,24 @@ def name(m):
     """値の見せる名前（件数・ロット数・〇〇の平均・〇〇の90%点・〇〇の平均（累計））"""
     agg = m["agg"]
     base = LABEL[agg] if agg in COUNTS else f"{m['column']}の{m['p'] if agg == 'pct' else ''}{LABEL[agg]}"
-    return base + (f"（{SHOW_LABEL[m['show']]}）" if m.get("show") else "")
+    return base + (f"（{SHOW_LABEL[m['show']]}）" if m.get("show") else "") + (f"［{expr_text(m['expr'])}］" if m.get("expr") else "")
+
+
+def expr_text(expr):
+    """計算の見せ方（÷1000 → 値÷1000）。画面の measLabel と同じ字"""
+    return num_expr.compile_expr(expr)[2] or str(expr)
+
+
+def apply_expr(cells, measures):
+    """計算（expr）を当てる。cells … [{r, c, v}]。数でない値（None・字）はそのまま"""
+    fns = [(j, num_expr.compile_expr(m["expr"])[0]) for j, m in enumerate(measures) if m.get("expr")]
+    fns = [(j, f) for j, f in fns if f]
+    for x in cells if fns else ():
+        for j, f in fns:
+            v = x["v"][j]
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                x["v"][j] = f(v)
+    return cells
 
 
 class Acc:

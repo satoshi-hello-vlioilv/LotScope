@@ -21,7 +21,7 @@
   const { $, $$, esc } = TPA;
   const C = window.LotListPivotCharts, P = window.DashPanels, N = window.NumFormat;
   const MAX_DIMS = 3, MAX_MEASURES = 6, MAX_GROUPS = 4, MAX_GROUP_COLS = 2;
-  const Q = window.DashFilter;
+  const Q = window.DashFilter, DND = window.PivotDnd;   // 札を引いて組み替える（版 3.50.0。pivot-dnd.js）
   const DATE_PARTS = ["date", "ym", "year", "month", "weekday", "hour", ""], NUM_PARTS = ["", "bin"], WORKDAY_PARTS = ["", "ym", "year"];
   const PART_NAME = { "": "値のまま", date: "年月日", ym: "年月", year: "年", month: "月", weekday: "曜日", hour: "時", bin: "区間" };
   const WORKDAY_NAME = { "": "日", ym: "年月", year: "年" };
@@ -222,7 +222,7 @@
   function changed(repaintFields = true) {
     syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
     const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
-    syncUnit(); paintPrev();
+    syncUnit();
     const sum = $("#dbEditor .de-fmthead small"); if (sum) sum.innerHTML = fmtSummary(p.fmt || {});   // 見出しの要約も（作った後の採点: 後ろに「本」を入れても要約が変わらなかった）
   }
   function addDim(role, col) {
@@ -498,14 +498,15 @@
     const ownList = (t.calc && t.calc.own) || [];
     const b = t.body, used = (c) => (b.rows.some((d) => d.column === c) ? "rows" : b.cols.some((d) => d.column === c) ? "cols" : "");
     const rowBtn = (c, on) => (inGroup() && !inSide() ? "<i></i>" : btn("rows", c, on, inSide() ? 'title="このデータの軸（そろえる段）にします"' : ""));
+    const dimRoles = [inGroup() && !inSide() ? "" : "rows", inSide() ? "" : "cols"].filter(Boolean), fa = DND.fieldAttrs;
     const colBtn = (c, on) => (inSide() ? "<i></i>" : btn("cols", c, on));
     const meas = (agg, col = "") => b.measures.some((m) => m.agg === agg && (m.column || "") === col);
     const ql = q.trim().toLowerCase(), hit = (n) => !ql || n.toLowerCase().includes(ql);
-    let html = special().filter((x) => hit(x.name)).map((x) => `<div class="pv-f is-special${used(x.column) ? " is-used" : ""}" title="${esc(x.hint || "")}"><span><b>${esc(x.name)}</b><small>${esc(x.hint || "")}</small></span>`
+    let html = special().filter((x) => hit(x.name)).map((x) => `<div class="pv-f is-special${used(x.column) ? " is-used" : ""}" title="${esc(x.hint || "")}"${fa(x.column, dimRoles)}><span><b>${esc(x.name)}</b><small>${esc(x.hint || "")}</small></span>`
       + `${rowBtn(x.column, used(x.column) === "rows")}${colBtn(x.column, used(x.column) === "cols")}<i></i></div>`).join("");
     if (hit("ロット数 件数")) {
-      html += `<div class="pv-f is-special${meas("lots") ? " is-used" : ""}"><span><b>ロット数</b><small>${isWork() ? "作業の数（作業開始が同じ行は 1）" : "重複の無いロット番号"}</small></span><i></i><i></i>${btn("vals", "@lots", meas("lots"))}</div>`
-        + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}"><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
+      html += `<div class="pv-f is-special${meas("lots") ? " is-used" : ""}"${fa("@lots", ["vals"])}><span><b>ロット数</b><small>${isWork() ? "作業の数（作業開始が同じ行は 1）" : "重複の無いロット番号"}</small></span><i></i><i></i>${btn("vals", "@lots", meas("lots"))}</div>`
+        + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}"${fa("@count", ["vals"])}><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
     }
     html += fields.fields.filter((f) => hit(f.column)).map((f) => {
       const c = f.column, u = used(c), anyVal = b.measures.some((m) => m.column === c);
@@ -513,7 +514,7 @@
       const sub = (f.calc ? "式の列 · " : "") + (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : `${f.kinds} 種類`);
       const tip = f.calc ? `${c}（計算列。一覧の表示列で作った式）\n${ctx.formulas[c] || ""}` : c;
       const mine = ownList.includes(c);
-      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"><span><b>${esc(c)}${f.calc ? (mine ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(c)}" title="このパネルで作った計算列。押すと直せます">式 ✎</button>` : '<small class="sx-calc">式</small>') : ""}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
+      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"${fa(c, dimRoles.concat(["vals"]))}><span><b>${esc(c)}${f.calc ? (mine ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(c)}" title="このパネルで作った計算列。押すと直せます">式 ✎</button>` : '<small class="sx-calc">式</small>') : ""}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
         + rowBtn(c, u === "rows") + colBtn(c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・中央値・標準偏差などの統計に替えられます）"')
           : btn("vals", c, anyVal, 'title="種類の数（重複の無い値の数）を値に足します"')) + "</div>";
     }).join("");
@@ -523,7 +524,7 @@
     const ps = partsOf(d.column), pn = d.column === "@workday" ? WORKDAY_NAME : d.column === "@egroup" ? { "@panel": "このパネルのグループ", "": "（まとめ方なし）" } : PART_NAME;
     const fixed = isBoard() && inGroup() && role === "rows";
     const sel = (ps.length > 1 || d.column === "@egroup") && !fixed ? `<select data-de-part="${role}" data-i="${i}" aria-label="まとめ方">${ps.map((x) => `<option value="${esc(x)}"${(d.part || "") === x ? " selected" : ""}>${esc(pn[x] || x)}</option>`).join("")}</select>` : "";
-    return `<span class="pv-chip ${role === "rows" ? "r" : "c"}${fixed ? " is-fixed" : ""}"${fixed ? ' title="行の段は表全体で 1 つです（「表全体」で変えます）"' : ""}><b>${esc(dimLabel(d))}</b>${sel}${fixed ? "" : `<button type="button" data-de-x="${role}" data-i="${i}" aria-label="「${esc(dimLabel(d))}」を外す">×</button>`}</span>`;
+    return `<span class="pv-chip ${role === "rows" ? "r" : "c"}${fixed ? " is-fixed" : ""}"${fixed ? ' title="行の段は表全体で 1 つです（「表全体」で変えます）"' : ""}${DND.chipAttrs(role, i, !fixed)}><b>${esc(dimLabel(d))}</b>${sel}${fixed ? "" : `<button type="button" data-de-x="${role}" data-i="${i}" aria-label="「${esc(dimLabel(d))}」を外す">×</button>`}</span>`;
   }
   /** 値の札: 名前・集計のしかた（よく使う／統計／種類。数でない列は種類の数だけ）・決める数（p%点の p・Cpk の規格）・表し方（割合・累計など） */
   function measChip(m, i) {
@@ -534,7 +535,7 @@
       : m.agg === "cpk" ? `<label class="de-par">下限<input type="number" step="any" value="${m.lsl ?? ""}" data-de-mlsl="${i}" aria-label="規格の下限"></label><label class="de-par">上限<input type="number" step="any" value="${m.usl ?? ""}" data-de-musl="${i}" aria-label="規格の上限"></label>` : "";
     const show = `<select class="de-show" data-de-show="${i}" aria-label="表し方" title="表し方（割合・累計・前との差・順位）">${C.SHOWS.map(([k, n]) => `<option value="${k}"${(m.show || "") === k ? " selected" : ""}>${k ? n : "表し方"}</option>`).join("")}</select>`;
     const name = m.agg === "count" ? "件数" : m.agg === "lots" ? "ロット数" : m.column;
-    return `<span class="pv-chip v"><b>${esc(name)}</b>${sel}${par}${show}${inGroup() ? "" : `<button type="button" data-de-mx="${i}" aria-label="「${esc(P.measName(m))}」を外す">×</button>`}</span>`;
+    return `<span class="pv-chip v"${DND.chipAttrs("vals", i, !inGroup())}><b>${esc(name)}</b>${sel}${par}${show}${inGroup() ? "" : `<button type="button" data-de-mx="${i}" aria-label="「${esc(P.measName(m))}」を外す">×</button>`}</span>`;
   }
   /** 稼働を見る形の数え方（行・列・値の文の代わり）: ガント＝作業終了の列・棒の色分け・棒の字／ABC＝品種の列・量・換算の基準・A と B の線 */
   function opsHtml() {
@@ -563,8 +564,7 @@
       + `<select data-de-oqcol aria-label="数の列の合計"><option value="">数の列の合計…</option>${nums.map((c) => opt(c, `${c}の合計`, qty)).join("")}</select></div>`
       + `<div class="de-row"><label class="de-l" title="換算の基準">換算基準</label><select data-de-obase aria-label="換算係数の基準">${opt("avg", "全作業の平均作業時間 ＝ 1.00", base)}${opt("top", "いちばん本数の多い品種 ＝ 1.00", base)}`
       + `${items.map((k) => opt(k, `品種「${k}」＝ 1.00`, base)).join("")}${base !== "avg" && base !== "top" && !items.includes(base) ? opt(base, `品種「${base}」＝ 1.00`, base) : ""}</select></div>`
-      + `<div class="de-row"><label class="de-l" title="ABC の線（累積構成比）">ABC線</label><label class="pv-ck">A ≦<input type="number" min="1" max="99" step="1" data-de-oa value="${o.a ?? 70}" class="de-n" aria-label="A の線（累積構成比 %）">%</label>`
-      + `<label class="pv-ck">B ≦<input type="number" min="1" max="100" step="1" data-de-ob value="${o.b ?? 90}" class="de-n" aria-label="B の線（累積構成比 %）">%</label><small class="de-hint">残りが C</small></div>`
+      + abcRow(o, a && a.kind === "abc" ? a : null)
       // 全設備の作業時間（版 3.48.0。要望 6）・表示項目（要望 5）
       + `<div class="de-row de-spanrow"><label class="de-l de-lnw" title="「全設備」の札の作業時間の取り方">全設備の時間</label>${segs("ospan", [["", "各設備の積み上げ", "作業 1 本ずつの作業時間を、全部の設備で足す（1 本＝1 作業）"], ["lead", "リードタイム", "同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（1 本＝1 ロット）"]], o.span === "lead" ? "lead" : "", "全設備の作業時間")}`
       + `<small class="de-hint">${o.span === "lead" ? "最初の作業開始〜最後の作業終了（MIN〜MAX）" : "設備ごとの作業時間の合計"}</small></div>`
@@ -576,6 +576,35 @@
       + `<p class="de-ophint">占有時間 ＝ 本数 × 平均作業。換算係数 ＝ 品種の平均作業 ÷ 基準。換算本数 ＝ 本数 × 換算係数（＝ 占有時間 ÷ 基準）。`
       + `${o.refPeriod ? "係数の期間（地点 A）を決めると、係数は A で出し、本数はパネルの期間（地点 B）で数えます（A に無い品種は 1.00）。" : "係数の期間を決めると、過去（地点 A）の係数でいまの本数を換算できます。"}</p></div>`;
   }
+  /** ABC の段（版 3.51.0。利用者の要望 2026-10-22: A・B・C の 3 つに限らない。2026-10-abcrank の 1 回目で決めた A）:
+      分け方［線で分ける｜品種ごと］と段の数。線で分けるときは、線ごとの札（段の名前 ≦ 数 % ×）と「＋ 線」、最後に「残りが 段」。
+      札の名前と色はパネルの ABC の列と同じ（DashOps.rankStyle）。品種ごとは線を隠し、段の数を出す（線は覚えていて、戻すと戻る） */
+  /** 線の並びを入れる（昇順に並べ直す。札の名前は描き直しで振り直る）。既定（70・90）なら書かない。前の a・b は捨てる */
+  function setLims(xs) {
+    const lims = [...new Set(xs.map(Number).filter((v) => v > 0 && v <= 100))].sort((x, y) => x - y).slice(0, ABC_LIMS_MAX);
+    const o = { ...(p.ops || {}) }; delete o.a; delete o.b;
+    if (lims.length && lims.join() !== "70,90") o.lims = lims; else delete o.lims;
+    p.ops = o; changed(false);
+  }
+  function abcRow(o, a) {
+    const lims = abcLims(o), each = o.rankBy === "each", n = lims.length + 1, R = window.DashOps;
+    const badge = (i, cnt) => { const r = R.rankStyle(i, cnt, R.rankName(i)); return `<b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b>`; };
+    const items = a && a.all && a.all.items ? a.all.items.length : 0;
+    const count = each ? items : n;
+    const head = `<span class="de-abchead">${segs("rankby", [["", "線で分ける", "累積構成比の線で分けます（線の数＋1 の段）"], ["each", "品種ごと", "量の大きい順に、品種 1 つずつに A, B, C … と付けます（Z の次は AA）"]], each ? "each" : "", "ABC の分け方")}`
+      + `<small class="de-hint de-abcn">${each ? `品種ごとに A, B, C …${items ? `（いま ${items} 段）` : ""}` : `${n} 段（A〜${R.rankName(n - 1)}）`}</small>`
+      // 読めない線の知らせは段の数のすぐ横（線が多くて札が長くなっても、見える所に出す）
+      + `${each ? "" : '<small class="de-limerr" data-de-limerr role="status"></small>'}</span>`;
+    const lines = each ? "" : `<span class="de-lims">${lims.map((v, i) => `<span class="de-lim">${badge(i, count)}<span aria-hidden="true">≦</span>`
+      + `<input type="number" min="0.1" max="100" step="any" data-de-lim="${i}" value="${+v}" class="de-n de-limn" aria-label="${R.rankName(i)} の線（累積構成比 %）">%`
+      + `${lims.length > 1 ? `<button type="button" class="de-limx" data-de-limx="${i}" title="${R.rankName(i)} の線（${+v}%）を外す" aria-label="${R.rankName(i)} の線（${+v}%）を外す">×</button>` : ""}</span>`).join("")}`
+      + `${lims[lims.length - 1] < 100 && lims.length < ABC_LIMS_MAX ? '<button type="button" class="de-limadd" data-de-limadd title="最後の線と 100% の中ほどに線を足します（段が 1 つ増えます）">＋ 線</button>' : ""}`
+      + `<span class="de-lim de-limrest"><small>残りが</small>${badge(n - 1, count)}</span></span>`;
+    return `<div class="de-row de-abcrow" data-de-abcrow><label class="de-l" title="ABC の段の分け方">ABC</label><div class="de-abcbox">${head}${lines}</div></div>`;
+  }
+  /** ABC の線（版 3.51.0。前に保存した a・b は線の並びとして読む） */
+  const abcLims = (o) => { const xs = Array.isArray(o.lims) && o.lims.length ? o.lims : [o.a ?? 70, o.b ?? 90]; return [...new Set(xs.map(Number).filter((v) => v > 0 && v <= 100))].sort((x, y) => x - y); };
+  const ABC_LIMS_MAX = 50;
   /** 品種の列（版 3.47.0。要望 3）: 選んだ列の札（× で外す・左右で順を替える）と「＋ 組み合わせる列」。1 つなら今までと同じ */
   function clsRow(few) {
     const cls = clsOf(p), rest = few.filter((c) => !cls.includes(c));
@@ -585,6 +614,29 @@
       + `${`<option value="">${cls.length ? "＋ 組み合わせる列" : "（品種の列を選ぶ）"}</option>`}${rest.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select>` : "";
     return `<div class="de-row de-clsrow"><label class="de-l">品種</label><span class="de-clss">${chips}${add}</span>`
       + `<small class="de-hint">${cls.length > 1 ? `${cls.length} つの列の値の組み合わせで分けます` : "何ごとに分けるか（合金・板厚の区分など。計算列も使えます。2 つ以上選ぶと組み合わせ）"}</small></div>`;
+  }
+  /** 行と列を入れ替える札（版 3.50.0。一覧の集計表と同じ。合わせた表のまとまり・合わせるデータ・数字には無い） */
+  const swapBtn = () => (inGroup() ? "" : `<button type="button" class="pv-swap" aria-label="行と列を入れ替える" data-de-swap${t.body.cols.length ? "" : " disabled"} title="${t.body.cols.length ? "行の段と列の段を入れ替えます" : "列に段を入れると、行と入れ替えられます"}"><i aria-hidden="true">⇄</i><span class="pv-swl">入れ替え</span></button>`);
+  /** 値の計算の段（版 3.50.0。要望 2。pivot-calc.js。一覧の集計表と同じ部品）: 文のすぐ下。値ごとの四則演算（合わせた表のまとまり・合わせるデータでも） */
+  function calcBand() {
+    if (isOps(p) && !inGroup()) return "";
+    const a = host && host.answer ? host.answer() : null;
+    if (a && a.cells) window.PivotCalc.remember(a, a.measures);
+    return window.PivotCalc.html(t.body.measures, { name: (m) => P.measName({ ...m, expr: undefined }), answer: a && a.cells && !inGroup() && !inSide() ? a : null, num: (v, m) => C.numText(v, C.measFmt(p.fmt || {}, m)) });
+  }
+  /** 答えが届いたら、段の変わり方（総計）だけを描き直す（打っている欄はそのまま） */
+  function paintCalc0() {
+    const se = $("#deSent"), bd = se && se.querySelector(".pc-band");
+    if (bd) window.PivotCalc.keepFocus(se, () => { const x = document.createElement("div"); x.innerHTML = calcBand(); bd.replaceWith(x.firstElementChild || ""); });
+  }
+  /** 前の版の書式の「計算」（fmt.expr。パネル全体に 1 つ）を、値ごとの計算へ移す（計算の無い値に同じ式。版 3.50.0） */
+  function moveCalc(x) {
+    const ex = x.fmt && x.fmt.expr;
+    if (!ex) return;
+    const lists = x.visual === "board" ? (x.groups || []).map((g) => [g.measure].filter(Boolean)) : x.link ? (x.link.sides || []).map((y) => [y.measure].filter(Boolean)) : [(x.body || {}).measures || []];
+    lists.forEach((ms) => ms.forEach((m) => { if (!m.expr) m.expr = ex; }));
+    const fm = { ...x.fmt }; delete fm.expr;
+    if (Object.keys(fm).length) x.fmt = fm; else delete x.fmt;
   }
   function sentenceHtml() {
     if (isOps(p) && !inGroup()) return opsHtml();
@@ -596,7 +648,7 @@
     const sub = !inGroup() && !isLink() && p.visual === "none" && (b.rows || []).length > 1
       ? `<div class="de-subrow"><label class="pv-ck" title="行の段の上の段ごとに小計の行を出します"><input type="checkbox" data-de-sub${b.sub ? " checked" : ""}>${esc(dimLabel(b.rows[0]))}ごとの小計を出す</label></div>` : "";
     return `<div class="pv-sent de-sent">${kpi ? '<span class="pv-w">全体の</span>' : `${slot("rows", b.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］")}<span class="pv-w">ごとに、</span>`
-      + `${slot("cols", b.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`}`
+      + `${swapBtn()}${slot("cols", b.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`}`
       + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>${sub}`;
   }
   /** 形の札（版 3.39.0 で 25。目的の行に並べる: 数と表・推移を見る・比べる・内訳・ばらつき・関係。集計表のグラフの形の面と同じまとまり）。
@@ -765,7 +817,6 @@
     if (fm.xdate) out.push(`日付 ${(XDATES.find((x) => x[0] === fm.xdate) || ["", ""])[1]}`);
     if (fm.num) out.push(numWords(fm));
     else if (fm.digits != null || fm.unit) out.push("数の形");
-    if (fm.expr) out.push(`計算 ${N.expr(fm.expr).text || fm.expr}`);
     if (fm.utext != null) out.push(fm.utext ? `単位「${fm.utext}」` : "単位なし");
     if (fm.align || fm.valign) out.push("配置");
     if (fm.nsize || fm.bold || fm.ncolor) out.push("字");
@@ -784,7 +835,7 @@
       + (label2 ? `<span class="de-gl de-gl2">${label2}</span><span class="de-gc">${ctl2}</span>` : '<span class="de-gfill"></span>');
     const wide = (label, ctl) => `<span class="de-gl">${label}</span><span class="de-gc de-gwide">${ctl}</span>`;
     const head = `<div class="de-nsbox"><b>見本</b><span id="deNumSample">${numSample(fm)}</span></div>`
-      + `<div class="de-ngrid">${calcRows(fm, wide, pair)}${wide("表示形式", segs("fncat", N.CATS, cat, "表示形式の分類"))}`;
+      + `<div class="de-ngrid">${calcRows(fm, wide)}${wide("表示形式", segs("fncat", N.CATS, cat, "表示形式の分類"))}`;
     if (!cat) return head + pair("単位", sel("unit", UNITS, fm.unit || "", "単位"), "小数", digits) + "</div>";
     const decSel = sel("ndec", [0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), n ? `${n} 桁` : "整数"]), String(ui.dec ?? 0), "小数の桁");
     const divSel = sel("unit", DIVS, fm.unit && fm.unit !== "none" ? fm.unit : "", "千・万で割る（千・万・百万・億）");
@@ -809,18 +860,13 @@
     const pre = txt("pre", cat === "cur" ? ui.pre ?? "¥" : ui.pre, cat === "cur" ? "¥" : "例: 約", "数の前に付ける字");
     return out + (p.visual === "kpi" ? pair("前に", pre) : pair("前に", pre, "後ろに", txt("suf", ui.suf, "例: 本・kg・件", "数の後ろに付ける字（単位）"))) + "</div>";
   }
-  /** 計算と単位（版 3.45.0。利用者の要望 3）: 計算 … 数に四則演算（値÷1000・値×100 など。合わせた表は行ごとに数える物が違うので出さない）・
-      単位 … 数字の後ろに添える字（数字の形だけ。いまの字をそのまま欄に出し、直すとその字に。空にすると出さない・「自動に戻す」で本・ロット・件） */
-  function calcRows(fm, wide, pair) {
-    if (isBoard()) return "";
-    const ex = N.expr(fm.expr || ""), auto = P.autoUnit({ ...p, fmt: { ...fm, utext: undefined } }, (p.body && p.body.measures || [])[0] || { agg: "lots" });
-    const calc = `<span class="de-fcalc"><input class="de-ntx de-cin${ex.error ? " is-bad" : ""}" data-de-fexpr value="${esc(fm.expr || "")}" maxlength="60" spellcheck="false" placeholder="例: ÷1000・×100・(値−10)×2" aria-label="数の計算（四則演算）">`
-      + `<span class="de-cprev" id="deCalcPrev" aria-live="polite">${calcPrev(fm, ex.fn)}</span>`
-      + `<span class="de-cex">${["÷1000", "×100", "÷60"].map((c) => `<button type="button" class="de-chip" data-de-fexq="${c}" title="${c} にする">${c}</button>`).join("")}</span>`
-      + `<small class="de-hint de-cmsg" id="deCalcMsg">${ex.error ? `<em class="de-nwarn">${esc(ex.error)}</em>` : ex.text ? `${esc(ex.text)} を出します` : "演算子から書くと前に値が入ります（÷1000 ＝ 値÷1000）"}</small></span>`;
-    const unit = p.visual === "kpi" ? `<span class="de-unit"><input class="de-ntx" data-de-futext value="${esc(fm.utext ?? ((fm.numUi && fm.numUi.suf) || auto))}" maxlength="12" placeholder="${unitHint(fm)}" aria-label="数字の後ろに添える単位">`
-      + unitSide(fm, auto) + "</span>" : "";
-    return wide('<span class="de-gtop">計算</span>', calc) + (unit ? wide("単位", unit) : "");
+  /** 単位（版 3.45.0。利用者の要望 3）: 数字の後ろに添える字（数字の形だけ。いまの字をそのまま欄に出し、直すとその字に。空にすると出さない・
+      「自動に戻す」で本・ロット・件）。計算（四則演算）は版 3.50.0 から値ごとに、② 数え方の「値の計算」の段で決める（pivot-calc.js） */
+  function calcRows(fm, wide) {
+    if (isBoard() || p.visual !== "kpi") return "";
+    const auto = P.autoUnit({ ...p, fmt: { ...fm, utext: undefined } }, (p.body && p.body.measures || [])[0] || { agg: "lots" });
+    return wide("単位", `<span class="de-unit"><input class="de-ntx" data-de-futext value="${esc(fm.utext ?? ((fm.numUi && fm.numUi.suf) || auto))}" maxlength="12" placeholder="${unitHint(fm)}" aria-label="数字の後ろに添える単位">`
+      + unitSide(fm, auto) + "</span>");
   }
   /** 単位の欄の薄い字: 表示形式に字（後ろに「本」など）があれば、そちらを使っていると言う */
   const unitHint = (fm) => (fm.num && N.hasLiteral(fm.num) ? "（表示形式の字を使っています）" : "（出さない）");
@@ -830,16 +876,6 @@
     if (!u || fm.utext != null || document.activeElement === u) return;
     u.value = P.autoUnit({ ...p, fmt: { ...fm, utext: undefined } }, (p.body.measures || [])[0] || { agg: "lots" }); u.placeholder = unitHint(fm);
   }
-  /** 計算の変わり方（2026-10-dashedit の 3 回目で決めた E3）: いまの数 → 計算した数 を、表示形式の形で欄のすぐ横に（どう変わるかを見せる） */
-  function calcPrev(fm, fn) {
-    const d = host.answer && host.answer(), c0 = d && d.cells && d.cells.find((x) => !x.r.length && !x.c.length);
-    const raw = c0 && typeof c0.v[0] === "number" ? c0.v[0] : null;
-    if (raw == null) return "";
-    const f = { ...fm }; delete f.expr;
-    const to = fn ? fn(raw) : null;
-    return `${esc(C.numText(raw, f))}<i aria-hidden="true">→</i>${fn ? (to == null ? "–" : esc(C.numText(to, f))) : '<small>計算なし</small>'}`;
-  }
-  const paintPrev = (fn) => { const el = $("#deCalcPrev"); if (el) el.innerHTML = calcPrev(p.fmt || {}, fn === undefined ? N.expr((p.fmt || {}).expr || "").fn : fn); };
   const unitSide = (fm, auto) => (fm.utext != null ? `<button type="button" class="de-link" data-de-futextx title="データに合わせた単位（${esc(auto || "なし")}）に戻す">自動に戻す</button>` : '<small class="de-hint">自動</small>');
   /** 見本: いまの答えの数（無ければ 1234.5）と、負の数・0 を、いまの表示形式で（表: いまの数・負の数・0） */
   function numSample(fm) {
@@ -1129,7 +1165,7 @@
       el.innerHTML = '<i class="de-wgrip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="組む所の幅" title="引いて組む所の幅を変える（← → でも。ダブルクリックで元の幅）"></i>'
         + `<div class="de-head" data-drag><b>パネルを組む</b><input id="deTitle" class="de-title" autocomplete="off" aria-label="題" maxlength="60">`
         + `<span class="db-sp"></span><button type="button" class="btn-ghost" data-de-cancel>やめる</button><button type="button" class="btn-primary" data-de-apply>当てる</button></div>`
-        + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields"><div class="pv-cap"><b>カラム</b><button type="button" class="de-fitbtn" data-de-fitcols title="いちばん長いカラム名が 1 行で入る幅に、カラムの欄を広げます（境を引いても変えられます）">⇔ 名前に合わせる</button><small>札を押すと右の文に入ります（もう一度押すと外れます）</small></div>`
+        + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields" data-dnd-trash><div class="pv-cap"><b>カラム</b><button type="button" class="de-fitbtn" data-de-fitcols title="いちばん長いカラム名が 1 行で入る幅に、カラムの欄を広げます（境を引いても変えられます）">⇔ 名前に合わせる</button><small>札を押すか、右の文へ引くと入ります（文の札は引いて並べ替え・行と列の入れ替え。ここへ戻すと外れます）</small></div>`
         + `<div class="de-fsearch"><input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><button type="button" class="pv-btn de-calcbtn" data-de-calcnew title="式から列を作り、このパネルで使います">＋ 計算列</button></div><div class="pv-list" id="deFields"></div></aside>`
         + '<i class="de-split" role="separator" aria-orientation="vertical" tabindex="0" aria-label="カラムの欄の幅" title="引いてカラムの欄の幅を変える（← → でも。ダブルクリックで元の幅）"></i>'
         // 流れの順に 4 段（2026-10-dashmore の 3 回目で決めた S3）: ① データ ② 数え方 ③ 形 ④ 見せ方・書式。段の見出しに番号（合わせた表は札で切り替えるので出さない）
@@ -1162,7 +1198,7 @@
     if (!whole) {
       if (repaintFields) $("#deFields").innerHTML = fieldsHtml();
       $("#deData").innerHTML = dataHtml();
-      $("#deSent").innerHTML = sentenceHtml();
+      const se = $("#deSent"); window.PivotCalc.keepFocus(se, () => { se.innerHTML = sentenceHtml() + calcBand(); });
       if (!typingIn("#deCond")) $("#deCond").innerHTML = condHtml();
       $("#deSort").innerHTML = sortHtml();
     }
@@ -1176,7 +1212,37 @@
   }
   function message(text) { const m = $("#deMsg"); if (m) m.textContent = text || ""; }
 
+  /** 札を引いて組み替える（版 3.50.0。要望 1）: 組む物（t）の行・列・値。合わせた表のまとまり・合わせるデータは、置ける数（max）と所（canDrop）で縛る */
+  function bindDnd(el) {
+    DND.attach(el, {
+      lists: () => ({ rows: t.body.rows, cols: t.body.cols, vals: t.body.measures }),
+      get max() { return inSide() ? { rows: 1, cols: 0, vals: 1 } : inGroup() ? { rows: 1, cols: MAX_GROUP_COLS, vals: 1 } : { rows: MAX_DIMS, cols: MAX_DIMS, vals: MAX_MEASURES }; },
+      canDrop: (role) => !!p && !isOps(p) && !(role === "rows" && inGroup() && !inSide()) && !(role === "cols" && inSide()),
+      canDrag: () => !!p && !isOps(p),
+      itemOf: (col, role) => (role === "vals" ? (col === "@lots" ? { agg: "lots" } : col === "@count" ? { agg: "count" } : isNum(col) ? { agg: "sum", column: col } : { agg: "distinct", column: col }) : { column: col, part: defaultPart(col) }),
+      commit: (L, msg) => {
+        const hadRows = t.body.rows.length;
+        t.body.rows = L.rows; t.body.cols = L.cols; t.body.measures = L.vals.length ? L.vals : [{ agg: "lots" }];
+        if (t.visual === "kpi" && L.rows.length && !hadRows) t.visual = C.isTimeDim(L.rows[0]) ? "time" : "column";   // 行を入れたら数字はグラフに（押して足すのと同じ）
+        changed(); if (msg) host.toast(msg);
+      },
+      toast: (x) => host.toast(x),
+    });
+    window.PivotCalc.bind(el, (i, v) => {
+      const m = t && t.body.measures[i]; if (!m) return "";
+      const txt = String(v || "").trim(), ex = N.expr(txt);
+      if (txt && ex.error) return ex.error;
+      if ((m.expr || "") === txt) return "";
+      if (txt) m.expr = txt; else delete m.expr;
+      changed(false); return "";
+    }, (i, dec) => {                       // 値の桁（版 3.50.1）
+      const m = t && t.body.measures[i]; if (!m) return;
+      if (dec == null || dec === "") delete m.dec; else m.dec = Math.max(0, Math.min(6, +dec));
+      changed(false);
+    });
+  }
   function bind(el) {
+    bindDnd(el);
     el.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b || !p) return;
       if (b.hasAttribute("data-de-cancel")) { host.onCancel(); return; }
@@ -1217,7 +1283,6 @@
       if (b.dataset.deNex != null) { setNum({ cat: "custom", code: b.dataset.deNex }); return; }
       if (b.hasAttribute("data-de-fncolorx")) { setFmt("ncolor", ""); return; }
       if (b.hasAttribute("data-de-fitcols")) { fitColumns(); return; }
-      if (b.dataset.deFexq) { setFmt("expr", b.dataset.deFexq); $("#deFmt").innerHTML = fmtHtml(); return; }
       if (b.hasAttribute("data-de-futextx")) { setFmt("utext", ""); $("#deFmt").innerHTML = fmtHtml(); return; }
       if (b.dataset.dePal != null) { setFmt("palette", b.dataset.dePal); return; }
       if (b.dataset.deSerx != null) {
@@ -1245,6 +1310,14 @@
         if (o.color === c) delete o.color; else o.color = c;
         p.ops = o; changed(); return;
       }
+      if (b.hasAttribute("data-de-limadd")) {     // 線を足す（版 3.51.0）: 最後の線と 100% の中ほど。足した欄に焦点を移す
+        const xs = abcLims(p.ops || {}), last = xs[xs.length - 1], v = Math.round(((last + 100) / 2) * 10) / 10;
+        if (v <= last || v > 100) return;
+        setLims(xs.concat([v]));
+        const k = xs.length; requestAnimationFrame(() => { const f = $(`[data-de-lim="${k}"]`); if (f) { f.focus(); f.select(); } });
+        return;
+      }
+      if (b.dataset.deLimx != null) { const xs = abcLims(p.ops || {}); xs.splice(+b.dataset.deLimx, 1); setLims(xs); return; }
       if (b.dataset.deClsx != null) { const cls = clsOf(p); cls.splice(+b.dataset.deClsx, 1); setCls(cls, true); return; }
       if (b.dataset.deClsl != null) { const cls = clsOf(p), i = +b.dataset.deClsl; [cls[i - 1], cls[i]] = [cls[i], cls[i - 1]]; setCls(cls, true); return; }
       if (b.dataset.deAdd) {
@@ -1253,6 +1326,7 @@
         else addDim(role, col);
         return;
       }
+      if (b.hasAttribute("data-de-swap")) { const r = t.body.rows; t.body.rows = t.body.cols; t.body.cols = r; changed(); return; }
       if (b.dataset.deX) { t.body[b.dataset.deX].splice(+b.dataset.i, 1); changed(); return; }
       if (b.dataset.deMx != null) { t.body.measures.splice(+b.dataset.deMx, 1); if (!t.body.measures.length) t.body.measures = [{ agg: "lots" }]; changed(); return; }
       if (b.dataset.deVis) { setVisual(b.dataset.deVis); return; }
@@ -1310,9 +1384,14 @@
       if (x.matches("[data-de-oqty]")) { setOps("qty", x.value); return; }
       if (x.matches("[data-de-oqcol]")) { if (x.value) setOps("qty", x.value); return; }
       if (x.matches("[data-de-obase]")) { setOps("base", x.value === "avg" ? "" : x.value); return; }
-      if (x.matches("[data-de-oa],[data-de-ob]")) {
-        const a = Math.max(1, Math.min(99, +($("[data-de-oa]") || {}).value || 70)), b = Math.max(a, Math.min(100, +($("[data-de-ob]") || {}).value || 90));
-        p.ops = { ...(p.ops || {}), a, b }; changed(false); return;
+      if (x.matches("[data-de-rankby]")) { setOps("rankBy", x.value === "each" ? "each" : ""); return; }
+      if (x.matches("[data-de-lim]")) {         // 線の数（版 3.51.0）: 0 より大きく 100 以下・同じ線は 2 本置かない。読めなければ欄を赤くして字で知らせ、当てない
+        const vs = [...document.querySelectorAll("[data-de-lim]")].map((y) => +y.value), v = +x.value, i = +x.dataset.deLim;
+        const why = !(v > 0 && v <= 100) ? "線は 0 より大きく 100 以下の % で書きます" : vs.some((w, j) => j !== i && w === v) ? `${v}% の線はもうあります` : "";
+        x.classList.toggle("is-bad", !!why); x.setAttribute("aria-invalid", why ? "true" : "false");
+        const er = $("[data-de-limerr]"); if (er) er.textContent = why;
+        if (why) return;
+        setLims(vs); return;
       }
       if (x.matches("[data-de-pfrom],[data-de-pto]")) { t.period[x.matches("[data-de-pfrom]") ? "from" : "to"] = x.value; changed(false); return; }
       if (x.matches("[data-de-pn]")) { t.period.n = Math.max(1, Math.min(3660, +x.value || 7)); changed(false); return; }
@@ -1422,16 +1501,6 @@
       // 書式コードを打つ間は、見本だけをその場で替える（欄は作り直さない。確かめて当てるのは change）
       // 前後の字・書式コードは打つ間に当てる（パネルも見本もその場で変わる。数は引き直さない）
       const nt = e.target;
-      // 計算（版 3.45.0）: 打つ間に式を確かめ、読める式（か空）なら当てる。読めない式は知らせだけ（パネルは前の式のまま）
-      if (nt.matches("[data-de-fexpr]")) {
-        const ex = N.expr(nt.value), msg = $("#deCalcMsg");
-        nt.classList.toggle("is-bad", !!ex.error);
-        if (msg) msg.innerHTML = ex.error ? `<em class="de-nwarn">${esc(ex.error)}</em>` : ex.text ? `${esc(ex.text)} を出します` : "演算子から書くと前に値が入ります（÷1000 ＝ 値÷1000）";
-        if (!ex.error) paintPrev(ex.fn);
-        clearTimeout(numTimer);
-        if (!ex.error) numTimer = setTimeout(() => setFmt("expr", nt.value.trim()), 250);
-        return;
-      }
       // 単位: 自動の字と同じなら自動のまま（覚えない）・空なら単位を出さない
       if (nt.matches("[data-de-futext]")) {
         clearTimeout(numTimer);
@@ -1604,6 +1673,7 @@
         const e = x.equip && x.source === "work" ? ((srcOf("work") || {}).equips || []).find((y) => y.key === x.equip) : null;
         if (e) { x.equips = [e.name]; x.equip = ""; }
       });
+      moveCalc(p);
       eqOpen = false; eqItems = null; eqKey = ""; eoAll = null; eoKey = ""; calcEdit = null;
       const el = $("#dbEditor");
       if (!el.dataset.bound) { bind(el); bindSize(el); el.dataset.bound = "1"; }
@@ -1623,7 +1693,7 @@
     answered() {
       if (isBoard() && gi < 0) paint(false);
       else if (!typingIn("#deFmt") && $("#deFmt")) $("#deFmt").innerHTML = fmtHtml();   // 系列の名前と描いた色（描き終えてから分かる）
-      else paintPrev();                                                                   // 打っている間も、計算の変わり方は今の答えで
+      else paintCalc0();                                                                   // 値の計算の変わり方（総計）は今の答えで
     },
     message, autoTitle,
     setSources(list) { sources = list || []; },
