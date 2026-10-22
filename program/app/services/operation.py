@@ -453,8 +453,31 @@ def cls_list(cls):
     return [x for x in dict.fromkeys(str(c or "").strip() for c in xs) if x][:MAX_CLS]
 
 
-def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0)):
-    """作業の並び → 品種ごとの {key, parts（列ごとの値）, lots, timed, minutes（作業時間の合計）, avg（1 本の平均作業時間）, qty, share, cum, rank（A/B/C）, factor, conv}。
+def rank_name(i):
+    """段の番号（0 から）→ 段の名前 A, B, …, Z, AA, AB, …（Excel の列の名前と同じ数え方。数に上限なし）"""
+    out = ""
+    i += 1
+    while i > 0:
+        i, r = divmod(i - 1, 26)
+        out = chr(65 + r) + out
+    return out
+
+
+def rank_of(i, cum, limits, each=False):
+    """量の大きい順で i 番目（0 から）・累積構成比 cum の品種の段の番号。
+    each … 品種ごと（1 品種＝1 段。A, B, C, … と上限なく）。それ以外は累積構成比の線 limits（昇順。いくつでも）で分け、
+    1 本目の線までを A・2 本目までを B … 最後の線の後を次の段に（線が 2 本なら今までの A・B・C）。いちばん大きい品種は、それだけで線を超えても A"""
+    if each:
+        return i
+    if i == 0:
+        return 0
+    return next((j for j, lim in enumerate(limits) if cum <= lim + 1e-9), len(limits))
+
+
+def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0), each=False):
+    """作業の並び → 品種ごとの {key, parts（列ごとの値）, lots, timed, minutes（作業時間の合計）, avg（1 本の平均作業時間）, qty, share, cum, rank（A・B・C・D…）, ri（段の番号）, factor, conv}。
+    段（版 3.51.0。利用者の要望 2026-10-22: A・B・C の 3 つに限らない）… limits は累積構成比の線をいくつでも（線の数＋1 の段）。each なら品種ごとに 1 段。
+    答えの ranks … 線で分けたときの線と段の数（{each, lims, count}）。
     量の大きい順。lots は作業の本数（分割ロットは 1）。avg・factor は作業時間が分かる作業だけで出す。
     cls … 品種の列。列の並びなら、その値の組み合わせ（合金 × 調質 など。版 3.47.0）を 1 つの品種とする。
     答えの noEnd・why … 作業時間の分からない本数と理由（換算係数に入らない作業。黙って捨てない）。
@@ -482,14 +505,14 @@ def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0)):
         x["qty"] = x["lots"] if qty == "lots" else (x["occ"] or 0.0) if qty == "time" else x["sum"]
     items.sort(key=lambda x: (-x["qty"], x["key"]))
     total = sum(x["qty"] for x in items)
-    a_lim, b_lim = limits
+    lims = sorted(float(x) for x in limits)
     run = 0.0
     for i, x in enumerate(items):
         run += x["qty"]
         x["share"] = round(x["qty"] / total * 100, 4) if total else 0.0
         x["cum"] = round(run / total * 100, 4) if total else 0.0
-        # 累積構成比が A の線までを A・B の線までを B・残りを C（いちばん大きい品種は、それだけで線を超えても A）
-        x["rank"] = "A" if i == 0 or x["cum"] <= a_lim + 1e-9 else "B" if x["cum"] <= b_lim + 1e-9 else "C"
+        x["ri"] = rank_of(i, x["cum"], lims, each)
+        x["rank"] = rank_name(x["ri"])
     lots_all, occ_all = sum(x["lots"] for x in items), sum(x["occ"] or 0.0 for x in items)
     for x in items:
         x["lotShare"] = round(x["lots"] / lots_all * 100, 4) if lots_all else 0.0
@@ -514,7 +537,8 @@ def abc(ops, cls, qty="lots", base="avg", limits=(70.0, 90.0)):
         x.pop("sum", None)
     return {"items": items, "total": total, "base": {"minutes": round(ref, 2) if ref else None, "name": ref_name},
             "conv": round(sum(x["conv"] or 0 for x in items), 4), "lots": lots_all, "occ": round(occ_all, 2),
-            "noEnd": sum(1 for o in ops if minutes(o) is None), "why": reasons(ops), "cls": cols}
+            "noEnd": sum(1 for o in ops if minutes(o) is None), "why": reasons(ops), "cls": cols,
+            "ranks": {"each": bool(each), "lims": [] if each else lims, "count": len(items) if each else len(lims) + 1}}
 
 
 # ---------------------------------------------------------------- 地点 A の換算係数で地点 B を換算する（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 3）

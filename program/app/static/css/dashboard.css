@@ -771,7 +771,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-table th[scope=row],.oa-table thead th:first-child{text-align:left;max-width:12em;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
 .oa-cum{display:inline-block;width:38px;height:6px;border-radius:3px;background:#e3e8ea;margin-right:5px;vertical-align:1px;overflow:hidden}
 .oa-cum i{display:block;height:100%}
-.oa-rank{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:16px;border-radius:4px;background:var(--rc);color:var(--rf,#fff);font-size:11.5px;font-weight:700}
+.oa-rank{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:16px;padding:0 3px;box-sizing:border-box;border-radius:4px;background:var(--rc);color:var(--rf,#fff);font-size:11.5px;font-weight:700}
 .oa-nend{color:#7a4310;font-weight:700}
 .oa-wrap.no-x1 .oa-x1,.oa-wrap.no-x2 .oa-x2,.oa-wrap.no-x3 .oa-x3,.oa-wrap.no-x4 .oa-x4{display:none}
 .oa-table td.is-up{color:#7a4310;font-weight:700}

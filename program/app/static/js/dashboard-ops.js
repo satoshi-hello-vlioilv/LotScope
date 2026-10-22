@@ -12,6 +12,21 @@
   const WORK = "#2f7d78";
   // ABC は順位なので 1 つの色（藍）の濃淡（A＝濃い → C＝淡い。字は A・B が白・C が墨）。ガントの色分けとは色を分ける（同じ色で別の意味にしない: 2026-10-ops の 1 回目の採点）
   const RANK = { A: { c: "#24446a", n: "A", f: "#fff" }, B: { c: "#4d6e96", n: "B", f: "#fff" }, C: { c: "#c3ccd5", n: "C", f: "#1b2733" } };
+  /* 段は A・B・C に限らない（版 3.51.0。利用者の要望 2026-10-22）: 段の数（ranks.count）に合わせて、同じ藍の濃淡を A（濃い）→ 最後（淡い）に割り振る。
+     3 段なら今までの 3 色。4 段以上は A → B の色 → C の色を 2 つの区間で等分する。字は地との差（明るさ）で白か墨 */
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const mix = (a, b, t) => "#" + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, "0")).join("");
+  const lum = (h) => hex(h).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const STOPS = [RANK.A.c, RANK.B.c, RANK.C.c].map(hex);
+  function rankStyle(ri, count, name) {
+    if (count <= 3) { const r = [RANK.A, RANK.B, RANK.C][Math.min(ri, 2)] || RANK.C; return { ...r, n: name || r.n }; }
+    const t = Math.min(1, ri / (count - 1)), c = t <= 0.5 ? mix(STOPS[0], STOPS[1], t * 2) : mix(STOPS[1], STOPS[2], (t - 0.5) * 2);
+    return { c, n: name, f: 1.05 / (lum(c) + 0.05) >= 4.5 ? "#fff" : "#1b2733" };
+  }
+  /** 答えの段の決まり（無ければ今までの A 70%・B 90%） */
+  const ranksOf = (cur, o) => cur.ranks || { each: o.rankBy === "each", lims: o.lims || [o.a || 70, o.b || 90], count: o.rankBy === "each" ? (cur.items || []).length : (o.lims || [0, 0]).length + 1 };
+  const qWordOf = (q) => (q === "lots" ? "本数" : q === "time" ? "負荷" : `${q}`);
+  const rankName = (i) => { let s = ""; for (i += 1; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s; return s; };
   // ガントの棒の色分け: 白い字が 4.5 以上で読める濃さ（琥珀 #c27a1e は 3.4 で読みにくかった）。藍は ABC の色なので使わない
   const CATS = ["#9a5f12", "#0f6f63", "#5e46a8", "#4a7318", "#953f68", "#5a6f77", "#7a5410", "#2f5f7a"];
   const ms = (s) => Date.parse(String(s).replace(" ", "T"));
@@ -171,6 +186,9 @@
     // 表示項目（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 5）: 組む所で出さないと決めた項目（o.hide）は列・図・下の段から外す。
     // ABC（rank）を出さなければ、棒・累積の帯は 1 つの色で、A・B の線も引かない
     const off = new Set(o.hide || []), show = (k) => !off.has(k), plain = RANK.B;
+    const RK = ranksOf(cur, o), rs = (x) => rankStyle(x.ri ?? Math.max(0, "ABC".indexOf(x.rank)), RK.count, x.rank);
+    const rankTip = RK.each ? `${qWordOf(q)}の大きい順に、品種ごとに A・B・C …（${RK.count} 段）`
+      : `${qWordOf(q)}の累積構成比で ${RK.lims.map((v, i) => `${rankName(i)}（〜${+v}%）`).join("・")}・${rankName(RK.lims.length)}（残り）`;
     const lead = want === "" && d.span === "lead";       // 全設備のリードタイム（版 3.48.0。要望 6）: 1 本＝1 ロット・作業時間＝最初の作業開始〜最後の作業終了
     // 列（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 2）: 負荷を見積もる流れの順に 本数 → 平均作業（平均 LT）→ 占有時間（本数 × 平均）→ 構成比（本数・負荷）
     // → 累積と ABC（並べた量で）→ 換算係数（平均 ÷ 基準）→ 換算本数（本数 × 係数 ＝ 占有時間 ÷ 基準）。前は量の列 1 つだけで、量を作業時間にすると
@@ -180,7 +198,7 @@
     const inH = items.some((x) => x.avg != null && x.avg >= 600);
     const dur = (m) => (m == null ? "–" : inH ? `${(m / 60).toFixed(1)}h` : `${m.toFixed(1)} 分`);
     const hrs = (m) => (m == null ? "–" : `${(m / 60).toLocaleString("ja-JP", { maximumFractionDigits: m >= 6000 ? 0 : 1 })}h`);
-    const lt = lead ? "平均 LT" : "平均作業", qWord = q === "lots" ? "本数" : q === "time" ? "負荷" : `${q}`;
+    const lt = lead ? "平均 LT" : "平均作業", qWord = qWordOf(q);
     const COLS = [
       q !== "lots" && q !== "time" ? ["qty", `<th scope="col" title="ABC の並びに使う量">${esc(qtyName(q))}</th>`, (x) => `<td>${qtyText(q, x.qty)}</td>`] : null,
       ["lots", `<th scope="col" title="${lead ? "同じロット番号を 1 本と数えます（全設備のリードタイム）" : "作業の本数（分割したロットは 1 本）"}">${lead ? "ロット数" : "本数"}</th>`, (x) => `<td>${x.lots.toLocaleString("ja-JP")}</td>`],
@@ -189,7 +207,7 @@
       ["share", `<th scope="col" class="oa-x1" title="${lead ? "ロット数" : "本数"}の構成比">本数比</th>`, (x) => `<td class="oa-x1">${(x.lotShare ?? x.share).toFixed(1)}%</td>`],
       ["lshare", '<th scope="col" class="oa-x3" title="占有時間の構成比（負荷の割合。本数比と比べると、手間のかかる品種が分かる）">負荷比</th>', (x) => `<td class="oa-x3${x.occShare - (x.lotShare ?? 0) >= 2 ? " is-up" : ""}">${(x.occShare ?? 0).toFixed(1)}%</td>`],
       ["cum", `<th scope="col" title="${qWord}の累積構成比（ABC の分け方）">累積（${qWord}）</th>`, (x, r) => `<td><span class="oa-cum oa-x2"><i style="width:${Math.min(100, x.cum)}%;background:${show("rank") ? r.c : plain.c}"></i></span>${x.cum.toFixed(1)}%</td>`],
-      ["rank", `<th scope="col" title="${qWord}の累積構成比で A（〜${o.a || 70}%）・B（〜${o.b || 90}%）・C">ABC</th>`, (x, r) => `<td><b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b></td>`],
+      ["rank", `<th scope="col" title="${esc(rankTip)}">ABC</th>`, (x, r) => `<td><b class="oa-rank" style="--rc:${r.c};--rf:${r.f}">${r.n}</b></td>`],
       ["factor", ref ? `<th scope="col" title="地点 A（基準の期間 ${esc(rangeText(ref.range))}）の換算係数 ＝ A の${lt} ÷ A の基準">係数（A）</th>` : `<th scope="col" title="${lt} ÷ 基準の作業時間（基準を 1.00 としたときの何倍か）">換算係数</th>`,
         (x) => { const f = ref ? x.refFactor : x.factor; return `<td class="oa-f${f != null && Math.abs(f - 1) >= 0.15 ? " is-far" : ""}${ref && f == null ? " is-none" : ""}"${ref && f == null ? ' title="地点 A に無い品種（1.00 で換算）"' : ""}>${f == null ? (ref ? "1.00*" : "–") : f.toFixed(2)}</td>`; }],
       ["conv", ref ? `<th scope="col" title="${lead ? "ロット数" : "本数"}（地点 B ＝ パネルの期間）× 地点 A の係数">換算本数（A）</th>` : `<th scope="col" title="${lead ? "ロット数" : "本数"} × 換算係数（＝ 占有時間 ÷ 基準）">換算本数</th>`,
@@ -197,12 +215,14 @@
     ].filter((c) => c && (c[0] === "qty" || c[0] === "lots" || show(c[0])));
     const head = `<tr>${keyHead}${COLS.map((c) => c[1]).join("")}</tr>`;
     const body = rows.map((x) => {
-      const r = RANK[x.rank] || RANK.C;
+      const r = rs(x);
       return `<tr class="oa-r-${x.rank}">${keyCells(x)}${COLS.map((c) => c[2](x, r)).join("")}</tr>`;
     }).join("");
-    const counts = ["A", "B", "C"].map((k) => [k, items.filter((x) => x.rank === k).length]);
+    // 下の段の段ごとの品種の数（品種ごとに 1 段なら、数は 1 ずつなので「A〜AD の 30 段」とまとめる）
+    const counts = [...new Map(items.map((x) => [x.rank, x])).values()].map((x) => [x, items.filter((y) => y.rank === x.rank).length]);
     const base = (ref ? ref.base : cur.base) || {};
-    const foot = !show("foot") ? "" : `<div class="oa-foot">${show("rank") ? `<span class="oa-fa">${counts.map(([k, n]) => `<b class="oa-rank is-s" style="--rc:${RANK[k].c};--rf:${RANK[k].f}">${k}</b>${n} 品種`).join("　")}</span>` : ""}`
+    const foot = !show("foot") ? "" : `<div class="oa-foot">${show("rank") ? `<span class="oa-fa" title="${esc(rankTip)}">${RK.each && counts.length > 1 ? `品種ごと <b class="oa-rank is-s" style="--rc:${rs(counts[0][0]).c};--rf:${rs(counts[0][0]).f}">${counts[0][0].rank}</b>〜<b class="oa-rank is-s" style="--rc:${rs(counts[counts.length - 1][0]).c};--rf:${rs(counts[counts.length - 1][0]).f}">${counts[counts.length - 1][0].rank}</b> ${counts.length} 段`
+        : counts.map(([x, n]) => `<b class="oa-rank is-s" style="--rc:${rs(x).c};--rf:${rs(x).f}">${x.rank}</b>${n} 品種`).join("　")}</span>` : ""}`
       + (lead ? '<span class="oa-flt" title="全設備の作業時間: 同じロット番号の、全設備の作業開始のいちばん早い時刻〜作業終了のいちばん遅い時刻（組む所の「全設備の時間」で積み上げに替えられます）">リードタイム</span>' : "")
       + (show("occ") ? `<span class="oa-fo" title="占有時間の計 ＝ 換算本数の計 × 基準の作業時間">占有時間の計 <b>${hrs(cur.occ)}</b></span>` : "")
       // 地点 A の係数で換算したとき（版 3.49.0）: A の期間と、B の本数の換算本数の計・A に無い品種の本数
@@ -214,7 +234,7 @@
       + `${cur.noEnd ? `<span class="oa-nend" title="${esc(`区間（作業開始〜作業終了）が分からないので、平均作業・換算係数に入れていない${lead ? "ロット" : "作業"}: ${Object.entries(cur.why || {}).map(([k, n]) => `${k} ${n} ${unit}`).join("・")}`)}">区間なし ${cur.noEnd} ${unit}</span>` : ""}<span class="oa-rest"></span></div>`;
     // パレート図の棒の数: 棒の下の名前（組み合わせなら列ごとの段のいちばん長い値）が入る幅で（版 3.47.0。前は 1 本 22px で、名前が「A11…」と切れた）
     const nameW = Math.max(18, ...items.slice(0, 30).flatMap((x) => (x.parts && x.parts.length > 1 ? x.parts : [x.key || "空"]).map((v) => textW(v || "空", 11))));
-    const chart = show("chart") && wide && H - tabH - footH >= 96 ? pareto(items.slice(0, Math.max(3, Math.min(items.length, Math.floor((chartW - 82) / Math.max(22, nameW + 8))))), chartW, H - tabH - footH, o, items.length, show("rank")) : "";
+    const chart = show("chart") && wide && H - tabH - footH >= 96 ? pareto(items.slice(0, Math.max(3, Math.min(items.length, Math.floor((chartW - 82) / Math.max(22, nameW + 8))))), chartW, H - tabH - footH, RK, items.length, show("rank") ? rs : null) : "";
     // パレート図を出す項目に入れているのに、パネルが狭い・低いので描けないときは、そう言う（✓ と見た目を食い違わせない。2026-10-dash8 の作った後の採点）
     const noChart = show("chart") && !chart && items.length ? `<span class="oa-nochart" title="パレート図は、パネルの幅が 680px 以上・高さが足りるときに出します（パネルを広げると出ます）">パレート図はパネルが狭いので省いています</span>` : "";
     box.innerHTML = `<div class="oa-wrap">${tabs}${noChart && !show("foot") ? `<div class="oa-notes">${noChart}</div>` : ""}<div class="oa-main">${chart}<div class="oa-tbl"><table class="oa-table"><thead>${head}</thead><tbody>${body || `<tr><td colspan="${2 + COLS.length + (split ? cl.length - 1 : 0)}" class="dp-empty">当たる作業がありません</td></tr>`}</tbody></table></div></div>${foot.replace("\u0000NOCHART\u0000", noChart)}</div>`;
@@ -254,7 +274,8 @@
     return "";
   }
   /** パレート図（棒＝量の大きい順・ABC の色。線＝累積構成比。A・B の線） */
-  function pareto(items, W, H, o, all = items.length, ranks = true) {
+  function pareto(items, W, H, RK, all = items.length, rs = null) {
+    const ranks = !!rs;
     if (!items.length || H < 80) return "";
     const cut = all > items.length;       // 棒にしたのが上位だけなら、図の左上にそう書く（版 3.47.0。省いたことが見えなかった: 2026-10-ops4 の 2 回目の採点）
     // 品種が組み合わせ（版 3.47.0）なら、棒の下の名前を列ごとの段にする（A1100 と H14。1 段の「A1100／H14」より棒の幅に入る）
@@ -263,11 +284,18 @@
     const max = Math.max(...items.map((x) => x.qty)) || 1;
     const y = (v) => T + ih - (v / max) * ih, yc = (c) => T + ih - (c / 100) * ih;
     const g = [`<line class="oa-ax" x1="${L}" x2="${L + iw}" y1="${T + ih}" y2="${T + ih}"/>`];
-    // A・B の線の字は、近ければ A を線の下・B を線の上へ逃がす（低いパネルで重なった）
-    const near = yc(o.a || 70) - yc(o.b || 90) < 12;
-    if (ranks) [[o.a || 70, "A", near ? 11 : 4], [o.b || 90, "B", near ? -3 : 4]].forEach(([v, k, dy]) => g.push(`<line class="oa-lim" x1="${L}" x2="${L + iw}" y1="${yc(v)}" y2="${yc(v)}"/><text class="oa-liml" x="${L + iw + 4}" y="${yc(v) + dy}">${k} ${v}%</text>`));
+    // 段の線（線はいくつでも。版 3.51.0）: 線はみな引き、字は前の字と 11px 以上離れる物だけ（近い線の字は、線の title で見える）。
+    // 2 本のときは今までどおり、近ければ A を線の下・B を線の上へ逃がす。品種ごとの段（each）は線が無い
+    const lims = ranks && !RK.each ? RK.lims.filter((v) => v < 100) : [];
+    const near = lims.length === 2 && yc(lims[0]) - yc(lims[1]) < 12;
+    let lastY = Infinity;
+    lims.forEach((v, i) => {
+      const k = rankName(i), dy = near ? (i ? -3 : 11) : 4, ty = yc(v) + dy;
+      g.push(`<line class="oa-lim" x1="${L}" x2="${L + iw}" y1="${yc(v)}" y2="${yc(v)}"><title>${esc(`${k} の線 ${+v}%`)}</title></line>`);
+      if (near || lastY - ty >= 11) { g.push(`<text class="oa-liml" x="${L + iw + 4}" y="${ty}">${k} ${+v}%</text>`); lastY = ty; }
+    });
     items.forEach((x, i) => {
-      const r = ranks ? RANK[x.rank] || RANK.C : RANK.B, h = T + ih - y(x.qty);
+      const r = ranks ? rs(x) : RANK.B, h = T + ih - y(x.qty);
       g.push(`<rect x="${L + i * bw + bw * 0.14}" y="${y(x.qty)}" width="${bw * 0.72}" height="${Math.max(0, h)}" fill="${r.c}" rx="1.5"><title>${esc(`${x.key || "（空欄）"}: ${ranks ? `${x.rank}・` : ""}構成比 ${x.share.toFixed(1)}%・累積 ${x.cum.toFixed(1)}%`)}</title></rect>`);
       const cx = L + i * bw + bw / 2, ps = rows > 1 ? (x.parts || [x.key]).slice(0, rows) : [x.key];
       if (bw >= 24) g.push(`<text class="oa-xl" x="${cx}" y="${T + ih + 13}" text-anchor="middle">${ps.map((v, k) => `${k ? `<tspan x="${cx}" dy="12">` : ""}${esc(fitW(v || "空", bw - 4, 11))}${k ? "</tspan>" : ""}`).join("")}</text>`);
@@ -275,7 +303,7 @@
     const pts = items.map((x, i) => `${L + i * bw + bw / 2},${yc(x.cum)}`).join(" ");
     g.push(`<polyline class="oa-line" points="${pts}"/>` + items.map((x, i) => `<circle class="oa-dot" cx="${L + i * bw + bw / 2}" cy="${yc(x.cum)}" r="2.6"/>`).join(""));
     g.push(`<text class="oa-axl" x="${L - 4}" y="${T + 4}" text-anchor="end">${(Math.round(max * 10) / 10).toLocaleString("ja-JP")}</text><text class="oa-axl" x="${L - 4}" y="${T + ih + 4}" text-anchor="end">0</text>`);
-    if (!ranks || yc(o.b || 90) - T > 16) g.push(`<text class="oa-axl" x="${L + iw + 4}" y="${T + 4}">100%</text>`);   // B の線の字と重なるなら出さない
+    if (lastY - T > 16) g.push(`<text class="oa-axl" x="${L + iw + 4}" y="${T + 4}">100%</text>`);   // B の線の字と重なるなら出さない
     if (cut) g.push(`<text class="oa-axl oa-cut" x="${L}" y="11">上位 ${items.length} / 全 ${all} 品種</text>`);
     return `<svg class="oa-chart" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="パレート図（品種の量の大きい順と累積構成比）">${g.join("")}</svg>`;
   }
@@ -294,5 +322,5 @@
       + (n ? `<span class="og-nbadge" title="${esc(tip)}">区間なし ${n} 本<small>${esc(who)}</small></span>` : "");
   }
 
-  window.DashOps = { gantt, abc, badge, RANK };
+  window.DashOps = { gantt, abc, badge, RANK, rankStyle, rankName };
 })();

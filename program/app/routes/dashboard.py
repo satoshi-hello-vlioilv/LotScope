@@ -641,7 +641,7 @@ def _abc_pass(p, parts, o, period, now):
     cls = operation.cls_list(o.get("cls"))
     cols = [*cls, qty if qty not in operation.QTYS else ""]
     lead = o.get("span") == "lead"
-    args = (cls, qty, o.get("base") or "avg", (o.get("a", dashboard.ABC_A), o.get("b", dashboard.ABC_B)))
+    args = (cls, qty, o.get("base") or "avg", dashboard.abc_lims(o), o.get("rankBy") == "each")
     equips, skipped, every, reads, rng, start_col, end_col = [], [], [], [], None, "", ""
     for part in order_parts(parts, p.get("eorder")):
         try:

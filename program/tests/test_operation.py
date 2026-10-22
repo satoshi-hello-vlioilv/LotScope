@@ -125,6 +125,25 @@ class Abc(unittest.TestCase):
         b = operation.abc([op("X", "2026-10-01 08:00", 60) for _ in range(9)] + [op("Y", "2026-10-01 08:00", 60)], "品種")
         self.assertEqual([x["rank"] for x in b["items"]], ["A", "C"], "1 位だけで 90% でも A")
 
+    def test_any_number_of_ranks(self):
+        """段は A・B・C に限らない（版 3.51.0）: 線をいくつでも置ける（線の数＋1 の段）・品種ごとに 1 段（A, B, …, Z, AA, AB …）"""
+        self.assertEqual([operation.rank_name(i) for i in (0, 1, 25, 26, 27, 51, 52, 701, 702)], ["A", "B", "Z", "AA", "AB", "AZ", "BA", "ZZ", "AAA"])
+        ops = [op(f"K{i:02d}", "2026-10-01 08:00", 60) for i in range(30) for _ in range(30 - i)]       # K00 が 30 本・K01 が 29 本 … K29 が 1 本
+        four = operation.abc(ops, "品種", limits=(50, 70, 85, 95))
+        ranks = [x["rank"] for x in four["items"]]
+        self.assertEqual(sorted(set(ranks)), ["A", "B", "C", "D", "E"])
+        self.assertEqual(ranks, sorted(ranks, key=lambda r: (len(r), r)), "量の大きい順に段が進む")
+        for x in four["items"]:
+            lim = next((v for v in (50, 70, 85, 95) if x["cum"] <= v + 1e-9), None)
+            want = "ABCD"[(50, 70, 85, 95).index(lim)] if lim is not None else "E"
+            self.assertEqual(x["rank"], "A" if x is four["items"][0] else want, x)
+        self.assertEqual(four["ranks"], {"each": False, "lims": [50.0, 70.0, 85.0, 95.0], "count": 5})
+        each = operation.abc(ops, "品種", each=True)
+        self.assertEqual([x["rank"] for x in each["items"]], [operation.rank_name(i) for i in range(30)])
+        self.assertEqual(each["items"][26]["rank"], "AA")
+        self.assertEqual(each["ranks"]["count"], 30)
+        self.assertEqual([x["rank"] for x in operation.abc(ops, "品種", limits=(100,))["items"]], ["A"] * 30, "線 1 本（100%）なら全部 A")
+
     def test_factor_is_average_time_over_base(self):
         """換算係数 ＝ 品種の 1 本の平均作業時間 ÷ 基準（全作業の平均・いちばん多い品種・品種の値）。換算本数 ＝ 本数 × 係数"""
         ops = [op("X", "2026-10-01 08:00", 60), op("X", "2026-10-01 09:00", 60), op("X", "2026-10-01 10:00", 60), op("Y", "2026-10-01 11:00", 120),
@@ -387,7 +406,13 @@ class Api(unittest.TestCase):
     def test_layout_keeps_ops(self):
         body, _ = dashboard.clean_layout({"rows": 8, "panels": [{"id": "g", "x": 0, "y": 0, "w": 6, "h": 3, "visual": "abc", "source": "work",
                                                                    "ops": {"cls": "合金", "qty": "time", "a": 60, "b": 95, "junk": 1}}]})
-        self.assertEqual(body["panels"][0]["ops"], {"cls": "合金", "qty": "time", "base": "avg", "a": 60.0, "b": 95.0})
+        self.assertEqual(body["panels"][0]["ops"], {"cls": "合金", "qty": "time", "base": "avg", "lims": [60.0, 95.0]}, "前の a・b は線の並びとして読む")
+        # 線はいくつでも（昇順・同じ線は 1 本・0 以下は捨てる・100 を超えれば 100）・品種ごとに 1 段（版 3.51.0）
+        self.assertEqual(dashboard.clean_ops({"cls": "合金", "lims": [95, "50", 70, 70, -3, 120, "x"]})["lims"], [50.0, 70.0, 95.0, 100.0])
+        self.assertNotIn("lims", dashboard.clean_ops({"cls": "合金", "lims": [90, 70]}), "既定（70・90）は書かない")
+        self.assertEqual(dashboard.clean_ops({"cls": "合金", "lims": []}).get("lims"), None, "線が無ければ既定")
+        self.assertEqual(dashboard.clean_ops({"cls": "合金", "rankBy": "each"})["rankBy"], "each")
+        self.assertNotIn("rankBy", dashboard.clean_ops({"cls": "合金", "rankBy": "x"}))
         body, _ = dashboard.clean_layout({"rows": 8, "panels": [{"id": "g", "x": 0, "y": 0, "w": 6, "h": 3, "visual": "abc", "source": "work", "eorder": ["CR1", "", "CR1", "L-1"],
                                                                    "ops": {"start": "段取開始", "span": "lead", "hide": ["rank", "junk", "chart"]}}]})
         p = body["panels"][0]

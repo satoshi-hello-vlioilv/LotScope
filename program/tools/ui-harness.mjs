@@ -381,6 +381,16 @@ export const STATES = [
   // 版 3.46.0: 稼働（ガント）と ABC 分析・換算係数のパネル
   ["dash-ops", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), OPS_LAYOUT); await sleep(500); await waitDash(p); await sleep(600); }, "[data-next], [data-db-editmode]"],
   // 版 3.47.0: 組む所の ABC の品種（合金 × 調質 の組み合わせの札）
+  // 版 3.51.0: ABC の段を A・B・C に限らない（線 4 本 → A〜E の 5 段）。パネルと、組む所の「ABC線」の段まで送った所
+  ["dash-ops-ranks", async (p) => {
+    const l = JSON.parse(JSON.stringify(OPS_LAYOUT)); l.panels[1].ops.lims = [40, 60, 80, 95];
+    await p.evaluate((x) => Dashboard._setLayout(x), l); await sleep(500); await waitDash(p); await sleep(600);
+  }, "[data-next], [data-db-editmode]"],
+  ["dash-ops-ranks-edit", async (p) => {
+    await p.click("[data-db-editmode]"); await sleep(400);
+    await p.click('#dashGrid .db-p[data-id="abc"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
+    await p.evaluate(() => { const r = document.querySelector("[data-de-abcrow], [data-de-oa]"); if (r) r.closest(".de-row").scrollIntoView({ block: "center" }); }); await sleep(300);
+  }, "[data-next], [data-de-apply]"],
   ["dash-ops-edit", async (p) => {
     await p.click("[data-db-editmode]"); await sleep(400);
     await p.click('#dashGrid .db-p[data-id="abc"] [data-db-edit]'); await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
