@@ -247,8 +247,14 @@ export const STATES = [
     await p.fill('#llPivot [data-pc-in="1"]', "÷1000"); await p.keyboard.press("Enter"); await sleep(400);
     await p.waitForFunction(() => !document.querySelector("#llPvOut.is-busy")); await sleep(700);
   }, "[data-next], #llPivot .pc-prev"],
+  // 版 3.50.1: 値の計算の段で、重量（÷1000）の小数を 1 桁にした所（表・変わり方の数が 1 桁にそろう）
+  ["worklog-pivot-dec", async (p) => {
+    await p.click('#llPivot [data-pc-dec="1"][data-pc-di="1"]'); await sleep(300);
+    await p.waitForFunction(() => !document.querySelector("#llPvOut.is-busy")); await sleep(500);
+  }, "[data-next], #llPivot .pc-dec .on"],
   ["worklog-hist", async (p) => { await p.keyboard.press("Escape"); await p.mouse.up(); await sleep(200);
     if (await p.$('#llPivot [data-pc-in="1"]')) { await p.fill('#llPivot [data-pc-in="1"]', ""); await p.keyboard.press("Enter"); await sleep(600); }
+    if (await p.$('#llPivot [data-pc-dec=""][data-pc-di="1"]:not(.on)')) { await p.click('#llPivot [data-pc-dec=""][data-pc-di="1"]'); await sleep(600); }
     await pickChart(p, "hist"); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
   // 版 3.27.0: グラフの形を選ぶ所を開いた所（形が 14 に増えた）と、すぐに見るを選ぶ所を開いた所（ID ごとに選ぶ）。
   // 改良案（ui-variants）は body の data-ui-pick を見て、案の開いた形を出す

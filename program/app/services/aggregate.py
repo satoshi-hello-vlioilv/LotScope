@@ -11,6 +11,7 @@
 表し方（show。値ごと）: ""（そのまま）・pct_total（総計に対する %）・pct_row（行の計に対する %）・pct_col（列の計に対する %）・
     cum（累計）・diff（前との差）・rank（順位。大きい順に 1〜） … 数え終えたセルの値から決める（apply_show）。
     累計・差・順位は、同じ親（1 つ上の段の鍵）の中で、行の並び（orders）の順に決める
+桁（dec。値ごと。版 3.50.1）: 小数の桁 0〜6。値は丸めず、見せる字だけをその桁にそろえる（表・グラフ・Excel の表示形式。Excel のセルの書式と同じ考え）。
 計算（expr。値ごと。版 3.50.0）: 数え終えたセルの値に四則演算を当てる（÷1000・×100・(値−10)×2 など。services/num_expr.py）。
     小計・総計のセルにも同じ式を当てる。表し方（割合・累計など）は、計算した後の値から決める（apply_expr → apply_show）
 """
@@ -34,6 +35,7 @@ LABEL = {"count": "件数", "lots": "ロット数", "sum": "合計", "avg": "平
          "sd": "標準偏差", "var": "分散", "cv": "変動係数(%)", "cpk": "Cpk", "median": "中央値", "q1": "25%点", "q3": "75%点",
          "iqr": "四分位範囲", "pct": "%点", "mode": "最頻値", "distinct": "種類の数"}
 EXPR_MAX = 60
+DEC_MAX = 6
 SHOW_LABEL = {"pct_total": "総計に対する%", "pct_row": "行の計に対する%", "pct_col": "列の計に対する%", "cum": "累計", "diff": "前との差", "rank": "順位"}
 
 
@@ -73,6 +75,9 @@ def clean(m, has_column):
         if err:
             raise ValueError(f"「{name(out)}」の計算「{expr}」が読めません（{err}）。")
         out["expr"] = expr
+    dec = _num(m.get("dec"))
+    if dec is not None:
+        out["dec"] = int(min(DEC_MAX, max(0, round(dec))))
     return out
 
 

@@ -13,6 +13,8 @@
 // 値の計算（版 3.50.0。要望 2）と行 ⇔ 列の入れ替え:
 // ⑨ 一覧の集計表の「値の計算」の段で、重量の合計に ÷1000 → 表の総計＝サーバーの計算なしの総計 ÷ 1000・欄の横に「前 → 後」・見出しに［値÷1000］・
 //    打っている間も欄の焦点と字が消えない・札 ×100 で替わり、もう一度押すと外れる・読めない式は知らせて当てない
+// ⑪ 小数の桁（版 3.50.1）: 「1桁」で表・総計・変わり方・数値ラベルが 1 桁・「自動」で外れる
+// ⑫ 組む所の狭い段: 「小数」の札は次の行へ・よく使う計算の札は並べたまま（1 手で当たる）・「整数」が選ばれる
 // ⑩ 「⇄ 入れ替え」: 行［作業区分］・列［直］ → 行［直］・列［作業区分］。列が空なら押せない（一覧・ダッシュボード）
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
@@ -127,6 +129,27 @@ try {
   const bad9 = await p.$eval(`${S} [data-pc-out="0"]`, (x) => x.textContent);
   check("⑨ 読めない式は知らせて当てない", !st9.measures[0].expr && /途中/.test(bad9), { bad9, m: st9.measures[0] });
 
+  // ⑪ 小数の桁（版 3.50.1）: 重量の合計 ÷1000 に「1桁」→ 表の数がどれも小数 1 桁・総計＝サーバー÷1000 を 1 桁にした字・前 → 後も 1 桁・
+  //    状態に dec・グラフの数値ラベルも 1 桁・「自動」で外れる（値は丸めない: 割合は元の数で出る）
+  await p.fill(`${S} [data-pc-in="1"]`, "÷1000"); await p.keyboard.press("Enter"); await settle();
+  await p.click(`${S} [data-pc-dec="1"][data-pc-di="1"]`); await settle();
+  let st11 = await p.evaluate(() => LotListPivot.stateOf());
+  const cells11 = await p.evaluate(() => [...document.querySelectorAll("#llPivot .pv-table tbody tr")].map((tr) => { const t = tr.querySelectorAll("td"); return t[t.length - 1]?.textContent.trim(); }).filter(Boolean));
+  const want11 = (raw9[1] / 1000).toLocaleString("ja-JP", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const prev11 = await p.$eval(`${S} [data-pc-out="1"]`, (x) => x.textContent);
+  check("⑪ 「1桁」で状態に dec=1・札が選ばれる", st11.measures[1].dec === 1 && st11.measures[1].expr === "÷1000" && await p.$eval(`${S} [data-pc-dec="1"][data-pc-di="1"]`, (b) => b.getAttribute("aria-checked") === "true"), st11.measures);
+  check("⑪ 表の重量の列の数がどれも小数 1 桁", cells11.length > 5 && cells11.every((t) => /^-?[\d,]+\.\d$/.test(t)), cells11.slice(0, 8));
+  check("⑪ 総計＝サーバーの総計 ÷1000 を 1 桁にした字", cells11[cells11.length - 1] === want11, { last: cells11[cells11.length - 1], want11 });
+  check("⑪ 変わり方の「後」も 1 桁", prev11.endsWith(want11), prev11);
+  await p.click(`${S} [data-pv-opt="labels"]`).catch(() => {}); await settle();
+  const lab11 = await p.evaluate(() => [...document.querySelectorAll("#llPivot svg text.pv-vl")].map((t) => t.textContent.trim()).filter((t) => /\d/.test(t)));
+  check("⑪ グラフの数値ラベル: 重量（1桁）は小数 1 桁・ロット数（自動）は整数のまま（系列ごとの桁）", lab11.some((t) => /^-?[\d,]+\.\d$/.test(t)) && lab11.every((t) => /^-?[\d,]+(\.\d)?$/.test(t)) && lab11.some((t) => /^\d+$/.test(t)), lab11.slice(0, 12));
+  await p.click(`${S} [data-pv-opt="labels"]`).catch(() => {}); await settle();
+  await p.click(`${S} [data-pc-dec=""][data-pc-di="1"]`); await settle();
+  st11 = await p.evaluate(() => LotListPivot.stateOf());
+  check("⑪ 「自動」で dec が外れる", st11.measures[1].dec == null, st11.measures);
+  await p.fill(`${S} [data-pc-in="1"]`, ""); await p.keyboard.press("Enter"); await settle();
+
   // ⑩ 入れ替え（一覧）
   await p.evaluate(() => LotListPivot.setState({ view: "pivot", rows: [{ column: "作業区分", part: "" }], cols: [], measures: [{ agg: "lots" }], chart: "column" })); await settle();
   check("⑩ 列が空なら「入れ替え」は押せない", await p.$eval(`${S} [data-pv-swap]`, (b) => b.disabled));
@@ -164,6 +187,16 @@ try {
   await p.click(`${E} [data-de-swap]`); await sleep(600); await waitDash(p); await sleep(300);
   n = await names(p, E);
   check("⑩ ダッシュボードでも行と列が入れ替わる", n.rows.join() === "作業区分" && /作業日/.test(n.cols.join()), n);
+
+  // ⑫ 組む所（狭い段）: 「小数」と札は次の行へ（同じ値の段の中）・よく使う計算の札は並べたまま（畳まない。1 手で当たる）
+  const fold12 = await p.evaluate(() => { const v = (sel) => { const e = document.querySelector(sel); return !!e && getComputedStyle(e).display !== "none"; };
+    const it = document.querySelector("#dbEditor .pc-item"), dg = it?.querySelector(".pc-dg")?.getBoundingClientRect(), qs = it?.querySelector(".pc-qs")?.getBoundingClientRect(), band = document.querySelector("#dbEditor .pc-band")?.getBoundingClientRect();
+    return { qs: v("#dbEditor .pc-qs"), more: v("#dbEditor .pc-more"), inside: !!dg && dg.right <= band.right + 0.5, dgTop: dg?.top, qsTop: qs?.top }; });
+  check("⑫ 組む所でも、よく使う計算は札のまま（畳まない）・小数の札は段の中に収まる", fold12.qs && !fold12.more && fold12.inside, fold12);
+  await p.click(`${E} [data-pc-q="÷1000"][data-pc-qi="0"]`); await sleep(600); await waitDash(p); await sleep(300);
+  check("⑫ 組む所で札 ÷1000 を 1 手で当てる", await p.$eval(`${E} [data-pc-in="0"]`, (x) => x.value) === "÷1000");
+  await p.click(`${E} [data-pc-dec="0"][data-pc-di="0"]`); await sleep(600); await waitDash(p); await sleep(300);
+  check("⑫ 組む所で「整数」を選ぶと札が選ばれる（描き直しても残る）", await p.$eval(`${E} [data-pc-dec="0"][data-pc-di="0"]`, (b) => b.getAttribute("aria-checked") === "true"));
 
   // ⑧ 合わせた表のまとまり
   await p.click("[data-de-cancel]"); await sleep(400);

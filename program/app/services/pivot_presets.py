@@ -74,6 +74,8 @@ def clean_body(body):
             expr = str(m.get("expr") or "").strip()[:aggregate.EXPR_MAX]       # 値の計算（版 3.50.0）。読めない式は持たない
             if expr and not num_expr.compile_expr(expr)[1]:
                 x["expr"] = expr
+            if isinstance(m.get("dec"), (int, float)) and not isinstance(m.get("dec"), bool):    # 桁（版 3.50.1）
+                x["dec"] = int(min(aggregate.DEC_MAX, max(0, round(m["dec"]))))
             ms.append(x)
     out["measures"] = ms
     out["chart"] = body.get("chart") if body.get("chart") in CHARTS else "time"

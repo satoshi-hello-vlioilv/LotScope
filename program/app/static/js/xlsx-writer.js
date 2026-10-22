@@ -7,7 +7,8 @@
    - 見出しの行は太字・淡い地・固定（スクロールしても残る）・オートフィルター。列の幅は字の長さから
    - zip は CompressionStream（deflate-raw）で縮める。無い所では縮めずに入れる（stored）
    build(sheets) は DOM を使わない（評価関数 program/tools/xlsx-check.mjs が node で確かめる）
-   sheets: [{ name, rows: [[値, …], …], header: true|false, widths?: [字数, …], paint?: (行, 列) → 色 }]（1 行目が見出し）
+   sheets: [{ name, rows: [[値, …], …], header: true|false, widths?: [字数, …], paint?: (行, 列) → 色, digits?: [列 → 小数の桁 0〜6 か null] }]（1 行目が見出し）
+     digits（版 3.50.1）: その列の数を、桁の表示形式（#,##0・#,##0.0 …）で書く。値は丸めない（Excel で計算すると元の値）。色付けのあるセルは色を先に
      paint: 色付け（条件付き書式。lotlist-marks.js）を写す。答えは { tone: 色の名前, whole: 行全体か } か null。
        色は画面と同じ 6 色（TONES）。セルの色付けは塗り＋濃い太字、行全体は塗りだけ（画面と同じ見え方）
    ========================================================================= */
@@ -54,8 +55,9 @@
     const paint = typeof sh.paint === "function" ? sh.paint : null;
     const data = rows.map((r, i) => {
       const top = head && i === 0;
-      if (top || !paint) return `<row r="${i + 1}">${r.map((v, c) => cellXml(v, i, c, top ? 1 : 0, top)).join("")}</row>`;
-      return `<row r="${i + 1}">${Array.from({ length: Math.max(r.length, ncol) }, (_, c) => cellXml(r[c], i, c, toneStyle(paint(i, c)))).join("")}</row>`;
+      const dg = (c) => (sh.digits && typeof r[c] === "number" ? decStyle(sh.digits[c]) : 0);
+      if (top || !paint) return `<row r="${i + 1}">${r.map((v, c) => cellXml(v, i, c, top ? 1 : dg(c), top)).join("")}</row>`;
+      return `<row r="${i + 1}">${Array.from({ length: Math.max(r.length, ncol) }, (_, c) => cellXml(r[c], i, c, toneStyle(paint(i, c)) || dg(c))).join("")}</row>`;
     }).join("");
     const pane = head ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
       : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
@@ -63,16 +65,22 @@
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
       + `${pane}<sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${data}</sheetData>${filter}</worksheet>`;
   }
+  /** 桁の表示形式の書式の番号（0〜6 桁。無ければ 0＝標準）。0 桁は組み込みの #,##0（番号 3）、1〜6 桁は 165〜170 */
+  const DECS = 7, DEC0 = 2 + TONES.length * 2;
+  const decStyle = (d) => (d == null || !(d >= 0) ? 0 : DEC0 + Math.min(DECS - 1, Math.round(d)));
+  const decFmtId = (d) => (d ? 164 + d : 3);
   const STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + `<numFmts count="${DECS - 1}">${Array.from({ length: DECS - 1 }, (_, i) => `<numFmt numFmtId="${165 + i}" formatCode="#,##0.${"0".repeat(i + 1)}"/>`).join("")}</numFmts>`
     + `<fonts count="${2 + TONES.length}"><font><sz val="11"/><name val="Yu Gothic"/><family val="3"/><charset val="128"/></font><font><b/><sz val="11"/><name val="Yu Gothic"/><family val="3"/><charset val="128"/></font>`
     + TONES.map(([, , ink]) => `<font><b/><sz val="11"/><color rgb="FF${ink}"/><name val="Yu Gothic"/><family val="3"/><charset val="128"/></font>`).join("") + "</fonts>"
     + `<fills count="${3 + TONES.length}"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDCE6EE"/><bgColor indexed="64"/></patternFill></fill>`
     + TONES.map(([, bg]) => `<fill><patternFill patternType="solid"><fgColor rgb="FF${bg}"/><bgColor indexed="64"/></patternFill></fill>`).join("") + "</fills>"
     + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF8EA3B4"/></bottom><diagonal/></border></borders>'
     + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    + `<cellXfs count="${2 + TONES.length * 2}"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>`
+    + `<cellXfs count="${2 + TONES.length * 2 + DECS}"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>`
     + TONES.map((_, i) => `<xf numFmtId="0" fontId="${2 + i}" fillId="${3 + i}" borderId="0" xfId="0" applyFont="1" applyFill="1"/>`).join("")
-    + TONES.map((_, i) => `<xf numFmtId="0" fontId="0" fillId="${3 + i}" borderId="0" xfId="0" applyFill="1"/>`).join("") + "</cellXfs>"
+    + TONES.map((_, i) => `<xf numFmtId="0" fontId="0" fillId="${3 + i}" borderId="0" xfId="0" applyFill="1"/>`).join("")
+    + Array.from({ length: DECS }, (_, d) => `<xf numFmtId="${decFmtId(d)}" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>`).join("") + "</cellXfs>"
     + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   function files(sheets) {
     const names = sheetNames(sheets.map((s) => s.name));

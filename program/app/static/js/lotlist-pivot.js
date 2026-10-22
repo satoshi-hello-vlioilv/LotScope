@@ -99,6 +99,12 @@
     save({ measures: s.measures.map((x, k) => (k === i ? next : x)) }); refresh();
     return "";
   }
+  /** 値の桁（版 3.50.1）: 小数の桁 0〜6・null は自動。値は丸めず、表・グラフ・Excel の見せ方だけ */
+  function setDec(i, dec) {
+    const s = st(), m = s.measures[i]; if (!m) return;
+    const next = { ...m }; if (dec == null || dec === "") delete next.dec; else next.dec = Math.max(0, Math.min(6, +dec));
+    save({ measures: s.measures.map((x, k) => (k === i ? next : x)) }); refresh();
+  }
   function setView(v) {
     save({ view: v });
     host.onView(v === "pivot");
@@ -276,7 +282,7 @@
   /** 行と列を入れ替える札（版 3.50.0。列に段があるときだけ押せる: 列が空のまま入れ替えると行が空になり、何も出ない） */
   const swapBtn = (rows, cols, attr) => `<button type="button" class="pv-swap" aria-label="行と列を入れ替える" ${attr}${cols.length ? "" : " disabled"} title="${cols.length ? "行の段と列の段を入れ替えます" : "列に段を入れると、行と入れ替えられます"}"><i aria-hidden="true">⇄</i><span class="pv-swl">入れ替え</span></button>`;
   /** 値の計算の段（版 3.50.0。pivot-calc.js。文のすぐ下） */
-  const calcHtml = (s) => window.PivotCalc.html(s.measures, { name: (m) => C.measLabel({ ...m, expr: undefined }, host.label), answer, num: fmt });
+  const calcHtml = (s) => window.PivotCalc.html(s.measures, { name: (m) => C.measLabel({ ...m, expr: undefined }, host.label), answer, num: (v, m) => C.numText(v, C.measFmt({}, m)) });
   function sentenceHtml(s) {
     const slot = (role, html, ph) => `<span class="pv-slot" data-role="${role}">${html || `<span class="pv-ph">${ph}</span>`}</span>`;
     return `<div class="pv-sent">${slot("rows", s.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］を押す")}<span class="pv-w">ごとに、</span>${swapBtn(s.rows, s.cols, "data-pv-swap")}`
@@ -376,7 +382,7 @@
     const model = buildModel(d, s);
     const tbar = s.chart === "none" ? optsHtml(s, d, false) : "";
     out.innerHTML = (s.chart === "none" ? (tbar ? `<div class="pv-chead pv-tbar">${tbar}</div>` : "") : `<div class="pv-chart" id="llPvChart"></div>`)
-      + `<div class="pv-tablebox"><table class="pv-table">${tableHtml(model, d)}</table></div>`
+      + `<div class="pv-tablebox"><table class="pv-table">${tableHtml(model, d, (v, j) => C.numText(v, C.measFmt({}, d.measures[j])))}</table></div>`
       + `<div class="pv-hint">${esc(hintText(model, d))}</div>`;
     if (s.chart !== "none") paintChart(model, d, s);
   }
@@ -546,7 +552,7 @@
 
   /* ---- 答え → 表の形・表（描き方はグラフと同じ lotlist-pivot-charts.js の 1 か所。ダッシュボードのパネルも同じ物を使う） ---- */
   const buildModel = C.buildModel;
-  const tableHtml = (m, d) => C.tableHtml(m, d, { measName, dimName });
+  const tableHtml = (m, d, num) => C.tableHtml(m, d, { measName, dimName, ...(num ? { num } : {}) });
   function hintText(m, d) {
     const nData = m.rows.filter((r) => r.type === "data").length, nCol = m.cols.filter((c) => c.type === "data" || c.type === "all").length;
     return `行 ${nData.toLocaleString()} × 列 ${nCol.toLocaleString()} ・ ${d.measures.map((x) => measName(x)).join("・")} ・ ${d.count.toLocaleString()} 行から（一覧と同じ絞り込み）`
@@ -582,7 +588,7 @@
       commit: (L, msg) => { save({ rows: L.rows, cols: L.cols, measures: L.vals }); refresh(true); if (msg) host.toast(msg); },
       toast: (t) => host.toast(t),
     });
-    window.PivotCalc.bind(pane, setExpr);
+    window.PivotCalc.bind(pane, setExpr, setDec);
     pane.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b || b.disabled) return;
       const s = st();
@@ -698,7 +704,9 @@
     });
     const cond = [["項目", "内容"], ["集計", `${d.dims.rows.map(dimName).join(" ＞ ")}ごとに、${d.dims.cols.map(dimName).join(" ＞ ") || "（列なし）"}別の${d.measures.map(measName).join("・")}`],
       ["数えた行", `${d.count.toLocaleString()} 行`], ...(d.month ? [["月", `${monthName(d.month)}だけ`]] : []), ...host.conditions()];
-    const bytes = await window.XlsxWriter.build([{ name: "集計", rows: [head, ...rows], header: true }, { name: "出力の条件", rows: cond, header: true }]);
+    // 桁を決めた値の列は、その桁の表示形式で書く（値は丸めない。版 3.50.1）
+    const digits = Array(Math.max(1, m.nr)).fill(null).concat(m.cols.flatMap(() => d.measures.map((x) => (x.dec == null ? null : x.dec))));
+    const bytes = await window.XlsxWriter.build([{ name: "集計", rows: [head, ...rows], header: true, digits }, { name: "出力の条件", rows: cond, header: true }]);
     const p = (n) => String(n).padStart(2, "0"), t = new Date();
     TPA.download(new Blob([bytes], { type: window.XlsxWriter.MIME }), `${host.fileStem()}_集計_${t.getFullYear()}${p(t.getMonth() + 1)}${p(t.getDate())}_${p(t.getHours())}${p(t.getMinutes())}.xlsx`);
   }

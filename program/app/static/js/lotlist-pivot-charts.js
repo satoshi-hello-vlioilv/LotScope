@@ -111,6 +111,16 @@
     const x = v / div;
     return (dg == null ? fmt(Math.round(x * 100) / 100) : x.toLocaleString("ja-JP", { minimumFractionDigits: dg, maximumFractionDigits: dg })) + suf;
   }
+  /** 数値ラベルの字（版 3.50.1）: 値ごとの桁（measures の dec）があればその桁。系列の名前が分かれば、その系列の値の桁（SDEC）。
+      パネルの書式で桁・表示形式を決めていれば、そちらが勝つ（measFmt と同じ決まり）。目盛りは nf のまま（桁で 0.25 が 0 にならない） */
+  let SDEC = new Map(), LDEC = null;
+  function lf(v, name) {
+    const dg = name != null && SDEC.has(name) ? SDEC.get(name) : LDEC;
+    if (dg == null || F.digits != null || F.num) return nf(v);
+    const keep = F;
+    F = { ...F, digits: dg, unit: F.unit && F.unit !== "auto" ? F.unit : "none" };
+    try { return nf(v); } finally { F = keep; }
+  }
   /** 系列・項目の色（書式で名前に色を決めていれば、その色） */
   // 描いた色は USED に控える（版 3.41.0。組む所の「系列」の見本は、描いた色そのもの: 見本と線の色が食い違っていた）
   let USED = null;
@@ -308,7 +318,7 @@
       stacked.forEach((q) => {
         const v = q.v[i] || 0; if (!v) return; const y1 = y(base + v, q), y0 = y(base, q);
         g += `<rect x="${x(i) - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${q.color}" opacity=".88"><title>${esc(lab(k))}: ${esc(q.name)} ${esc(fmt(v))}（計 ${esc(fmt(tops[i]))}）</title></rect>`;
-        if (LBL.inside && y0 - y1 >= 13 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i)}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
+        if (LBL.inside && y0 - y1 >= 13 && bw >= lf(v, q.name).length * 6.2 + 2) g += `<text x="${x(i)}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
         base += v;
       });
     });
@@ -319,7 +329,7 @@
         const top = hi.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v, q).toFixed(1)}`).join("");
         const bot = lo.map((v, i) => `L${x(n - 1 - i).toFixed(1)},${y(lo[n - 1 - i], q).toFixed(1)}`).join("");
         g += `<path d="${top}${bot}Z" fill="${q.color}" opacity=".78"><title>${esc(q.name)}</title></path>`;
-        if (LBL.inside) hi.forEach((v, i) => { const h = y(lo[i], q) - y(v, q), val = q.v[i] || 0; if (val && h >= 13 && iw / n >= nf(val).length * 6.2) g += `<text x="${x(i)}" y="${(y(v, q) + y(lo[i], q)) / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(val))}</text>`; });
+        if (LBL.inside) hi.forEach((v, i) => { const h = y(lo[i], q) - y(v, q), val = q.v[i] || 0; if (val && h >= 13 && iw / n >= lf(val, q.name).length * 6.2) g += `<text x="${x(i)}" y="${(y(v, q) + y(lo[i], q)) / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(val, q.name))}</text>`; });
         hi.forEach((v, i) => { acc[i] = v; });
       });
     }
@@ -328,7 +338,7 @@
     barQ.forEach((q, k) => { const off = -bw / 2 + k * sw; q.v.forEach((v, i) => {
       if (!v) return;
       g += `<rect x="${x(i) + off}" y="${y(v, q)}" width="${nb > 1 ? Math.max(1, sw - 1) : bw}" height="${Math.max(0, base0 - y(v, q))}" fill="${q.color}" opacity=".82"><title>${esc(lab(ax.ticks[i]))}: ${esc(q.name)} ${esc(fmt(v))}</title></rect>`;
-      if (LBL.inside && base0 - y(v, q) >= 16 && sw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i) + off + sw / 2}" y="${y(v, q) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
+      if (LBL.inside && base0 - y(v, q) >= 16 && sw >= lf(v, q.name).length * 6.2 + 2) g += `<text x="${x(i) + off + sw / 2}" y="${y(v, q) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
     }); });
     series.filter((q) => q.kind === "area").forEach((q) => {
       const pts = q.v.map((v, i) => (v == null ? null : [x(i), y(v, q)])).filter(Boolean);
@@ -367,9 +377,9 @@
       lead.v.forEach((v, i) => {
         if (!v || i % thin) return;
         const ly = lead.y(v) - 5, hit = lines.some((q) => q.v[i] != null && Math.abs(y(q.v[i], q) - (ly - 4)) < 13);
-        if (!hit) { g += labelAt(placed, x(i), ly, nf(v), "", W); return; }
+        if (!hit) { g += labelAt(placed, x(i), ly, lf(v, lead.name), "", W); return; }
         // 棒の中の字には棒の色の縁（線の脚が字を横切っても、字の所だけ線が隠れる。3 回目の採点: 山の点で線の脚が字に掛かった）
-        if (!stacked.length && base0 - lead.y(v) >= 18 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${x(i)}" y="${lead.y(v) + 15}" text-anchor="middle" class="pv-vl pv-in" style="stroke:${series[0].color};stroke-width:4px;paint-order:stroke;stroke-linejoin:round">${esc(nf(v))}</text>`;
+        if (!stacked.length && base0 - lead.y(v) >= 18 && bw >= lf(v, lead.name).length * 6.2 + 2) g += `<text x="${x(i)}" y="${lead.y(v) + 15}" text-anchor="middle" class="pv-vl pv-in" style="stroke:${series[0].color};stroke-width:4px;paint-order:stroke;stroke-linejoin:round">${esc(nf(v))}</text>`;
       });
     }
     // 線・面の系列（版 3.41.0。利用者の要望: 折れ線で 1 つの系列にしかラベルが付かなかった）: どの系列にも付ける。
@@ -397,7 +407,7 @@
         const low = pos === "below" || (pos !== "top" && others.length > 0 && others.every((o) => v < o));
         // 置き場の候補: 上・下（自動は値の小さい系列が下）、次に点の右上・左上・右下・左下。
         // 順に: 線の脚も棒も避けられる所 → 上・下で棒を避けられる所に白い札を敷いて（線は札の下をくぐる）→ 棒の上でも線を避けられる所 → 上・下に札
-        const w = String(nf(v)).length * 6.4 + 4, side = w / 2 + 6;
+        const w = String(lf(v, q.name)).length * 6.4 + 4, side = w / 2 + 6;
         const ud = (low ? [[0, 15], [0, -7]] : [[0, -7], [0, 15]]).map(([dx, dy]) => [x(i) + dx, cy + dy]);
         const tries = [...ud, ...[[side, -5], [-side, -5], [side, 13], [-side, 13]].map(([dx, dy]) => [x(i) + dx, cy + dy])];
         const at = ([cx, by]) => ({ x0: cx - w / 2, x1: cx + w / 2, y0: by - 11, y1: by + 2 });
@@ -406,7 +416,7 @@
         const order = pos === "top" || pos === "below" ? ud.map((t) => [t, !free(t)])
           : [...tries.filter((t) => free(t) && !onBar(at(t))).map((t) => [t, false]), ...ud.filter((t) => !onBar(at(t))).map((t) => [t, true]),
             ...tries.filter((t) => free(t) && onBar(at(t))).map((t) => [t, false]), ...ud.map((t) => [t, true])];
-        const put = (t, plate) => labelAt(placed, t[0], t[1], nf(v), same.length ? "" : tint, W, Math.max(1, pt - 14), base0, plate);
+        const put = (t, plate) => labelAt(placed, t[0], t[1], lf(v, q.name), same.length ? "" : tint, W, Math.max(1, pt - 14), base0, plate);
         let txt = "";
         for (const [t, plate] of order) { txt = put(t, plate); if (txt) break; }
         if (txt) { g += txt; if (same.length) shown.set(`${i}:${v}`, true); }
@@ -440,7 +450,7 @@
     g += hline(ucl, "pv-lim", "UCL") + hline(mean, "pv-cl", "CL") + (lcl > r.lo - 1e-9 ? hline(lcl, "pv-lim", "LCL") : "");
     g += `<path d="${vs.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("")}" fill="none" stroke="${COLORS[2]}" stroke-width="1.8"/>`;
     vs.forEach((v, i) => { const c = out[i] ? ALERT : run[i] ? WARN : COLORS[2]; g += `<circle cx="${x(i)}" cy="${y(v)}" r="${out[i] || run[i] ? 4.2 : 3}" fill="${out[i] || run[i] ? c : "#fff"}" stroke="${c}" stroke-width="1.8"><title>${esc(m.rowName(pts[i].r))}: ${esc(fmt(v))}${out[i] ? "（管理限界の外）" : run[i] ? "（中心線の同じ側に 9 点以上）" : ""}</title></circle>`; });
-    if (LBL.top) { const thin = thinOf(vs, iw / n); vs.forEach((v, i) => { if (i % thin === 0) g += `<text x="${x(i)}" y="${y(v) - 7}" text-anchor="middle" class="pv-vl">${esc(nf(v))}</text>`; }); }
+    if (LBL.top) { const thin = thinOf(vs, iw / n); vs.forEach((v, i) => { if (i % thin === 0) g += `<text x="${x(i)}" y="${y(v) - 7}" text-anchor="middle" class="pv-vl">${esc(lf(v))}</text>`; }); }
     const every = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(iw / (F.xrot && +F.xrot ? 18 : 80)))));
     pts.forEach((p, i) => { if (i % every === 0) g += xText(x(i), H - pb + 16, F.xrot && +F.xrot ? fitW(tickLabel(m, d, p.r), 150) : fitW(tickLabel(m, d, p.r), (iw / n) * every - 4)); });
     g += `<line x1="${pl}" x2="${w - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
@@ -479,8 +489,8 @@
           const tip = `<title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title>`;
           if (dir === "lollipop") g += `<line x1="${bx + bw / 2}" x2="${bx + bw / 2}" y1="${pt + ih}" y2="${pt + ih - h}" stroke="${c}" stroke-width="2"/><circle cx="${bx + bw / 2}" cy="${pt + ih - h}" r="${Math.max(3, Math.min(7, bw / 3))}" fill="${c}">${tip}</circle>`;
           else g += `<rect x="${bx}" y="${pt + ih - h}" width="${bw}" height="${h}" fill="${c}">${tip}</rect>`;
-          if (labelWant(q.name) && serFmt(q.name).label !== "below" && v && (i * series.length + k) % thin === 0) g += `<text x="${bx + bw / 2}" y="${pt + ih - h - (dir === "lollipop" ? 9 : 4)}" text-anchor="middle" class="pv-vl">${esc(nf(v))}</text>`;
-          if (LBL.inside && dir !== "lollipop" && v && h >= 16 && bw >= nf(v).length * 6.2 + 2) g += `<text x="${bx + bw / 2}" y="${pt + ih - h + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(v))}</text>`;
+          if (labelWant(q.name) && serFmt(q.name).label !== "below" && v && (i * series.length + k) % thin === 0) g += `<text x="${bx + bw / 2}" y="${pt + ih - h - (dir === "lollipop" ? 9 : 4)}" text-anchor="middle" class="pv-vl">${esc(lf(v, q.name))}</text>`;
+          if (LBL.inside && dir !== "lollipop" && v && h >= 16 && bw >= lf(v, q.name).length * 6.2 + 2) g += `<text x="${bx + bw / 2}" y="${pt + ih - h + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
         });
         if (i % cat.every === 0) g += cat.text(i, pl + gw * (i + 0.5), H - pb + 16);
       });
@@ -495,8 +505,8 @@
         series.forEach((q, k) => {
           const v = vals[i][k], w = iw * frac(v), by = pt + rh * i + (rh - bh * series.length) / 2 + bh * k;
           g += `<rect x="${pl}" y="${by}" width="${w}" height="${bh}" fill="${fill(r, q)}"><title>${esc(m.rowName(r))}${series.length > 1 ? ` / ${esc(q.name)}` : ""}: ${esc(fmt(v))}</title></rect>`;
-          if (LBL.inside && v && w >= nf(v).length * 6.2 + 8 && bh >= 11) g += `<text x="${pl + w - 4}" y="${by + bh / 2 + 4}" text-anchor="end" class="pv-vl pv-in">${esc(nf(v))}</text>`;
-          else if (series.length === 1 || LBL.top) g += `<text x="${pl + w + 6}" y="${by + bh - 2}" class="${LBL.top ? "pv-vl" : "pv-ax"}">${esc(nf(v))}</text>`;
+          if (LBL.inside && v && w >= lf(v, q.name).length * 6.2 + 8 && bh >= 11) g += `<text x="${pl + w - 4}" y="${by + bh / 2 + 4}" text-anchor="end" class="pv-vl pv-in">${esc(lf(v, q.name))}</text>`;
+          else if (series.length === 1 || LBL.top) g += `<text x="${pl + w + 6}" y="${by + bh - 2}" class="${LBL.top ? "pv-vl" : "pv-ax"}">${esc(lf(v, q.name))}</text>`;
         });
       });
       g += refLinesX((v) => pl + iw * frac(v), pt, H - pad(ctx, 30, 8) + pt, pl, pl + iw);
@@ -528,8 +538,8 @@
       const cx = pl + gw * (i + 0.5);
       g += `<rect x="${cx - bw / 2}" y="${y(x.v)}" width="${bw}" height="${pt + ih - y(x.v)}" fill="${x.rest ? "#a9b4be" : cof(x.name, COLORS[0])}" opacity="${i <= k80 || x.rest ? 1 : 0.55}"><title>${esc(x.name)}: ${esc(fmt(x.v))}（${pct(x.v / total)}・累積 ${pct(x.cum)}）</title></rect>`;
       if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
-      if (LBL.top) g += `<text x="${cx}" y="${y(x.v) - 5}" text-anchor="middle" class="pv-vl">${esc(nf(x.v))}</text>`;
-      if (LBL.inside && pt + ih - y(x.v) >= 16 && bw >= nf(x.v).length * 6.2 + 2) g += `<text x="${cx}" y="${y(x.v) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(nf(x.v))}</text>`;
+      if (LBL.top) g += `<text x="${cx}" y="${y(x.v) - 5}" text-anchor="middle" class="pv-vl">${esc(lf(x.v))}</text>`;
+      if (LBL.inside && pt + ih - y(x.v) >= 16 && bw >= lf(x.v).length * 6.2 + 2) g += `<text x="${cx}" y="${y(x.v) + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(lf(x.v))}</text>`;
     });
     g += `<path d="${items.map((x, i) => `${i ? "L" : "M"}${(pl + gw * (i + 0.5)).toFixed(1)},${yp(x.cum).toFixed(1)}`).join("")}" fill="none" stroke="${COLORS[1]}" stroke-width="2.2"/>`;
     items.forEach((x, i) => { g += `<circle cx="${pl + gw * (i + 0.5)}" cy="${yp(x.cum)}" r="3" fill="#fff" stroke="${COLORS[1]}" stroke-width="1.8"><title>累積 ${pct(x.cum)}</title></circle>`; });
@@ -565,7 +575,7 @@
     let g = r ? axisRange(r, pl, W - pr, y) : axisY(pl, pt, ih, top, false, W - pr + 56, MUTED, nf, lo);
     g += refLines(y, pl, W - pr, pt, pt + ih);
     if (lo < 0) g += `<line x1="${pl}" x2="${W - pr}" y1="${y(0)}" y2="${y(0)}" class="pv-axis"/>`;
-    const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + nf(Math.abs(v));
+    const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + lf(Math.abs(v));
     bars.forEach((b, i) => {
       const cx = pl + gw * (i + 0.5), y0 = y(Math.max(b.from, b.to)), y1 = y(Math.min(b.from, b.to)), h = Math.max(1, y1 - y0);
       const word = b.kind === "total" ? "計" : b.kind === "up" ? "増加" : "減少";
@@ -575,7 +585,7 @@
       if (i && b.kind !== "total") g += `<line x1="${cx - gw + bw / 2}" x2="${cx - bw / 2}" y1="${y(b.from)}" y2="${y(b.from)}" class="pv-wf-link"/>`;
       if (b.kind === "total" && i) g += `<line x1="${cx - gw + bw / 2}" x2="${cx - bw / 2}" y1="${y(b.to)}" y2="${y(b.to)}" class="pv-wf-link"/>`;
       if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
-      const t = b.kind === "total" ? nf(b.v) : sign(b.v);
+      const t = b.kind === "total" ? lf(b.v) : sign(b.v);
       // 値の字は増加・減少とも棒の上の端（減少の棒の下に置くと、横軸の札に被る）
       if (LBL.top) g += `<text x="${cx}" y="${y0 - 5}" text-anchor="middle" class="pv-vl">${esc(t)}</text>`;
       if (LBL.inside && h >= 16 && bw >= String(t).length * 6.2 + 2) g += `<text x="${cx}" y="${y0 + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
@@ -628,11 +638,11 @@
           const raw = vals[i][k], v = share ? raw / sum : raw; if (!raw) return;
           const x0 = xOf(base), x1 = xOf(base + v);
           g += `<rect x="${x0}" y="${by}" width="${Math.max(0, x1 - x0)}" height="${bh}" fill="${q.color}" opacity=".9"><title>${esc(m.rowName(r))} / ${esc(q.name)}: ${esc(fmt(raw))}（${pct(raw / sum)}）</title></rect>`;
-          const t = share ? pct(raw / sum) : nf(raw);
+          const t = share ? pct(raw / sum) : lf(raw);
           if (inside && bh >= 12 && x1 - x0 >= textW(t) + 6) g += `<text x="${(x0 + x1) / 2}" y="${cy + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
           base += v;
         });
-        if (!share && tops[i] && (LBL.top || series.length > 1)) g += `<text x="${xOf(tops[i]) + 5}" y="${cy + 4}" class="${LBL.top ? "pv-vl" : "pv-ax"}">${esc(nf(tops[i]))}</text>`;
+        if (!share && tops[i] && (LBL.top || series.length > 1)) g += `<text x="${xOf(tops[i]) + 5}" y="${cy + 4}" class="${LBL.top ? "pv-vl" : "pv-ax"}">${esc(lf(tops[i]))}</text>`;
       });
       g += `<line x1="${pl}" x2="${pl}" y1="${pt}" y2="${H - pb}" class="pv-axis"/>` + (share ? "" : refLinesX(xOf, pt, H - pb, pl, pl + iw));
       return { svg: svgOf(W, H, g, kindName), legend: legendHtml(series.map((q) => [q.name, q.color, "bar"])) + note };
@@ -649,11 +659,11 @@
         const raw = vals[i][k], v = share ? raw / sum : raw; if (!raw) return;
         const y1 = yOf(base + v), y0 = yOf(base);
         g += `<rect x="${cx - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(0, y0 - y1)}" fill="${q.color}" opacity=".9"><title>${esc(m.rowName(r))} / ${esc(q.name)}: ${esc(fmt(raw))}（${pct(raw / sum)}）</title></rect>`;
-        const t = share ? pct(raw / sum) : nf(raw);
+        const t = share ? pct(raw / sum) : lf(raw);
         if (inside && y0 - y1 >= 13 && bw >= t.length * 6.2 + 2) g += `<text x="${cx}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
         base += v;
       });
-      if (LBL.top && !share && tops[i]) g += `<text x="${cx}" y="${yOf(tops[i]) - 4}" text-anchor="middle" class="pv-vl">${esc(nf(tops[i]))}</text>`;
+      if (LBL.top && !share && tops[i]) g += `<text x="${cx}" y="${yOf(tops[i]) - 4}" text-anchor="middle" class="pv-vl">${esc(lf(tops[i]))}</text>`;
       if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
     });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>` + (share ? "" : refLines(yOf, pl, W - pr, pt, pt + ih));
@@ -739,7 +749,7 @@
         + `<line x1="${cx - bw / 2}" x2="${cx + bw / 2}" y1="${y(b.median)}" y2="${y(b.median)}" stroke="${cof(x.name, COLORS[2])}" stroke-width="3"/>`
         + `<path d="M${cx},${y(b.mean) - 4.5}l4.5,4.5l-4.5,4.5l-4.5,-4.5z" fill="${COLORS[0]}"/></g>`;
       b.out.forEach((v) => { g += `<circle cx="${cx}" cy="${y(v)}" r="2.6" fill="#fff" stroke="${ALERT}" stroke-width="1.4"><title>${esc(x.name)}: 外れ値 ${esc(fmt(v))}</title></circle>`; });
-      if (LBL.top || LBL.inside) g += `<text x="${cx + bw / 2 + 3}" y="${y(b.median) + 4}" class="pv-vl">${esc(nf(b.median))}</text>`;
+      if (LBL.top || LBL.inside) g += `<text x="${cx + bw / 2 + 3}" y="${y(b.median) + 4}" class="pv-vl">${esc(lf(b.median))}</text>`;
       if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
     });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
@@ -865,7 +875,7 @@
         g += `<path d="${right}${left}Z" fill="${c}" fill-opacity=".28" stroke="${c}" stroke-width="1.4"><title>${esc(tip)}</title></path>`;
       } else g += `<line x1="${cx}" x2="${cx}" y1="${y(b.min)}" y2="${y(b.max)}" stroke="${c}" stroke-width="2"><title>${esc(tip)}</title></line>`;
       g += `<rect x="${cx - 3}" y="${y(b.q3)}" width="6" height="${Math.max(1, y(b.q1) - y(b.q3))}" fill="#33404d" rx="1.5"/><circle cx="${cx}" cy="${y(b.median)}" r="3.2" fill="#fff" stroke="#33404d" stroke-width="1.4"><title>${esc(tip)}</title></circle>`;
-      if ((LBL.top || LBL.inside) && gw - half * 2 >= nf(b.median).length * 6.6 + 8) g += `<text x="${cx + half + 3}" y="${y(b.median) + 4}" class="pv-vl">${esc(nf(b.median))}</text>`;
+      if ((LBL.top || LBL.inside) && gw - half * 2 >= lf(b.median).length * 6.6 + 8) g += `<text x="${cx + half + 3}" y="${y(b.median) + 4}" class="pv-vl">${esc(lf(b.median))}</text>`;
       if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
     });
     g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
@@ -1199,7 +1209,7 @@
         const cont = prev && prev.type === "data" && prev.path.slice(0, lv + 1).join(SEP) === r.path.slice(0, lv + 1).join(SEP);
         if (!cont) th += `<th rowspan="${lv === nr - 1 ? 1 : span(i, lv)}">${esc(m.lab(lv, r.path[lv]))}</th>`;
       }
-      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${num(v)}</td>`; }).join("")).join("");
+      const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${num(v, j)}</td>`; }).join("")).join("");
       return `<tr class="${r.type === "grand" ? "is-grand" : r.type === "sub" ? "is-sub" : ""}">${th}${tds}</tr>`;
     }).join("");
     return `<thead>${head}</thead><tbody>${body}</tbody>`;
@@ -1247,17 +1257,28 @@
     const c = fm && fm.num && window.NumFormat && typeof v === "number" ? NumFormat.format(v / (DIVS[fm.unit] || [1])[0], fm.num).color : "";
     return c ? `<span style="color:${c}">${t}</span>` : t;
   }
+  /** 値の桁（版 3.50.1。値ごとの dec）を書式に重ねる: 桁を決めた値は、その桁で書く（書式の桁・表示形式コードを決めていれば、そちらが先）。
+      千・万の自動の割り算はせず（表の数は割らずに並べる）、書式で千・万を決めていればそれに従う */
+  function measFmt(fm, m) {
+    const f = fm || {};
+    if (!m || m.dec == null || f.digits != null || f.num) return f;
+    return { ...f, digits: m.dec, unit: f.unit && f.unit !== "auto" ? f.unit : "none" };
+  }
   /** ctx.fmt（版 3.39.0）があれば、描く間だけ書式を当てる（数値ラベル・日付の形・桁・単位・縦軸・基準線・名前ごとの色） */
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
     const H = ctx.H || (kind === "bar" || kind === "hstack" || kind === "hstack100" ? Math.max(260, Math.min(900, 26 * dataRows(ctx.m).length + 60)) : kind === "donut" ? 320 : kind === "diag45" ? 420 : kind === "xbar" ? 380 : 300);
-    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER];
+    const keep = [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC];
     if (ctx.colors) COLORS = ctx.colors;
     USED = new Map(); SER = new Map();
     F = ctx.fmt || {};
+    // 値ごとの桁（版 3.50.1）: 数値ラベルは系列の値の桁（名前で引く）。名前の分からない所は、グラフにする値の桁。目盛りは自動のまま
+    const ms = (ctx.d && ctx.d.measures) || [];
+    SDEC = new Map(ctx.measName ? ms.filter((m) => m.dec != null).map((m) => [ctx.measName(m), m.dec]) : []);
+    LDEC = (ms[Math.min((ctx.s && ctx.s.chartAt) || 0, Math.max(ms.length - 1, 0))] || {}).dec ?? null;
     const lb = F.labels || (ctx.s && ctx.s.labels ? "top" : "none");
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
-    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER] = keep; }
+    try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, exprText, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();

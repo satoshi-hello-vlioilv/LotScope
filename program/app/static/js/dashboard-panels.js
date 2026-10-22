@@ -118,7 +118,8 @@
     const vals = cell ? cell.v : [];
     const main = vals[0], ms = d.measures || [], fm = p.fmt || {};
     if ((fm.kpi === "bar" || fm.kpi === "gauge") && typeof main === "number" && fm.target) return kpiTarget(box, p, d, W, H, sub0, main);
-    const text = main == null ? "–" : C.numText(main, fm);
+    const fm0 = C.measFmt(fm, ms[0]);        // 値の桁（版 3.50.1）を重ねた書式
+    const text = main == null ? "–" : C.numText(main, fm0);
     const unit = autoUnit(p, ms[0]);
     // 字の大きさ: 高さの 5 割・幅に収まる大きさ（数字 1 字 ≒ 0.6em・単位は 1 字 ≒ 0.34em〈字の 0.32 倍の大きさ〉）の小さい方。14〜88px
     // 低いパネル（1 段）は、数と添え書きを横に並べる（縦に積むと数が小さくなり、添え書きが下で切れる）
@@ -127,8 +128,8 @@
     const wide = row ? W * 0.55 : W - 8;   // 横に並べるときは、数に幅の 55% まで（残りは添え書き）
     const z = SIZE_RATE[fm.nsize] || 1;    // 書式の字の大きさ（版 3.43.0）。入りきらなければ下で縮める
     const size = Math.round(Math.max(14, Math.min(88 * z, room * (row ? 0.92 : vals.length > 1 ? 0.42 : 0.56) * z, wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
-    const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${C.numHtml(v, fm)}</b></span>`).join("");
-    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${main == null ? "–" : C.numHtml(main, fm)}<small>${unit}</small></b>`
+    const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${C.numHtml(v, C.measFmt(fm, ms[i + 1]))}</b></span>`).join("");
+    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${main == null ? "–" : C.numHtml(main, fm0)}<small>${unit}</small></b>`
       + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")
       + (sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}" style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}">${esc(sub0)}</small>` : "") + "</div>";
     // 描いた後に、いま居る面に収まるまで数を小さくする（測った時と面の大きさが違っても、はみ出さない）
@@ -209,7 +210,7 @@
   function table(box, p, d, W, H) {
     const { m: m0 } = modelOf(p, d);
     const t = trimRows(m0, p, Infinity);
-    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName, dimName: (x) => dimName(x, p), num: (v) => C.numHtml(v, p.fmt) })}</table></div>`;
+    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName, dimName: (x) => dimName(x, p), num: (v, j) => C.numHtml(v, C.measFmt(p.fmt, d.measures[j])) })}</table></div>`;
     return moreText(fitRows(box.querySelector(".dp-tbl"), H), "行");
   }
   /** 表を高さ H に収める: 字を 14 → 11px まで詰め、それでも入らなければ下の行を隠す → 隠した行の数 */
@@ -324,7 +325,8 @@
     const ROWLOOK = new Set(["stack", "spark"]);
     const folded = (gi) => ROWLOOK.has(gs[gi].look) && models[gi].cols.length > 0;
     const span = (gi) => (folded(gi) ? 1 + (gs[gi].total ? 1 : 0) : Math.max(1, models[gi].cols.length + (models[gi].cols.length && gs[gi].total ? 1 : 0)));
-    const fmtN = (n) => (n == null ? "–" : C.numText(n, p.fmt)), fmtH = (n) => C.numHtml(n, p.fmt);   // 字（題・見出し）と、セルの字（表示形式の色つき）
+    // 字（題・見出し）と、セルの字（表示形式の色つき）。まとまりの値に桁を決めていれば、その桁（版 3.50.1）
+    const fmtN = (n, g) => (n == null ? "–" : C.numText(n, C.measFmt(p.fmt, g && g.measure))), fmtH = (n, g) => C.numHtml(n, C.measFmt(p.fmt, g && g.measure));
     const SEG = PALETTES.calm.c;
     /** 信号（しきい値 limits: warn・alert・dir〈high＝大きいと悪い・low＝小さいと悪い〉）→ ok・warn・alert か ""（決めていない） */
     const levelOf = (g, v) => {
@@ -336,12 +338,12 @@
     /** 1 つの数の札（見せ方ごと）。mx … その段の最大・base … 割合の分母 */
     const valHtml = (g, v, mx, base) => {
       const n = v || 0;
-      if (g.look === "heat" && n) return `<span style="--h:${(0.1 + 0.35 * n / mx).toFixed(2)}">${fmtH(n)}</span>`;
-      if (g.look === "bar" && n) return `<span class="db-mini"><i style="width:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtH(n)}`;
-      if (g.look === "dot") return `<span class="db-dotl"><i style="left:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtH(n)}`;
-      if (g.look === "share") return base ? `<span title="${esc(fmtN(n))}">${(Math.round(n / base * 1000) / 10).toFixed(1)}%</span>` : "–";
-      if (g.look === "signal") { const lv = levelOf(g, n); return lv ? `<span class="db-sig is-${lv}" title="${SIG[lv][1]}">${SIG[lv][0]}</span>${fmtH(n)}` : fmtH(n); }
-      return fmtH(n);
+      if (g.look === "heat" && n) return `<span style="--h:${(0.1 + 0.35 * n / mx).toFixed(2)}">${fmtH(n, g)}</span>`;
+      if (g.look === "bar" && n) return `<span class="db-mini"><i style="width:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtH(n, g)}`;
+      if (g.look === "dot") return `<span class="db-dotl"><i style="left:${(n / mx * 100).toFixed(1)}%"></i></span>${fmtH(n, g)}`;
+      if (g.look === "share") return base ? `<span title="${esc(fmtN(n, g))}">${(Math.round(n / base * 1000) / 10).toFixed(1)}%</span>` : "–";
+      if (g.look === "signal") { const lv = levelOf(g, n); return lv ? `<span class="db-sig is-${lv}" title="${SIG[lv][1]}">${SIG[lv][0]}</span>${fmtH(n, g)}` : fmtH(n, g); }
+      return fmtH(n, g);
     };
     const groupCells = (g, gi, k) => {
       const m = models[gi], r = m.rows.get(k), col = groupColor(g), grp = gi ? " db-grp" : "";
@@ -354,23 +356,23 @@
         const v = r ? r.total : 0;
         if (g.look === "bar" || g.look === "stack") {
           const mx = maxOf(totals);
-          return `<td class="db-lots${grp}" style="--gc:${col}"><div><span class="db-bar"><i style="width:${((v || 0) / mx * 100).toFixed(1)}%"></i></span><b>${v ? fmtH(v) : "–"}</b></div></td>`;
+          return `<td class="db-lots${grp}" style="--gc:${col}"><div><span class="db-bar"><i style="width:${((v || 0) / mx * 100).toFixed(1)}%"></i></span><b>${v ? fmtH(v, g) : "–"}</b></div></td>`;
         }
         const sum = totals.reduce((a, x) => a + (x || 0), 0);
         return `<td class="num db-s${grp}${v ? "" : " is-zero"} db-l-${g.look}" style="--gc:${col}">${valHtml(g, v, maxOf(totals), sum)}</td>`;
       }
       const t = r ? r.total || 0 : 0;
-      const sumCell = g.total ? `<td class="num db-sum">${fmtH(t)}${flags[gi].includes(k) ? `<em class="db-flag" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 でした">0 ${unitOf(g)}</em>` : ""}</td>` : "";
+      const sumCell = g.total ? `<td class="num db-sum">${fmtH(t, g)}${flags[gi].includes(k) ? `<em class="db-flag" title="ほかのまとまりに数があるのに、${esc(groupTitle(g, d.groups[gi]))}が 0 でした">0 ${unitOf(g)}</em>` : ""}</td>` : "";
       if (folded(gi)) {
         const vs = m.cols.map((c, ci) => (r ? r.v[ci] || 0 : 0));
         if (g.look === "stack") {
           const mx = maxOf(totals);
-          const segs = vs.map((v, ci) => (v ? `<i style="width:${(v / mx * 100).toFixed(2)}%;background:${SEG[ci % SEG.length]}" title="${esc(m.cols[ci].label)} ${esc(fmtN(v))}"></i>` : "")).join("");
+          const segs = vs.map((v, ci) => (v ? `<i style="width:${(v / mx * 100).toFixed(2)}%;background:${SEG[ci % SEG.length]}" title="${esc(m.cols[ci].label)} ${esc(fmtN(v, g))}"></i>` : "")).join("");
           return `<td class="db-stk${grp}"><span class="db-stack">${segs}</span></td>${sumCell}`;
         }
         const mx = maxOf(vs), w = 120, h = 20, step = vs.length > 1 ? w / (vs.length - 1) : 0;
         const pts = vs.map((v, i) => `${(i * step).toFixed(1)},${(h - 2 - (v / mx) * (h - 4)).toFixed(1)}`).join(" ");
-        return `<td class="db-spk${grp}"><svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(m.cols.map((c, i) => `${c.label} ${fmtN(vs[i])}`).join("・"))}"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.8"/><circle cx="${((vs.length - 1) * step).toFixed(1)}" cy="${(h - 2 - (vs[vs.length - 1] / mx) * (h - 4)).toFixed(1)}" r="2.4" fill="${col}"/></svg></td>${sumCell}`;
+        return `<td class="db-spk${grp}"><svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${esc(m.cols.map((c, i) => `${c.label} ${fmtN(vs[i], g)}`).join("・"))}"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.8"/><circle cx="${((vs.length - 1) * step).toFixed(1)}" cy="${(h - 2 - (vs[vs.length - 1] / mx) * (h - 4)).toFixed(1)}" r="2.4" fill="${col}"/></svg></td>${sumCell}`;
       }
       const mx = maxOf([...m.rows.values()].flatMap((x) => x.v));
       const cells = m.cols.map((c, ci) => {

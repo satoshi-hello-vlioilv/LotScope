@@ -594,7 +594,7 @@
     if (isOps(p) && !inGroup()) return "";
     const a = host && host.answer ? host.answer() : null;
     if (a && a.cells) window.PivotCalc.remember(a, a.measures);
-    return window.PivotCalc.html(t.body.measures, { name: (m) => P.measName({ ...m, expr: undefined }), answer: a && a.cells && !inGroup() && !inSide() ? a : null, num: (v) => C.numText(v, p.fmt || {}) });
+    return window.PivotCalc.html(t.body.measures, { name: (m) => P.measName({ ...m, expr: undefined }), answer: a && a.cells && !inGroup() && !inSide() ? a : null, num: (v, m) => C.numText(v, C.measFmt(p.fmt || {}, m)) });
   }
   /** 答えが届いたら、段の変わり方（総計）だけを描き直す（打っている欄はそのまま） */
   function paintCalc0() {
@@ -1207,6 +1207,10 @@
       if ((m.expr || "") === txt) return "";
       if (txt) m.expr = txt; else delete m.expr;
       changed(false); return "";
+    }, (i, dec) => {                       // 値の桁（版 3.50.1）
+      const m = t && t.body.measures[i]; if (!m) return;
+      if (dec == null || dec === "") delete m.dec; else m.dec = Math.max(0, Math.min(6, +dec));
+      changed(false);
     });
   }
   function bind(el) {

@@ -39,6 +39,15 @@ class MeasureExprTest(unittest.TestCase):
             aggregate.clean({"agg": "sum", "column": "重量", "expr": "x+"}, lambda c: True)
         self.assertNotIn("expr", aggregate.clean({"agg": "count", "expr": ""}, lambda c: True))
 
+    def test_dec_is_kept_and_clamped(self):
+        """桁（版 3.50.1）: 0〜6 に収めて持つ。読めない桁は持たない。値そのものは丸めない（見せる字だけ）"""
+        def clean(d):
+            return aggregate.clean({"agg": "sum", "column": "重量", "dec": d}, lambda c: True).get("dec")
+        self.assertEqual([clean(1), clean("2"), clean(9), clean(-1), clean(1.6), clean("x"), clean(None)], [1, 2, 6, 0, 2, None, None])
+        cells = [{"r": [], "c": [], "v": [972.3654]}]
+        aggregate.apply_expr(cells, [{"agg": "sum", "column": "a", "dec": 1}])
+        self.assertEqual(cells[0]["v"][0], 972.3654)
+
     def test_expr_before_show(self):
         """計算は表し方の前: 累計は計算した値を足し上げ、割合は計算しても同じ（線形）"""
         ms = [{"agg": "sum", "column": "a", "expr": "-10"}, {"agg": "sum", "column": "a", "expr": "×2", "show": "pct_total"}]
