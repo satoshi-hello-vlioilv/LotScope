@@ -219,3 +219,47 @@
 /* ★を付けたが先の置き場の★に負けている組み方（版 3.49.0） */
 .pv-star.is-off{color:#8a7a5c}
 .pv-psec .tpa-sch{padding:0}
+.pv-wf-link{stroke:#7d8a95;stroke-width:1;stroke-dasharray:3 3}
+/* 札を引いて組み替える（版 3.50.0。pivot-dnd.js。一覧の集計表とダッシュボードの組む所で同じ） */
+.pv-chip[data-dnd-role]{cursor:grab;touch-action:none}
+.pv-chip[data-dnd-role]:focus-visible{outline:2px solid var(--ll-teal-dark);outline-offset:2px}
+.pv-f[data-dnd-col]{touch-action:none}
+.pv-chip.is-dragging{opacity:.32}
+.pv-ghost{position:fixed;left:0;top:0;z-index:10000;pointer-events:none;box-shadow:0 6px 18px rgba(20,40,60,.28);opacity:.96;cursor:grabbing}
+.pv-chip.pv-fghost{background:#41525f}
+body.pv-dnd-body,body.pv-dnd-body *{cursor:grabbing!important;user-select:none}
+.is-dnd .pv-slot.is-drop-ok{border-color:#5f8fb3;background:#eef5fb}
+.is-dnd .pv-slot.is-drop-on{border-style:solid;border-color:var(--ll-teal-dark);background:var(--ll-pale)}
+.is-dnd .pv-slot.is-drop-no{opacity:.45}
+.pv-slot{position:relative}
+.pv-ins{position:absolute;width:3px;border-radius:2px;background:var(--ll-teal-dark);pointer-events:none;box-shadow:0 0 0 1px #fff}
+[data-dnd-trash].is-trash-on{outline:2px dashed #c9564a;outline-offset:-2px;background:#fdf1ef}
+/* 引けることの印（つまみ ⋮⋮。2026-10-pvdrag の 1 回目で決めた C） */
+.pv-chip[data-dnd-role]::before{content:"";flex:none;width:6px;height:12px;margin:0 2px 0 -4px;opacity:.8;background:radial-gradient(circle,#fff 1.1px,transparent 1.3px) 0 0/3px 4px}
+/* 行と列を入れ替える札 */
+.pv-swap{display:inline-flex;align-items:center;gap:3px;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pv-swap i{font-style:normal;font-size:14px;color:var(--pv-col)}
+.pv-swap:hover:not(:disabled){border-color:var(--pv-col);background:var(--pv-col-bg)}
+.pv-swap:disabled{opacity:.45;cursor:default}
+/* 狭い所（フル HD・150% の 1280 など）では、文を 1 段に保つため「入れ替え」の字を畳んで印だけに（説明は title と読み上げに残す） */
+#llPivot .pv-sent{container:pvsent / inline-size}
+@container pvsent (max-width: 1100px){.pv-swap .pv-swl{display:none}.pv-swap{padding:0 6px}.pv-swap i{font-size:16px}}
+@container pvsent (max-width: 1000px){.pv-w,.pv-slot,.pv-ck,.pv-swap{margin-right:-2px}}
+/* 値の計算の段（版 3.50.0。pivot-calc.js。一覧の集計表とダッシュボードの組む所で同じ） */
+.pc-band{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:6px;padding:6px 10px;border:1px solid #ecdcbc;border-radius:10px;background:var(--pv-val-bg)}
+.pc-cap{font-size:12px;color:#6b4a10;white-space:nowrap}
+.pc-item{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap}
+.pc-name{color:var(--ink);font-weight:700}
+.pc-in{width:92px;height:26px;padding:0 8px;border:1px solid var(--edit-line,#c9d3dc);border-radius:7px;background:var(--edit-field,#fffdf6);font:13px ui-monospace,Consolas,monospace;color:var(--ink)}
+.pc-in::placeholder{color:#7a8088}
+.pc-in:focus{outline:none;border-color:var(--edit-focus,#e6a52e);box-shadow:0 0 0 3px var(--focus-ring)}
+.pc-in.is-bad{border-color:#c9564a;background:#fdf1ef}
+.pc-prev{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;background:var(--ll-pale);color:var(--ll-teal-dark);font-weight:700;font-variant-numeric:tabular-nums}
+.pc-prev i{font-style:normal;color:#56616b;font-weight:400}
+.pc-bad{font-style:normal;color:#a5372c;font-weight:700;white-space:normal}
+.pc-qs{display:inline-flex;gap:4px}
+.pc-q{height:24px;padding:0 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font:12px ui-monospace,Consolas,monospace;color:var(--ink);cursor:pointer}
+.pc-q:hover{border-color:var(--pv-val)}
+.pc-q.on{background:var(--pv-val);border-color:var(--pv-val);color:#fff}
+/* 引き始めに札の字が選ばれない（引く前の 5px の間に字の選びが始まっていた） */
+.pv-chip[data-dnd-role],.pv-f[data-dnd-col] > span{user-select:none;-webkit-user-select:none}

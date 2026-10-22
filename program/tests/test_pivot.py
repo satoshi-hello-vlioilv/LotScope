@@ -198,6 +198,24 @@ class Work(unittest.TestCase):
         self.assertEqual(cell(ans)[0], listed["count"], "一覧と同じ絞り込みで、同じ件数")
         self.assertEqual(ans["count"], listed["count"])
 
+    def test_measure_expr_matches_the_raw_answer(self):
+        """値ごとの計算（版 3.50.0）: 同じ組みの答えの全セル（小計・総計も）に式を当てた数。読めない式は断る。累計は計算した値から"""
+        ms = [{"agg": "sum", "column": "重量"}, {"agg": "count"}]
+        raw = self.ask([{"column": "@workday"}], [{"column": "@shift"}], ms)
+        got = self.ask([{"column": "@workday"}], [{"column": "@shift"}], [{**ms[0], "expr": "÷1000"}, {**ms[1], "expr": "(値+1)×2"}])
+        want = {(tuple(c["r"]), tuple(c["c"])): c["v"] for c in raw["cells"]}
+        self.assertEqual(len(got["cells"]), len(raw["cells"]))
+        for c in got["cells"]:
+            w = want[(tuple(c["r"]), tuple(c["c"]))]
+            self.assertAlmostEqual(c["v"][0], w[0] / 1000, places=6)
+            self.assertEqual(c["v"][1], (w[1] + 1) * 2)
+        self.assertEqual(got["measures"][0]["name"], "重量の合計［値÷1000］")
+        cum = self.ask([{"column": "@workday"}], [], [{"agg": "count", "expr": "×2", "show": "cum"}])
+        days = [c["v"][0] for c in sorted((c for c in cum["cells"] if c["r"]), key=lambda c: cum["orders"][0].index(c["r"][0]))]
+        self.assertEqual(days[-1], 2 * len(self.rows), "累計の終わりは、計算した値（×2）の合計")
+        with self.assertRaises(pivot.PivotError):
+            self.ask([{"column": "作業者"}], [], [{"agg": "count", "expr": "x+"}])
+
     def test_bad_requests(self):
         with self.assertRaises(pivot.PivotError):
             self.ask([{"column": "無い列"}])

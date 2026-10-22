@@ -48,8 +48,8 @@ const warns = [["yyyy/mm/dd", true], ['0"kg"', false], ["0 kg", true], ["[緑]0"
 for (const [code, want] of warns) if ((N.check(code).length > 0) !== want) { bad++; console.log(`NG check ${code}: ${N.check(code)}`); }
 if (!N.hasLiteral('#,##0"本"') || N.hasLiteral("#,##0;(#,##0)")) { bad++; console.log("NG hasLiteral"); }
 // 値の計算（版 3.45.0）: 演算子から書くと前に値・全角・かっこ・累乗・0 で割る（null）・読めない式は知らせ
-const exprs = [["÷1000", 50, 0.05], ["×100", 50, 5000], ["+5", 50, 55], ["-3", 50, 47], ["(値-10)*2", 50, 80], ["x^2", 3, 9], ["２×値", 4, 8],
-  ["（値＋１）／２", 5, 3], ["-x", 5, -5], ["x/0", 5, null], ["abc", 1, "err"], ["x+", 1, "err"], ["5", 1, "err"], ["(x", 1, "err"], ["", 1, "none"]];
+// 事例はサーバー（services/num_expr.py。tests/test_num_expr.py）と同じ表（tests/fixtures/num_expr_cases.json）
+const exprs = JSON.parse(fs.readFileSync(path.resolve(JS, "../../../tests/fixtures/num_expr_cases.json"), "utf8")).cases;
 for (const [src, x, want] of exprs) {
   const r = N.expr(src), got = want === "err" ? (r.error ? "err" : r.fn(x)) : want === "none" ? (r.fn ? "fn" : "none") : r.fn ? r.fn(x) : r.error;
   if (got !== want) { bad++; console.log(`NG expr ${JSON.stringify(src)}(${x}) → ${JSON.stringify(got)}（期待 ${JSON.stringify(want)}）`); }

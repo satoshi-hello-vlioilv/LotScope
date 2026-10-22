@@ -187,7 +187,7 @@
     }
     // 凡例を描く高さ（列の段・値が 2 つ以上のときだけ。低いパネルでは出さない）
     const fm = p.fmt || {};
-    const wantLegend = fm.legend !== "none" && (m.nc > 0 || d.measures.length > 1 || ["bubble", "diag45", "xbar", "violin"].includes(kind)) && H >= 150 && kind !== "donut" && kind !== "treemap";
+    const wantLegend = fm.legend !== "none" && (m.nc > 0 || d.measures.length > 1 || ["bubble", "diag45", "xbar", "violin", "waterfall"].includes(kind)) && H >= 150 && kind !== "donut" && kind !== "treemap";
     const gh = Math.max(60, H - (wantLegend ? 20 : 0));
     const colors = seriesColors(p), pal = PALETTES[fm.palette || ""];
     const r0 = (d.dims.rows || [])[0], few = m.nr === 1 && m.nc === 0 && r0 && !r0.column.startsWith("@") && !C.isTimeDim(r0) && m.rows.filter((r) => r.type === "data").length <= 8;
@@ -202,7 +202,7 @@
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     const cls = `dp-chart${fm.grid === false ? " no-grid" : ""}${fm.size ? ` fs-${fm.size}` : ""}`;
     box.innerHTML = fm.legend === "bottom" ? `<div class="${cls}">${out.svg}${sideOk ? out.side : ""}</div>${legend}` : `${legend}<div class="${cls}">${out.svg}${sideOk ? out.side : ""}</div>`;
-    return note;
+    return [note, out.note || ""].filter(Boolean).join("・");   // 形からの知らせ（ウォーターフォールの「計の棒は出しません」など）も下に
   }
 
   /* ---- 表（集計表と同じ表を、字と行の高さを詰めて収める） ---- */

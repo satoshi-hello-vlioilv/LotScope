@@ -133,10 +133,13 @@ def _measure(m):
     """値（services/aggregate.py の形）。列があるかは数えるときに確かめる（ここは形だけ）。合わなければ None"""
     if not isinstance(m, dict) or m.get("agg") not in aggregate.AGGS:
         return None
+    m = {**m, "column": str(m.get("column") or "")[:200]}
     try:
-        out = aggregate.clean({**m, "column": str(m.get("column") or "")[:200]}, lambda c: bool(c))
+        out = aggregate.clean(m, lambda c: bool(c))
     except ValueError:
-        return None
+        if not m.get("expr"):
+            return None
+        return _measure({k: v for k, v in m.items() if k != "expr"})     # 読めない計算は外す（値そのものは残す）
     return {k: v for k, v in out.items() if not (k == "column" and not v)}
 
 

@@ -83,6 +83,11 @@ const COMBO_LAYOUT = { rows: 8, panels: [
   { id: "combo", x: 0, y: 0, w: 7, h: 8, title: "", visual: "combo", source: "work", period: { column: "@workday", kind: "days", n: 14 }, body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots" }, { agg: "avg", column: "重量" }] },
     fmt: { series: { "重量の平均": { kind: "line", axis: "right", dash: true } } } },
   { id: "combo2", x: 7, y: 0, w: 5, h: 8, title: "", visual: "combo", source: "work", body: { rows: [{ column: "@equip", part: "" }], cols: [], measures: [{ agg: "lots" }, { agg: "avg", column: "速度" }] } }] };
+// ウォーターフォール図（版 3.50.0）: 設備ごとの積み増し＋計・前との差（増加と減少・計なし）・値の計算 ÷1000
+const WATERFALL_LAYOUT = { rows: 8, panels: [
+  { id: "wf1", x: 0, y: 0, w: 6, h: 4, title: "", visual: "waterfall", source: "work", period: { column: "@workday", kind: "days", n: 7 }, body: { rows: [{ column: "@equip", part: "" }], cols: [], measures: [{ agg: "lots" }] }, fmt: { labels: "top" } },
+  { id: "wf2", x: 6, y: 0, w: 6, h: 4, title: "", visual: "waterfall", source: "work", period: { column: "@workday", kind: "days", n: 14 }, body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots", show: "diff" }] }, fmt: { labels: "top" } },
+  { id: "wf3", x: 0, y: 4, w: 12, h: 4, title: "", visual: "waterfall", source: "work", period: { column: "@workday", kind: "days", n: 7 }, body: { rows: [{ column: "@equip", part: "" }], cols: [], measures: [{ agg: "sum", column: "重量", expr: "÷1000" }] }, fmt: { labels: "top" } }] };
 const SORTED = { sorts: { "仕掛": [{ column: "重量", dir: "desc" }, { column: "板厚", dir: "asc" }] }, active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] } };
 
 /** サーバーとブラウザーを起こす。{ browser, newPage(テーマ, 大きさ), close() } */
@@ -229,7 +234,22 @@ export const STATES = [
   // 集計表・グラフ（ピボット集計）: すぐに見る「作業日ごとのロット数・重量」（時系列）と、重量のヒストグラム
   ["worklog-pivot", async (p) => { await p.click("#llWorkSwitch [data-wk-unpick]").catch(() => {}); await p.click('#llViewSwitch [data-pv-view="pivot"]'); await p.waitForSelector("#llPivot .pv-quick", { state: "attached" });
     await quick(p); await p.waitForSelector("#llPivot .pv-table"); await sleep(700); }, "[data-next], #llPivot [data-pv-pick]"],
-  ["worklog-hist", async (p) => { await pickChart(p, "hist"); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
+  // 版 3.50.0: 札を引いている途中（カラムの札「作業区分」を文の［列］の枠の上まで引き、離さずに撮る。次の状態の頭で Esc で止める）
+  ["worklog-pivot-dnd", async (p) => {
+    const fe = await p.$('#llPivot .pv-f[data-dnd-col="作業区分"] > span'); await fe.scrollIntoViewIfNeeded();   // 狭い画面では欄の外にある
+    const f = await fe.boundingBox(), s = await (await p.$('#llPivot .pv-slot[data-role="cols"]')).boundingBox();
+    await p.mouse.move(f.x + f.width / 2, f.y + f.height / 2); await p.mouse.down(); await p.mouse.move(f.x + f.width / 2 + 12, f.y + f.height / 2 + 6, { steps: 3 });
+    await p.mouse.move(s.x + s.width / 2, s.y + s.height / 2, { steps: 10 }); await sleep(300);
+  }, "[data-next], #llPivot .pv-slot.is-drop-on"],
+  // 版 3.50.0: 値の計算の段で、重量の合計に ÷1000 を当てた所（次の状態の頭で外す）
+  ["worklog-pivot-calc", async (p) => {
+    await p.keyboard.press("Escape"); await p.mouse.up(); await sleep(200);
+    await p.fill('#llPivot [data-pc-in="1"]', "÷1000"); await p.keyboard.press("Enter"); await sleep(400);
+    await p.waitForFunction(() => !document.querySelector("#llPvOut.is-busy")); await sleep(700);
+  }, "[data-next], #llPivot .pc-prev"],
+  ["worklog-hist", async (p) => { await p.keyboard.press("Escape"); await p.mouse.up(); await sleep(200);
+    if (await p.$('#llPivot [data-pc-in="1"]')) { await p.fill('#llPivot [data-pc-in="1"]', ""); await p.keyboard.press("Enter"); await sleep(600); }
+    await pickChart(p, "hist"); await sleep(1000); }, "[data-next], #llPivot [data-pv-binw]"],
   // 版 3.27.0: グラフの形を選ぶ所を開いた所（形が 14 に増えた）と、すぐに見るを選ぶ所を開いた所（ID ごとに選ぶ）。
   // 改良案（ui-variants）は body の data-ui-pick を見て、案の開いた形を出す
   ["pivot-pick", async (p) => { await closeAll(p); await quick(p); await sleep(800);
@@ -412,6 +432,8 @@ export const STATES = [
   }, "[data-next], [data-db-editmode]"],
   // 版 3.48.0: 積み上げ横棒・100%積み上げ横棒（設備 × 直・作業区分 × 直）と、組み込みの標準を入れ替えた所・外した所の面
   ["dash-hstack", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), HSTACK_LAYOUT); await sleep(500); await waitDash(p); await sleep(600); }, "[data-next], [data-db-editmode]"],
+  // 版 3.50.0: ウォーターフォール図（直近 7 日の設備ごとのロット数・直近 14 日の作業日ごとの前との差・重量の合計 ÷1000）
+  ["dash-waterfall", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), WATERFALL_LAYOUT); await sleep(500); await waitDash(p); await sleep(700); }, "[data-next], [data-db-editmode]"],
   ["dash-swap-pop", async (p) => {
     await p.evaluate(async (l) => {
       await fetch("/api/dashboards", TPA.json("POST", { name: "標準", scope: "default", standard: true, body: { ...l, replaces: "standard" } }));

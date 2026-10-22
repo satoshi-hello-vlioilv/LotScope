@@ -30,6 +30,7 @@
   const AGGS = [["sum", "合計"], ["avg", "平均"], ["min", "最小"], ["max", "最大"]];
   const C = window.LotListPivotCharts, { fmt, dayAt, isDay } = C;   // グラフの形の登録と描き方（lotlist-pivot-charts.js）
   const MAX_DIMS = 3, MAX_MEASURES = 4;
+  const DND = window.PivotDnd;      // 札を引いて組み替える（版 3.50.0。pivot-dnd.js）
   let host = null, fields = null, fieldsSig = "", answer = null, seq = 0, fq = "", timer = 0, resizeObs = null;
 
   /* ---- 覚え ---- */
@@ -59,7 +60,7 @@
   const dimName = (d) => (d.column === "@workday" ? workdayName() + (d.part ? `（${WORKDAY_NAME[d.part]}）` : "") : d.column === "@shift" ? "直" : host.label(d.column) + (d.part ? `（${PART_NAME[d.part]}）` : ""));
   /** 月で区切る・月を選ぶのは、行の 1 段目が日の段（日付の列の年月日・作業日の日）のとき */
   const canMonth = (s) => isDay(s.rows[0]);
-  const measName = (m) => (m.agg === "count" ? "件数" : m.agg === "lots" ? "ロット数" : `${host.label(m.column)}の${(AGGS.find((a) => a[0] === m.agg) || [])[1] || "合計"}`);
+  const measName = (m) => C.measLabel(m, host.label);
   function partsOf(col) {
     if (col === "@workday") return WORKDAY_PARTS;
     if (col.startsWith("@")) return [""];
@@ -88,6 +89,15 @@
     if (s.measures.some(same)) { save({ measures: s.measures.filter((x) => !same(x)) }); refresh(); return; }
     if (s.measures.length >= MAX_MEASURES) { host.toast(`値は ${MAX_MEASURES} つまでです`); return; }
     save({ measures: s.measures.concat([m]) }); refresh();
+  }
+  /** 値の計算（版 3.50.0。要望 2: 値ごとの四則演算。サーバーが表し方の前に当てる）。読めない式は入れず、理由を返す */
+  function setExpr(i, text) {
+    const s = st(), m = s.measures[i]; if (!m) return "";
+    const t = String(text || "").trim(), ex = window.NumFormat ? NumFormat.expr(t) : { error: "" };
+    if (t && ex.error) return ex.error;
+    const next = { ...m }; if (t) next.expr = t; else delete next.expr;
+    save({ measures: s.measures.map((x, k) => (k === i ? next : x)) }); refresh();
+    return "";
   }
   function setView(v) {
     save({ view: v });
@@ -215,6 +225,7 @@
       if (me !== seq) return;
       if (!r.ok) throw new Error(d.error || "集計できませんでした");
       answer = d; fq = qs;
+      window.PivotCalc.remember(d, d.measures);     // 計算の変わり方（計算の前の総計）を覚える
       paint(d);
     } catch (e) { if (me === seq) paint(null, e.message); }
   }
@@ -237,14 +248,15 @@
     const btn = (role, col, on, extra = "") => `<button type="button" class="pv-r r-${role}${on ? " on" : ""}" data-pv-add="${role}" data-col="${esc(col)}" aria-pressed="${on}" ${extra}>${{ rows: "行", cols: "列", vals: "値" }[role]}</button>`;
     let html = "";
     // 作業実績の特別なカラム（作業日・直・ロット数）と、件数
-    const special = (host.isWork() ? WORK().map(([c, n, tip]) => `<div class="pv-f is-special${used(c) ? " is-used" : ""}" title="${esc(tip)}"><span><b>${n}</b><small>${c === "@workday" ? "作業開始の日" : "勤務体系の直"}</small></span>${btn("rows", c, used(c) === "rows")}${btn("cols", c, used(c) === "cols")}<i></i></div>`).join("") : "")
-      + `<div class="pv-f is-special${meas("lots") ? " is-used" : ""}" title="${host.isWork() ? "作業開始が同じ行（分割したロット）を 1 と数えます" : "ロット番号が同じ行を 1 と数えます"}"><span><b>ロット数</b><small>${host.isWork() ? "重複の無い作業開始" : "重複の無いロット番号"}</small></span><i></i><i></i>${btn("vals", "@lots", meas("lots"))}</div>`
-      + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}" title="当たる行の数"><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
+    const fa = DND.fieldAttrs;
+    const special = (host.isWork() ? WORK().map(([c, n, tip]) => `<div class="pv-f is-special${used(c) ? " is-used" : ""}" title="${esc(tip)}"${fa(c, ["rows", "cols"])}><span><b>${n}</b><small>${c === "@workday" ? "作業開始の日" : "勤務体系の直"}</small></span>${btn("rows", c, used(c) === "rows")}${btn("cols", c, used(c) === "cols")}<i></i></div>`).join("") : "")
+      + `<div class="pv-f is-special${meas("lots") ? " is-used" : ""}" title="${host.isWork() ? "作業開始が同じ行（分割したロット）を 1 と数えます" : "ロット番号が同じ行を 1 と数えます"}"${fa("@lots", ["vals"])}><span><b>ロット数</b><small>${host.isWork() ? "重複の無い作業開始" : "重複の無いロット番号"}</small></span><i></i><i></i>${btn("vals", "@lots", meas("lots"))}</div>`
+      + `<div class="pv-f is-special${meas("count") ? " is-used" : ""}" title="当たる行の数"${fa("@count", ["vals"])}><span><b>件数</b><small>行の数</small></span><i></i><i></i>${btn("vals", "@count", meas("count"))}</div>`;
     if (hit("作業日 直 ロット数 件数")) html += special;
     html += (fields || []).filter((f) => hit(f.column) || hit(host.label(f.column))).map((f) => {
       const c = f.column, u = used(c), date = isDate(c);
       const sub = date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : `${f.kinds} 種類`;
-      return `<div class="pv-f${u || anyVal(c) ? " is-used" : ""}${date ? " is-date" : ""}${f.numeric ? " is-num" : ""}" data-col="${esc(c)}"><span title="${esc(c)}"><b>${esc(host.label(c))}</b><small>${sub}</small></span>`
+      return `<div class="pv-f${u || anyVal(c) ? " is-used" : ""}${date ? " is-date" : ""}${f.numeric ? " is-num" : ""}" data-col="${esc(c)}"${fa(c, f.numeric ? ["rows", "cols", "vals"] : ["rows", "cols"])}><span title="${esc(c)}"><b>${esc(host.label(c))}</b><small>${sub}</small></span>`
         + btn("rows", c, u === "rows") + btn("cols", c, u === "cols") + (f.numeric ? btn("vals", c, anyVal(c), 'title="合計を値に足します（値の札で平均・最小・最大に替えられます）"') : "<i></i>") + "</div>";
     }).join("");
     return html || '<p class="pv-none">当たるカラムがありません</p>';
@@ -254,16 +266,20 @@
     const pn = d.column === "@workday" ? WORKDAY_NAME : PART_NAME;
     const sel = parts.length > 1 ? `<select data-pv-part="${role}" data-i="${i}" aria-label="まとめ方">${parts.map((p) => `<option value="${p}"${(d.part || "") === p ? " selected" : ""}>${pn[p]}</option>`).join("")}</select>` : "";
     const name = d.column === "@workday" ? workdayName() : d.column === "@shift" ? "直" : host.label(d.column);
-    return `<span class="pv-chip ${role === "rows" ? "r" : "c"}" title="${esc(dimName(d))}"><b>${esc(name)}</b>${sel}<button type="button" data-pv-x="${role}" data-i="${i}" aria-label="「${esc(name)}」を外す">×</button></span>`;
+    return `<span class="pv-chip ${role === "rows" ? "r" : "c"}" title="${esc(dimName(d))}"${DND.chipAttrs(role, i)}><b>${esc(name)}</b>${sel}<button type="button" data-pv-x="${role}" data-i="${i}" aria-label="「${esc(name)}」を外す">×</button></span>`;
   }
   function measChip(m, i) {
     const sel = m.agg === "count" || m.agg === "lots" ? "" : `<select data-pv-agg="${i}" aria-label="集計のしかた">${AGGS.map(([k, n]) => `<option value="${k}"${m.agg === k ? " selected" : ""}>${n}</option>`).join("")}</select>`;
     const name = m.agg === "count" ? "件数" : m.agg === "lots" ? "ロット数" : host.label(m.column);
-    return `<span class="pv-chip v" title="${esc(measName(m))}"><b>${esc(name)}</b>${sel}<button type="button" data-pv-mx="${i}" aria-label="「${esc(measName(m))}」を外す">×</button></span>`;
+    return `<span class="pv-chip v" title="${esc(measName(m))}"${DND.chipAttrs("vals", i)}><b>${esc(name)}</b>${sel}<button type="button" data-pv-mx="${i}" aria-label="「${esc(measName(m))}」を外す">×</button></span>`;
   }
+  /** 行と列を入れ替える札（版 3.50.0。列に段があるときだけ押せる: 列が空のまま入れ替えると行が空になり、何も出ない） */
+  const swapBtn = (rows, cols, attr) => `<button type="button" class="pv-swap" aria-label="行と列を入れ替える" ${attr}${cols.length ? "" : " disabled"} title="${cols.length ? "行の段と列の段を入れ替えます" : "列に段を入れると、行と入れ替えられます"}"><i aria-hidden="true">⇄</i><span class="pv-swl">入れ替え</span></button>`;
+  /** 値の計算の段（版 3.50.0。pivot-calc.js。文のすぐ下） */
+  const calcHtml = (s) => window.PivotCalc.html(s.measures, { name: (m) => C.measLabel({ ...m, expr: undefined }, host.label), answer, num: fmt });
   function sentenceHtml(s) {
     const slot = (role, html, ph) => `<span class="pv-slot" data-role="${role}">${html || `<span class="pv-ph">${ph}</span>`}</span>`;
-    return `<div class="pv-sent">${slot("rows", s.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］を押す")}<span class="pv-w">ごとに、</span>`
+    return `<div class="pv-sent">${slot("rows", s.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］を押す")}<span class="pv-w">ごとに、</span>${swapBtn(s.rows, s.cols, "data-pv-swap")}`
       + `${slot("cols", s.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`
       + `${slot("vals", s.measures.map(measChip).join(""), "件数")}<span class="pv-w">を出す</span><span class="pv-sp"></span>`
       + `<label class="pv-ck"><input type="checkbox" data-pv-opt="sub"${s.sub ? " checked" : ""}>小計</label><label class="pv-ck"><input type="checkbox" data-pv-opt="grand"${s.grand ? " checked" : ""}>総計</label>`
@@ -332,13 +348,13 @@
       + `組み方<span class="pv-pname">${esc(pname)}</span>${pname && item.standard ? '<i class="pv-star is-std" aria-label="最初に当てる">★</i>' : ""}<i aria-hidden="true">▾</i></button></div>`;
   }
   /** 文とグラフの形の行だけを描き直す（組み方・すぐに見るを替えたとき） */
-  function paintHead() { const h = $("#llPvHead"); if (h && host) h.innerHTML = sentenceHtml(st()) + barHtml(st()); }
+  function paintHead() { const h = $("#llPvHead"); if (h && host) window.PivotCalc.keepFocus(h, () => { h.innerHTML = sentenceHtml(st()) + calcHtml(st()) + barHtml(st()); }); }
   /** 全体を描く（busy は読み直している間: 前の答えのまま薄くする） */
   function paint(d, err = "", busy = false) {
     const pane = $("#llPivot"); if (!pane || !host) return;
     const s = st();
     if (!pane.firstChild) {
-      pane.innerHTML = `<aside class="pv-fields"><div class="pv-cap"><b>カラム</b><small>札を押すと上の文に入ります（もう一度押すと外れます）</small></div>`
+      pane.innerHTML = `<aside class="pv-fields" data-dnd-trash><div class="pv-cap"><b>カラム</b><small>札を押すか、上の文へ引くと入ります（文の札は引いて並べ替え・行と列の入れ替え。ここへ戻すと外れます）</small></div>`
         + '<input id="llPvSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><div class="pv-list" id="llPvFields"></div></aside>'
         + '<div class="pv-main"><div id="llPvHead"></div><div class="pv-msg" id="llPvMsg" hidden></div><div class="pv-out" id="llPvOut"></div></div>';
     }
@@ -558,6 +574,15 @@
      版 3.24.0 までは中身を作るたびに付け足していたので、設備を替えて集計を開くたびに見張りが 1 つずつ増え、
      「押すと入る・もう一度で外す」札（行・列・値）が偶数個のときは入れてすぐ外し、押しても何も起きなかった（× は段をいくつも外した） */
   function bind(pane) {
+    // 札を引いて組み替える（版 3.50.0）: 文の札の並べ替え・行 ⇔ 列・カラムの札から置く・カラムの欄へ戻して外す
+    DND.attach(pane, {
+      lists: () => { const s = st(); return { rows: s.rows, cols: s.cols, vals: s.measures }; },
+      max: { rows: MAX_DIMS, cols: MAX_DIMS, vals: MAX_MEASURES },
+      itemOf: (col, role) => (role === "vals" ? (col === "@lots" ? { agg: "lots" } : col === "@count" ? { agg: "count" } : { agg: "sum", column: col }) : { column: col, part: defaultPart(col) }),
+      commit: (L, msg) => { save({ rows: L.rows, cols: L.cols, measures: L.vals }); refresh(true); if (msg) host.toast(msg); },
+      toast: (t) => host.toast(t),
+    });
+    window.PivotCalc.bind(pane, setExpr);
     pane.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b || b.disabled) return;
       const s = st();
@@ -568,6 +593,7 @@
         return;
       }
       if (b.dataset.pvX) { const role = b.dataset.pvX; setDims(role, s[role].filter((_, i) => i !== +b.dataset.i)); return; }
+      if (b.hasAttribute("data-pv-swap")) { save({ rows: s.cols, cols: s.rows }); refresh(true); return; }
       if (b.dataset.pvMx != null) { save({ measures: s.measures.filter((_, i) => i !== +b.dataset.pvMx) }); refresh(); return; }
       if (b.dataset.pvChart) { setChart(b.dataset.pvChart); return; }
       if (b.dataset.pvQuick != null) { const p = itemOf(b.dataset.pvQuick); if (p) applyPreset(p, { quiet: true }); return; }

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 
+from . import aggregate, num_expr
 from .data_sources import is_screen_source
 
 NAME = "pivot_presets"
@@ -31,9 +32,9 @@ SOURCES = {"lot": "品質異常", "work": "作業実績"}
 SCOPES = {"default": "共通デフォルト", "all": "共通", "me": "ID"}          # 画面の言葉 → マスタの値（並びは標準を決める順の逆）
 MAX_BYTES = 64 * 1024
 NAME_MAX = 40
-# グラフの形（画面の CHARTS と同じ鍵。版 3.27.0 で 5 → 14・版 3.39.0 で 24・版 3.48.0 で積み上げ横棒の 2 つを足して 26。登録は lotlist-pivot-charts.js の DEFS）
+# グラフの形（画面の CHARTS と同じ鍵。版 3.27.0 で 5 → 14・版 3.39.0 で 24・版 3.48.0 で積み上げ横棒の 2 つを足して 26・版 3.50.0 でウォーターフォールを足して 27。登録は lotlist-pivot-charts.js の DEFS）
 CHARTS = ("time", "line", "area", "control", "xbar", "swimlane", "column", "bar", "lollipop", "pareto", "stack", "stack100", "hstack", "hstack100", "stackarea", "donut",
-          "treemap", "sankey", "hist", "box", "violin", "heat", "scatter", "bubble", "diag45", "combo", "none")
+          "treemap", "sankey", "hist", "box", "violin", "heat", "scatter", "bubble", "diag45", "combo", "waterfall", "none")
 # 中身に入れる物（画面の組み方の覚えの形）。一覧｜集計の切り替え・選んだ月はその時だけの状態なので入れない
 BODY_KEYS = ("rows", "cols", "measures", "chart", "sub", "grand", "chartAt", "split", "labels")
 
@@ -69,7 +70,11 @@ def clean_body(body):
     ms = []
     for m in (body.get("measures") if isinstance(body.get("measures"), list) else [])[:4]:
         if isinstance(m, dict) and m.get("agg") in ("count", "lots", "sum", "avg", "min", "max"):
-            ms.append({"agg": m["agg"], "column": str(m.get("column") or "")[:200]} if m["agg"] not in ("count", "lots") else {"agg": m["agg"]})
+            x = {"agg": m["agg"], "column": str(m.get("column") or "")[:200]} if m["agg"] not in ("count", "lots") else {"agg": m["agg"]}
+            expr = str(m.get("expr") or "").strip()[:aggregate.EXPR_MAX]       # 値の計算（版 3.50.0）。読めない式は持たない
+            if expr and not num_expr.compile_expr(expr)[1]:
+                x["expr"] = expr
+            ms.append(x)
     out["measures"] = ms
     out["chart"] = body.get("chart") if body.get("chart") in CHARTS else "time"
     for k in ("sub", "grand", "split", "labels"):

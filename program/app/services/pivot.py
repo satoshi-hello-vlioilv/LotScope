@@ -758,6 +758,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     def clean(x):          # 足し算の誤差（1248967.0999999992）を丸める
         return round(x, 6) if isinstance(x, float) else x
     out_cells = [{"r": list(k[0]), "c": list(k[1]), "v": [clean(value(acc, j, m)) for j, m in enumerate(ms)]} for k, acc in cells.items()]
+    aggregate.apply_expr(out_cells, ms)
     aggregate.apply_show(out_cells, ms, nr, nc, orders)
     for x in out_cells:
         x["v"] = [clean(v) for v in x["v"]]

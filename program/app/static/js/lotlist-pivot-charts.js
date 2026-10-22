@@ -3,7 +3,7 @@
    - グラフの形は DEFS の 1 か所に登録する（鍵・名前・目的のまとまり・絵・説明・向く組み方・描く関数）。
      画面の形を選ぶ所（lotlist-pivot.js）・組み方のプリセット（services/pivot_presets.py の CHARTS）は、この鍵で揃える
    - 目的のまとまり（GROUPS）: 推移を見る・比べる・内訳を見る・ばらつきを見る・関係を見る・表。形が増えても、まず目的で選べる
-   - 描く関数は ctx = {m: 表の形（buildModel）, d: サーバーの答え, s: 組み方, W, H, measName, dimName, label, compact} → {svg, legend, side}
+   - 描く関数は ctx = {m: 表の形（buildModel）, d: サーバーの答え, s: 組み方, W, H, measName, dimName, label, compact} → {svg, legend, side, note?}（note: パネルの下に出す知らせ。ダッシュボードは凡例の添え書きを出さないので）
      compact（版 3.37.0。ダッシュボードのパネル）: 余白を詰め、横の傾向の面（side）の分を空けない（パネルの大きさに収める）
    - 数え方はサーバー（services/pivot.py）。ここでは足し上げ・並べ替え・割合・管理限界（I 管理図）・回帰の直線だけを数える
    ========================================================================= */
@@ -538,6 +538,54 @@
     return { svg: svgOf(W, H, g, "パレート図"), legend: legendHtml([[ctx.measName(d.measures[j]), COLORS[0], "bar"], ["累積の割合（右）", COLORS[1], "line"]]) + note };
   }
 
+  /** ウォーターフォール図（版 3.50.0。利用者の要望 2026-10-22 の 3）: 行の段の並びのまま、1 つ目の値（グラフにする値）を前の棒の終わりから
+      積み増す（増えた分は上へ・減った分は下へ浮かせた棒）。足し上げる値（件数・ロット数・合計）なら、終わりに「計」の棒（0 から）を立てる。
+      棒の間は細い点線で前の終わりとつなぐ。色は 増加・減少・計（書式の名前ごとの色で替えられる）。増減は棒の向きと数値ラベルの符号でも分かる */
+  function waterfallChart(ctx) {
+    const { m, d, W, H } = ctx, j = chartAt(ctx), add = ADDITIVE.has(d.measures[j].agg) && !d.measures[j].show;
+    // 日付・作業日の段は、時系列と同じ短い形（9/21）で書く（長い形は斜めになり、隣の札や値の字に被った: 2026-10-pvdrag の作った後の採点）
+    const x0 = d.dims.rows[0], tpart = m.nr === 1 && isTimeDim(x0) ? (x0.column === "@workday" ? ({ ym: "ym", year: "year" }[x0.part] || "date") : x0.part) : null;
+    const nameOf = (r) => (tpart ? tickText(r.path[0], tpart) : m.rowName(r));
+    let items = dataRows(m).map((r) => ({ name: nameOf(r), v: m.value(r, ALL, j) })).filter((x) => typeof x.v === "number");
+    if (!items.length) return empty("ウォーターフォール図にできる値がありません。");
+    const pl = pad(ctx, 64, 44), pr = pad(ctx, 20, 10), pt = LBL.top ? 26 : 14, iw = W - pl - pr;
+    const K = Math.max(3, Math.min(40, Math.floor(iw / 30))) - (add ? 1 : 0);
+    if (items.length > K) {
+      const rest = items.slice(K - 1);
+      items = add ? items.slice(0, K - 1).concat([{ name: `その他（${rest.length} 件）`, v: rest.reduce((a, x) => a + x.v, 0), rest: true }]) : items.slice(0, K);
+    }
+    let run = 0;
+    const bars = items.map((x) => { const from = run; run += x.v; return { ...x, from, to: run, kind: x.v >= 0 ? "up" : "down" }; });
+    if (add) bars.push({ name: "計", v: run, from: 0, to: run, kind: "total" });
+    const ends = bars.flatMap((b) => [b.from, b.to]), hi0 = Math.max(0, ...ends), lo0 = Math.min(0, ...ends);
+    const r = lo0 < 0 ? rangeFix(niceRange(lo0, hi0)) : null, top = r ? r.hi : topOf(hi0), lo = r ? r.lo : lowOf(top);
+    const cat = catAxis(bars.map((b) => b.name), iw, H, ctx), pb = pad(ctx, 40, 24) + cat.extra, ih = H - pt - pb;
+    const y = (v) => pt + ih * (1 - (v - lo) / ((top - lo) || 1)), n = bars.length, gw = iw / n, bw = Math.max(4, Math.min(56, gw * 0.7));
+    const col = { up: cof("増加", "#2f7d78"), down: cof("減少", ALERT), total: cof("計", "#4f5d69") };   // 意味の色（系列の色の組に左右されない）
+    let g = r ? axisRange(r, pl, W - pr, y) : axisY(pl, pt, ih, top, false, W - pr + 56, MUTED, nf, lo);
+    g += refLines(y, pl, W - pr, pt, pt + ih);
+    if (lo < 0) g += `<line x1="${pl}" x2="${W - pr}" y1="${y(0)}" y2="${y(0)}" class="pv-axis"/>`;
+    const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + nf(Math.abs(v));
+    bars.forEach((b, i) => {
+      const cx = pl + gw * (i + 0.5), y0 = y(Math.max(b.from, b.to)), y1 = y(Math.min(b.from, b.to)), h = Math.max(1, y1 - y0);
+      const word = b.kind === "total" ? "計" : b.kind === "up" ? "増加" : "減少";
+      g += `<rect class="pv-wf pv-wf-${b.kind}" x="${cx - bw / 2}" y="${y0}" width="${bw}" height="${h}" fill="${b.rest ? "#a9b4be" : col[b.kind]}" rx="1.5">`
+        + `<title>${esc(b.name)}: ${esc(b.kind === "total" ? fmt(b.v) : (b.v > 0 ? "+" : "") + fmt(b.v))}（${word}・${esc(fmt(b.from))} → ${esc(fmt(b.to))}）</title></rect>`;
+      // 前の棒の終わり（＝この棒の始まり）とつなぐ点線
+      if (i && b.kind !== "total") g += `<line x1="${cx - gw + bw / 2}" x2="${cx - bw / 2}" y1="${y(b.from)}" y2="${y(b.from)}" class="pv-wf-link"/>`;
+      if (b.kind === "total" && i) g += `<line x1="${cx - gw + bw / 2}" x2="${cx - bw / 2}" y1="${y(b.to)}" y2="${y(b.to)}" class="pv-wf-link"/>`;
+      if (i % cat.every === 0) g += cat.text(i, cx, H - pb + 16);
+      const t = b.kind === "total" ? nf(b.v) : sign(b.v);
+      // 値の字は増加・減少とも棒の上の端（減少の棒の下に置くと、横軸の札に被る）
+      if (LBL.top) g += `<text x="${cx}" y="${y0 - 5}" text-anchor="middle" class="pv-vl">${esc(t)}</text>`;
+      if (LBL.inside && h >= 16 && bw >= String(t).length * 6.2 + 2) g += `<text x="${cx}" y="${y0 + 13}" text-anchor="middle" class="pv-vl pv-in">${esc(t)}</text>`;
+    });
+    if (lo >= 0) g += `<line x1="${pl}" x2="${W - pr}" y1="${pt + ih}" y2="${pt + ih}" class="pv-axis"/>`;
+    const legend = [["▲ 増加", col.up, "bar"], ["▼ 減少", col.down, "bar"]].concat(add ? [["計", col.total, "bar"]] : []);
+    const note = add ? "" : `${ctx.measName(d.measures[j])}は足し上げられないので、計の棒は出しません`;
+    return { svg: svgOf(W, H, g, "ウォーターフォール図"), legend: legendHtml(legend) + (note ? `<small class="pv-cnote">${esc(note)}</small>` : ""), note };
+  }
+
   /* ================= 内訳を見る ================= */
   /** 積み上げ縦棒・100% 積み上げ: 行の葉ごとの棒を、列の葉（1 つ目の値）か値（足し上げる値が 2 つ以上）で積む。列が 12 を超えたら残りを「その他」に。
       棒の中のラベル（書式 inside。100% は今までどおり数値ラベルで）: 段ごとに、入る高さ・幅なら値（100% は割合） */
@@ -1054,6 +1102,8 @@
       fit: (f) => (f.rows && !f.time && !f.bin ? "" : "行が種類の段（設備・不良名など）のとき"), draw: (c) => barChart(c, "lollipop", false) },
     { k: "pareto", n: "パレート図", g: "compare", one: true, tip: "大きい順の棒と累積の割合の線で、上位のどれだけで全体の 80% になるか（重点の項目）を見ます",
       icon: "M3 17h14M4 15V5M7 15V8M10 15v-4M13 15v-2M4 6c4-3 9-3 12-3", fit: (f) => (f.rows && !f.time && !f.bin && f.additive ? "" : "行が種類の段（不良名・設備など）で、値が件数・ロット数・合計のとき"), draw: paretoChart },
+    { k: "waterfall", n: "ウォーターフォール", g: "part", one: true, tip: "行の段の並びのまま、値の増え（上へ）と減り（下へ）を前の棒の終わりから積み、終わりに計の棒を立てます（何がどれだけ足し引きされて今の数になったか）",
+      icon: "M3 17h14M4 15V9M7 9V6M10 6v4M13 10V8M16 15V8", fit: (f) => (f.rows && !f.bin ? "" : "行に段（並べる項目）があるとき"), draw: waterfallChart },
     { k: "stack", n: "積み上げ", g: "part", one: true, tip: "行の段ごとの棒を、列の段（か 2 つ以上の足し上げる値）で積み上げます。高さ＝合計",
       icon: "M3 17h14M5 15v-4M5 11V7M10 15V9M10 9V4M15 15v-3M15 12V9", fit: (f) => (f.rows && (f.cols || f.addMeas > 1) && f.additive ? "" : "列に段があり（か足し上げる値が 2 つ以上）、値が件数・ロット数・合計のとき"), draw: (c) => stackChart(c, false) },
     { k: "stack100", n: "100%積み上げ", g: "part", one: true, tip: "積み上げを 100% にそろえ、行の段ごとの内訳の割合を比べます",
@@ -1167,12 +1217,17 @@
   ];
   const SHOWS = [["", "そのまま"], ["pct_total", "総計に対する%"], ["pct_row", "行の計に対する%"], ["pct_col", "列の計に対する%"], ["cum", "累計"], ["diff", "前との差"], ["rank", "順位（大きい順）"]];
   const aggOf = (k) => AGGS.find((a) => a.k === k);
-  /** 値の名前（件数・ロット数・〇〇の平均・〇〇の90%点（累計））。label(列) → 見せる列の名前 */
+  /** 値の名前（件数・ロット数・〇〇の平均・〇〇の90%点（累計）・計算〈版 3.50.0〉は［値÷1000］）。label(列) → 見せる列の名前。
+      サーバーの aggregate.name と同じ字（系列の色・書式の鍵にもなる） */
   function measLabel(m, label = (c) => c) {
-    if (m.agg === "count" || m.agg === "lots") return (m.agg === "count" ? "件数" : "ロット数") + (m.show ? `（${(SHOWS.find((x) => x[0] === m.show) || ["", ""])[1]}）` : "");
+    const show = m.show ? `（${(SHOWS.find((x) => x[0] === m.show) || ["", ""])[1]}）` : "";
+    const ex = m.expr ? `［${exprText(m.expr)}］` : "";
+    if (m.agg === "count" || m.agg === "lots") return (m.agg === "count" ? "件数" : "ロット数") + show + ex;
     const a = aggOf(m.agg) || AGGS[0];
-    return `${label(m.column)}の${m.agg === "pct" ? `${m.p || 90}%点` : a.n}${m.show ? `（${(SHOWS.find((x) => x[0] === m.show) || ["", ""])[1]}）` : ""}`;
+    return `${label(m.column)}の${m.agg === "pct" ? `${m.p || 90}%点` : a.n}${show}${ex}`;
   }
+  /** 計算の見せ方（÷1000 → 値÷1000。読めない式は書いたまま） */
+  const exprText = (src) => (window.NumFormat && NumFormat.expr(src).text) || String(src);
   const byKey = new Map(DEFS.map((x) => [x.k, x]));
   const iconSvg = (k, size = 18) => { const x = byKey.get(k); return x ? `<svg class="pv-ico" viewBox="0 0 20 20" width="${size}" height="${size}" aria-hidden="true"><path d="${x.icon}"/></svg>` : ""; };
   /** 描く（形が分からなければ縦棒）。高さ: 横棒は行の数で伸ばす・ほかは 300 */
@@ -1204,5 +1259,5 @@
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
     try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, exprText, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();
