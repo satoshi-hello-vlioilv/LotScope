@@ -151,12 +151,23 @@ def slice_key_kind(v):
     return k if k in SORT_KEYS else ""
 
 
+# 空欄の決まり（版 3.51.1）: 前後の空白（半角・全角・タブ・改行）を除いて空なら空欄。集計の段（pivot.sort_key は Python の strip）・
+# スライサーの値・条件（値を選ぶ・空欄・空欄以外・＝・≠）で同じ決まりにする。前は条件が空白を除かずに比べ、空のとき空白で埋まる列
+# （固定長の項目）で「空欄以外」が空白だけの行を通し、集計の「（空欄）」に残った（利用者の報告 2026-10-23）
+BLANK_CHARS = "' ' || char(9, 10, 13, 12288)"
+
+
+def trimmed(q):
+    """列（か SQL の式）を字にして前後の空白を除いた式"""
+    return f"TRIM(CStr({q}), {BLANK_CHARS})"
+
+
 def slice_key(col, key="", expr=None):
     """スライサーの値（見えている値）の式。前後の空白を除き、空は NULL。
     日付だけ・年月・年で見せている列は、日付と読める値をその形に（時刻が違っても同じ日は 1 つ）。読めない値はそのまま。
     expr … 列の代わりの SQL の式（計算列）"""
     q = expr or qi(col)
-    plain = f"NULLIF(TRIM(CStr({q})), '')"
+    plain = f"NULLIF({trimmed(q)}, '')"
     if key in SORT_KEYS:
         head = {"date": f"ToDate({q})", "month": f"SUBSTR(ToDate({q}), 1, 7)", "year": f"SUBSTR(ToDate({q}), 1, 4)"}[key]
         return f"COALESCE({head}, {plain})"
@@ -286,12 +297,12 @@ def build_filter_where(filters, today=None, exprs=None):
         elif op == "not_contains":
             parts.append(f"(CStr({col}) NOT LIKE ? OR {col} IS NULL)")
             params.append(f"%{value}%")
-        elif op == "eq":
-            parts.append(f"CStr({col})=?")
-            params.append(value)
+        elif op == "eq":                 # 前後の空白は除いて比べる（集計の段と同じ値。空なら空欄と同じ）
+            parts.append(f"COALESCE({trimmed(col)}, '')=?")
+            params.append(str(value).strip())
         elif op == "neq":
-            parts.append(f"(CStr({col})<>? OR {col} IS NULL)")
-            params.append(value)
+            parts.append(f"COALESCE({trimmed(col)}, '')<>?")
+            params.append(str(value).strip())
         elif op == "starts":
             parts.append(f"CStr({col}) LIKE ?")
             params.append(f"{value}%")
@@ -306,9 +317,9 @@ def build_filter_where(filters, today=None, exprs=None):
             parts.append(f"CStr({col}) LIKE ?")
             params.append(f"%{value}")
         elif op == "empty":
-            parts.append(f"({col} IS NULL OR CStr({col})='')")
+            parts.append(f"COALESCE({trimmed(col)}, '')=''")
         elif op == "not_empty":
-            parts.append(f"({col} IS NOT NULL AND CStr({col})<>'')")
+            parts.append(f"COALESCE({trimmed(col)}, '')<>''")
         elif op == "in":
             vals = in_values(value)
             k = slice_key(f["column"], f.get("key", ""), exprs.get(f["column"]))
