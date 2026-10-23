@@ -465,3 +465,35 @@ class Api(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Blanks(unittest.TestCase):
+    """空欄の決まりを段と条件でそろえる（版 3.51.1。利用者の報告 2026-10-23: ダッシュボードで「空欄以外」の条件を付けても、
+    空のとき空白で埋まる列の行が集計の「（空欄）」に残った）。NULL・空の字・半角の空白・全角の空白は、どれも段では（空欄）で、条件でも空欄"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.mkdtemp()
+        cls.path = str(Path(cls.dir) / "w.sqlite3")
+        with sqlite3.connect(cls.path) as c:
+            c.execute('CREATE TABLE t ("ロット番号" TEXT, "炉番" TEXT)')
+            c.executemany("INSERT INTO t VALUES (?, ?)", [(f"L{i}", v) for i, v in enumerate(["141", "141", " 142 ", None, "", " ", "　", "\t"])])
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dir, ignore_errors=True)
+
+    def ans(self, filters):
+        a = pivot.query(self.path, table="t", rows=json.dumps([{"column": "炉番", "part": ""}]), cols="[]", measures=json.dumps([{"agg": "lots"}]),
+                        filters=json.dumps(filters, ensure_ascii=False))
+        return {("計" if not x["r"] else a["labels"][0][x["r"][0]]): x["v"][0] for x in a["cells"] if not x["c"]}
+
+    def test_blank_is_the_same_in_dims_and_filters(self):
+        self.assertEqual(self.ans([]), {"計": 8, "141": 2, "142": 1, pivot.BLANK: 5})
+        self.assertEqual(self.ans([{"column": "炉番", "op": "not_empty", "value": ""}]), {"計": 3, "141": 2, "142": 1}, "空欄以外は（空欄）を残さない")
+        self.assertEqual(self.ans([{"column": "炉番", "op": "empty", "value": ""}]), {"計": 5, pivot.BLANK: 5}, "空欄は空白だけの行も拾う")
+        self.assertEqual(self.ans([{"column": "炉番", "op": "neq", "value": ""}]), {"計": 3, "141": 2, "142": 1})
+        self.assertEqual(self.ans([{"column": "炉番", "op": "eq", "value": "142"}]), {"計": 1, "142": 1}, "＝ は前後の空白を除いて比べる")
+        self.assertEqual(self.ans([{"column": "炉番", "op": "neq", "value": "141"}]), {"計": 6, "142": 1, pivot.BLANK: 5}, "≠ は空欄も残す")
+        self.assertEqual(self.ans([{"column": "炉番", "op": "in", "value": json.dumps(["141", "142"])}]), {"計": 3, "141": 2, "142": 1})
+        self.assertEqual(self.ans([{"column": "炉番", "op": "in", "value": json.dumps([""])}]), {"計": 5, pivot.BLANK: 5}, "値を選ぶ（空欄）")
