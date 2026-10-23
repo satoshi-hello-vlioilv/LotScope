@@ -150,6 +150,8 @@ python program/tools/ui_score.py 採点.json                                    
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`
   （本物にありそうな作業開始・作業終了の 9 つの書き方〈日時・日付だけ＋年月日時分秒の 14 桁・14 桁だけ・午前／午後・日時の数・日付＋時刻の列・焼鈍炉の 20〜60 時間・日跨ぎで作業終了の日付が作業開始の日・作業終了が空〉の設備を作り、
   ガントの棒の数・稼働の分・換算係数の元〈作業時間の分かる本数〉が正しい数と合うか、区間を出せない数と理由を答えが持つかを測る。`tests/test_operation.py` からも流れる）
+- 釜番 → 日付の評価関数（版 3.51.2）: `tests/test_kama.py`（利用者の渡した kama_to_date・date_to_kama をそのまま答えの元にして、2020〜2030 年の 5 日おき × 全部の釜番で
+  式 kamadate が同じ日付〈基準日にいちばん近い前月・当月・翌月〉を出すか・釜番でない値は空か・同梱の変換表「釜番日付」。画面の式とは `tests/test_formula_parity.py`）
 - 入れた直後（写しの無い PC）の作業実績の評価関数: `python program/tools/worklog-first-bench.py [--equip 11] [--delay 1.5] [--spread] [--first-wait 秒]`
   （共有から写すのに時間がかかる形で、最初の画面の作業実績のパネルが答えるまで・途中の数を「写しています」と言うか・正しい数に着くまでを測る）
 - 画面に出ない改良（速さ）の評価関数: `python program/tools/dash-bench.py [--rows 20000] [--save 前.json] [--compare 前.json]`

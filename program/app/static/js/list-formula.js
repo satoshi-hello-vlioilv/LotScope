@@ -386,7 +386,18 @@
   /* datediff(始め, 終わり[, 単位])＝終わり−始め（d＝日〈既定〉・h＝時間・m＝分・s＝秒） */
   datediff:a=>{const x=when(a[0]),y=when(a[1]),u=DATEDIFF_UNITS[a.length>2?textOf(a[2]).trim().toLowerCase():'d'];
                return !x||!y||!u?null:(secOf(y)-secOf(x))/u},
+  /* kamadate(釜番[, 基準日])（版 3.51.2）: 釜番（週・曜日〈日＝1〜土＝7〉・何番目の 3 桁）→ 日付。釜番は月を持たないので、基準日（省くと今日）の
+     前の月・その月・次の月のうち、その週・曜日の日付が基準日にいちばん近い物（同じなら前）。月の中の数え方は利用者の kama_to_date（VBA）と同じ */
+  kamadate:a=>{const k=textOf(a[0]).trim();if(!/^[0-9]{3}$/.test(k))return null;const wk=+k[0],wd=+k[1];if(wk<1||wk>5||wd<1||wd>7)return null;
+               let y,m,d0;if(a.length>1){const w=when(a[1]);if(!w||!w[6])return null;y=w[0];m=w[1];d0=w[2]}else{const t=new Date();y=t.getFullYear();m=t.getMonth()+1;d0=t.getDate()}
+               const base=daysOf(y,m,d0);let best=null;
+               for(const dm of [-1,0,1]){const yy=m+dm===0?y-1:m+dm===13?y+1:y,mm=m+dm===0?12:m+dm===13?1:m+dm,d=kamaDay(yy,mm,wk,wd);
+                 if(d!==null){const gap=Math.abs(daysOf(yy,mm,d)-base);if(best===null||gap<best[0])best=[gap,yy,mm,d]}}
+               return best===null?null:`${String(best[1]).padStart(4,'0')}-${String(best[2]).padStart(2,'0')}-${String(best[3]).padStart(2,'0')}`},
  };
+ /* y 年 m 月の第 wk 週・曜日 wd（日＝1〜土＝7）の日（無ければ null）。月初を第 1 週として日曜日で進み、第 6 週は第 1 週に戻す（同じなら早い方） */
+ function kamaDay(y,m,wk,wd){const first=daysOf(y,m,1),last=(m===12?daysOf(y+1,1,1):daysOf(y,m+1,1))-first,sw=((first%7)+7+4)%7;let n=0;
+  for(let d=1;d<=last;d++){const dw=(sw+d-1)%7+1;if(n===0||dw===1)n=n===5?1:n+1;if(n===wk&&dw===wd)return d}return null}
  /* = と同じ比べ方（どちらも本当に数なら数で、ほかは字で） */
  function eqOf(a,b){const x=strictNum(a),y=strictNum(b);return x!==null&&y!==null?x===y:textOf(a)===textOf(b)}
  const ARITY={cmp:2,num:1,text:1,abs:1,round:2,len:1,left:2,right:2,trim:1,upper:1,lower:1,
@@ -396,7 +407,7 @@
               year:1,month:1,day:1,hour:1,minute:1,weekday:1,date:1};
  /* 引数の数に幅がある関数（下限〜上限）。 */
  const ARITY_RANGE={mid:[2,3],extract:[2,3],padleft:[2,3],conv:[2,9],
-                    roundup:[1,2],rounddown:[1,2],datediff:[2,3],ifs:[2,40],switch:[3,41],
+                    roundup:[1,2],rounddown:[1,2],datediff:[2,3],ifs:[2,40],switch:[3,41],kamadate:[1,2],
                     min:[1,30],max:[1,30],sum:[1,30],avg:[1,30]};
  const REGEX_FUNCS=new Set(['extract','match','regreplace','regcount']);
 
@@ -507,6 +518,7 @@
   ['year','日時','年'],['month','日時','月'],['day','日時','日'],['hour','日時','時'],['minute','日時','分'],
   ['weekday','日時','曜日（1＝日 〜 7＝土）'],['date','日時','年月日（2026-10-01 の形）'],
   ['datediff',"始め, 終わり, 'm'",'日時の差（d＝日・h＝時間・m＝分・s＝秒）'],
+  ['kamadate','釜番, 基準日','釜番（週・曜日・何番目の 3 桁）→ 基準日にいちばん近い日付（前の月・その月・次の月から。基準日を省くと今日）'],
  ];
  /* ---------- 書いている最中の候補（§9.474、利用者の指示「条件式の部分もさらに使いやすく、関数などは
     特にサジェスト機能なども組み込んで」） ----------

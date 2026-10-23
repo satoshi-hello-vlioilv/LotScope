@@ -256,7 +256,7 @@ def cases():
 
 class PresetsMatchTheMCode(unittest.TestCase):
     def test_presets_are_clean(self):
-        self.assertEqual([r["名前"] for r in PRESETS], ["ｺﾝﾏ5本区分", "地取区分", "納期符号", "特急区分", "保留区分", "形状区分", "管理分類", "課名"])
+        self.assertEqual([r["名前"] for r in PRESETS], ["ｺﾝﾏ5本区分", "地取区分", "納期符号", "特急区分", "保留区分", "形状区分", "管理分類", "課名", "釜番日付"])
         for r in PRESETS:
             again = cv.clean_row(cv.view(r) | {"order": cv.view(r)["order"]})
             self.assertEqual({k: again[k] for k in ("名前", "入力", "判定", "その他", "当て方")}, {k: r[k] for k in ("名前", "入力", "判定", "その他", "当て方")},
@@ -384,7 +384,7 @@ class Api(unittest.TestCase):
         self.assertEqual(r.status_code, 201, r.get_json())
         mine = self.items()["異常の重さ"]
         self.assertFalse(mine["preset"])
-        self.assertEqual(mine["order"], 90, "表示順は最後（いまの最大＋10）")
+        self.assertEqual(mine["order"], 100, "表示順は最後（いまの最大＋10。プリセットの最後は 釜番日付 の 90）")
         self.assertEqual(self.c.post("/api/masters/conversions", json={"name": "異常の重さ", "inputs": [{"name": "x"}]}).status_code, 409, "同じ名前は置かない")
         self.assertEqual(self.c.post("/api/masters/conversions", json={"name": "x", "inputs": []}).status_code, 400)
         # 一覧の並べ替えで使う（アプリが式の conv にマスタの表を渡している: app/__init__.py）

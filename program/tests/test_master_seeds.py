@@ -36,7 +36,7 @@ class Seeds(unittest.TestCase):
 
     def test_reaches_the_shared_master_once(self):
         self.assertEqual(self.meters(), [], "前の版の共有マスタには検査計が無い（同梱を直しても届かない）")
-        self.assertEqual(len(master_seeds.run(self.store)), 2)
+        self.assertEqual(len(master_seeds.run(self.store)), 3)
         self.assertEqual(self.meters(), ["DL2", "LS3", "LS4", "NS1", "TLV"], "NS1 が無ければ足す")
         f = access.flags(self.repo.access_permissions(), "Satoshi-Harada", "NLM-NGY-252134")
         self.assertEqual(f["role"], "開発者", "ログインIDは大小を問わず当たる")
@@ -45,6 +45,21 @@ class Seeds(unittest.TestCase):
         self.repo.equipment_update(tlv["id"], {"検査計": ""}, tlv["rev"])
         self.assertEqual(master_seeds.run(self.store), [], "2回目は当てない")
         self.assertNotIn("TLV", self.meters())
+
+    def test_kama_table_reaches_an_existing_conversions_master_once(self):
+        """変換表「釜番日付」（版 3.51.2）: 共有にもう前の版の変換表があっても一度だけ足す。人が消したら戻さない。同じ名前の表があれば触らない"""
+        old = [r for r in json.loads((ROOT / "app" / "master_defaults" / "conversions.json").read_text(encoding="utf-8")) if r["名前"] != "釜番日付"]
+        (self.share / "conversions.json").write_text(json.dumps({"revision": 4, "rows": old}, ensure_ascii=False), encoding="utf-8")
+        names = lambda: [r["名前"] for r in self.repo.conversions()]          # noqa: E731
+        self.assertNotIn("釜番日付", names())
+        master_seeds.run(self.store)
+        self.assertEqual(names().count("釜番日付"), 1)
+        got = next(r for r in self.repo.conversions() if r["名前"] == "釜番日付")
+        self.assertEqual(got["その他"], "=kamadate([釜番])")
+        self.assertEqual(int(got["表示順"]), max(int(r["表示順"]) for r in old) + 10, "最後に並ぶ")
+        self.repo.conversion_delete(got["id"], got["rev"])
+        master_seeds.run(self.store)
+        self.assertNotIn("釜番日付", names(), "消した表は次の起動で戻さない")
 
     def test_does_not_override_existing_login_row(self):
         rows = self.repo.access_permissions()

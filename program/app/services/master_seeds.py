@@ -40,9 +40,26 @@ def _first_developer(rows, stamp):
                  "有効": "有", "備考": "最初の管理者（配った版で登録）", "rev": 1, **stamp})
 
 
+def _kama_date_table(rows, stamp):
+    """変換表「釜番日付」（版 3.51.2。2026-10-23 利用者）: 同梱の既定の表を、すでに共有にある変換表へ足す。同じ名前の表があれば触らない
+    （一度だけ当てるので、あとで人が消した・直した表は戻さない）"""
+    import json
+    from ..repositories.master_store import DEFAULTS_DIR
+    if any(str(r.get("名前") or "") == "釜番日付" for r in rows):
+        return
+    bundled = json.loads((DEFAULTS_DIR / "conversions.json").read_text(encoding="utf-8"))
+    src = next((r for r in bundled if r.get("名前") == "釜番日付"), None)
+    if src is None:
+        return
+    top = max((int(r.get("表示順") or 0) for r in rows if str(r.get("表示順") or "").lstrip("-").isdigit()), default=0)
+    rows.append({"id": _next_id(rows), **{k: src.get(k, "") for k in ("名前", "入力", "判定", "その他", "当て方")}, "表示順": str(top + 10),
+                 "rev": 1, **stamp})
+
+
 SEEDS = [
     ("2026-09-29-inspection-meter", "equipment_master", _inspection_meter),
     ("2026-09-29-first-developer", "access_permissions", _first_developer),
+    ("2026-10-23-kama-date-table", "conversions", _kama_date_table),
 ]
 
 

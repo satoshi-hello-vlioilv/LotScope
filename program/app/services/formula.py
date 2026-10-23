@@ -413,7 +413,7 @@ ARITY = {"cmp": 2, "num": 1, "text": 1, "abs": 1, "round": 2, "len": 1, "left": 
          "count": 2, "regcount": 2, "lenb": 1, "rept": 2, "int": 1, "ceil": 1, "sqrt": 1, "isnum": 1, "isblank": 1,
          "year": 1, "month": 1, "day": 1, "hour": 1, "minute": 1, "weekday": 1, "date": 1}
 ARITY_RANGE = {"mid": (2, 3), "extract": (2, 3), "padleft": (2, 3), "conv": (2, 9),
-               "roundup": (1, 2), "rounddown": (1, 2), "datediff": (2, 3), "ifs": (2, 40), "switch": (3, 41),
+               "roundup": (1, 2), "rounddown": (1, 2), "datediff": (2, 3), "ifs": (2, 40), "switch": (3, 41), "kamadate": (1, 2),
                "min": (1, 30), "max": (1, 30), "sum": (1, 30), "avg": (1, 30)}
 REGEX_FUNCS = {"extract", "match", "regreplace", "regcount"}
 
@@ -838,6 +838,57 @@ def _date(a):
     return None if w is None or not w[6] else f"{w[0]:04d}-{w[1]:02d}-{w[2]:02d}"
 
 
+def _kama_day(y, m, week, wd):
+    """y 年 m 月の、第 week 週・曜日 wd（日＝1 〜 土＝7）の日（無ければ None）。月初を第 1 週として日曜日で 1 つ進み、
+    第 6 週は第 1 週に戻す（利用者の kama_to_date・VBA と同じ。同じ週・曜日が 2 度あれば月の早い方）"""
+    first = _days(y, m, 1)
+    last = (_days(y + 1, 1, 1) if m == 12 else _days(y, m + 1, 1)) - first
+    sw = (first % 7 + 4) % 7          # 月初の曜日（0＝日 〜 6＝土）
+    n = 0
+    for d in range(1, last + 1):
+        dw = (sw + d - 1) % 7 + 1
+        if n == 0 or dw == 1:
+            n = 1 if n == 5 else n + 1
+        if n == week and dw == wd:
+            return d
+    return None
+
+
+def _kamadate(a):
+    """kamadate(釜番[, 基準日])（版 3.51.2。利用者の要望 2026-10-23）: 釜番（3 桁。1 桁目＝月の第何週・2 桁目＝曜日〈日＝1 〜 土＝7〉・
+    3 桁目＝何番目〈日付には使わない〉）→ 日付（YYYY-MM-DD）。釜番は月を持たないので、基準日（省くと今日）の前の月・その月・次の月のうち、
+    その週・曜日の日付が基準日にいちばん近い物（同じ近さなら前の物）。仕掛の釜番は今日の前後数週間を指し、月をまたぐため
+    （例: 2026-10-23 に 141 → 11 月 4 日。10 月の第 1 週に水曜は無い）。3 桁の数字でない・週が 1〜5 でない・曜日が 1〜7 でない釜番（0 など）は空"""
+    k = js_trim(text_of(a[0]))
+    if not re.fullmatch(r"[0-9]{3}", k):
+        return None
+    week, wd = int(k[0]), int(k[1])
+    if not (1 <= week <= 5 and 1 <= wd <= 7):
+        return None
+    if len(a) > 1:
+        w = when(a[1])
+        if w is None or not w[6]:
+            return None
+        y, m, d0 = w[0], w[1], w[2]
+    else:
+        t = _today()
+        y, m, d0 = t.year, t.month, t.day
+    base, best = _days(y, m, d0), None
+    for dm in (-1, 0, 1):
+        yy, mm = (y - 1, 12) if m + dm == 0 else (y + 1, 1) if m + dm == 13 else (y, m + dm)
+        d = _kama_day(yy, mm, week, wd)
+        if d is not None:
+            gap = abs(_days(yy, mm, d) - base)
+            if best is None or gap < best[0]:
+                best = (gap, yy, mm, d)
+    return None if best is None else f"{best[1]:04d}-{best[2]:02d}-{best[3]:02d}"
+
+
+def _today():
+    import datetime as _dt
+    return _dt.date.today()
+
+
 FUNCS = {
     "num": lambda a: num_of(a[0]),
     "text": lambda a: text_of(a[0]),
@@ -887,6 +938,7 @@ FUNCS = {
     "weekday": _weekday,
     "date": _date,
     "datediff": _datediff,
+    "kamadate": _kamadate,
 }
 
 
