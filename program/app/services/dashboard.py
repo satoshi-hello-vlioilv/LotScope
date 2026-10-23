@@ -72,7 +72,12 @@ LAYOUT_SOURCE = "dash"
 GRID_COLS = 12
 ROWS_MIN, ROWS_MAX, ROWS_DEFAULT = 4, 16, 8
 MAX_PANELS = 24
-EXTRA_VISUALS = ("kpi", "board", "gantt", "abc")
+EXTRA_VISUALS = ("kpi", "board", "gantt", "abc", "slicer")
+# 版 3.52.0（利用者の要望 2026-10-23）:
+#   visual slicer … パネルに置くスライサー。行の段 1 つ（body.rows[0]＝列）の値と数を出し、押した値で同じデータのほかのパネルを絞る
+#                    （選んだ値はこの PC の見え方。数え方はふつうのパネルと同じ集計）
+#   レイアウトの slicer … 道具の行の帯のスライサー: {off: 帯を出さない（効きもしない）, parts: 出す物 ["period"（期間の札）, "date"（日付）, "equip"（設備）] の部分}
+SLICER_PARTS = ("period", "date", "equip")
 OPS_VISUALS = ("gantt", "abc")          # 稼働（ガントチャートと稼働率）・ABC 分析と換算係数（版 3.46.0。services/operation.py）
 SORTS = ("", "desc", "asc")
 TOP_MAX = 60
@@ -588,6 +593,18 @@ def abc_lims(v):
     return xs[:ABC_LIMS_MAX] or [ABC_A, ABC_B]
 
 
+def clean_slicer(v):
+    """レイアウトの帯のスライサーの設定（版 3.52.0）→ {off, parts}。既定（出す・期間と設備）なら空"""
+    v = v if isinstance(v, dict) else {}
+    parts = [x for x in SLICER_PARTS if x in (v.get("parts") if isinstance(v.get("parts"), list) else SLICER_PARTS)]
+    out = {}
+    if v.get("off") is True:
+        out["off"] = True
+    if parts != list(SLICER_PARTS):
+        out["parts"] = parts
+    return out
+
+
 def overlaps(a, b):
     return a["x"] < b["x"] + b["w"] and b["x"] < a["x"] + a["w"] and a["y"] < b["y"] + b["h"] and b["y"] < a["y"] + a["h"]
 
@@ -616,6 +633,9 @@ def clean_layout(body):
             raise LayoutError(f"パネル「{x['title'] or x['id']}」と「{hit['title'] or hit['id']}」が重なっています。")
         panels.append(x)
     out = {"rows": rows, "panels": panels}
+    sc = clean_slicer(body.get("slicer"))
+    if sc:
+        out["slicer"] = sc
     if str(body.get("replaces") or "") in BUILTIN_KEYS:
         out["replaces"] = body["replaces"]      # 組み込みのダッシュボードと入れ替えた物（版 3.48.0。その組み込みの代わりに出す）
     text = json.dumps(out, ensure_ascii=False, sort_keys=True)

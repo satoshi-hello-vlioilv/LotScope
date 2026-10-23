@@ -611,6 +611,32 @@ export const STATES = [
     if (await p.$("[data-ds-pick]:not([hidden])")) await p.click("[data-ds-pick]"); else await p.selectOption("[data-ds-gsel]", "@pick");
     await p.waitForSelector(".db-slicepop [data-ds-eq]"); await sleep(400);
   }, "[data-next], [data-ds-done]"],
+  // 版 3.52.0（2026-10-dslicer の G）: 日付の暦（10/1〜10/2 を選んだ後に開き直した所）・「スライサー ▾」の面・パネルのスライサー（仕掛区分で保留を選んだ所）。
+  // dash-dslicer-off が片付ける（覚えた日付・選び・帯の設定を消して頁を開き直す）
+  ["dash-dslicer-cal", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(200);
+    await p.click("#dashSlicer [data-ds-date]"); await p.waitForSelector("[data-ds-day]"); await sleep(200);
+    await p.click('[data-ds-day="2026-10-01"]'); await sleep(150); await p.click('[data-ds-day="2026-10-02"]'); await sleep(600); await waitDash(p);
+    await p.click("#dashSlicer [data-ds-date]"); await p.waitForSelector("[data-ds-day]"); await sleep(400);
+  }, "[data-next], [data-ds-done]"],
+  ["dash-dslicer-cfg", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(200);
+    await p.click("#dashSlicer [data-ds-cfg]"); await p.waitForSelector(".db-cfgpop [data-ds-on]"); await sleep(400);
+  }, "[data-next], [data-ds-done]"],
+  ["dash-dslicer-panel", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(200);
+    await p.evaluate(() => { const L = Dashboard._state().layout, q = L.panels.find((x) => x.id === "wipClass") || L.panels.find((x) => x.source === "src:wip" && x.visual !== "kpi");
+      if (q) { q.visual = "slicer"; q.title = ""; q.body = { rows: [{ column: "仕掛区分" }], cols: [], measures: [{ agg: "lots" }] }; } Dashboard._setLayout(L); });
+    await sleep(600); await waitDash(p); await sleep(400);
+    const v = await p.$('[data-db-spv="保留"]'); if (v) { await v.click(); await sleep(600); await waitDash(p); await sleep(400); }
+  }, "[data-next], [data-db-spv]"],
+  ["dash-dslicer-off", async (p) => {
+    await p.evaluate(() => { const m = JSON.parse(localStorage.getItem("tpa.dash.v1") || "{}"); delete m.slice; delete m.pick; delete m.bar; localStorage.setItem("tpa.dash.v1", JSON.stringify(m)); });
+    await p.reload(); await waitDash(p); await sleep(400);
+    await p.keyboard.press("Escape"); await sleep(100);
+    if (await p.$('[data-ds-period="last_month"]')) await p.click('[data-ds-period="last_month"]'); else await p.selectOption("[data-ds-psel]", "last_month");
+    await sleep(400); await waitDash(p);
+  }, "[data-next]"],
   ["dash-series", async (p) => {
     await p.keyboard.press("Escape"); await sleep(200);
     if (await p.$("[data-ds-clear]")) { await p.click("[data-ds-clear]"); await sleep(500); await waitDash(p); }

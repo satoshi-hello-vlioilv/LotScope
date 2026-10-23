@@ -33,7 +33,8 @@
     const hit = sliceHits(p, sl, canEquip);
     if (!hit.period && !hit.equip) return p;
     const x = TPA.clone(p), per = sl.period;
-    const setPer = (o) => { if (hit.period && o && o.period && o.period.kind) o.period = { column: o.period.column, kind: per.kind, n: per.n || 7 }; };
+    // 日付で決めた期間（版 3.52.0。range: from〜to）も同じく、パネルの期間の列のまま日の範囲だけ替える
+    const setPer = (o) => { if (hit.period && o && o.period && o.period.kind) o.period = per.kind === "range" ? { column: o.period.column, kind: "range", from: per.from, to: per.to || per.from } : { column: o.period.column, kind: per.kind, n: per.n || 7 }; };
     // 設備はスライサーで「絞る」だけ（パネルが設備を選んでいなければ、選んだ設備の計。設備ごとに分けるのはパネルの組みで決める）
     const setEq = (o) => { if (!hit.equip) return; const own = o.equips || []; if (!own.length && !o.esplit && !o.egroup && o !== x.link) o.esplit = "sum"; o.equips = own.length ? own.filter((e) => sl.equips.includes(e)) : sl.equips.slice(); if (!o.equips.length) o.equips = ["（スライサーの設備に当たりません）"]; };
     if (x.visual === "board") { (x.groups || []).forEach(setPer); setEq(x); }

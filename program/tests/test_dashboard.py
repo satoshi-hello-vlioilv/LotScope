@@ -200,6 +200,19 @@ class Panels(Api):
         self.assertEqual([x["key"] for x in s["items"]], ["lot", "work", "src:wip"])
         self.assertEqual([x["name"] for x in s["items"][1]["equips"]], ["CR1", "L-1"])
 
+    def test_slicer_panel_and_date_range(self):
+        """版 3.52.0: パネルのスライサー（visual slicer）は行の段 1 つの値と数。日付で決めた期間（range）は from〜to の日だけ"""
+        d = self.ok(visual="slicer", source="src:wip", body={"rows": [{"column": "仕掛区分"}], "measures": [{"agg": "lots"}]})
+        self.assertEqual((cell(d, ["$生産"]), cell(d, ["$保留"])), ([2], [1]), "値ごとの数（スライサーの札の件数）")
+        picked = self.ok(visual="kpi", source="src:wip", body={"measures": [{"agg": "lots"}]},
+                         filters=[{"column": "仕掛区分", "op": "in", "value": '["保留"]'}])
+        self.assertEqual(cell(picked)[0], 1, "スライサーで選んだ値（in の条件）で、ほかのパネルが絞れる")
+        r = self.ok(visual="kpi", source="work", body={"measures": [{"agg": "lots"}]},
+                    period={"column": "@workday", "kind": "range", "from": "2026-10-15", "to": "2026-10-15"})
+        y = self.ok(visual="kpi", source="work", body={"measures": [{"agg": "lots"}]}, period={"column": "@workday", "kind": "yesterday"})
+        self.assertEqual(cell(r), cell(y), "10/15 だけの日付の範囲＝前日（10/15）")
+        self.assertEqual(r["period"]["ranges"], [{"from": "2026-10-15", "to": "2026-10-15"}])
+
     def test_bad_panels(self):
         self.assertEqual(self.ask(source="nowhere", body={"rows": [{"column": "a"}]})[0], 400)
         self.assertEqual(self.ask(source="src:wip", body={})[0], 400, "グラフには行の段が要る")
@@ -339,6 +352,9 @@ class Layouts(unittest.TestCase):
         self.assertEqual(p["body"]["measures"], [{"agg": "lots"}], "値が無ければロット数")
         with self.assertRaises(dashboard.LayoutError):
             dashboard.clean_layout({"panels": [{"visual": "kpi", "source": "x"}]})
+        sl = dashboard.clean_layout({"rows": 8, "slicer": {"off": True, "parts": ["equip", "x"]}, "panels": []})[0]
+        self.assertEqual(sl["slicer"], {"off": True, "parts": ["equip"]}, "帯のスライサーの設定（版 3.52.0。知らない部分は外す）")
+        self.assertNotIn("slicer", dashboard.clean_layout({"rows": 8, "slicer": {"parts": ["period", "date", "equip"]}, "panels": []})[0], "既定（出す・全部）なら持たない")
         self.assertEqual(self.c.post("/api/dashboards", json={"name": "", "scope": "me", "body": self.body}).status_code, 400, "名前が要る")
 
     def test_sets_have_developer_standards_and_personal_patterns(self):

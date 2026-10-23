@@ -67,8 +67,8 @@
     if (!pr) return "";
     const r = (pr.ranges || [])[0], basis = pr.column === "@workday" ? `（${(p && p.basis) === "cal" ? "太陽暦" : "現場歴"}）` : `（${pr.column}）`;
     const span = r ? (r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`) : "";
-    const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.name;
-    return `${name} ${span}${basis}${(pr.ranges || []).length > 1 ? "・設備で日が違います" : ""}`;
+    const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.kind === "range" ? "" : pr.name;     // 日付で決めた期間は日付だけ（版 3.52.0。1280 の数字のパネルで添え書きが 2 段に折れた）
+    return `${name ? name + " " : ""}${span}${basis}${(pr.ranges || []).length > 1 ? "・設備で日が違います" : ""}`;
   }
 
   /* ---- 表の形（集計表と同じ buildModel）。種類の段は並べ替え・上位 N を当てる ---- */
@@ -242,8 +242,8 @@
     const word = g.measure.agg === "lots" ? (g.source === "work" ? "実績本数" : "ロット数") : measName(g.measure);
     const pr = a && a.period, r = pr && (pr.ranges || [])[0];
     if (pr && r) {
-      const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
-      return `${name} ${span} の${word}${pr.column === "@workday" ? `（${g.basis === "cal" ? "太陽暦" : "現場歴"}）` : ""}`;
+      const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.kind === "range" ? "" : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
+      return `${name ? name + " " : ""}${span} の${word}${pr.column === "@workday" ? `（${g.basis === "cal" ? "太陽暦" : "現場歴"}）` : ""}`;
     }
     return `${(a && a.sourceName) || ""}${a && a.sourceName ? "の" : ""}${word}`;
   }
@@ -492,12 +492,34 @@
     const one = (a) => (a && a.cells ? { ...a, cells: a.cells.map((c) => ({ ...c, v: c.v.map((x) => (typeof x === "number" ? fn(x) : x)) })), [CALCD]: true } : a);
     return d.facets ? { ...d, facets: d.facets.map((f) => ({ ...f, answer: one(f.answer) })), [CALCD]: true } : one(d);
   }
+  /** パネルのスライサー（版 3.52.0。visual slicer。2026-10-dslicer の G）: 行の段 1 つ目の値ごとに、件数と量の棒を持つ札を縦に 1 列で並べる。
+      札はパネルの高さに広げ（28〜56px）、入らなければ幅がある時だけ 2 列、それでも入らなければ中で送る。
+      押した値（p._picked）は濃い地。押すと dashboard.js が選びを覚え、同じデータのほかのパネル（p._hits 枚）を絞る */
+  function slicer(box, p, d, W, H) {
+    const lab = (d.labels || [])[0] || {}, cnt = new Map((d.cells || []).filter((c) => c.r.length === 1).map((c) => [c.r[0], c.v[0]]));
+    const items = ((d.orders || [])[0] || []).map((k) => ({ value: k === "" ? "" : k[0] === "$" ? k.slice(1) : String(lab[k] ?? k), label: k === "" ? "（空欄）" : String(lab[k] ?? k), n: +cnt.get(k) || 0 })).sort((a, b) => (a.value === "") - (b.value === "") || b.n - a.n || a.label.localeCompare(b.label, "ja", { numeric: true }));   // 多い順（自分の選びでは数が変わらないので、押しても並びが動かない）
+    if (!items.length) { box.innerHTML = '<p class="dp-empty">値がありません（データ・条件を見直してください）</p>'; return ""; }
+    const picked = new Set(p._picked || []), max = Math.max(1, ...items.map((x) => x.n)), fm = (v) => C.fmt(v);
+    const room = H - 26 - (p._hits != null ? 22 : 0), gap = 6;
+    let cols = 1, h = Math.floor((room - gap * (items.length - 1)) / items.length);
+    if (h < 28 && W >= 420) { cols = 2; h = Math.floor((room - gap * (Math.ceil(items.length / 2) - 1)) / Math.ceil(items.length / 2)); }
+    h = Math.max(28, Math.min(56, h));
+    const head = `<div class="sp-head"><span>${picked.size ? `<b>${picked.size}</b> / ${items.length} を選んでいます` : `すべて（${items.length}）`}</span>`
+      + (picked.size ? '<button type="button" class="sp-clear" data-db-spclear title="選びを外して、すべてに戻します">× 選びを外す</button>' : "") + "</div>";
+    const cards = items.map((x) => { const on = picked.has(x.value);
+      return `<button type="button" class="sp-v${on ? " on" : ""}${picked.size && !on ? " is-out" : ""}" data-db-spv="${esc(x.value)}" aria-pressed="${on}" title="${esc(x.label)}: ${esc(fm(x.n))}（押すと選ぶ・もう一度で外す）">`
+        + `<span class="sp-l">${esc(x.label)}</span><span class="sp-n">${esc(fm(x.n))}</span><i style="width:${Math.round(x.n / max * 100)}%" aria-hidden="true"></i></button>`; }).join("");
+    const foot = p._hits != null ? `<div class="sp-foot">${p._hits ? `同じデータ（${esc(p._srcName || "")}）の ${p._hits} 枚のパネルに効きます` : "同じデータのパネルがありません（効く先がありません）"}</div>` : "";
+    box.innerHTML = `<div class="sp-wrap">${head}<div class="sp-list" style="--sp-cols:${cols};--sp-h:${h}px" role="group" aria-label="値で絞る">${cards}</div>${foot}</div>`;
+    return "";
+  }
   function render(box, p, d, size, sub = "") {
     d = calcd(p, d);
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
     look(box, p.fmt);
     if (p.visual === "gantt" || p.visual === "abc") return d.kind === p.visual ? window.DashOps[p.visual](box, p, d, W, H) : "";   // 稼働・ABC 分析（版 3.46.0。dashboard-ops.js）
     if (d.facets) return facets(box, p, d, W, H);
+    if (p.visual === "slicer") return slicer(box, p, d, W, H);
     if (p.visual === "kpi") { kpi(box, p, d, W, H, sub); return ""; }
     if (p.visual === "none") return table(box, p, d, W, H);
     return chart(box, p, d, W, H);

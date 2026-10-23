@@ -27,7 +27,9 @@
   const WORKDAY_NAME = { "": "日", ym: "年月", year: "年" };
   const EXTRA = [{ k: "kpi", n: "数字", tip: "値の総計を大きな数で出します（行の段は要りません）", icon: "M4 15V5l-2 2M8 6a2 2 0 1 1 4 0c0 2-4 4-4 9h4M14 5h4l-3 4a3 3 0 1 1-2 5" },
     { k: "none", n: "表", tip: "集計表（行・列・値）を、パネルの大きさに詰めて出します", icon: "M3 4h14v12H3zM3 8h14M3 12h14M8 4v12" },
-    { k: "board", n: "合わせた表", tip: "行（設備など）をそろえて、いくつかのデータの数を横に並べた 1 枚の表（設備ごとの仕掛と前日の実績など）", icon: "M3 4h14v12H3zM3 8h14M7 4v12M12 4v12" }];
+    { k: "board", n: "合わせた表", tip: "行（設備など）をそろえて、いくつかのデータの数を横に並べた 1 枚の表（設備ごとの仕掛と前日の実績など）", icon: "M3 4h14v12H3zM3 8h14M7 4v12M12 4v12" },
+    // パネルのスライサー（版 3.52.0。利用者の要望 2026-10-23 の 2）: 行の段 1 つ目の値の札。押した値で同じデータのほかのパネルを絞る
+    { k: "slicer", n: "スライサー", tip: "行の段 1 つ目（仕掛区分・品種など）の値の札を並べ、押した値で同じデータのほかのパネルを絞ります（選びはこの PC の見え方）", icon: "M3 4h14M3 9h14M3 14h9M6 2v4M13 7v4M9 12v4" }];
   // 稼働を見る形（版 3.46.0。利用者の要望 2026-10-21 の 1・2。作業実績の作業開始・作業終了から: services/operation.py・dashboard-ops.js）
   const OPS_VIS = [{ k: "gantt", n: "稼働（ガント）", tip: "選んだ設備の作業を 1 枚のガントチャートに並べ、設備ごとの稼働率（勤務時間に対する稼働の割合）を出します", icon: "M3 5h7M6 9h9M3 13h5M10 13h6M3 17h14" },
     { k: "abc", n: "ABC 分析", tip: "設備ごとに、品種を量の大きい順に並べて A・B・C に分け、作業時間から換算係数を出します", icon: "M3 17h14M4 15V4M8 15V8M12 15v-4M16 15v-2M4 5c3-1 8 0 12 6" }];
@@ -210,6 +212,7 @@
     }
     if (x.visual === "gantt") return `${x.period && x.period.kind ? `${perName(x.period)}の` : ""}設備の稼働と稼働率`;
     if (x.visual === "abc") { const c = [].concat((x.ops || {}).cls || []); return `${c.length ? `${c.join(" × ")}の` : "品種の"}ABC 分析と換算係数`; }
+    if (x.visual === "slicer") return `${((x.body || {}).rows || []).length ? dimLabel(x.body.rows[0]) : "列の値"}で絞る`;
     if (x.visual === "board") return (x.groups || []).length ? `${dimLabel(x.rows || { column: "@equip" })}ごとの${x.groups.map((g) => g.title || P.groupTitle(g, null)).join("と")}` : "合わせた表";
     const b = x.body || {}, ms = (b.measures || []).map(P.measName).join("・") || "ロット数";
     const pr = x.period && x.period.kind ? `${perName(x.period)}の` : "";
@@ -261,9 +264,11 @@
     p.visual = k;
     const b = p.body;
     if (isLink()) { b.grand = k === "none" || k === "kpi"; changed(false); return; }    // 行・値は合わせるデータの軸と値
-    if (k !== "kpi" && k !== "none" && !b.rows.length) {   // 行の段が要る形: 向く段を 1 つ入れる（作業実績は作業日・ほかは設備か種類の少ない列）
+    if (k === "slicer") { b.cols = []; b.rows = b.rows.slice(0, 1); }          // スライサーは行の段 1 つ（その列の値の札）
+    if (k !== "kpi" && k !== "none" && !b.rows.length) {   // 行の段が要る形: 向く段を 1 つ入れる（作業実績は作業日・ほかは設備か種類の少ない列。スライサーは種類の少ない列を先に）
       const sp = special().map((x) => x.column);
-      const pick = (k === "time" || k === "line" || k === "area" || k === "stackarea" || k === "control" || k === "xbar") ? (sp.includes("@workday") ? "@workday" : ((fields && fields.fields) || []).find((f) => f.date)?.column)
+      const few = ((fields && fields.fields) || []).filter((f) => !f.numeric && !f.date && f.kinds >= 2 && f.kinds <= 30).sort((a, c) => a.kinds - c.kinds)[0]?.column;
+      const pick = k === "slicer" ? few || (sp.includes("@equip") ? "@equip" : "") : (k === "time" || k === "line" || k === "area" || k === "stackarea" || k === "control" || k === "xbar") ? (sp.includes("@workday") ? "@workday" : ((fields && fields.fields) || []).find((f) => f.date)?.column)
         : sp.includes("@equip") ? "@equip" : ((fields && fields.fields) || []).filter((f) => !f.numeric && !f.date && f.kinds >= 2 && f.kinds <= 30).sort((a, c) => a.kinds - c.kinds)[0]?.column;
       if (pick) { b.rows = [{ column: pick, part: defaultPart(pick) }]; host.toast(`この形には行の段が要るので「${dimLabel(b.rows[0])}」を入れました`); }
     }
@@ -663,7 +668,7 @@
       // 向く形の行（版 3.39.0）: 選んだ形と、いまの組み方（行・列・値）に向く形を名前つきで 4 つまで。全部の形は「すべての形…」で開く
       const f = fitInfo(), all = EXTRA.concat(OPS_VIS, C.DEFS.filter((x) => x.k !== "none"));
       const cur = all.find((x) => x.k === p.visual), fit = isOps(p) ? OPS_VIS.filter((x) => x.k !== p.visual)
-        : all.filter((x) => x.k !== p.visual && x.k !== "board" && !isOps(x) && (x.fit ? !x.fit(f) : x.k === "none" ? f.rows : !f.rows)).slice(0, 4);
+        : all.filter((x) => x.k !== p.visual && x.k !== "board" && x.k !== "slicer" && !isOps(x) && (x.fit ? !x.fit(f) : x.k === "none" ? f.rows : !f.rows)).slice(0, 4);
       const row = `<div class="de-vfit"><span class="de-l">形</span>${cur ? btn(cur) : ""}${fit.length ? `<span class="de-vfn">向く形</span>${fit.map(btn).join("")}` : ""}`
         + `<button type="button" class="pv-btn de-vall" data-de-formmore aria-expanded="${formOpen}">${formOpen ? "閉じる" : `すべての形（${all.length}）…`}</button></div>`;
       return row + grid;
