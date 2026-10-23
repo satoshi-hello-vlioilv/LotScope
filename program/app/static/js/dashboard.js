@@ -143,7 +143,9 @@
   }
   /** 数えるときのパネル（組んだパネル＋スライサー＋この PC のパネルの絞り込み） */
   const asked = (p) => withPicks(Q.merge(Q.slice(p, sliceOf(p), canEquip), quickOf(p.id)));
-  const qkey = (p0) => { const p = asked(p0); return JSON.stringify(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters, p.order, p.calc] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc, p.ops, p.eorder]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない。サーバーが読む項目は全部入れる: 合わせた表の order〈見出しの設備グループ〉も。版 3.43.0）
+  /** 鍵の順によらない字（サーバーは鍵を並べて返す。名前を付けて保存した後も、同じ組みを同じ鍵と見る: 版 3.52.2） */
+  const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x));
+  const qkey = (p0) => { const p = asked(p0); return canon(p.visual === "board" ? [p.visual, p.rows, p.groups, p.equips, p.egroup, p.filters, p.order, p.calc] : [p.visual, p.source, p.equip, p.equips, p.egroup, p.esplit, p.link, p.body, p.filters, p.search, p.period, p.basis, p.calc, p.ops, p.eorder]); };   // 数を引き直す組み（題・見せ方・書式・置き場は入れない。サーバーが読む項目は全部入れる: 合わせた表の order〈見出しの設備グループ〉も。版 3.43.0）
 
   async function loadList() {
     const r = await fetch("/api/dashboards", { cache: "no-store" });
@@ -352,7 +354,7 @@
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
     if (!p || !el) return;
     const a1 = S.answers.get(id), bd = el.querySelector(".db-pb");
-    const sig = JSON.stringify([{ ...p, x: 0, y: 0 }, a1 ? a1.n : 0, el.clientWidth, el.clientHeight, bd.clientWidth, bd.clientHeight, S.edit, S.confirm, quickOf(id), sliceOf(p), picksOn(p), p.visual === "slicer" ? pickOf(id) : 0, S.sources.length]);
+    const sig = canon([{ ...p, x: 0, y: 0 }, a1 ? a1.n : 0, el.clientWidth, el.clientHeight, bd.clientWidth, bd.clientHeight, S.edit, S.confirm, quickOf(id), sliceOf(p), picksOn(p), p.visual === "slicer" ? pickOf(id) : 0, S.sources.length]);
     if (!force && el._sig === sig) return;
     el._sig = sig;
     // 形を替えた直後は、前の形の答え（合わせた表の答えとふつうの答えは形が違う）では描かない（引き直した答えを待つ）
@@ -726,8 +728,6 @@
     say(done);
     return { ok: d };
   }
-  /** 鍵の順によらない字（サーバーは鍵を並べて返す） */
-  const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x));
   let saving = false;
   async function save() {
     const it = current(); if (!it || saving || !canSaveIt(it)) return;
