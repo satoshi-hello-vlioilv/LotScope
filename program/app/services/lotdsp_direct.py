@@ -82,19 +82,47 @@ def settings_of(lotdsp_import):
     }
 
 
+# 設定で指せるブラウザ（版 3.52.1。脆弱性: この設定は共有のマスタ〈参照先〉に置かれ、部署の人が書けるので、
+# どの exe でも起こすと、書いた人がほかの全 PC で好きなプログラムを動かせた）。名前は Edge・Chrome だけ、
+# Windows では置き場も Program Files・この人の LocalAppData の下だけ（共有フォルダ・ネットワークの場所は不可）
+BROWSER_NAMES = ("msedge.exe", "chrome.exe") if sys.platform.startswith("win") else \
+    ("msedge", "microsoft-edge", "microsoft-edge-stable", "google-chrome", "chrome", "chromium", "chromium-browser")
+
+
+def _browser_roots():
+    return [Path(b) for b in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")) if b]
+
+
+def trusted_browser(path):
+    """設定のブラウザを起こしてよいか（Edge・Chrome の名前で、Windows では決まった置き場の下）→ 理由（よければ ""）"""
+    p = Path(str(path or ""))
+    if p.name.lower() not in BROWSER_NAMES:
+        return f"ブラウザは {'・'.join(BROWSER_NAMES)} だけを指せます（安全のため、ほかの実行ファイルは起こしません）。"
+    if sys.platform.startswith("win"):
+        raw = str(path)
+        if raw.startswith(("\\\\", "//")):
+            return "ネットワークの場所のブラウザは起こしません（この PC の Program Files にある物を指してください）。"
+        try:
+            real = p.resolve()
+        except OSError:
+            return "そのファイルがありません。"
+        if not any(real.is_relative_to(r.resolve()) for r in _browser_roots()):
+            return "Program Files か、この人の AppData の下にあるブラウザだけを指せます。"
+    return ""
+
+
 def find_browser(configured=""):
-    """使うブラウザの実行ファイル。設定があればそれ、無ければ Edge → Chrome の既知の場所。"""
+    """使うブラウザの実行ファイル。設定があればそれ（Edge・Chrome の決まった形だけ）、無ければ Edge → Chrome の既知の場所。"""
     if configured:
-        return configured if Path(configured).is_file() else None
+        return configured if not trusted_browser(configured) and Path(configured).is_file() else None
     env = os.environ.get("TPA_LOTDSP_BROWSER", "")
     if env and Path(env).is_file():
         return env
     cands = []
     if sys.platform.startswith("win"):
-        for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")):
-            if base:
-                cands += [Path(base) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
-                          Path(base) / "Google" / "Chrome" / "Application" / "chrome.exe"]
+        for base in _browser_roots():
+            cands += [base / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+                      base / "Google" / "Chrome" / "Application" / "chrome.exe"]
     for name in ("msedge", "microsoft-edge", "microsoft-edge-stable", "google-chrome", "chromium", "chromium-browser"):
         w = shutil.which(name)
         if w:

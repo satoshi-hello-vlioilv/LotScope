@@ -98,12 +98,33 @@ def _write_json(path, data):
         return False
 
 
+# 鍵（terminal_key の形）として通す字。共有のファイルの中身の "key" は同僚が書き換えられるので、パスを作る前に必ず確かめる
+# （版 3.52.1: 細工した記録の key「../..」を「記録を消す」で消すと、マスタの置き場がまるごと消えた）
+_KEY_OK = re.compile(r'[^\\/:*?"<>|\s.][^\\/:*?"<>|\s]{0,119}')
+
+
+def safe_key(key):
+    """パスの部品に使ってよい鍵か（区切り・「..」・空・長すぎるのは不可）"""
+    key = str(key or "")
+    return bool(_KEY_OK.fullmatch(key)) and ".." not in key
+
+
+def _under(base, key, suffix=""):
+    """base の直下の「鍵＋suffix」（鍵が正しく、解決しても base の中に収まるときだけ。違えば ValueError）"""
+    if not safe_key(key):
+        raise ValueError(f"記録の鍵が正しくありません: {key!r}")
+    p = base / f"{key}{suffix}"
+    if p.resolve().parent != base.resolve():
+        raise ValueError(f"記録の置き場の外です: {key!r}")
+    return p
+
+
 def _hist_path(key):
-    return presence_dir() / "history" / f"{key}.json"
+    return _under(presence_dir() / "history", key, ".json")
 
 
 def _revoke_path(key):
-    return presence_dir() / f"{key}{REVOKE_SUFFIX}"
+    return _under(presence_dir(), key, REVOKE_SUFFIX)
 
 
 # ------------------------------------------------------------------ 書く（この PC の分だけ）
@@ -261,6 +282,8 @@ def sessions(key=None, limit=300):
     root = presence_dir() / SESSIONS_DIR if presence_dir() else None
     if not root or not root.exists():
         return {"items": [], "more": False}
+    if key and not safe_key(key):
+        return {"items": [], "more": False}
     dirs = [root / key] if key else [d for d in root.iterdir() if d.is_dir()]
     files = sorted(((p.stem, p) for d in dirs if d.exists() for p in d.glob("*.json")), key=lambda x: x[0], reverse=True)
     rows, month = [], None
@@ -380,7 +403,7 @@ def _online(d=None):
         if not data or data.get("_unreadable"):
             continue
         age = _age_sec(data)
-        if age is not None and age <= TTL_SEC:
+        if age is not None and age <= TTL_SEC and safe_key(data.get("key")):
             out.append(dict(data, idleSec=int(age)))
     return out
 
@@ -407,7 +430,7 @@ def _history():
         return out
     for p in (d / "history").glob("*.json"):
         data = _read_json(p)
-        if data and not data.get("_unreadable"):
+        if data and not data.get("_unreadable") and safe_key(data.get("key")):   # 鍵の正しくない記録は並べない（消す・切断の鍵になる）
             out.append(data)
     return out
 
@@ -511,11 +534,15 @@ def revocation(key):
 
 def disconnect(key, by_login="", by_pc="", reason=""):
     """切断の指示を書く。**権限の判定はここではしない**（ルートが access.role_can の1箇所で判定する）。"""
+    if not safe_key(key):
+        return False
     return _write_json(_revoke_path(key), {"key": key, "by": by_login, "byPc": by_pc,
                                            "reason": str(reason or "")[:200], "at": now_iso()})
 
 
 def clear_revocation(key):
+    if not safe_key(key):
+        return False
     try:
         _revoke_path(key).unlink(missing_ok=True)
         return True
@@ -525,11 +552,13 @@ def clear_revocation(key):
 
 def forget(key):
     """使わなくなった PC の記録（要約・使用の履歴）を消す（いま使っていれば消さない＝ルートが 409）。"""
+    if not safe_key(key):
+        return False
     try:
         _hist_path(key).unlink(missing_ok=True)
-        (presence_dir() / f"{key}.json").unlink(missing_ok=True)
-        shutil.rmtree(presence_dir() / SESSIONS_DIR / key, ignore_errors=True)
+        _under(presence_dir(), key, ".json").unlink(missing_ok=True)
+        shutil.rmtree(_under(presence_dir() / SESSIONS_DIR, key), ignore_errors=True)
         clear_revocation(key)
         return True
-    except OSError:
+    except (OSError, ValueError):
         return False

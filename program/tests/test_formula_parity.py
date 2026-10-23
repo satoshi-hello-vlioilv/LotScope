@@ -34,6 +34,10 @@ FUNCS2 = ["round", "left", "right", "find", "contains", "startswith", "endswith"
 FUNCS3 = ["replace", "split", "mid", "padleft", "extract", "regreplace", "datediff", "switch", "ifs", "min", "sum"]
 
 WRITTEN = [
+    # 重すぎる正規表現・長すぎる答え（版 3.52.1。脆弱性: アプリの中身が止まる・メモリが尽きる）。画面とサーバーで同じ断り方・同じ空
+    "match([C], '(.*.*)*!')", "match([C], '(a+)+b')", "extract([C], '(?:x*)+')", "match([C], '.*a.*b.*c')", "match([C], '.*a.*b')",
+    "match([C], '(ab|cd)+')", "match([C], '[(.*)]+')", "match([C], '\\.*\\.*\\.*')", "regcount(rept('ab', 1001), 'a')",
+    "replace(rept('ab', 1000), '', rept('ab', 1000))", "rept('x', 1000) + rept('y', 1000)", "regreplace(rept('a', 100), 'a', rept('b', 1000))",
     # 釜番 → 日付（版 3.51.2）: 月をまたぐ・第 6 週・読めない釜番・数の釜番・基準日の形
     "kamadate('451', '2026-10-23')", "kamadate('141', '2026-10-23')", "kamadate('567', '2026/10/23')", "kamadate(161, '2021/03/05 08:00')",
     "kamadate('111', '2026-12-28')", "kamadate('171', '2027-01-03')", "kamadate('0', '2026-10-23')", "kamadate('811', '2026-10-23')",

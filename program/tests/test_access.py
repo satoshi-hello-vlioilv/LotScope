@@ -145,8 +145,15 @@ class Api(Env):
         self.assertEqual(self.add_perm(ログインID="boss", 権限区分="開発者").status_code, 201, "管理者がまだ居なければ最初の1人を作れる")
         self.assertEqual(self.add_perm(ログインID="x", 権限区分="メンテナンス者").status_code, 403, "管理者が居れば、一般ユーザーは上の区分を与えられない")
         self.assertEqual(self.add_perm(ログインID="boss", 権限区分="開発者").status_code, 403, "権限で断るのが先（重複より前）")
+        # 版 3.52.1（脆弱性）: 管理者が居れば、登録の無い人は「部分的編集可」＝管理のマスタ（権限の表）を書けない
+        self.assertEqual(self.add_perm(ログインID="x", PC名="PC-X").status_code, 403, "未登録の人は権限の表に行を足せない")
+        self.as_("boss")
         self.assertEqual(self.add_perm(ログインID="x", PC名="PC-X").status_code, 201)
         self.assertEqual(self.add_perm(ログインID="X", PC名="pc-x").status_code, 409, "同じ組（大小・全半角をそろえて）は2行にしない")
+        self.as_("u1")
+        me = self.c.get("/api/access/me").get_json()
+        self.assertEqual((me["masterEdit"], me["canEditFieldMaster"], me["canEditAdminMaster"]), ("部分的編集可", True, False),
+                         "未登録の人は現場のマスタは書けるが、管理のマスタは書けない")
 
     def test_guard_by_master_edit_level(self):
         self.seed("boss", "開発者")
@@ -266,6 +273,26 @@ class Presence(Env):
         self.assertFalse((presence.presence_dir() / f"{key}.json").exists())
         self.assertEqual(self.c.post("/api/presence/forget", json={"key": key}).status_code, 200)
         self.assertFalse((presence.presence_dir() / "history" / f"{key}.json").exists())
+
+    def test_forged_key_cannot_reach_outside_the_presence_folder(self):
+        """版 3.52.1（脆弱性）: 同僚が記録の中の key を「../..」にしても、「記録を消す」でマスタの置き場が消えない"""
+        import json as _json
+        self.seed("boss", "メンテナンス者")
+        self.as_("boss")
+        self.c.get("/api/masters/equipment")
+        share = self.tmp / "share"
+        before = sorted(p.name for p in share.glob("*.json"))
+        h = presence.presence_dir() / "history"
+        h.mkdir(parents=True, exist_ok=True)
+        (presence.presence_dir() / "sessions").mkdir(exist_ok=True)
+        (h / "x.json").write_text(_json.dumps({"key": "../..", "login": "ghost", "pc": "OLD-PC", "lastAt": "2025-01-01T00:00:00"}), encoding="utf-8")
+        keys = [x["key"] for x in self.c.get("/api/presence").get_json()["fleet"]["items"]]
+        self.assertNotIn("../..", keys, "鍵の正しくない記録は並べない")
+        for bad in ("../..", "..", "a/b", "a\\b", ".x"):
+            self.assertNotEqual(self.c.post("/api/presence/forget", json={"key": bad}).status_code, 200, bad)
+            self.assertFalse(presence.forget(bad), bad)
+            self.assertFalse(presence.disconnect(bad), bad)
+        self.assertTrue(before and sorted(p.name for p in share.glob("*.json")) == before, "共有のマスタは残る")
 
     def test_no_share_folder_writes_nothing(self):
         presence.configure(self.tmp / "nowhere" / "presence_tpa")

@@ -63,7 +63,8 @@ fn app_url(path: &str) -> Url {
 }
 
 fn is_app_url(u: &Url) -> bool {
-    u.scheme() == SCHEME || u.host_str() == Some("tpa.localhost")
+    // tpa.localhost は http(s) のときだけ（版 3.52.1: file://tpa.localhost/… なども「アプリの中」と見ていた）
+    u.scheme() == SCHEME || (matches!(u.scheme(), "http" | "https") && u.host_str() == Some("tpa.localhost"))
 }
 
 /// 起動画面（desktop/splash。Tauri が tauri://localhost で出す）
@@ -401,8 +402,10 @@ fn window(app: &AppHandle, label: &str, url: WebviewUrl, splash: Arc<Splash>) ->
 }
 
 /// LotDsp など外のページは、いつものブラウザ（Edge）で開く（ログインはそちらにある）。
+/// 開くのは http・https・mailto だけ（版 3.52.1。脆弱性: file: を許すと、画面で JS が動いたときに
+/// 共有フォルダの exe・.bat などを ShellExecute で開かせられた。フォルダを開くのは /__desktop/reveal が受け持つ）
 fn open_outside(app: &AppHandle, u: &Url) {
-    if matches!(u.scheme(), "http" | "https" | "mailto" | "file") {
+    if outside_ok(u) {
         use tauri_plugin_opener::OpenerExt;
         let _ = app.opener().open_url(u.as_str(), None::<&str>);
     }
@@ -888,6 +891,10 @@ fn main() {
     });
 }
 
+fn outside_ok(u: &Url) -> bool {
+    matches!(u.scheme(), "http" | "https" | "mailto")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -907,6 +914,11 @@ mod tests {
         assert!(is_app_url(&Url::parse("http://tpa.localhost/x").unwrap()), "Windows（WebView2）の形");
         assert!(is_app_url(&Url::parse("tpa://localhost/x").unwrap()), "ほかの OS の形");
         assert!(!is_app_url(&Url::parse("http://lotdsp.example/").unwrap()), "外のページ");
+        assert!(!is_app_url(&Url::parse("file://tpa.localhost/x").unwrap()), "名前が同じでも file: はアプリの中ではない");
+        assert!(outside_ok(&Url::parse("https://lotdsp.example/").unwrap()));
+        assert!(outside_ok(&Url::parse("mailto:a@example.com").unwrap()));
+        assert!(!outside_ok(&Url::parse("file://///server/share/x.exe").unwrap()), "file: は外へ渡さない（exe を開かせない）");
+        assert!(!outside_ok(&Url::parse("file:///C:/Windows/System32/calc.exe").unwrap()));
         assert!(is_splash(&Url::parse("tauri://localhost/index.html").unwrap()));
         assert!(is_splash(&Url::parse("http://tauri.localhost/index.html").unwrap()));
     }

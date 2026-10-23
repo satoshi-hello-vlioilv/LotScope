@@ -970,7 +970,7 @@ const EG_OPS = [["prefix", "で始まる"], ["suffix", "で終わる"], ["contai
 function egTest(rules) {
   const ts = (rules || []).filter((r) => String(r.value || "").trim()).map((r) => {
     const v = egNorm(r.value);
-    if (r.op === "regex") { try { const rx = new RegExp(String(r.value).trim(), "i"); return (k) => rx.test(k); } catch (_) { return () => false; } }
+    if (r.op === "regex") { const v = String(r.value).trim(); if (WL.formula.regexRisk(v)) return () => false; try { const rx = new RegExp(v, "i"); return (k) => rx.test(k); } catch (_) { return () => false; } }
     return { prefix: (k) => k.startsWith(v), suffix: (k) => k.endsWith(v), contains: (k) => k.includes(v), equals: (k) => k === v }[r.op] || (() => false);
   });
   return (name) => ts.some((t) => t(egNorm(name)));

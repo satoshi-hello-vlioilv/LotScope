@@ -76,7 +76,7 @@
       case "lt": return compare(L, R) < 0;
       case "le": return compare(L, R) <= 0;
       case "between": { const R2 = operand(cond.right2, row, selfCol); return compare(L, R) >= 0 && compare(L, R2) <= 0; }
-      case "regex": try { return new RegExp(rs).test(ls); } catch (_) { return false; }
+      case "regex": if (WL.formula.regexRisk(rs)) return false; try { return new RegExp(rs).test(ls); } catch (_) { return false; }
       default: return false;
     }
   }
@@ -146,7 +146,8 @@
           if (r.kind === "value") {
             const v = String(r.value == null ? "" : r.value);
             if (v === "" && c.op !== "regex") return "0";
-            if (c.op === "regex") { try { new RegExp(v); } catch (_) { notes.add(`正規表現「${v}」は読めないので、この条件は「当たらない」にしました`); return "0"; } }
+            if (c.op === "regex") { const why = WL.formula.regexRisk(v); try { new RegExp(v); } catch (_) { notes.add(`正規表現「${v}」は読めないので、この条件は「当たらない」にしました`); return "0"; }
+              if (why) { notes.add(`正規表現「${v}」: ${why}。この条件は「当たらない」にしました`); return "0"; } }
             return `${fn}(${L}, ${side(r, true)})`;
           }
           const R = side(r, true);

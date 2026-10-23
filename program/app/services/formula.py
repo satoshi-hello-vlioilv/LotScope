@@ -24,6 +24,8 @@ import unicodedata
 
 MAX_LEN = 2000
 RE_MAX = 200
+RE_TEXT_MAX = 2000        # 正規表現に渡す字の長さ（版 3.52.1。長い字ほど重くなる。超えたらその行は空）
+STR_MAX = 100000          # 式の答えの字の長さ（版 3.52.1。replace・& で何億字も作ってメモリを使い切らない。超えたらその行は空）
 JS_WS = "\t\n\v\f\r                  　﻿"
 _WS = set(JS_WS)
 
@@ -210,6 +212,55 @@ _LINE = "\n\r  "
 _CLASS_WS = re.escape(JS_WS)
 
 
+# 重すぎる正規表現を断る（版 3.52.1。脆弱性: 「(.*.*)*!」のような入れ子の繰り返しは、短い字でも何十秒も止まり、
+# Python の re は途中で止められないので、ダッシュボード・一覧を数えるアプリの中身がまるごと止まった）。
+# 画面（list-formula.js の regexRisk）と同じ決まり: ① 繰り返しを含むかっこを、さらに繰り返す ② 「.」の繰り返しが 3 つ以上
+_QUANT = re.compile(r"[*+]|\{[0-9]+(?:,[0-9]*)?\}")
+DOT_REPEAT_MAX = 2
+
+
+def regex_risk(src):
+    """重くなる形の正規表現か → 理由（重くなければ ""）"""
+    stack, i, n, in_class, dots = [False], 0, len(src), False, 0
+    while i < n:
+        c = src[i]
+        if c == "\\":
+            i += 2
+            continue
+        if in_class:
+            in_class = c != "]"
+            i += 1
+            continue
+        if c == "[":
+            in_class = True
+            i += 1
+            continue
+        if c == "(":
+            stack.append(False)
+            i += 1
+            continue
+        if c == ")":
+            inner = stack.pop() if len(stack) > 1 else False
+            i += 1
+            q = _QUANT.match(src, i)
+            if q and inner:
+                return "繰り返しを含むかっこを、さらに繰り返す正規表現は使えません（とても重くなるため）"
+            if q or inner:
+                stack[-1] = True
+            continue
+        q = _QUANT.match(src, i)
+        if q:
+            stack[-1] = True
+            if i > 0 and src[i - 1] == "." and (i < 2 or src[i - 2] != "\\"):
+                dots += 1
+            i = q.end()
+            continue
+        i += 1
+    if dots > DOT_REPEAT_MAX:
+        return f"「.*」「.+」は {DOT_REPEAT_MAX} つまでです（とても重くなるため）"
+    return ""
+
+
 def js_regex(src, flags=""):
     k = (flags, src)
     hit = _RE_CACHE.get(k)
@@ -217,6 +268,9 @@ def js_regex(src, flags=""):
         return hit
     if len(src) > RE_MAX:
         raise FormulaError(f"正規表現は{RE_MAX}文字までです")
+    why = regex_risk(src)
+    if why:
+        raise FormulaError(why)
     try:
         rx = re.compile(_translate(src), re.ASCII)
     except re.error as e:
@@ -419,6 +473,13 @@ REGEX_FUNCS = {"extract", "match", "regreplace", "regcount"}
 
 
 def parse(src):
+    try:
+        return _parse(src)
+    except RecursionError:
+        raise FormulaError("式の入れ子が深すぎます") from None      # 版 3.52.1: かっこを何百重にもした式で 500 になっていた
+
+
+def _parse(src):
     if len(str(src or "")) > MAX_LEN:
         raise FormulaError(f"式が長すぎます({MAX_LEN}文字まで)")
     ts, p = _lex(src), [0]
@@ -564,11 +625,28 @@ def _mid(a):
 
 def _replace(a):
     t, sub, rep = text_of(a[0]), text_of(a[1]), text_of(a[2])
+    hits = len(t) + 1 if sub == "" else t.count(sub)
+    if len(t) + hits * (len(rep) - len(sub)) > STR_MAX:          # 作る前に長さを見積もる（作ってから断るとメモリが尽きる）
+        raise FormulaError(f"答えが長すぎます（{STR_MAX}文字まで）")
     return rep.join(_u16list(t)) if sub == "" else t.replace(sub, rep)
 
 
+def _re_text(v):
+    t = text_of(v)
+    if len(t) > RE_TEXT_MAX:
+        raise FormulaError(f"正規表現で調べる字は{RE_TEXT_MAX}文字までです")
+    return t
+
+
+def _regreplace(a):
+    t, rep = _re_text(a[0]), text_of(a[2])
+    if len(rep) * (len(t) + 1) + len(t) > STR_MAX:
+        raise FormulaError(f"答えが長すぎます（{STR_MAX}文字まで）")
+    return js_regex(text_of(a[1]), "g").sub(_js_replacement(rep), t)
+
+
 def _extract(a):
-    m = js_regex(text_of(a[1])).search(text_of(a[0]))
+    m = js_regex(text_of(a[1])).search(_re_text(a[0]))
     if not m:
         return ""
     g = max(0.0, num_of(a[2]) or 0.0) if len(a) > 2 else 0.0
@@ -906,8 +984,8 @@ FUNCS = {
     "find": lambda a: float(u16index(text_of(a[0]), text_of(a[1])) + 1),
     "replace": _replace,
     "extract": _extract,
-    "match": lambda a: 1.0 if js_regex(text_of(a[1])).search(text_of(a[0])) else 0.0,
-    "regreplace": lambda a: js_regex(text_of(a[1]), "g").sub(_js_replacement(text_of(a[2])), text_of(a[0])),
+    "match": lambda a: 1.0 if js_regex(text_of(a[1])).search(_re_text(a[0])) else 0.0,
+    "regreplace": _regreplace,
     "split": _split,
     "contains": lambda a: 1.0 if text_of(a[1]) in text_of(a[0]) else 0.0,
     "cmp": lambda a: float(js_cmp(a[0], a[1])),
@@ -918,7 +996,7 @@ FUNCS = {
     "conv": _conv,
     # 版 3.46.0
     "count": lambda a: float(text_of(a[0]).count(text_of(a[1]))) if text_of(a[1]) else 0.0,
-    "regcount": lambda a: float(sum(1 for _ in js_regex(text_of(a[1]), "g").finditer(text_of(a[0])))),
+    "regcount": lambda a: float(sum(1 for _ in js_regex(text_of(a[1]), "g").finditer(_re_text(a[0])))),
     "lenb": lambda a: float(sum(1 if LENB_ONE.fullmatch(c) else 2 for c in _u16list(text_of(a[0])))),
     "rept": _rept,
     "min": lambda a: min(_nums(a)) if _nums(a) else None,
@@ -970,7 +1048,12 @@ def _eval(n, row):
         op, a, b = n[1], _eval(n[2], row), _eval(n[3], row)
         x, y = num_of(a), num_of(b)
         if op == "+":
-            return x + y if x is not None and y is not None else text_of(a) + text_of(b)
+            if x is not None and y is not None:
+                return x + y
+            ta, tb = text_of(a), text_of(b)
+            if len(ta) + len(tb) > STR_MAX:
+                raise FormulaError(f"答えが長すぎます（{STR_MAX}文字まで）")
+            return ta + tb
         if x is None or y is None:
             return None
         if op == "-":
@@ -986,7 +1069,10 @@ def _eval(n, row):
             if truthy(_eval(args[0], row)):
                 return _eval(args[1], row)
             return _eval(args[2], row) if len(args) > 2 else ""
-        return FUNCS[name]([_eval(a, row) for a in args])
+        v = FUNCS[name]([_eval(a, row) for a in args])
+        if isinstance(v, str) and len(v) > STR_MAX:
+            raise FormulaError(f"答えが長すぎます（{STR_MAX}文字まで）")
+        return v
     return None
 
 
@@ -1015,7 +1101,7 @@ class Formula:
     def run(self, lookup):
         try:
             return _eval(self.node, lookup)
-        except (FormulaError, ValueError, TypeError, OverflowError, IndexError, KeyError, re.error, RecursionError):
+        except (FormulaError, ValueError, TypeError, OverflowError, IndexError, KeyError, re.error, RecursionError, MemoryError):
             return None      # その行だけ空（列ごと落とさない）
 
 

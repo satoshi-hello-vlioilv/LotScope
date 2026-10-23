@@ -39,6 +39,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from . import aggregate
+from . import formula
 from .formula import register as register_calc
 from .identity import normalize_part
 from .lot_list import DATE_RATIO, TABLE_CANDIDATES, columns, date_columns, lot_column, pick_table, raw_columns, search_filter_where, tables
@@ -400,6 +401,8 @@ def compile_rules(rules):
         if not v or op not in RULE_OPS:
             continue
         if op == "regex":
+            if formula.regex_risk(v):           # 重すぎる形は当てない（版 3.52.1。共有のマスタを直接書かれても止まらない）
+                continue
             try:
                 rx = re.compile(v, re.IGNORECASE)
             except re.error:

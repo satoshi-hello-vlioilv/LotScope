@@ -401,11 +401,11 @@
   </div>
 </div>
 
-<script>window.EXPLAIN3D_URL = "{{ url_for('static', filename='js/explain3d.js') }}";</script>
+<script nonce="{{ csp_nonce }}">window.EXPLAIN3D_URL = "{{ url_for('static', filename='js/explain3d.js') }}";</script>
 <!-- 画面の設定の控え（WebView の作業場所が消えても戻す。以前のブラウザ版で使い込んだ設定も引き継ぐ。shared.js が最初に戻す） -->
-<script>window.TPA_UI_STATE = {{ ui_state|tojson }};</script>
-<script>window.TPA_UI_PROFILE = {{ ui_profile|tojson }};</script>
-<script>window.TPA_CONVERSIONS = {{ conversions|tojson }};</script>
+<script nonce="{{ csp_nonce }}">window.TPA_UI_STATE = {{ ui_state|tojson }};</script>
+<script nonce="{{ csp_nonce }}">window.TPA_UI_PROFILE = {{ ui_profile|tojson }};</script>
+<script nonce="{{ csp_nonce }}">window.TPA_CONVERSIONS = {{ conversions|tojson }};</script>
 <script src="{{ url_for('static', filename='js/shared.js') }}"></script>
 <script src="{{ url_for('static', filename='js/unsaved.js') }}"></script>
 <script src="{{ url_for('static', filename='js/value-filter.js') }}"></script>

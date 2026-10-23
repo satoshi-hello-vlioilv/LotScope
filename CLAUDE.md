@@ -149,6 +149,8 @@ python program/tools/ui_score.py 採点.json                                    
   `ui-eval-dslicer.mjs`（版 3.52.0。ダッシュボードのスライサー: 暦が日付の札の真下・始めと終わりの日で当たる・数がサーバーの日付の範囲〈range〉の答えと同じ・札とパネルの言葉・から〜まで の欄／
   「スライサー ▾」で帯を OFF〈効かない・「スライサー OFF」・この PC だけ〉・出す物・編集中は組みに入る／パネルのスライサー〈札の件数がサーバーと同じ・押すと同じデータのほかのパネルが in の答えと同じ・自分は絞らない・札・開き直し・外す〉・
   「＋ 列の値で絞るパネルを足す…」・帯が 1 段で面が窓に収まる）・
+  `ui-eval-xss.mjs`（版 3.52.1。脆弱性の確認: 表示列の設定の揃え・幅・読み替えの色に細工した字を入れて一覧と表示列の窓を開き、JS が動かない・細工した <img> が無い・
+  画面の HTML に CSP〈script-src 'self' と印 nonce・object-src 'none'〉が付き、あとから入れた onerror が動かない・アプリの印つき <script> は動く。直した所の試験は `tests/test_security.py` ほか）・
   `ui-eval-waterfall.mjs`（ウォーターフォール: 棒の数・計＝サーバーの総計・前の棒の終わりから・増加と減少・足せない値は計なし・計算・はみ出さない・一覧でも）。
   値の計算の式の読み方は、画面（num-format.js）とサーバー（services/num_expr.py）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・`tests/test_num_expr.py`）。どれも終了コード 0 で OK
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`

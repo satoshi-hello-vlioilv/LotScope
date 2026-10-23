@@ -53,6 +53,24 @@ class Settings(unittest.TestCase):
     def test_configured_browser_must_exist(self):
         self.assertIsNone(D.find_browser("/no/such/msedge.exe"))
 
+    def test_configured_browser_must_be_edge_or_chrome(self):
+        """版 3.52.1（脆弱性）: 共有のマスタの設定で、好きな実行ファイルを起こさせない（名前は Edge・Chrome だけ）"""
+        import stat
+        import tempfile
+        from app.services import path_settings
+        with tempfile.TemporaryDirectory() as d:
+            evil = Path(d) / "not_edge.sh"
+            evil.write_text("#!/bin/sh\necho ran\n")
+            evil.chmod(evil.stat().st_mode | stat.S_IEXEC)
+            self.assertIsNone(D.find_browser(str(evil)), "名前の違う実行ファイルは使わない")
+            self.assertTrue(D.trusted_browser(str(evil)))
+            item = path_settings.BY_KEY["lotdsp_import.direct.browser"]
+            with self.assertRaises(ValueError):
+                path_settings.parse(item, str(evil))
+            eff, _ = path_settings.effective({}, [{"項目": item["key"], "値": str(evil)}])
+            self.assertIsNone(((eff.get("lotdsp_import") or {}).get("direct") or {}).get("browser"), "共有に直接書かれても使わない")
+        self.assertEqual(D.trusted_browser("/usr/bin/" + D.BROWSER_NAMES[0]), "")
+
     def test_reachable(self):
         self.assertFalse(D.reachable(f"http://127.0.0.1:{free_port()}/", 1))
 

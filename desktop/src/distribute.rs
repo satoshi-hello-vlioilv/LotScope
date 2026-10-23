@@ -134,7 +134,7 @@ pub fn place(p: &Paths, found: &Path, zip: &Path, source_name: &str, app_id: &st
 fn extract_exe(zip: &Path, exe: &str, to: &Path) -> Result<(), String> {
     let f = std::fs::File::open(zip).map_err(|e| e.to_string())?;
     let mut z = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
-    let names: Vec<String> = z.file_names().map(str::to_string).collect();
+    let names: Vec<String> = z.file_names().map(|n| n.map(|n| n.into_owned()).map_err(|e| e.to_string())).collect::<Result<_, _>>()?;
     // 配る形の根（program/sidecar.py の隣）の exe
     let root = names.iter().find_map(|n| n.strip_suffix("program/sidecar.py")).ok_or("ZIP に program/sidecar.py がありません")?.to_string();
     let mut e = z.by_name(&format!("{root}{exe}")).map_err(|_| format!("ZIP に {exe} がありません"))?;

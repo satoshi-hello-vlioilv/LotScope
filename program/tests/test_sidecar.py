@@ -8,6 +8,7 @@
     python -m unittest discover -s tests
 """
 import json
+import re
 import os
 import subprocess
 import sys
@@ -126,7 +127,10 @@ class Parity(unittest.TestCase):
             if r.is_json:
                 self.assertEqual(stable(json.loads(b)), stable(r.get_json()), path)
                 return json.loads(b)
-            self.assertEqual(b, r.get_data(), path)
+            # 画面の CSP の印（nonce）は問い合わせごとに変わる（版 3.52.1）ので、印を除いて比べる。見出しの CSP があることも同じ
+            nonce = re.compile(rb'nonce="[^"]*"')
+            self.assertEqual(nonce.sub(b'nonce=""', b), nonce.sub(b'nonce=""', r.get_data()), path)
+            self.assertEqual(bool(h.get("content-security-policy")), bool(r.headers.get("Content-Security-Policy")), path)
             return b
 
     def test_ready_frame(self):

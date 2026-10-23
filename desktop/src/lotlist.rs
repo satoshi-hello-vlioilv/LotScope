@@ -132,8 +132,9 @@ fn unquote(s: &str) -> String {
 }
 
 /// 識別子を [ ] で括る。
+/// 識別子を " " で括る（Python の sqlite_ro.qi と同じ。版 3.52.1: [ ] は中の ] を逃がせず、列名に ] がある表を開けなかった）
 pub fn qi(name: &str) -> String {
-    format!("[{}]", name.replace(']', "]]"))
+    format!("\"{}\"", name.replace('"', "\"\""))
 }
 
 fn py_of(v: ValueRef<'_>) -> Py<'_> {
