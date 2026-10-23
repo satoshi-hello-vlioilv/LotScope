@@ -22,7 +22,7 @@ TOOL = Path(__file__).resolve().parents[1] / "tools" / "formula-parity.mjs"
 
 VALUES = [None, "", " ", 0, 1, -1, 2.5, 10, 1200, 0.1, 1e21, 1e-7, 123456789012, "0", "010", "10", "1.0", "1,000", " 5 ", "+5", "-3.5e2", "12abc",
           "abc", "ABC def", "A5052", "H24", "L0123C4", "ｱｲｳ", "１２３", "　全角の空白　", "😀x", "x😀y", "Infinity", "1e3", ".5",
-          "2026/10/16 08:30", "2026/10/01 8:15:00", "2026-10-01T09:45", "26/10/02 23:48:54", "2026年10月3日", "20261003", "8:15", "2026/02/30", "仕掛", "検査待ち", "O'Neil", "a,b,c", "CR1 L-1 LS3", "﻿BOM", "ß", "İ"]
+          "2026/10/16 08:30", "2026/10/01 8:15:00", "2026-10-01T09:45", "26/10/02 23:48:54", "2026年10月3日", "20261003", "8:15", "2026/02/30", "451", "141", "567", "仕掛", "検査待ち", "O'Neil", "a,b,c", "CR1 L-1 LS3", "﻿BOM", "ß", "İ"]
 COLUMNS = ["A", "B", "C", "日本"]
 REGEX = ["[0-9]+", "\\\\d+", "^L", "C(\\\\d)", "\\\\s", "(?<n>\\\\d)", ".", "\\\\w+$", "[^]", "a|b", "^$", "(x)?y", "[A-Z]{2,}", "\\\\.", "\\\\bdef"]
 REPL = ["$1", "$&", "[$`]", "$'", "$<n>", "$$", "$9", "-", ""]
@@ -30,10 +30,14 @@ FUNCS1 = ["num", "text", "abs", "len", "trim", "upper", "lower", "hankaku",
           "lenb", "int", "ceil", "sqrt", "isnum", "isblank", "year", "month", "day", "hour", "minute", "weekday", "date", "roundup", "rounddown",
           "min", "max", "sum", "avg"]
 FUNCS2 = ["round", "left", "right", "find", "contains", "startswith", "endswith", "cmp", "mid", "padleft", "extract", "match",
-          "count", "regcount", "rept", "roundup", "rounddown", "datediff", "ifs", "min", "max", "sum", "avg"]
+          "count", "regcount", "rept", "roundup", "rounddown", "datediff", "ifs", "min", "max", "sum", "avg", "kamadate"]
 FUNCS3 = ["replace", "split", "mid", "padleft", "extract", "regreplace", "datediff", "switch", "ifs", "min", "sum"]
 
 WRITTEN = [
+    # 釜番 → 日付（版 3.51.2）: 月をまたぐ・第 6 週・読めない釜番・数の釜番・基準日の形
+    "kamadate('451', '2026-10-23')", "kamadate('141', '2026-10-23')", "kamadate('567', '2026/10/23')", "kamadate(161, '2021/03/05 08:00')",
+    "kamadate('111', '2026-12-28')", "kamadate('171', '2027-01-03')", "kamadate('0', '2026-10-23')", "kamadate('811', '2026-10-23')",
+    "kamadate('１４１', '2026-10-23')", "kamadate(' 451 ', '2026-10-23')", "kamadate('451', 'x')", "kamadate([A], [B])",
     "[A] + [B]", "[A] - [B]", "[A] * [B]", "[A] / [B]", "[A] % [B]", "-[A]", "not [A]", "[A] and [B]", "[A] or [B]",
     "[A] = [B]", "[A] <> [B]", "[A] < [B]", "[A] <= [B]", "[A] > [B]", "[A] >= [B]", "[A] != 10",
     "0.1 + 0.2", "1 / 3", "10 % 3", "-7 % 3", "2 * 1000000000000000000000", "1 / 10000000", "round(2.5, 0)", "round(-2.5, 0)", "round(1.005, 2)",
