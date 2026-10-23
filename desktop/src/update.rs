@@ -144,7 +144,7 @@ pub fn extract_zip(zip: &Path, dest: &Path) -> Result<(), String> {
     let mut total = 0u64;
     for i in 0..z.len() {
         let mut e = z.by_index(i).map_err(|e| format!("ZIP の中を読めません: {e}"))?;
-        let name = e.name().to_string();
+        let name = e.name().map_err(|e| format!("ZIP の中の名前を読めません: {e}"))?.to_string();
         let rel = Path::new(&name);
         let bad = name.contains(':')
             || name.starts_with(['/', '\\'])
@@ -167,8 +167,13 @@ pub fn extract_zip(zip: &Path, dest: &Path) -> Result<(), String> {
             std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
         }
         let mut w = std::fs::File::create(&out).map_err(|e| format!("{} を書けません: {e}", out.display()))?;
+        // 名乗った大きさより多くは読まない（版 3.52.1。ZIP が名乗る大きさで数えているので、実際の展開が名乗りを超えたら断る）
+        let said = e.size();
         let mut buf = Vec::new();
-        e.read_to_end(&mut buf).map_err(|e| format!("ZIP の中を読めません（{name}）: {e}"))?;
+        (&mut e).take(said.saturating_add(1)).read_to_end(&mut buf).map_err(|e| format!("ZIP の中を読めません（{name}）: {e}"))?;
+        if buf.len() as u64 > said {
+            return Err(format!("ZIP の中身が名乗った大きさを超えます: {name}"));
+        }
         std::io::Write::write_all(&mut w, &buf).map_err(|e| e.to_string())?;
         // 実行の許可を戻す（Linux などの試験の窓。Windows には無い考え）
         #[cfg(unix)]

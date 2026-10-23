@@ -100,6 +100,11 @@ def parse(item, raw):
         raise ValueError(f"「{item['label']}」は http:// か https:// で始まる URL を入れてください。")
     if kind in ("sqlite", "exe", "folder"):
         s = unquote_path(s)
+    if kind == "exe" and s:          # Edge・Chrome の決まった形だけ（版 3.52.1。共有のマスタで好きな exe を起こさせない。読むときも同じ: effective）
+        from .lotdsp_direct import trusted_browser
+        why = trusted_browser(s)
+        if why:
+            raise ValueError(f"「{item['label']}」: {why}")
     if kind == "pattern":
         from .work_log import split_pattern
         split_pattern(s)            # * がちょうど 1 つ（違えば理由つきの ValueError）
@@ -184,7 +189,10 @@ def _check_url(item, value):
 
 
 def _check_exe(item, value):
-    from .lotdsp_direct import find_browser
+    from .lotdsp_direct import find_browser, trusted_browser
+    why = trusted_browser(value) if value else ""
+    if why:
+        return {"ok": False, "message": why}
     found = find_browser(str(value or ""))
     if found:
         return {"ok": True, "message": f"使えます: {found}" + ("" if value else "（自動で見つけた場所）")}

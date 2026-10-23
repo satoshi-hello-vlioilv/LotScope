@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 
+from . import formula
 from .identity import normalize_part
 from .pivot import RULE_OPS, compile_rules
 from .shifts import equipment_list
@@ -72,6 +73,9 @@ def clean_rules(v):
                 re.compile(val)
             except re.error as e:
                 raise GroupError(f"正規表現「{val}」が読めません（{e}）。") from None
+            why = formula.regex_risk(val)       # 重すぎる形は断る（版 3.52.1。計算列の式と同じ決まり）
+            if why:
+                raise GroupError(f"正規表現「{val}」: {why}")
         x = {"op": r["op"], "value": val}
         if x not in out:
             out.append(x)

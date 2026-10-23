@@ -17,8 +17,9 @@ from urllib.parse import quote
 
 
 def qi(name):
-    """識別子を [ ] で括る（WaveLog と同じ）。"""
-    return "[" + str(name).replace("]", "]]") + "]"
+    """識別子を " " で括る（版 3.52.1: [ ] は中の ] を逃がす書き方が SQLite に無く、列名に ] がある表を開けなかった。
+    " は "" と重ねれば逃がせる＝どんな列名でも 1 つの識別子になる）"""
+    return '"' + str(name).replace('"', '""') + '"'
 
 
 def _cstr(v):
@@ -220,6 +221,10 @@ def connect_ro(path, timeout=10):
         if found is False:
             raise FileNotFoundError(f"データベースが見つかりません: {path}") from e
         raise RuntimeError(f"データベースを開けませんでした: {path}（SQLite: {e}）") from e
+    try:
+        c.execute("PRAGMA trusted_schema=OFF")   # 細工したファイルの表・ビューの定義から、登録した関数を勝手に呼ばせない（版 3.52.1）
+    except sqlite3.Error:
+        pass
     c.create_function("CStr", 1, _cstr)
     c.create_function("Val", 1, _val)
     c.create_function("Nz", 2, _nz)

@@ -128,7 +128,9 @@ def flags(rows, login, pc):
     """その人・その PC に効く権限。{role, masterEdit, masterEditStored, matchedId}"""
     r = _row_for(rows or [], login, pc)
     role = normalize_role(r.get("権限区分") if r else "")
-    stored = normalize_master_edit(r.get("マスタ編集") if r else "")
+    # 登録の無い人（当たる行が無い）は「部分的編集可」（版 3.52.1。脆弱性: 未登録でも管理のマスタ〈参照先・権限〉を書けた）。
+    # 管理する人がまだ 1 人も居ないうちは今までどおり「編集可」（最初の 1 人が権限の表を作れるように）
+    stored = normalize_master_edit(r.get("マスタ編集") if r else (ME_PARTIAL if has_admin_row(rows) else ""))
     return {"role": role, "masterEdit": master_edit_effective(role, stored), "masterEditStored": stored,
             "matchedId": r.get("id") if r else None}
 

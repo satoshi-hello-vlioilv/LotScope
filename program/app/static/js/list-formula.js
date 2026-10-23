@@ -197,11 +197,40 @@
     `compile().run`が受ける）。長すぎる書き方は断り、作った正規表現は使い回す
     （行ごとに作り直すと200行×列で効いてくる）。 */
  const RE_MAX=200;
+ /* 重すぎる正規表現・長すぎる答えを断る（版 3.52.1。サーバーの services/formula.py の regex_risk・RE_TEXT_MAX・STR_MAX と同じ決まり）:
+    ① 繰り返しを含むかっこを、さらに繰り返す（(a+)+ の形） ② 「.」の繰り返しが 3 つ以上。調べる字は 2000 字まで・答えは 10 万字まで */
+ const RE_TEXT_MAX=2000,STR_MAX=100000,DOT_REPEAT_MAX=2,QUANT=/[*+]|\{[0-9]+(?:,[0-9]*)?\}/y;
+ function quantAt(src,i){QUANT.lastIndex=i;const m=QUANT.exec(src);return m?QUANT.lastIndex:-1}
+ function regexRisk(src){
+  const st=[false];let i=0,inClass=false,dots=0;const n=src.length;
+  while(i<n){
+   const c=src[i];
+   if(c==='\\'){i+=2;continue}
+   if(inClass){inClass=c!==']';i++;continue}
+   if(c==='['){inClass=true;i++;continue}
+   if(c==='('){st.push(false);i++;continue}
+   if(c===')'){
+    const inner=st.length>1?st.pop():false;i++;
+    const q=quantAt(src,i);
+    if(q>=0&&inner)return '繰り返しを含むかっこを、さらに繰り返す正規表現は使えません（とても重くなるため）';
+    if(q>=0||inner)st[st.length-1]=true;
+    continue;
+   }
+   const q=quantAt(src,i);
+   if(q>=0){st[st.length-1]=true;if(i>0&&src[i-1]==='.'&&(i<2||src[i-2]!=='\\'))dots++;i=q;continue}
+   i++;
+  }
+  return dots>DOT_REPEAT_MAX?`「.*」「.+」は ${DOT_REPEAT_MAX} つまでです（とても重くなるため）`:'';
+ }
+ const tooLong=()=>Error(`答えが長すぎます（${STR_MAX}文字まで）`);
+ function reText(v){const t=textOf(v);if(t.length>RE_TEXT_MAX)throw Error(`正規表現で調べる字は${RE_TEXT_MAX}文字までです`);return t}
  const reCache=new Map();
  function reOf(src,flags){
   const k=flags+'\u0000'+src;
   if(reCache.has(k))return reCache.get(k);
   if(src.length>RE_MAX)throw Error(`正規表現は${RE_MAX}文字までです`);
+  const why=regexRisk(src);
+  if(why)throw Error(why);
   const re=new RegExp(src,flags);
   if(reCache.size>200)reCache.clear();
   reCache.set(k,re);
@@ -336,14 +365,16 @@
   /* find(x, 探す字)。見つかった位置（1から）、無ければ0。 */
   find:a=>{const i=textOf(a[0]).indexOf(textOf(a[1]));return i<0?0:i+1},
   /* replace(x, 探す字, 置く字)。**全部**置き換える（1つ目だけにすると、2つ目が残って気づけない）。 */
-  replace:a=>textOf(a[0]).split(textOf(a[1])).join(textOf(a[2])),
+  replace:a=>{const t=textOf(a[0]),sub=textOf(a[1]),r=textOf(a[2]);const hits=sub===''?t.length+1:t.split(sub).length-1;
+               if(t.length+hits*(r.length-sub.length)>STR_MAX)throw tooLong();return t.split(sub).join(r)},
   /* extract(x, 正規表現[, 組])。合った部分（組を指定すればその組）。合わなければ空。 */
-  extract:a=>{const m=textOf(a[0]).match(reOf(textOf(a[1]),''));
+  extract:a=>{const m=reText(a[0]).match(reOf(textOf(a[1]),''));
               if(!m)return '';const g=a.length>2?Math.max(0,numOf(a[2])||0):0;return m[g]===undefined?'':m[g]},
   /* match(x, 正規表現)。合えば1・合わなければ0（条件にそのまま使える）。 */
-  match:a=>reOf(textOf(a[1]),'').test(textOf(a[0]))?1:0,
+  match:a=>reOf(textOf(a[1]),'').test(reText(a[0]))?1:0,
   /* regreplace(x, 正規表現, 置く字)。$1 などで組を使える。 */
-  regreplace:a=>textOf(a[0]).replace(reOf(textOf(a[1]),'g'),textOf(a[2])),
+  regreplace:a=>{const t=reText(a[0]),r=textOf(a[2]);if(r.length*(t.length+1)+t.length>STR_MAX)throw tooLong();
+                 return t.replace(reOf(textOf(a[1]),'g'),r)},
   /* split(x, 区切り, 何番目)。1から数える。無ければ空。 */
   split:a=>{const sep=textOf(a[1]);const parts=sep?textOf(a[0]).split(sep):[textOf(a[0])];
             const v=parts[posOf(a[2])-1];return v===undefined?'':v},
@@ -360,7 +391,7 @@
   padleft:a=>textOf(a[0]).padStart(Math.max(0,Math.min(64,numOf(a[1])||0)),a.length>2?(textOf(a[2])||'0'):'0'),
   /* count(x, 字): 字が何回出てくるか（重ならない数え方）。regcount(x, 正規表現): 合う所の数 */
   count:a=>{const t=textOf(a[1]);return t?textOf(a[0]).split(t).length-1:0},
-  regcount:a=>(textOf(a[0]).match(reOf(textOf(a[1]),'g'))||[]).length,
+  regcount:a=>(reText(a[0]).match(reOf(textOf(a[1]),'g'))||[]).length,
   /* lenb(x): 半角の英数記号・半角カナを 1、ほかを 2 と数えた長さ（Excel の LENB） */
   lenb:a=>{const t=textOf(a[0]);let n=0;for(let i=0;i<t.length;i++)n+=LENB_ONE.test(t[i])?1:2;return n},
   rept:a=>{const t=textOf(a[0]);let n=Math.trunc(Math.max(0,Math.min(1000,numOf(a[1])||0)));
@@ -441,7 +472,9 @@
      /* 片方でも数でなければ**連結**。「品番+枝番」のような使い方が
         いちばん多いので、そこで0が出ると意図と違う。 */
      if(x!==null&&y!==null)return x+y;
-     return textOf(a)+textOf(b);
+     const ta=textOf(a),tb=textOf(b);
+     if(ta.length+tb.length>STR_MAX)throw tooLong();
+     return ta+tb;
     }
     const x=numOf(a),y=numOf(b);
     if(x===null||y===null)return null;
@@ -457,9 +490,11 @@
       ? evalNode(n.args[1],row)
       : (n.args.length>2?evalNode(n.args[2],row):'');
     }
-    const f=FUNCS[n.name];
+    const f=Object.hasOwn(FUNCS,n.name)?FUNCS[n.name]:null;    // constructor など、関数の表に無い名前は引かない（版 3.52.1）
     if(!f)throw Error(`知らない関数です: ${n.name}`);
-    return f(n.args.map(a=>evalNode(a,row)));
+    const v=f(n.args.map(a=>evalNode(a,row)));
+    if(typeof v==='string'&&v.length>STR_MAX)throw tooLong();
+    return v;
    }
   }
   return null;
@@ -620,7 +655,7 @@
  }
  /* 変換表を渡す（名前 → 表。無ければ null）。渡し直すと、次に計算する行から新しい表を使う */
  function setTables(fn){convSource=typeof fn==='function'?fn:()=>null}
- window.WL.formula={compile,check,parse,sigs:SIGS,truthy,cmp,MAX_LEN,suggest,setTables,convWith,
+ window.WL.formula={compile,check,parse,regexRisk,sigs:SIGS,truthy,cmp,MAX_LEN,suggest,setTables,convWith,
              /* 説明文をパネルとドキュメントで共用する(2箇所に書かない)。 */
              help:[
               ['[列名]','その行のその列の値'],

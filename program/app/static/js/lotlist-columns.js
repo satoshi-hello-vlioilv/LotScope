@@ -31,6 +31,7 @@
   const empty = () => ({ order: [], hidden: [], widths: {}, locks: [], names: {}, formats: {}, aligns: {}, formulas: {}, rules: {}, builds: {} });
   // 作った列を消す印（行のごみ箱・札の「削除」・作り方の段の「この列を削除」で同じ絵。版 3.44.0）
   const TRASH = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v4M9 7v4"/></svg>';
+  const CELL_COLORS = new Set(["ok", "ng", "warn", "muted"]);   // 読み替えのルールの色（lotlist-rules.js の COLORS）
   const W_MIN = 20, W_MAX = 900, AUTO_MIN = 30, AUTO_MAX = 320, GRIP_SETTLE_MS = 300;
   const TINTS = [
     ["gray", "灰", "#8a96a0", "目立たせない"], ["stone", "石", "#a39585", "参考"], ["teal", "青緑", "#2f7d78", "転写・注目"],
@@ -50,10 +51,26 @@
   const saved = LS.get(KEY.layouts, {});
   const draft = {}, live = {};
   function norm(l) { const e = empty(); KEYS.forEach((k) => { if (l && l[k] != null) e[k] = TPA.clone(l[k]); }); return e; }
+  /* 字のまま HTML の class・style・value に入る値は、決まった形だけを残す（版 3.52.1。脆弱性: 共有の書式・初期設定・取り込んだ表示の設定に
+     細工した揃え・幅を入れると、ほかの人の画面で JS が動いた）。揃えは決まった言葉、幅は数（W_MIN〜W_MAX） */
+  const ALIGN_DATA = new Set(["left", "center", "right"]), ALIGN_HEAD = new Set(["", "follow", "left", "center", "right"]);
+  function safeLayout(l) {
+    const al = {}, w = {};
+    Object.entries(l.aligns || {}).forEach(([c, a]) => {
+      if (!a || typeof a !== "object") return;
+      const x = {};
+      if (ALIGN_DATA.has(a.data)) x.data = a.data;
+      if (ALIGN_HEAD.has(a.head)) x.head = a.head;
+      if (Object.keys(x).length) al[c] = x;
+    });
+    Object.entries(l.widths || {}).forEach(([c, v]) => { const n = Number(v); if (Number.isFinite(n) && n > 0) w[c] = Math.round(Math.min(W_MAX, Math.max(W_MIN, n))); });
+    l.aligns = al; l.widths = w;
+    return l;
+  }
   function get(t) {
     const out = norm(saved[t]);
     [draft[t], live[t]].forEach((layer) => { if (layer) KEYS.forEach((k) => { if (k in layer) out[k] = TPA.clone(layer[k]); }); });
-    return out;
+    return safeLayout(out);
   }
   const writeSaved = () => LS.set(KEY.layouts, saved);
   function stage(t, patch) { draft[t] = Object.assign(draft[t] || {}, patch); }
@@ -125,7 +142,8 @@
       const rr = ruleRow(t, row, c, m), hit = R.match(rulesOrName, rr, c);
       if (hit) {
         const txt = R.textOf(hit, rr);
-        return { raw: rawText, text: txt === "" || txt == null ? format(t, c, raw) : String(txt), color: hit.color || "" };
+        // 色はルールの決まった色だけ（版 3.52.1。字のまま class に入るため）
+        return { raw: rawText, text: txt === "" || txt == null ? format(t, c, raw) : String(txt), color: CELL_COLORS.has(hit.color) ? hit.color : "" };
       }
     }
     return { raw: rawText, text: format(t, c, raw), color: "" };

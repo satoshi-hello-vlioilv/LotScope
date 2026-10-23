@@ -201,8 +201,8 @@ def cutoff_date(op, value, today=None):
     """「今日から N 単位前」の日付（'YYYY-MM-DD'）。N は 0 以上の整数（0＝今日から）。"""
     today = today or date.today()
     try:
-        n = max(0, int(float(str(value).strip())))
-    except ValueError:
+        n = max(0, min(36500, int(float(str(value).strip()))))      # 100 年まで（版 3.52.1: 1e400・1e10 で 500 になった）
+    except (ValueError, OverflowError):
         n = 0
     unit = RELATIVE_OPS[op]
     if unit == "days":

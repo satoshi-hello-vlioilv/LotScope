@@ -27,6 +27,7 @@ import json
 import logging
 import mimetypes
 import re
+import secrets
 import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -176,6 +177,7 @@ class Request:
         self.args = Args(self.query_string)
         self.headers = headers if isinstance(headers, Headers) else Headers(headers or {})
         self.data = body or b""
+        self.csp_nonce = secrets.token_urlsafe(16)     # 画面（HTML）の中の <script> に付ける印（版 3.52.1。CSP）
 
     def get_data(self, as_text=False):
         return self.data.decode("utf-8", "replace") if as_text else self.data
@@ -398,6 +400,11 @@ def render_template(name: str, **ctx) -> str:
     return app.render(name, ctx)
 
 
+def csp(nonce):
+    """画面の CSP。字の見た目（style）は絞らない（部品が style= を使う）。script・object・base・埋め込みを絞る"""
+    return f"script-src 'self' 'nonce-{nonce}'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+
+
 # ================================================================ アプリ
 class Config(dict):
     pass
@@ -451,7 +458,8 @@ class App:
         t = self._templates.get(name)
         if t is None or self.config.get("TESTING"):
             t = self._templates[name] = Template((self.template_folder / name).read_text(encoding="utf-8"), name)
-        full = {"url_for": lambda e, **v: _Safe(_escape(self.url_for(e, **v)))}
+        req = _request_var.get(None)
+        full = {"url_for": lambda e, **v: _Safe(_escape(self.url_for(e, **v))), "csp_nonce": req.csp_nonce if req else ""}
         for fn in self.context_processors:
             full.update(fn() or {})
         full.update(ctx)
@@ -540,6 +548,11 @@ class App:
         finally:
             _request_var.reset(t_req)
             _app_var.reset(t_app)
+        # 画面（HTML）には CSP を付ける（版 3.52.1。脆弱性の確認: 画面で JS が動く穴〈XSS〉があったとき、外の字から入った
+        # <img onerror=…>・<script> を動かさない）。動かせるのは static の JS と、印（nonce）を付けた <script> だけ
+        ct = str(resp.headers.get("Content-Type") or "")
+        if ct.startswith("text/html") and "Content-Security-Policy" not in resp.headers:
+            resp.headers["Content-Security-Policy"] = csp(req.csp_nonce)
         if req.method == "HEAD":
             resp.headers["Content-Length"] = len(resp.data)
             resp.data = b""
@@ -635,12 +648,33 @@ class TestClient:
 
 
 # ================================================================ 開発用: ブラウザから見る（窓の外。配る物では使わない）
+def foreign_request(method, host_header, origin, port):
+    """開発用のサーバー（127.0.0.1）へのよその頁からの問い合わせか → 断る理由（よければ ""）。
+    Host が この PC の名前でなければ断る（DNS の付け替えで、よその名前のまま届く）。書き込み（GET・HEAD 以外）は、
+    Origin があれば同じ置き場だけ（よその頁からの form・fetch の送信＝CSRF を断る）"""
+    ok_hosts = {f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}"}
+    if (host_header or "").strip().lower() not in ok_hosts:
+        return "この PC の中（127.0.0.1）からだけ答えます。"
+    if method.upper() not in ("GET", "HEAD", "OPTIONS") and origin and origin.strip().lower() not in {f"http://{h}" for h in ok_hosts}:
+        return "ほかの頁からの書き込みは受け付けません。"
+    return ""
+
+
 def serve_http(app: App, host: str = "127.0.0.1", port: int = 5000):
     """この PC の中だけで待ち受け、問い合わせを App.handle へ渡す（標準の http.server。開発で画面を見るため）。"""
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     class Handler(BaseHTTPRequestHandler):
         def _any(self):
+            why = foreign_request(self.command, self.headers.get("Host"), self.headers.get("Origin"), port)
+            if why:          # ほかのサイトの頁から（DNS の付け替え・CSRF）は答えない（版 3.52.1。開発用のサーバーだけの話）
+                body = why.encode("utf-8")
+                self.send_response(403)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             path, _, query = self.path.partition("?")
             n = int(self.headers.get("Content-Length") or 0)
             r = app.handle(self.command, path, query, Headers(list(self.headers.items())), self.rfile.read(n) if n else b"")
