@@ -350,6 +350,9 @@ class _Browser:
         self.proc = None
         self.cdp = None
         self.used = time.time()
+        # ページが出るまで待つ長さも起動を待つ長さにそろえる（版 3.52.1: 起こしたての遅い機械〈CI〉では DevTools の口が開いたあと、
+        # 最初のページが出るまで 10 秒を超えることがあり、「ページに接続できませんでした」で落ちていた）
+        self.page_timeout = max(10.0, float(start_timeout))
         try:
             self.proc = _launch(exe, self.profile, self.extra, visible)
             self.cdp = self._connect(_devtools_port(self.profile, self.proc, start_timeout))
@@ -362,7 +365,7 @@ class _Browser:
         ページ chrome://newtab-footer なども並ぶ。それは窓を持たず、出し入れできないうえ、途中で消えて切れる）。"""
         skip = []
         while True:
-            cdp = _Cdp(_page_ws(port, skip=skip), timeout=10)
+            cdp = _Cdp(_page_ws(port, timeout=self.page_timeout, skip=skip), timeout=10)
             if not self.visible or len(skip) >= 5:
                 return cdp
             try:
