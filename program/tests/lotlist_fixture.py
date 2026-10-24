@@ -136,6 +136,32 @@ def make_wip(path, n=1200, seed=5):
     c.close()
 
 
+def make_masters(folder):
+    """マスタのデータ元（版 3.53.0。役割「マスタ」・結合の相手）: 製造条件（材質＋質別の 2 つの鍵。品質データの 合金・調質 に当たる。
+    A3004 の H24 は無い＝当たらない組・材質は「a5052」のように書き方がゆれた行もある）と、設備（設備名の 1 つの鍵）。→ {名前: ファイル}"""
+    from pathlib import Path
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    cond = folder / "製造条件マスタ.sqlite3"
+    c = sqlite3.connect(cond)
+    c.execute("CREATE TABLE 製造条件 ([材質], [質別], [圧延速度], [焼鈍温度], [板厚公差], [改訂日])")
+    rows = []
+    for i, (a, t) in enumerate((a, t) for a in ("A1100", "a5052 ", "A3004") for t in ("H14", "O", "H24")):
+        if (a, t) != ("A3004", "H24"):
+            rows.append((a, t, 600 + 40 * i, None if t != "O" else 340 + 5 * i, 0.010 + 0.002 * (i % 3), f"2026/0{1 + i % 9}/15"))
+    c.executemany("INSERT INTO 製造条件 VALUES (?,?,?,?,?,?)", rows)
+    c.commit()
+    c.close()
+    eq = folder / "設備マスタ.sqlite3"
+    c = sqlite3.connect(eq)
+    c.execute("CREATE TABLE 設備 ([設備名], [ライン], [能力_t日], [管理者])")
+    c.executemany("INSERT INTO 設備 VALUES (?,?,?,?)", [(e, "CR ライン" if "CR" in e or "ＣＲ" in e else "L ライン", 40 + 5 * i, f"担当{i % 3 + 1}")
+                                                          for i, e in enumerate(EQUIPMENT)])
+    c.commit()
+    c.close()
+    return {"製造条件マスタ": cond, "設備マスタ": eq}
+
+
 def make(path, n=3000, extra_columns=20, seed=7):
     """n 行 ×（20＋extra_columns）列の表「仕掛」と、ビュー「仕掛_ビュー」・WITHOUT ROWID の表「保留」を作る。"""
     r = random.Random(seed)

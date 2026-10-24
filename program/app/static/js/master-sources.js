@@ -5,6 +5,8 @@
    - 品質データの場所は参照先の lot_list.source・lot_list.table（PUT /api/settings/<項目>）。直すのはここだけ（参照先には出さない）。
      作業実績のフォルダは「作業実績」のタブで直す（探すと一緒に）
    - 仕掛・足した元はこのマスタ（PUT /api/sources/<キー>・POST /api/sources で足す・DELETE で消す〈仕掛は既定に戻す〉）
+   - 結合（版 3.53.0）: 開いた欄の「結合」の段（master-join.js）で、ほかのデータ元の列を自由に組んだ鍵で合わせる。どの元も「結合」はこのマスタの行に置く
+     （品質データ・作業実績も）。閉じたカードには結合ごとに 1 行（ベン図・相手・方式・鍵・当たった数）
    master.js の部品（mstate・masterRequest・withLockWait・canWrite・shareDown など）は、master.js が読み終えたときに渡す
    （master.js は 1 つの関数に包まれているため。このファイルは master.js より前に読む）。 */
 window.MasterSources = (M) => {
@@ -44,7 +46,7 @@ function stateOf(s) {
   if (m.unreachable) return `<span class="sr-state ng"><i></i>届きません・写した ${when(m.copiedAt || m.at)} の物で見ています</span>`;
   return `<span class="sr-state ok"><i></i>写した ${when(m.copiedAt || m.at)}${s.rows != null ? `・${s.rows.toLocaleString()} 行` : ""}</span>`;
 }
-const tabOf = (s) => (s.screen === "list" ? "品質異常" : s.screen === "work" ? "作業実績" : s.listed ? s.name : "出さない");
+const tabOf = (s) => (s.screen === "list" ? "品質異常" : s.screen === "work" ? "作業実績" : !s.listed ? "出さない" : s.group === "mst" ? `マスタ › ${s.name}` : s.name);
 const roleChip = (s) => (s.name.includes(s.role) ? "" : `<span class="sr-role">${escapeHtml(s.role)}</span>`);
 
 async function renderSources({ notice = null } = {}) {
@@ -60,6 +62,7 @@ async function renderSources({ notice = null } = {}) {
 }
 function paintSources(notice = null) {
   const d = mstate.data.sources, box = $("#masterSettings"), can = d.canEdit && !shareDown();
+  const names = Object.fromEntries(d.items.map((x) => [x.key, x.name]));
   const card = (s) => {
     if (s.key === openKey) return `<section class="sr-card is-open" data-key="${escapeHtml(s.key)}">
       <div class="sr-name"><b>${escapeHtml(s.name)}</b>${roleChip(s)}</div><div class="sr-facts">${stateOf(s)}</div><span></span>${formOf(s, can)}</section>`;
@@ -69,7 +72,7 @@ function paintSources(notice = null) {
       <button type="button" class="pz-btn sr-edit" data-sr-edit="${escapeHtml(s.key)}">${can ? "変える…" : "見る"}</button>
       <div class="sr-facts">${stateOf(s)}<span>表 <b>${escapeHtml(s.table || "自動")}</b></span>
         <span>${s.equipColumn ? `設備の列 <b>${escapeHtml(s.equipColumn)}</b>（${escapeHtml(s.equipMode)}）` : "設備は見分けない"}</span>
-        <span>見出しのタブ <b>${escapeHtml(tabOf(s))}</b></span></div></section>`;
+        <span>見出しのタブ <b>${escapeHtml(tabOf(s))}</b></span></div>${MasterJoin.summary(s, names)}</section>`;
   };
   box.innerHTML = `<section class="sr-page">
     <p class="ps-lead">アプリが読む共有のデータです。どれも手元へ写してから読みます（共有を直接は読みません）。場所を変えると、全員の PC で次に読むときから新しい場所を読みます。</p>
@@ -87,8 +90,13 @@ function paintSources(notice = null) {
 /* 直す欄（開いたカードの中）。s: データ元（null なら足す） */
 function formOf(s, can) {
   const d = mstate.data.sources, dis = can ? "" : " disabled";
+  // 結合の段（足す欄では出さない: キーが決まってから。足した後で開くと組める）
+  const joinBox = s ? '<div class="jn sr-w" data-jn-box></div><input type="hidden" data-sr="joins">' : "";
   if (s && s.kind === "folder") return `<div class="sr-form"><p class="ps-hint sr-w">フォルダとファイル名の決まりは「作業実績」のタブで直します（直すと、そのまま設備を探し直します）。</p>
-    <div class="sr-acts"><button type="button" class="pz-btn" data-sr-work>作業実績を開く ›</button><button type="button" class="btn-ghost" data-sr-close>閉じる</button></div></div>`;
+    ${joinBox}
+    <div class="sr-acts"><button type="button" class="btn-primary" data-sr-save${dis}>保存</button><button type="button" class="pz-btn" data-sr-work>作業実績を開く ›</button>
+      <span class="sr-sp"></span><button type="button" class="btn-ghost" data-sr-close>閉じる</button></div>
+    <div class="ps-result hidden sr-w" data-sr-result aria-live="polite"></div></div>`;
   const isLot = s && s.key === "lot";
   const v = s || { name: "", role: "その他", place: "", table: "", equipColumn: "", equipMode: "そのまま", listed: true };
   const opt = (list, cur) => list.map((x) => `<option${x === cur ? " selected" : ""}>${escapeHtml(x)}</option>`).join("");
@@ -102,6 +110,7 @@ function formOf(s, can) {
     <label><span>表（空なら自動）</span><input class="ps-input" data-sr="table" value="${escapeHtml(v.table)}" placeholder="自動"${dis}></label>
     <label><span>設備の列（空なら見分けない）</span><input class="ps-input" data-sr="equip" value="${escapeHtml(v.equipColumn)}"${dis}></label>
     <label><span>設備の取り出し方</span><select data-sr="mode"${dis}>${opt(d.equipModes, v.equipMode)}</select></label>
+    ${joinBox || '<p class="ps-hint sr-w">ほかのデータ元との結合は、足した後でこのカードを開くと組めます。</p>'}
     <div class="sr-acts">
       <button type="button" class="ps-check" data-sr-check>確かめる</button>
       <button type="button" class="btn-primary" data-sr-save${dis}>${s ? "保存" : "足す"}</button>
@@ -117,19 +126,30 @@ function bindSourceForm(card, s, can) {
   const say = (cls, html) => { if (!out) return; out.className = `ps-result ${cls} sr-w`; out.innerHTML = html; };
   card.querySelectorAll("[data-sr-close]").forEach((b) => { b.onclick = async () => { if (!(await TPA.unsaved.leave("master:sources", "欄を閉じる"))) return; openKey = null; paintSources(); }; });
   const work = card.querySelector("[data-sr-work]"); if (work) work.onclick = () => goTab("worklog");
+  const jbox = card.querySelector("[data-jn-box]");
+  if (jbox && s) {
+    const j = MasterJoin.mount(jbox, { self: s, sources: mstate.data.sources.items, can, request: masterRequest, onChange: (v) => { q("joins").value = JSON.stringify(v); } });
+    q("joins").value = JSON.stringify(j.value());
+  }
   openSnap = formNow();
-  if (!q("place")) return;
+  const joinsNow = () => JSON.parse(val("joins") || "[]");
+  if (!q("place")) {     // 作業実績: 結合だけを直す
+    const sv = card.querySelector("[data-sr-save]");
+    if (sv) sv.onclick = () => saveSource(s, { joins: joinsNow(), equipColumn: s.equipColumn, equipMode: s.equipMode, name: s.name, place: "", table: "", listed: true }, say);
+    return;
+  }
   TPA.pathPick(q("place"), { purpose: "sqlite", title: "データ元のファイル（.sqlite3）を選ぶ", note: "共有の .sqlite3 ファイルを選びます。",
     disabled: can ? false : `${readOnlyWhy("sources")}のため、選べません` });
   q("place").focus();
   card.querySelector("[data-sr-check]").onclick = async () => {
     say("wait", "確かめています…");
-    const res = await masterRequest("/api/sources/check", TPA.json("POST", { place: val("place") || (s && s.placeDefault) || "", table: val("table"), equipColumn: val("equip") }));
+    const res = await masterRequest("/api/sources/check", TPA.json("POST", { place: val("place") || (s && s.placeDefault) || "", table: val("table"), equipColumn: val("equip"),
+      role: val("role") || (s && s.role) || "" }));
     const x = res.data || {};
     say(x.ok ? "ok" : "ng", `${x.ok ? "✓" : "✕"} ${escapeHtml(x.message || x.error || "確かめられませんでした")}`);
   };
   card.querySelector("[data-sr-save]").onclick = () => saveSource(s, { name: val("name"), role: val("role"), place: val("place"), table: val("table"),
-    equipColumn: val("equip"), equipMode: val("mode"), listed: q("listed") ? q("listed").value === "1" : true }, say);
+    equipColumn: val("equip"), equipMode: val("mode"), listed: q("listed") ? q("listed").value === "1" : true, joins: q("joins") ? joinsNow() : [] }, say);
   const del = card.querySelector("[data-sr-del]");
   if (del) del.onclick = () => { if (confirm(`データ元「${s.name}」を消します。全員の PC で見出しのタブが無くなります。よろしいですか？`)) removeSource(s, say); };
   const reset = card.querySelector("[data-sr-reset]");
@@ -169,11 +189,13 @@ async function saveSource(s, f, say) {
       if (!res.ok) break;
       emit("tpa:settings-changed", { key: k });
     }
-    if (!res || res.ok) res = await putRow("lot", { "設備の列": f.equipColumn, "設備の取り出し方": f.equipMode, base_rev: s.rev || 0 });
+    if (!res || res.ok) res = await putRow("lot", { "設備の列": f.equipColumn, "設備の取り出し方": f.equipMode, "結合": f.joins, base_rev: s.rev || 0 });
     mstate.data.paths = null;
+  } else if (s && s.kind === "folder") {
+    res = await putRow("work", { "設備の列": f.equipColumn, "設備の取り出し方": f.equipMode, "結合": f.joins, base_rev: s.rev || 0 });
   } else {
     res = await putRow(s ? s.key : null, { "表示名": f.name, "役割": f.role || (s && s.role) || "その他", "場所": f.place, "表": f.table,
-      "設備の列": f.equipColumn, "設備の取り出し方": f.equipMode, "画面": f.listed ? "有" : "無", base_rev: s ? s.rev || 0 : 0 });
+      "設備の列": f.equipColumn, "設備の取り出し方": f.equipMode, "画面": f.listed ? "有" : "無", "結合": f.joins || [], base_rev: s ? s.rev || 0 : 0 });
   }
   if (res && res.status === 409 && res.data.kind === "conflict") { say("ng", "開いたあとに、ほかの PC がこのデータ元を変えました。読み直してから直してください。"); return; }
   if (res && !res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "保存できませんでした")); return; }

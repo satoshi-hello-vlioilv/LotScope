@@ -56,11 +56,12 @@ def worklog_files():
     return jsonify(folder=wl["folder"], pattern=wl["pattern"], canEdit=can_write(work_log.NAME), staleHours=wl["stale_hours"], **v)
 
 
-def worklog_plan(need_copy=True, key=None, rows=None, wait=True):
+def worklog_plan(need_copy=True, key=None, rows=None, wait=True, joined=True):
     """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
     段取り: 写しの係・読むファイル（写し）・既定の表・既定の件数・設備の行。need_copy=False は写しがまだ無くてもよい（再読込）。
     key: 設備（登録のキー。省けば問い合わせの equip）。rows: 読み終えた登録（ダッシュボードが設備ごとに呼ぶとき、毎回読み直さない）。
-    wait: 初めての写しを待つ（False は待たない。いくつもの設備をまとめて待つ所: start_mirrors）"""
+    wait: 初めての写しを待つ（False は待たない。いくつもの設備をまとめて待つ所: start_mirrors）
+    joined: データ元の結合を当てる（版 3.53.0）"""
     key = request.args.get("equip", "") if key is None else key
     wl = _params()
     row = next((r for r in (master_repo().work_logs() if rows is None else rows) if r.get("キー") == key), None)
@@ -85,8 +86,13 @@ def worklog_plan(need_copy=True, key=None, rows=None, wait=True):
              "renamed": bool(path and path.name != row.get("ファイル名"))}
     if read is None and need_copy:  # 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す
         return None, error(m.not_ready_text(), 503, "copying", source=m.source_info(), equip=equip)
-    return {"mirror": m, "path": str(read), "table": row.get("表") or wl["table"], "page_size": wl["page_size"],
-            "source": m.source_info(), "equip": equip}, None
+    plan = {"mirror": m, "path": str(read), "table": row.get("表") or wl["table"], "page_size": wl["page_size"],
+            "source": m.source_info(), "equip": equip}
+    if not joined or read is None:
+        return plan, None
+    from .sources import source_def, with_joins       # データ元の結合（版 3.53.0。答えのファイルは設備ごと）
+    s = source_def("work")
+    return with_joins(plan, s, scope=f"work-{key}") if s else (plan, None)
 
 
 def start_mirrors(rows, timeout):
@@ -94,7 +100,7 @@ def start_mirrors(rows, timeout):
     この後の worklog_plan(wait=False) は待たない（写し終えていない設備は「写しています」と答える）"""
     keys = []
     for r in rows:
-        _, fail = worklog_plan(key=r.get("キー"), rows=rows, wait=False)       # 写しの係を起こす（待たない）
+        _, fail = worklog_plan(key=r.get("キー"), rows=rows, wait=False, joined=False)       # 写しの係を起こす（待たない。結合は読むときに組む）
         if fail is None or json.loads(fail[0].get_data(as_text=True) or "{}").get("kind") == "copying":
             keys.append(r.get("キー"))
     _mirrors().wait_first(keys, timeout)

@@ -26,7 +26,8 @@ try {
     await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)");
     await openTab(p, "sources");
     const cs = await cards(p);
-    check(`① ${tag} 3 枚のカード（品質データ・作業実績・仕掛）`, cs.map((c) => c.key).join() === "lot,work,wip", cs);
+    // 試験用のマスタ（製造条件マスタ・設備マスタ。版 3.53.0）が後ろに並ぶ
+    check(`① ${tag} 決まった 3 枚（品質データ・作業実績・仕掛）が先に並ぶ`, cs.slice(0, 3).map((c) => c.key).join() === "lot,work,wip", cs);
     check(`① ${tag} 場所はファイル名まで（切れない）`, cs[0].file === "SIKADEF.sqlite3" && cs[2].file === "LOTNOW.sqlite3" && cs[1].file === "実績_*.sqlite3" && cs.every((c) => !c.cut), cs);
     check(`① ${tag} 品質データの状態は「写した … ・1,500 行」`, /写した \d+\/\d+ \d\d:\d\d・1,500 行/.test(cs[0].state), cs[0]);
     const over = await p.evaluate(() => { const b = document.querySelector("#masterSettings"); return b.scrollWidth > b.clientWidth + 1; });

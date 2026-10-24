@@ -178,6 +178,14 @@ export const STATES = [
     await sleep(600);
     const b = await (await p.$('.screen-tabs [data-screen="work"]')).boundingBox(); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2, { button: "right" }); await sleep(400);
   }, "[data-next], .tpa-menu button"],
+  // 版 3.53.0: 見出しの「マスタ」のタブ（役割「マスタ」のデータ元を、作業実績の設備のタブと同じ形で並べる。製造条件マスタを開いた所）
+  ["mst-tab", async (p) => {
+    await p.keyboard.press("Escape"); await sleep(150);
+    await p.evaluate(() => { TPA.local.set("tpa.tabs.v1", {}); document.dispatchEvent(new CustomEvent("tpa:sources-changed")); });
+    await sleep(700);
+    await p.evaluate(() => { const t = document.querySelector('.screen-tabs [data-screen="mst"]'); if (t) t.click(); else document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: "src:m0000001" })); });
+    await p.waitForSelector("#llBody tr[data-i]"); await sleep(900);
+  }, "[data-next], #llEquipBar .eq-chip"],
   ["grouped", async (p) => {
     await p.keyboard.press("Escape");
     await p.evaluate(() => TPA.local.set("tpa.tabs.v1", {}));
@@ -311,7 +319,21 @@ export const STATES = [
   // データ元（版 3.36.0）: 品質データ・作業実績・仕掛の表と、仕掛を「変える…」で開いた欄
   ["master-sources", async (p) => { await tab(p, "sources"); await sleep(1100); }, "[data-next], #srAdd"],
   ["master-sources-edit", async (p) => { await p.click('[data-sr-edit="wip"]'); await sleep(700); }, "[data-next], #srSave"],
-  ["master-shifts", async (p) => { await tab(p, "shifts"); await sleep(900); }, "[data-next], [data-sh-save]"],
+  // 版 3.53.0: 品質データのカードを開いた所（結合: 製造条件マスタを 合金＝材質・調質＝質別 の 2 つの鍵で左外部結合した形。作った後は欄の中で組む）
+  ["master-sources-join", async (p) => {
+    await p.click("#masterSettings .sr-card.is-open [data-sr-close]").catch(() => {}); await sleep(300);
+    await p.click('[data-sr-edit="lot"]'); await sleep(700);
+    if (await p.$("[data-jn-add]")) await joinDemo(p);
+  }, "[data-next], [data-sr-save]"],
+  // 版 3.53.0: 組んだ結合を保存した所（閉じた品質データのカードに、結合ごとの 1 行）。次の状態の前に結合を外す（後の状態の一覧に列を足さない）
+  ["master-sources-joined", async (p) => {
+    if (await p.$("#masterSettings .sr-card.is-open [data-jn-box]")) { await p.click("#masterSettings .sr-card.is-open [data-sr-save]"); await sleep(2500); }
+  }, "[data-next], #srAdd"],
+  ["master-shifts", async (p) => {
+    await p.evaluate(async () => { const it = ((await (await fetch("/api/sources")).json()).items || []).find((x) => x.key === "lot");
+      if (it && it.joins && it.joins.length) await fetch("/api/sources/lot", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ "結合": [], "設備の列": it.equipColumn, "設備の取り出し方": it.equipMode, base_rev: it.rev || 0 }) }); });
+    await tab(p, "shifts"); await sleep(900);
+  }, "[data-next], [data-sh-save]"],
   // 版 3.39.0: 設備グループ（ダッシュボードで設備を合算する組。まだ無いときは、足す所が開く）
   ["master-egroups", async (p) => { await tab(p, "egroups"); await sleep(900); }, "[data-next], [data-eg-save]"],
   // 版 3.40.0: ルールで決めたグループ（L ライン: 名前が L- で始まる）を開いた所
@@ -796,6 +818,19 @@ export async function buildWeight(p) {
 /** マスタ管理のタブを押す（見えていなくても押す） */
 function tab(p, key) {
   return p.$eval(`#masterTabs [data-tab="${key}"]`, (b) => b.click());
+}
+
+/** 結合の欄で、製造条件マスタを 合金＝材質・調質＝質別 の 2 つの鍵で合わせる（状態 master-sources-join と評価関数 ui-eval-join.mjs） */
+export async function joinDemo(p) {
+  await p.click("[data-jn-add]"); await sleep(300);
+  const j = "#masterSettings .jn-item:last-of-type";
+  await p.selectOption(`${j} [data-jn-with]`, { label: "製造条件マスタ" }); await sleep(900);
+  await p.selectOption(`${j} [data-jn-key="0"] [data-jn-l]`, "合金");
+  await p.selectOption(`${j} [data-jn-key="0"] [data-jn-r]`, "材質");
+  await p.click(`${j} [data-jn-addkey]`); await sleep(150);
+  await p.selectOption(`${j} [data-jn-key="1"] [data-jn-l]`, "調質");
+  await p.selectOption(`${j} [data-jn-key="1"] [data-jn-r]`, "質別");
+  await sleep(1500);   // 「試す」の数（当たった・当たらない）が出るまで
 }
 
 /** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ） */

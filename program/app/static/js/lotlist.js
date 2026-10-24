@@ -92,10 +92,14 @@
      api: 一覧の問い合わせの頭（/slicer・/source・/refresh も同じ頭）。params: どの設備か（作業実績だけ）。
      scope(表): 覚えの範囲。target(表): 表示列の対象。owns(範囲): その元の範囲か（書き出しの「すべての表」を元ごとにする）。 */
   const equipName = (k) => ((S && S.equips || []).find((e) => e.key === k) || {}).name || "";
+  let lotJoined = false;            // 品質データに結合があるか（defineSources が置く）
+  let MASTERS = [];                 // 見出しの「マスタ」のタブに並ぶデータ元（役割「マスタ」・画面: 有。版 3.53.0）
+  const joinSigs = {};              // データ元ごとの結合の決まり（変わったら、開いている一覧を引き直す）
   const SOURCES = {
     lot: {
       id: "lot", api: "/api/lotlist", title: "品質異常", noun: "品質データ", fileStem: "品質異常",
-      params: () => ({}), scope: (t) => t, target: (t) => "lotlist:" + (t || ""), owns: (k) => !k.startsWith("wl:") && !k.startsWith("src:"),
+      // 結合のある品質データ（版 3.53.0）は Python が合わせた答えを読む（デスクトップ版の Rust は結合を知らないので、Python に任せる印）
+      params: () => (lotJoined ? { engine: "python" } : {}), scope: (t) => t, target: (t) => "lotlist:" + (t || ""), owns: (k) => !k.startsWith("wl:") && !k.startsWith("src:"),
       colTable: (t) => t, place: (t) => t,
       loadTable: () => store.get(KEY.table, ""), saveTable: (t) => store.set(KEY.table, t),
       settingsKey: "lot_list.", settingsTab: "sources", settingsLabel: "データ元を開く",
@@ -123,7 +127,7 @@
   function fileSource(def) {
     const id = `src:${def.key}`, k = def.key, name = def.name || def.key;
     return {
-      id, api: def.api || `/api/src/${k}`, title: name, noun: name, fileStem: name,
+      id, api: def.api || `/api/src/${k}`, title: name, noun: name, fileStem: name, group: def.group || "", where: def.place || "",
       params: () => ({}), scope: (t) => `${id}:${t || ""}`, target: (t) => `${id}:${t || ""}`, owns: (x) => x.startsWith(`${id}:`),
       colTable: (t) => `${id}:${t || ""}`, place: (t) => t,
       loadTable: () => (store.get(KEY.srcTable, {})[k] || ""),
@@ -1186,6 +1190,7 @@
   /** 件数の行の案内: ロット番号を押したとき・虫眼鏡を押したときに起きること（押す前に違いが分かるように） */
   function paintLotHint() {
     const h = $(".ll-lothint", root); if (!h) return;
+    h.hidden = S.src.group === "mst";     // マスタはロットの一覧ではない（ロット番号を押す案内は要らない。版 3.53.0）
     h.innerHTML = lensOn() ? `ロット番号を押すと計算へ取り込み・${LENS_ICON} で LotDsp を開くだけ` : "ロット番号を押すと、計算へ移って取り込みます";
   }
   /** 虫眼鏡: LotDsp でそのロットを開くだけ（取り込まない・画面は移らない）。WaveLog と同じく、ロット番号と鋳造番号の linkkey の URL で開く */
@@ -1648,7 +1653,7 @@
         : "<b>この表に行がありません。</b>";
       note.hidden = false;
     } else note.hidden = true;
-    if (!S.lotColumn && S.rows.length) {
+    if (!S.lotColumn && S.rows.length && S.src.group !== "mst") {
       note.innerHTML = "<b>ロット番号の列が見つかりません</b>（ロット番号・ﾛｯﾄ番号・ロット№・LTNO のどれか）。この表からは検索できません。";
       note.hidden = false;
     }
@@ -1976,7 +1981,9 @@
   }
   function renderEquipBar() {
     const bar = $("#llEquipBar"); if (!bar) return;
+    if (S.src.group === "mst") { renderMasterBar(bar); return; }
     bar.hidden = S.src.id !== "work";
+    bar.dataset.kind = "work";
     if (bar.hidden) return;
     const list = S.equips;
     const manage = S.equipEdit ? '<button type="button" class="eq-manage" data-ll-settings title="作業実績のフォルダと、どの設備を表示するかを決めます（マスタ管理の「作業実績」）">設備を管理…</button>' : "";
@@ -1990,6 +1997,22 @@
     bar.classList.toggle("is-sortable", !!S.equipEdit && list.length > 1);
     bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips || '<span class="eq-wait">表示できる設備がありません</span>'}</div>${hint}${manage}`;
     fitEquip();
+  }
+  /* 見出しの「マスタ」のタブの中の札（版 3.53.0。作業実績の設備のタブと同じ形・同じ置き場）。役割「マスタ」のデータ元が 1 つずつ並ぶ。
+     押すと、そのマスタの一覧へ（app.js が覚えて開く）。足す・外すは「データ元を管理…」（マスタ管理の「データ元」） */
+  function renderMasterBar(bar) {
+    bar.hidden = false; bar.dataset.kind = "mst";
+    bar.classList.remove("is-sortable");
+    const chips = MASTERS.map((m) => `<button type="button" role="tab" class="eq-chip" data-equip="${esc(m.screen)}" aria-selected="${m.screen === S.src.id}"`
+      + ` tabindex="${m.screen === S.src.id ? 0 : -1}" title="${esc(`${m.name}（${m.place || "場所が決まっていません"}）`)}">${esc(m.name)}</button>`).join("");
+    bar.innerHTML = `<span class="eq-lab" id="llEquipLab">マスタ</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips}</div>`
+      + '<button type="button" class="eq-manage" data-ll-settings title="マスタを足す・外す・ほかのデータと結合する（マスタ管理の「データ元」）">データ元を管理…</button>';
+    fitEquip();
+  }
+  /** 札を押した・← → で移った: 作業実績は設備を替える、マスタはそのマスタの一覧へ */
+  function pickChip(k) {
+    if ($("#llEquipBar").dataset.kind === "mst") document.dispatchEvent(new CustomEvent("tpa:pick-master", { detail: k }));
+    else switchEquip(k);
   }
   /* 設備のタブは 1 段（版 3.32.0。決め方: ui-proposals/2026-10-narrow*）。入りきらないときは、後ろの設備から「ほか N 台 ▾」にまとめる
      （いま見ている設備は残す）。押すと残りの設備を並べた面が出て、選ぶとその設備へ。隠した台数はボタンの字に、名前は説明に */
@@ -2008,7 +2031,7 @@
     for (let i = chips.length - 1; i >= 0 && (!hidden.length || box.scrollWidth > box.clientWidth + 1); i--) {
       if (chips[i].getAttribute("aria-selected") === "true") continue;
       chips[i].hidden = true; hidden.unshift(chips[i]);
-      more.textContent = `ほか ${hidden.length} 台 ▾`;
+      more.textContent = `ほか ${hidden.length} ${bar.dataset.kind === "mst" ? "件" : "台"} ▾`;
     }
     more.title = `入りきらない設備: ${hidden.map((c) => c.textContent).join("・")}`;
   }
@@ -2081,6 +2104,13 @@
      品質異常と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   /* データ元の並び（app.js が /api/sources から渡す）。1 ファイルの元は、初めて開くときに状態を作る（名前が変わったら札だけ直す） */
   function defineSources(list) {
+    lotJoined = !!((list || []).find((d) => d.key === "lot") || { joins: [] }).joins?.length;
+    MASTERS = (list || []).filter((d) => d.group === "mst" && d.listed).map((d) => ({ screen: d.screen, name: d.name, place: d.place }));
+    // 結合の決まりが変わった元を、開いていれば引き直す（列が増える・減る）
+    const moved = (list || []).filter((d) => { const sig = JSON.stringify(d.joins || []), was = joinSigs[d.key]; joinSigs[d.key] = sig; return was != null && was !== sig; })
+      .map((d) => (d.key === "lot" || d.key === "work" ? d.key : d.screen));
+    if (S && moved.includes(S.src.id) && root && !root.classList.contains("hidden")) { S.page = 1; setTimeout(() => load(), 0); }
+    if (S && S.src.group === "mst") renderEquipBar();
     (list || []).filter((d) => d.api && d.api.startsWith("/api/src/")).forEach((d) => {
       const src = fileSource(d);
       SOURCES[src.id] = src;
@@ -2131,7 +2161,7 @@
       const more = e.target.closest(".eq-more");
       if (more) { if ($("#llEquipMenu")) closeEquipMore(); else openEquipMore(more); return; }
       const b = e.target.closest("[data-equip]");
-      if (b && b.getAttribute("aria-disabled") !== "true") { closeEquipMore(); switchEquip(b.dataset.equip); }
+      if (b && b.getAttribute("aria-disabled") !== "true") { closeEquipMore(); pickChip(b.dataset.equip); }
     });
     let fitTimer = 0;
     addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitEquip, 120); });
@@ -2139,7 +2169,7 @@
     bar.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       // Ctrl＋Shift＋← →: 選んだタブを動かす（Alt＋← は WebView2 で「戻る」になるので使わない）
-      if (e.ctrlKey && e.shiftKey && S.equipEdit) {
+      if (e.ctrlKey && e.shiftKey && S.equipEdit && bar.dataset.kind === "work") {
         const k = document.activeElement?.dataset?.equip, keys = k && TPA.moveKey((S.equips || []).map((x) => x.key), k, e.key === "ArrowRight" ? 1 : -1);
         e.preventDefault();
         if (keys) saveEquipOrder(keys, k);
@@ -2150,8 +2180,8 @@
       if (i < 0) return;
       e.preventDefault();
       const n = chips[(i + (e.key === "ArrowRight" ? 1 : chips.length - 1)) % chips.length];
-      switchEquip(n.dataset.equip);
-      $(`[data-equip="${CSS.escape(n.dataset.equip)}"]`, bar)?.focus();
+      pickChip(n.dataset.equip);
+      setTimeout(() => $(`[data-equip="${CSS.escape(n.dataset.equip)}"]`, bar)?.focus(), 0);
     });
   }
   /** Excel に出力の「出力の条件」（一覧の出力と集計表の出力が同じ物を使う） */

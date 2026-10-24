@@ -12,12 +12,14 @@
 品質データ・作業実績の場所は、これまでどおり参照先（path_settings）に置く（デスクトップ版の Rust・作業実績の登録が読む所を変えない）。
 画面の「データ元」はどの元も同じ形で見せ、場所を直すと、その元の置き場（参照先かこのマスタ）へ書く。
 
-このマスタ（data_sources。管理のマスタ・共有）の行: {id, キー, 表示名, 役割, 場所, 表, 設備の列, 設備の取り出し方, 画面, 並び, 備考}
+このマスタ（data_sources。管理のマスタ・共有）の行: {id, キー, 表示名, 役割, 場所, 表, 設備の列, 設備の取り出し方, 画面, 並び, 備考, 結合}
   キー            … 変わらない名前（wip か、足したとき決める s<8 桁>）。画面の表示ルール（表示列・並び・条件）は src:<キー>:<表> に結ぶ
-  役割            … 品質 / 実績 / 仕掛 / その他（ダッシュボードが「仕掛」の元を数える）
+  役割            … 品質 / 実績 / 仕掛 / マスタ / その他（ダッシュボードが「仕掛」の元を数える。マスタは見出しの「マスタ」のタブの中に
+                    設備のタブと同じ形で並ぶ。版 3.53.0）
   設備の列        … どの列で設備を見分けるか（空なら見分けない）
   設備の取り出し方 … そのまま（列の値が設備名）／前方一致（列の値が設備名で始まる。仕掛の 残仕掛設備ｺｰｽ「CR1 L-1 LS3」の先頭が次の設備）
   画面            … 有（見出しにタブを出す）／無（ダッシュボードなどで使うだけ）
+  結合            … ほかのデータ元の列を、自由に組んだ鍵で合わせる決まり（JSON。services/data_join.py。版 3.53.0）
 """
 from __future__ import annotations
 
@@ -25,11 +27,13 @@ import re
 import uuid
 
 from ..fsio import unquote_path
+from . import data_join
 from .identity import normalize_part
 
 NAME = "data_sources"
-FIELDS = ["キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考"]
-ROLES = ["品質", "実績", "仕掛", "その他"]
+FIELDS = ["キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考", "結合"]
+ROLES = ["品質", "実績", "仕掛", "マスタ", "その他"]
+MASTER_ROLE = "マスタ"
 EQUIP_MODES = ["そのまま", "前方一致"]
 # 読み方の既定（設定 sources.<キー> で変えられる。足した元は sources の既定）
 READ_DEFAULTS = {"refresh_seconds": 60, "stale_hours": 36, "page_size": 500}
@@ -86,9 +90,11 @@ def read_params(settings, key):
     return out
 
 
-def clean_row(data, *, key=None):
-    """画面から来た行をマスタの形へ（足りない列は空）。合わなければ ValueError（理由つき）。"""
-    row = {k: _s(data.get(k)) for k in FIELDS}
+def clean_row(data, *, key=None, known=None):
+    """画面から来た行をマスタの形へ（足りない列は空）。合わなければ ValueError（理由つき）。
+    known: 結合の相手にできるデータ元（キー → 表示名）。結合の決まりは data_join.clean が整える"""
+    row = {k: _s(data.get(k)) for k in FIELDS if k != "結合"}
+    row["結合"] = data_join.clean(data.get("結合"), row["キー"] if key is None else key, known or {})
     if key is not None:
         row["キー"] = key
     if row["役割"] and row["役割"] not in ROLES:
@@ -129,6 +135,7 @@ def sources(settings, rows):
         d["name"] = _s(row.get("表示名")) or b["name"]
         d["listed"] = True if b["key"] in ("lot", "work") else _s(row.get("画面")) != "無"
         d["read"] = read_params(settings, b["key"])
+        d["joins"] = data_join.parse(row.get("結合"))
         out.append(d)
     added = [r for r in rows or [] if _s(r.get("キー")) and _s(r.get("キー")) not in BUILTIN_KEYS]
     added.sort(key=lambda r: (_order(r), int(r.get("id") or 0)))
@@ -139,8 +146,17 @@ def sources(settings, rows):
                     "equipColumn": _s(r.get("設備の列")), "equipMode": _s(r.get("設備の取り出し方")) or "そのまま",
                     "screen": f"src:{k}", "listed": _s(r.get("画面")) != "無", "builtin": False, "storage": "master",
                     "settings": None, "api": f"/api/src/{k}", "id": r.get("id"), "rev": r.get("rev"), "note": _s(r.get("備考")),
-                    "read": read_params(settings, k)})
+                    "read": read_params(settings, k), "joins": data_join.parse(r.get("結合"))})
+    names = {d["key"]: d["name"] for d in out}
+    for d in out:
+        d["group"] = "mst" if d["role"] == MASTER_ROLE and d["api"].startswith("/api/src/") else ""
+        d["joinText"] = data_join.describe(d["joins"], names)
     return out
+
+
+def join_targets(items):
+    """結合の相手にできる元（1 ファイルの元: 品質データ・仕掛・足した元。作業実績は設備ごとのファイルなので外す）→ {キー: 表示名}。"""
+    return {d["key"]: d["name"] for d in items if d["kind"] == "file"}
 
 
 def _order(r):

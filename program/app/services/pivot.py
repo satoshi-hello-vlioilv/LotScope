@@ -255,7 +255,8 @@ class _Keyer:
             k = sort_key(v)
             if k is None:
                 return ("", (2, 0, ""), BLANK)
-            if isinstance(k, float):
+            if isinstance(k, (int, float)):     # 整数の列（SQLite の INTEGER）も数（版 3.53.0 まで字として足そうとして止まっていた）
+                k = float(k)
                 t = _num_text(k)
                 return ("#" + t, (0, k, ""), t)
             return ("$" + k, (1, 0, k), k)

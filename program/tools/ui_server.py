@@ -30,7 +30,7 @@ import app_env  # noqa: E402
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import access, display_formats, equip_groups, shifts, work_log  # noqa: E402
+from app.services import access, data_join, data_sources, display_formats, equip_groups, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from app.web import serve_http  # noqa: E402
 from tests import lotlist_fixture  # noqa: E402
@@ -95,6 +95,7 @@ def main():
                       "LOT_MIRROR": DbMirror("lot_list", share, WORK / "cache"), "APP_SETTINGS": settings,
                       "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log"),
                       "SRC_MIRRORS": work_log.Mirrors(WORK / "cache" / "sources", prefix="src"),
+                      "JOINER": data_join.Joiner(WORK / "cache" / "joins"),
                       # ダッシュボードの「前日」: 試験用の作業実績は TODAY（10/2）までなので、その翌日の朝を「いま」にする
                       "DASHBOARD_NOW": datetime.combine(lotlist_fixture.TODAY + timedelta(days=1), datetime.min.time()).replace(hour=10)})
     # 設備を登録しておく（マスタ管理の「探す」と同じ）
@@ -108,6 +109,10 @@ def main():
     repo.equip_group_create(equip_groups.clean_row({"name": "CR ライン", "set": "ライン別", "equipment": ["CR1", "CR2"]}))
     repo.equip_group_create(equip_groups.clean_row({"name": "L ライン", "set": "ライン別", "equipment": [], "rules": [{"op": "prefix", "value": "L-"}],
                                                     "note": "名前が L- で始まる設備"}))
+    # マスタのデータ元（版 3.53.0）: 製造条件マスタ（材質＋質別）と設備マスタ（設備名）。見出しの「マスタ」のタブに並ぶ
+    for i, (name, path) in enumerate(lotlist_fixture.make_masters(shared / "マスタ").items(), 1):
+        repo.data_source_put(f"m{i:07d}", data_sources.clean_row({"表示名": name, "場所": str(path), "役割": "マスタ", "並び": str(i)},
+                                                                 key=f"m{i:07d}"), 0)
     # 配る版の覚えの写し（窓が作業場所へ写す want.json）: 全員のマスタの置き場（ui-harness.mjs の RELEASE と同じ。この PC は手元のみ＝ずれた形）
     (WORK / "masters").mkdir(parents=True, exist_ok=True)
     (WORK / "masters" / "want.json").write_text(json.dumps({"schema": 1, "version": "3.12.0", "masters": {
