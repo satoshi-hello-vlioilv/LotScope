@@ -50,7 +50,9 @@ try {
     const s = document.querySelector(".cv-colpop"); return { l: r.left - m.left, r: m.right - r.right, b: m.bottom - r.bottom, scroll: s.scrollHeight - s.clientHeight }; });
   check("⑤ 面がマスタ管理の窓の中に収まり、面ごとは送らない", fit.l >= 0 && fit.r >= 0 && fit.b >= 0 && fit.scroll <= 1, fit);
   const also = await p.evaluate(() => [...document.querySelectorAll(".cv-cpsrc")].map((s) => [...s.querySelectorAll(".cv-cpi")].find((l) => l.querySelector("b").firstChild.textContent === "ロット番号")?.querySelectorAll(".cv-also .cv-src").length));
-  check("⑤ 同じ名前の列には、ほかのデータの印（ロット番号は 3 つのデータに有る → ほか 2 つ）", also.every((n) => n === 2), also);
+  // ロット番号の無いデータ（試験用のマスタ。版 3.53.0）は数えない
+  const has = also.filter((n) => n != null);
+  check("⑤ 同じ名前の列には、ほかのデータの印（ロット番号は 3 つのデータに有る → ほか 2 つ）", has.length === 3 && has.every((n) => n === 2), also);
   await p.keyboard.press("Escape"); await sleep(150);
   check("⑤ Esc で閉じる", !(await p.$(".cv-colpop")), "");
   const match = await p.evaluate(({ lot, wip }) => { const cs = window.__draftCols = ["製造材質", "合金"]; return [Conversions.matchColumn(cs, lot), Conversions.matchColumn(cs, wip)]; },

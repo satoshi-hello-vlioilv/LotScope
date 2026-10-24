@@ -205,6 +205,8 @@
 </div>
 
 <!-- ============ 転写・ピッチ計算 ============ -->
+<!-- 見出しの「マスタ」のタブで、マスタがまだ無いときの案内（版 3.53.0。マスタがあれば品質異常と同じ画面 #lotListScreen） -->
+<div id="mstEmpty" class="mst-screen hidden" role="tabpanel" aria-labelledby="tabMst"></div>
 <div class="layout hidden" id="calcScreen" role="tabpanel" aria-labelledby="tabCalc">
   <!-- ============ 左: 設定 + 基本情報 ============ -->
   <aside class="side" id="leftPanel">
@@ -440,6 +442,7 @@
 <script src="{{ url_for('static', filename='js/hardcopy.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pathpick.js') }}"></script>
+<script src="{{ url_for('static', filename='js/master-join.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master-sources.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master-conv.js') }}"></script>
 <script src="{{ url_for('static', filename='js/master.js') }}"></script>

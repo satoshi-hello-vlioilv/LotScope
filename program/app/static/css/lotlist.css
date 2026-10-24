@@ -332,7 +332,7 @@ table.ll-grid{border-collapse:separate;border-spacing:0;font-size:13.5px}
 @media (max-width:1440px){ .screen-tabs{margin-left:14px} .screen-tab{padding:0 12px} }   /* 狭い窓: タブの余白だけ詰める（字はそのまま。版 3.32.0） */
 /* タブが 5 つ以上（ダッシュボード・仕掛。版 3.36.0）の窓（フル HD・125% の 1536 も）: 絵を外して字を 14px に（字は略さない・状態の札は隠さない） */
 @media (max-width:1680px){ .screen-tabs{margin-left:10px;gap:3px} .screen-tab{padding:0 10px;font-size:14px} .screen-tab > svg{display:none} }
-@media (max-width:1440px){ .screen-tab{padding:0 8px} }   /* 1280 で計算のタブにロット番号が付いても、終了まで窓に収める */
+@media (max-width:1440px){ .screen-tab{padding:0 6px} }   /* 1280 で計算のタブにロット番号が付いても・「マスタ」のタブがあっても（版 3.53.0）、終了まで窓に収める */
 
 /* 「以内」の条件は、今日を基準に毎日動くことを添える */
 .fb-cond-text em.fb-cond-rel{margin-left:6px;font-size:11.5px;color:var(--muted);padding:0 6px;border-radius:999px;background:#eef3f6}
@@ -480,3 +480,8 @@ body.tpa-sorting .screen-tab{cursor:grabbing}
 .screen-tab.is-renamed .tab-name{max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:1680px){ .screen-tab.is-renamed .tab-name{max-width:8em} }
 @media (max-width:1440px){ .screen-tab.is-renamed .tab-name{max-width:6.5em} }
+/* 見出しの「マスタ」のタブで、マスタがまだ無いときの案内（版 3.53.0） */
+.mst-screen{padding:40px 24px;display:flex;justify-content:center}
+.mst-screen.hidden{display:none}
+.mst-empty{max-width:640px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px 28px;box-shadow:var(--shadow)}
+.mst-empty h2{margin:0 0 10px;font-size:18px}.mst-empty p{margin:0 0 10px;line-height:1.7;color:var(--ink)}

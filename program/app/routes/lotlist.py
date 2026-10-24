@@ -21,9 +21,10 @@ def lot_mirror():
     return m, settings.get("lot_list") or {}
 
 
-def lotlist_plan():
+def lotlist_plan(joined=True):
     """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
-    段取り: 読むファイル（写しがあれば写し）・既定の表・既定の件数・いつのデータか。"""
+    段取り: 読むファイル（写しがあれば写し）・既定の表・既定の件数・いつのデータか。
+    joined: データ元の結合を当てる（版 3.53.0。結合があれば、合わせた答えのファイルを読む。デスクトップ版の画面は engine=python を付けて Python に尋ねる）"""
     m, ll = lot_mirror()
     if not m.enabled:
         return None, error("ロット一覧の元ファイルが決まっていません。「マスタ管理」の「参照先」で元ファイルを入れてください。", 400,
@@ -31,7 +32,12 @@ def lotlist_plan():
     path = m.read_path()
     if not path:      # 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す
         return None, error(m.not_ready_text(), 503, "copying", source=m.source_info())
-    return {"path": str(path), "table": ll.get("table", ""), "page_size": ll.get("page_size", 500), "source": m.source_info()}, None
+    plan = {"path": str(path), "table": ll.get("table", ""), "page_size": ll.get("page_size", 500), "source": m.source_info()}
+    if not joined:
+        return plan, None
+    from .sources import source_def, with_joins
+    s = source_def("lot")
+    return with_joins(plan, s) if s else (plan, None)
 
 
 @bp.get("/api/lotlist")
