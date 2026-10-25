@@ -104,7 +104,9 @@ python program/tools/ui_score.py 採点.json                                    
   組む所の ABC の全設備のリードタイムと出す項目（dash-ops-lead）・ガントの設備を手で並べる所（dash-eorder）・積み上げ横棒（dash-hstack）・組み込みの標準を入れ替えた所と外した所の面（dash-swap-pop・dash-hide-pop。dash-swap-off が片付け、dash の状態も前の案の入れ替え・外しを戻してから始める）。ABC の段（版 3.51.0）: 線 4 本で A〜E のパネルと組む所・線 26 本で A〜AA・品種ごと・同じ線を打った知らせ（dash-ops-ranks・dash-ops-ranks-edit・dash-ops-ranks-many・dash-ops-ranks-each・dash-ops-ranks-err）。
   ダッシュボードのスライサー（版 3.52.0）: 日付の暦（10/1〜10/2 を選んで開き直した所）・「スライサー ▾」の面・パネルのスライサー（仕掛区分で保留を選んだ所）（dash-dslicer-cal・dash-dslicer-cfg・dash-dslicer-panel。dash-dslicer-off が片付ける）。
   データ元の結合とマスタのタブ（版 3.53.0）: 品質データのカードで製造条件マスタを 合金＝材質・調質＝質別 で組んだ所（master-sources-join。`joinDemo`）・
-  見出しの「マスタ」のタブで製造条件マスタを開いた所（mst-tab。--from tabs-menu）。試験用のマスタは製造条件マスタ（材質＋質別。A3004/H24 は無い・「a5052 」の書き方のゆれ）と設備マスタ（設備名）。
+  見出しの「マスタ」のタブで製造条件マスタを開いた所（mst-tab。--from tabs-menu）。
+  データ元の一覧とグループ（版 3.54.0）: データ元が多い形〈台帳 8・工程 2・マスタ 2・結合した表 1。見出しに出さない元も〉の 1 行 1 件の表（master-sources-many。`manySources`。
+  master-sources-many-off が片付ける）・値で絞るの条件で「で始まらない」に「C?*」を打った所（list-wildcard。list-colfilter の続き）。試験用のマスタは製造条件マスタ（材質＋質別。A3004/H24 は無い・「a5052 」の書き方のゆれ）と設備マスタ（設備名）。
   集計の組み替え（版 3.50.0）: 札を引いている途中（worklog-pivot-dnd）・値の計算の段に ÷1000 を当てた所（worklog-pivot-calc）・重量の小数を 1 桁にした所（worklog-pivot-dec。版 3.50.1）・ウォーターフォール（dash-waterfall）。
   保存先（版 3.49.0）: 全員（共有）に「標準」★・全員の既定に「標準」と「標準ダッシュボード」を置いた ▾ の面と、同じ名前「標準」を全員の既定へ名前を付けて保存する所（dash-save-pop・dash-saveas。dash-save-off が片付ける）。
   試験用の作業実績は設備 12 台で、1 台はファイルが見つからない・1 台は更新が止まった形。ANF は焼鈍炉の形（版 3.47.0: 1 回の作業が 20〜50 時間・作業終了の時刻は年月日時分秒の列だけ・書き忘れ 2 回・いま炉の中）。作業開始（BOX実績_作業開始_日付）が同じ分割ロットを含み、作業終了（BOX実績_作業終了_日付。版 3.46.0）もある。
@@ -156,6 +158,10 @@ python program/tools/ui_score.py 採点.json                                    
   `ui-eval-join.mjs`（版 3.53.0。データ元の結合: 方式の 4 枚の残る行の数・当たった数がサーバーの「試す」の答えと同じ・方式で言葉が替わる・← →・
   名前の同じ列が無い相手は空の鍵・保存するとカードに 1 行・一覧に持ってきた列と当たった数・外すと消える・保存していない変更の窓／「マスタ」のタブ: 札の段・Alt・
   ロット番号の警告を出さない／1728・1280 ではみ出さない・保存の段が窓の下の縁に着く）・
+  `ui-eval-wildcard.mjs`（版 3.54.0。絞り込みの比べ方の段・で始まらない／で終わらない・値の * ?〈読み方と並んだ値のうち当たる数・件数がサーバーと同じ・条件の字〉・値を検索の * ?・
+  一覧を検索の * ? と「%」は字そのもの・1280 で OK に届く。* ? の型は Python〈lot_list.like_pattern〉と Rust〈lotlist.rs〉で同じ事例の表 `tests/fixtures/like_cases.json` を突き合わせる）・
+  `ui-eval-srclist.mjs`（版 3.54.0。データ元の 1 行 1 件の表: グループの見出し・3 つの大きさで切れない・スイッチ 1 手・見出しのグループのタブの札・⠿ で並べ替え〈見出しの札も同じ順〉・
+  右クリックの「グループへ移す」・Alt＋↓・グループの名前を変える・全部出す／出さない・結合した表〈元の行の数・列が増える・作る・元の下に └・消す〉・名前で探す）・
   `ui-eval-waterfall.mjs`（ウォーターフォール: 棒の数・計＝サーバーの総計・前の棒の終わりから・増加と減少・足せない値は計なし・計算・はみ出さない・一覧でも）。
   値の計算の式の読み方は、画面（num-format.js）とサーバー（services/num_expr.py）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・`tests/test_num_expr.py`）。どれも終了コード 0 で OK
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`

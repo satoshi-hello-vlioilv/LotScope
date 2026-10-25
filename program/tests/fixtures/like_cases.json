@@ -1,0 +1,38 @@
+{
+ "_": "値の * ?（Excel と同じ）→ LIKE の型。Python の lot_list.like_pattern と Rust の lotlist.rs の like_pattern が同じ答えを出すかを突き合わせる（版 3.54.0）。match は一覧の絞り込みで当たる値（tests/test_lot_list_wildcard.py）",
+ "patterns": [
+  {"value": "CR", "mode": "contains", "pattern": "%CR%", "wild": false},
+  {"value": "CR", "mode": "starts", "pattern": "CR%", "wild": false},
+  {"value": "CR", "mode": "ends", "pattern": "%CR", "wild": false},
+  {"value": "A*5", "mode": "exact", "pattern": "A%5", "wild": true},
+  {"value": "C?1*", "mode": "starts", "pattern": "C_1%%", "wild": true},
+  {"value": "~*x", "mode": "contains", "pattern": "%*x%", "wild": false},
+  {"value": "~?", "mode": "exact", "pattern": "?", "wild": false},
+  {"value": "50%", "mode": "contains", "pattern": "%50\\%%", "wild": false},
+  {"value": "a_b", "mode": "exact", "pattern": "a\\_b", "wild": false},
+  {"value": "＊１", "mode": "ends", "pattern": "%%１", "wild": true},
+  {"value": "？", "mode": "exact", "pattern": "_", "wild": true},
+  {"value": "~~", "mode": "exact", "pattern": "~", "wild": false},
+  {"value": "~a", "mode": "exact", "pattern": "~a", "wild": false},
+  {"value": "~", "mode": "exact", "pattern": "~", "wild": false},
+  {"value": "x\\y", "mode": "exact", "pattern": "x\\\\y", "wild": false},
+  {"value": "", "mode": "contains", "pattern": "%%", "wild": false}
+ ],
+ "values": ["CR1", "CR2", "CR10", "DL2", "L-1", "50%", "5000", "A*B", "AxB", "a_b", "axb", ""],
+ "match": [
+  {"op": "starts", "value": "CR", "hit": ["CR1", "CR2", "CR10"]},
+  {"op": "not_starts", "value": "CR", "hit": ["DL2", "L-1", "50%", "5000", "A*B", "AxB", "a_b", "axb", ""]},
+  {"op": "ends", "value": "2", "hit": ["CR2", "DL2"]},
+  {"op": "not_ends", "value": "2", "hit": ["CR1", "CR10", "L-1", "50%", "5000", "A*B", "AxB", "a_b", "axb", ""]},
+  {"op": "eq", "value": "CR?", "hit": ["CR1", "CR2"]},
+  {"op": "eq", "value": "CR*", "hit": ["CR1", "CR2", "CR10"]},
+  {"op": "neq", "value": "CR*", "hit": ["DL2", "L-1", "50%", "5000", "A*B", "AxB", "a_b", "axb", ""]},
+  {"op": "contains", "value": "%", "hit": ["50%"]},
+  {"op": "contains", "value": "_", "hit": ["a_b"]},
+  {"op": "eq", "value": "A~*B", "hit": ["A*B"]},
+  {"op": "eq", "value": "A*B", "hit": ["A*B", "AxB", "a_b", "axb"], "_": "英字の大小は区別しない（Excel と同じ・SQLite の LIKE）"},
+  {"op": "contains", "value": "R*0", "hit": ["CR10"]},
+  {"op": "not_contains", "value": "R?0", "hit": ["CR1", "CR2", "DL2", "L-1", "50%", "5000", "A*B", "AxB", "a_b", "axb", ""]},
+  {"op": "starts", "value": "＊2", "hit": ["CR2", "DL2"]}
+ ]
+}

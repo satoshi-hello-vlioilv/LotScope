@@ -37,7 +37,8 @@
       if (my === st.seq) { st.loading = false; host.paint(); }
     }
     const ql = () => st.search.trim().toLowerCase();
-    const shown = () => (st.values || []).filter((x) => (!ql() || blank(x.label).toLowerCase().includes(ql())) && !(st.hideZero && x.count === 0 && !isOn(x.value)));
+    // 値を検索: * ? があれば Excel と同じ型で（無ければ含む）。版 3.54.0
+    const shown = () => (st.values || []).filter((x) => (!ql() || (TPA.wild.has(ql()) ? TPA.wild.test("contains", ql(), blank(x.label)) : blank(x.label).toLowerCase().includes(ql()))) && !(st.hideZero && x.count === 0 && !isOn(x.value)));
     const isOn = (v) => (st.ssel ? st.ssel.has(v) : st.sel == null || st.sel.has(v));
     function toggle(v, on) {
       if (st.ssel) { if (on) st.ssel.add(v); else st.ssel.delete(v); return; }
@@ -74,12 +75,22 @@
     }
     const active = () => { const r = result(); return r.picked != null || r.conds.length > 0; };
 
+    /** 字の比べ方の読み方の 1 行（版 3.54.0。決め方: ui-proposals/2026-10-wildcard の B）: 値があれば読み方と、いま並んでいる値のうち当たる数。
+        値が無ければ * ? の使い方 */
+    function readHtml(cd) {
+      const r = TPA.wild.read(cd.op, cd.value);
+      if (!r) return TPA.wild.LEGEND;
+      const list = st.values && !st.truncated ? st.values : null;
+      const n = list ? list.filter((x) => TPA.wild.test(cd.op, cd.value, x.label)).length : null;
+      return `→ ${r}${n == null ? "" : `<span class="vf-hitn">並んだ値のうち <b>${n.toLocaleString()} / ${list.length.toLocaleString()}</b></span>`}`;
+    }
     function condHtml() {
       if (!ops().length) return "";      // 条件を使えない列（一覧の計算列: 式はサーバーに無い）
       const rows = st.conds.map((c, i) => `<div class="vf-crow" data-i="${i}">${i ? '<span class="vf-and">かつ</span>' : ""}`
-        + `<select data-vf-op aria-label="比べ方">${ops().map(([k, n]) => `<option value="${k}"${k === c.op ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`
-        + `<input data-vf-val value="${esc(c.value)}" placeholder="${c.op in TPA.REL_UNIT ? "数（例: 7）" : "値"}" aria-label="比べる値"${TPA.noValueOp(c.op) ? " disabled" : ""}${c.op in TPA.REL_UNIT ? ' inputmode="numeric"' : ""}>`
-        + `<button type="button" class="vf-x" data-vf-cdel="${i}" aria-label="この条件を外す" title="この条件を外す">×</button></div>`).join("");
+        + `<select data-vf-op aria-label="比べ方">${TPA.opOptions(ops(), c.op)}</select>`
+        + `<input data-vf-val value="${esc(c.value)}" placeholder="${c.op in TPA.REL_UNIT ? "数（例: 7）" : TPA.TEXT_OPS.has(c.op) ? "値（* ? が使えます）" : "値"}" aria-label="比べる値"${TPA.noValueOp(c.op) ? " disabled" : ""}${c.op in TPA.REL_UNIT ? ' inputmode="numeric"' : ""}>`
+        + `<button type="button" class="vf-x" data-vf-cdel="${i}" aria-label="この条件を外す" title="この条件を外す">×</button>`
+        + (TPA.TEXT_OPS.has(c.op) ? `<p class="vf-read" data-i="${i}" aria-live="polite">${readHtml(c)}</p>` : "") + "</div>").join("");
       const n = st.conds.length;
       return `<div class="vf-conds${st.condOpen ? " is-open" : ""}"><button type="button" class="vf-ctog" data-vf-ctog aria-expanded="${st.condOpen}">`
         + `<i aria-hidden="true">${st.condOpen ? "▾" : "▸"}</i>条件で絞る<small>${n ? `${n} つ` : "含む・以上・空欄 など"}</small></button>`
@@ -107,7 +118,7 @@
       const sort = o.sort ? `<div class="vf-sort" role="group" aria-label="並べ替え"><button type="button" data-vf-sort="asc" class="${o.sort.dir === "asc" ? "on" : ""}">▲ 小さい順</button>`
         + `<button type="button" data-vf-sort="desc" class="${o.sort.dir === "desc" ? "on" : ""}">▼ 大きい順</button>${o.sort.dir ? '<button type="button" data-vf-sort="">並べ替えを外す</button>' : ""}</div>` : "";
       const locked = (o.locked || []).length ? `<p class="vf-locked" title="「固定」の条件は、条件の面で外せます">固定: ${esc(o.locked.join("・"))}</p>` : "";
-      const search = `<div class="vf-search"><input type="search" data-vf-search value="${esc(st.search)}" placeholder="値を検索" aria-label="値を検索" autocomplete="off">`
+      const search = `<div class="vf-search"><input type="search" data-vf-search value="${esc(st.search)}" placeholder="値を検索（* ? も）" aria-label="値を検索" autocomplete="off">`
         + (ql() ? `<label class="vf-add" title="検索に当たる値を、前の選びに足します（外すと、検索に当たる値だけで絞ります）"><input type="checkbox" data-vf-addmode${st.add ? " checked" : ""}>いまの選びに足す</label>` : "") + "</div>";
       const state = `<small class="vf-state">${pickN == null ? (st.values ? `${st.values.length.toLocaleString()}${st.truncated ? "+" : ""} 種類` : "") : `${pickN.toLocaleString()} を選んでいます`}</small>`;
       const foot = o.embedded ? "" : `<div class="vf-foot"><button type="button" class="pv-btn" data-vf-clear${o.had || active() ? "" : " disabled"} title="この列の値の選び・条件を外して、OK を押さずにすぐ戻します">絞り込みを外す</button><span class="vf-sp"></span>`
@@ -116,7 +127,7 @@
       return (o.embedded ? "" : `<div class="vf-head"><b title="${esc(o.label || o.column)}">${esc(o.label || o.column)}</b>${state}</div>`) + sort + locked + search
         + `<div class="vf-list">${listHtml()}</div>` + condHtml() + (o.embedded ? `<div class="vf-estate">${state}${active() ? '<button type="button" class="vf-link" data-vf-clear>この列の絞り込みを外す</button>' : ""}</div>` : "") + foot;
     }
-    return { st, load, html, result, active, toggle, toggleAll, setSearch, ops };
+    return { st, load, html, result, active, toggle, toggleAll, setSearch, ops, readHtml };
   }
 
   /** 描き直し（焦点のある欄と、値の並びの送り位置を保つ） */
@@ -157,7 +168,12 @@
     });
     // 打った字は、変換中は受けず確定してから（変換中に面を作り直すと、未確定の字が確定されてローマ字・漢字で打てない。版 3.46.0）
     TPA.onTextIn(root, "[data-vf-search]", (x) => { c.setSearch(x.value); paint(); changed(); });
-    TPA.onTextIn(root, "[data-vf-val]", (x) => { c.st.conds[+x.closest(".vf-crow").dataset.i].value = x.value; changed(true); });
+    TPA.onTextIn(root, "[data-vf-val]", (x) => {
+      const i = +x.closest(".vf-crow").dataset.i, cd = c.st.conds[i];
+      cd.value = x.value;
+      const rd = root.querySelector(`.vf-read[data-i="${i}"]`); if (rd) rd.innerHTML = c.readHtml(cd);    // 読み方だけを描き直す（欄は作り直さない）
+      changed(true);
+    });
     root.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.isComposing && ok && !e.target.matches("button")) { e.preventDefault(); if (!root.querySelector("[data-vf-ok]")?.disabled) ok(); }
     });

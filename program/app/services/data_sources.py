@@ -12,7 +12,7 @@
 品質データ・作業実績の場所は、これまでどおり参照先（path_settings）に置く（デスクトップ版の Rust・作業実績の登録が読む所を変えない）。
 画面の「データ元」はどの元も同じ形で見せ、場所を直すと、その元の置き場（参照先かこのマスタ）へ書く。
 
-このマスタ（data_sources。管理のマスタ・共有）の行: {id, キー, 表示名, 役割, 場所, 表, 設備の列, 設備の取り出し方, 画面, 並び, 備考, 結合}
+このマスタ（data_sources。管理のマスタ・共有）の行: {id, キー, 表示名, 役割, 場所, 表, 設備の列, 設備の取り出し方, 画面, 並び, 備考, 結合, グループ, 元}
   キー            … 変わらない名前（wip か、足したとき決める s<8 桁>）。画面の表示ルール（表示列・並び・条件）は src:<キー>:<表> に結ぶ
   役割            … 品質 / 実績 / 仕掛 / マスタ / その他（ダッシュボードが「仕掛」の元を数える。マスタは見出しの「マスタ」のタブの中に
                     設備のタブと同じ形で並ぶ。版 3.53.0）
@@ -20,6 +20,10 @@
   設備の取り出し方 … そのまま（列の値が設備名）／前方一致（列の値が設備名で始まる。仕掛の 残仕掛設備ｺｰｽ「CR1 L-1 LS3」の先頭が次の設備）
   画面            … 有（見出しにタブを出す）／無（ダッシュボードなどで使うだけ）
   結合            … ほかのデータ元の列を、自由に組んだ鍵で合わせる決まり（JSON。services/data_join.py。版 3.53.0）
+  グループ        … まとめる名前（版 3.54.0）。同じグループの元は、データ元の一覧で 1 つのまとまりになり、見出しでは 1 つのタブの中に
+                    札で並ぶ（作業実績の設備のタブと同じ形）。役割「マスタ」でグループが空なら「マスタ」（版 3.53.0 の「マスタ」のタブ）
+  元              … 結合した表（版 3.54.0）: ここにほかのデータ元のキーがあれば、この行は自分の場所を持たず、その元の写しに「結合」を当てた
+                    答えを 1 つの表として見せる（元・相手は見出しのタブに出さなくてよい。DataRelay の「結合」と同じ考え）
 """
 from __future__ import annotations
 
@@ -31,9 +35,12 @@ from . import data_join
 from .identity import normalize_part
 
 NAME = "data_sources"
-FIELDS = ["キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考", "結合"]
+FIELDS = ["キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考", "結合", "グループ", "元"]
 ROLES = ["品質", "実績", "仕掛", "マスタ", "その他"]
 MASTER_ROLE = "マスタ"
+VIEW_ROLE = "結合した表"     # 画面の言葉（役割の値ではない。結合した表の役割は、選ばなければ「その他」）
+GROUP_MAX = 24               # グループの名前の長さ
+PATCH_FIELDS = {"画面", "グループ", "表示名"}     # 一覧からその場で変えられる列（PATCH。ほかの列はそのまま）
 EQUIP_MODES = ["そのまま", "前方一致"]
 # 読み方の既定（設定 sources.<キー> で変えられる。足した元は sources の既定）
 READ_DEFAULTS = {"refresh_seconds": 60, "stale_hours": 36, "page_size": 500}
@@ -92,22 +99,49 @@ def read_params(settings, key):
 
 def clean_row(data, *, key=None, known=None):
     """画面から来た行をマスタの形へ（足りない列は空）。合わなければ ValueError（理由つき）。
-    known: 結合の相手にできるデータ元（キー → 表示名）。結合の決まりは data_join.clean が整える"""
+    known: 結合の相手・結合した表の元にできるデータ元（キー → 表示名）。結合の決まりは data_join.clean が整える"""
     row = {k: _s(data.get(k)) for k in FIELDS if k != "結合"}
-    row["結合"] = data_join.clean(data.get("結合"), row["キー"] if key is None else key, known or {})
     if key is not None:
         row["キー"] = key
+    row["結合"] = data_join.clean(data.get("結合"), row["キー"], known or {})
     if row["役割"] and row["役割"] not in ROLES:
         raise ValueError(f"役割は {'・'.join(ROLES)} のどれかにしてください。")
     if row["設備の取り出し方"] and row["設備の取り出し方"] not in EQUIP_MODES:
         raise ValueError(f"設備の取り出し方は {'・'.join(EQUIP_MODES)} のどちらかにしてください。")
     row["画面"] = "無" if row["画面"] == "無" else "有"
     row["場所"] = unquote_path(row["場所"]) if row["場所"] else ""
+    row["グループ"] = " ".join(row["グループ"].split())[:GROUP_MAX]
+    if row["キー"] in BUILTIN_KEYS:
+        row["元"] = ""
+        if row["キー"] != "wip":            # 品質データ・作業実績は見出しのタブが決まっている（グループに入れない）
+            row["グループ"] = ""
+    if row["元"]:                           # 結合した表: 場所は元の物。元は 1 ファイルの元（結合した表は元にできない）
+        if row["元"] == row["キー"] or row["元"] not in (known or {}):
+            raise ValueError("結合した表の元にするデータ元を選んでください（品質データ・仕掛・足したデータ元。作業実績と結合した表は元にできません）。")
+        joins = data_join.parse(row["結合"])
+        if not joins:
+            raise ValueError("結合した表は、合わせる相手を 1 つ以上決めてください（鍵: この列 = 相手の列）。")
+        if any(j["with"] == row["元"] for j in joins):
+            raise ValueError("結合した表の元と同じデータ元は、相手にできません。")
+        row["場所"], row["表"] = "", ""
     if row["キー"] not in BUILTIN_KEYS and not row["表示名"]:
         raise ValueError("表示名を入れてください（見出しのタブ・ダッシュボードに出す名前）。")
-    if row["キー"] not in BUILTIN_KEYS and not row["場所"]:
+    if row["キー"] not in BUILTIN_KEYS and not row["場所"] and not row["元"]:
         raise ValueError("場所（共有の .sqlite3 ファイル）を入れてください。")
     return row
+
+
+def row_of(item):
+    """いま効いているデータ元（sources の 1 つ）→ このマスタの行の形（行が無い決まった元を、その場で変えるとき）。"""
+    return {"キー": item["key"], "表示名": "" if item["builtin"] and item["name"] == _builtin(item["key"])["name"] else item["name"],
+            "役割": "" if item["builtin"] else item["role"], "場所": item["place"] if item["storage"] == "master" and not item.get("base") else "",
+            "表": item["table"] if not item.get("base") else "", "設備の列": item["equipColumn"], "設備の取り出し方": item["equipMode"],
+            "画面": "有" if item["listed"] else "無", "並び": _s(item.get("order")), "備考": item.get("note", ""),
+            "結合": item.get("joins") or [], "グループ": item.get("groupSet", ""), "元": item.get("base", "")}
+
+
+def _builtin(key):
+    return next(b for b in BUILTINS if b["key"] == key)
 
 
 def sources(settings, rows):
@@ -136,9 +170,10 @@ def sources(settings, rows):
         d["listed"] = True if b["key"] in ("lot", "work") else _s(row.get("画面")) != "無"
         d["read"] = read_params(settings, b["key"])
         d["joins"] = data_join.parse(row.get("結合"))
+        d["groupSet"] = _s(row.get("グループ")) if b["key"] == "wip" else ""
+        d["order"] = _s(row.get("並び"))
         out.append(d)
     added = [r for r in rows or [] if _s(r.get("キー")) and _s(r.get("キー")) not in BUILTIN_KEYS]
-    added.sort(key=lambda r: (_order(r), int(r.get("id") or 0)))
     for r in added:
         k = _s(r.get("キー"))
         out.append({"key": k, "name": _s(r.get("表示名")) or k, "role": _s(r.get("役割")) or "その他", "kind": "file",
@@ -146,22 +181,38 @@ def sources(settings, rows):
                     "equipColumn": _s(r.get("設備の列")), "equipMode": _s(r.get("設備の取り出し方")) or "そのまま",
                     "screen": f"src:{k}", "listed": _s(r.get("画面")) != "無", "builtin": False, "storage": "master",
                     "settings": None, "api": f"/api/src/{k}", "id": r.get("id"), "rev": r.get("rev"), "note": _s(r.get("備考")),
-                    "read": read_params(settings, k), "joins": data_join.parse(r.get("結合"))})
+                    "read": read_params(settings, k), "joins": data_join.parse(r.get("結合")),
+                    "groupSet": _s(r.get("グループ")), "order": _s(r.get("並び")), "base": _s(r.get("元"))})
+    # 並び: 品質データ・作業実績は先頭に決まる。ほかは「並び」の順（無ければ足した順。仕掛は足した元より前）
+    head, rest = out[:2], out[2:]
+    rest.sort(key=lambda d: (_order(d["order"]) if d["order"] or not d["builtin"] else 0, 0 if d["builtin"] else 1, int(d.get("id") or 0)))
+    out = head + rest
+    by = {d["key"]: d for d in out}
+    for d in out:                               # 結合した表: 場所・表は元の物（読むのは元の写し）
+        b = by.get(d.get("base") or "")
+        if d.get("base"):
+            if b is None or b.get("base") or b["kind"] != "file":
+                d.update(kind="view", place="", table="", broken=True)
+            else:
+                d.update(kind="view", place=b["place"], table=b["table"], baseName=b["name"])
     names = {d["key"]: d["name"] for d in out}
     for d in out:
-        d["group"] = "mst" if d["role"] == MASTER_ROLE and d["api"].startswith("/api/src/") else ""
+        # グループ（見出しのタブのまとまり）。マスタは、決めていなければ「マスタ」
+        d["group"] = d["groupSet"] or (MASTER_ROLE if d["role"] == MASTER_ROLE and d["api"].startswith("/api/src/") else "")
         d["joinText"] = data_join.describe(d["joins"], names)
+        d["usedBy"] = [x["key"] for x in out if x is not d and (x.get("base") == d["key"] or any(j["with"] == d["key"] for j in x["joins"]))]
     return out
 
 
 def join_targets(items):
-    """結合の相手にできる元（1 ファイルの元: 品質データ・仕掛・足した元。作業実績は設備ごとのファイルなので外す）→ {キー: 表示名}。"""
+    """結合の相手・結合した表の元にできる元（1 ファイルの元: 品質データ・仕掛・足した元。作業実績は設備ごとのファイル・
+    結合した表は自分の写しを持たないので外す）→ {キー: 表示名}。"""
     return {d["key"]: d["name"] for d in items if d["kind"] == "file"}
 
 
-def _order(r):
+def _order(v):
     try:
-        return int(_s(r.get("並び")) or 10 ** 6)
+        return int(_s(v) or 10 ** 6)
     except ValueError:
         return 10 ** 6
 

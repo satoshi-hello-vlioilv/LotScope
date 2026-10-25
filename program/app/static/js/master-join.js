@@ -6,7 +6,8 @@
      方式の 4 枚にそれぞれ残る行の数を出す。言葉は選んだ方式に合わせる（外れる／空のまま残る／足す）
    - ベン図: 実線の円＝この元・点線の円＝相手（色だけに頼らない）。塗った所が残る行
    - 決まりは画面の外へは持たない。value() が置く形（[{with, how, on: [[この列, 相手の列]], cols}]）を返す
-   使い方: MasterJoin.mount(箱, { self: データ元, sources: 全部のデータ元, can: 書けるか, request: masterRequest, onChange }) → { value() } */
+   使い方: MasterJoin.mount(箱, { self: データ元, sources: 全部のデータ元, can: 書けるか, request: masterRequest, onChange }) → { value() }
+   結合した表（版 3.54.0）: self.base（元のキー）があれば「この元」は元の表。足す前は self.key を空にして、元に当てて試す */
 window.MasterJoin = (() => {
   "use strict";
   const esc = (s) => TPA.esc(s);
@@ -52,7 +53,9 @@ window.MasterJoin = (() => {
   }
 
   function mount(box, { self, sources, can, request, onChange = () => {} }) {
-    const targets = sources.filter((d) => d.kind === "file" && d.key !== self.key);
+    // 結合した表（版 3.54.0）: 「この元」は元（self.base）の表。足す前の結合した表は key が空で、元に当てて試す
+    const targets = sources.filter((d) => d.kind === "file" && d.key !== self.key && d.key !== self.base);
+    const selfCols = self.key || self.base;
     const nameOf = (k) => (sources.find((d) => d.key === k) || {}).name || k;
     let items = (self.joins || []).map((j) => ({ ...j, on: j.on.map((p) => [...p]), cols: [...(j.cols || [])] }));
     const stats = [], cols = {};
@@ -72,7 +75,7 @@ window.MasterJoin = (() => {
     }
     /** i 件目の結合で「この元」が持つ列（元の列＋前の結合で持ってきた列） */
     function leftCols(i) {
-      const base = columns(self.key).list;
+      const base = columns(selfCols).list;
       if (!base) return null;
       const out = [...base];
       items.slice(0, i).forEach((j) => {
@@ -99,7 +102,7 @@ window.MasterJoin = (() => {
       if (!joins.length) return;
       const my = ++seq;
       note = "wait"; paintResults();
-      const r = await request("/api/sources/join/preview", TPA.json("POST", { key: self.key, joins }));
+      const r = await request("/api/sources/join/preview", TPA.json("POST", self.key ? { key: self.key, joins } : { base: self.base, joins }));
       if (my !== seq || !box.isConnected) return;
       stats.length = 0;
       if (r.ok) { (r.data.stats || []).forEach((s, i) => { stats[i] = s; }); note = ""; }
