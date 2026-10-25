@@ -72,13 +72,20 @@
     document.body.appendChild(dlg);
     const $ = (s) => dlg.querySelector(s), list = $(".pp-list"), addr = $(".pp-addr"), go = $(".pp-go");
     const st = { cur: null, sel: -1, seq: 0 };
+    /* 置き方（版 3.54.1。利用者の報告: 欄が画面の中ほどにあると、窓の下が画面の外へ切れた。前は高さを上下の広い方の空きで決めたまま
+       下に置いていた）: 欄の下に 420px 入る（か下の方が広い）なら下、でなければ上。高さは置いた側の空き（520px まで）。
+       どちらも 300px に足りなければ、頁に収まる所へずらす（欄に重なっても、選ぶ・やめるに届く方を取る）。後ろを送ったら付いていく */
     const place = () => {
-      const r = (btn.closest(".pp-row") || input).getBoundingClientRect(), w = Math.min(820, innerWidth - 24);
+      const r = (btn.closest(".pp-row") || input).getBoundingClientRect(), w = Math.min(820, innerWidth - 24), gap = 6, edge = 8;
       dlg.style.width = `${w}px`;
-      const below = innerHeight - r.bottom - 14, above = r.top - 14, h = Math.min(520, Math.max(below, above));
-      dlg.style.height = `${Math.max(300, h)}px`;
       dlg.style.left = `${Math.round(Math.max(12, Math.min(r.left, innerWidth - w - 12)))}px`;
-      dlg.style.top = `${Math.round(below >= Math.min(420, above) ? r.bottom + 6 : Math.max(8, r.top - 6 - Math.max(300, h)))}px`;
+      const below = innerHeight - r.bottom - gap - edge, above = r.top - gap - edge;
+      const down = below >= Math.min(420, above) || below >= above;
+      const room = down ? below : above, h = Math.min(520, innerHeight - edge * 2, Math.max(room, 300));
+      let top = down ? r.bottom + gap : r.top - gap - h;
+      top = Math.max(edge, Math.min(top, innerHeight - edge - h));      // 空きが 300px に足りないときも頁の中へ
+      dlg.style.height = `${Math.round(h)}px`;
+      dlg.style.top = `${Math.round(top)}px`;
     };
     place();
     /** 選ぶ物（行を選んでいればその行、フォルダを選ぶ欄で選んでいなければ、いまのフォルダ） */
@@ -166,11 +173,14 @@
     });
     addr.addEventListener("keydown", (e) => { if (e.key === "Enter" && !TPA.composing(e)) { e.preventDefault(); goTo(tidy(addr.value)); } });
     const off = TPA.dismissable(dlg, () => close(), { keep: btn, event: "mousedown" });
-    const onResize = () => place();
+    // 窓の大きさが変わる・後ろ（マスタ管理の中など）を送ったら置き直す（窓の中の送りは除く）
+    let raf = 0;
+    const onResize = (e) => { if (e && e.type === "scroll" && dlg.contains(e.target)) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
     addEventListener("resize", onResize);
+    addEventListener("scroll", onResize, true);
     function close() {
       if (!dlg.isConnected) return;
-      off(); removeEventListener("resize", onResize);
+      off(); removeEventListener("resize", onResize); removeEventListener("scroll", onResize, true); cancelAnimationFrame(raf);
       dlg.remove(); btn.setAttribute("aria-expanded", "false");
       if (open && open.dlg === dlg) open = null;
       btn.focus();

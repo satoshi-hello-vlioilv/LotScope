@@ -162,6 +162,7 @@ python program/tools/ui_score.py 採点.json                                    
   一覧を検索の * ? と「%」は字そのもの・1280 で OK に届く。* ? の型は Python〈lot_list.like_pattern〉と Rust〈lotlist.rs〉で同じ事例の表 `tests/fixtures/like_cases.json` を突き合わせる）・
   `ui-eval-srclist.mjs`（版 3.54.0。データ元の 1 行 1 件の表: グループの見出し・3 つの大きさで切れない・スイッチ 1 手・見出しのグループのタブの札・⠿ で並べ替え〈見出しの札も同じ順〉・
   右クリックの「グループへ移す」・Alt＋↓・グループの名前を変える・全部出す／出さない・結合した表〈元の行の数・列が増える・作る・元の下に └・消す〉・名前で探す）・
+  `ui-eval-pathfit.mjs`（版 3.54.1。「参照…」の窓が欄の位置〈画面の高さの 15〜85%〉と窓の大きさ〈1728・1536×864・1536×830・1536×805・1280〉によらず頁に収まり、欄を覆わない・開いたまま後ろを送っても付いていく・開いた欄の入力欄が潰れていない）・
   `ui-eval-waterfall.mjs`（ウォーターフォール: 棒の数・計＝サーバーの総計・前の棒の終わりから・増加と減少・足せない値は計なし・計算・はみ出さない・一覧でも）。
   値の計算の式の読み方は、画面（num-format.js）とサーバー（services/num_expr.py）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・`tests/test_num_expr.py`）。どれも終了コード 0 で OK
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`

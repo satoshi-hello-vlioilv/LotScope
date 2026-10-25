@@ -491,6 +491,7 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-form{grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px;padding-top:4px}
 .sr-form label{display:flex;flex-direction:column;gap:4px;font-size:13px;min-width:0}
 .sr-form label > span:first-child{color:var(--ro-ink);font-weight:700}
+.sr-form label > .ps-input{flex:none}   /* 縦に並べる label の中では flex:1 の高さの元が 0 になり、隣に背の高い欄が無い行で潰れた（グループの欄。版 3.54.1） */
 .sr-form .sr-w{grid-column:1 / -1}
 .sr-form .sr-row{display:flex;gap:6px;min-width:0}
 .sr-form select{height:32px;border:1px solid var(--edit-line);background:var(--edit-field);border-radius:7px;padding:0 8px;font:inherit;color:var(--ink)}
