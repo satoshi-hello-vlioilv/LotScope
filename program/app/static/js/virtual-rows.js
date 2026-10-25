@@ -10,18 +10,24 @@
      v.scrollTo(key)                 その行まで送る（見えていれば動かさない）
      v.reflow()                      高さを測り直して描き直す（拡大を変えたとき）
      v.rendered(key)                 その行を描いているか
+   続きをまだ読んでいない一覧（版 3.56.0）: create の more = { left: () => 読んでいない行の数, need: (足りない行の数) => 読み足す }
+     読んでいない行も、見積もりの高さで下の空きに入れる（スクロールの長さ・つまみは全部の行のぶん。どこへ飛んでも止まらない）。
+     見えている所（と下の 1 ページ）が読んだ所の端を越えたら need を呼ぶ。読み足したら呼ぶ側が set(… keepHeights) で渡し直す。
+     v.busy(on): 読み足している間、読んでいない所の空きに「読み込んでいます」の段を出す
    ========================================================================= */
 (function () {
   "use strict";
   const AHEAD = 1;       // 見える分の上と下に先に描くページの数
   const MARGIN = 0.5;    // 描いてある所の端まで、これ（ページ）を切ったら描き直す
 
-  function create({ scroller, body, span, zoom = () => 1 }) {
+  function create({ scroller, body, span, zoom = () => 1, more = null }) {
     let items = [], off = [0];         // off[k]: k 行目の上端（tbody の上から・見た目の px）
     let from = 0, to = 0;              // 描いている範囲 [from, to)
     const heights = new Map();         // key → 測った高さ
     let est = 0, frame = 0;
+    let loading = false;
     const pad = (cls) => `<tr class="vr-pad ${cls}" aria-hidden="true"><td colspan="${span()}"></td></tr>`;
+    const left = () => (more ? Math.max(0, more.left() || 0) : 0);
 
     const measure = () => {
       let sum = 0, n = 0;
@@ -88,6 +94,9 @@
       if (!scroller.clientHeight) return;     // 画面を隠している間（別のタブ・集計表）は描かない。出たときに大きさの見張りが呼ぶ
       const v = viewport(), n = items.length;
       const needA = v.top - v.h * MARGIN, needB = v.top + v.h * (1 + MARGIN);
+      // 読んだ所の端（と下の 1 ページ）を越えて見ている: 足りない行の数を伝えて読み足してもらう（読み足すまでは空きのまま）
+      const reach = v.top + v.h * (1 + AHEAD);
+      if (more && left() && reach > off[n]) more.need(Math.ceil((reach - off[n]) / (est || 28)));
       const ok = !force && body.firstChild && (from === 0 || off[from] <= needA) && (to === n || off[to] >= needB);
       if (ok) return;
       // 見ていた行（見えている所の上端の行）と、その中のどこを見ていたか。描いて高さが分かったら、同じ所に戻す
@@ -97,12 +106,22 @@
       paint(a, b);
       measure();
       const [top, bottom] = pads();
-      setPad(top, off[from]); setPad(bottom, off[n] - off[to]);
+      setPad(top, off[from]); setPad(bottom, off[n] - off[to] + left() * est);
+      bottom.classList.toggle("is-more", left() > 0); bottom.classList.toggle("is-loading", loading && left() > 0);
       const want = atEnd ? scroller.scrollHeight - scroller.clientHeight : off[anchor] + delta;
       if (Math.abs(scroller.scrollTop - want) > 0.5 && v.top > 0) scroller.scrollTop = want;
     }
     /** 描き直す。初めは見積もりの高さで範囲を決めるので、測った高さで足りない端をもう 1 度埋める */
-    function redraw() { body.innerHTML = ""; from = to = 0; measure(); update(true); update(); }
+    function redraw(keepTop = false) {
+      const y = scroller.scrollTop;
+      from = to = 0; measure();
+      if (keepTop && items.length) {      // 送った所に留める（中を空にすると表が縮み、ブラウザーがスクロールを上へ戻すので、先に全部の高さの空きを置く）
+        body.innerHTML = pad("vr-top") + pad("vr-bottom");
+        const [top, bottom] = pads(); setPad(top, 0); setPad(bottom, off[items.length] + left() * est);
+        scroller.scrollTop = y;            // 描くのは update（空きの行は残し、間に行を描く）
+      } else body.innerHTML = "";
+      update(true); update();
+    }
     const schedule = () => { if (!frame) frame = requestAnimationFrame(() => update()); };
     scroller.addEventListener("scroll", schedule, { passive: true });
     if (typeof ResizeObserver !== "undefined") new ResizeObserver(schedule).observe(scroller);
@@ -111,15 +130,18 @@
       set(list, { keepHeights = false } = {}) {
         if (!keepHeights) heights.clear();
         items = list;
-        redraw();
+        redraw(keepHeights);
       },
       reflow() { heights.clear(); redraw(); },
+      busy(on) { loading = !!on; const b = body.querySelector(":scope > tr.vr-bottom"); if (b) b.classList.toggle("is-loading", loading && left() > 0); },
       scrollTo(key) {
         const k = items.findIndex((x) => x.key === key); if (k < 0) return false;
-        for (let pass = 0; pass < 2; pass++) {
+        // 描くと高さが分かって位置がずれる（見積もりと違う）ので、見える所に入るまで合わせ直す（離れた所ほど何回か要る）
+        for (let pass = 0; pass < 6; pass++) {
           const v = viewport();
           if (off[k] < v.top) scroller.scrollTop = off[k];
-          else if (off[k + 1] > v.top + v.h) scroller.scrollTop = off[k + 1] - v.h;
+          else if (off[k + 1] > v.top + v.h - 1) scroller.scrollTop = Math.ceil(off[k + 1] - v.h) + 2;     // 下の端は 2px の余り（小数の丸めで 1px 欠けない）
+          else if (pass) break;
           update(true);
         }
         return true;

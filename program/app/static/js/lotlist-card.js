@@ -133,10 +133,11 @@
     const lotVal = row && lot ? String(row[lot] ?? "") : "";
     q("no").textContent = cards.length > 1 ? `　${cards.indexOf(card) + 1} / ${cards.length}` : "";
     q("lot").textContent = lotVal || "（ロット番号なし）";
-    q("sub").textContent = idx >= 0 ? `このページの ${idx + 1} / ${rows.length} 行目`
-      : "この行はいまの一覧にありません（絞り込み・並べ替え・ページが変わりました）。表示は開いたときの値です";
+    const all = total();
+    q("sub").textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} / ${all.toLocaleString()} 行目`
+      : "この行はいまの一覧にありません（絞り込み・並べ替えが変わりました）。表示は開いたときの値です";
     $('[data-card="prev"]', el).disabled = idx <= 0;
-    $('[data-card="next"]', el).disabled = idx < 0 || idx >= rows.length - 1;
+    $('[data-card="next"]', el).disabled = idx < 0 || idx >= all - 1;
     const pin = $('[data-card="pin"]', el);
     pin.setAttribute("aria-pressed", String(card.pinned));
     pin.textContent = card.pinned ? "📌 残しています" : "📌 残す";
@@ -509,7 +510,15 @@
     renderShelf();
     if (!card.el.contains(document.activeElement)) card.el.focus({ preventScroll: true });
   }
-  function step(card, d) { if (card.idx >= 0) setRow(card, Math.max(0, Math.min(P.rows().length - 1, card.idx + d))); }
+  /** 全部の行の数（一覧はページで止めず、送れば続きを読み足す。版 3.56.0） */
+  const total = () => Math.max(P.rows().length, P.count ? P.count() : 0);
+  /** 前・次の行へ。まだ読んでいない行なら、一覧に読み足してから出す（全部の行を送れる） */
+  async function step(card, d) {
+    if (card.idx < 0) return;
+    const i = Math.max(0, Math.min(total() - 1, card.idx + d));
+    if (i >= P.rows().length && P.more) await P.more(i);
+    setRow(card, Math.min(i, P.rows().length - 1));
+  }
   /* ---------------- 並べ方（絵で選ぶ）と棚 ---------------- */
   const LAYOUTS = [
     ["row", "横に並べる", "左から右へ1列に並べます（比べるとき）"],
@@ -583,7 +592,8 @@
   function refresh() {
     if (!cards.length) return;
     const rows = P.rows();
-    cards.forEach((c) => { c.idx = rows.findIndex((r) => sigOf(r) === c.sig); if (c.idx >= 0) c.row = rows[c.idx]; });
+    // 同じ所にあればそのまま（続きを読み足しただけなら前の行は動かない）。動いたときだけ全部から探す
+    cards.forEach((c) => { if (!(c.idx >= 0 && rows[c.idx] && sigOf(rows[c.idx]) === c.sig)) c.idx = rows.findIndex((r) => sigOf(r) === c.sig); if (c.idx >= 0) c.row = rows[c.idx]; });
     renderAll();
   }
   function closeCard(card) {

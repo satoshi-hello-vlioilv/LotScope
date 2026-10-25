@@ -44,13 +44,14 @@
 
   /** 問い合わせに足す marks（無ければ ""） */
   function param() { const l = live(); return l.length ? JSON.stringify(l.map((r) => r.conds)) : ""; }
-  /** 答えを受け取った: 当たった印を行そのものに結ぶ（並べ替える前の行の並びで呼ぶ） */
-  function take(rows, marks, markCounts) {
-    hit = new WeakMap(); counts = {};
+  /** 答えを受け取った: 当たった印を行そのものに結ぶ（並べ替える前の行の並びで呼ぶ）。
+      append: 続きのページを読み足したとき（前の行の印と件数〈全部の行で数えた数〉を残し、足した行にだけ結ぶ。版 3.56.0） */
+  function take(rows, marks, markCounts, { append = false } = {}) {
+    if (!append) { hit = new WeakMap(); counts = {}; }
     const l = live();
     if (!Array.isArray(marks)) return;
     l.forEach((r, k) => {
-      counts[r.id] = markCounts ? markCounts[k] : null;
+      if (!append || !(r.id in counts)) counts[r.id] = markCounts ? markCounts[k] : null;
       (marks[k] || []).forEach((i) => { const row = rows[i]; if (!row) return; const a = hit.get(row) || []; a.push(r.id); hit.set(row, a); });
     });
   }

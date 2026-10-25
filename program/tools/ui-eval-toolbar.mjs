@@ -30,7 +30,7 @@ const rows = (p) => p.evaluate(() => {
     .filter((el) => { const r = document.createRange(); r.selectNodeContents(el); const tops = [...r.getClientRects()].filter((x) => x.height > 4 && x.width > 1).map((x) => x.top);
       return tops.length > 1 && Math.max(...tops) - Math.min(...tops) > 10; })
     .map((el) => (el.id || el.className || el.tagName) + ":" + el.textContent.trim().slice(0, 12));
-  return { status: lines(st), statusH: Math.round(sr.height), filter: lines(bar), folded, zoom: inside("#llZoomBtn"), next: inside("#llNext") };
+  return { status: lines(st), statusH: Math.round(sr.height), filter: lines(bar), folded, zoom: inside("#llZoomBtn"), next: inside("#llCount") };   // 頁の送り（▶）は無くなった（版 3.56.0）。件数が右まで見えるか
 });
 const tabs = (p) => p.$$eval("#llActiveTabs [data-kind]", (xs) => xs.map((x) => ({ kind: x.dataset.kind, n: +(x.querySelector(".ll-an")?.textContent || 0),
   name: x.querySelector(".ll-aname")?.textContent || "", cut: (() => { const e = x.querySelector(".ll-aname"); return e ? e.scrollWidth > e.clientWidth + 1 : false; })(), title: x.title })));
@@ -47,7 +47,7 @@ try {
     check(`${tag} 何も効いていない一覧: 1 段・タブ無し・案内が見える`, lot.status === 1 && none === 0 && hint && lot.next && lot.zoom, { lot, none, hint });
     const seen = {};
     await walk(p, async (state) => { seen[state] = await rows(p); seen.tabs = await tabs(p); }, ["crowded"]);
-    check(`${tag} 混んだ所（まとめ 3 段＋並べ替え＋選んだ値＋色付け）も件数の行は 1 段・拡大と ▶ が見える`, seen.crowded.status === 1 && seen.crowded.zoom && seen.crowded.next, seen.crowded);
+    check(`${tag} 混んだ所（まとめ 3 段＋並べ替え＋選んだ値＋色付け）も件数の行は 1 段・拡大と件数が見える`, seen.crowded.status === 1 && seen.crowded.zoom && seen.crowded.next, seen.crowded);
     check(`${tag} 上の段（絞り込み。共有の書式の名前つき）も 1 段`, seen.crowded.filter === 1, seen.crowded);
     check(`${tag} 上の段・件数の行のボタンの字が折れない（縮むのは検索の欄・名前の省略だけ）`, !seen.crowded.folded.length && !lot.folded.length, { crowded: seen.crowded.folded, list: lot.folded });
     const t = seen.tabs;
