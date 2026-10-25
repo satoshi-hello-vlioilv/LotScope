@@ -14,7 +14,7 @@
                 "col": 列名（field）, "expr": 式（combo。表示列の作り方と同じ書き方: list-formula.js）, "text": 字（text・section）,
                 "label": 出す名前（空なら列名）, "x", "y", "w", "h"（方眼の升。重ならない）,
                 "st": {"fs": "s"|"m"|"l"|"xl", "bold": bool, "color": 色の鍵, "bg": 色の鍵, "align": "left"|"center"|"right",
-                       "lab": "top"|"left"|"none", "border": "line"|"none"|"strong"}}]}
+                       "lab": "top"|"bottom"|"left"|"spread"|"legend"|"tag"|"inline"|"none", "border": "line"|"none"|"strong"}}]}
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ MAX_H = 24
 KINDS = ("field", "combo", "text", "section")
 FS = ("s", "m", "l", "xl")
 ALIGN = ("left", "center", "right")
-LAB = ("top", "left", "none")
+LAB = ("top", "bottom", "left", "spread", "legend", "tag", "inline", "none")   # 名前と値の置き方（card-form.js の LAB と同じ）
 BORDER = ("line", "none", "strong")
 DENSITY = ("normal", "compact", "roomy")
 # 色の鍵（画面の CSS の色の組。字のまま色を置かない＝細工した字を CSS に入れない。版 3.52.1 と同じ考え）

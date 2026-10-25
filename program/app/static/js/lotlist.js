@@ -2256,6 +2256,8 @@
     });
     window.LotListCard.mount({
       rows: () => S.rows, target: layoutTarget, lotColumn: () => S.lotColumn, lotKey,
+      // カードの設計の表の鍵（版 3.55.0）: 作業実績は設備によらず表ごと（どの設備のカードも同じデザイン）
+      formKey: () => (S.src.id === "work" ? `worklog:${S.table || ""}` : layoutTarget()),
       columns: () => window.LotListColumns.allColumns(layoutTarget(), S.columns),
       onPick: (lot) => { if (lot) { S.currentLot = lot; onPick(lot); } },
       onShow: markCarded, toast: (m) => flash(m),

@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """カードの設計（版 3.55.0。services/card_forms.py・/api/card-forms）: 中身の決まり（方眼・重なり・色は鍵だけ）と、
 置き場の決まり（ダッシュボードと同じ: 全員の既定は開発者・全員は書ける人・自分だけは本人。★標準は自分 → 全員 → 全員の既定）。"""
+import re
 import unittest
+from pathlib import Path
 
 from app.services import card_forms
 from tests import test_dashboard as _td
@@ -12,7 +14,7 @@ SRC = "card:lotlist:仕掛"
 def body(**kw):
     b = {"cols": 12, "row": 48, "theme": {"accent": "blue"}, "items": [
         {"id": "a", "kind": "field", "col": "不良名", "x": 0, "y": 0, "w": 4, "h": 2, "st": {"fs": "xl", "bold": True, "color": "red"}},
-        {"id": "b", "kind": "combo", "label": "合金・調質", "expr": "[合金] & ' / ' & [調質]", "x": 4, "y": 0, "w": 4, "h": 1},
+        {"id": "b", "kind": "combo", "label": "合金・調質", "expr": "[合金] + ' / ' + [調質]", "x": 4, "y": 0, "w": 4, "h": 1},
         {"id": "c", "kind": "section", "text": "検査", "x": 0, "y": 2, "w": 12, "h": 1}]}
     b.update(kw)
     return b
@@ -24,13 +26,24 @@ class Body(unittest.TestCase):
         self.assertEqual((out["cols"], out["row"]), (24, 32), "方眼の列・段の高さは範囲に収める")
         a = out["items"][0]
         self.assertEqual((a["kind"], a["col"], a["st"]["fs"], a["st"]["bold"], a["st"]["color"]), ("field", "不良名", "xl", True, "red"))
-        self.assertEqual(out["items"][1]["expr"], "[合金] & ' / ' & [調質]")
+        self.assertEqual(out["items"][1]["expr"], "[合金] + ' / ' + [調質]")
 
     def test_colors_are_keys_only(self):
         out, _ = card_forms.clean_body(body(items=[{"id": "a", "kind": "field", "col": "x", "x": 0, "y": 0, "w": 2, "h": 1,
                                                      "st": {"color": "red;background:url(x)", "bg": "#fff", "align": "evil"}}]))
         st = out["items"][0]["st"]
         self.assertEqual((st["color"], st["bg"], st["align"]), ("", "", "left"), "色は決まった鍵だけ（細工した字を CSS に入れない）")
+
+    def test_label_placements(self):
+        # 名前と値の置き方は 8 通り（画面の card-form.js の LAB と同じ鍵）。知らない鍵は既定の「上」
+        for k in ("top", "bottom", "left", "spread", "legend", "tag", "inline", "none"):
+            out, _ = card_forms.clean_body(body(items=[{"id": "a", "kind": "field", "col": "x", "x": 0, "y": 0, "w": 2, "h": 1, "st": {"lab": k}}]))
+            self.assertEqual(out["items"][0]["st"]["lab"], k)
+        out, _ = card_forms.clean_body(body(items=[{"id": "a", "kind": "field", "col": "x", "x": 0, "y": 0, "w": 2, "h": 1, "st": {"lab": "float;x"}}]))
+        self.assertEqual(out["items"][0]["st"]["lab"], "top")
+        js = (Path(__file__).resolve().parents[1] / "app" / "static" / "js" / "card-form.js").read_text(encoding="utf-8")
+        keys = re.findall(r'\["(\w+)", "[^"]+", "[^"]+"\]', js[js.index("const LAB"):js.index("const BORDER")])
+        self.assertEqual(tuple(keys), card_forms.LAB, "画面とサーバーで置き方の鍵が同じ")
 
     def test_overlap_and_missing_are_refused(self):
         with self.assertRaises(card_forms.CardFormError):
