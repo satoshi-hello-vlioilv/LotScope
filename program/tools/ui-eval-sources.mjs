@@ -1,6 +1,6 @@
 // 評価関数（開発用）: データ元（品質データ・作業実績・仕掛・足した元を 1 つの並びで。版 3.36.0）。
 //   node program/tools/ui-eval-sources.mjs
-// ① マスタ管理の「データ元」: 3 枚のカード（品質データ・作業実績・仕掛）。場所はファイル名まで出る・品質データは「写した … ・N 行」
+// ① マスタ管理の「データ元」: 品質データ・作業実績・仕掛が先に並ぶ（版 3.54.0 から 1 行 1 件の表）。ファイル名が切れない・品質データは「N 行 時刻」
 // ② 仕掛のカードを押すと直す欄に変わる（変える… でも）。設備の列を変えて保存 → カードに出る。「既定に戻す」で既定に戻る
 // ③ データ元を足す（共有の .sqlite3 を 1 つ）→ 見出しにタブが出る → 開くと一覧が出る → 消すとタブが消える
 // ④ 見出しの「仕掛」のタブ: 品質異常と同じ部品で 1,200 件・ロット番号の列。品質データの「元ファイルを直す」案内はデータ元を開く
@@ -12,10 +12,12 @@ import { launch, sleep, parseView } from "./ui-harness.mjs";
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 400)}`}`); if (!ok) fails.push(name); };
 const openTab = async (p, key) => { await p.evaluate((k) => document.querySelector(`#masterTabs [data-tab="${k}"]`).click(), key); await sleep(1200); };
-const cards = (p) => p.$$eval("#masterSettings .sr-card", (cs) => cs.map((c) => ({ key: c.dataset.key, open: c.classList.contains("is-open"),
-  name: c.querySelector(".sr-name b")?.textContent || "", path: c.querySelector(".sr-path")?.textContent || "", file: c.querySelector(".sr-path b")?.textContent || "",
-  state: c.querySelector(".sr-state")?.textContent || "", facts: (c.querySelector(".sr-facts")?.textContent || "").replace(/\s+/g, " "),
-  cut: (() => { const x = c.querySelector(".sr-path"); return x ? x.scrollWidth > x.clientWidth + 1 : false; })() })));
+// 版 3.54.0: 一覧は 1 行 1 件の表（行 tr.sr-row・開いた欄 tr.sr-formrow の .sr-card.is-open）。設備の列・表は名前の題に
+const cards = (p) => p.$$eval("#masterSettings tr.sr-row, #masterSettings .sr-card.is-open", (cs) => cs.map((c) => ({ key: c.dataset.key, open: c.classList.contains("is-open"),
+  name: c.querySelector(".sr-nm b, .sr-name b")?.textContent || "", path: c.querySelector(".sr-file")?.title || "", file: c.querySelector(".sr-fname")?.textContent || "",
+  state: (c.querySelector(".sr-state")?.textContent || "").replace(/\s+/g, " "), facts: (c.querySelector(".sr-nm")?.title || "").replace(/\s+/g, " "),
+  stateTip: c.querySelector(".sr-state")?.title || "",
+  cut: (() => { const x = c.querySelector(".sr-fname"); return x ? x.scrollWidth > x.clientWidth + 1 || x.getBoundingClientRect().right > x.closest("td").getBoundingClientRect().right + 1 : false; })() })));
 
 const app = await launch();
 try {
@@ -29,12 +31,12 @@ try {
     // 試験用のマスタ（製造条件マスタ・設備マスタ。版 3.53.0）が後ろに並ぶ
     check(`① ${tag} 決まった 3 枚（品質データ・作業実績・仕掛）が先に並ぶ`, cs.slice(0, 3).map((c) => c.key).join() === "lot,work,wip", cs);
     check(`① ${tag} 場所はファイル名まで（切れない）`, cs[0].file === "SIKADEF.sqlite3" && cs[2].file === "LOTNOW.sqlite3" && cs[1].file === "実績_*.sqlite3" && cs.every((c) => !c.cut), cs);
-    check(`① ${tag} 品質データの状態は「写した … ・1,500 行」`, /写した \d+\/\d+ \d\d:\d\d・1,500 行/.test(cs[0].state), cs[0]);
+    check(`① ${tag} 品質データの状態は「1,500 行」と写した時刻（日付は題に）`, /1,500 行 \d\d:\d\d/.test(cs[0].state) && /写した \d+\/\d+ \d\d:\d\d/.test(cs[0].stateTip), cs[0]);
     const over = await p.evaluate(() => { const b = document.querySelector("#masterSettings"); return b.scrollWidth > b.clientWidth + 1; });
     check(`⑥ ${tag} データ元の頁が横にはみ出さない`, !over, over);
     if (big) {
       // ② 仕掛を直す（カードを押す）→ 設備の列を変えて保存 → 既定に戻す
-      await p.click('#masterSettings .sr-card[data-key="wip"] .sr-name'); await sleep(300);
+      await p.click('#masterSettings tr[data-key="wip"] .sr-nm'); await sleep(300);
       check("② カードを押すと直す欄に変わる", (await cards(p)).find((c) => c.key === "wip").open, await cards(p));
       await p.fill('#masterSettings .sr-card.is-open [data-sr="equip"]', "BOX設計_設備名");
       await p.selectOption('#masterSettings .sr-card.is-open [data-sr="mode"]', "そのまま");

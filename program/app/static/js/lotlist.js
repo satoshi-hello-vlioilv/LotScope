@@ -93,7 +93,7 @@
      scope(表): 覚えの範囲。target(表): 表示列の対象。owns(範囲): その元の範囲か（書き出しの「すべての表」を元ごとにする）。 */
   const equipName = (k) => ((S && S.equips || []).find((e) => e.key === k) || {}).name || "";
   let lotJoined = false;            // 品質データに結合があるか（defineSources が置く）
-  let MASTERS = [];                 // 見出しの「マスタ」のタブに並ぶデータ元（役割「マスタ」・画面: 有。版 3.53.0）
+  let GROUPS = {};                  // 見出しのグループのタブに並ぶデータ元（グループ名 → 並び。「マスタ」も。版 3.53.0・3.54.0）
   const joinSigs = {};              // データ元ごとの結合の決まり（変わったら、開いている一覧を引き直す）
   const SOURCES = {
     lot: {
@@ -127,7 +127,7 @@
   function fileSource(def) {
     const id = `src:${def.key}`, k = def.key, name = def.name || def.key;
     return {
-      id, api: def.api || `/api/src/${k}`, title: name, noun: name, fileStem: name, group: def.group || "", where: def.place || "",
+      id, api: def.api || `/api/src/${k}`, title: name, noun: name, fileStem: name, group: def.group || "", isMaster: def.role === "マスタ", where: def.place || "",
       params: () => ({}), scope: (t) => `${id}:${t || ""}`, target: (t) => `${id}:${t || ""}`, owns: (x) => x.startsWith(`${id}:`),
       colTable: (t) => `${id}:${t || ""}`, place: (t) => t,
       loadTable: () => (store.get(KEY.srcTable, {})[k] || ""),
@@ -698,7 +698,7 @@
       <div class="filter-search-row">
         <label class="lt-search" title="この一覧の行を、どの列の字でも探します（打つとすぐ絞り込みます）">
           <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
-          <input id="llSearch" type="search" autocomplete="off" placeholder="一覧を検索" aria-label="一覧を検索">
+          <input id="llSearch" type="search" autocomplete="off" placeholder="一覧を検索" aria-label="一覧を検索" title="どの列の字でも探します。* は何文字でも・? は 1 字・~* は * そのもの">
         </label>
         <button id="llPresetBtn" class="fb-preset-btn" type="button" aria-haspopup="true" aria-expanded="false">
           <span class="fb-preset-key">プリセット</span><b id="llPresetName">なし</b><em id="llPresetNote" hidden></em><i class="hd-caret" aria-hidden="true">▾</i>
@@ -741,8 +741,8 @@
       <div class="filter-adhoc-row" id="llAdhocRow" hidden
            title="登録はしません。打っているあいだだけ効き、表を切り替えると入力は消えます（列と比べ方は覚えています）。">
         <select id="llAdhocColumn" class="filter-adhoc-col" title="この一覧の列から選びます。選んだ列は次に開いたときも覚えています"></select>
-        <select id="llAdhocOp" class="filter-adhoc-op" title="選んだ列をどう比べるか">${OPS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
-        <input id="llAdhocValue" class="filter-adhoc-value" list="llAdhocList" autocomplete="off" type="search" title="打つとその場で絞り込みます。Enterですぐ、Escで解除">
+        <select id="llAdhocOp" class="filter-adhoc-op" title="選んだ列をどう比べるか">${TPA.opOptions(OPS, "contains")}</select>
+        <input id="llAdhocValue" class="filter-adhoc-value" list="llAdhocList" autocomplete="off" type="search" placeholder="値（* ? が使えます）" title="打つとその場で絞り込みます。Enterですぐ、Escで解除。* は何文字でも・? は 1 字・~* は * そのもの">
         <datalist id="llAdhocList"></datalist>
         <button id="llAdhocKeep" type="button">条件に残す</button>
         <button id="llAdhocPaint" type="button" class="mk-paint"><span class="mk-dot mk-red" aria-hidden="true"></span>色を付ける</button>
@@ -755,8 +755,8 @@
           <button id="llFilterBodyClose" class="fb-close" type="button" title="閉じます（Esc）">✕ 閉じる</button></div>
         <div class="filter-builder">
           <label>列<select id="llFilterColumn"></select></label>
-          <label>比べ方<select id="llFilterOp">${OPS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
-          <label>値<input id="llFilterValue" list="llSuggestList" placeholder="値を入力/候補から選択"><datalist id="llSuggestList"></datalist></label>
+          <label>比べ方<select id="llFilterOp">${TPA.opOptions(OPS, "contains")}</select></label>
+          <label>値<input id="llFilterValue" list="llSuggestList" placeholder="値（* ? が使えます）" title="* は何文字でも・? は 1 字・~* は * そのもの（字で比べるとき）"><datalist id="llSuggestList"></datalist></label>
           <div class="filter-builder-actions">
             <button id="llAddFilter" type="button" title="この条件を今の一覧へ追加します（保存はしません）">適用</button>
             <button id="llRegisterFilter" type="button" title="この条件を登録します（一覧へは適用しません）">登録</button>
@@ -906,7 +906,7 @@
         + (r.locked ? '<span class="fb-cond-badge is-lock" title="いつも適用（固定）。一覧を開くたびに入ります">🔒 固定</span>' : "")
         + `<span class="fb-cond-text">${esc(r.f.column)} ${isRel(r.f.op) ? `<b>${esc(relText(r.f))}</b><em class="fb-cond-rel">今日から</em>`
           : r.f.op === "in" || r.f.op === "tuple_in" ? `<b>＝</b> <em title="${esc((r.f.op === "in" ? ValueFilter.inValues(r.f) : r.f.names || []).map((v) => v || "（空欄）").join("\n"))}">${esc(TPA.inText(r.f))}</em>`
-          : `<b>${esc(opLabel(r.f.op))}</b>${noValueOp(r.f.op) ? "" : ` <em>${esc(r.f.value)}</em>`}`}</span>`
+          : (TPA.TEXT_OPS.has(r.f.op) ? `<em>「${esc(r.f.value)}」</em><b>${esc(opLabel(r.f.op))}</b>` : `<b>${esc(opShort(r.f.op))}</b>${noValueOp(r.f.op) ? "" : ` <em>${esc(r.f.value)}</em>`}`)}</span>`
         + (r.locked ? "" : `<button type="button" class="fb-cond-save${known ? " is-saved" : ""}" data-cond-save="${r.i}" title="${known ? "登録済み（「登録した条件とプリセット」にあります）" : "この条件を登録します。登録すると組み合わせ（プリセット）に入れられます"}">${known ? "★" : "☆"}</button>`)
         + `<button type="button" class="fb-cond-x" data-cond-x="${r.i}" title="この条件を外します">×</button></div>`;
     };
@@ -1190,7 +1190,7 @@
   /** 件数の行の案内: ロット番号を押したとき・虫眼鏡を押したときに起きること（押す前に違いが分かるように） */
   function paintLotHint() {
     const h = $(".ll-lothint", root); if (!h) return;
-    h.hidden = S.src.group === "mst";     // マスタはロットの一覧ではない（ロット番号を押す案内は要らない。版 3.53.0）
+    h.hidden = !!S.src.isMaster;     // マスタはロットの一覧ではない（ロット番号を押す案内は要らない。版 3.53.0）
     h.innerHTML = lensOn() ? `ロット番号を押すと計算へ取り込み・${LENS_ICON} で LotDsp を開くだけ` : "ロット番号を押すと、計算へ移って取り込みます";
   }
   /** 虫眼鏡: LotDsp でそのロットを開くだけ（取り込まない・画面は移らない）。WaveLog と同じく、ロット番号と鋳造番号の linkkey の URL で開く */
@@ -1653,7 +1653,7 @@
         : "<b>この表に行がありません。</b>";
       note.hidden = false;
     } else note.hidden = true;
-    if (!S.lotColumn && S.rows.length && S.src.group !== "mst") {
+    if (!S.lotColumn && S.rows.length && !S.src.isMaster) {
       note.innerHTML = "<b>ロット番号の列が見つかりません</b>（ロット番号・ﾛｯﾄ番号・ロット№・LTNO のどれか）。この表からは検索できません。";
       note.hidden = false;
     }
@@ -1981,7 +1981,7 @@
   }
   function renderEquipBar() {
     const bar = $("#llEquipBar"); if (!bar) return;
-    if (S.src.group === "mst") { renderMasterBar(bar); return; }
+    if (S.src.group && GROUPS[S.src.group]) { renderGroupBar(bar); return; }
     bar.hidden = S.src.id !== "work";
     bar.dataset.kind = "work";
     if (bar.hidden) return;
@@ -1998,20 +1998,20 @@
     bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips || '<span class="eq-wait">表示できる設備がありません</span>'}</div>${hint}${manage}`;
     fitEquip();
   }
-  /* 見出しの「マスタ」のタブの中の札（版 3.53.0。作業実績の設備のタブと同じ形・同じ置き場）。役割「マスタ」のデータ元が 1 つずつ並ぶ。
-     押すと、そのマスタの一覧へ（app.js が覚えて開く）。足す・外すは「データ元を管理…」（マスタ管理の「データ元」） */
-  function renderMasterBar(bar) {
-    bar.hidden = false; bar.dataset.kind = "mst";
+  /* 見出しのグループのタブの中の札（版 3.53.0 の「マスタ」・3.54.0 からどのグループも。作業実績の設備のタブと同じ形・同じ置き場）。
+     グループのデータ元が 1 つずつ並ぶ。押すと、そのデータ元の一覧へ（app.js が覚えて開く）。足す・外す・並べるは「データ元を管理…」 */
+  function renderGroupBar(bar) {
+    bar.hidden = false; bar.dataset.kind = "grp";
     bar.classList.remove("is-sortable");
-    const chips = MASTERS.map((m) => `<button type="button" role="tab" class="eq-chip" data-equip="${esc(m.screen)}" aria-selected="${m.screen === S.src.id}"`
+    const chips = GROUPS[S.src.group].map((m) => `<button type="button" role="tab" class="eq-chip" data-equip="${esc(m.screen)}" aria-selected="${m.screen === S.src.id}"`
       + ` tabindex="${m.screen === S.src.id ? 0 : -1}" title="${esc(`${m.name}（${m.place || "場所が決まっていません"}）`)}">${esc(m.name)}</button>`).join("");
-    bar.innerHTML = `<span class="eq-lab" id="llEquipLab">マスタ</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips}</div>`
-      + '<button type="button" class="eq-manage" data-ll-settings title="マスタを足す・外す・ほかのデータと結合する（マスタ管理の「データ元」）">データ元を管理…</button>';
+    bar.innerHTML = `<span class="eq-lab" id="llEquipLab">${esc(S.src.group)}</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips}</div>`
+      + '<button type="button" class="eq-manage" data-ll-settings title="データ元を足す・外す・並べる・グループを変える・ほかのデータと結合する（マスタ管理の「データ元」）">データ元を管理…</button>';
     fitEquip();
   }
   /** 札を押した・← → で移った: 作業実績は設備を替える、マスタはそのマスタの一覧へ */
   function pickChip(k) {
-    if ($("#llEquipBar").dataset.kind === "mst") document.dispatchEvent(new CustomEvent("tpa:pick-master", { detail: k }));
+    if ($("#llEquipBar").dataset.kind === "grp") document.dispatchEvent(new CustomEvent("tpa:pick-master", { detail: k }));
     else switchEquip(k);
   }
   /* 設備のタブは 1 段（版 3.32.0。決め方: ui-proposals/2026-10-narrow*）。入りきらないときは、後ろの設備から「ほか N 台 ▾」にまとめる
@@ -2031,7 +2031,7 @@
     for (let i = chips.length - 1; i >= 0 && (!hidden.length || box.scrollWidth > box.clientWidth + 1); i--) {
       if (chips[i].getAttribute("aria-selected") === "true") continue;
       chips[i].hidden = true; hidden.unshift(chips[i]);
-      more.textContent = `ほか ${hidden.length} ${bar.dataset.kind === "mst" ? "件" : "台"} ▾`;
+      more.textContent = `ほか ${hidden.length} ${bar.dataset.kind === "grp" ? "件" : "台"} ▾`;
     }
     more.title = `入りきらない設備: ${hidden.map((c) => c.textContent).join("・")}`;
   }
@@ -2105,12 +2105,13 @@
   /* データ元の並び（app.js が /api/sources から渡す）。1 ファイルの元は、初めて開くときに状態を作る（名前が変わったら札だけ直す） */
   function defineSources(list) {
     lotJoined = !!((list || []).find((d) => d.key === "lot") || { joins: [] }).joins?.length;
-    MASTERS = (list || []).filter((d) => d.group === "mst" && d.listed).map((d) => ({ screen: d.screen, name: d.name, place: d.place }));
+    GROUPS = {};
+    (list || []).filter((d) => d.group && d.listed && d.api && d.api.startsWith("/api/src/"))
+      .forEach((d) => { (GROUPS[d.group] = GROUPS[d.group] || []).push({ screen: d.screen, name: d.name, place: d.place }); });
     // 結合の決まりが変わった元を、開いていれば引き直す（列が増える・減る）
     const moved = (list || []).filter((d) => { const sig = JSON.stringify(d.joins || []), was = joinSigs[d.key]; joinSigs[d.key] = sig; return was != null && was !== sig; })
       .map((d) => (d.key === "lot" || d.key === "work" ? d.key : d.screen));
     if (S && moved.includes(S.src.id) && root && !root.classList.contains("hidden")) { S.page = 1; setTimeout(() => load(), 0); }
-    if (S && S.src.group === "mst") renderEquipBar();
     (list || []).filter((d) => d.api && d.api.startsWith("/api/src/")).forEach((d) => {
       const src = fileSource(d);
       SOURCES[src.id] = src;
@@ -2118,6 +2119,8 @@
       STATES[src.id] = Object.assign(newState(src.id), { presets: STATES.lot.presets });
       STATES[src.id].table = src.loadTable();
     });
+    // グループ・名前が変わったら、開いているデータ元の札を描き直す（S.src は上で新しい物に替わっている）
+    if (S && S.src.id.startsWith("src:") && root && !root.classList.contains("hidden")) renderEquipBar();
   }
   function activate({ source = "lot", currentLot } = {}) {
     const next = STATES[source] || STATES.lot;

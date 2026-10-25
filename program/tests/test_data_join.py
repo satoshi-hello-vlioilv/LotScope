@@ -296,7 +296,7 @@ class Api(unittest.TestCase):
         self.assertIn("圧延速度", got["columns"])
         self.assertIn("製造材質", self.c.get(f"/api/sources/{vk}/columns").get_json()["columns"], "結合の欄の「この元」は元の表")
         self.assertEqual(self.c.get(f"/api/src/{vk}/slicer?column=製造材質").status_code, 200)
-        self.assertEqual(self.c.get(f"/api/sources").get_json()["items"][-1]["rows"], 300, "組んだ後は行の数が出る")
+        self.assertEqual(self.c.get("/api/sources").get_json()["items"][-1]["rows"], 300, "組んだ後は行の数が出る")
 
     def test_view_rules(self):
         key = self.add_master()

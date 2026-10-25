@@ -171,6 +171,11 @@ export const STATES = [
     for (const v of ["CR1", "DL2", "L-1"]) await p.click(`.vf-pop [data-vf-v="${v}"]`);
     await p.click(".vf-pop [data-vf-ctog]"); await sleep(250);
   }, "[data-next], .vf-pop [data-vf-ok]"],
+  // 版 3.54.0: 同じ面の条件で「で始まらない」に「C?*」を打った所（読み方と、並んだ値のうち当たる数）
+  ["list-wildcard", async (p) => {
+    await p.selectOption(".vf-pop [data-vf-op]", "not_starts").catch(() => {}); await sleep(200);
+    await p.fill(".vf-pop [data-vf-val]", "C?*").catch(() => {}); await sleep(300);
+  }, "[data-next], .vf-pop [data-vf-ok]"],
   // 版 3.45.0: 見出しのタブの名前と並び（品質異常を「異常ロット」に変え、仕掛を 2 番目へ。作業実績のタブを右クリックしたメニュー）
   ["tabs-menu", async (p) => {
     await p.keyboard.press("Escape"); await sleep(150);
@@ -830,7 +835,7 @@ export const MANY_SOURCES = [
   ["材調", "QZAICYO", "台帳", "無"], ["材質一覧", "QZAILIST", "台帳", "有"], ["材質", "QZAISHITSU", "台帳", "無"], ["リピート", "REPEAT", "台帳", "有"],
   ["スラブ", "QSLAB", "工程", "有"], ["圧延予定", "QROLLPLAN", "工程", "無"],
 ];
-async function manySources(p, on) {
+export async function manySources(p, on) {
   await p.evaluate(async ({ on, list }) => {
     const items = (await (await fetch("/api/sources")).json()).items || [];
     const mine = new Set([...list.map((x) => x[0]), "品質データ＋製造条件"]);

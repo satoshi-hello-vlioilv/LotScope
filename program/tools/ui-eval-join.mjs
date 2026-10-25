@@ -4,7 +4,7 @@
 //    方式の 4 枚に残る行の数が出て、サーバーの「試す」の答え（同じ決まり）から出した数と同じ。当たった数・当たらない数も同じ
 // ② 方式を替えると言葉が替わる（内部結合は「外れます」・左外部結合は「空のまま残ります」）。← → でも替わる
 // ③ 相手に設備マスタを足すと、名前の同じ列が無くても空の鍵の行が出る。鍵を「設備 = 設備名」にすると全部当たる。外すと消える
-// ④ 保存すると、閉じたカードに結合ごとの 1 行（相手・方式・鍵・当たった数）。品質異常の一覧に持ってきた列（圧延速度・ライン）が出て、
+// ④ 保存すると、一覧の行の結合の列に相手と当たった数・題に結合ごとの文（相手・方式・鍵。版 3.54.0 で 1 行 1 件の表に）。品質異常の一覧に持ってきた列（圧延速度・ライン）が出て、
 //    圧延速度が空でない行の数がサーバーの答え（hit）と同じ。結合を外して保存すると列が消える
 // ⑤ 見出しの「マスタ」のタブ: 製造条件マスタ・設備マスタが設備のタブと同じ札で並ぶ・押すと替わる・ロット番号の警告と案内を出さない・
 //    マスタごとのタブは見出しに出ない・Alt の数字で開ける
@@ -72,8 +72,9 @@ try {
       check("③ 設備 = 設備名 で全部当たる（全角の ＣＲ２ も同じ設備）", /1,500 行が当たりました/.test(await resText(p, 1)) && !/相手が無い/.test(await resText(p, 1)), await resText(p, 1));
       // ④ 保存 → カードの 1 行・一覧に列
       await p.click("#masterSettings .sr-card.is-open [data-sr-save]"); await sleep(2500);
-      const sum = await p.$$eval('#masterSettings .sr-card[data-key="lot"] .jn-card', (xs) => xs.map((x) => x.textContent.replace(/\s+/g, " ")));
-      check("④ 保存すると、閉じたカードに結合ごとの 1 行（相手・方式・鍵）", sum.length === 2 && /製造条件マスタ を左外部結合（合金 = 材質・調質 = 質別）/.test(sum[0]) && /設備マスタ/.test(sum[1]), sum);
+      // 版 3.54.0: 一覧は 1 行 1 件の表。結合の列にベン図・相手（ほか N）・当たった数、題に結合ごとの文（相手・方式・鍵）
+      const sum = await p.$eval('#masterSettings tr[data-key="lot"] .sr-j', (x) => [x.textContent.replace(/\s+/g, " "), x.title]);
+      check("④ 保存すると、一覧の行の結合の列に相手（ほか 1）・題に結合ごとの文（相手・方式・鍵）", /製造条件マスタ ほか 1/.test(sum[0]) && /製造条件マスタ を左外部結合（合金 = 材質・調質 = 質別）/.test(sum[1]) && /設備マスタ/.test(sum[1]), sum);
       await p.click("#masterCloseBtn"); await sleep(400);
       await p.evaluate(() => document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: "list" }))); await sleep(2500);
       const lst = await api(p, `/api/lotlist?engine=python&page_size=2000&filters=${encodeURIComponent(JSON.stringify([{ column: "圧延速度", op: "not_empty", value: "" }]))}`);

@@ -150,22 +150,72 @@
     };
   })();
 
-  /* 条件の比べ方（一覧の条件・ダッシュボードのパネルの条件で同じ。サーバーは services/lot_list.py の ALLOWED_OPS） */
+  /* 条件の比べ方（一覧の条件・ダッシュボードのパネルの条件で同じ。サーバーは services/lot_list.py の ALLOWED_OPS）。
+     版 3.54.0（決め方: ui-proposals/2026-10-wildcard の B）: 字・数・空欄・日付の段に分け、言葉を「〜で始まる／〜で始まらない」の型にそろえる
+     （設備グループのルール・変換表と同じ言葉）。字の比べ方の値には Excel と同じ * ?（全角も）・~ が使える（wild の部品） */
   const FILTER_OPS = [
-    ["contains", "含む"], ["not_contains", "含まない"], ["eq", "＝ 一致"], ["neq", "≠ 不一致"],
-    ["starts", "前方一致"], ["ends", "後方一致"], ["gt", "> より大きい"], ["gte", ">= 以上"], ["lt", "< より小さい"], ["lte", "<= 以下"], ["empty", "空欄"], ["not_empty", "空欄以外"],
+    ["contains", "を含む", "字"], ["not_contains", "を含まない", "字"], ["eq", "と同じ", "字"], ["neq", "と違う", "字"],
+    ["starts", "で始まる", "字"], ["not_starts", "で始まらない", "字"], ["ends", "で終わる", "字"], ["not_ends", "で終わらない", "字"],
+    ["gt", "より大きい（>）", "数"], ["gte", "以上（≧）", "数"], ["lt", "より小さい（<）", "数"], ["lte", "以下（≦）", "数"],
+    ["empty", "が空欄", "空欄"], ["not_empty", "が空欄でない", "空欄"],
     // 日付と読める列だけ: 今日から数えて N 日（週・か月・年）以内（サーバーが ToDate(列) >= 今日−N で絞る）
-    ["within_days", "日以内（今日から）"], ["within_weeks", "週間以内（今日から）"], ["within_months", "か月以内（今日から）"], ["within_years", "年以内（今日から）"],
+    ["within_days", "日以内（今日から）", "日付"], ["within_weeks", "週間以内（今日から）", "日付"], ["within_months", "か月以内（今日から）", "日付"], ["within_years", "年以内（今日から）", "日付"],
   ];
+  const OP_GROUPS = { 字: "字で比べる（* ? が使えます）", 数: "数で比べる", 空欄: "空かどうか", 日付: "日付（今日から）" };
+  const OP_SIGN = { gt: ">", gte: ">=", lt: "<", lte: "<=" };
+  const TEXT_OPS = new Set(FILTER_OPS.filter((x) => x[2] === "字").map((x) => x[0]));
   const REL_UNIT = { within_days: "日", within_weeks: "週間", within_months: "か月", within_years: "年" };
   const opLabel = (op) => (FILTER_OPS.find((x) => x[0] === op) || [op, op])[1];
-  const opShort = (op) => opLabel(op).split(" ")[0];
+  const opShort = (op) => OP_SIGN[op] || opLabel(op);
   const noValueOp = (op) => op === "empty" || op === "not_empty";
+  /** 比べ方の選びの中身（段ごとの optgroup）。ops: [[鍵, 名前, 段?]]（段の無い物は段の外）、cur: 選んでいる鍵 */
+  const opOptions = (ops, cur) => {
+    const opt = ([k, n]) => `<option value="${k}"${k === cur ? " selected" : ""}>${n}</option>`;
+    const groups = [...new Set(ops.map((x) => x[2] || ""))];
+    return groups.map((g) => (g ? `<optgroup label="${OP_GROUPS[g] || g}">${ops.filter((x) => x[2] === g).map(opt).join("")}</optgroup>` : ops.filter((x) => !x[2]).map(opt).join(""))).join("");
+  };
   const relText = (f) => `${f.value}${REL_UNIT[f.op]}以内` + (String(f.value) === "0" && f.op === "within_days" ? "（今日）" : "");
   /** 値を選ぶ条件（op "in"。値の並びの JSON）の短い字: 「CR1・CR2 ほか 3」（版 3.45.0。列の値のチェックで絞る） */
   const inText = (f) => { let v = []; if (f.op === "tuple_in") v = f.names || []; else try { v = JSON.parse(f.value || "[]"); } catch (_) { /* 読めない並び */ } v = Array.isArray(v) ? v.map((x) => (x === "" ? "（空欄）" : String(x))) : [];
     return v.length ? v.slice(0, 2).join("・") + (v.length > 2 ? ` ほか ${v.length - 2}` : "") : "（どれも選んでいません）"; };
-  const condLabel = (f) => (f.op === "in" || f.op === "tuple_in" ? `${f.column} = ${inText(f)}` : f.op in REL_UNIT ? `${f.column} ${relText(f)}` : noValueOp(f.op) ? `${f.column} ${opShort(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
+  /** 条件の短い字（「列 中身」の形。中身は 字:「CR」で始まらない・数: >= 3000・空欄: が空欄） */
+  const condLabel = (f) => (f.op === "in" || f.op === "tuple_in" ? `${f.column} = ${inText(f)}` : f.op in REL_UNIT ? `${f.column} ${relText(f)}`
+    : noValueOp(f.op) ? `${f.column} ${opLabel(f.op)}` : TEXT_OPS.has(f.op) ? `${f.column} 「${f.value}」${opLabel(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
+
+  /* 値の * ?（Excel と同じ。版 3.54.0。サーバーの lot_list.like_pattern と同じ読み方）: * は何文字でも・? は 1 字（全角の ＊ ？ も）・
+     ~ の後ろの * ? ~ はその字そのもの。parse → [{t: "lit", s} | {t: "any"} | {t: "one"}] */
+  const WILD = { "*": "any", "＊": "any", "?": "one", "？": "one" };
+  function wildParse(v) {
+    const out = [], s = String(v ?? "");
+    for (let i = 0; i < s.length; i++) {
+      let ch = s[i], t = WILD[ch] || "lit";
+      if (ch === "~" && i + 1 < s.length && (WILD[s[i + 1]] || s[i + 1] === "~")) { ch = s[++i]; t = "lit"; }
+      if (t === "lit" && out.length && out[out.length - 1].t === "lit") out[out.length - 1].s += ch;
+      else out.push(t === "lit" ? { t, s: ch } : { t });
+    }
+    return out;
+  }
+  const wild = {
+    has: (v) => wildParse(v).some((x) => x.t !== "lit"),
+    /** 字 text が、比べ方 op・値 v に当たるか（英字の大小は区別しない＝サーバーの LIKE と同じ。空欄は否定の比べ方だけに当たる） */
+    test(op, v, text) {
+      const parts = wildParse(op === "eq" || op === "neq" ? String(v).trim() : v);
+      const body = parts.map((x) => (x.t === "any" ? ".*" : x.t === "one" ? "." : x.s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).join("");
+      const wrap = { contains: [".*", ".*"], not_contains: [".*", ".*"], starts: ["", ".*"], not_starts: ["", ".*"], ends: [".*", ""], not_ends: [".*", ""], eq: ["", ""], neq: ["", ""] }[op];
+      if (!wrap) return true;
+      const t = op === "eq" || op === "neq" ? String(text ?? "").trim() : String(text ?? "");
+      const hit = new RegExp(`^${wrap[0]}${body}${wrap[1]}$`, "is").test(t);
+      return op.startsWith("not_") || op === "neq" ? !hit : hit;
+    },
+    /** 値の読み方の 1 行（「C」＋1 字＋「1」で始まらない 値）。字の比べ方で値があるときだけ。HTML（値は esc 済み） */
+    read(op, v) {
+      if (!TEXT_OPS.has(op) || String(v ?? "").trim() === "") return "";
+      const parts = wildParse(op === "eq" || op === "neq" ? String(v).trim() : v);
+      const words = parts.map((x) => (x.t === "any" ? "何文字でも" : x.t === "one" ? "1 字" : `<b>「${TPA.esc(x.s)}」</b>`));
+      return `${words.join("＋")} ${opLabel(op)}値`;
+    },
+    LEGEND: "<code>*</code> 何文字でも　<code>?</code> 1 字　<code>~*</code> * そのもの",
+  };
 
   /* 置き場の言葉（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 1: 「共通」と「共通デフォルト」の違いが分からなかった）。
      ダッシュボード・セット・集計表の組み方で同じ言葉と形にする（2026-10-dashsave の 2 回目で決めた G: 人の印と「見える」「直せる」）。
@@ -187,7 +237,7 @@
 
   window.TPA = {
     scope,
-    FILTER_OPS, REL_UNIT, opLabel, opShort, noValueOp, relText, condLabel, inText,
+    FILTER_OPS, REL_UNIT, opLabel, opShort, noValueOp, relText, condLabel, inText, opOptions, wild, TEXT_OPS,
     /** HTML に差し込む文字を無害にする（& < > " ' ）。 */
     esc: (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ESC[c]),
     $: (s, r = document) => r.querySelector(s),

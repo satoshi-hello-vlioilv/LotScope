@@ -24,6 +24,11 @@
 .vf-crow{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center}
 .vf-crow:not(:has(.vf-and)){grid-template-columns:minmax(0,44%) 1fr auto}
 .vf-crow:has(.vf-and){grid-template-columns:auto minmax(0,40%) 1fr auto}
+/* 字の比べ方の読み方（版 3.54.0。* ? の読み方と、並んだ値のうち当たる数）。値が無いときは * ? の使い方 */
+.vf-read{grid-column:1 / -1;margin:0;padding:4px 8px;border-radius:6px;background:var(--ll-pale);color:var(--ro-ink);font-size:var(--fs-xs);line-height:1.55}
+.vf-read b{color:var(--ll-teal-dark);font-weight:700}
+.vf-read code{font-family:Consolas,monospace;font-weight:700;padding:0 4px;border-radius:3px;background:#dcecea;color:var(--ink)}
+.vf-hitn{display:inline-block;margin-left:8px;color:var(--muted);white-space:nowrap}
 .vf-and{font-size:var(--fs-xs);color:var(--muted);font-weight:700}
 .vf-pop select,.vf-pop input:not([type=checkbox]),.vf-embed select,.vf-embed input:not([type=checkbox]){min-width:0;height:30px;padding:0 8px;border:1px solid var(--line);border-radius:6px;
   background:var(--surface);color:var(--ink);font:inherit;font-size:var(--fs-sm)}

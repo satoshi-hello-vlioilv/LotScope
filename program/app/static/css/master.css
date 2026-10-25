@@ -497,8 +497,57 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-form select:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
 .sr-acts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sr-sp{flex:1}
-.sr-add{display:flex;align-items:center;gap:12px}
-.sr-add small{color:var(--muted)}
+/* 一覧（版 3.54.0。決め方: ui-proposals/2026-10-srclist*）: 1 行 1 件の表・グループの見出し行・スイッチ・⠿ で並べ替え */
+.sr-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sr-top .ps-lead{margin:0;flex:1 1 300px}
+.sr-search{width:220px;height:30px}
+.sr-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px}
+.sr-table thead th:first-child{border-top-left-radius:9px} .sr-table thead th:last-child{border-top-right-radius:9px}
+.sr-table tbody tr:last-child td{border-bottom:0}
+.sr-table col.c-gp{width:26px} .sr-table col.c-nm{width:25%} .sr-table col.c-file{width:18%} .sr-table col.c-st{width:13%} .sr-table col.c-sw{width:108px} .sr-table col.c-ac{width:96px}
+.sr-table th{background:var(--surface-3);font-size:12px;color:var(--muted);font-weight:700;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sr-table td{padding:0 8px;height:36px;border-bottom:1px solid var(--line-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;color:var(--ink)}
+.sr-table td.sr-gp{padding:0 0 0 7px;text-overflow:clip}
+.sr-table td.sr-ac{text-overflow:clip;padding-right:6px}
+.sr-row:hover td{background:#fbfdff}
+.sr-row.is-off td{color:var(--ro-ink)} .sr-row.is-off .sr-nm b{font-weight:600;color:var(--ro-ink)}
+.sr-row.is-drag td{opacity:.45}
+.sr-row.drop-before td{box-shadow:inset 0 2px 0 var(--h-input)} .sr-row.drop-after td{box-shadow:inset 0 -2px 0 var(--h-input)}
+.sr-gh.drop-in td,.sr-empty.drop-in td{background:var(--input-soft,#e6effa);box-shadow:inset 0 0 0 2px var(--h-input)}
+.sr-nm{cursor:pointer} .sr-nm b{font-weight:700}
+.sr-tree{color:#8d9ba6;font-family:Consolas,monospace;margin-right:4px}
+.sr-grip{display:inline-block;color:#8d9ba6;cursor:grab;font-size:15px;line-height:1;padding:2px 1px;border-radius:4px}
+.sr-grip:focus-visible{outline:2px solid var(--edit-focus);outline-offset:1px}
+.sr-file .sr-fname{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px}
+.sr-role.is-view{background:var(--info-soft);color:var(--info-ink)}
+.sr-name .sr-role,.sr-nm .sr-role{margin-left:6px;vertical-align:1px}
+.sr-state small{color:var(--muted);font-size:11.5px}
+.sr-gh td{background:var(--surface-5);height:32px;font-weight:700;color:var(--ink);border-bottom:1px solid var(--line)}
+.sr-gh small{font-weight:400;color:var(--muted);margin-left:8px}
+.sr-gt{width:22px;height:22px;border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;padding:0;margin-right:2px}
+.sr-gren{border:0;background:none;color:var(--info-ink);font:inherit;font-size:12px;cursor:pointer;margin-left:10px;padding:2px 4px;border-radius:4px}
+.sr-gren:hover{background:var(--info-soft)}
+.sr-gall{float:right;display:inline-flex;gap:2px}
+.sr-gren:disabled{color:var(--faint);cursor:default;background:none}
+.sr-fixed{font-size:12px;color:var(--ro-ink)}
+.sr-fixed::before{content:"";display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:var(--h-xfer);vertical-align:1px}
+.sr-empty td{height:34px;color:var(--muted);font-size:12.5px;padding-left:34px;border-bottom:1px dashed var(--line)}
+.sr-ask{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-weight:400}
+.sr-ask .ps-input{height:28px;width:200px}
+/* 見出しのタブのスイッチ（押すと出す／出さない。字でも言う） */
+.sr-sw{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:2px 0;font:inherit;cursor:pointer}
+.sr-sw i{position:relative;width:30px;height:17px;border-radius:999px;background:#b5c0c8;flex:none;transition:background .15s}
+.sr-sw i::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+.sr-sw.on i{background:var(--h-xfer)} .sr-sw.on i::after{left:15px}
+.sr-sw span{font-size:12px;color:var(--ro-ink)} .sr-sw.on span{color:#1f5f5b;font-weight:700}
+.sr-sw:disabled{cursor:default;opacity:.6}
+.sr-sw:focus-visible{outline:2px solid var(--edit-focus);outline-offset:2px;border-radius:6px}
+/* 結合の列: ベン図（方式）・相手・当たった数（数は切らず、相手の名前を省く）／相手の側の「← … で使う」 */
+.sr-j{display:flex;align-items:center;gap:5px;min-width:0;color:var(--info-ink);font-size:12px}
+.sr-j svg{flex:none} .sr-j span{min-width:0;overflow:hidden;text-overflow:ellipsis} .sr-j em{flex:none;font-style:normal;font-weight:700;color:var(--ok-ink)}
+.sr-used{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;padding:0 7px;border-radius:999px;background:#fff4dd;color:#7a4f00;font-size:11.5px;font-weight:700}
+.sr-formrow > td{height:auto;padding:8px;white-space:normal;overflow:visible;background:var(--surface-1)}
+.sr-formrow .sr-card{border:1px solid var(--line)}
 /* 設備グループ（版 3.39.0）: まとめ方ごとの見出しと、そのまとめ方へ足す札 */
 .eg-set{display:flex;flex-direction:column;gap:4px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
 .eg-setname{font-size:12px;font-weight:800;color:var(--h-meta);padding:2px 2px 0}

@@ -958,10 +958,12 @@ function initialScreen() {
   return SCREENS[want] ? want : "dash";
 }
 function showScreen(name, opts = {}) {
-  // マスタ（役割「マスタ」のデータ元）は見出しの「マスタ」のタブの中: そのマスタを選んで「マスタ」の画面へ（版 3.53.0）
-  if (!SCREENS[name] && masterList().some((d) => d.screen === name)) {
-    if (state.screen === "mst") { pickMaster(name); return; }
-    setMaster(name); name = "mst";
+  // グループに入ったデータ元（役割「マスタ」は「マスタ」のグループ）は、見出しのグループのタブの中: そのデータ元を選んでグループの画面へ（版 3.53.0・3.54.0）
+  const g = !SCREENS[name] ? groupOfScreen(name) : "";
+  if (g) {
+    const gs = groupScreen(g);
+    if (state.screen === gs) { pickMember(name); return; }
+    setCurrent(g, name); name = gs;
   }
   if (!SCREENS[name] || state.screen === name) return;
   // 保存していない変更（ダッシュボードの編集・表示列やルールの窓）があれば、移る前に聞く（版 3.43.0。何も無ければすぐ移る）
@@ -995,25 +997,36 @@ Object.entries(SCREENS).forEach(([k, v]) => { $(v.tab).onclick = () => showScree
    どれも品質異常と同じ画面（#lotListScreen）で、元（src:<キー>）を入れ替える。Alt＋4 からの番号を振る（9 まで） */
 const SRC_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h7l3 3v8H3z"/><path d="M5.5 8h5M5.5 10.5h5"/></svg>';
 const MST_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/></svg>';
-/* 見出しの「マスタ」のタブ（版 3.53.0。決め方: ui-proposals/2026-10-join*）: 役割「マスタ」で画面に出すデータ元は、1 つずつのタブにせず、
-   「マスタ」の 1 つのタブの中に、作業実績の設備のタブと同じ札で並べる（lotlist.js の renderMasterBar）。どのマスタを開いていたかはこの PC に覚える。
-   マスタがまだ無いときは、足し方の案内（#mstEmpty）を出す */
-const MST_KEY = "tpa.mst.v1";
-const masterList = () => (state.sources || []).filter((d) => d.group === "mst" && d.listed);
-function currentMaster() {
-  const list = masterList(), want = TPA.local.get(MST_KEY, "");
+/* 見出しのグループのタブ（版 3.53.0 の「マスタ」のタブを、どのグループにも。版 3.54.0。決め方: ui-proposals/2026-10-join*・2026-10-srclist*）:
+   グループ（マスタ管理の「データ元」で決める。役割「マスタ」で決めていなければ「マスタ」）に入ったデータ元は、1 つずつのタブにせず、
+   グループの 1 つのタブの中に、作業実績の設備のタブと同じ札で並べる（lotlist.js の renderGroupBar）。どれを開いていたかはこの PC に覚える。
+   「マスタ」のタブはいつも出し、まだ無いときは足し方の案内（#mstEmpty）。ほかのグループは、出すデータ元があるときだけタブになる */
+const MST_KEY = "tpa.mst.v1", GRP_KEY = "tpa.grp.v1", MST_GROUP = "マスタ";
+const GRP_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5V13h13V5.5H7.5L6 4H1.5z"/><path d="M1.5 7h13"/></svg>';
+const groupScreen = (g) => (g === MST_GROUP ? "mst" : `grp:${g}`);
+const groupMembers = (g) => (state.sources || []).filter((d) => d.group === g && d.listed && d.api.startsWith("/api/src/"));
+const groupOfScreen = (screen) => ((state.sources || []).find((d) => d.screen === screen && d.group && d.listed && d.api.startsWith("/api/src/")) || {}).group || "";
+const masterList = () => groupMembers(MST_GROUP);
+function currentOf(g) {
+  const list = groupMembers(g), want = (TPA.local.get(GRP_KEY, {}) || {})[g] || (g === MST_GROUP ? TPA.local.get(MST_KEY, "") : "");
   return (list.find((d) => d.screen === want) || list[0] || {}).screen || "";
 }
-function setMaster(screen) { TPA.local.set(MST_KEY, screen); if (SCREENS.mst) SCREENS.mst.source = screen; }
-/** 「マスタ」の画面のまま、別のマスタの一覧へ（札を押した） */
-function pickMaster(screen) {
-  if (!masterList().some((d) => d.screen === screen)) return;
-  setMaster(screen);
-  if (state.screen !== "mst") { showScreen("mst"); return; }
+function setCurrent(g, screen) {
+  TPA.local.set(GRP_KEY, { ...(TPA.local.get(GRP_KEY, {}) || {}), [g]: screen });
+  if (g === MST_GROUP) TPA.local.set(MST_KEY, screen);
+  const gs = groupScreen(g); if (SCREENS[gs]) SCREENS[gs].source = screen;
+}
+/** グループの画面のまま、同じグループの別のデータ元の一覧へ（札を押した） */
+function pickMember(screen) {
+  const g = groupOfScreen(screen); if (!g) return;
+  setCurrent(g, screen);
+  if (state.screen !== groupScreen(g)) { showScreen(groupScreen(g)); return; }
   window.LotList.deactivate();
   window.LotList.activate({ source: screen, currentLot: (state.lot && state.lot.lot_no) || "" });
 }
-document.addEventListener("tpa:pick-master", (e) => pickMaster(String(e.detail || "")));
+document.addEventListener("tpa:pick-master", (e) => pickMember(String(e.detail || "")));
+/** 名前 → タブの id に使える字（同じ名前は同じ id） */
+const groupId = (g) => "tabGrp_" + [...g].reduce((h, ch) => (Math.imul(h, 31) + ch.codePointAt(0)) >>> 0, 7).toString(36);
 function paintMstEmpty() {
   $("#mstEmpty").innerHTML = `<div class="mst-empty"><h2>マスタはまだありません</h2>
     <p>製造条件・設備などのマスタ（共有の .sqlite3）を、マスタ管理の「データ元」で足すと、ここに 1 つずつ札で並びます（役割を「マスタ」にします）。</p>
@@ -1027,30 +1040,42 @@ async function loadSources() {
   state.sources = list;
   window.LotList.defineSources(list);
   const nav = $(".screen-tabs");
-  const want = list.filter((d) => d.listed && d.api.startsWith("/api/src/") && d.group !== "mst");
-  // 消した・画面に出さなくした元のタブを外す（開いていたら品質異常へ）
-  Object.keys(SCREENS).filter((k) => k.startsWith("src:") && !want.some((d) => d.screen === k)).forEach((k) => {
+  const want = list.filter((d) => d.listed && d.api.startsWith("/api/src/") && !d.group);
+  const groups = [...new Set(list.filter((d) => d.listed && d.api.startsWith("/api/src/") && d.group && d.group !== MST_GROUP).map((d) => d.group))];
+  // 消した・画面に出さなくした元・空になったグループのタブを外す（開いていたら品質異常へ）
+  Object.keys(SCREENS).filter((k) => (k.startsWith("src:") && !want.some((d) => d.screen === k)) || (k.startsWith("grp:") && !groups.includes(k.slice(4)))).forEach((k) => {
     if (state.screen === k) showScreen("list", { focus: false });
     $(SCREENS[k].tab).remove(); delete SCREENS[k];
   });
-  want.forEach((d, i) => {
-    const id = `tabSrc_${d.key}`;
+  const tabOf = (id, screen, icon, name) => {
     let b = document.getElementById(id);
     if (!b) {
       b = document.createElement("button");
       Object.assign(b, { id, className: "screen-tab", type: "button" });
       b.setAttribute("role", "tab"); b.setAttribute("aria-selected", "false"); b.setAttribute("aria-controls", "lotListScreen");
-      b.dataset.screen = d.screen; b.tabIndex = -1;
-      b.onclick = () => showScreen(d.screen);
+      b.dataset.screen = screen; b.tabIndex = -1;
+      b.onclick = () => showScreen(screen);
       nav.appendChild(b);
     }
-    const key = i + 4 <= 9 ? String(i + 4) : "";
-    b.innerHTML = SRC_ICON + `<span class="tab-name">${esc(d.name)}</span>`;
-    b.dataset.def = d.name;
-    b.title = `${d.name}（${d.place || "場所が決まっていません"}）を、品質異常と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
+    b.innerHTML = icon + `<span class="tab-name">${esc(name)}</span>`;
+    b.dataset.def = name;
+    return b;
+  };
+  let n = 4;
+  const altKey = () => { const k = n <= 9 ? String(n) : ""; n += 1; return k; };
+  want.forEach((d) => {
+    const id = `tabSrc_${d.key}`, key = altKey();
+    tabOf(id, d.screen, SRC_ICON, d.name).title = `${d.name}（${d.place || "場所が決まっていません"}）を、品質異常と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
     SCREENS[d.screen] = { tab: `#${id}`, panel: "#lotListScreen", source: d.screen, key };
   });
-  // 「マスタ」のタブ（データ元のタブの後ろ。Alt はその次の数字）
+  const moved = [];
+  groups.forEach((g) => {
+    const id = groupId(g), gs = groupScreen(g), key = altKey(), members = groupMembers(g), before = SCREENS[gs] && SCREENS[gs].source;
+    tabOf(id, gs, GRP_ICON, g).title = `${g}（${members.map((d) => d.name).join("・")}）。中の札で切り替えます${key ? `（Alt+${key}）` : ""}`;
+    SCREENS[gs] = { tab: `#${id}`, panel: "#lotListScreen", source: currentOf(g), key };
+    if (state.screen === gs && before && before !== SCREENS[gs].source) moved.push(gs);
+  });
+  // 「マスタ」のタブ（データ元・グループのタブの後ろ。Alt はその次の数字）
   let mb = $("#tabMst");
   if (!mb) {
     mb = document.createElement("button");
@@ -1061,15 +1086,16 @@ async function loadSources() {
     mb.onclick = () => showScreen("mst");
     nav.appendChild(mb);
   }
-  const mkey = want.length + 4 <= 9 ? String(want.length + 4) : "", masters = masterList(), cur = currentMaster();
+  const mkey = altKey(), masters = masterList(), cur = currentOf(MST_GROUP);
   mb.setAttribute("aria-controls", masters.length ? "lotListScreen" : "mstEmpty");
   mb.title = (masters.length ? `マスタ（${masters.map((d) => d.name).join("・")}）を、品質異常と同じ絞り込み・表示列で見ます` : "マスタ（製造条件・設備など）。マスタ管理の「データ元」で足すと並びます")
     + (mkey ? `（Alt+${mkey}）` : "");
   const wasMst = state.screen === "mst", before = SCREENS.mst && SCREENS.mst.source;
   SCREENS.mst = masters.length ? { tab: "#tabMst", panel: "#lotListScreen", source: cur, key: mkey }
     : { tab: "#tabMst", panel: "#mstEmpty", key: mkey, show: paintMstEmpty };
-  // 開いていたマスタが消えた・外れた: 残っているマスタ（無ければ案内）へ
-  if (wasMst && before !== SCREENS.mst.source) { state.screen = null; window.LotList.deactivate(); moveTo("mst", { focus: false }); }
+  // 開いていたデータ元がグループから消えた・外れた: 残っているデータ元（無ければ案内）へ
+  if (wasMst && before !== SCREENS.mst.source) moved.push("mst");
+  moved.forEach((gs) => { state.screen = null; window.LotList.deactivate(); moveTo(gs, { focus: false }); });
   applyTabs();
   document.dispatchEvent(new CustomEvent("tpa:screens-ready"));
 }
@@ -1099,7 +1125,8 @@ function applyTabs() {
     b.dataset.tabName = name;
   });
   // 覚えに無いタブは元の並び（決まった画面 → データ元の登録の順）
-  const base = ["dash", "list", "calc", "work", ...(state.sources || []).map((d) => d.screen), "mst"];
+  // データ元の並び（マスタ管理の「データ元」で並べた順）。グループに入った元は、グループのタブの所（グループの最初の元の位置）
+  const base = [...new Set(["dash", "list", "calc", "work", ...(state.sources || []).map((d) => (d.group && d.listed && d.api.startsWith("/api/src/") ? groupScreen(d.group) : d.screen)), "mst"])];
   const rank = (b) => { const i = v.order.indexOf(b.dataset.screen), d = base.indexOf(b.dataset.screen); return i >= 0 ? i : 1000 + (d < 0 ? 999 : d); };
   const want = [...els].sort((a, b) => rank(a) - rank(b));
   if (want.some((b, i) => b !== els[i])) want.forEach((b) => nav.appendChild(b));
