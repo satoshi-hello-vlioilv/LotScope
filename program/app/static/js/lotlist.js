@@ -342,6 +342,7 @@
     const wait = S.src.id === "work" ? waitFirstCopy(me) : null;
     const workAsked = S.src.id === "work" ? JSON.stringify(window.LotListWork.params()) : "";
     try {
+      S.page = 1; S.more = null;
       const r = await fetch(S.src.api + "?" + queryString(), { cache: "no-store" });
       const d = await r.json();
       if (me !== S || seq !== S.seq) return;  // 追い越された古い答え・ほかの元へ移った後の答えは捨てる
@@ -355,7 +356,7 @@
       // 並べ替えはサーバーが確かめた形（実在する列だけ）。まとめているときは段の列を除いた、見出しで決めた分だけを持つ
       if (grouped()) { const have = sortable(); S.sorts = S.sorts.filter((x) => have.has(x.column)); }
       else S.sorts = d.sorts || S.sorts;
-      S.groups = d.groups || null; S.groupCount = d.groupCount || 0; S.range = d.range || [0, 0];
+      S.groups = d.groups || null; S.groupCount = d.groupCount || 0; S.range = d.range || [0, 0]; S.morePage = d.page || 1;
       S.loadedAt = (S.source && S.source.copiedAt) || null;
       S.src.saveTable(S.table);
       S.shownEquip = S.equip;
@@ -378,6 +379,47 @@
     scheduleHeal();
     window.LotListSlicer.refresh();   // 件数を今の絞り込みで数え直す
     window.LotListPivot.refresh();    // 集計表・グラフを見ていれば、今の絞り込みで数え直す
+  }
+
+  /* ================= 続きを読み足す（版 3.56.0） =================
+     一覧は 1 ページ（表示件数＝一度に読む件数）ずつサーバーに尋ねるが、ページで止めない。最初の 1 ページを出した後、
+     送って読んだ所の端に近づいたら（カードで次の行へ進んだら）、続きのページを尋ねて後ろに足す。並べ替え・絞り込みはサーバーが全部の行に当てて
+     いるので、続きのページはその並びのまま。読んでいない行も、行の高さ×行の数で下に空けてある（virtual-rows.js の more）ので、どこへ飛んでも止まらない。
+     一度に尋ねるのは MORE_PARALLEL ページまで（離れた所へ飛んだときは、間のページも順に足す） */
+  const MORE_PARALLEL = 4;
+  const hasMore = () => !S.error && S.rows.length > 0 && S.range[1] > 0 && S.range[1] < S.count;
+  const leftRows = () => (hasMore() ? S.count - S.range[1] : 0);
+  /** upto 行目（0 から）まで読んであるようにする（読み終えたら解ける）。新しい問い合わせが始まったら、古い読み足しは捨てる */
+  function loadMore(upto) {
+    if (!hasMore() || S.rows.length > upto) return Promise.resolve();
+    if (S.more) return S.more.then(() => loadMore(upto));
+    const me = S, seq = S.seq;
+    const alive = () => me === S && seq === S.seq;
+    rowsView.busy(true); $("#llMore").hidden = false;
+    S.more = (async () => {
+      try {
+        while (alive() && hasMore() && S.rows.length <= upto) {
+          const want = Math.ceil((Math.min(upto + 1, S.count) - S.range[1]) / S.pageSize);
+          const pages = Array.from({ length: Math.max(1, Math.min(MORE_PARALLEL, want)) }, (_, k) => S.morePage + 1 + k);
+          const got = await Promise.all(pages.map((pg) => fetch(S.src.api + "?" + queryString({ page: pg }), { cache: "no-store" }).then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "続きを読めませんでした"); return d; })));
+          if (!alive()) return;
+          for (const d of got) {
+            if (!d.rows || !d.rows.length) { S.range = [S.range[0], S.count]; break; }
+            window.LotListMarks.take(d.rows, d.marks, d.markCounts, { append: true });
+            if (S.work && d.work && Array.isArray(d.work.rows)) S.work.rows = S.work.rows.concat(d.work.rows);
+            S.rows = S.work ? S.rows.concat(d.rows) : clusterRows(S.rows.concat(d.rows));
+            S.range = [S.range[0], d.range ? d.range[1] : S.range[1] + d.rows.length];
+            S.morePage = d.page || S.morePage + 1;
+          }
+        }
+      } catch (e) {
+        if (alive()) flash(`続きを読めませんでした: ${e.message}`);
+      } finally {
+        if (alive()) { rowsView.busy(false); $("#llMore").hidden = true; renderGrid({ keep: true }); renderPager(); window.LotListCard.refresh(); window.LotListMarks.paint(); }
+        if (me.more) me.more = null;
+      }
+    })();
+    return S.more;
   }
 
   /* ================= 範囲（表・作業実績は設備と表）ごとの覚え ================= */
@@ -1289,7 +1331,7 @@
         <label class="vm-row"><span>行間</span><input type="range" id="llGap" min="1" max="5" step="1" value="${g}"><b id="llGapLabel">${LC.GAP[g - 1][0]}</b></label>
       </section>
       <section class="vm-sec" aria-label="そのほか"><h4>そのほか</h4>
-        <label class="vm-row"><span>表示件数</span><select id="llPageSize">${PAGE_SIZES.map((n) => `<option value="${n}"${n === S.pageSize ? " selected" : ""}>${n}件ずつ</option>`).join("")}</select></label>
+        <label class="vm-row" title="一覧は全部の行を送って見られます。続きは送ったときにこの件数ずつ読み足します（多いほど読み足す回数が減り、最初に出るまでが少し長くなります）"><span>一度に読む件数</span><select id="llPageSize">${PAGE_SIZES.map((n) => `<option value="${n}"${n === S.pageSize ? " selected" : ""}>${n}件ずつ</option>`).join("")}</select></label>
         <div class="vm-row"><span>機能</span><div class="vm-feats">
           <label class="vm-switch"><input type="checkbox" id="llFeatLens"${feat.lens ? " checked" : ""}>
             <b>ロット番号の横に虫眼鏡を出す</b><small>押すと LotDsp（ロット問い合わせ）でそのロットを開くだけです。取り込まず、画面も移りません（番号を押すと、これまでどおり計算へ取り込みます）</small></label>
@@ -1549,7 +1591,7 @@
     rowsView.scrollTo(e.key);
     $(`#llBody tr[data-i="${focus}"]`)?.classList.add("is-carded");
   }
-  function renderGrid() {
+  function renderGrid({ keep = false } = {}) {
     const head = $("#llHead"), note = $("#llNote");
     if (S.src.id === "work" && !S.equip) {
       head.innerHTML = ""; model = []; showRows({ keepHeights: false });
@@ -1643,7 +1685,7 @@
     span = cols.length;
     model = wk ? workEntries(cols, aligns, cellsOf) : isGrouped ? arrangedEntries(cols, aligns, cellsOf)
       : S.rows.map((r, i) => ({ key: `r${i}`, i, html: () => rowHtml(cols, aligns, r, i, cellsOf(r), "") }));
-    showRows({ keepHeights: false });
+    showRows({ keepHeights: keep });
     if (!S.rows.length) {
       const conds = condRows();
       note.innerHTML = conds.length || S.search
@@ -1659,7 +1701,6 @@
     }
   }
   function renderPager() {
-    const [from, to] = S.range;       // まとめるとページの行数は表示件数から少しずれる（ロットを切らない）ので、サーバーの答えのまま
     const lots = grouped() && serverGroup() && S.groups ? `・${S.groupCount.toLocaleString()}ロット` : "";
     const works = workOn() && S.work && S.work.column;        // 作業でまとめている: 分割したロットを 1 と数えたロット数（行の数を添える）
     $("#llCount").textContent = works ? `全 ${S.groupCount.toLocaleString()}ロット（${S.count.toLocaleString()}行）` : `全 ${S.count.toLocaleString()}件` + lots;
@@ -1680,9 +1721,6 @@
     paintSortBar();
     $("#llCardHint").hidden = !feat.card || !S.rows.length;
     paintLotHint();
-    $("#llRange").textContent = S.count ? `${from.toLocaleString()}–${to.toLocaleString()}` : "0";
-    $("#llPrev").disabled = S.page <= 1;
-    $("#llNext").disabled = !S.count || to >= S.count;
     const tsel = $("#llTable");
     tsel.hidden = S.tables.length <= 1;
     const sig = S.tables.join("\u001f");
@@ -1831,7 +1869,8 @@
     setZoom(savedZoom());
   }
   function bindGrid() {
-    rowsView = window.VirtualRows.create({ scroller: $(".ll-grid-wrap"), body: $("#llBody"), span: () => span, zoom: () => +($("#llGrid").style.zoom || 1) });
+    rowsView = window.VirtualRows.create({ scroller: $(".ll-grid-wrap"), body: $("#llBody"), span: () => span, zoom: () => +($("#llGrid").style.zoom || 1),
+      more: { left: leftRows, need: (n) => { if (!S.loading) loadMore(S.rows.length + n); } } });
     bindZoom();
     window.LotListColumns.bindHeader($("#llHead"));
     $("#llHead").addEventListener("click", (e) => {
@@ -1889,8 +1928,6 @@
       if (e.target.closest("[data-ll-settings]") && window.openMasterAt) window.openMasterAt(S.src.settingsTab);
       if (e.target.closest("[data-wl-adopt]")) adoptLoose();
     });
-    $("#llPrev").onclick = () => { if (S.page > 1) { S.page--; load(); } };
-    $("#llNext").onclick = () => { S.page++; load(); };
     $("#llColBtn").onclick = () => { closeViewMenu(); window.LotListColumns.toggle(); };
     $("#llViewBtn").onclick = () => toggleViewMenu();
     $("#llTable").onchange = (e) => { saveActive(); S.table = e.target.value; S.ctx = null; syncContext(true); window.LotListCard.close(); window.LotListSlicer.reset(); window.LotListMarks.reset(); load(); };
@@ -2256,6 +2293,8 @@
     });
     window.LotListCard.mount({
       rows: () => S.rows, target: layoutTarget, lotColumn: () => S.lotColumn, lotKey,
+      count: () => (S.error ? 0 : Math.max(S.count, S.rows.length)), more: (i) => loadMore(i),
+      dateColumns: () => S.dateColumns || [],     // 日付の列（カードの「日付をまとめる」。版 3.56.0）     // 全部の行の数・i 行目まで読み足す（版 3.56.0）
       // カードの設計の表の鍵（版 3.55.0）: 作業実績は設備によらず表ごと（どの設備のカードも同じデザイン）
       formKey: () => (S.src.id === "work" ? `worklog:${S.table || ""}` : layoutTarget()),
       columns: () => window.LotListColumns.allColumns(layoutTarget(), S.columns),
@@ -2386,6 +2425,9 @@
   // 変換表（式の conv が引く表）が変わったら、いま出している行を描き直す（読み直しは要らない。並べ替えは次に読むときから）
   window.Conversions?.onChange(() => { if (root && S.rows && S.rows.length) renderGrid(); });
   window.LotList = { mount, activate, deactivate, defineSources, focus: () => $("#llSearch")?.focus(), source: () => S.src.id,
+    /** いまの問い合わせの page ページ目（size 行ずつ）の URL・読んだ行の数・段でまとめる（評価関数 ui-eval-allrows.mjs が答えと突き合わせる） */
+    pageUrl: (page, size) => S.src.api + "?" + queryString({ page, pageSize: size }), loaded: () => S.rows.length,
+    groupBy: (c) => { setLevels(c ? [{ column: c, dir: "asc", lot: c === S.lotColumn }] : []); load(); },
     formats: { capture: captureFormat, places: formatPlaces, apply: applyFormat, undo: undoFormat,
       here: () => ({ source: S.src.id, table: S.table, origin: S.src.place(S.table), equip: S.equip, title: S.src.title }) } };
 })();

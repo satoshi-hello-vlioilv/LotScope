@@ -40,7 +40,9 @@ const view = (p) => p.evaluate(() => {
     atEnd: w.scrollTop + w.clientHeight >= w.scrollHeight - 2, tds: document.querySelectorAll("#llBody td").length };
 });
 const scrollTo = async (p, frac) => { await p.evaluate((f) => { const w = document.querySelector(".ll-grid-wrap"); w.scrollTop = f * (w.scrollHeight - w.clientHeight); }, frac); await frames(p); await frames(p); };
-const total = (p) => p.evaluate(() => document.querySelectorAll("#llBody tr[data-i]").length && +document.querySelector("#llRange").textContent.split(/[–-]/).pop().replace(/[^0-9]/g, "") - +document.querySelector("#llRange").textContent.split(/[–-]/)[0].replace(/[^0-9]/g, "") + 1);
+// 読んだ行の数（版 3.56.0 から頁の送りは無く、送れば続きを読み足す。ここでは一度に 2000 行を読む設定で、試験の 1500 行を全部読んだ形を見る。
+// 読み足しそのものは ui-eval-allrows.mjs）
+const total = (p) => p.evaluate(() => window.LotList.loaded());
 /** 送る範囲のどこでも隙間が無く、順に続く（まとめていないとき）か */
 async function sweep(p, label, { ordered = true } = {}) {
   const out = [];
@@ -55,6 +57,7 @@ async function sweep(p, label, { ordered = true } = {}) {
 
 try {
   const p = await app.newPage("light");
+  await p.evaluate(() => localStorage.setItem("tpa.lotlist.pageSize.v1", "2000")); await p.reload(); await p.waitForSelector("#llBody tr[data-i]"); await sleep(600);
   const n = await total(p);
   // 1. 描く行の数
   await scrollTo(p, 0.5);

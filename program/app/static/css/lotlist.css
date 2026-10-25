@@ -222,9 +222,11 @@
 .ll-zoom output{min-width:40px;text-align:right;font-weight:700;color:var(--h-input)}
 .ll-zoom.is-zoomed output{background:var(--accent);color:var(--accent-ink);border-radius:5px;padding:1px 6px}
 .ll-zoom button{height:26px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--h-input);cursor:pointer;font-family:inherit;font-size:12px}
-.ll-pager{margin-left:12px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-.ll-pager button{height:28px;min-width:32px;border:1px solid var(--line);border-radius:6px;background:var(--surface);cursor:pointer;color:var(--h-input)}
-.ll-pager button:disabled{opacity:.4;cursor:default}
+.ll-more{margin-left:12px;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+/* 読んでいない行の空き（virtual-rows.js の下の空き）: 行の形の淡い縞（まだ続きがあると分かる）。読み足している間は「読み込んでいます」 */
+#llBody tr.vr-bottom.is-more > td{background:repeating-linear-gradient(to bottom,transparent 0 calc(var(--ll-rowh,28px) - 1px),var(--line-soft,#e6ecf0) calc(var(--ll-rowh,28px) - 1px) var(--ll-rowh,28px))}
+#llBody tr.vr-bottom.is-loading > td{position:relative}
+#llBody tr.vr-bottom.is-loading > td::before{content:"続きを読み込んでいます…";position:sticky;left:12px;top:40%;display:inline-block;margin:8px 12px;color:var(--muted);font-size:12.5px}
 
 /* ---------- 一覧 ---------- */
 .ll-grid-wrap{position:relative;flex:1;min-height:0;overflow:auto;margin:0 16px 14px;border:1px solid var(--line);border-radius:8px;overflow-anchor:none}
@@ -405,6 +407,8 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 /* カードで見ている行（背景は「いまのロット」のアンバーと重ならないよう、藍の枠で示す） */
 .ll-grid tbody tr.is-carded td{box-shadow:inset 0 2px 0 var(--h-input),inset 0 -2px 0 var(--h-input)}
 .ll-grid tbody tr.is-carded td:first-child{box-shadow:inset 0 2px 0 var(--h-input),inset 0 -2px 0 var(--h-input),inset 3px 0 0 var(--h-input)}
+/* カードで開いている行: カードの窓に隠れない左の列（ロット番号）に琥珀の地と枠（版 3.56.0。カードは一覧のロット番号の列だけ残して開く） */
+.ll-grid tbody tr.is-carded > td.ll-lotcol{background:#fff3d6;box-shadow:inset 4px 0 0 #d08a0c,inset 0 2px 0 #d08a0c,inset 0 -2px 0 #d08a0c;font-weight:800}
 
 /* 件数の横: まとめているとき（何が効いているか・全部開く／畳む・やめる）と、カードの案内 */
 .ll-groupbar{display:flex;align-items:center;gap:6px}

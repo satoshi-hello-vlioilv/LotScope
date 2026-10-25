@@ -3,7 +3,7 @@
 // ① カードを開くと、組み込みの「標準」で項目が方眼に並ぶ（デザインの選び）
 // ② 「デザインを直す」で、見た目の大きさのまま直す画面になる（項目の位置と大きさが直す前と同じ）
 // ③ 四隅の取っ手（右下）を左へ 1 升引くと幅が 1 減る・Ctrl＋Z で戻る／掴んでほかの項目の上へ動かすと置けない（形は変わらない）
-// ④ 項目をダブルクリック → 項目の面がカードの外（左か右）に開き、線で項目と結ぶ・窓に収まる
+// ④ 項目をダブルクリック → 項目の面がカードの外（左か右。空きが無ければ窓の中の、選んだ項目と反対の側）に開き、選んだ項目を覆わない・窓に収まる（外なら線で結ぶ）
 // ⑤ 面で名前を変える → カードの項目の名前がその場で変わる／字の大きさ「特大」→ 項目に fs-xl
 // ⑥ 「＋ 項目」→ 組み合わせた項目（式）→ 式 [合金] + ' / ' + [調質] → いまの行の値「合金 / 調質」が出る
 // ⑤ 名前と値の置き方は 8 通り（上・下・左・両端・枠の上・札・続ける・出さない）。見本の札で選ぶと項目に当たり、名前と値の並びが合い、
@@ -11,6 +11,12 @@
 // ⑦ 見栄え: 詰め具合「詰める」→ 方眼に cfv-d-compact／名前と値の置き方を全部の項目に当てる（8 通りとも 1 段の値が「…」で切れず 2 段に折れない）
 // ⑧ 名前を付けて保存（自分だけ・★標準）→ 開き直してカードを開くと、そのデザインが当たる（組み合わせた項目・名前・字の大きさ）
 // ⑨ デザインを消す → 組み込みの標準に戻る・サーバーにも残らない
+// ⑩ 組み込み（版 3.56.0）: タブで分ける・畳める見出し・似た名前をまとめる・日付をまとめる・4／5／6 列がある
+// ⑪ タブ: 「タブで分ける」はタブが 2 つ以上・押すとそのタブの項目だけ（札の数と同じ）・Ctrl＋PageDown で隣・項目はタブの間で重ならない
+// ⑫ 畳める見出し: 「そのほか」ははじめ畳んで「n 項目」・押すと開いて下の項目が出る・開き直しても開いたまま（この PC に覚える）
+// ⑬ 日付をまとめる: 日付の札がいまの行の日付の順（古い → 新しい）に並び、間に「＋n日／時間」
+// ⑭ 似た名前をまとめる: 「項目（20）」の畳める見出しの下に、名前が番号（01…）の項目
+// ⑮ 直すとき: ＋ タブ → タブが 2 つ・項目の面の「タブ」で 2 つ目へ移すと 1 つ目から消えて 2 つ目に出る
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 
@@ -68,10 +74,12 @@ try {
   const sd = await p.evaluate(() => {
     const s = document.querySelector(".cf-side"), c = document.querySelector(".ll-cardwin:not([hidden])"), l = document.querySelector(".cf-link");
     if (!s) return null;
-    const a = s.getBoundingClientRect(), b = c.getBoundingClientRect();
-    return { out: a.right <= b.left + 1 || a.left >= b.right - 1, fit: a.left >= 0 && a.top >= 0 && a.right <= innerWidth && a.bottom <= innerHeight, link: !!l && !l.hidden && l.getBoundingClientRect().width > 0, head: s.querySelector("header b").textContent };
+    const a = s.getBoundingClientRect(), b = c.getBoundingClientRect(), it = c.querySelector(".cfv-i.is-sel").getBoundingClientRect();
+    const out = a.right <= b.left + 1 || a.left >= b.right - 1;
+    return { out, fit: a.left >= 0 && a.top >= 0 && a.right <= innerWidth && a.bottom <= innerHeight, link: !!l && !l.hidden && l.getBoundingClientRect().width > 0,
+      covers: !(a.right <= it.left || a.left >= it.right || a.bottom <= it.top || a.top >= it.bottom), head: s.querySelector("header b").textContent };
   });
-  check("④ ダブルクリックで項目の面がカードの外に開き、線で結ぶ・窓に収まる", sd && sd.out && sd.fit && sd.link, sd);
+  check("④ ダブルクリックで項目の面が開き、選んだ項目を覆わない・窓に収まる（カードの外なら線で結ぶ）", sd && sd.fit && !sd.covers && (!sd.out || sd.link), sd);
 
   await p.fill(".cf-side [data-sd=label]", "重さ（kg）"); await sleep(300);
   check("⑤ 名前を変えるとカードの項目の名前がその場で変わる", (await itemOf(p, id4)).label.includes("重さ（kg）"), await itemOf(p, id4));
@@ -153,6 +161,63 @@ try {
     return { pick: src, left: [...(r.items || []), ...(all.items || [])].filter((x) => x.name === n).length };
   }, NAME);
   check("⑨ 消すと組み込みの標準に戻り、サーバーにも残らない", gone.pick.startsWith("標準") && gone.left === 0, gone);
+
+  // ⑩〜⑮ 分けて出す（版 3.56.0）
+  const use = (id) => p.selectOption(`${W} [data-cf=pick]`, id).then(() => sleep(400));
+  const opts = await p.$$eval(`${W} [data-cf=pick] option`, (os) => os.map((o) => o.value));
+  check("⑩ 組み込みにタブ・畳める見出し・似た名前・日付・4／5／6 列がある", ["b:tabs", "b:fold", "b:family", "b:dates", "b:dense4", "b:dense5", "b:dense6"].every((x) => opts.includes(x)), opts);
+  await use("b:tabs");
+  const tabInfo = async () => p.evaluate(() => { const c = document.querySelector(".ll-cardwin:not([hidden])");
+    const tabs = [...c.querySelectorAll(".cfv-tab")].map((t) => ({ id: t.dataset.tab, on: t.getAttribute("aria-selected") === "true", n: +t.querySelector("small").textContent }));
+    return { tabs, shown: c.querySelectorAll(".cfv-i:not(.k-section)").length, ids: [...c.querySelectorAll(".cfv-i")].map((x) => x.dataset.id) }; });
+  const t0i = await tabInfo();
+  await p.click(`${W} .cfv-tab:nth-child(2)`); await sleep(300);
+  const t1i = await tabInfo();
+  await p.focus(`${W} .cfv-tab[aria-selected="true"]`); await p.keyboard.press("Control+PageDown"); await sleep(300);
+  const t2i = await tabInfo();
+  check("⑪ タブで分ける: 押すとそのタブの項目だけ（札の数と同じ）・Ctrl＋PageDown で隣のタブ", t0i.tabs.length >= 2 && t1i.tabs[1].on && t1i.shown === t1i.tabs[1].n && t1i.ids.every((id) => !t0i.ids.includes(id)) && t2i.tabs[2]?.on,
+    { t0: t0i.tabs, t1: { tabs: t1i.tabs, shown: t1i.shown }, t2: t2i.tabs });
+  await use("b:fold");
+  const fold = () => p.evaluate(() => { const c = document.querySelector(".ll-cardwin:not([hidden])"); const b = [...c.querySelectorAll("[data-fold]")].pop();
+    return { id: b?.dataset.fold, open: b?.getAttribute("aria-expanded"), n: b?.querySelector(".cfv-foldn")?.textContent || "", items: c.querySelectorAll(".cfv-i:not(.k-section)").length }; });
+  const f0 = await fold();
+  await p.click(`${W} [data-fold="${f0.id}"]`); await sleep(300);
+  const f1 = await fold();
+  await p.evaluate(() => TPA.saveUiState?.());       // この PC の覚えを書き出してから開き直す（窓を閉じたときと同じ）
+  await p.reload(); await p.waitForSelector("#llBody tr[data-i]"); await sleep(600); await openCard(p);
+  const f2 = await fold();
+  check("⑫ 畳める見出し: そのほかは畳んで n 項目・押すと開く・開き直しても開いたまま", f0.open === "false" && /項目/.test(f0.n) && f1.open === "true" && f1.items > f0.items && f2.open === "true",
+    { f0, f1, f2, pick: await p.$eval(`${W} [data-cf=pick]`, (s) => s.value).catch(() => "?") });
+  await use("b:dates");
+  const dates = await p.evaluate(() => { const c = document.querySelector(".ll-cardwin:not([hidden]) .cfv-dates");
+    const ds = [...c.querySelectorAll(".cfv-date:not(.is-none) b")].map((b) => b.textContent.trim());
+    const t = ds.map((x) => { const m = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/.exec(x); return m ? new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)).getTime() : NaN; });
+    return { ds, ordered: t.every((v, i) => i === 0 || v >= t[i - 1]), gaps: [...c.querySelectorAll(".cfv-gap")].map((g) => g.textContent) }; });
+  check("⑬ 日付をまとめる: 日付が古い → 新しい順・間に ＋n日／時間", dates.ds.length >= 2 && dates.ordered && dates.gaps.length >= 1 && dates.gaps.every((g) => /＋\d+(日|時間)|同じ日/.test(g)), dates);
+  await use("b:family");
+  const fam = await p.evaluate(() => { const c = document.querySelector(".ll-cardwin:not([hidden])");
+    const secs = [...c.querySelectorAll(".cfv-sec")].map((x) => x.textContent.trim());
+    return { secs, short: [...c.querySelectorAll(".cfv-i .cfv-l")].map((x) => x.textContent.trim()).filter((x) => /^\d+$/.test(x)).length }; });
+  check("⑭ 似た名前をまとめる: 項目（20）の見出しと、番号だけの名前の項目", fam.secs.some((x) => /項目（\d+）/.test(x)), fam);
+
+  await use("b:standard");
+  await p.click(`${W} [data-cf=edit]`); await sleep(300);
+  await p.click(`${W} [data-tabadd]`); await sleep(300);
+  await p.keyboard.press("Escape").catch(() => {}); await sleep(100);
+  await p.evaluate(() => document.activeElement?.blur()); await sleep(200);
+  const ed0 = await tabInfo();
+  await p.click(`${W} .cfv-tab:nth-child(1)`); await sleep(300);
+  const first = await p.$(`${W} .cfv-i.k-field`); const fb = await first.boundingBox(); const fid = await first.evaluate((x) => x.dataset.id);
+  await p.mouse.dblclick(fb.x + fb.width / 2, fb.y + fb.height / 2); await sleep(400);
+  const to = await p.$eval(".cf-side [data-sd=tab] option:nth-child(2)", (o) => o.value);
+  await p.selectOption(".cf-side [data-sd=tab]", to); await sleep(400);
+  const ed1 = await tabInfo();
+  await p.click(`${W} .cfv-tab:nth-child(1)`); await sleep(300);
+  const ed2 = await tabInfo();
+  check("⑮ 直すとき: ＋ タブでタブが 2 つ・項目の面でほかのタブへ移すと、移した先に出て元のタブから消える", ed0.tabs.length === 2 && ed1.ids.includes(fid) && ed1.tabs[1].on && !ed2.ids.includes(fid), { ed0: ed0.tabs, ed1: ed1.tabs, fid });
+  await p.click(".cf-side [data-sd=close]").catch(() => {});
+  await p.click(`${W} [data-cf=save]`); await sleep(200); await choose(p, "変更を捨てて"); await sleep(300);
+  await p.click(`${W} [data-cf=done]`); await sleep(300);
   check("画面のエラーが無い", errors.length === 0, errors);
 } finally {
   await app.close();

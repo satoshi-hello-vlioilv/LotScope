@@ -378,10 +378,13 @@
     },
     /** メニューを基準の要素の下に置く（左端か右端をそろえ、画面の左右からはみ出さない）。 */
     placeBelow(el, anchor, align = "left") {
-      const r = anchor.getBoundingClientRect(), w = el.offsetWidth, top = Math.round(r.bottom + 6);
+      const r = anchor.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
+      // 下に入らず上に入るなら、押した物の上に開く（窓の下の帯から開く面。版 3.56.0）
+      const up = r.bottom + 6 + h > innerHeight - 8 && r.top - 6 - h >= 8;
+      const top = Math.round(up ? r.top - 6 - h : r.bottom + 6);
       el.style.top = `${top}px`;
       // 中でスクロールする窓は、置いた位置から画面の下端までに収める（下が切れて届かない所を作らない）
-      if (/auto|scroll/.test(getComputedStyle(el).overflowY)) el.style.maxHeight = `${Math.max(160, innerHeight - top - 8)}px`;
+      if (!up && /auto|scroll/.test(getComputedStyle(el).overflowY)) el.style.maxHeight = `${Math.max(160, innerHeight - top - 8)}px`;
       el.style.left = `${Math.round(Math.max(8, Math.min(align === "right" ? r.right - w : r.left, innerWidth - w - 8)))}px`;
     },
     /** 引いて並べ替える（版 3.28.0。作業実績の設備のタブ・マスタ管理の設備の一覧）。中身を描き直しても効くよう、root に 1 回だけ付ける。
@@ -487,9 +490,11 @@
         大きさは4辺と4隅の取っ手（CSS の resize は overflow:clip の窓では効かないので使わない）。
         細かく合わせる: 動かす・変えるあいだは画面の端とほかの窓（[data-float]）の辺へ 8px で吸い付き（Alt を押すと吸い付かない）、
         位置と大きさを窓の隅に数で出す。窓の中で Alt+矢印＝動かす・Alt+Shift+矢印＝大きさ（10px。Ctrl も押すと 1px）。
+        w・h・top は数か、覚えが無いときに呼ぶ関数（画面の大きさから決める。カードは一覧に重ねて大きく: 版 3.56.0）。left: 同じく左端（関数。align より先）。
         戻り値: place() 覚えた位置に置く（画面が変わっていれば収める）／ remember() いまの位置と大きさを覚える（隠す前に）／
                 rect() いまの位置と大きさ／ setRect({x,y,w,h}, keep) 置く（画面に収める。keep=false なら覚えない）。 */
-    floatPanel(panel, { key = "", w = 1200, h = 780, top = 40, align = "center", minW = 400, minH = 300 }) {
+    floatPanel(panel, { key = "", w = 1200, h = 780, top = 40, left = null, align = "center", minW = 400, minH = 300 }) {
+      const val = (v) => (typeof v === "function" ? v() : v);
       const SNAP = 8, KEY_STEP = 10;
       panel.dataset.float = "";
       const remember = () => {
@@ -578,10 +583,11 @@
           // 出すときは見出し帯（画面のタブ・マスタ管理・終了）を覆わない。低い画面（フル HD・150% の 720px など）では、上ではなく高さを縮める
           // （以前は高さを窓に合わせて上端を 12px まで上げ、カードが見出し帯の操作を隠した。版 3.32.0。評価関数 ui-eval-narrow.mjs）
           const floor = Math.round(document.querySelector("body > header")?.getBoundingClientRect().bottom || 0) + 8;
-          const pw = Math.min(innerWidth - 24, r ? r.w : w), ph = Math.max(Math.min(minH, innerHeight - floor - 12), Math.min(innerHeight - floor - 12, r ? r.h : h));
+          const pw = Math.min(innerWidth - 24, r ? r.w : val(w)), ph = Math.max(Math.min(minH, innerHeight - floor - 12), Math.min(innerHeight - floor - 12, r ? r.h : val(h)));
+          const x0 = r ? r.x : left != null ? val(left) : align === "right" ? innerWidth - pw - 24 : (innerWidth - pw) / 2;
           Object.assign(panel.style, { width: pw + "px", height: ph + "px",
-            left: Math.max(12, Math.min(r ? r.x : align === "right" ? innerWidth - pw - 24 : (innerWidth - pw) / 2, innerWidth - pw - 12)) + "px",
-            top: Math.max(floor, Math.min(r ? r.y : top, innerHeight - ph - 12)) + "px" });
+            left: Math.max(12, Math.min(x0, innerWidth - pw - 12)) + "px",
+            top: Math.max(floor, Math.min(r ? r.y : val(top), innerHeight - ph - 12)) + "px" });
         },
       };
     },

@@ -16,7 +16,8 @@
    ========================================================================= */
 (function () {
   const { $, $$, esc } = TPA;
-  const KEY = { layouts: "tpa.lotlist.card.v1", rect: "tpa.lotlist.cardRect.v1", diff: "tpa.lotlist.cardDiff.v1", pick: "tpa.lotlist.cardForm.v1" };
+  const KEY = { layouts: "tpa.lotlist.card.v1", rect: "tpa.lotlist.cardRect.v2", diff: "tpa.lotlist.cardDiff.v1", pick: "tpa.lotlist.cardForm.v1",
+    fold: "tpa.lotlist.cardFold.v1" };       // 畳める見出しを、この PC で開いた・畳んだ（デザインごと。版 3.56.0）
   const CF = () => window.CardForm;
   const MAX_CARDS = 8, CASCADE = 28, Z_BASE = 72;   // 表示列の窓（80）より下に重ねる
   const LC = () => window.LotListColumns;
@@ -51,8 +52,8 @@
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "品質データのカード");
     el.innerHTML = `
       <div class="lc-head lk-head" data-drag title="見出しを掴んで動かせます（画面の端・ほかのカードへ吸い付きます。Alt を押すと吸い付きません）。&#10;大きさは4辺と4隅で変えられます。Alt+矢印＝動かす・Alt+Shift+矢印＝大きさ（Ctrl も押すと 1px ずつ）">
-        <div class="lk-title"><small class="lc-eyebrow">品質データのカード<b class="lk-no" data-k="no"></b></small>
-          <h3><span data-k="lot">-</span></h3><p class="lc-lead" data-k="sub"></p></div>
+        <div class="lk-title"><h3><span data-k="lot">-</span><b class="lk-no" data-k="no"></b></h3><p class="lc-lead" data-k="sub"></p></div>
+        <div class="lk-sibs" data-k="sibs" hidden></div>
         <div class="lk-nav">
           <button type="button" class="lk-pin" data-card="pin" aria-pressed="false" title="このカードを残します。次のダブルクリックは新しいカードに開きます（組み合わせて見られます）">📌 残す</button>
           <button type="button" class="lk-tile" data-card="tile" hidden aria-haspopup="true" title="開いているカードの並べ方を、絵で選びます">並べる ▾</button>
@@ -62,21 +63,30 @@
         </div>
         <button type="button" class="lc-x" data-card="close" title="このカードを閉じる（Esc）" aria-label="閉じる">×</button>
       </div>
-      <div class="lk-sibs" data-k="sibs" hidden></div>
-      <div class="lk-tools" data-k="tools"></div>
-      <div class="lk-body"><div class="cfv" data-k="grid"></div></div>`;
+      <div class="cfv-tabbar" data-k="tabs" role="tablist" aria-label="カードのタブ" hidden></div>
+      <div class="lk-body"><div class="cfv" data-k="grid"></div></div>
+      <div class="lk-tools" data-k="tools"></div>`;
     document.body.append(el);
-    card.win = TPA.floatPanel(el, { key: KEY.rect, w: 760, h: 720, top: 70, align: "right", minW: 300, minH: 220 });
+    // 初めの大きさ（版 3.56.0。ui-proposals/2026-10-cardview の 3 回目の M）: 一覧のロット番号の列だけ残して、右と下はいっぱい
+    const area = () => { const scr = $("#lotListScreen"), lot = $("#llHead th.ll-lotcol"), top = Math.round((scr ? scr.getBoundingClientRect().top : 64) + 6);
+      const left = Math.round(Math.min(innerWidth * 0.35, Math.max(16, (lot ? lot.getBoundingClientRect().right : 200) + 6)));
+      return { top, left, w: innerWidth - left - 16, h: innerHeight - top - 12 }; };
+    card.win = TPA.floatPanel(el, { key: KEY.rect, w: () => area().w, h: () => area().h, top: () => area().top, left: () => area().left, minW: 300, minH: 220 });
     const q = (k) => $(`[data-k="${k}"]`, el);
     card.q = q;
     // カードの設計を直すときの取っ手（掴んで動かす・四隅・ダブルクリック・キー）。直していないカードでは何もしない
-    CF().attach(q("grid"), { get: () => ED.body, say: (m) => P.toast?.(m), enabled: () => !!ED && ED.card === card,
+    CF().attach(q("grid"), { get: () => ED.body, say: (m) => P.toast?.(m), enabled: () => !!ED && ED.card === card, tab: () => tabNow(card),
       onChange: (b, what, keep) => { if (what) commit(b); else renderForm(card); if (keep) focusItem(keep); },
       onSelect: (id) => { if (ED.sel !== id) { ED.sel = id; CF().select(q("grid"), id); if (side) openSide(id); } },
       onOpen: (id) => { ED.sel = id; CF().select(q("grid"), id); openSide(id); } });
     el.addEventListener("mousedown", () => raise(card), true);
     el.addEventListener("click", (e) => {
+      const x = e.target.closest("[data-tabx]");
+      if (x) { e.stopPropagation(); removeTab(card, x.dataset.tabx); return; }
       const b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.tab != null) { card.tab = b.dataset.tab; renderForm(card); return; }
+      if (b.dataset.fold) { toggleFold(card, b.dataset.fold); return; }
+      if (b.dataset.tabadd != null) { addTab(card); return; }
       const act = b.dataset.card;
       if (act === "close") closeCard(card);
       else if (act === "pin") { card.pinned = !card.pinned; renderAll(); }
@@ -98,9 +108,11 @@
         if (k === "s") { e.preventDefault(); if (canOverwrite()) saveOver(); else saveAsPop($('[data-cf="save"]', el)); return; }
       }
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); if (ED && ED.card === card) { if (side) closeSide(); else stopEdit(); return; } closeCard(card); return; }
+      if (e.ctrlKey && (e.key === "PageDown" || e.key === "PageUp")) { e.preventDefault(); nextTab(card, e.key === "PageDown" ? 1 : -1); return; }   // 隣のタブ
       if (e.target.closest("input,select,textarea") || e.altKey || e.ctrlKey) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); step(card, e.key === "ArrowLeft" ? -1 : 1); }
     });
+    el.addEventListener("dblclick", (e) => { const t = e.target.closest("[data-tab]"); if (t && ED && ED.card === card && CF().tabsOf(ED.body)) renameTab(card, t.dataset.tab, t); });
     return card;
   }
   function raise(card) {
@@ -133,10 +145,11 @@
     const lotVal = row && lot ? String(row[lot] ?? "") : "";
     q("no").textContent = cards.length > 1 ? `　${cards.indexOf(card) + 1} / ${cards.length}` : "";
     q("lot").textContent = lotVal || "（ロット番号なし）";
-    q("sub").textContent = idx >= 0 ? `このページの ${idx + 1} / ${rows.length} 行目`
-      : "この行はいまの一覧にありません（絞り込み・並べ替え・ページが変わりました）。表示は開いたときの値です";
+    const all = total();
+    q("sub").textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} / ${all.toLocaleString()} 行目`
+      : "この行はいまの一覧にありません（絞り込み・並べ替えが変わりました）。表示は開いたときの値です";
     $('[data-card="prev"]', el).disabled = idx <= 0;
-    $('[data-card="next"]', el).disabled = idx < 0 || idx >= rows.length - 1;
+    $('[data-card="next"]', el).disabled = idx < 0 || idx >= all - 1;
     const pin = $('[data-card="pin"]', el);
     pin.setAttribute("aria-pressed", String(card.pinned));
     pin.textContent = card.pinned ? "📌 残しています" : "📌 残す";
@@ -177,7 +190,7 @@
   /** 選べる設計（自分・全員・全員の既定に置いた物 → 組み込み）。組み込みは表の列（表示列の並び・顔ぶれ）から組む */
   function designs() {
     const f = FORMS[formKey()] || { list: [] };
-    return f.list.concat(CF().builtins(fields().shown));
+    return f.list.concat(CF().builtins(fields().shown, { dates: P.dateColumns ? P.dateColumns() : [] }));
   }
   function pickedId() {
     const k = formKey(), f = FORMS[k] || {}, m = TPA.local.get(KEY.pick, {}) || {};
@@ -205,6 +218,7 @@
       tools.innerHTML = `<b class="cf-ing" title="四隅で大きさ・掴んで動かす・ダブルクリック（Enter）で中身と見栄え。矢印＝動かす・Shift＋矢印＝大きさ・Delete＝外す">デザインを直しています</b>`
         + `<span class="cf-name" title="${esc(ED.name)}">「${esc(ED.name)}」${dirty() ? "<i>変更あり</i>" : ""}</span><span class="lc-sp"></span>`
         + '<button type="button" data-cf="add" aria-haspopup="menu" title="置いていない列・組み合わせた項目（式）・見出しの線・字を足します">＋ 項目 ▾</button>'
+        + (CF().tabsOf(ED.body) ? "" : '<button type="button" data-tabadd title="タブを足して、項目を分けて出します（いまの項目は 1 つ目のタブに）">＋ タブ</button>')
         + '<button type="button" data-cf="look" aria-haspopup="dialog" title="カード全体の色・詰め具合・角の丸み・方眼の大きさ">見栄え ▾</button>'
         + `<button type="button" data-cf="undo"${ED.hist.length ? "" : " disabled"} title="1 つ前に戻します（Ctrl＋Z）">元に戻す</button>`
         + '<button type="button" data-cf="save" aria-haspopup="menu" title="上書き・名前を付けて保存（自分だけ・全員・全員の既定）・★標準">保存 ▾</button>'
@@ -216,9 +230,72 @@
         + `<label class="lk-check"><input type="checkbox" data-k="hideEmpty"${L.hideEmpty ? " checked" : ""}>空欄を隠す</label><span class="lc-sp"></span>`
         + '<button type="button" data-cf="edit" title="このカードの見た目のまま、項目の置き場・大きさ・名前・中身・見栄えを直します">デザインを直す</button>';
     }
-    const host = q("grid");
-    CF().render(host, body, ctxOf(card), { edit: !!editing, sel: editing ? ED.sel : null, hideEmpty: L.hideEmpty, diff: diffCols() });
+    const host = q("grid"), tab = CF().tabOf(body, card.tab), bar = q("tabs"), tabs = CF().tabsHtml(body, tab, { edit: !!editing });
+    bar.hidden = !tabs; bar.innerHTML = tabs;
+    CF().render(host, body, ctxOf(card), { edit: !!editing, sel: editing ? ED.sel : null, hideEmpty: L.hideEmpty, diff: diffCols(), tab,
+      shut: editing ? null : CF().shutSet(body, foldMine(editing ? ED.item : d)) });
     if (side) placeSide();
+  }
+  /* ---- タブ・畳める見出し（版 3.56.0） ---- */
+  const tabNow = (card) => { const b = ED && ED.card === card ? ED.body : current().body; return CF().tabOf(b, card.tab); };
+  function nextTab(card, d) {
+    const b = ED && ED.card === card ? ED.body : current().body, ts = CF().tabsOf(b); if (!ts) return;
+    const k = ts.findIndex((t) => t.id === tabNow(card));
+    card.tab = ts[(k + d + ts.length) % ts.length].id; renderForm(card);
+    card.q("tabs").querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
+  }
+  /** 畳める見出しを、この PC で開いた・畳んだ（デザインの id ごと）→ {見出しの id: 畳む true／開く false} */
+  const foldKey = (d) => `${formKey()}|${d && d.id != null ? d.id : ""}`;
+  const foldMine = (d) => (TPA.local.get(KEY.fold, {}) || {})[foldKey(d)] || {};
+  function toggleFold(card, id) {
+    const d = current(), all = { ...(TPA.local.get(KEY.fold, {}) || {}) }, k = foldKey(d), mine = { ...(all[k] || {}) };
+    mine[id] = !CF().shutSet(d.body, mine).has(id);
+    all[k] = mine; TPA.local.set(KEY.fold, all);
+    renderForm(card);
+  }
+  /** 直すとき: タブを足す（はじめての時は「すべて」の中身を 1 つ目のタブにして、空の 2 つ目を足す） */
+  function addTab(card) {
+    if (!ED) return;
+    const b = TPA.clone(ED.body), ts = Array.isArray(b.tabs) ? b.tabs : [];
+    if (ts.length < 2) {
+      b.tabs = [{ id: "t1", name: "基本" }, { id: "t2", name: "タブ 2" }];
+      b.items.forEach((it) => { it.tab = "t1"; });
+    } else {
+      if (ts.length >= 12) { P.toast?.("タブは 12 までです"); return; }
+      let n = ts.length + 1; while (ts.some((t) => t.id === `t${n}`)) n++;
+      b.tabs = ts.concat([{ id: `t${n}`, name: `タブ ${ts.length + 1}` }]);
+    }
+    card.tab = b.tabs[b.tabs.length - 1].id;
+    commit(b);
+    renameTab(card, card.tab);
+  }
+  function removeTab(card, id) {
+    if (!ED) return;
+    const b = TPA.clone(ED.body), ts = CF().tabsOf(b); if (!ts) return;
+    const first = ts.find((t) => t.id !== id);
+    const moving = b.items.filter((it) => (it.tab || ts[0].id) === id);
+    b.tabs = ts.filter((t) => t.id !== id);
+    moving.forEach((it) => { const at = CF().freeSpot(b, it.w, it.h, first.id); Object.assign(it, at, { tab: first.id }); });
+    if (b.tabs.length < 2) { delete b.tabs; b.items.forEach((it) => { delete it.tab; }); }
+    if (card.tab === id) card.tab = first.id;
+    commit(b);
+    P.toast?.(moving.length ? `タブを外しました（中の ${moving.length} 項目は「${first.name}」へ）` : "タブを外しました");
+  }
+  /** タブの名前を、その札の上で打って変える（Enter で決める・Esc でやめる） */
+  function renameTab(card, id) {
+    const btn = card.q("tabs").querySelector(`[data-tab="${CSS.escape(id)}"]`); if (!btn || !ED) return;
+    const t = (ED.body.tabs || []).find((x) => x.id === id); if (!t) return;
+    const inp = document.createElement("input");
+    inp.className = "cfv-tabin"; inp.value = t.name; inp.maxLength = 30; inp.setAttribute("aria-label", "タブの名前");
+    btn.replaceWith(inp); inp.focus(); inp.select();
+    let done = false;
+    const end = (ok) => {
+      if (done) return; done = true;
+      const v = inp.value.trim();
+      if (ok && v && v !== t.name) { const b = TPA.clone(ED.body); b.tabs.find((x) => x.id === id).name = v; commit(b); } else renderForm(card);
+    };
+    inp.addEventListener("keydown", (e) => { if (TPA.composing(e)) return; if (e.key === "Enter") { e.preventDefault(); end(true); } if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); end(false); } });
+    inp.addEventListener("blur", () => end(true));
   }
   const focusItem = (id) => requestAnimationFrame(() => ED && ED.card.q("grid").querySelector(`.cfv-i[data-id="${CSS.escape(id)}"]`)?.focus());
   const dirty = () => !!ED && JSON.stringify(ED.body) !== ED.saved;
@@ -263,13 +340,17 @@
     const placed = new Set(ED.body.items.filter((x) => x.kind === "field").map((x) => x.col)), t = P.target();
     const cols = LC().ordered(t, P.columns(), P.lotColumn()).filter((c) => !placed.has(c));
     const r = anchor.getBoundingClientRect();
-    const put = (it, w = 4, h = 1) => { const at = CF().freeSpot(ED.body, w, h), b = TPA.clone(ED.body), id = CF().newId(); b.items.push({ id, label: "", st: CF().style(), ...it, ...at }); ED.sel = id; commit(b); openSide(id); };
+    const tab = tabNow(ED.card), tabbed = !!CF().tabsOf(ED.body);
+    const put = (it, w = 4, h = 1) => { const at = CF().freeSpot(ED.body, w, h, tab), b = TPA.clone(ED.body), id = CF().newId(); b.items.push({ id, label: "", st: CF().style(), ...it, ...at, ...(tabbed ? { tab } : {}) }); ED.sel = id; commit(b); openSide(id); };
+    const dateCols = LC().ordered(t, P.columns(), "").filter((c) => CF().dateLike(c) || (P.dateColumns ? P.dateColumns() : []).includes(c));
     TPA.menu({ x: r.left, y: r.bottom + 2, head: "項目を足す（空いた所に置きます）", items: [
       { group: cols.length ? `置いていない列（${cols.length}）` : "置いていない列はありません" },
       ...cols.slice(0, 40).map((c) => ({ label: LC().label(t, c), icon: "▢", run: () => put({ kind: "field", col: c }, 4, LONG_RE.test(c) ? 2 : 1) })),
       { sep: true },
       { label: "組み合わせた項目（式）…", icon: "ƒ", run: () => put({ kind: "combo", label: "組み合わせ", expr: cols[0] || P.columns()[0] ? `[${cols[0] || P.columns()[0]}]` : "''" }) },
       { label: "見出しの線", icon: "―", run: () => put({ kind: "section", text: "見出し" }, 12, 1) },
+      { label: "畳める見出し（アコーディオン）", icon: "▾", run: () => put({ kind: "section", text: "見出し", fold: true }, 12, 1) },
+      { label: `日付のまとまり（日付の列 ${dateCols.length} を日付の順に）`, icon: "📅", disabled: dateCols.length < 1, why: "日付の列が見つかりません", run: () => put({ kind: "dates", label: "日付", cols: dateCols }, 12, 2) },
       { label: "字（決まった文）", icon: "T", run: () => put({ kind: "text", text: "字" }, 4, 1) },
     ] });
   }
@@ -409,7 +490,7 @@
     const t = P.target(), st = CF().style(it.st), cur = (k, v) => String(st[k]) === String(v);
     const seg = (k, list) => `<span class="cf-seg">${list.map(([v, n]) => `<button type="button" data-st="${k}" data-v="${v}" aria-pressed="${cur(k, v)}">${n}</button>`).join("")}</span>`;
     const sws = (k, list, cls) => `<span class="cf-sws">${list.map(([v, n]) => `<button type="button" class="cf-sw ${cls}${v || "none"}" data-st="${k}" data-v="${v}" aria-pressed="${cur(k, v)}" title="${n}"></button>`).join("")}</span>`;
-    const kindName = { field: "列", combo: "組み合わせた項目", text: "字", section: "見出しの線" }[it.kind];
+    const kindName = { field: "列", combo: "組み合わせた項目", text: "字", section: it.fold ? "畳める見出し" : "見出しの線", dates: "日付のまとまり" }[it.kind];
     const cols = LC().ordered(t, P.columns(), "");
     let what = "";
     if (it.kind === "field") what = `<label><span>列</span><select data-sd="col">${cols.map((c) => `<option value="${esc(c)}"${c === it.col ? " selected" : ""}>${esc(LC().label(t, c))}</option>`).join("")}</select></label>`;
@@ -418,7 +499,18 @@
       what = `<label class="cf-w"><span>中身（式）</span><textarea data-sd="expr" rows="2" spellcheck="false">${esc(it.expr)}</textarea></label>`
         + `<label><span>列を入れる</span><select data-sd="ins"><option value="">選ぶと式の後ろに [列] を足す</option>${cols.map((c) => `<option value="${esc(c)}">${esc(LC().label(t, c))}</option>`).join("")}</select></label>`
         + `<p class="cf-hint${chk.ok ? "" : " is-ng"}">${chk.ok ? `表示列の作り方と同じ書き方です（例: [合金] + ' / ' + [調質]。+ は数なら足し、字ならつなぐ）。いまの行: <b>${esc(CF().valueOf(it, ctxOf(ED.card)).text || "（空）")}</b>` : esc(chk.error)}</p>`;
-    } else what = `<label><span>字</span><input data-sd="text" value="${esc(it.text || "")}" maxlength="400"></label>`;
+    } else if (it.kind === "dates") {
+      // 日付のまとまりに入れる列（日付らしい列を先に。ほかの列も入れられる）
+      const dl = cols.filter((c) => CF().dateLike(c) || (P.dateColumns ? P.dateColumns() : []).includes(c) || (it.cols || []).includes(c));
+      what = `<div class="cf-row cf-full"><span>入れる列（${(it.cols || []).length}）・いまの行の日付の順に並べ、間の日数を出します</span><span class="cf-checks">`
+        + dl.map((c) => `<label class="lk-check"><input type="checkbox" data-sd="dcol" value="${esc(c)}"${(it.cols || []).includes(c) ? " checked" : ""}>${esc(LC().label(t, c))}</label>`).join("") + "</span></div>";
+    } else {
+      what = `<label><span>字</span><input data-sd="text" value="${esc(it.text || "")}" maxlength="400"></label>`;
+      if (it.kind === "section") what += `<div class="cf-row"><span>畳める</span><span class="cf-checks"><label class="lk-check"><input type="checkbox" data-sd="fold"${it.fold ? " checked" : ""}>見出しを押して開く・畳む</label>`
+        + `<label class="lk-check"><input type="checkbox" data-sd="shut"${it.shut ? " checked" : ""}${it.fold ? "" : " disabled"}>はじめは畳んでおく</label></span></div>`;
+    }
+    const ts = CF().tabsOf(ED.body);
+    if (ts) what += `<label><span>タブ</span><select data-sd="tab">${ts.map((x) => `<option value="${esc(x.id)}"${x.id === CF().tabOf(ED.body, it.tab) ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>`;
     side.el.innerHTML = `<header><b>${esc(kindName)}「${esc(CF().labelOf(it, { label: (c) => LC().label(t, c) }) || it.text || "")}」</b><button type="button" class="lc-x" data-sd="close" title="閉じる（Esc）" aria-label="閉じる">×</button></header>`
       + (it.kind === "section" || it.kind === "text" ? "" : `<label><span>名前</span><input data-sd="label" value="${esc(it.label)}" maxlength="60" placeholder="${esc(it.kind === "field" ? LC().label(t, it.col) : "組み合わせ")}"></label>`)
       + what
@@ -427,7 +519,7 @@
       + `<div class="cf-row"><span>字の色</span>${sws("color", CF().COLORS, "cfv-tx-")}</div>`
       + `<div class="cf-row"><span>地の色</span>${sws("bg", CF().BGS, "cfv-bg-")}</div>`
       + `<div class="cf-row"><span>揃え</span>${seg("align", CF().ALIGN)}</div>`
-      + (it.kind === "section" || it.kind === "text" ? "" : `<div class="cf-row cf-full"><span>名前と値の置き方</span>${CF().labPicker('data-st="lab"', st.lab)}</div>`)
+      + (it.kind === "section" || it.kind === "text" || it.kind === "dates" ? "" : `<div class="cf-row cf-full"><span>名前と値の置き方</span>${CF().labPicker('data-st="lab"', st.lab)}</div>`)
       + `<div class="cf-row"><span>枠</span>${seg("border", CF().BORDER)}</div>`
       + `<footer><span class="cf-size">${it.w} × ${it.h} 升（四隅で変えられます）</span><button type="button" class="cf-del" data-sd="del">この項目を外す</button></footer>`;
   }
@@ -442,6 +534,14 @@
     el.addEventListener("change", (e) => {
       const x = e.target; if (!ED) return;
       if (x.dataset.sd === "col") edit((it) => { it.col = x.value; });
+      else if (x.dataset.sd === "dcol") edit((it) => { const set = new Set(it.cols || []); if (x.checked) set.add(x.value); else set.delete(x.value); it.cols = LC().ordered(P.target(), P.columns(), "").filter((c) => set.has(c)); if (!it.cols.length) it.cols = [x.value]; });
+      else if (x.dataset.sd === "fold") edit((it) => { it.fold = x.checked; if (!x.checked) it.shut = false; });
+      else if (x.dataset.sd === "shut") edit((it) => { it.shut = x.checked; });
+      else if (x.dataset.sd === "tab") {          // ほかのタブへ移す（移した先の空いた所へ。カードもそのタブを出す）
+        const to = x.value, b = TPA.clone(ED.body), it = b.items.find((y) => y.id === side.id); if (!it) return;
+        Object.assign(it, CF().freeSpot({ ...b, items: b.items.filter((y) => y.id !== it.id) }, it.w, it.h, to), { tab: to });
+        ED.card.tab = to; commit(b); P.toast?.(`「${(b.tabs.find((t) => t.id === to) || {}).name}」のタブへ移しました`);
+      }
       else if (x.dataset.sd === "ins" && x.value) { const v = x.value; x.value = ""; edit((it) => { it.expr = `${String(it.expr || "").trim()}${String(it.expr || "").trim() ? " + ' ' + " : ""}[${v}]`; }); }
     });
     // 打った字は確定してから入れる（変換中に面を作り直さない。版 3.46.0 と同じ）。名前・式・字は面を作り直さず、カードだけ描き直す
@@ -459,7 +559,9 @@
     const wr = ED.card.el.getBoundingClientRect(), w = side.el.offsetWidth, h = side.el.offsetHeight, gap = 14;
     const r = it ? it.getBoundingClientRect() : wr;
     const left = wr.left - w - gap >= 8, right = wr.right + w + gap <= innerWidth - 8;
-    const x = left ? wr.left - w - gap : right ? wr.right + gap : Math.max(8, wr.right - w - 12);
+    // 外に空きが無い（窓が大きい。版 3.56.0）: 窓の中の、選んだ項目と反対の側に置く（項目を覆わない）
+    const inLeft = r.left + r.width / 2 > wr.left + wr.width / 2;
+    const x = left ? wr.left - w - gap : right ? wr.right + gap : inLeft ? Math.max(8, wr.left + 12) : Math.max(8, wr.right - w - 12);
     const y = Math.max(8, Math.min(innerHeight - h - 8, r.top + r.height / 2 - 40));
     side.el.style.left = `${Math.round(x)}px`; side.el.style.top = `${Math.round(y)}px`;
     side.el.classList.toggle("is-inside", !left && !right);
@@ -509,7 +611,15 @@
     renderShelf();
     if (!card.el.contains(document.activeElement)) card.el.focus({ preventScroll: true });
   }
-  function step(card, d) { if (card.idx >= 0) setRow(card, Math.max(0, Math.min(P.rows().length - 1, card.idx + d))); }
+  /** 全部の行の数（一覧はページで止めず、送れば続きを読み足す。版 3.56.0） */
+  const total = () => Math.max(P.rows().length, P.count ? P.count() : 0);
+  /** 前・次の行へ。まだ読んでいない行なら、一覧に読み足してから出す（全部の行を送れる） */
+  async function step(card, d) {
+    if (card.idx < 0) return;
+    const i = Math.max(0, Math.min(total() - 1, card.idx + d));
+    if (i >= P.rows().length && P.more) await P.more(i);
+    setRow(card, Math.min(i, P.rows().length - 1));
+  }
   /* ---------------- 並べ方（絵で選ぶ）と棚 ---------------- */
   const LAYOUTS = [
     ["row", "横に並べる", "左から右へ1列に並べます（比べるとき）"],
@@ -583,7 +693,8 @@
   function refresh() {
     if (!cards.length) return;
     const rows = P.rows();
-    cards.forEach((c) => { c.idx = rows.findIndex((r) => sigOf(r) === c.sig); if (c.idx >= 0) c.row = rows[c.idx]; });
+    // 同じ所にあればそのまま（続きを読み足しただけなら前の行は動かない）。動いたときだけ全部から探す
+    cards.forEach((c) => { if (!(c.idx >= 0 && rows[c.idx] && sigOf(rows[c.idx]) === c.sig)) c.idx = rows.findIndex((r) => sigOf(r) === c.sig); if (c.idx >= 0) c.row = rows[c.idx]; });
     renderAll();
   }
   function closeCard(card) {

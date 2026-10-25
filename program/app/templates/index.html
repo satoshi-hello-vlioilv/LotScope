@@ -131,16 +131,13 @@
       <span id="llActiveTabs" class="ll-active" role="toolbar" aria-label="効いている物" hidden></span>
       <span id="llCardShelf" class="lk-shelf" hidden role="toolbar" aria-label="開いているカード"></span>
       <span id="llCardHint" class="ll-hint" hidden title="「表の見せ方」の「機能」で使わないようにもできます">行をダブルクリックするとカードで見られます</span>
-      <!-- 右の組（拡大・頁）。件数の行が折り返しても、2 つは離れず右に寄る -->
+      <!-- 右の組（拡大・続きを読んでいる印）。件数の行が折り返しても、2 つは離れず右に寄る -->
       <div class="ll-statusright">
       <!-- 一覧だけを拡大（品質異常・作業実績で別に、この PC に覚える。開き直しても同じ拡大）。ボタンは倍率だけ（100% でないときは強める）、つまみ・刻み・戻すは押して開く面に -->
       <button id="llZoomBtn" type="button" class="ll-zoombtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="llZoomPop" title="一覧だけを拡大・縮小します（品質異常・作業実績で別に、この PC に覚えます。開き直しても同じ拡大で出ます）">
         <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg><b id="llZoomBtnValue">100%</b><i aria-hidden="true">▾</i></button>
-      <div class="ll-pager">
-        <button id="llPrev" type="button" aria-label="前のページ">◀</button>
-        <span id="llRange">0</span>
-        <button id="llNext" type="button" aria-label="次のページ">▶</button>
-      </div>
+      <!-- 頁の送りは無い（版 3.56.0）: 送れば続きを読み足す。読み足している間だけ出す -->
+      <span id="llMore" class="ll-more" role="status" hidden><i class="wait-spin" aria-hidden="true"></i>続きを読んでいます</span>
       </div>
     </div>
     <!-- 効いている物の面（タブで押した種類の札だけを出す。札の作りと操作は今までどおり各部品: まとめ＝lotlist.js・並べ替え＝lotlist.js・

@@ -45,6 +45,30 @@ class Body(unittest.TestCase):
         keys = re.findall(r'\["(\w+)", "[^"]+", "[^"]+"\]', js[js.index("const LAB"):js.index("const BORDER")])
         self.assertEqual(tuple(keys), card_forms.LAB, "画面とサーバーで置き方の鍵が同じ")
 
+    def test_tabs_fold_and_dates(self):
+        # 版 3.56.0: タブ（2 つ以上・項目の tab は有る物だけ・重なりはタブの中で見る）・畳める見出し・日付のまとまり
+        b = {"cols": 12, "row": 48, "tabs": [{"id": "t1", "name": "基本"}, {"id": "t2", "name": "  "}, {"id": "t1", "name": "同じ id"}],
+             "items": [{"id": "a", "kind": "field", "col": "x", "x": 0, "y": 0, "w": 4, "h": 1, "tab": "t1"},
+                       {"id": "b", "kind": "field", "col": "y", "x": 0, "y": 0, "w": 4, "h": 1, "tab": "t2"},     # 同じ所でもタブが違えば重ならない
+                       {"id": "c", "kind": "field", "col": "z", "x": 4, "y": 0, "w": 4, "h": 1, "tab": "無い"},   # 無いタブ → 先頭
+                       {"id": "s", "kind": "section", "text": "そのほか", "x": 0, "y": 1, "w": 12, "h": 1, "tab": "t1", "fold": True, "shut": True},
+                       {"id": "s2", "kind": "section", "text": "畳めない", "x": 0, "y": 2, "w": 12, "h": 1, "tab": "t1", "shut": True},
+                       {"id": "d", "kind": "dates", "cols": ["発生日", "", "検査日"], "x": 0, "y": 3, "w": 12, "h": 2, "tab": "t2"}]}
+        out, _ = card_forms.clean_body(b)
+        self.assertEqual([t["id"] for t in out["tabs"]], ["t1", "t2", "t3"])
+        self.assertEqual(out["tabs"][1]["name"], "タブ 2", "空の名前は「タブ n」")
+        by = {it["id"]: it for it in out["items"]}
+        self.assertEqual((by["a"]["tab"], by["b"]["tab"], by["c"]["tab"]), ("t1", "t2", "t1"))
+        self.assertEqual((by["s"]["fold"], by["s"]["shut"], by["s2"]["fold"], by["s2"]["shut"]), (True, True, False, False), "畳めない見出しは畳んでおけない")
+        self.assertEqual(by["d"]["cols"], ["発生日", "検査日"])
+        with self.assertRaises(card_forms.CardFormError):      # 同じタブで重なる
+            card_forms.clean_body({**b, "items": b["items"][:1] + [{"id": "e", "kind": "field", "col": "w", "x": 2, "y": 0, "w": 4, "h": 1, "tab": "t1"}]})
+        with self.assertRaises(card_forms.CardFormError):      # 列の無い日付のまとまり
+            card_forms.clean_body({"items": [{"kind": "dates", "cols": [], "x": 0, "y": 0, "w": 4, "h": 1}]})
+        one, _ = card_forms.clean_body({"tabs": [], "items": [{"id": "a", "kind": "field", "col": "x", "x": 0, "y": 0, "w": 4, "h": 1, "tab": "t1"}]})
+        self.assertNotIn("tabs", one)
+        self.assertNotIn("tab", one["items"][0])
+
     def test_overlap_and_missing_are_refused(self):
         with self.assertRaises(card_forms.CardFormError):
             card_forms.clean_body(body(items=[{"kind": "field", "col": "a", "x": 0, "y": 0, "w": 4, "h": 1},

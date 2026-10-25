@@ -9,9 +9,12 @@
 
 中身（body）:
     {"cols": 12, "row": 48,                      … 方眼の列の数（6〜24）と 1 段の高さ px（32〜96）
+     "tabs": [{"id", "name"}],                    … 分けて出すタブ（版 3.56.0。2 つ以上で効く。項目の "tab" がどのタブか。方眼はタブごと）
      "theme": {"accent": 色の鍵, "density": "normal"|"compact"|"roomy", "radius": 0〜16},
-     "items": [{"id", "kind": "field"|"combo"|"text"|"section",
+     "items": [{"id", "kind": "field"|"combo"|"text"|"section"|"dates", "tab": タブの id,
                 "col": 列名（field）, "expr": 式（combo。表示列の作り方と同じ書き方: list-formula.js）, "text": 字（text・section）,
+                "cols": [列名]（dates: 日付の列を集め、いまの行の日付の順に並べて出す。版 3.56.0）,
+                "fold": 畳める見出し（section。アコーディオン）, "shut": はじめは畳んでおく（section）,
                 "label": 出す名前（空なら列名）, "x", "y", "w", "h"（方眼の升。重ならない）,
                 "st": {"fs": "s"|"m"|"l"|"xl", "bold": bool, "color": 色の鍵, "bg": 色の鍵, "align": "left"|"center"|"right",
                        "lab": "top"|"bottom"|"left"|"spread"|"legend"|"tag"|"inline"|"none", "border": "line"|"none"|"strong"}}]}
@@ -24,12 +27,14 @@ import re
 from . import pivot_presets
 
 SOURCE_PREFIX = "card:"
-MAX_ITEMS = 120
+MAX_ITEMS = 250
+MAX_TABS = 12
+MAX_DATE_COLS = 30
 COLS = (6, 24, 12)          # 最小・最大・既定
 ROW = (32, 96, 48)
 MAX_Y = 200
 MAX_H = 24
-KINDS = ("field", "combo", "text", "section")
+KINDS = ("field", "combo", "text", "section", "dates")
 FS = ("s", "m", "l", "xl")
 ALIGN = ("left", "center", "right")
 LAB = ("top", "bottom", "left", "spread", "legend", "tag", "inline", "none")   # 名前と値の置き方（card-form.js の LAB と同じ）
@@ -87,6 +92,17 @@ def clean_body(body):
     th = body.get("theme") if isinstance(body.get("theme"), dict) else {}
     theme = {"accent": _pick(th.get("accent"), COLORS, "blue") or "blue", "density": _pick(th.get("density"), DENSITY, "normal"),
              "radius": _int(th.get("radius"), 0, 16, 9)}
+    tabs, tab_ids = [], set()
+    for k, t in enumerate(body.get("tabs") if isinstance(body.get("tabs"), list) else []):
+        if not isinstance(t, dict) or len(tabs) >= MAX_TABS:
+            continue
+        tid = str(t.get("id") or "")
+        if not _ID.fullmatch(tid) or tid in tab_ids:
+            tid = f"t{k + 1}"
+            while tid in tab_ids:
+                tid += "x"
+        tab_ids.add(tid)
+        tabs.append({"id": tid, "name": str(t.get("name") or f"タブ {k + 1}").strip()[:30] or f"タブ {k + 1}"})
     raw = body.get("items") if isinstance(body.get("items"), list) else []
     if len(raw) > MAX_ITEMS:
         raise CardFormError(f"項目は {MAX_ITEMS} までです。")
@@ -106,6 +122,8 @@ def clean_body(body):
         h = _int(it.get("h"), 1, MAX_H, 1)
         y = _int(it.get("y"), 0, MAX_Y, 0)
         x_ = {"id": iid, "kind": kind, "x": x, "y": y, "w": w, "h": h, "label": str(it.get("label") or "")[:60], "st": clean_style(it.get("st"))}
+        if tabs:
+            x_["tab"] = it.get("tab") if it.get("tab") in tab_ids else tabs[0]["id"]
         if kind == "field":
             col = str(it.get("col") or "")[:200]
             if not col:
@@ -116,13 +134,23 @@ def clean_body(body):
             if not expr:
                 raise CardFormError(f"組み合わせた項目「{x_['label'] or iid}」の中身（式）がありません。")
             x_["expr"] = expr
+        elif kind == "dates":
+            cs = [str(c)[:200] for c in (it.get("cols") if isinstance(it.get("cols"), list) else []) if str(c or "").strip()][:MAX_DATE_COLS]
+            if not cs:
+                raise CardFormError(f"日付のまとまり「{x_['label'] or iid}」に列がありません。")
+            x_["cols"] = cs
         else:
             x_["text"] = str(it.get("text") or "")[:400]
-        hit = next((q for q in items if overlaps(q, x_)), None)
+            if kind == "section":
+                x_["fold"] = bool(it.get("fold"))
+                x_["shut"] = bool(it.get("shut")) and x_["fold"]
+        hit = next((q for q in items if q.get("tab") == x_.get("tab") and overlaps(q, x_)), None)   # 重なりはタブの中で見る
         if hit:
             raise CardFormError(f"項目「{x_['label'] or x_.get('col') or iid}」と「{hit['label'] or hit.get('col') or hit['id']}」が重なっています。")
         items.append(x_)
     out = {"cols": cols, "row": _int(body.get("row"), ROW[0], ROW[1], ROW[2]), "theme": theme, "items": items}
+    if tabs:
+        out["tabs"] = tabs
     text = json.dumps(out, ensure_ascii=False, sort_keys=True)
     if len(text.encode("utf-8")) > pivot_presets.MAX_BYTES:
         raise CardFormError("カードの設計が大きすぎます。")
