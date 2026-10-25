@@ -214,3 +214,32 @@ body.cfv-dragging{cursor:grabbing}
 .cf-size{font-size:12px;color:var(--muted)}
 .cfv-i .cfv-v.is-wrap{white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.15;text-overflow:clip}
 .cf-lp .cfv-l{color:var(--ro-ink)}
+
+/* ---------- 分けて出す（版 3.56.0）: タブ・畳める見出し・日付のまとまり ----------
+   タブは本文の上の下線のタブ（いま出しているタブは藍の下線と太字。数は淡く）。畳める見出しは ▾／▸ の付いた見出しの線（押せる形）。
+   日付のまとまりは、日付の順の札を矢印でつなぎ、間の日数を淡い字で添える（時の流れを左から右へ） */
+.cfv-tabbar{display:flex;align-items:flex-end;gap:2px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--surface);overflow-x:auto;flex:0 0 auto;scrollbar-width:thin}
+.cfv-tabbar[hidden]{display:none}
+.ll-cardwin .cfv-tabbar .cfv-tab{position:relative;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:0;border-bottom:3px solid transparent;background:transparent;font:inherit;font-size:13.5px;color:var(--ro-ink);white-space:nowrap;cursor:pointer}
+.ll-cardwin .cfv-tab small{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ll-cardwin .cfv-tabbar .cfv-tab:hover{color:var(--h-input);background:var(--input-soft)}
+.ll-cardwin .cfv-tabbar .cfv-tab[aria-selected="true"]{border-bottom-color:var(--h-input);color:var(--h-input);font-weight:800}
+.cfv-tab:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px}
+.cfv-tabx{font-style:normal;margin-left:2px;padding:0 4px;border-radius:4px;color:var(--muted)}.cfv-tabx:hover{background:var(--danger-bg);color:var(--danger)}
+.ll-cardwin .cfv-tabbar .cfv-tabadd{height:28px;margin:0 0 3px 6px;padding:0 10px;border:1px dashed var(--line);border-radius:6px;background:transparent;font:inherit;font-size:12.5px;color:var(--h-input);cursor:pointer;white-space:nowrap}
+.cfv-tabin{height:28px;margin-bottom:3px;width:12em;border:1px solid var(--edit-focus);border-radius:6px;padding:0 8px;font:inherit;font-size:13.5px}
+.cfv-sec.is-fold{display:flex;align-items:center;gap:6px;width:100%;border:0;border-bottom:2px solid color-mix(in srgb,var(--cf-acc) 35%,transparent);background:transparent;padding:0 2px 3px;font:inherit;font-size:12.5px;font-weight:800;letter-spacing:.06em;color:var(--cf-acc);text-align:left}
+button.cfv-sec.is-fold{cursor:pointer}button.cfv-sec.is-fold:hover{background:color-mix(in srgb,var(--cf-acc) 7%,transparent)}
+button.cfv-sec.is-fold:focus-visible{outline:2px solid var(--focus-ring);outline-offset:1px}
+.cfv-tw{font-style:normal;width:1em;text-align:center}
+.cfv-foldn{margin-left:auto;font-size:11.5px;font-weight:700;letter-spacing:0;color:var(--muted)}
+.cfv-i.k-dates{justify-content:flex-start;gap:4px;padding-top:6px}
+.cfv-dates{display:flex;align-items:center;flex-wrap:wrap;gap:4px 2px;margin:0;padding:0;list-style:none;min-width:0}
+.cfv-date{display:flex;flex-direction:column;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);min-width:0}
+.cfv-date small{font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap}
+.cfv-date b{font-size:13.5px;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cfv-date.is-none{opacity:.75}.cfv-date.is-none b{color:var(--faint);font-weight:400}
+.cfv-gap{font-size:11px;color:var(--muted);white-space:nowrap;padding:0 2px}
+.cfv-gap::before{content:"→ ";color:var(--cf-acc)}
+.cf-checks{display:flex;flex-wrap:wrap;gap:4px 12px;max-height:180px;overflow:auto}
+.ll-cardwin button.cfv-sec.is-fold{height:auto;border:0;border-bottom:2px solid color-mix(in srgb,var(--cf-acc) 35%,transparent);border-radius:0;padding:0 2px 3px;font-size:12.5px}

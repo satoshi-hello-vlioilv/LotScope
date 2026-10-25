@@ -2293,7 +2293,8 @@
     });
     window.LotListCard.mount({
       rows: () => S.rows, target: layoutTarget, lotColumn: () => S.lotColumn, lotKey,
-      count: () => (S.error ? 0 : Math.max(S.count, S.rows.length)), more: (i) => loadMore(i),     // 全部の行の数・i 行目まで読み足す（版 3.56.0）
+      count: () => (S.error ? 0 : Math.max(S.count, S.rows.length)), more: (i) => loadMore(i),
+      dateColumns: () => S.dateColumns || [],     // 日付の列（カードの「日付をまとめる」。版 3.56.0）     // 全部の行の数・i 行目まで読み足す（版 3.56.0）
       // カードの設計の表の鍵（版 3.55.0）: 作業実績は設備によらず表ごと（どの設備のカードも同じデザイン）
       formKey: () => (S.src.id === "work" ? `worklog:${S.table || ""}` : layoutTarget()),
       columns: () => window.LotListColumns.allColumns(layoutTarget(), S.columns),
