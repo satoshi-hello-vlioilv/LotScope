@@ -407,6 +407,8 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 /* カードで見ている行（背景は「いまのロット」のアンバーと重ならないよう、藍の枠で示す） */
 .ll-grid tbody tr.is-carded td{box-shadow:inset 0 2px 0 var(--h-input),inset 0 -2px 0 var(--h-input)}
 .ll-grid tbody tr.is-carded td:first-child{box-shadow:inset 0 2px 0 var(--h-input),inset 0 -2px 0 var(--h-input),inset 3px 0 0 var(--h-input)}
+/* カードで開いている行: カードの窓に隠れない左の列（ロット番号）に琥珀の地と枠（版 3.56.0。カードは一覧のロット番号の列だけ残して開く） */
+.ll-grid tbody tr.is-carded > td.ll-lotcol{background:#fff3d6;box-shadow:inset 4px 0 0 #d08a0c,inset 0 2px 0 #d08a0c,inset 0 -2px 0 #d08a0c;font-weight:800}
 
 /* 件数の横: まとめているとき（何が効いているか・全部開く／畳む・やめる）と、カードの案内 */
 .ll-groupbar{display:flex;align-items:center;gap:6px}

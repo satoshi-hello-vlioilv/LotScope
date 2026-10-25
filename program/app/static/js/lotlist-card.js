@@ -16,7 +16,7 @@
    ========================================================================= */
 (function () {
   const { $, $$, esc } = TPA;
-  const KEY = { layouts: "tpa.lotlist.card.v1", rect: "tpa.lotlist.cardRect.v1", diff: "tpa.lotlist.cardDiff.v1", pick: "tpa.lotlist.cardForm.v1",
+  const KEY = { layouts: "tpa.lotlist.card.v1", rect: "tpa.lotlist.cardRect.v2", diff: "tpa.lotlist.cardDiff.v1", pick: "tpa.lotlist.cardForm.v1",
     fold: "tpa.lotlist.cardFold.v1" };       // 畳める見出しを、この PC で開いた・畳んだ（デザインごと。版 3.56.0）
   const CF = () => window.CardForm;
   const MAX_CARDS = 8, CASCADE = 28, Z_BASE = 72;   // 表示列の窓（80）より下に重ねる
@@ -52,8 +52,8 @@
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "品質データのカード");
     el.innerHTML = `
       <div class="lc-head lk-head" data-drag title="見出しを掴んで動かせます（画面の端・ほかのカードへ吸い付きます。Alt を押すと吸い付きません）。&#10;大きさは4辺と4隅で変えられます。Alt+矢印＝動かす・Alt+Shift+矢印＝大きさ（Ctrl も押すと 1px ずつ）">
-        <div class="lk-title"><small class="lc-eyebrow">品質データのカード<b class="lk-no" data-k="no"></b></small>
-          <h3><span data-k="lot">-</span></h3><p class="lc-lead" data-k="sub"></p></div>
+        <div class="lk-title"><h3><span data-k="lot">-</span><b class="lk-no" data-k="no"></b></h3><p class="lc-lead" data-k="sub"></p></div>
+        <div class="lk-sibs" data-k="sibs" hidden></div>
         <div class="lk-nav">
           <button type="button" class="lk-pin" data-card="pin" aria-pressed="false" title="このカードを残します。次のダブルクリックは新しいカードに開きます（組み合わせて見られます）">📌 残す</button>
           <button type="button" class="lk-tile" data-card="tile" hidden aria-haspopup="true" title="開いているカードの並べ方を、絵で選びます">並べる ▾</button>
@@ -63,12 +63,15 @@
         </div>
         <button type="button" class="lc-x" data-card="close" title="このカードを閉じる（Esc）" aria-label="閉じる">×</button>
       </div>
-      <div class="lk-sibs" data-k="sibs" hidden></div>
-      <div class="lk-tools" data-k="tools"></div>
       <div class="cfv-tabbar" data-k="tabs" role="tablist" aria-label="カードのタブ" hidden></div>
-      <div class="lk-body"><div class="cfv" data-k="grid"></div></div>`;
+      <div class="lk-body"><div class="cfv" data-k="grid"></div></div>
+      <div class="lk-tools" data-k="tools"></div>`;
     document.body.append(el);
-    card.win = TPA.floatPanel(el, { key: KEY.rect, w: 760, h: 720, top: 70, align: "right", minW: 300, minH: 220 });
+    // 初めの大きさ（版 3.56.0。ui-proposals/2026-10-cardview の 3 回目の M）: 一覧のロット番号の列だけ残して、右と下はいっぱい
+    const area = () => { const scr = $("#lotListScreen"), lot = $("#llHead th.ll-lotcol"), top = Math.round((scr ? scr.getBoundingClientRect().top : 64) + 6);
+      const left = Math.round(Math.min(innerWidth * 0.35, Math.max(16, (lot ? lot.getBoundingClientRect().right : 200) + 6)));
+      return { top, left, w: innerWidth - left - 16, h: innerHeight - top - 12 }; };
+    card.win = TPA.floatPanel(el, { key: KEY.rect, w: () => area().w, h: () => area().h, top: () => area().top, left: () => area().left, minW: 300, minH: 220 });
     const q = (k) => $(`[data-k="${k}"]`, el);
     card.q = q;
     // カードの設計を直すときの取っ手（掴んで動かす・四隅・ダブルクリック・キー）。直していないカードでは何もしない
@@ -556,7 +559,9 @@
     const wr = ED.card.el.getBoundingClientRect(), w = side.el.offsetWidth, h = side.el.offsetHeight, gap = 14;
     const r = it ? it.getBoundingClientRect() : wr;
     const left = wr.left - w - gap >= 8, right = wr.right + w + gap <= innerWidth - 8;
-    const x = left ? wr.left - w - gap : right ? wr.right + gap : Math.max(8, wr.right - w - 12);
+    // 外に空きが無い（窓が大きい。版 3.56.0）: 窓の中の、選んだ項目と反対の側に置く（項目を覆わない）
+    const inLeft = r.left + r.width / 2 > wr.left + wr.width / 2;
+    const x = left ? wr.left - w - gap : right ? wr.right + gap : inLeft ? Math.max(8, wr.left + 12) : Math.max(8, wr.right - w - 12);
     const y = Math.max(8, Math.min(innerHeight - h - 8, r.top + r.height / 2 - 40));
     side.el.style.left = `${Math.round(x)}px`; side.el.style.top = `${Math.round(y)}px`;
     side.el.classList.toggle("is-inside", !left && !right);

@@ -37,7 +37,7 @@ try {
     for (const width of [1728, 1536, 1280, 1100]) {
       const p = await app.newPage("light", { width, height: 900 });
       const errors = []; p.on("pageerror", (e) => errors.push(e.message));
-      if (src === "work") { await p.click("#tabWork"); }
+      if (src === "work") { await p.evaluate(() => document.querySelector("#tabWork").click()); /* 狭い窓では作業実績のタブが「ほか N ▾」に入る（版 3.54.0）ので、押す物を直接押す */ }
       await p.waitForSelector("#llBody tr[data-i]"); await sleep(700);
       const bad = [];
       for (const [name, opener, pop, ready] of POPS) {

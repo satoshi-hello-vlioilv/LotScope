@@ -3,7 +3,7 @@
 // ① カードを開くと、組み込みの「標準」で項目が方眼に並ぶ（デザインの選び）
 // ② 「デザインを直す」で、見た目の大きさのまま直す画面になる（項目の位置と大きさが直す前と同じ）
 // ③ 四隅の取っ手（右下）を左へ 1 升引くと幅が 1 減る・Ctrl＋Z で戻る／掴んでほかの項目の上へ動かすと置けない（形は変わらない）
-// ④ 項目をダブルクリック → 項目の面がカードの外（左か右）に開き、線で項目と結ぶ・窓に収まる
+// ④ 項目をダブルクリック → 項目の面がカードの外（左か右。空きが無ければ窓の中の、選んだ項目と反対の側）に開き、選んだ項目を覆わない・窓に収まる（外なら線で結ぶ）
 // ⑤ 面で名前を変える → カードの項目の名前がその場で変わる／字の大きさ「特大」→ 項目に fs-xl
 // ⑥ 「＋ 項目」→ 組み合わせた項目（式）→ 式 [合金] + ' / ' + [調質] → いまの行の値「合金 / 調質」が出る
 // ⑤ 名前と値の置き方は 8 通り（上・下・左・両端・枠の上・札・続ける・出さない）。見本の札で選ぶと項目に当たり、名前と値の並びが合い、
@@ -74,10 +74,12 @@ try {
   const sd = await p.evaluate(() => {
     const s = document.querySelector(".cf-side"), c = document.querySelector(".ll-cardwin:not([hidden])"), l = document.querySelector(".cf-link");
     if (!s) return null;
-    const a = s.getBoundingClientRect(), b = c.getBoundingClientRect();
-    return { out: a.right <= b.left + 1 || a.left >= b.right - 1, fit: a.left >= 0 && a.top >= 0 && a.right <= innerWidth && a.bottom <= innerHeight, link: !!l && !l.hidden && l.getBoundingClientRect().width > 0, head: s.querySelector("header b").textContent };
+    const a = s.getBoundingClientRect(), b = c.getBoundingClientRect(), it = c.querySelector(".cfv-i.is-sel").getBoundingClientRect();
+    const out = a.right <= b.left + 1 || a.left >= b.right - 1;
+    return { out, fit: a.left >= 0 && a.top >= 0 && a.right <= innerWidth && a.bottom <= innerHeight, link: !!l && !l.hidden && l.getBoundingClientRect().width > 0,
+      covers: !(a.right <= it.left || a.left >= it.right || a.bottom <= it.top || a.top >= it.bottom), head: s.querySelector("header b").textContent };
   });
-  check("④ ダブルクリックで項目の面がカードの外に開き、線で結ぶ・窓に収まる", sd && sd.out && sd.fit && sd.link, sd);
+  check("④ ダブルクリックで項目の面が開き、選んだ項目を覆わない・窓に収まる（カードの外なら線で結ぶ）", sd && sd.fit && !sd.covers && (!sd.out || sd.link), sd);
 
   await p.fill(".cf-side [data-sd=label]", "重さ（kg）"); await sleep(300);
   check("⑤ 名前を変えるとカードの項目の名前がその場で変わる", (await itemOf(p, id4)).label.includes("重さ（kg）"), await itemOf(p, id4));

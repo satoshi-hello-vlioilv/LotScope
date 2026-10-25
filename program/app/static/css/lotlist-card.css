@@ -15,11 +15,35 @@
 .ll-cardwin .lc-sp{flex:1}
 
 /* 見出し: ロット番号を大きく。前後の行は見出しの右（読む流れの終わり＝次へ進む位置） */
-.lk-head{align-items:center;flex-wrap:wrap;row-gap:8px}
-.lk-title{flex:1 1 220px;min-width:0}
-.lk-title .lc-eyebrow{white-space:nowrap}
-.lk-title h3{margin:1px 0 2px;font-size:21px;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lk-nav{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}   /* 狭いカード（並べたとき）は見出しの下へ回る（ロット番号を削らない） */
+/* 版 3.56.0（ui-proposals/2026-10-cardview の 3 回目の M）: 見出しは 1 段（ロット番号・行の番号・同じロットの札・送り・閉じる）。
+   段の並び: 見出し → タブ → 本文 → 設定（デザインの選び・空欄を隠す・デザインを直す）の帯。見る物を上、設定を下に分ける */
+.ll-cardwin{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr)}
+.ll-cardwin > *{min-width:0}
+/* 段は決まった行に（タブが無い〈hidden〉ときも本文は 3 行目＝高さいっぱい） */
+.ll-cardwin > .lk-head{grid-row:1}.ll-cardwin > .cfv-tabbar{grid-row:2}.ll-cardwin > .lk-body{grid-row:3}.ll-cardwin > .lk-tools{grid-row:4}
+.ll-cardwin .lk-head{align-items:center;flex-wrap:nowrap;gap:12px;padding:5px 10px 5px 14px}
+.lk-title{display:flex;align-items:baseline;gap:10px;flex:0 0 auto;min-width:0}
+.lk-title h3{margin:0;font-size:18px;letter-spacing:.03em;white-space:nowrap}
+.lk-title h3 .lk-no{font-size:12.5px}
+.lk-title .lc-lead{margin:0;font-size:12.5px;white-space:nowrap;opacity:.88;font-variant-numeric:tabular-nums}
+.lk-nav{display:flex;flex-wrap:nowrap;gap:6px;justify-content:flex-end;margin-left:auto}
+.ll-cardwin .lk-nav button,.ll-cardwin .lk-nav .lk-pick{height:28px}
+/* 同じロットの行の札は見出しの中（ロット番号と ◀▶ の近く。暗い帯の上の札） */
+.ll-cardwin .lk-head .lk-sibs{display:flex;align-items:center;gap:4px;padding:0;border:0;background:transparent;flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap}
+.ll-cardwin .lk-head .lk-sibs[hidden]{display:none}
+.ll-cardwin .lk-head .lk-sibs em{color:#cfe0f0;font-size:12px;margin-right:2px}
+.ll-cardwin .lk-head .lk-sibs button{height:24px;min-width:26px;padding:0 7px;border-color:var(--on-dark-line);background:var(--on-dark-fill);color:var(--on-fill)}
+.ll-cardwin .lk-head .lk-sibs button[aria-pressed="true"]{background:var(--surface);border-color:var(--surface);color:var(--h-input)}
+.ll-cardwin .lk-body{padding:10px 14px}
+/* 設定の帯は窓の下（直すときの帯も同じ所） */
+.ll-cardwin > .lk-tools{border-top:1px solid var(--line);border-bottom:0;background:var(--surface-2);padding:4px 12px}
+/* タブの数は札（いま出しているタブは濃い地に白） */
+.ll-cardwin .cfv-tabbar{border-bottom:1px solid var(--line);padding:0 10px}
+.ll-cardwin .cfv-tab small{padding:0 7px;border-radius:999px;background:var(--input-soft);color:var(--h-input);font-weight:800;font-size:11.5px}
+.ll-cardwin .cfv-tabbar .cfv-tab[aria-selected="true"] small{background:var(--h-input);color:var(--on-fill)}
+/* 詰める（4〜6 列の組み込み）: 項目の中の余白と、両端の名前の字を詰めて、狭い窓でも値を 1 段に */
+.ll-cardwin .cfv-d-compact .cfv-i{padding:2px 6px}
+.ll-cardwin .cfv-d-compact .cfv-i.lab-spread{gap:6px}.ll-cardwin .cfv-d-compact .cfv-i.lab-spread .cfv-l{font-size:11px}
 .ll-cardwin .lk-nav button,.ll-cardwin .lc-x{width:34px;height:30px;padding:0;border-radius:999px;border-color:var(--on-dark-line);background:var(--on-dark-fill);color:var(--on-fill)}
 .ll-cardwin .lc-x{width:30px;font-size:18px;line-height:1}
 .ll-cardwin .lk-nav button:hover:not(:disabled),.ll-cardwin .lc-x:hover{background:var(--on-dark-hover);border-color:var(--on-fill)}
@@ -27,9 +51,8 @@
 .ll-cardwin .lk-nav .lk-pick{width:auto;margin-right:6px;height:30px;border-color:var(--on-fill);background:var(--surface);color:var(--h-input);font-weight:800;padding:0 14px}
 .ll-cardwin .lk-nav .lk-pick:hover:not(:disabled){background:var(--input-soft);border-color:var(--on-fill)}
 
-/* 同じロットの行（札で切り替え） */
-.lk-sibs{display:flex;align-items:center;gap:6px;padding:7px 16px;background:var(--input-soft);border-bottom:1px solid #c9d8e8;flex:0 0 auto}
-.lk-sibs em{font-style:normal;color:var(--h-input);font-weight:800;font-size:12.5px;margin-right:4px}
+/* 同じロットの行（札で切り替え。見出しの中） */
+.lk-sibs em{font-style:normal;font-weight:800;margin-right:4px}
 .ll-cardwin .lk-sibs button{min-width:30px;height:26px;padding:0 8px;border-radius:999px;font-weight:800;color:var(--h-input)}
 .ll-cardwin .lk-sibs button[aria-pressed="true"]{background:var(--h-input);border-color:var(--h-input);color:var(--on-fill)}
 
