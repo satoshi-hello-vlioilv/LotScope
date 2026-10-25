@@ -297,6 +297,25 @@ class MasterRepository:
             return dict(row)
         return self.store.write("data_sources", mutate)
 
+    def data_source_order(self, rows):
+        """並び（版 3.54.0）を 1 回の錠の中で置く。rows: キー → 行（clean 済みでなくてよい。並びだけを変え、行が無ければこの行で足す）。"""
+        spec = SPECS["data_sources"]
+
+        def mutate(have, stamp):
+            _normalize_all(have, spec)
+            by = {r.get("キー"): r for r in have}
+            for key, data in rows.items():
+                row = by.get(key)
+                if row is None:
+                    row = {"id": next_id(have), "rev": 0, **{k: _clean(data.get(k)) for k in spec["fields"]}, "キー": key}
+                    have.append(row)
+                elif _clean(row.get("並び")) == _clean(data.get("並び")):
+                    continue
+                row["並び"] = _clean(data.get("並び"))
+                row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
+            return None
+        self.store.write("data_sources", mutate)
+
     def data_source_delete(self, key, base_rev=None):
         """キー key の行を消す（決まった元なら既定へ戻す・足した元なら消す）。もう無ければ何もしない。"""
         spec = SPECS["data_sources"]

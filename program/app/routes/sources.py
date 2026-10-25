@@ -48,8 +48,17 @@ def _rows_of(m, s):
 
 def _public(s):
     """画面へ返す形（写しの様子と行の数つき。共有は見に行かない）。"""
-    m = _mirrors().peek(s["key"]) if s["api"].startswith("/api/src/") else current_app.config.get("LOT_MIRROR") if s["key"] == "lot" else None
-    return {**s, "mirror": m.source_info() if m else None, "rows": _rows_of(m, s), "joinStats": _join_stats(s)}
+    k = s.get("base") or s["key"]
+    m = (current_app.config.get("LOT_MIRROR") if k == "lot" else _mirrors().peek(k)) if (s["api"].startswith("/api/src/") or k == "lot") else None
+    rows = _rows_of(m, s) if s["kind"] != "view" else _view_rows(s)
+    return {**s, "mirror": m.source_info() if m else None, "rows": rows, "joinStats": _join_stats(s)}
+
+
+def _view_rows(s):
+    """結合した表の行の数（最後に組んだ答えの数。まだ組んでいなければ None）。"""
+    got = _joiner().last.get(s["key"]) or _joiner().last.get(f"try-{s['key']}")
+    st = (got or {}).get("stats") or []
+    return st[-1].get("out") if st and got.get("items") == s["joins"] else None
 
 
 def _join_stats(s):
@@ -153,10 +162,19 @@ def sources_delete(key):
 
 # ---------------------------------------------------------------- 1 ファイルの元の一覧
 def src_plan(key, need_copy=True, joined=True):
-    """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。"""
+    """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
+    結合した表（版 3.54.0。行に「元」がある）は、元の写しに自分の結合を当てた答えを読む（自分の写しは持たない）。"""
     s = next((x for x in _all() if x["key"] == key), None)
     if s is None or not s["api"].startswith("/api/src/"):
         return None, error("そのデータ元はありません。「マスタ管理」の「データ元」で確かめてください。", 404, "unknown")
+    if s["kind"] == "view":
+        if s.get("broken"):
+            return None, error(f"「{s['name']}」の元のデータ元がありません。「マスタ管理」の「データ元」で元を選び直してください。", 400, "unset")
+        plan, fail = raw_plan(s["base"])
+        if fail:
+            return None, fail
+        plan = {**plan, "page_size": s["read"]["page_size"], "def": s, "candKey": s["base"]}
+        return with_joins(plan, s) if joined else (plan, None)
     if not s["place"]:
         return None, error(f"「{s['name']}」の場所が決まっていません。「マスタ管理」の「データ元」で入れてください。", 400, "unset")
     m = _mirrors().get(key, s["place"], s["read"]["refresh_seconds"], s["read"]["stale_hours"])
@@ -178,7 +196,7 @@ def src_list(key):
         out = lot_list.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"],
                              page=a.get("page", 1), page_size=a.get("page_size", plan["page_size"]),
                              search=a.get("search", ""), filters=a.get("filters", ""), sorts=a.get("sorts", ""), marks=a.get("marks", ""), calc=a.get("calc", ""),
-                             group=a.get("group") == "1", table_candidates=data_sources.TABLE_CANDIDATES)
+                             group=a.get("group") == "1", table_candidates=_candidates(plan.get("candKey", key)))
     except Exception as e:
         return error(str(e), 503, source=plan["source"])
     out["source"] = plan["source"]
@@ -191,7 +209,7 @@ def src_slicer(key):
     if fail:
         return fail
     try:
-        out = lot_list.slicer_answer(plan["path"], request.args, preferred_table=plan["table"], table_candidates=data_sources.TABLE_CANDIDATES)
+        out = lot_list.slicer_answer(plan["path"], request.args, preferred_table=plan["table"], table_candidates=_candidates(plan.get("candKey", key)))
     except ValueError as e:
         return error(str(e), 400)
     except Exception as e:
@@ -207,10 +225,10 @@ def src_pivot(key):
     a = request.args
     try:
         if a.get("fields") == "1":
-            return jsonify(pivot.fields(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], table_candidates=data_sources.TABLE_CANDIDATES))
+            return jsonify(pivot.fields(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], table_candidates=_candidates(plan.get("candKey", key))))
         out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
                           filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
-                          month=a.get("month", ""), box=a.get("box", ""), table_candidates=data_sources.TABLE_CANDIDATES)
+                          month=a.get("month", ""), box=a.get("box", ""), table_candidates=_candidates(plan.get("candKey", key)))
     except pivot.PivotError as e:
         return error(str(e), 400)
     except Exception as e:
@@ -221,19 +239,28 @@ def src_pivot(key):
 @bp.get("/api/src/<key>/source")
 def src_source(key):
     """いま読んでいるデータはいつのものか（共有は見に行かない）。まだ開いていない元は 404。"""
-    m = _mirrors().peek(key)
+    m = _mirror_of(key)
     if m is None:
         return error("まだ開いていないデータ元です。", 404, "unknown")
     return jsonify(m.source_info())
 
 
+def _mirror_of(key):
+    """そのデータ元の写しの係（結合した表は元の物。品質データは品質データの写し）。まだ開いていなければ None。"""
+    s = source_def(key)
+    k = (s or {}).get("base") or key
+    return current_app.config.get("LOT_MIRROR") if k == "lot" else _mirrors().peek(k)
+
+
 @bp.post("/api/src/<key>/refresh")
 def src_refresh(key):
     """「再読込」: 共有に新しい版があるかを今すぐ確かめ、あれば取り込む（変わっていなければ写さない）。"""
-    plan, fail = src_plan(key, need_copy=False)
+    plan, fail = src_plan(key, need_copy=False, joined=False)
     if fail:
         return fail
-    m = plan["mirror"]
+    m = plan.get("mirror") or _mirror_of(key)
+    if m is None:
+        return error("まだ開いていないデータ元です。", 404, "unknown")
     return jsonify(result=m.refresh(), source=m.source_info())
 
 
@@ -267,6 +294,9 @@ def raw_plan(key):
             return None, error("作業実績の設備がありません。", 404, "unknown")
         from .worklog import worklog_plan
         return worklog_plan(key=rows[0].get("キー"), rows=rows, joined=False)
+    s = source_def(key)
+    if s and s["kind"] == "view":           # 結合した表: 結合の欄の「この元」は元の表（列の手がかり・試す）
+        return raw_plan(s["base"]) if not s.get("broken") else (None, error("結合した表の元がありません。", 400, "unset"))
     return src_plan(key, joined=False)
 
 
@@ -293,7 +323,7 @@ def with_joins(plan, s, scope=None, joins=None):
     rights, fail = _rights(joins, _all())
     if fail:
         return None, fail
-    table = actual_table(plan["path"], plan["table"], s["key"])
+    table = actual_table(plan["path"], plan["table"], plan.get("candKey") or s.get("base") or s["key"])
     try:
         path, stats = _joiner().path_for(scope or s["key"], plan["path"], table, joins, rights)
     except (data_join.JoinError, Exception) as e:      # 決まりが表に合わない（列を消した など）: 理由を言う
@@ -335,22 +365,65 @@ def sources_join_preview():
     """「試す」: 決まり（joins）をその元に当てたときの数（当たった・当たらない・相手だけ・相手の鍵の重なり）と、当たらない鍵の見本。
     答えのファイルは本物と同じ係で組む（保存しなくても、同じ決まりを保存したら組み直さずに使える）。"""
     body = request.get_json(silent=True) or {}
-    key = str(body.get("key") or "")
-    s = source_def(key)
-    if s is None:
-        return error("そのデータ元はありません。", 404, "unknown")
+    key, base = str(body.get("key") or ""), str(body.get("base") or "")
     items = _all()
+    if base and not key:                    # 足す前の結合した表（版 3.54.0）: 元の表に当てて数える
+        if base not in data_sources.join_targets(items):
+            return error("結合した表の元にするデータ元を選んでください。", 400, "invalid")
+        s = {"key": "", "name": "結合した表", "base": base, "kind": "view", "joins": []}
+    else:
+        s = source_def(key)
+        if s is None:
+            return error("そのデータ元はありません。", 404, "unknown")
+    known = {k: v for k, v in data_sources.join_targets(items).items() if k != (s.get("base") or "")}
     try:
-        joins = data_join.parse(data_join.clean(body.get("joins"), key, data_sources.join_targets(items)))
+        joins = data_join.parse(data_join.clean(body.get("joins"), key, known))
     except data_join.JoinError as e:
         return error(str(e), 400, "invalid")
     if not joins:
         return jsonify(stats=[], rows=None)
-    plan, fail = raw_plan(key)
+    plan, fail = raw_plan(base or key)
     if fail:
         return fail
-    scope = key if key != "work" else f"work-{plan.get('equip', {}).get('key', '')}"
+    scope = (key or f"new-{base}") if key != "work" else f"work-{plan.get('equip', {}).get('key', '')}"
     out, fail = with_joins(plan, s, scope=f"try-{scope}", joins=joins)
     if fail:
         return fail
     return jsonify(stats=out["joined"], table=out["table"], equip=plan.get("equip"))
+
+
+@bp.post("/api/sources/<key>/quick")
+def sources_patch(key):
+    """一覧からその場で変える（版 3.54.0。POST /api/sources/<キー>/quick）: 見出しのタブに出すか（画面）・グループ・表示名だけ。ほかの列はそのまま。
+    行が無い決まった元（仕掛など）は、いま効いている値で行を作る。base_rev は行の版（無ければ 0）。"""
+    body = request.get_json(silent=True) or {}
+
+    def run():
+        items = _all()
+        it = next((x for x in items if x["key"] == key), None)
+        if it is None:
+            raise SourceInvalid("そのデータ元はありません（ほかの PC が消した可能性があります）。")
+        row = {**data_sources.row_of(it), **{k: body[k] for k in data_sources.PATCH_FIELDS if k in body}}
+        try:
+            row = data_sources.clean_row(row, key=key, known=data_sources.join_targets(items))
+        except ValueError as e:
+            raise SourceInvalid(str(e)) from None
+        return {"row": master_repo().data_source_put(key, row, base_rev())}
+    return master_call(run)
+
+
+@bp.post("/api/sources/order")
+def sources_order():
+    """並べ替え（版 3.54.0）: keys の順に「並び」を振る（品質データ・作業実績は先頭に決まっているので、並べるのはほかの元）。
+    行が無い決まった元（仕掛）は、いま効いている値で行を作る。グループの中の順・グループどうしの順・見出しのタブの順がこの並びになる。"""
+    body = request.get_json(silent=True) or {}
+    keys = [str(k) for k in body.get("keys") or [] if str(k) not in ("lot", "work")]
+
+    def run():
+        items = {x["key"]: x for x in _all()}
+        if any(k not in items for k in keys) or len(set(keys)) != len(keys):
+            raise SourceInvalid("並べ替えるデータ元が、いまの並びと合いません。読み直してから並べてください。")
+        rows = {k: {**data_sources.row_of(items[k]), "並び": str((i + 1) * 10)} for i, k in enumerate(keys)}
+        master_repo().data_source_order(rows)
+        return {"ok": True}
+    return master_call(run)

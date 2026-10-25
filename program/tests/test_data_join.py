@@ -213,7 +213,7 @@ class Api(unittest.TestCase):
     def test_master_role_goes_under_the_master_tab(self):
         key = self.add_master()
         it = self.items()[key]
-        self.assertEqual((it["role"], it["group"], it["listed"]), ("マスタ", "mst", True))
+        self.assertEqual((it["role"], it["group"], it["listed"]), ("マスタ", "マスタ", True))
         self.assertEqual(self.items()["wip"]["group"], "")
         self.assertIn("マスタ", self.c.get("/api/sources").get_json()["roles"])
         self.assertEqual(self.c.get(f"/api/src/{key}").get_json()["count"], len(self.pairs) - 1)
@@ -268,6 +268,62 @@ class Api(unittest.TestCase):
         self.assertTrue(ok["ok"], ok)
         self.assertNotIn("ロット番号", ok["message"])
         self.assertFalse(self.c.post("/api/sources/check", json={"place": str(self.mst), "role": "品質"}).get_json()["ok"])
+
+    # ---- 版 3.54.0: 結合した表（見出しに出さない元どうしを合わせて 1 つの表に）・その場で変える・並べ替え
+    def view_joins(self, key):
+        return [{"with": key, "how": "left", "on": [["製造材質", "材質"], ["製造調質", "調質"]], "cols": ["圧延速度"]}]
+
+    def test_view_shows_hidden_sources_joined(self):
+        key = self.add_master()
+        rev = self.items()[key]["rev"]
+        self.assertEqual(self.c.post(f"/api/sources/{key}/quick", json={"画面": "無", "base_rev": rev}).status_code, 200)
+        self.assertEqual(self.c.post("/api/sources/wip/quick", json={"画面": "無", "base_rev": 0}).status_code, 200)
+        pv = self.c.post("/api/sources/join/preview", json={"base": "wip", "joins": self.view_joins(key)})
+        self.assertEqual(pv.status_code, 200, pv.get_json())
+        self.assertEqual(pv.get_json()["stats"][0]["rows"], 300, "足す前でも元の表に当てて数える")
+        r = self.c.post("/api/sources", json={"表示名": "仕掛＋条件", "元": "wip", "結合": self.view_joins(key), "グループ": " 組み 合わせ "})
+        self.assertEqual(r.status_code, 201, r.get_json())
+        vk = r.get_json()["row"]["キー"]
+        it = self.items()
+        self.assertFalse(it["wip"]["listed"])
+        self.assertFalse(it[key]["listed"])
+        v = it[vk]
+        self.assertEqual((v["kind"], v["base"], v["place"], v["group"], v["listed"]), ("view", "wip", str(self.wip), "組み 合わせ", True))
+        self.assertIn(vk, it["wip"]["usedBy"])
+        self.assertIn(vk, it[key]["usedBy"])
+        got = self.c.get(f"/api/src/{vk}?page_size=5").get_json()
+        self.assertEqual(got["count"], 300)
+        self.assertIn("圧延速度", got["columns"])
+        self.assertIn("製造材質", self.c.get(f"/api/sources/{vk}/columns").get_json()["columns"], "結合の欄の「この元」は元の表")
+        self.assertEqual(self.c.get(f"/api/src/{vk}/slicer?column=製造材質").status_code, 200)
+        self.assertEqual(self.c.get(f"/api/sources").get_json()["items"][-1]["rows"], 300, "組んだ後は行の数が出る")
+
+    def test_view_rules(self):
+        key = self.add_master()
+        bad = [({"表示名": "x", "元": "wip"}, "相手を 1 つ以上"),
+               ({"表示名": "x", "元": "work", "結合": self.view_joins(key)}, "元にするデータ元"),
+               ({"表示名": "x", "元": key, "結合": self.view_joins(key)}, "元と同じ")]
+        for body, why in bad:
+            r = self.c.post("/api/sources", json=body)
+            self.assertEqual(r.status_code, 400, body)
+            self.assertIn(why, r.get_json()["error"])
+        vk = self.c.post("/api/sources", json={"表示名": "仕掛＋条件", "元": "wip", "結合": self.view_joins(key)}).get_json()["row"]["キー"]
+        r = self.c.post("/api/sources", json={"表示名": "y", "元": vk, "結合": self.view_joins(key)})
+        self.assertEqual(r.status_code, 400, "結合した表は元にできない")
+        r = self.c.post("/api/sources", json={"表示名": "y", "元": "wip", "結合": [{**self.view_joins(key)[0], "with": vk}]})
+        self.assertEqual(r.status_code, 400, "結合した表は相手にできない")
+
+    def test_quick_change_keeps_the_rest_and_order_moves_tabs(self):
+        key = self.add_master()
+        r = self.c.post("/api/sources/wip/quick", json={"グループ": "台帳", "場所": "書き換えない", "base_rev": 0})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        wip = self.items()["wip"]
+        self.assertEqual((wip["group"], wip["place"], wip["equipColumn"]), ("台帳", str(self.wip), "残仕掛設備ｺｰｽ"))
+        self.assertEqual(self.c.post("/api/sources/wip/quick", json={"グループ": "x", "base_rev": 0}).status_code, 409, "古い版")
+        self.assertEqual(self.c.post("/api/sources/lot/quick", json={"グループ": "台帳", "base_rev": 0}).get_json()["row"]["グループ"], "", "品質データはグループに入れない")
+        self.assertEqual(self.c.post("/api/sources/order", json={"keys": [key, "wip"]}).status_code, 200)
+        self.assertEqual(list(self.items()), ["lot", "work", key, "wip"])
+        self.assertEqual(self.c.post("/api/sources/order", json={"keys": [key, "無い"]}).status_code, 400)
 
     def test_roles_include_master(self):
         self.assertIn("マスタ", ds.ROLES)

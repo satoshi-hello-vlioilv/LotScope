@@ -329,6 +329,9 @@ export const STATES = [
   ["master-sources-joined", async (p) => {
     if (await p.$("#masterSettings .sr-card.is-open [data-jn-box]")) { await p.click("#masterSettings .sr-card.is-open [data-sr-save]"); await sleep(2500); }
   }, "[data-next], #srAdd"],
+  // 版 3.54.0: データ元が多い形（利用者の画面と同じ台帳のマスタ 10 件・結合した表 1 件。見出しのタブに出さない物も）。master-sources-many-off が片付ける
+  ["master-sources-many", async (p) => { await manySources(p, true); await tab(p, "paths"); await sleep(300); await tab(p, "sources"); await sleep(1300); }, "[data-next], #srAdd"],
+  ["master-sources-many-off", async (p) => { await manySources(p, false); }, "[data-next], #srAdd"],
   ["master-shifts", async (p) => {
     await p.evaluate(async () => { const it = ((await (await fetch("/api/sources")).json()).items || []).find((x) => x.key === "lot");
       if (it && it.joins && it.joins.length) await fetch("/api/sources/lot", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ "結合": [], "設備の列": it.equipColumn, "設備の取り出し方": it.equipMode, base_rev: it.rev || 0 }) }); });
@@ -818,6 +821,31 @@ export async function buildWeight(p) {
 /** マスタ管理のタブを押す（見えていなくても押す） */
 function tab(p, key) {
   return p.$eval(`#masterTabs [data-tab="${key}"]`, (b) => b.click());
+}
+
+/** データ元が多い形（on: 足す／false: 足した物を消す）。利用者の画面にあった台帳のマスタ（共有の .sqlite3。写していない形）と、
+    品質データに製造条件マスタを合わせた「結合した表」（版 3.54.0）。グループ・見出しのタブに出さない物も混ぜる */
+export const MANY_SOURCES = [
+  ["組成", "QSOSEI", "台帳", "有"], ["QP直角度NLM", "QSQUARE", "台帳", "有"], ["QP直角度NLM（J）", "QSQUAREJ", "台帳", "無"], ["用途", "QYOTO", "台帳", "有"],
+  ["材調", "QZAICYO", "台帳", "無"], ["材質一覧", "QZAILIST", "台帳", "有"], ["材質", "QZAISHITSU", "台帳", "無"], ["リピート", "REPEAT", "台帳", "有"],
+  ["スラブ", "QSLAB", "工程", "有"], ["圧延予定", "QROLLPLAN", "工程", "無"],
+];
+async function manySources(p, on) {
+  await p.evaluate(async ({ on, list }) => {
+    const items = (await (await fetch("/api/sources")).json()).items || [];
+    const mine = new Set([...list.map((x) => x[0]), "品質データ＋製造条件"]);
+    for (const it of items.filter((x) => !x.builtin && mine.has(x.name))) await fetch(`/api/sources/${it.key}?rev=${it.rev || ""}`, { method: "DELETE" });
+    if (!on) { document.dispatchEvent(new CustomEvent("tpa:sources-changed")); return; }
+    let n = 10;
+    for (const [name, file, group, shown] of list) {
+      await fetch("/api/sources", TPA.json("POST", { "表示名": name, "役割": "マスタ", "場所": `\\\\Nlmsrvngy03\\Read\\【New】仕掛\\台帳\\${file}.sqlite3`,
+        "画面": shown, "グループ": group, "並び": String(n++) }));
+    }
+    const mst = items.find((x) => x.name === "製造条件マスタ");
+    if (mst) await fetch("/api/sources", TPA.json("POST", { "表示名": "品質データ＋製造条件", "役割": "その他", "元": "lot", "並び": String(n++),
+      "結合": [{ with: mst.key, how: "left", on: [["合金", "材質"], ["調質", "質別"]], cols: [] }] }));
+    document.dispatchEvent(new CustomEvent("tpa:sources-changed"));
+  }, { on, list: MANY_SOURCES });
 }
 
 /** 結合の欄で、製造条件マスタを 合金＝材質・調質＝質別 の 2 つの鍵で合わせる（状態 master-sources-join と評価関数 ui-eval-join.mjs） */

@@ -3,7 +3,9 @@
 
 絞り込み・並べ替え・ページの組み立ては WaveLog の /api/table（backend/routes/tables.py）と同じ:
     search  … どの列の字でも LIKE（列ごとに OR）
-    filters … [{column, op, value}] を AND（最大 20 件）。op は WaveLog と同じ 12 種＋starts_any＋in＋date_range
+    filters … [{column, op, value}] を AND（最大 20 件）。op は WaveLog と同じ 12 種＋not_starts・not_ends＋starts_any＋in＋date_range
+              （字を比べる op〈contains・not_contains・eq・neq・starts・not_starts・ends・not_ends〉と search は Excel と同じ
+               * ?〈全角の ＊ ？ も〉を使える: * は何文字でも・? は 1 字・~ の後ろの * ? ~ はその字そのもの。like_pattern。版 3.54.0）
               （in はスライサー: value は値の JSON 配列で、どれかに当たる行。"" は空欄。key があれば見えている値で比べる）
               （date_range はタイムライン: value は "YYYY-MM-DD..YYYY-MM-DD"。日付と読める値のうち、その間（両端を含む）の行。片側は空でもよい）
     sorts   … [{column, dir}]（最大 4 キー）。実在する列だけを通す
@@ -24,7 +26,7 @@ from .formula import clean_calc
 from .formula import register as register_calc
 from .sqlite_ro import connect_ro, numeric_value, qi, to_date
 
-ALLOWED_OPS = {"contains", "not_contains", "eq", "neq", "starts", "starts_any", "ends",
+ALLOWED_OPS = {"contains", "not_contains", "eq", "neq", "starts", "not_starts", "starts_any", "ends", "not_ends",
                "gt", "gte", "lt", "lte", "empty", "not_empty",
                # 今日から数えて N 日（週・か月・年）以内。日付と読める値だけが当たる（ToDate(列) >= 今日−N）
                "within_days", "within_weeks", "within_months", "within_years",
@@ -34,6 +36,9 @@ ALLOWED_OPS = {"contains", "not_contains", "eq", "neq", "starts", "starts_any", 
                "tuple_in",
                # タイムライン: 日付と読める値が、その間（両端を含む）にある行（value は "YYYY-MM-DD..YYYY-MM-DD"。片側は空でもよい）
                "date_range"}
+# 字を LIKE で比べる op → (型の向き, 否定か)
+LIKE_OPS = {"contains": ("contains", False), "not_contains": ("contains", True), "starts": ("starts", False),
+            "not_starts": ("starts", True), "ends": ("ends", False), "not_ends": ("ends", True)}
 RELATIVE_OPS = {"within_days": "days", "within_weeks": "weeks", "within_months": "months", "within_years": "years"}
 DATE_SAMPLE = 60          # 日付の列か見分けるときに読む値の数
 DATE_RATIO = 0.8          # そのうち日付と読める割合がこれ以上なら日付の列
@@ -274,14 +279,44 @@ def date_hints(conn, table, filters, today=None):
     return out
 
 
+# 値の印（Excel の * ?。全角も）→ LIKE の印。~ の後ろの印・~ はその字そのもの。LIKE の % _ と ESCAPE の \ は字として逃がす
+WILDCARDS = {"*": "%", "＊": "%", "?": "_", "？": "_"}
+LIKE_ESCAPE = "ESCAPE '\\'"
+
+
+def like_pattern(value, mode="contains"):
+    """値 → (LIKE の型, * ? を使ったか)。mode: contains（含む）・starts（で始まる）・ends（で終わる）・exact（全体が当たる）。
+    Rust の lotlist.rs の like_pattern と同じ（tests/test_lot_list_wildcard.py が突き合わせる）。"""
+    out, wild, chars, i = [], False, str(value), 0
+    while i < len(chars):
+        ch = chars[i]
+        if ch == "~" and i + 1 < len(chars) and (chars[i + 1] in WILDCARDS or chars[i + 1] == "~"):
+            i += 1
+            ch = chars[i]
+            out.append("\\" + ch if ch in "\\%_" else ch)
+        elif ch in WILDCARDS:
+            out.append(WILDCARDS[ch])
+            wild = True
+        else:
+            out.append("\\" + ch if ch in "\\%_" else ch)
+        i += 1
+    p = "".join(out)
+    return {"contains": f"%{p}%", "starts": f"{p}%", "ends": f"%{p}", "exact": p}[mode], wild
+
+
+def unescape_wild(value):
+    """* ? を使っていない値の、~ を外した字（「A~*B」→「A*B」。一致・不一致をそのまま比べるとき）。"""
+    return re.sub(r"~([*＊?？~])", r"\1", str(value))
+
+
 def search_filter_where(cs, search="", filters="", today=None, exprs=None):
     """一覧・スライサー・ピボット集計に共通の絞り込み（検索＋条件）→ (WHERE の式の並び, 値の並び)。条件は safe_filters を通す。
     exprs … 計算列の名前 → SQL の式（版 3.38.0。条件に使える。検索は表の列だけ＝一覧と同じ）"""
     where_parts, params = [], []
     q = (search or "").strip()
     if q:
-        where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ?" for x in cs) + ")")
-        params += [f"%{q}%"] * len(cs)
+        where_parts.append("(" + " OR ".join(f"CStr({qi(x)}) LIKE ? {LIKE_ESCAPE}" for x in cs) + ")")
+        params += [like_pattern(q)[0]] * len(cs)
     fp, fpp = build_filter_where(safe_filters(filters, cs, tuple(exprs or ())), today, exprs)
     return where_parts + fp, params + fpp
 
@@ -291,21 +326,19 @@ def build_filter_where(filters, today=None, exprs=None):
     exprs = exprs or {}
     for f in filters:
         col, op, value = exprs.get(f["column"]) or qi(f["column"]), f["op"], f["value"]
-        if op == "contains":
-            parts.append(f"CStr({col}) LIKE ?")
-            params.append(f"%{value}%")
-        elif op == "not_contains":
-            parts.append(f"(CStr({col}) NOT LIKE ? OR {col} IS NULL)")
-            params.append(f"%{value}%")
-        elif op == "eq":                 # 前後の空白は除いて比べる（集計の段と同じ値。空なら空欄と同じ）
-            parts.append(f"COALESCE({trimmed(col)}, '')=?")
-            params.append(str(value).strip())
-        elif op == "neq":
-            parts.append(f"COALESCE({trimmed(col)}, '')<>?")
-            params.append(str(value).strip())
-        elif op == "starts":
-            parts.append(f"CStr({col}) LIKE ?")
-            params.append(f"{value}%")
+        if op in LIKE_OPS:              # 字を比べる（* ? を使える）。否定は空欄も当たる（Excel と同じ）
+            mode, negate = LIKE_OPS[op]
+            pat, _ = like_pattern(value, mode)
+            parts.append(f"(CStr({col}) NOT LIKE ? {LIKE_ESCAPE} OR {col} IS NULL)" if negate else f"CStr({col}) LIKE ? {LIKE_ESCAPE}")
+            params.append(pat)
+        elif op in ("eq", "neq"):       # 前後の空白は除いて比べる（集計の段と同じ値。空なら空欄と同じ）。* ? があれば全体を型で
+            pat, wild = like_pattern(str(value).strip(), "exact")
+            if wild:
+                parts.append(f"COALESCE({trimmed(col)}, '') {'NOT ' if op == 'neq' else ''}LIKE ? {LIKE_ESCAPE}")
+                params.append(pat)
+            else:
+                parts.append(f"COALESCE({trimmed(col)}, '')" + ("=?" if op == "eq" else "<>?"))
+                params.append(unescape_wild(str(value).strip()))
         elif op == "starts_any":
             vals = [x for x in (value.split(",") if value else []) if x][:60]
             if not vals:
@@ -313,9 +346,6 @@ def build_filter_where(filters, today=None, exprs=None):
             else:
                 parts.append("(" + " OR ".join(f"CStr({col}) LIKE ?" for _ in vals) + ")")
                 params += [f"{v}%" for v in vals]
-        elif op == "ends":
-            parts.append(f"CStr({col}) LIKE ?")
-            params.append(f"%{value}")
         elif op == "empty":
             parts.append(f"COALESCE({trimmed(col)}, '')=''")
         elif op == "not_empty":

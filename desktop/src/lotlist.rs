@@ -33,8 +33,10 @@ const ALLOWED_OPS: &[&str] = &[
     "eq",
     "neq",
     "starts",
+    "not_starts",
     "starts_any",
     "ends",
+    "not_ends",
     "gt",
     "gte",
     "lt",
@@ -577,6 +579,60 @@ pub fn cutoff_date(op: &str, value: &str, today: NaiveDate) -> Result<String, St
     }
     Ok(d.format("%Y-%m-%d").to_string())
 }
+/// LIKE の逃がしの印（値の % _ \ を字として比べる）
+/// LIKE の逃がしの印（値の % _ \\ を字として比べる）
+const LIKE_ESCAPE: &str = "ESCAPE '\\'";
+
+/// 値 → (LIKE の型, * ? を使ったか)。Excel と同じ * ?（全角の ＊ ？ も）。~ の後ろの * ? ~ はその字そのもの。
+/// mode: contains・starts・ends・exact（Python の lot_list.like_pattern と同じ）
+pub fn like_pattern(value: &str, mode: &str) -> (String, bool) {
+    let chars: Vec<char> = value.chars().collect();
+    let (mut out, mut wild, mut i) = (String::new(), false, 0);
+    let lit = |out: &mut String, ch: char| {
+        if matches!(ch, '\\' | '%' | '_') {
+            out.push('\\');
+        }
+        out.push(ch);
+    };
+    while i < chars.len() {
+        let ch = chars[i];
+        let is_wild = |c: char| matches!(c, '*' | '＊' | '?' | '？');
+        if ch == '~' && i + 1 < chars.len() && (is_wild(chars[i + 1]) || chars[i + 1] == '~') {
+            i += 1;
+            lit(&mut out, chars[i]);
+        } else if matches!(ch, '*' | '＊') {
+            out.push('%');
+            wild = true;
+        } else if matches!(ch, '?' | '？') {
+            out.push('_');
+            wild = true;
+        } else {
+            lit(&mut out, ch);
+        }
+        i += 1;
+    }
+    let p = match mode {
+        "contains" => format!("%{out}%"),
+        "starts" => format!("{out}%"),
+        "ends" => format!("%{out}"),
+        _ => out,
+    };
+    (p, wild)
+}
+
+/// * ? を使っていない値の、~ を外した字（「A~*B」→「A*B」。Python の lot_list.unescape_wild と同じ）
+fn unescape_wild(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    let (mut out, mut i) = (String::new(), 0);
+    while i < chars.len() {
+        if chars[i] == '~' && i + 1 < chars.len() && matches!(chars[i + 1], '*' | '＊' | '?' | '？' | '~') {
+            i += 1;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
 
 fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<String>, Vec<SqlValue>), String> {
     let (mut parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
@@ -584,25 +640,37 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
     for f in filters {
         let (col, op, value) = (qi(&f.column), f.op.as_str(), f.value.as_str());
         match op {
-            "contains" => {
-                parts.push(format!("CStr({col}) LIKE ?"));
-                params.push(text(format!("%{value}%")));
+            "contains" | "not_contains" | "starts" | "not_starts" | "ends" | "not_ends" => {
+                // 字を比べる（* ? を使える）。否定は空欄も当たる（Python の LIKE_OPS と同じ）
+                let mode = if op.ends_with("contains") {
+                    "contains"
+                } else if op.ends_with("starts") {
+                    "starts"
+                } else {
+                    "ends"
+                };
+                if op.starts_with("not_") {
+                    parts.push(format!("(CStr({col}) NOT LIKE ? {LIKE_ESCAPE} OR {col} IS NULL)"));
+                } else {
+                    parts.push(format!("CStr({col}) LIKE ? {LIKE_ESCAPE}"));
+                }
+                params.push(text(like_pattern(value, mode).0));
             }
-            "not_contains" => {
-                parts.push(format!("(CStr({col}) NOT LIKE ? OR {col} IS NULL)"));
-                params.push(text(format!("%{value}%")));
-            }
-            "eq" => {
-                parts.push(format!("CStr({col})=?"));
-                params.push(text(value.into()));
-            }
-            "neq" => {
-                parts.push(format!("(CStr({col})<>? OR {col} IS NULL)"));
-                params.push(text(value.into()));
-            }
-            "starts" => {
-                parts.push(format!("CStr({col}) LIKE ?"));
-                params.push(text(format!("{value}%")));
+            "eq" | "neq" => {
+                // * ? があれば全体を型で比べる（Python と同じ）。無ければこれまでどおり
+                let (pat, wild) = like_pattern(value, "exact");
+                let neg = op == "neq";
+                if wild {
+                    parts.push(if neg {
+                        format!("(CStr({col}) NOT LIKE ? {LIKE_ESCAPE} OR {col} IS NULL)")
+                    } else {
+                        format!("CStr({col}) LIKE ? {LIKE_ESCAPE}")
+                    });
+                    params.push(text(pat));
+                } else {
+                    parts.push(if neg { format!("(CStr({col})<>? OR {col} IS NULL)") } else { format!("CStr({col})=?") });
+                    params.push(text(unescape_wild(value)));
+                }
             }
             "starts_any" => {
                 let vals: Vec<&str> = if value.is_empty() { vec![] } else { value.split(',').filter(|x| !x.is_empty()).take(60).collect() };
@@ -612,10 +680,6 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
                     parts.push(format!("({})", vals.iter().map(|_| format!("CStr({col}) LIKE ?")).collect::<Vec<_>>().join(" OR ")));
                     params.extend(vals.iter().map(|v| text(format!("{v}%"))));
                 }
-            }
-            "ends" => {
-                parts.push(format!("CStr({col}) LIKE ?"));
-                params.push(text(format!("%{value}")));
             }
             "empty" => parts.push(format!("({col} IS NULL OR CStr({col})='')")),
             "not_empty" => parts.push(format!("({col} IS NOT NULL AND CStr({col})<>'')")),
@@ -898,8 +962,10 @@ pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, preferred_table: &
     let kind = slice_key_kind(key);
     let (mut where_parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     if !q.is_empty() {
-        where_parts.push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ?", qi(x))).collect::<Vec<_>>().join(" OR ")));
-        params.extend(cs.iter().map(|_| SqlValue::Text(format!("%{q}%"))));
+        where_parts
+            .push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
+        let pat = like_pattern(&q, "contains").0;
+        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
     }
     let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today).map_err(down)?;
     where_parts.extend(fp);
@@ -951,8 +1017,10 @@ pub fn slicer_combos(path: &Path, a: &Args, columns: &str, preferred_table: &str
     }
     let (mut where_parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     if !q.is_empty() {
-        where_parts.push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ?", qi(x))).collect::<Vec<_>>().join(" OR ")));
-        params.extend(cs.iter().map(|_| SqlValue::Text(format!("%{q}%"))));
+        where_parts
+            .push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
+        let pat = like_pattern(&q, "contains").0;
+        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
     }
     let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today).map_err(down)?;
     where_parts.extend(fp);
@@ -1019,8 +1087,10 @@ pub fn query(path: &Path, a: &Args, preferred_table: &str, default_page_size: i6
     let cs = dedup(&raw_cs);
     let (mut where_parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     if !q.is_empty() {
-        where_parts.push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ?", qi(x))).collect::<Vec<_>>().join(" OR ")));
-        params.extend(cs.iter().map(|_| SqlValue::Text(format!("%{q}%"))));
+        where_parts
+            .push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
+        let pat = like_pattern(&q, "contains").0;
+        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
     }
     let fl = safe_filters(&a.filters, &cs);
     let (fp, fpp) = build_filter_where(&fl, today)?;
@@ -1101,6 +1171,17 @@ mod tests {
         assert_eq!((a.search.as_str(), a.page.as_deref(), a.group, a.filters.as_str()), ("日 本", Some("2"), true, "[]"));
         assert_eq!(unquote("100%"), "100%");
         assert_eq!(unquote("%zz%4"), "%zz%4");
+    }
+
+    #[test]
+    fn like_pattern_like_python() {
+        // 事例の表は Python の試験（tests/test_lot_list_wildcard.py）と同じ物
+        let cases: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/like_cases.json")).unwrap();
+        for x in cases["patterns"].as_array().unwrap() {
+            let got = like_pattern(x["value"].as_str().unwrap(), x["mode"].as_str().unwrap());
+            assert_eq!(got, (x["pattern"].as_str().unwrap().to_string(), x["wild"].as_bool().unwrap()), "{x}");
+        }
+        assert_eq!(unescape_wild("A~*B~~~x"), "A*B~~x");
     }
 
     #[test]
