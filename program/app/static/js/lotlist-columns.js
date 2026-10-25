@@ -1096,6 +1096,8 @@
     get, ordered, visible, label, alignOf, widthOf, tintCss, rowGap, setRowGap, rowPad, GAP,
     cellPad, setCellPad, overflow, setOverflow, OVERFLOWS, PAD_MAX, freeze, setFreeze, FREEZE_MAX, freezeCss,
     allColumns, isComputed, cell, sourcesOf,
+    /** 式が見る行（計算列・表示名でも引ける。カードの組み合わせた項目〈card-form.js〉が表示列の作り方と同じに式を計算する。版 3.55.0） */
+    rowFor: (t, row) => baseRow(t, row),
     setContext, bindHeader, toggle,
     /** 対象を人の読める名前にする関数を決める（一覧の元が増えても、ここは名前の付け方を知らない） */
     describe: (fn) => { describeTarget = fn; },

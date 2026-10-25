@@ -10,7 +10,7 @@ from datetime import date, datetime
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings
-from ..services import aggregate, dashboard, data_sources, db_mirror, equip_groups, operation, pivot, shifts, work_log
+from ..services import aggregate, card_forms, dashboard, data_sources, db_mirror, equip_groups, operation, pivot, shifts, work_log
 from ..services.identity import normalize_part
 from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
@@ -231,6 +231,73 @@ def dashboard_sets_delete(item_id):
         old = find_row(master_repo().dashboards(), item_id)
         if old is not None and old.get("元") == dashboard.SET_SOURCE:
             _gate(old, login, common_ok, default_ok, revoked, "ダッシュボードのセット")
+            master_repo().dashboard_delete(item_id, base)
+        return {"ok": True}
+    return master_call(go)
+
+
+# ---------------------------------------------------------------- カードの設計（版 3.55.0。services/card_forms.py。置き場と決まりはダッシュボードと同じ）
+def _card_rows(login, source=None):
+    return [r for r in master_repo().dashboards() if str(r.get("元") or "").startswith(card_forms.SOURCE_PREFIX)
+            and (source is None or r.get("元") == source) and dashboard.pivot_presets.visible(r, login)]
+
+
+@bp.get("/api/card-forms")
+def card_forms_list():
+    """その表のカードの設計の並び（自分の ID → 共通 → 共通デフォルト）と、いま当てる標準（standardId。無ければ null＝組み込みの標準）。
+    source … "card:" ＋ 表の鍵"""
+    login, common_ok, default_ok, _ = _who(dashboard.LAYOUT_NAME)
+    src = request.args.get("source", "")
+    if not card_forms.source_ok(src):
+        return error("表の鍵（source）が違います。", 400, "invalid")
+    rows = _card_rows(login, src)
+    std = dashboard.pivot_presets.standard_for(rows, src, login)
+    items = sorted((card_forms.view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
+    return jsonify(items=items, standardId=std.get("id") if std else None, login=login, canEditCommon=common_ok, canEditDefault=default_ok,
+                   cols=list(card_forms.COLS), row=list(card_forms.ROW), colors=list(card_forms.COLORS), bgs=list(card_forms.BGS))
+
+
+def _old_card(item_id):
+    old = find_row(master_repo().dashboards(), item_id)
+    if old is None or not str(old.get("元") or "").startswith(card_forms.SOURCE_PREFIX):
+        raise card_forms.CardFormError(f"カードの設計 id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
+    return old
+
+
+@bp.post("/api/card-forms")
+def card_forms_create():
+    """{name, source, scope: default|all|me, standard, body, note} を新しいカードの設計として置く"""
+    login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
+
+    def go():
+        row = card_forms.clean_row(request.get_json(force=True) or {}, login)
+        _gate(row, login, common_ok, default_ok, revoked, "カードの設計")
+        return card_forms.view(master_repo().dashboard_create(row), login, common_ok, default_ok)
+    return master_call(go, 201)
+
+
+@bp.put("/api/card-forms/<int:item_id>")
+def card_forms_update(item_id):
+    """名前・中身・標準を直す。base_rev が今の版と違えば 409（ほかの PC が先に直した）"""
+    login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
+    base = base_rev()
+
+    def go():
+        _gate(_old_card(item_id), login, common_ok, default_ok, revoked, "カードの設計")
+        row = master_repo().dashboard_update(item_id, card_forms.clean_row(request.get_json(force=True) or {}, login, partial=True), base)
+        return card_forms.view(row, login, common_ok, default_ok)
+    return master_call(go)
+
+
+@bp.delete("/api/card-forms/<int:item_id>")
+def card_forms_delete(item_id):
+    login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
+    base = base_rev()
+
+    def go():
+        old = find_row(master_repo().dashboards(), item_id)
+        if old is not None and str(old.get("元") or "").startswith(card_forms.SOURCE_PREFIX):
+            _gate(old, login, common_ok, default_ok, revoked, "カードの設計")
             master_repo().dashboard_delete(item_id, base)
         return {"ok": True}
     return master_call(go)

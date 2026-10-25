@@ -881,14 +881,7 @@
     window.addEventListener("pointerup", onUp, { once: true });
   }
   /** 角（nw・ne・sw・se）を dx・dy マス引いた大きさ（向かいの角は動かない。1 マスより小さく・グリッドの外へはしない） */
-  function sized(r0, dir, dx, dy) {
-    const r = { ...r0 };
-    if (dir.includes("e")) r.w = Math.max(1, Math.min(COLS - r0.x, r0.w + dx));
-    if (dir.includes("w")) { const x = Math.max(0, Math.min(r0.x + r0.w - 1, r0.x + dx)); r.w = r0.x + r0.w - x; r.x = x; }
-    if (dir.includes("s")) r.h = Math.max(1, Math.min(S.layout.rows - r0.y, r0.h + dy));
-    if (dir.includes("n")) { const y = Math.max(0, Math.min(r0.y + r0.h - 1, r0.y + dy)); r.h = r0.y + r0.h - y; r.y = y; }
-    return r;
-  }
+  const sized = (r0, dir, dx, dy) => TPA.grid.sized(r0, dir, dx, dy, COLS, S.layout.rows);   // 方眼の決まりは shared.js（カードの設計と同じ）
   function onMove(e) {
     if (!drag) return;
     const dx = Math.round((e.clientX - drag.x0) / drag.cw), dy = Math.round((e.clientY - drag.y0) / drag.ch), r0 = drag.r0;

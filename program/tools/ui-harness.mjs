@@ -238,6 +238,8 @@ export const STATES = [
   // 並べ替えの状態で「プリセット」を開いたところ（保存した見方・いまの形の札・保存）
   ["sorted-preset", async (p) => { await p.click("#llPresetBtn"); await sleep(400); }, "[data-next], #llViewSave"],
   ["card", async (p) => { await closeAll(p); await p.dblclick("#llBody tr[data-i] td:nth-child(3)"); await sleep(600); }, "[data-next], .lk-pin"],
+  // 版 3.55.0: カードの配置を編集している所（作る前は「配置を編集」。作った後はカードの設計〈見た目のまま〉）
+  ["card-edit", async (p) => { await p.click(".ll-cardwin:not([hidden]) [data-edit], .ll-cardwin:not([hidden]) [data-cf=edit]").catch(() => {}); await sleep(500); }, "[data-next], [data-card=done], [data-cf=done]"],
   ["calc", async (p) => { await closeAll(p); await p.click("#tabCalc"); await sleep(500); }, "[data-next], #query"],
   // 作業実績（設備ごとの実績。設備を札で替える）: 開いた直後（前に見た設備か、読める最初の設備）
   ["worklog", async (p) => { await closeAll(p); await p.click("#tabWork"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(700); }, "[data-next], #llEquipBar [aria-selected=false]"],
