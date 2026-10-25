@@ -256,11 +256,11 @@
   /** タブの札（2 つ以上のときだけ）。edit: 直すとき（名前を変える・外す・足す） */
   function tabsHtml(body, tab, { edit = false } = {}) {
     const ts = tabsOf(body);
-    if (!ts && !edit) return "";
+    if (!ts) return "";        // タブが無いときは段を出さない（直すときも同じ所に本文。タブを足すのは道具の段の「＋ タブ」）
     const cur = tabOf(body, tab), count = (id) => inTab(body, id).filter((it) => it.kind !== "section").length;
-    return (ts || [{ id: "", name: "すべて" }]).map((t) => `<button type="button" role="tab" class="cfv-tab" data-tab="${esc(t.id)}" aria-selected="${t.id === cur}"`
-      + ` title="${esc(t.name)}（${count(t.id)} 項目）${edit && ts ? "。ダブルクリックで名前を変える" : ""}。Ctrl＋PageUp／PageDown で隣のタブ">${esc(t.name)}<small>${count(t.id)}</small>`
-      + `${edit && ts ? `<i class="cfv-tabx" data-tabx="${esc(t.id)}" role="button" aria-label="「${esc(t.name)}」のタブを外す" title="タブを外す（中の項目は先頭のタブへ）">×</i>` : ""}</button>`).join("")
+    return ts.map((t) => `<button type="button" role="tab" class="cfv-tab" data-tab="${esc(t.id)}" aria-selected="${t.id === cur}"`
+      + ` title="${esc(t.name)}（${count(t.id)} 項目）${edit ? "。ダブルクリックで名前を変える" : ""}。Ctrl＋PageUp／PageDown で隣のタブ">${esc(t.name)}<small>${count(t.id)}</small>`
+      + `${edit ? `<i class="cfv-tabx" data-tabx="${esc(t.id)}" role="button" aria-label="「${esc(t.name)}」のタブを外す" title="タブを外す（中の項目は先頭のタブへ）">×</i>` : ""}</button>`).join("")
       + (edit ? '<button type="button" class="cfv-tabadd" data-tabadd title="タブを足す（項目を分けて出す）">＋ タブ</button>' : "");
   }
   /** 値が項目の幅に入らないときは「…」で切らない（Access の「縮小して全体を表示」と同じ考え）。

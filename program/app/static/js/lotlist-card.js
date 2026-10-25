@@ -215,6 +215,7 @@
       tools.innerHTML = `<b class="cf-ing" title="四隅で大きさ・掴んで動かす・ダブルクリック（Enter）で中身と見栄え。矢印＝動かす・Shift＋矢印＝大きさ・Delete＝外す">デザインを直しています</b>`
         + `<span class="cf-name" title="${esc(ED.name)}">「${esc(ED.name)}」${dirty() ? "<i>変更あり</i>" : ""}</span><span class="lc-sp"></span>`
         + '<button type="button" data-cf="add" aria-haspopup="menu" title="置いていない列・組み合わせた項目（式）・見出しの線・字を足します">＋ 項目 ▾</button>'
+        + (CF().tabsOf(ED.body) ? "" : '<button type="button" data-tabadd title="タブを足して、項目を分けて出します（いまの項目は 1 つ目のタブに）">＋ タブ</button>')
         + '<button type="button" data-cf="look" aria-haspopup="dialog" title="カード全体の色・詰め具合・角の丸み・方眼の大きさ">見栄え ▾</button>'
         + `<button type="button" data-cf="undo"${ED.hist.length ? "" : " disabled"} title="1 つ前に戻します（Ctrl＋Z）">元に戻す</button>`
         + '<button type="button" data-cf="save" aria-haspopup="menu" title="上書き・名前を付けて保存（自分だけ・全員・全員の既定）・★標準">保存 ▾</button>'

@@ -250,6 +250,13 @@ export const STATES = [
     await p.keyboard.press("Escape"); await sleep(150); await p.click(".ll-cardwin:not([hidden]) [data-cf=done]"); await sleep(300);
     await p.selectOption(".ll-cardwin:not([hidden]) [data-cf=pick]", "b:form"); await sleep(500);
   }, "[data-next], [data-cf=pick]"],
+  // 版 3.56.0: 組み込みの「タブで分ける」で 2 つ目のタブ（製造条件）を出した所・「畳める見出し」（そのほかは畳んである）・「5 列」
+  ["card-tabs", async (p) => {
+    await p.selectOption(".ll-cardwin:not([hidden]) [data-cf=pick]", "b:tabs"); await sleep(400);
+    await p.click(".ll-cardwin:not([hidden]) .cfv-tab:nth-child(2)").catch(() => {}); await sleep(300);
+  }, "[data-next], .cfv-tab"],
+  ["card-fold", async (p) => { await p.selectOption(".ll-cardwin:not([hidden]) [data-cf=pick]", "b:fold"); await sleep(400); }, "[data-next], [data-fold]"],
+  ["card-dense", async (p) => { await p.selectOption(".ll-cardwin:not([hidden]) [data-cf=pick]", "b:dense5"); await sleep(400); }, "[data-next], [data-cf=pick]"],
   ["calc", async (p) => { await closeAll(p); await p.click("#tabCalc"); await sleep(500); }, "[data-next], #query"],
   // 作業実績（設備ごとの実績。設備を札で替える）: 開いた直後（前に見た設備か、読める最初の設備）
   ["worklog", async (p) => { await closeAll(p); await p.click("#tabWork"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(700); }, "[data-next], #llEquipBar [aria-selected=false]"],
