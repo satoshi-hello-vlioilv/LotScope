@@ -1,7 +1,7 @@
 {
  "title": "データ元の一覧性・グループ・並べ替え・結合した表",
  "rule": "2026-10-17",
- "evaluator": "採点だけをする別のエージェント（Claude Opus 5.5。案は作っていない）。2026-10-25 に自分で ui-variants.mjs を 1728×1152（既定）・1536×864・1280×720 で流して撮り（--states master-sources-many --from master。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-1/src-1728・src-1536・src-1280。今は空の案 empty.mjs を同じ状態で撮った（/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-1/srcnow-1728・srcnow-1536・srcnow-1280）。--from master で一緒に走る master-sources-edit・join は作り物の頁で押せず撮れなかったが、採点の対象の master-sources-many は全案撮れた）、sheet-*.png と 1 枚ずつの画像を開き、PIL で窓の部分を切り抜いて拡大して見た。metrics.json の字の大きさ・コントラストも見た。 ／ 2 回目: 1 回目とも案を作った者とも別の、採点だけをするエージェント（Claude Opus 5.5）。2026-10-25 に自分で ui-variants.mjs を 2026-10-srclist-2.mjs で 1728×1152（既定）・1536×864・1280×720 で流して撮り（--states master-sources-many --from master。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-2/src-1728・src-1536・src-1280。master-sources-edit・join は押せず撮れない警告が出たが、master-sources-many は 6 案とも撮れた）、sheet と 1 枚ずつの画像を開き、1536 の右側を PIL で切り抜いて並べて見た。metrics.json の字の大きさ（最小 10.8px は背後のアプリ）とコントラスト（最低 2.48 は取っ手の ⠿ の印で本文ではない）も見た。 ／ 作った後: 採点だけをする別のエージェント（Claude Opus 5.5。案も実装も作っていない、これまでの採点者とも別）。2026-10-25 に空の案 empty.mjs で ui-variants.mjs を 1728×1152・1536×864・1280×720 で流して撮り（--states master-sources-many --from master。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/src-1728・src-1536x864・src-1280x720）、1 枚ずつの画像を開き、見出しの帯を PIL で切り抜いて今（eval-1/srcnow-*）と並べて見た。さらに ui-harness.mjs の launch・manySources で本物の画面を 1728・1280 で動かし、行の右クリックのメニュー・「変える…」で開いた欄・マスタ管理を閉じた後の見出しを撮り（/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/live）、見出しの部品の右端の位置と scrollWidth を測った。metrics.json の字の大きさ・コントラストも見た",
+ "evaluator": "採点だけをする別のエージェント（Claude Opus 5.5。案は作っていない）。2026-10-25 に自分で ui-variants.mjs を 1728×1152（既定）・1536×864・1280×720 で流して撮り（--states master-sources-many --from master。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-1/src-1728・src-1536・src-1280。今は空の案 empty.mjs を同じ状態で撮った（/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-1/srcnow-1728・srcnow-1536・srcnow-1280）。--from master で一緒に走る master-sources-edit・join は作り物の頁で押せず撮れなかったが、採点の対象の master-sources-many は全案撮れた）、sheet-*.png と 1 枚ずつの画像を開き、PIL で窓の部分を切り抜いて拡大して見た。metrics.json の字の大きさ・コントラストも見た。 ／ 2 回目: 1 回目とも案を作った者とも別の、採点だけをするエージェント（Claude Opus 5.5）。2026-10-25 に自分で ui-variants.mjs を 2026-10-srclist-2.mjs で 1728×1152（既定）・1536×864・1280×720 で流して撮り（--states master-sources-many --from master。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-2/src-1728・src-1536・src-1280。master-sources-edit・join は押せず撮れない警告が出たが、master-sources-many は 6 案とも撮れた）、sheet と 1 枚ずつの画像を開き、1536 の右側を PIL で切り抜いて並べて見た。metrics.json の字の大きさ（最小 10.8px は背後のアプリ）とコントラスト（最低 2.48 は取っ手の ⠿ の印で本文ではない）も見た。 ／ 作った後: 採点だけをする別のエージェント（Claude Opus 5.5。案も実装も作っていない、これまでの採点者とも別）。2026-10-25 に空の案 empty.mjs で ui-variants.mjs を 1728×1152・1536×864・1280×720 で流して撮り（--states master-sources-many --from master。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/src-1728・src-1536x864・src-1280x720）、1 枚ずつの画像を開き、見出しの帯を PIL で切り抜いて今（eval-1/srcnow-*）と並べて見た。さらに ui-harness.mjs の launch・manySources で本物の画面を 1728・1280 で動かし、行の右クリックのメニュー・「変える…」で開いた欄・マスタ管理を閉じた後の見出しを撮り（/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/live）、見出しの部品の右端の位置と scrollWidth を測った。metrics.json の字の大きさ・コントラストも見た ／ 作った後の撮り直し: 1 回目の作った後の採点者とも、案・実装を作った者とも別の、採点だけをするエージェント（Claude Opus 5.5）。2026-10-25 に空の案 empty.mjs で ui-variants.mjs を 1728×1152・1536×864・1280×720 で流して撮り（--states master-sources-many --from master。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built2/src-1728・src-1536x864・src-1280x720）、1 枚ずつの画像を開いて見た。さらに ui-harness.mjs の launch・manySources で本物の画面を 3 つの大きさで動かし、マスタ管理を閉じた見出しの帯を撮って scrollWidth と右端のボタンの位置を測り、「ほか N ▾」のメニューを開き、後ろのタブを選んだときの帯も撮った（/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built2/live。heads.png に並べた）",
  "rounds": [
   {
    "name": "1 回目",
@@ -339,9 +339,25 @@
  ],
  "built": {
   "name": "作った後",
-  "images": "/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/src-1728・src-1536x864・src-1280x720（本物を動かした絵: /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/live）",
+  "images": "/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built2/src-1728・src-1536x864・src-1280x720（本物を動かした見出しの帯と「ほか N ▾」のメニュー: /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built2/live）",
   "self_check": "作った者が 1728・1536・1280 の master-sources-many を開いて確かめた。直した所: ①グループの見出しの字が長く切れた → 説明は題へ ②上の説明が 2 段に折れた → 短く ③結合の列の「製造条件マス… を合わせた」が切れた → 結合した表は「＋ 相手」・元は相手だけ（題で説明）④開いた欄の保存の段が窓の下の縁に着かなかった（表の overflow）→ 直した ⑤結合した表の状態「写した」→「開くと組む」。採点の指摘（並べ替えの手・グループのまとめた出し入れ・同じ字が 2 行・鍵の付いた元のスイッチの理由）は、右クリックのメニュー・Alt＋↑↓・見出しの「全部出す／全部出さない」・「＋ 相手」・「いつも出す」の字と題で直した。作った後の 1 回目の採点（77.8 点: 見出しの帯がはみ出し「アプリ」「終了」が切れる −5）を受けて直した: 帯に入りきらないときはタブの印を外して詰め、それでも入らないタブは後ろから「ほか N ▾」にまとめる（選んだタブは残す）。3 つの大きさで「終了」まで収まるのを自分で画像で見て、ui-eval-srclist.mjs でも測った",
-  "result": {},
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 9,
+    "hierarchy": 7,
+    "visual": 9,
+    "steps": 9,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "src-1728: マスタ管理の背後の見出しの帯に ダッシュボード〜品質データ＋製造条件 の 9 タブが印を外して詰めた形で全部並び、右端の「開発者」「マスタ管理」「アプリ ▾」「終了」まで切れずに見える（1 回目の減点の所は直った）。src-1536x864: タブは 工程 の後ろに「ほか 1 ▾」、終了まで見える。src-1280x720: ロゴが VER の札の下へ回り、マスタ の後ろに「ほか 3 ▾」、終了は右端 x=1268 で収まる。本物を動かして（live/1728-head・1536-head・1280-head）見出しの scrollWidth＝clientWidth（1728/1536/1280）、どのボタンも字が切れない（scrollWidth＝clientWidth）。live/1280-more: 「ほか 3 ▾」を押すと「ほかのタブ」の見出しで 台帳 Alt+6・工程 Alt+7・品質データ＋製造条件 Alt+5 のメニューが出て、隠れたタブにも 1 手で届く（機能は消えない）。後ろのタブ（品質データ＋製造条件）を選ぶと、選んだタブは帯に残り、代わりに前のタブが「ほか 5 ▾」（1280）・「ほか 3 ▾」（1536）に入る（live/*-head-last。帯ははみ出さない）。ただし選んだタブが元の並びから飛んで ほか の前に来るので、並びの位置が変わる所は少し迷う。データ元の表そのものは 1 回目と同じ: 16 件がグループの見出し行（件数・出す数・共有の道を 1 度だけ・名前を変える・全部出す／全部出さない）で分かれ、状態は点＋字、見出しのタブはスイッチ＋「出す／出さない」の字、結合した表は └ と札・「元: 品質データ」「＋ 製造条件マスタ」、相手に「← 2 つの結合で使う」。上の段は説明・探す欄・＋ グループ・＋ 結合した表・主の「＋ データ元を足す」が 1 段（1280 でも）。src-1280x720 は表が窓の中で縦に送るが 16 件の表として要るスクロール、ファイル名・状態・変える… は切れない。悪い所（減点ではない）: 最初に見る物が 1 つに決まらず、太字の名前・青い字（名前を変える・全部出す／全部出さない・結合の相手）・緑のスイッチが同じ強さで並び、右側の「変える…」が毎行並んでにぎやか。淡い「全部出す」（押せない状態）は字が薄い。隠れたタブは「ほか N ▾」を開くまで名前が見えない（title に名前はある）"
+  },
   "first": {
    "result": {
     "score": {
