@@ -42,36 +42,10 @@
 .ll-cardwin .lk-seg button:last-of-type{border-radius:0 7px 7px 0}
 .ll-cardwin .lk-seg button[aria-checked="true"]{position:relative;background:var(--input-soft);border-color:var(--h-input);color:var(--h-input);font-weight:800}
 .lk-check{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ink);cursor:pointer}
-.ll-cardwin .lk-edit[aria-pressed="true"]{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber-ink);font-weight:700}
 
 /* 項目 */
 .lk-body{flex:1;min-height:0;overflow:auto;padding:14px 16px;background:var(--surface-2)}
-.lk-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));align-items:start}
-.lk-grid.is-fixed{grid-template-columns:repeat(var(--lk-cols),minmax(0,1fr))}
-.lk-f{position:relative;min-width:0;display:flex;flex-direction:column;gap:3px;padding:8px 12px 9px;background:var(--surface);border:1px solid var(--line);border-radius:9px}
-.lk-l{display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--muted);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lk-v{font-size:15.5px;line-height:1.35;color:var(--ink);font-weight:700;white-space:pre-wrap;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-.lk-f.is-empty .lk-v{color:var(--faint);font-weight:400}
-.lk-grid.size-s .lk-l{font-size:11px}.lk-grid.size-s .lk-v{font-size:13.5px}.lk-grid.size-s .lk-f{padding:6px 10px 7px}
-.lk-grid.size-l .lk-l{font-size:var(--fs-sm)}.lk-grid.size-l .lk-v{font-size:19px}
-.lk-empty{margin:8px 2px;color:var(--muted)}
 
-/* 配置の編集: 枠を点線にして「動かせる」ことを形で示す。落とす先はアンバーの線 */
-.lk-grid.is-editing .lk-f{border-style:dashed;border-color:#b7c6d2;cursor:grab}
-.lk-grid.is-editing .lk-f.dragging{opacity:.45}
-.lk-grid .lk-f.drop-before{box-shadow:inset 3px 0 0 var(--accent)}
-.lk-grid .lk-f.drop-after{box-shadow:inset -3px 0 0 var(--accent)}
-.lk-grip{font-style:normal;color:#9aabb8;font-size:13px;letter-spacing:-2px}
-.lk-fe{display:flex;gap:4px;margin-top:4px;padding-top:6px;border-top:1px dashed var(--line)}
-.ll-cardwin .lk-fe button{height:24px;padding:0 7px;font-size:12px}
-.ll-cardwin .lk-fe button[aria-pressed="true"]{background:var(--input-soft);border-color:var(--h-input);color:var(--h-input);font-weight:800}
-.ll-cardwin .lk-fe button[data-hide]{margin-left:auto;color:var(--danger)}
-.ll-cardwin .lk-fe button[data-hide]:hover{border-color:var(--danger);background:var(--danger-bg)}
-.lk-tray{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 16px;border-top:1px solid var(--line);background:var(--surface);flex:0 0 auto;max-height:30%;overflow:auto}
-.lk-tray em{font-style:normal;color:var(--muted);font-weight:800;font-size:12.5px;margin-right:4px}
-.lk-tray small{color:var(--muted)}
-.ll-cardwin .lk-tray button{height:26px;border-style:dashed;color:var(--h-input);font-weight:700}
-.lk-foot .lc-note{flex:0 1 auto}
 
 /* ---------- いくつも開くカード（残す・並べる・違いを強調）と、項目の細かい大きさ ----------
    残しているカードは見出しの帯の下に藍の線（残っている＝固定の目印）。違う値は琥珀（注意を向ける色）の左の線と札。 */
@@ -79,13 +53,6 @@
 .ll-cardwin.is-pinned{border-color:var(--h-input);box-shadow:0 26px 70px rgba(10,30,45,.32),0 0 0 2px rgba(63,101,145,.35)}
 .ll-cardwin .lk-nav .lk-pin,.ll-cardwin .lk-nav .lk-tile{width:auto;padding:0 12px;font-size:12.5px;font-weight:700}
 .ll-cardwin .lk-nav .lk-pin[aria-pressed="true"]{background:var(--surface);color:var(--h-input);border-color:var(--on-fill)}
-.lk-f.is-tall{min-height:calc(var(--lk-h,1) * 62px + (var(--lk-h,1) - 1) * 10px)}
-.lk-f.is-tall .lk-v{flex:1}
-.lk-f.is-diff{box-shadow:inset 3px 0 0 var(--amber-line);background:var(--amber-pale)}
-.lk-diff{font-style:normal;margin-left:auto;padding:0 6px;border-radius:999px;background:var(--amber-soft);color:var(--amber-ink);font-size:10.5px;font-weight:800}
-.lk-diffchk{color:var(--amber-ink);font-weight:700}
-.lk-fe{flex-wrap:wrap}
-.lk-fsep{width:1px;align-self:stretch;background:var(--line);margin:0 2px}
 
 /* ---------- 並べ方（絵で選ぶ）と棚 ----------
    並べ方の絵は、カード（藍の四角）を並べた小さな図。押す前に結果が分かる（再認 > 想起）。
@@ -121,3 +88,129 @@
 .ll-cardwin.is-flash{animation:lkflash .6s ease-out}
 @keyframes lkflash{0%{box-shadow:0 0 0 6px rgba(230,165,46,.7),0 26px 70px rgba(10,30,45,.32)}100%{box-shadow:0 0 0 0 rgba(230,165,46,0),0 26px 70px rgba(10,30,45,.32)}}
 @media (prefers-reduced-motion:reduce){.ll-cardwin.is-flash{animation:none}}
+
+/* ---------- カードの設計（版 3.55.0。card-form.js・lotlist-card.js。決め方: ui-proposals/2026-10-cardform* の 2 回目の H） ----------
+   見るときと直すときは同じ方眼・同じ大きさ（直すときは点線と四隅の取っ手が重なるだけ）。上の 1 段（デザイン ▾ ／ 編集の帯）は同じ 32px。
+   色は決まった鍵だけ（サーバーの card_forms.COLORS・BGS。細工した字を CSS に入れない） */
+.ll-cardwin .lk-tools{min-height:44px;padding:6px 16px;gap:8px 12px;flex-wrap:nowrap}
+.ll-cardwin .lk-tools.is-editing{background:#fff8ea;border-bottom-color:var(--edit-line)}
+.ll-cardwin .lk-tools .lc-sp{flex:1}
+.ll-cardwin .lk-tools button,.ll-cardwin .lk-tools select{height:30px}
+.cf-pick{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--muted);font-weight:700;min-width:0}
+.cf-pick select{max-width:260px;min-width:0;border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:0 8px;font:inherit;color:var(--ink);font-weight:600}
+.cf-ing{color:var(--warn-ink);white-space:nowrap}
+.cf-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ro-ink);font-size:var(--fs-sm)}
+.cf-name i{font-style:normal;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--amber-pale,#fff1d6);color:var(--warn-ink);font-size:11.5px;font-weight:700}
+.cfv{--cf-acc:var(--h-input);--cf-out:var(--surface-2);position:relative;display:grid;grid-template-columns:repeat(var(--cf-cols),minmax(0,1fr));grid-auto-rows:var(--cf-row);gap:8px;align-content:start;min-height:calc(var(--cf-rows) * (var(--cf-row) + 8px))}
+.cfv.cfv-d-compact{gap:4px}.cfv.cfv-d-roomy{gap:12px}
+.cfv-i{position:relative;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;padding:4px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--cf-r);overflow:visible}
+.cfv-d-compact .cfv-i{padding:2px 8px}.cfv-d-roomy .cfv-i{padding:6px 14px}
+.cfv-i.lab-left{flex-direction:row;align-items:center;justify-content:flex-start;gap:10px}
+.cfv-i.lab-left .cfv-l{flex:0 0 32%;max-width:32%}
+.cfv-l{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cfv-v{min-width:0;font-size:16px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+/* 名前と値の置き方（card-form.js の LAB）。縦に積む: 上・下・枠の上・出さない／横に並べる: 左・両端・札・続ける */
+.cfv-i.lab-bottom{flex-direction:column-reverse}
+.cfv-i:is(.lab-left,.lab-spread,.lab-tag,.lab-inline){flex-direction:row;align-items:center;justify-content:flex-start}
+.cfv-i.lab-spread{justify-content:space-between;gap:12px}
+.cfv-i.lab-spread .cfv-l{flex:0 0 auto;max-width:55%}.cfv-i.lab-spread .cfv-v{flex:1 1 0;text-align:right}
+.cfv-i.lab-spread.bd-none{box-shadow:inset 0 -1px 0 var(--line);border-radius:0}
+.cfv-i.lab-tag{gap:8px}
+.cfv-i.lab-tag .cfv-l{flex:0 0 auto;max-width:50%;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--cf-acc) 13%,#fff);color:var(--cf-acc);line-height:18px}
+.cfv-i.lab-inline{gap:2px}
+.cfv-i.lab-inline .cfv-l{flex:0 0 auto;max-width:50%;gap:0}.cfv-i.lab-inline .cfv-l::after{content:"："}
+.cfv-i:is(.lab-left,.lab-tag,.lab-inline):is(.al-center,.al-right) .cfv-v{flex:1 1 auto}
+.cfv-i.lab-legend{padding-top:9px}
+.cfv-i.lab-legend .cfv-l{position:absolute;top:-8px;left:9px;max-width:calc(100% - 18px);padding:0 5px;line-height:15px;font-size:11.5px;color:var(--cf-acc);
+  background:linear-gradient(to bottom,var(--cf-out) 50%,var(--surface) 50%)}
+.cfv-i.lab-legend.al-center .cfv-l{left:50%;transform:translateX(-50%)}.cfv-i.lab-legend.al-right .cfv-l{left:auto;right:9px}
+.cfv-i.is-tall:is(.lab-top,.lab-legend,.lab-none){justify-content:flex-start;padding-top:8px}.cfv-i.is-tall.lab-legend{padding-top:12px}
+.cfv-i.is-tall.lab-bottom{justify-content:flex-end;padding-top:8px}
+.cfv-i.is-tall .cfv-v,.cfv-i.k-field.fs-s .cfv-v{white-space:normal}
+.cfv-i.fs-s .cfv-v{font-size:13.5px}.cfv-i.fs-l .cfv-v{font-size:20px}.cfv-i.fs-xl .cfv-v{font-size:26px}
+.cfv-i.is-bold .cfv-v{font-weight:800}.cfv-i:not(.is-bold) .cfv-v{font-weight:600}
+.cfv-i.al-center{text-align:center;align-items:center}.cfv-i.al-right{text-align:right;align-items:flex-end}
+.cfv-i.bd-none{border-color:transparent;background:transparent}.cfv-i.bd-strong{border-width:2px;border-color:var(--cf-acc)}
+.cfv-i.is-empty .cfv-v{color:var(--faint);font-weight:400}
+.cfv-i.is-bad .cfv-v{color:var(--danger)}
+.cfv-i.k-section{padding:0 2px;border:0;border-radius:0;background:transparent;justify-content:flex-end}
+.cfv-sec{font-size:12.5px;font-weight:800;letter-spacing:.06em;color:var(--cf-acc);border-bottom:2px solid color-mix(in srgb,var(--cf-acc) 35%,transparent);padding-bottom:3px}
+.cfv-i.k-section.fs-l .cfv-sec,.cfv-i.k-section.fs-xl .cfv-sec{font-size:15px}
+.cfv-i.k-text{border-style:dashed;background:transparent}.cfv-txt{font-size:13.5px;color:var(--ro-ink);white-space:pre-wrap;overflow:hidden}
+.cfv-i.k-combo .cfv-l::after{content:"";}
+.cfv-tag{font-style:normal;padding:0 6px;border-radius:999px;background:var(--info-soft);color:var(--info-ink);font-size:11px;font-weight:700}
+.cfv-diff{font-style:normal;padding:0 6px;border-radius:999px;background:var(--amber-pale,#fff1d6);color:var(--warn-ink);font-size:11px;font-weight:700}
+.cfv-i.is-diff{box-shadow:inset 3px 0 0 var(--accent)}
+.cfv-none{grid-column:1/-1;margin:0;padding:18px;color:var(--muted);text-align:center}
+/* 色の鍵: アクセント（見出しの線・太い枠）・字の色・地の色 */
+.cfv-a-blue{--cf-acc:#3f6591}.cfv-a-teal{--cf-acc:#2f7d78}.cfv-a-green{--cf-acc:#3f7d55}.cfv-a-amber{--cf-acc:#a8700f}.cfv-a-red{--cf-acc:#b23a2c}.cfv-a-purple{--cf-acc:#6a4f9c}
+.cfv-c-ink .cfv-v,.cfv-c-ink .cfv-sec{color:var(--ink)}.cfv-c-muted .cfv-v,.cfv-c-muted .cfv-sec{color:var(--muted)}
+.cfv-c-blue .cfv-v,.cfv-c-blue .cfv-sec{color:#2b5a8a}.cfv-c-teal .cfv-v,.cfv-c-teal .cfv-sec{color:#1f5f5b}.cfv-c-green .cfv-v,.cfv-c-green .cfv-sec{color:#1c6b41}
+.cfv-c-amber .cfv-v,.cfv-c-amber .cfv-sec{color:#8a5a00}.cfv-c-red .cfv-v,.cfv-c-red .cfv-sec{color:#a3281b}.cfv-c-purple .cfv-v,.cfv-c-purple .cfv-sec{color:#5b3f8c}
+.cfv-c-red.k-field{border-left:4px solid #c0392b}
+.cfv-b-white{background:#fff}.cfv-b-pale{background:#f6f9fb}.cfv-b-blue{background:#eaf1fa}.cfv-b-teal{background:#e5f3f1}.cfv-b-green{background:#e3f3ea}
+.cfv-b-amber{background:#fff4dd}.cfv-b-red{background:#fdeee9}.cfv-b-gray{background:#e6ebef}
+/* 直すとき: 方眼の線・点線の枠・選んだ項目の四隅の取っ手（ダッシュボードのパネルと同じ形）・引いている所の影 */
+.cfv.is-edit{background-image:linear-gradient(to right,#e3eaf0 1px,transparent 1px),linear-gradient(to bottom,#e3eaf0 1px,transparent 1px);
+  background-size:calc((100% + 8px) / var(--cf-cols)) calc(var(--cf-row) + 8px);background-position:-5px -5px;outline:1px dashed #b9cde2;outline-offset:3px;border-radius:4px}
+.cfv.is-edit .cfv-i{border-style:dashed;border-color:#9fb3c4;cursor:move;user-select:none}
+.cfv.is-edit .cfv-i:hover{border-color:var(--edit-focus)}
+.cfv.is-edit .cfv-i:focus-visible{outline:2px solid var(--edit-focus);outline-offset:1px}
+.cfv.is-edit .cfv-i.is-sel{border:2px solid var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring);z-index:2}
+.cfv-rz{display:none;position:absolute;width:11px;height:11px;background:#fff;border:2px solid var(--edit-focus);border-radius:2px;z-index:3}
+.cfv-i.is-sel .cfv-rz{display:block}
+.cfv-rz[data-rz=nw]{left:-7px;top:-7px;cursor:nwse-resize}.cfv-rz[data-rz=ne]{right:-7px;top:-7px;cursor:nesw-resize}
+.cfv-rz[data-rz=sw]{left:-7px;bottom:-7px;cursor:nesw-resize}.cfv-rz[data-rz=se]{right:-7px;bottom:-7px;cursor:nwse-resize}
+.cfv-ghost{z-index:4;display:flex;align-items:center;justify-content:center;border:2px dashed var(--edit-focus);border-radius:var(--cf-r);background:rgba(230,165,46,.12);color:var(--warn-ink);font-size:12px;font-weight:700;pointer-events:none}
+.cfv-ghost.is-bad{border-color:var(--danger);background:var(--danger-bg);color:var(--danger)}
+body.cfv-dragging{cursor:grabbing}
+/* 項目の面（カードの左の縁の外。線で項目と結ぶ） */
+.cf-side{position:fixed;z-index:95;width:320px;max-height:calc(100vh - 16px);overflow:auto;display:flex;flex-direction:column;gap:8px;padding:10px 12px 12px;border:1px solid var(--pop-line);border-radius:10px;background:var(--surface);box-shadow:0 14px 34px var(--pop-shadow);font-size:var(--fs-sm);color:var(--ink)}
+.cf-side header{display:flex;align-items:center;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--line-soft)}
+.cf-side header b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf-side label,.cf-look label,.cf-row{display:grid;grid-template-columns:76px minmax(0,1fr);align-items:center;gap:6px}
+.cf-side label > span:first-child,.cf-look label > span:first-child,.cf-row > span:first-child{color:var(--ro-ink);font-weight:700;font-size:12px}
+.cf-side .cf-w{align-items:start}
+.cf-side input,.cf-side select,.cf-side textarea,.cf-in{min-width:0;height:28px;border:1px solid var(--edit-line);border-radius:6px;background:var(--edit-field);padding:0 7px;font:inherit;color:var(--ink)}
+.cf-side textarea{height:auto;padding:5px 7px;font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;resize:vertical}
+.cf-side input:focus,.cf-side select:focus,.cf-side textarea:focus,.cf-in:focus{outline:none;border-color:var(--edit-focus);box-shadow:0 0 0 3px var(--focus-ring)}
+.cf-hint{margin:0 0 0 82px;font-size:12px;color:var(--muted)}.cf-hint.is-ng{color:var(--danger)}.cf-hint b{color:var(--ink)}
+.cf-seg{display:flex;flex-wrap:wrap;gap:3px}
+.cf-seg button{height:26px;padding:0 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);font:inherit;font-size:12px;color:var(--ink);cursor:pointer}
+.cf-seg button[aria-pressed="true"]{border-color:var(--edit-focus);background:#fff8ea;font-weight:700}
+.cf-row.cf-full{grid-template-columns:minmax(0,1fr);gap:5px}
+.cf-lps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.cf-lp{--cf-acc:#3f6591;--cf-out:var(--surface-2);display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:8px 4px 3px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);font:inherit;cursor:pointer}
+.cf-lp .cfv-i{height:38px;padding:2px 4px;gap:3px;border-radius:4px;line-height:1.15;pointer-events:none}
+.cf-lp .cfv-l{font-size:11px;line-height:1.15}.cf-lp .cfv-v{overflow:visible}.cf-lp .cfv-i.cfv-i .cfv-l{flex:0 0 auto;max-width:none;overflow:visible}.cf-lp .cfv-v{font-size:12.5px;font-weight:800}.cf-lp .cfv-i.lab-legend .cfv-l{font-size:11px;top:-7px;left:4px;padding:0 3px;line-height:13px}
+.cf-lp .cfv-i.lab-tag .cfv-l{padding:0 5px;line-height:15px}.cf-lp .cfv-i.lab-legend{padding-top:5px}
+.cf-lp em{font-style:normal;font-size:11.5px;color:var(--ro-ink);text-align:center;white-space:nowrap}
+.cf-lp:hover{border-color:var(--edit-focus)}
+.cf-lp[aria-pressed="true"]{border-color:var(--edit-focus);background:#fff8ea;box-shadow:0 0 0 1px var(--edit-focus)}.cf-lp[aria-pressed="true"] em{color:var(--ink);font-weight:700}
+.cf-sws{display:flex;flex-wrap:wrap;gap:4px}
+.cf-sw{width:22px;height:22px;padding:0;border:1px solid #b5c0c8;border-radius:5px;cursor:pointer;background:#fff}
+.cf-sw[aria-pressed="true"]{outline:2px solid var(--edit-focus);outline-offset:1px}
+.cfv-tx-none{background:linear-gradient(135deg,#fff 45%,#c5ced5 46%,#c5ced5 54%,#fff 55%)}.cfv-tx-ink{background:#1b2733}.cfv-tx-muted{background:#5d6b77}.cfv-tx-blue{background:#2b5a8a}
+.cfv-tx-teal{background:#1f5f5b}.cfv-tx-green{background:#1c6b41}.cfv-tx-amber{background:#a8700f}.cfv-tx-red{background:#a3281b}.cfv-tx-purple{background:#5b3f8c}
+.cfv-bg-none{background:linear-gradient(135deg,#fff 45%,#c5ced5 46%,#c5ced5 54%,#fff 55%)}.cfv-bg-white{background:#fff}.cfv-bg-pale{background:#f6f9fb}.cfv-bg-blue{background:#eaf1fa}.cfv-bg-teal{background:#e5f3f1}
+.cfv-bg-green{background:#e3f3ea}.cfv-bg-amber{background:#fff4dd}.cfv-bg-red{background:#fdeee9}.cfv-bg-gray{background:#e6ebef}
+.cfv-sw-blue{background:#3f6591}.cfv-sw-teal{background:#2f7d78}.cfv-sw-green{background:#3f7d55}.cfv-sw-amber{background:#a8700f}.cfv-sw-red{background:#b23a2c}.cfv-sw-purple{background:#6a4f9c}
+.cf-side footer{display:flex;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--line-soft)}
+.cf-side footer .cf-size{flex:1}
+.cf-del{height:28px;padding:0 10px;border:1px solid var(--danger-line);border-radius:6px;background:var(--surface);color:var(--danger);font:inherit;font-size:12px;cursor:pointer}
+.cf-link{position:fixed;z-index:94;height:2px;background:var(--edit-focus);pointer-events:none}
+.cf-link::after{content:"";position:absolute;right:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--edit-focus)}
+.cf-look{position:fixed;z-index:96;width:330px;display:flex;flex-direction:column;gap:8px;padding:10px 12px 12px;border:1px solid var(--pop-line);border-radius:10px;background:var(--surface);box-shadow:0 14px 34px var(--pop-shadow);font-size:var(--fs-sm)}
+.cf-look h5{margin:0 0 2px;font-size:13px}
+.cf-saveas .cf-in{height:30px}
+.cf-scopes{display:flex;flex-direction:column;gap:4px}
+.cf-sc{display:flex!important;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.cf-sc.is-off{opacity:.5;cursor:default}
+.cf-err{margin:0;color:var(--danger);font-size:12px}
+.cf-acts{display:flex;justify-content:flex-end;gap:6px}
+.cf-acts button{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);font:inherit;cursor:pointer}
+
+/* 作った後の採点（66.4 点）を受けて: 升の大きさの字は 12px／値が項目の幅に入らないときは、切らずに折り返して少し小さくする（fit） */
+.cf-size{font-size:12px;color:var(--muted)}
+.cfv-i .cfv-v.is-wrap{white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.15;text-overflow:clip}
+.cf-lp .cfv-l{color:var(--ro-ink)}
