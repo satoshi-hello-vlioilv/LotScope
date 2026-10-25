@@ -178,9 +178,10 @@
   /** 値を選ぶ条件（op "in"。値の並びの JSON）の短い字: 「CR1・CR2 ほか 3」（版 3.45.0。列の値のチェックで絞る） */
   const inText = (f) => { let v = []; if (f.op === "tuple_in") v = f.names || []; else try { v = JSON.parse(f.value || "[]"); } catch (_) { /* 読めない並び */ } v = Array.isArray(v) ? v.map((x) => (x === "" ? "（空欄）" : String(x))) : [];
     return v.length ? v.slice(0, 2).join("・") + (v.length > 2 ? ` ほか ${v.length - 2}` : "") : "（どれも選んでいません）"; };
-  /** 条件の短い字（「列 中身」の形。中身は 字:「CR」で始まらない・数: >= 3000・空欄: が空欄） */
+  /** 条件の短い字（「列 中身」の形。中身は 字:「CR」で始まらない・一致: = 汚れ（値を選ぶ条件と同じ記号）・数: >= 3000・空欄: が空欄） */
   const condLabel = (f) => (f.op === "in" || f.op === "tuple_in" ? `${f.column} = ${inText(f)}` : f.op in REL_UNIT ? `${f.column} ${relText(f)}`
-    : noValueOp(f.op) ? `${f.column} ${opLabel(f.op)}` : TEXT_OPS.has(f.op) ? `${f.column} 「${f.value}」${opLabel(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
+    : noValueOp(f.op) ? `${f.column} ${opLabel(f.op)}` : f.op === "eq" || f.op === "neq" ? `${f.column} ${f.op === "eq" ? "=" : "≠"} ${f.value}`
+    : TEXT_OPS.has(f.op) ? `${f.column} 「${f.value}」${opLabel(f.op)}` : `${f.column} ${opShort(f.op)} ${f.value}`);
 
   /* 値の * ?（Excel と同じ。版 3.54.0。サーバーの lot_list.like_pattern と同じ読み方）: * は何文字でも・? は 1 字（全角の ＊ ？ も）・
      ~ の後ろの * ? ~ はその字そのもの。parse → [{t: "lit", s} | {t: "any"} | {t: "one"}] */

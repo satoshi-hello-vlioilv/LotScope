@@ -1,7 +1,7 @@
 {
  "title": "絞り込みの比べ方（で始まらない・で終わらない）と * ? の値",
  "rule": "2026-10-17",
- "evaluator": "採点だけをする別のエージェント（Claude Opus 5.5。案は作っていない）。2026-10-25 に自分で ui-variants.mjs を 1728×1152（既定）・1536×864・1280×720 で流して撮り（--states list-colfilter。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-1/wc-1728・wc-1536・wc-1280）、sheet-*.png と 1 枚ずつの画像を開き、PIL で窓の部分を切り抜いて拡大して見た。metrics.json の字の大きさ・コントラストも見た。",
+ "evaluator": "採点だけをする別のエージェント（Claude Opus 5.5。案は作っていない）。2026-10-25 に自分で ui-variants.mjs を 1728×1152（既定）・1536×864・1280×720 で流して撮り（--states list-colfilter。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-1/wc-1728・wc-1536・wc-1280）、sheet-*.png と 1 枚ずつの画像を開き、PIL で窓の部分を切り抜いて拡大して見た。metrics.json の字の大きさ・コントラストも見た。 ／ 作った後: 採点だけをする別のエージェント（Claude Opus 5.5。案も実装も作っていない、これまでの採点者とも別）。2026-10-25 に空の案 empty.mjs で ui-variants.mjs を 1728×1152・1536×864・1280×720 で流して撮り（--states list-colfilter,list-wildcard。出力 /tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/wc-1728・wc-1536x864・wc-1280x720）、1 枚ずつの画像を開き、PIL で窓を切り抜いて拡大して見た。metrics.json の cut・hidden・字の大きさ・コントラストも見た。比べ方の段（optgroup）は select を開いた絵が撮れないため shared.js の FILTER_OPS・opOptions で確かめた",
  "rounds": [
   {
    "name": "1 回目",
@@ -154,8 +154,24 @@
  ],
  "built": {
   "name": "作った後",
-  "images": "",
+  "images": "/tmp/claude-0/-home-user-LotScope/6843c45f-1b4a-451d-91f7-884abf0fb116/scratchpad/eval-built/wc-1728・wc-1536x864・wc-1280x720",
   "self_check": "作った者が 1728・1536・1280 の list-colfilter・list-wildcard（で始まらない・C?* を打った所）を開いて確かめた。直した所: 「並んだ値のうち 7 / 8」が字の途中で折れた → まとまりで次の行へ送る。採点の指摘（段の見出し「空欄」と項目「空欄」の重なり・数の段の言葉の型・帯の高さ）は、段の名前を「空かどうか」に、数の段を「より大きい（>）」の型に、読み方の帯を 1〜2 行に収めて直した",
-  "result": {}
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 9,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "wc-1728 list-colfilter: 「条件で絞る」の段に比べ方（を含む）と値の欄「値（* ? が使えます）」・× が 1 行に並び、その下の淡い帯に「* 何文字でも　? 1 字　~* * そのもの」。値の検索の欄も「値を検索（* ? も）」で、* ? が使えることを値を打つ前から教える。比べ方の選びは shared.js の opOptions で「字で比べる（* ? が使えます）／数で比べる／空かどうか／日付（今日から）」の optgroup に分かれ、言葉が「で始まる／で始まらない／で終わる／で終わらない」「より大きい（>）」の型にそろった（選びを開いた絵は本物の select のため撮れず、定義で確かめた）。wc-1728 list-wildcard: 「で始まらない」「C?*」を打つと帯が「→「C」＋1 字＋何文字でも で始まらない値」と「並んだ値のうち 7 / 8」の 2 行になり、読み方と効き目（8 件のうち CR1 だけが外れる）が数で見える。決めた案 B の再現どおり。wc-1536x864・wc-1280x720 でも窓は画面の中に収まり、帯の 2 行は折れず（「7 / 8」は次の行にまとまる）、OK・キャンセル・絞り込みを外す まで見える（metrics の cut 0・hidden 0。字の最小 10px とコントラスト 4.56 は今と同じで背後の一覧）。減点は見つからなかった。悪い所: 1280 では値の並びが 4 件しか見えず内側で送る（今と同じ）。条件で外れる値（CR1）のチェックは付いたままで、どの値が外れるかは数でしか分からない。帯が淡い緑で、効き目の数（7 / 8）の強調が控えめ"
+  }
  }
 }

@@ -984,6 +984,7 @@ function moveTo(name, { focus = true } = {}) {
     $(v.tab).tabIndex = k === name ? 0 : -1;
   });
   $(panel).setAttribute("aria-labelledby", SCREENS[name].tab.slice(1));
+  if ($(SCREENS[name].tab).hidden || $(".screen-tabs .tab-more")) fitTabs();     // 選んだタブを「ほか」の中に置いたままにしない
   if (prev && SCREENS[prev].source) window.LotList.deactivate();
   if (prev && SCREENS[prev] && SCREENS[prev].hide) SCREENS[prev].hide();
   if (SCREENS[name].show) SCREENS[name].show();
@@ -1130,6 +1131,40 @@ function applyTabs() {
   const rank = (b) => { const i = v.order.indexOf(b.dataset.screen), d = base.indexOf(b.dataset.screen); return i >= 0 ? i : 1000 + (d < 0 ? 999 : d); };
   const want = [...els].sort((a, b) => rank(a) - rank(b));
   if (want.some((b, i) => b !== els[i])) want.forEach((b) => nav.appendChild(b));
+  fitTabs();
+}
+/* 見出しのタブを帯に収める（版 3.54.0。データ元のグループ・結合した表でタブが増えても、右端の「アプリ」「終了」を切らない。
+   2026-10-srclist の作った後の採点）: まずタブを詰め（印を外す。名前は切らない）、それでも入らなければ、選んでいないタブを
+   後ろから「ほか N ▾」にまとめる（押すと残りのタブのメニュー。作業実績の設備のタブと同じ考え）。Alt＋数字はまとめたタブにも効く */
+function fitTabs() {
+  const nav = $(".screen-tabs"), head = nav && nav.closest("header");
+  if (!head) return;
+  const over = () => head.scrollWidth > head.clientWidth + 1;
+  nav.classList.remove("is-tight");
+  $(".tab-more", nav)?.remove();
+  const els = tabEls();
+  els.forEach((b) => { b.hidden = false; });
+  if (!over()) return;
+  nav.classList.add("is-tight");
+  if (!over()) return;
+  const more = Object.assign(document.createElement("button"), { type: "button", className: "screen-tab tab-more" });
+  more.setAttribute("aria-haspopup", "menu");
+  nav.appendChild(more);
+  const hidden = [];
+  for (let i = els.length - 1; i >= 0 && (!hidden.length || over()); i--) {
+    if (els[i].getAttribute("aria-selected") === "true") continue;
+    els[i].hidden = true; hidden.unshift(els[i]);
+    more.innerHTML = `<span class="tab-name">ほか ${hidden.length} ▾</span>`;
+  }
+  more.title = `入りきらないタブ: ${hidden.map((b) => tabName(b)).join("・")}`;
+  more.onclick = () => {
+    const r = more.getBoundingClientRect();
+    TPA.menu({ x: r.left, y: r.bottom + 2, head: "ほかのタブ", items: hidden.map((b) => ({ label: tabName(b), key: (SCREENS[b.dataset.screen] || {}).key ? `Alt+${SCREENS[b.dataset.screen].key}` : "", run: () => showScreen(b.dataset.screen) })) });
+  };
+}
+{
+  let t = 0;
+  window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(fitTabs, 120); });
 }
 function moveTab(screen, dir) {
   const keys = tabEls().map((b) => b.dataset.screen), i = keys.indexOf(screen), j = i + dir;

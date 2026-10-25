@@ -35,6 +35,21 @@ try {
     check(`① ${tag} ファイル名・状態・結合の数・スイッチの字が切れない`, rs.every((r) => !r.cut.length), rs.filter((r) => r.cut.length));
     const over = await p.evaluate(() => { const b = document.querySelector("#masterSettings"); return b.scrollWidth > b.clientWidth + 1; });
     check(`① ${tag} 横にはみ出さない`, !over, over);
+    // 見出しの帯（グループ・結合した表でタブが増えても、右端の「終了」まで窓に収まる。入らないタブは「ほか N ▾」）
+    await p.click("#masterCloseBtn"); await sleep(300);
+    const hdr = await p.evaluate(() => { const h = document.querySelector("header"), q = document.querySelector("#quitBtn, [data-quit], .quit-btn") || [...h.querySelectorAll("button")].pop();
+      return { over: h.scrollWidth > h.clientWidth + 1, right: q.getBoundingClientRect().right, W: innerWidth, more: !!document.querySelector(".screen-tabs .tab-more"),
+        hidden: [...document.querySelectorAll(".screen-tabs [data-screen][hidden]")].map((b) => b.dataset.screen) }; });
+    check(`① ${tag} 見出しの帯が窓に収まる（右端のボタンが見える）`, !hdr.over && hdr.right <= hdr.W, hdr);
+    if (hdr.more) {
+      await p.click(".screen-tabs .tab-more"); await sleep(250);
+      const last = hdr.hidden[hdr.hidden.length - 1];
+      await p.evaluate(() => [...document.querySelectorAll(".tpa-menu button")].pop().click()); await sleep(1500);
+      const sel = await p.evaluate((k) => document.querySelector(`.screen-tabs [data-screen="${CSS.escape(k)}"]`)?.getAttribute("aria-selected"), last);
+      const fit2 = await p.evaluate(() => document.querySelector("header").scrollWidth <= document.querySelector("header").clientWidth + 1);
+      check(`① ${tag} 「ほか」のメニューから開くと、そのタブが選ばれて帯に出る（帯は収まったまま）`, sel === "true" && fit2, { last, sel, fit2 });
+    }
+    await openSources(p);
     if (view.width !== 1728) { await p.context().close(); continue; }
 
     const key = (n) => all.find((x) => x.name === n).key;
