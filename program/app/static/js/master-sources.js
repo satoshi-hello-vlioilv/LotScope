@@ -45,6 +45,8 @@ const hm = (sec) => { const d = new Date(sec * 1000), p = TPA.pad2; return `${p(
 function stateOf(s) {
   const m = s.mirror;
   if (s.kind === "folder") return `<span class="sr-state ok" title="設備ごとに写して読みます"><i></i>${s.equipCount != null ? s.equipCount : "-"} 台</span>`;
+  if (s.kind === "cm3") return m && m.mirrored ? `<span class="sr-state ${m.unreachable ? "ng" : "ok"}" title="CM3 から最後に取った ${when(m.checkedAt || m.copiedAt)}"><i></i>${s.equipCount != null ? `${s.equipCount} 設備` : "取った"} <small>${hm(m.checkedAt || m.copiedAt)}</small></span>`
+    : '<span class="sr-state" title="開くと CM3 から取ります"><i></i>まだ取っていない</span>';
   if (s.kind === "view" && s.broken) return '<span class="sr-state ng"><i></i>元がありません</span>';
   if (!m || !m.mirrored) return `<span class="sr-state" title="開くと共有から手元へ写します"><i></i>${s.kind === "view" ? "まだ組んでいない" : "まだ写していない"}</span>`;
   const at = m.copiedAt || m.at;
@@ -299,6 +301,15 @@ function formOf(s, can, isView = false) {
     <div class="sr-acts"><button type="button" class="btn-primary" data-sr-save${dis}>保存</button><button type="button" class="pz-btn" data-sr-work>作業実績を開く ›</button>
       <span class="sr-sp"></span><button type="button" class="btn-ghost" data-sr-close>閉じる</button></div>
     <div class="ps-result hidden sr-w" data-sr-result aria-live="polite"></div></div>`;
+  // スケジュール（版 3.57.0）: 場所は CM3（参照先で直す）。ここで直すのは表示名・見出しのタブ・仕掛との結合だけ
+  if (s && s.kind === "cm3") return `<div class="sr-form">
+    <label><span>表示名</span><input class="ps-input" data-sr="name" value="${escapeHtml(s.name)}"${dis}></label>
+    <label><span>見出しのタブ</span><select data-sr="listed"${dis}><option value="1"${s.listed ? " selected" : ""}>出す</option><option value="0"${s.listed ? "" : " selected"}>出さない</option></select></label>
+    <p class="ps-hint sr-w">CM3 の URL・設備・点検の行の言葉・取り直す間隔は「参照先」で直します。仕掛と突き合わせる鍵（既定: ロットNo = 仕掛のロット番号）と持ってくる列は、下の結合で決めます。</p>
+    ${joinBox}
+    <div class="sr-acts"><button type="button" class="btn-primary" data-sr-save${dis}>保存</button><button type="button" class="pz-btn" data-sr-paths>参照先を開く ›</button>
+      <span class="sr-sp"></span><button type="button" class="btn-ghost" data-sr-close>閉じる</button></div>
+    <div class="ps-result hidden sr-w" data-sr-result aria-live="polite"></div></div>`;
   const isLot = s && s.key === "lot";
   const v = s || { name: "", role: "その他", place: "", table: "", equipColumn: "", equipMode: "そのまま", listed: true, groupSet: "", base: "" };
   const opt = (list, cur) => list.map((x) => `<option${x === cur ? " selected" : ""}>${escapeHtml(x)}</option>`).join("");
@@ -340,6 +351,7 @@ function bindSourceForm(card, s, can, isView = false) {
   const say = (cls, html) => { if (!out) return; out.className = `ps-result ${cls} sr-w`; out.innerHTML = html; };
   card.querySelectorAll("[data-sr-close]").forEach((b) => { b.onclick = async () => { if (!(await TPA.unsaved.leave("master:sources", "欄を閉じる"))) return; openKey = null; paintSources(); }; });
   const work = card.querySelector("[data-sr-work]"); if (work) work.onclick = () => goTab("worklog");
+  const paths = card.querySelector("[data-sr-paths]"); if (paths) paths.onclick = () => goTab("paths");
   let jbox = card.querySelector("[data-jn-box]");
   const view = isView || (s && s.kind === "view");
   const mountJoin = () => {

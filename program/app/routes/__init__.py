@@ -15,9 +15,10 @@
     conversions … 変換表（コードの読み替え・判定表。式の conv）
     presets  … 集計表・グラフの組み方のプリセット（共通と ID ごと・標準）
     sources  … データ元（品質データ・作業実績・仕掛・足した元）と、1 ファイルの元の一覧
+    schedule … スケジュール（CM3 の作業予定。データ元 sch の表の決め方と設備のタブ）
     dashboard… ダッシュボード（設備別の仕掛ロット数・前日の実績本数）と集計対象の条件
 """
-from . import access, conversions, dashboard, equipgroups, formats, lots, lotlist, masters, presets, settings, shifts, sources, system, worklog  # 読み込むと bp へ登録される
+from . import access, conversions, dashboard, equipgroups, formats, lots, lotlist, masters, presets, schedule, settings, shifts, sources, system, worklog  # 読み込むと bp へ登録される
 from .common import _REVOKE_CACHE, bp  # _REVOKE_CACHE はテストが切断の覚えを消すため
 
-__all__ = ["bp", "_REVOKE_CACHE", "access", "conversions", "dashboard", "equipgroups", "formats", "lots", "lotlist", "masters", "presets", "settings", "shifts", "sources", "system", "worklog"]
+__all__ = ["bp", "_REVOKE_CACHE", "access", "conversions", "dashboard", "equipgroups", "formats", "lots", "lotlist", "masters", "presets", "schedule", "settings", "shifts", "sources", "system", "worklog"]

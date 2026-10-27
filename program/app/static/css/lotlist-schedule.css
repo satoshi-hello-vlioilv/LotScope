@@ -1,0 +1,85 @@
+/* スケジュール（CM3 の設備ごとの作業予定。版 3.57.0。lotlist-schedule.js）。
+   色の意味は ScheduleView と同じ: 設備停止＝赤（止まる・注意）・点検＝黄（ふだんと違う）・次工程が自分の設備＝茶の字・
+   設備の色 L-1 青・L-2 緑・L-3 橙（作業の流れの図と札で同じ）・釜番＝淡い 16 色（帯と札で同じ）。
+   字の大きさ・面の段・線は LotScope の決まり（app.css の --fs-*・--surface-*・--line）に合わせる。 */
+:root{
+  --sd-stop-bg:#fdecec; --sd-stop-ink:#8a1c13; --sd-stop-bar:#b42318;
+  --sd-insp-bg:#fff4c2; --sd-insp-ink:#6b4e00; --sd-insp-bar:#c99400;
+  --sd-self-ink:#8a5300; --sd-daybreak:#9aa5b1;
+}
+
+/* ---- 設備のタブの飾り（作業実績と同じ札） ---- */
+.sd-eqdot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--eqc,#64748b);vertical-align:1px}
+.sd-hotchip{color:#9a3412}
+.sd-hotchip[aria-selected="true"]{color:#9a3412;box-shadow:inset 0 3px 0 #ea580c}
+.sd-cm3{display:inline-flex;align-items:center;text-decoration:none;line-height:26px}
+.sd-auto{color:var(--muted)}
+@media (max-width:1440px){ .ll-equipbar .eq-hint.sd-auto{display:inline} }   /* 作業実績の並べ替えの案内は狭い窓で畳むが、自動更新の間隔は出したまま */
+
+/* ---- 上の段（U3: 主の数＋押して絞る丸い札＋右に時刻。設備も HOT も同じ形） ---- */
+.sd-strip{display:flex;flex-direction:column;gap:6px;padding:7px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);flex:0 0 auto;min-width:0}
+.sd-strip[hidden]{display:none}
+.sd-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0}
+.sd-lead{display:flex;align-items:baseline;gap:6px;padding-right:10px;margin-right:4px;border-right:1px solid var(--line);white-space:nowrap}
+.sd-lead b{font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums}
+.sd-lead span{font-size:var(--fs-sm);color:var(--muted)}
+.sd-meta{margin-left:auto;padding-left:12px;font-size:var(--fs-sm);color:var(--muted);white-space:nowrap}
+.sd-meta b{color:var(--ink);font-variant-numeric:tabular-nums}
+.sd-err{font-style:normal;color:var(--sd-stop-bar);font-weight:700}
+.sd-row .sd-kchip b{font-size:var(--fs-md)}
+.sd-kchip.k-insp{border-color:#ecd29a;background:var(--sd-insp-bg);color:var(--sd-insp-ink)}
+.sd-kchip.k-stop{border-color:#e6bcb6;background:var(--sd-stop-bg);color:var(--sd-stop-ink)}
+.sd-kchip.k-stop small{color:var(--sd-stop-ink);font-size:var(--fs-xs);margin-left:2px}
+.sd-kchip.k-miss{border-style:dashed}
+.sd-kchip.k-insp.is-on,.sd-kchip.k-stop.is-on,.sd-kchip.k-miss.is-on{box-shadow:inset 0 0 0 2px var(--h-input)}
+.sd-kchip.is-empty{color:var(--muted);border-style:dashed}   /* 0 本: 淡くせず（字の濃さ 4.5 以上）、点線の枠と灰の字で */
+.sd-kchip.is-empty .sd-eqdot{opacity:.45}
+.sd-kchip .sd-eqdot{margin-right:0}
+.sd-rule{margin:0;font-size:var(--fs-sm);color:var(--muted);line-height:1.5}
+.sd-notes{margin:0;font-size:var(--fs-sm);color:var(--warn-ink)}
+.sd-note{font-size:var(--fs-sm);color:var(--muted)}
+.sd-note.is-warn{color:var(--warn-ink)}
+
+/* ---- 作業の流れの図 ---- */
+.sd-tlwrap{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 10px 8px}
+.sd-tlhead{display:flex;align-items:center;gap:12px;font-size:var(--fs-sm)}
+.sd-tlhead span{flex:1;min-width:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-tltoggle{flex:none;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--h-input);font-family:inherit;font-size:var(--fs-sm);cursor:pointer}
+.sd-tltoggle:hover{border-color:var(--h-input)}
+.sd-tl{margin-top:4px}
+.sd-axis{position:relative;height:16px;margin-left:64px;font-size:var(--fs-xs);color:var(--muted)}
+.sd-axis span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.sd-axis span.is-day{font-weight:800;color:var(--ink)}
+.sd-lane{display:flex;align-items:flex-end;height:50px}
+.sd-lane .sd-ln{align-self:flex-end;line-height:22px}
+.sd-lane.is-empty{height:28px}             /* 帯の無い設備（0 本）は字の段を持たない */
+.sd-ln{flex:0 0 64px;font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
+.sd-track{position:relative;flex:1;height:22px;margin-top:26px;background:var(--surface-3);border-radius:4px;overflow:visible}
+.sd-grid{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.sd-grid.is-day{background:#94a3b8}
+.sd-now{position:absolute;top:0;bottom:0;width:2px;background:#dc2626;z-index:2}
+.sd-blk{position:absolute;top:2px;bottom:2px;min-width:3px;padding:0 3px;border:0;border-radius:3px;font-family:inherit;font-size:var(--fs-xs);line-height:18px;color:#1f2937;
+  overflow:hidden;white-space:nowrap;text-overflow:clip;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(15,23,42,.18)}
+.sd-blk.is-dim{opacity:.25}
+.sd-blk.is-tight{color:transparent}     /* 字が入らない帯は、字を帯の上の段（.sd-tag）に出す */
+.sd-tag{position:absolute;transform:translateX(-50%);bottom:24px;font-size:var(--fs-xs);line-height:12px;color:var(--ink);white-space:nowrap;pointer-events:none}
+.sd-tag::after{content:"";position:absolute;left:50%;top:12px;height:var(--lead,4px);border-left:1px solid #94a3b8}
+.sd-tag.is-r0{bottom:24px;--lead:2px}.sd-tag.is-r1{bottom:37px;--lead:15px}
+
+/* ---- 釜番の札 ---- */
+.sd-kama{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.sd-klab{font-size:var(--fs-xs);font-weight:800;color:var(--muted);letter-spacing:.06em}
+.sd-kchip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);
+  font-family:inherit;font-size:var(--fs-sm);color:var(--ink);cursor:pointer;white-space:nowrap}
+.sd-kchip b{font-weight:800}
+.sd-kchip small{color:var(--muted);font-size:var(--fs-xs)}
+.sd-kchip.is-on{border-color:var(--h-input);background:var(--input-soft)}
+.sd-kdot{display:inline-block;width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(15,23,42,.2)}
+
+/* ---- 行の飾り（設備停止・点検・次工程が自分の設備・日付の境） ---- */
+.ll-grid tbody tr.sd-stop>td{background:var(--sd-stop-bg);color:var(--sd-stop-ink)}
+.ll-grid tbody tr.sd-stop>td:first-child{box-shadow:inset 4px 0 0 var(--sd-stop-bar)}
+.ll-grid tbody tr.sd-inspect>td{background:var(--sd-insp-bg);color:var(--sd-insp-ink)}
+.ll-grid tbody tr.sd-inspect>td:first-child{box-shadow:inset 4px 0 0 var(--sd-insp-bar)}
+.ll-grid tbody tr.sd-self>td{color:var(--sd-self-ink)}
+.ll-grid tbody tr.sd-daybreak>td{border-top:2px solid var(--sd-daybreak)}

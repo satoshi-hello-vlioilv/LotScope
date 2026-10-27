@@ -197,7 +197,7 @@ class Panels(Api):
         self.assertEqual([x["column"] for x in w["special"]], ["@equip", "@egroup"])
         self.assertIn("仕掛区分", [x["column"] for x in w["fields"]])
         s = self.c.get("/api/dashboard/sources").get_json()
-        self.assertEqual([x["key"] for x in s["items"]], ["lot", "work", "src:wip"])
+        self.assertEqual([x["key"] for x in s["items"]], ["lot", "work", "src:wip", "src:sch"])
         self.assertEqual([x["name"] for x in s["items"][1]["equips"]], ["CR1", "L-1"])
 
     def test_slicer_panel_and_date_range(self):

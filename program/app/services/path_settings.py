@@ -39,6 +39,19 @@ ITEMS = [
     {"key": "lotdsp_import.url", "label": "ロット問い合わせ（LotDsp）の URL", "kind": "url",
      "hint": "「検索」で読みに行く LotDsp の場所。社内（ログイン不要）ではこのアプリだけで読み、VPN でログインが要るときは"
              " LotDsp の窓が開きます（ログインはその窓で利用者が行う）。貼り付けで取り込むときの「LotDsp を開く」もここを開きます。"},
+    {"key": "schedule.cm3_base_url", "label": "スケジュール（CM3）の URL", "kind": "url",
+     "hint": "設備ごとの作業予定を読みに行く CM3 スケジューリングシステムの場所（例: http://nlmfangyweb1a:9085）。"
+             "「スケジュール」のタブは、ここから設備ごとに作業予定を取り、仕掛と突き合わせて並べます。"},
+    {"key": "schedule.client_ip", "label": "CM3 に名乗る端末の IP", "kind": "text",
+     "hint": "CM3 への問い合わせに入れる端末の IP（CM3 の画面を開いたときにブラウザが送る値と同じ）。"},
+    {"key": "schedule.equipments", "label": "スケジュールの設備", "kind": "text",
+     "hint": "「スケジュール」のタブに並べる設備（「、」か「,」で区切る。例: L-1, L-2, L-3）。"
+             "端末区分が既定（4）と違う設備は「L-9:2」のように : の後ろに書きます。HOT コイル作業順はこの設備から作ります。"},
+    {"key": "schedule.inspect_keywords", "label": "スケジュールの点検の行の言葉", "kind": "text",
+     "hint": "ロットNo か用途名にこの言葉を含み、板厚・幅のある行を「点検」とします（「、」で区切って複数。既定: 点検板）。"
+             "点検の行は製造件数・ロット数・仕掛との突合せから除きます。"},
+    {"key": "schedule.auto_refresh_sec", "label": "スケジュールを取り直す間隔（秒）", "kind": "int", "min": 10, "max": 3600,
+     "hint": "「スケジュール」の画面を開いている間、この間隔で CM3 から取り直し、変わっていれば画面を出し直します（10〜3600 秒）。"},
     {"key": "update.source", "label": "更新の置き場（新しい版を置くフォルダ）", "kind": "release",
      "check_url": "/__desktop/update/probe",
      "hint": f"版ごとのフォルダ（例 …\\90_Releases\\{BRAND['name']}\\3.2.0）に release.json と配る ZIP を置く、その上のフォルダ。"

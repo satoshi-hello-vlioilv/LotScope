@@ -49,7 +49,10 @@ def _rows_of(m, s):
 def _public(s):
     """画面へ返す形（写しの様子と行の数つき。共有は見に行かない）。"""
     k = s.get("base") or s["key"]
-    m = (current_app.config.get("LOT_MIRROR") if k == "lot" else _mirrors().peek(k)) if (s["api"].startswith("/api/src/") or k == "lot") else None
+    m = (current_app.config.get("LOT_MIRROR") if k == "lot" else _mirrors().peek(k)) if (s["api"].startswith("/api/src/") or k == "lot") and s["kind"] != "cm3" else None
+    if s["kind"] == "cm3":                  # スケジュール: 最後に取った設備の様子（共有も CM3 も見に行かない）
+        from .schedule import schedule_card
+        return {**s, **schedule_card(), "rows": None, "joinStats": None}
     rows = _rows_of(m, s) if s["kind"] != "view" else _view_rows(s)
     return {**s, "mirror": m.source_info() if m else None, "rows": rows, "joinStats": _join_stats(s)}
 
@@ -167,6 +170,9 @@ def src_plan(key, need_copy=True, joined=True):
     s = next((x for x in _all() if x["key"] == key), None)
     if s is None or not s["api"].startswith("/api/src/"):
         return None, error("そのデータ元はありません。「マスタ管理」の「データ元」で確かめてください。", 404, "unknown")
+    if s["kind"] == "cm3":                  # スケジュール（版 3.57.0）: 設備ごとに CM3 から取った表（routes/schedule.py）
+        from .schedule import schedule_plan
+        return schedule_plan(s, joined=joined)
     if s["kind"] == "view":
         if s.get("broken"):
             return None, error(f"「{s['name']}」の元のデータ元がありません。「マスタ管理」の「データ元」で元を選び直してください。", 400, "unset")
@@ -200,6 +206,9 @@ def src_list(key):
     except Exception as e:
         return error(str(e), 503, source=plan["source"])
     out["source"] = plan["source"]
+    if plan["def"]["kind"] == "cm3":
+        from .schedule import schedule_extra
+        out["schedule"] = schedule_extra(plan)
     return jsonify(out)
 
 
@@ -239,6 +248,9 @@ def src_pivot(key):
 @bp.get("/api/src/<key>/source")
 def src_source(key):
     """いま読んでいるデータはいつのものか（共有は見に行かない）。まだ開いていない元は 404。"""
+    if (source_def(key) or {}).get("kind") == "cm3":     # スケジュール: CM3 の更新の時刻。古くなった設備は裏で取り直す
+        from .schedule import schedule_source
+        return schedule_source()
     m = _mirror_of(key)
     if m is None:
         return error("まだ開いていないデータ元です。", 404, "unknown")
@@ -255,6 +267,13 @@ def _mirror_of(key):
 @bp.post("/api/src/<key>/refresh")
 def src_refresh(key):
     """「再読込」: 共有に新しい版があるかを今すぐ確かめ、あれば取り込む（変わっていなければ写さない）。"""
+    s = source_def(key)
+    if (s or {}).get("kind") == "cm3":                   # スケジュール: 今すぐ CM3 から取り直す（「更新」）
+        from .schedule import schedule_plan
+        plan, fail = schedule_plan(s, joined=False, force=True)
+        if fail:
+            return fail
+        return jsonify(result={"copied": True}, source=plan["source"])
     plan, fail = src_plan(key, need_copy=False, joined=False)
     if fail:
         return fail

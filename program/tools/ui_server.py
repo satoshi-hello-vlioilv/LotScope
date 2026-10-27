@@ -1,6 +1,6 @@
 """画面だけを確かめるための開発用サーバー（窓 desktop/ の代わり。利用者の起動の道ではない）。
 
-試験用の品質データ（tests/lotlist_fixture.py の 1500 行）と作業実績（設備 12 台ぶん）と仕掛（1200 ロット）を作業フォルダに作って参照先にし、アプリ（create_app）を
+試験用の品質データ（tests/lotlist_fixture.py の 1500 行）と作業実績（設備 12 台ぶん）と仕掛（1200 ロット）とスケジュール（作り物の CM3。L-1・L-2・L-3）を作業フォルダに作って参照先にし、アプリ（create_app）を
 標準の http.server で配る。program/tools/ui-check.mjs・ui-variants.mjs が撮影と測定に使う（ui-harness.mjs が起こす）。
 窓だけが答える /__desktop/* は、撮影の台本（ui-harness.mjs）が Playwright で作り物の答えを返す。
 
@@ -30,10 +30,10 @@ import app_env  # noqa: E402
 from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import access, data_join, data_sources, display_formats, equip_groups, shifts, work_log  # noqa: E402
+from app.services import access, data_join, data_sources, display_formats, equip_groups, schedule, shifts, work_log  # noqa: E402
 from app.services.db_mirror import DbMirror  # noqa: E402
 from app.web import serve_http  # noqa: E402
-from tests import lotlist_fixture  # noqa: E402
+from tests import lotlist_fixture, schedule_fixture  # noqa: E402
 
 
 WORK_EQUIPMENT = ("CR1", "CR2", "L-1", "L-2", "TLV", "LS3", "DL2", "CAL", "ANF", "HOT", "SL1")
@@ -83,12 +83,16 @@ def main():
         (shared / sub).mkdir(parents=True)
     shutil.copy(share, shared / "台帳" / "SIKADEF.sqlite3")
     lotlist_fixture.make_wip(str(shared / "台帳" / "LOTNOW.sqlite3"))       # 仕掛（データ元 wip の既定と同じ名前）
+    # スケジュール（版 3.57.0）: 仕掛に釜番の列を足し（ほかの列・値は変えない）、仕掛のロットで作った作り物の CM3 を起こす
+    schedule_fixture.add_kama(shared / "台帳" / "LOTNOW.sqlite3")
+    _cm3, cm3_url = schedule_fixture.serve(schedule_fixture.responses(shared / "台帳" / "LOTNOW.sqlite3"))
     (shared / "Masters_旧").mkdir()
     (shared / "Masters_旧" / "path_settings.json").write_text('{"rows": []}', encoding="utf-8")
     (shared / "配布" / "LotScope" / "3.27.0").mkdir(parents=True)
     (shared / "配布" / "LotScope" / "3.27.0" / "release.json").write_text("{}", encoding="utf-8")
     settings["lot_list"] = {**settings.get("lot_list", {}), "source": str(shared / "台帳" / "SIKADEF.sqlite3")}
     settings["update"] = {**settings.get("update", {}), "source": str(shared / "配布" / "LotScope")}
+    settings["schedule"] = {**settings.get("schedule", {}), "cm3_base_url": cm3_url}
     settings["sources"] = {**settings.get("sources", {}), "wip": {**settings.get("sources", {}).get("wip", {}),
                                                                   "source": str(shared / "台帳" / "LOTNOW.sqlite3")}}
     app = create_app({"MASTER_STORE": MasterStore(WORK / "base", local_root=WORK / "masters", settings={}),
@@ -96,6 +100,7 @@ def main():
                       "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log"),
                       "SRC_MIRRORS": work_log.Mirrors(WORK / "cache" / "sources", prefix="src"),
                       "JOINER": data_join.Joiner(WORK / "cache" / "joins"),
+                      "SCHEDULES": schedule.Schedules(WORK / "cache" / "schedule"),
                       # ダッシュボードの「前日」: 試験用の作業実績は TODAY（10/2）までなので、その翌日の朝を「いま」にする
                       "DASHBOARD_NOW": datetime.combine(lotlist_fixture.TODAY + timedelta(days=1), datetime.min.time()).replace(hour=10)})
     # 設備を登録しておく（マスタ管理の「探す」と同じ）

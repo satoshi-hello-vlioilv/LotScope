@@ -42,7 +42,7 @@ class Sources(unittest.TestCase):
 
     def test_builtins_come_from_the_path_settings_and_the_defaults(self):
         got = {s["key"]: s for s in ds.sources(self.SETTINGS, [])}
-        self.assertEqual(list(got), ["lot", "work", "wip"])
+        self.assertEqual(list(got), ["lot", "work", "wip", "sch"], "スケジュール（版 3.57.0）は最後")
         self.assertEqual((got["lot"]["place"], got["lot"]["table"], got["lot"]["storage"]), ("\\\\s\\q.sqlite3", "仕掛", "settings"))
         self.assertEqual((got["work"]["place"], got["work"]["pattern"], got["work"]["kind"]), ("\\\\s\\実績", "実績_*.sqlite3", "folder"))
         self.assertEqual((got["wip"]["place"], got["wip"]["equipColumn"], got["wip"]["equipMode"], got["wip"]["role"]),
@@ -55,7 +55,7 @@ class Sources(unittest.TestCase):
                 {"id": 2, "キー": "sb", "表示名": "B", "場所": "\\\\t\\b.sqlite3", "並び": "2"},
                 {"id": 3, "キー": "sa", "表示名": "A", "場所": "\\\\t\\a.sqlite3", "並び": "1", "役割": "その他"}]
         got = ds.sources(self.SETTINGS, rows)
-        self.assertEqual([s["key"] for s in got], ["lot", "work", "wip", "sa", "sb"], "足した元は並びの順")
+        self.assertEqual([s["key"] for s in got], ["lot", "work", "wip", "sa", "sb", "sch"], "足した元は並びの順・並びの無いスケジュールは最後")
         wip = got[2]
         self.assertEqual((wip["name"], wip["place"], wip["equipColumn"], wip["equipMode"], wip["listed"]),
                          ("仕掛（台帳）", "\\\\t\\X.sqlite3", "BOX設計_設備名", "そのまま", False))
@@ -119,7 +119,7 @@ class Api(unittest.TestCase):
         """変換表の当てる列（版 3.44.0）: データ元ごとの実際の列と値の見本。読めないデータ元は列が空で理由を返す"""
         self.c.get("/api/src/wip", query_string={"page_size": 1})          # 写しを作る
         d = {x["key"]: x for x in self.c.get("/api/data/columns").get_json()["sources"]}
-        self.assertEqual(set(d), {"lot", "work", "src:wip"})
+        self.assertEqual(set(d), {"lot", "work", "src:wip", "src:sch"})
         wip = {c["column"]: c["samples"] for c in d["src:wip"]["columns"]}
         self.assertIn("製造材質", wip)
         self.assertTrue(1 <= len(wip["製造材質"]) <= 3 and all(v.strip() for v in wip["製造材質"]), wip["製造材質"])

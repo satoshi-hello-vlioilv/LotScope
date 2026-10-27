@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-marks.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-formats.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-work.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-schedule.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lotlist-pivot.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
@@ -115,6 +116,8 @@
     <div id="recBand" class="rec-band" role="status" hidden></div>
     <!-- 作業実績のときだけ: どの設備を見るか（札の並び。いま見ている設備は塗る） -->
     <nav id="llEquipBar" class="ll-equipbar" aria-label="設備" hidden></nav>
+    <!-- スケジュールのときだけ: 設備の数の札／HOT コイル作業順の札・作業の流れの図・釜番の札（lotlist-schedule.js。版 3.57.0） -->
+    <section id="llSched" class="sd-strip" aria-label="スケジュールの数" hidden></section>
     <section id="llFilterBar" class="generic-filter-bar" aria-label="絞り込み"></section>
     <div class="ll-status">
       <span id="llCount" class="ll-count">全 0件</span>
@@ -420,6 +423,7 @@
 <script src="{{ url_for('static', filename='js/lotlist-profile.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-formats.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-work.js') }}"></script>
+<script src="{{ url_for('static', filename='js/lotlist-schedule.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotdsp-url.js') }}"></script>
 <script src="{{ url_for('static', filename='js/xlsx-writer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lotlist-export.js') }}"></script>
