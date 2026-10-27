@@ -193,13 +193,18 @@ def numeric_value(v):
     return _val(v)
 
 
-def ro_uri(path):
+def file_uri(path, mode="ro"):
+    """path を SQLite の URI（file:…?mode=）にする。ro は読むだけ・rwc は書く（無ければ作る）。"""
     p = Path(path)
     target = p if p.is_absolute() else p.resolve()
     posix = target.as_posix()
     if posix.startswith("//"):
-        return "file://" + quote(posix) + "?mode=ro"
-    return target.as_uri() + "?mode=ro"
+        return "file://" + quote(posix) + "?mode=" + mode
+    return target.as_uri() + "?mode=" + mode
+
+
+def ro_uri(path):
+    return file_uri(path, "ro")
 
 
 class _ClosingConnection(sqlite3.Connection):

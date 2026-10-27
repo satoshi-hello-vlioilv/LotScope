@@ -78,7 +78,25 @@ LotScope にはすでに、同じ `LOTNOW.sqlite3` を手元へ写して読む�
 
 評価関数: `program/tools/ui-eval-schedule.mjs`（3 つの大きさ。札の数・絞った件数がサーバーの答えと同じ・帯の字が重ならない など）。
 
-## 5. 分からないこと・使う前に確かめること
+## 5. 版 3.57.1: Windows で「結合を組めませんでした: unable to open database」
+
+利用者の知らせ（2026-10-27）: スケジュールのタブが「「スケジュール」の結合を組めませんでした: unable to open database:
+file:///C:/…/db_cache/schedule/L-1-4cfbc7.g2.sqlite3?mode=ro」で読めない（CM3 には届いていて、予定のファイルは書けている）。
+
+| 見立て | 確かめたこと | 答え |
+|---|---|---|
+| 仕掛のファイルを 2 か所から写して競合している | スケジュールの結合の相手は、仕掛のタブと同じ写しの係（`routes/sources.py` の `_rights` → `src_plan("wip")` → `Mirrors` のキー wip）。写しは 1 つ | 原因ではない |
+| 結合を組む接続の開き方 | 結合は、組む先のファイルを開いた接続に、元と相手を `ATTACH 'file:…?mode=ro'` で付ける。URI の書き方は**主の接続を URI で開いたときだけ**読まれる。Linux の SQLite は既定で読む（`SQLITE_USE_URI`）ので試験は通り、Windows の Python に付く SQLite は読まないので「file:///C:/…?mode=ro」という名前のファイルを探して失敗する | **原因**。Linux で SQLite を Windows と同じ形（`sqlite3_config(SQLITE_CONFIG_URI, 0)`）にすると、同じ文言で結合・スケジュール・データ元の試験 14 件が落ちた |
+
+直したこと:
+- 結合を組む接続を URI で開く（`data_join._connect_out`。`sqlite_ro.file_uri`）。版 3.53.0 のマスタの結合も Windows では同じ理由で組めていなかった
+- 評価関数 `tests/test_mirror_share.py`: Linux の試験の中で SQLite を Windows と同じ形にして、結合・スケジュール・データ元の試験を流す（直す前は 14 件落ち、直した後は全部通る）。
+  CI の Windows（`desktop.yml`）でも、本物の Windows の SQLite で同じ試験を流す
+- 予定のファイルの 1 つ前の世代を残す: 裏の取り直しが新しい世代を置いた直後、前の世代のパスを受け取った問い合わせが結合を組む前だと、消えたファイルを開くことになる
+- 元が同じファイルを指すデータ元は、写しの係を 1 つに（`work_log.Mirrors`・`same_place`。Windows では大文字小文字と区切りの違いを同じと見る）。
+  仕掛のタブとスケジュールは前から同じ写しだが、ほかのデータ元に同じファイルを登録しても 2 回写さず、写した時刻が食い違わない
+
+## 6. 分からないこと・使う前に確かめること
 
 - 本物の CM3（`http://nlmfangyweb1a:9085`）には、この開発の環境からは届かない。答えの形は ScheduleView の仕様書（`CM3_API_spec.md`）と旧版の記録に合わせた。
 - 本物の仕掛台帳の HOT の列（実績_設備ｺｰｽ・残仕掛設備ｺｰｽ・設計_PIT炉番炉順）の名前は ScheduleView の既定のまま。違えば設定 `schedule.hot` で直す。

@@ -34,7 +34,7 @@ import time
 from pathlib import Path
 
 from .identity import normalize_part
-from .sqlite_ro import qi, ro_uri, sort_key
+from .sqlite_ro import file_uri, qi, ro_uri, sort_key
 
 HOWS = ["left", "inner", "right", "full"]
 HOW_LABELS = {"inner": "内部結合", "left": "左外部結合", "right": "右外部結合", "full": "完全外部結合"}
@@ -107,7 +107,10 @@ def describe(items, names):
 
 # ---------------------------------------------------------------- 組む
 def _connect_out(path):
-    c = sqlite3.connect(str(path), timeout=30)
+    # URI で開く（uri=True）。ATTACH に渡す file:…?mode=ro は、主の接続を URI で開いたときだけ URI と読まれる。
+    # Linux の SQLite は既定で URI を読む（SQLITE_USE_URI）が、Windows の Python に付く SQLite は読まず、
+    # 「file:///C:/…?mode=ro」という名前のファイルを探して「unable to open database」になっていた（版 3.57.1）
+    c = sqlite3.connect(file_uri(path, "rwc"), uri=True, timeout=30)
     c.execute("PRAGMA journal_mode=OFF")
     c.execute("PRAGMA synchronous=OFF")
     c.execute("PRAGMA temp_store=MEMORY")

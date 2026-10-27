@@ -255,15 +255,34 @@ class Mirrors:
         self._all = {}
 
     def get(self, key, remote, interval_sec, stale_hours):
+        """キーの写しの係（無ければ作る）。版 3.57.1: 元が同じファイル（same_place）のキーどうしは 1 つの係を分け合う
+        （同じファイルを 2 回写さない・2 つの写しが別の時刻の中身になって答えが食い違わない）。間隔と古さのしきいは、
+        係を作ったキー（持ち主）の設定に従う。"""
+        place = same_place(remote)
         with self._lock:
             m = self._all.get(key)
+            if m is not None and same_place(m.remote) != place:     # 元が替わった: 分け合っていれば抜け、1 人なら持ち替える
+                if self._shared(m, key):
+                    m = self._all[key] = None
+                elif place and self._find(place, key):
+                    m.reconfigure(remote="")                          # 元の無い係は写さない（スレッドは休む）
+                    m = self._all[key] = None
             if m is None:
-                m = self._all[key] = DbMirror(f"{self.prefix}_{key}", str(remote), self.cache_dir, interval_sec=interval_sec,
-                                              stale_hours=stale_hours, passive=self.passive)
-            else:
+                m = self._find(place, key) if place else None
+                if m is None:
+                    m = DbMirror(f"{self.prefix}_{key}", str(remote), self.cache_dir, interval_sec=interval_sec,
+                                 stale_hours=stale_hours, passive=self.passive)
+                self._all[key] = m
+            elif m.key == f"{self.prefix}_{key}":
                 m.reconfigure(remote=str(remote), interval_sec=interval_sec, stale_hours=stale_hours)
         m.start()
         return m
+
+    def _find(self, place, key):
+        return next((m for k, m in self._all.items() if k != key and m is not None and same_place(m.remote) == place), None)
+
+    def _shared(self, m, key):
+        return any(k != key and x is m for k, x in self._all.items())
 
     def wait_first(self, keys, timeout):
         """keys の設備の写しの係が、最初の写しを済ませるまで待つ（全部で timeout 秒まで。1 台ずつ timeout 秒ずつ待たない）。
@@ -278,3 +297,9 @@ class Mirrors:
     def peek(self, key):
         with self._lock:
             return self._all.get(key)
+
+
+def same_place(remote):
+    """元のファイルが同じかを比べる形（空なら ""）。Windows では大文字小文字と / \\ の違いを同じと見る（os.path.normcase）。"""
+    s = unquote_path(remote)
+    return os.path.normcase(os.path.normpath(s)) if s else ""
