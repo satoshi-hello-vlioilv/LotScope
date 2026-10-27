@@ -226,6 +226,10 @@ class Api(unittest.TestCase):
             self.assertEqual((sm["count"], sm["lots"], sm["stop"], sm["inspect"], sm["hit"]),
                              (len(lots), len({i["lotNo"] for i in lots}), 2, 1, hit))
             self.assertLess(hit, len(lots), "仕掛に無いロットがある（Z9999X0）")
+            miss = sorted({i["lotNo"] for i, m in zip(want, oracle_join(want, self.wiprows)) if i["rowKind"] == "lot" and not m})
+            self.assertEqual(sm["missLots"], miss, "区分の札「仕掛に無い」で絞るロット")
+            stop = next(i for i in want if i["rowKind"] == "stop")
+            self.assertEqual(sm["nextStop"], {"time": stop["kanryoYotei"], "text": stop["stopText"]}, "次の設備停止")
         # 並べ替え・絞り込みはほかの一覧と同じ口で効く
         f = json.dumps([{"column": "区分", "op": "eq", "value": "設備停止"}])
         self.assertEqual(self.list_of("L-2", filters=f)["count"], 2)

@@ -126,8 +126,10 @@ def schedule_extra(plan):
         return {"equip": plan["equip"], "hot": plan["hot"],
                 "perEquipment": {k: schedule.summary(st) for k, st in (plan.get("states") or {}).items()}}
     joined = (plan.get("joined") or [None])[0]
-    return {"equip": plan["equip"], "summary": schedule.summary(plan["state"], joined), "viewUrl": schedule.view_url(c, plan["equip"]),
-            "joined": bool(plan.get("joined"))}
+    wip = next((st for st in plan.get("joined") or [] if st.get("with") == "wip"), None)
+    sm = schedule.summary(plan["state"], wip or joined)
+    sm["missLots"] = schedule.missing_lots(plan["path"], plan["table"], wip["columns"]) if wip else []
+    return {"equip": plan["equip"], "summary": sm, "viewUrl": schedule.view_url(c, plan["equip"]), "joined": bool(wip)}
 
 
 def schedule_source(equip=None):

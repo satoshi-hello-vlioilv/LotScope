@@ -328,9 +328,21 @@ def summary(state, joined=None):
     hit = None
     if joined:
         hit = joined.get("hit")
+    stop = next((i for i in items if i.get("rowKind") == "stop"), None)
     return {"count": len(lots), "lots": len({i.get("lotNo") for i in lots}), "inspect": data.get("inspectCount", 0),
             "stop": data.get("stopCount", 0), "hit": hit, "first": times[0] if times else "", "last": times[-1] if times else "",
+            "nextStop": {"time": stop.get("kanryoYotei") or "", "text": stop.get("stopText") or ""} if stop else None,
             "updateTime": data.get("updateTime"), "fetchedAt": data.get("fetchedAt"), "error": state.get("error") or ""}
+
+
+def missing_lots(path, table, brought):
+    """結合した答えで、仕掛に当たらなかった製造の行のロットNo（区分の札「仕掛に無い」で絞る）。brought: 仕掛から持ってきた列"""
+    if not brought:
+        return []
+    cond = " AND ".join(f"{qi(c)} IS NULL" for c in brought)
+    with connect_ro(Path(path), timeout=5) as c:
+        return sorted({r[0] for r in c.execute(f"SELECT {qi('ロットNo')} FROM {qi(table)} WHERE {qi('区分')} = ? AND {cond}",
+                                               (cm3_schedule.KIND_LABEL["lot"],)) if r[0]})
 
 
 def source_info(cfg, state, code):

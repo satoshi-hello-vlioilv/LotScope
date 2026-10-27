@@ -25,7 +25,7 @@
   let meta = null;                  // /api/schedule の答え（設備・HOT・自動更新の間隔）
   let hotAll = null;                // HOT コイル作業順の全部の行（札・図・釜番の札は、絞り込む前の全部で描く）
   let hotSig = "";
-  const sel = { kama: new Set(), offEq: new Set() };    // HOT: 選んだ釜番・隠した設備（一覧の絞り込みに足す）
+  const sel = { kind: "", kama: new Set(), eq: new Set() };    // 選んだ区分（設備）・釜番と設備（HOT）。一覧の絞り込みに足す
   let onChange = () => {};
 
   const eqColor = (eq) => EQ_COLORS[eq] || EQ_FALLBACK[Math.max(0, ((meta && meta.hot.equipments) || []).indexOf(eq)) % EQ_FALLBACK.length];
@@ -84,32 +84,43 @@
     return k.filter(Boolean).join(" ");
   }
 
-  /* ---------------- 絞り込みに足す（HOT の札で選んだ釜番・隠した設備） ---------------- */
+  /* ---------------- 絞り込みに足す（区分の札・HOT の設備の札・釜番の札で選んだ物） ---------------- */
+  const KIND_PICKS = { inspect: "点検", stop: "設備停止" };
   function filters(S) {
-    if (!isHot(S)) return [];
     const out = [];
+    if (!isHot(S)) {
+      if (KIND_PICKS[sel.kind]) out.push({ column: "区分", op: "in", value: JSON.stringify([KIND_PICKS[sel.kind]]) });
+      if (sel.kind === "miss") out.push({ column: "ロットNo", op: "in", value: JSON.stringify(((S.schedule || {}).summary || {}).missLots || []) });
+      return out;
+    }
     if (sel.kama.size) out.push({ column: "釜番", op: "in", value: JSON.stringify([...sel.kama]) });
-    if (sel.offEq.size && meta) out.push({ column: "設備", op: "in", value: JSON.stringify(meta.hot.equipments.filter((e) => !sel.offEq.has(e))) });
+    if (sel.eq.size) out.push({ column: "設備", op: "in", value: JSON.stringify([...sel.eq]) });
     return out;
   }
 
-  /* ---------------- 上の札（設備の数・HOT の札と図） ---------------- */
+  /* ---------------- 上の段（3 回目の U3 に決めた形: ui-proposals/2026-10-schedule-3.mjs・2026-10-schedule.json） ----------------
+     左に主の数（最初に見る物は 1 つ）・区切り・押して絞る丸い札（色は一覧の行の色と同じ・釜番の札と同じ型）・右に時刻。設備も HOT も同じ形 */
+  const chip = (key, label, n, cls = "", on = false, tip = "", extra = "") =>
+    `<button type="button" class="sd-kchip${cls}${on ? " is-on" : ""}" data-sd-pick="${esc(key)}" aria-pressed="${on}"${tip ? ` title="${esc(tip)}"` : ""}>${label}${n != null ? ` <b>${esc(n)}</b>` : ""}${extra}</button>`;
+  const lead = (n, unit, tip) => `<span class="sd-lead" title="${esc(tip)}"><b>${esc(n)}</b><span>${esc(unit)}</span></span>`;
   function paint(S, extra) {
     const box = $("#llSched"); if (!box) return;
     if (!S.src.cm3 || !extra) { box.hidden = true; box.innerHTML = ""; return; }
     box.hidden = false;
     box.dataset.mode = isHot(S) ? "hot" : "line";
     if (isHot(S)) { paintHot(S, extra, box); return; }
-    const m = extra.summary || {};
-    const card = (label, value, cls = "", tip = "") => `<div class="sd-card${cls}"${tip ? ` title="${esc(tip)}"` : ""}><span class="sd-label">${esc(label)}</span><b class="sd-value">${value}</b></div>`;
-    box.innerHTML = card("製造件数", esc(m.count), "", "設備停止・点検を除いた製造の行の数（2 パス目も 1 件と数える）")
-      + card("ロット数", esc(m.lots))
-      + card("点検", esc(m.inspect), m.inspect ? " is-inspect" : "")
-      + card("設備停止", esc(m.stop), m.stop ? " is-stop" : "")
-      + card("仕掛と一致", extra.joined ? `${esc(m.hit ?? "-")}<small> / ${esc(m.count)}</small>` : "未結合", "", "仕掛（データ元「仕掛」）に同じロットがある製造の行の数。結合はマスタ管理の「データ元」で決めます")
-      + card("完了予定", `${esc(m.first || "-")}<small> ～ </small>${esc(m.last || "-")}`, " is-wide")
-      + card("CM3 の更新・取得", `${esc((m.updateTime || "-").slice(5, 16))}<small> ・ </small>${esc((m.fetchedAt || "-").slice(11, 16))}`, " is-wide",
-        m.error ? `いまは CM3 に届きません（${m.error}）。前に取れた予定を出しています` : "");
+    const m = extra.summary || {}, miss = (m.missLots || []).length;
+    // 次の設備停止（同じ日なら時刻だけ・日を跨ぐなら日付も）
+    const ns = m.nextStop, nsText = ns && ns.time ? (ns.time.slice(0, 5) === String(m.first || "").slice(0, 5) ? ns.time.slice(6) : ns.time) : "";
+    const chips = chip("", "すべて", null, "", !sel.kind, "区分で絞らない")
+      + chip("inspect", "点検", m.inspect, " k-insp", sel.kind === "inspect", "点検の行（ロットNo か用途名に点検の言葉）だけを出します")
+      + chip("stop", "設備停止", m.stop, " k-stop", sel.kind === "stop", ns ? `設備停止の行だけを出します\n次の設備停止: ${ns.time} ${ns.text}` : "設備停止の行だけを出します",
+        nsText ? `<small>次 ${esc(nsText)}</small>` : "")
+      + (extra.joined ? chip("miss", "仕掛に無い", miss, " k-miss", sel.kind === "miss", "仕掛（データ元「仕掛」）に同じロットが無い製造の行だけを出します") : "");
+    box.innerHTML = `<div class="sd-row">${lead(m.count, `件 製造・ロット ${m.lots}`, "設備停止・点検を除いた製造の行の数（2 パス目も 1 件と数える）と、ロットの数")}`
+      + `<span class="sd-klab">区分</span>${chips}`
+      + `<span class="sd-meta"${m.error ? ` title="${esc(`いまは CM3 に届きません（${m.error}）。前に取れた予定を出しています`)}"` : ""}>完了予定 <b>${esc(m.first || "-")} ～ ${esc(m.last || "-")}</b>`
+      + `　CM3 の更新 <b>${esc((m.updateTime || "-").slice(5, 16))}</b>・取得 <b>${esc((m.fetchedAt || "-").slice(11, 16))}</b>${m.error ? ' <em class="sd-err">届きません</em>' : ""}</span></div>`;
   }
 
   async function fetchHotAll(S) {
@@ -134,14 +145,10 @@
   function drawHot(S, extra, box, all) {
     const h = extra.hot || {}, eqs = h.equipments || [], c = h.counts || {};
     const per = (eq) => all.filter((r) => r["設備"] === eq);
-    let cards = `<div class="sd-card is-lead"><span class="sd-label">対象ロット（前工程 ${esc(h.prevValue || "HOT")}）</span><b class="sd-value">${S.count}${S.count !== all.length ? `<small> / ${all.length}</small>` : ""}</b>`
-      + `<span class="sd-sub">${esc(range(all))}</span></div>`;
-    eqs.forEach((eq) => {
-      const list = per(eq);
-      cards += `<button type="button" class="sd-card sd-eqcard${sel.offEq.has(eq) ? " is-off" : ""}${list.length ? "" : " is-empty"}" data-sd-eq="${esc(eq)}" style="--eqc:${eqColor(eq)}" aria-pressed="${!sel.offEq.has(eq)}"`
-        + ` title="押すと一覧にこの設備を出す・出さないを切り替えます"><span class="sd-label"><i class="sd-eqdot" aria-hidden="true"></i>${esc(eq)}</span><b class="sd-value">${list.length}<small> 本</small></b>`
-        + `<span class="sd-sub">${list.length ? esc(range(list)) : "予定なし"}</span></button>`;
-    });
+    const chips = chip("eq:", "すべて", null, "", !sel.eq.size, "設備で絞らない")
+      + eqs.map((eq) => { const list = per(eq);
+        return chip(`eq:${eq}`, `<i class="sd-eqdot" style="--eqc:${eqColor(eq)}" aria-hidden="true"></i>${esc(eq)}`, `${list.length} 本`, list.length ? "" : " is-empty", sel.eq.has(eq),
+          `${eq}: ${list.length ? range(list) : "予定なし"}（押すとこの設備だけを出します）`); }).join("");
     const notes = [];
     if (!h.kamaColumn) notes.push(`仕掛に「${h.kamaConfigured || "設計_PIT炉番炉順"}」の列が無いため、釜番は空欄です`);
     if (!h.resultColumn) notes.push("仕掛に「実績_設備ｺｰｽ」の列が無いため、前工程を見分けられません");
@@ -149,18 +156,37 @@
     if (c.otherNext) notes.push(`前工程が HOT でも次の設備が別のロット ${c.otherNext} 件は除きました`);
     (h.errors || []).forEach((e) => notes.push(e));
     const rule = `${eqs.join("・")} の予定から、前工程（実績_設備ｺｰｽ の最後）が ${h.prevValue || "HOT"} で、次の設備（残仕掛設備ｺｰｽ の最初）がその設備のロットの 1 パス目を、完了予定の順に`;
-    cards += `<div class="sd-card is-info" title="${esc(rule)}"><span class="sd-label">抜き出し方</span><span class="sd-rule">${esc(rule)}</span></div>`;
     const tlOn = TPA.local.get(TL_KEY, true) !== false;
-    // 除いたロット・読めない列の知らせは、抜き出し方の文と分けて 1 行に（狭い窓でも切らない。状態が見えないままにしない）
-    box.innerHTML = `<div class="sd-cards">${cards}</div>` + (notes.length ? `<p class="sd-notes" role="status">${esc(notes.join("／"))}</p>` : "")
+    box.innerHTML = `<div class="sd-row">${lead(all.length, `本 対象（前工程 ${h.prevValue || "HOT"}）`, "HOT コイル作業順に並んだロットの数")}`
+      + `<span class="sd-klab">設備</span>${chips}<span class="sd-meta">完了予定 <b>${esc(range(all))}</b></span></div>`
+      + `<p class="sd-rule">抜き出し方: ${esc(rule)}</p>`
+      // 除いたロット・読めない列の知らせは、抜き出し方の文と分けて 1 行に（狭い窓でも切らない。状態が見えないままにしない）
+      + (notes.length ? `<p class="sd-notes" role="status">${esc(notes.join("／"))}</p>` : "")
       + `<div class="sd-tlwrap"><div class="sd-tlhead"><b>作業の流れ</b><span>設備ごとの並び。帯の字は釜番、帯の長さは開始予定（前の行の完了予定）～完了予定。帯を押すとその釜番だけを出します。</span>`
       + `<button type="button" class="sd-tltoggle" data-sd-tl aria-pressed="${tlOn}">${tlOn ? "図を隠す" : "図を出す"}</button></div>${tlOn ? timeline(all, eqs) : ""}</div>`
       + kamaChips(all);
     fitBlocks(box);
   }
-  /** 帯に入らない釜番の字は出さない（切れた字を見せない。色で釜番の札と結び、字は乗せると出る） */
+  /** 帯に入らない釜番の字は、帯の中では出さず（切れた字を見せない）、帯の上の段に出す。隣と重なるときは 2 段を互い違いに使い、
+      それでも重なるものだけ出さない（色と、乗せると出る字で分かる） */
   function fitBlocks(box) {
-    requestAnimationFrame(() => $$(".sd-blk", box).forEach((b) => b.classList.toggle("is-tight", b.scrollWidth > b.clientWidth + 1)));
+    requestAnimationFrame(() => $$(".sd-track", box).forEach((track) => {
+      $$(".sd-tag", track).forEach((t) => t.remove());
+      const ends = [-Infinity, -Infinity];
+      $$(".sd-blk", track).forEach((b) => {
+        const tight = b.scrollWidth > b.clientWidth + 1;
+        b.classList.toggle("is-tight", tight);
+        if (!tight || !b.textContent) return;
+        const tag = document.createElement("span");
+        tag.className = "sd-tag"; tag.textContent = b.textContent; tag.title = b.title;
+        tag.style.left = `${b.offsetLeft + b.offsetWidth / 2}px`;
+        track.append(tag);
+        const half = tag.offsetWidth / 2, x0 = b.offsetLeft + b.offsetWidth / 2 - half;
+        const row = ends.findIndex((e) => e + 4 <= x0);
+        if (row < 0) { tag.remove(); return; }
+        tag.classList.add(`is-r${row}`); ends[row] = x0 + tag.offsetWidth;
+      });
+    }));
   }
 
   function timeline(all, eqs) {
@@ -194,7 +220,7 @@
         const tip = `${eq}　${b.r["開始予定"] || "?"} ～ ${b.r["完了予定"]}\nロット ${b.r["ロットNo"]}\n釜番 ${k || "なし"}\n${b.r["材質"] || ""} ${b.r["入側板厚"] || ""}→${b.r["出側板厚"] || ""} × ${b.r["冷延幅"] || ""}`;
         return `<button type="button" class="sd-blk${dim ? " is-dim" : ""}" data-sd-kama="${esc(k)}" title="${esc(tip)}" style="left:${pct(b.s)};width:calc(${(((b.e - b.s) / span) * 100).toFixed(3)}% - 1px);background:${kamaColor(k)}">${esc(k || b.r["ロットNo"])}</button>`;
       }).join("");
-      h += `<div class="sd-lane"><span class="sd-ln"><i class="sd-eqdot" style="--eqc:${eqColor(eq)}" aria-hidden="true"></i>${esc(eq)}</span><div class="sd-track">${grid}${nowLine}${bl}</div></div>`;
+      h += `<div class="sd-lane${bl ? "" : " is-empty"}"><span class="sd-ln"><i class="sd-eqdot" style="--eqc:${eqColor(eq)}" aria-hidden="true"></i>${esc(eq)}</span><div class="sd-track">${grid}${nowLine}${bl}</div></div>`;
     });
     return h + "</div>";
   }
@@ -246,15 +272,20 @@
     onChange = () => { changed(); };
     const box = $("#llSched");
     box?.addEventListener("click", (e) => {
-      const eq = e.target.closest("[data-sd-eq]");
-      if (eq) { const k = eq.dataset.sdEq; if (sel.offEq.has(k)) sel.offEq.delete(k); else sel.offEq.add(k); onChange(); return; }
+      const pk = e.target.closest("[data-sd-pick]");
+      if (pk) {
+        const k = pk.dataset.sdPick;
+        if (k.startsWith("eq:")) { const eq = k.slice(3); if (!eq) sel.eq.clear(); else if (sel.eq.has(eq)) sel.eq.delete(eq); else sel.eq.add(eq); }
+        else sel.kind = sel.kind === k ? "" : k;
+        onChange(); return;
+      }
       const km = e.target.closest("[data-sd-kama]");
       if (km) { toggleKama(km.dataset.sdKama); return; }
       if (e.target.closest("[data-sd-tl]")) { TPA.local.set(TL_KEY, TPA.local.get(TL_KEY, true) === false); onChange(); }
     });
   }
   /** 設備を替えた・元を離れた（HOT の選びは HOT の中だけ） */
-  function reset() { sel.kama.clear(); sel.offEq.clear(); }
+  function reset() { sel.kind = ""; sel.kama.clear(); sel.eq.clear(); }
 
   window.LotListSchedule = { HOT, loadMeta, equips, savedEquip, saveEquip, renderBar, rowClass, filters, paint, defaults, mount, reset,
     autoSec: () => (meta ? meta.autoRefreshSec : 60), eqColor, kamaColor };

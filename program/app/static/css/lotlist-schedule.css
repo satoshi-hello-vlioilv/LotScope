@@ -15,30 +15,26 @@
 .sd-cm3{display:inline-flex;align-items:center;text-decoration:none;line-height:26px}
 .sd-auto{color:var(--muted)}
 
-/* ---- 上の札 ---- */
-.sd-strip{display:flex;flex-direction:column;gap:8px;padding:8px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);flex:0 0 auto;min-width:0}
+/* ---- 上の段（U3: 主の数＋押して絞る丸い札＋右に時刻。設備も HOT も同じ形） ---- */
+.sd-strip{display:flex;flex-direction:column;gap:6px;padding:7px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);flex:0 0 auto;min-width:0}
 .sd-strip[hidden]{display:none}
-.sd-strip[data-mode="line"]{flex-direction:row;flex-wrap:wrap}
-.sd-cards{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
-.sd-card{display:flex;flex-direction:column;gap:1px;min-width:96px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
-  font-family:inherit;text-align:left;color:var(--ink)}
-.sd-card.is-wide{min-width:170px}
-.sd-label{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
-.sd-value{font-size:var(--fs-xl);font-weight:800;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}
-.sd-value small{font-size:var(--fs-sm);font-weight:600;color:var(--muted)}
-.sd-card.is-stop .sd-value{color:var(--sd-stop-bar)}
-.sd-card.is-inspect .sd-value{color:var(--sd-insp-ink)}
-.sd-sub{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
-.sd-card.is-info{flex:1 1 320px;min-width:260px;overflow:hidden}
-.sd-card.is-info .sd-rule{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.sd-rule{font-size:var(--fs-sm);color:var(--ink);line-height:1.5}
-.sd-rule em{font-style:normal;color:var(--warn-ink)}
-.sd-eqcard{cursor:pointer;border-top:3px solid var(--eqc)}
-.sd-eqcard:hover{border-color:var(--eqc)}
-.sd-eqcard.is-off{opacity:.45;border-top-style:dashed}
-.sd-eqcard.is-empty{opacity:.6}
+.sd-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0}
+.sd-lead{display:flex;align-items:baseline;gap:6px;padding-right:10px;margin-right:4px;border-right:1px solid var(--line);white-space:nowrap}
+.sd-lead b{font-size:var(--fs-xl);font-weight:800;font-variant-numeric:tabular-nums}
+.sd-lead span{font-size:var(--fs-sm);color:var(--muted)}
+.sd-meta{margin-left:auto;padding-left:12px;font-size:var(--fs-sm);color:var(--muted);white-space:nowrap}
+.sd-meta b{color:var(--ink);font-variant-numeric:tabular-nums}
+.sd-err{font-style:normal;color:var(--sd-stop-bar);font-weight:700}
+.sd-row .sd-kchip b{font-size:var(--fs-md)}
+.sd-kchip.k-insp{border-color:#ecd29a;background:var(--sd-insp-bg);color:var(--sd-insp-ink)}
+.sd-kchip.k-stop{border-color:#e6bcb6;background:var(--sd-stop-bg);color:var(--sd-stop-ink)}
+.sd-kchip.k-stop small{color:var(--sd-stop-ink);font-size:var(--fs-xs);margin-left:2px}
+.sd-kchip.k-miss{border-style:dashed}
+.sd-kchip.k-insp.is-on,.sd-kchip.k-stop.is-on,.sd-kchip.k-miss.is-on{box-shadow:inset 0 0 0 2px var(--h-input)}
+.sd-kchip.is-empty{opacity:.55}
+.sd-kchip .sd-eqdot{margin-right:0}
+.sd-rule{margin:0;font-size:var(--fs-sm);color:var(--muted);line-height:1.5}
 .sd-notes{margin:0;font-size:var(--fs-sm);color:var(--warn-ink)}
-.sd-eqcard .sd-eqdot{background:var(--eqc)}
 .sd-note{font-size:var(--fs-sm);color:var(--muted)}
 .sd-note.is-warn{color:var(--warn-ink)}
 
@@ -52,16 +48,21 @@
 .sd-axis{position:relative;height:16px;margin-left:64px;font-size:var(--fs-xs);color:var(--muted)}
 .sd-axis span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .sd-axis span.is-day{font-weight:800;color:var(--ink)}
-.sd-lane{display:flex;align-items:center;height:26px}
+.sd-lane{display:flex;align-items:flex-end;height:50px}
+.sd-lane .sd-ln{align-self:flex-end;line-height:22px}
+.sd-lane.is-empty{height:28px}             /* 帯の無い設備（0 本）は字の段を持たない */
 .sd-ln{flex:0 0 64px;font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
-.sd-track{position:relative;flex:1;height:22px;background:var(--surface-3);border-radius:4px;overflow:hidden}
+.sd-track{position:relative;flex:1;height:22px;margin-top:26px;background:var(--surface-3);border-radius:4px;overflow:visible}
 .sd-grid{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
 .sd-grid.is-day{background:#94a3b8}
 .sd-now{position:absolute;top:0;bottom:0;width:2px;background:#dc2626;z-index:2}
 .sd-blk{position:absolute;top:2px;bottom:2px;min-width:3px;padding:0 3px;border:0;border-radius:3px;font-family:inherit;font-size:var(--fs-xs);line-height:18px;color:#1f2937;
   overflow:hidden;white-space:nowrap;text-overflow:clip;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(15,23,42,.18)}
 .sd-blk.is-dim{opacity:.25}
-.sd-blk.is-tight{color:transparent}     /* 字が入らない帯は色だけ（釜番の札と同じ色。字は title） */
+.sd-blk.is-tight{color:transparent}     /* 字が入らない帯は、字を帯の上の段（.sd-tag）に出す */
+.sd-tag{position:absolute;transform:translateX(-50%);bottom:24px;font-size:var(--fs-xs);line-height:12px;color:var(--ink);white-space:nowrap;pointer-events:none}
+.sd-tag::after{content:"";position:absolute;left:50%;top:12px;height:var(--lead,4px);border-left:1px solid #94a3b8}
+.sd-tag.is-r0{bottom:24px;--lead:2px}.sd-tag.is-r1{bottom:37px;--lead:15px}
 
 /* ---- 釜番の札 ---- */
 .sd-kama{display:flex;flex-wrap:wrap;align-items:center;gap:6px}

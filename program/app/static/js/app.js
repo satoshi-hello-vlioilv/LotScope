@@ -1168,7 +1168,19 @@ function fitTabs() {
 }
 {
   let t = 0;
-  window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(fitTabs, 120); });
+  const refit = () => { clearTimeout(t); t = setTimeout(fitTabs, 120); };
+  window.addEventListener("resize", refit);
+  // 見出しの帯のタブ以外（名前・データ元の札・接続・アプリ・終了）の幅が後から変わっても詰め直す（版 3.57.0。タブを作った後に
+  // 「データ元: LotDsp（直接）」の字が入って帯からはみ出し、1728 で「終了」が画面の外へ出ていた。ui-eval-narrow.mjs）。
+  // タブの並び（nav）は見ない: 詰めるとその幅が変わり、見張りが詰め直しを呼び続けるため
+  const nav = $(".screen-tabs"), head = nav && nav.closest("header");
+  if (head && window.ResizeObserver) {
+    const ro = new ResizeObserver(refit);
+    [...head.children].filter((el) => el !== nav && !el.contains(nav)).forEach((el) => {
+      ro.observe(el);
+      [...el.children].forEach((c) => ro.observe(c));
+    });
+  }
 }
 function moveTab(screen, dir) {
   const keys = tabEls().map((b) => b.dataset.screen), i = keys.indexOf(screen), j = i + dir;
