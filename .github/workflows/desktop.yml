@@ -43,6 +43,10 @@ jobs:
       - name: 写しと公開の干渉（Python・Windows）
         working-directory: program
         run: python -m unittest tests.test_mirror_writer -v
+      # 結合・スケジュールを Windows の本物の SQLite で（URI を既定で読まない。版 3.57.1 で、Linux の試験だけでは気づけなかった）
+      - name: 結合・スケジュール（Python・Windows）
+        working-directory: program
+        run: python -m unittest tests.test_data_join tests.test_schedule tests.test_mirror_share -v
       - name: exe を作る
         working-directory: desktop
         run: cargo build --release --locked

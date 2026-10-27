@@ -22,7 +22,7 @@ ScheduleView は「CM3 の作業予定」と「仕掛台帳（LOTNOW.sqlite3）�
                           remain_course_column・kama_column）
 
 置き方: 中身が変わったときだけ、新しい世代のファイル（<設備>.g<番号>.sqlite3）に書く（Windows では読んでいる途中のファイルを
-置き換えられないため。db_mirror.py と同じ考え）。古い世代は次に書くときに消す（消せなければその次）。
+置き換えられないため。db_mirror.py と同じ考え）。古い世代は次に書くときに消す（1 つ前は残す。消せなければその次）。
 """
 from __future__ import annotations
 
@@ -217,16 +217,19 @@ class Schedules:
             gen = int(cur.get("gen") or 0) + 1
             path = self.root / f"{_safe(code)}.g{gen}.sqlite3"
             write_table(path, TABLE, cm3_schedule.COLUMN_NAMES, rows)
+            self._sweep(code, (path, cur.get("path")))
             cur.update(path=str(path), sig=sig, gen=gen, changedAt=now)
-            self._sweep(code, path)
         cur.update(data=data, fetchedAt=now, checkedAt=now, error="")
         with self._lock:
             self._state[code] = cur
 
     def _sweep(self, code, keep):
-        """古い世代を消す（読んでいて消せなければ次の機会に）。"""
+        """古い世代を消す（読んでいて消せなければ次の機会に）。keep: 残すファイル（新しい世代と 1 つ前）。
+        1 つ前を残すのは、裏の取り直しが新しい世代を置いた直後に、前の世代のパスを受け取った問い合わせが
+        まだ開いていない（結合を組む前の）ことがあるため。消すと「unable to open database」になる（版 3.57.1）"""
+        keep = {Path(k) for k in keep if k}
         for p in self.root.glob(f"{_safe(code)}.g*.sqlite3"):
-            if p != keep:
+            if p not in keep:
                 try:
                     p.unlink()
                 except OSError:
@@ -290,8 +293,8 @@ class Schedules:
             gen = int(cur.get("gen") or 0) + 1
             path = self.root / f"{_safe(HOT_KEY)}.g{gen}.sqlite3"
             write_table(path, HOT_TABLE, cols, out)
+            self._sweep(HOT_KEY, (path, cur.get("path")))
             cur.update(path=str(path), sig=sig, gen=gen, changedAt=now)
-            self._sweep(HOT_KEY, path)
         info = {"title": hot["title"], "equipments": hot["equipments"], "prevValue": hot["prev_value"], **found,
                 "kamaConfigured": hot["kama_column"], "perEquipment": per, "counts": counts, "errors": errors}
         cur.update(info=info, checkedAt=now)

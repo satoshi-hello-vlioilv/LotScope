@@ -255,7 +255,14 @@ class Api(unittest.TestCase):
         self.answers["L-1"] = changed
         c = self.sch.ensure(self.cfg, "L-1", force=True)
         self.assertNotEqual(c["path"], a["path"], "変わったら新しい世代")
-        self.assertFalse(Path(a["path"]).exists(), "前の世代は消す")
+        self.assertTrue(Path(a["path"]).exists(), "1 つ前の世代は残す（前のパスを受け取った問い合わせがまだ開いていないことがある）")
+        changed = json.loads(json.dumps(changed))
+        changed["entity"]["meisaiList"] = changed["entity"]["meisaiList"][1:]
+        self.answers["L-1"] = changed
+        c2 = self.sch.ensure(self.cfg, "L-1", force=True)
+        self.assertNotEqual(c2["path"], c["path"])
+        self.assertTrue(Path(c["path"]).exists() and not Path(a["path"]).exists(), "2 つ前の世代は消す")
+        c = c2
         # 届かなくなった: 前の予定のまま、理由を言う
         bad = {**self.cfg, "cm3_base_url": "http://127.0.0.1:9"}
         d = self.sch.ensure(bad, "L-1", force=True)

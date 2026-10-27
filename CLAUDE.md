@@ -49,6 +49,8 @@ python -m unittest discover -s desktop/bundle -t desktop/bundle
 - 起動・更新・配布の流れ（`desktop/src/install.rs`・`update.rs`・`distribute.rs`・`main.rs`）を変えたら、`desktop/bundle/verify.py` の通し
   （local・update・distribute）を本物の窓で確かめる（Windows は CI。手元の Linux では Windows だけの部分を差し替えて流す）。
 - Windows の本物の WebView2 での自己診断は CI（`.github/workflows/desktop.yml`）が行う。手順の考え方は `program/docs/DESKTOP_MIGRATION_DESIGN.md`。
+- Windows の Python に付く SQLite は、URI（`file:…?mode=ro`）を既定で読まない（Linux は読む）。`tests/test_mirror_share.py` が Linux の中で
+  Windows と同じ形にして結合・スケジュール・データ元の試験を流す（版 3.57.1。Linux の試験だけでは気づけず、Windows で結合が組めなかった）
 - 結果は**終了コードと「Ran … / OK / FAILED」の行で**読む。出力の最後の 1 行だけ（`tail -1` など）で判断しない
   （Python の試験は最後に ResourceWarning が出ることがあり、FAILED の行が隠れる。版 3.5.0 で、これを見落として CI で初めて失敗に気づいた）。
 - 失敗が残っているときは push しない。直せない理由があるときは、push せずに利用者へ伝える。
