@@ -14,6 +14,7 @@
 .sd-hotchip[aria-selected="true"]{color:#9a3412;box-shadow:inset 0 3px 0 #ea580c}
 .sd-cm3{display:inline-flex;align-items:center;text-decoration:none;line-height:26px}
 .sd-auto{color:var(--muted)}
+@media (max-width:1440px){ .ll-equipbar .eq-hint.sd-auto{display:inline} }   /* 作業実績の並べ替えの案内は狭い窓で畳むが、自動更新の間隔は出したまま */
 
 /* ---- 上の段（U3: 主の数＋押して絞る丸い札＋右に時刻。設備も HOT も同じ形） ---- */
 .sd-strip{display:flex;flex-direction:column;gap:6px;padding:7px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);flex:0 0 auto;min-width:0}
@@ -31,7 +32,8 @@
 .sd-kchip.k-stop small{color:var(--sd-stop-ink);font-size:var(--fs-xs);margin-left:2px}
 .sd-kchip.k-miss{border-style:dashed}
 .sd-kchip.k-insp.is-on,.sd-kchip.k-stop.is-on,.sd-kchip.k-miss.is-on{box-shadow:inset 0 0 0 2px var(--h-input)}
-.sd-kchip.is-empty{opacity:.55}
+.sd-kchip.is-empty{color:var(--muted);border-style:dashed}   /* 0 本: 淡くせず（字の濃さ 4.5 以上）、点線の枠と灰の字で */
+.sd-kchip.is-empty .sd-eqdot{opacity:.45}
 .sd-kchip .sd-eqdot{margin-right:0}
 .sd-rule{margin:0;font-size:var(--fs-sm);color:var(--muted);line-height:1.5}
 .sd-notes{margin:0;font-size:var(--fs-sm);color:var(--warn-ink)}
