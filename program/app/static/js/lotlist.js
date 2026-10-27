@@ -126,6 +126,7 @@
      覚えの範囲は src:<キー>:<表>（キーは変わらない名前。表示名を変えても、場所を変えても覚えは離れない） */
   function fileSource(def) {
     const id = `src:${def.key}`, k = def.key, name = def.name || def.key;
+    if (def.kind === "cm3") return scheduleSource(def, id, name);
     return {
       id, api: def.api || `/api/src/${k}`, title: name, noun: name, fileStem: name, group: def.group || "", isMaster: def.role === "マスタ", where: def.place || "",
       params: () => ({}), scope: (t) => `${id}:${t || ""}`, target: (t) => `${id}:${t || ""}`, owns: (x) => x.startsWith(`${id}:`),
@@ -137,6 +138,22 @@
       remoteHint: "（データ元）", reading: `${name}を読んでいます…`,
       firstNote: "初めて開いたときは、共有のファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
       staleWhat: `最近の${name}は一覧に出ません。`,
+    };
+  }
+  /* スケジュール（版 3.57.0。CM3 の設備ごとの作業予定。lotlist-schedule.js）: 動きは仕掛と同じ一覧で、違うのは
+     設備を選ぶこと（作業実績と同じ設備のタブ。設備＋HOT コイル作業順）・表は設備で決まること（予定・HOT）・新しい予定が来たら自分で出し直すこと */
+  function scheduleSource(def, id, name) {
+    const st = () => STATES[id] || {};
+    return {
+      id, api: def.api, title: name, noun: name, fileStem: name, group: "", isMaster: false, where: def.place || "", cm3: true,
+      params: () => (st().equip ? { equip: st().equip } : {}), scope: (t) => `${id}:${t || ""}`, target: (t) => `${id}:${t || ""}`, owns: (x) => x.startsWith(`${id}:`),
+      colTable: (t) => `${id}:${t || ""}`, place: (t) => `${equipName(st().equip) || ""}・${t || ""}`,
+      loadTable: () => "", saveTable: () => {},           // 表は設備で決まる（設備は予定、HOT コイル作業順は HOT）
+      settingsKey: "schedule.", settingsTab: "sources", settingsLabel: "データ元を開く",
+      settingsTip: "CM3 の場所・設備・仕掛との結合を「マスタ管理」の「データ元」と「参照先」で直します",
+      remoteHint: "（CM3）", reading: `${name}を CM3 から取っています…`,
+      firstNote: "CM3 から設備の作業予定を取り、仕掛と突き合わせています（数秒）。",
+      staleWhat: "",
     };
   }
   function newState(src) {
@@ -317,7 +334,7 @@
     const q = new URLSearchParams(S.src.params());
     if (S.table) q.set("table", S.table);
     if (S.search) q.set("search", S.search);
-    const list = baseFilters().concat(window.LotListSlicer.filters());
+    const list = baseFilters().concat(window.LotListSlicer.filters(), S.src.cm3 ? window.LotListSchedule.filters(S) : []);
     if (list.length) q.set("filters", JSON.stringify(list));
     return q;
   }
@@ -349,7 +366,7 @@
       S.source = d.source || S.source;
       if (!r.ok) throw Object.assign(new Error(d.error || `${S.src.title}を読めませんでした`), { kind: d.kind });
       S.table = d.table; S.tables = d.tables || []; S.columns = d.columns || []; S.rows = d.rows || [];
-      S.lotColumn = d.lotColumn || ""; S.work = d.work || null;
+      S.lotColumn = d.lotColumn || ""; S.work = d.work || null; S.schedule = d.schedule || null;
       window.LotListMarks.take(S.rows, d.marks, d.markCounts);   // 色付けの印は、並べ替える前の行の並びで行そのものに結ぶ
       if (!S.work) S.rows = clusterRows(S.rows);       // 作業でまとめた答えは、行と作業の印（work.rows）の並びを崩さない
       S.count = d.count || 0; S.lotColumn = d.lotColumn || ""; S.error = ""; S.errorKind = ""; S.failSince = 0; S.dateColumns = d.dateColumns || []; S.dateHints = d.dateHints || []; S.today = d.today || "";
@@ -1434,7 +1451,8 @@
     const lot = S.lotColumn ? String(r[S.lotColumn] ?? "") : "";
     const M = window.LotListMarks;
     // 縞（is-odd）は行の番号で決める（描く範囲が動いても、畳んだ行があっても、縞がずれない）
-    const k = [cls, i % 2 ? "is-odd" : "", lot && lot.toUpperCase() === String(S.currentLot || "").toUpperCase() ? "is-current" : "", i === S.cardIdx || S.cardSet.has(i) ? "is-carded" : "", M.rowClass(r)].filter(Boolean).join(" ");
+    const k = [cls, i % 2 ? "is-odd" : "", lot && lot.toUpperCase() === String(S.currentLot || "").toUpperCase() ? "is-current" : "", i === S.cardIdx || S.cardSet.has(i) ? "is-carded" : "", M.rowClass(r),
+      S.src.cm3 ? window.LotListSchedule.rowClass(r, S.rows[i - 1], S) : ""].filter(Boolean).join(" ");
     return `<tr data-i="${i}"${k ? ` class="${k}"` : ""}${attrs}>` + cols.map((c, ci) => {
       const d = deco && deco.get(c), extra = (d ? d.cls : "") + M.cellClass(r, c), tail = d ? d.tail || "" : "";
       return c === S.lotColumn ? `<td class="ll-lotcol${extra}"${extra ? ` title="${esc(lot)}"` : ""}>${lotButton(lot, cls.includes("g-child"), r)}${tail}</td>` : cellTd(cells[ci], aligns[ci], extra, tail);
@@ -1794,6 +1812,7 @@
   function renderAll() {
     renderEquipBar(); renderBar(); renderGrid(); renderPager(); renderFresh(); paintBusy(); window.LotListCard.refresh();
     window.LotListWork.update(S.src.id === "work" ? S.work : null);
+    window.LotListSchedule.paint(S, S.src.cm3 ? S.schedule : null);
     window.LotListMarks.paint();
   }
 
@@ -1812,7 +1831,11 @@
     const me = S;
     try {
       const r = await fetch(`${S.src.api}/source?${new URLSearchParams(S.src.params())}`, { cache: "no-store" });
-      if (r.ok && me === S) { S.source = await r.json(); renderFresh(); }
+      if (r.ok && me === S) {
+        S.source = await r.json(); renderFresh();
+        // スケジュール: 新しい予定を取り込んだら、押さなくても出し直す（ScheduleView の自動更新と同じ）
+        if (S.src.cm3 && !S.loading && S.loadedAt && S.source.copiedAt && S.source.copiedAt > S.loadedAt + 0.5) load();
+      }
     } catch (_) { /* 次の周回で */ }
   }
 
@@ -1962,6 +1985,13 @@
     }
     if (me.equip) me.equipName = (me.equips.find((x) => x.key === me.equip) || {}).name || me.equipName;
   }
+  /** スケジュールの設備（設備＋HOT コイル作業順）。覚えた設備が無くなっていれば最初の設備 */
+  async function loadScheduleEquips() {
+    const me = S;
+    try { me.equips = await window.LotListSchedule.loadMeta(); me.equipError = ""; } catch (e) { me.equips = []; me.equipError = e.message; }
+    if (!me.equips.some((x) => x.key === me.equip)) me.equip = (me.equips[0] || {}).key || "";
+    me.equipName = (me.equips.find((x) => x.key === me.equip) || {}).name || "";
+  }
   /* 作業実績が「読めない」まま残らないように（版 3.33.0。入れた直後に、再起動するまで読めないことがあった）:
      設備のファイルが見つからない・フォルダに届かない・登録に無い設備を見ているあいだは、HEAL_MS ごとに設備を探し直して引き直す
      （共有のファイルは、書き手が入れ替える一瞬や、この PC が初めて共有へ触る最初の問い合わせで、見えないことがある）。
@@ -1997,10 +2027,11 @@
   }
   const equipOf = (k = S.equip) => (S.equips || []).find((x) => x.key === k) || null;
   function switchEquip(k, { load: reload = true } = {}) {
-    if (S.src.id !== "work") return;
+    if (S.src.id !== "work" && !S.src.cm3) return;
     if (k !== S.equip) {
       saveActive(); saveAdhocSetup();
-      S.equip = k; S.equipName = (equipOf(k) || {}).name || ""; store.set(KEY.workEquip, k);
+      S.equip = k; S.equipName = (equipOf(k) || {}).name || "";
+      if (S.src.cm3) { window.LotListSchedule.saveEquip(k); window.LotListSchedule.reset(); } else store.set(KEY.workEquip, k);
       Object.assign(S, { table: S.src.loadTable(), tables: [], ctx: null, adhocScope: null, page: 1, rows: [], columns: [], count: 0,
         source: null, error: "", errorKind: "", failSince: 0, groups: null, range: [0, 0] });
       window.LotListCard.close(); window.LotListSlicer.reset(); window.LotListMarks.reset();
@@ -2018,6 +2049,7 @@
   }
   function renderEquipBar() {
     const bar = $("#llEquipBar"); if (!bar) return;
+    if (S.src.cm3) { window.LotListSchedule.renderBar(bar, S); fitEquip(); return; }
     if (S.src.group && GROUPS[S.src.group]) { renderGroupBar(bar); return; }
     bar.hidden = S.src.id !== "work";
     bar.dataset.kind = "work";
@@ -2155,6 +2187,7 @@
       if (STATES[src.id]) { STATES[src.id].src = src; return; }
       STATES[src.id] = Object.assign(newState(src.id), { presets: STATES.lot.presets });
       STATES[src.id].table = src.loadTable();
+      if (src.cm3) { STATES[src.id].equip = window.LotListSchedule.savedEquip(); window.LotListSchedule.defaults(src.id); }
     });
     // グループ・名前が変わったら、開いているデータ元の札を描き直す（S.src は上で新しい物に替わっている）
     if (S && S.src.id.startsWith("src:") && root && !root.classList.contains("hidden")) renderEquipBar();
@@ -2171,6 +2204,7 @@
     // 作業実績は開くたびに設備を読み直す（サーバーはフォルダの中身を 10 秒覚えるので、共有を読み直すのはそのとき 1 回）。
     // 前に開いたときの「見つからない」を覚えたままにしない
     if (S.src.id === "work") loadEquips().then(() => { if (me === S) { renderAll(); load(); } });
+    else if (S.src.cm3 && S.equips == null) loadScheduleEquips().then(() => { if (me === S) { renderAll(); load(); } });
     else load();                  // 戻ってきたら今の写しで引き直す（ページはそのまま）
     clearInterval(pollTimer); pollTimer = setInterval(pollSource, SOURCE_POLL_MS);
   }
@@ -2226,7 +2260,7 @@
   }
   /** Excel に出力の「出力の条件」（一覧の出力と集計表の出力が同じ物を使う） */
   function exportConditions() {
-    return [["一覧", S.src.title], [S.src.id === "work" ? "設備・表" : "表", S.src.place(S.table)],
+    return [["一覧", S.src.title], [S.src.id === "work" || S.src.cm3 ? "設備・表" : "表", S.src.place(S.table)],
       ["元データ", `${(S.source && S.source.remote) || "-"}${S.source && S.source.at ? `（${hm(S.source.at)} の版）` : ""}`],
       ["検索", S.search || "（なし）"],
       ...(condRows().length ? condRows().map((r) => ["条件", r.kind === "adhoc" ? `列で絞り込み: ${r.label}` : condLabel(r.f)]) : [["条件", "（なし）"]]),
@@ -2241,6 +2275,7 @@
     onPick = opts.onPick || onPick;
     onLens = opts.onLens || null;
     buildBar(); bindGrid(); bindEquipBar();
+    window.LotListSchedule.mount({ changed: () => { if (S.src.cm3) { S.page = 1; load(); } } });
     window.LotListFormats?.mount();
     window.LotListSlicer.mount({
       table: scope, screen: () => S.src.id, columns: () => S.columns, search: () => S.search, baseFilters, keyOf: levelKeyKind,

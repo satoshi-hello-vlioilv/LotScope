@@ -7,6 +7,7 @@
   品質データ   1 ファイル             参照先 lot_list.source・lot_list.table             /api/lotlist（デスクトップ版は Rust が答える）
   作業実績     フォルダ＋名前の決まり 参照先 work_log.folder・work_log.pattern           /api/worklog（設備ごとの登録は work_log.py）
   仕掛         1 ファイル             このマスタの行（無ければ設定 sources.wip の既定）  /api/src/wip
+  スケジュール CM3（設備ごと）        参照先 schedule.cm3_base_url（設定 schedule）     /api/src/sch（版 3.57.0。services/schedule.py）
   足した元     1 ファイル             このマスタの行                                    /api/src/<キー>
 
 品質データ・作業実績の場所は、これまでどおり参照先（path_settings）に置く（デスクトップ版の Rust・作業実績の登録が読む所を変えない）。
@@ -37,6 +38,7 @@ from .identity import normalize_part
 NAME = "data_sources"
 FIELDS = ["キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考", "結合", "グループ", "元"]
 ROLES = ["品質", "実績", "仕掛", "マスタ", "その他"]
+SCHEDULE_ROLE = "予定"       # スケジュール（組み込みだけの役割。足した元には付けない）
 MASTER_ROLE = "マスタ"
 VIEW_ROLE = "結合した表"     # 画面の言葉（役割の値ではない。結合した表の役割は、選ばなければ「その他」）
 GROUP_MAX = 24               # グループの名前の長さ
@@ -57,7 +59,16 @@ BUILTINS = [
     {"key": "work", "name": "作業実績", "role": "実績", "kind": "folder", "screen": "work", "api": "/api/worklog",
      "settings": {"place": "work_log.folder", "table": "work_log.table", "pattern": "work_log.pattern"}, "equipColumn": "", "equipMode": "そのまま"},
     {"key": "wip", "name": "仕掛", "role": "仕掛", "kind": "file", "screen": "src:wip", "api": "/api/src/wip", "settings": None},
+    # スケジュール（版 3.57.0。ScheduleView を移した）: 場所は CM3（参照先 schedule.cm3_base_url）。設備ごとに CM3 から取り、手元の表にして読む
+    {"key": "sch", "name": "スケジュール", "role": SCHEDULE_ROLE, "kind": "cm3", "screen": "src:sch", "api": "/api/src/sch",
+     "settings": {"place": "schedule.cm3_base_url"}, "equipColumn": "設備", "equipMode": "そのまま", "last": True},
 ]
+GROUPABLE = {"wip"}   # グループに入れられる組み込みの元（品質データ・作業実績・スケジュールは見出しのタブが決まっている。スケジュールは設備のタブを持つ）
+# スケジュールの既定の結合（このマスタに行が無いとき）: ロットNo = 仕掛のロット番号の列（仕掛の写しの列から決める: routes/sources.py）。
+# 持ってくる列は ScheduleView の既定の台帳の列と、HOT コイル作業順に使う列（列の設定と同じく、あとから結合の欄で変えられる）
+SCHEDULE_JOIN = {"with": "wip", "how": "left", "on": [["ロットNo", "ﾛｯﾄ番号"]],
+                 "cols": ["製造調質", "ｵｰﾀﾞｰ板厚", "ｵｰﾀﾞｰ板幅", "BOX実績_良品重量", "実績_設備ｺｰｽ", "残仕掛設備ｺｰｽ", "設計_PIT炉番炉順",
+                          "特急区分", "保留_区分", "工場納期", "約束納期"]}
 BUILTIN_KEYS = {b["key"] for b in BUILTINS}
 
 
@@ -113,7 +124,7 @@ def clean_row(data, *, key=None, known=None):
     row["グループ"] = " ".join(row["グループ"].split())[:GROUP_MAX]
     if row["キー"] in BUILTIN_KEYS:
         row["元"] = ""
-        if row["キー"] != "wip":            # 品質データ・作業実績は見出しのタブが決まっている（グループに入れない）
+        if row["キー"] not in GROUPABLE:    # 品質データ・作業実績は見出しのタブが決まっている（グループに入れない）
             row["グループ"] = ""
     if row["元"]:                           # 結合した表: 場所は元の物。元は 1 ファイルの元（結合した表は元にできない）
         if row["元"] == row["キー"] or row["元"] not in (known or {}):
@@ -154,7 +165,10 @@ def sources(settings, rows):
     for b in BUILTINS:
         row = by_key.get(b["key"]) or {}
         d = {**b, "builtin": True, "id": row.get("id"), "rev": row.get("rev"), "note": _s(row.get("備考"))}
-        if b["settings"]:                       # 場所は参照先（品質データ・作業実績）。設備の列はこのマスタの行で変えられる
+        if b["kind"] == "cm3":                  # スケジュール: 場所は CM3 の URL（参照先）。表は設備ごと（予定）
+            d.update(storage="settings", place=_s(_get(settings, b["settings"]["place"])), table="", pattern="")
+            dflt = {"equip_column": b["equipColumn"], "equip_mode": b["equipMode"]}
+        elif b["settings"]:                     # 場所は参照先（品質データ・作業実績）。設備の列はこのマスタの行で変えられる
             keys = b["settings"]
             d.update(storage="settings", place=unquote_path(_s(_get(settings, keys["place"]))), table=_s(_get(settings, keys["table"])),
                      pattern=_s(_get(settings, keys["pattern"])) if keys.get("pattern") else "")
@@ -170,7 +184,9 @@ def sources(settings, rows):
         d["listed"] = True if b["key"] in ("lot", "work") else _s(row.get("画面")) != "無"
         d["read"] = read_params(settings, b["key"])
         d["joins"] = data_join.parse(row.get("結合"))
-        d["groupSet"] = _s(row.get("グループ")) if b["key"] == "wip" else ""
+        if b["kind"] == "cm3" and not row:      # 行がまだ無い: 既定の結合（仕掛と合わせる）
+            d["joins"], d["joinsDefault"] = data_join.parse([SCHEDULE_JOIN]), True
+        d["groupSet"] = _s(row.get("グループ")) if b["key"] in GROUPABLE else ""
         d["order"] = _s(row.get("並び"))
         out.append(d)
     added = [r for r in rows or [] if _s(r.get("キー")) and _s(r.get("キー")) not in BUILTIN_KEYS]
@@ -183,9 +199,11 @@ def sources(settings, rows):
                     "settings": None, "api": f"/api/src/{k}", "id": r.get("id"), "rev": r.get("rev"), "note": _s(r.get("備考")),
                     "read": read_params(settings, k), "joins": data_join.parse(r.get("結合")),
                     "groupSet": _s(r.get("グループ")), "order": _s(r.get("並び")), "base": _s(r.get("元"))})
-    # 並び: 品質データ・作業実績は先頭に決まる。ほかは「並び」の順（無ければ足した順。仕掛は足した元より前）
+    # 並び: 品質データ・作業実績は先頭に決まる。ほかは「並び」の順（無ければ足した順。仕掛は足した元より前・
+    # あとから組み込んだ元〈スケジュール〉は最後。いまのタブの並びを崩さない）
     head, rest = out[:2], out[2:]
-    rest.sort(key=lambda d: (_order(d["order"]) if d["order"] or not d["builtin"] else 0, 0 if d["builtin"] else 1, int(d.get("id") or 0)))
+    rest.sort(key=lambda d: (_order(d["order"]) if d["order"] or not d["builtin"] else (10 ** 7 if d.get("last") else 0),
+                             0 if d["builtin"] else 1, int(d.get("id") or 0)))
     out = head + rest
     by = {d["key"]: d for d in out}
     for d in out:                               # 結合した表: 場所・表は元の物（読むのは元の写し）

@@ -770,6 +770,17 @@ export const STATES = [
     await p.fill("#cvName", "管理分類（直した）"); await p.press("#cvName", "Tab");
     await tab(p, "shifts"); await p.waitForSelector(".us-card"); await sleep(300);
   }, "[data-next], .us-card [data-us=back]"],
+  // 版 3.57.0: スケジュール（CM3 の作業予定。作り物の CM3: L-1・L-2・L-3）。設備 L-1 の予定と、HOT コイル作業順（--from sch で撮る）
+  ["sch", async (p) => {
+    await p.keyboard.press("Escape").catch(() => {});
+    await p.evaluate(() => { TPA.local.set("tpa.sch.equip.v1", "L-1"); document.dispatchEvent(new CustomEvent("tpa:show-screen", { detail: "src:sch" })); });
+    await p.waitForSelector('#llEquipBar [data-equip="L-1"][aria-selected="true"]', { timeout: 20000 });
+    await p.waitForSelector("#llSched:not([hidden]) .sd-card", { timeout: 20000 }); await sleep(900);
+  }, "[data-next], #llEquipBar [data-equip]"],
+  ["sch-hot", async (p) => {
+    await p.click('#llEquipBar [data-equip="__HOT__"]');
+    await p.waitForSelector("#llSched[data-mode=hot] .sd-tl", { timeout: 20000 }); await sleep(900);
+  }, "[data-next], #llSched [data-sd-kama]"],
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

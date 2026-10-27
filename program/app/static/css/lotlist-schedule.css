@@ -1,0 +1,82 @@
+/* スケジュール（CM3 の設備ごとの作業予定。版 3.57.0。lotlist-schedule.js）。
+   色の意味は ScheduleView と同じ: 設備停止＝赤（止まる・注意）・点検＝黄（ふだんと違う）・次工程が自分の設備＝茶の字・
+   設備の色 L-1 青・L-2 緑・L-3 橙（作業の流れの図と札で同じ）・釜番＝淡い 16 色（帯と札で同じ）。
+   字の大きさ・面の段・線は LotScope の決まり（app.css の --fs-*・--surface-*・--line）に合わせる。 */
+:root{
+  --sd-stop-bg:#fdecec; --sd-stop-ink:#8a1c13; --sd-stop-bar:#b42318;
+  --sd-insp-bg:#fff4c2; --sd-insp-ink:#6b4e00; --sd-insp-bar:#c99400;
+  --sd-self-ink:#8a5300; --sd-daybreak:#9aa5b1;
+}
+
+/* ---- 設備のタブの飾り（作業実績と同じ札） ---- */
+.sd-eqdot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--eqc,#64748b);vertical-align:1px}
+.sd-hotchip{color:#9a3412}
+.sd-hotchip[aria-selected="true"]{color:#9a3412;box-shadow:inset 0 3px 0 #ea580c}
+.sd-cm3{display:inline-flex;align-items:center;text-decoration:none;line-height:26px}
+.sd-auto{color:var(--muted)}
+
+/* ---- 上の札 ---- */
+.sd-strip{display:flex;flex-direction:column;gap:8px;padding:8px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);flex:0 0 auto;min-width:0}
+.sd-strip[hidden]{display:none}
+.sd-strip[data-mode="line"]{flex-direction:row;flex-wrap:wrap}
+.sd-cards{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.sd-card{display:flex;flex-direction:column;gap:1px;min-width:96px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+  font-family:inherit;text-align:left;color:var(--ink)}
+.sd-card.is-wide{min-width:170px}
+.sd-label{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
+.sd-value{font-size:var(--fs-xl);font-weight:800;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sd-value small{font-size:var(--fs-sm);font-weight:600;color:var(--muted)}
+.sd-card.is-stop .sd-value{color:var(--sd-stop-bar)}
+.sd-card.is-inspect .sd-value{color:var(--sd-insp-ink)}
+.sd-sub{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap}
+.sd-card.is-info{flex:1 1 320px;min-width:260px;overflow:hidden}
+.sd-card.is-info .sd-rule{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sd-rule{font-size:var(--fs-sm);color:var(--ink);line-height:1.5}
+.sd-rule em{font-style:normal;color:var(--warn-ink)}
+.sd-eqcard{cursor:pointer;border-top:3px solid var(--eqc)}
+.sd-eqcard:hover{border-color:var(--eqc)}
+.sd-eqcard.is-off{opacity:.45;border-top-style:dashed}
+.sd-eqcard.is-empty{opacity:.6}
+.sd-notes{margin:0;font-size:var(--fs-sm);color:var(--warn-ink)}
+.sd-eqcard .sd-eqdot{background:var(--eqc)}
+.sd-note{font-size:var(--fs-sm);color:var(--muted)}
+.sd-note.is-warn{color:var(--warn-ink)}
+
+/* ---- 作業の流れの図 ---- */
+.sd-tlwrap{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:6px 10px 8px}
+.sd-tlhead{display:flex;align-items:center;gap:12px;font-size:var(--fs-sm)}
+.sd-tlhead span{flex:1;min-width:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-tltoggle{flex:none;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--h-input);font-family:inherit;font-size:var(--fs-sm);cursor:pointer}
+.sd-tltoggle:hover{border-color:var(--h-input)}
+.sd-tl{margin-top:4px}
+.sd-axis{position:relative;height:16px;margin-left:64px;font-size:var(--fs-xs);color:var(--muted)}
+.sd-axis span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.sd-axis span.is-day{font-weight:800;color:var(--ink)}
+.sd-lane{display:flex;align-items:center;height:26px}
+.sd-ln{flex:0 0 64px;font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
+.sd-track{position:relative;flex:1;height:22px;background:var(--surface-3);border-radius:4px;overflow:hidden}
+.sd-grid{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.sd-grid.is-day{background:#94a3b8}
+.sd-now{position:absolute;top:0;bottom:0;width:2px;background:#dc2626;z-index:2}
+.sd-blk{position:absolute;top:2px;bottom:2px;min-width:3px;padding:0 3px;border:0;border-radius:3px;font-family:inherit;font-size:var(--fs-xs);line-height:18px;color:#1f2937;
+  overflow:hidden;white-space:nowrap;text-overflow:clip;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(15,23,42,.18)}
+.sd-blk.is-dim{opacity:.25}
+.sd-blk.is-tight{color:transparent}     /* 字が入らない帯は色だけ（釜番の札と同じ色。字は title） */
+
+/* ---- 釜番の札 ---- */
+.sd-kama{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.sd-klab{font-size:var(--fs-xs);font-weight:800;color:var(--muted);letter-spacing:.06em}
+.sd-kchip{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);
+  font-family:inherit;font-size:var(--fs-sm);color:var(--ink);cursor:pointer;white-space:nowrap}
+.sd-kchip b{font-weight:800}
+.sd-kchip small{color:var(--muted);font-size:var(--fs-xs)}
+.sd-kchip.is-on{border-color:var(--h-input);background:var(--input-soft)}
+.sd-kdot{display:inline-block;width:10px;height:10px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(15,23,42,.2)}
+
+/* ---- 行の飾り（設備停止・点検・次工程が自分の設備・日付の境） ---- */
+.ll-grid tbody tr.sd-stop>td{background:var(--sd-stop-bg);color:var(--sd-stop-ink)}
+.ll-grid tbody tr.sd-stop>td:first-child{box-shadow:inset 4px 0 0 var(--sd-stop-bar)}
+.ll-grid tbody tr.sd-inspect>td{background:var(--sd-insp-bg);color:var(--sd-insp-ink)}
+.ll-grid tbody tr.sd-inspect>td:first-child{box-shadow:inset 4px 0 0 var(--sd-insp-bar)}
+.ll-grid tbody tr.sd-self>td{color:var(--sd-self-ink)}
+.ll-grid tbody tr.sd-daybreak>td{border-top:2px solid var(--sd-daybreak)}

@@ -997,6 +997,8 @@ Object.entries(SCREENS).forEach(([k, v]) => { $(v.tab).onclick = () => showScree
 /* データ元（マスタ管理の「データ元」。版 3.36.0）のうち、1 ファイルの元で「画面: 有」の物（仕掛・足した元）を、作業実績の後ろのタブにする。
    どれも品質異常と同じ画面（#lotListScreen）で、元（src:<キー>）を入れ替える。Alt＋4 からの番号を振る（9 まで） */
 const SRC_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h7l3 3v8H3z"/><path d="M5.5 8h5M5.5 10.5h5"/></svg>';
+/* スケジュール（版 3.57.0。CM3 の作業予定）は暦の絵（予定＝時の並び。書類の絵のデータ元と見分ける） */
+const SCH_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="1.2"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3M5 9h2M9 9h2M5 11.5h2"/></svg>';
 const MST_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/></svg>';
 /* 見出しのグループのタブ（版 3.53.0 の「マスタ」のタブを、どのグループにも。版 3.54.0。決め方: ui-proposals/2026-10-join*・2026-10-srclist*）:
    グループ（マスタ管理の「データ元」で決める。役割「マスタ」で決めていなければ「マスタ」）に入ったデータ元は、1 つずつのタブにせず、
@@ -1066,7 +1068,9 @@ async function loadSources() {
   const altKey = () => { const k = n <= 9 ? String(n) : ""; n += 1; return k; };
   want.forEach((d) => {
     const id = `tabSrc_${d.key}`, key = altKey();
-    tabOf(id, d.screen, SRC_ICON, d.name).title = `${d.name}（${d.place || "場所が決まっていません"}）を、品質異常と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
+    tabOf(id, d.screen, d.kind === "cm3" ? SCH_ICON : SRC_ICON, d.name).title = d.kind === "cm3"
+      ? `設備ごとの作業予定（CM3）を、仕掛と突き合わせて見ます${key ? `（Alt+${key}）` : ""}`
+      : `${d.name}（${d.place || "場所が決まっていません"}）を、品質異常と同じ絞り込み・表示列で見ます${key ? `（Alt+${key}）` : ""}`;
     SCREENS[d.screen] = { tab: `#${id}`, panel: "#lotListScreen", source: d.screen, key };
   });
   const moved = [];

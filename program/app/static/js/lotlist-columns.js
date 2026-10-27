@@ -50,6 +50,9 @@
   /* ================= 層（saved / draft / live） ================= */
   const saved = LS.get(KEY.layouts, {});
   const draft = {}, live = {};
+  /* 元が決めた既定（版 3.57.0。スケジュールの前工程・釜番の列など）: その対象をまだ一度も保存していないときだけ、保存した設定の代わりに使う */
+  const DEFAULTS = {};
+  const savedOf = (t) => saved[t] || DEFAULTS[t];
   function norm(l) { const e = empty(); KEYS.forEach((k) => { if (l && l[k] != null) e[k] = TPA.clone(l[k]); }); return e; }
   /* 字のまま HTML の class・style・value に入る値は、決まった形だけを残す（版 3.52.1。脆弱性: 共有の書式・初期設定・取り込んだ表示の設定に
      細工した揃え・幅を入れると、ほかの人の画面で JS が動いた）。揃えは決まった言葉、幅は数（W_MIN〜W_MAX） */
@@ -68,7 +71,7 @@
     return l;
   }
   function get(t) {
-    const out = norm(saved[t]);
+    const out = norm(savedOf(t));
     [draft[t], live[t]].forEach((layer) => { if (layer) KEYS.forEach((k) => { if (k in layer) out[k] = TPA.clone(layer[k]); }); });
     return safeLayout(out);
   }
@@ -77,9 +80,9 @@
   function discard(t) { delete draft[t]; }
   function isDirty(t) { return !!draft[t] && Object.keys(draft[t]).length > 0; }
   /** 保存した設定と本当に違うか（同じ値を入れ直しただけなら違わない。保存していない変更の見張り: 版 3.43.0） */
-  function changedFrom(t) { const base = norm(saved[t]); return !!draft[t] && Object.keys(draft[t]).some((k) => !TPA.unsaved.same(draft[t][k], base[k])); }
+  function changedFrom(t) { const base = norm(savedOf(t)); return !!draft[t] && Object.keys(draft[t]).some((k) => !TPA.unsaved.same(draft[t][k], base[k])); }
   function save(t) { saved[t] = get(t); delete draft[t]; writeSaved(); }
-  function patch(t, p) { saved[t] = Object.assign(norm(saved[t]), p); writeSaved(); }
+  function patch(t, p) { saved[t] = Object.assign(norm(savedOf(t)), p); writeSaved(); }
   function hold(t, p) { live[t] = Object.assign(live[t] || {}, p); }
   function release(t) { delete live[t]; }
 
@@ -1102,7 +1105,9 @@
     /** 対象を人の読める名前にする関数を決める（一覧の元が増えても、ここは名前の付け方を知らない） */
     describe: (fn) => { describeTarget = fn; },
     /** 共有の書式（lotlist-formats.js）: 対象 t の保存した列の設定（触っている途中は入れない）と、その置き換え */
-    layoutOf: (t) => norm(saved[t]),
+    layoutOf: (t) => norm(savedOf(t)),
+    /** 元が決めた既定の列の設定（版 3.57.0。lotlist-schedule.js が置く。保存した設定があればそちらが勝つ） */
+    setDefault: (t, l) => { DEFAULTS[t] = l; },
     /** ダッシュボード（版 3.38.0）: 保存した列の設定のうち match(対象) に当たる物の式と表示名を合わせる（先に見つけた方。作業実績は設備ごとの設定）。
         → {formulas: {列名: 式}, names: {元の列名: 表示名}}。計算列（表に無い列の式）を、サーバーが画面と同じに計算するため */
     applyConversions, conversionPlans,
@@ -1119,8 +1124,8 @@
     },
     formulaContext(match) {
       const out = { formulas: {}, names: {} };
-      Object.keys(saved).filter(match).sort().forEach((t) => {
-        const l = norm(saved[t]);
+      Object.keys({ ...DEFAULTS, ...saved }).filter(match).sort().forEach((t) => {
+        const l = norm(savedOf(t));
         Object.entries(l.formulas).forEach(([c, f]) => { if (String(f || "").trim() && !(c in out.formulas)) out.formulas[c] = String(f); });
         Object.entries(l.names).forEach(([c, n]) => { if (n && !(c in out.names)) out.names[c] = n; });
       });

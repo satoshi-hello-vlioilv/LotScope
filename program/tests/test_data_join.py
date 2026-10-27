@@ -296,7 +296,7 @@ class Api(unittest.TestCase):
         self.assertIn("圧延速度", got["columns"])
         self.assertIn("製造材質", self.c.get(f"/api/sources/{vk}/columns").get_json()["columns"], "結合の欄の「この元」は元の表")
         self.assertEqual(self.c.get(f"/api/src/{vk}/slicer?column=製造材質").status_code, 200)
-        self.assertEqual(self.c.get("/api/sources").get_json()["items"][-1]["rows"], 300, "組んだ後は行の数が出る")
+        self.assertEqual(self.items()[vk]["rows"], 300, "組んだ後は行の数が出る")
 
     def test_view_rules(self):
         key = self.add_master()
@@ -322,7 +322,7 @@ class Api(unittest.TestCase):
         self.assertEqual(self.c.post("/api/sources/wip/quick", json={"グループ": "x", "base_rev": 0}).status_code, 409, "古い版")
         self.assertEqual(self.c.post("/api/sources/lot/quick", json={"グループ": "台帳", "base_rev": 0}).get_json()["row"]["グループ"], "", "品質データはグループに入れない")
         self.assertEqual(self.c.post("/api/sources/order", json={"keys": [key, "wip"]}).status_code, 200)
-        self.assertEqual(list(self.items()), ["lot", "work", key, "wip"])
+        self.assertEqual(list(self.items()), ["lot", "work", key, "wip", "sch"])
         self.assertEqual(self.c.post("/api/sources/order", json={"keys": [key, "無い"]}).status_code, 400)
 
     def test_roles_include_master(self):
