@@ -109,7 +109,12 @@ def sources_list():
         items.append(x)
     # そのほかの接続（データ元ではない所: LotDsp・更新の置き場・ブラウザ。版 3.58.0 で「参照先」のタブをここへ）
     others = [i for i in ps_items.values() if not i.get("page")]
-    return jsonify(items=items, others=others, roles=data_sources.ROLES, equipModes=data_sources.EQUIP_MODES,
+    # 足す欄の接続の設定（足した元と同じ形。値は空・既定は設定 sources の既定）
+    dflt_read = data_sources.read_params(effective_settings(current_app), "+")
+    new_conn = data_sources.conn_of({"key": "+", "kind": "file"}, None, ps_items,
+                                    {"refresh": dflt_read["refresh_seconds"], "stale": dflt_read["stale_hours"]})
+    return jsonify(items=items, others=others, othersCanEdit=can_write("path_settings"), newConn=new_conn,
+                   roles=data_sources.ROLES, equipModes=data_sources.EQUIP_MODES,
                    canEdit=can_write(data_sources.NAME), shared=st.is_shared(data_sources.NAME), revision=st.revision(data_sources.NAME))
 
 

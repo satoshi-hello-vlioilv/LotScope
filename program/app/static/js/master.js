@@ -763,7 +763,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
     ${d.error ? `<div class="dz-bad"><b>フォルダに届きません。</b>${escapeHtml(d.error)}<br>場所・ネットワークのつながりを確かめてください。前に写した設備は、写しのまま見られます。</div>` : ""}
     ${todo.length ? `<div class="wl-todo" role="region" aria-label="直すこと"><b>直すことが ${todo.length} つあります</b>${todo.join("")}</div>` : ""}
     <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}
-      <small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>
+      ${embed ? "" : "<small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>"}
       ${embed && can ? '<button type="button" class="pz-btn wl-rescan" data-wl-scan title="フォルダの中で決まりに合うファイルを探し、新しい設備を足し、名前が変わったファイルをたどって登録を直します">↻ フォルダを探し直す</button>' : ""}
       ${sortable ? '<small class="wl-sorthint">⋮⋮ をつかんで並べ替え（選んで ↑↓ でも）。実績のタブも同じ並びになります</small>' : ""}</div>
     <div class="master-table-wrap pz-wrap"><table class="master-table wl-tablelist">
@@ -802,7 +802,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
     }
     scan();
   });
-  TPA.pathPick($("#wlFolder"), { purpose: "worklog", pattern: () => $("#wlPattern").value, title: "作業実績のフォルダを選ぶ",
+  if (!embed) TPA.pathPick($("#wlFolder"), { purpose: "worklog", pattern: () => $("#wlPattern").value, title: "作業実績のフォルダを選ぶ",
     note: "設備ごとの実績ファイルが並ぶフォルダを選びます（印: 決まりに合うファイルの数）。選んだら「探す」で設備を並べます。",
     chipsAfter: box.querySelector(".wl-src"), exclude: ["worklog"] });
   ["#wlFolder", "#wlPattern"].forEach((sel) => $(sel)?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#wlScan").click(); }));

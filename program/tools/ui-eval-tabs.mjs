@@ -4,7 +4,7 @@
 // ② F2 → 打って Esc → 名前は変わらない／空にして Enter → 元の名前
 // ③ 仕掛のタブをつかんで左端へ引く → 左端に移る・開き直しても残る・引いたあとに画面は切り替わらない
 // ④ 選んだタブで Ctrl＋Shift＋→ → 1 つ右へ
-// ⑤ 並びを変えても Alt＋1 は品質異常・Alt＋0 はダッシュボード
+// ⑤ 並びを変えても Alt＋1 は品質・Alt＋0 はダッシュボード
 // ⑥ 「タブの並びと名前を元に戻す」→ 元の並び・元の名前
 // ⑦ 名前を長くしても（10 字）見出しが 1 段に収まり、終了まで窓に入る
 // 全部合えば終了コード 0。
@@ -27,16 +27,16 @@ try {
   const head = await p.$eval(".tpa-menu .tm-head", (x) => x.textContent);
   await choose(p, "名前を変える"); await sleep(150);
   await p.keyboard.press("Control+A"); await p.keyboard.type("異常ロット"); await p.keyboard.press("Enter"); await sleep(300);
-  check("① 右クリック → 名前を変える → タブの名前が変わる", head.includes("品質異常") && (await p.$eval(`${T("list")} .tab-name`, (x) => x.textContent)) === "異常ロット", head);
+  check("① 右クリック → 名前を変える → タブの名前が変わる", head.includes("品質") && (await p.$eval(`${T("list")} .tab-name`, (x) => x.textContent)) === "異常ロット", head);
   await p.click(T("dash")); await sleep(500); await p.click(T("list")); await sleep(500);
   check("① 押すとその画面が開く", await p.$eval("#lotListScreen", (x) => !x.classList.contains("hidden")), "");
   await p.evaluate(() => TPA.saveUiState()); await p.reload(); await p.waitForSelector(".screen-tabs"); await sleep(800);
   check("① 開き直しても名前が残る", (await p.$eval(`${T("list")} .tab-name`, (x) => x.textContent)) === "異常ロット", await tabs(p));
 
   await p.focus(T("work")); await p.keyboard.press("F2"); await sleep(150); await p.keyboard.type("XX"); await p.keyboard.press("Escape"); await sleep(200);
-  check("② F2 → Esc で名前は変わらない", (await p.$eval(`${T("work")} .tab-name`, (x) => x.textContent)) === "作業実績", await tabs(p));
+  check("② F2 → Esc で名前は変わらない", (await p.$eval(`${T("work")} .tab-name`, (x) => x.textContent)) === "実績", await tabs(p));
   await p.focus(T("list")); await p.keyboard.press("F2"); await sleep(150); await p.keyboard.press("Control+A"); await p.keyboard.press("Delete"); await p.keyboard.press("Enter"); await sleep(200);
-  check("② 空にすると元の名前", (await p.$eval(`${T("list")} .tab-name`, (x) => x.textContent)) === "品質異常", await tabs(p));
+  check("② 空にすると元の名前（データ元の名前「品質」。版 3.58.0）", (await p.$eval(`${T("list")} .tab-name`, (x) => x.textContent)) === "品質", await tabs(p));
 
   const was = await p.evaluate(() => document.querySelector("[aria-selected=true][data-screen]")?.dataset.screen);
   const b1 = await (await p.$(T("src:wip"))).boundingBox(), b0 = await (await p.$(T("dash"))).boundingBox();
@@ -55,17 +55,17 @@ try {
   const a1 = await p.evaluate(() => document.querySelector("[aria-selected=true][data-screen]")?.dataset.screen);
   await p.keyboard.press("Alt+0"); await sleep(500);
   const a0 = await p.evaluate(() => document.querySelector("[aria-selected=true][data-screen]")?.dataset.screen);
-  check("⑤ 並びを変えても Alt＋1 は品質異常・Alt＋0 はダッシュボード", a1 === "list" && a0 === "dash", { a1, a0 });
+  check("⑤ 並びを変えても Alt＋1 は品質・Alt＋0 はダッシュボード", a1 === "list" && a0 === "dash", { a1, a0 });
 
   for (const s of ["dash", "list", "calc", "work", "src:wip"]) {
     await p.focus(T(s)); await p.keyboard.press("F2"); await sleep(100); await p.keyboard.press("Control+A"); await p.keyboard.type("十文字のタブの名前だ"); await p.keyboard.press("Enter"); await sleep(150);
   }
-  const fit = await p.evaluate(() => { const h = document.querySelector("body > header"), r = h.getBoundingClientRect(), tabsR = [...document.querySelectorAll(".screen-tab")].map((b) => b.getBoundingClientRect());
+  const fit = await p.evaluate(() => { const h = document.querySelector("body > header"), r = h.getBoundingClientRect(), tabsR = [...document.querySelectorAll(".screen-tab")].filter((b) => getComputedStyle(b).display !== "none").map((b) => b.getBoundingClientRect());   // 「ほか N」に入って隠れたタブは数えない
     const quit = [...h.querySelectorAll("button")].pop().getBoundingClientRect();
     return { oneRow: new Set(tabsR.map((x) => Math.round(x.top))).size === 1, quitIn: quit.right <= innerWidth, h: r.height, W: innerWidth, sw: h.scrollWidth, cw: h.clientWidth }; });
   check("⑦ 10 字の名前でも見出しは 1 段・終了まで窓に入る", fit.oneRow && fit.quitIn && fit.sw <= fit.cw + 1, fit);
 
-  await rclick(p, "work"); await choose(p, "並びと名前を元に戻す"); await sleep(300);
+  await rclick(p, "list"); await choose(p, "並びと名前を元に戻す");     // 狭い窓では実績のタブが「ほか」に入るので、見えている品質のタブで await sleep(300);
   check("⑥ 並びと名前を元に戻す", JSON.stringify(await tabs(p)) === JSON.stringify(def), { now: await tabs(p), def });
   check("画面のエラーが無い", errors.length === 0, errors);
 } finally {

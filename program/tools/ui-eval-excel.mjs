@@ -53,7 +53,8 @@ try {
   const r1 = { names: x1.names, rows: body.length, want: want.count, head: head.slice(0, 4), noHidden: !head.includes("備考"),
     sameOrder: JSON.stringify(body.map((r) => r[lotCol] ?? "")) === JSON.stringify(want.lots),
     cond: x1.sheets[x1.sheets.length - 1].map((r) => Object.values(r).join(": ")).filter((t) => /条件|件数/.test(t)) };
-  const ok1 = r1.rows === want.count && head.includes("登録日") && r1.noHidden && r1.sameOrder && x1.names.join("|") === "品質異常|出力の条件";
+  // シートの名前はデータ元の名前（版 3.58.0 から「品質」。データ元で名前を変えるとそれに従う）
+  const ok1 = r1.rows === want.count && head.includes("登録日") && r1.noHidden && r1.sameOrder && x1.names.join("|") === "品質|出力の条件";
   // ② 作業実績（日＋直ごと）
   await p.click("#tabWork"); await p.waitForSelector("#llBody tr[data-i]"); await sleep(600);
   await p.click('#llWorkSwitch [data-wk-mode="dayshift"]'); await p.waitForSelector("#llWork .wk-pv"); await sleep(600);

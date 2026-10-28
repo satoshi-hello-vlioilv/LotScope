@@ -12,7 +12,7 @@ const DEV = "開発者";
 const FOLD_KEY = "tpa.ta.folded.v1";
 let draft = null;           // {tab: [出さない区分]}（保存していない区分の決まり）
 let saved = "";             // 読んだときの決まり（変えたかの見張り）
-let query = "", onlyHidden = false;
+let query = "", onlyHidden = false, person = null;    // person: 「人」の段で選んだ人（行の id。その人の例外だけに絞る）
 const folded = () => new Set(TPA.local.get(FOLD_KEY, []) || []);
 const dirty = () => draft != null && JSON.stringify(norm(draft)) !== saved;
 const norm = (r) => Object.fromEntries(Object.entries(r).filter(([, v]) => v.length).sort(([a], [b]) => a.localeCompare(b)));
@@ -73,11 +73,21 @@ function exceptions() {
 }
 const who = (row) => row["ログインID"] || (row["PC名"] ? `PC ${row["PC名"]}` : "（だれでも）");
 
+/** 「人」の段: 登録した人（開発者のほか）を区分と例外の数で並べる。押すと、その人の例外のあるタブだけに絞る（もう一度押すと戻す） */
+function peopleHtml(ex) {
+  const rows = (mstate.data.access || []).filter((row) => row["権限区分"] !== DEV);
+  if (!rows.length) return '<p class="ta-people"><b>人</b>例外にできる人がまだいません（「人ごと」の表で足すと、ここに並びます）</p>';
+  const n = (row) => Object.values(ex).reduce((a, list) => a + list.filter(([, , r]) => r.id === row.id).length, 0);
+  return `<div class="ta-people" role="group" aria-label="人ごとの例外を見る人"><b>人</b>${rows.map((row) => `<button type="button" class="ta-pp" data-ta-person="${row.id}" aria-pressed="${person === row.id}"
+    title="${escapeHtml(`${who(row)}（${row["権限区分"]}）: 押すとこの人の例外のあるタブだけを出します`)}">${escapeHtml(who(row))}<small>${escapeHtml(row["権限区分"] || "")}</small>${n(row) ? `<em>例外 ${n(row)}</em>` : ""}</button>`).join("")}
+    <span>区分の決まりと違う人だけ、行の「＋ 例外」で足します</span></div>`;
+}
 function paint(notice = null) {
   const d = mstate.data.tabaccess, box = $("#masterSettings"), can = d.canEdit && !shareDown();
   const roles = [DEV, ...d.roles], ex = exceptions(), fold = folded(), q = query.trim();
   const hit = (t) => (!q || (TPA.wild.has(q) ? TPA.wild.test("contains", q, t.name) : t.name.toLowerCase().includes(q.toLowerCase())))
-    && (!onlyHidden || d.roles.some((r) => hidden(t.key, r)) || (ex[t.key] || []).length);
+    && (!onlyHidden || d.roles.some((r) => hidden(t.key, r)) || (ex[t.key] || []).length)
+    && (person == null || (ex[t.key] || []).some(([, , row]) => row.id === person));
   const nHidden = Object.values(draft).reduce((a, v) => a + v.length, 0), nEx = Object.values(ex).reduce((a, v) => a + v.length, 0);
   const cell = (t, r) => {
     if (r === DEV) return '<td class="ta-c"><span class="ta-ck lock" title="開発者はいつも全部のタブを見ます（決める人を締め出さない）">✓</span></td>';
@@ -87,7 +97,7 @@ function paint(notice = null) {
   };
   const exCell = (t) => `<td class="ta-ex">${(ex[t.key] || []).map(([name, v, row]) => `<button type="button" class="ta-chip ${v === "出す" ? "s" : "h"}" data-ta-ex="${escapeHtml(t.key)}" data-row="${row.id}"${can ? "" : " disabled"}
       title="${escapeHtml(`${name} だけ、区分（${row["権限区分"]}）の決まりと違って${v}。押して替える・外す`)}">${v === "出す" ? "＋" : "−"}${escapeHtml(name)}</button>`).join("")}`
-    + (can ? `<button type="button" class="ta-add" data-ta-add="${escapeHtml(t.key)}" title="${escapeHtml(t.name)} を、ある人だけ出す・出さない">＋</button>` : "") + "</td>";
+    + (can ? `<button type="button" class="ta-add" data-ta-add="${escapeHtml(t.key)}" title="${escapeHtml(t.name)} を、ある人だけ出す・出さない">＋ 例外</button>` : "") + "</td>";
   const body = groupsOf(d.tabs).map(([g, xs]) => {
     const vis = xs.filter(hit); if (!vis.length) return "";
     const shut = fold.has(g) && !q;
@@ -109,10 +119,11 @@ function paint(notice = null) {
       ${can ? `<button type="button" class="btn-primary" id="taSave"${dirty() ? "" : " disabled"}>保存</button>` : `<span class="ta-ro">${escapeHtml(readOnlyWhy("access"))}のため見るだけ</span>`}
     </div>
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="taNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
+    ${peopleHtml(ex)}
     <table class="ta-mx"><colgroup><col class="c-name">${roles.map(() => '<col class="c-role">').join("")}<col class="c-ex"></colgroup>
-      <thead><tr><th>タブ</th>${roles.map((r) => `<th>${escapeHtml(r)}${r === DEV ? "<small>いつも全部</small>" : ""}</th>`).join("")}<th>人ごとの例外 <small>＋出す・−出さない</small></th></tr></thead>
+      <thead><tr><th>タブ<small class="ta-key">灰色の名前: 見出しに出していないデータ元</small></th>${roles.map((r) => `<th>${escapeHtml(r)}${r === DEV ? "<small>いつも全部</small>" : ""}</th>`).join("")}<th>人ごとの例外 <small>＋出す・−出さない</small></th></tr></thead>
       <tbody>${body}</tbody></table>
-    ${q && !body ? `<p class="ps-hint">「${escapeHtml(q)}」に当たるタブはありません。</p>` : ""}
+    ${!body ? `<p class="ps-hint">${person != null ? "この人の例外はまだありません（行の「＋ 例外」で足せます）。" : `「${escapeHtml(q)}」に当たるタブはありません。`}</p>` : ""}
     <p class="ps-hint ta-foot">✓ 出す・✕ 出さない。出さないタブは、その人の見出しから外れ、一覧・集計・ダッシュボードのパネルでも読めません。
       あとから足したデータ元は、決めるまで全員に出ます。人ごとの例外は、区分の決まりより先に効きます（アクセス権限の行に置きます）。</p>
   </section>`;
@@ -124,6 +135,7 @@ function bind(box, can) {
   const s = $("#taSearch");
   if (s) TPA.onText(s, (el) => { query = el.value; const at = el.selectionStart; paint(); const n = $("#taSearch"); if (n) { n.focus(); try { n.setSelectionRange(at, at); } catch (_) { /* 選べない */ } } });
   $("#taOnly").onchange = (e) => { onlyHidden = e.target.checked; paint(); };
+  box.querySelectorAll("[data-ta-person]").forEach((b) => { b.onclick = () => { const id = +b.dataset.taPerson; person = person === id ? null : id; paint(); box.querySelector(`[data-ta-person="${id}"]`)?.focus(); }; });
   box.querySelectorAll("[data-ta-fold]").forEach((b) => { b.onclick = () => { const f = folded(), g = b.dataset.taFold; if (f.has(g)) f.delete(g); else f.add(g); TPA.local.set(FOLD_KEY, [...f]); paint(); }; });
   if (!can) return;
   const flip = (key, role, off) => { const set = new Set(draft[key] || []); if (off) set.add(role); else set.delete(role); draft[key] = mstate.data.tabaccess.roles.filter((r) => set.has(r)); };
@@ -161,16 +173,17 @@ async function putException(row, key, value) {
 }
 function addMenu(key, at) {
   const r = at.getBoundingClientRect(), has = new Set((exceptions()[key] || []).map(([, , row]) => row.id));
+  // 例外の列は表の右端なので、面は押した所の右端から左へ開く（マスタ管理の窓の外へ出さない）
   const people = (mstate.data.access || []).filter((row) => !has.has(row.id) && row["権限区分"] !== DEV);
-  TPA.menu({ x: r.left, y: r.bottom + 2, head: "だれだけ例外にするか", items: people.length ? people.flatMap((row) => [
+  TPA.menu({ x: r.right - 340, y: r.bottom + 2, head: "だれだけ例外にするか", items: people.length ? people.flatMap((row) => [
     { label: `${who(row)}（${row["権限区分"]}）だけ出す`, icon: "＋", run: () => putException(row, key, "出す") },
     { label: `${who(row)}（${row["権限区分"]}）だけ出さない`, icon: "−", run: () => putException(row, key, "出さない") },
-  ]) : [{ label: "例外にできる人がいません（人ごとの表で足してください）", disabled: true }] });
+  ]) : [{ label: "例外にできる人がいません", disabled: true, why: "「人ごと」の表で人を足すと、ここに並びます" }] });
 }
 function chipMenu(key, id, at) {
   const row = (mstate.data.access || []).find((x) => x.id === id); if (!row) return;
   const r = at.getBoundingClientRect();
-  TPA.menu({ x: r.left, y: r.bottom + 2, head: `${who(row)}（${row["権限区分"]}）`, items: [
+  TPA.menu({ x: r.right - 340, y: r.bottom + 2, head: `${who(row)}（${row["権限区分"]}）`, items: [
     { label: "だけ出す", icon: "＋", run: () => putException(row, key, "出す") },
     { label: "だけ出さない", icon: "−", run: () => putException(row, key, "出さない") },
     { sep: true },

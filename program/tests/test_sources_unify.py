@@ -188,7 +188,8 @@ class Groups(Env):
 class LotColumn(Env):
     def test_auto_none_and_chosen(self):
         k = self.add("検査", self.odd)
-        q = lambda **a: self.c.get(f"/api/src/{k}", query_string={"page_size": 100, **a}).get_json()
+        def q(**a):
+            return self.c.get(f"/api/src/{k}", query_string={"page_size": 100, **a}).get_json()
         self.assertEqual(q()["lotColumn"], "ロット", "自動は名前に「ロット」を含む列を選んでしまう（困りごと）")
         cols = self.c.get(f"/api/sources/{k}/columns").get_json()
         self.assertEqual((cols["autoLot"], cols["lotSet"]), ("ロット", ""))
