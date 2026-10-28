@@ -4,10 +4,10 @@
 // ② 仕掛のカードを押すと直す欄に変わる（変える… でも）。設備の列を変えて保存 → カードに出る。「既定に戻す」で既定に戻る
 // ③ データ元を足す（共有の .sqlite3 を 1 つ）→ 見出しにタブが出る → 開くと一覧が出る → 消すとタブが消える
 // ④ 見出しの「仕掛」のタブ: 品質異常と同じ部品で 1,200 件・ロット番号の列。品質データの「元ファイルを直す」案内はデータ元を開く
-// ⑤ 参照先には品質データの場所が出ない（直す所は 1 つ）
+// ⑤ 参照先・作業実績の頁は無く（版 3.58.0）、そのほかの接続にも品質の場所が出ない（直す所は 1 つ）
 // ⑥ 1728×1152・1280×720 で、データ元の頁が横にはみ出さない・カードの場所が切れない
 // 全部合えば終了コード 0。
-import { launch, sleep, parseView } from "./ui-harness.mjs";
+import { launch, sleep, parseView, showField } from "./ui-harness.mjs";
 
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 400)}`}`); if (!ok) fails.push(name); };
@@ -38,6 +38,7 @@ try {
       // ② 仕掛を直す（カードを押す）→ 設備の列を変えて保存 → 既定に戻す
       await p.click('#masterSettings tr[data-key="wip"] .sr-nm'); await sleep(300);
       check("② カードを押すと直す欄に変わる", (await cards(p)).find((c) => c.key === "wip").open, await cards(p));
+      await showField(p, '#masterSettings .sr-card.is-open [data-sr="equip"]');
       await p.fill('#masterSettings .sr-card.is-open [data-sr="equip"]', "BOX設計_設備名");
       await p.selectOption('#masterSettings .sr-card.is-open [data-sr="mode"]', "そのまま");
       await p.click("#masterSettings .sr-card.is-open [data-sr-save]"); await sleep(1500);
@@ -51,8 +52,10 @@ try {
       // ③ 足す → タブ → 開く → 消す
       const lotPlace = cs[0].path;
       await p.click("#srAdd"); await sleep(300);
+      await showField(p, '#masterSettings .sr-card.is-open [data-sr="name"]');
       await p.fill('#masterSettings .sr-card.is-open [data-sr="name"]', "品質の控え");
-      await p.fill('#masterSettings .sr-card.is-open [data-sr="place"]', lotPlace);
+      await showField(p, '#masterSettings .sr-card.is-open [data-sr-conn="place"]');
+      await p.fill('#masterSettings .sr-card.is-open [data-sr-conn="place"]', lotPlace);
       await p.click("#masterSettings .sr-card.is-open [data-sr-save]"); await sleep(1800);
       const added = (await cards(p)).find((c) => c.name === "品質の控え");
       const tab = await p.$$eval(".screen-tabs [data-screen^='src:']", (bs) => bs.map((b) => b.textContent.trim()));
@@ -68,10 +71,10 @@ try {
       const gone = await p.$$eval(".screen-tabs [data-screen^='src:']", (bs) => bs.map((b) => b.textContent.trim()));
       check("③ 消すとカードとタブが消え、開いていた画面は品質異常へ戻る",
         !(await cards(p)).some((c) => c.name === "品質の控え") && !gone.includes("品質の控え") && (await p.evaluate(() => document.querySelector("#tabList").getAttribute("aria-selected"))) === "true", gone);
-      // ⑤ 参照先に品質データの場所が出ない
-      await openTab(p, "paths");
-      const keys = await p.$$eval("#masterSettings .ps-card[data-key]", (xs) => xs.map((x) => x.dataset.key));
-      check("⑤ 参照先には品質データの場所・表が出ない（直す所は データ元 だけ）", !keys.includes("lot_list.source") && !keys.includes("lot_list.table") && keys.includes("update.source"), keys);
+      // ⑤ 参照先の頁は無く（版 3.58.0）、そのほかの接続にも品質の場所は出ない（直す所は品質の接続の段だけ）
+      const keys = await p.$$eval("#masterSettings tr.sr-orow", (xs) => xs.map((x) => x.dataset.other));
+      const navPaths = await p.$('#masterTabs [data-tab="paths"], #masterTabs [data-tab="worklog"]');
+      check("⑤ ナビに参照先・作業実績が無く、そのほかの接続には品質の場所・表が出ない", !navPaths && !keys.includes("lot_list.source") && !keys.includes("lot_list.table") && keys.includes("update.source"), keys);
       await p.click("#masterCloseBtn"); await sleep(300);
       // ④ 仕掛のタブ
       await p.click('.screen-tabs [data-screen="src:wip"]'); await sleep(3500);

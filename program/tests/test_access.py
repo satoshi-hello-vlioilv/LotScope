@@ -280,6 +280,7 @@ class Presence(Env):
         self.seed("boss", "メンテナンス者")
         self.as_("boss")
         self.c.get("/api/masters/equipment")
+        self.c.get("/api/access/me")        # 読むだけで置かれるマスタ（タブの権限 tab_access など。版 3.58.0）を先に置いてから数える
         share = self.tmp / "share"
         before = sorted(p.name for p in share.glob("*.json"))
         h = presence.presence_dir() / "history"

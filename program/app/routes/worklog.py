@@ -10,12 +10,17 @@ import app_env
 from .. import effective_settings
 from ..repositories.master_store import MasterError
 from ..services import lot_list, pivot, shifts, work_log, work_summary
-from .common import base_rev, bp, can_write, error, master_call, master_repo
+from .common import base_rev, bp, can_write, error, master_call, master_repo, tab_denied
 
 
 class FolderUnreachable(MasterError):
     """作業実績のフォルダに届かない（探せない）。"""
     kind, status = "unreachable", 503
+
+
+def _lot_col():
+    from .sources import lot_col_of
+    return lot_col_of("work")
 
 
 def _params():
@@ -63,12 +68,15 @@ def worklog_plan(need_copy=True, key=None, rows=None, wait=True, joined=True):
     wait: 初めての写しを待つ（False は待たない。いくつもの設備をまとめて待つ所: start_mirrors）
     joined: データ元の結合を当てる（版 3.53.0）"""
     key = request.args.get("equip", "") if key is None else key
+    denied = tab_denied("work", "実績") if joined else None        # タブの権限（版 3.58.0）
+    if denied:
+        return None, denied
     wl = _params()
     row = next((r for r in (master_repo().work_logs() if rows is None else rows) if r.get("キー") == key), None)
     if not key or row is None:
-        return None, error("その設備は作業実績に登録されていません。「マスタ管理」の「作業実績」でフォルダを探してください。", 404, "unknown")
+        return None, error("その設備は作業実績に登録されていません。「マスタ管理」の「データ元」の「実績」でフォルダを探してください。", 404, "unknown")
     if str(row.get("表示") or "有") == "無":
-        return None, error(f"「{row.get('設備名')}」は表示しない設定です（「マスタ管理」の「作業実績」で変えられます）。", 403, "hidden")
+        return None, error(f"「{row.get('設備名')}」は表示しない設定です（「マスタ管理」の「データ元」の「実績」で変えられます）。", 403, "hidden")
     ms = _mirrors()
     found, err = _found(wl)
     path = work_log.resolve(row, wl["folder"], found) if not err else None
@@ -78,7 +86,7 @@ def worklog_plan(need_copy=True, key=None, rows=None, wait=True, joined=True):
         m = ms.peek(key)      # フォルダに届かない・見つからなくても、前に写した物があればそれで見せる（fail-open）
         if m is None or not m.source_info()["mirrored"]:
             why = err or (f"「{row.get('ファイル名')}」が作業実績のフォルダに見つかりません（名前が変わったか、消されました）。"
-                          "「マスタ管理」の「作業実績」で結ぶファイルを選び直してください。")
+                          "「マスタ管理」の「データ元」の「実績」で結ぶファイルを選び直してください。")
             return None, error(why, 404 if not err else 503, "missing" if not err else "unreachable",
                                equip={"key": key, "name": row.get("設備名"), "file": row.get("ファイル名")})
     read = m.read_path(wait=wait)
@@ -138,7 +146,8 @@ def worklog_list():
         out = lot_list.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"],
                              page=a.get("page", 1), page_size=a.get("page_size", plan["page_size"]),
                              search=a.get("search", ""), filters=a.get("filters", ""), sorts=a.get("sorts", ""), marks=a.get("marks", ""), calc=a.get("calc", ""),
-                             group=a.get("group") == "1", table_candidates=work_log.TABLE_CANDIDATES, grouping=grouping)
+                             group=a.get("group") == "1", table_candidates=work_log.TABLE_CANDIDATES, grouping=grouping,
+                             lot_col=_lot_col())
     except Exception as e:
         return error(str(e), 503, source=plan["source"], equip=plan["equip"])
     out["source"], out["equip"] = plan["source"], plan["equip"]
@@ -179,7 +188,8 @@ def worklog_pivot():
                 "pattern": pat["name"] if pat else ""}
         out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
                           filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
-                          table_candidates=work_log.TABLE_CANDIDATES, work=work, month=a.get("month", ""), box=a.get("box", ""))
+                          table_candidates=work_log.TABLE_CANDIDATES, work=work, month=a.get("month", ""), box=a.get("box", ""),
+                          lot_col=_lot_col())
         out["shiftPattern"] = work["pattern"]
     except pivot.PivotError as e:
         return error(str(e), 400)

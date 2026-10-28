@@ -27,30 +27,34 @@ ITEMS = [
              "保存するとすぐ、このファイルを手元へ写し直して一覧に使います。"},
     {"key": "lot_list.table", "label": "品質異常の表", "kind": "text", "page": "sources",
      "hint": "元ファイルの中の表の名前。空なら 仕掛 → 品質情報 → 品質 → 保留 の順に探します。"},
-    {"key": "lot_list.refresh_seconds", "label": "元ファイルを確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600,
+    {"key": "lot_list.refresh_seconds", "label": "品質の元ファイルを確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600, "page": "sources",
      "hint": "この間隔で元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},
-    {"key": "lot_list.stale_hours", "label": "元データが古いと警告するまで（時間）", "kind": "number", "min": 0, "max": 24 * 60,
+    {"key": "lot_list.stale_hours", "label": "品質の元データが古いと警告するまで（時間）", "kind": "number", "min": 0, "max": 24 * 60, "page": "sources",
      "hint": "元ファイルの最後の更新からこの時間を過ぎたら、一覧の上で警告します。0 にすると警告しません。土日に更新しない運用なら 72 など。"},
-    {"key": "work_log.folder", "label": "作業実績のフォルダ（設備ごとの実績 .sqlite3 を置く所）", "kind": "folder", "page": "worklog",
+    {"key": "work_log.folder", "label": "実績のフォルダ（設備ごとの実績 .sqlite3 を置く所）", "kind": "folder", "page": "sources",
      "hint": "設備ごとの実績ファイル（例: 実績_CR1.sqlite3）が並ぶフォルダ（例: \\\\Nlmsrvngy03\\Read\\【New】実績）。"
-             "保存すると、このフォルダを探して設備を見つけ、「マスタ管理」の「作業実績」に並べます（表示する・しないはそこで決めます）。"},
-    {"key": "work_log.pattern", "label": "作業実績のファイル名の決まり", "kind": "pattern", "page": "worklog",
+             "保存すると、このフォルダを探して設備を見つけ、下の設備の表に並べます（表示する・しないはそこで決めます）。"},
+    {"key": "work_log.pattern", "label": "実績のファイル名の決まり", "kind": "pattern", "page": "sources",
      "hint": "* の所が設備名になります（既定: 実績_*.sqlite3）。* はちょうど 1 つ書きます。"},
+    {"key": "work_log.refresh_seconds", "label": "実績の元ファイルを確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600, "page": "sources",
+     "hint": "この間隔で設備ごとの元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。"},
+    {"key": "work_log.stale_hours", "label": "実績の元データが古いと警告するまで（時間）", "kind": "number", "min": 0, "max": 24 * 60, "page": "sources",
+     "hint": "設備ごとの元ファイルの最後の更新からこの時間を過ぎたら、設備の札と表で「古い」と知らせます。0 にすると知らせません。"},
     {"key": "lotdsp_import.url", "label": "ロット問い合わせ（LotDsp）の URL", "kind": "url",
      "hint": "「検索」で読みに行く LotDsp の場所。社内（ログイン不要）ではこのアプリだけで読み、VPN でログインが要るときは"
              " LotDsp の窓が開きます（ログインはその窓で利用者が行う）。貼り付けで取り込むときの「LotDsp を開く」もここを開きます。"},
-    {"key": "schedule.cm3_base_url", "label": "スケジュール（CM3）の URL", "kind": "url",
+    {"key": "schedule.cm3_base_url", "page": "sources", "label": "スケジュール（CM3）の URL", "kind": "url",
      "hint": "設備ごとの作業予定を読みに行く CM3 スケジューリングシステムの場所（例: http://nlmfangyweb1a:9085）。"
              "「スケジュール」のタブは、ここから設備ごとに作業予定を取り、仕掛と突き合わせて並べます。"},
-    {"key": "schedule.client_ip", "label": "CM3 に名乗る端末の IP", "kind": "text",
+    {"key": "schedule.client_ip", "page": "sources", "label": "CM3 に名乗る端末の IP", "kind": "text",
      "hint": "CM3 への問い合わせに入れる端末の IP（CM3 の画面を開いたときにブラウザが送る値と同じ）。"},
-    {"key": "schedule.equipments", "label": "スケジュールの設備", "kind": "text",
+    {"key": "schedule.equipments", "page": "sources", "label": "スケジュールの設備", "kind": "text",
      "hint": "「スケジュール」のタブに並べる設備（「、」か「,」で区切る。例: L-1, L-2, L-3）。"
              "端末区分が既定（4）と違う設備は「L-9:2」のように : の後ろに書きます。HOT コイル作業順はこの設備から作ります。"},
-    {"key": "schedule.inspect_keywords", "label": "スケジュールの点検の行の言葉", "kind": "text",
+    {"key": "schedule.inspect_keywords", "page": "sources", "label": "スケジュールの点検の行の言葉", "kind": "text",
      "hint": "ロットNo か用途名にこの言葉を含み、板厚・幅のある行を「点検」とします（「、」で区切って複数。既定: 点検板）。"
              "点検の行は製造件数・ロット数・仕掛との突合せから除きます。"},
-    {"key": "schedule.auto_refresh_sec", "label": "スケジュールを取り直す間隔（秒）", "kind": "int", "min": 10, "max": 3600,
+    {"key": "schedule.auto_refresh_sec", "label": "スケジュールを取り直す間隔（秒）", "kind": "int", "min": 10, "max": 3600, "page": "sources",
      "hint": "「スケジュール」の画面を開いている間、この間隔で CM3 から取り直し、変わっていれば画面を出し直します（10〜3600 秒）。"},
     {"key": "update.source", "label": "更新の置き場（新しい版を置くフォルダ）", "kind": "release",
      "check_url": "/__desktop/update/probe",
@@ -63,7 +67,7 @@ ITEMS = [
              "Edge（C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe）を自動で使います。"},
 ]
 # page: その項目を直す頁（マスタ管理のタブ）。ある項目は「参照先」に並べない（同じ値を直す所を 1 つにする）。
-#       品質データの場所・表は「データ元」（版 3.36.0。master-sources.js）、作業実績のフォルダ・決まりは「作業実績」
+#       "sources" … データ元の「接続の設定」（版 3.58.0。品質・実績・スケジュールの場所と間隔。data_sources.CONN_BIND が結ぶ）
 #       値の置き場・確かめ方・版はほかの項目と同じ（PUT /api/settings/<key>）
 BY_KEY = {i["key"]: i for i in ITEMS}
 

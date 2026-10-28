@@ -10,7 +10,7 @@
 //    マスタごとのタブは見出しに出ない・Alt の数字で開ける
 // ⑥ 1728×1152・1280×720: 結合の段が横にはみ出さない・保存の段が窓の下の縁に着いて見える・方式の 4 枚の名前と行の数が切れない
 // 全部合えば終了コード 0。
-import { launch, sleep, parseView, joinDemo } from "./ui-harness.mjs";
+import { launch, sleep, parseView, joinDemo, openJoinSec } from "./ui-harness.mjs";
 
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 500)}`}`); if (!ok) fails.push(name); };
@@ -84,6 +84,7 @@ try {
       // ④ 結合を外して保存 → 列が消える
       await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)"); await openTab(p, "sources");
       await p.click('#masterSettings [data-sr-edit="lot"]'); await sleep(900);
+      await openJoinSec(p);
       for (let i = 0; i < 2; i++) { await p.click(`${J} [data-jn-del]`); await sleep(300); }
       await p.click("#masterSettings .sr-card.is-open [data-sr-save]"); await sleep(2000);
       await p.click("#masterCloseBtn"); await sleep(2500);

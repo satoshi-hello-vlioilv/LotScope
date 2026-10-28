@@ -92,11 +92,12 @@ MASTER_DEFS.shifts = { name: "shift_patterns", label: "勤務体系", group: "�
    勤務体系と同じ形（左に登録済み・右に直す所）。まとめ方（ライン別・工場別など）ごとにグループを並べる */
 MASTER_DEFS.egroups = { name: "equipment_groups", label: "設備グループ", group: "データ", api: "/api/masters/equipgroups", custom: true, render: () => renderEquipGroups() };
 /* 参照先（読みに行く場所）。表ではなくカードで出す特別なタブ（custom）。中身は /api/settings の items */
-MASTER_DEFS.paths = { name: "path_settings", label: "参照先", group: "つなぎ先", api: "/api/settings", custom: true, admin: true };
+/* 版 3.58.0: 参照先・作業実績の頁はナビに出さない（中身は「データ元」の接続の設定・設備の段と「そのほかの接続」で直す）。定義は読み込みと保存の見張りに使う */
+MASTER_DEFS.paths = { name: "path_settings", label: "参照先", group: "つなぎ先", api: "/api/settings", custom: true, admin: true, visible: () => false };
 /* 作業実績（設備ごとの実績ファイル）: フォルダを探して設備を見つけ、設備ごとに表示する・しない・結ぶファイルを決める（管理のマスタ）。
    表示ルール（表示列・条件など）は行のキーに結ぶので、ファイルの名前が変わっても設備ごとの見え方は続く（services/work_log.py） */
-MASTER_DEFS.worklog = { name: "work_log_files", label: "作業実績", group: "つなぎ先", api: "/api/masters/worklog", custom: true, admin: true,
-  render: () => renderWorklog() };
+MASTER_DEFS.worklog = { name: "work_log_files", label: "実績の設備", group: "つなぎ先", api: "/api/masters/worklog", custom: true, admin: true,
+  render: () => renderWorklog(), visible: () => false };
 /* マスタの置き場（共有フォルダ）。見るのはだれでも、変えるのは開発者・メンテナンス者（サーバーの門番 _release_place_gate）。
    ナビの項目には、頁を開かなくても分かるように今の状態の札（手元・共有・届かない）を添える。 */
 MASTER_DEFS.place = { name: "master_place", label: "マスタの置き場", group: "管理", api: "/api/masters/place", custom: true, render: () => renderMasterPlace() };
@@ -134,6 +135,7 @@ MASTER_DEFS.presence = { name: "presence", label: "利用状況", group: "管理
    答えるのは窓（desktop/src/distribute.rs）。置く・配るは開発者・メンテナンス者だけ（決めるのは services/access.py）。 */
 MASTER_DEFS.release = { name: "release", label: "アプリの配布", group: "管理", api: "/__desktop/release", custom: true, render: () => renderRelease() };
 
+const TA = {};      // アクセス権限の「見出しのタブ」の部品（master-tabaccess.js が renderTabAccess・accessToolbar を置く）
 const mstate = {
   tab: "equipment",
   data: { equipment: null, rolls: null, paths: null, worklog: null, shifts: null, egroups: null, access: null, presence: null, release: null },
@@ -448,7 +450,9 @@ function bindSettingCard(card) {
   };
 }
 /* ほかの画面から「参照先」を開く（品質異常で元ファイルが読めない・古いとき） */
-async function openMasterAt(tab) {
+async function openMasterAt(tab, focus = "") {
+  if (tab === "paths" || tab === "worklog") { focus = focus || (tab === "worklog" ? "work" : "others"); tab = "sources"; }   // 版 3.58.0: 頁はデータ元にまとめた
+  mstate.focus = focus;      // 開いたら、その元（か「そのほかの接続」）を開いて見せる（master-sources.js が読んで消す）
   if (!$("#masterOverlay").classList.contains("hidden") && tab !== mstate.tab && !(await leaveOk(`${(MASTER_DEFS[tab] || {}).label || "ほか"}のタブへ移る`))) return;
   mstate.tab = tab;
   await openMaster();
@@ -456,13 +460,18 @@ async function openMasterAt(tab) {
 window.openMasterAt = openMasterAt;
 
 function renderMasterTable() {
-  const def = MASTER_DEFS[mstate.tab], custom = !!def.custom;
+  const def = MASTER_DEFS[mstate.tab];
+  // アクセス権限の「見出しのタブ」（版 3.58.0。master-tabaccess.js）は、人ごとの表の代わりに頁を描く
+  const tabsMode = mstate.tab === "access" && mstate.accessMode === "tabs" && !!TA.renderTabAccess;
+  const custom = !!def.custom || tabsMode;
   document.querySelector("#masterOverlay .master-toolbar").classList.toggle("hidden", custom);
   document.querySelector("#masterOverlay .master-table-wrap").classList.toggle("hidden", custom);
   $("#masterDetail").classList.toggle("hidden", custom);
   $("#masterSettings").classList.toggle("hidden", !custom);
   clearInterval(mstate.presenceTimer);
+  if (tabsMode) { TA.renderTabAccess(); return; }
   if (custom) { (def.render || renderSettings)(); const go = $("#masterPlaceGo"); if (go) go.hidden = mstate.tab === "place"; return; }
+  if (TA.accessToolbar) TA.accessToolbar();
   const rows = filteredRows(mstate.tab);
   $("#masterSearch").placeholder = def.searchPlaceholder || "検索";
   const widths = columnWidths(def, mstate.data[mstate.tab] || []);
@@ -684,19 +693,19 @@ const wlState = (x) => (x.stale ? chip("古い", "c-warn", `${Math.round(x.ageHo
 const wlFileState = (x) => x.state === "ok" ? "" : x.state === "renamed" ? chip("名前が変わった", "c-warn", `登録の名前「${x.file}」→ いま「${x.now}」。同じファイルをたどって読みます（「探す」で登録の名前も直ります）`)
   : x.state === "missing" ? chip("見つからない", "c-off", `「${x.file}」がフォルダにありません。右の選択で、結ぶファイルを選び直してください`) : chip("確かめられない", "c-plain", "フォルダに届きません");
 /** 設備の並び替え（⋮⋮ を引く・⋮⋮ を選んで ↑↓）。枠（#masterSettings）は作り直さないので 1 回だけ付ける */
-function bindWorklogOrder(box) {
+function bindWorklogOrder(box, again) {
   if (box.dataset.wlOrder) return;
   box.dataset.wlOrder = "1";
   const rows = () => [...box.querySelectorAll(".wl-tablelist tbody tr[data-key]")];
   const save = async (keys, focusKey = "") => {
     const res = await withLockWait(() => masterRequest("/api/masters/worklog/order", TPA.json("PUT", { keys })), () => {});
-    if (!res.ok) { renderWorklog({ notice: ["ng", "✕ " + escapeHtml(res.data.error || "並びを保存できませんでした。")] }); return; }
+    if (!res.ok) { again({ notice: ["ng", "✕ " + escapeHtml(res.data.error || "並びを保存できませんでした。")] }); return; }
     emit("tpa:worklog-changed");
-    await renderWorklog({ notice: ["ok", "✓ 設備の並びを変えました（作業実績のタブも同じ並びです）"] });
+    await again({ notice: ["ok", "✓ 設備の並びを変えました（実績のタブも同じ並びです）"] });
     if (focusKey) box.querySelector(`tr[data-key="${CSS.escape(focusKey)}"] [data-wl-grip]`)?.focus();
   };
   TPA.sortable(box, { items: rows, keyOf: (tr) => tr.dataset.key, handle: "[data-wl-grip]", axis: "y",
-    enabled: () => mstate.tab === "worklog" && !!box.querySelector("[data-wl-grip]"), onOrder: (keys) => save(keys) });
+    enabled: () => box.isConnected && !!box.querySelector("[data-wl-grip]"), onOrder: (keys) => save(keys) });
   box.addEventListener("keydown", (e) => {
     const g = e.target.closest("[data-wl-grip]");
     if (!g || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
@@ -705,11 +714,12 @@ function bindWorklogOrder(box) {
     if (keys) save(keys, k);
   });
 }
-async function renderWorklog({ fresh = false, notice = null } = {}) {
-  const box = $("#masterSettings");
-  if (!mstate.data.worklog) box.innerHTML = '<p class="ps-loading">作業実績のフォルダを読んでいます…</p>';
+/* 実績の設備の表（版 3.58.0 から、データ元の「実績」の欄の中に描く: box・embed。フォルダと決まりは接続の設定で直すので、embed では「探す」だけ） */
+async function renderWorklog({ fresh = false, notice = null, box = $("#masterSettings"), embed = false } = {}) {
+  if (!mstate.data.worklog || !box.firstChild) box.innerHTML = '<p class="ps-loading">実績のフォルダを読んでいます…</p>';
   const r = await masterRequest("/api/masters/worklog" + (fresh ? "?fresh=1" : ""), { cache: "no-store" });
-  if (mstate.tab !== "worklog") return;
+  if (!box.isConnected) return;
+  const again = (o = {}) => renderWorklog({ box, embed, ...o });
   if (!r.ok) { box.innerHTML = `<p class="ps-loading">作業実績の登録を読めませんでした: ${escapeHtml(r.data.error || "")}</p>`; return; }
   const d = mstate.data.worklog = r.data;
   mstate.loadedRev.worklog = d.revision;
@@ -743,8 +753,8 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
   ];
   const tally = [`<span class="wl-n">表示 ${shown}</span>`, miss.length ? `<span class="wl-n is-ng">見つからない ${miss.length}</span>` : "",
     old.length ? `<span class="wl-n is-warn">古い ${old.length}</span>` : "", shown < d.items.length ? `<span class="wl-n">表示しない ${d.items.length - shown}</span>` : ""].join("");
-  box.innerHTML = `<section class="wl-page">
-    <div class="wl-src">
+  box.innerHTML = `<section class="wl-page${embed ? " is-embed" : ""}">
+    <div class="wl-src"${embed ? " hidden" : ""}>
       <label class="wl-field"><span>フォルダ</span><input class="ps-input" id="wlFolder" value="${escapeHtml(d.folder)}" spellcheck="false"${dis}></label>
       <label class="wl-field wl-pat" title="* の所が設備名になります（例: 実績_CR1.sqlite3 → CR1）"><span>ファイル名の決まり</span><input class="ps-input" id="wlPattern" value="${escapeHtml(d.pattern)}" spellcheck="false"${dis}></label>
       <button type="button" class="btn-primary" id="wlScan" title="フォルダの中で決まりに合うファイルを探し、新しい設備を足し、名前が変わったファイルをたどって登録を直します"${dis}>探す</button>
@@ -753,8 +763,9 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
     ${d.error ? `<div class="dz-bad"><b>フォルダに届きません。</b>${escapeHtml(d.error)}<br>場所・ネットワークのつながりを確かめてください。前に写した設備は、写しのまま見られます。</div>` : ""}
     ${todo.length ? `<div class="wl-todo" role="region" aria-label="直すこと"><b>直すことが ${todo.length} つあります</b>${todo.join("")}</div>` : ""}
     <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}
-      <small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>
-      ${sortable ? '<small class="wl-sorthint">⋮⋮ をつかんで並べ替え（選んで ↑↓ でも）。作業実績のタブも同じ並びになります</small>' : ""}</div>
+      ${embed ? "" : "<small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>"}
+      ${embed && can ? '<button type="button" class="pz-btn wl-rescan" data-wl-scan title="フォルダの中で決まりに合うファイルを探し、新しい設備を足し、名前が変わったファイルをたどって登録を直します">↻ フォルダを探し直す</button>' : ""}
+      ${sortable ? '<small class="wl-sorthint">⋮⋮ をつかんで並べ替え（選んで ↑↓ でも）。実績のタブも同じ並びになります</small>' : ""}</div>
     <div class="master-table-wrap pz-wrap"><table class="master-table wl-tablelist">
       <thead><tr>${sortable ? '<th class="wl-gripcell" aria-label="並び"></th>' : ""}<th>表示</th><th>設備名</th><th>ファイル</th><th class="num">最後の更新</th><th class="num">大きさ</th><th>表</th><th class="grow"></th></tr></thead>
       <tbody>${rows}</tbody></table>
@@ -762,7 +773,7 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
   </section>`;
   const say = (cls, html) => { const n = $("#wlNotice"); n.className = `ps-result ${cls}`; n.innerHTML = html; };
   const changed = () => emit("tpa:worklog-changed");
-  bindWorklogOrder(box);
+  bindWorklogOrder(box, again);
   const scan = async () => {
     const w = TPA.waiting({ title: "作業実績のフォルダを探しています", from: $("#wlFolder").value, now: "決まりに合うファイルを探し、設備の登録に当てています…",
       note: "共有のフォルダを読むので、数秒かかることがあります。" });
@@ -774,7 +785,7 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
     if (k.renamed.length) parts.push(`名前が変わった ${k.renamed.length} 台をたどりました（${k.renamed.map((x) => `${escapeHtml(x.from)} → ${escapeHtml(x.to)}`).join("・")}）`);
     if (k.missing.length) parts.push(`見つからない ${k.missing.length} 台（${k.missing.map(escapeHtml).join("・")}）: 表の選択で結ぶファイルを選び直せます`);
     changed();
-    renderWorklog({ notice: [k.missing.length ? "wait" : "ok", "✓ " + parts.join("。")] });
+    again({ notice: [k.missing.length ? "wait" : "ok", "✓ " + parts.join("。")] });
   };
   /* フォルダ・決まりを直したら、参照先へ保存してから探す（1 つの押下で済む）。直していなければ探すだけ */
   $("#wlScan") && ($("#wlScan").onclick = async () => {
@@ -791,7 +802,7 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
     }
     scan();
   });
-  TPA.pathPick($("#wlFolder"), { purpose: "worklog", pattern: () => $("#wlPattern").value, title: "作業実績のフォルダを選ぶ",
+  if (!embed) TPA.pathPick($("#wlFolder"), { purpose: "worklog", pattern: () => $("#wlPattern").value, title: "作業実績のフォルダを選ぶ",
     note: "設備ごとの実績ファイルが並ぶフォルダを選びます（印: 決まりに合うファイルの数）。選んだら「探す」で設備を並べます。",
     chipsAfter: box.querySelector(".wl-src"), exclude: ["worklog"] });
   ["#wlFolder", "#wlPattern"].forEach((sel) => $(sel)?.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#wlScan").click(); }));
@@ -805,10 +816,10 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
   const put = async (tr, body, what) => {
     const res = await withLockWait(() => masterRequest(`/api/masters/worklog/${tr.dataset.id}`, TPA.json("PUT", { ...body, base_rev: +tr.dataset.rev })),
       (x) => say("wait", lockWaitText(x, "保存", boldName)));
-    if (res.status === 409 && res.data.kind === "conflict") { renderWorklog({ notice: ["ng", "開いたあとに、ほかの PC がこの設備を直しました。読み直したので、もう一度直してください。"] }); return; }
+    if (res.status === 409 && res.data.kind === "conflict") { again({ notice: ["ng", "開いたあとに、ほかの PC がこの設備を直しました。読み直したので、もう一度直してください。"] }); return; }
     if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "保存できませんでした。")); return; }
     tr.dataset.rev = res.data.rev; changed();
-    if (what) renderWorklog({ notice: ["ok", `✓ ${escapeHtml(what)}`] });
+    if (what) again({ notice: ["ok", `✓ ${escapeHtml(what)}`] });
   };
   box.querySelectorAll("tr[data-id]").forEach((tr) => {
     const name = () => tr.querySelector(".wl-name").value.trim();
@@ -824,7 +835,7 @@ async function renderWorklog({ fresh = false, notice = null } = {}) {
       if (!confirm(`「${name()}」の登録を消します。フォルダのファイルは消しません（次に「探す」と、新しい設備として足されます）。よろしいですか？`)) return;
       const res = await masterRequest(`/api/masters/worklog/${tr.dataset.id}?rev=${tr.dataset.rev}`, { method: "DELETE" });
       if (!res.ok) { say("ng", "✕ " + escapeHtml(res.data.error || "消せませんでした。")); return; }
-      changed(); renderWorklog({ notice: ["ok", `✓ 「${escapeHtml(name())}」の登録を消しました`] });
+      changed(); again({ notice: ["ok", `✓ 「${escapeHtml(name())}」の登録を消しました`] });
     });
   });
   if (!paths) ensureTabLoaded("paths").catch(() => {});   // フォルダを直したときの行の版（参照先）を用意しておく
@@ -1886,5 +1897,8 @@ function afterMasterChange() { emit("tpa:masters-changed"); }
 if (window.MasterConv) window.MasterConv({ $, escapeHtml, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, lockWaitText, boldName,
   canWrite, readOnlyWhy, shareDown });
 if (window.MasterSources) window.MasterSources({ $, escapeHtml, emit, MASTER_DEFS, mstate, masterRequest, withLockWait, lockWaitText, boldName,
-  canWrite, readOnlyWhy, shareDown, chip, goTab, ensureTabLoaded, saveBy });
+  canWrite, readOnlyWhy, shareDown, chip, goTab, ensureTabLoaded, saveBy, renderWorklog });
+// アクセス権限の「見出しのタブ」（master-tabaccess.js。版 3.58.0）: 部品を渡し、描く関数を受け取る（TA）
+Object.assign(TA, { $, escapeHtml, emit, mstate, masterRequest, withLockWait, lockWaitText, boldName, readOnlyWhy, shareDown, renderMasterTable });
+if (window.MasterTabAccess) window.MasterTabAccess(TA);
 })();

@@ -242,7 +242,12 @@ async function loadMe() {
   chip.title = `${me.loginId || "（ログインID 不明）"} ／ ${me.pcName || "（PC名 不明）"}・${me.role}・マスタ編集「${me.masterEdit}」`;
   $("#masterBtn").classList.toggle("hidden", !me.canOpenMaster);
   paintRevoked(me.revoked);
+  const hid = JSON.stringify(me.hiddenTabs || []);
+  if (hid !== state.hiddenSig) { state.hiddenSig = hid; if (state.sources) loadSources(); }     // タブの権限が変わった → タブを組み直す
 }
+/* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの services/access.py の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc） */
+function tabHidden(key) { return !!state.me && (state.me.hiddenTabs || []).includes(key); }
+var FIXED_TAB_KEY = { dash: "dash", list: "lot", calc: "calc", work: "work" };   // 決まった画面 → タブの権限のキー（var: 初めの画面を出す前にも読む）
 let mePopOff = null;
 function closeMePop() { $("#mePop").classList.add("hidden"); if (mePopOff) mePopOff(); mePopOff = null; }
 $("#meChip").onclick = () => {
@@ -352,7 +357,7 @@ function updateText() {
     case "staging": return { tone: "info", html: `版 ${esc(u.detail)} を取り込んでいます…（そのまま使えます）` };
     case "checking": case "idle": return { tone: "info", html: "更新の置き場を確かめています…" };
     case "error": return { tone: "warn", html: lines(`<b>更新を取り込めません。</b>${esc(u.problem || u.detail)}`, where, failed) };
-    case "off": return outdated ? { tone: "warn", html: newer + "「マスタ管理」→「参照先」の「更新の置き場」に、配る ZIP を置くフォルダを入れると、各 PC が自動で取り込みます。" } : null;
+    case "off": return outdated ? { tone: "warn", html: newer + "「マスタ管理」→「データ元」の「そのほかの接続」の「更新の置き場」に、配る ZIP を置くフォルダを入れると、各 PC が自動で取り込みます。" } : null;
     default: // latest: 置き場の最新を使っている
       if (outdated) return { tone: "warn", html: lines(newer + (v.distributed ? "開き直すと配る版になります。"
         : `置き場にまだありません。「マスタ管理」→「アプリの配布」で、配る ZIP（${esc(APP.name)}-${esc(v.latestVersion)}-windows.zip）を置いて配ってください。`), where, failed) };
@@ -966,6 +971,7 @@ function showScreen(name, opts = {}) {
     setCurrent(g, name); name = gs;
   }
   if (!SCREENS[name] || state.screen === name) return;
+  if (FIXED_TAB_KEY[name] && tabHidden(FIXED_TAB_KEY[name])) { if (!state.screen) showScreen(firstAllowed(), opts); return; }   // 出さないタブ（Alt＋数字・頁の印でも）
   // 保存していない変更（ダッシュボードの編集・表示列やルールの窓）があれば、移る前に聞く（版 3.43.0。何も無ければすぐ移る）
   if (state.screen && TPA.unsaved.pending(["dash", "list"]).length) {
     TPA.unsaved.leave(["dash", "list"], `「${$(SCREENS[name].tab).textContent.trim()}」の画面へ移る`).then((ok) => { if (ok) moveTo(name, opts); });
@@ -975,6 +981,7 @@ function showScreen(name, opts = {}) {
 }
 function moveTo(name, { focus = true } = {}) {
   if (!SCREENS[name] || state.screen === name) return;
+  if (FIXED_TAB_KEY[name] && tabHidden(FIXED_TAB_KEY[name])) { if (!state.screen) showScreen(firstAllowed(), opts); return; }   // 出さないタブ（Alt＋数字・頁の印でも）
   const prev = state.screen;
   state.screen = name;
   const panel = SCREENS[name].panel;
@@ -1040,9 +1047,19 @@ function paintMstEmpty() {
 async function loadSources() {
   let list = [];
   try { list = (await (await fetch("/api/sources")).json()).items || []; } catch (_) { return; }
+  // 出さないタブ（タブの権限。版 3.58.0）の元は、タブ・グループの札・マスタのタブから外す（サーバーも読ませない）
+  list = list.map((d) => (tabHidden(d.key) ? { ...d, listed: false } : d));
   state.sources = list;
   window.LotList.defineSources(list);
   const nav = $(".screen-tabs");
+  // 決まった画面のタブ（ダッシュボード・品質・計算・実績）: 品質・実績の名前はデータ元の名前（版 3.58.0。データ元で変えられる）・出さないタブは隠す
+  Object.entries(FIXED_TAB_KEY).forEach(([screen, key]) => {
+    const b = document.querySelector(`.screen-tabs [data-screen="${screen}"]`); if (!b) return;
+    const d = list.find((x) => x.key === key);
+    if (d) { b.dataset.def = d.name; }
+    b.toggleAttribute("data-denied", tabHidden(key));
+    if (tabHidden(key) && state.screen === screen) setTimeout(() => showScreen(firstAllowed(), { focus: false }), 0);
+  });
   const want = list.filter((d) => d.listed && d.api.startsWith("/api/src/") && !d.group);
   const groups = [...new Set(list.filter((d) => d.listed && d.api.startsWith("/api/src/") && d.group && d.group !== MST_GROUP).map((d) => d.group))];
   // 消した・画面に出さなくした元・空になったグループのタブを外す（開いていたら品質異常へ）
@@ -1116,7 +1133,9 @@ function saveTabPrefs(v) {
   if (Object.keys(v.names).length) out.names = v.names;
   TPA.local.set(TABS_KEY, out); applyTabs();
 }
-const tabEls = () => [...document.querySelectorAll(".screen-tabs [data-screen]")];
+const tabEls = () => [...document.querySelectorAll(".screen-tabs [data-screen]:not([data-denied])")];
+/** 出してよい最初の画面（いまの画面を出さなくしたときに移る所） */
+const firstAllowed = () => (tabEls()[0] || {}).dataset?.screen || "dash";
 const tabDef = (b) => { if (!b.dataset.def) b.dataset.def = b.querySelector(".tab-name")?.textContent || ""; return b.dataset.def; };
 const tabName = (b) => tabPrefs().names[b.dataset.screen] || tabDef(b);
 /** 覚えた名前と並びをタブに当てる（覚えに無いタブ〈足したデータ元〉は、元の並びのまま後ろへ） */
@@ -1267,7 +1286,7 @@ function paintCalcTabLot() {
 function openLotDsp(lotNo, castingNo, tab) {
   const url = (state.config && state.config.lotdsp_url) || "";
   if (!lotNo) return "ロット番号が無いので、LotDsp を開けません";
-  if (!url) return "LotDsp の場所が設定されていません（マスタ管理の「参照先」）";
+  if (!url) return "LotDsp の場所が設定されていません（マスタ管理の「データ元」の「そのほかの接続」）";
   window.open(window.LotDspUrl.build(url, lotNo, castingNo, tab), "_blank", "noopener");
   if (navigator.clipboard) navigator.clipboard.writeText(lotNo).catch(() => {});
   return `LotDsp の「${window.LotDspUrl.label(tab)}」で ${lotNo}${castingNo ? `（鋳造番号 ${castingNo}）` : ""} を開きました（ロット番号も写しました）`;

@@ -14,7 +14,17 @@
 マスタ編集（下から）: 非表示（入口を出さない）/ 閲覧のみ / 部分的編集可（現場のマスタだけ書ける）/ 編集可
     区分ごとの上限で頭打ち（設備作業者は非表示まで）。
     現場のマスタ: 設備マスタ・ロールマスタ。管理のマスタ: アクセス権限・参照先（部分的編集可では書けない）。
+
+見出しのタブ（版 3.58.0。利用者の要望 2026-10-28「表示できるタブを権限管理できるように」）: 2 段で決める。
+    ① 区分の決まり（マスタ tab_access。タブごとに 1 行: 出さない区分）… 区分ごとに、出さないタブ。行の無いタブは全員に出す
+       （あとから足したデータ元も、決めるまでは全員に出る）
+    ② 人ごとの例外（アクセス権限の行の「タブの例外」。JSON {タブ: "出す" | "出さない"}）… その行に当たる人だけ、区分の決まりを上書き
+    開発者はいつも全部のタブ（決める人が自分を締め出さない）。タブはデータ元のキー（lot・work・wip・sch・足した元）と dash・calc。
+    出さないタブは、画面がタブを外し、サーバーはその元の一覧・集計・ダッシュボードのパネルの問い合わせを断る（routes/common.tab_denied）。
 """
+import json
+import re
+
 from .identity import normalize_part
 
 ROLE_DEVELOPER, ROLE_MAINTAINER, ROLE_USER, ROLE_OPERATOR = "開発者", "メンテナンス者", "一般ユーザー", "設備作業者"
@@ -29,7 +39,70 @@ MASTER_EDIT_DEFAULT = ME_FULL
 ROLE_MASTER_EDIT_CAP = {ROLE_DEVELOPER: ME_FULL, ROLE_MAINTAINER: ME_FULL, ROLE_USER: ME_FULL, ROLE_OPERATOR: ME_HIDDEN}
 
 # マスタの区別（MasterStore の名前）。管理のマスタは「部分的編集可」では書けない
-ADMIN_MASTERS = ("access_permissions", "path_settings", "work_log_files", "data_sources")   # 作業実績の設備（どれを見せるか）も管理の決め事
+ADMIN_MASTERS = ("access_permissions", "path_settings", "work_log_files", "data_sources", "tab_access")   # 実績の設備（どれを見せるか）・タブの権限も管理の決め事
+
+# 見出しのタブの権限（版 3.58.0）
+TAB_SHOW, TAB_HIDE = "出す", "出さない"
+TAB_FIXED = (("dash", "ダッシュボード"), ("calc", "転写・ピッチ計算"))   # データ元ではない画面（データ元のタブはデータ元のキー）
+TAB_KEY = re.compile(r"[a-z][a-z0-9]{0,15}")
+TAB_ROLES = tuple(r for r in ("メンテナンス者", "一般ユーザー", "設備作業者"))     # 決められる区分（開発者はいつも全部）
+
+
+def tab_rules(rows):
+    """マスタ tab_access の行 → {タブ: 出さない区分の集合}（知らない区分は数えない）。"""
+    out = {}
+    for r in rows or []:
+        t = str(r.get("タブ") or "").strip()
+        roles = {x for x in re.split(r"[・,、\s]+", str(r.get("出さない区分") or "")) if x in TAB_ROLES}
+        if TAB_KEY.fullmatch(t) and roles:
+            out[t] = roles
+    return out
+
+
+def clean_tab_rules(raw):
+    """画面から来た {タブ: [区分]} → 置ける形（タブの形・区分を確かめる。違えば ValueError）。"""
+    if not isinstance(raw, dict):
+        raise ValueError("タブの権限の形が違います。")
+    out = {}
+    for t, roles in raw.items():
+        t = str(t or "").strip()
+        if not TAB_KEY.fullmatch(t):
+            raise ValueError(f"知らないタブです: {t}")
+        roles = [str(x) for x in (roles or [])]
+        bad = [x for x in roles if x not in TAB_ROLES]
+        if bad:
+            raise ValueError(f"「{'・'.join(bad)}」のタブは決められません（開発者はいつも全部のタブを見ます）。")
+        out[t] = [x for x in TAB_ROLES if x in roles]
+    return out
+
+
+def tab_exceptions(value):
+    """アクセス権限の行の「タブの例外」→ {タブ: 出す|出さない}（壊れた字は空）。"""
+    try:
+        d = json.loads(value) if isinstance(value, str) and value.strip() else (value if isinstance(value, dict) else {})
+    except ValueError:
+        return {}
+    return {str(k): v for k, v in (d or {}).items() if TAB_KEY.fullmatch(str(k)) and v in (TAB_SHOW, TAB_HIDE)}
+
+
+def clean_tab_exceptions(raw):
+    """画面から来た例外 → マスタに置く字（空の例外は ""）。"""
+    d = tab_exceptions(raw)
+    return json.dumps(dict(sorted(d.items())), ensure_ascii=False) if d else ""
+
+
+def hidden_tabs(rule_rows, perm_row, role):
+    """その人（当たった権限の行と区分）に出さないタブの並び。開発者はいつも空。"""
+    if normalize_role(role) == ROLE_DEVELOPER:
+        return []
+    r = normalize_role(role)
+    hidden = {t for t, roles in tab_rules(rule_rows).items() if r in roles}
+    for t, v in tab_exceptions((perm_row or {}).get("タブの例外")).items():
+        if v == TAB_HIDE:
+            hidden.add(t)
+        else:
+            hidden.discard(t)
+    return sorted(hidden)
 
 
 def normalize_role(v):
@@ -147,7 +220,8 @@ def capabilities(f):
             "canDisconnect": role_can(role, "presence:disconnect"),
             "canDisconnectDeveloper": role_can(role, "presence:disconnect", ROLE_DEVELOPER),
             "canForget": role_can(role, "presence:forget"),
-            "canRelease": role_can(role, "release:publish")}
+            "canRelease": role_can(role, "release:publish"),
+            "hiddenTabs": list(f.get("hiddenTabs") or [])}
 
 
 def registered_roles(rows, pairs):
@@ -212,4 +286,4 @@ def master_edit_check(role, level):
 def choices():
     """画面の選択欄（区分・段・区分ごとの上限）。"""
     return {"roles": list(ROLES), "masterEditLevels": list(MASTER_EDIT_LEVELS),
-            "masterEditByRole": {r: master_edit_options(r) for r in ROLES}}
+            "masterEditByRole": {r: master_edit_options(r) for r in ROLES}, "tabRoles": list(TAB_ROLES)}

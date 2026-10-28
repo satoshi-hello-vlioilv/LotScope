@@ -84,29 +84,33 @@ try {
     await p.keyboard.press("Escape"); await sleep(300);
     const esc = await p.evaluate(() => ({ dlg: !!document.querySelector(".pp-dlg"), master: !document.querySelector("#masterOverlay")?.classList.contains("hidden") }));
     check("Esc は窓だけ閉じる（マスタ管理は開いたまま）", !esc.dlg && esc.master, esc);
-    // ⑤ 参照先（更新の置き場・ブラウザ）と、データ元（品質データの元ファイル。版 3.36.0 から場所を直すのはデータ元だけ）
-    await p.click('#masterOverlay [data-tab="paths"], #masterTabs [data-tab="paths"]').catch(() => p.evaluate(() => document.querySelector('[data-tab="paths"]')?.click()));
-    await p.waitForSelector('#masterSettings .ps-card[data-key="update.source"] .pp-open'); await sleep(600);
-    const btns = await p.$$eval("#masterSettings .ps-card", (cs) => cs.filter((c) => c.querySelector(".pp-open")).map((c) => `${c.dataset.key}:${c.querySelector(".pp-open").textContent}`));
-    check("参照先: 更新の置き場は「📁 参照…」、ブラウザは「📄 参照…」（品質データの元ファイルはデータ元で直すので出ない）",
-      btns.join() === ["update.source:📁 参照…", "lotdsp_import.direct.browser:📄 参照…"].join(), btns);
+    // ⑤ データ元の「そのほかの接続」（更新の置き場・ブラウザ。版 3.58.0 で参照先のタブから移した）と、データ元の接続の設定（品質の元ファイル）
     await p.evaluate(() => document.querySelector('[data-tab="sources"]')?.click());
-    await p.waitForSelector('#masterSettings [data-sr-edit="lot"]'); await sleep(400);
+    await p.waitForSelector('#masterSettings [data-oth-open="update.source"]'); await sleep(400);
+    const btns = [];
+    for (const k of ["update.source", "lotdsp_import.direct.browser"]) {
+      await p.click(`#masterSettings button[data-oth-open="${k}"]`); await sleep(500);
+      btns.push(`${k}:${await p.$eval("#masterSettings .sr-other .pp-open", (b) => b.textContent).catch(() => "-")}`);
+    }
+    check("そのほかの接続: 更新の置き場は「📁 参照…」、ブラウザは「📄 参照…」",
+      btns.join() === ["update.source:📁 参照…", "lotdsp_import.direct.browser:📄 参照…"].join(), btns);
+    await p.click("#masterSettings [data-oth-close]"); await sleep(300);
     await p.click('#masterSettings [data-sr-edit="lot"]'); await sleep(400);
-    await p.click('#masterSettings .sr-card.is-open .pp-open'); await idle(p);
+    await p.click('#masterSettings .sr-card.is-open [data-conn-f="place"] .pp-open'); await idle(p);
     d = await dlg(p);
     check("データ元の元ファイルの窓: 品質データのフォルダで .sqlite3 だけが出る", d.here === "台帳" && d.rows.every((r) => r.file && r.name.endsWith(".sqlite3")) && d.rows.some((r) => r.name === "SIKADEF.sqlite3"), d);
     await shot(p, "paths-dlg");
     await p.dblclick(row("SIKADEF.sqlite3")); await sleep(400);
     const st5 = await p.evaluate(() => { const c = document.querySelector("#masterSettings .sr-card.is-open");
-      return { v: c.querySelector('[data-sr="place"]').value, open: !!document.querySelector(".pp-dlg") }; });
+      return { v: c.querySelector('[data-sr-conn="place"]').value, open: !!document.querySelector(".pp-dlg") }; });
     check("ファイルを 2 回押すと欄に入り、窓が閉じる", st5.v.endsWith("SIKADEF.sqlite3") && !st5.open, st5);
-    // ⑥ 作業実績
-    await p.evaluate(() => document.querySelector('[data-tab="worklog"]')?.click());
-    await p.waitForSelector("#masterSettings .wl-src .pp-open"); await sleep(600);
-    await p.click("#masterSettings .wl-src .pp-open"); await idle(p);
+    // ⑥ 実績（データ元の実績の接続の段。欄が空でも既定のフォルダから始まる）
+    await p.click("#masterSettings .sr-card.is-open [data-sr-close]"); await sleep(400);
+    await p.click('.us-overlay [data-us="discard"]').catch(() => {}); await sleep(400);    // 直した欄（保存していない）を捨てて閉じる
+    await p.click('#masterSettings [data-sr-edit="work"]'); await sleep(600);
+    await p.click('#masterSettings .sr-card.is-open [data-conn-f="folder"] .pp-open'); await idle(p);
     d = await dlg(p);
-    check("作業実績: いまのフォルダから始まり、決まりに合うファイルの数が出る", d.here === "【New】実績" && /実績のファイル \d+ 個/.test(d.state), d);
+    check("実績: いまのフォルダから始まり、決まりに合うファイルの数が出る", d.here === "【New】実績" && /実績のファイル \d+ 個/.test(d.state), d);
     await shot(p, "worklog-dlg");
     await p.keyboard.press("Escape");
     check("頁の誤りが無い", !errors.length, errors);

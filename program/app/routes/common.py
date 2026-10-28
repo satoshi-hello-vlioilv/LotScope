@@ -85,6 +85,11 @@ def me():
     who = identity.current()
     rows = master_repo().access_permissions()
     f = access.flags(rows, who["login"], who["pc"])
+    row = next((r for r in rows if f["matchedId"] is not None and r.get("id") == f["matchedId"]), None)
+    try:
+        f["hiddenTabs"] = access.hidden_tabs(master_repo().tab_access(), row, f["role"])
+    except Exception:          # タブの権限を読めないときは出す（止めない。マスタの共有に届かないときと同じ）
+        f["hiddenTabs"] = []
     key = presence.terminal_key(who["login"], who["pc"])
     # 切断の指示は 5 秒だけ覚える（読めなければ切断されていないものとして続ける＝止めない）
     now = time.monotonic()
@@ -109,3 +114,27 @@ def can_write(name):
     except Exception:
         return False
     return not m["revoked"] and access.master_edit_can(m["flags"]["masterEdit"], "write", access.master_scope(name))
+
+
+_TAB_CACHE = {"key": None, "at": 0.0, "value": ()}
+
+
+def tab_denied(tab, name=""):
+    """その PC・そのログインに出さないタブなら、断る答え（版 3.58.0。一覧・集計・ダッシュボードのパネルの問い合わせ）。出すなら None。
+    ダッシュボードは 1 回に何十も問い合わせるので、答えを 2 秒だけ覚える。"""
+    who = identity.current()
+    key = (who["login"], who["pc"])
+    now = time.monotonic()
+    if _TAB_CACHE["key"] != key or now - _TAB_CACHE["at"] > 2:
+        try:
+            hidden = tuple(me()["flags"]["hiddenTabs"])
+        except Exception:
+            hidden = ()
+        _TAB_CACHE.update(key=key, at=now, value=hidden)
+    if tab not in _TAB_CACHE["value"]:
+        return None
+    return error(f"「{name or tab}」を見る権限がありません（アクセス権限のタブの決まり）。必要なら管理する人に頼んでください。", 403, "forbidden")
+
+
+def forget_tab_cache():
+    _TAB_CACHE.update(key=None)

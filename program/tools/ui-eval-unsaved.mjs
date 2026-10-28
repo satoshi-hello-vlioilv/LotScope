@@ -32,7 +32,7 @@ try {
   const quiet = [];
   await p.click("#masterBody tr[data-id]"); await sleep(300);
   for (const [key, ready, extra] of [["shifts", "[data-sh-save]"], ["egroups", "[data-eg-save]"], ["conv", "[data-cv-save]", async () => { await p.click('[data-cv-cell="0|形状区分"]'); await sleep(300); }],
-    ["sources", "[data-sr-open]", async () => { await p.click("[data-sr-open]"); await sleep(400); }], ["worklog", "#wlFolder"], ["paths", ".ps-card"]]) {
+    ["sources", "[data-sr-open]", async () => { await p.click("[data-sr-open]"); await sleep(400); }]]) {    // 参照先・作業実績はデータ元にまとめた（版 3.58.0）
     await tab(p, key); await p.waitForSelector(ready, { timeout: 15000 }); await sleep(500);
     if (extra) await extra();
     const pend = await p.evaluate(() => TPA.unsaved.pending("*").map((w) => w.key));

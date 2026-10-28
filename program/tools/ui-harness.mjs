@@ -338,8 +338,9 @@ export const STATES = [
   ["columns-fxwrite", async (p) => { await p.click('#llFxPanel [data-tab="write"]'); await sleep(500); }, "[data-next], #llFxPanel [data-act=save]"],
   // マスタ管理: 設備・参照先・アクセス権限・利用状況・アプリの配布（タブは DOM で押す。区分ごとにタブを隠す案でも同じ所へ行けるように）
   ["master", async (p) => { await closeAll(p); await p.click("#masterBtn"); await sleep(900); }, "[data-next], #masterAddBtn"],
-  ["master-paths", async (p) => { await tab(p, "paths"); await sleep(900); }, "[data-next], #masterSettings button"],
-  ["master-worklog", async (p) => { await tab(p, "worklog"); await sleep(900); }, "[data-next], #wlScan"],
+  // 版 3.58.0: 参照先・作業実績の頁はデータ元にまとめた（そのほかの接続の欄・実績の設備の段）
+  ["master-paths", async (p) => { await tab(p, "sources"); await p.waitForSelector('#masterSettings button[data-oth-open="update.source"]'); await p.click('#masterSettings button[data-oth-open="update.source"]'); await sleep(900); }, "[data-next], #masterSettings button"],
+  ["master-worklog", async (p) => { await tab(p, "sources"); await p.waitForSelector('#masterSettings [data-sr-edit="work"]'); await p.click('#masterSettings [data-sr-edit="work"]'); await sleep(500); await p.click('#masterSettings [data-sr-sec="equip"]'); await sleep(1200); }, "[data-next], [data-wl-scan]"],
   // データ元（版 3.36.0）: 品質データ・作業実績・仕掛の表と、仕掛を「変える…」で開いた欄
   ["master-sources", async (p) => { await tab(p, "sources"); await sleep(1100); }, "[data-next], #srAdd"],
   ["master-sources-edit", async (p) => { await p.click('[data-sr-edit="wip"]'); await sleep(700); }, "[data-next], #srSave"],
@@ -354,7 +355,7 @@ export const STATES = [
     if (await p.$("#masterSettings .sr-card.is-open [data-jn-box]")) { await p.click("#masterSettings .sr-card.is-open [data-sr-save]"); await sleep(2500); }
   }, "[data-next], #srAdd"],
   // 版 3.54.0: データ元が多い形（利用者の画面と同じ台帳のマスタ 10 件・結合した表 1 件。見出しのタブに出さない物も）。master-sources-many-off が片付ける
-  ["master-sources-many", async (p) => { await manySources(p, true); await tab(p, "paths"); await sleep(300); await tab(p, "sources"); await sleep(1300); }, "[data-next], #srAdd"],
+  ["master-sources-many", async (p) => { await manySources(p, true); await tab(p, "equipment"); await sleep(300); await tab(p, "sources"); await sleep(1300); }, "[data-next], #srAdd"],
   ["master-sources-many-off", async (p) => { await manySources(p, false); }, "[data-next], #srAdd"],
   ["master-shifts", async (p) => {
     await p.evaluate(async () => { const it = ((await (await fetch("/api/sources")).json()).items || []).find((x) => x.key === "lot");
@@ -761,7 +762,7 @@ export const STATES = [
       rec = b.on ? { setAt: "2026-10-16T22:21:00", setBy: "user", setPc: "PC-01" } : null;
       return route.fulfill({ json: { version: b.version, recommended: rec } });
     });
-    await tab(p, "paths"); await sleep(300); await tab(p, "release"); await p.waitForSelector("[data-rec-on]"); await sleep(500);
+    await tab(p, "equipment"); await sleep(300); await tab(p, "release"); await p.waitForSelector("[data-rec-on]"); await sleep(500);
     await p.click("[data-rec-on]"); await p.waitForSelector("[data-rec-off]"); await sleep(500);
   }, "[data-next], [data-rec-off]"],
   // 版 3.43.0: 保存していない変更の窓（変換表の名前を変えて、勤務体系のタブを押した所）
@@ -885,6 +886,7 @@ export async function manySources(p, on) {
 
 /** 結合の欄で、製造条件マスタを 合金＝材質・調質＝質別 の 2 つの鍵で合わせる（状態 master-sources-join と評価関数 ui-eval-join.mjs） */
 export async function joinDemo(p) {
+  await openJoinSec(p);
   await p.click("[data-jn-add]"); await sleep(300);
   const j = "#masterSettings .jn-item:last-of-type";
   await p.selectOption(`${j} [data-jn-with]`, { label: "製造条件マスタ" }); await sleep(900);
@@ -894,6 +896,20 @@ export async function joinDemo(p) {
   await p.selectOption(`${j} [data-jn-key="1"] [data-jn-l]`, "調質");
   await p.selectOption(`${j} [data-jn-key="1"] [data-jn-r]`, "質別");
   await sleep(1500);   // 「試す」の数（当たった・当たらない）が出るまで
+}
+
+/** 欄（sel）を含む段を開く（版 3.58.0: データ元の欄は畳める段。畳んだ段の欄は見えないので、触る前に開く）。sel の要素を返す */
+export async function showField(p, sel) {
+  await p.evaluate((q) => { const el = document.querySelector(q); const sec = el && el.closest(".sr-sec");
+    if (sec && !sec.classList.contains("is-open")) sec.querySelector(".sr-sh").click(); }, sel);
+  await sleep(150);
+  return p.$(sel);
+}
+
+/** 開いた欄の「結合」の段を開く（版 3.58.0: 欄は畳める段。結合は 5 つ目の段） */
+export async function openJoinSec(p) {
+  const b = await p.$('#masterSettings .sr-card.is-open [data-sr-sec="join"][aria-expanded="false"]');
+  if (b) { await b.click(); await sleep(200); }
 }
 
 /** 状態を順に進め、各状態で visit(名前, 次に押すべきもの) を呼ぶ（only を渡せば、その状態だけ） */

@@ -53,7 +53,7 @@ LOCK_TTL_DEFAULT = 20.0
 # 共有フォルダがあればいつも共有するマスタ（設定 master_store.masters に書かなくても。全員で 1 つでないと決まりが PC ごとにずれる物）
 SHARED_ALWAYS = frozenset({"path_settings", "access_permissions", "app_seeds", "ui_defaults", "work_log_files", "display_formats",
                            "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards",
-                           "equipment_groups", "conversions", "conversion_defaults"})
+                           "equipment_groups", "conversions", "conversion_defaults", "tab_access"})
 REFRESH_DEFAULT = 5.0
 INSTANCE_FILENAME = "instance_id"   # この PC のアプリの印（手元の置き場に 1 度だけ作る。錠が自分の物かを見分ける）
 SCHEMA = 1
@@ -651,7 +651,7 @@ class MasterStore:
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
     def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",
                                 "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards",
-                                "equipment_groups", "conversions", "conversion_defaults")):
+                                "equipment_groups", "conversions", "conversion_defaults", "tab_access")):
         shared = self.share_dir is not None
         out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
                "configured": str(self.configured_dir or ""), "override": self.override_path.exists(), "pin": self.pinned(),

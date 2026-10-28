@@ -102,21 +102,21 @@
       params: () => (lotJoined ? { engine: "python" } : {}), scope: (t) => t, target: (t) => "lotlist:" + (t || ""), owns: (k) => !k.startsWith("wl:") && !k.startsWith("src:"),
       colTable: (t) => t, place: (t) => t,
       loadTable: () => store.get(KEY.table, ""), saveTable: (t) => store.set(KEY.table, t),
-      settingsKey: "lot_list.", settingsTab: "sources", settingsLabel: "データ元を開く",
+      settingsKey: "lot_list.", settingsTab: "sources", settingsOpen: "lot", settingsLabel: "データ元を開く",
       settingsTip: "元ファイルの場所・名前を「マスタ管理」の「データ元」で直します",
       remoteHint: "（設定 lot_list.source）", reading: "品質データを読んでいます…",
       firstNote: "初めて開いたときは、共有の元ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
       staleWhat: "最近の異常ロットは一覧に出ません。",
     },
     work: {
-      id: "work", api: "/api/worklog", title: "作業実績", noun: "作業実績", fileStem: "作業実績",
+      id: "work", api: "/api/worklog", title: "実績", noun: "実績", fileStem: "実績",
       params: () => (S.equip ? { equip: S.equip } : {}),
       scope: (t, e = S.equip) => `wl:${e}:${t || ""}`, target: (t, e = S.equip) => `worklog:${e}:${t || ""}`, owns: (k) => k.startsWith(`wl:${S.equip}:`),
       colTable: (t) => `wl:${t || ""}`, place: (t) => `${equipName(S.equip)}・${t || ""}`,
       loadTable: () => (store.get(KEY.workTable, {})[S.equip] || ""),
       saveTable: (t) => { const m = store.get(KEY.workTable, {}); if (t) m[S.equip] = t; else delete m[S.equip]; store.set(KEY.workTable, m); },
-      settingsKey: "work_log.", settingsTab: "worklog", settingsLabel: "作業実績の設備を開く",
-      settingsTip: "作業実績のフォルダ・設備（どのファイルを・表示するか）を「マスタ管理」の「作業実績」で確かめます",
+      settingsKey: "work_log.", settingsTab: "sources", settingsOpen: "work", settingsLabel: "データ元の実績を開く",
+      settingsTip: "作業実績のフォルダ・設備（どのファイルを・表示するか）を「マスタ管理」の「データ元」の「実績」で確かめます",
       remoteHint: "（作業実績のフォルダ）", reading: "作業実績を読んでいます…",
       firstNote: "初めて開いた設備は、共有の実績ファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
       staleWhat: "最近の作業実績は一覧に出ません。",
@@ -133,7 +133,7 @@
       colTable: (t) => `${id}:${t || ""}`, place: (t) => t,
       loadTable: () => (store.get(KEY.srcTable, {})[k] || ""),
       saveTable: (t) => { const m = store.get(KEY.srcTable, {}); if (t) m[k] = t; else delete m[k]; store.set(KEY.srcTable, m); },
-      settingsKey: `sources.${k}`, settingsTab: "sources", settingsLabel: "データ元を開く",
+      settingsKey: `sources.${k}`, settingsTab: "sources", settingsOpen: k, settingsLabel: "データ元を開く",
       settingsTip: `${name}の場所（共有のファイル）を「マスタ管理」の「データ元」で直します`,
       remoteHint: "（データ元）", reading: `${name}を読んでいます…`,
       firstNote: "初めて開いたときは、共有のファイルを手元へ写し終えるまで待ちます（大きいと数十秒）。",
@@ -149,8 +149,8 @@
       params: () => (st().equip ? { equip: st().equip } : {}), scope: (t) => `${id}:${t || ""}`, target: (t) => `${id}:${t || ""}`, owns: (x) => x.startsWith(`${id}:`),
       colTable: (t) => `${id}:${t || ""}`, place: (t) => `${equipName(st().equip) || ""}・${t || ""}`,
       loadTable: () => "", saveTable: () => {},           // 表は設備で決まる（設備は予定、HOT コイル作業順は HOT）
-      settingsKey: "schedule.", settingsTab: "sources", settingsLabel: "データ元を開く",
-      settingsTip: "CM3 の場所・設備・仕掛との結合を「マスタ管理」の「データ元」と「参照先」で直します",
+      settingsKey: "schedule.", settingsTab: "sources", settingsOpen: def.key, settingsLabel: "データ元を開く",
+      settingsTip: "CM3 の場所・設備・仕掛との結合を「マスタ管理」の「データ元」で直します",
       remoteHint: "（CM3）", reading: `${name}を CM3 から取っています…`,
       firstNote: "CM3 から設備の作業予定を取り、仕掛と突き合わせています（数秒）。",
       staleWhat: "",
@@ -1948,7 +1948,7 @@
     root.addEventListener("click", (e) => {
       if (e.target.closest("[data-ll-clear-all]")) { dropAllFilters({ adhoc: true }); S.search = ""; $("#llSearch").value = ""; reload(); }
       if (e.target.closest("[data-ll-refresh]")) refreshFromShare();
-      if (e.target.closest("[data-ll-settings]") && window.openMasterAt) window.openMasterAt(S.src.settingsTab);
+      if (e.target.closest("[data-ll-settings]") && window.openMasterAt) window.openMasterAt(S.src.settingsTab, S.src.settingsOpen || "");
       if (e.target.closest("[data-wl-adopt]")) adoptLoose();
     });
     $("#llColBtn").onclick = () => { closeViewMenu(); window.LotListColumns.toggle(); };
@@ -2042,7 +2042,7 @@
   }
   const whenText = (sec) => { if (!sec) return ""; const d = new Date(sec * 1000); return `${d.getMonth() + 1}/${TPA.pad2(d.getDate())} ${TPA.pad2(d.getHours())}:${TPA.pad2(d.getMinutes())}`; };
   function equipTip(e) {
-    if (e.state === "missing") return `${e.name}: ファイル「${e.file}」が見つかりません（名前が変わったか、消されました）。\nマスタ管理の「作業実績」で結ぶファイルを選び直せます`;
+    if (e.state === "missing") return `${e.name}: ファイル「${e.file}」が見つかりません（名前が変わったか、消されました）。\nマスタ管理の「データ元」の「実績」で結ぶファイルを選び直せます`;
     return `${e.name}（${e.now || e.file}）` + (e.mtime ? `\n最後の更新 ${whenText(e.mtime)}` : "")
       + (e.stale ? `\n${Math.round(e.ageHours)}時間、更新されていません（${S.equipStale || 36}時間を過ぎると印）` : "")
       + (e.state === "renamed" ? `\nファイルの名前が「${e.file}」から変わっています（同じファイルをたどって読みます）` : "");
@@ -2144,7 +2144,7 @@
     const next = S.equipEdit
       ? `<div class="ll-note-acts">${adopt ? `<button type="button" class="btn-primary" data-wl-adopt>${loose.length} 台を設備として登録して開く</button> ` : ""}`
         + `<button type="button"${adopt ? "" : ' class="btn-primary"'} data-ll-settings>作業実績の設備を開く</button></div>`
-      : "<small>設備の登録・表示する設備は、マスタ管理の「作業実績」で管理する人（参照先を書き換えられる人）が決めます。</small>";
+      : "<small>設備の登録・表示する設備は、マスタ管理の「データ元」の「実績」で管理する人（データ元を書き換えられる人）が決めます。</small>";
     return `<b>作業実績の設備を選べません。</b><br>${why}${healHtml()}${next}`;
   }
   /** 見つけた実績ファイルを設備として登録し（マスタ管理の「探す」と同じ）、設備の札を読み直して最初の設備を開く */
@@ -2173,7 +2173,12 @@
      品質異常と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   /* データ元の並び（app.js が /api/sources から渡す）。1 ファイルの元は、初めて開くときに状態を作る（名前が変わったら札だけ直す） */
   function defineSources(list) {
-    lotJoined = !!((list || []).find((d) => d.key === "lot") || { joins: [] }).joins?.length;
+    // 品質に結合がある・ロット番号の列を決めてある（版 3.58.0。Rust は名前で探す決まりしか知らない）ときは Python に尋ねる
+    const lotDef = (list || []).find((d) => d.key === "lot"), workDef = (list || []).find((d) => d.key === "work");
+    lotJoined = !!(lotDef && ((lotDef.joins || []).length || lotDef.lotSet));
+    // 組み込みの元の名前（版 3.58.0。データ元で変えられる。既定は「品質」「実績」）を、一覧の題・Excel の名前に
+    if (lotDef) Object.assign(SOURCES.lot, { title: lotDef.name, fileStem: lotDef.name });
+    if (workDef) Object.assign(SOURCES.work, { title: workDef.name, noun: workDef.name, fileStem: workDef.name });
     GROUPS = {};
     (list || []).filter((d) => d.group && d.listed && d.api && d.api.startsWith("/api/src/"))
       .forEach((d) => { (GROUPS[d.group] = GROUPS[d.group] || []).push({ screen: d.screen, name: d.name, place: d.place }); });

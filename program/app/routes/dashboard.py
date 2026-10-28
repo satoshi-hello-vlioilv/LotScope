@@ -340,8 +340,9 @@ def panel_parts(source, equip="", basis="work", equips=None):
         pick = {normalize_part(x) for x in equips or []}
         rows = [r for r in _shown_work(wl_rows) if (not equip or r.get("キー") == equip) and (not pick or normalize_part(r.get("設備名")) in pick)]
         if not rows:
-            raise _Fail(error("数える設備がありません（「マスタ管理」の「作業実績」で表示する設備を決めてください）。", 404, "unknown"))
+            raise _Fail(error("数える設備がありません（「マスタ管理」の「データ元」の「実績」で表示する設備を決めてください）。", 404, "unknown"))
         pats = repo.shift_patterns()
+        work_lot = next((d.get("lotSet") for d in defs if d["key"] == "work"), "") or None     # 実績の「ロット番号の列」（版 3.58.0）
         parts, failed, mirrors, first = [], [], [], None
         start_mirrors(rows, db_mirror.FIRST_WAIT_SEC)        # 全部の設備の写しを一度に始めて、まとめて待つ（1 台ずつ順に待たない。版 3.46.0）
         for row in rows:
@@ -355,7 +356,7 @@ def panel_parts(source, equip="", basis="work", equips=None):
             pat = shifts.pattern_for(pats, name)
             work = {"clock": shifts.Clock(pat["segments"] if pat else []), "basis": basis, "start": ""}
             parts.append(pivot.Part(plan["path"], preferred_table=plan["table"], table_candidates=work_log.TABLE_CANDIDATES, work=work,
-                                    equip={"name": name}, name=name))
+                                    equip={"name": name}, name=name, lot_col=work_lot))
             mirrors.append(plan["source"])
         if not parts:
             raise _Fail(first[0])
@@ -365,7 +366,8 @@ def panel_parts(source, equip="", basis="work", equips=None):
         if fail:
             raise _Fail(fail)
         d = next((x for x in defs if x["key"] == "lot"), {})
-        return [pivot.Part(plan["path"], preferred_table=plan["table"], equip=_equip_of(d, repo, wl_rows), name=d.get("name", ""))], [], \
+        return [pivot.Part(plan["path"], preferred_table=plan["table"], equip=_equip_of(d, repo, wl_rows), name=d.get("name", ""),
+                           lot_col=d.get("lotSet") or None)], [], \
             d.get("name", "品質データ"), [plan["source"]]
     key = source[4:] if source.startswith("src:") else ""
     plan, fail = src_plan(key)
@@ -373,7 +375,7 @@ def panel_parts(source, equip="", basis="work", equips=None):
         raise _Fail(fail)
     d = plan["def"]
     return [pivot.Part(plan["path"], preferred_table=plan["table"], table_candidates=data_sources.TABLE_CANDIDATES,
-                       equip=_equip_of(d, repo, wl_rows), name=d["name"])], [], d["name"], [plan["source"]]
+                       equip=_equip_of(d, repo, wl_rows), name=d["name"], lot_col=d.get("lotSet") or None)], [], d["name"], [plan["source"]]
 
 
 def _cache():

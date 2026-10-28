@@ -481,7 +481,7 @@ tr.ll-ghead[aria-expanded="false"] .ll-gtog{transform:rotate(-90deg)}
 .screen-tabs.is-tight{gap:2px;margin-left:8px}
 .screen-tabs.is-tight .screen-tab{padding:0 7px;font-size:14px}
 .screen-tabs.is-tight .screen-tab > svg{display:none}
-.screen-tab[hidden]{display:none}
+.screen-tab[hidden],.screen-tab[data-denied]{display:none}   /* data-denied: タブの権限で出さないタブ（版 3.58.0。app.js の tabHidden） */
 .tab-more .tab-name{max-width:none}
 .screen-tab .tab-edit{height:26px;padding:0 6px;border:1px solid var(--accent);border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:14px;font-weight:700;outline:none;box-shadow:0 0 0 3px var(--focus-ring)}
 .screen-tab.is-dragging{opacity:.55}

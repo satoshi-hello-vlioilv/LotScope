@@ -4,7 +4,7 @@ from ..web import current_app, jsonify, request
 
 from ..services import access, presence
 from ..version import APP_VERSION
-from .common import Forbidden, base_rev, bp, error, find_row, master_call, master_repo, me, roles_from
+from .common import Forbidden, base_rev, bp, can_write, error, find_row, forget_tab_cache, master_call, master_repo, me, roles_from
 
 
 @bp.get("/api/access/me")
@@ -21,13 +21,14 @@ _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls
             ("/api/masters/access", "access_permissions"), ("/api/settings/", "path_settings"), ("/api/masters/worklog", "work_log_files"),
             ("/api/masters/formats", "display_formats"), ("/api/masters/shifts", "shift_patterns"),
             ("/api/masters/equipgroups", "equipment_groups"), ("/api/masters/conversions", "conversions"),
-            ("/api/sources", "data_sources"))
+            ("/api/sources", "data_sources"), ("/api/masters/tabaccess", "tab_access"))
 # ダッシュボードのパネルの問い合わせ・ダッシュボードの保存（自分の ID へも）は止めない（routes/dashboard.py が決める）
 
 
 @bp.before_app_request
 def _access_guard():
-    if request.method in ("GET", "HEAD", "OPTIONS") or request.path in ("/api/settings/check", "/api/sources/check"):
+    if request.method in ("GET", "HEAD", "OPTIONS") or request.path in ("/api/settings/check", "/api/sources/check") \
+            or (request.path.startswith("/api/sources/") and request.path.endswith("/conn/check")):
         return None
     name = next((n for pfx, n in _GUARDED if request.path.startswith(pfx)), None)
     if not name:
@@ -42,7 +43,7 @@ def _access_guard():
                      + (f"理由: {r['reason']}" if r.get("reason") else ""), 403, "revoked")
     scope = access.master_scope(name)
     if not access.master_edit_can(m["flags"]["masterEdit"], "write", scope):
-        what = "管理のマスタ（アクセス権限・参照先・作業実績の設備・データ元）" if scope == "admin" else "マスタ"
+        what = "管理のマスタ（アクセス権限・タブの権限・データ元）" if scope == "admin" else "マスタ"
         return error(f"この PC の権限（{m['flags']['role']}・マスタ編集「{m['flags']['masterEdit']}」）では{what}を書き換えられません。",
                      403, "forbidden")
     return None
@@ -52,6 +53,7 @@ def _access_guard():
 def _perm_payload():
     d = request.get_json(silent=True) or {}
     out = {k: str(d.get(k) or "").strip() for k in ("ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考")}
+    out["タブの例外"] = access.clean_tab_exceptions(d.get("タブの例外"))       # 人ごとのタブの例外（版 3.58.0）
     out["権限区分"] = access.normalize_role(out["権限区分"])
     out["マスタ編集"] = access.normalize_master_edit(out["マスタ編集"])
     out["有効"] = "無" if out["有効"] == "無" else "有"
@@ -79,6 +81,7 @@ def access_create():
     def run():
         m, data = me(), _perm_payload()
         _perm_gate(m, data)
+        forget_tab_cache()
         return master_repo().access_permissions_create(data)
     return master_call(run, 201)
 
@@ -90,6 +93,7 @@ def access_update(item_id):
     def run():
         m, data = me(), _perm_payload()
         _perm_gate(m, data, find_row(m["rows"], item_id) or {"id": item_id})
+        forget_tab_cache()
         return master_repo().access_permissions_update(item_id, data, base)
     return master_call(run)
 
@@ -107,6 +111,50 @@ def access_delete(item_id):
                 raise Forbidden(why)
         master_repo().access_permissions_delete(item_id, base)
         return {"status": "deleted", "id": item_id}
+    return master_call(run)
+
+
+# ---- 見出しのタブの権限（版 3.58.0。決まりは services/access.py の tab_rules・hidden_tabs）
+def tab_list():
+    """決められるタブの並び（決まった画面 → データ元の並び。グループはデータ元に付ける）。"""
+    from .sources import _all
+    out = [{"key": k, "name": n, "kind": "screen", "group": "", "listed": True} for k, n in access.TAB_FIXED]
+    for s in _all():
+        out.append({"key": s["key"], "name": s["name"], "kind": s["kind"], "group": s.get("group") or "", "listed": bool(s["listed"]),
+                    "role": s["role"]})
+    return out
+
+
+@bp.get("/api/masters/tabaccess")
+def tabaccess_get():
+    """タブの権限: 区分ごとの決まり（{タブ: [出さない区分]}）・タブの並び・人ごとの例外の数（タブごと）。"""
+    st = current_app.config["MASTER_STORE"]
+    m = me()
+    rules = {t: [r for r in access.TAB_ROLES if r in roles] for t, roles in access.tab_rules(master_repo().tab_access()).items()}
+    exc = {}
+    for r in m["rows"]:
+        for t in access.tab_exceptions(r.get("タブの例外")):
+            exc[t] = exc.get(t, 0) + 1
+    return jsonify(rules=rules, tabs=tab_list(), roles=list(access.TAB_ROLES), exceptions=exc, canEdit=can_write("tab_access"),
+                   revision=st.revision("tab_access"), shared=st.is_shared("tab_access"))
+
+
+@bp.put("/api/masters/tabaccess")
+def tabaccess_put():
+    """区分ごとの決まりを置く（書いたタブだけ。空の並びは「全員に出す」へ戻す）。base_rev は開いたときのマスタの版。"""
+    body = request.get_json(silent=True) or {}
+    try:
+        rules = access.clean_tab_rules(body.get("rules"))
+    except ValueError as e:
+        return error(str(e), 400, "invalid")
+    st = current_app.config["MASTER_STORE"]
+    if body.get("base_rev") is not None and str(body.get("base_rev")) != str(st.revision("tab_access")):
+        return error("開いたあとに、ほかの PC がタブの権限を変えました。読み直してから直してください。", 409, "conflict")
+
+    def run():
+        master_repo().tab_access_put(rules)
+        forget_tab_cache()
+        return {"ok": True, "revision": st.revision("tab_access")}
     return master_call(run)
 
 

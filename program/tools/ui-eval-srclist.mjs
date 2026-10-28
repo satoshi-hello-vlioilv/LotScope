@@ -11,12 +11,12 @@
 // ⑧ ＋ 結合した表で作る（元: 仕掛・製造材質＝材質・製造調質＝質別）→ 仕掛の下に └ で入る → 消す
 // ⑨ 名前・ファイルで探す（QZ*）
 // 全部合えば終了コード 0。
-import { launch, sleep, parseView, manySources } from "./ui-harness.mjs";
+import { launch, sleep, parseView, manySources, showField, openJoinSec } from "./ui-harness.mjs";
 
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 500)}`}`); if (!ok) fails.push(name); };
 const items = (p) => p.evaluate(async () => (await (await fetch("/api/sources")).json()).items);
-const rows = (p) => p.$$eval("#masterSettings tr.sr-row", (trs) => trs.map((tr) => ({ key: tr.dataset.key, group: tr.dataset.group, name: tr.querySelector(".sr-nm b").textContent,
+const rows = (p) => p.$$eval("#masterSettings tr.sr-row:not(.sr-orow)", (trs) => trs.map((tr) => ({ key: tr.dataset.key, group: tr.dataset.group, name: tr.querySelector(".sr-nm b").textContent,
   cut: [".sr-fname", ".sr-state", ".sr-j em", ".sr-sw span"].filter((q) => { const x = tr.querySelector(q); return x && (x.scrollWidth > x.clientWidth + 1 || x.getBoundingClientRect().right > x.closest("td").getBoundingClientRect().right + 1); }) })));
 const openSources = async (p) => { await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)"); await p.evaluate(() => document.querySelector('#masterTabs [data-tab="sources"]').click()); await p.waitForSelector("#masterSettings tr.sr-row"); await sleep(600); };
 const app = await launch();
@@ -29,7 +29,7 @@ try {
     await manySources(p, true); await sleep(500);
     await openSources(p);
     const rs = await rows(p), all = await items(p);
-    const heads = await p.$$eval("#masterSettings tr.sr-gh b", (bs) => bs.map((b) => b.textContent));
+    const heads = await p.$$eval("#masterSettings tr.sr-gh:not(.sr-oh) b", (bs) => bs.map((b) => b.textContent));
     check(`① ${tag} グループの見出し（グループなし・マスタ・台帳・工程）`, heads.join() === "グループなし,マスタ,台帳,工程", heads);
     check(`① ${tag} 行の数＝データ元の数`, rs.length === all.length, { rows: rs.length, items: all.length });
     check(`① ${tag} ファイル名・状態・結合の数・スイッチの字が切れない`, rs.every((r) => !r.cut.length), rs.filter((r) => r.cut.length));
@@ -104,8 +104,10 @@ try {
     // ⑧
     await openSources(p);
     await p.click("#srView"); await sleep(500);
+    await showField(p, '#masterSettings .sr-card.is-open [data-sr="name"]');
     await p.fill('#masterSettings .sr-card.is-open [data-sr="name"]', "仕掛＋条件");
     await p.selectOption('#masterSettings .sr-card.is-open [data-sr="base"]', "wip"); await sleep(800);
+    await openJoinSec(p);
     if (!(await p.$("#masterSettings .jn-item"))) await p.click("[data-jn-add]");
     await sleep(300);
     const j = "#masterSettings .jn-item:last-of-type";

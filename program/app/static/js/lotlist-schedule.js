@@ -66,7 +66,7 @@
       + (e.hot ? "" : `<i class="sd-eqdot" style="--eqc:${eqColor(e.key)}" aria-hidden="true"></i>`) + `${esc(e.name)}</button>`).join("");
     const cur = list.find((e) => e.key === S.equip);
     const link = cur && cur.viewUrl ? `<a class="eq-manage sd-cm3" href="${esc(cur.viewUrl)}" target="_blank" rel="noopener" title="${esc(cur.name)} の CM3 の画面を、いつものブラウザで開きます">CM3 の画面を開く ↗</a>` : "";
-    const auto = meta ? `<span class="eq-hint sd-auto" title="この画面を開いている間、CM3 から取り直し、変わっていれば出し直します（参照先の「スケジュールを取り直す間隔」）">自動更新 ${meta.autoRefreshSec} 秒</span>` : "";
+    const auto = meta ? `<span class="eq-hint sd-auto" title="この画面を開いている間、CM3 から取り直し、変わっていれば出し直します（データ元のスケジュールの「確かめる間隔」）">自動更新 ${meta.autoRefreshSec} 秒</span>` : "";
     bar.innerHTML = `<span class="eq-lab" id="llEquipLab">設備</span><div class="eq-chips" role="tablist" aria-labelledby="llEquipLab">${chips}</div>${auto}${link}`;
   }
 

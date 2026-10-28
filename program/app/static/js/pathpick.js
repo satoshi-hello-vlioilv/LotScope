@@ -8,6 +8,7 @@
        chipsAfter… よく使う場所の札を置く所（この要素の後ろ）。省けば札は出さない
        exclude   … 札に出さない場所の鍵（例 ["master"]。いまの置き場そのものは上のフォルダに選べない）
        disabled  … 使えないとき（字なら、その理由をボタンの説明に）
+       start     … 欄が空のときに始める所（既定の値。空なら、よく使う場所の最初）
        onPick(path, item) … 選んだとき。省けば欄に入れて input を起こす（欄の確かめがそのまま走る）。item は窓の行（印 mark つき）か札
    欄はそのまま打てる（覚えている人・貼る人はいままでどおり）。貼った "…"・file:/// は整える。 */
 (() => {
@@ -190,7 +191,7 @@
     loadPlaces().then((xs) => {
       // 始める所: 欄の値（ファイルならそのフォルダでファイルを選んだ形）。空なら、このアプリで使っている最初の届く場所
       // （フォルダを選ぶ欄はその 1 つ上から: その場所と並ぶフォルダが見え、置く場所を決めやすい）
-      const v = tidy(input.value), first = xs.find((x) => x.group === "app" && x.reach) || xs.find((x) => x.reach);
+      const v = tidy(input.value || (typeof o.start === "function" ? o.start() : o.start || "")), first = xs.find((x) => x.group === "app" && x.reach) || xs.find((x) => x.reach);
       if (v) goTo(v);
       else if (first) goTo(kind === "folder" && first.group === "app" ? up(first.path) : first.path);
       else paint({ entries: [], crumbs: [] });

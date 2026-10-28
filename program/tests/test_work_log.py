@@ -199,12 +199,16 @@ class Api(unittest.TestCase):
         r = self.c.post("/api/settings/check", json={"key": "work_log.pattern", "value": "実績.sqlite3"}).get_json()
         self.assertFalse(r["ok"])
 
-    def test_folder_settings_are_edited_only_on_the_work_log_page(self):
-        # 「参照先」は page の無い項目だけを並べる（同じ値を直す所を 1 つに）。作業実績の 2 項目は「作業実績」の頁、
-        # 品質データの場所・表は「データ元」の頁（版 3.36.0）で直す
+    def test_folder_settings_are_edited_only_on_the_sources_page(self):
+        # 「参照先」は page の無い項目だけを並べる（同じ値を直す所を 1 つに）。版 3.58.0 から、品質・実績・スケジュールの場所と間隔は
+        # どれも「データ元」の接続の設定（data_sources.CONN_BIND）で直す。データ元に結ぶ項目と page "sources" の項目は同じ組
+        from app.services import data_sources
         items = {i["key"]: i for i in self.c.get("/api/settings").get_json()["items"]}
-        pages = {k: i["page"] for k, i in items.items() if i.get("page")}
-        self.assertEqual(pages, {"work_log.folder": "worklog", "work_log.pattern": "worklog", "lot_list.source": "sources", "lot_list.table": "sources"})
+        pages = {k for k, i in items.items() if i.get("page") == "sources"}
+        bound = {v for b in data_sources.CONN_BIND.values() for v in b.values() if not v.startswith("row:")}
+        self.assertEqual(pages, bound)
+        self.assertEqual({k for k, i in items.items() if not i.get("page")}, {"lotdsp_import.url", "update.source", "lotdsp_import.direct.browser"},
+                         "データ元ではない接続（「そのほかの接続」）")
 
 
 if __name__ == "__main__":

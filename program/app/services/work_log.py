@@ -95,7 +95,7 @@ def scan(folder, pattern):
     """フォルダの中で決まりに合うファイル → [{file, equipment, size, mtime, fid}]（名前の順）。届かなければ FolderError。"""
     folder = unquote_path(folder)
     if not folder:
-        raise FolderError("作業実績のフォルダが決まっていません。「マスタ管理」の「作業実績」でフォルダを入れてください。")
+        raise FolderError("作業実績のフォルダが決まっていません。「マスタ管理」の「データ元」の「実績」でフォルダを入れてください。")
     split_pattern(pattern)
     out = []
     try:
