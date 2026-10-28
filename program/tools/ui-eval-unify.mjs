@@ -39,7 +39,7 @@ try {
   await openMaster(p);
   const nav = await p.$$eval("#masterTabs .tab", (bs) => bs.map((b) => b.dataset.tab));
   const labs = await p.$$eval("#masterTabs .mg-lab", (xs) => xs.map((x) => x.textContent));
-  check("① ナビに参照先・作業実績が無く、データ元の見出しの下にデータ元", !nav.includes("paths") && !nav.includes("worklog") && nav.includes("sources") && labs.includes("データ元") && !labs.includes("つなぎ先"), { nav, labs });
+  check("① ナビに参照先・作業実績が無く、データ元は「データ」の見出しの下（「つなぎ先」の見出しは無い）", !nav.includes("paths") && !nav.includes("worklog") && nav.includes("sources") && labs.includes("データ") && !labs.includes("つなぎ先") && !labs.includes("データ元"), { nav, labs });
   check("① 見出しのタブは「品質」「実績」", (await tabName(p, "list")) === "品質" && (await tabName(p, "work")) === "実績", [await tabName(p, "list"), await tabName(p, "work")]);
   // ②
   await edit(p, "lot");
@@ -144,8 +144,8 @@ try {
     await openMaster(q, "access");
     await q.click('[data-ta-mode="tabs"]'); await q.waitForSelector(".ta-mx"); await sleep(500);
     const f2 = await q.evaluate(() => { const b = document.querySelector("#masterSettings"); return { over: b.scrollWidth > b.clientWidth + 1,
-      h: Math.round(document.querySelector(".ta-top").getBoundingClientRect().height) }; });
-    check(`⑨ ${v} 権限の表が横にはみ出さない・道具の段が 1 段（高さ 48px 以下）`, !f2.over && f2.h <= 48, f2);
+      h: (() => { const t = document.querySelector(".ta-top"), cs = getComputedStyle(t); return Math.round(t.getBoundingClientRect().height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)); })() }; });
+    check(`⑨ ${v} 権限の表が横にはみ出さない・道具の段が 1 段（中身の高さ 44px 以下）`, !f2.over && f2.h <= 44, f2);
     await q.context().close();
   }
   check("頁の誤りが無い", !errors.length, errors);

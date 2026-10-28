@@ -807,3 +807,6 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .ta-add{opacity:.45}
 .ta-mx tbody tr:hover .ta-add,.ta-add:focus-visible{opacity:1}
 .ta-key{display:inline-block;color:var(--muted);font-weight:400}
+/* 道具の段は窓の上の縁に着ける（-14px は .master-settings の上の余白。前は余白の分だけすき間ができ、送った表の行が覗いた。作った後の採点） */
+.ta-top{top:-14px;margin-top:-14px;padding-top:16px}
+.ta-mx tbody tr:not(.ta-g):hover > *{background:#f6f9fd}
