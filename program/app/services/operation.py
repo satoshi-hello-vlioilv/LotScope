@@ -237,7 +237,7 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
         if not stop:
             raise PivotError("作業終了の列が見つかりません（組む所の「作業終了の列」で選んでください）。")
         s_cols, e_cols = stamp_columns(cs, start, "作業開始"), stamp_columns(cs, stop, "作業終了")
-        lot = lot_column(cs)
+        lot = lot_column(cs, override=getattr(part, "lot_col", None))
         want = [x for x in dict.fromkeys(list(cols) + [lot]) if x and x in cs]      # ロット番号はいつも（棒の字の既定）
         bad = [x for x in want if x in broken]
         if bad:

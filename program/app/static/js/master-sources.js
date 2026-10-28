@@ -132,7 +132,7 @@ function paintSources(notice = null) {
     const shut = cc.has(g) && !q;
     const head = `<tr class="sr-gh" data-group="${escapeHtml(g)}"><td colspan="${COLS}" title="${g ? `見出しの「${escapeHtml(g)}」のタブの中に、出すデータ元が札で並びます` : "見出しに 1 つずつタブが出ます"}"><button type="button" class="sr-gt" data-sr-fold="${escapeHtml(g)}" aria-expanded="${!shut}">${shut ? "▸" : "▾"}</button>`
       + `<b>${g ? escapeHtml(g) : "グループなし"}</b><small>${list.length} 件・出す ${on}${g && dirs.length === 1 && dirs[0] ? `・${escapeHtml(dirs[0])}` : ""}</small>`
-      + (g && can ? `<button type="button" class="sr-gren" data-sr-rename="${escapeHtml(g)}">名前を変える</button>` : "")
+      + (g && can ? `<button type="button" class="sr-gren" data-sr-rename="${escapeHtml(g)}">名前を変える</button><button type="button" class="sr-gren is-danger" data-sr-gdel="${escapeHtml(g)}" title="グループをやめます（中のデータ元は消えず、グループなしへ移ります）">グループを消す</button>` : "")
       + (can && list.some(canHide) ? `<span class="sr-gall"><button type="button" class="sr-gren" data-sr-all="1" data-g="${escapeHtml(g)}"${on === list.filter(canHide).length + list.filter((x) => !canHide(x)).length ? " disabled" : ""}>全部出す</button>`
         + `<button type="button" class="sr-gren" data-sr-all="0" data-g="${escapeHtml(g)}"${list.filter((x) => canHide(x) && x.listed).length ? "" : " disabled"}>全部出さない</button></span>` : "") + "</td></tr>";
     const rows = shut ? "" : vis.map(row).join("") + (!list.length ? `<tr class="sr-empty" data-group="${escapeHtml(g)}"><td colspan="${COLS}">⠿ を引いてデータ元を入れます（入れると見出しにこのグループのタブが出ます）</td></tr>` : "");
@@ -163,6 +163,7 @@ function bindList(box, d, can) {
   const view = $("#srView"); if (view) view.onclick = () => open("+view", "結合した表を作る");
   const grp = $("#srGroup"); if (grp) grp.onclick = () => askName("", (name) => { if (!newGroups.includes(name)) newGroups.push(name); paintSources(); notice("ok", `✓ グループ「${escapeHtml(name)}」を作りました。⠿ を引いてデータ元を入れてください（入れるまでは保存されません）。`); });
   box.querySelectorAll("[data-sr-rename]").forEach((b) => { b.onclick = () => askName(b.dataset.srRename, (name) => renameGroup(b.dataset.srRename, name), b); });
+  box.querySelectorAll("[data-sr-gdel]").forEach((b) => { b.onclick = () => deleteGroup(b.dataset.srGdel); });
   box.querySelectorAll("[data-sr-show]").forEach((b) => { b.onclick = (e) => { e.stopPropagation(); const s = d.items.find((x) => x.key === b.dataset.srShow);
     quick(s, { "画面": s.listed ? "無" : "有" }, s.listed ? `✓ ${escapeHtml(s.name)}を見出しのタブから外しました（結合・ダッシュボードには使えます）。` : `✓ ${escapeHtml(s.name)}を見出しのタブに出しました。`); }; });
   box.querySelectorAll("[data-sr-all]").forEach((b) => { b.onclick = () => showAll(b.dataset.g, b.dataset.srAll === "1"); });
@@ -221,7 +222,7 @@ function rowMenu(key, x, y) {
     { label: "下へ", icon: "↓", key: "Alt+↓", disabled: !canHide(s) || i >= mates.length - 1, why: i >= mates.length - 1 ? "グループのいちばん下です" : "", run: () => moveTo(key, { group: s.group || "", near: mates[i + 1].key, after: true }) },
     { sep: true },
     ...groups.map((g) => ({ label: `「${g}」へ移す`, icon: "→", disabled: !canHide(s), run: () => moveTo(key, { group: g }) })),
-    ...(s.group && s.groupSet ? [{ label: "グループから出す", icon: "←", run: () => moveTo(key, { group: "" }) }] : []),
+    ...(s.group ? [{ label: "グループから出す", icon: "←", run: () => moveTo(key, { group: "" }) }] : []),
     { label: "新しいグループへ…", icon: "＋", disabled: !canHide(s), run: () => askName("", (name) => moveTo(key, { group: name })) },
     ...(s.kind === "file" ? [{ sep: true }, { label: "この元で結合した表を作る…", icon: "⊕", run: () => { openKey = "+view"; viewBase = key; paintSources(); } }] : []),
   ] });
@@ -256,20 +257,39 @@ async function quick(s, change, okText) {
   if (okText) await renderSources({ notice: ["ok", okText] });
   return true;
 }
+/** グループの名前を変える・消す（版 3.58.0: サーバーが 1 回の錠でまとめて置き換える。POST /api/sources/groups。to が空なら消す） */
+async function regroup(from, to) {
+  if (!mstate.data.sources.items.some((s) => s.group === from)) {     // まだ空のグループ（この画面で作っただけ）
+    newGroups = to ? newGroups.map((g) => (g === from ? to : g)) : newGroups.filter((g) => g !== from);
+    paintSources(); return true;
+  }
+  const res = await withLockWait(() => masterRequest("/api/sources/groups", TPA.json("POST", { from, to })), (x) => notice("wait", lockWaitText(x, "保存", boldName)));
+  if (!res.ok) { notice("ng", "✕ " + escapeHtml(res.data.error || "変えられませんでした")); await renderSources(); return false; }
+  emit("tpa:sources-changed", { group: to || from });
+  return true;
+}
 async function renameGroup(from, to) {
-  const list = mstate.data.sources.items.filter((s) => s.group === from);
-  for (const s of list) if (!(await quick(s, { "グループ": to }))) return;
+  if (!(await regroup(from, to))) return;
   newGroups = newGroups.map((g) => (g === from ? to : g));
   const c = collapsed(); if (c.delete(from)) { c.add(to); TPA.local.set(COLLAPSE_KEY, [...c]); }
   await renderSources({ notice: ["ok", `✓ グループ「${escapeHtml(from)}」を「${escapeHtml(to)}」にしました。見出しのタブの名前も変わります。`] });
+}
+async function deleteGroup(g) {
+  const n = mstate.data.sources.items.filter((s) => s.group === g).length;
+  if (n && !confirm(`グループ「${g}」を消します。中の ${n} 件のデータ元は消えず、グループなしへ移ります（見出しには 1 つずつタブが出ます）。よろしいですか？`)) return;
+  if (!(await regroup(g, ""))) return;
+  newGroups = newGroups.filter((x) => x !== g);
+  await renderSources({ notice: ["ok", `✓ グループ「${escapeHtml(g)}」を消しました${n ? `。${n} 件のデータ元はグループなしへ移りました` : ""}。`] });
 }
 /** 動かす: key を group へ（near の前・後ろ。無ければグループの最後）。グループが変われば先にグループを、それから並びを置く */
 async function moveTo(key, { group, near = null, after = false }, keepFocus = false) {
   const items = mstate.data.sources.items, s = items.find((x) => x.key === key);
   if (!s || !canHide(s)) return;
   if (s.key === "wip" || s.kind !== "folder") {
-    if ((s.groupSet || "") !== group && !(s.role === "マスタ" && !s.groupSet && group === "マスタ")) {
-      if (!(await quick(s, { "グループ": group }))) return;
+    // 役割「マスタ」の元をグループなしへ出すときは「-」（グループを消した印。「マスタ」へ自動で戻らない。版 3.58.0）
+    const want = !group && s.role === "マスタ" ? "-" : group;
+    if ((s.groupSet || "") !== want && !(s.role === "マスタ" && !s.groupSet && group === "マスタ")) {
+      if (!(await quick(s, { "グループ": want }))) return;
     }
   }
   const order = items.filter((x) => canHide(x) && x.key !== key).map((x) => x.key);
@@ -285,6 +305,84 @@ async function moveTo(key, { group, near = null, after = false }, keepFocus = fa
   emit("tpa:sources-changed", { key });
   await renderSources({ notice: ["ok", `✓ ${escapeHtml(s.name)}を${group ? `「${escapeHtml(group)}」` : "グループなし"}の${near ? "その位置" : "最後"}へ動かしました。見出しのタブの並びも同じになります。`] });
   if (keepFocus) $(`#masterSettings tr[data-key="${CSS.escape(key)}"] [data-sr-grip]`)?.focus();
+}
+
+/* 接続の設定（版 3.58.0。s.conn: services/data_sources.conn_of）。品質・実績・スケジュール・足した元の「どこを・どう読むか」を同じ欄の形で出す。
+   置き場は項目ごとに決まっている（bind: settings は参照先の項目〈PUT /api/sources/<キー>/conn〉・row はこのマスタの行〈行の PUT に入れる〉）。
+   画面はその違いを見せない（どちらも同じ欄・同じ「保存」） */
+const CONN_PICK = {
+  sqlite: { purpose: "sqlite", title: "データ元のファイル（.sqlite3）を選ぶ", note: "共有の .sqlite3 ファイルを選びます。" },
+  folder: { purpose: "worklog", title: "実績のフォルダを選ぶ", note: "設備ごとの .sqlite3 が並ぶフォルダを選びます（印: 実績のファイルがある）。", exclude: ["worklog"] },
+};
+const connText = (v) => (v === null || v === undefined ? "" : String(v));
+const connWide = (f) => ["sqlite", "folder", "url", "text"].includes(f.kind) && f.id !== "client_ip" && f.id !== "table";
+function connField(f, can, at = "") {
+  const dis = can ? "" : " disabled", id = `srConn_${f.id}${at}`;
+  const tip = f.hint ? ` title="${escapeHtml(f.hint)}"` : "";
+  if (f.kind === "lotcol") {
+    const v = connText(f.value);
+    // 列の中身は開いた後に読む（loadLotCols）。それまでは、決めてある列だけを選べる形で出す
+    return `<label class="sr-conn" data-conn-f="${f.id}"${tip}><span>${escapeHtml(f.label)}</span>
+      <select data-sr-conn="${f.id}" data-saved="${escapeHtml(v)}" id="${id}"${dis}><option value="">自動</option><option value="-"${v === "-" ? " selected" : ""}>なし（ロット番号の列は無い）</option>
+        ${v && v !== "-" ? `<option value="${escapeHtml(v)}" selected>${escapeHtml(v)}</option>` : ""}</select>
+      <small class="sr-conn-h" data-lot-auto>${v === "-" ? "ロット番号として扱う列はありません" : v ? "この列をロット番号として扱います" : "名前で見つけた列を使います"}</small></label>`;
+  }
+  const v = connText(f.value), dflt = connText(f.default);
+  const num = f.kind === "int" || f.kind === "number";
+  const range = num && f.min != null ? `${f.min}〜${f.max}` : "";
+  return `<label class="sr-conn${connWide(f) ? " sr-w" : ""}" data-conn-f="${f.id}"${tip}><span>${escapeHtml(f.label)}</span>
+    <span class="sr-row"><input class="ps-input" data-sr-conn="${f.id}" data-saved="${escapeHtml(v)}" id="${id}" value="${escapeHtml(v)}" spellcheck="false"${num ? ' inputmode="decimal"' : ""}
+      placeholder="${escapeHtml(dflt ? `既定: ${dflt}` : num ? range : "")}"${dis}></span>
+    ${f.id === "stale" ? '<small class="sr-conn-h">最後の更新からこの時間を過ぎたら知らせる（0 は知らせない）</small>' : range ? `<small class="sr-conn-h">${range}${f.kind === "int" && /秒/.test(f.label) ? " 秒" : ""}・空なら既定</small>` : ""}</label>`;
+}
+/* 欄の補助（参照… の窓）と、ロット番号の列の選びを付ける */
+function bindConn(card, s, can) {
+  card.querySelectorAll("[data-sr-conn]").forEach((el) => {
+    const f = (s.conn || []).find((x) => x.id === el.dataset.srConn) || {};
+    const pp = CONN_PICK[f.kind];
+    if (pp) TPA.pathPick(el, { ...pp, pattern: f.kind === "folder" ? () => (card.querySelector('[data-sr-conn="pattern"]') || {}).value || "" : undefined,
+      disabled: can ? false : `${readOnlyWhy("sources")}のため、選べません` });
+  });
+  const lot = card.querySelector('[data-sr-conn="lot"]');
+  if (lot) loadLotCols(s, lot);
+}
+/* ロット番号の列の選び: その元の実際の列を並べ、自動で見つけた列を「自動（見つけた列: …）」に書く。読めない（写す前）なら、決めてある値のまま */
+async function loadLotCols(s, sel) {
+  const r = await masterRequest(`/api/sources/${encodeURIComponent(s.base || s.key)}/columns`, { cache: "no-store" });
+  if (!sel.isConnected || !r.ok) return;
+  const cur = sel.value, auto = r.data.autoLot || "", hint = sel.parentElement.querySelector("[data-lot-auto]");
+  const cols = (r.data.columns || []).filter((c) => !String(c).startsWith("@"));
+  sel.innerHTML = `<option value="">自動（${auto ? `見つけた列: ${escapeHtml(auto)}` : "見つかる列は無い"}）</option><option value="-">なし（ロット番号の列は無い）</option>`
+    + `<optgroup label="この列をロット番号にする">${cols.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</optgroup>`
+    + (cur && cur !== "-" && !cols.includes(cur) ? `<option value="${escapeHtml(cur)}">${escapeHtml(cur)}（表に無い列）</option>` : "");
+  sel.value = cur;
+  const say = () => { if (hint) hint.textContent = sel.value === "-" ? "ロット番号として扱う列はありません（押して計算へ取り込む・虫眼鏡・ロットでまとめるを出さない）"
+    : sel.value ? `「${sel.value}」をロット番号として扱います` : auto ? `名前で見つけた「${auto}」を使います` : "名前で見つかる列が無いので、ロット番号として扱う列はありません"; };
+  sel.onchange = say; say();
+  openSnap = formNow();     // 中身を読み替えただけ（直した印にしない）
+}
+/* 欄の値 → [参照先に置く項目, 行に置く列]。直していない項目は送らない */
+function connChanges(card, s) {
+  const settings = [], row = {};
+  for (const f of s.conn || []) {
+    const el = card.querySelector(`[data-sr-conn="${f.id}"]`);
+    if (!el) continue;
+    const v = el.value.trim();
+    if (v === (el.dataset.saved || "")) continue;
+    if (f.bind === "settings") settings.push({ field: f.id, value: v, rev: f.rev || 0 });
+    else row[f.item] = v;
+  }
+  return { settings, row };
+}
+async function saveConnSettings(s, list, say) {
+  for (const c of list) {
+    const res = await withLockWait(() => masterRequest(`/api/sources/${encodeURIComponent(s.key)}/conn`, TPA.json("PUT", { field: c.field, value: c.value, base_rev: c.rev })),
+      (x) => say("wait", lockWaitText(x, "保存", boldName)));
+    if (!res.ok) return res;
+    const f = (s.conn || []).find((x) => x.id === c.field);
+    if (f) emit("tpa:settings-changed", { key: f.item });
+  }
+  return null;
 }
 
 /* 直す欄（開いた行の中）。s: データ元（null なら足す）。isView: 結合した表を作る（版 3.54.0: 元＋結合。場所は持たない） */
@@ -330,13 +428,13 @@ function formOf(s, can, isView = false) {
     <p class="ps-hint sr-w">元の表に、ほかのデータ元の列を鍵で合わせた 1 つの表です。元も相手も、見出しのタブに出していなくてかまいません（DataRelay の「結合」と同じ考え）。</p>
     <label><span>表示名</span><input class="ps-input" data-sr="name" value="${escapeHtml(v.name)}" placeholder="例: 品質データ＋製造条件"${dis}></label>
     <label><span>元（この表の行）</span><select data-sr="base"${dis}${s ? ' title="元を替えるときは、結合した表を作り直してください"' : ""}>${bases.map((b) => `<option value="${escapeHtml(b.key)}"${b.key === cur ? " selected" : ""}${s && b.key !== cur ? " disabled" : ""}>${escapeHtml(b.name)}${b.listed ? "" : "（出さない）"}</option>`).join("")}</select></label>
-    ${listed}${groupField(v.groupSet || "")}
+    ${listed}${groupField(v.groupSet === "-" ? "" : v.groupSet || "")}
     ${joinBox}${acts(false)}</div>`;
   }
   return `<div class="sr-form">
     ${isLot ? "" : `<label><span>表示名</span><input class="ps-input" data-sr="name" value="${escapeHtml(v.name)}"${dis}></label>`}
     ${s && s.builtin ? "" : `<label><span>役割</span><select data-sr="role"${dis}>${opt(d.roles, v.role)}</select></label>`}
-    ${listed}${isLot || (s && s.key === "work") ? "" : groupField(v.groupSet || "")}
+    ${listed}${isLot || (s && s.key === "work") ? "" : groupField(v.groupSet === "-" ? "" : v.groupSet || "")}
     <label class="sr-w"><span>場所（共有の .sqlite3）</span><span class="sr-row"><input class="ps-input" data-sr="place" value="${escapeHtml(v.place)}" spellcheck="false"${dis}
       ${v.placeDefault ? ` placeholder="既定: ${escapeHtml(v.placeDefault)}"` : ""}></span></label>
     <label><span>表（空なら自動）</span><input class="ps-input" data-sr="table" value="${escapeHtml(v.table)}" placeholder="自動"${dis}></label>

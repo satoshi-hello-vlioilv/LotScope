@@ -4,7 +4,7 @@ from ..web import current_app, jsonify, request
 
 from .. import effective_settings, lot_engine, lot_list_params
 from ..services import lot_list, pivot
-from .common import bp, error
+from .common import bp, error, tab_denied
 
 
 def lot_mirror():
@@ -25,9 +25,12 @@ def lotlist_plan(joined=True):
     """一覧を読む前の段取り → (段取り, 失敗の答え)。どちらか一方が None。
     段取り: 読むファイル（写しがあれば写し）・既定の表・既定の件数・いつのデータか。
     joined: データ元の結合を当てる（版 3.53.0。結合があれば、合わせた答えのファイルを読む。デスクトップ版の画面は engine=python を付けて Python に尋ねる）"""
+    denied = tab_denied("lot", "品質") if joined else None       # タブの権限（版 3.58.0）: 出さない元は読ませない
+    if denied:
+        return None, denied
     m, ll = lot_mirror()
     if not m.enabled:
-        return None, error("ロット一覧の元ファイルが決まっていません。「マスタ管理」の「参照先」で元ファイルを入れてください。", 400,
+        return None, error("品質の元ファイルが決まっていません。「マスタ管理」の「データ元」で品質の場所を入れてください。", 400,
                            source=m.source_info())
     path = m.read_path()
     if not path:      # 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す
@@ -38,6 +41,11 @@ def lotlist_plan(joined=True):
     from .sources import source_def, with_joins
     s = source_def("lot")
     return with_joins(plan, s) if s else (plan, None)
+
+
+def _lot_col():
+    from .sources import lot_col_of
+    return lot_col_of("lot")
 
 
 @bp.get("/api/lotlist")
@@ -52,7 +60,7 @@ def lotlist():
         out = lot_list.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"],
                              page=a.get("page", 1), page_size=a.get("page_size", plan["page_size"]),
                              search=a.get("search", ""), filters=a.get("filters", ""), sorts=a.get("sorts", ""), marks=a.get("marks", ""), calc=a.get("calc", ""),
-                             group=a.get("group") == "1")
+                             group=a.get("group") == "1", lot_col=_lot_col())
     except Exception as e:
         return error(str(e), 503, source=plan["source"])
     out["source"] = plan["source"]
@@ -89,7 +97,7 @@ def lotlist_pivot():
             return jsonify(pivot.fields(plan["path"], table=a.get("table", ""), preferred_table=plan["table"]))
         out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
                           filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
-                          month=a.get("month", ""), box=a.get("box", ""))
+                          month=a.get("month", ""), box=a.get("box", ""), lot_col=_lot_col())
     except pivot.PivotError as e:
         return error(str(e), 400)
     except Exception as e:
@@ -104,8 +112,11 @@ def lotlist_settings():
     settings = effective_settings(current_app)
     source, refresh_seconds, stale_hours = lot_list_params(settings)
     ll = settings.get("lot_list") or {}
+    # 品質のタブを出さない人（版 3.58.0）: Rust に答えさせず Python に任せる（Python が権限で断る。Rust は権限を知らない）
+    # ロット番号の列を決めてある（自動でない）ときも Python（版 3.58.0。Rust は名前で探す決まりしか知らない）
+    engine = "python" if tab_denied("lot") or _lot_col() else lot_engine(current_app.config["APP_SETTINGS"])
     return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
-                   page_size=ll.get("page_size", 500), engine=lot_engine(current_app.config["APP_SETTINGS"]))
+                   page_size=ll.get("page_size", 500), engine=engine)
 
 
 @bp.get("/api/lotlist/source")

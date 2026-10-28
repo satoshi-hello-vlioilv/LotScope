@@ -87,7 +87,17 @@ def columns(conn, table, raw=None):
     return list(dict.fromkeys(raw if raw is not None else raw_columns(conn, table)))
 
 
-def lot_column(cs, candidates=LOT_COLUMN_CANDIDATES):
+LOT_NONE = "-"         # データ元の「ロット番号の列」を「なし」にした印（版 3.58.0）
+
+
+def lot_column(cs, candidates=LOT_COLUMN_CANDIDATES, override=None):
+    """ロット番号の列。override（データ元の「ロット番号の列」。版 3.58.0。利用者の要望 2026-10-28）:
+    None・"" … 自動（下の決まり）／ LOT_NONE … ロット番号の列は無い（「ロット」という名前の別の列を、ロット番号として扱わない）／
+    列名 … その列（表に無ければ無い）。自動の決まり: 候補の名前 → 名前に「ロット」「ﾛｯﾄ」を含む最初の列"""
+    if override == LOT_NONE:
+        return ""
+    if override:
+        return override if override in cs else ""
     for c in candidates:
         if c in cs:
             return c
@@ -645,13 +655,14 @@ def slicer_answer(path, args, **kw):
 
 
 def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEFAULT, search="",
-          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES, grouping=None, marks="", calc=None):
+          filters="", sorts="", today=None, group=False, table_candidates=TABLE_CANDIDATES, grouping=None, marks="", calc=None, lot_col=None):
     """1 ページ分。表は table（あれば）→ preferred_table → table_candidates の順に探す（作業実績は別の候補を渡す）。
     grouping: ロット番号の代わりの鍵でまとめる係（作業実績の「作業でまとめる」。services/work_summary.py の Grouping）。
         grouping.prepare(接続, 表, 列) → まとめるなら {"key": 鍵の式, "lead": [並べ替えの前に置く式], "where": ([式], [値])?}・まとめないなら None
         grouping.extra(接続, 表, 列, 日付の列, where, params, 行) → 答えに足す物（dict。where は係の絞り込みを外した物）
     calc: 計算列（表示列の設定の式。{formulas, names} か その JSON の字。formula.clean_calc）。並べ替えに計算列を使える（版 3.42.0。
-        画面は計算列で並べ替えるときだけ送る。デスクトップ版の Rust は式を持たないので、その問い合わせは Python が答える: engine=python）"""
+        画面は計算列で並べ替えるときだけ送る。デスクトップ版の Rust は式を持たないので、その問い合わせは Python が答える: engine=python）
+    lot_col: データ元の「ロット番号の列」（lot_column の override。None は自動）"""
     t0 = time.perf_counter()
     page = max(1, int(page or 1))
     size = min(PAGE_SIZE_MAX, max(1, int(page_size or PAGE_SIZE_DEFAULT)))
@@ -666,7 +677,7 @@ def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEF
         fl = safe_filters(filters, cs)
         where_parts, params = search_filter_where(cs, q, fl, today)
         base_where, base_params = (" WHERE " + " AND ".join(where_parts)) if where_parts else "", list(params)
-        lot = lot_column(cs)
+        lot = lot_column(cs, override=lot_col)
         exprs, _, _ = register_calc(c, clean_calc(calc), raw_cs, qi)
         order_parts = safe_sorts(sorts, cs + [x for x in exprs if x not in cs])
         plan = grouping.prepare(c, t, cs) if grouping else None

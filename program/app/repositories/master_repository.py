@@ -37,7 +37,9 @@ SPECS = {
     # 参照先（読みに行く場所）。項目ごとに1行（services/path_settings.py の ITEMS）
     "path_settings": {"fields": ["項目", "値"], "renamed": {}, "unique": "項目"},
     # アクセス権限（services/access.py）。ログインID・PC名の組は1行だけ（_check_row）
-    "access_permissions": {"fields": ["ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考"], "renamed": {}, "unique": None},
+    "access_permissions": {"fields": ["ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考", "タブの例外"], "renamed": {}, "unique": None},
+    # 見出しのタブの権限（版 3.58.0。services/access.py）。タブごとに 1 行: 出さない権限区分（・区切り）
+    "tab_access": {"fields": ["タブ", "出さない区分"], "renamed": {}, "unique": "タブ"},
     # 作業実績の設備（services/work_log.py）。ファイルごとに1行。表示ルールは変わらないキーに結ぶ
     "work_log_files": {"fields": work_log.FIELDS, "renamed": {}, "unique": "キー"},
     # 共有の書式（services/display_formats.py）。名前は元（品質異常・作業実績）ごとに 1 つ（_check_row）
@@ -236,6 +238,33 @@ class MasterRepository:
     def access_permissions(self):
         return self._list("access_permissions")
 
+    def tab_access(self):
+        return self._list("tab_access")
+
+    def tab_access_put(self, rules):
+        """タブの権限を 1 回の錠の中で置き換える。rules: {タブ: 出さない区分の並び}（空の並びのタブは行を消す。書いていないタブはそのまま）。"""
+        spec = SPECS["tab_access"]
+
+        def mutate(rows, stamp):
+            _normalize_all(rows, spec)
+            by = {r.get("タブ"): r for r in rows}
+            for tab, roles in rules.items():
+                text = "・".join(roles)
+                row = by.get(tab)
+                if not roles:
+                    if row is not None:
+                        rows.remove(row)
+                    continue
+                if row is None:
+                    row = {"id": next_id(rows), "rev": 0, "タブ": tab}
+                    rows.append(row)
+                elif _clean(row.get("出さない区分")) == text:
+                    continue
+                row["出さない区分"] = text
+                row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
+            return None
+        self.store.write("tab_access", mutate)
+
     def access_permissions_create(self, data):
         return self._create("access_permissions", data)
 
@@ -297,8 +326,9 @@ class MasterRepository:
             return dict(row)
         return self.store.write("data_sources", mutate)
 
-    def data_source_order(self, rows):
-        """並び（版 3.54.0）を 1 回の錠の中で置く。rows: キー → 行（clean 済みでなくてよい。並びだけを変え、行が無ければこの行で足す）。"""
+    def data_source_order(self, rows, fields=("並び",)):
+        """並び（版 3.54.0）・グループ（版 3.58.0）を 1 回の錠の中で置く。rows: キー → 行（clean 済みでなくてよい。
+        fields の列だけを変え、行が無ければこの行で足す）。"""
         spec = SPECS["data_sources"]
 
         def mutate(have, stamp):
@@ -309,9 +339,9 @@ class MasterRepository:
                 if row is None:
                     row = {"id": next_id(have), "rev": 0, **{k: _clean(data.get(k)) for k in spec["fields"]}, "キー": key}
                     have.append(row)
-                elif _clean(row.get("並び")) == _clean(data.get("並び")):
+                elif all(_clean(row.get(f)) == _clean(data.get(f)) for f in fields):
                     continue
-                row["並び"] = _clean(data.get("並び"))
+                row.update({f: _clean(data.get(f)) for f in fields})
                 row.update(rev=int(row.get("rev", 0)) + 1, **stamp)
             return None
         self.store.write("data_sources", mutate)

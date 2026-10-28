@@ -48,15 +48,17 @@ def settings_put(key):
     except ValueError as e:
         return error(str(e), 400, "invalid")
     base = base_rev()
+    return master_call(lambda: {"row": put_setting(key, value, base)})
 
-    def run():
-        row = master_repo().path_setting_put(key, value, base)
-        if key.startswith("lot_list."):
-            lot_mirror()       # 元ファイル・間隔・しきいを、起動し直さずに切り替える
-        if key.startswith("work_log.") and current_app.config.get("WORK_LISTING"):
-            current_app.config["WORK_LISTING"].forget()    # 作業実績のフォルダ・決まりを変えた → 次は探し直す
-        return {"row": row}
-    return master_call(run)
+
+def put_setting(key, value, base):
+    """参照先の項目を置いて、すぐ効かせる（データ元の接続の設定からも。routes/sources.py）。value は parse 済み（None は既定へ）。"""
+    row = master_repo().path_setting_put(key, value, base)
+    if key.startswith("lot_list."):
+        lot_mirror()       # 元ファイル・間隔・しきいを、起動し直さずに切り替える
+    if key.startswith("work_log.") and current_app.config.get("WORK_LISTING"):
+        current_app.config["WORK_LISTING"].forget()    # 実績のフォルダ・決まりを変えた → 次は探し直す
+    return row
 
 
 @bp.get("/api/update/settings")

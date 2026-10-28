@@ -4,14 +4,15 @@
 品質データ・作業実績・仕掛と、あとから足すデータ元を、1 つの並びで扱う。どれも「共有の場所を手元へ写して読む」（db_mirror.py）。
 
   元           置き方                 場所の置き場                                      読む口
-  品質データ   1 ファイル             参照先 lot_list.source・lot_list.table             /api/lotlist（デスクトップ版は Rust が答える）
-  作業実績     フォルダ＋名前の決まり 参照先 work_log.folder・work_log.pattern           /api/worklog（設備ごとの登録は work_log.py）
+  品質         1 ファイル             参照先 lot_list.source・lot_list.table             /api/lotlist（デスクトップ版は Rust が答える）
+  実績         フォルダ＋名前の決まり 参照先 work_log.folder・work_log.pattern           /api/worklog（設備ごとの登録は work_log.py）
   仕掛         1 ファイル             このマスタの行（無ければ設定 sources.wip の既定）  /api/src/wip
   スケジュール CM3（設備ごと）        参照先 schedule.cm3_base_url（設定 schedule）     /api/src/sch（版 3.57.0。services/schedule.py）
   足した元     1 ファイル             このマスタの行                                    /api/src/<キー>
 
-品質データ・作業実績の場所は、これまでどおり参照先（path_settings）に置く（デスクトップ版の Rust・作業実績の登録が読む所を変えない）。
-画面の「データ元」はどの元も同じ形で見せ、場所を直すと、その元の置き場（参照先かこのマスタ）へ書く。
+品質・実績・スケジュールの場所・間隔は、これまでどおり参照先（path_settings）に置く（デスクトップ版の Rust・作業実績の登録が読む所を変えない）。
+画面の「データ元」はどの元も同じ形の「接続の設定」（CONN。版 3.58.0）で見せ、直すと、その項目の置き場（参照先かこのマスタ）へ書く。
+前は「参照先」「作業実績」のタブに分かれていた設定も、ここで直す（「つなぎ先」を 1 つにした。利用者の要望 2026-10-28）。
 
 このマスタ（data_sources。管理のマスタ・共有）の行: {id, キー, 表示名, 役割, 場所, 表, 設備の列, 設備の取り出し方, 画面, 並び, 備考, 結合, グループ, 元}
   キー            … 変わらない名前（wip か、足したとき決める s<8 桁>）。画面の表示ルール（表示列・並び・条件）は src:<キー>:<表> に結ぶ
@@ -23,6 +24,9 @@
   結合            … ほかのデータ元の列を、自由に組んだ鍵で合わせる決まり（JSON。services/data_join.py。版 3.53.0）
   グループ        … まとめる名前（版 3.54.0）。同じグループの元は、データ元の一覧で 1 つのまとまりになり、見出しでは 1 つのタブの中に
                     札で並ぶ（作業実績の設備のタブと同じ形）。役割「マスタ」でグループが空なら「マスタ」（版 3.53.0 の「マスタ」のタブ）
+  確かめる間隔・古さの警告 … 仕掛・足した元の写し方（秒・時間。空なら設定 sources の既定。版 3.58.0）
+  ロット番号の列  … 空＝自動（名前で探す）／ "-"＝無い／列名＝その列（版 3.58.0。「ロット」という名前の別の列を、ロット番号に
+                    させない。どの元にもある。lot_list.lot_column の override）
   元              … 結合した表（版 3.54.0）: ここにほかのデータ元のキーがあれば、この行は自分の場所を持たず、その元の写しに「結合」を当てた
                     答えを 1 つの表として見せる（元・相手は見出しのタブに出さなくてよい。DataRelay の「結合」と同じ考え）
 """
@@ -36,12 +40,14 @@ from . import data_join
 from .identity import normalize_part
 
 NAME = "data_sources"
-FIELDS = ["キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考", "結合", "グループ", "元"]
+FIELDS = ["キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考", "結合", "グループ", "元",
+          "確かめる間隔", "古さの警告", "ロット番号の列"]
 ROLES = ["品質", "実績", "仕掛", "マスタ", "その他"]
 SCHEDULE_ROLE = "予定"       # スケジュール（組み込みだけの役割。足した元には付けない）
 MASTER_ROLE = "マスタ"
 VIEW_ROLE = "結合した表"     # 画面の言葉（役割の値ではない。結合した表の役割は、選ばなければ「その他」）
 GROUP_MAX = 24               # グループの名前の長さ
+NO_GROUP = "-"               # グループを消した印（役割「マスタ」の元が「マスタ」へ自動で入らないように。版 3.58.0）
 PATCH_FIELDS = {"画面", "グループ", "表示名"}     # 一覧からその場で変えられる列（PATCH。ほかの列はそのまま）
 EQUIP_MODES = ["そのまま", "前方一致"]
 # 読み方の既定（設定 sources.<キー> で変えられる。足した元は sources の既定）
@@ -54,9 +60,9 @@ TABLE_CANDIDATES = ["仕掛", "品質情報", "品質", "保留"]
 
 # 決まった元。place/table は参照先の項目（path_settings）、screen は見出しのタブの id（app.js の SCREENS）
 BUILTINS = [
-    {"key": "lot", "name": "品質データ", "role": "品質", "kind": "file", "screen": "list", "api": "/api/lotlist",
+    {"key": "lot", "name": "品質", "role": "品質", "kind": "file", "screen": "list", "api": "/api/lotlist",
      "settings": {"place": "lot_list.source", "table": "lot_list.table"}, "equipColumn": "設備", "equipMode": "そのまま"},
-    {"key": "work", "name": "作業実績", "role": "実績", "kind": "folder", "screen": "work", "api": "/api/worklog",
+    {"key": "work", "name": "実績", "role": "実績", "kind": "folder", "screen": "work", "api": "/api/worklog",
      "settings": {"place": "work_log.folder", "table": "work_log.table", "pattern": "work_log.pattern"}, "equipColumn": "", "equipMode": "そのまま"},
     {"key": "wip", "name": "仕掛", "role": "仕掛", "kind": "file", "screen": "src:wip", "api": "/api/src/wip", "settings": None},
     # スケジュール（版 3.57.0。ScheduleView を移した）: 場所は CM3（参照先 schedule.cm3_base_url）。設備ごとに CM3 から取り、手元の表にして読む
@@ -70,6 +76,71 @@ SCHEDULE_JOIN = {"with": "wip", "how": "left", "on": [["ロットNo", "ﾛｯﾄ
                  "cols": ["製造調質", "ｵｰﾀﾞｰ板厚", "ｵｰﾀﾞｰ板幅", "BOX実績_良品重量", "実績_設備ｺｰｽ", "残仕掛設備ｺｰｽ", "設計_PIT炉番炉順",
                           "特急区分", "保留_区分", "工場納期", "約束納期"]}
 BUILTIN_KEYS = {b["key"] for b in BUILTINS}
+
+# ------------------------------------------------------------------ 接続の設定（版 3.58.0）
+# どの元も「接続の設定」を同じ形で持つ（項目の並び・言葉・確かめ方は同じ。違うのは値の置き場だけ）。
+# 値の置き場（CONN_BIND）: 参照先の項目のキー（path_settings。品質・実績・スケジュール）か、"row:列"（このマスタの行。仕掛・足した元）。
+# 項目の種類・範囲・確かめ方は path_settings の項目と同じ物を使う（参照先の項目に結ぶ物は、その項目の決まりそのもの）。
+CONN_SPECS = {
+    "place": {"label": "場所（共有の .sqlite3）", "kind": "sqlite"},
+    "table": {"label": "表（空なら自動）", "kind": "text"},
+    "folder": {"label": "フォルダ（設備ごとの .sqlite3 を置く所）", "kind": "folder"},
+    "pattern": {"label": "ファイル名の決まり（* が設備名）", "kind": "pattern"},
+    "url": {"label": "CM3 の URL", "kind": "url"},
+    "client_ip": {"label": "CM3 に名乗る端末の IP", "kind": "text"},
+    "equipments": {"label": "設備（「、」区切り。端末区分が違う設備は L-9:2）", "kind": "text"},
+    "inspect": {"label": "点検の行の言葉（「、」区切り）", "kind": "text"},
+    "refresh": {"label": "確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600},
+    "stale": {"label": "古さの警告（時間）", "kind": "number", "min": 0, "max": 24 * 60},   # 0 は知らせない（手がかりに書く）
+    "lot": {"label": "ロット番号の列", "kind": "lotcol",
+            "hint": "押すとロットを計算へ取り込む・虫眼鏡・ロットでまとめる列。自動は名前（ロット番号・ﾛｯﾄ番号・ロット№・LTNO → 名前に「ロット」を含む最初の列）で探します。"
+                    "ロット番号ではない列が選ばれたときは「なし」か正しい列にしてください。"},
+}
+CONN_BIND = {
+    "lot": {"place": "lot_list.source", "table": "lot_list.table", "refresh": "lot_list.refresh_seconds", "stale": "lot_list.stale_hours",
+            "lot": "row:ロット番号の列"},
+    "work": {"folder": "work_log.folder", "pattern": "work_log.pattern", "refresh": "work_log.refresh_seconds", "stale": "work_log.stale_hours",
+             "lot": "row:ロット番号の列"},
+    "sch": {"url": "schedule.cm3_base_url", "client_ip": "schedule.client_ip", "equipments": "schedule.equipments",
+            "inspect": "schedule.inspect_keywords", "refresh": "schedule.auto_refresh_sec", "lot": "row:ロット番号の列"},
+}
+CONN_FILE = {"place": "row:場所", "table": "row:表", "refresh": "row:確かめる間隔", "stale": "row:古さの警告",
+             "lot": "row:ロット番号の列"}   # 仕掛・足した元
+ROW_READ = {"refresh_seconds": "確かめる間隔", "stale_hours": "古さの警告"}
+
+
+def conn_bind(item):
+    """その元の接続の設定の項目 → 置き場（{項目: 参照先のキー か row:列}）。結合した表は自分の接続を持たない（元の物）。"""
+    if item.get("kind") == "view" or item.get("base"):      # 結合した表: 場所・間隔は元の物。ロット番号の列だけ自分で決める
+        return {"lot": "row:ロット番号の列"}
+    return CONN_BIND.get(item["key"]) or (CONN_FILE if item.get("kind") == "file" else {})
+
+
+def conn_spec(field, setting=None):
+    """項目の決まり（言葉・種類・範囲・手がかり）。参照先の項目に結ぶ物は、その項目の種類・範囲・手がかりを使う。"""
+    spec = {"id": field, **CONN_SPECS[field]}
+    if setting:
+        spec.update({k: setting[k] for k in ("kind", "min", "max", "hint", "check_url") if k in setting})
+    return spec
+
+
+def conn_of(item, row, settings_items, defaults):
+    """その元の接続の設定（画面の欄の並び）。settings_items: 参照先の項目の答え（path_settings.effective の items をキーで）。
+    defaults: 行に結ぶ項目の既定（{"place": …, "refresh": …}）。→ [{id, label, kind, hint, min, max, bind, item, value, default, effective, rev}]"""
+    out = []
+    for field, where in conn_bind(item).items():
+        if where.startswith("row:"):
+            col = where[4:]
+            v = _s((row or {}).get(col))
+            dflt = defaults.get(field, "")
+            out.append({**conn_spec(field), "bind": "row", "item": col, "value": v, "default": dflt,
+                        "effective": v or dflt, "rev": (row or {}).get("rev") or 0})
+        else:
+            it = settings_items.get(where) or {}
+            out.append({**conn_spec(field, it), "bind": "settings", "item": where, "value": "" if it.get("value") is None else it["value"],
+                        "default": "" if it.get("default") is None else it["default"], "effective": it.get("effective"),
+                        "rev": it.get("rev") or 0})
+    return out
 
 
 _SCREEN_KEY = re.compile(r"src:[a-z0-9]{1,16}")
@@ -99,13 +170,28 @@ def _s(v):
     return ("" if v is None else str(v)).strip()
 
 
-def read_params(settings, key):
-    """写し直す間隔・古いとみなす時間・1 頁の件数（設定 sources.<キー> → sources の既定 → 決まった既定）。"""
+def read_params(settings, key, row=None):
+    """写し直す間隔・古いとみなす時間・1 頁の件数（このマスタの行 → 設定 sources.<キー> → sources の既定 → 決まった既定）。
+    品質・実績・スケジュールは、接続の設定の置き場（参照先の項目）の値（版 3.58.0。前は sources の既定だけで、参照先の間隔と食い違えた）。"""
     src = (settings or {}).get("sources") or {}
     out = dict(READ_DEFAULTS)
     for layer in (src.get("defaults") or {}, src.get(key) or {}):
         out.update({k: v for k, v in layer.items() if k in READ_DEFAULTS and v not in (None, "")})
+    bind = CONN_BIND.get(key) or {}
+    for k, field in (("refresh_seconds", "refresh"), ("stale_hours", "stale")):
+        if field in bind and _get(settings, bind[field]) not in (None, ""):
+            out[k] = _get(settings, bind[field])
+        elif row and _s(row.get(ROW_READ[k])):
+            out[k] = _num(row.get(ROW_READ[k]), out[k])
     return out
+
+
+def _num(v, dflt):
+    try:
+        n = float(_s(v))
+    except ValueError:
+        return dflt
+    return int(n) if n == int(n) else n
 
 
 def clean_row(data, *, key=None, known=None):
@@ -122,13 +208,24 @@ def clean_row(data, *, key=None, known=None):
     row["画面"] = "無" if row["画面"] == "無" else "有"
     row["場所"] = unquote_path(row["場所"]) if row["場所"] else ""
     row["グループ"] = " ".join(row["グループ"].split())[:GROUP_MAX]
+    row["ロット番号の列"] = row["ロット番号の列"][:120]
+    for col, field in (("確かめる間隔", "refresh"), ("古さの警告", "stale")):   # 写し方（空なら既定）。範囲は接続の設定の決まり
+        if row[col]:
+            spec = conn_spec(field)
+            try:
+                n = float(row[col])
+            except ValueError:
+                raise ValueError(f"「{spec['label']}」は数で入れてください。") from None
+            if not spec["min"] <= n <= spec["max"]:
+                raise ValueError(f"「{spec['label']}」は {spec['min']}〜{spec['max']} で入れてください。")
+            row[col] = str(int(n)) if field == "refresh" or n == int(n) else str(n)
     if row["キー"] in BUILTIN_KEYS:
         row["元"] = ""
-        if row["キー"] not in GROUPABLE:    # 品質データ・作業実績は見出しのタブが決まっている（グループに入れない）
+        if row["キー"] not in GROUPABLE:    # 品質・実績は見出しのタブが決まっている（グループに入れない）
             row["グループ"] = ""
     if row["元"]:                           # 結合した表: 場所は元の物。元は 1 ファイルの元（結合した表は元にできない）
         if row["元"] == row["キー"] or row["元"] not in (known or {}):
-            raise ValueError("結合した表の元にするデータ元を選んでください（品質データ・仕掛・足したデータ元。作業実績と結合した表は元にできません）。")
+            raise ValueError("結合した表の元にするデータ元を選んでください（品質・仕掛・足したデータ元。実績と結合した表は元にできません）。")
         joins = data_join.parse(row["結合"])
         if not joins:
             raise ValueError("結合した表は、合わせる相手を 1 つ以上決めてください（鍵: この列 = 相手の列）。")
@@ -148,7 +245,9 @@ def row_of(item):
             "役割": "" if item["builtin"] else item["role"], "場所": item["place"] if item["storage"] == "master" and not item.get("base") else "",
             "表": item["table"] if not item.get("base") else "", "設備の列": item["equipColumn"], "設備の取り出し方": item["equipMode"],
             "画面": "有" if item["listed"] else "無", "並び": _s(item.get("order")), "備考": item.get("note", ""),
-            "結合": item.get("joins") or [], "グループ": item.get("groupSet", ""), "元": item.get("base", "")}
+            "結合": item.get("joins") or [], "グループ": item.get("groupSet", ""), "元": item.get("base", ""),
+            "確かめる間隔": item.get("rowRead", {}).get("確かめる間隔", ""), "古さの警告": item.get("rowRead", {}).get("古さの警告", ""),
+            "ロット番号の列": item.get("lotSet", "")}
 
 
 def _builtin(key):
@@ -182,7 +281,9 @@ def sources(settings, rows):
         d["equipMode"] = (_s(row.get("設備の取り出し方")) if row else "") or _s(dflt.get("equip_mode")) or "そのまま"
         d["name"] = _s(row.get("表示名")) or b["name"]
         d["listed"] = True if b["key"] in ("lot", "work") else _s(row.get("画面")) != "無"
-        d["read"] = read_params(settings, b["key"])
+        d["read"] = read_params(settings, b["key"], row)
+        d["rowRead"] = {c: _s(row.get(c)) for c in ROW_READ.values()}
+        d["lotSet"] = _s(row.get("ロット番号の列"))
         d["joins"] = data_join.parse(row.get("結合"))
         if b["kind"] == "cm3" and not row:      # 行がまだ無い: 既定の結合（仕掛と合わせる）
             d["joins"], d["joinsDefault"] = data_join.parse([SCHEDULE_JOIN]), True
@@ -197,7 +298,9 @@ def sources(settings, rows):
                     "equipColumn": _s(r.get("設備の列")), "equipMode": _s(r.get("設備の取り出し方")) or "そのまま",
                     "screen": f"src:{k}", "listed": _s(r.get("画面")) != "無", "builtin": False, "storage": "master",
                     "settings": None, "api": f"/api/src/{k}", "id": r.get("id"), "rev": r.get("rev"), "note": _s(r.get("備考")),
-                    "read": read_params(settings, k), "joins": data_join.parse(r.get("結合")),
+                    "read": read_params(settings, k, r), "rowRead": {c: _s(r.get(c)) for c in ROW_READ.values()},
+                    "lotSet": _s(r.get("ロット番号の列")),
+                    "joins": data_join.parse(r.get("結合")),
                     "groupSet": _s(r.get("グループ")), "order": _s(r.get("並び")), "base": _s(r.get("元"))})
     # 並び: 品質データ・作業実績は先頭に決まる。ほかは「並び」の順（無ければ足した順。仕掛は足した元より前・
     # あとから組み込んだ元〈スケジュール〉は最後。いまのタブの並びを崩さない）
@@ -216,7 +319,10 @@ def sources(settings, rows):
     names = {d["key"]: d["name"] for d in out}
     for d in out:
         # グループ（見出しのタブのまとまり）。マスタは、決めていなければ「マスタ」
-        d["group"] = d["groupSet"] or (MASTER_ROLE if d["role"] == MASTER_ROLE and d["api"].startswith("/api/src/") else "")
+        if d["groupSet"] == NO_GROUP:       # グループを消した元（役割「マスタ」でも「マスタ」へ入れない）
+            d["group"] = ""
+        else:
+            d["group"] = d["groupSet"] or (MASTER_ROLE if d["role"] == MASTER_ROLE and d["api"].startswith("/api/src/") else "")
         d["joinText"] = data_join.describe(d["joins"], names)
         d["usedBy"] = [x["key"] for x in out if x is not d and (x.get("base") == d["key"] or any(j["with"] == d["key"] for j in x["joins"]))]
     return out

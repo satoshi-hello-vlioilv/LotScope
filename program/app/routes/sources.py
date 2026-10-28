@@ -12,7 +12,7 @@ import app_env
 from .. import effective_settings
 from ..repositories.master_store import MasterError
 from ..services import data_join, data_sources, lot_list, path_settings, pivot, work_log
-from .common import base_rev, bp, can_write, error, master_call, master_repo
+from .common import base_rev, bp, can_write, error, master_call, master_repo, tab_denied
 
 
 class SourceInvalid(MasterError):
@@ -44,6 +44,20 @@ def _rows_of(m, s):
             return int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}").fetchone()[0]) if t else None
     except Exception:
         return None
+
+
+def _conn_items():
+    """参照先の項目の答え（キー → 答え）。データ元の接続の設定が、参照先に結ぶ項目の値・既定・版を読む。"""
+    _, items = path_settings.effective(current_app.config["APP_SETTINGS"], master_repo().path_settings())
+    return {i["key"]: i for i in items}
+
+
+def _conn(s, ps_items, rows):
+    """その元の接続の設定（版 3.58.0。data_sources.conn_of）。行に結ぶ項目の既定は、設定 sources の既定と仕掛の既定の場所。"""
+    row = next((r for r in rows if str(r.get("キー") or "") == s["key"]), None)
+    dflt_read = data_sources.read_params(effective_settings(current_app), s["key"])
+    defaults = {"place": s.get("placeDefault", ""), "refresh": dflt_read["refresh_seconds"], "stale": dflt_read["stale_hours"]}
+    return data_sources.conn_of(s, row, ps_items, defaults)
 
 
 def _public(s):
@@ -83,15 +97,19 @@ def sources_list():
     repo = master_repo()
     changed = {str(r.get("項目") or "") for r in repo.path_settings() if str(r.get("値") or "").strip()}
     shown = sum(1 for r in repo.work_logs() if str(r.get("表示") or "有") != "無")
+    ps_items, rows = _conn_items(), repo.data_source_rows()
     items = []
     for s in _all():
         x = _public(s)
+        x["conn"] = _conn(s, ps_items, rows)
         if s["key"] == "lot":         # 品質データの場所・表を参照先で変えてあるか（「既定に戻す」を出す）
             x["placeChanged"] = bool({"lot_list.source", "lot_list.table"} & changed)
         if s["kind"] == "folder":     # 作業実績: 表示する設備の台数（状態に出す）
             x["equipCount"] = shown
         items.append(x)
-    return jsonify(items=items, roles=data_sources.ROLES, equipModes=data_sources.EQUIP_MODES,
+    # そのほかの接続（データ元ではない所: LotDsp・更新の置き場・ブラウザ。版 3.58.0 で「参照先」のタブをここへ）
+    others = [i for i in ps_items.values() if not i.get("page")]
+    return jsonify(items=items, others=others, roles=data_sources.ROLES, equipModes=data_sources.EQUIP_MODES,
                    canEdit=can_write(data_sources.NAME), shared=st.is_shared(data_sources.NAME), revision=st.revision(data_sources.NAME))
 
 
@@ -139,15 +157,18 @@ def sources_add():
 
 @bp.put("/api/sources/<key>")
 def sources_put(key):
-    """データ元を直す（決まった元の仕掛も同じ。品質データ・作業実績の場所は参照先 /api/settings で直す）。base_rev は行の版（無ければ 0）。"""
+    """データ元を直す（決まった元も同じ。参照先に結ぶ接続の設定は PUT /api/sources/<キー>/conn）。送らなかった列はいまの行のまま。base_rev は行の版（無ければ 0）。"""
     body = request.get_json(silent=True) or {}
 
     def run():
         items = _all()
-        if key not in {s["key"] for s in items}:
+        it = next((x for x in items if x["key"] == key), None)
+        if it is None:
             raise SourceInvalid("そのデータ元はありません（ほかの PC が消した可能性があります）。")
+        # 送られなかった列は、いまの行のまま（品質・実績のように欄の一部だけを直す元でも、ほかの列を消さない。版 3.58.0）
+        merged = {**data_sources.row_of(it), **{k: v for k, v in body.items() if k in data_sources.FIELDS}}
         try:
-            row = data_sources.clean_row(body, key=key, known=data_sources.join_targets(items))
+            row = data_sources.clean_row(merged, key=key, known=data_sources.join_targets(items))
         except ValueError as e:
             raise SourceInvalid(str(e)) from None
         return {"row": master_repo().data_source_put(key, row, base_rev())}
@@ -170,6 +191,9 @@ def src_plan(key, need_copy=True, joined=True):
     s = next((x for x in _all() if x["key"] == key), None)
     if s is None or not s["api"].startswith("/api/src/"):
         return None, error("そのデータ元はありません。「マスタ管理」の「データ元」で確かめてください。", 404, "unknown")
+    denied = tab_denied(key, s["name"]) if joined else None     # タブの権限（版 3.58.0）: 出さない元は読ませない（結合の相手としては使う）
+    if denied:
+        return None, denied
     if s["kind"] == "cm3":                  # スケジュール（版 3.57.0）: 設備ごとに CM3 から取った表（routes/schedule.py）
         from .schedule import schedule_plan
         return schedule_plan(s, joined=joined)
@@ -202,7 +226,8 @@ def src_list(key):
         out = lot_list.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"],
                              page=a.get("page", 1), page_size=a.get("page_size", plan["page_size"]),
                              search=a.get("search", ""), filters=a.get("filters", ""), sorts=a.get("sorts", ""), marks=a.get("marks", ""), calc=a.get("calc", ""),
-                             group=a.get("group") == "1", table_candidates=_candidates(plan.get("candKey", key)))
+                             group=a.get("group") == "1", table_candidates=_candidates(plan.get("candKey", key)),
+                             lot_col=plan["def"].get("lotSet") or None)
     except Exception as e:
         return error(str(e), 503, source=plan["source"])
     out["source"] = plan["source"]
@@ -237,7 +262,7 @@ def src_pivot(key):
             return jsonify(pivot.fields(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], table_candidates=_candidates(plan.get("candKey", key))))
         out = pivot.query(plan["path"], table=a.get("table", ""), preferred_table=plan["table"], search=a.get("search", ""),
                           filters=a.get("filters", ""), rows=a.get("rows", ""), cols=a.get("cols", ""), measures=a.get("measures", ""),
-                          month=a.get("month", ""), box=a.get("box", ""), table_candidates=_candidates(plan.get("candKey", key)))
+                          month=a.get("month", ""), box=a.get("box", ""), table_candidates=_candidates(plan.get("candKey", key)), lot_col=plan["def"].get("lotSet") or None)
     except pivot.PivotError as e:
         return error(str(e), 400)
     except Exception as e:
@@ -354,6 +379,12 @@ def source_def(key):
     return next((x for x in _all() if x["key"] == key), None)
 
 
+def lot_col_of(key):
+    """データ元の「ロット番号の列」（版 3.58.0。None は自動・"-" は無い・列名はその列）。lot_list.lot_column の override に渡す"""
+    s = source_def(key)
+    return (s or {}).get("lotSet") or None
+
+
 @bp.get("/api/sources/<key>/columns")
 def sources_columns(key):
     """結合の欄の手がかり: その元の表の列（結合しない元のまま）と、値の見本（列ごとに 3 つまで）。写しがまだ無ければ 503 copying。"""
@@ -376,7 +407,9 @@ def sources_columns(key):
     for i, col in enumerate(cols):
         vals = list(dict.fromkeys(str(r[i]).strip() for r in rows if i < len(r) and r[i] not in (None, "") and str(r[i]).strip()))
         samples[col] = vals[:3]
-    return jsonify(key=key, name=s["name"], table=t, columns=cols, samples=samples, rows=n)
+    # ロット番号の列（版 3.58.0）: 自動で見つける列（autoLot）と、決めてある値（lotSet: 空＝自動・"-"＝無い・列名）
+    return jsonify(key=key, name=s["name"], table=t, columns=cols, samples=samples, rows=n,
+                   autoLot=lot_list.lot_column(cols), lotSet=s.get("lotSet") or "")
 
 
 @bp.post("/api/sources/join/preview")
@@ -445,4 +478,95 @@ def sources_order():
         rows = {k: {**data_sources.row_of(items[k]), "並び": str((i + 1) * 10)} for i, k in enumerate(keys)}
         master_repo().data_source_order(rows)
         return {"ok": True}
+    return master_call(run)
+
+
+# ---------------------------------------------------------------- 接続の設定（版 3.58.0）
+def _conn_field(key, field):
+    """(データ元, 項目の答え) か失敗の答え。"""
+    s = source_def(key)
+    if s is None:
+        return None, None, error("そのデータ元はありません（ほかの PC が消した可能性があります）。", 404, "unknown")
+    f = next((x for x in _conn(s, _conn_items(), master_repo().data_source_rows()) if x["id"] == field), None)
+    if f is None:
+        return None, None, error(f"「{s['name']}」に「{field}」の設定はありません。", 400, "invalid")
+    return s, f, None
+
+
+@bp.put("/api/sources/<key>/conn")
+def sources_conn_put(key):
+    """接続の設定の 1 項目を置く（空なら既定へ）。置き場はその元の決まり（参照先の項目か、このマスタの行）。base_rev はその置き場の版。"""
+    body = request.get_json(silent=True) or {}
+    s, f, fail = _conn_field(key, str(body.get("field") or ""))
+    if fail:
+        return fail
+    raw = body.get("value")
+    if f["bind"] == "settings":
+        from .settings import put_setting
+        try:
+            value = path_settings.parse(path_settings.BY_KEY[f["item"]], raw)
+        except ValueError as e:
+            return error(str(e), 400, "invalid")
+        base = base_rev()
+        return master_call(lambda: {"row": put_setting(f["item"], value, base)})
+
+    def run():
+        items = _all()
+        it = next((x for x in items if x["key"] == key), None)
+        row = {**data_sources.row_of(it), f["item"]: "" if raw is None else str(raw)}
+        try:
+            row = data_sources.clean_row(row, key=key, known=data_sources.join_targets(items))
+        except ValueError as e:
+            raise SourceInvalid(str(e)) from None
+        return {"row": master_repo().data_source_put(key, row, base_rev())}
+    return master_call(run)
+
+
+@bp.post("/api/sources/<key>/conn/check")
+def sources_conn_check(key):
+    """接続の設定の 1 項目を「確かめる」（保存の前に、その値で読めるか）。空なら既定の値で確かめる。"""
+    body = request.get_json(silent=True) or {}
+    s, f, fail = _conn_field(key, str(body.get("field") or ""))
+    if fail:
+        return fail
+    raw = str(body.get("value") or "").strip() or str(f["default"] or "")
+    if f["bind"] == "settings":
+        item = path_settings.BY_KEY[f["item"]]
+    else:
+        item = {"key": f["item"], "label": f["label"], "kind": f["kind"], "min": f.get("min"), "max": f.get("max")}
+    try:
+        value = path_settings.parse(item, raw)
+    except ValueError as e:
+        return jsonify(ok=False, message=str(e))
+    if value is None:
+        return jsonify(ok=False, message="値を入れてください。")
+    out = path_settings.check(item, value, effective_settings(current_app))
+    if f["kind"] == "sqlite" and s["role"] != "品質":     # ロット番号の列が要るのは品質だけ（sources_check と同じ）
+        det = out.get("detail") or {}
+        if det.get("table") and not det.get("lotColumn"):
+            out["message"] = out["message"].replace(" ロット番号の列が見つかりません（ロット番号・ﾛｯﾄ番号・ロット№・LTNO）。", "")
+            out["ok"] = True
+    return jsonify(out)
+
+
+@bp.post("/api/sources/groups")
+def sources_groups():
+    """グループの名前を変える・消す（版 3.58.0）: from のグループの元を、まとめて to へ（to が空なら消す＝グループなしへ。
+    役割「マスタ」の元は、消すと「マスタ」へ自動で入らない印 NO_GROUP を置く）。データ元そのものは消さない。"""
+    body = request.get_json(silent=True) or {}
+    src, to = str(body.get("from") or "").strip(), " ".join(str(body.get("to") or "").split())[:data_sources.GROUP_MAX]
+    if not src:
+        return error("グループを選んでください。", 400, "invalid")
+
+    def run():
+        items = _all()
+        members = [x for x in items if x.get("group") == src]
+        if not members:
+            raise SourceInvalid(f"グループ「{src}」はありません（ほかの PC が変えた可能性があります）。読み直してください。")
+        rows = {}
+        for x in members:
+            val = to or (data_sources.NO_GROUP if x["role"] == data_sources.MASTER_ROLE else "")
+            rows[x["key"]] = {**data_sources.row_of(x), "グループ": val}
+        master_repo().data_source_order(rows, fields=("グループ",))
+        return {"ok": True, "count": len(rows)}
     return master_call(run)

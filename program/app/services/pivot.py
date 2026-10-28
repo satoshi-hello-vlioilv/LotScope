@@ -326,10 +326,10 @@ def day_dim(dims):
 
 
 def query(path, *, table="", preferred_table="", search="", filters="", rows="", cols="", measures="", today=None,
-          table_candidates=TABLE_CANDIDATES, work=None, month="", box="", equip=None, period=None, now=None, calc=None):
+          table_candidates=TABLE_CANDIDATES, work=None, month="", box="", equip=None, period=None, now=None, calc=None, lot_col=None):
     """ピボット集計の答え（モジュールの説明）。work は作業実績のとき {clock, basis, start}（作業開始の列は work_summary.start_column で決める）。
-    month は "YYYY-MM"（月で絞る。行の 1 段目が日の段のときだけ効く）。equip・period・calc は query_many の説明。"""
-    part = Part(path, table=table, preferred_table=preferred_table, table_candidates=table_candidates, work=work, equip=equip)
+    month は "YYYY-MM"（月で絞る。行の 1 段目が日の段のときだけ効く）。equip・period・calc は query_many の説明。lot_col は Part の説明"""
+    part = Part(path, table=table, preferred_table=preferred_table, table_candidates=table_candidates, work=work, equip=equip, lot_col=lot_col)
     return query_many([part], search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today,
                       month=month, box=box, period=period, now=now, calc=calc)
 
@@ -419,11 +419,13 @@ def compile_rules(rules):
 class Part:
     """数える 1 つのファイル（作業実績なら 1 設備）。
     work  … 作業実績のとき {clock, basis, start}（作業日・直・ロット数の決め方）
-    equip … 設備の段（@equip）の決め方。{"name": 設備名}（ファイルが 1 設備）か {"column": 列, "match": 値 → 設備名}（列の値から見分ける）"""
+    equip … 設備の段（@equip）の決め方。{"name": 設備名}（ファイルが 1 設備）か {"column": 列, "match": 値 → 設備名}（列の値から見分ける）
+    lot_col … データ元の「ロット番号の列」（版 3.58.0。lot_list.lot_column の override。None は自動）"""
 
-    def __init__(self, path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, work=None, equip=None, name=""):
+    def __init__(self, path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, work=None, equip=None, name="", lot_col=None):
         self.path, self.table, self.preferred_table, self.table_candidates = path, table, preferred_table, table_candidates
         self.work, self.equip, self.name = work, equip, name or (equip or {}).get("name", "")
+        self.lot_col = lot_col
 
 
 # 期間（版 3.37.0。ダッシュボードのパネル）: 日付の列か作業日（現場歴／太陽暦）の「いま」から決める日の範囲
@@ -557,7 +559,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
                 where_parts, params = where_parts + [w], params + wp
         where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         # 読む列: 段の列・値の列・ロットの鍵の列（作業実績は作業開始と時刻・品質異常はロット番号）・期間の列
-        lot = lot_column(cs)
+        lot = lot_column(cs, override=part.lot_col)
         need = []
 
         def use(col):
