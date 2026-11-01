@@ -195,6 +195,12 @@ class PassiveListsTests(Base):
             f.write(b"\0" * 4096)
         os.utime(self.share, ns=(st.st_atime_ns, st.st_mtime_ns))
         self.assertTrue(DbMirror("k", str(self.share), self.cache).refresh().get("updated"), "大きさが変われば写し直す")
+        # 元を別の場所へ移した（大きさ・更新時刻を残したコピー）: 前の元の写しを使わず写し直す（印は元の場所も比べる）
+        moved = self.share.parent / "新しい共有" / self.share.name
+        moved.parent.mkdir(exist_ok=True)
+        shutil.copy2(self.share, moved)
+        r = DbMirror("k", str(moved), self.cache).refresh()
+        self.assertTrue(r.get("updated"), r)
 
     def test_not_ready_reason_comes_from_the_window(self):
         import json

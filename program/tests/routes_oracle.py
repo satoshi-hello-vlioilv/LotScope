@@ -147,6 +147,7 @@ def main():
         ("POST", "/api/worklog/refresh", {"equip": eq["CAL"]}),
         ("GET", f"/api/src/{view}", {}),
         ("GET", f"/api/src/{view}/slicer", {"column": "圧延速度"}),
+        ("GET", "/api/worklog/source", {"equip": eq["CAL"]}),   # データの時刻はタブの権限を見ない（Python の worklog_source と同じ）
         ("POST", f"/api/src/{view}/refresh", {}),           # 再読込・データの時刻はタブの権限を見ない（Python の src_refresh・src_source と同じ）
         ("GET", f"/api/src/{view}/source", {}),
         ("GET", "/api/src/wip", {"page_size": "10"}),

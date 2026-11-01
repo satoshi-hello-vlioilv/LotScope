@@ -797,10 +797,33 @@ mod tests {
         f.set_modified(mtime).unwrap();
         drop(f);
         assert_eq!(m.refresh()["updated"], true, "大きさが変われば写し直す");
-        // 元が空の係: 台帳に空の元の行があっても写したと言わない
-        std::fs::write(cache.join(LEDGER), json!({"e": {"signature": {"source": ""}, "file": "k.g1.sqlite3"}}).to_string()).unwrap();
+        // 元が空の係: 台帳に空の元の行があり、写しのファイルも残っていても、写したと言わない
+        let file = m.mirror_path().unwrap().file_name().unwrap().to_string_lossy().into_owned();
+        assert!(cache.join(&file).exists());
+        std::fs::write(cache.join(LEDGER), json!({"e": {"signature": {"source": ""}, "file": file}}).to_string()).unwrap();
         let e = DbMirror::new("e", "", &cache, 60, 36.0);
         assert_eq!((e.read_path_wait(false), e.source_info()["mirrored"].as_bool()), (None, Some(false)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 元を別の場所へ移したとき（大きさ・更新時刻を残したコピー）は、前の元の写しを使わず写し直す（印は元の場所も比べる。版 3.60.0）
+    #[test]
+    fn moving_the_remote_copies_again_even_with_the_same_size_and_time() {
+        let dir = std::env::temp_dir().join(format!("qa-move-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("新しい共有")).unwrap();
+        let a = dir.join("SIKADEF.sqlite3");
+        rusqlite::Connection::open(&a).unwrap().execute_batch("CREATE TABLE t (a); INSERT INTO t VALUES (1);").unwrap();
+        let b = dir.join("新しい共有").join("SIKADEF.sqlite3");
+        std::fs::copy(&a, &b).unwrap();
+        std::fs::File::options().write(true).open(&b).unwrap().set_modified(std::fs::metadata(&a).unwrap().modified().unwrap()).unwrap();
+        let cache = dir.join("cache");
+        let m = DbMirror::new("k", &a.display().to_string(), &cache, 60, 36.0);
+        assert_eq!(m.refresh()["updated"], true);
+        m.reconfigure_quiet(&b.display().to_string(), 60, 36.0);
+        assert!(m.read_path_wait(false).is_none(), "移した先の写しはまだ無い");
+        assert_eq!(m.refresh()["updated"], true, "大きさ・更新時刻が同じでも、元の場所が違えば写し直す");
+        assert!(m.read_path_wait(false).is_some());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
