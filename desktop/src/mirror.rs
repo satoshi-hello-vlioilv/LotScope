@@ -790,6 +790,13 @@ mod tests {
         assert!(m.read_path_wait(false).is_some(), "台帳は ./ を挟んだ字・係は挟まない字でも読む");
         assert_eq!(m.source_info()["mirrored"], true);
         assert_eq!(m.refresh()["skipped"], true, "同じ元なので写し直さない");
+        // 更新時刻が同じでも大きさが変われば、別の中身として写し直す
+        let mtime = std::fs::metadata(&remote).unwrap().modified().unwrap();
+        let mut f = std::fs::OpenOptions::new().append(true).open(&remote).unwrap();
+        std::io::Write::write_all(&mut f, &[0u8; 4096]).unwrap();
+        f.set_modified(mtime).unwrap();
+        drop(f);
+        assert_eq!(m.refresh()["updated"], true, "大きさが変われば写し直す");
         // 元が空の係: 台帳に空の元の行があっても写したと言わない
         std::fs::write(cache.join(LEDGER), json!({"e": {"signature": {"source": ""}, "file": "k.g1.sqlite3"}}).to_string()).unwrap();
         let e = DbMirror::new("e", "", &cache, 60, 36.0);

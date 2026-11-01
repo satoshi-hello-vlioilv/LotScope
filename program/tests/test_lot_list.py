@@ -185,10 +185,16 @@ class PassiveListsTests(Base):
 
     def test_spelling_of_the_remote_does_not_copy_again(self):
         """台帳の元の字と係の元の字の書き方が違っても（./ の有無）、同じ元なので写し直さない（desktop/src/mirror.rs と同じ決まり）"""
-        spelled = str(self.share.parent / "." / self.share.name)
+        spelled = f"{self.share.parent}{os.sep}.{os.sep}{self.share.name}"      # 字のままつなぐ（Path は . を畳む）
         self.assertTrue(DbMirror("k", spelled, self.cache).refresh()["updated"])
         r = DbMirror("k", str(self.share), self.cache).refresh()
         self.assertTrue(r.get("skipped"), r)
+        # 更新時刻が同じでも大きさが変われば、別の中身として写し直す
+        st = self.share.stat()
+        with open(self.share, "ab") as f:
+            f.write(b"\0" * 4096)
+        os.utime(self.share, ns=(st.st_atime_ns, st.st_mtime_ns))
+        self.assertTrue(DbMirror("k", str(self.share), self.cache).refresh().get("updated"), "大きさが変われば写し直す")
 
     def test_not_ready_reason_comes_from_the_window(self):
         import json
