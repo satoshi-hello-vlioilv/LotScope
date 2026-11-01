@@ -138,7 +138,7 @@
         "/api/src/wip?page=1", "/api/src/wip?group=1&page_size=30", "/api/src/" + encodeURIComponent("無い元")];
       const differ = [], by = [];
       for (const a of asks) {
-        const rs = await get(a), py = await get(a + "&engine=python");
+        const rs = await get(a), py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python");
         by.push(rs.by);
         let same = rs.r.status === py.r.status && py.by === "python";
         try { same = same && JSON.stringify(canon2(JSON.parse(rs.text))) === JSON.stringify(canon2(JSON.parse(py.text))); } catch (_) { same = false; }

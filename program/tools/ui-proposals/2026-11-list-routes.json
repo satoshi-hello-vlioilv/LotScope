@@ -1,6 +1,7 @@
 {
  "title": "2026-11 一覧の道をそろえる（版 3.60.0。RUST_PORT_PLAN.md の順 2）: 実績・仕掛・足したデータ元・結合した表の一覧とスライサーを Rust が答える形",
  "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント。作った後〈built〉を採点）。e973699 のまま、cargo test --locked --test lists_parity --test routes_parity --test mirror_parity --lib（lib 52・lists_parity 1・mirror_parity 2・routes_parity 1、終了コード 0）と python -m unittest tests.test_lot_list tests.test_mirror_share tests.test_work_summary tests.test_ui_score（Ran 91・OK〈skipped=1: Windows だけの test_windows_spelling〉、終了コード 0）を自分で流し、routes_oracle.py --bench → examples/routes_bench.rs で速さを 1 回測った。lists.rs・lot.rs・worksum.rs・mirror.rs の Mirrors・sidecar.rs・main.rs の after と LIST_MASTERS・selftest.js の 10c と、Python の worklog_plan・src_plan・raw_plan・with_joins・lotlist_settings・lists_settings・work_log.match/resolve・db_mirror の受け身の係・data_join.recent を見比べて読んだ。試験の強さは、別の作業コピー（git worktree。窓〈tauri〉を外した Cargo.toml・target も別。終わってから消した）に誤りを 31 個（Rust 22・Python 9）1 つずつ入れて同じ試験を流して確かめ、自分で書いた確かめの試験 2 つ（自己診断の最後の問い合わせ・元の字の書き方の違い）をその作業コピーで流した。/home/user/LotScope はこのファイルのほかは書き換えていない。",
  "reading": "画面に出ない改良なので、画像の代わりに動かして測った数と作りで採点する（2026-11-formula-port.json と同じ読み替え）。order＝作りが依存の順に流れる／chunk＝部品の境目が一目で分かれる／hierarchy＝答えの元（正しさの基準）が 1 つ／visual＝食い違い・速さが数で見える（評価関数）／steps＝利用者の待ち（一覧の時間）が少ない／effortless＝利用者が何も変えずに済む（前と同じ一覧・同じ答え）／intuitive＝画面で見た値と Rust の値が同じ／form＝品質・実績・仕掛・足した元が同じ決まり／place＝同じ処理が同じ置き場（da_core の部品）／layout＝コードの量と依存の釣り合い／tone＝作る・確かめる道具の手間。減点: lost＝今できることができなくなる／hidden_state＝食い違いが試験で見えない／more_steps＝利用者か開発者の手が増える",
  "measured": {
   "how": "開発用サーバーと同じ試験データ（tools/ui_server.build）を品質 20,000 行・作業実績 12 台 × 2,000 行・仕掛 20,000 ロットにして、/api/worklog・/api/src/<key> を 5 回の中央値（作業実績は行の多い CAL）。測る道具は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/routes_base.py",
@@ -106,5 +107,47 @@
   "件数": "18 通りすべてで Rust の件数（count）が Python と同じ",
   "突き合わせ": "cargo test --test lists_parity（一覧 46 通り・日時 528 通り・時刻 59 通り・結合 8 通り）・cargo test --test routes_parity（道の答え 21 通り。状態と本文）・cargo test --lib（52 件）・python -m unittest tests.test_lot_list（受け身の写し 3 件を含む 57 件）"
  },
- "built_self_check": "作った者が採点に渡す前に確かめたこと: ① 突き合わせの 2 つの試験が比べ漏れになっていない（作業でまとめた答えが 20 通り以上・中身のある道の答えが 12 通り以上あることを試験の中で確かめる）。② 速さは上の 18 通りを測り、件数が Python と同じことを確かめた（Python 側は道の中だけの時間なので、枠の往復 0.13 ms＋段取り 1.4〜2.5 ms ぶん実際の窓ではさらに差が出る）。③ Windows だけのファイル ID（GetFileInformationByHandle）は、その部分を windows クレートだけの作業用クレートへ写し、cargo clippy --target x86_64-pc-windows-msvc -- -D warnings を通した。④ 前の窓・前の中身との組: lists を名乗らない窓には品質だけを任せる（Python の lotlist_settings）、lists を答えない中身とは窓が品質だけを受け持つ（lot.rs の試験）。⑤ 分かっていて残した所: 作業実績のフォルダを見る file_id の Windows の形は Python の版（3.12 から 64 ビットの装置番号・作った時刻）で幅が違うので、装置番号の下 32 ビット・ファイル番号・（両方にあれば）作った時刻で比べる（same_fid）。本物の Windows の共有では確かめていない。"
+ "built_self_check": "作った者が採点に渡す前に確かめたこと: ① 突き合わせの 2 つの試験が比べ漏れになっていない（作業でまとめた答えが 20 通り以上・中身のある道の答えが 12 通り以上あることを試験の中で確かめる）。② 速さは上の 18 通りを測り、件数が Python と同じことを確かめた（Python 側は道の中だけの時間なので、枠の往復 0.13 ms＋段取り 1.4〜2.5 ms ぶん実際の窓ではさらに差が出る）。③ Windows だけのファイル ID（GetFileInformationByHandle）は、その部分を windows クレートだけの作業用クレートへ写し、cargo clippy --target x86_64-pc-windows-msvc -- -D warnings を通した。④ 前の窓・前の中身との組: lists を名乗らない窓には品質だけを任せる（Python の lotlist_settings）、lists を答えない中身とは窓が品質だけを受け持つ（lot.rs の試験）。⑤ 分かっていて残した所: 作業実績のフォルダを見る file_id の Windows の形は Python の版（3.12 から 64 ビットの装置番号・作った時刻）で幅が違うので、装置番号の下 32 ビット・ファイル番号・（両方にあれば）作った時刻で比べる（same_fid）。本物の Windows の共有では確かめていない。",
+ "built": {
+  "name": "作った後",
+  "images": "画面に出ない改良（画像なし）。流した試験と測った数",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 7,
+    "steps": 9,
+    "effortless": 7,
+    "intuitive": 7,
+    "form": 8,
+    "place": 8,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "タブの権限が試験で見えない。desktop/src/lists.rs:350（work_plan の conf.denied(\"work\", \"実績\")）を外しても（誤り R6）、program/app/routes/lotlist.py の lists_settings で hidden をいつも [] にしても（誤り P1）、どの試験も通る。権限を見る試験は lot.rs の hidden_tabs_unknown_sources_and_window_copies（手で書いた JSON の hidden: [lot, wip] だけ）で、routes_oracle.py には出さないタブの人が無く、Python の設定の答え → Rust の 403 の道を一度も通らない。実績のタブを出さない人に窓が一覧を答えても気づけない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "段取りの分岐の多くが突き合わせに入っていない。見逃した誤り: R5 lists.rs:408 equip.renamed をいつも false／R7 lists.rs:384 フォルダに届かないとき前の写しで見せる（fail-open）を外す／R21 lists.rs:413 設備ごとの「表」を見ない／R26 lists.rs:183 登録のファイル名と大文字小文字が違うファイル（Windows では普通にある）を同じと見ない／R11a lists.rs:460 結合した表の lotSet を捨てる／R12 lists.rs:502 結合の相手の実績に表示しない設備を選ぶ／R22 lot.rs の Route::Src の source で結合した表の元でなく自分のキーを引く／R23 lot.rs の /api/worklog/refresh で写しを要る（need_copy）／R27 lists.rs:474 データ元の写しの間隔・しきいを既定に。routes_oracle.py に名前の変わったファイル・届かないフォルダ・設備ごとの表・大文字小文字の違う名前・lotSet のある結合した表・source と refresh の問い合わせが無いため"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "前の窓・受け身の Python との組と、設定を尋ね直す時機が試験で見えない。見逃した誤り: P2 lotlist.py の「lists を名乗らない窓には engine=python」を外す／P6 lists_settings の rows から「ファイルID」を落とす（窓は名前の変わったファイルをたどれなくなる）／P7 app/__init__.py の work_mirrors で passive=False（窓と Python が同じ台帳に 2 人で写す）／P5 data_join.recent が決まり（items）を比べない／P8 sources.py の shellLists をいつも false。main.rs:285 の LIST_MASTERS と after を確かめる試験も無い（道の名前を 1 つ落としても通る）。routes_oracle.py は Python を「写す係」（受け身でない）で起こすので、受け身の Python が窓の写しを読む組は Python の中の作り物（DbMirror(\"src_other\")）でしか試していない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/mirror.rs:204（reconfigure_quiet）と :471（read_path の src != remote）は元の字をそのまま比べるが、窓の段取り（lists.rs:187 Path::new(folder).join(file)）と受け身の Python の知らせ（str(Path(folder) / file)。. と重なった区切りを畳む・Windows では / を \\ に）とで字が違うことがある。再現: フォルダを「…/./w」にして Lists::work.get(\"k\", \"…/./w/実績_CAL.sqlite3\") で写した後、Python と同じ字「…/w/実績_CAL.sqlite3」の知らせを Lists::notice へ渡すと、同じ係のまま read_path_wait(false) が None（一覧は 503「写しています」）になり、写し直しが走る。次の一覧で窓の字に戻ってもう 1 回写し直す。間隔の違う知らせごとに起きる。Python の受け身の係は same_place で比べるのに、窓の係は比べない"
+    },
+    {
+     "kind": "more_steps",
+     "where": "desktop/src/selftest.js:138 の最後の問い合わせ \"/api/src/\" + encodeURIComponent(\"無い元\") には ? が無いので、py = get(a + \"&engine=python\") は道の一部になり、lot.rs の Route::of → percent_decode が「&engine=python」を落として窓が 404 を答える（確かめの試験で Some((404, そのデータ元はありません…)) を再現）。py.by が \"python\" にならないので 10c は「食い違い」と言い、CI（desktop.yml）の本物の WebView2 の自己診断が落ちる見込み。push の前に気づけず、開発者の手が 1 つ増える"
+    }
+   ],
+   "seen": "【流した試験】Rust: lib 52・lists_parity 1（一覧 46・日時 528・時刻 59・結合 8）・mirror_parity 2・routes_parity 1（道 21）、終了コード 0。Python: Ran 91・OK（skipped=1）、終了コード 0。【速さ（1 回。Python → Rust の中央値 ms・倍率）】品質 1 ページ 24.2→11.2（2.2）・品質まとめ＋並べ替え 210.7→133.0（1.6）・品質スライサー 25.5→12.8（2.0）・品質検索 551.6→240.9（2.3）・実績一覧 12.1→4.1（2.9）・作業でまとめる（合計・0 件の日）105.8→32.9（3.2）・帯で押した日 64.7→14.5（4.5）・CR2 の 2 ページ目 99.1→26.4（3.8）・焼鈍炉 13.4→6.1（2.2）・計算列で並べ替え 15.9→7.0（2.3）・実績スライサー 4.8→1.4（3.5）・無い列 3.2→0.5（6.1）・実績検索 40.8→13.6（3.0）・仕掛まとめ 166.1→111.8（1.5）・仕掛スライサー 269.6→106.6（2.5）・仕掛検索 411.9→76.4（5.4）・結合した表 26.2→7.5（3.5）・そのスライサー 24.6→11.9（2.1）。18 通りすべて Rust が速く件数も同じ（作った者の数を再現）。ただし文書の「結合した表 6.0 倍」「CR2 6.0 倍」はこの回 3.5・3.8 倍で、倍率は揺れる（Python 側は Flask の試験の手間を含み、Rust 側は枠の往復を含まない）。【試験の強さ（誤り 31 個）】見つけた 16: 直の境（開始ちょうど）・太陽暦に日付補正・12 AM・full を left に・ファイルID でたどらない・canEditShifts・表示しない設備・結合した表に元の lotSet・同じ元の係を分け合わない・跨ぐ直の既定の補正・shift の空白・day の長さ・品質の結合をしない・受け身が別のキーの台帳を引かない・受け身が待たない・知らせを重ねる。計算の芯（worksum・pyfmt・join・shifts）の誤りは全部見つかった。見逃した 15（R5・R6・R7・R11a・R12・R21・R22・R23・R26・R27・P1・P2・P5・P6・P7・P8 のうち P8 は画面だけ）は、どれも段取りの分岐・設定の答え・前の窓との組で、routes_oracle.py の問い合わせ 21 通りが、名前の変わったファイル・届かないフォルダ・出さないタブ・source／refresh を持たないため。【良い所】Python の関数ごとに Rust の関数があり（コメントに元の名前）、失敗の言葉まで同じ。正しさの元は Python の係（lists_oracle・routes_oracle）1 つで、本物の設定の答え（lists）をそのまま Rust に渡して比べる。知らせの枠は読み手の糸で写しの糸を起こすだけで待たない（DbMirror::start は別の糸）。答えのファイルの名前を SHA-256 にそろえ、互いに使い回せる。【悪い所】作業実績のファイルの見分けは Rust が same_fid（装置番号の下 32 ビット・作った時刻は両方にあれば）、Python の match は x[\"fid\"] == fid の完全一致で、決まりがわざと違う（Windows の共有では確かめていない）。Python の段取りは集計表・ダッシュボードのために残るので、同じ決まりが Rust と Python に 2 つずつあり（Rust で約 2,800 行足した）、受け身の係（台帳を場所で引く・state.json）で Python 側も複雑になった。設定は 10 秒覚えるので、ほかの PC でタブの権限を変えたときは遅くとも 10 秒ずれる（Python は 2 秒）。【点の理由】steps 9（どの道も速い）。visual 7・intuitive 7（試した所は同じだが、見逃しが半分近い）。effortless 7（利用者は何も変えずに済むが、権限と自己診断に穴）。layout 6（2 つの実装と受け身の作りの重さ）。tone 7（評価関数は揃うが、自己診断の誤り）。"
+  }
+ }
 }

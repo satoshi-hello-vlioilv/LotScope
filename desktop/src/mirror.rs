@@ -201,7 +201,9 @@ impl DbMirror {
         let mut changed = false;
         {
             let mut c = self.conf.lock().unwrap();
-            if remote != c.remote {
+            // 同じファイルを指す書き方の違い（. ・重なった区切り・Windows の大文字小文字と / \\）では切り替えない（版 3.60.0。
+            // 受け身の Python の「写して」と窓の段取りで元の字の書き方が違っても、写し直さない）
+            if same_place(remote) != same_place(&c.remote) {
                 c.remote = remote.into();
                 *self.state.lock().unwrap() = Map::new();
                 changed = true;
@@ -468,7 +470,7 @@ impl DbMirror {
         let remote = self.remote();
         let entry = self.entry();
         let src = entry.get("signature").and_then(|s| s.get("source")).and_then(Value::as_str).unwrap_or("");
-        if src != remote {
+        if same_place(src) != same_place(&remote) {
             return None;
         }
         self.mirror_path().filter(|p| p.exists())
@@ -486,7 +488,8 @@ impl DbMirror {
     }
 
     fn is_mirrored(sig: &Map<String, Value>, remote: &str, local: Option<&Path>) -> bool {
-        sig.get("source").and_then(Value::as_str) == Some(remote) && local.is_some_and(|p| p.exists())
+        sig.get("source").and_then(Value::as_str).is_some_and(|s| !remote.is_empty() && same_place(s) == same_place(remote))
+            && local.is_some_and(|p| p.exists())
     }
 
     /// 写しがまだ無いときに画面へ出す文（なぜ無いか＋写し終えたら出ること）。Python の not_ready_text と同じ。

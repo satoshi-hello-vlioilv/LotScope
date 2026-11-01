@@ -5,6 +5,7 @@
         作業フォルダ/assets に試験用の元ファイル（v1・v2・テーブルの無いもの）を作り、筋書き（STEPS）を
         作業フォルダ/py で Python の DbMirror に行わせて、一歩ずつの結果を JSON で出す。Rust は作業フォルダ/rs で同じことをして比べる。
     python tests/mirror_oracle.py op 写しの置き場 元ファイル refresh|read_path|source_info
+    python tests/mirror_oracle.py op 写しの置き場 元ファイル passive キー   … 受け身の係（版 3.60.0。窓が写した台帳を場所で引く）の読む所と様子
         1つの操作だけ（Python と Rust が同じ置き場を交互に使い、互いの台帳を読めるかを確かめる）。
 
 時刻で変わる値（at・copiedAt・checkedAt）は「あるか」だけ、ageHours は 0.15 時間の幅で比べる（normalize）。
@@ -154,7 +155,11 @@ def run(work):
     return out
 
 
-def op(cache, remote, what):
+def op(cache, remote, what, key="lot_list"):
+    if what == "passive":
+        m = DbMirror(key, remote, Path(cache), passive=True)
+        p = m.read_path(wait=False)
+        return {"read_path": str(p) if p else None, "info": m.source_info()}
     m = DbMirror("lot_list", remote, Path(cache))
     if what == "refresh":
         r = m.refresh()
@@ -170,7 +175,7 @@ def main():
     if sys.argv[1] == "scenario":
         json.dump({"steps": STEPS, "results": run(sys.argv[2])}, sys.stdout, ensure_ascii=False)
     else:
-        json.dump(op(*sys.argv[2:5]), sys.stdout, ensure_ascii=False)
+        json.dump(op(*sys.argv[2:6]), sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

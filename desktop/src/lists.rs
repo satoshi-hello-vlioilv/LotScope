@@ -98,7 +98,7 @@ fn is_side_file(name: &str) -> bool {
 
 /// ファイルそのものの見分け（装置の番号:ファイル番号[:作った時刻]。Python の work_log.file_id と同じ形）
 #[cfg(unix)]
-fn file_id(path: &Path) -> String {
+pub(crate) fn file_id(path: &Path) -> String {
     use std::os::unix::fs::MetadataExt;
     match std::fs::metadata(path) {
         Ok(m) if m.ino() != 0 => format!("{}:{}", m.dev(), m.ino()),
@@ -107,7 +107,7 @@ fn file_id(path: &Path) -> String {
 }
 
 #[cfg(windows)]
-fn file_id(path: &Path) -> String {
+pub(crate) fn file_id(path: &Path) -> String {
     use std::os::windows::fs::OpenOptionsExt;
     use std::os::windows::io::AsRawHandle;
     use windows::Win32::Foundation::HANDLE;
@@ -128,7 +128,7 @@ fn file_id(path: &Path) -> String {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn file_id(_: &Path) -> String {
+pub(crate) fn file_id(_: &Path) -> String {
     String::new()
 }
 
@@ -269,6 +269,8 @@ pub struct Lists {
     pub src: Mirrors,
     pub joiner: Joiner,
     listing: Mutex<Listing>,
+    /// フォルダの中身を覚える長さ（既定 LIST_TTL。試験は 0 にして、届かなくなったフォルダをすぐ見る）
+    pub list_ttl: Duration,
 }
 
 impl Lists {
@@ -278,6 +280,7 @@ impl Lists {
             src: Mirrors::new(cache_root.join("sources"), "src"),
             joiner: Joiner::new(cache_root.join("joins")),
             listing: Mutex::default(),
+            list_ttl: LIST_TTL,
         }
     }
 
@@ -301,7 +304,7 @@ impl Lists {
     fn found(&self, folder: &str, pattern: &str) -> Result<Vec<Found>, String> {
         let key = (unquote_path(folder), pattern.to_string());
         if let Some((at, r)) = self.listing.lock().unwrap().get(&key) {
-            if at.elapsed() < LIST_TTL {
+            if at.elapsed() < self.list_ttl {
                 return r.clone();
             }
         }
@@ -497,13 +500,9 @@ impl Lists {
     pub fn raw_plan(&self, conf: &Conf, q: &Quality, key: &str) -> Result<Plan, Fail> {
         match key {
             "lot" => self.lot_plan(conf, q, false),
-            "work" => {
-                let rows = conf.work()["rows"].as_array().cloned().unwrap_or_default();
-                let Some(first) = rows.iter().find(|r| text(&r["表示"]) != "無") else {
-                    return Err(error(404, "作業実績の設備がありません。", Some("unknown"), &[]));
-                };
-                self.work_plan(conf, q, &text(&first["キー"]), true, false)
-            }
+            // 作業実績（設備ごとのファイル）は結合の相手・結合した表の元にならない（data_sources.join_targets が 1 ファイルの元だけ）。
+            // Python の raw_plan の "work" は、結合の欄の列の手がかり・「試す」のためで、窓は受け持たない
+            "work" => Err(error(400, "作業実績は結合の相手・結合した表の元にできません。", Some("invalid"), &[])),
             _ => {
                 if let Some(s) = conf.source(key).filter(|s| s["kind"] == "view") {
                     if truthy(&s["broken"]) {

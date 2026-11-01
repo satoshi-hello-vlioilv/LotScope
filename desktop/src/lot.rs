@@ -68,6 +68,23 @@ impl Lot {
         Lot { lists: Lists::new(&cache_dir), cache_dir, mirror: Mutex::default(), settings: Mutex::default(), tables: Mutex::default() }
     }
 
+    /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
+    /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
+    /// 頻繁な書き込みでは尋ね直さない
+    pub fn changes_settings(method: &str, path: &str, status: u16) -> bool {
+        const LIST_MASTERS: &[&str] = &[
+            "/api/settings/",
+            "/api/sources",
+            "/api/masters/worklog",
+            "/api/masters/shifts",
+            "/api/masters/access",
+            "/api/masters/tabaccess",
+            "/api/masters/conversions",
+            "/api/masters/place",
+        ];
+        method != "GET" && method != "HEAD" && (200..300).contains(&status) && LIST_MASTERS.iter().any(|p| path.starts_with(p))
+    }
+
     /// 参照先を保存したとき: 次の問い合わせで設定を尋ね直す。
     pub fn invalidate(&self) {
         *self.settings.lock().unwrap() = None;
@@ -299,6 +316,7 @@ fn percent_decode(s: &str) -> String {
 mod tests {
     use super::*;
     use std::cell::Cell;
+    use std::time::Duration;
 
     fn fixture(dir: &std::path::Path) -> PathBuf {
         let p = dir.join("src.sqlite3");
@@ -424,6 +442,73 @@ mod tests {
         assert_eq!(lot.handle("GET", "/api/lotlist", "", &old).unwrap().0, 200);
         assert!(lot.handle("GET", "/api/src/m1", "", &old).is_none() && lot.handle("GET", "/api/worklog", "equip=k", &old).is_none());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn work_logs_follow_renames_and_fall_back_to_the_last_copy() {
+        // 作業実績の段取り（版 3.60.0）: 名前が変わったファイルは同じファイルID でたどる（renamed）・設備ごとの表・
+        // フォルダに届かなくなっても前に写した物で見せる（fail-open）・写していない設備は届かない理由の 503
+        let dir = std::env::temp_dir().join(format!("da-lot6-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = dir.join("実績");
+        std::fs::create_dir_all(&folder).unwrap();
+        let c = rusqlite::Connection::open(folder.join("実績_A.sqlite3")).unwrap();
+        c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT); INSERT INTO 実績 VALUES ('L1'); CREATE TABLE 別表 (ロット番号 TEXT); INSERT INTO 別表 VALUES ('X1'), ('X2');").unwrap();
+        drop(c);
+        std::fs::copy(folder.join("実績_A.sqlite3"), folder.join("実績_B.sqlite3")).unwrap();
+        let fid = |n: &str| crate::lists::file_id(&folder.join(n));
+        let lists = json!({"hidden": [], "sources": [], "shifts": [], "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3",
+            "table": "", "refresh_seconds": 60, "stale_hours": 36, "page_size": 500, "canEditShifts": false, "rows": [
+            {"キー": "a", "設備名": "A", "ファイル名": "実績_OLD.sqlite3", "ファイルID": fid("実績_A.sqlite3"), "表示": "有", "表": ""},
+            {"キー": "b", "設備名": "B", "ファイル名": "実績_b.SQLITE3", "ファイルID": "", "表示": "有", "表": "別表"},
+            {"キー": "c", "設備名": "C", "ファイル名": "実績_C.sqlite3", "ファイルID": "", "表示": "有", "表": ""}]}});
+        let mut lot = Lot::new(dir.join("cache"));
+        lot.lists.list_ttl = Duration::ZERO;
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone()}));
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=a", &ask).unwrap();
+        assert_eq!((st, v["equip"]["renamed"].as_bool(), v["equip"]["file"].as_str()), (200, Some(true), Some("実績_A.sqlite3")), "{v}");
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=b", &ask).unwrap();
+        assert_eq!(
+            (st, v["table"].as_str(), v["count"].as_i64()),
+            (200, Some("別表"), Some(2)),
+            "大文字小文字の違う登録名・設備ごとの表: {v}"
+        );
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=c", &ask).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (404, Some("missing")), "{v}");
+        std::fs::rename(&folder, dir.join("退避")).unwrap();
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=a", &ask).unwrap();
+        assert_eq!((st, v["count"].as_i64()), (200, Some(1)), "届かなくなっても前に写した物で見せる: {v}");
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=c", &ask).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (503, Some("unreachable")), "写していない設備は届かない理由: {v}");
+        assert!(v["error"].as_str().unwrap().starts_with("作業実績のフォルダに届きません（"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn only_master_writes_ask_the_settings_again() {
+        for (m, p, s) in [
+            ("PUT", "/api/settings/lot_list.source", 200),
+            ("POST", "/api/sources", 201),
+            ("PUT", "/api/sources/wip/conn", 200),
+            ("PUT", "/api/masters/worklog/3", 200),
+            ("POST", "/api/masters/shifts", 201),
+            ("PUT", "/api/masters/tabaccess", 200),
+            ("PUT", "/api/masters/access/2", 200),
+            ("PUT", "/api/masters/conversions/x", 200),
+            ("POST", "/api/masters/place", 200),
+        ] {
+            assert!(Lot::changes_settings(m, p, s), "{m} {p}");
+        }
+        for (m, p, s) in [
+            ("PUT", "/api/ui-state", 200),
+            ("POST", "/api/heartbeat", 200),
+            ("POST", "/api/dashboard/query", 200),
+            ("GET", "/api/sources", 200),
+            ("PUT", "/api/sources/wip", 409),
+            ("POST", "/api/masters/formats", 201),
+        ] {
+            assert!(!Lot::changes_settings(m, p, s), "{m} {p} {s}");
+        }
     }
 
     #[test]

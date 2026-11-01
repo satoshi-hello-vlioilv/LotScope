@@ -280,24 +280,11 @@ fn update_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
     serde_json::from_slice(&r.body).map_err(|e| e.to_string())
 }
 
-/// 一覧の設定（段取りの材料）に効くマスタを書く道（版 3.60.0: 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場）。
-/// 画面の状態の保存・生存の知らせのような頻繁な書き込みでは尋ね直さない
-const LIST_MASTERS: &[&str] = &[
-    "/api/settings/",
-    "/api/sources",
-    "/api/masters/worklog",
-    "/api/masters/shifts",
-    "/api/masters/access",
-    "/api/masters/tabaccess",
-    "/api/masters/conversions",
-    "/api/masters/place",
-];
-
 /// 中身が答えたあとに窓が見ること: 一覧の設定に効くマスタを保存したら、一覧の設定を尋ね直す（元ファイル・間隔・段取りの材料をすぐ当て直す）。
 /// 更新の置き場を保存したら、すぐ確かめる。
 fn after(lot: Arc<Lot>, upd: Arc<Updater>) -> After {
     Box::new(move |method, path, status| {
-        if method != "GET" && method != "HEAD" && (200..300).contains(&status) && LIST_MASTERS.iter().any(|p| path.starts_with(p)) {
+        if Lot::changes_settings(method, path, status) {
             lot.invalidate();
         }
         if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
