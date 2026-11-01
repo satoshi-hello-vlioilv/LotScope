@@ -85,6 +85,13 @@ impl Lot {
         method != "GET" && method != "HEAD" && (200..300).contains(&status) && LIST_MASTERS.iter().any(|p| path.starts_with(p))
     }
 
+    /// 中身（Python）が答えたあと（main.rs の after）: 一覧の設定に効くマスタを書いたなら、次の問い合わせで設定を尋ね直す
+    pub fn after_python(&self, method: &str, path: &str, status: u16) {
+        if Self::changes_settings(method, path, status) {
+            self.invalidate();
+        }
+    }
+
     /// 参照先を保存したとき: 次の問い合わせで設定を尋ね直す。
     pub fn invalidate(&self) {
         *self.settings.lock().unwrap() = None;
@@ -456,12 +463,14 @@ mod tests {
         c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT); INSERT INTO 実績 VALUES ('L1'); CREATE TABLE 別表 (ロット番号 TEXT); INSERT INTO 別表 VALUES ('X1'), ('X2');").unwrap();
         drop(c);
         std::fs::copy(folder.join("実績_A.sqlite3"), folder.join("実績_B.sqlite3")).unwrap();
+        std::fs::write(folder.join("実績_D.sqlite3"), "SQLite ではない中身").unwrap(); // 写しを作れない設備
         let fid = |n: &str| crate::lists::file_id(&folder.join(n));
         let lists = json!({"hidden": [], "sources": [], "shifts": [], "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3",
             "table": "", "refresh_seconds": 60, "stale_hours": 36, "page_size": 500, "canEditShifts": false, "rows": [
             {"キー": "a", "設備名": "A", "ファイル名": "実績_OLD.sqlite3", "ファイルID": fid("実績_A.sqlite3"), "表示": "有", "表": ""},
             {"キー": "b", "設備名": "B", "ファイル名": "実績_b.SQLITE3", "ファイルID": "", "表示": "有", "表": "別表"},
-            {"キー": "c", "設備名": "C", "ファイル名": "実績_C.sqlite3", "ファイルID": "", "表示": "有", "表": ""}]}});
+            {"キー": "c", "設備名": "C", "ファイル名": "実績_C.sqlite3", "ファイルID": "", "表示": "有", "表": ""},
+            {"キー": "d", "設備名": "D", "ファイル名": "実績_D.sqlite3", "ファイルID": "", "表示": "有", "表": ""}]}});
         let mut lot = Lot::new(dir.join("cache"));
         lot.lists.list_ttl = Duration::ZERO;
         let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone()}));
@@ -475,12 +484,16 @@ mod tests {
         );
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=c", &ask).unwrap();
         assert_eq!((st, v["kind"].as_str()), (404, Some("missing")), "{v}");
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=d", &ask).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (503, Some("copying")), "写しを作れない設備は写し待ち: {v}");
         std::fs::rename(&folder, dir.join("退避")).unwrap();
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=a", &ask).unwrap();
         assert_eq!((st, v["count"].as_i64()), (200, Some(1)), "届かなくなっても前に写した物で見せる: {v}");
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=c", &ask).unwrap();
         assert_eq!((st, v["kind"].as_str()), (503, Some("unreachable")), "写していない設備は届かない理由: {v}");
         assert!(v["error"].as_str().unwrap().starts_with("作業実績のフォルダに届きません（"));
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=d", &ask).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (503, Some("unreachable")), "写し終えていない係では見せない（前の写しが無い）: {v}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -509,6 +522,22 @@ mod tests {
         ] {
             assert!(!Lot::changes_settings(m, p, s), "{m} {p} {s}");
         }
+        // つなぎ（after_python）: マスタを書いたあとは設定を尋ね直し、画面の状態の保存では尋ね直さない
+        let dir = std::env::temp_dir().join(format!("da-lot7-{}", std::process::id()));
+        let lot = Lot::new(dir.join("cache"));
+        let asked = Cell::new(0);
+        let ask = || {
+            asked.set(asked.get() + 1);
+            Ok(json!({"source": "", "engine": "rust"}))
+        };
+        lot.handle("GET", "/api/lotlist", "", &ask);
+        lot.after_python("PUT", "/api/ui-state", 200);
+        lot.handle("GET", "/api/lotlist", "", &ask);
+        assert_eq!(asked.get(), 1, "画面の状態の保存では尋ね直さない");
+        lot.after_python("PUT", "/api/sources/wip", 200);
+        lot.handle("GET", "/api/lotlist", "", &ask);
+        assert_eq!(asked.get(), 2, "データ元を書いたら尋ね直す");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

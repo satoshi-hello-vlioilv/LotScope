@@ -110,6 +110,14 @@ def same_place(remote):
     return os.path.normcase(os.path.normpath(s)) if s else ""
 
 
+def _same_signature(had, now):
+    """台帳の印と今の元の印が同じか（大きさ・更新時刻が同じで、元が同じファイル。元の字の書き方〈./ の有無など〉の違いは同じと見る。
+    版 3.60.0。desktop/src/mirror.rs の same_signature と同じ）"""
+    had, now = had or {}, now or {}
+    return (had.get("size") == now.get("size") and had.get("mtime_ns") == now.get("mtime_ns")
+            and same_place(had.get("source")) == same_place(now.get("source")))
+
+
 def _retrying(fn, budget=REPLACE_BUDGET_SEC):
     """置き換え・削除は開かれている間 Windows で拒まれるので、少し待ってやり直す（fsio.retrying）。"""
     return retrying(fn, budget)
@@ -328,7 +336,7 @@ class DbMirror:
             if not (same and prev.get("error") == err):
                 log.warning("%s: %s", self.key, res["reason"])
             return self._record(res)
-        if has_local and entry.get("signature") == sig:
+        if has_local and _same_signature(entry.get("signature"), sig):
             res.update(skipped=True, reason="元ファイルは変わっていません")
             self._sweep(local)
             return self._record(res)

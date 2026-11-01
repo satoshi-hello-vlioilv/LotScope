@@ -500,9 +500,8 @@ impl Lists {
     pub fn raw_plan(&self, conf: &Conf, q: &Quality, key: &str) -> Result<Plan, Fail> {
         match key {
             "lot" => self.lot_plan(conf, q, false),
-            // 作業実績（設備ごとのファイル）は結合の相手・結合した表の元にならない（data_sources.join_targets が 1 ファイルの元だけ）。
-            // Python の raw_plan の "work" は、結合の欄の列の手がかり・「試す」のためで、窓は受け持たない
-            "work" => Err(error(400, "作業実績は結合の相手・結合した表の元にできません。", Some("invalid"), &[])),
+            // 作業実績（設備ごとのファイル）は結合の相手・結合した表の元にならない（data_sources.join_targets が 1 ファイルの元だけ）ので、
+            // ここへは来ない（Python の raw_plan の "work" は結合の欄の列の手がかり・「試す」のためで、窓は受け持たない。来ても下の src_plan が 404）
             _ => {
                 if let Some(s) = conf.source(key).filter(|s| s["kind"] == "view") {
                     if truthy(&s["broken"]) {

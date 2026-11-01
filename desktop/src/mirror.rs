@@ -389,7 +389,7 @@ impl DbMirror {
                 return self.record(res);
             }
         };
-        if has_local && entry.get("signature") == Some(&sig) {
+        if has_local && entry.get("signature").is_some_and(|had| same_signature(had, &sig)) {
             res.insert("skipped".into(), json!(true));
             reason(&mut res, "元ファイルは変わっていません".into());
             self.sweep(local.as_deref().unwrap());
@@ -635,6 +635,12 @@ pub fn same_place(remote: &str) -> String {
     }
 }
 
+/// 台帳の印と今の元の印が同じか（大きさ・更新時刻が同じで、元が同じファイル。元の字の書き方〈./ の有無など〉の違いは同じと見る。版 3.60.0）
+fn same_signature(had: &Value, now: &Value) -> bool {
+    let src = |v: &Value| same_place(v["source"].as_str().unwrap_or(""));
+    had["size"] == now["size"] && had["mtime_ns"] == now["mtime_ns"] && src(had) == src(now)
+}
+
 /// 写しの係の束（キー → 係。作業実績の設備ごと・データ元ごと。Python の work_log.Mirrors と同じ決まり）。
 /// 元が同じファイル（same_place）のキーどうしは 1 つの係を分け合う（同じファイルを 2 回写さない・2 つの写しが別の時刻の中身にならない）。
 /// 間隔と古さのしきいは、係を作ったキー（持ち主）の設定に従う
@@ -766,6 +772,28 @@ mod tests {
         assert!(ms.peek("wip").is_some_and(|m| Arc::ptr_eq(&m, &c)) && ms.peek("none").is_none());
         assert_eq!(same_place("/a//b/../c/"), "/a/c");
         assert_eq!(same_place(""), "");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 台帳の元の字と係の元の字の書き方が違っても（./ の有無）、同じ写しを読む・写したと言う。元が空の係は写したと言わない（版 3.60.0）
+    #[test]
+    fn spelling_of_the_remote_does_not_hide_the_copy() {
+        let dir = std::env::temp_dir().join(format!("qa-spell-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let remote = dir.join("SIKADEF.sqlite3");
+        rusqlite::Connection::open(&remote).unwrap().execute_batch("CREATE TABLE t (a); INSERT INTO t VALUES (1);").unwrap();
+        let cache = dir.join("cache");
+        let spelled = dir.join(".").join("SIKADEF.sqlite3").display().to_string();
+        assert_eq!(DbMirror::new("k", &spelled, &cache, 60, 36.0).refresh()["updated"], true);
+        let m = DbMirror::new("k", &remote.display().to_string(), &cache, 60, 36.0);
+        assert!(m.read_path_wait(false).is_some(), "台帳は ./ を挟んだ字・係は挟まない字でも読む");
+        assert_eq!(m.source_info()["mirrored"], true);
+        assert_eq!(m.refresh()["skipped"], true, "同じ元なので写し直さない");
+        // 元が空の係: 台帳に空の元の行があっても写したと言わない
+        std::fs::write(cache.join(LEDGER), json!({"e": {"signature": {"source": ""}, "file": "k.g1.sqlite3"}}).to_string()).unwrap();
+        let e = DbMirror::new("e", "", &cache, 60, 36.0);
+        assert_eq!((e.read_path_wait(false), e.source_info()["mirrored"].as_bool()), (None, Some(false)));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

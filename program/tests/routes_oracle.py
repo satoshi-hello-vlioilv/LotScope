@@ -94,10 +94,12 @@ def main():
     # 写しを作れない設備（中身が SQLite でない）: 一覧は「写しています」の 503 と理由・再読込は見送った理由を答える（写しが無くてよい）
     (folder / "実績_BAD.sqlite3").write_text("SQLite ではない中身", encoding="utf-8")
     from app.services import work_log
-    repo.work_log_sync(work_log.scan(folder, "実績_*.sqlite3"))
+    # 名前だけで登録する（ファイルID を空に）: 登録のあとに消えた SL3 のファイル番号を、新しい BAD がたまたま使い回すと、
+    # 「探す」が BAD を名前の変わった SL3 とたどって BAD の行ができない（Linux の file_id は作った時刻を持たない）
+    repo.work_log_sync([{**f, "fid": ""} for f in work_log.scan(folder, "実績_*.sqlite3") if f["file"] == "実績_BAD.sqlite3"])
     keys = {r["設備名"]: r for r in repo.work_logs()}
     eq = {n: keys[n]["キー"] for n in ("CAL", "CR2", "ANF", "SL3", "HOT", "L-1", "TLV", "BAD")}
-    calc = json.dumps({"formulas": {"k": "[作業者] + '-' + [作業者]"}}, ensure_ascii=False)
+    calc = json.dumps({"formulas": {"k": "[作業者] + '-' + [作業区分]"}}, ensure_ascii=False)
     first = [
         ("GET", "/api/lotlist", {"page": "1"}),
         ("GET", "/api/lotlist", {"group": "1", "page_size": "50", "sorts": json.dumps([{"column": "圧延速度", "dir": "desc"}])}),
@@ -145,6 +147,8 @@ def main():
         ("POST", "/api/worklog/refresh", {"equip": eq["CAL"]}),
         ("GET", f"/api/src/{view}", {}),
         ("GET", f"/api/src/{view}/slicer", {"column": "圧延速度"}),
+        ("POST", f"/api/src/{view}/refresh", {}),           # 再読込・データの時刻はタブの権限を見ない（Python の src_refresh・src_source と同じ）
+        ("GET", f"/api/src/{view}/source", {}),
         ("GET", "/api/src/wip", {"page_size": "10"}),
         ("GET", "/api/lotlist", {"page_size": "10"}),
     ]

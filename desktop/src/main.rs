@@ -284,9 +284,7 @@ fn update_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
 /// 更新の置き場を保存したら、すぐ確かめる。
 fn after(lot: Arc<Lot>, upd: Arc<Updater>) -> After {
     Box::new(move |method, path, status| {
-        if Lot::changes_settings(method, path, status) {
-            lot.invalidate();
-        }
+        lot.after_python(method, path, status);
         if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
             upd.wake();
         }

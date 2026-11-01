@@ -183,6 +183,13 @@ class PassiveListsTests(Base):
         ms.get("wip", str(self.share), 120, 24)
         self.assertEqual(len(told), 2, "間隔が変われば知らせ直す")
 
+    def test_spelling_of_the_remote_does_not_copy_again(self):
+        """台帳の元の字と係の元の字の書き方が違っても（./ の有無）、同じ元なので写し直さない（desktop/src/mirror.rs と同じ決まり）"""
+        spelled = str(self.share.parent / "." / self.share.name)
+        self.assertTrue(DbMirror("k", spelled, self.cache).refresh()["updated"])
+        r = DbMirror("k", str(self.share), self.cache).refresh()
+        self.assertTrue(r.get("skipped"), r)
+
     def test_not_ready_reason_comes_from_the_window(self):
         import json
         p = DbMirror("work_log_k1", str(self.share), self.cache, passive=True)
