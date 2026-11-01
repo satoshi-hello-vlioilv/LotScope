@@ -153,6 +153,64 @@ class PassiveMirrorTests(Base):
             self.assertFalse(mirror_is_external({}), "ブラウザ版は自分で写す")
 
 
+class PassiveListsTests(Base):
+    """版 3.60.0: 作業実績・データ元の写しも窓（Rust）が受け持つ。Python の係は受け身で、写しが要るときは窓へ知らせ、
+    窓が同じ元のキーどうしで分け合った写し（別のキーの台帳の行）も場所で引き、周回の様子は窓の <キー>.state.json を読む。"""
+
+    def test_asks_the_window_once_and_waits_for_its_copy(self):
+        import json
+        import threading
+        from app.services import work_log
+        told = []
+        ms = work_log.Mirrors(self.cache, passive=True, prefix="src", notify=lambda **kw: told.append(kw))
+        m = ms.get("wip", str(self.share), 60, 24)
+        ms.get("wip", str(self.share), 60, 24)
+        self.assertEqual(told, [{"prefix": "src", "key": "wip", "remote": str(self.share), "interval": 60, "stale": 24}],
+                         "同じ (元, 間隔, しきい) は 1 度だけ知らせる")
+        self.assertIsNone(m.read_path(wait=False), "写しが無ければ読まない（共有を直接開かない）")
+        # 窓（Rust の代わり）が「同じ元を分け合う別のキー」src_other で写し、周回の様子を置く
+        def window():
+            time.sleep(0.3)
+            DbMirror("src_other", str(self.share), self.cache).refresh()
+            (self.cache / "src_other.state.json").write_text(json.dumps({"at": time.time(), "reason": "写しを更新しました",
+                                                                         "remote": str(self.share)}), encoding="utf-8")
+        threading.Thread(target=window).start()
+        self.assertTrue(m.wait_first(10), "知らせた後は、窓の周回が済むまで待つ")
+        self.assertEqual(m.read_path(wait=False).name, "src_other.g1.sqlite3", "別のキーの行でも、同じ元の写しを読む")
+        info = m.source_info()
+        self.assertTrue(info["mirrored"])
+        self.assertEqual(info["reason"], "写しを更新しました", "周回の様子は窓の置いた物")
+        ms.get("wip", str(self.share), 120, 24)
+        self.assertEqual(len(told), 2, "間隔が変われば知らせ直す")
+
+    def test_not_ready_reason_comes_from_the_window(self):
+        import json
+        p = DbMirror("work_log_k1", str(self.share), self.cache, passive=True)
+        (self.cache).mkdir(parents=True, exist_ok=True)
+        (self.cache / "work_log_k1.state.json").write_text(json.dumps({"at": time.time(), "reason": "共有の元ファイルへ届かず、写しもまだありません",
+                                                                       "unreachable": True, "remote": str(self.share)}), encoding="utf-8")
+        self.assertIn("届かず", p.not_ready_text())
+        self.assertTrue(p.source_info()["unreachable"])
+        self.assertTrue(p.wait_first(0.1), "知らせていない係は待たない（品質の写しは窓が起動の直後から写す）")
+
+    def test_lists_are_external_only_when_the_window_serves_them(self):
+        from unittest import mock
+        from app import lists_are_external, shell_notice, set_shell_notice
+        with mock.patch.dict(os.environ, {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists"}):
+            self.assertTrue(lists_are_external({}))
+            self.assertFalse(lists_are_external({"desktop": {"lotlist_engine": "python"}}))
+        with mock.patch.dict(os.environ, {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist"}):
+            self.assertFalse(lists_are_external({}), "段取りを知らない前の窓なら自分で写す")
+        got = []
+        set_shell_notice(got.append)
+        try:
+            shell_notice("mirror", key="k")
+        finally:
+            set_shell_notice(None)
+        shell_notice("mirror", key="x")
+        self.assertEqual(got, [{"id": 0, "event": "mirror", "key": "k"}], "窓へは答えでない枠（id 0）で知らせる")
+
+
 class StaleTests(Base):
     """毎日更新されるはずの元データが古いとき（元ファイルの更新時刻がしきいを過ぎた）に「古い」と言う。"""
     def age(self, hours):

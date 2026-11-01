@@ -193,6 +193,9 @@ python program/tools/ui_score.py 採点.json                                    
   （共有から写すのに時間がかかる形で、最初の画面の作業実績のパネルが答えるまで・途中の数を「写しています」と言うか・正しい数に着くまでを測る）
 - 画面に出ない改良（速さ）の評価関数: `python program/tools/dash-bench.py [--rows 20000] [--save 前.json] [--compare 前.json]`
   （ダッシュボードの標準の全パネルを大きな試験データで数え、冷えた時・控えから・ファイルが変わった後を、順に・一度に問い合わせて測る。--compare で前と同じ数かを突き合わせる）
+- 一覧の道を Rust へ移した評価関数（版 3.60.0）: `cargo test --test lists_parity`（← `program/tests/lists_oracle.py`。表の候補・ロット番号の列・作業でまとめる・
+  日時の読み方・結合の数と行と答えのファイルの名前）・`cargo test --test routes_parity`（← `program/tests/routes_oracle.py`。品質・実績・データ元の道の答えと失敗を
+  Python の道と突き合わせる）。速さは `python program/tests/routes_oracle.py --bench 出力.json` → `cd desktop && cargo run --release --example routes_bench -- 出力.json`
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`
   （部品ごとの行・試験・依存の段・要る crate の棚卸しと、全部の道の速さを SQLite の中・JSON・Python の手に分けて測る。--calibrate は既に Rust にある一覧で
   見積もりを Rust の実際の時間〈`cargo build --release --example lotbench`〉と突き合わせる。表と順は `program/docs/RUST_PORT_PLAN.md`）

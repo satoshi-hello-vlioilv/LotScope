@@ -126,6 +126,28 @@
     ok("作業実績の設備の問い合わせが答える（届かなければ理由つき）", wl.r.ok && Array.isArray(wlj.items) && (wlj.items.length > 0 || !!wlj.error || Array.isArray(wlj.new)),
        `設備 ${(wlj.items || []).length} 台・未登録 ${(wlj.new || []).length}・${wlj.error || "フォルダに届いた"}`);
 
+    // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
+    //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる
+    {
+      const canon2 = (v) => Array.isArray(v) ? v.map(canon2) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["timing", "source", "ms"].includes(k)).map((k) => [k, canon2(v[k])])) : v;
+      const one = (wlj.items || []).find((x) => x.visible && x.state !== "missing");
+      const eq = encodeURIComponent(one ? one.key : "無い設備");
+      const asks = [`/api/worklog?equip=${eq}`, `/api/worklog?equip=${eq}&work=1&fill=1`, `/api/worklog?equip=${eq}&page=2&page_size=20`,
+        `/api/worklog?equip=${eq}&work=1&total=` + encodeURIComponent("重量"), "/api/worklog?equip=" + encodeURIComponent("登録の無い設備"),
+        "/api/src/wip?page=1", "/api/src/wip?group=1&page_size=30", "/api/src/" + encodeURIComponent("無い元")];
+      const differ = [], by = [];
+      for (const a of asks) {
+        const rs = await get(a), py = await get(a + "&engine=python");
+        by.push(rs.by);
+        let same = rs.r.status === py.r.status && py.by === "python";
+        try { same = same && JSON.stringify(canon2(JSON.parse(rs.text))) === JSON.stringify(canon2(JSON.parse(py.text))); } catch (_) { same = false; }
+        if (!same) differ.push(`${a} ${rs.r.status}/${py.r.status}`);
+      }
+      ok(`作業実績・データ元の一覧は窓が答え、Python と同じ答え（${asks.length} 通り・作業でまとめる・ページ・失敗の答え）`,
+         by.every((b) => b === "shell") && differ.length === 0, differ.length ? differ.join(" | ") : (one ? `設備 ${one.name}` : "設備なし（失敗の答えを比べた）"));
+    }
+
     // 11) 配布の画面の係（窓）: 答えが返る・版を置けない人は理由つきで断られる（だれが置けるかは Python の権限）
     const rel = await get("/__desktop/release");
     let relj = {}; try { relj = JSON.parse(rel.text); } catch (_) { /* 下で言う */ }

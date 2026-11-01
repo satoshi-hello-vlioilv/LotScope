@@ -22,6 +22,8 @@
   一覧・スライサー・集計表・ダッシュボードは、そのファイルを今までと同じ仕組みで読む（速さは今までと同じ）。
   元の写しのどれかが変わった（版・大きさ・時刻）・決まりが変わったときだけ組み直す。表は元の表と同じ名前
   （表示列・並び・条件などの覚えは離れない）。
+  版 3.60.0: デスクトップ版では一覧・スライサーの結合を窓（Rust・desktop/src/join.rs）が組む。答えのファイルの名前
+  （<キー>_<決まりの SHA-256 の頭 12 字>）と覚え（.json: stamps・stats・builtAt・seconds・items）は同じ形なので、どちらが組んだ物も互いに使い回す。
 """
 from __future__ import annotations
 
@@ -261,7 +263,7 @@ class Joiner:
         """結合した答えのファイル（無い・古ければ組む）→ (ファイル, 数)。"""
         spec = json.dumps({"base": [str(base_path), base_table], "items": items, "rights": [[str(p), t] for p, t, _ in rights]},
                           ensure_ascii=False, sort_keys=True)
-        name = f"{key}_{hashlib.sha1(spec.encode('utf-8')).hexdigest()[:12]}"
+        name = f"{key}_{hashlib.sha256(spec.encode('utf-8')).hexdigest()[:12]}"
         dest = self.root / f"{name}.sqlite3"
         meta = self.root / f"{name}.json"
         want = [_stamp(base_path)] + [_stamp(p) for p, _, _ in rights]
@@ -275,11 +277,27 @@ class Joiner:
                 return dest, had.get("stats") or []
             t0 = time.time()
             stats = build(dest, base_path, base_table, items, rights)
-            info = {"stamps": want, "stats": stats, "builtAt": time.time(), "seconds": round(time.time() - t0, 3)}
+            info = {"stamps": want, "stats": stats, "builtAt": time.time(), "seconds": round(time.time() - t0, 3), "items": items}
             meta.write_text(json.dumps(info, ensure_ascii=False), encoding="utf-8")
             self.last[key] = {**{k: info[k] for k in ("stats", "builtAt", "seconds")}, "items": items}
             self._sweep(key, keep=name)
             return dest, stats
+
+    def recent(self, key, items):
+        """最後に組んだ数（{stats, builtAt, seconds, items}）。このプロセスで組んでいなければ、作業場所の覚え（窓の Rust が組んだ物も）から、
+        決まりが items と同じ新しい物。無ければ None"""
+        got = self.last.get(key)
+        if got and got.get("items") == items:
+            return got
+        best = None
+        for p in self.root.glob(f"{key}_*.json"):
+            try:
+                had = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(had, dict) and had.get("items") == items and (best is None or (had.get("builtAt") or 0) > (best.get("builtAt") or 0)):
+                best = had
+        return {k: best.get(k) for k in ("stats", "builtAt", "seconds", "items")} if best else None
 
     def _sweep(self, key, keep):
         """同じ元の前の決まりのファイルを消す（読んでいて消せない物は次の機会に）。"""

@@ -18,6 +18,8 @@
 
     "baseline" は比べるための今の画面（案ではないので順位に入れない。どれだけ良くなるかを見る）。
     "built" は、決めた案を作った後の本物の画面を、同じ物差しで採点した結果（作る前の画像の再現と本物の差を見る）。
+    "chosen_by_user": {"proposal": "案の名前", "date": "…", "note": "…"} … 案出しの回の採点の前に、利用者が案を選んだとき（版 3.60.0）。
+    利用者が決めたことなので案の採点はしない（"evaluator" も要らない）。作った後（"built"）は、ほかと同じく別のエージェントが採点し、合格点で判定する。
     "applies": "決めた採点のファイル名" … ほかの比較で決めた形を、別の画面にそろえて当てただけのとき（案出しの回は持たず、
     "rounds" は空）。決めたファイルの判定を引き、"baseline"（今）と "built"（作った後）だけを同じ物差しで採点する（版 3.49.0）。
     案の値が 7 つの数の並び（list）のファイルは、旧い決まり（7 基準・80 点・7 案）の記録として読む（判定はしない）。
@@ -156,6 +158,16 @@ def decide(data):
         built = data.get("built") or {}
         t = total(built["result"]) if built.get("result") else 0
         return ("当てた" if t >= rule_of(data)["pass"][-1] else "直す"), data["applies"], [(t, built.get("name", ""), built.get("result"))]
+    chosen = data.get("chosen_by_user")
+    if chosen:                        # 利用者が選んだ案: 案の採点はしない。作った後があれば合格点で判定する
+        names = [n for rnd in data["rounds"] for n in rnd["proposals"]]
+        if chosen.get("proposal") not in names:
+            raise ValueError(f"利用者が選んだ案（{chosen.get('proposal')}）が回の案に無い")
+        built = data.get("built") or {}
+        if built.get("result") and not data.get("evaluator"):
+            raise ValueError("作った後の採点した者（evaluator）が無い")
+        rows = [(total(built["result"]), built.get("name", ""), built["result"])] if built.get("result") else []
+        return "利用者が選んだ", chosen["proposal"], rows
     rounds = data["rounds"]
     if any(isinstance(e, list) for rnd in rounds for e in rnd["proposals"].values()):
         rows = rank(rounds[-1]["proposals"])
@@ -194,6 +206,22 @@ def report(data):
     if data.get("applies"):
         return report_applied(data)
     kind, who, rows = decide(data)
+    if kind == "利用者が選んだ":
+        c = data["chosen_by_user"]
+        print(f"利用者が選んだ: {who}（{c.get('date', '')}）{c.get('note', '')}")
+        for rnd in data["rounds"]:
+            print(f"== {rnd['name']}（{len(rnd['proposals'])} 案。採点しない）")
+            for name in rnd["proposals"]:
+                print(f"  {'★' if name == who else ' '} {name}")
+        mark = rule_of(data)["pass"][-1]
+        if rows:
+            t, name, e = rows[0]
+            print(f"採点: {data['evaluator']}")
+            print(f"== {name}（作った後）  {t:.1f} 点  {describe(e)}\n      見えたこと: {e.get('seen', '')}")
+            print("→ 作った後も " + (f"{mark} 点以上" if t >= mark else f"{mark} 点に届かない。減点の所を直して採点し直す"))
+        else:
+            print(f"→ 作った後を別のエージェントが採点する（合格点 {mark} 点）")
+        return kind, who
     if kind == "記録":
         print("（旧い決まり〈7 基準・80 点・7 案〉の記録。いまの決まりでは判定しない）")
         for t, name, _ in rows:

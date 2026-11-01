@@ -1,0 +1,110 @@
+{
+ "title": "2026-11 一覧の道をそろえる（版 3.60.0。RUST_PORT_PLAN.md の順 2）: 実績・仕掛・足したデータ元・結合した表の一覧とスライサーを Rust が答える形",
+ "rule": "2026-10-17",
+ "reading": "画面に出ない改良なので、画像の代わりに動かして測った数と作りで採点する（2026-11-formula-port.json と同じ読み替え）。order＝作りが依存の順に流れる／chunk＝部品の境目が一目で分かれる／hierarchy＝答えの元（正しさの基準）が 1 つ／visual＝食い違い・速さが数で見える（評価関数）／steps＝利用者の待ち（一覧の時間）が少ない／effortless＝利用者が何も変えずに済む（前と同じ一覧・同じ答え）／intuitive＝画面で見た値と Rust の値が同じ／form＝品質・実績・仕掛・足した元が同じ決まり／place＝同じ処理が同じ置き場（da_core の部品）／layout＝コードの量と依存の釣り合い／tone＝作る・確かめる道具の手間。減点: lost＝今できることができなくなる／hidden_state＝食い違いが試験で見えない／more_steps＝利用者か開発者の手が増える",
+ "measured": {
+  "how": "開発用サーバーと同じ試験データ（tools/ui_server.build）を品質 20,000 行・作業実績 12 台 × 2,000 行・仕掛 20,000 ロットにして、/api/worklog・/api/src/<key> を 5 回の中央値（作業実績は行の多い CAL）。測る道具は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/routes_base.py",
+  "今（Python が答える。道ごと・JSON まで）": {
+   "実績 一覧 500 行": "7.5 ms",
+   "実績 作業でまとめる（work=1）": "104.6 ms",
+   "実績 並べ替え": "9.9 ms",
+   "実績 スライサー": "3.0 ms",
+   "仕掛 一覧": "14.0 ms",
+   "仕掛 まとめ（group=1）": "188.3 ms",
+   "仕掛 スライサー": "19.6 ms",
+   "スケジュール 一覧": "5.1 ms",
+   "製造条件マスタ 一覧": "1.0 ms"
+  },
+  "段取りの手間（道の時間 − lot_list.query だけの時間）": {
+   "実績 一覧": "7.5 − 6.1 ＝ 約 1.4 ms",
+   "仕掛 一覧": "14.0 − 11.5 ＝ 約 2.5 ms"
+  },
+  "同じ写しを Rust の lotlist.rs で引いた時間（desktop/examples/lotbench.rs。今の Rust のまま。中央値 ms）": {
+   "仕掛 1 ページ目": "Python 11 → Rust 5",
+   "仕掛 検索（全列）": "587 → 170",
+   "仕掛 並べ替え（字の列）": "84 → 49",
+   "仕掛 ロット番号でまとめる": "182 → 111",
+   "実績 1 ページ目": "6 → 2",
+   "実績 検索": "25 → 10",
+   "実績 ロット番号でまとめる": "25 → 15"
+  },
+  "枠 1 往復（Rust → Python の段取りを尋ねる手間）": "0.13 ms（rust-port-bench の sidecar の測定）＋段取りそのもの 1.4〜2.5 ms",
+  "今の Rust に足りない物（読んで確かめた）": "表の候補が品質用に固定（lotlist.rs の pick_table が TABLE_CANDIDATES だけ）・ロット番号の列の上書き（lotSet）を受けない・作業でまとめる（work_summary.py 152 行・shifts.py 164 行。作業の鍵と直を SQLite の中の Python の関数で決める）が無い・写しの係（mirror.rs）は品質の 1 ファイルだけ・結合した表（data_join.py が答えのファイルを組む）が無い・タブの権限を知らない",
+  "試作・数の置き場": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad（routes_base.py・wip_copy.sqlite3・work_copy.sqlite3。lotbench は cd desktop && cargo build --release --example lotbench・tests/lotlist_bench.py が Python）"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良（画像なし）。数は measured",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと: ① 今の Python の道の時間は routes_base.py で品質 20,000 行・実績 12 台 × 2,000 行・仕掛 20,000 ロットを 5 回の中央値で測った。② 段取りの手間は、同じ写しを lot_list.query だけで引いた時間との差で出した（実績 1.4 ms・仕掛 2.5 ms。仕掛のまとめは揺れで差が負に出たので書かない）。③ Rust の時間は、同じ写しの複製（wip_copy・work_copy）を今の lotbench で引いた（仕掛の表名「仕掛」は品質の候補にあり、実績の写しは表が 1 つなので今の Rust のままで引ける）。④ 足りない物は lotlist.rs の pick_table・lot_column と、worklog.py の work_grouping・sources.py の src_plan / with_joins を読んで確かめた（行の数は rust-port-bench の棚卸しの数: work_summary 152・shifts 164・data_join 209。空行・注釈を除く）。⑤ 案の方向: 置き場（A は段取り Python・B は全部 Rust・F は画面が段取り）・減らし方（D は重い所を残す・E は移さず速くする）・流れの変え方（C は覚える）に分かれ、偏っていない。",
+   "proposals": {
+    "A 段取りは Python・引くのは Rust（Python に段取りだけを尋ねる道を足す）": {
+     "plan": "Python に GET /api/plan/<道>（例: /api/plan/worklog?equip=…・/api/plan/src/wip）を足し、今の worklog_plan・src_plan と同じ段取り（読むファイル〈写し・結合した答えのファイル〉・表・表の候補・既定の件数・ロット番号の列・勤務の区分・source の情報）か、失敗の答え（写し中 503・権限 403・未設定 400 など）を返す。Rust（lot.rs）は /api/worklog・/api/src/<key> とそのスライサーを受け、段取りを尋ねてから lotlist.rs で引く。作業でまとめる（work=1）は work_summary・shifts を Rust に移す。写し・結合・権限は Python のまま",
+     "cost": "Python 約 60 行（段取りの道）・Rust 約 500 行（作業のまとめ・勤務の直・候補とロット番号の列の引数・道の受け口）",
+     "risk": "1 回の問い合わせごとに Python へ 1 往復（約 1.5〜2.5 ms）。Python を外す（順 5・7）までは写し・結合が Python に残る"
+    },
+    "B 段取りも Rust（写しの係・結合・データ元の設定を Rust が持つ）": {
+     "plan": "mirror.rs を設備・データ元ごとの写しの係に広げ、結合した表（data_join.py 209 行）も Rust で組む。データ元の設定・作業実績の登録・タブの権限は、Python の設定の答え（lotlist/settings と同じ形）でまとめて受け取り、Rust が覚える。一覧・スライサー・作業のまとめは A と同じく Rust",
+     "cost": "Rust 約 1,500 行（写しの係の広げ・結合・設定の受け取り・作業のまとめ）・Python 約 100 行",
+     "risk": "写しの係が 2 つ（品質は Rust・作業実績は Python が今も写す）になる移り目に、同じファイルを 2 か所が写す・台帳の食い違いが出やすい。量が A の 3 倍"
+    },
+    "C A ＋ 段取りの答えを Rust が覚える（ファイルの更新時刻つきで数秒）": {
+     "plan": "A と同じ道で段取りを尋ね、Rust が答えを (道, 引数, 写しの更新時刻) ごとに 10 秒覚える（lotlist/settings の SETTINGS_TTL と同じ）。続けて開く一覧・ページ送り・スライサーで Python へ尋ねない",
+     "cost": "A ＋ Rust 約 80 行（覚える係・時刻の確かめ）",
+     "risk": "マスタ（登録・結合・権限）を直してから最長 10 秒は前の段取りで答える。覚えの消し方（データ元を保存したら消す）を道ごとに足す要がある"
+    },
+    "D 作業でまとめる（work=1）は Python に任せ、ほかの一覧・スライサーだけ Rust": {
+     "plan": "A の段取りの道を使うが、work=1 の問い合わせは今の画面と同じく Python へ回す（engine=python のような印）。Rust は候補とロット番号の列の引数だけ足す",
+     "cost": "Python 約 60 行・Rust 約 150 行",
+     "risk": "いちばん重い実績の作業でまとめる（104.6 ms）が Python に残り、作業実績を開いたときの既定の見え方（作業でまとめる）は速くならない。Python へ戻る道が残る"
+    },
+    "E 移さず、Python の問い合わせを速くする（まとめの SQL・検索の SQL の作り直し）": {
+     "plan": "Rust へは移さず、lot_list.py のまとめ（窓関数の 6 段に全部の列を持ち回す）と検索（全列を CStr で比べる）の SQL を作り直す。作業でまとめるは、作業の鍵を SQL の式で作る",
+     "cost": "Python 約 200 行",
+     "risk": "Rust で引いた時間（まとめ 111 ms・検索 170 ms）は SQL が同じでも Python より速く、SQL を直しても Python の手（関数の呼び出し）は残る。Python を外す道に寄与しない"
+    },
+    "F 画面が段取りを先に尋ね、答えのファイルを Rust へ渡す": {
+     "plan": "画面が /api/src/<key>/plan を Python に尋ね、返ったファイルの場所・表・候補を添えて /api/lotlist（Rust）を呼ぶ。Rust は段取りを持たず、渡された場所を引く",
+     "cost": "画面の JavaScript 約 80 行・Python 約 60 行・Rust 約 100 行",
+     "risk": "画面が送るファイルの場所を Rust が開くので、細工した場所で手元の別のファイルを読ませられる（場所を確かめる係が要る）。問い合わせが 2 往復になり、画面の作りが変わる（UI の確かめも要る）"
+    }
+   },
+   "baseline": {
+    "今（Rust は品質の一覧だけ。実績・足した元は Python）": {
+     "plan": "Rust の lot.rs は /api/lotlist・/api/lotlist/slicer・source・refresh だけを受け、/api/worklog・/api/src/<key> は Python が答える"
+    }
+   }
+  }
+ ],
+ "chosen_by_user": {
+  "proposal": "B 段取りも Rust（写しの係・結合・データ元の設定を Rust が持つ）",
+  "date": "2026-11-01",
+  "note": "採点の途中で、利用者が「B: 段取りも Rust にして」と決めた（Python を外す道に、写しの係・結合・データ元の設定も Rust へ移す）。案の採点はしない。作った後は別のエージェントが採点する"
+ },
+ "measured_after": {
+  "how": "python program/tests/routes_oracle.py --bench 出力.json（開発用サーバーと同じ試験データを 品質 20,000 行・作業実績 12 台 × 2,000 行・仕掛 20,000 ロットにし、結合〈品質・実績・結合した表〉とロット番号の列〈仕掛 = 鋳造番号〉を足した形。Python の道の 5 回の中央値。枠の往復は含まない）→ cd desktop && cargo run --release --example routes_bench -- 出力.json（窓の受け口 Lot::handle の 5 回の中央値・件数が Python と同じか）",
+  "道ごと（Python → Rust・中央値 ms）": {
+   "品質 1 ページ（結合つき）": "25.0 → 11.3",
+   "品質 まとめ＋結合した列で並べ替え": "237.0 → 126.8",
+   "品質 スライサー（結合した列）": "22.1 → 12.7",
+   "品質 検索": "553.2 → 241.5",
+   "実績 一覧（結合つき）": "15.5 → 5.8",
+   "実績 作業でまとめる（合計・0 件の日）": "101.9 → 52.4",
+   "実績 作業でまとめる（帯で押した日）": "63.8 → 13.3",
+   "実績 作業でまとめる（CR2・2 ページ目）": "145.3 → 24.2",
+   "実績 作業でまとめる（焼鈍炉・14 桁の作業開始・太陽暦）": "15.2 → 3.6",
+   "実績 計算列で並べ替え": "26.0 → 6.3",
+   "実績 検索": "61.1 → 13.7",
+   "実績 スライサー": "7.2 → 1.3",
+   "実績 スライサー（無い列・400）": "5.1 → 0.5",
+   "仕掛 ロット番号の列でまとめる": "203.0 → 140.9",
+   "仕掛 スライサー（検索つき）": "242.8 → 95.0",
+   "仕掛 検索": "224.8 → 74.3",
+   "結合した表（仕掛 × 2 つのマスタ）": "42.9 → 7.2",
+   "結合した表のスライサー": "38.9 → 11.1"
+  },
+  "件数": "18 通りすべてで Rust の件数（count）が Python と同じ",
+  "突き合わせ": "cargo test --test lists_parity（一覧 46 通り・日時 528 通り・時刻 59 通り・結合 8 通り）・cargo test --test routes_parity（道の答え 21 通り。状態と本文）・cargo test --lib（52 件）・python -m unittest tests.test_lot_list（受け身の写し 3 件を含む 57 件）"
+ },
+ "built_self_check": "作った者が採点に渡す前に確かめたこと: ① 突き合わせの 2 つの試験が比べ漏れになっていない（作業でまとめた答えが 20 通り以上・中身のある道の答えが 12 通り以上あることを試験の中で確かめる）。② 速さは上の 18 通りを測り、件数が Python と同じことを確かめた（Python 側は道の中だけの時間なので、枠の往復 0.13 ms＋段取り 1.4〜2.5 ms ぶん実際の窓ではさらに差が出る）。③ Windows だけのファイル ID（GetFileInformationByHandle）は、その部分を windows クレートだけの作業用クレートへ写し、cargo clippy --target x86_64-pc-windows-msvc -- -D warnings を通した。④ 前の窓・前の中身との組: lists を名乗らない窓には品質だけを任せる（Python の lotlist_settings）、lists を答えない中身とは窓が品質だけを受け持つ（lot.rs の試験）。⑤ 分かっていて残した所: 作業実績のフォルダを見る file_id の Windows の形は Python の版（3.12 から 64 ビットの装置番号・作った時刻）で幅が違うので、装置番号の下 32 ビット・ファイル番号・（両方にあれば）作った時刻で比べる（same_fid）。本物の Windows の共有では確かめていない。"
+}

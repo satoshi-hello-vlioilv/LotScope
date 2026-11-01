@@ -2173,9 +2173,10 @@
      品質異常と作業実績は同じ画面（#lotListScreen）を使い、元（S）を入れ替える。元ごとの状態はそのまま残る。 */
   /* データ元の並び（app.js が /api/sources から渡す）。1 ファイルの元は、初めて開くときに状態を作る（名前が変わったら札だけ直す） */
   function defineSources(list) {
-    // 品質に結合がある・ロット番号の列を決めてある（版 3.58.0。Rust は名前で探す決まりしか知らない）ときは Python に尋ねる
+    // 品質に結合がある・ロット番号の列を決めてある（版 3.58.0）ときは Python に尋ねる。ただし窓（Rust）がそれも受け持つ（shellLists。
+    // 版 3.60.0）ときは窓に尋ねる
     const lotDef = (list || []).find((d) => d.key === "lot"), workDef = (list || []).find((d) => d.key === "work");
-    lotJoined = !!(lotDef && ((lotDef.joins || []).length || lotDef.lotSet));
+    lotJoined = !!(lotDef && !lotDef.shellLists && ((lotDef.joins || []).length || lotDef.lotSet));
     // 組み込みの元の名前（版 3.58.0。データ元で変えられる。既定は「品質」「実績」）を、一覧の題・Excel の名前に
     if (lotDef) Object.assign(SOURCES.lot, { title: lotDef.name, fileStem: lotDef.name });
     if (workDef) Object.assign(SOURCES.work, { title: workDef.name, noun: workDef.name, fileStem: workDef.name });

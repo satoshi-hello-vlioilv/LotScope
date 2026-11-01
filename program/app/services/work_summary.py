@@ -144,6 +144,26 @@ class Grouping:
         return {"work": info}
 
 
+def grouping_of(args, shift_rows, equip_name):
+    """問い合わせの引数（work=1 のときだけ）と勤務体系のマスタの行から、「作業でまとめる」の係（routes/worklog.py と試験が使う 1 か所）。
+    start: 作業開始の列（無ければ既定の名前）・basis: work（現場歴）／cal（太陽暦）・order: desc（新しい順）／asc・
+    day（YYYY-MM-DD。"-" は日付なし）・shift（直の番号）: 帯で押した日・直に一覧を絞る（数の帯は絞らない）。
+    fill=1: 帯に作業の無い日（0 件の日）も出す。直はその設備の勤務体系（設備を書いた体系 → 全設備共通）。
+    デスクトップ版の Rust（desktop/src/worksum.rs の Grouping::from_query）も同じ読み方"""
+    from .shifts import pattern_for
+    if args.get("work") != "1":
+        return None
+    pat = pattern_for(shift_rows, equip_name)
+    brief = {k: pat[k] for k in ("id", "name", "equipmentText")} if pat else None
+    try:
+        shift = int(args["shift"]) if args.get("shift", "") != "" else None
+    except ValueError:
+        shift = None
+    return Grouping(pat["segments"] if pat else [], column=args.get("start", ""), basis=args.get("basis", "work"),
+                    order=args.get("order", "desc"), pattern=brief, day=args.get("day", ""), shift=shift, total=args.get("total", ""),
+                    fill=args.get("fill") == "1")
+
+
 def _shift_rank(idx):
     if idx is None:                             # 0 件の日の行（直は無い）
         return -1

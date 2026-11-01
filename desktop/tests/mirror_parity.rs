@@ -114,8 +114,13 @@ fn rust_mirrors_like_python() {
                 Value::Null
             }
             "files" => {
-                let mut v: Vec<String> =
-                    std::fs::read_dir(&cache).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+                // 周回の様子（<キー>.state.json。版 3.60.0）は窓だけが置く（受け身の Python が読む）ので比べない
+                let mut v: Vec<String> = std::fs::read_dir(&cache)
+                    .unwrap()
+                    .flatten()
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .filter(|n| !n.ends_with(".state.json"))
+                    .collect();
                 v.sort();
                 json!(v)
             }

@@ -1,7 +1,7 @@
 //! 異常ロット一覧の速さを測る（Rust）。program/tests/lotlist_bench.py（Python）と同じ問い合わせ・同じ回数。
 //!     cargo run --release --example lotbench -- <品質データ.sqlite3>
 use da_core::formula::Tables;
-use da_core::lotlist::{query, Args};
+use da_core::lotlist::{query, Args, Opts};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -47,11 +47,11 @@ fn main() {
     }
     let tables = Arc::new(Tables::default());
     for (name, a) in &cases {
-        let _ = query(db.as_ref(), a, "", 500, today, &tables); // 1回目（日付の列の見分け・OS のキャッシュ）は数えない
+        let _ = query(db.as_ref(), a, &Opts::quality("", 500), today, &tables, None); // 1回目（日付の列の見分け・OS のキャッシュ）は数えない
         let mut ms: Vec<f64> = (0..5)
             .map(|_| {
                 let t = Instant::now();
-                let v = query(db.as_ref(), a, "", 500, today, &tables).unwrap();
+                let v = query(db.as_ref(), a, &Opts::quality("", 500), today, &tables, None).unwrap();
                 let _ = serde_json::to_vec(&v).unwrap();
                 t.elapsed().as_secs_f64() * 1000.0
             })

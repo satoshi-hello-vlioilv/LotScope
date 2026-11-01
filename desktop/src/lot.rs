@@ -8,8 +8,10 @@
 //! - 写しの係（mirror.rs）は 1 つだけ。Python は窓が lotlist を受け持つと名乗ると写さず、同じ台帳を読む
 
 use crate::formula::Tables;
+use crate::lists::{Conf, Lists, Quality};
 use crate::lotlist::{self, Args};
 use crate::mirror::DbMirror;
+use crate::worksum::{self, Grouping};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -17,8 +19,6 @@ use std::time::{Duration, Instant};
 
 /// 設定を覚える長さ（ほかの PC が参照先を直したときも、遅くともこれで切り替わる）。
 pub const SETTINGS_TTL: Duration = Duration::from_secs(10);
-
-const NO_SOURCE: &str = "ロット一覧の元ファイルが決まっていません。「マスタ管理」の「参照先」で元ファイルを入れてください。";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
@@ -31,6 +31,8 @@ pub struct Settings {
     /// 計算列の式の conv が引く変換表（マスタ「変換表」）と、その版（版が変わったときだけ読み直す）
     pub conversions_rev: String,
     pub conversions: Value,
+    /// 一覧の段取りの材料（版 3.60.0。データ元・作業実績の登録・勤務体系・出さないタブ。Python の lotlist.lists_settings）
+    pub lists: Value,
 }
 
 impl Settings {
@@ -45,6 +47,7 @@ impl Settings {
             engine: v["engine"].as_str().unwrap_or("rust").into(),
             conversions_rev: v["conversions"]["rev"].to_string(),
             conversions: v["conversions"]["tables"].clone(),
+            lists: v["lists"].clone(),
         }
     }
 }
@@ -54,6 +57,7 @@ pub type AskSettings<'a> = &'a dyn Fn() -> Result<Value, String>;
 
 pub struct Lot {
     cache_dir: PathBuf,
+    lists: Lists,
     mirror: Mutex<Option<Arc<DbMirror>>>,
     settings: Mutex<Option<(Instant, Settings)>>,
     tables: Mutex<Option<(String, Arc<Tables>)>>,
@@ -61,7 +65,7 @@ pub struct Lot {
 
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
-        Lot { cache_dir, mirror: Mutex::default(), settings: Mutex::default(), tables: Mutex::default() }
+        Lot { lists: Lists::new(&cache_dir), cache_dir, mirror: Mutex::default(), settings: Mutex::default(), tables: Mutex::default() }
     }
 
     /// 参照先を保存したとき: 次の問い合わせで設定を尋ね直す。
@@ -120,13 +124,17 @@ impl Lot {
         }
     }
 
+    /// 受け身の Python からの知らせ（作業実績・データ元の「写して」。版 3.60.0）
+    pub fn notice(&self, v: &Value) {
+        self.lists.notice(v);
+    }
+
     /// 窓が答える問い合わせなら (状態, 答え)。Python に任せるなら None。
+    /// 品質（/api/lotlist）・作業実績（/api/worklog）・データ元（/api/src/<キー>）の一覧・スライサー・データの時刻・再読込（版 3.60.0 から
+    /// 作業実績・データ元も。段取りは src/lists.rs）
     pub fn handle(&self, method: &str, path: &str, query: &str, ask: AskSettings) -> Option<(u16, Value)> {
-        let mine = matches!(
-            (method, path),
-            ("GET", "/api/lotlist") | ("GET", "/api/lotlist/slicer") | ("GET", "/api/lotlist/source") | ("POST", "/api/lotlist/refresh")
-        );
-        if !mine || lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+        let route = Route::of(method, path)?;
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
         }
         let s = match self.settings(ask) {
@@ -134,51 +142,157 @@ impl Lot {
             // 設定を尋ねられない（Python が止まっている等）→ Python に任せる（同じ理由の答えが返る）
             Err(_) => return None,
         };
-        if s.engine != "rust" {
+        // 段取りの材料（lists）を答えない中身（前の版の Python）とは、品質だけを今までどおり受け持つ
+        if s.engine != "rust" || (s.lists.is_null() && !matches!(route, Route::Lot(_))) {
             return None;
         }
         let m = self.mirror(&s);
-        Some(match path {
-            "/api/lotlist/source" => (200, m.source_info()),
-            "/api/lotlist/refresh" => {
+        let conf = Conf { v: &s.lists };
+        let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
+        let qs = lotlist::parse_query(query);
+        let arg = |k: &str| qs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
+        let lists = &self.lists;
+        let (what, plan) = match &route {
+            Route::Lot(Kind::Source) => return Some((200, m.source_info())),
+            Route::Lot(Kind::Refresh) => {
                 let r = m.refresh();
-                (200, json!({"result": r, "source": m.source_info()}))
+                return Some((200, json!({"result": r, "source": m.source_info()})));
             }
-            _ => match m.read_path() {
-                None if m.remote().is_empty() => (400, json!({"error": NO_SOURCE, "source": m.source_info()})),
-                // 写しがまだ無い（共有は直接読まない）。画面は写し終えたら引き直す（Python の lotlist_plan と同じ答え）
-                None => (503, json!({"error": m.not_ready_text(), "kind": "copying", "source": m.source_info()})),
-                // スライサーに並べる値（列の重複なしの値と件数・計算列は値の組）
-                Some(p) if path == "/api/lotlist/slicer" => {
-                    let today = chrono::Local::now().date_naive();
-                    let qs = lotlist::parse_query(query);
-                    let arg = |k: &str| qs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
-                    // columns があれば計算列の値の組（式が使う列）、無ければ列の値（Python の slicer_answer と同じ振り分け）
-                    let cols = arg("columns");
-                    let answer = if cols.is_empty() {
-                        lotlist::slicer(&p, &Args::from_query(query), &arg("column"), &arg("key"), &s.table, today)
-                    } else {
-                        lotlist::slicer_combos(&p, &Args::from_query(query), &cols, &s.table, today)
-                    };
-                    match answer {
-                        Ok(v) => (200, v),
-                        Err((400, e)) => (400, json!({"error": e})),
-                        Err((st, e)) => (st, json!({"error": e, "source": m.source_info()})),
+            Route::Work(Kind::Source) => {
+                return Some(match lists.work.peek(&arg("equip")) {
+                    None => (404, json!({"error": "まだ開いていない設備です。", "kind": "unknown"})),
+                    Some(w) => (200, w.source_info()),
+                })
+            }
+            Route::Src(key, Kind::Source | Kind::Refresh) if conf.source(key).is_some_and(|d| d["kind"] == "cm3") => return None,
+            Route::Src(key, Kind::Source) => {
+                let d = conf.source(key);
+                let k = d.and_then(|d| d["base"].as_str()).filter(|b| !b.is_empty()).unwrap_or(key).to_string();
+                let mm = if k == "lot" { Some(m.clone()) } else { lists.src.peek(&k) };
+                return Some(match mm {
+                    None => (404, json!({"error": "まだ開いていないデータ元です。", "kind": "unknown"})),
+                    Some(x) => (200, x.source_info()),
+                });
+            }
+            Route::Lot(k) => (*k, lists.lot_plan(&conf, &q, true)),
+            Route::Work(k) => (*k, lists.work_plan(&conf, &q, &arg("equip"), *k != Kind::Refresh, true)),
+            Route::Src(key, k) => {
+                let refresh = *k == Kind::Refresh;
+                match lists.src_plan(&conf, &q, key, !refresh, !refresh) {
+                    Ok(None) => return None, // スケジュール（CM3）は Python
+                    Ok(Some(p)) => (*k, Ok(p)),
+                    Err(f) => (*k, Err(f)),
+                }
+            }
+        };
+        let plan = match plan {
+            Ok(p) => p,
+            Err(f) => return Some(f),
+        };
+        let source = plan.source.clone();
+        if what == Kind::Refresh {
+            let mm = plan.mirror.clone().or_else(|| match &route {
+                Route::Src(key, _) => lists.src.peek(key),
+                _ => None,
+            });
+            return Some(match mm {
+                None => (404, json!({"error": "まだ開いていないデータ元です。", "kind": "unknown"})),
+                Some(x) => {
+                    let r = x.refresh();
+                    (200, json!({"result": r, "source": x.source_info()}))
+                }
+            });
+        }
+        let path = plan.path.clone()?;
+        let today = chrono::Local::now().date_naive();
+        let opts = plan.opts();
+        let args = Args::from_query(query);
+        if what == Kind::Slicer {
+            // columns があれば計算列の値の組（式が使う列）、無ければ列の値（Python の slicer_answer と同じ振り分け）
+            let cols = arg("columns");
+            let answer = if cols.is_empty() {
+                lotlist::slicer(&path, &args, &arg("column"), &arg("key"), &opts, today)
+            } else {
+                lotlist::slicer_combos(&path, &args, &cols, &opts, today)
+            };
+            return Some(match answer {
+                Ok(v) => (200, v),
+                Err((400, e)) => (400, json!({"error": e})),
+                Err((st, e)) => (st, json!({"error": e, "source": source})),
+            });
+        }
+        // 作業でまとめる（work=1。作業実績だけ）: 直はその設備の勤務体系
+        let pattern = plan.equip.as_ref().and_then(|e| e["name"].as_str()).map(|n| worksum::pattern_for(&conf.shifts(), n));
+        let mut grouping = match (&route, pattern) {
+            (Route::Work(_), Some(p)) => Grouping::from_query(&qs, p.as_ref()),
+            _ => None,
+        };
+        Some(match lotlist::query(&path, &args, &opts, today, &self.tables(&s), grouping.as_mut()) {
+            Ok(mut v) => {
+                v["source"] = source;
+                if let Some(e) = &plan.equip {
+                    v["equip"] = e.clone();
+                    if let Some(w) = v.get_mut("work").and_then(Value::as_object_mut) {
+                        w.insert("canEditShifts".into(), json!(conf.work()["canEditShifts"].as_bool().unwrap_or(false)));
                     }
                 }
-                Some(p) => {
-                    let today = chrono::Local::now().date_naive();
-                    match lotlist::query(&p, &Args::from_query(query), &s.table, s.page_size, today, &self.tables(&s)) {
-                        Ok(mut v) => {
-                            v["source"] = m.source_info();
-                            (200, v)
-                        }
-                        Err(e) => (503, json!({"error": e, "source": m.source_info()})),
-                    }
+                (200, v)
+            }
+            Err(e) => {
+                let mut v = json!({"error": e, "source": source});
+                if let Some(eq) = &plan.equip {
+                    v["equip"] = eq.clone();
                 }
-            },
+                (503, v)
+            }
         })
     }
+}
+
+/// 問い合わせの種類（一覧・スライサー・データの時刻・再読込）
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Kind {
+    List,
+    Slicer,
+    Source,
+    Refresh,
+}
+
+/// 窓が受け持つ道（品質・作業実績・データ元）
+enum Route {
+    Lot(Kind),
+    Work(Kind),
+    Src(String, Kind),
+}
+
+impl Route {
+    fn of(method: &str, path: &str) -> Option<Route> {
+        let kind = |rest: &str| match (method, rest) {
+            ("GET", "") => Some(Kind::List),
+            ("GET", "/slicer") => Some(Kind::Slicer),
+            ("GET", "/source") => Some(Kind::Source),
+            ("POST", "/refresh") => Some(Kind::Refresh),
+            _ => None,
+        };
+        if let Some(rest) = path.strip_prefix("/api/lotlist") {
+            return kind(rest).map(Route::Lot);
+        }
+        if let Some(rest) = path.strip_prefix("/api/worklog") {
+            return kind(rest).map(Route::Work);
+        }
+        let rest = path.strip_prefix("/api/src/")?;
+        let (key, tail) = match rest.find('/') {
+            Some(i) => (&rest[..i], &rest[i..]),
+            None => (rest, ""),
+        };
+        let key = percent_decode(key);
+        (!key.is_empty()).then_some(())?;
+        kind(tail).map(|k| Route::Src(key, k))
+    }
+}
+
+fn percent_decode(s: &str) -> String {
+    lotlist::parse_query(&format!("k={}", s.replace('+', "%2B"))).first().map(|(_, v)| v.clone()).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -274,11 +388,50 @@ mod tests {
     }
 
     #[test]
+    fn hidden_tabs_unknown_sources_and_window_copies() {
+        // 版 3.60.0: 出さないタブは 403・知らない元は 404・スケジュールは Python・前の版の中身（lists が無い）とは品質だけ
+        let dir = std::env::temp_dir().join(format!("da-lot5-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = fixture(&dir);
+        let lot = Lot::new(dir.join("cache"));
+        let lists = json!({"hidden": ["lot", "wip"], "sources": [
+            {"key": "lot", "kind": "file", "name": "品質", "api": "/api/lotlist", "joins": [], "read": {}},
+            {"key": "wip", "kind": "file", "name": "仕掛", "api": "/api/src/wip", "place": src.display().to_string(), "joins": [], "read": {}},
+            {"key": "m1", "kind": "file", "name": "マスタ", "api": "/api/src/m1", "place": src.display().to_string(), "joins": [], "read": {}},
+            {"key": "sch", "kind": "cm3", "name": "スケジュール", "api": "/api/src/sch", "joins": [], "read": {}}],
+            "work": {"rows": []}, "shifts": []});
+        let ask = || Ok(json!({"source": src.display().to_string(), "engine": "rust", "lists": lists.clone()}));
+        let (st, v) = lot.handle("GET", "/api/lotlist", "", &ask).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (403, Some("forbidden")), "{v}");
+        assert!(v["error"].as_str().unwrap().starts_with("「品質」を見る権限がありません"));
+        assert_eq!(lot.handle("GET", "/api/src/wip", "", &ask).unwrap().0, 403);
+        let (st, v) = lot.handle("GET", "/api/src/m1", "", &ask).unwrap();
+        assert_eq!((st, v["count"].as_i64(), v["table"].as_str()), (200, Some(2), Some("仕掛")), "{v}");
+        assert_eq!(lot.handle("GET", "/api/src/%E7%84%A1", "", &ask).unwrap().0, 404, "知らない元");
+        assert!(lot.handle("GET", "/api/src/sch", "", &ask).is_none() && lot.handle("GET", "/api/src/sch/source", "", &ask).is_none());
+        assert!(lot.handle("GET", "/api/src/m1/pivot", "", &ask).is_none(), "集計表は Python");
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=x", &ask).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (404, Some("unknown")));
+        // 受け身の Python からの「写して」: 窓が作業実績の写しを始める
+        lot.notice(&json!({"id": 0, "event": "mirror", "prefix": "work_log", "key": "k1", "remote": src.display().to_string(), "interval": 60, "stale": 36}));
+        let m = lot.lists.work.peek("k1").expect("知らせで写しの係ができる");
+        assert!(m.read_path().is_some(), "最初の周回で写す");
+        assert!(dir.join("cache").join("work_log").join("work_log_k1.state.json").exists(), "周回の様子を置く");
+        // 前の版の中身（lists が無い）とは、品質だけを受け持つ
+        let old = || Ok(json!({"source": src.display().to_string(), "engine": "rust"}));
+        let lot = Lot::new(dir.join("cache2"));
+        assert_eq!(lot.handle("GET", "/api/lotlist", "", &old).unwrap().0, 200);
+        assert!(lot.handle("GET", "/api/src/m1", "", &old).is_none() && lot.handle("GET", "/api/worklog", "equip=k", &old).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn no_source_is_a_reasoned_400_and_a_dead_python_is_left_to_python() {
         let lot = Lot::new(std::env::temp_dir().join(format!("da-lot2-{}", std::process::id())));
         let ask = || Ok(json!({"source": "", "engine": "rust"}));
         let (st, v) = lot.handle("GET", "/api/lotlist", "", &ask).unwrap();
-        assert_eq!((st, v["error"].as_str()), (400, Some(NO_SOURCE)));
+        assert_eq!((st, v["error"].as_str()), (400, Some(crate::lists::NO_SOURCE)));
         let lot = Lot::new(std::env::temp_dir().join("da-lot3"));
         let dead = || Err("止まっています".to_string());
         assert!(lot.handle("GET", "/api/lotlist", "", &dead).is_none());

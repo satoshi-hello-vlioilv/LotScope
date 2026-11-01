@@ -7,6 +7,7 @@
 
 use crate::formula::{self, Tables};
 use crate::pyfmt::{self, Py};
+use crate::worksum::Grouping;
 use chrono::{Datelike, Duration as Days, NaiveDate};
 use rusqlite::functions::{Context, FunctionFlags};
 use rusqlite::types::{Value as SqlValue, ValueRef};
@@ -26,7 +27,42 @@ const PAGE_SIZE_MAX: i64 = 5000;
 pub const PAGE_SIZE_DEFAULT: i64 = 500;
 const DATE_SAMPLE: usize = 60;
 const DATE_RATIO: f64 = 0.8;
-const TABLE_CANDIDATES: &[&str] = &["仕掛", "品質情報", "品質", "保留"];
+/// 表の候補（設定の表が無いとき。Python の lot_list.TABLE_CANDIDATES・work_log.TABLE_CANDIDATES・data_sources.TABLE_CANDIDATES）
+pub const TABLE_CANDIDATES: &[&str] = &["仕掛", "品質情報", "品質", "保留"];
+pub const WORK_TABLES: &[&str] = &["実績", "作業実績"];
+/// データ元の「ロット番号の列」を「なし」にした印（Python の lot_list.LOT_NONE）
+pub const LOT_NONE: &str = "-";
+
+/// どの元を引くか（版 3.60.0。品質だけでなく作業実績・データ元も同じ部品で引く）
+#[derive(Debug, Clone)]
+pub struct Opts {
+    /// 設定の表（無ければ候補 → 最初の表）
+    pub table: String,
+    pub candidates: &'static [&'static str],
+    /// 設定の件数（引数に page_size が無いとき。0 は既定）
+    pub page_size: i64,
+    /// データ元の「ロット番号の列」（None・"" は自動・"-" は無い・列名はその列）
+    pub lot_col: Option<String>,
+    /// 品質データか（表が 1 つも無いときの言葉。Python は候補が品質の物かで言い分ける）
+    pub quality: bool,
+}
+
+impl Opts {
+    /// 品質データ（設定の表・件数）
+    pub fn quality(table: &str, page_size: i64) -> Opts {
+        Opts { table: table.into(), candidates: TABLE_CANDIDATES, page_size, lot_col: None, quality: true }
+    }
+    fn no_table(&self) -> String {
+        format!("{}にテーブルが1つもありません。", if self.quality { "品質データ" } else { "データ" })
+    }
+    fn pick(&self, names: &[String], asked: &str) -> String {
+        if names.iter().any(|n| n == asked) {
+            asked.into()
+        } else {
+            pick_table(names, &self.table, self.candidates)
+        }
+    }
+}
 const LOT_COLUMN_CANDIDATES: &[&str] = &["ロット番号", "ﾛｯﾄ番号", "ロット№", "LTNO"];
 const ALLOWED_OPS: &[&str] = &[
     "contains",
@@ -212,7 +248,7 @@ pub fn sort_key(v: &Py) -> SqlValue {
     }
 }
 
-fn sql_err(e: rusqlite::Error) -> String {
+pub(crate) fn sql_err(e: rusqlite::Error) -> String {
     match e {
         rusqlite::Error::SqliteFailure(_, Some(m)) => m,
         e => e.to_string(),
@@ -228,16 +264,16 @@ pub fn tables(c: &Connection) -> Result<Vec<String>, String> {
 }
 
 /// 設定の表 → 候補の完全一致 → 候補を含む名前 → 最初の表。
-pub fn pick_table(names: &[String], preferred: &str) -> String {
+pub fn pick_table(names: &[String], preferred: &str, candidates: &[&str]) -> String {
     if !preferred.is_empty() && names.iter().any(|n| n == preferred) {
         return preferred.into();
     }
-    for c in TABLE_CANDIDATES {
+    for c in candidates {
         if names.iter().any(|n| n == c) {
             return c.to_string();
         }
     }
-    for c in TABLE_CANDIDATES {
+    for c in candidates {
         if let Some(n) = names.iter().find(|n| n.contains(c)) {
             return n.clone();
         }
@@ -261,7 +297,13 @@ fn dedup(raw: &[String]) -> Vec<String> {
     out
 }
 
-pub fn lot_column(cs: &[String]) -> String {
+/// ロット番号の列。over（データ元の「ロット番号の列」）: None・"" は自動・"-" は無い・列名はその列（表に無ければ無い）
+pub fn lot_column(cs: &[String], over: Option<&str>) -> String {
+    match over {
+        Some(LOT_NONE) => return String::new(),
+        Some(o) if !o.is_empty() => return if cs.iter().any(|x| x == o) { o.into() } else { String::new() },
+        _ => {}
+    }
     for c in LOT_COLUMN_CANDIDATES {
         if cs.iter().any(|x| x == c) {
             return c.to_string();
@@ -829,7 +871,28 @@ fn rowid_name(c: &Connection, t: &str, raw_cs: &[String]) -> Option<&'static str
 /// まとめた並びの SQL（Python の grouped_sql と同じ文）。最後の ? はページ。
 #[allow(clippy::too_many_arguments)]
 pub fn grouped_sql(t: &str, raw_cs: &[String], lot: &str, wh: &str, order: &[Sort], size: i64, rid: Option<&str>, exprs: &Exprs) -> String {
-    let over = if order.is_empty() { String::new() } else { format!("ORDER BY {}", order_sql(order, lot, exprs)) };
+    grouped_sql_by(t, raw_cs, &lot_key(lot), &[], lot, wh, order, size, rid, exprs)
+}
+
+/// まとめた並びの SQL（鍵の式 key と、並べ替えの前に置く式 lead を選べる形。作業実績の「作業でまとめる」）
+#[allow(clippy::too_many_arguments)]
+fn grouped_sql_by(
+    t: &str,
+    raw_cs: &[String],
+    key: &str,
+    lead: &[String],
+    lot: &str,
+    wh: &str,
+    order: &[Sort],
+    size: i64,
+    rid: Option<&str>,
+    exprs: &Exprs,
+) -> String {
+    let mut by: Vec<String> = lead.to_vec();
+    if !order.is_empty() {
+        by.push(order_sql(order, lot, exprs));
+    }
+    let over = if by.is_empty() { String::new() } else { format!("ORDER BY {}", by.join(",")) };
     let cols = raw_cs.iter().map(|x| qi(x)).collect::<Vec<_>>().join(", ");
     let steps = "
         k AS (SELECT *, CASE WHEN _tpa_k0 = '' THEN '#' || _tpa_rn ELSE _tpa_k0 END AS _tpa_k FROM b),
@@ -837,7 +900,7 @@ pub fn grouped_sql(t: &str, raw_cs: &[String], lot: &str, wh: &str, order: &[Sor
         p AS (SELECT *, ROW_NUMBER() OVER (ORDER BY _tpa_first, _tpa_rn) AS _tpa_pos FROM g),
         q AS (SELECT *, MIN(_tpa_pos) OVER (PARTITION BY _tpa_k) AS _tpa_head FROM p),";
     let page = format!("r AS (SELECT *, DENSE_RANK() OVER (ORDER BY (_tpa_head - 1) / {size}) AS _tpa_page FROM q)");
-    let (qt, key) = (qi(t), lot_key(lot));
+    let qt = qi(t);
     match rid {
         Some(rid) => {
             let tail = raw_cs.iter().map(|x| format!("{qt}.{}", qi(x))).collect::<Vec<_>>().join(", ");
@@ -957,15 +1020,15 @@ fn date_hints(c: &Connection, t: &str, filters: &[Filter], today: NaiveDate) -> 
 /// 一覧の1ページ（Python の lot_list.query と同じ答え）。default_page_size は設定の件数（引数に page_size が無いとき）。
 /// スライサーに並べる値（重複なし）と、ほかの絞り込みのもとでの件数（Python の lot_list.slicer と同じ）。
 /// 失敗は (状態, 理由)。列が無いときは 400。
-pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, preferred_table: &str, today: NaiveDate) -> Result<Value, (u16, String)> {
+pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, o: &Opts, today: NaiveDate) -> Result<Value, (u16, String)> {
     let t0 = Instant::now();
     let down = |e: String| (503, e);
     let q = pyfmt::strip(&a.search).to_string();
     let c = connect_ro(path).map_err(down)?;
     let names = tables(&c).map_err(down)?;
-    let t = if names.contains(&a.table) { a.table.clone() } else { pick_table(&names, preferred_table) };
+    let t = o.pick(&names, &a.table);
     if t.is_empty() {
-        return Err((503, "品質データにテーブルが1つもありません。".into()));
+        return Err((503, o.no_table()));
     }
     let cs = dedup(&raw_columns(&c, &t).map_err(down)?);
     if !cs.iter().any(|x| x == column) {
@@ -1012,13 +1075,13 @@ pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, preferred_table: &
 
 /// 計算列のスライサー: 式が使う列（columns の JSON）の値の組（重複なし・元の型のまま）と、ほかの絞り込みのもとでの件数
 /// （Python の lot_list.slicer_combos と同じ）。画面が組ごとに式を計算してスライサーの値にする。失敗は (状態, 理由)。
-pub fn slicer_combos(path: &Path, a: &Args, columns: &str, preferred_table: &str, today: NaiveDate) -> Result<Value, (u16, String)> {
+pub fn slicer_combos(path: &Path, a: &Args, columns: &str, o: &Opts, today: NaiveDate) -> Result<Value, (u16, String)> {
     let t0 = Instant::now();
     let down = |e: String| (503, e);
     let q = pyfmt::strip(&a.search).to_string();
     let c = connect_ro(path).map_err(down)?;
     let names = tables(&c).map_err(down)?;
-    let t = if names.contains(&a.table) { a.table.clone() } else { pick_table(&names, preferred_table) };
+    let t = o.pick(&names, &a.table);
     if t.is_empty() {
         return Err((503, "表が 1 つもありません。".into()));
     }
@@ -1069,15 +1132,17 @@ pub fn slicer_combos(path: &Path, a: &Args, columns: &str, preferred_table: &str
     )
 }
 
-/// 1 ページ分（Python の lot_list.query と同じ答え）。conv … 計算列の式の conv が引く変換表
+/// 1 ページ分（Python の lot_list.query と同じ答え）。o … どの元を引くか（表・候補・件数・ロット番号の列）。
+/// conv … 計算列の式の conv が引く変換表。grouping … 作業でまとめる係（作業実績の work=1。src/worksum.rs）
 pub fn query(
     path: &Path,
     a: &Args,
-    preferred_table: &str,
-    default_page_size: i64,
+    o: &Opts,
     today: NaiveDate,
     conv: &Arc<Tables>,
+    mut grouping: Option<&mut Grouping>,
 ) -> Result<Value, String> {
+    let default_page_size = o.page_size;
     let t0 = Instant::now();
     let page = match a.page.as_deref() {
         None | Some("") => 1,
@@ -1099,9 +1164,9 @@ pub fn query(
     let q = pyfmt::strip(&a.search).to_string();
     let c = connect_ro(path)?;
     let names = tables(&c)?;
-    let t = if names.contains(&a.table) { a.table.clone() } else { pick_table(&names, preferred_table) };
+    let t = o.pick(&names, &a.table);
     if t.is_empty() {
-        return Err("品質データにテーブルが1つもありません。".into());
+        return Err(o.no_table());
     }
     let raw_cs = raw_columns(&c, &t)?;
     let cs = dedup(&raw_cs);
@@ -1116,8 +1181,8 @@ pub fn query(
     let (fp, fpp) = build_filter_where(&fl, today)?;
     where_parts.extend(fp);
     params.extend(fpp);
-    let wh = if where_parts.is_empty() { String::new() } else { format!(" WHERE {}", where_parts.join(" AND ")) };
-    let lot = lot_column(&cs);
+    let base = (if where_parts.is_empty() { String::new() } else { format!(" WHERE {}", where_parts.join(" AND ")) }, params.clone());
+    let lot = lot_column(&cs, o.lot_col.as_deref());
     // 計算列（版 3.59.0）: 式を SQLite の関数にして、並べ替えの鍵に使う。読めない式の列は並べ替えから外れる
     let exprs = match formula::clean_calc(&a.calc) {
         Some(calc) => formula::register(&c, &calc, &raw_cs, conv, qi).map_err(sql_err)?,
@@ -1125,13 +1190,27 @@ pub fn query(
     };
     let sortable: Vec<String> = cs.iter().cloned().chain(exprs.keys().filter(|k| !cs.contains(k)).cloned()).collect();
     let order_parts = safe_sorts(&a.sorts, &sortable);
+    // まとめの係（作業でまとめる）: 鍵・並べ替えの前に置く式・帯で押した日・直の絞り込み（数の帯は外した物で数える）
+    let plan = match grouping.as_deref_mut() {
+        Some(g) => g.prepare(&c, &cs)?,
+        None => None,
+    };
+    if let Some((w, p)) = plan.as_ref().and_then(|p| p.filter.clone()) {
+        where_parts.extend(w);
+        params.extend(p);
+    }
+    let wh = if where_parts.is_empty() { String::new() } else { format!(" WHERE {}", where_parts.join(" AND ")) };
     let order = if order_parts.is_empty() { String::new() } else { format!(" ORDER BY {}", order_sql(&order_parts, &lot, &exprs)) };
     let qt = qi(&t);
     let total = count(&c, &format!("SELECT COUNT(*) FROM {qt}{wh}"), &params)?;
     let start = (page - 1).saturating_mul(size);
     let mut out = Map::new();
-    let (rows, first, last) = if a.group && !lot.is_empty() {
-        let sql = grouped_sql(&t, &raw_cs, &lot, &wh, &order_parts, size, rowid_name(&c, &t, &raw_cs), &exprs);
+    let (rows, first, last) = if plan.is_some() || (a.group && !lot.is_empty()) {
+        let (key, lead) = match &plan {
+            Some(p) => (p.key.clone(), p.lead.clone()),
+            None => (lot_key(&lot), vec![]),
+        };
+        let sql = grouped_sql_by(&t, &raw_cs, &key, &lead, &lot, &wh, &order_parts, size, rowid_name(&c, &t, &raw_cs), &exprs);
         let mut p = params.clone();
         p.push(SqlValue::Integer(page));
         let (rows, extra) = read_rows(&c, &sql, &p, raw_cs.len())?;
@@ -1139,7 +1218,7 @@ pub fn query(
         let (first, last) = (extra.first().map(|x| x[2]).unwrap_or(0), extra.last().map(|x| x[2]).unwrap_or(0));
         let gc = count(
             &c,
-            &format!("SELECT COUNT(DISTINCT NULLIF(k, '')) + COALESCE(SUM(k = ''), 0) FROM (SELECT {} AS k FROM {qt}{wh})", lot_key(&lot)),
+            &format!("SELECT COUNT(DISTINCT NULLIF(k, '')) + COALESCE(SUM(k = ''), 0) FROM (SELECT {key} AS k FROM {qt}{wh})"),
             &params,
         )?;
         out.insert("groups".into(), Value::Array(groups));
@@ -1162,6 +1241,9 @@ pub fn query(
             Value::Object(m)
         })
         .collect();
+    if let Some(g) = grouping.as_deref() {
+        out.insert("work".into(), g.extra(&c, &t, &cs, &dcols, &base.0, &base.1, &rows)?);
+    }
     let ml = safe_marks(&a.marks, &cs);
     if !ml.is_empty() {
         out.insert("marks".into(), json!(mark_rows(&c, &ml, &rows, today)?));

@@ -36,7 +36,7 @@ import uuid
 from pathlib import Path
 
 from ..fsio import unquote_path
-from .db_mirror import DbMirror, is_side_file
+from .db_mirror import DbMirror, is_side_file, same_place
 
 NAME = "work_log_files"
 FIELDS = ["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "備考", "並び"]
@@ -247,9 +247,13 @@ class Mirrors:
     """設備ごとの写しの係（キー → DbMirror）。アプリに 1 つ。画面がその設備を開いたときに作って写し始める。
     データ元（data_sources.py）の 1 ファイルの元も同じ係で写す（prefix="src"・置き場 db_cache/sources）。"""
 
-    def __init__(self, cache_dir, passive=False, prefix="work_log"):
+    def __init__(self, cache_dir, passive=False, prefix="work_log", notify=None):
         self.cache_dir = Path(cache_dir)
         self.passive = passive
+        # 受け身（版 3.60.0。窓の Rust が写す）: 写しが要るとき窓へ知らせる係 notify(prefix=, key=, remote=, interval=, stale=)。
+        # 同じ (元, 間隔, しきい) は 1 度だけ知らせる（窓は覚えている）
+        self.notify = notify
+        self._told = {}
         self.prefix = prefix          # 写しの名前の頭（作業実績 work_log_<キー>・データ元 src_<キー>）
         self._lock = threading.Lock()
         self._all = {}
@@ -275,6 +279,13 @@ class Mirrors:
                 self._all[key] = m
             elif m.key == f"{self.prefix}_{key}":
                 m.reconfigure(remote=str(remote), interval_sec=interval_sec, stale_hours=stale_hours)
+            want = (str(remote), interval_sec, stale_hours)
+            tell = self.passive and self.notify is not None and place and self._told.get(key) != want
+            if tell:
+                self._told[key] = want
+        if tell:
+            m.asked()
+            self.notify(prefix=self.prefix, key=key, remote=str(remote), interval=interval_sec, stale=stale_hours)
         m.start()
         return m
 
@@ -297,9 +308,3 @@ class Mirrors:
     def peek(self, key):
         with self._lock:
             return self._all.get(key)
-
-
-def same_place(remote):
-    """元のファイルが同じかを比べる形（空なら ""）。Windows では大文字小文字と / \\ の違いを同じと見る（os.path.normcase）。"""
-    s = unquote_path(remote)
-    return os.path.normcase(os.path.normpath(s)) if s else ""

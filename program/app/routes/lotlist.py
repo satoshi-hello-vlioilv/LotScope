@@ -2,7 +2,7 @@
 """ロット一覧（品質データ SQLite の写し）。"""
 from ..web import current_app, jsonify, request
 
-from .. import effective_settings, lot_engine, lot_list_params
+from .. import effective_settings, lot_engine, lot_list_params, shell_serves
 from ..repositories.master_repository import MasterRepository
 from ..services import conversions, lot_list, pivot
 from .common import bp, error, tab_denied
@@ -114,11 +114,34 @@ def lotlist_settings():
     settings = effective_settings(current_app)
     source, refresh_seconds, stale_hours = lot_list_params(settings)
     ll = settings.get("lot_list") or {}
-    # 品質のタブを出さない人（版 3.58.0）: Rust に答えさせず Python に任せる（Python が権限で断る。Rust は権限を知らない）
-    # ロット番号の列を決めてある（自動でない）ときも Python（版 3.58.0。Rust は名前で探す決まりしか知らない）
-    engine = "python" if tab_denied("lot") or _lot_col() else lot_engine(current_app.config["APP_SETTINGS"])
+    engine = lot_engine(current_app.config["APP_SETTINGS"])
+    if "lists" not in shell_serves() and (tab_denied("lot") or _lot_col()):
+        # 段取りを知らない前の窓（版 3.59.0 まで）: 品質のタブを出さない人・ロット番号の列を決めてある元は Python に任せる
+        engine = "python"
     return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
-                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions())
+                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists_settings())
+
+
+def lists_settings():
+    """一覧の段取りに要る物（版 3.60.0。デスクトップ版の Rust が品質・作業実績・データ元の一覧とスライサーを受け持つ: desktop/src/lists.rs）。
+    hidden: この PC・このログインに出さないタブ（タブの権限）・sources: データ元の定義（場所・表・件数・ロット番号の列・結合・元）・
+    work: 作業実績のフォルダ・決まり・設備の登録・shifts: 勤務体系（設備ごとの直）。マスタの中身を Python が読み、決めるのは Rust"""
+    from ..services import shifts, work_log
+    from .common import can_write, master_repo, me
+    from .sources import all_sources
+    try:
+        hidden = list(me()["flags"]["hiddenTabs"])
+    except Exception:
+        hidden = []
+    repo = master_repo()
+    wl = work_log.params(effective_settings(current_app))
+    keep = ("key", "kind", "name", "place", "table", "base", "broken", "api", "lotSet", "joins", "read")
+    return {"hidden": hidden,
+            "sources": [{k: s.get(k) for k in keep} for s in all_sources()],
+            "work": {**{k: wl[k] for k in ("folder", "pattern", "table", "refresh_seconds", "stale_hours", "page_size")},
+                     "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表")} for r in repo.work_logs()],
+                     "canEditShifts": can_write(shifts.NAME)},
+            "shifts": repo.shift_patterns()}
 
 
 def _conversions():

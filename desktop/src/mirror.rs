@@ -7,6 +7,8 @@
 //! - 世代名: 毎回 `<キー>.g<世代>.sqlite3` で作り、台帳 `_mirror.json` が今の世代を指す（開いているファイルを上書きしない）
 //! - いつ: 背景の糸が一定間隔で元の (パス, 大きさ, 更新時刻 ns) を見て、変わっていれば写す。一覧の問い合わせの中では共有を見ない
 //! - 台帳は Python と同じ形なので、どちらが写した写しも互いに読める（desktop/tests/mirror_parity.rs が突き合わせる）
+//! - 版 3.60.0: 作業実績の設備ごと・データ元ごとの写しも窓が受け持つ（Mirrors。キー → 係。同じ元のキーは 1 つの係を分け合う）。
+//!   周回の様子は `<キー>.state.json` に置く（受け身の Python が「写しています」の理由と、最初の周回が済んだかを読む）
 
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{json, Map, Value};
@@ -25,6 +27,8 @@ const RETRY_AFTER_BUSY_SEC: i64 = 5;
 const RETRY_UNTIL_FIRST_COPY_SEC: i64 = 10;
 const COPY_CHUNK: usize = 4 * 1024 * 1024;
 const REPLACE_BUDGET: f64 = 2.0;
+/// 同じ台帳に、いくつもの係（作業実績の設備ごと・データ元ごと）が書くので、読んで直して書くあいだは 1 本にする（ほかの係の行を消さない）
+static LEDGER_LOCK: Mutex<()> = Mutex::new(());
 
 fn now() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
@@ -232,6 +236,7 @@ impl DbMirror {
     }
 
     fn save_entry(&self, signature: &Value, filename: &str) -> std::io::Result<()> {
+        let _one = LEDGER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = self.ledger();
         data.insert(self.key.clone(), json!({"signature": signature, "file": filename}));
         write_json_atomic(&self.ledger_path(), &Value::Object(data))
@@ -429,18 +434,36 @@ impl DbMirror {
 
     fn record(&self, res: Map<String, Value>) -> Map<String, Value> {
         *self.state.lock().unwrap() = res.clone();
+        // 受け身の Python が読む周回の様子（理由・届かない・最後に確かめた時刻）。書けなくても写しは続ける
+        let _ = write_json_atomic(&self.cache_dir.join(format!("{}.state.json", self.key)), &Value::Object(res.clone()));
         res
     }
 
-    /// 実際に読む場所 = その元から作った写し。まだ無ければ None（共有は直接読まない。理由は not_ready_text）。最初の周回が済むまでは待つ。
-    pub fn read_path(&self) -> Option<PathBuf> {
-        if !self.enabled() {
-            return None;
-        }
+    /// 元を外す（ほかのキーと同じ元へ移ったキーの、もう使わない係。背景の糸は休む）
+    pub fn retire(&self) {
+        let (interval, stale) = {
+            let c = self.conf.lock().unwrap();
+            (c.interval, c.stale_hours)
+        };
+        self.reconfigure_quiet("", interval, stale);
+    }
+
+    /// 起動して最初の周回（写し）が済むまで、timeout まで待つ（済んだか、糸が動いていなければすぐ）
+    pub fn wait_first(&self, timeout: Duration) {
         if *self.started.lock().unwrap() {
             let (m, cv) = &*self.wake;
             let g = m.lock().unwrap();
-            let _ = cv.wait_timeout_while(g, FIRST_WAIT, |w| !w.first_done);
+            let _ = cv.wait_timeout_while(g, timeout, |w| !w.first_done);
+        }
+    }
+
+    /// 読む場所（read_path）。wait=false は最初の周回を待たない（いくつもの係をまとめて待った後: Mirrors::wait_first）
+    pub fn read_path_wait(&self, wait: bool) -> Option<PathBuf> {
+        if !self.enabled() {
+            return None;
+        }
+        if wait {
+            self.wait_first(FIRST_WAIT);
         }
         let remote = self.remote();
         let entry = self.entry();
@@ -449,6 +472,11 @@ impl DbMirror {
             return None;
         }
         self.mirror_path().filter(|p| p.exists())
+    }
+
+    /// 実際に読む場所 = その元から作った写し。まだ無ければ None（共有は直接読まない。理由は not_ready_text）。最初の周回が済むまでは待つ。
+    pub fn read_path(&self) -> Option<PathBuf> {
+        self.read_path_wait(true)
     }
 
     /// いまの元から作った写しがあるか（共有は見ない。台帳の印と手元のファイルだけ）。
@@ -570,6 +598,117 @@ impl DbMirror {
     }
 }
 
+/// 元のファイルが同じかを比べる形（Python の work_log.same_place と同じ考え: 前後の空白と " を除き、. と .. と重なった区切りを畳む。
+/// Windows では大文字小文字と / \\ の違いも同じと見る）。空なら ""
+pub fn same_place(remote: &str) -> String {
+    let s = remote.trim().trim_matches('"');
+    if s.is_empty() {
+        return String::new();
+    }
+    let win = cfg!(windows);
+    let s = if win { s.replace('/', "\\").to_lowercase() } else { s.to_string() };
+    let sep = if win { '\\' } else { '/' };
+    let lead: String = s.chars().take_while(|c| *c == sep).collect();
+    let lead = if win {
+        lead.chars().take(2).collect()
+    } else if lead.len() == 2 {
+        lead
+    } else {
+        lead.chars().take(1).collect()
+    };
+    let mut parts: Vec<&str> = vec![];
+    for p in s.split(sep).filter(|p| !p.is_empty() && *p != ".") {
+        if p == ".." && parts.last().is_some_and(|l| *l != "..") {
+            parts.pop();
+        } else {
+            parts.push(p);
+        }
+    }
+    let body = parts.join(&sep.to_string());
+    if lead.is_empty() && body.is_empty() {
+        ".".into()
+    } else {
+        format!("{lead}{body}")
+    }
+}
+
+/// 写しの係の束（キー → 係。作業実績の設備ごと・データ元ごと。Python の work_log.Mirrors と同じ決まり）。
+/// 元が同じファイル（same_place）のキーどうしは 1 つの係を分け合う（同じファイルを 2 回写さない・2 つの写しが別の時刻の中身にならない）。
+/// 間隔と古さのしきいは、係を作ったキー（持ち主）の設定に従う
+pub struct Mirrors {
+    cache_dir: PathBuf,
+    prefix: String,
+    all: Mutex<std::collections::HashMap<String, Arc<DbMirror>>>,
+}
+
+impl Mirrors {
+    pub fn new(cache_dir: PathBuf, prefix: &str) -> Mirrors {
+        Mirrors { cache_dir, prefix: prefix.into(), all: Mutex::default() }
+    }
+
+    fn own_key(&self, key: &str) -> String {
+        DbMirror::new(&format!("{}_{key}", self.prefix), "", &self.cache_dir, 0, 0.0).key.clone()
+    }
+
+    /// キーの写しの係（無ければ作る）。背景の周回も始める
+    pub fn get(&self, key: &str, remote: &str, interval_sec: i64, stale_hours: f64) -> Arc<DbMirror> {
+        let place = same_place(remote);
+        let own = self.own_key(key);
+        let mut changed = false;
+        let m = {
+            let mut all = self.all.lock().unwrap();
+            let find = |all: &std::collections::HashMap<String, Arc<DbMirror>>| {
+                all.iter().find(|(k, m)| *k != key && same_place(&m.remote()) == place).map(|(_, m)| m.clone())
+            };
+            let mut m = all.get(key).cloned();
+            if let Some(cur) = m.clone() {
+                if same_place(&cur.remote()) != place {
+                    let shared = all.iter().any(|(k, x)| k != key && Arc::ptr_eq(x, &cur));
+                    if shared {
+                        m = None; // 分け合っていれば抜ける
+                    } else if !place.is_empty() && find(&all).is_some() {
+                        cur.retire(); // 1 人なら、元の無い係にして持ち替える
+                        m = None;
+                    }
+                }
+            }
+            match m {
+                Some(cur) => {
+                    if cur.key == own {
+                        changed = cur.reconfigure_quiet(remote, interval_sec, stale_hours);
+                    }
+                    cur
+                }
+                None => {
+                    let m = (!place.is_empty()).then(|| find(&all)).flatten().unwrap_or_else(|| {
+                        DbMirror::new(&format!("{}_{key}", self.prefix), remote, &self.cache_dir, interval_sec, stale_hours)
+                    });
+                    all.insert(key.to_string(), m.clone());
+                    m
+                }
+            }
+        };
+        if !m.start() && changed {
+            m.wake(); // もう動いている係で元・間隔が変わったときは、次の周回を今すぐ（reconfigure と同じ）
+        }
+        m
+    }
+
+    pub fn peek(&self, key: &str) -> Option<Arc<DbMirror>> {
+        self.all.lock().unwrap().get(key).cloned()
+    }
+
+    /// keys の係が最初の写しを済ませるまで待つ（全部で timeout まで。1 つずつ timeout ずつ待たない）
+    pub fn wait_first(&self, keys: &[String], timeout: Duration) {
+        let end = Instant::now() + timeout;
+        for k in keys {
+            if let Some(m) = self.peek(k) {
+                m.wait_first(end.saturating_duration_since(Instant::now()));
+            }
+        }
+    }
+}
+
 fn interval_of(sec: i64) -> i64 {
     (if sec == 0 { DEFAULT_INTERVAL_SEC } else { sec }).max(MIN_INTERVAL_SEC)
 }
@@ -606,6 +745,26 @@ fn cleanup(tmp: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 同じ元のキーどうしは 1 つの係を分け合う・元を替えたら抜ける・置いて行った係は写さない（Python の work_log.Mirrors と同じ決まり）
+    #[test]
+    fn mirrors_share_one_copy_per_file() {
+        let dir = std::env::temp_dir().join(format!("qa-mirrors-{}", std::process::id()));
+        let ms = Mirrors::new(dir.join("cache"), "src");
+        let a = ms.get("wip", "/data/LOTNOW.sqlite3", 60, 24.0);
+        let b = ms.get("wip2", " \"/data/./LOTNOW.sqlite3\" ", 300, 48.0);
+        assert!(Arc::ptr_eq(&a, &b), "元が同じファイルなら 1 つの写しを分け合う");
+        assert_eq!((a.key.as_str(), a.conf.lock().unwrap().interval), ("src_wip", 60), "間隔は係を作ったキーの設定");
+        let c = ms.get("wip2", "/data/NEW.sqlite3", 60, 24.0);
+        assert!(!Arc::ptr_eq(&c, &a) && a.remote() == "/data/LOTNOW.sqlite3", "分け合っていた元を替えたら抜ける");
+        let d = ms.get("wip", "/data/NEW.sqlite3", 60, 24.0);
+        assert!(Arc::ptr_eq(&d, &c), "ほかのキーが写しているファイルに替えたら、そちらに乗る");
+        assert_eq!(a.remote(), "", "置いて行った係は写さない");
+        assert!(ms.peek("wip").is_some_and(|m| Arc::ptr_eq(&m, &c)) && ms.peek("none").is_none());
+        assert_eq!(same_place("/a//b/../c/"), "/a/c");
+        assert_eq!(same_place(""), "");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// 写し終えた後の確かめ（約束の R5）: 元が同じでも、書き手の印が出ていれば見送る。Python の _settled と同じ文。
     #[test]
