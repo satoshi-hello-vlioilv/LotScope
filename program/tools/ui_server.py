@@ -61,16 +61,16 @@ def seed_formats(repo):
         repo.format_create(display_formats.clean_row({"name": name, "source": "work", "table": "実績", "origin": origin, "body": body, "note": note}))
 
 
-def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 5077
-    as_role(sys.argv[2] if len(sys.argv) > 2 else "開発者")
+def build(quality=1500, work_rows=400, wip=1200):
+    """試験データを作業フォルダに作り、それを参照先にしたアプリを返す（撮影の ui_server と、速さを測る rust-port-bench.py が共有）。
+    quality・work_rows・wip は品質データの行・設備 1 台の作業実績の行・仕掛のロットの数（既定は撮影の形）。"""
     share = WORK / "share.sqlite3"
-    lotlist_fixture.make(str(share), 1500)
+    lotlist_fixture.make(str(share), quality)
     # 作業実績: 設備ごとの実績ファイル（実績_<設備>.sqlite3）を 12 台ぶん。1 台（SL3）は登録のあとにファイルが無くなった形
     folder = WORK / "【New】実績"
     folder.mkdir()
     for eq in WORK_EQUIPMENT + ("SL3",):
-        lotlist_fixture.make_work(str(folder / f"実績_{eq}.sqlite3"), eq)
+        lotlist_fixture.make_work(str(folder / f"実績_{eq}.sqlite3"), eq, n=work_rows)
     # 焼鈍炉（ANF。版 3.47.0）: 1 回の作業が 20〜50 時間・作業終了の時刻は年月日時分秒の列（14 桁）だけ・書き忘れ 2 回・いま炉の中（ガントの「区間なし」「作業中」「前から続く」を撮る）
     lotlist_fixture.make_work_box(str(folder / "実績_ANF.sqlite3"), "ANF")
     # 手元のみのマスタは base/data に書く。同梱のマスタを作業フォルダへ写して渡す（画面で直してもリポジトリを汚さない）
@@ -82,7 +82,7 @@ def main():
     for sub in ("検査データ", "旧_2025", "台帳"):
         (shared / sub).mkdir(parents=True)
     shutil.copy(share, shared / "台帳" / "SIKADEF.sqlite3")
-    lotlist_fixture.make_wip(str(shared / "台帳" / "LOTNOW.sqlite3"))       # 仕掛（データ元 wip の既定と同じ名前）
+    lotlist_fixture.make_wip(str(shared / "台帳" / "LOTNOW.sqlite3"), n=wip)       # 仕掛（データ元 wip の既定と同じ名前）
     # スケジュール（版 3.57.0）: 仕掛に釜番の列を足し（ほかの列・値は変えない）、仕掛のロットで作った作り物の CM3 を起こす
     schedule_fixture.add_kama(shared / "台帳" / "LOTNOW.sqlite3")
     _cm3, cm3_url = schedule_fixture.serve(schedule_fixture.responses(shared / "台帳" / "LOTNOW.sqlite3"))
@@ -126,7 +126,13 @@ def main():
     (folder / "実績_SL3.sqlite3").unlink()
     old = time.time() - 80 * 3600                    # 1 台（HOT）は更新が止まった形（80 時間前）
     os.utime(folder / "実績_HOT.sqlite3", (old, old))
-    serve_http(app, port=port)
+    return app
+
+
+def main():
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 5077
+    as_role(sys.argv[2] if len(sys.argv) > 2 else "開発者")
+    serve_http(build(), port=port)
 
 
 if __name__ == "__main__":

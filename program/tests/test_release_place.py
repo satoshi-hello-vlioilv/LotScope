@@ -114,6 +114,20 @@ class ApiTests(unittest.TestCase):
         d = self.c.post("/api/release/place/check", json=self.body()).get_json()
         self.assertEqual((d["ok"], d["mode"]), (True, "copy"))
 
+    def test_place_view_tells_why_without_permission(self):
+        """置き場を変えてよくない PC でも、マスタの置き場の画面は 200 で答え、変えられない理由を添える
+        （版 3.58.1 まで、門番の答えの文を読む所〈Response.get_json〉が無く 500 になっていた）。"""
+        self.app.config["TESTING"] = False            # 道の中の失敗を 500 の答えにする（本番と同じ）
+        with self.gate(False):
+            r = self.c.get("/api/masters/place")
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        d = r.get_json()
+        self.assertFalse(d["canChange"])
+        self.assertIn("開発者・メンテナンス者だけ", d["why"])
+        with self.gate(True):
+            d = self.c.get("/api/masters/place").get_json()
+        self.assertEqual((d["canChange"], d["why"]), (True, ""))
+
     def test_move_needs_release_and_admin_master_rights(self):
         with self.gate(False):
             self.assertEqual(self.c.post("/api/release/place/move", json=self.body()).status_code, 403)

@@ -217,6 +217,22 @@ class Response:
     def get_data(self, as_text=False):
         return self.data.decode("utf-8") if as_text else self.data
 
+    # 答えの JSON を読む（Flask の Response と同じ。道の中で、ほかの道の答え〈門番の 403 など〉の文を読むときにも使う）
+    @property
+    def is_json(self):
+        m = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        return m == "application/json" or (m.startswith("application/") and m.endswith("+json"))
+
+    def get_json(self, silent=False):
+        if not self.is_json:
+            return None
+        try:
+            return json.loads(self.data.decode("utf-8"))
+        except ValueError:
+            if silent:
+                return None
+            raise
+
 
 # 問い合わせの中だけで使う「いまの問い合わせ」「いまのアプリ」（糸ごとに別。Flask の request・current_app と同じ使い方）
 _request_var: contextvars.ContextVar = contextvars.ContextVar("request")
@@ -572,21 +588,6 @@ def _not_modified_since(value: str, mtime: float) -> bool:
 
 # ================================================================ 試験の口
 class TestResponse(Response):
-    @property
-    def is_json(self):
-        m = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-        return m == "application/json" or (m.startswith("application/") and m.endswith("+json"))
-
-    def get_json(self, silent=False):
-        if not self.is_json:
-            return None
-        try:
-            return json.loads(self.data.decode("utf-8"))
-        except ValueError:
-            if silent:
-                return None
-            raise
-
     @property
     def json(self):
         return self.get_json()
