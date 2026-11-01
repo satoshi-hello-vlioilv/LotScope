@@ -118,8 +118,14 @@ def lotlist_settings():
     if "lists" not in shell_serves() and (tab_denied("lot") or _lot_col()):
         # 段取りを知らない前の窓（版 3.59.0 まで）: 品質のタブを出さない人・ロット番号の列を決めてある元は Python に任せる
         engine = "python"
+    try:
+        lists = lists_settings()
+    except Exception:
+        # 段取りの材料（データ元・作業実績の登録など）が読めない（マスタに届かない など）: 窓は品質の結合・ロット番号の列・タブの権限を
+        # 知らずに答えることになるので、Python に任せる（Python は同じ理由の失敗を答える）
+        lists, engine = None, "python"
     return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
-                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists_settings())
+                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists)
 
 
 def lists_settings():

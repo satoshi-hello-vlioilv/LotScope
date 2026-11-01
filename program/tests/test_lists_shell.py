@@ -44,6 +44,12 @@ class OldAndNewWindow(Env):
                         "名前が変わったファイルをたどる「ファイルID」まで渡す")
 
 
+    def test_unreadable_materials_leave_the_lists_to_python(self):
+        with mock.patch.dict(os.environ, LISTS), mock.patch("app.routes.lotlist.lists_settings", side_effect=OSError("届きません")):
+            s = self.c.get("/api/lotlist/settings").get_json()
+        self.assertEqual((s["engine"], s["lists"]), ("python", None), "段取りの材料を読めなければ、窓は答えない（結合を知らずに答えない）")
+
+
 class PassiveMirrors(Env):
     def test_window_lists_make_the_mirrors_passive(self):
         for k in ("WORK_MIRRORS", "SRC_MIRRORS"):

@@ -74,8 +74,8 @@ def main():
                       ("wip", {"ロット番号の列": "鋳造番号", "確かめる間隔": "120"})):
         r = c.put(f"/api/sources/{key}", json=body)
         assert r.status_code == 200, (key, r.get_json())
-    # 結合した表（仕掛 × 製造条件マスタ・設備マスタ。ロット番号の列は自分で「鋳造番号」）
-    r = c.post("/api/sources", json={"表示名": "仕掛と条件", "役割": "その他", "元": "wip", "ロット番号の列": "鋳造番号",
+    # 結合した表（仕掛 × 製造条件マスタ・設備マスタ。ロット番号の列は自分で「取引先」。元の仕掛の「鋳造番号」とは違う列にして取り違えを見分ける）
+    r = c.post("/api/sources", json={"表示名": "仕掛と条件", "役割": "その他", "元": "wip", "ロット番号の列": "取引先",
                                       "結合": [{"with": "m0000001", "how": "left", "on": [["製造材質", "材質"], ["製造調質", "質別"]], "cols": []},
                                                {"with": "m0000002", "how": "full", "on": [["BOX設計_設備名", "設備名"]], "cols": ["ライン"]}]})
     assert r.status_code == 201, r.get_json()
@@ -91,7 +91,12 @@ def main():
     db.commit()
     db.close()
     repo.work_log_update(keys["TLV"]["id"], {"表": "別表"})
-    eq = {n: keys[n]["キー"] for n in ("CAL", "CR2", "ANF", "SL3", "HOT", "L-1", "TLV")}
+    # 写しを作れない設備（中身が SQLite でない）: 一覧は「写しています」の 503 と理由・再読込は見送った理由を答える（写しが無くてよい）
+    (folder / "実績_BAD.sqlite3").write_text("SQLite ではない中身", encoding="utf-8")
+    from app.services import work_log
+    repo.work_log_sync(work_log.scan(folder, "実績_*.sqlite3"))
+    keys = {r["設備名"]: r for r in repo.work_logs()}
+    eq = {n: keys[n]["キー"] for n in ("CAL", "CR2", "ANF", "SL3", "HOT", "L-1", "TLV", "BAD")}
     calc = json.dumps({"formulas": {"k": "[作業者] + '-' + [作業者]"}}, ensure_ascii=False)
     first = [
         ("GET", "/api/lotlist", {"page": "1"}),
@@ -129,6 +134,8 @@ def main():
         ("GET", "/api/src/nope/source", {}),
         ("POST", "/api/worklog/refresh", {"equip": eq["CAL"]}),
         ("POST", "/api/worklog/refresh", {"equip": "nope"}),
+        ("POST", "/api/worklog/refresh", {"equip": eq["BAD"]}),
+        ("GET", "/api/worklog", {"equip": eq["BAD"]}),
         ("POST", "/api/src/wip/refresh", {}),
         ("POST", f"/api/src/{view}/refresh", {}),
     ]
