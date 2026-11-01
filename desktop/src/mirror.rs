@@ -770,7 +770,9 @@ mod tests {
         assert!(Arc::ptr_eq(&d, &c), "ほかのキーが写しているファイルに替えたら、そちらに乗る");
         assert_eq!(a.remote(), "", "置いて行った係は写さない");
         assert!(ms.peek("wip").is_some_and(|m| Arc::ptr_eq(&m, &c)) && ms.peek("none").is_none());
-        assert_eq!(same_place("/a//b/../c/"), "/a/c");
+        // . と .. と重なった区切りを畳む（Windows は区切りを \\ にそろえ、大文字小文字も同じと見る）
+        assert_eq!(same_place("/a//b/../c/"), if cfg!(windows) { "\\a\\c" } else { "/a/c" });
+        assert_eq!(same_place("/A/c") == same_place("/a/C"), cfg!(windows));
         assert_eq!(same_place(""), "");
         let _ = std::fs::remove_dir_all(&dir);
     }
