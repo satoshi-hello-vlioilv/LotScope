@@ -661,7 +661,7 @@ def query(path, *, table="", preferred_table="", page=1, page_size=PAGE_SIZE_DEF
         grouping.prepare(接続, 表, 列) → まとめるなら {"key": 鍵の式, "lead": [並べ替えの前に置く式], "where": ([式], [値])?}・まとめないなら None
         grouping.extra(接続, 表, 列, 日付の列, where, params, 行) → 答えに足す物（dict。where は係の絞り込みを外した物）
     calc: 計算列（表示列の設定の式。{formulas, names} か その JSON の字。formula.clean_calc）。並べ替えに計算列を使える（版 3.42.0。
-        画面は計算列で並べ替えるときだけ送る。デスクトップ版の Rust は式を持たないので、その問い合わせは Python が答える: engine=python）
+        画面は計算列で並べ替えるときだけ送る。版 3.59.0 からデスクトップ版の Rust も同じ式を持ち（desktop/src/formula.rs）、窓が答える）
     lot_col: データ元の「ロット番号の列」（lot_column の override。None は自動）"""
     t0 = time.perf_counter()
     page = max(1, int(page or 1))

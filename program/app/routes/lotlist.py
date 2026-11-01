@@ -3,7 +3,8 @@
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings, lot_engine, lot_list_params
-from ..services import lot_list, pivot
+from ..repositories.master_repository import MasterRepository
+from ..services import conversions, lot_list, pivot
 from .common import bp, error, tab_denied
 
 
@@ -108,7 +109,8 @@ def lotlist_pivot():
 @bp.get("/api/lotlist/settings")
 def lotlist_settings():
     """デスクトップ版の Rust が尋ねる、いまの一覧の設定（参照先マスタで変えた値を重ねたもの）。写しと問い合わせは Rust が受け持つ。
-    engine: "rust"（既定）か "python"（設定 desktop.lotlist_engine。食い違いに気づいたら Python に戻す）。"""
+    engine: "rust"（既定）か "python"（設定 desktop.lotlist_engine。食い違いに気づいたら Python に戻す）。
+    conversions: 計算列の式の conv が引く変換表と版（版 3.59.0。計算列で並べ替える一覧も Rust が答える）。"""
     settings = effective_settings(current_app)
     source, refresh_seconds, stale_hours = lot_list_params(settings)
     ll = settings.get("lot_list") or {}
@@ -116,7 +118,16 @@ def lotlist_settings():
     # ロット番号の列を決めてある（自動でない）ときも Python（版 3.58.0。Rust は名前で探す決まりしか知らない）
     engine = "python" if tab_denied("lot") or _lot_col() else lot_engine(current_app.config["APP_SETTINGS"])
     return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
-                   page_size=ll.get("page_size", 500), engine=engine)
+                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions())
+
+
+def _conversions():
+    """計算列の式の conv が引く変換表と、その版（版 3.59.0。Rust も式を持ち、計算列で並べ替える一覧に答える。版が同じなら Rust は読み直さない）"""
+    st = current_app.config["MASTER_STORE"]
+    try:
+        return {"rev": st.stamp(conversions.NAME), "tables": conversions.tables(MasterRepository(st).conversions())}
+    except Exception:                    # マスタを読めない: 表なし（conv は空。一覧そのものは答える）
+        return {"rev": None, "tables": {}}
 
 
 @bp.get("/api/lotlist/source")

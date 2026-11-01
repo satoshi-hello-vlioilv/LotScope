@@ -5,7 +5,8 @@
 
 作業フォルダに試験用の品質データ（lotlist_fixture.make）を作り、問い合わせの組（lotlist_fixture.CASES）を
 Python の lot_list.query（slicer の組は lot_list.slicer・combos の組は lot_list.slicer_combos）で引いた答えを、標準出力に JSON で出す:
-    {"db": DB の場所, "today": "YYYY-MM-DD", "cases": [...], "expected": [{"ok": 答え} | {"error": 理由}, ...]}
+    {"db": DB の場所, "today": "YYYY-MM-DD", "tables": 変換表, "cases": [...], "expected": [{"ok": 答え} | {"error": 理由}, ...]}
+計算列（calc）の式の conv は、同梱の変換表（app/master_defaults/conversions.json）を引く（Rust にも同じ表を渡す）。
 引数の渡し方は /api/lotlist（routes/lotlist.py）と同じ（ページ・件数は文字、group は "1" か）。毎回変わる timing は除く。
 """
 import json
@@ -15,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.services import lot_list  # noqa: E402
+from app.services import conversions, formula, lot_list  # noqa: E402
 from tests import lotlist_fixture  # noqa: E402
 
 
@@ -48,7 +49,8 @@ def answer(db, case, today):
     try:
         out = lot_list.query(db, table=a.get("table", ""), preferred_table="", page=a.get("page", 1),
                              page_size=a.get("page_size", 500), search=a.get("search", ""), filters=a.get("filters", ""),
-                             sorts=a.get("sorts", ""), today=today, group=a.get("group") == "1", marks=a.get("marks", ""))
+                             sorts=a.get("sorts", ""), today=today, group=a.get("group") == "1", marks=a.get("marks", ""),
+                             calc=a.get("calc"))
     except Exception as e:               # /api/lotlist は 503 と理由を返す
         return {"error": str(e)}
     out.pop("timing", None)
@@ -64,9 +66,15 @@ def main():
         lotlist_fixture.make(db, n)
     today = lotlist_fixture.TODAY
     cases = [args_of(c) for c in lotlist_fixture.CASES]
-    expected = [answer(db, c, today) for c in lotlist_fixture.CASES]
+    tables = conversions.tables(json.loads((Path(__file__).resolve().parents[1] / "app" / "master_defaults" / "conversions.json")
+                                           .read_text(encoding="utf-8")))
+    formula.use_tables(tables.get)          # 計算列の式の conv が引く変換表（同梱のプリセット。Rust にも同じ表を渡す）
+    try:
+        expected = [answer(db, c, today) for c in lotlist_fixture.CASES]
+    finally:
+        formula.use_tables(None)
     sys.stdout.reconfigure(encoding="utf-8")
-    json.dump({"db": db, "today": today.isoformat(), "cases": cases, "expected": expected}, sys.stdout, ensure_ascii=False)
+    json.dump({"db": db, "today": today.isoformat(), "tables": tables, "cases": cases, "expected": expected}, sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

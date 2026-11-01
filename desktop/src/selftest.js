@@ -100,14 +100,18 @@
       const qs = ["page=1", "search=" + enc("汚れ"), "page=3&page_size=50",
         "filters=" + enc([{ column: "発生日", op: "within_days", value: "90" }, { column: "設備", op: "starts_any", value: "L-,ＣＲ" }]),
         "group=1&sorts=" + enc([{ column: "重量", dir: "desc" }]),
-        "filters=" + enc([{ column: "発生日", op: "within_days", value: "0" }, { column: "設備", op: "eq", value: "無い" }])];
+        "filters=" + enc([{ column: "発生日", op: "within_days", value: "0" }, { column: "設備", op: "eq", value: "無い" }]),
+        // 計算列で並べ替える（版 3.59.0 から Rust も式を持つ: formula.rs。変換表は Python の設定の答えから）
+        "calc=" + enc({ formulas: { 倍: "[重量] * 2 + 1", 課: "conv('課名', [設備])" }, names: {} }) + "&sorts=" + enc([{ column: "課", dir: "asc" }, { column: "倍", dir: "desc" }]),
+        "group=1&calc=" + enc({ formulas: { 番: "extract([ロット番号], '[0-9]+')" }, names: {} }) + "&sorts=" + enc([{ column: "番", dir: "desc" }])];
       const differ = [], speed = { rust: 0, python: 0 };
       for (const q of qs) {
         let s = performance.now(); const rs = await get("/api/lotlist?" + q); speed.rust += performance.now() - s;
+        if (q.includes("calc=") && rs.by !== "shell") differ.push("計算列を Rust が答えない: " + q);
         s = performance.now(); const py = await get("/api/lotlist?" + q + "&engine=python"); speed.python += performance.now() - s;
         if (py.by !== "python" || JSON.stringify(canon(JSON.parse(rs.text))) !== JSON.stringify(canon(JSON.parse(py.text)))) differ.push(q);
       }
-      ok(`一覧: Rust と Python の答えが同じ（${qs.length} 通り・日本語の検索・絞り込み・ページ・まとめ・0 件の手がかり）`, differ.length === 0,
+      ok(`一覧: Rust と Python の答えが同じ（${qs.length} 通り・日本語の検索・絞り込み・ページ・まとめ・0 件の手がかり・計算列で並べ替え）`, differ.length === 0,
          differ.length ? differ.join(" | ") : `${llCount} 行・Rust ${speed.rust.toFixed(0)}ms / Python ${speed.python.toFixed(0)}ms`);
       const pySrc = JSON.parse((await get("/api/lotlist/source?engine=python")).text), rsSrc = JSON.parse(llSrc.text);
       ok("写しは 1 つ: Python も Rust が写した写しを読む（同じ台帳・同じ元の時刻）", rsSrc.mirrored && pySrc.mirrored && pySrc.at === rsSrc.at,

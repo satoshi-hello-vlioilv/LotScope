@@ -343,9 +343,9 @@
     q.set("page", over.page ?? S.page); q.set("page_size", over.pageSize ?? S.pageSize);
     const sorts = effectiveSorts();
     if (sorts.length) q.set("sorts", JSON.stringify(sorts));
-    // 計算列で並べ替えるときは、その式を添える（サーバーが同じ式で計算して並べる）。窓の Rust は式を持たないので、その 1 回は Python が答える
+    // 計算列で並べ替えるときは、その式を添える（サーバーが同じ式で計算して並べる。版 3.59.0 から窓の Rust も式を持つ: desktop/src/formula.rs）
     const calc = window.LotListColumns.calcFor(layoutTarget(), sorts.map((x) => x.column));
-    if (calc) { q.set("calc", JSON.stringify(calc)); q.set("engine", "python"); }
+    if (calc) q.set("calc", JSON.stringify(calc));
     if (serverGroup()) q.set("group", "1");
     const marks = window.LotListMarks.param();
     if (marks) q.set("marks", marks);

@@ -5,6 +5,7 @@
 //! 呼ぶので、検索・0 件の手がかりが遅かった。DESKTOP_MIGRATION_DESIGN.md §7.1）。
 //! 答えが同じことは desktop/tests/lotlist_parity.rs が Python の答え（program/tests/lotlist_oracle.py）と比べて確かめる。
 
+use crate::formula::{self, Tables};
 use crate::pyfmt::{self, Py};
 use chrono::{Datelike, Duration as Days, NaiveDate};
 use rusqlite::functions::{Context, FunctionFlags};
@@ -13,7 +14,7 @@ use rusqlite::{params_from_iter, Connection, OpenFlags};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 const MAX_FILTERS: usize = 20;
@@ -74,6 +75,8 @@ pub struct Args {
     pub group: bool,
     /// 色付け（条件付き書式）の組の並び（JSON）。行は絞らない
     pub marks: String,
+    /// 計算列（表示列の設定の式 {formulas, names} の JSON）。並べ替えに計算列を使う（版 3.59.0。式は src/formula.rs）
+    pub calc: String,
 }
 
 impl Args {
@@ -90,6 +93,7 @@ impl Args {
                 "sorts" => a.sorts = v,
                 "group" => a.group = v == "1",
                 "marks" => a.marks = v,
+                "calc" => a.calc = v,
                 _ => {}
             }
         }
@@ -775,8 +779,8 @@ fn safe_sorts(text: &str, cs: &[String]) -> Vec<Sort> {
 
 /// 並べ替えに使う式（Python の lot_list.order_key と同じ）。ふだんは SortKey（ロット番号の列は大小を同じに）。
 /// 日付だけ・年月・年で見せる列は ToDate の頭（読めない値はその後ろで SortKey）、小数 N 桁で見せる列は丸めた数。
-fn order_key(col: &str, lot: &str, key: &str) -> Vec<String> {
-    let q = qi(col);
+fn order_key(col: &str, lot: &str, key: &str, expr: Option<&String>) -> Vec<String> {
+    let q = expr.cloned().unwrap_or_else(|| qi(col));
     let head = match key {
         "date" => Some(format!("ToDate({q})")),
         "month" => Some(format!("SUBSTR(ToDate({q}), 1, 7)")),
@@ -792,9 +796,16 @@ fn order_key(col: &str, lot: &str, key: &str) -> Vec<String> {
     vec![if col == lot { format!("SortKey(UPPER(CStr({q})))") } else { format!("SortKey({q})") }]
 }
 
-/// [(列, 向き, 鍵の形)] → ORDER BY の後ろ（Python の lot_list.order_sql と同じ）。
-fn order_sql(order: &[Sort], lot: &str) -> String {
-    order.iter().flat_map(|(c, d, k)| order_key(c, lot, k).into_iter().map(move |x| format!("{x} {d}"))).collect::<Vec<_>>().join(",")
+/// 計算列の名前 → SQL の式（formula::register）
+pub type Exprs = HashMap<String, String>;
+
+/// [(列, 向き, 鍵の形)] → ORDER BY の後ろ（Python の lot_list.order_sql と同じ）。exprs … 計算列の名前 → SQL の式
+fn order_sql(order: &[Sort], lot: &str, exprs: &Exprs) -> String {
+    order
+        .iter()
+        .flat_map(|(c, d, k)| order_key(c, lot, k, exprs.get(c)).into_iter().map(move |x| format!("{x} {d}")))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn lot_key(col: &str) -> String {
@@ -816,8 +827,9 @@ fn rowid_name(c: &Connection, t: &str, raw_cs: &[String]) -> Option<&'static str
 }
 
 /// まとめた並びの SQL（Python の grouped_sql と同じ文）。最後の ? はページ。
-pub fn grouped_sql(t: &str, raw_cs: &[String], lot: &str, wh: &str, order: &[Sort], size: i64, rid: Option<&str>) -> String {
-    let over = if order.is_empty() { String::new() } else { format!("ORDER BY {}", order_sql(order, lot)) };
+#[allow(clippy::too_many_arguments)]
+pub fn grouped_sql(t: &str, raw_cs: &[String], lot: &str, wh: &str, order: &[Sort], size: i64, rid: Option<&str>, exprs: &Exprs) -> String {
+    let over = if order.is_empty() { String::new() } else { format!("ORDER BY {}", order_sql(order, lot, exprs)) };
     let cols = raw_cs.iter().map(|x| qi(x)).collect::<Vec<_>>().join(", ");
     let steps = "
         k AS (SELECT *, CASE WHEN _tpa_k0 = '' THEN '#' || _tpa_rn ELSE _tpa_k0 END AS _tpa_k FROM b),
@@ -1057,7 +1069,15 @@ pub fn slicer_combos(path: &Path, a: &Args, columns: &str, preferred_table: &str
     )
 }
 
-pub fn query(path: &Path, a: &Args, preferred_table: &str, default_page_size: i64, today: NaiveDate) -> Result<Value, String> {
+/// 1 ページ分（Python の lot_list.query と同じ答え）。conv … 計算列の式の conv が引く変換表
+pub fn query(
+    path: &Path,
+    a: &Args,
+    preferred_table: &str,
+    default_page_size: i64,
+    today: NaiveDate,
+    conv: &Arc<Tables>,
+) -> Result<Value, String> {
     let t0 = Instant::now();
     let page = match a.page.as_deref() {
         None | Some("") => 1,
@@ -1098,14 +1118,20 @@ pub fn query(path: &Path, a: &Args, preferred_table: &str, default_page_size: i6
     params.extend(fpp);
     let wh = if where_parts.is_empty() { String::new() } else { format!(" WHERE {}", where_parts.join(" AND ")) };
     let lot = lot_column(&cs);
-    let order_parts = safe_sorts(&a.sorts, &cs);
-    let order = if order_parts.is_empty() { String::new() } else { format!(" ORDER BY {}", order_sql(&order_parts, &lot)) };
+    // 計算列（版 3.59.0）: 式を SQLite の関数にして、並べ替えの鍵に使う。読めない式の列は並べ替えから外れる
+    let exprs = match formula::clean_calc(&a.calc) {
+        Some(calc) => formula::register(&c, &calc, &raw_cs, conv, qi).map_err(sql_err)?,
+        None => Exprs::new(),
+    };
+    let sortable: Vec<String> = cs.iter().cloned().chain(exprs.keys().filter(|k| !cs.contains(k)).cloned()).collect();
+    let order_parts = safe_sorts(&a.sorts, &sortable);
+    let order = if order_parts.is_empty() { String::new() } else { format!(" ORDER BY {}", order_sql(&order_parts, &lot, &exprs)) };
     let qt = qi(&t);
     let total = count(&c, &format!("SELECT COUNT(*) FROM {qt}{wh}"), &params)?;
     let start = (page - 1).saturating_mul(size);
     let mut out = Map::new();
     let (rows, first, last) = if a.group && !lot.is_empty() {
-        let sql = grouped_sql(&t, &raw_cs, &lot, &wh, &order_parts, size, rowid_name(&c, &t, &raw_cs));
+        let sql = grouped_sql(&t, &raw_cs, &lot, &wh, &order_parts, size, rowid_name(&c, &t, &raw_cs), &exprs);
         let mut p = params.clone();
         p.push(SqlValue::Integer(page));
         let (rows, extra) = read_rows(&c, &sql, &p, raw_cs.len())?;

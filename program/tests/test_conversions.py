@@ -392,10 +392,17 @@ class Api(unittest.TestCase):
         calc = json.dumps({"formulas": {"重さ": "conv('異常の重さ', [異常内容])"}, "names": {}})
         got = lot_list.query(self.db, sorts=json.dumps([{"column": "重さ", "dir": "asc"}, {"column": "ロット番号", "dir": "asc"}]), calc=calc)
         self.assertEqual([r["ロット番号"] for r in got["rows"]], ["L6183D0", "L6183D1", "L6183D2", "L7150C0", "M0001A0"], "中（押し疵）→ 軽（汚れ）→ 重（ロール疵）の字の順")
+        # デスクトップ版の Rust も同じ表を使う（版 3.59.0）: 一覧の設定の答えに、変換表とその版が載る。表を足すと版が変わる
+        conv = self.c.get("/api/lotlist/settings").get_json()["conversions"]
+        self.assertEqual(conv["tables"]["異常の重さ"]["other"], "軽")
+        self.assertEqual(set(conv["tables"]), set(self.items()), "マスタの全部の表")
         # 直す（版が違えば断る）・標準に戻す（プリセットだけ）・消す
         ji = self.items()["地取区分"]
         r = self.c.put(f"/api/masters/conversions/{ji['id']}", json={"inputs": ji["inputs"], "rows": ji["rows"][:1], "other": "", "base_rev": ji["rev"]})
         self.assertEqual(r.status_code, 200, r.get_json())
+        now_conv = self.c.get("/api/lotlist/settings").get_json()["conversions"]
+        self.assertNotEqual(now_conv["rev"], conv["rev"], "表を直すと版が変わる（Rust は版が変わったときだけ読み直す）")
+        self.assertEqual(len(now_conv["tables"]["地取区分"]["rows"]), 1)
         self.assertEqual(self.c.put(f"/api/masters/conversions/{ji['id']}", json={"name": ji["name"], "base_rev": ji["rev"]}).status_code, 409, "古い版からは直さない")
         now = self.items()["地取区分"]
         self.assertEqual((len(now["rows"]), now["other"]), (1, ""))
@@ -440,6 +447,21 @@ class Api(unittest.TestCase):
         self.assertFalse(d["customDefaults"])
         self.assertFalse(self.items()["新しい表"]["preset"], "同梱のプリセットに無い表は標準に戻せない")
         self.assertEqual(self.c.post("/api/masters/conversions/defaults", json={"from": "x"}).status_code, 400)
+
+    def test_edited_table_is_read_again_on_a_local_only_pc(self):
+        """手元のみの PC（共有の置き場が無い）でも、直した変換表を読み直す（版 3.59.0 まで、版の番号が増えないので
+        開き直すまで直す前の表のままだった）。読み直すかは中身の目印（MasterStore.stamp）で決める"""
+        from app.repositories.master_repository import MasterRepository
+        st = self.app.config["MASTER_STORE"]
+        self.assertIsNone(st.share_dir, "手元のみの PC")
+        self.c.post("/api/masters/conversions", json={"name": "t", "inputs": [{"name": "x"}], "rows": [], "other": "前"})
+        t = [0.0]
+        src = cv.TableSource(lambda: MasterRepository(st).conversions(), lambda: st.stamp(cv.NAME), clock=lambda: t[0])
+        self.assertEqual(src.get("t")["other"], "前")
+        it = self.items()["t"]
+        self.c.put(f"/api/masters/conversions/{it['id']}", json={"inputs": it["inputs"], "rows": [], "other": "後", "base_rev": it["rev"]})
+        t[0] = 3.0
+        self.assertEqual(src.get("t")["other"], "後", "直した表を読み直す")
 
     def test_table_source_refreshes(self):
         t = [0.0]

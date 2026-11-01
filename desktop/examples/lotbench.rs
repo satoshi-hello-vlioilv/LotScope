@@ -1,7 +1,18 @@
 //! 異常ロット一覧の速さを測る（Rust）。program/tests/lotlist_bench.py（Python）と同じ問い合わせ・同じ回数。
 //!     cargo run --release --example lotbench -- <品質データ.sqlite3>
+use da_core::formula::Tables;
 use da_core::lotlist::{query, Args};
+use std::sync::Arc;
 use std::time::Instant;
+
+/// 計算列で並べ替える問い合わせ（版 3.59.0。式の 5 つの形。program/tests/lotlist_bench.py の CALC と同じ）
+const CALC: [(&str, &str); 5] = [
+    ("計算列で並べ替え: 四則", "[重量] * 2 + 1"),
+    ("計算列で並べ替え: 条件", "if([重量] > 3000, '重', '軽')"),
+    ("計算列で並べ替え: 字", "left([ロット番号], 3) + '-' + upper([合金])"),
+    ("計算列で並べ替え: 正規表現", "extract([ロット番号], '[0-9]+')"),
+    ("計算列で並べ替え: 日付", "datediff([発生日], '2026/10/02', 'd')"),
+];
 
 fn main() {
     let db = std::env::args().nth(1).expect("品質データの場所");
@@ -18,6 +29,7 @@ fn main() {
             },
         ),
         ("並べ替え", Args { sorts: r#"[{"column":"重量","dir":"desc"}]"#.into(), ..Default::default() }),
+        ("並べ替え（字の列）", Args { sorts: r#"[{"column":"ロット番号","dir":"desc"}]"#.into(), ..Default::default() }),
         ("ロット番号でまとめる＋並べ替え", Args { group: true, sorts: r#"[{"column":"重量","dir":"desc"}]"#.into(), ..Default::default() }),
         ("数で絞る", Args { filters: f("重量", "gte", "3000"), ..Default::default() }),
         (
@@ -28,12 +40,18 @@ fn main() {
             },
         ),
     ];
+    let mut cases: Vec<(String, Args)> = cases.into_iter().map(|(n, a)| (n.to_string(), a)).collect();
+    for (name, f) in CALC {
+        let calc = serde_json::json!({"formulas": {"計": f}, "names": {}}).to_string();
+        cases.push((name.into(), Args { calc, sorts: r#"[{"column":"計","dir":"desc"}]"#.into(), ..Default::default() }));
+    }
+    let tables = Arc::new(Tables::default());
     for (name, a) in &cases {
-        let _ = query(db.as_ref(), a, "", 500, today); // 1回目（日付の列の見分け・OS のキャッシュ）は数えない
+        let _ = query(db.as_ref(), a, "", 500, today, &tables); // 1回目（日付の列の見分け・OS のキャッシュ）は数えない
         let mut ms: Vec<f64> = (0..5)
             .map(|_| {
                 let t = Instant::now();
-                let v = query(db.as_ref(), a, "", 500, today).unwrap();
+                let v = query(db.as_ref(), a, "", 500, today, &tables).unwrap();
                 let _ = serde_json::to_vec(&v).unwrap();
                 t.elapsed().as_secs_f64() * 1000.0
             })

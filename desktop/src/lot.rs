@@ -7,6 +7,7 @@
 //!   付けたときも、その1回だけ Python に任せる（自己診断の突き合わせ・食い違いの切り分け）
 //! - 写しの係（mirror.rs）は 1 つだけ。Python は窓が lotlist を受け持つと名乗ると写さず、同じ台帳を読む
 
+use crate::formula::Tables;
 use crate::lotlist::{self, Args};
 use crate::mirror::DbMirror;
 use serde_json::{json, Value};
@@ -27,6 +28,9 @@ pub struct Settings {
     pub table: String,
     pub page_size: i64,
     pub engine: String,
+    /// 計算列の式の conv が引く変換表（マスタ「変換表」）と、その版（版が変わったときだけ読み直す）
+    pub conversions_rev: String,
+    pub conversions: Value,
 }
 
 impl Settings {
@@ -39,6 +43,8 @@ impl Settings {
             table: v["table"].as_str().unwrap_or("").into(),
             page_size: num("page_size", 500.0) as i64,
             engine: v["engine"].as_str().unwrap_or("rust").into(),
+            conversions_rev: v["conversions"]["rev"].to_string(),
+            conversions: v["conversions"]["tables"].clone(),
         }
     }
 }
@@ -50,11 +56,12 @@ pub struct Lot {
     cache_dir: PathBuf,
     mirror: Mutex<Option<Arc<DbMirror>>>,
     settings: Mutex<Option<(Instant, Settings)>>,
+    tables: Mutex<Option<(String, Arc<Tables>)>>,
 }
 
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
-        Lot { cache_dir, mirror: Mutex::default(), settings: Mutex::default() }
+        Lot { cache_dir, mirror: Mutex::default(), settings: Mutex::default(), tables: Mutex::default() }
     }
 
     /// 参照先を保存したとき: 次の問い合わせで設定を尋ね直す。
@@ -71,6 +78,19 @@ impl Lot {
         let s = Settings::from_json(&ask()?);
         *self.settings.lock().unwrap() = Some((Instant::now(), s.clone()));
         Ok(s)
+    }
+
+    /// 変換表（設定の版が前と同じなら読み解いた表を使い回す）
+    fn tables(&self, s: &Settings) -> Arc<Tables> {
+        let mut cur = self.tables.lock().unwrap();
+        if let Some((rev, t)) = cur.as_ref() {
+            if *rev == s.conversions_rev {
+                return t.clone();
+            }
+        }
+        let t = Arc::new(Tables::from_json(&s.conversions));
+        *cur = Some((s.conversions_rev.clone(), t.clone()));
+        t
     }
 
     /// 設定に合わせた写しの係（無ければ作り、変わっていれば切り替えて、背景の周回を始める）。
@@ -148,7 +168,7 @@ impl Lot {
                 }
                 Some(p) => {
                     let today = chrono::Local::now().date_naive();
-                    match lotlist::query(&p, &Args::from_query(query), &s.table, s.page_size, today) {
+                    match lotlist::query(&p, &Args::from_query(query), &s.table, s.page_size, today, &self.tables(&s)) {
                         Ok(mut v) => {
                             v["source"] = m.source_info();
                             (200, v)
@@ -210,6 +230,46 @@ mod tests {
         lot.invalidate();
         assert!(lot.handle("GET", "/api/lotlist", "", &ask).is_none(), "設定の係が python なら Python に任せる");
         assert_eq!(asked.get(), 2, "保存のあとは尋ね直す");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn calc_sorts_with_the_conversion_tables_of_the_settings() {
+        // 計算列で並べ替える一覧（版 3.59.0）: 式の conv は設定の答えの変換表を引く。版が同じ間は読み解いた表を使い回し、版が変われば読み直す
+        let dir = std::env::temp_dir().join(format!("da-lot4-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = fixture(&dir);
+        let lot = Lot::new(dir.join("cache"));
+        let table = |out_l1: &str| json!({"t": {"inputs": [{"name": "x", "type": "text"}], "rows": [{"when": {"x": [{"op": "eq", "v": ["L1"]}]}, "out": out_l1}], "other": "b"}});
+        let conv = Mutex::new((json!(1), table("c")));
+        let ask = || {
+            let (rev, tables) = conv.lock().unwrap().clone();
+            Ok(json!({"source": src.display().to_string(), "engine": "rust", "conversions": {"rev": rev, "tables": tables}}))
+        };
+        let enc = |t: &str| {
+            t.bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else { format!("%{b:02X}") }).collect::<String>()
+        };
+        let q = format!(
+            "calc={}&sorts={}",
+            enc(r#"{"formulas": {"k": "conv('t', [ロット番号])"}}"#),
+            enc(r#"[{"column": "k", "dir": "asc"}]"#)
+        );
+        let order = |v: &Value| {
+            v["rows"].as_array().unwrap().iter().map(|r| r["ロット番号"].as_str().unwrap_or("").to_string()).collect::<Vec<_>>()
+        };
+        let (st, v) = lot.handle("GET", "/api/lotlist", &q, &ask).expect("計算列も Rust が答える");
+        assert_eq!((st, order(&v)), (200, vec!["L2".to_string(), "L1".to_string()]), "L1→c・L2→b の順（b < c）: {v}");
+        assert_eq!(v["sorts"][0]["column"], "k", "計算列で並べた");
+        // 版が同じ間は、表が変わっていても読み直さない（設定を尋ね直しても同じ表）
+        *conv.lock().unwrap() = (json!(1), table("a"));
+        lot.invalidate();
+        let (_, v) = lot.handle("GET", "/api/lotlist", &q, &ask).unwrap();
+        assert_eq!(order(&v), ["L2", "L1"], "版が同じなら前に読み解いた表");
+        *conv.lock().unwrap() = (json!(2), table("a"));
+        lot.invalidate();
+        let (_, v) = lot.handle("GET", "/api/lotlist", &q, &ask).unwrap();
+        assert_eq!(order(&v), ["L1", "L2"], "版が変われば新しい表（L1→a < L2→b）");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

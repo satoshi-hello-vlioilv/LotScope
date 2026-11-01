@@ -72,7 +72,8 @@ def create_app(test_config=None):
     # 式の conv が引く変換表（版 3.42.0）: マスタ「変換表」。一覧の並べ替え・ダッシュボードの集計で、画面と同じ表を使う
     from .repositories.master_repository import MasterRepository
     from .services import conversions, formula
-    formula.use_tables(conversions.TableSource(lambda: MasterRepository(_st).conversions(), lambda: _st.revision(conversions.NAME)).get)
+    # 読み直すかは中身の目印で決める（版 3.59.0。版の番号は手元のみの PC では増えず、直した表が開き直すまで効かなかった）
+    formula.use_tables(conversions.TableSource(lambda: MasterRepository(_st).conversions(), lambda: _st.stamp(conversions.NAME)).get)
     presence.configure(_st.share_dir / presence.SUBDIR if _st.share_dir else _st.cache_dir.parent / "presence")
     # 置き場を変えた・ほかの PC が変えた置き場へ移ったら、利用状況の置き場も新しい置き場の下へ
     _st.on_moved = lambda d: presence.configure(Path(d) / presence.SUBDIR)
