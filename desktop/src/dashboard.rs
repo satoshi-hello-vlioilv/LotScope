@@ -6,9 +6,10 @@
 //! 材料（データ元・作業実績の登録・勤務体系・設備の名前・設備グループ・試験の「いま」）は、一覧の設定の答え（lists）で受け取る。
 //! 答えが同じことは desktop/tests/dash_parity.rs が Python の答え（program/tests/dash_oracle.py）と突き合わせて確かめる。
 
-use crate::formula::{self, Tables};
+use crate::formula::{self, Calc, Tables};
 use crate::lists::{Conf, Lists, Plan, Quality};
 use crate::lotlist::{json_str, json_truthy, TABLE_CANDIDATES, WORK_TABLES};
+use crate::operation::{self, ReadArgs};
 use crate::pivot::{self, Ask, Equip, EquipMatcher, Fail as PFail, Part, Work};
 use crate::pyfmt;
 use crate::worksum::{self, normalize_part, Clock};
@@ -376,8 +377,8 @@ fn clean_board(p: &Map<String, Value>, what: &str) -> R<Map<String, Value>> {
 }
 
 /// 画面から来たパネル → 数える形（Python の clean_panel の、数えるのに要る所。見せ方〈書式・枠〉は数えないので見ない）。
-/// 稼働（ガント・ABC）は Ok(None)（Python へ回す）
-fn clean_panel(p: &Value) -> R<Option<Map<String, Value>>> {
+/// 稼働（ガント・ABC）は out["ops"] に選び方を置く（版 3.63.0。数えるのは operation.rs）
+fn clean_panel(p: &Value) -> R<Map<String, Value>> {
     let Some(p) = obj(p) else { return Err("パネルの形が違います。".into()) };
     let id = s_or(p.get("id"));
     let pid = if (1..=16).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
@@ -394,7 +395,7 @@ fn clean_panel(p: &Value) -> R<Option<Map<String, Value>>> {
     let what = format!("パネル「{}」", if title.is_empty() { pid.clone() } else { title.clone() });
     if visual == "board" {
         out.extend(clean_board(p, &what)?);
-        return Ok(Some(out));
+        return Ok(out);
     }
     let body = p.get("body").filter(|b| b.is_object()).cloned().unwrap_or(json!({}));
     let ms: Vec<Value> = arr(body.get("measures")).iter().take(pivot::MAX_MEASURES).filter_map(|m| measure(Some(m))).collect();
@@ -416,17 +417,115 @@ fn clean_panel(p: &Value) -> R<Option<Map<String, Value>>> {
         out.insert("eorder".into(), json!(eo));
     }
     if OPS_VISUALS.contains(&visual) {
-        return Ok(None); // 稼働・ABC は Python（版 3.63.0 で移す）
+        // 稼働・ABC 分析（版 3.63.0 から窓が数える）: 作業実績だけ・行と列の段は使わない・設備のまとめと分け方は外す
+        if out["source"] != "work" {
+            return Err(format!("{what}の稼働・ABC 分析は、作業実績（作業開始と作業終了がある）で使えます。"));
+        }
+        out.insert("ops".into(), clean_ops(p.get("ops")));
+        out["body"]["rows"] = json!([]);
+        out["body"]["cols"] = json!([]);
+        out.remove("egroup");
+        out.remove("esplit");
+        return Ok(out);
     }
     let link = clean_link(p.get("link"), &what)?;
     if !link.is_null() {
         out.insert("link".into(), link);
-        return Ok(Some(out));
+        return Ok(out);
     }
     if !["kpi", "none"].contains(&visual) && out["body"]["rows"].as_array().is_none_or(|r| r.is_empty()) {
         return Err(format!("{what}は行の段が要ります（大きな数にするなら「数字」の形を選んでください）。"));
     }
-    Ok(Some(out))
+    Ok(out)
+}
+
+// ------------------------------------------------------------------ 稼働・ABC 分析の確かめ（Python の clean_ops・abc_lims）
+const ABC_A: f64 = 70.0;
+const ABC_B: f64 = 90.0;
+const ABC_LIMS_MAX: usize = 50;
+const ABC_ITEMS: &[&str] = &["share", "occ", "lshare", "cum", "rank", "avg", "factor", "conv", "chart", "foot"];
+
+/// Python の _float（読めない・NaN・無限は None）
+fn float_of(v: &Value) -> Option<f64> {
+    let f = match v {
+        Value::Bool(b) => *b as i64 as f64,
+        Value::Number(n) => n.as_f64()?,
+        Value::String(t) => pyfmt::py_float(t).ok()?,
+        _ => return None,
+    };
+    f.is_finite().then_some(f)
+}
+
+/// ABC の線（Python の abc_lims）
+fn abc_lims(v: &Map<String, Value>) -> Vec<f64> {
+    let raw: Vec<Value> = match v.get("lims") {
+        Some(Value::Array(a)) => a.clone(),
+        _ => vec![v.get("a").cloned().unwrap_or(json!(ABC_A)), v.get("b").cloned().unwrap_or(json!(ABC_B))],
+    };
+    let mut xs: Vec<f64> = raw.iter().filter_map(float_of).filter(|x| *x > 0.0).map(|x| aggregate::py_round(x.min(100.0), 4)).collect();
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    xs.dedup();
+    xs.truncate(ABC_LIMS_MAX);
+    if xs.is_empty() {
+        vec![ABC_A, ABC_B]
+    } else {
+        xs
+    }
+}
+
+fn clean_ops(v: Option<&Value>) -> Value {
+    let empty = Map::new();
+    let v = v.and_then(obj).unwrap_or(&empty);
+    let col = |k: &str| cut(&strip(&s_or(v.get(k))), 200);
+    let lims = abc_lims(v);
+    let mut out = Map::new();
+    for k in ["start", "end", "label", "color"] {
+        if !col(k).is_empty() {
+            out.insert(k.into(), json!(col(k)));
+        }
+    }
+    if v.get("span").and_then(Value::as_str) == Some("lead") {
+        out.insert("span".into(), json!("lead"));
+    }
+    if let Some(Value::Object(r)) = v.get("refPeriod") {
+        let mut r = r.clone();
+        r.insert("column".into(), json!("@workday"));
+        let rp = period(Some(&Value::Object(r)));
+        if !rp.is_null() {
+            out.insert("refPeriod".into(), rp);
+        }
+    }
+    let given = arr(v.get("hide"));
+    let hide: Vec<&str> = ABC_ITEMS.iter().copied().filter(|x| given.iter().any(|g| g == x)).collect();
+    if !hide.is_empty() {
+        out.insert("hide".into(), json!(hide));
+    }
+    let raw_cls: Vec<String> = match v.get("cls") {
+        Some(Value::Array(a)) => a.iter().map(|x| cut(&strip(&s_or(Some(x))), 200)).collect(),
+        _ => vec![col("cls")],
+    };
+    let mut cls: Vec<String> = vec![];
+    for x in raw_cls {
+        if !x.is_empty() && !cls.contains(&x) {
+            cls.push(x);
+        }
+    }
+    cls.truncate(4);
+    if cls.len() == 1 {
+        out.insert("cls".into(), json!(cls[0]));
+    } else if !cls.is_empty() {
+        out.insert("cls".into(), json!(cls));
+    }
+    let (qty, base) = (col("qty"), cut(&strip(&s_or(v.get("base"))), 120));
+    out.insert("qty".into(), json!(if qty.is_empty() { "lots".to_string() } else { qty }));
+    out.insert("base".into(), json!(if base.is_empty() { "avg".to_string() } else { base }));
+    if lims != [ABC_A, ABC_B] {
+        out.insert("lims".into(), json!(lims));
+    }
+    if v.get("rankBy").and_then(Value::as_str) == Some("each") {
+        out.insert("rankBy".into(), json!("each"));
+    }
+    Value::Object(out)
 }
 
 // ------------------------------------------------------------------ 材料（一覧の設定の答えの dash）
@@ -759,20 +858,7 @@ impl Ctx<'_> {
         let stamp = self.stamp();
         let days: Vec<String> =
             got.parts.iter().map(|x| x.work.as_ref().map(|w| w.clock.place(&stamp, &w.basis).0).unwrap_or_default()).collect();
-        let sig: Vec<Value> = got
-            .parts
-            .iter()
-            .map(|x| {
-                let m = std::fs::metadata(&x.path).ok();
-                let mt = m
-                    .as_ref()
-                    .and_then(|m| m.modified().ok())
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0);
-                json!([x.path.display().to_string(), mt.to_string(), m.map(|m| m.len()).unwrap_or(0)])
-            })
-            .collect();
+        let sig = file_sigs(&got.parts);
         let failed_names: Vec<Value> = got.failed.iter().map(|f| f["name"].clone()).collect();
         let key = json!([p, egroups, sets, sig, days, self.now.date().to_string(), failed_names]).to_string();
         let hit = self.cache.lock().unwrap().get(&key);
@@ -1309,12 +1395,11 @@ fn facets_of(a: &Value, measures: &[Value]) -> Vec<Value> {
     out
 }
 
-/// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（稼働・スケジュール）
+/// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（スケジュール）
 pub fn query(cx: &Ctx, body: &Value) -> Option<(u16, Value)> {
     // Python の body.get("panel") or {}: null・[]・0 のような空の値は、空のパネルとして確かめる
     let p = match clean_panel(body.get("panel").filter(|v| json_truthy(v)).unwrap_or(&json!({}))) {
-        Ok(Some(p)) => p,
-        Ok(None) => return None,
+        Ok(p) => p,
         Err(e) => return Some((400, json!({"error": e}))),
     };
     if p["visual"] == "board" {
@@ -1344,12 +1429,366 @@ pub fn query(cx: &Ctx, body: &Value) -> Option<(u16, Value)> {
         }
         return Some((200, out));
     }
-    let a = if p.get("link").is_some() { cx.link_answer(&p)? } else { cx.split_answer(&p)? };
+    let a = if OPS_VISUALS.contains(&p["visual"].as_str().unwrap_or("")) {
+        cx.ops_answer(&p)?
+    } else if p.get("link").is_some() {
+        cx.link_answer(&p)?
+    } else {
+        cx.split_answer(&p)?
+    };
     if a.get("status").is_some() && a.get("cells").is_none() {
         let st = a["status"].as_u64().unwrap_or(503) as u16;
         return Some((st, json!({"error": a["error"], "kind": a["kind"]})));
     }
     Some((200, a))
+}
+
+/// 数えるファイルの印（控えの鍵: 場所・書いた時刻・大きさ。Python の _file_sig）
+fn file_sigs(parts: &[Part]) -> Vec<Value> {
+    parts
+        .iter()
+        .map(|x| {
+            let m = std::fs::metadata(&x.path).ok();
+            let mt = m
+                .as_ref()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            json!([x.path.display().to_string(), mt.to_string(), m.map(|m| m.len()).unwrap_or(0)])
+        })
+        .collect()
+}
+
+/// 数える設備のファイルを手で並べた順に（Python の order_parts）
+fn order_parts(parts: Vec<Part>, eorder: &[String]) -> Vec<Part> {
+    if eorder.is_empty() {
+        return parts;
+    }
+    let names = order_names(&parts.iter().map(|x| json!(x.name)).collect::<Vec<_>>(), eorder);
+    let mut v = parts;
+    v.sort_by_key(|x| names.iter().position(|n| n == &json!(x.name)).unwrap_or(usize::MAX));
+    v
+}
+
+/// ガントの既定の期間（前日）
+fn gantt_period() -> Value {
+    json!({"column": "@workday", "kind": "yesterday", "n": 1})
+}
+
+/// N を JSON の数から（整数か小数か）
+fn n_of(v: &Value) -> N {
+    match v {
+        Value::Number(n) => n.as_i64().map(N::I).unwrap_or_else(|| N::F(n.as_f64().unwrap_or(0.0))),
+        _ => N::I(0),
+    }
+}
+
+/// 1 回の ABC 分析の答え（Python の _abc_pass の答え）
+struct AbcPass {
+    equips: Vec<Map<String, Value>>,
+    all: Map<String, Value>,
+    skipped: Vec<Value>,
+    range: Option<(String, String)>,
+    start: String,
+    end: String,
+}
+
+impl Ctx<'_> {
+    /// 稼働（gantt）・ABC 分析（abc）のパネル（Python の _ops_answer）
+    fn ops_answer(&self, p: &Map<String, Value>) -> Option<Value> {
+        let s = |k: &str| s_or(p.get(k));
+        let equips = names(p.get("equips"), MAX_EQUIPS);
+        let got = match self.panel_parts(&s("source"), &s("equip"), &s("basis"), &equips) {
+            Ok(None) => return None,
+            Ok(Some(x)) => x,
+            Err(f) => return Some(f),
+        };
+        let gantt = p["visual"] == "gantt";
+        let period = match p.get("period").filter(|x| !x.is_null()) {
+            Some(x) => x.clone(),
+            None if gantt => gantt_period(),
+            None => Value::Null,
+        };
+        let stamp = self.stamp();
+        let days: Vec<String> =
+            got.parts.iter().map(|x| x.work.as_ref().map(|w| w.clock.place(&stamp, &w.basis).0).unwrap_or_default()).collect();
+        let failed_names: Vec<Value> = got.failed.iter().map(|f| f["name"].clone()).collect();
+        let hour = if gantt { self.now.format("%H").to_string() } else { "0".into() };
+        let key = json!(["ops", p, period, file_sigs(&got.parts), days, self.now.date().to_string(), hour, failed_names]).to_string();
+        let hit = self.cache.lock().unwrap().get(&key);
+        let hit = match hit {
+            Some(h) => h,
+            None => {
+                let h = self.ops_count(p, got.parts.clone(), &period);
+                if h.get("error").is_some() {
+                    return Some(h);
+                }
+                self.cache.lock().unwrap().put(key, h.clone());
+                h
+            }
+        };
+        let mut out = hit;
+        let mut failed = got.failed.clone();
+        failed.extend(arr(out.get("skipped")).iter().cloned());
+        out["failed"] = json!(failed);
+        out["sourceName"] = json!(got.name);
+        out["mirrors"] = json!(got.mirrors);
+        out["now"] = json!(stamp);
+        Some(out)
+    }
+
+    fn read_args<'b>(
+        &'b self,
+        p: &'b Map<String, Value>,
+        o: &'b Value,
+        period: Option<&'b Value>,
+        filters: &'b str,
+        calc: Option<&'b Calc>,
+    ) -> ReadArgs<'b> {
+        ReadArgs {
+            search: p.get("search").and_then(Value::as_str).unwrap_or(""),
+            filters,
+            today: self.now.date(),
+            calc,
+            conv: self.conv,
+            period,
+            now: self.now,
+            end: o.get("end").and_then(Value::as_str).unwrap_or(""),
+            start: o.get("start").and_then(Value::as_str).unwrap_or(""),
+            cols: vec![],
+            reach: false,
+            lots: false,
+            around: 0,
+        }
+    }
+
+    /// 稼働のパネルを数える（Python の _ops_count）
+    fn ops_count(&self, p: &Map<String, Value>, parts: Vec<Part>, period: &Value) -> Value {
+        let o = p.get("ops").cloned().unwrap_or(json!({}));
+        let filters = p.get("filters").cloned().unwrap_or(json!([])).to_string();
+        let calc = p.get("calc").and_then(|c| formula::clean_calc(&c.to_string()));
+        let per = Some(period).filter(|x| !x.is_null());
+        if p["visual"] == "abc" {
+            return self.abc_count(p, parts, &o, per, &filters, calc.as_ref());
+        }
+        let shifts = self.conf.shifts();
+        let (label, color) = (s_or(o.get("label")), s_or(o.get("color")));
+        let eorder = names(p.get("eorder"), MAX_EQUIPS);
+        let (mut equips, mut skipped): (Vec<Value>, Vec<Value>) = (vec![], vec![]);
+        let (mut rng, mut start_col, mut end_col): (Option<(String, String)>, String, String) = (None, String::new(), String::new());
+        for part in order_parts(parts, &eorder) {
+            let mut args = self.read_args(p, &o, per, &filters, calc.as_ref());
+            args.cols = [label.clone(), color.clone()].into_iter().filter(|c| !c.is_empty()).collect();
+            args.reach = true;
+            let r = match operation::read_ops(&part, &args) {
+                Ok(r) => r,
+                Err(e) => {
+                    skipped.push(json!({"name": part.name, "error": e.text()}));
+                    equips.push(
+                        json!({"name": part.name, "error": e.text(), "ops": [], "windows": [], "view": null, "rate": null, "shiftMin": 0,
+                                       "busyMin": 0, "outsideMin": 0, "byShift": [], "noEnd": 0, "why": {}, "count": 0, "carry": 0,
+                                       "truncated": false, "pattern": ""}),
+                    );
+                    continue;
+                }
+            };
+            if start_col.is_empty() {
+                start_col = r.start.clone();
+            }
+            if end_col.is_empty() {
+                end_col = r.end.clone();
+            }
+            if rng.is_none() {
+                rng = r.range.clone();
+            }
+            if let Some((a, b)) = &r.range {
+                let span = chrono::NaiveDate::parse_from_str(b, "%Y-%m-%d").ok().zip(chrono::NaiveDate::parse_from_str(a, "%Y-%m-%d").ok());
+                if span.is_some_and(|(b, a)| (b - a).num_days() + 1 > operation::MAX_DAYS) {
+                    return json!({"error": format!("ガントチャートの期間は {} 日までです（期間を短くしてください）。", operation::MAX_DAYS),
+                                  "kind": "invalid", "status": 400});
+                }
+            }
+            let pat = worksum::pattern_for(&shifts, &part.name);
+            let basis = part.work.as_ref().map(|w| w.basis.clone()).unwrap_or_else(|| "work".into());
+            let segs = pat.as_ref().map(|x| x.segments.clone()).unwrap_or_default();
+            let wins = match (&pat, &r.range) {
+                (Some(_), Some((a, b))) => operation::shift_windows(&segs, a, b, &basis),
+                _ => vec![],
+            };
+            let days = match &r.range {
+                Some((a, b)) => operation::work_days(&segs, a, b, &basis),
+                None => vec![],
+            };
+            let lab = if !label.is_empty() { label.clone() } else { r.lot.clone() };
+            let mut g = operation::gantt(&part.name, &r, &wins, &lab, &color, &days);
+            g.insert("pattern".into(), json!(pat.map(|x| x.name).unwrap_or_default()));
+            equips.push(Value::Object(g));
+        }
+        if !equips.iter().any(|e| e.get("error").is_none()) {
+            return no_equips(&skipped);
+        }
+        let sm = N::sum(equips.iter().map(|e| n_of(&e["shiftMin"])));
+        let bm = N::sum(equips.iter().map(|e| n_of(&e["busyMin"])));
+        let no_pattern: Vec<Value> =
+            equips.iter().filter(|e| e["pattern"] == "" && e.get("error").is_none()).map(|e| e["name"].clone()).collect();
+        let no_end: i64 = equips.iter().map(|e| e["noEnd"].as_i64().unwrap_or(0)).sum();
+        let mut out = ops_head(p, per, &rng, &start_col, &end_col, equips, &skipped);
+        out["total"] = json!({"shiftMin": sm.round(2).json(), "busyMin": bm.round(2).json(),
+                              "rate": if sm.f() != 0.0 { json!(aggregate::py_round(bm.f() / sm.f(), 4)) } else { Value::Null },
+                              "noPattern": no_pattern, "noEnd": no_end});
+        out
+    }
+
+    /// ABC 分析を 1 つの期間で数える（Python の _abc_pass）。数えられなければ Err(答え)
+    #[allow(clippy::too_many_arguments)]
+    fn abc_pass(
+        &self,
+        p: &Map<String, Value>,
+        parts: &[Part],
+        o: &Value,
+        period: Option<&Value>,
+        filters: &str,
+        calc: Option<&Calc>,
+    ) -> Result<AbcPass, Value> {
+        let qty = qty_of(o);
+        let cls = operation::cls_list(o.get("cls"));
+        let mut cols = cls.clone();
+        cols.push(if operation::QTYS.contains(&qty.as_str()) { String::new() } else { qty.clone() });
+        let lead = o.get("span").and_then(Value::as_str) == Some("lead");
+        let base = {
+            let b = s_or(o.get("base"));
+            if b.is_empty() {
+                "avg".to_string()
+            } else {
+                b
+            }
+        };
+        let lims = abc_lims(o.as_object().unwrap_or(&Map::new()));
+        let each = o.get("rankBy").and_then(Value::as_str) == Some("each");
+        let eorder = names(p.get("eorder"), MAX_EQUIPS);
+        let (mut equips, mut skipped, mut every, mut reads) = (vec![], vec![], vec![], vec![]);
+        let (mut rng, mut start_col, mut end_col): (Option<(String, String)>, String, String) = (None, String::new(), String::new());
+        for part in order_parts(parts.to_vec(), &eorder) {
+            let mut args = self.read_args(p, o, period, filters, calc);
+            args.cols = cols.iter().filter(|c| !c.is_empty()).cloned().collect();
+            args.lots = lead;
+            args.around = if lead && period.is_some() { operation::LEAD_AROUND_DAYS } else { 0 };
+            let r = match operation::read_ops(&part, &args) {
+                Ok(r) => r,
+                Err(e) => {
+                    skipped.push(json!({"name": part.name, "error": e.text()}));
+                    continue;
+                }
+            };
+            if start_col.is_empty() {
+                start_col = r.start.clone();
+            }
+            if end_col.is_empty() {
+                end_col = r.end.clone();
+            }
+            if rng.is_none() {
+                rng = r.range.clone();
+            }
+            let mine: Vec<operation::Op> = r.ops.iter().filter(|x| !x.carry && !x.after).cloned().collect();
+            let mut e = Map::new();
+            e.insert("name".into(), json!(part.name));
+            e.extend(operation::abc(&mine, &cls, &qty, &base, &lims, each));
+            equips.push(e);
+            every.extend(mine);
+            reads.push(r);
+        }
+        if equips.is_empty() {
+            return Err(no_equips(&skipped));
+        }
+        if lead && !reads.iter().any(|r| !r.lot.is_empty()) {
+            return Err(
+                json!({"error": "ロット番号の列が無いので、リードタイム（同じロットの最初の作業開始〜最後の作業終了）を出せません。",
+                              "kind": "invalid", "status": 400}),
+            );
+        }
+        let ops = if lead { operation::lead_ops(&reads) } else { every };
+        let all = operation::abc(&ops, &cls, &qty, &base, &lims, each);
+        Ok(AbcPass { equips, all, skipped, range: rng, start: start_col, end: end_col })
+    }
+
+    /// ABC 分析と換算係数（基準の期間で換算も。Python の _abc_count）
+    fn abc_count(
+        &self,
+        p: &Map<String, Value>,
+        parts: Vec<Part>,
+        o: &Value,
+        period: Option<&Value>,
+        filters: &str,
+        calc: Option<&Calc>,
+    ) -> Value {
+        let mut got = match self.abc_pass(p, &parts, o, period, filters, calc) {
+            Ok(g) => g,
+            Err(e) => return e,
+        };
+        if let Some(rf) = o.get("refPeriod").filter(|r| json_truthy(r)) {
+            let a = match self.abc_pass(p, &parts, o, Some(rf), filters, calc) {
+                Ok(a) => a,
+                Err(mut e) => {
+                    e["error"] = json!(format!("基準の期間（地点 A）: {}", s_or(e.get("error"))));
+                    return e;
+                }
+            };
+            let empty = Map::new();
+            for e in got.equips.iter_mut() {
+                let name = e["name"].clone();
+                let by = a.equips.iter().find(|x| x["name"] == name).unwrap_or(&empty);
+                operation::apply_ref(e, by, a.range.as_ref());
+            }
+            operation::apply_ref(&mut got.all, &a.all, a.range.as_ref());
+        }
+        let qty = qty_of(o);
+        let cls = operation::cls_list(o.get("cls"));
+        let equips: Vec<Value> = got.equips.into_iter().map(Value::Object).collect();
+        let mut out = ops_head(p, period, &got.range, &got.start, &got.end, equips, &got.skipped);
+        out["all"] = Value::Object(got.all);
+        out["span"] = json!(if o.get("span").and_then(Value::as_str) == Some("lead") { "lead" } else { "sum" });
+        out["cls"] = json!(cls.join(operation::KEY_SEP));
+        out["clsList"] = json!(cls);
+        out["qty"] = json!(qty);
+        out
+    }
+}
+
+/// ABC の量（clean_ops の既定と同じく、空なら本数）
+fn qty_of(o: &Value) -> String {
+    let q = s_or(o.get("qty"));
+    if q.is_empty() {
+        "lots".to_string()
+    } else {
+        q
+    }
+}
+
+fn no_equips(skipped: &[Value]) -> Value {
+    let why: String = skipped.iter().take(3).map(|x| format!(" {}: {}", s_or(x.get("name")), s_or(x.get("error")))).collect();
+    json!({"error": format!("数えられる設備がありません。{why}"), "kind": "invalid", "status": 400})
+}
+
+/// 稼働の答えの頭（Python の _ops_head）
+fn ops_head(
+    p: &Map<String, Value>,
+    period: Option<&Value>,
+    rng: &Option<(String, String)>,
+    start: &str,
+    end: &str,
+    equips: Vec<Value>,
+    skipped: &[Value],
+) -> Value {
+    let per = period.map(|x| {
+        let mut m = x.as_object().cloned().unwrap_or_default();
+        let kind = s_or(x.get("kind"));
+        m.insert("name".into(), json!(pivot::PERIODS.iter().find(|(k, _)| *k == kind).map(|(_, n)| *n).unwrap_or("")));
+        m.insert("ranges".into(), json!(rng.iter().map(|(a, b)| json!({"from": a, "to": b})).collect::<Vec<_>>()));
+        Value::Object(m)
+    });
+    json!({"kind": p["visual"], "equips": equips, "skipped": skipped, "range": rng.as_ref().map(|(a, b)| json!([a, b])),
+           "startColumn": start, "endColumn": end, "period": per, "basis": p["basis"]})
 }
 
 /// 試験の「いま」（一覧の設定の答えの dash.now。無ければ窓の時計）
@@ -1374,9 +1813,13 @@ mod tests {
             "パネル「a1」は行の段が要ります（大きな数にするなら「数字」の形を選んでください）。"
         );
         assert_eq!(e(json!({"visual": "board", "groups": [1, 2, 3, 4, 5]})), "パネル「p1」の列のまとまりは 4 つまでです。");
-        assert!(clean_panel(&json!({"visual": "gantt", "source": "work"})).unwrap().is_none(), "稼働は Python");
+        let g = clean_panel(&json!({"visual": "gantt", "source": "work"})).unwrap();
+        assert!(g["ops"].is_object() && g.get("egroup").is_none(), "{g:?}");
+        assert_eq!(
+            e(json!({"title": "t", "visual": "abc", "source": "lot"})),
+            "パネル「t」の稼働・ABC 分析は、作業実績（作業開始と作業終了がある）で使えます。"
+        );
         let p = clean_panel(&json!({"visual": "kpi", "source": "src:wip", "period": {"column": "@workday", "kind": "days", "n": "99999"}}))
-            .unwrap()
             .unwrap();
         assert_eq!(p["period"]["n"], 3660);
         assert_eq!(p["body"]["measures"], json!([{"agg": "lots"}]));

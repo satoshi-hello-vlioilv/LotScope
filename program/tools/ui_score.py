@@ -22,6 +22,8 @@
     利用者が決めたことなので案の採点はしない（"evaluator" も要らない）。作った後（"built"）は、ほかと同じく別のエージェントが採点し、合格点で判定する。
     "applies": "決めた採点のファイル名" … ほかの比較で決めた形を、別の画面にそろえて当てただけのとき（案出しの回は持たず、
     "rounds" は空）。決めたファイルの判定を引き、"baseline"（今）と "built"（作った後）だけを同じ物差しで採点する（版 3.49.0）。
+    "accepted_by_user": {"date": "…", "note": "…"} … 作った後を直して採点し直しても合格点に届かず、利用者がその形で決めたとき（版 3.63.0）。
+    判定は「利用者が受け入れた」（届いていれば、ほかと同じく「当てた」）。足りない点と理由は note と採点の記録に残す。
     案の値が 7 つの数の並び（list）のファイルは、旧い決まり（7 基準・80 点・7 案）の記録として読む（判定はしない）。
 
 点の付け方: 100 点満点の加点（4 分類・11 項目を 0〜10 で付け、重みを掛けて足す）から、減点（見つけた数だけ引く）を引く。
@@ -152,12 +154,22 @@ def check_round(i, rnd, before, rule=None):
     return None
 
 
+def applied_kind(data, t):
+    """当てた記録の判定: 作った後が合格点以上なら「当てた」。届かなくても、利用者がその形で決めた記録（accepted_by_user）があれば「利用者が受け入れた」"""
+    if t >= rule_of(data)["pass"][-1]:
+        return "当てた"
+    accepted = data.get("accepted_by_user")
+    if accepted and not (isinstance(accepted, dict) and str(accepted.get("date", "")).strip()):
+        raise ValueError("利用者が受け入れた記録（accepted_by_user）には日付（date）が要る")
+    return "利用者が受け入れた" if accepted else "直す"
+
+
 def decide(data):
     """回を順に判定する。返り値: ("選ぶ" | "届かずに選ぶ" | "出し直す" | "記録", 名前, 順位)"""
     if data.get("applies"):           # ほかの比較で決めた形を当てた記録: 作った後が合格点以上か
         built = data.get("built") or {}
         t = total(built["result"]) if built.get("result") else 0
-        return ("当てた" if t >= rule_of(data)["pass"][-1] else "直す"), data["applies"], [(t, built.get("name", ""), built.get("result"))]
+        return applied_kind(data, t), data["applies"], [(t, built.get("name", ""), built.get("result"))]
     chosen = data.get("chosen_by_user")
     if chosen:                        # 利用者が選んだ案: 案の採点はしない。作った後があれば合格点で判定する
         names = [n for rnd in data["rounds"] for n in rnd["proposals"]]
@@ -277,8 +289,13 @@ def report_applied(data):
         raise ValueError("作った後（built）が無い")
     t = total(built["result"])
     print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
-    print("→ 作った後も " + (f"{mark} 点以上" if t >= mark else f"{mark} 点に届かない。減点の所を直して撮り直し、採点し直す"))
-    return ("当てた" if t >= mark else "直す"), who
+    kind = applied_kind(data, t)
+    if kind == "利用者が受け入れた":
+        a = data["accepted_by_user"]
+        print(f"→ 作った後は {mark} 点に届かないが、利用者がこの形で決めた（{a['date']}）。{a.get('note', '')}")
+    else:
+        print("→ 作った後も " + (f"{mark} 点以上" if t >= mark else f"{mark} 点に届かない。減点の所を直して撮り直し、採点し直す"))
+    return kind, who
 
 
 if __name__ == "__main__":

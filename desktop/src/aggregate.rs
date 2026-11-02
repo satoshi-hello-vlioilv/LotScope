@@ -70,6 +70,41 @@ pub enum N {
 }
 
 impl N {
+    /// round(数, n)（Python と同じく整数は整数のまま）
+    pub fn round(self, n: usize) -> N {
+        match self {
+            N::F(f) => N::F(py_round(f, n)),
+            i => i,
+        }
+    }
+    /// Python 3.13 の sum と同じ足し方（Objects/bltinmodule.c の builtin_sum_impl）: 整数の間は整数で正しく足し、最初の小数で
+    /// 「それまでの整数の和＋その小数」を小数に替え、その後は小数を補正つき（Neumaier）で、整数は補正せずに足す。空は整数の 0
+    pub fn sum(xs: impl IntoIterator<Item = N>) -> N {
+        let mut it = xs.into_iter();
+        let mut i = 0i64;
+        let mut f = loop {
+            match it.next() {
+                None => return N::I(i),
+                Some(N::I(v)) => i += v,
+                Some(N::F(x)) => break i as f64 + x,
+            }
+        };
+        let mut c = 0.0f64;
+        for x in it {
+            match x {
+                N::F(x) => {
+                    let t = f + x;
+                    c += if f.abs() >= x.abs() { (f - t) + x } else { (x - t) + f };
+                    f = t;
+                }
+                N::I(v) => f += v as f64,
+            }
+        }
+        if c != 0.0 && c.is_finite() {
+            f += c;
+        }
+        N::F(f)
+    }
     pub fn f(self) -> f64 {
         match self {
             N::I(i) => i as f64,
@@ -486,5 +521,26 @@ pub fn apply_show(cells: &mut [OutCell], measures: &[Map<String, Value>], nr: us
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::N;
+
+    #[test]
+    fn sum_like_python_313() {
+        // 答えは python3.13 -c "print(repr(sum([...])))" で確かめた値
+        let f = |xs: Vec<N>| match N::sum(xs) {
+            N::F(x) => format!("{x:?}"),
+            N::I(i) => format!("{i}"),
+        };
+        assert_eq!(f(vec![N::F(0.30000000000000004), N::I(576552), N::F(0.9)]), "576553.2000000001");
+        assert_eq!(f(vec![N::I(1), N::F(0.1), N::I(2), N::F(0.2)]), "3.3000000000000003");
+        assert_eq!(f(vec![N::I(3), N::I(4)]), "7");
+        assert_eq!(f(vec![N::F(1e16), N::I(1), N::F(1.0), N::F(-1e16)]), "1.0");
+        assert_eq!(f(vec![N::F(0.1); 10]), "1.0");
+        assert_eq!(f(vec![N::I(2), N::F(0.5), N::I(1000), N::F(0.25), N::F(0.1)]), "1002.85");
+        assert_eq!(f(vec![]), "0");
     }
 }
