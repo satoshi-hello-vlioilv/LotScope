@@ -1,0 +1,367 @@
+{
+ "title": "ダッシュボードを Rust へ移す（順 4・版 3.62.0）の移し方",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント）。program/tools/dash-split.py を 2 回流し（measured と合うことを確かめた）、さらに読むだけの自分の測り（scratchpad の split2.py: 同じ試験データで写しを作った後、控えを空にして 1 枚ずつ、pivot.query_many・operation.read_ops・operation.abc・operation.gantt・panel_parts・clean_panel を関数ごとに包んで 2 回、同じ組みを 5 回続けて控えからの時間も。prof.py: 前日の実績本数・ABC・ガントを cProfile。fields.py: 組む所の道 6 本を 4 回）を流し、Rust の稼働の読みの速さは自分の試作（scratchpad/stampbench: 窓の crate〈da_core〉を部品にした別の crate で、同じ試験データの作業開始・作業終了 44,000 個を pyfmt::to_datetime で読む。3 回ずつ）で測った。routes/dashboard.py・services/dashboard.py・operation.py・equip_groups.py・sidecar.py・desktop/src/sidecar.rs・lot.rs・pivot.rs・RUST_PORT_PLAN.md を読み、移す量は注釈・説明文・空行を除いた行で数えた。リポジトリはこのファイルのほかは書き換えていない（試作と測りの台本は scratchpad の中）。",
+ "reading": "routes/dashboard.py 896 行（うち数える道 /api/dashboard/query と /fields・/api/data/columns・/equip-tree は 約 590 行、残りはダッシュボード・セット・カードの形のマスタの読み書き）・services/dashboard.py 811 行（clean_panel など確かめ 約 480 行・組み込みの標準・セット）・operation.py 559 行（稼働: ガント・ABC・換算係数）・equip_groups.py 146 行。数える所は版 3.61.0 で Rust（pivot.rs の query_many）に移してあり、Python の道は段取り（panel_parts: データ元・作業実績の登録・勤務体系・写し）→ 数える（pivot.query_many）→ 後の組み立て（合わせた表・別のデータを合わせる・設備の分け方・設備の手の並び・控え）。",
+ "measured": {
+  "how": "python program/tools/dash-split.py（tools/dash-bench.py と同じ大きな試験データ: 作業実績 11 台 × 2,000 行・仕掛 20,000・品質 20,000。控えを空にして 1 枚ずつ。2 回の幅）",
+  "panels": {
+   "標準 6 枚（数字 3・横棒・推移・合わせた表）": "485〜585 ms（数える所 77〜86%）",
+   "ガント": "83 ms（稼働の読み込み 67 ms）",
+   "ABC": "560〜660 ms（稼働の読み込み 450〜554 ms）",
+   "設備ごとに重ねる・並べる": "85〜88 ms（数える所 77 ms）"
+  },
+  "total": "10 枚 1,338〜1,417 ms のうち、数える所 521〜550 ms（37〜41%）・稼働の読み込み 514〜621 ms（38〜44%）・段取りと後の組み立て 275 ms 前後（19〜21%）",
+  "cached": "控えから（同じ組み・同じ写し）でも、作業実績のパネルは 1 枚 11〜16 ms（段取り: 作業実績の登録・勤務体系・写しの印を毎回読む）",
+  "rust": "数える所は版 3.61.0 の測り（品質 2.3〜5.8 倍・実績 2.8〜5.5 倍）から 4 倍前後と見込む。稼働の読み込みは Python の 1 行ずつの日時の読み（read_stamp・to_datetime）が主で、Rust の pyfmt::to_datetime は一覧で 2〜6 倍"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良（画像なし）。program/tools/dash-split.py で測った数",
+   "self_check": "画面に出ない改良なので画像は無い。案ごとに、測った数から縮む時間・Python に残る物・移す量（行）を数え、案の狙いどおりの比べ方になっているか（同じ物差し・同じデータ）を自分で確かめた。数える所・稼働・段取りの 3 つに分けた時間の和が全体と合うことも確かめた（1,338 = 550 + 514 + 274）",
+   "proposals": {
+    "A 全部 Rust（段取り・確かめ・数える・後の組み立て・稼働）": {
+     "seen": "/api/dashboard/query・/fields・/api/data/columns・/equip-tree に窓が答える。Python からは材料（設備グループ・設備マスタの名前・ダッシュボードの条件）を設定の答え（lists）で受け取る。縮む時間: 数える所 ~75%・稼働 ~70%・段取り ~80%（lists.rs の段取りを使う）。移す量 約 1,600 行（clean_panel の確かめ 480 行を含む）。Python に残るのはマスタの読み書きだけ 採点者: 【自分で測った数】dash-split.py を 2 回: 10 枚 1,587・1,342 ms、数える所 597・507 ms（38%）・稼働の読み込み 661・543 ms（40〜42%）・それ以外 329・292 ms。measured の幅（1,338〜1,417 ms・37〜41%・38〜44%）と合う。ただし「それ以外 275 ms」は 3 つの物が混ざっている（採点者の split2.py で関数ごとに測った）: ① 最初の作業実績のパネル（前日の実績本数）で写しを作る 1 回だけの時間 約 60〜90 ms（2 回目からは 44〜58 ms のうち段取り 11〜15 ms）、② ABC の計算 operation.abc 75〜81 ms（稼働の部品）、③ 段取り panel_parts は作業実績のパネル 1 枚 10〜16 ms（11 台。仕掛は 1 ms 未満）。clean_panel は 1 枚 0.0〜0.1 ms、後の組み立て（合わせた表・設備の分け方・手の並び）は数 ms。温まった後（写しあり・控えは空）: 標準 6 枚 430〜460 ms（数える所 375〜401 ms＝87%・段取り 50〜65 ms）、ガント 84〜93 ms（read_ops 68〜75）、ABC 548〜617 ms（read_ops 444〜513・abc 75〜81・段取り 11〜17）。控えから（同じ組みを 5 回）: 作業実績のパネル 1 枚 10〜17 ms（ほぼ全部が panel_parts）・仕掛 1〜2 ms。Rust の稼働の読みの見積もり（採点者の試作 scratchpad/stampbench: da_core の pyfmt::to_datetime を同じ試験データの作業開始・作業終了 44,000 個に）: 日時の読みだけ 33 ms・SQLite から読んで読むまで 45〜47 ms。同じ 44,000 個の Python の read_stamp だけで 215 ms、read_ops 全体 444〜513 ms。→ Rust の read_ops は 70〜110 ms ほど（分け・期間・直の当てはめを足した見立て）、ABC 1 枚は 100〜140 ms ほどの見込み（今の 1/4〜1/5）。最初の画面（組み込みの標準 6 枚）に稼働のパネルは無い（/api/dashboards の組み込みは「標準」1 つ・6 枚。ガント・ABC は利用者が足したときだけ）。組む所の道は重いが SQLite の中が主: /api/dashboard/fields 作業実績 159〜546・仕掛 304〜353・品質 135〜179 ms、/api/data/columns 279〜425 ms（版 3.61.0 のカラムの札の Rust は 1.2〜2.0 倍）。移す量（注釈・説明文・空行を除いた Python の行）: 数える道 372＋組む所の道 88・確かめ（services/dashboard.py の 1〜611 行）420（うち書式 clean_fmt 64 は答えに効かず、断らない）・operation.py 411・equip_groups.py 101（使うのは groups_for など一部）。Python の試験は test_operation 33・test_dashboard 15・_link 16・_slice 7・_stats 12。 見立て: 移す Python 約 1,300 行（数える道 372・組む所 88・確かめ 約 360・operation 411・equip_groups の一部）→ Rust 1,600〜2,000 行。縮む時間は 10 枚 1,342〜1,587 ms → 330〜450 ms ほど（数える所 1/4・稼働 1/5・段取り lists.rs で 1〜2 ms/枚）＝ 70〜75%（案の見立てと合う）。控えからの作業実績のパネルも 10〜17 ms → 数 ms。Python に残るのはダッシュボード・セット・カードの形のマスタの読み書き（道 222 行・services 137 行）と、前の窓・答え合わせの相手（engine=python）の道。順 7 にいちばん近い（終わりの形は E と同じ）。良い所: 順 2・3 と同じ型（材料は設定の答え・Python を答えの見本に突き合わせる）で、pivot.rs・lists.rs・pyfmt.rs・worksum.rs（直の時計）を使い回せる。悪い所: 1 回で 1,600 行余りを入れ、突き合わせの試験（集計のパネル・合わせた表・別のデータ・設備の分け方・控えの鍵・ガント・ABC・換算係数・リードタイム・基準の期間）を一度に作る。前の集計（1,256 行）は作った後の採点に 8 回かかった。食い違いが出たとき、段取り・組み立て・稼働のどこかを切り分けにくい（一度に流すので、誤りの入れ方〈1 つずつ〉の採点も重くなる）。最初の画面の効き目（稼働を含まない 6 枚）が、稼働の作り終わりを待つ。",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": []
+    },
+    "B 集計のパネルだけ Rust（稼働は Python）": {
+     "seen": "数字・グラフ・合わせた表・別のデータを合わせる・設備の分け方に窓が答え、ガント・ABC は Python へ回す（窓が答えない）。縮む時間は 10 枚の 60% 前後（ABC の 560〜660 ms は残る）。移す量 約 1,000 行 採点者: 【自分で測った数】dash-split.py を 2 回: 10 枚 1,587・1,342 ms、数える所 597・507 ms（38%）・稼働の読み込み 661・543 ms（40〜42%）・それ以外 329・292 ms。measured の幅（1,338〜1,417 ms・37〜41%・38〜44%）と合う。ただし「それ以外 275 ms」は 3 つの物が混ざっている（採点者の split2.py で関数ごとに測った）: ① 最初の作業実績のパネル（前日の実績本数）で写しを作る 1 回だけの時間 約 60〜90 ms（2 回目からは 44〜58 ms のうち段取り 11〜15 ms）、② ABC の計算 operation.abc 75〜81 ms（稼働の部品）、③ 段取り panel_parts は作業実績のパネル 1 枚 10〜16 ms（11 台。仕掛は 1 ms 未満）。clean_panel は 1 枚 0.0〜0.1 ms、後の組み立て（合わせた表・設備の分け方・手の並び）は数 ms。温まった後（写しあり・控えは空）: 標準 6 枚 430〜460 ms（数える所 375〜401 ms＝87%・段取り 50〜65 ms）、ガント 84〜93 ms（read_ops 68〜75）、ABC 548〜617 ms（read_ops 444〜513・abc 75〜81・段取り 11〜17）。控えから（同じ組みを 5 回）: 作業実績のパネル 1 枚 10〜17 ms（ほぼ全部が panel_parts）・仕掛 1〜2 ms。Rust の稼働の読みの見積もり（採点者の試作 scratchpad/stampbench: da_core の pyfmt::to_datetime を同じ試験データの作業開始・作業終了 44,000 個に）: 日時の読みだけ 33 ms・SQLite から読んで読むまで 45〜47 ms。同じ 44,000 個の Python の read_stamp だけで 215 ms、read_ops 全体 444〜513 ms。→ Rust の read_ops は 70〜110 ms ほど（分け・期間・直の当てはめを足した見立て）、ABC 1 枚は 100〜140 ms ほどの見込み（今の 1/4〜1/5）。最初の画面（組み込みの標準 6 枚）に稼働のパネルは無い（/api/dashboards の組み込みは「標準」1 つ・6 枚。ガント・ABC は利用者が足したときだけ）。組む所の道は重いが SQLite の中が主: /api/dashboard/fields 作業実績 159〜546・仕掛 304〜353・品質 135〜179 ms、/api/data/columns 279〜425 ms（版 3.61.0 のカラムの札の Rust は 1.2〜2.0 倍）。移す量（注釈・説明文・空行を除いた Python の行）: 数える道 372＋組む所の道 88・確かめ（services/dashboard.py の 1〜611 行）420（うち書式 clean_fmt 64 は答えに効かず、断らない）・operation.py 411・equip_groups.py 101（使うのは groups_for など一部）。Python の試験は test_operation 33・test_dashboard 15・_link 16・_slice 7・_stats 12。 見立て: 移す Python 約 750 行（数える道のうち稼働を除く 約 260・組む所 88・確かめ 約 330・equip_groups の一部）→ Rust 900〜1,100 行。最初の画面（標準 6 枚。温まった後 430〜460 ms）は全部窓が答え、120〜140 ms ほど（約 70% 減）になる見込み。ただし案の「10 枚の 60% 前後」は多め: 10 枚で縮むのは数える所の 3/4（380〜450 ms）と集計のパネルの段取りで、1,342〜1,587 ms のうち 30〜35%（ガント 84〜93・ABC 548〜617 ms は残る）。60% は稼働を除いた 8 枚に対しての割合。Python に残る物: operation.py 411 行・稼働の道 約 110 行・稼働のパネルの段取り（panel_parts）。同じ道（/api/dashboard/query）の段取りが、パネルの形で Rust と Python の 2 か所になる（窓は本文の visual を読んで振り分ける）。順 4 が終わらず、稼働はもう 1 回移す（順 7 へは C か E の 2 段目が要る）。突き合わせは pivot_parity の 100 通りのデータを道の形に広げればよく、手間は A の 6 割ほど。切り分けは形ごとなので分かりやすい。",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": []
+    },
+    "C 稼働を先に Rust（ABC・ガントだけ）": {
+     "seen": "いちばん重い ABC（1 枚 560〜660 ms）とガントだけを窓が答える。集計のパネルは Python のまま。縮む時間は 10 枚の 35% 前後。移す量 約 700 行（operation.py と道の ops の部分・clean_panel の稼働の確かめ） 採点者: 【自分で測った数】dash-split.py を 2 回: 10 枚 1,587・1,342 ms、数える所 597・507 ms（38%）・稼働の読み込み 661・543 ms（40〜42%）・それ以外 329・292 ms。measured の幅（1,338〜1,417 ms・37〜41%・38〜44%）と合う。ただし「それ以外 275 ms」は 3 つの物が混ざっている（採点者の split2.py で関数ごとに測った）: ① 最初の作業実績のパネル（前日の実績本数）で写しを作る 1 回だけの時間 約 60〜90 ms（2 回目からは 44〜58 ms のうち段取り 11〜15 ms）、② ABC の計算 operation.abc 75〜81 ms（稼働の部品）、③ 段取り panel_parts は作業実績のパネル 1 枚 10〜16 ms（11 台。仕掛は 1 ms 未満）。clean_panel は 1 枚 0.0〜0.1 ms、後の組み立て（合わせた表・設備の分け方・手の並び）は数 ms。温まった後（写しあり・控えは空）: 標準 6 枚 430〜460 ms（数える所 375〜401 ms＝87%・段取り 50〜65 ms）、ガント 84〜93 ms（read_ops 68〜75）、ABC 548〜617 ms（read_ops 444〜513・abc 75〜81・段取り 11〜17）。控えから（同じ組みを 5 回）: 作業実績のパネル 1 枚 10〜17 ms（ほぼ全部が panel_parts）・仕掛 1〜2 ms。Rust の稼働の読みの見積もり（採点者の試作 scratchpad/stampbench: da_core の pyfmt::to_datetime を同じ試験データの作業開始・作業終了 44,000 個に）: 日時の読みだけ 33 ms・SQLite から読んで読むまで 45〜47 ms。同じ 44,000 個の Python の read_stamp だけで 215 ms、read_ops 全体 444〜513 ms。→ Rust の read_ops は 70〜110 ms ほど（分け・期間・直の当てはめを足した見立て）、ABC 1 枚は 100〜140 ms ほどの見込み（今の 1/4〜1/5）。最初の画面（組み込みの標準 6 枚）に稼働のパネルは無い（/api/dashboards の組み込みは「標準」1 つ・6 枚。ガント・ABC は利用者が足したときだけ）。組む所の道は重いが SQLite の中が主: /api/dashboard/fields 作業実績 159〜546・仕掛 304〜353・品質 135〜179 ms、/api/data/columns 279〜425 ms（版 3.61.0 のカラムの札の Rust は 1.2〜2.0 倍）。移す量（注釈・説明文・空行を除いた Python の行）: 数える道 372＋組む所の道 88・確かめ（services/dashboard.py の 1〜611 行）420（うち書式 clean_fmt 64 は答えに効かず、断らない）・operation.py 411・equip_groups.py 101（使うのは groups_for など一部）。Python の試験は test_operation 33・test_dashboard 15・_link 16・_slice 7・_stats 12。 見立て: 移す Python 約 600 行（operation 411・稼働の道 約 110・clean_ops と確かめの稼働の分）＋道の骨組み（段取り・控えの鍵・設備の手の並び）→ Rust 700〜800 行。縮む時間: ABC 548〜617 → 100〜140 ms、ガント 84〜93 → 20 ms ほど。10 枚で 520〜600 ms（35〜40%。案の見立てと合う）。ただし最初の画面（標準 6 枚）は 0% のまま。稼働のパネルは組み込みに無く、利用者が足したときだけ効く（どれだけ使われているかは分からない＝RUST_PORT_PLAN の §5）。道の骨組み（panel_parts・控え・eorder）を、主の集計のパネルより先に、稼働のためだけに作る順で、依存の流れ（集計の部品 pivot.rs の上に積む）と逆。突き合わせの種は tools/ops-bench.py の 9 つの書き方と test_operation の 33 件があり、試験のデータは作りやすい。Python に残る物は集計のパネルの道（数える道 約 260 行・確かめ）。B と同じく振り分けが形ごとに 2 か所。",
+     "score": {
+      "order": 5,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": []
+    },
+    "D 数える所だけ Rust（Python が窓に数えさせる逆向きの問い合わせ）": {
+     "seen": "Python の道はそのまま、pivot.query_many と read_ops の代わりに、枠で窓へ「数えて」を頼んで答えを待つ。縮むのは数える所と稼働の読み込みの ~75%。段取り（275 ms）と Python の起動は残る。枠に逆向きの問い合わせ（答えを待つ）を足す（sidecar.py・sidecar.rs）。Python を外す道（順 7）には遠回り 採点者: 【自分で測った数】dash-split.py を 2 回: 10 枚 1,587・1,342 ms、数える所 597・507 ms（38%）・稼働の読み込み 661・543 ms（40〜42%）・それ以外 329・292 ms。measured の幅（1,338〜1,417 ms・37〜41%・38〜44%）と合う。ただし「それ以外 275 ms」は 3 つの物が混ざっている（採点者の split2.py で関数ごとに測った）: ① 最初の作業実績のパネル（前日の実績本数）で写しを作る 1 回だけの時間 約 60〜90 ms（2 回目からは 44〜58 ms のうち段取り 11〜15 ms）、② ABC の計算 operation.abc 75〜81 ms（稼働の部品）、③ 段取り panel_parts は作業実績のパネル 1 枚 10〜16 ms（11 台。仕掛は 1 ms 未満）。clean_panel は 1 枚 0.0〜0.1 ms、後の組み立て（合わせた表・設備の分け方・手の並び）は数 ms。温まった後（写しあり・控えは空）: 標準 6 枚 430〜460 ms（数える所 375〜401 ms＝87%・段取り 50〜65 ms）、ガント 84〜93 ms（read_ops 68〜75）、ABC 548〜617 ms（read_ops 444〜513・abc 75〜81・段取り 11〜17）。控えから（同じ組みを 5 回）: 作業実績のパネル 1 枚 10〜17 ms（ほぼ全部が panel_parts）・仕掛 1〜2 ms。Rust の稼働の読みの見積もり（採点者の試作 scratchpad/stampbench: da_core の pyfmt::to_datetime を同じ試験データの作業開始・作業終了 44,000 個に）: 日時の読みだけ 33 ms・SQLite から読んで読むまで 45〜47 ms。同じ 44,000 個の Python の read_stamp だけで 215 ms、read_ops 全体 444〜513 ms。→ Rust の read_ops は 70〜110 ms ほど（分け・期間・直の当てはめを足した見立て）、ABC 1 枚は 100〜140 ms ほどの見込み（今の 1/4〜1/5）。最初の画面（組み込みの標準 6 枚）に稼働のパネルは無い（/api/dashboards の組み込みは「標準」1 つ・6 枚。ガント・ABC は利用者が足したときだけ）。組む所の道は重いが SQLite の中が主: /api/dashboard/fields 作業実績 159〜546・仕掛 304〜353・品質 135〜179 ms、/api/data/columns 279〜425 ms（版 3.61.0 のカラムの札の Rust は 1.2〜2.0 倍）。移す量（注釈・説明文・空行を除いた Python の行）: 数える道 372＋組む所の道 88・確かめ（services/dashboard.py の 1〜611 行）420（うち書式 clean_fmt 64 は答えに効かず、断らない）・operation.py 411・equip_groups.py 101（使うのは groups_for など一部）。Python の試験は test_operation 33・test_dashboard 15・_link 16・_slice 7・_stats 12。 見立て: 縮むのは数える所と稼働の読み込み（10 枚で 830〜980 ms・60〜65%）。残るのは段取り（作業実績のパネル 1 枚 10〜16 ms。控えからも同じ）・ABC の計算 75〜81 ms（read_ops だけ移すなら）・Part（パス・直の時計・設備の見分け）と答え（1 枚 1〜20 KB）を枠で往復させる手間。枠の作り（sidecar.rs の read_loop は読み手の糸 1 本で、id 0 の知らせは「短く済ませる」決まり。sidecar.py は読み手の主の糸と ThreadPoolExecutor）に、答えを待つ逆向きの問い合わせ（窓の側の働き手・Python の側の待ち合わせ・時間切れ・中身の作り直し）と PROTOCOL の版上げが要り、前の窓 × 新しい Python・新しい窓 × 前の Python の 4 通りを全部試す。この枠は順 7 で Python を外すときに捨てる物で、Python を外す道から遠ざかる。良い所: 数える所は版 3.61.0 の pivot_parity（100 通り）で既に Python と同じと示してあり、そのまま使える。悪い所: ダッシュボードの決まり（段取り・確かめ・組み立て）は Python に残り、順 2・3 の「窓が道に答える」型と違う新しい型になる。",
+     "score": {
+      "order": 4,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 4,
+      "form": 6,
+      "place": 4,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "plan の「Python の道はそのまま、pivot.query_many と read_ops の代わりに枠で窓へ数えてを頼む」: 前の窓（逆向きを持たない）と組んだ Python は自分で数えるしかなく、答えにどちらが数えたかが出ない。遅い・違うときに、窓が数えたのか Python が数えたのかが画面にも記録にも見えない"
+      }
+     ]
+    },
+    "E A を 2 段で（版 3.62.0 で集計のパネル、版 3.63.0 で稼働。同じ PR）": {
+     "seen": "終わりの形は A と同じ。1 段目（B と同じ範囲）で突き合わせの試験を固めてから、稼働の部品（operation）を足す。段ごとに作った後の採点。移す量は A と同じ 採点者: 【自分で測った数】dash-split.py を 2 回: 10 枚 1,587・1,342 ms、数える所 597・507 ms（38%）・稼働の読み込み 661・543 ms（40〜42%）・それ以外 329・292 ms。measured の幅（1,338〜1,417 ms・37〜41%・38〜44%）と合う。ただし「それ以外 275 ms」は 3 つの物が混ざっている（採点者の split2.py で関数ごとに測った）: ① 最初の作業実績のパネル（前日の実績本数）で写しを作る 1 回だけの時間 約 60〜90 ms（2 回目からは 44〜58 ms のうち段取り 11〜15 ms）、② ABC の計算 operation.abc 75〜81 ms（稼働の部品）、③ 段取り panel_parts は作業実績のパネル 1 枚 10〜16 ms（11 台。仕掛は 1 ms 未満）。clean_panel は 1 枚 0.0〜0.1 ms、後の組み立て（合わせた表・設備の分け方・手の並び）は数 ms。温まった後（写しあり・控えは空）: 標準 6 枚 430〜460 ms（数える所 375〜401 ms＝87%・段取り 50〜65 ms）、ガント 84〜93 ms（read_ops 68〜75）、ABC 548〜617 ms（read_ops 444〜513・abc 75〜81・段取り 11〜17）。控えから（同じ組みを 5 回）: 作業実績のパネル 1 枚 10〜17 ms（ほぼ全部が panel_parts）・仕掛 1〜2 ms。Rust の稼働の読みの見積もり（採点者の試作 scratchpad/stampbench: da_core の pyfmt::to_datetime を同じ試験データの作業開始・作業終了 44,000 個に）: 日時の読みだけ 33 ms・SQLite から読んで読むまで 45〜47 ms。同じ 44,000 個の Python の read_stamp だけで 215 ms、read_ops 全体 444〜513 ms。→ Rust の read_ops は 70〜110 ms ほど（分け・期間・直の当てはめを足した見立て）、ABC 1 枚は 100〜140 ms ほどの見込み（今の 1/4〜1/5）。最初の画面（組み込みの標準 6 枚）に稼働のパネルは無い（/api/dashboards の組み込みは「標準」1 つ・6 枚。ガント・ABC は利用者が足したときだけ）。組む所の道は重いが SQLite の中が主: /api/dashboard/fields 作業実績 159〜546・仕掛 304〜353・品質 135〜179 ms、/api/data/columns 279〜425 ms（版 3.61.0 のカラムの札の Rust は 1.2〜2.0 倍）。移す量（注釈・説明文・空行を除いた Python の行）: 数える道 372＋組む所の道 88・確かめ（services/dashboard.py の 1〜611 行）420（うち書式 clean_fmt 64 は答えに効かず、断らない）・operation.py 411・equip_groups.py 101（使うのは groups_for など一部）。Python の試験は test_operation 33・test_dashboard 15・_link 16・_slice 7・_stats 12。 見立て: 終わりの形・移す量・縮む時間は A と同じ（Rust 1,600〜2,000 行・10 枚 70〜75% 減）。1 段目（B と同じ範囲。Rust 900〜1,100 行）で最初の画面（標準 6 枚 430〜460 → 120〜140 ms ほど）が全部縮み、2 段目（operation の 411 行と稼働の道 約 110 行。Rust 700〜800 行）で ABC 548〜617 → 100〜140 ms・ガント 84〜93 → 20 ms ほど。切り方がコードの境（dashboard.OPS_VISUALS の分かれ道・operation.py）と同じで、2 段目は 1 段目の道の骨組み（段取り・控えの鍵・eorder）の上に積むだけ。突き合わせの種も段ごとに既にある（1 段目: pivot_parity の 100 通りのデータ。2 段目: tools/ops-bench.py の 9 つの書き方・test_operation の 33 件）。作った後の採点も段ごとに狭く、食い違いの場所を段で切り分けられる。Python に残るのはマスタの読み書きと答え合わせの相手だけ（A と同じ）。順 7 に A と同じだけ近い。気になる所: 「同じ PR」だと 1 段目の効き目（最初の画面）が 2 段目の採点の終わりを待つ。1 段目が合格したら 3.62.0 を先に入れる方がよい（push の決まりは段ごとに守る）。1 段目と 2 段目の間は、窓が本文の visual で稼働を Python へ回す振り分けが一時だけ要る（B と同じ。2 段目で消す）。",
+     "score": {
+      "order": 9,
+      "chunk": 9,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 8,
+      "intuitive": 9,
+      "form": 9,
+      "place": 9,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": []
+    },
+    "F 確かめは Python・数えると組み立ては Rust": {
+     "seen": "窓が Python に「パネルを確かめて」（clean_panel・設備グループの解決・ダッシュボードの条件）を 1 往復尋ね（~1〜3 ms）、確かめた形で数えて組み立てる。clean_panel の 480 行を移さなくてよい（書式の確かめが多く、数えるのに要らない所が大半）。縮む時間は A とほぼ同じ（確かめの 1 往復が残る）。Python を外す道（順 7）では、確かめを後で移す 採点者: 【自分で測った数】dash-split.py を 2 回: 10 枚 1,587・1,342 ms、数える所 597・507 ms（38%）・稼働の読み込み 661・543 ms（40〜42%）・それ以外 329・292 ms。measured の幅（1,338〜1,417 ms・37〜41%・38〜44%）と合う。ただし「それ以外 275 ms」は 3 つの物が混ざっている（採点者の split2.py で関数ごとに測った）: ① 最初の作業実績のパネル（前日の実績本数）で写しを作る 1 回だけの時間 約 60〜90 ms（2 回目からは 44〜58 ms のうち段取り 11〜15 ms）、② ABC の計算 operation.abc 75〜81 ms（稼働の部品）、③ 段取り panel_parts は作業実績のパネル 1 枚 10〜16 ms（11 台。仕掛は 1 ms 未満）。clean_panel は 1 枚 0.0〜0.1 ms、後の組み立て（合わせた表・設備の分け方・手の並び）は数 ms。温まった後（写しあり・控えは空）: 標準 6 枚 430〜460 ms（数える所 375〜401 ms＝87%・段取り 50〜65 ms）、ガント 84〜93 ms（read_ops 68〜75）、ABC 548〜617 ms（read_ops 444〜513・abc 75〜81・段取り 11〜17）。控えから（同じ組みを 5 回）: 作業実績のパネル 1 枚 10〜17 ms（ほぼ全部が panel_parts）・仕掛 1〜2 ms。Rust の稼働の読みの見積もり（採点者の試作 scratchpad/stampbench: da_core の pyfmt::to_datetime を同じ試験データの作業開始・作業終了 44,000 個に）: 日時の読みだけ 33 ms・SQLite から読んで読むまで 45〜47 ms。同じ 44,000 個の Python の read_stamp だけで 215 ms、read_ops 全体 444〜513 ms。→ Rust の read_ops は 70〜110 ms ほど（分け・期間・直の当てはめを足した見立て）、ABC 1 枚は 100〜140 ms ほどの見込み（今の 1/4〜1/5）。最初の画面（組み込みの標準 6 枚）に稼働のパネルは無い（/api/dashboards の組み込みは「標準」1 つ・6 枚。ガント・ABC は利用者が足したときだけ）。組む所の道は重いが SQLite の中が主: /api/dashboard/fields 作業実績 159〜546・仕掛 304〜353・品質 135〜179 ms、/api/data/columns 279〜425 ms（版 3.61.0 のカラムの札の Rust は 1.2〜2.0 倍）。移す量（注釈・説明文・空行を除いた Python の行）: 数える道 372＋組む所の道 88・確かめ（services/dashboard.py の 1〜611 行）420（うち書式 clean_fmt 64 は答えに効かず、断らない）・operation.py 411・equip_groups.py 101（使うのは groups_for など一部）。Python の試験は test_operation 33・test_dashboard 15・_link 16・_slice 7・_stats 12。 見立て: clean_panel は Python の中で 1 枚 0.0〜0.1 ms、枠 1 往復 0.13 ms（RUST_PORT_PLAN §3）。案の「~1〜3 ms」は多め（実際は 0.3 ms ほど）で、速さは A と同じ。移さずに済むのは確かめの 約 330 行（書式 clean_fmt 64 行は A でも答えに効かないので移さなくてよく、差はもっと小さい）。ただし Rust は確かめた形を読む型（serde）を結局持ち、書式を除く確かめは純粋な関数で、JSON を入れて JSON を比べる突き合わせが作りやすい所。省ける手間は少ない。悪い所: 問い合わせのたびに Python が生きていて空いている要がある（中身の作り直しは Windows で 1,099 ms。働き手は組む所の重い道〈/api/dashboard/fields 159〜546 ms〉やスケジュールと分け合う）。上限（ROWS_MAX・MAX_EQUIPS・MAX_FACETS・MAX_DIMS）の決まりが Python の確かめと Rust の数える所の 2 か所になる。順 2 の A（段取りは Python に毎回尋ねる）と同じ型で、順 2 では B（材料を設定の答えで受け取る）に決めた。順 7 では確かめを後で移すので、総量は減らずに先送りになる。食い違いの切り分けは、Python の確かめ・Rust の数えるのどちらかを両方の記録で見る要がある。",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 5,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": []
+    }
+   },
+   "baseline": {
+    "今（Python が全部）": {
+     "seen": "10 枚 1,338〜1,417 ms。控えからでも作業実績のパネルは 1 枚 11〜16 ms 採点者: 温まった後の標準 6 枚 430〜460 ms・ABC 548〜617 ms・控えからの作業実績のパネル 10〜17 ms（段取り）。数える部品は Rust（pivot.rs）にもあるのに、ダッシュボードだけ Python の pivot.py が数え、同じ決まりが 2 か所で動く（集計表は窓・ダッシュボードは Python）。Python を外せない。",
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 4,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 5,
+      "place": 5,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": []
+    }
+   }
+  }
+ ],
+ "built_before1": {
+  "name": "作った後（1 回目）",
+  "evaluator": "作っていない採点者（別のエージェント）。cargo test --locked --test dash_parity --lib を流し、dashboard.rs（と lot.rs の handle_body）に誤りを 80 個 1 つずつ入れて cargo test --locked --test dash_parity を流し（見逃した 20 個は --lib も足して流し直し）、毎回と最後に元の写し（scratchpad）と cmp で同じことを確かめた。routes/dashboard.py・services/dashboard.py・equip_groups.py・data_sources.EquipmentMatcher・pivot.Part・lotlist_fixture.make_wip と dashboard.rs・lot.rs・main.rs・lotlist.py の差分を読み比べ、端の形は Python の道を自分で流して確かめた（scratchpad/py_edge.py）。速さは dashboard_oracle.py --bench → dash_bench で自分で測った。台本は scratchpad の mut.py・mut_lib.py。リポジトリは採点のファイルのほかは変えていない",
+  "images": "画面に出ない改良（画像なし）。流した試験: cargo test --locked --test dash_parity --lib（lib 58・dash_parity 1、終了コード 0）。わざと入れた誤り 80 個（dashboard.rs 79・lot.rs 1。確かめ〈dims・filters・period・day_of・names・measure・egroup・data・link・board・clean_panel〉・材料〈groups_for・members_in〉・段取り〈panel_parts・equip_of・fail_of〉・まとめ〈resolve_egroup・group_sets〉・数える〈box_column・count〉・分け方〈equip_ok・split_answer・split_of〉・合わせる〈link_answer・link_key・aggregate_name・side_query〉・合わせた表〈board_query・query〉・並び〈order_names・with_eorder〉・facets_of・handle_body）",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 6,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "確かめの境が試験で見えない。① dashboard.rs:348 の合わせた表のまとまりの上限を > 4 → >= 4 にしても通る（4 まとまりの組が無く、5 の失敗だけ）。壊れると、画面で作れる 4 まとまりの合わせた表を窓が 400 で断る。② dashboard.rs:425 で表（none）にも行の段を求めても通る（行の段の無い表の組が無い）。壊れると、総計だけの表のパネルが「行の段が要ります」で出なくなる"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "設備の分け方・まとめ・取り出し方が試験で見えない。① dashboard.rs:556 で取り出し方（equipMode）を捨てても通る: dashboard_oracle.py は仕掛の設備の列を「前方一致」にするが、BOX設計_設備名 の値は lotlist_fixture.make_wip の route[0]（設備名そのもの）なので、前方一致とそのままが同じ答え。壊れると「CR1 南」のような値の設備が見分けられない。② dashboard.rs:1133 の「合算のまとめ（egroup sum）を先に見る」を外しても、③ dashboard.rs:1140 の「マスタのまとめで重ねる」を外しても通る（どちらも設備の段の無い行のパネルに、sum＋設備 2 つ以上・master の組が無い）。壊れると合算のパネルが設備ごとの系列に、マスタのまとめが 1 つの合算に変わる。④ dashboard.rs:1181 で合わせた表のまとまりの設備を表全体の設備より強くしても通る（両方に設備を決めた組が無い）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "失敗・知らせ・今日が試験で見えない。① dashboard.rs:839 の読めない元（PFail::Down）の 503 を 500 にしても通る（数える中で Down になる組が無い。前の段の pivot の 1 回目と同じ穴）。② dashboard.rs:825 で today を前の日にしても通る（today が効くのは「n 日以内」などの日付の条件だけで、その条件の組が無い）。③ dashboard.rs:1078 の equipIgnored を any → all にしても通る（合わせるデータの片方だけが設備で絞れない組が無い）。壊れると「設備で絞れない」の知らせが出ない"
+    }
+   ],
+   "seen": "【流した試験】cargo test --locked --test dash_parity --lib: lib 58 passed・dash_parity 1 passed、終了コード 0（Python へ回す 4 通り・engine=python も確かめる）。【誤り 80 個】dash_parity だけで 59 個を見つけ、見逃した 21 個を --lib も足して流し直すと dashboard.rs:1203（order_names の手の順を見ない）は lib の単体試験が見つけた（dash_parity の手で並べた順の組は、どれも今の並び〈並び 1 の TLV・2 の CAL…〉と同じ向きで、逆の順が無い）。残る見逃し 20 個の分け方: 〈答えの変わる穴 9 個。減点〉dashboard.rs:348・425・556・1133・1140・1181・839・825・1078（減点の where）。〈このデータや画面からは答えの変わらない書き換え・端 11 個〉dashboard.rs:179（names の前後の空白。画面は空白無しで送る）・267（検索の前後の空白）・325（まとまりの列の段 3。画面は 2 まで）・448（まとめ方の名前の NFKC。画面はマスタの名前をそのまま送る）・531（kind の無い失敗。どの失敗にも kind がある）・599（登録の設備名の NFKC。登録の名前は既に大文字の半角）・684（合算の rest。数える設備が選んだ設備に絞られるので other と keep が同じ）・1060（効かない条件が 2 つ以上の合わせる組が無い）・1334（設備の段の見出しの字は鍵と同じ）・805（数えた答えの note が空）・161（列の空の期間。画面は列を必ず入れる）。答えの変わる 69 個のうち 60 個（87%）を見つけた。【読み比べで見つけた食い違い 2 つ（画面からは来ない形なので減点しない）】① 本文 {\"panel\": null}・{\"panel\": []}・{\"panel\": 0}: Python は `body.get(\"panel\") or {}` で「パネル「p1」のデータ（lot・work・src:<キー>）が違います。」、窓は dashboard.rs:1313 の body.get(\"panel\").unwrap_or(..) が null・[]・0 をそのまま渡し「パネルの形が違います。」（どちらも 400。Python の答えは scratchpad/py_edge.py で確かめた）。② 期間 range の日付が全角（\"２０２６-０９-２０\"）: Python の _day は \\d が全角の数字にも当たり、pivot が「期間の日付（から・まで）を入れてください。」の 400、窓の day_of（dashboard.rs:146）は ASCII だけで日付なしにして period を外し、全部の行を数えて 200。画面の暦は ASCII の日付だけを送る。そのほか、写し・段取り・確かめ・合わせる・合わせた表・facets の組み立ては Python と同じ決まりで、答えの控えの鍵も Python と同じ物（設備の名前は鍵に入らない点も同じ）。【速さ】dashboard_oracle.py --bench → dash_bench（5 回の中央値・控えは毎回空）: 14 枚の計 Python 1,417.1 ms → 窓 419.6 ms（3.4 倍）。最初の画面の標準 6 枚 393.8 → 142.2 ms（2.8 倍。wipTotal 4.6・workTotal 1.9・workMonth 2.1・wipClass 3.1・workDays 2.4・board 3.0 倍）・重ねる 5.8・並べる（割合・順位）2.3・品質の設備 30 超 5.9・マスタのまとめ 5.8・計算列 6.0・統計 3.9・合わせる 2.7・合わせた表 3.0 倍。答えの形（same_shape）は 14 枚すべて同じ・状態はすべて 200。RUST_PORT_PLAN.md の表（2.8 倍・3.2 倍）と合う。【点の理由】order・chunk・hierarchy 8（道の入口 handle_body → clean_panel → 段取り → 数える → 組み立てが Python と同じ順・同じ名前の関数）、visual 8（試験の失敗の字に組の名前と差が出る・組の数の下限を数える）、steps 9（利用者の手は変わらず、稼働・スケジュール・前の版は自動で Python へ）、effortless 8（試験の穴 9 個で、Python を直したときの食い違いに気づけない所が残る）、intuitive 8、form 9、place 8、layout 6（同じ決まりが Rust と Python に 2 つずつ。前の段と同じ）、tone 8。減点は 3 つ（状態が見えない −3 × 3）。直すなら、dashboard_oracle.py に 4 まとまりの合わせた表・行の段の無い表・前方一致が効く設備の値（例「CR1 南」）・設備の段の無い行の sum＋設備 2 つと master・表全体とまとまりの両方の設備・日付の n 日以内の条件・片方だけ設備で絞れない合わせる組・数える中で読めない元（壊れた写し）を足し、もう一度誤りを入れ直して確かめる"
+  }
+ },
+ "built_before2": {
+  "name": "作った後（2 回目）",
+  "evaluator": "作っていない採点者（2 回目。1 回目とは別のエージェント）。始める前に今の dashboard.rs・lot.rs を自分の写しとして取り直し（scratchpad/g2/*.mine。前の採点者の写しとも同じだった）、cargo test --locked --test dash_parity --lib を流し、自分で書いた台本（scratchpad/g2/mut2.py）で誤りを 75 個 1 つずつ入れて cargo test --locked --test dash_parity を流し（通ったら --lib も足して流し直し）、毎回と最後に写しへ戻して cmp で同じことを確かめた。routes/dashboard.py・services/dashboard.py・equip_groups.py・work_log.ordered・data_sources.EquipmentMatcher・routes/worklog.py の段取り・routes/access.py の前処理・画面（dashboard-editor.js・dashboard-slicer.js・dashboard.js）と dashboard.rs・lot.rs・main.rs・lotlist.py の差分を読み比べ、試験の組に無い形 39 通りを自分の組（scratchpad/g2/probe.py・probe2.py）で Python の道に答えさせ、窓の受け口（Lot::handle_body）の答えと自分の突き合わせの道具（scratchpad/g2/probe。da_core を部品にした別の crate）で比べた。速さは dashboard_oracle.py --bench → dash_bench を自分で流した。リポジトリは採点のファイルのほかは変えていない",
+  "images": "画面に出ない改良（画像なし）。流した試験: cargo test --locked --test dash_parity --lib（lib 58 passed・dash_parity 1 passed〈99 通り〉、終了コード 0）。わざと入れた誤り 75 個（dashboard.rs 73・lot.rs 2）: 1 回目の見逃し 9 個の入れ直し＋直した食い違い 2 つ＋まとまりの列の段（R1〜R12）と、新しい誤り 63 個（確かめ〈int_of・dims・filters・period・day_of・clean_egroup・data・clean_link・clean_group・clean_board・board_default・clean_panel〉・材料〈groups_for・equip_tree・members_in〉・段取り〈panel_parts・写しを待つ・ロット番号の列・元の名前〉・まとめ〈resolve_egroup・group_sets〉・数える〈box_column・stamp・控えの鍵・count〉・分け方〈equip_ok・split_answer・facets_of〉・合わせる〈link_answer・link_key・side_query〉・並び〈with_eorder・order_names〉・query・lot.rs の handle_body）。結果は scratchpad/g2/mut2.json",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 6,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "画面から来る形を試験の組が拾わない（誤りを入れても dash_parity・lib が通る）。① dashboard.rs:65 の期間の種類から month（n か月前）を外しても通る: dashboard_oracle.py に kind month の組が無い。ダッシュボードのスライサーの月の ◀▶（dashboard.js:1090 → dashboard-slicer.js の periodBack）は 2 か月前から {kind: \"month\", n} を送るので、壊れると期間が外れて全部の行を数える。② dashboard.rs:658 の品質のロット番号の列（lotSet）を捨てても通る: 試験は作業実績にだけロット番号の列（作業者）を決め、品質には決めていない。自分で品質に「客先」を決めると Python のロット数は 156（行は 600）で、窓も 156（probe2.py の Q1・Q2）。壊れると品質のロット数が行の数になる。③ dashboard.rs:739 の箱ひげの列を後ろの値から選んでも通る（箱ひげ・X̄-R の組は数の値が 1 つだけ）。値を 2 つ置いた箱ひげ（probe2.py の Q4: 平均 板厚＋中央値 重量）で箱の列が変わる。④ dashboard.rs:223 の合算の名前を 4 字で切っても通る（組の名前は「2 台」と既定の名前だけ）。「CRライン計」のような名前が切れる"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "入口と並べる図の端が試験で見えない。① lot.rs:184 の「材料（lists.dash）を答えない中身は Python へ回す」を外しても通る（試験の設定にはいつも dash がある）。RUST_PORT_PLAN.md が「材料を答えない前の版の中身は Python へ回す」と書く分かれ道で、壊れると設備の名前・設備グループが空のまま窓が数えて答える。② dashboard.rs:1238 の並べる図の空の鍵（設備の列が空欄の行。pivot の NO_EQUIP）を外さなくても通る: 品質の設備 30 超の組では空の鍵が 24 番目より後ろで切られ、ほかの並べる組は作業実績（空の設備が無い）。設備が 24 以下で空欄のあるデータ元を並べると、空の鍵の図が 1 枚増える"
+    }
+   ],
+   "seen": "【流した試験】cargo test --locked --test dash_parity --lib: lib 58 passed・dash_parity 1 passed（99 通り。Python へ回す 4 通りと engine=python も）、終了コード 0。【誤り 75 個】62 個を見つけた（すべて dash_parity が見つけ、--lib を足して見つかった物は無し）。1 回目の見逃し 9 個（合わせた表 4 まとまり・行の段の無い表・取り出し方・合算を先に見る・マスタのまとめで重ねる・まとまりと全体の設備・読めない元の 503・今日・equipIgnored）と、直した食い違い 2 つ（本文の panel が null・全角の日付）と、まとまりの列の段 2 つまでは、入れ直すとすべて見つかった（足した組が効いている）。見逃した 13 個の分け方: 〈答えの変わる穴 6 個。減点〉dashboard.rs:65（month）・658（品質の lotSet）・739（箱ひげの列）・223（合算の名前の長さ）・1238（並べる図の空の鍵）・lot.rs:184（dash の無い中身）。〈このデータや画面からは答えの変わらない書き換え 7 個〉dashboard.rs:91（期間の日数の下限。画面は Math.max(1, …) で 1 以上しか送らない）・111（段の幅・原点。ダッシュボードの組む所は送らない）・132（値の無い条件。値を持たないのは empty・not_empty で、値を見ない）・147（日付の 11 字目。画面の暦は 10 字だけ）・339（まとまりの無い合わせた表の既定。保存した表も組む所の表も必ずまとまりを持つ。CI の自己診断 10e は groups: [] を突き合わせる）・389（知らない形の既定。画面は必ず形を送り、空のパネルはデータの確かめで先に断る）・685（合算のまとめの設備。数える設備が選んだ設備に絞られるので、空でも全部が同じ名前の「その他」になる）。答えの変わる 68 個のうち 62 個（91%。1 回目は 87%）を見つけた。【読み比べと自分の組 39 通り】試験の組に無い形（n か月前・太陽暦・ヒストグラムの幅と原点・値 2 つの箱ひげ・まとまりの無い合わせた表・長い合算の名前・品質で合算・値の無い条件・数の値の条件・計算列 45 個・panel が字・期間の日数 0 と \"3.5\"・日付の後ろに時刻・アラビア数字の日付・3 つのうち 2 つ読めない合わせる・片方に計算列・数字の並べる割合（列）・濃淡の差・列の段の設備の手の並び・まとまりの計算列・合金の行とまとめ・工程×設備・仕掛の合算・前後の空白の名前と条件・4 桁の数の軸・品質のロット番号の列・年の軸・先が平均の箱ひげ）は 38 通りが Python と同じ答え・同じ状態。違ったのは 1 つ: 段の区切りに知らない字（part \"y\"）を入れた合わせるで、Python は pivot._dim_name の KeyError で 500、窓は 200（画面は year などの決まった字だけを送るので届かない。Python の側の落ち方なので減点しない）。そのほか、serde_json に preserve_order が無く、窓は本文の計算列 {formulas, names} を鍵の字の順で読む（Python は来た順）: 式が 40 を超える・2 つの列が同じ表示名のときだけ違いうる（画面の calcOf は使う式と 1 段の元だけを送るので届かない）。段取り・確かめ・合わせる・合わせた表・並べる図・控えの鍵は Python と同じ決まりで、前処理（access.py の書き込みの門番）もこの道には掛からない。【速さ】dashboard_oracle.py --bench → dash_bench（5 回の中央値・控えは毎回空）: 14 枚の計 Python 1,379.9 ms → 窓 425.7 ms（3.2 倍）。最初の画面の標準 6 枚 398.1 → 142.5 ms（2.8 倍。wipTotal 2.3・workTotal 2.7・workMonth 2.4・wipClass 3.7・workDays 2.4・board 3.0 倍）・重ねる 5.2・並べる（割合・順位）3.7・品質の設備 30 超 4.0・マスタのまとめ 6.2・計算列 2.9・統計 3.9・合わせる 2.5・合わせた表 2.8 倍。答えの形（same_shape）は 14 枚すべて同じ・状態はすべて 200。RUST_PORT_PLAN.md の表（2.8 倍・3.2 倍）と合う。【点の理由】order・chunk・hierarchy 8（入口 handle_body → clean_panel → 段取り → 数える → 組み立てが Python と同じ順・同じ名前の関数）、visual 8（試験の失敗に組の名前と最初の差が出る・組の数の下限を数える）、steps 9（利用者の手は変わらず、稼働・スケジュール・前の版は自動で Python へ）、effortless 8（1 回目の穴はすべて埋まったが、スライサーの n か月前・品質のロット番号の列など、画面から来る形の穴が 6 個残る）、intuitive 8、form 9、place 8（RUST_PORT_PLAN.md の「答えの変わる誤りはすべて見つかり」は作った者の 65 個の話で、別の誤りでは 6 個の穴が見える）、layout 6（同じ決まりが Rust と Python に 2 つずつ。前と同じ）、tone 8。減点は 2 つ（状態が見えない −3 × 2）。直すなら、dashboard_oracle.py に kind month の期間・品質のデータ元のロット番号の列・値を 2 つ置いた箱ひげ・5 字以上の合算の名前・設備が 24 以下で空欄のある並べる図を足し、dash_parity に設定の dash を外した 1 回（Python へ回すこと）を足して、もう一度誤りを入れ直して確かめる"
+  }
+ },
+ "built_before3": {
+  "name": "作った後（3 回目）",
+  "evaluator": "作っていない採点者（3 回目。1・2 回目とは別のエージェント）。始める前に今の dashboard.rs・lot.rs を自分の写し（scratchpad/g3/*.mine）に取り、cargo test --locked --test dash_parity --lib を流し、自分の台本（scratchpad/g3/mut3.py。戻し先は自分の写し）で誤りを 60 個 1 つずつ入れて cargo test --locked --test dash_parity を流し（通ったら --lib も足して流し直し）、毎回と最後に写しへ戻して cmp で同じことを確かめた。routes/dashboard.py・services/dashboard.py・equip_groups.py・work_log.ordered・pivot_presets._dims・routes/lotlist.py（lists_settings・engine）と、画面の組む所（dashboard-editor.js の startLink・toBoard・groupView・足す値の札、dashboard-slicer.js の periodBack、value-filter.js・lotlist-slicer.js の条件の key）を dashboard.rs・lot.rs と読み比べ、試験の組に無い形 26 通りを自分の組（scratchpad/g3/probe3.py）で Python の道に答えさせ、窓の受け口（Lot::handle_body）の答えと自分の突き合わせの道具（scratchpad/g3/probe。da_core を部品にした別の crate）で比べた。さらに見逃した 26 個を 1 つずつ入れ直してその 26 通りで答えが変わるかを見て分けた（scratchpad/g3/classify.py・classify.json）。速さは dashboard_oracle.py --bench → dash_bench を自分で流した。リポジトリは採点のファイルのほかは変えていない（台本の後に cmp で同じことを確かめた）",
+  "images": "画面に出ない改良（画像なし）。流した試験: cargo test --locked --test dash_parity --lib（lib 58 passed・dash_parity 1 passed、終了コード 0）。わざと入れた誤り 60 個（dashboard.rs 56・lot.rs 4）: 2 回目の見逃し 6 個（n か月前・品質のロット番号の列・値 2 つの箱ひげ・合算の名前の長さ・並べる図の空の鍵・材料の無い中身）と 1 回目の見逃し 4 個（取り出し方・マスタのまとめで重ねる・読めない元の 503・今日）の入れ直しと、新しい誤り 50 個（確かめ〈filters の in の長さ・列の空白・key・data の basis と search・clean_link の extra と role・measure の空の column・clean_board の設備と見出し・期間の既定の日数と日付の形・まとめの名前の長さ・設備の名前の長さ〉・段取り〈並び・写し中を先に・実績のロット番号の列〉・まとめ〈合算の「その他」の名前・段の空のまとめ方・除く設備・まとめ方の NFKC〉・控えの鍵・分け方〈重ねるの設備の置き場・列の段の設備と設備グループ・列の段いっぱい・合算の知らせ〉・並べる図〈名前・箱〉・手で並べた順・合わせる〈side_query の calc・search・basis・equip・軸の名前・片方の役割・元の名前・日の軸・空の積み上げ〉・合わせた表〈board_query の calc・search・basis・equip・見出しの設備〉・lot.rs〈設定を尋ね直す道・engine・変換表〉）。結果は scratchpad/g3/mut3.json・classify.json",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 6,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "合わせるデータ・合わせた表のまとまりに画面が写す物を、窓が落としても試験が通る。dashboard.rs:1157（合わせるデータの calc）・1152（同じく search・equip）・1179（まとまりの calc）・1174（同じく search・equip）を外しても dash_parity・lib が通る: dashboard_oracle.py の合わせる 11 通り・合わせた表 6 通りのどれにも計算列・検索・設備 1 つの鍵が無い。画面は dashboard-editor.js の startLink（1 つ目のデータへ calc・search・equip を写す）と toBoard（1 つ目のまとまりへ写す）で必ず送る。自分の組 P1・P2・P4・P5・P6・P8・P26 で、外すと答えが変わる（P2 の値 6 → 55、P8 の行 2 → 11 など）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "設備の分け方・まとめ・合わせるの形が試験で見えない。① dashboard.rs:869 で重ねるの設備を列の段の頭でなく後ろに置いても通る（重ねる組はどれも列の段が無い。P9 で升 26 → 27）。② :1129 で列の段の設備・設備グループを見なくても通る（列に @equip・@egroup を置いた組が無い。P10・P11 で升 12 → 20）。③ :685 の合算の「その他」の名前を変えても通る（設備を選ばない合算で設備の段の組が無い。P12 で「全設備」→「その他」）。④ :232・:241 のこのパネルのグループ名・まとめ方の名前を 4 字で切っても通る（組の名前がどれも 4 字以下。P15・P16）。⑤ :987 の差・達成率を目標と実績の両方があるときだけにする所を外しても通る（画面は役割を「比べる」に戻しても足す値の印を p.link.extra に残す。P18）。⑥ :1080 の元の名前を 1 つにまとめなくても通る（同じデータを 2 つ合わせる組が無い。P17 で「品質・品質」）。⑦ :974 の軸の値が無い積み上げの計を 0 にしても通る（P19。Python は null）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "入口・確かめの長さが試験で見えない。① dashboard.rs:133 の値を選ぶ条件（in）を 400 字で切っても通る（in の組の値はどれも短い。スライサー・値で絞るで値を 20 個ほど選ぶと 400 字を超え、P13 で升 3 → 0）。② lot.rs:196 で変換表を渡さなくても通る（計算列の組に conv(…) が無い。P20 で升 4 → 2）。③ lot.rs:184 の engine（desktop.lotlist_engine）を見なくても通る: lists_settings は engine が python でも lists.dash を返すので、食い違いに気づいて Python に戻す設定にしても窓がダッシュボードを答え続ける（dash_parity は engine=python の問い合わせと dash の無い中身だけを試す。lot.rs の単体試験 answers_with_the_mirror_and_follows_the_engine は handle だけで handle_body を見ない）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "答えの控えの鍵が試験で見えない。dashboard.rs:777 の鍵からファイルの印（sig）を外しても通る（どの組も 1 回だけ問い合わせ、写しが新しくならない）。壊れると、パネルは 1 分ごとに引き直すのに、写しが新しくなっても同じ「今日」の間は前の答えを返す（Python の鍵は _file_sig を持つ）。lot.rs:96 の設備グループを書いたら設定を尋ね直す所を外しても通る（尋ね直しは SETTINGS_TTL の 10 秒で戻るので軽い）"
+    }
+   ],
+   "seen": "【流した試験】cargo test --locked --test dash_parity --lib: lib 58 passed・dash_parity 1 passed、終了コード 0（real 13 秒。Python へ回す 4 通り・engine=python・材料の無い中身も）。【誤り 60 個】34 個を見つけた（すべて dash_parity。--lib を足して見つかった物は無し）。前の回の見逃しの入れ直し 10 個（2 回目の 6 個: n か月前・品質のロット番号の列・値 2 つの箱ひげ・合算の名前の長さ・並べる図の空の鍵・材料の無い中身／1 回目の 4 個: 取り出し方・マスタのまとめで重ねる・503・今日）はすべて見つかり、足した組は効いている。見逃した 26 個は、見逃しごとに入れ直して自分の組 26 通り（probe3.py）で窓の答えが変わるかを見て分けた。〈画面から来る形で答えの変わる穴 18 個。減点〉dashboard.rs:1157・1152（search・equip の 2 個）・1179・1174（search・equip の 2 個）・869・1129・685・232・241・987・1080・974・133・777、lot.rs:196・184（減点の where）。〈このデータや画面からは答えの変わらない書き換え・端 8 個〉dashboard.rs:268 の検索の strip（pivot の search_filter_where が空白で区切るので同じ）・137 の key を in 以外にも（画面は key を in にだけ付ける: value-filter.js:249・lotlist-slicer.js:74。P22 で答え同じ）・303 の役割を確かめない（画面は目標・実績・比べるだけを送る。P23 は違うが届かない）・180 の設備の名前を 12 字で切る（試験データの設備の名前がどれも短い。長い名前の工場では違いうる）・1201 の手で並べた順で同じ名前は先の方（_names は字そのままで重ねを外すので、書きゆれの同じ名前が 2 つ来たときだけ。画面の eorder は設備の名前の並びから作る）・1307 の並べる図の名前を鍵に（設備の段の札は鍵と同じ字）・777 の鍵の読めない設備の名前（読めない設備が読めるようになるとファイルの印の数も変わる）・lot.rs:96（10 秒で戻る）。答えの変わる 52 個のうち 34 個（65%。1 回目 87%・2 回目 91% は前の回の採点者の誤りの話）を見つけた。前の回は確かめ・段取り・数える所に誤りを多く入れ、side_query・board_query の写し方、分け方の端、lot.rs の入口には少なかった。【読み比べと自分の組 26 通り】合わせるデータの計算列・検索・太陽暦・設備 1 つの鍵／合わせた表のまとまりの計算列・検索・太陽暦・設備 1 つの鍵（4 まとまりの組みも）／列の段のある重ねる／列の段に設備・設備グループ／設備を選ばない合算と設備の段／長い in の値の並び／n の無い直近 n 日／長いグループ名・まとめ方の名前／同じデータ 2 つの合わせる／目標だけの差・達成率／空の積み上げ／変換表を引く計算列／書きゆれの同じ名前の手の並び／in 以外の key／知らない役割／品質の並べる図／後のデータの日が前の日の軸: 26 通りすべて Python と同じ答え・同じ状態（今の窓に食い違いは見つからなかった）。読み比べで、Python の clean_panel の稼働で作業実績でないデータの 400 は窓が Python へ回して同じ答え、legacy・look・order の by などの見せ方は数えないので外して同じ、控えの鍵の並べ方（sort_keys）の違いは答えに出ない。前の回の「計算列の式を鍵の字の順で読む」（serde_json に preserve_order が無い）は残る（画面からは届かない）。【速さ】dashboard_oracle.py --bench → dash_bench（5 回の中央値・控えは毎回空）: 14 枚の計 Python 1,285.9 ms → 窓 394.7 ms（3.3 倍）。最初の画面の標準 6 枚 361.0 → 135.4 ms（2.7 倍。wipTotal 3.6・workTotal 2.1・workMonth 2.0・wipClass 3.7・workDays 2.0・board 3.0 倍）・重ねる 5.1・並べる（割合・順位）2.5・品質の設備 30 超 4.5・マスタのまとめ 5.8・計算列 5.4・統計 4.3・合わせる 2.6・合わせた表 3.0 倍。答えの形（same_shape）は 14 枚すべて同じ・状態はすべて 200。RUST_PORT_PLAN.md の表（2.8 倍・3.2 倍）とほぼ合う。【点の理由】order・chunk・hierarchy 8（入口 handle_body → clean_panel → 段取り → 数える → 組み立てが Python と同じ順・同じ名前の関数）、visual 8（試験の失敗に組の名前と最初の差が出る・組の数の下限を数える）、steps 9（利用者の手は変わらず、稼働・スケジュール・前の版は自動で Python へ）、effortless 7（前の回の穴はすべて埋まったが、画面の組む所が必ず送る合わせるデータ・まとまりの計算列・検索・設備の鍵、列の段のある重ねる、長い in の値、変換表、engine の戻し道など、答えの変わる穴が 18 個見えた。Python を直したときの食い違いに気づけない所が前の回より多く見えた）、intuitive 8、form 9、place 8（RUST_PORT_PLAN.md は見逃しに組を足したと書くが、見逃しの所だけを足していて、同じ関数の隣の形〈side_query の calc の隣の search・equip など〉には足していない）、layout 6（同じ決まりが Rust と Python に 2 つずつ。前と同じ）、tone 8。減点は 4 つ（状態が見えない −3 × 4）。直すなら、dashboard_oracle.py に、合わせるデータとまとまりに calc・search・equip（設備の鍵）を置いた組・列の段のある重ねる・列の段に @equip と @egroup・設備を選ばない合算×設備の段・5 字以上のグループ名とまとめ方の名前（無いまとめ方の長い名前も）・役割を比べるに戻した extra・同じデータ 2 つの合わせる・値の無い積み上げ・400 字を超える in の値・conv(…) の計算列を足し、dash_parity に engine を python にした設定で Python へ回す 1 回と、写しのファイルを書き換えて同じ組を 2 度問い合わせ答えが変わる 1 回を足す。そのうえで、前の回の誤りだけでなく関数ごとに隣の形の誤りも入れ直して確かめる"
+  }
+ },
+ "built_before4": {
+  "name": "作った後（4 回目）",
+  "evaluator": "作っていない採点者（別のエージェント。4 回目）。cargo test --locked --test dash_parity --lib を流し、始める前に今の dashboard.rs・lot.rs の写しを取り直して（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g4 の *.mine）、前の 3 回の採点者が入れていない所を中心に誤りを 53 個（dashboard.rs 50・lot.rs 3）と、3 回目の見逃しの入れ直し 8 個の計 61 個を 1 つずつ入れて dash_parity（通れば --lib も）を流した。毎回と最後に写しへ戻し、cmp で同じことを確かめた。見逃した 16 個は、自分の組（probe4.py 20 通り・probe5.py 5 通り。Python の道に答えさせ、g4/probe の窓の受け口 Lot::handle_body と突き合わせる）で答えが変わるかを見て分けた。routes/dashboard.py・services/dashboard.py・equip_groups.py・pivot.EquipGroups・dashboard-editor.js と dashboard.rs・lot.rs を読み比べた。速さは dashboard_oracle.py --bench → dash_bench で自分で測った。台本は g4/mut4.py・classify4.py・classify5.py。リポジトリは採点のファイルのほかは変えていない",
+  "images": "画面に出ない改良（画像なし）。流した試験: cargo test --locked --test dash_parity --lib（lib 58 passed・dash_parity 1 passed、終了コード 0。116 通り〈答え 94・失敗 22〉と Python へ回す 4 通り）。わざと入れた誤り 61 個（確かめ・材料・段取り・まとめ・数える・分け方・並べる図・合わせる・合わせた表・入口・lot.rs の設定の尋ね直し）。結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g4/mut4.json・classify4.json・classify5.json",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 6,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "形・値の列・条件の値の端が試験で見えない（画面から来る形で答えが変わる）。① dashboard.rs:64 の BOX_VISUALS から violin を外しても通る: 組にバイオリンが無い。組む所でバイオリンを選べる（dashboard-editor.js:276）。自分の組 Q1（作業区分 × 重量の中央値）で box が「重量」→「」に変わる。② dashboard.rs:739 で箱ひげの列に列の無い値（件数）も選ぶようにしても通る: 箱ひげの組の先の値はどれも列がある。Q18（件数＋重量の中央値）で box が「重量」→「」。③ dashboard.rs:195 の値の列を 200→4 字で切っても通る: 組の値の列がどれも 2 字（重量・板厚・速度・客先）。Q3（計算列「重量の二倍の値」の合計）・Q4（仕掛の「コンマ5本分割_切断巾1」の合計）が 200 → 400「値の列「重量の二」がありません。」になる。④ dashboard.rs:133 の in 以外の条件の値を 400→8 字で切っても通る: 組の条件の値がどれも短い（A3004・試作・10）。Q5（残仕掛設備ｺｰｽ ＝「CR1 L-1 HOT L-2 CAL DL2」）で升 2 → 3"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "名前・知らせ・合算の印の字が試験で見えない。① dashboard.rs:302 の合わせるデータの名前を 40→4 字で切っても通る（組の名前は「計画」「品質」だけ。組む所の欄は 40 字まで: dashboard-editor.js:1053・1439）。Q2 で link.sides[0].name が「生産計画のロット数（月）」→「生産計画」。② dashboard.rs:388 のパネルの題を 60→1 字で切っても通る（失敗の組の題は 1 字の「題」だけ）。Q7 で 400 の字が「パネル「品質のパネルの題」は…」→「パネル「品」は…」。③ dashboard.rs:879 の合算の印（esplit: sum）で、選んだ合算（esplit）を見なくても通る（合算の組はどれも設備 2 つ以上か合算のまとめ）。Q9（設備 1 つ・合算）・Q10（設備なし・合算）で esplit が消える。④ dashboard.rs:806 で集計の知らせとまとめ方の知らせを足さずに置き換えても通る（2 つが同時に出る組が無い）。R4（マスタのデータ元のロット数＋無いまとめ方）で前の知らせが消える。⑤ dashboard.rs:1045 の読めないデータの理由の区切り（全角の空白）を変えても通る（読めないデータが 2 つの組が無い）。Q13（3 つのうち 2 つ読めない）で note が変わる"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "設備グループの「除く設備」が、設備のまとめ（パネルのまとめ方＝マスタ）で試験に見えない。dashboard.rs:454 の groups_for で except を付けなくても通る: 試験の「冷延」（^CR\\d・除く CR2）の CR2 は、同じまとめ方の「仕上」に設備として書かれていて、pivot の EquipGroups は書いた設備を決まりより先に当てるため、除くが効く場面が無い（除く設備の試験 C41 は見出し〈members_in〉の方だけ）。除く設備がほかのグループに無いまとめ方（R1・R2: L- で始まる・除く L-2）で、外すと升の値 804 → 692・設備の段の行 11 → 10 に変わる。マスタ管理の設備グループで除く設備を決めれば画面から来る"
+    }
+   ],
+   "seen": "【流した試験】cargo test --locked --test dash_parity --lib: lib 58 passed・dash_parity 1 passed、終了コード 0（116 通り〈答え 94・失敗 22。RUST_PORT_PLAN.md の数と合う〉・Python へ回す 4 通り・engine=python・材料の無い中身・engine が python の設定・写しが新しくなったときの控え）。【誤り 61 個】3 回目の見逃しの入れ直し 8 個（長い in の値・このパネルのグループの長い名前・合算の「その他」の名前・控えの鍵のファイルの印・重ねるの設備を列の段の頭に・合わせるデータの計算列・engine・変換表）はすべて見つかり、足した組は効いている。新しい 53 個（前の 3 回が入れていない所: 並べる図の列の段の鍵・apply_show の段・shifts・値の名前・labels・箱の鍵／合わせるの期間・計の升・差と達成率の名前・side・role・軸の名前の重なり・読めないデータの error・読めない設備の集め方・軸の名前・空の軸の積み上げ／まとまりの期間・まとまりの値の表し方・失敗の状態・試験の「いま」／勤務体系・決めた表・実績の元の名前・読めない設備の状態・データ元と品質の設備の列・設備の名前の並びと見分け・group_sets の列の段・count の設備・まとめ・kind／lot.rs の設備マスタ・作業実績の登録の書き込みで尋ね直す 他）のうち 37 個を見つけた（--lib で見つかったのは lot.rs の 2 個）。見逃した 16 個の分け方: 〈画面から来る形で答えの変わる穴 10 個。減点〉dashboard.rs:64・739・195・133・302・388・879・806・1045・454（減点の where）。〈答えの変わらない書き換え・画面から来ない形 6 個〉dashboard.rs:302 の名前の前後の空白（画面は trim して送る: dashboard-editor.js:1439）・577 のロット番号の列の空を外さない（pivot が空の列を無いと同じに扱う）・979 の合わせるの計を最初の升から（pivot は総計の升をいつも先に置く）・947 の年だけの鍵（rest が空でも 3 の倍数の分けで日になる。入れた誤りが同じ働きだった）・1343 の見出しの木を最後のまとめ方から（equip_tree は名前で 1 つに絞る）・lot.rs:190 の品質の表の名前（品質の元は表が 1 つ）。答えの変わる 47 個のうち 37 個（79%。1 回目 87%・2 回目 91%・3 回目 65%）を見つけた。【読み比べ】clean_panel・_data・_filters・_period・clean_egroup・clean_link・clean_board・panel_parts・_answer（控えの鍵）・_split_answer・facets_of・_link_answer・board_query・side_query・order_names・with_eorder・equip_tree・groups_for と、Rust の同じ名前の関数は同じ決まり（Python の body の sub・grand・sort・top・fmt は _count が使わず、外して同じ答え。clean_fmt は失敗を出さない）。新しい食い違いは見つからなかった（自分の組 25 通りで、元のままの窓はすべて Python と同じ答え・同じ状態）。前の回の「計算列の式を鍵の字の順で読む」（serde_json に preserve_order が無い）は残る（画面からは届かない）。文書: RUST_PORT_PLAN.md の順 4 の「画面からは届かない違いとして…」の段落の末に、自己診断 10e の文が句点なしでつながっている（「…稼働は Python」の直後に「- 速さ」）。【速さ】dashboard_oracle.py --bench → dash_bench（5 回の中央値・控えは毎回空。名前の頭で選ぶので「計算列 変換表（conv）」も入って 15 枚）: 15 枚の計 Python 1,375.4 ms → 窓 408.1 ms（3.4 倍）。最初の画面の標準 6 枚 375.7 → 135.3 ms（2.8 倍。wipTotal 3.6・workTotal 2.1・workMonth 2.7・wipClass 4.0・workDays 2.3・board 2.7 倍）・重ねる 5.0・並べる（割合・順位）2.4・品質の設備 30 超 4.3・マスタのまとめ 5.6・計算列 5.1・変換表の計算列 4.1・統計 4.6・合わせる 2.9・合わせた表 2.8 倍。答えの形（same_shape）は 15 枚すべて同じ・状態はすべて 200。RUST_PORT_PLAN.md の表（2.8 倍・3.2 倍）と合う。【点の理由】order・chunk・hierarchy 8（入口 handle_body → clean_panel → 段取り → 数える → 組み立てが Python と同じ順・同じ名前の関数）、visual 8（試験の失敗に組の名前と最初の差・組の数の下限）、steps 9（利用者の手は変わらず、稼働・スケジュール・前の版は自動で Python へ）、effortless 7（3 回目の 18 個の穴はすべて埋まり、見つけた割合も 65% → 79% に上がったが、バイオリン・長い値の列（窓が 400 で断る）・長い条件の値・除く設備のまとめなど、画面から来る形で答えの変わる穴が 10 個残る）、intuitive 8、form 9、place 8（文書の段落の切れ）、layout 6（同じ決まりが Rust と Python に 2 つずつ。前の回と同じ）、tone 8。減点は 3 つ（状態が見えない −3 × 3）。直すなら、dashboard_oracle.py にバイオリン・先が件数の箱ひげ・長い名前の値の列（計算列とデータ元の列）・長い値の eq 条件・長い名前の合わせるデータ・長い題の失敗・設備 0〜1 つの合算（esplit sum）・集計の知らせとまとめ方の知らせが重なる組・読めないデータ 2 つの合わせる・除く設備がほかのグループに無いまとめ方を足し、別の誤りを入れ直して確かめる"
+  }
+ },
+ "built_before5": {
+  "name": "作った後（5 回目）",
+  "evaluator": "作っていない採点者（別のエージェント。5 回目。1〜4 回目とは別）。cargo test --locked --test dash_parity --lib を流し、始める前に今の dashboard.rs・lot.rs・main.rs の写しを取り直して（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g5 の *.mine。戻し先はこの写し）、前の 4 回の採点者が入れていない所を中心に誤りを 46 個（dashboard.rs 43・lot.rs 2・main.rs 1。台本 g5/mut5.py）と、4 回目の見逃しの入れ直し 10 個（g5/mut5b.py）の計 56 個を 1 つずつ入れて dash_parity（通れば --lib も）を流した。毎回と最後に写しへ戻し、cmp で同じことを確かめた（sha1 も始めと同じ）。見逃した 17 個は、自分の組 28 通り（g5/probe6.py が Python の道に答えさせ、g5/probe〈da_core を部品にした別の crate。窓の受け口 Lot::handle_body〉で突き合わせる。台本 g5/classify6.py）で、入れ直して答えが変わるかを見て分けた。画面から来る形かは static/js（dashboard-editor.js・dashboard.js・dashboard-slicer.js・lotlist.js・lotlist-pivot.js）で確かめた。routes/dashboard.py・services/dashboard.py・equip_groups.py・work_log.ordered・data_sources.sources・routes/sources.py（all_sources・src_plan）・routes/lotlist.py（lists_settings）・formula.clean_calc と dashboard.rs・lot.rs・main.rs・formula.rs の clean_calc を読み比べた。速さは dashboard_oracle.py --bench → dash_bench を自分で流した（窓の側は 3 回）。リポジトリは採点のファイルのほかは変えていない",
+  "images": "画面に出ない改良（画像なし）。流した試験: cargo test --locked --test dash_parity --lib（lib 58 passed・dash_parity 1 passed、終了コード 0。129 通り〈答え 106・失敗 23〉と Python へ回す 4 通り）。わざと入れた誤り 56 個の結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g5/mut5.json・mut5.log・mut5b.log、見逃しの分けは classify6.json・classify6.log、自分の組は probe6.py・probe6.json、速さは bench.json・bench_rs.log",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 6,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "期間と条件の値の形が試験で見えない（画面から来る形で答えが変わる）。① dashboard.rs:65 の PERIOD_KINDS から today を外しても通る（組の期間は yesterday・days・last_month・month・range だけ。組む所・スライサー・パネルを絞る面の「今日」: dashboard-editor.js:42・dashboard-slicer.js:13）。自分の組 Q1・Q2・Q18・Q19・Q20 で升 0 → 1・909 本など、期間が外れて全部を数える。② dashboard.rs:168 で日付で決める期間に両方の日を求めても通る（組の range はどれも from と to がある。組む所の日付の欄は片方を消せる: dashboard-editor.js:54。Python は片方だけなら同じ日）。Q3（から だけ）升 0 → 1・Q4（まで だけ）升 2 → 123。③ dashboard.rs:23 の IN_MAX を 20000 → 1000 にしても通る（組の値を選ぶ条件はいちばん長くて日付 40 個の約 560 字。スライサーでロット番号を 100 個ほど選ぶと 1000 字を超える）。Q5（ロット番号 149 個）で升 1 → 0。④ dashboard.rs:137 の in の key から year を外しても通る（組の key は date・month・week だけ。表示列の書式が yyyy の日時の列は levelKeyKind が year を付ける: lotlist.js:225〜232）。Q7・Q28 で升 4 → 0・909 → 3。⑤ dashboard.rs:165 の期間の列の名前を 200 → 10 字で切っても通る（組の期間の列は @workday・発生日・合金だけ。作業実績の「BOX実績_作業開始_日付」で期間を組める）。Q11 が 200 → 400"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "分け方と合わせるデータの数の境が試験で見えない。① dashboard.rs:858 の「重ねるは列の段がいっぱいなら並べる」を列の段 2 つからにしても通る（重ねるの組の列の段は 0・1・3 だけ。2 つの組が無い）。Q14（設備 2 つ・列の段 直と作業区分）で升 59 → 62。② dashboard.rs:876 の「並べるは行の段がいっぱいならそのまま」を行の段 2 つからにしても通る（並べるの組の行の段は 1 と 3 だけ）。Q15 で升 9 → 8・facets が消える。③ dashboard.rs:289 の合わせるデータを 2〜3 つにしても通る（組は 2 つと 3 つだけ。組む所は 4 つまで足せる: dashboard-editor.js:1066）。Q6（4 つ）が 200 → 400"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "合わせるの目標が 2 つ・知らせが重なる形が試験で見えない。① dashboard.rs:985 で目標を後ろのデータから選んでも通る（どの組も目標は 1 つ。データごとに役割を選べるので目標を 2 つにできる。Python は最初の目標）。Q16 で差 143 → −197。② dashboard.rs:1079 の合わせた知らせの区切り（半角の空白）を変えても通る（読めないデータの知らせと、読めたデータの集計の知らせが同時に出る組が無い）。Q17（マスタのデータ元 2 つと無いデータ元）で note の区切りが変わる"
+    }
+   ],
+   "seen": "【流した試験】cargo test --locked --test dash_parity --lib: lib 58 passed・dash_parity 1 passed、終了コード 0（real 12 秒）。オラクルを数えると 129 通り（答え 106〈升 98・合わせた表 8〉・失敗 23）と Python へ回す 4 通りで、RUST_PORT_PLAN.md の数と合う。【誤り 56 個】4 回目の見逃しの入れ直し 10 個（バイオリン・先が件数の箱ひげ・長い値の列・長い eq の値・長い合わせるデータの名前・長い題・esplit sum の印・知らせを足す・読めない理由の区切り・除く設備のまとめ）はすべて見つかり、足した組は効いている。新しい 46 個（前の 4 回が入れていない所: 期間の種類 today・this_month・片方の日／IN_MAX／合わせるデータの数／条件の op と列の長さ・key year／段の列の長さ・origin／期間の列・検索・設備の鍵の長さ／列の無い値／rest other／名前の無いグループ／esplit facet／eorder の数／合わせた表の全体の設備の数／データ元の鍵の数字／groups_for の書いた設備・sets の 2 つ目から／写し中の設備を待つ・実績の表の候補・設備の列の空／count の条件・計算列／無いまとめ方の知らせ／重ねると並べるの段の境・設備 2 つで重ねる・並べる図の列の段・手の順の NFKC／合わせるの同じ軸の鍵・写しの様子・keyName・build・目標 2 つ・総計の差と達成率・パネルの条件・知らせの区切り・目標 0 の達成率／lot.rs の勤務体系の尋ね直し・本文／main.rs の本文）のうち 29 個を見つけた（--lib で見つかったのは lot.rs の勤務体系の 1 個）。見逃した 17 個の分け方（自分の組 28 通りで入れ直して答えが変わるか）: 〈画面から来る形で答えの変わる穴 10 個。減点〉dashboard.rs:65（today）・168（片方の日）・23（IN_MAX）・137（key year）・165（期間の列の長さ）・858（重ねるの列の段 2 つ）・876（並べるの行の段 2 つ）・289（合わせるデータ 4 つ）・985（目標 2 つ）・1079（知らせの区切り）。〈答えは変わるが画面からは来ない形 2 個〉dashboard.rs:111 の段の origin（画面は数を入れない: lotlist-pivot.js:621 は origin: null。Q9 で bins の origin 7 → 500）・196 の列の無い値（件数・ロット数の札には集計の選びが無い: dashboard-editor.js:538。Q13 が 200 → 400）。〈自分の組では答えの変わらない書き換え 5 個〉dashboard.rs:268 の検索を 5 字で切る（Q12 の「L0001C1」は 5 字でも同じ 3 行。6 字以上で違う行に当たる検索なら違いうるが、確かめられなかったので減点しない）・643 の実績の表の候補（決めた表がいつもある）・1201 の手の順の NFKC（画面の eorder は設備の名前の並びから作る。オラクルの「ｃａｌ」は、今の並びでも CAL が 2 番目のため外しても同じ並びになり、組は狙いを試せていない）・994 の目標 0 の達成率（0 で割ると inf で、JSON では null になり同じ）・main.rs:260 の本文を渡さない（dash_parity は Lot を直に呼ぶので main.rs を通らない。CI の自己診断 10e は窓と Python を突き合わせるので、そちらで気づく）。答えの変わる 41 個（見つけた 29＋減点 10＋画面から来ない 2）のうち、画面から来る形の 39 個で 29 個（74%。1 回目 87%・2 回目 91%・3 回目 65%・4 回目 79%。どれもその回の採点者の誤りの話）を見つけた。【読み比べと自分の組】clean_panel・_data・_filters・_period・_day・_names・_measure・clean_egroup・clean_link・clean_group・clean_board・panel_parts（作業実績の並び・表示・選んだ設備・写し中を先に選ぶ）・_equip_of・_answer（控えの鍵）・_count・_group_sets・_equip_ok・split_of・_split_answer・facets_of・_link_key・_link_answer・side_query・board_query・order_names・with_eorder・equip_tree・groups_for・sets・members_in と、Rust の同じ名前の関数は同じ決まり。データ元の定義は Python の段取り（data_sources.sources）と窓の材料（lists_settings の all_sources＝同じ _all）が同じ関数から来る。自分の組 28 通り（今日・今月・片方の日・2000 字を超える in・合わせる 4 つ・key year・長い名前の段と条件と期間の列・幅と原点・長い検索・列の無い値・列の段 2 つの重ねる・行の段 2 つの並べる・目標 2 つ・知らせ 2 つ・合わせた表の今月と今日・合わせるの今日と片方の日・太陽暦の今日・グループで並べる・合わせた表の全体の合算・数字の重ねる→並べると手の順・日でない軸の積み上げ・直の軸・品質の今月・合わせた表の列の無い値・作業実績の key year）で、元のままの窓はすべて Python と同じ答え・同じ状態（新しい食い違いは見つからなかった）。前の回の「計算列の式を鍵の字の順で読む」（serde_json に preserve_order が無い。式 40 を超えるときだけ）は残る（画面からは届かない）。文書: RUST_PORT_PLAN.md の順 4 の段落の切れは直った。ただし作った後の採点の回は「1 回目 80 個・2 回目 75 個・3 回目 60 個」までで 4 回目の 61 個と見逃しの組が無く、速さの「答えの形は 14 枚すべて同じ」は bench が選ぶ 15 枚（計算列 変換表 も入る）と合わない。【速さ】dashboard_oracle.py --bench → dash_bench（5 回の中央値・控えは毎回空）: 15 枚の計 Python 1,397.7 ms → 窓 512.7 ms（2.7 倍）。窓だけ 2 回測り直すと 431.4・407.0 ms（3.2〜3.4 倍）で、1 回目は重かった。最初の画面の標準 6 枚 394.1 → 161.2・154.0・136.2 ms（2.4〜2.9 倍。1 回目で wipTotal 3.5・workTotal 1.8・workMonth 2.5・wipClass 4.0・workDays 2.4・board 2.0 倍）・重ねる 3.8・並べる（割合・順位）2.4・品質の設備 30 超 3.3・マスタのまとめ 3.1・変換表の計算列 2.6・計算列 4.9・統計 2.7・合わせる 2.7・合わせた表 2.5 倍（1 回目）。答えの形（same_shape）は 3 回とも 15 枚すべて同じ・状態はすべて 200。RUST_PORT_PLAN.md の表（標準 6 枚 2.8 倍・14 枚 3.2 倍）と、軽い回では合う。【点の理由】order・chunk・hierarchy 8（入口 handle_body → clean_panel → 段取り → 数える → 組み立てが Python と同じ順・同じ名前の関数）、visual 8（試験の失敗に組の名前と最初の差・組の数の下限）、steps 9（利用者の手は変わらず、稼働・スケジュール・前の版は自動で Python へ）、effortless 7（4 回目の 10 個の穴はすべて埋まったが、今日・片方の日・長い in・key year・長い期間の列・段の数の境・合わせる 4 つ・目標 2 つ・知らせの重なりと、画面から来る形で答えの変わる穴が 10 個残る。足した組は見逃しの所だけで、同じ決まりの隣の値〈期間の種類のほかの物・境の反対側・上限そのもの〉には足していない）、intuitive 8、form 9、place 8（文書の採点の回と bench の枚数が古い）、layout 6（同じ決まりが Rust と Python に 2 つずつ。前の回と同じ）、tone 8。減点は 3 つ（状態が見えない −3 × 3）。直すなら、dashboard_oracle.py に、期間の種類を全部（today・this_month も。品質と作業実績）・range の片方だけ・1000 字を超える in（ロット番号 100 個ほど）・key year・長い名前の列の期間・列の段 2 つの重ねると行の段 2 つの並べる・合わせるデータ 4 つ・目標 2 つの合わせる・集計の知らせと読めないデータの知らせが重なる合わせるを足し、上限（MAX_*・IN_MAX・PERIOD_KINDS）は境の両側と上限そのものを組にし、手の順の組は今の並びと違う所に全角の名前を置く。そのうえで別の誤りを入れ直して確かめる"
+  }
+ },
+ "built": {
+  "name": "作った後（6 回目）",
+  "evaluator": "作っていない採点者（別のエージェント。6 回目。1〜5 回目とは別）。cargo test --locked --test dash_parity --lib を流し、始める前に今の dashboard.rs・lot.rs・main.rs の写しを取り直して（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g6 の *.mine。戻し先はこの写し。dashboard.rs は 5 回目の写しと同じ中身で、変わったのは試験の組）、前の 5 回の採点者が入れていない所を中心に誤りを 57 個（dashboard.rs 54・lot.rs 2・main.rs 1。台本 g6/muts.py・mut6.py）を 1 つずつ入れて dash_parity（通れば --lib も）を流した。毎回と最後に写しへ戻し、cmp で同じことを確かめた。見逃した 30 個は、自分の組 38 通り（g6/probe7.py が Python の道に答えさせ、g6/probe〈窓の受け口 Lot::handle_body。組ごとに設定〈試験の「いま」・出さないタブ〉を替えて尋ね直す〉で突き合わせる。台本 g6/classify7.py）で入れ直して答えが変わるかを見て分けた。画面から来る形かは static/js（dashboard-editor.js・dashboard.js・lotlist-pivot.js）と desktop/src/selftest.js で確かめた。routes/dashboard.py・services/dashboard.py・pivot_presets._dims・equip_groups・routes/common.tab_denied・routes/lotlist.py（lists_settings）と dashboard.rs・lot.rs・main.rs を読み比べた。速さは dashboard_oracle.py --bench → dash_bench を自分で流した（窓の側は 3 回）。リポジトリは採点のファイルのほかは変えていない",
+  "images": "画面に出ない改良（画像なし）。流した試験: cargo test --locked --test dash_parity --lib（lib 58 passed・dash_parity 1 passed、終了コード 0）。誤り 57 個の結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g6/mut6.json・mut6.log、見逃しの分けは classify7.json・classify7.log、自分の組は probe7.py・probe7.json、速さは bench.json・bench_rs1〜3.json",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 6,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "合わせるデータごと・合わせた表のまとまりごとの条件が試験で見えない（画面から来る形で答えが変わる）。① dashboard.rs:1164 の side_query で合わせるデータの条件（x.filters）を捨てても通る: dashboard_oracle.py の合わせる組の条件はどれもパネルの条件だけ。組む所は合わせるデータを選ぶとそのデータの条件を直せる（dashboard-editor.js:333 で 1 つ目へ p.filters を写し、条件の欄は選んだデータ t.filters を直す: 700〜702）。自分の組 P1（実績に 作業区分≠試作・品質に 調質＝H24）で升 316 → 395。② dashboard.rs:1190 の board_query でまとまりの条件（g.filters）を捨てても通る（合わせた表の組の条件は表全体の物だけ）。P2 で升 732 → 909。③ dashboard.rs:1062 の効かない条件の重なりを外さなくても通る（Python は集合。同じ効かない条件が 2 つのデータに効かない組が無い）。P6（品質を 2 つ合わせ、パネルの条件 作業区分≠試作）で ignoredFilters が 1 → 2 個（画面の「効かない条件」が 2 度出る）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "タブの権限（出さないタブ）がダッシュボードの試験で見えない。dashboard.rs:655 の lot_plan(…, true) を false に（タブの権限を見ない）しても、:668 の src_plan(…, true, true) を(…, true, false) にしても、:625 の実績の work_plan_wait の joined を false にしても通る: dashboard_oracle.py の設定の hidden はいつも空（出さないタブの組が 1 つも無い）。タブの権限はマスタ管理で人・区分ごとに決める（Python の tab_denied。routes/lotlist.py の lists_settings が hidden を渡す）。自分の組（品質と仕掛を出さない人）で、H1 品質の数字が 403 → 200 で数が見え、H2 仕掛の集計が 403 → 200、H3 合わせた表の仕掛のまとまりの「権限がありません」が消え、H4 合わせるの品質の値が null → 55。出さないと決めたデータの数が窓だけで見える形で、試験が気づかない（実績を出さない組は作らなかったが、同じ作り）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "答えの控えの鍵が試験で見えない。dashboard.rs:777 の控えの鍵から今日（self.now.date()）を外しても、作業日（days）を外しても通る: dash_parity は同じ「いま」で組ごとに 1 度ずつ問い、「いま」が変わったあとに同じ組を問う形が無い（控えの試験は写しが新しくなる形だけ）。画面のパネルは 1 分ごとに引き直すので、開いたままで日付や作業日（1 直の 07:00）を跨ぐと前の答えが残る。自分の組（設定の「いま」を替えて窓に尋ね直させる）で、T1 品質の直近 7 日 3 → 1 のはずが 3 のまま・T3 n 日以内の条件 5 → 3 のはずが 5 のまま（今日を外す）、T2 実績の前日 10/3 10:00 → 05:00 で 10 → 9 のはずが 10 のまま（作業日を外す）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "値の形の端が 2 つ試験で見えない。① dashboard.rs:87 の期間の日数の小数を切り捨てでなく丸めても通る（境の組の日数は 0・\"3.5\"〈字〉・4000・null で、小数の数が無い）。組む所の日数の欄は +x.value をそのまま入れる（dashboard-editor.js:1402）ので 3.6 が来る。P7（直近 3.6 日）で升 19 → 25（Python の int は 3）。② dashboard.rs:480 の除く設備を NFKC で比べなくても通る（試験の除く設備は CR2・L-2 の半角だけ）。除く設備はマスタ管理で利用者が打つ字で、全角でも Python は NFKC で比べる。P28（除く「ｌ－２」の L 系の見出し）で tree の L 全角除く が [L-1] → [L-1, L-2]"
+    }
+   ],
+   "seen": "【流した試験】cargo test --locked --test dash_parity --lib: lib 58 passed・dash_parity 1 passed、終了コード 0（real 16 秒）。dashboard_oracle.py を数えると 273 通り（答え 244・失敗 29）とPython へ回す 4 通りで、RUST_PORT_PLAN.md の数と合う。dashboard.rs は 5 回目の写しと同じで、足されたのは境の組（boundaries）。【誤り 57 個】前の 5 回が入れていない所: int_of（真偽・小数）・段（空の列・幅）・条件（空の op・21 個）・日付の区切り・期間の列の空白・名前の空・まとめの形 panel・合算／グループ／まとめ方の名前の空白・グループ 25 個・extra の rate・空の sides・まとまりと題の空白・パネルの印・CHARTS の violin・OPS の abc・除く設備と書いた設備の NFKC・見出しのまとめ方・実績の basis・Part の名前・answer の failed・控えの鍵の今日と作業日・数えるときの sets・now・期間・検索・重ねるの印・split_of の panel・並べる図の段の頭・bins・stats・nr・合わせるの日の鍵・効かない条件の重なり・元の名前・実績の名前・値の名前・データの条件・まとまりの設備・条件・列の段・値・見出しの空の鍵・タブの権限 3 つ（実績・品質・データ元）・lot.rs の状態の範囲と POST・main.rs の問い合わせの字。27 個を見つけ（--lib で見つけたのは lot.rs の状態の範囲 1 個）、30 個を見逃した。境の組（boundaries）は効いていて、グループ 25 個・rate・violin・abc・並べる図の nr などはすぐ落ちた。見逃した 30 個の分け方（自分の組 38 通りで入れ直して答えが変わるか）: 〈画面から来る形で答えの変わる穴 9 個。減点〉dashboard.rs:1164（データの条件）・1190（まとまりの条件）・1062（効かない条件の重なり）・655・668（品質・データ元のタブの権限）・777 の今日と作業日（控えの鍵）・87（日数の小数）・480（除く設備の NFKC）。実績のタブの権限（625）も同じ作りの穴だが、組を作らず確かめていない。〈答えは変わるが画面からは来ない形 9 個〉日数の真偽（P8）・空の列の段（P15）・幅（P5。組む所は幅を送らない。一覧の集計表だけ）・空の op（P16）・/ の日付（P19。日付の欄は ISO）・空の設備名（P17）・空の sides（P14）・まとまりの題とパネルの印（P13・P25。画面は題を trim し、印は p1… の字）。〈答えの変わらない書き換え 12 個〉条件 21 個（lotlist.rs も 20 個で切るので境の組は dashboard.rs の上限を試せていない）・合算／まとめ方／パネルの題の空白（画面は trim・選ぶ欄）・見出しのまとめ方の NFKC・品質とデータ元の Part の名前・検索の後ろの空白・見出しの空の鍵・POST 以外・main.rs の問い合わせの字（dash_parity は main.rs を通らないが、CI の自己診断 10e が engine=python の答えを Python が答えたか〈py.by〉で見るので気づく）。答えの変わる 45 個（見つけた 27＋減点 9＋画面から来ない 9）のうち、画面から来る形の 36 個で 27 個（75%）を見つけた（1 回目 87%・2 回目 91%・3 回目 65%・4 回目 79%・5 回目 74%。どれもその回の採点者の誤りの話）。【読み比べと自分の組】_int・_filters・_period・_day・_names・_measure・clean_egroup・clean_link・clean_group・clean_board・clean_panel・pivot_presets._dims・panel_parts（タブの権限・並び・表示・写し中を先に選ぶ）・_fail・_answer（控えの鍵）・_count・_group_sets・_equip_ok・split_of・_split_answer・facets_of・_link_key・_link_answer・side_query・board_query・order_names・with_eorder・equip_tree・members_in・groups_for・sets と、Rust の同じ名前の関数は同じ決まり。自分の組 38 通り（データごと・まとまりごとの条件・まとまりだけの設備・まとまりの値と列の段・幅・同じ効かない条件・日数の小数と真偽・達成率だけ・名前の空白・空の sides・空の段・空の op・空の設備名・期間の列の空白・/ の日付・条件 21 個・グループ 25 個・空の鍵のある見出し・並べるのヒストグラムと統計・印の _ -・ABC・このパネルのグループの重ねる・全角の除く設備〈見出しとまとめ〉・「いま」を変えた 3 組 × 2・出さないタブ 4 通り）で、元のままの窓はすべて Python と同じ答え・同じ状態（新しい食い違いは見つからなかった）。前の回の「計算列の式を鍵の字の順で読む」（式 40 を超えるとき・同じ表示名）は文書に書かれて残る。文書: RUST_PORT_PLAN.md の順 4 は 5 回目までの回と境の組を書き足し、273 通りの数も合う。ただし速さの表の下の行は「測った 14 枚の計」のままで、上の「答えの形は 15 枚すべて同じ」と合わない。【速さ】dashboard_oracle.py --bench → dash_bench（5 回の中央値・控えは毎回空。窓の側は 3 回）: 15 枚の計 Python 1,414.6 ms → 窓 434.6・411.2・449.8 ms（3.1〜3.4 倍）。最初の画面の標準 6 枚 379.5 → 148.7・135.5・148.0 ms（2.6〜2.8 倍。2 回目で wipTotal 3.0・workTotal 2.2・workMonth 1.9・wipClass 3.6・workDays 2.7・board 3.2 倍）・重ねる 4.1・並べる（割合・順位）2.4・品質の設備 30 超 4.3・マスタのまとめ 7.2・変換表の計算列 4.8・計算列 5.5・統計 4.4・合わせる 2.7・合わせた表 2.8 倍。答えの形（same_shape）は 3 回とも 15 枚すべて同じ・状態はすべて 200。文書の表（標準 6 枚 2.8 倍・3.2 倍）と合う。【点の理由】order・chunk・hierarchy 8（入口 handle_body → clean_panel → 段取り → 数える → 組み立てが Python と同じ順・同じ名前の関数）、visual 8（試験の失敗に組の名前と最初の差・組の数の下限）、steps 9（利用者の手は変わらず、稼働・スケジュール・前の版は自動で Python へ）、effortless 7（5 回目の 10 個の穴は境の組ですべて埋まり、境の両側の組は効いている。ただし、条件と権限と時刻のまだ試していない次元〈データ・まとまりごとの条件、出さないタブ、「いま」が変わった後の控え、小数の日数、全角の除く設備〉に、画面から来る形で答えの変わる穴が 9 個残る。中でも出さないタブは、壊れると出さないと決めたデータの数がダッシュボードで見えるのに、試験に組が 1 つも無い）、intuitive 8、form 9、place 8（文書の速さの表の「14 枚」が古い）、layout 6（同じ決まりが Rust と Python に2 つずつ。前の回と同じ）、tone 8。減点は 4 つ（状態が見えない −3 × 4）。直すなら、dashboard_oracle.py に、合わせるデータごと・まとまりごとの条件、同じ効かない条件が 2 つのデータに効かない合わせる、出さないタブ（品質・実績・仕掛のそれぞれと、合わせる・合わせた表の中の 1 つだけが出さないタブ）、「いま」を変えて同じ組を問い直す形（日付を跨ぐ・同じ日の 07:00 を跨ぐ）、小数の日数、全角・小文字で書いた除く設備を足し、dash_parity で設定を替えて尋ね直す（Lot::invalidate）。そのうえで別の誤りを入れ直して確かめる"
+  }
+ }
+}

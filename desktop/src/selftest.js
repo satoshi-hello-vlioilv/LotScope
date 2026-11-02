@@ -165,6 +165,31 @@
       }
       ok(`集計表・グラフは窓が答え、Python と同じ答え（${pv.length} 通り・カラムの札・作業日×直・失敗の答え）`,
          pby.every((b) => b === "shell") && pdiff.length === 0, pdiff.length ? pdiff.join(" | ") : `列 ${col || "なし"}`);
+
+      // 10e) ダッシュボードのパネル（版 3.62.0 から窓が答える: dashboard.rs）。いま（now）・写しの様子（mirrors）は問い合わせの時刻で変わるので比べない。
+      //      稼働（ガント）は Python が答える（版 3.63.0 で移す）
+      const canon3 = (v) => Array.isArray(v) ? v.map(canon3) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["timing", "source", "ms", "now", "mirrors"].includes(k)).map((k) => [k, canon3(v[k])])) : v;
+      const yd = { column: "@workday", kind: "yesterday" };
+      const P = (p) => ({ id: "t1", title: "", body: { rows: [], cols: [], measures: [{ agg: "lots" }] }, ...p });
+      const panels = [P({ visual: "kpi", source: "lot" }), P({ visual: "bar", source: "lot", body: { rows: [{ column: col || "無い列" }], cols: [], measures: [{ agg: "count" }] } }),
+        P({ visual: "kpi", source: "work", period: yd, equips: one ? [one.name] : ["無い設備"] }),
+        P({ visual: "time", source: "work", period: { column: "@workday", kind: "days", n: 14 }, body: { rows: [{ column: "@workday" }], cols: [], measures: [{ agg: "lots" }] } }),
+        P({ visual: "kpi", source: "src:wip" }), { id: "b1", visual: "board", groups: [] },
+        P({ visual: "bar", source: "lot", link: { sides: [{ source: "lot", key: { column: "@equip" } }, { source: "work", key: { column: "@equip" } }] } }),
+        P({ visual: "bar", source: "file:x" })];
+      const ddiff = [], dby = [];
+      const post = (q, p) => get("/api/dashboard/query" + q, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ panel: p }) });
+      for (const p of panels) {
+        const rs = await post("", p), py = await post("?engine=python", p);
+        dby.push(rs.by);
+        let same = rs.r.status === py.r.status && py.by === "python";
+        try { same = same && JSON.stringify(canon3(JSON.parse(rs.text))) === JSON.stringify(canon3(JSON.parse(py.text))); } catch (_) { same = false; }
+        if (!same) ddiff.push(`${p.visual}/${p.source || ""} ${rs.r.status}/${py.r.status}`);
+      }
+      const gantt = await post("", P({ visual: "gantt", source: "work", period: yd }));
+      ok(`ダッシュボードのパネルは窓が答え、Python と同じ答え（${panels.length} 通り・数字・グラフ・合わせた表・別のデータ・失敗の答え。稼働は Python）`,
+         dby.every((b) => b === "shell") && ddiff.length === 0 && gantt.by === "python", ddiff.length ? ddiff.join(" | ") : `稼働 ${gantt.by} ${gantt.r.status}`);
     }
 
     // 11) 配布の画面の係（窓）: 答えが返る・版を置けない人は理由つきで断られる（だれが置けるかは Python の権限）
