@@ -289,17 +289,22 @@ def cases(eq):
         ("確かめ 合わせた表 まとまりのデータ", {"visual": "board", "groups": [{"source": "lot", "title": "t"}, {"source": "y"}]}),
     ]
     out += boundaries(eq)
-    python = [
-        ("稼働 ガント（Python）", pv("gantt", "work", period=yday)),
-        ("ABC（Python）", pv("abc", "work", period=yday)),
-        ("稼働 品質のデータ（Python が確かめる）", pv("gantt", "lot")),
-        ("スケジュール（Python）", pv("kpi", "src:sch")),
-    ]
+    out += [("稼働 ガント（版 3.63.0 から窓）", pv("gantt", "work", period=yday)), ("ABC（版 3.63.0 から窓）", pv("abc", "work", period=yday)),
+            ("稼働 品質のデータ（確かめの失敗）", pv("gantt", "lot")),
+            ("ABC 全期間 合金・作業時間", pv("abc", "work", ops={"cls": "合金", "qty": "time"})),
+            ("ABC リードタイム 直近 7 日", pv("abc", "work", period=days7, ops={"cls": ["合金", "調質"], "span": "lead"}))]
+    python = [("スケジュール（Python）", pv("kpi", "src:sch"))]
     return out, python
 
 
 def shape(a):
-    """答えの形の手がかり（升の数・合わせた表のまとまりごとの升の数・総計）。dash_bench.rs の shape と同じ"""
+    """答えの形の手がかり（升の数・合わせた表のまとまりごとの升の数・総計。稼働は設備の数と棒の数の計、ABC は品種の数と基準の分）。
+    dash_bench.rs の shape と同じ"""
+    if a.get("kind") == "gantt":
+        return [len(a.get("equips") or []), sum(e.get("count") or 0 for e in a.get("equips") or [])]
+    if a.get("kind") == "abc":
+        return [len((a.get("all") or {}).get("items") or []), ((a.get("all") or {}).get("base") or {}).get("minutes")]
+
     def one(x):
         cells = x.get("cells")
         return [len(cells) if isinstance(cells, list) else None, next((c["v"] for c in cells or [] if not c["r"]), None)]
@@ -310,7 +315,8 @@ def bench(c, app, plain, out):
     """速さ: 最初の画面（組み込みの標準）と、重い形（並べる・合わせる・合わせた表）。答えの控えは毎回空にして数える時間を測る"""
     import time
     keep = ("組み込み", "重ねる 設備 3 つ", "並べる 割合（行）・順位", "並べる 品質の設備 30 超（24 まで）", "まとめ マスタ ライン別",
-            "合わせる 日（品質の発生日 × 実績の作業日）・差と達成率", "合わせた表 設備×2 まとまり・グループの見出し", "計算列", "統計")
+            "合わせる 日（品質の発生日 × 実績の作業日）・差と達成率", "合わせた表 設備×2 まとまり・グループの見出し", "計算列", "統計",
+            "稼働 ガント", "ABC")
     rows = []
     for name, panel in plain:
         if not name.startswith(keep):

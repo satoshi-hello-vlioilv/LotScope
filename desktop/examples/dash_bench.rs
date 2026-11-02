@@ -40,8 +40,15 @@ fn main() {
     );
 }
 
-/// 答えの形の手がかり（升の数・合わせた表のまとまりごとの升の数・総計）。Python の答えと同じ数を数えたか
+/// 答えの形の手がかり（升の数・合わせた表のまとまりごとの升の数・総計。稼働は設備の数と棒の数の計、ABC は品種の数と基準の分）。
+/// Python の答えと同じ数を数えたか（dashboard_oracle.py の shape と同じ）
 fn shape(v: &Value) -> Value {
+    let equips = v["equips"].as_array().map(Vec::as_slice).unwrap_or_default();
+    match v["kind"].as_str() {
+        Some("gantt") => return json!([equips.len(), equips.iter().map(|e| e["count"].as_i64().unwrap_or(0)).sum::<i64>()]),
+        Some("abc") => return json!([v["all"]["items"].as_array().map_or(0, Vec::len), v["all"]["base"]["minutes"]]),
+        _ => {}
+    }
     let cells = |a: &Value| a["cells"].as_array().map(|c| c.len());
     let grand = |a: &Value| {
         a["cells"].as_array().and_then(|c| c.iter().find(|x| x["r"].as_array().is_some_and(|r| r.is_empty()))).map(|x| x["v"].clone())

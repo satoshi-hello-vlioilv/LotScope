@@ -23,6 +23,8 @@ ABC 分析
     品種を量（本数・作業時間・数の列の合計）の大きい順に並べ、累積構成比が A の線（既定 70%）までを A、B の線（既定 90%）までを B、残りを C
 全設備の作業時間（版 3.48.0）
     各設備の作業時間の積み上げ（sum）か、ロットごとのリードタイム（lead: 全設備の作業開始の MIN〜作業終了の MAX。lead_ops）
+デスクトップ版は版 3.63.0 から、窓（desktop/src/operation.rs）が同じ決まりで数える。答えが同じことは desktop/tests/ops_parity.rs が
+tests/ops_oracle.py と突き合わせて確かめる（ここを直したら、Rust も同じに直す）
 """
 from __future__ import annotations
 

@@ -1,7 +1,8 @@
 """ダッシュボード（services/dashboard.py）: ダッシュボードの組み（グリッドのパネル。共通デフォルト・共通・ID・標準）と、
 パネルの数（どのデータ元でも同じ集計 pivot.query_many）。版 3.38.0 から「設備ごとの仕掛と前日の実績」も汎用の合わせた表（visual board）。
-デスクトップ版は版 3.62.0 から、パネルの数（/api/dashboard/query）のうち稼働（gantt・abc）とスケジュールのデータ以外を窓（desktop/src/dashboard.rs）が数える。
-答えが同じことは desktop/tests/dash_parity.rs が tests/dashboard_oracle.py と突き合わせて確かめる（ここを直したら、Rust も同じに直す）。"""
+デスクトップ版は版 3.62.0 から、パネルの数（/api/dashboard/query）のうちスケジュールのデータ以外を窓（desktop/src/dashboard.rs）が数える
+（稼働〈gantt・abc〉は版 3.63.0 から。desktop/src/operation.rs）。答えが同じことは desktop/tests/dash_parity.rs・ops_parity.rs が
+tests/dashboard_oracle.py・ops_oracle.py と突き合わせて確かめる（ここと services/operation.py を直したら、Rust も同じに直す）。"""
 import json
 import os
 import re

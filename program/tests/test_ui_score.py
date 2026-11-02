@@ -122,6 +122,14 @@ class UiScore(unittest.TestCase):
         self.assertEqual(ui.decide(d)[0], "当てた")
         d["built"]["result"]["minus"] = [{"kind": "cut", "where": "w"}] * 3
         self.assertEqual(ui.decide(d)[0], "直す")
+        # 届かない形を利用者が受け入れた記録（版 3.63.0）: 日付が要る。届いていれば「当てた」のまま
+        d["accepted_by_user"] = {"note": "n"}
+        with self.assertRaises(ValueError):
+            ui.decide(d)
+        d["accepted_by_user"] = {"date": "2026-11-02", "note": "n"}
+        self.assertEqual(ui.decide(d)[0], "利用者が受け入れた")
+        d["built"]["result"]["minus"] = []
+        self.assertEqual(ui.decide(d)[0], "当てた")
 
     def test_user_choice_skips_scoring_but_judges_what_was_built(self):
         """利用者が案を選んだ記録（版 3.60.0）: 案の採点はしない。作った後は別のエージェントの採点を合格点で判定する"""
@@ -144,7 +152,7 @@ class UiScore(unittest.TestCase):
         for path in (Path(__file__).resolve().parents[1] / "tools" / "ui-proposals").glob("*.json"):
             d = json.loads(path.read_text(encoding="utf-8"))
             kind, _, _ = ui.decide(d)
-            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す", "当てた", "利用者が選んだ"), path.name)
+            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す", "当てた", "利用者が選んだ", "利用者が受け入れた"), path.name)
 
 
 if __name__ == "__main__":

@@ -896,6 +896,26 @@ pub fn period_range(p: &Period, today: &str) -> R<(String, String)> {
     })
 }
 
+/// 期間の先絞り（稼働の operation.rs も使う）
+pub(crate) fn period_prefilter_pub(col: &str, span: Option<&(String, String)>) -> Option<(String, Vec<SqlValue>)> {
+    period_prefilter(col, span)
+}
+
+/// 計算列を接続に登録する → (名前 → SQL の式, 計算列の並び, 読めない計算列)（稼働の operation.rs も使う）
+pub(crate) fn calc_exprs_pub(
+    c: &rusqlite::Connection,
+    calc: Option<&Calc>,
+    cs: &[String],
+    conv: &Arc<Tables>,
+) -> R<(Exprs, Vec<String>, Vec<String>)> {
+    calc_exprs(c, calc, cs, conv).map(|(e, o, b, _)| (e, o, b))
+}
+
+/// 千の位の区切り（稼働の operation.rs も使う）
+pub(crate) fn commas_pub(n: i64) -> String {
+    commas(n)
+}
+
 /// 期間の先絞り（Python の period_prefilter）
 fn period_prefilter(col: &str, span: Option<&(String, String)>) -> Option<(String, Vec<SqlValue>)> {
     let (lo, hi) = span?;

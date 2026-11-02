@@ -12,6 +12,7 @@ pub mod lot;
 pub mod lotlist;
 pub mod mirror;
 pub mod num_expr;
+pub mod operation;
 pub mod pivot;
 pub mod pyfmt;
 pub mod release;
