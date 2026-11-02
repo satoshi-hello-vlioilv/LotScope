@@ -7,6 +7,7 @@
 //!   付けたときも、その1回だけ Python に任せる（自己診断の突き合わせ・食い違いの切り分け）
 //! - 写しの係（mirror.rs）は 1 つだけ。Python は窓が lotlist を受け持つと名乗ると写さず、同じ台帳を読む
 
+use crate::dashboard;
 use crate::formula::Tables;
 use crate::lists::{Conf, Lists, Quality};
 use crate::lotlist::{self, Args};
@@ -62,11 +63,20 @@ pub struct Lot {
     mirror: Mutex<Option<Arc<DbMirror>>>,
     settings: Mutex<Option<(Instant, Settings)>>,
     tables: Mutex<Option<(String, Arc<Tables>)>>,
+    /// ダッシュボードのパネルの答えの控え（版 3.62.0。src/dashboard.rs）
+    dash: Mutex<dashboard::Cache>,
 }
 
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
-        Lot { lists: Lists::new(&cache_dir), cache_dir, mirror: Mutex::default(), settings: Mutex::default(), tables: Mutex::default() }
+        Lot {
+            lists: Lists::new(&cache_dir),
+            cache_dir,
+            mirror: Mutex::default(),
+            settings: Mutex::default(),
+            tables: Mutex::default(),
+            dash: Mutex::default(),
+        }
     }
 
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
@@ -82,6 +92,8 @@ impl Lot {
             "/api/masters/tabaccess",
             "/api/masters/conversions",
             "/api/masters/place",
+            "/api/masters/equipment",
+            "/api/masters/equipgroups",
         ];
         method != "GET" && method != "HEAD" && (200..300).contains(&status) && LIST_MASTERS.iter().any(|p| path.starts_with(p))
     }
@@ -152,6 +164,39 @@ impl Lot {
     /// 受け身の Python からの知らせ（作業実績・データ元の「写して」。版 3.60.0）
     pub fn notice(&self, v: &Value) {
         self.lists.notice(v);
+    }
+
+    /// ダッシュボードの答えの控えを空にする（測る道具 examples/dash_bench.rs が、数える時間を測るため）
+    pub fn forget_dashboard(&self) {
+        *self.dash.lock().unwrap() = dashboard::Cache::default();
+    }
+
+    /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
+    /// ほかは handle と同じ
+    pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if (method, path) != ("POST", "/api/dashboard/query") {
+            return self.handle(method, path, query, ask);
+        }
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let s = self.settings(ask).ok()?;
+        if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
+            return None; // ダッシュボードの材料を答えない中身（前の版の Python）は、Python が答える
+        }
+        let body: Value = serde_json::from_slice(body).unwrap_or_default();
+        let m = self.mirror(&s);
+        let conf = Conf { v: &s.lists };
+        let q = Quality { mirror: m, table: &s.table, page_size: s.page_size };
+        let cx = dashboard::Ctx {
+            lists: &self.lists,
+            conf: &conf,
+            q: &q,
+            now: dashboard::now_of(&conf),
+            conv: &self.tables(&s),
+            cache: &self.dash,
+        };
+        dashboard::query(&cx, &body)
     }
 
     /// 窓が答える問い合わせなら (状態, 答え)。Python に任せるなら None。
@@ -609,6 +654,10 @@ mod tests {
             ("PUT", "/api/masters/access/2", 200),
             ("PUT", "/api/masters/conversions/x", 200),
             ("POST", "/api/masters/place", 200),
+            // ダッシュボードの材料（版 3.62.0）: 設備グループ・設備マスタ
+            ("POST", "/api/masters/equipgroups", 201),
+            ("DELETE", "/api/masters/equipgroups/4", 200),
+            ("PUT", "/api/masters/equipment/1", 200),
         ] {
             assert!(Lot::changes_settings(m, p, s), "{m} {p}");
         }

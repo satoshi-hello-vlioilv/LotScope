@@ -199,6 +199,10 @@ python program/tools/ui_score.py 採点.json                                    
 - 集計を Rust へ移した評価関数（版 3.61.0）: 一覧の集計表の道（/pivot・カラムの札・作業日と直・空白だけの値）は上の `routes_parity`、ダッシュボードの形
   （いくつかのファイル・設備の段と絞り込み・設備のまとめ・設備グループ・期間・計算列・箱ひげ・区間・失敗・値の計算の事例）は
   `cargo test --test pivot_parity`（← `program/tests/pivot_oracle.py`。Python の `pivot.query_many` と突き合わせる）
+- ダッシュボードのパネルを Rust へ移した評価関数（版 3.62.0。1 段目: 稼働〈ガント・ABC〉とスケジュールは Python のまま）: `cargo test --test dash_parity`
+  （← `program/tests/dashboard_oracle.py`。POST /api/dashboard/query を、数字・グラフ・合わせた表・別のデータを合わせる・設備の分け方〈重ねる・並べる・合算〉・
+  設備のまとめ・設備グループの段と見出し・手で並べた順・期間・計算列・箱ひげ・読めない設備・確かめの失敗で Python の道と突き合わせる）。
+  速さは `python program/tests/dashboard_oracle.py --bench 出力.json` → `cd desktop && cargo run --release --example dash_bench -- 出力.json`
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`
   （部品ごとの行・試験・依存の段・要る crate の棚卸しと、全部の道の速さを SQLite の中・JSON・Python の手に分けて測る。--calibrate は既に Rust にある一覧で
   見積もりを Rust の実際の時間〈`cargo build --release --example lotbench`〉と突き合わせる。表と順は `program/docs/RUST_PORT_PLAN.md`）

@@ -1,5 +1,7 @@
 """ダッシュボード（services/dashboard.py）: ダッシュボードの組み（グリッドのパネル。共通デフォルト・共通・ID・標準）と、
-パネルの数（どのデータ元でも同じ集計 pivot.query_many）。版 3.38.0 から「設備ごとの仕掛と前日の実績」も汎用の合わせた表（visual board）。"""
+パネルの数（どのデータ元でも同じ集計 pivot.query_many）。版 3.38.0 から「設備ごとの仕掛と前日の実績」も汎用の合わせた表（visual board）。
+デスクトップ版は版 3.62.0 から、パネルの数（/api/dashboard/query）のうち稼働（gantt・abc）とスケジュールのデータ以外を窓（desktop/src/dashboard.rs）が数える。
+答えが同じことは desktop/tests/dash_parity.rs が tests/dashboard_oracle.py と突き合わせて確かめる（ここを直したら、Rust も同じに直す）。"""
 import json
 import os
 import re
@@ -315,6 +317,12 @@ class _Fail(Exception):
 def _now():
     """いまの時刻（この PC の時計）。試験用のサーバー・試験は DASHBOARD_NOW で試験データの日に合わせる"""
     return current_app.config.get("DASHBOARD_NOW") or datetime.now()
+
+
+def _now_override():
+    """試験の「いま」（DASHBOARD_NOW）の字。無ければ None（デスクトップ版の窓は自分の時計を使う。版 3.62.0）"""
+    t = current_app.config.get("DASHBOARD_NOW")
+    return t.strftime("%Y-%m-%d %H:%M:%S") if t else None
 
 
 def _shown_work(wl_rows):

@@ -40,8 +40,20 @@ class OldAndNewWindow(Env):
         self.repo.work_log_sync(work_log.scan(folder, "実績_*.sqlite3"))
         rows = self.c.get("/api/lotlist/settings").get_json()["lists"]["work"]["rows"]
         self.assertTrue(rows[0]["ファイルID"], "名前が変わったファイルをたどる「ファイルID」の値まで渡す")
-        self.assertTrue(rows and all(set(r) == {"キー", "設備名", "ファイル名", "ファイルID", "表示", "表"} for r in rows),
-                        "名前が変わったファイルをたどる「ファイルID」まで渡す")
+        self.assertTrue(rows and all(set(r) == {"キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び"} for r in rows),
+                        "名前が変わったファイルをたどる「ファイルID」と、設備の並び（版 3.62.0。ダッシュボード）まで渡す")
+
+    def test_settings_carry_the_dashboard_materials(self):
+        """版 3.62.0: 窓がダッシュボードのパネルを数える材料（設備の名前・設備グループ・試験の「いま」）"""
+        from app.services import equip_groups
+        self.repo.equip_group_create(equip_groups.clean_row({"name": "L ライン", "set": "ライン別", "equipment": [],
+                                                             "rules": [{"op": "prefix", "value": "L-"}]}))
+        dash = self.c.get("/api/lotlist/settings").get_json()["lists"]["dash"]
+        self.assertEqual(set(dash), {"equipNames", "equipGroups", "now"})
+        self.assertIsInstance(dash["equipNames"], list)
+        g = dash["equipGroups"][0]
+        self.assertEqual((g["name"], g["set"], g["rules"]), ("L ライン", "ライン別", [{"op": "prefix", "value": "L-"}]))
+        self.assertIsNone(dash["now"], "製品（DASHBOARD_NOW が無い）は null（窓は自分の時計）")
 
 
     def test_unreadable_materials_leave_the_lists_to_python(self):

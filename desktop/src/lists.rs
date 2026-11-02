@@ -349,6 +349,11 @@ impl Lists {
 
     /// 作業実績の設備の段取り（Python の worklog_plan）。need_copy=false は写しがまだ無くてもよい（再読込）
     pub fn work_plan(&self, conf: &Conf, q: &Quality, key: &str, need_copy: bool, joined: bool) -> Result<Plan, Fail> {
+        self.work_plan_wait(conf, q, key, need_copy, joined, true)
+    }
+
+    /// wait … 初めての写しを待つ（false は待たない。いくつもの設備の写しを一度に始めて、まとめて待つ所: dashboard.rs。Python の worklog_plan の wait）
+    pub fn work_plan_wait(&self, conf: &Conf, q: &Quality, key: &str, need_copy: bool, joined: bool, wait: bool) -> Result<Plan, Fail> {
         if joined {
             if let Some(f) = conf.denied("work", "実績") {
                 return Err(f);
@@ -403,7 +408,7 @@ impl Lists {
                 }
             },
         };
-        let read = m.read_path();
+        let read = m.read_path_wait(wait);
         let file_now = path.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned());
         let equip = json!({
             "key": key, "name": text(&row["設備名"]),

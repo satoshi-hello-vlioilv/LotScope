@@ -192,6 +192,11 @@ fn part_label(p: &str) -> &'static str {
     }
 }
 
+/// 段の見せる名前（列と区切りから。Python の _dim_name に {column, part} を渡したとき）
+pub fn dim_name_of(column: &str, part: &str) -> String {
+    dim_name(&Dim::plain(column, part))
+}
+
 /// 段の見せる名前（Python の _dim_name）
 pub fn dim_name(d: &Dim) -> String {
     match d.column.as_str() {
@@ -442,7 +447,7 @@ impl Equip {
 
 const RULE_OPS: &[&str] = &["prefix", "suffix", "contains", "equals", "regex"];
 
-enum Rule {
+pub(crate) enum Rule {
     Prefix(String),
     Suffix(String),
     Contains(String),
@@ -451,7 +456,7 @@ enum Rule {
 }
 
 /// 設備グループの決まり [{op, value}] → 比べる係（Python の compile_rules）
-fn compile_rules(rules: Option<&Value>) -> Vec<Rule> {
+pub(crate) fn compile_rules(rules: Option<&Value>) -> Vec<Rule> {
     let mut out = vec![];
     for r in rules.and_then(Value::as_array).into_iter().flatten() {
         let (op, v) = (py_s(r.get("op")), pyfmt::strip(&py_s(r.get("value"))).to_string());
@@ -479,7 +484,7 @@ fn compile_rules(rules: Option<&Value>) -> Vec<Rule> {
     out
 }
 
-fn rules_hit(rules: &[Rule], k: &str) -> bool {
+pub(crate) fn rules_hit(rules: &[Rule], k: &str) -> bool {
     rules.iter().any(|r| match r {
         Rule::Prefix(v) => k.starts_with(v.as_str()),
         Rule::Suffix(v) => k.ends_with(v.as_str()),

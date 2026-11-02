@@ -256,9 +256,9 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             selftest_finish(&app, &result);
             Some(json_reply(&json!({"received": true})))
         }
-        (method, path) => {
-            lot.handle(method, path, req.query, &|| lot_settings(backend)).map(|(status, v)| Reply { status, ..json_reply(&v) })
-        }
+        (method, path) => lot
+            .handle_body(method, path, req.query, req.body, &|| lot_settings(backend))
+            .map(|(status, v)| Reply { status, ..json_reply(&v) }),
     })
 }
 

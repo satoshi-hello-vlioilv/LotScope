@@ -23,7 +23,7 @@ const SHOWS: &[&str] = &["", "pct_total", "pct_row", "pct_col", "cum", "diff", "
 const EXPR_MAX: usize = 60;
 const DEC_MAX: f64 = 6.0;
 
-fn is_agg(a: &str) -> bool {
+pub fn is_agg(a: &str) -> bool {
     [COUNTS, SIMPLE, SPREAD, ORDERED, KINDS].iter().any(|g| g.contains(&a))
 }
 

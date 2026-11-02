@@ -141,11 +141,18 @@ def lists_settings():
         hidden = []
     repo = master_repo()
     wl = work_log.params(effective_settings(current_app))
-    keep = ("key", "kind", "name", "place", "table", "base", "broken", "api", "lotSet", "joins", "read")
+    keep = ("key", "kind", "name", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode")
+    from ..services import equip_groups
+    from .dashboard import _equipment_names, _now_override
     return {"hidden": hidden,
+            # ダッシュボードの段取りの材料（版 3.62.0。desktop/src/dashboard.rs）: 設備の名前（データ元の設備の列の見分け・合わせた表の並び）・
+            # 設備グループ（表示順の並びの view）・試験の「いま」（DASHBOARD_NOW。製品では null＝窓の時計）
+            "dash": {"equipNames": _equipment_names(repo, repo.work_logs()),
+                     "equipGroups": [equip_groups.view(r) for r in equip_groups.ordered(repo.equip_groups())],
+                     "now": _now_override()},
             "sources": [{k: s.get(k) for k in keep} for s in all_sources()],
             "work": {**{k: wl[k] for k in ("folder", "pattern", "table", "refresh_seconds", "stale_hours", "page_size")},
-                     "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表")} for r in repo.work_logs()],
+                     "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び")} for r in repo.work_logs()],
                      "canEditShifts": can_write(shifts.NAME)},
             "shifts": repo.shift_patterns()}
 
