@@ -65,6 +65,16 @@ def main():
     repo = MasterRepository(app.config["MASTER_STORE"])
     keys = {r["設備名"]: r for r in repo.work_logs()}
     folder = ui_server.WORK / "【New】実績"
+    # 空白で埋まる値（版 3.51.1 の空欄の決まり: 前後の半角・全角の空白・タブを除いて空なら空欄。一覧・スライサー・集計で同じ）
+    from app.services import lot_list
+    qdb = sqlite3.connect(app.config["APP_SETTINGS"]["lot_list"]["source"])
+    qt = lot_list.pick_table(lot_list.tables(qdb))
+    for i, v in zip([r[0] for r in qdb.execute(f'SELECT rowid FROM "{qt}" ORDER BY rowid LIMIT 32')], ["  ", "\u3000", "\t", " ﾃｽﾄ ", "ﾃｽﾄ", "", None, " \u3000 "] * 4):
+        qdb.execute(f'UPDATE "{qt}" SET 備考 = ? WHERE rowid = ?', (v, i))
+    # カラムの札の見本の数（先頭 300 個の空でない値がみな数なら数の列）: 100 行目の長さを字にする（30 個しか見ないと数の列に見える）
+    qdb.execute(f'UPDATE "{qt}" SET 長さ = ? WHERE rowid = (SELECT rowid FROM "{qt}" ORDER BY rowid LIMIT 1 OFFSET 100)', ("約 3m",))
+    qdb.commit()
+    qdb.close()
     # 開発用サーバーは品質の写しの係を作業フォルダの share.sqlite3 で渡す（中身は設定の場所の写しと同じ）。窓は設定の場所を写すので、
     # Python の係も設定の場所に合わせる（製品では、どちらも同じ設定から作る）
     app.config["LOT_MIRROR"].reconfigure(remote=app.config["APP_SETTINGS"]["lot_list"]["source"])
@@ -80,10 +90,18 @@ def main():
                                                {"with": "m0000002", "how": "full", "on": [["BOX設計_設備名", "設備名"]], "cols": ["ライン"]}]})
     assert r.status_code == 201, r.get_json()
     view = r.get_json()["row"]["キー"]
+    # 表がいくつもあるファイルの、決めた表（品質の元の「保留」を読むデータ元）。実績の HOT には品質の候補の「仕掛」の表も置く
+    r = c.post("/api/sources", json={"表示名": "保留の表", "役割": "その他", "場所": app.config["APP_SETTINGS"]["lot_list"]["source"], "表": "保留"})
+    assert r.status_code == 201, r.get_json()
+    held = r.get_json()["row"]["キー"]
     hidden = keys["DL2"]
     repo.work_log_update(hidden["id"], {"表示": "無"})
     # 名前の変わったファイル（HOT: 登録のあとに名前を変えた。同じファイルID でたどる）・大文字小文字の違う登録名（L-1）・
     # 設備ごとの表（TLV は「別表」を読む）
+    hdb = sqlite3.connect(folder / "実績_HOT.sqlite3")
+    hdb.execute("CREATE TABLE 仕掛 AS SELECT ロット番号, 合金 FROM 実績 LIMIT 3")
+    hdb.commit()
+    hdb.close()
     (folder / "実績_HOT.sqlite3").rename(folder / "実績_HOT_2026.sqlite3")
     repo.work_log_update(keys["L-1"]["id"], {"ファイル名": "実績_l-1.SQLITE3"})
     db = sqlite3.connect(folder / "実績_TLV.sqlite3")
@@ -99,6 +117,8 @@ def main():
     repo.work_log_sync([{**f, "fid": ""} for f in work_log.scan(folder, "実績_*.sqlite3") if f["file"] == "実績_BAD.sqlite3"])
     keys = {r["設備名"]: r for r in repo.work_logs()}
     eq = {n: keys[n]["キー"] for n in ("CAL", "CR2", "ANF", "SL3", "HOT", "L-1", "TLV", "BAD")}
+    J = lambda v: json.dumps(v, ensure_ascii=False)  # noqa: E731
+    cnt = J([{"agg": "count"}])
     calc = json.dumps({"formulas": {"k": "[作業者] + '-' + [作業区分]"}}, ensure_ascii=False)
     first = [
         ("GET", "/api/lotlist", {"page": "1"}),
@@ -140,6 +160,54 @@ def main():
         ("GET", "/api/worklog", {"equip": eq["BAD"]}),
         ("POST", "/api/src/wip/refresh", {}),
         ("POST", f"/api/src/{view}/refresh", {}),
+        # 空欄の決まり（一覧の条件・スライサー）
+        ("GET", "/api/lotlist", {"filters": J([{"column": "備考", "op": "not_empty"}]), "page_size": "20"}),
+        ("GET", "/api/lotlist", {"filters": J([{"column": "備考", "op": "eq", "value": "ﾃｽﾄ"}])}),
+        ("GET", "/api/lotlist", {"filters": J([{"column": "備考", "op": "neq", "value": "*ｽ*"}]), "page_size": "10"}),
+        ("GET", "/api/lotlist", {"filters": J([{"column": "備考", "op": "empty"}]), "page_size": "10"}),
+        ("GET", "/api/lotlist/slicer", {"column": "備考"}),
+        ("GET", "/api/lotlist", {"filters": J([{"column": "備考", "op": "in", "value": J(["ﾃｽﾄ", ""])}]), "page_size": "10"}),
+        # 集計表・グラフ（版 3.61.0 から窓が答える）
+        ("GET", "/api/lotlist/pivot", {"fields": "1"}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "合金"}]), "cols": J([{"column": "調質"}]),
+                                       "measures": J([{"agg": "count"}, {"agg": "lots"}, {"agg": "sum", "column": "重量"}, {"agg": "avg", "column": "板幅"}])}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "発生日", "part": "ym"}, {"column": "発生日", "part": "date"}]), "measures": cnt, "month": "2026-09"}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "重量", "part": "bin"}]), "measures": cnt}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "設備"}]), "box": "重量",
+                                       "measures": J([{"agg": "median", "column": "重量"}, {"agg": "q1", "column": "重量"}, {"agg": "q3", "column": "重量"},
+                                                      {"agg": "iqr", "column": "重量"}, {"agg": "pct", "column": "重量", "p": 90}, {"agg": "mode", "column": "数量"}])}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "備考"}]), "measures": cnt, "filters": J([{"column": "備考", "op": "not_empty"}])}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "圧延速度"}]), "measures": J([{"agg": "avg", "column": "重量", "show": "rank", "expr": "÷1000", "dec": 1}])}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "不良名"}]), "cols": J([{"column": "発生日", "part": "weekday"}]), "measures": cnt, "search": "汚れ"}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "客先"}, {"column": "合金"}]), "cols": J([{"column": "入力日時", "part": "hour"}]),
+                                       "measures": J([{"agg": "count", "show": "pct_row"}, {"agg": "sum", "column": "重量", "show": "cum"}])}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "無い列"}]), "measures": cnt}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "@workday"}]), "measures": cnt}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "合金"}]), "measures": J([{"agg": "cpk", "column": "重量"}])}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "fields": "1"}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "rows": J([{"column": "@workday"}]), "cols": J([{"column": "@shift"}]),
+                                       "measures": J([{"agg": "count"}, {"agg": "lots"}, {"agg": "sum", "column": "重量"}])}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "rows": J([{"column": "@workday", "part": "ym"}]), "measures": J([{"agg": "lots"}]), "basis": "cal"}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "rows": J([{"column": "@workday"}]), "measures": cnt, "basis": ""}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "rows": J([{"column": "@workday"}]), "measures": cnt, "month": "2026-09"}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "rows": J([{"column": "作業区分"}]), "cols": J([{"column": "@shift"}]),
+                                       "measures": J([{"agg": "avg", "column": "速度", "show": "pct_col"}]), "filters": J([{"column": "作業者", "op": "neq", "value": "作業者B"}])}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["ANF"], "rows": J([{"column": "@workday"}]), "measures": J([{"agg": "lots"}, {"agg": "count"}]),
+                                       "start": "BOX実績_作業開始_年月日時分秒"}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CR2"], "rows": J([{"column": "@shift"}]), "measures": cnt}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["TLV"], "rows": J([{"column": "作業者"}]), "measures": cnt}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["HOT"], "rows": J([{"column": "合金"}]), "measures": cnt}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "rows": J([{"column": "@equip"}]), "measures": cnt}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["BAD"], "rows": J([{"column": "合金"}]), "measures": cnt}),
+        ("GET", "/api/worklog/pivot", {"equip": "nope", "measures": cnt}),
+        ("GET", "/api/src/wip/pivot", {"fields": "1"}),
+        ("GET", "/api/src/wip/pivot", {"rows": J([{"column": "仕掛区分"}]), "cols": J([{"column": "製造材質"}]), "measures": J([{"agg": "lots"}, {"agg": "count"}])}),
+        ("GET", f"/api/src/{view}/pivot", {"rows": J([{"column": "ライン"}]), "measures": J([{"agg": "lots"}, {"agg": "distinct", "column": "製造調質"}])}),
+        ("GET", f"/api/src/{view}/pivot", {"fields": "1"}),
+        ("GET", "/api/src/m0000001/pivot", {"rows": J([{"column": "材質"}]), "measures": cnt}),
+        ("GET", f"/api/src/{held}/pivot", {"rows": J([{"column": "合金"}]), "measures": cnt}),
+        ("GET", f"/api/src/{held}", {"page_size": "5"}),
+        ("GET", "/api/src/nope/pivot", {"measures": cnt}),
     ]
     second = [      # 一般ユーザー: 実績と結合した表のタブを出さない（タブの権限）。仕掛・品質は出す
         ("GET", "/api/worklog", {"equip": eq["CAL"]}),
@@ -152,6 +220,10 @@ def main():
         ("GET", f"/api/src/{view}/source", {}),
         ("GET", "/api/src/wip", {"page_size": "10"}),
         ("GET", "/api/lotlist", {"page_size": "10"}),
+        ("GET", "/api/worklog/pivot", {"equip": eq["CAL"], "measures": cnt}),
+        ("GET", f"/api/src/{view}/pivot", {"measures": cnt}),
+        ("GET", "/api/src/wip/pivot", {"rows": J([{"column": "仕掛区分"}]), "measures": cnt}),
+        ("GET", "/api/lotlist/pivot", {"rows": J([{"column": "合金"}]), "measures": cnt}),
     ]
     if bench:      # 速さ: 一覧・まとめ・検索・スライサー（失敗の答え・データの時刻・再読込は測らない）
         first = [a for a in first if a[0] == "GET" and a[2] and not a[1].endswith("/source") and "nope" not in a[1]

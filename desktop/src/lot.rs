@@ -11,6 +11,7 @@ use crate::formula::Tables;
 use crate::lists::{Conf, Lists, Quality};
 use crate::lotlist::{self, Args};
 use crate::mirror::DbMirror;
+use crate::pivot;
 use crate::worksum::{self, Grouping};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -245,6 +246,9 @@ impl Lot {
                 Err((st, e)) => (st, json!({"error": e, "source": source})),
             });
         }
+        if what == Kind::Pivot {
+            return Some(self.pivot(&route, &plan, &conf, &s, &qs, path, today));
+        }
         // 作業でまとめる（work=1。作業実績だけ）: 直はその設備の勤務体系
         let pattern = plan.equip.as_ref().and_then(|e| e["name"].as_str()).map(|n| worksum::pattern_for(&conf.shifts(), n));
         let mut grouping = match (&route, pattern) {
@@ -273,11 +277,88 @@ impl Lot {
     }
 }
 
-/// 問い合わせの種類（一覧・スライサー・データの時刻・再読込）
+impl Lot {
+    /// 集計表・グラフ（Python の lotlist_pivot・worklog_pivot・src_pivot と同じ答え・同じ失敗）。
+    /// 作業実績は、作業日・直・ロット数をその設備の勤務体系・作業開始の列（start）・日付の数え方（basis）で決める
+    #[allow(clippy::too_many_arguments)]
+    fn pivot(
+        &self,
+        route: &Route,
+        plan: &crate::lists::Plan,
+        conf: &Conf,
+        s: &Settings,
+        qs: &[(String, String)],
+        path: PathBuf,
+        today: chrono::NaiveDate,
+    ) -> (u16, Value) {
+        let arg = |k: &str| qs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
+        let opts = plan.opts();
+        let pattern = match route {
+            Route::Work(_) => {
+                Some(plan.equip.as_ref().and_then(|e| e["name"].as_str()).and_then(|n| worksum::pattern_for(&conf.shifts(), n)))
+            }
+            _ => None,
+        };
+        let work = pattern.as_ref().map(|p| pivot::Work {
+            clock: worksum::Clock::new(p.as_ref().map(|x| x.segments.clone()).unwrap_or_default()),
+            basis: if qs.iter().any(|(k, _)| k == "basis") { arg("basis") } else { "work".into() },
+            start: arg("start"),
+        });
+        let part = pivot::Part {
+            path,
+            table: arg("table"),
+            preferred_table: opts.table.clone(),
+            candidates: opts.candidates,
+            work,
+            equip: None,
+            name: String::new(),
+            lot_col: opts.lot_col.clone(),
+        };
+        let tables = self.tables(s);
+        let got = if arg("fields") == "1" {
+            pivot::fields(&part, None, &tables, 300)
+        } else {
+            let (search, filters, rows, cols, measures, month, bx) =
+                (arg("search"), arg("filters"), arg("rows"), arg("cols"), arg("measures"), arg("month"), arg("box"));
+            let ask = pivot::Ask {
+                search: &search,
+                filters: &filters,
+                rows: &rows,
+                cols: &cols,
+                measures: &measures,
+                today,
+                month: &month,
+                box_col: &bx,
+                period: None,
+                now: chrono::Local::now().naive_local(),
+                calc: None,
+                conv: &tables,
+                equips: &[],
+                egroups: None,
+                sets: None,
+            };
+            pivot::query(part, &ask).map(|mut v| {
+                if let Some(p) = &pattern {
+                    v["shiftPattern"] = json!(p.as_ref().map(|x| x.name.clone()).unwrap_or_default());
+                }
+                v
+            })
+        };
+        match got {
+            Ok(v) => (200, v),
+            Err(pivot::Fail::Invalid(e)) => (400, json!({"error": e})),
+            Err(pivot::Fail::Down(e)) => (503, json!({"error": e, "source": plan.source})),
+        }
+    }
+}
+
+/// 問い合わせの種類（一覧・スライサー・集計・データの時刻・再読込）
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Kind {
     List,
     Slicer,
+    /// 集計表・グラフ（版 3.61.0。fields=1 は左のカラムの札。src/pivot.rs）
+    Pivot,
     Source,
     Refresh,
 }
@@ -294,6 +375,7 @@ impl Route {
         let kind = |rest: &str| match (method, rest) {
             ("GET", "") => Some(Kind::List),
             ("GET", "/slicer") => Some(Kind::Slicer),
+            ("GET", "/pivot") => Some(Kind::Pivot),
             ("GET", "/source") => Some(Kind::Source),
             ("POST", "/refresh") => Some(Kind::Refresh),
             _ => None,
@@ -420,10 +502,17 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let src = fixture(&dir);
         let lot = Lot::new(dir.join("cache"));
+        // 読めない表（無い表を引く view。集計の中で読めない＝503 と元の様子。Python の src_pivot のほかの例外と同じ）
+        let empty = dir.join("broken.sqlite3");
+        rusqlite::Connection::open(&empty)
+            .unwrap()
+            .execute_batch("CREATE TABLE t (a); INSERT INTO t VALUES (1); CREATE VIEW v AS SELECT * FROM missing;")
+            .unwrap();
         let lists = json!({"hidden": ["lot", "wip"], "sources": [
             {"key": "lot", "kind": "file", "name": "品質", "api": "/api/lotlist", "joins": [], "read": {}},
             {"key": "wip", "kind": "file", "name": "仕掛", "api": "/api/src/wip", "place": src.display().to_string(), "joins": [], "read": {}},
             {"key": "m1", "kind": "file", "name": "マスタ", "api": "/api/src/m1", "place": src.display().to_string(), "joins": [], "read": {}},
+            {"key": "e1", "kind": "file", "name": "空", "api": "/api/src/e1", "place": empty.display().to_string(), "joins": [], "read": {}},
             {"key": "sch", "kind": "cm3", "name": "スケジュール", "api": "/api/src/sch", "joins": [], "read": {}}],
             "work": {"rows": []}, "shifts": []});
         let ask = || Ok(json!({"source": src.display().to_string(), "engine": "rust", "lists": lists.clone()}));
@@ -435,7 +524,18 @@ mod tests {
         assert_eq!((st, v["count"].as_i64(), v["table"].as_str()), (200, Some(2), Some("仕掛")), "{v}");
         assert_eq!(lot.handle("GET", "/api/src/%E7%84%A1", "", &ask).unwrap().0, 404, "知らない元");
         assert!(lot.handle("GET", "/api/src/sch", "", &ask).is_none() && lot.handle("GET", "/api/src/sch/source", "", &ask).is_none());
-        assert!(lot.handle("GET", "/api/src/m1/pivot", "", &ask).is_none(), "集計表は Python");
+        // 集計表（版 3.61.0 から窓が答える）: 行の無い組みは件数の総計だけ・出さないタブは 403・組み方の誤りは 400
+        let (st, v) = lot.handle("GET", "/api/src/m1/pivot", "", &ask).expect("集計表も窓が答える");
+        assert_eq!((st, v["cells"][0]["v"][0].as_i64(), v["count"].as_i64()), (200, Some(2), Some(2)), "{v}");
+        assert_eq!(lot.handle("GET", "/api/src/wip/pivot", "", &ask).unwrap().0, 403);
+        let (st, v) = lot.handle("GET", "/api/src/m1/pivot", "rows=%5B%7B%22column%22%3A%22%E7%84%A1%22%7D%5D", &ask).unwrap();
+        assert_eq!((st, v["error"].as_str()), (400, Some("列「無」がありません。")));
+        let (st, v) = lot.handle("GET", "/api/src/m1/pivot", "fields=1", &ask).unwrap();
+        assert!(st == 200 && v["fields"].as_array().is_some_and(|f| !f.is_empty()), "{v}");
+        assert!(lot.handle("GET", "/api/src/sch/pivot", "", &ask).is_none(), "スケジュールの集計は Python");
+        let (st, v) = lot.handle("GET", "/api/src/e1/pivot", "table=v", &ask).unwrap();
+        assert_eq!((st, v["error"].as_str()), (503, Some("no such table: main.missing")), "{v}");
+        assert!(v["source"].is_object(), "読めないときは元の様子も返す: {v}");
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=x", &ask).unwrap();
         assert_eq!((st, v["kind"].as_str()), (404, Some("unknown")));
         // 受け身の Python からの「写して」: 窓が作業実績の写しを始める

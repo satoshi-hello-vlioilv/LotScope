@@ -179,7 +179,7 @@ pub fn qi(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
 }
 
-fn py_of(v: ValueRef<'_>) -> Py<'_> {
+pub fn py_of(v: ValueRef<'_>) -> Py<'_> {
     match v {
         ValueRef::Null => Py::None,
         ValueRef::Integer(i) => Py::Int(i),
@@ -281,13 +281,13 @@ pub fn pick_table(names: &[String], preferred: &str, candidates: &[&str]) -> Str
     names.first().cloned().unwrap_or_default()
 }
 
-fn raw_columns(c: &Connection, t: &str) -> Result<Vec<String>, String> {
+pub fn raw_columns(c: &Connection, t: &str) -> Result<Vec<String>, String> {
     let mut st = c.prepare(&format!("PRAGMA table_info({})", qi(t))).map_err(sql_err)?;
     let rows = st.query_map([], |r| r.get::<_, String>(1)).map_err(sql_err)?;
     rows.collect::<Result<_, _>>().map_err(sql_err)
 }
 
-fn dedup(raw: &[String]) -> Vec<String> {
+pub fn dedup(raw: &[String]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for x in raw {
         if !out.contains(x) {
@@ -313,7 +313,7 @@ pub fn lot_column(cs: &[String], over: Option<&str>) -> String {
 }
 
 /// Python の真偽（JSON の値）。
-fn json_truthy(v: &Value) -> bool {
+pub fn json_truthy(v: &Value) -> bool {
     match v {
         Value::Null => false,
         Value::Bool(b) => *b,
@@ -325,7 +325,7 @@ fn json_truthy(v: &Value) -> bool {
 }
 
 /// Python の str(JSON から読んだ値)。
-fn json_str(v: &Value) -> String {
+pub fn json_str(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
         other => json_repr(other),
@@ -369,15 +369,20 @@ pub struct Filter {
 }
 
 fn safe_filters(text: &str, cs: &[String]) -> Vec<Filter> {
+    safe_filters_calc(text, cs, &[])
+}
+
+/// calc … 計算列の名前（条件に使える。式は build_filter_where の exprs で渡す。Python の safe_filters(text, cs, calc)）
+pub fn safe_filters_calc(text: &str, cs: &[String], calc: &[String]) -> Vec<Filter> {
     if text.is_empty() {
         return vec![];
     }
     let Ok(Value::Array(items)) = serde_json::from_str::<Value>(text) else { return vec![] };
-    filters_of(&items, cs)
+    filters_of(&items, cs, calc)
 }
 
 /// 条件の並び（JSON の配列）→ 使える条件だけ（Python の safe_filters に並びを渡したときと同じ）。
-fn filters_of(items: &[Value], cs: &[String]) -> Vec<Filter> {
+fn filters_of(items: &[Value], cs: &[String], calc: &[String]) -> Vec<Filter> {
     let mut out = vec![];
     for it in items.iter().take(MAX_FILTERS) {
         let Value::Object(it) = it else { continue };
@@ -389,7 +394,7 @@ fn filters_of(items: &[Value], cs: &[String]) -> Vec<Filter> {
             }
             continue;
         }
-        if cs.contains(&column) && ALLOWED_OPS.contains(&op.as_str()) {
+        if (cs.contains(&column) || calc.contains(&column)) && ALLOWED_OPS.contains(&op.as_str()) {
             let key = if op == "in" { slice_key_kind(&it.get("key").map(json_str).unwrap_or_default()) } else { String::new() };
             out.push(Filter { column, op, value, key, columns: vec![] });
         }
@@ -412,7 +417,7 @@ fn safe_marks(text: &str, cs: &[String]) -> Vec<Option<Vec<Filter>>> {
                 Value::Array(fs) => fs.iter().filter(|f| f.is_object()).take(MAX_FILTERS).cloned().collect(),
                 _ => vec![],
             };
-            let fl = filters_of(&given, cs);
+            let fl = filters_of(&given, cs, &[]);
             (!given.is_empty() && fl.len() == given.len()).then_some(fl)
         })
         .collect()
@@ -435,7 +440,7 @@ fn mark_rows(c: &Connection, marks: &[Option<Vec<Filter>>], rows: &[Value], toda
     let mut live = vec![];
     for (k, fl) in marks.iter().enumerate() {
         if let Some(fl) = fl {
-            live.push((k, build_filter_where(fl, today)?));
+            live.push((k, build_filter_where(fl, today, &Exprs::new())?));
         }
     }
     if live.is_empty() || rows.is_empty() {
@@ -492,7 +497,7 @@ fn mark_counts(
             out.push(None);
             continue;
         };
-        let (parts, ps) = build_filter_where(fl, today)?;
+        let (parts, ps) = build_filter_where(fl, today, &Exprs::new())?;
         let sql = format!(
             "SELECT COUNT(*) FROM {}{}{}",
             qi(t),
@@ -551,10 +556,19 @@ fn slice_key_kind(v: &str) -> String {
     }
 }
 
-/// スライサーの値（見えている値）の式（Python の slice_key と同じ）。前後の空白を除き、空は NULL。
-fn slice_key(col: &str, key: &str) -> String {
-    let q = qi(col);
-    let plain = format!("NULLIF(TRIM(CStr({q})), '')");
+/// 空欄の決まり（Python の lot_list.BLANK_CHARS・trimmed。版 3.51.1）: 前後の空白（半角・全角・タブ・改行）を除いて空なら空欄。
+/// 集計の段・スライサーの値・条件（値を選ぶ・空欄・空欄以外・＝・≠）で同じ決まり（版 3.61.0 まで窓の一覧だけ空白を除かずに比べていた）
+const BLANK_CHARS: &str = "' ' || char(9, 10, 13, 12288)";
+
+/// 列（か SQL の式）を字にして前後の空白を除いた式
+pub fn trimmed(q: &str) -> String {
+    format!("TRIM(CStr({q}), {BLANK_CHARS})")
+}
+
+/// スライサーの値（見えている値）の式（Python の slice_key と同じ）。前後の空白を除き、空は NULL。expr … 列の代わりの式（計算列）
+fn slice_key(col: &str, key: &str, expr: Option<&String>) -> String {
+    let q = expr.cloned().unwrap_or_else(|| qi(col));
+    let plain = format!("NULLIF({}, '')", trimmed(&q));
     let head = match key {
         "date" => format!("ToDate({q})"),
         "month" => format!("SUBSTR(ToDate({q}), 1, 7)"),
@@ -680,11 +694,11 @@ fn unescape_wild(value: &str) -> String {
     out
 }
 
-fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<String>, Vec<SqlValue>), String> {
+fn build_filter_where(filters: &[Filter], today: NaiveDate, exprs: &Exprs) -> Result<(Vec<String>, Vec<SqlValue>), String> {
     let (mut parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     let text = |s: String| SqlValue::Text(s);
     for f in filters {
-        let (col, op, value) = (qi(&f.column), f.op.as_str(), f.value.as_str());
+        let (col, op, value) = (exprs.get(&f.column).cloned().unwrap_or_else(|| qi(&f.column)), f.op.as_str(), f.value.as_str());
         match op {
             "contains" | "not_contains" | "starts" | "not_starts" | "ends" | "not_ends" => {
                 // 字を比べる（* ? を使える）。否定は空欄も当たる（Python の LIKE_OPS と同じ）
@@ -703,18 +717,14 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
                 params.push(text(like_pattern(value, mode).0));
             }
             "eq" | "neq" => {
-                // * ? があれば全体を型で比べる（Python と同じ）。無ければこれまでどおり
+                // 前後の空白は除いて比べる（集計の段と同じ値。空なら空欄と同じ）。* ? があれば全体を型で（Python と同じ）
                 let (pat, wild) = like_pattern(value, "exact");
-                let neg = op == "neq";
+                let not = if op == "neq" { "NOT " } else { "" };
                 if wild {
-                    parts.push(if neg {
-                        format!("(CStr({col}) NOT LIKE ? {LIKE_ESCAPE} OR {col} IS NULL)")
-                    } else {
-                        format!("CStr({col}) LIKE ? {LIKE_ESCAPE}")
-                    });
+                    parts.push(format!("COALESCE({}, '') {not}LIKE ? {LIKE_ESCAPE}", trimmed(&col)));
                     params.push(text(pat));
                 } else {
-                    parts.push(if neg { format!("(CStr({col})<>? OR {col} IS NULL)") } else { format!("CStr({col})=?") });
+                    parts.push(format!("COALESCE({}, ''){}", trimmed(&col), if op == "eq" { "=?" } else { "<>?" }));
                     params.push(text(unescape_wild(value)));
                 }
             }
@@ -727,8 +737,8 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
                     params.extend(vals.iter().map(|v| text(format!("{v}%"))));
                 }
             }
-            "empty" => parts.push(format!("({col} IS NULL OR CStr({col})='')")),
-            "not_empty" => parts.push(format!("({col} IS NOT NULL AND CStr({col})<>'')")),
+            "empty" => parts.push(format!("COALESCE({}, '')=''", trimmed(&col))),
+            "not_empty" => parts.push(format!("COALESCE({}, '')<>''", trimmed(&col))),
             "gt" | "gte" | "lt" | "lte" => {
                 let sign = match op {
                     "gt" => ">",
@@ -741,7 +751,7 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
             }
             "in" => {
                 let vals = in_values(value);
-                let k = slice_key(&f.column, &f.key);
+                let k = slice_key(&f.column, &f.key, exprs.get(&f.column));
                 let some: Vec<&String> = vals.iter().filter(|v| !v.is_empty()).collect();
                 let mut ors = vec![];
                 if !some.is_empty() {
@@ -779,6 +789,29 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate) -> Result<(Vec<Strin
             _ => {}
         }
     }
+    Ok((parts, params))
+}
+
+/// 一覧・スライサー・集計に共通の絞り込み（検索＋条件）→ (WHERE の式の並び, 値の並び)（Python の lot_list.search_filter_where と同じ）。
+/// exprs … 計算列の名前 → SQL の式（条件に使える。検索は表の列だけ＝一覧と同じ）
+pub fn search_filter_where(
+    cs: &[String],
+    search: &str,
+    filters: &str,
+    today: NaiveDate,
+    exprs: &Exprs,
+) -> Result<(Vec<String>, Vec<SqlValue>), String> {
+    let (mut parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
+    let q = pyfmt::strip(search);
+    if !q.is_empty() {
+        parts.push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
+        let pat = like_pattern(q, "contains").0;
+        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
+    }
+    let calc: Vec<String> = exprs.keys().cloned().collect();
+    let (fp, fpp) = build_filter_where(&safe_filters_calc(filters, cs, &calc), today, exprs)?;
+    parts.extend(fp);
+    params.extend(fpp);
     Ok((parts, params))
 }
 
@@ -945,7 +978,7 @@ fn count(c: &Connection, sql: &str, params: &[SqlValue]) -> Result<i64, String> 
     c.query_row(sql, params_from_iter(params.iter()), |r| r.get::<_, Option<i64>>(0)).map(|v| v.unwrap_or(0)).map_err(sql_err)
 }
 
-fn date_columns(c: &Connection, t: &str, cs: &[String]) -> Result<Vec<String>, String> {
+pub fn date_columns(c: &Connection, t: &str, cs: &[String]) -> Result<Vec<String>, String> {
     let mut out = vec![];
     for col in cs {
         let q = qi(col);
@@ -1042,7 +1075,7 @@ pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, o: &Opts, today: N
         let pat = like_pattern(&q, "contains").0;
         params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
     }
-    let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today).map_err(down)?;
+    let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today, &Exprs::new()).map_err(down)?;
     where_parts.extend(fp);
     params.extend(fpp);
     let hit = if where_parts.is_empty() {
@@ -1052,7 +1085,7 @@ pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, o: &Opts, today: N
     };
     let sql = format!(
         "SELECT v, n, a FROM (SELECT {} AS v, {hit} AS n, COUNT(*) AS a FROM {} GROUP BY 1) ORDER BY v IS NULL, SortKey(v), v LIMIT {}",
-        slice_key(column, &kind),
+        slice_key(column, &kind, None),
         qi(&t),
         MAX_SLICER_VALUES + 1
     );
@@ -1097,7 +1130,7 @@ pub fn slicer_combos(path: &Path, a: &Args, columns: &str, o: &Opts, today: Naiv
         let pat = like_pattern(&q, "contains").0;
         params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
     }
-    let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today).map_err(down)?;
+    let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today, &Exprs::new()).map_err(down)?;
     where_parts.extend(fp);
     params.extend(fpp);
     let hit = if where_parts.is_empty() {
@@ -1178,7 +1211,7 @@ pub fn query(
         params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
     }
     let fl = safe_filters(&a.filters, &cs);
-    let (fp, fpp) = build_filter_where(&fl, today)?;
+    let (fp, fpp) = build_filter_where(&fl, today, &Exprs::new())?;
     where_parts.extend(fp);
     params.extend(fpp);
     let base = (if where_parts.is_empty() { String::new() } else { format!(" WHERE {}", where_parts.join(" AND ")) }, params.clone());

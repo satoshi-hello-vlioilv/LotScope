@@ -146,6 +146,25 @@
       }
       ok(`作業実績・データ元の一覧は窓が答え、Python と同じ答え（${asks.length} 通り・作業でまとめる・ページ・失敗の答え）`,
          by.every((b) => b === "shell") && differ.length === 0, differ.length ? differ.join(" | ") : (one ? `設備 ${one.name}` : "設備なし（失敗の答えを比べた）"));
+
+      // 10d) 集計表・グラフ（版 3.61.0 から窓が答える: pivot.rs）。列はカラムの札の答えから選ぶ（どの PC のデータでも比べられる）
+      const J = (v) => encodeURIComponent(JSON.stringify(v));
+      let col = "";
+      try { col = ((JSON.parse((await get("/api/lotlist/pivot?fields=1")).text).fields || []).find((f) => !f.many) || {}).column || ""; } catch (_) { /* 列なし */ }
+      const pv = ["/api/lotlist/pivot?fields=1", `/api/lotlist/pivot?rows=${J([{ column: col }])}&measures=${J([{ agg: "count" }, { agg: "lots" }])}`,
+        `/api/lotlist/pivot?rows=${J([{ column: "無い列" }])}`, `/api/worklog/pivot?equip=${eq}&fields=1`,
+        `/api/worklog/pivot?equip=${eq}&rows=${J([{ column: "@workday" }])}&cols=${J([{ column: "@shift" }])}&measures=${J([{ agg: "count" }, { agg: "lots" }])}`,
+        `/api/src/wip/pivot?measures=${J([{ agg: "count" }, { agg: "lots" }])}`];
+      const pdiff = [], pby = [];
+      for (const a of pv) {
+        const rs = await get(a), py = await get(a + "&engine=python");
+        pby.push(rs.by);
+        let same = rs.r.status === py.r.status && py.by === "python";
+        try { same = same && JSON.stringify(canon2(JSON.parse(rs.text))) === JSON.stringify(canon2(JSON.parse(py.text))); } catch (_) { same = false; }
+        if (!same) pdiff.push(`${a} ${rs.r.status}/${py.r.status}`);
+      }
+      ok(`集計表・グラフは窓が答え、Python と同じ答え（${pv.length} 通り・カラムの札・作業日×直・失敗の答え）`,
+         pby.every((b) => b === "shell") && pdiff.length === 0, pdiff.length ? pdiff.join(" | ") : `列 ${col || "なし"}`);
     }
 
     // 11) 配布の画面の係（窓）: 答えが返る・版を置けない人は理由つきで断られる（だれが置けるかは Python の権限）

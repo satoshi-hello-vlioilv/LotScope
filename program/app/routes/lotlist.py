@@ -88,7 +88,7 @@ def lotlist_slicer():
 @bp.get("/api/lotlist/pivot")
 def lotlist_pivot():
     """ピボット集計（services/pivot.py）。一覧と同じ絞り込みに当たる全件を数える。fields=1 なら左のカラムの札の手がかり。
-    デスクトップ版でも Python が答える（窓の Rust は一覧・スライサーだけを受け持ち、写しの台帳は同じ物を読む）。"""
+    デスクトップ版は版 3.61.0 から窓の Rust（desktop/src/pivot.rs）が同じ答えを作る（ここは前の窓・engine=python・答え合わせの相手）。"""
     plan, fail = lotlist_plan()
     if fail:
         return fail
