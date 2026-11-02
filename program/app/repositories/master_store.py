@@ -283,7 +283,15 @@ class MasterStore:
     def revision(self, name):
         return self._read_doc(name)["revision"]
 
-    def _read_doc(self, name):
+    def stamp(self, name):
+        """中身が変わったかの目印（版の番号と、読むファイルの更新時刻・大きさ）。版の番号は、手元のみの PC では書いても増えない
+        （同梱の data/ へ昔の形〈行の配列〉で書くため）。変わったかで読み直す所（式の変換表・デスクトップ版の Rust へ渡す表の版）はこれを使う（版 3.59.0）"""
+        path = self._doc_path(name)
+        doc = self._cached(path) if path.exists() else _doc([])
+        return f"{doc['revision']}:{_stat_sig(path)}"
+
+    def _doc_path(self, name):
+        """いまの中身を読むファイル（共有の写し → 同梱の data/ → 最初の中身）"""
         if self.share_dir is None and name in self.shared_names:
             try:   # 手元のみの PC も、配る版の覚えに全員が使う置き場があれば移る（新しく入れた PC が設定ファイルを直さずにそろう）
                 self.follow_moved()
@@ -293,9 +301,12 @@ class MasterStore:
             self._maybe_refresh(name)
             mirror = self._mirror(name)
             if mirror.exists():
-                return self._cached(mirror)
+                return mirror
             # 共有にも写しにも無い（初回で共有に届かない）。同梱のデータで読むだけは続ける。
-        path = self._initial(name)
+        return self._initial(name)
+
+    def _read_doc(self, name):
+        path = self._doc_path(name)
         return self._cached(path) if path.exists() else _doc([])
 
     def _cached(self, path):

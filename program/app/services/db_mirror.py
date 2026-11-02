@@ -37,6 +37,11 @@
     デスクトップ版では写しの係を Rust（desktop/src/mirror.rs）が受け持つ。同じ台帳・同じ世代名で写すので、
     このプロセスは写さず（背景スレッドを起こさない）、台帳を読むだけにする（read_path・source_info はそのまま使える）。
     台帳の形（signature の source・size・mtime_ns と file）を変えるときは、Rust 側も合わせる（desktop/tests/mirror_parity.rs が突き合わせる）。
+    版 3.60.0 から作業実績・データ元の写しも Rust が受け持つ。受け身の係は:
+    - 台帳を自分のキーだけでなく元ファイルの場所（same_place）でも引く（Rust は同じ元のキーどうしで 1 つの係を分け合うので、
+      このプロセスが尋ねたキーとは別のキーの行に写しがあることがある）
+    - 周回の様子（理由・届かない・確かめた時刻）は Rust が置く <キー>.state.json を読む
+    - 写しが要るときは窓へ「写して」と知らせ（work_log.Mirrors の notify）、最初の周回が済むまで待てる（wait_first）
 """
 import contextlib
 import json
@@ -98,6 +103,21 @@ def is_side_file(name):
     return low.startswith(".") or ".pending_" in low or low.endswith(("-journal", "-wal", "-shm", ".incoming"))
 
 
+def same_place(remote):
+    """元のファイルが同じかを比べる形（空なら ""）。Windows では大文字小文字と / \\ の違いを同じと見る（os.path.normcase）。"""
+    from ..fsio import unquote_path
+    s = unquote_path(remote)
+    return os.path.normcase(os.path.normpath(s)) if s else ""
+
+
+def _same_signature(had, now):
+    """台帳の印と今の元の印が同じか（大きさ・更新時刻が同じで、元が同じファイル。元の字の書き方〈./ の有無など〉の違いは同じと見る。
+    版 3.60.0。desktop/src/mirror.rs の same_signature と同じ）"""
+    had, now = had or {}, now or {}
+    return (had.get("size") == now.get("size") and had.get("mtime_ns") == now.get("mtime_ns")
+            and same_place(had.get("source")) == same_place(now.get("source")))
+
+
 def _retrying(fn, budget=REPLACE_BUDGET_SEC):
     """置き換え・削除は開かれている間 Windows で拒まれるので、少し待ってやり直す（fsio.retrying）。"""
     return retrying(fn, budget)
@@ -118,6 +138,8 @@ class DbMirror:
         self._thread = None
         self._state = {}
         self.passive = bool(passive)
+        self._asked = None            # 受け身: 窓へ「写して」と知らせた時刻（wait_first はそれより後の周回を待つ）
+        self._entry_key = self.key    # 受け身: いま読んでいる台帳の行のキー（同じ元を分け合う別のキーのこともある）
 
     def reconfigure(self, remote=None, interval_sec=None, stale_hours=None):
         """参照先マスタで元ファイル・間隔・古さのしきいが変わったとき、起動し直さずに切り替える。
@@ -160,8 +182,47 @@ class DbMirror:
             return {}
 
     def _entry(self):
-        e = self._ledger().get(self.key)
-        return e if isinstance(e, dict) else {}
+        data = self._ledger()
+        e = data.get(self.key)
+        e = e if isinstance(e, dict) else {}
+        if not self.passive or self._same_source(e):
+            self._entry_key = self.key
+            return e
+        # 受け身: 同じ元の写しを持つ別のキーの行（窓が同じ元のキーどうしで 1 つの係を分け合っている）。新しい物を使う
+        place = same_place(self.remote)
+        best = None
+        for k, x in data.items():
+            if isinstance(x, dict) and place and same_place((x.get("signature") or {}).get("source")) == place:
+                if best is None or ((x.get("signature") or {}).get("mtime_ns") or 0) > ((best[1].get("signature") or {}).get("mtime_ns") or 0):
+                    best = (k, x)
+        if best is None:
+            self._entry_key = self.key
+            return e
+        self._entry_key = best[0]
+        return best[1]
+
+    def _same_source(self, entry):
+        """台帳の行の印が、いまの元から作った物か（受け身は場所で比べる。窓が書いた元の字と書き方が違ってもよい）"""
+        src = str(((entry or {}).get("signature") or {}).get("source") or "")
+        if src == self.remote:
+            return True
+        return self.passive and bool(self.remote) and same_place(src) == same_place(self.remote)
+
+    def _status(self):
+        """周回の様子（理由・届かない・確かめた時刻）。受け身は窓（Rust）が置く <キー>.state.json（このプロセスが自分で
+        「再読込」〈refresh〉を走らせた後は、その様子）"""
+        with self._lock:
+            if not self.passive or self._state:
+                return dict(self._state)
+        try:
+            data = json.loads((self.cache_dir / f"{self._entry_key}.state.json").read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) and (not data.get("remote") or same_place(data.get("remote")) == same_place(self.remote)) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def asked(self):
+        """受け身: 窓へ「写して」と知らせた（wait_first はこれより後の周回を待つ）"""
+        self._asked = time.time()
 
     def _save_entry(self, signature, filename):
         # 同じ台帳に、いくつもの係（作業実績の設備ごと）が書くので、読んで直して書くあいだは1本にする（ほかの係の行を消さない）
@@ -275,7 +336,7 @@ class DbMirror:
             if not (same and prev.get("error") == err):
                 log.warning("%s: %s", self.key, res["reason"])
             return self._record(res)
-        if has_local and entry.get("signature") == sig:
+        if has_local and _same_signature(entry.get("signature"), sig):
             res.update(skipped=True, reason="元ファイルは変わっていません")
             self._sweep(local)
             return self._record(res)
@@ -334,10 +395,10 @@ class DbMirror:
         if wait:
             self.wait_first(FIRST_WAIT_SEC)
         entry = self._entry()
-        sig = entry.get("signature") or {}
-        if str(sig.get("source") or "") != self.remote:
+        if not self._same_source(entry):
             return None
-        local = self.mirror_path()
+        name = entry.get("file")
+        local = self.cache_dir / str(name) if name else None
         try:
             if local and local.exists():
                 return local
@@ -346,24 +407,35 @@ class DbMirror:
         return None
 
     def wait_first(self, timeout):
-        """起動して最初の周回（写し）が済むまで、timeout 秒まで待つ。済んだ（か、写しの係が動いていない）なら True"""
+        """起動して最初の周回（写し）が済むまで、timeout 秒まで待つ。済んだ（か、写しの係が動いていない）なら True。
+        受け身は、窓へ「写して」と知らせた後なら、窓の周回がそれより後に済むか写しができるまで待つ（知らせていなければ待たない）"""
+        if self.passive:
+            if self._asked is None:
+                return True
+            end = time.monotonic() + max(0.0, timeout)
+            while True:
+                if self._mirrored()[2] or float(self._status().get("at") or 0) >= self._asked - 1:
+                    return True
+                if time.monotonic() >= end:
+                    return False
+                time.sleep(0.1)
         if self._first.is_set() or self._thread is None or not self._thread.is_alive():
             return True
         return self._first.wait(max(0.0, timeout))
 
     def _mirrored(self):
         """いまの元から作った写しがあるか → (台帳の印, 写しの場所, あるか)。共有は見ない。"""
-        sig = self._entry().get("signature") or {}
-        local = self.mirror_path()
+        entry = self._entry()
+        sig = entry.get("signature") or {}
+        local = self.cache_dir / str(entry["file"]) if entry.get("file") else None
         try:
-            return sig, local, bool(local) and sig.get("source") == self.remote and local.exists()
+            return sig, local, bool(local) and self._same_source(entry) and local.exists()
         except OSError:
             return sig, local, False
 
     def not_ready_text(self):
         """写しがまだ無いときに画面へ出す文（なぜ無いか＋写し終えたら出ること）。"""
-        with self._lock:
-            why = str(self._state.get("reason") or "")
+        why = str(self._status().get("reason") or "")
         return "共有の元ファイルを、まだ手元へ写せていません" + (f"（{why}）" if why else "") + "。写し終えると一覧が出ます。"
 
     def source_info(self):
@@ -378,8 +450,7 @@ class DbMirror:
                 out["at"] = float(sig["mtime_ns"]) / 1e9
             with contextlib.suppress(OSError):
                 out["copiedAt"] = local.stat().st_mtime
-        with self._lock:
-            st = dict(self._state)
+        st = self._status()
         if isinstance(st.get("at"), (int, float)):
             out["checkedAt"] = float(st["at"])
         out["unreachable"] = bool(st.get("unreachable"))

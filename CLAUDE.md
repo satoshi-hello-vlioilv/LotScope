@@ -134,7 +134,7 @@ python program/tools/ui_score.py 採点.json                                    
   `ui-eval-dashlink.mjs`（ダッシュボードの版 3.40.0: 設備を 3 つ選ぶと重ねる〈設備ごとの系列〉・並べる・合算・行に置く・別のデータと合わせる〈目標と実績・積み上げ・差・やめる〉・設備グループ→設備の表と小計・設備グループのマスタの設備の札〈実際に出てくる設備〉とルール・画面の印刷とハードコピー〈どの画面も窓の大きさの PNG〉。どの数もサーバーへ同じ組みを問い合わせた答えと突き合わせる）・
   `ui-eval-dashslice.mjs`（ダッシュボードの版 3.41.0: 折れ線の数値ラベルがどの系列にも付く・系列ごとの書式と見本の色・組む所の外枠が送られない・保存の往復と描き直し・合わせた表の行を引いて並べる〈ゴースト・線・上下で同じ決まり・設備グループの見出し〉・四隅の取っ手・スライサー〈数がサーバーと合う・効く／効かないパネル・月を送る・覚える・道具の行の下の帯に 1280 でも 1 段・題が切れない〉）・
   `ui-eval-dashboard-more.mjs`（ダッシュボードの改良〈版 3.39.0〉: パネルを絞る〈値・設備〉と開き直し・組む所で設備を複数選ぶ・足した 8 つの形の印・統計と累計・計算列を組む所で作る・枠と数字の形と合わせた表の見せ方・色の組と系列の色・書式〈日だけ・段の中の数・基準線・縦軸〉・設備をまとめる〈合算・このパネルのグループ・設備グループのマスタ〉。どの数もサーバーへ同じ組みを問い合わせた答えと突き合わせる）・
-  `formula-parity.mjs`（計算列の式を画面〈list-formula.js〉で計算する。サーバーの式〈services/formula.py〉と同じ答えかを `tests/test_formula_parity.py` が突き合わせる）・
+  `formula-parity.mjs`（計算列の式を画面〈list-formula.js〉で計算する。版 3.59.0 から答えは事例表 `tests/fixtures/formula_cases.json` に焼き付け〈作り直すのは `python program/tools/formula-cases.py`〉、Python〈`tests/test_formula_parity.py`。node があれば表が古くないかも〉と Rust〈`desktop/src/formula.rs` の `cargo test --test formula_cases`〉が node 無しで同じ表と突き合わせる）・
   `ui-eval-colsort.mjs`（版 3.42.0: 列の幅の取っ手〈左端へ動かした列・まとめて見出し行を付けた表の左端の列を引いた量どおりに狭める・拡大〉と、計算列の並べ替え〈▲▼外す・全件で式の答えの順・式を添えて Python が答える・まとめた表・仕掛〉）・
   `conv-plan-check.mjs`（変換表を一覧の列に当てる計画: 列の見つけ方・足す所・まとめて当てる・当て直し。node で流す。`tests/test_screen_parts.py` からも）・
   `ui-eval-narrow.mjs`（1728・1536・1280 の 3 つの大きさで、ボタンの字の折れ・切れ・1 段のはずの段の 2 段・3D の札の重なり・見出し帯の操作に届くか）・
@@ -193,6 +193,15 @@ python program/tools/ui_score.py 採点.json                                    
   （共有から写すのに時間がかかる形で、最初の画面の作業実績のパネルが答えるまで・途中の数を「写しています」と言うか・正しい数に着くまでを測る）
 - 画面に出ない改良（速さ）の評価関数: `python program/tools/dash-bench.py [--rows 20000] [--save 前.json] [--compare 前.json]`
   （ダッシュボードの標準の全パネルを大きな試験データで数え、冷えた時・控えから・ファイルが変わった後を、順に・一度に問い合わせて測る。--compare で前と同じ数かを突き合わせる）
+- 一覧の道を Rust へ移した評価関数（版 3.60.0）: `cargo test --test lists_parity`（← `program/tests/lists_oracle.py`。表の候補・ロット番号の列・作業でまとめる・
+  日時の読み方・結合の数と行と答えのファイルの名前）・`cargo test --test routes_parity`（← `program/tests/routes_oracle.py`。品質・実績・データ元の道の答えと失敗を
+  Python の道と突き合わせる）。速さは `python program/tests/routes_oracle.py --bench 出力.json` → `cd desktop && cargo run --release --example routes_bench -- 出力.json`
+- 集計を Rust へ移した評価関数（版 3.61.0）: 一覧の集計表の道（/pivot・カラムの札・作業日と直・空白だけの値）は上の `routes_parity`、ダッシュボードの形
+  （いくつかのファイル・設備の段と絞り込み・設備のまとめ・設備グループ・期間・計算列・箱ひげ・区間・失敗・値の計算の事例）は
+  `cargo test --test pivot_parity`（← `program/tests/pivot_oracle.py`。Python の `pivot.query_many` と突き合わせる）
+- Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`
+  （部品ごとの行・試験・依存の段・要る crate の棚卸しと、全部の道の速さを SQLite の中・JSON・Python の手に分けて測る。--calibrate は既に Rust にある一覧で
+  見積もりを Rust の実際の時間〈`cargo build --release --example lotbench`〉と突き合わせる。表と順は `program/docs/RUST_PORT_PLAN.md`）
 - 採点のファイルの形は `ui_score.py` の冒頭。案ごとに「画像で見えたこと」（`"seen"`）と、だれが撮って採点したか（`"evaluator"`）を必ず書く。
   2026-10 までのファイルは旧い決まり（7 基準・80 点・7 案）の記録で、判定はしない
 - 案の定義と採点は `program/tools/ui-proposals/` に比較ごとに置く（例: `2026-10-shortcut.mjs`）

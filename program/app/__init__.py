@@ -46,6 +46,43 @@ def mirror_is_external(settings):
     return "lotlist" in shell_serves() and lot_engine(settings) == "rust"
 
 
+def lists_are_external(settings):
+    """作業実績・データ元の一覧とその写しを、このプロセスの外（デスクトップ版の Rust）が受け持つか（版 3.60.0）。
+    窓が lists を受け持つと名乗り、設定の係も rust のときだけ。そのとき作業実績・データ元の写しの係は受け身（写さず台帳を読み、
+    写しが要るときは窓へ知らせる: shell_notice）"""
+    return "lists" in shell_serves() and lot_engine(settings) == "rust"
+
+
+_SHELL_NOTICE = []
+
+
+def set_shell_notice(fn):
+    """窓（Rust）へ知らせる手段を置く（sidecar.py が枠の書き手を渡す。試験は記録する係を渡す）。None で外す"""
+    _SHELL_NOTICE[:] = [fn] if fn else []
+
+
+def shell_notice(event, **data):
+    """窓へ知らせる（答えではない枠 {"id": 0, "event": …}）。窓が無い（ブラウザ・試験）ときは何もしない"""
+    for fn in list(_SHELL_NOTICE):
+        try:
+            fn({"id": 0, "event": event, **data})
+        except Exception:      # 知らせられなくても問い合わせは止めない（写しは窓の背景の周回が続ける）
+            pass
+
+
+def work_mirrors(app, kind):
+    """作業実績（kind="work"）・データ元（"src"）の写しの係（アプリに 1 つずつ）。窓が受け持つときは受け身"""
+    from .services import work_log
+    name = "WORK_MIRRORS" if kind == "work" else "SRC_MIRRORS"
+    ms = app.config.get(name)
+    if ms is None:
+        passive = lists_are_external(app.config["APP_SETTINGS"])
+        ms = app.config[name] = work_log.Mirrors(app_env.local_root() / "db_cache" / ("work_log" if kind == "work" else "sources"),
+                                                 passive=passive, prefix="work_log" if kind == "work" else "src",
+                                                 notify=(lambda **kw: shell_notice("mirror", **kw)) if passive else None)
+    return ms
+
+
 def make_lot_mirror(params, passive=False):
     """ロット一覧の元（品質データ SQLite）を手元（この PC の作業場所の db_cache）へ写す係。passive は読むだけ（写さない）。"""
     from .services.db_mirror import DbMirror
@@ -72,7 +109,8 @@ def create_app(test_config=None):
     # 式の conv が引く変換表（版 3.42.0）: マスタ「変換表」。一覧の並べ替え・ダッシュボードの集計で、画面と同じ表を使う
     from .repositories.master_repository import MasterRepository
     from .services import conversions, formula
-    formula.use_tables(conversions.TableSource(lambda: MasterRepository(_st).conversions(), lambda: _st.revision(conversions.NAME)).get)
+    # 読み直すかは中身の目印で決める（版 3.59.0。版の番号は手元のみの PC では増えず、直した表が開き直すまで効かなかった）
+    formula.use_tables(conversions.TableSource(lambda: MasterRepository(_st).conversions(), lambda: _st.stamp(conversions.NAME)).get)
     presence.configure(_st.share_dir / presence.SUBDIR if _st.share_dir else _st.cache_dir.parent / "presence")
     # 置き場を変えた・ほかの PC が変えた置き場へ移ったら、利用状況の置き場も新しい置き場の下へ
     _st.on_moved = lambda d: presence.configure(Path(d) / presence.SUBDIR)

@@ -280,15 +280,13 @@ fn update_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
     serde_json::from_slice(&r.body).map_err(|e| e.to_string())
 }
 
-/// 中身が答えたあとに窓が見ること: 参照先（設定）を保存したら、一覧の設定を尋ね直す（元ファイル・間隔をすぐ当て直す）。
+/// 中身が答えたあとに窓が見ること: 一覧の設定に効くマスタを保存したら、一覧の設定を尋ね直す（元ファイル・間隔・段取りの材料をすぐ当て直す）。
 /// 更新の置き場を保存したら、すぐ確かめる。
 fn after(lot: Arc<Lot>, upd: Arc<Updater>) -> After {
     Box::new(move |method, path, status| {
-        if method == "PUT" && status == 200 && path.starts_with("/api/settings/") {
-            lot.invalidate();
-            if path.starts_with("/api/settings/update.") {
-                upd.wake();
-            }
+        lot.after_python(method, path, status);
+        if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
+            upd.wake();
         }
     })
 }
@@ -562,6 +560,9 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     let static_dir = program.join("app").join("static");
     // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
     let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
+    // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
+    let told = lot.clone();
+    sup.on_notice(Arc::new(move |h| told.notice(h)));
     let _ = slot.set(Router {
         static_dir,
         backend: sup,

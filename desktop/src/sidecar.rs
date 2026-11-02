@@ -39,7 +39,9 @@ pub struct Ask<'a> {
 pub const PROTOCOL: u64 = 1;
 /// 窓（Rust）が受け持つこと。中身（Python）へ TPA_SHELL_SERVES で伝える（app/__init__.py の shell_serves）。
 /// lotlist: 品質異常の問い合わせと品質データの写し（src/lot.rs。Python は写さず同じ台帳を読む）。
-pub const SERVES: &[&str] = &["lotlist"];
+/// lists: 作業実績・データ元の一覧・スライサーとその写し・結合（版 3.60.0。src/lists.rs。Python の写しは受け身になり、写しが要るときは
+/// 知らせの枠 {"id": 0, "event": "mirror", …} で窓へ伝える: Supervisor::on_notice）。
+pub const SERVES: &[&str] = &["lotlist", "lists"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);
 /// 止めたあと、本当に終わったと見えるまで待つ長さ（その間に入れ替えを始めない）。
@@ -47,6 +49,8 @@ const KILL_WAIT: Duration = Duration::from_millis(3000);
 
 /// 起動の途中の知らせ（起動前の確認の進み具合）を受ける係。
 pub type Progress = Arc<dyn Fn(&Value) + Send + Sync>;
+/// 動いている間の知らせ（答えではない枠。今は作業実績・データ元の「写して」）を受ける係。起こし直しても同じ係へ届く
+pub type Notices = Arc<Mutex<Option<Progress>>>;
 
 pub struct Sidecar {
     /// 書き口。終わるときに先に閉じる（閉じれば Python は入力の終わりを見て自分で終わる）
@@ -61,7 +65,15 @@ pub struct Sidecar {
 
 impl Sidecar {
     /// 起こして「準備できた」を待つ。起動できない理由（Python の誤り）はそのまま返す。
-    pub fn spawn(py: &Python, program: &Path, log_dir: &Path, wait: Duration, progress: &Progress) -> Result<Sidecar, String> {
+    /// 動いている間の知らせは notices へ渡す。
+    pub fn spawn(
+        py: &Python,
+        program: &Path,
+        log_dir: &Path,
+        wait: Duration,
+        progress: &Progress,
+        notices: Notices,
+    ) -> Result<Sidecar, String> {
         std::fs::create_dir_all(log_dir).ok();
         let err_log = log_dir.join("sidecar_stderr.log");
         let stderr = std::fs::File::create(&err_log).map(Stdio::from).unwrap_or_else(|_| Stdio::null());
@@ -143,7 +155,10 @@ impl Sidecar {
         let pending: Arc<Mutex<HashMap<u64, Sender<Reply>>>> = Arc::default();
         let alive = Arc::new(AtomicBool::new(true));
         let (p2, a2) = (pending.clone(), alive.clone());
-        std::thread::Builder::new().name("sidecar-reader".into()).spawn(move || read_loop(out, p2, a2)).map_err(|e| e.to_string())?;
+        std::thread::Builder::new()
+            .name("sidecar-reader".into())
+            .spawn(move || read_loop(out, p2, a2, notices))
+            .map_err(|e| e.to_string())?;
         Ok(Sidecar {
             stdin: Mutex::new(Some(BufWriter::new(stdin))),
             pending,
@@ -244,11 +259,21 @@ pub enum RequestError {
     Timeout,
 }
 
-fn read_loop(mut out: BufReader<std::process::ChildStdout>, pending: Arc<Mutex<HashMap<u64, Sender<Reply>>>>, alive: Arc<AtomicBool>) {
+fn read_loop(
+    mut out: BufReader<std::process::ChildStdout>,
+    pending: Arc<Mutex<HashMap<u64, Sender<Reply>>>>,
+    alive: Arc<AtomicBool>,
+    notices: Notices,
+) {
     while let Ok(Some(f)) = read_frame(&mut out) {
         let id = f.head["id"].as_u64().unwrap_or(0);
         if id == 0 {
-            continue; // 知らせ（今は ready だけ。答えではない）
+            // 知らせ（答えではない）。受け手の中で時間をかけない（読み手の糸を止めると答えが届かない）ので、受け手は短く済ませる
+            let tell = notices.lock().unwrap().clone();
+            if let Some(tell) = tell {
+                tell(&f.head);
+            }
+            continue;
         }
         let headers = f.head["headers"]
             .as_array()
@@ -278,12 +303,26 @@ pub struct Supervisor {
     log_dir: PathBuf,
     current: Mutex<Option<Arc<Sidecar>>>,
     progress: Progress,
+    notices: Notices,
     pub start_wait: Duration,
 }
 
 impl Supervisor {
     pub fn new(py: Python, program: PathBuf, log_dir: PathBuf, progress: Progress) -> Self {
-        Supervisor { py, program, log_dir, current: Mutex::new(None), progress, start_wait: Duration::from_secs(120) }
+        Supervisor {
+            py,
+            program,
+            log_dir,
+            current: Mutex::new(None),
+            progress,
+            notices: Notices::default(),
+            start_wait: Duration::from_secs(120),
+        }
+    }
+
+    /// 動いている間の知らせ（作業実績・データ元の「写して」）の受け手を置く
+    pub fn on_notice(&self, f: Progress) {
+        *self.notices.lock().unwrap() = Some(f);
     }
 
     /// 動いている中身（無ければ・止まっていれば起こす）。
@@ -295,7 +334,7 @@ impl Supervisor {
             }
         }
         *cur = None; // 古いものを捨てる（Drop で後始末）
-        let s = Arc::new(Sidecar::spawn(&self.py, &self.program, &self.log_dir, self.start_wait, &self.progress)?);
+        let s = Arc::new(Sidecar::spawn(&self.py, &self.program, &self.log_dir, self.start_wait, &self.progress, self.notices.clone())?);
         *cur = Some(s.clone());
         Ok(s)
     }

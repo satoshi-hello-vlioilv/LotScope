@@ -100,14 +100,18 @@
       const qs = ["page=1", "search=" + enc("汚れ"), "page=3&page_size=50",
         "filters=" + enc([{ column: "発生日", op: "within_days", value: "90" }, { column: "設備", op: "starts_any", value: "L-,ＣＲ" }]),
         "group=1&sorts=" + enc([{ column: "重量", dir: "desc" }]),
-        "filters=" + enc([{ column: "発生日", op: "within_days", value: "0" }, { column: "設備", op: "eq", value: "無い" }])];
+        "filters=" + enc([{ column: "発生日", op: "within_days", value: "0" }, { column: "設備", op: "eq", value: "無い" }]),
+        // 計算列で並べ替える（版 3.59.0 から Rust も式を持つ: formula.rs。変換表は Python の設定の答えから）
+        "calc=" + enc({ formulas: { 倍: "[重量] * 2 + 1", 課: "conv('課名', [設備])" }, names: {} }) + "&sorts=" + enc([{ column: "課", dir: "asc" }, { column: "倍", dir: "desc" }]),
+        "group=1&calc=" + enc({ formulas: { 番: "extract([ロット番号], '[0-9]+')" }, names: {} }) + "&sorts=" + enc([{ column: "番", dir: "desc" }])];
       const differ = [], speed = { rust: 0, python: 0 };
       for (const q of qs) {
         let s = performance.now(); const rs = await get("/api/lotlist?" + q); speed.rust += performance.now() - s;
+        if (q.includes("calc=") && rs.by !== "shell") differ.push("計算列を Rust が答えない: " + q);
         s = performance.now(); const py = await get("/api/lotlist?" + q + "&engine=python"); speed.python += performance.now() - s;
         if (py.by !== "python" || JSON.stringify(canon(JSON.parse(rs.text))) !== JSON.stringify(canon(JSON.parse(py.text)))) differ.push(q);
       }
-      ok(`一覧: Rust と Python の答えが同じ（${qs.length} 通り・日本語の検索・絞り込み・ページ・まとめ・0 件の手がかり）`, differ.length === 0,
+      ok(`一覧: Rust と Python の答えが同じ（${qs.length} 通り・日本語の検索・絞り込み・ページ・まとめ・0 件の手がかり・計算列で並べ替え）`, differ.length === 0,
          differ.length ? differ.join(" | ") : `${llCount} 行・Rust ${speed.rust.toFixed(0)}ms / Python ${speed.python.toFixed(0)}ms`);
       const pySrc = JSON.parse((await get("/api/lotlist/source?engine=python")).text), rsSrc = JSON.parse(llSrc.text);
       ok("写しは 1 つ: Python も Rust が写した写しを読む（同じ台帳・同じ元の時刻）", rsSrc.mirrored && pySrc.mirrored && pySrc.at === rsSrc.at,
@@ -121,6 +125,47 @@
     let wlj = {}; try { wlj = JSON.parse(wl.text); } catch (_) { /* 下で言う */ }
     ok("作業実績の設備の問い合わせが答える（届かなければ理由つき）", wl.r.ok && Array.isArray(wlj.items) && (wlj.items.length > 0 || !!wlj.error || Array.isArray(wlj.new)),
        `設備 ${(wlj.items || []).length} 台・未登録 ${(wlj.new || []).length}・${wlj.error || "フォルダに届いた"}`);
+
+    // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
+    //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる
+    {
+      const canon2 = (v) => Array.isArray(v) ? v.map(canon2) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["timing", "source", "ms"].includes(k)).map((k) => [k, canon2(v[k])])) : v;
+      const one = (wlj.items || []).find((x) => x.visible && x.state !== "missing");
+      const eq = encodeURIComponent(one ? one.key : "無い設備");
+      const asks = [`/api/worklog?equip=${eq}`, `/api/worklog?equip=${eq}&work=1&fill=1`, `/api/worklog?equip=${eq}&page=2&page_size=20`,
+        `/api/worklog?equip=${eq}&work=1&total=` + encodeURIComponent("重量"), "/api/worklog?equip=" + encodeURIComponent("登録の無い設備"),
+        "/api/src/wip?page=1", "/api/src/wip?group=1&page_size=30", "/api/src/" + encodeURIComponent("無い元")];
+      const differ = [], by = [];
+      for (const a of asks) {
+        const rs = await get(a), py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python");
+        by.push(rs.by);
+        let same = rs.r.status === py.r.status && py.by === "python";
+        try { same = same && JSON.stringify(canon2(JSON.parse(rs.text))) === JSON.stringify(canon2(JSON.parse(py.text))); } catch (_) { same = false; }
+        if (!same) differ.push(`${a} ${rs.r.status}/${py.r.status}`);
+      }
+      ok(`作業実績・データ元の一覧は窓が答え、Python と同じ答え（${asks.length} 通り・作業でまとめる・ページ・失敗の答え）`,
+         by.every((b) => b === "shell") && differ.length === 0, differ.length ? differ.join(" | ") : (one ? `設備 ${one.name}` : "設備なし（失敗の答えを比べた）"));
+
+      // 10d) 集計表・グラフ（版 3.61.0 から窓が答える: pivot.rs）。列はカラムの札の答えから選ぶ（どの PC のデータでも比べられる）
+      const J = (v) => encodeURIComponent(JSON.stringify(v));
+      let col = "";
+      try { col = ((JSON.parse((await get("/api/lotlist/pivot?fields=1")).text).fields || []).find((f) => !f.many) || {}).column || ""; } catch (_) { /* 列なし */ }
+      const pv = ["/api/lotlist/pivot?fields=1", `/api/lotlist/pivot?rows=${J([{ column: col }])}&measures=${J([{ agg: "count" }, { agg: "lots" }])}`,
+        `/api/lotlist/pivot?rows=${J([{ column: "無い列" }])}`, `/api/worklog/pivot?equip=${eq}&fields=1`,
+        `/api/worklog/pivot?equip=${eq}&rows=${J([{ column: "@workday" }])}&cols=${J([{ column: "@shift" }])}&measures=${J([{ agg: "count" }, { agg: "lots" }])}`,
+        `/api/src/wip/pivot?measures=${J([{ agg: "count" }, { agg: "lots" }])}`];
+      const pdiff = [], pby = [];
+      for (const a of pv) {
+        const rs = await get(a), py = await get(a + "&engine=python");
+        pby.push(rs.by);
+        let same = rs.r.status === py.r.status && py.by === "python";
+        try { same = same && JSON.stringify(canon2(JSON.parse(rs.text))) === JSON.stringify(canon2(JSON.parse(py.text))); } catch (_) { same = false; }
+        if (!same) pdiff.push(`${a} ${rs.r.status}/${py.r.status}`);
+      }
+      ok(`集計表・グラフは窓が答え、Python と同じ答え（${pv.length} 通り・カラムの札・作業日×直・失敗の答え）`,
+         pby.every((b) => b === "shell") && pdiff.length === 0, pdiff.length ? pdiff.join(" | ") : `列 ${col || "なし"}`);
+    }
 
     // 11) 配布の画面の係（窓）: 答えが返る・版を置けない人は理由つきで断られる（だれが置けるかは Python の権限）
     const rel = await get("/__desktop/release");

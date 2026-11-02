@@ -9,7 +9,7 @@ from ..web import current_app, jsonify, request
 
 import app_env
 
-from .. import effective_settings
+from .. import effective_settings, lists_are_external
 from ..repositories.master_store import MasterError
 from ..services import data_join, data_sources, lot_list, path_settings, pivot, work_log
 from .common import base_rev, bp, can_write, error, master_call, master_repo, tab_denied
@@ -24,11 +24,14 @@ def _all():
     return data_sources.sources(effective_settings(current_app), master_repo().data_source_rows())
 
 
+def all_sources():
+    """いま効いているデータ元の並び（一覧の段取りの設定: lotlist.lists_settings）"""
+    return _all()
+
+
 def _mirrors():
-    ms = current_app.config.get("SRC_MIRRORS")
-    if ms is None:
-        ms = current_app.config["SRC_MIRRORS"] = work_log.Mirrors(app_env.local_root() / "db_cache" / "sources", prefix="src")
-    return ms
+    from .. import work_mirrors
+    return work_mirrors(current_app, "src")
 
 
 def _rows_of(m, s):
@@ -73,18 +76,17 @@ def _public(s):
 
 def _view_rows(s):
     """結合した表の行の数（最後に組んだ答えの数。まだ組んでいなければ None）。"""
-    got = _joiner().last.get(s["key"]) or _joiner().last.get(f"try-{s['key']}")
+    got = _joiner().recent(s["key"], s["joins"]) or _joiner().recent(f"try-{s['key']}", s["joins"])
     st = (got or {}).get("stats") or []
-    return st[-1].get("out") if st and got.get("items") == s["joins"] else None
+    return st[-1].get("out") if st else None
 
 
 def _join_stats(s):
     """最後に組んだ結合の数（このプロセスで組んだ物だけ。決まりが今と同じときだけ。カードの「当たった数」）。"""
     if not s.get("joins"):
         return None
-    last = _joiner().last
-    # 読んだときに組んだ答え → 無ければ、同じ決まりを「試す」で数えた答え（保存した直後のカード）
-    got = next((g for g in (last.get(s["key"]), last.get(f"try-{s['key']}")) if g and g.get("items") == s["joins"]), None)
+    # 読んだときに組んだ答え（窓の Rust が組んだ物も）→ 無ければ、同じ決まりを「試す」で数えた答え（保存した直後のカード）
+    got = _joiner().recent(s["key"], s["joins"]) or _joiner().recent(f"try-{s['key']}", s["joins"])
     if got is None:
         return None
     return [{k: x.get(k) for k in ("hit", "rows", "miss")} for x in got.get("stats") or []]
@@ -104,6 +106,8 @@ def sources_list():
         x["conn"] = _conn(s, ps_items, rows)
         if s["key"] == "lot":         # 品質データの場所・表を参照先で変えてあるか（「既定に戻す」を出す）
             x["placeChanged"] = bool({"lot_list.source", "lot_list.table"} & changed)
+            # 窓（Rust）が結合・ロット番号の列も受け持つか（版 3.60.0。画面は結合した品質を Python へ回さない）
+            x["shellLists"] = lists_are_external(current_app.config["APP_SETTINGS"])
         if s["kind"] == "folder":     # 作業実績: 表示する設備の台数（状態に出す）
             x["equipCount"] = shown
         items.append(x)

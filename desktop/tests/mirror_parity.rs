@@ -114,8 +114,13 @@ fn rust_mirrors_like_python() {
                 Value::Null
             }
             "files" => {
-                let mut v: Vec<String> =
-                    std::fs::read_dir(&cache).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+                // 周回の様子（<キー>.state.json。版 3.60.0）は窓だけが置く（受け身の Python が読む）ので比べない
+                let mut v: Vec<String> = std::fs::read_dir(&cache)
+                    .unwrap()
+                    .flatten()
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .filter(|n| !n.ends_with(".state.json"))
+                    .collect();
                 v.sort();
                 json!(v)
             }
@@ -143,6 +148,35 @@ fn rust_mirrors_like_python() {
     }
     let _ = std::fs::remove_dir_all(&work);
     assert!(bad.is_empty(), "{} / {} 歩が食い違いました:\n{}", bad.len(), steps.len(), bad.join("\n"));
+}
+
+/// 版 3.60.0: 窓の写しの係の束（Mirrors）が同じ元のキーどうしで分け合った写し（台帳の別のキーの行）を、受け身の Python の係が
+/// 元の場所で引いて読み、窓の置いた周回の様子（理由・確かめた時刻）を言う。元の字の書き方（./ の有無）が違っても同じ写し
+#[test]
+fn passive_python_reads_the_copy_the_window_shares() {
+    let work = common::work("mirror-passive");
+    let o = common::python_json("mirror_oracle.py", &["scenario", work.join("x").to_str().unwrap()]);
+    assert!(o["results"].is_array());
+    let cache = work.join("cache");
+    let remote = work.join("LOTNOW.sqlite3");
+    std::fs::copy(work.join("x").join("assets").join("v1.sqlite3"), &remote).unwrap();
+    let ms = da_core::mirror::Mirrors::new(cache.clone(), "src");
+    let r = remote.display().to_string();
+    let m = ms.get("other", &r, 60, 36.0);
+    m.wait_first(std::time::Duration::from_secs(30));
+    assert!(m.read_path().is_some(), "窓が写した");
+    // 同じ元を別の字（./ を挟む）で尋ねても、窓は同じ係・同じ写しのまま（写し直さない）
+    let spelled = work.join(".").join("LOTNOW.sqlite3").display().to_string();
+    assert!(std::sync::Arc::ptr_eq(&ms.get("other", &spelled, 60, 36.0), &m) && m.read_path_wait(false).is_some());
+    let py = common::python_json("mirror_oracle.py", &["op", cache.to_str().unwrap(), &spelled, "passive", "src_wip"]);
+    assert_eq!(
+        py["read_path"],
+        json!(cache.join("src_other.g1.sqlite3").display().to_string()),
+        "別のキーの行でも同じ元の写しを読む: {py}"
+    );
+    assert_eq!((py["info"]["mirrored"].as_bool(), py["info"]["reason"].as_str()), (Some(true), Some("写しを更新しました")), "{py}");
+    assert!(py["info"]["checkedAt"].is_number(), "窓の確かめた時刻: {py}");
+    let _ = std::fs::remove_dir_all(&work);
 }
 
 #[test]

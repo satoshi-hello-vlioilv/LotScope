@@ -1,6 +1,6 @@
 [package]
 name = "defect-analyzer-desktop"
-version = "3.58.0"
+version = "3.61.0"
 description = "LotScope（仕掛・作業実績・品質の見える化）デスクトップ版の窓"
 edition = "2021"
 rust-version = "1.90"
@@ -37,6 +37,11 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
 # 「N 日以内」の今日（この PC の暦）
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# 計算列の式（src/formula.rs。画面の list-formula.js と同じ答え）: 利用者が書く JavaScript の正規表現（後方参照・先読みも）・
+# hankaku の NFKC・日時の読み方。regex は Tauri が既に使っている版と同じ物（同じ crate を2つ持たない）
+fancy-regex = "0.14"
+unicode-normalization = "0.1"
+regex = "1"
 
 # 本物の Python を PID で見る・止める（src/proc.rs）・ショートカットを作る（src/lnk.rs）。版は Tauri が使っているものに合わせる（同じ crate を2つ持たない）
 [target.'cfg(windows)'.dependencies]

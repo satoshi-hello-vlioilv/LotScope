@@ -123,12 +123,28 @@ class UiScore(unittest.TestCase):
         d["built"]["result"]["minus"] = [{"kind": "cut", "where": "w"}] * 3
         self.assertEqual(ui.decide(d)[0], "直す")
 
+    def test_user_choice_skips_scoring_but_judges_what_was_built(self):
+        """利用者が案を選んだ記録（版 3.60.0）: 案の採点はしない。作った後は別のエージェントの採点を合格点で判定する"""
+        d = {"title": "t", "rule": "2026-10-17", "rounds": [{"name": "1 回目", "proposals": {"A": {"plan": "a"}, "B": {"plan": "b"}}}],
+             "chosen_by_user": {"proposal": "B", "date": "2026-11-01"}}
+        self.assertEqual(ui.decide(d)[:2], ("利用者が選んだ", "B"))
+        d["chosen_by_user"]["proposal"] = "Z"
+        with self.assertRaises(ValueError):
+            ui.decide(d)
+        d["chosen_by_user"]["proposal"] = "B"
+        d["built"] = {"name": "作った後", "result": {"score": {k: 9 for k in ui.KEYS}, "seen": "s"}}
+        with self.assertRaises(ValueError, msg="作った後には採点した者が要る"):
+            ui.decide(d)
+        d["evaluator"] = "別のエージェント"
+        kind, who, rows = ui.decide(d)
+        self.assertGreaterEqual(rows[0][0], 80)
+
     def test_old_records_still_read(self):
         """旧い決まり（7 基準の数の並び）の記録も読める（判定はしない）"""
         for path in (Path(__file__).resolve().parents[1] / "tools" / "ui-proposals").glob("*.json"):
             d = json.loads(path.read_text(encoding="utf-8"))
             kind, _, _ = ui.decide(d)
-            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す", "当てた"), path.name)
+            self.assertIn(kind, ("記録", "選ぶ", "届かずに選ぶ", "出し直す", "当てた", "利用者が選んだ"), path.name)
 
 
 if __name__ == "__main__":

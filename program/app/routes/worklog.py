@@ -5,7 +5,6 @@ import json
 
 from ..web import current_app, jsonify, request
 
-import app_env
 
 from .. import effective_settings
 from ..repositories.master_store import MasterError
@@ -35,10 +34,8 @@ def _listing():
 
 
 def _mirrors():
-    ms = current_app.config.get("WORK_MIRRORS")
-    if ms is None:
-        ms = current_app.config["WORK_MIRRORS"] = work_log.Mirrors(app_env.local_root() / "db_cache" / "work_log")
-    return ms
+    from .. import work_mirrors
+    return work_mirrors(current_app, "work")
 
 
 def _found(wl, fresh=False):
@@ -115,22 +112,8 @@ def start_mirrors(rows, timeout):
 
 
 def work_grouping(equip_name):
-    """「作業でまとめる」（work=1）の係。直はその設備の勤務体系（設備を書いた体系 → 全設備共通）。
-    start: 作業開始の列（無ければ既定の名前）・basis: work（現場歴）／cal（太陽暦）・order: desc（新しい順）／asc・
-    day（YYYY-MM-DD。"-" は日付なし）・shift（直の番号）: 帯で押した日・直に一覧を絞る（数の帯は絞らない）。
-    fill=1: 帯に作業の無い日（0 件の日）も出す。"""
-    a = request.args
-    if a.get("work") != "1":
-        return None
-    pat = shifts.pattern_for(master_repo().shift_patterns(), equip_name)
-    brief = {k: pat[k] for k in ("id", "name", "equipmentText")} if pat else None
-    try:
-        shift = int(a["shift"]) if a.get("shift", "") != "" else None
-    except ValueError:
-        shift = None
-    return work_summary.Grouping(pat["segments"] if pat else [], column=a.get("start", ""), basis=a.get("basis", "work"),
-                                 order=a.get("order", "desc"), pattern=brief, day=a.get("day", ""), shift=shift, total=a.get("total", ""),
-                                 fill=a.get("fill") == "1")
+    """「作業でまとめる」（work=1）の係（services/work_summary.grouping_of）。直はその設備の勤務体系。"""
+    return work_summary.grouping_of(request.args, master_repo().shift_patterns(), equip_name)
 
 
 @bp.get("/api/worklog")

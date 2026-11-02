@@ -1,0 +1,309 @@
+{
+ "title": "2026-11 計算列の式を Rust へ移す（版 3.59.0。RUST_PORT_PLAN.md の順 1）: 移し方",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント）。proto/qjs・proto/native・calc_base.py を自分で組んで 3 回ずつ流し、さらに自分の試作（scratchpad/scorer-port: QuickJS で突き合わせの事例 2,058 件を流して node と比べる qjsparity・QuickJS の中だけで回す qjsbatch・Rust の素直な木をたどる計算 walk・regex と fancy-regex の読める書き方 rx・SQLite の算術と字の比べ方）を流し、formula.py・list-formula.js・test_formula_parity.py・formula-parity.mjs・like_cases.json を読む lotlist.rs の試験・test_num_expr.py・lotlist_parity.rs・ci.yml・web.py の CSP・RUST_PORT_PLAN.md を読んで採点した。 作った後（built）は、作っていない別の採点者が、cargo test（lib 43・formula_cases・lotlist_parity 111 通り）と Python の試験（test_formula_parity・test_conversions 16 件）を自分で流し、rust-port-bench.py --static-only --calibrate 20000 を 2 回流して計算列の 5 式を測り、formula.rs・lotlist.rs・lot.rs・事例表を読み、わざと入れた誤り 9 つ（式 7・一覧 2。どれも元に戻した）と自分で足した 120 件の事例（画面の答えを node で出し、事例表に一時だけ足して Rust と Python に流した）で試験の強さを確かめて採点した。 直した後の作った後（built。前の 71.7 点は built_before）は、同じ採点者が試験 2 組を流し直し、わざと入れる誤りを 18 個（前の 9 つ＋直した translate・clean_calc に 9 つ。どれも元に戻した）流し、前の事例 120 件と、直した所の隅を狙った新しい事例 111 件（繰り返しの置き場・\\k と前を指す後方参照・8 進・\\c・[] の中の - と集合・(? の形・空に合う所の進め方）を画面（node）・Rust・Python で突き合わせ、速さを 1 回測り直して採点した。 2 回目に直した後の作った後（built。77.5 点は built_before2）は、同じ採点者が試験 2 組と速さを流し直し、前の誤り 18 個と、組み直した translate・_translate への新しい誤り 14 個（Rust 11・Python 3。どれも元に戻した）を流し、前の事例 120 件・111 件に加えて、まだ違いそうな所を狙った 3 回目の事例 72 件（繰り返しの中の組・長さの決まらない後読み・名前・大きな繰り返し・[] の範囲・先読みと空の組と位置の繰り返し）を画面（node 22）・Rust・Python で突き合わせて採点した。",
+ "reading": "画面に出ない改良なので、画像の代わりに動かして測った数と作りで採点する（CLAUDE.md: 画面に出ない改良は、動かして測った数を根拠にする）。11 項目の読み替え: order＝作りが依存の順に流れる（葉から積む）／chunk＝部品の境目が一目で分かれる／hierarchy＝答えの元（正しさの基準）が 1 つ／visual＝食い違い・速さが数で見える（評価関数）／steps＝利用者の待ち（計算列の一覧の時間）が少ない／effortless＝利用者が何も変えずに済む（前と同じ式が同じ答え）／intuitive＝画面で見た値と Rust の値が同じ／form＝画面・Python・Rust が同じ決まり（同じ事例表）／place＝同じ処理が同じ置き場・同じ名前（da_core の部品）／layout＝コードの量と依存（crate）の釣り合い／tone＝作る・確かめる道具の手間（CI・ビルド）。減点: lost＝今できることができなくなる／hidden_state＝食い違いが試験で見えない／more_steps＝利用者か開発者の手が増える",
+ "measured": {
+  "how": "品質 20,000 行（tests/lotlist_fixture.make）。式 5 種（四則 [重量] * 2 + 1・条件 if([重量] > 3000, '重', '軽')・字 left([ロット番号], 3) + '-' + upper([材質])・正規表現 extract([ロット番号], '[0-9]+')・日付 datediff([発生日], '2026/10/02', 'd')）。中央値",
+  "今（Python・計算列で並べ替えた一覧 1 ページ。SQLite と JSON を含む）": {
+   "四則": "84 ms",
+   "条件": "88 ms",
+   "字": "197 ms",
+   "正規表現": "163 ms",
+   "日付": "74 ms",
+   "ふつうの列で並べ替え": "25 ms（Rust は同じ形で約 18 ms）"
+  },
+  "QuickJS の中で list-formula.js を動かす（式の計算だけ。SQLite を含まない）": {
+   "四則": "59 ms",
+   "条件": "66 ms",
+   "字": "304 ms",
+   "正規表現": "101 ms",
+   "日付": "322 ms",
+   "読み込み": "3.8 ms",
+   "exe が増える量（試作の実行ファイル）": "約 1.6 MB"
+  },
+  "Rust で直接書いた中身だけ（式を読む手間を含まない目安）": {
+   "四則": "0.06 ms",
+   "字": "2.8 ms",
+   "正規表現（fancy-regex）": "1.7 ms"
+  },
+  "突き合わせの事例": "tests/test_formula_parity.py の書いた例 約 200 式 × 3 行と、作った例 1,500 式（画面の list-formula.js を node で動かした答えと Python を比べる）",
+  "試作の置き場": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/proto（qjs・native。cargo build --release で組み直せる）・同じ場所の calc_base.py（今の Python の数）"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良（画像なし）。数は measured と試作",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと: ① 今の Python の数（calc_base.py）を品質 20,000 行で 5 回の中央値で測った。② B の数は試作（proto/qjs。rquickjs 0.9 で list-formula.js を読み、同じ 5 式を 20,000 行）を release で組んで測った。window・WL の作り物だけで読み込めた（document は候補の画面の中だけで使い、計算には要らない）。③ A・E・F の速さの目安は試作（proto/native。fancy-regex 0.14）で、中身だけを測った（式を読む手間は含まない）と measured に書いた。④ E の「読めなくなる式」は、同梱のマスタに後方参照・先読みを使う式が無いことを grep で確かめ、利用者の共有の物は分からないと書き直した。⑤ 案の方向が偏っていないか: 置き場（A・F は Rust の中・B は JS を Rust に・C は Rust を画面に）・減らし方（E は書き方を減らす）・流れの変え方（D は SQLite に訳す・F は確かめの流れを変える）に分かれている。",
+   "proposals": {
+    "A 素直に移す（Rust の formula.rs を Python の formula.py と 1 対 1 に。正規表現は fancy-regex。突き合わせは今の Python の試験から Rust の例を呼ぶ）": {
+     "plan": "desktop/src/formula.rs に字句・構文・評価・JavaScript の正規表現の読み替え（fancy-regex。後方参照・先読みも）・置き換えの $1・conv・日時・釜番・計算列（CalcColumns・SQLite の関数として登録）を Python と同じ並びで書く。tests/test_formula_parity.py が、今の画面（node）と Python に加えて、Rust の例（cargo run --example formula_parity）も呼んで 3 つを突き合わせる。Python の式は消すまで答えの見本として残る",
+     "cost": "Rust 約 1,100 行・crate: fancy-regex・unicode-normalization",
+     "risk": "Rust の試験だけでは食い違いが見えない（node と Python が要る）。Python を外した後は突き合わせの相手が画面だけになる",
+     "score": {
+      "order": 9,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 9,
+      "intuitive": 8,
+      "form": 6,
+      "place": 8,
+      "layout": 7,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "plan の「tests/test_formula_parity.py が cargo run --example formula_parity も呼ぶ」: ci.yml の program ジョブには WebKitGTK も Rust の作り方も無く（desktop の例は tauri を含む依存を全部組むので WebKitGTK が要る）、desktop ジョブには node が無い（setup-node が program ジョブだけ）。3 つを突き合わせる試験が CI のどちらでも流れず、飛ばされると食い違いが見えない。cargo test だけでも見えない（risk にも書いてある）"
+      }
+     ],
+     "seen": "【再現した数】今の Python（calc_base.py を 2 回）: 四則 83〜105・条件 88〜95・字 203〜208・正規表現 162〜164・日付 76〜89・ふつうの列 25 ms（案の数 84/88/197/163/74/25 とほぼ同じ）。Rust の素直な木をたどる計算（採点者の walk。Value の enum・行ごとに字を複製・日付は regex で読む）は 5 式 × 20,000 行で 0.42/0.68/6.4/2.7/8.9 ms。Rust の一覧の並べ替え約 18 ms に足しても、計算列の一覧は 20〜30 ms ほどの見込み（測った物ではなく足し算の見立て）。 良い所: 葉から 1 対 1 に移すので formula.py の並び（字句・構文・評価・正規表現の読み替え・conv・日時・釜番・CalcColumns）をそのまま追え、da_core の部品（lotlist.rs と同じ置き場）になる。regex 1.13.1 は Cargo.lock に既にあり（tauri から）、足すのは fancy-regex と unicode-normalization だけ。fancy-regex（0.14・0.20 とも）で \\1・\\k<n>・(?=)・(?!)（[] の読み替えに使う (?!) も）が動き、(a+)+b・(.*.*)*! のような後方参照の無い形は regex に任されて 40 字でも 0.2 ms 以下で止まる。悪い所: ① fancy-regex は (?-u:…) を読めない（「Changing Unicode mode inline is not supported」）ので、Python の re.ASCII の代わりに \\d→[0-9]・\\w→[A-Za-z0-9_]・\\b→前後読みの組み、と読み替えを書き直す要る（\\d+ は「１２３」に当たってしまうのを確かめた。plan に書いていない）。② 後方参照のある重い形（(a*)*\\1b）は fancy-regex の backtrack の上限で 35 ms で Err になる（JavaScript は答えを出す）。regex_risk で多くは断られるが、決まりの違いは残る。③ 突き合わせが Python の試験から Rust を呼ぶ向きで、今の前例（lotlist_parity.rs は Rust の試験が Python の oracle を呼ぶ）と逆。Python を外した後の相手が無い。"
+    },
+    "B 画面の JavaScript をそのまま Rust の中で動かす（QuickJS〈rquickjs〉に list-formula.js を読ませる）": {
+     "plan": "Rust に JavaScript を動かす仕組みを入れ、画面と同じ list-formula.js の compile・run を行ごとに呼ぶ。答えの元が画面と 1 つになり、食い違いは起き得ない",
+     "cost": "Rust のつなぎ 約 200 行・crate: rquickjs（C の QuickJS を組む）・exe 約 +1.6 MB",
+     "risk": "式の計算だけで 20,000 行に 59〜322 ms（測った）。字・日付の式は今の Python（SQLite 込み 74〜197 ms）より遅い。C のコンパイラが Windows の CI でも要る",
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 10,
+      "visual": 7,
+      "steps": 3,
+      "effortless": 9,
+      "intuitive": 9,
+      "form": 9,
+      "place": 6,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "【再現】proto/qjs を 3 回: 読み込み 3.7〜4.4 ms・四則 56〜58・条件 62〜66・字 277〜279・正規表現 101〜106・日付 329〜339 ms（案の数 59/66/304/101/322 とほぼ同じ）。つなぎの手間を除くため行を QuickJS の中で作って 1 回の呼び出しで回しても（採点者の qjsbatch）四則 40〜43・条件 48〜55・字 259〜262・正規表現 84〜86・日付 356〜363 ms で、遅さは QuickJS の計算そのもの。SQLite 約 18 ms を足すと、字（今 約 205 ms）・日付（今 約 80 ms）は今の Python より遅くなる。exe の増え方: 試作の実行ファイル 1.6 MB は全体の大きさで、strip して何もしない Rust の実行ファイル（0.34 MB）と比べた増え方は約 1.07 MB（案の「約 +1.6 MB」は多めに書いてある）。良い所: 突き合わせの事例 2,058 件（書いた例 186 式 × 3 行＋作った例 1,500）を QuickJS で流して node と比べたら 2,052 件が同じ、違う 6 件は壊れた正規表現の理由の後半（エンジンの言葉。今の試験も前半だけ比べる所）だけで、答えの元が 1 つになるのは本当。悪い所: 利用者の待ちが字・日付の式で今より増える（移す目的に反する）。da_core が static/js の画面の部品に頼る形で、置き場がねじれる。C の QuickJS を組む（Windows の MSVC は build.rs が /std:c11 /experimental:c11atomics を付け、x86_64-pc-windows-msvc の bindings は同梱されている。rusqlite の bundled で既に C を組んでいるので C のコンパイラは新しく要らないが、Windows で実際に組めるかは確かめていない＝分からない）。画面の V8 と QuickJS が将来の関数で食い違わない保証は、事例を流し続ける試験が無いと無い。"
+    },
+    "C Rust の式を WebAssembly にして画面とも共有する（list-formula.js の計算の中身を Rust の 1 つに）": {
+     "plan": "A の formula.rs を wasm32 にも組み、画面は WebAssembly の compile・run を呼ぶ（式の候補・組み立ての画面は JavaScript のまま）。画面・Rust の答えの元が 1 つになる",
+     "cost": "A ＋ wasm のつなぎ 約 300 行・ビルドに wasm32 と wasm-bindgen（CI・配る手順が増える）・画面の読み込みの作り替え",
+     "risk": "画面の式（入力の途中の check・候補・変換表の setTables）の作り替えが要り、移すのが 1 段で済まない。画面を作り替えるので UI の確かめも要る",
+     "score": {
+      "order": 4,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 4,
+      "tone": 3
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "plan の「ビルドに wasm32 と wasm-bindgen（CI・配る手順が増える）」: 開発者が式を直すたび wasm を組み直す手が 1 つ増える。ci.yml にも wasm32 の target と wasm-bindgen の段が要る"
+      }
+     ],
+     "seen": "試作が無く、速さは測っていない（画面の計算が wasm になったときの速さ・読み込みの時間は分からない）。良い所: 答えの元が Rust の 1 つになり、画面と Rust が同じ部品を使う。悪い所: ① 画面の CSP（program/app/web.py:421 の script-src 'self' 'nonce-…'）には 'wasm-unsafe-eval' が無く、WebView2（Chromium）で WebAssembly を組むには CSP を緩める要がある。版 3.52.1 で締めた所を開け直すことになる。② 画面の check・suggest・setTables は JavaScript に残るので、答えの元は完全には 1 つにならない。③ A を先に作り終えてから画面を作り替える 2 段になり、葉から積む順にならない。UI の確かめ（ui-eval-formula.mjs など）もやり直し。"
+    },
+    "D 式を SQLite の SQL に訳す（Rust は式の木を SQL の式にし、足りない関数だけ Rust の関数を登録する）": {
+     "plan": "[重量] * 2 + 1 のような式は SQL の式（CASE・算術）に訳して SQLite の中で計算する。正規表現・conv・UTF-16 の字の扱い・JavaScript の数の字にする決まりは Rust の関数を登録して呼ぶ",
+     "cost": "訳す係 約 600 行＋関数 約 800 行（A の大半も要る）",
+     "risk": "SQLite の算術・比べ方・NULL の扱いは JavaScript の決まり（parseFloat・字と数の比べ方・0 で割ると空）と違い、訳し分けが細かい。食い違いが出やすい",
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 4,
+      "visual": 5,
+      "steps": 9,
+      "effortless": 5,
+      "intuitive": 4,
+      "form": 4,
+      "place": 5,
+      "layout": 4,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "plan に突き合わせの試験が無い。採点者が SQLite で確かめた食い違い: '😀' > '￿' は式 0・SQLite 1（UTF-16 の順と UTF-8 の順）、text(1/3) は式 0.3333333333333333・SQLite 0.333333333333333、2e21 の字は式 2e+21・SQLite 2.0e+21。どれも訳し分けを書かないと黙って違う答えになる"
+      }
+     ],
+     "seen": "良い所: 四則・条件のような式は SQLite の中だけで済み、行ごとに Rust の関数を呼ばない分は速くなりうる（測っていない）。悪い所: 採点者の確かめでは、'12abc' + 1（式 13・SQLite 13）・10 / 0（どちらも空）・-7 % 3（どちらも -1）は合ったが、字の大小・数の字の書き方は合わない（上の minus）。結局 conv・正規表現・UTF-16・数の字は Rust の関数で持つので A の大半も要り、決まりが SQL と Rust の 2 か所に分かれる。式の木から SQL へ訳す係は、式を読む画面・Python のどちらにも無い新しい作り。"
+    },
+    "E 正規表現を Rust の regex（線形の時間）だけにし、後方参照・先読みは式を読むときに断る": {
+     "plan": "A と同じに移すが、正規表現は regex crate（いつも線形の時間で止まらない）にし、\\1・\\k<名前>・(?=)・(?!) を使う式は、画面・Python・Rust のどれでも「使えません」と断る。重すぎる形を断る決まり（regex_risk）は要らなくなる",
+     "cost": "A より約 100 行少ない・crate: regex・unicode-normalization",
+     "risk": "今読める式（後方参照・先読み）が読めなくなる。同梱のマスタ（master_defaults・data）には使っている式が無いことを確かめたが、利用者の共有のマスタ・表示列の設定にあるかは分からない（あれば開いたら壊れる）",
+     "score": {
+      "order": 9,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 6,
+      "place": 8,
+      "layout": 8,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "plan の「\\1・\\k<名前>・(?=)・(?!) を使う式は、画面・Python・Rust のどれでも断る」: 今は読める式（test_formula_parity.py の WRITTEN にも regreplace('a1', '(?<n>\\d)', '$<n>!') の名前付き・formula.py の説明に \\k<名前>）が読めなくなる。利用者の共有のマスタ・表示列の設定に使っていれば開いたら空になる（あるかは分からない）"
+      }
+     ],
+     "seen": "【再現した数】今の Python（calc_base.py を 2 回）: 四則 83〜105・条件 88〜95・字 203〜208・正規表現 162〜164・日付 76〜89・ふつうの列 25 ms（案の数 84/88/197/163/74/25 とほぼ同じ）。Rust の素直な木をたどる計算（採点者の walk。Value の enum・行ごとに字を複製・日付は regex で読む）は 5 式 × 20,000 行で 0.42/0.68/6.4/2.7/8.9 ms。Rust の一覧の並べ替え約 18 ms に足しても、計算列の一覧は 20〜30 ms ほどの見込み（測った物ではなく足し算の見立て）。 良い所: regex crate は (?-u:\\b) を読める（採点者の rx で「ádef」の def に当たった）ので ASCII の \\b・\\d をそのまま書け、A より読み替えが少ない。速さは A と同じ見込み。悪い所: ① 「重すぎる形を断る決まり（regex_risk）は要らなくなる」は Rust・Python の側だけの話。画面は new RegExp（list-formula.js:234）で JavaScript の後戻りする仕組みのままなので、(a+)+b は画面で止まる。regex_risk は画面には残す要がある。② Python の読み替えは [] を (?!)（先読み）にしている（formula.py の _translate）。regex では読めないので別の書き方（[^\\s\\S]。採点者の rx で読めた）に替える要がある。③ 今できることを減らすのに、利用者の側に何があるか分からない。"
+    },
+    "F 素直に移し、事例表を 3 つの約束にする（A ＋ 画面の答えを焼き付けた事例表 tests/fixtures/formula_cases.json を、cargo test・Python の試験・node の 3 つが読む）": {
+     "plan": "A と同じに移す。加えて、書いた例と作った例の答えを画面（list-formula.js）で出して事例表に焼き付け、Rust の cargo test は node・Python 無しでこの表と突き合わせる（like_cases.json・num_expr_cases.json と同じ形）。Python の試験は表が画面の今の答えと同じか（古くなっていないか）を確かめる。Python を外した後も Rust の試験が単独で食い違いを見つける",
+     "cost": "A ＋ 事例表を作る道具 約 60 行・事例表（約 2,100 件）",
+     "risk": "事例表の答えを画面で作り直すのを忘れると古くなる（Python の試験が止める）",
+     "score": {
+      "order": 9,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 9,
+      "steps": 9,
+      "effortless": 9,
+      "intuitive": 9,
+      "form": 10,
+      "place": 9,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "plan の「事例表の答えを画面で作り直す」: list-formula.js を直したとき、開発者が事例表 tests/fixtures/formula_cases.json を作り直す手が 1 つ増える（忘れると Python の試験が止める）"
+      }
+     ],
+     "seen": "【再現した数】今の Python（calc_base.py を 2 回）: 四則 83〜105・条件 88〜95・字 203〜208・正規表現 162〜164・日付 76〜89・ふつうの列 25 ms（案の数 84/88/197/163/74/25 とほぼ同じ）。Rust の素直な木をたどる計算（採点者の walk。Value の enum・行ごとに字を複製・日付は regex で読む）は 5 式 × 20,000 行で 0.42/0.68/6.4/2.7/8.9 ms。Rust の一覧の並べ替え約 18 ms に足しても、計算列の一覧は 20〜30 ms ほどの見込み（測った物ではなく足し算の見立て）。 良い所: Rust の cargo test が node・Python 無しで事例表を読む形は、like_cases.json を include_str! で読む lotlist.rs の試験（1179 行目）と、num_expr_cases.json を Python と node が読む形の前例どおりで、置き場も形もそろう。ci.yml の desktop ジョブ（Rust・Python あり・node なし）でも cargo test だけで食い違いが見え、program ジョブ（Python・node）で表が古くないかを見るので、A の「どのジョブでも流れない」穴が無い。Python を外した後も Rust が単独で確かめられる。答えの元は画面（list-formula.js）の 1 つで、表に焼き付く。事例の数は 186 式 × 3 行＋1,500 ＝ 2,058 件（採点者が corpus() で数えた。案の「約 2,100 件」と合う）。悪い所（作るときに気をつけること）: ① A と同じく fancy-regex は (?-u:…) を読めないので、\\d・\\w・\\b を ASCII の組みに読み替える（\\d+ が「１２３」に当たるのを確かめた。事例表に extract('１２３', '\\d+') があるので落ちて気づける）。② 壊れた正規表現の理由の後半はエンジンごとに違う（QuickJS でも 6 件違った）。表には前半だけで比べる印が要る。③ 事例表は作った例を固めるので、新しい関数を足したら作った例の作り方（rnd_expr）も直して作り直す。④ 変換表（conv）の事例（tests/test_conversions.py の tables）も表に入れないと Rust の conv が見えない。⑤ 表の大きさは事例だけで約 270 KB・node の答えで約 95 KB（採点者が書き出して測った）。"
+    }
+   },
+   "baseline": {
+    "今（計算列の一覧は Rust が Python に任せる）": {
+     "plan": "Rust の一覧は計算列を持たず、画面が engine=python を付けて Python へ回す（lotlist.js:348）",
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 4,
+      "effortless": 10,
+      "intuitive": 9,
+      "form": 6,
+      "place": 4,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "【再現】calc_base.py: 計算列で並べ替えた一覧 1 ページは 76〜208 ms（ふつうの列 25 ms の 3〜8 倍）。Windows では Python を起こすのに 1,099 ms（RUST_PORT_PLAN.md の CI の記録）。良い所: 画面と Python は test_formula_parity.py（2,058 件）で突き合わせ済みで、利用者は何も変えずに済む。悪い所: Rust の一覧は計算列を持たず engine=python で Python へ戻るので、同じ一覧が 2 か所で作られる（置き場が割れる）。Python を外せない。Rust 側の事例表は無い。"
+    }
+   }
+  }
+ ],
+ "built_before": {
+  "name": "作った後",
+  "images": "画面に出ない改良（画像なし）。流した試験と測った数",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 9,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 9,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 7,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/formula.rs:479-484（translate の \\0 の続きに数字がある所）: 採点者が足した事例 match([C], '\\00')・C=\"\\u00000\" で、画面と Python は 1、Rust だけ 0。Python は \\00 を re の 8 進（NUL）に任せるが、fancy-regex は 8 進を読まない。Rust に移して生まれた食い違いで、事例表に無いので試験で見えない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/formula.rs:432-560（translate）: 採点者が足した事例で、画面（JavaScript）が「読めません」と断る (?i)ab・(?#c)a・(?P<n>a)・a++・(?>a) を Rust は読んで答えを出し、逆に画面が字として読む \\8・組の無い a\\1 を Rust は「読めません」で断る（7 件。Python も同じ 7 件が違う）。formula.rs:13-14 の「合わない所（分かっていて残す）」にも書いていない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "事例表 program/tests/fixtures/formula_cases.json の作り方（program/tests/test_formula_parity.py の rnd_expr〈88 行目付近: 演算子の候補に <= と > が無い〉・WRITTEN〈63 行目: regreplace('abc', 'b', '[$`|$\\']') は \\' が字の終わりになり「使えない文字です: ]」で読めない式＝$` $' の書いた例が効いていない〉・VALUES〈\\r・U+2028 が無い〉・formula-cases.py の変換表の事例〈表に nends・ncontains・filled の条件が無い〉）: わざと入れた誤り「<= を <」「$` を合った所の後ろ」「. が \\r・U+2028 にも当たる」「nends を ends と同じ」の 4 つを、事例 3,607 件の試験がどれも見逃した（今の答えは採点者の足した事例で 3 つとも画面と同じ。誤りが入っても見えない穴）"
+    },
+    {
+     "kind": "more_steps",
+     "where": "案の時に見立てた手がそのまま残った: list-formula.js や作った例の作り方を直したら、開発者が python program/tools/formula-cases.py で事例表を作り直す手が 1 つ増える（忘れると test_formula_parity の test_cases_are_the_screen_answers_of_today が止める。node の無い所では止まらない）"
+    }
+   ],
+   "seen": "【再現した数】cargo test --locked --test formula_cases --test lotlist_parity --lib: lib 43 件・formula_cases 1 件（3,607 件と突き合わせ 0.32 秒）・lotlist_parity 1 件（111 通り。40 秒）、終了コード 0。python -m unittest tests.test_formula_parity tests.test_conversions: 16 件 OK、終了コード 0（node があるので事例表が古くないかの試験も流れた）。速さ（rust-port-bench.py --static-only --calibrate 20000 を 2 回。Python / Rust ms）: 四則 103・93 / 31・28（3.3 倍）、条件 99・113 / 42・25（2.4〜4.5 倍）、字 300・303 / 98・99（3.1 倍）、正規表現 181・172 / 121・106（1.5〜1.6 倍）、日付 94・82 / 31・31（2.7〜3.0 倍）。作った者の表（RUST_PORT_PLAN.md の 7: 98/33・95/26・291/125・172/103・83/44）と同じ向きで、どの式も Rust が速い。字・日付の Rust は採点者の方が速く（98 対 125・31 対 44）、比も 2.3→3.1 倍・1.9→2.7〜3.0 倍と大きく出た（揺れの範囲）。ただし案の時の見込み（計算列の一覧は 20〜30 ms）に届いたのは四則・条件・日付だけで、字・正規表現は約 100〜120 ms。式の計算ではなく、字の答えで並べる SortKey（ふつうの字の列でも Rust 69〜94 ms）が重いと作った者が書いたとおりの形。【作り】formula.rs（1,987 行）は 値・正規表現の読み替え・字句・構文・関数・変換表・評価・計算列・SQLite への登録 の区切りが ==== の見出しで分かれ、Python の formula.py（CalcColumns・clean_calc・register・sql_value・200,000 組の覚え）と同じ名前・同じ形。lotlist.rs は計算列を exprs で order_key に渡すだけで、safe_sorts は表の列＋読めた計算列だけを許す（読めない式は並べ替えから外れる。Python と同じ）。lot.rs は変換表を設定の答えの版（MasterStore.stamp）で読み直し、試験もある。lotlist.js:348 の engine=python は外れた。事例表を include_str! で読み node・Python 無しで突き合わせる形は like_cases.json の前例どおり。【わざと入れた誤り（9 つ。どれも元に戻し、formula.rs の sha256 と lotlist.rs の差分の行数が入れる前と同じことを確かめた）】見つけた: 数の字の 21 桁の境（panic）・全角の空白を空白から外す（9 件）・[表示名] を元の列に引かない（lib の試験）・読めない計算列も並べ替えに入れる（lotlist_parity 1 通り）・計算列に鍵の形 date・round を当てない（lotlist_parity 1 通り）。見逃した: <= を <・$` を後ろの字・. が \\r と U+2028 にも当たる・変換表の nends を ends と同じ（どれも 3,607 件が通った）。作った者が確かめた 3 つ（len・\\d・範囲の以上）は、事例が厚い所だった。【採点者の足した事例 120 件（比べる・置き換えの $` $'・. と改行・\\s・変換表の nends ほか 5 表 × 8 値・数の読み方・日付・丸め・字の切り出し・正規表現の書き方の隅）】Rust は 8 件、Python は 10 件が画面と違った。Rust だけ違う: match([C], '\\00')。両方違う: (?i)・(?#c)・(?P<n>)・a++・(?>a)（画面は読めない）・\\8・組の無い \\1（画面は読める）。Python だけ違う（Rust は画面と同じ）: regreplace('aaa', 'a*?', '-')（画面 -a-a-a-・Python -------）・[\\d-z]（Python は読めない）。ほかの 110 件（<=・>・$`・$'・. と \\r・U+2028・\\s と U+3000・U+FEFF・0x10 の数・変換表の nends・ncontains・filled・ne）は 3 つとも同じ。【そのほか】lotlist.js:346 の注釈「窓の Rust は式を持たないので、その 1 回は Python が答える」が古いまま（348 行目の注釈と食い違う）。serde_json の preserve_order が効いていない（cargo tree で確かめた）ので、clean_calc（formula.rs:1736-1766）は式・表示名を鍵の字の順に読む。Python・画面は送った順。式が 41 個以上・表示名が 401 個以上のときに切り捨てる物が違い、同じ表示名を 2 つの列に付けたときに [表示名] が引く列が違いうる（画面の calcFor は並べ替えに使う式だけを送るので、40 を超えるのはまれ。食い違いを実際に出しては確かめていない＝分からない）。【良い所】答えの元が画面の 1 つに決まり、3 つの実装が同じ表を読む形になった。Rust の一覧が計算列にも答え、Python へ戻らない。直した変換表が手元のみの PC でも効く（test_edited_table_is_read_again_on_a_local_only_pc）。【点の理由】steps は 1.5〜4.5 倍速くなったが字・正規表現が約 100 ms 残るので 8。intuitive は事例表の 3,607 件は全部同じだが、足した事例で正規表現の書き方の隅が 8 件違ったので 8。form は 3 つが同じ表を読むが、表の外では Python と Rust も互いに違う（Rust 8・Python 10）ので 9。visual は食い違いが「n / 3,607 件」と最初の 10 件で見えるが、わざと入れた誤りの 4 / 9 が見えなかったので 8。place は置き場と名前が Python とそろうが、lotlist.js:346 の古い注釈と鍵の順の違いで 8。"
+  }
+ },
+ "built_before2": {
+  "name": "作った後（指摘を直した後）",
+  "images": "画面に出ない改良（画像なし）。流した試験と測った数",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 9,
+    "visual": 9,
+    "steps": 8,
+    "effortless": 9,
+    "intuitive": 9,
+    "form": 9,
+    "place": 9,
+    "layout": 7,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/formula.rs:489-650（translate）: 採点者の新しい事例 111 件のうち 14 件で Rust が画面と違う。画面が断るのに Rust が読む: \\b+・\\B*（Nothing to repeat。\\b を (?:…) の組に読み替えるので繰り返せてしまう）・[a--b]（Range out of order）・(?<n>a)(?<n>b)（Duplicate capture group name）・(?<1a>x)（Invalid capture group name）。画面が読むのに Rust が断る: (?=a)*・(?!a)+・(?:)+（Annex B では先読みと空の組は繰り返せる）・組の名前が 1 つも無いときの \\k<n>（画面は字の k<n>）2 件・前を指す \\1(a)（画面は空に合う）。答えが違う: (a)|\\1b（画面 1・Rust 0。合っていない組の後方参照は空に合う）・\\c1・[\\c1]（画面は \\ と c と 1 の字、Rust は c と 1）。このうち \\k<n>・\\1(a)・(a)|\\1b・\\c1・[\\c1] の 6 件は Python（formula.py の _translate）も同じに違い、Python だけ違うのは (?<=a)+ の 1 件。formula.rs:13-14 の「合わない所」にも書いていない。どれも利用者が書くのはまれな形"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "事例表 program/tests/fixtures/formula_cases.json（作るのは program/tools/formula-cases.py・事例は program/tests/test_formula_parity.py の WRITTEN・PROBED）: 直した translate に入れた誤り 9 つのうち 3 つを 4,287 件が見逃した。組の数で (?<名前> を数えない（formula.rs:441。(?<n>a)\\1 のような名前付きの組と番号の後方参照の事例が無い）・8 進の 3 桁を 0〜3 で始まる時に限らない（formula.rs:457。\\400 のような事例が無い）・[] の中の \\d・\\w・\\s の隣の - を字にしない（formula.rs:566。今ある [\\d-z] は、Rust の regex も 0-9 の後の - を字に読むので違いが出ない。[\\w-z]〈_ から z の範囲になる〉・[\\s-z] の事例が要る）"
+    },
+    {
+     "kind": "more_steps",
+     "where": "案の時に見立てた手がそのまま残る: list-formula.js・作った例の作り方・PROBED を直したら、開発者が python program/tools/formula-cases.py で事例表を作り直す手が 1 つ増える（忘れると test_cases_are_the_screen_answers_of_today が止める。node の無い所では止まらない）"
+    }
+   ],
+   "seen": "【再現した数】cargo test --locked --test formula_cases --test lotlist_parity --lib: lib 44 件（calc_keeps_the_order_it_was_sent_in が増えた）・formula_cases 1 件（4,287 件。0.35 秒）・lotlist_parity 1 件（111 通り。40 秒）、終了コード 0。python -m unittest tests.test_formula_parity tests.test_conversions: Ran 16 tests・OK・終了コード 0。速さ（rust-port-bench.py --static-only --calibrate 20000 を 1 回。Python / Rust ms）: 四則 92/27（3.4 倍）・条件 98/26（3.8 倍）・字 293/107（2.7 倍）・正規表現 190/109（1.7 倍）・日付 97/38（2.5 倍）。前の採点の 2 回と同じ揺れの範囲で、直した所で遅くなっていない。【前の指摘が直ったか】前の誤り 9 つ（M1〜M9）は 9 つとも食い違いとして見つかった（<= を < で 5 件・$` で 6 件・. と \\r で 5 件・nends で 40 件。前は 4 つを見逃した）。formula.rs と lotlist.rs の sha256 は流す前と同じ。前の 120 件（extra/run.py）は Rust・Python・画面の 3 つとも全部同じ（前は Rust 8・Python 10 件違った）。\\00・(?i)・(?#…)・(?P<…>)・a++・(?>…)・\\8・組の無い \\1・a*?・[\\d-z] がそろった。lotlist.js:346 の注釈は版 3.59.0 の形に直った。clean_calc（formula.rs:1871）は鍵の順を保つ読み手 Item で送られた順に読み、同じ表示名は後勝ち（Python と同じ）。単体の試験もある。事例表は 4,287 件になり、rnd_expr に <= と > が入り、変換表の全部の条件を試す OP_TABLES が入った。【新しく確かめたこと】直した translate・clean_calc に誤りを 9 つ入れた: 見つけた 6 つ（繰り返しの後の繰り返しを断らない・(?i) を通す・組の無い \\N を字にする・控えめな ? を落とす・空に合ったら 2 字進める〈10 件〉・〈上の minus の 3 つは見逃し〉）。clean_calc の上の段で同じ鍵が 2 つあるとき前を取る誤りは lib の試験が見逃したが、画面の JSON.stringify は同じ鍵を作らないので、減点にしない。新しい事例 111 件（extra/run2.py・run3.py。画面の答えは extra2_answers.json）: Rust 14 件・Python 7 件が画面と違う（内訳は minus）。前の回で違った物より、さらに隅の書き方。【良い所】前の回の 3 つの減点（\\00・書き方の隅 7 件・事例表の穴 4 つ）はどれも直った。直すときに Python の _translate も同じ決まりにしたので、画面・Python・Rust が同じ表の外でも前よりそろう。【点の理由】visual 8→9（前の誤りは全部見つかる。新しい誤りは 6/9）。intuitive 8→9（前の 120 件が全部そろった。残りはまれな隅）。place 8→9（古い注釈と鍵の順が直った）。form は 9 のまま（新しい隅で Rust と Python が互いに 8 件違う）。steps は速さが変わらないので 8 のまま。"
+  }
+ },
+ "built": {
+  "name": "作った後（2 回目の指摘を直した後）",
+  "images": "画面に出ない改良（画像なし）。流した試験と測った数",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 9,
+    "visual": 10,
+    "steps": 8,
+    "effortless": 9,
+    "intuitive": 9,
+    "form": 9,
+    "place": 9,
+    "layout": 7,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/formula.rs:625-835（translate）と program/app/services/formula.py:405（_translate）: 採点者の 3 回目の事例 72 件で、Rust 12 件・Python 12 件が画面と違い、formula.rs:13-15・formula.py:15-17 の「合わない所」に書いていない。① 繰り返しの中の組が回るたびに空に戻る決まり（JavaScript）を持たない 5 件（両方）: match('ab', '^(?:(a)|b)+\\1$') は画面 1・Rust 0、'aba' は画面 0・Rust 1、regreplace('ab', '(?:(a)|b)+', '[$1]') は画面 [] ・Rust [a]、extract('ab', '(?:(a)|b)+', 1) と extract('ba', '(?:(b)|a)*', 1) は画面が空・Rust が a・b。② 長さの決まらない後読みを読めない（画面は読める）: (?<=a+)b・(?<=a*)b・(?<!a+)b・(?<=(\\d+))x（Rust 4 件・Python はこれに (?<=a|bc)x を足して 5 件）。③ (|a)+ の extract が画面 aa・Rust と Python は空（JavaScript は空に合った回で繰り返しを止める）。④ Rust だけ: (?:^)+a を断る（画面と Python は読む）。⑤ (?=(a))*\\1 は Rust・Python とも「読めない」。formula.rs:15 は「後ろの組の番号が 1 つずれる」と書くが、この形では答えがずれるのではなく、式が読めなくなる。どれも利用者が書くのはまれな形"
+    },
+    {
+     "kind": "more_steps",
+     "where": "案の時に見立てた手がそのまま残る: list-formula.js・作った例の作り方・PROBED を直したら、開発者が python program/tools/formula-cases.py で事例表を作り直す手が 1 つ増える（忘れると test_cases_are_the_screen_answers_of_today が止める。node の無い所では止まらない）"
+    }
+   ],
+   "seen": "【再現した数】cargo test --locked --test formula_cases --test lotlist_parity --lib: lib 44 件・formula_cases 1 件（4,416 件。0.49 秒）・lotlist_parity 1 件（111 通り。40 秒）、終了コード 0。python -m unittest tests.test_formula_parity tests.test_conversions: Ran 16 tests・OK・終了コード 0。速さ（rust-port-bench.py --static-only --calibrate 20000 を 1 回。Python / Rust ms）: 四則 109/27（4.0 倍）・条件 140/28（5.0 倍）・字 355/123（2.9 倍）・正規表現 211/99（2.1 倍）・日付 92/29（3.2 倍）。この回は Python 側が遅めに出たが、Rust の数は前の 3 回と同じ揺れの範囲で、組み直しで遅くなっていない。【前の指摘が直ったか】前の回の新しい事例 111 件（extra/run2.py）は 3 つとも全部同じ（前は Rust 14・Python 7 件違った）。前の 120 件（run.py）も全部同じ。前の誤り M1〜M18 は、作りが変わって入れる所が無くなった 5 つ（M10・M12・M13・M14・M16）を除く 13 のうち 12 が食い違いとして見つかった（M11〈8 進の 3 桁〉は前は見逃し、今回は見つかった）。見逃した M18 は前の回から、画面が作らない形なので減点にしない物。【新しい誤り 14 個（採点者の mut3/run.py）】見つけた 12: 後方参照を閉じたかで分けない（2 件）・後読みの繰り返しを断らない・同じ組の名前を断らない・数字で始まる組の名前を読む・[] の中の組の隣の - を範囲にする（3 件）・[] の中の \\c を英字だけに（2 件）・[] の外の \\c の \\ を落とす・名前付きの組が無くても \\k を後方参照にする（2 件）・空の組を字と同じに扱う・Python の空に合ったら 2 字進める・Python の同じ組の名前・Python の後読みの繰り返し。見逃した 2 つ（^ $ を字と同じに扱う・逆の範囲を断らない）は、事例表に ^*・$+・[z-a] があるのに通った。Rust の regex 自身がこれらの書き方を断り、画面と同じ「読めない」になるので、答えには違いが出ない。どの後も formula.rs・lotlist.rs・formula.py・事例表の sha256 が流す前と同じことを確かめた。→ 答えに出る誤りで、事例表が見逃した物は見つからなかった。【3 回目の事例 72 件（extra/run4.py・run5.py。画面の答えは extra4_answers.json）】Rust 12 件・Python 12 件が画面と違う（内訳は minus）。前の回に違った物より、さらに正規表現の仕組みそのものに近い隅（組の空戻し・可変長の後読み）。【作り】Rust と Python が同じ作り（組の名前の対応・直前の種類 Last・[] の中の組み立て・閉じた組への後方参照）になり、formula.rs は 2,313 行・formula.py は 1,444 行。【点の理由】visual 9→10（答えに出る誤りは前の分も新しい分も全部見える）。intuitive は 9 のまま（よく使う形はそろったが、3 回目の隅で 12 件違う）。form は 9 のまま（Rust と Python は互いに 2 件違う: (?:^)+a は Rust だけ、(?<=a|bc)x は Python だけ）。steps は速さが変わらないので 8。"
+  }
+ }
+}

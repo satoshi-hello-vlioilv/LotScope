@@ -13,7 +13,10 @@
   \\s は JavaScript の空白、. は改行（\\n \\r U+2028 U+2029）以外、$ は字の終わりだけ、(?<名前>…)・\\k<名前>。置き換えの $1・$&・$<名前> も
 - 壊れた式は読むとき（compile）に断り、行ごとの失敗（正規表現が読めない等）はその行だけ空（None）にする
 合わない所（分かっていて残す）: round の桁に小数を書いたとき（round(x, 2.5)）の最後の桁（10 の 2.5 乗の計算の仕方が JavaScript と違う）・
-U+10000 以上の字（絵文字など）を正規表現で扱うとき（JavaScript は 2 つの単位、Python は 1 字と数える）
+U+10000 以上の字（絵文字など）を正規表現で扱うとき（JavaScript は 2 つの単位、Python は 1 字と数える）・
+[] の中の \\S（Python の空白で読む。JavaScript の全角の空白などは「空白でない」側に入る）。
+正規表現の仕組み（Python の re）が JavaScript と違うので残る所（desktop/src/formula.rs の説明と同じ）: 繰り返しの中の組が回るたびに空に戻らない・
+長さの決まらない後読み（(?<=a+)・(?<=a|bc) も）は読めない・空に合った回で繰り返しを止めない（(|a)+）・捕まえる組を含む先読みを 0 回から繰り返す式の参照
 """
 from __future__ import annotations
 
@@ -271,93 +274,289 @@ def js_regex(src, flags=""):
     why = regex_risk(src)
     if why:
         raise FormulaError(why)
+    pattern, named = _translate(src)
     try:
-        rx = re.compile(_translate(src), re.ASCII)
+        rx = re.compile(pattern, re.ASCII)
     except re.error as e:
         raise FormulaError(str(e)) from None
     if len(_RE_CACHE) > 200:
         _RE_CACHE.clear()
+        _RE_NAMES.clear()
     _RE_CACHE[k] = rx
+    _RE_NAMES[rx] = named
     return rx
 
 
-_KEEP_ESC = set("bBdDwWfnrtv")
+_RE_NAMES = {}          # 読み替えた正規表現 → 組の名前 → 番号（組は番号だけで持つ。置き換えの $<名前> が引く）
+
+
+_GROUP_NAME = re.compile(r"[^\W\d]|[$]")
+
+
+def _group_names(src):
+    """捕まえる組の名前の並び（番号の順。名前の無い組は None）。同じ名前・数字で始まる名前は断る（画面と同じ）"""
+    out, i, in_class = [], 0, False
+    while i < len(src):
+        c = src[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == "[" and not in_class:
+            in_class = True
+        elif c == "]" and in_class:
+            in_class = False
+        elif c == "(" and not in_class:
+            if src[i + 1:i + 2] != "?":
+                out.append(None)
+            elif src[i + 2:i + 3] == "<" and src[i + 3:i + 4] not in ("=", "!"):
+                end = src.find(">", i + 3)
+                name = src[i + 3:end] if end >= 0 else ""
+                if not name or not _GROUP_NAME.match(name[0]) or not all(ch.isalnum() or ch in "_$" for ch in name):
+                    raise FormulaError("Invalid capture group name")
+                if name in out:
+                    raise FormulaError("Duplicate capture group name")
+                out.append(name)
+        i += 1
+    return out
+
+
+def _legacy_octal(src, j):
+    """JavaScript の 8 進の書き方（Annex B の LegacyOctalEscapeSequence）: src[j] から読める数と、読んだ字の数"""
+    d = src[j:j + 3]
+    oc = [ch in "01234567" for ch in d]
+    a = int(d[0])
+    if len(d) >= 3 and oc[1] and oc[2] and a <= 3:
+        return a * 64 + int(d[1]) * 8 + int(d[2]), 3
+    if len(d) >= 2 and oc[1]:
+        return a * 8 + int(d[1]), 2
+    return a, 1
+
+
+_QUANT_JS = re.compile(r"(?:([*?])|(\+)|\{([0-9]+)(?:,[0-9]*)?\})(\??)")
+
+
+def _code(v):
+    return f"\\U{v:08x}" if v > 0xFFFF else f"\\u{v:04x}"
+
+
+def _class_escape(src, i):
+    """[] の中の \\ の後（src[i] は \\ の次）→ (("char", 字の番号) か ("set", Python の [] の中身), 読んだ字の数)"""
+    c = src[i]
+    sets = {"d": "0-9", "D": "\\D", "w": "\\w", "W": "\\W", "s": _CLASS_WS, "S": "\\S"}
+    if c in sets:
+        return ("set", sets[c]), 1
+    ctrl = {"b": 8, "f": 12, "n": 10, "r": 13, "t": 9, "v": 11}
+    if c in ctrl:
+        return ("char", ctrl[c]), 1
+    if c == "c":                     # [] の中の \c は英字のほか数字・_ も制御文字（Annex B）。ほかは \ そのもの
+        nx = src[i + 1:i + 2]
+        if nx and (nx.isascii() and nx.isalnum() or nx == "_"):
+            return ("char", ord(nx) % 32), 2
+        return ("char", ord("\\")), 0
+    if c == "x" and re.fullmatch(r"[0-9A-Fa-f]{2}", src[i + 1:i + 3]):
+        return ("char", int(src[i + 1:i + 3], 16)), 3
+    if c == "u" and re.fullmatch(r"[0-9A-Fa-f]{4}", src[i + 1:i + 5]):
+        return ("char", int(src[i + 1:i + 5], 16)), 5
+    if c in "01234567":
+        v, k = _legacy_octal(src, i)
+        return ("char", v), k
+    return ("char", ord(c)), 1
+
+
+def _translate_class(src, i):
+    """[ の後（src[i] は [ の次）から ] までを、JavaScript の決まり（範囲・\\d の隣の - は字）で読む → (Python の [...], 次の位置)"""
+    neg = src[i:i + 1] == "^"
+    if neg:
+        i += 1
+    atoms = []                       # ((種類, 値), 書いてある字の - か)
+    while True:
+        if i >= len(src):
+            raise FormulaError("Unterminated character class")
+        c = src[i]
+        if c == "]":
+            i += 1
+            break
+        if c == "\\" and i + 1 < len(src):
+            a, k = _class_escape(src, i + 1)
+            atoms.append((a, False))
+            i += 1 + k
+        else:
+            atoms.append((("char", ord(c)), c == "-"))
+            i += 1
+
+    def one(a):
+        return _code(a[1]) if a[0] == "char" else a[1]
+    out, k = ["[^" if neg else "["], 0
+    while k < len(atoms):
+        if k + 2 < len(atoms) and atoms[k + 1][1]:      # A - B は範囲（B は - でもよい）。どちらかが \d のような組なら 3 つの字の和
+            a, b = atoms[k][0], atoms[k + 2][0]
+            if a[0] == "char" and b[0] == "char":
+                if a[1] > b[1]:
+                    raise FormulaError("Range out of order in character class")
+                out.append(f"{_code(a[1])}-{_code(b[1])}")
+            else:
+                out.append(f"{one(a)}\\-{one(b)}")
+            k += 3
+            continue
+        out.append(one(atoms[k][0]))
+        k += 1
+    out.append("]")
+    return "".join(out), i
 
 
 def _translate(src):
-    out, i, n, in_class = [], 0, len(src), False
+    """JavaScript の正規表現の書き方 → Python の書き方（re.ASCII で \\d・\\w・\\b は英数字だけ・組は番号だけ）と、組の名前 → 番号。
+    画面（JavaScript の RegExp・Annex B）が断る書き方は断る（版 3.59.0。desktop/src/formula.rs の translate と同じ決まり）"""
+    names = _group_names(src)
+    named = {x: k + 1 for k, x in enumerate(names) if x is not None}
+    out, i, n, last, stack, closed, opened = [], 0, len(src), "nothing", [], set(), 0
+
+    def backref(k):
+        # 閉じた組なら「合っていれば同じ字・合っていなければ空」、まだ閉じていない（前・中）なら空（JavaScript と同じ）
+        return f"(?({k})\\{k}|)" if k in closed else "(?:)"
     while i < n:
         ch = src[i]
-        if ch == "\\" and i + 1 < n:
-            nx = src[i + 1]
-            if nx == "s":
-                out.append(_CLASS_WS if in_class else f"[{_CLASS_WS}]")
-            elif nx == "S":
-                out.append("\\S" if in_class else f"[^{_CLASS_WS}]")
-            elif nx == "k" and src[i + 2:i + 3] == "<" and ">" in src[i + 3:]:
-                j = src.index(">", i + 3)
-                out.append(f"(?P={src[i + 3:j]})")
-                i = j + 1
-                continue
-            elif nx == "c" and i + 2 < n and src[i + 2].isascii() and src[i + 2].isalpha():
-                out.append(re.escape(chr(ord(src[i + 2]) % 32)))
-                i += 3
-                continue
-            elif nx == "x" and re.fullmatch(r"[0-9A-Fa-f]{2}", src[i + 2:i + 4]):
-                out.append(src[i:i + 4])
-                i += 4
-                continue
-            elif nx == "u" and re.fullmatch(r"[0-9A-Fa-f]{4}", src[i + 2:i + 6]):
-                out.append(src[i:i + 6])
-                i += 6
-                continue
-            elif nx == "0" and not src[i + 2:i + 3].isdigit():
-                out.append("\\x00")
-            elif nx.isdigit() or nx in _KEEP_ESC:
-                out.append("\\" + nx)
-            elif nx.isascii() and nx.isalpha():
-                out.append(re.escape(nx))      # JavaScript では知らない英字の \ は、その字そのもの
-            else:
-                out.append("\\" + nx)
-            i += 2
+        q = _QUANT_JS.match(src, i)
+        if q:
+            mn = 1 if q.group(2) else int(q.group(3)) if q.group(3) else 0
+            if last in ("nothing", "quantified", "assertion"):
+                raise FormulaError("Nothing to repeat")
+            if last == "lookbehind":
+                raise FormulaError("Invalid quantifier")
+            if isinstance(last, tuple):               # 先読みの繰り返し: 0 回でよければ空、1 回以上なら 1 回と同じ
+                if mn == 0:
+                    del out[last[1]:]
+                    out.append("(?:)")
+            elif last == "atom":
+                out.append(q.group(0))
+            i, last = q.end(), "quantified"
             continue
-        if in_class:
-            if ch == "]":
-                in_class = False
-            out.append(ch)
-            i += 1
+        if ch == "\\" and i + 1 < n:
+            nx, used, last = src[i + 1], 2, "atom"
+            if nx == "s":
+                out.append(f"[{_CLASS_WS}]")
+            elif nx == "S":
+                out.append(f"[^{_CLASS_WS}]")
+            elif nx in "dDwW":
+                out.append("\\" + nx)
+            elif nx in "bB":
+                out.append("\\" + nx)
+                last = "assertion"
+            elif nx == "k" and named:
+                end = src.find(">", i + 3) if src[i + 2:i + 3] == "<" else -1
+                if end < 0:
+                    raise FormulaError("Invalid named reference")
+                name = src[i + 3:end]
+                if name not in named:
+                    raise FormulaError("Invalid named capture referenced")
+                out.append(backref(named[name]))
+                used = end + 1 - i
+            elif nx == "c" and src[i + 2:i + 3].isascii() and src[i + 2:i + 3].isalpha():
+                out.append(_code(ord(src[i + 2]) % 32))
+                used = 3
+            elif nx == "c":
+                out.append("\\\\")                      # \c と英字でなければ \ そのもの（c は次に字として読む）
+                used = 1
+            elif nx == "x" and re.fullmatch(r"[0-9A-Fa-f]{2}", src[i + 2:i + 4]):
+                out.append(_code(int(src[i + 2:i + 4], 16)))
+                used = 4
+            elif nx == "u" and re.fullmatch(r"[0-9A-Fa-f]{4}", src[i + 2:i + 6]):
+                out.append(_code(int(src[i + 2:i + 6], 16)))
+                used = 6
+            elif nx == "0":
+                v, k = _legacy_octal(src, i + 1)            # \0 は NUL、\012 のような 8 進も（JavaScript の Annex B）
+                out.append(_code(v))
+                used = 1 + k
+            elif nx.isascii() and nx.isdigit():
+                m = re.match(r"[0-9]+", src[i + 1:])
+                num = int(m.group(0))
+                if num <= len(names):                       # \N: その番号の組があれば後方参照
+                    out.append(backref(num))
+                    used = 1 + len(m.group(0))
+                elif nx in "1234567":                       # 無ければ 8 進（1〜7 で始まる）か、その字（8・9）
+                    v, k = _legacy_octal(src, i + 1)
+                    out.append(_code(v))
+                    used = 1 + k
+                else:
+                    out.append(nx)
+            elif nx in "fnrtv":
+                out.append("\\" + nx)
+            else:
+                out.append(re.escape(nx))      # JavaScript では知らない英字・記号の \ は、その字そのもの
+            i += used
+            continue
+        if src.startswith("[^]", i):
+            out.append("[\\s\\S]")
+            i, last = i + 3, "atom"
+            continue
+        if src.startswith("[]", i):
+            out.append("(?!)")
+            i, last = i + 2, "atom"
             continue
         if ch == "[":
-            if src.startswith("[^]", i):
-                out.append("[\\s\\S]")
+            cls, i = _translate_class(src, i + 1)
+            out.append(cls)
+            last = "atom"
+            continue
+        if ch == "(":
+            start = len(out)
+            if src[i + 1:i + 2] != "?" or (src[i + 2:i + 3] == "<" and src[i + 3:i + 4] not in ("=", "!")):
+                opened += 1
+                stack.append((start, "atom", opened))
+                out.append("(")
+                i = src.find(">", i + 3) + 1 if src[i + 1:i + 2] == "?" else i + 1
+            elif src[i + 2:i + 3] in (":", "=", "!"):
+                kind = "atom" if src[i + 2] == ":" else ("lookahead", start)
+                stack.append((start, kind, None))
+                out.append(src[i:i + 3])
                 i += 3
-                continue
-            if src.startswith("[]", i):
-                out.append("(?!)")
-                i += 2
-                continue
-            in_class = True
-            out.append(ch)
-            if src[i + 1:i + 2] == "^":
-                out.append("^")
-                i += 1
-            if src[i + 1:i + 2] == "]":      # [] の頭の ] は字（Python も同じ）
-                out.append("\\]")
-                i += 1
+            elif src[i + 2:i + 4] in ("<=", "<!"):
+                stack.append((start, "lookbehind", None))
+                out.append(src[i:i + 4])
+                i += 4
+            else:
+                raise FormulaError("Invalid group")
+            last = "nothing"
+            continue
+        if ch == ")":
+            if not stack:
+                raise FormulaError("Unmatched ')'")
+            start, kind, num = stack.pop()
+            empty = len(out) == start + 1
+            out.append(")")
+            if num is not None:
+                closed.add(num)
+            last = "empty" if kind == "atom" and empty and num is None else kind
             i += 1
             continue
-        if ch == "(" and src.startswith("(?<", i) and src[i + 3:i + 4] not in ("=", "!"):
-            out.append("(?P<")
-            i += 3
+        if ch == "|":
+            out.append("|")
+            i, last = i + 1, "nothing"
+            continue
+        if ch in "^$":
+            out.append("^" if ch == "^" else "\\Z")
+            i, last = i + 1, "assertion"
             continue
         if ch == ".":
             out.append(f"[^{_LINE}]")
-        elif ch == "$":
-            out.append("\\Z")
+        elif ch in "{}]":
+            out.append("\\" + ch)          # 繰り返しでない { } と ] は字（JavaScript は字として読む）
         else:
             out.append(ch)
+        last = "atom"
         i += 1
-    return "".join(out)
+    return "".join(out), named
+
+
+def js_finditer(rx, t):
+    """合う所を左から全部（JavaScript の g と同じ: 空に合ったら 1 字進める。Python の finditer は同じ所でもう一度空でない物を探す）"""
+    pos, n = 0, len(t)
+    while pos <= n:
+        m = rx.search(t, pos)
+        if not m:
+            return
+        yield m
+        pos = m.end() if m.end() > m.start() else m.end() + 1
 
 
 def _js_replacement(rep):
@@ -395,10 +594,10 @@ def _js_replacement(rep):
                 else:
                     out.append("$" + nx)
                     i += 2
-            elif nx == "<" and m.re.groupindex and ">" in rep[i + 2:]:
+            elif nx == "<" and _RE_NAMES.get(m.re) and ">" in rep[i + 2:]:
                 j = rep.index(">", i + 2)
-                name = rep[i + 2:j]
-                out.append((m.group(name) or "") if name in m.re.groupindex else "")
+                name, names = rep[i + 2:j], _RE_NAMES[m.re]
+                out.append((m.group(names[name]) or "") if name in names else "")
                 i = j + 1
             else:
                 out.append("$")
@@ -642,7 +841,13 @@ def _regreplace(a):
     t, rep = _re_text(a[0]), text_of(a[2])
     if len(rep) * (len(t) + 1) + len(t) > STR_MAX:
         raise FormulaError(f"答えが長すぎます（{STR_MAX}文字まで）")
-    return js_regex(text_of(a[1]), "g").sub(_js_replacement(rep), t)
+    rx, make, out, last = js_regex(text_of(a[1]), "g"), _js_replacement(rep), [], 0
+    for m in js_finditer(rx, t):
+        out.append(t[last:m.start()])
+        out.append(make(m))
+        last = m.end()
+    out.append(t[last:])
+    return "".join(out)
 
 
 def _extract(a):
@@ -996,7 +1201,7 @@ FUNCS = {
     "conv": _conv,
     # 版 3.46.0
     "count": lambda a: float(text_of(a[0]).count(text_of(a[1]))) if text_of(a[1]) else 0.0,
-    "regcount": lambda a: float(sum(1 for _ in js_regex(text_of(a[1]), "g").finditer(_re_text(a[0])))),
+    "regcount": lambda a: float(sum(1 for _ in js_finditer(js_regex(text_of(a[1]), "g"), _re_text(a[0])))),
     "lenb": lambda a: float(sum(1 if LENB_ONE.fullmatch(c) else 2 for c in _u16list(text_of(a[0])))),
     "rept": _rept,
     "min": lambda a: min(_nums(a)) if _nums(a) else None,

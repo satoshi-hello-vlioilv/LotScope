@@ -4,8 +4,10 @@
 mod common;
 
 use chrono::NaiveDate;
-use da_core::lotlist::{query, slicer, slicer_combos, Args};
+use da_core::formula::Tables;
+use da_core::lotlist::{query, slicer, slicer_combos, Args, Opts};
 use serde_json::Value;
+use std::sync::Arc;
 
 fn args(case: &Value) -> Args {
     let s = |k: &str| case.get(k).and_then(Value::as_str).map(str::to_string);
@@ -18,6 +20,7 @@ fn args(case: &Value) -> Args {
         sorts: s("sorts").unwrap_or_default(),
         group: s("group").as_deref() == Some("1"),
         marks: s("marks").unwrap_or_default(),
+        calc: s("calc").unwrap_or_default(),
     }
 }
 
@@ -28,6 +31,9 @@ fn rust_answers_like_python() {
     let db = std::path::PathBuf::from(o["db"].as_str().unwrap());
     let today = NaiveDate::parse_from_str(o["today"].as_str().unwrap(), "%Y-%m-%d").unwrap();
     let (cases, expected) = (o["cases"].as_array().unwrap(), o["expected"].as_array().unwrap());
+    // 計算列の式の conv が引く変換表（Python の oracle と同じ同梱のプリセット）
+    let tables = Arc::new(Tables::from_json(&o["tables"]));
+    assert!(cases.iter().filter(|c| c.get("calc").is_some()).count() >= 8, "計算列で並べ替える組が足りません");
     assert!(cases.len() >= 40, "問い合わせの組が足りません: {}", cases.len());
     let mut bad = vec![];
     for (i, (case, want)) in cases.iter().zip(expected).enumerate() {
@@ -35,12 +41,12 @@ fn rust_answers_like_python() {
         let s = |k: &str| case.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
         let answer = if case.get("combos").is_some() {
             // 計算列のスライサー（/api/lotlist/slicer の columns）
-            slicer_combos(&db, &args(case), &s("combos"), "", today).map_err(|(_, e)| e)
+            slicer_combos(&db, &args(case), &s("combos"), &Opts::quality("", 500), today).map_err(|(_, e)| e)
         } else if case.get("slicer").is_some() {
             // スライサーに並べる値（/api/lotlist/slicer）
-            slicer(&db, &args(case), &s("slicer"), &s("key"), "", today).map_err(|(_, e)| e)
+            slicer(&db, &args(case), &s("slicer"), &s("key"), &Opts::quality("", 500), today).map_err(|(_, e)| e)
         } else {
-            query(&db, &args(case), "", 500, today)
+            query(&db, &args(case), &Opts::quality("", 500), today, &tables, None)
         };
         let got = match answer {
             Ok(mut v) => {

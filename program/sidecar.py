@@ -123,6 +123,8 @@ def main() -> int:
         log.exception("SIDECAR fatal")
         writer.send({"id": 0, "event": "fatal", "error": f"{type(e).__name__}: {e}"})
         return 1
+    from app import set_shell_notice
+    set_shell_notice(lambda head: writer.send(head))       # 窓へ知らせる（作業実績・データ元の「写して」。版 3.60.0）
     boot.start(app, "stdio", started)
     writer.send({"id": 0, "event": "ready", "protocol": PROTOCOL, "version": APP_VERSION, "build": app.config["BUILD"], "pid": os.getpid(),
                  "python": sys.executable, "elapsed": round(time.perf_counter() - started, 3)})

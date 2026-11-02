@@ -212,6 +212,11 @@ def _fl(*filters):
     return json.dumps(list(filters), ensure_ascii=False)
 
 
+def _calc(formulas, names=None):
+    """計算列（表示列の設定の式 {formulas, names}。画面が送る calc の形）"""
+    return json.dumps({"formulas": formulas, "names": names or {}}, ensure_ascii=False)
+
+
 def _s(*items):
     return json.dumps([{"column": c, "dir": d} for c, d in items], ensure_ascii=False)
 
@@ -313,6 +318,18 @@ CASES = [
     {"slicer": "重量"},
     {"slicer": "設備", "table": "保留"},
     {"slicer": "無い列"},
+    # 計算列で並べ替える（calc。版 3.59.0 から Rust も式を持つ: desktop/src/formula.rs）。四則・条件・字・正規表現・日付・変換表・
+    # 表示名とほかの計算列をたどる・読めない式（並べ替えから外れる）・まとめ・鍵の形（date・round）
+    {"calc": _calc({"倍": "[重量] * 2 + 1"}), "sorts": _s(("倍", "desc"))},
+    {"calc": _calc({"区分": "if([重量] > 3000, '重', '軽')", "頭": "left([ロット番号], 3) + '-' + upper([合金])"}),
+     "sorts": _s(("区分", "asc"), ("頭", "desc"), ("重量", "asc"))},
+    {"calc": _calc({"番": "extract([ロット番号], '[0-9]+')"}), "group": True, "sorts": _s(("番", "desc")), "page": 2, "page_size": 120},
+    {"calc": _calc({"日数": "datediff([発生日], '2026/10/02', 'd') / 7"}),
+     "sorts": json.dumps([{"column": "日数", "dir": "asc", "key": "round:0"}, {"column": "ロット番号", "dir": "asc"}], ensure_ascii=False)},
+    {"calc": _calc({"課": "conv('課名', [設備])"}), "sorts": _s(("課", "asc"), ("ロット番号", "asc"))},
+    {"calc": _calc({"倍の倍": "[倍] * 2", "倍": "[重さ] * 2"}, {"重量": "重さ"}), "sorts": _s(("倍の倍", "desc"), ("ロット番号", "asc"))},
+    {"calc": _calc({"壊れ": "left("}), "sorts": _s(("壊れ", "desc"), ("重量", "asc"))},
+    {"calc": _calc({"日": "[入力日時]"}), "group": True, "sorts": json.dumps([{"column": "日", "dir": "desc", "key": "date"}], ensure_ascii=False)},
     # 計算列のスライサー（combos）: 式が使う列の値の組と件数（元の型のまま・件数の多い順）と、選んだ組で絞る tuple_in
     {"combos": json.dumps(["合金", "調質"], ensure_ascii=False)},
     {"combos": json.dumps(["客先"], ensure_ascii=False), "filters": _fl(_in("設備", ["CR1"]))},

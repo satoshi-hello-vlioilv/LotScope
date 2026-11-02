@@ -440,6 +440,214 @@ pub fn to_date(v: &Py) -> Option<String> {
     None
 }
 
+/// 字の数字の並び（Python の \d の 1 字ずつ）→ 値。数字でない字があれば None
+fn digits_value(cs: &[char]) -> Option<u32> {
+    cs.iter().try_fold(0u32, |v, c| Some(v.saturating_mul(10).saturating_add(digit(*c)?)))
+}
+
+/// 位置 at から数字が続く数（上限 max）
+fn run_of_digits(cs: &[char], at: usize, max: usize) -> usize {
+    cs.iter().skip(at).take(max).take_while(|c| digit(**c).is_some()).count()
+}
+
+/// Python の sqlite_ro.to_minutes: 値の終わりの時刻（8:15・08:15:30・1899/12/30 8:15:00 の時刻の所・8:15 PM）→ (時, 分, 秒)。
+/// 正規表現 (?:^|[ T])(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*(?:[AaPp]\.?[Mm]\.?)?\s*$ を左から探すのと同じ（最初に当たった所で決める）
+pub fn to_minutes(v: &Py) -> Option<(u32, u32, u32)> {
+    if *v == Py::None {
+        return None;
+    }
+    let s = v.py_str();
+    let cs: Vec<char> = strip(&s).chars().collect();
+    let tail_ok = |mut i: usize| {
+        if cs.get(i) == Some(&'.') && cs.get(i + 1).is_some_and(|c| digit(*c).is_some()) {
+            i += 1;
+            while cs.get(i).is_some_and(|c| digit(*c).is_some()) {
+                i += 1;
+            }
+        }
+        while cs.get(i).is_some_and(|c| is_space(*c)) {
+            i += 1;
+        }
+        if cs.get(i).is_some_and(|c| "AaPp".contains(*c)) {
+            let mut j = i + 1;
+            if cs.get(j) == Some(&'.') {
+                j += 1;
+            }
+            if cs.get(j).is_some_and(|c| "Mm".contains(*c)) {
+                i = j + 1;
+                if cs.get(i) == Some(&'.') {
+                    i += 1;
+                }
+            }
+        }
+        while cs.get(i).is_some_and(|c| is_space(*c)) {
+            i += 1;
+        }
+        i == cs.len()
+    };
+    let at = |p: usize| -> Option<(u32, u32, u32)> {
+        let hl = run_of_digits(&cs, p, 2);
+        if hl == 0 || cs.get(p + hl) != Some(&':') || run_of_digits(&cs, p + hl + 1, 2) != 2 {
+            return None;
+        }
+        let (h, mi) = (digits_value(&cs[p..p + hl])?, digits_value(&cs[p + hl + 1..p + hl + 3])?);
+        let mut i = p + hl + 3;
+        let mut sec = 0;
+        if cs.get(i) == Some(&':') && run_of_digits(&cs, i + 1, 2) == 2 && tail_ok(i + 3) {
+            sec = digits_value(&cs[i + 1..i + 3])?;
+            i += 3;
+        } else if !tail_ok(i) {
+            return None;
+        }
+        let _ = i;
+        Some((h, mi, sec))
+    };
+    // 始まりの候補: 先頭（^）と、空白か T の次。左から最初に当たった所の値（範囲の外なら None。先へは探さない）
+    let starts = std::iter::once(0).chain((0..cs.len()).filter(|&i| cs[i] == ' ' || cs[i] == 'T').map(|i| i + 1));
+    for p in starts {
+        if let Some((h, mi, sec)) = at(p) {
+            return (h < 24 && mi < 60 && sec < 60).then_some((h, mi, sec));
+        }
+    }
+    None
+}
+
+/// 日付と時分秒 → 'YYYY-MM-DD HH:MM:SS'
+fn stamp_of(d: &str, hms: (u32, u32, u32)) -> String {
+    format!("{d} {:02}:{:02}:{:02}", hms.0, hms.1, hms.2)
+}
+
+/// Python の sqlite_ro.to_datetime（作業実績の作業開始・終了の読み方）: 日時と読めれば 'YYYY-MM-DD HH:MM:SS'（時刻が無ければ
+/// 'YYYY-MM-DD'）、日付と読めなければ None。time_value は時刻が別の列にあるとき（値に時刻が無いときだけ使う。None は Py::None）。
+/// 年月日時分秒の 14 桁と、午前・午後（AM・PM）の書き方も読む。形が合った字の数字は、Python と同じく合った字のまま入る所がある
+pub fn to_datetime(v: &Py, time_value: &Py) -> Option<String> {
+    let out = to_datetime_raw(v, time_value)?;
+    let texty = matches!(v, Py::Text(_)) || matches!(time_value, Py::Text(_));
+    Some(if out.chars().count() == 19 && texty { meridiem(&out, v, time_value) } else { out })
+}
+
+fn to_datetime_raw(v: &Py, time_value: &Py) -> Option<String> {
+    let owned;
+    let v = match *v {
+        Py::Int(i) if (10_000_000_000_000..100_000_000_000_000).contains(&i) => {
+            owned = i.to_string();
+            Py::Text(&owned)
+        }
+        x => x,
+    };
+    if let Py::Text(t) = v {
+        let cs: Vec<char> = strip(t).chars().collect();
+        if cs.len() == 14 && cs.iter().all(|c| digit(*c).is_some()) {
+            let n = |a: usize, b: usize| digits_value(&cs[a..b]).unwrap_or(0);
+            let txt = |a: usize, b: usize| cs[a..b].iter().collect::<String>();
+            let d = iso(n(0, 4), n(4, 6), n(6, 8))?;
+            return (n(8, 10) < 24 && n(10, 12) < 60 && n(12, 14) < 60)
+                .then(|| format!("{d} {}:{}:{}", txt(8, 10), txt(10, 12), txt(12, 14)));
+        }
+        if let Some((d, hms)) = fast_datetime(&cs) {
+            let d = d?;
+            match hms {
+                Some((h, mi, sec)) if h.0 < 24 && mi.0 < 60 && sec < 60 => return Some(format!("{d} {:02}:{}:{:02}", h.0, mi.1, sec)),
+                Some(_) => {}
+                None if *time_value != Py::None => return Some(to_minutes(time_value).map(|x| stamp_of(&d, x)).unwrap_or(d)),
+                None => return Some(d),
+            }
+        }
+    }
+    let d = to_date(&v)?;
+    let hms = to_minutes(&v).or_else(|| if *time_value != Py::None { to_minutes(time_value) } else { None });
+    Some(hms.map(|x| stamp_of(&d, x)).unwrap_or(d))
+}
+
+type Hm = (u32, String);
+
+/// よくある形の近道（Python の _FAST_DT の fullmatch）: 年4桁・区切り・月・区切り・日・([ T]時:分(:秒)?(.小数)?)?
+/// → Some((日付 or 無い日の None, Some(((時, 時の字), (分, 分の字), 秒)) か時刻なし None))。形が合わなければ None
+#[allow(clippy::type_complexity)]
+fn fast_datetime(cs: &[char]) -> Option<(Option<String>, Option<(Hm, Hm, u32)>)> {
+    let sep = |i: usize| matches!(cs.get(i), Some('/' | '-' | '.'));
+    if run_of_digits(cs, 0, 4) != 4 || !sep(4) {
+        return None;
+    }
+    let ml = run_of_digits(cs, 5, 2);
+    if ml == 0 || !sep(5 + ml) {
+        return None;
+    }
+    let d0 = 6 + ml;
+    let dl = run_of_digits(cs, d0, 2);
+    if dl == 0 {
+        return None;
+    }
+    let num = |a: usize, b: usize| digits_value(&cs[a..b]).unwrap_or(0);
+    let day = iso(num(0, 4), num(5, 5 + ml), num(d0, d0 + dl));
+    let mut i = d0 + dl;
+    if i == cs.len() {
+        return Some((day, None));
+    }
+    if !matches!(cs[i], ' ' | 'T') {
+        return None;
+    }
+    i += 1;
+    let hl = run_of_digits(cs, i, 2);
+    if hl == 0 || cs.get(i + hl) != Some(&':') || run_of_digits(cs, i + hl + 1, 2) != 2 {
+        return None;
+    }
+    let h = (num(i, i + hl), cs[i..i + hl].iter().collect::<String>());
+    let m0 = i + hl + 1;
+    let mi = (num(m0, m0 + 2), cs[m0..m0 + 2].iter().collect::<String>());
+    i = m0 + 2;
+    let mut sec = 0;
+    if cs.get(i) == Some(&':') {
+        if run_of_digits(cs, i + 1, 2) != 2 {
+            return None;
+        }
+        sec = num(i + 1, i + 3);
+        i += 3;
+    }
+    if cs.get(i) == Some(&'.') {
+        let fl = run_of_digits(cs, i + 1, usize::MAX);
+        if fl == 0 {
+            return None;
+        }
+        i += 1 + fl;
+    }
+    (i == cs.len()).then_some((day, Some((h, mi, sec))))
+}
+
+/// 'YYYY-MM-DD HH:MM:SS' の時を、元の字の午前・午後（AM・PM）で 24 時の形に直す（Python の _meridiem と同じ）
+fn meridiem(stamp: &str, v: &Py, time_value: &Py) -> String {
+    let pm = [v, time_value].into_iter().find_map(|t| match t {
+        Py::Text(s) => meridiem_of(s),
+        _ => None,
+    });
+    let Some(pm) = pm else { return stamp.to_string() };
+    let cs: Vec<char> = stamp.chars().collect();
+    let Some(h) = digits_value(&cs[11..13]) else { return stamp.to_string() };
+    if h > 12 {
+        return stamp.to_string();
+    }
+    let h = h % 12 + if pm { 12 } else { 0 };
+    format!("{}{h:02}{}", cs[..11].iter().collect::<String>(), cs[13..].iter().collect::<String>())
+}
+
+/// 字の中の最初の 午前・午後・AM・PM（前後が英字でない A/P＋.?＋M）→ 午後・PM なら true
+fn meridiem_of(s: &str) -> Option<bool> {
+    let cs: Vec<char> = s.chars().collect();
+    let letter = |i: Option<usize>| i.and_then(|i| cs.get(i)).is_some_and(|c| c.is_ascii_alphabetic());
+    for i in 0..cs.len() {
+        if cs[i] == '午' && matches!(cs.get(i + 1), Some('前' | '後')) {
+            return Some(cs[i + 1] == '後');
+        }
+        if "AaPp".contains(cs[i]) && !letter(i.checked_sub(1)) {
+            let j = if cs.get(i + 1) == Some(&'.') { i + 2 } else { i + 1 };
+            if cs.get(j).is_some_and(|c| "Mm".contains(*c)) && (cs.get(j + 1) == Some(&'.') || !letter(Some(j + 1))) {
+                return Some("Pp".contains(cs[i]));
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
