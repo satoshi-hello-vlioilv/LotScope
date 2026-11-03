@@ -17,7 +17,10 @@ WaveLog のマスタ共有（WaveLog §9.263・§9.384）と同じ考え方を J
     ShareUnavailable… 共有に届かない。読みは写しで続くが、書きは断る（写しだけ書くと PC ごとにずれる）。
 
 共有しない設定（`master_share.dir` が空）のときは、アプリの `data/` の JSON を読み書きする
-（これまでどおり）。行の版の確認はこのときも効く（同じ PC の2つの画面の競合を防ぐ）。
+（これまでどおり）。行の版の確認はこのときも効く（同じ PC の2つの画面の競合を防ぐ）。錠も `data/` に同じ決まりで取る（版 3.64.0）。
+
+錠の持ち主は PC 名・ログイン ID・アプリの印（instance_id）と係（py＝この Python・rs＝窓）で見分ける（版 3.64.0。
+Rust へ移す途中、同じ PC で 2 つの係が並んで書いても互いの錠を取り違えない）。
 """
 from __future__ import annotations
 
@@ -56,6 +59,10 @@ SHARED_ALWAYS = frozenset({"path_settings", "access_permissions", "app_seeds", "
                            "equipment_groups", "conversions", "conversion_defaults", "tab_access"})
 REFRESH_DEFAULT = 5.0
 INSTANCE_FILENAME = "instance_id"   # この PC のアプリの印（手元の置き場に 1 度だけ作る。錠が自分の物かを見分ける）
+# 錠を持つ係（版 3.64.0）。同じ PC・同じ作業場所で Python と窓（Rust）が並んでマスタを書くとき、instance_id が同じなので、
+# 係を分けないと相手の生きた錠を「自分が残した錠」と見てどけてしまう（順 5 の採点で再現: 保存が黙って消える順がある）。
+# 錠の holder_instance は「instance_id:係」。係の無い錠（版 3.63.0 まで）は Python の物（それまで書く係は Python だけ）
+ROLE = "py"
 SCHEMA = 1
 DEFAULTS_DIR = Path(__file__).resolve().parents[1] / "master_defaults"   # マスタの最初の中身（コードと一緒に配る。置き場がどこでも同じ）
 
@@ -77,9 +84,10 @@ class MasterError(Exception):
 class MasterLocked(MasterError):
     kind, status = "locked", 409
 
-    def __init__(self, holder_pc, holder_login, remaining):
+    def __init__(self, holder_pc, holder_login, remaining, same_pc=False):
         self.holder_pc, self.holder_login, self.remaining = holder_pc, holder_login, int(remaining)
-        who = "／".join(x for x in (holder_pc, holder_login) if x) or "ほかの PC"
+        # 同じ PC・同じログインの錠は、この PC のもう 1 つの係（アプリの中身と窓。版 3.64.0）の物
+        who = "この PC のもう 1 つの係（アプリの中身・窓）" if same_pc else "／".join(x for x in (holder_pc, holder_login) if x) or "ほかの PC"
         super().__init__(f"{who} がマスタを保存中です（あと約{self.remaining}秒）。少し待つと保存できます。")
 
     def payload(self):
@@ -200,7 +208,7 @@ def _stat_sig(path):
 class MasterStore:
     """マスタの読み書きの窓口。アプリに1つ（`app.config["MASTER_STORE"]`）。"""
 
-    def __init__(self, base_dir, local_root=None, settings=None, who=None):
+    def __init__(self, base_dir, local_root=None, settings=None, who=None, role=ROLE):
         self.base = Path(base_dir)
         cfg = dict(settings or {})
         raw_dir = str(cfg.get("dir") or "").strip()
@@ -238,6 +246,9 @@ class MasterStore:
         self._moved_checked = 0.0
         self.who = who or identity()
         self.instance = _instance_id(root)
+        self.role = role
+        self.holder = f"{self.instance}:{role}"   # 錠に書く持ち主の印（この PC のアプリ＋係）
+        self._where = threading.local()           # 錠をどこに取るか（手元だけのマスタを書く間は data/。糸ごと）
         self._lock_seen = {}    # ほかの PC の錠の印 -> この PC で最初に見た時刻（monotonic）。錠の期限は自分の時計の経過で測る
         self._write_lock = threading.RLock()   # この PC の中で書き込みを1本にまとめる
         self._state_lock = threading.Lock()
@@ -270,7 +281,23 @@ class MasterStore:
         return self.cache_dir / f"{name}.json"
 
     def _lock_file(self):
-        return self.share_dir / LOCK_FILENAME
+        """錠のファイル。共有するマスタは共有フォルダ、手元だけのマスタ（共有しない設定・共有しない名前）は data/（版 3.64.0。
+        手元でも錠を取らないと、同じ PC で 2 つの係〈Python と窓〉が同じマスタを書いたとき後の保存が黙って消える）"""
+        fixed = getattr(self._where, "dir", None)
+        if fixed is not None:
+            return fixed / LOCK_FILENAME          # exclusive() の間は、取った置き場の錠（途中で置き場を切り替えても同じ錠を外す）
+        local = getattr(self._where, "local", False)
+        return (self.base / "data" if local else self.share_dir) / LOCK_FILENAME
+
+    @contextlib.contextmanager
+    def _lock_here(self, local):
+        """この糸の錠の置き場を、手元（data/）か共有に切り替える"""
+        before = getattr(self._where, "local", False)
+        self._where.local = local
+        try:
+            yield
+        finally:
+            self._where.local = before
 
     def share_reachable(self):
         return self.share_dir is not None and self.share_dir.is_dir()
@@ -471,6 +498,7 @@ class MasterStore:
     def _seed(self, name, have_lock=False):
         """共有にマスタが無いとき、手元の写し（無ければ同梱の data/）を最初の版として置く。錠を取って行う
         （書き込みの途中なら、もう持っている錠のまま）。"""
+        have_lock = have_lock or getattr(self._where, "held", False)   # exclusive() の中は、もう錠を持っている
         token = None if have_lock else self._acquire_lock()
         try:
             src = self._share_file(name)
@@ -506,7 +534,10 @@ class MasterStore:
             for k in [k for k, t in self._lock_seen.items() if now - t > 10 * self.lock_ttl]:
                 del self._lock_seen[k]               # 昔に見た錠の印は捨てる（覚える数を増やさない）
             first = self._lock_seen.setdefault(token, now)
-        return max(min(self._by_clock(lock), self.lock_ttl), self.lock_ttl - (now - first))
+        # 書かれた期限が錠の長さより先なら、その期限は信じない（相手の時計が進んでいる。前は錠の長さを返し続け、
+        # 時計の進んだ PC が落ちて残した錠が、時計のずれの分だけ取れなかった）。見てからの経過で測る
+        by_clock = self._by_clock(lock)
+        return max(by_clock if by_clock <= self.lock_ttl else 0.0, self.lock_ttl - (now - first))
 
     @staticmethod
     def _by_clock(lock):
@@ -523,6 +554,16 @@ class MasterStore:
         by_clock = self._by_clock(lock)
         return max(1, int(by_clock if 0 < by_clock <= left else left) + 1)
 
+    def _locked(self, lock, remaining):
+        """錠を持つ相手を名乗って断る（同じ PC・同じログインの錠は、この PC のもう 1 つの係の物と言う）"""
+        lock = lock or {}
+        pc, login = lock.get("holder_pc", ""), lock.get("holder_login", "")
+        inst = str(lock.get("holder_instance", ""))
+        # この PC の同じ作業場所の、もう 1 つの係の錠のときだけ（名乗りが同じ別の PC・前の版の錠・自分の錠とは言い分ける）
+        same = (bool(pc) and pc == self.who.get("pc", "") and login == self.who.get("login", "")
+                and inst.startswith(f"{self.instance}:") and inst != self.holder)
+        return MasterLocked(pc, login, remaining, same_pc=same)
+
     def _is_mine(self, lock):
         """持ち主が自分（この PC のこのアプリ）か。**名乗れない PC は自分と言わない**（WaveLog §9.384）。
         名乗り（PC 名・ログイン ID）に加えて、この PC のアプリの印（instance_id）も合うときだけ。名乗りが同じ別の PC の錠を、
@@ -530,22 +571,27 @@ class MasterStore:
         pc, login = self.who.get("pc", ""), self.who.get("login", "")
         if not pc or not login or not lock:
             return False
-        return lock.get("holder_pc") == pc and lock.get("holder_login") == login and lock.get("holder_instance") == self.instance
+        mine = (self.holder, self.instance) if self.role == "py" else (self.holder,)   # 係の無い錠は Python の物（版 3.63.0 まで）
+        return lock.get("holder_pc") == pc and lock.get("holder_login") == login and lock.get("holder_instance") in mine
 
     def _acquire_lock(self):
-        """共有の錠を取る → 錠の印（token）。ほかの PC が持っていれば MasterLocked。
+        """錠を取る → 錠の印（token）。ほかの PC（同じ PC のもう 1 つの係）が持っていれば MasterLocked。錠の置き場は _lock_file
+        （共有するマスタは共有フォルダ、手元だけのマスタは data/）。
 
         錠は「無ければ作る」（O_EXCL。作れた1台だけが持つ）でしか置かない。上書きで置くと、2台が同時に
         「自分が持っている」と思い込む順番がある（2026-10-02 に3つの順番を試験で再現した。tests/test_master_share.py の LockRaces）:
           - 作ろうとして断られた → 読むと錠がもう無い → 上書きで置く（その間に相手が作り直していた）
           - 切れた錠を2台が同時に見つけ、両方が上書きで引き継ぐ
         切れた錠・自分の残した錠は、名前を変えてどけてから（_take_away）、もう一度「無ければ作る」で取る。"""
-        if not self.share_reachable():
+        local = getattr(self._where, "local", False) or getattr(self._where, "dir", None) == self.base / "data"
+        if local:
+            self._lock_file().parent.mkdir(parents=True, exist_ok=True)
+        elif getattr(self._where, "dir", None) is None and not self.share_reachable():
             raise ShareUnavailable(f"共有フォルダに届かないため保存できません（読みは手元の写しで続けています）: {self.share_dir}")
         p = self._lock_file()
         token = uuid.uuid4().hex
         now = _now()
-        payload = {"token": token, "holder_pc": self.who.get("pc", ""), "holder_login": self.who.get("login", ""), "holder_instance": self.instance,
+        payload = {"token": token, "holder_pc": self.who.get("pc", ""), "holder_login": self.who.get("login", ""), "holder_instance": self.holder,
                    "acquired_at": _iso(now), "expires_at": _iso(now + timedelta(seconds=self.lock_ttl))}
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         for _ in range(LOCK_TRIES):
@@ -557,16 +603,17 @@ class MasterStore:
                 if cur is None:
                     continue                      # 外された直後。もう一度「無ければ作る」で取る（上書きしない）
                 if self._remaining(cur) > 0 and not self._is_mine(cur):
-                    raise MasterLocked(cur.get("holder_pc", ""), cur.get("holder_login", ""), self._wait(cur)) from None
+                    raise self._locked(cur, self._wait(cur)) from None
                 self._take_away(cur.get("token"))  # 切れた錠・自分の残した錠をどけてから取り直す
             except OSError as e:
-                raise ShareUnavailable(f"共有フォルダに錠を置けません: {e}") from e
+                where = "手元のマスタの置き場（data）" if local else "共有フォルダ"
+                raise ShareUnavailable(f"{where}に錠を置けません: {e}") from e
         else:
             cur = self._read_lock() or {}
-            raise MasterLocked(cur.get("holder_pc", ""), cur.get("holder_login", ""), 2)
+            raise self._locked(cur, 2)
         check = self._read_lock()
         if not check or check.get("token") != token:
-            raise MasterLocked((check or {}).get("holder_pc", ""), (check or {}).get("holder_login", ""), 2)
+            raise self._locked(check, 2)
         return token
 
     @staticmethod
@@ -596,8 +643,8 @@ class MasterStore:
                 got = json.loads(raw.decode("utf-8")).get("token")
             except (ValueError, AttributeError):
                 got = None                          # 書きかけ・壊れた錠
-            if got == expected_token:
-                return "ok"
+            if got == expected_token or (got is None and str(expected_token).startswith("broken:")):
+                return "ok"                         # 思っていた錠（壊れた錠をどけるときは、どけた物も壊れた錠なら同じ物）
             with contextlib.suppress(FileExistsError):
                 self._create_exclusive(p, raw)      # 取り違えた。元の持ち主へ戻す（その間に別の PC が取っていればそのまま）
             return "other"
@@ -627,12 +674,7 @@ class MasterStore:
         with self._write_lock:
             stamp = {"updated_at": _iso(_now()), "updated_by": dict(self.who)}
             if not self.is_shared(name):
-                path, first = self._bundled(name), self._initial(name)
-                doc = _as_doc(_read_json(first)) if first.exists() else _doc([])
-                result = mutate(doc["rows"], stamp)
-                # 同梱の data/ は昔からの形（行の配列）のまま保つ
-                _write_json_atomic(path, doc["rows"])
-                return result
+                return self._write_local(name, mutate, stamp)
             token = self._acquire_lock()
             try:
                 self._pull(name, force=True, have_lock=True)   # **当てる前に共有から取り直す**
@@ -650,6 +692,46 @@ class MasterStore:
             finally:
                 self._release_lock(token)
 
+    def _write_local(self, name, mutate, stamp):
+        """手元だけのマスタ（data/）を書く。共有と同じく、錠を取る → 読み直して当てる → 置き換える直前に錠とファイルを確かめる（版 3.64.0）"""
+        path = self._bundled(name)
+        with self._lock_here(True):
+            token = self._acquire_lock()
+            try:
+                first = self._initial(name)   # **錠を取ってから**決めて読む（初めての保存が重なっても、先の保存の上で当てる）
+                pulled = _stat_sig(path)
+                doc = _as_doc(_read_json(first)) if first.exists() else _doc([])
+                result = mutate(doc["rows"], stamp)
+                cur = self._read_lock() or {}
+                if cur.get("token") != token or _stat_sig(path) != pulled:
+                    log.warning("MASTER_WRITE_ABORT name=%s（手元。保存の途中で錠かファイルが変わった）", name)
+                    raise self._locked(cur, 2)
+                # 同梱の data/ は昔からの形（行の配列）のまま保つ
+                _write_json_atomic(path, doc["rows"])
+                return result
+            finally:
+                self._release_lock(token)
+
+    @contextlib.contextmanager
+    def exclusive(self):
+        """マスタを丸ごと扱う間（置き場の引っ越しで写す・切り替える・印を置く）、この PC の書き込みを止め、いまの置き場の錠を持つ
+        （共有に届けば共有、無ければ data/）。錠は取った置き場で外す（版 3.64.0。前は写す途中の保存が前の置き場に入り、引っ越し先に入らなかった）"""
+        with self._write_lock:
+            shared = self.share_reachable()
+            where = self.share_dir if shared else self.base / "data"
+            before = getattr(self._where, "dir", None), getattr(self._where, "held", False)
+            self._where.dir = where
+            try:
+                token = self._acquire_lock()
+                self._where.held = True
+                try:
+                    yield
+                finally:
+                    self._where.held = before[1]
+                    self._release_lock(token)
+            finally:
+                self._where.dir = before[0]
+
     def _still_mine(self, name, token, pulled):
         """置き換える直前の確かめ。保存が錠の長さを超えて長引き、その間にほかの PC が錠を取って保存していたら、
         取り直した時の中身で上書きすると相手の保存が黙って消える。錠が自分の物でない・共有が取り直した時から変わったなら、
@@ -657,7 +739,7 @@ class MasterStore:
         cur = self._read_lock() or {}
         if cur.get("token") != token or _stat_sig(self._share_file(name)) != pulled:
             log.warning("MASTER_WRITE_ABORT name=%s（保存の途中で錠か共有が変わった）holder=%s", name, cur.get("holder_pc", ""))
-            raise MasterLocked(cur.get("holder_pc", ""), cur.get("holder_login", ""), 2)
+            raise self._locked(cur, 2)
 
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
     def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",

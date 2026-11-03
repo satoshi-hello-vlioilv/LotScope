@@ -104,6 +104,11 @@ def move(store, parent, name) -> dict:
     pl = plan(store, parent, name)
     if not pl["ok"]:
         raise ValueError(pl["problem"])
+    with store.exclusive():     # 写す・切り替える・印を置くまで、この PC の保存を止め、前の置き場の錠を持つ（途中の保存を前の置き場に落とさない）
+        return _move_locked(store, pl)
+
+
+def _move_locked(store, pl) -> dict:
     dest, old = Path(pl["dest"]), store.share_dir
     if pl["mode"] == "copy":
         docs = _docs(store)

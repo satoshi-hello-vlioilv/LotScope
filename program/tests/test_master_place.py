@@ -2,9 +2,11 @@
 import json
 import shutil
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
+from app.repositories.master_repository import MasterRepository
 from app.repositories.master_store import MOVED_FILENAME, MasterStore
 from app.services import master_place
 
@@ -38,6 +40,39 @@ class MasterPlaceTests(unittest.TestCase):
         self.assertFalse(any(p.name.startswith(".Masters.tmp") for p in (self.tmp / "nas").iterdir()), "一時フォルダを残さない")
         again = self.store("pcA")                        # 開き直しても、覚えた置き場を使う
         self.assertEqual(again.status()["dir"], str(dest))
+
+    def test_save_during_the_move_lands_in_the_new_place(self):
+        """写している途中に同じ PC のほかの画面が保存しても、その保存は引っ越し先に入る（引っ越しの間は保存を待たせる。版 3.64.0。
+        前は保存が「できた」と言って前の置き場に入り、切り替えた後の読みに出なかった）"""
+        for share in ("", "old"):
+            with self.subTest(share=share or "手元のみ"):
+                old = self.tmp / "nas" / "OldPlace"
+                if share:
+                    master_place.move(self.store("pcS"), self.tmp / "nas", "OldPlace")
+                a = self.store("pcM" + share, share=str(old) if share else "")
+                repo = MasterRepository(a)
+                rid = repo.rolls_create({"設備": "TLV", "ロール名": f"引っ越し前{share}"})["id"]
+                real, box = master_place.write_json_atomic, {}
+
+                def copying(path, doc, real=real, repo=repo, rid=rid, box=box, **kw):
+                    if "thread" not in box:   # 写す中身を読んだ後（1 つ目のファイルを写すとき）に、ほかの画面が保存する
+                        th = threading.Thread(target=lambda: box.update(r=repo.rolls_update(rid, {"備考": "引っ越しの途中の保存"})))
+                        th.start()
+                        th.join(0.3)          # 保存は引っ越しが終わるまで待つ（ここで終わっていれば、前の置き場に入っている）
+                        box["thread"] = th
+                    return real(path, doc, **kw)
+                master_place.write_json_atomic = copying
+                try:
+                    master_place.move(a, self.tmp / "nas", f"New{share or 'L'}")
+                finally:
+                    master_place.write_json_atomic = real
+                box["thread"].join(10)
+                self.assertIn("r", box, "途中の保存も、引っ越しの後で保存できる")
+                dest = self.tmp / "nas" / f"New{share or 'L'}"
+                on_disk = {r["id"]: r for r in json.loads((dest / "roll_master.json").read_text(encoding="utf-8"))["rows"]}[rid]
+                self.assertEqual(on_disk.get("備考"), "引っ越しの途中の保存", "途中の保存は引っ越し先（共有のファイル）に入る")
+                fresh = MasterRepository(self.store("pcF" + share, share=str(dest)))   # ほかの PC が引っ越し先を読む
+                self.assertEqual({r["id"]: r for r in fresh.rolls()}[rid].get("備考"), "引っ越しの途中の保存")
 
     def test_other_pcs_follow_the_moved_marker(self):
         old = self.tmp / "nas" / "Old"
