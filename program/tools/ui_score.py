@@ -266,7 +266,11 @@ def report(data):
     if built:
         t = total(built["result"])
         print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
-        print("→ 作った後も " + (f"{mark} 点以上（決めた回の合格点）" if t >= mark else f"{mark} 点（決めた回の合格点）に届かない。減点の所を直して撮り直し、採点し直す"))
+        accepted = data.get("accepted_by_user")
+        if t < mark and accepted:
+            print(f"→ 作った後は {mark} 点（決めた回の合格点）に届かないが、利用者がこの形で決めた（{accepted.get('date', '')}）。{accepted.get('note', '')}")
+        else:
+            print("→ 作った後も " + (f"{mark} 点以上（決めた回の合格点）" if t >= mark else f"{mark} 点（決めた回の合格点）に届かない。減点の所を直して撮り直し、採点し直す"))
     return kind, who
 
 

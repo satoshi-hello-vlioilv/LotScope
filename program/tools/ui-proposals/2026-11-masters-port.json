@@ -1,0 +1,579 @@
+{
+  "title": "マスタ・権限・使用の履歴を Rust へ移す（順 5）の移し方",
+  "rule": "2026-10-17",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-03）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: master_store.py・master_repository.py・services/access.py・presence.py・routes/access.py・common.py・lotlist.py（lists_settings）・sources.py（all_sources）・lots.py・boot.py・__init__.py と、desktop/src/router.rs・lot.rs・main.rs・sidecar.rs・lists.rs・locate.rs、RUST_PORT_PLAN.md の §4・§7、前例 2026-11-dashboard-port.json。動かした物: rust-port-bench.py --static-only（行の数が measured と同じ）・順 5 の Python の試験の数え上げ（137）・錠の取り違えの再現 scratchpad/m5/lockrepro.py（同じ instance_id の MasterStore 2 つと、作業場所が別の対照）。物差しの読み替え（前例の formula-port・list-routes・dashboard-port にそろえ、速さの利点が無い順 5 に合わせた）: order＝移す順が依存に沿う（葉から積む）／chunk＝段の区切りが明確で段ごとに確かめられる／hierarchy＝答えの元と決める所（判定・錠）が移す途中も 1 つ／visual＝試験と測りで同じ答えを示せる（食い違いが数で見える）／steps＝版と PR の数・作った後の採点の重さ／effortless＝移す途中に壊れる・取り違える危険の少なさ／intuitive＝前例（Python を答えの見本に段ごとに突き合わせ、SERVES で受け持ちを伝える）と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場／layout＝作りの重複の少なさと量の釣り合い／tone＝作る・確かめる道具の手間（CI・試験の作り）。減点: hidden_state＝保存が黙って消える・誤った言葉で断られるなど、起きたことが見えない。リポジトリはこのファイルのほかは変えていない。／2 回目: 案を作っていない、1 回目の採点者とも別の採点者（別のエージェント・2026-11-03）。rounds[1] の 6 案を、1 回目と同じ物差しの読み替え（上）で採点した。読んだ物: master_store.py（錠・seed・書き・置き場）・master_repository.py（SPECS 16・_check_row）・services/access.py・presence.py（revocation）・identity.py・master_seeds.py・routes/access.py（_access_guard・_perm_gate）・common.py（me・can_write・tab_denied）・presets.py（_who・_gate）・lotlist.py（lists_settings・shell_serves の使い方）・app/__init__.py（shell_serves・shell_notice・effective_settings）・boot.py・program/sidecar.py と、desktop/src/router.rs・lot.rs（SETTINGS_TTL・changes_settings）・main.rs・sidecar.rs（SERVES・spawn・read_loop・知らせ）・lists.rs・mirror.rs、RUST_PORT_PLAN.md §4・§7、前例 2026-11-dashboard-port.json。動かした物: rust-port-bench.py --static-only（部品の行が measured と同じ。repository は依存 11・段 5）・順 5 の試験の数え上げ（137）・自分の台本 scratchpad/m5b/locks2.py（同じ作業場所の MasterStore 2 つで、今の印・係の印〈instance に :py／:rs〉・係の印の前の版が残した錠・共有の無い PC）。リポジトリはこのファイルのほかは変えていない。【2 回目・自分で確かめた事実】①今の印（同じ instance_id）: 片方の生きた錠をもう片方がどけて取れ、置き換えの直前の窓で後の保存が共有から黙って消えた（1 回目の再現と同じ）。②係の印: instance の字に係を足すだけで (a) 生きた錠・(c) 置き換えの直前の窓 とも MasterLocked で断られ、保存は消えない。断りの言葉は「PC-A／user がマスタを保存中」と自分の PC の名前になる（誤りではないが分かりにくい）。③係の印の前の版が落ちて残した錠は、新しい版から自分の物に見えず 20 秒待たされる（1 度だけ）。④共有の無い PC（share_dir 空）は錠を取らず、data/ を _write_lock〈プロセスの中だけ〉の中で丸ごと書く（master_store.py:626-634）。2 つの係が同じマスタを書くと後の保存が黙って消えた。係の印は効かない（並んで書かないことでしか防げない）。⑤router.rs は道を Python へ回す前に必ず native を呼ぶので、窓は書き込みの道を回す前に断れる。Python の門番は before_app_request で、shell_serves() を見て止める型は lotlist.py:118 に前例がある。⑥ただし can_write・_who・_perm_gate・delete_check・tab_denied は Python の道の中（12 ファイル・約 50 か所）で呼ばれ、門番を窓へ移しても、その道が Python にある間は判定が Python にも残る。窓の決めた me() を Python へ渡す口は今は無い。⑦Python→窓は答えを待たない知らせ（id 0 の枠）だけがあり、問い合わせて答えを待つ口は無い。窓の起動の読み手は progress 以外の枠で起動の知らせと見なし、Python は ready の前（create_app の effective_settings）にマスタを読む。⑧写し（master_cache）は Python が読むときだけ取り直す（裏の糸は無い）。今は心拍（3 秒ごと）の me() が access_permissions・tab_access の写しを新しく保っている。⑨master_seeds は起動のたびに app_seeds を読み、まだ当てていない初期値があるときだけ書く（measured の facts ⑥「起動のたびに…書く」は言い過ぎ。1 回目の採点者の言い方が正しい）。⑩速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。／3 回目: 案を作っていない、1 回目・2 回目の採点者とも別の採点者（別のエージェント・2026-11-03）。rounds[2] の 6 案を、1 回目の採点者が書いた物差しの読み替え（上）と前例 2026-11-dashboard-port.json にそろえて採点した。L・B' は 2 回目の採点を参考にしたが、自分で読み直して付けた。読んだ物: program/sidecar.py（枠の形・handle・serve）・app/web.py（App.handle が headers を Request へ渡す）・app/__init__.py（effective_settings・shell_serves・presence.configure と on_moved）・routes/common.py（me・can_write・tab_denied）・routes/access.py（_access_guard・_perm_gate・利用状況の道）・routes/system.py（心拍）・routes/lotlist.py（lotlist_settings・lists_settings）・routes/presets.py（_who・_gate）・services/access.py（capabilities・master_scope・role_change_check・delete_check）・services/presence.py（touch・touch_async・leave・置き場）・repositories/master_store.py（錠・_seed・手元の書き込み・_still_mine）・master_repository.py の書き手・tests/test_master_share.py の LockRaces と、desktop/src/router.rs・sidecar.rs（Ask・spawn の起動の読み手・read_loop・Supervisor）・main.rs（起動と終了）・lot.rs（SETTINGS_TTL・changes_settings）・lists.rs。動かした物: rust-port-bench.py --static-only（部品の行が measured と同じ）・自分の台本 scratchpad/m5c/m5c.py（1: 共有の無い PC で 2 つの係が同じマスタを書く順を、今の形と、data/ に同じ錠を取る形〈案 M の③をまねて外から包んだ物〉で流す／2: 期限が過去の錠を置いて、新しく起こした store が取れるかを錠の長さ 20 秒と 0.3 秒で）。リポジトリはこのファイルのほかは変えていない。【3 回目・自分で確かめた事実】①問い合わせの枠は既に headers（名前→値）を持ち（sidecar.rs の request・sidecar.py の handle → app.handle → Request）、窓は WebView のヘッダーをそのまま Python へ渡す（router.rs の handle）。窓が決めた me をヘッダーに載せるのは枠の形も PROTOCOL も変えずにできる。ただし画面の JS が同じ名前のヘッダーを付けるとそのまま届くので、窓は受けたその名前を捨てて上書きする要がある。②Python の me() の rows（アクセス権限の全行）はアクセス権限の書き込みの道・利用状況・心拍が使い、role_change_check・delete_check は rows から access.flags を計算し直す（access.py:241-274）。can_write も master_scope・master_edit_can を Python で当てる。③共有の無い PC で、py が当てている最中に rs が同じマスタを書くと、今の形では rs の保存は「通った」のに data/ に残らず黙って消えた。data/ に共有と同じ錠（O_EXCL・係の印）を取ってから読み・当て・書く形では、rs は MasterLocked（「PC-A／user がマスタを保存中です（あと約20秒）」）で断られ、黙っては消えない。④期限が過去の錠（ほかの PC）を置いても、初めて見た store は錠の長さだけ生きている扱いで断る（ttl 20 秒は 20 秒、0.3 秒は 0.3 秒待つと取れた）。Python の錠の取り合いの試験（LockRaces・長引いた保存）は _read_lock・os.replace・Path.unlink の差し替えと _lock_seen の書き換えで途中に割り込んで作っている（置いたファイルでは作れない）。⑤窓の起動の読み手は ready の前に progress 以外の枠が来ると子を止め、動いている間の読み手は id 0 を知らせ・ほかを答えとし、待ち手の無い id は捨てる。Python の serve は標準入力を問い合わせとしてだけ読む。Supervisor.get は起こす間 current の錠を持つ。Python→窓の答えを待つ口は今は無い。⑥/api/access/me の答えは capabilities（hiddenTabs・canEditFieldMaster・canEditAdminMaster・adminMasters）と revoked を持ち、lists の hidden と canEditShifts を引ける。lists を組むには置き場の決まり・all_sources・path_settings.effective・equip_groups.view・設備名・勤務体系が要り、/api/lotlist/settings のほかの値も effective_settings から来る。⑦presence.leave は製品のどこからも呼ばれていない。presence の部品は依存が fsio・version だけの葉だが、利用状況の道と心拍は me()（区分・caps・role_can・rows からの registered_roles・切断の指示）を使い、置き場は Python の store が決める（__init__.py:114-116・on_moved）。⑧速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。",
+  "reading": "program/docs/RUST_PORT_PLAN.md の順 5。master_store.py・master_repository.py・access.py・presence.py・routes/*.py・desktop/src/router.rs・lot.rs・main.rs・sidecar.rs を読んだ下調べ（measured の facts）",
+  "measured": {
+    "how": "python program/tools/rust-port-bench.py --json（2026-11-03。品質 20,000 行・作業実績 12 台 × 2,000 行・仕掛 20,000。中央値）と、部品の棚卸し（行は空行・注釈・説明文を除く）",
+    "speed": "マスタ・設定・権限の道 28 本の計 約 28 ms（equipgroups 11.8・masters 6.3・system 2.7・conversions 2.4・access 2.0・settings 1.2・shifts 1.2・formats 0.3）。どれも Python の手が 81〜98% だが、合わせて 30 ms 弱で、Rust にしても体感は変わらない",
+    "python_cost": "Python を起こして答えられるまで: Linux 167.5 ms（中で数えて 106.0）・Windows（CI・版 3.58.0）1,099 ms。枠 1 往復 0.151 ms。順 5 を移しても、順 6（外とのつなぎ）・順 7（枠）が残る間は Python を起こすので、起動の時間は縮まない",
+    "size": "部品（行）: master_store 489・master_repository 469・presence 420・conversions 229・folder_browse 215・path_settings 193・access 184・release_place 138・master_place 101・equipment_names 75・identity 62・master_seeds 58・ui_defaults 38・ui_state 34（計 約 2,700）。道: 部品を直接使う道 51 本（access 14・settings 12・masters 10・conversions 8・system 10）。master_repo／me() を通して間接に使う道は schedule 以外の全部の道ファイル（formats 4・shifts 4・equipgroups 4・presets 5・worklog の登録 5・sources 17・dashboard 18 のうち保存・読み出し）",
+    "tests": "Python の試験 約 137（test_access 22・test_master_share 20〈錠の取り合い LockRaces・3 台の同時書き込み〉・test_equipment_names 16・test_release_place 14・test_path_settings 13・test_conversions 13・test_folder_browse 11・test_presence_sessions 9・test_master_place 8・test_ui_state 7・test_master_seeds 4）。Rust の突き合わせの試験は 0",
+    "facts": "①マスタは共有フォルダの JSON（1 マスタ 1 ファイル）を何台もの PC が書く。錠は O_EXCL で作る master.lock.json・名前を変えてどけて外す・期限は相手の時計と自分の monotonic の長い方・置き換える直前に錠と共有の (mtime,size) を確かめる。②錠の持ち主は PC 名・ログイン ID・instance_id（作業場所の 1 つのファイル）で見分ける（master_store.py:526-533）。同じ PC で Python と Rust が並んで書くと、同じ instance_id を使えば相手の生きた錠を自分の残した錠と見て、どけて取る（:559-561）。threading.RLock はプロセスの中だけ。③権限の判定が要るのは、GET 以外の 11 の接頭辞の道の頭（routes/access.py の門番 _access_guard）・can_write／_who・タブの権限の問い合わせ（me()）と、設定の答えの hidden・canEditShifts。access.py:4 は判定を 2 か所に分けることを禁じている。④Rust は設定の答え（GET /api/lotlist/settings の lists）を 10 秒覚え、Python の書き込みの後に捨てる。⑤使用の履歴は PC ごとのファイル（presence_tpa/）を、その PC だけが書く（錠なし）。心拍は画面から 3 秒ごと・実際に書くのは 20 秒ごと。⑥（1 回目の採点で分かった）読むだけでも、共有にまだ無いマスタを読むと read() が _seed で錠を取って書く。起動のたびに master_seeds が裏の糸で記録マスタ app_seeds を読み、まだ当てていない初期値があるときだけ書く。順 6（lots.py・calculator など）もマスタを読む。⑦同じ instance_id の 2 つの MasterStore で、片方の生きた錠をもう片方がどけて取れ、置き換える直前の確かめを通った後の狭い窓では保存が黙って消えることを再現した（scratchpad/m5/lockrepro.py）。印を別にすると 3 つの順とも断られた。⑧設定の答え（lists）を作るには all_sources（写しの行を SQLite で数える）・path_settings.effective・equip_groups.view・設備名の解決も要る。⑨（2 回目の採点で分かった）共有の無い PC（share_dir 空）では錠を取らず、プロセスの中の _write_lock だけで data/ を書くので、2 つの係が同じマスタを書くと後の保存が黙って消える。⑩道の中の判定（can_write・_who・_perm_gate・delete_check・tab_denied）は 12 ファイル・約 50 か所で Python の me() を呼ぶ。窓が決めた me() を Python へ渡す口はいまは無い（枠は窓→Python の問い合わせと、Python→窓の答えを待たない知らせだけ）。⑪Python は ready の前（create_app の effective_settings）にマスタを読み、読めないと黙って配った設定で動く。⑫router.rs は Python へ回す前に必ず窓の受け口を通すので、窓は回す前に断れる。Python の道が shell_serves() を見て止まる型には前例がある（lotlist.py:118）"
+  },
+  "rounds": [
+    {
+      "name": "1 回目",
+      "images": "画面に出ない改良（画像なし）。測った数は measured",
+      "self_check": "画面に出ない改良なので画像は無い。案ごとに、移す量（行・道）・並んで書く期間の有無・錠の取り合いの危険・判定が 2 か所に分かれる期間・Python に残る物・突き合わせの試験の作り方が、measured の同じ数と同じ物差しで比べられる書き方になっているかを自分で確かめた。案の方向は 7 つ（範囲: A 一括／順: B 読み手先・D 縦切り・G 順の入れ替え／書く係の置き場: C／決まりの持ち方: E／並んで書く安全: F）で、同じ方向に偏っていない。measured の速さ（28 道で約 28 ms）と起動の時間（Windows 1,099 ms）は rust-port-bench.py を 2026-11-03 に流した数と合うことを確かめた",
+      "proposals": {
+        "A 一括（1 版で全部）": {
+          "plan": "store・repository・access・presence・path_settings ほかと、部品を使う道（直接 51 本＋間接の保存・読み出し）を 1 つの版で Rust に。Python の道はその日に外し、答え合わせ（オラクル）にだけ残す。移す量 約 2,700 行＋道 約 1,000 行。並んで書く期間が無いので錠の取り合いは起きない。1 回の PR が大きく、突き合わせの試験も一度に作る",
+          "score": {
+            "order": 6,
+            "chunk": 4,
+            "hierarchy": 7,
+            "visual": 5,
+            "steps": 6,
+            "effortless": 6,
+            "intuitive": 6,
+            "form": 8,
+            "place": 8,
+            "layout": 6,
+            "tone": 5
+          },
+          "minus": [],
+          "seen": "【この案】良い所: 終わりの形がいちばん早く 1 つになる（判定・錠・読みが全部 Rust、Python は答え合わせの相手だけ）。並んで書く期間を計画として作らない。悪い所: 2,705 行＋道 約 1,000 行・試験 137 件ぶんの突き合わせを 1 回で作る。前例では集計（1,256 行）の作った後の採点に 8 回かかった。食い違いが出たとき、錠・権限・使用の履歴・置き場のどこかを切り分けにくい。「並んで書く期間が無いので錠の取り合いは起きない」は少し言い過ぎ: Python は順 6・7 のために残り、起動のたびの master_seeds（新しい初期値があれば錠を取って書く）と、共有に無いマスタを読んだときの _seed（再現 ③）が同じ instance_id で書く。めったに起きないが、案はこれを手当てしていない。前例（順 4）の 2 段の型から外れる。 【自分で確かめた事実（どの案にも共通）】①行と試験: rust-port-bench.py --static-only を流し、部品の行 489・469・420・229・215・193・184・138・101・75・62・58・38・34（計 2,705）が measured と同じ。試験は test_* を数えて 137 で同じ。道は access 14・settings 12・masters 10（4 本×設備・ロール＋2）・conversions 8・system 10（measured は 7）。②錠の取り違え（scratchpad/m5/lockrepro.py。同じ作業場所＝同じ instance_id・同じ名乗りの MasterStore を 2 つ）: (a) 片方が生きた錠を持つ間に、もう片方の _acquire_lock が通った（:559-561 で自分の残した錠と見てどけて取る）。作業場所が別（対照）は MasterLocked で断られた。(b) 片方の保存の途中（mutate の中）にもう片方が保存すると、先の方は _still_mine で気づいて断る（黙っては消えない。ただし同じ PC なのに「ほかの PC がマスタを保存中」・持ち主の名前が空と出る）。(c) 先の方が _still_mine を通った直後〜共有を置き換える前（fsync して書く間）にもう片方が丸ごと保存すると、後の保存が共有から黙って消えた。対照（別の instance_id）は断られて消えない。→「並んで書くと錠を取り違える」は正しい。消えるのは狭い窓だが、起きたときに見えない。③「読みは錠を取らない」は Python の読みでは正しくない: 共有にまだそのマスタが無いと read() が _seed で錠を取り共有へ書く（再現: read の中で _acquire_lock 1 回・共有にファイルができた）。読みは写し（master_cache）も書き、follow_moved は作業場所の master_share.json を書く。④順 5 を移しても Python は順 6・7 のために起き続け、boot.py が起動のたびに master_seeds.run を裏で流す（新しい初期値があれば store.write で錠を取る）。routes/lots.py・calculator も master_repo() を読む。→ どの案でも（G を除き）同じ PC に Python の書き手が少し残る。⑤作業場所: locate.rs が app_env.local_root と同じ決まり・sidecar.rs:94 が TRANSFER_LOCAL_ROOT を渡すので、Rust が instance_id を同じ所から読めば Python と同じ印になる（measured ② の前提は正しい）。窓は tauri_plugin_single_instance（main.rs:833）で 1 つなので、今の書き手は Python 1 つ。⑥権限: access.py:4「判定はこの1箇所。ルートにも画面にも書き写さない」を確かめた。今の Rust（lists.rs:226-235）は Python が決めた hidden を当てるだけ。me() は access_permissions・tab_access と presence.revocation（切断の指示のファイル）を読む。_access_guard は全部の問い合わせの前に走るが、判定するのは GET 以外の 11 の道の頭だけで、me()・tab_denied・can_write を使う道ファイルは 11＋dashboard の _who（「ほぼ全部の道の前段」は言い過ぎ）。⑦設定の答え: lot.rs の SETTINGS_TTL 10 秒・changes_settings が Python の書き込み（10 の道の頭）の後に invalidate（measured ④ と同じ）。lists_settings は me()・all_sources（データ元の定義と写しの行を SQLite で数える）・work_log.params・path_settings.effective・equip_groups.view・dashboard._equipment_names を使う。⑧つなぎ: sidecar.rs の枠は窓→Python の問い合わせだけ（PROTOCOL=1）。Python→窓の問い合わせ口は無い（/__desktop/… は画面→窓）。受け持ちの切り替えは SERVES（\"lotlist\",\"lists\"）を TPA_SHELL_SERVES で伝える型。⑨使用の履歴: <key>.json・history・sessions はその PC が書くが、_sweep（古いほかの PC のファイルを消す）・切断の指示（管理する人がほかの PC の .revoke.json を書く）・prune_all・forget はほかの PC の物も書く／消す（錠なし）。心拍 3 秒・書くのは 20 秒（WRITE_INTERVAL_SEC）は正しい。⑩master_repository: SPECS は 16 マスタ。store.write を直に呼ぶ個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order／delete・work_log_order／sync・_preset_write〈標準を組で 1 つ〉・quick_set ほか）と、_create／_update／_delete／_list に渡すだけの関数 40。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）を呼ぶ。⑪速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。 "
+        },
+        "B 読み手を先に（2 段）": {
+          "plan": "1 段目: Rust が手元の写し（master_cache）と共有を直接読み、設定の答え（lists）・me()・タブの権限・マスタの GET の道に答える（Python に設定を尋ねる往復が無くなる）。書き込み（POST/PUT/DELETE）は Python のまま。読みは錠を取らないので、並んで動いても取り合いは起きない。2 段目: 書き込み（錠）と書く道・使用の履歴を移す。1 段目は Python の写しの更新を Rust が (mtime,size) で見る",
+          "score": {
+            "order": 9,
+            "chunk": 7,
+            "hierarchy": 6,
+            "visual": 8,
+            "steps": 8,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 7,
+            "place": 7,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "【この案】良い所: 依存の順に沿う（読み〈store の読み・me()・タブ〉が葉、書き込みはその上）。1 段目は Rust が書かないので、同じ instance_id の錠の取り違え（再現 ②）は 1 段目では起きない。1 段目の答え（lists・me()・GET のマスタ）は、同じマスタのファイルを読んだ Python の答えと突き合わせやすい（routes_parity と同じ型）。2 段で、SERVES で受け持ちを伝える前例（順 2〜4）と同じ型。悪い所: ①1 段目は「読み手」と言うより広い: lists は all_sources（データ元の定義・写しの行を数える）・path_settings.effective・work_log.params・equip_groups.view・_equipment_names まで Rust に要る。②1 段目で me()・タブの権限を Rust が答える一方、書き込みの門番（_access_guard）と can_write・presets／dashboard の _who は Python のまま → 1 段目のあいだ権限の判定が 2 か所で動く（access.py:4 に反する。案は書いていない）。③「読みは錠を取らない」は Python の読みでは正しくない（_seed。再現 ③）。Rust の読みを錠なしに作れば済むが、共有に無いマスタの扱いを決める要る。④「Python の写しの更新を Rust が (mtime,size) で見る」: 読みを Rust が受け持つと Python がそのマスタを読まなくなり、Python の写し（5 秒ごとに読むときだけ取り直す）が古いまま残りうる。Rust が共有を自分で見る形にしないと古い答えを返す。⑤2 段目で書き込みを全部移しても、Python の master_seeds・_seed が同じ instance_id で残る（手当てなし）。速さの利点（設定の往復 0.15 ms・設定の道 1.2 ms）はほぼ無い。 【自分で確かめた事実（どの案にも共通）】①行と試験: rust-port-bench.py --static-only を流し、部品の行 489・469・420・229・215・193・184・138・101・75・62・58・38・34（計 2,705）が measured と同じ。試験は test_* を数えて 137 で同じ。道は access 14・settings 12・masters 10（4 本×設備・ロール＋2）・conversions 8・system 10（measured は 7）。②錠の取り違え（scratchpad/m5/lockrepro.py。同じ作業場所＝同じ instance_id・同じ名乗りの MasterStore を 2 つ）: (a) 片方が生きた錠を持つ間に、もう片方の _acquire_lock が通った（:559-561 で自分の残した錠と見てどけて取る）。作業場所が別（対照）は MasterLocked で断られた。(b) 片方の保存の途中（mutate の中）にもう片方が保存すると、先の方は _still_mine で気づいて断る（黙っては消えない。ただし同じ PC なのに「ほかの PC がマスタを保存中」・持ち主の名前が空と出る）。(c) 先の方が _still_mine を通った直後〜共有を置き換える前（fsync して書く間）にもう片方が丸ごと保存すると、後の保存が共有から黙って消えた。対照（別の instance_id）は断られて消えない。→「並んで書くと錠を取り違える」は正しい。消えるのは狭い窓だが、起きたときに見えない。③「読みは錠を取らない」は Python の読みでは正しくない: 共有にまだそのマスタが無いと read() が _seed で錠を取り共有へ書く（再現: read の中で _acquire_lock 1 回・共有にファイルができた）。読みは写し（master_cache）も書き、follow_moved は作業場所の master_share.json を書く。④順 5 を移しても Python は順 6・7 のために起き続け、boot.py が起動のたびに master_seeds.run を裏で流す（新しい初期値があれば store.write で錠を取る）。routes/lots.py・calculator も master_repo() を読む。→ どの案でも（G を除き）同じ PC に Python の書き手が少し残る。⑤作業場所: locate.rs が app_env.local_root と同じ決まり・sidecar.rs:94 が TRANSFER_LOCAL_ROOT を渡すので、Rust が instance_id を同じ所から読めば Python と同じ印になる（measured ② の前提は正しい）。窓は tauri_plugin_single_instance（main.rs:833）で 1 つなので、今の書き手は Python 1 つ。⑥権限: access.py:4「判定はこの1箇所。ルートにも画面にも書き写さない」を確かめた。今の Rust（lists.rs:226-235）は Python が決めた hidden を当てるだけ。me() は access_permissions・tab_access と presence.revocation（切断の指示のファイル）を読む。_access_guard は全部の問い合わせの前に走るが、判定するのは GET 以外の 11 の道の頭だけで、me()・tab_denied・can_write を使う道ファイルは 11＋dashboard の _who（「ほぼ全部の道の前段」は言い過ぎ）。⑦設定の答え: lot.rs の SETTINGS_TTL 10 秒・changes_settings が Python の書き込み（10 の道の頭）の後に invalidate（measured ④ と同じ）。lists_settings は me()・all_sources（データ元の定義と写しの行を SQLite で数える）・work_log.params・path_settings.effective・equip_groups.view・dashboard._equipment_names を使う。⑧つなぎ: sidecar.rs の枠は窓→Python の問い合わせだけ（PROTOCOL=1）。Python→窓の問い合わせ口は無い（/__desktop/… は画面→窓）。受け持ちの切り替えは SERVES（\"lotlist\",\"lists\"）を TPA_SHELL_SERVES で伝える型。⑨使用の履歴: <key>.json・history・sessions はその PC が書くが、_sweep（古いほかの PC のファイルを消す）・切断の指示（管理する人がほかの PC の .revoke.json を書く）・prune_all・forget はほかの PC の物も書く／消す（錠なし）。心拍 3 秒・書くのは 20 秒（WRITE_INTERVAL_SEC）は正しい。⑩master_repository: SPECS は 16 マスタ。store.write を直に呼ぶ個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order／delete・work_log_order／sync・_preset_write〈標準を組で 1 つ〉・quick_set ほか）と、_create／_update／_delete／_list に渡すだけの関数 40。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）を呼ぶ。⑪速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。 "
+        },
+        "C 書く係を窓に一本化してから": {
+          "plan": "先に、Python の store の write を窓（Rust）へ頼む形にする（/__desktop/master/write。窓が錠を取り、Python は mutate の結果の行だけを渡す）。同じ PC で書く係が 1 つになり、取り合いの危険が元から消える。そのあと道を少しずつ（権限 → マスタ → 使用の履歴・置き場）Rust へ。Python→窓の逆向きの問い合わせ口を新しく作る",
+          "score": {
+            "order": 5,
+            "chunk": 6,
+            "hierarchy": 8,
+            "visual": 5,
+            "steps": 5,
+            "effortless": 4,
+            "intuitive": 4,
+            "form": 7,
+            "place": 6,
+            "layout": 5,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "plan の「窓が錠を取り、Python は mutate の結果の行だけを渡す」: store.write は錠を取った後に共有から取り直し、その行の上で mutate を当てる（master_store.py:9-11・:636-641）。Python が錠の前に読んだ行から作った結果を窓が丸ごと書くと、そのあいだにほかの PC が書いた行が黙って上書きされ、画面にも記録にも出ない（錠の中で窓→Python へ往復して当てる形なら避けられるが、案に書いていない）"
+            }
+          ],
+          "seen": "【この案】良い所: 同じ PC の書き手を 1 つにするので、錠の取り違え（再現 ②）を元から消すという狙いは正しい。決める所（錠）は 1 か所になる。悪い所: ①Python→窓の問い合わせ口は今は無い（sidecar.rs の枠は窓→Python だけ・PROTOCOL=1）。枠の版を上げ、Python 側に受けの糸を作る。②前の窓（口を持たない）と組んだ Python は自分で書くしかなく、書く道が 2 本になる（前例の順 4 の D〈逆向きの問い合わせ〉と同じ型で、そのとき 50 点台）。③窓が Python の道の答えを待っている間に、Python が窓へ書き込みを頼む入れ子になる（番号で多重にしているので詰まりはしないが、ASK_WAIT 600 秒の中で錠 20 秒を持ったまま往復する）。④master_seeds・_seed は write を通らず _acquire_lock を直に呼ぶ（:474）ので、write だけ窓へ回しても錠の書き手は残る。⑤そのあとの道の移し方は D と同じ（権限 → マスタ → 履歴）で、依存に逆らう所も同じ。 【自分で確かめた事実（どの案にも共通）】①行と試験: rust-port-bench.py --static-only を流し、部品の行 489・469・420・229・215・193・184・138・101・75・62・58・38・34（計 2,705）が measured と同じ。試験は test_* を数えて 137 で同じ。道は access 14・settings 12・masters 10（4 本×設備・ロール＋2）・conversions 8・system 10（measured は 7）。②錠の取り違え（scratchpad/m5/lockrepro.py。同じ作業場所＝同じ instance_id・同じ名乗りの MasterStore を 2 つ）: (a) 片方が生きた錠を持つ間に、もう片方の _acquire_lock が通った（:559-561 で自分の残した錠と見てどけて取る）。作業場所が別（対照）は MasterLocked で断られた。(b) 片方の保存の途中（mutate の中）にもう片方が保存すると、先の方は _still_mine で気づいて断る（黙っては消えない。ただし同じ PC なのに「ほかの PC がマスタを保存中」・持ち主の名前が空と出る）。(c) 先の方が _still_mine を通った直後〜共有を置き換える前（fsync して書く間）にもう片方が丸ごと保存すると、後の保存が共有から黙って消えた。対照（別の instance_id）は断られて消えない。→「並んで書くと錠を取り違える」は正しい。消えるのは狭い窓だが、起きたときに見えない。③「読みは錠を取らない」は Python の読みでは正しくない: 共有にまだそのマスタが無いと read() が _seed で錠を取り共有へ書く（再現: read の中で _acquire_lock 1 回・共有にファイルができた）。読みは写し（master_cache）も書き、follow_moved は作業場所の master_share.json を書く。④順 5 を移しても Python は順 6・7 のために起き続け、boot.py が起動のたびに master_seeds.run を裏で流す（新しい初期値があれば store.write で錠を取る）。routes/lots.py・calculator も master_repo() を読む。→ どの案でも（G を除き）同じ PC に Python の書き手が少し残る。⑤作業場所: locate.rs が app_env.local_root と同じ決まり・sidecar.rs:94 が TRANSFER_LOCAL_ROOT を渡すので、Rust が instance_id を同じ所から読めば Python と同じ印になる（measured ② の前提は正しい）。窓は tauri_plugin_single_instance（main.rs:833）で 1 つなので、今の書き手は Python 1 つ。⑥権限: access.py:4「判定はこの1箇所。ルートにも画面にも書き写さない」を確かめた。今の Rust（lists.rs:226-235）は Python が決めた hidden を当てるだけ。me() は access_permissions・tab_access と presence.revocation（切断の指示のファイル）を読む。_access_guard は全部の問い合わせの前に走るが、判定するのは GET 以外の 11 の道の頭だけで、me()・tab_denied・can_write を使う道ファイルは 11＋dashboard の _who（「ほぼ全部の道の前段」は言い過ぎ）。⑦設定の答え: lot.rs の SETTINGS_TTL 10 秒・changes_settings が Python の書き込み（10 の道の頭）の後に invalidate（measured ④ と同じ）。lists_settings は me()・all_sources（データ元の定義と写しの行を SQLite で数える）・work_log.params・path_settings.effective・equip_groups.view・dashboard._equipment_names を使う。⑧つなぎ: sidecar.rs の枠は窓→Python の問い合わせだけ（PROTOCOL=1）。Python→窓の問い合わせ口は無い（/__desktop/… は画面→窓）。受け持ちの切り替えは SERVES（\"lotlist\",\"lists\"）を TPA_SHELL_SERVES で伝える型。⑨使用の履歴: <key>.json・history・sessions はその PC が書くが、_sweep（古いほかの PC のファイルを消す）・切断の指示（管理する人がほかの PC の .revoke.json を書く）・prune_all・forget はほかの PC の物も書く／消す（錠なし）。心拍 3 秒・書くのは 20 秒（WRITE_INTERVAL_SEC）は正しい。⑩master_repository: SPECS は 16 マスタ。store.write を直に呼ぶ個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order／delete・work_log_order／sync・_preset_write〈標準を組で 1 つ〉・quick_set ほか）と、_create／_update／_delete／_list に渡すだけの関数 40。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）を呼ぶ。⑪速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。 "
+        },
+        "D 縦切り 3 段（権限 → マスタ → 履歴・置き場）": {
+          "plan": "1 段目: 名乗り（identity）・権限（access・me()・書き込みの門番・タブの権限）を Rust へ（判定を 1 か所に保つため一度に）。Python の道の門番は Rust の判定を尋ねる。2 段目: マスタの読み書き（store・repository・CRUD の道）。3 段目: 使用の履歴（presence）・置き場（master_place・release_place）・設定（path_settings・ui_state・ui_defaults・folder_browse）。段ごとに突き合わせの試験",
+          "score": {
+            "order": 5,
+            "chunk": 7,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 6,
+            "effortless": 4,
+            "intuitive": 5,
+            "form": 8,
+            "place": 8,
+            "layout": 6,
+            "tone": 6
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "plan の 1 段目「権限（access・me()・書き込みの門番・タブの権限）を Rust へ」: アクセス権限・タブの権限の道は書き込み（access_permissions・tab_access）を持つので、1・2 段目のあいだ Rust と Python が同じ PC で別のマスタを書く。同じ instance_id だと、置き換えの直前の窓で後の保存が黙って消える（scratchpad/m5/lockrepro.py の (c)）・相手の保存が「ほかの PC が保存中」と誤った言葉で断られる（(b)）。案は手当てしていない"
+            }
+          ],
+          "seen": "【この案】良い所: 権限の判定を一度に移すので、判定が 2 か所に分かれる期間を作らないという考えは access.py:4 に合う。段の区切りが業務の言葉（権限・マスタ・履歴と置き場）で分かりやすく、段ごとに突き合わせの試験を作る。悪い所: ①順が依存に逆らう: me() は access_permissions・tab_access の読み（store・repository）と presence.revocation（3 段目の部品）を使うので、1 段目に store の読みと使用の履歴の一部が要る。②「Python の道の門番は Rust の判定を尋ねる」には Python→窓の問い合わせ口が要る（今は無い。C と同じ）。前の窓と組んだ Python は自分で判定するので、その組では判定がコードとして 2 か所に残る。③1 段目から Rust が書き手になり、錠の取り違えを起こしうる（減点）。④3 段で版と PR が前例（2 段）より 1 つ多い。 【自分で確かめた事実（どの案にも共通）】①行と試験: rust-port-bench.py --static-only を流し、部品の行 489・469・420・229・215・193・184・138・101・75・62・58・38・34（計 2,705）が measured と同じ。試験は test_* を数えて 137 で同じ。道は access 14・settings 12・masters 10（4 本×設備・ロール＋2）・conversions 8・system 10（measured は 7）。②錠の取り違え（scratchpad/m5/lockrepro.py。同じ作業場所＝同じ instance_id・同じ名乗りの MasterStore を 2 つ）: (a) 片方が生きた錠を持つ間に、もう片方の _acquire_lock が通った（:559-561 で自分の残した錠と見てどけて取る）。作業場所が別（対照）は MasterLocked で断られた。(b) 片方の保存の途中（mutate の中）にもう片方が保存すると、先の方は _still_mine で気づいて断る（黙っては消えない。ただし同じ PC なのに「ほかの PC がマスタを保存中」・持ち主の名前が空と出る）。(c) 先の方が _still_mine を通った直後〜共有を置き換える前（fsync して書く間）にもう片方が丸ごと保存すると、後の保存が共有から黙って消えた。対照（別の instance_id）は断られて消えない。→「並んで書くと錠を取り違える」は正しい。消えるのは狭い窓だが、起きたときに見えない。③「読みは錠を取らない」は Python の読みでは正しくない: 共有にまだそのマスタが無いと read() が _seed で錠を取り共有へ書く（再現: read の中で _acquire_lock 1 回・共有にファイルができた）。読みは写し（master_cache）も書き、follow_moved は作業場所の master_share.json を書く。④順 5 を移しても Python は順 6・7 のために起き続け、boot.py が起動のたびに master_seeds.run を裏で流す（新しい初期値があれば store.write で錠を取る）。routes/lots.py・calculator も master_repo() を読む。→ どの案でも（G を除き）同じ PC に Python の書き手が少し残る。⑤作業場所: locate.rs が app_env.local_root と同じ決まり・sidecar.rs:94 が TRANSFER_LOCAL_ROOT を渡すので、Rust が instance_id を同じ所から読めば Python と同じ印になる（measured ② の前提は正しい）。窓は tauri_plugin_single_instance（main.rs:833）で 1 つなので、今の書き手は Python 1 つ。⑥権限: access.py:4「判定はこの1箇所。ルートにも画面にも書き写さない」を確かめた。今の Rust（lists.rs:226-235）は Python が決めた hidden を当てるだけ。me() は access_permissions・tab_access と presence.revocation（切断の指示のファイル）を読む。_access_guard は全部の問い合わせの前に走るが、判定するのは GET 以外の 11 の道の頭だけで、me()・tab_denied・can_write を使う道ファイルは 11＋dashboard の _who（「ほぼ全部の道の前段」は言い過ぎ）。⑦設定の答え: lot.rs の SETTINGS_TTL 10 秒・changes_settings が Python の書き込み（10 の道の頭）の後に invalidate（measured ④ と同じ）。lists_settings は me()・all_sources（データ元の定義と写しの行を SQLite で数える）・work_log.params・path_settings.effective・equip_groups.view・dashboard._equipment_names を使う。⑧つなぎ: sidecar.rs の枠は窓→Python の問い合わせだけ（PROTOCOL=1）。Python→窓の問い合わせ口は無い（/__desktop/… は画面→窓）。受け持ちの切り替えは SERVES（\"lotlist\",\"lists\"）を TPA_SHELL_SERVES で伝える型。⑨使用の履歴: <key>.json・history・sessions はその PC が書くが、_sweep（古いほかの PC のファイルを消す）・切断の指示（管理する人がほかの PC の .revoke.json を書く）・prune_all・forget はほかの PC の物も書く／消す（錠なし）。心拍 3 秒・書くのは 20 秒（WRITE_INTERVAL_SEC）は正しい。⑩master_repository: SPECS は 16 マスタ。store.write を直に呼ぶ個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order／delete・work_log_order／sync・_preset_write〈標準を組で 1 つ〉・quick_set ほか）と、_create／_update／_delete／_list に渡すだけの関数 40。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）を呼ぶ。⑪速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。 "
+        },
+        "E 決まりを表にして汎用の読み書き 1 つ（2 段）": {
+          "plan": "master_repository の SPECS（15 マスタの鍵・重複の決まり・列の読み替え）と _check_row を、マスタの決まりの表（JSON。tests/fixtures と同じく Python と Rust が同じ表を読む）にする。Rust は汎用の store 1 つ＋汎用の CRUD の道 1 組で 15 マスタ・約 40 本の道を受け持つ（マスタごとの関数を書かない）。1 段目: 表と汎用の読み書き（Python も同じ表を読むよう直す）、2 段目: 権限・使用の履歴・置き場。手で書く道が減り、マスタを足すのは表の 1 行",
+          "score": {
+            "order": 6,
+            "chunk": 6,
+            "hierarchy": 5,
+            "visual": 7,
+            "steps": 7,
+            "effortless": 4,
+            "intuitive": 6,
+            "form": 8,
+            "place": 7,
+            "layout": 8,
+            "tone": 6
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "plan の 1 段目「表と汎用の読み書き」: 汎用の CRUD で受け持てない個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order・work_log_sync ほか）と、2 段目まで残る権限の道の書き込みは Python のまま → 1 段目のあいだ Rust と Python が同じ PC で書く。同じ instance_id で後の保存が黙って消える順がある（lockrepro.py の (c)）。案は手当てしていない"
+            }
+          ],
+          "seen": "【この案】良い所: マスタの決まり（列・旧い列名・名前で引く列）を 1 つの表にして Python と Rust が同じ物を読むのは、事例表（formula_cases・like_cases）と同じく「決まりが 1 か所」で統一感が高い。手で書く道が減り、重複が少ない。悪い所: ①表にできるのは SPECS の列・renamed・unique だけ。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row の似た名前・pivot_presets.group_of と「標準は組に 1 つ」）を呼び、store.write を直に呼ぶ個別の書き込みが 14 ある。汎用の CRUD 1 組で「15 マスタ・約 40 本」を受け持つ見立ては多すぎる（すでに Python でも _create／_update／_delete に渡すだけの関数は 40 で、汎用はもうある）。SPECS は 15 でなく 16。②答えの見本（Python）を移す途中で書き換える（表を読むよう直す）ので、突き合わせの相手そのものが動く。③1 段目の書き込みを門番に通すには権限（2 段目）が要り、Rust が Python に尋ねるか判定を写すことになる。④並んで書く期間がある（減点）。 【自分で確かめた事実（どの案にも共通）】①行と試験: rust-port-bench.py --static-only を流し、部品の行 489・469・420・229・215・193・184・138・101・75・62・58・38・34（計 2,705）が measured と同じ。試験は test_* を数えて 137 で同じ。道は access 14・settings 12・masters 10（4 本×設備・ロール＋2）・conversions 8・system 10（measured は 7）。②錠の取り違え（scratchpad/m5/lockrepro.py。同じ作業場所＝同じ instance_id・同じ名乗りの MasterStore を 2 つ）: (a) 片方が生きた錠を持つ間に、もう片方の _acquire_lock が通った（:559-561 で自分の残した錠と見てどけて取る）。作業場所が別（対照）は MasterLocked で断られた。(b) 片方の保存の途中（mutate の中）にもう片方が保存すると、先の方は _still_mine で気づいて断る（黙っては消えない。ただし同じ PC なのに「ほかの PC がマスタを保存中」・持ち主の名前が空と出る）。(c) 先の方が _still_mine を通った直後〜共有を置き換える前（fsync して書く間）にもう片方が丸ごと保存すると、後の保存が共有から黙って消えた。対照（別の instance_id）は断られて消えない。→「並んで書くと錠を取り違える」は正しい。消えるのは狭い窓だが、起きたときに見えない。③「読みは錠を取らない」は Python の読みでは正しくない: 共有にまだそのマスタが無いと read() が _seed で錠を取り共有へ書く（再現: read の中で _acquire_lock 1 回・共有にファイルができた）。読みは写し（master_cache）も書き、follow_moved は作業場所の master_share.json を書く。④順 5 を移しても Python は順 6・7 のために起き続け、boot.py が起動のたびに master_seeds.run を裏で流す（新しい初期値があれば store.write で錠を取る）。routes/lots.py・calculator も master_repo() を読む。→ どの案でも（G を除き）同じ PC に Python の書き手が少し残る。⑤作業場所: locate.rs が app_env.local_root と同じ決まり・sidecar.rs:94 が TRANSFER_LOCAL_ROOT を渡すので、Rust が instance_id を同じ所から読めば Python と同じ印になる（measured ② の前提は正しい）。窓は tauri_plugin_single_instance（main.rs:833）で 1 つなので、今の書き手は Python 1 つ。⑥権限: access.py:4「判定はこの1箇所。ルートにも画面にも書き写さない」を確かめた。今の Rust（lists.rs:226-235）は Python が決めた hidden を当てるだけ。me() は access_permissions・tab_access と presence.revocation（切断の指示のファイル）を読む。_access_guard は全部の問い合わせの前に走るが、判定するのは GET 以外の 11 の道の頭だけで、me()・tab_denied・can_write を使う道ファイルは 11＋dashboard の _who（「ほぼ全部の道の前段」は言い過ぎ）。⑦設定の答え: lot.rs の SETTINGS_TTL 10 秒・changes_settings が Python の書き込み（10 の道の頭）の後に invalidate（measured ④ と同じ）。lists_settings は me()・all_sources（データ元の定義と写しの行を SQLite で数える）・work_log.params・path_settings.effective・equip_groups.view・dashboard._equipment_names を使う。⑧つなぎ: sidecar.rs の枠は窓→Python の問い合わせだけ（PROTOCOL=1）。Python→窓の問い合わせ口は無い（/__desktop/… は画面→窓）。受け持ちの切り替えは SERVES（\"lotlist\",\"lists\"）を TPA_SHELL_SERVES で伝える型。⑨使用の履歴: <key>.json・history・sessions はその PC が書くが、_sweep（古いほかの PC のファイルを消す）・切断の指示（管理する人がほかの PC の .revoke.json を書く）・prune_all・forget はほかの PC の物も書く／消す（錠なし）。心拍 3 秒・書くのは 20 秒（WRITE_INTERVAL_SEC）は正しい。⑩master_repository: SPECS は 16 マスタ。store.write を直に呼ぶ個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order／delete・work_log_order／sync・_preset_write〈標準を組で 1 つ〉・quick_set ほか）と、_create／_update／_delete／_list に渡すだけの関数 40。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）を呼ぶ。⑪速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。 "
+        },
+        "F 錠の印を係ごとに分けてから段ごとに": {
+          "plan": "先に錠の持ち主に「係」（py / rs）を足し（holder_instance を instance_id＋係に）、Python と Rust が同じ PC で並んで書いても互いの錠を取り違えないようにする（Python 側の小さな直しと試験 LockRaces の足し）。そのうえで D の順（権限 → マスタ → 履歴・置き場）で移す。移す途中のどの版でも、並んで書いて安全",
+          "score": {
+            "order": 6,
+            "chunk": 7,
+            "hierarchy": 7,
+            "visual": 8,
+            "steps": 5,
+            "effortless": 8,
+            "intuitive": 6,
+            "form": 8,
+            "place": 8,
+            "layout": 6,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "【この案】良い所: 自分で再現した危険（同じ instance_id で生きた錠をどけて取る・置き換えの直前の窓で後の保存が黙って消える）を、最初の小さな直しで消す。lockrepro.py の対照（作業場所が別＝印が別）では (a)〜(c) とも断られて消えなかったので、印を係ごとに分ければ効くことは確かめられた。直しは _is_mine と錠の payload の数行と LockRaces の足しで済み、試験で示せる（同じプロセスの中で 2 つの MasterStore を作れば再現できる）。これで、移す途中のどの版でも、また順 5 の後に残る Python の master_seeds・_seed とも、並んで書いて安全になる。ほかの PC は holder_instance を自分の印とだけ比べるので、ほかの PC の古い版とも食い違わない。気になる所: ①版を上げた直後、前の版が落ちて残した錠（印に係が無い）は自分の物と見なされず、錠の長さ（20 秒）だけ待たされる（1 回だけ・小さい）。②そのあとは D の順なので、D の弱み（権限を先にすると store の読みと presence.revocation が要る＝依存に逆らう・Python の門番が Rust に尋ねる逆向きの口）をそのまま持つ。③錠の直し＋3 段で、版と PR が 4 つ。B の順にこの直しを付ける方が筋が良い。 【自分で確かめた事実（どの案にも共通）】①行と試験: rust-port-bench.py --static-only を流し、部品の行 489・469・420・229・215・193・184・138・101・75・62・58・38・34（計 2,705）が measured と同じ。試験は test_* を数えて 137 で同じ。道は access 14・settings 12・masters 10（4 本×設備・ロール＋2）・conversions 8・system 10（measured は 7）。②錠の取り違え（scratchpad/m5/lockrepro.py。同じ作業場所＝同じ instance_id・同じ名乗りの MasterStore を 2 つ）: (a) 片方が生きた錠を持つ間に、もう片方の _acquire_lock が通った（:559-561 で自分の残した錠と見てどけて取る）。作業場所が別（対照）は MasterLocked で断られた。(b) 片方の保存の途中（mutate の中）にもう片方が保存すると、先の方は _still_mine で気づいて断る（黙っては消えない。ただし同じ PC なのに「ほかの PC がマスタを保存中」・持ち主の名前が空と出る）。(c) 先の方が _still_mine を通った直後〜共有を置き換える前（fsync して書く間）にもう片方が丸ごと保存すると、後の保存が共有から黙って消えた。対照（別の instance_id）は断られて消えない。→「並んで書くと錠を取り違える」は正しい。消えるのは狭い窓だが、起きたときに見えない。③「読みは錠を取らない」は Python の読みでは正しくない: 共有にまだそのマスタが無いと read() が _seed で錠を取り共有へ書く（再現: read の中で _acquire_lock 1 回・共有にファイルができた）。読みは写し（master_cache）も書き、follow_moved は作業場所の master_share.json を書く。④順 5 を移しても Python は順 6・7 のために起き続け、boot.py が起動のたびに master_seeds.run を裏で流す（新しい初期値があれば store.write で錠を取る）。routes/lots.py・calculator も master_repo() を読む。→ どの案でも（G を除き）同じ PC に Python の書き手が少し残る。⑤作業場所: locate.rs が app_env.local_root と同じ決まり・sidecar.rs:94 が TRANSFER_LOCAL_ROOT を渡すので、Rust が instance_id を同じ所から読めば Python と同じ印になる（measured ② の前提は正しい）。窓は tauri_plugin_single_instance（main.rs:833）で 1 つなので、今の書き手は Python 1 つ。⑥権限: access.py:4「判定はこの1箇所。ルートにも画面にも書き写さない」を確かめた。今の Rust（lists.rs:226-235）は Python が決めた hidden を当てるだけ。me() は access_permissions・tab_access と presence.revocation（切断の指示のファイル）を読む。_access_guard は全部の問い合わせの前に走るが、判定するのは GET 以外の 11 の道の頭だけで、me()・tab_denied・can_write を使う道ファイルは 11＋dashboard の _who（「ほぼ全部の道の前段」は言い過ぎ）。⑦設定の答え: lot.rs の SETTINGS_TTL 10 秒・changes_settings が Python の書き込み（10 の道の頭）の後に invalidate（measured ④ と同じ）。lists_settings は me()・all_sources（データ元の定義と写しの行を SQLite で数える）・work_log.params・path_settings.effective・equip_groups.view・dashboard._equipment_names を使う。⑧つなぎ: sidecar.rs の枠は窓→Python の問い合わせだけ（PROTOCOL=1）。Python→窓の問い合わせ口は無い（/__desktop/… は画面→窓）。受け持ちの切り替えは SERVES（\"lotlist\",\"lists\"）を TPA_SHELL_SERVES で伝える型。⑨使用の履歴: <key>.json・history・sessions はその PC が書くが、_sweep（古いほかの PC のファイルを消す）・切断の指示（管理する人がほかの PC の .revoke.json を書く）・prune_all・forget はほかの PC の物も書く／消す（錠なし）。心拍 3 秒・書くのは 20 秒（WRITE_INTERVAL_SEC）は正しい。⑩master_repository: SPECS は 16 マスタ。store.write を直に呼ぶ個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order／delete・work_log_order／sync・_preset_write〈標準を組で 1 つ〉・quick_set ほか）と、_create／_update／_delete／_list に渡すだけの関数 40。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）を呼ぶ。⑪速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。 "
+        },
+        "G 順を入れ替えて外とのつなぎ（順 6）を先に": {
+          "plan": "順 5 は後に回し、先に順 6（LotDsp・CM3・スケジュール・計算機）を移す。順 5 は Python を外す最後の前に一括で。順 6 は速さの利点は無いが、Python の外の HTTP・WebSocket の部品を先に片付け、順 5・7 を 1 回でまとめて Python を外す",
+          "score": {
+            "order": 3,
+            "chunk": 4,
+            "hierarchy": 7,
+            "visual": 4,
+            "steps": 5,
+            "effortless": 6,
+            "intuitive": 3,
+            "form": 7,
+            "place": 7,
+            "layout": 5,
+            "tone": 4
+          },
+          "minus": [],
+          "seen": "【この案】良い所: 順 5 と順 7 を 1 回で済ませて Python をその日に外すので、Python と Rust が同じ PC で並んで書く期間がどこにも無い（ほかの案に残る master_seeds・_seed の書き手も無くなる）。悪い所: ①依存に逆らう: 順 6 の道はマスタを読む（routes/lots.py の master_repo().equipment()・calculator() は master_repo・api_settings は effective_settings〈参照先マスタ〉）。順 6 を先に Rust にすると、Rust がマスタを Python に尋ね返す（RUST_PORT_PLAN の順の決め方 ① に反する）。②最後の 1 回が順 5（3,184 行・試験 1,218）＋枠（3,905 行）と最も大きく、食い違いの切り分けがいちばん難しい。③順 6 は相手（LotDsp・CM3）の無い所では作り物でしか試せない（§4）ので、先にしても確かめの手が楽にならない。④文書の順（§4）と前例の型から外れる。 【自分で確かめた事実（どの案にも共通）】①行と試験: rust-port-bench.py --static-only を流し、部品の行 489・469・420・229・215・193・184・138・101・75・62・58・38・34（計 2,705）が measured と同じ。試験は test_* を数えて 137 で同じ。道は access 14・settings 12・masters 10（4 本×設備・ロール＋2）・conversions 8・system 10（measured は 7）。②錠の取り違え（scratchpad/m5/lockrepro.py。同じ作業場所＝同じ instance_id・同じ名乗りの MasterStore を 2 つ）: (a) 片方が生きた錠を持つ間に、もう片方の _acquire_lock が通った（:559-561 で自分の残した錠と見てどけて取る）。作業場所が別（対照）は MasterLocked で断られた。(b) 片方の保存の途中（mutate の中）にもう片方が保存すると、先の方は _still_mine で気づいて断る（黙っては消えない。ただし同じ PC なのに「ほかの PC がマスタを保存中」・持ち主の名前が空と出る）。(c) 先の方が _still_mine を通った直後〜共有を置き換える前（fsync して書く間）にもう片方が丸ごと保存すると、後の保存が共有から黙って消えた。対照（別の instance_id）は断られて消えない。→「並んで書くと錠を取り違える」は正しい。消えるのは狭い窓だが、起きたときに見えない。③「読みは錠を取らない」は Python の読みでは正しくない: 共有にまだそのマスタが無いと read() が _seed で錠を取り共有へ書く（再現: read の中で _acquire_lock 1 回・共有にファイルができた）。読みは写し（master_cache）も書き、follow_moved は作業場所の master_share.json を書く。④順 5 を移しても Python は順 6・7 のために起き続け、boot.py が起動のたびに master_seeds.run を裏で流す（新しい初期値があれば store.write で錠を取る）。routes/lots.py・calculator も master_repo() を読む。→ どの案でも（G を除き）同じ PC に Python の書き手が少し残る。⑤作業場所: locate.rs が app_env.local_root と同じ決まり・sidecar.rs:94 が TRANSFER_LOCAL_ROOT を渡すので、Rust が instance_id を同じ所から読めば Python と同じ印になる（measured ② の前提は正しい）。窓は tauri_plugin_single_instance（main.rs:833）で 1 つなので、今の書き手は Python 1 つ。⑥権限: access.py:4「判定はこの1箇所。ルートにも画面にも書き写さない」を確かめた。今の Rust（lists.rs:226-235）は Python が決めた hidden を当てるだけ。me() は access_permissions・tab_access と presence.revocation（切断の指示のファイル）を読む。_access_guard は全部の問い合わせの前に走るが、判定するのは GET 以外の 11 の道の頭だけで、me()・tab_denied・can_write を使う道ファイルは 11＋dashboard の _who（「ほぼ全部の道の前段」は言い過ぎ）。⑦設定の答え: lot.rs の SETTINGS_TTL 10 秒・changes_settings が Python の書き込み（10 の道の頭）の後に invalidate（measured ④ と同じ）。lists_settings は me()・all_sources（データ元の定義と写しの行を SQLite で数える）・work_log.params・path_settings.effective・equip_groups.view・dashboard._equipment_names を使う。⑧つなぎ: sidecar.rs の枠は窓→Python の問い合わせだけ（PROTOCOL=1）。Python→窓の問い合わせ口は無い（/__desktop/… は画面→窓）。受け持ちの切り替えは SERVES（\"lotlist\",\"lists\"）を TPA_SHELL_SERVES で伝える型。⑨使用の履歴: <key>.json・history・sessions はその PC が書くが、_sweep（古いほかの PC のファイルを消す）・切断の指示（管理する人がほかの PC の .revoke.json を書く）・prune_all・forget はほかの PC の物も書く／消す（錠なし）。心拍 3 秒・書くのは 20 秒（WRITE_INTERVAL_SEC）は正しい。⑩master_repository: SPECS は 16 マスタ。store.write を直に呼ぶ個別の書き込み 14（tab_access_put・path_setting_put・data_source_put／order／delete・work_log_order／sync・_preset_write〈標準を組で 1 つ〉・quick_set ほか）と、_create／_update／_delete／_list に渡すだけの関数 40。_check_row はマスタごとにコードの決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）を呼ぶ。⑪速さ（28 道 約 28 ms）は流していない。どの案も速さの利点が無いのは同じで順位に効かないため。 "
+        }
+      }
+    },
+    {
+      "name": "2 回目",
+      "images": "画面に出ない改良（画像なし）。測った数は measured（1 回目の採点で直した所を書き足した）",
+      "self_check": "1 回目の採点で違っていた所（読みでも seed が錠を取る・system の道は 10 本・判定が要るのは書き込みの門番とタブ・SPECS は 16・依存の順）を measured と案の文に直した。新しい案 4 つ（H・I・J・L）と持ち越し 2 つ（B'・F'）で 6 案。方向は、係の印と判定の一本化（H）・判定を最初の小さな段に（I）・入出力の係を窓 1 つに（J）・確かめ方を先に（L）・読み先（B'）・印を先に（F'）で、同じ方向に偏っていない。どの案も同じ measured（速さ 28 道 約 28 ms・Windows の起動 1,099 ms・行 約 2,700・試験 137）で比べられる書き方になっていることを確かめた",
+      "proposals": {
+        "B' 読み手を先に（2 段。持ち越し）": {
+          "plan": "1 回目の B に、採点で分かった穴の手当てを足す。1 段目: 窓が写し（master_cache）と共有を読み、設定の答え（lists〈all_sources・path_settings.effective・equip_groups.view・設備名を含む〉）・me()・タブの権限・マスタの GET の道に答える。共有にまだ無いマスタの seed と起動の master_seeds は Python のまま（窓は書かない）。書き込みと門番は Python のまま。2 段目: 書き込み（錠）・門番・seed・書く道・使用の履歴を移す。1 段目のあいだ、権限の判定は me() とタブが窓・門番が Python の 2 か所になる",
+          "score": {
+            "order": 9,
+            "chunk": 7,
+            "hierarchy": 6,
+            "visual": 8,
+            "steps": 8,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 7,
+            "place": 7,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "良い所: 依存の順に沿う（読み＝葉、書き込みはその上）。1 回目の B の穴のうち 3 つを直した: 1 段目の広さ（lists に all_sources・path_settings.effective・equip_groups.view・設備名）を書いた／共有に無いマスタの seed と master_seeds は Python のまま＝1 段目は窓が書かないので、同じ instance_id の錠の取り違え（事実②）は 1 段目では起きない／窓が写しだけでなく共有も読む（Python の写しは Python が読むときだけ取り直す〈事実⑥〉ので、写しだけを読むと古くなる穴をふさいだ）。2 段・SERVES で受け持ちを伝える前例（順 2〜4）と同じ型で、1 段目の答えは同じマスタを読んだ Python の答えと突き合わせやすい。悪い所: ①1 段目のあいだ判定が 2 か所（me()・タブは窓、門番と道の中の判定〈_perm_gate・presets／dashboard の _gate・can_write〉は Python）。案は認めているが手当てが無い（access.py:4 に反する期間）。②2 段目の後も Python の読み（順 6 の lots.py・calculator が master_repo を読む）が、共有にまだ無いマスタで _seed の錠を同じ instance_id で取る。窓が書き手になった後に重なると、自分で再現した (a) 生きた錠をどけて取る・(c) 後の保存が黙って消える が起きうる（まれ。新しい版で SHARED_ALWAYS にマスタが増えた直後などに両方が seed しうる）。案は係の印を持たない。③窓が共有を自分で読むには、置き場の決まり（作業場所の master_share.json・配る版の覚え want.json・前の置き場の _MOVED.json をたどる follow_moved）の読みも 1 段目に要る（案に無い）。（共通の事実は evaluator の【2 回目・自分で確かめた事実】①〜⑩）"
+        },
+        "F' 錠の印を係ごとに分けてから段ごとに（持ち越し）": {
+          "plan": "1 回目の F（錠の持ち主に係 py／rs を足し、並んで書いても互いの錠を取り違えない）を先にし、そのうえで依存に沿う順（store の読み → 権限 → マスタの書き込み → 使用の履歴・置き場）で移す。1 回目の D の順（権限を先）は me() が store と presence.revocation を使うので依存に逆らった。それを直した順",
+          "score": {
+            "order": 9,
+            "chunk": 8,
+            "hierarchy": 7,
+            "visual": 8,
+            "steps": 5,
+            "effortless": 8,
+            "intuitive": 7,
+            "form": 8,
+            "place": 7,
+            "layout": 7,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "良い所: 1 回目の F の弱み（D の順＝依存に逆らう）を直し、store の読み → 権限 → 書き込み → 使用の履歴・置き場 と葉から積む。最初に係の印を入れるので、どの段で窓が書き手になっても共有の錠は取り違えない。係の印の効き目は自分で確かめた（m5b/locks2.py: 同じ作業場所・同じ名乗りで instance に :py／:rs を足すと (a)(c) とも MasterLocked で断られ、後の保存は消えない。今の形〈同じ印〉では (c) で rs の保存が黙って消えた）。直しは instance の字を変えるだけで済み、ほかの PC は holder_instance を自分の印とだけ比べるので古い版の PC とも食い違わない。段が小さく、段ごとに突き合わせの試験を作れる。悪い所: ①版と PR が 5 つ（0 段＋4 段）。前例（順 4）は作った後の採点を 1 段で 6 回流しても合格しなかったので、段の数だけ作った後の採点の重さが増える。②「権限」の段から「書き込み」の段までのあいだ、門番・me() は窓、道の中の判定（_perm_gate・delete_check・presets／dashboard の _gate・can_write。12 の道ファイル・約 50 か所）は Python で、判定が 2 か所（案に書いていない）。③係の印は共有の錠の取り違えだけを消す。共有の無い PC（share_dir 空。master_store.py:626-634）は錠を取らず data/ を丸ごと書くので、2 つの係が同じマスタを書くと後の保存が黙って消える（m5b/locks2.py の 4 で再現）。「どの版でも並んで書いて安全」は共有の無い PC では成り立たない（権限の段で窓が access_permissions を書き、Python の master_seeds〈_first_developer〉も同じファイルを書く順がある。まれ）。④係の印の前の版が落ちて残した錠は、新しい版から自分の物に見えず錠の長さ（20 秒）待たされる（1 度だけ。m5b/locks2.py の 3）。（共通の事実は evaluator の【2 回目・自分で確かめた事実】①〜⑩）"
+        },
+        "H 係の印＋読みと権限の判定一式を窓へ（新）": {
+          "plan": "0 段目（小さな直し）: 錠の持ち主の印に係（py／rs）を足す（Python の _is_mine・_acquire_lock と試験 LockRaces）。1 段目: 窓が、読み（写し・共有・lists）と、権限の判定の一式（me()・タブの権限・書き込みの門番 _access_guard・can_write／_who）を受け持つ。窓は、Python へ回す書き込みの道の前で門番を通してから回し、SERVES に access を足して Python の門番を止める（判定は 1 か所）。書き込み（錠・seed・mutate）は Python のまま。2 段目: 書き込み・書く道・seed（係の印が別なので、移す途中に Python と窓が並んで書いても安全）。3 段目: 使用の履歴・置き場・設定",
+          "score": {
+            "order": 8,
+            "chunk": 6,
+            "hierarchy": 7,
+            "visual": 8,
+            "steps": 6,
+            "effortless": 8,
+            "intuitive": 7,
+            "form": 8,
+            "place": 7,
+            "layout": 7,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "主張の確かめ: 「窓が書き込みの道の前で門番を通し、SERVES で Python の門番を止める」は今の作りでできる。router.rs の handle は道を Python へ回す前に必ず native を呼び、None で回すので、窓は GET 以外の 11 の接頭辞（routes/access.py の _GUARDED と除く 3 つの道）を見て 403 を返せる。Python の門番は before_app_request なので、shell_serves() に access があれば返す 1 行で止まる（前例: routes/lotlist.py:118 が lists を見て tab_denied を窓に任せている）。前の窓（access を名乗らない）と組めば Python が今までどおり守るので欠けない。違っていた所: 「権限の判定の一式（can_write／_who）を窓が受け持ち、判定は 1 か所」は 1 段目ではできない。can_write・_who・_perm_gate（区分の変更・与える段の上限）・delete_check・tab_denied は、1 段目に Python に残る道（access の書き込み・presets・dashboard の保存・settings・sources・worklog・system。12 ファイル・約 50 か所）の中で呼ばれ、窓が答えを渡す口（例: 決めた me() を問い合わせのヘッダーで渡す）が案に無い。→ 1 段目は門番・me()・タブが窓、道の中の判定が Python の 2 か所（B' より分かれ方は小さい）。心拍（system.py の _presence_beat）も Python の me() を使い続ける。良い所: 係の印を先に入れ、2 段目で窓が書き手になっても共有の錠は取り違えない（自分で確かめた）。2 段目で書き込みを一度に移すので、共有の無い PC でも 2 つの係が同じマスタを同じ版で書く期間はほぼ無い。悪い所: 1 段目が大きい（B' の 1 段目＝lists〈all_sources ほか〉・置き場の読み＋門番・名乗り〈identity。設定の pc_name と NFKC〉・切断の指示〈presence.revocation〉）。0 段＋3 段で版と PR が 4 つ。窓が門番を持つと、Python が access_permissions・tab_access を書いた後に窓の me() の控えを捨てる決まり（lot.rs の changes_settings と同じ型）も要る（案に無いが前例の型で足りる）。（共通の事実は evaluator の【2 回目・自分で確かめた事実】①〜⑩）"
+        },
+        "I 門番と名乗りだけを最初に窓へ（小さな 1 段目。新）": {
+          "plan": "1 段目は、名乗り（identity）と権限の判定（access・me()・門番・タブ）だけ。窓は権限の材料（access_permissions・tab_access の写し）だけを読む。読みのほかの部分・書き込みは Python。判定が 1 か所に移るのが最初の段で済み、試験は権限の表（区分 × 道 × 行の当たり方）を Python と突き合わせる。2 段目: 読み（lists）、3 段目: 書き込み（係の印つき）・使用の履歴",
+          "score": {
+            "order": 6,
+            "chunk": 8,
+            "hierarchy": 5,
+            "visual": 8,
+            "steps": 6,
+            "effortless": 6,
+            "intuitive": 6,
+            "form": 7,
+            "place": 6,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "良い所: 1 段目が小さく、確かめが権限の表（区分 × 道 × 行の当たり方）の突き合わせだけで済み、いちばん作りやすい。違っていた所: ①「窓は権限の材料（access_permissions・tab_access の写し）だけを読む」は足りない: me() は切断の指示（presence.revocation。共有の下の presence_tpa のファイル）と名乗り（identity。設定の「この端末の名前」）も読む（routes/common.py:83-107）。②写し（master_cache）は Python が読むときだけ取り直す（_doc_path → _maybe_refresh。裏で取り直す糸は無い）。窓が写しだけを読むと、ほかの PC で権限を変えても、Python の心拍（3 秒ごとに me() を呼ぶ）が動いている間しか新しくならない。心拍を窓へ移す 3 段目でこの支えが黙って消える（見えないつながり）。③「判定が 1 か所に移るのが最初の段で済み」は成り立たない: 1 段目に Python に残る lists_settings（hidden を Python の me() で決める・2 段目まで）・心拍・道の中の判定（_perm_gate・presets／dashboard の _gate・can_write・tab_denied）が Python の me() を使い続け、me() そのものが窓と Python の 2 か所で計算される。H・B' より分かれ方が大きい。④錠の係の印は 3 段目まで無い。3 段目で書き込みを一度に移せば並んで書く期間は短いが、権限の書き込み（access の道）を 1 段目に入れるかが書かれていない（入れれば D と同じく 1 段目から窓が書き手）。順は D（権限を先）の弱み（me() が store の読みと presence を使う）を「写しだけ」で避けようとしたが、その分②の穴ができた。（共通の事実は evaluator の【2 回目・自分で確かめた事実】①〜⑩）"
+        },
+        "J マスタの入出力を窓に一本化（store＋repository を窓へ。新）": {
+          "plan": "1 段目: store（読み・pull・seed・錠・書き）と repository（16 マスタの行の決まり・重複・行の版）を窓へ移し、Python の master_repository は窓の口（/__desktop/master/<名前>/<操作>。名前・操作・行・base_rev を渡す）を呼ぶ薄い殻にする。Python の道はそのまま残るが、マスタを読む・書く係は同じ PC で窓 1 つ（seed・master_seeds も窓へ）。錠の取り違えは元から起きない。2 段目: 道と権限を窓へ。3 段目: 使用の履歴・置き場。Python→窓の逆向きの口（いまは無い）を作る",
+          "score": {
+            "order": 6,
+            "chunk": 5,
+            "hierarchy": 9,
+            "visual": 6,
+            "steps": 5,
+            "effortless": 5,
+            "intuitive": 4,
+            "form": 8,
+            "place": 7,
+            "layout": 5,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "plan の 1 段目「Python の master_repository は窓の口を呼ぶ薄い殻」: Python は起動の途中（create_app の effective_settings。program/app/__init__.py:12-20）で参照先マスタを読み、読めないと例外を飲み込んで黙って配った設定で動く。一方、窓の起動の読み手（desktop/src/sidecar.rs の spawn）は progress 以外の枠が来た時点で起動の知らせと見なすので、ready の前に Python が窓へ尋ねる口を足すとここで食い違い、口が答えない・遅いときは参照先を変えた値が黙って使われない（画面にも記録にも出ない）。案は起動の途中の問い合わせに触れていない"
+            }
+          ],
+          "seen": "良い所: 同じ PC でマスタを書く係を窓 1 つにするので、錠の取り違えを元から消す。係の印と違い、共有の無い PC（錠を取らずに data/ を書く。m5b/locks2.py の 4 で後の保存が黙って消えた）でも並んで書かない。1 回目の C の穴（窓が Python の作った結果の行を丸ごと書く）は、行の決まり（repository）ごと窓へ移し名前・操作・行・base_rev を渡す形にしたので避けている。判定は 1 段目のあいだ Python の 1 か所のまま。主張の確かめ: 「Python→窓の逆向きの口（いまは無い）」は半分正しい: Python→窓の答えを待たない知らせ（id 0 の枠。set_shell_notice・Supervisor::on_notice。作業実績の「写して」）はあるが、問い合わせて答えを待つ口は無い。新しく作る物: Python の枠の読み手が届いた枠を問い合わせと答えに分ける（いまは全部を問い合わせとして糸の組へ渡す）・答えを待つ表・窓の読み手の糸から別の糸へ渡して答える（知らせの受け手は短く済ませる決まり）・起動の途中（ready の前）の問い合わせに答える（上の減点）・前の窓と組んだ Python は自分の store で書く道を残す（SERVES で見分ける）。両側で 150〜250 行と試験の見積もり。悪い所: ①1 段目がいちばん大きい: store 489・repository 469 に、repository の _check_row が呼ぶ決まり（equip_groups.check_unique・conversions.check_unique・equipment_names.check_row・pivot_presets.group_of）と 16 マスタの FIELDS（work_log・data_sources・dashboard ほか。rust-port-bench の段で repository は依存 11・段 5＝いちばん深い）、seed・master_seeds の 3 つの mutate、逆向きの口。②Python の読みが全部 1 往復になり、窓の答えが詰まる（共有が遅い）と Python の糸の組（16）が待つ。いまの読みは写しで続く（fail-open）が、口が止まると Python はマスタを読めない。③Python の 137 の試験は Python の store を試すので、殻の道を確かめるには窓を挟んだ試験の作りが新しく要る。④前例（順 4 の D〈逆向きの問い合わせ〉）は 50 点台で、同じ型。（共通の事実は evaluator の【2 回目・自分で確かめた事実】①〜⑩）"
+        },
+        "L 突き合わせの型を先に作ってから B'（確かめ方を先に。新）": {
+          "plan": "0 段目: マスタの突き合わせの係（masters_oracle.py）を作る。決まった順の操作（作る・直す・消す・競合・錠・置き場の引っ越し・権限の区分ごと）を Python の道に流し、答えと書かれたファイル（共有・写し・錠）を記録する。Rust の試験は同じ順を窓に流して答えとファイルを突き合わせる（前例の oracle と同じ型を、ファイルの書き込みまで広げる）。そのうえで B' の 2 段で移す。錠の印（係）の直しも 0 段目に入れる",
+          "score": {
+            "order": 9,
+            "chunk": 8,
+            "hierarchy": 7,
+            "visual": 9,
+            "steps": 7,
+            "effortless": 8,
+            "intuitive": 8,
+            "form": 8,
+            "place": 7,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "良い所: ①依存の順は B' と同じく葉から。②確かめ方を先に作る: 決まった順の操作（作る・直す・消す・競合・錠・置き場の引っ越し・区分ごとの権限）を Python の道に流し、答えに加えて書かれたファイル（共有・写し・錠）まで記録して窓と突き合わせる。前例の oracle（routes_oracle・dashboard_oracle）と同じ型を、このマスタで要る「ファイルへの副作用」まで広げたもの。前例の作った後の採点が「試験の組が無い境」で 6 回止まったことへの手当てとして筋が良い。③係の印を 0 段目に入れるので、B' の弱み②（2 段目の後も Python の読みが _seed で同じ instance_id の錠を取る）が消える。自分で確かめた（m5b/locks2.py: 係の印で (a)(c) とも断られ、保存は消えない）。④1 段目は窓が書かず、2 段目で書き込み・seed・master_seeds をまとめて移すので、共有の無い PC（錠を取らない）で 2 つの係が同じ data/ を書く版も無い（Python の読みの _seed は共有のときだけ走る）。悪い所: ①B' の 1 段目をそのまま持つので、1 段目のあいだ判定が 2 か所（me()・タブは窓、門番と道の中の判定は Python）。案は手当てしていない。②1 段目が広い（lists の材料・置き場の決まりの読み）。③突き合わせの係の作りが重い: 錠のファイルは書いてすぐ消えるので、記録には書く所の差し込み口が要り、token・時刻・instance を読み替えて比べる。競合・錠の順（lockrepro のように途中に割り込む）を Rust でも同じ順に流すには、Rust の store に試験用の差し込み口を作る（Python は差し替えで済む）。④版と PR は 0 段（係の印は Python の直しなので版が要る。1 段目と同じ版にできる）＋2 段。（共通の事実は evaluator の【2 回目・自分で確かめた事実】①〜⑩）"
+        }
+      }
+    },
+    {
+      "name": "3 回目",
+      "images": "画面に出ない改良（画像なし）。測った数は measured（2 回目の採点で分かった ⑨〜⑫ を書き足した）",
+      "self_check": "2 回目の採点で違っていた所（⑥ の言い過ぎ・共有の無い PC で錠が効かない・道の中の判定 50 か所・ready 前の読み・門番を窓へ移せる作り）を measured と案に直した。新しい案 4 つ（M・N・O・P）と持ち越し 2 つ（L・B'）。方向は、判定の元を窓 1 つにして Python へ渡す（M）・起動の順を変えて窓をマスタの係に（N）・設定の答えだけを先に小さく（O）・葉の使用の履歴を先に（P）で、2 回目の弱い所（判定が 2 か所・共有の無い PC・ready 前の読み・錠の記録の差し込み口）に、それぞれ別の手で当たる。どの案も同じ measured で比べられる書き方になっていることを確かめた",
+      "proposals": {
+        "L 突き合わせの型を先に作ってから B'（持ち越し）": {
+          "plan": "2 回目の L のまま（0 段目: 突き合わせの係〈操作の順を流し、答えと書かれたファイルを記録〉と錠の係の印、1 段目: 読み手、2 段目: 書き込み）",
+          "score": {
+            "order": 9,
+            "chunk": 8,
+            "hierarchy": 7,
+            "visual": 9,
+            "steps": 7,
+            "effortless": 8,
+            "intuitive": 8,
+            "form": 7,
+            "place": 7,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "良い所: ①依存の順は葉から（読み → 書き込み）。②確かめ方を先に作る: 決まった順の操作を Python の道に流し、答えと書かれたファイル（共有・写し・錠）まで記録して窓と突き合わせる。前例の oracle の型をファイルへの副作用まで広げたもので、作った後の採点で「試験の組が無い境」に止まりにくい。③係の印を 0 段目に入れるので、2 段目のあと Python の読みが _seed で錠を取っても取り違えない。④1 段目は窓が書かず、2 段目で書き込みと seed・master_seeds をまとめて移すので、共有の無い PC で 2 つの係が同じ data/ を書く版が無い。悪い所: ①1 段目のあいだ判定が 2 か所（me()・タブは窓、門番と道の中の判定〈can_write・_who・_perm_gate・delete_check・tab_denied〉は Python）。案に手当てが無く、access.py:4 の「判定はこの 1 箇所」に反する期間ができる（画面では出るのに Python が断る、が作れる）。②2 段目が重い（書き込み・門番・seed・書く道・使用の履歴を一度に）。③突き合わせの係で錠の取り合いを窓にも流すには、Rust の store に途中へ割り込む差し込み口が要る（事実④: Python の試験も差し替えで割り込んでいる）。L はこれを認めている。④版と PR は 0 段＋2 段。（共通の事実は evaluator の【3 回目・自分で確かめた事実】①〜⑧）"
+        },
+        "B' 読み手を先に（持ち越し）": {
+          "plan": "2 回目の B' のまま",
+          "score": {
+            "order": 9,
+            "chunk": 7,
+            "hierarchy": 6,
+            "visual": 7,
+            "steps": 8,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 6,
+            "place": 7,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "良い所: 依存の順に沿う（読みが先、書き込みはその上）。2 段で版と PR が少ない。SERVES で受け持ちを伝える前例（順 2〜4）と同じ型で、1 段目の読みの答えは Python の答えと突き合わせやすい。1 段目は窓が書かないので、同じ instance_id の錠の取り違えは 1 段目には起きない。悪い所: ①1 段目のあいだ判定が 2 か所（me()・タブは窓、門番と道の中の判定は Python）。案は認めているが手当てが無い。②係の印が無い: 2 段目のあと Python の読み（順 6 の lots.py・calculator が master_repo を読む）が共有にまだ無いマスタで _seed の錠を同じ印で取る（窓の生きた錠をどけて取れる。保存の消える順はまれで、多くは断りになる）。③確かめ方が答えの突き合わせだけで、書き込みのファイル（共有・写し・錠）を記録する型が無いので、2 段目の書き込みの食い違いが数で見えにくい。④置き場の決まり（follow_moved・want.json・_MOVED.json）の読みが 1 段目に要るのに案に書いていない。（共通の事実は evaluator の【3 回目・自分で確かめた事実】①〜⑧）"
+        },
+        "M 判定は窓が決めて Python へ渡す＋突き合わせを先に（新）": {
+          "plan": "0 段目: ①突き合わせの係（masters_oracle.py。操作の順を Python の道に流し、答えと共有・写し・置き場の印のファイルの中身を記録。競合の順は、置いた錠〈ほかの PC の生きた錠・切れた錠・自分の残した錠〉と _MOVED.json の印を前もって置いて作るので、書く所への差し込み口は要らない）、②錠の持ち主の印に係（py／rs）を足す、③共有の無い PC でも手元の置き場に同じ錠を取る（⑨の穴をふさぐ。錠の決まりを 1 つにする）。1 段目: 窓が読み（写し・共有・置き場の決まり〈follow_moved・want.json・_MOVED.json〉・lists）と、me()（名乗り・権限の材料・切断の指示を読む）・門番を受け持つ。窓は Python へ回す問い合わせの枠に、決めた me（区分・編集の段・タブ・名乗り）を載せ、Python の common.me() は枠に me があればそれを使う（道の中の 50 か所はそのまま、判定の元は窓の 1 か所）。SERVES に access を足して Python の門番を止める。書き込みは Python。2 段目: 書き込み（錠・seed・master_seeds）と書く道をまとめて窓へ。Python の store は読み専用にし、書こうとしたら断る（並んで書く版を作らない）。3 段目: 使用の履歴・置き場・設定",
+          "score": {
+            "order": 9,
+            "chunk": 8,
+            "hierarchy": 8,
+            "visual": 8,
+            "steps": 6,
+            "effortless": 8,
+            "intuitive": 7,
+            "form": 9,
+            "place": 8,
+            "layout": 7,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "主張の確かめ: ①「窓が決めた me を問い合わせの枠に載せ、Python の common.me() がそれを使う」は今の枠の形でできる。問い合わせの枠はもう headers（名前→値）を持ち、sidecar.py が app.handle へ渡すので、ヘッダー 1 つで載せられ、枠の形も PROTOCOL も変えずに済む（事実①）。門番は router.rs が Python へ回す前に必ず窓の受け口を通すので窓で断れ、SERVES の access で Python の門番を止める型も前例がある。②「共有の無い PC でも手元の置き場に同じ錠」は⑨の消える保存を防ぐ: 外から当てて試すと、今の形では後の保存が黙って消え、錠を取る形では MasterLocked で断られた（事実③）。錠の決まりが共有と手元で 1 つになる。③2 段目で Python の store を読み専用にし書こうとしたら断るので、並んで書く版が作れない（係の印・手元の錠と二重の守り）。違っていた所: ①「競合の順は、置いた錠と _MOVED.json で作るので、書く所への差し込み口は要らない」は半分だけ正しい。ほかの PC の生きた錠・自分の残した錠・引っ越しの印は置いて作れるが、切れた錠は初めて見た store では錠の長さだけ生きている扱い（錠の長さを短くして待つ要がある）。保存の途中に割り込む順（外した直後に取り直す・切れた錠の引き継ぎの取り合い・外す直前の割り込み・長引いた保存の後の確かめ）は置いたファイルでは作れず、Python の試験も差し替えで割り込んでいる（事実④）。窓でも同じ順を流すには差し込み口が要る。②「判定の元は窓の 1 か所」はほぼ成り立つが、載せる中身（区分・編集の段・タブ・名乗り）に権限の行（rows）が無い。1 段目に Python に残るアクセス権限の書き込みの道は、role_change_check・delete_check が rows から自分の区分を計算し直す（事実②）。分かれ方は B'・L よりずっと小さい（3 本の道）。作るときに気を付ける所: 窓は画面から来た同じ名前のヘッダーを必ず捨てて上書きする（しないと画面の穴から区分を名乗れる。案に無い）。Python がアクセス権限・タブの権限を書いた後に窓の me の控えを捨てる（lot.rs の changes_settings と同じ型）。読み専用の Python の store で、読みの _seed は断りでなく写し・同梱で読み続ける形にする。悪い所: 版と PR が 0 段＋3 段で 4 つ。2 段目（書き込みと書く道のすべて）が重い。0 段目の作り（突き合わせの係・係の印・手元の錠）も多い。（共通の事実は evaluator の【3 回目・自分で確かめた事実】①〜⑧）"
+        },
+        "N 窓を先に起こしてマスタの係にする（起動の順を変える。新）": {
+          "plan": "窓が Python を起こす前にマスタの store（読み・置き場の決まり・seed）を起こし、Python の ready 前の読み（⑪）も含めて、Python は窓に問い合わせて答えを待つ口（新しい枠の種類。id 付きの問い合わせ→答え）でマスタを読む・書く。1 段目: store と repository（16 マスタの決まり）を窓へ、Python は薄い殻。2 段目: 道・権限（me() は窓）。3 段目: 使用の履歴・置き場。マスタの入出力は同じ PC で窓 1 つ。逆向きの答えを待つ口と、窓→Python→窓の入れ子の問い合わせを作る",
+          "score": {
+            "order": 7,
+            "chunk": 5,
+            "hierarchy": 8,
+            "visual": 6,
+            "steps": 5,
+            "effortless": 4,
+            "intuitive": 4,
+            "form": 8,
+            "place": 7,
+            "layout": 5,
+            "tone": 4
+          },
+          "minus": [],
+          "seen": "良い所: 同じ PC でマスタの入出力が窓 1 つになり、錠を取り違える相手がいない（2 回目の J の決める所が 1 つの良さ）。ready の前の読み（⑪）を、窓を先に起こして答える口で受けるので、J の「起動の途中で黙って配った設定で動く」に向き合っている。悪い所: ①作りが重い: Python→窓の答えを待つ口が今は無く（事実⑤）、窓の起動の読み手は ready の前に progress 以外の枠が来ると子を止め、動いている間の読み手は待ち手の無い id を捨て、Python の serve は標準入力を問い合わせとしてだけ読む。両方の読み手・Python の待ち手・PROTOCOL の版上げ・起動の読み手の作り直しが要り、Supervisor.get が起こす間に錠を持つので起動中の問い合わせは別の道で答える要がある。窓→Python→窓の入れ子は、窓が答える糸を持たないと止まる。②起動の順を変える: 窓が共有（遅い・届かないことがある）を読む store を Python より先に起こすので、起動の道すじ（Windows 1,099 ms）に共有の待ちが前に入る。③開発用のサーバー（ui_server.py）・Python の試験 137 は窓なしで動くので、Python の store を残すことになり、入出力の実装は 2 つのまま（窓のある時だけ 1 つ）。突き合わせも「Python の道＝答えの見本」の型がそのまま使えない。④Python のマスタの読みが全部枠の往復になる（me() だけでも 2 マスタ）。1 段目に store と repository（16 マスタ）を一度に移し、段が大きい。（共通の事実は evaluator の【3 回目・自分で確かめた事実】①〜⑧）"
+        },
+        "O 設定の答え（lists）だけを先に窓が組む（小さく 3 段。新）": {
+          "plan": "1 段目: 窓が lists（all_sources・path_settings.effective・equip_groups.view・設備名・勤務体系・変換表）だけを写しから組み、Python に設定を尋ねない。権限の判定（hidden・canEditShifts）は Python の me() を、窓が 1 本の小さな問い合わせ（/api/access/me）で尋ねる（判定は Python の 1 か所のまま）。2 段目: me()・門番・タブを窓へ（M と同じく、枠に me を載せて Python の道の中の判定も窓の答えに）。3 段目: 書き込み・使用の履歴・置き場。段ごとに判定はいつも 1 か所",
+          "score": {
+            "order": 7,
+            "chunk": 7,
+            "hierarchy": 7,
+            "visual": 7,
+            "steps": 6,
+            "effortless": 7,
+            "intuitive": 8,
+            "form": 7,
+            "place": 7,
+            "layout": 6,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "主張の確かめ: 「権限の判定（hidden・canEditShifts）は窓が /api/access/me を尋ね、判定は Python の 1 か所」は成り立つ。答えの capabilities に hiddenTabs があり、canEditShifts も revoked と canEditFieldMaster（勤務体系は管理のマスタでない）から引ける（事実⑥）。2 段目は M と同じく枠に me を載せるので、どの段でも判定の元は 1 つ。良い所: 窓が Python に尋ねて答える型は lot.rs の設定と同じで慣れている。1 段目の答えは Python の lists_settings の答えとそのまま突き合わせられ、確かめがいちばん易しい。違っていた所・悪い所: ①「lists だけ」は小さくない: lists を組むには置き場の決まり・all_sources（写しの行を SQLite で数える）・path_settings.effective・equip_groups.view・設備名・勤務体系・変換表が要り、/api/lotlist/settings のほかの値（元・間隔・古さ・表・件数・係）も effective_settings から来る（事実⑥）。②1 段目の得が小さい: 設定を尋ねる往復が me を尋ねる往復に替わるだけで、Python を起こすのも変わらない。③係の印・手元の錠が無い: 3 段目で窓が書き手になった後、Python の読みの _seed が同じ印で錠を取る（まれ）。④突き合わせの型（書き込みのファイルの記録）が無く、3 段目の書き込みの食い違いが見えにくい。⑤版と PR が 3 つ。2・3 段目は M の 1・2 段目とほぼ同じで、前に 1 段を足した形。（共通の事実は evaluator の【3 回目・自分で確かめた事実】①〜⑧）"
+        },
+        "P 使用の履歴（presence）を先に（葉から。新）": {
+          "plan": "presence は store の置き場（share_dir）だけを使い、ファイルは PC ごとにその PC だけが書く（錠なし）ので、ほかの係と取り合わない。1 段目: 心拍（POST /api/heartbeat）・利用状況・切断・履歴の道（access.py の 7 本）と、窓の終了で使い終わりの印を消す（いまは製品で呼ばれていない leave）を窓へ。me() の切断の指示の読みも窓に。2 段目: 読みと権限（M の形）、3 段目: 書き込み。小さな段から始め、心拍の 3 秒ごとの Python の往復を最初に無くす",
+          "score": {
+            "order": 5,
+            "chunk": 6,
+            "hierarchy": 5,
+            "visual": 7,
+            "steps": 6,
+            "effortless": 6,
+            "intuitive": 6,
+            "form": 6,
+            "place": 6,
+            "layout": 6,
+            "tone": 7
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "plan の 1 段目「presence は store の置き場（share_dir）だけを使い…心拍・利用状況・切断・履歴の道と、me() の切断の指示の読みを窓へ」: 利用状況のフォルダは Python の store が決め（app/__init__.py:114-116。上書きの master_share.json・配る版の覚え want.json・前の置き場の _MOVED.json をたどる follow_moved で変わり、on_moved で presence.configure し直す）、その決まり（置き場の読み）は案では 2 段目。1 段目の窓が置き場を別の決まりで決めると、心拍を誰も見ないフォルダへ書き（ほかの PC から「使っていない」に見える）、管理する人の切断の指示（<key>.revoke.json）も読まない（切断が効かない）。どちらも画面にも記録にも出ない。案は 1 段目の置き場の決め方に触れていない"
+            }
+          ],
+          "seen": "主張の確かめ: ①「presence は錠なし・ほかの係と取り合わない」は、この PC のファイル（<key>.json・history・sessions）についてはその通り（その PC の心拍だけが書く。presence.py の頭）。心拍を窓へ移して Python が書かなければ、同じ PC で取り合わない。②「窓の終了で使い終わりの印を消す（いまは製品で呼ばれていない leave）」は正しい: leave はどこからも呼ばれていない（事実⑦）。終了は窓が答える（main.rs の /api/shutdown）ので、窓が終わる前に消すのはできる。違っていた所: ①「葉から」「小さな段」は道については成り立たない。presence の部品は葉（依存は fsio・version）だが、1 段目に移す道（利用状況・切断・解く・消す・履歴・保存期間・整理）と心拍は、me() の区分・caps・role_can・権限の行からの registered_roles・切断の指示を使う（事実⑦）。案は「2 段目: 読みと権限」としているので、1 段目の窓は権限の判定を Python に尋ねるか自分で持つかのどちらかで、持てば 1 段目から判定が 2 か所（利用状況の道と心拍は窓、ほかは Python）、尋ねても fleet の区分には権限の行が要る。②置き場の決まりも 1 段目に要る（減点の所）。③「心拍の 3 秒ごとの Python の往復を最初に無くす」の得は小さい（枠 1 往復 0.151 ms。Python は起こしたまま）。良い所: presence の答え（利用状況・履歴）はファイルの中身で突き合わせやすい。使い終わりの印を消す改良が入る。（共通の事実は evaluator の【3 回目・自分で確かめた事実】①〜⑧）"
+        }
+      }
+    }
+  ],
+  "built_before1": {
+    "name": "作った後（0 段目・版 3.64.0・1 回目）",
+    "evaluator": "作った後の採点者（案を作っていない・1〜3 回目の採点者とも別のエージェント・2026-11-03）。画面に出ない改良なので、動かして確かめた事実で採点した。物差しの読み替えはトップの evaluator（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定・錠の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間）と、前例 2026-11-ops-port.json の built（危ない見逃しを試験の組の無い境ごとに hidden_state −3）にそろえた。始める前に master_store.py・test_master_share.py の写しを取り（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/*.orig。作った者の scratchpad/s0/*.mine と cmp で同じ）、master_store.py の錠まわり（_is_mine・holder・_acquire_lock・_lock_file・_lock_here・_where・_take_away・_release_lock・write・_write_local・_still_mine）に誤り 45 個を 1 つずつ入れて tests.test_master_share・test_access・test_master_place・test_master_seeds を流し、毎回と最後に写しへ戻して cmp で確かめた。生き残った 18 個は自分の組（probe.py の 6 通り）で入れ直して分けた。混ざる期間は git の HEAD（版 3.63.0）の master_store を別の名前で読み込んだ前の版の PC と、新しい版を同じ共有で取り合わせた。読んだ物: master_store.py の全部・master_repository.py（mutate の中で store を読まない）・services/master_seeds.py・master_place.py（_docs・move・retarget）・presence.py（data/ に書かない）・sidecar.py（ThreadPoolExecutor で糸を使い回す）・app/web.py（ThreadingHTTPServer）・app_env.local_root（LOCALAPPDATA。ログインごと）・app_build.py（RELEASE_GLOBS の data/*）・desktop/bundle/bundle.py（git ls-files だけを配る）・main.rs（tauri_plugin_single_instance）・config/appsettings.json（masters は 2 つ）。リポジトリは採点のファイルのほかは変えていない",
+    "images": "画面に出ない改良（画像なし）。流した試験と結果のファイル: python -m unittest tests.test_master_share（Ran 25・OK・終了コード 0。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/test0.log）・4 つの組（Ran 59・OK。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/test0b.log）・Python の試験の全部（Ran 663・OK（skipped=6）・終了コード 0。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/full.log）。誤り 45 個の台本と結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/muts.py・run.py → mut.json・mut.log、見逃しの分けは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/classify.py → classify.json・classify.log、自分の組は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/probe.py（元のままの答え base.json・base2.json）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r/probe_first.py（初めての保存の重なり）",
+    "result": {
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 8,
+        "visual": 8,
+        "steps": 8,
+        "effortless": 7,
+        "intuitive": 8,
+        "form": 8,
+        "place": 8,
+        "layout": 6,
+        "tone": 7
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "_write_local の「当てる前の読みが錠の中か」が試験で見えない。master_store.py の _write_local で doc = _as_doc(_read_json(first)) を _acquire_lock の前へ出しても（H9）45 個の試験がすべて通る: 自分の組 h9〈手元。py が錠を取る直前に rs が同じマスタを保存〉で、元のままは rs の備考が残り、誤りでは py が saved なのに rs の保存が黙って消える。試験の重なり（Roles・LocalLock）はどれも mutate の中で相手を走らせる形で、錠を取る前の読みには届かない"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "今の作りでも、初めての保存では読む物が錠の外で決まる。master_store.py の _write_local の 1 行目 path, first = self._bundled(name), self._initial(name) は _lock_here・_acquire_lock の前で、data/ にまだ無いマスタ（pivot_presets など）は first が最初の中身の置き場になる。錠を取る前に相手の係が初めての保存を終えると、pulled は相手の書いたファイルの目印になり確かめを通る: 自分の組 probe_first.py〈py の _acquire_lock の直前に rs が pivot_presets を初めて保存〉で、py は saved・rs の行が黙って消えた（silent_loss true）。窓はマイクロ秒〜糸の切り替え 1 回分と細いが、0 段目が塞ぐと言う「2 つの係の保存の重なり」の 1 つ"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "手元の保存の後に同じ糸で共有へ保存する形が試験で見えない。master_store.py の _lock_here の finally を self._where.local = local（戻さない）にしても（D1）通る: 自分の組 d1〈手元のみの PC で保存 → retarget で共有へ（master_place.move と同じ口）→ 同じ糸で設備を保存し、置き換える直前に PC-B が保存〉で、元のままは PC-B が locked(20)、誤りでは共有の錠の代わりに data/ の錠を取り、PC-B が saved なのに共有から黙って消える。sidecar.py は ThreadPoolExecutor で糸を使い回すので、デスクトップ版で起きる形"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "共有の中の手元だけのマスタ（master_share.masters を絞った設定。_lock_file の説明が「共有しない名前」と言う形）が試験に 1 つも無い。write の if not self.is_shared(name) を if self.share_dir is None にしても（G1）・_lock_file を share_dir 優先にしても（C4）・_where を糸ごとでない物にしても（D3）通る: 自分の組 g1〈masters=[equipment_master] で roll_master を保存〉は G1 で saved なのに読み直しに出ない（黙って消える）、d3〈手元の保存の途中に別の糸の読みが共有へ最初の版を置く〉は C4・D3 で手元の保存が locked(2) で断られる（元のままは saved）"
+        }
+      ],
+      "seen": "【流した試験】tests.test_master_share: Ran 25・OK・終了コード 0。4 つの組（test_master_share・test_access・test_master_place・test_master_seeds）: Ran 59・OK。Python の試験の全部: Ran 663・OK（skipped=6）。【塞ぐと言った 2 つの穴】どちらも塞がった。①同じ instance_id の 2 つの係: py の生きた錠を rs は取らず、rs の錠を py は取らない（Roles の 3 つ）。係の無い錠（版 3.63.0 まで）は py だけが引き継ぎ、rs は引き継がない。②共有しない PC: data/master.lock.json を同じ決まり（O_EXCL・名前を変えてどける・期限は長く待つ方）で取り、当てている間のもう 1 つの係の保存は locked で断られ、錠を持たない書き手がファイルを変えたら置き換えずに断る（LocalLock の 2 つ）。保存の後は錠を外し、data/ は行の配列の形のまま。【誤り 45 個】_is_mine 6・holder 2・_acquire_lock 11・_lock_file 4・_lock_here 2・_where 1・_take_away 3・_release_lock 2・write 2・_write_local 10・_still_mine 2。27 個を見つけ、18 個を見逃した（組めない 0）。見逃しの分け方（自分の組 6 通りで入れ直す。classify.json）: 〈答えが変わり危ない 5 個。減点〉H9（読みを錠の外へ）・D1（_lock_here を戻さない）・G1（混ぜた設定で共有へ書く）・C4（手元の錠を共有へ）・D3（_where を糸ごとでない物に）。〈答えは変わるが危なくない 2 個〉H3・H10（_write_local の錠の印の確かめを外す）: 自分の組 h3〈錠の長さ 0.3 秒・A が長引く間に B が引き継いで当てる〉で、元のままは A が locked・B が saved、誤りでは A が saved・B が locked（ファイルの目印の確かめが B を止める）。どちらも黙って消える保存は無い。〈答えの変わらない・届かない 11 個〉A6（ログイン ID の比べを外す。instance_id は LOCALAPPDATA の作業場所でログインごとに別）・B1（data/ を作らない。data/ は配る物にいつもある）・B9（OSError の字の取り違え。data/ に書けない PC だけ）・C3（錠を base/ に。Python だけでは同じ。窓が作る 1 段目で置き場が data/ と決まっていることを突き合わせる）・D2（入れ子の _lock_here は無い）・B6・B8・E3・F1・I1・I2（前の版からの所。LockRaces と目印の確かめが受ける）。危ない誤りの 32 個のうち 27 個（84%）を見つけた。【ほかの書き手】_seed・_pull は共有の名前だけで、糸ごとの _where が False のまま共有の錠を取る（d3 の元のまま: 手元の保存の途中の別の糸の seed は共有の錠で、手元の保存は saved）。master_repository の mutate はどれも store を読まないので、手元の錠の中から seed が走ることは無い。master_seeds.run は store.write を通るので手元でも錠を取り、錠が取れなければ次の起動へ回す（投げない）。master_place.move は新しい置き場へ写すだけで data/ を書かない・retarget は _write_lock の中で置き場を替える。presence は data/ に書かない。手元の錠を取らずに data/ を書く道は _write_local のほかに無い。【前の版の PC と混ざる期間】git の HEAD（3.63.0）の store と取り合わせた: 前の版の PC-B の生きた錠 → 新しい版の PC-A は locked(20)、新しい版の錠 → 前の版は locked(20)、新しい版の保存中の前の版の保存は locked(20) で共有は新しい版の値。同じ PC・同じ作業場所で前の版と新しい版が同時に動くと、新しい版の py は前の版の生きた錠（係の無い錠）を自分の物と見て取る（前の版どうしと同じ扱い。窓は単一起動〈tauri_plugin_single_instance〉なので起きにくい）。前の版へ戻した PC は、新しい版が残した「…:py」の錠を自分の物と見ず、1 度だけ 20 秒待つ。【錠が data/ に残ったとき】自分の係の残した錠は次の保存ですぐ引き継ぐ（saved）。係の無い錠も py は引き継ぐ。もう 1 つの係の残した錠・書きかけ（空）の錠は locked(20) で、期限（相手の時計と見てからの経過の長い方）の後に取れる。名乗れない PC は自分の残した錠も引き継げず 20 秒待ち、言葉は「ほかの PC がマスタを保存中です」（手元だけの PC なのに）。もう 1 つの係の錠の言葉は「PC-A／me がマスタを保存中です」と自分の PC の名前になる。lock_status は共有しない PC で None のままで、data/ の錠は画面の状態に出ない（窓が書き始める 2 段目までは、手元で重なるのは落ちた後くらい）。残った錠は data/ に master.lock.json として残り、配る ZIP（git ls-files）には入らないが、開発の手元では RELEASE の要約（data/*）に入る。【点の理由】order・chunk 8（2 段目より前に錠の決まりだけを小さく入れる・1 版）、hierarchy 8（手元と共有が同じ _acquire_lock・_is_mine）、visual 8（試験の名前と言葉で何を断るかが読める）、steps 8（1 版・利用者の手は変わらない。手元の PC に「保存中」で待つ場合が新しくできた）、effortless 7（2 つの穴は塞いだが、初めての保存の細い窓が残り、糸ごとの置き場の切り替えと混ぜた設定が試験に無い）、intuitive 8（共有の錠と同じ型）、form 8、place 8（CHANGELOG・RUST_PORT_PLAN・説明が作りと合う。_acquire_lock の説明はまだ「共有の錠を取る」）、layout 6（錠の置き場を糸ごとの隠れた状態〈_where〉で切り替え、_read_lock・_take_away まで暗に効く。_still_mine と同じ確かめを _write_local に写した）、tone 7（試験は既存の Env で小さいが、重なりは mutate の中で相手を走らせる 1 つの型だけ）。直すなら: _write_local の path・first を錠の中で決める／試験に「錠を取る直前に相手が保存する」組（_acquire_lock を包む）・手元の保存 → retarget → 同じ糸で共有の保存・masters を絞った設定の保存と読み直し・共有に届かない日の手元の保存を足す。"
+    }
+  },
+  "fixed_after1": "0 段目の作った後の 1 回目（64.3 点）の後に作った者が直したこと: ①_write_local が読む物（data/ か最初の中身）を錠の前に決めていて、初めて保存するマスタを 2 つの係がほぼ同時に保存すると後の方が先の保存を消す穴を、錠を取った後に決めて読むよう直した。②試験を 4 つ足した（錠の後に読む〈data/ にある物と初めての保存〉・共有の中に手元だけのマスタがある設定〈手元の錠と共有の錠が互いに邪魔しない・手元の保存の後は同じ糸の置き場を戻す〉・置き場の切り替えは糸ごと・同じ PC のもう 1 つの係の錠の言葉）。③同じ PC・同じログインの錠で断るときは「この PC のもう 1 つの係（アプリの中身・窓）が保存中」と言うようにした。採点者の危ない見逃し 5 つ（H9・D1・G1・C4・D3）は、台本 s0r2（今の中身を元に 45 個を入れ直し）と手で入れ直した H9・D3 で、5 つとも試験が落ちることを確かめた。",
+  "built_before2": {
+    "name": "作った後（0 段目・版 3.64.0・2 回目）",
+    "evaluator": "作った後の 2 回目の採点者（案を作っていない・1〜3 回目の採点者とも、作った後の 1 回目の採点者とも別のエージェント・2026-11-03。前の 2 回目の採点者がサーバーの不具合で止まった後のやり直し）。画面に出ない改良なので、動かして確かめた事実で採点した。物差しの読み替えは built_before1 と前例 2026-11-ops-port.json の built 系にそろえた（危ない見逃しは、試験の組の無い境ごとに hidden_state −3）。始める前に master_store.py・test_master_share.py の写しを取り（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/*.orig。作った者の /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0/*.mine と cmp で同じ）、前の採点者の台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r3/muts3.py（38 個。並びだけのファイルであることを読んで確かめた）に、新しい道（_write_local・係・断りの言葉・_lock_file の既定）の誤り 16 個（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/muts4.py）を足した 54 個を 1 つずつ入れて 4 つの組を流し、毎回と最後に写しへ戻して cmp で確かめた。見逃した 23 個は、リポジトリのファイルを読み込まずに写しへ誤りを当てる自分の組（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/probe4.py の 12 の場面と p22.py）で入れ直して分けた。前の版の PC は git の HEAD（版 3.63.0）の master_store を別の名前で読み込んで取り合わせた。読んだ物: master_store.py の錠と書き込みの全部・master_repository.py（mutate の中で store を読まない・_check_row も読まない）・services/master_seeds.py（store.write を通り、錠が取れなければ次の起動へ回す）・master_place.py（_docs が data/ を読む）・presence.py（data/ に書かない）・app_env.local_root・app_build.py（RELEASE_GLOBS の data/*）・git ls-files program/data（conversions.json は配らない）・config/appsettings.json（masters は 2 つ）・desktop/src（data/ と錠に触らない）。リポジトリは採点のファイルのほかは変えていない",
+    "images": "画面に出ない改良（画像なし）。流した試験と結果のファイル: 4 つの組（tests.test_master_share・test_access・test_master_place・test_master_seeds）は Ran 63・OK・終了コード 0（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/test0.log）。Python の試験の全部は Ran 667・OK（skipped=6）・終了コード 0（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/full.log）。誤り 54 個の台本と結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r3/muts3.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/muts4.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/run4.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/mut4.json・mut4.log・run4.out（最後の行「cmp 元どおり: True」）。見逃しの分けは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/probe4.py（元のままの答え probe-base.json・誤りごとの probe-<id>.json）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/p22.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r4/classify4.txt",
+    "result": {
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 8,
+        "visual": 8,
+        "steps": 8,
+        "effortless": 7,
+        "intuitive": 8,
+        "form": 8,
+        "place": 7,
+        "layout": 6,
+        "tone": 8
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "最初の中身（app/master_defaults）のあるマスタを、手元だけの PC で初めて保存する形が試験で見えない（配る data/ に conversions.json は無いので、入れたばかりの手元だけの PC はいつもこの形）。master_store.py の _write_local の pulled = _stat_sig(path) を _stat_sig(first) にしても（N22）・first = self._initial(name) を first = path にしても（N21）・読みの条件を first.exists() から path.exists() にしても（M13）通る: 自分の組 p22.py〈data/conversions.json の無い手元だけの PC で変換表を保存・起動の初期値〉で、元のままは保存でき同梱の 9 表が残る。N22 は画面の保存がいつまでも locked(2)「この PC のもう 1 つの係…が保存中」で断られ、起動の初期値（釜番日付）も当たらない。N21・M13 は保存できたと言いながら同梱の 9 表が 1〜2 表に減る（黙って消える）。test_read_happens_after_the_lock の初めての保存は最初の中身の無い pivot_presets だけ"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "錠の持ち主の名乗りの比べが試験で見えない（この差分で書き直した行）。master_store.py の _is_mine の lock.get(\"holder_pc\") == pc を外しても（N12）・lock.get(\"holder_instance\") を lock.get(\"holder_instance\", self.holder) にしても（M15）通る: 自分の組 P11〈作業場所ごと複製した PC。印とログインが同じで PC 名だけ違う〉で、元のままは locked(20)、N12 は相手の生きた錠を自分の残した錠と見て取る（錠の取り違え。保存の重なりで後の保存が消えうる）。P12〈印の鍵の無い前の版の錠〉は M15 で取る"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "共有に初めて置く（_seed）の錠が試験で見えない（前からの行だが、M の 2 段目で窓へ移す書き手で、試験の組が突き合わせの元になる）。master_store.py の _seed の token = None if have_lock else self._acquire_lock() を token = None にしても（N29）通る: 自分の組 P10〈PC-B が最初の版を置く途中で PC-A が同じマスタを保存〉で、元のままは PC-A が locked(20)、N29 は PC-A が saved なのに共有から黙って消える"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "data/ に書きかけ（空）の錠が残ると、手元だけの PC はマスタをいつまでも保存できない（読んで・動かして見つけた。誤りを入れなくても起きる）。master_store.py の _take_away は壊れた錠の印（broken:更新時刻:大きさ）と、どけた中身の token（None）が合わないので「ほかの錠」と見て元へ戻し、戻すと更新時刻が変わって新しい印になり、期限を数え直す。自分の組 P1〈data/master.lock.json が 0 バイト・錠の長さ 0.5 秒〉で 5 秒（長さの 10 倍）待っても「ほかの PC がマスタを保存中です（あと約1秒）」のまま。前の版（3.63.0）の手元だけの PC は同じ形ですぐ保存できた。_create_exclusive は作ってから書くので、書く途中の失敗（ディスクがいっぱい・落ちる）で空の錠が残る。共有の錠でも前から同じ（P1_shared）。1 回目の採点の「書きかけ（空）の錠は期限の後に取れる」は誤り"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "断りの言葉が相手を取り違える。master_store.py の _locked は PC 名とログインだけで「この PC のもう 1 つの係（アプリの中身・窓）」と言うので、0 段目（窓はまだマスタを書かない）では、この言葉が出るのは取り違えの時だけ: 自分の組 P4〈名乗りが同じ別の PC〉・P9〈錠は自分の物のまま、錠を持たない書き手がファイルを変えた。手元・共有とも〉・P12〈前の版の錠〉でこの言葉が出る。名乗れない PC の手元の残った錠は「ほかの PC が保存中」（P3）。言葉の試験は 2 つだけで、_locked の bool(pc) を外しても（N2）・ログインの比べを外しても（N3）・bool(login) にしても（M21）通る"
+        }
+      ],
+      "seen": "【流した試験】4 つの組: Ran 63・OK・終了コード 0。Python の試験の全部: Ran 667・OK（skipped=6）・終了コード 0。【1 回目の後に直した所】確かめた。1 回目の危ない見逃し 5 つは、同じ種類の誤りがどれも落ちる: 読む物を錠の前に決める（N27＝H9）・置き場の切り替えの戻し（N15・N19・N20）・混ぜた設定で共有へ書く（M3＝G1）・手元の錠を別の置き場へ（N17）・_where を糸ごとでない物に（M14＝D3）。1 回目の採点者の probe_first の穴（初めての保存の重なり）は直り、試験 LocalLock.test_read_happens_after_the_lock が受ける。【誤り 54 個】断りの言葉 7・係 7・置き場の切り替え 6・_write_local 13・write／_seed／_pull 4・_acquire_lock／_take_away／_create_exclusive／_read_lock／_remaining 8・_is_mine 4・_lock_file 2・言葉の秒 1 など。31 個を見つけ、23 個を見逃した（組めない 0）。見逃しの分け（自分の組 12 の場面で入れ直す。classify4.txt）: 〈答えが変わり危ない 7 個。減点の 3 つの境〉N21・N22・M13（最初の中身のあるマスタの初めての手元の保存）・N12・M15（名乗りの比べ）・N29（_seed の錠）。〈答えは変わるが危なさは小さい 8 個。減点にしない〉N2・N3・M21（言葉だけ。言葉の減点に入れた）・M19（断る秒の見積もりだけ）・N11（名乗れない PC が自分の残した錠をすぐ引き継ぐ。§9.384 の決まりからは外れるが、印が合う時だけ）・N10（持ち主の印を「係:印」の順に。いまの Python だけでは自分の残した錠を引き継がないだけ。1 段目で窓と印の形を突き合わせる組が要る）・N18（混ぜた設定で共有に届かない日に手元のマスタの保存を断る: P6。言葉は正しく一時の断りで、masters を絞る設定はふつう使わない）・N28（この PC の中の 1 本をやめる。前からの行。前の採点者の組で 2 本の糸が 20 件のうち 16 件を断られるが消えない。画面は送り直す）。〈答えの変わらない・届かない 8 個〉N6（既定の値。呼び手はいつも渡す）・N7（None の錠で断る代わりに AttributeError。錠を作った直後に消された時だけ）・N13（空の印の錠。印より前の版だけ）・N26（確かめを当てる前に: 長引いて相手が引き継いでも、ファイルの目印の確かめで相手が断られ、黙って消えない）・N34・N35（どけた名前・どけた物の後始末）・N37（壊れた錠を無い物に: 元のままもいつまでも断る）・M29・M7（同じ係が 2 つ動かない・lock_status は共有しない PC で None）。危ない誤り 38 個のうち 31 個（82%）を見つけた。【ほかの書き手】_seed・_pull は共有の名前だけで、糸ごとの _where が False のまま共有の錠を取る（test_switch_is_per_thread が受ける）。master_repository の mutate はどれも store を読まないので、手元の錠の中から seed が走ることは無い。master_seeds.run は store.write を通るので手元でも錠を取り、取れなければ次の起動へ回す（ただし上の N22 の形では、いつまでも回り続ける）。master_place は data/ を読むだけ・retarget は _write_lock の中。presence は data/ に書かない。data/ を錠を取らずに書く道は _write_local のほかに無い。窓（desktop/src）は data/ と錠に触らない。【前の版の PC と混ざる期間】HEAD（3.63.0）の store と取り合わせた（P8）: 前の版の PC-B は新しい版の錠を取らない（locked）。同じ PC・同じ作業場所の前の版も「印:py」を自分の物と見ず取らない。新しい版の py は前の版の生きた錠（係の無い錠）を自分の物と見て取る（前の版どうしと同じ扱い。窓は単一起動なので起きにくい）。手元だけの PC の前の版は錠を取らないが、新しい版はファイルの目印の確かめで断る（試験が受ける）。【data/ に錠が残ったとき】自分の係の残した錠・係の無い錠はすぐ引き継ぐ（P2）。もう 1 つの係・ほかの PC の残した錠は期限まで待つ。名乗れない PC は自分の残した錠も期限まで待ち「ほかの PC」と言う（P3）。空の錠はいつまでも取れない（減点 4）。lock_status は共有しない PC で None のままで、data/ の錠は画面の状態に出ない。master.lock.json は git に入れず（配る ZIP に入らない）、開発の手元では RELEASE の要約（data/*）に入る。【名乗れない PC】手元だけの保存はできる（P3）。共有の決まりと同じく自分と言わない。【断りの言葉】同じ PC・同じログインの錠は「この PC のもう 1 つの係（アプリの中身・窓）がマスタを保存中です（あと約20秒）」。ほかのログインは「PC-A／you」、ほかの PC は「PC-B／me」と正しい。取り違えの形は減点 5。_acquire_lock の説明と節の見出しはまだ「共有の錠」「共有フォルダの master.lock.json」。【点の理由】order・chunk 8（2 段目より前に錠の決まりだけを小さく入れる・1 版）、hierarchy 8（手元と共有が同じ _acquire_lock・_is_mine）、visual 8（試験の名前と言葉で何を断るかが読める。最初の中身の形は無い）、steps 8（1 版・利用者の手は変わらない。手元の PC に「保存中」で待つ場合ができた）、effortless 7（1 回目の穴は塞いだが、空の錠でいつまでも断る形と、取り違えの言葉が残る）、intuitive 8（共有の錠と同じ型）、form 8、place 7（言葉が錠の持ち主と合わない時がある・_acquire_lock の説明が共有のまま）、layout 6（錠の置き場を糸ごとの隠れた状態〈_where〉で切り替え、_read_lock・_take_away まで暗に効く。_still_mine と同じ確かめを _write_local に写した）、tone 8（試験は既存の Env で小さく、重なりの型が mutate の中・_acquire_lock を包む・別の糸の 3 つになった）。直すなら: 試験に「最初の中身のあるマスタを data/ に無い形で初めて保存する（保存できる・同梱の表が残る・起動の初期値が当たる）」・「PC 名だけ違う同じ印の錠を取らない」・「_seed の途中のほかの PC の保存」・「data/ と共有の空の錠が期限の後に取れる」を足す／_take_away で壊れた錠（中身が読めない）は印を中身でなく目印で比べて、期限の後にどける／_locked は印も見て、取り違えの時は名乗りの言葉にする（自分の錠のままファイルが変わった時は「ほかの書き手がマスタを変えました」）。"
+    }
+  },
+  "fixed_after2": "2 回目（61.2 点）の後に作った者が直したこと: ①前の版からの不具合: 書きかけ・壊れた錠（中身の読めない錠）が残ると、どけた物を「ほかの錠」と見て元へ戻し、手元・共有ともいつまでも保存できなかった。どけた物も壊れた錠なら同じ物として外すよう直した。②「この PC のもう 1 つの係」と言うのは、相手の錠の印が自分の作業場所の印＋別の係のときだけにした（名乗りが同じ別の PC・前の版の錠・印の無い錠では、これまでどおり PC 名で言う）。③試験を 6 つ足した（最初の中身のあるマスタの手元での初めての保存・壊れた錠を期限の後に取る〈手元・共有〉・作業場所ごと複製した PC 名の違う PC・印の欄の無い錠・seed も錠を取る・断りの言葉の言い分け）。採点者の危ない見逃し（N21・N22・M13・N12・M15・N29）は台本 s0r5 で入れ直して 6 つとも見つけた（言葉の N2・N3・M21 は直した行に当たらず組めないので、言い分けの試験で同じことを確かめる）。",
+  "built_before3": {
+    "name": "作った後（0 段目・版 3.64.0・3 回目）",
+    "evaluator": "作った後の 3 回目の採点者（案を作っていない・1 回目・2 回目の採点者とも別のエージェント・2026-11-03）。画面に出ない改良なので、自分で動かして確かめた事実だけで採点した。物差しの読み替えは built_before1・built_before2 にそろえた（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定・錠の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。危ない見逃しと読んで見つけた穴は、試験の組の無い境ごとに hidden_state −3）。始める前に master_store.py・test_master_share.py の写しを取り（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/*.orig。作った者の写し scratchpad/s0/*.mine と cmp で同じ）、前の採点者の台本 s0r/muts.py・s0r3/muts3.py・s0r4/muts4.py は読むだけにして（import・実行はしない）、それらに無い行・無い種類の誤り 36 個（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/muts6.py）を作り、1 つずつ入れて 4 つの組を流し、毎回と最後に写しへ戻して cmp で確かめた。見逃しは、リポジトリのファイルを読み込まずに写しへ誤りを当てる自分の組（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/probe6.py の 5 つの場面）で入れ直して分けた。読んだ物: master_store.py の錠と書き込みの全部（_seed・_pull・_take_away・_remaining・_locked・_write_local）・services/master_seeds.py・services/master_place.py（move・_docs）・services/presence.py（data/ に書かない）・app_build.py（RELEASE_GLOBS の data/*）・.gitignore。リポジトリは採点のファイルのほかは変えていない",
+    "images": "画面に出ない改良（画像なし）。流した試験と結果のファイル: 4 つの組（tests.test_master_share・test_access・test_master_place・test_master_seeds）は Ran 69・OK・終了コード 0（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/test0.log）。誤り 36 個の台本と結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/muts6.py・run6.py → mut6.json・run6.out（最後の行「cmp 元どおり: True」）。見逃しの分けは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/probe6.py（元のままの答え probe-base.json・誤りごとの probe-<id>.json）。読んで見つけた所の組は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/probe_clock2.py（時計の進んだ PC が残した錠）・probe_noname.py（名乗れない PC）・probe_move.py（置き場を変える途中の保存）",
+    "result": {
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 8,
+        "visual": 8,
+        "steps": 8,
+        "effortless": 7,
+        "intuitive": 8,
+        "form": 8,
+        "place": 8,
+        "layout": 6,
+        "tone": 8
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "壊れた錠の直し（この差分で足した行）が、相手の新しい錠を消さないことが試験で見えない。master_store.py の _take_away の (got is None and str(expected_token).startswith(\"broken:\")) を str(expected_token).startswith(\"broken:\") にしても（R2）4 つの組は通る: 自分の組 probe6.py の takeaway〈data/ に空の錠・錠の長さ 0.3 秒・py と rs が両方とも期限を見た後、py がどける直前に rs が壊れた錠をどけて錠を取る〉で、元のままは rs の錠を戻して py が locked(1)（相手の錠は消さない）、R2 は rs の生きた錠を消して py も取り、2 つの係が同時に「錠を持っている」と思う（both_hold true）。test_broken_lock_is_taken_after_its_time は 1 つの係が壊れた錠を取るだけ"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "手元の保存で「錠の中で置き換える」が試験で見えない（この差分の _write_local）。_write_local の _write_json_atomic(path, doc[\"rows\"]) を finally の self._release_lock(token) の後へ出しても（R30）通る: 自分の組 probe6.py の localrace〈手元だけの PC で py と rs が同じ作業場所から 25 回ずつ roll_master に行を足す・置き換えを 5ms 遅くする・断られたら送り直す〉で、元のままは保存できたと言った 50 回と残った行 50 が同じ、R30 は 50 回のうち 24 行が黙って消えた。共有の write で同じ誤り（R26）は Concurrency・LockRaces が落ちるが、手元には 2 つの係が並んで保存する組が無い"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "共有に初めて置く・置き直す（_seed）の錠の中の確かめと置き直す元が試験で見えない（前からの行。M の 2 段目で窓へ移す書き手）。_seed の if _stat_sig(src) is not None: return を外しても（R27）・seed = self._mirror(name) if … else self._initial(name) を self._initial(name) にしても（R29）通る: probe6.py の seedrecheck〈PC-A の読みが共有に無いと見た後、錠を取る前に PC-B が最初の版を置いて行を保存〉で、元のままは B の行が残り、R27 は B が saved なのに A の置き直しで黙って消える。seedsrc〈A が保存した後、共有の roll_master.json が消えた〉で、元のままは A の写しから置き直して A の行が残り、R29 は同梱の最初の中身で置き直して A の行が全員から消える。test_seed_takes_the_lock は錠を取ることだけ"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "時計の進んだ PC が落ちて残した錠は、錠の長さを過ぎても、ずれの分だけ取れず、その間ずっと「あと約1秒」と言う（読んで・動かして見つけた。誤りを入れなくても起きる。前の版 3.63.0 の同じ行から。0 段目で data/ の錠も同じ _remaining を使う）。master_store.py の _remaining は max(min(_by_clock, lock_ttl), lock_ttl − 経過) で、書かれた期限が今より lock_ttl 以上先にある間は、毎回 lock_ttl を返す（説明の「相手の PC の時計を信じない」「期限の方は長さ lock_ttl までに抑える」に合わない）。自分の組 probe_clock2.py〈共有・錠の長さ 0.3 秒・時計が 1 時間進んだ PC-B の残した錠〉で、PC-A は 1 秒おきに 4 回（錠の長さの 10 倍超）保存して 4 回とも「PC-B／u がマスタを保存中です（あと約1秒）」。1 時間このまま。期限を lock_ttl で抑えない誤り（R10）は秒の字が 3600 に変わるだけで、どちらも試験は通る"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "手元だけの PC の「置き場を変える」（services/master_place.py の move）は、data/ を読んで写す間に data/ の錠も store._write_lock も持たないので、写す途中の保存が黙って消える（読んで・動かして見つけた。前の版からの所だが、0 段目が data/ を錠の下に置いた後も、写す読み手だけが錠の外）。自分の組 probe_move.py〈move が新しい置き場へ 1 つ目のファイルを書く直前に、同じアプリの別の画面が roll_master を保存〉で、保存は saved・data/ には行があるが、置き場を切り替えた後の読みには出ない（row_visible_after_move false）"
+        }
+      ],
+      "seen": "【流した試験】4 つの組（tests.test_master_share・test_access・test_master_place・test_master_seeds）: Ran 69・OK・終了コード 0。【2 回目の後に直した所】確かめた。①書きかけ（空）の錠: 元のままで期限の後に取れる（LocalLock.test_broken_lock_is_taken_after_its_time。壊れた錠の直しを外す R1 で落ちる）。直しが相手の新しい錠を消さないか: 元のままは消さない（probe6.py の takeaway で rs の錠を戻し、py は locked）。相手がまだ書きかけの新しい錠をどけてしまう順は、相手が取った後の確かめ（_acquire_lock の check）で相手が locked になるので、黙って消える保存は無い（読んで確かめた）。②言い分け: 作業場所の印＋別の係のときだけ「この PC のもう 1 つの係」（印の形を見ない R19 で Holder の試験が落ちる）。【誤り 36 個】_take_away 5・_read_lock／_remaining 5・_acquire_lock 6・_release_lock 1・_create_exclusive 1・_locked 4・共有の write 4・_seed／_pull 3・_write_local 4・係 3。16 個を見つけ（R18 は時間切れで見つけた扱い）、20 個を見逃した（組めない 0）。見逃しの分け（probe6.py の 5 つの場面で入れ直す）: 〈答えが変わり危ない 4 個。減点の 3 つの境〉R2（壊れた錠の直しが相手の錠を消す）・R30（手元で錠を外してから置き換える）・R27・R29（_seed の見直しと元）。〈危なくない 16 個〉後の確かめ（_still_mine・_write_local の錠とファイルの確かめ・取った後の check）が受ける R3・R4・R6・R11・R12・R24・R25、言葉・秒だけの R10・R15・R16・R20・R33、作業場所の印が 32 桁でログインごとなので同じになる R21・R22、名乗れない PC の N11 と同じ形の R35、画面の「mine」だけの R36。【読んで見つけた所】(1) 時計の進んだ PC の残した錠が、ずれの分だけ「あと約1秒」のまま取れない（減点）。(2) master_place.move の写しが錠の外（減点）。(3) 名乗れない PC（PC 名・ログインが空）は、手元だけの PC で自分が落として残した data/ の錠を「ほかの PC がマスタを保存中です」と言う（probe_noname.py。錠の長さの後は保存できる。ほかの PC の無い PC で「ほかの PC」と言うのは言葉の取り違えだが、§9.384 の決まりどおり待つのは正しい。2 回目の言葉の減点の残り。今回は減点にしない）。(4) data/ に残る錠: py が残した錠は次に py が引き継ぐ。master.lock.json と .master.lock.json.*.gone は .gitignore に無く、app_build.py の RELEASE_GLOBS の data/* に入る（開発の PC で落ちて残ると要約が変わる。配る物は git ls-files なので配らない）。lock_status は共有しない設定で None を返すので、手元の錠は画面の状態に出ない。(5) 前の版との混ざり: 3.63.0 の錠（係の無い印）は py だけが引き継ぐ。3.64.0 の錠を 3.63.0 は自分の物と見ず錠の長さを待つ（戻した PC で 20 秒だけ）。(6) 書き手: master_seeds.run は store.write を通り手元でも錠を取る。_pull の have_lock は書く道だけ。presence は data/ に書かない。(7) 言葉の「係（アプリの中身・窓）」は、0 段目では窓が書かないので、作業場所の印＋rs の錠のときだけ出る（今は出ない）。【点】塞ぐと言った 2 つの穴・前の版からの壊れた錠・言い分けは塞がり、試験も 69 に増えた（place を 7→8）。一方で、壊れた錠の直しの境・手元で錠の中で置き換える境・_seed の境に試験が無く、移すときの突き合わせの元として弱い所が残り、effortless は 7・layout は 6（糸ごとの _where と _lock_here の間接、共有と手元の 2 つの書く道の重複）のまま"
+    }
+  },
+  "fixed_after3": "3 回目（62.2 点）の後に作った者が直したこと: ①危ない見逃し 4 つ（R2 壊れた錠の直しで相手の生きた錠を消す・R30 手元の置き換えを錠の外で・R27 seed が錠の中で見直さない・R29 seed の元を同梱の中身に）の試験を足し、台本 s0r7 で 4 つとも見つけた。②前の版からの不具合 2 つ（利用者が直すと決めた）: 時計の進んだ PC が落ちて残した錠が、書かれた期限が錠の長さより先の間ずっと取れなかった → その期限は信じず見てからの経過で測る（試験: 1 時間先の期限の錠も錠の長さの後に取れる）。置き場の引っ越しが錠も書き込みの錠も持たずに写していた → MasterStore.exclusive()（この PC の保存を止め、前の置き場の錠を持ち、取った置き場で外す。中の seed は持っている錠で）の中で写す・切り替える・印を置く（試験: 写す途中のほかの画面の保存が引っ越し先の共有のファイルに入る。手元のみ・共有とも。前の版ではどちらも落ちることを確かめた）。",
+  "built": {
+    "name": "作った後（0 段目・版 3.64.0・3 回目）",
+    "evaluator": "作った後の 3 回目の採点者（案を作っていない・1 回目・2 回目の採点者とも別のエージェント・2026-11-03）。画面に出ない改良なので、自分で動かして確かめた事実だけで採点した。物差しの読み替えは built_before1・built_before2 にそろえた（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定・錠の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。危ない見逃しと読んで見つけた穴は、試験の組の無い境ごとに hidden_state −3）。始める前に master_store.py・test_master_share.py の写しを取り（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/*.orig。作った者の写し scratchpad/s0/*.mine と cmp で同じ）、前の採点者の台本 s0r/muts.py・s0r3/muts3.py・s0r4/muts4.py は読むだけにして（import・実行はしない）、それらに無い行・無い種類の誤り 36 個（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/muts6.py）を作り、1 つずつ入れて 4 つの組を流し、毎回と最後に写しへ戻して cmp で確かめた。見逃しは、リポジトリのファイルを読み込まずに写しへ誤りを当てる自分の組（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/probe6.py の 5 つの場面）で入れ直して分けた。読んだ物: master_store.py の錠と書き込みの全部（_seed・_pull・_take_away・_remaining・_locked・_write_local）・services/master_seeds.py・services/master_place.py（move・_docs）・services/presence.py（data/ に書かない）・app_build.py（RELEASE_GLOBS の data/*）・.gitignore。リポジトリは採点のファイルのほかは変えていない",
+    "images": "画面に出ない改良（画像なし）。流した試験と結果のファイル: 4 つの組（tests.test_master_share・test_access・test_master_place・test_master_seeds）は Ran 69・OK・終了コード 0（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/test0.log）。誤り 36 個の台本と結果は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/muts6.py・run6.py → mut6.json・run6.out（最後の行「cmp 元どおり: True」）。見逃しの分けは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/probe6.py（元のままの答え probe-base.json・誤りごとの probe-<id>.json）。読んで見つけた所の組は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s0r6/probe_clock2.py（時計の進んだ PC が残した錠）・probe_noname.py（名乗れない PC）・probe_move.py（置き場を変える途中の保存）",
+    "result": {
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 8,
+        "visual": 8,
+        "steps": 8,
+        "effortless": 7,
+        "intuitive": 8,
+        "form": 8,
+        "place": 8,
+        "layout": 6,
+        "tone": 8
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "壊れた錠の直し（この差分で足した行）が、相手の新しい錠を消さないことが試験で見えない。master_store.py の _take_away の (got is None and str(expected_token).startswith(\"broken:\")) を str(expected_token).startswith(\"broken:\") にしても（R2）4 つの組は通る: 自分の組 probe6.py の takeaway〈data/ に空の錠・錠の長さ 0.3 秒・py と rs が両方とも期限を見た後、py がどける直前に rs が壊れた錠をどけて錠を取る〉で、元のままは rs の錠を戻して py が locked(1)（相手の錠は消さない）、R2 は rs の生きた錠を消して py も取り、2 つの係が同時に「錠を持っている」と思う（both_hold true）。test_broken_lock_is_taken_after_its_time は 1 つの係が壊れた錠を取るだけ"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "手元の保存で「錠の中で置き換える」が試験で見えない（この差分の _write_local）。_write_local の _write_json_atomic(path, doc[\"rows\"]) を finally の self._release_lock(token) の後へ出しても（R30）通る: 自分の組 probe6.py の localrace〈手元だけの PC で py と rs が同じ作業場所から 25 回ずつ roll_master に行を足す・置き換えを 5ms 遅くする・断られたら送り直す〉で、元のままは保存できたと言った 50 回と残った行 50 が同じ、R30 は 50 回のうち 24 行が黙って消えた。共有の write で同じ誤り（R26）は Concurrency・LockRaces が落ちるが、手元には 2 つの係が並んで保存する組が無い"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "共有に初めて置く・置き直す（_seed）の錠の中の確かめと置き直す元が試験で見えない（前からの行。M の 2 段目で窓へ移す書き手）。_seed の if _stat_sig(src) is not None: return を外しても（R27）・seed = self._mirror(name) if … else self._initial(name) を self._initial(name) にしても（R29）通る: probe6.py の seedrecheck〈PC-A の読みが共有に無いと見た後、錠を取る前に PC-B が最初の版を置いて行を保存〉で、元のままは B の行が残り、R27 は B が saved なのに A の置き直しで黙って消える。seedsrc〈A が保存した後、共有の roll_master.json が消えた〉で、元のままは A の写しから置き直して A の行が残り、R29 は同梱の最初の中身で置き直して A の行が全員から消える。test_seed_takes_the_lock は錠を取ることだけ"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "時計の進んだ PC が落ちて残した錠は、錠の長さを過ぎても、ずれの分だけ取れず、その間ずっと「あと約1秒」と言う（読んで・動かして見つけた。誤りを入れなくても起きる。前の版 3.63.0 の同じ行から。0 段目で data/ の錠も同じ _remaining を使う）。master_store.py の _remaining は max(min(_by_clock, lock_ttl), lock_ttl − 経過) で、書かれた期限が今より lock_ttl 以上先にある間は、毎回 lock_ttl を返す（説明の「相手の PC の時計を信じない」「期限の方は長さ lock_ttl までに抑える」に合わない）。自分の組 probe_clock2.py〈共有・錠の長さ 0.3 秒・時計が 1 時間進んだ PC-B の残した錠〉で、PC-A は 1 秒おきに 4 回（錠の長さの 10 倍超）保存して 4 回とも「PC-B／u がマスタを保存中です（あと約1秒）」。1 時間このまま。期限を lock_ttl で抑えない誤り（R10）は秒の字が 3600 に変わるだけで、どちらも試験は通る"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "手元だけの PC の「置き場を変える」（services/master_place.py の move）は、data/ を読んで写す間に data/ の錠も store._write_lock も持たないので、写す途中の保存が黙って消える（読んで・動かして見つけた。前の版からの所だが、0 段目が data/ を錠の下に置いた後も、写す読み手だけが錠の外）。自分の組 probe_move.py〈move が新しい置き場へ 1 つ目のファイルを書く直前に、同じアプリの別の画面が roll_master を保存〉で、保存は saved・data/ には行があるが、置き場を切り替えた後の読みには出ない（row_visible_after_move false）"
+        }
+      ],
+      "seen": "【流した試験】4 つの組（tests.test_master_share・test_access・test_master_place・test_master_seeds）: Ran 69・OK・終了コード 0。【2 回目の後に直した所】確かめた。①書きかけ（空）の錠: 元のままで期限の後に取れる（LocalLock.test_broken_lock_is_taken_after_its_time。壊れた錠の直しを外す R1 で落ちる）。直しが相手の新しい錠を消さないか: 元のままは消さない（probe6.py の takeaway で rs の錠を戻し、py は locked）。相手がまだ書きかけの新しい錠をどけてしまう順は、相手が取った後の確かめ（_acquire_lock の check）で相手が locked になるので、黙って消える保存は無い（読んで確かめた）。②言い分け: 作業場所の印＋別の係のときだけ「この PC のもう 1 つの係」（印の形を見ない R19 で Holder の試験が落ちる）。【誤り 36 個】_take_away 5・_read_lock／_remaining 5・_acquire_lock 6・_release_lock 1・_create_exclusive 1・_locked 4・共有の write 4・_seed／_pull 3・_write_local 4・係 3。16 個を見つけ（R18 は時間切れで見つけた扱い）、20 個を見逃した（組めない 0）。見逃しの分け（probe6.py の 5 つの場面で入れ直す）: 〈答えが変わり危ない 4 個。減点の 3 つの境〉R2（壊れた錠の直しが相手の錠を消す）・R30（手元で錠を外してから置き換える）・R27・R29（_seed の見直しと元）。〈危なくない 16 個〉後の確かめ（_still_mine・_write_local の錠とファイルの確かめ・取った後の check）が受ける R3・R4・R6・R11・R12・R24・R25、言葉・秒だけの R10・R15・R16・R20・R33、作業場所の印が 32 桁でログインごとなので同じになる R21・R22、名乗れない PC の N11 と同じ形の R35、画面の「mine」だけの R36。【読んで見つけた所】(1) 時計の進んだ PC の残した錠が、ずれの分だけ「あと約1秒」のまま取れない（減点）。(2) master_place.move の写しが錠の外（減点）。(3) 名乗れない PC（PC 名・ログインが空）は、手元だけの PC で自分が落として残した data/ の錠を「ほかの PC がマスタを保存中です」と言う（probe_noname.py。錠の長さの後は保存できる。ほかの PC の無い PC で「ほかの PC」と言うのは言葉の取り違えだが、§9.384 の決まりどおり待つのは正しい。2 回目の言葉の減点の残り。今回は減点にしない）。(4) data/ に残る錠: py が残した錠は次に py が引き継ぐ。master.lock.json と .master.lock.json.*.gone は .gitignore に無く、app_build.py の RELEASE_GLOBS の data/* に入る（開発の PC で落ちて残ると要約が変わる。配る物は git ls-files なので配らない）。lock_status は共有しない設定で None を返すので、手元の錠は画面の状態に出ない。(5) 前の版との混ざり: 3.63.0 の錠（係の無い印）は py だけが引き継ぐ。3.64.0 の錠を 3.63.0 は自分の物と見ず錠の長さを待つ（戻した PC で 20 秒だけ）。(6) 書き手: master_seeds.run は store.write を通り手元でも錠を取る。_pull の have_lock は書く道だけ。presence は data/ に書かない。(7) 言葉の「係（アプリの中身・窓）」は、0 段目では窓が書かないので、作業場所の印＋rs の錠のときだけ出る（今は出ない）。【点】塞ぐと言った 2 つの穴・前の版からの壊れた錠・言い分けは塞がり、試験も 69 に増えた（place を 7→8）。一方で、壊れた錠の直しの境・手元で錠の中で置き換える境・_seed の境に試験が無く、移すときの突き合わせの元として弱い所が残り、effortless は 7・layout は 6（糸ごとの _where と _lock_here の間接、共有と手元の 2 つの書く道の重複）のまま"
+    }
+  },
+  "accepted_by_user": {
+    "date": "2026-11-03",
+    "note": "0 段目の作った後の採点は 64.3・61.2・62.2 点で合格点 80 に届かなかった（採点者が替わるたびに新しい端が見つかる形）。そのたびの危ない見逃しはすべて直して試験で見つかることを確かめ、3 回目で見つかった前の版からの不具合 2 つも直した。利用者が「前からの 2 つも直して push」を選んだ。"
+  }
+}

@@ -107,6 +107,299 @@ class LocalMode(Base):
             repo.equipment_create({"設備名": "ｔｌｖ"})                  # 全角・小文字でも同じ名前
 
 
+class Roles(Base):
+    """係（版 3.64.0）: 同じ PC・同じ作業場所（同じ instance_id）で Python と窓（Rust）が並んで書いても、互いの生きた錠を
+    「自分が残した錠」と取り違えない（順 5 の採点で、取り違えると保存が黙って消える順を再現した。scratchpad/m5/lockrepro.py）。"""
+
+    def pair(self):
+        py = self.env.store("PC-A", login="me", root="pc1")
+        rs = MasterStore(self.env.base, local_root=self.env.tmp / "pc1", settings={"dir": str(self.env.share)},
+                         who={"pc": "PC-A", "login": "me"}, role="rs")
+        self.assertEqual(py.instance, rs.instance, "同じ作業場所なのでアプリの印は同じ")
+        self.assertNotEqual(py.holder, rs.holder, "錠の持ち主の印は係で分かれる")
+        return py, rs
+
+    def test_live_lock_of_the_other_role_is_not_taken(self):
+        py, rs = self.pair()
+        py._acquire_lock()
+        with self.assertRaises(MasterLocked):
+            rs._acquire_lock()
+        py2, rs2 = self.pair()
+        (self.env.share / "master.lock.json").unlink()
+        rs2._acquire_lock()
+        with self.assertRaises(MasterLocked):
+            py2._acquire_lock()
+
+    def test_save_of_the_other_role_while_saving_is_refused(self):
+        """保存の途中（当てている間）にもう 1 つの係が同じマスタを保存しようとしても断られ、どちらの保存も黙っては消えない"""
+        py, rs = self.pair()
+        a, b = MasterRepository(py), MasterRepository(rs)
+        a.rolls()
+        box = {}
+
+        def mutate(rows, stamp):
+            try:
+                b.rolls_update(1, {"備考": "窓の保存"})
+                box["b"] = "saved"
+            except MasterLocked:
+                box["b"] = "locked"
+            rows[0]["備考"] = "Python の保存"
+            return None
+        py.write("roll_master", mutate)
+        self.assertEqual(box["b"], "locked")
+        self.assertEqual({r["id"]: r for r in self.env.share_doc()["rows"]}[1]["備考"], "Python の保存")
+
+    def test_own_leftover_with_role_and_legacy_lock(self):
+        """自分の係の残した錠は引き継ぐ。係の無い錠（版 3.63.0 まで）は Python の物: Python は引き継ぎ、窓は引き継がない"""
+        py, rs = self.pair()
+        self.env.put_lock("PC-A", login="me", seconds=15, instance=py.holder)
+        py._release_lock(py._acquire_lock())
+        self.env.put_lock("PC-A", login="me", seconds=15, instance=rs.holder)
+        rs._release_lock(rs._acquire_lock())
+        self.env.put_lock("PC-A", login="me", seconds=15, instance=py.instance)
+        with self.assertRaises(MasterLocked):
+            rs._acquire_lock()
+        py._release_lock(py._acquire_lock())
+
+
+class Holder(Base):
+    """錠の持ち主の見分け（PC 名・ログイン・アプリの印・係）と、断りの言葉"""
+
+    def test_same_instance_on_another_pc_name_is_not_the_holder(self):
+        """作業場所ごと複製した PC（アプリの印とログインが同じで、PC 名が違う）の生きた錠は引き継がない"""
+        a = self.env.store("PC-A", login="me", root="pc1")
+        b = self.env.store("PC-B", login="me", root="pc1")
+        self.assertEqual(a.instance, b.instance)
+        a._acquire_lock()
+        with self.assertRaises(MasterLocked):
+            b._acquire_lock()
+
+    def test_lock_without_instance_key_is_not_mine(self):
+        """アプリの印の欄が無い錠（もっと前の版・手で置いた錠）は自分の物と見ない（生きている間は断る）"""
+        a = self.env.store("PC-A", login="me", root="pc1")
+        now = datetime.now()
+        (self.env.share / "master.lock.json").write_text(json.dumps({
+            "token": "y", "holder_pc": "PC-A", "holder_login": "me",
+            "acquired_at": now.isoformat(), "expires_at": (now + timedelta(seconds=15)).isoformat()}), encoding="utf-8")
+        with self.assertRaises(MasterLocked):
+            a._acquire_lock()
+
+    def test_seed_takes_the_lock(self):
+        """共有にまだ無いマスタを読むときの最初の版（seed）も錠を取る。ほかの PC が保存中なら置かない（読みは手元で続く）"""
+        a = self.env.store("PC-A")
+        self.env.put_lock("PC-B", seconds=15)
+        rows = a.read("conversions")
+        self.assertTrue(rows, "読みは最初の中身で続く")
+        self.assertFalse((self.env.share / "conversions.json").exists(), "錠が取れない間は共有に置かない")
+
+    def test_seed_looks_again_under_the_lock(self):
+        """seed は錠を取った後に共有を見直す: 錠を取る直前にほかの PC が最初の版を置いたら、上書きしない"""
+        a, b = self.env.store("PC-A"), self.env.store("PC-B")
+        real = a._acquire_lock
+
+        def b_seeds_first():
+            b.write("conversions", lambda rows, stamp: rows.append({"id": 9101, "by": "PC-B"}))
+            return real()
+        a._acquire_lock = b_seeds_first
+        a.read("conversions")
+        ids = {r.get("id") for r in json.loads((self.env.share / "conversions.json").read_text(encoding="utf-8"))["rows"]}
+        self.assertIn(9101, ids, "ほかの PC の保存は残る")
+
+    def test_seed_after_the_share_file_is_lost_uses_the_mirror(self):
+        """共有のファイルが消えたとき、置き直す最初の版は手元の写し（全員の行）から。同梱の中身からにすると全員の行が消える"""
+        a = self.env.store("PC-A")
+        a.write("conversions", lambda rows, stamp: rows.append({"id": 9201, "by": "共有にあった行"}))
+        (self.env.share / "conversions.json").unlink()
+        a2 = self.env.store("PC-A")            # 同じ作業場所（写しは残る）で開き直す
+        self.assertIn(9201, {r.get("id") for r in a2.read("conversions")})
+        ids = {r.get("id") for r in json.loads((self.env.share / "conversions.json").read_text(encoding="utf-8"))["rows"]}
+        self.assertIn(9201, ids)
+
+    def test_lock_message_names_the_holder_correctly(self):
+        py = self.env.store("PC-A", login="me", root="pc1")
+        rs = MasterStore(self.env.base, local_root=self.env.tmp / "pc1", settings={"dir": str(self.env.share)},
+                         who={"pc": "PC-A", "login": "me"}, role="rs")
+        rs._acquire_lock()
+        with self.assertRaises(MasterLocked) as cm:
+            py._acquire_lock()
+        self.assertIn("この PC のもう 1 つの係", str(cm.exception))
+        (self.env.share / "master.lock.json").unlink()
+        twin = self.env.store("PC-A", login="me", root="pc2")      # 名乗りが同じ別の PC（作業場所が別）
+        twin._acquire_lock()
+        with self.assertRaises(MasterLocked) as cm:
+            py._acquire_lock()
+        self.assertNotIn("もう 1 つの係", str(cm.exception))
+        self.assertIn("PC-A", str(cm.exception))
+        (self.env.share / "master.lock.json").unlink()
+        self.env.put_lock("PC-A", login="me", seconds=15, instance="")   # 前の版の、印の無い錠（ほかの作業場所の物と見る）
+        with self.assertRaises(MasterLocked) as cm:
+            py._acquire_lock()
+        self.assertNotIn("もう 1 つの係", str(cm.exception))
+
+
+class LocalLock(Base):
+    """共有しない PC（dir が空）でも data/ に同じ錠を取る（版 3.64.0）。前は錠を取らずプロセスの中の _write_lock だけで、
+    同じ PC の 2 つの係が同じマスタを書くと後の保存が黙って消えた（順 5 の 2 回目の採点で再現）。"""
+
+    def local(self, role):
+        return MasterStore(self.env.base, local_root=self.env.tmp / "l", settings={}, who={"pc": "PC-A", "login": "me"}, role=role)
+
+    def test_save_while_another_role_saves_is_refused(self):
+        py, rs = self.local("py"), self.local("rs")
+        a, b = MasterRepository(py), MasterRepository(rs)
+        row = a.rolls_create({"設備": "TLV", "ロール名": "錠の試験"})
+        box = {}
+
+        def mutate(rows, stamp):
+            try:
+                b.rolls_update(row["id"], {"備考": "窓の保存"})
+                box["b"] = "saved"
+            except MasterLocked:
+                box["b"] = "locked"
+            next(r for r in rows if r["id"] == row["id"])["備考"] = "Python の保存"
+            return None
+        py.write("roll_master", mutate)
+        self.assertEqual(box["b"], "locked", "当てている間のもう 1 つの係の保存は断る（黙って消さない）")
+        saved = json.loads((self.env.base / "data" / "roll_master.json").read_text(encoding="utf-8"))
+        self.assertIsInstance(saved, list, "同梱の data/ は行の配列の形のまま")
+        self.assertEqual(next(r for r in saved if r["id"] == row["id"])["備考"], "Python の保存")
+        self.assertFalse((self.env.base / "data" / "master.lock.json").exists(), "保存の後は錠を外す")
+        b.rolls_update(row["id"], {"備考": "あとで窓の保存"})
+        saved = json.loads((self.env.base / "data" / "roll_master.json").read_text(encoding="utf-8"))
+        self.assertEqual(next(r for r in saved if r["id"] == row["id"])["備考"], "あとで窓の保存")
+
+    def test_read_happens_after_the_lock(self):
+        """当てる前の読みは錠を取った後: 錠を取る直前にもう 1 つの係が保存しても、その保存の上で当てる（初めて保存するマスタも）"""
+        for name in ("roll_master", "pivot_presets"):   # data/ にある物と、まだ無い物（初めての保存）
+            with self.subTest(name=name):
+                (self.env.base / "data" / "master.lock.json").unlink(missing_ok=True)
+                py, rs = self.local("py"), self.local("rs")
+                real = py._acquire_lock
+
+                def other_saves_first(real=real, rs=rs, name=name):
+                    rs.write(name, lambda rows, stamp: rows.append({"id": 9001, "by": "rs"}))
+                    return real()
+                py._acquire_lock = other_saves_first
+                py.write(name, lambda rows, stamp: rows.append({"id": 9002, "by": "py"}))
+                ids = {r.get("id") for r in py.read(name)}
+                self.assertTrue({9001, 9002} <= ids, f"{name}: 先の保存が残る（{sorted(i for i in ids if i and i > 9000)}）")
+
+    def test_same_pc_lock_message_names_the_other_role(self):
+        py, rs = self.local("py"), self.local("rs")
+        with rs._lock_here(True):
+            rs._acquire_lock()
+        with self.assertRaises(MasterLocked) as cm:
+            MasterRepository(py).rolls_update(1, {"備考": "x"})
+        self.assertIn("この PC のもう 1 つの係", str(cm.exception))
+
+    def test_mixed_settings_local_and_shared_masters(self):
+        """共有するマスタを絞った設定（共有の中に手元だけのマスタがある）: 手元のマスタは data/ の錠、共有のマスタは共有の錠で、
+        互いに邪魔しない。手元の保存の後も、同じ糸の共有の保存は共有の錠を取る（置き場の切り替えを戻す）"""
+        st = MasterStore(self.env.base, local_root=self.env.tmp / "m", settings={"dir": str(self.env.share), "masters": ["equipment_master"]},
+                         who={"pc": "PC-A", "login": "me"})
+        repo = MasterRepository(st)
+        self.assertFalse(st.is_shared("roll_master"))
+        self.assertTrue(st.is_shared("path_settings"))
+        self.env.put_lock("PC-B", seconds=15)                         # 共有はほかの PC が保存中
+        row = repo.rolls_create({"設備": "TLV", "ロール名": "手元だけ"})   # 手元のマスタは共有の錠に邪魔されない
+        self.assertIn(row["id"], {r["id"] for r in repo.rolls()}, "手元の保存は読み直しに出る")
+        self.assertFalse(getattr(st._where, "local", False), "手元の保存の後は、置き場の切り替えを共有に戻す")
+        with self.assertRaises(MasterLocked):
+            st.write("path_settings", lambda rows, stamp: rows.append({"id": 1}))   # 共有のマスタは共有の錠を見る
+        self.assertTrue((self.env.share / "master.lock.json").exists())
+        self.assertFalse((self.env.base / "data" / "master.lock.json").exists(), "手元の錠は残さない")
+
+    def test_switch_is_per_thread(self):
+        """手元の保存（data/ の錠）の最中に、別の糸が共有のマスタを保存しても、その糸は共有の錠を取る（置き場の切り替えは糸ごと）"""
+        st = MasterStore(self.env.base, local_root=self.env.tmp / "t", settings={"dir": str(self.env.share), "masters": ["equipment_master"]},
+                         who={"pc": "PC-A", "login": "me"})
+        box = {}
+
+        def mutate(rows, stamp):
+            th = threading.Thread(target=lambda: box.update(r=st._lock_file()))
+            th.start()
+            th.join(5)
+            box["mine"] = st._lock_file()
+            return None
+        st.write("roll_master", mutate)
+        self.assertEqual(box["mine"], self.env.base / "data" / "master.lock.json")
+        self.assertEqual(box["r"], self.env.share / "master.lock.json", "別の糸の置き場は共有のまま")
+
+    def test_first_local_save_of_a_master_with_defaults(self):
+        """入れたばかりの手元だけの PC（data/ に無く、最初の中身〈app/master_defaults〉がある変換表）の初めての保存:
+        最初の中身の上で当て、保存できる（いつまでも断らない・中身を減らさない）"""
+        st = self.local("py")
+        first = st.read("conversions")
+        self.assertFalse((self.env.base / "data" / "conversions.json").exists())
+        self.assertGreater(len(first), 1, "最初の中身がある")
+        st.write("conversions", lambda rows, stamp: rows.append({"id": 9999, "name": "足した表"}))
+        after = st.read("conversions")
+        self.assertEqual(len(after), len(first) + 1, "最初の中身は残して 1 つ足す")
+
+    def test_broken_lock_is_taken_after_its_time(self):
+        """書きかけ・壊れた錠（中身の読めない錠）が残っても、錠の長さを過ぎればどけて保存できる（手元・共有とも。前は
+        どけた物を「ほかの錠」と見て元へ戻し、いつまでも断っていた）"""
+        st = MasterStore(self.env.base, local_root=self.env.tmp / "b", settings={"lock_ttl_seconds": 0.3}, who={"pc": "PC-A", "login": "me"})
+        (self.env.base / "data" / "master.lock.json").write_text("{書きかけ", encoding="utf-8")
+        with self.assertRaises(MasterLocked):
+            MasterRepository(st).rolls_update(1, {"備考": "すぐは断る"})
+        time.sleep(0.5)
+        MasterRepository(st).rolls_update(1, {"備考": "壊れた錠の後"})
+        self.assertFalse((self.env.base / "data" / "master.lock.json").exists())
+        sh = self.env.store("PC-A", ttl=0.3)
+        sh.read("roll_master")
+        (self.env.share / "master.lock.json").write_text("", encoding="utf-8")
+        with self.assertRaises(MasterLocked):
+            sh.write("roll_master", lambda rows, stamp: None)
+        time.sleep(0.5)
+        sh.write("roll_master", lambda rows, stamp: None)
+
+    def test_two_roles_saving_side_by_side_keep_every_save(self):
+        """手元だけの PC で 2 つの係が並んで保存し続けても（錠待ちは取り直す）、保存できたと言った行はどれも残る（置き換えは錠の中）"""
+        py, rs = self.local("py"), self.local("rs")
+        errors = []
+
+        def run(st, tag):
+            for i in range(15):
+                ok = save_until_done(lambda i=i: st.write("pivot_presets", lambda rows, stamp: rows.append({"id": f"{tag}{i}"})))
+                if not ok:
+                    errors.append(f"{tag}{i}")
+        ts = [threading.Thread(target=run, args=(py, "p")), threading.Thread(target=run, args=(rs, "r"))]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join(120)
+        ids = {r.get("id") for r in py.read("pivot_presets")}
+        self.assertEqual(errors, [])
+        said = {f"p{i}" for i in range(15)} | {f"r{i}" for i in range(15)}
+        self.assertEqual(said - ids, set(), "保存できたと言った行は残る")
+
+    def test_taking_away_a_broken_lock_keeps_a_new_live_lock(self):
+        """壊れた錠をどけるつもりで、その間にもう 1 つの係が取り直した生きた錠をどけたら、元へ戻す（消さない）"""
+        py, rs = self.local("py"), self.local("rs")
+        with rs._lock_here(True):
+            token = rs._acquire_lock()
+        with py._lock_here(True):
+            self.assertEqual(py._take_away("broken:1:2"), "other")
+            self.assertEqual((py._read_lock() or {}).get("token"), token, "相手の錠は元のまま")
+
+    def test_file_changed_under_the_lock_is_refused(self):
+        """錠を持たない書き手（前の版など）が当てている間にファイルを変えたら、置き換えずに断る"""
+        py = self.local("py")
+        a = MasterRepository(py)
+        row = a.rolls_create({"設備": "TLV", "ロール名": "外の書き手"})
+        path = self.env.base / "data" / "roll_master.json"
+
+        def mutate(rows, stamp):
+            time.sleep(0.02)
+            path.write_text(json.dumps(json.loads(path.read_text(encoding="utf-8")) + [{"id": 9999}], ensure_ascii=False), encoding="utf-8")
+            next(r for r in rows if r["id"] == row["id"])["備考"] = "上書きしない"
+            return None
+        with self.assertRaises(MasterLocked):
+            py.write("roll_master", mutate)
+        self.assertTrue(any(r.get("id") == 9999 for r in json.loads(path.read_text(encoding="utf-8"))), "外の書き手の保存は残る")
+
+
 class ReadFromMirror(Base):
     def test_seed_and_read_mirror(self):
         a = self.env.repo("PC-A", refresh=60)
@@ -200,6 +493,17 @@ class Lock(Base):
         a._acquire_lock()
         with self.assertRaises(MasterLocked):
             twin._acquire_lock()
+
+    def test_leftover_lock_of_a_pc_with_clock_ahead_is_taken_after_the_ttl(self):
+        """時計が 1 時間進んだ PC が落ちて残した錠（期限が 1 時間先に書いてある）も、この PC で見てから錠の長さが経てば取れる
+        （前は、書かれた期限が錠の長さより先の間ずっと錠の長さを返し、時計のずれの分〈1 時間〉取れなかった）"""
+        a = self.env.repo("PC-A", ttl=0.3)
+        a.rolls()
+        self.env.put_lock("PC-B", seconds=3600)
+        with self.assertRaises(MasterLocked):
+            a.rolls_update(1, {"備考": "見てすぐは断る"})
+        time.sleep(0.5)
+        a.rolls_update(1, {"備考": "錠の長さの後は取れる"})
 
     def test_expired_lock_is_taken(self):
         a = self.env.repo("PC-A")
