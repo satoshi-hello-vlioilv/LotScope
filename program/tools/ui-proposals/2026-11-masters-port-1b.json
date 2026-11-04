@@ -1,0 +1,155 @@
+{
+ "title": "マスタ・権限を Rust へ移す 1 段目 b: 一覧・ダッシュボードの出さないタブと勤務体系を直せるかを窓の me から（版 3.65.1。Lot::lists_of）",
+ "rule": "2026-10-17",
+ "applies": "2026-11-masters-port.json",
+ "rounds": [],
+ "evaluator": "作った後（1 段目 b・版 3.65.1）の採点者（案を作っていない、これまでの採点者とも別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは 2026-11-masters-port-1a.json の built_before1 の evaluator と同じ（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。試験の組の無い境・読んで見つけた食い違いは hidden_state −3、中身を変える書き込みが門番を抜ける穴・出してはいけないタブの中身が出る穴は lost −10）。読んだ物: git show 44410e9 の全部、lot.rs（Settings・settings の 10 秒・lists_of・access_check・handle・handle_body・after_python・作業実績の答えの canEditShifts）・lists.rs（Conf・denied・lot_plan・work_plan・src_plan）・dashboard.rs（Ctx・conf の使い道）・access.rs（me・Gate::me の 2 秒と切断の 5 秒・can_write・master_scope）・main.rs（native・lot_settings は見出しを付けない・guard・after）・router.rs（画面の X-TPA-Me を捨てる）・sidecar.rs（SERVES）・routes/common.py（me・_shell_me・can_write・tab_denied）・routes/lotlist.py（lotlist_settings・lists_settings・_access_place）・worklog.py・sources.py の tab_denied・tools/ui_server.py（as_role の使い手は ui_server と tests/*_oracle.py だけ）。Conf を作る所は lot.rs の 2 か所だけで、どちらも lists_of を通る（examples・tests に Conf を作る所は無い）。流した物（終了コードと結果の行で読んだ）: cargo test --locked --test access_parity（5 passed・終了 0）・--test dash_parity（1 passed・終了 0）・--test routes_parity（1 passed・終了 0）・--lib（62 passed・終了 0）・python -m unittest tests.test_access tests.test_lists_shell（Ran 33・OK・終了 0）。変異試験: 始める前に lot.rs・access.rs・lists.rs・tools/ui_server.py・routes/lotlist.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1d/orig/ に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1d/muts.py で 16 個（P1〜P16）を 1 つずつ入れて上の 5 つを流し、毎回写しへ戻して filecmp で確かめた（結果 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1d/mut.json・mut.log・log_*.txt。落ちた物はどれも試験の失敗で、コンパイルの失敗ではない）。見つけた 10・見逃した 6（P2・P3・P4・P6・P14・P15）。P15（材料が無い形の確かめを外す）は一時の試験で Gate::me(null) が「名乗りがありません」の Err になることを確かめ、同じ答えの書き換えと分けた（一時の試験は消した）。最後に 5 ファイルとも写しと cmp で同じ、git status --short が始める前と同じ（採点のファイルのほかは変えていない。commit・push はしていない）ことを確かめた",
+ "baseline": {
+  "今": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 6,
+    "visual": 7,
+    "steps": 7,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 7,
+    "place": 7,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "作る前（版 3.65.0）の lot.rs の handle・handle_body が Conf { v: &s.lists } を使い、出さないタブ（hidden）と canEditShifts は Python が見出しの無い /api/lotlist/settings で自分の me から作った値（10 秒覚える）。門番と Python の答える道（tab_denied）・見出しのタブ（/api/me）は窓の me（2 秒）なので判定の元が 2 つあり、1a の採点で残った窓と Python の差（129 段を超える入れ子・NaN の字・Unicode の版の差）や、ほかの PC がタブの決まりを書いた直後の最長 10 秒の間は、窓が答える一覧と Python が答える道で出す・出さないが食い違い得た"
+    }
+   ],
+   "seen": "作る前（版 3.65.0）: 権限の判定と門番は窓（access.rs）に移ったが、窓が答える一覧・集計・スライサー・ダッシュボードのパネルの断り（lists.rs の Conf::denied）は Python の hidden を使っていた。決まりは同じでも元が 2 つ。"
+  }
+ },
+ "built_before1": {
+  "name": "作った後（1 段目 b・版 3.65.1）",
+  "evaluator": "作った後（1 段目 b・版 3.65.1）の採点者（案を作っていない、これまでの採点者とも別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは 2026-11-masters-port-1a.json の built_before1 の evaluator と同じ（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。試験の組の無い境・読んで見つけた食い違いは hidden_state −3、中身を変える書き込みが門番を抜ける穴・出してはいけないタブの中身が出る穴は lost −10）。読んだ物: git show 44410e9 の全部、lot.rs（Settings・settings の 10 秒・lists_of・access_check・handle・handle_body・after_python・作業実績の答えの canEditShifts）・lists.rs（Conf・denied・lot_plan・work_plan・src_plan）・dashboard.rs（Ctx・conf の使い道）・access.rs（me・Gate::me の 2 秒と切断の 5 秒・can_write・master_scope）・main.rs（native・lot_settings は見出しを付けない・guard・after）・router.rs（画面の X-TPA-Me を捨てる）・sidecar.rs（SERVES）・routes/common.py（me・_shell_me・can_write・tab_denied）・routes/lotlist.py（lotlist_settings・lists_settings・_access_place）・worklog.py・sources.py の tab_denied・tools/ui_server.py（as_role の使い手は ui_server と tests/*_oracle.py だけ）。Conf を作る所は lot.rs の 2 か所だけで、どちらも lists_of を通る（examples・tests に Conf を作る所は無い）。流した物（終了コードと結果の行で読んだ）: cargo test --locked --test access_parity（5 passed・終了 0）・--test dash_parity（1 passed・終了 0）・--test routes_parity（1 passed・終了 0）・--lib（62 passed・終了 0）・python -m unittest tests.test_access tests.test_lists_shell（Ran 33・OK・終了 0）。変異試験: 始める前に lot.rs・access.rs・lists.rs・tools/ui_server.py・routes/lotlist.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1d/orig/ に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1d/muts.py で 16 個（P1〜P16）を 1 つずつ入れて上の 5 つを流し、毎回写しへ戻して filecmp で確かめた（結果 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1d/mut.json・mut.log・log_*.txt。落ちた物はどれも試験の失敗で、コンパイルの失敗ではない）。見つけた 10・見逃した 6（P2・P3・P4・P6・P14・P15）。P15（材料が無い形の確かめを外す）は一時の試験で Gate::me(null) が「名乗りがありません」の Err になることを確かめ、同じ答えの書き換えと分けた（一時の試験は消した）。最後に 5 ファイルとも写しと cmp で同じ、git status --short が始める前と同じ（採点のファイルのほかは変えていない。commit・push はしていない）ことを確かめた",
+  "images": "画面に出ない改良（画像なし）。変異試験 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1d/muts.py → mut.json・mut.log",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 6,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "窓が答える本物の道（lot.rs の handle・handle_body）が lists_of を通ることを守る試験が無い。P2（handle の lists_v を s.lists.clone() に戻す）・P3（handle_body を同じく戻す）を入れても access_parity・routes_parity・dash_parity・--lib・test_access/test_lists_shell が全部通る。試験 lists_take_hidden_tabs_from_the_shell_me は lists_of を直に呼ぶだけで、突き合わせの係（routes_oracle・dashboard_oracle）は ui_server.as_role が _access_place を None にするので access が null になり、lists_of はいつも Python の値を返す（新しい道を一度も通らない）。戻すと答えが変わる（窓の me と Python の me が違う時に、出さないタブの中身が窓の一覧・ダッシュボードから出る／出すべきタブが断られる）。再現: 上の 2 か所を書き換えて 5 つを流す"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "勤務体系を直せるか（canEditShifts）の境が試験で見えない。P4（access::can_write が切断を見ない）・P6（can_write に渡す名前を shift_patterns から管理のマスタ tab_access に替える＝部分的編集可の人が直せなくなる）・P14（作業実績の答えの work.canEditShifts を Python の s.lists の値から取る）がどれも見逃される。試験は閲覧のみ（false）と開発者（true）の 2 組だけで、切断中・部分的編集可・作業実績の答えに載る値の組が無い。どれも答えが変わる（切断中の人に「交替勤務(1,2,3直)を全設備に当てる」のボタンが出る。書き込みは門番が断るので lost ではない）"
+    }
+   ],
+   "seen": "良い所: 判定の元は窓の 1 つになった。Conf を作る所は lot.rs の 2 か所だけで両方 lists_of を通り、lists.rs・dashboard.rs に s.lists を直に使う道は残っていない。窓が尋ねる /api/lotlist/settings は見出しを付けないので Python が作る lists は旧い値だが、窓はそれを上書きし、門番・Python の tab_denied・/api/me は同じ窓の me（2 秒・切断 5 秒）を使うので、覚えの長さ・権限を書いた直後（after_python が設定と me の覚えを両方捨てる）・名乗りの切り替え（who は設定の access から、門番と同じ物）で食い違う道は見つからなかった。窓が me を決められない時は lists も Python の値・門番も見出しを載せない（Python が自分で決める）ので両方そろう。出さないタブの表が読めない時は窓も Python も [] で同じ（fail-open は前と同じ）。ui_server.as_role の差し替えは ui_server と tests/*_oracle.py だけが呼び、デスクトップ版の Python（create_app）には効かない。悪い所: 新しい道を試験が通らない（上の減点）。Python の lists_settings はまだ毎回 me() と can_write を数えて捨てる（計画の「Python の me の呼び出しを減らす」はしていない）ので作りの重複が残る。変異 16 個のうち 10 個を見つけ、見逃した 6 個のうち 5 個（P2・P3・P4・P6・P14）は答えが変わる物、P15 は同じ答えの書き換え"
+  }
+ },
+ "fixed_after1": "1 段目 b の作った後の 1 回目（68.7 点）の後に作った者が直したこと: 試験 lot::tests::the_real_paths_use_the_shell_me_for_tabs_and_shifts を足した。窓が答える本物の道（一覧の handle と、ダッシュボードの handle_body）を、Python の値をわざと逆にした設定（hidden は空・canEditShifts は false）と本物の権限の表で問い、①設備作業者は区分の決まりで実績の一覧もダッシュボードの実績のパネルも 403、②メンテナンス者と③部分的編集可は勤務体系を直せる（現場のマスタ）、④閲覧のみは直せない、⑤切断されている間は直せない、を確かめる。採点者が見逃しを示した P2（handle が lists_of を通らない）・P3（handle_body）・P4（can_write が切断を見ない）・P6（管理のマスタと取り違える）・P14（作業実績の答えの canEditShifts を Python の値から取る）を入れ直し、5 つとも試験が落ちることを確かめた（入れた後は cmp で戻した）。残る重複（Python の lists_settings が毎回 me と can_write を計算し、窓が上書きする）は、窓が me を決められないときの引き継ぎに使うので残した。",
+ "built_before2": {
+  "name": "作った後（1 段目 b・版 3.65.1）の 2 回目",
+  "evaluator": "作った後の 2 回目の採点者（案を作っていない、これまでの採点者とも別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは built_before1 の evaluator と同じ（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。試験の組の無い境・読んで見つけた食い違いは hidden_state −3、中身を変える書き込みが門番を抜ける穴・出してはいけないタブの中身が出る穴は lost −10）。読んだ物: git show 44410e9・06e9fc1、lot.rs（Settings・settings・lists_of・access_check・handle_body・handle・作業実績の答えの canEditShifts・Route::of・after_python と changes_settings・試験 the_real_paths_use_the_shell_me_for_tabs_and_shifts）、access.rs（me・can_write・guard・Gate::me の覚えの鍵〈conf 全体〉と切断の覚えの鍵〈who.key〉・hidden_tabs・Place::rows）、lists.rs（Conf・denied・lot_plan・work_plan_wait・src_plan の joined）、dashboard.rs（panel_parts の実績・品質・データ元の段取り・答えの控えは段取りの後）、main.rs・router.rs（門番と見出し）、routes/common.py（me・_shell_me・can_write・tab_denied と 2 秒の覚え）、routes/lotlist.py（lotlist_settings・lists_settings・_access_place）、worklog.py（canEditShifts は work=1 のときだけ。窓も同じ）、master_store.py（Python は写しを数秒ごとに取り直し、窓は共有を直に読む）、identity.py（名乗りは起動のときだけ決まる）、tools/ui_server.as_role。流した物（終了コードと結果の行で読んだ）: cargo test --locked --lib（63 passed・終了 0）・--test access_parity（5 passed・終了 0）・--test dash_parity（1 passed・終了 0）・--test routes_parity（1 passed・終了 0）・python -m unittest tests.test_access tests.test_lists_shell（Ran 33・OK・終了 0）。変異試験: 始める前に lot.rs・access.rs・lists.rs・dashboard.rs・routes/lotlist.py・routes/common.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1e/orig/ に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1e/muts.py で前の回（P1〜P16）と重ならない 16 個（Q1〜Q16）を 1 つずつ入れて lib → access_parity → routes_parity → dash_parity → Python の 2 つを流し（落ちた所で止める）、毎回写しへ戻して filecmp で確かめた（結果 mut.json・mut.log・log_*.txt）。落ちた物はどれも試験の失敗でコンパイルの失敗ではない。見つけた 10（Q1・Q4〜Q10・Q14・Q15）・見逃した 6（Q2・Q3・Q11・Q12・Q13・Q16）。見逃した Q11・Q12 は Python の試験全部（684）でも流し、落ちたのは版の印（test_version）と採点のファイル（test_ui_score。始める前から built が無いので落ちる）だけで、中身の試験は通った（full_Q11.txt・full_Q12.txt）。作った者が直したと言う P2・P3・P6・P14 は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1e/recheck.py で入れ直し、4 つとも --lib が落ちることを確かめた（P4 は形の違う Q1 で確かめた）。最後に 6 ファイルとも写しと cmp で同じ、git status --short が始める前と同じ（採点のファイルのほかは変えていない。commit・push はしていない。一時の試験ファイルは作っていない）ことを確かめた",
+  "images": "画面に出ない改良（画像なし）。変異試験 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1e/muts.py → mut.json・mut.log、確かめ直し recheck.py → recheck.json",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "窓が me を決められないときの引き継ぎ（lists_of が Python の値を返す道）の勤務体系を直せるかが試験に無い。Q11（routes/lotlist.lists_settings の \"canEditShifts\": can_write(shifts.NAME) を True に）・Q12（routes/common.can_write が切断〈m[\"revoked\"]〉を見ない）を入れても、--lib・access_parity・routes_parity・dash_parity・test_access/test_lists_shell が通り、Python の試験全部（684）でも中身の試験は通る（落ちるのは版の印だけ）。tests/ に can_write・canEditShifts を確かめる試験が 1 つも無い。どちらも答えが変わる（Q11: 権限の表を窓が読めない PC で閲覧のみの人に「交替勤務(1,2,3直)を全設備に当てる」が出る。Q12: Python が答える画面〈マスタの canEdit・引き継ぎの canEditShifts〉で切断中の PC にボタンが出る）。書き込みは門番（窓・Python）が断るので lost ではない。access_parity の lists_take_hidden_tabs_from_the_shell_me の引き継ぎの組は、Python の値をそのまま返すことだけを見て、Python がその値を正しく作るかは見ていない。再現: 上の 2 か所を書き換えて 5 つを流す（mut.json の Q11・Q12）"
+    }
+   ],
+   "seen": "良い所: 前の回の 2 つの減点は直った。本物の道（handle・handle_body）を Python の値をわざと逆にした設定で問う試験ができ、P2・P3・P6・P14 と Q1（勤務体系を caps から取る＝切断を見ない）・Q6（タブの権限を書いた後に覚えを捨てない）・Q7（断る言葉）・Q8（ダッシュボードの実績のパネル）を --lib が見つける。ダッシュボードの品質・データ元のパネル（Q9・Q10）・名乗りと切断の覚えの鍵（Q4・Q5）・開発者と読めないタブの権限（Q14・Q15）は dash_parity・access_parity が見つける。前と違う角度で探した穴: ①名乗りの切り替え: 名乗りは起動のときだけ決まり（identity.set_override は create_app だけ）、me の覚えの鍵は conf 全体・切断の覚えは who.key なので、切り替えで古い me を使う道は無い。②覚え: 設定 10 秒・me 2 秒・切断 5 秒で、lists_of・門番・Python の tab_denied（窓が載せた me）は同じ窓の me を見る。ダッシュボードの答えの控えは段取り（出さないタブの判定）の後に引くので、出さないタブにした直後に控えから中身が出ることは無い。③権限を書いた直後: after_python が設定と me の覚えを捨て、窓は共有を直に読む（Python は写しを数秒ごとに取り直す）ので、窓の方が先に新しい決まりを使う。Python が答える道も窓の me を見出しで受けるので食い違わない。④窓の me と Python の hidden が食い違う時: 窓が me を決められる限り窓の値、決められなければ両方 Python の値で、門番も見出しを載せない。品質の source・refresh、実績・データ元の source はどちらも出さないタブを見ない（Python と同じ）。⑤材料が無い時: lists が null なら窓は品質だけ答え、Python は lists を作れないとき engine を python にするので、窓が出さないタブを知らずに答える道はいまの Python には無い。答えが変わる穴は見つからなかった。悪い所: 引き継ぎの道の勤務体系の境が試験に無い（上の減点）。access::can_write は scope を名前から決めるが、いまの呼び手は勤務体系（現場）だけで、管理のマスタの組の試験が無い（Q3。いまは同じ答え）。Python の lists_settings は毎回 me と can_write を数えて窓が上書きする重複が残る（引き継ぎに使うので理由はある）。見逃した 6 のうち答えが変わるのは Q11・Q12、同じ答えの書き換えは Q2（caps の hiddenTabs）・Q13（who で確かめる）・Q16（覚えを使わない＝遅いだけ）、Q3 はいまの呼び手では同じ答え"
+  }
+ },
+ "fixed_after2": "作った後の 2 回目（74.3 点）の後に作った者が直したこと: 窓が me を決められないときに引き継ぐ Python の値が試験で守られていなかった所に、tests/test_access.py の Presence.test_can_write_and_shifts_follow_role_and_disconnect を足した。メンテナンス者・部分的編集可・閲覧のみ・設備作業者の 4 つで、一覧の設定の答えの lists.work.canEditShifts と、画面の canEdit（勤務体系＝現場のマスタ・タブの権限＝管理のマスタ）を見て、切断の間はどれも書けない・解けば書ける、を確かめる。採点者が見逃しを示した Q11（lists_settings の canEditShifts を True にする）・Q12（common.can_write が切断を見ない）を入れ直し、2 つとも試験が落ちることを確かめた（入れた後は cmp で戻した）。",
+ "built_before3": {
+  "name": "作った後（1 段目 b・版 3.65.1）の 3 回目",
+  "evaluator": "作った後の 3 回目の採点者（案を作っていない、前の 2 回の採点者とも別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは built_before1 の evaluator と同じ。読んだ物: git show 44410e9・06e9fc1・7575b7e、lot.rs（Settings・settings・lists_of・access_check・handle_body・handle・作業実績の答えの canEditShifts・試験 the_real_paths_use_the_shell_me_for_tabs_and_shifts）、access.rs（flags の masterEdit と masterEditStored・tab_rules・tab_exceptions・hidden_tabs・me・can_write・guard・Gate::me の覚えと切断の覚え）、lists.rs（Conf::hidden・denied・lot_plan・work_plan_wait・src_plan）、dashboard.rs（panel_parts の 1 周目 joined=false・2 周目 joined=true）、router.rs・sidecar.rs（見出しは JSON の枠で渡る・画面の見出しは捨てる）、routes/common.py（me・_shell_me・can_write・tab_denied の 2 秒の覚え）、routes/lotlist.py（lotlist_settings・lists_settings・_access_place）、worklog.py・sources.py の段取り、services/access.py（TAB_KEY・tab_rules・hidden_tabs・master_scope）、services/data_sources.py（データ元の鍵は s＋16 進 8 桁）、tests/test_access.py の新しい試験、tools/ui_server.as_role。流した物（終了コードと結果の行で読んだ）: cargo test --locked --lib（63 passed・終了 0）・--test access_parity（5 passed・終了 0）・--test dash_parity（1 passed・終了 0）・--test routes_parity（1 passed・終了 0）・python -m unittest tests.test_access tests.test_lists_shell（Ran 34・OK・終了 0）。変異試験: 始める前に lot.rs・access.rs・lists.rs・routes/common.py・routes/lotlist.py・services/access.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1f/orig/ に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1f/muts.py で前の回（P1〜P16・Q1〜Q16）と重ならない 15 個（R1〜R15）を 1 つずつ入れて lib → access_parity → routes_parity → dash_parity → Python の 2 つを流し（落ちた所で止める）、毎回写しへ戻して filecmp で確かめた（結果 mut.json・mut.log・log_*.txt）。落ちた物はどれも試験の失敗でコンパイルの失敗ではない。見つけた 10（R2・R3・R4・R6・R8・R10〜R14）・見逃した 5（R1・R5・R7・R9・R15）。最後に 6 ファイルとも写しと cmp で同じ、git status --short が始める前と同じ（採点のファイルのほかは変えていない。commit・push はしていない。一時の試験ファイルは作っていない）ことを確かめた",
+  "images": "画面に出ない改良（画像なし）。変異試験 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1f/muts.py → mut.json・mut.log",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "窓の access::can_write（勤務体系を直せるか）が、区分の上限を掛けた後の段（flags.masterEdit）を見ることが Rust の試験で守られていない。R1（can_write が masterEditStored＝上限を掛ける前の段を見る）を入れても --lib・access_parity・routes_parity・dash_parity・test_access/test_lists_shell が全部通る。lot.rs の試験 the_real_paths_… の①設備作業者は 403 だけを見て canEditShifts を見ず、②〜⑤はどれも上限と保存した段が同じ人。設備作業者でマスタ編集が空（保存した段は既定の「編集可」・効く段は「非表示」）の人に、実績のタブを出している現場では窓の作業実績の答えの work.canEditShifts が true になり「交替勤務(1,2,3直)を全設備に当てる」が出る（答えが変わる。書き込みは門番が効く段で断るので lost ではない）。Python 側は tests/test_access.py の o1 が守るが、窓の側に同じ組が無い。再現: muts.py R1"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "窓の me の覚え（Gate::me の 2 秒）が切れることを試験が見ていない。R5（覚えの時刻を見ない＝同じ材料なら永久に覚える）を入れても 5 つとも通る（access_parity の with_ttl は me 600 秒・切断 0 秒の組だけで、切れる側の組が無い）。版 3.65.1 から一覧・ダッシュボードの出さないタブ（lists_of）と勤務体系もこの覚えから決まるので、ほかの PC が共有の権限の表・タブの権限を直しても、この窓がマスタを書く（after_python の forget）か材料が変わるまで、出さないタブにした人に実績の一覧・ダッシュボードの中身が出続ける（答えが変わる）。再現: muts.py R5"
+    }
+   ],
+   "seen": "良い所: 前の 2 回の減点（本物の道が lists_of を通る・引き継ぎの Python の値）は試験で守られた。作った者が直したと言う所は R10（Python が窓の me を使わない）・R11（Python の tab_denied がいつも出す）・R12（Python の lists の hidden がいつも空）を routes_parity・Python の試験が、R13（窓と Python の値の OR）・R14（Python の master_scope がいつも現場）を access_parity が見つけ、区分の決まりの後の行が勝つ（R3）・人ごとの例外の「出す」（R4）・並び（R2）・切断の覚えの切れ（R6）・データ元の段取りの出さないタブ（R8）も見つかった。前と違う角度で探した所: ①見出しの渡し方: 窓は画面の X-TPA-Me を捨て、me は JSON の枠（sidecar の head.headers）で Python へ渡るので、日本語の区分が化けて Python の normalize で「編集可」に戻る道は無い。②引き継ぎの段: 窓が me を決められず Python も決められないとき両方 [] で出す（前と同じ fail-open）。Python だけが決められるときは lists も Python の値・門番は見出しを載せず Python が決めるのでそろう。③データ元の鍵は s＋16 進 8 桁なので、出さないタブの頭の一致（R7）は実際の鍵では同じ答え。④ダッシュボードの実績のパネルの 1 周目（joined=false）は写しを起こすだけで、2 周目で断るので中身は出ない（Python の start_mirrors と同じ）。答えが変わり出してはいけない物が出る穴は見つからなかった。悪い所: 窓の can_write の効く段と、me の覚えが切れることが試験に無い（上の減点）。登録の無い設備を出さないタブの人が尋ねたときの断る順（R9: 403 が 404 になる。失敗の種類だけが変わる）も試験に無い。Python の lists_settings が毎回 me と can_write を数えて窓が上書きする重複は残る（引き継ぎに使うので理由はある）。見逃した 5 のうち答えが変わるのは R1・R5（減点）と R9（失敗の種類だけ。減点しない）、同じ答えの書き換えは R7（実際の鍵では頭が重ならない）・R15（切断の見方を null で見る。revocation は null か中身のある表しか返さない）"
+  }
+ },
+ "fixed_after3": "作った後の 3 回目（71.3 点）の後に作った者が直したこと: ①R1（can_write が効く段でなく保存した段を見る）を見つける組を lot の試験に足した（設備作業者でマスタ編集が空）。②R5（me の覚えが切れない）を見つける試験 access_parity::remembered_me_expires を足した。③利用者が「重複も減らしてから」を選び、判定の元を道ごとに 1 つにした: 窓が権限を受け持つとき（TPA_SHELL_SERVES に access）、Python の一覧の設定（lotlist.lists_settings）は出さないタブ・勤務体系を直せるかを決めず null で返し（Python の me を呼ばない）、窓は自分の me から決める。窓が me を決められない（権限の表を読めない）・材料が無く Python も決めていない（hidden が null）ときは、窓は答えず問い合わせを Python に任せ、Python が自分の me で答える（null を「出さないタブ無し」と読ませない）。前の版の Python（hidden を決めて返す）と組んだときはその値のまま。試験: ShellMe.test_settings_leave_tabs_and_shifts_to_the_shell（一覧の設定で me を呼ばない・前の窓では Python が決める）・lot の試験の⑦（窓が決められない: 一覧もダッシュボードも Python に任せる）・lists_take_hidden_tabs_from_the_shell_me（Python も決めていない null は答えない）。R1・R5 と、新しい判断を崩す 4 つ（null を出さないタブ無しと読む・決められないとき Python の値で答える・一覧で Python に任せない・Python が窓のときも決める）を入れ直し、どれも試験が落ちることを確かめた（入れた後は cmp で戻した）。",
+ "built": {
+  "name": "作った後（1 段目 b・版 3.65.1）の 4 回目",
+  "evaluator": "作った後の 4 回目の採点者（案を作っていない、前の 3 回の採点者とも別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは built_before1 の evaluator と同じ。読んだ物: git show b862942（と git log -4）、lot.rs（Settings・settings・lists_of・access_check・handle_body・handle・作業実績の答えの canEditShifts・試験の⑥⑦）、access.rs（Place::rows・me・can_write・guard・Gate::me／check）、lists.rs（Conf::hidden・denied）、sidecar.rs の SERVES、routes/lotlist.py（lotlist_settings・lists_settings・_access_place・lotlist_refresh）、routes/common.py（me・_shell_me・can_write・tab_denied の覚え）、app/__init__.py（shell_serves・mirror_is_external・lists_are_external・work_mirrors・make_lot_mirror）、services/db_mirror.py（受け身・refresh・_save_entry の錠）、tools/ui_server.as_role、tests/*_oracle.py の TPA_SHELL_SERVES、RUST_PORT_PLAN.md の順 5。流した物（終了コードと結果の行で読んだ）: cargo test --locked --lib（63 passed・終了 0）・--test access_parity（6 passed・終了 0）・--test dash_parity（1 passed・終了 0）・--test routes_parity（1 passed・終了 0）・python -m unittest tests.test_access tests.test_lists_shell（Ran 35・OK・終了 0）。変異試験: 始める前に lot.rs・access.rs・routes/lotlist.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1g/orig/ に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1g/muts.py で前の回（P・Q・R）と重ならない 16 個（S1〜S16。null の扱い・Python に任せる道・前の版の Python との組み合わせ・Python の shell_decides）を 1 つずつ入れて lib → access_parity → routes_parity → dash_parity → Python の 2 つを流し（落ちた所で止める）、毎回写しへ戻して filecmp で確かめた（結果 mut.json・mut.log・log_*.txt）。落ちた物はどれも試験の失敗でコンパイルの失敗ではない。見つけた 11（S1・S3〜S9・S11・S12・S16）・見逃した 5（S2・S10・S13・S14・S15）。穴の再現に一時の試験 desktop/tests/zz_tmp_refresh_probe.rs と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1g/passive_refresh.py を使い、試験ファイルは流した直後に消した。最後に 3 ファイルとも写しと cmp で同じ、git status --short が始める前と同じ（採点のファイルのほかは変えていない。commit・push はしていない）ことを確かめた",
+  "images": "画面に出ない改良（画像なし）。変異試験 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1g/muts.py → mut.json・mut.log。穴の再現 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1g/passive_refresh.py",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 9,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 8,
+    "place": 9,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "lot.rs の handle は、どの道でも先に lists_of を呼び、None なら Python に任せる（256 行）。権限の判定が要らない品質の「再読込」（POST /api/lotlist/refresh）・データの時刻（/api/lotlist/source）・作業実績の再読込まで、窓が me を決められないとき（共有の権限の表と写しが壊れている・共有しない PC で data/access_permissions.json が壊れている）は Python に回る。版 3.65.0 と、この版の 1〜3 回目までは窓が答えていた。Python の品質の写しの係は受け身（mirror_is_external）だが、DbMirror.refresh は受け身を見ずに自分で共有から写して台帳を書く（_save_entry の錠はプロセスの中だけ）。窓の写しの係もその前に self.mirror(&s) で動いているので、同じ PC・同じ台帳に写しの係が 2 つになる（db_mirror.py の冒頭が禁じる形。世代の番号・台帳の書き合い・古い世代の掃除がぶつかりうる）。再現: ①一時の試験（Lot::new・設定は access に共有の access_permissions.json を「{」、写しを「[」にした置き場、lists.hidden は null）で handle(\"POST\", \"/api/lotlist/refresh\") と GET /api/lotlist/source がどちらも None（Python へ回る）②/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1g/passive_refresh.py で passive=True の DbMirror.refresh() が updated=True・how=copy で lot_list.g1.sqlite3 と _mirror.json を書く。試験⑦は GET /api/worklog とダッシュボードしか見ていない。直し方の候補: 出さないタブを見ない道（Lot の Source・Refresh、Work の Source、Src の Source）は lists_of の前に答える（または Python の受け身の refresh を窓へ知らせる形にする）"
+    }
+   ],
+   "seen": "良い所: 利用者の選んだ「重複を減らす」は筋どおりにできている。窓が権限を受け持つとき Python の lists_settings は me も can_write も呼ばず null を返し（S8・S9 を Python の試験が見つける）、窓は自分の me で決め、決められなければ答えず Python に任せる（S3・S6 を lot の試験⑦が見つける）。前の版の Python との組み合わせ（hidden が配列で材料が無い）は Python の値のまま答え（S16）、段取りの材料の無い中身とは品質だけ（S1・S11）、窓が値を上書きすること（S4・S5）、勤務体系の判定のマスタの段（S12）、受け持つかの判定が access を見ること（S7。routes_parity が見つける）も試験に守られている。前の回の減点（R1 の効く段・R5 の覚えの切れ）は直り、試験が付いた。前と違う角度で確かめた所: ①突き合わせの係（routes_oracle・dashboard_oracle・pivot_oracle・ops_oracle）は TPA_SHELL_SERVES に access を入れないので、Python が hidden を決める前の窓の形で比べている。Python が null を返す本物の形は ShellMe と lot の試験だけが見る（作り物の lists）が、窓は null を自分の me で上書きするので答えは食い違わない。②as_role は _access_place を None にするので、本物の窓と組めば全部 Python に回るが、as_role はブラウザの開発用サーバーだけで使われる。③窓と Python は同じ ZIP で配られ、SERVES は定数なので、新しい Python と access を受け持たない窓の組は起きない。④Python の tab_denied の 2 秒の覚えは鍵が名乗りだけで、窓の me と Python の me のどちらから作ったかを見ないが、前の版からの形で、どちらも同じ表から決めるので答えは同じ。悪い所: 窓が me を決められないとき、権限の要らない道（再読込・データの時刻）まで Python に回り、受け身の Python が自分で写す（上の減点）。見逃した 5 のうち答えが変わるのは S13（Gate::me の覚えを名乗りだけで引く: ほかの PC が置き場を引っ越したとき、最長 2 秒だけ前の置き場の me。端の場合として減点しない）だけで、S2（hidden は配列か null しか来ない）・S10（access は null かオブジェクトしか来ない）・S14（窓が access を受け持たない形だけの道で、null と [] は窓が同じに読む）・S15（材料が無く Python が決めた値は bool なので null は来ない）は同じ答えの書き換え"
+  }
+ },
+ "fixed_after4": "作った後の 4 回目（77.0 点）の後に作った者が直したこと: 窓が me を決められないとき、出さないタブを見ない道（品質と作業実績とデータ元のデータの時刻・品質の再読込）まで Python に回り、同じ台帳に写しの係が 2 つ動く戻りを直した。lot.rs の handle で、これらの道は前の版と同じく出さないタブを見ずに lists_of の前に答える。lot の試験の⑦に、窓が me を決められないときも品質のデータの時刻・再読込・作業実績のデータの時刻は窓が答える、を足し、直す前の形（入口で必ず lists_of）に戻すと落ちることを確かめた（戻した後は cmp）。",
+ "accepted_by_user": {
+  "date": "2026-11-04",
+  "note": "作った後の採点は 4 回とも合格点 80 に届かなかった（68.7・74.3・71.3・77.0）。3 回目の後に利用者が「重複も減らしてから」を選び、判定の元を道ごとに 1 つにした（4 回目で hierarchy・place が上がった）。出してはいけないタブの中身が出る穴・門番を抜ける穴は 4 回とも無く、指摘はどれも試験が守っていない所か、変更で入れた戻り（4 回目のデータの時刻・再読込）で、そのたびに直して試験で守る形にした。利用者が「この形で決めて push」を選んだ。足りない点は、作る前より段と試験の道具が増えたこと（ステップ数・作りの量）と、窓が me を決められない PC では一覧を Python が答える（窓の速さが出ない）こと"
+ }
+}

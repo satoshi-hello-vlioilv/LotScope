@@ -627,6 +627,11 @@ pub fn me(conf: &Value, revoked: Option<Value>) -> Result<Value, String> {
     Ok(Value::Object(out))
 }
 
+/// この me でマスタ name を書けるか（routes/common.can_write: 切断されていない・その scope を書ける段。画面がボタンを出すかを決める）
+pub fn can_write(me: &Value, name: &str) -> bool {
+    !me.get("revoked").is_some_and(truthy) && master_edit_can(me["flags"]["masterEdit"].as_str().unwrap_or(""), "write", master_scope(name))
+}
+
 /// 書き込みの門番（routes/access._access_guard）。断るなら (状態, 種類, 言葉)
 pub fn guard(method: &str, path: &str, me: &Value) -> Option<(u16, &'static str, String)> {
     // 確かめの道（書かない）は POST のときだけ除く（DELETE /api/sources/check は「check」というデータ元を消す道になる）

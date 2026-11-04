@@ -44,6 +44,10 @@ def as_role(role):
     def flags(rows, login, pc):
         return {"role": role, "masterEdit": access.master_edit_cap(role), "masterEditStored": "", "matchedId": None}
     access.flags = flags
+    # 窓（desktop/src/access.rs）は本物の権限の表から決めるので、Python の判定を差し替えている間は判定の材料を渡さない
+    # （窓は Python の答えた出さないタブ・書けるかを使う。突き合わせの係 tests/*_oracle.py が窓と同じ前提で比べられるように）
+    from app.routes import lotlist
+    lotlist._access_place = lambda: None
 
 
 def seed_formats(repo):

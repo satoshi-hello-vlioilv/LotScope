@@ -138,13 +138,20 @@ def lists_settings():
     """一覧の段取りに要る物（版 3.60.0。デスクトップ版の Rust が品質・作業実績・データ元の一覧とスライサーを受け持つ: desktop/src/lists.rs）。
     hidden: この PC・このログインに出さないタブ（タブの権限）・sources: データ元の定義（場所・表・件数・ロット番号の列・結合・元）・
     work: 作業実績のフォルダ・決まり・設備の登録・shifts: 勤務体系（設備ごとの直）。マスタの中身を Python が読み、決めるのは Rust"""
+    from .. import shell_serves
     from ..services import shifts, work_log
     from .common import can_write, master_repo, me
     from .sources import all_sources
-    try:
-        hidden = list(me()["flags"]["hiddenTabs"])
-    except Exception:
-        hidden = []
+    # 窓が権限を受け持つとき（版 3.65.1）: 出さないタブ・勤務体系を直せるかは窓が自分の me から決める（判定の元を 1 つに）。ここでは決めない（null）。
+    # 窓が me を決められないときは、窓はその問い合わせを Python に任せ、Python が自分の me で答える（null を「出さないタブ無し」と読ませない）
+    shell_decides = "access" in shell_serves()
+    if shell_decides:
+        hidden = None
+    else:
+        try:
+            hidden = list(me()["flags"]["hiddenTabs"])
+        except Exception:
+            hidden = []
     repo = master_repo()
     wl = work_log.params(effective_settings(current_app))
     keep = ("key", "kind", "name", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode")
@@ -159,7 +166,7 @@ def lists_settings():
             "sources": [{k: s.get(k) for k in keep} for s in all_sources()],
             "work": {**{k: wl[k] for k in ("folder", "pattern", "table", "refresh_seconds", "stale_hours", "page_size")},
                      "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び")} for r in repo.work_logs()],
-                     "canEditShifts": can_write(shifts.NAME)},
+                     "canEditShifts": None if shell_decides else can_write(shifts.NAME)},
             "shifts": repo.shift_patterns()}
 
 

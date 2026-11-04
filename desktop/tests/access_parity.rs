@@ -162,3 +162,79 @@ fn revocation_is_laid_over_the_remembered_me() {
     assert!(gate.check("POST", "/api/masters/equipment", Some(&conf)).is_ok(), "切断が解ければ書ける");
     std::fs::remove_dir_all(&d).ok();
 }
+
+/// 段取りの材料（lists）の出さないタブと勤務体系を直せるかは、窓の me から決める（版 3.65.1。Python が自分で作った値を上書き）。
+/// 窓が me を決められないとき・Python も決めていないときは答えない（Python に任せる）。前の版の Python の値はそのまま
+#[test]
+fn lists_take_hidden_tabs_from_the_shell_me() {
+    use da_core::lot::Settings;
+    let d = common::work("access-lists");
+    let share = d.join("share");
+    std::fs::create_dir_all(&share).unwrap();
+    std::fs::write(
+        share.join("access_permissions.json"),
+        json!({"rows": [{"id": 1, "ログインID": "boss", "権限区分": "開発者"},
+                        {"id": 2, "ログインID": "u1", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "タブの例外": "{\"lot\": \"出さない\"}"}]})
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(share.join("tab_access.json"), json!({"rows": [{"タブ": "work", "出さない区分": "一般ユーザー"}]}).to_string()).unwrap();
+    let access = |login: &str| {
+        json!({"who": {"login": login, "pc": "PC-1", "pcSource": "", "key": format!("PC-1@{login}")},
+               "place": {"shareDir": share, "shared": ["access_permissions", "tab_access"], "data": d.join("data"),
+                         "defaults": d.join("defaults"), "cache": d.join("cache"), "presence": ""}})
+    };
+    // Python が自分の me から作った値（窓の me と違う形にしておく）
+    let python_lists = json!({"hidden": ["wip"], "sources": [], "work": {"canEditShifts": true, "rows": []}});
+    let lot = Lot::new(d.join("cache"));
+    let s = Settings::from_json(&json!({"lists": python_lists, "access": access("u1")}));
+    let v = lot.lists_of(&s).expect("窓が決める");
+    assert_eq!(v["hidden"], json!(["lot", "work"]), "出さないタブは窓の me（区分の決まり＋人ごとの例外）");
+    assert_eq!(v["work"]["canEditShifts"], false, "閲覧のみは勤務体系を直せない");
+    assert_eq!(v["sources"], json!([]), "ほかの材料は Python の答えのまま");
+    let boss = lot.lists_of(&Settings::from_json(&json!({"lists": python_lists, "access": access("boss")}))).unwrap();
+    assert_eq!((boss["hidden"].clone(), boss["work"]["canEditShifts"].clone()), (json!([]), json!(true)), "開発者は全部のタブ・直せる");
+    // 材料が無く、Python が決めた値がある（窓が権限を受け持たない前の版の Python）: その値のまま
+    assert_eq!(lot.lists_of(&Settings::from_json(&json!({"lists": python_lists}))), Some(python_lists.clone()));
+    // 材料が無く、Python も決めていない（権限を受け持つ窓と組んだ Python が置き場を読めなかった）: 窓は答えず Python に任せる
+    let undecided = json!({"hidden": null, "sources": [], "work": {"canEditShifts": null, "rows": []}});
+    assert_eq!(lot.lists_of(&Settings::from_json(&json!({"lists": undecided}))), None, "null を「出さないタブ無し」と読まない");
+    // 共有が壊れていて写しも壊れている（Python も me を決められない形。共有だけが壊れていれば写し・同梱で読む）
+    std::fs::write(share.join("access_permissions.json"), "{").unwrap();
+    std::fs::create_dir_all(d.join("cache")).unwrap();
+    std::fs::write(d.join("cache").join("access_permissions.json"), "[").unwrap();
+    let broken = Lot::new(d.join("cache2"));
+    assert_eq!(
+        broken.lists_of(&Settings::from_json(&json!({"lists": undecided, "access": access("u1")}))),
+        None,
+        "窓が me を決められない: Python に任せる"
+    );
+    std::fs::remove_dir_all(&d).ok();
+}
+
+/// me の覚えは長さが切れたら読み直す（ほかの PC が権限の表を直したとき、この窓が書かなくても遅くとも覚えの長さで効く）。切れる前は覚えた答え
+#[test]
+fn remembered_me_expires() {
+    let d = common::work("access-ttl");
+    let share = d.join("share");
+    std::fs::create_dir_all(&share).unwrap();
+    let put = |role: &str| {
+        let rows =
+            json!({"rows": [{"id": 1, "ログインID": "boss", "権限区分": "開発者"}, {"id": 2, "ログインID": "u1", "権限区分": role}]});
+        std::fs::write(share.join("access_permissions.json"), rows.to_string()).unwrap();
+    };
+    let conf = json!({"who": {"login": "u1", "pc": "PC-1", "pcSource": "", "key": "PC-1@u1"},
+                      "place": {"shareDir": share, "shared": ["access_permissions"], "data": d.join("data"), "defaults": d.join("defaults"),
+                                "cache": d.join("cache"), "presence": ""}});
+    let role = |g: &Gate| g.me(&conf).unwrap()["flags"]["role"].clone();
+    let (long, short) = (
+        Gate::with_ttl(std::time::Duration::from_secs(600), std::time::Duration::ZERO),
+        Gate::with_ttl(std::time::Duration::ZERO, std::time::Duration::ZERO),
+    );
+    put("設備作業者");
+    assert_eq!((role(&long), role(&short)), (json!("設備作業者"), json!("設備作業者")));
+    put("メンテナンス者"); // ほかの PC が書いた（この窓は書いていない＝forget しない）
+    assert_eq!(role(&long), json!("設備作業者"), "覚えている間は前の答え");
+    assert_eq!(role(&short), json!("メンテナンス者"), "覚えの長さが切れたら読み直す");
+    std::fs::remove_dir_all(&d).ok();
+}

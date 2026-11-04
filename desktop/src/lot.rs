@@ -129,6 +129,26 @@ impl Lot {
         Ok(s)
     }
 
+    /// 段取りの材料（lists）に、窓が決めた権限を重ねた物（版 3.65.1。順 5 の 1 段目 b）: 出さないタブ（hidden）と勤務体系を直せるか
+    /// （work.canEditShifts）は、門番と同じ窓の me から決める（判定の元を 1 つに。窓が権限を受け持つとき、Python はこの 2 つを決めず null で返す）。
+    /// None なら窓は答えず Python に任せる: 判定の材料（access）があるのに窓が me を決められない（権限の表を読めない）・材料が無く Python も
+    /// 決めていない（hidden が null）。材料が無く Python が決めた値がある（窓が権限を受け持たない前の版の Python）ときは、その値のまま
+    pub fn lists_of(&self, s: &Settings) -> Option<Value> {
+        let mut v = s.lists.clone();
+        if !s.access.is_object() {
+            let python_decided = v.is_null() || v["hidden"].is_array();
+            return python_decided.then_some(v);
+        }
+        let m = self.gate.me(&s.access).ok()?;
+        if let Some(o) = v.as_object_mut() {
+            o.insert("hidden".into(), m["flags"]["hiddenTabs"].clone());
+            if let Some(w) = o.get_mut("work").and_then(Value::as_object_mut) {
+                w.insert("canEditShifts".into(), json!(crate::access::can_write(&m, "shift_patterns")));
+            }
+        }
+        Some(v)
+    }
+
     /// 中身（Python）へ回す前の権限の判定と門番（access::Gate::check）。材料（名乗り・置き場）は一覧の設定と一緒に 10 秒覚える。
     /// 道（path）は百分率符号を戻した物を渡す（Python も戻してから道を合わせる）
     pub fn access_check(&self, method: &str, path: &str, ask: AskSettings) -> Result<Option<String>, (u16, &'static str, String)> {
@@ -201,7 +221,8 @@ impl Lot {
         }
         let body: Value = serde_json::from_slice(body).unwrap_or_default();
         let m = self.mirror(&s);
-        let conf = Conf { v: &s.lists };
+        let lists = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
+        let conf = Conf { v: &lists };
         let q = Quality { mirror: m, table: &s.table, page_size: s.page_size };
         let cx = dashboard::Ctx {
             lists: &self.lists,
@@ -232,12 +253,13 @@ impl Lot {
             return None;
         }
         let m = self.mirror(&s);
-        let conf = Conf { v: &s.lists };
-        let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
         let qs = lotlist::parse_query(query);
         let arg = |k: &str| qs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
         let lists = &self.lists;
-        let (what, plan) = match &route {
+        // データの時刻・再読込は出さないタブを見ない（前の版から）: 権限を決める前に答える（窓が me を決められなくても窓の写しの係が答え、
+        // Python に回して同じ台帳に写しの係を 2 つ動かさない）
+        let raw = Conf { v: &s.lists };
+        match &route {
             Route::Lot(Kind::Source) => return Some((200, m.source_info())),
             Route::Lot(Kind::Refresh) => {
                 let r = m.refresh();
@@ -249,9 +271,9 @@ impl Lot {
                     Some(w) => (200, w.source_info()),
                 })
             }
-            Route::Src(key, Kind::Source | Kind::Refresh) if conf.source(key).is_some_and(|d| d["kind"] == "cm3") => return None,
+            Route::Src(key, Kind::Source | Kind::Refresh) if raw.source(key).is_some_and(|d| d["kind"] == "cm3") => return None,
             Route::Src(key, Kind::Source) => {
-                let d = conf.source(key);
+                let d = raw.source(key);
                 let k = d.and_then(|d| d["base"].as_str()).filter(|b| !b.is_empty()).unwrap_or(key).to_string();
                 let mm = if k == "lot" { Some(m.clone()) } else { lists.src.peek(&k) };
                 return Some(match mm {
@@ -259,6 +281,12 @@ impl Lot {
                     Some(x) => (200, x.source_info()),
                 });
             }
+            _ => {}
+        }
+        let lists_v = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる（出さないタブを見る道）
+        let conf = Conf { v: &lists_v };
+        let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
+        let (what, plan) = match &route {
             Route::Lot(k) => (*k, lists.lot_plan(&conf, &q, true)),
             Route::Work(k) => (*k, lists.work_plan(&conf, &q, &arg("equip"), *k != Kind::Refresh, true)),
             Route::Src(key, k) => {
@@ -654,6 +682,86 @@ mod tests {
         assert!(v["error"].as_str().unwrap().starts_with("作業実績のフォルダに届きません（"));
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=d", &ask).unwrap();
         assert_eq!((st, v["kind"].as_str()), (503, Some("unreachable")), "写し終えていない係では見せない（前の写しが無い）: {v}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_real_paths_use_the_shell_me_for_tabs_and_shifts() {
+        // 版 3.65.1（順 5 の 1 段目 b）: 窓が答える本物の道（一覧 handle・ダッシュボード handle_body）が、出さないタブと勤務体系を直せるかを
+        // Python の答えた値でなく窓の me から決める（lists_of を通る）。Python の値はわざと逆にしておく
+        let dir = std::env::temp_dir().join(format!("da-lot-access-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (folder, share, pres) = (dir.join("実績"), dir.join("share"), dir.join("presence"));
+        for d in [&folder, &share, &pres] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let c = rusqlite::Connection::open(folder.join("実績_A.sqlite3")).unwrap();
+        c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT, 作業日 TEXT); INSERT INTO 実績 VALUES ('L1', '2026-11-04');").unwrap();
+        drop(c);
+        let perms = |rows: Value| std::fs::write(share.join("access_permissions.json"), json!({"rows": rows}).to_string()).unwrap();
+        std::fs::write(share.join("tab_access.json"), json!({"rows": [{"タブ": "work", "出さない区分": "設備作業者"}]}).to_string())
+            .unwrap();
+        let lists = json!({"hidden": [], "sources": [], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
+            "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
+                     "page_size": 500, "canEditShifts": false, "rows": [{"キー": "a", "設備名": "A", "ファイル名": "実績_A.sqlite3", "ファイルID": "", "表示": "有", "表": ""}]}});
+        let access = json!({"who": {"login": "u1", "pc": "PC-1", "pcSource": "", "key": "PC-1@u1"},
+            "place": {"shareDir": share, "shared": ["access_permissions", "tab_access"], "data": dir.join("data"),
+                      "defaults": dir.join("defaults"), "cache": dir.join("mcache"), "presence": pres}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone(), "access": access.clone()}));
+        let mut lot = Lot::new(dir.join("cache"));
+        lot.lists.list_ttl = Duration::ZERO;
+        let admin = json!({"id": 9, "ログインID": "boss", "PC名": "", "権限区分": "開発者"});
+        let work = |lot: &Lot| lot.handle("GET", "/api/worklog", "equip=a&work=1", &ask).unwrap();
+        let shifts = |v: &Value| v["work"]["canEditShifts"].clone();
+        let renew = |lot: &Lot| lot.after_python("PUT", "/api/masters/access/1", 200); // 権限を書いた後と同じく覚えを捨てる
+                                                                                       // ① 設備作業者: 区分の決まりで実績を出さない（Python の hidden は空なのに、窓が断る）。ダッシュボードの実績のパネルも
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "設備作業者"}]));
+        let (st, v) = work(&lot);
+        assert_eq!((st, v["kind"].as_str()), (403, Some("forbidden")), "一覧は窓の me の出さないタブで断る: {v}");
+        let body = serde_json::to_vec(&json!({"panel": {"id": "p", "visual": "kpi", "source": "work", "equips": ["a"]}})).unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask).unwrap();
+        assert_eq!(st, 403, "ダッシュボードのパネルも窓の me の出さないタブで断る: {v}");
+        // ② メンテナンス者（現場のマスタを書ける）: 実績を出し、勤務体系を直せる（Python の値は false）
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "メンテナンス者"}]));
+        renew(&lot);
+        let (st, v) = work(&lot);
+        assert_eq!((st, shifts(&v)), (200, json!(true)), "勤務体系は現場のマスタ（部分的編集可でも書ける）: {v}");
+        // ③ 部分的編集可: 勤務体系（現場のマスタ）は直せる。管理のマスタと取り違えると false になる
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "部分的編集可"}]));
+        renew(&lot);
+        assert_eq!(shifts(&work(&lot).1), json!(true), "部分的編集可でも勤務体系は直せる");
+        // ④ 閲覧のみ: 直せない
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ"}]));
+        renew(&lot);
+        assert_eq!(shifts(&work(&lot).1), json!(false), "閲覧のみは直せない");
+        // ⑥ 設備作業者でマスタ編集が空: 保存した段は既定の「編集可」でも、効く段は区分の上限で「非表示」＝直せない
+        //   （実績のタブは出すように区分の決まりを外しておく）
+        std::fs::write(share.join("tab_access.json"), json!({"rows": []}).to_string()).unwrap();
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "設備作業者", "マスタ編集": ""}]));
+        renew(&lot);
+        let (st, v) = work(&lot);
+        assert_eq!((st, shifts(&v)), (200, json!(false)), "効く段（区分の上限を掛けた後）で決める: {v}");
+        // ⑤ 切断されている: 編集可でも直せない（ボタンを出さない）
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "メンテナンス者"}]));
+        let at = chrono::Local::now().naive_local().format("%Y-%m-%dT%H:%M:%S").to_string();
+        std::fs::write(pres.join("PC-1@u1.revoke.json"), json!({"by": "boss", "at": at}).to_string()).unwrap();
+        let lot2 = {
+            let mut l = Lot::new(dir.join("cache2"));
+            l.lists.list_ttl = Duration::ZERO;
+            l
+        };
+        assert_eq!(shifts(&work(&lot2).1), json!(false), "切断されている間は直せない");
+        // ⑦ 窓が me を決められない（権限の表も写しも読めない）: 窓は答えず Python に任せる（Python が自分の me で答える）
+        std::fs::write(share.join("access_permissions.json"), "{").unwrap();
+        std::fs::create_dir_all(dir.join("mcache")).unwrap();
+        std::fs::write(dir.join("mcache").join("access_permissions.json"), "[").unwrap();
+        let lot3 = Lot::new(dir.join("cache3"));
+        assert!(lot3.handle("GET", "/api/worklog", "equip=a&work=1", &ask).is_none(), "一覧は Python に任せる");
+        assert!(lot3.handle_body("POST", "/api/dashboard/query", "", &body, &ask).is_none(), "ダッシュボードも Python に任せる");
+        // データの時刻・再読込は出さないタブを見ないので、窓が答え続ける（Python に回すと同じ台帳に写しの係が 2 つ動く）
+        assert_eq!(lot3.handle("GET", "/api/lotlist/source", "", &ask).map(|r| r.0), Some(200), "品質のデータの時刻は窓");
+        assert_eq!(lot3.handle("POST", "/api/lotlist/refresh", "", &ask).map(|r| r.0), Some(200), "品質の再読込は窓");
+        assert!(lot3.handle("GET", "/api/worklog/source", "equip=a", &ask).is_some(), "作業実績のデータの時刻は窓");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
