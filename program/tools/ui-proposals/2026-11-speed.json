@@ -1,0 +1,410 @@
+{
+ "title": "起動の高速化と、検索・カラムの札の改良（画面に出ない改良）",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント）。画面に出ない改良なので、画像ではなく自分で動かして測った数で採点した。起動: program/sidecar.py を TPA_SHELL=desktop・TPA_SHELL_SERVES=lotlist,lists,access で、同じ作業場所（TRANSFER_LOCAL_ROOT。sidecar.py が sys.pycache_prefix をここの pycache に向け直すので、毎回空のフォルダにすると app の分はいつも冷えた形になる点に注意）で 7〜9 回ずつ起こし、ready の 1 行までを測った（冷えた・温まった・更新の後の 1 回目〈app の .pyc だけ消す〉）。-X importtime で温まった形の内訳。A は update/stage→app の入れ替えを scratchpad で真似て、stage の場所で compileall する形と、最終の場所の名で py_compile する形を試作して比べた。B は scratchpad に program を写し、lotdsp_api・lotdsp_direct の build_opener を初めて使うときに作る形へ替えて起動を測った（build_opener 1 回 20〜22 ms も単独で測った）。検索と札: lotlist_fixture.py で品質 20,000 行の試験データを作り、desktop/examples/speed_probe.rs を 2 度流した。本物の道は routes_oracle.py --bench → routes_bench（Rust の道）で測った。G の種類の数が今の SQL と同じかを Python で数え直した（NULL と空が同じになって 2 列で食い違う）。update.rs・main.rs・sidecar.rs・lotlist.rs の search_filter_where・pivot.rs の fields・web.py の csp_nonce を読んだ。リポジトリのファイルは採点のファイルのほか変えていない",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "なし（画面に出ない改良。測った数は seen と evaluator）",
+   "self_check": "案を作った者が試作を自分で測り、数を speed-proposals.md に書いた（画面に出ない改良なので画像は無い）",
+   "proposals": {
+    "A 翻訳済みを先に作る（版を写した直後に compileall）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 5,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 8,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "測った数（Linux・同じ作業場所・中央値）: 冷えた形 814 ms・温まった形 175〜182 ms。更新の後の 1 回目（標準ライブラリの .pyc は残り、program の分だけ無い形）は 419〜550 ms。program は更新の後も同じ場所（app/program。update.rs の apply_staged が update/stage を app へ入れ替える）なので「新しい場所に写る」のではなく、同じ場所で中身が替わって全部を翻訳し直す。書いてある形（写した直後に stage の場所で compileall）を試すと、.pyc は update/stage/program の名で作られ、入れ替えた後の app/program では使われず 416 ms のまま（効かない）。最終の場所の名で py_compile（cfile を app/program の cache_from_source・dfile も最終の名。入れ替えは rename で mtime と大きさが残る）にすると 193〜212 ms（約 −220 ms）。翻訳にかかるのは program だけで 460〜557 ms（裏で）。2 回目からは Python が自分で .pyc を書くので、効くのは更新の後の 1 回目と入れた直後の 1 回目だけ。検索・札には効かない。.pyc は mtime と大きさで確かめられるので食い違っても翻訳し直すだけ（壊れる危険は小さい）"
+    },
+    "B 起動で要らない部品を後回し（lazy import）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "温まった形の -X importtime で app.services.lotdsp_api が自分だけで 35 ms・lotdsp_direct が 32 ms。中身は読み込みのときの urllib.request.build_opener（HTTPS の証明書を読む。1 回 20〜22 ms を 2 回）と urllib.request（約 15 ms）。写しの program で 2 つの _LOCAL を初めて使うときに作る形へ替えて試作すると、毎回の起動が 189〜206 ms → 152〜157 ms（elapsed 0.12 → 0.08 s。約 −40 ms・2 割）。LotDsp・CM3 の部品の読み込みそのものを道の中へ移せば少し増える。毎回の起動に効く・作る量が少ない。lotdsp を名指しする所が app と tests で 28 ファイルあり、試験が属性を差し替えている所は確かめが要る。検索・札には効かない"
+    },
+    "C Python を待たずに最初の画面（前回の HTML を覚えて窓が出す）": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 8,
+      "visual": 5,
+      "steps": 3,
+      "effortless": 2,
+      "intuitive": 3,
+      "form": 3,
+      "place": 3,
+      "layout": 3,
+      "tone": 3
+     },
+     "minus": [],
+     "seen": "効けば待ちがいちばん縮む（温まった形でも 175 ms、冷えた形 814 ms、Windows CI の spawn_ms 1,403 ms をまるごと隠せる）が、試作は無く数で示せない。最初の画面の HTML には要求ごとの CSP の印（web.py の csp_nonce。版 3.52.1）が入るので、覚えた HTML をそのまま出すと印が合わない・同じ印を使い回すことになる。権限（me）・設定・版が前回のままの画面が出て、Python が起きた後に食い違う。HTML を作る所が Python と窓の 2 か所になる。作る量・危険とも大きい"
+    },
+    "D 写しに検索用のつないだ列": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 9,
+      "visual": 9,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "speed_probe（品質 20,000 行・40 列・5 回の中央値・2 度）: 今の全列 CStr LIKE 71〜159 ms → つないだ列の LIKE 5.7〜10.6 ms（件数は 2387・6652・0 で同じ）。作るのに 169〜210 ms（写しの版ごとに 1 回）。本物の道（routes_bench）は /api/lotlist?search=汚れ 226.5 ms（検索なしは 13.3 ms）・/api/src/wip?search=缶材 75.6 ms・スライサーの検索 119.9 ms なので、道で 1/5 前後になる見込み。* ? は like_pattern で % _ になり列の境をまたいで当たるので、案どおり今の形へ戻すのが要る（字そのものは境の字 char(31) を含まない限り答えが同じ）。写しの無い元・結合した表・計算列は今の形のまま、と道が 2 つになる。写しのファイルへ表を足すか別に持つかで、Python が同じ写しを読む所との兼ね合いを確かめる要がある"
+    },
+    "E 検索を窓の中で（行ごとのつないだ字をメモリに持つ）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 4,
+      "place": 4,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "speed_probe: 読むのに 28〜38 ms・探すのは 0.52〜0.70 ms といちばん速い。ただし試作は to_lowercase（Unicode の大小）で比べていて、SQLite の LIKE は ASCII だけ大小を同じと見るので、全角の「Ｂ」などで答えが変わる（直すには to_ascii_lowercase と LIKE の決まりを窓で作り直す）。検索の決まりが SQLite と窓の 2 か所になる。行が多い元ではメモリが増える（データ元ごとに持つ）。D で既に 1/10 になるので、上乗せの効き目は数 ms"
+    },
+    "F カラムの札を写しの版ごとに覚える": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "routes_bench（Rust の道）で fields=1 は 品質 140.4 ms・仕掛 193.4 ms・結合した表 201.9 ms（案を作った者の数 108・221・198 ms とおおむね同じ）。覚えた答えを返すだけなので 2 回目からはほぼ 0。1 回目は変わらない。鍵に（データの場所・表・写しの印）だけでなく、計算列の式と変換表（pivot.rs の fields は calc と conv を見る）を入れないと古い札が出る。ダッシュボードの控え（dash-bench の「控えから」）と同じ型。起動・検索には効かない"
+    },
+    "G カラムの札を 1 回の走査で": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 4,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "speed_probe: 今の SQL 80〜91 ms → 1 回の走査 55〜75 ms（−2〜3 割）。道（140〜202 ms）のうち日付の列の判定などは残るので、道での縮みはさらに小さい。試作は値を字にして HashSet に入れていて、NULL と空の字が同じになり 不良名 8 → 7・備考 6 → 5 と種類の数が今と食い違った（Python で同じ数え方を流して確かめた）。型ごとに分けて数える要がある。今の SQL は列ごとに 1001 種類で止まるが 1 回の走査は全部の行を読むので、行が多く種類の多い列が多い元では遅くなりうる。F があれば効くのは 1 回目だけ"
+    },
+    "H まとめ（A＋B＋D＋F＋G）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "起動（B −40 ms 毎回・A −220 ms 更新の後の 1 回目）・検索（D 約 1/10）・札（F 2 回目から 0）の全部に効く唯一の案。ただし A は書いてある形では効かず（最終の場所の名で翻訳する形に直す要がある）、G は効き目が小さいうえ種類の数が食い違う罠を持つ。5 つを一度に作るので作る量・確かめる量が最も多い。G を外し A を直した組（A′＋B＋D＋F）なら危険が下がる"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "なし（画面に出ない改良。測った数は seen と evaluator）",
+   "self_check": "案を作った者が 1 回目の採点者の試作の数と誤りの指摘（A の前提・G の数え方・build_opener・F の鍵）を読んで案を直し、speed-proposals.md に書いた（画面に出ない改良なので画像は無い）",
+   "evaluator": "2 回目の採点者（案を作っていない・1 回目の採点者とも別のエージェント）。物差しの読み替えは 1 回目と同じ（わかりやすさ＝依頼の 3 つにどれだけ沿い・効き目が大きく・測って見せられるか、ステップ数＝縮む時間、考えさせない＝壊れる・遅くなる危険の少なさ、直感的＝答えが今と同じに保てるか、統一感＝今の作りの型に合うか、美しさ＝作る量と保守のしやすさ）。起動: scratchpad に git ls-files の program を写し、sidecar.py を窓と同じ -X pycache_prefix・TPA_SHELL=desktop・TPA_SHELL_SERVES=lotlist,lists,access・同じ TRANSFER_LOCAL_ROOT で起こして ready の 1 行までを 7〜11 回ずつ測った（冷えた 766・温まった 173〜210・更新の後の 1 回目 392〜442 ms）。A′ は最終の場所の名で compileall してから起こす形と、翻訳だけにかかる時間（-j 1・-j 0）を測り、main.rs の start・launch_update と update.rs の stage_release・apply_staged・swap_in・localize・copy_tree を読んで通り道の上かを確かめた。B′ は写しの lotdsp_api・lotdsp_direct の _LOCAL を初めて使うときに作る形へ替えて交互に測った。L は unchecked-hash と checked-hash の __pycache__ を写しの program に作り、pycache_prefix を外して入れた直後の 1 回目を測り、標準ライブラリの翻訳の分（app だけ翻訳済み 457〜632 ms）を切り分け、bundle.py・test_bundle.py・sidecar.rs を読んだ。検索と札: lotlist_fixture.py で品質 20,000 行を作り speed_probe を 2 度、routes_oracle.py --bench → routes_bench で本物の道を測った。D′ の答えは Python で 324 語を今の全列 OR とつないだ列で突き合わせた。M・F は pivot.rs の fields と mirror.rs の写しの版のファイルの名を読んだ。作業用の物は scratchpad の下だけに置き、リポジトリのファイルは採点のファイルのほか変えていない",
+   "proposals": {
+    "A′ 入れ替えた後の場所の名で翻訳（入れ替えた直後・Python を起こす前）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "測った数（Linux・同じ作業場所・中央値）: 更新の後の 1 回目（標準ライブラリの .pyc は残り app の分だけ無い）392〜442 ms → 最終の場所の名で翻訳済みにすると 171〜257 ms（中央 190 ms 前後。約 −200 ms）。ただし書いてある形（入れ替えた直後・Python を起こす前に窓が翻訳）は起動の通り道の上で待つ: 起動で読む app の部品は 67（翻訳の対象は 70）で、翻訳だけの別の Python は -j 1 で 357〜536 ms・-j 0（4 コア）で 246〜436 ms かかり、Python が自分で翻訳する分（392−190 ≒ 200 ms）より長い。差し引き +50〜+300 ms と遅くなる。効くのは、使っている間に裏で取り込む道（update.rs の stage_release）で、そのときに最終の名で別の pycache の木へ翻訳しておき、apply_staged の入れ替えで一緒に名前を替える形だけ（同じ場所へ直接書くと、動いている古い版が後から読み込む部品で .pyc を書き戻して食い違う）。起動の最初に取り込む道（launch_update）と入れた直後（localize）は、どちらにしても通り道の上なので効かない。入れた直後の 1 回目（766 ms）のうち約 300 ms は標準ライブラリの翻訳（app だけ翻訳済みでも 457〜632 ms）で、A′ では縮まない。答えは変わらない（.pyc は mtime と大きさで確かめられる）。検索・札には効かない"
+    },
+    "B′ 起動時の build_opener を初めて使うときへ": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 6,
+      "effortless": 9,
+      "intuitive": 9,
+      "form": 8,
+      "place": 8,
+      "layout": 9,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "写しの program で lotdsp_api・lotdsp_direct の _LOCAL を functools.cache の関数（初めて使うときに作る）へ替えて試作。毎回の起動（温まった形）を交互に 3 組 × 7 回: 今 173・190・182 ms → 147・145・152 ms（約 −30〜45 ms・2 割）。build_opener は 1 回 21〜22 ms（2 回目も同じ。控えは効かない）。更新の後の 1 回目も 442 → 380 ms。_LOCAL を名指しするのは 2 ファイルの 3 か所だけで、試験（tests）は _LOCAL を差し替えていない（grep）ので壊れる危険が小さく、作る量も最小。Windows では証明書の店を読むのでもう少し効く見込みだが、測れていない。依頼の 3 つのうち起動だけ・毎回 40 ms 前後と効き目の大きさは小さい。検索・札には効かない"
+    },
+    "L 配る ZIP に翻訳済みを入れる（unchecked-hash・app の pycache_prefix を外す）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 4,
+      "place": 4,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "写しの program に compileall --invalidation-mode unchecked-hash で __pycache__ を作り、sidecar.py の sys.pycache_prefix の行と -X pycache_prefix を外して試作。入れた直後の 1 回目（作業場所が空）: 今 740〜953 ms（中央 766）→ 180〜251 ms（中央 198）。更新の後の 1 回目も同じ形になる（約 −200 ms）。毎回の起動は変わらない。checked-hash（中身のハッシュを確かめる）でも 180〜271 ms（中央 196）と変わらないので、unchecked-hash で確かめを外す理由が無い（直した .py に古い .pyc が当たる危険だけが残る）。大きな落とし穴: pycache_prefix は 1 つの Python で全部の部品に効く設定なので「app の分だけ外す」はできない。外すと標準ライブラリも入れた Python の __pycache__ に頼ることになり、書けない場所に翻訳されずに入った Python では毎回 約 300 ms 翻訳し直す。Python は同梱せず利用者が入れる（bundle.py）ので、.pyc の版（cpython-3XX）を合わせられず、版が違えば program の中に __pycache__ を書く（「program に .pyc を混ぜない」決まり・test_bundle.py・update.rs の copy_tree が .pyc を写さないのとぶつかる）。ZIP は版 1 つにつき約 1.7 MB 増える。作る所が bundle・update・sidecar.rs・sidecar.py と広い"
+    },
+    "M カラムの札を写した直後に裏で作る": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "routes_bench（Rust の道）で fields=1 は 品質 103 ms・仕掛 213 ms・結合した表 210 ms（作業実績 16 ms）。pivot.rs の fields は、元の列の分（列ごとに DISTINCT LIMIT 1001 と見本）と計算列の分（calc_exprs。式と変換表に依る）が別の輪なので、元の列の分を写しの版（mirror.rs の写しは版ごとに {key}.g{N}.sqlite3 の別のファイルになる）を鍵に覚え、計算列の分だけを開いたときに数える形が作れる。そうすれば開く 1 回目も、元の列の分は 0 に近い。ただし写しの無い元（手元のファイル・結合した表）は F と同じく開いたときに数える。写し終えるたびに 100〜210 ms の裏の計算が増え、起動の直後（前の版の写しがあるとき）に作るなら最初の画面のダッシュボードの問い合わせとぶつかる。M は F を含むので、作る量は F より多い"
+    },
+    "I A′＋B′＋D′＋F": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "依頼の 3 つ（起動・検索・札）すべてに効く唯一の案。B′ −30〜45 ms（毎回）・D′ 検索の絞り込み 68〜115 ms → 4〜10 ms（道で 1/5 前後）・F 札の 2 回目 ほぼ 0。ただし A′ は書いてある形（入れ替えた直後に通り道の上で翻訳）では差し引き +50〜+300 ms と遅くなる（A′ の欄）。D′ の 全角などで戻す分は要らない（下の D′ の欄）。4 つを一度に作るので、確かめる量（lists_parity・routes_parity・pivot_parity と写しの係の試験）が最も多い。A′ を裏の取り込みのときに翻訳する形へ直し、D′ のつないだ列を別のファイルに置けば、危険を下げて点が上がる"
+    },
+    "J A′＋B′＋F（検索は今のまま）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "起動（B′ −30〜45 ms 毎回）と札（F 2 回目 ほぼ 0）に効き、答えの食い違いの危険は I より小さい。依頼の「検索」は今のまま（/api/lotlist?search=汚れ 240〜253 ms・仕掛の検索 76 ms）で残る。A′ は書いてある形では遅くなる（A′ の欄）ので、J の起動の縮みは実際には B′ の分だけ"
+    },
+    "D′ つないだ列（* ? と 全角などは今の形へ戻す・写しの版ごとに作る）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "speed_probe（品質 20,000 行・40 列・5 回の中央値・2 度）: 今の全列 CStr LIKE 68〜115 ms → つないだ列の LIKE 4.2〜9.7 ms（件数 2387・6652・0 で同じ）。作るのに 134〜184 ms（写しの版ごと）。本物の道（routes_bench）は /api/lotlist?search=汚れ 240〜253 ms・/api/src/wip?search=缶材 76 ms・スライサーの検索 113 ms で、絞り込みを 2 度（数と頁）流しているので道で 1/5 前後になる見込み。答えを自分で突き合わせた: Python の str を CStr にし、lot_list.like_pattern で作った形で、データから抜いた 300 語＋手で選んだ 24 語（ａ5052・Ａ5052 の全角・大小・% _ \\ ・None・nan など）を、今の全列 OR とつないだ列で比べると、字そのものの語は 324 語で食い違い 0。* ? を含む語は列の境をまたいで当たり 1 語で食い違ったので、* ? を今の形へ戻すのは要る。一方、LIKE の大小の見方は 1 字ずつなので、つないでも全角などで答えは変わらない（戻す分岐は要らず、道が増えるだけ）。置き場の危険: 写しのファイルに表を足すと、Rust の lotlist::tables も Python の lot_list.tables も sqlite_ で始まる名前しか除かないので、表の候補に出る（試験データでも 仕掛・保留 の 2 つから選んでいる）。別のファイル（{key}.g{N}.search.sqlite3 を ATTACH）に置くのが安全。写しの無い元・結合した表は今の形のまま"
+    }
+   }
+  },
+  {
+   "name": "3 回目",
+   "images": "なし（画面に出ない改良。測った数は seen と evaluator）",
+   "self_check": "案を作った者が 2 回目の採点者の指摘（A′ は起動の前だと遅くなる・L は取り下げ・D′ の全角の分かれ道は要らない／別のファイルに ATTACH・M は元の列の分を写しの版で覚えられる）を読んで案を作り直し、speed-proposals.md に書いた（画面に出ない改良なので画像は無い）",
+   "evaluator": "3 回目の採点者（案を作っていない・1 回目・2 回目の採点者とも別のエージェント）。物差しの読み替えは前の回と同じ（わかりやすさ＝依頼の 3 つにどれだけ沿い・効き目が大きく・測って見せられるか、ステップ数＝縮む時間、考えさせない＝壊れる・遅くなる危険の少なさ、直感的＝答えが今と同じに保てるか、統一感＝今の作りの型に合うか、美しさ＝作る量と保守のしやすさ）。起動: git ls-files の program を scratchpad に 2 つ写し、片方の lotdsp_api・lotdsp_direct の _LOCAL を functools.cache の関数へ替えて B′ を試作し、sidecar.py を -X pycache_prefix・TPA_SHELL=desktop・TPA_SHELL_SERVES=lotlist,lists,access・同じ TRANSFER_LOCAL_ROOT で交互に起こして ready の 1 行までを測った（温まった 9 回・更新の後の 1 回目〈app の分の .pyc だけ消す〉7 回）。A″ は、更新の後の 1 回目と、最終の場所の名で compileall してから起こす形を交互に 7 回測り、裏の翻訳の時間も測った。update.rs の stage_release・apply_staged・swap_in・localize・copy_tree、main.rs の start・launch_update、updater.rs の呼び出しを読んだ。検索と札: lotlist_fixture.py で品質 20,000 行・40 列を作り、speed_probe を流し、routes_oracle.py --bench → routes_bench で本物の道を測った。D″ は Python の sqlite3 でつないだ列を別のファイルに作って ATTACH し、rowid IN で引く数と頁の時間、表の候補に出ないこと、265 語の答えを今の全列 OR と突き合わせた。lotlist.rs の search_filter_where・tables、pivot.rs の fields、mirror.rs の generations・sweep、画面の lotlist-pivot.js の loadFields と lotlist.js の fieldsKey、dashboard-editor.js の札の読み込みを読んだ。作業用の物は scratchpad の下だけに置き、リポジトリのファイルは採点のファイルのほか変えていない",
+   "proposals": {
+    "P B′＋F″（検索は今のまま）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 8,
+      "intuitive": 9,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "B′（毎回の起動 温まった形 中央 178 → 130 ms〈9 回ずつ交互〉・更新の後の 1 回目 414 → 345 ms〈7 回〉。_LOCAL を名指しするのは 2 ファイル 3 か所）。F″（札の答えを窓が覚える。2 回目はほぼ 0。ただし一覧の画面は lotlist-pivot.js の loadFields が scope＋設備・表・写した時刻〈lotlist.js の fieldsKey〉で既に覚えているので、同じ頁の中の 2 回目は今も尋ねていない。効くのは開き直した後・窓を開き直した後・ダッシュボードの組む所〈開くたびに読み直す〉。元の列の分の鍵は写しの版のファイル〈{key}.g{N}.sqlite3 は書き換えない〉＋表＋sample、写しの無い元は mtime と大きさも要る。計算列の分は式・変換表も鍵に）。依頼の 3 つのうち起動と札に効き、検索は 247 ms のまま。いちばん危険が少ないが、F″ の効き目は画面が既に覚えている分だけ案を作った者の見立てより小さい"
+    },
+    "Q B′＋F″＋D″（つないだ列は別のファイルに ATTACH・* ? は今の形）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "B′（毎回の起動 温まった形 中央 178 → 130 ms〈9 回ずつ交互〉・更新の後の 1 回目 414 → 345 ms〈7 回〉。_LOCAL を名指しするのは 2 ファイル 3 か所）。F″（札の答えを窓が覚える。2 回目はほぼ 0。ただし一覧の画面は lotlist-pivot.js の loadFields が scope＋設備・表・写した時刻〈lotlist.js の fieldsKey〉で既に覚えているので、同じ頁の中の 2 回目は今も尋ねていない。効くのは開き直した後・窓を開き直した後・ダッシュボードの組む所〈開くたびに読み直す〉。元の列の分の鍵は写しの版のファイル〈{key}.g{N}.sqlite3 は書き換えない〉＋表＋sample、写しの無い元は mtime と大きさも要る。計算列の分は式・変換表も鍵に）。D″（つないだ列を別のファイルに置いて ATTACH。speed_probe〈Rust〉: 今の全列 CStr LIKE 72〜93 ms → つないだ列 4.2〜7.5 ms、作るのに 145 ms。Python の sqlite3 で別のファイルに置いて ATTACH し rowid IN で引く形を試作: 数 8.7〜19.3 ms・50 行の頁 8.7〜17.7 ms〈結合の分で素の LIKE より遅い〉。本物の道〈routes_bench〉は /api/lotlist?search=汚れ 247 ms〈検索なしの 1 頁は 10 ms。絞り込みを数と頁で 2〜3 度流す〉→ 見込み 40〜60 ms、/api/src/wip?search=缶材 76 ms → 見込み 20 ms 前後。答え: 265 語〈データから抜いた語と ａ5052・% _ \\ など〉を今の全列 OR と突き合わせ、字そのものの語は食い違い 0、?5052 は列の境をまたいで 1 件ずれた〈* ? は今の形へ戻すのが要る〉。新しく見つけた落とし穴: ①mirror.rs の generations() は「{key}.g で始まり .sqlite3 で終わる」名を全部版と見るので、{key}.g{N}.search.sqlite3 と名付けると sweep が今の版の検索のファイルも消す〈名の形を {key}.s{N}.sqlite3 などに変えるか generations を直す〉。②試験データにはビュー〈仕掛_ビュー〉と WITHOUT ROWID の表〈保留〉があり、rowid で引けないので今の形へ戻す道が要る。③検索のファイルは 6.6 MB と元の写し〈5.1 MB〉より大きく、写しの置き場が 2 倍強になる）。依頼の 3 つすべてに効き、利用者が打つたびに待つ検索が 1/4〜1/6 になるのがいちばん体に効く。落とし穴①②は作る前に分かったので避けられるが、写しの係・一覧の道・スライサーの検索に手が入り、確かめ（lists_parity・routes_parity・写しの係の試験）が要る"
+    },
+    "R B′＋F″＋D″＋A″（裏の取り込みで翻訳しておく）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "B′（毎回の起動 温まった形 中央 178 → 130 ms〈9 回ずつ交互〉・更新の後の 1 回目 414 → 345 ms〈7 回〉。_LOCAL を名指しするのは 2 ファイル 3 か所）。F″（札の答えを窓が覚える。2 回目はほぼ 0。ただし一覧の画面は lotlist-pivot.js の loadFields が scope＋設備・表・写した時刻〈lotlist.js の fieldsKey〉で既に覚えているので、同じ頁の中の 2 回目は今も尋ねていない。効くのは開き直した後・窓を開き直した後・ダッシュボードの組む所〈開くたびに読み直す〉。元の列の分の鍵は写しの版のファイル〈{key}.g{N}.sqlite3 は書き換えない〉＋表＋sample、写しの無い元は mtime と大きさも要る。計算列の分は式・変換表も鍵に）。D″（つないだ列を別のファイルに置いて ATTACH。speed_probe〈Rust〉: 今の全列 CStr LIKE 72〜93 ms → つないだ列 4.2〜7.5 ms、作るのに 145 ms。Python の sqlite3 で別のファイルに置いて ATTACH し rowid IN で引く形を試作: 数 8.7〜19.3 ms・50 行の頁 8.7〜17.7 ms〈結合の分で素の LIKE より遅い〉。本物の道〈routes_bench〉は /api/lotlist?search=汚れ 247 ms〈検索なしの 1 頁は 10 ms。絞り込みを数と頁で 2〜3 度流す〉→ 見込み 40〜60 ms、/api/src/wip?search=缶材 76 ms → 見込み 20 ms 前後。答え: 265 語〈データから抜いた語と ａ5052・% _ \\ など〉を今の全列 OR と突き合わせ、字そのものの語は食い違い 0、?5052 は列の境をまたいで 1 件ずれた〈* ? は今の形へ戻すのが要る〉。新しく見つけた落とし穴: ①mirror.rs の generations() は「{key}.g で始まり .sqlite3 で終わる」名を全部版と見るので、{key}.g{N}.search.sqlite3 と名付けると sweep が今の版の検索のファイルも消す〈名の形を {key}.s{N}.sqlite3 などに変えるか generations を直す〉。②試験データにはビュー〈仕掛_ビュー〉と WITHOUT ROWID の表〈保留〉があり、rowid で引けないので今の形へ戻す道が要る。③検索のファイルは 6.6 MB と元の写し〈5.1 MB〉より大きく、写しの置き場が 2 倍強になる）。A″（stage_release で最終の名の別の pycache の木へ翻訳し、apply_staged で一緒に入れ替える。試作: 更新の後の 1 回目〈B′ 込み〉376 → 136 ms〈7 回〉、裏の翻訳は 292 ms。入れ替えは rename なので .py の mtime は保たれ、.pyc の確かめは効く。ただし stage_release は起動の最初の launch_update〈main.rs〉からも呼ばれる〈launch_check〉ので、そのまま足すと起動の通り道で +290 ms になる。裏の確かめ〈updater.rs。30 分ごと〉のときだけ翻訳する分け道が要る。入れた直後と起動の最初の取り込みは効かない。古い版の木〈old〉の始末・pycache_prefix の木の名の作り〈場所の名の写し〉を窓が Python と同じに組む必要がある）。更新の後の 1 回目が −240 ms 縮むのは確かだが、版ごとに 1 回だけ・裏の確かめで取り込んだときだけ。stage_release の呼び出し元が 2 つあることを見落としており、作る量（update.rs・updater.rs・main.rs・pycache の木の名）と壊れる危険が Q より大きく増える"
+    },
+    "S B′＋F″＋M″（写し終えた直後に札を裏で数える）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "B′（毎回の起動 温まった形 中央 178 → 130 ms〈9 回ずつ交互〉・更新の後の 1 回目 414 → 345 ms〈7 回〉。_LOCAL を名指しするのは 2 ファイル 3 か所）。F″（札の答えを窓が覚える。2 回目はほぼ 0。ただし一覧の画面は lotlist-pivot.js の loadFields が scope＋設備・表・写した時刻〈lotlist.js の fieldsKey〉で既に覚えているので、同じ頁の中の 2 回目は今も尋ねていない。効くのは開き直した後・窓を開き直した後・ダッシュボードの組む所〈開くたびに読み直す〉。元の列の分の鍵は写しの版のファイル〈{key}.g{N}.sqlite3 は書き換えない〉＋表＋sample、写しの無い元は mtime と大きさも要る。計算列の分は式・変換表も鍵に）。M″（写し終えた直後に元の列の分の札を裏で数える。今の札は routes_bench で 品質 96 ms・仕掛 219 ms・結合した表 211 ms〈作業実績 11 ms〉、speed_probe で 82 ms。写しの版ごとに裏で 100〜220 ms〈行が多い本物の元ではもっと〉。起動の直後の写しは lot.warm と同じ時に流れ、最初の画面のダッシュボードの問い合わせとぶつかる）。札を開く 1 回目から ほぼ 0 になる（元の列の分。計算列の分は開いたときに数える）。検索は 247 ms のまま。写しのたびの裏の計算と、起動の直後の問い合わせとのぶつかりが増える"
+    },
+    "T B′ だけ（2 回目の 1 位）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 9,
+      "intuitive": 9,
+      "form": 8,
+      "place": 8,
+      "layout": 9,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "B′（毎回の起動 温まった形 中央 178 → 130 ms〈9 回ずつ交互〉・更新の後の 1 回目 414 → 345 ms〈7 回〉。_LOCAL を名指しするのは 2 ファイル 3 か所）。作る量が最小で答えは変わらない（_LOCAL を差し替える試験は無い）。毎回の起動 約 −48 ms は確かだが、依頼の検索と札には効かない"
+    },
+    "U B′＋F″＋D″＋M″（A″ だけを外した全部）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "B′（毎回の起動 温まった形 中央 178 → 130 ms〈9 回ずつ交互〉・更新の後の 1 回目 414 → 345 ms〈7 回〉。_LOCAL を名指しするのは 2 ファイル 3 か所）。F″（札の答えを窓が覚える。2 回目はほぼ 0。ただし一覧の画面は lotlist-pivot.js の loadFields が scope＋設備・表・写した時刻〈lotlist.js の fieldsKey〉で既に覚えているので、同じ頁の中の 2 回目は今も尋ねていない。効くのは開き直した後・窓を開き直した後・ダッシュボードの組む所〈開くたびに読み直す〉。元の列の分の鍵は写しの版のファイル〈{key}.g{N}.sqlite3 は書き換えない〉＋表＋sample、写しの無い元は mtime と大きさも要る。計算列の分は式・変換表も鍵に）。D″（つないだ列を別のファイルに置いて ATTACH。speed_probe〈Rust〉: 今の全列 CStr LIKE 72〜93 ms → つないだ列 4.2〜7.5 ms、作るのに 145 ms。Python の sqlite3 で別のファイルに置いて ATTACH し rowid IN で引く形を試作: 数 8.7〜19.3 ms・50 行の頁 8.7〜17.7 ms〈結合の分で素の LIKE より遅い〉。本物の道〈routes_bench〉は /api/lotlist?search=汚れ 247 ms〈検索なしの 1 頁は 10 ms。絞り込みを数と頁で 2〜3 度流す〉→ 見込み 40〜60 ms、/api/src/wip?search=缶材 76 ms → 見込み 20 ms 前後。答え: 265 語〈データから抜いた語と ａ5052・% _ \\ など〉を今の全列 OR と突き合わせ、字そのものの語は食い違い 0、?5052 は列の境をまたいで 1 件ずれた〈* ? は今の形へ戻すのが要る〉。新しく見つけた落とし穴: ①mirror.rs の generations() は「{key}.g で始まり .sqlite3 で終わる」名を全部版と見るので、{key}.g{N}.search.sqlite3 と名付けると sweep が今の版の検索のファイルも消す〈名の形を {key}.s{N}.sqlite3 などに変えるか generations を直す〉。②試験データにはビュー〈仕掛_ビュー〉と WITHOUT ROWID の表〈保留〉があり、rowid で引けないので今の形へ戻す道が要る。③検索のファイルは 6.6 MB と元の写し〈5.1 MB〉より大きく、写しの置き場が 2 倍強になる）。M″（写し終えた直後に元の列の分の札を裏で数える。今の札は routes_bench で 品質 96 ms・仕掛 219 ms・結合した表 211 ms〈作業実績 11 ms〉、speed_probe で 82 ms。写しの版ごとに裏で 100〜220 ms〈行が多い本物の元ではもっと〉。起動の直後の写しは lot.warm と同じ時に流れ、最初の画面のダッシュボードの問い合わせとぶつかる）。依頼の 3 つにいちばん広く効く（検索 247 → 見込み 40〜60 ms・札の 1 回目から ほぼ 0）。写しの係に、写すたびに作る物が 2 つ（検索のファイル 145 ms＋・札 100〜220 ms）増え、置き場も 2 倍強。作る量と確かめる量は 6 案でいちばん多い"
+    }
+   }
+  }
+ ],
+ "built": {
+  "name": "作った後（2 回直した後に採点し直した）",
+  "images": "なし（画面に出ない改良）。測った記録は scratchpad の score-built-speed（probe-new3-*.json・rb-new3-*.json・risk-new3.json。前は probe-main-*.json・rb-main-*.json・risk-main.json）。後は desktop/target の release で一時の examples（score_probe・score_risk。測った後に消した）と routes_bench で測った",
+  "result": {
+   "proposal": "Q B′＋F″＋D″（つないだ列は別のファイルに ATTACH・* ? は今の形）",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 7,
+    "place": 8,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [],
+   "evaluator": "作っていない採点者（別のエージェント。1・2 回目の採点と同じ者）。2 回目に直した search_index.rs（prune・clause・orphan）を読み、作業ツリーを desktop/target の release で組んで測った。score_probe（20,000 行・語 10 個・同時 4 本）と routes_bench を 2 回ずつ流した。score_risk では次を試した: 2 回目の採点の壊す試験一式・1 つの接続で 12 の表（ATTACH の上限 10）を 2 回、ほかの接続でもう 1 回・元を消す・元を書き換える・それから別の索引を作って片付けを起こす。60 組の答えは main と突き合わせた。半分に切った索引を Python の sqlite3 で ATTACH して、失敗の段を確かめた。前の数は 1 回目の採点の記録",
+   "seen": "【これまでの回】1 回目 65.2 点（壊れた索引で検索が失敗し続ける −10）。2 回目 75.2 点（減点なし。残り: 字だけ書き換えた索引・1 GB を超える最新の索引を消す・ATTACH に失敗すると良い索引を消す・1 回目が遅い・置き場が写しの片付けと結ばれない）。【2 回目に直したことの確かめ】(2) prune の `i > 0`: コードで、いちばん新しい 1 つは数・大きさ・元が無い、のどれでも消さないことを見た（1 GB を超える索引は、ディスクの空きが足りないので作って試してはいない）。(3) 1 つの接続で 12 の表: 11・12 個目は今の形に戻り、件数は 12 表とも全列 LIKE と同じ（182〜215 件）。索引のファイルの時刻は、同じ接続でもう 1 回流しても変わらない（作り直さない）。別の接続では u10 も索引を使った。(5) 元（f）を消し、元（e）を書き換えた後に別の索引（g、330 ms）を作ると、索引は 29 個から 17 個に減った。残った索引の元に f と e は無い。【数（main → 後）】検索の 2 回目以降（20,000 行）: 汚れ 198/229 → 23/29 ms・A5052 134/132 → 17/15・L-1 179/191 → 14/13・存在しない語 541/423 → 17/17・缶材 431/438 → 18/17・「0」 12/8 → 14/15。* ? の語は 149〜233 で変わらず。新しい写しでの 1 回目は 汚れ 218/305 → 269/313・A5052 136/147 → 307/239・L-1 177/174 → 326/235 で、前より約 100〜150 ms 遅い。同時 4 本は 802〜1043／866〜1040 ms で並んで作る（main は 1110〜1348）。本物の道: /api/lotlist?search=汚れ 230/238 → 34/35・/api/src/wip?search=缶材 122/75 → 21/28・/api/worklog?search=再処理 24/13 → 4.9/4.5・検索つきの集計 424/365 → 32/33。札: fields=1 は 141/96 → 0.6・仕掛 219/183 → 0.3・データ元 218/211 → 0.7/0.8、fields の 2 回目は 0.0。起動（create_app）は 1 回目の採点の 222/202 → 128/132 ms。【答え】60 組は timing のほか main と同じ。routes_bench の 61 件の件数も同じ。2 回目の壊す試験（0 バイト・中のページを潰す・消す）・同じ大きさで時刻を戻す・WAL・2 つの表は、どれも正しい数。【新しく見つけた危うい所】(a) 半分に切った索引は ATTACH の段で「database disk image is malformed」になる（Python の sqlite3 でも同じ。0 バイトの索引は ATTACH が通り、中身の確かめで落ちる）。直した 3 で ATTACH の失敗では消さなくなったので、この壊れた索引は残り続ける。score_risk では、切った後の検索は 2387 件で正しいが、索引は 3,284,992 バイト（半分）のまま作り直されなかった（2 回目の採点では 6,569,984 バイトに作り直されていた）。その写しの間は毎回今の形（速さが前に戻るだけで、答えは正しい）。orphan() も m を読めないので「元が無い」と見ず、32 個・1 GB を超えるまで残る。答えが正しく、速さが前に戻るだけなので減点にはしなかった。直し方の案: ATTACH の失敗の種類が SQLITE_CORRUPT・SQLITE_NOTADB なら消して作り直す、または orphan() で m を読めない索引を消す。【残った危うい所】(b) 字だけ書き換えた索引は見抜けない（汚れ が 0 件。文書に書いてある）。(c) 新しい写しでの 1 回目は前より遅い（20,000 行で +100〜180 ms、100,000 行で約 +0.9 s。文書に書いてある）。(d) 同じ大きさで時刻を戻した書き換えでは、前の版の索引が orphan と見られずに残る（作り物の形で、答えは鍵の書き換えの回数で正しい）。【点】置き場は写しの片付けに付いていくようになったので、言葉と置き場を 7 → 8 にした。1 回目の遅さは残るので、考えさせないは 6 のまま。【2 回目の採点の seen】【前の回】65.2 点（加点 75.2・減点「機能が消える −10」: 壊れた索引で検索が失敗し続ける）。【直したことの確かめ】①壊れた索引: 半分に切る・0 バイト・中のページを潰す・確かめた後に消す、のどれも 2387 件（正しい数）を返した。作り直しの分で 271〜341 ms かかり、作り直した大きさは元と同じ 6,569,984 バイト。前の回は「malformed」「no such table」の失敗だった。→ 減点を外した。②1 つの接続で 2 つの表: 仕掛 2387・t2 1194・もう 1 度 仕掛 2387 と正しい。別名は tpa_s9c9cc7d4d149・tpa_s7b706cfdb702 の 2 つ（前の回は 仕掛 が 1194 に化けた）。③同じ大きさで書き換えて時刻を戻す: 3 件（正しい。前の回は 0 件）。WAL で書き手が開いたまま書き換え、本体の時刻は変わらない形: 2 件（正しい）。⑤同時に 4 本: 1055・1090・961・1031 ms／1157・1149・1130・1174 ms と並んで作り、階段にならない（前の回は 254〜1018 の階段、main は 1110〜1348）。⑥cargo test --release --test search_index（2 件）・routes_parity は ok。【答え】60 組（10 語 × まとめ・条件・計算列・スライサー・組・集計）は timing のほか main と全部同じ。routes_bench の 61 の問い合わせの件数も前後で同じ。【数（main → 後）】検索の 2 回目以降（20,000 行）: 汚れ 198/229 → 23/32 ms・A5052 134/132 → 15/16・L-1 179/191 → 17/14・存在しない語 541/423 → 20/29・缶材 431/438 → 24/26。「0」は 12/8 → 16/25 と少し遅い。* ? の語は 155〜230 → 171〜219 で今の形のまま。写しが新しくなった後の 1 回目は 汚れ 218/305 → 321/390・A5052 136/147 → 268/249・L-1 177/174 → 332/281 で、前より 100〜180 ms 遅い（直していない。索引を作る費用）。100,000 行では前の形 685〜814 ms に対し、作る回 1,588〜1,773 ms（前より約 0.9 s 遅い）・その後 100〜110 ms。窓を起こし直してから初めて使う回（中身の確かめ）: 20,000 行で 31〜46 ms（その後 20〜27 ms。quick_check(1) だけで 4〜6 ms）、100,000 行で 171〜197 ms（その後 101〜118 ms。quick_check 29〜32 ms、索引 32.9 MB）。本物の道: /api/lotlist?search=汚れ 230/238 → 32/32 ms・/api/src/wip?search=缶材 122/75 → 25/19・/api/worklog?search=再処理 24/13 → 4.8/5.0・検索つきの集計 424/365 → 31/34・汚れ の集計 507 → 31・スライサー 355 → 23。札: fields 2 回目から 83/112 → 0.0、fields=1 は 141/96 → 0.6/1.3・仕掛 219/183 → 0.4/0.3・データ元 218/211 → 0.8/1.3。起動は 1 回目の採点のまま（create_app 222/202 → 128/132 ms。Python は直していない）。【残った危うい所（減点にはしない）】(a) 字だけ書き換えた索引（ページの形は保つ）は quick_check も行の数も通り、汚れ が 0 件と黙って違う。写しが替わるまで続く。ディスクの字化けのような物で、写しそのものの字化けと同じ種類の危うさなので減点にしなかった。(b) prune: 新しい物から足した大きさが 1 GB を超えると消すので、作ったばかりの索引が 1 つで 1 GB を超えると、すぐ消える。すると検索のたびに 2 回作って今の形へ戻る（コードを読んで見つけた。20,000 行で 6.6 MB・100,000 行で 32.9 MB なので、1 GB は約 300 万行×40 列。いちばん新しい 1 つは残すのがよい）。(c) ready(): attach に失敗したときも索引のファイルを消す。1 つの接続で 12 の表を検索すると、11・12 個目は ATTACH の上限 10 で今の形へ戻った（答えは正しい）。そのとき、ほかの接続が使えている良い索引を消して 2 回作り直す。一時の失敗（Windows のウイルス対策の錠など）でも同じことになる。今の呼び手は接続 1 つに検索 1 つなので普段は起きない。(d) 写しが新しくなった後の 1 回目は前より遅い（20,000 行で +100〜180 ms、100,000 行で約 +0.9 s）。窓を起こし直した後の 1 回目も、中身の確かめで +10〜90 ms。(e) 置き場は写しの係の片付けと結ばれず、片付けた版の索引も 32 個・1 GB まで残る（score_probe の 12 個で 79 MB）。点は、減点が無くなって加点の 75.2 点。直した所は効いているが、作る回の遅さ（effortless）と置き場の作り（place）は前の回の見立てから変わらないので、項目の点は変えなかった"
+  }
+ }
+}

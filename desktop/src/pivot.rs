@@ -1056,7 +1056,8 @@ fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, sp
         .map(|f| py_s(f.get("column")))
         .filter(|col| !col.is_empty() && !cs.contains(col))
         .collect();
-    let (mut where_parts, mut params) = lotlist::search_filter_where(&raw_cs, a.search, a.filters, a.today, &exprs).map_err(down)?;
+    let (mut where_parts, mut params) =
+        lotlist::search_filter_where(&c, &t, &raw_cs, a.search, a.filters, a.today, &exprs).map_err(down)?;
     let pcol = period.map(|p| if p.column == "@workday" { start.clone() } else { p.column.clone() }).unwrap_or_default();
     if !pcol.is_empty() && raw_cs.contains(&pcol) {
         if let Some((w, wp)) = period_prefilter(&pcol, span) {
@@ -1606,6 +1607,44 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
 // ------------------------------------------------------------------ カラムの札
 /// 集計の左のカラムの札に出す手がかり（Python の fields）
 pub fn fields(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: usize) -> R<Value> {
+    // 計算列の無い札は、データのファイル（場所・更新時刻・大きさ）と表の選び方ごとに覚える（版 3.66.0。開き直した後・ダッシュボードの組む所を
+    // 開くたびに数え直さない。写しが新しくなればファイルが替わり数え直す）。計算列のある札は式と変換表で変わるので覚えない
+    let key = calc.is_none().then(|| fields_key(part, sample)).flatten();
+    if let Some(k) = &key {
+        if let Some(v) = FIELDS.lock().ok().and_then(|m| m.get(k).cloned()) {
+            return Ok(v);
+        }
+    }
+    let v = fields_count(part, calc, conv, sample)?;
+    if let Some(k) = key {
+        if let Ok(mut m) = FIELDS.lock() {
+            if m.len() >= FIELDS_KEEP {
+                m.clear();
+            }
+            m.insert(k, v.clone());
+        }
+    }
+    Ok(v)
+}
+
+/// 覚えたカラムの札（鍵 → 答え）。数が多くなったら全部を捨てる（写しの版が替わると古い鍵は使われない）
+static FIELDS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, Value>>> = std::sync::LazyLock::new(Default::default);
+const FIELDS_KEEP: usize = 64;
+
+fn fields_key(part: &Part, sample: usize) -> Option<String> {
+    let meta = std::fs::metadata(&part.path).ok()?;
+    let mtime = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
+    Some(format!(
+        "{}\u{1e}{mtime}\u{1e}{}\u{1e}{}\u{1e}{}\u{1e}{}\u{1e}{sample}",
+        part.path.display(),
+        meta.len(),
+        part.table,
+        part.preferred_table,
+        part.candidates.join("\u{1f}")
+    ))
+}
+
+fn fields_count(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: usize) -> R<Value> {
     let c = connect_ro(&part.path).map_err(down)?;
     let names = lotlist::tables(&c).map_err(down)?;
     let t =

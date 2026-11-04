@@ -21,6 +21,7 @@ HTML の読み方は拡張・貼り付けと同じ lotdsp_progress.py の1箇所
 """
 import base64
 import contextlib
+import functools
 import json
 import os
 import shutil
@@ -43,7 +44,11 @@ from ..fsio import unquote_path
 SCRIPT = Path(__file__).with_name("lotdsp_direct.js")
 _LOCK = threading.Lock()
 # プロキシを通さない問い合わせ（この PC の中の見えない Edge の DevTools・社内の LotDsp。社内のプロキシへ回ると届かない）
-_LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+@functools.lru_cache(maxsize=1)
+def _local():
+    """プロキシを通さない開き手（社内のサイトはプロキシへ回すと届かない）。初めて使うときに作る（版 3.66.0。
+    読み込むときに作ると 1 回 20 ms 余りかかり、LotDsp を使わない起動でも毎回待たせていた）"""
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 class DirectError(Exception):
@@ -133,7 +138,7 @@ def find_browser(configured=""):
 def reachable(url, timeout):
     """LotDsp のサイトへ届くか（届かなければブラウザを起こさずに早く答える）。HTTP の答えが返れば届いている。
     社内のサイトなので、まずプロキシを通さずに試し、だめなら PC のプロキシ設定で試す（どちらかで届けばよい）。"""
-    for opener in (_LOCAL, urllib.request.build_opener()):
+    for opener in (_local(), urllib.request.build_opener()):
         try:
             with opener.open(urllib.request.Request(url, method="GET"), timeout=timeout):
                 return True
@@ -324,7 +329,7 @@ def _page_ws(port, timeout=10, skip=()):
     end = time.time() + timeout
     while time.time() < end:
         try:
-            with _LOCAL.open(f"http://127.0.0.1:{port}/json/list", timeout=3) as r:
+            with _local().open(f"http://127.0.0.1:{port}/json/list", timeout=3) as r:
                 pages = [t["webSocketDebuggerUrl"] for t in json.loads(r.read().decode())
                          if t.get("type") == "page" and t.get("webSocketDebuggerUrl") and t["webSocketDebuggerUrl"] not in skip]
             if pages:
