@@ -1,0 +1,375 @@
+{
+ "title": "順 5 の 2 段目（マスタの書き込みと書く道を窓へ）の移し方",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-04。main 020f7a7）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: master_store.py（write・_write_local・_pull・_seed・錠・exclusive・stamp）・master_repository.py（SPECS 16・_check_row・mutate のすべて）・master_seeds.py・ui_defaults.py・master_place.py・routes の書く道すべて（access・conversions・dashboard・equipgroups・formats・masters〈add_url_rule〉・presets・settings・shifts・sources・system・worklog）・program/sidecar.py・tools/ui_server.py・app/__init__.py（shell_serves・set_shell_notice）と、desktop/src/sidecar.rs（read_loop・知らせ）・lot.rs（changes_settings・after_python）・access.rs・main.rs、RUST_PORT_PLAN.md の §4 と「順 5」、前例 2026-11-masters-port.json。数えた物（ast で）: 書く方法の道は飾りで 73 本＋masters.py の add_url_rule で 6 本（設備・ロールの足す・直す・消す）＝79 本。うちマスタを書く道は 53 本（ハンドラ 503 行＋masters.py の汎用 約 35 行）。services の clean_*・check_* は合わせて 1,019 行（dashboard 317・conversions 121・card_forms 88・pivot_presets 73・shifts 57・equip_groups 54 ほか。読みの道でも使う物を含む）。試した物（scratchpad/score-mwrite）: ask_proto.py（sidecar.py の read_frame・Writer をそのまま使い、serve の読み手の糸に「窓の返事」を待つ糸へ渡す分岐を足した試作。窓の役は返事を別の糸で作る）→ 64 本の同時の保存がすべて答え、Python 側で書き込みを 1 本にまとめないと当て直しが 759 回・50 回で諦めた保存が 4 本、まとめると当て直し 0・64 行すべて入った（ask_proto_locked.py）。stale.py（2 台の MasterStore で共有）→ A が行を足した直後（写しの取り直しは 5 秒おき）に B の写しの上で mutate を当てると行が見えず RowConflict/NotFound で断る形になる。今の store.write は錠の中で取り直してから当てるので通る（rev 2）。物差しの読み替えは依頼のとおり（順序＝段の順の筋／チャンク＝1 回の版の大きさのまとまり／階層化＝主な狙いが 1 つに見えるか／視覚化＝食い違いを数で見せる突き合わせ／ステップ数＝版と PR の数・手間／考えさせない＝後の人が迷わない作り／直感的＝今の作りの型に沿うか／形と色＝ほかの段と同じ型／言葉と置き場＝同じ決まりは 1 か所／整列・余白・釣り合い＝量の釣り合い／色と文字の調子＝危うさの少なさ）。減点: hidden_state＝誤った言葉で断られる・起きたことが見えない、lost＝今ある働き（開発用サーバーでの保存など）が消える。リポジトリはこのファイルのほかは変えていない。 ／2 回目: 案を作っていない、1 回目とも別の採点者（別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実で採点した。読んだ物: master_store.py（write・_write_local・_pull・_seed・錠のすべて・exclusive・_still_mine・_lock_file）・master_repository.py（SPECS の一意の列・_check_row・すべての mutate）・master_seeds.py・ui_defaults.py・master_place.py（move・exclusive）・routes の書く道すべて（ast で道ごとに呼ぶ書き方を数えた）・program/sidecar.py・app/boot.py（seed を ready より前に起こす）・desktop/src/sidecar.rs（spawn の ready 待ち・read_loop）・lot.rs（SETTINGS_TTL 10 秒・changes_settings）・access.rs（Place）・Cargo.toml と cargo tree の serde_json の特徴、RUST_PORT_PLAN.md の §4 と「順 5」・rust-port-bench.py --static-only。試した物（scratchpad/score-mwrite2。作業ツリーは変えていない。cargo の example は作っていない）: bprime.py（B′ を写し、今の store.write と 4 つの形で答え・版・ファイル・直後の読みが同じ）・pipe.py（2 往復で増える時間: 121 KB で中央値 5.5 ms）・routes.py（書く道 73＋masters.py の 6。I の命令だけで書けるのは 53 本のうち 17 本）・hold.py（L で錠を持つ道の全体と store.write の時間の比 1.4〜2.4 倍）・l_excl.py（L で窓が錠を持つ間、置き場の引っ越しが MasterLocked で断られる）。物差しの読み替えは 1 回目と同じ。 ／3 回目: 案を作っていない、1・2 回目とも別の採点者（別のエージェント・2026-11-04。main 020f7a7）。画面に出ない改良なので、読んで・動かして確かめた事実で採点した。読んだ物: master_store.py（write・_write_local・_pull・_seed・錠・exclusive・_still_mine・SHARED_ALWAYS）・master_repository.py・master_seeds.py・routes の書く道（access・conversions・dashboard・equipgroups・shifts・settings〈put_setting・lot_mirror〉・sources・worklog・system）・routes/common.py（master_call・forget_tab_cache）・web.py（App.handle・dispatch）・static/js/master.js（withLockWait）・lotlist.js（worklog/scan を呼ぶ所）・desktop/src（access.rs・sidecar.rs・router.rs。錠の作りが無いことを再び確かめた）・RUST_PORT_PLAN.md の §4・順 5・rust-port-bench.py --static-only。試した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-mwrite3。作業ツリーは変えていない。cargo は使っていない）: p_emul.py＝案 P を写して Python の試験 686 を全部流す（書く方法の問い合わせの前に係 rs の写しの MasterStore で錠を取り共有を取り直す → 道を Python で動かし store.write は書かずに『書く物』を溜める → 答えが 400 未満なら窓の役が置き換える）。案の文のまま（溜めた書く物を同じ道の読みに重ねない）だと、基準より 5 つ多く落ちた（設備グループ・勤務体系・変換表の取り込みと標準・作業実績の並び・一覧の初期設定。どれも書いた直後に同じ道で読む答え）。193 の書く問い合わせ・58 の道の形のうち、書いた直後に同じ道で同じマスタを読む道は 17 の形（静的に数えて 18 本）。溜めた書く物を同じ道の読みに重ねると（overlay）、案のせいで落ちる試験は 0（残る 2 つは写しの作り〈錠を取り直す前に共有の全部を取り直した・共有に届かないときの錠の置き場〉の都合）。stale.py（前の回の物）を今のコードで流し直し、古い写しの上で mutate を当てると直前にほかの PC が足した行が無く断る形を再び確かめた（案 S の誤った断り）。物差しの読み替えと減点の読み方は 1・2 回目と同じ。",
+ "measured": "書く道 73 本（マスタを書くのは約 50 本）・ハンドラ約 960 行・master_repository.py 639 行・master_store.py 767 行。保存 1 回 共有 4.4 ms／手元 1.8 ms（MasterStore.write・30 回の中央値）。Python → 窓へ尋ねて答えを待つ道は無い（sidecar.py は 1 本の糸で枠を読み 8 本の溜まりで答えるので作れる）。マスタ関係の試験 58 ファイル。案の文と数は scratchpad/masters-write-proposals.md",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い（案の文: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/masters-write-proposals.md）",
+   "self_check": "画面に出ない改良なので画像は無い。案ごとに、移す量・版の数・2 つの係が書く期間・Python に残る物・突き合わせの試験の作り方を、同じ測った数（書く道 73 本・保存 4.4 ms・Python → 窓の尋ねる道が無い）で比べられる書き方にしたかを確かめた。B の前提（Python から窓へ尋ねて返事を待てるか）は sidecar.py の作り（1 本の糸で読み・8 本の溜まりで答える）を読んで作れると確かめた。案の方向は 6 つ（置き場 B・量 A・刻み C・共通化 D・順 E・通り道 F）で偏っていない。",
+   "proposals": {
+    "A 一括": {
+     "score": {
+      "order": 5,
+      "chunk": 3,
+      "hierarchy": 7,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 4,
+      "tone": 3
+     },
+     "minus": [],
+     "seen": "良い所: 終われば書く係と書く道が窓の 1 か所にそろい、橋を作って捨てる手間が無い。悪い所: 実際の量は案の文より重い。マスタを書く道は 53 本（案の文の約 50 本）で、道は確かめ（clean_* 1,019 行の多く）と答えの一覧（_listing）を連れてくる。設備グループの答えは equipment_seen（データを読んで出てくる設備を数える）を、データ元の道は _all（読みの道の段取り）を呼ぶので、読みの側まで一度に写すことになる。錠の競り合いの試験（test_master_share 40）も含めて 1 つの PR が数千行で、前例（段ごとに突き合わせて入れる）の型から外れ、壊れたときに戻しにくい。案の文の「Python の store は読むだけに」は、開発用サーバー（tools/ui_server.py。Python だけで create_app を起こす）と 1,218 の Python の試験が保存できなくなるので、そのままでは作れない（前例どおり Python を答えの見本に残す必要がある）。"
+    },
+    "B 書く係だけ窓へ（取り直して当て直す）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 6,
+      "place": 7,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "scratchpad/score-mwrite/stale.py: Python の写し（取り直しは REFRESH_DEFAULT 5 秒おき）の上で mutate を当てると、ほかの PC が足した直後の行が見えず RowConflict/NotFound で断る（窓へ渡らないので当て直しも起きない）。今は錠の中で取り直してから当てるので通る。誤った言葉（ほかの PC が先に直した）で断られる"
+      }
+     ],
+     "seen": "良い所: 錠・取り直し・置き換えだけを窓へ写すので 1 つの版にまとまり（窓側は master_store の書く所 約 300 行の写し）、写した Rust の書く係は 7 段目でもそのまま使える（捨てるのは枠の往復と Python 側の渡し方だけ）。書く者が窓に寄り、0 段目の「2 つの係」の心配が減る。Python から窓へ尋ねて待つ形は作れることを試作で確かめた（sidecar.py の serve の読み手の糸に返事を待つ糸へ渡す分岐を足し、窓は知らせを読み手の糸で受けて別の糸で答える。64 本同時で全部答えた）。悪い所: (1) 当て直しの形は今と答えが変わる。mutate が投げる NotFound・RowConflict・DuplicateKey を Python の古い写しで決めると、窓へ渡る前に誤って断る（再現した）。(2) 「読んだ版」に revision を使うと、手元だけの PC では版が増えない（data/ は行の配列で書くので常に 0。master_store.stamp の注釈）ので、置き換えの確かめが素通りになり保存が黙って消える。stamp（版＋更新時刻・大きさ）か中身の要約が要る。(3) Python 側の _write_lock（読み→mutate→渡す）を外すと同じ PC の同時の保存が当て直しの競り合いになる（試作で 64 本中 4 本が 50 回で諦めた。まとめると 0）。(4) 「Python の store は読むだけ」は言い過ぎ: 読みの途中で写しを書き（_pull）、共有に無ければ seed を書き、置き場の引っ越し（exclusive・retarget・印）も Python に残る。開発用サーバーと試験は窓が無いので Python の書く係も残す（SERVES と同じ切り替えにする）。(5) 窓の書く係が設定（置き場・名乗り）を Python に尋ね返すと、Python の 16 本（案の文の 8 本ではなく WORKERS=16）が全部窓を待つ時に行き詰まる。置き場は枠に載せて渡す。突き合わせ（同じ mutate を Python の書く係と窓の書く係に当てて、できたファイルと答えを比べる）は作れるが、案の文に書いていない。もっと良い形: 当て直しでなく、窓が錠を取り共有から取り直した行を返事で Python へ渡し、Python が mutate を当てた行を返し、窓が _still_mine で確かめて置き換える（錠の中の 2 往復）。今の store.write と同じ順なので答えが変わらず、当て直しも要らない。"
+    },
+    "C マスタの組ごとに縦に": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 道＋確かめ＋書き方を組ごとに窓の道（router の native）へ写し、Python の道を答えの見本に残して突き合わせる形は、順 1〜4 と 1 段目 a・b と同じ型。道が窓へ移るので 7 段目でまた移す手間が無い。0 段目で 2 つの係が同じ PC で書いても安全にしてあるので、途中の版で 2 つの係が書いてもよい。組ごとに食い違いを数で示せる。悪い所: 版が 4〜5 つで手間が最も多い。最初の組で錠・取り直し・seed の Rust の写しが要るので、①が重い（錠の競り合いの試験 test_master_share 40 も①に来る）。③（ダッシュボード・セット・プリセット）は dashboard.py の clean_* 317 行と pivot_presets 73 行を連れ、④の設備グループは答えの一覧に equipment_seen（データを読む）が要るなど、組ごとの重さがそろわない。書く係が 2 つある期間が最後の組まで続く。"
+    },
+    "D 汎用の表の道＋厚い所は後": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 5,
+      "place": 6,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "良い所: Python にはもう SPECS（16 のマスタの欄・一意の列）と汎用の _create・_update・_delete があり、表にする考えは今の作りに沿う。悪い所: 表（欄・型・権限・一意）だけで写せる道は案の文の約 25 本より少ない。汎用の _create/_update/_delete を使う道は約 25 本あるが、道の前で shifts・equip_groups・conversions・display_formats・work_log の clean_row（区分の JSON・ルール・判定表の形を確かめるコード）を通し、答えに組ごとの一覧（設備グループは equipment_seen でデータを読む・勤務体系は作業実績の設備・変換表は標準の表）を返す。設備も equipment_names.check_row（同一工程の名前）のコードが要り、権限の行は _perm_gate（区分の変更）と forget_tab_cache が要る。表だけで済むのはロール（3 本）と、設備の一部くらい。表に写せないところを表に足すと、表が小さな言語になって決まりが 2 か所（表とコード）に割れる。厚い道は B の橋を使うので、仕組みが 2 つ並ぶ。"
+    },
+    "E 7 段目と一緒に": {
+     "score": {
+      "order": 4,
+      "chunk": 2,
+      "hierarchy": 7,
+      "visual": 4,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 4,
+      "form": 6,
+      "place": 7,
+      "layout": 2,
+      "tone": 3
+     },
+     "minus": [],
+     "seen": "良い所: 橋を作って捨てる手間が無く、今の 2 段目の作業は 0。悪い所: 7 段目が非常に重くなる。rust-port-bench.py --static-only の数（空行・注釈を除く）で、道と枠 4,043 行に、master_store 549・master_repository 469・master_place 104・master_seeds 58 が足され、約 5,200 行（試験は store 404・repository 219 ほか）を 1 つの段で写すことになる。決めた M の段（0→1a→1b→2→3）と §4 の順（依存の葉から）を崩し、2 つの係が書く期間が 7 段目まで続く。7 段目で一度に入れ替えると、食い違いを段ごとに数で示す前例の型が使えない。"
+    },
+    "F 画面から窓へ直接": {
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 3,
+      "form": 4,
+      "place": 5,
+      "layout": 4,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案の文の「Python の書く道は消す」: 開発用サーバー tools/ui_server.py は窓を通さず Python の create_app だけで起こすので、撮影・評価の道具（ui-eval-*.mjs のうちマスタを保存する物）がマスタを保存できなくなる"
+      }
+     ],
+     "seen": "良い所: 確かめが窓（Rust）の 1 か所になり、Python へ回らない。悪い所: 今の型は、窓が同じ URL を router で先に受け（native）、画面の JS は変えない（順 1〜4・1 段目）。新しい道 PUT /api/masters/<名前> に画面を書き換えると、マスタを書く画面のすべて（master.js ほか）を直すことになり、URL が 2 つの形に割れる。門番（access.rs の guard。道の頭で照らし合わせる）と後始末（Lot::changes_settings の道の並び）も新しい道に合わせて直す要がある。Python の書く道を消すと、前例どおり Python を答えの見本に残して突き合わせることができず、開発用サーバーの保存も消える。"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "画面に出ない改良なので画像は無い（案の文: scratchpad/masters-write-proposals.md の「2 回目」）",
+   "self_check": "1 回目の採点者が確かめた事実（書く道 79 本・マスタを書く 53 本・確かめ 1,019 行・答える糸 16 本・当て直しの形は答えが変わる・手元の revision は増えない・Python の書く係は残す要がある・E の 7 段目 約 5,200 行）で案の前提を直し、案の文がそれと食い違わないかを読み直した。B′ は採点者の勧めた形（錠の中の 2 往復・SERVES の切り替え・突き合わせ）にした。新しい案は G・N・I・L の 4 つ（3 案以上）。方向は置き場（B′・L）・刻み（C）・順の組み合わせ（G・N）・共通化（I）で、1 つに偏っていない。",
+   "proposals": {
+    "B′ 錠の中の 2 往復": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 自分で試作した（score-mwrite2/bprime.py。窓の役を係 rs の MasterStore で写し、begin＝錠→共有から取り直す→行を JSON で渡す、Python が mutate、commit＝_still_mine→共有と写しを置き換える）。共有あり・ほかの PC が直前に同じ行を直した（写しは 5 秒おきで古い）・共有にまだ無い（seed）・手元だけ、の 4 つで、今の store.write と答え・例外（RowConflict）・版・ファイルの行・書いた直後に Python が読んだ一覧（_listing と同じ読み）がすべて同じだった。1 回目の当て直しの形の穴（古い写しで誤って断る）は無くなる。錠を持つ間に増えるのは 2 往復で、roll_master（121 KB・377 行）をパイプで渡して読み書きして返すのに中央値 5.5 ms・最大 24.9 ms（score-mwrite2/pipe.py）。今の 1 回の保存 4.4 ms と合わせても錠の長さ 20 秒には遠い。1 つの版にまとまり、突き合わせ（同じ mutate を Python の書く係と窓の書く係に当て、ファイルと答えを比べる）も作れることを試作で示せた。悪い所: 共通して確かめた事実: (a) 窓（desktop/src）にはマスタの錠の作りがまだ 1 行も無い（master.lock・holder_instance・O_EXCL・どける〈_take_away〉の写しが無い。0 段目は Python に係 rs の名前を足しただけ）。どの案も錠の Rust の写し（_acquire_lock・_take_away・_remaining・_still_mine など master_store の約 150 行）から作る。(b) 錠は置き場ごとに 1 つ（共有の master.lock.json か data/ の物）で、マスタごとではない。(c) 窓の sidecar.rs は知らせ（id 0）を読み手の糸の上でそのまま呼ぶ。Python から尋ねられた書き込みを読み手の糸で扱うと、Python の返事（mutate を当てた行）が同じ糸で届くので行き詰まる。別の糸へ渡す要がある。(d) 起動では boot.start が master_seeds.run を裏の糸で起こしてから ready を送る。窓は ready の前に来た progress 以外の枠を「起動できない」と読んで Python を止める（sidecar.rs spawn）。seed の書き込みを窓へ尋ねる形にすると、起動が落ちる順がある。(e) 窓の serde_json は preserve_order を持たない（cargo tree で確かめた。float_roundtrip・raw_value だけ）。窓が行を Value で読んで渡し直すと鍵の並びが変わるので、行はバイトのまま渡す要がある。 案の文に無い要る物: 置き場（share_dir・shared・cache）を枠に載せて渡す（窓の設定の覚えは 10 秒〈SETTINGS_TTL〉で、Python は引っ越し先を 5 秒おきにたどる）・mutate が投げたときに錠を外させる 3 つ目の枠・Python が落ちたときの窓の待ちの上限（錠の長さより短く）・MasterLocked と ShareUnavailable の言葉と残り秒を Python の例外へ戻す形・突き合わせで work_log.new_key（uuid）と updated_at をそろえる。Python は読みの途中の写し（_pull）・seed・置き場の引っ越し（exclusive）・起動の seed でまだ錠を取るので、書く係は 2 つのまま（0 段目の安全に頼る）。道と確かめは Python に残り、2 段目の計画の文（書く道も窓へ）とずれる。"
+    },
+    "C マスタの組ごとに縦に": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 道＋確かめ＋書き方を組ごとに窓の router（native）へ写し、Python の道を答えの見本に残して突き合わせる、順 1〜4・1 段目 a・b と同じ型。道は 1 度しか移さず、橋（Python→窓へ尋ねる枠）が要らない。0 段目で 2 つの係が同じ PC で書いても安全なので、途中で Python（py）と窓（rs）が別々の組を書いてよい。悪い所: 共通して確かめた事実: (a) 窓（desktop/src）にはマスタの錠の作りがまだ 1 行も無い（master.lock・holder_instance・O_EXCL・どける〈_take_away〉の写しが無い。0 段目は Python に係 rs の名前を足しただけ）。どの案も錠の Rust の写し（_acquire_lock・_take_away・_remaining・_still_mine など master_store の約 150 行）から作る。(b) 錠は置き場ごとに 1 つ（共有の master.lock.json か data/ の物）で、マスタごとではない。(c) 窓の sidecar.rs は知らせ（id 0）を読み手の糸の上でそのまま呼ぶ。Python から尋ねられた書き込みを読み手の糸で扱うと、Python の返事（mutate を当てた行）が同じ糸で届くので行き詰まる。別の糸へ渡す要がある。(d) 起動では boot.start が master_seeds.run を裏の糸で起こしてから ready を送る。窓は ready の前に来た progress 以外の枠を「起動できない」と読んで Python を止める（sidecar.rs spawn）。seed の書き込みを窓へ尋ねる形にすると、起動が落ちる順がある。(e) 窓の serde_json は preserve_order を持たない（cargo tree で確かめた。float_roundtrip・raw_value だけ）。窓が行を Value で読んで渡し直すと鍵の並びが変わるので、行はバイトのまま渡す要がある。 ①で錠・取り直し・seed の Rust の写しが要り①が重い。組の重さがそろわない: 設備グループの答えには equipment_seen（データ元を読んで出てくる設備を数える）が要るが、窓にはまだ無い（desktop/src に equipment_seen に当たる物が無い）。データ元の道は _all（読みの段取り）を呼ぶ。②の参照先（path_settings）と⑤の置き場の引っ越し（master_place・exclusive）は計画の 3 段目（置き場・設定）と重なる。版は 4〜5 つ。"
+    },
+    "G B′ ＋ 7 段目で C": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 2 段目は B′ の 1 版だけ（書く係の Rust の写し＋橋＋突き合わせ）で、試作で答えが今と同じことを示せた形。道は 7 段目で組ごとの版に分けて 1 度だけ移すので、道を 2 度移さない（B′ で写した窓の書く係は 7 段目でそのまま使い、捨てるのは橋の約 150 行だけ）。依存の葉から（書く係→道）の順で、道を移す時には 3 段目の置き場・設定も窓にあるので、C の②⑤が 3 段目と重なる問題も、equipment_seen・_all などの読みの側の写しも、その時には周りがそろっている。7 段目は rust-port-bench の数で道と枠 4,043 行＋master_repository 469 行ほどになるが、組ごとの版に割るので 1 版の大きさは抑えられる。悪い所: 共通して確かめた事実: (a) 窓（desktop/src）にはマスタの錠の作りがまだ 1 行も無い（master.lock・holder_instance・O_EXCL・どける〈_take_away〉の写しが無い。0 段目は Python に係 rs の名前を足しただけ）。どの案も錠の Rust の写し（_acquire_lock・_take_away・_remaining・_still_mine など master_store の約 150 行）から作る。(b) 錠は置き場ごとに 1 つ（共有の master.lock.json か data/ の物）で、マスタごとではない。(c) 窓の sidecar.rs は知らせ（id 0）を読み手の糸の上でそのまま呼ぶ。Python から尋ねられた書き込みを読み手の糸で扱うと、Python の返事（mutate を当てた行）が同じ糸で届くので行き詰まる。別の糸へ渡す要がある。(d) 起動では boot.start が master_seeds.run を裏の糸で起こしてから ready を送る。窓は ready の前に来た progress 以外の枠を「起動できない」と読んで Python を止める（sidecar.rs spawn）。seed の書き込みを窓へ尋ねる形にすると、起動が落ちる順がある。(e) 窓の serde_json は preserve_order を持たない（cargo tree で確かめた。float_roundtrip・raw_value だけ）。窓が行を Value で読んで渡し直すと鍵の並びが変わるので、行はバイトのまま渡す要がある。 橋は 3 段目・6 段目の間ずっと生きるので、橋の不具合（行き詰まり・起動の順）を長く抱える。計画の 2 段目の文（書く道も窓へ・Python の store は読み専用）を書き換える要がある。Python の書く係（開発用サーバー・1,218 の試験）と、読みの途中の seed・exclusive は Python に残り、書く係が 2 つの間は続く。B′ の要る物（置き場を枠で渡す・やめの枠・待ちの上限・言葉を戻す）が案の文に無いのも B′ と同じ。"
+    },
+    "N B′ ＋ すぐ C": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 計画の 2 段目の文（書き込みと書く道を窓へ）をそのまま満たし、組を移すたびにその組は窓だけで完結する。道は 1 度しか移さない。悪い所: 共通して確かめた事実: (a) 窓（desktop/src）にはマスタの錠の作りがまだ 1 行も無い（master.lock・holder_instance・O_EXCL・どける〈_take_away〉の写しが無い。0 段目は Python に係 rs の名前を足しただけ）。どの案も錠の Rust の写し（_acquire_lock・_take_away・_remaining・_still_mine など master_store の約 150 行）から作る。(b) 錠は置き場ごとに 1 つ（共有の master.lock.json か data/ の物）で、マスタごとではない。(c) 窓の sidecar.rs は知らせ（id 0）を読み手の糸の上でそのまま呼ぶ。Python から尋ねられた書き込みを読み手の糸で扱うと、Python の返事（mutate を当てた行）が同じ糸で届くので行き詰まる。別の糸へ渡す要がある。(d) 起動では boot.start が master_seeds.run を裏の糸で起こしてから ready を送る。窓は ready の前に来た progress 以外の枠を「起動できない」と読んで Python を止める（sidecar.rs spawn）。seed の書き込みを窓へ尋ねる形にすると、起動が落ちる順がある。(e) 窓の serde_json は preserve_order を持たない（cargo tree で確かめた。float_roundtrip・raw_value だけ）。窓が行を Value で読んで渡し直すと鍵の並びが変わるので、行はバイトのまま渡す要がある。 版が 2 段目 a（B′）＋ b〜（組 4〜5）で 5〜6 つと最も多い。B′ の橋は残りの組が移るまでの数版しか使わず、その後は捨てる（C だけなら橋は要らない。B′ を先に置いた得は、途中の書く係を窓の 1 つにすることだけだが、0 段目で 2 つの係でも安全にしてあるので得が小さい）。組を今移すと、設備グループの equipment_seen（窓に無い）・データ元の _all・作業実績の取り込み（フォルダを探す）など読みの側も今写すことになり、②の参照先と⑤の置き場の引っ越しは 3 段目と重なる。組の重さがそろわない（dashboard の確かめ 317 行の③が重い）のは C と同じ。"
+    },
+    "I 書く命令の言葉": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 5,
+      "place": 4,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 往復が 1 回で、命令は窓が錠の中で取り直した行に当てるので、古い写しで誤って断る穴は無い。悪い所: 共通して確かめた事実: (a) 窓（desktop/src）にはマスタの錠の作りがまだ 1 行も無い（master.lock・holder_instance・O_EXCL・どける〈_take_away〉の写しが無い。0 段目は Python に係 rs の名前を足しただけ）。どの案も錠の Rust の写し（_acquire_lock・_take_away・_remaining・_still_mine など master_store の約 150 行）から作る。(b) 錠は置き場ごとに 1 つ（共有の master.lock.json か data/ の物）で、マスタごとではない。(c) 窓の sidecar.rs は知らせ（id 0）を読み手の糸の上でそのまま呼ぶ。Python から尋ねられた書き込みを読み手の糸で扱うと、Python の返事（mutate を当てた行）が同じ糸で届くので行き詰まる。別の糸へ渡す要がある。(d) 起動では boot.start が master_seeds.run を裏の糸で起こしてから ready を送る。窓は ready の前に来た progress 以外の枠を「起動できない」と読んで Python を止める（sidecar.rs spawn）。seed の書き込みを窓へ尋ねる形にすると、起動が落ちる順がある。(e) 窓の serde_json は preserve_order を持たない（cargo tree で確かめた。float_roundtrip・raw_value だけ）。窓が行を Value で読んで渡し直すと鍵の並びが変わるので、行はバイトのまま渡す要がある。 書く道 53 本を mutate ごとに読んで分けた（score-mwrite2/routes.py と master_repository.py）。取り直した行を見ずに命令だけで書けるのは 17 本（ロールの 3・設備・権限・変換表・ダッシュボード 3・設備グループ・書式・プリセット・勤務体系の消す 10・作業実績の直す 1・変換表の標準と一覧の初期設定の置き換え 2・作業実績の消す 1）で、ほとんどが消す道。35 本は一意の名前・同じ組の確かめ（_check_unique・_check_row）・標準の印を外す（_preset_write）・キーで引く（data_source_put・path_setting_put・quick_set・tab_access_put）・取り込みの名前で合わせる・並びの番号（order_keys）・ファイルと結ぶ（work_log.match）で行を見るので B′ に回る。置き場の引っ越しの 1 本はどちらでもない。命令の決まり（_normalize の列の読み替え・版の確かめ・消えていれば望みどおり／NotFound の言い分け・next_id）を Rust にも書くので、窓が無いとき用の Python の mutate と決まりが 2 か所に割れ、仕組みも命令と B′ の 2 つが並ぶ。得は消す道の往復 1 回分（数 ms）だけ。7 段目で道を移すと命令の言葉は要らなくなる。"
+    },
+    "L 錠だけ窓が持つ": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 6,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "score-mwrite2/l_excl.py: 案の文のとおり窓（係 rs）が書く道（POST /api/masters/place/move も書く道）を回す前に錠を取ると、Python の置き場の引っ越し（master_place.move → store.exclusive → 係 py で _acquire_lock）が「この PC のもう 1 つの係がマスタを保存中（あと約 20 秒）」の MasterLocked で必ず断られ、置き場を変えられなくなる。同じ間、読みの途中の seed も断られる（写しで続ける）"
+      }
+     ],
+     "seen": "良い所: 窓に写すのは錠と取り直しだけで、版が小さい。書くのは今の Python のままなので、答えは変わらない（突き合わせは軽い）。錠の印を見出しで渡して Python が信じる形は、1 段目 a の X-TPA-Me と似た型。悪い所: 共通して確かめた事実: (a) 窓（desktop/src）にはマスタの錠の作りがまだ 1 行も無い（master.lock・holder_instance・O_EXCL・どける〈_take_away〉の写しが無い。0 段目は Python に係 rs の名前を足しただけ）。どの案も錠の Rust の写し（_acquire_lock・_take_away・_remaining・_still_mine など master_store の約 150 行）から作る。(b) 錠は置き場ごとに 1 つ（共有の master.lock.json か data/ の物）で、マスタごとではない。(c) 窓の sidecar.rs は知らせ（id 0）を読み手の糸の上でそのまま呼ぶ。Python から尋ねられた書き込みを読み手の糸で扱うと、Python の返事（mutate を当てた行）が同じ糸で届くので行き詰まる。別の糸へ渡す要がある。(d) 起動では boot.start が master_seeds.run を裏の糸で起こしてから ready を送る。窓は ready の前に来た progress 以外の枠を「起動できない」と読んで Python を止める（sidecar.rs spawn）。seed の書き込みを窓へ尋ねる形にすると、起動が落ちる順がある。(e) 窓の serde_json は preserve_order を持たない（cargo tree で確かめた。float_roundtrip・raw_value だけ）。窓が行を Value で読んで渡し直すと鍵の並びが変わるので、行はバイトのまま渡す要がある。 (1) 置き場の引っ越しの道を回す前に錠を取ると引っ越しができなくなる（再現。上の減点）。除くなら道ごとの例外が要る。(2) 窓は置き場を 10 秒覚える設定から決め、Python は 5 秒おきに引っ越し先をたどるので、窓が錠を取った置き場と Python が書く置き場が食い違う間がある。Python が「窓が錠を持つ」と見て錠を取らなければ、守られない書き込みになる（置き場と印の両方を見出しで渡し、Python が照らし合わせる要がある）。(3) 錠のファイルは共有と data/ の 2 つあり、どちらを取るかはマスタの名前（is_shared）で決まるので、窓に道 → マスタの表（53 本）が要る。(4) 錠を道の全体で持つ: 道の全体と store.write の時間を測ると（score-mwrite2/hold.py・手元のフォルダ）設備グループを足す道 5.8 ms／2.4 ms（2.4 倍）・作業実績の取り込み 3.3／1.9 ms・データ元の並び 2.5／1.8 ms。共有では作業実績の取り込みが共有のフォルダを探す（fresh=True）間も、確かめで断る道も、全員の錠を持つので、ほかの PC が MasterLocked で断られる間が延びる。(5) 案の文の「錠の持ち主は窓 1 つ」は、起動の seed・読みの途中の seed・exclusive が係 py で錠を取るので成り立たない。(6) Python を外す道のりでは書く係を 7 段目でもう一度移す（錠の写しは使い回せるが、取り直し・置き換えは後で）。"
+    }
+   }
+  },
+  {
+   "name": "3 回目",
+   "images": "画面に出ない改良なので画像は無い（案の文: scratchpad/masters-write-proposals.md の「3 回目」）",
+   "self_check": "2 回目の採点者が確かめた事実（窓に錠の作りが無い・錠は置き場ごと・seed と exclusive は Python が py で取る・B′ は同じ答え・Python から窓へ尋ねる形の落とし穴 6 つ・道の全体で錠を持つと 1.4〜2.4 倍で exclusive が断られる・設備グループは equipment_seen が要る）で前提を直し、案の文と食い違わないかを読み直した。P は L の減点の元（place/move の前に錠を取る）を、置き場の引っ越し・seed・取り込みを Python の py のまま残すことで避けた。S は錠を道の全体で持たない。新しい案は P・Q・R・S の 4 つ。方向は通り道（P）・刻み（Q）・順の合わせ（R）・錠の時間（S）・順の組み合わせ（G′）で偏っていない。",
+   "proposals": {
+    "G′ B′＋7 段目で C（持ち越し・落とし穴を書いた）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目の G に、採点者が挙げた落とし穴の手当て（seed は ready の後・書く依頼は読み手の糸から別の糸へ・行はバイトのまま・置き場を枠に載せる・やめの枠・待ちの上限）が書かれ、後の人が迷う所が減った。B′ は store.write の中で窓が置き換えてから Python へ戻るので、書いた直後に同じ道で読む 18 本（_listing・revision・lot_mirror）も、2 つのマスタを書く道（変換表の取り込み）も、道の表を持たずに今と同じ答えになる（P の穴が構造上起きない）。2 回目に係 rs の MasterStore で写して 4 つの形で同じ答え。悪い所: Python から窓へ尋ねて待つ、今は無い向きの往復（窓の Rust 約 250 行＋Python 約 150 行）を作り、7 段目で捨てる。手当ては文だけで、起動の順・読み手の糸・待ちの上限は並行の作りで試験が難しい。置き場の引っ越し・読みの途中の seed は Python の係 py のままで、書く係は 2 つのまま（0 段目の安全に頼る）。版は 1 つだが、Rust の書く係（master_store の書く所 247 行の写し＋試験）と橋を合わせて 1,100〜1,300 行。"
+    },
+    "P 窓が道を受け、Python には中身だけ作らせる": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 6,
+      "layout": 8,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-mwrite3/p_emul.py（P_MODE=defer。案の文のとおり Python は書かず書く物を返す）: 書いた直後に同じ道で読む答えが書く前の中身になる。設備グループ・勤務体系を足すと返る一覧に足した行が無い（test_dashboard_link.test_rule_group・test_work_summary.test_shift_master_crud_and_conflict）、変換表の取り込みで customDefaults が False、作業実績の並べ替えの一覧が前の並び、一覧の初期設定を空にしても前の値、タブの権限の revision が古い。静的に 18 本の道（変換表 6・設備グループ 3・勤務体系 3・作業実績 2・タブの権限・参照先・接続の設定・一覧の初期設定）。保存できたのに画面には保存していない形が出る"
+      }
+     ],
+     "seen": "良い所: 窓 → Python の今ある向きだけで、1 段目 a の見出しの型（窓が決めて渡す）に沿う。読み手の糸・起動の順の心配が無い。試作で確かめた: 窓の役が錠を取り共有を取り直してから道を回し、Python が書く物を返し、窓が置き換える形で Python の試験 686 を全部流すと、溜めた書く物を同じ道の読みに重ねれば案のせいで落ちる試験は 0。2 つのマスタを書く道（変換表の取り込み: conversions と conversion_defaults）は同じ置き場の錠 1 つで足り、むしろ今（2 回の錠）より強い。例外の道は書く物が無いので錠を外すだけ。読みの途中の seed は窓の錠（係 rs）に当たり MasterLocked になるが、_maybe_refresh が飲み込み写し・同梱で読み続ける（落ちない）。悪い所: (1) 案の文に重ねる作り（store の _read_doc に溜めた書く物を重ねる 約 25 行）が無く、そのままでは 18 本の答えが変わる（上の減点）。(2) 錠を道の全体で持つ（2 回目の L と同じく store.write の 1.4〜2.4 倍。作業実績の直すでファイル名を結び直す道はフォルダを探す間も持つ）。(3) 窓は錠を取る置き場（共有か data/。共有を設定した PC でも設備・ロールは masters の設定で手元になりうる）と、錠を取らない道（取り込み・置き場の引っ越し・利用状況）の表を持つ。取り直しも道ごとの表か全部を取り直すか（試作の全部の取り直しは、届いていない共有に seed を置き、利用状況の試験が変わった）。Python が書く物を作るとき自分で _pull(force, have_lock=True) すれば表は錠の置き場だけで済む。(4) 置き換えの直前の確かめで断ったときは、Python が作った成功の答えを窓が 409 locked に差し替える要がある（後始末 after_python はその後）。(5) 置き場の引っ越し・取り込み・起動の seed は係 py のままで、同じ PC で窓の錠と重なると、今の RLock の『待つ』でなく『この PC のもう 1 つの係が保存中』で断る（マスタ管理の画面は withLockWait で待って送り直すが、ダッシュボード・プリセット・一覧の初期設定の画面には無い）。取り込みはボタンで呼ぶだけで、起動の seed は当てた後は錠を取らないので、重なりはまれ。量は Rust の書く係 約 500 行＋窓の錠の段と置き換え 約 150 行＋Python 約 80 行＋試験で 約 1,000 行・1 版。突き合わせ（Python の試験を P の形で全部流す）は作れるが案の文に無い。"
+    },
+    "Q 書く係の Rust の写しを先に（橋なし）＋権限の組": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 6,
+      "effortless": 7,
+      "intuitive": 9,
+      "form": 9,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 橋（Python ⇔ 窓の書く往復）を作らず捨てない。順 1〜4・1 段目 a と同じ型（窓の router が道を受け、Python の道を答えの見本に残して突き合わせる）で、2a は同じ変更を Rust と Python の書く係に当ててできたファイル・版・例外を比べる masters_oracle、2b は道の答えを比べる、と食い違いを数で示せる。2b の組は、窓が既に読み（access.rs の Place.rows・flags・tab_rules・切断の指示）と門番を持つ権限の 4 本（アクセス権限の足す・直す・消す・タブの権限）で、写す決まりは _perm_payload・_perm_gate・master_edit_check・role_change_check・delete_check・clean_tab_rules・clean_tab_exceptions と汎用の _create/_update/_delete・_check_row（Python で合わせて 約 250 行）。答えに _listing やデータの読みを連れてこない（設備グループの equipment_seen・データ元の _all が要らない）。悪い所: 2a の書く係は 2b の 4 本まで本物では使われない。書く係が 2 つ（49 本は Python）の間が 7 段目まで続き、計画の 2 段目の文（書く道と seed を窓へ・Python の store は読み専用）からは遠い（文を書き換える要がある）。案の『切断』を利用状況の切断・解く（presence.disconnect・clear_revocation）と読むと、presence.fleet（420 行の部品。3 段目）を連れてくるので、2b は権限のマスタの 4 本に絞るのがよい。窓が書いたら Python の写し（master_cache）も同じファイルへ置き換えないと、Python は最長 5 秒前の中身を読む（タブの覚えは 2 秒）。量: 2a 約 800〜900 行（Rust の書く係 約 500＋試験と突き合わせ）、2b 約 400〜500 行。版 2 つ。"
+    },
+    "R 2 段目と 3 段目を合わせる": {
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-mwrite3/p_emul.py（道は P の形）: P と同じく、書いた直後に同じ道で読む 18 本の答えが書く前の中身になる（重ねる作りが案の文に無い）"
+      }
+     ],
+     "seen": "良い所: 窓があるとき Python は書かず、書く係が本当に窓 1 つになる（計画の 2 段目の文『Python の store は読み専用』にいちばん近い）。0 段目の『2 つの係』の心配が消え、P の『同じ PC のもう 1 つの係が保存中』の断りも起きない。悪い所: 1 つの版に P（約 1,000 行）に加えて、置き場の引っ越し（master_place 113 行・retarget・印・follow_moved 92 行）・起動の seed（master_seeds 65 行。3 つの seed の中身も Rust に写し、これからの seed も Rust で書く）・設定の読み書き（path_settings 200 行ほか）が入り、約 2,000 行。計画の順（2 段目 → 3 段目）を崩し、使用の履歴（presence）だけが 3 段目に残る半端な分け方。取り込みも P の形で窓の錠の中になるので、共有のフォルダを探す間も全員の錠を持つ。Python の書く係は開発用サーバーと試験のために残るので、決まりは Rust と Python の 2 か所。"
+    },
+    "S 錠を持たずに作らせ、窓が当てる時に比べる": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 7,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-mwrite3/w で ../score-mwrite/stale.py を今のコードで流した: 錠も取り直しも無い写し（5 秒おき）の上で mutate を当てると、ほかの PC が直前に足した行が無く NotFound・RowConflict で断る。案の文は『書く物』の答えだけを比べ、mutate が断った答えは比べずに画面へ返すので、誤った言葉（ほかの PC が消した）で断られる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-mwrite3/p_emul.py（P_MODE=defer）: Python は書かずに書く物を返すので、P と同じく書いた直後に同じ道で読む 18 本の答えが書く前の中身になる（案の文に重ねる作りが無い）"
+      }
+     ],
+     "seen": "良い所: 錠を持つのは置き換えの間だけで、道の全体で持つ P・L より錠が短い。副作用を数えた: マスタを書く 53 本の道でマスタのほかに起きるのは、タブの覚えを捨てる（3 本）・参照先を置いた後の lot_mirror の切り替えと作業実績の探し直しの忘れ（参照先・接続の設定の 2 本）・作業実績のフォルダを探す（取り込み・結び直す 2 本。共有で数秒かかる I/O）・データ元のキー（uuid）・id・時刻（回すたびに作り直す）・ログで、外へ書く物（利用状況・配布の置き場の写し・置き場の引っ越し）を書く道はマスタを書かない。どれも回し直してよい（同じ意味）ことは確かめた。悪い所: 回し直しのたびにフォルダを探し直す。比べる『読んだ中身の要約』はマスタごとの共有の (mtime, size) で足りるが、断った答えも比べる要がある（上の減点）。回し直しの前に Python の写しを取り直させる印（今の _maybe_refresh は 5 秒に 1 回）も要る。楽観の当て方は今のどの段にも無い型で、前例の突き合わせの形に乗らない。書く係は 2 つのまま。"
+    }
+   }
+  }
+ ],
+ "built": {
+  "name": "作った後（2 段目 a・版 3.67.0・直した後の 2 回目）",
+  "images": "画面に出ない改良（画像なし）。試した物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-mwrite-built: 前の回と同じ場面 cases.json（32）・cases2.json（数 4）を直した後の書く係に当てた答え rs_r2.json・rs2_r2.json（Python は py.json・py2.json）、糸の試し probe_bin2_r2（T1〜T6）、直した所の境の試し cases3.json → py3.json・rs3.json。試しの源（zz_probe_mwrite.rs・zz_probe_mwrite2.rs）は desktop/tests に組む間だけ置き、すぐ消した。cargo test --test masters_parity は 5 passed・cargo fmt --check は通る",
+  "result": {
+   "proposal": "Q 書く係の Rust の写しを先に（橋なし）＋権限の組",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 8,
+    "steps": 7,
+    "effortless": 7,
+    "intuitive": 9,
+    "form": 8,
+    "place": 7,
+    "layout": 7,
+    "tone": 8
+   },
+   "minus": [],
+   "evaluator": "案を作っていない採点者（別のエージェント・2026-11-04。前の 3 回の案の採点者とも別で、作った後の 1 回目〈64.6 点〉と同じ者）。画面に出ない改良なので、直した後の desktop/src/master_store.rs の全部と masters_parity.rs の足した試験を読み、前の回と同じ試しを組み直して流した事実で採点した。物差しの読み替えは 1 回目と同じ",
+   "seen": "前の回（作った後の 1 回目）: 64.6 点（加点 73.6〈order 8・chunk 8・hierarchy 7・visual 7・steps 7・effortless 6・intuitive 9・form 8・place 7・layout 7・tone 7〉−減点 9〈hidden_state 3: 印の無い・字でない錠を窓が永久にどけない／数の読み〈大きな整数を黙って小数へ・NaN・版の端で panic〉／WHERE が Store をまたぐ〉）。直した後: 3 つの減点はどれも消えた。(1) 錠の形: {}・token なし・null・数の印の錠は、切れた後に Python と同じくどけて書く（4 場面とも答え・ファイルが同じ）。(2) 数: u64 に入らない整数・NaN・Infinity・1E400 を含むマスタは、ファイルを変えず錠も残さずに、理由の言葉を付けて断る（Python は書けるので答えは違うが、黙って値を変えることは無くなった）。版の端は checked_add で断り、版 true・\"1_0\"・' 3 '・小数は Python と同じに読む。(3) WHERE が Store ごとになり、T3（A の exclusive の中で B が書く）で B は自分の置き場 share2 に錠を取った。Drop で戻すので T4（手元の書き込みの panic の後）は共有の生きた錠で正しく断り、T5（exclusive の中の panic）で錠が残らない。T1（4 本の糸 × 40 回＋exclusive 5 回）は 160 行・id の重なり 0 のまま。T6（Store を作り直すと切れた錠が取れない）は作りどおりで、Store のコメントに理由が書かれた。SHARED_ALWAYS は Python と突き合わせる試験が足された。突き合わせの試験は 5 本・25 場面で通る。残った所（減点にしない）: (a) 錠のファイルに u64 に入らない整数があると、窓は壊れた錠と見て、切れた後もどけられず永久に断る（Python はどける。cases3.json の「錠に大きな整数・切れた」）。大きな整数を断る読み方が錠の読みにも効いているため。錠は py と rs しか書かないので起きる見込みはほぼ無い。(b) 版が全角の数字（\"３\"）は Python の int() は読み、窓は 500。(c) 錠の印の 5 と 5.0、true と 1 を Python は同じ鍵と見るが窓は別に見る。(d) 直していない 4（null・[]・5 の錠で Python が詰まる／落ちる。窓の方が正しい）・6（exclusive の中の write で自分の錠をどける。Python からの持ち越しで、いま使う所は無い）・7（行が表でない data/ で Python の next_id は落ちる）。(e) 大きな整数・NaN を含むマスタは窓では保存できない（理由は言う）。書く係の決まりは Python と窓の 2 か所で、2 段目 b までは本物の道から使われない。量は書く係 869 行（数を見る小さな読み手を足した）＋試験 436＋見本 261"
+  }
+ }
+}
