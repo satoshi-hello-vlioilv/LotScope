@@ -11,6 +11,7 @@ pub mod join;
 pub mod lists;
 pub mod lot;
 pub mod lotlist;
+pub mod master_store;
 pub mod mirror;
 pub mod num_expr;
 pub mod operation;
