@@ -677,6 +677,68 @@ mod tests {
     }
 
     #[test]
+    fn the_real_paths_use_the_shell_me_for_tabs_and_shifts() {
+        // 版 3.65.1（順 5 の 1 段目 b）: 窓が答える本物の道（一覧 handle・ダッシュボード handle_body）が、出さないタブと勤務体系を直せるかを
+        // Python の答えた値でなく窓の me から決める（lists_of を通る）。Python の値はわざと逆にしておく
+        let dir = std::env::temp_dir().join(format!("da-lot-access-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (folder, share, pres) = (dir.join("実績"), dir.join("share"), dir.join("presence"));
+        for d in [&folder, &share, &pres] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let c = rusqlite::Connection::open(folder.join("実績_A.sqlite3")).unwrap();
+        c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT, 作業日 TEXT); INSERT INTO 実績 VALUES ('L1', '2026-11-04');").unwrap();
+        drop(c);
+        let perms = |rows: Value| std::fs::write(share.join("access_permissions.json"), json!({"rows": rows}).to_string()).unwrap();
+        std::fs::write(share.join("tab_access.json"), json!({"rows": [{"タブ": "work", "出さない区分": "設備作業者"}]}).to_string())
+            .unwrap();
+        let lists = json!({"hidden": [], "sources": [], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
+            "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
+                     "page_size": 500, "canEditShifts": false, "rows": [{"キー": "a", "設備名": "A", "ファイル名": "実績_A.sqlite3", "ファイルID": "", "表示": "有", "表": ""}]}});
+        let access = json!({"who": {"login": "u1", "pc": "PC-1", "pcSource": "", "key": "PC-1@u1"},
+            "place": {"shareDir": share, "shared": ["access_permissions", "tab_access"], "data": dir.join("data"),
+                      "defaults": dir.join("defaults"), "cache": dir.join("mcache"), "presence": pres}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone(), "access": access.clone()}));
+        let mut lot = Lot::new(dir.join("cache"));
+        lot.lists.list_ttl = Duration::ZERO;
+        let admin = json!({"id": 9, "ログインID": "boss", "PC名": "", "権限区分": "開発者"});
+        let work = |lot: &Lot| lot.handle("GET", "/api/worklog", "equip=a&work=1", &ask).unwrap();
+        let shifts = |v: &Value| v["work"]["canEditShifts"].clone();
+        let renew = |lot: &Lot| lot.after_python("PUT", "/api/masters/access/1", 200); // 権限を書いた後と同じく覚えを捨てる
+                                                                                       // ① 設備作業者: 区分の決まりで実績を出さない（Python の hidden は空なのに、窓が断る）。ダッシュボードの実績のパネルも
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "設備作業者"}]));
+        let (st, v) = work(&lot);
+        assert_eq!((st, v["kind"].as_str()), (403, Some("forbidden")), "一覧は窓の me の出さないタブで断る: {v}");
+        let body = serde_json::to_vec(&json!({"panel": {"id": "p", "visual": "kpi", "source": "work", "equips": ["a"]}})).unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask).unwrap();
+        assert_eq!(st, 403, "ダッシュボードのパネルも窓の me の出さないタブで断る: {v}");
+        // ② メンテナンス者（現場のマスタを書ける）: 実績を出し、勤務体系を直せる（Python の値は false）
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "メンテナンス者"}]));
+        renew(&lot);
+        let (st, v) = work(&lot);
+        assert_eq!((st, shifts(&v)), (200, json!(true)), "勤務体系は現場のマスタ（部分的編集可でも書ける）: {v}");
+        // ③ 部分的編集可: 勤務体系（現場のマスタ）は直せる。管理のマスタと取り違えると false になる
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "部分的編集可"}]));
+        renew(&lot);
+        assert_eq!(shifts(&work(&lot).1), json!(true), "部分的編集可でも勤務体系は直せる");
+        // ④ 閲覧のみ: 直せない
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ"}]));
+        renew(&lot);
+        assert_eq!(shifts(&work(&lot).1), json!(false), "閲覧のみは直せない");
+        // ⑤ 切断されている: 編集可でも直せない（ボタンを出さない）
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "メンテナンス者"}]));
+        let at = chrono::Local::now().naive_local().format("%Y-%m-%dT%H:%M:%S").to_string();
+        std::fs::write(pres.join("PC-1@u1.revoke.json"), json!({"by": "boss", "at": at}).to_string()).unwrap();
+        let lot2 = {
+            let mut l = Lot::new(dir.join("cache2"));
+            l.lists.list_ttl = Duration::ZERO;
+            l
+        };
+        assert_eq!(shifts(&work(&lot2).1), json!(false), "切断されている間は直せない");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn only_master_writes_ask_the_settings_again() {
         for (m, p, s) in [
             ("PUT", "/api/settings/lot_list.source", 200),
