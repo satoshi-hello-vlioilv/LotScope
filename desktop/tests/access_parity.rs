@@ -162,3 +162,45 @@ fn revocation_is_laid_over_the_remembered_me() {
     assert!(gate.check("POST", "/api/masters/equipment", Some(&conf)).is_ok(), "切断が解ければ書ける");
     std::fs::remove_dir_all(&d).ok();
 }
+
+/// 段取りの材料（lists）の出さないタブと勤務体系を直せるかは、窓の me から決める（版 3.65.1。Python が自分で作った値を上書き）。
+/// 窓が me を決められないときは Python の値のまま
+#[test]
+fn lists_take_hidden_tabs_from_the_shell_me() {
+    use da_core::lot::Settings;
+    let d = common::work("access-lists");
+    let share = d.join("share");
+    std::fs::create_dir_all(&share).unwrap();
+    std::fs::write(
+        share.join("access_permissions.json"),
+        json!({"rows": [{"id": 1, "ログインID": "boss", "権限区分": "開発者"},
+                        {"id": 2, "ログインID": "u1", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "タブの例外": "{\"lot\": \"出さない\"}"}]})
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(share.join("tab_access.json"), json!({"rows": [{"タブ": "work", "出さない区分": "一般ユーザー"}]}).to_string()).unwrap();
+    let access = |login: &str| {
+        json!({"who": {"login": login, "pc": "PC-1", "pcSource": "", "key": format!("PC-1@{login}")},
+               "place": {"shareDir": share, "shared": ["access_permissions", "tab_access"], "data": d.join("data"),
+                         "defaults": d.join("defaults"), "cache": d.join("cache"), "presence": ""}})
+    };
+    // Python が自分の me から作った値（窓の me と違う形にしておく）
+    let python_lists = json!({"hidden": ["wip"], "sources": [], "work": {"canEditShifts": true, "rows": []}});
+    let lot = Lot::new(d.join("cache"));
+    let s = Settings::from_json(&json!({"lists": python_lists, "access": access("u1")}));
+    let v = lot.lists_of(&s);
+    assert_eq!(v["hidden"], json!(["lot", "work"]), "出さないタブは窓の me（区分の決まり＋人ごとの例外）");
+    assert_eq!(v["work"]["canEditShifts"], false, "閲覧のみは勤務体系を直せない");
+    assert_eq!(v["sources"], json!([]), "ほかの材料は Python の答えのまま");
+    let boss = lot.lists_of(&Settings::from_json(&json!({"lists": python_lists, "access": access("boss")})));
+    assert_eq!((boss["hidden"].clone(), boss["work"]["canEditShifts"].clone()), (json!([]), json!(true)), "開発者は全部のタブ・直せる");
+    // 窓が me を決められない（材料が無い・権限の表が壊れている）: Python の値のまま
+    assert_eq!(lot.lists_of(&Settings::from_json(&json!({"lists": python_lists}))), python_lists);
+    // 共有が壊れていて写しも壊れている（Python も me を決められない形。共有だけが壊れていれば写し・同梱で読む）
+    std::fs::write(share.join("access_permissions.json"), "{").unwrap();
+    std::fs::create_dir_all(d.join("cache")).unwrap();
+    std::fs::write(d.join("cache").join("access_permissions.json"), "[").unwrap();
+    let broken = Lot::new(d.join("cache2"));
+    assert_eq!(broken.lists_of(&Settings::from_json(&json!({"lists": python_lists, "access": access("u1")}))), python_lists);
+    std::fs::remove_dir_all(&d).ok();
+}

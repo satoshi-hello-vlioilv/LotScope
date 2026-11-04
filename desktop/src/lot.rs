@@ -129,6 +129,23 @@ impl Lot {
         Ok(s)
     }
 
+    /// 段取りの材料（lists）に、窓が決めた権限を重ねた物（版 3.65.1。順 5 の 1 段目 b）: 出さないタブ（hidden）と勤務体系を直せるか
+    /// （work.canEditShifts）は、Python が自分の me から作った値ではなく、門番と同じ窓の me から決める（判定の元を 1 つに）。
+    /// 窓が me を決められない（名乗り・権限の表を読めない）ときは、Python が作った値のまま（Python が自分で決めたときと同じ）
+    pub fn lists_of(&self, s: &Settings) -> Value {
+        let mut v = s.lists.clone();
+        let Some(m) = s.access.is_object().then(|| self.gate.me(&s.access).ok()).flatten() else {
+            return v;
+        };
+        if let Some(o) = v.as_object_mut() {
+            o.insert("hidden".into(), m["flags"]["hiddenTabs"].clone());
+            if let Some(w) = o.get_mut("work").and_then(Value::as_object_mut) {
+                w.insert("canEditShifts".into(), json!(crate::access::can_write(&m, "shift_patterns")));
+            }
+        }
+        v
+    }
+
     /// 中身（Python）へ回す前の権限の判定と門番（access::Gate::check）。材料（名乗り・置き場）は一覧の設定と一緒に 10 秒覚える。
     /// 道（path）は百分率符号を戻した物を渡す（Python も戻してから道を合わせる）
     pub fn access_check(&self, method: &str, path: &str, ask: AskSettings) -> Result<Option<String>, (u16, &'static str, String)> {
@@ -201,7 +218,8 @@ impl Lot {
         }
         let body: Value = serde_json::from_slice(body).unwrap_or_default();
         let m = self.mirror(&s);
-        let conf = Conf { v: &s.lists };
+        let lists = self.lists_of(&s);
+        let conf = Conf { v: &lists };
         let q = Quality { mirror: m, table: &s.table, page_size: s.page_size };
         let cx = dashboard::Ctx {
             lists: &self.lists,
@@ -232,7 +250,8 @@ impl Lot {
             return None;
         }
         let m = self.mirror(&s);
-        let conf = Conf { v: &s.lists };
+        let lists_v = self.lists_of(&s);
+        let conf = Conf { v: &lists_v };
         let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
         let qs = lotlist::parse_query(query);
         let arg = |k: &str| qs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();

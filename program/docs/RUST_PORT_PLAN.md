@@ -409,7 +409,11 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
       router の試験・切断の指示の "_unreadable"・Python も読めない NaN の字（-NaN・1NaN・NaNNaN）を直した。作った後の採点は 3 回とも 80 に届かず
       （43.1・51.9・58.9）、利用者がこの形で決めた（`accepted_by_user`）。残る差（129 段を超える入れ子の JSON・Unicode の版の差による大文字と NFKC）は
       記録に残した。
-    - 1 段目 b: 一覧の設定の答え（lists）の組み立て（出さないタブ・書けるか）を窓の me から作り、Python の me の呼び出しを減らす。
+    - 1 段目 b（版 3.65.1）: 窓が答える一覧・ダッシュボードの段取りの材料（lists）の出さないタブ（hidden）と勤務体系を直せるか（work.canEditShifts）を、
+      Python が自分の me から作った値でなく、門番と同じ窓の me から決める（`Lot::lists_of`。窓が me を決められないときは Python の値のまま）。
+      これで出さないタブの判定の元は窓の 1 つになる（Python が答える道も、窓が載せた me の hiddenTabs を使う）。評価関数は
+      `access_parity` の lists_take_hidden_tabs_from_the_shell_me（区分の決まり＋人ごとの例外・開発者・材料が無い／権限の表が読めないときは Python の値）。
+      Python の判定を試験用に差し替える `tools/ui_server.as_role` の間は、窓に判定の材料を渡さない（突き合わせの係が窓と同じ前提で比べる）。
   - 2 段目: 書き込み（錠・seed・master_seeds）と書く道を窓へ。Python の store は読み専用にする（読みの途中の seed は断らず、写し・同梱で読み続ける）。
   - 3 段目: 使用の履歴・置き場・設定。
 
