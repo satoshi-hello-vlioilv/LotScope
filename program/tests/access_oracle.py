@@ -41,7 +41,8 @@ PATHS = [("POST", "/api/masters/equipment"), ("PUT", "/api/masters/rolls/3"), ("
          ("PUT", "/api/masters/conversions/x"), ("POST", "/api/sources"), ("PUT", "/api/masters/tabaccess"),
          ("GET", "/api/masters/access"), ("HEAD", "/api/sources"), ("OPTIONS", "/api/masters/rolls"),
          ("POST", "/api/settings/check"), ("POST", "/api/sources/check"), ("POST", "/api/sources/q1/conn/check"),
-         ("POST", "/api/sources/q1/conn/save"), ("POST", "/api/lotlist/refresh"), ("POST", "/api/presence/beat")]
+         ("POST", "/api/sources/q1/conn/save"), ("DELETE", "/api/sources/check"), ("PUT", "/api/settings/check"),
+         ("DELETE", "/api/sources/q1/conn/check"), ("PATCH", "/api/masters/access/2"), ("POST", "/api/lotlist/refresh"), ("POST", "/api/presence/beat")]
 
 ADMIN = {"ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可"}
 TAB_RULES = [{"タブ": "work", "出さない区分": "一般ユーザー・設備作業者"}, {"タブ": "dash", "出さない区分": "設備作業者、 メンテナンス者"},
@@ -125,6 +126,14 @@ def cases():
                                                       {"id": 3, "ログインID": "u2", "PC名": "", "権限区分": "一般ユーザー", "タブの例外": "NaN"},
                                                       {"id": 4, "ログインID": "u3", "PC名": "", "権限区分": "一般ユーザー", "タブの例外": "1e999"}],
          TAB_RULES, ("u1", "PC-1"), None, "shared"),
+        ("人ごとの例外（対の無いサロゲート）", full + [{"id": 2, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー",
+                                              "タブの例外": '{"lot": "出さない", "work": "出す", "n": "\\ud800", "m": "\\udc00x\\ud83d\\ude00"}'}],
+         TAB_RULES, ("u1", "PC-1"), None, "shared"),
+        ("大きな数のログインID・区分の前後の空白", full + [{"id": 2, "ログインID": 12345678901234567890, "PC名": "", "権限区分": " メンテナンス者　",
+                                                  "マスタ編集": " 閲覧のみ "}], TAB_RULES, ("12345678901234567890", "PC-1"), None, "shared"),
+        ("タブのキーは 16 字まで", full, [{"タブ": "a" * 16, "出さない区分": "一般ユーザー"}, {"タブ": "b" * 17, "出さない区分": "一般ユーザー"},
+                                     {"タブ": "x1", "出さない区分": "一般ユーザー"}, {"タブ": "1x", "出さない区分": "一般ユーザー"}],
+         ("u1", "PC-1"), None, "shared"),
         ("人ごとの例外（字が NaN）", full + [{"id": 3, "ログインID": "u2", "PC名": "", "権限区分": "一般ユーザー", "タブの例外": "NaN"}],
          TAB_RULES, ("u2", "PC-1"), None, "shared"),
         ("人ごとの例外（字が 1e999・文字列の中の NaN）", full + [{"id": 4, "ログインID": "u3", "PC名": "", "権限区分": "一般ユーザー",
@@ -170,7 +179,9 @@ AT_FORMS = ["2026-11-03T09:58:00", "2026-11-03 09:58", "2026-11-03T09", "2026-11
             "2026W452T0958", "2026-W45-2", "2026W45", "2026-W45", "2026-11-03", "20261103", "2026-11-03T9:58", "2026-11-03T09:5",
             "2026-11-03T09:5800", "2026-11-03T24:00:00", "2026-11-03T09:58:00Z", "2026-11-03T09:58:00+09:00", "2026-11-03T09:58:00-",
             "2026-11-3", "2026-13-03T09:00", "2026-11-03T09:58:60", "2026-11-03T09:58:00.", "2026-11-03T09:58:00.5x", "きのう", "",
-            "2026-11-03T09:55:00.250000", "2026-11-03T09:55:00.249999", "2026-11-03T09:55:00", "2026-11-03T10:00:30", "2026W4"]
+            "2026-11-03T09:55:00.250000", "2026-11-03T09:55:00.249999",
+            "2026-11-03T09.5", "2026-11-03T09:58.5", "2026-11-03T0958,5", "2026-11-03T0958.5", "2026-11-03T09,25", "2026-11-03T09.",
+            "2026-11-03T09:58.", "2026-11-03T09:58:00.5.5", "2026-11-03T09:55:00", "2026-11-03T10:00:30", "2026W4"]
 
 
 def revocations(folder):
@@ -268,6 +279,9 @@ def run(tmp):
             finally:
                 _request_var.reset(t2)
                 _app_var.reset(t1)
+            if mode == "bom":     # Python が読んで作った写しを消す（窓が共有の BOM 付きのファイルそのものを読むことを確かめる）
+                for n in ("access_permissions", "tab_access"):
+                    (root / "local" / "master_cache" / f"{n}.json").unlink(missing_ok=True)
             out.append({"name": name, "conf": conf, "now": NOW.isoformat(), "me": m, "guards": guards})
         return {"cases": out}
     finally:

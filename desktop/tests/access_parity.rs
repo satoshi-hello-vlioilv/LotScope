@@ -137,3 +137,28 @@ fn revocation_reads_like_python() {
     assert!(o["cases"].as_array().unwrap().len() >= 30);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// 覚えた me にも、いまの切断の指示を重ねる（me を覚えている間でも、切断は切断の指示の覚えの長さで効く）
+#[test]
+fn revocation_is_laid_over_the_remembered_me() {
+    let d = common::work("access-overlay");
+    let (share, pres) = (d.join("share"), d.join("presence"));
+    std::fs::create_dir_all(&share).unwrap();
+    std::fs::create_dir_all(&pres).unwrap();
+    std::fs::write(
+        share.join("access_permissions.json"),
+        json!({"rows": [{"id": 1, "ログインID": "u1", "権限区分": "開発者"}]}).to_string(),
+    )
+    .unwrap();
+    let conf = json!({"who": {"login": "u1", "pc": "PC-1", "pcSource": "", "key": "PC-1@u1"},
+                      "place": {"shareDir": share, "shared": ["access_permissions"], "data": d.join("data"), "defaults": d.join("defaults"),
+                                "cache": d.join("cache"), "presence": pres}});
+    let gate = Gate::with_ttl(std::time::Duration::from_secs(600), std::time::Duration::ZERO);
+    assert!(gate.check("POST", "/api/masters/equipment", Some(&conf)).is_ok());
+    let at = chrono::Local::now().naive_local().format("%Y-%m-%dT%H:%M:%S").to_string();
+    std::fs::write(pres.join("PC-1@u1.revoke.json"), json!({"by": "boss", "at": at}).to_string()).unwrap();
+    assert_eq!(gate.check("POST", "/api/masters/equipment", Some(&conf)).unwrap_err().1, "revoked", "me を覚えていても切断は効く");
+    std::fs::remove_file(pres.join("PC-1@u1.revoke.json")).unwrap();
+    assert!(gate.check("POST", "/api/masters/equipment", Some(&conf)).is_ok(), "切断が解ければ書ける");
+    std::fs::remove_dir_all(&d).ok();
+}

@@ -31,8 +31,10 @@ def _access_guard():
     if _shell_me() is not None:
         return None      # デスクトップ版は窓が門番（desktop/src/access.rs。同じ決まり・同じ言葉。通した問い合わせにだけ me を載せる）。
         # 窓が名乗りや権限を読めず me を載せなかったときは、今までどおりここで見る（門番が抜けない）
-    if request.method in ("GET", "HEAD", "OPTIONS") or request.path in ("/api/settings/check", "/api/sources/check") \
-            or (request.path.startswith("/api/sources/") and request.path.endswith("/conn/check")):
+    # 確かめの道（書かない）は POST のときだけ除く（版 3.65.0。前は方法を見ず、DELETE /api/sources/check が「check」というデータ元を消す道として門番を抜けた）
+    check = request.path in ("/api/settings/check", "/api/sources/check") \
+        or (request.path.startswith("/api/sources/") and request.path.endswith("/conn/check"))
+    if request.method in ("GET", "HEAD", "OPTIONS") or (request.method == "POST" and check):
         return None
     name = next((n for pfx, n in _GUARDED if request.path.startswith(pfx)), None)
     if not name:

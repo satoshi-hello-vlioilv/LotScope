@@ -334,6 +334,13 @@ class ShellMe(Env):
         for bad in ("{", "[]", json.dumps({"flags": "x"})):
             self.assertEqual(self.c.get("/api/access/me", headers={"X-TPA-Me": bad}).get_json()["loginId"], "u1", bad)
 
+    def test_revoked_from_the_shell_reaches_the_screen(self):
+        h = self.shell("一般ユーザー", "編集可")
+        m = json.loads(h["X-TPA-Me"])
+        m["revoked"] = {"by": "boss", "byPc": "PC-0", "reason": "点検", "at": "2026-11-04T09:00:00", "remainingSec": 120}
+        d = self.c.get("/api/access/me", headers={"X-TPA-Me": json.dumps(m, ensure_ascii=False)}).get_json()
+        self.assertEqual((d["revoked"] or {}).get("by"), "boss", "窓が決めた切断を画面へ渡す（見出しの知らせ）")
+
     def test_header_is_ignored_unless_the_shell_serves_access(self):
         # ブラウザ版（開発用のサーバー）と、権限を受け持たない前の窓では、見出しを信じない（だれでも付けられる）
         h = self.shell("開発者", "編集可")

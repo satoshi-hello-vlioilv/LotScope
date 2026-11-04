@@ -69,6 +69,7 @@ pub const ME_HEADER: &str = "X-TPA-Me";
 /// Python の str(v or "")
 fn text(v: Option<&Value>) -> String {
     match v {
+        Some(Value::Number(n)) if n.is_u64() && n.as_u64() != Some(0) => n.to_string(), // i64 を超える整数も字のまま（Python の str(int)）
         Some(x) if truthy(x) => py_str(x),
         _ => String::new(),
     }
@@ -460,7 +461,7 @@ fn iso_date(c: &[char]) -> Option<chrono::NaiveDate> {
     NaiveDate::from_ymd_opt(year, m, d)
 }
 
-/// 時刻（_parse_hh_mm_ss_ff）: HH・HH:MM・HH:MM:SS・HHMM・HHMMSS と、. か , の後の小数（6 桁で切る）
+/// 時刻（_parse_hh_mm_ss_ff）: HH・HH:MM・HH:MM:SS・HHMM・HHMMSS と、どれかの後に . か , と小数（6 桁で切る・マイクロ秒）
 fn iso_time(t: &[char]) -> Option<(u32, u32, u32, u32)> {
     let mut comps = [0u32; 3];
     let mut pos = 0;
@@ -472,7 +473,8 @@ fn iso_time(t: &[char]) -> Option<(u32, u32, u32, u32)> {
         if i == 0 {
             has_sep = next == Some(&':');
         }
-        if next.is_none() || i >= 2 {
+        // 時・分・秒のどの後にも小数を付けられる（小数はマイクロ秒として読む: 09.5 は 9 時 0.5 秒）
+        if next.is_none() || matches!(next, Some('.' | ',')) || i >= 2 {
             break;
         }
         if has_sep && next != Some(&':') {
@@ -508,13 +510,39 @@ fn py_json(text: &str) -> Option<Value> {
     while i < b.len() {
         let ch = b[i];
         if ch == '"' {
-            let start = i;
+            // 文字列の中: 対の無いサロゲート（\ud800 など。Python は読む）を U+FFFD に置き換える（ここで見るのは「出す」「出さない」と
+            // タブのキーの形だけで、どちらにも当たらないのは同じ）
+            out.push('"');
             i += 1;
             while i < b.len() && b[i] != '"' {
-                i += if b[i] == '\\' { 2 } else { 1 };
+                if b[i] == '\\' && b.get(i + 1) == Some(&'u') {
+                    let hex = |at: usize| -> Option<u32> { u32::from_str_radix(&b.get(at..at + 4)?.iter().collect::<String>(), 16).ok() };
+                    if let Some(u) = hex(i + 2) {
+                        let low = (0xD800..0xDC00).contains(&u)
+                            && b.get(i + 6) == Some(&'\\')
+                            && b.get(i + 7) == Some(&'u')
+                            && hex(i + 8).is_some_and(|l| (0xDC00..0xE000).contains(&l));
+                        if low {
+                            out.extend(&b[i..i + 12]);
+                            i += 12;
+                        } else if (0xD800..0xE000).contains(&u) {
+                            out.push_str("\\ufffd");
+                            i += 6;
+                        } else {
+                            out.extend(&b[i..i + 6]);
+                            i += 6;
+                        }
+                        continue;
+                    }
+                }
+                let step = if b[i] == '\\' { 2 } else { 1 };
+                out.extend(&b[i..(i + step).min(b.len())]);
+                i += step;
             }
-            i = (i + 1).min(b.len());
-            out.extend(&b[start..i]);
+            if i < b.len() {
+                out.push('"');
+                i += 1;
+            }
             continue;
         }
         let rest: String = b[i..b.len().min(i + 9)].iter().collect();
@@ -590,11 +618,11 @@ pub fn me(conf: &Value, revoked: Option<Value>) -> Result<Value, String> {
 
 /// 書き込みの門番（routes/access._access_guard）。断るなら (状態, 種類, 言葉)
 pub fn guard(method: &str, path: &str, me: &Value) -> Option<(u16, &'static str, String)> {
-    if matches!(method, "GET" | "HEAD" | "OPTIONS")
-        || path == "/api/settings/check"
+    // 確かめの道（書かない）は POST のときだけ除く（DELETE /api/sources/check は「check」というデータ元を消す道になる）
+    let check = path == "/api/settings/check"
         || path == "/api/sources/check"
-        || (path.starts_with("/api/sources/") && path.ends_with("/conn/check"))
-    {
+        || (path.starts_with("/api/sources/") && path.ends_with("/conn/check"));
+    if matches!(method, "GET" | "HEAD" | "OPTIONS") || (method == "POST" && check) {
         return None;
     }
     let (_, name) = GUARDED.iter().find(|(p, _)| path.starts_with(p))?;
@@ -621,19 +649,30 @@ pub fn guard(method: &str, path: &str, me: &Value) -> Option<(u16, &'static str,
 // ---------------------------------------------------------------- 覚えておく係
 
 /// me と切断の指示を短く覚える（窓の 1 つ）。権限・タブの権限・置き場を書いたら forget
-#[derive(Default)]
 pub struct Gate {
     me: Mutex<Option<(Instant, String, Value)>>,
     revoke: Mutex<Option<(Instant, String, Option<Value>)>>,
+    ttl: (Duration, Duration),
+}
+
+impl Default for Gate {
+    fn default() -> Gate {
+        Gate::with_ttl(ME_TTL, REVOKE_TTL)
+    }
 }
 
 impl Gate {
+    /// 覚える長さを決めて作る（me・切断の指示。試験が境を確かめる）
+    pub fn with_ttl(me: Duration, revoke: Duration) -> Gate {
+        Gate { me: Mutex::default(), revoke: Mutex::default(), ttl: (me, revoke) }
+    }
+
     /// me（権限の行・効く権限は 2 秒覚える。切断の指示は別に 5 秒覚え、毎回いまの物を重ねる＝効くまでの遅れは前と同じ最長 5 秒）
     pub fn me(&self, conf: &Value) -> Result<Value, String> {
         let sig = conf.to_string();
         let key = conf["who"]["key"].as_str().unwrap_or("").to_string();
         let revoked = self.revoked(&Place::from_json(&conf["place"]), &key);
-        let hit = self.me.lock().unwrap().as_ref().filter(|(at, s, _)| at.elapsed() < ME_TTL && *s == sig).map(|(_, _, v)| v.clone());
+        let hit = self.me.lock().unwrap().as_ref().filter(|(at, s, _)| at.elapsed() < self.ttl.0 && *s == sig).map(|(_, _, v)| v.clone());
         let mut v = match hit {
             Some(v) => v,
             None => {
@@ -648,7 +687,7 @@ impl Gate {
 
     fn revoked(&self, place: &Place, key: &str) -> Option<Value> {
         if let Some((at, k, v)) = self.revoke.lock().unwrap().as_ref() {
-            if at.elapsed() <= REVOKE_TTL && k == key {
+            if at.elapsed() < self.ttl.1 && k == key {
                 return v.clone();
             }
         }

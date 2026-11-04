@@ -257,7 +257,17 @@ mod tests {
 
     #[test]
     fn me_header_comes_only_from_the_shell() {
-        let r = router(&std::env::temp_dir());
+        let seen = std::sync::Arc::new(Mutex::new(Vec::<String>::new()));
+        let mut r = router(&std::env::temp_dir());
+        let s2 = seen.clone();
+        r.after = Box::new(move |m, p, _| s2.lock().unwrap().push(format!("{m} {p}")));
+        r.handle(&req("PUT", "tpa://localhost/api/masters/%61ccess/2", b"{}"));
+        r.handle(&req("POST", "tpa://localhost/api/masters/%61ccess", b"{}"));
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            ["PUT /api/masters/access/2"],
+            "後始末も戻した道で見る（断った問い合わせは後始末しない）"
+        );
         let forged = Request::builder()
             .method("POST")
             .uri("tpa://localhost/api/masters/rolls")
