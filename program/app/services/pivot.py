@@ -430,7 +430,9 @@ class Part:
 
 # 期間（版 3.37.0。ダッシュボードのパネル）: 日付の列か作業日（現場歴／太陽暦）の「いま」から決める日の範囲
 PERIODS = {"today": "今日", "yesterday": "前日", "days": "直近 n 日", "this_month": "今月", "last_month": "先月",
-           "month": "n か月前", "range": "日付で決める"}     # range（版 3.49.0）… from〜to（'YYYY-MM-DD'。両端を含む）     # month（版 3.41.0。ダッシュボードのスライサーで月を送る）… n か月前の月のはじめから終わりまで
+           "month": "n か月前", "range": "日付で決める",
+           # 版 3.69.0（利用者の要望 2026-11-04 の 4）: 今日を含まない n 日・今月を含む n か月・今年・昨年・今年を含む n 年
+           "days_before": "直近 n 日（今日を含まない）", "months": "直近 n か月", "this_year": "今年", "last_year": "昨年", "years": "直近 n 年"}     # range（版 3.49.0）… from〜to（'YYYY-MM-DD'。両端を含む）     # month（版 3.41.0。ダッシュボードのスライサーで月を送る）… n か月前の月のはじめから終わりまで
 PERIOD_MAX_DAYS = 3660
 
 
@@ -456,6 +458,20 @@ def period_range(kind, n, today, frm="", to=""):
     if kind == "last_month":
         last = d.replace(day=1) - timedelta(days=1)
         return last.replace(day=1).isoformat(), last.isoformat()
+    if kind == "days_before":           # 前日まで n 日（今日を含まない）
+        n = max(1, min(PERIOD_MAX_DAYS, int(n or 7)))
+        return (d - timedelta(days=n)).isoformat(), (d - timedelta(days=1)).isoformat()
+    if kind == "months":                # 今月を含む n か月（n-1 か月前の月のはじめから今日まで）
+        back = max(1, min(120, int(n or 3))) - 1
+        y, m = divmod(d.year * 12 + d.month - 1 - back, 12)
+        return date(y, m + 1, 1).isoformat(), today
+    if kind == "this_year":
+        return date(d.year, 1, 1).isoformat(), today
+    if kind == "last_year":
+        return date(d.year - 1, 1, 1).isoformat(), date(d.year - 1, 12, 31).isoformat()
+    if kind == "years":                 # 今年を含む n 年（n-1 年前の 1 月 1 日から今日まで）
+        back = max(1, min(10, int(n or 3))) - 1
+        return date(d.year - back, 1, 1).isoformat(), today
     if kind == "month":
         back = max(1, min(120, int(n or 1)))
         y, m = divmod(d.year * 12 + d.month - 1 - back, 12)

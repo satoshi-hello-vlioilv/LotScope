@@ -231,7 +231,9 @@ def main():
     ]
     for kind, extra in (("today", {}), ("this_month", {}), ("last_month", {}), ("month", {"n": 1}), ("month", {"n": "13"}), ("days", {"n": 3.9}), ("days", {"n": 99999}),
                         ("range", {"from": "2026-10-01", "to": "2026-09-20"}), ("range", {"from": "20260915"}), ("range", {"to": "2026-W38-3"}),
-                        ("range", {}), ("week", {}), ("days", {"n": "0"}), ("month", {"n": "0"}), ("range", {"from": "2026W383"}), ("range", {"from": "2026-W38-7"})):
+                        ("range", {}), ("week", {}), ("days", {"n": "0"}), ("month", {"n": "0"}), ("range", {"from": "2026W383"}), ("range", {"from": "2026-W38-7"}),
+                        ("days_before", {"n": 3}), ("days_before", {}), ("days_before", {"n": "0"}), ("months", {"n": 2}), ("months", {"n": 999}), ("months", {}),
+                        ("this_year", {}), ("last_year", {}), ("years", {"n": 2}), ("years", {"n": 99}), ("years", {"n": "-3"})):
         cases.append(run(f"期間 {kind} {extra}", [lot], rows=[{"column": "発生日", "part": "date"}], measures=cnt,
                          period={"column": "発生日", "kind": kind, **extra}))
     cases += [

@@ -336,7 +336,10 @@
     const warn = a && a.d ? P.notes(a.d).concat(a.err ? [`いまの数は前の物です（${a.err}）`] : []) : [];
     const badge = warn.length ? `<span class="db-warnb" title="${esc(warn.join("\n"))}" aria-label="${esc(warn.join("。"))}">⚠ ${warn.length}</span>` : "";
     const dot = p.visual === "board" ? "" : `<i class="db-dot" style="--c:${P.colorOf(p.source)}" aria-hidden="true"></i>`;
-    const tools = S.edit && (width < NARROW || fold)
+    // 組んでいるパネルは「組んでいます」（押せない・押した形）。押すと組む所を開き直してパネルが大きくなる、という意味と挙動のずれを無くす（版 3.69.0）
+    const tools = S.editing === p.id
+      ? `<button type="button" class="db-pbtn is-on" data-db-editing disabled aria-pressed="true" title="このパネルを組んでいます（右の組む所で直し、「当てる」か「やめる」で閉じます）">組んでいます</button>`
+      : S.edit && (width < NARROW || fold)
       ? `<button type="button" class="db-pbtn db-more" data-db-more aria-haspopup="true" title="このパネルの操作（組む・複製・消す）" aria-label="このパネルの操作">⋯</button>`
       : S.edit
       ? `<button type="button" class="db-pbtn" data-db-edit title="このパネルを組む（Enter）">組む</button><button type="button" class="db-pbtn" data-db-dup title="同じパネルを空いた所に足す">複製</button>`
@@ -412,7 +415,7 @@
   }
   const md = (d) => (d ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : "");
   /** スライサーの期間の短い字（日付で決めた期間は 10/5〜10/20・1 日だけなら 10/20。版 3.52.0） */
-  const sliceWord = (per) => (per.kind === "range" ? (per.from === per.to || !per.to ? md(per.from) : `${md(per.from)}〜${md(per.to)}`) : per.kind === "days" ? `直近 ${per.n || 7} 日` : per.kind === "month" || per.kind === "this_month" || per.kind === "last_month" ? D.monthName(D.backOf(per), today()) : { today: "今日", yesterday: "前日" }[per.kind] || "");
+  const sliceWord = (per) => (per.kind === "range" ? (per.from === per.to || !per.to ? md(per.from) : `${md(per.from)}〜${md(per.to)}`) : P.PERIOD_N[per.kind] ? P.periodWord(per) : per.kind === "month" || per.kind === "this_month" || per.kind === "last_month" ? D.monthName(D.backOf(per), today()) : { today: "今日", yesterday: "前日" }[per.kind] || "");
   /** 設備の並びの短い字: 設備グループとちょうど同じならグループの名前（スライサーの札と同じ言葉）、ほかは 3 つまで */
   const eqWord = (list) => { const g = D.groupsOf(S.tree || {}, (sliceState() || {}).set).find((x) => !x.none && D.same(x.members, list)); return g ? g.name : `${list.slice(0, 3).join("・")}${list.length > 3 ? ` ほか ${list.length - 3}` : ""}`; };
   function errHtml(a) {
@@ -933,7 +936,7 @@
     return Object.assign(cur, np, at);
   }
   function openEditor(id) {
-    const p = panelOf(id); if (!p) return;
+    const p = panelOf(id); if (!p || S.editing === id) return;   // 組んでいる最中に開き直さない（焦点の枠が 1.5 倍ずつ大きくなる）
     if (!S.edit) { S.edit = true; }
     S.editing = id; S.sel = id; editBase = TPA.clone(p);
     $("#dashScreen").classList.add("has-editor");

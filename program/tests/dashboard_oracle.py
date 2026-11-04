@@ -343,7 +343,8 @@ def boundaries(eq):
     for v in dashboard.pivot_presets.CHARTS + ("kpi", "slicer", "xx"):
         out.append((f"境 形 {v}", pv(v, "lot", rows=[D("合金")], measures=[CNT, {"agg": "median", "column": "重量"}])))
     # 期間の種類 × 日付の列・作業日（知らない種類は外す）。日付で決めるは片方だけも
-    for kind in ("today", "yesterday", "days", "this_month", "last_month", "month", "range", "week"):
+    for kind in ("today", "yesterday", "days", "this_month", "last_month", "month", "range", "week",
+                 "days_before", "months", "this_year", "last_year", "years"):
         for col, src in (("発生日", "lot"), ("@workday", "work"), ("BOX実績_作業開始_日付", "work")):
             per = {"column": col, "kind": kind, "n": 2}
             if kind == "range":

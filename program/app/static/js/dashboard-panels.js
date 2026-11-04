@@ -67,7 +67,7 @@
     if (!pr) return "";
     const r = (pr.ranges || [])[0], basis = pr.column === "@workday" ? `（${(p && p.basis) === "cal" ? "太陽暦" : "現場歴"}）` : `（${pr.column}）`;
     const span = r ? (r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`) : "";
-    const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.kind === "range" ? "" : pr.name;     // 日付で決めた期間は日付だけ（版 3.52.0。1280 の数字のパネルで添え書きが 2 段に折れた）
+    const name = PERIOD_N[pr.kind] ? periodWord(pr) : pr.kind === "range" ? "" : pr.name;     // 日付で決めた期間は日付だけ（版 3.52.0。1280 の数字のパネルで添え書きが 2 段に折れた）
     return `${name ? name + " " : ""}${span}${basis}${(pr.ranges || []).length > 1 ? "・設備で日が違います" : ""}`;
   }
 
@@ -242,7 +242,7 @@
     const word = g.measure.agg === "lots" ? (g.source === "work" ? "実績本数" : "ロット数") : measName(g.measure);
     const pr = a && a.period, r = pr && (pr.ranges || [])[0];
     if (pr && r) {
-      const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.kind === "range" ? "" : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
+      const name = PERIOD_N[pr.kind] ? periodWord(pr) : pr.kind === "range" ? "" : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
       return `${name ? name + " " : ""}${span} の${word}${pr.column === "@workday" ? `（${g.basis === "cal" ? "太陽暦" : "現場歴"}）` : ""}`;
     }
     return `${(a && a.sourceName) || ""}${a && a.sourceName ? "の" : ""}${word}`;
@@ -538,6 +538,28 @@
     return out;
   }
 
-  window.DashPanels = { ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
+  /* ---- 期間の種類（組む所・パネルを絞る面・パネルの添え書きで同じ言葉。サーバーの pivot.PERIODS と同じ鍵）。
+     版 3.69.0（利用者の要望 2026-11-04 の 4）: 今日を含まない n 日・今月を含む n か月・今年・昨年・今年を含む n 年 ---- */
+  const PERIOD_KINDS = [["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["days_before", "直近 n 日（今日を含まない）"],
+    ["this_month", "今月"], ["last_month", "先月"], ["months", "直近 n か月（今月を含む）"], ["this_year", "今年"], ["last_year", "昨年"], ["years", "直近 n 年（今年を含む）"]];
+  /** 数 n を持つ種類 → [単位, 上限, 既定]（上限はサーバーと同じ） */
+  const PERIOD_N = { days: ["日", 3660, 7], days_before: ["日", 3660, 7], months: ["か月", 120, 3], years: ["年", 10, 3] };
+  /** 期間 → 数 n（種類の上限に収める） */
+  const periodN = (pr) => { const u = PERIOD_N[pr && pr.kind]; return u ? Math.max(1, Math.min(u[1], Math.trunc(+pr.n) || u[2])) : 0; };
+  /** 期間の短い言葉（直近 7 日・直近 7 日（今日を除く）・直近 3 か月・今年 など。日付で決める・n か月前は呼ぶ側が決める → 空） */
+  function periodWord(pr) {
+    if (!pr || !pr.kind) return "";
+    const n = periodN(pr);
+    return { days: `直近 ${n} 日`, days_before: `直近 ${n} 日（今日を除く）`, months: `直近 ${n} か月`, years: `直近 ${n} 年` }[pr.kind]
+      || (PERIOD_KINDS.find((x) => x[0] === pr.kind) || ["", ""])[1];
+  }
+  /** 数 n の欄（n を持つ種類だけ）。attrs … 欄の印（data-de-pn など）・cls … 欄の class */
+  const periodNInput = (pr, attrs, cls) => { const u = PERIOD_N[pr && pr.kind];
+    return u ? `<input type="number" min="1" max="${u[1]}" ${attrs} value="${periodN(pr)}" aria-label="${u[0] === "日" ? "日" : u[0]}の数" class="${cls}">${u[0]}` : ""; };
+  /** 種類を選び直したときの数（単位が同じなら今の数・違えば既定） */
+  const periodNFor = (old, kind) => { const u = PERIOD_N[kind]; if (!u) return old && old.n ? old.n : 7;
+    const ou = PERIOD_N[old && old.kind]; return ou && ou[0] === u[0] ? periodN({ kind, n: old.n }) : u[2]; };
+
+  window.DashPanels = { PERIOD_KINDS, PERIOD_N, periodN, periodWord, periodNInput, periodNFor, ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
     drawnSeries: (id, name) => (drawnSer.get(id) || new Map()).get(name) || null };
 })();

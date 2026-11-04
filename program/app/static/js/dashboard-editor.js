@@ -39,22 +39,22 @@
   const ABC_ITEMS = [["avg", "平均作業"], ["occ", "占有時間", "本数 × 平均作業（工場をその品種が占める時間の見積もり）"], ["share", "本数比"],
     ["lshare", "負荷比", "占有時間の構成比（本数比と比べると、手間のかかる品種が分かる）"], ["cum", "累積"], ["rank", "ABC", "ABC の札・棒の色・A と B の線・下の段の品種の数"],
     ["factor", "換算係数"], ["conv", "換算本数"], ["chart", "パレート図"], ["foot", "下の段", "ABC の品種の数・占有時間の計・基準・換算本数の計・区間なし"]];
-  const PERIODS = [["", "期間で絞らない"], ["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["this_month", "今月"], ["last_month", "先月"], ["range", "日付で決める（から〜まで）"]];
+  const PERIODS = [["", "期間で絞らない"], ...P.PERIOD_KINDS, ["range", "日付で決める（から〜まで）"]];
   /** 期間の言葉（直近 n 日・日付で決めた 10/1〜10/15・今月 など） */
   const mdOf = (s) => { const m = /^\d{4}-(\d{2})-(\d{2})/.exec(s || ""); return m ? `${+m[1]}/${+m[2]}` : ""; };
-  const perName = (pr) => (!pr || !pr.kind ? "" : pr.kind === "days" ? `直近 ${pr.n || 7} 日` : pr.kind === "range" ? [mdOf(pr.from), mdOf(pr.to)].filter((v, i, a) => v && a.indexOf(v) === i).join("〜") || "日付で決める"
-    : (PERIODS.find((k) => k[0] === pr.kind) || [, ""])[1]);
+  const perName = (pr) => (!pr || !pr.kind ? "" : pr.kind === "range" ? [mdOf(pr.from), mdOf(pr.to)].filter((v, i, a) => v && a.indexOf(v) === i).join("〜") || "日付で決める"
+    : P.periodWord(pr));
   /** 今日から back 日前の日（YYYY-MM-DD。この PC の日付）。日付で決めるを選んだときの最初の値 */
   const isoBack = (back) => { const d = new Date(Date.now() - back * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
   /** 期間の欄（種類・日の数・日付で決める から〜まで）。attr … data-de-<attr>kind・<attr>n・<attr>from・<attr>to。list … 種類の選び */
   const periodCtl = (pr, attr, list, label) => {
     const kind = (pr && pr.kind) || "";
     return `<select data-de-${attr}kind aria-label="${label}">${list.map(([k, n]) => `<option value="${k}"${k === kind ? " selected" : ""}>${n}</option>`).join("")}</select>`
-      + (kind === "days" ? `<input type="number" min="1" max="3660" data-de-${attr}n value="${pr.n || 7}" aria-label="日の数" class="de-n">日` : "")
+      + P.periodNInput(pr, `data-de-${attr}n`, "de-n")
       + (kind === "range" ? `<input type="date" data-de-${attr}from value="${esc(pr.from || "")}" aria-label="${label}のはじめ" class="de-date">〜<input type="date" data-de-${attr}to value="${esc(pr.to || "")}" aria-label="${label}のおわり" class="de-date">` : "");
   };
   /** 種類を選び直したときの期間（日付で決めるは直近 30 日から始める） */
-  const periodOf = (old, kind, column) => (!kind ? null : { column, kind, n: (old && old.n) || 7,
+  const periodOf = (old, kind, column) => (!kind ? null : { column, kind, n: P.periodNFor(old, kind),
     ...(kind === "range" ? { from: (old && old.from) || isoBack(29), to: (old && old.to) || isoBack(0) } : {}) });
   // 合わせた表の見せ方（版 3.39.0 で 3 → 8）。cols … 列の段があるときだけ意味のある物
   const LOOKS = [["bar", "棒と数", "棒の長さと数"], ["heat", "数と濃淡", "数の大きさを地の濃さで"], ["num", "数だけ", "数だけを並べる"],
@@ -953,7 +953,7 @@
   const eqText = (list) => (!list || !list.length ? "すべての設備" : `${list.slice(0, 3).join("・")}${list.length > 3 ? ` ほか ${list.length - 3}` : ""}`);
   /** 選べる設備（その元で数えた設備と件数。元ごとに 1 回） */
   async function loadEquips() {
-    const base = isBoard() && gi < 0 ? (p.groups[0] || {}) : t, key = JSON.stringify([base.source, base.equip || "", base.filters || []]);
+    const base = isBoard() && gi < 0 ? (p.groups[0] || {}) : t, key = JSON.stringify([base.source, base.equip || "", base.filters || [], base.period || null]);
     if (eqKey === key && eqItems) return;
     eqKey = key; eqItems = null;
     try { const items = await Q.equipsOf({ ...base, visual: "none" }); if (eqKey === key) eqItems = items; } catch (_) { if (eqKey === key) eqItems = []; }
@@ -1371,7 +1371,7 @@
       if (x.matches("[data-de-ostart]")) { setOps("start", x.value); return; }
       // 換算係数の期間（地点 A。版 3.49.0）: 係数だけをこの期間で出し、パネルの期間（地点 B）の本数に掛ける
       if (x.matches("[data-de-rkind]")) { setOps("refPeriod", periodOf((p.ops || {}).refPeriod, x.value, "@workday")); return; }
-      if (x.matches("[data-de-rn]")) { setOps("refPeriod", { ...p.ops.refPeriod, n: Math.max(1, Math.min(3660, +x.value || 7)) }); return; }
+      if (x.matches("[data-de-rn]")) { setOps("refPeriod", { ...p.ops.refPeriod, n: P.periodN({ ...p.ops.refPeriod, n: x.value }) }); return; }
       if (x.matches("[data-de-rfrom],[data-de-rto]")) { setOps("refPeriod", { ...p.ops.refPeriod, [x.matches("[data-de-rfrom]") ? "from" : "to"]: x.value }); return; }
       if (x.matches("[data-de-ospan]")) { setOps("span", x.value === "lead" ? "lead" : ""); return; }
       if (x.matches("[data-de-ohide]")) {          // ABC の表示項目（版 3.48.0）: チェックを外した項目を hide に
@@ -1399,7 +1399,7 @@
         setLims(vs); return;
       }
       if (x.matches("[data-de-pfrom],[data-de-pto]")) { t.period[x.matches("[data-de-pfrom]") ? "from" : "to"] = x.value; changed(false); return; }
-      if (x.matches("[data-de-pn]")) { t.period.n = Math.max(1, Math.min(3660, +x.value || 7)); changed(false); return; }
+      if (x.matches("[data-de-pn]")) { t.period.n = P.periodN({ ...t.period, n: x.value }); changed(false); return; }
       if (x.matches("[data-de-sort]")) { p.sort = x.value; changed(false); return; }
       if (x.matches("[data-de-emph]")) { p.emph = x.checked; changed(false); return; }
       if (x.matches("[data-de-frame]")) { if (x.value === "card") delete p.frame; else p.frame = x.value; p.emph = x.value === "emph"; changed(false); return; }

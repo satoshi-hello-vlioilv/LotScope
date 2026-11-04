@@ -10,7 +10,8 @@
 (function () {
   "use strict";
   const { esc } = TPA;
-  const PERIODS = [["", "組んだ期間のまま"], ["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日"], ["this_month", "今月"], ["last_month", "先月"]];
+  const P = window.DashPanels;
+  const PERIODS = [["", "組んだ期間のまま"], ...P.PERIOD_KINDS];
   const MAX_SHOW = 300;
 
   /** 数える元（合わせた表は 1 つ目のまとまり） */
@@ -57,7 +58,7 @@
     if (isEmpty(q)) return [];
     const out = [];
     if ((q.equips || []).length) out.push({ key: "equips", text: `設備 ${q.equips.slice(0, 3).join("・")}${q.equips.length > 3 ? ` ほか ${q.equips.length - 3}` : ""}` });
-    if (q.period && q.period.kind) out.push({ key: "period", text: `期間 ${q.period.kind === "days" ? `直近 ${q.period.n || 7} 日` : (PERIODS.find((x) => x[0] === q.period.kind) || ["", ""])[1]}` });
+    if (q.period && q.period.kind) out.push({ key: "period", text: `期間 ${P.periodWord(q.period)}` });
     byColumn(q.filters).forEach(([col, fs]) => out.push({ key: `c:${col}`, text: colText(col, fs) }));
     return out;
   }
@@ -96,13 +97,17 @@
     const lab = d.labels[0] || {}, cnt = new Map(d.cells.filter((x) => x.r.length === 1).map((x) => [x.r[0], x.v[0]]));
     return (d.orders[0] || []).map((k) => ({ value: k === "" ? "" : date ? k : k[0] === "$" ? k.slice(1) : String(lab[k] ?? k), label: String(lab[k] ?? k), n: cnt.get(k) || 0 }));
   }
-  /** その組みの設備と件数 → [{value, label, n}] */
+  /** その元の設備と件数 → [{value, label, n}]。並びは期間・条件で絞らない、その元のすべての設備（期間に作業の無い設備も選べるように。
+      版 3.69.0: 前は期間・条件で絞った後の設備だけを並べ、「前日」のパネルでは作業の無い設備を選べなかった）。件数はその組みの期間・条件の数（無ければ 0） */
   async function equipsOf(p) {
     const b = baseOf(p);
-    const d = await ask({ visual: "none", source: b.source, equip: b.equip || "", calc: b.calc, filters: b.filters || [], period: b.period || null, basis: b.basis || "work",
+    const q = (filters, period) => ask({ visual: "none", source: b.source, equip: b.equip || "", calc: b.calc, filters, period, basis: b.basis || "work",
       body: { rows: [{ column: "@equip" }], cols: [], measures: [{ agg: "count" }], grand: false } });
-    const lab = d.labels[0] || {}, cnt = new Map(d.cells.filter((x) => x.r.length === 1).map((x) => [x.r[0], x.v[0]]));
-    return (d.orders[0] || []).filter((k) => k !== "").map((k) => ({ value: String(lab[k] ?? k), label: String(lab[k] ?? k), n: cnt.get(k) || 0 }));
+    const narrowed = (b.filters || []).length > 0 || !!b.period;
+    const [all, d] = await Promise.all([narrowed ? q([], null) : null, q(b.filters || [], b.period || null)]);
+    const names = (x) => { const lab = x.labels[0] || {}; return (x.orders[0] || []).filter((k) => k !== "").map((k) => [k, String(lab[k] ?? k)]); };
+    const lab = d.labels[0] || {}, cnt = new Map(d.cells.filter((x) => x.r.length === 1).map((x) => [String(lab[x.r[0]] ?? x.r[0]), x.v[0]]));
+    return names(all || d).map(([, name]) => ({ value: name, label: name, n: cnt.get(name) || 0 }));
   }
   async function fieldsOf(p) {
     const b = baseOf(p);
@@ -186,7 +191,7 @@
   }
   const emit = () => { clearTimeout(emit.t); const q = TPA.clone(st.q); emit.t = setTimeout(() => { emit.t = 0; if (st) st.onChange(q); }, 200); };
   const sel = (attr, opts, cur, label) => `<select class="df-sel" ${attr} aria-label="${esc(label)}">${opts.map(([k, n]) => `<option value="${esc(k)}"${k === cur ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
-  const perText = (pr) => (pr && pr.kind ? (pr.kind === "days" ? `直近 ${pr.n || 7} 日` : (PERIODS.find((x) => x[0] === pr.kind) || ["", ""])[1]) : "組んだ期間のまま");
+  const perText = (pr) => (pr && pr.kind ? P.periodWord(pr) : "組んだ期間のまま");
   /** 段の見出し（名前・要約・開閉の印） */
   const secHead = (name, sum, on, open) => `<i aria-hidden="true">${open ? "▾" : "▸"}</i><b>${name}</b><span class="df-sum${on ? " on" : ""}" title="${esc(sum)}">${esc(sum)}</span>`;
   function paint() {
@@ -207,7 +212,7 @@
     secEl("per").hidden = !perOk;
     secEl("per").querySelector(".df-sech").innerHTML = secHead("期間", perText(pr), !!pr.kind, st.sec === "per");
     if (perOk) el.querySelector(".df-perb").innerHTML = `<div class="df-row">${sel("data-df-pkind", PERIODS, pr.kind || "", "期間")}`
-      + (pr.kind === "days" ? `<input type="number" min="1" max="3660" value="${pr.n || 7}" data-df-pn aria-label="日の数" class="df-num">日` : "")
+      + P.periodNInput(pr, "data-df-pn", "df-num")
       + (pr.kind ? sel("data-df-pcol", periodCols, pr.column, "期間で絞る日付") : "") + "</div>";
     // 値と条件
     secEl("val").querySelector(".df-sech").innerHTML = secHead("値・条件", groups.length ? groups.map(([c, fs]) => colText(c, fs)).join("／") : "絞っていません", groups.length > 0, st.sec === "val");
@@ -271,11 +276,11 @@
     if (x.matches("[data-df-col]")) { pickCol(x.value); paint(); return; }
     if (x.matches("[data-df-pkind]")) {
       const work = baseOf(st.panel).source === "work", first = ((st.fields && st.fields.fields) || []).find((f) => f.date);
-      st.q.period = x.value ? { column: (st.q.period && st.q.period.column) || (work ? "@workday" : first ? first.column : ""), kind: x.value, n: (st.q.period && st.q.period.n) || 7 } : null;
+      st.q.period = x.value ? { column: (st.q.period && st.q.period.column) || (work ? "@workday" : first ? first.column : ""), kind: x.value, n: P.periodNFor(st.q.period, x.value) } : null;
       emit(); paint(); return;
     }
     if (x.matches("[data-df-pcol]")) { st.q.period.column = x.value; emit(); return; }
-    if (x.matches("[data-df-pn]")) { st.q.period.n = Math.max(1, Math.min(3660, +x.value || 7)); emit(); }
+    if (x.matches("[data-df-pn]")) { st.q.period.n = P.periodN({ ...st.q.period, n: x.value }); emit(); }
   }
 
   window.DashFilter = { open, close, merge, slice, sliceHits, chips, drop, isEmpty, checklistHtml, equipsOf, valuesOf, byColumn, colText, isOpen: () => !!el };

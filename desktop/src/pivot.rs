@@ -54,6 +54,12 @@ pub const PERIODS: &[(&str, &str)] = &[
     ("last_month", "先月"),
     ("month", "n か月前"),
     ("range", "日付で決める"),
+    // 版 3.69.0: 今日を含まない n 日・今月を含む n か月・今年・昨年・今年を含む n 年
+    ("days_before", "直近 n 日（今日を含まない）"),
+    ("months", "直近 n か月"),
+    ("this_year", "今年"),
+    ("last_year", "昨年"),
+    ("years", "直近 n 年"),
 ];
 
 /// 数えられなかった理由（Invalid … 組み方の誤り＝400・Down … 読めない＝503。Python の PivotError とほかの例外）
@@ -878,6 +884,23 @@ pub fn period_range(p: &Period, today: &str) -> R<(String, String)> {
         "days" => {
             let k = (if p.n == 0 { 7 } else { p.n }).clamp(1, PERIOD_MAX_DAYS);
             (ymd(d - Days::days(k - 1)), ymd(d))
+        }
+        "days_before" => {
+            let k = (if p.n == 0 { 7 } else { p.n }).clamp(1, PERIOD_MAX_DAYS);
+            (ymd(d - Days::days(k)), ymd(d - Days::days(1)))
+        }
+        "months" => {
+            let back = (if p.n == 0 { 3 } else { p.n }).clamp(1, 120) - 1;
+            let t = d.year() as i64 * 12 + d.month() as i64 - 1 - back;
+            (ymd(NaiveDate::from_ymd_opt(t.div_euclid(12) as i32, t.rem_euclid(12) as u32 + 1, 1).unwrap()), ymd(d))
+        }
+        "this_year" => (ymd(NaiveDate::from_ymd_opt(d.year(), 1, 1).unwrap()), ymd(d)),
+        "last_year" => {
+            (ymd(NaiveDate::from_ymd_opt(d.year() - 1, 1, 1).unwrap()), ymd(NaiveDate::from_ymd_opt(d.year() - 1, 12, 31).unwrap()))
+        }
+        "years" => {
+            let back = (if p.n == 0 { 3 } else { p.n }).clamp(1, 10) - 1;
+            (ymd(NaiveDate::from_ymd_opt(d.year() - back as i32, 1, 1).unwrap()), ymd(d))
         }
         "this_month" => (ymd(d.with_day(1).unwrap()), ymd(d)),
         "last_month" => {
