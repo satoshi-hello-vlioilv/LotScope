@@ -6,6 +6,7 @@
 //! 画面の JS は fetch("/api/...") のまま（同じ置き場への問い合わせ）で、ポートも CORS も要らない。
 
 use crate::sidecar::{Ask, Reply, RequestError, Supervisor};
+use da_core::access::ME_HEADER;
 use serde_json::json;
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
@@ -64,6 +65,10 @@ pub struct Req<'a> {
 }
 pub type Native = Box<dyn Fn(&Req, &dyn Backend) -> Option<Reply> + Send + Sync>;
 
+/// 中身（Python）へ回す前に窓が見る（版 3.65.0。src/access.rs の権限の判定と書き込みの門番）。Ok(Some(字)) は見出し X-TPA-Me に
+/// 載せる me・Ok(None) は載せない（Python が自分で決める）・Err は回さずに断る答え。
+pub type Guard = Box<dyn Fn(&Req, &dyn Backend) -> Result<Option<String>, Reply> + Send + Sync>;
+
 /// Python が答えたあとに窓が見る（終了ボタンのあと、中身が片付けて終わったら窓も閉じる等）。
 pub type After = Box<dyn Fn(&str, &str, u16) + Send + Sync>;
 
@@ -71,6 +76,7 @@ pub struct Router<B: Backend> {
     pub static_dir: PathBuf,
     pub backend: B,
     pub native: Native,
+    pub guard: Guard,
     pub after: After,
 }
 
@@ -85,10 +91,22 @@ impl<B: Backend> Router<B> {
         } else if let (true, Some(rest)) = (method == "GET" || method == "HEAD", path.strip_prefix("/static/")) {
             (static_file(&self.static_dir, rest, query), "shell")
         } else {
-            let headers = req.headers().iter().filter_map(|(k, v)| Some((k.as_str().to_string(), v.to_str().ok()?.to_string()))).collect();
-            let r = self.backend.ask(&Ask { method, path, query, headers, body: req.body() });
-            (self.after)(method, path, r.status);
-            (r, "python")
+            // 画面から来た X-TPA-Me は必ず捨てる（画面が権限を名乗れない。載せるのは窓が決めた me だけ）
+            let mut headers: Vec<(String, String)> = req
+                .headers()
+                .iter()
+                .filter(|(k, _)| !k.as_str().eq_ignore_ascii_case(ME_HEADER))
+                .filter_map(|(k, v)| Some((k.as_str().to_string(), v.to_str().ok()?.to_string())))
+                .collect();
+            match (self.guard)(&Req { method, path, query, body: req.body() }, &self.backend) {
+                Err(no) => (no, "shell"),
+                Ok(me) => {
+                    headers.extend(me.map(|m| (ME_HEADER.to_string(), m)));
+                    let r = self.backend.ask(&Ask { method, path, query, headers, body: req.body() });
+                    (self.after)(method, path, r.status);
+                    (r, "python")
+                }
+            }
         };
         to_response(reply, by)
     }
@@ -172,10 +190,11 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
 
-    struct Echo(Mutex<Vec<String>>);
+    struct Echo(Mutex<Vec<String>>, Mutex<Vec<Vec<(String, String)>>>);
     impl Backend for Echo {
         fn ask(&self, a: &Ask) -> Reply {
             self.0.lock().unwrap().push(format!("{} {}?{} {}", a.method, a.path, a.query, String::from_utf8_lossy(a.body)));
+            self.1.lock().unwrap().push(a.headers.clone());
             Reply { status: 201, headers: vec![("Content-Type".into(), "text/plain".into())], body: b"py".to_vec() }
         }
     }
@@ -183,8 +202,13 @@ mod tests {
     fn router(dir: &Path) -> Router<Echo> {
         Router {
             static_dir: dir.to_path_buf(),
-            backend: Echo(Mutex::default()),
+            backend: Echo(Mutex::default(), Mutex::default()),
             native: Box::new(|r, _| (r.method == "GET" && r.path == "/__desktop/info").then(|| error_reply(200, "info", "窓"))),
+            guard: Box::new(|r, _| match r.path {
+                "/api/masters/access" if r.method == "POST" => Err(error_reply(403, "forbidden", "書けません")),
+                "/api/lost" => Ok(None),
+                _ => Ok(Some("{\"flags\":{}}".into())),
+            }),
             after: Box::new(|_, _, _| {}),
         }
     }
@@ -226,6 +250,27 @@ mod tests {
             "/static でも GET・HEAD 以外は Python へ"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn me_header_comes_only_from_the_shell() {
+        let r = router(&std::env::temp_dir());
+        let forged = Request::builder()
+            .method("POST")
+            .uri("tpa://localhost/api/masters/rolls")
+            .header("x-tpa-me", "{\"flags\":{\"masterEdit\":\"編集可\"}}");
+        r.handle(&forged.body(Vec::new()).unwrap());
+        let me = |h: &Vec<(String, String)>| {
+            h.iter().filter(|(k, _)| k.eq_ignore_ascii_case(ME_HEADER)).map(|(_, v)| v.clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(me(r.backend.1.lock().unwrap().last().unwrap()), ["{\"flags\":{}}"], "画面の見出しは捨て、窓の me だけ");
+        let lost = Request::builder().method("GET").uri("tpa://localhost/api/lost").header("X-TPA-Me", "{}").body(Vec::new()).unwrap();
+        r.handle(&lost);
+        assert!(me(r.backend.1.lock().unwrap().last().unwrap()).is_empty(), "決められないときは何も載せない（名乗らせない）");
+        let n = r.backend.0.lock().unwrap().len();
+        let no = r.handle(&req("POST", "tpa://localhost/api/masters/access", b"{}"));
+        assert_eq!((no.status().as_u16(), no.headers()["x-tpa-by"].to_str().unwrap()), (403, "shell"), "門番が断る");
+        assert_eq!(r.backend.0.lock().unwrap().len(), n, "断った問い合わせは Python へ回さない");
     }
 
     #[test]

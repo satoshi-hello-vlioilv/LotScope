@@ -124,8 +124,14 @@ def lotlist_settings():
         # 段取りの材料（データ元・作業実績の登録など）が読めない（マスタに届かない など）: 窓は品質の結合・ロット番号の列・タブの権限を
         # 知らずに答えることになるので、Python に任せる（Python は同じ理由の失敗を答える）
         lists, engine = None, "python"
+    try:
+        # 権限の判定の材料（版 3.65.0。desktop/src/access.rs）: 名乗り（決めるのはまだ Python）と、マスタ・利用状況の置き場。
+        # 窓はこの置き場から権限のマスタと切断の指示を自分で読み、me を決めて Python へ渡す（判定は窓の 1 か所）
+        place = _access_place()
+    except Exception:
+        place = None     # 読めない: 窓は me を載せず、Python が自分で決める
     return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
-                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists)
+                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists, access=place)
 
 
 def lists_settings():
@@ -155,6 +161,19 @@ def lists_settings():
                      "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び")} for r in repo.work_logs()],
                      "canEditShifts": can_write(shifts.NAME)},
             "shifts": repo.shift_patterns()}
+
+
+def _access_place():
+    from ..repositories.master_store import DEFAULTS_DIR
+    from ..services import identity, presence
+    st = current_app.config["MASTER_STORE"]
+    st.follow_moved()                    # 置き場の決まり（引っ越し先の印・配る版の覚え）は Python が決め、窓はその答えを読む
+    pdir = presence.presence_dir()
+    who = identity.current()
+    return {"who": {**who, "key": presence.terminal_key(who["login"], who["pc"])},
+            "place": {"shareDir": str(st.share_dir) if st.share_dir is not None else "", "shared": sorted(st.shared_names),
+                      "data": str(st.base / "data"), "defaults": str(DEFAULTS_DIR), "cache": str(st.cache_dir),
+                      "presence": str(pdir) if pdir is not None else ""}}
 
 
 def _conversions():

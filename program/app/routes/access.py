@@ -27,6 +27,10 @@ _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls
 
 @bp.before_app_request
 def _access_guard():
+    from .common import _shell_me
+    if _shell_me() is not None:
+        return None      # デスクトップ版は窓が門番（desktop/src/access.rs。同じ決まり・同じ言葉。通した問い合わせにだけ me を載せる）。
+        # 窓が名乗りや権限を読めず me を載せなかったときは、今までどおりここで見る（門番が抜けない）
     if request.method in ("GET", "HEAD", "OPTIONS") or request.path in ("/api/settings/check", "/api/sources/check") \
             or (request.path.startswith("/api/sources/") and request.path.endswith("/conn/check")):
         return None

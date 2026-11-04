@@ -1,5 +1,6 @@
 //! 窓（Tauri）に依らない処理。exe（src/main.rs）と突き合わせの試験（tests/）が使う。
 
+pub mod access;
 pub mod aggregate;
 pub mod dashboard;
 pub mod distribute;

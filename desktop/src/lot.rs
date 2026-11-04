@@ -35,6 +35,8 @@ pub struct Settings {
     pub conversions: Value,
     /// 一覧の段取りの材料（版 3.60.0。データ元・作業実績の登録・勤務体系・出さないタブ。Python の lotlist.lists_settings）
     pub lists: Value,
+    /// 権限の判定の材料（版 3.65.0。名乗りとマスタ・利用状況の置き場。Python の lotlist._access_place・src/access.rs）
+    pub access: Value,
 }
 
 impl Settings {
@@ -50,6 +52,7 @@ impl Settings {
             conversions_rev: v["conversions"]["rev"].to_string(),
             conversions: v["conversions"]["tables"].clone(),
             lists: v["lists"].clone(),
+            access: v["access"].clone(),
         }
     }
 }
@@ -119,6 +122,11 @@ impl Lot {
         let s = Settings::from_json(&ask()?);
         *self.settings.lock().unwrap() = Some((Instant::now(), s.clone()));
         Ok(s)
+    }
+
+    /// 権限の判定の材料（一覧の設定と一緒に 10 秒覚える。読めなければ None: Python が自分で決める）
+    pub fn access(&self, ask: AskSettings) -> Option<Value> {
+        self.settings(ask).ok().map(|s| s.access).filter(Value::is_object)
     }
 
     /// 変換表（設定の版が前と同じなら読み解いた表を使い回す）
