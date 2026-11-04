@@ -253,13 +253,13 @@ impl Lot {
             return None;
         }
         let m = self.mirror(&s);
-        let lists_v = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
-        let conf = Conf { v: &lists_v };
-        let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
         let qs = lotlist::parse_query(query);
         let arg = |k: &str| qs.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_default();
         let lists = &self.lists;
-        let (what, plan) = match &route {
+        // データの時刻・再読込は出さないタブを見ない（前の版から）: 権限を決める前に答える（窓が me を決められなくても窓の写しの係が答え、
+        // Python に回して同じ台帳に写しの係を 2 つ動かさない）
+        let raw = Conf { v: &s.lists };
+        match &route {
             Route::Lot(Kind::Source) => return Some((200, m.source_info())),
             Route::Lot(Kind::Refresh) => {
                 let r = m.refresh();
@@ -271,9 +271,9 @@ impl Lot {
                     Some(w) => (200, w.source_info()),
                 })
             }
-            Route::Src(key, Kind::Source | Kind::Refresh) if conf.source(key).is_some_and(|d| d["kind"] == "cm3") => return None,
+            Route::Src(key, Kind::Source | Kind::Refresh) if raw.source(key).is_some_and(|d| d["kind"] == "cm3") => return None,
             Route::Src(key, Kind::Source) => {
-                let d = conf.source(key);
+                let d = raw.source(key);
                 let k = d.and_then(|d| d["base"].as_str()).filter(|b| !b.is_empty()).unwrap_or(key).to_string();
                 let mm = if k == "lot" { Some(m.clone()) } else { lists.src.peek(&k) };
                 return Some(match mm {
@@ -281,6 +281,12 @@ impl Lot {
                     Some(x) => (200, x.source_info()),
                 });
             }
+            _ => {}
+        }
+        let lists_v = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる（出さないタブを見る道）
+        let conf = Conf { v: &lists_v };
+        let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
+        let (what, plan) = match &route {
             Route::Lot(k) => (*k, lists.lot_plan(&conf, &q, true)),
             Route::Work(k) => (*k, lists.work_plan(&conf, &q, &arg("equip"), *k != Kind::Refresh, true)),
             Route::Src(key, k) => {
@@ -752,6 +758,10 @@ mod tests {
         let lot3 = Lot::new(dir.join("cache3"));
         assert!(lot3.handle("GET", "/api/worklog", "equip=a&work=1", &ask).is_none(), "一覧は Python に任せる");
         assert!(lot3.handle_body("POST", "/api/dashboard/query", "", &body, &ask).is_none(), "ダッシュボードも Python に任せる");
+        // データの時刻・再読込は出さないタブを見ないので、窓が答え続ける（Python に回すと同じ台帳に写しの係が 2 つ動く）
+        assert_eq!(lot3.handle("GET", "/api/lotlist/source", "", &ask).map(|r| r.0), Some(200), "品質のデータの時刻は窓");
+        assert_eq!(lot3.handle("POST", "/api/lotlist/refresh", "", &ask).map(|r| r.0), Some(200), "品質の再読込は窓");
+        assert!(lot3.handle("GET", "/api/worklog/source", "equip=a", &ask).is_some(), "作業実績のデータの時刻は窓");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
