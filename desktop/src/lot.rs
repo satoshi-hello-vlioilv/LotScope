@@ -12,6 +12,7 @@ use crate::dashboard;
 use crate::formula::Tables;
 use crate::lists::{Conf, Lists, Quality};
 use crate::lotlist::{self, Args};
+use crate::master_store::{Config as StoreConfig, Store};
 use crate::mirror::DbMirror;
 use crate::pivot;
 use crate::worksum::{self, Grouping};
@@ -71,6 +72,8 @@ pub struct Lot {
     dash: Mutex<dashboard::Cache>,
     /// 権限の判定と書き込みの門番（版 3.65.0。src/access.rs）。マスタを書いた後（after_python）に覚えを捨てる
     gate: Gate,
+    /// マスタの書く係（版 3.68.0。src/master_store.rs）。置き場と名乗りごとに 1 つ作って長く持つ（錠の残り秒を最初に見てからの経過で測るため）
+    store: Mutex<Option<(String, Arc<Store>)>>,
 }
 
 impl Lot {
@@ -85,7 +88,65 @@ impl Lot {
             tables: Mutex::default(),
             dash: Mutex::default(),
             gate: Gate::default(),
+            store: Mutex::default(),
         }
+    }
+
+    /// 置き場の答え（一覧の設定の access）に合わせた書く係（置き場か名乗りが変われば作り直す）
+    fn store_for(&self, conf: &Value) -> Option<Arc<Store>> {
+        let key = format!("{}|{}", conf["place"], conf["who"]);
+        let mut cur = self.store.lock().unwrap();
+        if let Some((k, s)) = cur.as_ref() {
+            if *k == key {
+                return Some(s.clone());
+            }
+        }
+        let p = &conf["place"];
+        let path = |k: &str| p[k].as_str().filter(|s| !s.is_empty()).map(PathBuf::from);
+        let cache = path("cache")?;
+        let s = Arc::new(Store::new(StoreConfig {
+            data: path("data")?,
+            defaults: path("defaults")?,
+            share_dir: path("shareDir"),
+            shared: p["shared"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default(),
+            local_root: cache.parent()?.to_path_buf(),
+            cache,
+            pc: conf["who"]["pc"].as_str().unwrap_or("").into(),
+            login: conf["who"]["login"].as_str().unwrap_or("").into(),
+            role: "rs".into(),
+            lock_ttl: p["lockTtl"].as_f64().unwrap_or(crate::master_store::LOCK_TTL_DEFAULT),
+        }));
+        *cur = Some((key, s.clone()));
+        Some(s)
+    }
+
+    /// 権限のマスタを書く 4 本（版 3.68.0。src/access_write.rs）を窓が受ける。権限を読み直して門番に通し、窓の書く係で書く。
+    /// 判定の材料（access）が無い・me を決められないときは None（Python が答える）
+    fn access_write(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::access_write::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() || crate::access_write::needs_python(body) {
+            return None;
+        }
+        self.gate.forget(); // 書く前は、いまの権限の表で決める
+        let me = self.gate.me(&s.access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let store = self.store_for(&s.access)?;
+        let (status, v) = crate::access_write::handle(&store, &me, route, query, body)?;
+        if (200..300).contains(&status) {
+            self.invalidate(); // 一覧の設定（出さないタブ）と権限の覚えを捨てる
+            self.gate.forget();
+        }
+        Some((status, v))
     }
 
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
@@ -211,6 +272,9 @@ impl Lot {
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if let Some(route) = crate::access_write::route_of(method, path) {
+            return self.access_write(method, path, route, query, body, ask);
+        }
         if (method, path) != ("POST", "/api/dashboard/query") {
             return self.handle(method, path, query, ask);
         }
@@ -684,6 +748,75 @@ mod tests {
         assert!(v["error"].as_str().unwrap().starts_with("作業実績のフォルダに届きません（"));
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=d", &ask).unwrap();
         assert_eq!((st, v["kind"].as_str()), (503, Some("unreachable")), "写し終えていない係では見せない（前の写しが無い）: {v}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_writes_access_masters() {
+        // 版 3.68.0（順 5 の 2 段目 b）: 権限のマスタを書く 4 本は窓が受ける（Python へ回さない）。門番を通し、窓の書く係で共有と写しを書き、
+        // 書いたら権限の覚えを捨てる。判定の材料が無いときと、百分率符号で書いた道は Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-awrite-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(local.join("instance_id"), "inst1").unwrap();
+        let admin = json!({"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "rev": 1});
+        let op = json!({"id": 2, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "部分的編集可", "rev": 1});
+        std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 1, "rows": [admin, op]}).to_string())
+            .unwrap();
+        let conf = |login: &str| {
+            json!({"who": {"login": login, "pc": "PC-1", "pcSource": "", "key": format!("PC-1@{login}")},
+                   "place": {"shareDir": share, "shared": ["access_permissions", "tab_access"], "data": dir.join("data"),
+                             "defaults": dir.join("defaults"), "cache": local.join("master_cache"), "presence": "", "lockTtl": 20.0}})
+        };
+        let boss = conf("boss");
+        let ask_boss = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": boss.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let before = lot.gate.me(&boss).unwrap();
+        assert_eq!(before["rows"].as_array().unwrap().len(), 2);
+        // ① 足す: 窓が答える（201）。共有と写しに入り、権限の覚えを捨てる（次の me に新しい行）
+        let body = serde_json::to_vec(&json!({"ログインID": "n1", "権限区分": "メンテナンス者"})).unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/masters/access", "", &body, &ask_boss).expect("窓が受ける");
+        assert_eq!((st, v["ログインID"].as_str()), (201, Some("n1")), "{v}");
+        for f in [share.join("access_permissions.json"), local.join("master_cache/access_permissions.json")] {
+            let d: Value = serde_json::from_slice(&std::fs::read(&f).unwrap()).unwrap();
+            assert_eq!(d["rows"].as_array().unwrap().len(), 3, "{}", f.display());
+            assert_eq!(d["revision"], json!(2));
+        }
+        assert_eq!(lot.gate.me(&boss).unwrap()["rows"].as_array().unwrap().len(), 3, "書いたら権限の覚えを捨てる");
+        // ② タブの権限
+        let body = serde_json::to_vec(&json!({"rules": {"work": ["設備作業者"]}})).unwrap();
+        let (st, v) = lot.handle_body("PUT", "/api/masters/tabaccess", "", &body, &ask_boss).unwrap();
+        assert_eq!((st, v["ok"].clone()), (200, json!(true)), "{v}");
+        // ③ 消す・行の版
+        let (st, _) = lot.handle_body("DELETE", "/api/masters/access/3", "rev=1", b"", &ask_boss).unwrap();
+        assert_eq!(st, 200);
+        // ④ 門番: 部分的編集可は管理のマスタを書けない（Python へ回さずに窓が断る）
+        let u1 = conf("u1");
+        let ask_u1 = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": u1.clone()}));
+        let lot_u1 = Lot::new(dir.join("cache-u1"));
+        let (st, v) = lot_u1.handle_body("PUT", "/api/masters/access/2", "", b"{}", &ask_u1).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (403, Some("forbidden")), "{v}");
+        // ⑤ 判定の材料が無い（前の版の Python）・百分率符号で書いた道・知らない道は Python に任せる
+        let ask_none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
+        assert!(Lot::new(dir.join("c3")).handle_body("POST", "/api/masters/access", "", b"{}", &ask_none).is_none());
+        assert!(lot.handle_body("POST", "/api/masters/%61ccess", "", b"{}", &ask_boss).is_none());
+        assert!(lot.handle_body("PUT", "/api/masters/access/x", "", b"{}", &ask_boss).is_none());
+        assert!(lot.handle_body("GET", "/api/masters/access", "", b"", &ask_boss).is_none(), "読むのは Python");
+        assert!(
+            lot.handle_body("POST", "/api/masters/access", "", r#"{"ログインID": "n", "x": NaN}"#.as_bytes(), &ask_boss).is_none(),
+            "窓が読めない数の本文は Python"
+        );
+        assert!(lot.handle_body("POST", "/api/masters/access", "", r#"{"ログインID": "n", "x": 1e400}"#.as_bytes(), &ask_boss).is_none());
+        assert!(lot.handle_body("POST", "/api/masters/access", "", br#"{"x": "\ud800"}"#, &ask_boss).is_none(), "片割れの代用字");
+        let (st, _) = lot.handle_body("DELETE", "/api/masters/access/1", "rev=1", b"[1]", &ask_boss).unwrap();
+        assert_eq!(st, 500, "表でない本文は書かない");
+        assert!(
+            lot.handle_body("DELETE", "/api/masters/access/1", "rev=%F0%9D%9F%93", b"", &ask_boss).is_none(),
+            "表に無い系統の数字は Python"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

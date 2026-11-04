@@ -215,6 +215,9 @@ python program/tools/ui_score.py 採点.json                                    
 - マスタの書く係を Rust へ写した評価関数（版 3.67.0。順 5 の 2 段目 a）: `cargo test --test masters_parity`（← `program/tests/masters_oracle.py`。25 の場面で
   Python の MasterStore と答え・断る言葉・できたファイルを突き合わせる・同じ PC で Python〈係 py〉と窓〈係 rs〉が同時に書いても保存が消えない・
   値を変えずに書けない数と版の端は断る・2 つの置き場の Store と panic で錠の置き場が混ざらない・SHARED_ALWAYS が Python と同じ）
+- 権限のマスタを書く道を窓へ移した評価関数（版 3.68.0。順 5 の 2 段目 b）: `cargo test --test access_write_parity`（← `program/tests/access_write_oracle.py`。
+  8 場面・58 歩で POST／PUT／DELETE /api/masters/access と PUT /api/masters/tabaccess の答え・断る言葉・できたファイルを Python の道と突き合わせる）・
+  `lot::tests::the_window_writes_access_masters`（本物の道・門番・書いたら権限の覚えを捨てる・Python に任せる形）
 - 検索の索引とカラムの札を覚える評価関数（版 3.66.0）: `cargo test --test search_index`（語ごとに索引と今の形〈全列に CStr LIKE〉で当たる行を突き合わせる・
   * ? とつなぎの字・ビュー・WITHOUT ROWID は今の形・書き換えた後に作り直す〈時刻を戻した書き換えも〉・壊れた索引は作り直す・1 つの接続で 2 つの表・札は覚える／書き換えで数え直す／計算列は覚えない）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`

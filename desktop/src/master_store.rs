@@ -789,6 +789,23 @@ impl Store {
         }
     }
 
+    /// マスタの版の番号（Python の MasterStore.revision: 共有するマスタは共有から取り直した写し、手元だけは data/〈行の配列なら 0〉→ 最初の中身）
+    pub fn revision(&self, name: &str) -> i64 {
+        if self.is_shared(name) {
+            let _ = self.pull(name, false, false); // 読みは届かなくても写しで続ける
+            let m = self.mirror(name);
+            if m.exists() {
+                return Doc::read(&m).map(|d| d.revision).unwrap_or(0);
+            }
+        }
+        let p = self.initial(name);
+        if p.exists() {
+            Doc::read(&p).map(|d| d.revision).unwrap_or(0)
+        } else {
+            0
+        }
+    }
+
     fn who(&self) -> Value {
         json!({"pc": self.cfg.pc, "login": self.cfg.login})
     }
