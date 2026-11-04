@@ -416,6 +416,8 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
       Python の判定を試験用に差し替える `tools/ui_server.as_role` の間は、窓に判定の材料を渡さない（突き合わせの係が窓と同じ前提で比べる）。
       作った後の採点（1 回目 68.7 点）で、本物の道（一覧・ダッシュボード）が lists_of を通ることと勤務体系を直せるかの境が試験に無いと分かり、
       `lot::tests::the_real_paths_use_the_shell_me_for_tabs_and_shifts`（Python の値をわざと逆にした設定で、区分の決まり・現場のマスタ・閲覧のみ・切断）を足した。
+      2 回目（74.3 点）で、窓が me を決められないときに引き継ぐ Python の値（can_write・lists.work.canEditShifts）が試験に無いと分かり、
+      `tests/test_access.py` の `test_can_write_and_shifts_follow_role_and_disconnect` を足した。
   - 2 段目: 書き込み（錠・seed・master_seeds）と書く道を窓へ。Python の store は読み専用にする（読みの途中の seed は断らず、写し・同梱で読み続ける）。
   - 3 段目: 使用の履歴・置き場・設定。
 

@@ -236,6 +236,34 @@ class Presence(Env):
         self.beat()
         self.assertEqual(presence.latest_version(roles), APP_VERSION, "開発者の試しの版は最新版に数えない")
 
+    def test_can_write_and_shifts_follow_role_and_disconnect(self):
+        """書けるか（routes/common.can_write）と、一覧の設定の答えの勤務体系を直せるか（窓が me を決められないときに使う Python の値。版 3.65.1）。
+        区分と段・現場と管理のマスタ・切断の間は書けない、を画面の canEdit と lists.work.canEditShifts の両方で見る"""
+        self.seed("boss", "開発者")
+
+        def shifts():
+            return (self.c.get("/api/lotlist/settings").get_json()["lists"] or {}).get("work", {}).get("canEditShifts")
+
+        def edit(path):
+            return self.c.get(path).get_json()["canEdit"]
+        for login, role, me, field, admin in (("m1", "メンテナンス者", "編集可", True, True), ("p1", "一般ユーザー", "部分的編集可", True, False),
+                                              ("v1", "一般ユーザー", "閲覧のみ", False, False), ("o1", "設備作業者", "編集可", False, False)):
+            self.seed(login, role, me)
+            self.as_(login)
+            self.assertEqual((shifts(), edit("/api/masters/shifts"), edit("/api/masters/tabaccess")), (field, field, admin), login)
+        # 切断の間は、編集可でも書けない（ボタンを出さない）
+        self.as_("m1")
+        self.beat()
+        self.as_("boss")
+        key = presence.terminal_key("m1", "PC-1")
+        self.assertEqual(self.c.post("/api/presence/disconnect", json={"key": key}).status_code, 200)
+        self.as_("m1")
+        self.assertEqual((shifts(), edit("/api/masters/shifts"), edit("/api/masters/tabaccess")), (False, False, False), "切断の間")
+        self.as_("boss")
+        self.c.post("/api/presence/allow", json={"key": key})
+        self.as_("m1")
+        self.assertEqual(shifts(), True, "切断を解けば直せる")
+
     def test_disconnect_blocks_writes_then_allow(self):
         self.seed("boss", "メンテナンス者")
         self.as_("u1")
