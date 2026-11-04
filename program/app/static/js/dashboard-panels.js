@@ -24,16 +24,9 @@
   // 名前ごとの色は、データの種類の色（藍・青緑・琥珀）を使わない（区分の色が「作業実績」などと読めないように。2026-10-grid の 2 回目の指摘）
   // 警告の赤（前日 0 本の札・読めない）と近い赤・桃も使わない（3 回目の指摘）
   const CAT = ["#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#7a7a1f", "#8e4f76"];
-  /* 色の組（版 3.39.0。書式 palette。利用者の要望 7）: "" はデータの種類の色（今まで）。分類の組は dataviz の検証（色覚の差・明るさ・字の背景との差）を通した並び。
-     濃淡の組は 1 つの色の明るさの段（濃い → 淡い。順位・大きさを見せる） */
-  const PALETTES = {
-    calm: { n: "落ち着いた", c: ["#3a6db0", "#c27a1e", "#159483", "#7458c4", "#5d8f1f", "#b2507f"] },
-    vivid: { n: "はっきり", c: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"] },
-    cud: { n: "色覚に配慮", c: ["#0072b2", "#e69f00", "#009e73", "#d55e00", "#cc79a7", "#56b4e9"] },
-    mono: { n: "藍の濃淡", c: ["#1f3a5f", "#2f5583", "#4a73a6", "#7395c2", "#a3bbd9", "#cbd8ea"] },
-    warm: { n: "暖色の濃淡", c: ["#7a2e0e", "#a8461a", "#cf6a2c", "#e3934d", "#efbb80", "#f6dcb5"] },
-    cool: { n: "寒色の濃淡", c: ["#0f4a46", "#16706a", "#23968c", "#55b8ad", "#92d3ca", "#c7e9e3"] },
-  };
+  /* 色の組（版 3.39.0。書式 palette。利用者の要望 7）: "" はデータの種類の色（今まで）。版 3.69.0 から組は dashboard-style.js に
+     （カラフル・単色の濃淡・自分で作った組 custom〈fmt.pcolors〉。利用者の要望 2026-11-04 の 2） */
+  const ST = window.DashStyle, PALETTES = ST.PALETTES;
   /** パネルごとに描いた系列・項目の色（名前 → 色）。組む所の「系列」の見本に使う（描いた色そのもの） */
   const drawn = new Map();
   const drawnSer = new Map();     // パネルごとに描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」。版 3.46.0）
@@ -47,7 +40,7 @@
   /** パネルの系列の色の並び（色の組を選んでいればその組。無ければデータの種類の色から） */
   function seriesColors(p) {
     if (p._facetColor) return [p._facetColor, ...C.COLORS.filter((c) => c !== p._facetColor)];   // 並べる: その設備の色（重ねるときの系列の色と同じ）
-    const pal = PALETTES[((p.fmt || {}).palette) || ""];
+    const pal = ST.paletteOf(p.fmt);
     if (pal) return pal.c.concat(C.COLORS.filter((c) => !pal.c.includes(c)));
     const src = colorOf(p.source);
     return [src, ...C.COLORS.filter((c) => c !== src)];
@@ -190,7 +183,7 @@
     const fm = p.fmt || {};
     const wantLegend = fm.legend !== "none" && (m.nc > 0 || d.measures.length > 1 || ["bubble", "diag45", "xbar", "violin", "waterfall"].includes(kind)) && H >= 150 && kind !== "donut" && kind !== "treemap";
     const gh = Math.max(60, H - (wantLegend ? 20 : 0));
-    const colors = seriesColors(p), pal = PALETTES[fm.palette || ""];
+    const colors = seriesColors(p), pal = ST.paletteOf(fm);
     const r0 = (d.dims.rows || [])[0], few = m.nr === 1 && m.nc === 0 && r0 && !r0.column.startsWith("@") && !C.isTimeDim(r0) && m.rows.filter((r) => r.type === "data").length <= 8;
     const rowColor = few || (pal && ["column", "bar", "lollipop", "donut", "treemap", "bubble"].includes(kind) && m.nc === 0)
       ? catColors(m.rows.filter((r) => r.type === "data").map((r) => m.rowName(r)).sort(), pal ? pal.c : CAT) : null;
@@ -199,6 +192,8 @@
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
     const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, fmt: fm, oneAxis: link });
     if (!p._facetColor) { drawn.set(p.id, new Map(out.used || [])); drawnSer.set(p.id, new Map(out.ser || [])); }
+    // スタイル（版 3.69.0。角丸・グラデーション・枠だけ・淡い塗り・影・太い線）: 系列・項目の色で塗った印だけに当てる
+    if (fm.style) out.svg = ST.apply(out.svg, fm.style, [...cols, ...(out.used || []).map((x) => x[1])]);
     const sideOk = out.side && (kind === "donut" ? W - (Math.min(gh / 2 - 6, W / 2 - 8, 160) * 2 + 16) >= 150 : W >= 760);
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     const cls = `dp-chart${fm.grid === false ? " no-grid" : ""}${fm.size ? ` fs-${fm.size}` : ""}`;

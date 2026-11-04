@@ -285,7 +285,7 @@
     el.classList.toggle("is-editing", S.editing === p.id);
     const frame = p.frame || (p.emph ? "emph" : "card");
     el.classList.toggle("is-emph", frame === "emph");
-    ["accent", "plain", "tint"].forEach((f) => el.classList.toggle(`is-frame-${f}`, frame === f));
+    window.DashStyle.FRAMES.forEach(([f]) => { if (f !== "card" && f !== "emph") el.classList.toggle(`is-frame-${f}`, frame === f); });
     el.style.setProperty("--pc", P.seriesColors(p.visual === "board" ? { ...p, source: ((p.groups || [])[0] || {}).source } : p)[0]);
   }
   /** 編集のとき: 空いたマスの印（押すと、そこにパネルを足す） */

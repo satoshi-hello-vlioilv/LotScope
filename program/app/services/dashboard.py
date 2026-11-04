@@ -202,14 +202,18 @@ def resolve_egroup(eg, equips, group_rows_for):
     return {"groups": groups, "rest": eg["rest"]}
 
 
-FRAMES = ("card", "emph", "accent", "plain", "tint")
+FRAMES = ("card", "emph", "accent", "plain", "tint", "top", "float", "wash", "night")   # 版 3.69.0 で上の線・浮き・色の地・夜
 LABELS = ("auto", "none", "top", "inside", "both")
 XDATES = ("auto", "md", "mdw", "d", "dw", "ymd", "ym", "w")
 XROTS = ("auto", "0", "45", "90")
 UNITS = ("auto", "none", "k", "man", "m", "oku")
 LEGENDS = ("auto", "none", "top", "bottom")
 SIZES = ("s", "m", "l")
-PALETTES = ("", "vivid", "calm", "cud", "mono", "warm", "cool")
+# 色の組（画面の dashboard-style.js と同じ鍵）。版 3.69.0 でカラフル・単色の濃淡を足し、custom（自分で作った組。pcolors に色の並び）
+PALETTES = ("", "vivid", "calm", "cud", "mono", "warm", "cool", "biz", "pastel", "wa", "ocean", "sunset", "earth", "neon",
+            "blue", "green", "olive", "gold", "red", "purple", "gray", "custom")
+STYLES = ("", "round", "grad", "outline", "soft", "shadow", "bold")    # グラフのスタイル（版 3.69.0）
+PCOLORS_MAX = 10
 KPI_LOOKS = ("num", "bar", "gauge")
 MAX_REFS = 4
 MAX_COLORS = 40
@@ -299,6 +303,15 @@ def clean_fmt(v):
             out[k] = v[k]
     if v.get("bold") == "off":
         out["bold"] = "off"
+    # 版 3.69.0: style（グラフのスタイル）・pcolors（自分で作った色の組。palette が custom のときだけ・#rrggbb を 10 まで）
+    if v.get("style") in STYLES and v.get("style"):
+        out["style"] = v["style"]
+    if out.get("palette") == "custom":
+        pcs = [str(c).lower() for c in (v.get("pcolors") if isinstance(v.get("pcolors"), list) else []) if _COLOR.fullmatch(str(c))][:PCOLORS_MAX]
+        if pcs:
+            out["pcolors"] = pcs
+        else:
+            out.pop("palette")
     c = str(v.get("ncolor") or "")
     if _COLOR.fullmatch(c):
         out["ncolor"] = c

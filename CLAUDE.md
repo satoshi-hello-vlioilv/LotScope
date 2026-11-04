@@ -186,6 +186,9 @@ python program/tools/ui_score.py 採点.json                                    
   `ui-eval-dashbuild.mjs`（版 3.69.0。組んでいるパネルの見出しのボタンは「組んでいます」〈押せない〉・押しても Enter でもパネルの大きさと置き場が変わらない・閉じると「組む」に戻る）・
   `ui-eval-dashperiod.mjs`（版 3.69.0。期間の 今日を含まない n 日・直近 n か月・今年・昨年・直近 n 年: 答えの範囲が今日から別に数えた範囲と同じ・件数がサーバーと同じ・数の欄の単位と上限・
   パネルの添え書き・パネルを絞る面にも並ぶ。期間の範囲は Python と Rust を `pivot_parity`・`dash_parity` でも突き合わせる）・
+  `ui-eval-dashstyle.mjs`（版 3.70.0。組む所の上のタブ〈データと数え方・デザイン・書式〉・デザインのタブ〈テーマ・見せ方・スタイル・色の組〉・テーマで 3 つが一緒に替わり食い違わない・
+  スタイル 7 つがグラフに効く〈グラデーション・角丸・影・枠だけ〉・色の組 21 と自分の色〈直す・足す・外す〉・見せ方 9 つ〈夜の字のコントラスト 4.5 以上〉・当てたあとも残る。
+  保存のときの確かめは `tests/test_dashboard_slice.py`）・
   `ui-eval-waterfall.mjs`（ウォーターフォール: 棒の数・計＝サーバーの総計・前の棒の終わりから・増加と減少・足せない値は計なし・計算・はみ出さない・一覧でも）。
   値の計算の式の読み方は、画面（num-format.js）とサーバー（services/num_expr.py）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・`tests/test_num_expr.py`）。どれも終了コード 0 で OK
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`

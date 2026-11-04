@@ -18,10 +18,13 @@ async function openEditor(p, id) {
   if (!(await p.$("#dashScreen.is-edit"))) { await p.click("[data-db-editmode]"); await sleep(300); }
   await p.focus(P(id)); await p.keyboard.press("Enter");
   await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(300);
+  await p.evaluate(() => document.dispatchEvent(new CustomEvent("tpa-show-fmt"))); await sleep(200);   // 版 3.70.0: 書式は組む所の上のタブ「書式」にある
   if (!(await p.$("#dbEditor [data-de-futext], #dbEditor .de-ngrid"))) { await p.click("#dbEditor [data-de-fmtopen]").catch(() => {}); await sleep(200); }
 }
 const kpi = (p, id) => p.$eval(`${P(id)} .dp-num`, (x) => ({ num: x.firstChild ? [...x.childNodes].filter((n) => n.nodeName !== "SMALL").map((n) => n.textContent).join("") : "", unit: x.querySelector("small")?.textContent ?? "" }));
-const typeExpr = async (p, sel, text) => { await p.fill(sel, ""); await p.type(sel, text); await sleep(1300); await waitDash(p); await sleep(300); };
+// 版 3.70.0: 組む所は上のタブ（データと数え方・デザイン・書式）。触る欄のあるタブを開いてから
+const paneOf = (p, sel) => p.evaluate((s) => { const pn = document.querySelector(s)?.closest(".de-pane"); if (pn && pn.hidden) document.querySelector(`[data-de-pane="${pn.dataset.pane}"]`)?.click(); }, sel);
+const typeExpr = async (p, sel, text) => { await paneOf(p, sel); await p.fill(sel, ""); await p.type(sel, text); await sleep(1300); await waitDash(p); await sleep(300); };
 const CIN = "#dbEditor [data-pc-in=\"0\"]";
 const VIEW = parseView(process.argv[2] || "1728x1152");
 const app = await launch();
@@ -49,16 +52,16 @@ try {
   check("③ 単位の欄はいまの字（本）", u0 === "本" && base.unit === "本", { u0, base });
   await typeExpr(p, "#dbEditor [data-de-futext]", "本/日");
   check("③ 単位「本/日」", (await kpi(p, "workTotal")).unit === "本/日", await kpi(p, "workTotal"));
-  await p.fill("#dbEditor [data-de-futext]", ""); await p.dispatchEvent("#dbEditor [data-de-futext]", "input"); await sleep(600);
+  await paneOf(p, "#dbEditor [data-de-futext]"); await p.fill("#dbEditor [data-de-futext]", ""); await p.dispatchEvent("#dbEditor [data-de-futext]", "input"); await sleep(600);
   check("③ 空にすると単位を出さない", (await kpi(p, "workTotal")).unit === "", await kpi(p, "workTotal"));
-  await p.click("#dbEditor [data-de-futextx]"); await sleep(500);
+  await paneOf(p, "#dbEditor [data-de-futextx]"); await p.click("#dbEditor [data-de-futextx]"); await sleep(500);
   check("③ 自動に戻す → 本", (await kpi(p, "workTotal")).unit === "本" && (await p.$eval("#dbEditor [data-de-futext]", (x) => x.value)) === "本", await kpi(p, "workTotal"));
   await typeExpr(p, "#dbEditor [data-de-futext]", "本/日");
   await p.click("[data-de-apply]"); await sleep(500);
 
   // ④ 表のパネル
   await openEditor(p, "wipClass");
-  await p.click('[data-de-vis="none"]'); await sleep(1200); await waitDash(p);
+  await paneOf(p, '[data-de-vis="none"]'); await p.click('[data-de-vis="none"]'); await sleep(1200); await waitDash(p);
   const g0 = await p.evaluate((sel) => +[...document.querySelectorAll(`${sel} tr.is-grand td`)].map((t) => t.textContent)[0].replace(/[^0-9.]/g, ""), P("wipClass"));
   await typeExpr(p, CIN, "×2");
   const g1 = await p.evaluate((sel) => +[...document.querySelectorAll(`${sel} tr.is-grand td`)].map((t) => t.textContent)[0].replace(/[^0-9.]/g, ""), P("wipClass"));

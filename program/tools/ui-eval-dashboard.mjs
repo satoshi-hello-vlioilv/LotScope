@@ -178,8 +178,10 @@ try {
   const rows3 = await rowsOf();
   check("⑧ 名前の順にすると、表の行が名前の順", JSON.stringify(rows3) === JSON.stringify([...rows3].sort((a, b) => a.localeCompare(b, "ja"))), rows3);
   await p.click('[data-de-tab="0"]'); await p.waitForSelector("#deFields .pv-f"); await sleep(300);
+  await p.click('[data-de-pane="design"]'); await sleep(300);   // 版 3.70.0: まとまりの見せ方は上のタブ「デザイン」
   await p.click('[data-de-look][value="num"]', { force: true }).catch(async () => { await p.click('.de-seg:nth-child(3)'); }); await sleep(1500);
   check("⑧ ① の見せ方を「数だけ」にすると、棒が消える", (await p.$$eval(`${P("board")} .db-bar`, (x) => x.length)) === 0, "");
+  await p.click('[data-de-pane="data"]'); await sleep(300);   // 版 3.70.0: 条件は「データと数え方」のタブ
   await addA1100(p);
   await sleep(2500);
   const g8 = { ...byId.board, groups: [{ ...byId.board.groups[0], filters: [{ column: "製造材質", op: "eq", value: "A1100" }] }, byId.board.groups[1]] };

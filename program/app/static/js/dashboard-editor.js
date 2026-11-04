@@ -61,7 +61,7 @@
     ["stack", "積み上げ帯", "列の段（直など）の内訳を 1 本の帯に積む", true], ["share", "割合", "行の計に対する割合（%）"], ["dot", "点と数", "線の上の点の位置で大きさ"],
     ["signal", "信号", "しきい値で ●よい・▲注意・✕要対応"], ["spark", "小さな線", "列の段（日など）の移りを 1 本の線で", true]];
   // パネルの見せ方（枠）・数字の形
-  const FRAMES = [["card", "標準", "白い面"], ["emph", "目立たせる", "淡い藍の地と藍の枠（最初に見る数に）"], ["accent", "色の帯", "左に系列の色の帯"], ["plain", "枠なし", "地に溶け込む（補う数に）"], ["tint", "淡い地", "系列の色をごく淡く敷く"]];
+  const FRAMES = window.DashStyle.FRAMES;     // パネルの見せ方（版 3.69.0 で 5 → 9。dashboard-style.js）
   const KPI_LOOKS = [["num", "数", "大きな数だけ"], ["bar", "目標までの棒", "目標に対する達成率を棒で"], ["gauge", "メーター", "目標に対する達成率を半円で"]];
   // 書式の選び（サーバーの dashboard.clean_fmt と同じ鍵）
   const LABELS = [["", "自動"], ["none", "なし"], ["top", "上"], ["inside", "棒の中"], ["both", "両方"]];
@@ -729,7 +729,7 @@
       const frames = `<span class="de-frames" role="radiogroup" aria-label="パネルの見せ方">${FRAMES.map(([k, n, tip]) => `<label class="de-frame${frame === k ? " on" : ""}" title="${esc(tip)}"><input type="radio" name="de-frame" value="${k}" data-de-frame${frame === k ? " checked" : ""}><i class="fr-${k}" aria-hidden="true"></i>${n}</label>`).join("")}</span>`;
       const kpi = p.visual === "kpi" ? `<div class="de-row"><span class="de-l">数字</span>${segs("kpilook", KPI_LOOKS, fm.kpi || "num", "数字の形")}`
         + (fm.kpi === "bar" || fm.kpi === "gauge" ? `<label class="pv-ck">目標<input type="number" step="any" data-de-target value="${fm.target ?? ""}" class="de-n2" aria-label="目標の値" placeholder="例 30"></label>${fm.target ? "" : '<small class="de-hint is-warn">目標を入れると出ます</small>'}` : "") + "</div>" : "";
-      return `<div class="de-row"><span class="de-l">見せ方</span>${frames}</div>${kpi}${sliceRow()}`;
+      return `<div class="de-sec"><h4>見せ方<small>パネルの枠と地</small></h4>${frames}</div>${kpi}`;
     }
     const g = p.groups[gi], base = P.colorOf(g.source), hasCols = (g.cols || []).length > 0;
     const looks = LOOKS.filter(([, , , cols]) => !cols || hasCols).map(([k, n, tip]) => [k, n, tip]);
@@ -765,11 +765,9 @@
     const sel = (name, list, cur, label) => `<select data-de-f${name} aria-label="${esc(label)}">${list.map(([k, n]) => `<option value="${k}"${String(cur ?? "") === k ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
     const digits = sel("digits", [["", "自動"], ["0", "整数"], ["1", "0.1"], ["2", "0.01"], ["3", "0.001"]], fm.digits == null ? "" : String(fm.digits), "小数の桁");
     const head = `<button type="button" class="de-fmthead" data-de-fmtopen aria-expanded="${fmtOpen}"><b>書式</b><small>${fmtSummary(fm)}</small><i aria-hidden="true">${fmtOpen ? "▴" : "▾"}</i></button>`;
-    if (!fmtOpen) return head;
-    if (kpi || tableish) return head + `<div class="de-fmt">${numFmtHtml(fm, digits, sel)}${alignHtml(fm, kpi)}</div>`;
-    const pal = P.PALETTES, cur = fm.palette || "";
-    const palBtn = (k, n, cs) => `<button type="button" class="de-pal${cur === k ? " on" : ""}" data-de-pal="${k}" aria-pressed="${cur === k}" title="${esc(n)}"><span>${cs.slice(0, 5).map((c) => `<i style="background:${c}"></i>`).join("")}</span>${esc(n)}</button>`;
-    const pals = palBtn("", "データの種類", P.seriesColors({ source: p.source })) + Object.entries(pal).map(([k, x]) => palBtn(k, x.n, x.c)).join("");
+    void head; void fmtOpen;   // 版 3.70.0: 書式は上のタブ「書式」の中身。畳む見出しは置かず、デザインのタブと同じ囲みに分ける
+    const sec = (t, sub, html) => `<div class="de-sec"><h4>${t}<small>${sub}</small></h4>${html}</div>`;
+    if (kpi || tableish) return `<div class="de-fmt">${sec("表示形式", "数の形・単位・桁", numFmtHtml(fm, digits, sel))}${sec("配置と字", "そろえ・大きさ・色", alignHtml(fm, kpi))}</div>`;
     // 合わせたデータは役割の色（グラフ・札と同じ。3 回目の採点: 見本だけ別の色だった）
     const d0 = host.answer && host.answer();
     const names = seriesNames(), colors = isLink() && d0 && d0.measures ? d0.measures.map((x) => P.ROLE_COLOR[x.role] || "#5a6f77") : P.seriesColors(p);
@@ -796,16 +794,89 @@
     }).join("")}</div>` : '<small class="de-hint">数え終えると、系列の名前が並びます</small>';
     const refs = (fm.refs || []).map((r, i) => `<div class="de-ref" data-i="${i}"><input type="number" step="any" value="${r.value}" data-de-refv aria-label="基準線の値" class="de-n2"><input value="${esc(r.label || "")}" data-de-refl maxlength="20" placeholder="名前（目標・上限など）" aria-label="基準線の名前">`
       + `<span class="de-sws">${REF_COLORS.map((c) => `<button type="button" class="de-sw${(r.color || REF_COLORS[0]) === c ? " on" : ""}" style="--sw:${c}" data-de-refc="${c}" aria-label="色 ${c}"></button>`).join("")}</span><button type="button" class="icon-btn" data-de-refdel="${i}" aria-label="この基準線を外す">×</button></div>`).join("");
-    return head + `<div class="de-fmt">`
-      + `<div class="de-row"><span class="de-l">数値</span>${segs("flabels", LINE_VIS.has(p.visual) ? LINE_LABELS : LABELS, fm.labels || "", "数値ラベル")}<small class="de-hint">系列ごとには下の「系列」で</small></div>`
+    return `<div class="de-fmt"><div class="de-sec"><h4>数値と軸<small>数値ラベル・横軸・縦軸（系列ごとの数値は下の「系列」で）</small></h4>`
+      + `<div class="de-row"><span class="de-l">数値</span>${segs("flabels", LINE_VIS.has(p.visual) ? LINE_LABELS : LABELS, fm.labels || "", "数値ラベル")}</div>`
       + `<div class="de-row"><span class="de-l">横軸</span>${sel("xdate", XDATES, fm.xdate || "", "横軸の日付の形")}${segs("fxrot", XROTS, fm.xrot || "", "横軸の字の向き")}</div>`
-      + numFmtHtml(fm, digits, sel)
       + `<div class="de-row"><span class="de-l">縦軸</span><label class="pv-ck">最小<input type="number" step="any" data-de-fymin value="${fm.ymin ?? ""}" placeholder="自動" class="de-n2"></label><label class="pv-ck">最大<input type="number" step="any" data-de-fymax value="${fm.ymax ?? ""}" placeholder="自動" class="de-n2"></label>`
       + `<label class="pv-ck"><input type="checkbox" data-de-fgrid${fm.grid === false ? "" : " checked"}>補助線</label></div>`
-      + `<div class="de-row"><span class="de-l">凡例</span>${segs("flegend", LEGENDS, fm.legend || "", "凡例")}<span class="de-l2">字</span>${segs("fsize", SIZES, fm.size || "", "字の大きさ")}</div>`
+      + `</div>` + sec("表示形式", "数の形・単位・桁", numFmtHtml(fm, digits, sel))
+      + `<div class="de-sec"><h4>凡例と基準線<small>凡例・字の大きさ・目標や規格の線</small></h4><div class="de-row"><span class="de-l">凡例</span>${segs("flegend", LEGENDS, fm.legend || "", "凡例")}<span class="de-l2">字</span>${segs("fsize", SIZES, fm.size || "", "字の大きさ")}</div>`
       + `<div class="de-row de-top"><span class="de-l">基準線</span><div class="de-refs">${refs}<button type="button" class="pv-btn" data-de-refadd${(fm.refs || []).length >= 4 ? " disabled" : ""}>＋ 基準線（目標・規格）</button></div></div>`
-      + `<div class="de-row de-top"><span class="de-l">色の組</span><div class="de-pals">${pals}</div></div>`
-      + `<div class="de-row de-top"><span class="de-l">系列</span>${named}</div></div>`;
+      + `</div>` + sec("系列", "系列ごとの色・数値・線・形", named) + `</div>`;
+  }
+  /* ---- 上のタブ（版 3.70.0）: いま開いているタブと、タブごとに「既定と違う物がある」印 ---- */
+  let pane = "data";
+  const DESIGN_KEYS = ["style", "palette", "pcolors"];
+  /** グラフのスタイルと色の組を選べる形か（数字・表・合わせた表・稼働の形は、枠だけ） */
+  const chartish = () => !inGroup() && !inSide() && !isOps(p) && !isBoard() && p.visual !== "kpi" && p.visual !== "none";
+  /** デザインのタブ: テーマ（組み合わせの見本。#deTheme）→ 見せ方（枠。#deLook）→ スタイル → 色の組（ここ） */
+  function designHtml() {
+    if (!chartish()) return "";
+    const fm = p.fmt || {};
+    return `<div class="de-sec"><h4>スタイル<small>棒・線・点の描き方</small></h4>${styleHtml(fm)}</div>`
+      + `<div class="de-sec"><h4>色の組<small>系列・項目の色</small></h4>${paletteHtml(fm)}</div>`;
+  }
+  /** テーマ: 押すと見せ方・スタイル・色の組を替える。いまの 3 つと合うテーマだけを押した形にする（選びが食い違って見えない） */
+  function themesHtml(fm) {
+    const frame = p.frame || (p.emph ? "emph" : "card");
+    return `<div class="de-themes" role="radiogroup" aria-label="テーマ">${ST.THEMES.map(([n, pal, sty, fr], i) => {
+      const on = (fm.palette || "") === pal && (fm.style || "") === sty && frame === fr;
+      const cs = pal ? ST.PALETTES[pal].c : P.seriesColors({ source: p.source });
+      return `<button type="button" class="de-theme${on ? " on" : ""}" data-de-theme="${i}" role="radio" aria-checked="${on}" title="見せ方「${esc((FRAMES.find((x) => x[0] === fr) || ["", ""])[1])}」・スタイル「${esc((ST.STYLES.find((x) => x[0] === sty) || ["", ""])[1])}」・色の組「${esc(pal ? ST.PALETTES[pal].n : "データの種類")}」">${ST.mini(cs, sty, fr)}<span>${esc(n)}</span></button>`;
+    }).join("")}</div>`;
+  }
+  function setTheme(i) {
+    const [, pal, sty, fr] = ST.THEMES[i] || []; if (fr == null) return;
+    const fm = { ...(p.fmt || {}) }; delete fm.pcolors;
+    if (pal) fm.palette = pal; else delete fm.palette;
+    if (sty) fm.style = sty; else delete fm.style;
+    if (Object.keys(fm).length) p.fmt = fm; else delete p.fmt;
+    if (fr === "card") delete p.frame; else p.frame = fr; p.emph = fr === "emph";
+    changed(false);
+  }
+  /** タブの札（無いタブは出さない）と、開いているタブの中身だけを出す */
+  function paintPanes() {
+    const fm = p.fmt || {}, frame = p.frame || (p.emph ? "emph" : "card");
+    const has = { data: true, design: !!($("#deTheme").innerHTML || $("#deLook").innerHTML || $("#deDesign").innerHTML), fmt: !!$("#deFmt").innerHTML };
+    if (!has[pane]) pane = "data";
+    const dot = { design: frame !== "card" || DESIGN_KEYS.some((k) => fm[k] != null), fmt: Object.keys(fm).some((k) => !DESIGN_KEYS.includes(k) && k !== "kpi" && k !== "target") };
+    const names = [["data", "データと数え方"], ["design", "デザイン"], ["fmt", "書式"]];
+    $("#dePtabs").innerHTML = names.filter(([k]) => has[k]).map(([k, n]) => `<button type="button" role="tab" class="de-ptab${pane === k ? " on" : ""}" aria-selected="${pane === k}" data-de-pane="${k}">${n}${dot[k] ? '<i class="de-pdot" title="既定から変えています" aria-label="既定から変えています"></i>' : ""}</button>`).join("");
+    $("#dePtabs").hidden = Object.values(has).filter(Boolean).length < 2;
+    document.querySelectorAll("#dbEditor .de-pane").forEach((x) => { x.hidden = x.dataset.pane !== pane; });
+  }
+  function setPane(k) { if (pane === k) return; pane = k; paintPanes(); const m = $("#dbEditor .de-main"); if (m) m.scrollTop = 0; }
+  // 撮る道具・評価関数が「書式を見せて」と知らせたら、書式のタブを開く
+  document.addEventListener("tpa-show-fmt", () => { if ($("#dePtabs")) setPane("fmt"); });
+
+  /* ---- 色の組とスタイル（版 3.69.0。利用者の要望 2026-11-04 の 2・5。組と当て方は dashboard-style.js） ---- */
+  const ST = window.DashStyle;
+  /** スタイルの見本（3 本の棒と線を、そのスタイルで実際に描いた絵） */
+  const styleIcon = (k, c) => ST.apply(`<svg viewBox="0 0 34 20" width="34" height="20" aria-hidden="true"><rect x="2" y="9" width="7" height="11" fill="${c}"/><rect x="13" y="4" width="7" height="16" fill="${c}"/><rect x="24" y="12" width="7" height="8" fill="${c}"/><path d="M5 7 L16 2 L28 9" fill="none" stroke="${c}" stroke-width="1.6"/></svg>`, k, [c]);
+  function styleHtml(fm) {
+    const c = P.seriesColors(p)[0], cur = fm.style || "";
+    return `<div class="de-stys" role="radiogroup" aria-label="グラフのスタイル">${ST.STYLES.map(([k, n, tip]) => `<button type="button" class="de-sty${cur === k ? " on" : ""}" data-de-sty="${k}" role="radio" aria-checked="${cur === k}" title="${esc(tip)}">${styleIcon(k, c)}<span>${esc(n)}</span></button>`).join("")}</div>`;
+  }
+  /** 色の組: データの種類・カラフル・単色の濃淡・自分で作る（作る組は色の見本を押して直す・足す・外す） */
+  function paletteHtml(fm) {
+    const cur = fm.palette || "";
+    const btn = (k, n, cs) => `<button type="button" class="de-pal${cur === k ? " on" : ""}" data-de-pal="${k}" aria-pressed="${cur === k}" title="${esc(n)}"><span>${cs.slice(0, 6).map((c) => `<i style="background:${c}"></i>`).join("")}</span>${esc(n)}</button>`;
+    const group = ([g, gn, keys]) => `<div class="de-palg${g === "mono" ? " is-mono" : ""}"><small>${gn}</small><div class="de-pals">${(g === "color" ? btn("", "データの種類", P.seriesColors({ source: p.source })) : "")
+      + keys.map((k) => btn(k, ST.PALETTES[k].n, ST.PALETTES[k].c)).join("")}</div></div>`;
+    const pcs = fm.pcolors || [];
+    // 自分の色はカラフルの格子の最後の升（並べ直した採点の指摘: 札 1 つで 1 段を使っていた）。直す欄は格子の下の段
+    const ownBtn = btn("custom", "自分の色", pcs.length ? pcs : ["#c9d4de"]);
+    const own = (cur === "custom" ? `<div class="de-pcrow"><small>自分の色</small><span class="de-pcs" aria-label="自分の色の並び">${pcs.map((c, i) => `<span class="de-pc"><input type="color" value="${c}" data-de-palc="${i}" aria-label="${i + 1} 番目の色"><button type="button" data-de-palx="${i}" aria-label="${i + 1} 番目の色を外す" title="外す"${pcs.length <= 1 ? " disabled" : ""}>×</button></span>`).join("")}`
+        + `<button type="button" class="pv-btn" data-de-paladd${pcs.length >= ST.CUSTOM_MAX ? " disabled" : ""} title="色を 1 つ足す（${ST.CUSTOM_MAX} まで）">＋ 色</button></span></div>` : "");
+    // 並びは カラフル → 自分で作る → 単色の濃淡（小さい窓でも、送らずに自分の色へ届く。2026-11-dashstyle の 1 回目の採点）
+    return `<div class="de-palbox">${group(ST.GROUPS[0]).replace(/<\/div><\/div>$/, ownBtn + "</div></div>")}${own}${group(ST.GROUPS[1])}</div>`;
+  }
+  /** 自分の色の並びを変える（無ければ、いま描いている色から始める） */
+  function setPcolors(fn) {
+    const fm = p.fmt || {}, base = fm.palette === "custom" && (fm.pcolors || []).length ? fm.pcolors : P.seriesColors(p).slice(0, 6);
+    const next = fn(base.slice()).map(ST.hex).filter(Boolean).slice(0, ST.CUSTOM_MAX);
+    p.fmt = { ...fm, palette: "custom", pcolors: next.length ? next : base };
+    changed(false);
   }
   /** 表示形式の要約（言葉で。書式の符号は Excel を知らないと読めない: 2026-10-numfmt の 1 回目の指摘）。ユーザー定義はコードのまま */
   function numWords(fm) {
@@ -827,7 +898,8 @@
     if (fm.nsize || fm.bold || fm.ncolor) out.push("字");
     if (fm.ymin != null || fm.ymax != null) out.push("縦軸");
     if ((fm.refs || []).length) out.push(`基準線 ${fm.refs.length}`);
-    if (fm.palette) out.push(P.PALETTES[fm.palette].n);
+    if (fm.palette) out.push((window.DashStyle.paletteOf(fm) || { n: "" }).n);
+    if (fm.style) out.push(`スタイル ${(window.DashStyle.STYLES.find((x) => x[0] === fm.style) || ["", ""])[1]}`);
     if (fm.colors && Object.keys(fm.colors).length) out.push(`色 ${Object.keys(fm.colors).length}`);
     if (fm.series && Object.keys(fm.series).length) out.push(`系列 ${Object.keys(fm.series).length}`);
     return out.length ? esc(out.join("・")) : "既定のまま";
@@ -1173,11 +1245,14 @@
         + `<div id="deTabs"></div><div class="de-body"><aside class="pv-fields de-fields" data-dnd-trash><div class="pv-cap"><b>カラム</b><button type="button" class="de-fitbtn" data-de-fitcols title="いちばん長いカラム名が 1 行で入る幅に、カラムの欄を広げます（境を引いても変えられます）">⇔ 名前に合わせる</button><small>札を押すか、右の文へ引くと入ります（文の札は引いて並べ替え・行と列の入れ替え。ここへ戻すと外れます）</small></div>`
         + `<div class="de-fsearch"><input id="deSearch" type="search" placeholder="カラムを検索" autocomplete="off" aria-label="カラムを検索"><button type="button" class="pv-btn de-calcbtn" data-de-calcnew title="式から列を作り、このパネルで使います">＋ 計算列</button></div><div class="pv-list" id="deFields"></div></aside>`
         + '<i class="de-split" role="separator" aria-orientation="vertical" tabindex="0" aria-label="カラムの欄の幅" title="引いてカラムの欄の幅を変える（← → でも。ダブルクリックで元の幅）"></i>'
-        // 流れの順に 4 段（2026-10-dashmore の 3 回目で決めた S3）: ① データ ② 数え方 ③ 形 ④ 見せ方・書式。段の見出しに番号（合わせた表は札で切り替えるので出さない）
-        + `<div class="de-main"><div class="de-step"><i>1</i>データ<small>何を数えるか</small></div><div id="deData"></div>`
-        + `<div class="de-step"><i>2</i>数え方<small>行・列・値・期間・条件</small></div><div id="deSent"></div><div id="deCond"></div><div id="deSort"></div>`
-        + `<div class="de-step"><i>3</i>形<small>どう描くか</small></div><div id="deVis"></div><div id="deBoard"></div>`
-        + `<div class="de-step"><i>4</i>見せ方・書式<small>枠・数値・軸・色</small></div><div id="deLook"></div><div id="deFmt"></div><div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`
+        // 上のタブ（2026-11-dashstyle の 1 回目で決めた D。利用者の要望 2026-11-04 の 2・5）: データと数え方（① データ ② 数え方・連動 ③ 形）｜デザイン（テーマ・見せ方・スタイル・色の組）｜書式（数値・軸・単位・系列）
+        + `<div class="de-main"><div class="de-ptabs" id="dePtabs" role="tablist" aria-label="組む所の中身"></div>`
+        + `<div class="de-pane" data-pane="data"><div class="de-step"><i>1</i>データ<small>何を数えるか</small></div><div id="deData"></div>`
+        + `<div class="de-step"><i>2</i>数え方<small>行・列・値・期間・条件</small></div><div id="deSent"></div><div id="deCond"></div><div id="deSort"></div><div id="deSlice"></div>`
+        + `<div class="de-step"><i>3</i>形<small>どう描くか</small></div><div id="deVis"></div><div id="deBoard"></div></div>`
+        + `<div class="de-pane" data-pane="design" hidden><div id="deTheme"></div><div id="deLook"></div><div id="deDesign"></div></div>`
+        + `<div class="de-pane" data-pane="fmt" hidden><div id="deFmt"></div></div>`
+        + `<div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`
         + `<div id="deCalcBox" class="de-calcbox" hidden></div>`;
       // TPA.onText は fn(欄, 出来事) を呼ぶ（値ではない）。前は値のつもりで v.slice と書いて打つたびに止まり、題が変えられず、検索も当たらなかった（版 3.43.0）
       TPA.onText($("#deSearch"), (el) => { q = el.value; $("#deFields").innerHTML = fieldsHtml(); });
@@ -1196,7 +1271,7 @@
     // 段の見出し: 合わせたデータの「全体」は ① を「合わせ方」にし ② を出さない・「データ」の札は ③ ④（形・見せ方は全体で決める）を出さない
     const steps = el.querySelectorAll(".de-step"), lw = isLink() && whole;
     steps[0].innerHTML = lw ? "<i>1</i>合わせ方<small>データ・役割・軸・作り方</small>" : "<i>1</i>データ<small>何を数えるか</small>";
-    steps[1].hidden = lw; steps[2].hidden = steps[3].hidden = inSide();
+    steps[1].hidden = lw; steps[2].hidden = inSide();
     // 番号は見えている段の順（全体の札は ① 合わせ方 → ② 形 → ③ 見せ方。① → ③ と飛ばない）
     let no = 0; steps.forEach((st) => { if (!st.hidden) { const i = st.querySelector("i"); if (i) i.textContent = String(++no); } });
     if (lw) { const d = $("#deData"); d.hidden = false; if (!typingIn("#deData")) d.innerHTML = linkHtml(); }
@@ -1208,7 +1283,11 @@
       $("#deSort").innerHTML = sortHtml();
     }
     if (!typingIn("#deLook")) $("#deLook").innerHTML = whole ? "" : lookHtml();
+    $("#deSlice").innerHTML = !whole && !inGroup() && !inSide() ? sliceRow() : "";
+    $("#deTheme").innerHTML = chartish() ? `<div class="de-sec"><h4>テーマ<small>見せ方・スタイル・色の組を一度に当てる</small></h4>${themesHtml(p.fmt || {})}</div>` : "";
+    $("#deDesign").innerHTML = designHtml();
     if (!typingIn("#deFmt")) $("#deFmt").innerHTML = fmtHtml();
+    paintPanes();
     $("#deGacts").innerHTML = groupActsHtml();
     // 表全体: 設備の選び・まとめは、行の段（設備）の選びのすぐ下（どちらも行の段に効く）
     if (whole && isBoard()) { const b = $("#deBoard"), first = b && b.querySelector(".de-row"); if (first && !b.querySelector("[data-de-egmode]")) first.insertAdjacentHTML("afterend", equipHtml() + egroupHtml()); }
@@ -1289,7 +1368,12 @@
       if (b.hasAttribute("data-de-fncolorx")) { setFmt("ncolor", ""); return; }
       if (b.hasAttribute("data-de-fitcols")) { fitColumns(); return; }
       if (b.hasAttribute("data-de-futextx")) { setFmt("utext", ""); $("#deFmt").innerHTML = fmtHtml(); return; }
-      if (b.dataset.dePal != null) { setFmt("palette", b.dataset.dePal); return; }
+      if (b.dataset.dePal != null) { if (b.dataset.dePal === "custom") setPcolors((cs) => cs); else { const fm = { ...(p.fmt || {}) }; delete fm.pcolors; p.fmt = fm; setFmt("palette", b.dataset.dePal); } return; }
+      if (b.dataset.deSty != null) { setFmt("style", b.dataset.deSty); return; }
+      if (b.dataset.deTheme != null) { setTheme(+b.dataset.deTheme); return; }
+      if (b.dataset.dePane != null) { setPane(b.dataset.dePane); return; }
+      if (b.dataset.dePalx != null) { const i = +b.dataset.dePalx; setPcolors((cs) => cs.filter((_, j) => j !== i)); return; }
+      if (b.hasAttribute("data-de-paladd")) { setPcolors((cs) => cs.concat([ST.ramp((cs.length * 47) % 360, 0.55)[2]])); return; }
       if (b.dataset.deSerx != null) {
         const n = b.dataset.deSerx, cs = { ...((p.fmt || {}).colors || {}) }, ss = { ...((p.fmt || {}).series || {}) };
         delete cs[n]; delete ss[n];
@@ -1449,6 +1533,7 @@
       if (x.matches("[data-de-eggname]")) { p.egroup.groups[+x.closest(".de-eg").dataset.k].name = x.value.trim().slice(0, 40) || `グループ ${+x.closest(".de-eg").dataset.k + 1}`; changed(false); return; }
       if (x.matches("[data-de-egset]")) { p.egroup.set = x.value; changed(false); return; }
       if (x.matches("[data-de-egrest]")) { p.egroup.rest = x.value; changed(false); return; }
+      if (x.matches("[data-de-palc]")) { const i = +x.dataset.dePalc; setPcolors((cs) => { cs[i] = x.value; return cs; }); return; }
       if (x.matches("[data-de-flabels]")) { setFmt("labels", x.value); return; }
       if (x.matches("[data-de-fxdate]")) { setFmt("xdate", x.value); return; }
       if (x.matches("[data-de-fxrot]")) { setFmt("xrot", x.value); return; }
@@ -1664,7 +1749,7 @@
   window.DashEditor = {
     /** 開く。h = {panel, sources, answer() → いまの答え, onChange(panel), onApply(panel), onCancel(), toast(text)} */
     async open(h) {
-      host = h; sources = h.sources || [];
+      host = h; sources = h.sources || []; pane = "data";   // 開くたびに「データと数え方」のタブから（版 3.70.0）
       p = TPA.clone(h.panel);
       if (p.visual !== "board") {
         p.body = Object.assign({ rows: [], cols: [], measures: [{ agg: "lots" }], grand: false, labels: true, chartAt: 0 }, p.body || {});
