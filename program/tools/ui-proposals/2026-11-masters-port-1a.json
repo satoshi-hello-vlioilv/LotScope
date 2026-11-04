@@ -1,0 +1,166 @@
+{
+ "title": "マスタ・権限を Rust へ移す 1 段目 a: 権限の判定（me）と書き込みの門番を窓へ（版 3.65.0。access.rs）",
+ "rule": "2026-10-17",
+ "applies": "2026-11-masters-port.json",
+ "rounds": [],
+ "evaluator": "作った後の採点者（案を作っていない別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは 2026-11-masters-port.json の built の evaluator にそろえた（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。試験の組の無い境・読んで見つけた食い違いは hidden_state −3、門番が抜ける穴は lost −10）。読んだ物: git show 1c9c57c の全部、前の版の routes/common.py（me）・routes/access.py（_access_guard）・services/access.py・services/presence.py（revocation・_read_json・_age_sec・safe_key）・identity.normalize_part・repositories/master_store.py（read・_doc_path・_maybe_refresh・_pull・_seed・follow_moved）・master_repository._normalize・web.py（Headers・App.handle の unquote・dispatch・TestClient）・sidecar.py（ポートを開かない）・desktop/src/sidecar.rs（見出しの JSON 化）・router.rs・main.rs（guard・after・lot_settings）・lot.rs（changes_settings・settings 10 秒）・lists.rs（Conf::denied の hidden）・lotlist.lists_settings。流した物: cargo test --locked --test access_parity（2 passed・終了 0）・--lib access（2 passed）・--bin LotScope router（3 passed）・python -m unittest tests.test_access（Ran 25・OK・終了 0）。変異試験: 始める前に access.rs・router.rs・main.rs・lot.rs・common.py・access.py・lotlist.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1a/*.orig に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1a/muts.py で 24 個を 1 つずつ入れて流し、毎回写しへ戻して filecmp で確かめた（結果 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1a/mut.json・mut.log。24 個とも戻した）。見つけた 17・見逃した 7（M1・M2・M3・M6・M13・M18・M20）。M3（区分の上限 <= → <）は stored と cap が等しいとき両方とも同じ値を返す、答えが同じになる書き換え。ほかの 6 個は答えが変わる。読んで見つけた穴は自分の組で確かめた: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/probe_pct.py と一時の desktop/tests/zz_probe.rs（百分率符号の道）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/edge.py と edge.json（タブの例外・名乗りの字）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/rev/（切断のファイル）。zz_probe.rs は毎回消し、最後に git status --short と git diff が空であることを確かめた。リポジトリは採点のファイルのほかは変えていない",
+ "baseline": {
+  "今": {
+   "score": {
+    "order": 6,
+    "chunk": 6,
+    "hierarchy": 9,
+    "visual": 5,
+    "steps": 6,
+    "effortless": 8,
+    "intuitive": 7,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 7
+   },
+   "minus": [],
+   "seen": "作る前（版 3.64.0）: me と門番は Python の 1 か所（services/access.py・routes/common.me・routes/access._access_guard）。門番は App.handle が unquote した道で見るので、百分率符号で書いた道も断る（自分の組で、見出しの無い POST /api/masters/%61ccess は 403 forbidden）。判定の元は 1 つで重複も無いが、窓へ移す順は進んでおらず、Rust と突き合わせる評価関数も無い（Python の単体試験だけ）。"
+  }
+ },
+ "built_before1": {
+  "name": "作った後（1 段目 a・版 3.65.0）",
+  "evaluator": "作った後の採点者（案を作っていない別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは 2026-11-masters-port.json の built の evaluator にそろえた（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。試験の組の無い境・読んで見つけた食い違いは hidden_state −3、門番が抜ける穴は lost −10）。読んだ物: git show 1c9c57c の全部、前の版の routes/common.py（me）・routes/access.py（_access_guard）・services/access.py・services/presence.py（revocation・_read_json・_age_sec・safe_key）・identity.normalize_part・repositories/master_store.py（read・_doc_path・_maybe_refresh・_pull・_seed・follow_moved）・master_repository._normalize・web.py（Headers・App.handle の unquote・dispatch・TestClient）・sidecar.py（ポートを開かない）・desktop/src/sidecar.rs（見出しの JSON 化）・router.rs・main.rs（guard・after・lot_settings）・lot.rs（changes_settings・settings 10 秒）・lists.rs（Conf::denied の hidden）・lotlist.lists_settings。流した物: cargo test --locked --test access_parity（2 passed・終了 0）・--lib access（2 passed）・--bin LotScope router（3 passed）・python -m unittest tests.test_access（Ran 25・OK・終了 0）。変異試験: 始める前に access.rs・router.rs・main.rs・lot.rs・common.py・access.py・lotlist.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1a/*.orig に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1a/muts.py で 24 個を 1 つずつ入れて流し、毎回写しへ戻して filecmp で確かめた（結果 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1a/mut.json・mut.log。24 個とも戻した）。見つけた 17・見逃した 7（M1・M2・M3・M6・M13・M18・M20）。M3（区分の上限 <= → <）は stored と cap が等しいとき両方とも同じ値を返す、答えが同じになる書き換え。ほかの 6 個は答えが変わる。読んで見つけた穴は自分の組で確かめた: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/probe_pct.py と一時の desktop/tests/zz_probe.rs（百分率符号の道）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/edge.py と edge.json（タブの例外・名乗りの字）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/rev/（切断のファイル）。zz_probe.rs は毎回消し、最後に git status --short と git diff が空であることを確かめた。リポジトリは採点のファイルのほかは変えていない",
+  "images": "画面に出ない改良（画像なし）。変異試験 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1a/muts.py → mut.json・mut.log。自分の組 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/probe_pct.py・edge.py・edge.json・rev/",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 7,
+    "hierarchy": 6,
+    "visual": 7,
+    "steps": 7,
+    "effortless": 5,
+    "intuitive": 8,
+    "form": 7,
+    "place": 7,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "百分率符号で書いた道で書き込みの門番が抜ける（版 3.64.0 では断っていた）。router.rs の handle は uri.path() を生のまま guard（access.rs の guard の GUARDED の starts_with）に渡すが、Python の App.handle は unquote(path) してから道を合わせ、_access_guard は X-TPA-Me があれば窓に任せて何も見ない。再現: 部分的編集可の u1（管理する人 boss が居る）の conf で Gate::check(\"POST\", \"/api/masters/%61ccess\") → Ok(Some(me))（/api/m%61sters/access・/api/%73ettings/lot_list・/api/masters/%65quipment も同じ）。素の /api/masters/access は 403 forbidden。その me を X-TPA-Me に載せて Python へ POST /api/masters/%61ccess → 窓が断るはずの書き込みが手続きに届く（自分の組 probe_pct.py: 409 duplicate＝手続きまで届いた。素の道で同じ見出しなら 201）。見出しが無ければ Python は 403。画面の fetch は %61 を戻さないので、画面（XSS を含む）から閲覧のみの人が現場のマスタを・部分的編集可の人が管理のマスタ（参照先・データ元・権限の行）を・切断された PC が書ける。after も生の道を見るので、この書き込みの後は me・設定の覚えも捨てない。access_parity の 21 の道に符号化した道が無い"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "ブラウザ版で X-TPA-Me を信じないことが試験で見えない。common._shell_me の if \"access\" not in shell_serves(): return None を外しても（M20）test_access と access_parity は通る。外すと serve_http（ポートで待つ版）へ届く問い合わせが見出しで開発者を名乗れる"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "権限を書いた後に窓の me の覚えを捨てる配線が試験で見えない。main.rs の after の gate.forget() を消しても（M18）--bin LotScope と access_parity は通る（gate_forgets_after_writes は Gate::forget を直に呼ぶだけ）。消すと権限・タブの権限を書いた後 2 秒は古い me で門番が通す・断る"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "行の当たり方と「管理する人が居るか」の境が試験で見えない。access.rs の row_for でログインIDだけ（slot 1）と PC名だけ（slot 2）を入れ替えても（M1）、has_admin_row の > を >= にしても（M2）access_parity と --lib access は通る。27 の組に「完全一致が無く、ログインIDだけと PC名だけの行が両方当たる」組と「一般ユーザーの行だけで当たらない人」の組が無い"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "タブの例外の JSON の読み方が Python と違う（組が無い）。タブの例外 '{\"work\": \"出す\", \"x\": NaN}'・'NaN'・'Infinity'・'1e999'・'{\"work\":\"出す\",\"n\":1e400}' で、Python は出さないタブ []（NaN を読む・inf は .items で落ちて me が [] にする）、窓は serde_json が読めず例外なしとして ['work'] を隠す（自分の組 edge.py と zz_probe.rs。決まり「work は一般ユーザーに出さない」）。窓の me が Python の tab_denied に使われるので、Python の道だけ work を断る"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "切断の指示のファイルの読み方が Python と違う（組が無い）。BOM 付きの .revoke.json は Python（presence._read_json は utf-8 で開く）は読めず切断なし、窓（access.rs revocation は BOM を除く）は切断ありで 403 revoked。at が '20261103T095900'・'2026-11-03T09:59:00,5'（Python 3.13 の fromisoformat が読む形）は Python が切断あり、窓（parse_at）は切断なしで書き込みを通す（自分の組 rev/。いまを 10:00 にして Python は 240 秒・窓は None）。ほかに M6（冷却ちょうど 300 秒の > → >=）・M13（切断の覚えを鍵によらず使う）も見逃す"
+    }
+   ],
+   "seen": "良い所: access.rs は services/access.py の判定・できること・門番の言葉をよく写していて、access_parity は 27 の組 × 21 の道で me と門番の答えを Python と突き合わせる。24 個の誤りのうち 17 個（タブの決まり・区切り・除外の道・残り分・壊れた共有の写し・rev・門番の道・覚えの鍵・NFKC・画面の見出しを捨てる・断った問い合わせを回さない・窓が載せないときの Python の門番・flags の形・置き場の答え・OPTIONS など）を見つけた。画面から来た X-TPA-Me は http の小文字の名前を eq_ignore_ascii_case で捨て、Python の Headers は大小を問わず 1 つに決まり、下線の名前（x_tpa_me）は別の名前のまま。デスクトップ版の Python はポートを開かないので、窓のほかに見出しを付けて Python へ届く道は無い（窓が自分で尋ねる lot_settings・update_settings は見出しを付けない）。窓が読めないとき（設定の答えが無い・写しが壊れている）は載せず、Python が門番を引き継ぐ形は M21 で確かめられている。悪い所: 道の読み方が窓（生）と Python（unquote）で違い、門番が抜ける（lost）。出さないタブの判定は、窓が自分で答える一覧・ダッシュボード（lists の hidden。Python の me から作る）と Python の道（窓の me）で元が 2 つになった（計画の 1 段目 b で直す予定だが、その間は 2 つの判定が食い違える。hierarchy 6）。門番の決まりが Rust と Python の引き継ぎ用の 2 か所にある（layout 6）。覚える長さは me 2 秒＋切断 5 秒が重なり、切断が効くまで最長 7 秒ほど（前は 5 秒）。forget は窓を通った書き込みの後だけで、ほかの PC が書いた権限は 2 秒、置き場の引っ越しは設定の 10 秒まで古いまま。同じ時に走った問い合わせが forget の後に古い me を覚え直す競りも 2 秒は残る。変異の見逃しは 7 個（M3 は答えが同じになる書き換え、ほかの 6 個は答えが変わる）"
+  }
+ },
+ "fixed_after1": "1 段目 a の作った後の 1 回目（43.1 点）の後に作った者が直したこと: ①百分率符号で書いた道（/api/masters/%61ccess など）が門番を抜ける穴を、router.rs が道を戻して（Python の web.App.handle の unquote と同じ）から門番と後始末に渡すよう直した（router.rs の試験に 4 つの書き方）。②権限を書いた後に覚えを捨てる配線を Lot に移し（Lot が Gate を持ち after_python で forget）、試験 lot_gate_forgets_after_writes で守る（読むだけ・断られた書き込みでは捨てない・権限・タブの権限・置き場・設定を書いた後は読み直す）。③me の覚え（2 秒）と切断の指示の覚え（5 秒・PC の鍵ごと）を分け、切断が効くまでの遅れを前と同じ最長 5 秒に戻した。④タブの例外・権限の表・切断の指示の JSON を Python の json.loads と同じに読む（NaN・Infinity・f64 に入らない数）。切断の指示は BOM 付きを読まない（Python と同じ）。時刻は Python 3.11 からの fromisoformat と同じ読み方（基本形・週・区切りの字・コンマの小数・時差つきは読まない）。⑤評価関数を足した: access_oracle.py --revocations の 52 組（時刻の書き方 36・ファイルの形・冷却の境 300 秒ちょうど・鍵の形）・main の組に 8 組（ログインIDだけ＞PC名だけの前後・PC名だけ＞両方空・一般ユーザーだけ・止めた管理者・メンテナンス者・NaN の例外 3 つ）・test_access の ShellMe にブラウザ版と前の窓で見出しを信じない試験。採点者が見逃しを示した M1・M2・M6・M13・M18・M20 と、道を戻さない・BOM を読む・NaN を読まない、の 9 つを入れ直し、どれも試験が落ちることを確かめた（入れた後は cmp で戻した）。残る差: 出さないタブの判定の元が 2 つ（窓が答える一覧は Python の me から作った lists.hidden）なのは、計画どおり 1 段目 b で 1 つにする。",
+ "built_before2": {
+  "name": "作った後の 2 回目（1 段目 a・版 3.65.0。commit c69b39e の直しの後）",
+  "evaluator": "作った後の 2 回目の採点者（案を作っていない、前の回の採点者とも別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは built_before1 の evaluator と同じ（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。試験の組の無い境・読んで見つけた食い違いは hidden_state −3、中身を変える書き込みが門番を抜ける穴は lost −10）。読んだ物: 1c9c57c と c69b39e（採点の途中で作った者が commit した。中身は採点を始めた時の未 commit の直しと同じ）の access.rs・router.rs・lot.rs・main.rs・tests/access_parity.rs、routes/common.py（me・_shell_me）・routes/access.py（_access_guard）・services/access.py・services/presence.py（revocation・_age_sec・_read_json）・identity.normalize_part・web.py（Headers・Rule・dispatch・App.handle の unquote と method.upper）・sidecar.rs（見出しの JSON）・routes/sources.py・routes/settings.py・master_store.write。流した物（終了コードと結果の行で読んだ）: cargo test --locked --test access_parity（3 passed・終了 0）・--lib access（2 passed・終了 0）・--bin LotScope router（3 passed・終了 0）・python -m unittest tests.test_access（Ran 26・OK・終了 0）。変異試験: 始める前に access.rs・router.rs・main.rs・lot.rs・routes/common.py・routes/access.py・routes/lotlist.py・services/access.py・web.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1b/orig/ に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1b/muts.py で前の回（M1〜M24）と重ならない 22 個（N1〜N22。道を戻す・門番の除外・切断・区分・有効・タブの例外とキー・置き場・BOM・鍵・残り秒・覚え・後始末・見出しの捨て方・Python の引き継ぎ・利用状況の置き場・NaN）を 1 つずつ入れて 4 つの評価関数を流し、毎回写しへ戻して filecmp で確かめた（結果 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1b/mut.json・mut.log）。見つけた 14・見逃した 8（N1・N5・N6・N10・N11・N12・N15・N22）。N5 は答えが同じになる書き換え、ほかの 7 個は答えが変わる。読んで見つけた食い違いは自分の組で確かめた: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1b/probe_check.py（除外の道の DELETE）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1b/gen.py → py.json と一時の desktop/tests/zz_s1b_probe.rs → rs.json（時刻・字・タブの例外。zz_s1b_probe.rs は流した後に消した）。最後に写しと cmp で 9 ファイルとも同じ、git status --short が始める前（採点のファイルだけ ??）と同じことを確かめた。採点のファイルのほかは変えていない",
+  "images": "画面に出ない改良（画像なし）。変異試験 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1b/muts.py → mut.json・mut.log。自分の組 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1b/probe_check.py・gen.py・py.json・rs.json",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 7,
+    "hierarchy": 6,
+    "visual": 8,
+    "steps": 7,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 7,
+    "place": 7,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "門番の除外が方法を見ない（Python から写した穴が窓にも残る）。access.rs の guard も routes/access._access_guard も path == \"/api/sources/check\" なら方法によらず通す。DELETE /api/sources/check は sources_delete(key=\"check\") に届き、MasterStore.write が共有の錠を取って data_sources.json を書き直す。再現（probe_check.py）: 閲覧のみの u1 で POST /api/sources は 403 forbidden、DELETE /api/sources/check は 200 {ok: true} で data_sources の revision が 1 → 2（updated_by も u1）。切断された PC も除外の前に通る。キーは s＋16 進 8 字か lot・work・wip・sch で「check」の行は作れないので行の中身は変わらない（だから lost でなく −3）が、書けない人・切断された PC が共有のマスタを書き直せる。PUT /api/settings/check は知らない項目で 400"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "タブの例外の JSON の読み方がまだ Python と違う（「json.loads と同じに読む」と言うが、文字列の中の対の無いサロゲートを読まない）。再現（gen.py と zz_s1b_probe.rs の hidden_tabs）: タブの例外 '{\"lot\":\"出さない\",\"n\":\"\\ud800\"}' で Python は ['lot'] を出さない、窓は py_json が読めず例外なし＝lot を出す（出さないはずのタブが出る側）。'{\"work\":\"出す\",\"n\":\"\\ud800\"}' は逆に Python [] / 窓 ['work']。serde_json が \\ud800 を断り、py_json の置き換えも文字列の中は見ないため。組（access_oracle の NaN の 3 つ）にサロゲートが無い"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "切断の時刻の読み方がまだ Python 3.13 の fromisoformat と違う（「同じ読み方」と言う）。時か時分の後の小数: '2026-11-03T09.5'・'2026-11-03T09:59.5'・'2026-11-03T0959,5'・'2026-11-03T0959.5' をPython は 09:00:00.5・09:59:00.5 と読み（切断あり）、窓の parse_at は None（切断なし＝書き込みを通す）。'2026-11-03T095900.5' は両方読む。'0000-01-01' は Python が断り窓が読むが、どちらも冷却切れで同じ答え。revocation_reads_like_python の 36 の書き方に「秒の無い時刻の小数」が無い"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "行の当たり方の字の比べ方が Python と違う所が残る（組が無い）。normalize_part: Unicode 16 で大文字の決まりが足された字 U+1C8A（ᲊ）・U+A7CD を Python 3.13 は変えず、窓（Rust の to_uppercase）は U+1C89・U+A7CC にする（ログインID「ᲊ」の人に行「Ᲊ」が窓だけ当たる）。worksum::py_str: i64 に入らない数（12345678901234567890 は u64 に入るのに）を float で書くので、数のログインID 12345678901234567890 は Python '12345678901234567890'・窓 '1.2345678901234567E+19' で当たらない。どちらも現場では起きにくいが、決まりの元が 2 つになった所の差"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "判定の材料の境が試験で見えない（変異で見逃した、答えが変わる物）。N6: normalize_role の前後の空白を除かない（' メンテナンス者' の行が一般ユーザーになる）・N10: タブのキーの長さ 16 → 15（16 字のタブの決まりと例外が効かない）・N11: 共有しないマスタも共有のファイルから読む・N12: マスタの BOM を除かない（組の「BOM つきの共有」は写しで続くので答えが同じに見える。写しが古いと答えが変わる）。どれを入れても access_parity・--lib access・--bin router・test_access が通る"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "配線と覚えの境が試験で見えない（変異で見逃した、答えが変わる物）。N1: router.rs が後始末（after）に戻す前の道を渡しても通る（/api/masters/%61ccess/2 を書いた後に一覧の設定と me の覚えを捨てない）・N15: 覚えた me に毎回の切断の指示を重ねない（切断が効くまで最長 5 秒 → 7 秒。直したと言う ③ を守る試験が無い）・N22: Python の me が窓の me の revoked を捨てても通る（/api/access/me が revoked: null を返し、画面に切断の知らせが出ない。test_access の ShellMe に revoked の載った見出しの組が無い）"
+    }
+   ],
+   "seen": "良い所: 前の回の lost（百分率符号で書いた道が門番を抜ける）は直っている。router.rs が percent_decode した道を門番と後始末に渡し、Python の App.handle の unquote と同じ 1 回だけ戻す（二重の %2561 は両方 %61 で止まる）。自分でも道の書き方を当たった: 大文字（/API/…）・二重の / ・末尾の / ・%2F・%3F・.. は、Python の Rule が大小を区別し \\Z で合わせるので、門番を抜けても手続きに届かない（404・400）。方法は WebView の fetch が GET・POST・PUT・DELETE・HEAD・OPTIONS を大文字にそろえ、それ以外（patch など）は窓が書き込みとして門番に通し、Python は大文字にして 405 なので、窓の方が厳しい向きにしか違わない。見出しは http の名前を eq_ignore_ascii_case で捨て、Python の Headers は大小を問わず 1 つ、下線の名前は別の名前のまま。覚えの捨て方は Lot::after_python へ移って lot_gate_forgets_after_writes が守り（N16 を見つけた）、切断の覚えは鍵ごとに 5 秒で、毎回いまの物を重ねる形になった。窓が読めないとき（設定が無い・権限の表が読めない）は見出しを載せず Python が門番を引き継ぐ（test_guard_is_left_to_the_shell_only_when_it_sent_me・N17 を見つけた）。前の回に見逃した M1・M2・M6・M13・M18・M20 の型にも組が足された。22 個の変異のうち 14 個（道の最後の %XX・除外の広がり・切断の効き方・有効の空白・例外の出す／出さない・開発者・鍵の長さ・残り秒・タブの権限の後の覚え・見出しを読めなくても任せる・利用状況の置き場・見出しの大小・門番の道の接頭辞・NaN）を見つけた。悪い所: 方法を見ない除外（DELETE /api/sources/check）が窓にも写っていて、書けない人・切断された PC が共有の data_sources を書き直せる（中身は変わらない）。「json.loads・fromisoformat と同じに読む」はまだ言い切れない（サロゲート・秒の無い時刻の小数で、出さないはずのタブが出る・切断が効かない側に違う）。出さないタブの判定の元が 2 つ（窓が答える一覧は Python の me から作った lists.hidden、Python の道は窓の me）なのは計画どおり 1 段目 b まで残り、上のサロゲートの組では両者が食い違う（hierarchy 6）。門番の決まりが Rust と Python の引き継ぎ用の 2 か所にある（layout 6）。見逃した 8 個のうち N5 は答えが同じになる書き換え、ほかの 7 個（N1・N6・N10・N11・N12・N15・N22）は答えが変わる"
+  }
+ },
+ "fixed_after2": "作った後の 2 回目（51.9 点）の後に作った者が直したこと: ①門番の確かめの道の除外を POST だけにした（Python の routes/access と窓の両方。前の版から、DELETE /api/sources/check が「check」というデータ元を消す道として門番を抜けていた）。②タブの例外などの JSON の対の無いサロゲートを Python と同じに読む（U+FFFD に置き換えて読む。見るのは「出す」「出さない」とタブのキーだけなので答えは同じ）。③時刻の時・分の後の小数（09.5・09:59.5・0959,5）を Python 3.13 と同じに読む。④i64 を超える整数のログインID を字のまま比べる。⑤試験を足した: 道 4 つ（DELETE /api/sources/check・PUT /api/settings/check・DELETE …/conn/check・PATCH）・時刻 8 つ・組 3 つ（サロゲート・大きな数と区分の前後の空白・タブのキーの 16 字の境）・覚えた me に切断を重ねる試験（Gate::with_ttl）・後始末に戻した道を渡す試験（router）・窓の切断を画面へ渡す試験（ShellMe）。BOM の組は Python が作った写しを消してから窓に読ませる（写しが覆って見逃していた）。採点者が見逃しを示した N1・N6・N10・N12・N15・N22 と、今回の直しを崩す 4 つ（除外の方法・サロゲート・時の後の小数・大きな数）を入れ直し、どれも試験が落ちることを確かめた（入れた後は cmp で戻した）。N11（共有しないマスタを共有から読む）は、権限の 2 つのマスタがいつも共有の名前（SHARED_ALWAYS）なので答えが変わらない書き換え。U+1C8A・U+A7CD の大文字（Unicode の版の差: Python 3.13 は 15.1）は直していない（ログインID・PC名に現れにくい）。",
+ "built": {
+  "name": "作った後の 3 回目（1 段目 a・版 3.65.0。commit a8510be の直しの後）",
+  "evaluator": "作った後の 3 回目の採点者（案を作っていない、前の 2 回の採点者とも別のエージェント・2026-11-04）。画面に出ない改良なので、読んで・動かして確かめた事実だけで採点した。物差しの読み替えは built_before1 の evaluator と同じ（order＝移す順が依存に沿う／chunk＝段の区切りと段ごとの確かめ／hierarchy＝判定の元が 1 つ／visual＝試験で同じ答えを示せる／steps＝版と PR の数・利用者の手／effortless＝壊れる・取り違える危険の少なさ／intuitive＝前例と同じ型／form・place＝決まりが 1 か所・同じ物が同じ置き場と言葉／layout＝作りの重複・間接の少なさ／tone＝作る・確かめる道具の手間。試験の組の無い境・読んで見つけた食い違いは hidden_state −3、中身を変える書き込みが門番を抜ける穴は lost −10）。読んだ物: 1c9c57c・c69b39e・a8510be の access.rs・router.rs・lot.rs・main.rs（native・guard・after・lot_settings）・tests/access_parity.rs、routes/common.py（me・_shell_me・tab_denied）・routes/access.py（_access_guard・権限の行の道）・routes/lotlist.py（_access_place・lists_settings）・services/access.py・services/presence.py（revocation・_read_json・_age_sec・_KEY_OK）・services/identity.py・master_store.py（read・_doc_path・_pull・_seed・_as_doc・_read_json）・web.py（Headers・Request・dispatch・handle の unquote）・sidecar.rs（SERVES・見出しの JSON）・tests/test_access.py の ShellMe・tests/access_oracle.py。前の 2 回の台本は読むだけにした。流した物（終了コードと結果の行で読んだ）: cargo test --locked --test access_parity（4 passed・終了 0）・--lib access（2 passed・終了 0）・--bin LotScope router（3 passed・終了 0）・python -m unittest tests.test_access（Ran 27・OK・終了 0）。前の 2 回と違う角度として、手で選んだ組でなく乱数の差分の当て試しをした: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/probe/gen.py が時刻の字 3000（部品を乱数で組んだ字と境の字）・権限の表 3000 組（0〜5 行・字のゆれ・空白の種類・数・真偽）・タブの例外 38・字の比べ方 124416（BMP と補助面の一部を 1 字ずつ）を Python の答えと /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/probe/py.json に書き、一時の desktop/tests/zz_s1c_probe.rs が窓の parse_at・flags・hidden_tabs・normalize_part・revocation で同じ入力を答えて食い違いを rs.json に書いた（流した後に消した）。切断の指示の読み方は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/probe/rev.py（Python）と同じ一時の試験で突き合わせた。変異試験: 始める前に access.rs・router.rs・lot.rs・main.rs・sidecar.rs・pyfmt.rs・worksum.rs・routes/common.py・routes/access.py・routes/lotlist.py・services/access.py・services/presence.py の写しを /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/orig/ に取り、台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/muts.py で前の回（M1〜M24・N1〜N22）と重ならない 26 個（O1〜O26）を 1 つずつ入れて流し（Rust は 3 つの cargo test、Python は test_access と access_parity）、毎回写しへ戻して filecmp で確かめた（結果 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/mut.json・mut.log）。見つけた 16・見逃した 10（O3・O6・O7・O8・O9・O10・O14・O15・O24・O25）。答えが同じになる書き換え: O3（窓は role:grant を使わない）・O6（サロゲートの置き換え方が変わるだけで、見る値〈出す・出さない・タブのキー〉は同じ）・O9（age は 300 以下なので 0 の下限は効かない）・O10（いまは最初の中身 master_defaults に権限の表が無い）・O25（/api/sources で始まり / の無い道は無い）。答えが変わる物: O15・O14・O7・O8・O24（O24 は Python が作らない鍵のときだけ）。最後に 12 ファイルとも写しと cmp で同じ、git status --short が始める前（採点のファイルだけ ??）と同じ、desktop/tests に一時の試験が残っていないことを確かめた。採点のファイルのほかは変えていない（commit・push はしていない）",
+  "images": "画面に出ない改良（画像なし）。差分の当て試し /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/probe/gen.py → py.json・rs.json、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/probe/rev.py。変異試験 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/s1c/muts.py → mut.json・mut.log",
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 7,
+    "hierarchy": 6,
+    "visual": 8,
+    "steps": 7,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 7,
+    "place": 7,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "後に Python へ渡す道を戻した道に替えても試験が通る（O15。答えが変わる）。router.rs で backend.ask に path: &decoded を渡すと、Python の App.handle がもう一度 unquote するので、POST /api/masters/%2561ccess は窓の門番には /api/masters/%61ccess（門番の道でない＝通して me を載せる）、Python には /api/masters/access になり、1 回目の lost（百分率符号で門番を抜ける）が二重の符号で戻る。access_parity・--lib・--bin router・test_access のどれも落ちない（router の試験は後始末に渡す道と断る道だけを見て、Python が受け取る道〈Echo の記録〉を符号つきの道で確かめていない）。直した穴を守る試験が 1 か所欠けている"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "JSON の読み方（py_json）がまだ Python の json.loads と違う（2 回目の直しは対の無いサロゲートだけ）。差分の当て試し（probe/gen.py → rs.json と probe/rev.py）で再現: ① 入れ子が 129 段以上（serde_json の上限 128）。タブの例外 '{\"work\":\"出す\",\"x\":[[…200 段…]]}'（区分の決まりで work を一般ユーザーに出さない）で Python は例外を読み []、窓は読めず ['work']。'{\"lot\":\"出さない\",…}' なら逆に出さないはずの lot が窓では出る。切断の指示 {\"at\":\"2026-11-03T09:59:00\",\"by\":\"boss\",\"x\":[[…200 段…]]} は Python が切断あり（残り 240 秒）、窓は None＝書き込みを通す（切断が効かない側）。② -NaN・1NaN・NaNNaN・1Infinity（Python は読めない字）を窓は 1 に置き換えて読む: タブの例外で Python ['work'] / 窓 []、切断の指示で Python なし / 窓 切断あり。③ 切断の指示の \"_unreadable\": true を Python は「読めない」として切断なし、窓は切断あり。どれも手で直したファイルでしか起きないが、「json.loads と同じに読む」はまだ言い切れない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "行の当たり方の字の比べ方の差は 2 回目の 2 字より広い（直していない）。全部の 1 字（BMP・補助面の一部）を当てると 132 の字で normalize_part が違う: 大文字の決まり（U+019B ƛ→U+A7DC、U+0264→U+A7CB、U+0558・U+058B・U+058C→アルメニア文字の大文字、U+1C8A、U+A7CD・CF・D3・D5・DB・F1、U+10D70〜 ほか）と、NFKC（U+209D〜209F を窓だけ W・Y・Z に変える）。Python 3.13（Unicode 15.1）と窓の Rust・unicode-normalization の版の差。ログインID・PC名に現れにくいが、決まりの元が 2 つになった所の差で組が無い"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "判定の材料の境が試験で見えない（変異で見逃した、答えが変わる物）。O14: 数 0 のログインID を窓が「0」と読む（Python の str(0 or \"\") は空＝その行は PC名だけ・両方空の行になる）・O7: 週の基本形（2026W457T…）の日付の終わりの奇数・偶数を入れ替える・O8: 切断の時刻の小数を 3 桁で切る（残り秒の切り捨ての境が動く）・O24: 切断の鍵の形を確かめない（置き場の外のファイルを読める。Python が作る鍵では起きない）。どれを入れても 4 つの評価関数が通る"
+    }
+   ],
+   "seen": "良い所: 2 回目の指摘は直っている。確かめの道の除外は窓も Python も POST だけ（DELETE /api/sources/check は門番に掛かる）。乱数の差分の当て試しで、権限の表 3000 組の flags は全部 Python と同じ、時刻の字 3000 は 0 年の 1 つ（どちらも冷却切れで同じ答え）のほかは同じ、対の無いサロゲート・時と分の後の小数・i64 を超える整数のログインIDも同じに読む。見出しの道も別の角度から当たった: 画面の X-TPA-Me は窓が大小を問わず捨て、http の名前は ASCII だけなので Python の Headers（lower）と取り違えない。窓が自分で Python へ尋ねる道（一覧の設定・更新の設定）は見出しを付けず、画面の値を Python へ流す窓の道（native）も見出しを運ばないので、画面が名乗る道は見つからなかった。名乗り（who）は Python の identity が決め、画面からは変えられない（端末の名前は appsettings で起動時だけ）。窓が読めないとき（権限の表が壊れている・設定が無い）は見出しを載せず Python が門番を引き継ぎ、窓が読めて Python が読めない形（-NaN など）は窓の方が厳しい側に倒れる。26 個の変異のうち 16 個（開く・書く・利用状況のできること・切断した人の言葉・版・並び・表の例外・%2X・後始末の状態と置き場・hiddenTabs の caps・Python 側の管理する人・写しの置き場・冷却の境・共有の名前・GET でも窓の me）を見つけた。悪い所: 1 回目の lost を直した道を守る試験が、Python へ渡す道の側に無い（O15 で二重の符号が抜ける形に戻せる）。json.loads と同じに読むはまだ言い切れず、入れ子の深い切断の指示は窓で効かない。字の比べ方の Unicode の版の差は直していない。出さないタブの判定の元が 2 つ（窓が答える一覧は Python の me から作った lists.hidden、Python の道は窓の me）なのは計画どおり 1 段目 b まで残り、上の入れ子の組では両者が食い違う（hierarchy 6）。門番の決まりが Rust と Python の引き継ぎ用の 2 か所にある（layout 6）。見逃した 10 個のうち 5 個（O3・O6・O9・O10・O25）は答えが同じになる書き換え、5 個（O15・O14・O7・O8・O24）は答えが変わる"
+  }
+ },
+ "fixed_after3": "作った後の 3 回目（58.9 点）の後に作った者が直したこと: ①Python へ渡す道は画面が送ったままにする試験を router に足した（戻した道を渡すと %2561 が門番では %61・Python では a になり門番を抜ける。変異 O15 を入れると落ちる）。②切断の指示の \"_unreadable\" の印を Python と同じく「切断なし」と読む。③JSON の NaN・Infinity・大きな数を置き換えるのは、値の置き場に始まり区切りで終わる語だけにした（-NaN・1NaN・NaNNaN・1Infinity は Python と同じく読めない）。④組を足した: 数 0 のログインID・Python も読めない NaN の字 2 つ・週の基本形の時刻 5 つ・切断の指示の形 4 つ。直していない差: 129 段を超える入れ子の JSON（serde_json の上限。Python は 1,000 段ほどまで読む）・Unicode の版の差による 132 字の大文字と NFKC（Python 3.13 は 15.1）・切断の時刻の小数を 3 桁で切る変異（O8。試験のいまの .25 では答えが変わらない）・Python が作らない形の切断の鍵（O24）。どれも、名乗り・権限の表・切断の指示に現場で現れにくい。",
+ "accepted_by_user": {
+  "date": "2026-11-04",
+  "note": "作った後の採点は 3 回とも合格点 80 に届かなかった（43.1・51.9・58.9）。門番を抜ける穴（lost）は 1 回目の百分率符号の道だけで、直した後の 2・3 回目には無い。採点者が示した見逃しは、そのたびに試験で見つかる形に直した（3 回目の後も O15・_unreadable・NaN の字・数 0 のログインID・週の基本形）。残る差は、129 段を超える入れ子の JSON・Unicode の版の差による 132 字の大文字と NFKC・切断の時刻の小数を 3 桁で切る変異・Python が作らない鍵の形で、名乗り・権限の表・切断の指示に現場で現れにくい。利用者が「この形で決めて push」を選んだ。足りない点は、作る前より段と道具が増えた（ステップ数・作りの重複: 門番の決まりが Rust と引き継ぎ用の Python の 2 か所）ことと、出さないタブの判定の元が 2 つ（1 段目 b で 1 つにする）こと"
+ }
+}

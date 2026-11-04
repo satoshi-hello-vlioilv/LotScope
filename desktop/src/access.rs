@@ -545,10 +545,18 @@ fn py_json(text: &str) -> Option<Value> {
             }
             continue;
         }
+        // 値の置き場（先頭か [ , : の後）に始まり、区切り（空白 , ] } か終わり）で終わる語だけを置き換える（-NaN・1NaN・NaNNaN は Python も読めない）
+        let at_value = matches!(out.trim_end().chars().last(), None | Some('[' | ',' | ':'));
+        let ends = |j: usize| b.get(j).is_none_or(|c| c.is_whitespace() || matches!(c, ',' | ']' | '}'));
         let rest: String = b[i..b.len().min(i + 9)].iter().collect();
         if let Some(w) = ["-Infinity", "Infinity", "NaN"].iter().find(|w| rest.starts_with(**w)) {
-            out.push('1');
-            i += w.chars().count();
+            let n = w.chars().count();
+            if at_value && ends(i + n) {
+                out.push('1');
+            } else {
+                out.extend(&b[i..i + n]);
+            }
+            i += n;
             continue;
         }
         if ch == '-' || ch.is_ascii_digit() {
@@ -559,7 +567,7 @@ fn py_json(text: &str) -> Option<Value> {
             }
             let num: String = b[start..i].iter().collect();
             match num.parse::<f64>() {
-                Ok(f) if !f.is_finite() => out.push('1'),
+                Ok(f) if !f.is_finite() && at_value && ends(i) => out.push('1'),
                 _ => out.push_str(&num),
             }
             continue;
@@ -586,6 +594,9 @@ pub fn revocation(presence: Option<&Path>, key: &str, now: NaiveDateTime) -> Opt
     // Python は utf-8 で読む（BOM 付きは json が読まず「切断なし」）
     let d = py_json(std::str::from_utf8(&b).ok()?)?;
     let o = d.as_object().filter(|o| !o.is_empty())?;
+    if o.get("_unreadable").is_some_and(truthy) {
+        return None; // Python の _read_json が「読めない」に使う印（data.get("_unreadable") を見て切断なしとする）
+    }
     let at = parse_at(&o.get("at").map(py_str).unwrap_or_else(|| "None".into()))?;
     let age = (now - at).num_microseconds()? as f64 / 1e6;
     if age > REVOKE_COOLDOWN_SEC {

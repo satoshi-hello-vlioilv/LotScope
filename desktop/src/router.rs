@@ -268,6 +268,10 @@ mod tests {
             ["PUT /api/masters/access/2"],
             "後始末も戻した道で見る（断った問い合わせは後始末しない）"
         );
+        // Python へは画面が送った道のまま渡す（Python がもう一度戻す。戻した道を渡すと %2561 が門番では %61・Python では a になり、門番を抜ける）
+        assert!(r.backend.0.lock().unwrap().iter().any(|x| x.starts_with("PUT /api/masters/%61ccess/2?")), "Python へは元の道");
+        r.handle(&req("POST", "tpa://localhost/api/masters/%2561ccess", b"{}"));
+        assert!(r.backend.0.lock().unwrap().last().unwrap().starts_with("POST /api/masters/%2561ccess?"), "二重の符号も元のまま渡す");
         let forged = Request::builder()
             .method("POST")
             .uri("tpa://localhost/api/masters/rolls")
