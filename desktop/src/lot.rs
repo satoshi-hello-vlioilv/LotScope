@@ -75,6 +75,8 @@ pub struct Lot {
 
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
+        // 全列の検索の索引の置き場（版 3.66.0。src/search_index.rs。写しの係の片付けとぶつからない下のフォルダ）
+        crate::search_index::set_dir(cache_dir.join("search_index"));
         Lot {
             lists: Lists::new(&cache_dir),
             cache_dir,

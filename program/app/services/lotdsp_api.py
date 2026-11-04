@@ -22,6 +22,7 @@
     - 学んだ対応はこの PC の作業場所（lotdsp_api_map.json）に置く。中身はキーの名前と、いつどのロット番号で学んだかだけ
       （寸法・重量などの値は置かない）。
 """
+import functools
 import json
 import re
 import socket
@@ -35,7 +36,11 @@ from datetime import datetime
 from ..fsio import now_iso, write_json_atomic
 from . import lotdsp_progress as lp
 
-_LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # 社内のサイトはプロキシへ回すと届かない
+@functools.lru_cache(maxsize=1)
+def _local():
+    """プロキシを通さない開き手（社内のサイトはプロキシへ回すと届かない）。初めて使うときに作る（版 3.66.0。
+    読み込むときに作ると 1 回 20 ms 余りかかり、LotDsp を使わない起動でも毎回待たせていた）"""
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
 _LOCK = threading.Lock()
 
 # 基本情報（entity.staffCommonBean）の項目名は LotSearch の config.json（実際に読めている）から。学ぶときも確かめる
@@ -111,7 +116,7 @@ def call(lot_no, cfg):
     req = urllib.request.Request(cfg["search_url"], data=body, method="POST", headers={
         "Accept": "application/json, text/plain, */*", "Content-Type": "application/json;charset=UTF-8"})
     try:
-        with _LOCAL.open(req, timeout=cfg["timeout_seconds"]) as r:
+        with _local().open(req, timeout=cfg["timeout_seconds"]) as r:
             raw = r.read()
     except urllib.error.HTTPError as e:
         raise ApiError("http", f"LotDsp の API が HTTP {e.code} を返しました。") from e

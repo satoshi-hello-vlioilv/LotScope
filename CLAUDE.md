@@ -212,6 +212,8 @@ python program/tools/ui_score.py 採点.json                                    
   読めない写し〉の 41 の組 × 25 の道で、me と門番の答えを Python の道と突き合わせる。切断の指示の読み方〈時刻の書き方・BOM・NaN・冷却の境・鍵の形〉の
   69 組は `access_oracle.py --revocations`。百分率符号で書いた道も門番を抜けないことは router.rs の試験）。Python 側は `tests/test_access.py` の ShellMe（窓が載せた me を使う・
   見出しが無い／壊れていれば Python が決めて門番も見る）。版 3.65.1 から一覧・ダッシュボードの出さないタブと勤務体系を直せるかも窓の me から（`lists_take_hidden_tabs_from_the_shell_me`・本物の道を通す `lot::tests::the_real_paths_use_the_shell_me_for_tabs_and_shifts`）
+- 検索の索引とカラムの札を覚える評価関数（版 3.66.0）: `cargo test --test search_index`（語ごとに索引と今の形〈全列に CStr LIKE〉で当たる行を突き合わせる・
+  * ? とつなぎの字・ビュー・WITHOUT ROWID は今の形・書き換えた後に作り直す〈時刻を戻した書き換えも〉・壊れた索引は作り直す・1 つの接続で 2 つの表・札は覚える／書き換えで数え直す／計算列は覚えない）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`
   （部品ごとの行・試験・依存の段・要る crate の棚卸しと、全部の道の速さを SQLite の中・JSON・Python の手に分けて測る。--calibrate は既に Rust にある一覧で
   見積もりを Rust の実際の時間〈`cargo build --release --example lotbench`〉と突き合わせる。表と順は `program/docs/RUST_PORT_PLAN.md`）

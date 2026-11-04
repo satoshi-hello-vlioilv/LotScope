@@ -17,5 +17,6 @@ pub mod operation;
 pub mod pivot;
 pub mod pyfmt;
 pub mod release;
+pub mod search_index;
 pub mod update;
 pub mod worksum;

@@ -792,9 +792,26 @@ fn build_filter_where(filters: &[Filter], today: NaiveDate, exprs: &Exprs) -> Re
     Ok((parts, params))
 }
 
+/// 全列の検索の式（Python の lot_list の検索と同じ当たり方）: 表の全列のどれかに語を含む行。検索の索引を使えれば索引で引く（版 3.66.0。
+/// src/search_index.rs。答えは同じ・速さだけ違う）、使えなければ全列に CStr LIKE
+pub fn search_part(c: &Connection, table: &str, cs: &[String], q: &str) -> (String, Vec<SqlValue>) {
+    let (pat, wild) = like_pattern(q, "contains");
+    if let Some(x) = crate::search_index::clause(c, table, cs, q, &pat, wild, LIKE_ESCAPE) {
+        return x;
+    }
+    (
+        format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")),
+        cs.iter().map(|_| SqlValue::Text(pat.clone())).collect(),
+    )
+}
+
 /// 一覧・スライサー・集計に共通の絞り込み（検索＋条件）→ (WHERE の式の並び, 値の並び)（Python の lot_list.search_filter_where と同じ）。
 /// exprs … 計算列の名前 → SQL の式（条件に使える。検索は表の列だけ＝一覧と同じ）
+/// c・table … 検索の索引を引く接続と表（src/search_index.rs）
+#[allow(clippy::too_many_arguments)]
 pub fn search_filter_where(
+    c: &Connection,
+    table: &str,
     cs: &[String],
     search: &str,
     filters: &str,
@@ -804,9 +821,9 @@ pub fn search_filter_where(
     let (mut parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     let q = pyfmt::strip(search);
     if !q.is_empty() {
-        parts.push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
-        let pat = like_pattern(q, "contains").0;
-        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
+        let (w, wp) = search_part(c, table, cs, q);
+        parts.push(w);
+        params.extend(wp);
     }
     let calc: Vec<String> = exprs.keys().cloned().collect();
     let (fp, fpp) = build_filter_where(&safe_filters_calc(filters, cs, &calc), today, exprs)?;
@@ -1070,10 +1087,9 @@ pub fn slicer(path: &Path, a: &Args, column: &str, key: &str, o: &Opts, today: N
     let kind = slice_key_kind(key);
     let (mut where_parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     if !q.is_empty() {
-        where_parts
-            .push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
-        let pat = like_pattern(&q, "contains").0;
-        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
+        let (w, wp) = search_part(&c, &t, &cs, &q);
+        where_parts.push(w);
+        params.extend(wp);
     }
     let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today, &Exprs::new()).map_err(down)?;
     where_parts.extend(fp);
@@ -1125,10 +1141,9 @@ pub fn slicer_combos(path: &Path, a: &Args, columns: &str, o: &Opts, today: Naiv
     }
     let (mut where_parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     if !q.is_empty() {
-        where_parts
-            .push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
-        let pat = like_pattern(&q, "contains").0;
-        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
+        let (w, wp) = search_part(&c, &t, &cs, &q);
+        where_parts.push(w);
+        params.extend(wp);
     }
     let (fp, fpp) = build_filter_where(&safe_filters(&a.filters, &cs), today, &Exprs::new()).map_err(down)?;
     where_parts.extend(fp);
@@ -1205,10 +1220,9 @@ pub fn query(
     let cs = dedup(&raw_cs);
     let (mut where_parts, mut params): (Vec<String>, Vec<SqlValue>) = (vec![], vec![]);
     if !q.is_empty() {
-        where_parts
-            .push(format!("({})", cs.iter().map(|x| format!("CStr({}) LIKE ? {LIKE_ESCAPE}", qi(x))).collect::<Vec<_>>().join(" OR ")));
-        let pat = like_pattern(&q, "contains").0;
-        params.extend(cs.iter().map(|_| SqlValue::Text(pat.clone())));
+        let (w, wp) = search_part(&c, &t, &cs, &q);
+        where_parts.push(w);
+        params.extend(wp);
     }
     let fl = safe_filters(&a.filters, &cs);
     let (fp, fpp) = build_filter_where(&fl, today, &Exprs::new())?;

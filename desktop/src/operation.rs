@@ -390,7 +390,7 @@ pub fn read_ops(part: &Part, a: &ReadArgs) -> R<Read> {
             bad.iter().map(|x| x.as_str()).collect::<Vec<_>>().join("」「")
         ));
     }
-    let (mut where_parts, mut params) = lotlist::search_filter_where(&raw, a.search, a.filters, a.today, &exprs).map_err(down)?;
+    let (mut where_parts, mut params) = lotlist::search_filter_where(&c, &t, &raw, a.search, a.filters, a.today, &exprs).map_err(down)?;
     let mut span: Option<(String, String)> = None;
     let period = match a.period {
         Some(p) => pivot::clean_period(Some(p))?,
