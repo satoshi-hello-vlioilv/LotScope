@@ -209,7 +209,8 @@ python program/tools/ui_score.py 採点.json                                    
   計算列・条件〉の答えと失敗、勤務体系が無い段を Python の道と突き合わせる。速さは上の dash_bench に入っている）
 - 権限の判定と書き込みの門番を Rust へ移した評価関数（版 3.65.0。順 5 の 1 段目 a）: `cargo test --test access_parity`
   （← `program/tests/access_oracle.py`。行の当たり方・区分と段・タブの決まりと例外・切断の指示・置き場〈共有・壊れた共有と写し・写しだけ・手元だけ・BOM・
-  読めない写し〉の 27 の組 × 21 の道で、me と門番の答えを Python の道と突き合わせる）。Python 側は `tests/test_access.py` の ShellMe（窓が載せた me を使う・
+  読めない写し〉の 35 の組 × 21 の道で、me と門番の答えを Python の道と突き合わせる。切断の指示の読み方〈時刻の書き方・BOM・NaN・冷却の境・鍵の形〉の
+  52 組は `access_oracle.py --revocations`。百分率符号で書いた道も門番を抜けないことは router.rs の試験）。Python 側は `tests/test_access.py` の ShellMe（窓が載せた me を使う・
   見出しが無い／壊れていれば Python が決めて門番も見る）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`
   （部品ごとの行・試験・依存の段・要る crate の棚卸しと、全部の道の速さを SQLite の中・JSON・Python の手に分けて測る。--calibrate は既に Rust にある一覧で

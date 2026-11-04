@@ -227,12 +227,12 @@ fn tab_rules(rows: &[Value]) -> Result<Vec<(String, Vec<&'static str>)>, String>
 fn tab_exceptions(value: Option<&Value>) -> Result<Vec<(String, bool)>, String> {
     let parsed;
     let d = match value {
-        Some(Value::String(s)) if !pyfmt::strip(s).is_empty() => match serde_json::from_str::<Value>(s) {
-            Ok(v) => {
+        Some(Value::String(s)) if !pyfmt::strip(s).is_empty() => match py_json(s) {
+            Some(v) => {
                 parsed = v;
                 &parsed
             }
-            Err(_) => return Ok(vec![]),
+            None => return Ok(vec![]),
         },
         Some(v @ Value::Object(_)) => v,
         _ => return Ok(vec![]),
@@ -342,7 +342,7 @@ impl Place {
 /// {schema, revision, rows} か行の配列（同梱の data/ の昔の形）
 fn doc_rows(b: &[u8]) -> Result<Vec<Value>, String> {
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
-    let v: Value = serde_json::from_slice(b).map_err(|e| e.to_string())?;
+    let v = py_json(std::str::from_utf8(b).map_err(|e| e.to_string())?).ok_or("JSON として読めません")?;
     match v {
         Value::Array(a) => Ok(a),
         Value::Object(mut o) => match o.remove("rows") {
@@ -366,12 +366,180 @@ fn perm_rows(rows: Vec<Value>) -> Result<Vec<Map<String, Value>>, String> {
         .collect()
 }
 
-/// 時刻の字（datetime.fromisoformat の、この PC の時刻で書いた形）
-fn parse_at(s: &str) -> Option<NaiveDateTime> {
-    ["%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"]
-        .iter()
-        .find_map(|f| NaiveDateTime::parse_from_str(s, f).ok())
-        .or_else(|| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok().and_then(|d| d.and_hms_opt(0, 0, 0)))
+/// 時刻の字（Python 3.11 からの datetime.fromisoformat と同じ読み方。日付の後の 1 字はどの字でも区切り。時差の付いた時刻は
+/// この PC の時刻と引き算できないので Python と同じく読まない＝None）
+pub fn parse_at(s: &str) -> Option<NaiveDateTime> {
+    let c: Vec<char> = s.chars().collect();
+    let n = c.len();
+    if n < 7 {
+        return None;
+    }
+    // 日付の終わり（_find_isoformat_datetime_separator）
+    let pos = if n == 7 {
+        7
+    } else if c[4] == '-' {
+        if c[5] == 'W' {
+            if n > 8 && c[8] == '-' {
+                if n == 9 {
+                    return None;
+                }
+                if n > 10 && c[10].is_ascii_digit() {
+                    8
+                } else {
+                    10
+                }
+            } else {
+                8
+            }
+        } else {
+            10
+        }
+    } else if c[4] == 'W' {
+        let mut i = 7;
+        while i < n && c[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i < 9 {
+            i
+        } else if i % 2 == 0 {
+            7
+        } else {
+            8
+        }
+    } else {
+        8
+    };
+    let date = iso_date(&c[..pos.min(n)])?;
+    if n <= pos {
+        return date.and_hms_opt(0, 0, 0);
+    }
+    let t = &c[pos + 1..];
+    if t.iter().any(|x| matches!(x, 'Z' | '+' | '-')) {
+        return None; // 時差つき（または壊れた時差）
+    }
+    let (h, m, sec, us) = iso_time(t)?;
+    date.and_hms_micro_opt(h, m, sec, us)
+}
+
+fn digits(c: &[char]) -> Option<u32> {
+    if c.is_empty() || !c.iter().all(char::is_ascii_digit) {
+        return None;
+    }
+    c.iter().try_fold(0u32, |a, d| a.checked_mul(10)?.checked_add(d.to_digit(10)?))
+}
+
+fn iso_date(c: &[char]) -> Option<chrono::NaiveDate> {
+    use chrono::{NaiveDate, Weekday};
+    let year = digits(c.get(..4)?)? as i32;
+    let rest = &c[4..];
+    let dash = rest.first() == Some(&'-');
+    let r = if dash { &rest[1..] } else { rest };
+    if r.first() == Some(&'W') {
+        let week = digits(r.get(1..3)?)?;
+        let day = match &r[3..] {
+            [] => 1,
+            [d] if !dash => digits(&[*d])?,
+            ['-', d] if dash => digits(&[*d])?,
+            _ => return None,
+        };
+        let wd = [Weekday::Mon, Weekday::Tue, Weekday::Wed, Weekday::Thu, Weekday::Fri, Weekday::Sat, Weekday::Sun]
+            .get((day as usize).checked_sub(1)?)?;
+        return NaiveDate::from_isoywd_opt(year, week, *wd);
+    }
+    let (m, d) = if dash {
+        if r.len() != 5 || r[2] != '-' {
+            return None;
+        }
+        (digits(&r[..2])?, digits(&r[3..])?)
+    } else {
+        if r.len() != 4 {
+            return None;
+        }
+        (digits(&r[..2])?, digits(&r[2..])?)
+    };
+    NaiveDate::from_ymd_opt(year, m, d)
+}
+
+/// 時刻（_parse_hh_mm_ss_ff）: HH・HH:MM・HH:MM:SS・HHMM・HHMMSS と、. か , の後の小数（6 桁で切る）
+fn iso_time(t: &[char]) -> Option<(u32, u32, u32, u32)> {
+    let mut comps = [0u32; 3];
+    let mut pos = 0;
+    let mut has_sep = false;
+    for (i, comp) in comps.iter_mut().enumerate() {
+        *comp = digits(t.get(pos..pos + 2)?)?;
+        pos += 2;
+        let next = t.get(pos);
+        if i == 0 {
+            has_sep = next == Some(&':');
+        }
+        if next.is_none() || i >= 2 {
+            break;
+        }
+        if has_sep && next != Some(&':') {
+            return None;
+        }
+        pos += has_sep as usize;
+    }
+    let mut us = 0;
+    if pos < t.len() {
+        if !matches!(t[pos], '.' | ',') {
+            return None;
+        }
+        pos += 1;
+        let f = &t[pos..];
+        let take = f.len().min(6);
+        us = digits(&f[..take])? * 10u32.pow((6 - take) as u32);
+        if !f[take..].iter().all(char::is_ascii_digit) {
+            return None;
+        }
+    }
+    Some((comps[0], comps[1], comps[2], us))
+}
+
+/// Python の json.loads が読める字を serde_json で読む（文字列の外の NaN・Infinity・-Infinity と、f64 に入らない数を、
+/// 真の数 1 に置き換える。ここで使う所〈権限の表・タブの例外・切断の指示〉では、その値は「表でも字でもない真の値」としか見ない）
+fn py_json(text: &str) -> Option<Value> {
+    if let Ok(v) = serde_json::from_str(text) {
+        return Some(v);
+    }
+    let b: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < b.len() {
+        let ch = b[i];
+        if ch == '"' {
+            let start = i;
+            i += 1;
+            while i < b.len() && b[i] != '"' {
+                i += if b[i] == '\\' { 2 } else { 1 };
+            }
+            i = (i + 1).min(b.len());
+            out.extend(&b[start..i]);
+            continue;
+        }
+        let rest: String = b[i..b.len().min(i + 9)].iter().collect();
+        if let Some(w) = ["-Infinity", "Infinity", "NaN"].iter().find(|w| rest.starts_with(**w)) {
+            out.push('1');
+            i += w.chars().count();
+            continue;
+        }
+        if ch == '-' || ch.is_ascii_digit() {
+            let start = i;
+            i += 1;
+            while i < b.len() && (b[i].is_ascii_digit() || matches!(b[i], '.' | 'e' | 'E' | '+' | '-')) {
+                i += 1;
+            }
+            let num: String = b[start..i].iter().collect();
+            match num.parse::<f64>() {
+                Ok(f) if !f.is_finite() => out.push('1'),
+                _ => out.push_str(&num),
+            }
+            continue;
+        }
+        out.push(ch);
+        i += 1;
+    }
+    serde_json::from_str(&out).ok()
 }
 
 fn key_ok(key: &str) -> bool {
@@ -387,9 +555,10 @@ pub fn revocation(presence: Option<&Path>, key: &str, now: NaiveDateTime) -> Opt
         return None;
     }
     let b = std::fs::read(dir.join(format!("{key}{REVOKE_SUFFIX}"))).ok()?;
-    let d: Value = serde_json::from_slice(b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b)).ok()?;
+    // Python は utf-8 で読む（BOM 付きは json が読まず「切断なし」）
+    let d = py_json(std::str::from_utf8(&b).ok()?)?;
     let o = d.as_object().filter(|o| !o.is_empty())?;
-    let at = parse_at(o.get("at")?.as_str()?)?;
+    let at = parse_at(&o.get("at").map(py_str).unwrap_or_else(|| "None".into()))?;
     let age = (now - at).num_microseconds()? as f64 / 1e6;
     if age > REVOKE_COOLDOWN_SEC {
         return None;
@@ -459,17 +628,21 @@ pub struct Gate {
 }
 
 impl Gate {
+    /// me（権限の行・効く権限は 2 秒覚える。切断の指示は別に 5 秒覚え、毎回いまの物を重ねる＝効くまでの遅れは前と同じ最長 5 秒）
     pub fn me(&self, conf: &Value) -> Result<Value, String> {
         let sig = conf.to_string();
-        if let Some((at, s, v)) = self.me.lock().unwrap().as_ref() {
-            if at.elapsed() < ME_TTL && *s == sig {
-                return Ok(v.clone());
-            }
-        }
         let key = conf["who"]["key"].as_str().unwrap_or("").to_string();
         let revoked = self.revoked(&Place::from_json(&conf["place"]), &key);
-        let v = me(conf, revoked)?;
-        *self.me.lock().unwrap() = Some((Instant::now(), sig, v.clone()));
+        let hit = self.me.lock().unwrap().as_ref().filter(|(at, s, _)| at.elapsed() < ME_TTL && *s == sig).map(|(_, _, v)| v.clone());
+        let mut v = match hit {
+            Some(v) => v,
+            None => {
+                let v = me(conf, None)?;
+                *self.me.lock().unwrap() = Some((Instant::now(), sig, v.clone()));
+                v
+            }
+        };
+        v["revoked"] = revoked.unwrap_or(Value::Null);
         Ok(v)
     }
 

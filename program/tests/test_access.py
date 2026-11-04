@@ -334,6 +334,15 @@ class ShellMe(Env):
         for bad in ("{", "[]", json.dumps({"flags": "x"})):
             self.assertEqual(self.c.get("/api/access/me", headers={"X-TPA-Me": bad}).get_json()["loginId"], "u1", bad)
 
+    def test_header_is_ignored_unless_the_shell_serves_access(self):
+        # ブラウザ版（開発用のサーバー）と、権限を受け持たない前の窓では、見出しを信じない（だれでも付けられる）
+        h = self.shell("開発者", "編集可")
+        for env in ({"TPA_SHELL": "", "TPA_SHELL_SERVES": "lotlist,lists,access"}, {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists"}):
+            with mock.patch.dict("os.environ", env):
+                self.assertEqual(self.c.get("/api/access/me", headers=h).get_json()["loginId"], "u1", env)
+                r = self.c.post("/api/masters/access", json={"ログインID": "x2", "PC名": "", "権限区分": "一般ユーザー"}, headers=h)
+                self.assertEqual((r.status_code, r.get_json().get("kind")), (403, "forbidden"), env)
+
     def test_guard_is_left_to_the_shell_only_when_it_sent_me(self):
         # u1 は登録の無い人（管理する人が居る）＝部分的編集可: 管理のマスタは Python の門番が断る
         r = self.add_perm(ログインID="x1")

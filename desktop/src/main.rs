@@ -19,7 +19,6 @@ mod sidecar;
 mod updater;
 
 use brand::brand;
-use da_core::access::Gate;
 use da_core::install;
 use da_core::lot::Lot;
 use da_core::update::{self, Paths};
@@ -281,21 +280,18 @@ fn update_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
     serde_json::from_slice(&r.body).map_err(|e| e.to_string())
 }
 
-/// 中身が答えたあとに窓が見ること: 一覧の設定に効くマスタを保存したら、一覧の設定を尋ね直す（元ファイル・間隔・段取りの材料をすぐ当て直す）。
-/// 更新の置き場を保存したら、すぐ確かめる。
-/// 中身へ回す前: 権限を決めて門番に通し、決めた me を見出しに載せる（版 3.65.0。src/access.rs）
-fn guard(lot: Arc<Lot>, gate: Arc<Gate>) -> Guard {
+/// 中身へ回す前: 権限を決めて門番に通し、決めた me を見出しに載せる（版 3.65.0。src/access.rs・Lot::access_check）
+fn guard(lot: Arc<Lot>) -> Guard {
     Box::new(move |req, backend| {
-        let conf = lot.access(&|| lot_settings(backend));
-        gate.check(req.method, req.path, conf.as_ref()).map_err(|(status, kind, message)| error_reply(status, kind, &message))
+        lot.access_check(req.method, req.path, &|| lot_settings(backend))
+            .map_err(|(status, kind, message)| error_reply(status, kind, &message))
     })
 }
 
-fn after(lot: Arc<Lot>, upd: Arc<Updater>, gate: Arc<Gate>) -> After {
+/// 中身が答えたあとに窓が見ること: 一覧の設定に効くマスタを保存したら、一覧の設定と権限の覚えを捨てる（元ファイル・間隔・段取りの材料・権限をすぐ当て直す）。
+/// 更新の置き場を保存したら、すぐ確かめる。
+fn after(lot: Arc<Lot>, upd: Arc<Updater>) -> After {
     Box::new(move |method, path, status| {
-        if Lot::changes_settings(method, path, status) {
-            gate.forget(); // 権限・タブの権限・置き場を書いた: 次の問い合わせで読み直す
-        }
         lot.after_python(method, path, status);
         if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
             upd.wake();
@@ -572,8 +568,6 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     let static_dir = program.join("app").join("static");
     // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
     let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
-    // 権限の判定と書き込みの門番（版 3.65.0。src/access.rs）
-    let gate = Arc::new(Gate::default());
     // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
     let told = lot.clone();
     sup.on_notice(Arc::new(move |h| told.notice(h)));
@@ -581,8 +575,8 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         static_dir,
         backend: sup,
         native: native(app.clone(), info, lot.clone(), upd.clone()),
-        guard: guard(lot.clone(), gate.clone()),
-        after: after(lot.clone(), upd.clone(), gate),
+        guard: guard(lot.clone()),
+        after: after(lot.clone(), upd.clone()),
     });
     // 更新の係: 使っている間に置き場を確かめ、新しい版を取り込んでおく（入れ替えは次の起動の最初。起動の最初にも確かめる: launch_update）
     let ask_slot = slot.clone();

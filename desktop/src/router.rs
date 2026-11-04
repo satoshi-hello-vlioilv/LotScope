@@ -98,12 +98,15 @@ impl<B: Backend> Router<B> {
                 .filter(|(k, _)| !k.as_str().eq_ignore_ascii_case(ME_HEADER))
                 .filter_map(|(k, v)| Some((k.as_str().to_string(), v.to_str().ok()?.to_string())))
                 .collect();
-            match (self.guard)(&Req { method, path, query, body: req.body() }, &self.backend) {
+            // 門番と後始末は、Python が道を合わせる形（百分率符号を戻した道。web.App.handle の unquote）で見る
+            // （生の道で見ると /api/masters/%61ccess が門番を抜け、Python では /api/masters/access の書き込みになる）
+            let decoded = percent_decode(path);
+            match (self.guard)(&Req { method, path: &decoded, query, body: req.body() }, &self.backend) {
                 Err(no) => (no, "shell"),
                 Ok(me) => {
                     headers.extend(me.map(|m| (ME_HEADER.to_string(), m)));
                     let r = self.backend.ask(&Ask { method, path, query, headers, body: req.body() });
-                    (self.after)(method, path, r.status);
+                    (self.after)(method, &decoded, r.status);
                     (r, "python")
                 }
             }
@@ -268,8 +271,14 @@ mod tests {
         r.handle(&lost);
         assert!(me(r.backend.1.lock().unwrap().last().unwrap()).is_empty(), "決められないときは何も載せない（名乗らせない）");
         let n = r.backend.0.lock().unwrap().len();
-        let no = r.handle(&req("POST", "tpa://localhost/api/masters/access", b"{}"));
-        assert_eq!((no.status().as_u16(), no.headers()["x-tpa-by"].to_str().unwrap()), (403, "shell"), "門番が断る");
+        for p in ["/api/masters/access", "/api/masters/%61ccess", "/api/m%61sters/%61ccess", "/api/masters/acces%73"] {
+            let no = r.handle(&req("POST", &format!("tpa://localhost{p}"), b"{}"));
+            assert_eq!(
+                (no.status().as_u16(), no.headers()["x-tpa-by"].to_str().unwrap()),
+                (403, "shell"),
+                "門番が断る（百分率符号で書いても）: {p}"
+            );
+        }
         assert_eq!(r.backend.0.lock().unwrap().len(), n, "断った問い合わせは Python へ回さない");
     }
 

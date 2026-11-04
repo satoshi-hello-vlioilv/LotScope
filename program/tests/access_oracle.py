@@ -110,6 +110,26 @@ def cases():
          TAB_RULES, ("u1", "PC-1"), None, "bom"),
         ("タブの権限が壊れている", full, "broken", ("u1", "PC-1"), None, "shared"),
         ("読めない写し（me を決められない）", full, TAB_RULES, ("u1", "PC-1"), None, "broken-all"),
+        ("ログインIDだけの行が PC名だけの行に勝つ（前後どちらでも）", full + [{"id": 2, "ログインID": "", "PC名": "PC-1", "権限区分": "設備作業者"},
+                                                         {"id": 3, "ログインID": "u1", "PC名": "", "権限区分": "メンテナンス者"},
+                                                         {"id": 4, "ログインID": "", "PC名": "PC-1", "権限区分": "設備作業者"}],
+         TAB_RULES, ("u1", "PC-1"), None, "shared"),
+        ("PC名だけの行が両方空の行に勝つ", [{"id": 1, "ログインID": "", "PC名": "PC-1", "権限区分": "メンテナンス者"},
+                                     {"id": 2, "ログインID": "", "PC名": "", "権限区分": "設備作業者"}], TAB_RULES, ("u9", "PC-1"), None, "shared"),
+        ("一般ユーザーだけ（管理する人は居ない）", [{"id": 1, "ログインID": "x", "PC名": "", "権限区分": "一般ユーザー"},
+                                         {"id": 2, "ログインID": "y", "PC名": "", "権限区分": "設備作業者"}], TAB_RULES, ("u1", "PC-1"), None, "shared"),
+        ("止めた管理者は数えない", [{"id": 1, **ADMIN, "有効": "無"}], TAB_RULES, ("u1", "PC-1"), None, "shared"),
+        ("メンテナンス者が居る", [{"id": 1, "ログインID": "m", "PC名": "", "権限区分": "メンテナンス者"}], TAB_RULES, ("u1", "PC-1"), None, "shared"),
+        ("人ごとの例外（JSON の NaN・Infinity・大きな数）", full + [{"id": 2, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー",
+                                                       "タブの例外": '{"work": "出す", "x": NaN, "y": Infinity, "z": -Infinity, "w": 1e999}'},
+                                                      {"id": 3, "ログインID": "u2", "PC名": "", "権限区分": "一般ユーザー", "タブの例外": "NaN"},
+                                                      {"id": 4, "ログインID": "u3", "PC名": "", "権限区分": "一般ユーザー", "タブの例外": "1e999"}],
+         TAB_RULES, ("u1", "PC-1"), None, "shared"),
+        ("人ごとの例外（字が NaN）", full + [{"id": 3, "ログインID": "u2", "PC名": "", "権限区分": "一般ユーザー", "タブの例外": "NaN"}],
+         TAB_RULES, ("u2", "PC-1"), None, "shared"),
+        ("人ごとの例外（字が 1e999・文字列の中の NaN）", full + [{"id": 4, "ログインID": "u3", "PC名": "", "権限区分": "一般ユーザー",
+                                                      "タブの例外": '{"lot": "出さない", "m": "NaN Infinity"}'}],
+         TAB_RULES, ("u3", "PC-1"), None, "shared"),
     ]
     return out
 
@@ -145,8 +165,45 @@ def place_files(root, share, rows, tabs, mode):
             (share / f"{name}.json").write_bytes(("﻿" if mode == "bom" else "").encode("utf-8") + text.encode("utf-8"))
 
 
+AT_FORMS = ["2026-11-03T09:58:00", "2026-11-03 09:58", "2026-11-03T09", "2026-11-03T0958", "20261103T095800", "20261103 095800.5",
+            "2026-11-03T09:58:00,5", "2026-11-03T09:58:00.1234567", "2026-11-03X09:58", "2026-11-03　09:58", "2026-W45-2T09:58",
+            "2026W452T0958", "2026-W45-2", "2026W45", "2026-W45", "2026-11-03", "20261103", "2026-11-03T9:58", "2026-11-03T09:5",
+            "2026-11-03T09:5800", "2026-11-03T24:00:00", "2026-11-03T09:58:00Z", "2026-11-03T09:58:00+09:00", "2026-11-03T09:58:00-",
+            "2026-11-3", "2026-13-03T09:00", "2026-11-03T09:58:60", "2026-11-03T09:58:00.", "2026-11-03T09:58:00.5x", "きのう", "",
+            "2026-11-03T09:55:00.250000", "2026-11-03T09:55:00.249999", "2026-11-03T09:55:00", "2026-11-03T10:00:30", "2026W4"]
+
+
+def revocations(folder):
+    """切断の指示のファイルの読み方の組（時刻の書き方・ファイルの形・冷却の境・鍵の形）→ presence.revocation の答え"""
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    presence.configure(folder)
+    raw = [(f"at {a!r}", "k", json.dumps({"by": "boss", "reason": "r", "at": a}, ensure_ascii=False).encode("utf-8")) for a in AT_FORMS]
+    raw += [("BOM 付き", "k", "\ufeff".encode("utf-8") + json.dumps({"by": "b", "at": "2026-11-03T09:58:00"}).encode("utf-8")),
+            ("at が数", "k", b'{"by": "b", "at": 20261103}'), ("at が null", "k", b'{"by": "b", "at": null}'), ("at が無い", "k", b'{"by": "b"}'),
+            ("by が null", "k", b'{"by": null, "byPc": 3, "at": "2026-11-03T09:58:00"}'), ("JSON の NaN", "k", b'{"by": "b", "x": NaN, "y": -Infinity, "at": "2026-11-03T09:58:00"}'),
+            ("at が NaN", "k", b'{"at": NaN}'), ("並び", "k", b'[1, 2]'), ("空の表", "k", b'{}'), ("壊れた字", "k", b'{"at": '),
+            ("utf-8 でない", "k", b'{"by": "\x82\xa0", "at": "2026-11-03T09:58:00"}'), ("空のファイル", "k", b''),
+            ("鍵が .. を含む", "a..b", b'{"at": "2026-11-03T09:58:00"}'), ("鍵が点で始まる", ".k", b'{"at": "2026-11-03T09:58:00"}'),
+            ("鍵に空白", "a b", b'{"at": "2026-11-03T09:58:00"}'), ("ファイルが無い", "none", None)]
+    out = []
+    with mock.patch.object(presence, "datetime", FixedNow):
+        for i, (label, key, body) in enumerate(raw):
+            k = f"{key}{i}" if key not in ("none",) else key
+            if body is not None and presence.safe_key(k):
+                (Path(folder) / f"{k}{presence.REVOKE_SUFFIX}").write_bytes(body)
+            try:
+                want = presence.revocation(k)
+            except Exception:
+                want = None              # 鍵の形が違う: me は切断なしとして続ける（routes/common.me）
+            out.append({"label": label, "key": k, "want": want})
+    return {"now": NOW.isoformat(), "cases": out}
+
+
 def main():
-    logging.disable(logging.WARNING)         # 壊れた共有を読む組の「写しで続けます」は答えの外
+    logging.disable(logging.WARNING)
+    if "--revocations" in sys.argv:
+        sys.stdout.write(json.dumps(revocations(sys.argv[sys.argv.index("--revocations") + 1]), ensure_ascii=False))
+        return         # 壊れた共有を読む組の「写しで続けます」は答えの外
     keep = sys.argv[sys.argv.index("--keep") + 1] if "--keep" in sys.argv else ""   # 窓の試験が同じ置き場を読む（片付けは窓の試験）
     tmp = Path(keep) if keep else Path(tempfile.mkdtemp(prefix="access-oracle-"))
     try:
