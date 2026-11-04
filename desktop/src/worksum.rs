@@ -159,7 +159,7 @@ pub fn day_offset(start: &str, end: &str, raw: Option<&Value>) -> i64 {
 }
 
 /// Python の真偽（JSON の値）
-fn truthy(v: &Value) -> bool {
+pub fn truthy(v: &Value) -> bool {
     match v {
         Value::Null => false,
         Value::Bool(b) => *b,
@@ -171,7 +171,7 @@ fn truthy(v: &Value) -> bool {
 }
 
 /// Python の str(値)（JSON の値）
-fn py_str(v: &Value) -> String {
+pub fn py_str(v: &Value) -> String {
     match v {
         Value::Null => "None".into(),
         Value::Bool(b) => if *b { "True" } else { "False" }.into(),

@@ -303,3 +303,67 @@ class Presence(Env):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShellMe(Env):
+    """デスクトップ版で窓が権限を受け持つとき（版 3.65.0。desktop/src/access.rs）: 窓が載せた me（見出し X-TPA-Me）を使い、門番は窓に任せる。
+    見出しが無い・読めないときは今までどおり Python が決め、門番も Python が見る（窓が名乗りを読めなかったときに門番が抜けない）。"""
+
+    def setUp(self):
+        super().setUp()
+        self.env = mock.patch.dict("os.environ", {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists,access"})
+        self.env.start()
+        self.seed("boss", "開発者")
+
+    def tearDown(self):
+        self.env.stop()
+        super().tearDown()
+
+    @staticmethod
+    def shell(role, me_level, hidden=()):
+        f = {"role": role, "masterEdit": me_level, "masterEditStored": me_level, "matchedId": None, "hiddenTabs": list(hidden)}
+        m = {"login": "窓", "pc": "WIN-PC", "pcSource": "窓", "key": "WIN-PC@窓", "rows": [], "flags": f,
+             "caps": access.capabilities(f), "revoked": None}
+        return {"X-TPA-Me": json.dumps(m, ensure_ascii=False)}
+
+    def test_uses_the_shell_me(self):
+        d = self.c.get("/api/access/me", headers=self.shell("メンテナンス者", "閲覧のみ", ["work"])).get_json()
+        self.assertEqual((d["loginId"], d["pcName"], d["role"], d["masterEdit"], d["hiddenTabs"]),
+                         ("窓", "WIN-PC", "メンテナンス者", "閲覧のみ", ["work"]))
+        self.assertEqual(self.c.get("/api/access/me").get_json()["loginId"], "u1", "見出しが無ければ Python が決める")
+        for bad in ("{", "[]", json.dumps({"flags": "x"})):
+            self.assertEqual(self.c.get("/api/access/me", headers={"X-TPA-Me": bad}).get_json()["loginId"], "u1", bad)
+
+    def test_revoked_from_the_shell_reaches_the_screen(self):
+        h = self.shell("一般ユーザー", "編集可")
+        m = json.loads(h["X-TPA-Me"])
+        m["revoked"] = {"by": "boss", "byPc": "PC-0", "reason": "点検", "at": "2026-11-04T09:00:00", "remainingSec": 120}
+        d = self.c.get("/api/access/me", headers={"X-TPA-Me": json.dumps(m, ensure_ascii=False)}).get_json()
+        self.assertEqual((d["revoked"] or {}).get("by"), "boss", "窓が決めた切断を画面へ渡す（見出しの知らせ）")
+
+    def test_header_is_ignored_unless_the_shell_serves_access(self):
+        # ブラウザ版（開発用のサーバー）と、権限を受け持たない前の窓では、見出しを信じない（だれでも付けられる）
+        h = self.shell("開発者", "編集可")
+        for env in ({"TPA_SHELL": "", "TPA_SHELL_SERVES": "lotlist,lists,access"}, {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists"}):
+            with mock.patch.dict("os.environ", env):
+                self.assertEqual(self.c.get("/api/access/me", headers=h).get_json()["loginId"], "u1", env)
+                r = self.c.post("/api/masters/access", json={"ログインID": "x2", "PC名": "", "権限区分": "一般ユーザー"}, headers=h)
+                self.assertEqual((r.status_code, r.get_json().get("kind")), (403, "forbidden"), env)
+
+    def test_guard_is_left_to_the_shell_only_when_it_sent_me(self):
+        # u1 は登録の無い人（管理する人が居る）＝部分的編集可: 管理のマスタは Python の門番が断る
+        r = self.add_perm(ログインID="x1")
+        self.assertEqual((r.status_code, r.get_json().get("kind")), (403, "forbidden"), "見出しが無ければ Python が門番")
+        # 窓が通した問い合わせ（me を載せた）は、窓の判定を使う（Python は門番を繰り返さない）
+        h = self.shell("開発者", "編集可")
+        r = self.c.post("/api/masters/access", json={"ログインID": "x1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "編集可"}, headers=h)
+        self.assertEqual(r.status_code, 201, r.get_json())
+
+    def test_settings_tell_the_shell_where_to_read(self):
+        d = self.c.get("/api/lotlist/settings").get_json()["access"]
+        st = self.app.config["MASTER_STORE"]
+        self.assertEqual((d["who"]["login"], d["who"]["pc"], d["who"]["key"]), ("u1", "PC-1", presence.terminal_key("u1", "PC-1")))
+        self.assertEqual(d["place"]["shareDir"], str(st.share_dir))
+        self.assertIn("access_permissions", d["place"]["shared"])
+        self.assertIn("tab_access", d["place"]["shared"])
+        self.assertEqual((d["place"]["cache"], d["place"]["data"]), (str(st.cache_dir), str(st.base / "data")))

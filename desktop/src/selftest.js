@@ -207,6 +207,20 @@
       ok("版を置けない人は理由つきで断られる", put.r.status === 403 && /開発者・メンテナンス者/.test(put.text), `${put.r.status} ${put.text.slice(0, 80)}`);
     }
 
+    // 11b) 権限（版 3.65.0 から窓が決める: access.rs）: 窓が決めた me で Python が答える。画面が名乗った見出し X-TPA-Me は窓が捨てる
+    {
+      const am = await get("/api/access/me");
+      let amj = {}; try { amj = JSON.parse(am.text); } catch (_) { /* 下で言う */ }
+      // 見出しの値は Latin-1 だけ送れる（日本語は fetch が断る）ので、偽の me は \u で書く（画面の悪い字もこの形で来る）
+      const fake = JSON.stringify({ login: "FAKE", pc: "FAKE", pcSource: "", key: "FAKE", rows: [], revoked: null,
+        flags: { role: "開発者", masterEdit: "編集可", masterEditStored: "編集可", matchedId: null, hiddenTabs: [] }, caps: { role: "開発者" } })
+        .replace(/[\u0080-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
+      const forged = await get("/api/access/me", { headers: { "X-TPA-Me": fake } });
+      let fj = {}; try { fj = JSON.parse(forged.text); } catch (_) { /* 下で言う */ }
+      ok("権限: 窓が決めた名乗りで答え、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
+         `${amj.loginId}@${amj.pcName} ${amj.role}・${amj.masterEdit} / 偽の見出し → ${fj.loginId} ${fj.role}`);
+    }
+
     // 12) 画面のエラーが無い（窓の外の受け口 /__desktop/update などが無くても、画面は黙って続ける）
     await sleep(500);
     const errs = window.__tpaErrors || [];

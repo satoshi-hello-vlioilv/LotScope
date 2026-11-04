@@ -22,7 +22,7 @@ use brand::brand;
 use da_core::install;
 use da_core::lot::Lot;
 use da_core::update::{self, Paths};
-use router::{error_reply, After, Backend, Native, Router};
+use router::{error_reply, After, Backend, Guard, Native, Router};
 use serde_json::json;
 use sidecar::{Ask, Progress, Reply, Supervisor};
 use std::io::Write;
@@ -280,7 +280,15 @@ fn update_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
     serde_json::from_slice(&r.body).map_err(|e| e.to_string())
 }
 
-/// 中身が答えたあとに窓が見ること: 一覧の設定に効くマスタを保存したら、一覧の設定を尋ね直す（元ファイル・間隔・段取りの材料をすぐ当て直す）。
+/// 中身へ回す前: 権限を決めて門番に通し、決めた me を見出しに載せる（版 3.65.0。src/access.rs・Lot::access_check）
+fn guard(lot: Arc<Lot>) -> Guard {
+    Box::new(move |req, backend| {
+        lot.access_check(req.method, req.path, &|| lot_settings(backend))
+            .map_err(|(status, kind, message)| error_reply(status, kind, &message))
+    })
+}
+
+/// 中身が答えたあとに窓が見ること: 一覧の設定に効くマスタを保存したら、一覧の設定と権限の覚えを捨てる（元ファイル・間隔・段取りの材料・権限をすぐ当て直す）。
 /// 更新の置き場を保存したら、すぐ確かめる。
 fn after(lot: Arc<Lot>, upd: Arc<Updater>) -> After {
     Box::new(move |method, path, status| {
@@ -567,6 +575,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         static_dir,
         backend: sup,
         native: native(app.clone(), info, lot.clone(), upd.clone()),
+        guard: guard(lot.clone()),
         after: after(lot.clone(), upd.clone()),
     });
     // 更新の係: 使っている間に置き場を確かめ、新しい版を取り込んでおく（入れ替えは次の起動の最初。起動の最初にも確かめる: launch_update）

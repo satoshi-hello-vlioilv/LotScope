@@ -41,7 +41,8 @@ pub const PROTOCOL: u64 = 1;
 /// lotlist: 品質異常の問い合わせと品質データの写し（src/lot.rs。Python は写さず同じ台帳を読む）。
 /// lists: 作業実績・データ元の一覧・スライサーとその写し・結合（版 3.60.0。src/lists.rs。Python の写しは受け身になり、写しが要るときは
 /// 知らせの枠 {"id": 0, "event": "mirror", …} で窓へ伝える: Supervisor::on_notice）。
-pub const SERVES: &[&str] = &["lotlist", "lists"];
+/// access: 権限の判定（me）と書き込みの門番（版 3.65.0。src/access.rs。Python は窓が載せた me〈見出し X-TPA-Me〉を使い、門番を窓に任せる）。
+pub const SERVES: &[&str] = &["lotlist", "lists", "access"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);
 /// 止めたあと、本当に終わったと見えるまで待つ長さ（その間に入れ替えを始めない）。

@@ -80,8 +80,15 @@ def find_row(rows, item_id):
 _REVOKE_CACHE = {"at": 0.0, "key": "", "value": None}
 
 
+ME_HEADER = "X-TPA-Me"     # 窓（desktop/src/access.rs）が決めた me（版 3.65.0。窓は画面から来た同じ名前の見出しを捨ててから載せる）
+
+
 def me():
-    """この PC・このログインの名乗りと権限。{login, pc, pcSource, key, rows, flags, caps, revoked}"""
+    """この PC・このログインの名乗りと権限。{login, pc, pcSource, key, rows, flags, caps, revoked}
+    デスクトップ版で窓が権限を受け持つとき（shell_serves に access）は、窓が決めて問い合わせに載せた me を使う（判定は窓の 1 か所）"""
+    shell = _shell_me()
+    if shell is not None:
+        return shell
     who = identity.current()
     rows = master_repo().access_permissions()
     f = access.flags(rows, who["login"], who["pc"])
@@ -100,6 +107,24 @@ def me():
             _REVOKE_CACHE.update(value=None)
         _REVOKE_CACHE.update(at=now, key=key)
     return {**who, "key": key, "rows": rows, "flags": f, "caps": access.capabilities(f), "revoked": _REVOKE_CACHE["value"]}
+
+
+def _shell_me():
+    from .. import shell_serves
+    if "access" not in shell_serves():
+        return None
+    try:
+        raw = request.headers.get(ME_HEADER)
+    except RuntimeError:                 # 問い合わせの外（起動・裏の糸）
+        return None
+    if not raw:
+        return None
+    import json
+    try:
+        m = json.loads(raw)
+    except ValueError:
+        return None
+    return m if isinstance(m, dict) and isinstance(m.get("flags"), dict) else None
 
 
 def roles_from(rows):

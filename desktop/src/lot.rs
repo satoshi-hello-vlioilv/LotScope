@@ -7,6 +7,7 @@
 //!   付けたときも、その1回だけ Python に任せる（自己診断の突き合わせ・食い違いの切り分け）
 //! - 写しの係（mirror.rs）は 1 つだけ。Python は窓が lotlist を受け持つと名乗ると写さず、同じ台帳を読む
 
+use crate::access::Gate;
 use crate::dashboard;
 use crate::formula::Tables;
 use crate::lists::{Conf, Lists, Quality};
@@ -35,6 +36,8 @@ pub struct Settings {
     pub conversions: Value,
     /// 一覧の段取りの材料（版 3.60.0。データ元・作業実績の登録・勤務体系・出さないタブ。Python の lotlist.lists_settings）
     pub lists: Value,
+    /// 権限の判定の材料（版 3.65.0。名乗りとマスタ・利用状況の置き場。Python の lotlist._access_place・src/access.rs）
+    pub access: Value,
 }
 
 impl Settings {
@@ -50,6 +53,7 @@ impl Settings {
             conversions_rev: v["conversions"]["rev"].to_string(),
             conversions: v["conversions"]["tables"].clone(),
             lists: v["lists"].clone(),
+            access: v["access"].clone(),
         }
     }
 }
@@ -65,6 +69,8 @@ pub struct Lot {
     tables: Mutex<Option<(String, Arc<Tables>)>>,
     /// ダッシュボードのパネルの答えの控え（版 3.62.0。src/dashboard.rs）
     dash: Mutex<dashboard::Cache>,
+    /// 権限の判定と書き込みの門番（版 3.65.0。src/access.rs）。マスタを書いた後（after_python）に覚えを捨てる
+    gate: Gate,
 }
 
 impl Lot {
@@ -76,6 +82,7 @@ impl Lot {
             settings: Mutex::default(),
             tables: Mutex::default(),
             dash: Mutex::default(),
+            gate: Gate::default(),
         }
     }
 
@@ -102,6 +109,7 @@ impl Lot {
     pub fn after_python(&self, method: &str, path: &str, status: u16) {
         if Self::changes_settings(method, path, status) {
             self.invalidate();
+            self.gate.forget(); // 権限・タブの権限・置き場を書いた: 次の問い合わせで me を読み直す
         }
     }
 
@@ -119,6 +127,13 @@ impl Lot {
         let s = Settings::from_json(&ask()?);
         *self.settings.lock().unwrap() = Some((Instant::now(), s.clone()));
         Ok(s)
+    }
+
+    /// 中身（Python）へ回す前の権限の判定と門番（access::Gate::check）。材料（名乗り・置き場）は一覧の設定と一緒に 10 秒覚える。
+    /// 道（path）は百分率符号を戻した物を渡す（Python も戻してから道を合わせる）
+    pub fn access_check(&self, method: &str, path: &str, ask: AskSettings) -> Result<Option<String>, (u16, &'static str, String)> {
+        let conf = self.settings(ask).ok().map(|s| s.access).filter(Value::is_object);
+        self.gate.check(method, path, conf.as_ref())
     }
 
     /// 変換表（設定の版が前と同じなら読み解いた表を使い回す）
