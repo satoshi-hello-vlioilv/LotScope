@@ -131,8 +131,9 @@ fn build(c: &Connection, table: &str, cs: &[String], dir: &Path, file: &Path) ->
         Ok(())
     })();
     let done = res.map_err(|e| e.to_string()).and_then(|()| {
-        // 書き切ってから名前を替える（電源が落ちても半端な索引を残さない）
-        std::fs::File::open(&tmp).and_then(|f| f.sync_all()).map_err(|e| e.to_string())?;
+        // 書き切ってから名前を替える（電源が落ちても半端な索引を残さない）。
+        // Windows は書ける形で開いた物でないと書き出し（FlushFileBuffers）を断るので、書く形で開く
+        std::fs::OpenOptions::new().write(true).open(&tmp).and_then(|f| f.sync_all()).map_err(|e| e.to_string())?;
         std::fs::rename(&tmp, file).map_err(|e| e.to_string())
     });
     if done.is_err() {
