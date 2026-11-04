@@ -22,6 +22,16 @@ class Month(unittest.TestCase):
 
 
 class Clean(unittest.TestCase):
+    def test_clean_fmt_keeps_style_and_custom_palette(self):
+        # 版 3.69.0: グラフのスタイル・色の組の追加・自分で作った組（#rrggbb を 10 まで。色が無ければ組ごと外す）
+        self.assertEqual(dashboard.clean_fmt({"style": "grad", "palette": "wa"}), {"style": "grad", "palette": "wa"})
+        self.assertIsNone(dashboard.clean_fmt({"style": "<b>", "palette": "xx"}))
+        f = dashboard.clean_fmt({"palette": "custom", "pcolors": ["#AABBCC", "red", "#123456"] + ["#000000"] * 12})
+        self.assertEqual(f["pcolors"][:2], ["#aabbcc", "#123456"])
+        self.assertEqual(len(f["pcolors"]), dashboard.PCOLORS_MAX)
+        self.assertIsNone(dashboard.clean_fmt({"palette": "custom", "pcolors": ["red"]}))
+        self.assertNotIn("pcolors", dashboard.clean_fmt({"palette": "cud", "pcolors": ["#123456"]}))
+
     def test_clean_fmt_keeps_calc_and_unit(self):
         """数の計算（expr）と単位（utext。空は単位を出さない）を覚える。使えない字の式は捨てる（版 3.45.0）"""
         f = dashboard.clean_fmt({"expr": "(値-10)×2", "utext": "本/日"})

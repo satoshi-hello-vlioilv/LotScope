@@ -182,6 +182,13 @@ python program/tools/ui_score.py 採点.json                                    
   接続の段〈品質の間隔が参照先の項目に入る・要約〉・実績の 5 段〈接続・設備の表・ロット番号の列・結合〉・ロット番号の列〈自動・なし・この列がサーバーの lotSet〉・
   グループを消す・そのほかの接続〈保存・既定に戻す〉・見出しのタブの権限〈✕ を保存・人の段・例外の札・出さないタブが見出しから消える〉・3 つの大きさではみ出さない。
   撮るだけの道具は `shot-unify.mjs 出力フォルダ`）・
+  `ui-eval-dasheq.mjs`（版 3.69.0。組む所の「設備」に、期間・条件に作業の無い設備も含めてその元のすべての設備が並び、選べる・件数はパネルの期間・条件の数）・
+  `ui-eval-dashbuild.mjs`（版 3.69.0。組んでいるパネルの見出しのボタンは「組んでいます」〈押せない〉・押しても Enter でもパネルの大きさと置き場が変わらない・閉じると「組む」に戻る）・
+  `ui-eval-dashperiod.mjs`（版 3.69.0。期間の 今日を含まない n 日・直近 n か月・今年・昨年・直近 n 年: 答えの範囲が今日から別に数えた範囲と同じ・件数がサーバーと同じ・数の欄の単位と上限・
+  パネルの添え書き・パネルを絞る面にも並ぶ。期間の範囲は Python と Rust を `pivot_parity`・`dash_parity` でも突き合わせる）・
+  `ui-eval-dashstyle.mjs`（版 3.70.0。組む所の上のタブ〈データと数え方・デザイン・書式〉・デザインのタブ〈テーマ・見せ方・スタイル・色の組〉・テーマで 3 つが一緒に替わり食い違わない・
+  スタイル 7 つがグラフに効く〈グラデーション・角丸・影・枠だけ〉・色の組 21 と自分の色〈直す・足す・外す〉・見せ方 9 つ〈夜の字のコントラスト 4.5 以上〉・当てたあとも残る。
+  保存のときの確かめは `tests/test_dashboard_slice.py`）・
   `ui-eval-waterfall.mjs`（ウォーターフォール: 棒の数・計＝サーバーの総計・前の棒の終わりから・増加と減少・足せない値は計なし・計算・はみ出さない・一覧でも）。
   値の計算の式の読み方は、画面（num-format.js）とサーバー（services/num_expr.py）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・`tests/test_num_expr.py`）。どれも終了コード 0 で OK
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`
@@ -215,6 +222,9 @@ python program/tools/ui_score.py 採点.json                                    
 - マスタの書く係を Rust へ写した評価関数（版 3.67.0。順 5 の 2 段目 a）: `cargo test --test masters_parity`（← `program/tests/masters_oracle.py`。25 の場面で
   Python の MasterStore と答え・断る言葉・できたファイルを突き合わせる・同じ PC で Python〈係 py〉と窓〈係 rs〉が同時に書いても保存が消えない・
   値を変えずに書けない数と版の端は断る・2 つの置き場の Store と panic で錠の置き場が混ざらない・SHARED_ALWAYS が Python と同じ）
+- 権限のマスタを書く道を窓へ移した評価関数（版 3.68.0。順 5 の 2 段目 b）: `cargo test --test access_write_parity`（← `program/tests/access_write_oracle.py`。
+  8 場面・58 歩で POST／PUT／DELETE /api/masters/access と PUT /api/masters/tabaccess の答え・断る言葉・できたファイルを Python の道と突き合わせる）・
+  `lot::tests::the_window_writes_access_masters`（本物の道・門番・書いたら権限の覚えを捨てる・Python に任せる形）
 - 検索の索引とカラムの札を覚える評価関数（版 3.66.0）: `cargo test --test search_index`（語ごとに索引と今の形〈全列に CStr LIKE〉で当たる行を突き合わせる・
   * ? とつなぎの字・ビュー・WITHOUT ROWID は今の形・書き換えた後に作り直す〈時刻を戻した書き換えも〉・壊れた索引は作り直す・1 つの接続で 2 つの表・札は覚える／書き換えで数え直す／計算列は覚えない）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`

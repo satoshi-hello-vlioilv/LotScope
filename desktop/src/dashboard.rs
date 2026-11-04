@@ -63,7 +63,6 @@ const CHARTS: &[&str] = &[
 const EXTRA_VISUALS: &[&str] = &["kpi", "board", "gantt", "abc", "slicer"];
 const OPS_VISUALS: &[&str] = &["gantt", "abc"];
 const BOX_VISUALS: &[&str] = &["box", "violin", "xbar"];
-const PERIOD_KINDS: &[&str] = &["today", "yesterday", "days", "this_month", "last_month", "month", "range"];
 
 /// パネルの確かめの失敗（Python の LayoutError。400）
 type R<T> = Result<T, String>;
@@ -160,7 +159,7 @@ fn period(v: Option<&Value>) -> Value {
     let Some(m) = v.and_then(obj) else { return Value::Null };
     let kind = m.get("kind").and_then(Value::as_str).unwrap_or("");
     let col = strip(&s_or(m.get("column")));
-    if !PERIOD_KINDS.contains(&kind) || col.is_empty() {
+    if !pivot::PERIODS.iter().any(|(k, _)| *k == kind) || col.is_empty() {
         return Value::Null;
     }
     let mut out = json!({"column": cut(&col, 200), "kind": kind, "n": int_of(m.get("n"), 1, 3660, 7)});

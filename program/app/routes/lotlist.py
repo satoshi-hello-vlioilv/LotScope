@@ -180,7 +180,7 @@ def _access_place():
     return {"who": {**who, "key": presence.terminal_key(who["login"], who["pc"])},
             "place": {"shareDir": str(st.share_dir) if st.share_dir is not None else "", "shared": sorted(st.shared_names),
                       "data": str(st.base / "data"), "defaults": str(DEFAULTS_DIR), "cache": str(st.cache_dir),
-                      "presence": str(pdir) if pdir is not None else ""}}
+                      "presence": str(pdir) if pdir is not None else "", "lockTtl": st.lock_ttl}}
 
 
 def _conversions():

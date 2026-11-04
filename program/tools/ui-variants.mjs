@@ -22,6 +22,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { launch, measure, parseView, SPLASH_NAMES, walk, walkSplash } from "./ui-harness.mjs";
+// 案の組み替え（ops の script）は頁の中で文を動かすので、撮るときだけ頁の CSP（script-src の nonce）を外す（版 3.69.0。評価関数は外さない）
+process.env.TPA_UI_BYPASS_CSP = "1";
 
 const [outArg, defsArg, ...rest] = process.argv.slice(2);
 if (!outArg || !defsArg) {

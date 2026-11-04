@@ -74,8 +74,13 @@ SCENARIOS = [
      "files": {"share/equipment_master.json": {"schema": 1, "revision": 1, "rows": ROWS}},
      "steps": [{"op": "lock", "holder": "empty"}, {"op": "write", "name": EQ, "do": [{"append": {"name": "a"}}]},
                {"op": "sleep", "sec": 0.45}, {"op": "write", "name": EQ, "do": [{"append": {"name": "b"}}]},
-               {"op": "lock", "holder": "notoken", "left": -5}, {"op": "sleep", "sec": 0.45}, {"op": "write", "name": EQ, "do": [{"append": {"name": "c"}}]},
-               {"op": "lock", "holder": "nulltoken", "left": -5}, {"op": "sleep", "sec": 0.45}, {"op": "write", "name": EQ, "do": [{"append": {"name": "d"}}]},
+               # 印の無い錠・印が null は、どちらも印 "" として「最初に見た時刻」を覚える。覚えは 10×錠の長さ（3 秒）で捨てるので、
+               # 前の錠の覚えが残るか捨てられたかで答えが変わらないよう、3.2 秒待って覚えを捨ててから置く（版 3.69.0。Windows の CI で、
+               # 遅い機械では d の時点で "" の覚えが捨てられて断り・速い機械では残って通る、と揺れた）。見た直後は断り、0.45 秒後に通る
+               {"op": "sleep", "sec": 3.2}, {"op": "lock", "holder": "notoken", "left": -5}, {"op": "write", "name": EQ, "do": [{"append": {"name": "c"}}]},
+               {"op": "sleep", "sec": 0.45}, {"op": "write", "name": EQ, "do": [{"append": {"name": "c2"}}]},
+               {"op": "sleep", "sec": 3.2}, {"op": "lock", "holder": "nulltoken", "left": -5}, {"op": "write", "name": EQ, "do": [{"append": {"name": "d"}}]},
+               {"op": "sleep", "sec": 0.45}, {"op": "write", "name": EQ, "do": [{"append": {"name": "d2"}}]},
                {"op": "lock", "holder": "numtoken", "left": -5}, {"op": "write", "name": EQ, "do": [{"append": {"name": "e"}}]},
                {"op": "sleep", "sec": 0.45}, {"op": "write", "name": EQ, "do": [{"append": {"name": "f"}}]},
                {"op": "lock", "holder": "bigtoken", "left": -5}, {"op": "sleep", "sec": 0.45}, {"op": "write", "name": EQ, "do": [{"append": {"name": "g"}}]}]},

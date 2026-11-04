@@ -33,10 +33,10 @@ pub const MASTER_EDIT_LEVELS: [&str; 4] = [ME_HIDDEN, ME_VIEW, ME_PARTIAL, ME_FU
 
 /// 管理のマスタ（「部分的編集可」では書けない）
 pub const ADMIN_MASTERS: [&str; 5] = ["access_permissions", "path_settings", "work_log_files", "data_sources", "tab_access"];
-const TAB_SHOW: &str = "出す";
-const TAB_HIDE: &str = "出さない";
+pub(crate) const TAB_SHOW: &str = "出す";
+pub(crate) const TAB_HIDE: &str = "出さない";
 /// タブの決まりを決められる区分（開発者はいつも全部）
-const TAB_ROLES: [&str; 3] = [ROLE_MAINTAINER, ROLE_USER, ROLE_OPERATOR];
+pub(crate) const TAB_ROLES: [&str; 3] = [ROLE_MAINTAINER, ROLE_USER, ROLE_OPERATOR];
 
 /// 切断の指示が効く長さ（presence.REVOKE_COOLDOWN_SEC）
 const REVOKE_COOLDOWN_SEC: f64 = 300.0;
@@ -67,7 +67,7 @@ pub const ME_HEADER: &str = "X-TPA-Me";
 // ---------------------------------------------------------------- 字の比べ方（Python と同じ）
 
 /// Python の str(v or "")
-fn text(v: Option<&Value>) -> String {
+pub(crate) fn text(v: Option<&Value>) -> String {
     match v {
         Some(Value::Number(n)) if n.is_u64() && n.as_u64() != Some(0) => n.to_string(), // i64 を超える整数も字のまま（Python の str(int)）
         Some(x) if truthy(x) => py_str(x),
@@ -81,7 +81,7 @@ pub fn normalize_part(v: Option<&Value>) -> String {
     pyfmt::strip(&n).to_uppercase()
 }
 
-fn is_tab_key(t: &str) -> bool {
+pub(crate) fn is_tab_key(t: &str) -> bool {
     let b = t.as_bytes();
     !b.is_empty() && b.len() <= 16 && b[0].is_ascii_lowercase() && b.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
 }
@@ -92,7 +92,7 @@ pub fn normalize_role(v: Option<&Value>) -> &'static str {
     ROLES.iter().copied().find(|r| *r == s).unwrap_or(ROLE_USER)
 }
 
-fn role_rank(role: &str) -> u8 {
+pub(crate) fn role_rank(role: &str) -> u8 {
     match role {
         ROLE_DEVELOPER => 3,
         ROLE_MAINTAINER => 2,
@@ -107,7 +107,7 @@ pub fn normalize_master_edit(v: Option<&Value>) -> &'static str {
     MASTER_EDIT_LEVELS.iter().copied().find(|r| *r == s).unwrap_or(ME_FULL)
 }
 
-fn me_rank(lv: &str) -> u8 {
+pub(crate) fn me_rank(lv: &str) -> u8 {
     MASTER_EDIT_LEVELS.iter().position(|x| *x == lv).unwrap_or(0) as u8
 }
 
@@ -156,7 +156,7 @@ pub fn role_can(role: &str, action: &str, target_role: &str) -> bool {
     }
 }
 
-fn enabled(row: &Map<String, Value>) -> bool {
+pub(crate) fn enabled(row: &Map<String, Value>) -> bool {
     pyfmt::strip(&text(row.get("有効"))) != "無"
 }
 
@@ -179,7 +179,7 @@ fn row_for<'a>(rows: &'a [Map<String, Value>], login: &str, pc: &str) -> Option<
     best.into_iter().flatten().next()
 }
 
-fn has_admin_row(rows: &[Map<String, Value>]) -> bool {
+pub(crate) fn has_admin_row(rows: &[Map<String, Value>]) -> bool {
     rows.iter().any(|r| enabled(r) && role_rank(normalize_role(r.get("権限区分"))) > role_rank(ROLE_USER))
 }
 
@@ -225,7 +225,7 @@ fn tab_rules(rows: &[Value]) -> Result<Vec<(String, Vec<&'static str>)>, String>
 }
 
 /// アクセス権限の行の「タブの例外」→ [(タブ, 出す|出さない)]（壊れた字は空。字が JSON の物でも表でもないと Python は落ちる: Err）
-fn tab_exceptions(value: Option<&Value>) -> Result<Vec<(String, bool)>, String> {
+pub(crate) fn tab_exceptions(value: Option<&Value>) -> Result<Vec<(String, bool)>, String> {
     let parsed;
     let d = match value {
         Some(Value::String(s)) if !pyfmt::strip(s).is_empty() => match py_json(s) {

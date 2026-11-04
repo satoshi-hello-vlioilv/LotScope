@@ -341,6 +341,14 @@ class Many(unittest.TestCase):
         self.assertEqual(pivot.period_range("this_month", 0, "2026-10-16"), ("2026-10-01", "2026-10-16"))
         self.assertEqual(pivot.period_range("last_month", 0, "2026-03-31"), ("2026-02-01", "2026-02-28"))
         self.assertEqual(pivot.period_range("days", 3, "2026-10-01"), ("2026-09-29", "2026-10-01"))
+        # 版 3.69.0: 今日を含まない n 日・今月を含む n か月・今年・昨年・今年を含む n 年
+        self.assertEqual(pivot.period_range("days_before", 3, "2026-10-01"), ("2026-09-28", "2026-09-30"))
+        self.assertEqual(pivot.period_range("months", 3, "2026-02-15"), ("2025-12-01", "2026-02-15"))
+        self.assertEqual(pivot.period_range("months", 1, "2026-02-15"), ("2026-02-01", "2026-02-15"))
+        self.assertEqual(pivot.period_range("this_year", 0, "2026-02-15"), ("2026-01-01", "2026-02-15"))
+        self.assertEqual(pivot.period_range("last_year", 0, "2026-02-15"), ("2025-01-01", "2025-12-31"))
+        self.assertEqual(pivot.period_range("years", 2, "2026-02-15"), ("2025-01-01", "2026-02-15"))
+        self.assertEqual(pivot.period_range("years", 99, "2026-02-15"), ("2017-01-01", "2026-02-15"))
         with self.assertRaises(pivot.PivotError):
             pivot.period_range("week", 0, "2026-10-01")
         now = datetime(2026, 10, 2, 12)

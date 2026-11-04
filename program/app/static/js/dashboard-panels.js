@@ -24,16 +24,9 @@
   // 名前ごとの色は、データの種類の色（藍・青緑・琥珀）を使わない（区分の色が「作業実績」などと読めないように。2026-10-grid の 2 回目の指摘）
   // 警告の赤（前日 0 本の札・読めない）と近い赤・桃も使わない（3 回目の指摘）
   const CAT = ["#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#7a7a1f", "#8e4f76"];
-  /* 色の組（版 3.39.0。書式 palette。利用者の要望 7）: "" はデータの種類の色（今まで）。分類の組は dataviz の検証（色覚の差・明るさ・字の背景との差）を通した並び。
-     濃淡の組は 1 つの色の明るさの段（濃い → 淡い。順位・大きさを見せる） */
-  const PALETTES = {
-    calm: { n: "落ち着いた", c: ["#3a6db0", "#c27a1e", "#159483", "#7458c4", "#5d8f1f", "#b2507f"] },
-    vivid: { n: "はっきり", c: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"] },
-    cud: { n: "色覚に配慮", c: ["#0072b2", "#e69f00", "#009e73", "#d55e00", "#cc79a7", "#56b4e9"] },
-    mono: { n: "藍の濃淡", c: ["#1f3a5f", "#2f5583", "#4a73a6", "#7395c2", "#a3bbd9", "#cbd8ea"] },
-    warm: { n: "暖色の濃淡", c: ["#7a2e0e", "#a8461a", "#cf6a2c", "#e3934d", "#efbb80", "#f6dcb5"] },
-    cool: { n: "寒色の濃淡", c: ["#0f4a46", "#16706a", "#23968c", "#55b8ad", "#92d3ca", "#c7e9e3"] },
-  };
+  /* 色の組（版 3.39.0。書式 palette。利用者の要望 7）: "" はデータの種類の色（今まで）。版 3.69.0 から組は dashboard-style.js に
+     （カラフル・単色の濃淡・自分で作った組 custom〈fmt.pcolors〉。利用者の要望 2026-11-04 の 2） */
+  const ST = window.DashStyle, PALETTES = ST.PALETTES;
   /** パネルごとに描いた系列・項目の色（名前 → 色）。組む所の「系列」の見本に使う（描いた色そのもの） */
   const drawn = new Map();
   const drawnSer = new Map();     // パネルごとに描いた系列の形と目盛り（名前 → {kind, axis}。組む所の「自動（棒）」。版 3.46.0）
@@ -47,7 +40,7 @@
   /** パネルの系列の色の並び（色の組を選んでいればその組。無ければデータの種類の色から） */
   function seriesColors(p) {
     if (p._facetColor) return [p._facetColor, ...C.COLORS.filter((c) => c !== p._facetColor)];   // 並べる: その設備の色（重ねるときの系列の色と同じ）
-    const pal = PALETTES[((p.fmt || {}).palette) || ""];
+    const pal = ST.paletteOf(p.fmt);
     if (pal) return pal.c.concat(C.COLORS.filter((c) => !pal.c.includes(c)));
     const src = colorOf(p.source);
     return [src, ...C.COLORS.filter((c) => c !== src)];
@@ -67,7 +60,7 @@
     if (!pr) return "";
     const r = (pr.ranges || [])[0], basis = pr.column === "@workday" ? `（${(p && p.basis) === "cal" ? "太陽暦" : "現場歴"}）` : `（${pr.column}）`;
     const span = r ? (r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`) : "";
-    const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.kind === "range" ? "" : pr.name;     // 日付で決めた期間は日付だけ（版 3.52.0。1280 の数字のパネルで添え書きが 2 段に折れた）
+    const name = PERIOD_N[pr.kind] ? periodWord(pr) : pr.kind === "range" ? "" : pr.name;     // 日付で決めた期間は日付だけ（版 3.52.0。1280 の数字のパネルで添え書きが 2 段に折れた）
     return `${name ? name + " " : ""}${span}${basis}${(pr.ranges || []).length > 1 ? "・設備で日が違います" : ""}`;
   }
 
@@ -190,7 +183,7 @@
     const fm = p.fmt || {};
     const wantLegend = fm.legend !== "none" && (m.nc > 0 || d.measures.length > 1 || ["bubble", "diag45", "xbar", "violin", "waterfall"].includes(kind)) && H >= 150 && kind !== "donut" && kind !== "treemap";
     const gh = Math.max(60, H - (wantLegend ? 20 : 0));
-    const colors = seriesColors(p), pal = PALETTES[fm.palette || ""];
+    const colors = seriesColors(p), pal = ST.paletteOf(fm);
     const r0 = (d.dims.rows || [])[0], few = m.nr === 1 && m.nc === 0 && r0 && !r0.column.startsWith("@") && !C.isTimeDim(r0) && m.rows.filter((r) => r.type === "data").length <= 8;
     const rowColor = few || (pal && ["column", "bar", "lollipop", "donut", "treemap", "bubble"].includes(kind) && m.nc === 0)
       ? catColors(m.rows.filter((r) => r.type === "data").map((r) => m.rowName(r)).sort(), pal ? pal.c : CAT) : null;
@@ -199,6 +192,8 @@
     const cols = link && !(fm.palette) ? d.measures.map((x, j) => ROLE_COLOR[x.role] || colors[j % colors.length]) : colors;
     const out = C.draw(kind, { m, d, s, W, H: gh, measName, dimName: (x) => dimName(x, p), label: (c) => c, compact: true, colors: cols, rowColor, fmt: fm, oneAxis: link });
     if (!p._facetColor) { drawn.set(p.id, new Map(out.used || [])); drawnSer.set(p.id, new Map(out.ser || [])); }
+    // スタイル（版 3.69.0。角丸・グラデーション・枠だけ・淡い塗り・影・太い線）: 系列・項目の色で塗った印だけに当てる
+    if (fm.style) out.svg = ST.apply(out.svg, fm.style, [...cols, ...(out.used || []).map((x) => x[1])]);
     const sideOk = out.side && (kind === "donut" ? W - (Math.min(gh / 2 - 6, W / 2 - 8, 160) * 2 + 16) >= 150 : W >= 760);
     const legend = wantLegend ? `<div class="dp-legend">${(out.legend || "").replace(/<small class="pv-cnote">[\s\S]*?<\/small>/g, "")}</div>` : "";
     const cls = `dp-chart${fm.grid === false ? " no-grid" : ""}${fm.size ? ` fs-${fm.size}` : ""}`;
@@ -242,7 +237,7 @@
     const word = g.measure.agg === "lots" ? (g.source === "work" ? "実績本数" : "ロット数") : measName(g.measure);
     const pr = a && a.period, r = pr && (pr.ranges || [])[0];
     if (pr && r) {
-      const name = pr.kind === "days" ? `直近 ${pr.n} 日` : pr.kind === "range" ? "" : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
+      const name = PERIOD_N[pr.kind] ? periodWord(pr) : pr.kind === "range" ? "" : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
       return `${name ? name + " " : ""}${span} の${word}${pr.column === "@workday" ? `（${g.basis === "cal" ? "太陽暦" : "現場歴"}）` : ""}`;
     }
     return `${(a && a.sourceName) || ""}${a && a.sourceName ? "の" : ""}${word}`;
@@ -538,6 +533,28 @@
     return out;
   }
 
-  window.DashPanels = { ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
+  /* ---- 期間の種類（組む所・パネルを絞る面・パネルの添え書きで同じ言葉。サーバーの pivot.PERIODS と同じ鍵）。
+     版 3.69.0（利用者の要望 2026-11-04 の 4）: 今日を含まない n 日・今月を含む n か月・今年・昨年・今年を含む n 年 ---- */
+  const PERIOD_KINDS = [["today", "今日"], ["yesterday", "前日"], ["days", "直近 n 日（今日を含む）"], ["days_before", "直近 n 日（今日を含まない）"],
+    ["this_month", "今月"], ["last_month", "先月"], ["months", "直近 n か月（今月を含む）"], ["this_year", "今年"], ["last_year", "昨年"], ["years", "直近 n 年（今年を含む）"]];
+  /** 数 n を持つ種類 → [単位, 上限, 既定]（上限はサーバーと同じ） */
+  const PERIOD_N = { days: ["日", 3660, 7], days_before: ["日", 3660, 7], months: ["か月", 120, 3], years: ["年", 10, 3] };
+  /** 期間 → 数 n（種類の上限に収める） */
+  const periodN = (pr) => { const u = PERIOD_N[pr && pr.kind]; return u ? Math.max(1, Math.min(u[1], Math.trunc(+pr.n) || u[2])) : 0; };
+  /** 期間の短い言葉（直近 7 日・直近 7 日（今日を除く）・直近 3 か月・今年 など。日付で決める・n か月前は呼ぶ側が決める → 空） */
+  function periodWord(pr) {
+    if (!pr || !pr.kind) return "";
+    const n = periodN(pr);
+    return { days: `直近 ${n} 日`, days_before: `直近 ${n} 日（今日を除く）`, months: `直近 ${n} か月`, years: `直近 ${n} 年` }[pr.kind]
+      || (PERIOD_KINDS.find((x) => x[0] === pr.kind) || ["", ""])[1];
+  }
+  /** 数 n の欄（n を持つ種類だけ）。attrs … 欄の印（data-de-pn など）・cls … 欄の class */
+  const periodNInput = (pr, attrs, cls) => { const u = PERIOD_N[pr && pr.kind];
+    return u ? `<input type="number" min="1" max="${u[1]}" ${attrs} value="${periodN(pr)}" aria-label="${u[0] === "日" ? "日" : u[0]}の数" class="${cls}">${u[0]}` : ""; };
+  /** 種類を選び直したときの数（単位が同じなら今の数・違えば既定） */
+  const periodNFor = (old, kind) => { const u = PERIOD_N[kind]; if (!u) return old && old.n ? old.n : 7;
+    const ou = PERIOD_N[old && old.kind]; return ou && ou[0] === u[0] ? periodN({ kind, n: old.n }) : u[2]; };
+
+  window.DashPanels = { PERIOD_KINDS, PERIOD_N, periodN, periodWord, periodNInput, periodNFor, ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
     drawnSeries: (id, name) => (drawnSer.get(id) || new Map()).get(name) || null };
 })();

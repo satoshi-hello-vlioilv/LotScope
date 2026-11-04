@@ -42,6 +42,7 @@ try {
   await p.fill("#deSearch", ""); await sleep(200);
 
   // ② 表示形式: 数値・桁区切り・小数 1 桁・後ろに本
+  await p.evaluate(() => document.dispatchEvent(new CustomEvent("tpa-show-fmt"))); await sleep(200);   // 版 3.70.0: 書式は組む所の上のタブ「書式」にある
   const fmtOpen = await p.$("#dbEditor [data-de-fncat]");
   if (!fmtOpen) { await p.click("#dbEditor [data-de-fmtopen]"); await sleep(200); }
   await pick(p, "#dbEditor [data-de-fncat]", "num"); await sleep(500);
@@ -90,6 +91,7 @@ try {
   await openEditor(p, "board");
   const tabWhole = await p.$("#deTabs [data-de-tab='-1']");
   if (tabWhole) { await tabWhole.click(); await sleep(400); }
+  await p.evaluate(() => document.dispatchEvent(new CustomEvent("tpa-show-fmt"))); await sleep(200);   // 版 3.70.0: 書式は組む所の上のタブ「書式」にある
   if (!(await p.$("#dbEditor [data-de-fncat]"))) { await p.click("#dbEditor [data-de-fmtopen]").catch(() => {}); await sleep(300); }
   const hasFmt = !!(await p.$("#dbEditor [data-de-fncat]"));
   check("② 合わせた表にも表示形式の欄がある", hasFmt, null);
@@ -113,6 +115,7 @@ try {
   const q = await app.newPage("light", parseView("1280x720"), { screen: "dash" });
   await waitDash(q);
   await openEditor(q, "workTotal");
+  await q.evaluate(() => document.dispatchEvent(new CustomEvent("tpa-show-fmt"))); await sleep(200);
   if (!(await q.$("#dbEditor [data-de-fncat]"))) { await q.click("#dbEditor [data-de-fmtopen]"); await sleep(200); }
   await pick(q, "#dbEditor [data-de-fncat]", "num"); await sleep(400);
   const cut = await q.evaluate(() => {

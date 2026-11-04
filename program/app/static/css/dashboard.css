@@ -53,6 +53,7 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .db-pf{flex:0 0 auto;font-size:11.5px;color:var(--h-meta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:2px}
 .db-pbtn{height:24px;padding:0 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:12px;font-weight:700;color:var(--h-meta);cursor:pointer;flex:0 0 auto}
 .db-pbtn:hover{border-color:var(--h-input);color:var(--h-input)}
+.db-pbtn.is-on[data-db-editing]{background:var(--h-input);border-color:var(--h-input);color:#fff;cursor:default}
 .db-pbtn.is-danger{color:#a3322a}
 .db-pbtn.is-armed{background:#fbe7e3;border-color:#c0392b;color:#8a2a1c}
 .db-quiet{opacity:0;transition:opacity .12s}
@@ -262,6 +263,21 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-p.is-frame-plain{background:transparent;box-shadow:none;border-color:transparent}
 .db-screen.is-edit .db-p.is-frame-plain{border-color:#c9d4de}
 .db-p.is-frame-tint{background:color-mix(in srgb,var(--pc,var(--h-input)) 7%,var(--surface));border-color:color-mix(in srgb,var(--pc,var(--h-input)) 22%,transparent)}
+/* パネルの見せ方（版 3.69.0。利用者の要望 2026-11-04 の 5）: 上の線・浮き・色の地・夜 */
+.db-p.is-frame-top{border-top:5px solid var(--pc,var(--h-input));padding-top:6px}
+.db-p.is-frame-float{box-shadow:0 10px 26px rgba(28,42,54,.16),0 2px 6px rgba(28,42,54,.10);border-color:transparent}
+.db-p.is-frame-wash{background:linear-gradient(160deg,color-mix(in srgb,var(--pc,var(--h-input)) 16%,var(--surface)) 0%,var(--surface) 62%);border-color:color-mix(in srgb,var(--pc,var(--h-input)) 26%,transparent)}
+.db-p.is-frame-night{--surface:#1d2733;--ink:#eef3f7;--muted:#a9b6c2;--line:#3a4756;--h-meta:#c2ccd6;background:#1d2733;border-color:#1d2733;color:#eef3f7}
+.db-p.is-frame-night h3{color:#eef3f7}
+.db-p.is-frame-night .pv-ax,.db-p.is-frame-night .pv-axn,.db-p.is-frame-night .pv-mname{fill:#b9c5d0}
+.db-p.is-frame-night .pv-vl,.db-p.is-frame-night .pv-sk{fill:#f4f7fa;stroke:#1d2733}
+.db-p.is-frame-night .pv-hv,.db-p.is-frame-night .pv-dtot{fill:#f4f7fa}
+.db-p.is-frame-night svg line{stroke-opacity:.45}
+.db-p.is-frame-night .db-pbtn{background:#283544;color:#dbe3ea;border-color:#3a4756}
+.de-frame i.fr-top{border-top:4px solid var(--h-input)}
+.de-frame i.fr-float{box-shadow:0 3px 7px rgba(28,42,54,.28);border-color:transparent}
+.de-frame i.fr-wash{background:linear-gradient(160deg,color-mix(in srgb,var(--h-input) 30%,#fff),#fff)}
+.de-frame i.fr-night{background:#1d2733;border-color:#1d2733}
 .dp-chart.no-grid .pv-grid{display:none}
 .dp-chart.fs-s .pv-ax,.dp-chart.fs-s .pv-vl{font-size:11px}
 .dp-chart.fs-l .pv-ax{font-size:13px}.dp-chart.fs-l .pv-vl{font-size:13px}
@@ -381,6 +397,49 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .de-pal span{display:inline-flex;border-radius:3px;overflow:hidden}
 .de-pal span i{width:8px;height:16px}
 .de-pal.on{border-color:var(--h-input);background:var(--input-soft);color:var(--h-input)}
+/* 組む所の上のタブ（版 3.70.0。2026-11-dashstyle の D）: データと数え方｜デザイン｜書式。開いているタブだけを出す */
+.de-ptabs{display:flex;gap:2px;border-bottom:2px solid var(--line-soft,#e3e8ee);position:sticky;top:0;z-index:2;background:var(--surface);flex:0 0 auto}
+.de-ptab{position:relative;height:36px;padding:0 16px;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;background:none;font:inherit;font-size:13.5px;font-weight:800;color:var(--h-meta);cursor:pointer}
+.de-ptab:hover{color:var(--h-input)}
+.de-ptab.on{color:var(--h-input);border-bottom-color:var(--h-input)}
+.de-pdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#c27a1e;margin-left:6px;vertical-align:2px}
+.de-pane{display:flex;flex-direction:column;gap:10px}
+.de-pane[hidden]{display:none}
+.de-sec{border:1px solid var(--line-soft,#e3e8ee);border-radius:10px;padding:8px 10px 10px;background:color-mix(in srgb,var(--surface) 70%,#f4f7fa)}
+.de-sec h4{margin:0 0 8px;font-size:13px;font-weight:800;color:var(--ink);display:flex;gap:8px;align-items:baseline}
+.de-sec h4 small{font-weight:600;color:var(--muted);font-size:12px}
+.de-themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:5px}
+.de-theme{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 3px 3px;white-space:nowrap;min-width:0;border:1px solid var(--edit-line);border-radius:9px;background:var(--edit-field);font:inherit;font-size:12px;font-weight:700;color:var(--h-meta);cursor:pointer}
+.de-theme:hover{border-color:var(--h-input)}
+.de-theme.on{border-color:var(--h-input);background:var(--input-soft);color:var(--h-input)}
+.dt-mini{display:inline-flex;border-radius:6px;border:1px solid #dfe5eb;padding:2px;background:#fff}
+.dt-mini.fr-night{background:#1d2733;border-color:#1d2733}
+.dt-mini.fr-wash{background:linear-gradient(160deg,color-mix(in srgb,var(--pc) 18%,#fff),#fff 65%)}
+.dt-mini.fr-tint{background:color-mix(in srgb,var(--pc) 8%,#fff)}
+.dt-mini.fr-top{box-shadow:inset 0 3px 0 var(--pc)}
+.dt-mini.fr-accent{box-shadow:inset 4px 0 0 var(--pc)}
+.dt-mini.fr-float{box-shadow:0 3px 8px rgba(28,42,54,.22);border-color:transparent}
+.de-palg.is-mono .de-pal{height:28px;padding:0 8px 0 5px}
+/* 色の組とスタイル（版 3.69.0） */
+.de-pane .de-pals{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:4px}
+.de-pane .de-palg.is-mono .de-pals{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+.de-pane .de-pal{justify-content:flex-start;min-width:0}
+#deLook .de-frames{display:flex;flex-wrap:wrap;gap:5px}
+#deLook .de-frame{flex:1 1 96px;justify-content:flex-start}
+.de-pcrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.de-pcrow>small{font-size:11.5px;font-weight:700;color:var(--muted)}
+.de-palbox{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+.de-palg{display:flex;flex-direction:column;gap:3px}
+.de-palg>small{font-size:11.5px;font-weight:700;color:var(--muted)}
+.de-pcs{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;margin-left:4px}
+.de-pc{display:inline-flex;align-items:center;border:1px solid var(--edit-line);border-radius:7px;background:var(--edit-field);padding:2px}
+.de-pc input[type=color]{width:26px;height:24px;padding:0;border:0;background:none;cursor:pointer}
+.de-pc button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;width:18px;cursor:pointer}
+.de-pc button:disabled{opacity:.3;cursor:default}
+.de-stys{display:flex;flex-wrap:wrap;gap:5px;flex:1;min-width:0}
+.de-sty{display:inline-flex;flex-direction:column;align-items:center;gap:2px;min-width:0;flex:1 1 98px;white-space:nowrap;padding:5px 6px 4px;border:1px solid var(--edit-line);border-radius:8px;background:var(--edit-field);font:inherit;font-size:12px;font-weight:700;color:var(--h-meta);cursor:pointer}
+.de-sty.on{border-color:var(--h-input);background:var(--input-soft);color:var(--h-input)}
+.de-sty:hover,.de-pal:hover{border-color:var(--h-input)}
 /* 系列ごとの書式（版 3.41.0）: 1 系列 1 行。色と名前・数値ラベル・線。直した行は藍の縁 */
 .de-sers{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;flex:1;min-width:0}
 .de-ser{display:flex;align-items:center;gap:8px;min-width:0;padding:3px 4px 3px 0;border-radius:7px}
@@ -956,3 +1015,13 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .sp-v.on{background:var(--h-input);border-color:var(--h-input);color:#fff}.sp-v.on .sp-n{color:#e4ecf4}.sp-v.on i{background:#9fc0df}
 .sp-v.is-out{color:var(--h-meta);background:#f6f8fa}
 .sp-foot{margin-top:auto;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 版 3.70.0（作った後の採点の 2 回目）: 書式のタブの囲みの中で表示形式の札が右へはみ出さないよう詰める・デザインのタブの札は升をそろえる */
+#dbEditor .de-sec .de-ngrid{grid-template-columns:70px max-content 48px minmax(0,1fr);gap:8px}
+#dbEditor .de-sec .de-ngrid .de-seg{padding:0 6px}
+.de-pane .de-themes{grid-template-columns:repeat(4,minmax(0,1fr))}
+#deLook .de-frames:not(.de-splits){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+#deLook .de-frames:not(.de-splits) .de-frame{min-width:0}
+.de-pane .de-palg.is-mono .de-pals{grid-template-columns:repeat(5,minmax(0,1fr))}
+.de-pane .de-palg.is-mono .de-pal{white-space:nowrap;padding:0 6px 0 5px}
+.de-pane .de-palg.is-mono .de-pal span i:nth-child(n+5){display:none}

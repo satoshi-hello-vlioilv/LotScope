@@ -104,7 +104,7 @@ export async function launch() {
         最初の画面はダッシュボード（版 3.37.0）なので、頁の印 #screen=list で一覧から始める（読み直しても一覧のまま）。
         screen: "dash" ならダッシュボードから（パネルが描き終わるまで待つ） */
     async newPage(theme, view = VIEW, { screen = "list" } = {}) {
-      const context = await browser.newContext({ viewport: view, deviceScaleFactor: 1.25, colorScheme: theme, locale: "ja-JP" });
+      const context = await browser.newContext({ viewport: view, deviceScaleFactor: 1.25, colorScheme: theme, locale: "ja-JP", bypassCSP: !!process.env.TPA_UI_BYPASS_CSP });
       await context.route("**/__desktop/**", (route) => {
         const p = new URL(route.request().url()).pathname;
         if (p === "/__desktop/install") return route.fulfill({ json: INSTALL });
@@ -125,7 +125,7 @@ export async function launch() {
     },
     /** 起動画面（窓が名前を伝えた直後。まだ段取りは進んでいない） */
     async newSplash(theme, view = VIEW) {
-      const context = await browser.newContext({ viewport: view, deviceScaleFactor: 1.25, colorScheme: theme, locale: "ja-JP" });
+      const context = await browser.newContext({ viewport: view, deviceScaleFactor: 1.25, colorScheme: theme, locale: "ja-JP", bypassCSP: !!process.env.TPA_UI_BYPASS_CSP });
       const page = await context.newPage();
       page.on("pageerror", (e) => console.warn(`[${theme}] page error: ${e.message}`));
       await page.goto(pathToFileURL(SPLASH).href);
@@ -613,6 +613,11 @@ export const STATES = [
       const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deFmt");
       if (m && f && f.offsetParent) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 120);
       window.scrollTo(0, 0); }); await sleep(500);
+  }, "[data-next], [data-de-apply]"],
+  // 版 3.70.0: 組む所のデザインのタブ（テーマ「夜」を当てた所。テーマ・見せ方・スタイル・色の組）
+  ["dash-panel-design", async (p) => {
+    await p.evaluate(() => document.querySelector('[data-de-pane="design"]')?.click()); await sleep(400);
+    await p.evaluate(() => document.querySelector('[data-de-theme="3"]')?.click()); await sleep(900);
   }, "[data-next], [data-de-apply]"],
   // 版 3.38.0: 合わせた表（設備ごとの仕掛と前日の実績）を組む所。表全体（行の段・並び・行の札）と、列のまとまり ②（前日の実績本数）
   ["dash-board", async (p) => {
