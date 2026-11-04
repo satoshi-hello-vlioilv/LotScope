@@ -418,6 +418,9 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
       `lot::tests::the_real_paths_use_the_shell_me_for_tabs_and_shifts`（Python の値をわざと逆にした設定で、区分の決まり・現場のマスタ・閲覧のみ・切断）を足した。
       2 回目（74.3 点）で、窓が me を決められないときに引き継ぐ Python の値（can_write・lists.work.canEditShifts）が試験に無いと分かり、
       `tests/test_access.py` の `test_can_write_and_shifts_follow_role_and_disconnect` を足した。
+      3 回目（71.3 点）の後、利用者が「重複も減らしてから」を選んだ: 窓が権限を受け持つとき、Python の一覧の設定は出さないタブ・勤務体系を直せるかを
+      決めず null で返し（Python の me を呼ばない）、窓が me を決められないときは窓は答えず問い合わせを Python に任せる（Python が自分の me で答える）。
+      これで判定の元は道ごとに 1 つ（窓が答える道は窓の me、Python が答える道は窓が載せた me か、載っていなければ Python の me）。
   - 2 段目: 書き込み（錠・seed・master_seeds）と書く道を窓へ。Python の store は読み専用にする（読みの途中の seed は断らず、写し・同梱で読み続ける）。
   - 3 段目: 使用の履歴・置き場・設定。
 

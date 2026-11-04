@@ -130,20 +130,23 @@ impl Lot {
     }
 
     /// 段取りの材料（lists）に、窓が決めた権限を重ねた物（版 3.65.1。順 5 の 1 段目 b）: 出さないタブ（hidden）と勤務体系を直せるか
-    /// （work.canEditShifts）は、Python が自分の me から作った値ではなく、門番と同じ窓の me から決める（判定の元を 1 つに）。
-    /// 窓が me を決められない（名乗り・権限の表を読めない）ときは、Python が作った値のまま（Python が自分で決めたときと同じ）
-    pub fn lists_of(&self, s: &Settings) -> Value {
+    /// （work.canEditShifts）は、門番と同じ窓の me から決める（判定の元を 1 つに。窓が権限を受け持つとき、Python はこの 2 つを決めず null で返す）。
+    /// None なら窓は答えず Python に任せる: 判定の材料（access）があるのに窓が me を決められない（権限の表を読めない）・材料が無く Python も
+    /// 決めていない（hidden が null）。材料が無く Python が決めた値がある（窓が権限を受け持たない前の版の Python）ときは、その値のまま
+    pub fn lists_of(&self, s: &Settings) -> Option<Value> {
         let mut v = s.lists.clone();
-        let Some(m) = s.access.is_object().then(|| self.gate.me(&s.access).ok()).flatten() else {
-            return v;
-        };
+        if !s.access.is_object() {
+            let python_decided = v.is_null() || v["hidden"].is_array();
+            return python_decided.then_some(v);
+        }
+        let m = self.gate.me(&s.access).ok()?;
         if let Some(o) = v.as_object_mut() {
             o.insert("hidden".into(), m["flags"]["hiddenTabs"].clone());
             if let Some(w) = o.get_mut("work").and_then(Value::as_object_mut) {
                 w.insert("canEditShifts".into(), json!(crate::access::can_write(&m, "shift_patterns")));
             }
         }
-        v
+        Some(v)
     }
 
     /// 中身（Python）へ回す前の権限の判定と門番（access::Gate::check）。材料（名乗り・置き場）は一覧の設定と一緒に 10 秒覚える。
@@ -218,7 +221,7 @@ impl Lot {
         }
         let body: Value = serde_json::from_slice(body).unwrap_or_default();
         let m = self.mirror(&s);
-        let lists = self.lists_of(&s);
+        let lists = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
         let conf = Conf { v: &lists };
         let q = Quality { mirror: m, table: &s.table, page_size: s.page_size };
         let cx = dashboard::Ctx {
@@ -250,7 +253,7 @@ impl Lot {
             return None;
         }
         let m = self.mirror(&s);
-        let lists_v = self.lists_of(&s);
+        let lists_v = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
         let conf = Conf { v: &lists_v };
         let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
         let qs = lotlist::parse_query(query);
@@ -725,6 +728,13 @@ mod tests {
         perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ"}]));
         renew(&lot);
         assert_eq!(shifts(&work(&lot).1), json!(false), "閲覧のみは直せない");
+        // ⑥ 設備作業者でマスタ編集が空: 保存した段は既定の「編集可」でも、効く段は区分の上限で「非表示」＝直せない
+        //   （実績のタブは出すように区分の決まりを外しておく）
+        std::fs::write(share.join("tab_access.json"), json!({"rows": []}).to_string()).unwrap();
+        perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "設備作業者", "マスタ編集": ""}]));
+        renew(&lot);
+        let (st, v) = work(&lot);
+        assert_eq!((st, shifts(&v)), (200, json!(false)), "効く段（区分の上限を掛けた後）で決める: {v}");
         // ⑤ 切断されている: 編集可でも直せない（ボタンを出さない）
         perms(json!([admin, {"id": 1, "ログインID": "u1", "PC名": "", "権限区分": "メンテナンス者"}]));
         let at = chrono::Local::now().naive_local().format("%Y-%m-%dT%H:%M:%S").to_string();
@@ -735,6 +745,13 @@ mod tests {
             l
         };
         assert_eq!(shifts(&work(&lot2).1), json!(false), "切断されている間は直せない");
+        // ⑦ 窓が me を決められない（権限の表も写しも読めない）: 窓は答えず Python に任せる（Python が自分の me で答える）
+        std::fs::write(share.join("access_permissions.json"), "{").unwrap();
+        std::fs::create_dir_all(dir.join("mcache")).unwrap();
+        std::fs::write(dir.join("mcache").join("access_permissions.json"), "[").unwrap();
+        let lot3 = Lot::new(dir.join("cache3"));
+        assert!(lot3.handle("GET", "/api/worklog", "equip=a&work=1", &ask).is_none(), "一覧は Python に任せる");
+        assert!(lot3.handle_body("POST", "/api/dashboard/query", "", &body, &ask).is_none(), "ダッシュボードも Python に任せる");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

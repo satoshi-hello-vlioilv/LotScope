@@ -387,6 +387,17 @@ class ShellMe(Env):
         r = self.c.post("/api/masters/access", json={"ログインID": "x1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "編集可"}, headers=h)
         self.assertEqual(r.status_code, 201, r.get_json())
 
+    def test_settings_leave_tabs_and_shifts_to_the_shell(self):
+        # 窓が権限を受け持つとき（版 3.65.1）: 一覧の設定は出さないタブ・勤務体系を直せるかを決めない（null。Python の me を呼ばない＝判定の元は窓の 1 つ）
+        import app.routes.common as common
+        with mock.patch.object(common, "me", side_effect=AssertionError("一覧の設定で Python の me を呼んだ")):
+            lists = self.c.get("/api/lotlist/settings").get_json()["lists"]
+        self.assertIsNone(lists["hidden"])
+        self.assertIsNone(lists["work"]["canEditShifts"])
+        with mock.patch.dict("os.environ", {"TPA_SHELL_SERVES": "lotlist,lists"}):     # 権限を受け持たない前の窓: Python が決める
+            lists = self.c.get("/api/lotlist/settings").get_json()["lists"]
+        self.assertEqual((lists["hidden"], lists["work"]["canEditShifts"]), ([], True), "登録の無い人（管理する人が居る）は部分的編集可＝現場のマスタの勤務体系は直せる")
+
     def test_settings_tell_the_shell_where_to_read(self):
         d = self.c.get("/api/lotlist/settings").get_json()["access"]
         st = self.app.config["MASTER_STORE"]
