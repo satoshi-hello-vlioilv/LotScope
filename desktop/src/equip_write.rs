@@ -123,13 +123,10 @@ fn awkward(v: &Value) -> bool {
     v.is_array() || v.is_object()
 }
 
-/// 置き場の行を窓が Python と同じに読めるか（id・版は master_rows::row_readable。項目の値が並び・表なら Python に任せる）
+/// 置き場の行を窓が Python と同じに読めるか（master_rows::rows_plain: id・版と、項目〈旧い列名も〉の値の形）
 fn readable(rows: &[Value], spec: &Spec) -> bool {
-    master_rows::rows_readable(rows)
-        && rows
-            .iter()
-            .filter_map(Value::as_object)
-            .all(|o| spec.fields.iter().chain(spec.renamed.iter().map(|(old, _)| old)).all(|k| !o.get(*k).is_some_and(awkward)))
+    let fields: Vec<&str> = spec.fields.iter().copied().chain(spec.renamed.iter().map(|(old, _)| *old)).collect();
+    master_rows::rows_plain(rows, &fields)
 }
 
 /// 必須の列が空か（routes/masters._blank: null も空。0・False は空でない）

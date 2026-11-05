@@ -189,9 +189,19 @@ pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
     id_ok && r.get("rev").is_none_or(|v| py_int(v).is_some())
 }
 
-/// 置き場の行がどれも row_readable か（行でない物があれば読めない）
-pub(crate) fn rows_readable(rows: &[Value]) -> bool {
-    rows.iter().all(|r| r.as_object().is_some_and(row_readable))
+/// 項目の値を窓が Python の str() と同じ字に書けるか（版 3.77.0）: 並び・表は Python では ['x']・{'a': 1} の形、
+/// i64 に入らない整数は Python では桁のまま（窓は 1e+19 の形）になるので、書けない（そのときは Python に任せる）
+pub(crate) fn value_plain(v: &Value) -> bool {
+    match v {
+        Value::Array(_) | Value::Object(_) => false,
+        Value::Number(n) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| !(f.fract() == 0.0 && f.abs() >= 9.2e18)),
+        _ => true,
+    }
+}
+
+/// 置き場の行の id・版が読め（row_readable）、決めた項目の値がどれも value_plain か
+pub(crate) fn rows_plain(rows: &[Value], fields: &[&str]) -> bool {
+    rows.iter().all(|r| r.as_object().is_some_and(|o| row_readable(o) && fields.iter().all(|k| o.get(*k).is_none_or(value_plain))))
 }
 
 /// 行の版を確かめる（_check_rev）

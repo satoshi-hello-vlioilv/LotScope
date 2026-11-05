@@ -1190,6 +1190,22 @@ mod tests {
         assert!(lot.handle_body("POST", "/api/masters/access", "", br#"{"x": "\ud800"}"#, &ask_boss).is_none(), "片割れの代用字");
         let (st, _) = lot.handle_body("DELETE", "/api/masters/access/1", "rev=1", b"[1]", &ask_boss).unwrap();
         assert_eq!(st, 500, "表でない本文は書かない");
+        // 版 3.77.0: タブの権限の行を窓が読めない（版が字）なら、タブの権限を書く道は Python に任せる（窓はタブの権限の行を置き場から読む）
+        let tabs_before = std::fs::read(share.join("tab_access.json")).ok();
+        std::fs::write(
+            share.join("tab_access.json"),
+            json!({"rows": [{"id": 1, "タブ": "work", "出さない区分": "", "rev": "x"}]}).to_string(),
+        )
+        .unwrap();
+        let body = serde_json::to_vec(&json!({"rules": {"dash": ["一般ユーザー"]}})).unwrap();
+        assert!(
+            Lot::new(dir.join("cache-t")).handle_body("PUT", "/api/masters/tabaccess", "", &body, &ask_boss).is_none(),
+            "読めない版のタブの権限の行"
+        );
+        match tabs_before {
+            Some(b) => std::fs::write(share.join("tab_access.json"), b).unwrap(),
+            None => std::fs::remove_file(share.join("tab_access.json")).unwrap(),
+        }
         // 数学の太字の 5（𝟓）は Python の int() も 5 と読む: 版 3.75.0 から窓も同じ表で読んで答える（前は窓の表に無く Python へ回した）
         assert!(
             lot.handle_body("DELETE", "/api/masters/access/1", "rev=%F0%9D%9F%93", b"", &ask_boss).is_some(),

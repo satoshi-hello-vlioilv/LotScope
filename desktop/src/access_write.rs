@@ -386,7 +386,12 @@ pub fn needs_python(body: &[u8]) -> bool {
 /// tabs はタブの権限の置き場の行（タブの権限を書く道の確かめに使う）
 pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], tabs: &[Value]) -> Option<Answer> {
     // 置き場の行の id・版を窓が Python と同じに読めないなら Python に任せる（版 3.77.0。権限の行と、タブの権限を書くときはタブの権限の行）
-    if !rows_of(me).iter().all(crate::master_rows::row_readable) || (route == Route::Tabs && !crate::master_rows::rows_readable(tabs)) {
+    // 項目の値が並び・表・i64 に入らない整数の行も（Python の str() と字が違う。master_rows::rows_plain）
+    let perm: Vec<Value> = rows_of(me).into_iter().map(Value::Object).collect();
+    // タブの例外は JSON の字で置く項目で、読み方は access::tab_exceptions（並び・表も読む）なので見ない
+    if !crate::master_rows::rows_plain(&perm, &PERM_FIELDS[..6])
+        || (route == Route::Tabs && !crate::master_rows::rows_plain(tabs, &["タブ", "出さない区分"]))
+    {
         return None;
     }
     // request.get_json(silent=True) or {}: 読めない・空・偽の値は {}

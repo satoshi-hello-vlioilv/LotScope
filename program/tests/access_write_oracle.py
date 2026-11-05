@@ -46,6 +46,11 @@ def S(who, method, path, body=None, query=""):
 
 
 SCENARIOS = [
+    {"name": "権限の行・タブの権限の行の値が並び（窓は答えず Python に任せる）", "mode": "shared",
+     "perm": ADMIN_ROWS + [{"id": 9, "ログインID": ["noid"], "PC名": "", "権限区分": "一般ユーザー"}],
+     "tabs": [{"id": 1, "タブ": ["work"], "出さない区分": "設備作業者"}], "steps": [],
+     "delegates": [S(BOSS, "POST", "/api/masters/access", {"ログインID": "['noid']", "権限区分": "一般ユーザー"}),
+                   S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}})]},
     {"name": "id の無い行（行の確かめは id のある行とだけ比べる。版 3.77.0）", "mode": "shared",
      "perm": ADMIN_ROWS + [{"ログインID": "noid", "PC名": "", "権限区分": "一般ユーザー"}], "tabs": TAB_ROWS, "steps": [
         S(BOSS, "POST", "/api/masters/access", {"ログインID": "noid", "権限区分": "一般ユーザー"}),

@@ -462,6 +462,65 @@
    "minus": [
     {
      "kind": "hidden_state",
+     "where": "desktop/src/access_write.rs の tab_access_put と handle の入口（タブの権限の行は rows_readable で id・版だけを見る）。tab_access の行の タブ が並び ['x'] か表 {a: 1} のとき、PUT /api/masters/tabaccess {rules: {work: [一般ユーザー]}}（表のときは {work: []}）は Python 400 TypeError（by = {r.get('タブ'): r} が unhashable）・窓 200 で書き、ファイルの revision も 3 / 4 に割れる（access_write_oracle に場面を一時に足して access_write_parity で確かめた）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "置き場の行の項目の値の形を見る決まりが equip_write.rs の readable（awkward: 並び・表なら任せる）だけにあり、shifts_write.rs の readable と access_write.rs の入口には無い。worksum::py_str は並び・表を JSON の字（[\"x\"]）で書き、Python の str() は ['x']。勤務体系の行の 名称 が [\"x\"] で POST /api/masters/shifts {name: \"['x']\"} は Python 409 duplicate・窓 201、権限の行の ログインID が [\"noid\"] で POST /api/masters/access {ログインID: \"['noid']\"} も Python 409・窓 201。設備の行でも、i64 を越える整数の値（設備名 10000000000000000000）は awkward の外で py_str が 1e+19 と書くため、POST {設備名: Q, 同一工程: \"10000000000000000000\"} は Python 400 invalid・窓 201（shifts_oracle・access_write_oracle・equip_rows_oracle に場面を一時に足して確かめた。どれも手で直したファイルだけの形）"
+    }
+   ],
+   "seen": "commit 0a253d2（HEAD。2 回目の指摘を直した物）・fb71048・0ba767b を git show で読み、元の Python（master_repository の _normalize・_find・_check_rev・_check_unique・_check_row・_create・_update・_delete・tab_access_put、master_store.next_id、routes/access.tabaccess_put、services/access.clean_tab_rules・TAB_KEY、identity.normalize_part、common.master_call）と、窓の master_rows.rs（same_id・is_self・row_readable・rows_readable・check_rev）・master_store.rs の next_id・access_write.rs の handle・check_row・tab_access_put・equip_write.rs の awkward／readable・shifts_write.rs の readable・lot.rs の access_write・access.rs の Place::rows／text／normalize_part・worksum::py_str を読んだ。【指摘の直り】1) 直った: next_id は真偽を 1・0 と読む（int(True)）。真偽の id の場面が設備・ロール・勤務体系・タブの権限の突き合わせに入り、変異（真偽の読みを外す）で equip_rows_parity 2 件・shifts_parity 4 件・access_write_parity 4 件が落ちる。2) 直った: handle がタブを書く道ではタブの権限の行も rows_readable で見る（lot.rs は Place::rows('tab_access') を渡し、読めなければ .ok()? で Python へ）。変異（確かめを外す）で access_write_parity が落ちる。共有が壊れて写しの版が読めない形も窓は任せる（安全な向き）。3) 直った: 勤務体系・権限の突き合わせにも delegates（窓が None を返すか）が入り、6 歩以上を求める。shifts_write の id の確かめを外す変異で shifts_parity が next_id の溢れで落ちる。4) 直った: 権限の突き合わせに id の無い行の場面（足す・直す）がある。【試験】cargo test --locked --test equip_rows_parity --test jsonnum_cases --test shifts_parity --test access_write_parity --test access_parity --test masters_parity はどれも ok（1・1・1・1・6・5 passed）・cargo test --locked --lib -- the_window_writes_equipment_and_rolls the_window_writes_access_masters the_window_answers_shift_masters は 3 passed・python -m unittest tests.test_body_reading tests.test_jsonnum_cases tests.test_equipment_names tests.test_access は Ran 51・OK（終了コード 0）・cargo fmt --check も通る。【変異】（src を直に変え scratchpad の写しで戻した）: 上の 3 つは落ちる。lot.rs が tab の行に空の並びを渡す変異は lib の the_window_writes_access_masters を通る（本物の道でタブの行を読む繋ぎは突き合わせの試験の写し〈Place::rows〉でしか見ていない。減点にはしない）。【探り】oracle 3 本に一時に場面を足して流した（戻した）: 割れたのは減点の 2 つ（タブ が並び・表／項目の値が並び・表・大きな整数）。割れなかった物: 同じ id が 2 行の直す・消す、タブの行の id が -3 と 0.5、権限の行の版が True・2.7 での直す・消す、権限の ログインID が大きな整数（access::text が u64 を字のまま書く）、設備名が 1.5・1e16、本文の値が並び・表（設備・ロール・勤務体系は窓が任せる）、設備の行の名前が並び（equip_write の awkward で任せる）。【量】直しは窓 4 ファイルで十数行・突き合わせ 2 本・oracle の場面 7。指摘の 4 つは素直に閉じ、変異でも守られている。残るのは置き場の行の『項目の値の形』で、決まり（awkward）が設備・ロールの道にしか無く、勤務体系・権限・タブの権限では py_str の JSON の字と Python の str() が割れる。どれも画面からは作れない手で直したファイルの形。試した物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built7",
+   "evaluator": "作っていない採点者（別のエージェント・2026-11-05。作った者でも、3 回の案の採点者でも、作った後の 1 回目・2 回目の採点者でもない）。HEAD・HEAD~1・HEAD~2 の差分と元の Python を読み、決められた試験を自分で流し、src に 4 つの変異と oracle 3 本に 14 の探りの場面を一時に入れて落ちるかを確かめた（どれも戻した。画像は無い）"
+  },
+  "first": {
+   "name": "作った後の 1 回目",
+   "total": 68.0,
+   "points": "指摘: 1) 足すときの一意の確かめが id の無い行とも比べる 2) 置き場の行の版が読めないとき割れる 3) id が 1e19 の小数で next_id が溢れる 4) 500 の本文が違う（窓は JSON・Python は枠の頁） 5) parity に置き場の行の形の場面が無い 6) 窓が書くファイルの鍵の並び（serde の字の順）",
+   "score": {
+    "order": 8,
+    "chunk": 7,
+    "hierarchy": 6,
+    "visual": 7,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/master_rows.rs の check_unique（self_id が None のとき id の無い行とも比べる）。equipment_master に {\"設備名\": \"NOID\"}（id 無し）を置いて POST /api/masters/equipment {\"設備名\": \"noid\"} を流すと、Python 201・窓 409 duplicate。続く POST {\"設備名\": \"N2\", \"同一工程\": \"NOID\"} も Python 400 invalid・窓 201 と割れ、ファイルの rows[3].設備名 も noid / NX に分かれた（oracle に場面を一時に足して equip_rows_parity で確かめた。calc::equipment_check の id の無い行を飛ばす決まりを外しても、どの試験も落ちない）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/equip_write.rs の readable と master_rows.rs の check_rev／update（置き場の行の rev を見ない）。rev が 'x' の行へ PUT {..., base_rev: 1} は Python 400 ValueError・窓 500、版の無い PUT は Python 400・窓 200 で rev 2 に書く、rev が null の行の PUT も Python 400 TypeError・窓 200、DELETE ?rev=1 も Python 400・窓 500（oracle に場面を一時に足して確かめた。ファイルの revision も 3 / 5 に分かれた）"
+    }
+   ],
+   "seen": "commit 0ba767b（版 3.77.0）を git show で読み、元の Python（routes/common.base_rev・master_call・routes/masters._payload／_blank・repositories/master_repository の _normalize／_check_unique／_check_row／_create／_update／_delete・master_store.next_id・services/equipment_names.check_row・web.App.handle の 500 の答え・Request.get_json）と、窓の equip_write.rs・master_rows.rs（normalize・split_number・unreadable・check_unique・check_rev）・calc::equipment_check・lot.rs の equip_route を読んだ。【3 回目の指摘の直り】(i) 直った: 表でない本文の消す道は、Python の base_rev も TypeError で 500（書かない）に決め、窓の 500 と shifts_write.rs・access_write.rs の前からの 500 の所がそのまま 1 つの決まりになった。shifts_parity・access_write_parity は直さずに通る。test_body_reading は TESTING でない本物の形で 500 と消えないことを見る。(ii) 直った: get_json(silent=True) は routes に 1 つも残っていない（settings・sources の 9 か所・dashboard の 2・access の presence・masters の inspection・system の初期設定まで force=True, silent=True）。画面は shared.js の sendBeacon も含めて application/json だけなので画面の答えは変わらない。force で CSRF が開くかも見た: 開発用のサーバーは foreign_request が Origin で書き込みを断り、窓は 127.0.0.1 の口を外へ開かないので、新しい穴は無い。(iii) 直った: _blank は None だけを空にし、0・False は str() の字（『0』『False』）で通る（窓の blank も同じ。試験で 0 が 201）。(v) 別の形で直った: 表に鍵の位置の列は持たせず、数の字は本文のどこにあっても見る（項目でない鍵の -0 も Python に任せる＝任せすぎる向きで安全）。jsonnum_cases.rs は 66 の字を、値・並びの中・項目でない鍵の中の 3 つの形で同じ判定か、字の中の数は見ないかを確かめる。(vi) NaN・1e400 は読めない本文として任せる（表の行どおり）。【試験】cargo test --locked --test equip_rows_parity --test jsonnum_cases --test shifts_parity --test access_write_parity はどれも ok（1 passed ずつ）・cargo test --locked --lib the_window_writes_equipment_and_rolls ok・python -m unittest tests.test_body_reading tests.test_jsonnum_cases tests.test_equipment_names は Ran 21・OK・program の試験の全部も Ran 696・OK (skipped=6)。【変異】（src を直に変えて git checkout で戻した。git status --short は空）: 表でない本文の 500 を外す → parity 5 件・lot 990 行で落ちる／必須の空に 0・False を入れる → parity 8 件で落ちる／旧い列名の読み替えを外す → parity 16 件・lot で落ちる／-0 の決まりを外す → parity 7 件・lot で落ちる／置き場の行が並び・表なら任せる、を外す → parity は通り lot だけが落ちる／equipment_check の『足すときは id のある行と比べる』を外す → どの試験も落ちない。【探り】oracle の SCENARIOS に一時的に場面を足して equip_rows_parity を流した（戻した）: 版の字『2』・小数の id 6.0・版 2.7・True の版・設備名が数 5・同一工程が数 7・旧い列名と新しい列名の両方がある行・本文が 0・\"\"・false の直す／消すは、どれも Python と同じ答えとファイル。割れたのは次の 3 つ: (a) id の無い行がある設備マスタへ、その行と同じ設備名を足すと、Python は 201（_check_unique の r.get('id') != self_id が id の無い行を飛ばす）、窓は 409 duplicate（master_rows::check_unique は self_id が None のとき全部の行と比べる。equipment_check では直した同じ穴が、共通の一意の確かめに残っている。勤務体系の 名称 にも効く）。(b) 置き場の行の版が読めない字（'x'）・null のとき、Python は master_call の中の ValueError／TypeError で 400、窓は版を添えた直す・消すが 500、版の無い直すは rev を 1 と読んで 200 で書く（readable は項目の値と id だけを見て rev を見ない）。(c) 置き場の id が 1e19 の小数だと、窓の next_id が i64 を越えて足し算で panic（debug。release では負の id に回る）、Python は大きな int の id。【残る所】(d) TESTING でない 500 の本文: Python は HTML の『500 Internal Server Error』、窓は JSON {error: 本文の形が違います, kind: error}。突き合わせは 500 の思いがけない失敗を kind と状態だけ比べるので見えない（画面は表でない本文を送らないので画面の答えは変わらない）。(e) 窓が書いたファイルの鍵の並びは serde の BTreeMap の順（Python は差し込んだ順）。突き合わせは値で比べる。前の版からの形。【量】Python の直し 20 行ほど・窓 equip_write 204 行・master_rows 70 行・calc 46 行・評価関数 2 本と事例の表。書く道が 8 本進み、本文の読み方が Python と窓で 1 つになった。決まりは master_rows（Spec・unreadable）の 1 か所に載り、設備の確かめも計算の読み替えと同じ部品で素直。ただし一意の確かめと版の読み方は共通の型の中にまだ Python と割れる所がある（試した物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built5）",
+   "evaluator": "作っていない採点者（別のエージェント・2026-11-05。作った者でも、3 回の案の採点者でもない）。0ba767b の差分と元の Python を読み、決められた試験と program の試験の全部を自分で流し、src に 6 つの変異と oracle に 2 つの探りの場面を一時に入れて落ちるかを確かめた（どれも戻した。画像は無い）"
+  },
+  "second": {
+   "name": "作った後の 2 回目",
+   "total": 69.6,
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 7,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
      "where": "desktop/src/master_rows.rs の row_readable（id の真偽を読めるとする）と desktop/src/master_store.rs の next_id（真偽を 0 と読む）。equipment_master に {id: true, 設備名: A} を置いて POST /api/masters/equipment {設備名: B} は Python 201 id 2・窓 201 id 1。ロール・勤務体系・権限も同じ（oracle に場面を一時に足して equip_rows_parity・shifts_parity・access_write_parity で確かめた。設備・ロール・勤務体系は前の版では任せていた形）"
     },
     {
@@ -470,37 +529,7 @@
     }
    ],
    "seen": "commit fb71048（HEAD。1 回目の指摘を直した物）を git show HEAD~1・HEAD で読み、元の Python（master_repository の _normalize・_find・_check_rev・_check_unique・_check_row・_create・_update・tab_access_put・master_store.next_id）と、窓の master_rows.rs（same_id・is_self・row_readable・rows_readable・check_unique・check_rev・create・update・delete）・equip_write.rs の readable・shifts_write.rs の readable・access_write.rs の handle と tab_access_put・calc::equipment_check・access.rs の me／perm_rows・master_store.rs の next_id を読んだ。【指摘の直り】1) 直った: is_self は Python の r.get('id') != self_id の否定どおり（足すときは id の無い・null の行が自分。直すときは same_id で、Python の _find の == と同じ）。check_unique・権限の check_row・equipment_check の 3 か所がこれ 1 つを使い、update・delete の行の探し方（same_id）ともずれていない（真偽の id と 1.0 の id も Python の == と同じ）。2)・3) 設備・ロール・勤務体系・権限の行では直った: row_readable が版を py_int（int() が読める物）で、id を i64 に入る数で見て、読めなければ Python に任せる。ただしタブの権限の行（tab_access）は見ていない（下の減点）。4)・6) 直さず、計画の文書とコードの注に違いとして残した（画面は表でない本文を送らない・値は同じ。受け入れてよい）。5) 設備・ロールでは直った（並び・読めない版・大きな id・字の id の 4 場面・delegates 40 歩）。勤務体系と権限の突き合わせには任せる歩を確かめる作りが無い（handle(...).expect）。【試験】cargo test --locked --test equip_rows_parity --test jsonnum_cases --test shifts_parity --test access_write_parity --test access_parity はどれも ok（6・1・1・1・1 passed）・cargo test --locked --lib -- the_window_writes_equipment_and_rolls the_window_writes_access_masters the_window_answers_shift_masters は 3 passed・python -m unittest tests.test_body_reading tests.test_jsonnum_cases tests.test_equipment_names tests.test_access は Ran 51・OK（終了コード 0。TypeError の跡は 500 を確かめる試験の記録）・tests.test_version も OK・cargo fmt --check も通る。【変異】（src を直に変えて scratchpad の写しで戻した。git status --short は空）: is_self の足すときを『全部の行と比べる』に戻す → equip_rows_parity 5 件・shifts_parity 4 件で落ちる（access_write_parity は通る）／equip_write の rows_readable を外す → equip_rows_parity が next_id の溢れの panic で落ちる／access_write::handle の入口の row_readable を外す → access_write_parity・access_parity・lib の 73 件のどれも落ちない／shifts_write の id の確かめを前の形（None・null・数）に戻す → shifts_parity・lib のどれも落ちない。【探り】oracle 3 本に一時に場面を足して流した（戻した）: (a) 置き場の行の id が true の設備・ロール・勤務体系・権限へ足すと、Python は int(True)=1 で id 2、窓は next_id が真偽を 0 と読んで id 1（答えもファイルの rows[1].id も 2 / 1 に割れる）。row_readable が真偽の id を読めると決めたため、前は Python に任せていた設備・ロール・勤務体系で新しく割れる（権限は前から）。(b) タブの権限の行の rev が 'x' で PUT /api/masters/tabaccess は Python 400 ValueError・窓 200 で書く（revision 3 / 4）。(c) タブの権限の行の id が 1e19 だと、新しいタブを足す PUT で窓の next_id が溢れて panic（debug）。(d) 版の字 '1e3'・全角『２』の行は窓が任せる（Python と同じ答えになる向き。得が少し減るだけ）。【入口の確かめで任せる量】access_write::handle は me の権限の行が 1 つでも読めなければ 4 本とも（タブの権限の PUT も）Python に任せる。前に窓が正しく答えていた字の id（'3'。Python の == も窓の same_id も当たらず、next_id はどちらも 3）の行がある置き場も任せるようになった。答えは同じで、手で直したファイルだけの形なので得の減りは小さい。【量】直しは master_rows 25 行・ほか数行・oracle の場面 6。決まりは master_rows の 2 つの関数に寄り素直になったが、真偽の id と next_id の読みが食い違い、タブの権限の行は決まりの外に残った。試した物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built6",
-   "evaluator": "作っていない採点者（別のエージェント・2026-11-05。作った者でも、3 回の案の採点者でも、作った後の 1 回目の採点者でもない）。HEAD~1・HEAD の差分と元の Python を読み、決められた試験を自分で流し、src に 4 つの変異と oracle に 6 つの探りの場面を一時に入れて落ちるかを確かめた（どれも戻した。画像は無い）",
-   "first": {
-    "name": "作った後の 1 回目",
-    "total": 68.0,
-    "points": "指摘: 1) 足すときの一意の確かめが id の無い行とも比べる 2) 置き場の行の版が読めないとき割れる 3) id が 1e19 の小数で next_id が溢れる 4) 500 の本文が違う（窓は JSON・Python は枠の頁） 5) parity に置き場の行の形の場面が無い 6) 窓が書くファイルの鍵の並び（serde の字の順）",
-    "score": {
-     "order": 8,
-     "chunk": 7,
-     "hierarchy": 6,
-     "visual": 7,
-     "steps": 8,
-     "effortless": 7,
-     "intuitive": 8,
-     "form": 8,
-     "place": 8,
-     "layout": 7,
-     "tone": 7
-    },
-    "minus": [
-     {
-      "kind": "hidden_state",
-      "where": "desktop/src/master_rows.rs の check_unique（self_id が None のとき id の無い行とも比べる）。equipment_master に {\"設備名\": \"NOID\"}（id 無し）を置いて POST /api/masters/equipment {\"設備名\": \"noid\"} を流すと、Python 201・窓 409 duplicate。続く POST {\"設備名\": \"N2\", \"同一工程\": \"NOID\"} も Python 400 invalid・窓 201 と割れ、ファイルの rows[3].設備名 も noid / NX に分かれた（oracle に場面を一時に足して equip_rows_parity で確かめた。calc::equipment_check の id の無い行を飛ばす決まりを外しても、どの試験も落ちない）"
-     },
-     {
-      "kind": "hidden_state",
-      "where": "desktop/src/equip_write.rs の readable と master_rows.rs の check_rev／update（置き場の行の rev を見ない）。rev が 'x' の行へ PUT {..., base_rev: 1} は Python 400 ValueError・窓 500、版の無い PUT は Python 400・窓 200 で rev 2 に書く、rev が null の行の PUT も Python 400 TypeError・窓 200、DELETE ?rev=1 も Python 400・窓 500（oracle に場面を一時に足して確かめた。ファイルの revision も 3 / 5 に分かれた）"
-     }
-    ],
-    "seen": "commit 0ba767b（版 3.77.0）を git show で読み、元の Python（routes/common.base_rev・master_call・routes/masters._payload／_blank・repositories/master_repository の _normalize／_check_unique／_check_row／_create／_update／_delete・master_store.next_id・services/equipment_names.check_row・web.App.handle の 500 の答え・Request.get_json）と、窓の equip_write.rs・master_rows.rs（normalize・split_number・unreadable・check_unique・check_rev）・calc::equipment_check・lot.rs の equip_route を読んだ。【3 回目の指摘の直り】(i) 直った: 表でない本文の消す道は、Python の base_rev も TypeError で 500（書かない）に決め、窓の 500 と shifts_write.rs・access_write.rs の前からの 500 の所がそのまま 1 つの決まりになった。shifts_parity・access_write_parity は直さずに通る。test_body_reading は TESTING でない本物の形で 500 と消えないことを見る。(ii) 直った: get_json(silent=True) は routes に 1 つも残っていない（settings・sources の 9 か所・dashboard の 2・access の presence・masters の inspection・system の初期設定まで force=True, silent=True）。画面は shared.js の sendBeacon も含めて application/json だけなので画面の答えは変わらない。force で CSRF が開くかも見た: 開発用のサーバーは foreign_request が Origin で書き込みを断り、窓は 127.0.0.1 の口を外へ開かないので、新しい穴は無い。(iii) 直った: _blank は None だけを空にし、0・False は str() の字（『0』『False』）で通る（窓の blank も同じ。試験で 0 が 201）。(v) 別の形で直った: 表に鍵の位置の列は持たせず、数の字は本文のどこにあっても見る（項目でない鍵の -0 も Python に任せる＝任せすぎる向きで安全）。jsonnum_cases.rs は 66 の字を、値・並びの中・項目でない鍵の中の 3 つの形で同じ判定か、字の中の数は見ないかを確かめる。(vi) NaN・1e400 は読めない本文として任せる（表の行どおり）。【試験】cargo test --locked --test equip_rows_parity --test jsonnum_cases --test shifts_parity --test access_write_parity はどれも ok（1 passed ずつ）・cargo test --locked --lib the_window_writes_equipment_and_rolls ok・python -m unittest tests.test_body_reading tests.test_jsonnum_cases tests.test_equipment_names は Ran 21・OK・program の試験の全部も Ran 696・OK (skipped=6)。【変異】（src を直に変えて git checkout で戻した。git status --short は空）: 表でない本文の 500 を外す → parity 5 件・lot 990 行で落ちる／必須の空に 0・False を入れる → parity 8 件で落ちる／旧い列名の読み替えを外す → parity 16 件・lot で落ちる／-0 の決まりを外す → parity 7 件・lot で落ちる／置き場の行が並び・表なら任せる、を外す → parity は通り lot だけが落ちる／equipment_check の『足すときは id のある行と比べる』を外す → どの試験も落ちない。【探り】oracle の SCENARIOS に一時的に場面を足して equip_rows_parity を流した（戻した）: 版の字『2』・小数の id 6.0・版 2.7・True の版・設備名が数 5・同一工程が数 7・旧い列名と新しい列名の両方がある行・本文が 0・\"\"・false の直す／消すは、どれも Python と同じ答えとファイル。割れたのは次の 3 つ: (a) id の無い行がある設備マスタへ、その行と同じ設備名を足すと、Python は 201（_check_unique の r.get('id') != self_id が id の無い行を飛ばす）、窓は 409 duplicate（master_rows::check_unique は self_id が None のとき全部の行と比べる。equipment_check では直した同じ穴が、共通の一意の確かめに残っている。勤務体系の 名称 にも効く）。(b) 置き場の行の版が読めない字（'x'）・null のとき、Python は master_call の中の ValueError／TypeError で 400、窓は版を添えた直す・消すが 500、版の無い直すは rev を 1 と読んで 200 で書く（readable は項目の値と id だけを見て rev を見ない）。(c) 置き場の id が 1e19 の小数だと、窓の next_id が i64 を越えて足し算で panic（debug。release では負の id に回る）、Python は大きな int の id。【残る所】(d) TESTING でない 500 の本文: Python は HTML の『500 Internal Server Error』、窓は JSON {error: 本文の形が違います, kind: error}。突き合わせは 500 の思いがけない失敗を kind と状態だけ比べるので見えない（画面は表でない本文を送らないので画面の答えは変わらない）。(e) 窓が書いたファイルの鍵の並びは serde の BTreeMap の順（Python は差し込んだ順）。突き合わせは値で比べる。前の版からの形。【量】Python の直し 20 行ほど・窓 equip_write 204 行・master_rows 70 行・calc 46 行・評価関数 2 本と事例の表。書く道が 8 本進み、本文の読み方が Python と窓で 1 つになった。決まりは master_rows（Spec・unreadable）の 1 か所に載り、設備の確かめも計算の読み替えと同じ部品で素直。ただし一意の確かめと版の読み方は共通の型の中にまだ Python と割れる所がある（試した物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built5）",
-    "evaluator": "作っていない採点者（別のエージェント・2026-11-05。作った者でも、3 回の案の採点者でもない）。0ba767b の差分と元の Python を読み、決められた試験と program の試験の全部を自分で流し、src に 6 つの変異と oracle に 2 つの探りの場面を一時に入れて落ちるかを確かめた（どれも戻した。画像は無い）"
-   }
+   "evaluator": "作っていない採点者（別のエージェント・2026-11-05。作った者でも、3 回の案の採点者でも、作った後の 1 回目の採点者でもない）。HEAD~1・HEAD の差分と元の Python を読み、決められた試験を自分で流し、src に 4 つの変異と oracle に 6 つの探りの場面を一時に入れて落ちるかを確かめた（どれも戻した。画像は無い）"
   }
  }
 }

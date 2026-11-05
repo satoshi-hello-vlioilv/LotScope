@@ -119,6 +119,9 @@ SCENARIOS = [
     {"name": "置き場の行の id が大きな数・字（窓は答えず Python に任せる）", "mode": "shared",
      "shifts": [{"id": 1e19, "名称": "a", "区分": "[]"}, {"id": "3", "名称": "b", "区分": "[]"}], "steps": [], "delegates": [S(BOSS, "GET", P), S(BOSS, "POST", P, {"name": "新", "segments": THREE}), S(BOSS, "PUT", f"{P}/1", {"note": "x"}),
                    S(BOSS, "DELETE", f"{P}/1", query="rev=1")]},
+    {"name": "置き場の行の名称が並び（窓は答えず Python に任せる）", "mode": "shared",
+     "shifts": [{"id": 1, "名称": ["x"], "区分": "[]"}, {"id": 2, "名称": "y", "備考": {"a": 1}, "区分": "[]"}], "steps": [],
+     "delegates": [S(BOSS, "POST", P, {"name": "['x']", "segments": THREE}), S(BOSS, "GET", P)]},
     {"name": "書ける段と門番", "mode": "shared", "shifts": OLD[:2], "steps": [
         S(PART, "GET", P),
         S(PART, "POST", P, {"name": "部分的編集可でも書ける", "segments": THREE}),
