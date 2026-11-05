@@ -26,7 +26,7 @@ use serde_json::{json, Map, Value};
 
 pub const NAME: &str = "shift_patterns";
 const FIELDS: [&str; 5] = ["名称", "適用設備", "区分", "表示順", "備考"];
-const SPEC: Spec = Spec { name: NAME, fields: &FIELDS, unique: Some("名称") };
+const SPEC: Spec = Spec { name: NAME, fields: &FIELDS, unique: Some("名称"), renamed: &[] };
 const NAME_MAX: usize = 40;
 const SEGMENTS_MAX: usize = 12;
 
@@ -96,6 +96,9 @@ fn digits_len(s: &str) -> usize {
 pub fn needs_python(body: &[u8]) -> bool {
     if body.iter().all(|b| b.is_ascii_whitespace()) {
         return true; // get_json(force=True) は空の本文を読めない（Flask の 400）
+    }
+    if crate::master_rows::unreadable(body) {
+        return true; // 読めない・読みが割れる数（整数の -0・i64 に入らない整数。版 3.77.0）
     }
     let Ok(v) = serde_json::from_slice::<Value>(body) else { return true };
     if !truthy(&v) {
@@ -311,7 +314,8 @@ fn readable(rows: &[Value]) -> bool {
             Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.abs() < 9.0e15),
             v => v.filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18),
         };
-        let id_ok = matches!(r.get("id"), None | Some(Value::Null | Value::Number(_)));
+        // id・版と、名称・備考の値の形（版 3.77.0。大きな id・読めない版・並びや表の名称は Python）
+        let id_ok = crate::master_rows::rows_plain(std::slice::from_ref(r), &["名称", "備考"]);
         let seg_ok = match r.get("区分") {
             Some(Value::String(s)) if !s.is_empty() => serde_json::from_str::<Value>(s).is_ok() || crate::access::py_json(s).is_none(),
             _ => true,

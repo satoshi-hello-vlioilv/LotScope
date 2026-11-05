@@ -1,6 +1,7 @@
 //! マスタの行を書く共通の型（版 3.75.0）。Python の repositories/master_repository の汎用（SPECS と _create／_update／_delete・
 //! _check_rev・_check_unique）と同じ決まりを、窓の 1 か所に持つ。組ごとの決まり（_check_row・表示順）は呼ぶ側が渡す。
-//! 使う組: 権限（src/access_write.rs）・勤務体系（src/shifts_write.rs）。版の番号の読み方（Python の int()）もここ。
+//! 使う組: 権限（src/access_write.rs）・勤務体系（src/shifts_write.rs）・設備・ロール（src/equip_write.rs。版 3.77.0）。
+//! 版の番号の読み方（Python の int()）と、窓が答えず Python に任せる本文の判定（unreadable）もここ。
 
 use crate::access::normalize_part;
 use crate::master_store::{next_id, MasterError, Store};
@@ -98,13 +99,66 @@ pub(crate) fn base_rev(body: &Value, query: &str) -> Option<Rev> {
     py_rev(&v)
 }
 
-/// 行の形をそろえる（版の無い行は 1。master_repository._normalize。書き戻すので、ファイルの中の行にも入る）
-pub(crate) fn normalize_all(rows: &mut [Value], default_rev: i64) {
-    for r in rows.iter_mut() {
-        if let Some(o) = r.as_object_mut() {
-            o.entry("rev").or_insert(json!(default_rev));
+/// 行の形をそろえる（master_repository._normalize: 旧い列名を新しい列名へ〈新しい列名が無いときだけ値を移す〉・版の無い行は 1。
+/// 書き戻すので、ファイルの中の行にも入る）
+pub(crate) fn normalize(r: &mut Value, spec: &Spec) {
+    if let Some(o) = r.as_object_mut() {
+        for (old, new) in spec.renamed {
+            if let Some(v) = o.remove(*old) {
+                o.entry(*new).or_insert(v);
+            }
         }
+        o.entry("rev").or_insert(json!(1));
     }
+}
+
+pub(crate) fn normalize_all(rows: &mut [Value], spec: &Spec) {
+    for r in rows.iter_mut() {
+        normalize(r, spec);
+    }
+}
+
+/// 本文の数の字のうち、Python の json.loads と窓の serde_json で読みが割れる物があるか（版 3.77.0。字の中は見ない）:
+/// 整数の -0（Python は int の 0、serde は小数の -0.0）・i64 に入らない整数（Python の int は桁のまま、serde は u64 か小数）。
+/// 事例の表 tests/fixtures/jsonnum_cases.json（Python 3.13 の json.loads と str()）で突き合わせる
+pub(crate) fn split_number(body: &[u8]) -> bool {
+    let (mut i, mut in_str) = (0usize, false);
+    while i < body.len() {
+        let b = body[i];
+        if in_str {
+            match b {
+                b'\\' => i += 1,
+                b'"' => in_str = false,
+                _ => {}
+            }
+            i += 1;
+            continue;
+        }
+        if b == b'"' {
+            in_str = true;
+            i += 1;
+            continue;
+        }
+        if b == b'-' || b.is_ascii_digit() {
+            let start = i;
+            while i < body.len() && matches!(body[i], b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E') {
+                i += 1;
+            }
+            let tok = std::str::from_utf8(&body[start..i]).unwrap_or("");
+            if !tok.contains(['.', 'e', 'E']) && (tok == "-0" || tok.parse::<i64>().is_err()) {
+                return true;
+            }
+            continue;
+        }
+        i += 1;
+    }
+    false
+}
+
+/// 窓では Python と同じに読めない本文か（空でない本文を serde_json が読めない〈NaN・Infinity・1e400・片割れの代用字など〉か、
+/// 読みが割れる数がある）。そのときは窓は答えず Python に任せる。書く道の組（権限・勤務体系・設備・ロール）はみなこれを使う
+pub fn unreadable(body: &[u8]) -> bool {
+    !body.iter().all(|b| b.is_ascii_whitespace()) && (serde_json::from_slice::<Value>(body).is_err() || split_number(body))
 }
 
 pub(crate) fn same_id(r: &Value, id: i64) -> bool {
@@ -113,6 +167,41 @@ pub(crate) fn same_id(r: &Value, id: i64) -> bool {
         Value::Bool(b) => (*b as i64) == id,
         _ => false,
     }
+}
+
+/// 比べる相手から除く自分の行か（Python の `r.get("id") != self_id` の否定: 足すとき〈self_id が None〉は id の無い・null の行が自分）。
+/// 一意の確かめ（_check_unique）と行の確かめ（_check_row）のどれもこれで見分ける（版 3.77.0。前は足すとき id の無い行とも比べた）
+pub(crate) fn is_self(r: &Value, self_id: Option<i64>) -> bool {
+    match self_id {
+        None => r.get("id").is_none_or(Value::is_null),
+        Some(id) => same_id(r, id),
+    }
+}
+
+/// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。真偽は 1・0。字や大きな数は Python に任せる）、
+/// 版は無いか Python の int() が読める物（読めなければ Python は master_call の中の例外で 400、窓は答えない）
+pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
+    let id_ok = match r.get("id") {
+        None | Some(Value::Null | Value::Bool(_)) => true,
+        Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.is_finite() && f.abs() < 9.0e15),
+        _ => false,
+    };
+    id_ok && r.get("rev").is_none_or(|v| py_int(v).is_some())
+}
+
+/// 項目の値を窓が Python の str() と同じ字に書けるか（版 3.77.0）: 並び・表は Python では ['x']・{'a': 1} の形、
+/// i64 に入らない整数は Python では桁のまま（窓は 1e+19 の形）になるので、書けない（そのときは Python に任せる）
+pub(crate) fn value_plain(v: &Value) -> bool {
+    match v {
+        Value::Array(_) | Value::Object(_) => false,
+        Value::Number(n) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| !(f.fract() == 0.0 && f.abs() >= 9.2e18)),
+        _ => true,
+    }
+}
+
+/// 置き場の行の id・版が読め（row_readable）、決めた項目の値がどれも value_plain か
+pub(crate) fn rows_plain(rows: &[Value], fields: &[&str]) -> bool {
+    rows.iter().all(|r| r.as_object().is_some_and(|o| row_readable(o) && fields.iter().all(|k| o.get(*k).is_none_or(value_plain))))
 }
 
 /// 行の版を確かめる（_check_rev）
@@ -150,6 +239,8 @@ pub(crate) struct Spec {
     pub name: &'static str,
     pub fields: &'static [&'static str],
     pub unique: Option<&'static str>,
+    /// 旧い列名 → 正しい列名（SPECS の renamed。設備マスタの 巻出し方向 → 巻取方向）
+    pub renamed: &'static [(&'static str, &'static str)],
 }
 
 /// 行の確かめ（_check_row の組ごとの決まり。無ければ何もしない）。(並び, 確かめる行, 直す行の id)
@@ -163,7 +254,7 @@ fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value>, self_id:
     }
     let k = normalize_part(data.get(col));
     for r in rows {
-        if !self_id.is_some_and(|id| same_id(r, id)) && !k.is_empty() && normalize_part(r.get(col)) == k {
+        if !is_self(r, self_id) && !k.is_empty() && normalize_part(r.get(col)) == k {
             return Err(MasterError::Duplicate(format!(
                 "{col}「{}」はもう登録されています（ほかの PC が先に追加した可能性があります）。",
                 clean(data.get(col))
@@ -176,7 +267,7 @@ fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value>, self_id:
 /// 足す（_create: 版の無い行は 1・一意・行の確かめ・次の id・置く項目は字で前後の空白を除く・版 1・書いた人と時刻）
 pub(crate) fn create(store: &Store, spec: &Spec, data: &Map<String, Value>, check: CheckRow) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        normalize_all(rows, 1);
+        normalize_all(rows, spec);
         check_unique(rows, spec, data, None)?;
         check(rows, data, None)?;
         let mut row = Map::new();
@@ -201,7 +292,7 @@ pub(crate) fn update(
     check: CheckRow,
 ) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        normalize_all(rows, 1);
+        normalize_all(rows, spec);
         let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
             return Err(if base.is_some() {
                 MasterError::Conflict(None)
@@ -232,7 +323,7 @@ pub(crate) fn update(
 /// 消す（_delete: 無い行は 404〈版を添えたならもう消えている＝望みどおり〉・行の版）
 pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> Result<(), MasterError> {
     store.write(spec.name, |rows, _stamp| {
-        normalize_all(rows, 1);
+        normalize_all(rows, spec);
         let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
             return if base.is_some() { Ok(()) } else { Err(MasterError::NotFound(format!("id={id} が見つかりません。"))) };
         };

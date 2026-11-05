@@ -57,7 +57,7 @@ def _access_guard():
 
 # ---- アクセス権限マスタ（登録・更新・削除は同じ門: 区分の変更・マスタ編集の上限を access の1箇所で確かめる）
 def _perm_payload():
-    d = request.get_json(silent=True) or {}
+    d = request.get_json(force=True, silent=True) or {}
     out = {k: str(d.get(k) or "").strip() for k in ("ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考")}
     out["タブの例外"] = access.clean_tab_exceptions(d.get("タブの例外"))       # 人ごとのタブの例外（版 3.58.0）
     out["権限区分"] = access.normalize_role(out["権限区分"])
@@ -148,7 +148,7 @@ def tabaccess_get():
 @bp.put("/api/masters/tabaccess")
 def tabaccess_put():
     """区分ごとの決まりを置く（書いたタブだけ。空の並びは「全員に出す」へ戻す）。base_rev は開いたときのマスタの版。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     try:
         rules = access.clean_tab_rules(body.get("rules"))
     except ValueError as e:
@@ -184,7 +184,7 @@ def presence_list():
 def _presence_target():
     """→ (自分, 本文, 相手の PC の記録)。記録が無ければ相手は None。"""
     m = me()
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     key = str(body.get("key") or "").strip()
     items = {x["key"]: x for x in presence.fleet(roles_from(m["rows"]))["items"]}
     return m, body, items.get(key)
@@ -261,7 +261,7 @@ def presence_retention():
     if denied:
         return denied
     try:
-        days = presence.parse_history_days((request.get_json(silent=True) or {}).get("days"))
+        days = presence.parse_history_days((request.get_json(force=True, silent=True) or {}).get("days"))
     except ValueError as e:
         return error(str(e), 400, "invalid")
     if not presence.save_settings({"historyDays": days}, m["login"], m["pc"]):

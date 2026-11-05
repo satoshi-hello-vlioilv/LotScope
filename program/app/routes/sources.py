@@ -125,7 +125,7 @@ def sources_list():
 @bp.post("/api/sources/check")
 def sources_check():
     """「確かめる」: その場所（.sqlite3）に届き、表とロット番号の列があるか。設備の列を書いたら、その列があるか・値の例。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     place = str(body.get("place") or "").strip()
     out = path_settings.check(path_settings.BY_KEY["lot_list.source"], place)
     det = out.get("detail") or {}
@@ -153,7 +153,7 @@ def sources_check():
 @bp.post("/api/sources")
 def sources_add():
     """データ元を足す（1 ファイルの元。キーはここで決める）。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
 
     def run():
         try:
@@ -167,7 +167,7 @@ def sources_add():
 @bp.put("/api/sources/<key>")
 def sources_put(key):
     """データ元を直す（決まった元も同じ。参照先に結ぶ接続の設定は PUT /api/sources/<キー>/conn）。送らなかった列はいまの行のまま。base_rev は行の版（無ければ 0）。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
 
     def run():
         items = _all()
@@ -425,7 +425,7 @@ def sources_columns(key):
 def sources_join_preview():
     """「試す」: 決まり（joins）をその元に当てたときの数（当たった・当たらない・相手だけ・相手の鍵の重なり）と、当たらない鍵の見本。
     答えのファイルは本物と同じ係で組む（保存しなくても、同じ決まりを保存したら組み直さずに使える）。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     key, base = str(body.get("key") or ""), str(body.get("base") or "")
     items = _all()
     if base and not key:                    # 足す前の結合した表（版 3.54.0）: 元の表に当てて数える
@@ -457,7 +457,7 @@ def sources_join_preview():
 def sources_patch(key):
     """一覧からその場で変える（版 3.54.0。POST /api/sources/<キー>/quick）: 見出しのタブに出すか（画面）・グループ・表示名だけ。ほかの列はそのまま。
     行が無い決まった元（仕掛など）は、いま効いている値で行を作る。base_rev は行の版（無ければ 0）。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
 
     def run():
         items = _all()
@@ -477,7 +477,7 @@ def sources_patch(key):
 def sources_order():
     """並べ替え（版 3.54.0）: keys の順に「並び」を振る（品質データ・作業実績は先頭に決まっているので、並べるのはほかの元）。
     行が無い決まった元（仕掛）は、いま効いている値で行を作る。グループの中の順・グループどうしの順・見出しのタブの順がこの並びになる。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     keys = [str(k) for k in body.get("keys") or [] if str(k) not in ("lot", "work")]
 
     def run():
@@ -505,7 +505,7 @@ def _conn_field(key, field):
 @bp.put("/api/sources/<key>/conn")
 def sources_conn_put(key):
     """接続の設定の 1 項目を置く（空なら既定へ）。置き場はその元の決まり（参照先の項目か、このマスタの行）。base_rev はその置き場の版。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     s, f, fail = _conn_field(key, str(body.get("field") or ""))
     if fail:
         return fail
@@ -534,7 +534,7 @@ def sources_conn_put(key):
 @bp.post("/api/sources/<key>/conn/check")
 def sources_conn_check(key):
     """接続の設定の 1 項目を「確かめる」（保存の前に、その値で読めるか）。空なら既定の値で確かめる。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     s, f, fail = _conn_field(key, str(body.get("field") or ""))
     if fail:
         return fail
@@ -562,7 +562,7 @@ def sources_conn_check(key):
 def sources_groups():
     """グループの名前を変える・消す（版 3.58.0）: from のグループの元を、まとめて to へ（to が空なら消す＝グループなしへ。
     役割「マスタ」の元は、消すと「マスタ」へ自動で入らない印 NO_GROUP を置く）。データ元そのものは消さない。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     src, to = str(body.get("from") or "").strip(), " ".join(str(body.get("to") or "").split())[:data_sources.GROUP_MAX]
     if not src:
         return error("グループを選んでください。", 400, "invalid")

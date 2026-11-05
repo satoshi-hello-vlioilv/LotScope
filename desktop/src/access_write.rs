@@ -37,7 +37,7 @@ const PERM: &str = "access_permissions";
 const TABS: &str = "tab_access";
 const PERM_FIELDS: [&str; 7] = ["ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考", "タブの例外"];
 /// 権限の組（SPECS["access_permissions"]: 名前が 1 つずつの列は無い。ログインID と PC名 の組は check_row）
-const PERM_SPEC: Spec = Spec { name: PERM, fields: &PERM_FIELDS, unique: None };
+const PERM_SPEC: Spec = Spec { name: PERM, fields: &PERM_FIELDS, unique: None, renamed: &[] };
 
 /// 窓が受ける道か（受けないなら None: Python が答える）
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
@@ -222,7 +222,7 @@ fn perm_gate(me: &Value, rows: &[Map<String, Value>], data: &Map<String, Value>,
 fn check_row(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
     let key = (normalize_part(data.get("ログインID")), normalize_part(data.get("PC名")));
     for r in rows {
-        if self_id.is_some_and(|id| same_id(r, id)) {
+        if crate::master_rows::is_self(r, self_id) {
             continue;
         }
         if (normalize_part(r.get("ログインID")), normalize_part(r.get("PC名"))) == key {
@@ -277,7 +277,7 @@ fn clean_tab_rules(raw: Option<&Ordered>) -> Result<Vec<(String, Vec<&'static st
 /// タブの権限を 1 回の錠の中で置き換える（master_repository.tab_access_put。空の並びのタブは行を消す・書いていないタブはそのまま）
 fn tab_access_put(store: &Store, rules: &[(String, Vec<&'static str>)]) -> Result<(), MasterError> {
     store.write(TABS, |rows, stamp| {
-        normalize_all(rows, 1);
+        normalize_all(rows, &Spec { name: TABS, fields: &[], unique: None, renamed: &[] }); // 版の無い行は 1（旧い列名は無い）
         for (tab, roles) in rules {
             let text_now = roles.join("・");
             // by = {r.get("タブ"): r}（同じタブの行が 2 つあれば後の行）
@@ -378,12 +378,22 @@ fn ordered_rules(body: &[u8]) -> Option<Ordered> {
 /// 窓では読めない本文か（空でない本文を serde_json が読めない: NaN・Infinity・1e400・片割れの代用字など）。そのときは窓は答えず
 /// Python に任せる（Python は読める物は読み、読めない物は {} と読む。窓が {} と読むと、だれにでも当たる行を作ってしまう）
 pub fn needs_python(body: &[u8]) -> bool {
-    !body.iter().all(|b| b.is_ascii_whitespace()) && serde_json::from_slice::<Value>(body).is_err()
+    crate::master_rows::unreadable(body)
 }
 
 /// 窓が受ける 4 本を答える。me は窓が決めた me（門番は呼ぶ側が通した）。rows は me の権限の行
 /// 窓が答えない（Python に任せる）なら None: 版の番号に窓の表に無い系統の数字がある
-pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8]) -> Option<Answer> {
+/// tabs はタブの権限の置き場の行（タブの権限を書く道の確かめに使う）
+pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], tabs: &[Value]) -> Option<Answer> {
+    // 置き場の行の id・版を窓が Python と同じに読めないなら Python に任せる（版 3.77.0。権限の行と、タブの権限を書くときはタブの権限の行）
+    // 項目の値が並び・表・i64 に入らない整数の行も（Python の str() と字が違う。master_rows::rows_plain）
+    let perm: Vec<Value> = rows_of(me).into_iter().map(Value::Object).collect();
+    // タブの例外は JSON の字で置く項目で、読み方は access::tab_exceptions（並び・表も読む）なので見ない
+    if !crate::master_rows::rows_plain(&perm, &PERM_FIELDS[..6])
+        || (route == Route::Tabs && !crate::master_rows::rows_plain(tabs, &["タブ", "出さない区分"]))
+    {
+        return None;
+    }
     // request.get_json(silent=True) or {}: 読めない・空・偽の値は {}
     let parsed: Value = serde_json::from_slice(body).ok().filter(crate::worksum::truthy).unwrap_or(json!({}));
     if matches!(route, Route::Update(_) | Route::Delete(_)) {

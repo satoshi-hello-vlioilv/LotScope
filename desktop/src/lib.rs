@@ -6,6 +6,7 @@ pub mod aggregate;
 pub mod calc;
 pub mod dashboard;
 pub mod distribute;
+pub mod equip_write;
 pub mod formula;
 pub mod home;
 pub mod install;

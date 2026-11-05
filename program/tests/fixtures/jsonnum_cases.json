@@ -1,0 +1,467 @@
+{
+ "python": "3.13.16",
+ "cases": [
+  {
+   "s": "0",
+   "loads": true,
+   "str": "0",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "-0",
+   "loads": true,
+   "str": "0",
+   "type": "int",
+   "plain": false
+  },
+  {
+   "s": "1",
+   "loads": true,
+   "str": "1",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "-1",
+   "loads": true,
+   "str": "-1",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "7",
+   "loads": true,
+   "str": "7",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "12",
+   "loads": true,
+   "str": "12",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "-12",
+   "loads": true,
+   "str": "-12",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "00",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "01",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "-01",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "+1",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": ".5",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "1.",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "-",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "1e",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "1e+",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "--1",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "0.0",
+   "loads": true,
+   "str": "0.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "-0.0",
+   "loads": true,
+   "str": "-0.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1.0",
+   "loads": true,
+   "str": "1.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "-1.5",
+   "loads": true,
+   "str": "-1.5",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "0.1",
+   "loads": true,
+   "str": "0.1",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "3.14159",
+   "loads": true,
+   "str": "3.14159",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1.0000000000000002",
+   "loads": true,
+   "str": "1.0000000000000002",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "123456789.125",
+   "loads": true,
+   "str": "123456789.125",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e0",
+   "loads": true,
+   "str": "1.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "0e0",
+   "loads": true,
+   "str": "0.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "-0e0",
+   "loads": true,
+   "str": "-0.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "-0E5",
+   "loads": true,
+   "str": "-0.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e5",
+   "loads": true,
+   "str": "100000.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1E5",
+   "loads": true,
+   "str": "100000.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e+5",
+   "loads": true,
+   "str": "100000.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e-7",
+   "loads": true,
+   "str": "1e-07",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1E-07",
+   "loads": true,
+   "str": "1e-07",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e-05",
+   "loads": true,
+   "str": "1e-05",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e16",
+   "loads": true,
+   "str": "1e+16",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1E+16",
+   "loads": true,
+   "str": "1e+16",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e17",
+   "loads": true,
+   "str": "1e+17",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1.5e300",
+   "loads": true,
+   "str": "1.5e+300",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1.7976931348623157e308",
+   "loads": true,
+   "str": "1.7976931348623157e+308",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e308",
+   "loads": true,
+   "str": "1e+308",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e309",
+   "loads": true,
+   "str": "inf",
+   "type": "float",
+   "plain": false
+  },
+  {
+   "s": "1e400",
+   "loads": true,
+   "str": "inf",
+   "type": "float",
+   "plain": false
+  },
+  {
+   "s": "-1e400",
+   "loads": true,
+   "str": "-inf",
+   "type": "float",
+   "plain": false
+  },
+  {
+   "s": "5e-324",
+   "loads": true,
+   "str": "5e-324",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "2.5e-324",
+   "loads": true,
+   "str": "5e-324",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "1e-400",
+   "loads": true,
+   "str": "0.0",
+   "type": "float",
+   "plain": true
+  },
+  {
+   "s": "9007199254740993",
+   "loads": true,
+   "str": "9007199254740993",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "123456789012345678",
+   "loads": true,
+   "str": "123456789012345678",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "999999999999999999",
+   "loads": true,
+   "str": "999999999999999999",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "9223372036854775807",
+   "loads": true,
+   "str": "9223372036854775807",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "-9223372036854775808",
+   "loads": true,
+   "str": "-9223372036854775808",
+   "type": "int",
+   "plain": true
+  },
+  {
+   "s": "9223372036854775808",
+   "loads": true,
+   "str": "9223372036854775808",
+   "type": "int",
+   "plain": false
+  },
+  {
+   "s": "-9223372036854775809",
+   "loads": true,
+   "str": "-9223372036854775809",
+   "type": "int",
+   "plain": false
+  },
+  {
+   "s": "18446744073709551615",
+   "loads": true,
+   "str": "18446744073709551615",
+   "type": "int",
+   "plain": false
+  },
+  {
+   "s": "18446744073709551616",
+   "loads": true,
+   "str": "18446744073709551616",
+   "type": "int",
+   "plain": false
+  },
+  {
+   "s": "100000000000000000000",
+   "loads": true,
+   "str": "100000000000000000000",
+   "type": "int",
+   "plain": false
+  },
+  {
+   "s": "10000000000000000000000000000000000000000",
+   "loads": true,
+   "str": "10000000000000000000000000000000000000000",
+   "type": "int",
+   "plain": false
+  },
+  {
+   "s": "NaN",
+   "loads": true,
+   "str": "nan",
+   "type": "float",
+   "plain": false
+  },
+  {
+   "s": "Infinity",
+   "loads": true,
+   "str": "inf",
+   "type": "float",
+   "plain": false
+  },
+  {
+   "s": "-Infinity",
+   "loads": true,
+   "str": "-inf",
+   "type": "float",
+   "plain": false
+  },
+  {
+   "s": "nan",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "inf",
+   "loads": false,
+   "str": null,
+   "type": null,
+   "plain": false
+  },
+  {
+   "s": "true",
+   "loads": true,
+   "str": "True",
+   "type": "bool",
+   "plain": true
+  },
+  {
+   "s": "false",
+   "loads": true,
+   "str": "False",
+   "type": "bool",
+   "plain": true
+  },
+  {
+   "s": "null",
+   "loads": true,
+   "str": "None",
+   "type": "NoneType",
+   "plain": true
+  }
+ ]
+}

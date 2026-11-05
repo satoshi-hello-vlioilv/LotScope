@@ -64,6 +64,8 @@ pub enum MasterError {
     NotFound(String),
     /// 共有に届かない・錠を置けない
     Unavailable(String),
+    /// 行の確かめで断る（master_repository.InvalidRow。400・invalid。版 3.77.0）
+    Invalid(String),
     /// そのほか（読めない・書けない）。Python では例外のまま 500
     Error(String),
 }
@@ -76,6 +78,7 @@ impl MasterError {
             MasterError::Duplicate(_) => "duplicate",
             MasterError::NotFound(_) => "not_found",
             MasterError::Unavailable(_) => "unavailable",
+            MasterError::Invalid(_) => "invalid",
             MasterError::Error(_) => "error",
         }
     }
@@ -85,6 +88,7 @@ impl MasterError {
             MasterError::Locked { .. } | MasterError::Conflict(_) | MasterError::Duplicate(_) => 409,
             MasterError::NotFound(_) => 404,
             MasterError::Unavailable(_) => 503,
+            MasterError::Invalid(_) => 400,
             MasterError::Error(_) => 500,
         }
     }
@@ -115,7 +119,11 @@ impl MasterError {
                     cur.get("updated_at").map(crate::worksum::py_str).unwrap_or_default().replace('T', " ").chars().take(16).collect();
                 format!("この行は、開いたあとに {who} が変更しました（{when}）。")
             }
-            MasterError::Duplicate(m) | MasterError::NotFound(m) | MasterError::Unavailable(m) | MasterError::Error(m) => m.clone(),
+            MasterError::Duplicate(m)
+            | MasterError::NotFound(m)
+            | MasterError::Unavailable(m)
+            | MasterError::Invalid(m)
+            | MasterError::Error(m) => m.clone(),
         }
     }
 
@@ -885,7 +893,13 @@ pub fn next_id(rows: &[Value]) -> i64 {
     rows.iter()
         .map(|r| {
             let v = &r["id"];
-            v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)).or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())).unwrap_or(0)
+            // Python の int(r.get("id") or 0): 真偽は 1・0（版 3.77.0。前は真偽を 0 と読み、Python と違う id を付けた）
+            v.as_bool()
+                .map(i64::from)
+                .or_else(|| v.as_i64())
+                .or_else(|| v.as_f64().map(|f| f as i64))
+                .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
+                .unwrap_or(0)
         })
         .max()
         .unwrap_or(0)

@@ -773,7 +773,7 @@ def dashboard_query():
     合わせた表（visual board）は {groups: [列のまとまりごとの答え（数えられなければ {error, kind}）], equipOrder: 設備の並び, now}。
     別のデータを合わせたパネル（link。版 3.40.0）は、データごとの値を並べた 1 つの答え（_link_answer）。
     設備の分け方（esplit。版 3.40.0）は _split_answer（並べる facet は答えに facets）"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     try:
         p = dashboard.clean_panel(body.get("panel") or {}, 0, dashboard.ROWS_MAX)
     except dashboard.LayoutError as e:
@@ -798,7 +798,7 @@ def dashboard_fields():
     """パネルを組む所の左のカラムの札（source・equip）: 列ごとの手がかり（種類の数・数・日付）と、特別な段（設備・作業日・直）。
     作業実績のすべての設備は、読めた設備の列を合わせる（設備で列が違っても選べる）。
     POST {source, equip, calc}（版 3.38.0）: 計算列（一覧の表示列の設定の式）も同じ手がかりで後ろに並べる（calc: true）"""
-    a = (request.get_json(silent=True) or {}) if request.method == "POST" else request.args
+    a = (request.get_json(force=True, silent=True) or {}) if request.method == "POST" else request.args
     calc = dashboard.clean_calc(a.get("calc")) if request.method == "POST" else None
     try:
         parts, failed, name, _ = panel_parts(a.get("source", ""), a.get("equip", ""), equips=a.get("equips") if isinstance(a.get("equips"), list) else None)

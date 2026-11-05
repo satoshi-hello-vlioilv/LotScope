@@ -46,6 +46,27 @@ def S(who, method, path, body=None, query=""):
 
 
 SCENARIOS = [
+    {"name": "権限の行・タブの権限の行の値が並び（窓は答えず Python に任せる）", "mode": "shared",
+     "perm": ADMIN_ROWS + [{"id": 9, "ログインID": ["noid"], "PC名": "", "権限区分": "一般ユーザー"}],
+     "tabs": [{"id": 1, "タブ": ["work"], "出さない区分": "設備作業者"}], "steps": [],
+     "delegates": [S(BOSS, "POST", "/api/masters/access", {"ログインID": "['noid']", "権限区分": "一般ユーザー"}),
+                   S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}})]},
+    {"name": "id の無い行（行の確かめは id のある行とだけ比べる。版 3.77.0）", "mode": "shared",
+     "perm": ADMIN_ROWS + [{"ログインID": "noid", "PC名": "", "権限区分": "一般ユーザー"}], "tabs": TAB_ROWS, "steps": [
+        S(BOSS, "POST", "/api/masters/access", {"ログインID": "noid", "権限区分": "一般ユーザー"}),
+        S(BOSS, "PUT", "/api/masters/access/4", {"ログインID": "noid"}),
+    ]},
+    {"name": "真偽の id のタブの権限の行（int(True) は 1）", "mode": "shared", "perm": ADMIN_ROWS,
+     "tabs": [{"id": True, "タブ": "work", "出さない区分": "設備作業者"}], "steps": [
+        S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}}),
+    ]},
+    {"name": "権限の行の版が読めない（窓は答えず Python に任せる）", "mode": "shared",
+     "perm": ADMIN_ROWS + [{"id": 9, "ログインID": "z", "PC名": "", "権限区分": "一般ユーザー", "rev": "x"}], "tabs": TAB_ROWS, "steps": [],
+     "delegates": [S(BOSS, "POST", "/api/masters/access", {"ログインID": "n1", "権限区分": "一般ユーザー"}), S(BOSS, "PUT", "/api/masters/access/4", {"ログインID": "u1", "備考": "x"}),
+                   S(BOSS, "DELETE", "/api/masters/access/4"), S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"work": ["一般ユーザー"]}})]},
+    {"name": "タブの権限の行の版が読めない・大きな id（窓は答えず Python に任せる）", "mode": "shared", "perm": ADMIN_ROWS,
+     "tabs": [{"id": 1, "タブ": "work", "出さない区分": "設備作業者", "rev": "x"}, {"id": 1e19, "タブ": "sch", "出さない区分": "一般ユーザー"}],
+     "steps": [], "delegates": [S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"work": ["一般ユーザー"]}}), S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}})]},
     {"name": "管理する人がまだ居ない → 最初の 1 人", "mode": "shared", "perm": [], "tabs": [], "steps": [
         S(U, "POST", "/api/masters/access", {"ログインID": "u1", "権限区分": "開発者"}),
         S(U, "POST", "/api/masters/access", {"ログインID": "boss", "権限区分": "開発者", "マスタ編集": "編集可"}),
@@ -179,23 +200,26 @@ def main():
             finally:
                 _request_var.reset(t2)
                 _app_var.reset(t1)
-            steps = []
-            for st in sc["steps"]:
+            pd = base / f"s{i}" / "pd"      # Python に任せる歩（版 3.77.0）は別の写しに当てる（突き合わせるファイルに混ぜない）
+            place(pd, sc)
+            clients = {False: client, True: create_app({"TESTING": True, "MASTER_STORE": store_of(pd, sc)}).test_client()}
+            steps, dele = [], []
+            for st in sc["steps"] + [dict(x, delegate=True) for x in sc.get("delegates", [])]:
                 who.update(login=st["who"][0], pc=st["who"][1])
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 from app.routes.common import forget_tab_cache
                 forget_tab_cache()
                 path = st["path"] + (f"?{st['query']}" if st["query"] else "")
-                r = client.open(path, method=st["method"], data=(st["body"] or "").encode("utf-8"),
+                r = clients[bool(st.get("delegate"))].open(path, method=st["method"], data=(st["body"] or "").encode("utf-8"),
                                 content_type="application/json")
                 try:
                     body = r.get_json()
                 except Exception:
                     body = None
-                steps.append({**st, "status": r.status_code, "json": body})
+                (dele if st.get("delegate") else steps).append({**st, "status": r.status_code, "json": body})
             # 書く係の名乗り（保存した人の印 updated_by。本番ではどちらの係もこの PC の名乗り）
             out.append({"name": sc["name"], "py": str(py), "rs": str(rs), "conf": conf, "storeWho": app.config["MASTER_STORE"].who,
-                        "steps": steps})
+                        "steps": steps, "delegates": dele})
     finally:
         for p in patches:
             p.stop()

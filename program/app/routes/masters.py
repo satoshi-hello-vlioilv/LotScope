@@ -12,10 +12,15 @@ MASTER_APIS = {
 }
 
 
+def _blank(v):
+    """必須の列が空か（null も空。版 3.77.0: 前は null を「None」と読んで通し、名前の空の行を置いた）。0 や False は空でない（str() の字）"""
+    return v is None or not str(v).strip()
+
+
 def _payload(required):
     data = request.get_json(force=True) or {}
     data.pop("base_rev", None)
-    if required in data and not str(data.get(required, "")).strip():
+    if required in data and _blank(data.get(required)):
         raise ValueError(f"{required}は必須です。")
     return data
 
@@ -29,7 +34,7 @@ def _register_master_api(kind, prefix, required):
     def create():
         def run():
             data = _payload(required)
-            if not str(data.get(required, "")).strip():   # 追加は必須の列を省けない
+            if _blank(data.get(required)):   # 追加は必須の列を省けない
                 raise ValueError(f"{required}は必須です。")
             return getattr(master_repo(), f"{prefix}_create")(data)
         return master_call(run, 201)
@@ -59,7 +64,7 @@ for _kind, (_prefix, _required) in MASTER_APIS.items():
 @bp.post("/api/equipment/inspection")
 def equipment_inspection():
     """{names: [...]} → {inspection: {設備名: 検査計があるか}}。画面が発見設備を自動で選ぶ（実績のうち検査計がある最後の設備）ため。"""
-    names = [str(n) for n in ((request.get_json(silent=True) or {}).get("names") or [])][:100]
+    names = [str(n) for n in ((request.get_json(force=True, silent=True) or {}).get("names") or [])][:100]
     return master_call(lambda: {"inspection": master_repo().inspection_of(names)})
 
 

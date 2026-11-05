@@ -23,7 +23,7 @@ def settings_get():
 @bp.post("/api/settings/check")
 def settings_check():
     """「確かめる」: 保存の前に、その値で本当に読めるか。"""
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     item = path_settings.BY_KEY.get(str(body.get("key") or ""))
     if not item:
         return error("知らない項目です。", 400)
@@ -42,7 +42,7 @@ def settings_put(key):
     item = path_settings.BY_KEY.get(key)
     if not item:
         return error("知らない項目です。", 400, "error")
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     try:
         value = path_settings.parse(item, body.get("value"))
     except ValueError as e:
@@ -102,7 +102,7 @@ def _release_place_gate():
 
 
 def _release_place_args():
-    b = request.get_json(silent=True) or {}
+    b = request.get_json(force=True, silent=True) or {}
     return str(b.get("from") or ""), str(b.get("parent") or ""), str(b.get("name") or ""), b.get("copy", True) is not False
 
 
@@ -135,7 +135,7 @@ def release_place_progress():
 
 # ---- マスタの置き場（共有フォルダ）を変える（services/master_place.py）。変えてよい PC は配布の置き場と同じ
 def _master_place_args():
-    b = request.get_json(silent=True) or {}
+    b = request.get_json(force=True, silent=True) or {}
     return b.get("parent", ""), b.get("name", "")
 
 
@@ -204,7 +204,7 @@ def fs_browse():
     denied = _browse_gate()
     if denied:
         return denied
-    b = request.get_json(silent=True) or {}
+    b = request.get_json(force=True, silent=True) or {}
     return jsonify(folder_browse.browse(b.get("path", ""), str(b.get("purpose") or "folder"), str(b.get("pattern") or "")))
 
 

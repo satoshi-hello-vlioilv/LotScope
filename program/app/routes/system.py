@@ -121,7 +121,7 @@ def ui_defaults_put():
     m = me()
     if m["flags"]["role"] != access.ROLE_DEVELOPER:
         return error(f"初期設定を置けるのは開発者だけです（この PC は {m['flags']['role']}）。", 403, "forbidden")
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     try:
         n = ui_defaults.replace(current_app.config["MASTER_STORE"], body.get("keys") or {})
     except ValueError as e:
