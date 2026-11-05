@@ -206,7 +206,7 @@ fn read_json(path: &Path) -> std::io::Result<Value> {
 }
 
 /// 字の外に、i64・u64 に入らない整数（小数点・指数の無い数）があるか
-fn has_wide_int(b: &[u8]) -> bool {
+pub(crate) fn has_wide_int(b: &[u8]) -> bool {
     let (mut i, mut in_str) = (0, false);
     while i < b.len() {
         let c = b[i];

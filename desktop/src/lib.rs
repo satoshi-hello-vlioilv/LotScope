@@ -3,6 +3,7 @@
 pub mod access;
 pub mod access_write;
 pub mod aggregate;
+pub mod calc;
 pub mod dashboard;
 pub mod distribute;
 pub mod formula;

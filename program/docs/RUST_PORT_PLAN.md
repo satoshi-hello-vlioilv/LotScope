@@ -494,6 +494,27 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
         表示の初期設定の 2 道（GET／PUT /api/ui-defaults。マスタの書く道と一緒に）。
 
 
+### 順 6: 外とのつなぎ — 1 段目（計算）を版 3.72.0 で移した
+
+次に移す範囲は 2 回・12 案を別のエージェントが採点して決めた（`tools/ui-proposals/2026-11-port-next.json`。1 回目 B 77.1・2 回目 B′ 80.6）。
+1 回目の採点で、スケジュールの道が 1 本ではない（/api/src/sch・データ元のカード・結合した表・ダッシュボードが読む）・指紋は sha1・
+スケジュールと LotDsp の設定は効いている設定を通る・プロキシの読み方が ureq と違う、が分かり、計算から閉じた形で移すことにした。
+
+- 1 段目（版 3.72.0）: 転写距離・ピッチ計算（`services/calculator.py`）と設備名の読み替え（`equipment_names.py` の resolve・canonical・same）を
+  `desktop/src/calc.rs` へ写し、POST /api/calculate と POST /api/equipment/inspection を窓が答える（Lot::calc_route）。設備マスタ・ロールマスタは
+  置き場から読む（access::Place::rows。旧い列名 巻出し方向 → 巻取方向 の読み替えも）。設定の calculation は一覧の設定の答え（/api/lotlist/settings）に
+  配った設定の値をそのまま載せて渡す（参照先マスタでは変えない値）。答えが Python と同じビットになるよう、式の順を Python と同じに書き、2 乗は
+  畳まれない pow（`powf(black_box(2.0))`。定数の 2 を畳むと x*x になり、1 ulp 違う）を使い、Python が int の 0 を返す所は整数の 0 のまま返す。
+  Python が例外で答える形（工程の鍵が無い・設備名が字でない・番号や found_equipment が整数に読めない・遡る途中の設備名が null・番号の順が入れ替わる）と、
+  答えに NaN・inf が出る形、読めない本文・i64 に入らない整数・engine=python は Python が答える。速さは 1 回 8.9 ms → 2.4 ms（マスタを読む所を含む）。
+  評価関数は `cargo test --test calc_parity`（← `program/tests/calc_oracle.py`。3 場面〈正しい設備マスタ・同一工程の名前と * ? と旧い列名と全部の設定・
+  遡りの板厚比 found〉× 約 240 の本文で、窓が答えた約 690 件が Python と同じ〈0 と 0.0 を分けて比べる〉、答えなかった物は Python に任せてよい形。
+  小数のオフの厚さの乱数 160 件で 2 乗の pow の違いも見る。同じ PC の Python で答えを作る〈pow は OS の数学の部品の答えなので、焼いた表にしない〉）と
+  `lot::tests::the_window_answers_the_calculation`。pow を x*x に・0 を 0.0 に・誤差の既定・旧い列名・具体さの順・横の分割・入出位置の空・面の反転など
+  10 の変異で落ちることを確かめた。Python の resolver は check_row・lotdsp_progress のために残る（7 段目で 1 つに）。
+- 残り: LotDsp の 9 道（lotdsp_direct は WebSocket を手で組んでいるので tungstenite は要らない。Linux の CI の RealBrowser で突き合わせられる）・
+  スケジュール（/api/schedule と /api/src/sch・データ元のカード・結合・ダッシュボードの cm3 の分岐。sha1 のファイル名・Windows のプロキシ）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。
