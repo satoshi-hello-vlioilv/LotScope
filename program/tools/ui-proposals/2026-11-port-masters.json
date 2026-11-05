@@ -1,0 +1,444 @@
+{
+ "title": "Rust 化の次の段: 現場のマスタ・登録・保存の道のどれを窓へ移すか（2026-11-05）",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-05）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の『改良するときは…』の節、program/tools/ui_score.py の冒頭、前の記録 2026-11-port-writes.json（3 回の rounds の score・minus・seen）、program/docs/RUST_PORT_PLAN.md の順 6・7 段目の手本・7 段目の続き、program/app の routes/masters.py（_payload・create・update・delete）・common.py（base_rev の get_json(silent=True)・master_call・exception_error）・web.py（get_json の force／silent）・repositories/master_repository.py（SPECS・_clean・_normalize・_check_unique・_check_row・_create／_update／_delete・work_log_update／order／sync）・services/equipment_names.py（compact・norm・parse_patterns・is_wild・_regex・check_row の 3 つの言葉）・routes/worklog.py（_master_view・scan・order・update・delete）・services/work_log.py（file_id・scan・Listing・match・new_key・order_keys・view・mark_stale）・routes/formats.py・services/display_formats.py（clean_body・clean_row・parts_of・view）・routes/equipgroups.py（_listing の equipment_seen）・services/equip_groups.py（clean_rules）・services/lotdsp_*.py の import・services/schedule.py（_safe・sig）・routes/access.py の門番、desktop/src の master_rows.rs（全部）・shifts_write.rs（awkward・needs_python・readable）・calc.rs（compact・norm・parse_patterns・is_wild・wild_match・Masters::new）・worksum.rs の py_str・pyfmt.rs の is_space・master_store.rs（read_json・has_wide_int）・access.rs（GUARDED・normalize_part・Place::rows）・lot.rs（handle_body・shifts_route・changes_settings・calc の読み）・lists.rs（Found・file_id・same_fid・scan・resolve）・dashboard.rs の members_in・Cargo.toml。流した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py。作業ツリーは変えていない）: Python 3.13.16 の本物の道（create_app と test_client。開発者の PC として）で、設備・ロールの POST／PUT／DELETE を 25 歩（必須の null・空・並び／表／10**20／1e16 の値・表でない本文〈[1]・[]・\"abc\"・空・壊れた字・NaN〉・id が 2.0 の行・rev が『２』の行・旧い列名の行・同一工程の取り合い 3 つの言葉・* ? の同じ名前・text/plain の PUT の base_rev）と、re の \\s が当たる字・\\w と結合文字・str() の書き方。物差しの読み替えは依頼のとおり（順序＝段の進め方の筋の良さ／チャンク＝1 版のまとまりの大きさと揃い／階層化＝主な狙いが 1 つに見えるか／視覚化＝進み具合と食い違いを数で見せられるか〈評価関数〉／ステップ数＝この版で前へ進む量／考えさせない＝落とし穴を先に潰しているか／直感的＝作りが素直か／形と色＝前の移し方と同じ型／言葉と置き場＝決まりが 1 か所か・既存の型に載るか／整列・余白・釣り合い＝量と釣り合い／色と文字の調子＝危うさの少なさ）。減点 hidden_state は前の記録と同じく、案の文のとおりに作ると答えや置く字が Python と食い違う所に付けた。。2 回目は、1 回目とも案を作った者とも別の採点者（別のエージェント・2026-11-05）が採点した。CLAUDE.md の節・ui_score.py の冒頭・rounds[0] の書き方・RUST_PORT_PLAN.md の 7 段目の手本と続きを読み、routes/masters.py（_payload・create・update・delete）・common.py（base_rev・master_call）・web.py の get_json・routes の各道の本文の読み方（force／silent を grep: masters・shifts・equipgroups・worklog・presets・dashboard・conversions・formats は force、access・settings・sources は silent）・master_repository.py（SPECS・_clean・_check_unique・_check_row・_create／_update／_delete）・equipment_names.py（check_row の生の値の読み方）・display_formats.py（PARTS・clean_body・clean_row）・static/js/master.js（保存の本文・必須の先の確かめ）・shared.js、desktop/src の master_rows.rs（base_rev・clean）・shifts_write.rs（awkward・needs_python・readable）・access_write.rs（needs_python・handle・Ordered・冒頭の違いの一覧）・master_store.rs（read_json・has_wide_int）・pyfmt.rs（float_repr）・worksum.rs（py_str）・calc.rs（text・compact・norm・parse_patterns・is_wild・wild_match）・access.rs（GUARDED・text・py_json）・join.rs（py_dumps）・lot.rs・Cargo.toml（serde_json は float_roundtrip）を読んだ。流した物（作業ツリーは変えていない）: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py（1 回目の probe.py の頭を使い、Python 3.13 の本物の道で -0・偽の値の同一工程・text/plain の権限の PUT を、今の base_rev と force=True, silent=True に差し替えた base_rev の両方で）と、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/rs（serde_json 1.0.151＋float_roundtrip と窓の float_repr・py_str を写した小さな物。20 の JSON の字で Python の str(json.loads(字)) と突き合わせた）。物差しの読み替えと減点の付け方は 1 回目と同じ。3 回目は、1・2 回目の採点者とも案を作った者とも別の採点者（別のエージェント・2026-11-05）が採点した。CLAUDE.md の節・ui_score.py の冒頭・rounds[1] の書き方・RUST_PORT_PLAN.md の 7 段目の手本と続きを読み、routes/common.py（base_rev）・masters.py・access.py（_perm_payload・tabaccess_put）・shifts.py・settings.py・sources.py と、base_rev を使う 12 の組の本文の読み方（force／silent を grep）・web.py の get_json、desktop/src の master_rows.rs（base_rev・py_rev）・shifts_write.rs（awkward・needs_python・直す消す道の 500）・access_write.rs（冒頭の違いの一覧・needs_python・handle の 500）・lot.rs（changes_settings）・selftest.js、program/tests/shifts_oracle.py・access_write_oracle.py を読んだ。流した物（作業ツリーは変えていない）: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/probe.py（Python 3.13 の本物の道で、今の base_rev と案の base_rev〈force・表でなければ {}〉の両方に、勤務体系・ロール・権限の直す・消す道へ表でない本文と、参照先の項目へ text/plain の PUT）と、案の Python の 3 つの直しを当てた写し /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog で program の試験全部（691 本）・tests/shifts_oracle.py・tests/access_write_oracle.py を流し、今の出力と突き合わせた。物差しの読み替えと減点の付け方は 1・2 回目と同じ",
+ "measured": "棚卸し（2026-11-05・main 0bb586e）: Python の道 126 本。窓が答えるのは一覧・集計・ダッシュボード・稼働・計算・心拍・利用状況・権限（読む 2 本・書く 4 本）・勤務体系 4 本など。残る書く道は 変換表 8・データ元 6＋・作業実績の登録 5・書式 4・設備グループ 4・設備 4・ロール 4・保存の 8（dashboards・dashboard-sets・card-forms・pivot-presets 各 2）・参照先・マスタの置き場・配布の置き場。外とのつなぎは LotDsp 9・スケジュール。行: routes/masters.py 72・services/equipment_names.py 129・routes/worklog.py 276・services/work_log.py 310・routes/formats.py 41・services/display_formats.py 116・services/equip_groups.py 146・lotdsp_* 2,024・schedule＋cm3 840。Python を通す手間は枠 1 往復 0.13 ms（RUST_PORT_PLAN §3）で、移す得は速さではなく Python を外すこと。設備・ロールの書く道は _create／_update／_delete（master_rows.rs と同じ型）で、値は _clean＝str(v).strip()（字に直して置く。JSON の数の書き方・鍵の順の端が置く字に出ない）・設備は equipment_names.check_row（* ? の同一工程の名前。窓の calc.rs が parse_patterns・is_wild・norm を既に持つ）。本文は get_json(force=True)（Content-Type を見ない。access_write と同じ）",
+ "self_check": "案を作った者が採点に渡す前に確かめたこと（2026-11-05）: routes/masters.py（_payload の get_json(force=True)・必須の列・create は必須を省けない）・master_repository.py の _create／_update／_delete・_clean（str(v).strip()）・_check_unique・_check_row の equipment_master（equipment_names.check_row）を読み、窓の master_rows.rs（Spec・create／update／delete・CheckRow）と calc.rs の parse_patterns・is_wild・norm が既にあることを確かめた。worklog の道（routes/worklog.py:215〜276）と work_log_update・order・sync を読み、探す道はファイル ID とフォルダを読むので量が大きいことを W に書いた。案の方向: 現場のマスタを型に載せる E・登録とファイルの当て方 W・2 組を 1 版 EW・JSON の土台と書式 J・正規表現の事例表と設備グループ G・外とのつなぎ L・S で偏っていない（7 案・すべて新しい比べ）。",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は各案の seen）",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと（2026-11-05）: routes/masters.py（_payload の get_json(force=True)・必須の列・create は必須を省けない）・master_repository.py の _create／_update／_delete・_clean（str(v).strip()）・_check_unique・_check_row の equipment_master（equipment_names.check_row）を読み、窓の master_rows.rs（Spec・create／update／delete・CheckRow）と calc.rs の parse_patterns・is_wild・norm が既にあることを確かめた。worklog の道（routes/worklog.py:215〜276）と work_log_update・order・sync を読み、探す道はファイル ID とフォルダを読むので量が大きいことを W に書いた。案の方向: 現場のマスタを型に載せる E・登録とファイルの当て方 W・2 組を 1 版 EW・JSON の土台と書式 J・正規表現の事例表と設備グループ G・外とのつなぎ L・S で偏っていない（7 案・すべて新しい比べ）。",
+   "proposals": {
+    "E 設備・ロールのマスタ 8 本": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 8,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "measured と E の文の『値は str(v).strip()（worksum::py_str）で字にして置くので、数の書き方・鍵の順は置く字に出ない』は違う。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py で Python の道に POST /api/masters/equipment {設備名:L-1, 巻取方向:[1, 2.50], ライン方向:10**20, 検査計:1e16} を送ると、置いた字は『[1, 2.5]』『100000000000000000000』『1e+16』（表は str() で『{'b': 1, 'a': 2}』。送った鍵の順のまま）。窓の worksum::py_str（worksum.rs:174）は並び・表を serde の to_string で『[1,2.5]』『{\"a\":2,\"b\":1}』（preserve_order なしで字の順）と書き、10**20 は serde が小数に読むので float_repr で『1e+20』になる。勤務体系は shifts_write.rs:82 の awkward でこの形を Python に任せているが、E の文は任せる形に値の並び・表・i64 に入らない整数を挙げず、『置く字に出ない』と書いている。文のとおりに作るとロールマスタの備考などで置いた字が Python と食い違い、マスタ管理の表に出る値が変わる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "routes/masters.py:17〜18 の _payload と :28 の create は str(data.get(required, \"\")).strip() で必須を確かめ、None は『None』になって通る。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py で POST /api/masters/equipment {設備名: null} → 201（_clean(None) で設備名『』の行が置かれる）、PUT /api/masters/rolls/1 {設備: null} → 200（設備が空になる）。E の文は『必須の列（設備名・設備）が空の 400 の言葉も写す』とだけ書き、null が素通りする Python の欠けを先に直すか写すかを決めていない。文のとおり『空なら 400』で作ると、null の本文で Python は 201・窓は 400 と割れる（前の段の N が先に直した表示順の欠けと同じ種類の落とし穴）"
+      }
+     ],
+     "seen": "良い所: 7 案でいちばん素直。Python の設備・ロールの書く道は routes/masters.py の 4 本 × 2 組で、中身は master_repository.py:151〜199 の汎用 _create／_update／_delete と SPECS（equipment_master: unique 設備名・renamed 巻出し方向→巻取方向。roll_master: unique なし）だけ。窓の master_rows.rs の Spec・create・update・delete・check_rev・check_unique（3.75.0 の『残りの書く道はこの型に clean_row と _check_row を足して移す』の手本どおり）にそのまま載る。組ごとの決まりは _check_row の equipment_master（equipment_names.check_row）だけで、calc.rs:114〜147 の compact・norm・parse_patterns（pyfmt::is_space は Python の \\s と同じ 29 字〈\\x1c〜\\x1f・\\x85・\\u3000 も。Python で数えて確かめた〉）・is_wild・wild_match が既にある。calc.rs の Masters::new（:241）が既に旧い列名を読み替えているので、設備名の読み方は窓の 1 か所にまとまる。門番も access.rs:51 の GUARDED に既にある。計算は lot.rs:411 で毎回置き場から読むので、書いた後に捨てる覚えは一覧の設定だけ（文のとおり）。書く道が 1 版で 8 本進み、前の段で落ちた『書く道が進まない』を解く。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py で Python の道を流し、check_row の言葉（同じ名前に当たる・もう同一工程に登録・設備名がほかの行の * ? に当たる）・旧い列名の行を直すとファイル全体が新しい列名で書き戻る・id が 2.0 の行も PUT /2 で当たる・rev が『２』の行も版として読む、を確かめた（窓の same_id・py_rev も同じに読む）。悪い所・案の文の誤り: (1) 『check_row の 2 つの言葉』は違う。言葉は 3 つ（equipment_names.py:136〜148: 『「p」はほかの設備「X」の名前にも当たります…』『「p」はもう設備「X」の同一工程の名前に登録されています。』『設備名「n」は、設備「X」の同一工程の名前「q」に当たります。先にそちらを直してください。』。3 つ目は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py で POST {設備名: ANI3}〈ANF が ANI* を持つ〉で出た）。* ? を使う同じ名前は 2 行に持てる（Y に ANI* を置けた）ことも写す要がある。(2) 減点 1: str() の端（並び・表・大きな整数）を『出ない』と言い切っている。(3) 減点 2: 必須の null の素通り。(4) 『本文は get_json(force=True)（Content-Type を見ない）』は半分違う。PUT・DELETE の base_rev は common.base_rev の get_json(silent=True) で、Content-Type が JSON でなければ本文の base_rev を読まない（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py で text/plain の PUT {base_rev: 99} は 200 で上書き、application/json なら 409）。access_write.rs:19 が認めている違いと同じだが、文の言い方は誤り。(5) 『任せる』判定を shifts_write.rs の awkward・needs_python（:82・:96）から master_rows.rs へ寄せるかを書いておらず、写すと同じ形の判定が 3 か所目になる（3.75.0 の作った後の採点の指摘が残る）。(6) 表でない本文の答えは Python で [1] → 400『pop expected at most 1 argument, got 2』（TypeError）・\"abc\" → 400（AttributeError）・[] → 400『設備名は必須です。』（[] or {} で空の表）・PUT／DELETE の [1] は base_rev が表の外で落ちて 500。文の『表でない本文は Python に任せる』で足りるが、[] が 400 の必須の言葉になる形は事例に入れたい"
+    },
+    "W 作業実績の登録 5 本": {
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 4,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "窓の lists.rs:110 の file_id（Windows）は『dwVolumeSerialNumber:ファイル番号:作った時刻』で、lists.rs:137 の same_fid のコメントのとおり Python の版によって装置の番号の幅（32/64 ビット）と作った時刻の有無が違う形を『同じ』と見るゆるい比べ方をしている。ところが Python の work_log.match（services/work_log.py:171）は x[\"fid\"] == fid の字の一致で比べる。W の文のとおり探す道（POST /api/masters/worklog/scan → work_log_sync）を窓へ移して窓の file_id でファイルID を書くと、(1) 窓が match を same_fid で作れば、名前を変えたファイルを Python は new（行を足す）・窓は renamed（書き換え）と判じて、置く行が割れる。(2) == で作れば、Python が書いた ID と窓の ID が字で違う PC で、名前を変えたファイルを追えず設備が 2 行になる。どちらでも、マスタ管理の作業実績の一覧の state（ok／renamed／missing）と new が Python と食い違う。文にこの手当てが無い"
+      }
+     ],
+     "seen": "良い所: 窓の lists.rs:66〜188 が作業実績のフォルダを既に探し（split_pattern・fits・is_side_file・file_id・scan・resolve）、Found の file・fid を持つので、探す部品の半分はある。直す道の決まり（master_repository.py:372〜379: 知らない項目とキーを外す・表示を有／無に・設備名の空を断る）は文のとおりで、_update に載る。悪い所・案の文の誤り: (1) 減点: ファイルID の比べ方が窓（same_fid のゆるい比べ）と Python（work_log.match の ==）で 2 通りあり、書く道を移すとどちらに寄せても割れる。(2) 5 本のどの答えも _master_view（routes/worklog.py:203〜210）で、フォルダを読み直した found・work_log.view・mark_stale（size・mtime〈Python の st_mtime の小数〉・ageHours・stale）・staleHours を返す。窓の Found には size・mtime も equipment も無く、st_mtime の小数を Python と同じビットで出す手当て、Python の Listing の 10 秒の覚え（WORK_LISTING。窓が探しても Python の覚えは古いまま）も文に無い。(3) 『一覧は写しの状態（読めない・止まった）も載せる』は違う。view の state は ok／renamed／missing／unknown と mark_stale の stale で、写し（Mirrors）の状態は載せない。(4) 並べ替え（work_log_order）と探す道（work_log_sync）は全部の行を 1 回で書き直す形で、master_rows.rs の create／update／delete の型に載らない（新しい書き方が 2 つ要る）。sync の新しい行のキーは work_log.new_key の uuid4 で、突き合わせには乱数を差し替える口が要る（文に無い）。(5) order の本文は get_json(force=True) が master_call の外（routes/worklog.py:241）で、読めない本文は 400 の HTML ではなく枠の答えになる・keys の str(k)（数の字・表の字）も写す。量の割に Python を外す得が小さい"
+    },
+    "EW 設備・ロールと作業実績の登録 13 本": {
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 4,
+      "visual": 6,
+      "steps": 9,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 5,
+      "layout": 4,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "measured と E の文の『値は str(v).strip()（worksum::py_str）で字にして置くので、数の書き方・鍵の順は置く字に出ない』は違う。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py で Python の道に POST /api/masters/equipment {設備名:L-1, 巻取方向:[1, 2.50], ライン方向:10**20, 検査計:1e16} を送ると、置いた字は『[1, 2.5]』『100000000000000000000』『1e+16』（表は str() で『{'b': 1, 'a': 2}』。送った鍵の順のまま）。窓の worksum::py_str（worksum.rs:174）は並び・表を serde の to_string で『[1,2.5]』『{\"a\":2,\"b\":1}』（preserve_order なしで字の順）と書き、10**20 は serde が小数に読むので float_repr で『1e+20』になる。勤務体系は shifts_write.rs:82 の awkward でこの形を Python に任せているが、E の文は任せる形に値の並び・表・i64 に入らない整数を挙げず、『置く字に出ない』と書いている。文のとおりに作るとロールマスタの備考などで置いた字が Python と食い違い、マスタ管理の表に出る値が変わる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "routes/masters.py:17〜18 の _payload と :28 の create は str(data.get(required, \"\")).strip() で必須を確かめ、None は『None』になって通る。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py で POST /api/masters/equipment {設備名: null} → 201（_clean(None) で設備名『』の行が置かれる）、PUT /api/masters/rolls/1 {設備: null} → 200（設備が空になる）。E の文は『必須の列（設備名・設備）が空の 400 の言葉も写す』とだけ書き、null が素通りする Python の欠けを先に直すか写すかを決めていない。文のとおり『空なら 400』で作ると、null の本文で Python は 201・窓は 400 と割れる（前の段の N が先に直した表示順の欠けと同じ種類の落とし穴）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "窓の lists.rs:110 の file_id（Windows）は『dwVolumeSerialNumber:ファイル番号:作った時刻』で、lists.rs:137 の same_fid のコメントのとおり Python の版によって装置の番号の幅（32/64 ビット）と作った時刻の有無が違う形を『同じ』と見るゆるい比べ方をしている。ところが Python の work_log.match（services/work_log.py:171）は x[\"fid\"] == fid の字の一致で比べる。W の文のとおり探す道（POST /api/masters/worklog/scan → work_log_sync）を窓へ移して窓の file_id でファイルID を書くと、(1) 窓が match を same_fid で作れば、名前を変えたファイルを Python は new（行を足す）・窓は renamed（書き換え）と判じて、置く行が割れる。(2) == で作れば、Python が書いた ID と窓の ID が字で違う PC で、名前を変えたファイルを追えず設備が 2 行になる。どちらでも、マスタ管理の作業実績の一覧の state（ok／renamed／missing）と new が Python と食い違う。文にこの手当てが無い"
+      }
+     ],
+     "seen": "良い所: 前へ進む量はいちばん多い（書く道 13 本）。どちらもマスタ管理の現場のタブで、門番（access.rs の GUARDED）も同じ。悪い所・案の文の誤り: (1) 1 版に 2 つの話を乗せる。前の段（2026-11-port-rest.json の N、2026-11-port-writes.json の FU・DCU）で『1 版に話が多い』で点を落とした形そのもの。(2) 『どちらも master_rows.rs の型に載る』は半分違う。E の 8 本は載るが、W の並べ替え・探す道は全部の行を 1 回で書き直す形で型の外（W の (4)）。W の答えはフォルダの読み直しを含む _master_view で、E の答え（行だけ）と形が違う。(3) E の 2 つの減点（str() の端・必須の null）と W の 1 つ（ファイルID の比べ方が 2 通り）をそのまま持つ。(4) 突き合わせの評価関数も 2 組（masters_rows_parity・worklog_parity）が要り、1 版の確かめる範囲が広い"
+    },
+    "J 順を保つ JSON の木と共有の書式 4 本": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: RUST_PORT_PLAN.md の 7 段目の続きの最後の行（『書く道の次の段は、順を保つ JSON の木と事例の表（3 回目の B）を先に作ってから、書式・プリセットを移す』）どおりの順で、前の段の 3 回目の B が『道を 1 本も移さない・使う道が無いので木が足りるか試されない』で落ちた所を、書式の 4 本を同じ版に乗せて解いた。3.75.0 の手本 N（数の読み方の表＋勤務体系。78.2 点）と同じ型（Python で焼いた事例の表＋その上の 1 組）。前の段の 1 回目の J が落ちた serde_json の preserve_order（crate 全体の feature で Tauri と窓の答えの鍵の順が変わる）を使わず、自前の木にしたので窓のほかの道の答えを変えない。書式は閉じた組（routes/formats.py 41 行。is_screen_source〈dashboard.rs〉・can_write・is_shared／revision・master_rows.rs の型・_check_row の（名前, 元）の一意）。中身の字は display_formats.clean_body（:63〜76）が json.dumps(out, ensure_ascii=False, separators) で送った鍵の順のまま書くので、字を Python と同じにするには順を保つ木が要る、という文の主張は正しい（答えの view は json.loads し jsonify が sort_keys で並べるので、画面の答えは順に依らない）。悪い所・案の文の誤り: (1) 1 版に 2 つの話（土台と書式）。(2) JSON を Python と同じに読み書きする部品が、access.rs の py_json・join.rs の py_dumps・access_write.rs の Ordered・master_store.rs の read_json／has_wide_int・shifts_write.rs の区分の書き手の横に、寄せずにもう 1 つ増える（前の段の B の指摘がそのまま）。文に『前の部品を pyjson.rs へ寄せる』が無い。(3) 『1e+16 を見つけたら任せる』は要らない（pyfmt::float_repr が既に Python の repr の書き方）。逆に、名前・備考に並び・表が来たときの str()（{'a': 1}・[1, 2]）は任せる形に挙がっていない（clean_row の str(data.get(\"name\") or \"\")）。(4) 深さ（Python 3.13 の json.loads は 5000 段を読み 20000 段で RecursionError。前の記録で測った）を同じにするなら自前の読み手が要り、量が見えない。(5) 書式の一覧には parts_of（PARTS の 10 の部品の人の言葉と数）と view の写しも要る（文に無いが短い）"
+    },
+    "G 設備グループ 4 本": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 4,
+      "form": 5,
+      "place": 4,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "G の文は『Python の re が読む・読まない形の事例の表を焼いて fancy-regex と突き合わせ、読みが違う形は Python に任せる』とするが、利用者の書く正規表現は限りが無く、表に無い形を窓がその場でどう見分けるか（読める形だけを通す許しの表など）が無い。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters1/probe.py と同じ所で Python 3.13.16 に re.fullmatch(r'\\w+', 'e\\u0301') を流すと False（Python の \\w は str.isalnum と _ だけ）、窓の regex／fancy-regex の \\w は Unicode の単語の字（\\p{M} の結合文字・Join_Control を含む）で当たる。表に無いこの形は窓が通し、設備グループのルールに当てはまる設備（matched）が Python の一覧と窓のダッシュボード（pivot.rs の compile_rules）で割れたまま。前の記録 2026-11-port-writes.json の P・G の減点（\\p{L}・(?<n>x)・\\Z）と同じ所が、表に入れた形だけ直る"
+      }
+     ],
+     "seen": "良い所: 前の段の P・G の減点（Python の re が断る形を窓の fancy-regex が通す）を、事例の表で見える形にしようとしている。書く 3 本の本文の決まり（services/equip_groups.clean_row・clean_rules・check_unique）は短く、窓に members_in（dashboard.rs:576）・normalize_part・row_order の写しがある。悪い所・案の文の誤り: (1) 減点: 表に無い形を見分ける仕組みが無い。(2) GET と書く 3 本の答えはどれも routes/equipgroups.py:12 の _listing で、選べる設備（equipments・seen）を routes/dashboard.equipment_seen（実際に出てくる設備すべて。データ元を読む重い読み）から作る。窓に equipment_seen は無く（desktop/src を grep して members_in だけ）、文に手当てが無い。窓が答えるなら equipment_seen を写すか Python へ尋ねる口が要り（lot.rs の handle_body が受け取るのは AskSettings だけ）、前の段の P・G と同じ指摘が残る。(3) clean_rules は Python の re.error の言葉（『missing ), unterminated subpattern at position 0』など）を断る言葉に入れ、formula.regex_risk（重い形）の言葉も要る。読めない形はすべて Python に任せる形にしないと言葉が割れる。(4) 1 版に事例の表と道の 2 つの話"
+    },
+    "L LotDsp の 9 道": {
+     "score": {
+      "order": 4,
+      "chunk": 3,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 3,
+      "intuitive": 4,
+      "form": 4,
+      "place": 5,
+      "layout": 3,
+      "tone": 3
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "L の文の『WebSocket は手で組んでいるので crate は ureq だけ』は足りない。desktop/Cargo.toml に ureq は無く（新しく足す）、services/lotdsp_direct.py:159 は WebSocket の鍵に base64 を使い、services/lotdsp_progress.py:24・:80 は LotDsp の進度の HTML を Python の html.parser.HTMLParser（_TableCollector）で読む。RUST_PORT_PLAN.md:75 の表も tungstenite・ureq・html-escape・base64 を挙げている。HTML の読み方（文字参照・壊れたタグ・表の入れ子）を Python の HTMLParser と同じにする手当てと事例の表が文に無く、突き合わせが作り物の LotDsp と RealBrowser だけなので、本物の HTML の端で取り込んだ工程（設備・巻取方向）が Python と黙って割れる"
+      }
+     ],
+     "seen": "良い所: 道の数は routes/lots.py の 9 本（import・fetch・fetch-api・survey・link・/lotdsp-link・api status・fetch status・cancel）で文のとおり。lotdsp_api は ProxyHandler({})（services/lotdsp_api.py:43）でプロキシを通さないので、ureq の Windows のプロキシの読み方の違いは API にはほぼ効かない。Python を外す量は大きい（lotdsp_* 2,024 行）。悪い所・案の文の誤り: (1) 減点: crate と HTML の読み方の見積もりが足りない。(2) 量が大きく、見えない Edge を CDP で動かす所（プロセス・一時のプロファイル・WebSocket の受け答え）は Windows の本物で試すしかない所が多い。順 6 の 1 段目（計算）を選んだ理由（2026-11-port-next.json: 閉じた形から）とも逆の順。(3) lotdsp_direct.py:141 は手元の opener の次に既定の opener（Windows はレジストリのプロキシを読む）を試すので、そこは ureq と読み方が違う（RUST_PORT_PLAN.md:501 の指摘）。(4) 取り込みは設備名の読み替え（EquipmentResolver）を使うので、E より先に移すと設備マスタの読みが窓と Python に分かれたまま進む。マスタの話からも外れる"
+    },
+    "S スケジュール": {
+     "score": {
+      "order": 4,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 4,
+      "form": 4,
+      "place": 4,
+      "layout": 4,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "良い所: 文はスケジュールの道が 1 本ではない（/api/src/sch・データ元のカード・結合・ダッシュボードの cm3 の分岐）ことと、ファイル名の sha1（services/schedule.py:123 の _safe）・Windows のプロキシを挙げ、2026-11-port-next.json の 1 回目で分かった落とし穴を拾っている。作り物の CM3（tests/schedule_fixture.py）もある。悪い所: (1) 量が大きく（schedule＋cm3 840 行・routes/schedule.py 174 行）、裏の糸で取りに行く（schedule.py:207 の threading）・世代つきの SQLite（.g{gen}.sqlite3）を掃く・変わったかを json.dumps(default=str) の sha1（:213・:288）で見るなど、窓の型に無い作りが多い（sig は中だけで使うので字が違っても答えは変わらないが、作り直す回数が変わる）。(2) sha1 は Cargo.toml に無く（sha2 だけ）、crate が増える。(3) データ元のカード・結合・ダッシュボードの分岐の 3 か所を一緒に替えるので、1 版の確かめる範囲が広い。(4) マスタの書く道の話からは外れ、前の段で落ちた『書く道が進まない』はそのまま"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は各案の seen）",
+   "self_check": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘（E の str() の並び・表・10**20 の書き方・null がすり抜ける・check_row は 3 つの言葉・base_rev は silent で Content-Type を見る・任せる判定が 3 か所目になる／W の same_fid・_master_view・uuid／J の部品が増える・float_repr が既にある／G の equipment_seen）を読み直した。routes/common.base_rev（get_json(silent=True)）と web.Request.get_json（force でなく JSON でなければ silent で None）を読み、窓の master_rows::base_rev は Content-Type を見ないことを確かめた（今の勤務体系・権限の書く道でも同じ食い違い）。pyfmt::float_repr・worksum::py_str・shifts_write::awkward／needs_python・access_write::needs_python・master_store::has_wide_int の場所を確かめた。新しい案は R・EQ・U の 3 つ（E を E′、J を J′ に直して持ち越す）。方向は 8 本を正して移す E′・最小の 1 組 R・設備と部品 EQ・土台だけ U・JSON の部品を寄せる J′ で偏っていない。",
+   "proposals": {
+    "E′ 設備・ロールのマスタ 8 本（1 回目の指摘を先に）": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 9,
+      "place": 8,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『値の型: 字・null・i64 に入る整数・有限の小数（pyfmt::float_repr で Python の str と同じ字）・真偽は窓が str(v).strip() と同じ字にする』は、JSON の -0 で割れる。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で Python の道に POST /api/masters/rolls の本文 {\"設備\":\"L-9\",\"備考\":-0}（字のまま送った）を送ると、json.loads が int の 0 と読み、置いた備考は『0』。窓の serde_json（1.0.151・float_roundtrip）は -0 を i64 ではなく f64 の -0.0 と読むので、worksum::py_str（worksum.rs:174）→ master_rows::clean（master_rows.rs:135）は『-0.0』を置く（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/rs に py_str と float_repr を写した小さな物を作り、同じ字を流して確かめた: -0 → Python『0』・窓『-0.0』。-0.0・1.0・1E2・1e16・1e-5・5e-324・2.5e-400・長い小数・true・null は同じ字）。shifts_write.rs:82 の awkward（|f| ≥ 9e15 だけを見る）・access_write.rs:380 の needs_python・master_store::has_wide_int のどれもこの形を拾わない。文のとおり『i64 に入る整数は窓』で作ると、ロール・設備のマスタの備考などに -0 が来たとき置く字が Python と食い違う（同じ穴は今の勤務体系・権限の書く道にもある）"
+      }
+     ],
+     "seen": "1 回目の指摘の直り: (1) check_row の言葉を 3 つと正した（equipment_names.py:136〜148 のとおり）。(2) str() の並び・表・i64 に入らない整数・NaN／Infinity を Python に任せると決めた（1 回目の減点 1 は直った）。i64 と u64 の間の整数（9223372036854775808〜）は serde が u64 と読み py_str が『9.223372036854776e+18』と書く（上の小さな物で確かめた）ので、has_wide_int（i64・u64 に入らない物だけ）では足りず as_i64 で見る要があるが、文は『i64 に入らない整数』と書いていて正しい。(3) 必須の null を Python で先に直す（1 回目の減点 2 は直った）。routes/masters.py:18・28 の str(data.get(required, '')) を None も空と読むように直すのは、_clean（master_repository.py:69）が None を『』と読むのとそろい、画面は master.js:1823 で String(data[f.key] || '') と null を空として先に断るので、画面の答えは変わらない。直すと /api/masters/equipment・rolls の 2 組だけに効き（_payload は masters.py の中だけ）、勤務体系・権限には触れない。(4) base_rev を本文と同じ読み方にする直し: 勤務体系には効き、権限には効かない（下の『案の文の誤り』）。(5) 任せる判定を master_rows.rs の Spec へ寄せ、shifts_parity・access_write_parity が見張る（1 回目の (5)・3.75.0 の作った後の指摘に答えた）。良い所: Python の設備・ロールの道は master_repository.py:151〜199 の汎用 _create／_update／_delete だけで、窓の master_rows.rs（Spec・create・update・delete）に載る。評価関数に null・text/plain の版・並び／表・大きな整数・旧い列名・3 つの言葉・* ? を挙げ、測る所が具体的。書く道が 1 版で 8 本進む（5 案でいちばん多い）。悪い所・案の文の誤り: (i) 減点: JSON の -0（上の where）。(ii) (b) の『勤務体系・権限の書く道にも効く／直すと窓と Python が 1 つの決まりになる』は勤務体系では正しく権限では違う。routes/shifts.py:37・49 は本文を get_json(force=True) で読むので、base_rev を force にすると本文と版の読み方がそろう（今は text/plain の PUT で Python は版を見ずに書き、窓の master_rows::base_rev〈master_rows.rs:87〉は版を見て 409 にする食い違いが閉じる）。ところが routes/access.py:60 の _perm_payload は get_json(silent=True) で、text/plain の本文を {} と読む。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で、今の Python に text/plain の PUT /api/masters/access/2 {備考: new, base_rev: 9} を送ると 200 で、行のログインID・備考が空に書き換わる（本文を読まないので空の値で上書き）。base_rev を force=True, silent=True に差し替えた形でも、base_rev: 9 は 409 になるが、base_rev: 2 では 200 でやはり空で書く（版だけ本文から読み、項目は読まない、という新しい食い違いが Python の中にできる）。窓の access_write.rs:19 が認める『本文の Content-Type を見ない』違いは残る。settings.py:45・sources.py の本文も silent なので同じ形。画面（static/js/master.js:1836 の TPA.json・shared.js:46 の sendBeacon）はいつも application/json なので、画面の答えは変わらない。(iii) 1 版に 4 つの話（Python の 2 つの直し・判定の 1 か所化〈勤務体系・権限の書き方を替える〉・equipment_names.rs の切り出し〈計算の読み替えを替える〉・8 本）で、確かめる範囲が勤務体系・権限・計算まで広がる。(iv) 判定を『項目ごと』にするなら、項目でない鍵は見ない形にする要がある（tests/test_access.py:134・test_inspection.py:24 は行をそのまま {**r} で送り、updated_by が表。全部の鍵で表を見ると Python に回るだけで答えは変わらないが、窓が答えない道になる）。(v) equipment_names.check_row は値を _clean する前の生の値を `or ''` で読む（同一工程が 0・False なら確かめでは空、置く字は『0』『False』。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で確かめた）。calc.rs:63 の text()（真の値だけ py_str）を使えば同じになるので、切り出すときにこの読み方を保つこと（文に無いが落とし穴ではない）。(vi) base_rev を force にすると、text/plain の [1] の PUT は今の 400（_payload が master_call の中で TypeError）から 500（base_rev が master_call の外で AttributeError）に変わる（probe.py で確かめた）。窓も表でない本文を 500 にする（access_write.rs:391 と同じ形）要があり、文に無い"
+    },
+    "R ロールのマスタ 4 本だけ（新）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 5,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 9,
+      "place": 8,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『値の型: 字・null・i64 に入る整数・有限の小数（pyfmt::float_repr で Python の str と同じ字）・真偽は窓が str(v).strip() と同じ字にする』は、JSON の -0 で割れる。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で Python の道に POST /api/masters/rolls の本文 {\"設備\":\"L-9\",\"備考\":-0}（字のまま送った）を送ると、json.loads が int の 0 と読み、置いた備考は『0』。窓の serde_json（1.0.151・float_roundtrip）は -0 を i64 ではなく f64 の -0.0 と読むので、worksum::py_str（worksum.rs:174）→ master_rows::clean（master_rows.rs:135）は『-0.0』を置く（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/rs に py_str と float_repr を写した小さな物を作り、同じ字を流して確かめた: -0 → Python『0』・窓『-0.0』。-0.0・1.0・1E2・1e16・1e-5・5e-324・2.5e-400・長い小数・true・null は同じ字）。shifts_write.rs:82 の awkward（|f| ≥ 9e15 だけを見る）・access_write.rs:380 の needs_python・master_store::has_wide_int のどれもこの形を拾わない。文のとおり『i64 に入る整数は窓』で作ると、ロール・設備のマスタの備考などに -0 が来たとき置く字が Python と食い違う（同じ穴は今の勤務体系・権限の書く道にもある）"
+      }
+     ],
+     "seen": "良い所: ロールのマスタ（SPECS の roll_master: unique なし・renamed なし・_check_row なし）はいちばん閉じた組で、GET は _list（_normalize で rev の無い行は 1）だけ。窓の master_rows.rs の型にそのまま載り、門番も access.rs:52 の GUARDED にあり、計算は lot.rs:411 で毎回置き場から読むので書いた後に捨てる覚えも少ない。1 回目の E の減点 2 つ（str() の端・null）を直し、任せる判定の 1 か所化を同じ版に入れたので、寄せた判定がロール・勤務体系・権限の 3 組で使われて試される（前の段の B の『使う道が無く試されない』を避けた）。必須の null の直し（masters.py:18・28）は rolls・equipment の 2 組だけに効き、画面は master.js:1823 で先に断るので画面の答えは変わらない。悪い所・案の文の誤り: (i) 減点: JSON の -0（上の where）。(ii) 進む量が 4 本だけで、設備の check_row（3 つの言葉）・旧い列名・equipment_names.rs は次の版へ残る。(iii) (b) の『勤務体系・権限の書く道にも効く／直すと窓と Python が 1 つの決まりになる』は勤務体系では正しく権限では違う。routes/shifts.py:37・49 は本文を get_json(force=True) で読むので、base_rev を force にすると本文と版の読み方がそろう（今は text/plain の PUT で Python は版を見ずに書き、窓の master_rows::base_rev〈master_rows.rs:87〉は版を見て 409 にする食い違いが閉じる）。ところが routes/access.py:60 の _perm_payload は get_json(silent=True) で、text/plain の本文を {} と読む。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で、今の Python に text/plain の PUT /api/masters/access/2 {備考: new, base_rev: 9} を送ると 200 で、行のログインID・備考が空に書き換わる（本文を読まないので空の値で上書き）。base_rev を force=True, silent=True に差し替えた形でも、base_rev: 9 は 409 になるが、base_rev: 2 では 200 でやはり空で書く（版だけ本文から読み、項目は読まない、という新しい食い違いが Python の中にできる）。窓の access_write.rs:19 が認める『本文の Content-Type を見ない』違いは残る。settings.py:45・sources.py の本文も silent なので同じ形。画面（static/js/master.js:1836 の TPA.json・shared.js:46 の sendBeacon）はいつも application/json なので、画面の答えは変わらない。(iv) 評価関数（masters_rows_parity など）を文に書いていない（E′ にはある）。寄せた判定を見張るのは今の shifts_parity・access_write_parity で足りるが、ロールの 4 本と Python の 2 つの直しの突き合わせが無い。(v) 文の『必須の列（設備名・設備）』はロールだけの版としては設備名が要らない（_payload は 2 組で共通なので直しは両方に効く。誤りではない）。(vi) base_rev を force にすると text/plain の [1] の PUT が 400 から 500 に変わる（E′ の (vi) と同じ）"
+    },
+    "EQ 設備のマスタ 4 本と設備名の部品（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 6,
+      "place": 5,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『値の型: 字・null・i64 に入る整数・有限の小数（pyfmt::float_repr で Python の str と同じ字）・真偽は窓が str(v).strip() と同じ字にする』は、JSON の -0 で割れる。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で Python の道に POST /api/masters/rolls の本文 {\"設備\":\"L-9\",\"備考\":-0}（字のまま送った）を送ると、json.loads が int の 0 と読み、置いた備考は『0』。窓の serde_json（1.0.151・float_roundtrip）は -0 を i64 ではなく f64 の -0.0 と読むので、worksum::py_str（worksum.rs:174）→ master_rows::clean（master_rows.rs:135）は『-0.0』を置く（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/rs に py_str と float_repr を写した小さな物を作り、同じ字を流して確かめた: -0 → Python『0』・窓『-0.0』。-0.0・1.0・1E2・1e16・1e-5・5e-324・2.5e-400・長い小数・true・null は同じ字）。shifts_write.rs:82 の awkward（|f| ≥ 9e15 だけを見る）・access_write.rs:380 の needs_python・master_store::has_wide_int のどれもこの形を拾わない。文のとおり『i64 に入る整数は窓』で作ると、ロール・設備のマスタの備考などに -0 が来たとき置く字が Python と食い違う（同じ穴は今の勤務体系・権限の書く道にもある）"
+      }
+     ],
+     "seen": "良い所: 設備のマスタは組ごとの決まり（equipment_names.check_row）があるいちばん中身のある 4 本で、calc.rs:111〜147 の compact・norm・parse_patterns・is_wild・wild_match を equipment_names.rs へ切り出して計算と書く道で 1 つに使うのは筋が良い（Python も equipment_names.py 1 つを calculator と check_row が使う）。1 回目の E の減点 2 つ（str() の端・null）は直した。悪い所・案の文の誤り: (i) 減点: JSON の -0（上の where）。(ii) 任せる判定の 1 か所化を『次の版』に回すので、shifts_write.rs:82・96 と access_write.rs:380 の横に 3 か所目の判定を書くことになる（1 回目の E の (5)・3.75.0 の作った後の採点の指摘がそのまま残る）。(iii) 評価関数を文に書いていない（3 つの言葉・* ? の同じ名前を 2 行に持てる・旧い列名の行の突き合わせが要る）。(iv) 旧い列名（SPECS の renamed: 巻出し方向→巻取方向）の書き戻し（直すとファイル全体が新しい列名で書き戻る）と、窓の Spec（master_rows.rs）に renamed が無いことに触れていない。(v) 切り出しは計算（calc.rs の読み替え）の答えを替える所なので、計算の突き合わせ（calc_parity）も確かめる範囲に入るが文に無い。(vi) 易しいロールを残して難しい設備だけを先に移す順で、Python の masters.py の 2 組の登録（_register_master_api）が窓と Python に分かれる。(vii) (b) の『勤務体系・権限の書く道にも効く／直すと窓と Python が 1 つの決まりになる』は勤務体系では正しく権限では違う。routes/shifts.py:37・49 は本文を get_json(force=True) で読むので、base_rev を force にすると本文と版の読み方がそろう（今は text/plain の PUT で Python は版を見ずに書き、窓の master_rows::base_rev〈master_rows.rs:87〉は版を見て 409 にする食い違いが閉じる）。ところが routes/access.py:60 の _perm_payload は get_json(silent=True) で、text/plain の本文を {} と読む。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で、今の Python に text/plain の PUT /api/masters/access/2 {備考: new, base_rev: 9} を送ると 200 で、行のログインID・備考が空に書き換わる（本文を読まないので空の値で上書き）。base_rev を force=True, silent=True に差し替えた形でも、base_rev: 9 は 409 になるが、base_rev: 2 では 200 でやはり空で書く（版だけ本文から読み、項目は読まない、という新しい食い違いが Python の中にできる）。窓の access_write.rs:19 が認める『本文の Content-Type を見ない』違いは残る。settings.py:45・sources.py の本文も silent なので同じ形。画面（static/js/master.js:1836 の TPA.json・shared.js:46 の sendBeacon）はいつも application/json なので、画面の答えは変わらない"
+    },
+    "U 任せる判定の 1 か所化と Python の欠けの直しだけ（道 0 本・新）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 2,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 5,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: 判定（shifts_write.rs:82 の awkward・:96 の needs_python・access_write.rs:380 の needs_python）を master_rows.rs の Spec の項目ごとの読み方へ寄せるのは、3.75.0 で書く型を master_rows.rs にまとめた流れの続きで、決まりが 1 か所になる。寄せた判定を使う道（勤務体系・権限）が既にあり、shifts_parity・access_write_parity が見張るので、前の段の B（道を 1 本も移さず木が試されない）より確かめが効く。Python の 2 つの直しも先に入るので、次の版の設備・ロールは型に載せるだけになる。危うさは小さい。悪い所・案の文の誤り: (i) 書く道が 1 本も進まない（前の段で 3 回とも『書く道が進まない』で落ちた所がそのまま。ステップ数 2）。(ii) (b) の『勤務体系・権限の書く道にも効く／直すと窓と Python が 1 つの決まりになる』は勤務体系では正しく権限では違う。routes/shifts.py:37・49 は本文を get_json(force=True) で読むので、base_rev を force にすると本文と版の読み方がそろう（今は text/plain の PUT で Python は版を見ずに書き、窓の master_rows::base_rev〈master_rows.rs:87〉は版を見て 409 にする食い違いが閉じる）。ところが routes/access.py:60 の _perm_payload は get_json(silent=True) で、text/plain の本文を {} と読む。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/probe.py で、今の Python に text/plain の PUT /api/masters/access/2 {備考: new, base_rev: 9} を送ると 200 で、行のログインID・備考が空に書き換わる（本文を読まないので空の値で上書き）。base_rev を force=True, silent=True に差し替えた形でも、base_rev: 9 は 409 になるが、base_rev: 2 では 200 でやはり空で書く（版だけ本文から読み、項目は読まない、という新しい食い違いが Python の中にできる）。窓の access_write.rs:19 が認める『本文の Content-Type を見ない』違いは残る。settings.py:45・sources.py の本文も silent なので同じ形。画面（static/js/master.js:1836 の TPA.json・shared.js:46 の sendBeacon）はいつも application/json なので、画面の答えは変わらない。(iii) 1 か所に寄せる版なのに、今の判定が拾わない JSON の -0（serde は f64 の -0.0 と読み py_str は『-0.0』、Python は int の 0 で『0』。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters2/rs で確かめた）を直す、と書いていない。今の勤務体系の名前・備考・権限の備考にも同じ穴があり、U はそれを見つけて直すのにいちばん合う版（道を移さないので減点はしないが、考えさせない を下げた）。(iv) 権限の needs_python は『読めない本文』だけで、項目の並び・表・u64 を超える整数は窓が置く（access_write.rs:24 が認める違い）。項目ごとの読み方に寄せると権限の答えが Python に回る形が増える（良い方へ替わる）が、access_write_parity に事例を足す要があることが文に無い。(v) 量が小さすぎ、版の釣り合いが悪い"
+    },
+    "J′ JSON の部品を寄せて書式 4 本（1 回目の J を正す）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 8,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "1 回目の指摘の直り: (2) 部品が増える → 今ある 4 つ（access.rs:558 の py_json・join.rs:354 の py_dumps・access_write.rs:315 の Ordered・master_store.rs:183 の read_json）を pyjson.rs へ寄せると決めた（直った）。(3) 1e+16 は float_repr（直った）・名前に並び・表が来たら任せる（clean_row の str(data.get('name') or '') の端。直った）。(4) 深さ（json.loads は 5000 段を読み 20000 段で RecursionError）は文に無く、残る。(5) parts_of・view の写しも文に無い（短い）。良い所: 書式は display_formats.clean_body が json.dumps(out, ensure_ascii=False, separators=(',', ':')) で送った鍵の順のまま置くので、順を保つ木が要るという主張は正しく、RUST_PORT_PLAN.md の 7 段目の続きの最後の行の順どおり。悪い所・案の文の誤り: (i) 寄せる 4 つは役目が違う。py_json は NaN・Infinity・f64 に入らない数を『真の数 1』に置き換える読み（access.rs:556 のコメント。権限の表では真か偽かしか見ないから許される）、py_dumps は sort_keys、Ordered は上の段だけ順を保ち中は serde の Value（鍵の順が無い）、read_json は BOM と has_wide_int でファイルを読む。1 つに寄せたときにどの読みを使うかが文に無く、py_json の置き換えを書式の中身に使えば、3.75.0 の作った後の 2 回目で見つかった『区分の NaN を 1 と読んで書く』と同じ食い違いになる。書式の中身は入れ子の奥まで順が要る（Ordered は上の段だけ）・重なる鍵は最初の位置に後の値（Python の dict。Ordered は上の段でだけそうしている）・NaN は json.dumps が『NaN』と書く（allow_nan の既定）ので、木がこれらを持つか任せるかを決める要がある。(ii) 1 版に 3 つの話（4 つの部品を寄せる〈権限・結合・マスタの置き場の読みを替える〉・事例の表・書式の 4 本）で、確かめる範囲が access_parity・access_write_parity・lists_parity（結合）・masters_parity まで広がる。(iii) PARTS の型の確かめは isinstance（display_formats.py:56）で、bool が int に当たるなどの Python の型の端も写す要がある（書式の部品は dict・list だけなので小さい）"
+    }
+   }
+  },
+  {
+   "name": "3 回目",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は各案の seen）",
+   "self_check": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（-0 で置く字が割れる・今の勤務体系と権限にも同じ穴・base_rev を force にしても権限の _perm_payload は silent で本文を {} と読む〈text/plain の PUT で項目が空に書き換わる〉・[1] の PUT が 400 から 500 に変わる・check_row は生の値で読む・項目でない鍵を見ない・J′ の py_json は NaN を 1 にする・EQ は判定が 3 か所目・R と EQ に評価関数が無い）を読み直した。routes/access._perm_payload（get_json(silent=True)）・tabaccess_put（silent）・routes/shifts.py（force）・routes/masters._payload（force）を読み、4 組の書く道の本文の読み方を表にした。新しい案は EJ・RJ・UJ・EP の 4 つ（E′ を E″、R を R′ に直して持ち越す。J′・EQ は外した）。方向は 8 本を正す E″・8 本＋数の表 EJ・最小の組 R′・最小＋数の表 RJ・土台だけ UJ・8 本＋本物の自己診断 EP で偏っていない。",
+   "proposals": {
+    "E″ 設備・ロールのマスタ 8 本（2 回目の指摘を先に）": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 7,
+      "form": 9,
+      "place": 8,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『本文が表でなければ版を読まない』とおりに routes/common.base_rev を get_json(force=True, silent=True)＋表でなければ {} に直すと、消す道の本文が表でない形で Python は 500 から『消す』に変わるのに、窓は 500 のまま（shifts_write.rs:340〜345・access_write.rs:389〜393 は、3.75.0 の作った後の採点で『Python は base_rev で落ちて 500・書かない』に合わせた所）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/probe.py（今と直した形を流した）で、DELETE /api/masters/shifts/1?rev=1 本文 [1] は 例外(500)→200 で消える・DELETE /api/masters/shifts/2 本文 \"x\" は 例外→200 で消える・DELETE /api/masters/rolls/1?rev=1 [1] は 例外→200 で消える・DELETE /api/masters/access/3?rev=1 [1] は 例外→200 で消える、PUT /api/masters/rolls/2 [1] は 例外→400（TypeError）・PUT /api/masters/access/2 [1] は 例外→400（AttributeError）、PUT /api/masters/shifts/3 [1] は shifts.py:49 の dict() が master_call の外なので 500 のまま。直した写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog）で tests/shifts_oracle.py を流すと、場面『直す・消す・行の版』の DELETE /api/masters/shifts/11 [1] rev=1 が 500→200、続く DELETE \"x\" が 500→404 に変わる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/sh_now.json と sh_fix.json）。案の文は『窓は Content-Type を見ないので同じ 1 つの決まりになる』として窓の 500 の所と shifts_oracle の期待を直すことに触れておらず、文のとおりに作ると shifts_parity が落ちる／窓と Python の答えが 500 と 200 で割れる"
+      }
+     ],
+     "seen": "2 回目の指摘の直り（6 案に共通の土台）: (1) JSON の -0: 『整数の -0 は Python に任せる』と決めた（直った。-0.0 は Python も窓も『-0.0』なので整数の字の -0 だけでよいという読みも正しい。字を走査する要があるのは serde が -0 を f64 と読み、Value からは -0 と -0.0 を見分けられないため）。(2) 権限の _perm_payload・tabaccess_put を force=True, silent=True にする（直った。直した写しで text/plain の PUT /api/masters/access は本文の項目を読む。tests/access_write_oracle.py の 64 歩は状態の数が 1 つも変わらない〈/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/aw_now.json・aw_fix.json〉）。(3) 表でない本文で版を読まない（text/plain の [1] の PUT は 400 のまま。直った）。(4) 項目でない鍵は見ない（直った）。(5) check_row は生の値で読む（0・False は空。直った）。Python の 3 つの直しを写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog。作業ツリーは変えていない）に当てて program の試験を全部流すと Ran 691・FAILED (failures=1, skipped=10) で、落ちたのは版を上げていない test_version だけ（ほかの道・既存の試験は壊れない）。画面は shared.js:46 の sendBeacon も含めていつも application/json なので画面の答えは変わらない。 良い所: 2 回目の E′ の減点（-0）と (ii)〜(vi) をすべて文で受けた。8 本が master_rows.rs の Spec に載り、評価関数 equipment_rows_parity の場面（null の必須・text/plain・並び／表・-0・大きな整数・旧い列名・3 つの言葉と * ?・0 や False の生の値・項目でない鍵・版の衝突）と本物の道の試験が具体的。書く道が 1 版で 8 本進む。案の文の誤り（共通）: (i) 減点: 表でない本文の消す道（上の where）。(ii) 『書く道の 4 組とも 1 つの決まり』は狭すぎる: base_rev は routes の 12 の組（masters・access・shifts・equipgroups・worklog・presets・dashboard・conversions・formats・settings・sources）が使う。本文を force で読む 9 組は直すと本文と版がそろう（案が数えていない得）が、本文を silent で読む settings.py:45・sources.py の 9 か所は、2 回目に権限で指摘した『版だけ本文から読み、項目は読まない』形に新しくなる。probe.py で text/plain の PUT /api/settings/lot_list.refresh_seconds {value:45, base_rev:99} は 200（既定へ戻す）→409、base_rev:1 は どちらも 200 で値を消して既定へ戻す。画面は送らない形で、窓は settings・sources を受けないので減点はしないが、『1 つの決まり』と言うなら settings・sources の本文も force にするか、そこだけ版を読まないかを決める要がある。(iii) 必須の null の直しを `data.get(required) or ''` と書くと 0・False の設備名まで断る（今の Python は str(0)=『0』を通す）。None だけを空と読む形にすること（写しではそう書いて流した）。 (iv) 任せる判定を master_rows.rs へ移すと勤務体系・権限の答えも替わる（-0・権限の項目の並び／表は今まで窓が置いていた〈access_write.rs:24〉のが Python に回る）が、その事例を shifts_oracle・access_write_oracle に足すことが文に無く、評価関数は設備・ロールだけを見る。(v) 1 版の話が 5 つ（Python の 3 つの直し・判定の 1 か所化・設備名の部品・8 本・旧い列名）で、確かめる範囲が勤務体系・権限・計算（calc_parity）まで広がる。(vi) shifts_write の awkward には表示順の字の 19 桁以上（py_int で読める字）を見る項目ごとの読み方があり、数の字の走査に置き換えるときに落とさないこと"
+    },
+    "EJ 設備・ロール 8 本と数の読み方の事例の表（新）": {
+     "score": {
+      "order": 8,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 9,
+      "intuitive": 7,
+      "form": 9,
+      "place": 9,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『本文が表でなければ版を読まない』とおりに routes/common.base_rev を get_json(force=True, silent=True)＋表でなければ {} に直すと、消す道の本文が表でない形で Python は 500 から『消す』に変わるのに、窓は 500 のまま（shifts_write.rs:340〜345・access_write.rs:389〜393 は、3.75.0 の作った後の採点で『Python は base_rev で落ちて 500・書かない』に合わせた所）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/probe.py（今と直した形を流した）で、DELETE /api/masters/shifts/1?rev=1 本文 [1] は 例外(500)→200 で消える・DELETE /api/masters/shifts/2 本文 \"x\" は 例外→200 で消える・DELETE /api/masters/rolls/1?rev=1 [1] は 例外→200 で消える・DELETE /api/masters/access/3?rev=1 [1] は 例外→200 で消える、PUT /api/masters/rolls/2 [1] は 例外→400（TypeError）・PUT /api/masters/access/2 [1] は 例外→400（AttributeError）、PUT /api/masters/shifts/3 [1] は shifts.py:49 の dict() が master_call の外なので 500 のまま。直した写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog）で tests/shifts_oracle.py を流すと、場面『直す・消す・行の版』の DELETE /api/masters/shifts/11 [1] rev=1 が 500→200、続く DELETE \"x\" が 500→404 に変わる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/sh_now.json と sh_fix.json）。案の文は『窓は Content-Type を見ないので同じ 1 つの決まりになる』として窓の 500 の所と shifts_oracle の期待を直すことに触れておらず、文のとおりに作ると shifts_parity が落ちる／窓と Python の答えが 500 と 200 で割れる"
+      }
+     ],
+     "seen": "2 回目の指摘の直り（6 案に共通の土台）: (1) JSON の -0: 『整数の -0 は Python に任せる』と決めた（直った。-0.0 は Python も窓も『-0.0』なので整数の字の -0 だけでよいという読みも正しい。字を走査する要があるのは serde が -0 を f64 と読み、Value からは -0 と -0.0 を見分けられないため）。(2) 権限の _perm_payload・tabaccess_put を force=True, silent=True にする（直った。直した写しで text/plain の PUT /api/masters/access は本文の項目を読む。tests/access_write_oracle.py の 64 歩は状態の数が 1 つも変わらない〈/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/aw_now.json・aw_fix.json〉）。(3) 表でない本文で版を読まない（text/plain の [1] の PUT は 400 のまま。直った）。(4) 項目でない鍵は見ない（直った）。(5) check_row は生の値で読む（0・False は空。直った）。Python の 3 つの直しを写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog。作業ツリーは変えていない）に当てて program の試験を全部流すと Ran 691・FAILED (failures=1, skipped=10) で、落ちたのは版を上げていない test_version だけ（ほかの道・既存の試験は壊れない）。画面は shared.js:46 の sendBeacon も含めていつも application/json なので画面の答えは変わらない。 良い所: E″ に、JSON の数の字の事例の表（tools/jsonnum-cases.py → tests/fixtures/jsonnum_cases.json、cargo test --test jsonnum_cases・tests/test_jsonnum_cases.py）を足した。program/tools/pynum-cases.py・tests/test_pynum_cases.py・desktop/tests/pynum_cases.rs と同じ型で、1 か所に寄せた判定を勤務体系・権限・設備・ロールのどれにも効く表が見張るので、E″ の (iv)（勤務体系・権限の -0 の事例が無い）を作りで塞ぐ。-0・-0.0・1E5・1e16・9223372036854775807／…808・18446744073709551616・00・NaN・Infinity の並びは、2 回目に Python と窓の字を突き合わせた 20 の字（score-masters2/rs）の延長で、狙いが正しい。案の文の誤り（共通）: (i) 減点: 表でない本文の消す道（上の where）。(ii) 『書く道の 4 組とも 1 つの決まり』は狭すぎる: base_rev は routes の 12 の組（masters・access・shifts・equipgroups・worklog・presets・dashboard・conversions・formats・settings・sources）が使う。本文を force で読む 9 組は直すと本文と版がそろう（案が数えていない得）が、本文を silent で読む settings.py:45・sources.py の 9 か所は、2 回目に権限で指摘した『版だけ本文から読み、項目は読まない』形に新しくなる。probe.py で text/plain の PUT /api/settings/lot_list.refresh_seconds {value:45, base_rev:99} は 200（既定へ戻す）→409、base_rev:1 は どちらも 200 で値を消して既定へ戻す。画面は送らない形で、窓は settings・sources を受けないので減点はしないが、『1 つの決まり』と言うなら settings・sources の本文も force にするか、そこだけ版を読まないかを決める要がある。(iii) 必須の null の直しを `data.get(required) or ''` と書くと 0・False の設備名まで断る（今の Python は str(0)=『0』を通す）。None だけを空と読む形にすること（写しではそう書いて流した）。 (iv) 1 版の話が 6 つに増え、いちばん重い（chunk・hierarchy・layout を下げた）。(v) 表の『深い入れ子の中の数』は、並び・表の値は丸ごと Python に任せる決まりなので窓の判定では答えが 1 つ（任せる）しかなく、表の行としては鍵の位置（項目か・項目でない鍵か）を持たせないと『項目でない鍵は見ない』を見張れない。表に本文の形（どの鍵の値か）の列を持たせること。(vi) 1e400・NaN は serde が読めず今も Python に任せる（needs_python）ので、表では既に正しい行"
+    },
+    "R′ ロールのマスタ 4 本（2 回目の R を正す）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 8,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『本文が表でなければ版を読まない』とおりに routes/common.base_rev を get_json(force=True, silent=True)＋表でなければ {} に直すと、消す道の本文が表でない形で Python は 500 から『消す』に変わるのに、窓は 500 のまま（shifts_write.rs:340〜345・access_write.rs:389〜393 は、3.75.0 の作った後の採点で『Python は base_rev で落ちて 500・書かない』に合わせた所）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/probe.py（今と直した形を流した）で、DELETE /api/masters/shifts/1?rev=1 本文 [1] は 例外(500)→200 で消える・DELETE /api/masters/shifts/2 本文 \"x\" は 例外→200 で消える・DELETE /api/masters/rolls/1?rev=1 [1] は 例外→200 で消える・DELETE /api/masters/access/3?rev=1 [1] は 例外→200 で消える、PUT /api/masters/rolls/2 [1] は 例外→400（TypeError）・PUT /api/masters/access/2 [1] は 例外→400（AttributeError）、PUT /api/masters/shifts/3 [1] は shifts.py:49 の dict() が master_call の外なので 500 のまま。直した写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog）で tests/shifts_oracle.py を流すと、場面『直す・消す・行の版』の DELETE /api/masters/shifts/11 [1] rev=1 が 500→200、続く DELETE \"x\" が 500→404 に変わる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/sh_now.json と sh_fix.json）。案の文は『窓は Content-Type を見ないので同じ 1 つの決まりになる』として窓の 500 の所と shifts_oracle の期待を直すことに触れておらず、文のとおりに作ると shifts_parity が落ちる／窓と Python の答えが 500 と 200 で割れる"
+      }
+     ],
+     "seen": "2 回目の指摘の直り（6 案に共通の土台）: (1) JSON の -0: 『整数の -0 は Python に任せる』と決めた（直った。-0.0 は Python も窓も『-0.0』なので整数の字の -0 だけでよいという読みも正しい。字を走査する要があるのは serde が -0 を f64 と読み、Value からは -0 と -0.0 を見分けられないため）。(2) 権限の _perm_payload・tabaccess_put を force=True, silent=True にする（直った。直した写しで text/plain の PUT /api/masters/access は本文の項目を読む。tests/access_write_oracle.py の 64 歩は状態の数が 1 つも変わらない〈/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/aw_now.json・aw_fix.json〉）。(3) 表でない本文で版を読まない（text/plain の [1] の PUT は 400 のまま。直った）。(4) 項目でない鍵は見ない（直った）。(5) check_row は生の値で読む（0・False は空。直った）。Python の 3 つの直しを写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog。作業ツリーは変えていない）に当てて program の試験を全部流すと Ran 691・FAILED (failures=1, skipped=10) で、落ちたのは版を上げていない test_version だけ（ほかの道・既存の試験は壊れない）。画面は shared.js:46 の sendBeacon も含めていつも application/json なので画面の答えは変わらない。 良い所: 2 回目の R の減点（-0）と (iii)（権限の本文）・(iv)（評価関数が無い）を直した。ロールは SPECS の roll_master（unique なし・renamed なし・_check_row なし）でいちばん閉じた組。案の文の誤り（共通）: (i) 減点: 表でない本文の消す道（上の where）。(ii) 『書く道の 4 組とも 1 つの決まり』は狭すぎる: base_rev は routes の 12 の組（masters・access・shifts・equipgroups・worklog・presets・dashboard・conversions・formats・settings・sources）が使う。本文を force で読む 9 組は直すと本文と版がそろう（案が数えていない得）が、本文を silent で読む settings.py:45・sources.py の 9 か所は、2 回目に権限で指摘した『版だけ本文から読み、項目は読まない』形に新しくなる。probe.py で text/plain の PUT /api/settings/lot_list.refresh_seconds {value:45, base_rev:99} は 200（既定へ戻す）→409、base_rev:1 は どちらも 200 で値を消して既定へ戻す。画面は送らない形で、窓は settings・sources を受けないので減点はしないが、『1 つの決まり』と言うなら settings・sources の本文も force にするか、そこだけ版を読まないかを決める要がある。(iii) 必須の null の直しを `data.get(required) or ''` と書くと 0・False の設備名まで断る（今の Python は str(0)=『0』を通す）。None だけを空と読む形にすること（写しではそう書いて流した）。 (iv) 道は 4 本だけなのに、判定の 1 か所化（勤務体系・権限の答えが替わる）と Python の 3 つの直し（12 の組の base_rev・権限の 2 本）を同じ版に乗せるので、進む量に比べて確かめる範囲が広い。(v) 評価関数の名前が equipment_rows_parity で、ロールだけの版には合わない（設備の版で同じ名前に足すなら最初から rows_parity などにする）。(vi) 設備の check_row・旧い列名・設備名の部品は次の版へ残る"
+    },
+    "RJ ロール 4 本と数の読み方の事例の表（新）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『本文が表でなければ版を読まない』とおりに routes/common.base_rev を get_json(force=True, silent=True)＋表でなければ {} に直すと、消す道の本文が表でない形で Python は 500 から『消す』に変わるのに、窓は 500 のまま（shifts_write.rs:340〜345・access_write.rs:389〜393 は、3.75.0 の作った後の採点で『Python は base_rev で落ちて 500・書かない』に合わせた所）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/probe.py（今と直した形を流した）で、DELETE /api/masters/shifts/1?rev=1 本文 [1] は 例外(500)→200 で消える・DELETE /api/masters/shifts/2 本文 \"x\" は 例外→200 で消える・DELETE /api/masters/rolls/1?rev=1 [1] は 例外→200 で消える・DELETE /api/masters/access/3?rev=1 [1] は 例外→200 で消える、PUT /api/masters/rolls/2 [1] は 例外→400（TypeError）・PUT /api/masters/access/2 [1] は 例外→400（AttributeError）、PUT /api/masters/shifts/3 [1] は shifts.py:49 の dict() が master_call の外なので 500 のまま。直した写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog）で tests/shifts_oracle.py を流すと、場面『直す・消す・行の版』の DELETE /api/masters/shifts/11 [1] rev=1 が 500→200、続く DELETE \"x\" が 500→404 に変わる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/sh_now.json と sh_fix.json）。案の文は『窓は Content-Type を見ないので同じ 1 つの決まりになる』として窓の 500 の所と shifts_oracle の期待を直すことに触れておらず、文のとおりに作ると shifts_parity が落ちる／窓と Python の答えが 500 と 200 で割れる"
+      }
+     ],
+     "seen": "2 回目の指摘の直り（6 案に共通の土台）: (1) JSON の -0: 『整数の -0 は Python に任せる』と決めた（直った。-0.0 は Python も窓も『-0.0』なので整数の字の -0 だけでよいという読みも正しい。字を走査する要があるのは serde が -0 を f64 と読み、Value からは -0 と -0.0 を見分けられないため）。(2) 権限の _perm_payload・tabaccess_put を force=True, silent=True にする（直った。直した写しで text/plain の PUT /api/masters/access は本文の項目を読む。tests/access_write_oracle.py の 64 歩は状態の数が 1 つも変わらない〈/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/aw_now.json・aw_fix.json〉）。(3) 表でない本文で版を読まない（text/plain の [1] の PUT は 400 のまま。直った）。(4) 項目でない鍵は見ない（直った）。(5) check_row は生の値で読む（0・False は空。直った）。Python の 3 つの直しを写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog。作業ツリーは変えていない）に当てて program の試験を全部流すと Ran 691・FAILED (failures=1, skipped=10) で、落ちたのは版を上げていない test_version だけ（ほかの道・既存の試験は壊れない）。画面は shared.js:46 の sendBeacon も含めていつも application/json なので画面の答えは変わらない。 良い所: R′ に EJ と同じ数の事例の表を足し、判定を表が見張る（勤務体系・権限の -0 も）。案の文の誤り（共通）: (i) 減点: 表でない本文の消す道（上の where）。(ii) 『書く道の 4 組とも 1 つの決まり』は狭すぎる: base_rev は routes の 12 の組（masters・access・shifts・equipgroups・worklog・presets・dashboard・conversions・formats・settings・sources）が使う。本文を force で読む 9 組は直すと本文と版がそろう（案が数えていない得）が、本文を silent で読む settings.py:45・sources.py の 9 か所は、2 回目に権限で指摘した『版だけ本文から読み、項目は読まない』形に新しくなる。probe.py で text/plain の PUT /api/settings/lot_list.refresh_seconds {value:45, base_rev:99} は 200（既定へ戻す）→409、base_rev:1 は どちらも 200 で値を消して既定へ戻す。画面は送らない形で、窓は settings・sources を受けないので減点はしないが、『1 つの決まり』と言うなら settings・sources の本文も force にするか、そこだけ版を読まないかを決める要がある。(iii) 必須の null の直しを `data.get(required) or ''` と書くと 0・False の設備名まで断る（今の Python は str(0)=『0』を通す）。None だけを空と読む形にすること（写しではそう書いて流した）。 (iv) 文の終わりが『str(v).strip() と同じ字にする』で、R′ にはあったロールの 4 本の突き合わせ（equipment_rows_parity のロールの場面）と lot の本物の道の試験が抜けている。2 回目の R の (iv)『ロールの 4 本と Python の 2 つの直しの突き合わせが無い』がそのまま戻った（数の表は字の読み方だけを見て、道の答え・断る言葉・できたファイルは見ない）。(v) 量は 4 本で小さく、版の重さは表・判定・Python の直しに偏る"
+    },
+    "UJ 任せる判定の 1 か所化・Python の欠けの直し・数の事例の表（道 0 本・新）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 2,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 5,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『本文が表でなければ版を読まない』とおりに routes/common.base_rev を get_json(force=True, silent=True)＋表でなければ {} に直すと、消す道の本文が表でない形で Python は 500 から『消す』に変わるのに、窓は 500 のまま（shifts_write.rs:340〜345・access_write.rs:389〜393 は、3.75.0 の作った後の採点で『Python は base_rev で落ちて 500・書かない』に合わせた所）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/probe.py（今と直した形を流した）で、DELETE /api/masters/shifts/1?rev=1 本文 [1] は 例外(500)→200 で消える・DELETE /api/masters/shifts/2 本文 \"x\" は 例外→200 で消える・DELETE /api/masters/rolls/1?rev=1 [1] は 例外→200 で消える・DELETE /api/masters/access/3?rev=1 [1] は 例外→200 で消える、PUT /api/masters/rolls/2 [1] は 例外→400（TypeError）・PUT /api/masters/access/2 [1] は 例外→400（AttributeError）、PUT /api/masters/shifts/3 [1] は shifts.py:49 の dict() が master_call の外なので 500 のまま。直した写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog）で tests/shifts_oracle.py を流すと、場面『直す・消す・行の版』の DELETE /api/masters/shifts/11 [1] rev=1 が 500→200、続く DELETE \"x\" が 500→404 に変わる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/sh_now.json と sh_fix.json）。案の文は『窓は Content-Type を見ないので同じ 1 つの決まりになる』として窓の 500 の所と shifts_oracle の期待を直すことに触れておらず、文のとおりに作ると shifts_parity が落ちる／窓と Python の答えが 500 と 200 で割れる"
+      }
+     ],
+     "seen": "2 回目の指摘の直り（6 案に共通の土台）: (1) JSON の -0: 『整数の -0 は Python に任せる』と決めた（直った。-0.0 は Python も窓も『-0.0』なので整数の字の -0 だけでよいという読みも正しい。字を走査する要があるのは serde が -0 を f64 と読み、Value からは -0 と -0.0 を見分けられないため）。(2) 権限の _perm_payload・tabaccess_put を force=True, silent=True にする（直った。直した写しで text/plain の PUT /api/masters/access は本文の項目を読む。tests/access_write_oracle.py の 64 歩は状態の数が 1 つも変わらない〈/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/aw_now.json・aw_fix.json〉）。(3) 表でない本文で版を読まない（text/plain の [1] の PUT は 400 のまま。直った）。(4) 項目でない鍵は見ない（直った）。(5) check_row は生の値で読む（0・False は空。直った）。Python の 3 つの直しを写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog。作業ツリーは変えていない）に当てて program の試験を全部流すと Ran 691・FAILED (failures=1, skipped=10) で、落ちたのは版を上げていない test_version だけ（ほかの道・既存の試験は壊れない）。画面は shared.js:46 の sendBeacon も含めていつも application/json なので画面の答えは変わらない。 良い所: 2 回目の U の (iii)（-0 を直すと書いていない）・(ii)（権限の本文）を直し、数の表で判定を見張る。土台だけの版として決まりが 1 か所になり、勤務体系・権限の今の -0 の穴を道を増やさずに塞ぐ。次の版の設備・ロールは型に載せるだけになる。案の文の誤り（共通）: (i) 減点: 表でない本文の消す道（上の where）。(ii) 『書く道の 4 組とも 1 つの決まり』は狭すぎる: base_rev は routes の 12 の組（masters・access・shifts・equipgroups・worklog・presets・dashboard・conversions・formats・settings・sources）が使う。本文を force で読む 9 組は直すと本文と版がそろう（案が数えていない得）が、本文を silent で読む settings.py:45・sources.py の 9 か所は、2 回目に権限で指摘した『版だけ本文から読み、項目は読まない』形に新しくなる。probe.py で text/plain の PUT /api/settings/lot_list.refresh_seconds {value:45, base_rev:99} は 200（既定へ戻す）→409、base_rev:1 は どちらも 200 で値を消して既定へ戻す。画面は送らない形で、窓は settings・sources を受けないので減点はしないが、『1 つの決まり』と言うなら settings・sources の本文も force にするか、そこだけ版を読まないかを決める要がある。(iii) 必須の null の直しを `data.get(required) or ''` と書くと 0・False の設備名まで断る（今の Python は str(0)=『0』を通す）。None だけを空と読む形にすること（写しではそう書いて流した）。 (iv) 道を移さない版でも、Python の base_rev の直しは窓が受けている勤務体系・権限の消す道の答えを替えるので、上の減点はこの案にも当たる（shifts_parity が落ちる）。(v) 書く道が 1 本も進まない（前の段で 3 回とも落ちた所。ステップ数 2）。(vi) U の (iv)（権限の項目の並び・表が Python に回る形を access_write_parity に足す）は文に無いまま"
+    },
+    "EP 設備・ロール 8 本と窓の自己診断（新）": {
+     "score": {
+      "order": 8,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 6,
+      "form": 8,
+      "place": 8,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『本文が表でなければ版を読まない』とおりに routes/common.base_rev を get_json(force=True, silent=True)＋表でなければ {} に直すと、消す道の本文が表でない形で Python は 500 から『消す』に変わるのに、窓は 500 のまま（shifts_write.rs:340〜345・access_write.rs:389〜393 は、3.75.0 の作った後の採点で『Python は base_rev で落ちて 500・書かない』に合わせた所）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/probe.py（今と直した形を流した）で、DELETE /api/masters/shifts/1?rev=1 本文 [1] は 例外(500)→200 で消える・DELETE /api/masters/shifts/2 本文 \"x\" は 例外→200 で消える・DELETE /api/masters/rolls/1?rev=1 [1] は 例外→200 で消える・DELETE /api/masters/access/3?rev=1 [1] は 例外→200 で消える、PUT /api/masters/rolls/2 [1] は 例外→400（TypeError）・PUT /api/masters/access/2 [1] は 例外→400（AttributeError）、PUT /api/masters/shifts/3 [1] は shifts.py:49 の dict() が master_call の外なので 500 のまま。直した写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog）で tests/shifts_oracle.py を流すと、場面『直す・消す・行の版』の DELETE /api/masters/shifts/11 [1] rev=1 が 500→200、続く DELETE \"x\" が 500→404 に変わる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/sh_now.json と sh_fix.json）。案の文は『窓は Content-Type を見ないので同じ 1 つの決まりになる』として窓の 500 の所と shifts_oracle の期待を直すことに触れておらず、文のとおりに作ると shifts_parity が落ちる／窓と Python の答えが 500 と 200 で割れる"
+      }
+     ],
+     "seen": "2 回目の指摘の直り（6 案に共通の土台）: (1) JSON の -0: 『整数の -0 は Python に任せる』と決めた（直った。-0.0 は Python も窓も『-0.0』なので整数の字の -0 だけでよいという読みも正しい。字を走査する要があるのは serde が -0 を f64 と読み、Value からは -0 と -0.0 を見分けられないため）。(2) 権限の _perm_payload・tabaccess_put を force=True, silent=True にする（直った。直した写しで text/plain の PUT /api/masters/access は本文の項目を読む。tests/access_write_oracle.py の 64 歩は状態の数が 1 つも変わらない〈/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/aw_now.json・aw_fix.json〉）。(3) 表でない本文で版を読まない（text/plain の [1] の PUT は 400 のまま。直った）。(4) 項目でない鍵は見ない（直った）。(5) check_row は生の値で読む（0・False は空。直った）。Python の 3 つの直しを写し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-masters3/prog。作業ツリーは変えていない）に当てて program の試験を全部流すと Ran 691・FAILED (failures=1, skipped=10) で、落ちたのは版を上げていない test_version だけ（ほかの道・既存の試験は壊れない）。画面は shared.js:46 の sendBeacon も含めていつも application/json なので画面の答えは変わらない。 良い所: E″ に Windows の本物の WebView2 の自己診断（selftest.js。TPA_SELFTEST のときだけ流れる＝CI）で書く往復と X-TPA-By を足し、Linux の試験では見えない窓の振り分けを見る。案の文の誤り（共通）: (i) 減点: 表でない本文の消す道（上の where）。(ii) 『書く道の 4 組とも 1 つの決まり』は狭すぎる: base_rev は routes の 12 の組（masters・access・shifts・equipgroups・worklog・presets・dashboard・conversions・formats・settings・sources）が使う。本文を force で読む 9 組は直すと本文と版がそろう（案が数えていない得）が、本文を silent で読む settings.py:45・sources.py の 9 か所は、2 回目に権限で指摘した『版だけ本文から読み、項目は読まない』形に新しくなる。probe.py で text/plain の PUT /api/settings/lot_list.refresh_seconds {value:45, base_rev:99} は 200（既定へ戻す）→409、base_rev:1 は どちらも 200 で値を消して既定へ戻す。画面は送らない形で、窓は settings・sources を受けないので減点はしないが、『1 つの決まり』と言うなら settings・sources の本文も force にするか、そこだけ版を読まないかを決める要がある。(iii) 必須の null の直しを `data.get(required) or ''` と書くと 0・False の設備名まで断る（今の Python は str(0)=『0』を通す）。None だけを空と読む形にすること（写しではそう書いて流した）。 (iv) 『同じ問い合わせを engine=python で Python にも尋ねて答えが同じ』は書く道では成り立たない: 足すを 2 回すれば行が 2 つでき id・updated_at・rev が違い、直す・消すは 2 回目が 409／404 になる。selftest.js にはまだマスタを書く往復が無く（今あるのは /api/masters/tabaccess の GET と ui-state・calculate の engine=python）、窓が書いた行を engine=python の GET で Python が読んで同じ行か、を見る形に直す要がある。(v) E″ の (iv)〜(vi) もそのまま。(vi) 1 版の話が E″ より 1 つ多く、自己診断が共有のマスタを書く危うさ（後片付けが落ちたときに行が残る）も増える"
+    }
+   }
+  }
+ ],
+ "proposals_text": {
+  "E 設備・ロールのマスタ 8 本": "GET／POST /api/masters/equipment・PUT／DELETE …/<id> と rolls の同じ 4 本を窓が受ける。master_rows.rs の Spec に equipment_master（設備名が一意・旧い列名 巻出し方向→巻取方向）と roll_master を足し、設備の確かめ（equipment_names.check_row の 2 つの言葉）は calc.rs の parse_patterns・is_wild・norm を使って 1 か所に写す。値は Python の str(v).strip()（worksum::py_str）で字にして置くので、数の書き方・鍵の順は置く字に出ない。必須の列（設備名・設備）が空の 400 の言葉も写す。窓が読めない本文・i64 に入らない id や版・表でない本文の消す道は、勤務体系と同じ決まりで Python に任せる。書いたら計算のマスタ（calc の Masters は毎回置き場から読む）と一覧の設定の覚えを捨てる。評価関数は masters_rows_parity（← Python の道で 6 場面ほど・同一工程の名前の取り合い・* ?・旧い列名の行・版の衝突）と本物の道の試験",
+  "W 作業実績の登録 5 本": "GET /api/masters/worklog・PUT／DELETE /api/masters/worklog/<id>・PUT /api/masters/worklog/order・POST /api/masters/worklog/scan を窓が受ける。直す道は表示を有／無に・設備名の空を断る・キーは変えない、並べ替えは work_log.order_keys、探す道はフォルダの中のファイル（ファイル ID）を登録に当てる work_log.match。一覧は写しの状態（読めない・止まった）も載せる。窓の lists.rs が作業実績のファイルを既に探しているので、探す道の作りは寄せられる。評価関数は worklog_parity（← Python の道。名前の変わったファイル・ID の無い行・新しいファイル・見つからない行）",
+  "EW 設備・ロールと作業実績の登録 13 本": "E と W を 1 版にする。どちらも現場のマスタ管理の画面のタブで、master_rows.rs の型に載る",
+  "J 順を保つ JSON の木と共有の書式 4 本": "pyjson.rs（鍵の順・並び・数・入れ子をすべて持つ木と、json.dumps(ensure_ascii=False) と同じ字の書き手、Python の端〈重なる鍵・1e+16・NaN・大きな整数・深さ〉を見つけたら任せる）と事例の表 tests/fixtures/pyjson_cases.json を作り、その上で GET／POST／PUT／DELETE /api/masters/formats を移す（中身は字で置くので、置く字の書き手に木を使う）",
+  "G 設備グループ 4 本": "GET／POST／PUT／DELETE /api/masters/equipgroups を窓が受ける。名前で選ぶルール（正規表現・* ?）の確かめを Python と同じにするため、Python の re が読む・読まない形の事例の表（tests/fixtures/regex_cases.json）を焼いて、窓の fancy-regex と突き合わせる。読みが違う形は Python に任せる",
+  "L LotDsp の 9 道": "lotdsp_direct（見えない Edge を CDP で）・lotdsp_api・lotdsp_progress・lotdsp_link を窓へ。WebSocket は手で組んでいるので crate は ureq だけ。Linux の CI の RealBrowser と作り物の LotDsp で突き合わせる",
+  "S スケジュール": "/api/schedule と /api/src/sch（データ元のカード・結合・ダッシュボードの cm3 の分岐）を窓へ。CM3 は作り物（tests/schedule_fixture.py）で突き合わせ、ファイル名の sha1 と Windows のプロキシの読み方をそろえる"
+ },
+ "proposals_text_2": {
+  "E′ 設備・ロールのマスタ 8 本（1 回目の指摘を先に）": "E の 8 本。先に Python の欠けを直す: (a) 必須の列（設備名・設備）が null でも空として 400 にする（routes/masters._payload の `required in data and not str(data.get(required, '')).strip()` は null を 'None' と読んで通す）。(b) 画面の版 base_rev を、本文の読み方と同じく Content-Type によらず読む（common.base_rev の get_json(silent=True) を force=True, silent=True に。_payload は force=True で読むので、今は text/plain の本文の項目は書くのに版は見ない食い違い。窓の master_rows::base_rev は既に Content-Type を見ないので、直すと窓と Python が 1 つの決まりになる。勤務体系・権限の書く道にも効く）。値の型: 字・null・i64 に入る整数・有限の小数（pyfmt::float_repr で Python の str と同じ字）・真偽（True/False）は窓が str(v).strip() と同じ字にする。並び・表・i64 に入らない整数・NaN／Infinity の本文は Python に任せる（Python の str の並び・表の書き方〈'[1, 2.5]'・\"{'b': 1}\"〉を写さない）。「任せる」判定を master_rows.rs の 1 か所に寄せる: Spec に項目ごとの読み方（字に直す・JSON の字・表示順）を持たせ、shifts_write.rs の awkward／needs_python と access_write.rs の needs_python をそこへ移す（決まりは 1 か所・shifts_parity と access_write_parity が見張る）。設備の確かめは equipment_names.check_row の 3 つの言葉（ほかの設備名に当たる・同一工程の名前が重なる・設備名がほかの行の同一工程の名前に当たる）を、calc.rs の parse_patterns・is_wild・norm と * ? の読み方を新しい部品 equipment_names.rs へ切り出して、計算と書く道で 1 つに使う。評価関数は masters_rows_parity（← Python の道。null・text/plain の版・並び／表の値・大きな整数・旧い列名・3 つの言葉・* ?）と本物の道の試験",
+  "R ロールのマスタ 4 本だけ（新）": "ロールのマスタ（一意も確かめも無い）の 4 本だけを移し、先に Python の欠けを直す: (a) 必須の列（設備名・設備）が null でも空として 400 にする（routes/masters._payload の `required in data and not str(data.get(required, '')).strip()` は null を 'None' と読んで通す）。(b) 画面の版 base_rev を、本文の読み方と同じく Content-Type によらず読む（common.base_rev の get_json(silent=True) を force=True, silent=True に。_payload は force=True で読むので、今は text/plain の本文の項目は書くのに版は見ない食い違い。窓の master_rows::base_rev は既に Content-Type を見ないので、直すと窓と Python が 1 つの決まりになる。勤務体系・権限の書く道にも効く）。値の型: 字・null・i64 に入る整数・有限の小数（pyfmt::float_repr で Python の str と同じ字）・真偽（True/False）は窓が str(v).strip() と同じ字にする。並び・表・i64 に入らない整数・NaN／Infinity の本文は Python に任せる（Python の str の並び・表の書き方〈'[1, 2.5]'・\"{'b': 1}\"〉を写さない）。「任せる」判定を master_rows.rs の 1 か所に寄せる: Spec に項目ごとの読み方（字に直す・JSON の字・表示順）を持たせ、shifts_write.rs の awkward／needs_python と access_write.rs の needs_python をそこへ移す（決まりは 1 か所・shifts_parity と access_write_parity が見張る）。設備のマスタと確かめの部品は次の版へ回す（1 版に 1 つの組・最小の量）",
+  "EQ 設備のマスタ 4 本と設備名の部品（新）": "設備のマスタの 4 本と、equipment_names.rs の切り出し（計算の読み替え・同一工程の名前・確かめの 3 つの言葉を 1 か所に）だけ。先に Python の欠けを直す: (a) 必須の列（設備名・設備）が null でも空として 400 にする（routes/masters._payload の `required in data and not str(data.get(required, '')).strip()` は null を 'None' と読んで通す）。(b) 画面の版 base_rev を、本文の読み方と同じく Content-Type によらず読む（common.base_rev の get_json(silent=True) を force=True, silent=True に。_payload は force=True で読むので、今は text/plain の本文の項目は書くのに版は見ない食い違い。窓の master_rows::base_rev は既に Content-Type を見ないので、直すと窓と Python が 1 つの決まりになる。勤務体系・権限の書く道にも効く）。値の型: 字・null・i64 に入る整数・有限の小数（pyfmt::float_repr で Python の str と同じ字）・真偽（True/False）は窓が str(v).strip() と同じ字にする。並び・表・i64 に入らない整数・NaN／Infinity の本文は Python に任せる（Python の str の並び・表の書き方〈'[1, 2.5]'・\"{'b': 1}\"〉を写さない）。任せる判定の 1 か所化は次の版",
+  "U 任せる判定の 1 か所化と Python の欠けの直しだけ（道 0 本・新）": "「任せる」判定を master_rows.rs の 1 か所に寄せる: Spec に項目ごとの読み方（字に直す・JSON の字・表示順）を持たせ、shifts_write.rs の awkward／needs_python と access_write.rs の needs_python をそこへ移す（決まりは 1 か所・shifts_parity と access_write_parity が見張る）。先に Python の欠けを直す: (a) 必須の列（設備名・設備）が null でも空として 400 にする（routes/masters._payload の `required in data and not str(data.get(required, '')).strip()` は null を 'None' と読んで通す）。(b) 画面の版 base_rev を、本文の読み方と同じく Content-Type によらず読む（common.base_rev の get_json(silent=True) を force=True, silent=True に。_payload は force=True で読むので、今は text/plain の本文の項目は書くのに版は見ない食い違い。窓の master_rows::base_rev は既に Content-Type を見ないので、直すと窓と Python が 1 つの決まりになる。勤務体系・権限の書く道にも効く）。道は移さない（次の版の設備・ロールが判定を使うだけになる）",
+  "J′ JSON の部品を寄せて書式 4 本（1 回目の J を正す）": "今ある JSON の部品（access.rs の py_json・join.rs の py_dumps・access_write.rs の Ordered・master_store.rs の read_json）を pyjson.rs の 1 つに寄せ、事例の表 tests/fixtures/pyjson_cases.json で Python と突き合わせ、その上で書式の 4 本を移す。1e+16 は float_repr を使う。名前に並び・表が来たときは任せる"
+ },
+ "self_check_2": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘（E の str() の並び・表・10**20 の書き方・null がすり抜ける・check_row は 3 つの言葉・base_rev は silent で Content-Type を見る・任せる判定が 3 か所目になる／W の same_fid・_master_view・uuid／J の部品が増える・float_repr が既にある／G の equipment_seen）を読み直した。routes/common.base_rev（get_json(silent=True)）と web.Request.get_json（force でなく JSON でなければ silent で None）を読み、窓の master_rows::base_rev は Content-Type を見ないことを確かめた（今の勤務体系・権限の書く道でも同じ食い違い）。pyfmt::float_repr・worksum::py_str・shifts_write::awkward／needs_python・access_write::needs_python・master_store::has_wide_int の場所を確かめた。新しい案は R・EQ・U の 3 つ（E を E′、J を J′ に直して持ち越す）。方向は 8 本を正して移す E′・最小の 1 組 R・設備と部品 EQ・土台だけ U・JSON の部品を寄せる J′ で偏っていない。",
+ "proposals_text_3": {
+  "E″ 設備・ロールのマスタ 8 本（2 回目の指摘を先に）": "設備・ロールの 8 本を窓が受ける。Python の欠けを先に直す（書く道の本文と版の読み方を 1 つに）: (a) 必須の列が null でも空として 400（設備・ロール）。(b) 書く道は本文も版も Content-Type によらず読む: routes/common.base_rev を get_json(force=True, silent=True) にし、本文が表でなければ版を読まない（[1] の PUT が 500 に変わらない）。routes/access._perm_payload と tabaccess_put も force=True, silent=True で読む（今は text/plain の正しい本文を {} と読み、PUT で行の項目を空に書き換える）。勤務体系・設備・ロールは既に force で読むので、これで書く道の 4 組とも『本文も版も Content-Type を見ない』になり、窓（master_rows::base_rev・access_write は Content-Type を見ない）と同じ 1 つの決まりになる。画面はいつも application/json で送るので画面の答えは変わらない。直す前の Python で落ちる試験を先に足す（text/plain の PUT・null の必須）。任せる判定（master_rows.rs の 1 か所。Spec に項目ごとの読み方を持たせ、shifts_write の awkward／needs_python と access_write の needs_python をここへ移す）: 本文の中の JSON の数の字を走査し、整数の -0（Python は int の 0、serde は f64 の -0.0）・i64 に入らない整数・1e400 のように有限でない数・NaN／Infinity の字があれば Python に任せる。項目でない鍵（行をそのまま送ったときの updated_by など）は見ない。値が並び・表なら Python に任せる。字・null・i64 の整数・有限の小数（float_repr）・真偽は str(v).strip() と同じ字にする。設備の確かめ（equipment_names.check_row の 3 つの言葉）は calc.rs の text()・parse_patterns・is_wild・norm を使い、値はそろえる前の生の値で読む（0・False は空）。評価関数: cargo test --test equipment_rows_parity（← tests/equipment_rows_oracle.py。Python の本物の道で設備・ロールの 4 本ずつを 8 場面ほど〈null の必須・text/plain の本文と版・並び／表・-0・大きな整数・旧い列名の行・確かめの 3 つの言葉と * ?・0 や False の生の値・項目でない鍵・版の衝突〉流し、答え・断る言葉・できたファイルを窓と突き合わせる）と本物の道の試験 lot::tests::the_window_writes_equipment_and_rolls。",
+  "EJ 設備・ロール 8 本と数の読み方の事例の表（新）": "E″ に数の事例の表を足す。数の読み方の事例の表 tests/fixtures/jsonnum_cases.json（tools/jsonnum-cases.py で Python 3.13 の json.loads と str() から焼く。-0・-0.0・0.0・1.0・1E5・1e-07・1e16・1e400・-1e400・9223372036854775807／…808・18446744073709551616・00 は読めない・NaN・Infinity・深い入れ子の中の数）を作り、窓の判定（任せる／窓が置く字）を cargo test --test jsonnum_cases、古い表を tests/test_jsonnum_cases.py で突き合わせる（pynum_cases と同じ型。勤務体系・権限の書く道の -0 の穴もここで塞がる）。判定はこの表が正しさを見張る。Python の欠けを先に直す（書く道の本文と版の読み方を 1 つに）: (a) 必須の列が null でも空として 400（設備・ロール）。(b) 書く道は本文も版も Content-Type によらず読む: routes/common.base_rev を get_json(force=True, silent=True) にし、本文が表でなければ版を読まない（[1] の PUT が 500 に変わらない）。routes/access._perm_payload と tabaccess_put も force=True, silent=True で読む（今は text/plain の正しい本文を {} と読み、PUT で行の項目を空に書き換える）。勤務体系・設備・ロールは既に force で読むので、これで書く道の 4 組とも『本文も版も Content-Type を見ない』になり、窓（master_rows::base_rev・access_write は Content-Type を見ない）と同じ 1 つの決まりになる。画面はいつも application/json で送るので画面の答えは変わらない。直す前の Python で落ちる試験を先に足す（text/plain の PUT・null の必須）。任せる判定（master_rows.rs の 1 か所。Spec に項目ごとの読み方を持たせ、shifts_write の awkward／needs_python と access_write の needs_python をここへ移す）: 本文の中の JSON の数の字を走査し、整数の -0（Python は int の 0、serde は f64 の -0.0）・i64 に入らない整数・1e400 のように有限でない数・NaN／Infinity の字があれば Python に任せる。項目でない鍵（行をそのまま送ったときの updated_by など）は見ない。値が並び・表なら Python に任せる。字・null・i64 の整数・有限の小数（float_repr）・真偽は str(v).strip() と同じ字にする。設備の確かめ（equipment_names.check_row の 3 つの言葉）は calc.rs の text()・parse_patterns・is_wild・norm を使い、値はそろえる前の生の値で読む（0・False は空）。評価関数: cargo test --test equipment_rows_parity（← tests/equipment_rows_oracle.py。Python の本物の道で設備・ロールの 4 本ずつを 8 場面ほど〈null の必須・text/plain の本文と版・並び／表・-0・大きな整数・旧い列名の行・確かめの 3 つの言葉と * ?・0 や False の生の値・項目でない鍵・版の衝突〉流し、答え・断る言葉・できたファイルを窓と突き合わせる）と本物の道の試験 lot::tests::the_window_writes_equipment_and_rolls。",
+  "R′ ロールのマスタ 4 本（2 回目の R を正す）": "ロールの 4 本だけ。Python の欠けを先に直す（書く道の本文と版の読み方を 1 つに）: (a) 必須の列が null でも空として 400（設備・ロール）。(b) 書く道は本文も版も Content-Type によらず読む: routes/common.base_rev を get_json(force=True, silent=True) にし、本文が表でなければ版を読まない（[1] の PUT が 500 に変わらない）。routes/access._perm_payload と tabaccess_put も force=True, silent=True で読む（今は text/plain の正しい本文を {} と読み、PUT で行の項目を空に書き換える）。勤務体系・設備・ロールは既に force で読むので、これで書く道の 4 組とも『本文も版も Content-Type を見ない』になり、窓（master_rows::base_rev・access_write は Content-Type を見ない）と同じ 1 つの決まりになる。画面はいつも application/json で送るので画面の答えは変わらない。直す前の Python で落ちる試験を先に足す（text/plain の PUT・null の必須）。任せる判定（master_rows.rs の 1 か所。Spec に項目ごとの読み方を持たせ、shifts_write の awkward／needs_python と access_write の needs_python をここへ移す）: 本文の中の JSON の数の字を走査し、整数の -0（Python は int の 0、serde は f64 の -0.0）・i64 に入らない整数・1e400 のように有限でない数・NaN／Infinity の字があれば Python に任せる。項目でない鍵（行をそのまま送ったときの updated_by など）は見ない。値が並び・表なら Python に任せる。字・null・i64 の整数・有限の小数（float_repr）・真偽は str(v).strip() と同じ字にする。評価関数: cargo test --test equipment_rows_parity のロールの場面（null の必須・text/plain・並び／表・-0・大きな整数・版の衝突）と lot の本物の道の試験。",
+  "RJ ロール 4 本と数の読み方の事例の表（新）": "R′ に数の事例の表を足す。数の読み方の事例の表 tests/fixtures/jsonnum_cases.json（tools/jsonnum-cases.py で Python 3.13 の json.loads と str() から焼く。-0・-0.0・0.0・1.0・1E5・1e-07・1e16・1e400・-1e400・9223372036854775807／…808・18446744073709551616・00 は読めない・NaN・Infinity・深い入れ子の中の数）を作り、窓の判定（任せる／窓が置く字）を cargo test --test jsonnum_cases、古い表を tests/test_jsonnum_cases.py で突き合わせる（pynum_cases と同じ型。勤務体系・権限の書く道の -0 の穴もここで塞がる）。Python の欠けを先に直す（書く道の本文と版の読み方を 1 つに）: (a) 必須の列が null でも空として 400（設備・ロール）。(b) 書く道は本文も版も Content-Type によらず読む: routes/common.base_rev を get_json(force=True, silent=True) にし、本文が表でなければ版を読まない（[1] の PUT が 500 に変わらない）。routes/access._perm_payload と tabaccess_put も force=True, silent=True で読む（今は text/plain の正しい本文を {} と読み、PUT で行の項目を空に書き換える）。勤務体系・設備・ロールは既に force で読むので、これで書く道の 4 組とも『本文も版も Content-Type を見ない』になり、窓（master_rows::base_rev・access_write は Content-Type を見ない）と同じ 1 つの決まりになる。画面はいつも application/json で送るので画面の答えは変わらない。直す前の Python で落ちる試験を先に足す（text/plain の PUT・null の必須）。任せる判定（master_rows.rs の 1 か所。Spec に項目ごとの読み方を持たせ、shifts_write の awkward／needs_python と access_write の needs_python をここへ移す）: 本文の中の JSON の数の字を走査し、整数の -0（Python は int の 0、serde は f64 の -0.0）・i64 に入らない整数・1e400 のように有限でない数・NaN／Infinity の字があれば Python に任せる。項目でない鍵（行をそのまま送ったときの updated_by など）は見ない。値が並び・表なら Python に任せる。字・null・i64 の整数・有限の小数（float_repr）・真偽は str(v).strip() と同じ字にする。",
+  "UJ 任せる判定の 1 か所化・Python の欠けの直し・数の事例の表（道 0 本・新）": "道は移さず、Python の欠けを先に直す（書く道の本文と版の読み方を 1 つに）: (a) 必須の列が null でも空として 400（設備・ロール）。(b) 書く道は本文も版も Content-Type によらず読む: routes/common.base_rev を get_json(force=True, silent=True) にし、本文が表でなければ版を読まない（[1] の PUT が 500 に変わらない）。routes/access._perm_payload と tabaccess_put も force=True, silent=True で読む（今は text/plain の正しい本文を {} と読み、PUT で行の項目を空に書き換える）。勤務体系・設備・ロールは既に force で読むので、これで書く道の 4 組とも『本文も版も Content-Type を見ない』になり、窓（master_rows::base_rev・access_write は Content-Type を見ない）と同じ 1 つの決まりになる。画面はいつも application/json で送るので画面の答えは変わらない。直す前の Python で落ちる試験を先に足す（text/plain の PUT・null の必須）。任せる判定（master_rows.rs の 1 か所。Spec に項目ごとの読み方を持たせ、shifts_write の awkward／needs_python と access_write の needs_python をここへ移す）: 本文の中の JSON の数の字を走査し、整数の -0（Python は int の 0、serde は f64 の -0.0）・i64 に入らない整数・1e400 のように有限でない数・NaN／Infinity の字があれば Python に任せる。項目でない鍵（行をそのまま送ったときの updated_by など）は見ない。値が並び・表なら Python に任せる。字・null・i64 の整数・有限の小数（float_repr）・真偽は str(v).strip() と同じ字にする。数の読み方の事例の表 tests/fixtures/jsonnum_cases.json（tools/jsonnum-cases.py で Python 3.13 の json.loads と str() から焼く。-0・-0.0・0.0・1.0・1E5・1e-07・1e16・1e400・-1e400・9223372036854775807／…808・18446744073709551616・00 は読めない・NaN・Infinity・深い入れ子の中の数）を作り、窓の判定（任せる／窓が置く字）を cargo test --test jsonnum_cases、古い表を tests/test_jsonnum_cases.py で突き合わせる（pynum_cases と同じ型。勤務体系・権限の書く道の -0 の穴もここで塞がる）。勤務体系・権限の書く道の -0 の穴と本文の読み方の食い違いを先に塞ぐ。",
+  "EP 設備・ロール 8 本と窓の自己診断（新）": "E″ に、Windows の本物の WebView2 の自己診断（selftest.js）で設備・ロールを 1 行足す・直す・消す往復を足す（X-TPA-By が shell・同じ問い合わせを engine=python で Python にも尋ねて答えが同じ・後片付け）。Python の欠けを先に直す（書く道の本文と版の読み方を 1 つに）: (a) 必須の列が null でも空として 400（設備・ロール）。(b) 書く道は本文も版も Content-Type によらず読む: routes/common.base_rev を get_json(force=True, silent=True) にし、本文が表でなければ版を読まない（[1] の PUT が 500 に変わらない）。routes/access._perm_payload と tabaccess_put も force=True, silent=True で読む（今は text/plain の正しい本文を {} と読み、PUT で行の項目を空に書き換える）。勤務体系・設備・ロールは既に force で読むので、これで書く道の 4 組とも『本文も版も Content-Type を見ない』になり、窓（master_rows::base_rev・access_write は Content-Type を見ない）と同じ 1 つの決まりになる。画面はいつも application/json で送るので画面の答えは変わらない。直す前の Python で落ちる試験を先に足す（text/plain の PUT・null の必須）。任せる判定（master_rows.rs の 1 か所。Spec に項目ごとの読み方を持たせ、shifts_write の awkward／needs_python と access_write の needs_python をここへ移す）: 本文の中の JSON の数の字を走査し、整数の -0（Python は int の 0、serde は f64 の -0.0）・i64 に入らない整数・1e400 のように有限でない数・NaN／Infinity の字があれば Python に任せる。項目でない鍵（行をそのまま送ったときの updated_by など）は見ない。値が並び・表なら Python に任せる。字・null・i64 の整数・有限の小数（float_repr）・真偽は str(v).strip() と同じ字にする。設備の確かめ（equipment_names.check_row の 3 つの言葉）は calc.rs の text()・parse_patterns・is_wild・norm を使い、値はそろえる前の生の値で読む（0・False は空）。評価関数: cargo test --test equipment_rows_parity（← tests/equipment_rows_oracle.py。Python の本物の道で設備・ロールの 4 本ずつを 8 場面ほど〈null の必須・text/plain の本文と版・並び／表・-0・大きな整数・旧い列名の行・確かめの 3 つの言葉と * ?・0 や False の生の値・項目でない鍵・版の衝突〉流し、答え・断る言葉・できたファイルを窓と突き合わせる）と本物の道の試験 lot::tests::the_window_writes_equipment_and_rolls。"
+ },
+ "self_check_3": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（-0 で置く字が割れる・今の勤務体系と権限にも同じ穴・base_rev を force にしても権限の _perm_payload は silent で本文を {} と読む〈text/plain の PUT で項目が空に書き換わる〉・[1] の PUT が 400 から 500 に変わる・check_row は生の値で読む・項目でない鍵を見ない・J′ の py_json は NaN を 1 にする・EQ は判定が 3 か所目・R と EQ に評価関数が無い）を読み直した。routes/access._perm_payload（get_json(silent=True)）・tabaccess_put（silent）・routes/shifts.py（force）・routes/masters._payload（force）を読み、4 組の書く道の本文の読み方を表にした。新しい案は EJ・RJ・UJ・EP の 4 つ（E′ を E″、R を R′ に直して持ち越す。J′・EQ は外した）。方向は 8 本を正す E″・8 本＋数の表 EJ・最小の組 R′・最小＋数の表 RJ・土台だけ UJ・8 本＋本物の自己診断 EP で偏っていない。"
+}

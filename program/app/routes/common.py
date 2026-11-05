@@ -53,8 +53,13 @@ class Forbidden(MasterError):
 
 
 def base_rev():
-    """画面が開いたときの行の版（無ければ確かめない）。PUT は本文の base_rev、DELETE は ?rev=。"""
-    body = request.get_json(silent=True) or {}
+    """画面が開いたときの行の版（無ければ確かめない）。PUT は本文の base_rev、DELETE は ?rev=。
+    本文は Content-Type によらず読む（版 3.77.0。書く道の本文と同じ読み方。窓〈desktop/src/master_rows.rs〉も同じ）。
+    本文が表でない（並び・字・数）ときは行を書かない（500。前は Content-Type が JSON のときだけこうなり、text/plain の [1] では消した）"""
+    body = request.get_json(force=True, silent=True)
+    if body and not isinstance(body, dict):
+        raise TypeError("本文の形が違います")
+    body = body or {}
     v = body.get("base_rev", request.args.get("rev"))
     try:
         return None if v in (None, "") else int(v)

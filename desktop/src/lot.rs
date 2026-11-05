@@ -218,6 +218,34 @@ impl Lot {
         Some((status, v))
     }
 
+    /// 設備・ロールのマスタの 8 本（版 3.77.0。src/equip_write.rs）を窓が受ける。書く道は門番を通し、窓の書く係で書く。
+    /// 判定の材料（access）が無い・me を決められない・マスタを読めない・窓が答えない形は None（Python が答える）
+    fn equip_route(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::equip_write::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let rows = crate::access::Place::from_json(&s.access["place"]).rows(route.kind().name()).ok()?;
+        let store = self.store_for(&s.access)?;
+        let (status, v) = crate::equip_write::handle(&store, route, query, body, &rows)?;
+        if method != "GET" && (200..300).contains(&status) {
+            self.invalidate(); // 一覧の設定（設備名の読み替え）を捨てる（Python が書いたときの after_python と同じ）
+        }
+        Some((status, v))
+    }
+
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
     /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
     /// 頻繁な書き込みでは尋ね直さない
@@ -423,6 +451,9 @@ impl Lot {
         }
         if let Some(route) = crate::shifts_write::route_of(method, path) {
             return self.shifts_route(method, path, route, query, body, ask);
+        }
+        if let Some(route) = crate::equip_write::route_of(method, path) {
+            return self.equip_route(method, path, route, query, body, ask);
         }
         if presence::is_route(method, path) || path == "/api/ui-state" {
             return self.presence_route(method, path, query, body, ask);
@@ -900,6 +931,79 @@ mod tests {
         assert!(v["error"].as_str().unwrap().starts_with("作業実績のフォルダに届きません（"));
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=d", &ask).unwrap();
         assert_eq!((st, v["kind"].as_str()), (503, Some("unreachable")), "写し終えていない係では見せない（前の写しが無い）: {v}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_writes_equipment_and_rolls() {
+        // 版 3.77.0: 設備・ロールの 8 本は窓が受ける（本物の道: Lot::handle_body → equip_route）。読むのは門番なし、書くのは門番を通し、
+        // 書いたら一覧の設定を捨てる。窓が Python と同じに読めない本文・行（整数の -0・並びの値・並びの項目の行）は Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-equip-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(local.join("instance_id"), "inst1").unwrap();
+        let perm = json!([{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "rev": 1},
+                          {"id": 2, "ログインID": "v1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]);
+        let doc = |rows: Value| json!({"schema": 1, "revision": 1, "rows": rows}).to_string();
+        std::fs::write(share.join("access_permissions.json"), doc(perm)).unwrap();
+        std::fs::write(
+            share.join("equipment_master.json"),
+            doc(json!([{"id": 1, "設備名": "ANF", "巻出し方向": "下", "同一工程": "ANI*"}])),
+        )
+        .unwrap();
+        std::fs::write(share.join("roll_master.json"), doc(json!([]))).unwrap();
+        let conf = |login: &str| {
+            json!({"who": {"login": login, "pc": "PC-1", "pcSource": "", "key": format!("PC-1@{login}")},
+                   "place": {"shareDir": share, "shared": ["access_permissions", "tab_access", "equipment_master", "roll_master"],
+                             "data": dir.join("data"), "defaults": dir.join("defaults"), "cache": local.join("master_cache"),
+                             "presence": "", "lockTtl": 20.0}})
+        };
+        let (boss, v1) = (conf("boss"), conf("v1"));
+        let asked = std::cell::Cell::new(0);
+        let ask_boss = || {
+            asked.set(asked.get() + 1);
+            Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": boss.clone()}))
+        };
+        let ask_v1 = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": v1.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        // ① 読む: 旧い列名は読み替え・版の無い行は 1
+        let (st, v) = lot.handle_body("GET", "/api/masters/equipment", "", b"", &ask_boss).expect("窓が受ける");
+        assert_eq!((st, v[0]["巻取方向"].clone(), v[0]["rev"].clone(), v[0].get("巻出し方向")), (200, json!("下"), json!(1), None), "{v}");
+        // ② 足す: 確かめの言葉（同一工程の名前に当たる）・必須の null・足せる形。書いたら一覧の設定を尋ね直す
+        let post = |b: Value| lot.handle_body("POST", "/api/masters/equipment", "", &serde_json::to_vec(&b).unwrap(), &ask_boss).unwrap();
+        let (st, v) = post(json!({"設備名": "ani3"}));
+        assert_eq!((st, v["kind"].as_str()), (400, Some("invalid")), "{v}");
+        let (st, v) = post(json!({"設備名": null}));
+        assert_eq!((st, v["error"].as_str()), (400, Some("設備名は必須です。")), "{v}");
+        let before = asked.get();
+        let (st, v) = post(json!({"設備名": " L-1 ", "巻取方向": 1.5}));
+        assert_eq!((st, v["設備名"].as_str(), v["巻取方向"].as_str()), (201, Some("L-1"), Some("1.5")), "{v}");
+        lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).unwrap();
+        assert_eq!(asked.get(), before + 1, "書いたら一覧の設定を尋ね直す");
+        // ③ ロールを直す・消す（表でない本文の消す道は書かない）
+        let (st, r) = lot.handle_body("POST", "/api/masters/rolls", "", r#"{"設備": "L-1", "本数": 4}"#.as_bytes(), &ask_boss).unwrap();
+        assert_eq!((st, r["本数"].as_str()), (201, Some("4")), "{r}");
+        let (st, _) = lot.handle_body("DELETE", "/api/masters/rolls/1", "rev=1", b"[1]", &ask_boss).unwrap();
+        assert_eq!(st, 500, "表でない本文は書かない");
+        let (st, v) = lot.handle_body("DELETE", "/api/masters/rolls/1", "rev=1", b"", &ask_boss).unwrap();
+        assert_eq!((st, v["status"].as_str()), (200, Some("deleted")), "{v}");
+        // ④ 閲覧のみは門番が断る（読むのはよい）
+        let lot_v1 = Lot::new(dir.join("cache-v1"));
+        assert_eq!(lot_v1.handle_body("GET", "/api/masters/rolls", "", b"", &ask_v1).unwrap().0, 200);
+        let (st, v) = lot_v1.handle_body("POST", "/api/masters/rolls", "", r#"{"設備": "x"}"#.as_bytes(), &ask_v1).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (403, Some("forbidden")), "{v}");
+        // ⑤ Python に任せる: 整数の -0・並びの値・判定の材料が無い・百分率符号の道
+        assert!(lot.handle_body("POST", "/api/masters/equipment", "", r#"{"設備名": "z", "検査計": -0}"#.as_bytes(), &ask_boss).is_none());
+        assert!(lot.handle_body("POST", "/api/masters/rolls", "", r#"{"設備": "z", "本数": [1]}"#.as_bytes(), &ask_boss).is_none());
+        let ask_none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
+        assert!(Lot::new(dir.join("c3")).handle_body("GET", "/api/masters/equipment", "", b"", &ask_none).is_none());
+        assert!(lot.handle_body("GET", "/api/masters/%65quipment", "", b"", &ask_boss).is_none());
+        // ⑥ 置き場の行の項目が並び（Python の str() の書き方）なら、一覧も書く道も Python に任せる
+        std::fs::write(share.join("roll_master.json"), doc(json!([{"id": 9, "設備": ["L-1"]}]))).unwrap();
+        assert!(lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

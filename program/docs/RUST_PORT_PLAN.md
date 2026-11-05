@@ -566,6 +566,30 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
   （本物の道: 版が分からない・中身が答えないときは Python・窓が書いた後と Python が書いた後〈after_python〉の読み直し・覚えている間は前の答え・GET だけ・名乗りが無ければ Python）。
 - 書く道の次の段は、順を保つ JSON の木と事例の表（3 回目の B）を先に作ってから、書式・プリセットを移す。
 
+### 7 段目の続き: 設備・ロールのマスタと書く道の決まり — 版 3.77.0
+
+次に移す範囲は 3 回・18 案を別のエージェントが読んで・動かして採点した（`tools/ui-proposals/2026-11-port-masters.json`。1 回目 E 63.1・2 回目 E′ 70.3・
+3 回目 **EJ 71.6**）。3 回で合格点 80 に届かず、決まりどおり 3 回目の 1 位 EJ（設備・ロールの 8 本と数の読み方の事例の表）に決めた。足りない 8.4 点は、
+1 版の話が多い（Python の直し・任せる判定の 1 か所化・数の表・8 本）・確かめる範囲が勤務体系・権限・計算の試験まで広がる・
+版の読み方を直すと表でない本文の「消す」の答えが Python だけ変わる（採点者の指摘）。最後の点は、Python も窓と同じく 500（書かない）に決めて解いた。
+
+- Python の欠けを先に直した（`tests/test_body_reading.py`。直す前の Python では 3 つとも落ちた）: 書く道の本文と版は Content-Type によらず読む
+  （routes の `get_json(silent=True)` を `force=True, silent=True` に。前は権限・設定・データ元の本文と版が Content-Type を見て、text/plain の正しい本文を
+  {} と読み、権限の行の項目を空に書き換え・版を確かめずに書いた）・直す／消す道の本文が表でなければ書かない（common.base_rev。500。前は text/plain の [1] で消した）・
+  必須の列（設備名・設備）の null を空として断る（前は「None」と読んで名前の空の行を置いた）。窓は前からこの読み方なので、Python と窓が 1 つの決まりになった。
+- 窓が Python に任せる本文の判定を `master_rows::unreadable` の 1 か所にした（読めない本文と、読みが割れる数〈整数の -0：Python は int の 0、serde は -0.0／
+  i64 に入らない整数〉。字の中は見ない）。権限・勤務体系・設備・ロールの書く道がみな使う（勤務体系・権限の -0 の穴もここで塞がった）。
+  事例の表 `tests/fixtures/jsonnum_cases.json`（`tools/jsonnum-cases.py` が Python 3.13 の json.loads と str() で焼く。66 の数の字）で、窓が答えた物は str() と同じ字・
+  有限の小数と i64 の整数は必ず答える・並びや項目でない鍵の中でも同じ判定・字の中の数は見ない、を `cargo test --test jsonnum_cases` が確かめる
+  （古い表は `tests/test_jsonnum_cases.py`）。-0 の決まりを外すと 7 件、i64 の決まりを外すと 4 件落ちる。
+- 設備・ロールの 8 本（GET／POST /api/masters/equipment・rolls、PUT／DELETE …/<id>）を窓が受ける（`desktop/src/equip_write.rs`。Lot::equip_route）。
+  書く型は master_rows（Spec に旧い列名 巻出し方向 → 巻取方向 を持たせた）。設備の確かめ（equipment_names.check_row の 3 つの言葉）は、計算の読み替えと同じ
+  部品（calc.rs の parse_patterns・is_wild・norm・wild_match）で `calc::equipment_check` に書いた（値はそろえる前の生の値・足すときは id のある行と比べる）。
+  行の確かめで断る誤り MasterError::Invalid（400・invalid）を足した。項目の値が並び・表の本文、置き場の行の項目が並び・表のときは Python に任せる。
+- 評価関数: `cargo test --test equip_rows_parity`（← `tests/equip_rows_oracle.py`。6 場面・68 歩で答え・断る言葉・できたファイルを Python の道と突き合わせ、
+  Python に任せる 16 の本文〈並び・表・-0・大きな整数・NaN・1e400・片割れの代用字・空・[1]・10 進でない版〉で窓が答えないことを確かめる。
+  確かめの 1 つを外すと 8 件落ちる）・`lot::tests::the_window_writes_equipment_and_rolls`（本物の道・門番・書いたら一覧の設定を捨てる・Python に任せる形）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

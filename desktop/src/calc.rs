@@ -171,6 +171,52 @@ fn wild_match(p: &[char], s: &[char]) -> bool {
     pi == p.len()
 }
 
+/// 設備マスタを保存する前の確かめ（equipment_names.check_row。版 3.77.0。書く道 src/equip_write.rs が使う）。問題があれば利用者に見せる文。
+/// 値はそろえる前の生の値で読む（str(v or "")。0・False は空）。比べる相手は id が self_id でない行（足すときは id の無い行も除く）
+pub(crate) fn equipment_check(rows: &[Value], data: &Row, self_id: Option<i64>) -> Option<String> {
+    let name = pyfmt::strip(&text(data.get("設備名"))).to_string();
+    let pats = parse_patterns(data.get(FIELD));
+    let others: Vec<&Row> = rows
+        .iter()
+        .filter_map(Value::as_object)
+        .filter(|r| match self_id {
+            None => r.get("id").is_some_and(|v| !v.is_null()),
+            Some(id) => !crate::master_rows::same_id(&Value::Object((*r).clone()), id),
+        })
+        .collect();
+    // Python の f 文字列の {r.get('設備名')}（無ければ None）
+    let shown = |r: &Row| r.get("設備名").map(py_str).unwrap_or_else(|| "None".into());
+    for p in &pats {
+        let pc: Vec<char> = p.chars().collect();
+        let wild = is_wild(p);
+        for r in &others {
+            let other = norm(r.get("設備名"));
+            if !other.is_empty() && (if wild { wild_match(&pc, &other.chars().collect::<Vec<_>>()) } else { *p == other }) {
+                let n = shown(r);
+                return Some(format!("「{p}」はほかの設備「{n}」の名前にも当たります。同じ工程なら「{n}」の行を消してから登録するか、当たらない書き方にしてください。"));
+            }
+            if !wild && parse_patterns(r.get(FIELD)).contains(p) {
+                return Some(format!("「{p}」はもう設備「{}」の同一工程の名前に登録されています。", shown(r)));
+            }
+        }
+    }
+    if !name.is_empty() {
+        let own: Vec<char> = norm_str(&name).chars().collect();
+        for r in &others {
+            for q in parse_patterns(r.get(FIELD)) {
+                let hit = if is_wild(&q) { wild_match(&q.chars().collect::<Vec<_>>(), &own) } else { q.chars().eq(own.iter().copied()) };
+                if hit {
+                    return Some(format!(
+                        "設備名「{name}」は、設備「{}」の同一工程の名前「{q}」に当たります。先にそちらを直してください。",
+                        shown(r)
+                    ));
+                }
+            }
+        }
+    }
+    None
+}
+
 /// 設備マスタの行から「出てきた設備名 → マスタの行」を引く（EquipmentResolver）
 struct Resolver<'a> {
     rows: &'a [Row],
