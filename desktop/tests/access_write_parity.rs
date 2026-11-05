@@ -50,18 +50,20 @@ fn store_of(conf: &Value, who: &Value) -> Store {
 }
 
 /// 窓の道: 門番を通してから受ける（Lot と同じ順）
-fn answer(store: &Store, conf: &Value, step: &Value) -> (u16, Value) {
+/// None は窓が答えない（Python に任せる）
+fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let mut c = conf.clone();
     c["who"]["login"] = step["who"][0].clone();
     c["who"]["pc"] = step["who"][1].clone();
     let me = access::me(&c, None).expect("me");
     let (method, path) = (step["method"].as_str().unwrap(), step["path"].as_str().unwrap());
     if let Some((status, kind, msg)) = access::guard(method, path, &me) {
-        return (status, json!({"error": msg, "kind": kind}));
+        return Some((status, json!({"error": msg, "kind": kind})));
     }
     let route = route_of(method, path).expect("窓が受ける道");
     let body = step["body"].as_str().unwrap_or("");
-    handle(store, &me, route, step["query"].as_str().unwrap_or(""), body.as_bytes()).expect("窓が答える")
+    let tabs = access::Place::from_json(&c["place"]).rows("tab_access").unwrap();
+    handle(store, &me, route, step["query"].as_str().unwrap_or(""), body.as_bytes(), &tabs)
 }
 
 /// 置き場のマスタのファイル（共有・同梱の data/・写し。錠と書きかけの残りは無いこと）
@@ -85,13 +87,16 @@ fn access_writes_match_python() {
     let base = common::work("access-write");
     let oracle = common::python_json("access_write_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
-    let mut steps = 0;
+    let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         let store = store_of(&sc["conf"], &sc["storeWho"]);
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             steps += 1;
-            let (status, got) = answer(&store, &sc["conf"], st);
+            let Some((status, got)) = answer(&store, &sc["conf"], st) else {
+                bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
+                continue;
+            };
             let want = &st["json"];
             let same = if want["kind"] == "error" {
                 // 思いがけない失敗（Python の例外の言葉）は種類と状態だけ比べる
@@ -111,6 +116,16 @@ fn access_writes_match_python() {
                 ));
             }
         }
+        // 窓が答えず Python に任せる歩（版 3.77.0。置き場の行の id・版を窓が Python と同じに読めない形。書く前に断る＝ファイルは変わらない）
+        for st in sc["delegates"].as_array().unwrap() {
+            delegated += 1;
+            if let Some((status, got)) = answer(&store, &sc["conf"], st) {
+                bad.push(format!(
+                    "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
+                    st["method"], st["path"], st["body"]
+                ));
+            }
+        }
         // 終わった後のファイル: 共有と data/ は同じ。写しは窓が書いた物だけ（Python は読むたびに写しを取り直す）が Python と同じ
         let (fp, fr) = (files(Path::new(sc["py"].as_str().unwrap())), files(Path::new(sc["rs"].as_str().unwrap())));
         for (k, v) in &fr {
@@ -127,7 +142,7 @@ fn access_writes_match_python() {
             }
         }
     }
-    assert!(steps >= 50, "歩が少ない: {steps}");
+    assert!(steps >= 50 && delegated >= 6, "歩が少ない: {steps}・{delegated}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

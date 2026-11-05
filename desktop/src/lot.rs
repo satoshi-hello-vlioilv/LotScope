@@ -152,7 +152,8 @@ impl Lot {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
         let store = self.store_for(&s.access)?;
-        let (status, v) = crate::access_write::handle(&store, &me, route, query, body)?;
+        let tabs = crate::access::Place::from_json(&s.access["place"]).rows("tab_access").ok()?;
+        let (status, v) = crate::access_write::handle(&store, &me, route, query, body, &tabs)?;
         if (200..300).contains(&status) {
             self.invalidate(); // 一覧の設定（出さないタブ）と権限の覚えを捨てる
             self.gate.forget();

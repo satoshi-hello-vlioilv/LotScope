@@ -163,6 +163,8 @@ SCENARIOS = [
         S(BOSS, "DELETE", f"{E}/1"), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "X"}), S(BOSS, "PUT", f"{R}/1", {"本数": 1}),
         S(BOSS, "DELETE", f"{R}/1", query="rev=1"),
     ]},
+    {"name": "真偽の id（int(True) は 1）", "mode": "shared", "rows": {"equipment_master": [{"id": True, "設備名": "A"}], "roll_master": [{"id": False, "設備": "A"}]},
+     "steps": [S(BOSS, "POST", E, {"設備名": "B"}), S(BOSS, "POST", R, {"設備": "B"}), S(BOSS, "GET", E), S(BOSS, "GET", R)], "delegates": []},
     {"name": "書ける段と門番", "mode": "shared", "rows": {"equipment_master": EQ[:2], "roll_master": ROLLS}, "steps": [
         S(PART, "GET", E),
         S(PART, "POST", E, {"設備名": "部分的編集可でも書ける"}),

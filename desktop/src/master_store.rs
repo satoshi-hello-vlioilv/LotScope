@@ -893,7 +893,13 @@ pub fn next_id(rows: &[Value]) -> i64 {
     rows.iter()
         .map(|r| {
             let v = &r["id"];
-            v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)).or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())).unwrap_or(0)
+            // Python の int(r.get("id") or 0): 真偽は 1・0（版 3.77.0。前は真偽を 0 と読み、Python と違う id を付けた）
+            v.as_bool()
+                .map(i64::from)
+                .or_else(|| v.as_i64())
+                .or_else(|| v.as_f64().map(|f| f as i64))
+                .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
+                .unwrap_or(0)
         })
         .max()
         .unwrap_or(0)

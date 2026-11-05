@@ -178,7 +178,7 @@ pub(crate) fn is_self(r: &Value, self_id: Option<i64>) -> bool {
     }
 }
 
-/// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。字や大きな数は Python に任せる）、
+/// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。真偽は 1・0。字や大きな数は Python に任せる）、
 /// 版は無いか Python の int() が読める物（読めなければ Python は master_call の中の例外で 400、窓は答えない）
 pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
     let id_ok = match r.get("id") {
