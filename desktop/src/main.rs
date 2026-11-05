@@ -267,6 +267,10 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         ("POST", "/api/heartbeat") => {
             lot.heartbeat(&|| lot_settings(backend), &|| backend.alive()).map(|(status, v)| Reply { status, ..json_reply(&v) })
         }
+        // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
+        (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => lot
+            .access_read(method, path, &|| lot_settings(backend), &|| backend.alive())
+            .map(|(status, v)| Reply { status, ..json_reply(&v) }),
         (method, path) => lot
             .handle_body(method, path, req.query, req.body, &|| lot_settings(backend))
             .map(|(status, v)| Reply { status, ..json_reply(&v) }),

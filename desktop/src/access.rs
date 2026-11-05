@@ -286,6 +286,61 @@ pub fn capabilities(f: &Map<String, Value>) -> Value {
            "hiddenTabs": f.get("hiddenTabs").cloned().unwrap_or(json!([]))})
 }
 
+/// 区分ごとに選べるマスタ編集の段（services/access.master_edit_options: 区分の上限までの段）
+fn master_edit_options(role: &str) -> Vec<&'static str> {
+    let top = me_rank(master_edit_cap(role));
+    MASTER_EDIT_LEVELS.iter().copied().filter(|lv| me_rank(lv) <= top).collect()
+}
+
+/// 画面の選択欄（services/access.choices: 区分・段・区分ごとの上限・タブの区分）
+pub fn choices() -> Map<String, Value> {
+    let by_role: Map<String, Value> = ROLES.iter().map(|r| (r.to_string(), json!(master_edit_options(r)))).collect();
+    let mut m = Map::new();
+    m.insert("roles".into(), json!(ROLES));
+    m.insert("masterEditLevels".into(), json!(MASTER_EDIT_LEVELS));
+    m.insert("masterEditByRole".into(), Value::Object(by_role));
+    m.insert("tabRoles".into(), json!(TAB_ROLES));
+    m
+}
+
+/// 権限の読む 2 本（版 3.76.0。routes/access.access_me・access_list）。どちらも本文を読まず、問い合わせの字も見ない
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadRoute {
+    Me,
+    List,
+}
+
+pub fn read_route(method: &str, path: &str) -> Option<ReadRoute> {
+    match (method, path) {
+        ("GET", "/api/access/me") => Some(ReadRoute::Me),
+        ("GET", "/api/masters/access") => Some(ReadRoute::List),
+        _ => None,
+    }
+}
+
+/// 窓の me から答える（Python も窓が載せた同じ me で答えるので、作りから同じ答えになる）。version は中身（Python）の版
+pub fn read_answer(route: ReadRoute, me: &Value, version: &str) -> Value {
+    let mut out = Map::new();
+    match route {
+        ReadRoute::Me => {
+            for (k, from) in [("loginId", "login"), ("pcName", "pc"), ("pcNameSource", "pcSource")] {
+                out.insert(k.into(), me.get(from).cloned().unwrap_or(Value::Null));
+            }
+            out.insert("version".into(), json!(version));
+            out.insert("revoked".into(), me.get("revoked").cloned().unwrap_or(Value::Null));
+            if let Some(c) = me["caps"].as_object() {
+                out.extend(c.clone());
+            }
+        }
+        ReadRoute::List => {
+            out.insert("items".into(), me.get("rows").cloned().unwrap_or(json!([])));
+            out.insert("matchedId".into(), me["flags"].get("matchedId").cloned().unwrap_or(Value::Null));
+            out.extend(choices());
+        }
+    }
+    Value::Object(out)
+}
+
 // ---------------------------------------------------------------- 置き場から読む
 
 /// マスタ・利用状況の置き場（Python の lotlist._access_place）

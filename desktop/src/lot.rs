@@ -160,6 +160,26 @@ impl Lot {
         Some((status, v))
     }
 
+    /// 権限の読む 2 本（版 3.76.0。GET /api/access/me・/api/masters/access）を窓の me から答える（main.rs。心拍と同じく中身が生きているかを見る）。
+    /// 判定の材料（access）が無い・中身の版が分からない・me を決められない・中身（Python）が答えないときは None
+    /// （Python へ回す。止まっていれば前と同じく失敗する）。版は心拍・利用状況と同じ元（program の version.py）
+    pub fn access_read(&self, method: &str, path: &str, ask: AskSettings, alive: &dyn Fn() -> bool) -> Option<(u16, Value)> {
+        let route = crate::access::read_route(method, path)?;
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let version = self.presence.app_version();
+        if version.is_empty() {
+            return None;
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        if !alive() {
+            return None;
+        }
+        Some((200, crate::access::read_answer(route, &me, &version)))
+    }
+
     /// 勤務体系の 4 本（版 3.75.0。src/shifts_write.rs）を窓が受ける。書く道は権限を読み直して門番に通し、窓の書く係で書く。
     /// 判定の材料（access）が無い・me を決められない・マスタを読めない・窓が答えない形は None（Python が答える）
     fn shifts_route(
@@ -1015,7 +1035,48 @@ mod tests {
         assert!(Lot::new(dir.join("c3")).handle_body("POST", "/api/masters/access", "", b"{}", &ask_none).is_none());
         assert!(lot.handle_body("POST", "/api/masters/%61ccess", "", b"{}", &ask_boss).is_none());
         assert!(lot.handle_body("PUT", "/api/masters/access/x", "", b"{}", &ask_boss).is_none());
-        assert!(lot.handle_body("GET", "/api/masters/access", "", b"", &ask_boss).is_none(), "読むのは Python");
+        // 読む 2 本（版 3.76.0。main.rs が Lot::access_read へ渡す）: 中身の版（心拍と同じ program の version.py）が分かり、
+        // 中身（Python）が答えるときだけ窓の me から答える。handle_body は受けない（Python へ回す）
+        assert!(lot.handle_body("GET", "/api/masters/access", "", b"", &ask_boss).is_none(), "handle_body は受けない");
+        let (up, down) = (|| true, || false);
+        // 覚える長さは時計に頼らない（遅い CI で 2 秒を越えても「覚えている間」を確かめられる）
+        let mut lot_v = Lot::new(dir.join("cache-v"));
+        lot_v.gate = crate::access::Gate::with_ttl(std::time::Duration::from_secs(3600), std::time::Duration::from_secs(3600));
+        assert!(lot_v.access_read("GET", "/api/access/me", &ask_boss, &up).is_none(), "中身の版が分からなければ Python");
+        lot_v.presence.set_version("3.76.0");
+        assert!(lot_v.access_read("GET", "/api/access/me", &ask_boss, &down).is_none(), "中身が答えなければ Python へ回す（前と同じ失敗）");
+        let (st, v) = lot_v.access_read("GET", "/api/masters/access", &ask_boss, &up).expect("窓が答える");
+        assert_eq!((st, v["items"].as_array().map(Vec::len), v["matchedId"].clone()), (200, Some(2), json!(1)), "{v}");
+        assert_eq!(v["masterEditByRole"]["設備作業者"], json!(["非表示"]), "{v}");
+        let (st, v) = lot_v.access_read("GET", "/api/access/me", &ask_boss, &up).expect("窓が答える");
+        assert_eq!(
+            (st, v["loginId"].as_str(), v["version"].as_str(), v["role"].as_str()),
+            (200, Some("boss"), Some("3.76.0"), Some("開発者")),
+            "{v}"
+        );
+        // 窓が書いたら、次の読みに新しい行（覚えた me を捨てる）
+        let body = serde_json::to_vec(&json!({"ログインID": "n2", "権限区分": "一般ユーザー"})).unwrap();
+        assert_eq!(lot_v.handle_body("POST", "/api/masters/access", "", &body, &ask_boss).unwrap().0, 201);
+        let n_rows = |l: &Lot| l.access_read("GET", "/api/masters/access", &ask_boss, &up).unwrap().1["items"].as_array().map(Vec::len);
+        let after_window = n_rows(&lot_v).unwrap();
+        // Python が書いた（窓は書いていない）: 覚えている 2 秒のあいだは前の行、after_python の後は読み直す
+        let doc: Value = serde_json::from_slice(&std::fs::read(share.join("access_permissions.json")).unwrap()).unwrap();
+        let mut doc2 = doc.clone();
+        doc2["rows"].as_array_mut().unwrap().push(json!({"id": 99, "ログインID": "py", "PC名": "", "権限区分": "一般ユーザー", "rev": 1}));
+        std::fs::write(share.join("access_permissions.json"), doc2.to_string()).unwrap();
+        assert_eq!(n_rows(&lot_v), Some(after_window), "覚えている間は前の答え（Python も同じ覚えの me で答える）");
+        lot_v.after_python("POST", "/api/masters/access", 201);
+        assert_eq!(n_rows(&lot_v), Some(after_window + 1), "Python が書いた後は読み直す");
+        std::fs::write(share.join("access_permissions.json"), doc.to_string()).unwrap();
+        lot_v.after_python("DELETE", "/api/masters/access/99", 200);
+        assert!(lot_v.access_read("POST", "/api/access/me", &ask_boss, &up).is_none(), "読む道は GET だけ");
+        assert!(lot_v.access_read("GET", "/api/access/me/", &ask_boss, &up).is_none(), "ほかの字の道は Python");
+        // 名乗りを読めない（me を決められない）・判定の材料が無いときは Python
+        let ask_bad = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": {"place": boss["place"]}}));
+        let lot_b = Lot::new(dir.join("cache-b"));
+        lot_b.presence.set_version("3.76.0");
+        assert!(lot_b.access_read("GET", "/api/access/me", &ask_bad, &up).is_none());
+        assert!(Lot::new(dir.join("cache-c")).access_read("GET", "/api/access/me", &ask_none, &up).is_none());
         assert!(
             lot.handle_body("POST", "/api/masters/access", "", r#"{"ログインID": "n", "x": NaN}"#.as_bytes(), &ask_boss).is_none(),
             "窓が読めない数の本文は Python"

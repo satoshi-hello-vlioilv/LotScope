@@ -224,18 +224,28 @@
       ok("版を置けない人は理由つきで断られる", put.r.status === 403 && /開発者・メンテナンス者/.test(put.text), `${put.r.status} ${put.text.slice(0, 80)}`);
     }
 
-    // 11b) 権限（版 3.65.0 から窓が決める: access.rs）: 窓が決めた me で Python が答える。画面が名乗った見出し X-TPA-Me は窓が捨てる
+    // 11b) 権限（版 3.65.0 から窓が決める: access.rs）: 画面が名乗った見出し X-TPA-Me は効かない。
+    //     版 3.76.0 から /api/access/me は窓が自分の me で答えるので、見出しを捨ててから Python へ渡すことは、Python が答える
+    //     タブの権限の GET（canEdit は me から決める）で確かめる。偽の me は書けない段（設備作業者・非表示）にする
     {
       const am = await get("/api/access/me");
       let amj = {}; try { amj = JSON.parse(am.text); } catch (_) { /* 下で言う */ }
       // 見出しの値は Latin-1 だけ送れる（日本語は fetch が断る）ので、偽の me は \u で書く（画面の悪い字もこの形で来る）
       const fake = JSON.stringify({ login: "FAKE", pc: "FAKE", pcSource: "", key: "FAKE", rows: [], revoked: null,
-        flags: { role: "開発者", masterEdit: "編集可", masterEditStored: "編集可", matchedId: null, hiddenTabs: [] }, caps: { role: "開発者" } })
+        flags: { role: "設備作業者", masterEdit: "非表示", masterEditStored: "非表示", matchedId: null, hiddenTabs: [] }, caps: { role: "設備作業者" } })
         .replace(/[\u0080-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
       const forged = await get("/api/access/me", { headers: { "X-TPA-Me": fake } });
       let fj = {}; try { fj = JSON.parse(forged.text); } catch (_) { /* 下で言う */ }
-      ok("権限: 窓が決めた名乗りで答え、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
+      ok("権限: 窓が決めた名乗りで答え（版 3.76.0 から窓が答える）、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && am.by === "shell" && forged.by === "shell" && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
          `${amj.loginId}@${amj.pcName} ${amj.role}・${amj.masterEdit} / 偽の見出し → ${fj.loginId} ${fj.role}`);
+      const ta = await get("/api/masters/tabaccess"), tf = await get("/api/masters/tabaccess", { headers: { "X-TPA-Me": fake } });
+      let taj = {}, tfj = {}; try { taj = JSON.parse(ta.text); tfj = JSON.parse(tf.text); } catch (_) { /* 下で言う */ }
+      ok("権限: Python が答える道でも、画面が名乗った見出しは効かない（窓が捨てて自分の me を載せる）",
+         // 書けるか（can_write）は切断中なら書けない。偽の me は書けない段なので、本当の me が書けるときだけ見分けられる（見分けたかを言葉に出す）
+         ta.r.ok && tf.r.ok && ta.by === "python" && tf.by === "python" && taj.canEdit === (amj.canEditAdminMaster === true && !amj.revoked)
+           && tfj.canEdit === taj.canEdit,
+         `${ta.by} タブの権限 canEdit ${taj.canEdit} / 偽の見出し → ${tfj.canEdit}`
+           + (taj.canEdit ? "（偽の見出しが効けば false になる形で確かめた）" : "（この PC は書けないので、偽の見出しは見分けられない）"));
     }
 
     // 12) 画面のエラーが無い（窓の外の受け口 /__desktop/update などが無くても、画面は黙って続ける）

@@ -1,0 +1,417 @@
+{
+ "title": "Rust 化の次の段: 7 段目の書く道の続き（勤務体系の後）",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-05）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: program/app の routes/equipgroups.py・formats.py・conversions.py・presets.py・common.py（base_rev・master_call・me・_shell_me・can_write）・web.py（dumps の sort_keys=True・jsonify・get_json が json.loads）・fsio.write_json_atomic（sort しない）、services の equip_groups.py・display_formats.py・conversions.py（clean_inputs・clean_test・_check_out・clean_rows・clean_row）・pivot_presets.py（_dims・clean_body の sort_keys=True・clean_row・BUILTINS）、repositories/master_repository.py（SPECS・_check_row・_create／_update／_delete・format_*・_preset_write・equip_group_*・conversion_*）、static/js/lotlist-pivot.js（loadPresets の覚え）、desktop/src の master_rows.rs（全部）・shifts_write.rs（awkward・needs_python・readable の所）・master_store.rs（read_json・has_wide_int・write_json_atomic の to_vec_pretty・Doc）・join.rs の py_dumps・access.rs の py_json と GUARDED・lot.rs（AskSettings・access_write・shifts_route・changes_settings・invalidate・tables）・main.rs（lot_settings・json_reply の to_vec）・formula.rs（Tables::from_json・regex_risk）・pivot.rs の compile_rules（fancy-regex）・dashboard.rs の is_screen_source、desktop/Cargo.toml と Cargo.lock（serde_json 1.0.151 の依存に indexmap が無い＝preserve_order は入っていない）、program/docs/RUST_PORT_PLAN.md の 7 段目の手本の節、前の記録 2026-11-port-rest.json。流した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-writes1/。作業ツリーは変えていない）: cargo tree -e features -i serde_json --offline（features は float_roundtrip・raw_value〈Tauri から〉・std。Tauri と serialize-to-javascript が同じ serde_json を使う）、pyjson_probe.py・p2.py（Python 3.13.16 の json.loads の深さ〈5000 段は読む・20000 段は RecursionError〉・重なる鍵〈後の値・前の位置〉・NaN／1e400／大きな整数／1e16／1e-5 の書き方・対の無いサロゲートを ensure_ascii=False で書くと UnicodeEncodeError、display_formats.clean_body の字〈送った順・区切りなし〉、equip_groups.clean_row のルールの字〈既定の区切り・rules → except〉、equip_groups.clean_rules の正規表現 9 つ〈Python の re が断る言葉〉）、Python の compile_formula の誤りの言葉。道の数は measured と同じ（設備グループ 4・変換表 8・書式 4・プリセット 5）。物差しの読み替えは前の記録と同じ（順序＝作業の順の筋／チャンク＝1 版のまとまりの大きさと揃い／階層化＝主な狙いが 1 つに見えるか／視覚化＝進み具合と食い違いを数で見せられるか／ステップ数＝目的までの版と受け渡しの数／考えさせない＝取り違え・事故の起きにくさ／直感的＝今の作りの型に沿うか／形と色＝前の移し方と同じ型／言葉と置き場＝同じ決まり・書き手が 1 か所に／整列・余白・釣り合い＝量の釣り合い・出来上がりのきれいさ／色と文字の調子＝危うさの少なさ）。減点 hidden_state は前の記録と同じく、案の文のとおりに作ると画面に出る状態が Python と食い違う所に付けた。 2 回目の採点者（案を作った者でも、1 回目の採点者でもない別のエージェント・2026-11-05）: 画面に出ない改良なので、読んで・動かして確かめた事実で付けた。読んだ物: routes/formats.py・system.py（ui_profile・ui_defaults_get／put）・access.py（access_me・_access_guard・access_list・tab_list・tabaccess_get）・common.py（me・_shell_me・can_write・master_call・exception_error・base_rev）・web.py（is_json・get_json の silent・dumps）・services/display_formats.py・ui_defaults.py・access.py（choices・capabilities・master_edit_options）・identity.current・repositories/master_repository.py（SPECS・_check_row・format_*）・master_store.py（identity・read・_cached・stamp・write）・routes/lotlist._access_place、static/js の app.js:238・master.js:202・lotlist.js:1108・lotlist-profile.js:58・lotlist-formats.js、desktop/src の master_rows.rs・shifts_write.rs（awkward・needs_python・readable・区分の書き手）・access_write.rs（Ordered・ordered_rules・needs_python・handle）・access.rs（py_json・me・can_write・guard・Gate・capabilities）・formula.rs（Item・clean_calc）・join.rs（py_dumps）・presence.rs（app_version・py_dumps の大きさの確かめ）・master_store.rs（SHARED_ALWAYS・read_json・has_wide_int・who・write）・lot.rs（handle_body・access_write・shifts_route・changes_settings）・update.rs（program_version・app\\ に exe と program を一緒に置く）、desktop/Cargo.toml（serde_json は float_roundtrip だけ）。流した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-writes2/。作業ツリーは変えていない）: probe.py（ui_defaults.clean と display_formats.clean_body／clean_row の端: 対の無いサロゲートの UnicodeEncodeError・字でない値を落とす・並びの keys・制御字の長さ・字の本文の NaN・重なる鍵・数の書き方・3000 段の入れ子・名前の str()・partial の body null）・p3.py（NaN を含む本文を json.loads が読む・並びの本文を dict() が表にする）。物差しの読み替えと減点 hidden_state の付け方は 1 回目と同じ。 3 回目の採点者（案を作った者でも、1 回目・2 回目の採点者でもない別のエージェント・2026-11-05）: 画面に出ない改良なので、読んで・動かして確かめた事実で付けた。読んだ物: desktop/src の lot.rs（handle_body:397・試験 1018）・main.rs（handle_body の呼び出し:271・lot_settings）・router.rs（Req:69・見出しを読む所:104）・access.rs（ROLES・master_edit_cap・me:611・can_write:631・Gate::me:687）・access_write.rs（冒頭の『Content-Type を見ない』・handle:385 の silent の写し方）・master_store.rs（is_shared・revision）・worksum.rs の truthy、program/app の routes/access.py（access_me・access_list・tabaccess_get／put）・routes/common.py の me・routes/system.py（ui_profile・ui_defaults_get／put）・routes/lotlist.py（lotlist_settings・_access_place）・routes/formats.py・services/ui_defaults.py・display_formats.py（PARTS・clean_body・parts_of・view）・access.py（choices・master_edit_options）・web.py（get_json・dumps）、static/js の lotlist-formats.js・lotlist-profile.js。流した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-writes3/u3.py。tmp に data を写し、作業ツリーは変えていない）: PUT /api/ui-defaults の 17 の本文（表でない形・偽の値・keys の形・NaN・1e400・対の無いサロゲート・読めない字・BOM・text/plain）で状態と残った初期設定、display_formats.view の端（字の filters・数の cards・0.0 の値・大きな整数・字でない中身）。物差しの読み替えは依頼のとおり（順序＝段の進め方の筋／ステップ数＝この版で前へ進む量／考えさせない＝落とし穴を先に潰しているか／統一感＝決まりが 1 か所か・既存の型に載るか／美しさ＝量と釣り合い）。減点 hidden_state の付け方は前の回と同じ（案の文のとおりに作ると画面に出る状態が Python と食い違う所）で、3 回目は文の手当てで潰れたので付けていない。",
+ "measured": "書く道の組（routes の @bp）: 設備グループ 4（一覧は routes/dashboard.equipment_seen を呼ぶ: 作業実績の登録・設備マスタ・データ元の設備の列の値をダッシュボードの答えで数える＝effective_settings とデータの読み）・変換表 8（作る・直す・標準に戻す・消す・書き出す・取り込む・同梱に戻す）・共有の書式 4（中身は入れ子の JSON を json.dumps(separators) の字で置く。窓の serde_json に preserve_order が無い: Cargo.toml は float_roundtrip だけ）・組み方のプリセット 5（ID ごと・共通・共通デフォルトの 3 つの置き場と権限の門 _gate・すぐに見る）。窓の書く型は master_rows.rs（版 3.75.0）。3.75.0 の作った後の採点で『Python に任せる』決まりが shifts_write.rs の awkward・big・needs_python・readable の 4 か所に分かれ閾値も違うと指摘された。",
+ "self_check": "案を作った者が採点の前に確かめたこと（2026-11-05）: routes/equipgroups.py・formats.py・conversions.py・presets.py の @bp と、設備グループの一覧が routes/dashboard.equipment_seen（effective_settings・data_sources・_answer）を呼ぶこと、display_formats.clean_body が中身を json.dumps(ensure_ascii=False, separators) の字にすること、desktop/Cargo.toml の serde_json の features が float_roundtrip だけなこと（preserve_order が無い）を読んで確かめた。案の方向は 6 つ（任せる決まりを先に 1 つに P・JSON の読み書きの土台 J・書式の組 F・プリセットの組 R・設備グループの書く道だけ G・変換表の組 C）で偏っていない。画面に出ない改良なので画像は無い。",
+ "proposals_text": {
+  "P 『Python に任せる』決まりを 1 つにしてから、設備グループの書く道": "3.75.0 の採点の指摘（awkward・big・needs_python・readable が 4 か所・閾値がばらばら）を先に直す: master_rows.rs に『窓が Python と同じに読み書きできる値か』の 1 つの判定（JSON の値の種類・i64 に入らない整数・深さ・NaN など）を置き、勤務体系もそれを使う。そのうえで設備グループの作る・直す・消す（clean_row・まとめ方ごとの名前の一意〈_check_row〉・ルールの確かめ）を窓が受け、一覧（GET）は equipment_seen が要るので Python のまま（書く道の答えの一覧は、書いた後に Python の GET へ尋ねて返す）。",
+  "J JSON の読み書きを Python とそろえる土台（道 0 本）": "serde_json に preserve_order を入れて鍵の順を保ち、Python の json.loads／json.dumps と同じ読み方・書き方（NaN・Infinity・大きな整数は字のまま・深さの上限・separators と ensure_ascii）を 1 つの部品（pyjson.rs）にする。答えは事例の表 tests/fixtures/pyjson_cases.json に Python で焼き、Python と Rust の両方が突き合わせる（pynum_cases と同じ型）。窓の今の読み書き（権限・勤務体系・使用の履歴・計算）をこの部品に替え、勤務体系の残る減点（深い入れ子）も解く。",
+  "F 共有の書式の 4 本": "共有の書式（routes/formats.py・services/display_formats.py）を master_rows.rs の型に載せる。中身は入れ子の JSON なので、Python の json.dumps と同じ字を書く部品と鍵の順を保つ読み方を足す（J の一部を書式の分だけ）。一覧は source で絞り名前の順。",
+  "R 組み方のプリセットの 5 本": "組み方のプリセット（routes/presets.py・services/pivot_presets.py）の一覧・作る・直す・消す・すぐに見るを窓が受ける。3 つの置き場（ID ごと・共通・共通デフォルト）と権限の門（_gate: 開発者だけ・部分的編集可から・自分の ID）を写し、組み込みのプリセット（builtin_views）も写す。集計表とダッシュボードが毎回読む道なので、移すと一覧の画面で Python に尋ねる回数が減る。",
+  "G 設備グループの書く道だけ（一覧は Python）": "設備グループの POST／PUT／DELETE を master_rows.rs の型で窓が受ける（clean_row・まとめ方ごとの名前の一意・ルールの確かめを写す）。答えの一覧は equipment_seen が要るので、書いた後に窓が Python の GET /api/masters/equipgroups へ尋ねて、その答えに created を足して返す（Python が起きていなければ 503・保存はした）。",
+  "C 変換表の 8 本": "変換表（routes/conversions.py・services/conversions.py）の一覧・作る・直す・標準に戻す・消す・書き出す・取り込む・同梱に戻すを窓が受ける。判定表の中身（inputs・rows・other・apply）は入れ子の JSON なので J の読み書きも要る。変換表は計算列の conv() が読む（窓の formula.rs が既に読む）ので、書いた後に窓の変換表の覚えを捨てる。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は measured と各案の seen）",
+   "self_check": "案を作った者が採点の前に確かめたこと（2026-11-05）: routes/equipgroups.py・formats.py・conversions.py・presets.py の @bp と、設備グループの一覧が routes/dashboard.equipment_seen（effective_settings・data_sources・_answer）を呼ぶこと、display_formats.clean_body が中身を json.dumps(ensure_ascii=False, separators) の字にすること、desktop/Cargo.toml の serde_json の features が float_roundtrip だけなこと（preserve_order が無い）を読んで確かめた。案の方向は 6 つ（任せる決まりを先に 1 つに P・JSON の読み書きの土台 J・書式の組 F・プリセットの組 R・設備グループの書く道だけ G・変換表の組 C）で偏っていない。画面に出ない改良なので画像は無い。",
+   "proposals": {
+    "P 『Python に任せる』決まりを 1 つにしてから、設備グループの書く道": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "services/equip_groups.clean_rules は正規表現を Python の re.compile で確かめ、断る言葉に re.error の字をそのまま入れる。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-writes1/p2.py で流すと 『(』→『missing ), unterminated subpattern at position 0』、『\\p{L}』『(?<n>x)』は Python が断り、『\\Z』『[[:alpha:]]』『(?P<n>x)(?P=n)』は通る。窓の正規表現は fancy-regex（desktop/src/pivot.rs:477 の compile_rules）で、\\p{L}・(?<n>x) を読み、\\Z を読まない（前の記録 2026-11-port-rest.json の 3 回目でも測った）。案の文の『ルールの確かめを写す』のとおり窓で確かめると、POST /api/masters/equipgroups に {op:regex, value:『\\p{L}』} を送ったとき Python は 400 で断り、窓は 201 で置く。置いた後、Python の一覧（members_in → pivot.compile_rules）と窓のダッシュボード（pivot.rs の compile_rules）で当てはまる設備が割れる"
+      }
+     ],
+     "seen": "良い所: 3.75.0 の作った後の採点が残した指摘（Python に任せる決まりが shifts_write.rs の awkward:82・big:111・needs_python:96・readable:308 に分かれ、閾値が 9.0e15・9.2e18・18 桁とばらばら）を、次の組を足す前に master_rows.rs の 1 つの判定にまとめるのは筋が良い（置き場の点を上げる）。master_rows.rs（248 行）は Spec・create／update／delete・Rev・py_rev を既に持ち、次の組はここへ clean_row と _check_row を足せばよい（RUST_PORT_PLAN.md の 7 段目の最後の行と同じ）。悪い所・案の文の誤り: (1) 1 版に 2 つの話（判定の作り替えと設備グループ）を乗せる。前の段の採点でも『1 版に 2 つの話』で点を落とした。(2) 書いた後の答えの一覧を『Python の GET へ尋ねて返す』口が窓に無い: lot.rs の handle_body が受け取るのは AskSettings（/api/lotlist/settings を尋ねる閉包。lot.rs:67・main.rs:277）だけで、任意の道を Python へ尋ねる口は main.rs の backend にしか無い。新しく通す要があり、そのとき窓が決めた me を X-TPA-Me に載せないと、Python の canEdit（routes/common.can_write → me）は Python が自分で決めた権限になる（判定が 2 か所）。(3) 書く道の答えに Python が要るので、Python が止まっていれば保存したのに 503 になり、窓へ移す得（Python を通らない）が書く道ではほぼ無い。equipment_seen（routes/dashboard.py。作業実績の登録・設備マスタ・データ元の設備の列を数える）は重いまま毎回 Python で流れる。(4) ルールの正規表現（減点 1）: 案の文に無い。正規表現の規則だけは Python に任せる、と書く要がある。(5) ルールの JSON の字は json.dumps(ensure_ascii=False) の既定の区切り（\", \"・\": \"）で、鍵の順は rules → except（p2.py で確かめた: {\"rules\": [{\"op\": \"prefix\", \"value\": \"L-\"}], \"except\": [\"A\"]}）。serde_json の Map は鍵を並べ替えるので except が先になる。手で組めば済むが、案の文に無い。(6) 1 つの判定にするのは良いが、『深さ』を見ると serde_json の 128 段と Python の数千段（p2.py: 5000 段は読む・20000 段は RecursionError）の差を、判定が『Python に任せる』で包む形になる（それで良い）。勤務体系の作った後の減点（127 段以上の区分の字）はこの判定で解ける。"
+    },
+    "J JSON の読み書きを Python とそろえる土台（道 0 本）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "良い所: 前の段で 1 位になった N（数の読み方の事例の表を先に作る）と同じ型で、tests/fixtures/pyjson_cases.json を Python で焼いて Python と Rust の両方で突き合わせる。窓には JSON を Python と同じに読もうとする所が今 4 つある（access.rs:503 の py_json〈NaN を 1 に置き換える〉・master_store.rs:183 の read_json と has_wide_int:209・shifts_write.rs の needs_python・join.rs:354 の py_dumps〈sort_keys=True の形〉）ので、1 つにまとめる狙いは置き場の点に効く。勤務体系の残る減点（深い入れ子）も解ける。悪い所・案の文の誤り: (1) 道を 1 本も移さない（ステップ数が低い）。次の版で組を移すまで利用者に見える得が無い。(2) serde_json の preserve_order は crate 全体の feature で、Tauri（serialize-to-javascript・tauri 2.12.1 も同じ serde_json 1.0.151 を使う。cargo tree -e features -i serde_json で確かめた）にも効く。窓の答えは main.rs:360 の json_reply が serde_json::to_vec で書くので、preserve_order を入れると窓の答えの鍵が json! と挿した順になり、Python の答え（web.py:156 の dumps は sort_keys=True）と鍵の順が割れる（いまは BTreeMap で Python と同じく字の順）。窓の全部の道の答えの順が変わるのに、案の文はその手当て（答えを書く所だけ並べる）を書いていない。また preserve_order の Map::remove は swap_remove（最後の項目を抜いた所へ移す）で、窓に o.remove の類が約 20 か所ある。マスタのファイル（master_store.rs:282 の to_vec_pretty）は挿した順になり Python のファイル（fsio.write_json_atomic は sort しない）に近づく良い面もあるが、試験の突き合わせの形が変わる。(3) 『大きな整数は字のまま』は preserve_order では足りず arbitrary_precision（これも crate 全体）か自前の型が要る。『Python と同じ読み方』も、対の無いサロゲート（Python は読み、ensure_ascii=False で書くと UTF-8 に書けず UnicodeEncodeError。Rust の String には入らない）は同じにできず、任せる形になる。(4) Python の書き方の端（p2.py）: NaN→NaN・1e400→Infinity・1e16→1e+16・1e-5→1e-05・-0.0・1.0 と、serde の 1e16・1e-5 は違う（pyfmt::float_repr:154 はある）。事例の表にすれば見える。(5) 落とし穴は少なくない（feature の効く範囲が広い）が、案の文が『土台』として閉じているのは良い。"
+    },
+    "F 共有の書式の 4 本": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 5,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: いちばん閉じている組。routes/formats.py（41 行）の 4 本は、一覧が masters の行・is_screen_source・can_write・is_shared・revision だけで、Python の重い読み（equipment_seen など）に依らない。窓に is_screen_source（dashboard.rs:251）・can_write（access.rs）・Store の is_shared／revision・master_rows.rs の create／update／delete がある。_check_row の決まり（名前は元ごとに 1 つ。master_repository.py:126）も短い。format_update は 名前・中身・備考 だけを通す（master_repository.py:438）。悪い所・案の文の誤り: (1) 中身は display_formats.clean_body が json.dumps(ensure_ascii=False, separators=(\",\", \":\")) で書く字で、鍵の順は画面が送った順（p2.py: {\"sorts\":[{\"dir\":\"asc\",\"column\":\"x\"}],\"columns\":{\"widths\":{\"b\":1,\"a\":2.5}}}）。ただし画面へ返すときは view が json.loads し、jsonify（sort_keys=True）が並べ替えるので、画面に見える答えは鍵の順に依らない。鍵の順が効くのはファイルの中身の字（突き合わせの試験）だけで、案の文の『鍵の順を保つ読み方が要る』は、字を同じにするなら要る・値で比べるなら要らない、のどちらにするかを決めていない。(2) 『J の一部を書式の分だけ』作ると、JSON を Python と同じに読む・書く部品が窓に 5 つ目としてでき（py_json・read_json・needs_python・py_dumps の横）、置き場の点を下げる。(3) 中身の端: 大きな整数（serde は小数に変える → 値が変わる）・NaN（Python は読んで中身に NaN と書き、一覧の答えにも NaN が出て厳密な JSON でなくなる〈Python の今の欠け〉）・1e16 の書き方・512 KB の境（字の長さで比べる）は Python に任せるか事例にする要があり、案の文に無い。(4) 書式は保存の回数が少なく、速さの得は小さい。それでも『型に載せて組を 1 つ移す』の手本としては量の釣り合いが良い。"
+    },
+    "R 組み方のプリセットの 5 本": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 4,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "良い所: 中身の字は pivot_presets.clean_body が json.dumps(ensure_ascii=False, sort_keys=True) で書くので、鍵の順を保つ要が無い（join.rs:354 の py_dumps と同じ形。ただし数は n.to_string() で、Python の 1e+16 と serde の 1e16 は違う）。値の計算の式は num_expr.rs（aggregate.rs:215）が既にある。悪い所・案の文の誤り: (1) 『集計表とダッシュボードが毎回読む道』は違う: GET /api/pivot-presets を呼ぶのは static/js/lotlist-pivot.js:135 の loadPresets だけで、presets.loaded と元が同じなら読み直さない（元ごとに 1 回）。ダッシュボードの JS は呼ばない。尋ねる回数が減る得は小さい。(2) 権限の門 _gate（routes/presets.py:28）は routes/dashboard.py が 11 か所で使い（ダッシュボードの組みの書く道は Python に残る）、clean_row・group_of・can_edit・scope_of・standard_for も dashboards の書く道（master_repository._preset_write の name=\"dashboards\"）と共有。窓へ写すと、同じ門と同じ行の決まりが Python（ダッシュボード）と窓（組み方）の 2 か所になる。(3) /api/pivot-presets は access.rs の GUARDED に無い（門番ではなく道の中の _gate が決める）ので、窓は切断（revoked）・開発者・自分の ID の判定を新しく持つ。(4) BUILTINS（pivot_presets.py:187。役の名前 $weight など）と builtin_views の写しが要り、同じ表が 2 か所になる。(5) _preset_write は作るとき rev を 0 から 1 にし、標準にしたら同じ組のほかの標準を外して版を上げる（master_repository.py:447〜477）。master_rows.rs の create（版 1・確かめの後に置く）と形が違い、型の外に別の書き方が要る。"
+    },
+    "G 設備グループの書く道だけ（一覧は Python）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 4,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "services/equip_groups.clean_rules は正規表現を Python の re.compile で確かめ、断る言葉に re.error の字をそのまま入れる。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-writes1/p2.py で流すと 『(』→『missing ), unterminated subpattern at position 0』、『\\p{L}』『(?<n>x)』は Python が断り、『\\Z』『[[:alpha:]]』『(?P<n>x)(?P=n)』は通る。窓の正規表現は fancy-regex（desktop/src/pivot.rs:477 の compile_rules）で、\\p{L}・(?<n>x) を読み、\\Z を読まない（前の記録 2026-11-port-rest.json の 3 回目でも測った）。案の文の『ルールの確かめを写す』のとおり窓で確かめると、POST /api/masters/equipgroups に {op:regex, value:『\\p{L}』} を送ったとき Python は 400 で断り、窓は 201 で置く。置いた後、Python の一覧（members_in → pivot.compile_rules）と窓のダッシュボード（pivot.rs の compile_rules）で当てはまる設備が割れる"
+      }
+     ],
+     "seen": "良い所: 書く 3 本は短い（routes/equipgroups.py 65 行・services/equip_groups.clean_row）。設備の書き方（equipment_list）は勤務体系と同じで窓の worksum にある。表示順は row_order.next_order（版 3.75.0）で窓に写しがある。名前の一意（まとめ方ごと。equip_groups.check_unique）は NFKC の normalize_part で、窓の access::normalize_part がある。悪い所・案の文の誤り: (1) P の後半と同じく、書いた後の一覧を Python の GET に尋ねる口が窓に無い（lot.rs の handle_body は AskSettings だけを受ける）。尋ねるときに窓の me を載せないと canEdit を Python が自分で決める。Python が止まっていれば保存したのに 503 になり、窓へ移す得が書く道でもほぼ無い（重い equipment_seen はいつも Python）。(2) 3.75.0 の作った後の採点が指摘した『Python に任せる決まりが 4 か所・閾値がばらばら』を直さず、同じ形の判定を設備グループにもう 1 組足すことになる（置き場の点を下げる）。(3) ルールの正規表現（減点 1）は案の文に無い。(4) ルールの JSON の字は既定の区切りで rules → except の順（serde の Map なら except が先）。(5) ルールの確かめの regex_risk は窓に formula::regex_risk（formula.rs:359）があるが、断る言葉の字（『正規表現「…」: …』）は Python の GroupError の形に合わせる要がある。"
+    },
+    "C 変換表の 8 本": {
+     "score": {
+      "order": 4,
+      "chunk": 3,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 5,
+      "place": 4,
+      "layout": 4,
+      "tone": 3
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "services/conversions.clean_rows（conversions.py:161）は判定の when の表を画面が送った鍵の順に回り、入力に無い鍵の最初の 1 つで『n 行目の条件の「k」は入力にありません。』と断り、置く字（判定・入力・当て方の json.dumps(ensure_ascii=False)）も送った順になる。案の文は『J の読み書きも要る』とだけ書き、窓の serde_json の Map（preserve_order なし。Cargo.toml:32 は float_roundtrip だけ）では鍵が字の順に並ぶので、when に入力に無い鍵が 2 つあると断る言葉の鍵が Python と窓で違い、置いた判定の字の when の順も違う（画面の判定表の条件の並びが保存の前後で入れ替わる）。また出す値の式（_check_out）は Python の compile_formula と FormulaError の言葉で確かめるが、窓の formula.rs は画面（list-formula.js）の写しで、案の文に式の確かめの言葉をそろえる手当てが無い"
+      }
+     ],
+     "seen": "良い所: 変換表は計算列の conv() が引くので、書く係が窓にあれば将来、変換表の読み（conversions.tables）も窓にそろえられる。一覧（_listing）は masters・同梱のプリセット・標準の行だけで、equipment_seen のような重い読みは無い。悪い所・案の文の誤り: (1) 8 本は量が大きく、作る・直す・消すのほかに 標準に戻す（同梱の app/master_defaults/conversions.json と conversion_defaults の 2 つの元）・書き出す・取り込む（conversion_import は同じ名前を置き換え、表示順を最後から振る 1 回の書き込み）・標準を決める（conversion_defaults_set は表を空にして並べ直す）と、master_rows.rs の型に無い書き方が 3 つ要る。(2) 『変換表は窓の formula.rs が既に読む』は半分違う: 窓の formula.rs の Tables::from_json（formula.rs:1747）が読むのは、Python の /api/lotlist/settings の答えに載った conversions.tables（lot.rs:57〜58）で、表を作るのは Python のまま。窓が書けば、書く決まり（clean_row）は窓・読む表を作るのは Python の 2 か所になる。書いた後に捨てるのは変換表の覚えではなく一覧の設定（lot.rs の invalidate。Python が答えた書き込みは changes_settings:212 が既に /api/masters/conversions を見る）。(3) 範囲の端の _num_or_blank は float(str(v).replace(\",\", \"\")) と int(f)（大きな小数で巨大な整数になる）、出す値は str(o)[:OUT_MAX]（Python の str の書き方）で、窓の pyfmt で写せるが端の事例が多い。(4) 判定の鍵の順と式の確かめ（減点 1）。前の段の採点でも、変換表は『組が大きく 1 版に収まらない』と見られていた。"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は各案の seen）",
+   "self_check": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘（設備グループの正規表現の確かめ方が Python と違う・書いた後に Python の GET へ尋ねる口が無い・preserve_order は窓全体の答えの鍵の順を変える・プリセットはダッシュボードが読まない・変換表は窓が自分で読まない）を読み直し、設備グループ・変換表・プリセットを外した。routes/system.py の ui_defaults_get／put（開発者だけ・ui_defaults.replace・MAX_BYTES は json.dumps(ensure_ascii=False) の UTF-8 の長さ）、routes/access.py の access_me（me の caps）・access_list（me の rows・access.choices）・tabaccess_get（tab_list が routes/sources._all を読む）を読んで確かめた。新しい案は U・D・FU・Q の 4 つ（1 回目の 1 位 F を F′ に直して持ち越す）。方向は 部品を寄せて組を移す F′・小さく閉じた書く道 U・読み道を閉じる D・2 組で汎用さを見る FU・作りだけ整える Q で偏っていない。",
+   "proposals": {
+    "F′ 共有の書式（順を保つ JSON を 1 つの部品に寄せ、端は任せる）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "1 回目の指摘はおおむね直っている。preserve_order を入れない（窓全体の答えの鍵の順を守る）こと、NaN・Infinity・i64 に入らない整数・1e16 などの書き方・深さを『任せる』と文に書いたこと、書式を master_rows.rs の型に載せることの 3 つ。書式は閉じた組だと読み直して分かった。routes/formats.py の 4 本は、is_screen_source（窓は dashboard.rs）・can_write（access.rs）・Store の is_shared／revision・_check_row（名前〈NFKC の normalize_part〉と元の組で 1 つ。master_repository.py:126）だけで、master_rows.rs の create／update／delete と CheckRow の閉包にそのまま載る。マスタのファイルでは中身は字なので、窓がほかの行を書き戻しても、入れ子の数（NaN・大きな整数）は字のまま変わらない。has_wide_int は字の中を飛ばす。probe.py（scratchpad/score-writes2）で Python の決まりを測った。clean_body は送った順で区切りなしに書き、重なる鍵は後の値・前の位置（{\"b\":3,\"a\":2}）。数は 1e+16・1e-05・1.0・-0.0・100000000000000000000 と書く。3000 段の入れ子も Python は読んで書く（窓の serde は 128 段まで）。対の無いサロゲートは UnicodeEncodeError で 500。本文が字なら json.loads し直すので、字の中の NaN もそのまま置く。名前は str()（12 → '12'）。partial で body が null なら FormatError。{\"columns\": {}} の空の部品も通る。GET の答えは jsonify（sort_keys=True）なので、鍵の順が効くのは置く字だけ。悪い所・案の文の誤り: (1) 1 版に 3 つの話が乗っている。JSON の部品を寄せる（formula.rs・access.rs・access_write.rs を作り替える）、『任せる』判定を 1 つにする（shifts_write.rs）、書式の 4 本の 3 つ。壊すと困る試験は access_parity（41×25）・formula_cases・dash_parity・shifts_parity・presence_parity に広がる。前の段でも『1 版に 2 つの話』で点を落としている。(2) 『3 つある』は数え違い。Python の json に合わせる所は、ほかにも join.rs:354 の py_dumps（sort_keys・既定の区切りの書き手。presence.rs:1096 の大きさの確かめと join の hash が使う）、shifts_write.rs:143 の区分の字の書き手（separators）、master_store.rs:183 の read_json と has_wide_int:209 がある。これらを残せば部品は 1 つにならない。(3) 寄せる 3 つは決まりが互いに違う。formula.rs:2042 の Item は並びと数を捨て、重なる鍵も両方残す（clean_calc の strs は重なりを除かない）。access_write.rs:315 の Ordered は上の段だけ順を保ち、後の値・前の位置。access.rs:503 の py_json は NaN を 1 に置き換える。書式に要るのは、並び・数・入れ子を全部持つ順を保った木で、どれとも違う新しい型になる。呼ぶ側ごとに『NaN を真の値として読む』か『任せる』かの切り替えも要る。寄せると formula.rs の重なる鍵の扱いが変わる（Python には近づく）ので、事例の表で突き合わせる要がある。(4) 『深さの上限〈Python の既定に合わせる〉』の意味がはっきりしない。窓の読みを Python の数千段に合わせるなら、serde_json の unbounded_depth と再帰の手当て（窓の糸のスタック）が要る。128 段を超えたら任せるだけなら今の型で足りる。(5) 書式の書き込みは少ないので、速さの得は小さい。良い所: 型に載せる手本として量の釣り合いが良い。preserve_order を避けたので答えの順の事故は無い"
+    },
+    "U 表示の初期設定の 2 本（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/system.ui_defaults_put は request.get_json(silent=True) or {} で読み、keys が空なら初期設定を外す（ui_defaults.replace で全部を置き換える）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-writes2/p3.py で確かめると、Python の json.loads は本文 {\"keys\": {\"tpa.lotlist.layout.v1\": \"x\"}, \"n\": NaN} を読み、keys を置く。窓の serde_json はこの本文を読めない。案の文には『読めない本文は Python に任せる』が無い。Python の get_json(silent=True) or {} を文のとおり写すと、窓は {} と読む。そうすると、全員の PC の初期設定を消して count 0 を返す（Python は置く）。対の無いサロゲート（\\ud800）の値も同じで、Python は clean の encode('utf-8') が UnicodeEncodeError を出して 500 になり、何も書かない（probe.py で確かめた）。窓は {} と読むと消す"
+      }
+     ],
+     "seen": "良い所: いちばん小さく閉じた書く道。routes/system.py:110〜129 と services/ui_defaults.py（clean・load・replace）で 60 行ほど。値は字だけで、replace は sorted(keys) で行を作る。そのため鍵の順を保つ要が無く、案の文の『入れ子が無いので閉じている』は置く字についてはそのとおり。2 MB の上限は json.dumps(ensure_ascii=False) の既定の区切りでの UTF-8 の長さで、窓には同じ長さを出す join::py_dumps が既にある（presence.rs:1096 が画面の設定の控えで同じ確かめをしている）。新しい部品は要らない。制御字の長さも Python と同じ（\\x01→\\u0001・\\x7f と U+2028 はそのまま。probe.py で 39 バイト）。PUT は門番の GUARDED（access.py の _GUARDED・access.rs:51）に無く、Python は区分だけを見る（切断中の開発者も置ける）。窓の access::guard もこの道には None を返すので、勝手にそろう。置き場の ui_defaults は窓の master_store.rs:35 の SHARED_ALWAYS にある。Python の読みは _cached（ファイルの mtime_ns と大きさ）なので、窓が書いた後の ui_profile（「/」で画面に埋める）は古くならない。案が確かめると書いた点は、読んで正しいと分かった。悪い所・案の文の誤り: (1) 減点 1。silent=True の読みの写し方が文に無く、NaN の本文で初期設定を全部消す形になる。(2) get_json(silent=True) は Content-Type が JSON でなければ None（web.py:196）を返す。窓の handle_body（lot.rs:397）は見出しを受け取らないので、この分かれ目を写せない。画面は TPA.json で送るので実害は小さいが、前の組と同じく前提として書く要がある。(3) 本文が並び（[1]）なら body.get で AttributeError（500）、keys が空でない並びなら『keys の形が違います』の 400 になる。(4) PROFILE_KEYS（18 の名前）と clean の決まりが、Python（ui_profile は「/」で埋めるので残る）と窓の 2 か所になる。exe と program は app\\ に一緒に配るので版のずれは小さいが、名前が増えるたびに両方を直す。事例の表か設定の答えで渡す手当てが文に無い。(5) 書く道が開発者だけで、たまにしか使わない。GET も表示の設定の面を開いたときだけ（lotlist.js:1108）なので、Python を通らなくなる得はほとんど無い。行は {名前, 値} で id・rev が無く、master_rows.rs の型の外で書く（形の点）"
+    },
+    "D 権限の組の読み道（新）": {
+     "score": {
+      "order": 5,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 8,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: いちばん危うさが少ない。窓が権限を受け持つとき（shell_serves に access）、Python の access_me と access_list は窓が X-TPA-Me に載せた me（routes/common._shell_me）をそのまま使う。そのため窓が自分の me（access.rs:611 の me・Gate::me:687）から答えれば、作りから同じ答えになる。capabilities（access.rs:273）・ROLES・MASTER_EDIT_LEVELS・TAB_ROLES・master_edit_cap が窓にあり、access.choices（roles・masterEditLevels・masterEditByRole・tabRoles）も組める。version は presence.rs:293 の app_version（program の version.py）、pcNameSource は Python の _access_place の who（identity.current の pcSource）にある。tabaccess_get を Python に残す理由（tab_list が routes/sources._all を読む）も正しい。書き手は増えない。悪い所・案の文の誤り: (1) この比べの筋（7 段目の書く道の続き）から外れた読みの道で、書く道は 1 本も進まない（順序・ステップ数）。(2) 『画面が開くたびに読む道が Python を通らなくなる』は言い過ぎ。/api/access/me を読むのは起動のとき（app.js:238）とマスタ管理を開いたとき（master.js:202）だけ。窓が me を決めるにも一覧の設定（/api/lotlist/settings。10 秒覚える）を Python に尋ねるので、Python が止まっていれば答えられないのは同じ。得は 1 回の行き来を減らすことだけ。(3) 正しさの面の得も無い。いまでも Python は窓の me で答えるので、食い違いが無くなるわけではない。lot.rs:1018 の試験（『読むのは Python』）は替える要がある"
+    },
+    "FU 共有の書式と表示の初期設定（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/system.ui_defaults_put は request.get_json(silent=True) or {} で読み、keys が空なら初期設定を外す（ui_defaults.replace で全部を置き換える）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-writes2/p3.py で確かめると、Python の json.loads は本文 {\"keys\": {\"tpa.lotlist.layout.v1\": \"x\"}, \"n\": NaN} を読み、keys を置く。窓の serde_json はこの本文を読めない。案の文には『読めない本文は Python に任せる』が無い。Python の get_json(silent=True) or {} を文のとおり写すと、窓は {} と読む。そうすると、全員の PC の初期設定を消して count 0 を返す（Python は置く）。対の無いサロゲート（\\ud800）の値も同じで、Python は clean の encode('utf-8') が UnicodeEncodeError を出して 500 になり、何も書かない（probe.py で確かめた）。窓は {} と読むと消す"
+      }
+     ],
+     "seen": "F′ と U を 1 版にする。F′ の 3 つの話（JSON の部品を寄せる・任せる判定を 1 つにする・書式）に U が足され、1 版に 4 つの話が乗る。前の段の採点でもっとも点を落とした形。案の文の誤り: 『字の書き方を同じ pyjson.rs で持ち、2 組目で部品の汎用さを確かめられる』は当たらない。U の値は字だけで、replace が鍵を並べ替える。大きさの確かめは長さだけなので、鍵の順・入れ子・数の書き方のどれも使わない。join::py_dumps で既に足りる（presence.rs:1096 と同じ）。2 組目を足しても部品の汎用さは試されない。U の減点（読めない本文で初期設定を消す）もそのまま持つ。良い所は F′ と U のそれぞれの良い所（書式が型に載る・初期設定が閉じて小さい）。"
+    },
+    "Q 『任せる』判定の 1 か所化と勤務体系の残る減点（道 0 本・新）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 3.75.0 の作った後の採点が残した指摘を、次の組の前に直す。指摘は、『任せる』決まりが shifts_write.rs の awkward:82・needs_python:96 の中の big・readable:308 に分かれ、閾値が 9.0e15・9.2e18・18 桁とばらばらなこと。access_write.rs:380 の needs_python と master_store.rs:209 の has_wide_int も同じ種類の判定なので、まとめる先が master_rows.rs（窓の書く型）なのは置き場として正しい。区分の字の深い入れ子の残る減点も解ける。readable の seg_ok は、serde が深さで読めず py_json も読めないと『読める』側に倒れる。道を増やさないので落とし穴は狭い（shifts_parity・access_write_parity が見張る）。悪い所・案の文の誤り: (1) 道を 1 本も移さない（ステップ数）。利用者に見える得は、勤務体系の深い入れ子の 1 件だけ。(2) 『次の組（書式・プリセット）はこの判定を使うだけになる』とあるが、self_check_2 はプリセットをこの回で外したと書いており、食い違う。また書式に要るのは『任せるか』の判定だけでなく、順を保った読みと json.dumps の字の書き手で、この案はそこを作らない。次の組が『使うだけ』にはならない。(3) 項目ごとの決まり（表示順は 18 桁・適用設備は並びの中の並び／表・区分は字の中の JSON）は残るので、1 つの関数でも項目ごとの表を持つことになる。"
+    }
+   }
+  },
+  {
+   "name": "3 回目",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は各案の seen）",
+   "self_check": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（U の本文の読み方〈silent・Content-Type〉と NaN・対の無いサロゲート・PROFILE_KEYS が 2 か所・F′ の部品の数え違い〈join の py_dumps・shifts_write の区分の書き手・master_store の read_json を含め 6 つ〉・D の得の言い過ぎ）を読み直した。desktop/src/lot.rs の handle_body（method・path・query・body・ask だけで見出しを受けない）と main.rs の呼び出し（req.query・req.body）、services/display_formats.view（中身の字を json.loads し、dict でなければ {}）を読んで確かめた。新しい案は C・B・DC・DCU の 4 つ（2 回目の 1 位 D と U を D′・U′ に直して持ち越す）。方向は 読み道を閉じる D′・書く道の落とし穴を先に U′・書式を読みだけ C・土台だけ B・読み 2 組 DC・読み 2 組＋書く 1 組 DCU で偏っていない。",
+   "proposals": {
+    "D′ 権限の組の読み道（2 回目の D の文を正す）": {
+     "score": {
+      "order": 5,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目の指摘（得の言い過ぎ・正しさの得が無い）を文に入れて正した。主張を読んで確かめた。routes/access.py:11 の access_me は me() の login・pc・pcSource・revoked・caps と APP_VERSION だけ、:80 の access_list は me の rows・flags.matchedId・access.choices() だけ。窓が権限を受け持つとき Python の me は routes/common.py:89 で窓の載せた me（_shell_me）をそのまま返すので、窓の access.rs:611 の me・Gate::me:687 から答えれば作りから同じ答えになる（rows も窓の perm_rows の物）。材料はそろう: pcSource は一覧の設定の答えの who（routes/lotlist.py:183 の identity.current が {login, pc, pcSource}）、ROLES（access.rs:26）・MASTER_EDIT_LEVELS・TAB_ROLES・master_edit_cap（access.rs:114）・capabilities（access.rs:273）、version は presence.rs:293 の app_version。足すのは master_edit_options（services/access.py:126 の 3 行。上限の段までの並び）だけ。書き手は増えず、窓の答えの鍵の順も jsonify の sort_keys と BTreeMap の順で同じ（UTF-8 のバイトの順と符号位置の順は同じ）。タブの権限の GET を Python に残す理由（tab_list が routes/sources._all）も正しい。悪い所: (1) 書く道は 1 本も進まない。2 回目で落ちた理由の『書く道が進まない』はそのまま残る（順序・ステップ数）。(2) 読むのは起動（app.js:238）とマスタ管理を開いたとき（master.js:202）だけで、得は 1 回の行き来を減らすことだけ（文のとおり）。(3) lot.rs:1018 の試験（『読むのは Python』）を替える要がある。access_parity の 41×25 の組は me と門番を見ているので、この 2 本の答えの突き合わせは新しく足す要がある（文に無い）"
+    },
+    "U′ 表示の初期設定の 2 本（2 回目の U の落とし穴を先に）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 6,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目の減点（読めない本文で初期設定を全部消す）を先に潰した。窓が読めない本文は Python に任せ、Content-Type が JSON でないときの {} も写す。PROFILE_KEYS を一覧の設定の答え（routes/lotlist.py:110）で渡すので、名前の表は Python の 1 か所に残る。2 MB の確かめに join::py_dumps を使うのも正しい（ui_defaults.clean は json.dumps(ensure_ascii=False) の既定の区切り）。書く道が 1 組進む（2 回目の『書く道が進まない』に答えている）。scratchpad/score-writes3/u3.py で Python の PUT の端を動かして確かめた（tmp に data を写し、作業ツリーは変えない）: NaN・1e400 の本文は Python が読んで置く（200）・『not json』と BOM 付きの本文と text/plain は {} と読み全部を外す（200・残り {}）。窓が serde で読めない物を任せれば、どれも Python の答えになる。悪い所・案の文の誤り: (1) 本文が表でない形の扱いが文に無い。u3.py で [1]・\"s\"・true は body.get の AttributeError で 500（何も書かない）、[]・0・null は偽の値なので {} で全部を外す（200）。{\"keys\": []}・{\"keys\": 0} も外し、{\"keys\": [1]}・{\"keys\": \"x\"} は 400。窓の今の型（access_write.rs:387 の filter(truthy).unwrap_or({})）に倣って parsed[\"keys\"] と読むと、[1] で 500 ではなく全員の初期設定を消す。画面は TPA.json で表を送るので実害は小さいが、『落とし穴を先に』と言うならここも要る。(2) 『main.rs の Req から』とあるが、Req（router.rs:69）は method・path・query・body だけで見出しを持たない。見出しは router.rs:104 で Python へ回すときに読むだけなので、router.rs の Req と Native・Guard の呼び出しを替える（main.rs だけでは済まない）。(3) access_write.rs:19 は『本文の Content-Type を見ない（画面はいつも application/json）』と決めて作った後の採点を通っており、shifts_write も同じ。この道だけ見出しを見ると、Content-Type の決まりが窓の中で 2 通りになる（揃えるか、JSON でない見出しなら任せるだけにする、のどちらかを文に書く要がある）。(4) 2 回目の記録は対の無いサロゲートを 500 と書いたが、u3.py では clean の encode の UnicodeEncodeError が ValueError なので 400（範囲の外の名前の値なら落として 200 で外す）。窓は読めないので任せればよく、案の結論は変わらない。(5) 開発者だけ・たまにしか使わない道なので、速さの得は小さい。行は {名前, 値} で id・rev が無く、master_rows.rs の型の外で Store::write を直に呼ぶ（形の点）。clean の『字の値だけ・2 MB』は Rust にも写る（事例の表の手当てが文に無い）"
+    },
+    "C 共有の書式の読み道だけ（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 5,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 書く道を増やさず、書式の後の書く道（F′）が答えに使う df.view を先に窓に作る順は筋が通る。routes/formats.py:11 は is_screen_source（窓は dashboard.rs）・df.view・名前の順・can_write（access.rs:631）・is_shared（master_store.rs:479）・revision（master_store.rs:793）だけで、材料はそろう。読めない行を任せる決まりは 2 回目の『読めない本文の扱い』に答えている（serde の 128 段・NaN・1e400 は任せる）。jsonify は sort_keys なので、入れ子の body の鍵の順も窓の BTreeMap と同じ。大きな整数（1e20 の桁）は serde が小数にするが、画面の JSON.parse も同じ小数にするので見える差は無い。悪い所・案の文の誤り: (1) 書く道は進まない（ステップ数）。読むのは書式の面を開いたとき（lotlist-formats.js:33）と書いた後だけ。(2) 決まりが 2 か所になる: view の parts_of（services/display_formats.py:89）と PARTS の 10 の部品の名前（人の言葉の札）を Rust に写す。部品を足すたびに両方を直す（PROFILE_KEYS を設定の答えで渡す U′ の考え方がここには無い）。(3) 『読めない字』以外の端が文に無い。scratchpad/score-writes3/u3.py で view を動かすと、{\"slicer\": {\"cards\": 5}} は parts_of の TypeError（一覧ごと 500）、中身が字でない（dict）行も json.loads の TypeError、{\"filters\": \"ab\"} は len で『条件 2』、{\"adhoc\": {\"value\": 0.0}} は偽なので『列で絞り込む』。書く道は clean_body を通すので手で直したファイルでしか起きないが、窓は同じ 500 を写すか任せる要がある。(4) 書いた直後の読みは窓、書くのは Python なので、1 つの面の中で読み手と書き手が分かれる（置き場の決まりは access_parity が見ているが、書式の答えの突き合わせは新しく要る）"
+    },
+    "B 順を保つ JSON の木と事例の表だけ（道 0 本・新）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 2,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 4,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 書式・変換表・プリセットの書く道に要る土台（鍵の順・並び・数・入れ子を全部持つ木と、json.dumps(ensure_ascii=False, separators) と同じ字の書き手）を先に作り、pynum_cases と同じ型の事例の表で Python と突き合わせる筋はきれい。2 回目に測った Python の端（重なる鍵は後の値・前の位置・1e+16・1e-05・-0.0・大きな整数・5000 段は読む）を表に焼けば、後の段で読み違いが起きにくい。窓の今の読みを替えないので、access_parity・formula_cases・shifts_parity を壊さない。悪い所・案の文の誤り: (1) 道を 1 本も移さない（ステップ数）。利用者に見える得は無い。(2) 2 回目の指摘『決まりが 2 か所』はむしろ増える。JSON の読み書きは formula.rs:2042 の Item・access.rs:503 の py_json・access_write.rs:315 の Ordered・join.rs:354 の py_dumps・shifts_write.rs:143 の区分の書き手・master_store.rs の read_json／has_wide_int に、使う道の無い 7 つ目が足される。『次の段で 1 つずつ寄せる』は先送りで、この版では寄らない。(3) 使う道が無いので、木の作りが本当に書式の書く道に足りるか（json.loads し直した中身を clean_body が送った順で書く・名前の str()・partial の body null）はこの版では試されない。呼ぶ所の無い pub の部品は clippy の dead_code を避けるための試験だけの口になる。(4) 深さを Python に合わせるなら自前の読み手（再帰の手当て）が要り、量が見えない"
+    },
+    "DC 権限の読み道と共有の書式の読み道（新）": {
+     "score": {
+      "order": 5,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: どちらも書き手を増やさない読み道で、窓の me（canEdit・caps）と置き場（shared・revision）の同じ材料で答えるので、1 版のまとまりとしては揃っている。マスタ管理を開くときの /api/masters/access と書式の面の /api/masters/formats が Python を通らなくなる。悪い所: (1) 書く道は進まない。2 回目で落ちた理由がそのまま残る（順序）。(2) 『マスタ管理を開いたときの 2 つの読み』は不正確。書式の GET は一覧の書式の面（lotlist-formats.js:33）が読むので、マスタ管理を開いても読まない。(3) C の悪い所（parts_of と PARTS の名前を Rust に写す・字でない中身と cards の 500 の端）を引き継ぎ、D′ の得は小さいまま。突き合わせの評価関数も 2 組とも新しく要る"
+    },
+    "DCU 読み道 2 組と表示の初期設定（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 前へ進む量はいちばん多い（読み 3 本〈権限 2・書式 1〉と表示の初期設定の GET／PUT）。書く道も 1 組進む。悪い所: (1) 1 版に 3 つの話（権限の読み・書式の読み〈parts_of の写し〉・初期設定の書き〈見出しの配線〉）が乗る。2 回目の FU と同じく『1 版に話が多い』で点を落とす形。(2) 『見出し（Content-Type）を handle_body に渡す配線を 1 度で入れ』とあるが、使うのは初期設定の PUT だけで、ほかの 2 組は読みなので見出しを要らない。1 度で入れる得は無い。配線は main.rs ではなく router.rs の Req（router.rs:69）を替える要があり、access_write.rs:19 の『Content-Type を見ない』と決まりが 2 通りになる（U′ の (2)(3)）。(3) U′ の本文が表でない形の端（[1] で 500 のはずが全部を外す）と、C の parts_of の決まりが 2 か所になる点を両方持つ"
+    }
+   }
+  }
+ ],
+ "proposals_text_2": {
+  "F′ 共有の書式（順を保つ JSON を 1 つの部品に寄せ、端は任せる）": "1 回目の 1 位 F を直す。窓に 3 つある『Python の json に合わせる読み』（formula.rs の順を保つ Item・access.rs の py_json・access_write.rs の Ordered）を 1 つの部品 pyjson.rs（順を保つ読み・json.dumps(ensure_ascii=False, separators) と同じ字・NaN/Infinity/i64 に入らない整数/1e16 などの小数の書き方/深さの上限〈Python の既定に合わせる〉を見つけたら『任せる』）に寄せ、共有の書式の 4 本（GET 一覧〈source で絞り名前の順〉・POST・PUT・DELETE）を master_rows.rs の型で窓が受ける。serde_json の preserve_order は入れない（窓全体の答えの鍵の順が変わるため）。『任せる』判定は master_rows.rs の 1 つの関数にし、勤務体系（awkward・big・needs_python・readable）もそれへ寄せる。",
+  "U 表示の初期設定の 2 本（新）": "GET／PUT /api/ui-defaults（services/ui_defaults.py・routes/system.py）を窓が受ける。値は字だけ（{名前: 字} のうち PROFILE_KEYS の物）・置けるのは開発者だけ（窓の me の role）・2 MB の上限は Python の json.dumps(ensure_ascii=False) の字の UTF-8 の長さで数える・行は {名前, 値} で全部を置き換える（ui_defaults.replace）。JSON の入れ子が無いので閉じている。書いた後に Python の ui_profile（画面に埋める初期設定）が古くならないよう、Python の覚えが無いことを確かめる。",
+  "D 権限の組の読み道（新）": "書く道を窓へ移した権限の組（版 3.68.0）の読み道を閉じる: GET /api/access/me（loginId・pcName・pcNameSource・version・revoked・caps）と GET /api/masters/access（items＝me の行・matchedId・access.choices）を、窓が既に持つ me（access.rs）から答える。タブの権限の GET（/api/masters/tabaccess）はタブの並び（tab_list）がデータ元の並び（routes/sources._all）を要るので Python のまま。読みの道なので書き手は増えない。画面が開くたびに読む道（me）が Python を通らなくなる。",
+  "FU 共有の書式と表示の初期設定（新）": "F′ と U を 1 版にする。どちらも『画面の設定を名前で共有に置く』組で、字の書き方（json.dumps の字・UTF-8 の長さ）を同じ pyjson.rs で持つ。2 組目で部品の汎用さを確かめられる。",
+  "Q 『任せる』判定の 1 か所化と勤務体系の残る減点（道 0 本・新）": "道は増やさず、窓の作りだけを整える: shifts_write.rs の awkward・big・needs_python・readable を master_rows.rs の 1 つの判定（JSON の値ごとに『窓が Python と同じに読み書きできるか』。i64 に入らない整数・NaN・深さ・並び／表を項目ごとの決まりで）に寄せ、勤務体系の残る減点（区分の字の深い入れ子）を直す。次の組（書式・プリセット）はこの判定を使うだけになる。"
+ },
+ "self_check_2": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘（設備グループの正規表現の確かめ方が Python と違う・書いた後に Python の GET へ尋ねる口が無い・preserve_order は窓全体の答えの鍵の順を変える・プリセットはダッシュボードが読まない・変換表は窓が自分で読まない）を読み直し、設備グループ・変換表・プリセットを外した。routes/system.py の ui_defaults_get／put（開発者だけ・ui_defaults.replace・MAX_BYTES は json.dumps(ensure_ascii=False) の UTF-8 の長さ）、routes/access.py の access_me（me の caps）・access_list（me の rows・access.choices）・tabaccess_get（tab_list が routes/sources._all を読む）を読んで確かめた。新しい案は U・D・FU・Q の 4 つ（1 回目の 1 位 F を F′ に直して持ち越す）。方向は 部品を寄せて組を移す F′・小さく閉じた書く道 U・読み道を閉じる D・2 組で汎用さを見る FU・作りだけ整える Q で偏っていない。",
+ "proposals_text_3": {
+  "D′ 権限の組の読み道（2 回目の D の文を正す）": "2 回目の 1 位 D を正す: GET /api/access/me（loginId・pcName・pcNameSource・version・revoked・caps）と GET /api/masters/access（items＝me の行・matchedId・access.choices）を、窓が既に持つ me（access.rs。名乗りと置き場は一覧の設定の答えから）で答える。得は『起動とマスタ管理を開くときに Python を通らない』ことで、正しさの得は無い（いまも Python は窓の me で答える）ことを文に書く。タブの権限の GET は Python のまま。窓が me を決められない・読めない置き場のときは Python に任せる。",
+  "U′ 表示の初期設定の 2 本（2 回目の U の落とし穴を先に）": "GET／PUT /api/ui-defaults を窓が受ける。2 回目の指摘を入れる: 本文の読み方は Python の get_json(silent=True)（Content-Type が JSON でない・読めない本文は {} ＝ keys 空で全部を外す）なので、窓は Content-Type を受け取れるよう handle_body に見出しを渡す（main.rs の Req から）。窓が読めない本文（NaN・対の無いサロゲートなど。Python は読む・または 500 で書かない）は必ず Python に任せる。PROFILE_KEYS は一覧の設定の答え（/api/lotlist/settings）で Python から渡し、窓は写さない（決まりは 1 か所）。2 MB の確かめは join::py_dumps の字の長さ。",
+  "C 共有の書式の読み道だけ（新）": "共有の書式の GET /api/masters/formats（source で絞り・名前の順・view: 中身の字を json.loads して body に）を窓が答える。マスタのファイルの中身は字なので、窓は字を serde_json で読み、読めない字（NaN・Infinity・深い入れ子など。Python は読む）のある行が 1 つでもあれば Python に任せる。書く道は Python のまま（決まりも書き手も増えない）。canEdit は窓の me、shared・revision は master_store.rs。書いた直後の読みも、置き場の答えで同じ字を読む。",
+  "B 順を保つ JSON の木と事例の表だけ（道 0 本・新）": "書式・変換表・プリセットの書く道に要る『鍵の順・並び・数・入れ子をすべて持つ木』（pyjson.rs: 読む・json.dumps(ensure_ascii=False, separators) と同じ字で書く・Python の端〈重なる鍵は後の値・前の位置・1e+16 の数の書き方・NaN・大きな整数・深さ〉を見つけたら『任せる』）だけを作り、答えを tests/fixtures/pyjson_cases.json に Python で焼いて Python と Rust が突き合わせる（pynum_cases と同じ型）。窓の今の読み（formula の Item・access の py_json・access_write の Ordered・join の py_dumps・master_store の read_json）は替えない（次の段で 1 つずつ寄せる）。",
+  "DC 権限の読み道と共有の書式の読み道（新）": "D′ と C を 1 版にする。どちらも『書き手を増やさない読み道』で、窓の me（canEdit）と置き場（shared・revision）の同じ材料で答える。マスタ管理を開いたときの 2 つの読みが Python を通らなくなる。",
+  "DCU 読み道 2 組と表示の初期設定（新）": "DC に U′ を足す。見出し（Content-Type）を handle_body に渡す配線を 1 度で入れ、表示の初期設定の書く道まで進める。"
+ },
+ "self_check_3": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（U の本文の読み方〈silent・Content-Type〉と NaN・対の無いサロゲート・PROFILE_KEYS が 2 か所・F′ の部品の数え違い〈join の py_dumps・shifts_write の区分の書き手・master_store の read_json を含め 6 つ〉・D の得の言い過ぎ）を読み直した。desktop/src/lot.rs の handle_body（method・path・query・body・ask だけで見出しを受けない）と main.rs の呼び出し（req.query・req.body）、services/display_formats.view（中身の字を json.loads し、dict でなければ {}）を読んで確かめた。新しい案は C・B・DC・DCU の 4 つ（2 回目の 1 位 D と U を D′・U′ に直して持ち越す）。方向は 読み道を閉じる D′・書く道の落とし穴を先に U′・書式を読みだけ C・土台だけ B・読み 2 組 DC・読み 2 組＋書く 1 組 DCU で偏っていない。",
+ "built": {
+  "name": "作った後",
+  "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+  "result": {
+   "proposal": "D′ 権限の組の読み道（作った後）",
+   "score": {
+    "order": 7,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 6,
+    "steps": 4,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "commit 550b3c1（前の 3.76.0 本体 fc6c8e1）を git show で読み、元の Python（routes/access.py の access_me・access_list・tabaccess_get、routes/common.py の me・_shell_me・can_write、services/access.py の flags・capabilities・master_edit_can）・desktop/src/main.rs の native（心拍の腕と新しい腕）・presence.rs の app_version・selftest.js の 11b・router.rs の Supervisor::alive を読んだ。【1 回目の指摘】(1) 直った: 11b に GET /api/masters/tabaccess（Python が答え、canEdit は can_write('tab_access')＝窓が載せた me から）を本物の見出しと偽の見出し（設備作業者・非表示＝書けない段）で 2 回問い、canEdit が同じで、/api/access/me の canEditAdminMaster とも同じかを足した。偽の me の段を書けない段へ替えたのも、自己診断の PC（権限の行が無い＝一般ユーザー・編集可＝管理のマスタを書ける）で偽が効けば false になって落ちる向きで、筋が通る。(2) 直った: 版は presence.app_version（program の app/version.py。心拍・利用状況と同じ 1 つの元）、Python の lotlist.py から version を消し、access_parity も program_version で Python の APP_VERSION と同じ字かを見る。(3) 直った: main.rs の心拍の腕のすぐ下に GET の 2 本の腕を足し、Lot::access_read が backend.alive()（Supervisor の子の is_alive。行き来は無い）が false なら None＝Python へ回す（前と同じ失敗）。handle_body からは読む道を外し、受け口は main.rs の 1 か所。腕の並びは /__desktop/… と心拍の後・catch-all の前で、ほかの腕と道が重ならない。HEAD・末尾の / は catch-all → handle_body で None → Python（窓の me で同じ答え）。(4) 直った: lot の試験に、版が分からない・中身が答えない・判定の材料が無い・名乗りを読めないときは None、覚えている 2 秒は前の行・Python が書いた後（after_python）は読み直す、POST と末尾の / は Python、を足した。【試験】cargo test --locked --test access_parity 6 件 OK・cargo test --locked --lib the_window_writes_access_masters OK・python -m unittest tests.test_version OK。変異（直に入れて git checkout で戻した。git status --short は空）: alive を見ない → lot 1043 行で落ちる／版が空でも答える → 1041 行で落ちる／after_python の forget を外す → 1067 行で落ちる（1 回目に分けられなかった所が今回は分けて捕まる）／access が物でなくても答える → 落ちない（gate.me が材料無しで Err を返すので同じ働きの変異。穴ではない）。【残る所】(a) main.rs の新しい腕を消しても、どの試験も自己診断も落ちない（答えは Python が窓の me で返すので同じ）。selftest は get() で X-TPA-By を読めるのに 11b は am.by === 'shell'・ta.by === 'python' を見ていない。窓が本当に答えているか、tabaccess が本当に Python を通ったかは確かめていない。(b) 11b の tabaccess の確かめは、自己診断の PC の本物の me が管理のマスタを書けるとき（権限の行が無い・切断されていない）だけ偽の見出しを見分ける。本物の me も書けない形（管理者の行がある共有で未登録＝部分的編集可）では偽が効いても通る。taj.canEdit === true を見ていない。また canEdit は can_write＝切断中は false、canEditAdminMaster は切断を見ないので、自己診断の PC が切断されていれば正しくても落ちる（CI の PC では切断は無いので今は成り立つ）。(c) lot の試験の『覚えている間は前の答え』は ME_TTL 2 秒の内に収まることに頼る。遅い CI で 2 秒を越えると正しくても落ちうる（時計を差し替えていない）。(d) 版は disk の version.py を毎回読む（心拍と同じ）。動いている Python と disk が食い違う形は心拍と同じ扱いで、新しくは増えていない。【量】直しは 76 行ほど。書く道は進んでいない（得は起動とマスタ管理を開くときの行き来 1 回ずつのまま）。決まりは access.rs の read_route・read_answer と lot.rs の access_read の 1 か所、受け口は心拍と同じ型の腕に揃い、素直になった。",
+   "evaluator": "作っていない 2 回目の採点者（別のエージェント・2026-11-05。作った者でも 1 回目の採点者でもない）。fc6c8e1・550b3c1 の差分と Python・main.rs・presence.rs・selftest.js を読み、試験を自分で流し、lot.rs に 4 つの変異を入れて落ちるかを確かめた（画像は無い）"
+  },
+  "first": {
+   "score_total": 70.0,
+   "evaluator": "作っていない採点者（別のエージェント・2026-11-05）。差分と Python を読み、試験を自分で流し、scratchpad（score-built3）で 6 つの変異を入れて落ちるかを確かめた（画像は無い）",
+   "score": {
+    "order": 6,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 6,
+    "steps": 4,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 7,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "points": [
+    "(1) 自己診断 11b が古い: /api/access/me を窓が答えるので、見出しを捨てて Python へ渡すことを確かめなくなった",
+    "(2) 中身の版が 2 か所から来る（/api/access/me は一覧の設定の覚え、心拍・利用状況は program の version.py）",
+    "(3) Python が止まっていても設定の覚えの 10 秒は /api/access/me が答える（前は失敗）",
+    "(4) 窓の道（Lot::access_read・Gate の覚え・版）の試験が lot の 1 組だけで薄い"
+   ],
+   "seen": "差分（commit fc6c8e1。採点の途中で作った者が commit した。中身は採点で読んだ未 commit の差分と同じことを cmp で確かめた）と元の Python を読み、試験を流し、変異を入れた。【答えが同じになる作り】窓が権限を受け持つとき Python の access_me・access_list も窓が見出しに載せた同じ Gate の me（ME_TTL 2 秒・切断の指示 5 秒を毎回重ねる）から作るので、窓が答えても答えの中身は前と同じ。窓が書いた後（access_write の forget）・Python が書いた後（after_python の forget）も前と同じ覚えを捨てる。access（判定の材料）が無い＝3.65 より前の Python、version が無い＝3.75 までの Python、me を決められない（名乗りが無い・権限の表を読めない）ときは None で Python に任せ、Python は前と同じく自分の me で答える。鍵の並び: Python の dumps は sort_keys=True、窓の json_reply は serde_json の Map（preserve_order なし＝BTreeMap）で、どちらも鍵の字の順（UTF-8 のバイト順は符号の順と同じ）。ensure_ascii の違いは JSON として同じ。HEAD・百分率符号で書いた道・末尾の / は read_route に当たらず Python へ回り、Python は窓の me で答える（同じ答え）。問い合わせの字は Python も窓も見ない。【試験】cargo test --locked --test access_parity 6 件 OK（same_me_and_guard_as_python で 41 組のうち Python が答える 40 組の me・list を突き合わせ、1 組はどちらも答えない）・cargo test --locked --lib the_window_writes_access_masters OK。oracle を自分で流し、reads が 40 組、切断中の組が 4 組あることを数えた。変異: revoked を落とす・段の上限を < にする・余計な鍵を足す・matchedId を null にするは access_parity が組ごとに落ちた。版の確かめを外すと lot の試験が 1031 行で落ちた。書いた後の forget を外すと lot の試験は前からある 1011 行で落ち、足した『書いた後の読みに新しい行』（1047 行）だけで捕まえるかは分けられなかった。変異は全部戻し cmp で元と同じ。【気になる所】(1) 自己診断 desktop/src/selftest.js の 11b は『窓が決めた me で Python が答える。画面が名乗った見出し X-TPA-Me は窓が捨てる』を /api/access/me で確かめているが、この版から窓がその道を Python へ回さずに答えるので、本物の窓で Python へ見出しを捨てて渡すことを確かめなくなった（試験は通り続けるので気づけない。言葉も古い）。(2) 中身の版が 2 か所から来る: /api/access/me の version は一覧の設定の覚え（10 秒）、心拍・利用状況は set_program で中身の置き場から読む版。Python だけを起こし直したときに最長 10 秒ずれうる（設定の覚えは起こし直しで捨てない）。(3) 窓が答えるので中身（Python）が止まっていても設定の覚えの 10 秒は /api/access/me が答える（前は失敗し、app.js は catch して札を描き直さなかった）。生きているかは心拍が見るので害は小さいが、Python と同じ形ではない。(4) access_parity は read_answer を直に呼んで比べ、Lot::access_read（Gate の覚え・設定の version）の道は lot の試験の 1 組だけ。【量】足した Rust は 55＋38 行ほどで、書く道は進んでいない（得は起動とマスタ管理を開くときの行き来 1 回ずつ）。決まりは access.rs の 1 か所、既存の handle_body の入口・Gate・設定の型に素直に載っている。"
+  }
+ }
+}
