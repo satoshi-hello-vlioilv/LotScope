@@ -121,9 +121,16 @@ def ui_defaults_put():
     m = me()
     if m["flags"]["role"] != access.ROLE_DEVELOPER:
         return error(f"初期設定を置けるのは開発者だけです（この PC は {m['flags']['role']}）。", 403, "forbidden")
-    body = request.get_json(force=True, silent=True) or {}
+    # 切断中の PC は置けない（版 3.78.0。初期設定は門番〈_GUARDED〉の外なので、ここで見る。門番はマスタ編集の段も見るので使わない）
+    if m["revoked"]:
+        return error("この PC は一時的に切断されています。初期設定を置けません。", 403, "revoked")
+    # 本文と keys は表だけ（版 3.78.0。前は読めない本文・表でない本文・keys の無い本文を {} と読み、全員の初期設定を消した。
+    # 外すときは画面が {keys: {}} を送る）
+    body = request.get_json(force=True, silent=True)
+    if not isinstance(body, dict):
+        return error("本文の形が違います（{keys: {名前: 字}}）。", 400)
     try:
-        n = ui_defaults.replace(current_app.config["MASTER_STORE"], body.get("keys") or {})
+        n = ui_defaults.replace(current_app.config["MASTER_STORE"], body.get("keys"))
     except ValueError as e:
         return error(str(e), 400)
     return jsonify(count=n, **ui_profile())

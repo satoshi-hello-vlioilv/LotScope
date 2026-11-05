@@ -57,5 +57,45 @@ class BodyReading(unittest.TestCase):
         self.assertEqual([x["id"] for x in self.repo.rolls()], [1], "表でない本文では消さない")
 
 
+class UiDefaults(unittest.TestCase):
+    """表示の初期設定を置く道（版 3.78.0）: 表でない本文・keys が表でない本文は 400（前は {} と読んで全員の初期設定を消した）・切断中の開発者は置けない"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        (self.tmp / "data").mkdir()
+        rows = {"access_permissions": [{"id": 1, "ログインID": "", "PC名": "", "権限区分": "開発者", "rev": 1}],
+                "ui_defaults": [{"名前": "tpa.lotlist.pageSize.v1", "値": "100"}]}
+        for name, r in rows.items():
+            (self.tmp / "data" / f"{name}.json").write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
+        self.store = MasterStore(self.tmp, local_root=self.tmp / "local", settings={})
+        self.c = create_app({"TESTING": True, "MASTER_STORE": self.store}).test_client()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def kept(self):
+        return self.c.get("/api/ui-defaults").get_json()["defaults"]
+
+    def test_non_object_bodies_do_not_wipe(self):
+        for body in ("[1]", "null", "0", '"x"', "[]", "{}", '{"keys": null}', '{"keys": []}', "{"):
+            r = self.c.put("/api/ui-defaults", data=body, content_type="application/json")
+            self.assertEqual(r.status_code, 400, body)
+            self.assertEqual(self.kept(), {"tpa.lotlist.pageSize.v1": "100"}, f"{body} で消さない")
+        self.assertEqual(self.c.put("/api/ui-defaults", json={"keys": {}}).get_json()["defaults"], {}, "外すのは {keys: {}}")
+
+    def test_revoked_developer_cannot_publish(self):
+        from unittest import mock
+        from app.routes import common
+        real = common.me
+
+        def revoked():
+            m = real()
+            return {**m, "revoked": {"by": "x", "remainingSec": 60}}
+        with mock.patch("app.routes.system.me", revoked):
+            r = self.c.put("/api/ui-defaults", json={"keys": {"tpa.lotlist.pageSize.v1": "1"}})
+        self.assertEqual((r.status_code, r.get_json()["kind"]), (403, "revoked"))
+        self.assertEqual(self.kept(), {"tpa.lotlist.pageSize.v1": "100"})
+
+
 if __name__ == "__main__":
     unittest.main()
