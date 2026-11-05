@@ -222,7 +222,7 @@ fn perm_gate(me: &Value, rows: &[Map<String, Value>], data: &Map<String, Value>,
 fn check_row(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
     let key = (normalize_part(data.get("ログインID")), normalize_part(data.get("PC名")));
     for r in rows {
-        if self_id.is_some_and(|id| same_id(r, id)) {
+        if crate::master_rows::is_self(r, self_id) {
             continue;
         }
         if (normalize_part(r.get("ログインID")), normalize_part(r.get("PC名"))) == key {
@@ -384,6 +384,9 @@ pub fn needs_python(body: &[u8]) -> bool {
 /// 窓が受ける 4 本を答える。me は窓が決めた me（門番は呼ぶ側が通した）。rows は me の権限の行
 /// 窓が答えない（Python に任せる）なら None: 版の番号に窓の表に無い系統の数字がある
 pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8]) -> Option<Answer> {
+    if !rows_of(me).iter().all(crate::master_rows::row_readable) {
+        return None; // 置き場の行の id・版を窓が Python と同じに読めない（版 3.77.0）
+    }
     // request.get_json(silent=True) or {}: 読めない・空・偽の値は {}
     let parsed: Value = serde_json::from_slice(body).ok().filter(crate::worksum::truthy).unwrap_or(json!({}));
     if matches!(route, Route::Update(_) | Route::Delete(_)) {

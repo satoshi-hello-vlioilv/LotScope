@@ -314,7 +314,7 @@ fn readable(rows: &[Value]) -> bool {
             Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.abs() < 9.0e15),
             v => v.filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18),
         };
-        let id_ok = matches!(r.get("id"), None | Some(Value::Null | Value::Number(_)));
+        let id_ok = r.as_object().is_some_and(crate::master_rows::row_readable); // id・版（版 3.77.0。大きな id・読めない版は Python）
         let seg_ok = match r.get("区分") {
             Some(Value::String(s)) if !s.is_empty() => serde_json::from_str::<Value>(s).is_ok() || crate::access::py_json(s).is_none(),
             _ => true,

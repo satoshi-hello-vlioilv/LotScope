@@ -103,6 +103,12 @@ SCENARIOS = [
         S(BOSS, "PUT", f"{P}/11", "[1]"),
         S(BOSS, "GET", P),
     ]},
+    {"name": "id の無い行（一意の確かめは id のある行とだけ比べる。版 3.77.0）", "mode": "shared",
+     "shifts": [{"名称": "無id", "区分": "[]"}, {"id": 2, "名称": "有id", "区分": "[]", "rev": 1}], "steps": [
+        S(BOSS, "POST", P, {"name": "無id", "segments": THREE}),
+        S(BOSS, "PUT", f"{P}/2", {"name": "無id"}),
+        S(BOSS, "GET", P),
+    ]},
     {"name": "書ける段と門番", "mode": "shared", "shifts": OLD[:2], "steps": [
         S(PART, "GET", P),
         S(PART, "POST", P, {"name": "部分的編集可でも書ける", "segments": THREE}),

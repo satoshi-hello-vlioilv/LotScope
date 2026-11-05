@@ -138,6 +138,31 @@ SCENARIOS = [
         S(BOSS, "POST", R, {"設備": "CR1", "本数": [1, 2.5]}),
         S(BOSS, "POST", R, '{"設備": "CR1", "本数": -0}'),
     ]},
+    {"name": "id の無い行（一意と同一工程の確かめは id のある行とだけ比べる）", "mode": "shared",
+     "rows": {"equipment_master": [{"設備名": "NOID", "同一工程": "NX*"}, {"id": 1, "設備名": "CR1", "rev": 1}],
+              "roll_master": [{"設備": "CR1"}]}, "steps": [
+        S(BOSS, "POST", E, {"設備名": "noid"}),
+        S(BOSS, "POST", E, {"設備名": "NX1"}),
+        S(BOSS, "PUT", f"{E}/1", {"設備名": "NOID"}),
+        S(BOSS, "PUT", f"{E}/1", {"設備名": "NX2"}),
+        S(BOSS, "POST", R, {"設備": "CR1"}),
+        S(BOSS, "GET", E),
+    ], "delegates": []},
+    {"name": "置き場の行の項目が並び（窓は答えず Python に任せる）", "mode": "shared", "rows": {"equipment_master": [{"id": 1, "設備名": ["CR1"], "rev": 1}], "roll_master": [{"id": 1, "設備": "CR1", "備考": {"a": 1}}]}, "steps": [], "delegates": [
+        S(BOSS, "GET", E), S(BOSS, "POST", E, {"設備名": "X"}), S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1}),
+        S(BOSS, "DELETE", f"{E}/1"), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "X"}), S(BOSS, "PUT", f"{R}/1", {"本数": 1}),
+        S(BOSS, "DELETE", f"{R}/1", query="rev=1"),
+    ]},
+    {"name": "置き場の行の版が読めない（窓は答えず Python に任せる）", "mode": "shared", "rows": {"equipment_master": [{"id": 1, "設備名": "CR1", "rev": "x"}], "roll_master": [{"id": 1, "設備": "CR1", "rev": None}]}, "steps": [], "delegates": [
+        S(BOSS, "GET", E), S(BOSS, "POST", E, {"設備名": "X"}), S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1}),
+        S(BOSS, "DELETE", f"{E}/1"), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "X"}), S(BOSS, "PUT", f"{R}/1", {"本数": 1}),
+        S(BOSS, "DELETE", f"{R}/1", query="rev=1"),
+    ]},
+    {"name": "置き場の行の id が大きな数・字（窓は答えず Python に任せる）", "mode": "shared", "rows": {"equipment_master": [{"id": 1e19, "設備名": "CR1"}], "roll_master": [{"id": "3", "設備": "CR1"}]}, "steps": [], "delegates": [
+        S(BOSS, "GET", E), S(BOSS, "POST", E, {"設備名": "X"}), S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1}),
+        S(BOSS, "DELETE", f"{E}/1"), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "X"}), S(BOSS, "PUT", f"{R}/1", {"本数": 1}),
+        S(BOSS, "DELETE", f"{R}/1", query="rev=1"),
+    ]},
     {"name": "書ける段と門番", "mode": "shared", "rows": {"equipment_master": EQ[:2], "roll_master": ROLLS}, "steps": [
         S(PART, "GET", E),
         S(PART, "POST", E, {"設備名": "部分的編集可でも書ける"}),

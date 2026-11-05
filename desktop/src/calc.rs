@@ -176,14 +176,8 @@ fn wild_match(p: &[char], s: &[char]) -> bool {
 pub(crate) fn equipment_check(rows: &[Value], data: &Row, self_id: Option<i64>) -> Option<String> {
     let name = pyfmt::strip(&text(data.get("設備名"))).to_string();
     let pats = parse_patterns(data.get(FIELD));
-    let others: Vec<&Row> = rows
-        .iter()
-        .filter_map(Value::as_object)
-        .filter(|r| match self_id {
-            None => r.get("id").is_some_and(|v| !v.is_null()),
-            Some(id) => !crate::master_rows::same_id(&Value::Object((*r).clone()), id),
-        })
-        .collect();
+    let others: Vec<&Row> =
+        rows.iter().filter_map(Value::as_object).filter(|r| !crate::master_rows::is_self(&Value::Object((*r).clone()), self_id)).collect();
     // Python の f 文字列の {r.get('設備名')}（無ければ None）
     let shown = |r: &Row| r.get("設備名").map(py_str).unwrap_or_else(|| "None".into());
     for p in &pats {

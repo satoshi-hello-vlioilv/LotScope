@@ -123,13 +123,13 @@ fn awkward(v: &Value) -> bool {
     v.is_array() || v.is_object()
 }
 
-/// 置き場の行を窓が Python と同じに読めるか（項目の値が並び・表なら Python に任せる。id は数か無い）
+/// 置き場の行を窓が Python と同じに読めるか（id・版は master_rows::row_readable。項目の値が並び・表なら Python に任せる）
 fn readable(rows: &[Value], spec: &Spec) -> bool {
-    rows.iter().all(|r| {
-        let Some(o) = r.as_object() else { return false };
-        let id_ok = matches!(o.get("id"), None | Some(Value::Null | Value::Number(_)));
-        id_ok && spec.fields.iter().chain(spec.renamed.iter().map(|(old, _)| old)).all(|k| !o.get(*k).is_some_and(awkward))
-    })
+    master_rows::rows_readable(rows)
+        && rows
+            .iter()
+            .filter_map(Value::as_object)
+            .all(|o| spec.fields.iter().chain(spec.renamed.iter().map(|(old, _)| old)).all(|k| !o.get(*k).is_some_and(awkward)))
 }
 
 /// 必須の列が空か（routes/masters._blank: null も空。0・False は空でない）
@@ -157,7 +157,8 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
         return None;
     }
     let parsed: Value = if blank_body { Value::Null } else { serde_json::from_slice(body).ok()? };
-    // 直す・消す道は先に routes/common.base_rev が本文を読む: 表でない本文（並び・字・数）は 500（行は書かない。Python も版 3.77.0 から同じ）
+    // 直す・消す道は先に routes/common.base_rev が本文を読む: 表でない本文（並び・字・数）は 500（行は書かない。Python も版 3.77.0 から同じ）。
+    // 答えの本文は窓では {error, kind}、Python では道の外の例外なので枠の 500 の頁（画面は表でない本文を送らないので画面には出ない）
     if matches!(route, Route::Update(..) | Route::Delete(..)) && truthy(&parsed) && !parsed.is_object() {
         return Some((500, json!({"error": "本文の形が違います", "kind": "error"})));
     }

@@ -144,7 +144,7 @@ fn equipment_and_roll_masters_match_python() {
             }
         }
     }
-    assert!(steps >= 60 && delegated >= 15, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 70 && delegated >= 35, "歩が少ない: {steps}・{delegated}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

@@ -169,6 +169,31 @@ pub(crate) fn same_id(r: &Value, id: i64) -> bool {
     }
 }
 
+/// 比べる相手から除く自分の行か（Python の `r.get("id") != self_id` の否定: 足すとき〈self_id が None〉は id の無い・null の行が自分）。
+/// 一意の確かめ（_check_unique）と行の確かめ（_check_row）のどれもこれで見分ける（版 3.77.0。前は足すとき id の無い行とも比べた）
+pub(crate) fn is_self(r: &Value, self_id: Option<i64>) -> bool {
+    match self_id {
+        None => r.get("id").is_none_or(Value::is_null),
+        Some(id) => same_id(r, id),
+    }
+}
+
+/// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。字や大きな数は Python に任せる）、
+/// 版は無いか Python の int() が読める物（読めなければ Python は master_call の中の例外で 400、窓は答えない）
+pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
+    let id_ok = match r.get("id") {
+        None | Some(Value::Null | Value::Bool(_)) => true,
+        Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.is_finite() && f.abs() < 9.0e15),
+        _ => false,
+    };
+    id_ok && r.get("rev").is_none_or(|v| py_int(v).is_some())
+}
+
+/// 置き場の行がどれも row_readable か（行でない物があれば読めない）
+pub(crate) fn rows_readable(rows: &[Value]) -> bool {
+    rows.iter().all(|r| r.as_object().is_some_and(row_readable))
+}
+
 /// 行の版を確かめる（_check_rev）
 pub(crate) fn check_rev(row: &Value, base: Option<Rev>) -> Result<(), MasterError> {
     if let Some(b) = base {
@@ -219,7 +244,7 @@ fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value>, self_id:
     }
     let k = normalize_part(data.get(col));
     for r in rows {
-        if !self_id.is_some_and(|id| same_id(r, id)) && !k.is_empty() && normalize_part(r.get(col)) == k {
+        if !is_self(r, self_id) && !k.is_empty() && normalize_part(r.get(col)) == k {
             return Err(MasterError::Duplicate(format!(
                 "{col}「{}」はもう登録されています（ほかの PC が先に追加した可能性があります）。",
                 clean(data.get(col))
