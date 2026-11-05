@@ -4,7 +4,8 @@
 // ③ 計算列（組む所の「＋ 計算列」）を作業開始・作業終了に選んでも効く・式が問い合わせに載る ④「当てる」と保存のあと、開き直しても選んだ列のまま
 // ⑤ 計算列の名前を変える・消すと、作業開始・作業終了・色分け・棒の字・期間の列の名前も付いていく（消したら自動へ戻る）
 // ⑥ 一覧で設備ごとに作った同じ名前の計算列は、選んだ設備の式で数える（ほかの設備の違う式を使わない）
-// ⑦ 選んだ設備どうしで式が違えば、先に選んだ設備の式で数え、組む所で知らせる
+// ⑦ 選んだ設備どうしで式が違っても、設備ごとにその設備の式で数える
+// ⑧ すべての設備（設備を選ばない）でも、設備ごとにその設備の式で数える
 // 全部合えば終了コード 0。
 import { launch, sleep, parseView, waitDash } from "./ui-harness.mjs";
 
@@ -117,9 +118,29 @@ try {
   await p.click("[data-db-editmode]").catch(() => {}); await sleep(300);
   await p.click(`${P("two")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f"); await settle(p);
   await p.selectOption("[data-de-oend]", ""); await settle(p); await p.selectOption("[data-de-oend]", "作業終了時刻"); await settle(p);
-  const tp = await panel(p, "two"), warn = await p.$eval("#deFields", (el) => (el.querySelector(".de-ophint.is-warn") || {}).textContent || "").catch(() => "");
-  check("⑦ 設備を 2 つ選んでも、先に選んだ設備 HOT の式", tp.calc && tp.calc.formulas && tp.calc.formulas["作業終了時刻"] === `[${a0.endColumn}]`, tp.calc);
-  check("⑦ 設備で式が違う計算列を、組む所で知らせる（名前と、どの設備の式か）", warn.includes("作業終了時刻") && warn.includes("HOT"), warn);
+  const tp = await panel(p, "two"), ta = await answer(p, "two");
+  const two2 = two.panels[0].equips[1], tq = (n) => ((ta && ta.equips) || []).find((e) => e.name === n) || {};
+  check("⑦ 設備を 2 つ選ぶと、どちらもその設備の式（HOT＝作業終了の写し・もう 1 台＝作業開始の写し）",
+    tp.calc && tp.calc.formulas["作業終了時刻"] === `[${a0.endColumn}]` && tp.calc.equips && tp.calc.equips[two2] && tp.calc.equips[two2].formulas["作業終了時刻"] === `[${a0.startColumn}]`, tp.calc);
+  check("⑦ HOT は棒が出て、もう 1 台は区間なし（それぞれの式で数えた印）", (tq("HOT").ops || []).length === bars(h0) && !(tq(two2).ops || []).length,
+    [(tq("HOT").ops || []).length, (tq(two2).ops || []).length, tq(two2).why]);
+  await p.click("[data-de-cancel]").catch(() => {}); await sleep(300);
+
+  // ⑧ 「すべての設備」（設備を選ばない）: どの設備もその設備の一覧の式で数える（版 3.74.0。利用者の知らせ 2026-11-05 の 2 回目:
+  //   1 台ずつなら出るが、すべての設備にすると出ない）。HOT は元の作業終了の写し → 棒が出る。ほかの設備は作業開始の写し → 区間なし
+  const all = { rows: 8, panels: [{ ...OPS.panels[0], id: "all", ops: { start: "作業開始時刻", end: "作業終了時刻" } }] };
+  await p.evaluate((x) => Dashboard._setLayout(x), all); await settle(p);
+  await p.click("[data-db-editmode]").catch(() => {}); await sleep(300);
+  await p.click(`${P("all")} [data-db-edit]`); await p.waitForSelector("#deFields .pv-f"); await settle(p);
+  await p.selectOption("[data-de-oend]", ""); await settle(p); await p.selectOption("[data-de-oend]", "作業終了時刻"); await settle(p);
+  const al = await answer(p, "all"), ap = await panel(p, "all");
+  const hotA = ((al && al.equips) || []).find((e) => e.name === "HOT") || {};
+  check("⑧ すべての設備でも、HOT は HOT の式で数える（棒の数が HOT だけのときと同じ）", (hotA.ops || []).length === bars(h0) && bars(h0) > 0,
+    [(hotA.ops || []).length, bars(h0), hotA.why, al && al.error]);
+  const otherA = ((al && al.equips) || []).filter((e) => e.name !== "HOT" && !e.error);
+  check("⑧ ほかの設備はその設備の式（作業開始の写し）で数える", otherA.length > 0 && otherA.every((e) => !(e.ops || []).length),
+    otherA.map((e) => [e.name, (e.ops || []).length, e.why]));
+  check("⑧ パネルに設備ごとの式が載る（HOT の式）", ap.calc && ap.calc.equips && ap.calc.equips.HOT && ap.calc.equips.HOT.formulas["作業終了時刻"] === `[${a0.endColumn}]`, ap.calc);
   await p.click("[data-de-cancel]").catch(() => {}); await sleep(300);
   check("頁の誤りが無い", errors.length === 0, errors);
 } finally {

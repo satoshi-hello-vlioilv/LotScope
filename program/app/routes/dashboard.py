@@ -13,7 +13,7 @@ from datetime import date, datetime
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings
-from ..services import aggregate, card_forms, dashboard, data_sources, db_mirror, equip_groups, operation, pivot, shifts, work_log
+from ..services import aggregate, card_forms, dashboard, data_sources, db_mirror, equip_groups, formula, operation, pivot, shifts, work_log
 from ..services.identity import normalize_part
 from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
@@ -807,7 +807,7 @@ def dashboard_fields():
     merged, order, table = {}, [], ""
     for x in parts[:12]:
         try:
-            d = pivot.fields(x.path, preferred_table=x.preferred_table, table_candidates=x.table_candidates, calc=calc)
+            d = pivot.fields(x.path, preferred_table=x.preferred_table, table_candidates=x.table_candidates, calc=formula.calc_for(calc, x.name))
         except Exception as e:
             failed.append({"name": x.name, "error": str(e), "kind": "error"})
             continue

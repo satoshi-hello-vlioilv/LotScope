@@ -135,21 +135,33 @@
     const LC = window.LotListColumns;
     if (!LC || !LC.formulaContext) return t.calc || { formulas: {}, names: {} };
     const heads = calcHeads();
-    // 先の頭（選んだ設備）の式ほど先: 同じ名前の計算列が設備ごとに違う式でも、選んだ設備の式で数える（版 3.73.0。利用者の知らせ 2026-11-05:
-    // HOT の「作業終了時刻」を選んでも、設備のキーの順で先の設備の同じ名前の式〈作業開始と同じ時刻〉を写し、どの作業も「作業終了が作業開始より前」になった）
-    const mine = { formulas: {}, names: {} }, had = t.calc || { formulas: {}, names: {} }, differ = new Set();
+    // 共通の式: 先の頭（選んだ設備）の式ほど先（版 3.73.0）。設備ごとの式が無いファイル（ほかの PC で足した設備など）に使う
+    const mine = { formulas: {}, names: {} }, had = t.calc || { formulas: {}, names: {} };
     heads.forEach((h, i) => {
       const x = LC.formulaContext((k) => k.startsWith(h) && !heads.slice(0, i).some((y) => k.startsWith(y)));
-      // 選んだ設備どうしで同じ名前の式が違う（式は 1 つしか送れないので、先に選んだ設備の式で数える。組む所で知らせる）
-      if (i < heads.length - 1) Object.entries(x.formulas).forEach(([c, f]) => { if (c in mine.formulas && mine.formulas[c] !== f) differ.add(c); });
       // 先の頭の物を残し、並びも先の頭から（カラムの札へ送る式の数には上限があるので、選んだ設備の式を先に）
       Object.entries(x.formulas).forEach(([c, f]) => { if (!(c in mine.formulas)) mine.formulas[c] = f; });
       Object.entries(x.names).forEach(([c, n]) => { if (!(c in mine.names)) mine.names[c] = n; });
     });
+    // 設備ごとの式（版 3.74.0。利用者の知らせ 2026-11-05 の 2 回目: 1 台ずつなら出るが「すべての設備」では出ない）: 作業実績は設備ごとに
+    // 表示列の設定があり、同じ名前の計算列でも式が違う。数える設備（選んだ設備・選ばなければすべて）ごとに、その設備の式を持つ。
+    // この PC に設定の無い設備は、パネルに写してある式のまま
+    const equips = { ...(had.equips || {}) };
+    equipKeys().forEach(({ key, name }) => {
+      const x = LC.formulaContext((k) => k.startsWith(`worklog:${key}:`));
+      if (Object.keys(x.formulas).length) equips[name] = x; else delete equips[name];
+    });
     // 組み直すと、この PC の一覧の今の式になる。この PC に無い計算列（ほかの人が組んだ物）は、パネルに写してある式のまま。
     // パネルで作った計算列（own。版 3.39.0）は、いつもパネルの式（一覧の同じ名前の式より先）
     const own = ownOf(had);
-    return { formulas: { ...own, ...mine.formulas, ...had.formulas, ...mine.formulas, ...own }, names: { ...had.names, ...mine.names }, own: Object.keys(own), differ: [...differ].filter((c) => !(c in own)) };
+    return { formulas: { ...own, ...mine.formulas, ...had.formulas, ...mine.formulas, ...own }, names: { ...had.names, ...mine.names }, own: Object.keys(own),
+      ...(Object.keys(equips).length ? { equips } : {}) };
+  }
+  /** 設備ごとの式を持つ設備（作業実績で設備 1 つのキーでないとき）: 選んだ設備・選ばなければすべての設備 → [{key, name}] */
+  function equipKeys() {
+    if (t.source !== "work" || t.equip) return [];
+    const eq = (srcOf("work") || {}).equips || [], pick = t.equips || [];
+    return pick.length ? pick.map((n) => eq.find((e) => e.name === n)).filter(Boolean) : eq;
   }
   /** 一覧の表示列の設定の頭（先の物ほど先）: 作業実績は選んだ設備（並び）→ ほかの設備。品質・データ元はその元 */
   function calcHeads() {
@@ -183,17 +195,32 @@
     const o = x.ops || {}, opsCols = [o.color, o.label, o.start, o.end, o.qty, ...[].concat(o.cls || [])].filter(Boolean);
     const b = x.body || {}, used = new Set([...(b.rows || []), ...(b.cols || [])].map((d) => d.column)
       .concat((b.measures || []).map((m) => m.column || ""), (x.filters || []).map((f) => f.column), [x.period ? x.period.column : ""], opsCols));
-    const byName = Object.fromEntries(Object.entries(ctx.names).map(([c, n]) => [n, c]));
-    const formulas = {};
     // パネルで作った計算列は、使っていなくても持つ（カラムの札に残す）
     (ctx.own || []).forEach((n) => { if (ctx.formulas[n]) used.add(n); });
-    [...used].filter((c) => c && (isCalc(c) || (ctx.own || []).includes(c)) && ctx.formulas[c]).forEach((c) => {
-      formulas[c] = ctx.formulas[c];
-      const chk = window.WL && WL.formula.check(ctx.formulas[c]);
-      ((chk && chk.ok && chk.columns) || []).map((n) => byName[n] || n).forEach((n) => { if (ctx.formulas[n] && !(n in formulas)) formulas[n] = ctx.formulas[n]; });
+    const own = ctx.own || [];
+    /** 式の組（formulas・names）のうち、使う列の式と、その式が [名前] で読む式の列を 1 段 */
+    const pick = (fs, names, ok) => {
+      const byName = Object.fromEntries(Object.entries(names || {}).map(([c, n]) => [n, c])), out = {};
+      [...used].filter((c) => c && ok(c) && fs[c]).forEach((c) => {
+        out[c] = fs[c];
+        const chk = window.WL && WL.formula.check(fs[c]);
+        ((chk && chk.ok && chk.columns) || []).map((n) => byName[n] || n).forEach((n) => { if (fs[n] && !(n in out)) out[n] = fs[n]; });
+      });
+      return out;
+    };
+    const formulas = pick(ctx.formulas, ctx.names, (c) => isCalc(c) || own.includes(c));
+    // 設備ごとの式: 共通の式と違う物だけを持つ（パネルで作った計算列は、どの設備もパネルの式）
+    const equips = {};
+    Object.entries(ctx.equips || {}).forEach(([name, e]) => {
+      const fs = pick(e.formulas || {}, { ...ctx.names, ...(e.names || {}) }, (c) => !own.includes(c));
+      Object.keys(fs).forEach((c) => { if (own.includes(c) || fs[c] === formulas[c]) delete fs[c]; });
+      if (!Object.keys(fs).length) return;
+      const names = Object.fromEntries(Object.entries(e.names || {}).filter(([c, n]) => ctx.names[c] !== n));
+      equips[name] = { formulas: fs, ...(Object.keys(names).length ? { names } : {}) };
     });
-    const own = (ctx.own || []).filter((n) => formulas[n]);
-    return Object.keys(formulas).length ? { formulas, names: ctx.names, ...(own.length ? { own } : {}) } : null;
+    const mineOwn = own.filter((n) => formulas[n]);
+    if (!Object.keys(formulas).length && !Object.keys(equips).length) return null;
+    return { formulas, names: ctx.names, ...(mineOwn.length ? { own: mineOwn } : {}), ...(Object.keys(equips).length ? { equips } : {}) };
   }
   /** 使う計算列の式を組む物に写す（使わなくなったら外す） */
   function syncCalc() {
@@ -247,7 +274,6 @@
   /* ---- 変える（変えるたびに host.onChange でグリッドのパネルを描き直す） ---- */
   function changed(repaintFields = true) {
     syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
-    const dd = $("#deDiffer"); if (dd) dd.innerHTML = differHtml();      // 使う計算列が替われば、設備で式の違う知らせも（札を描き直さないときも）
     const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
     syncUnit();
     const sum = $("#dbEditor .de-fmthead small"); if (sum) sum.innerHTML = fmtSummary(p.fmt || {});   // 見出しの要約も（作った後の採点: 後ろに「本」を入れても要約が変わらなかった）
@@ -527,17 +553,10 @@
     return ((t.calc && t.calc.own) || []).includes(f.column)
       ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(f.column)}" title="このパネルで作った計算列。押すと直せます">式 ✎</button>` : '<small class="sx-calc">式</small>';
   }
-  /** 選んだ設備どうしで式の違う計算列のうち、このパネルが使う物の知らせ（無ければ空） */
-  function differHtml() {
-    const used = Object.keys((t.calc || {}).formulas || {}), xs = (ctx.differ || []).filter((c) => used.includes(c));
-    if (!xs.length) return "";
-    const first = (t.equips || [])[0] || "";
-    return `<p class="de-ophint is-warn" role="note">計算列「${xs.map(esc).join("」「")}」は、選んだ設備ごとに一覧の式が違います。式は 1 つだけ使うので、先に選んだ設備（${esc(first)}）の式で数えます。</p>`;
-  }
   function fieldsHtml() {
     if (fieldsErr) return `<p class="pv-none">${esc(fieldsErr)}</p>`;
     if (!fields) return '<p class="pv-none">カラムを読んでいます…</p>';
-    return `<div id="deDiffer">${differHtml()}</div>` + fieldsBody();
+    return fieldsBody();
   }
   function fieldsBody() {
     if (isOps(p) && !inGroup()) {          // 稼働を見る形: 札は 1 つ（ガント＝棒の色分け・ABC＝品種）。押すとその列にする（もう一度で外す）
@@ -1287,7 +1306,31 @@
   }
   /** 欄に字を打っている間は、その欄のまとまりを描き直さない（打っている字・カーソルを失わない）。押す札・選ぶ欄は描き直す */
   const typingIn = (sel) => { const a = document.activeElement; return !!(a && a.closest(sel) && a.matches("input:not([type=checkbox]):not([type=radio]):not([type=color]),textarea")); };
-  function paint(repaintFields = true) {
+  /** 描き直しの前後で、組む所の中の送れる欄（設備の並び・値の並び・各欄）の送り位置を保つ（版 3.74.0。利用者の知らせ 2026-11-05:
+      設備の並びを下へ送ってチェックすると、描き直しで並びが作り直され、いちばん上へ戻った）。欄は根からの道（札の名前・同じ名前の何番目か）で見分ける */
+  function keepScroll(root, fn) {
+    if (!root) return fn();
+    const key = (n) => {
+      const xs = [];
+      for (let x = n; x && x !== root; x = x.parentElement) {
+        const sig = `${x.tagName}.${x.id || x.className}`;
+        const same = x.parentElement ? [...x.parentElement.children].filter((y) => `${y.tagName}.${y.id || y.className}` === sig) : [];
+        xs.push(`${sig}#${same.indexOf(x)}`);
+      }
+      return xs.join("<");
+    };
+    const sig = (x) => `${x.tagName}.${x.id || x.className}`;
+    const kept = [...root.querySelectorAll("*")].filter((n) => n.scrollTop || n.scrollLeft).map((n) => [sig(n), key(n), n.scrollTop, n.scrollLeft]);
+    const out = fn();
+    kept.forEach(([s0, k, top, left]) => {
+      // 道を数えるのは、送っていた欄と同じ名前の物だけ（描き直すたびに全部の要素を数えない）
+      const n = [...root.querySelectorAll(s0.slice(0, s0.indexOf(".")))].find((x) => sig(x) === s0 && key(x) === k);
+      if (n && (n.scrollTop !== top || n.scrollLeft !== left)) { n.scrollTop = top; n.scrollLeft = left; }
+    });
+    return out;
+  }
+  function paint(repaintFields = true) { return keepScroll($("#dbEditor"), () => paintNow(repaintFields)); }
+  function paintNow(repaintFields = true) {
     const el = $("#dbEditor"); if (!el || !p) return;
     if (!el.firstChild) {
       el.innerHTML = '<i class="de-wgrip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="組む所の幅" title="引いて組む所の幅を変える（← → でも。ダブルクリックで元の幅）"></i>'

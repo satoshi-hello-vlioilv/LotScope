@@ -1039,7 +1039,8 @@ fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, sp
         return Err(down("表が 1 つもありません。".into()));
     }
     let raw_cs = lotlist::dedup(&lotlist::raw_columns(&c, &t).map_err(down)?);
-    let (exprs, calcs, broken, _) = calc_exprs(&c, a.calc, &raw_cs, a.conv)?;
+    let mine = a.calc.and_then(|x| x.for_part(&part.name)); // その設備の式（版 3.74.0）
+    let (exprs, calcs, broken, _) = calc_exprs(&c, mine.as_ref(), &raw_cs, a.conv)?;
     let used: HashSet<String> = filter_items(a.rows)
         .iter()
         .chain(filter_items(a.cols).iter())

@@ -31,6 +31,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from .lot_list import columns, lot_column, pick_table, raw_columns, search_filter_where, tables
+from .formula import calc_for
 from .pivot import PivotError, calc_exprs, period_prefilter, period_range
 from .shifts import Clock, hm
 from .sqlite_ro import connect_ro, qi, to_datetime
@@ -233,7 +234,7 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
         if not t:
             raise PivotError("表が 1 つもありません。")
         raw = columns(c, t, raw_columns(c, t))
-        exprs, broken, _ = calc_exprs(c, calc, raw)
+        exprs, broken, _ = calc_exprs(c, calc_for(calc, part.name), raw)       # その設備の式（版 3.74.0）
         cs = raw + [x for x in exprs if x not in raw]
         for chosen, word in ((start, "作業開始"), (end, "作業終了")):
             if chosen and chosen in broken:      # 選んだ計算列の式が読めない: ほかの列で数えたふりをしない（版 3.73.0）

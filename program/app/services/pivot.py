@@ -40,7 +40,7 @@ from functools import lru_cache
 
 from . import aggregate
 from . import formula
-from .formula import register as register_calc
+from .formula import calc_for, register as register_calc
 from .identity import normalize_part
 from .lot_list import DATE_RATIO, TABLE_CANDIDATES, columns, date_columns, lot_column, pick_table, raw_columns, search_filter_where, tables
 from .shifts import OUTSIDE
@@ -546,7 +546,7 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         if not t:
             raise RuntimeError("表が 1 つもありません。")
         raw_cs = columns(c, t, raw_columns(c, t))
-        exprs, broken, _ = calc_exprs(c, calc, raw_cs)
+        exprs, broken, _ = calc_exprs(c, calc_for(calc, part.name), raw_cs)     # その設備の式（版 3.74.0）
         used = {str(d.get("column") or "") for d in _filter_items(rows) + _filter_items(cols)} | {str(m.get("column") or "") for m in _filter_items(measures)}
         bad = sorted(used & set(broken))
         if bad:

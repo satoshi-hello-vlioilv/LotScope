@@ -36,6 +36,8 @@ const DOT_REPEAT_MAX: usize = 2;
 const MAX_DEPTH: u32 = 200;
 /// 計算列の数の上限（Python の MAX_CALC と同じ）
 pub const MAX_CALC: usize = 40;
+/// 設備ごとの式を持てる設備の数（Python の MAX_CALC_EQUIPS）
+pub const MAX_CALC_EQUIPS: usize = 200;
 
 /// JavaScript の空白（WhiteSpace と LineTerminator。trim・\s・parseFloat の頭の空白）
 const JS_WS: [u16; 25] = [
@@ -2007,6 +2009,33 @@ pub fn check(src: &str) -> Result<Vec<String>, FormulaError> {
 pub struct Calc {
     pub formulas: Vec<(String, String)>,
     pub names: Vec<(String, String)>,
+    /// 設備ごとの式（版 3.74.0。Python の equips）: 設備名 → その設備の式・表示名。数えるファイルごとに for_part で上に重ねる
+    pub equips: Vec<(String, Calc)>,
+}
+
+/// 鍵の並びに (鍵, 値) を入れる: 同じ鍵があれば値だけ替え、場所は先の物のまま（Python の dict と同じ）
+fn put<T>(xs: &mut Vec<(String, T)>, k: String, v: T) {
+    match xs.iter_mut().find(|(n, _)| *n == k) {
+        Some(x) => x.1 = v,
+        None => xs.push((k, v)),
+    }
+}
+
+impl Calc {
+    /// 設備 name のファイルで使う形（Python の calc_for）: その設備の式・表示名を上に重ねる。式の並びはその設備の物 → 共通の物。
+    /// 式が 1 つも無ければ None
+    pub fn for_part(&self, name: &str) -> Option<Calc> {
+        let (mut formulas, mut names) = (self.formulas.clone(), self.names.clone());
+        if let Some((_, e)) = self.equips.iter().find(|(n, _)| n == name) {
+            let mut mine = e.formulas.clone();
+            mine.extend(formulas.into_iter().filter(|(k, _)| !e.formulas.iter().any(|(m, _)| m == k)));
+            formulas = mine;
+            for (k, v) in &e.names {
+                put(&mut names, k.clone(), v.clone());
+            }
+        }
+        (!formulas.is_empty()).then_some(Calc { formulas, names, equips: vec![] })
+    }
 }
 
 /// JSON を、物（{}）の鍵の順を保って読む（serde_json の Map は鍵の字の順に並べ直すため）
@@ -2078,10 +2107,30 @@ pub fn clean_calc(text: &str) -> Option<Calc> {
     };
     let formulas: Vec<(String, String)> =
         strs(get("formulas"), MAX_CALC, MAX_LEN).into_iter().filter(|(_, x)| !x.trim().is_empty()).collect();
-    if formulas.is_empty() {
+    // 設備ごとの式（Python の clean_calc の equips）: 同じ設備名は後ろの値・先の場所（json.loads の dict）。200 台まで
+    let mut seen: Vec<(String, &Item)> = vec![];
+    if let Some(Item::Map(m)) = get("equips") {
+        for (k, x) in m {
+            put(&mut seen, k.clone(), x);
+        }
+    }
+    let mut equips: Vec<(String, Calc)> = vec![];
+    for (k, x) in seen.into_iter().take(MAX_CALC_EQUIPS) {
+        let Item::Map(sub) = x else { continue };
+        if k.trim().is_empty() {
+            continue;
+        }
+        let pick = |key: &str| sub.iter().rev().find(|(n, _)| n == key).map(|(_, v)| v);
+        let f: Vec<(String, String)> =
+            strs(pick("formulas"), MAX_CALC, MAX_LEN).into_iter().filter(|(_, x)| !x.trim().is_empty()).collect();
+        if !f.is_empty() {
+            put(&mut equips, cut(&k, 200), Calc { formulas: f, names: strs(pick("names"), 400, 200), equips: vec![] });
+        }
+    }
+    if formulas.is_empty() && equips.is_empty() {
         return None;
     }
-    Some(Calc { formulas, names: strs(get("names"), 400, 200) })
+    Some(Calc { formulas, names: strs(get("names"), 400, 200), equips })
 }
 
 /// 表示列の設定の式と表示名 → 計算列を値にする。画面（lotlist-columns.js の baseRow）と同じ引き方:
@@ -2283,6 +2332,7 @@ mod tests {
                 ("自分".into(), "[自分]".into()),
             ],
             names: vec![("板厚".into(), "板厚(表示)".into())],
+            ..Default::default()
         };
         let t = Tables::default();
         let cc = CalcColumns::new(&calc, &["板厚".into(), "重量".into()]);

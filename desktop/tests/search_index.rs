@@ -329,7 +329,7 @@ fn fields_are_remembered_per_data_file() {
     let after = pivot::fields(&part(), None, &conv, 300).unwrap();
     assert_eq!(kinds(&after, "合金"), 4, "書き換えた後は数え直す（A3004 が増えた）");
     // 計算列のある札は覚えない（式で変わる）
-    let calc = |f: &str| Calc { formulas: vec![("倍".into(), f.into())], names: vec![] };
+    let calc = |f: &str| Calc { formulas: vec![("倍".into(), f.into())], names: vec![], ..Default::default() };
     let a = pivot::fields(&part(), Some(&calc("[重量] * 2")), &conv, 300).unwrap();
     let b = pivot::fields(&part(), Some(&calc("[ロット番号]")), &conv, 300).unwrap();
     assert_ne!(a, b, "式が違えば答えも違う（覚えた答えを使わない）");
