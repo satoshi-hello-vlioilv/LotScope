@@ -192,8 +192,8 @@ impl Lot {
         };
         let store = self.store_for(&s.access)?;
         let (status, v) = crate::shifts_write::handle(&store, &me, route, query, body, &read()?, &read)?;
-        if writes && (200..300).contains(&status) {
-            self.invalidate(); // 一覧の設定（勤務体系を直せるか・作業実績のまとめの直）を捨てる
+        if writes && ((200..300).contains(&status) || v["saved"] == json!(true)) {
+            self.invalidate(); // 一覧の設定（勤務体系を直せるか・作業実績のまとめの直）を捨てる（書いて読み直せなかった 503 も）
         }
         Some((status, v))
     }
@@ -940,11 +940,19 @@ mod tests {
             "表の適用設備"
         );
         assert!(lot.handle_body("PUT", "/api/masters/shifts/2", "", br#"{"base_rev": NaN}"#, &ask_boss).is_none(), "窓が読めない本文");
+        // 2 回目の採点で見つけた形: 区分の字の中の NaN（Python は 400 で断る）・適用設備の大きな整数（Python は桁のまま置く）
+        let nan = br#"{"name": "s1", "segments": "[{\"name\":\"b\",\"start\":\"23:00\",\"end\":\"7:00\",\"dayOffset\":NaN}]"}"#;
+        assert!(lot.handle_body("POST", "/api/masters/shifts", "", nan, &ask_boss).is_none(), "区分の字の NaN");
+        for eq in [r#"99999999999999999999"#, r#"[12345678901234567890]"#, r#"["CR1", 9223372036854775808]"#] {
+            let b = format!(r#"{{"name": "大", "equipment": {eq}, "segments": [{{"name": "a", "start": "7:00", "end": "8:00"}}]}}"#);
+            assert!(lot.handle_body("POST", "/api/masters/shifts", "", b.as_bytes(), &ask_boss).is_none(), "{eq}");
+        }
         let (st, _) = lot.handle_body("DELETE", "/api/masters/shifts/2", "rev=1", b"[1]", &ask_boss).unwrap();
         assert_eq!(st, 500, "表でない本文は書かない");
         for bad in [
             json!({"id": "x", "名称": "字の id"}),
             json!({"id": 9, "名称": "大", "表示順": "99999999999999999999"}),
+            json!({"id": 9, "名称": "数の大", "表示順": 99999999999999999999.0_f64}),
             json!({"id": 9, "名称": "NaN", "区分": "[{\"name\":\"a\",\"start\":\"23:00\",\"end\":\"7:00\",\"dayOffset\":NaN}]"}),
         ] {
             std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();

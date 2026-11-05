@@ -63,7 +63,8 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> (u16, Value) {
     let body = step["body"].as_str().unwrap_or("");
     let place = access::Place::from_json(&c["place"]);
     let read = || Some(Read { shifts: place.rows(NAME).ok()?, work_logs: place.rows("work_log_files").ok()? });
-    handle(store, &me, route, step["query"].as_str().unwrap_or(""), body.as_bytes(), &read().unwrap(), &read).expect("窓が答える")
+    handle(store, &me, route, step["query"].as_str().unwrap_or(""), body.as_bytes(), &read().unwrap(), &read)
+        .unwrap_or_else(|| panic!("窓が答える: {method} {path} {body}"))
 }
 
 /// 置き場のマスタのファイル（共有・同梱の data/・写し。錠と書きかけの残りは無いこと）

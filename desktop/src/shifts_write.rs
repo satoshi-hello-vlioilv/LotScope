@@ -106,15 +106,36 @@ pub fn needs_python(body: &[u8]) -> bool {
         return true;
     }
     // 適用設備: 表、並びの中の並び・表は Python の str() の書き方（{'a': 1}・[1, 2]）が要る（作った後の採点で見つけた）
+    // i64 に入らない整数も（Python の str() は桁のまま、窓は小数の書き方。2 回目の採点で見つけた）
+    // 1.9 のような小数は Python の str() も窓も同じ書き方なので、整数の値で i64 に入らない物だけ
+    let big = |x: &Value| {
+        x.as_number()
+            .is_some_and(|n| n.is_u64() && n.as_i64().is_none() || n.as_f64().is_some_and(|f| f.fract() == 0.0 && f.abs() >= 9.2e18))
+    };
     match o.get("equipment") {
         Some(Value::Object(_)) => return true,
-        Some(Value::Array(a)) if a.iter().any(|x| x.is_array() || x.is_object()) => return true,
+        Some(Value::Array(a)) if a.iter().any(|x| x.is_array() || x.is_object() || big(x)) => return true,
+        Some(x) if big(x) => return true,
         _ => {}
     }
-    match o.get("segments") {
-        Some(Value::Array(segs)) => {
-            segs.iter().any(|s| s.as_object().is_some_and(|m| ["name", "start", "end", "dayOffset"].iter().any(|k| awkward(m.get(*k)))))
-        }
+    // 区分: JSON の字で来たら中を読む（Python の json.loads は NaN・Infinity・1e400 を読む。窓が読めなければ Python に任せる）
+    let parsed;
+    let segs = match o.get("segments") {
+        Some(Value::String(t)) if !t.is_empty() => match serde_json::from_str::<Value>(t) {
+            Ok(v) => {
+                parsed = v;
+                &parsed
+            }
+            Err(_) => return crate::access::py_json(t).is_some(),
+        },
+        Some(v) => v,
+        None => return false,
+    };
+    match segs {
+        Value::Array(segs) => segs.iter().any(|s| {
+            s.as_object()
+                .is_some_and(|m| ["name", "start", "end", "dayOffset"].iter().any(|k| awkward(m.get(*k)) || m.get(*k).is_some_and(big)))
+        }),
         _ => false,
     }
 }
@@ -124,7 +145,8 @@ fn clean_segments(v: Option<&Value>) -> Result<String, String> {
     let parsed;
     let segs = match v {
         Some(Value::String(s)) => {
-            parsed = crate::access::py_json(if s.is_empty() { "[]" } else { s }).ok_or("勤務区分の形が読めません。")?;
+            // Python の json.loads も読めない字（窓が読めず Python が読む NaN などは needs_python で Python に任せた）
+            parsed = serde_json::from_str(if s.is_empty() { "[]" } else { s }).map_err(|_| "勤務区分の形が読めません。".to_string())?;
             &parsed
         }
         Some(x) => x,
@@ -285,8 +307,10 @@ fn next_order(rows: &[Value]) -> String {
 /// Python の json は読めて窓は読めない区分の字（NaN・Infinity など）
 fn readable(rows: &[Value]) -> bool {
     rows.iter().all(|r| {
-        let order_ok =
-            r.get("表示順").filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18);
+        let order_ok = match r.get("表示順") {
+            Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.abs() < 9.0e15),
+            v => v.filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18),
+        };
         let id_ok = matches!(r.get("id"), None | Some(Value::Null | Value::Number(_)));
         let seg_ok = match r.get("区分") {
             Some(Value::String(s)) if !s.is_empty() => serde_json::from_str::<Value>(s).is_ok() || crate::access::py_json(s).is_none(),
