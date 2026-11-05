@@ -177,6 +177,7 @@ def lists_settings():
 def _access_place():
     from ..repositories.master_store import DEFAULTS_DIR
     from ..services import identity, presence
+    from ..version import APP_VERSION
     st = current_app.config["MASTER_STORE"]
     st.follow_moved()                    # 置き場の決まり（引っ越し先の印・配る版の覚え）は Python が決め、窓はその答えを読む
     pdir = presence.presence_dir()
@@ -184,7 +185,9 @@ def _access_place():
     return {"who": {**who, "key": presence.terminal_key(who["login"], who["pc"])},
             "place": {"shareDir": str(st.share_dir) if st.share_dir is not None else "", "shared": sorted(st.shared_names),
                       "data": str(st.base / "data"), "defaults": str(DEFAULTS_DIR), "cache": str(st.cache_dir),
-                      "presence": str(pdir) if pdir is not None else "", "lockTtl": st.lock_ttl}}
+                      "presence": str(pdir) if pdir is not None else "", "lockTtl": st.lock_ttl},
+            # 中身の版（版 3.76.0）: 窓が GET /api/access/me を自分の me から答えるときの version（Python の APP_VERSION と同じ字）
+            "version": APP_VERSION}
 
 
 def _conversions():

@@ -160,6 +160,15 @@ impl Lot {
         Some((status, v))
     }
 
+    /// 権限の読む 2 本（版 3.76.0。GET /api/access/me・/api/masters/access）を窓の me から答える。
+    /// 判定の材料（access）・中身の版が無い（前の版の Python）・me を決められないときは None（Python が自分の me で答える）
+    fn access_read(&self, route: crate::access::ReadRoute, ask: AskSettings) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        let version = s.access.get("version").and_then(Value::as_str).filter(|v| !v.is_empty())?;
+        let me = self.gate.me(&s.access).ok()?;
+        Some((200, crate::access::read_answer(route, &me, version)))
+    }
+
     /// 勤務体系の 4 本（版 3.75.0。src/shifts_write.rs）を窓が受ける。書く道は権限を読み直して門番に通し、窓の書く係で書く。
     /// 判定の材料（access）が無い・me を決められない・マスタを読めない・窓が答えない形は None（Python が答える）
     fn shifts_route(
@@ -395,6 +404,9 @@ impl Lot {
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if let Some(route) = crate::access::read_route(method, path) {
+            return self.access_read(route, ask);
+        }
         if let Some(route) = crate::access_write::route_of(method, path) {
             return self.access_write(method, path, route, query, body, ask);
         }
@@ -1015,7 +1027,31 @@ mod tests {
         assert!(Lot::new(dir.join("c3")).handle_body("POST", "/api/masters/access", "", b"{}", &ask_none).is_none());
         assert!(lot.handle_body("POST", "/api/masters/%61ccess", "", b"{}", &ask_boss).is_none());
         assert!(lot.handle_body("PUT", "/api/masters/access/x", "", b"{}", &ask_boss).is_none());
-        assert!(lot.handle_body("GET", "/api/masters/access", "", b"", &ask_boss).is_none(), "読むのは Python");
+        // 読む 2 本（版 3.76.0）: 中身の版（access.version）があれば窓の me から答え、無ければ（前の版の Python）Python に任せる
+        assert!(lot.handle_body("GET", "/api/masters/access", "", b"", &ask_boss).is_none(), "版の無い材料は Python");
+        let boss_v = json!({"who": boss["who"], "place": boss["place"], "version": "3.76.0"});
+        let ask_v = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": boss_v.clone()}));
+        let lot_v = Lot::new(dir.join("cache-v"));
+        let (st, v) = lot_v.handle_body("GET", "/api/masters/access", "x=1", b"", &ask_v).expect("窓が答える");
+        assert_eq!((st, v["items"].as_array().map(Vec::len), v["matchedId"].clone()), (200, Some(2), json!(1)), "{v}");
+        assert_eq!(v["masterEditByRole"]["設備作業者"], json!(["非表示"]), "{v}");
+        let (st, v) = lot_v.handle_body("GET", "/api/access/me", "", b"", &ask_v).expect("窓が答える");
+        assert_eq!(
+            (st, v["loginId"].as_str(), v["version"].as_str(), v["role"].as_str()),
+            (200, Some("boss"), Some("3.76.0"), Some("開発者")),
+            "{v}"
+        );
+        // 窓が書いたら、次の読みに新しい行（覚えた me を捨てる）
+        let body = serde_json::to_vec(&json!({"ログインID": "n2", "権限区分": "一般ユーザー"})).unwrap();
+        assert_eq!(lot_v.handle_body("POST", "/api/masters/access", "", &body, &ask_v).unwrap().0, 201);
+        let (_, v) = lot_v.handle_body("GET", "/api/masters/access", "", b"", &ask_v).unwrap();
+        assert_eq!(v["items"].as_array().map(Vec::len), Some(3), "{v}");
+        assert!(lot_v.handle_body("POST", "/api/access/me", "", b"", &ask_v).is_none(), "読む道は GET だけ");
+        // 名乗りを読めない（me を決められない）ときは Python
+        let ask_bad = || {
+            Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": {"version": "3.76.0", "place": boss["place"]}}))
+        };
+        assert!(Lot::new(dir.join("cache-b")).handle_body("GET", "/api/access/me", "", b"", &ask_bad).is_none());
         assert!(
             lot.handle_body("POST", "/api/masters/access", "", r#"{"ログインID": "n", "x": NaN}"#.as_bytes(), &ask_boss).is_none(),
             "窓が読めない数の本文は Python"

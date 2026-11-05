@@ -2,6 +2,7 @@
 //! program/tests/access_oracle.py が組ごとに置き場（共有・壊れた共有と写し・写しだけ・手元だけ・BOM・読めない写し）・権限の行・タブの権限・
 //! 切断の指示・名乗りを置いて Python で答え、置き場のファイルを残したまま窓が同じ置き場から読んで答える。
 //! Python が me を決められない組は、窓も決めず（見出しを載せない）、門番は止めない（Python も止めない）。
+//! 版 3.76.0 から、読む 2 本（GET /api/access/me・/api/masters/access）の窓の答えも Python が自分で決めた答えと突き合わせる。
 
 mod common;
 
@@ -31,6 +32,23 @@ fn same_me_and_guard_as_python() {
             (want, Ok(m)) => {
                 if let Some(d) = common::diff(want, m, "") {
                     bad.push(format!("{name}: me {d}"));
+                }
+            }
+        }
+        // 読む 2 本（版 3.76.0）: 窓が自分の me から答えた物が、Python が自分で決めた me の答えと同じ（決められない組はどちらも答えない）
+        let version = conf["version"].as_str().unwrap_or("");
+        assert!(!version.is_empty(), "{name}: 一覧の設定の access に中身の版がありません");
+        for (path, route) in [("/api/access/me", access::ReadRoute::Me), ("/api/masters/access", access::ReadRoute::List)] {
+            assert_eq!(access::read_route("GET", path), Some(route));
+            let want = &c["reads"][path];
+            match (want, &got) {
+                (Value::Null, Err(_)) => {}
+                (Value::Null, Ok(_)) => bad.push(format!("{name}: GET {path} Python は答えないのに窓は答える")),
+                (_, Err(_)) => bad.push(format!("{name}: GET {path} 窓が答えられない")),
+                (want, Ok(m)) => {
+                    if let Some(d) = common::diff(want, &access::read_answer(route, m, version), "") {
+                        bad.push(format!("{name}: GET {path} {d}"));
+                    }
                 }
             }
         }

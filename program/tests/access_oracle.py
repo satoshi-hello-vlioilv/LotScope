@@ -13,6 +13,7 @@ desktop/tests/access_parity.rs が呼ぶ）。
   置き場      … 共有のファイル・共有が壊れていて写し・共有に無く写し・手元だけ（data/）・BOM・読めない写し（Python は me を決められない）
   門番        … 11 の道（現場・管理）× 書く・読む・除外 3 つ
     {"cases": [{"name", "conf": 窓へ渡す {who, place}, "now": いま, "me": Python の me（決められなければ null）,
+                "reads": {"/api/access/me" と "/api/masters/access": Python の答え（版 3.76.0）},
                 "guards": [{"method", "path", "status", "body"}]}]}
 """
 import json
@@ -235,7 +236,7 @@ def main():
 
 def run(tmp):
     import app.routes as routes
-    from app.routes.access import _access_guard
+    from app.routes.access import _access_guard, access_list, access_me
     from app.routes.common import me
     from app.routes.lotlist import _access_place
     who = {"login": "", "pc": ""}
@@ -271,6 +272,13 @@ def run(tmp):
                     m = me()
                 except Exception:
                     m = None
+                reads = {}       # 読む 2 本（版 3.76.0）: Python が自分で決めた me での答え（決められなければ null＝Python は 500）
+                for path, fn in (("/api/access/me", access_me), ("/api/masters/access", access_list)):
+                    routes._REVOKE_CACHE.update(at=0.0, key="")
+                    try:
+                        reads[path] = fn().get_json()
+                    except Exception:
+                        reads[path] = None
                 guards = []
                 for method, path in PATHS:
                     routes._REVOKE_CACHE.update(at=0.0, key="")
@@ -290,7 +298,7 @@ def run(tmp):
             if mode == "bom":     # Python が読んで作った写しを消す（窓が共有の BOM 付きのファイルそのものを読むことを確かめる）
                 for n in ("access_permissions", "tab_access"):
                     (root / "local" / "master_cache" / f"{n}.json").unlink(missing_ok=True)
-            out.append({"name": name, "conf": conf, "now": NOW.isoformat(), "me": m, "guards": guards})
+            out.append({"name": name, "conf": conf, "now": NOW.isoformat(), "me": m, "reads": reads, "guards": guards})
         return {"cases": out}
     finally:
         for p in patches:
