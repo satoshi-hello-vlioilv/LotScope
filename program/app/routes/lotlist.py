@@ -130,8 +130,12 @@ def lotlist_settings():
         place = _access_place()
     except Exception:
         place = None     # 読めない: 窓は me を載せず、Python が自分で決める
+    # calculation: 転写距離・ピッチ計算の設定（版 3.72.0。窓の desktop/src/calc.rs が POST /api/calculate に答える）。
+    # 配った設定（APP_SETTINGS）の値そのもの（参照先マスタでは変えない。Python の calculator と同じ物）
+    calculation = current_app.config["APP_SETTINGS"].get("calculation", {})
     return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
-                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists, access=place)
+                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists, access=place,
+                   calculation=calculation)
 
 
 def lists_settings():

@@ -40,6 +40,8 @@ pub struct Settings {
     pub lists: Value,
     /// 権限の判定の材料（版 3.65.0。名乗りとマスタ・利用状況の置き場。Python の lotlist._access_place・src/access.rs）
     pub access: Value,
+    /// 転写距離・ピッチ計算の設定（版 3.72.0。配った設定の calculation。src/calc.rs）。答えに無い（前の版の Python）ときは None
+    pub calculation: Option<Value>,
 }
 
 impl Settings {
@@ -56,6 +58,7 @@ impl Settings {
             conversions: v["conversions"]["tables"].clone(),
             lists: v["lists"].clone(),
             access: v["access"].clone(),
+            calculation: v.get("calculation").cloned(),
         }
     }
 }
@@ -335,11 +338,30 @@ impl Lot {
         self.presence.handle_with_place(&me, &crate::access::Place::from_json(&s.access["place"]), method, path, query, body)
     }
 
+    /// 転写距離・ピッチ計算と検査計の有無（版 3.72.0。src/calc.rs）。設定の calculation・置き場が無い・マスタを読めない・
+    /// engine=python・窓が答えない形（calc::handle が None）は Python が答える
+    fn calc_route(&self, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let s = self.settings(ask).ok()?;
+        let calculation = s.calculation.as_ref()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let place = crate::access::Place::from_json(&s.access["place"]);
+        let masters = crate::calc::Masters::new(place.rows("equipment_master").ok()?, place.rows("roll_master").ok()?)?;
+        crate::calc::handle(path, body, calculation, &masters)
+    }
+
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
         if let Some(route) = crate::access_write::route_of(method, path) {
             return self.access_write(method, path, route, query, body, ask);
+        }
+        if crate::calc::is_route(method, path) {
+            return self.calc_route(path, query, body, ask);
         }
         if presence::is_route(method, path) || path == "/api/ui-state" {
             return self.presence_route(method, path, query, body, ask);
@@ -1076,6 +1098,48 @@ mod tests {
         let lot3 = Lot::new(dir.join("c3").join("db_cache")); // 設定を覚えていない窓
         assert!(lot3.heartbeat(&fail, &|| true).is_none());
         assert_eq!(lot3.heartbeat(&fail, &|| false).unwrap().0, 503);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_answers_the_calculation() {
+        // 版 3.72.0（順 6 の 1 段目）: POST /api/calculate と POST /api/equipment/inspection は窓が答える（マスタは置き場から読む）。
+        // 設定に calculation が無い（前の版の Python）・engine=python・読めない本文は Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-calc-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let data = dir.join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("equipment_master.json"),
+            json!([{"id": 1, "設備名": "TLV", "巻出し方向": "上", "ライン方向": "←", "検査計": "有"}, {"id": 2, "設備名": "L-1", "巻取方向": "下"}]).to_string()).unwrap();
+        std::fs::write(
+            data.join("roll_master.json"),
+            json!([{"id": 1, "設備": "TLV", "入出位置": "出側", "ロール径MAX": "194", "ロール名": "R"}]).to_string(),
+        )
+        .unwrap();
+        let place = json!({"shareDir": "", "shared": [], "data": data, "defaults": dir.join("defaults"), "cache": dir.join("cache"), "presence": "", "lockTtl": 20.0});
+        let conf = json!({"who": {"login": "u", "pc": "PC", "key": "PC@u"}, "place": place});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone(), "calculation": {}}));
+        let lot = Lot::new(dir.join("local").join("db_cache"));
+        let body = json!({"lot": {"density": 2.7, "processes": [
+            {"no": 1, "equipment": "L-1", "thickness": 1.0, "width": 1000, "weight": 5000, "unwind": "上"},
+            {"no": 2, "equipment": "TLV", "thickness": 0.5, "width": 1000, "weight": 4900, "unwind": "下"}]},
+            "inputs": {"found_equipment": "2:TLV", "found_pitch_mm": 610, "soil_a_m": 100, "soil_b_m": 103, "tolerance_percent": 5}});
+        let b = serde_json::to_vec(&body).unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/calculate", "", &b, &ask).expect("窓が答える");
+        assert_eq!((st, v["actual_transfer_distance_m"].as_f64()), (200, Some(3.0)), "{v}");
+        assert_eq!(v["processes"][1]["auto_rewind_master"], "上", "旧い列名（巻出し方向）を巻取方向に読み替える");
+        assert_eq!(v["processes"][1]["roll_candidates"][0]["name"], "R");
+        let (st, v) = lot.handle_body("POST", "/api/equipment/inspection", "", br#"{"names": ["TLV", "L-1", "x"]}"#, &ask).unwrap();
+        assert_eq!((st, v["inspection"].clone()), (200, json!({"TLV": true, "L-1": false, "x": false})));
+        let (st, v) = lot.handle_body("POST", "/api/calculate", "", br#"{"inputs": {}}"#, &ask).unwrap();
+        assert_eq!((st, v["error"].as_str()), (400, Some("計算するロット（lot）がありません。")));
+        assert!(lot.handle_body("POST", "/api/calculate", "engine=python", &b, &ask).is_none(), "engine=python は Python");
+        assert!(lot.handle_body("POST", "/api/calculate", "", b"{\"lot\": NaN}", &ask).is_none(), "読めない本文は Python");
+        let old = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
+        assert!(
+            Lot::new(dir.join("l2").join("db_cache")).handle_body("POST", "/api/calculate", "", &b, &old).is_none(),
+            "calculation の無い前の版の Python"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -11,8 +11,13 @@ use da_core::master_store::{Config, Store};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
-/// 時刻を伏せる（比べるのは形と中身）
+/// 時刻を伏せる（比べるのは形と中身）。断る言葉の中の「（年-月-日 時:分）」も伏せる（Python が答えを作った分と、窓が答えた分が
+/// 分の境をまたぐと字が違う。CI で 02:58 と 02:59 に分かれて落ちた）
 fn norm(v: &Value) -> Value {
+    if let Value::String(s) = v {
+        let re = regex::Regex::new(r"（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）").unwrap();
+        return json!(re.replace_all(s, "（<t>）"));
+    }
     match v {
         Value::Object(o) => Value::Object(
             o.iter()

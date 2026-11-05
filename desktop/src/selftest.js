@@ -58,6 +58,16 @@
     ok("Python が書いた控えを窓が読む（同じファイル）", (wback.keys || {})[key] === big, ((wback.keys || {})[key] || "").length);
     await get("/api/ui-state", json("POST", { changed: {}, removed: [key] }));
 
+    // 計算のタブの転写距離・ピッチ計算は窓が答える（版 3.72.0。src/calc.rs）。engine=python の Python の答えと同じ
+    const calcBody = { lot: { density: 2.73, processes: [
+      { no: 1, equipment: "L-1", thickness: 1.3, width: 1200, weight: 6214, unwind: "上", design_split: 1, vertical_split: 1 },
+      { no: 2, equipment: "TLV", thickness: 0.505, width: 1179.8, weight: 5511.5, unwind: "上", design_split: 1, vertical_split: 1, off_front_thickness_mm: 1.37 }] },
+      inputs: { found_equipment: "2:TLV", found_pitch_mm: 610, soil_a_m: 1610.7, soil_b_m: 1613.7, tolerance_percent: 2 } };
+    const cw = await get("/api/calculate", json("POST", calcBody));
+    const cp = await get("/api/calculate?engine=python", json("POST", calcBody));
+    ok("計算は窓が答え、Python と同じ答え", cw.r.ok && cw.by === "shell" && cp.by === "python" && JSON.stringify(JSON.parse(cw.text)) === JSON.stringify(JSON.parse(cp.text)),
+       `${cw.r.status} ${cw.by} / ${cp.r.status} ${cp.by} ${cw.text.length}字`);
+
     // 5) 日本語の問い合わせ文字（Python のアプリが JSON で答える。元ファイルが無い PC では理由つきの誤り）
     const q = await get("/api/lotlist?search=" + encodeURIComponent("日本語・ロット") + "&page=1&engine=python");
     let qj = null; try { qj = JSON.parse(q.text); } catch (_) { /* 下で失敗にする */ }
