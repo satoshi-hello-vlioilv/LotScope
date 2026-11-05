@@ -290,7 +290,8 @@ impl Presence {
         *self.program.lock().unwrap() = Some(program);
     }
 
-    fn app_version(&self) -> String {
+    /// 中身の版（心拍・利用状況・GET /api/access/me の 1 つの元。program の version.py）
+    pub fn app_version(&self) -> String {
         let prog = self.program.lock().unwrap().clone();
         if let Some(v) = prog.and_then(|p| crate::update::program_version(&p)) {
             *self.version.lock().unwrap() = v;

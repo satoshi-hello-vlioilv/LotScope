@@ -36,8 +36,9 @@ fn same_me_and_guard_as_python() {
             }
         }
         // 読む 2 本（版 3.76.0）: 窓が自分の me から答えた物が、Python が自分で決めた me の答えと同じ（決められない組はどちらも答えない）
-        let version = conf["version"].as_str().unwrap_or("");
-        assert!(!version.is_empty(), "{name}: 一覧の設定の access に中身の版がありません");
+        // 版は窓が心拍と同じ元（program の version.py）から読む: Python の APP_VERSION と同じ字か
+        let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../program");
+        let version = da_core::update::program_version(&program).expect("program の版");
         for (path, route) in [("/api/access/me", access::ReadRoute::Me), ("/api/masters/access", access::ReadRoute::List)] {
             assert_eq!(access::read_route("GET", path), Some(route));
             let want = &c["reads"][path];
@@ -46,7 +47,7 @@ fn same_me_and_guard_as_python() {
                 (Value::Null, Ok(_)) => bad.push(format!("{name}: GET {path} Python は答えないのに窓は答える")),
                 (_, Err(_)) => bad.push(format!("{name}: GET {path} 窓が答えられない")),
                 (want, Ok(m)) => {
-                    if let Some(d) = common::diff(want, &access::read_answer(route, m, version), "") {
+                    if let Some(d) = common::diff(want, &access::read_answer(route, m, &version), "") {
                         bad.push(format!("{name}: GET {path} {d}"));
                     }
                 }

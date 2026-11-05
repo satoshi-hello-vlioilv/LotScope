@@ -549,13 +549,17 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
 得が起動とマスタ管理を開くときの行き来 1 回ずつで小さいこと（採点者の指摘）。書く道の候補（表示の初期設定・共有の書式・設備グループ・変換表・プリセット）は、
 どれも Python の json の読み書き（鍵の順・NaN・大きな整数・深い入れ子・Content-Type）を窓が同じにできない端が残り、今回の 3 回では 70 点に届かなかった。
 
-- GET /api/access/me・GET /api/masters/access を窓が答える（`access::read_route`・`read_answer`・`choices`。Lot::access_read）。
+- GET /api/access/me・GET /api/masters/access を窓が答える（`access::read_route`・`read_answer`・`choices`。main.rs → Lot::access_read）。
   窓が権限を受け持つとき、Python の答えも窓が見出しに載せた同じ me（routes/common._shell_me）から作るので、作りから同じ答えになる。
-  中身の版は一覧の設定の答え（`access.version`。Python の APP_VERSION）から取り、無い（前の版の Python）・me を決められないときは Python に任せる。
-  タブの権限の GET（tab_list が routes/sources を読む）は Python のまま。
+  中身の版は心拍・利用状況と同じ元（program の version.py。Presence::app_version）から取る。判定の材料が無い・版が分からない・me を決められない・
+  中身（Python）が答えない（心拍と同じ backend.alive）ときは Python へ回す（止まっていれば前と同じく失敗する）。
+  タブの権限の GET（tab_list が routes/sources を読む）は Python のまま。窓の自己診断（selftest.js の 11b）は、画面が名乗った見出しを窓が捨てることを
+  この Python が答える道で確かめる（/api/access/me は窓が答えるようになったため）。
+- 作った後の採点の 1 回目（70.0 点。減点なし）の指摘で、版を一覧の設定の覚え（10 秒）から取っていた（心拍の版と 2 か所・Python だけ起こし直すとずれる）・
+  Python が止まっていても覚えの 10 秒は答えた・自己診断が窓の答えを確かめるだけになった・窓の道の覚えと読み直しを分けて確かめる試験が無い、を直した。
 - 評価関数: `cargo test --test access_parity`（← `tests/access_oracle.py` に読む 2 本の答えを足した。41 の組のうち Python が答える 40 組で、
   窓の答えを Python が自分で決めた me の答えと突き合わせる。版の字を変える変異で 40 件落ちることを確かめた）・`lot::tests::the_window_writes_access_masters`
-  （本物の道: 版の無い材料は Python・書いた後の読みに新しい行・GET だけ・名乗りが無ければ Python）。
+  （本物の道: 版が分からない・中身が答えないときは Python・窓が書いた後と Python が書いた後〈after_python〉の読み直し・覚えている間は前の答え・GET だけ・名乗りが無ければ Python）。
 - 書く道の次の段は、順を保つ JSON の木と事例の表（3 回目の B）を先に作ってから、書式・プリセットを移す。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）

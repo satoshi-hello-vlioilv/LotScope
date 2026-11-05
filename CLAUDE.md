@@ -235,7 +235,7 @@ python program/tools/ui_score.py 採点.json                                    
   窓が答えた物は状態・本文〈0 と 0.0 も〉が Python の道と同じ・答えなかった物は Python に任せてよい形。小数のオフの厚さの乱数で 2 乗の pow の違いも見る）・
   `lot::tests::the_window_answers_the_calculation`
 - 数の読み方と勤務体系の道を窓へ移した評価関数（版 3.75.0。7 段目の手本）: `cargo test --test pynum_cases`（← `tests/fixtures/pynum_cases.json`。Python 3.13 の int()・float()・\d・shifts.hm が読む字〈68 系統の数字・全角・下線・nan・inf・1e400・「²」・時刻〉を窓の pyfmt・worksum::hm と突き合わせる。表を作り直すのは `python program/tools/pynum-cases.py`、古い表は `tests/test_pynum_cases.py` が止める）・`cargo test --test shifts_parity`（← `program/tests/shifts_oracle.py`。5 場面・49 歩で GET／POST／PUT／DELETE /api/masters/shifts の答え・断る言葉・できたファイルを Python の道と突き合わせる。書く型は窓の `master_rows.rs`〈Python の SPECS・_create／_update／_delete と同じ 1 つの型。権限の組もここ〉）
-- 権限の読む 2 本を窓へ移した評価関数（版 3.76.0）: `cargo test --test access_parity`（← `program/tests/access_oracle.py` の reads。GET /api/access/me・/api/masters/access の窓の答えを、41 の組で Python が自分で決めた me の答えと突き合わせる）・`lot::tests::the_window_writes_access_masters`（本物の道・版の無い材料は Python）
+- 権限の読む 2 本を窓へ移した評価関数（版 3.76.0）: `cargo test --test access_parity`（← `program/tests/access_oracle.py` の reads。GET /api/access/me・/api/masters/access の窓の答えを、41 の組で Python が自分で決めた me の答えと突き合わせる）・`lot::tests::the_window_writes_access_masters`（main.rs が渡す Lot::access_read: 版が分からない・中身が答えないときは Python・書いた後の読み直し）
 - 検索の索引とカラムの札を覚える評価関数（版 3.66.0）: `cargo test --test search_index`（語ごとに索引と今の形〈全列に CStr LIKE〉で当たる行を突き合わせる・
   * ? とつなぎの字・ビュー・WITHOUT ROWID は今の形・書き換えた後に作り直す〈時刻を戻した書き換えも〉・壊れた索引は作り直す・1 つの接続で 2 つの表・札は覚える／書き換えで数え直す／計算列は覚えない）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`
