@@ -96,6 +96,14 @@ class UiDefaults(unittest.TestCase):
         self.assertEqual((r.status_code, r.get_json()["kind"]), (403, "revoked"))
         self.assertEqual(self.kept(), {"tpa.lotlist.pageSize.v1": "100"})
 
+    def test_locked_store_answers_like_other_masters(self):
+        """保存中の錠に当たったら、ほかのマスタと同じ 409 locked の形（版 3.78.0。前は受け止めず 500 の頁。窓〈ui_defaults.rs〉と同じ形）"""
+        from unittest import mock
+        from app.repositories.master_store import MasterLocked
+        with mock.patch.object(self.store, "write", side_effect=MasterLocked("PC-2", "u2", 12)):
+            r = create_app({"MASTER_STORE": self.store}).test_client().put("/api/ui-defaults", json={"keys": {"tpa.lotlist.pageSize.v1": "1"}})
+        self.assertEqual((r.status_code, r.get_json()["kind"], r.get_json()["holder_pc"]), (409, "locked", "PC-2"))
+
 
 if __name__ == "__main__":
     unittest.main()

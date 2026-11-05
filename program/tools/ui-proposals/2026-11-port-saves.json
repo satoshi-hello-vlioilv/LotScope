@@ -464,5 +464,33 @@
   "SQ セットとすぐに見るの並び 5 本（新）": "S′ の 4 本に PUT /api/pivot-quick を足す。どちらも中身が id の字の並びで、数字の見分け（\\d・isdigit）を pyfmt の 1 か所で見る。S の書き方（2 回目の指摘）: セットの items の \\d{1,9} は窓の regex でなく pyfmt::digit（Python 3.13 の 68 系統。pynum_cases の表）で見る・scope と name に並び・表が来たら Python に任せる（Python は TypeError の 400）・中身を JSON の字で送る形は、その字に master_rows::unreadable を当てて NaN・-0 なら Python に任せる・★の付け替えは「書いた後の行が★なら同じ組のほかの★を外す」（_preset_write）。",
   "P″ 組み方のプリセット 5 本と小数の書き手（2 回目の P′ を正す）": "P′ の 5 本に F1 の小数の書き手の直しを入れる（組み方の中身には width・dec などの数があるので、狙いが 1 つにまとまる）。Python の欠けを先に直す: _dims で有限の数だけ残す（今は NaN をそのまま置き、GET の答えに NaN が出る）・dec の Infinity は 400 にする。dec の round() は偶数への丸め（pyfmt に写す）。S の書き方（2 回目の指摘）: scope と name に並び・表が来たら Python に任せる（Python は TypeError の 400）・中身を JSON の字で送る形は、その字に master_rows::unreadable を当てて NaN・-0 なら Python に任せる・★の付け替えは「書いた後の行が★なら同じ組のほかの★を外す」（_preset_write）。"
  },
- "self_check_3": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（float_repr の丁度まん中の値・scope の並び・表で TypeError・字の中身の NaN・-0・\\d が regex 1.13 で 80 字多い・U′ で落ちた unreadable・門番と route の違い・PROFILE_KEYS が無い形・「書いた後の行が★なら」・数の無い組に小数の直しを抱き合わせると狙いが割れる・道 0 本はステップ数が伸びない）を読み直した。routes/presets.py の quick_put と master_repository.quick_set、routes/system.py の ui_defaults_put、routes/dashboard.py のセットの 4 本を読んで確かめた。新しい案は F1・UQ・SQ の 3 つ（U′ を U″、S を S′、P′ を P″ に直して持ち越す。J″・SU は外した）。方向は 欠けの直しだけ F1・小さく閉じた U″・数の無い組 S′・ID ごとの小さな書き込み 2 組 UQ・id の並びの 2 組 SQ・数のある組に小数の直しを合わせる P″ で偏っていない。"
+ "self_check_3": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（float_repr の丁度まん中の値・scope の並び・表で TypeError・字の中身の NaN・-0・\\d が regex 1.13 で 80 字多い・U′ で落ちた unreadable・門番と route の違い・PROFILE_KEYS が無い形・「書いた後の行が★なら」・数の無い組に小数の直しを抱き合わせると狙いが割れる・道 0 本はステップ数が伸びない）を読み直した。routes/presets.py の quick_put と master_repository.quick_set、routes/system.py の ui_defaults_put、routes/dashboard.py のセットの 4 本を読んで確かめた。新しい案は F1・UQ・SQ の 3 つ（U′ を U″、S を S′、P′ を P″ に直して持ち越す。J″・SU は外した）。方向は 欠けの直しだけ F1・小さく閉じた U″・数の無い組 S′・ID ごとの小さな書き込み 2 組 UQ・id の並びの 2 組 SQ・数のある組に小数の直しを合わせる P″ で偏っていない。",
+ "built": {
+  "name": "作った後",
+  "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+  "result": {
+   "proposal": "U″ 表示の初期設定 2 本（作った後）",
+   "score": {
+    "order": 7,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 7,
+    "steps": 3,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/ui_defaults.rs の profile_view（r.get(\"値\").filter(is_string) の行だけを入れる）と readable（値が無い行を読めるとする）。置き場の行が [{名前: tpa.lotlist.pageSize.v1, 値: \"x\"}, {名前: tpa.lotlist.pageSize.v1}]（後ろに値が無い）のとき、GET /api/ui-defaults の defaults は Python {}（services/ui_defaults.load は後ろの None で上書きしてから字でない物を落とす）・窓 {pageSize: \"x\"}。ui_defaults_oracle.py に場面を一時に足して ui_defaults_parity で 1 件の食い違いとして確かめた（手で直したファイルだけの形）"
+    }
+   ],
+   "seen": "commit 01d0b30（HEAD。版 3.78.0）を git show で読み、元の Python（routes/system.py の ui_profile・ui_defaults_get・ui_defaults_put、services/ui_defaults の clean・load・replace、app/web.py の Request.get_json〈decode('utf-8') → json.loads。BOM は読めない〉と handle〈道の外の例外は 500 の HTML の頁〉、master_store の MasterError〈ValueError でない〉）と、窓の ui_defaults.rs（route_of・clean・readable・profile_view・handle）・lot.rs の Settings.ui_profile_keys と ui_defaults_route・master_rows::unreadable・join::py_dumps を読んだ。画面（lotlist-profile.js の publish はいつも {keys: current()}・lotlist.js の openProfileMenu は GET の canPublish・keys・defaults・updatedAt・updatedBy だけを読む・shared.js は埋めた TPA_UI_PROFILE.defaults を当てる）の読む形は変わらない。【3 回目の指摘の直り】1) 直った: 窓が答えるのは serde が読めた本文だけ（master_rows::unreadable が NaN・-0・1e400・片割れの代用字・BOM を Python に任せる。delegates の 4 歩）。2) 直った: []・0・\"\"・{}・{\"keys\": null}・{\"keys\": []}・{\"keys\": \"x\"}・[1]・null・空・空白は Python も窓も 400 で置かない（test_body_reading.UiDefaults は直す前の Python で落ちる形。外すのは {keys: {}} だけ）。画面は表の本文しか送らないので、画面の動きは変わらない。3) 直った: 切断中は route で見る（Python は m['revoked']、窓は me.revoked。門番は使わない）。順も 開発者か → 切断中 → 本文 で Python と同じ。4) 直った: 置き場が読めない（Place::rows の Err）ときは窓は Python に任せ、Python の except で defaults {}。置き場の行が 2 MB を超えるときは両方 defaults {}・updatedAt ''・updatedBy {}。5) 直った: PROFILE_KEYS は Python の 1 か所のまま、一覧の設定の答えの uiProfileKeys で受け取り、無ければ（前の版の Python）Python に任せる。【流した評価関数】cargo test --locked --test ui_defaults_parity: ok（1 passed）・cargo test --locked --lib -- the_window_answers_ui_defaults: ok・python -m unittest tests.test_body_reading tests.test_lot_list: Ran 63・OK。【答えの割れを探した（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built8/oracle.orig.py に元を控え、ui_defaults_oracle.py に場面 X1〜X8 を一時に足して parity を流し、元に戻した）】一致した形: updated_by が字・updated_at が数・updated_by が空の並び・名前が空の行・同じ名前の行が 2 つで後ろも字（後ろが勝つ）・2 MB の丁度（json.dumps の UTF-8 で 2,097,152 バイト。制御字 \\u0001 の 6 バイトとかなの 3 バイトを混ぜた）は 200 と 1 バイト上は 400・置き場の行が 2 MB を超える GET・空白だけの本文・keys の値が表や並び・BOM と 1e400 の本文（窓は任せる）。共有・写しから・手元だけは元の場面で一致。割れた形 1 つ: X1 置き場に同じ名前の行が 2 つあり、後ろの行に「値」が無い（[{名前: P, 値: 'x'}, {名前: P}]）と、Python は後ろの None で上書きして字でないので落とし defaults {}、窓は字の行だけを入れるので defaults {P: 'x'}（手で直したファイルだけの形。下の minus）。【変異（ui_defaults.rs に 1 つずつ入れて parity を流し、git checkout で戻した）】落ちた: 切断の確かめを外す 3 件・開発者の確かめを外す 4 件・keys が表でないとき {} と読む（前の Python）6 件・置き場の行の確かめを外す 4 件・範囲の名前で絞らない 5 件・読めない本文を任せない 6 件。残った: 2 MB の比べを MAX_BYTES + 1 にする（境は突き合わせに無い。BIG は 6 MB で遠い。RUST_PORT_PLAN の『2 MB』は境を見ていない）・名前の並べ替えを外す（serde_json に preserve_order が無く Map が BTreeMap で、UTF-8 のバイト順＝Python の sorted の順なので同じ物。害は無い）。終わった後 git status --short は空（この採点のファイルを書く前）。【ほかに見た所】ロック中: Python は store.write の MasterLocked（MasterError は ValueError でない）を受け止めず 500 の HTML の頁、窓は 500 と JSON の言葉（『… が保存中です』）。状態は同じで、画面は Python なら『初期設定を置けませんでした』、窓なら錠の言葉を出す（窓の方が分かりやすいが、答えが割れていて突き合わせに場面が無い。リリースノートの『答えは前と同じ』とは少し違う）。Python の index（/）が埋める ui_profile は写しの更新時刻で読み直すので、窓が書いた後も古い初期設定を埋めない。【点】進んだ道は 2 本（ステップ数 3）。作りは素直で、決まりは ui_defaults.rs 1 か所・範囲の名前は Python の 1 か所・既存の master_store・master_rows・py_dumps に載る（統一感は高い）。量（142 行＋試験 152 行＋答えの係 168 行）は 2 本に見合う。考えさせないは、手で直したファイルの割れ 1 つ・2 MB の境が突き合わせに無い・錠の場面が無いので 7。",
+   "evaluator": "作った後の採点者（案を作っていない・案の採点もしていない別のエージェント。2026-11-05。差分を読み、評価関数 3 つを自分で流し、答えの係に場面 8 つを一時に足して割れを探し、ui_defaults.rs に変異 8 つを入れて突き合わせが落ちるかを測り、どれも元に戻した）"
+  }
+ }
 }

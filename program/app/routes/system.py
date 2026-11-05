@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """画面・版・画面の設定・心拍（利用状況）。"""
+from ..repositories.master_store import MasterError
 from ..web import current_app, jsonify, render_template, request
 
 from .. import effective_settings
@@ -133,4 +134,6 @@ def ui_defaults_put():
         n = ui_defaults.replace(current_app.config["MASTER_STORE"], body.get("keys"))
     except ValueError as e:
         return error(str(e), 400)
+    except MasterError as e:     # 保存中の錠・共有に届かない（版 3.78.0。前は受け止めず 500 の頁。ほかのマスタと同じ形で理由を返す）
+        return jsonify(e.payload()), e.status
     return jsonify(count=n, **ui_profile())

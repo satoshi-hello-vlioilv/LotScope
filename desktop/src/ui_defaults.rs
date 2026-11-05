@@ -13,7 +13,7 @@
 //! 窓が答えず Python に任せる形: 範囲の名前を受け取っていない（前の版の Python）・窓が読めない本文（NaN・片割れの代用字など。
 //! master_rows::unreadable）・置き場の行の形が違う（行が表でない・名前や値が字でない）。
 
-use crate::master_store::{MasterError, Store};
+use crate::master_store::Store;
 use crate::worksum::py_str;
 use serde_json::{json, Map, Value};
 
@@ -64,13 +64,13 @@ fn readable(rows: &[Value]) -> bool {
 
 /// 画面に渡す形（system.ui_profile: 範囲・初期設定・置いた時刻と人。読めなければ既定の見せ方＝空）
 fn profile_view(rows: &[Value], profile: &[String]) -> Value {
-    let mut keys = Map::new();
+    // ui_defaults.load: {名前: 値} を行の順に作り（同じ名前は後ろの行が勝つ。値の無い行も None で上書きする）、字でない値を落とす
+    let mut all = Map::new();
     for r in rows.iter().filter_map(Value::as_object) {
         let name = r.get("名前").filter(|v| crate::worksum::truthy(v)).map(py_str).unwrap_or_default();
-        if let Some(v) = r.get("値").filter(|v| v.is_string()) {
-            keys.insert(name, v.clone());
-        }
+        all.insert(name, r.get("値").cloned().unwrap_or(Value::Null));
     }
+    let keys: Map<String, Value> = all.into_iter().filter(|(_, v)| v.is_string()).collect();
     let first = rows.first().and_then(Value::as_object);
     let (defaults, at, by) = match clean(&keys, profile) {
         Ok(d) => (
@@ -136,7 +136,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, body: &[u8], rows: &[Valu
             (200, v)
         }
         Ok(_) => error(500, "初期設定を書けませんでした。", Some("error")),
-        // Python は store.write の失敗を受け止めず、枠の 500 の頁で答える
-        Err(e) => error(500, MasterError::message(&e), Some("error")),
+        // 保存中の錠・共有に届かないなどはマスタの決まりの形（Python も版 3.78.0 から master_call と同じ形で答える）
+        Err(e) => (e.status(), e.payload()),
     })
 }

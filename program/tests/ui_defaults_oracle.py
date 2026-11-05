@@ -55,6 +55,10 @@ SCENARIOS = [
         S(BOSS, "PUT", "[1]"), S(BOSS, "PUT", "null"), S(BOSS, "PUT", ""), S(BOSS, "PUT", '"x"'), S(BOSS, "PUT", "0"), S(BOSS, "PUT", "[]"),
         S(BOSS, "PUT", {}), S(BOSS, "PUT", {"keys": None}), S(BOSS, "PUT", {"keys": []}), S(BOSS, "PUT", {"keys": "x"}),
         S(BOSS, "PUT", {"keys": {L: BIG, P: BIG, M: BIG}}),
+        # 2 MB の境（json.dumps(ensure_ascii=False) の UTF-8 の長さ。{"<名前>": "<値>"} の 29 バイトを足して丁度・1 バイト上）
+        S(BOSS, "PUT", {"keys": {L: "a" * (2 * 1024 * 1024 - 29)}}),
+        S(BOSS, "PUT", {"keys": {L: "a" * (2 * 1024 * 1024 - 28)}}),
+        S(BOSS, "PUT", {"keys": {L: "\u0001" + "あ" * ((2 * 1024 * 1024 - 29 - 6) // 3) + "a" * ((2 * 1024 * 1024 - 29 - 6) % 3)}}),
         S(BOSS, "PUT", {"keys": {L: "text/plain で置く"}}, ctype="text/plain"),
         S(BOSS, "GET"),
         S(BOSS, "PUT", {"keys": {}}),
@@ -73,6 +77,8 @@ SCENARIOS = [
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": OLD, "steps": [
         S(BOSS, "PUT", {"keys": {P: "30"}}), S(BOSS, "GET"),
     ], "delegates": []},
+    {"name": "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる）", "mode": "shared",
+     "rows": [{"名前": P, "値": "x"}, {"名前": P}, {"名前": L, "値": "1"}, {"名前": L, "値": "2"}], "steps": [S(BOSS, "GET")], "delegates": []},
     {"name": "置き場の行の値が字でない（窓は答えず Python に任せる）", "mode": "shared", "rows": [{"名前": P, "値": 100}, {"名前": ["x"], "値": "1"}], "steps": [],
      "delegates": [S(BOSS, "GET"), S(BOSS, "PUT", {"keys": {P: "1"}})]},
 ]
