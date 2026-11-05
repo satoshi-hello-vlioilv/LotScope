@@ -134,12 +134,31 @@
   function calcContext() {
     const LC = window.LotListColumns;
     if (!LC || !LC.formulaContext) return t.calc || { formulas: {}, names: {} };
-    const head = t.source === "lot" ? "lotlist:" : t.source === "work" ? (t.equip ? `worklog:${t.equip}:` : "worklog:") : `${t.source}:`;
-    const mine = LC.formulaContext((k) => k.startsWith(head)), had = t.calc || { formulas: {}, names: {} };
+    const heads = calcHeads();
+    // 先の頭（選んだ設備）の式ほど先: 同じ名前の計算列が設備ごとに違う式でも、選んだ設備の式で数える（版 3.73.0。利用者の知らせ 2026-11-05:
+    // HOT の「作業終了時刻」を選んでも、設備のキーの順で先の設備の同じ名前の式〈作業開始と同じ時刻〉を写し、どの作業も「作業終了が作業開始より前」になった）
+    const mine = { formulas: {}, names: {} }, had = t.calc || { formulas: {}, names: {} }, differ = new Set();
+    heads.forEach((h, i) => {
+      const x = LC.formulaContext((k) => k.startsWith(h) && !heads.slice(0, i).some((y) => k.startsWith(y)));
+      // 選んだ設備どうしで同じ名前の式が違う（式は 1 つしか送れないので、先に選んだ設備の式で数える。組む所で知らせる）
+      if (i < heads.length - 1) Object.entries(x.formulas).forEach(([c, f]) => { if (c in mine.formulas && mine.formulas[c] !== f) differ.add(c); });
+      // 先の頭の物を残し、並びも先の頭から（カラムの札へ送る式の数には上限があるので、選んだ設備の式を先に）
+      Object.entries(x.formulas).forEach(([c, f]) => { if (!(c in mine.formulas)) mine.formulas[c] = f; });
+      Object.entries(x.names).forEach(([c, n]) => { if (!(c in mine.names)) mine.names[c] = n; });
+    });
     // 組み直すと、この PC の一覧の今の式になる。この PC に無い計算列（ほかの人が組んだ物）は、パネルに写してある式のまま。
     // パネルで作った計算列（own。版 3.39.0）は、いつもパネルの式（一覧の同じ名前の式より先）
     const own = ownOf(had);
-    return { formulas: { ...had.formulas, ...mine.formulas, ...own }, names: { ...had.names, ...mine.names }, own: Object.keys(own) };
+    return { formulas: { ...own, ...mine.formulas, ...had.formulas, ...mine.formulas, ...own }, names: { ...had.names, ...mine.names }, own: Object.keys(own), differ: [...differ].filter((c) => !(c in own)) };
+  }
+  /** 一覧の表示列の設定の頭（先の物ほど先）: 作業実績は選んだ設備（並び）→ ほかの設備。品質・データ元はその元 */
+  function calcHeads() {
+    if (t.source === "lot") return ["lotlist:"];
+    if (t.source !== "work") return [`${t.source}:`];
+    if (t.equip) return [`worklog:${t.equip}:`];
+    const eq = (srcOf("work") || {}).equips || [];
+    const picked = (t.equips || []).map((n) => (eq.find((e) => e.name === n) || {}).key).filter(Boolean);
+    return [...picked.map((k) => `worklog:${k}:`), "worklog:"];
   }
   const isCalc = (c) => !!(fieldOf(c) || {}).calc;
   const MAX_CLS = 4;
@@ -177,7 +196,11 @@
     return Object.keys(formulas).length ? { formulas, names: ctx.names, ...(own.length ? { own } : {}) } : null;
   }
   /** 使う計算列の式を組む物に写す（使わなくなったら外す） */
-  function syncCalc() { if (t === p && parts()) return; const c = calcOf(t); if (c) t.calc = c; else delete t.calc; }
+  function syncCalc() {
+    if (t === p && parts()) return;
+    ctx = calcContext();      // 設備の選びが替わると、使う式もその設備の物に（版 3.73.0）
+    const c = calcOf(t); if (c) t.calc = c; else delete t.calc;
+  }
 
   const srcOf = (k) => sources.find((x) => x.key === k) || null;
   const isWork = () => t.source === "work";
@@ -224,6 +247,7 @@
   /* ---- 変える（変えるたびに host.onChange でグリッドのパネルを描き直す） ---- */
   function changed(repaintFields = true) {
     syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
+    const dd = $("#deDiffer"); if (dd) dd.innerHTML = differHtml();      // 使う計算列が替われば、設備で式の違う知らせも（札を描き直さないときも）
     const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
     syncUnit();
     const sum = $("#dbEditor .de-fmthead small"); if (sum) sum.innerHTML = fmtSummary(p.fmt || {});   // 見出しの要約も（作った後の採点: 後ろに「本」を入れても要約が変わらなかった）
@@ -459,6 +483,14 @@
       b.measures = b.measures.map((m) => (m.column ? { ...m, column: swap(m.column) } : m)).filter((m) => m.column !== null);
       if (!b.measures.length) b.measures = [{ agg: "lots" }];
       t.filters = t.filters.map((f) => ({ ...f, column: swap(f.column) })).filter((f) => f.column);
+      // 稼働を見る形の列（作業開始・作業終了・色分け・棒の字・量・品種）と期間の列も付いていく（版 3.73.0。消したら自動・なしへ戻る）
+      if (t.ops) {
+        const o = { ...t.ops };
+        ["start", "end", "color", "label", "qty"].forEach((k) => { if (o[k] === was) { if (remove) delete o[k]; else o[k] = name; } });
+        if (o.cls) { const xs = [].concat(o.cls).map(swap).filter(Boolean); if (!xs.length) delete o.cls; else o.cls = xs.length === 1 ? xs[0] : xs; }
+        t.ops = o;
+      }
+      if (t.period && t.period.column === was) { if (remove) t.period = null; else t.period = { ...t.period, column: name }; }
     }
     const cur = t.calc || { formulas: {}, names: {} }, formulas = { ...cur.formulas };
     if (was) delete formulas[was];
@@ -489,16 +521,35 @@
 
   /* ---- 描く ---- */
   const btn = (role, col, on, extra = "") => `<button type="button" class="pv-r r-${role}${on ? " on" : ""}" data-de-add="${role}" data-col="${esc(col)}" aria-pressed="${on}" ${extra}>${{ rows: "行", cols: "列", vals: "値" }[role]}</button>`;
+  /** 計算列の印: このパネルで作った物は押して直せる「式 ✎」・一覧の物は「式」 */
+  function calcMark(f) {
+    if (!f.calc) return "";
+    return ((t.calc && t.calc.own) || []).includes(f.column)
+      ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(f.column)}" title="このパネルで作った計算列。押すと直せます">式 ✎</button>` : '<small class="sx-calc">式</small>';
+  }
+  /** 選んだ設備どうしで式の違う計算列のうち、このパネルが使う物の知らせ（無ければ空） */
+  function differHtml() {
+    const used = Object.keys((t.calc || {}).formulas || {}), xs = (ctx.differ || []).filter((c) => used.includes(c));
+    if (!xs.length) return "";
+    const first = (t.equips || [])[0] || "";
+    return `<p class="de-ophint is-warn" role="note">計算列「${xs.map(esc).join("」「")}」は、選んだ設備ごとに一覧の式が違います。式は 1 つだけ使うので、先に選んだ設備（${esc(first)}）の式で数えます。</p>`;
+  }
   function fieldsHtml() {
     if (fieldsErr) return `<p class="pv-none">${esc(fieldsErr)}</p>`;
     if (!fields) return '<p class="pv-none">カラムを読んでいます…</p>';
+    return `<div id="deDiffer">${differHtml()}</div>` + fieldsBody();
+  }
+  function fieldsBody() {
     if (isOps(p) && !inGroup()) {          // 稼働を見る形: 札は 1 つ（ガント＝棒の色分け・ABC＝品種）。押すとその列にする（もう一度で外す）
       const gantt = p.visual === "gantt", word = gantt ? "色" : "品種", on = (c) => (gantt ? (p.ops || {}).color === c : clsOf(p).includes(c));
       const ql = q.trim().toLowerCase();
       const list = fields.fields.filter((f) => !f.error && pickable(f) && (!ql || f.column.toLowerCase().includes(ql)));
       return `<p class="de-ophint">${gantt ? "［色］を押すと、その列の値ごとに棒の色を分けます（計算列も使えます）" : "［品種］を押すと、その列の値ごとに ABC に分けます。2 つ以上押すと、その組み合わせ（合金 × 調質 など）で分けます"}</p>`
-        + list.map((f) => `<div class="pv-f${on(f.column) ? " is-used" : ""}${f.calc ? " is-calc" : ""}"><span><b>${esc(f.column)}${f.calc ? '<small class="sx-calc">式</small>' : ""}</b><small>${f.many ? "1,000 種類以上" : `${f.numeric ? "数 · " : ""}${f.kinds} 種類`}</small></span><i></i><i></i>`
-          + `<button type="button" class="pv-r r-rows${on(f.column) ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${on(f.column)}">${word}</button></div>`).join("");
+        + list.map((f) => `<div class="pv-f${on(f.column) ? " is-used" : ""}${f.calc ? " is-calc" : ""}"><span><b>${esc(f.column)}${calcMark(f)}</b><small>${f.many ? "1,000 種類以上" : `${f.numeric ? "数 · " : ""}${f.kinds} 種類`}</small></span><i></i><i></i>`
+          + `<button type="button" class="pv-r r-rows${on(f.column) ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${on(f.column)}">${word}</button></div>`).join("")
+        // このパネルで作った計算列のうち、色・品種に選べない物（日付・時刻の列など。作業開始・作業終了に使う）も、直せるように並べる（版 3.73.0）
+        + fields.fields.filter((f) => f.calc && !f.error && !pickable(f) && ((t.calc && t.calc.own) || []).includes(f.column) && (!ql || f.column.toLowerCase().includes(ql)))
+          .map((f) => `<div class="pv-f is-calc" title="${esc(ctx.formulas[f.column] || "")}"><span><b>${esc(f.column)}${calcMark(f)}</b><small>${f.date ? "日付 · " : ""}作業開始・作業終了などに使えます</small></span><i></i><i></i><i></i></div>`).join("");
     }
     const ownList = (t.calc && t.calc.own) || [];
     const b = t.body, used = (c) => (b.rows.some((d) => d.column === c) ? "rows" : b.cols.some((d) => d.column === c) ? "cols" : "");
@@ -519,7 +570,7 @@
       const sub = (f.calc ? "式の列 · " : "") + (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : `${f.kinds} 種類`);
       const tip = f.calc ? `${c}（計算列。一覧の表示列で作った式）\n${ctx.formulas[c] || ""}` : c;
       const mine = ownList.includes(c);
-      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"${fa(c, dimRoles.concat(["vals"]))}><span><b>${esc(c)}${f.calc ? (mine ? `<button type="button" class="sx-calc is-own" data-de-calcopen="${esc(c)}" title="このパネルで作った計算列。押すと直せます">式 ✎</button>` : '<small class="sx-calc">式</small>') : ""}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
+      return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"${fa(c, dimRoles.concat(["vals"]))}><span><b>${esc(c)}${calcMark(f)}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`
         + rowBtn(c, u === "rows") + colBtn(c, u === "cols") + (f.numeric ? btn("vals", c, anyVal, 'title="合計を値に足します（値の札で平均・中央値・標準偏差などの統計に替えられます）"')
           : btn("vals", c, anyVal, 'title="種類の数（重複の無い値の数）を値に足します"')) + "</div>";
     }).join("");

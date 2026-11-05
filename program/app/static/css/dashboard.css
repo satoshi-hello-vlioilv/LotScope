@@ -847,6 +847,7 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .oa-flt{color:#24446a;font-weight:700;border:1px solid #9fb0c6;border-radius:999px;padding:0 8px;line-height:18px}
 .de-ops{display:flex;flex-direction:column;gap:2px}
 .de-ophint{margin:2px 0 4px;font-size:12px;color:var(--muted);line-height:1.5}
+.de-ophint.is-warn{color:#8a5a00;font-weight:700}
 .de-ops select.is-need{border-color:#b5822a;box-shadow:0 0 0 2px #f6e7c8}
 /* 品種の列（版 3.47.0）: 選んだ列の札を「×」でつなぎ、後ろに「＋ 組み合わせる列」 */
 .de-clsrow{flex-wrap:wrap}
