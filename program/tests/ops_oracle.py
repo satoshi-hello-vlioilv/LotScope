@@ -321,6 +321,11 @@ def added_cases():
         ("足 ABC 選んだ作業開始の計算列が空", pv("abc", equips=["STD"], ops={"start": "空の始", "cls": "合金"}, calc={"formulas": {"空の始": "''"}})),
         ("足 ガント 選んだ作業終了の計算列の式が読めない", pv("gantt", equips=["STD"], ops={"end": "壊れた終"}, calc={"formulas": {"壊れた終": "[作業終了"}})),
         ("足 ABC 選んだ作業開始の計算列の式が読めない", pv("abc", equips=["STD"], ops={"start": "壊れた始", "cls": "合金"}, calc={"formulas": {"壊れた始": "if("}})),
+        # 設備ごとの式（版 3.74.0）: 同じ名前の計算列が設備で違う式。設備ごとにその設備の式で数える
+        ("足 ガント 設備ごとの式（作業終了）", pv("gantt", equips=["STD", "SAME", "TWOEND"], ops={"end": "終C"},
+                                         calc={"formulas": {"終C": f"[{S0}]"}, "equips": {"STD": {"formulas": {"終C": f"[{E0}]"}}, "TWOEND": {"formulas": {"終C": "[炉出日時]"}}}})),
+        ("足 ABC 設備ごとの式（品種と作業終了）", pv("abc", equips=["STD", "TWOEND"], ops={"end": "終C", "cls": "品C", "qty": "time"},
+                                            calc={"formulas": {"終C": f"[{E0}]", "品C": "[合金]"}, "equips": {"TWOEND": {"formulas": {"終C": "[炉出日時]", "品C": "'炉'"}}}})),
         ("足 ABC 作業開始の列を選ぶ（炉入日時）", pv("abc", equips=["TWOSTART"], ops={"start": "炉入日時", "cls": "合金", "qty": "time"})),
         ("足 ガント 作業終了_日時（最後の探し方）", pv("gantt", equips=["ENDDT"])),
         ("足 ABC 作業終了_日時（最後の探し方）", pv("abc", equips=["ENDDT"], ops={"cls": "合金"})),

@@ -364,7 +364,8 @@ pub fn read_ops(part: &Part, a: &ReadArgs) -> R<Read> {
         return invalid("表が 1 つもありません。");
     }
     let raw = lotlist::dedup(&lotlist::raw_columns(&c, &t).map_err(down)?);
-    let (exprs, calcs, broken) = pivot::calc_exprs_pub(&c, a.calc, &raw, a.conv)?;
+    let mine = a.calc.and_then(|x| x.for_part(&part.name)); // その設備の式（版 3.74.0）
+    let (exprs, calcs, broken) = pivot::calc_exprs_pub(&c, mine.as_ref(), &raw, a.conv)?;
     let mut cs = raw.clone();
     cs.extend(calcs.iter().filter(|x| exprs.contains_key(*x) && !raw.contains(x)).cloned());
     for (chosen, word) in [(a.start, "作業開始"), (a.end, "作業終了")] {

@@ -1397,6 +1397,7 @@ class CalcColumns:
 
 # ---------------------------------------------------------------- 計算列を SQLite の式にする（一覧の並べ替え・ダッシュボードの集計が同じ物を使う）
 MAX_CALC = 40
+MAX_CALC_EQUIPS = 200     # 設備ごとの式を持てる設備の数（パネルの設備の上限と同じ）
 
 
 def clean_calc(v):
@@ -1413,10 +1414,32 @@ def clean_calc(v):
         items = list(d.items())[:n] if isinstance(d, dict) else []
         return {str(k)[:200]: str(x)[:size] for k, x in items if str(k).strip() and isinstance(x, str)}
     f = {k: x for k, x in strs(v.get("formulas"), MAX_CALC, MAX_LEN).items() if x.strip()}
-    if not f:
+    # 設備ごとの式（版 3.74.0）: {設備名: {formulas, names}}。作業実績は設備ごとに表示列の設定があり、同じ名前の計算列でも式が違う。
+    # 数えるファイル（設備）ごとに calc_for でその設備の式を上に重ねる（利用者の知らせ 2026-11-05:「すべての設備」で HOT の計算列が効かない）
+    eq = {}
+    for k, x in (list(v["equips"].items())[:MAX_CALC_EQUIPS] if isinstance(v.get("equips"), dict) else []):
+        c = clean_calc({"formulas": x.get("formulas"), "names": x.get("names")}) if isinstance(x, dict) and str(k).strip() else None
+        if c:
+            eq[str(k)[:200]] = c
+    if not f and not eq:
         return None
     own = [str(x)[:200] for x in (v.get("own") if isinstance(v.get("own"), list) else []) if str(x) in f][:MAX_CALC]
-    return {"formulas": f, "names": strs(v.get("names"), 400, 200), **({"own": own} if own else {})}
+    return {"formulas": f, "names": strs(v.get("names"), 400, 200), **({"own": own} if own else {}), **({"equips": eq} if eq else {})}
+
+
+def calc_for(calc, name):
+    """パネルの計算列（clean_calc の形）→ 設備 name のファイルで使う形（その設備の式・表示名を上に重ねる）。
+    式の並びはその設備の物 → 共通の物（式の数の上限〈CalcColumns.MAX〉で切っても、その設備の式が残る）。
+    設備ごとの式が無ければ共通の物のまま。式が 1 つも無ければ None"""
+    if not calc:
+        return None
+    e = (calc.get("equips") or {}).get(str(name or ""))
+    f, n = dict(calc.get("formulas") or {}), dict(calc.get("names") or {})
+    if e:
+        mine = e.get("formulas") or {}
+        f = {**mine, **{k: v for k, v in f.items() if k not in mine}}
+        n.update(e.get("names") or {})
+    return {"formulas": f, "names": n} if f else None
 
 
 def register(conn, calc, cs, qi):
