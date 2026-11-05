@@ -174,9 +174,12 @@ WHY = {"blank": "作業終了が空", "notime": "作業終了に時刻が無い"
 WHY_RANK = {"": 0, "blank": 1, "unread": 2, "notime": 3}
 
 
-def stamp_columns(cs, first, word):
-    """日時を読む列の順 → [(列, 時刻の列 か "")]: first → word（作業開始・作業終了）を持つほかの日付・日時の列（時刻の列そのものは除く）"""
-    others = [c for c in cs if c != first and word in c and any(k in c for k in ("日付", "日時", "時分秒"))]
+def stamp_columns(cs, first, word, only=False):
+    """日時を読む列の順 → [(列, 時刻の列 か "")]: first → word（作業開始・作業終了）を持つほかの日付・日時の列（時刻の列そのものは除く）。
+    only … 組む所で選んだ列（版 3.73.0）: その列（と組みの時刻の列）だけで読む。値が空・読めなくても、名前の似たほかの列へ移らない
+    （利用者の知らせ 2026-11-05: 計算列「作業終了時刻」を選んでも、空の値を飛ばして元の列 BOX実績_作業終了_日付〈作業開始と同じ時刻〉で数え、
+    どの作業も「作業終了が作業開始より前」になった）"""
+    others = [] if only else [c for c in cs if c != first and word in c and any(k in c for k in ("日付", "日時", "時分秒"))]
     return [(c, time_column(cs, c)) for c in dict.fromkeys([first] + others) if c]
 
 
@@ -232,13 +235,17 @@ def read_ops(part, *, search="", filters="", today=None, calc=None, period=None,
         raw = columns(c, t, raw_columns(c, t))
         exprs, broken, _ = calc_exprs(c, calc, raw)
         cs = raw + [x for x in exprs if x not in raw]
+        for chosen, word in ((start, "作業開始"), (end, "作業終了")):
+            if chosen and chosen in broken:      # 選んだ計算列の式が読めない: ほかの列で数えたふりをしない（版 3.73.0）
+                raise PivotError(f"{word}に選んだ計算列「{chosen}」の式が読めません（一覧の「表示列」で式を直してください）。")
+        picked_s, picked_e = bool(start and start in cs), bool(end and end in cs)
         start = start_column(cs, start or work.get("start", ""))
         if not start:
             raise PivotError("作業開始の列がありません（作業実績だけで使えます。組む所の「作業開始」で選んでください）。")
         stop = end_column(cs, end, start)
         if not stop:
             raise PivotError("作業終了の列が見つかりません（組む所の「作業終了の列」で選んでください）。")
-        s_cols, e_cols = stamp_columns(cs, start, "作業開始"), stamp_columns(cs, stop, "作業終了")
+        s_cols, e_cols = stamp_columns(cs, start, "作業開始", picked_s), stamp_columns(cs, stop, "作業終了", picked_e)
         lot = lot_column(cs, override=getattr(part, "lot_col", None))
         want = [x for x in dict.fromkeys(list(cols) + [lot]) if x and x in cs]      # ロット番号はいつも（棒の字の既定）
         bad = [x for x in want if x in broken]

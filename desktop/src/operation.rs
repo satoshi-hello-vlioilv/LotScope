@@ -257,11 +257,12 @@ pub struct ReadArgs<'a> {
     pub around: i64,
 }
 
-fn stamp_columns(cs: &[String], first: &str, word: &str) -> Vec<(String, String)> {
+/// 日時を読む列の順（Python の stamp_columns）。only … 組む所で選んだ列（版 3.73.0）: その列だけで読み、名前の似たほかの列へ移らない
+fn stamp_columns(cs: &[String], first: &str, word: &str, only: bool) -> Vec<(String, String)> {
     let mut names: Vec<String> = vec![];
-    for c in std::iter::once(first.to_string())
-        .chain(cs.iter().filter(|c| *c != first && c.contains(word) && ["日付", "日時", "時分秒"].iter().any(|k| c.contains(k))).cloned())
-    {
+    for c in std::iter::once(first.to_string()).chain(
+        cs.iter().filter(|c| !only && *c != first && c.contains(word) && ["日付", "日時", "時分秒"].iter().any(|k| c.contains(k))).cloned(),
+    ) {
         if !c.is_empty() && !names.contains(&c) {
             names.push(c);
         }
@@ -366,6 +367,14 @@ pub fn read_ops(part: &Part, a: &ReadArgs) -> R<Read> {
     let (exprs, calcs, broken) = pivot::calc_exprs_pub(&c, a.calc, &raw, a.conv)?;
     let mut cs = raw.clone();
     cs.extend(calcs.iter().filter(|x| exprs.contains_key(*x) && !raw.contains(x)).cloned());
+    for (chosen, word) in [(a.start, "作業開始"), (a.end, "作業終了")] {
+        if !chosen.is_empty() && broken.iter().any(|x| x == chosen) {
+            // 選んだ計算列の式が読めない: ほかの列で数えたふりをしない（版 3.73.0）
+            return invalid(format!("{word}に選んだ計算列「{chosen}」の式が読めません（一覧の「表示列」で式を直してください）。"));
+        }
+    }
+    let picked = |x: &str| !x.is_empty() && cs.iter().any(|c| c == x);
+    let (picked_s, picked_e) = (picked(a.start), picked(a.end));
     let start =
         worksum::start_column(&cs, if a.start.is_empty() { part.work.as_ref().map(|w| w.start.as_str()).unwrap_or("") } else { a.start });
     if start.is_empty() {
@@ -375,7 +384,7 @@ pub fn read_ops(part: &Part, a: &ReadArgs) -> R<Read> {
     if stop.is_empty() {
         return invalid("作業終了の列が見つかりません（組む所の「作業終了の列」で選んでください）。");
     }
-    let (s_cols, e_cols) = (stamp_columns(&cs, &start, "作業開始"), stamp_columns(&cs, &stop, "作業終了"));
+    let (s_cols, e_cols) = (stamp_columns(&cs, &start, "作業開始", picked_s), stamp_columns(&cs, &stop, "作業終了", picked_e));
     let lot = lotlist::lot_column(&cs, part.lot_col.as_deref());
     let mut want: Vec<String> = vec![];
     for x in a.cols.iter().chain(std::iter::once(&lot)) {
