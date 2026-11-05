@@ -1,0 +1,43 @@
+//! 数の読み方が Python と同じか（版 3.75.0）。program/tests/fixtures/pynum_cases.json（program/tools/pynum-cases.py が
+//! 同梱と同じ Python で焼いた表）を、窓の pyfmt（int()・float()・\d の数字）と worksum::hm（勤務体系の時刻）が同じに読むかを突き合わせる。
+//! Python の int は桁に上限が無いので、i64 に入らない数（表の "big"）は読めること（端へ丸める）だけを見る。
+
+use da_core::{pyfmt, worksum};
+use serde_json::Value;
+
+#[test]
+fn numbers_read_like_python() {
+    let t: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/pynum_cases.json")).unwrap();
+    // 数字の範囲が Python の \d と同じ（足りないと、その系統の数字を窓だけ読めない）
+    let want: Vec<(u32, u32)> =
+        t["digits"].as_array().unwrap().iter().map(|r| (r[0].as_u64().unwrap() as u32, r[1].as_u64().unwrap() as u32)).collect();
+    assert_eq!(pyfmt::DIGITS, want.as_slice(), "数字の範囲が Python（Unicode {}）と違う", t["unicode"]);
+    let mut bad = vec![];
+    for c in t["cases"].as_array().unwrap() {
+        let s = c["s"].as_str().unwrap();
+        let int = pyfmt::py_int(s);
+        let ok_int = match &c["int"] {
+            Value::Null => int.is_err(),
+            Value::String(x) if x == "big" => int.is_ok(),
+            v => int.as_ref().ok() == v.as_i64().as_ref(),
+        };
+        let fl = pyfmt::py_float(s);
+        let ok_float = match &c["float"] {
+            Value::Null => fl.is_err(),
+            Value::String(x) if x == "nan" => fl.as_ref().is_ok_and(|f| f.is_nan()),
+            Value::String(x) if x == "inf" => fl.as_ref().is_ok_and(|f| *f == f64::INFINITY),
+            Value::String(x) if x == "-inf" => fl.as_ref().is_ok_and(|f| *f == f64::NEG_INFINITY),
+            v => fl.as_ref().ok().copied() == v.as_f64(),
+        };
+        let d = !s.is_empty() && s.chars().all(|ch| pyfmt::digit(ch).is_some());
+        let hm = worksum::hm(s).map(|m| m as u64);
+        if !ok_int || !ok_float || d != c["d"].as_bool().unwrap() || hm != c["hm"].as_u64() {
+            bad.push(format!(
+                "{s:?}: Python int={} float={} d={} hm={} / 窓 int={int:?} float={fl:?} d={d} hm={hm:?}",
+                c["int"], c["float"], c["d"], c["hm"]
+            ));
+        }
+    }
+    assert!(t["cases"].as_array().unwrap().len() > 400, "事例が少ない");
+    assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
+}

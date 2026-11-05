@@ -28,6 +28,7 @@ use crate::access::{
     flags, has_admin_row, normalize_master_edit, normalize_part, normalize_role, role_can, tab_exceptions, text, MASTER_EDIT_LEVELS,
     ROLE_USER, TAB_HIDE, TAB_ROLES, TAB_SHOW,
 };
+use crate::master_rows::{base_rev, clean, normalize_all, py_int, same_id, stamped, Rev, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::worksum::py_str;
 use serde_json::{json, Map, Value};
@@ -35,6 +36,8 @@ use serde_json::{json, Map, Value};
 const PERM: &str = "access_permissions";
 const TABS: &str = "tab_access";
 const PERM_FIELDS: [&str; 7] = ["ログインID", "PC名", "権限区分", "マスタ編集", "有効", "備考", "タブの例外"];
+/// 権限の組（SPECS["access_permissions"]: 名前が 1 つずつの列は無い。ログインID と PC名 の組は check_row）
+const PERM_SPEC: Spec = Spec { name: PERM, fields: &PERM_FIELDS, unique: None };
 
 /// 窓が受ける道か（受けないなら None: Python が答える）
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
@@ -78,102 +81,6 @@ fn of_master(e: MasterError) -> Answer {
 
 fn forbidden(msg: String) -> Answer {
     err(403, "forbidden", msg)
-}
-
-/// 画面が開いたときの版（Python の int() の答え）。Big は i64 に入らない整数（どの行の版とも合わない＝行の衝突）
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Rev {
-    Small(i64),
-    Big,
-    /// 窓の表に無い系統の数字（Python の int() は読む）。窓は答えず Python に任せる
-    Unknown,
-}
-
-/// Unicode の 10 進の数字（Python の int() が読む字。全角・アラビア・デーヴァナーガリーなど）の値
-fn digit_of(c: char) -> Option<u32> {
-    if c.is_ascii_digit() {
-        return c.to_digit(10);
-    }
-    const ZEROS: [u32; 17] =
-        [0x660, 0x6F0, 0x7C0, 0x966, 0x9E6, 0xA66, 0xAE6, 0xB66, 0xBE6, 0xC66, 0xCE6, 0xD66, 0xE50, 0xED0, 0xF20, 0x1040, 0xFF10];
-    let u = c as u32;
-    ZEROS.iter().find(|z| (**z..**z + 10).contains(&u)).map(|z| u - z)
-}
-
-/// Python の int(v)（数・小数〈切り捨て〉・真偽・字〈前後の空白・数字の間の _・Unicode の数字〉）。読めなければ None（版を確かめない）
-fn py_rev(v: &Value) -> Option<Rev> {
-    match v {
-        Value::Bool(b) => Some(Rev::Small(*b as i64)),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                return Some(Rev::Small(i));
-            }
-            if n.is_u64() {
-                return Some(Rev::Big);
-            }
-            let f = n.as_f64()?;
-            if !f.is_finite() {
-                return None;
-            }
-            let t = f.trunc();
-            Some(if t.abs() < 9.2e18 { Rev::Small(t as i64) } else { Rev::Big })
-        }
-        Value::String(s) => {
-            let t = s.trim();
-            let (neg, body) = match t.chars().next() {
-                Some('-') => (true, &t[1..]),
-                Some('+') => (false, &t[1..]),
-                _ => (false, t),
-            };
-            if body.is_empty() || body.starts_with('_') || body.ends_with('_') || body.contains("__") {
-                return None;
-            }
-            let mut acc: i128 = 0;
-            let mut big = false;
-            for c in body.chars() {
-                if c == '_' {
-                    continue;
-                }
-                let Some(d) = digit_of(c) else {
-                    return c.is_numeric().then_some(Rev::Unknown);
-                };
-                let d = d as i128;
-                acc = match acc.checked_mul(10).and_then(|x| x.checked_add(d)) {
-                    Some(x) => x,
-                    None => {
-                        big = true;
-                        0
-                    }
-                };
-            }
-            let v = if neg { -acc } else { acc };
-            Some(if big || v > i64::MAX as i128 || v < i64::MIN as i128 { Rev::Big } else { Rev::Small(v as i64) })
-        }
-        _ => None,
-    }
-}
-
-/// 行に入っている版（数として読む。Python の int(row.get("rev", 1))）
-fn py_int(v: &Value) -> Option<i64> {
-    match py_rev(v)? {
-        Rev::Small(i) => Some(i),
-        Rev::Big | Rev::Unknown => None,
-    }
-}
-
-/// 画面が開いたときの行の版（routes/common.base_rev: PUT は本文の base_rev、DELETE は ?rev=。無い・読めないなら確かめない）
-fn base_rev(body: &Value, query: &str) -> Option<Rev> {
-    let v = match body.get("base_rev") {
-        Some(v) => v.clone(),
-        None => match crate::lotlist::parse_query(query).into_iter().find(|(k, _)| k == "rev") {
-            Some((_, v)) => json!(v),
-            None => return None,
-        },
-    };
-    if v.is_null() || v == json!("") {
-        return None;
-    }
-    py_rev(&v)
 }
 
 /// 人ごとのタブの例外を置く字（services/access.clean_tab_exceptions: タブの名前の順・json.dumps と同じ区切り）
@@ -311,39 +218,6 @@ fn perm_gate(me: &Value, rows: &[Map<String, Value>], data: &Map<String, Value>,
     )
 }
 
-/// 行の形をそろえる（版の無い行は 1。master_repository._normalize。書き戻すので、ファイルの中の行にも入る）
-fn normalize_all(rows: &mut [Value], default_rev: i64) {
-    for r in rows.iter_mut() {
-        if let Some(o) = r.as_object_mut() {
-            o.entry("rev").or_insert(json!(default_rev));
-        }
-    }
-}
-
-fn same_id(r: &Value, id: i64) -> bool {
-    match &r["id"] {
-        Value::Number(n) => n.as_i64() == Some(id) || n.as_f64() == Some(id as f64),
-        Value::Bool(b) => (*b as i64) == id,
-        _ => false,
-    }
-}
-
-/// 行の版を確かめる（_check_rev）
-fn check_rev(row: &Value, base: Option<Rev>) -> Result<(), MasterError> {
-    if let Some(b) = base {
-        let Rev::Small(b) = b else { return Err(MasterError::Conflict(Some(row.clone()))) };
-        let rev = row
-            .get("rev")
-            .map(|v| py_int(v).ok_or_else(|| MasterError::Error(format!("invalid literal for int(): {}", py_str(v)))))
-            .transpose()?
-            .unwrap_or(1);
-        if rev != b {
-            return Err(MasterError::Conflict(Some(row.clone())));
-        }
-    }
-    Ok(())
-}
-
 /// ログインID と PC名 の組は 1 行だけ（_check_row の access_permissions）
 fn check_row(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
     let key = (normalize_part(data.get("ログインID")), normalize_part(data.get("PC名")));
@@ -368,77 +242,6 @@ fn check_row(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) ->
         }
     }
     Ok(())
-}
-
-/// _clean: ("" if v is None else str(v)).strip()
-fn clean(v: Option<&Value>) -> String {
-    match v {
-        None | Some(Value::Null) => String::new(),
-        Some(x) => crate::pyfmt::strip(&py_str(x)).to_string(),
-    }
-}
-
-fn stamped(row: &mut Map<String, Value>, stamp: &Value) {
-    for (k, v) in stamp.as_object().into_iter().flatten() {
-        row.insert(k.clone(), v.clone());
-    }
-}
-
-fn create(store: &Store, data: &Map<String, Value>) -> Result<Value, MasterError> {
-    store.write(PERM, |rows, stamp| {
-        normalize_all(rows, 1);
-        check_row(rows, data, None)?;
-        let mut row = Map::new();
-        row.insert("id".into(), json!(next_id(rows)));
-        for k in PERM_FIELDS {
-            row.insert(k.into(), json!(clean(data.get(k))));
-        }
-        row.insert("rev".into(), json!(1));
-        stamped(&mut row, stamp);
-        rows.push(Value::Object(row.clone()));
-        Ok(Value::Object(row))
-    })
-}
-
-fn update(store: &Store, id: i64, data: &Map<String, Value>, base: Option<Rev>) -> Result<Value, MasterError> {
-    store.write(PERM, |rows, stamp| {
-        normalize_all(rows, 1);
-        let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
-            return Err(if base.is_some() {
-                MasterError::Conflict(None)
-            } else {
-                MasterError::NotFound(format!("id={id} が見つかりません。"))
-            });
-        };
-        check_rev(&rows[i], base)?;
-        let mut merged = rows[i].as_object().cloned().unwrap_or_default();
-        for (k, v) in data {
-            merged.insert(k.clone(), v.clone());
-        }
-        check_row(rows, &merged, Some(id))?;
-        let row = rows[i].as_object_mut().ok_or_else(|| MasterError::Error("行の形が違います".into()))?;
-        for k in PERM_FIELDS {
-            if data.contains_key(k) {
-                row.insert(k.into(), json!(clean(data.get(k))));
-            }
-        }
-        let rev = row.get("rev").and_then(py_int).unwrap_or(1);
-        row.insert("rev".into(), json!(rev + 1));
-        stamped(row, stamp);
-        Ok(Value::Object(row.clone()))
-    })
-}
-
-fn delete(store: &Store, id: i64, base: Option<Rev>) -> Result<(), MasterError> {
-    store.write(PERM, |rows, _stamp| {
-        normalize_all(rows, 1);
-        let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
-            return if base.is_some() { Ok(()) } else { Err(MasterError::NotFound(format!("id={id} が見つかりません。"))) };
-        };
-        check_rev(&rows[i], base)?;
-        rows.remove(i);
-        Ok(())
-    })
 }
 
 /// 画面から来た {タブ: [区分]} → 置ける形（services/access.clean_tab_rules。並びは本文の順）
@@ -610,7 +413,7 @@ fn answer(store: &Store, me: &Value, rows: &[Map<String, Value>], route: Route, 
             if let Err(why) = perm_gate(me, &rows, &data, None) {
                 return forbidden(why);
             }
-            match create(store, &data) {
+            match crate::master_rows::create(store, &PERM_SPEC, &data, &check_row) {
                 Ok(row) => (201, row),
                 Err(e) => of_master(e),
             }
@@ -630,7 +433,7 @@ fn answer(store: &Store, me: &Value, rows: &[Map<String, Value>], route: Route, 
             if let Err(why) = perm_gate(me, &rows, &data, Some(old)) {
                 return forbidden(why);
             }
-            match update(store, id, &data, base) {
+            match crate::master_rows::update(store, &PERM_SPEC, id, &data, base, &check_row) {
                 Ok(row) => (200, row),
                 Err(e) => of_master(e),
             }
@@ -642,7 +445,7 @@ fn answer(store: &Store, me: &Value, rows: &[Map<String, Value>], route: Route, 
                     return forbidden(why);
                 }
             }
-            match delete(store, id, base) {
+            match crate::master_rows::delete(store, &PERM_SPEC, id, base) {
                 Ok(()) => (200, json!({"status": "deleted", "id": id})),
                 Err(e) => of_master(e),
             }

@@ -74,7 +74,7 @@ def day_offset(start, end, raw):
         return DAYOFF_DEFAULT
     try:
         n = int(raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):      # inf・1e400 も（版 3.75.0）
         return DAYOFF_DEFAULT
     return max(-DAYOFF_LIMIT, min(DAYOFF_LIMIT, n))
 
@@ -109,7 +109,7 @@ def clean_segments(segments):
         if raw not in (None, "") and crosses_midnight(start, end):      # 跨がない区分には持たせない（効かない値を置かない）
             try:
                 off = max(-DAYOFF_LIMIT, min(DAYOFF_LIMIT, int(raw)))
-            except (TypeError, ValueError) as e:
+            except (TypeError, ValueError, OverflowError) as e:     # inf・1e400 は日本語の理由で断る（版 3.75.0）
                 raise ShiftError(f"「{name}」の日付の数え方は整数（日数）で入れてください。") from e
         out.append({"name": name, "start": pad_hm(start), "end": pad_hm(end), "dayOffset": off})
     return out
@@ -144,7 +144,7 @@ def clean_row(data, partial=False):
     if "order" in data:
         try:
             out["表示順"] = str(int(data.get("order")))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             out["表示順"] = ""
     if not partial or "note" in data:
         out["備考"] = str(data.get("note") or "").strip()[:200]
@@ -169,7 +169,7 @@ def segments_of(row):
 def _order(row):
     try:
         return int(row.get("表示順") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 

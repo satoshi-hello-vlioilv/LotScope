@@ -183,7 +183,7 @@ class Api(unittest.TestCase):
         (self.tmp / "app" / "data").mkdir(parents=True)
         for n in ("equipment_master", "roll_master", "path_settings"):
             shutil.copy(ROOT / "data" / f"{n}.json", self.tmp / "app" / "data" / f"{n}.json")
-        store = MasterStore(self.tmp / "app", local_root=self.tmp / "local", settings={"refresh_seconds": 0}, who={"pc": "PC-A", "login": "a"})
+        self.store = store = MasterStore(self.tmp / "app", local_root=self.tmp / "local", settings={"refresh_seconds": 0}, who={"pc": "PC-A", "login": "a"})
         settings = {"work_log": {"folder": str(self.folder), "pattern": "実績_*.sqlite3", "refresh_seconds": 3600}, "lot_list": {"source": ""}}
         app = create_app({"MASTER_STORE": store, "APP_SETTINGS": settings, "LOT_MIRROR": DbMirror("lot_list", "", self.tmp / "cache"),
                           "WORK_MIRRORS": work_log.Mirrors(self.tmp / "cache" / "work_log"), "WORK_LISTING": work_log.Listing(ttl=0)})
@@ -293,6 +293,22 @@ class Api(unittest.TestCase):
         w = self.get(start="作業日")["work"]
         self.assertEqual((w["column"], w["total"]["noTime"] > 0), ("作業日", True), "日付だけの列も選べる（直は時刻なし）")
         self.assertIn("作業日", w["candidates"])
+
+    def test_unreadable_order_and_numbers_do_not_block_adding(self):
+        """表示順が読めない行（「²」・「--5」・「1e400」）があっても足せる。数でない日付補正・表示順は日本語の理由で断る（版 3.75.0。
+        前は表示順の最大を str.isdigit と int で選び、「²」「--5」の行で ValueError になって、表示順なしでだれも足せなかった）"""
+        st = self.store
+        st.write("shift_patterns", lambda rows, stamp: rows.extend([{"id": 7, "名称": "古い1", "表示順": "²", "区分": "[]", "rev": 1},
+                                                                    {"id": 8, "名称": "古い2", "表示順": "--5", "区分": "[]", "rev": 1},
+                                                                    {"id": 9, "名称": "古い3", "表示順": "1e400", "区分": "[]", "rev": 1},
+                                                                    {"id": 10, "名称": "古い4", "表示順": "３０", "区分": "[]", "rev": 1}]))
+        d = self.add_three()
+        self.assertEqual(next(x for x in d["items"] if x["id"] == d["created"])["order"], 40, "読める表示順（全角の 30）の次")
+        for body in ({"name": "a", "segments": [{"name": "3直", "start": "23:00", "end": "7:00", "dayOffset": float("inf")}]},
+                     {"name": "b", "segments": THREE, "order": float("inf")}):
+            r = self.c.post("/api/masters/shifts", data=json.dumps(body).replace("Infinity", "1e400"), content_type="application/json")
+            self.assertIn(r.status_code, (201, 400), r.get_json())
+            self.assertNotIn(r.get_json().get("type"), ("ValueError", "OverflowError"), f"英語の例外で答えない: {r.get_json()}")
 
     def test_shift_master_crud_and_conflict(self):
         d = self.add_three(note="現場の基本")

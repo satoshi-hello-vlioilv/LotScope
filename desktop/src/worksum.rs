@@ -21,8 +21,8 @@ use unicode_normalization::UnicodeNormalization;
 const START_CANDIDATES: &[&str] = &["BOX実績_作業開始_日付"];
 /// 0 件の日を埋める日数の上限（読み違えた古い日付で、何万行もの表にしない）
 const MAX_FILL_DAYS: i64 = 3660;
-const DAYOFF_DEFAULT: i64 = -1;
-const DAYOFF_LIMIT: i64 = 7;
+pub const DAYOFF_DEFAULT: i64 = -1;
+pub const DAYOFF_LIMIT: i64 = 7;
 /// 時刻はあるが、どの区分にも入らない（直の間の空き時間など）
 pub const OUTSIDE: i64 = -1;
 /// 時刻が無い（日付だけ）
@@ -212,14 +212,15 @@ pub struct Segment {
 }
 
 impl Segment {
-    fn json(&self) -> Value {
+    pub fn json(&self) -> Value {
         json!({"name": self.name, "start": self.start, "end": self.end, "dayOffset": self.day_offset, "crosses": self.crosses})
     }
 }
 
 /// 行の区分（JSON の字）→ 区分の並び。壊れた区分は飛ばす（読むだけなので止めない）
 pub fn segments_of(row: &Value) -> Vec<Segment> {
-    let raw = row.get("区分").filter(|v| truthy(v)).map(py_str).unwrap_or_else(|| "[]".into());
+    // 字だけを読む（Python の json.loads は字でない値〈並び・数〉で TypeError → 区分なし。作った後の採点〈版 3.75.0〉で見つけた）
+    let raw = row.get("区分").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or("[]").to_string();
     let parsed: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
     let mut out = vec![];
     for seg in parsed.as_array().into_iter().flatten() {
@@ -241,7 +242,7 @@ pub fn segments_of(row: &Value) -> Vec<Segment> {
     out
 }
 
-fn order_of(row: &Value) -> i64 {
+pub fn order_of(row: &Value) -> i64 {
     row.get("表示順").filter(|v| truthy(v)).and_then(py_int_of).unwrap_or(0)
 }
 

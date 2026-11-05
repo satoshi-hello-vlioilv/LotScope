@@ -1,0 +1,382 @@
+{
+ "title": "Rust 化の残り（順 6 の残り・3 段目の残り・7 段目）の次に移す範囲",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-05）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: services の path_settings.py（全部）・folder_browse.py（全部）・lotdsp_direct.py（BROWSER_NAMES・trusted_browser・find_browser・reachable・_launch）・lotdsp_api.py（status・learn_later・KeyMap）・lotdsp_progress.py（import と _TableCollector）・cm3_schedule.py（import）・schedule.py（_safe・Schedules の錠と糸・sig）・pivot_presets.py（clean_row・builtin_views）・display_formats.py（clean_row）・ui_defaults.py・master_place.is_master_place・release_place.MARKER、app/__init__.py（effective_settings・APP_SETTINGS の読み方）・app_env.py（config_path・load_settings）・fsio.unquote_path・work_log.split_pattern、repositories の master_repository.py（SPECS・_check_row・formats・_preset_write・dashboards・quick_set）・master_store.py（history）、routes の settings.py（全部）・system.py（/api/config・ui-defaults）・lots.py（read_lot・@bp 10 本）・formats.py・presets.py（全部）・schedule.py（cfg）・sources.py（cm3 の 5 か所・552 の check）・lotlist.py（lotlist_settings・lists_settings）・common.py（api_map・api_settings・master_call・me）・dashboard.py（_gate を使う 15 か所）、static/js の app.js（/api/config）・master.js（/api/settings）、desktop/src の main.rs（lot_settings・update_settings を呼ぶ 7 か所）・lot.rs（changes_settings・cm3 の分岐）・lists.rs（unquote_path・split_pattern・cm3）・access.rs（GUARDED・guard・can_write）・master_store.rs（pub fn の一覧。history は無い）・access_write.rs（normalize_all）、Cargo.toml と Cargo.lock（sha1・ureq・html-escape は無い。glob・percent-encoding は Tauri から lock に有る）、RUST_PORT_PLAN.md の §4・順 5 の 3 段目の残り・順 6、前の記録 2026-11-port-next.json。流した物（scratchpad/score-portrest/bench.py。作業ツリーは変えていない）: rust-port-bench.py --static-only（行・試験・crate は案の measured と同じ。試験の数は部品を使う試験の数で、ファイルの数は test_path_settings 13・test_folder_browse 11・test_lotdsp_progress 19・test_display_formats 6・test_pivot_presets 12・ui_defaults の試験ファイルは無い）、effective_settings を呼ぶ所を数え直し（routes で 19・__init__ で 1。案の 19 は正しい）、path_settings.parse／effective の端（『６０』→60・『1_0』→10・『１e2』→100.0・number の『nan』は通る・int の『nan』は ValueError・int の『inf』『1e400』は OverflowError で effective ごと落ちる）、effective の速さ（1 回 0.032 ms・2,000 回の中央値）、exe の項目（Linux では BROWSER_NAMES に .exe が無く『C:/x/msedge.exe』は断られる。Windows の名前の表は msedge.exe・chrome.exe）。物差しの読み替えは前の記録と同じ（順序＝作業の順の筋／チャンク＝1 版のまとまりの大きさと揃い／階層化＝主な狙いが 1 つに見えるか／視覚化＝進み具合と食い違いを数で見せられるか／ステップ数＝目的までの版と受け渡しの数／考えさせない＝取り違え・事故の起きにくさ／直感的＝今の作りの型に沿うか／形と色＝前の移し方と同じ型／言葉と置き場＝同じ決まりが 1 か所に／整列・余白・釣り合い＝量の釣り合い・出来上がりのきれいさ／色と文字の調子＝危うさの少なさ）。減点 hidden_state は前の記録と同じく、案の文のとおりに作ると画面に出る状態が食い違う所に付けた。案を作った者の self_check と案の文で違っていた・抜けていた所: (1) A の POST /api/settings/check は effective だけでは答えられない（url は reachable の HTTP とプロキシ、exe は find_browser、sqlite は lot_list、folder は work_log.scan。答えの字に経過の ms と localtime）。(2) A の effective は lotdsp_direct.trusted_browser を連れてくる（OS で名前の表が違い、Windows は resolve と Program Files・AppData の下か）。(3) 配った設定（APP_SETTINGS）は窓に来ていない（一覧の設定の答えに載るのは calculation だけ）。A・B・C・E のどれも橋が要る。(4) int の項目の inf で effective が OverflowError を出し、effective_settings を呼ぶ 19 の道が落ちる（Python の今の欠け。突き合わせの組に入れ、窓は任せるべき）。(5) D は閉じていない（fs/places が effective と MasterStore.history を読む）。(6) C は設定の元（effective か橋）を書いていない。(7) E の 9 道の /lotdsp-link は Python の型の頁、/api/config は Python に残り KeyMap を起動時に 1 回だけ読む。(8) F は書く係だけでなく repository の作る・直す・消す・重なりの決まりと、ダッシュボードと共有の pivot_presets の決まりを写すことになり、決まりが 2 か所に分かれる。リポジトリはこのファイルのほかは変えていない。／2 回目の採点者（案を作った者でも 1 回目の採点者でもない別のエージェント・2026-11-05）: 画面に出ない改良なので、読んで・動かして確かめた。読んだ物: routes の settings.py（/api/settings・check・PUT・update/settings・fs の 2 道と門番）・shifts.py（4 本と _listing・_equipments）・lotlist.py（lotlist_settings・lists_settings・_access_place）・common.py（master_call・me）、app/__init__.py（effective_settings）・app_env.config_path・web.py（dumps〈allow_nan のまま〉・get_json の force／silent）、services の path_settings.py（ITEMS・parse・effective）・lotdsp_direct.py（BROWSER_NAMES・trusted_browser・_browser_roots）・shifts.py（hm・day_offset・clean_segments・clean_row）・folder_browse.py（import と OS の枝）、repositories の master_repository.py（SPECS・_check_unique・_check_row・_create・_update・_delete・shift_*）・master_store.py（history）、desktop/src の main.rs（native の /__desktop/release と 7 か所の update_settings・lot_settings・launch_update・upd.run を始める所）・lot.rs（access_write・changes_settings・after_python・settings の 10 秒）・access.rs（GUARDED・me の材料が Python から来ること）・access_write.rs（normalize_all・check_rev・needs_python・handle）・join.rs（py_dumps）・pyfmt.rs（py_int）・worksum.rs（勤務体系）、static/js（/api/update/settings を呼ぶ所が無いこと・/api/settings・/api/fs の呼び出し）、RUST_PORT_PLAN.md の 3 段目の残りの行き先と順 6。流した物（scratchpad/score-portrest2/。作業ツリーは変えていない）: rust-port-bench.py --static-only（shifts 164 行・試験 92・master_repository 469 行・path_settings 193 行・folder_browse 215 行）、nan.py（共有の path_settings.json に stale_hours=『nan』を置くと /api/settings と /api/lotlist/settings は 200 で本文に NaN を書き厳密な JSON でない・refresh_seconds=『inf』では 3 本とも 500）、勤務体系の読み方の端（hm『７:30』→450・表示順『１２』→12／True→1／1.9→1／『1_0』→10／『1e3』・nan→空／inf→OverflowError・dayOffset『１』→1／2.7→2／『-9』→-7／inf→OverflowError・『²』は isdigit が真で int が ValueError・Python の json は NaN と 1e400 を読む）。物差しの読み替えは 1 回目と同じ。／3 回目の採点者（案を作った者でも 1・2 回目の採点者でもない別のエージェント・2026-11-05）: 画面に出ない改良なので、読んで・動かして確かめた。読んだ物: repositories/master_repository.py（SPECS・_check_unique・_check_row・_create／_update／_delete・formats・shift_*・equip_group_*・conversion_create／import）・master_store.py（書き方）、services の shifts.py（全部）・equip_groups.py（全部）・display_formats.py（全部）・path_settings.parse・data_sources.is_screen_source、routes の shifts.py・equipgroups.py・formats.py・settings.py・common.py（master_call・exception_error・base_rev）・dashboard.equipment_seen、desktop/src の access_write.rs（digit_of・py_rev・py_int・base_rev・作る・直す・消す・Ordered・needs_python・handle）・pyfmt.rs（DIGITS・digit・py_int・py_float・float_repr）・pivot.rs（compile_rules）・lot.rs（changes_settings・lists の shifts）・access.rs（GUARDED）・master_store.rs、Cargo.toml と Cargo.lock（serde_json に preserve_order が無い）、tests/fixtures、tests/access_write_oracle.py。流した物（scratchpad/score-portrest3。作業ツリーは変えていない）: edge.py（表示順の最大の『²』『--5』・clean_row の order と dayOffset の inf／nan／『１２』・hm の全角とモンゴル・カウィの数字・設備グループのルールの JSON の区切り・Python の re が読む／読まない正規表現・書式の中身の json.dumps の字）、route.py（本物の道で 400 か 500 か: master_call が例外をすべて 400 で返す・設備グループの一覧が共有のデータ元を読みに行く）、rx（fancy-regex 0.14 で同じ正規表現を読む: 『\\Z』を読めず『\\p{L}』を読む）、Python 3.13 の Unicode 15.1 の 10 進の数字 68 系統と pyfmt.rs の DIGITS 62 系統・access_write.rs の digit_of 18 系統の突き合わせ。物差しの読み替えは 1・2 回目と同じ。／作った後の採点者（案を作った者でも、3 回の案の採点者でもない別のエージェント・2026-11-05）: 画面に出ない改良なので、読んで・動かして確かめた。読んだ物: git show HEAD（25 ファイル）、desktop/src の shifts_write.rs（全部）・master_rows.rs（全部）・access_write.rs（handle・needs_python）・lot.rs（shifts_route と道の分け）・worksum.rs（hm・py_int_of・equipment_list・segments_of・order_of・py_str）・pyfmt.rs（DIGITS）・access.rs（py_json）、desktop/tests の shifts_parity.rs・pynum_cases.rs・common.rs、program の routes/shifts.py・routes/common.py（base_rev・master_call・can_write）・services/shifts.py・row_order.py・pivot_presets.clean_body・master_seeds._kama_date_table・repositories/master_repository.py（SPECS・_list・_create／_update／_delete・shift_*・conversion_import）・web.py（get_json の force／silent・<int:> の \\d+・TESTING の例外）、tests の shifts_oracle.py・test_pynum_cases.py、RUST_PORT_PLAN.md の 7 段目の節・CLAUDE.md の行。流した物: cargo test --locked --test shifts_parity --test pynum_cases --test access_write_parity・cargo test --lib lot::・cargo fmt --check・cargo clippy --all-targets -D warnings・python -m unittest discover -s tests -t .（691 本 OK）・uvx ruff@0.15.20 check program（手元の ruff は 0.16.8 で CI と版が違うため）。自分で作った場面（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built3750/probe.py・probe2.py。shifts_oracle の場面を差し替え、例外は本物と同じ 500 の答えにした）を、shifts_parity.rs の answer と同じ呼び方の一時の試験（desktop/tests/zz_probe_shifts.rs。流した後に消した）で Python と窓に当て、1 歩ごとの答えとファイルを比べた（まとめは summ.py・out1.txt・out2.txt）。作業ツリーはこのファイルのほかは変えていない。物差しの読み替えは 3 回の採点と同じ。／作った後の 2 回目の採点者（案を作った者でも、3 回の案の採点者でも、作った後の 1 回目の採点者でもない別のエージェント・2026-11-05）: 画面に出ない改良なので、読んで・動かして確かめた。読んだ物: git diff HEAD~1 HEAD（8 ファイル）、desktop/src の shifts_write.rs（全部）・lot.rs（shifts_route・changes_settings・after_python・the_window_answers_shift_masters）・worksum.rs（py_int_of・day_offset・segments_of・order_of・pattern_for）・pyfmt.py_int・access.py_json・master_store.rs（大きな整数を断る所・revision）、desktop/tests の shifts_parity.rs・common.rs、program の routes/shifts.py・routes/common.base_rev・services/shifts.py（clean_segments・equipment_list・clean_row・segments_of・_order・pattern_for）・services/row_order.py・repositories/master_repository.py（_check_unique・_update・_delete・shift_*）・static/js の master.js と lotlist-work.js（区分を並びで送ること）、tests/shifts_oracle.py、RUST_PORT_PLAN.md の 7 段目の節。流した物: cargo test --locked --test shifts_parity --test pynum_cases --test access_write_parity・cargo test --lib lot::・cargo fmt --check・cargo clippy --all-targets -D warnings・python -m unittest tests.test_pynum_cases tests.test_work_summary・python -m unittest discover -s tests -t .（691 本 OK）。自分で作った場面（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built3750b/probe3.py〜probe6.py・segin.json。shifts_oracle の場面を差し替え、例外は本物と同じ 500 の答えにした）を、shifts_parity.rs の answer と同じ呼び方で None を『Python に任せる』と記す一時の試験（desktop/tests/zz_probe3.rs・zz_probe4.rs、segments_of を直に呼ぶ zz_seg.rs。流した後に消し、target の zz_* も消した）で Python と窓に当て、1 歩ごとの答えとファイルを比べた（out3.txt・out5.txt・out6.txt）。作業ツリーはこのファイルのほかは変えていない。物差しの読み替えは前の採点と同じ。",
+ "measured": "rust-port-bench.py --static-only（2026-11-05）: path_settings 193 行・試験 31（使う部品 6）・folder_browse 215 行・試験 11（glob・percent-encoding）・lotdsp_progress 308 行・試験 61・lotdsp_direct 502 行・試験 18（base64・tungstenite 相当を手で）・lotdsp_api 467 行・試験 38（ureq）・lotdsp_link 252 行・試験 12・cm3_schedule 222 行・試験 13（ureq・html-escape）・schedule 275 行・試験 13。routes の effective_settings() を呼ぶ所は 19。書く道の小さい組: formats 4・presets 5・shifts 4・equipgroups 4・conversions 8・masters 2 本。",
+ "proposals_text": {
+  "A 効いている設定から": "path_settings.effective（配った設定 ＋ 参照先マスタで変えた値。19 か所の effective_settings の元）を desktop/src へ写し、それで答えられる道を窓が受ける: GET /api/settings・GET /api/update/settings・POST /api/settings/check（GET /api/config は lotdsp_api.status〈学んだ項目の表〉も要るので、その表を読む所も写せたときだけ）。後の LotDsp・スケジュールが窓の中で設定を読める。突き合わせは effective_oracle.py（配った設定 × 参照先マスタの値の組 × 置き場の形）。",
+  "B 進度情報の読み（貼り付けの取り込み）から": "lotdsp_progress（HTML の表 → ロット）と equipment_names の続きを desktop/src へ写し、POST /api/lots/import-lotdsp を窓が答える（計算と同じ純な部品。答えは tests/fixtures の進度情報の HTML で焼いた事例の表）。項目名を学ぶ learn_later（lotdsp_api）は窓から Python へ『学んで』と知らせる。",
+  "C スケジュール一式": "cm3_schedule（CM3 へ HTTP・HTML の表）と schedule（整形・仕掛の写しとの突合せ・HOT）を写し、/api/schedule と /api/src/sch・データ元のカード・結合・ダッシュボードの cm3 の分岐を窓へ。作り物の CM3（schedule_fixture.py）を Rust の試験からも起こす。sha1 のファイル名・Windows のプロキシ・ureq を入れる。",
+  "D 「参照…」の窓（フォルダを見る）": "folder_browse（POST /api/fs/browse・GET /api/fs/places）を写す。OS に依る字（%VAR%・ドライブと共有・読めない理由）を事例の表で突き合わせ、Windows の CI でも流す。小さく閉じている。",
+  "E LotDsp 一式": "lotdsp_direct（見えない Edge を CDP で）・lotdsp_api（HTTP）・lotdsp_progress・lotdsp_link の 9 道を 1 版で窓へ。Linux の CI の本物の Chromium で CDP を突き合わせる。",
+  "F 書く道の小さな組から（7 段目の先取り）": "窓の書く係（master_store.rs。版 3.67.0）を使い、共有の書式（formats 4 本）・集計のプリセット（presets 5 本）・表示の初期設定（ui-defaults 2 本）の書く道を窓が受ける（access_write と同じ型。答え・断る言葉・できたファイルを突き合わせる）。書いた直後に同じ道で読む物は組ごとに見る。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は measured と各案の seen）",
+   "self_check": "案を作った者が採点の前に確かめたこと（2026-11-05）: rust-port-bench.py --static-only を流した数を measured に書いた。道は routes/*.py の @bp を数えた。A の前提を読んで直した: GET /api/config は effective だけでなく lotdsp_api.status（api_map・api_settings）も読むので、案 A の確実な範囲から外し条件つきにした。/api/settings は path_settings.effective と MASTER_STORE の is_shared・revision、/api/update/settings は effective の update と access（窓に access.rs がある）を読む。B の import-lotdsp は read_lot の中で lotdsp_api.learn_later（裏で LotDsp の API を引く）を呼ぶので、窓だけでは閉じない（案の文に書いた）。案の方向は 6 つ（土台から A・純な読みから B・外のつなぎ一式 C・小さく OS に依る D・量で一括 E・書く道の先取り F）で偏っていない。画面に出ない改良なので画像は無い。",
+   "proposals": {
+    "A 効いている設定から": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 7,
+      "place": 5,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 依存の向きが計画どおり。スケジュール（routes/schedule.py:27 の cfg）・LotDsp（routes/common.py:28 の api_settings・routes/lots.py:51）・「参照…」のよく使う場所（routes/settings.py:217）・/api/config（system.py:73）がどれも effective_settings を通るので、effective を先に写せば後の段が橋なしで設定を読める。RUST_PORT_PLAN.md の 3 段目の残りの行き先（『効いている設定を写すとき: GET /api/settings・GET /api/update/settings・fs の 2 道』）とも合う。path_settings.effective 自体は 193 行のうち 25 行ほどで、Python で 1 回 0.032 ms（2,000 回の中央値。scratchpad/score-portrest/bench.py）。unquote_path・split_pattern は lists.rs:61・73 に既にあり、Store の is_shared・revision も master_store.rs:479・793 にある。窓の更新の係は main.rs:286 の update_settings で毎回 Python に /api/update/settings を尋ねている（main.rs:183〜215・596）ので、ここを窓が答えれば更新の係が Python に尋ねる所が 1 つ減る。/api/config を条件つきにしたのは正しい（system.py:80 が lotdsp_api.status を読む）。悪い所・案の文の誤り: (1) POST /api/settings/check は『effective で答えられる道』ではない。path_settings.check は種類ごとに、url → lotdsp_direct.reachable（urllib でプロキシなし→PC のプロキシ設定の 2 通り。C と同じ Windows のプロキシの落とし穴）、exe → find_browser（shutil.which・Program Files の既知の場所）、sqlite → connect_ro と lot_list.tables・pick_table・lot_column、folder → work_log.scan を呼ぶ。答えの字に経過の ms（time.perf_counter）と localtime の strftime・{n:,} が入り、同じ答えで突き合わせられない。同じ check は routes/sources.py:552（データ元の接続の確かめ）からも呼ばれ、案の範囲では Python に残る。(2) effective は閉じていない: exe の項目の parse が lotdsp_direct.trusted_browser を呼び、BROWSER_NAMES が OS で違い（lotdsp_direct.py:93。Windows は msedge.exe・chrome.exe、ほかは msedge など 7 つ）、Windows では resolve() と _browser_roots（環境変数の Program Files・AppData）の下かを見る。Linux の突き合わせでは Windows の枝が流れない（Windows の CI の生きた Python と突き合わせる要がある。案の文に無い）。(3) 数の読み方の端: parse は float() なので『６０』『1_0』『１e2』を読み、number の項目は『nan』を通す（stale_hours=nan が効く）。int の項目に『inf』『1e400』を入れると OverflowError で、effective は ValueError しか捕まえないので例外になり、effective_settings（__init__.py:12。行を読む所しか try が無い）を呼ぶ 19 の道が全部 500 になる（測った。画面の PUT も parse で同じ OverflowError を出すので、ふつうは書けないが、共有のマスタを手で直せば起きる）。窓が既定へ戻して答えると、参照先の画面は動き、ほかの道は落ちる、の食い違いになる。突き合わせの組にこの形を入れ、窓は Python に任せる形にすべき。(4) 配った設定（APP_SETTINGS＝config/appsettings.json。TRANSFER_APP_CONFIG で替わる。試験は app.config で差し替える）を窓は読んでいない（desktop/src に appsettings を読む所が無い）。一覧の設定の答え（routes/lotlist.py:136）にも載っていないので、橋に足す要がある（案の文に無い）。(5) GET /api/settings の items は ITEMS の label・hint・page・check_url（BRAND の名前入り）をそのまま返すので、Rust に表を写すと同じ表が 2 か所になる（橋で渡す手もある）。config_file は app_env.config_path（環境変数と見本への戻り）。(6) 効いている設定を計算する所が Python（19 の道）と窓の 2 か所になる（移す途中は避けられないが、置き場の点を下げる）。版は 1 つで済みうるが、check を入れると PR が重くなる。"
+    },
+    "B 進度情報の読み（貼り付けの取り込み）から": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 4,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: lotdsp_progress（308 行）は import が re と html.parser と models・equipment_names だけで、ネットワークを使わない。equipment_names の resolve・canonical・same は版 3.72.0 で calc.rs に写してあり、設備マスタは Place::rows で読める。作り物の進度情報の HTML（tests/fixtures/lotdsp_progress_L7150C0.html）と test_lotdsp_progress の 19 件がある。悪い所・案の文の誤り: (1) 閉じない: routes/lots.py:13 の read_lot は fetch-lotdsp（lots.py:41。見えない Edge・LotDsp の窓）からも呼ばれ、そちらは Python に残るので、進度情報の読み方が Python と窓の 2 か所になる（案の範囲の 1 道だけが窓）。(2) 『学んで』と知らせる道は Python に無い（新しく作る）。learn_later は api_map()（common.py:31。KeyMap をアプリで 1 つ・作業場所の lotdsp_api_map.json）と api_settings()（effective を通す）を使うので、窓が答えたあと HTML をもう一度 Python へ送ることになり、窓だけで閉じない。(3) 読みの設定は APP_SETTINGS の lotdsp_import（lots.py:16。effective ではない）で、一覧の設定の答えに載っていない（載っているのは calculation だけ。lotlist.py:135）。橋が要る。(4) Python の html.parser（_TableCollector の handle_starttag・endtag・data。convert_charrefs・壊れたタグの許し方）と同じ切れ方を Rust で作るのが主な落とし穴で、html-escape だけでは足りない。事例の表の元の HTML は 1 本しかない（ほかは試験の中で組む）。(5) 答えは models.Lot.to_dict（Process の並び）で、DEFAULT_UNWIND などの写しも要る。(6) 貼り付けの取り込みは使われる回数が少なく、速さの得も無い（ネットワーク待ちは無い道）。順序としては LotDsp の段の 1 歩目にはなるが、ここだけ先に移す理由が弱い。"
+    },
+    "C スケジュール一式": {
+     "score": {
+      "order": 5,
+      "chunk": 3,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 6,
+      "place": 5,
+      "layout": 4,
+      "tone": 3
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "program/app/routes/schedule.py:27-28 の cfg()＝schedule.config(effective_settings(...)): CM3 の URL・端末の IP・設備・点検の言葉・間隔は参照先マスタ（path_settings.py の ITEMS の schedule.*）で変えられるが、案 C は効いている設定（A）も橋も言わない。窓に effective が無いまま写すと、参照先の画面（Python）が変えた値を出し、スケジュールのタブ（窓）は配った設定の値で CM3 に問い合わせる"
+      }
+     ],
+     "seen": "良い所: 前の採点の誤り（道は /api/schedule の 1 本ではない・指紋は sha1・プロキシ・ureq）を取り込み、/api/src/sch・データ元のカード・結合・ダッシュボードの cm3 の分岐（routes/sources.py の 70・206・243・285・305 行、desktop の lists.rs:451・462・lot.rs:431）を範囲に入れている。作り物の CM3（tests/schedule_fixture.py）と答えの表（tests/fixtures/schedule_golden.json）がある。悪い所: (1) 設定の元が抜けている（減点の所）。前の記録（2026-11-port-next.json の H）は『設定は I の橋で受ける』と書いたが、一覧の設定の答えに schedule は載っていない（routes/lotlist.py:136）。(2) 1 版に乗せる量が大きい: cm3_schedule 222 行・schedule 275 行・routes/schedule.py 134 行・sources.py の 5 か所・窓の 3 部品の分岐。前の H が 2 段に分けたのを 1 段に戻した。(3) 写しの書き手: schedule.Schedules は設備ごとの錠・ThreadPoolExecutor（最大 8）・裏の糸（schedule.py:132〜207）で写しを書き、_safe のファイル名は sha1 の 6 桁、変わったかの sig は json.dumps(ensure_ascii=False, default=str) の sha1（schedule.py:213・288）。窓へ移すとき Python が名乗りで写さない形（presence と同じ）が要るが、案の文に無い。(4) sha1 の crate は Cargo.lock にも無い（新しく入れる）。cm3_schedule は urllib.request（use_system_proxy のとき Windows ではレジストリのプロキシ）で、ureq は環境変数しか読まない。(5) 速さの得は無い（社内の CM3 の待ちが主）。"
+    },
+    "D 「参照…」の窓（フォルダを見る）": {
+     "score": {
+      "order": 5,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "program/app/routes/settings.py:211-224 の fs_places: よく使う場所の『品質データのフォルダ・作業実績のフォルダ・配布の置き場』は effective_settings（参照先マスタで変えた値）から作り、『前のマスタの置き場』は MasterStore.history()（repositories/master_store.py:400。この PC の置き場の上書きの JSON）から作る。案 D は『小さく閉じている』として effective も history も写さないので、窓が答えると参照先で変えた場所ではなく配った設定の場所が札に出る（desktop/src/master_store.rs に history は無い）"
+      }
+     ],
+     "seen": "良い所: folder_browse は 215 行・試験 11 件で、読むだけ（書かない）。門番（_browse_gate＝me と master_edit_can）は窓の access.rs に既にある（can_write・master_edit_can）。OS に依る字を事例で突き合わせ、Windows の CI でも流すと書いたのは正しい（desktop.yml の Windows の job は生きた Python で cargo test を流す前例がある）。悪い所・案の文の誤り: (1) 閉じていない（減点の所）。fs/places は effective と history を要る。fs/browse の印も master_place.is_master_place（MASTER_MARKERS）と release_place.MARKER（release.json）を使う。(2) Python の OS ごとの意味をそのまま写す所が多い: os.path.expandvars（Windows は %VAR%・$VAR・${VAR} と '…' の中は替えない、ほかは $ だけ）・expanduser・os.path.normcase（Windows だけ小文字）・Path.anchor（C: と C:\\ と \\\\サーバー\\共有）・is_absolute・file:// の読み方（urllib.parse.unquote）・fnmatch（大小の扱い）・_user_dirs の A〜Z のドライブ（os.name=='nt' だけ）。Linux の突き合わせでは Windows の枝が流れない。(3) 答えに mtime（localtime の isoformat）・size が入り、4 秒・2 秒の打ち切り（糸）がある。作り物のフォルダを同じ PC で両方に読ませる形でないと突き合わせられない。(4) 使うのは参照先・置き場を変える人（管理する人）の画面だけで、得は小さい。A の後なら閉じる。"
+    },
+    "E LotDsp 一式": {
+     "score": {
+      "order": 3,
+      "chunk": 1,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 2,
+      "intuitive": 3,
+      "form": 4,
+      "place": 4,
+      "layout": 2,
+      "tone": 2
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "program/app/routes/system.py:80 の /api/config の lotdsp_api.status と routes/common.py:31-36 の api_map: KeyMap はアプリで 1 つ、起動後に 1 回だけ lotdsp_api_map.json を読んで覚える。案 E は /api/config を 9 道に入れないので、窓の lotdsp_api が学んで書いても、Python の /api/config は古い ready・learned・missing を答え続け、画面の『API で読めるか』が食い違う"
+      }
+     ],
+     "seen": "良い所: 終われば LotDsp の部品が窓にそろう。Linux の CI の RealBrowser（作り物の LotDsp の SiteServer と本物の Chrome）で CDP を突き合わせられる前例がある（前の記録の 2 回目は /opt/pw-browsers の Chromium で手元でも通ると確かめた）。悪い所: (1) 量が前例のどの段よりも大きい: lotdsp_direct 502・lotdsp_api 467・lotdsp_progress 308・lotdsp_link 252 行と routes/lots.py の 9 道、equipment_names の続き。見えない Edge と『LotDsp の窓』（見える Edge。subprocess.Popen で起こし、取り消し・状態の糸を持つ。lotdsp_direct.py:295・662）を 1 版で移す。(2) 9 道のうち /lotdsp-link（lots.py:116）は Python の型（render_template）の頁で、窓は型を持たない。(3) 設定は effective を通る（common.py:28 の api_settings・lots.py:51）が、案の文に A も橋も無い。trusted_browser・find_browser の OS の枝（Windows の Program Files・AppData・BROWSER_NAMES）も Windows でしか流れない。(4) KeyMap の書き手（学ぶ裏の糸）が窓へ移ると、Python が持つ KeyMap（減点の所）と 2 つになる。(5) 戻しにくい: 段ごとに突き合わせて入れる前例（2026-11-masters-write.json の一括の案が低かった理由）から外れる。"
+    },
+    "F 書く道の小さな組から（7 段目の先取り）": {
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 8,
+      "place": 4,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 窓の書く係（master_store.rs の Store::write・exclusive・revision・is_shared）と門番（access.rs の GUARDED に /api/masters/formats がある）が既にあり、access_write.rs と同じ型（答え・断る言葉・できたファイルを Python の道と突き合わせる）で作れる。同じ PC で Python と窓が同時に書いても保存が消えないことは版 3.67.0 の masters_parity が示している。me（_who の login・role・revoked）は窓の Gate で決まる。悪い所・案の文の誤り: (1) 写す物は書く係だけでは足りない: MasterRepository の _list・_create・_update・_delete と _normalize_all（SPECS の fields）・_check_row（display_formats の名前と元の重なり、pivot_presets の group_of と名前の重なり。_key の比べ方）、_preset_write（標準にしたら同じ組のほかの標準を外す）・quick_set（1 行にまとめる）、display_formats.clean_body と pivot_presets.clean_row（clean_body は aggregate・num_expr を読む）、BUILTINS と builtin_views・default_quick・standard_for・visible・can_edit。access_write.rs の normalize_all（315 行）は権限のマスタだけの物。中身は json.dumps の字で置くので、字の並びまで Python と同じにする要がある（join.rs の py_dumps を使える）。(2) 決まりが 2 か所になる: pivot_presets の _gate・can_edit・clean_row・standard_for と repository の _preset_write は、ダッシュボード・ダッシュボードのセット・カードの設計の道（routes/dashboard.py の 85〜303 行。Python に残る）も使う。案の範囲だけ窓に写すと、同じ決まりが Python と窓に分かれる（7 段目で 1 つにするまで）。(3) 表示の初期設定は GET / の画面（system.py:30 の ui_profile。index.html に埋める）も読み、こちらは Python に残る。(4) 3 つの組は互いに関係が薄く、1 版の主な狙いが『書く道を先に移す』という量の話になる。計画（RUST_PORT_PLAN.md の 3 段目の残り）は ui-defaults を『7 段目（Python の書く係が無くなってから）』に置いており、先取りの理由（速さ・Python を外せる道）が案の文に無い。(5) 書く道は保存のときだけ呼ばれ、速さの得は無い。"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は各案の seen）",
+   "self_check": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘を読み直し、path_settings.parse が exe の項目で lotdsp_direct.trusted_browser を呼ぶこと（effective も parse を使う）・/api/update/settings は effective の update と me（access）と MASTER_STORE.share_dir を読むこと（routes/settings.py:64）・窓は main.rs:285 の update_settings で起動と更新のたびに Python へ尋ねていること・一覧の設定の答えに窓が受け取る設定は calculation だけ（lot.rs:43）・勤務体系の道は routes/shifts.py の 4 本で書くのは master_repository の shift_* であることを確かめた。新しい案は G・H・I・J の 4 つ（1 回目の A を絞った A′ を持ち越す）。方向は 土台を写す A′・呼び出しを 1 つ置き換える G・写さず渡す H・書く道の手本 I・土台＋小さな道 J で偏っていない。",
+   "proposals": {
+    "A′ 設定の橋と読む道 2 本（1 回目の A を絞る）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 5,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "1 回目の指摘はおおむね直った: POST /api/settings/check を外した（check は reachable・find_browser・lot_list・work_log.scan と ms・localtime を連れてくる）・配った設定の橋（appSettings。calculation と同じ形）・trusted_browser の OS の表を Windows の CI で突き合わせる・inf／1e400 の OverflowError は Python に任せる、が案の文に入った。測った（scratchpad/score-portrest2/nan.py。作業ツリーは変えていない）: 共有の path_settings.json に lot_list.stale_hours=『nan』を置くと Python の /api/settings と /api/lotlist/settings は 200 で本文に NaN（『\"effective\":NaN』『\"stale_hours\":NaN』）を書き、厳密な JSON として読めない（serde_json も画面の JSON.parse も読めない）。lot_list.refresh_seconds=『inf』では /api/settings・/api/lotlist/settings・/api/update/settings の 3 本とも 500（OverflowError。effective が ValueError しか捕まえない）。案の事例の組に nan・inf が入っているので、この形が組で見つかるのは良い。ただ窓の f64 は NaN を serde の値に持てない（null になる）ので、nan も『窓が読めない値』として Python に任せると文に書くべき。Rust の str::parse::<f64> は『nan』『inf』を読み『1_0』『１e2』を読まないので、Python の float() の写し（pyfmt に py_int はあるが py_float は無い）が要る。悪い所・案の文の抜け: (1) GET /api/update/settings を『窓が受ける』と書くが、この道を画面から呼ぶ所は無い（static/js に無い。呼ぶのは main.rs:286 の update_settings だけで、backend.ask で Python へ直に尋ね、窓の道の受け口〈router〉を通らない）。道を受けても更新の係は Python に尋ね続けるので、main.rs の 7 か所の呼び出しを窓の答えへ置き換えると書かなければ、この道を移す得が無い（G の案が正しく見抜いた所）。置き換えるなら CLAUDE.md の決まりで verify.py の通し（update・distribute）と Windows の CI が要る。(2) /api/settings の items は ITEMS の label・hint（BRAND の名前入りの f 字）・page・check_url・min・max をそのまま返す。表を Rust に写すと同じ表が 2 か所になる（橋で ITEMS も渡すかが文に無い。1 回目の (5) が残る）。config_file は app_env.config_path（TRANSFER_APP_CONFIG・無ければ見本）で、橋に載せるかが文に無い。(3) who は me を読めないとき Python は {login:'',…,canRelease:false,error} を返す。窓の me は Python が渡す access の材料（名乗りは Python が決める。access.rs:6）から作るので、材料が無いときの形をそろえる要がある。(4) 効いている設定を計算する所が Python（effective_settings を呼ぶ 19 の道）と窓の 2 か所になる（置き場の点）。良い所: shared・revision は master_store.rs:479・793、unquote_path・split_pattern は lists.rs にあり、門番の /api/settings/ は access.rs の GUARDED にある。効いている設定の写しは後の段（スケジュール・LotDsp・参照の窓）の土台になり、計画（RUST_PORT_PLAN.md の 3 段目の残りの行き先）の並びと合う。読む道 2 本は使われる回数が少なく、速さの得は無い（effective は Python で 1 回 0.032 ms）。"
+    },
+    "G 更新の置き場だけ（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 6,
+      "place": 4,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "desktop/src/main.rs:286 の update_settings を置き換える所と routes/settings.py:69 の effective_settings(...)[\"update\"]: update.source の既定は配った設定（config/appsettings.json の update.source。BOX の置き場）にあり、窓は配った設定を読んでいない（一覧の設定の答えに載るのは calculation だけ・lotlist.py:135）。案 G は参照先の行の値だけを写すと書き、既定の出どころ（橋か、config_path〈TRANSFER_APP_CONFIG と見本への戻り〉を窓が読むか）を書かないので、文のとおりに作ると参照先の行が無い PC で窓の置き場が空になり、参照先の画面は既定の置き場を出すのに、窓は更新を確かめない（配布の画面も置き場なし）"
+      }
+     ],
+     "seen": "良い所: GET /api/update/settings を画面から呼ぶ所が無く（static/js に無い）、呼ぶのは main.rs の update_settings（7 か所: 配布の画面・置く・配る・マスタの置き場・推奨・外す・裏の確かめ）だけ、という事実を見抜き、『道を受けるのでなく呼び出しを置き換える』とした。範囲は update.source の 1 項目（kind release: 『;』と改行で区切り、それぞれの \" を外す。unquote_path は lists.rs にある）と who（access.rs の me・caps.canRelease・revoked）と masters（置き場）だけで、いちばん小さい。悪い所・案の文の誤り: (1) 『Python が起きていなくても更新の置き場を読め、更新の確かめが中身の起動を待たない』は成り立たない。who の元の me は、Python が一覧の設定の答え（/api/lotlist/settings の access。名乗り〈login・pc・key〉と置き場〈shareDir・presence…〉）で渡す材料から窓が作る（access.rs:6・lot.rs:228）。masters.dir の shareDir も同じ答えにある。つまり置き換えても、尋ねる道が /api/update/settings から /api/lotlist/settings へ替わるだけで Python には尋ね続ける。(2) 起動の最初の確かめは今でも中身を待たない: main.rs:615 の launch_update は覚えた置き場（update::remembered_source）で確かめる。裏の確かめ（upd.run。main.rs:596）は Python の READY の後に slot を置いてから始まるので、置き換えるだけでは早くならない。案の得の大半が今すでにある。(3) 既定の出どころが無い（減点の所）。(4) 起動・更新・配布の流れ（main.rs・updater.rs・distribute.rs）を変えるので、CLAUDE.md の決まりで verify.py の local・update・distribute の通しを本物の窓で（Windows は CI で）確かめる要があり、小さい割に手が重い。(5) Python の /api/update/settings は開発用・試験（test_path_settings・test_release_rules）のため残るので、置き場の読み方が 2 か所になる。参照先で変えた値（PUT は Python）を窓がすぐ読むかは after の upd.wake と一覧の設定の覚え（10 秒・after_python で捨てる）で決まる。速さ・Python を外す得はほぼ無い。"
+    },
+    "H 効いている設定を Python が渡す橋だけ（新）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 5,
+      "visual": 4,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 8,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 決まりの写しを作らず、Python の effective_settings の答えをそのまま一覧の設定の答え（routes/lotlist.py:110。いまも source・refresh_seconds・stale_hours・table・page_size と lists の work〈effective を通した work_log.params〉を載せている）に足すだけなので、設定の読み方は Python の 1 か所のまま（置き場の点が高い）。窓は 10 秒覚え、参照先を保存したら after_python が覚えを捨てる（lot.rs:166 の changes_settings に /api/settings/ がある）。calculation を載せた版 3.72.0 と同じ型で、1 版・小さい PR で済む。effective を作る速さは 0.032 ms で、答えが少し大きくなるだけ。悪い所: (1) 移す道が無い。次に移す範囲を決める比べで、主な狙いが『後の段の土台』だけになり、出来上がりを数（突き合わせの組・Python を外れた道の数）で見せられない（案の文に突き合わせも無い）。(2) 橋だけでは後の段が閉じない: GET /api/settings は項目ごとの default・value・source・rev・updated_by（effective の 2 つ目の答え items）を返すので、効いている設定の丸ごとだけでは答えられない。fs/places は MasterStore.history も要る。GET /api/update/settings の source は橋で読めるようになる（G と組むなら G の (3) は消える）。(3) 『窓の道（一覧・ダッシュボード・計算・権限）が設定を読むときはこれを使う』と書くが、いまの窓の道はそれぞれの欄（source・stale_hours・lists・calculation）を読んでいるので、読み替えるなら手が増え、読み替えないなら同じ値が答えに 2 回載る。calculation は配った設定の値（参照先では変えない）で、effective とは元が違う。(4) 測った: 参照先に stale_hours=『nan』があると、いまでも一覧の設定の答えに NaN が載り（scratchpad/score-portrest2/nan.py）、窓の serde_json は答え全体を読めず、窓の道は設定を読めない形（Python に任せる）になる。effective を丸ごと載せても数の項目は同じ 2 つなので悪くはならないが、橋を土台にするなら、この形（と inf の 500）を直すか事例に入れるかを文に書くべき。"
+    },
+    "I 勤務体系の書く道（7 段目の手本・新）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 9,
+      "form": 9,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 窓に要る部品がほとんど揃っている。書く係（master_store.rs の Store::write・revision・is_shared・next_id）・門番（access.rs の GUARDED に /api/masters/shifts）・can_write（access.rs:631。lists の work.canEditShifts で既に使う）・normalize_part・版の読み方（access_write.rs の base_rev・check_rev と pyfmt.rs:243 の py_int。全角・1e20 などで 2 回直した物）・読めない本文を Python に任せる needs_python・区分の読み方（worksum.rs の勤務体系の写し）。書いた後は lot.invalidate で一覧の設定の覚えを捨てればよく、Python 側は勤務体系を覚えていない（shift_patterns() を読む 6 か所はどれも毎回読む）。access_write（版 3.68.0。答え・断る言葉・できたファイルを Python の道と突き合わせる）と同じ型で、計画の『残りの書く道は 7 段目で組ごとに移す』の 1 組目として筋が通る。4 本・1 つのマスタで、まとまりが小さく揃っている。勤務体系の道は 4 本とも書いた後に一覧（_listing）を返すので、『書いた直後に同じ道で読む』の形も組の中で閉じる。悪い所・落とし穴（測った。scratchpad の端の試し）: (1) Python の int() と \\d の写し: shifts.hm は正規表現 \\d と int() なので『７:30』を 450 と読む（全角の数字を時刻として通す）。表示順は『１２』→12・True→1・1.9→1・『1_0』→10・『1e3』→空・nan→空。dayOffset も『１』→1・2.7→2・『-9』→-7。表示順・dayOffset に 1e400（Python の json は inf と読む）や inf が来ると OverflowError が TypeError・ValueError の外で 500 になる。shift_create の表示順の最大は str.isdigit で選ぶので『²』の行があると int('²') が ValueError で 500。これらを事例の組に入れ、窓の serde が読めない本文（NaN・1e400）は Python に任せる、を文に書くべき。(2) 区分は json.dumps(ensure_ascii=False, separators=(',',':')) で、鍵は name・start・end・dayOffset の並び。窓の join.rs の py_dumps は鍵を並べ替え『, 』で区切り ensure_ascii の形なので、そのままでは同じファイルにならない（新しく書く）。(3) 作る道は get_json(force=True)（silent でない）なので読めない本文は 400、直す・消す道は base_rev が本文を読む。access_write の Route と同じ扱いでよいが、写すのは master_repository の共通の _create・_update・_delete・_check_unique（_key）で、access_write.rs は権限のマスタ用に自分で持っている。2 つ目の写しを作らず共通にする（7 段目の残り 45 本で使う）ことを文に書けば、置き場の点が上がった。(4) 一覧の選べる設備は作業実績の登録（work_log_files）の設備名と体系の名前を normalize_part で 1 つにした物。並びは (表示順, id or 0)。(5) 移すのは書く道で、使う回数が少なく速さの得は無い。順 6 の残り・3 段目の残りは進まない（題の 3 つのうち 7 段目だけ）。Python の勤務体系の道は開発用サーバーのため残り、決まりは 7 段目が終わるまで 2 か所（前例と同じ）。"
+    },
+    "J 設定の橋と「参照…」の窓（A′ の後に D・新）": {
+     "score": {
+      "order": 8,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 7,
+      "place": 5,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "良い所: 計画（RUST_PORT_PLAN.md の 3 段目の残りの行き先『効いている設定を写すとき: GET /api/settings・GET /api/update/settings・fs の 2 道』）の並びそのもので、1 回目の D の減点（fs/places が effective と MasterStore.history を読むのに写さない）を、A′ の土台と history の写しで直した。history は作業場所の置き場の上書きの JSON の history を読むだけ（master_store.py:400。読めなければ空）で小さい。門番（_browse_gate＝me・revoked・master_edit_can）は access.rs の can_write・guard の型で作れる。悪い所: (1) A′ の抜け（update/settings の呼び出しを置き換えると書かない・ITEMS の表が 2 か所・config_file・nan）をそのまま持つ。(2) folder_browse（215 行）の OS に依る意味が重い: os.path.expandvars（Windows は %VAR%・$VAR・${VAR}、ほかは $ だけ）・expanduser・normcase（Windows だけ小文字）・Path.anchor（C: と C:\\ と \\\\サーバー\\共有）・file:// の unquote・fnmatch の大小・os.name=='nt' のときだけ A〜Z のドライブを並べる・答えの mtime（localtime の isoformat）・4 秒と 2 秒の打ち切りの糸（threading）。印は master_place.is_master_place（MASTER_MARKERS）と release_place.MARKER を使う（案の文に無い）。Linux の突き合わせでは Windows の枝が流れないので、Windows の CI で生きた Python と突き合わせる組を作る手間が A′ の trusted_browser と重なって大きい。(3) 1 版に 2 つの話（設定の土台と OS に依るフォルダの読み）を乗せるので、主な狙いが 1 つに見えず、失敗したときに戻す範囲も大きい。必要な crate は glob・percent-encoding（Tauri から lock にある）。(4) 『参照…』の窓は参照先・置き場を変える管理する人だけが使い、速さの得は小さい（ネットワークの待ちは打ち切りで決まる）。"
+    }
+   }
+  },
+  {
+   "name": "3 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は各案の seen）",
+   "self_check": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（G の前提の誤り・A′ の /api/update/settings は画面から呼ばれない・nan と inf の欠け・I の落とし穴 5 つ・H の閉じなさ）を読み直した。master_repository.py:150〜196 の _create／_update／_delete が SPECS で全部の組に共通で、shift_create・equip_group_create は表示順の最後を足すだけ（520〜556 行）・表示順の最大の所が str.isdigit と int で書かれている（「²」で落ちる形）ことを読んで確かめた。access_write.rs にも create／update／delete（387〜443 行）・digit_of・py_rev・py_int がある（共通にできる）。equip_groups は services 146 行・routes 4 本。新しい案は L・M・N・K の 4 つ（2 回目の 1 位 I を I′ に直して持ち越す）。方向は 落とし穴を先に直す I′・型を 1 つにする L・組を増やす M・読み方の表を先に作る N・設定の欠けを先に直す K で偏っていない。",
+   "proposals": {
+    "I′ 勤務体系の書く道（2 回目の I の落とし穴を先に直す）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 9,
+      "form": 9,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "2 回目の I の指摘のうち (2) 区分の JSON の形（json.dumps(ensure_ascii=False, separators=(',',':'))・鍵は name・start・end・dayOffset の順。shifts.py:126）と、書いた後に覚えを捨てる所（lot.rs:171 の changes_settings に /api/masters/shifts がある）は文に入り直った。測った（scratchpad/score-portrest3 の edge.py・route.py。作業ツリーは変えていない）: 本物の道（create_app の試験の client）で、表示順「²」の行がある所へ表示順なしで足すと 400 {\"error\":\"invalid literal for int() with base 10: '²'\",\"type\":\"ValueError\"}、order=1e400・dayOffset=Infinity は 400 {\"error\":\"cannot convert float infinity to integer\",\"type\":\"OverflowError\"}。routes/common.py:65 の master_call が Exception をすべて捕まえ exception_error（既定 400）で返すので、2 回目の採点と案の文の『500』は誤りで、本当は『英語の例外の字と型の名前を出す 400』。ただ『²』の行が 1 つあると、表示順なしの新しい勤務体系がだれにも足せなくなる欠けは本物。表示順の最大は str.lstrip('-').isdigit() と int() なので『²』のほか『--5』（lstrip で『5』になり int('--5') が ValueError）でも落ちる（案の文に無い）。同じ 3 行は master_repository.py の equip_group_create（551 行）・conversion_create（567 行）・conversion_import（613 行）にも写してある。 悪い所・案の文の誤り: (1) 『数の読み方は access_write.rs の digit_of を使う』は表の選び違い。digit_of（access_write.rs:93）は 0 の字 18 系統だけで、Python 3.13（同梱と CI の版。unicodedata 15.1）の \\d が読む 10 進の数字は 68 系統。pyfmt.rs の DIGITS（pyfmt::digit。\\d の写しとして作った物）は 62 系統で、digit_of に無いモンゴルの『᠑:30』を shifts.hm は 90 と読む（測った）。digit_of は版の番号で表に無い字が来たら Python に任せる（Rev::Unknown）ための物で、時刻の正規表現の \\d の写しに使うと窓は 400『時刻は HH:MM』、Python は 201 と答えが割れる。pyfmt::digit を使い、表に無い字は Python に任せる、と書くべき。(2) 直すのは勤務体系の表示順だけで、同じ欠けの写し 3 か所（設備グループ・変換表の作る・取り込む）は残る。(3) inf を『400 で断る』とすると、同じ order の nan・『1e3』・『²』は今どおり空（＝最後へ）なので、読めない値の扱いが値によって割れる（表示順は『読めなければ空』の決まり。clean_row の 133 行）。(4) 作る・直す・消すは access_write.rs の権限のマスタ用の物（387〜443 行）と並べて 2 つ目を書くことになり、master_repository の共通の _create／_update／_delete（150〜196 行）の写しが窓に 2 つになる（置き場の点）。(5) 選べる設備（_equipments）は作業実績の登録（work_log_files）と体系に書いた名前、テンプレート（TEMPLATES）は Rust に 2 つ目の表を持つ。良い所: 1 つのマスタ・4 本で、門番（access.rs:57）・can_write・Store::write・next_id・needs_python が揃い、access_write_parity と同じ型で答え・断る言葉・できたファイルを突き合わせられる。Python の欠けを先に直してから写す順は正しい。"
+    },
+    "L 書く道の共通の型を 1 つにして 2 組を載せる（新）": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "desktop/src/pivot.rs:476 の fancy_regex と program/app/services/equip_groups.py:73 の re.compile: 設備グループのルールの正規表現は、Python が『\\p{L}』を断り（400『bad escape \\p at position 0』）『L\\Z』を通す（201）のに、fancy-regex 0.14 は『\\p{L}』を読み『\\Z』を読めない（scratchpad/score-portrest3/rx で測った）。案 L の文のとおり窓が clean_row（ルールの確かめ）を写して書くと、窓が通した『\\p{L}』の行を Python の rules_of（92 行）は GroupError で捕まえてルールを全部捨て、Python が答える画面ではそのグループの当てはまる設備が消え、窓が答えるダッシュボードでは入る（同じグループで見える設備が食い違う）"
+      }
+     ],
+     "seen": "良い所: Python の書く道は SPECS と _create／_update／_delete・_check_unique・_check_row の 1 つの型（master_repository.py:150〜196）で、窓にも 1 つの型を作って access_write.rs の作る・直す・消す（387〜443 行。access_write_parity が守る）をそこへ移すのは、置き場（決まりが Python 1・窓 1）の点でいちばん筋が良い。表示順の最後の欠けの写し（勤務体系・設備グループ。変換表も）を 1 か所で直せる。next_id・Store::write・normalize_part・check_rev は既にある。測った（scratchpad/score-portrest3 の edge.py・route.py。作業ツリーは変えていない）: 本物の道（create_app の試験の client）で、表示順「²」の行がある所へ表示順なしで足すと 400 {\"error\":\"invalid literal for int() with base 10: '²'\",\"type\":\"ValueError\"}、order=1e400・dayOffset=Infinity は 400 {\"error\":\"cannot convert float infinity to integer\",\"type\":\"OverflowError\"}。routes/common.py:65 の master_call が Exception をすべて捕まえ exception_error（既定 400）で返すので、2 回目の採点と案の文の『500』は誤りで、本当は『英語の例外の字と型の名前を出す 400』。ただ『²』の行が 1 つあると、表示順なしの新しい勤務体系がだれにも足せなくなる欠けは本物。表示順の最大は str.lstrip('-').isdigit() と int() なので『²』のほか『--5』（lstrip で『5』になり int('--5') が ValueError）でも落ちる（案の文に無い）。同じ 3 行は master_repository.py の equip_group_create（551 行）・conversion_create（567 行）・conversion_import（613 行）にも写してある。 悪い所・案の文に無い依存: (1) 設備グループの一覧（routes/equipgroups.py:11 の _listing）は GET でも、書いた後の答えでも routes/dashboard.py:38 の equipment_seen を呼ぶ。これは作業実績の登録・設備マスタに加えて、効いている設定（effective_settings）と data_sources.sources で設備の列を持つデータ元ごとにダッシュボードの答え（_answer）を数える（測った: 一覧を返すたびに共有の lot_list・src_wip を読みに行く）。窓は効いている設定を持たず（1・2 回目の指摘）、データ元の一覧は Python の橋（lists.sources）から来る。案の『clean_row とルールの確かめを足すだけ』に入っていない大きな依存。(2) ルールの正規表現の読める・読めないが Python の re と fancy-regex で違い、断る言葉にも re.error の英語の字が入るので、窓は正規表現のルールの本文を Python に任せるしかない（減点の所）。今の読む側（pivot.rs の compile_rules）でも同じ食い違いがある。(3) 『7 段目の残りの組はこの型に clean_row を足すだけ』は言い過ぎ: 組み方のプリセット・ダッシュボードは _preset_write（標準を組ごとに 1 つ）、すぐに見るは quick_set、変換表は import・defaults_set、タブの権限は tab_access_put、参照先は path_setting_put と、型の外の書き方を持つ。共有の書式は中身の JSON の鍵の並び（M を見よ）。(4) 2 組＋型の作り替えで 1 版が大きく、戻す範囲も大きい。I′ の (1) の表の選び違い（digit_of）も持つ。"
+    },
+    "M 勤務体系と共有の書式の 2 組（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 4,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "勤務体系の分は I′ と同じ（良い所・落とし穴とも）。測った（scratchpad/score-portrest3 の edge.py・route.py。作業ツリーは変えていない）: 本物の道（create_app の試験の client）で、表示順「²」の行がある所へ表示順なしで足すと 400 {\"error\":\"invalid literal for int() with base 10: '²'\",\"type\":\"ValueError\"}、order=1e400・dayOffset=Infinity は 400 {\"error\":\"cannot convert float infinity to integer\",\"type\":\"OverflowError\"}。routes/common.py:65 の master_call が Exception をすべて捕まえ exception_error（既定 400）で返すので、2 回目の採点と案の文の『500』は誤りで、本当は『英語の例外の字と型の名前を出す 400』。ただ『²』の行が 1 つあると、表示順なしの新しい勤務体系がだれにも足せなくなる欠けは本物。表示順の最大は str.lstrip('-').isdigit() と int() なので『²』のほか『--5』（lstrip で『5』になり int('--5') が ValueError）でも落ちる（案の文に無い）。同じ 3 行は master_repository.py の equip_group_create（551 行）・conversion_create（567 行）・conversion_import（613 行）にも写してある。 共有の書式（routes/formats.py 4 本・services/display_formats.py）を足す所の誤り: 『中身が JSON の塊で決まりが少ない』は逆で、窓で同じファイルを書くのがいちばん難しい組。clean_body（display_formats.py:56）は画面から来た入れ子の dict を json.dumps(ensure_ascii=False, separators=(',',':')) で字にして『中身』に置く。Python は入れ子の鍵を来た順のまま書き、小数は repr（測った: 1e16 → 1e+16・1e-7 → 1e-07・1.0 → 1.0）。窓の serde_json は preserve_order の機能が無く（Cargo.toml:32 は float_roundtrip だけ。Cargo.lock の serde_json に indexmap が無い）、Map は鍵を並べ替える。access_write.rs の Ordered（512 行）は 1 段目しか順を保たない。入れ子のすべての段の順を保つ読み方を新しく書くか、中身の字を Python に任せる要がある。512 KB の上限も Python が書いた字の UTF-8 の長さで決まるので、字が 1 字違えば境で答えが割れる。GET の答えの body（view が中身を読み直した物）も鍵の並びが変わる。is_screen_source は data_sources の _SCREEN_KEY だけで小さい。作る・直す・消すを『access_write の形のまま並べる』と、窓に同じ型の写しが 3 つ（権限・勤務体系・書式）になり、置き場の点が下がる。2 組の関係は薄く、1 版の主な狙いが 1 つに見えない。速さの得は無い（書く道）。"
+    },
+    "N 数の読み方の事例の表を先に作り、その上に勤務体系（新）": {
+     "score": {
+      "order": 9,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 9,
+      "form": 9,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所（測った）: 数の読み方の写しは今、窓に 3 つあり揃っていない。Python 3.13（同梱と CI の版。unicodedata 15.1）の \\d・int()・float() が読む 10 進の数字は 68 系統、pyfmt.rs の DIGITS は 62 系統（カウィ U+11F50〜・ナグムンダリ U+1E4F0〜 が無い。Python は int('\\U00011F53')=3・float('\\U00011F51.5')=1.5 と読み、shifts.hm('\\U00011F51:30')=90）、access_write.rs の digit_of は 18 系統（モンゴルの『᠑:30』を Python は 90 と読むが digit_of は読まない）。isdigit は『²』（区分 No）を真とし \\d・int() は読まない、という 3 つの違いも表にすれば一目で見える。like_cases.json・formula_cases.json・num_expr_cases.json と同じ『事例の表を Python と Rust が両方突き合わせる』型（tests/fixtures にある）で、Python の版を上げて Unicode の版が変わったときも Python の試験が表の古さで止める。I′ の (2) の表の選び違い（時刻の \\d に digit_of）を、この表と pyfmt::digit に寄せることで正しく直せる。そのうえで勤務体系の 4 本を載せる順は、決まりを先に 1 か所にしてから道を移す筋で、後の段（設定の int・number の項目、書く道の表示順・版）でも同じ表を使える。測った（scratchpad/score-portrest3 の edge.py・route.py。作業ツリーは変えていない）: 本物の道（create_app の試験の client）で、表示順「²」の行がある所へ表示順なしで足すと 400 {\"error\":\"invalid literal for int() with base 10: '²'\",\"type\":\"ValueError\"}、order=1e400・dayOffset=Infinity は 400 {\"error\":\"cannot convert float infinity to integer\",\"type\":\"OverflowError\"}。routes/common.py:65 の master_call が Exception をすべて捕まえ exception_error（既定 400）で返すので、2 回目の採点と案の文の『500』は誤りで、本当は『英語の例外の字と型の名前を出す 400』。ただ『²』の行が 1 つあると、表示順なしの新しい勤務体系がだれにも足せなくなる欠けは本物。表示順の最大は str.lstrip('-').isdigit() と int() なので『²』のほか『--5』（lstrip で『5』になり int('--5') が ValueError）でも落ちる（案の文に無い）。同じ 3 行は master_repository.py の equip_group_create（551 行）・conversion_create（567 行）・conversion_import（613 行）にも写してある。 悪い所: (1) 1 版に 2 つの話（数の読み方の表と勤務体系の道）を乗せる。pyfmt の数字の表は日時の読み方（to_minutes・to_date）・計算列・一覧の Val でも使うので、足すと formula_parity・lists_parity・pivot_parity などの答えも動く（Python に寄る向きだが、試す範囲が勤務体系より広い）。(2) I′ の (1) を持ち越すので、2 回目から続く『500』の前提は誤り（本当は master_call の 400）・『--5』の行が抜け・同じ欠けの写し 3 か所（設備グループ・変換表）が残る・inf を 400 にすると表示順の『読めなければ空』と割れる。(3) 作る・直す・消すは L のような共通の型にせず access_write.rs と並べるので、窓に同じ型が 2 つになる（数の読み方は 1 か所になるが、書き方は 2 か所）。(4) 表は Python の float() の端（『1_0』・『１e2』・『nan』・『inf』・『1e400』の文字・指数の下線）も入れれば、K の設定の端と勤務体系の両方に効く（案の文の『全角・アラビア・下線・nan・inf・1e400・²』で足りる）。速さの得は無い。"
+    },
+    "K 設定の端を Python で直してから、設定の橋と GET /api/settings（新）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 5,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目に測った Python の欠け（参照先に stale_hours=『nan』で /api/settings・/api/lotlist/settings が本文に NaN を書き厳密な JSON でない・int の項目の『inf』で 3 本の道が 500）を、写す前に path_settings.parse（97 行。float() の後で範囲を比べるので nan はどの比べも偽で通る）で断る形に直すのは正しく、後の段の土台にもなる。/api/update/settings を外したのは 2 回目の指摘（窓の中の呼び出しで画面から呼ばれない）どおり。悪い所: (1) 受ける道は GET /api/settings の 1 本だけで、呼ぶのは参照先の画面（管理する人が開くときだけ）。速さ・Python を外す得はほぼ無い。(2) 答えの items は ITEMS の label・hint（path_settings.py:61 の hint は BRAND の名前入りの f 字）・page・check_url・min・max をそのまま返すので、橋で ITEMS も渡すか Rust に 2 つ目の表を持つかを書いていない（1・2 回目の指摘が残る）。config_file（app_env.config_path。TRANSFER_APP_CONFIG と見本への戻り）と share_dir の出どころも文に無い。(3) exe の項目の trusted_browser は OS で名前の表と Program Files・AppData の下かの確かめが違い、Windows の枝は Windows の CI でしか突き合わせられない。(4) 効いている設定を計算する所が Python（effective_settings を呼ぶ 19 の道）と窓の 2 か所になる。(5) 数の読み方（float() の『６０』・『1_0』・『１e2』）は pyfmt::py_float（258 行。既にある）で読めるが、N の表が無いと端の揃いを示せない。"
+    }
+   }
+  }
+ ],
+ "self_check": "案を作った者が採点の前に確かめたこと（2026-11-05）: rust-port-bench.py --static-only を流した数を measured に書いた。道は routes/*.py の @bp を数えた。A の前提を読んで直した: GET /api/config は effective だけでなく lotdsp_api.status（api_map・api_settings）も読むので、案 A の確実な範囲から外し条件つきにした。/api/settings は path_settings.effective と MASTER_STORE の is_shared・revision、/api/update/settings は effective の update と access（窓に access.rs がある）を読む。B の import-lotdsp は read_lot の中で lotdsp_api.learn_later（裏で LotDsp の API を引く）を呼ぶので、窓だけでは閉じない（案の文に書いた）。案の方向は 6 つ（土台から A・純な読みから B・外のつなぎ一式 C・小さく OS に依る D・量で一括 E・書く道の先取り F）で偏っていない。画面に出ない改良なので画像は無い。",
+ "proposals_text_2": {
+  "A′ 設定の橋と読む道 2 本（1 回目の A を絞る）": "1 回目の指摘どおり範囲を GET /api/settings・GET /api/update/settings に絞る。窓に (1) 配った設定（APP_SETTINGS）と置き場を渡す橋（一覧の設定の答えに appSettings を載せる。calculation と同じ形）、(2) path_settings.effective と parse の写し（exe 項目の trusted_browser は OS ごとの表を写し、Windows の CI で突き合わせる。inf・1e400 で Python が OverflowError になる形と、窓が読めない値は Python に任せる）を作る。/api/settings の shared・revision は master_store.rs、/api/update/settings の who は access.rs の me。POST /api/settings/check は LotDsp の段へ回す。突き合わせは effective_oracle.py（配った設定 × 参照先の行の値の端〈全角・1_0・nan・inf・範囲外・壊れた行〉× 置き場の形 × 権限の組）。",
+  "G 更新の置き場だけ（新）": "窓の起動と更新の係（main.rs の update_settings・updater.rs・distribute.rs）が Python に尋ねている GET /api/update/settings だけを、窓が自分で決める（effective は update.source の 1 項目だけを写す。who は access.rs の me、masters は置き場）。道を受けるのでなく、窓の中の呼び出しを置き換える。Python が起きていなくても更新の置き場を読め、更新の確かめが中身の起動を待たない。突き合わせは update.source の値の端（空・「;」区切り・\" で括った道・参照先で変えた値・壊れた行）× 権限の組。",
+  "H 効いている設定を Python が渡す橋だけ（新）": "窓は effective を写さず、Python が一覧の設定の答え（/api/lotlist/settings）に効いている設定（effective_settings の結果）を丸ごと載せる。窓の道（一覧・ダッシュボード・計算・権限）が設定を読むときはこれを使う（10 秒覚える）。新しく受ける道は無い。後の段（LotDsp・スケジュール・参照の窓）が設定を窓の中で読める土台になる。決まりの写しが無いので Python と窓で設定の読み方が割れない。",
+  "I 勤務体系の書く道（7 段目の手本・新）": "勤務体系の 4 本（GET／POST /api/masters/shifts・PUT／DELETE /api/masters/shifts/<id>）を、access_write（版 3.68.0）と同じ型で窓が受ける。shifts.clean_row・view・テンプレート・選べる設備と、master_repository の shift_create／update／delete の決まり（版・重なり）を写し、窓の書く係（master_store.rs）で書く。書いた後に一覧・ダッシュボードの勤務体系の覚えを捨てる。答え・断る言葉・できたファイルを shifts_oracle.py と突き合わせる。",
+  "J 設定の橋と「参照…」の窓（A′ の後に D・新）": "A′ を入れたうえで、「参照…」の窓の 2 道（POST /api/fs/browse・GET /api/fs/places）を窓が受ける。places が読む前に使ったマスタの置き場の記録（MasterStore.history）を master_store.rs に写す。OS に依る字（%VAR%・ドライブと共有・読めない理由）は事例の表で、Windows の CI でも突き合わせる。1 版で設定の土台と、その上の小さな道を一緒に閉じる。"
+ },
+ "self_check_2": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘を読み直し、path_settings.parse が exe の項目で lotdsp_direct.trusted_browser を呼ぶこと（effective も parse を使う）・/api/update/settings は effective の update と me（access）と MASTER_STORE.share_dir を読むこと（routes/settings.py:64）・窓は main.rs:285 の update_settings で起動と更新のたびに Python へ尋ねていること・一覧の設定の答えに窓が受け取る設定は calculation だけ（lot.rs:43）・勤務体系の道は routes/shifts.py の 4 本で書くのは master_repository の shift_* であることを確かめた。新しい案は G・H・I・J の 4 つ（1 回目の A を絞った A′ を持ち越す）。方向は 土台を写す A′・呼び出しを 1 つ置き換える G・写さず渡す H・書く道の手本 I・土台＋小さな道 J で偏っていない。",
+ "proposals_text_3": {
+  "I′ 勤務体系の書く道（2 回目の I の落とし穴を先に直す）": "2 回目の I に、採点者の指摘を入れる。(1) Python の今の欠けを先に直す: 表示順の最大を選ぶ所が「²」の行で 500（isdigit が真で int が落ちる）・表示順と dayOffset の inf／1e400 で 500 → 読めない値の行は数えず、本文の値は 400 で断る（Python の試験を足す）。(2) 全角の数字（「７:30」・「１２」）は Python と同じに読む（数の読み方は access_write.rs の digit_of を使う）。(3) 区分の JSON は Python の json.dumps(separators=(',',':')) と同じ形を書く部品を足す（鍵の並びも shifts.py のまま）。(4) 4 本（GET／POST /api/masters/shifts・PUT／DELETE /api/masters/shifts/<id>）を窓が受け、書いたら一覧・ダッシュボードの勤務体系の覚えを捨てる。突き合わせは shifts_oracle.py。",
+  "L 書く道の共通の型を 1 つにして 2 組を載せる（新）": "Python の書く道は master_repository の SPECS と _create／_update／_delete（版・重なり・一意・行の確かめ）の 1 つの型で書いている（master_repository.py:150〜196）。窓にも同じ 1 つの型（desktop/src/master_rows.rs: SPECS の写し・作る／直す／消す・版・一意・次の id・表示順の最後）を作り、access_write.rs の作る・直す・消すをこの型へ移したうえで、勤務体系（4 本）と設備グループ（4 本。equip_groups.clean_row とルールの確かめ）を載せる。決まりは Python 1・窓 1 の対になり、7 段目の残りの組はこの型に clean_row を足すだけになる。I′ の (1)〜(3) も含む。突き合わせは shifts と equip_groups の oracle と、既存の access_write_parity（型を替えても同じ答え）。",
+  "M 勤務体系と共有の書式の 2 組（新）": "I′ に、共有の書式（routes/formats.py の 4 本・display_formats 82 行）を足して 2 組で 1 版にする。書式は中身が JSON の塊で決まりが少なく、2 組目で型の写しを確かめられる。共通の型は L ほど作り込まず、2 組の作る・直す・消すを access_write の形のまま並べる。",
+  "N 数の読み方の事例の表を先に作り、その上に勤務体系（新）": "Python の int()・float()・isdigit・正規表現の \\d が読む字（全角・アラビアの数字・下線・nan・inf・1e400・「²」）を、事例の表 tests/fixtures/pynum_cases.json に焼く（like_cases.json・formula_cases.json と同じ形）。Rust の pyfmt に同じ読み方を 1 つにまとめ（access_write.rs の digit_of・py_rev・py_int も使う）、Python と Rust の両方が同じ表を突き合わせる。そのうえで I′ の 4 本を載せる。数の読み方の端が、これから移すすべての道（設定・書く道）で 1 か所の決まりになる。",
+  "K 設定の端を Python で直してから、設定の橋と GET /api/settings（新）": "参照先の値が nan のとき Python が本文に NaN を書く（JSON として読めない）・inf で 3 本の道が 500 になる欠けを、path_settings.parse で数でない値（nan・inf・範囲を超える数）を断る形に直す（壊れた行は既定で動く。Python の試験を足す）。そのうえで窓に配った設定と置き場を渡す橋（一覧の設定の答えに appSettings）と effective・parse の写し（exe の trusted_browser は OS ごとの表・Windows の CI）を作り、GET /api/settings を窓が受ける（画面の「参照先」の画面が呼ぶ道）。/api/update/settings は窓の中の呼び出しのため外す。"
+ },
+ "self_check_3": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（G の前提の誤り・A′ の /api/update/settings は画面から呼ばれない・nan と inf の欠け・I の落とし穴 5 つ・H の閉じなさ）を読み直した。master_repository.py:150〜196 の _create／_update／_delete が SPECS で全部の組に共通で、shift_create・equip_group_create は表示順の最後を足すだけ（520〜556 行）・表示順の最大の所が str.isdigit と int で書かれている（「²」で落ちる形）ことを読んで確かめた。access_write.rs にも create／update／delete（387〜443 行）・digit_of・py_rev・py_int がある（共通にできる）。equip_groups は services 146 行・routes 4 本。新しい案は L・M・N・K の 4 つ（2 回目の 1 位 I を I′ に直して持ち越す）。方向は 落とし穴を先に直す I′・型を 1 つにする L・組を増やす M・読み方の表を先に作る N・設定の欠けを先に直す K で偏っていない。",
+ "built": {
+  "name": "作った後",
+  "images": "画面に出ない改良なので画像は無い",
+  "result": {
+   "proposal": "N 数の読み方の事例の表を先に作り、その上に勤務体系（新）",
+   "score": {
+    "order": 9,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 9,
+    "form": 9,
+    "place": 9,
+    "layout": 8,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/shifts_write.rs:126〜128 の clean_segments が区分の字を crate::access::py_json で読む（py_json は権限の『出す・出さない』用で、NaN・Infinity・-Infinity・1e400 を 1 に、対の無いサロゲートを U+FFFD に置き換える）: POST /api/masters/shifts に {\"name\":\"s1\",\"segments\":\"[{\\\"name\\\":\\\"b\\\",\\\"start\\\":\\\"23:00\\\",\\\"end\\\":\\\"7:00\\\",\\\"dayOffset\\\":NaN}]\"}（区分を JSON の字で送る）と、Python は 400『「b」の日付の数え方は整数（日数）で入れてください。』で書かず、窓は 201 で dayOffset 1 の行を書く（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built3750b/probe6.py の [1]）。PUT の segments も同じ"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/shifts_write.rs:108〜113 の needs_python が適用設備の i64 に入らない整数を見ない（表と入れ子の並びだけ）: POST の equipment が 99999999999999999999・[12345678901234567890]・[\"CR1\", 9223372036854775808] のとき、適用設備のファイルと一覧が Python『99999999999999999999』『12345678901234567890』『9223372036854775808』／窓『1e+20』『1.2345678901234567e+19』『9.223372036854776e+18』。区分を字で送ったときの区分の名前 99999999999999999999 も Python『99999999999999999999』／窓『1e+20』（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built3750b/probe5.py・probe6.py の [0]）"
+    }
+   ],
+   "seen": "2 回目（1 回目 69.4 点）。良い所（流して確かめた）: cargo test --test shifts_parity・pynum_cases・access_write_parity・--lib lot::（11 本。足した the_window_answers_shift_masters を含む）・cargo fmt --check・clippy --all-targets -D warnings、python -m unittest discover（691 本 OK・skipped 6）、tests.test_pynum_cases・tests.test_work_summary（22 本 OK）がすべて通る。1 回目の指摘はこうなった: (減点 1) 消す・直す道の表でない本文 — 直った。shifts_write.rs の handle が直す・消す道で本文を先に読み、表でない真の値（[1]・\"x\"・true）は 500 で書かない、窓が読めない本文（NaN・1e400・壊れた JSON）は Python に任せる。自分で当てた 0・[]・\"\"・false・null（偽の値は {}）・{\"base_rev\":\"2\"}＋?rev=1・\" [1] \"・true・PUT の 0／true・base_rev 2.7／true／『２』の 13 歩で、状態・消したか・ファイルが Python と同じ（Python の 500 は本文が HTML、窓は JSON の error だけが違う。画面は状態で読む）。oracle に 3 歩が入った。(減点 2) 表・入れ子の並びの適用設備 — 表と入れ子は Python に任せるようになり直った。ただし i64 に入らない整数の適用設備が抜けている（下の減点 2）。1.0・1e20・1e16・true・[1e20,1e-7,0.1]・-0.0・『ＣＲ１、cr1;L-1』・[1,1.5,true,\"CR1\",null,\"\"] は同じ。(減点 3) i64 に入らない表示順 — 字の表示順は readable() が見て、行が 1 つでもあれば一覧も書く道も Python に任せるので直った（数でない id・NaN の区分も同じ）。小数の id 7.0（GET・PUT・DELETE）・表示順 1.9／『1.9』／true／30.5 の一覧と次の表示順も Python と同じ。1 回目の (4) は、区分が字でない行（5・true・{\"a\":1}・並び）を worksum::segments_of が区分なしに読むよう直った。segments_of を Python の services/shifts.segments_of と 22 の区分の値で突き合わせ、21 が同じ（違うのは対の無いサロゲートの名前だけ。Python は読み、窓は区分なし）。この直しで一覧・ダッシュボードの読み方は Python からずれていない（前の py_str でも字は同じ、字でない値は Python が TypeError で区分なし）。(5) 本物の道の試験 lot::tests::the_window_answers_shift_masters が足され、門番（閲覧のみの 403）・invalidate・任せる形・百分率符号の道を通す。(6) 空行は消えた。二重に書く道: handle が None を返すのは書く前だけ（readable・本文・needs_python・Rev::Unknown・lot.rs の read()?・store_for?）で、書いた後に読み直せないときは 503『保存しましたが…』（saved:true）を窓が返すので Python がもう一度書く道は無い。悪い所（自分で作った場面を Python と窓に当てて測った。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built3750b/probe3.py〜probe6.py を shifts_parity.rs の answer と同じ呼び方で None を『Python に任せる』と記す一時の試験〈desktop/tests/zz_probe3.rs・zz_probe4.rs・zz_seg.rs。流した後に消した〉で流した）: (1) clean_segments が区分の字を access::py_json で読むため、NaN・Infinity・1e400 の日付補正が 1 になり、Python が 400 で断る行を窓は書く（減点 1）。画面は区分を並びで送るので、いまの画面からは起きない。serde_json で読めなければ Python に任せれば Python と同じになる。(2) 適用設備の i64 に入らない整数（字でなく数で送ったとき）と、字で送った区分の中の大きな整数の名前で、置く字が小数の書き方になる（減点 2。1 回目の減点 2 と同じ『本文の端で置く字が違う』形）。(3) 手で直したファイルだけで起きる形（減点にはしない。1 回目の (4) と同じ扱い）: 表示順が字でなく JSON の大きな整数（99999999999999999999）の行があると、readable() は字の形しか見ないので窓が答え、GET の order が i64::MAX・revision が 0（master_store が『窓では値を変えずに書けない大きな整数』で読まない）、足す道は 400『Python の書く係で保存してください』で、Python は 201 で足す。区分の字の日付補正が NaN・Infinity・1e400 の行は、勤務体系の画面（Python に任せる）では区分ありに見え、一覧・ダッシュボード（窓の worksum::segments_of は serde_json で読み区分なし）ではその体系を飛ばす。(4) 書いた後に読み直せない 503 は 2xx でないので lot.rs の invalidate が呼ばれず、一覧の設定（直の決まり）が最長 10 秒古いまま。画面は 503 の言葉で『保存しました』と読めるが、一覧を読み直さない。(5) Python の 500 の答えは HTML（TESTING でない本物の形）、窓は JSON の error。状態は同じ。"
+  }
+ }
+}
