@@ -79,6 +79,8 @@ SCENARIOS = [
     ], "delegates": []},
     {"name": "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる）", "mode": "shared",
      "rows": [{"名前": P, "値": "x"}, {"名前": P}, {"名前": L, "値": "1"}, {"名前": L, "値": "2"}], "steps": [S(BOSS, "GET")], "delegates": []},
+    {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": OLD, "lock": True,
+     "steps": [S(BOSS, "PUT", {"keys": {P: "1"}}), S(BOSS, "GET")], "delegates": []},
     {"name": "置き場の行の値が字でない（窓は答えず Python に任せる）", "mode": "shared", "rows": [{"名前": P, "値": 100}, {"名前": ["x"], "値": "1"}], "steps": [],
      "delegates": [S(BOSS, "GET"), S(BOSS, "PUT", {"keys": {P: "1"}})]},
 ]
@@ -96,6 +98,12 @@ def place(root, sc):
             (cache / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
         else:
             (share / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
+    if sc.get("lock"):          # ほかの PC が保存している途中（切れていない錠。窓も Python も 409 locked で答え、書かない）
+        from datetime import datetime, timedelta
+        n = datetime.now()
+        (share / "master.lock.json").write_text(j({"token": "t", "holder_pc": "PC-8", "holder_login": "u8", "holder_instance": "z:1",
+                                                   "acquired_at": n.isoformat(timespec="seconds"),
+                                                   "expires_at": (n + timedelta(seconds=600)).isoformat(timespec="seconds")}), encoding="utf-8")
 
 
 def store_of(root, sc):

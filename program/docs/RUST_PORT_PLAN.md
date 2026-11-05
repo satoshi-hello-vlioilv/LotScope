@@ -622,13 +622,16 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
 - GET／PUT /api/ui-defaults を窓が受ける（`desktop/src/ui_defaults.rs`。Lot::ui_defaults_route）。範囲の名前（PROFILE_KEYS）は Python の 1 か所のまま、一覧の設定の答え
   （uiProfileKeys）で受け取る（無い前の版の Python には任せる）。2 MB の確かめは join::py_dumps の長さ（値は字だけ）。窓が読めない本文と、置き場の行の名前・値が字でない形は
   Python に任せる。
-- 評価関数: `cargo test --test ui_defaults_parity`（← `tests/ui_defaults_oracle.py`。7 場面・33 歩の答えとファイル〈開発者・開発者でない・切断中・手元だけ・写しから・
-  表でない本文 9 通り・2 MB の丁度と 1 バイト上・text/plain・外す・同じ名前の行が 2 つで後ろに値が無い〉、Python に任せる 6 歩。切断の確かめを外すと 3 件、置き場の行の確かめを外すと 4 件落ちる）・
+- 評価関数: `cargo test --test ui_defaults_parity`（← `tests/ui_defaults_oracle.py`。8 場面・35 歩の答えとファイル〈開発者・開発者でない・切断中・手元だけ・写しから・
+  表でない本文 9 通り・2 MB の丁度と 1 バイト上・text/plain・外す・同じ名前の行が 2 つで後ろに値が無い・保存中の錠〉、Python に任せる 6 歩。切断の確かめを外すと 3 件、置き場の行の確かめを外すと 4 件落ちる）・
   `lot::tests::the_window_answers_ui_defaults`（本物の道・開発者でない・前の版の Python・NaN の本文）。
 - 作った後の採点の 1 回目（69.4 点。減点 −3）で、置き場に同じ名前の行が 2 つあり後ろの行に値が無いとき（Python は後ろの None で上書きしてから字でない物を落とす）
   窓は前の行の値を返す・2 MB の境の歩が無い（比べ方を 1 バイトずらしても落ちない）・保存中の錠に当たると Python は 500 の頁、窓は JSON、が見つかった。
   窓の読み方を Python の load と同じ（後ろの行が勝つ）にし、2 MB の丁度と 1 バイト上の歩を足し、錠は Python も窓もほかのマスタと同じ 409 locked の形で答える
   （`tests/test_body_reading.py` の test_locked_store_answers_like_other_masters）。読み方を前に戻すと 1 件、境をずらすと 3 件落ちる。
+- 2 回目（74.2 点。減点なし）で、窓の錠の答えを守る突き合わせが無い・書く前に権限の控えを捨てていない、が見つかった。錠の場面（切れていない master.lock.json）を突き合わせに足し、
+  PUT の前に gate.forget する（ほかの書く道と同じ）。錠でない書く失敗（OSError など）は、Python は枠の 500 の頁、窓は 500 の {error, kind}（まれで、画面の状態は同じ）。
+  届かない 5.8 点は、移した道が 2 本だけでステップ数が低いこと（決めた案の大きさ）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

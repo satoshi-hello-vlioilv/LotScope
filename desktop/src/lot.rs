@@ -261,6 +261,9 @@ impl Lot {
         if !s.access.is_object() {
             return None;
         }
+        if route == crate::ui_defaults::Route::Put {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
+        }
         let me = self.gate.me(&s.access).ok()?;
         let rows = crate::access::Place::from_json(&s.access["place"]).rows(crate::ui_defaults::NAME).ok()?;
         let store = self.store_for(&s.access)?;
