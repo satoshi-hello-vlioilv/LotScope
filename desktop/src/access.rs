@@ -500,7 +500,7 @@ fn iso_time(t: &[char]) -> Option<(u32, u32, u32, u32)> {
 
 /// Python の json.loads が読める字を serde_json で読む（文字列の外の NaN・Infinity・-Infinity と、f64 に入らない数を、
 /// 真の数 1 に置き換える。ここで使う所〈権限の表・タブの例外・切断の指示〉では、その値は「表でも字でもない真の値」としか見ない）
-fn py_json(text: &str) -> Option<Value> {
+pub(crate) fn py_json(text: &str) -> Option<Value> {
     if let Ok(v) = serde_json::from_str(text) {
         return Some(v);
     }
@@ -578,7 +578,7 @@ fn py_json(text: &str) -> Option<Value> {
     serde_json::from_str(&out).ok()
 }
 
-fn key_ok(key: &str) -> bool {
+pub fn key_ok(key: &str) -> bool {
     let bad = |c: char| matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || pyfmt::is_space(c);
     let n = key.chars().count();
     (1..=120).contains(&n) && !key.chars().any(bad) && !key.starts_with('.') && !key.contains("..")

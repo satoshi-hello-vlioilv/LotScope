@@ -137,7 +137,7 @@ pub fn crosses_midnight(start: &str, end: &str) -> bool {
 }
 
 /// Python の int(値)（JSON の値。読めなければ None）
-fn py_int_of(v: &Value) -> Option<i64> {
+pub fn py_int_of(v: &Value) -> Option<i64> {
     match v {
         Value::Bool(b) => Some(*b as i64),
         Value::Number(n) => n.as_i64().or_else(|| n.as_f64().filter(|f| f.is_finite()).map(|f| f.trunc() as i64)),

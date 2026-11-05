@@ -39,6 +39,10 @@ const SELFTEST_JS: &str = include_str!("selftest.js");
 const SELFTEST_LIMIT: Duration = Duration::from_secs(180);
 /// 終了（/api/shutdown）を受けてから窓を閉じるまで。答えが画面へ届いてから閉じる。
 const QUIT_DELAY: Duration = Duration::from_millis(150);
+/// 窓を閉じるとき、使い終わり（利用状況の印を消す）を待つ長さ
+const LEAVE_WAIT: Duration = Duration::from_millis(500);
+/// 品質異常・利用状況の係（窓を閉じるときに使い終わりを書くため）
+static LOT: std::sync::OnceLock<Arc<Lot>> = std::sync::OnceLock::new();
 /// 窓の × を押したとき（版 3.43.0）: 画面に「保存していない変更」が無いかを聞いてから閉じる（画面が tpa:close-requested を受け、
 /// 無ければ・聞いて進むなら /api/shutdown で閉じる）。画面が答えない（読み込み前・止まっている）ときも閉じられるよう、
 /// この長さのうちにもう一度 × を押せば、聞かずに閉じる。
@@ -143,6 +147,9 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         // 画面の「終了」・版が混ざったときの「再起動する」。答えてから閉じる（中身の Python は入力が閉じて自分で終わる）
         ("POST", "/api/shutdown") => {
             let app = app.clone();
+            // 使い終わり（いま使っているの印を消し、記録を最後まで書く。版 3.71.0）。共有が遅くても終わるのは待たない（QUIT_DELAY が上限）
+            let bye = lot.clone();
+            std::thread::spawn(move || bye.leave());
             std::thread::spawn(move || {
                 std::thread::sleep(QUIT_DELAY);
                 log("EXIT 画面の終了");
@@ -255,6 +262,10 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
                 serde_json::from_slice(req.body).unwrap_or_else(|e| json!({"ok": false, "error": e.to_string()}));
             selftest_finish(&app, &result);
             Some(json_reply(&json!({"received": true})))
+        }
+        // 心拍（版 3.71.0。利用状況を書き〈裏の糸〉、古い版か・切断されているかを返す。中身が止まっていれば 503＝画面は「未接続」）
+        ("POST", "/api/heartbeat") => {
+            lot.heartbeat(&|| lot_settings(backend), &|| backend.alive()).map(|(status, v)| Reply { status, ..json_reply(&v) })
         }
         (method, path) => lot
             .handle_body(method, path, req.query, req.body, &|| lot_settings(backend))
@@ -568,7 +579,9 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     let static_dir = program.join("app").join("static");
     // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
     let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
-    // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
+    lot.set_program(program.clone()); // 利用状況に書く版（中身の版。更新で入れ替わる）
+    let _ = LOT.set(lot.clone()); // 窓を閉じるときの使い終わり（RunEvent::Exit）
+                                  // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
     let told = lot.clone();
     sup.on_notice(Arc::new(move |h| told.notice(h)));
     let _ = slot.set(Router {
@@ -891,6 +904,16 @@ fn main() {
             }
         }
         RunEvent::Exit => {
+            // 使い終わり（窓の × で閉じたときも。版 3.71.0）。共有が遅くても閉じるのを待たせない（LEAVE_WAIT が上限）
+            if let Some(lot) = LOT.get() {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let bye = lot.clone();
+                std::thread::spawn(move || {
+                    bye.leave();
+                    let _ = tx.send(());
+                });
+                let _ = rx.recv_timeout(LEAVE_WAIT);
+            }
             // 中身の Python を止める（入力を閉じる → 片付けて自分で終わる。終わらなければ止める）
             if let Some(r) = slot.get() {
                 r.backend.stop();

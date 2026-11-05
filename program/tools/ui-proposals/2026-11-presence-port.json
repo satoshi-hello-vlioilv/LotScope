@@ -1,0 +1,401 @@
+{
+ "title": "順 5 の 3 段目: 使用の履歴・置き場・設定を Rust へ（移し方の案）",
+ "rule": "2026-10-17",
+ "evaluator": "1 回目と 2 回目は、それぞれ案を作っていない別の採点者（別のエージェント）が付けた。2 回目の採点者（別のエージェント・2026-11-04。main 54ba976。1 回目の採点者とも案を作った者とも別）: 画面に出ない改良なので、画像の代わりに読んで・測って確かめた事実で採点した。1 回目の seen は情報として使い、頼った所はコードで確かめ直した。読んだ物: services の presence.py（全部）・ui_state.py・ui_defaults.py・folder_browse.py・path_settings.py（parse・effective）・master_place.is_master_place、app_env.config_path・load_settings、lotdsp_direct.trusted_browser、work_log.split_pattern、fsio.write_json_atomic・open_shared_read、routes の system.py・settings.py・access.py（presence）・lotlist.py（lotlist_settings・_access_place）、static/js/app.js（startHeartbeat・setConn）・shared.js、desktop/src の router.rs（Native・Backend・Router）・sidecar.rs（Supervisor・SERVES）・main.rs（native・lot_settings・update_settings・Router の作り）・lot.rs（store_for・access_write・SETTINGS_TTL）・master_store.rs（write_json_atomic・retrying・Store の公開の関数）・access.rs（revocation・role_can・Place）・update.rs（program_version）、Cargo.toml、tools/ui_server.py、.github/workflows の ci.yml・desktop.yml、前例 2026-11-masters-write.json。測った物（scratchpad/score-presence2。作業ツリーは変えていない）: Python の json.dumps と詰めた JSON の字数の差（名前 300 個で 599 バイト）・片割れの代用字を Python の json が読むこと。試験の数: test_ui_state 7・test_folder_browse 11・test_path_settings 13・test_presence_sessions 9・test_master_place 9・test_release_place 14。物差しの読み替えは 1 回目と同じ（順序＝作業の順の筋／チャンク＝1 版のまとまりの大きさと揃い／階層化＝主な狙いが 1 つに見えるか／視覚化＝進み具合と食い違いを数で見せられるか／ステップ数＝目的までの版と受け渡しの数／考えさせない＝取り違え・事故の起きにくさ／直感的＝今の作りの型に沿うか／形と色＝前の移し方と同じ型／言葉と置き場＝同じ決まりが 1 か所に／整列・余白・釣り合い＝量の釣り合い・出来上がりのきれいさ／色と文字の調子＝危うさの少なさ）。減点 lost は前例（2026-11-masters-write.json の 1 回目 F）と同じ読み方（開発用サーバー・名乗らない窓・突き合わせの見本から Python の道が消える）。案を作った者の self_check で違っていた所: (1) B2 の『Python の presence の書く道は残さない』（上の減点）。(2) 接続の札の手当ては Backend の trait に『起こさずに生きているか』を足し、Python が止まっていれば 503 を返す形でないと札が変わらない（画面は r.ok で決める）。(3) master_store::write_json_atomic は共有の置き場を作り・やり直しが無いので、presence・ui_state にそのまま使えない。(4) effective は trusted_browser（Windows の resolve）と split_pattern を連れてくる。fs/places は窓に無い MasterStore.history を要る。(5) update/settings を移しても updater は Python へ直に尋ね、me の材料も Python から来る。(6) fs/browse は import では閉じるが、答えは OS のパスの決まりと OS の言葉に依る。　1 回目の採点者の記録: 案を作っていない採点者（別のエージェント・2026-11-04。main 54ba976）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: services の presence.py（全部）・ui_state.py・ui_defaults.py・path_settings.py（check・effective）・master_place.py・release_place.py・folder_browse.py、routes の system.py（index・config・heartbeat・ui-state・ui-defaults）・settings.py（全部）・access.py（presence の 7 本）・common.py（api_map・me）・app/__init__.py（effective_settings・presence.configure・on_moved・shell_serves）、static/js/app.js（startHeartbeat・setConn）、desktop/src の main.rs（lot_settings・update_settings・after）・router.rs（/static だけ窓・ほかは Python）・lot.rs（SETTINGS_TTL・changes_settings・access_write）・access.rs（Place の presence・revocation・role_can の presence:*）・sidecar.rs（SERVES）・updater.rs（EVERY 30 分）、RUST_PORT_PLAN.md の §3・§4・順 5、前例 2026-11-masters-write.json、tests の routes_oracle.py・access_write_oracle.py。数えた物: 道 25 本（@bp を数えて案の数と同じ）、専用の試験 6 ファイル 63 件 936 行（同じ）。試した物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-presence。作業ツリーは変えていない）: bench.py＝試験の作りで create_app を起こし、3 段目の道を 30 回ずつ問い合わせた中央値（心拍 0.42 ms・書く心拍 touch 0.36 ms・config 0.41・ui-state 0.08・update/settings 0.29・ui-defaults 0.25・presence 0.60・sessions 0.34・settings 0.28・masters/place 1.51 ms）。twowriters.py＝同じ PC で 2 つの係（別々の _state を持つ presence）が交互に心拍を書く形 → 要約の使い始めの回数が 1 つ増え（2）、使用の履歴の行が 2 つに割れ（sec 2・2。実際は 5.5 秒）、使った時間も少なく数える。物差しの読み替えは依頼と前例のとおり（順序＝作業の順の筋／チャンク＝1 版のまとまりの大きさと揃い／階層化＝主な狙いが 1 つに見えるか／視覚化＝進み具合と食い違いを数で見せられるか／ステップ数＝目的までの版と受け渡しの数／考えさせない＝取り違え・事故の起きにくさ／直感的＝今の作りの型に沿うか／形と色＝前の移し方と同じ型／言葉と置き場＝同じ決まりが 1 か所に／整列・余白・釣り合い＝量の釣り合い・出来上がりのきれいさ／色と文字の調子＝危うさの少なさ）。減点: hidden_state＝起きていることが画面・記録に見えなくなる。案を作った者の measured で違っていた・抜けていた所: (1) 最初の頁 GET / は Python が型（index.html）で出し、ui_state・ui_profile（ui_defaults）・変換表を埋めている。最初の画面の /api/access/me・dashboards・dashboard/sources・dashboard-sets・equip-tree・sources も Python が答え、窓自身も道ごとに /api/lotlist/settings を 10 秒おきに Python へ尋ねる（measured の 30 秒の数に入っていない）。3 段目を移しても起動の直後に Python は要る。(2) /api/config は lotdsp_api.status（LotDsp の項目名の対応 KeyMap。順 6）と lotdsp_direct.settings_of と effective_settings（配った設定＋参照先マスタの重ね。path_settings.effective）を連れてくる。窓にはまだ effective が無い。(3) /api/settings/check は lotdsp_direct の reachable・find_browser・trusted_browser（順 6）と work_log の scan、lot_list の tables・pick_table・lot_column を連れてくる。(4) presence の試験は test_presence_sessions の 9 件だけでなく、test_access の Presence に 10 件（偽の鍵で置き場の外を消せない版 3.52.1 の試験を含む）。(5) presence.leave（終わりに今のファイルを消し記録を書き切る）は試験からしか呼ばれていない（本物の終了では呼ばれず、今のファイルは TTL 75 秒まで残る）。(6) update/settings は起動と 30 分おき（updater.rs の EVERY）と配布の画面の操作だけで、熱い道ではない。(7) 心拍の答えは画面の「接続 ●」（title は『アプリの中身（Python）と接続中』）と、つながり直したときの計算のやり直しの合図でもある。(8) masters/place/move は Python の store.exclusive の中で動き、on_moved で presence.configure する。Python の書く係は 7 段目まで残る約 49 本の書く道で書き続ける。(9) 突き合わせの汎用の形（場面ごとに py・rs の 2 つのフォルダ・歩の並び・答えとできたファイル）は access_write_oracle.py に既にある。リポジトリはこのファイルのほかは変えていない。　3 回目の採点者（別のエージェント・2026-11-04。main 54ba976。1・2 回目の採点者とも案を作った者とも別）: 画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。1・2 回目の seen は情報として使い、頼った所はコードで確かめ直した。読んだ物: services の presence.py（全部）・ui_state.py・ui_defaults.py・folder_browse.py（OS に依る所）、fsio.py（全部）、routes の system.py（index・ui-state・heartbeat・_presence_beat・ui-defaults）・settings.py（update/settings ほか道の一覧）・common.py（me・_shell_me・roles_from）・lotlist.py（lotlist_settings・lists_settings・_access_place）、app/__init__.py（shell_serves）、static/js/app.js（startHeartbeat・setConn）、desktop/src の router.rs（Backend・Native・Router.handle）・sidecar.rs（SERVES・Supervisor.get・Sidecar.is_alive）・main.rs（native・lot_settings・update_settings・after・Router の作り・upd.run・lot.warm）・lot.rs（changes_settings・after_python・settings の 10 秒）・access.rs（role_can・capabilities・Place・revocation・me）・master_store.rs（write_json_atomic・retrying・Store::write・SHARED_ALWAYS）・update.rs（program_version）、RUST_PORT_PLAN.md の順 5、.github/workflows（desktop.yml は windows-latest で cargo test と一部の Python 試験）。試した物（scratchpad/s3。作業ツリーは採点のファイルのほか変えていない）: ui_state.merge を無い作業場所へ → 親のフォルダを作って書く（mkdir）。片割れの代用字 \\ud800 → UnicodeEncodeError（ValueError の子）で 400、言葉は Python の codec の字。字下げ 0 の中身は '{\\n\"rev\": 1,\\n\"keys\": {…}\\n}\\n'。物差しの読み替えは 1・2 回目と同じ（順序＝作業の順の筋／チャンク＝1 版のまとまり／階層化＝主な狙いが 1 つか／視覚化＝進み具合と食い違いを数で見せられるか／ステップ数＝目的までの版と受け渡し／考えさせない＝取り違え・事故の起きにくさ／直感的＝今の作りの型に沿うか／形と色＝前の移し方と同じ型／言葉と置き場＝同じ決まりが 1 か所に／整列・余白・釣り合い＝出来上がりのきれいさ／色と文字の調子＝危うさの少なさ）。減点は、案の文がはっきり機能を消す・届かなくすると言う所だけに付ける（2 回目と同じ読み方）。今回はどの案にも無い。共通の手当てで案を作った者が違っていた・抜けていた所: (1) (3)『起こさずに生きているか』: 作れる（Backend の trait に既定 true の alive を足し、Supervisor は current を覗いて Sidecar::is_alive。どちらも公開済み）。ただし今は心拍が Backend::ask → Supervisor::get を通るので、3 秒ごとの心拍が落ちた Python を起こし直している。覗くだけで 503 を返すと心拍は起こし直さなくなり、起こし直すのは me の材料（/api/lotlist/settings。10 秒覚える）を取り直す時だけになる（窓の心拍が me を先に決め、その後で生き死にを見る順なら最長 10 秒で戻る。逆の順なら、利用者が何か押すまで『未接続 ○』のまま）。案の文はこの順に触れていない。(2) (1) Python が書かないことの知らせ方: TPA_SHELL_SERVES の環境変数（sidecar.rs が spawn で渡し、app/__init__.py の shell_serves が読む）で足りる。窓が 8 道に答えれば Python の心拍の道はそもそも呼ばれないので、Python の側の止めは念のための物。(3) (4) 書き込みの決まりの説明が違う: fsio.write_json_atomic はいつも親を作る（path.parent.mkdir(parents=True)）。『書かない』のは presence._write_json の手前の確かめで、見るのは置き場の親（共有のフォルダ）だけ。presence_tpa・history・sessions/<鍵> のフォルダは作る。ui_state は確かめが無く、作業場所が無ければ作って書く（試して確かめた）。(4) 2 回目の指摘 (d)（Python は touch_async で裏の 1 本の糸に書かせ、心拍の答えは共有の書き込みを待たない・書いている最中の頼みは捨てる）が共通の手当てに無い。窓が問い合わせの糸で共有へ書くと、届かない SMB で心拍が数十秒止まり『未接続』になる。(5) (9) 残り 15 道の行き先は 12 道しか書いていない（config・settings/check の 2・引っ越し 6＋PUT /api/settings の 7・読む道 3）。ui-defaults の GET・PUT と fs/browse の 3 道が抜けている（N は fs/places を移すのに『残り』にも書いている）。(6) fleet・latest_version の roles_of（access.registered_roles）は窓に無い（小さいので写せる）。案の文に無い。各案の部分: M＝窓は /api/lotlist/settings を起動の直後（lot.warm の糸）と 10 秒の覚えで取るので、更新の係（upd.run。起動と 30 分おき・配布の画面）も Lot の覚えを通せば間に合う（PUT /api/settings/update.* の後は after が先に覚えを捨ててから wake する順で、古い置き場は使わない）。masters.dir は答えの access.place.shareDir に既にある。足りないのは update.source だけ。ところが案の文は who を Python が足すとしている: lot_settings は X-TPA-Me を載せずに尋ねるので、Python は自分の me で canRelease を決める。版 3.65.1 で『判定の元を 1 つに（窓の me）』にしたのと逆で、窓の me（access.rs の capabilities の canRelease と revoked）で作るべき。また今は配る・置くたびに尋ね直す who が最長 10 秒古くなる。N＝folder_browse は expandvars（Windows の %VAR%）・normcase・ドライブ・e.strerror（OS の言葉。日本語の Windows と CI の英語の Windows でも違う）・4 秒の打ち切り・fnmatch に依る。desktop.yml は Windows で cargo test を流すので Rust の側は Windows で試せるが、見本の Python の答えも Windows で作らないと事例の表は Linux の形だけになる。places は effective と MasterStore.history を要り、M の仕組みに履歴まで足す。画面の評価関数（ui-eval-pathpick・pathfit）は Python だけの開発用サーバーで動き、窓の答えを通らない。P＝案の文の『親を作らない』は Python の fsio と違う（上の (3)）。文のとおり作ると、新しい共有で history・sessions/<鍵> が作られず使用の履歴が書けない。突き合わせ（fsio_parity）に『親が無い』の事例があれば見つかる。また窓には既に master_store::write_json_atomic（いつも親を作る・字下げ 2・sync_all・やり直し無し）があり、案の文は 2 つ目の関数にするのか 1 つにまとめるのかを書いていない。7 段目の約 49 本はマスタを Store::write で書くので、使い回せるのは主にマスタ以外の書き込み。Q＝今の窓で作れる: Store::write は名前を問わず、SHARED_ALWAYS に ui_defaults があり、lot.rs の store_for が置き場から Store を作る（2 段目 b の access_write と同じ型）。Store::revision もある。ただし案の文の『GET は Place::rows で読む』だけでは revision が出ないので Store も要る。PROFILE_KEYS（18 個）と MAX_BYTES は GET / の型に埋める Python にも残り、同じ決まりが 2 か所になる。",
+ "measured": "3 段目の道は 25 本: 使用の履歴〈presence〉8（POST /api/heartbeat・GET /api/presence・POST disconnect／allow／forget・GET sessions・POST retention／prune）、置き場 6（GET/POST /api/masters/place・check・move、/api/release/place/check・move・progress）、設定 4（GET /api/settings・POST check・PUT /api/settings/<key>・GET /api/update/settings）、そのほか 7（GET/POST /api/ui-state・GET/PUT /api/ui-defaults・GET /api/config・POST /api/fs/browse・GET /api/fs/places）。Python は約 1,600 行（presence 564・folder_browse 277・path_settings 242・release_place 182・master_place 141・ui_defaults 61・ui_state 59 と routes の該当部分）、試験は 6 ファイル 63 件（936 行）。速さ: routes.settings 4 道で計 1.1 ms・routes.system 7 道で 2.6 ms（rust-port-bench。移しても体感は変わらない）。最初の画面（ダッシュボード）を 30 秒開いて呼ばれた道: 心拍 POST /api/heartbeat が約 3 秒ごとに 10〜11 回、起動に 1 回ずつ GET /api/config・/api/access/me・/api/dashboards・/api/dashboard/sources・/api/dashboard-sets・/api/dashboard/equip-tree・/api/sources ×2・/api/ui-state（GET・POST）、窓（main.rs）が起動で GET /api/update/settings を Python に尋ねる。このうち 3 段目は 心拍・config・ui-state・update/settings。Python の起こし（中身が答えられるまで）は Windows の CI で 1,099 ms・Linux で 187 ms。心拍は利用状況のファイル（共有の presence_tpa/<PC名@ログインID>.json）を 20 秒ごとに書き、切断の指示（.revoke.json）を読む。切断の指示の読み方と me は窓に移し済み（access.rs）。",
+ "proposals_text": {
+  "A 一括": "25 道をまとめて 1 版で窓へ。突き合わせの試験 1 本（Python の道と答え・できたファイルを場面ごとに比べる）。終われば 3 段目は Python 不要。",
+  "B 心拍と利用状況から": "presence の 8 道だけを先に（3 秒ごとに Python を呼ぶ心拍が消え、利用状況のファイルの書き手が窓 1 つになる）。置き場・設定・ui-state などは次の版。",
+  "C 起動の道から": "起動と最初の画面で呼ぶ 3 段目の道（心拍・config・ui-state・update/settings）と ui-defaults を先に。最初の画面の Python への問い合わせを減らし、7 段目の『Python を後から起こす』の下地にする。presence の管理の道（一覧・切断・履歴）と置き場・設定・fs は次の版。",
+  "D 2 段に分ける（使う道／管理の道）": "3a: 毎回の利用で動く道（心拍・config・ui-state・ui-defaults・update/settings・presence の一覧と使用の履歴の読み）、3b: 管理する人だけが使う書く道（切断・解く・消す・残す日数・整理・置き場の引っ越し・設定を書く・fs）。危うい書き込み（引っ越し・切断）を後の版で丁寧に突き合わせる。",
+  "E 突き合わせの枠を先に": "routes_oracle の形を『道の表（方法・道・本文・前の状態のファイル）→ 答え＋できたファイル』の汎用の枠にして先に作り、3 段目 25 道をその表に書くだけで Python と比べられるようにしてから移す。7 段目の残り約 50 本の書く道にも使い回す。",
+  "F Python を後から起こす＋C": "C の道を窓へ移すのに加え、窓が答えられない道が初めて来たときにだけ Python を起こす（今は起動と同時に起こす）。最初の画面が Python を待たずに出るかを測り、起動の 1.1 秒を 7 段目より前に縮める。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は measured）",
+   "self_check": "案を作った者が確かめたこと: 道の数は routes の @bp を数えて 25 本（presence 8・置き場 6・設定 4・そのほか 7）。最初の画面の呼び出しは本物の画面（ui-harness・ダッシュボード）を 30 秒開いて performance の記録から数えた。窓が起動で Python に尋ねる道は main.rs の update/settings。案の方向は 6 つ（量 A・利用の頻度 B・起動 C・危うさで分ける D・共通の枠 E・起こし方 F）で偏っていない。F の『Python を後から起こす』は 7 段目の範囲に踏み込むので、その分の重さも案の文に書いた。",
+   "proposals": {
+    "A 一括": {
+     "score": {
+      "order": 4,
+      "chunk": 3,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 7,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 6,
+      "place": 6,
+      "layout": 4,
+      "tone": 3
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "static/js/app.js の startHeartbeat・setConn: 心拍の答えで「接続 ●」（title『アプリの中身（Python）と接続中』）と、つながり直したときの計算のやり直し（calcPending）を決めている。窓が心拍に答えると、Python が落ちていても「接続 ●」のままになり、計算（Python の calculator）が失敗しているのが見えない。案の文はこれに触れていない"
+      }
+     ],
+     "seen": "良い所: 1 版で 3 段目の道が窓にそろい、途中の受け渡しが無い。突き合わせも 1 本にまとまる。悪い所: 25 本は性質がばらばらで、1 本の突き合わせで見られる形にならない。心拍と使用の履歴は時刻と覚え（_state・20 秒・60 秒・300 秒の間隔）に依る、置き場の引っ越しは別の糸で写して進み具合を尋ねる、fs はその PC のドライブ・ユーザーのフォルダに依る、設定の確かめは LotDsp に届くか・ブラウザを探す・作業実績のフォルダを探す（順 6 の lotdsp_direct と work_log を連れてくる）、config は lotdsp_api の KeyMap（順 6）を連れてくる。いちばん危ないのは masters/place/move: いまは Python の store.exclusive の中で写して切り替え、on_moved で利用状況の置き場も移す。Python の書く係は 7 段目まで約 49 本の書く道で書き続けるので、窓が引っ越しをすると Python の store の share_dir と exclusive が付いてこない（前の置き場の印をたどって移るかは確かめられていない）。案の文の「終われば 3 段目は Python 不要」は道の数としては正しいが、最初の頁 GET /・最初の画面の 6 本・窓の /api/lotlist/settings が Python なので、Python を外す効果は見えない。測った速さはどれも 0.1〜1.5 ms で、急ぐ理由も無い。1 つの PR が Rust で 2,000 行を超え、壊れたときに戻しにくい（前例の A 一括と同じ欠点）。"
+    },
+    "B 心拍と利用状況から": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "static/js/app.js の startHeartbeat・setConn: 心拍の答えで「接続 ●」（title『アプリの中身（Python）と接続中』）と、つながり直したときの計算のやり直し（calcPending）を決めている。窓が心拍に答えると、Python が落ちていても「接続 ●」のままになり、計算（Python の calculator）が失敗しているのが見えない。案の文はこれに触れていない"
+      }
+     ],
+     "seen": "良い所: presence.py（564 行）と access.py の 7 本＋心拍 1 本は 1 つの部品で閉じ、ほかの 3 段目の部品を連れてこない。窓には材料がもうある: 置き場の答えの presence の場所（access.rs の Place.presence。Python が置き場を移しても 10 秒おきの設定の答えで付いてくる）・切断の指示の読み方（access::revocation）・me と権限の行（roles_from に当たる物）・role_can の presence:view／disconnect／forget・配る版 want.json（書くのは窓の update.rs）。1 段目 a の権限と同じ型（SERVES に presence を足して受け持ちを伝える・Python を答えの見本に残す）で、利用状況のファイルの書き手がこの PC で窓 1 つになる。毎 3 秒の問い合わせ（30 秒で 10〜11 本。最初の画面の Python への問い合わせのいちばん多い物）が Python へ行かなくなる（ただし 1 本 0.42 ms なので速さの得は無い）。Python 側で読むのは online_in（置き場の画面）だけで、読み手が残っても形は同じファイル。悪い所・作るときの穴: (1) 前の段の『窓が me を決められないときは Python へ回す』を心拍にも当てると、同じ PC で 2 つの係が交互に書き、使い始めが 1 つ増え、使用の履歴の行が割れる（twowriters.py で再現）。Python は me を読めないとき {version:null, revoked:null} を返すだけなので、窓も回さずにそう返し、受け持ちは問い合わせごとでなくプロセスごと（SERVES）に決める必要がある。(2) 時刻（now_iso・datetime.now・time.time）と _state に依るので、突き合わせには時計を差し替える歩が要る。(3) 版は窓の CARGO_PKG_VERSION でなく中身の版（update::program_version）を書く。(4) safe_key・_under（版 3.52.1 の偽の鍵）を必ず写す。(5) leave を窓の終了に配線するかを決める（今は呼ばれていない。足すなら Python との違いとして記録に残す）。残りの 17 本は次の版なので、3 段目は 2 版以上になる。"
+    },
+    "C 起動の道から": {
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 5,
+      "place": 4,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "static/js/app.js の startHeartbeat・setConn: 心拍の答えで「接続 ●」（title『アプリの中身（Python）と接続中』）と、つながり直したときの計算のやり直し（calcPending）を決めている。窓が心拍に答えると、Python が落ちていても「接続 ●」のままになり、計算（Python の calculator）が失敗しているのが見えない。案の文はこれに触れていない"
+      }
+     ],
+     "seen": "良い所: 起動で呼ばれる道を数えて選んだ筋は分かりやすい。ui-state（59 行・この PC の作業場所のファイル）と update/settings（窓の updater が尋ねる物）は窓に近い。悪い所: まとまりが部品で切れていない。心拍を移すと presence の書く半分（touch・_record・_log_session・_prune_own・_sweep・refresh_newest・latest_version・version_notice）を写すことになり、同じファイルを読む・消す fleet・sessions・prune_all・forget・disconnect は Python に残る。使用の履歴の形と整理の決まりが 2 つの言葉に割れる（_prune_own は窓・prune_all は Python）。config は lotdsp_api.status（KeyMap。順 6）と effective_settings（path_settings.effective）を連れてくる。ui-defaults の PUT はマスタを書く道。狙いの『最初の画面の Python への問い合わせを減らし、Python を後から起こす下地に』は、最初の頁 GET / が Python の型で ui_state・ui_defaults・変換表を埋めていること、最初の画面の 6 本と窓の /api/lotlist/settings が Python であることで崩れる（数は減っても Python は起動の直後に要る）。測った時間は計 1 ms ほどで、減る手間は見えない。"
+    },
+    "D 2 段に分ける（使う道／管理の道）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "static/js/app.js の startHeartbeat・setConn: 心拍の答えで「接続 ●」（title『アプリの中身（Python）と接続中』）と、つながり直したときの計算のやり直し（calcPending）を決めている。窓が心拍に答えると、Python が落ちていても「接続 ●」のままになり、計算（Python の calculator）が失敗しているのが見えない。案の文はこれに触れていない"
+      }
+     ],
+     "seen": "良い所: 危うい書き込みを後の版に回す考えは正しく、2 版で 3 段目が終わる。3a は利用者の毎回の操作で動く道にそろう。悪い所: (1) 分け方が部品と食い違う。presence は 3a（心拍・一覧・使用の履歴）と 3b（切断・解く・消す・残す日数・整理）に割れ、その間は同じ presence_tpa のファイルを窓が書き、Python が切断の指示を書き・記録を消す。3a に config（順 6 の KeyMap を連れてくる）と ui-defaults の PUT（マスタを書く）が入る。(2) fs（/api/fs/browse・places）は『書く道』と書いてあるが、読むだけ（folder_browse の頭）。(3) 3b の masters/place/move の危うさは突き合わせの丁寧さで消えない: Python の書く係が 7 段目まで書き続ける間に窓が引っ越すと、Python の store の share_dir と exclusive が付いてこない。引っ越しは 7 段目（Python の書く係を外す所）まで Python に残すのが筋。(4) 設定の確かめ（settings/check）は lotdsp_direct（順 6）を連れてくる。"
+    },
+    "E 突き合わせの枠を先に": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 4,
+      "visual": 8,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "static/js/app.js の startHeartbeat・setConn: 心拍の答えで「接続 ●」（title『アプリの中身（Python）と接続中』）と、つながり直したときの計算のやり直し（calcPending）を決めている。窓が心拍に答えると、Python が落ちていても「接続 ●」のままになり、計算（Python の calculator）が失敗しているのが見えない。案の文はこれに触れていない"
+      }
+     ],
+     "seen": "良い所: 食い違いを数で見せる力は一番強く、7 段目の約 49 本の書く道にも効く。悪い所: 枠の形は既にある。access_write_oracle.py（場面ごとに py・rs のフォルダ・歩の並び・答えとできたファイル）と masters_oracle.py がその形で、汎用にする手間は案の文より小さい。逆に 3 段目で本当に要るのは道の表ではなく、時計を差し替える歩（presence の TTL 75 秒・20 秒・60 秒・300 秒・切断の冷却 300 秒）、プロセスの覚え（_state）を歩の間で持つこと、別の糸の進み具合（release_place.Mover の progress）を待つこと、その PC のドライブ・ユーザーのフォルダに依る答え（folder_browse）を伏せること。表に書くだけで比べられるようにはならず、枠が小さな言語になる（前例の D と同じ欠点）。枠だけの版が 1 つ増え、移す物そのものの順（どの部品から）は決めていない。"
+    },
+    "F Python を後から起こす＋C": {
+     "score": {
+      "order": 3,
+      "chunk": 2,
+      "hierarchy": 4,
+      "visual": 5,
+      "steps": 4,
+      "effortless": 2,
+      "intuitive": 3,
+      "form": 3,
+      "place": 3,
+      "layout": 2,
+      "tone": 2
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "static/js/app.js の startHeartbeat・setConn: 心拍の答えで「接続 ●」（title『アプリの中身（Python）と接続中』）と、つながり直したときの計算のやり直し（calcPending）を決めている。窓が心拍に答えると、Python が落ちていても「接続 ●」のままになり、計算（Python の calculator）が失敗しているのが見えない。案の文はこれに触れていない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "desktop/src/router.rs の頭（/static だけ窓・画面と API は Python）と routes/system.py の index: 最初の頁 GET / を Python が型で出すので、窓が答えられない道は起動の 1 本目で来る。後から起こす形にすると、最初の頁が出るまで Python の起こし（Windows の CI で 1,099 ms）を待つのは今と同じで、そのうえ待っている間に何を待っているかを画面が持たない（今は sidecar の進み具合を起動の画面で見せている）"
+      }
+     ],
+     "seen": "良い所: 起動の 1.1 秒を縮める狙いは §3 の『移す利点は起動の 1 秒余り』に合う。悪い所: 今の作りでは成り立たない。窓が答えるのは /static と一覧・集計・ダッシュボードの数・権限の書く道だけで、最初の頁 GET /（index.html の型・CSP の印・ui_state・ui_profile・変換表を埋める）、最初の画面の /api/access/me・dashboards・dashboard/sources・dashboard-sets・equip-tree・sources、窓自身の /api/lotlist/settings（一覧・ダッシュボードの数を答えるたびに 10 秒おき）がどれも Python。C の道を移しても、Python は最初の問い合わせで起こされる。起こす時を変えると、updater の裏の確かめ（起動に update/settings）・lot.warm（起動に設定を尋ねて写し始める）・自己診断・sidecar の ready 待ちの順がすべて変わり、0.4〜1.5 ms の道を移す 3 段目に、7 段目（枠）の重さを持ち込む。C の欠点（presence が 2 つの言葉に割れる・config が順 6 を連れてくる）もそのまま持つ。"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は measured と 1 回目の採点の seen）",
+   "self_check": "案を作った者が確かめたこと: 1 回目の採点の指摘（最初の頁 GET / と最初の画面の多くの道は Python のまま・config と settings/check は順 6 の部品を連れてくる・心拍の答えが接続の札を兼ねる・2 つの係が書くと履歴が割れる・引っ越しは 7 段目まで危険・fs は読むだけ）をコードで確かめ直し、C・F（起動で Python を減らす前提が崩れた）と A（危うい引っ越しと順 6 を巻き込む）は外した。新しい案 4 つ（G・H・K・L）は、道を『連れてくる部品』で区切った: ui_state は app_env と write_json_atomic だけ（routes/system.py・services/ui_state.py）、ui_defaults は MASTER_STORE の読む・書くだけ（窓に master_store.rs あり）、fs/browse は me の masterEdit の門番と folder_browse（master_place.is_master_place・release_place.MARKER）だけ、fs/places・update/settings・GET /api/settings は path_settings.effective を要する（routes/settings.py 64〜80・211〜225 行）。B2 は 1 回目の採点の助言（プロセスごとの受け持ち・接続の札・program_version・safe_key・leave・時計の歩）をすべて案の文に入れた。案の方向: 1 部品を深く（B2）・書き手を 1 つに揃える（G）・依存で閉じる（H）・共通の土台を先に（K）・読む／書くで分ける（L）で偏っていない。",
+   "proposals": {
+    "B2 使用の履歴を丸ごと（1 回目の B を直した物）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 6,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 7,
+      "place": 8,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案の文『Python の presence の書く道は残さない（online_in の読み手だけ残す）』: program/tools/ui_server.py は窓を通さず create_app だけで起こすので、撮影・評価の道具（ui-harness.mjs・ui-eval-*.mjs）の心拍（app.js の startHeartbeat の r.ok →『接続 ●』）とマスタ管理の利用状況のタブ（GET /api/presence ほか 7 本）が答えを失う。SERVES に presence を名乗らない窓との組と、突き合わせの見本（Python の道）も失う"
+      }
+     ],
+     "seen": "良い所: 1 回目の B の穴（2 つの係が書く・接続の札・版・偽の鍵・時計の歩・leave）をすべて案の文に入れ、受け持ちをプロセスごと（SERVES）にしたのは正しい（twowriters の割れは問い合わせごとに Python へ回す形でしか起きない）。presence は 1 つの部品で閉じ、窓には切断の指示の読み方（access::revocation。now を引数に取る）・me・role_can の presence:*・配る版 want.json（update.rs が書く）・置き場の答えの presence の場所が既にある。突き合わせの場面の並び（TTL 75・20・60・300 秒の境・月またぎ・409・偽の鍵・共有が無い）も具体で、数で食い違いを示せる。悪い所: 共通して確かめた事実（main 54ba976 を読んで確かめた）: (a) 窓の心拍の答えで「接続 ●」を保つ手当ては作れるが、案の文より手が要る。router.rs の Native は &dyn Backend しか受けず、Backend の trait は ask だけ。Router は Supervisor を値で持つ（main.rs の Router { backend: sup }）ので、閉包から Supervisor を見られない。Backend に『起こさずに生きているか』（Supervisor の current を覗くだけ。get は止まっていれば起こす）を足す要がある。画面（app.js の startHeartbeat）は答えの本文でなく r.ok で接続を決めるので、Python が止まっているときは窓が 503 を返せば JS を変えずに済む（本文に載せるだけでは札は変わらない）。止まった Python は、窓の心拍が 10 秒おきに尋ねる /api/lotlist/settings（me の材料。lot.rs の SETTINGS_TTL）で起こし直されるので、札は戻る。(b) 窓の me は今も Python 頼み: 名乗り（login・pc）と利用状況の置き場は Python の /api/lotlist/settings の access（lotlist.py の _access_place。『名乗りを決めるのはまだ Python』）から来る。移しても心拍は 10 秒に 1 回 Python へ尋ねる。速さの得は無い（心拍 0.42 ms）。(c) 窓の master_store::write_json_atomic はそのままでは使えない: いつも create_dir_all する（presence._write_json は『共有の置き場そのものは作らない』で親が無ければ書かない）・置き換えのやり直しが無い（presence は retry_budget=1.0。Windows で読み手が FILE_SHARE_DELETE 無しで開いていると置き換えが断られる。retrying は master_store.rs の中の非公開の関数）・字下げ 2 と sync_all（presence は 1・durable でない。ui_state は 0）。(d) Python の touch は touch_async で裏の糸に書かせ、心拍の答えは共有の書き込みを待たない。窓も問い合わせの糸で共有へ書かない作りが要る（届かない SMB は数十秒待つ）。案の文に無い。(e) 『leave を窓の終了に配線』: 終わる道（main.rs の r.backend.stop の前後）で共有へ書くので、届かない共有で終了が止まらないよう時間の上限が要る。(f) 案の文の『Python の presence の書く道は残さない（online_in の読み手だけ残す）』は誤り。開発用サーバー tools/ui_server.py は窓を通さず create_app だけで起こし、撮影・評価の道具（ui-harness.mjs の STATES・ui-eval-*.mjs）は心拍の答えで『接続 ●』を出し、マスタ管理の利用状況のタブを撮る。窓が名乗らない組（SERVES に presence が無い前の窓）でも Python が受け持つ決まり（app/__init__.py の shell_serves）と、突き合わせの答えの見本（access_write_oracle.py の形は Python の道を見本に残す）も、Python の道が要る。前例（2026-11-masters-write.json の 1 回目 F『Python の書く道は消す』）と同じく機能が消える減点。直すのは易しい（Python の道は残し、SERVES に presence があるときは心拍で書かない・窓が答える）。(g) 突き合わせ: Python の presence は datetime.now・time.time・fsio.now_iso と _state を直接使う（_now は 1 か所だけ）ので、見本の側は mock で時計を差し替える。窓の access::revocation は now を引数に取り、時計を渡す形が既にある。 B2 だけでは 3 段目の 25 本のうち 8 本で、残り 17 本に 2 版以上かかる（ステップ 6）。"
+    },
+    "G B2＋画面の控え（ui-state）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 7,
+      "place": 8,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "B2 を含むので同じ: 案の文『Python の presence の書く道は残さない』で、開発用サーバー tools/ui_server.py（窓を通さない）の心拍（app.js の r.ok →『接続 ●』）と利用状況のタブの 7 本、名乗らない窓との組、突き合わせの見本が答えを失う"
+      }
+     ],
+     "seen": "良い所: B2 に、部品で本当に閉じた ui_state の 2 本を足し、『この PC で毎回の利用で動く書き手を窓 1 つに』という 1 つの狙いにまとまる。ui_state を確かめた: 依存は app_env.local_root（窓に locate::local_root が同じ決まりである）と fsio.write_json_atomic（字下げ 0・やり直し無し）だけで、me も Python も要らない。窓は Python を起こし直している間も答えられる、3 段目でただ 1 つの道。書くのは shared.js の 1.5 秒の溜めと閉じる時の sendBeacon（種類を問わず JSON として読む: get_json(force=True)）。Python に残るのは GET / の型に埋める ui_state.load だけ（読み手は read_text で FILE_SHARE_DELETE を付けないので、Windows では窓の置き換えが断られうる → 窓の置き換えにやり直しを付けるか、load を fsio.open_shared_read に替える）。大きさの上限 MAX_BYTES は Python の json.dumps（区切りが ', ' と ': '）の字数で数える。serde_json の詰めた形とは 1 つの名前ごとに 2 バイト違う（300 個で 599 バイト。scratchpad/score-presence2 で測った）ので、境の前後で答えが割れる。片割れの代用字（\\ud800）は Python が読み、serde_json は断る。 量は B2＋約 100 行で、版の釣り合いを崩さない。3 段目の残りは 15 本。悪い所: 共通して確かめた事実（main 54ba976 を読んで確かめた）: (a) 窓の心拍の答えで「接続 ●」を保つ手当ては作れるが、案の文より手が要る。router.rs の Native は &dyn Backend しか受けず、Backend の trait は ask だけ。Router は Supervisor を値で持つ（main.rs の Router { backend: sup }）ので、閉包から Supervisor を見られない。Backend に『起こさずに生きているか』（Supervisor の current を覗くだけ。get は止まっていれば起こす）を足す要がある。画面（app.js の startHeartbeat）は答えの本文でなく r.ok で接続を決めるので、Python が止まっているときは窓が 503 を返せば JS を変えずに済む（本文に載せるだけでは札は変わらない）。止まった Python は、窓の心拍が 10 秒おきに尋ねる /api/lotlist/settings（me の材料。lot.rs の SETTINGS_TTL）で起こし直されるので、札は戻る。(b) 窓の me は今も Python 頼み: 名乗り（login・pc）と利用状況の置き場は Python の /api/lotlist/settings の access（lotlist.py の _access_place。『名乗りを決めるのはまだ Python』）から来る。移しても心拍は 10 秒に 1 回 Python へ尋ねる。速さの得は無い（心拍 0.42 ms）。(c) 窓の master_store::write_json_atomic はそのままでは使えない: いつも create_dir_all する（presence._write_json は『共有の置き場そのものは作らない』で親が無ければ書かない）・置き換えのやり直しが無い（presence は retry_budget=1.0。Windows で読み手が FILE_SHARE_DELETE 無しで開いていると置き換えが断られる。retrying は master_store.rs の中の非公開の関数）・字下げ 2 と sync_all（presence は 1・durable でない。ui_state は 0）。(d) Python の touch は touch_async で裏の糸に書かせ、心拍の答えは共有の書き込みを待たない。窓も問い合わせの糸で共有へ書かない作りが要る（届かない SMB は数十秒待つ）。案の文に無い。(e) 『leave を窓の終了に配線』: 終わる道（main.rs の r.backend.stop の前後）で共有へ書くので、届かない共有で終了が止まらないよう時間の上限が要る。(f) 案の文の『Python の presence の書く道は残さない（online_in の読み手だけ残す）』は誤り。開発用サーバー tools/ui_server.py は窓を通さず create_app だけで起こし、撮影・評価の道具（ui-harness.mjs の STATES・ui-eval-*.mjs）は心拍の答えで『接続 ●』を出し、マスタ管理の利用状況のタブを撮る。窓が名乗らない組（SERVES に presence が無い前の窓）でも Python が受け持つ決まり（app/__init__.py の shell_serves）と、突き合わせの答えの見本（access_write_oracle.py の形は Python の道を見本に残す）も、Python の道が要る。前例（2026-11-masters-write.json の 1 回目 F『Python の書く道は消す』）と同じく機能が消える減点。直すのは易しい（Python の道は残し、SERVES に presence があるときは心拍で書かない・窓が答える）。(g) 突き合わせ: Python の presence は datetime.now・time.time・fsio.now_iso と _state を直接使う（_now は 1 か所だけ）ので、見本の側は mock で時計を差し替える。窓の access::revocation は now を引数に取り、時計を渡す形が既にある。 ui_state は me を要らないので、心拍（me を要る）と作りの型が少し違う（チャンク 7）。"
+    },
+    "H 部品で閉じる道を全部（B2＋ui-state＋ui-defaults＋fs/browse）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "B2 を含むので同じ: 案の文『Python の presence の書く道は残さない』で、開発用サーバー tools/ui_server.py（窓を通さない）の心拍（app.js の r.ok →『接続 ●』）と利用状況のタブの 7 本、名乗らない窓との組、突き合わせの見本が答えを失う"
+      }
+     ],
+     "seen": "良い所: 『連れてくる部品』で区切る考えは正しく、ui_defaults・fs/browse は effective を要らないことはコードで確かめた（routes/system.py・settings.py の _browse_gate）。ui_state を確かめた: 依存は app_env.local_root（窓に locate::local_root が同じ決まりである）と fsio.write_json_atomic（字下げ 0・やり直し無し）だけで、me も Python も要らない。窓は Python を起こし直している間も答えられる、3 段目でただ 1 つの道。書くのは shared.js の 1.5 秒の溜めと閉じる時の sendBeacon（種類を問わず JSON として読む: get_json(force=True)）。Python に残るのは GET / の型に埋める ui_state.load だけ（読み手は read_text で FILE_SHARE_DELETE を付けないので、Windows では窓の置き換えが断られうる → 窓の置き換えにやり直しを付けるか、load を fsio.open_shared_read に替える）。大きさの上限 MAX_BYTES は Python の json.dumps（区切りが ', ' と ': '）の字数で数える。serde_json の詰めた形とは 1 つの名前ごとに 2 バイト違う（300 個で 599 バイト。scratchpad/score-presence2 で測った）ので、境の前後で答えが割れる。片割れの代用字（\\ud800）は Python が読み、serde_json は断る。 ui_defaults を確かめた: 窓の書く係 Store::write は名前を問わない汎用で、SHARED_ALWAYS に ui_defaults がある。読みは access.rs の Place::rows（名前を問わない）。門番は me の役割（開発者）で、canPublish も me から。ただし PROFILE_KEYS（18 個の名前）は Python にも残る（GET / の型に埋める ui_profile）ので、同じ決まりが 2 か所になる（事例の表で突き合わせる要）。MAX_BYTES は ui_state と同じ区切りの差。 悪い所: fs/browse を確かめた: Python の import は master_place.is_master_place・release_place.MARKER・fsio.unquote_path だけで閉じているが、答えは OS の決まりに強く依る: os.path.expandvars（Windows は %VAR% も読む）・expanduser・pathlib の anchor と parts（Windows の C:\\ と \\\\サーバー\\共有）・os.path.normcase（Windows は小文字）・ドライブ C〜Z・読めない理由の字（Python の e.strerror は OS の言葉そのまま、Rust の io::Error は『… (os error 3)』を付ける）・別の糸で打ち切る _bounded（4 秒）・fnmatch（窓の Cargo.toml に glob の crate は無く、regex へ訳す）・更新時刻の分までの isoformat。Linux の cargo test では Windows の形を確かめられず、画面の評価関数（ui-eval-pathpick・ui-eval-pathfit）は Python だけの開発用サーバーで動くので窓の答えを通らない。同じ『参照…』の窓が fs/browse（窓）と fs/places（Python）を呼ぶので、clean・normcase の決まりが 2 つの言葉で同時に効く間ができる。 使用の履歴・画面の控え・初期設定（マスタを書く）・フォルダを見る（OS に依る）の 4 つの性質が 1 版に入り、主な狙いが 1 つに見えない。突き合わせも 2 本。共通して確かめた事実（main 54ba976 を読んで確かめた）: (a) 窓の心拍の答えで「接続 ●」を保つ手当ては作れるが、案の文より手が要る。router.rs の Native は &dyn Backend しか受けず、Backend の trait は ask だけ。Router は Supervisor を値で持つ（main.rs の Router { backend: sup }）ので、閉包から Supervisor を見られない。Backend に『起こさずに生きているか』（Supervisor の current を覗くだけ。get は止まっていれば起こす）を足す要がある。画面（app.js の startHeartbeat）は答えの本文でなく r.ok で接続を決めるので、Python が止まっているときは窓が 503 を返せば JS を変えずに済む（本文に載せるだけでは札は変わらない）。止まった Python は、窓の心拍が 10 秒おきに尋ねる /api/lotlist/settings（me の材料。lot.rs の SETTINGS_TTL）で起こし直されるので、札は戻る。(b) 窓の me は今も Python 頼み: 名乗り（login・pc）と利用状況の置き場は Python の /api/lotlist/settings の access（lotlist.py の _access_place。『名乗りを決めるのはまだ Python』）から来る。移しても心拍は 10 秒に 1 回 Python へ尋ねる。速さの得は無い（心拍 0.42 ms）。(c) 窓の master_store::write_json_atomic はそのままでは使えない: いつも create_dir_all する（presence._write_json は『共有の置き場そのものは作らない』で親が無ければ書かない）・置き換えのやり直しが無い（presence は retry_budget=1.0。Windows で読み手が FILE_SHARE_DELETE 無しで開いていると置き換えが断られる。retrying は master_store.rs の中の非公開の関数）・字下げ 2 と sync_all（presence は 1・durable でない。ui_state は 0）。(d) Python の touch は touch_async で裏の糸に書かせ、心拍の答えは共有の書き込みを待たない。窓も問い合わせの糸で共有へ書かない作りが要る（届かない SMB は数十秒待つ）。案の文に無い。(e) 『leave を窓の終了に配線』: 終わる道（main.rs の r.backend.stop の前後）で共有へ書くので、届かない共有で終了が止まらないよう時間の上限が要る。(f) 案の文の『Python の presence の書く道は残さない（online_in の読み手だけ残す）』は誤り。開発用サーバー tools/ui_server.py は窓を通さず create_app だけで起こし、撮影・評価の道具（ui-harness.mjs の STATES・ui-eval-*.mjs）は心拍の答えで『接続 ●』を出し、マスタ管理の利用状況のタブを撮る。窓が名乗らない組（SERVES に presence が無い前の窓）でも Python が受け持つ決まり（app/__init__.py の shell_serves）と、突き合わせの答えの見本（access_write_oracle.py の形は Python の道を見本に残す）も、Python の道が要る。前例（2026-11-masters-write.json の 1 回目 F『Python の書く道は消す』）と同じく機能が消える減点。直すのは易しい（Python の道は残し、SERVES に presence があるときは心拍で書かない・窓が答える）。(g) 突き合わせ: Python の presence は datetime.now・time.time・fsio.now_iso と _state を直接使う（_now は 1 か所だけ）ので、見本の側は mock で時計を差し替える。窓の access::revocation は now を引数に取り、時計を渡す形が既にある。"
+    },
+    "K 効いている設定（effective）を先に": {
+     "score": {
+      "order": 4,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 5,
+      "place": 4,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "良い所: 4 本が共通に要る effective を 1 つの土台として先に作る筋は分かりやすく、settings_parity（項目ごとの壊れた値・既定・マスタの値）は答えが JSON の表なので比べやすい。悪い所: effective を確かめた: path_settings.effective は parse を呼び、parse は kind=exe で lotdsp_direct.trusted_browser（Windows では resolve して Program Files・AppData の下か。版 3.52.1 の守り）、kind=pattern で work_log.split_pattern を連れてくる。配った設定は app_env.config_path（TRANSFER_APP_CONFIG → config/appsettings.json → 見本）で、Python は起動の 1 回だけ読む。窓（desktop/src）には appsettings を読む所も effective も 1 行も無い。Python の effective は config・lotlist/settings・settings/check・sources などで使い続けるので、守りの入った読み方が 2 か所になる。update/settings の who（canRelease）は me が要り、me の材料はまた Python の lotlist/settings。窓の updater は main.rs の update_settings(backend) で Python へ直に尋ねる（router を通らない）ので、道を移すだけでは Python への問い合わせは減らず、updater の配線も替える要がある。安い別の道もある: Python は既に lotlist/settings で effective を作っているので、そこへ update.source を足せば窓は effective を持たずに済む。fs/places は MasterStore の history()（前の置き場）を要るが、窓の master_store.rs には history・pin・follow_moved が無い（案の文に無い）。 移す 3 本はどれも冷たい道（update/settings は起動と 30 分おき・settings は参照先の画面・places は参照… の窓。どれも 0.3 ms 前後）で、熱い道（心拍 3 秒ごと）と 2 つの係の心配は次の版へ回る。fs/places だけを移すと、同じ『参照…』の窓で browse は Python・places は窓になり、clean の決まりが 2 つの言葉に割れる。3 段目の終わりは遠く、版は 3 つ以上。"
+    },
+    "L 読む道を全部（H＋effective で読む道）": {
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 4,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 4,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "B2 を含むので同じ: 案の文『Python の presence の書く道は残さない』で、開発用サーバー tools/ui_server.py（窓を通さない）の心拍（app.js の r.ok →『接続 ●』）と利用状況のタブの 7 本、名乗らない窓との組、突き合わせの見本が答えを失う"
+      }
+     ],
+     "seen": "良い所: 読む道 17 本を 1 版で窓へ移し、『参照…』の窓の 2 本（browse・places）がそろって窓に入る（H・K の割れが無い）。突き合わせ 3 本で食い違いを数で示せる。悪い所: 1 回目の A と同じく 1 版が大きい（presence 564・folder_browse 277・effective と parse の守り・ui_state・ui_defaults の写しと 3 本の突き合わせで、Rust は 2,000 行を超える見込み）。性質（時計と _state・OS のパス・守りの入った設定の読み・マスタを書く）がばらばらで、壊れたときに戻しにくい。effective を確かめた: path_settings.effective は parse を呼び、parse は kind=exe で lotdsp_direct.trusted_browser（Windows では resolve して Program Files・AppData の下か。版 3.52.1 の守り）、kind=pattern で work_log.split_pattern を連れてくる。配った設定は app_env.config_path（TRANSFER_APP_CONFIG → config/appsettings.json → 見本）で、Python は起動の 1 回だけ読む。窓（desktop/src）には appsettings を読む所も effective も 1 行も無い。Python の effective は config・lotlist/settings・settings/check・sources などで使い続けるので、守りの入った読み方が 2 か所になる。update/settings の who（canRelease）は me が要り、me の材料はまた Python の lotlist/settings。窓の updater は main.rs の update_settings(backend) で Python へ直に尋ねる（router を通らない）ので、道を移すだけでは Python への問い合わせは減らず、updater の配線も替える要がある。安い別の道もある: Python は既に lotlist/settings で effective を作っているので、そこへ update.source を足せば窓は effective を持たずに済む。fs/places は MasterStore の history()（前の置き場）を要るが、窓の master_store.rs には history・pin・follow_moved が無い（案の文に無い）。 fs/browse を確かめた: Python の import は master_place.is_master_place・release_place.MARKER・fsio.unquote_path だけで閉じているが、答えは OS の決まりに強く依る: os.path.expandvars（Windows は %VAR% も読む）・expanduser・pathlib の anchor と parts（Windows の C:\\ と \\\\サーバー\\共有）・os.path.normcase（Windows は小文字）・ドライブ C〜Z・読めない理由の字（Python の e.strerror は OS の言葉そのまま、Rust の io::Error は『… (os error 3)』を付ける）・別の糸で打ち切る _bounded（4 秒）・fnmatch（窓の Cargo.toml に glob の crate は無く、regex へ訳す）・更新時刻の分までの isoformat。Linux の cargo test では Windows の形を確かめられず、画面の評価関数（ui-eval-pathpick・ui-eval-pathfit）は Python だけの開発用サーバーで動くので窓の答えを通らない。同じ『参照…』の窓が fs/browse（窓）と fs/places（Python）を呼ぶので、clean・normcase の決まりが 2 つの言葉で同時に効く間ができる。 共通して確かめた事実（main 54ba976 を読んで確かめた）: (a) 窓の心拍の答えで「接続 ●」を保つ手当ては作れるが、案の文より手が要る。router.rs の Native は &dyn Backend しか受けず、Backend の trait は ask だけ。Router は Supervisor を値で持つ（main.rs の Router { backend: sup }）ので、閉包から Supervisor を見られない。Backend に『起こさずに生きているか』（Supervisor の current を覗くだけ。get は止まっていれば起こす）を足す要がある。画面（app.js の startHeartbeat）は答えの本文でなく r.ok で接続を決めるので、Python が止まっているときは窓が 503 を返せば JS を変えずに済む（本文に載せるだけでは札は変わらない）。止まった Python は、窓の心拍が 10 秒おきに尋ねる /api/lotlist/settings（me の材料。lot.rs の SETTINGS_TTL）で起こし直されるので、札は戻る。(b) 窓の me は今も Python 頼み: 名乗り（login・pc）と利用状況の置き場は Python の /api/lotlist/settings の access（lotlist.py の _access_place。『名乗りを決めるのはまだ Python』）から来る。移しても心拍は 10 秒に 1 回 Python へ尋ねる。速さの得は無い（心拍 0.42 ms）。(c) 窓の master_store::write_json_atomic はそのままでは使えない: いつも create_dir_all する（presence._write_json は『共有の置き場そのものは作らない』で親が無ければ書かない）・置き換えのやり直しが無い（presence は retry_budget=1.0。Windows で読み手が FILE_SHARE_DELETE 無しで開いていると置き換えが断られる。retrying は master_store.rs の中の非公開の関数）・字下げ 2 と sync_all（presence は 1・durable でない。ui_state は 0）。(d) Python の touch は touch_async で裏の糸に書かせ、心拍の答えは共有の書き込みを待たない。窓も問い合わせの糸で共有へ書かない作りが要る（届かない SMB は数十秒待つ）。案の文に無い。(e) 『leave を窓の終了に配線』: 終わる道（main.rs の r.backend.stop の前後）で共有へ書くので、届かない共有で終了が止まらないよう時間の上限が要る。(f) 案の文の『Python の presence の書く道は残さない（online_in の読み手だけ残す）』は誤り。開発用サーバー tools/ui_server.py は窓を通さず create_app だけで起こし、撮影・評価の道具（ui-harness.mjs の STATES・ui-eval-*.mjs）は心拍の答えで『接続 ●』を出し、マスタ管理の利用状況のタブを撮る。窓が名乗らない組（SERVES に presence が無い前の窓）でも Python が受け持つ決まり（app/__init__.py の shell_serves）と、突き合わせの答えの見本（access_write_oracle.py の形は Python の道を見本に残す）も、Python の道が要る。前例（2026-11-masters-write.json の 1 回目 F『Python の書く道は消す』）と同じく機能が消える減点。直すのは易しい（Python の道は残し、SERVES に presence があるときは心拍で書かない・窓が答える）。(g) 突き合わせ: Python の presence は datetime.now・time.time・fsio.now_iso と _state を直接使う（_now は 1 か所だけ）ので、見本の側は mock で時計を差し替える。窓の access::revocation は now を引数に取り、時計を渡す形が既にある。 残る 8 本（settings/check・PUT・置き場 6 本の一部・config）は Python のままで、3 段目は 1 版では終わらない。"
+    }
+   }
+  },
+  {
+   "name": "3 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は measured と 1・2 回目の採点の seen）",
+   "self_check": "案を作った者が確かめたこと: 2 回目の採点の指摘 8 つ（Python の道を消すと −10・接続の札は Backend に生き死にを足して 503・書き込みの関数の違い・effective が連れてくる物・update/settings は main.rs が直に尋ねる・fs/browse の OS 依存・心拍を移しても速くならない・境の値）を、すべての案に『共通の手当て』として入れた。残り 15 道の行き先を文書に書くことで、ステップ数の見通しを示した。新しい案は M（effective を写さず答えに足す。2 回目の採点の示唆）・N（参照の窓の 2 道を一緒に。示唆）・P（書き込みの土台を先に）・Q（ui-defaults。採点で閉じていると確かめられた物）の 4 つ。案の方向: 範囲の深さ（G3）・窓が Python に直に尋ねる道を減らす（M）・画面の 1 つの窓を 1 つの係に（N）・共通の土台（P）・閉じた部品を足す（Q）で偏っていない。",
+   "proposals": {
+    "G3 使用の履歴＋画面の控え（G に共通の手当て）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目の G の減点（Python の道を消す）が解け、狙いが『この PC で毎回の利用で動く書き手（利用状況・画面の控え）を窓 1 つに』の 1 つにまとまる。presence 564 行と ui_state 59 行は部品で閉じ（ui_state の依存は app_env.local_root と fsio だけ。presence は窓に既にある切断の指示の読み方・me・role_can の presence:*・置き場の presence の場所・want.json を使う）、効いている設定（effective）・順 6 の lotdsp・置き場の引っ越しを連れてこない。SERVES・Python の道を見本に残す・場面ごとの突き合わせという 1 段目 a・2 段目 b と同じ型で、10 道の答えとできたファイルを数で比べられる。量は B2＋約 100 行で版の釣り合いが良い。悪い所: 共通の手当てを確かめた（main 54ba976）: (1) Python の道を残し、SERVES（TPA_SHELL_SERVES）に presence・ui_state を足して Python に知らせる形は、1 段目 a・2 段目 b と同じ型で作れる（2 回目の lost は解けた）。(2) プロセスごとの受け持ちは正しい（窓のプロセスは Python を起こし直しても続くので、今より使い始めが割れにくい）。(3) Backend に alive を足すのは易しいが、今は 3 秒ごとの心拍が Supervisor::get で落ちた Python を起こし直している。覗くだけで 503 にすると起こし直しは me の材料の取り直し（10 秒）任せになり、順を誤ると『未接続 ○』のまま戻らない（案の文に無い）。(4) 『親のフォルダが無ければ書かない』は fsio の決まりではない（fsio はいつも親を作る。presence は共有の置き場の親だけを見て、presence_tpa・history・sessions/<鍵> は作る。ui_state は作業場所ごと作る。試して確かめた）。2 回目の (d)『共有へ書くのは裏の糸で、心拍は待たない』が手当てに無い。(5)(6)(7) は筋が通る（片割れの代用字は Python で UnicodeEncodeError→400。窓が読めない本文は Python に任せる 2 段目 b の型でも同じ答えになる）。(8) 突き合わせの場面は具体で、Windows の CI（desktop.yml は windows-latest で cargo test）でも流せる。(9) 残り 15 道の行き先は 12 道しか無い（ui-defaults の 2 と fs/browse が抜けている）。access.registered_roles（fleet の roles_of）が窓に無いことも書いていない。 3 段目の残り 15 道は別の段（順 6・effective・7 段目）に回るので、3 段目そのものは 1 版では終わらない（ステップ 7）。速さの得は無い（心拍 0.42 ms。me の材料で 10 秒に 1 回は Python に尋ねる）。"
+    },
+    "M G3＋更新の置き場を一覧の設定の答えから": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 窓が Python に直に尋ねる道（main.rs の update_settings。配布の画面の 6 か所・更新の係の upd.run）を 1 本減らす筋は作れる。窓は /api/lotlist/settings を起動の直後（lot.warm）と 10 秒の覚えで取っているので、更新の係が Lot の覚えを通せば起動にも間に合う。PUT /api/settings/update.* の後は after が先に覚えを捨ててから upd.wake するので、古い置き場を使わない。masters.dir は答えの access.place.shareDir に既にあり、足すのは update.source だけで済む。悪い所: 案の文は who（canRelease）を Python が足すとしている。lot_settings は X-TPA-Me を載せずに尋ねるので Python は自分の me で決めることになり、版 3.65.1 で『判定の元を 1 つ（窓の me）に』したのと逆になる（窓の access.rs の capabilities に canRelease と revoked があり、窓が作るべき）。配る・置く・推奨・外すの書き込みの who が、今の『毎回尋ね直す』から最長 10 秒前の答えになる。Python は答えを変えるだけで要るままで、速さの得も無い。使用の履歴（時刻と覚え）と更新・配布（update.rs・distribute.rs）という性質の違う物が 1 版に入り、主な狙いが 2 つに見える。突き合わせも『lotlist/settings の項目が /api/update/settings と同じか』の試験が増える。 共通の手当てを確かめた（main 54ba976）: (1) Python の道を残し、SERVES（TPA_SHELL_SERVES）に presence・ui_state を足して Python に知らせる形は、1 段目 a・2 段目 b と同じ型で作れる（2 回目の lost は解けた）。(2) プロセスごとの受け持ちは正しい（窓のプロセスは Python を起こし直しても続くので、今より使い始めが割れにくい）。(3) Backend に alive を足すのは易しいが、今は 3 秒ごとの心拍が Supervisor::get で落ちた Python を起こし直している。覗くだけで 503 にすると起こし直しは me の材料の取り直し（10 秒）任せになり、順を誤ると『未接続 ○』のまま戻らない（案の文に無い）。(4) 『親のフォルダが無ければ書かない』は fsio の決まりではない（fsio はいつも親を作る。presence は共有の置き場の親だけを見て、presence_tpa・history・sessions/<鍵> は作る。ui_state は作業場所ごと作る。試して確かめた）。2 回目の (d)『共有へ書くのは裏の糸で、心拍は待たない』が手当てに無い。(5)(6)(7) は筋が通る（片割れの代用字は Python で UnicodeEncodeError→400。窓が読めない本文は Python に任せる 2 段目 b の型でも同じ答えになる）。(8) 突き合わせの場面は具体で、Windows の CI（desktop.yml は windows-latest で cargo test）でも流せる。(9) 残り 15 道の行き先は 12 道しか無い（ui-defaults の 2 と fs/browse が抜けている）。access.registered_roles（fleet の roles_of）が窓に無いことも書いていない。"
+    },
+    "N G3＋「参照…」の窓の 2 道（browse・places）": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "良い所: 『参照…』の窓の 2 道を一緒に移すので、browse と places で clean・normcase の決まりが 2 つの言葉に割れる間（2 回目の H・K の指摘）は無い。desktop.yml は Windows で cargo test を流すので、Rust の側は Windows で試せる。悪い所: folder_browse は OS の決まりに強く依る（expandvars の %VAR%・expanduser・anchor と parts・normcase・ドライブ C〜Z・e.strerror は OS の言葉そのもの〈日本語の Windows と CI の英語の Windows でも違う〉・4 秒の打ち切りの糸・fnmatch〈窓に glob の crate は無い〉・分までの更新時刻）。見本の Python の答えも Windows で作らないと、事例の表は Linux の形しか持たない。places は効いている設定と MasterStore.history（窓の master_store.rs に無い）を要り、M の仕組みに履歴まで足すので Python の答えが膨らむ。画面の評価関数（ui-eval-pathpick・ui-eval-pathfit）は Python だけの開発用サーバーで動き、窓の答えを通らない。使用の履歴とフォルダを見る道という性質の違う物が 1 版に入る。案の (9) は fs/places を移すのに『残り』にも書いていて食い違う。 共通の手当てを確かめた（main 54ba976）: (1) Python の道を残し、SERVES（TPA_SHELL_SERVES）に presence・ui_state を足して Python に知らせる形は、1 段目 a・2 段目 b と同じ型で作れる（2 回目の lost は解けた）。(2) プロセスごとの受け持ちは正しい（窓のプロセスは Python を起こし直しても続くので、今より使い始めが割れにくい）。(3) Backend に alive を足すのは易しいが、今は 3 秒ごとの心拍が Supervisor::get で落ちた Python を起こし直している。覗くだけで 503 にすると起こし直しは me の材料の取り直し（10 秒）任せになり、順を誤ると『未接続 ○』のまま戻らない（案の文に無い）。(4) 『親のフォルダが無ければ書かない』は fsio の決まりではない（fsio はいつも親を作る。presence は共有の置き場の親だけを見て、presence_tpa・history・sessions/<鍵> は作る。ui_state は作業場所ごと作る。試して確かめた）。2 回目の (d)『共有へ書くのは裏の糸で、心拍は待たない』が手当てに無い。(5)(6)(7) は筋が通る（片割れの代用字は Python で UnicodeEncodeError→400。窓が読めない本文は Python に任せる 2 段目 b の型でも同じ答えになる）。(8) 突き合わせの場面は具体で、Windows の CI（desktop.yml は windows-latest で cargo test）でも流せる。(9) 残り 15 道の行き先は 12 道しか無い（ui-defaults の 2 と fs/browse が抜けている）。access.registered_roles（fleet の roles_of）が窓に無いことも書いていない。"
+    },
+    "P 書き込みの土台を先に、その上に G3": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目の指摘 (c)（窓の write_json_atomic は字下げ・durable・やり直し・親の扱いが presence・ui_state と違う）を、同じ版の 1 歩目として『Python と同じファイルの字を出すか』の事例の表（fsio_parity）で先に固める順は筋が良く、食い違いを数で見せられる。書き込みの決まりが Rust で 1 か所になれば、7 段目の Python の書く係を外す所でも使える（言葉と置き場）。G3 の 10 道はそのまま。悪い所: 案の文の『親を作らない』は Python の fsio.write_json_atomic と違う（いつも path.parent.mkdir(parents=True)。書かない確かめは presence._write_json の、共有の置き場の親だけ）。文のとおり作ると新しい共有で history・sessions/<鍵> のフォルダができず、使用の履歴が書けない（fsio_parity に『親が無い』の事例を入れれば見つかる）。窓には既に master_store::write_json_atomic（いつも親を作る・字下げ 2・sync_all・やり直し無し）があり、2 つ目の関数にするのかまとめるのかを書いていない（まとめないと決まりが 2 か所）。7 段目の約 49 本はマスタを Store::write で書くので、使い回せるのは主にマスタ以外の書き込みで、『49 本が使い回せる』は言い過ぎ。主な狙いが土台と使用の履歴の 2 つに見える（階層 7）。 共通の手当てを確かめた（main 54ba976）: (1) Python の道を残し、SERVES（TPA_SHELL_SERVES）に presence・ui_state を足して Python に知らせる形は、1 段目 a・2 段目 b と同じ型で作れる（2 回目の lost は解けた）。(2) プロセスごとの受け持ちは正しい（窓のプロセスは Python を起こし直しても続くので、今より使い始めが割れにくい）。(3) Backend に alive を足すのは易しいが、今は 3 秒ごとの心拍が Supervisor::get で落ちた Python を起こし直している。覗くだけで 503 にすると起こし直しは me の材料の取り直し（10 秒）任せになり、順を誤ると『未接続 ○』のまま戻らない（案の文に無い）。(4) 『親のフォルダが無ければ書かない』は fsio の決まりではない（fsio はいつも親を作る。presence は共有の置き場の親だけを見て、presence_tpa・history・sessions/<鍵> は作る。ui_state は作業場所ごと作る。試して確かめた）。2 回目の (d)『共有へ書くのは裏の糸で、心拍は待たない』が手当てに無い。(5)(6)(7) は筋が通る（片割れの代用字は Python で UnicodeEncodeError→400。窓が読めない本文は Python に任せる 2 段目 b の型でも同じ答えになる）。(8) 突き合わせの場面は具体で、Windows の CI（desktop.yml は windows-latest で cargo test）でも流せる。(9) 残り 15 道の行き先は 12 道しか無い（ui-defaults の 2 と fs/browse が抜けている）。access.registered_roles（fleet の roles_of）が窓に無いことも書いていない。"
+    },
+    "Q G3＋表示の初期設定（ui-defaults）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 今の窓で作れることを確かめた: Store::write は名前を問わず、SHARED_ALWAYS に ui_defaults があり、lot.rs の store_for が置き場の答えから Store を作る（2 段目 b の access_write と同じ型）。Store::revision もある。門番は窓の me（開発者）で決まり、canPublish も窓の me から出せる。12 道で残りが 13 道に減る。悪い所: 案の文の『GET は Place::rows で読む』だけでは答えの revision が出ない（Store が要る）。PROFILE_KEYS（18 個）と MAX_BYTES は GET / の型に埋める ui_profile のために Python にも残り、同じ決まりが 2 か所になる（事例の表で突き合わせる要）。使用の履歴（時刻と覚え）・この PC のファイル・共有のマスタを書く（錠・版）の 3 つの性質が 1 版に入り、突き合わせも presence_parity と access_write_oracle の形の 2 つになる。ui-defaults は開発者が時々押し上げるだけの道で、移す得は小さい。 共通の手当てを確かめた（main 54ba976）: (1) Python の道を残し、SERVES（TPA_SHELL_SERVES）に presence・ui_state を足して Python に知らせる形は、1 段目 a・2 段目 b と同じ型で作れる（2 回目の lost は解けた）。(2) プロセスごとの受け持ちは正しい（窓のプロセスは Python を起こし直しても続くので、今より使い始めが割れにくい）。(3) Backend に alive を足すのは易しいが、今は 3 秒ごとの心拍が Supervisor::get で落ちた Python を起こし直している。覗くだけで 503 にすると起こし直しは me の材料の取り直し（10 秒）任せになり、順を誤ると『未接続 ○』のまま戻らない（案の文に無い）。(4) 『親のフォルダが無ければ書かない』は fsio の決まりではない（fsio はいつも親を作る。presence は共有の置き場の親だけを見て、presence_tpa・history・sessions/<鍵> は作る。ui_state は作業場所ごと作る。試して確かめた）。2 回目の (d)『共有へ書くのは裏の糸で、心拍は待たない』が手当てに無い。(5)(6)(7) は筋が通る（片割れの代用字は Python で UnicodeEncodeError→400。窓が読めない本文は Python に任せる 2 段目 b の型でも同じ答えになる）。(8) 突き合わせの場面は具体で、Windows の CI（desktop.yml は windows-latest で cargo test）でも流せる。(9) 残り 15 道の行き先は 12 道しか無い（ui-defaults の 2 と fs/browse が抜けている）。access.registered_roles（fleet の roles_of）が窓に無いことも書いていない。"
+    }
+   }
+  }
+ ],
+ "proposals_text_2": {
+  "B2 使用の履歴を丸ごと（1 回目の B を直した物）": "presence の 8 道（心拍を含む）を窓がプロセスごとに受け持つ（問い合わせごとに Python へ回さない。書き手は窓 1 つ。me を読めないときは窓が {version:null, revoked:null}）。心拍の答えに Python の生き死に（Supervisor の状態）を載せ、画面の「接続 ●」と計算のやり直しの合図を保つ。書く版は中身の版（update::program_version）。safe_key・_under を写す。leave は窓の終了に配線し、Python との違いとして文書に残す。突き合わせは presence_parity（access_write_oracle の形＋時計を差し替える歩・プロセスの覚えを持つ歩。TTL 75 秒・書く 20 秒・履歴 60 秒・掃除 300 秒・最新版 300 秒・冷却 300 秒の境の前後、使い始めと続き、月またぎ、整理、読めないファイル、最新版、fleet・sessions、切断・解く・消す〈409〉、偽の鍵、共有が無い、2 つの係が書かない）。Python の presence の書く道は残さない（online_in の読み手だけ残す）。",
+  "G B2＋画面の控え（ui-state）": "B2 に、この PC の作業場所の ui_state.json を読む・重ねる 2 道を足す（部品で閉じている。依存は書く係の写し〈write_json_atomic〉だけ）。書き手は窓 1 つになり、Python は最初の頁 GET / に埋めるために読むだけ（原子的な置き換えなので読み手が 2 つでも壊れない）。突き合わせは presence_parity に ui-state の場面（重ねる・消す・tpa. 以外を捨てる・大きすぎる・壊れた控え・rev の進み）を足す。10 道。",
+  "H 部品で閉じる道を全部（B2＋ui-state＋ui-defaults＋fs/browse）": "G に、表示の初期設定 ui-defaults（GET＝マスタ ui_defaults を読む、PUT＝開発者だけ・マスタの書く係〈2 段目 a の master_store〉で置き換える）と、フォルダの中を見る fs/browse（読むだけ・門番は me の masterEdit。master_place.is_master_place と release_place の印だけを連れてくる）を足す。13 道。効いている設定（path_settings.effective）を要する config・settings・update/settings・fs/places と、置き場の引っ越し 6 道は、effective と一緒に次の版へ。突き合わせは presence_parity と ui_parity（ui-defaults・fs/browse の場面: 門番・切断・空・届かない所・purpose と pattern・印）の 2 本。",
+  "K 効いている設定（effective）を先に": "どの道も連れてくる path_settings.effective（配った設定にマスタ path_settings を重ねる。ITEMS の読み方 parse）を先に Rust に作り、GET /api/settings・GET /api/update/settings（窓が起動と 30 分おきに Python へ尋ねている道）・fs/places を窓へ。使用の履歴は次の版。settings/check と PUT と置き場の引っ越しは順 6・7 の部品を連れてくるので残す。突き合わせは settings_parity（項目ごとの壊れた値・既定・マスタの値・答えの形）。",
+  "L 読む道を全部（H＋effective で読む道）": "H に K の effective を足し、GET /api/settings・update/settings・fs/places も窓へ（17 道）。書く・確かめる・引っ越す道（settings/check・PUT /api/settings/<key>・masters/place・check・move、release/place の 3 道、config は lotdsp の KeyMap〈順 6〉を連れてくるので残す）だけが Python に残る。突き合わせは presence_parity・ui_parity・settings_parity の 3 本を 1 版で。"
+ },
+ "proposals_text_3": {
+  "G3 使用の履歴＋画面の控え（G に共通の手当て）": "presence の 8 道と ui-state の 2 道（10 道）を窓へ。共通の手当て（2 回目の採点の指摘をすべて入れる）: (1) Python の道は消さない。窓が SERVES に presence・ui_state を名乗ったときだけ、Python の心拍は書かない（開発用サーバー・前の窓との組・突き合わせの見本は今のまま）。(2) 受け持ちはプロセスごと。me を決められないときは窓が {version:null, revoked:null} を答え、Python へ回さない。(3) Backend に『起こさずに生きているか』を足し、Python が止まっていれば心拍は 503（画面の r.ok で「接続 ●」と計算のやり直しが今と同じに動く）。(4) 書き込みの関数は Python の write_json_atomic と同じ決まり（親のフォルダが無ければ書かない・置き換えを 1 秒までやり直す・字下げ presence 1／ui_state 0・書き切らない）。Python の ui_state.load は open_shared_read に替える。(5) 書く版は Python を起こすたびに update::program_version から読み直す。(6) safe_key・_under を写す。leave は窓の終了に時間の上限つきで配線し、違いを文書に残す。(7) ui_state の本文は Content-Type を問わず JSON、大きさの上限は Python の区切り（', ' と ': '）で数え、片割れの代用字も Python と同じに扱う。(8) 突き合わせ presence_parity: 時計を差し替える歩（TTL 75・書く 20・履歴 60・掃除 300・最新版 300・冷却 300 秒の境の前後）・プロセスの覚えを持つ歩・使い始めと続き・月またぎ・整理・読めないファイル・最新版・fleet・sessions・切断・解く・消す（409）・偽の鍵・共有が無い・窓が受け持つとき Python の心拍が 1 つも書かない・ui_state の場面。答えとできたファイル（中身と字下げ）を比べ、Windows の CI でも流す。(9) 3 段目の残り 15 道の行き先を RUST_PORT_PLAN.md に書く: config・settings/check は順 6（lotdsp を連れてくる）、置き場の引っ越し 6 道と PUT /api/settings は 7 段目（Python の書く係が無くなってから）、読む道（GET /api/settings・update/settings・fs/places）は effective を写すときに。",
+  "M G3＋更新の置き場を一覧の設定の答えから": "G3 に加え、窓の更新の係が Python へ直に尋ねている GET /api/update/settings（main.rs・updater.rs）をやめ、窓が既に 10 秒覚えている /api/lotlist/settings の答えに update.source・masters.dir・who を Python が足し、窓はそれを読む。effective を窓へ写さずに『窓が Python に直に尋ねる道』を 1 本減らす。Python の /api/update/settings は前の窓のために残す。突き合わせは presence_parity に、lotlist/settings の update の項目が /api/update/settings の答えと同じかの試験を足す。共通の手当て（2 回目の採点の指摘をすべて入れる）: (1) Python の道は消さない。窓が SERVES に presence・ui_state を名乗ったときだけ、Python の心拍は書かない（開発用サーバー・前の窓との組・突き合わせの見本は今のまま）。(2) 受け持ちはプロセスごと。me を決められないときは窓が {version:null, revoked:null} を答え、Python へ回さない。(3) Backend に『起こさずに生きているか』を足し、Python が止まっていれば心拍は 503（画面の r.ok で「接続 ●」と計算のやり直しが今と同じに動く）。(4) 書き込みの関数は Python の write_json_atomic と同じ決まり（親のフォルダが無ければ書かない・置き換えを 1 秒までやり直す・字下げ presence 1／ui_state 0・書き切らない）。Python の ui_state.load は open_shared_read に替える。(5) 書く版は Python を起こすたびに update::program_version から読み直す。(6) safe_key・_under を写す。leave は窓の終了に時間の上限つきで配線し、違いを文書に残す。(7) ui_state の本文は Content-Type を問わず JSON、大きさの上限は Python の区切り（', ' と ': '）で数え、片割れの代用字も Python と同じに扱う。(8) 突き合わせ presence_parity: 時計を差し替える歩（TTL 75・書く 20・履歴 60・掃除 300・最新版 300・冷却 300 秒の境の前後）・プロセスの覚えを持つ歩・使い始めと続き・月またぎ・整理・読めないファイル・最新版・fleet・sessions・切断・解く・消す（409）・偽の鍵・共有が無い・窓が受け持つとき Python の心拍が 1 つも書かない・ui_state の場面。答えとできたファイル（中身と字下げ）を比べ、Windows の CI でも流す。(9) 3 段目の残り 15 道の行き先を RUST_PORT_PLAN.md に書く: config・settings/check は順 6（lotdsp を連れてくる）、置き場の引っ越し 6 道と PUT /api/settings は 7 段目（Python の書く係が無くなってから）、読む道（GET /api/settings・update/settings・fs/places）は effective を写すときに。",
+  "N G3＋「参照…」の窓の 2 道（browse・places）": "G3 に加え、フォルダの中を見る fs/browse と よく使う場所 fs/places を一緒に窓へ（「参照…」の窓が 1 つの係に答えてもらう）。places の効いている設定と前の置き場の history は、M と同じく /api/lotlist/settings に足した項目から読む。OS に依る違い（%VAR%・ドライブと共有・大文字小文字・読めない理由の字・4 秒の打ち切り・fnmatch）は Rust で Python と同じ字を作り、事例の表（tests/fixtures）で突き合わせる。共通の手当て（2 回目の採点の指摘をすべて入れる）: (1) Python の道は消さない。窓が SERVES に presence・ui_state を名乗ったときだけ、Python の心拍は書かない（開発用サーバー・前の窓との組・突き合わせの見本は今のまま）。(2) 受け持ちはプロセスごと。me を決められないときは窓が {version:null, revoked:null} を答え、Python へ回さない。(3) Backend に『起こさずに生きているか』を足し、Python が止まっていれば心拍は 503（画面の r.ok で「接続 ●」と計算のやり直しが今と同じに動く）。(4) 書き込みの関数は Python の write_json_atomic と同じ決まり（親のフォルダが無ければ書かない・置き換えを 1 秒までやり直す・字下げ presence 1／ui_state 0・書き切らない）。Python の ui_state.load は open_shared_read に替える。(5) 書く版は Python を起こすたびに update::program_version から読み直す。(6) safe_key・_under を写す。leave は窓の終了に時間の上限つきで配線し、違いを文書に残す。(7) ui_state の本文は Content-Type を問わず JSON、大きさの上限は Python の区切り（', ' と ': '）で数え、片割れの代用字も Python と同じに扱う。(8) 突き合わせ presence_parity: 時計を差し替える歩（TTL 75・書く 20・履歴 60・掃除 300・最新版 300・冷却 300 秒の境の前後）・プロセスの覚えを持つ歩・使い始めと続き・月またぎ・整理・読めないファイル・最新版・fleet・sessions・切断・解く・消す（409）・偽の鍵・共有が無い・窓が受け持つとき Python の心拍が 1 つも書かない・ui_state の場面。答えとできたファイル（中身と字下げ）を比べ、Windows の CI でも流す。(9) 3 段目の残り 15 道の行き先を RUST_PORT_PLAN.md に書く: config・settings/check は順 6（lotdsp を連れてくる）、置き場の引っ越し 6 道と PUT /api/settings は 7 段目（Python の書く係が無くなってから）、読む道（GET /api/settings・update/settings・fs/places）は effective を写すときに。",
+  "P 書き込みの土台を先に、その上に G3": "同じ版の中で 2 歩に分ける: 1 歩目は Python の fsio.write_json_atomic と同じ決まりの Rust の関数（親を作らない・1 秒のやり直し・字下げ・Windows で読み手が開いている間の失敗）を作り、Python と同じファイルの字を出すかを事例の表で突き合わせる（fsio_parity）。2 歩目にそれを使って G3 の 10 道。7 段目の書く道（約 49 本）がこの関数を使い回せる。共通の手当て（2 回目の採点の指摘をすべて入れる）: (1) Python の道は消さない。窓が SERVES に presence・ui_state を名乗ったときだけ、Python の心拍は書かない（開発用サーバー・前の窓との組・突き合わせの見本は今のまま）。(2) 受け持ちはプロセスごと。me を決められないときは窓が {version:null, revoked:null} を答え、Python へ回さない。(3) Backend に『起こさずに生きているか』を足し、Python が止まっていれば心拍は 503（画面の r.ok で「接続 ●」と計算のやり直しが今と同じに動く）。(4) 書き込みの関数は Python の write_json_atomic と同じ決まり（親のフォルダが無ければ書かない・置き換えを 1 秒までやり直す・字下げ presence 1／ui_state 0・書き切らない）。Python の ui_state.load は open_shared_read に替える。(5) 書く版は Python を起こすたびに update::program_version から読み直す。(6) safe_key・_under を写す。leave は窓の終了に時間の上限つきで配線し、違いを文書に残す。(7) ui_state の本文は Content-Type を問わず JSON、大きさの上限は Python の区切り（', ' と ': '）で数え、片割れの代用字も Python と同じに扱う。(8) 突き合わせ presence_parity: 時計を差し替える歩（TTL 75・書く 20・履歴 60・掃除 300・最新版 300・冷却 300 秒の境の前後）・プロセスの覚えを持つ歩・使い始めと続き・月またぎ・整理・読めないファイル・最新版・fleet・sessions・切断・解く・消す（409）・偽の鍵・共有が無い・窓が受け持つとき Python の心拍が 1 つも書かない・ui_state の場面。答えとできたファイル（中身と字下げ）を比べ、Windows の CI でも流す。(9) 3 段目の残り 15 道の行き先を RUST_PORT_PLAN.md に書く: config・settings/check は順 6（lotdsp を連れてくる）、置き場の引っ越し 6 道と PUT /api/settings は 7 段目（Python の書く係が無くなってから）、読む道（GET /api/settings・update/settings・fs/places）は effective を写すときに。",
+  "Q G3＋表示の初期設定（ui-defaults）": "G3 に加え、ui-defaults の GET・PUT（12 道）を窓へ。GET は窓の Place::rows で ui_defaults を読み、PUT は開発者だけ・窓の書く係 Store::write で置き換える（2 段目 a の master_store。SHARED_ALWAYS に入っている）。GET / に埋める ui_profile は Python が読むまま（読み手が 2 つでも壊れない）。突き合わせは access_write_oracle の形に ui-defaults の場面（開発者以外 403・空で外す・範囲外の名前を捨てる・大きすぎる・版）を足す。共通の手当て（2 回目の採点の指摘をすべて入れる）: (1) Python の道は消さない。窓が SERVES に presence・ui_state を名乗ったときだけ、Python の心拍は書かない（開発用サーバー・前の窓との組・突き合わせの見本は今のまま）。(2) 受け持ちはプロセスごと。me を決められないときは窓が {version:null, revoked:null} を答え、Python へ回さない。(3) Backend に『起こさずに生きているか』を足し、Python が止まっていれば心拍は 503（画面の r.ok で「接続 ●」と計算のやり直しが今と同じに動く）。(4) 書き込みの関数は Python の write_json_atomic と同じ決まり（親のフォルダが無ければ書かない・置き換えを 1 秒までやり直す・字下げ presence 1／ui_state 0・書き切らない）。Python の ui_state.load は open_shared_read に替える。(5) 書く版は Python を起こすたびに update::program_version から読み直す。(6) safe_key・_under を写す。leave は窓の終了に時間の上限つきで配線し、違いを文書に残す。(7) ui_state の本文は Content-Type を問わず JSON、大きさの上限は Python の区切り（', ' と ': '）で数え、片割れの代用字も Python と同じに扱う。(8) 突き合わせ presence_parity: 時計を差し替える歩（TTL 75・書く 20・履歴 60・掃除 300・最新版 300・冷却 300 秒の境の前後）・プロセスの覚えを持つ歩・使い始めと続き・月またぎ・整理・読めないファイル・最新版・fleet・sessions・切断・解く・消す（409）・偽の鍵・共有が無い・窓が受け持つとき Python の心拍が 1 つも書かない・ui_state の場面。答えとできたファイル（中身と字下げ）を比べ、Windows の CI でも流す。(9) 3 段目の残り 15 道の行き先を RUST_PORT_PLAN.md に書く: config・settings/check は順 6（lotdsp を連れてくる）、置き場の引っ越し 6 道と PUT /api/settings は 7 段目（Python の書く係が無くなってから）、読む道（GET /api/settings・update/settings・fs/places）は effective を写すときに。"
+ },
+ "built": {
+  "name": "作った後（3 段目 a・版 3.71.0・コミット bb21718）",
+  "images": "画面に出ない改良（画像なし）。試した物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-score。試しの源 zz_score_presence.rs は desktop/tests に組む間だけ置き、流した後すぐ消した。変異は src/presence.rs に sed で当て、1 つごとに git checkout で戻した（作業ツリーはこのファイルのほか変えていない）",
+  "result": {
+   "proposal": "G3 使用の履歴＋画面の控え（G に共通の手当て）",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 7,
+    "effortless": 8,
+    "intuitive": 9,
+    "form": 9,
+    "place": 7,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "測った物: cargo test --locked --test presence_parity は 1 件 OK（9 場面・100 歩超）。lib の presence 3 件と lot::tests::the_window_answers_the_heartbeat_and_presence も OK。python -m unittest tests.test_access は Ran 30・OK。cargo fmt --check・cargo clippy --all-targets -D warnings も通る。3 回目の採点の示唆は全部入っている（コードで確かめた）: (1) 受け持ちはプロセスごと（sidecar::SERVES に presence・ui_state。system._presence_beat は shell_serves に presence があれば touch_async を呼ばない。test_access の新しい試験が名乗る／名乗らないの両方を見る）。(2) Python の道は消していない（routes/access.py・system.py はそのまま。engine=python で窓の自己診断が Python との枠を確かめる）。(3) 心拍は先に設定を尋ねて me を決め、次に Backend::alive（Supervisor::get＝止まっていれば起こし直してから is_alive）を見て、止まっていれば 503。設定が取れず中身が生きていれば None で Python に任せ、Python は書かない。me が決まらなければ {version:null, revoked:null}。(4) 書くのは裏の 1 本の糸（beat_async。busy で書いている最中の頼みを捨てる。catch_unwind）。(5) 書き込みの決まり: 置き場の親が無ければ書かない・下のフォルダは create_dir_all・置き換えは 1 秒まで 0.05→0.5 秒の間でやり直す・字下げ 1／控え 0・改行 1 つ。(6) safe_key は access::key_ok と同じ決まり。(7) leave は /api/shutdown で別の糸に出し、QUIT_DELAY 150 ms で待たずに終わる。(8) 控えの大きさは join::py_dumps（', ' と ': '）で数え、境の前後（4MiB−34／−33）を突き合わせで見ている。(9) 読めない本文（needs_python）・表でない本文は None で Python に任せる。(10) 残り 15 道の行き先は RUST_PORT_PLAN.md に 2＋4＋9＝15 道そろった（2 回目の抜け ui-defaults の 2 と fs/browse が入った）。fleet・最新版の区分は access::flags で写した（registered_roles の抜けも直った）。変異: 置き場の親の確かめを外す（13 件の食い違い）・控えの上限を >= に（3 件）・版の数 11（2 件）・掃除の冷却の区別を外す（1 件）はどれも落ちる。見つけた欠け（どれも起きにくく、減点にはしない）: (a) 書く間隔・履歴の間隔・掃除・最新版の数え直しの経過を、壁の時計（chrono::Local の naive）で測る。Python は time.time()（UTC の秒）。夏時間の戻りで壁の時計が 1 時間戻ると、窓は 1 時間「いま使っている」を書かず、ほかの PC からは使っていないように見える（試し: 2026-11-01 01:50 に書いた後、時計を 3600−30 秒戻すと書かず、30 分後も書かず、1 時間 30 秒後に書いた）。日本には夏時間が無いので現場では起きない。突き合わせは Python の time.time も同じ時計に差し替えるので見えない。(b) 控えの rev の端: ファイルの rev が 9223372036854775807 だと重ねるときに i64 の足し算があふれる（試験の組みでは panic。リリースでは負の数に回る）。Python は 9223372036854775808 を返す。rev が NaN・1e400 の控えは、Python は空（1e400 は OverflowError で 500）、窓は rev 1 と keys を返す。どれも壊したファイルでしか起きない。(c) 突き合わせの抜け: forget で切断の指示（.revoke.json）も消す所を外す変異が通る（切断の指示が残っている PC の記録を消す場面が無い）。(d) Python の _under の resolve の確かめ（置き場の外へ解決する道を断る）は写しておらず、鍵の字の確かめだけ。区切り・「..」は字で断るので外へは出ないが、共有に置かれたシンボリックリンク・ジャンクションの history/<鍵>.json は、Python は例外で読まず、窓は辿って読む（書くときは置き換え、消すときはリンクだけを消すので害は無い）。(e) GET /api/presence で Python は fleet の例外（記録の pc が数と字で混ざると並べ替えが TypeError）を readable:false で返すが、窓はいつも readable:true（窓のほうが丈夫。試しには無い）。(f) 使い終わりは終了ボタン（/api/shutdown）だけ。窓の × を 2 度押して閉じたとき（RunEvent::Exit）は leave を呼ばず、前と同じく 75 秒残る（文書どおり）。(g) 書いたファイルの鍵の並びは serde_json の Map（字の順）で、Python の挿入順と違う（突き合わせは canon で並びを問わない。読む側には害が無い）。(h) 書く版は app_version が呼ばれるたびに version.py を読む（心拍の答えの version_notice で 3 秒ごと。軽い）。置き場は Lot の設定の覚え（10 秒）から取るので、置き場を移した直後のごく短い間は前の置き場へ書きうる（2 段目 b と同じ）。点の読み替えは 1〜3 回目と同じ。示唆が全部入り、突き合わせが答えとファイルの中身・字下げまで数で比べるので effortless・intuitive・form・tone は案の採点より上げた。ステップ数は 3 段目が 1 版で終わらない（残り 15 道）ので 7 のまま。言葉と置き場は決まりが Python と窓の 2 か所にあるので 7。"
+  },
+  "evaluator": "作っていない別のエージェント（採点係・2026-11-05）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: desktop/src/presence.rs（全部）と program/app/services/presence.py・ui_state.py・fsio.py（write_json_atomic・open_shared_read）・routes/access.py（利用状況の 7 本）・routes/system.py（心拍・ui-state）、コミット bb21718 の lot.rs・main.rs・router.rs・sidecar.rs・selftest.js・test_access.py・RUST_PORT_PLAN.md の差分、desktop/tests/presence_parity.rs・program/tests/presence_oracle.py、sidecar.rs の Supervisor::get、app.js の startHeartbeat、.github/workflows/desktop.yml（Windows で cargo test --locked）。流した物: presence_parity・lib の presence と lot の試験・test_access・fmt・clippy、5 つの変異、時計を戻す試しと控えの rev の端の試し（Python の ui_state と突き合わせた）。物差しの読み替えと減点の読み方は 1〜3 回目と前例（2026-11-masters-write.json の作った後）と同じ",
+  "after_fix": "作った後の採点の欠けを直した（案を作った者）: ①書く間隔・履歴・掃除・最新版の数え直しの経過を UTC の秒（Python の time.time() と同じ）で測る（Clock が この PC の時刻と UTC の秒の組を返す）、②控えの版の番号が i64 に入らないときは Python に任せる（単体の試験）、③切断の指示が残る PC の記録を消す場面を突き合わせに足した（forget で切断の指示を消さない変異で落ちる）、④窓の × で閉じたとき（RunEvent::Exit）も使い終わりを書く（上限 0.5 秒）。残るのは readable の扱い（窓のほうが丈夫）・_under の resolve・鍵の並び・置き場の 10 秒の覚え（どれも害は無い。RUST_PORT_PLAN.md と presence.rs に記した）。"
+ }
+}

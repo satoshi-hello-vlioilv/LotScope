@@ -229,6 +229,22 @@ class Presence(Env):
                 time.sleep(0.1)
         self.assertTrue(v and v["outdated"] and v["latestVersion"] == "9.9.9", v)
 
+    def test_heartbeat_does_not_write_when_the_window_serves_presence(self):
+        """窓が利用状況を受け持つ（shell_serves に presence。版 3.71.0）: Python の心拍は書かない（書き手は窓の 1 つ）。名乗らない窓とは今のまま書く"""
+        d = self.tmp / "share" / "presence_tpa"
+        presence._state.update(last_write=0.0)
+        with mock.patch.dict("os.environ", {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists,presence,ui_state"}), \
+                mock.patch.object(presence, "touch_async") as touch:
+            r = self.c.post("/api/heartbeat", json={"visible": True})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(set(r.get_json()), {"version", "revoked"})
+        touch.assert_not_called()
+        self.assertFalse(d.exists() and any(d.glob("*.json")), "窓が受け持つときは何も書かない")
+        with mock.patch.dict("os.environ", {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists"}), \
+                mock.patch.object(presence, "touch_async") as touch:
+            self.c.post("/api/heartbeat", json={"visible": True})
+        touch.assert_called_once()
+
     def test_developer_versions_do_not_count(self):
         self.write_history("dev", "PC-D", "9.9.9")
         def roles(pairs):

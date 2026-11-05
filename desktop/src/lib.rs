@@ -17,6 +17,7 @@ pub mod mirror;
 pub mod num_expr;
 pub mod operation;
 pub mod pivot;
+pub mod presence;
 pub mod pyfmt;
 pub mod release;
 pub mod search_index;

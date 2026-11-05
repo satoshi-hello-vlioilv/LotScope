@@ -40,15 +40,22 @@
     ok("大きな答え（更新履歴）が欠けずに届く", ch.r.ok && JSON.parse(ch.text).entries.length > 10, ch.text.length + " 字");
     const nf = await get("/api/no-such-route");
     ok("無いところは 404", nf.r.status === 404 && nf.by === "python", nf.r.status);
-    const bad = await get("/api/ui-state", json("POST", { changed: "形が違う" }));
+    // 画面の設定の控えは窓が答える（版 3.71.0。src/presence.rs）。engine=python は Python に任せる（中身との枠の往復を確かめる）
+    const bad = await get("/api/ui-state?engine=python", json("POST", { changed: "形が違う" }));
     const why = (JSON.parse(bad.text).error || "");
-    ok("誤りの答え（400 と日本語の理由）", bad.r.status === 400 && /形が違います/.test(why), why);
+    ok("誤りの答え（400 と日本語の理由）", bad.r.status === 400 && /形が違います/.test(why) && bad.by === "python", why);
+    const wbad = await get("/api/ui-state", json("POST", { changed: "形が違う" }));
+    ok("窓が答える誤り（画面の設定の控え）", wbad.r.status === 400 && wbad.by === "shell" && /形が違います/.test(JSON.parse(wbad.text).error || ""), wbad.text.slice(0, 80));
+    const hb = await get("/api/heartbeat", json("POST", { visible: true }));
+    ok("心拍は窓が答える（中身が生きていれば 200）", hb.r.ok && hb.by === "shell" && "revoked" in JSON.parse(hb.text), `${hb.r.status} ${hb.by}`);
 
     // 4) 大きな日本語の本文（約 460KB）が往復する——画面の設定の控えへ重ねて読み戻し、消す
     const big = "汚れ位置・発見設備と転写".repeat(13000), key = "tpa.selftestBig";
-    const put = await get("/api/ui-state", json("POST", { changed: { [key]: big } }));
-    const back = JSON.parse((await get("/api/ui-state")).text);
-    ok("約 460KB の日本語の本文が往復する", put.r.ok && (back.keys || {})[key] === big, `${put.r.status} / ${((back.keys || {})[key] || "").length}`);
+    const put = await get("/api/ui-state?engine=python", json("POST", { changed: { [key]: big } }));
+    const back = JSON.parse((await get("/api/ui-state?engine=python")).text);
+    ok("約 460KB の日本語の本文が往復する", put.r.ok && put.by === "python" && (back.keys || {})[key] === big, `${put.r.status} / ${((back.keys || {})[key] || "").length}`);
+    const wback = JSON.parse((await get("/api/ui-state")).text);
+    ok("Python が書いた控えを窓が読む（同じファイル）", (wback.keys || {})[key] === big, ((wback.keys || {})[key] || "").length);
     await get("/api/ui-state", json("POST", { changed: {}, removed: [key] }));
 
     // 5) 日本語の問い合わせ文字（Python のアプリが JSON で答える。元ファイルが無い PC では理由つきの誤り）
