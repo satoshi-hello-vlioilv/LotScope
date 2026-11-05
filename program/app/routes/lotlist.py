@@ -135,7 +135,13 @@ def lotlist_settings():
     calculation = current_app.config["APP_SETTINGS"].get("calculation", {})
     return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
                    page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists, access=place,
-                   calculation=calculation)
+                   calculation=calculation, uiProfileKeys=_ui_profile_keys())
+
+
+def _ui_profile_keys():
+    """表示の設定の範囲（版 3.78.0。窓〈desktop/src/ui_defaults.rs〉が GET／PUT /api/ui-defaults を答えるときの名前。決まりは services/ui_defaults.py の 1 か所）"""
+    from ..services import ui_defaults
+    return list(ui_defaults.PROFILE_KEYS)
 
 
 def lists_settings():

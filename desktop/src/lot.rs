@@ -42,6 +42,8 @@ pub struct Settings {
     pub access: Value,
     /// 転写距離・ピッチ計算の設定（版 3.72.0。配った設定の calculation。src/calc.rs）。答えに無い（前の版の Python）ときは None
     pub calculation: Option<Value>,
+    /// 一覧の表示の設定の範囲（版 3.78.0。services/ui_defaults.PROFILE_KEYS。src/ui_defaults.rs）。答えに無い（前の版の Python）ときは None
+    pub ui_profile_keys: Option<Vec<String>>,
 }
 
 impl Settings {
@@ -59,6 +61,10 @@ impl Settings {
             lists: v["lists"].clone(),
             access: v["access"].clone(),
             calculation: v.get("calculation").cloned(),
+            ui_profile_keys: v
+                .get("uiProfileKeys")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()),
         }
     }
 }
@@ -245,6 +251,23 @@ impl Lot {
             self.invalidate(); // 一覧の設定（設備名の読み替え）を捨てる（Python が書いたときの after_python と同じ）
         }
         Some((status, v))
+    }
+
+    /// 一覧の表示の初期設定の 2 本（版 3.78.0。src/ui_defaults.rs）を窓が受ける。置けるのは開発者だけ（route が見る。門番の外）。
+    /// 判定の材料（access）・範囲の名前が無い・me を決められない・置き場を読めない・窓が答えない形は None（Python が答える）
+    fn ui_defaults_route(&self, route: crate::ui_defaults::Route, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        let profile = s.ui_profile_keys.clone()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        if route == crate::ui_defaults::Route::Put {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        let rows = crate::access::Place::from_json(&s.access["place"]).rows(crate::ui_defaults::NAME).ok()?;
+        let store = self.store_for(&s.access)?;
+        crate::ui_defaults::handle(&store, &me, route, body, &rows, &profile)
     }
 
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
@@ -455,6 +478,9 @@ impl Lot {
         }
         if let Some(route) = crate::equip_write::route_of(method, path) {
             return self.equip_route(method, path, route, query, body, ask);
+        }
+        if let Some(route) = crate::ui_defaults::route_of(method, path) {
+            return self.ui_defaults_route(route, body, ask);
         }
         if presence::is_route(method, path) || path == "/api/ui-state" {
             return self.presence_route(method, path, query, body, ask);
@@ -932,6 +958,57 @@ mod tests {
         assert!(v["error"].as_str().unwrap().starts_with("作業実績のフォルダに届きません（"));
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=d", &ask).unwrap();
         assert_eq!((st, v["kind"].as_str()), (503, Some("unreachable")), "写し終えていない係では見せない（前の写しが無い）: {v}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_answers_ui_defaults() {
+        // 版 3.78.0: 一覧の表示の初期設定の 2 本は窓が受ける（本物の道: Lot::handle_body → ui_defaults_route）。範囲の名前は一覧の設定の答え
+        // （uiProfileKeys）から。答えに無い（前の版の Python）・判定の材料が無い・窓が読めない本文は Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-uidef-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(local.join("instance_id"), "inst1").unwrap();
+        let perm = json!([{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "rev": 1},
+                          {"id": 2, "ログインID": "u1", "PC名": "", "権限区分": "一般ユーザー", "rev": 1}]);
+        std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 1, "rows": perm}).to_string()).unwrap();
+        let conf = |login: &str| {
+            json!({"who": {"login": login, "pc": "PC-1", "pcSource": "", "key": format!("PC-1@{login}")},
+                   "place": {"shareDir": share, "shared": ["access_permissions", "tab_access", "ui_defaults"], "data": dir.join("data"),
+                             "defaults": dir.join("defaults"), "cache": local.join("master_cache"), "presence": "", "lockTtl": 20.0}})
+        };
+        let (boss, u1) = (conf("boss"), conf("u1"));
+        let keys = json!(["tpa.lotlist.layout.v1", "tpa.lotlist.pageSize.v1"]);
+        let ask_boss =
+            || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": boss.clone(), "uiProfileKeys": keys.clone()}));
+        let ask_u1 =
+            || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": u1.clone(), "uiProfileKeys": keys.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let (st, v) = lot.handle_body("GET", "/api/ui-defaults", "", b"", &ask_boss).expect("窓が受ける");
+        assert_eq!(
+            (st, v["canPublish"].clone(), v["keys"].clone(), v["defaults"].clone()),
+            (200, json!(true), keys.clone(), json!({})),
+            "{v}"
+        );
+        let body = serde_json::to_vec(&json!({"keys": {"tpa.lotlist.pageSize.v1": "50", "知らない": "x"}})).unwrap();
+        let (st, v) = lot.handle_body("PUT", "/api/ui-defaults", "", &body, &ask_boss).unwrap();
+        assert_eq!((st, v["count"].clone(), v["defaults"].clone()), (200, json!(1), json!({"tpa.lotlist.pageSize.v1": "50"})), "{v}");
+        let d: Value = serde_json::from_slice(&std::fs::read(share.join("ui_defaults.json")).unwrap()).unwrap();
+        assert_eq!(d["rows"][0]["名前"], json!("tpa.lotlist.pageSize.v1"), "共有に置く");
+        assert_eq!(lot.handle_body("PUT", "/api/ui-defaults", "", b"[1]", &ask_boss).unwrap().0, 400, "表でない本文は 400");
+        let lot_u1 = Lot::new(dir.join("cache-u1"));
+        assert_eq!(lot_u1.handle_body("GET", "/api/ui-defaults", "", b"", &ask_u1).unwrap().1["canPublish"], json!(false));
+        assert_eq!(lot_u1.handle_body("PUT", "/api/ui-defaults", "", &body, &ask_u1).unwrap().0, 403, "開発者でなければ置けない");
+        // Python に任せる: 範囲の名前が無い・判定の材料が無い・窓が読めない本文・ほかの方法
+        let old = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": boss.clone()}));
+        assert!(Lot::new(dir.join("c2")).handle_body("GET", "/api/ui-defaults", "", b"", &old).is_none(), "前の版の Python");
+        let none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "uiProfileKeys": keys.clone()}));
+        assert!(Lot::new(dir.join("c3")).handle_body("GET", "/api/ui-defaults", "", b"", &none).is_none());
+        assert!(lot.handle_body("PUT", "/api/ui-defaults", "", br#"{"keys": {}, "x": NaN}"#, &ask_boss).is_none());
+        assert!(lot.handle_body("POST", "/api/ui-defaults", "", b"{}", &ask_boss).is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

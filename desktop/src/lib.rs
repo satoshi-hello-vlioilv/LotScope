@@ -25,5 +25,6 @@ pub mod pyfmt;
 pub mod release;
 pub mod search_index;
 pub mod shifts_write;
+pub mod ui_defaults;
 pub mod update;
 pub mod worksum;

@@ -1,0 +1,520 @@
+{
+ "title": "Rust 化の段 2: 保存の道（組み方のプリセット・カードの設計・ダッシュボード・セット・表示の初期設定・書式）のどれを窓へ移すか（2026-11-05）",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-05）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の『改良するときは…』の節、program/tools/ui_score.py の冒頭、前の記録 2026-11-port-masters.json（3 回の rounds の score・minus・seen）、program/docs/RUST_PORT_PLAN.md の『7 段目の手本』から後の節、program/app の routes/presets.py・routes/dashboard.py（保存の道 :63〜305）・routes/system.py（ui_profile・ui_defaults_get／put）・routes/formats.py・routes/common.py（base_rev・master_call・can_write）・routes/access.py（_GUARDED）・services/pivot_presets.py・card_forms.py・dashboard.py（clean_fmt・clean_panel・clean_ops・abc_lims・clean_slicer・clean_layout・with_builtin_replace・builtin_skip・BUILTIN_LAYOUTS・セット・外した組み込み）・ui_defaults.py・display_formats.py・data_sources.is_screen_source・repositories/master_repository.py（_check_row・_preset_write・quick_set・format_*）、desktop/src の master_rows.rs・join.rs（py_dumps）・pyfmt.rs（float_repr・py_int・py_float）・dashboard.rs（int_of・dims・clean_panel・abc_lims・clean_ops）・aggregate.rs（py_round）・lotlist.rs（json_truthy・json_str・json_repr）・access.rs（GUARDED）・Cargo.toml。流した物（作業ツリーは変えていない）: (1) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/rs（Cargo.lock と同じ serde_json 1.0.151・float_roundtrip の小さな crate。debug で組んだ）で、Python 3.13 の json.dumps が書いた 3,147 の小数（10 の -12〜24 乗と乱数のビット）を serde_json で読み直して to_string し、字が違う 50 件を数えた。(2) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/probe.py（tests/equip_rows_oracle.py の place・store_of で共有の置き場を作り、create_app と test_client で開発者・部分的編集可の PC として）で、組み方・すぐに見る・カード・外した組み込み・表示の初期設定・セットの 22 歩の答えとできたファイル、と clean_body・clean_quick・clean_layout・clean_set_body を直接呼んだ答え。物差しの読み替えは依頼のとおり（順序＝段の進め方の筋の良さ／チャンク＝1 版のまとまりの大きさと揃い／階層化＝主な狙いが 1 つに見えるか／視覚化＝評価関数で食い違いを数で見せられるか／ステップ数＝この版で前へ進む量／考えさせない＝落とし穴を先に潰しているか／直感的＝作りが素直か／形と色・言葉と置き場＝決まりが 1 か所か・既存の型に載るか／美しさ＝量と釣り合い）。減点は、案の文のとおりに作ると Python と窓の答え・置く字が割れる所（確かめた所）を『状態が見えない −3』で 1 つずつ引いた（前の段の記録と同じ扱い）。　2 回目は、案を作った者でも 1 回目の採点者でもない別のエージェント（2026-11-05）が、routes/dashboard.py（セットの 4 本・_set_rows・_old_set）・routes/presets.py（_who・_gate）・routes/system.py（ui_defaults_get／put）・routes/access.py（_GUARDED）・routes/common.py（base_rev・master_call・find_row）・services/dashboard.py（clean_set_body・clean_set_row・set_view・_SET_ITEM）・pivot_presets.py・ui_defaults.py・access.py（master_edit_effective・master_scope）・repositories/master_repository.py（_check_row・_preset_write・quick_set）と、desktop/src の master_rows.rs・join.rs（py_dumps と 2 つの使い所）・pyfmt.rs（float_repr・strip）・presence.rs（画面の設定の控えの大きさ）・access.rs（GUARDED）・Cargo.lock を読み、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves2 で動かして採点した: rs（1 回目の crate の写し・debug）で py_dumps を float_repr にした写しを Python 3.13 の json.dumps と 45,194 件突き合わせ（丁度まん中の値の割れを見つけ、2^50〜2^53 の 2,000 件で 61 件）、examples/dig.rs で regex 1.13.1 の \\d と Python の \\d を全部の符号位置で比べ（窓が 80 字多い）、p3.py・p4.py（1 回目の probe.py と同じ置き場の作り方）でセット 23 歩・組み方と表示の初期設定 7 歩の答えとできたファイルを見た。物差しの読み替えと減点の扱いは 1 回目と同じ。　3 回目は、案を作った者でも 1・2 回目の採点者でもない別のエージェント（2026-11-05）が、CLAUDE.md の『改良するときは…』の節・ui_score.py の冒頭・rounds[1] の seen と minus・RUST_PORT_PLAN.md の『7 段目の手本』から後の節を読み、desktop/src の pyfmt.rs（float_repr・DIGITS・digit）・join.rs（py_dumps と使い所）・worksum.rs（py_str）・aggregate.rs（py_round）・master_rows.rs（unreadable・row_readable）と、program/app の routes/system.py（ui_profile・ui_defaults_put）・routes/presets.py（quick_put・_who・_gate）・routes/dashboard.py（セットの 4 本）・services/ui_defaults.py・pivot_presets.py（clean_row・_dims・clean_body・clean_quick）・dashboard.py（_SET_ITEM・clean_set_body）・data_sources.is_screen_source・repositories/master_repository.py（quick_set）・lotlist-profile.js（publish）・tests/fixtures/pynum_cases.json を読み、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves3 で動かして採点した: rs/examples/tie3.rs（debug）で float_repr の丁度まん中の直しを Python 3.13 の repr と 83,193 の値で突き合わせ（今 608 件 → 直して 0 件）、DIGITS と Python の \\d・isdigit の集まりを全部の符号位置で比べ（680＝680・isdigit は 808）、p5.py（セットの備考・標準・\\d の系統・置き場の行の中身の NaN）・p6.py（表示の初期設定に 16 の本文）・p7.py（すぐに見るの 8 歩）で今の Python の答えとできたファイルを見て、prog（program の写し）で ui_defaults_put を『表でない本文は 400』に直して tests.test_lot_list を流した（Ran 58・OK）。作業ツリーは変えていない。物差しの読み替えと減点の扱いは 1・2 回目と同じ。",
+ "measured": "棚卸し（2026-11-05・main 52157e1）: 保存の道は 組み方のプリセット 5 本（GET／POST /api/pivot-presets・PUT／DELETE …/<id>・PUT /api/pivot-quick）・カードの設計 4 本（/api/card-forms）・ダッシュボード 5 本（/api/dashboards 4・PUT /api/dashboards-hidden）・セット 4 本（/api/dashboard-sets）・表示の初期設定 2 本（/api/ui-defaults）・書式 4 本（/api/masters/formats）。行の形と権限は 4 組（プリセット・ダッシュボード・セット・カード）とも pivot_presets.clean_row／view／can_edit／scope_of（範囲は 共通デフォルト・共通・ID ごと・★標準）で 1 つ。中身は字で置き、置く字は組み方・カード・ダッシュボードが json.dumps(ensure_ascii=False, sort_keys=True)（窓の join::py_dumps が同じ字の書き手）・セットは json.dumps(ensure_ascii=False)（鍵は items の 1 つ）・書式だけ separators=(',',':') で送った順（窓の serde は字の順なので写せない）。中身の確かめは 組み方 pivot_presets.clean_body（段・値・式〈num_expr。窓に num_expr.rs がある〉・グラフの形）・カード card_forms.clean_body（方眼・重なり・タブ）・ダッシュボード dashboard.clean_layout（clean_panel は窓の dashboard.rs に問い合わせ用の物があるが、置き場の x・y・w・h と rows の引数が無い）・セット clean_set_body。行: services/pivot_presets.py 254・card_forms.py 170・dashboard.py の保存の分 約 200・routes/presets.py 119・ui_defaults.py 61。書く道の判定と行の型は版 3.77.0 で master_rows.rs（unreadable・rows_plain・is_self・create／update／delete）に 1 つにした",
+ "self_check": "案を作った者が採点に渡す前に確かめたこと（2026-11-05）: routes/presets.py（_who・_gate・一覧・すぐに見る・足す・直す・消す）と services/pivot_presets.py（clean_body・clean_row・view・standard_for・BUILTINS・default_quick・quick_for）・card_forms.clean_body・dashboard.clean_layout／clean_set_body／with_builtin_replace を読み、置く字の書き方が 組み方・カード・ダッシュボードは sort_keys、セットは鍵 1 つ、書式だけ送った順であることを確かめた。窓に join::py_dumps（sort_keys と既定の区切り）・num_expr.rs・dashboard.rs の問い合わせ用の clean_panel（置き場の引数が無い）があることを確かめた。案の方向: 1 組を正しく P・小さな 1 組 C・行の型を 2 組で使う PC・大きな組 D・小さく閉じた U・土台から F で偏っていない（6 案・すべて新しい比べ）。",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は各案の seen）",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと（2026-11-05）: routes/presets.py（_who・_gate・一覧・すぐに見る・足す・直す・消す）と services/pivot_presets.py（clean_body・clean_row・view・standard_for・BUILTINS・default_quick・quick_for）・card_forms.clean_body・dashboard.clean_layout／clean_set_body／with_builtin_replace を読み、置く字の書き方が 組み方・カード・ダッシュボードは sort_keys、セットは鍵 1 つ、書式だけ送った順であることを確かめた。窓に join::py_dumps（sort_keys と既定の区切り）・num_expr.rs・dashboard.rs の問い合わせ用の clean_panel（置き場の引数が無い）があることを確かめた。案の方向: 1 組を正しく P・小さな 1 組 C・行の型を 2 組で使う PC・大きな組 D・小さく閉じた U・土台から F で偏っていない（6 案・すべて新しい比べ）。",
+   "proposals": {
+    "P 組み方のプリセット 5 本": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "pivot_presets.clean_body の chartAt（int(str(x).strip()) で上限なし）。probe で chartAt \"99999999999999999999\"（字）は 201 で中身に \"chartAt\": 99999999999999999999 と置かれる。窓の pyfmt::py_int（pyfmt.rs:246〜258）は i64 に丸め込むので 9223372036854775807 と書き、字の中なので master_rows::unreadable も任せない。案の文に任せる形として挙がっていない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "_dims の str(d.get('part') or '')[:10]・measures の str(m.get('column'))・clean_row の str(name)・str(note)。probe で part [\"x\", 1.0] は \"['x', 1.0]\"、part {\"b\":1,\"a\":2} は送った順の \"{'b': 1, '\"（10 字で切る）。窓の json_repr（lotlist.rs:335）は表の鍵を serde の字の順に並べるので \"{'a': 2, \"。前の段の rows_plain／value_plain は置き場の行の値だけを見て、本文の入れ子の値は見ない。案の文に無い"
+      }
+     ],
+     "seen": "良い所: 閉じた 1 組で、置き場のファイル（pivot_presets・pivot_quick）をほかの組と分け合わない（Python のままの道と同じファイルを書かない）。数え: routes/presets.py 119 行・services/pivot_presets.py 254 行、組み込みは work 9＋lot 9＝18（文のとおり）。式は num_expr.rs と事例の表 tests/fixtures/num_expr_cases.json が既にある。評価関数 presets_parity の場面（範囲 3 つ × 書ける／書けない・★の付け替え・壊れた中身・すぐに見るの並べ替えと既定に戻す・組み込み）が文に書いてあるのは 6 案でこれだけ。『小数は float_repr』は (a) の落とし穴を言い当てている（py_dumps を直せば組み方の width・origin の 5e-05 が Python と同じ字になる）。悪い所・案の文の誤り: (1) 『書く型は master_rows（SPECS の pivot_presets・pivot_quick）』は足りない。(c) のとおり★の付け替えとすぐに見るのまとめは master_rows の create／update に無く、新しい書き方（preset_write・quick_set）が要るのに文に無い。(2) 減点の 2 つ（字の chartAt の大きな数・入れ子の str()）。(3) measures の dec は round()（偶数への丸め。probe で 2.5 → 2・3.5 → 4）。窓の aggregate::py_round(x, 0) は format! の丸め（偶数）なので合うが、文に無い（f64::round だと 3 になる）。(4) clean_quick は str.isdigit で選ぶ（probe で \"²\"・\"٣\" を残し、3.0 と True は落とす）。pynum_cases の表は int()・float()・\\d・hm の読み方で isdigit は無い（「²」は isdigit が真で \\d は偽）。(5) 本文が表でない・壊れた JSON の答え: probe で POST [1] は 400 AttributeError（英語）・POST {bad は 400 BadRequest（get_json(force=True) が silent でない）・PUT [1] は base_rev が道の外で TypeError（500）。前の段の型どおり任せられるが文に無い。(6) 窓の dashboard.rs の dims（:101）が _dims の写しなので、preset_rows と dashboard.rs で 2 つ目を作らず同じ物を使うこと。案に共通の土台の確かめ: (a) 『置く字は join::py_dumps で Python の json.dumps(ensure_ascii=False, sort_keys=True) と同じ』（measured・self_check）は、字の逃がし方・入れ子・鍵の並び・整数では正しく、小数では誤り。py_dumps（join.rs:354〜383）は字を自前で逃がし（\" \\\\ \\n \\r \\t \\b \\f と 0x20 未満を小文字の \\u00XX、U+2028・U+007F は逃がさない＝Python の ESCAPE と同じ）、鍵は String の sort（UTF-8 の並び＝符号位置の並び＝Python の sorted）、並びと表は再帰で同じ区切り。ところが数は Number の to_string（serde_json の書き方）で、pyfmt::float_repr を使っていない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/rs（Cargo.lock と同じ serde_json 1.0.151・float_roundtrip）で Python 3.13 の json.dumps が書いた 3,147 の小数を読み直して書くと 50 件が違う: 5e-05 → 0.00005・1.5e-05 → 0.000015000000000000002・1e-07 → 1e-7・5e-09 → 5e-9（1e-4 未満〜1e-9 の指数が 1 桁の所。1e+16・1e-10・5e-324・-0.0 は同じ）。i64 に入らない整数（1e+20 と書く）は master_rows::unreadable が任せるので問題にならない。本物の道（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/probe.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/w1）で、組み方の rows の width 0.00005 は中身の字に \"width\": 5e-05、ダッシュボードの書式 ymin \"1e-5\"（字）は _float で 1e-05 になって置かれる。窓が py_dumps のまま書くと中身の字が Python と割れる。(b) 字・入れ子・NaN: serde は NaN・Infinity・1e400・片割れの代用字を読まないので unreadable が任せる（正しい）。ただし unreadable は『字の中は見ない』ので、字で来た数（chartAt: \"99999999999999999999\" → Python は int() で桁のまま置く）と、並び・表の値の str()（part: [\"x\", 1.0] → \"['x', 1.0]\"、{\"b\":1,\"a\":2} → 送った順の \"{'b': 1, '\"。窓の lotlist::json_repr は serde の字の順で \"{'a': 2, \"）は判定の外。(c) 行の書き方: プリセット・ダッシュボード・セット・カード・外した組み込みの 5 つはどれも master_repository._preset_write（作るときは版 0 → 1・★標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外し、その行の版も上げて書いた人と時刻を付ける・1 回の書き込み）で書き、master_rows.rs の create／update（_create／_update の写し）には無い形。probe で y を★→ z を★にすると y は標準が外れて rev 2。すぐに見るは quick_set（同じ ID・元の重なった行を消して 1 行にまとめる・並びは json.dumps(keys, ensure_ascii=False)）。(d) 行の数: dashboard.py の保存の分は clean_fmt（:246〜324。窓に無い）・clean_panel の置き場と枠・sort・top・小計の印（窓の dashboard.rs:380 には無い）・clean_layout・with_builtin_replace・builtin_skip・builtin_layouts・セット・外した組み込みで約 400 行（measured の『約 200』は少ない）。"
+    },
+    "C カードの設計 4 本": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 4,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "card_forms.clean_body:126 の it.get('tab') in tab_ids（set）。probe で tabs [{id:a}] に項目の tab [\"a\"] を送ると 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}。窓が tab を字で比べれば先頭のタブに入れて 201 で書く。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "card_forms.clean_body の str(it.get('label'))・str(it.get('col'))・str(it.get('text'))・dates の str(c)・タブの str(t.get('name'))。並び・表が来ると Python は repr（表は送った順）で置き、窓の json_repr は字の順（P の 2 つ目と同じ形）。文に無い"
+      }
+     ],
+     "seen": "良い所: 中身の確かめは clean_body の約 120 行で閉じていて、数はみな _int（int() → 上下で挟む）なので小数が出ず、(a) の py_dumps の小数の食い違いに当たらない（6 案で唯一。確かめた）。_int は int(v)（小数は切り捨て・真偽は 1・0・字は前後の空白と Unicode の数字）で、窓の dashboard.rs:84 int_of と pyfmt::py_int（i64 で頭打ち → 上下で挟むので Python と同じ）がそのまま使える。悪い所・案の文の誤り: (1) カードの行はダッシュボード・セット・外した組み込みと同じマスタ dashboards（routes/dashboard.py:244。元が card: で始まる）に置く。窓がカードを、Python がダッシュボードを同じファイルへ書く形になる（masters_parity が同時に書いても消えないことを確かめているので危うさは小さいが、文に無い）。(2) 『行の形と権限は P と同じ preset_rows.rs』だが P を作らない版なので preset_rows は C が作る（★の付け替えの書き方〈(c)〉も）。文はそれを P に預けている。(3) 評価関数が文に無い。(4) source_ok の正規表現 card:(lotlist|worklog|src:[a-z0-9]{1,16}):[^\\x00-\\x1f]{0,120} と _ID の fullmatch は窓の regex で写せる。(5) 使う所は一覧のカードの設計を保存するときだけで、前へ進む量は小さい。案に共通の土台の確かめ: (a) 『置く字は join::py_dumps で Python の json.dumps(ensure_ascii=False, sort_keys=True) と同じ』（measured・self_check）は、字の逃がし方・入れ子・鍵の並び・整数では正しく、小数では誤り。py_dumps（join.rs:354〜383）は字を自前で逃がし（\" \\\\ \\n \\r \\t \\b \\f と 0x20 未満を小文字の \\u00XX、U+2028・U+007F は逃がさない＝Python の ESCAPE と同じ）、鍵は String の sort（UTF-8 の並び＝符号位置の並び＝Python の sorted）、並びと表は再帰で同じ区切り。ところが数は Number の to_string（serde_json の書き方）で、pyfmt::float_repr を使っていない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/rs（Cargo.lock と同じ serde_json 1.0.151・float_roundtrip）で Python 3.13 の json.dumps が書いた 3,147 の小数を読み直して書くと 50 件が違う: 5e-05 → 0.00005・1.5e-05 → 0.000015000000000000002・1e-07 → 1e-7・5e-09 → 5e-9（1e-4 未満〜1e-9 の指数が 1 桁の所。1e+16・1e-10・5e-324・-0.0 は同じ）。i64 に入らない整数（1e+20 と書く）は master_rows::unreadable が任せるので問題にならない。本物の道（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/probe.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/w1）で、組み方の rows の width 0.00005 は中身の字に \"width\": 5e-05、ダッシュボードの書式 ymin \"1e-5\"（字）は _float で 1e-05 になって置かれる。窓が py_dumps のまま書くと中身の字が Python と割れる。(b) 字・入れ子・NaN: serde は NaN・Infinity・1e400・片割れの代用字を読まないので unreadable が任せる（正しい）。ただし unreadable は『字の中は見ない』ので、字で来た数（chartAt: \"99999999999999999999\" → Python は int() で桁のまま置く）と、並び・表の値の str()（part: [\"x\", 1.0] → \"['x', 1.0]\"、{\"b\":1,\"a\":2} → 送った順の \"{'b': 1, '\"。窓の lotlist::json_repr は serde の字の順で \"{'a': 2, \"）は判定の外。(c) 行の書き方: プリセット・ダッシュボード・セット・カード・外した組み込みの 5 つはどれも master_repository._preset_write（作るときは版 0 → 1・★標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外し、その行の版も上げて書いた人と時刻を付ける・1 回の書き込み）で書き、master_rows.rs の create／update（_create／_update の写し）には無い形。probe で y を★→ z を★にすると y は標準が外れて rev 2。すぐに見るは quick_set（同じ ID・元の重なった行を消して 1 行にまとめる・並びは json.dumps(keys, ensure_ascii=False)）。(d) 行の数: dashboard.py の保存の分は clean_fmt（:246〜324。窓に無い）・clean_panel の置き場と枠・sort・top・小計の印（窓の dashboard.rs:380 には無い）・clean_layout・with_builtin_replace・builtin_skip・builtin_layouts・セット・外した組み込みで約 400 行（measured の『約 200』は少ない）。"
+    },
+    "PC 組み方のプリセットとカードの設計 9 本（行の型を 1 つに）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 8,
+      "place": 7,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "P の 1 つ目と同じ（字の chartAt \"99999999999999999999\" を Python は桁のまま置き、窓の py_int は i64 に丸める）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "P の 2 つ目と C の 2 つ目と同じ（本文の入れ子の値の str()。表の鍵の順で窓の json_repr と割れる）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "C の 1 つ目と同じ（項目の tab に並びが来ると Python は 400 TypeError、窓は書く）"
+      }
+     ],
+     "seen": "良い所: 行の形と権限（clean_row・view・can_edit・scope_of・visible・standard_for・_gate の言葉）が 4 組で 1 つなので、2 組で使うと preset_rows.rs が汎用かが試され、決まりが 1 か所になる（統一感は 6 案でいちばん）。書き方（_preset_write）もプリセットとカードで同じ物なので 1 つで済む。前へ進む量は 9 本。悪い所・案の文の誤り: (1) 1 版に 2 組の中身の確かめ（組み方の段・値・式・グラフと、カードの方眼・重なり・タブ・スタイル）と 2 つの置き場のファイル（pivot_presets と dashboards）で、前の段の採点で毎回下がった『1 版に話が多い』の形。(2) P と C の落とし穴をそのまま持ち、文に足した物が無い（減点の 3 つ）。(3) 評価関数は『型が汎用かを確かめる』だけで、何と何を突き合わせるかが文に無い。(4) カードの行はダッシュボードと同じファイルなので、PC を作るとダッシュボード（Python のまま）とカード（窓）が同じファイルの別の行を書く。案に共通の土台の確かめ: (a) 『置く字は join::py_dumps で Python の json.dumps(ensure_ascii=False, sort_keys=True) と同じ』（measured・self_check）は、字の逃がし方・入れ子・鍵の並び・整数では正しく、小数では誤り。py_dumps（join.rs:354〜383）は字を自前で逃がし（\" \\\\ \\n \\r \\t \\b \\f と 0x20 未満を小文字の \\u00XX、U+2028・U+007F は逃がさない＝Python の ESCAPE と同じ）、鍵は String の sort（UTF-8 の並び＝符号位置の並び＝Python の sorted）、並びと表は再帰で同じ区切り。ところが数は Number の to_string（serde_json の書き方）で、pyfmt::float_repr を使っていない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/rs（Cargo.lock と同じ serde_json 1.0.151・float_roundtrip）で Python 3.13 の json.dumps が書いた 3,147 の小数を読み直して書くと 50 件が違う: 5e-05 → 0.00005・1.5e-05 → 0.000015000000000000002・1e-07 → 1e-7・5e-09 → 5e-9（1e-4 未満〜1e-9 の指数が 1 桁の所。1e+16・1e-10・5e-324・-0.0 は同じ）。i64 に入らない整数（1e+20 と書く）は master_rows::unreadable が任せるので問題にならない。本物の道（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/probe.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/w1）で、組み方の rows の width 0.00005 は中身の字に \"width\": 5e-05、ダッシュボードの書式 ymin \"1e-5\"（字）は _float で 1e-05 になって置かれる。窓が py_dumps のまま書くと中身の字が Python と割れる。(b) 字・入れ子・NaN: serde は NaN・Infinity・1e400・片割れの代用字を読まないので unreadable が任せる（正しい）。ただし unreadable は『字の中は見ない』ので、字で来た数（chartAt: \"99999999999999999999\" → Python は int() で桁のまま置く）と、並び・表の値の str()（part: [\"x\", 1.0] → \"['x', 1.0]\"、{\"b\":1,\"a\":2} → 送った順の \"{'b': 1, '\"。窓の lotlist::json_repr は serde の字の順で \"{'a': 2, \"）は判定の外。(c) 行の書き方: プリセット・ダッシュボード・セット・カード・外した組み込みの 5 つはどれも master_repository._preset_write（作るときは版 0 → 1・★標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外し、その行の版も上げて書いた人と時刻を付ける・1 回の書き込み）で書き、master_rows.rs の create／update（_create／_update の写し）には無い形。probe で y を★→ z を★にすると y は標準が外れて rev 2。すぐに見るは quick_set（同じ ID・元の重なった行を消して 1 行にまとめる・並びは json.dumps(keys, ensure_ascii=False)）。(d) 行の数: dashboard.py の保存の分は clean_fmt（:246〜324。窓に無い）・clean_panel の置き場と枠・sort・top・小計の印（窓の dashboard.rs:380 には無い）・clean_layout・with_builtin_replace・builtin_skip・builtin_layouts・セット・外した組み込みで約 400 行（measured の『約 200』は少ない）。"
+    },
+    "D ダッシュボードとセット 9 本": {
+     "score": {
+      "order": 4,
+      "chunk": 3,
+      "hierarchy": 4,
+      "visual": 4,
+      "steps": 9,
+      "effortless": 3,
+      "intuitive": 4,
+      "form": 6,
+      "place": 6,
+      "layout": 3,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "(a) の py_dumps の小数。clean_fmt の ymin・ymax・target・refs の value は _float で字からも読む（\"1e-5\" → 1e-05）。probe で書式 ymin \"1e-5\"・target 0.00002・refs \"5e-9\" は中身に 1e-05・2e-05・5e-09 と置かれ、窓の py_dumps は 0.00001・0.00002・5e-9 と書く（serde_json 1.0.151 で確かめた）。案の文は書き手に触れていない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "clean_panel の title・_filters の value（str(f['value'])）・clean_ops の列名など、本文の入れ子の値の str()（並び・表は送った順の repr）。窓の json_repr は字の順。文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET /api/dashboards は各ダッシュボードの中身に with_legacy_conditions（routes/dashboard.py:93。版 3.36.0 のマスタ dashboard_settings の条件を前の版の 1 枚の表へ引き継ぐ）を当てる。案の文の写す物に無く、そのまま作ると前の版で保存した 1 枚の表の条件が窓の答えから消える"
+      }
+     ],
+     "seen": "良い所: 前へ進む量はいちばん多い（9 本）。clean_board・clean_link・clean_egroup・_data・clean_ops・abc_lims（aggregate::py_round で偶数の丸め）・period は問い合わせのために窓の dashboard.rs に写してあり、dash_parity が見張っている。問い合わせの clean_panel と保存の clean_panel を 1 つにするという狙いは、決まりを 1 か所にする方向で正しい。悪い所・案の文の誤り: (1) 『置き場の引数つきに広げる』は小さく言いすぎ。窓の clean_panel（dashboard.rs:380〜455）に無いのは x・y・w・h だけでなく、frame／emph・fmt（clean_fmt 約 80 行。_EXPR の正規表現・refs・colors・series・numUi・pcolors。窓に 1 行も無い）・noslice・legacy・body の sub／grand／chartAt／labels・sort・top。(2) 組み込み（BUILTIN_LAYOUTS と board_default）・builtin_named・with_builtin_replace（直すときに前の行の中身へ replaces を入れて書き直す）・builtin_skip（外した・入れ替えた・版 3.49.0 より前の同じ名前）・外した組み込みの道（PUT /api/dashboards-hidden は本文を道の外で get_json(force=True) で読むので、壊れた JSON は Flask の HTML の 400）まで 1 版。(3) 問い合わせの clean_panel を広げると、dash_parity・ops_parity の答えに効くので確かめる範囲が問い合わせの道全部へ広がる。(4) 評価関数が文に無い。(5) 書いた行はカード（Python のまま）と同じファイル。1 版に話が多い・決まりが 2 か所（今の dashboard.rs と保存の写し）になりやすい・Python と窓で割れる形を先に潰していない、の 3 つが前の段の落ちた理由そのまま。案に共通の土台の確かめ: (a) 『置く字は join::py_dumps で Python の json.dumps(ensure_ascii=False, sort_keys=True) と同じ』（measured・self_check）は、字の逃がし方・入れ子・鍵の並び・整数では正しく、小数では誤り。py_dumps（join.rs:354〜383）は字を自前で逃がし（\" \\\\ \\n \\r \\t \\b \\f と 0x20 未満を小文字の \\u00XX、U+2028・U+007F は逃がさない＝Python の ESCAPE と同じ）、鍵は String の sort（UTF-8 の並び＝符号位置の並び＝Python の sorted）、並びと表は再帰で同じ区切り。ところが数は Number の to_string（serde_json の書き方）で、pyfmt::float_repr を使っていない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/rs（Cargo.lock と同じ serde_json 1.0.151・float_roundtrip）で Python 3.13 の json.dumps が書いた 3,147 の小数を読み直して書くと 50 件が違う: 5e-05 → 0.00005・1.5e-05 → 0.000015000000000000002・1e-07 → 1e-7・5e-09 → 5e-9（1e-4 未満〜1e-9 の指数が 1 桁の所。1e+16・1e-10・5e-324・-0.0 は同じ）。i64 に入らない整数（1e+20 と書く）は master_rows::unreadable が任せるので問題にならない。本物の道（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/probe.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/w1）で、組み方の rows の width 0.00005 は中身の字に \"width\": 5e-05、ダッシュボードの書式 ymin \"1e-5\"（字）は _float で 1e-05 になって置かれる。窓が py_dumps のまま書くと中身の字が Python と割れる。(b) 字・入れ子・NaN: serde は NaN・Infinity・1e400・片割れの代用字を読まないので unreadable が任せる（正しい）。ただし unreadable は『字の中は見ない』ので、字で来た数（chartAt: \"99999999999999999999\" → Python は int() で桁のまま置く）と、並び・表の値の str()（part: [\"x\", 1.0] → \"['x', 1.0]\"、{\"b\":1,\"a\":2} → 送った順の \"{'b': 1, '\"。窓の lotlist::json_repr は serde の字の順で \"{'a': 2, \"）は判定の外。(c) 行の書き方: プリセット・ダッシュボード・セット・カード・外した組み込みの 5 つはどれも master_repository._preset_write（作るときは版 0 → 1・★標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外し、その行の版も上げて書いた人と時刻を付ける・1 回の書き込み）で書き、master_rows.rs の create／update（_create／_update の写し）には無い形。probe で y を★→ z を★にすると y は標準が外れて rev 2。すぐに見るは quick_set（同じ ID・元の重なった行を消して 1 行にまとめる・並びは json.dumps(keys, ensure_ascii=False)）。(d) 行の数: dashboard.py の保存の分は clean_fmt（:246〜324。窓に無い）・clean_panel の置き場と枠・sort・top・小計の印（窓の dashboard.rs:380 には無い）・clean_layout・with_builtin_replace・builtin_skip・builtin_layouts・セット・外した組み込みで約 400 行（measured の『約 200』は少ない）。"
+    },
+    "U 表示の初期設定 2 本": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 4,
+      "steps": 3,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 6 案でいちばん小さく閉じている（routes/system.py の 2 本・services/ui_defaults.py 61 行）。値はみな字（isinstance(v, str) だけ残す）なので、(a) の小数・(b) の字の中の数・入れ子の str() の落とし穴に当たらない。大きさの確かめは json.dumps(out, ensure_ascii=False)（sort_keys なし）の UTF-8 の長さで、長さは鍵の並びによらないので py_dumps の長さと同じになる（逃がし方が同じことを確かめた）。置く行は鍵で並べ替え（replace の sorted）で、窓の Map の順と合う。文の『開発者だけ・keys の字だけ・2 MB・replace は鍵を並べ替える』『本文は Content-Type によらず読む（force=True, silent=True）』は正しい。悪い所・案の文の誤り: (1) 前へ進む量が小さい（開発者が初期設定を押し上げるときと、一覧を開くときの GET だけ）。(2) Python の欠けを直していない: probe で PUT /api/ui-defaults の本文 \"abc\"（読めない）は silent で None → {} → keys {} と読み、200 count 0 で全員の初期設定を消す。{\"keys\": []}・0・false も同じく消す（or {}）。読めない本文を Python に任せると、窓もこの『消す』をそのまま通す。また切断された開発者の PC も置ける（ui_defaults_put は revoked を見ず、/api/ui-defaults は門番〈access.py の _GUARDED・access.rs:50〉の外）。(3) 本文 [1] は body.get が try の外で AttributeError（500）、{\"keys\": [1]} は 400 で kind の無い答え。写す形が文に無い。(4) 『PROFILE_KEYS は一覧の設定の答えで Python から渡す』は決まりを 1 か所に保つ良い考えだが、窓がまだその答えを持っていないときは Python に任せる、と書く要がある。(5) GET は ui_profile（読めなければ既定の見せ方で開く・defaults・updatedAt・updatedBy）と canPublish。置き場は共有か同梱の data/ui_defaults.json（master_store.rs の SHARED の並びに ui_defaults がある）。(6) 評価関数が文に無い。案に共通の土台の確かめ: (a) 『置く字は join::py_dumps で Python の json.dumps(ensure_ascii=False, sort_keys=True) と同じ』（measured・self_check）は、字の逃がし方・入れ子・鍵の並び・整数では正しく、小数では誤り。py_dumps（join.rs:354〜383）は字を自前で逃がし（\" \\\\ \\n \\r \\t \\b \\f と 0x20 未満を小文字の \\u00XX、U+2028・U+007F は逃がさない＝Python の ESCAPE と同じ）、鍵は String の sort（UTF-8 の並び＝符号位置の並び＝Python の sorted）、並びと表は再帰で同じ区切り。ところが数は Number の to_string（serde_json の書き方）で、pyfmt::float_repr を使っていない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/rs（Cargo.lock と同じ serde_json 1.0.151・float_roundtrip）で Python 3.13 の json.dumps が書いた 3,147 の小数を読み直して書くと 50 件が違う: 5e-05 → 0.00005・1.5e-05 → 0.000015000000000000002・1e-07 → 1e-7・5e-09 → 5e-9（1e-4 未満〜1e-9 の指数が 1 桁の所。1e+16・1e-10・5e-324・-0.0 は同じ）。i64 に入らない整数（1e+20 と書く）は master_rows::unreadable が任せるので問題にならない。本物の道（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/probe.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/w1）で、組み方の rows の width 0.00005 は中身の字に \"width\": 5e-05、ダッシュボードの書式 ymin \"1e-5\"（字）は _float で 1e-05 になって置かれる。窓が py_dumps のまま書くと中身の字が Python と割れる。(b) 字・入れ子・NaN: serde は NaN・Infinity・1e400・片割れの代用字を読まないので unreadable が任せる（正しい）。ただし unreadable は『字の中は見ない』ので、字で来た数（chartAt: \"99999999999999999999\" → Python は int() で桁のまま置く）と、並び・表の値の str()（part: [\"x\", 1.0] → \"['x', 1.0]\"、{\"b\":1,\"a\":2} → 送った順の \"{'b': 1, '\"。窓の lotlist::json_repr は serde の字の順で \"{'a': 2, \"）は判定の外。(c) 行の書き方: プリセット・ダッシュボード・セット・カード・外した組み込みの 5 つはどれも master_repository._preset_write（作るときは版 0 → 1・★標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外し、その行の版も上げて書いた人と時刻を付ける・1 回の書き込み）で書き、master_rows.rs の create／update（_create／_update の写し）には無い形。probe で y を★→ z を★にすると y は標準が外れて rev 2。すぐに見るは quick_set（同じ ID・元の重なった行を消して 1 行にまとめる・並びは json.dumps(keys, ensure_ascii=False)）。(d) 行の数: dashboard.py の保存の分は clean_fmt（:246〜324。窓に無い）・clean_panel の置き場と枠・sort・top・小計の印（窓の dashboard.rs:380 には無い）・clean_layout・with_builtin_replace・builtin_skip・builtin_layouts・セット・外した組み込みで約 400 行（measured の『約 200』は少ない）。"
+    },
+    "F 書式 4 本と順を保つ JSON の木": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "良い所: RUST_PORT_PLAN.md の 7 段目の続き（版 3.76.0）の最後の行『書く道の次の段は、順を保つ JSON の木と事例の表を先に作ってから、書式・プリセットを移す』のとおりの順で、計画との筋はいちばん良い。書式の道は窓の門番（access.rs:50 の GUARDED に /api/masters/formats）が既に見ている。measured の『書式だけ separators=(\",\",\":\") で送った順（窓の serde は字の順なので写せない）』は正しい（display_formats.py:59。中身は PARTS の部品の値を入れ子のまま置くので、奥まで順が要る）。Python と同じ字の書き手を作るなら、(a) の py_dumps の小数の食い違いもその書き手（float_repr）へ寄せて直せる。悪い所・案の文の誤り: (1) 文が 1 文で、前の段の J・J′ の指摘（木の読み手が NaN〈Python の json.loads は読み、json.dumps は NaN と書く〉・重なる鍵〈最初の位置に後の値〉・深さ〈5000 段を読み 20000 段で RecursionError〉を持つか任せるか・今ある 4 つの JSON の部品〈access.rs の py_json・join.rs の py_dumps・access_write.rs の Ordered・master_store.rs の read_json〉との関係・isinstance の型の端）に答えていない。(2) 書き手に float_repr を使うと書いていない（py_dumps が既に小数で割れていることが、この落とし穴が本物であることを示す）。(3) 評価関数は事例の表だけで、道の突き合わせ（formats_parity）が文に無い。(4) 書式の道の本文: formats_create／update は get_json(force=True) を master_call の外で読むので壊れた JSON は Flask の HTML の 400、PUT の [1] は base_rev の TypeError（500）。任せる形が文に無い。(5) 書式の一覧は parts_of・view の写しも要る（短い）。前の段で J 61.5・J′ 61.0 だった案と中身がほぼ同じで、指摘の直りが無い。案に共通の土台の確かめ: (a) 『置く字は join::py_dumps で Python の json.dumps(ensure_ascii=False, sort_keys=True) と同じ』（measured・self_check）は、字の逃がし方・入れ子・鍵の並び・整数では正しく、小数では誤り。py_dumps（join.rs:354〜383）は字を自前で逃がし（\" \\\\ \\n \\r \\t \\b \\f と 0x20 未満を小文字の \\u00XX、U+2028・U+007F は逃がさない＝Python の ESCAPE と同じ）、鍵は String の sort（UTF-8 の並び＝符号位置の並び＝Python の sorted）、並びと表は再帰で同じ区切り。ところが数は Number の to_string（serde_json の書き方）で、pyfmt::float_repr を使っていない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/rs（Cargo.lock と同じ serde_json 1.0.151・float_roundtrip）で Python 3.13 の json.dumps が書いた 3,147 の小数を読み直して書くと 50 件が違う: 5e-05 → 0.00005・1.5e-05 → 0.000015000000000000002・1e-07 → 1e-7・5e-09 → 5e-9（1e-4 未満〜1e-9 の指数が 1 桁の所。1e+16・1e-10・5e-324・-0.0 は同じ）。i64 に入らない整数（1e+20 と書く）は master_rows::unreadable が任せるので問題にならない。本物の道（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/probe.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves1/w1）で、組み方の rows の width 0.00005 は中身の字に \"width\": 5e-05、ダッシュボードの書式 ymin \"1e-5\"（字）は _float で 1e-05 になって置かれる。窓が py_dumps のまま書くと中身の字が Python と割れる。(b) 字・入れ子・NaN: serde は NaN・Infinity・1e400・片割れの代用字を読まないので unreadable が任せる（正しい）。ただし unreadable は『字の中は見ない』ので、字で来た数（chartAt: \"99999999999999999999\" → Python は int() で桁のまま置く）と、並び・表の値の str()（part: [\"x\", 1.0] → \"['x', 1.0]\"、{\"b\":1,\"a\":2} → 送った順の \"{'b': 1, '\"。窓の lotlist::json_repr は serde の字の順で \"{'a': 2, \"）は判定の外。(c) 行の書き方: プリセット・ダッシュボード・セット・カード・外した組み込みの 5 つはどれも master_repository._preset_write（作るときは版 0 → 1・★標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外し、その行の版も上げて書いた人と時刻を付ける・1 回の書き込み）で書き、master_rows.rs の create／update（_create／_update の写し）には無い形。probe で y を★→ z を★にすると y は標準が外れて rev 2。すぐに見るは quick_set（同じ ID・元の重なった行を消して 1 行にまとめる・並びは json.dumps(keys, ensure_ascii=False)）。(d) 行の数: dashboard.py の保存の分は clean_fmt（:246〜324。窓に無い）・clean_panel の置き場と枠・sort・top・小計の印（窓の dashboard.rs:380 には無い）・clean_layout・with_builtin_replace・builtin_skip・builtin_layouts・セット・外した組み込みで約 400 行（measured の『約 200』は少ない）。"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は各案の seen）",
+   "self_check": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘（py_dumps が小数を float_repr で書かない・字の中の大きな数と入れ子の str()・_preset_write の★の付け替えと quick_set のまとめ・カードの行は dashboards に混ざる・ダッシュボードの保存の分は約 400 行と clean_fmt・with_legacy_conditions・U の Python の欠け〈読めない本文で消す・切断中でも置ける〉）を読み直した。routes/dashboard.py のセットの 4 本（_who・_gate・_old_set・set_view）と master_repository._preset_write、routes/system.py の ui_defaults_get／put を読んで確かめた。新しい案は S・J″・SU の 3 つ（U を U′、P を P′ に直して持ち越す。C・PC・D・F は外した）。方向は 数の無い小さな組 S・Python の欠けを直す U′・1 回目の 2 位を正す P′・土台だけ J″・小さな 2 組 SU で偏っていない。",
+   "proposals": {
+    "S ダッシュボードのセット 4 本（新）": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "clean_row の `scope not in SCOPES`（pivot_presets.py）。probe（p3.py）で POST /api/dashboard-sets の scope [\"me\"] は 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}・{\"a\": 1} は 'dict'。str()・int() を通らないので案の (2) の任せる判定の外で、窓は『置き場（all か me）が違います。』と答えて言葉が割れる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "clean_set_body の json.loads（字で来た body と、GET の set_view が読む置き場の中身の字）。probe で body '{\"items\": [\"1\", NaN]}' は 201・[\"1\"]、'{\"items\": [-0, 1.0, true, 5, 12345678901]}' は [\"0\", \"5\"]。serde は前者を読めず 400、後者の -0 を -0.0 と読んで落とす。master_rows::unreadable は字の中を見ないので、案の文のとおりでは割れる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "_SET_ITEM の \\d{1,9}（services/dashboard.py:704）。窓の regex 1.13.1（Cargo.lock）の \\d は 760 字、Python 3.13 の \\d は 680 字（rs/examples/dig.rs で全部の符号位置を比べた。窓だけが当たるのは Unicode 16 の 80 字〈U+10D40 ガライの数字など〉）。Python は \"١٢\" を残す（probe）。pyfmt::digit（68 系統の表）で写すと文に無く、regex の \\d で写すと割れる"
+      }
+     ],
+     "seen": "良い所: 1 回目の指摘のうち、★の付け替え（_preset_write: 作る行は版 0 から・同じ組〈元・範囲・持ち主〉のほかの★を外して版を上げる・1 回の書き込み）を master_rows に足すこと、セットの行がダッシュボード・カード・外した組み込みと同じマスタ dashboards に混ざること、評価関数（sets_parity の場面と本物の道の試験）が文に入った。数え: セットの道は routes/dashboard.py:180〜237 の 4 本・services/dashboard.py:696〜736 の約 40 行で小さく閉じている。中身は鍵 1 つの表なので sort_keys の有無で字は変わらず（『鍵 1 つ』は正しい）、items の値は str() の後に正規表現で選ぶので、並び・表・小数・真偽はどう書いても Python・窓とも落ちる（入れ子の str() の順の割れは items では出ない。probe で [\"1\"]・5.0・true は落ち 5 は \"5\"）。行の形と権限（visible・can_edit・scope_of・standard_for・SCOPE_ORDER）を preset_rows.rs に写し、次の版でプリセット・ダッシュボードが同じ物を使う筋は統一感の点で良い。probe で確かめた写す形: 同じ名前は大文字小文字と後ろの空白を見ない（_key）で 409 の言葉は『ダッシュボード「S1」はもうあります』（セットでも『ダッシュボード』）・名前 12 → \"12\"・1e16 → \"1e+16\"・\"\\x1cs10\\x1f\" → \"s10\"（窓の pyfmt::strip で足りる）・standard [0] は真で★・無い id の PUT は 400 LayoutError（404 ではない）・無い id の DELETE は 200 ok・版違いの DELETE は 409。悪い所・案の文の誤り: (1) 共通の土台 (1) の小数の書き手は、数の無いセットでは何も効かない（次の版のための物）ので、この版の主な狙いが 2 つに割れる。(2) 前へ進む量が小さい（よく通るのはダッシュボードを開くときの GET だけ）。(3) 減点の 3 つ（scope の並び・字の中身の json.loads・\\d の表）。案に共通の土台の確かめ（2 回目）: (1) py_dumps の小数を float_repr にする: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves2/rs（1 回目の crate の写し。serde_json 1.0.151・float_roundtrip・debug で組んだ）で、Python 3.13 の json.dumps が書いた 45,194 の字（10 の -330〜309 乗 × 5 つの仮数・乱数のビット 30,000・一様な乱数 10,000・制御字と U+2028 と日本語の鍵の入れ子 2,000）を読み直して書くと、今の py_dumps は 6,179 件、float_repr にした写しは 16 件が違う。16 件のうち 11 件は Infinity（serde が読めない＝unreadable が任せるので良い）、残る 5 件は丁度まん中の値: 1059438285926254.2（本当の値は …254.25）を Python は偶数へ丸めて『…254.2』、float_repr は『…254.3』と書く（26363981746409.312 → .313 も同じ）。Rust の {:e} のいちばん短い字は丁度まん中を上へ丸め、Python の repr は偶数へ丸める。2^50〜2^53 に .125・.25・.5・.75 を足した 2,000 の値では 61 件が割れた。本物の道（p4.py）でも組み方の width 1059438285926254.25 は中身に 1059438285926254.2 と置かれる。float_repr は前からの物で、ほかの py_str にも同じ穴がある。案の事例の表（小数 3,000 余り＝10 の冪と乱数のビット）では当たる見込みが 1 件に満たないので、丁度まん中の値をわざと入れ、float_repr を直す要がある。ほかの使い所: 結合の hash の spec は Join::json（with・how・on・cols）と道の字だけ、画面の設定の控えの大きさは load と足す所が v.is_string() で字だけを残すので、どちらも数が入らず字は変わらない（壊れない。『効くので』は言いすぎで、流すのは念のための確かめ）。(2) 任せる判定: 『str() を通る所・int() で読む所』だけでは足りない。scope に並び・表を送ると Python は `scope not in SCOPES` で 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}（セット・組み方とも。probe で確かめた）で、str() も int() も通らない。また中身を JSON の字で送る形と、置き場の行の中身の字は json.loads で読むので NaN・Infinity・整数の -0 を読む（unreadable は字の中を見ない）: セットの body '{\"items\": [\"1\", NaN]}' は 201 で [\"1\"]、'{\"items\": [-0, 1.0, true, 5, 12345678901]}' は [\"0\", \"5\"] と置かれる（serde は前者を読めず、後者の -0 を -0.0 と読む）。(3) ★の付け替え: probe で s2★ の後に s3★ を作ると s2 は標準が外れて rev 2（文のとおり。作る行は版 0 → 1）。ただし Python は『書いた後の行が★なら』外すので、★の行の名前を直しただけでも同じ組のほかの★を外す（手で直して★が 2 つある置き場）。『標準にしたら』と読むと割れる。"
+    },
+    "U′ 表示の初期設定 2 本（Python の欠けを先に）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 3,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "U′ の『読めない本文・keys が表でない本文は 400』。1 回目の U にあった『読めない本文は master_rows::unreadable で Python に任せる』が文から落ちた。probe（p4.py）で本文 {\"keys\": {\"tpa.lotlist.rules.v1\": \"x\"}, \"z\": NaN} は Python が読んで 200・count 1 で置く。窓が serde で読めない物を『読めない本文』として 400 にすると割れる（Python の読めない＝get_json が None と、窓の読めない＝serde が読めない、は別の物）"
+      }
+     ],
+     "seen": "良い所: 1 回目の指摘（Python の欠け: 読めない本文・{\"keys\": []}・0・false を {} と読んで全員の初期設定を消す・切断中でも置ける）を先に直す、と文に入れた。前の段（版 3.75.0・3.77.0）で効いた『Python の欠けを先に直してから写す』の筋。評価関数 ui_defaults_parity の場面（読めない本文・表でない keys・知らない名前・2 MB の境・開発者でない・切断中・外す）も書いてある。値はみな字なので小数・字の中の数・入れ子の str() の落とし穴に当たらず、2 MB の確かめは json.dumps(out, ensure_ascii=False)（鍵の順を並べない）の長さで、長さは鍵の順によらないので py_dumps の長さと同じ（文の『join::py_dumps と同じ区切り』は正しい）。悪い所・案の文の誤り: (1) 『access の _GUARDED に足すか route で revoked を見る』の『か』は同じではない。門番は切断のほかに masterEdit を見る（access.master_edit_can）。開発者の masterEdit は保存した段を区分の上限で抑えた物（master_edit_effective）なので、保存した段が低い開発者は今は置けるのに、門番に足すと『マスタを書き換えられません』で断られる。route で revoked だけを見るのが今の決まりを変えない形。(2) 本文 [1] は今 body.get が try の外の AttributeError（試験の client では例外が抜ける＝500）で、直す並びに無い（『keys が表でない』だけ）。(3) 1 回目の (4)『窓が PROFILE_KEYS をまだ持っていないときは Python に任せる』と (5)『置き場が読めなければ既定の見せ方（defaults {}）』は文に無いまま。(4) 共通の土台 (1)(2) は値が字だけのこの組には効かず、版の主な狙いが割れる。(5) 前へ進む量はいちばん小さい組の 1 つ（開発者が押し上げるときと、一覧を開くときの GET）。案に共通の土台の確かめ（2 回目）: (1) py_dumps の小数を float_repr にする: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves2/rs（1 回目の crate の写し。serde_json 1.0.151・float_roundtrip・debug で組んだ）で、Python 3.13 の json.dumps が書いた 45,194 の字（10 の -330〜309 乗 × 5 つの仮数・乱数のビット 30,000・一様な乱数 10,000・制御字と U+2028 と日本語の鍵の入れ子 2,000）を読み直して書くと、今の py_dumps は 6,179 件、float_repr にした写しは 16 件が違う。16 件のうち 11 件は Infinity（serde が読めない＝unreadable が任せるので良い）、残る 5 件は丁度まん中の値: 1059438285926254.2（本当の値は …254.25）を Python は偶数へ丸めて『…254.2』、float_repr は『…254.3』と書く（26363981746409.312 → .313 も同じ）。Rust の {:e} のいちばん短い字は丁度まん中を上へ丸め、Python の repr は偶数へ丸める。2^50〜2^53 に .125・.25・.5・.75 を足した 2,000 の値では 61 件が割れた。本物の道（p4.py）でも組み方の width 1059438285926254.25 は中身に 1059438285926254.2 と置かれる。float_repr は前からの物で、ほかの py_str にも同じ穴がある。案の事例の表（小数 3,000 余り＝10 の冪と乱数のビット）では当たる見込みが 1 件に満たないので、丁度まん中の値をわざと入れ、float_repr を直す要がある。ほかの使い所: 結合の hash の spec は Join::json（with・how・on・cols）と道の字だけ、画面の設定の控えの大きさは load と足す所が v.is_string() で字だけを残すので、どちらも数が入らず字は変わらない（壊れない。『効くので』は言いすぎで、流すのは念のための確かめ）。(2) 任せる判定: 『str() を通る所・int() で読む所』だけでは足りない。scope に並び・表を送ると Python は `scope not in SCOPES` で 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}（セット・組み方とも。probe で確かめた）で、str() も int() も通らない。また中身を JSON の字で送る形と、置き場の行の中身の字は json.loads で読むので NaN・Infinity・整数の -0 を読む（unreadable は字の中を見ない）: セットの body '{\"items\": [\"1\", NaN]}' は 201 で [\"1\"]、'{\"items\": [-0, 1.0, true, 5, 12345678901]}' は [\"0\", \"5\"] と置かれる（serde は前者を読めず、後者の -0 を -0.0 と読む）。(3) ★の付け替え: probe で s2★ の後に s3★ を作ると s2 は標準が外れて rev 2（文のとおり。作る行は版 0 → 1）。ただし Python は『書いた後の行が★なら』外すので、★の行の名前を直しただけでも同じ組のほかの★を外す（手で直して★が 2 つある置き場）。『標準にしたら』と読むと割れる。"
+    },
+    "P′ 組み方のプリセット 5 本（1 回目の指摘を先に）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "共通の土台 (1) の float_repr の丁度まん中の値。probe（p4.py）で POST /api/pivot-presets の rows の width 1059438285926254.25 は中身に 1059438285926254.2 と置かれ、窓の float_repr は 1059438285926254.3 と書く（rs/examples/tie.rs で確かめた）。案の事例の表では当たらない見込みが高い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "clean_row の `scope not in SCOPES`。probe で scope [\"me\"] は 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}。(2) の任せる判定（str()・int()）の外"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "clean_body の json.loads（字で来た body・置き場の中身）。probe で body '{\"rows\":[{\"column\":\"a\",\"width\":NaN}],…}' は 201 で中身に \"width\": NaN と置き、GET の答えにも NaN が出る（画面の JSON.parse は読めない＝その元の組み方の一覧ごと開けない。Python の欠け）。dec Infinity は 400 {\"error\": \"cannot convert float infinity to integer\", \"type\": \"OverflowError\"}。serde は字の中の NaN・Infinity を読めず、unreadable は字の中を見ないので、窓は 400『中身の形が違います』と答えて割れる"
+      }
+     ],
+     "seen": "良い所: 1 回目の P の指摘のうち、★の付け替えとすぐに見るのまとめ（quick_set: 重なった行を 1 行に）を書き方に足すこと、字の chartAt の大きな数と入れ子の str() を任せること、isdigit の「²」、小数の書き手を直すこと、評価関数の場面（範囲・★・切断中・壊れた中身・小数の width・字の chartAt・すぐに見る・組み込み）が文に入り、1 回目の 2 つの減点は直った。前へ進む量も集計表を開くたびの GET を含み多め。悪い所・案の文の誤り: (1) 『isdigit の「²」も写す』は正しいが、窓の pyfmt::DIGITS は 10 進の数字（\\d・int()）の 68 系統の表で、str.isdigit（「²」「①」など Numeric_Type=Digit も真）の表は無い。新しい表を pynum_cases の事例へ足す、と書く要がある。(2) 字で来た中身の NaN は Python の欠けでもあり（GET の答えが JSON でなくなる）、P′ の『先に直す』の並びに入れるべき物。(3) measures の dec の round() は偶数への丸め（1 回目の (3)。aggregate::py_round を使えば合う）が文に無いまま。(4) 1 版に 5 本・組み込み 18・default_quick・共通の土台 3 つで、前の段で毎回下がった『1 版に話が多い』の形。(5) 減点の 3 つ。案に共通の土台の確かめ（2 回目）: (1) py_dumps の小数を float_repr にする: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves2/rs（1 回目の crate の写し。serde_json 1.0.151・float_roundtrip・debug で組んだ）で、Python 3.13 の json.dumps が書いた 45,194 の字（10 の -330〜309 乗 × 5 つの仮数・乱数のビット 30,000・一様な乱数 10,000・制御字と U+2028 と日本語の鍵の入れ子 2,000）を読み直して書くと、今の py_dumps は 6,179 件、float_repr にした写しは 16 件が違う。16 件のうち 11 件は Infinity（serde が読めない＝unreadable が任せるので良い）、残る 5 件は丁度まん中の値: 1059438285926254.2（本当の値は …254.25）を Python は偶数へ丸めて『…254.2』、float_repr は『…254.3』と書く（26363981746409.312 → .313 も同じ）。Rust の {:e} のいちばん短い字は丁度まん中を上へ丸め、Python の repr は偶数へ丸める。2^50〜2^53 に .125・.25・.5・.75 を足した 2,000 の値では 61 件が割れた。本物の道（p4.py）でも組み方の width 1059438285926254.25 は中身に 1059438285926254.2 と置かれる。float_repr は前からの物で、ほかの py_str にも同じ穴がある。案の事例の表（小数 3,000 余り＝10 の冪と乱数のビット）では当たる見込みが 1 件に満たないので、丁度まん中の値をわざと入れ、float_repr を直す要がある。ほかの使い所: 結合の hash の spec は Join::json（with・how・on・cols）と道の字だけ、画面の設定の控えの大きさは load と足す所が v.is_string() で字だけを残すので、どちらも数が入らず字は変わらない（壊れない。『効くので』は言いすぎで、流すのは念のための確かめ）。(2) 任せる判定: 『str() を通る所・int() で読む所』だけでは足りない。scope に並び・表を送ると Python は `scope not in SCOPES` で 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}（セット・組み方とも。probe で確かめた）で、str() も int() も通らない。また中身を JSON の字で送る形と、置き場の行の中身の字は json.loads で読むので NaN・Infinity・整数の -0 を読む（unreadable は字の中を見ない）: セットの body '{\"items\": [\"1\", NaN]}' は 201 で [\"1\"]、'{\"items\": [-0, 1.0, true, 5, 12345678901]}' は [\"0\", \"5\"] と置かれる（serde は前者を読めず、後者の -0 を -0.0 と読む）。(3) ★の付け替え: probe で s2★ の後に s3★ を作ると s2 は標準が外れて rev 2（文のとおり。作る行は版 0 → 1）。ただし Python は『書いた後の行が★なら』外すので、★の行の名前を直しただけでも同じ組のほかの★を外す（手で直して★が 2 つある置き場）。『標準にしたら』と読むと割れる。"
+    },
+    "J″ 置く字と書き方の土台だけ（道 0 本・新）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 2,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "この案の出す物そのもの（py_dumps の小数を float_repr で）。丁度まん中の値で Python と割れる（1059438285926254.25 → Python『…254.2』・float_repr『…254.3』。2^50〜2^53 の 2,000 の値で 61 件）。案の事例の表『小数 3,000 余り（10 の冪と乱数のビット）』ではほぼ当たらず、表が通っても字が割れる"
+      }
+     ],
+     "seen": "良い所: RUST_PORT_PLAN.md の版 3.76.0 の最後の行『書く道の次の段は、順を保つ JSON の木と事例の表を先に作ってから』と同じく、土台を先に作る筋。1 回目の (a)（py_dumps の小数）・(b)（字の中の数・入れ子の str()）・(c)（★の付け替え）に 1 つずつ答え、決まりが 1 か所（join::py_dumps・master_rows）に集まる。事例の表の焼き方（tools/pydumps-cases.py・Python 3.13）と cargo test --test pydumps_cases が書いてある。ほかの使い所（結合の hash・画面の設定の控え）は数が入らないので字が変わらず、壊れない（確かめた）。悪い所・案の文の誤り: (1) 道が 1 本も進まない（前の段の D′ と同じく、ステップ数がいちばん低い）。(2) (3) の★の付け替えは、使う道が無い版に入るので、何と突き合わせて確かめるかが文に無い（MasterRepository._preset_write を直に呼ぶ事例の表など）。(3) (2) の任せる判定が『str()・int()』だけで、scope の並び（unhashable）と字で来た中身の json.loads（NaN・-0）が入っていない。この版では道が無いので割れないが、次の版の土台としては足りない。(4) 減点の 1 つ（丁度まん中の値）。案に共通の土台の確かめ（2 回目）: (1) py_dumps の小数を float_repr にする: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves2/rs（1 回目の crate の写し。serde_json 1.0.151・float_roundtrip・debug で組んだ）で、Python 3.13 の json.dumps が書いた 45,194 の字（10 の -330〜309 乗 × 5 つの仮数・乱数のビット 30,000・一様な乱数 10,000・制御字と U+2028 と日本語の鍵の入れ子 2,000）を読み直して書くと、今の py_dumps は 6,179 件、float_repr にした写しは 16 件が違う。16 件のうち 11 件は Infinity（serde が読めない＝unreadable が任せるので良い）、残る 5 件は丁度まん中の値: 1059438285926254.2（本当の値は …254.25）を Python は偶数へ丸めて『…254.2』、float_repr は『…254.3』と書く（26363981746409.312 → .313 も同じ）。Rust の {:e} のいちばん短い字は丁度まん中を上へ丸め、Python の repr は偶数へ丸める。2^50〜2^53 に .125・.25・.5・.75 を足した 2,000 の値では 61 件が割れた。本物の道（p4.py）でも組み方の width 1059438285926254.25 は中身に 1059438285926254.2 と置かれる。float_repr は前からの物で、ほかの py_str にも同じ穴がある。案の事例の表（小数 3,000 余り＝10 の冪と乱数のビット）では当たる見込みが 1 件に満たないので、丁度まん中の値をわざと入れ、float_repr を直す要がある。ほかの使い所: 結合の hash の spec は Join::json（with・how・on・cols）と道の字だけ、画面の設定の控えの大きさは load と足す所が v.is_string() で字だけを残すので、どちらも数が入らず字は変わらない（壊れない。『効くので』は言いすぎで、流すのは念のための確かめ）。(2) 任せる判定: 『str() を通る所・int() で読む所』だけでは足りない。scope に並び・表を送ると Python は `scope not in SCOPES` で 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}（セット・組み方とも。probe で確かめた）で、str() も int() も通らない。また中身を JSON の字で送る形と、置き場の行の中身の字は json.loads で読むので NaN・Infinity・整数の -0 を読む（unreadable は字の中を見ない）: セットの body '{\"items\": [\"1\", NaN]}' は 201 で [\"1\"]、'{\"items\": [-0, 1.0, true, 5, 12345678901]}' は [\"0\", \"5\"] と置かれる（serde は前者を読めず、後者の -0 を -0.0 と読む）。(3) ★の付け替え: probe で s2★ の後に s3★ を作ると s2 は標準が外れて rev 2（文のとおり。作る行は版 0 → 1）。ただし Python は『書いた後の行が★なら』外すので、★の行の名前を直しただけでも同じ組のほかの★を外す（手で直して★が 2 つある置き場）。『標準にしたら』と読むと割れる。"
+    },
+    "SU セットと表示の初期設定 6 本（新）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 8,
+      "place": 7,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "S の 1 つ目と同じ（セットの scope の並び・表で Python は 400 TypeError『unhashable type』、窓は『置き場が違います』）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "S の 2 つ目と同じ（字で来たセットの中身の NaN・-0 を Python の json.loads は読み、serde は読めない・-0.0 と読む）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "S の 3 つ目と同じ（_SET_ITEM の \\d。窓の regex の \\d は Python 3.13 より 80 字多い）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "U′ の 1 つ目と同じ（読めない本文を 400 にするとき、serde が読めず Python が読む NaN の本文〈Python は 200 で置く〉を窓が 400 にする）"
+      }
+     ],
+     "seen": "良い所: どちらも中身に数が無く、置く字の小数の割れに当たらない 2 組を 1 版にする狙いは筋が通り、前へ進む量は 6 本（2 回目の案で 2 番目）。行の形と権限の preset_rows.rs と★の付け替えを S で作り、U′ は master_rows の判定だけを使う。悪い所・案の文の誤り: (1) 文は『S と U′ を 1 版にする』と土台の 3 つだけで、評価関数（sets_parity・ui_defaults_parity）や U′ の Python の直しを含むかが文から読み取れない（S・U′ の文を見に行かせる）。(2) 1 版に Python の直し・2 組・共通の土台 3 つで、前の段で毎回下がった『1 版に話が多い』の形。2 組は置き場も権限も別（dashboards と ui_defaults、範囲ごとの権限と開発者だけ）で、まとめても型は共有されない。(3) S と U′ の落とし穴をそのまま持つ（減点の 4 つ）。案に共通の土台の確かめ（2 回目）: (1) py_dumps の小数を float_repr にする: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves2/rs（1 回目の crate の写し。serde_json 1.0.151・float_roundtrip・debug で組んだ）で、Python 3.13 の json.dumps が書いた 45,194 の字（10 の -330〜309 乗 × 5 つの仮数・乱数のビット 30,000・一様な乱数 10,000・制御字と U+2028 と日本語の鍵の入れ子 2,000）を読み直して書くと、今の py_dumps は 6,179 件、float_repr にした写しは 16 件が違う。16 件のうち 11 件は Infinity（serde が読めない＝unreadable が任せるので良い）、残る 5 件は丁度まん中の値: 1059438285926254.2（本当の値は …254.25）を Python は偶数へ丸めて『…254.2』、float_repr は『…254.3』と書く（26363981746409.312 → .313 も同じ）。Rust の {:e} のいちばん短い字は丁度まん中を上へ丸め、Python の repr は偶数へ丸める。2^50〜2^53 に .125・.25・.5・.75 を足した 2,000 の値では 61 件が割れた。本物の道（p4.py）でも組み方の width 1059438285926254.25 は中身に 1059438285926254.2 と置かれる。float_repr は前からの物で、ほかの py_str にも同じ穴がある。案の事例の表（小数 3,000 余り＝10 の冪と乱数のビット）では当たる見込みが 1 件に満たないので、丁度まん中の値をわざと入れ、float_repr を直す要がある。ほかの使い所: 結合の hash の spec は Join::json（with・how・on・cols）と道の字だけ、画面の設定の控えの大きさは load と足す所が v.is_string() で字だけを残すので、どちらも数が入らず字は変わらない（壊れない。『効くので』は言いすぎで、流すのは念のための確かめ）。(2) 任せる判定: 『str() を通る所・int() で読む所』だけでは足りない。scope に並び・表を送ると Python は `scope not in SCOPES` で 400 {\"error\": \"unhashable type: 'list'\", \"type\": \"TypeError\"}（セット・組み方とも。probe で確かめた）で、str() も int() も通らない。また中身を JSON の字で送る形と、置き場の行の中身の字は json.loads で読むので NaN・Infinity・整数の -0 を読む（unreadable は字の中を見ない）: セットの body '{\"items\": [\"1\", NaN]}' は 201 で [\"1\"]、'{\"items\": [-0, 1.0, true, 5, 12345678901]}' は [\"0\", \"5\"] と置かれる（serde は前者を読めず、後者の -0 を -0.0 と読む）。(3) ★の付け替え: probe で s2★ の後に s3★ を作ると s2 は標準が外れて rev 2（文のとおり。作る行は版 0 → 1）。ただし Python は『書いた後の行が★なら』外すので、★の行の名前を直しただけでも同じ組のほかの★を外す（手で直して★が 2 つある置き場）。『標準にしたら』と読むと割れる。"
+    }
+   }
+  },
+  {
+   "name": "3 回目",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は各案の seen）",
+   "self_check": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（float_repr の丁度まん中の値・scope の並び・表で TypeError・字の中身の NaN・-0・\\d が regex 1.13 で 80 字多い・U′ で落ちた unreadable・門番と route の違い・PROFILE_KEYS が無い形・「書いた後の行が★なら」・数の無い組に小数の直しを抱き合わせると狙いが割れる・道 0 本はステップ数が伸びない）を読み直した。routes/presets.py の quick_put と master_repository.quick_set、routes/system.py の ui_defaults_put、routes/dashboard.py のセットの 4 本を読んで確かめた。新しい案は F1・UQ・SQ の 3 つ（U′ を U″、S を S′、P′ を P″ に直して持ち越す。J″・SU は外した）。方向は 欠けの直しだけ F1・小さく閉じた U″・数の無い組 S′・ID ごとの小さな書き込み 2 組 UQ・id の並びの 2 組 SQ・数のある組に小数の直しを合わせる P″ で偏っていない。",
+   "proposals": {
+    "F1 小数の書き手の直しと事例の表（道 0 本・新）": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 2,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目の指摘（float_repr の丁度まん中の値・事例の表がそこに当たらない）に正しく答えた。直しは本当にできる: 小数の書き手の確かめ（3 回目）: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves3/rs/examples/tie3.rs（2 回目の crate の写し・debug）に、pyfmt::float_repr の今の写し（fr_orig.rs）と、いちばん短い字の最後の桁が奇数のとき本当の値の字（{:.800e}）が『1 つ下の字＋5』と同じなら 1 つ下（偶数）を選ぶ直しを書き、gen.py（Python 3.13 の repr）の 83,193 の値（2^48〜2^57 に .125〜.875 を足した 20,000・乱数のビット 20,000・10 の -330〜308 乗・大きな整数と一様な乱数 40,000）で突き合わせた: 今の float_repr は 608 件、直した物は 0 件が違う。割れる値は大きさ 1e11〜1e16 の所だけ（log10 で 11:1・12:2・13:8・14:236・15:361）。直しは 15 行ほどで、Rust の {:e} が丁度まん中を上へ丸め、Python の repr（dtoa の mode 0）が偶数へ丸めるのが食い違いのすべて（ほかの割れは 0 件）。float_repr の使い所は pyfmt の Py::Float（一覧の str()）・lotlist.rs:342・pivot.rs:116（集計の札）・num_expr.rs:105・join.rs:90（結合の鍵の REAL）・worksum.rs:181（設備・勤務体系の py_str）で、どれも Python と同じ字に寄るだけ（pyfmt.rs の floats_like_python_repr の 12 件に丁度まん中の値は無く、既存の試験は変わらない）。 事例の表に 2^50〜2^53 の .125・.25・.5・.75 を入れ、直す前に割れる数を記録する、は割れを数で見せる良い評価関数。決まりが pyfmt の 1 か所に集まり、版の狙いが 1 つ。悪い所・案の文の誤り: (1) 道が 1 本も進まない（ステップ数はいちばん低い。保存の段の 3 回目で、段は前へ進まない）。(2)『いまの窓の答え全部に効く欠け』は言いすぎ: 割れるのは 1e11〜1e16 の大きさで、2 進の短い小数（.5・.25 など）を持つ値だけ。工場のデータ（重さ・長さ・本数）ではまず出ず、使う人に見える得はほとんど無い。(3) join::py_dumps を float_repr にするのは、今の使い所（結合の hash の spec・画面の設定の控えの大きさ）に数が入らないので、この版では何も変わらない（次の版のための物）。(4) RUST_PORT_PLAN.md の版 3.76.0 の『順を保つ JSON の木と事例の表を先に』の木には触れない。減点は無い。"
+    },
+    "U″ 表示の初期設定 2 本（2 回目の指摘を先に）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 3,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: 2 回目の指摘 4 つがみな直った。(a) 読めない本文を 2 つに分けた: Python の get_json(force=True, silent=True) が None にする物（空・null・{bad）は Python も 400、serde だけが読めない物（NaN など）は Python に任せる。(b) 切断中は route で revoked を見る（門番は masterEdit も見るので使わない、は正しい）。(c) [1] の本文は 400。(d) PROFILE_KEYS が一覧の設定の答えに無ければ Python に任せる。確かめ: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves3/p6.py（2 回目の p4.py と同じ置き場・開発者の PC）で今の Python に 16 の本文を送ると、空・null・{bad・[]・0・false・\"\"・{}・{\"keys\": null}・{\"keys\": []}・{\"keys\": 0} はどれも 200・count 0 で全員の初期設定を消し、{\"keys\": [1]} は 400、NaN・[1]・\"x\" は AttributeError（試験の client では例外）。『get_json が None の物を 400』の Python の直しは画面と試験を壊さない: 画面（lotlist-profile.js:58 の publish）はいつも {keys: current()} の表を送り、ui-defaults を叩くのは試験 test_lot_list の 1 つだけ（json= の表）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves3/prog（program の写し）で ui_defaults_put を『表でない本文は 400』（None より広い形）にして python -m unittest tests.test_lot_list を流すと Ran 58・OK。窓は serde が読めた本文だけを答え、読めない物は Python に任せれば、null の本文だけを窓が 400 にすればよく、作りが素直。値はみな字なので小数・字の中の数・入れ子の str() の落とし穴に当たらない。悪い所・案の文の誤り: (1) 文が名指すのは None と [1] だけで、[]・0・false・\"\"（get_json は None でなく、`or {}` で {} になる）と {\"keys\": null／[]／0} が今と同じく全員の初期設定を消すのかを決めていない（U′ の『keys が表でない本文は 400』を持ち越すのか文から読めない。窓が Python の `or` の読み方を写せば割れはしないので減点はしない）。(2) 1 回目の (5)『置き場が読めない・2 MB を超える行があるときは defaults {}（ui_profile の except）』は文に無いまま。(3) 前へ進む量はいちばん小さい組の 1 つ（開発者が押し上げるときと、一覧を開くときの GET）。(4) 2 回目の採点の『数の無い組に小数の直しを抱き合わせると狙いが割れる』に従い、小数の直しを外して版の狙いを 1 つにしたのは良い。"
+    },
+    "S′ ダッシュボードのセット 4 本（2 回目の指摘を先に）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "pivot_presets.clean_row の 備考（str(d.get(\"note\") or \"\")[:200]）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves3/p5.py で POST /api/dashboard-sets の note [\"x\", 1.5] は 201 で備考 \"['x', 1.5]\"、{\"a\": 1} は \"{'a': 1}\"（Python の str()）。案の文が Python に任せるのは scope と name の並び・表だけで、窓の py_str は [\"x\",1.5] と書いて割れる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET /api/dashboard-sets の set_view が読む置き場の行の中身の字（clean_set_body の json.loads）。p5.py で行の中身を手で '{\"items\": [\"1\", NaN, -0]}' にすると Python の GET は [\"1\", \"0\"] と答える。案の文の unreadable は『中身を JSON の字で送る形』だけで、置き場の行の字は窓の serde が読めない（NaN）・-0.0 と読む。2 回目の減点の後ろ半分が残った"
+      }
+     ],
+     "seen": "良い所: 2 回目の 3 つの減点のうち 2 つ半が直った。\\d の確かめ（3 回目）: pyfmt.rs の DIGITS（64 の範囲・680 字）と Python 3.13.16 の re.fullmatch(r\"\\d\", 字) が真の字（680 字）は全部の符号位置で同じ集まり。_SET_ITEM（\\d{1,9}|b:[A-Za-z0-9_-]{1,32}）の後ろは ASCII だけなので、\\d を pyfmt::digit の 1 字ずつの見分けにすれば Python と同じになる（regex 1.13.1 の \\d は 80 字多い）。isdigit は別物: Python の str.isdigit が真の字は 808 字で \\d（isdecimal）より 128 字多い（「²」「①」など）。pyfmt にも pynum_cases.json（cases 477 件の鍵は s・int・float・d・hm）にも isdigit の表は無い。 確かめ: p5.py で items [\"１２\", \"𝟘\", \"²\", \"٣\"] は [\"１２\", \"𝟘\", \"٣\"] と置かれる（「²」は \\d でないので落ちる＝pyfmt::digit と同じ）。scope・name の並び・表は Python に任せる（Python は TypeError の 400・name は str() の字）、中身を字で送る形に unreadable を当てる（NaN・-0 は Python へ）、★は『書いた後の行が★なら』外す、で 2 回目の指摘どおり。評価関数 sets_parity の場面（\\d の系統・字の中身の NaN・-0・名前だけ直した★・dashboards に混ざる行）も具体的。数の無い組から小数の直しを外し、狙いが 1 つになった。標準の真偽は json_truthy で読める（p5.py: standard \"0\" は★、0.0 は★でない）。悪い所・案の文の誤り: (1) 減点の 2 つ（備考の str()・置き場の行の中身の字）。(2) 前へ進む量は小さめ（よく通るのはダッシュボードを開くときの GET だけ）。(3) 表でない本文（[1]）は Python が clean_row の d.get で AttributeError の英語の 400。窓は master_rows の前からの決まり（表でない本文は任せる）に載れば割れないが、文には無い。"
+    },
+    "UQ 表示の初期設定とすぐに見るの並び 3 本（新）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: U″ の直しをそのまま持ち、中身が id の字の並びのすぐに見る（PUT /api/pivot-quick）を足して 3 本にした。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves3/p7.py で確かめた quick_put の形: keys の各値は str(k).strip()[:40] の後に isdigit か『b:』＋1 字以上で選ぶので、並び・表の値は repr になってもどちらにも当たらず落ちる（入れ子の str() の割れは出ない）。[[\"1\"], {\"a\":1}, \"²\", \" 12 \", 5, 0, 5.0, true, \"b:\", \"b:x\", \"١٢\", \"𝟘\"] は [\"²\",\"12\",\"5\",\"0\",\"b:x\",\"١٢\",\"𝟘\"]。reset \"0\" は真で既定に戻す。大きな整数 12345678901234567890123 は桁のまま置く（serde は小数に読むので任せる要がある＝master_rows::unreadable の範囲）。悪い所・案の文の誤り: (1) Python の str.isdigit が真の字は 808 字で \\d（isdecimal）より 128 字多い（「²」「①」など）。pyfmt にも pynum_cases.json（cases 477 件の鍵は s・int・float・d・hm）にも isdigit の表は無い。 案は『isdigit の「²」』と書くが、新しい 808 字の表を作って事例の表に isdigit の列を足す、とは書いていない。(2) 2 組は置き場（ui_defaults と pivot_quick）も権限（開発者だけ・ID ごと）も別で、型は共有されない。1 版に 2 つの話（前の段で毎回下がった形）。(3) すぐに見るの評価関数（quick_parity など）と、quick_put 自身の本文の端（[1] は AttributeError の英語の 400・空の本文は Flask の BadRequest の 400・source の並びは str() で 400）の扱いが文に無い。『U の書き方』は ui-defaults の物。(4) 前へ進む量は 3 本で、すぐに見るは集計表で並びを直したときだけ通る。"
+    },
+    "SQ セットとすぐに見るの並び 5 本（新）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 8,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "S′ の 1 つ目と同じ（セットの備考が並び・表のとき Python は str() の \"['x', 1.5]\"、窓は割れる）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "S′ の 2 つ目と同じ（GET が読む置き場の行の中身の字の NaN・-0）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の文の『数字の見分け（\\d・isdigit）を pyfmt の 1 か所で見る』。pyfmt にあるのは \\d（isdecimal・680 字）の DIGITS だけで、str.isdigit は 808 字。p7.py で PUT /api/pivot-quick の keys \"²\" は Python が置く（isdigit が真）。同じ 1 か所（pyfmt::digit）で見ると窓は落として割れる。新しい表が要ると文に無い"
+      }
+     ],
+     "seen": "良い所: 前へ進む量は 3 回目の案でいちばん多い組の 1 つ（5 本）。セットの items とすぐに見るの keys はどちらも id の字の並びで、選び方が似ている、という見立ては正しい。S′ の直し（\\d・scope と name・字の中身の unreadable・★）をそのまま持つ。\\d の確かめ（3 回目）: pyfmt.rs の DIGITS（64 の範囲・680 字）と Python 3.13.16 の re.fullmatch(r\"\\d\", 字) が真の字（680 字）は全部の符号位置で同じ集まり。_SET_ITEM（\\d{1,9}|b:[A-Za-z0-9_-]{1,32}）の後ろは ASCII だけなので、\\d を pyfmt::digit の 1 字ずつの見分けにすれば Python と同じになる（regex 1.13.1 の \\d は 80 字多い）。isdigit は別物: Python の str.isdigit が真の字は 808 字で \\d（isdecimal）より 128 字多い（「²」「①」など）。pyfmt にも pynum_cases.json（cases 477 件の鍵は s・int・float・d・hm）にも isdigit の表は無い。 悪い所・案の文の誤り: (1) 2 つの選び方は同じ物ではない（セットは re の \\d{1,9}、すぐに見るは str.isdigit で桁の上限なし・strip と [:40] あり）。1 か所で見るとまとめたことで、かえって割れを招く（減点の 3 つ目）。(2) 置き場は dashboards と pivot_quick、権限は範囲ごとと ID ごとで別。1 版に 2 つの話。(3) 評価関数が文に無い（S′ の sets_parity にすぐに見るを足すのか分からない）。(4) S′ の減点 2 つを持つ。"
+    },
+    "P″ 組み方のプリセット 5 本と小数の書き手（2 回目の P′ を正す）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET /api/pivot-presets が読む置き場の行の中身の字（clean_body の json.loads）。案の Python の直し（_dims で有限の数だけ残す）は、これから置く行を正すだけで、今の Python が前に置いた \"width\": NaN の行（2 回目の probe で確かめた形）と手で直した行は残る。案の unreadable は『中身を JSON の字で送る形』だけで、置き場の行の字を窓の serde が読めないときに Python に任せる、が文に無い"
+      }
+     ],
+     "seen": "良い所: 2 回目の P′ の 3 つの減点のうち 2 つ半が直った: 小数の書き手は F1 の直しを入れる（組み方の width・origin は数をそのまま置くので、この組では本当に効く。小数の書き手の確かめ（3 回目）: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves3/rs/examples/tie3.rs（2 回目の crate の写し・debug）に、pyfmt::float_repr の今の写し（fr_orig.rs）と、いちばん短い字の最後の桁が奇数のとき本当の値の字（{:.800e}）が『1 つ下の字＋5』と同じなら 1 つ下（偶数）を選ぶ直しを書き、gen.py（Python 3.13 の repr）の 83,193 の値（2^48〜2^57 に .125〜.875 を足した 20,000・乱数のビット 20,000・10 の -330〜308 乗・大きな整数と一様な乱数 40,000）で突き合わせた: 今の float_repr は 608 件、直した物は 0 件が違う。割れる値は大きさ 1e11〜1e16 の所だけ（log10 で 11:1・12:2・13:8・14:236・15:361）。直しは 15 行ほどで、Rust の {:e} が丁度まん中を上へ丸め、Python の repr（dtoa の mode 0）が偶数へ丸めるのが食い違いのすべて（ほかの割れは 0 件）。float_repr の使い所は pyfmt の Py::Float（一覧の str()）・lotlist.rs:342・pivot.rs:116（集計の札）・num_expr.rs:105・join.rs:90（結合の鍵の REAL）・worksum.rs:181（設備・勤務体系の py_str）で、どれも Python と同じ字に寄るだけ（pyfmt.rs の floats_like_python_repr の 12 件に丁度まん中の値は無く、既存の試験は変わらない）。）、scope と name の並び・表は Python に任せる、字で来た中身に unreadable を当てる、★は『書いた後の行が★なら』。Python の欠け（_dims が NaN を置き GET の答えが JSON でなくなる・dec の Infinity が英語の OverflowError の 400）を先に直す、も 2 回目の指摘どおり。数のある組に小数の直しを合わせるので、小数の直しが使われる版になる筋は通る。前へ進む量も集計表を開くたびの GET を含み多め。悪い所・案の文の誤り: (1)『dec の round() は偶数への丸め（pyfmt に写す）』: 窓には aggregate::py_round（format!(\"{x:.n$}\")＝丁度まん中は偶数へ）が既にあり、写す要は無い（2 回目の指摘は『aggregate::py_round を使えば合う』）。(2) すぐに見るの isdigit（808 字。pyfmt に表が無い）が文に無いまま（2 回目の (1)）。(3) 1 版に 5 本・組み込み 18・default_quick・Python の直し 2 つ・小数の直しで、いちばん話が多い（前の段で毎回下がった形）。(4) 減点の 1 つ（置き場の行の中身の字）。"
+    }
+   }
+  }
+ ],
+ "proposals_text": {
+  "P 組み方のプリセット 5 本": "集計表・グラフの組み方のプリセットの 5 本を窓が受ける。行の形と権限（範囲・★標準・can_edit・見える行・標準の決め方）を新しい部品 preset_rows.rs に写し、中身の確かめ（_dims・値の 4 つ・式は num_expr.rs・グラフの形・chartAt）と組み込みの 18 の組み方（BUILTINS）・すぐに見るの既定（default_quick）を写す。置く字は join::py_dumps（sort_keys と既定の区切り。小数は float_repr）。書く型は master_rows（SPECS の pivot_presets・pivot_quick。一意は group_of と名前）。読めない本文・行は master_rows の判定で Python に任せる。評価関数は presets_parity（← Python の道。範囲 3 つ × 書ける／書けない・★標準の付け替え・壊れた中身の行・すぐに見るの並べ替えと既定に戻す・組み込みの一覧）",
+  "C カードの設計 4 本": "カードの設計の 4 本を窓が受ける。行の形と権限は P と同じ preset_rows.rs、中身の確かめ（card_forms.clean_body: 方眼・重なり・タブ・項目の種類・スタイル）を写す。置く字は join::py_dumps",
+  "PC 組み方のプリセットとカードの設計 9 本（行の型を 1 つに）": "P と C を 1 版にする。行の形と権限の部品 preset_rows.rs を 2 つの組で使い、型が汎用かを確かめる",
+  "D ダッシュボードとセット 9 本": "ダッシュボード 5 本とセット 4 本を窓が受ける。clean_layout（置き場のある clean_panel・重なり・スライサー・replaces）・組み込みの標準のダッシュボード（BUILTIN_LAYOUTS）と入れ替え（with_builtin_replace）・外す（hidden）・セットの中身を写す。dashboard.rs の問い合わせ用の clean_panel を置き場の引数つきに広げて 1 つにする",
+  "U 表示の初期設定 2 本": "GET／PUT /api/ui-defaults を窓が受ける（開発者だけ・keys の字だけ・2 MB・replace は鍵を並べ替える）。版 3.77.0 から Python も本文を Content-Type によらず読むので、前の段の落とし穴（silent の読み方）は無くなった。読めない本文は master_rows::unreadable で Python に任せる。PROFILE_KEYS は一覧の設定の答えで Python から渡す",
+  "F 書式 4 本と順を保つ JSON の木": "書式の 4 本を窓が受けるために、送った順を保つ JSON の木と json.dumps(separators) と同じ字の書き手を作り、事例の表で Python と突き合わせる"
+ },
+ "proposals_text_2": {
+  "S ダッシュボードのセット 4 本（新）": "セットの GET／POST／PUT／DELETE を窓が受ける。中身は items の字の並びだけ（数が無い・鍵 1 つ）なので置く字の割れが出にくい。行の形と権限（範囲・★標準・can_edit・見える行・標準の決め方・SCOPE_ORDER の並び）を preset_rows.rs に写す（次の版でプリセット・カード・ダッシュボードが使う）。(3) ★標準の付け替えを master_rows の書き方に足す（_preset_write: 作る行の版は 0 から・標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外して版を上げる。1 回の書き込み）。共通の土台（2 回目の案のどれにも入れる・1 回目の指摘）: (1) 窓の置く字の書き手 join::py_dumps の小数を pyfmt::float_repr で書く（今は serde の to_string で 5e-05 を 0.00005 と書く。1e-9〜1e-4 で 50/3147 件割れた）。事例の表 tests/fixtures/pydumps_cases.json（tools/pydumps-cases.py が Python 3.13 の json.dumps(ensure_ascii=False, sort_keys=True) で焼く: 小数 3,000 余り・-0.0・1e+16・制御字・U+2028・入れ子）で cargo test --test pydumps_cases が突き合わせる（py_dumps を使う結合の hash・画面の設定の控えの大きさにも効くので、その試験も流す）。(2) master_rows の任せる判定に 2 つ足す: 本文の入れ子の値が並び・表で Python の str() を通る所、字で来た i64 に入らない整数を int() で読む所は Python に任せる（項目ごとの表は組ごとの読み方に書く）。評価関数: sets_parity（← Python の道。範囲 3 つ × 書ける／書けない・切断中・★の付け替え・同じ名前・壊れた中身の行・ダッシュボードの行と同じマスタに混ざる行）・本物の道の試験",
+  "U′ 表示の初期設定 2 本（Python の欠けを先に）": "GET／PUT /api/ui-defaults を窓が受ける。先に Python の欠けを直す: 読めない本文・keys が表でない本文は 400（今は {} と読んで全員の初期設定を消す）・切断中の PC は置けない（門番の外。access の _GUARDED に足すか route で revoked を見る）。2 MB の確かめは json.dumps の UTF-8 の長さ（join::py_dumps と同じ区切り）。PROFILE_KEYS は一覧の設定の答えで Python から渡す。共通の土台（2 回目の案のどれにも入れる・1 回目の指摘）: (1) 窓の置く字の書き手 join::py_dumps の小数を pyfmt::float_repr で書く（今は serde の to_string で 5e-05 を 0.00005 と書く。1e-9〜1e-4 で 50/3147 件割れた）。事例の表 tests/fixtures/pydumps_cases.json（tools/pydumps-cases.py が Python 3.13 の json.dumps(ensure_ascii=False, sort_keys=True) で焼く: 小数 3,000 余り・-0.0・1e+16・制御字・U+2028・入れ子）で cargo test --test pydumps_cases が突き合わせる（py_dumps を使う結合の hash・画面の設定の控えの大きさにも効くので、その試験も流す）。(2) master_rows の任せる判定に 2 つ足す: 本文の入れ子の値が並び・表で Python の str() を通る所、字で来た i64 に入らない整数を int() で読む所は Python に任せる（項目ごとの表は組ごとの読み方に書く）。評価関数: ui_defaults_parity（読めない本文・表でない keys・知らない名前・2 MB の境・開発者でない・切断中・外す）",
+  "P′ 組み方のプリセット 5 本（1 回目の指摘を先に）": "P の 5 本。(3) ★標準の付け替えを master_rows の書き方に足す（_preset_write: 作る行の版は 0 から・標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外して版を上げる。1 回の書き込み）。すぐに見る（quick_set: 重なった行を 1 行にまとめる）も同じ型に足す。共通の土台（2 回目の案のどれにも入れる・1 回目の指摘）: (1) 窓の置く字の書き手 join::py_dumps の小数を pyfmt::float_repr で書く（今は serde の to_string で 5e-05 を 0.00005 と書く。1e-9〜1e-4 で 50/3147 件割れた）。事例の表 tests/fixtures/pydumps_cases.json（tools/pydumps-cases.py が Python 3.13 の json.dumps(ensure_ascii=False, sort_keys=True) で焼く: 小数 3,000 余り・-0.0・1e+16・制御字・U+2028・入れ子）で cargo test --test pydumps_cases が突き合わせる（py_dumps を使う結合の hash・画面の設定の控えの大きさにも効くので、その試験も流す）。(2) master_rows の任せる判定に 2 つ足す: 本文の入れ子の値が並び・表で Python の str() を通る所、字で来た i64 に入らない整数を int() で読む所は Python に任せる（項目ごとの表は組ごとの読み方に書く）。組み込みの 18 の組み方と default_quick・isdigit の「²」も写す。評価関数: presets_parity（範囲・★・切断中・壊れた中身・小数の width・字の chartAt・すぐに見るの並べ替えと既定に戻す・組み込みの一覧）",
+  "J″ 置く字と書き方の土台だけ（道 0 本・新）": "共通の土台（2 回目の案のどれにも入れる・1 回目の指摘）: (1) 窓の置く字の書き手 join::py_dumps の小数を pyfmt::float_repr で書く（今は serde の to_string で 5e-05 を 0.00005 と書く。1e-9〜1e-4 で 50/3147 件割れた）。事例の表 tests/fixtures/pydumps_cases.json（tools/pydumps-cases.py が Python 3.13 の json.dumps(ensure_ascii=False, sort_keys=True) で焼く: 小数 3,000 余り・-0.0・1e+16・制御字・U+2028・入れ子）で cargo test --test pydumps_cases が突き合わせる（py_dumps を使う結合の hash・画面の設定の控えの大きさにも効くので、その試験も流す）。(2) master_rows の任せる判定に 2 つ足す: 本文の入れ子の値が並び・表で Python の str() を通る所、字で来た i64 に入らない整数を int() で読む所は Python に任せる（項目ごとの表は組ごとの読み方に書く）。(3) ★標準の付け替えを master_rows の書き方に足す（_preset_write: 作る行の版は 0 から・標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外して版を上げる。1 回の書き込み）。道は移さない（次の版でセット・プリセットが使うだけ）",
+  "SU セットと表示の初期設定 6 本（新）": "S と U′ を 1 版にする（どちらも中身に数が無く、置く字の割れが出にくい 2 組）。(3) ★標準の付け替えを master_rows の書き方に足す（_preset_write: 作る行の版は 0 から・標準にしたら同じ組〈元・範囲・持ち主〉のほかの行の標準を外して版を上げる。1 回の書き込み）。共通の土台（2 回目の案のどれにも入れる・1 回目の指摘）: (1) 窓の置く字の書き手 join::py_dumps の小数を pyfmt::float_repr で書く（今は serde の to_string で 5e-05 を 0.00005 と書く。1e-9〜1e-4 で 50/3147 件割れた）。事例の表 tests/fixtures/pydumps_cases.json（tools/pydumps-cases.py が Python 3.13 の json.dumps(ensure_ascii=False, sort_keys=True) で焼く: 小数 3,000 余り・-0.0・1e+16・制御字・U+2028・入れ子）で cargo test --test pydumps_cases が突き合わせる（py_dumps を使う結合の hash・画面の設定の控えの大きさにも効くので、その試験も流す）。(2) master_rows の任せる判定に 2 つ足す: 本文の入れ子の値が並び・表で Python の str() を通る所、字で来た i64 に入らない整数を int() で読む所は Python に任せる（項目ごとの表は組ごとの読み方に書く）。"
+ },
+ "self_check_2": "案を作った者が 2 回目の前に確かめたこと（2026-11-05）: 1 回目の採点の指摘（py_dumps が小数を float_repr で書かない・字の中の大きな数と入れ子の str()・_preset_write の★の付け替えと quick_set のまとめ・カードの行は dashboards に混ざる・ダッシュボードの保存の分は約 400 行と clean_fmt・with_legacy_conditions・U の Python の欠け〈読めない本文で消す・切断中でも置ける〉）を読み直した。routes/dashboard.py のセットの 4 本（_who・_gate・_old_set・set_view）と master_repository._preset_write、routes/system.py の ui_defaults_get／put を読んで確かめた。新しい案は S・J″・SU の 3 つ（U を U′、P を P′ に直して持ち越す。C・PC・D・F は外した）。方向は 数の無い小さな組 S・Python の欠けを直す U′・1 回目の 2 位を正す P′・土台だけ J″・小さな 2 組 SU で偏っていない。",
+ "proposals_text_3": {
+  "F1 小数の書き手の直しと事例の表（道 0 本・新）": "小数の書き手を直す（いまの窓の答え全部に効く欠けとして）: pyfmt::float_repr は、いちばん短い字の候補が 2 つ並ぶ丁度まん中の値（1059438285926254.25 など）で Python の repr と逆に丸める（Python は偶数へ）。候補の両隣を確かめて Python と同じ字を選ぶよう直し、join::py_dumps も小数を float_repr で書く。事例の表 tests/fixtures/pyfloat_cases.json（tools/pyfloat-cases.py が Python 3.13 の repr と json.dumps で焼く: 2^50〜2^53 の .125・.25・.5・.75・1e-9〜1e-4・-0.0・1e+16・5e-324 など 5,000 余り）を cargo test --test pyfloat_cases が突き合わせる（直す前の窓で割れる数を記録する）。道は移さない。いまの窓の答え（一覧・集計・ダッシュボード・設備・勤務体系の str() の字）の丁度まん中の値の食い違いを直す版。",
+  "U″ 表示の初期設定 2 本（2 回目の指摘を先に）": "GET／PUT /api/ui-defaults を窓が受ける。U の書き方（2 回目の指摘）: 読めない本文を 2 つに分ける（Python の get_json が None にする物〈Python も読めない〉は Python と同じく 400 にする Python の直し、serde だけが読めない物〈NaN など〉は Python に任せる）・切断中は route で revoked を見る（門番は masterEdit も見るので使わない）・[1] の本文は 400（Python も直す）・PROFILE_KEYS が一覧の設定の答えに無い（前の版の Python）ときは Python に任せる。中身に数が無いので小数の書き手の直しは入れない（版の狙いを 1 つに）。評価関数: ui_defaults_parity（読めない本文 2 通り・表でない keys・[1]・知らない名前・2 MB の境・開発者でない・切断中・外す・PROFILE_KEYS が無い）",
+  "S′ ダッシュボードのセット 4 本（2 回目の指摘を先に）": "セットの 4 本を窓が受ける。S の書き方（2 回目の指摘）: セットの items の \\d{1,9} は窓の regex でなく pyfmt::digit（Python 3.13 の 68 系統。pynum_cases の表）で見る・scope と name に並び・表が来たら Python に任せる（Python は TypeError の 400）・中身を JSON の字で送る形は、その字に master_rows::unreadable を当てて NaN・-0 なら Python に任せる・★の付け替えは「書いた後の行が★なら同じ組のほかの★を外す」（_preset_write）。行の形と権限は preset_rows.rs（範囲・★・can_edit・見える行・標準の決め方・SCOPE_ORDER）。中身に数が無いので小数の書き手の直しは入れない。評価関数: sets_parity（範囲 3 つ × 書ける／書けない・切断中・★の付け替え〈名前だけ直しても〉・同じ名前・壊れた中身・dashboards に混ざるダッシュボードとカードの行・\\d の数字の系統・字の中身の NaN・-0）",
+  "UQ 表示の初期設定とすぐに見るの並び 3 本（新）": "U″ の 2 本に、組み方のすぐに見るの並び（PUT /api/pivot-quick。中身は id の字の並び・quick_set は重なった行を 1 行にまとめる・isdigit の「²」）を足す。どちらも中身に数が無く、ID ごとの小さな書き込み。U の書き方（2 回目の指摘）: 読めない本文を 2 つに分ける（Python の get_json が None にする物〈Python も読めない〉は Python と同じく 400 にする Python の直し、serde だけが読めない物〈NaN など〉は Python に任せる）・切断中は route で revoked を見る（門番は masterEdit も見るので使わない）・[1] の本文は 400（Python も直す）・PROFILE_KEYS が一覧の設定の答えに無い（前の版の Python）ときは Python に任せる。",
+  "SQ セットとすぐに見るの並び 5 本（新）": "S′ の 4 本に PUT /api/pivot-quick を足す。どちらも中身が id の字の並びで、数字の見分け（\\d・isdigit）を pyfmt の 1 か所で見る。S の書き方（2 回目の指摘）: セットの items の \\d{1,9} は窓の regex でなく pyfmt::digit（Python 3.13 の 68 系統。pynum_cases の表）で見る・scope と name に並び・表が来たら Python に任せる（Python は TypeError の 400）・中身を JSON の字で送る形は、その字に master_rows::unreadable を当てて NaN・-0 なら Python に任せる・★の付け替えは「書いた後の行が★なら同じ組のほかの★を外す」（_preset_write）。",
+  "P″ 組み方のプリセット 5 本と小数の書き手（2 回目の P′ を正す）": "P′ の 5 本に F1 の小数の書き手の直しを入れる（組み方の中身には width・dec などの数があるので、狙いが 1 つにまとまる）。Python の欠けを先に直す: _dims で有限の数だけ残す（今は NaN をそのまま置き、GET の答えに NaN が出る）・dec の Infinity は 400 にする。dec の round() は偶数への丸め（pyfmt に写す）。S の書き方（2 回目の指摘）: scope と name に並び・表が来たら Python に任せる（Python は TypeError の 400）・中身を JSON の字で送る形は、その字に master_rows::unreadable を当てて NaN・-0 なら Python に任せる・★の付け替えは「書いた後の行が★なら同じ組のほかの★を外す」（_preset_write）。"
+ },
+ "self_check_3": "案を作った者が 3 回目の前に確かめたこと（2026-11-05）: 2 回目の採点の指摘（float_repr の丁度まん中の値・scope の並び・表で TypeError・字の中身の NaN・-0・\\d が regex 1.13 で 80 字多い・U′ で落ちた unreadable・門番と route の違い・PROFILE_KEYS が無い形・「書いた後の行が★なら」・数の無い組に小数の直しを抱き合わせると狙いが割れる・道 0 本はステップ数が伸びない）を読み直した。routes/presets.py の quick_put と master_repository.quick_set、routes/system.py の ui_defaults_put、routes/dashboard.py のセットの 4 本を読んで確かめた。新しい案は F1・UQ・SQ の 3 つ（U′ を U″、S を S′、P′ を P″ に直して持ち越す。J″・SU は外した）。方向は 欠けの直しだけ F1・小さく閉じた U″・数の無い組 S′・ID ごとの小さな書き込み 2 組 UQ・id の並びの 2 組 SQ・数のある組に小数の直しを合わせる P″ で偏っていない。",
+ "built": {
+  "name": "作った後",
+  "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+  "result": {
+   "proposal": "U″ 表示の初期設定 2 本（作った後）",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 7,
+    "steps": 3,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "commit 95a4d42（HEAD。1 回目の指摘の直し）と 01d0b30（HEAD~1。本体）を git show で読み、Python（routes/system.py の ui_profile・ui_defaults_get・ui_defaults_put、services/ui_defaults の clean・load・replace、web.py の Request.get_json、master_store の MasterError・MasterLocked・ShareUnavailable の payload と status）と、窓（ui_defaults.rs・lot.rs の ui_defaults_route と Settings.ui_profile_keys・master_store.rs の MasterError::status／payload・join::py_dumps・master_rows::unreadable）を突き合わせて読んだ。【1 回目の指摘の直り】1) 直った: profile_view は load と同じく {名前: 値} を行の順に作り（後ろの行が勝つ・値の無い行は null で上書き）、字でない物を落とす。突き合わせに場面『同じ名前の行が 2 つ・後ろの行に値が無い』（[{P:'x'},{P}],[{L:'1'},{L:'2'}]）が入り、読み方を前（字の行だけ・前の行が勝つ）に戻す変異で 1 件落ちる。2) 直った: 2 MB の丁度（2,097,152 バイト）・1 バイト上・制御字 \\u0001 の 6 バイトとかなの 3 バイトを混ぜた丁度の 3 歩が入った。比べを >= にすると 4 件、MAX_BYTES + 1 にすると 3 件落ちる（RUST_PORT_PLAN の『境をずらすと 3 件』と同じ）。3) 答えは直った・窓の側は試験が守っていない: Python は MasterError を受け止めて e.payload()・e.status（409 locked・holder_pc・holder_login・remaining／503 unavailable）、窓は e.status()・e.payload()。Python の側は test_body_reading.test_locked_store_answers_like_other_masters が守る（except を外す変異で ERROR になった）。窓の側は、handle の Err を 1 回目の形（500 と言葉）に戻す変異を入れても ui_defaults_parity・the_window_answers_ui_defaults とも通った（錠の場面が突き合わせに無い）。4) 残った: 移した道は 2 本のまま（決めた案の幅なので、この直しでは増えない）。【流した評価関数】cargo test --locked --test ui_defaults_parity: ok（1 passed。7 場面・33 歩・任せる 6 歩）・cargo test --locked --lib -- the_window_answers_ui_defaults: ok（1 passed）・python -m unittest tests.test_body_reading tests.test_lot_list: Ran 64・OK（TypeError の行は試験が出させる記録）・tests.test_version: Ran 6・OK。【答えの割れを探した（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built9/oracle.orig.py に元を控え、ui_defaults_oracle.py に場面 6 つ〈/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built9/oracle.probe.py〉を一時に足して parity を流し、元に戻した）】一致した形: 共有に他の PC（PC-8／u8）の切れていない錠がある PUT（両方 409 locked・holder_pc・holder_login・remaining・言葉まで同じ）とその後の GET・共有のフォルダが無い（写しだけ）GET と PUT（両方 503 unavailable。言葉の違いは試験のフォルダの名前 py／rs だけ）・置き場の行が 2 MB を超える GET（両方 defaults {}・updatedAt ''・updatedBy {}）・最初の行の名前が空・updated_at が null・updated_by が空の字・名前の無い行・updated_at が数で updated_by が並び・本文の同じ鍵が 2 つ（後ろの数が勝って落ちる）・4 バイトの字（絵文字）で 2 MB の丁度と 1 バイト上・\\x7f・\\u2028・</script> と真偽・表の値・前後の空白と改行・keys の値に字の『1e400』・Content-Type が form・開発者でない PC の読めない本文（両方 403 が先）・閲覧のみの GET。任せる歩: 1e400 の数・BOM の本文（窓は答えない）。割れた形は見つからなかった。【変異（ui_defaults.rs・system.py に 1 つずつ入れ、控えから戻した）】落ちた: 読み方を前に戻す 1 件・>= MAX_BYTES 4 件・MAX_BYTES + 1 3 件・Python の except MasterError を外す ERROR 1 件。残った: 窓の錠の答えを 1 回目の形に戻す（上の 3）。終わった後 git status --short は空（この採点のファイルを書く前）。【ほかに見た所】Python の store.write が MasterError でない例外（OSError など）を投げたときは Python は 500 の HTML の頁、窓は MasterError::Error の 500 の JSON（言葉が出る）で形が違う（錠・届かないは直ったが、ここは残る。まれで画面の状態は同じなので減点にしない）。ui_defaults_route は書く前に gate.forget() しない（shifts_route は『書く前は、いまの権限の表で決める』で捨てる）。窓が載せた me を Python も使うので割れはしないが、ほかの PC で開発者を外した直後の 2 秒（ME_TTL）は置ける。【点】直しは小さく（窓 7 行・Python 3 行・試験 14 行）的を射ていて、3 つの指摘のうち 2 つは試験が守り、錠は答えが合う。進んだ道は 2 本のまま（ステップ数 3）。考えさせないは、窓の錠の答えを守る場面が無い・OSError の形が残るので 8。",
+   "evaluator": "作った後の 2 回目の採点者（案を作っていない・案の採点も 1 回目の作った後の採点もしていない別のエージェント。2026-11-05。HEAD と HEAD~1 の差分を読み、評価関数 4 つを自分で流し、答えの係に場面 6 つを一時に足して割れを探し、窓と Python に変異 5 つを入れて試験が落ちるかを測り、どれも元に戻した）",
+   "first": {
+    "score": {
+     "order": 7,
+     "chunk": 8,
+     "hierarchy": 8,
+     "visual": 7,
+     "steps": 3,
+     "effortless": 7,
+     "intuitive": 8,
+     "form": 8,
+     "place": 8,
+     "layout": 8,
+     "tone": 8
+    },
+    "minus": [
+     {
+      "kind": "hidden_state",
+      "where": "desktop/src/ui_defaults.rs の profile_view（r.get(\"値\").filter(is_string) の行だけを入れる）と readable（値が無い行を読めるとする）。置き場の行が [{名前: tpa.lotlist.pageSize.v1, 値: \"x\"}, {名前: tpa.lotlist.pageSize.v1}]（後ろに値が無い）のとき、GET /api/ui-defaults の defaults は Python {}（services/ui_defaults.load は後ろの None で上書きしてから字でない物を落とす）・窓 {pageSize: \"x\"}。ui_defaults_oracle.py に場面を一時に足して ui_defaults_parity で 1 件の食い違いとして確かめた（手で直したファイルだけの形）"
+     }
+    ],
+    "seen": "commit 01d0b30（HEAD。版 3.78.0）を git show で読み、元の Python（routes/system.py の ui_profile・ui_defaults_get・ui_defaults_put、services/ui_defaults の clean・load・replace、app/web.py の Request.get_json〈decode('utf-8') → json.loads。BOM は読めない〉と handle〈道の外の例外は 500 の HTML の頁〉、master_store の MasterError〈ValueError でない〉）と、窓の ui_defaults.rs（route_of・clean・readable・profile_view・handle）・lot.rs の Settings.ui_profile_keys と ui_defaults_route・master_rows::unreadable・join::py_dumps を読んだ。画面（lotlist-profile.js の publish はいつも {keys: current()}・lotlist.js の openProfileMenu は GET の canPublish・keys・defaults・updatedAt・updatedBy だけを読む・shared.js は埋めた TPA_UI_PROFILE.defaults を当てる）の読む形は変わらない。【3 回目の指摘の直り】1) 直った: 窓が答えるのは serde が読めた本文だけ（master_rows::unreadable が NaN・-0・1e400・片割れの代用字・BOM を Python に任せる。delegates の 4 歩）。2) 直った: []・0・\"\"・{}・{\"keys\": null}・{\"keys\": []}・{\"keys\": \"x\"}・[1]・null・空・空白は Python も窓も 400 で置かない（test_body_reading.UiDefaults は直す前の Python で落ちる形。外すのは {keys: {}} だけ）。画面は表の本文しか送らないので、画面の動きは変わらない。3) 直った: 切断中は route で見る（Python は m['revoked']、窓は me.revoked。門番は使わない）。順も 開発者か → 切断中 → 本文 で Python と同じ。4) 直った: 置き場が読めない（Place::rows の Err）ときは窓は Python に任せ、Python の except で defaults {}。置き場の行が 2 MB を超えるときは両方 defaults {}・updatedAt ''・updatedBy {}。5) 直った: PROFILE_KEYS は Python の 1 か所のまま、一覧の設定の答えの uiProfileKeys で受け取り、無ければ（前の版の Python）Python に任せる。【流した評価関数】cargo test --locked --test ui_defaults_parity: ok（1 passed）・cargo test --locked --lib -- the_window_answers_ui_defaults: ok・python -m unittest tests.test_body_reading tests.test_lot_list: Ran 63・OK。【答えの割れを探した（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built8/oracle.orig.py に元を控え、ui_defaults_oracle.py に場面 X1〜X8 を一時に足して parity を流し、元に戻した）】一致した形: updated_by が字・updated_at が数・updated_by が空の並び・名前が空の行・同じ名前の行が 2 つで後ろも字（後ろが勝つ）・2 MB の丁度（json.dumps の UTF-8 で 2,097,152 バイト。制御字 \\u0001 の 6 バイトとかなの 3 バイトを混ぜた）は 200 と 1 バイト上は 400・置き場の行が 2 MB を超える GET・空白だけの本文・keys の値が表や並び・BOM と 1e400 の本文（窓は任せる）。共有・写しから・手元だけは元の場面で一致。割れた形 1 つ: X1 置き場に同じ名前の行が 2 つあり、後ろの行に「値」が無い（[{名前: P, 値: 'x'}, {名前: P}]）と、Python は後ろの None で上書きして字でないので落とし defaults {}、窓は字の行だけを入れるので defaults {P: 'x'}（手で直したファイルだけの形。下の minus）。【変異（ui_defaults.rs に 1 つずつ入れて parity を流し、git checkout で戻した）】落ちた: 切断の確かめを外す 3 件・開発者の確かめを外す 4 件・keys が表でないとき {} と読む（前の Python）6 件・置き場の行の確かめを外す 4 件・範囲の名前で絞らない 5 件・読めない本文を任せない 6 件。残った: 2 MB の比べを MAX_BYTES + 1 にする（境は突き合わせに無い。BIG は 6 MB で遠い。RUST_PORT_PLAN の『2 MB』は境を見ていない）・名前の並べ替えを外す（serde_json に preserve_order が無く Map が BTreeMap で、UTF-8 のバイト順＝Python の sorted の順なので同じ物。害は無い）。終わった後 git status --short は空（この採点のファイルを書く前）。【ほかに見た所】ロック中: Python は store.write の MasterLocked（MasterError は ValueError でない）を受け止めず 500 の HTML の頁、窓は 500 と JSON の言葉（『… が保存中です』）。状態は同じで、画面は Python なら『初期設定を置けませんでした』、窓なら錠の言葉を出す（窓の方が分かりやすいが、答えが割れていて突き合わせに場面が無い。リリースノートの『答えは前と同じ』とは少し違う）。Python の index（/）が埋める ui_profile は写しの更新時刻で読み直すので、窓が書いた後も古い初期設定を埋めない。【点】進んだ道は 2 本（ステップ数 3）。作りは素直で、決まりは ui_defaults.rs 1 か所・範囲の名前は Python の 1 か所・既存の master_store・master_rows・py_dumps に載る（統一感は高い）。量（142 行＋試験 152 行＋答えの係 168 行）は 2 本に見合う。考えさせないは、手で直したファイルの割れ 1 つ・2 MB の境が突き合わせに無い・錠の場面が無いので 7。",
+    "evaluator": "作った後の採点者（案を作っていない・案の採点もしていない別のエージェント。2026-11-05。差分を読み、評価関数 3 つを自分で流し、答えの係に場面 8 つを一時に足して割れを探し、ui_defaults.rs に変異 8 つを入れて突き合わせが落ちるかを測り、どれも元に戻した）",
+    "total": "69.4 点（減点 −3）",
+    "points": "指摘 1) 置き場に同じ名前の行が 2 つで後ろの行に値が無いと割れる 2) 2 MB の境の歩が無い 3) 保存中の錠の答えが割れる（Python は 500 の頁・窓は 500 の JSON） 4) 移した道が 2 本だけ"
+   }
+  }
+ },
+ "accepted_by_user": {
+  "date": "2026-11-05",
+  "note": "作った後の採点 2 回目は 74.2 点（減点 0）で 80 点に届かない。足りないのはステップ数（この段で移した道が表示の初期設定の 2 本だけで、Python 無しで動く所が少ししか増えない。決めた案の大きさから来る）。利用者がこの形で受け入れた（「１，進めてください」）。残りはセット・プリセット・カード・ダッシュボード・書式の保存の道を移す次の段で取り戻す。"
+ }
+}
