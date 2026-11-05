@@ -87,10 +87,11 @@ fn presence_matches_python() {
             let got: Option<(u16, Value)> = match st["op"].as_str().unwrap() {
                 "file" => {
                     let rel = st["path"].as_str().unwrap();
-                    let p = match rel.strip_prefix("@local/") {
-                        Some(r) => local.join(r),
-                        None => pres.dir().unwrap().join(rel),
+                    let (base, rest) = match rel.strip_prefix("@local/") {
+                        Some(r) => (local.clone(), r),
+                        None => (pres.dir().unwrap(), rel),
                     };
+                    let p = rest.split('/').fold(base, |p, c| p.join(c));
                     match st["text"].as_str() {
                         Some(text) => {
                             std::fs::create_dir_all(p.parent().unwrap()).unwrap();
@@ -113,7 +114,7 @@ fn presence_matches_python() {
                     None
                 }
                 "move" => {
-                    pres.configure(Some(rs_root.join(st["to"].as_str().unwrap())));
+                    pres.configure(Some(st["to"].as_str().unwrap().split('/').fold(rs_root.clone(), |p, c| p.join(c)))); // 1 段ずつ継ぐ（Windows の区切り）
                     None
                 }
                 "leave" => {
