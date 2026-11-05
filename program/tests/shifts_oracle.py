@@ -97,6 +97,10 @@ SCENARIOS = [
         S(BOSS, "DELETE", f"{P}/7"),
         S(BOSS, "DELETE", f"{P}/7"),
         S(BOSS, "DELETE", f"{P}/8", query="rev=x"),
+        # 作った後の採点で見つけた形（版 3.75.0）: 消す・直す道の本文が表でない（Python は base_rev で落ちて 500・書かない）
+        S(BOSS, "DELETE", f"{P}/11", "[1]", query="rev=1"),
+        S(BOSS, "DELETE", f"{P}/11", '"x"'),
+        S(BOSS, "PUT", f"{P}/11", "[1]"),
         S(BOSS, "GET", P),
     ]},
     {"name": "書ける段と門番", "mode": "shared", "shifts": OLD[:2], "steps": [
@@ -173,7 +177,11 @@ def main():
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 forget_tab_cache()
                 path = st["path"] + (f"?{st['query']}" if st["query"] else "")
-                r = client.open(path, method=st["method"], data=(st["body"] or "").encode("utf-8"), content_type="application/json")
+                try:
+                    r = client.open(path, method=st["method"], data=(st["body"] or "").encode("utf-8"), content_type="application/json")
+                except Exception as e:      # 道の外で落ちた（試験の接続は投げ返す。本番は 500 で答え、書かない）
+                    steps.append({**st, "status": 500, "json": {"error": f"{type(e).__name__}: {e}", "kind": "error", "type": type(e).__name__}})
+                    continue
                 try:
                     body = r.get_json()
                 except Exception:

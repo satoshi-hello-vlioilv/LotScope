@@ -105,6 +105,12 @@ pub fn needs_python(body: &[u8]) -> bool {
     if ["name", "note", "order", "base_rev"].iter().any(|k| awkward(o.get(*k))) {
         return true;
     }
+    // 適用設備: 表、並びの中の並び・表は Python の str() の書き方（{'a': 1}・[1, 2]）が要る（作った後の採点で見つけた）
+    match o.get("equipment") {
+        Some(Value::Object(_)) => return true,
+        Some(Value::Array(a)) if a.iter().any(|x| x.is_array() || x.is_object()) => return true,
+        _ => {}
+    }
     match o.get("segments") {
         Some(Value::Array(segs)) => {
             segs.iter().any(|s| s.as_object().is_some_and(|m| ["name", "start", "end", "dayOffset"].iter().any(|k| awkward(m.get(*k)))))
@@ -274,6 +280,22 @@ fn next_order(rows: &[Value]) -> String {
     (best + 10).to_string()
 }
 
+/// 窓が Python と同じに読める行か（版 3.75.0。作った後の採点で見つけた形は Python に任せる）: i64 に入らない表示順
+/// （Python の int は桁のまま並べる・次の表示順を数える）・数でない id（Python の並べ替えは数と字を比べられず 500）・
+/// Python の json は読めて窓は読めない区分の字（NaN・Infinity など）
+fn readable(rows: &[Value]) -> bool {
+    rows.iter().all(|r| {
+        let order_ok =
+            r.get("表示順").filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18);
+        let id_ok = matches!(r.get("id"), None | Some(Value::Null | Value::Number(_)));
+        let seg_ok = match r.get("区分") {
+            Some(Value::String(s)) if !s.is_empty() => serde_json::from_str::<Value>(s).is_ok() || crate::access::py_json(s).is_none(),
+            _ => true,
+        };
+        order_ok && id_ok && seg_ok
+    })
+}
+
 /// 窓が受ける 4 本を答える（門番は呼ぶ側が通した）。read は書く前の読み、reread は書いた後に読み直す係。窓が答えない形は None
 pub fn handle(
     store: &Store,
@@ -284,10 +306,22 @@ pub fn handle(
     read: &Read,
     reread: &dyn Fn() -> Option<Read>,
 ) -> Option<Answer> {
+    if !readable(&read.shifts) {
+        return None;
+    }
     if route == Route::List {
         return Some((200, listing(store, me, read)));
     }
-    // 足す・直す道は本文を get_json(force=True) で読む（読めない・空なら Flask の 400）。消す道は本文を見ない（base_rev だけ silent で読む）
+    // 直す・消す道は先に routes/common.base_rev が本文を silent で読む: 窓が読めない本文（NaN・1e400 など）は Python に任せ、
+    // 表でない本文（並び・字・数）は Python が body.get で落ちて 500 になり書かない（作った後の採点で見つけた。access_write と同じ）
+    if matches!(route, Route::Update(_) | Route::Delete(_)) && !body.iter().all(|b| b.is_ascii_whitespace()) {
+        match serde_json::from_slice::<Value>(body) {
+            Err(_) => return None,
+            Ok(v) if truthy(&v) && !v.is_object() => return Some((500, json!({"error": "本文の形が違います", "kind": "error"}))),
+            Ok(_) => {}
+        }
+    }
+    // 足す・直す道は本文を get_json(force=True) で読む（読めない・空なら Flask の 400）
     if matches!(route, Route::Create | Route::Update(_)) && needs_python(body) {
         return None;
     }
@@ -297,8 +331,14 @@ pub fn handle(
     if base == Some(Rev::Unknown) {
         return None;
     }
+    // 書いた後は必ず窓が答える（None を返すと Python がもう一度書く）。読み直せなければ書いたことだけを知らせる
     let done = |status: u16, created: Option<Value>| -> Option<Answer> {
-        let now = reread()?;
+        let Some(now) = reread() else {
+            return Some((
+                503,
+                json!({"error": "保存しましたが、読み直せませんでした。画面を開き直してください。", "kind": "reread", "saved": true}),
+            ));
+        };
         let mut v = listing(store, me, &now);
         if let Some(id) = created {
             v["created"] = id;

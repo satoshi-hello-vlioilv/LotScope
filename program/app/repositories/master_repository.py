@@ -84,7 +84,6 @@ def _normalize_all(rows, spec):
         _normalize(r, spec)
 
 
-
 class MasterRepository:
     def __init__(self, store):
         # 昔の呼び方（アプリのフォルダを渡す）は「手元のみ」の置き場として扱う

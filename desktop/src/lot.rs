@@ -884,6 +884,77 @@ mod tests {
     }
 
     #[test]
+    fn the_window_answers_shift_masters() {
+        // 版 3.75.0: 勤務体系の 4 本は窓が受ける（本物の道: Lot::handle_body → shifts_route）。読むのは門番なし、書くのは門番を通し、
+        // 書いたら一覧の設定を捨てる。窓が Python と同じに読めない形（字の id・大きすぎる表示順・NaN の区分・表の適用設備）は Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-shifts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(local.join("instance_id"), "inst1").unwrap();
+        let perm = json!([{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "rev": 1},
+                          {"id": 2, "ログインID": "v1", "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]);
+        let doc = |rows: Value| json!({"schema": 1, "revision": 1, "rows": rows}).to_string();
+        std::fs::write(share.join("access_permissions.json"), doc(perm)).unwrap();
+        std::fs::write(share.join("work_log_files.json"), doc(json!([{"id": 1, "キー": "a", "設備名": "CR1"}]))).unwrap();
+        std::fs::write(share.join("shift_patterns.json"), doc(json!([{"id": 1, "名称": "古い", "区分": [{"name": "x"}], "rev": 1}])))
+            .unwrap();
+        let conf = |login: &str| {
+            json!({"who": {"login": login, "pc": "PC-1", "pcSource": "", "key": format!("PC-1@{login}")},
+                   "place": {"shareDir": share, "shared": ["access_permissions", "tab_access", "shift_patterns", "work_log_files"],
+                             "data": dir.join("data"), "defaults": dir.join("defaults"), "cache": local.join("master_cache"),
+                             "presence": "", "lockTtl": 20.0}})
+        };
+        let (boss, v1) = (conf("boss"), conf("v1"));
+        let ask_boss = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": boss.clone()}));
+        let ask_v1 = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": v1.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        // ① 読む: 区分が字でない行は区分なし（Python の json.loads と同じ）・選べる設備は作業実績の登録から
+        let (st, v) = lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).expect("窓が受ける");
+        assert_eq!(
+            (st, v["items"][0]["segments"].clone(), v["equipments"].clone(), v["canEdit"].clone()),
+            (200, json!([]), json!(["CR1"]), json!(true)),
+            "{v}"
+        );
+        // ② 足す: 窓が書き、一覧＋created
+        let body = serde_json::to_vec(&json!({"name": "日勤", "segments": [{"name": "日勤", "start": "8:15", "end": "17:05"}]})).unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/masters/shifts", "", &body, &ask_boss).unwrap();
+        assert_eq!((st, v["created"].clone(), v["items"].as_array().unwrap().len()), (201, json!(2), 2), "{v}");
+        let d: Value = serde_json::from_slice(&std::fs::read(share.join("shift_patterns.json")).unwrap()).unwrap();
+        assert_eq!(
+            d["rows"][1]["区分"],
+            json!(r#"[{"name":"日勤","start":"08:15","end":"17:05","dayOffset":null}]"#),
+            "区分の字は json.dumps と同じ"
+        );
+        // ③ 閲覧のみは門番が断る（読むのはよい）
+        let lot_v1 = Lot::new(dir.join("cache-v1")); // 一覧の設定（名乗り）は Lot が覚えるので、人ごとに別の Lot
+        let (st, v) = lot_v1.handle_body("GET", "/api/masters/shifts", "", b"", &ask_v1).unwrap();
+        assert_eq!((st, v["canEdit"].clone()), (200, json!(false)));
+        let (st, _) = lot_v1.handle_body("DELETE", "/api/masters/shifts/2", "", b"", &ask_v1).unwrap();
+        assert_eq!(st, 403);
+        // ④ 窓が Python と同じに読めない形は Python に任せる
+        assert!(
+            lot.handle_body("POST", "/api/masters/shifts", "", br#"{"name": "a", "equipment": {"a": 1}}"#, &ask_boss).is_none(),
+            "表の適用設備"
+        );
+        assert!(lot.handle_body("PUT", "/api/masters/shifts/2", "", br#"{"base_rev": NaN}"#, &ask_boss).is_none(), "窓が読めない本文");
+        let (st, _) = lot.handle_body("DELETE", "/api/masters/shifts/2", "rev=1", b"[1]", &ask_boss).unwrap();
+        assert_eq!(st, 500, "表でない本文は書かない");
+        for bad in [
+            json!({"id": "x", "名称": "字の id"}),
+            json!({"id": 9, "名称": "大", "表示順": "99999999999999999999"}),
+            json!({"id": 9, "名称": "NaN", "区分": "[{\"name\":\"a\",\"start\":\"23:00\",\"end\":\"7:00\",\"dayOffset\":NaN}]"}),
+        ] {
+            std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
+            assert!(lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).is_none(), "{bad}");
+        }
+        assert!(lot.handle_body("GET", "/api/masters/%73hifts", "", b"", &ask_boss).is_none(), "百分率符号で書いた道は Python");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn the_window_writes_access_masters() {
         // 版 3.68.0（順 5 の 2 段目 b）: 権限のマスタを書く 4 本は窓が受ける（Python へ回さない）。門番を通し、窓の書く係で共有と写しを書き、
         // 書いたら権限の覚えを捨てる。判定の材料が無いときと、百分率符号で書いた道は Python に任せる

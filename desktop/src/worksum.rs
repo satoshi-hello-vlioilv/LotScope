@@ -219,7 +219,8 @@ impl Segment {
 
 /// 行の区分（JSON の字）→ 区分の並び。壊れた区分は飛ばす（読むだけなので止めない）
 pub fn segments_of(row: &Value) -> Vec<Segment> {
-    let raw = row.get("区分").filter(|v| truthy(v)).map(py_str).unwrap_or_else(|| "[]".into());
+    // 字だけを読む（Python の json.loads は字でない値〈並び・数〉で TypeError → 区分なし。作った後の採点〈版 3.75.0〉で見つけた）
+    let raw = row.get("区分").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or("[]").to_string();
     let parsed: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
     let mut out = vec![];
     for seg in parsed.as_array().into_iter().flatten() {
