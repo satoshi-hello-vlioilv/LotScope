@@ -72,9 +72,14 @@ fn py_int_value(v: &Value) -> Option<i64> {
     match v {
         Value::Bool(b) => Some(*b as i64),
         Value::Number(n) => n.as_i64().or_else(|| n.as_f64().filter(|f| f.is_finite() && f.abs() < 9.2e18).map(|f| f.trunc() as i64)),
-        Value::String(s) => pyfmt::py_int(s).ok(),
+        Value::String(s) => py_int_exact(s),
         _ => None,
     }
+}
+
+/// int(字)。i64 に入らない数（py_int は端へ丸める。Python の int は上限が無い）は None（Python に任せる。作った後の採点）
+fn py_int_exact(s: &str) -> Option<i64> {
+    pyfmt::py_int(s).ok().filter(|n| *n != i64::MAX && *n != i64::MIN)
 }
 
 /// Python の真偽（数の値）
@@ -361,7 +366,7 @@ pub fn calculate(cfg: &Value, m: &Masters, lot: &Value, inputs: &Value) -> Optio
     let nos: Vec<i64> = ps.iter().map(|p| py_int_value(&p["no"])).collect::<Option<_>>()?;
     let eqs: Vec<String> = ps.iter().map(|p| sstrip(p.get("equipment"))).collect::<Option<_>>()?;
     let fe = py_str(inp.get("found_equipment")?);
-    let found_no = pyfmt::py_int(fe.split(':').next().unwrap_or("")).ok()?;
+    let found_no = py_int_exact(fe.split(':').next().unwrap_or(""))?;
     let pitch = n0(Some(inp.get("found_pitch_mm")?));
     let a = num(inp.get("soil_a_m"));
     let b = num(inp.get("soil_b_m"));

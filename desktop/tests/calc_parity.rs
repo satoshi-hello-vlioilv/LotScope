@@ -46,6 +46,7 @@ fn calc_matches_python() {
         }
     }
     let _ = std::fs::remove_dir_all(&base);
+    println!("窓が答えた {answered}・Python に任せた {handed}");
     assert!(answered >= 600, "窓が答えた数が少ない: {answered}（任せた {handed}）");
     assert!(bad.is_empty(), "{} 件の食い違い（答えた {answered}・任せた {handed}）:\n{}", bad.len(), bad.join("\n"));
 }

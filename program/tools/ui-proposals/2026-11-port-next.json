@@ -1,0 +1,291 @@
+{
+ "title": "Rust 化の残り: 次に移す範囲（順 6 の外とのつなぎ・順 5 の 3 段目の残り）",
+ "rule": "2026-10-17",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-05）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: services の calculator.py（全部）・equipment_names.py（EquipmentResolver）・cm3_schedule.py（fetch_raw・プロキシ・normalize）・schedule.py（config・_safe・Schedules・build_hot・source_info）・lotdsp_direct.py（trusted_browser・find_browser・手で組んだ WebSocket・_launch）・lotdsp_api.py（KeyMap・learn_later）・lotdsp_progress.py（import）・lotdsp_link.py・path_settings.py（ITEMS・parse・effective）、repositories/master_repository.py（SPECS・_normalize・equipment_resolver・equipment_map・rolls・inspection_of）、routes の lots.py・schedule.py・settings.py（@bp 12 本）・sources.py（cm3 の 5 か所）・lotlist.py（lotlist_settings・lists_settings）・common.py（calculator・api_settings・exception_error）・masters.py（inspection）、static/js の app.js（recalc・RECALC_DELAY_MS 180・/api/config・LotDsp の 6 道）・lotlist-schedule.js・lotdsp-link.js、desktop/src の lists.rs（src_plan の cm3 → Ok(None)・結合した表の元が cm3 → Ok(None)）・lot.rs（Src の Source/Refresh が cm3 なら Python）・dashboard.rs（スケジュールは Python）・access.rs（Place::rows）・sidecar.rs（SERVES）・Cargo.toml と Cargo.lock、.github/workflows/ci.yml（Linux で本物の Chrome を使う RealBrowser）、tests の test_calculator（36）・test_schedule（13）・test_lotdsp_direct（18。RealBrowser は Chromium が無ければ飛ばす）・schedule_fixture.py、RUST_PORT_PLAN.md の §4 と順 5 の 3 段目の残り、前例 2026-11-presence-port.json・2026-11-masters-write.json。測った物（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-portnext。作業ツリーは変えていない）: calcbench.py＝試験の形（TempMaster・L6183D0・8:TLV）で Calculator.calculate を 200 回 → 中央値 9.36 ms、うちマスタを読む所（equipment と rolls）だけで 3.08 ms。ロールマスタ 377 行・設備 17 行・答え 37 KB。rust-port-bench.py --static-only を流し直し、行（コードの行）と依存の数は案の measured と同じ。この環境には Chromium／Edge が無い（find_browser は None。RealBrowser は手元では飛ぶ）。物差しの読み替えは前例どおり（順序＝作業の順の筋／チャンク＝1 版のまとまりの大きさと揃い／階層化＝主な狙いが 1 つに見えるか／視覚化＝進み具合と食い違いを数で見せられるか／ステップ数＝目的までの版と受け渡しの数／考えさせない＝取り違え・事故の起きにくさ／直感的＝今の作りの型に沿うか／形と色＝前の移し方と同じ型／言葉と置き場＝同じ決まりが 1 か所に／整列・余白・釣り合い＝量の釣り合い・出来上がりのきれいさ／色と文字の調子＝危うさの少なさ）。減点 hidden_state は前例と同じく、案の文のとおりに作ると起きていることが画面で食い違って見える所に付けた。案を作った者の measured で違っていた・抜けていた所: (1) スケジュールの道は GET /api/schedule の 1 本ではない。予定そのものは /api/src/sch（一覧・スライサー・集計表・source・refresh）とデータ元の一覧のカード、スケジュールを元にした結合した表、ダッシュボードのパネルで読まれ、routes/sources.py の 5 か所が routes/schedule.py（schedule_plan・hot_plan・schedule_extra・schedule_source・schedule_card・_resolved）へつなぐ。窓は lists.rs・lot.rs・dashboard.rs で cm3 を見ると Python に回している。(2) schedule.py の指紋は sha1（_safe のファイル名の 6 桁・表の中身の sig）で sha2 ではない。sha1 の crate は Cargo.lock にも無い。percent-encoding・base64・reqwest は Tauri から Cargo.lock に入っている。(3) スケジュールの設定（schedule.cm3_base_url・client_ip・equipments・inspect_keywords・auto_refresh_sec）は参照先マスタで変えられる項目で、cfg() は effective_settings を通す。窓には effective が無いので、C・F は E か、一覧の設定の答え（/api/lotlist/settings）に載せる橋が要る。LotDsp の設定（api_settings・settings_of）も同じく effective を通す。(4) cm3_schedule は use_system_proxy のとき urllib の build_opener（Windows ではレジストリのプロキシも読む）。ureq は環境変数しか読まないので、同じ形にはならない。(5) 計算は import が math だけだが、MasterRepository の equipment（旧い列名 巻出し方向 → 巻取方向 の読み替え・rev の既定 1）・equipment_map・rolls と、APP_SETTINGS の calculation（配った設定。effective ではない）を要る。窓は access::Place::rows で行を読めるが、calculation の設定はまだ窓に来ていない。同じ EquipmentResolver を使う読みの道 GET /api/masters/equipment/inspection（発見設備の自動選択。masters.py:63）が案の文に無い。(6) 計算の 8.9 ms のうち約 3 ms はマスタを読む所で、窓でも読む（JSON を読むので短くはなる）。画面は 180 ms 溜めてから頼むので、利用者に見える得は小さい。(7) 本物のブラウザの試験は Windows の CI だけではない。ci.yml は Linux（Ubuntu）で Chrome のサンドボックスを開けてから test_lotdsp_direct.RealBrowser（作り物の LotDsp の SiteServer を見えない Chrome で読む）を流している。CDP は Linux でも突き合わせられる。ただしこの環境には Chromium が無く、手元の確かめでは飛ぶ（CLAUDE.md の「手元で green にしてから push」を満たすには Chromium を入れる要がある）。(8) lotdsp_direct は WebSocket を socket と struct で手で組んでいる（tungstenite は要るとは限らない）。lotdsp_api の KeyMap は learn_later の裏の糸が作業場所の lotdsp_api_map.json に書き、/api/config も lotdsp_api.status で読むので、移す途中は書き手が 2 つになる。(9) 「順 6 を終えれば Python 不要」（A）は言い過ぎ: RUST_PORT_PLAN.md は GET /api/config・POST /api/settings/check を順 6 に置いているが 11 道に入っていない。/lotdsp-link は Python の型（render_template）の頁。(10) 試験の数の 38・61（lotdsp_api・lotdsp_progress）はその部品を使う試験の数で、test_lotdsp_api.py は 26 件・test_lotdsp_progress.py は 19 件。リポジトリはこのファイルのほかは変えていない。 ／ 2 回目の採点者（別のエージェント・2026-11-05。1 回目の採点者とも案を作った者とも別）: 画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。1 回目の seen は情報として使い、頼った所はコードで確かめ直した。読んだ物: services の calculator.py（全部）・equipment_names.py（全部）・schedule.py（_safe・Schedules・sig）・cm3_schedule.py（import・fetch_raw）・lotdsp_progress.py（HTMLParser の _TableCollector）・lotdsp_direct.py（import・find_browser・手組みの WebSocket）、repositories/master_repository.py（_normalize・equipment_resolver・inspection_of・equipment_map・rolls）・master_store.py（SHARED_ALWAYS）、routes の lots.py（@bp 10 本・read_lot・calculate）・masters.py（equipment_inspection）・common.py（calculator・api_settings・exception_error・master_call）・lotlist.py（lotlist_settings・_access_place）・schedule.py（schedule_meta）・sources.py（cm3 の 5 か所）、web.py（jsonify＝sort_keys・ensure_ascii・NaN の字）・__init__.py（APP_SETTINGS は起動の 1 回）・path_settings.py の ITEMS（calculation は無い）、static/js の app.js（/api/calculate・/api/equipment/inspection）・lotlist-schedule.js、desktop/src の main.rs（lot_settings）・lot.rs（SETTINGS_TTL・after_python・cm3 の分岐）・lists.rs（cm3 の分岐）・access.rs（Place::rows・py_json）・pyfmt.rs（py_float・py_int・float_repr が既にある）・join.rs（py_dumps）、desktop/tests の common.rs（diff は 0 と 0.0 を別に数える）・formula_cases.rs、Cargo.toml、.github/workflows（cargo test は Linux と Windows の両方）、RUST_PORT_PLAN.md の順 6、前例 2026-11-presence-port.json・2026-11-masters-write.json。測った物（scratchpad/pw・作業ツリーは変えていない）: Python の x**2 と x*x の違い（乱数 200 万中 1,685・r＝279 などに 0.01 刻みの厚さ 2 万中 15。どれも x*x が正しく丸めた値）・Rust の powf(2.0)（定数の 2 は x*x へ畳まれ Python と食い違う）と black_box で畳ませない powf（30 万件すべて Python と同じビット）・test_lotdsp_direct を playwright の Chromium（TPA_LOTDSP_BROWSER）で流した結果（18 件 OK・飛んだのは LoginWindow の 5 件）。物差しの読み替えは 1 回目と同じ。減点 hidden_state・lost は前例と同じ読み方（案の文のとおりに作ると、状態が食い違って見える・機能が黙って消える所）。案を作った者の self_check と案の文で違っていた・抜けていた所: (1) 点検の道の直し（POST /api/equipment/inspection）は正しい。(2) 計算の答えをぴったり合わせる落とし穴（pow を Rust が畳む・焼いた表を Linux の glibc の pow で作り Windows の UCRT の pow と比べる）が案に無い。(3) 窓には Python の float()/int()/repr の写し（pyfmt.rs）が既にあり、全角・下線・nan を Python に任せる要は無い。任せるべきは答えに NaN・inf が出る形と、Python が例外で答える形。(4) import-lotdsp は純な道ではない（read_lot が lotdsp_api.learn_later を呼ぶ）。(5) H の ② に GET /api/schedule（schedule_meta）が無い。(6) lotdsp_progress の設定は APP_SETTINGS の lotdsp_import で、api_settings は effective と、同じ鍵に読み方が 2 つある。(7) 1 回目の採点の『この環境に Chromium が無い』は違っていた（/opt/pw-browsers の Chromium で RealBrowser は手元で通る）。リポジトリはこのファイルのほかは変えていない。",
+ "measured": "残る Python の部品（tools/rust-port-bench.py --static-only・版 3.71.0）: 順 6 は 7 部品 2,330 行・試験 191 件（calculator 304 行・試験 36・標準だけ／cm3_schedule 222・13・ureq と html-escape／schedule 275・13・percent-encoding と sha2 と rusqlite（済）／lotdsp_direct 502・18・tungstenite と ureq と base64（見えない Edge を CDP で動かす）／lotdsp_api 467・38・ureq／lotdsp_progress 308・61・html-escape／lotdsp_link 252・12・regex（済））。新しく要る crate は ureq・tungstenite・html-escape・base64（どれもまだ Cargo.toml に無い）。道: LotDsp の 9 道（routes/lots.py: import-lotdsp・fetch-lotdsp・fetch-lotdsp-api・lotdsp-api/survey・lotdsp-api/link・/lotdsp-link・lotdsp-api/status・fetch-lotdsp/status・fetch-lotdsp/cancel）・計算 POST /api/calculate（画面の計算のタブで欄を変えるたびに呼ぶ。app.js:1557）・スケジュール GET /api/schedule。計算は Python で 1 回 8.9 ms（中央値・200 回・見本 L6183D0。tests/test_calculator.py の形）。順 5 の 3 段目の残り 15 道（RUST_PORT_PLAN.md: 順 6 へ config・settings/check、効いている設定を写すときに GET /api/settings・update/settings・fs/browse・fs/places、7 段目に PUT settings・置き場の 6 道・ui-defaults 2 道）。試験に使える作り物: スケジュールは CM3 を真似る HTTP サーバー（tests/schedule_fixture.py）、LotDsp は test_lotdsp_* が作り物の答えで試す（本物の Edge は Windows の CI の自己診断だけ）。",
+ "proposals_text": {
+  "A 順 6 を一括": "7 部品・11 道をまとめて 1 版で窓へ。4 つの crate を一度に入れ、突き合わせの試験を部品ごとに作る。終われば順 6 は Python 不要。",
+  "B 計算から": "calculator（と使う equipment_names）と POST /api/calculate だけを先に。crate は要らない。試験 36 件の形と見本 L6183D0 を Python と突き合わせる（calc_parity）。欄を変えるたびの 8.9 ms が縮む。LotDsp・スケジュールは次の版。",
+  "C スケジュールから": "cm3_schedule・schedule と GET /api/schedule を先に。ureq・html-escape を入れ、CM3 の作り物の HTTP サーバー（schedule_fixture）を Rust の試験でも起こして Python と突き合わせる。",
+  "D LotDsp から": "lotdsp_direct・api・progress・link の 4 部品・9 道を先に（いちばん大きく危うい物を先に片付ける）。tungstenite で CDP を組み直し、作り物の答えで試す。本物の Edge は Windows の CI の自己診断で。",
+  "E 順 5 の 3 段目 b（効いている設定）を先に": "順 6 に入る前に、効いている設定（path_settings.effective と配った設定の読み方）を Rust に作り、GET /api/settings・GET /api/update/settings・fs/browse・fs/places の 4 道を窓へ。順 5 の読む道を閉じる。",
+  "F 計算とスケジュール（CDP の要らない物）を先に": "B と C をまとめて 1 版に（crate は ureq・html-escape の 2 つ）。外とのつなぎのうち、見えない Edge（CDP）を要らない物を先に閉じ、LotDsp（tungstenite・base64・CDP）は最後に 1 版で。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は measured）",
+   "self_check": "案を作った者が確かめたこと: 棚卸しは rust-port-bench.py --static-only を流した数。道は routes/lots.py・routes/schedule.py の @bp を数えた（LotDsp 9・計算 1・スケジュール 1）。計算の速さは Calculator を見本 L6183D0 で 200 回動かした中央値。計算の道は app.js の欄を変えるたびの再計算から呼ばれる。CM3 の作り物は schedule_fixture.py の HTTP サーバー。案の方向は 6 つ（量で一括 A・小さく速さの得 B・HTTP の作り物がある C・危うい物を先に D・前の段を閉じる E・依存で区切る F）で偏っていない。",
+   "proposals": {
+    "A 順 6 を一括": {
+     "score": {
+      "order": 4,
+      "chunk": 2,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 3,
+      "intuitive": 4,
+      "form": 5,
+      "place": 6,
+      "layout": 3,
+      "tone": 2
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/schedule.py の schedule_meta と routes/sources.py の 5 か所: 案の 11 道は GET /api/schedule だけを移し、予定を取る /api/src/sch（一覧・source・refresh）は Python に残る（窓の lists.rs・lot.rs は cm3 を Python へ回す）。窓の Schedules は CM3 へ取りに行かないので、設備のタブの state が Python の写しがあっても『unknown』と出る"
+      }
+     ],
+     "seen": "良い所: 終われば外とのつなぎの部品が窓にそろい、crate を入れる・作り物の相手を Rust の試験に起こす準備が 1 回で済む。悪い所: 量は 7 部品 2,330 行（コードの行）＋道＋equipment_names＋スケジュールの段取り（sources.py の 5 か所と schedule.py の 134 行、窓の lists.rs・lot.rs・dashboard.rs の cm3 の分岐）で、1 つの PR が前例のどの段よりも重い。前例（2026-11-masters-write.json の A 一括）と同じく、段ごとに突き合わせて入れる型から外れ、壊れたときに戻しにくい。案の文の『終われば順 6 は Python 不要』は誤り: /api/config・/api/settings/check（計画は順 6）と /lotdsp-link の頁、スケジュールを読むデータ元の道が残り、どれも effective（窓に無い）を要る。CDP の突き合わせは Linux の CI でも本物の Chrome で流せるが手元に Chromium が無く、手元の確かめで飛ぶ所が 1 版に混ざる。use_system_proxy（Windows のレジストリのプロキシ）・sha1 のファイル名・KeyMap の書き手が 2 つ、の落とし穴を一度に抱える。"
+    },
+    "B 計算から": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: calculator は import が math だけの純な計算（304 行）で、equipment_names（75 行・試験 16）と合わせても crate は要らない（unicode-normalization・regex・fancy-regex は済）。答えは (設定の calculation・設備マスタ・ロールマスタ・lot・inputs) だけで決まるので、formula_cases.json と同じく Python で答えを焼いた事例の表を Rust が node・サーバー無しで突き合わせられる（試験 36 件の形・L6183D0・自動の内径・エンドバック・反転・候補ロール）。窓は access::Place::rows で設備・ロールのマスタを読め、POST を窓が答えて読めない本文は Python に任せる形は access_write・presence と同じ。equipment_names を先に写すと、後の LotDsp（lotdsp_progress が EquipmentResolver・norm・compact を使う）がそれを使え、順序の筋が良い。悪い所: (1) 案の文に無い物が要る: 設備マスタの読み替え（巻出し方向 → 巻取方向・rev の既定）、APP_SETTINGS の calculation を窓へ渡す橋（一覧の設定の答えに載せる）、同じ resolver を使う GET /api/masters/equipment/inspection（発見設備の自動選択。一緒に移すのが自然）。(2) Python の数の読み方に合わせる所が多い: num() の float() は全角の数字・' nan '・'Infinity'・'1_0' を読み、found_equipment の int() も全角・下線を読む。失敗は exception_error で例外の型の名前と Python の言葉を返すので、窓は正しい形の本文だけ答え、ほかは Python に任せるべき。答えは 37 KB の浮動小数で、Python の repr と serde_json（float_roundtrip）は最短の書き方で揃うが、NaN・inf の入力は確かめが要る。(3) 速さの得は小さい: 測ると 9.36 ms のうち 3.08 ms はマスタを読む所（窓も読む）で、画面は 180 ms 溜めてから頼む。(4) 計算のタブは LotDsp の取り込み・/api/config がまだ Python なので、この版で Python から外れる画面は無い（部品が 2 つ減るだけ）。resolver の決まりは check_row（7 段目）と lotdsp_progress（順 6）のため Python にも残り、2 か所になる間がある。"
+    },
+    "C スケジュールから": {
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/schedule.py の schedule_meta（state: peek(code).get('path')）と desktop/src/lists.rs:451・lot.rs:409: 案の文のとおり GET /api/schedule だけを窓へ移すと、予定を取るのは Python の /api/src/sch のまま。窓の Schedules は空なので、設備のタブがいつも『unknown』と出る（Python の写しはある）"
+      }
+     ],
+     "seen": "良い所: 作り物の CM3（tests/schedule_fixture.py。種を固定した HTTP サーバー・文字化け・文字参照・日付の繰り上がり・停止の行）があり、Rust の試験からも起こして Python と突き合わせられる。cm3_schedule の normalize・table_rows は純な読み方なので事例の表にしやすい。悪い所: 案の範囲が実際より大幅に小さい。スケジュールの道は 1 本ではなく、予定は /api/src/sch（一覧・スライサー・集計表・source・refresh）・データ元のカード・スケジュールを元にした結合した表・ダッシュボードのパネルで読まれ、sources.py の 5 か所と routes/schedule.py（schedule_plan・hot_plan・_resolved・schedule_extra・schedule_source・schedule_card）を通る。窓でこれを答えるには lists.rs・lot.rs・dashboard.rs の cm3 の分岐を外し、Schedules（設備ごとの錠・裏の取り直しの糸・8 本の同時取り）・build_hot・missing_lots を写す。指紋は sha1（案の sha2 ではない）でファイル名にも入り、db_cache/schedule を Python と窓の両方が書く間ができる（presence で見た 2 つの係の形）。設定は参照先マスタで変えられる schedule.* で effective を通すので、窓には橋か E が要る。use_system_proxy は urllib（Windows のプロキシの設定も読む）で、ureq では同じにならない。"
+    },
+    "D LotDsp から": {
+     "score": {
+      "order": 5,
+      "chunk": 4,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 3
+     },
+     "minus": [],
+     "seen": "良い所: いちばん大きく危うい所（見えない Edge・ログインの窓・使い回しと片付け・中止）を先に片付ける筋は通る。案の思い込みより試しやすい: ci.yml は Linux で Chrome のサンドボックスを開けて test_lotdsp_direct.RealBrowser（作り物の LotDsp の SiteServer を見えない Chrome で読む・見つからない・ログインの画面で引き返す・使い回して消す）を流しており、CDP の突き合わせは Linux の CI でもできる。WebSocket は Python が socket と struct で手で組んでいるので、tungstenite でなく同じ手組みでもよい。悪い所: 量は 4 部品 1,529 行＋道 9 本（routes/lots.py）＋equipment_names＋models の Lot/Process の形で、1 版が重い。前に要る物が先に無い: lotdsp_progress は EquipmentResolver を、fetch-lotdsp・API は effective の lotdsp_import（ブラウザの欄は trusted_browser の Windows の決まり）を要る。KeyMap（lotdsp_api_map.json）は learn_later の裏の糸が書き、/api/config（Python に残る）も読むので書き手が 2 つの間ができる。/lotdsp-link は Python の型の頁。この環境に Chromium が無く RealBrowser は手元で飛ぶので、手元で green にしてから push する決まりを満たすには Chromium を入れる手間が要る。速さの得は無く（社内のサーバー待ち）、壊れると利用者がロットを取り込めない（いちばん使う入口）ので、危うさが最も高い。"
+    },
+    "E 順 5 の 3 段目 b（効いている設定）を先に": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "良い所: effective はスケジュール（cfg）と LotDsp（api_settings・settings_of）の設定の元なので、順 6 の前に窓に作る筋はある。計画の 3 段目の残りの行き先（効いている設定を写すとき 4 道）にも沿う。悪い所: 4 道は性質がそろわない: GET /api/settings は管理の画面だけ、/api/update/settings は窓の更新の係が 30 分おきに尋ねるだけ、fs/browse・fs/places は『参照…』の窓で、答えが OS の決まり（%VAR%・ドライブと \\\\サーバー\\共有・normcase・os error の言葉）に強く依り Linux の cargo test では Windows の形を確かめられない（前の採点も同じ所を挙げた）。fs/places は窓に無い MasterStore.history を要る。effective は parse の中で trusted_browser（Windows では Program Files の下かを resolve で見る）と work_log.split_pattern を連れてくる。Python も一覧の設定の答えを作るために effective を持ち続けるので、決まりが 2 か所になる。使う回数が少ない道ばかりで、Python から外れる画面も無い。橋（一覧の設定の答えに効いた値を載せる）の型が既にあるので、C・D の前提として必ず要るわけでもない。"
+    },
+    "F 計算とスケジュール（CDP の要らない物）を先に": {
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 4,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "C と同じ: routes/schedule.py の schedule_meta と desktop/src/lists.rs:451・lot.rs:409。GET /api/schedule だけを窓が答え、/api/src/sch は Python のままなので、設備のタブの state が『unknown』と出る"
+      }
+     ],
+     "seen": "良い所: 『CDP の要らない物を先に』で区切る考えは筋が通り、版の数は少ない。計算の部分は B と同じく純で突き合わせやすい。悪い所: 狙いが 2 つ（純な計算と、外の HTTP・写し・結合）で 1 版の中の重さが釣り合わない。スケジュールの範囲は C と同じく実際より小さく（/api/src/sch とデータ元・結合した表・ダッシュボードの段取り、Schedules の糸と錠、sha1 のファイル名、effective の橋、use_system_proxy）、その重さが B の軽さを打ち消す。crate は ureq・html-escape に加えて sha1（か手で書く）が要る。片方が崩れると両方を戻すことになる。"
+    }
+   }
+  },
+  {
+   "name": "2 回目",
+   "images": "画面に出ない改良なので画像は無い（測った数は measured と 1 回目の採点の seen）",
+   "self_check": "案を作った者が確かめたこと: 1 回目の採点の指摘 10 個をコードで確かめ直した。点検の道は POST /api/equipment/inspection（routes/masters.py:59。採点の書いた GET /api/masters/equipment/inspection は無い）。calculator は routes/common.calculator で APP_SETTINGS（effective ではない）と master_repo を使う。/api/lotlist/settings（routes/lotlist.py:110）は lists・access・conversions を返すので、ここに calculation などを載せられる。新しい案 5 つ（G・H・I・J・K）と、1 回目の 1 位を直した B′。方向: 1 部品を閉じる（B′）・ネットワークの要らない読み方をまとめる（G）・正しい範囲で段に分ける（H・J）・共通の土台を先に（I）・土台と小さな道を 1 版に（K）。",
+   "proposals": {
+    "B′ 計算を閉じた形で": {
+     "score": {
+      "order": 8,
+      "chunk": 9,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: 1 回目の B の抜け（道・読み替え・設定）を正しく埋めた。確かめた所: 点検の道は POST /api/equipment/inspection（routes/masters.py:59。画面は app.js:801 から呼ぶ）で、案を作った者の直しが正しい（1 回目の採点の GET /api/masters/... は誤り）。calculator は routes/common.calculator で APP_SETTINGS をそのまま使い、calculation は path_settings の ITEMS に無く（参照先マスタで変えられない）、APP_SETTINGS は起動の 1 回だけ作る（__init__.py:97）ので、一覧の設定の答えに載せる橋は 10 秒の覚え（lot.rs の SETTINGS_TTL）でも古くならない。読み替え（EQUIPMENT_RENAMED・rev の既定 1）は MasterRepository._normalize のとおり。crate は要らない（unicode-normalization・regex は済）。計算と点検の 2 道で resolver を使う読みの道が閉じ、後の LotDsp（lotdsp_progress も EquipmentResolver を使う）の土台になる順の筋も良い。1 版で閉じ、狙いが 1 つに見える。悪い所（案の文に無い・違う所）: (1) 答えをぴったり合わせる所に落とし穴がある。calculator の (x + r) ** 2 - r ** 2 は C の pow を呼ぶ。測ると Python の x**2 は x*x と 0.08% の値で 1 ulp 違い（乱数 200 万中 1,685・内径の半分 279 に 0.01 刻みの厚さを足した 2 万中 15）、Rust の powf(2.0) は定数の 2 を LLVM が x*x へ畳むので 30 万中 0 件で Python と食い違う。black_box で畳ませない powf は Python と 30 万件すべて同じビット（scratchpad/pw）。案の事例（L6183D0 はオフの厚さ 0 で r が整数）ではこの違いが出ず、見逃す。(2) 焼いた事例の表（formula_cases.json の型）は Linux の Python（glibc の pow）で焼くが、cargo test は desktop.yml で Windows でも流れ、Windows の Rust は UCRT の pow を呼ぶので、まれな値で表と合わない恐れがある。Python の **2 を掛け算に直すか（答えは 1 ulp 以内しか動かない）、presence_parity と同じく生きた Python（calc_oracle.py）と同じ PC で突き合わせるのが安全。(3) 整数と小数の書き分けがある: found_t の既定 0・transfer の 0・after_length_m の 0・pitch_in_mm の 0・agreement_percent の 0・diameter_min_mm の既定 0 は int で、tests/common.rs の diff は 0 と 0.0 を別に数える。(4) Python の float()/int() の読み方は窓に既にある（pyfmt::py_float・py_int・float_repr。全角・下線・nan・Infinity も）ので、全角などを Python に任せる要は無い。任せるべきは、答えに NaN・inf が出る形（Python の json は NaN の字を書くが serde_json は書けない）と、Python が例外で答える形（inputs の鍵が無い・found_equipment が '8.0'・下流の equipment が null で .strip() が落ちる _trace_back の included[idx+1]['equipment']・no が小数のときの int(3.7)=3 と str(3.7) の鍵）。(5) 得は小さいまま: 9.4 ms のうち約 3 ms はマスタを読む所で、画面は 180 ms 溜めて頼む。Python から外れる画面はまだ無く、resolver は check_row・lotdsp_progress のため Python にも残る（2 か所の間）。合格点にわずかに届くのは、範囲が正しく 1 版で閉じるため。作るときに (1)〜(4) を守ることが条件。"
+    },
+    "G 純な読み方を先に（計算＋HTML を読む所）": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 5,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: ネットワークを使わない部品を事例の表で先に固める考えは、後の段の危うさを減らす。悪い所: 足す 2 つは『純』でも軽くない。lotdsp_progress は Python の html.parser.HTMLParser（convert_charrefs=True。_TableCollector が script・style を飛ばし、入れ子の表・br を数える）に頼るので、Rust では同じ癖の字の切り方を手で書くか、別の HTML の crate（癖が違う）を入れることになる。cm3_schedule の normalize も html.unescape（HTML5 の名前つき文字参照の全部と、; の無い参照・&#x80; のような置き換え）を使う。models の Lot・Process の形（to_dict）も連れてくる。そのうえ案の文のとおり『道は移さず窓の中で使わない』ので、版の中に使われない Rust のコードが入り、本物の道で確かめられない（事例の表だけ）。前の移し方は、どの段も道を受けて Python に任せる形で閉じており、型から外れる。lotdsp_progress は APP_SETTINGS の lotdsp_import（effective ではない。routes/lots.py:16）を読むので、その橋も要る。B′ の良さを、狙いの違う重い物が薄める。"
+    },
+    "H スケジュールを正しい範囲で 2 段に": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/schedule.py:166 の schedule_meta（GET /api/schedule。state は Python の schedules().peek(code).get('path')）と static/js/lotlist-schedule.js:41: 案の ② は /api/src/sch・カード・結合・ダッシュボードを窓へ移し、写しの書き手を窓だけにする（Python は写さない）が、GET /api/schedule を挙げていない。そのまま作ると Python の Schedules は空のままなので、設備のタブがいつも『unknown』と出る"
+      }
+     ],
+     "seen": "良い所: 1 回目に挙がった範囲の抜け（/api/src/sch・データ元のカード・結合した表・ダッシュボードの cm3 の分岐 lists.rs:451・462・lot.rs:409・dashboard.rs）を拾い、写しの書き手を 1 つにする（presence で見た 2 つの係の事故を避ける）方針は正しい。作り物の CM3（schedule_fixture）を Rust の試験から起こせば、取った行・HOT の帯の数を Python と数で突き合わせられる。悪い所: (1) 範囲の抜けが残る: GET /api/schedule（schedule_meta）が ② に無い（上の減点）。(2) 重い: schedule.py 363 行（裏の糸・設備ごとの錠・8 本の ThreadPoolExecutor）・cm3_schedule.py 303 行・routes/schedule.py 174 行・sources.py の 5 か所を 2 版で、しかも設定は I の橋が先に要るので、目的まで 3 版と受け渡しが多い。(3) 新しく要る物: HTTP の crate（ureq。Cargo.toml に無い）・sha1（_safe と sig。Cargo.lock に無いので crate か手書き）・Windows のプロキシ（urllib の getproxies_registry に当たる物。windows の crate に Registry の機能を足す）。sig は json.dumps(rows, ensure_ascii=False, default=str) の字の sha1 なので、Python の dumps の字（区切り ', ' と ': '・default=str）まで同じに作らないとファイル名・写しの印が食い違う（join.rs の py_dumps は sort_keys=True で別の字）。(4) ① は道を受けないので、版の中で本物の道を通して確かめられない。(5) ダッシュボードのスケジュールのパネルは Python の routes/dashboard.py に残っており（RUST_PORT_PLAN.md:314）、その分岐を外すにはパネルの組みも写す要がある。危うさ（外の HTTP・糸・錠・2 か所の写し）が最も大きい部類で、壊れるとスケジュールのタブが空になる。"
+    },
+    "I 設定の橋を先に": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 4,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 6,
+      "place": 7,
+      "layout": 6,
+      "tone": 9
+     },
+     "minus": [],
+     "seen": "良い所: 効いている設定を Python の effective_settings の 1 か所で決め、窓は答えを読むだけにする（lotlist_settings が既に effective を通して source などを返している型。routes/lotlist.py:110）ので、決まりが 2 か所にならず危うさはほぼ無い。悪い所: この版で窓が受ける道が無く、目的（Python の部品を減らす）へ 1 歩も進まない。試験の『効いた値が effective_settings と同じ』は、Python が自分で作った値を自分と比べる形で、確かめる中身が薄い。しかも計算は橋を要らない形に近い: calculation は参照先マスタで変えられず（path_settings の ITEMS に無い）、APP_SETTINGS は起動時の 1 回だけ。schedule・lotdsp_import の効いた値は、それを使う段（H・J）で載せれば足り、先に載せても使う者が居ないので、載せた形が後の段に合うかを確かめられない。lotdsp_progress が読むのは APP_SETTINGS の lotdsp_import（effective ではない。routes/lots.py:16）で、api_settings は effective（routes/common.py:28）と、同じ鍵でも読み方が 2 つあることに案が触れていない。版が 1 つ増えるだけになる。"
+    },
+    "J LotDsp を 2 段に": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 3
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "routes/lots.py:13-20 の read_lot: import-lotdsp は HTML を読んだあと lotdsp_api.learn_later（LotDsp の API で同じロットを引き、項目名を学んで lotdsp_api_map.json に書く裏の糸）を呼ぶ。案の ① はこの道を『貼り付けた HTML を読む純な道』として窓へ移し、lotdsp_api は ② に回すので、文のとおりに作ると ① の版では HTML から取り込んでも API の項目名を学ばなくなり、後の fetch-lotdsp-api の読み替えが育たない"
+      }
+     ],
+     "seen": "良い所: いちばん危うい LotDsp を 2 段に分け、KeyMap の書き手を 1 つにする方針は正しい。確かめた所: lotdsp_direct は WebSocket を socket と struct で手で組んでいる（lotdsp_direct.py:22-37・158）ので、tungstenite は要らないという案の読みは正しい。1 回目の採点の『この環境に Chromium が無く RealBrowser は手元で飛ぶ』は違っていた: playwright の Chromium（/opt/pw-browsers/chromium-1194/chrome-linux/chrome）を TPA_LOTDSP_BROWSER で渡すと、test_lotdsp_direct の RealBrowser 5 件は手元でも通る（18 件・OK・飛んだのは xvfb の要る LoginWindow の 5 件だけ）。悪い所: (1) ① は純ではない（上の減点）。(2) ① でも HTMLParser の癖の写し（G と同じ）と models の Lot の形が要る。(3) ② は見えない Edge の起動・作業用のプロフィール・使い回しと片付け・中止・ログインの窓（xvfb が無いと手元で確かめられない）・lotdsp_api（619 行・ureq）を一度に抱え、壊れると利用者がロットを取り込めない（いちばん使う入口）。RealBrowser は Python の試験なので、Rust と突き合わせるには Rust の試験から SiteServer と Chrome を起こす枠を新しく作る要がある。(4) 速さの得は無く（社内のサーバー待ち）、前に要る resolver（B′）が先に無い。2 版で LotDsp だけが進み、計算・スケジュールは手つかずのまま。"
+    },
+    "K B′＋I（計算と設定の橋を 1 版で）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: 版の数は B′ と同じ 1 つで、計算の 2 道が閉じる。橋の作り（Python が effective で決め、一覧の設定の答えに載せる）は今の型に沿う。悪い所: 足した schedule・lotdsp_import の値は、この版ではだれも使わない。載せた形が後の段（スケジュール・LotDsp）に合うかはその段を作るまで分からず、作るときに形を直すことになりやすい（先に作った橋が外れる）。橋の試験は Python の値を Python と比べる形で薄い。計算に要るのは APP_SETTINGS の calculation（変わらない値）だけで、橋の残りは狙いを 2 つに見せ、B′ の『1 つの部品を閉じる』の分かりやすさを薄める。B′ と同じ落とし穴（pow の畳み・焼いた表と Windows の pow・整数と小数・NaN の答え・Python が例外で答える形）は案の文にやはり無い。使わない値を毎回（10 秒ごと）の設定の答えに載せる重さは小さいが、得も無い。"
+    }
+   }
+  }
+ ],
+ "proposals_text_2": {
+  "B′ 計算を閉じた形で": "calculator と equipment_names（EquipmentResolver・norm・compact）を写し、POST /api/calculate と POST /api/equipment/inspection（同じ resolver。masters.py:59。1 回目の採点は GET /api/masters/equipment/inspection と書いたが、本当は POST /api/equipment/inspection）の 2 道を窓が答える。設備マスタ・ロールマスタは Place::rows で読み、旧い列名（巻出し方向 → 巻取方向）の読み替えと rev の既定を写す。calculation の設定（APP_SETTINGS の値。effective ではない）は一覧の設定の答え（/api/lotlist/settings）に載せて窓へ渡す。窓は正しい形の本文だけを答え、読めない本文・数でない数（Python の float()/int() の全角・下線・nan・Infinity の読み方が要る形）は Python に任せる。突き合わせは Python で焼いた事例の表 tests/fixtures/calc_cases.json（formula_cases.json と同じ型）を cargo test で読む: test_calculator の 36 の形・L6183D0 の各発見設備・trace_ratio adjacent/found・自動の内径（設備ごと・HOT・既定）・エンドバックの境・比重が無い／0・反転（上・下・-）・候補ロールの ±誤差・A だけ・B 無し・0 の入力・同一工程の名前・別名・ワイルドカード・inspection_of。Python の resolver は check_row・lotdsp_progress のために残る（2 か所になる間がある。7 段目で 1 つに）。",
+  "G 純な読み方を先に（計算＋HTML を読む所）": "B′ に、ネットワークを使わない読み方を足す: lotdsp_progress（HTML → ロット）・cm3_schedule の normalize・table_rows。どれも事例の表（Python で焼く）で突き合わせ、道は計算の 2 道だけを窓へ（HTML の読み方は次の段で道ごと移すまで窓の中で使わない）。",
+  "H スケジュールを正しい範囲で 2 段に": "① cm3_schedule の読み方・schedule の整形・sha1 のファイル名（_safe）を写し事例の表で突き合わせる、② Schedules（写しの係）と /api/src/sch（一覧・スライサー・集計表・source・refresh）・データ元のカード・スケジュールの結合した表・ダッシュボードの cm3 の分岐（lists.rs:451・lot.rs:409・dashboard.rs）を窓へ。写しの書き手は窓の 1 つに（Python は名乗りで写さない）。設定は I の橋で受ける。CM3 の作り物の HTTP サーバー（schedule_fixture）を Rust の試験でも起こす。プロキシは Windows の設定も読む形を写す。",
+  "I 設定の橋を先に": "effective を写さず、一覧の設定の答え（/api/lotlist/settings）に schedule・lotdsp_import・calculation の効いた値を載せる（Python が effective_settings で作る）。後の段（計算・スケジュール・LotDsp）が E を要らない。この版で窓が受ける道は無し（橋と試験だけ）。",
+  "J LotDsp を 2 段に": "① import-lotdsp（貼り付けた HTML を読む純な道）と equipment_names、② CDP（lotdsp_direct は WebSocket を手で組んでいるので同じ形を Rust で。tungstenite は要らない）・lotdsp_api（ureq）・状態と取り消し。Linux の CI の RealBrowser（作り物の LotDsp の SiteServer・Chrome）で Python と突き合わせる。KeyMap（lotdsp_api_map.json）の書き手は窓の 1 つに。",
+  "K B′＋I（計算と設定の橋を 1 版で）": "I の橋（calculation・schedule・lotdsp_import の効いた値を一覧の設定の答えに）を作り、その上で B′ の計算の 2 道を窓へ。橋の試験（効いた値が effective_settings と同じ）と calc_cases.json の突き合わせの 2 本。次の段（スケジュール・LotDsp）は橋を使う。"
+ },
+ "built": {
+  "name": "作った後（順 6 の 1 段目・版 3.72.0・コミット 86bfc03）",
+  "images": "画面に出ない改良（画像なし）。試した物は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/calc-built（edge_oracle.py・fuzz_oracle.py・clamp_oracle.py・mutate.py と答えの JSON）。試しの源 desktop/tests/zz_calc_scratch.rs と desktop/examples/zz_calc_bench.rs は組む間だけ置き、流した後すぐ消した。変異は src/calc.rs に当て、1 つごとに元の字へ戻した（作業ツリーはこのファイルのほか変えていない）",
+  "result": {
+   "proposal": "B′ 計算を閉じた形で",
+   "score": {
+    "order": 8,
+    "chunk": 9,
+    "hierarchy": 9,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 8,
+    "intuitive": 9,
+    "form": 8,
+    "place": 7,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "測った物: cargo test --locked --test calc_parity は 1 件 OK（答えた 675・任せた 39。debug で 23.6 秒）。lib の calc 2 件と lot::tests::the_window_answers_the_calculation も OK。cargo fmt --check・cargo clippy --all-targets -D warnings・python -m ruff check program（0.15.20）・tests.test_version／test_calculator／test_equipment_names（Ran 58・OK）も通る。2 回目の採点の示唆 (1)〜(4) は全部入っている（コードで確かめた）: (1) 2 乗は pow2＝powf(black_box(2.0))。x*x に替える変異は Linux の突き合わせで 9 件落ちる（乱数のオフの厚さが効いている）。(2) 焼いた表ではなく、同じ PC の生きた Python（calc_oracle.py）と突き合わせる。desktop.yml の Windows の job は setup-python 3.13・TPA_PYTHON=python で cargo test --locked を流すので、Windows でも UCRT の pow どうしで比べる（窓の exe も同じ UCRT の pow を呼ぶ）。(3) int の 0（found_t・transfer・after_length_m・pitch・diameter・agreement・ロール径MIN の既定）を整数のまま返し、ロール径MIN を 0.0 に替える変異は 253 件、an_skip の off を int にする変異は 6 件で落ちる（common::diff は 0 と 0.0 を分ける）。(4) 字の読み方は pyfmt::py_float・py_int・strip を使い、NaN・inf が出る形（Cx が見張る）と Python が例外で答える形（鍵が無い・設備名が字でない・番号が読めない・下流の設備名が null・番号の順の IndexError・end_back_equipment の字でない値・equipment_inner_diameter_mm が表でない）は None で Python に任せる。calculator.py・equipment_names.py と 1 行ずつ読み比べた: 式の順（(x+r)**2−r**2・length の割り算の順・width_loss の掛け算の順）、min／max の第 1 引数優先（同じ値・NaN のとき）、max(x,1) の NaN、sqrt(max(0,…))、真偽（NaN は真）、any の短絡（end_back の 5 の手前で当たれば例外にならない）、ranked の安定な並べ替え、origins の str(no) の鍵の上書き（位置は最初・値は後）、by_name の後勝ちと by_alias の先勝ち、* ? の具体さの安定な並べ替え、NFKC → 空白を除く → 大文字、canonical が当たった行の設備名を strip、same の行の同一性、検査計の道（names の str()・100 件・字なら 1 字ずつ・表は任せる）。鍵の並びは Python の dumps も sort_keys=True なので同じ。自分で足した試し（scratch の edge_oracle.py・fuzz_oracle.py と、組む間だけ置いた desktop/tests/zz_calc_scratch.rs。流した後に消した）: 4 場面（設備マスタに 設備名 の大小違いの 2 行・同じ具体さの * ?・同一工程が数・\\x1c 区切り・ß・「*」だけの行、ロールマスタに 径が真偽・-0.0・inf・設備が null）× 126 本の意地悪な本文（番号の重複・True・全角・1_0・+3・アラビア数字・-0.0・found_equipment の 12 の書き方・誤差 nan／-5／inf／100／200・比重 inf／1e-320・厚さ nan／1e400／-0.0・\\u3000・\\x85・\\ufeff・\\u200b・空の並び・巻出しが数・内径 1e6／1e-9・負のオフの厚さ・a=b・a が 1e308・空の工程・本文が null／[]／字）で答えた 378・食い違い 0。値を工程ごとに乱数で入れ替えた 400 ロット × 3 場面で答えた 1,143・食い違い 0・任せた 57（すべて Python が 400 か NaN）。速さ: 同じ本文で窓 2.32 ms／回（release・マスタを読む所を含む）、Python 10.97 ms／回（test_client）。版の文の 8.9 → 2.4 ms と合う。見つけた欠け（どれも現場では起きにくく、減点にはしない）: (a) 本当の食い違い 1 つ: 番号を字で i64 を超える数（\"99999999999999999999\"）にし、発見設備を \"9223372036854775807:TLV\" にすると、pyfmt::py_int が i64 の端へ丸めるので窓は その工程を遡る範囲に入れ、Python は入れない（.origins.1.steps の長さ Python 9／窓 10。3 場面とも）。has_wide_int は JSON の数だけを見て、字の数は見ない。番号の字を i64 に入らなければ任せれば閉じる。(b) 突き合わせの抜け: 15 の変異のうち 7 つが calc_parity を通る。同じ str(no) の鍵の origins を前の値にする・横の分割が NaN のとき 1 にする・ロール径 0 を外す（誤差 100 % で当たる）の 3 つは自分の試しでは落ちる（番号の重複・horizontal_split \"nan\"・誤差 100 を足せば拾える）。検査計の \" 有 \" を strip しない・同一工程の名前を後勝ちにする・発見設備の厚さを最後の同じ番号から取る は、どちらの試しでも落ちない（正しい形はコードで確かめた）。edge の >= は同じ答えになる変異。版の文の『10 の変異で落ちる』は正しいが、通る変異もある。(c) 窓の自己診断（selftest.js）に計算が無い: 一覧・作業実績・集計・ダッシュボード・権限・心拍は本物の WebView2 で『窓が答える（X-TPA-By: shell）・engine=python と同じ』を見るが、/api/calculate・/api/equipment/inspection は lot の単体の試験（偽の設定）だけで、本物の Python の設定の答えに calculation が載り置き場のマスタを読めて窓が答えることを、Windows の exe で確かめていない。(d) 窓を止める手が engine=python の問い合わせだけ（画面は付けない）。一覧のように設定の engine で Python へ戻せない（心拍の前例と同じ）。(e) 突き合わせの答えは 22.6 MB（Python 8.5 秒・debug の Rust 23.6 秒）。CI では問題ない大きさだが、答えの大半は lot・inputs の echo と 3 場面の繰り返しで、ほかの parity より重い。(f) RUST_PORT_PLAN.md の『窓が答えた約 690 件』は測ると 675。(g) 起きない形の違い: 同一工程が並び（list）のとき str() の字が Python は ['ANF'] 、窓は [\"ANF\"]（当たる名前は無い）。NFKC・upper の Unicode の版（Python 3.13 と unicode-normalization の crate）の差。点の読み替え: 示唆 (1)〜(4) が全部入り、生きた Python との突き合わせが Windows でも流れ、自分の 1,500 件の試しで食い違いが 1 つ（作らないと出ない端）だけなので、effortless 7 → 8・intuitive 8 → 9 に上げた。form は突き合わせの抜け（通る変異 7／15）と自己診断の抜けで 8 のまま。place は resolver が Python（check_row・lotdsp_progress）と窓の 2 か所に残り、文書の数がずれるので 7 のまま。ほかは案の採点と同じ。"
+  },
+  "evaluator": "作っていない別のエージェント（採点係・2026-11-05）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: desktop/src/calc.rs（全部）と program/app/services/calculator.py・equipment_names.py（全部）・repositories/master_repository.py（_normalize・equipment_map・inspection_of・rolls）・routes/lots.py の calculate・routes/masters.py の equipment_inspection・routes/lotlist.py の lotlist_settings と _access_place・web.py の dumps（sort_keys）、コミット 86bfc03 の lot.rs（calc_route・Settings.calculation・試験）・main.rs と router.rs（窓の道は門番の前。GUARDED はマスタの書き込みだけなので計算に権限の違いは無い）・access.rs の Place::rows・pyfmt.rs（py_int・py_float・strip）・worksum.rs（py_str・truthy）・desktop/tests/calc_parity.rs・tests/common.rs（python_json・diff）・program/tests/calc_oracle.py・selftest.js・RUST_PORT_PLAN.md・CLAUDE.md・.github/workflows/desktop.yml と ci.yml。流した物: calc_parity・lib の calc と lot の試験・fmt・clippy・ruff（0.15.20）・Python の 3 つの試験、15 の変異、自分の意地悪な本文 378 件と乱数 1,143 件の突き合わせ、i64 の端の再現、速さ（release の窓と Python の test_client）。物差しの読み替えと減点の読み方は 1・2 回目と前例（2026-11-presence-port.json の作った後）と同じ",
+  "after_fix": "作った後の採点の欠けを直した（案を作った者）: ①工程の番号・found_equipment の字が i64 に入らないときは Python に任せる（py_int_exact）、②突き合わせに 番号の重複・同じ発見の番号で厚さが違う・横の分割が nan・誤差 100% と径 0 のロール・検査計の「 有 」・2 行にまたがる同一工程の名前・i64 に入らない字 を足した（窓が答えた 687・任せた 45。食い違い 0）、③窓の自己診断（selftest.js）に「計算は窓が答え、Python と同じ答え」を足した、④文書の件数を直した。残るのは同一工程の値が並びのときの str() の字（当たる名前が無く答えに出ない）。"
+ }
+}

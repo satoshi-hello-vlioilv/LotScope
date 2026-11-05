@@ -41,6 +41,7 @@ EQUIP_ALIAS = copy.deepcopy(EQUIP_PLAIN) + [
     {"id": 52, "設備名": "", "同一工程": "X1"},
     {"id": 53, "設備名": "TLV", "巻取方向": "下", "ライン方向": "→", "検査計": "無"},
     {"id": 55, "設備名": "LX", "同一工程": "L*", "巻取方向": "上", "ライン方向": "→"},
+    {"id": 56, "設備名": "KEN2", "同一工程": "KX, ANF3", "検査計": " 有 "},
     {"id": 54, "設備名": "LS9", "同一工程": "LS*", "巻出し方向": "下", "巻取方向": "上", "ライン方向": "←"},
 ]
 # ロールマスタに足す行（入出位置が空・同一工程の名前の設備・径が字）
@@ -48,6 +49,7 @@ ROLL_EXTRA = [
     {"id": 900, "設備": "LS9", "入出位置": "", "ロール径MAX": "194.2", "ロール径MIN": "", "ロール名": "空の位置", "基準番号": 7},
     {"id": 901, "設備": "ANF2", "入出位置": "入側", "ロール径MAX": 1.1, "ロール径MIN": "x", "ロール名": None},
     {"id": 902, "設備": "TLV", "入出位置": "ー", "ロール径MAX": "abc", "ロール名": "読めない径"},
+    {"id": 903, "設備": "TLV", "入出位置": "出側", "ロール径MAX": 0, "ロール径MIN": 0, "ロール名": "径 0"},
 ]
 CFG_DEFAULT = {}
 CFG_FULL = {"default_density": 2.7, "hot_inner_diameter_mm": 610, "default_inner_diameter_mm": 558,
@@ -103,6 +105,12 @@ def cases_for(rng):
     variant("分割（字・0・小数）", lambda ps: [p.update(design_split=s, vertical_split=v, horizontal_split=h) for p, s, v, h in zip(ps, ("2", 0, 1.5, None, "x", 3, 1, 1, 69, 69), (1, 2, "0.5", None, 1, 1, 1, 1, 1, 1), (1, 1, 2, "3", None, 1, 1, 1, 1, 1))])
     variant("幅が細り、横の分割がある（耳の幅）", lambda ps: [p.update(width=w, horizontal_split=h) for p, w, h in zip(ps, (1300, 1250, 1200, 600, 590, 580, 300, 290, 49.87, 49.9), (1, 1, 2, 2, "2", 1, 4, 1, 6, 1))])
     variant("厚さ 0 の工程", lambda ps: ps[3].update(thickness=0))
+    variant("番号の重複（同じ鍵の origins は後の値・最初の位置）", lambda ps: [ps[2].update(no=2), ps[5].update(no=5)])
+    variant("同じ発見の番号で厚さが違う（found_t は最初の工程）", lambda ps: [ps[8].update(no=8, thickness=0.3)], inp=inputs(found="8:X"))
+    variant("横の分割が nan・字", lambda ps: [ps[3].update(horizontal_split="nan"), ps[4].update(horizontal_split="2"), ps[2].update(width=900)])
+    variant("番号が i64 に入らない字（Python は範囲外として扱う）", lambda ps: ps[3].update(no="99999999999999999999"), must=False)
+    add("found_equipment が i64 に入らない字", lot_l6183d0(), {**inputs(), "found_equipment": "9223372036854775807:TLV"}, must=False)
+    add("誤差 100%（径 0 のロールも当たりうる）", lot_l6183d0(), {**inputs(), "tolerance_percent": 100})
     variant("厚さ 0 の発見設備", lambda ps: ps[7].update(thickness=0))
     variant("幅 0", lambda ps: ps[2].update(width=0))
     variant("番号が字・小数", lambda ps: [p.update(no=v) for p, v in zip(ps, ("1", 2, 3.0, " 4 ", 5, 6, 7, "8", 9, 10.9))])
@@ -137,7 +145,7 @@ def cases_for(rng):
             p["thickness"] = round(p["thickness"] * rng.uniform(0.9, 1.1), 3)
         add(f"乱数 {k}", lot, inputs(found=f"{rng.randint(1, 10)}:X", a=round(rng.uniform(0, 3000), 2), b=round(rng.uniform(0, 3000), 2)))
     # 設備ごとに検査計があるか
-    for names in (["TLV", "LS4", "ＡＮＦ２", "anf9", "ANI1", "KEN", "", "x", "CAF", "LS2"], "TL", [], None, [1, 2.5, True, None], ["TLV"] * 3 + [f"N{i}" for i in range(120)]):
+    for names in (["TLV", "LS4", "ＡＮＦ２", "anf9", "ANI1", "KEN", "", "x", "CAF", "LS2", "KEN2", "KX", "ANF3"], "TL", [], None, [1, 2.5, True, None], ["TLV"] * 3 + [f"N{i}" for i in range(120)]):
         out.append((f"検査計 {str(names)[:30]}", "/api/equipment/inspection", j({"names": names}), True))
     out.append(("検査計: 名前が表（Python に任せる）", "/api/equipment/inspection", j({"names": [{"a": 1}]}), False))
     return out

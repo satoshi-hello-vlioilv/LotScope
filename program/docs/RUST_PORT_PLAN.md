@@ -508,10 +508,13 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
   Python が例外で答える形（工程の鍵が無い・設備名が字でない・番号や found_equipment が整数に読めない・遡る途中の設備名が null・番号の順が入れ替わる）と、
   答えに NaN・inf が出る形、読めない本文・i64 に入らない整数・engine=python は Python が答える。速さは 1 回 8.9 ms → 2.4 ms（マスタを読む所を含む）。
   評価関数は `cargo test --test calc_parity`（← `program/tests/calc_oracle.py`。3 場面〈正しい設備マスタ・同一工程の名前と * ? と旧い列名と全部の設定・
-  遡りの板厚比 found〉× 約 240 の本文で、窓が答えた約 690 件が Python と同じ〈0 と 0.0 を分けて比べる〉、答えなかった物は Python に任せてよい形。
+  遡りの板厚比 found〉× 244 の本文で、窓が答えた 687 件が Python と同じ〈0 と 0.0 を分けて比べる〉、答えなかった 45 件は Python に任せてよい形。
   小数のオフの厚さの乱数 160 件で 2 乗の pow の違いも見る。同じ PC の Python で答えを作る〈pow は OS の数学の部品の答えなので、焼いた表にしない〉）と
   `lot::tests::the_window_answers_the_calculation`。pow を x*x に・0 を 0.0 に・誤差の既定・旧い列名・具体さの順・横の分割・入出位置の空・面の反転など
   10 の変異で落ちることを確かめた。Python の resolver は check_row・lotdsp_progress のために残る（7 段目で 1 つに）。
+  作った後の採点は 82.6 点（減点 0）。見つかった欠け（番号・found_equipment の字が i64 に入らないとき窓は端へ丸めて食い違う・突き合わせに無い形 6 つ・
+  窓の自己診断に計算が無い）は、i64 に入らない字は Python に任せる・番号の重複／同じ発見の番号で厚さが違う／横の分割が nan／誤差 100% と径 0 のロール／
+  検査計の「 有 」／2 行にまたがる同一工程の名前を突き合わせに足す・selftest.js に「計算は窓が答え、Python と同じ答え」を足す、に直した。
 - 残り: LotDsp の 9 道（lotdsp_direct は WebSocket を手で組んでいるので tungstenite は要らない。Linux の CI の RealBrowser で突き合わせられる）・
   スケジュール（/api/schedule と /api/src/sch・データ元のカード・結合・ダッシュボードの cm3 の分岐。sha1 のファイル名・Windows のプロキシ）。
 
