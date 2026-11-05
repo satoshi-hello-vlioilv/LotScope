@@ -1039,7 +1039,9 @@ mod tests {
         // 中身（Python）が答えるときだけ窓の me から答える。handle_body は受けない（Python へ回す）
         assert!(lot.handle_body("GET", "/api/masters/access", "", b"", &ask_boss).is_none(), "handle_body は受けない");
         let (up, down) = (|| true, || false);
-        let lot_v = Lot::new(dir.join("cache-v"));
+        // 覚える長さは時計に頼らない（遅い CI で 2 秒を越えても「覚えている間」を確かめられる）
+        let mut lot_v = Lot::new(dir.join("cache-v"));
+        lot_v.gate = crate::access::Gate::with_ttl(std::time::Duration::from_secs(3600), std::time::Duration::from_secs(3600));
         assert!(lot_v.access_read("GET", "/api/access/me", &ask_boss, &up).is_none(), "中身の版が分からなければ Python");
         lot_v.presence.set_version("3.76.0");
         assert!(lot_v.access_read("GET", "/api/access/me", &ask_boss, &down).is_none(), "中身が答えなければ Python へ回す（前と同じ失敗）");

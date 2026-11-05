@@ -236,13 +236,16 @@
         .replace(/[\u0080-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
       const forged = await get("/api/access/me", { headers: { "X-TPA-Me": fake } });
       let fj = {}; try { fj = JSON.parse(forged.text); } catch (_) { /* 下で言う */ }
-      ok("権限: 窓が決めた名乗りで答え、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
+      ok("権限: 窓が決めた名乗りで答え（版 3.76.0 から窓が答える）、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && am.by === "shell" && forged.by === "shell" && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
          `${amj.loginId}@${amj.pcName} ${amj.role}・${amj.masterEdit} / 偽の見出し → ${fj.loginId} ${fj.role}`);
       const ta = await get("/api/masters/tabaccess"), tf = await get("/api/masters/tabaccess", { headers: { "X-TPA-Me": fake } });
       let taj = {}, tfj = {}; try { taj = JSON.parse(ta.text); tfj = JSON.parse(tf.text); } catch (_) { /* 下で言う */ }
       ok("権限: Python が答える道でも、画面が名乗った見出しは効かない（窓が捨てて自分の me を載せる）",
-         ta.r.ok && tf.r.ok && typeof taj.canEdit === "boolean" && tfj.canEdit === taj.canEdit && taj.canEdit === amj.canEditAdminMaster,
-         `タブの権限 canEdit ${taj.canEdit} / 偽の見出し → ${tfj.canEdit}（管理のマスタを書ける ${amj.canEditAdminMaster}）`);
+         // 書けるか（can_write）は切断中なら書けない。偽の me は書けない段なので、本当の me が書けるときだけ見分けられる（見分けたかを言葉に出す）
+         ta.r.ok && tf.r.ok && ta.by === "python" && tf.by === "python" && taj.canEdit === (amj.canEditAdminMaster === true && !amj.revoked)
+           && tfj.canEdit === taj.canEdit,
+         `${ta.by} タブの権限 canEdit ${taj.canEdit} / 偽の見出し → ${tfj.canEdit}`
+           + (taj.canEdit ? "（偽の見出しが効けば false になる形で確かめた）" : "（この PC は書けないので、偽の見出しは見分けられない）"));
     }
 
     // 12) 画面のエラーが無い（窓の外の受け口 /__desktop/update などが無くても、画面は黙って続ける）
