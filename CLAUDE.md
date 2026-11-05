@@ -225,6 +225,10 @@ python program/tools/ui_score.py 採点.json                                    
 - 権限のマスタを書く道を窓へ移した評価関数（版 3.68.0。順 5 の 2 段目 b）: `cargo test --test access_write_parity`（← `program/tests/access_write_oracle.py`。
   8 場面・58 歩で POST／PUT／DELETE /api/masters/access と PUT /api/masters/tabaccess の答え・断る言葉・できたファイルを Python の道と突き合わせる）・
   `lot::tests::the_window_writes_access_masters`（本物の道・門番・書いたら権限の覚えを捨てる・Python に任せる形）
+- 使用の履歴・心拍・画面の設定の控えを窓へ移した評価関数（版 3.71.0。順 5 の 3 段目 a）: `cargo test --test presence_parity`（← `program/tests/presence_oracle.py`。
+  9 場面・100 歩を超える心拍と道で、1 歩ごとに時計を差し替えて答えとできたファイル〈中身・字下げ・改行〉を Python の道と突き合わせる）・
+  `lot::tests::the_window_answers_the_heartbeat_and_presence`（止まった中身で 503・裏の糸が書く・使い終わり・Python に任せる形）・
+  `tests/test_access.py` の `test_heartbeat_does_not_write_when_the_window_serves_presence`（窓が名乗ると Python の心拍は書かない）
 - 検索の索引とカラムの札を覚える評価関数（版 3.66.0）: `cargo test --test search_index`（語ごとに索引と今の形〈全列に CStr LIKE〉で当たる行を突き合わせる・
   * ? とつなぎの字・ビュー・WITHOUT ROWID は今の形・書き換えた後に作り直す〈時刻を戻した書き換えも〉・壊れた索引は作り直す・1 つの接続で 2 つの表・札は覚える／書き換えで数え直す／計算列は覚えない）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`

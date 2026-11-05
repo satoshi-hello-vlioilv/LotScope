@@ -17,7 +17,7 @@ import threading
 
 import app_env
 
-from ..fsio import write_json_atomic
+from ..fsio import open_shared_read, write_json_atomic
 
 PREFIX = "tpa."
 MAX_BYTES = 4 * 1024 * 1024          # localStorage の上限（5MB 前後）より小さく。超える控えは受け取らない
@@ -31,7 +31,9 @@ def path():
 def load() -> dict:
     """→ {"rev": 控えの版（重ねるたびに1つ進む。無ければ 0）, "keys": {名前: 文字}}。無い・壊れているときは空。"""
     try:
-        data = json.loads(path().read_text(encoding="utf-8"))
+        # 置き換えを許す開き方で読む（窓〈src/presence.rs〉が書き手のとき、Windows で読んでいる間も窓が置き換えられる。版 3.71.0）
+        with open_shared_read(path()) as f:
+            data = json.loads(f.read().decode("utf-8"))
         keys = {k: v for k, v in (data.get("keys") or {}).items() if k.startswith(PREFIX) and isinstance(v, str)}
         return {"rev": int(data.get("rev") or 0), "keys": keys}
     except (OSError, ValueError, AttributeError, TypeError):

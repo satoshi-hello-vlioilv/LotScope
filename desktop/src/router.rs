@@ -15,12 +15,21 @@ use tauri::http::{Request, Response};
 /// 問い合わせを答えに変える係（試験では作り物に差し替える）。
 pub trait Backend: Send + Sync {
     fn ask(&self, ask: &Ask) -> Reply;
+    /// 中身（Python）が生きているか（版 3.71.0。窓が心拍に答えるとき、画面の「接続 ●」を今と同じに保つ）。
+    /// 止まっていれば起こし直してから見る（前は心拍の問い合わせが Python を起こし直していた）
+    fn alive(&self) -> bool {
+        true
+    }
 }
 
 /// 長い問い合わせ（見えない Edge で LotDsp を読む・共有の写し直し）を待てる長さ。
 const ASK_WAIT: Duration = Duration::from_secs(600);
 
 impl Backend for Supervisor {
+    fn alive(&self) -> bool {
+        self.get().is_ok_and(|s| s.is_alive())
+    }
+
     fn ask(&self, ask: &Ask) -> Reply {
         // 送る前に止まっていた（Dead）なら起こし直して1度だけ送り直す。送った後に止まったものは送り直さない（二重に書かない）
         for attempt in 0..2 {

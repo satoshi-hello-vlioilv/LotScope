@@ -15,6 +15,7 @@ use crate::lotlist::{self, Args};
 use crate::master_store::{Config as StoreConfig, Store};
 use crate::mirror::DbMirror;
 use crate::pivot;
+use crate::presence::{self, Presence};
 use crate::worksum::{self, Grouping};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -74,13 +75,20 @@ pub struct Lot {
     gate: Gate,
     /// マスタの書く係（版 3.68.0。src/master_store.rs）。置き場と名乗りごとに 1 つ作って長く持つ（錠の残り秒を最初に見てからの経過で測るため）
     store: Mutex<Option<(String, Arc<Store>)>>,
+    /// 利用状況・使用の履歴・心拍（版 3.71.0。src/presence.rs。書き手は窓の 1 つ）
+    presence: Arc<Presence>,
+    /// この PC の作業場所（画面の設定の控え ui_state.json・配る版の覚え want.json の置き場）
+    local_root: PathBuf,
 }
 
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
         // 全列の検索の索引の置き場（版 3.66.0。src/search_index.rs。写しの係の片付けとぶつからない下のフォルダ）
         crate::search_index::set_dir(cache_dir.join("search_index"));
+        let local_root = cache_dir.parent().map(PathBuf::from).unwrap_or_else(|| cache_dir.clone());
         Lot {
+            presence: Arc::new(Presence::new(local_root.clone(), presence::system_clock())),
+            local_root,
             lists: Lists::new(&cache_dir),
             cache_dir,
             mirror: Mutex::default(),
@@ -269,11 +277,72 @@ impl Lot {
         *self.dash.lock().unwrap() = dashboard::Cache::default();
     }
 
+    /// 利用状況に書く版を、中身（program）の置き場から読む（main.rs）
+    pub fn set_program(&self, program: PathBuf) {
+        self.presence.set_program(program);
+    }
+
+    /// 使い終わり（終了ボタン。main.rs）: いま使っているの印を消し、記録を最後まで書く
+    pub fn leave(&self) {
+        self.presence.leave();
+    }
+
+    /// 心拍（POST /api/heartbeat。版 3.71.0）。先に me を決め（設定を尋ねる＝止まった中身を起こし直しうる）、次に中身が生きているかを見る。
+    /// 止まっていれば 503（画面は答えが来たかで「接続 ●」と計算のやり直しを決める）。me を決められなければ書かずに空の答え
+    /// （Python と同じ）。設定を尋ねられないが中身は生きている・判定の材料が無い（前の版の Python）ときは None（Python が答える。書かない）
+    pub fn heartbeat(&self, ask: AskSettings, alive: &dyn Fn() -> bool) -> Option<(u16, Value)> {
+        let down = || Some((503, json!({"error": "アプリの中身（Python）が答えません。", "kind": "backend_unavailable"})));
+        let s = match self.settings(ask) {
+            Ok(s) => s,
+            Err(_) => return if alive() { None } else { down() },
+        };
+        if !s.access.is_object() {
+            return None;
+        }
+        let me = self.gate.me(&s.access);
+        if !alive() {
+            return down();
+        }
+        self.presence.configure(crate::access::Place::from_json(&s.access["place"]).presence);
+        Some((
+            200,
+            match me {
+                Ok(m) => {
+                    self.presence.beat_async(&m);
+                    self.presence.answer(&m)
+                }
+                Err(_) => json!({"version": null, "revoked": null}),
+            },
+        ))
+    }
+
+    /// 利用状況の 7 本と画面の設定の控え（版 3.71.0）。me を決められないとき・engine=python（窓の自己診断が Python との枠を確かめる）は
+    /// None（Python が答える）
+    fn presence_route(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        match (method, path) {
+            ("GET", "/api/ui-state") => return Some((200, presence::ui_state::load(&self.local_root))),
+            ("POST", "/api/ui-state") => return presence::ui_state::post(&self.local_root, body),
+            _ => {}
+        }
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        self.presence.handle_with_place(&me, &crate::access::Place::from_json(&s.access["place"]), method, path, query, body)
+    }
+
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
         if let Some(route) = crate::access_write::route_of(method, path) {
             return self.access_write(method, path, route, query, body, ask);
+        }
+        if presence::is_route(method, path) || path == "/api/ui-state" {
+            return self.presence_route(method, path, query, body, ask);
         }
         if (method, path) != ("POST", "/api/dashboard/query") {
             return self.handle(method, path, query, ask);
@@ -956,5 +1025,57 @@ mod tests {
         let lot = Lot::new(std::env::temp_dir().join("da-lot3"));
         let dead = || Err("止まっています".to_string());
         assert!(lot.handle("GET", "/api/lotlist", "", &dead).is_none());
+    }
+
+    #[test]
+    fn the_window_answers_the_heartbeat_and_presence() {
+        // 版 3.71.0（順 5 の 3 段目）: 心拍・利用状況の 7 本・画面の設定の控えは窓が答える（書き手は窓の 1 つ）。
+        // 中身（Python）が止まっていれば心拍は 503（画面の「接続 ●」を今と同じに）。判定の材料が無いときは Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-presence-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let admin = json!({"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者"});
+        std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 1, "rows": [admin]}).to_string()).unwrap();
+        let conf = json!({"who": {"login": "boss", "pc": "PC-1", "pcSource": "", "key": "PC-1@boss"},
+                          "place": {"shareDir": share, "shared": ["access_permissions", "tab_access"], "data": dir.join("data"),
+                                    "defaults": dir.join("defaults"), "cache": local.join("master_cache"),
+                                    "presence": share.join("presence_tpa"), "lockTtl": 20.0}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
+        let lot = Lot::new(local.join("db_cache"));
+        lot.presence.set_version("3.71.0");
+        let (st, v) = lot.heartbeat(&ask, &|| false).unwrap();
+        assert_eq!((st, v["kind"].as_str()), (503, Some("backend_unavailable")), "中身が止まっていれば未接続");
+        let (st, v) = lot.heartbeat(&ask, &|| true).unwrap();
+        assert_eq!((st, v["revoked"].clone()), (200, Value::Null), "{v}");
+        let mine = share.join("presence_tpa").join("PC-1@boss.json");
+        let t0 = Instant::now();
+        while !mine.exists() && t0.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let d: Value = serde_json::from_slice(&std::fs::read(&mine).expect("裏の糸が書く")).unwrap();
+        assert_eq!((d["version"].as_str(), d["role"].as_str()), (Some("3.71.0"), Some("開発者")));
+        let (st, v) = lot.handle_body("GET", "/api/presence", "", b"", &ask).expect("窓が答える");
+        assert_eq!((st, v["fleet"]["total"].as_i64(), v["me"].as_str()), (200, Some(1), Some("PC-1@boss")), "{v}");
+        let (st, v) = lot.handle_body("POST", "/api/ui-state", "", br#"{"changed": {"tpa.a": "1"}}"#, &ask).unwrap();
+        assert_eq!((st, v["rev"].as_i64()), (200, Some(1)));
+        assert_eq!(lot.handle_body("GET", "/api/ui-state", "", b"", &ask).unwrap().1["keys"]["tpa.a"], "1");
+        assert!(local.join("ui_state.json").exists(), "作業場所に書く（Python と同じファイル）");
+        assert!(lot.handle_body("POST", "/api/ui-state", "", br#"{"x": "\ud800"}"#, &ask).is_none(), "読めない本文は Python に任せる");
+        lot.leave();
+        assert!(!mine.exists(), "使い終わり: いま使っているの印を消す");
+        // 判定の材料（access）が無い前の版の Python: 心拍も利用状況も Python が答える
+        let old = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
+        let lot2 = Lot::new(dir.join("c2").join("db_cache"));
+        assert!(lot2.heartbeat(&old, &|| true).is_none());
+        assert!(lot2.handle_body("GET", "/api/presence", "", b"", &old).is_none());
+        // 設定を尋ねられないが中身は生きている: Python が答える（書かない）／止まっている: 503
+        let fail = || Err("x".to_string());
+        let lot3 = Lot::new(dir.join("c3").join("db_cache")); // 設定を覚えていない窓
+        assert!(lot3.heartbeat(&fail, &|| true).is_none());
+        assert_eq!(lot3.heartbeat(&fail, &|| false).unwrap().0, 503);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

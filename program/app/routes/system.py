@@ -94,10 +94,14 @@ def heartbeat():
 
 
 def _presence_beat():
+    from .. import shell_serves
     try:
         m = me()
         # 最新版の数え直しは裏の糸で走る（current_app は問い合わせの中でだけ使える）。権限の行はここで読み終えたものを渡す
-        presence.touch_async(m["login"], m["pc"], m["flags"]["role"], roles_from(m["rows"]))
+        # 窓（デスクトップ版の Rust）が利用状況を受け持つとき（shell_serves に presence。版 3.71.0）は書かない（書き手は窓の 1 つ。
+        # 同じ PC で 2 つの係が書くと使い始めの回数が増え、使用の履歴が割れる）。窓が心拍に答えるので、ここへ来るのは窓が me を決められない時だけ
+        if "presence" not in shell_serves():
+            presence.touch_async(m["login"], m["pc"], m["flags"]["role"], roles_from(m["rows"]))
         return {"version": presence.version_notice(m["flags"]["role"]), "revoked": m["revoked"]}
     except Exception:
         return {"version": None, "revoked": None}
