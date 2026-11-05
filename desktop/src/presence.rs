@@ -8,6 +8,9 @@
 //!     settings.json       … 履歴を残す日数（管理する人が書く）
 //! 1 つのファイルを書くのはその PC だけ。読めないファイルは「無い」ではなく「読めない」（消さない）。
 //! 時刻はどれも `Clock` から取る（試験 tests/presence_parity.rs が Python と同じ時計を当てる）。
+//! Python との違い（害の無い物）: 閉じたときに使い終わりを書く（Python は呼んでいなかった）・利用状況の画面の readable はいつも true
+//! （Python は値の型が混ざった記録で例外になると false）・鍵は字だけで確かめる（区切りと「..」は断るので置き場の外へは出ない。Python は
+//! resolve も見る）・書いたファイルの鍵の並びは字の順（Python は足した順。読む側は並びを問わない）。
 
 use crate::access::{self, key_ok, revocation, Place};
 use crate::pyfmt;
@@ -37,11 +40,23 @@ const WANT_FILE: &str = "want.json";
 /// 置き換えを拒まれた（Windows で読み手が開いている）ときに待つ長さ（presence._write_json の retry_budget）
 const RETRY_BUDGET: f64 = 1.0;
 
-/// いまの時刻（この PC の時刻。試験は差し替える）
-pub type Clock = Arc<dyn Fn() -> NaiveDateTime + Send + Sync>;
+/// いまの時刻: (この PC の時刻〈記録に書く〉, 1970 年からの秒〈UTC。間隔を測る。Python の time.time()〉)。
+/// 間隔をこの PC の時刻で測ると、時計が戻った（夏時間の終わり）ときに書かない間ができる（作った後の採点）。試験は差し替える
+pub type Clock = Arc<dyn Fn() -> (NaiveDateTime, f64) + Send + Sync>;
 
 pub fn system_clock() -> Clock {
-    Arc::new(|| chrono::Local::now().naive_local())
+    Arc::new(|| {
+        let t = chrono::Local::now();
+        (t.naive_local(), t.timestamp_micros() as f64 / 1e6)
+    })
+}
+
+/// 試験の時計（決めた時刻から、間隔を測る秒も作る）
+pub fn clock_from(f: impl Fn() -> NaiveDateTime + Send + Sync + 'static) -> Clock {
+    Arc::new(move || {
+        let t = f();
+        (t, ts(t))
+    })
 }
 
 fn epoch() -> NaiveDateTime {
@@ -293,7 +308,12 @@ impl Presence {
     }
 
     fn now(&self) -> NaiveDateTime {
-        (self.clock)()
+        (self.clock)().0
+    }
+
+    /// 間隔を測る秒（time.time()）
+    fn secs_now(&self) -> f64 {
+        (self.clock)().1
     }
 
     /// presence._write_json: 置き場の親（共有フォルダ・この PC の作業フォルダ）が無ければ書かない
@@ -364,7 +384,7 @@ impl Presence {
         vers.sort_by(|a, b| a.1.cmp(&b.1));
         let cut = vers.len().saturating_sub(HISTORY_VERSIONS);
         h.insert("versions".into(), Value::Object(vers.split_off(cut).into_iter().map(|(k, v)| (k, json!(v))).collect()));
-        let t = ts(now);
+        let t = self.secs_now();
         let write = fin || new_session || t - st.last_history >= HISTORY_WRITE_SEC;
         self.log_session(st, key, login, pc, now, new_session, gap, write, &version);
         if write {
@@ -584,8 +604,7 @@ impl Presence {
     /// None は Python で例外になる形（記録の値の形が違う）: 掃除も最新版の数え直しもしない（touch_async の糸が例外で終わるのと同じ）
     fn touch_inner(&self, login: &str, pc: &str, role: &str, key: &str, force: bool) -> Option<bool> {
         let Some(dir) = self.dir() else { return Some(false) };
-        let now = self.now();
-        let t = ts(now);
+        let (now, t) = (self.clock)();
         if !force && t - *self.last_write.lock().unwrap() < WRITE_INTERVAL_SEC {
             return Some(false);
         }
@@ -618,14 +637,14 @@ impl Presence {
         if self.touch_inner(&login, &pc, &role, &key, false).is_none() {
             return;
         }
-        if ts(self.now()) - self.newest.lock().unwrap().1 >= NEWEST_INTERVAL_SEC {
+        if self.secs_now() - self.newest.lock().unwrap().1 >= NEWEST_INTERVAL_SEC {
             self.refresh_newest(&perm_rows(me));
         }
     }
 
     /// 心拍から: 書くのは裏の 1 本の糸（共有が遅くても心拍を待たせない）。書いている最中の頼みは捨てる
     pub fn beat_async(self: &Arc<Self>, me: &Value) {
-        if self.dir().is_none() || ts(self.now()) - *self.last_write.lock().unwrap() < WRITE_INTERVAL_SEC {
+        if self.dir().is_none() || self.secs_now() - *self.last_write.lock().unwrap() < WRITE_INTERVAL_SEC {
             return;
         }
         if self.busy.swap(true, Ordering::AcqRel) {
@@ -748,7 +767,7 @@ impl Presence {
         if let Some(v) = self.latest_version(rows) {
             self.newest.lock().unwrap().0 = Some(v);
         }
-        self.newest.lock().unwrap().1 = ts(self.now());
+        self.newest.lock().unwrap().1 = self.secs_now();
     }
 
     /// {latestVersion, myVersion, distributed, outdated}（まだ数えていなければ null。presence.version_notice）
@@ -1077,7 +1096,8 @@ pub mod ui_state {
         if crate::join::py_dumps(&Value::Object(keys.clone())).len() > MAX_BYTES {
             return bad("画面の設定が大きすぎます。");
         }
-        let rev = cur["rev"].as_i64().unwrap_or(0) + 1;
+        // i64 に入らない版の番号（壊れた控え）は Python に任せる（Python の int は上限が無い）
+        let rev = cur["rev"].as_i64().unwrap_or(0).checked_add(1)?;
         if let Err(e) = write_json_atomic(&path(local_root), &json!({"rev": rev, "keys": keys}), b"", 0.0) {
             return Some((500, json!({"error": e.to_string(), "kind": "error"})));
         }
@@ -1130,6 +1150,10 @@ mod tests {
         assert!(p.touch("u", "PC", "一般ユーザー", "PC@u", true));
         assert!(d.join("share/presence_tpa/history/PC@u.json").exists());
         assert!(!p.touch("u", "PC", "一般ユーザー", "../x", true), "鍵の正しくない名乗りは書かない");
+        // 壊れた控え: i64 に入らない版の番号は Python に任せる（Python の int は上限が無い。作った後の採点）
+        std::fs::create_dir_all(d.join("local")).unwrap();
+        std::fs::write(ui_state::path(&d.join("local")), r#"{"rev": 9223372036854775807, "keys": {}}"#).unwrap();
+        assert!(ui_state::post(&d.join("local"), br#"{"changed": {"tpa.a": "1"}}"#).is_none());
         let _ = std::fs::remove_dir_all(&d);
     }
 }

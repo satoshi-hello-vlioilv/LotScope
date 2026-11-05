@@ -69,7 +69,7 @@ fn presence_matches_python() {
         let local = rs_root.join("local");
         let now: Arc<Mutex<NaiveDateTime>> = Arc::new(Mutex::new(NaiveDateTime::default()));
         let clock = now.clone();
-        let pres = Presence::new(local.clone(), Arc::new(move || *clock.lock().unwrap()));
+        let pres = Presence::new(local.clone(), da_core::presence::clock_from(move || *clock.lock().unwrap()));
         pres.set_version(version);
         let place = Place::from_json(&sc["conf"]["place"]);
         pres.configure(place.presence.clone());
