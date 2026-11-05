@@ -12,6 +12,7 @@ import logging
 
 from ..repositories.master_store import next_id as _next_id
 from .identity import normalize_part
+from .row_order import next_order
 
 log = logging.getLogger(__name__)
 SEEDS_MASTER = "app_seeds"
@@ -51,8 +52,7 @@ def _kama_date_table(rows, stamp):
     src = next((r for r in bundled if r.get("名前") == "釜番日付"), None)
     if src is None:
         return
-    top = max((int(r.get("表示順") or 0) for r in rows if str(r.get("表示順") or "").lstrip("-").isdigit()), default=0)
-    rows.append({"id": _next_id(rows), **{k: src.get(k, "") for k in ("名前", "入力", "判定", "その他", "当て方")}, "表示順": str(top + 10),
+    rows.append({"id": _next_id(rows), **{k: src.get(k, "") for k in ("名前", "入力", "判定", "その他", "当て方")}, "表示順": next_order(rows),
                  "rev": 1, **stamp})
 
 

@@ -160,6 +160,44 @@ impl Lot {
         Some((status, v))
     }
 
+    /// 勤務体系の 4 本（版 3.75.0。src/shifts_write.rs）を窓が受ける。書く道は権限を読み直して門番に通し、窓の書く係で書く。
+    /// 判定の材料（access）が無い・me を決められない・マスタを読めない・窓が答えない形は None（Python が答える）
+    fn shifts_route(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::shifts_write::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let writes = route != crate::shifts_write::Route::List;
+        if writes {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let place = crate::access::Place::from_json(&s.access["place"]);
+        let read = || -> Option<crate::shifts_write::Read> {
+            Some(crate::shifts_write::Read {
+                shifts: place.rows(crate::shifts_write::NAME).ok()?,
+                work_logs: place.rows("work_log_files").ok()?,
+            })
+        };
+        let store = self.store_for(&s.access)?;
+        let (status, v) = crate::shifts_write::handle(&store, &me, route, query, body, &read()?, &read)?;
+        if writes && (200..300).contains(&status) {
+            self.invalidate(); // 一覧の設定（勤務体系を直せるか・作業実績のまとめの直）を捨てる
+        }
+        Some((status, v))
+    }
+
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
     /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
     /// 頻繁な書き込みでは尋ね直さない
@@ -362,6 +400,9 @@ impl Lot {
         }
         if crate::calc::is_route(method, path) {
             return self.calc_route(path, query, body, ask);
+        }
+        if let Some(route) = crate::shifts_write::route_of(method, path) {
+            return self.shifts_route(method, path, route, query, body, ask);
         }
         if presence::is_route(method, path) || path == "/api/ui-state" {
             return self.presence_route(method, path, query, body, ask);
@@ -904,9 +945,14 @@ mod tests {
         assert!(lot.handle_body("POST", "/api/masters/access", "", br#"{"x": "\ud800"}"#, &ask_boss).is_none(), "片割れの代用字");
         let (st, _) = lot.handle_body("DELETE", "/api/masters/access/1", "rev=1", b"[1]", &ask_boss).unwrap();
         assert_eq!(st, 500, "表でない本文は書かない");
+        // 数学の太字の 5（𝟓）は Python の int() も 5 と読む: 版 3.75.0 から窓も同じ表で読んで答える（前は窓の表に無く Python へ回した）
         assert!(
-            lot.handle_body("DELETE", "/api/masters/access/1", "rev=%F0%9D%9F%93", b"", &ask_boss).is_none(),
-            "表に無い系統の数字は Python"
+            lot.handle_body("DELETE", "/api/masters/access/1", "rev=%F0%9D%9F%93", b"", &ask_boss).is_some(),
+            "Python と同じく版の番号 5 と読んで窓が答える"
+        );
+        assert!(
+            lot.handle_body("DELETE", "/api/masters/access/1", "rev=%C2%B2", b"", &ask_boss).is_none(),
+            "10 進でない数の字（²）は Python"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

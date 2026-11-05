@@ -81,7 +81,10 @@ def clean_body(body):
     out["chart"] = body.get("chart") if body.get("chart") in CHARTS else "time"
     for k in ("sub", "grand", "split", "labels"):
         out[k] = bool(body.get(k, k in ("sub", "grand")))
-    out["chartAt"] = int(body.get("chartAt") or 0) if str(body.get("chartAt") or "0").isdigit() else 0
+    try:            # 「²」は isdigit が真でも int が読まない（版 3.75.0。前は ValueError で保存できなかった）
+        out["chartAt"] = max(0, int(str(body.get("chartAt") or 0).strip()))
+    except (TypeError, ValueError, OverflowError):
+        out["chartAt"] = 0
     if not out["rows"]:
         raise PresetError("行の段が 1 つも無い組み方は保存できません（左のカラムの［行］を押してから保存してください）。")
     text = json.dumps(out, ensure_ascii=False, sort_keys=True)

@@ -1,0 +1,3603 @@
+{
+ "python": "3.13.16",
+ "unicode": "15.1.0",
+ "digits": [
+  [
+   48,
+   57
+  ],
+  [
+   1632,
+   1641
+  ],
+  [
+   1776,
+   1785
+  ],
+  [
+   1984,
+   1993
+  ],
+  [
+   2406,
+   2415
+  ],
+  [
+   2534,
+   2543
+  ],
+  [
+   2662,
+   2671
+  ],
+  [
+   2790,
+   2799
+  ],
+  [
+   2918,
+   2927
+  ],
+  [
+   3046,
+   3055
+  ],
+  [
+   3174,
+   3183
+  ],
+  [
+   3302,
+   3311
+  ],
+  [
+   3430,
+   3439
+  ],
+  [
+   3558,
+   3567
+  ],
+  [
+   3664,
+   3673
+  ],
+  [
+   3792,
+   3801
+  ],
+  [
+   3872,
+   3881
+  ],
+  [
+   4160,
+   4169
+  ],
+  [
+   4240,
+   4249
+  ],
+  [
+   6112,
+   6121
+  ],
+  [
+   6160,
+   6169
+  ],
+  [
+   6470,
+   6479
+  ],
+  [
+   6608,
+   6617
+  ],
+  [
+   6784,
+   6793
+  ],
+  [
+   6800,
+   6809
+  ],
+  [
+   6992,
+   7001
+  ],
+  [
+   7088,
+   7097
+  ],
+  [
+   7232,
+   7241
+  ],
+  [
+   7248,
+   7257
+  ],
+  [
+   42528,
+   42537
+  ],
+  [
+   43216,
+   43225
+  ],
+  [
+   43264,
+   43273
+  ],
+  [
+   43472,
+   43481
+  ],
+  [
+   43504,
+   43513
+  ],
+  [
+   43600,
+   43609
+  ],
+  [
+   44016,
+   44025
+  ],
+  [
+   65296,
+   65305
+  ],
+  [
+   66720,
+   66729
+  ],
+  [
+   68912,
+   68921
+  ],
+  [
+   69734,
+   69743
+  ],
+  [
+   69872,
+   69881
+  ],
+  [
+   69942,
+   69951
+  ],
+  [
+   70096,
+   70105
+  ],
+  [
+   70384,
+   70393
+  ],
+  [
+   70736,
+   70745
+  ],
+  [
+   70864,
+   70873
+  ],
+  [
+   71248,
+   71257
+  ],
+  [
+   71360,
+   71369
+  ],
+  [
+   71472,
+   71481
+  ],
+  [
+   71904,
+   71913
+  ],
+  [
+   72016,
+   72025
+  ],
+  [
+   72784,
+   72793
+  ],
+  [
+   73040,
+   73049
+  ],
+  [
+   73120,
+   73129
+  ],
+  [
+   73552,
+   73561
+  ],
+  [
+   92768,
+   92777
+  ],
+  [
+   92864,
+   92873
+  ],
+  [
+   93008,
+   93017
+  ],
+  [
+   120782,
+   120831
+  ],
+  [
+   123200,
+   123209
+  ],
+  [
+   123632,
+   123641
+  ],
+  [
+   124144,
+   124153
+  ],
+  [
+   125264,
+   125273
+  ],
+  [
+   130032,
+   130041
+  ]
+ ],
+ "cases": [
+  {
+   "s": "0",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "9",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "09",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-90",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "7:30",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "12:45",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 765
+  },
+  {
+   "s": "٠",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "٩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "٠٩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-٩٠",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "٧:3٠",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1٢:٤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "۰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "۹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "۰۹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-۹۰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "۷:3۰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1۲:۴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "߀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "߉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "߀߉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-߉߀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "߇:3߀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1߂:߄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "०",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "९",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "०९",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-९०",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "७:3०",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1२:४5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "০",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "৯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "০৯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-৯০",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "৭:3০",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1২:৪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "੦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "੯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "੦੯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-੯੦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "੭:3੦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1੨:੪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "૦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "૯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "૦૯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-૯૦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "૭:3૦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1૨:૪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "୦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "୯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "୦୯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-୯୦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "୭:3୦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1୨:୪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "௦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "௯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "௦௯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-௯௦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "௭:3௦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1௨:௪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "౦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "౯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "౦౯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-౯౦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "౭:3౦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1౨:౪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "೦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "೯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "೦೯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-೯೦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "೭:3೦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1೨:೪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "൦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "൯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "൦൯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-൯൦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "൭:3൦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1൨:൪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "෦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "෯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "෦෯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-෯෦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "෭:3෦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1෨:෪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "๐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "๙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "๐๙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-๙๐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "๗:3๐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1๒:๔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "໐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "໙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "໐໙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-໙໐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "໗:3໐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1໒:໔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "༠",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "༩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "༠༩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-༩༠",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "༧:3༠",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1༢:༤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "၀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "၉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "၀၉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-၉၀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "၇:3၀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1၂:၄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "႐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "႙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "႐႙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-႙႐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "႗:3႐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1႒:႔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "០",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "៩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "០៩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-៩០",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "៧:3០",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1២:៤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᠐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᠙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᠐᠙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᠙᠐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᠗:3᠐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᠒:᠔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᥆",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᥏",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᥆᥏",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᥏᥆",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᥍:3᥆",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᥈:᥊5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᧐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᧙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᧐᧙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᧙᧐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᧗:3᧐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᧒:᧔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᪀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᪉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᪀᪉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᪉᪀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᪇:3᪀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᪂:᪄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᪐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᪙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᪐᪙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᪙᪐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᪗:3᪐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᪒:᪔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᭐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᭙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᭐᭙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᭙᭐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᭗:3᭐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᭒:᭔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᮰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᮹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᮰᮹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᮹᮰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᮷:3᮰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᮲:᮴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᱀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᱉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᱀᱉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᱉᱀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᱇:3᱀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᱂:᱄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᱐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᱙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "᱐᱙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-᱙᱐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᱗:3᱐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1᱒:᱔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꘠",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꘩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꘠꘩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-꘩꘠",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꘧:3꘠",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1꘢:꘤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꣐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꣙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꣐꣙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-꣙꣐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꣗:3꣐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1꣒:꣔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꤀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꤉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꤀꤉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-꤉꤀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꤇:3꤀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1꤂:꤄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꧐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꧙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꧐꧙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-꧙꧐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꧗:3꧐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1꧒:꧔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꧰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꧹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꧰꧹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-꧹꧰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꧷:3꧰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1꧲:꧴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꩐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꩙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꩐꩙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-꩙꩐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꩗:3꩐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1꩒:꩔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꯰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꯹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "꯰꯹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-꯹꯰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "꯷:3꯰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1꯲:꯴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "０",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "９",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "０９",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-９０",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "７:3０",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1２:４5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𐒠",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𐒩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𐒠𐒩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𐒩𐒠",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𐒧:3𐒠",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𐒢:𐒤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𐴰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𐴹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𐴰𐴹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𐴹𐴰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𐴷:3𐴰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𐴲:𐴴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑁦",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑁯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑁦𑁯",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑁯𑁦",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑁭:3𑁦",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑁨:𑁪5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑃰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑃹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑃰𑃹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑃹𑃰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑃷:3𑃰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑃲:𑃴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑄶",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑄿",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑄶𑄿",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑄿𑄶",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑄽:3𑄶",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑄸:𑄺5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑇐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑇙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑇐𑇙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑇙𑇐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑇗:3𑇐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑇒:𑇔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑋰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑋹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑋰𑋹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑋹𑋰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑋷:3𑋰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑋲:𑋴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑑐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑑙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑑐𑑙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑑙𑑐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑑗:3𑑐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑑒:𑑔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑓐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑓙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑓐𑓙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑓙𑓐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑓗:3𑓐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑓒:𑓔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑙐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑙙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑙐𑙙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑙙𑙐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑙗:3𑙐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑙒:𑙔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑛀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑛉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑛀𑛉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑛉𑛀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑛇:3𑛀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑛂:𑛄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑜰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑜹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑜰𑜹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑜹𑜰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑜷:3𑜰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑜲:𑜴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑣠",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑣩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑣠𑣩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑣩𑣠",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑣧:3𑣠",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑣢:𑣤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑥐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑥙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑥐𑥙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑥙𑥐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑥗:3𑥐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑥒:𑥔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑱐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑱙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑱐𑱙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑱙𑱐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑱗:3𑱐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑱒:𑱔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑵐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑵙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑵐𑵙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑵙𑵐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑵗:3𑵐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑵒:𑵔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑶠",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑶩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑶠𑶩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑶩𑶠",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑶧:3𑶠",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑶢:𑶤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑽐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑽙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𑽐𑽙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𑽙𑽐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𑽗:3𑽐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𑽒:𑽔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𖩠",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𖩩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𖩠𖩩",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𖩩𖩠",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𖩧:3𖩠",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𖩢:𖩤5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𖫀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𖫉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𖫀𖫉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𖫉𖫀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𖫇:3𖫀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𖫂:𖫄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𖭐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𖭙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𖭐𖭙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𖭙𖭐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𖭗:3𖭐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𖭒:𖭔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟎",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟗",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟎𝟗",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𝟗𝟎",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟕:3𝟎",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𝟐:𝟒5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟘",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟡",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟘𝟡",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𝟡𝟘",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟟:3𝟘",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𝟚:𝟜5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟢",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟫",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟢𝟫",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𝟫𝟢",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟩:3𝟢",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𝟤:𝟦5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟬",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟵",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟬𝟵",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𝟵𝟬",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟳:3𝟬",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𝟮:𝟰5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟶",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟿",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𝟶𝟿",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𝟿𝟶",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𝟽:3𝟶",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𝟸:𝟺5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞅀",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞅉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞅀𞅉",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𞅉𞅀",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞅇:3𞅀",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𞅂:𞅄5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞋰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞋹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞋰𞋹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𞋹𞋰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞋷:3𞋰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𞋲:𞋴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞓰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞓹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞓰𞓹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𞓹𞓰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞓷:3𞓰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𞓲:𞓴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞥐",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞥙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "𞥐𞥙",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-𞥙𞥐",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "𞥗:3𞥐",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1𞥒:𞥔5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "🯰",
+   "int": 0,
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "🯹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "🯰🯹",
+   "int": 9,
+   "float": 9.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-🯹🯰",
+   "int": -90,
+   "float": -90.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "🯷:3🯰",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 450
+  },
+  {
+   "s": "1🯲:🯴5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " ",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "　",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "12",
+   "int": 12,
+   "float": 12.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": " 12 ",
+   "int": 12,
+   "float": 12.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "　12　",
+   "int": 12,
+   "float": 12.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "+5",
+   "int": 5,
+   "float": 5.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "-５",
+   "int": -5,
+   "float": -5.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "－5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1_0",
+   "int": 10,
+   "float": 10.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1__0",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "_1",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1_",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1e400",
+   "int": null,
+   "float": "inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "-1e400",
+   "int": null,
+   "float": "-inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1e5",
+   "int": null,
+   "float": 100000.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1E-7",
+   "int": null,
+   "float": 1e-07,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": ".5",
+   "int": null,
+   "float": 0.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "5.",
+   "int": null,
+   "float": 5.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": ".",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1.5",
+   "int": null,
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "１．５",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "١٫٥",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "0x10",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "12a",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "inf",
+   "int": null,
+   "float": "inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "-Infinity",
+   "int": null,
+   "float": "-inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "+inf",
+   "int": null,
+   "float": "inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "nan",
+   "int": null,
+   "float": "nan",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "NaN",
+   "int": null,
+   "float": "nan",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "-nan",
+   "int": null,
+   "float": "nan",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "infinity ",
+   "int": null,
+   "float": "inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "²",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "³",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "½",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "Ⅻ",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "①",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "--5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "+-5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "- 5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "9999999999999999999999999",
+   "int": "big",
+   "float": 1e+25,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-9999999999999999999",
+   "int": "big",
+   "float": -1e+19,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "9223372036854775807",
+   "int": 9223372036854775807,
+   "float": 9.223372036854776e+18,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "9223372036854775808",
+   "int": "big",
+   "float": 9.223372036854776e+18,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "1 2",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1\n",
+   "int": 1,
+   "float": 1.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\t7\t",
+   "int": 7,
+   "float": 7.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "007",
+   "int": 7,
+   "float": 7.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-0",
+   "int": 0,
+   "float": -0.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "+0",
+   "int": 0,
+   "float": 0.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1e",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "e5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1.2.3",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "08:15",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 495
+  },
+  {
+   "s": "8:15",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 495
+  },
+  {
+   "s": "24:00",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "23:59",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 1439
+  },
+  {
+   "s": "7:60",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "07:5",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "２３:５９",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "2３:00",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "᠑:30",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 90
+  },
+  {
+   "s": "𑽙:30",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 570
+  },
+  {
+   "s": "𞓹:45",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 585
+  },
+  {
+   "s": "12:3４",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": 754
+  },
+  {
+   "s": "1:2:3",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": ":30",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "8:",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "008:15",
+   "int": null,
+   "float": null,
+   "d": false,
+   "hm": null
+  }
+ ]
+}

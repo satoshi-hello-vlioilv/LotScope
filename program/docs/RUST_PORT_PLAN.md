@@ -518,6 +518,28 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
 - 残り: LotDsp の 9 道（lotdsp_direct は WebSocket を手で組んでいるので tungstenite は要らない。Linux の CI の RealBrowser で突き合わせられる）・
   スケジュール（/api/schedule と /api/src/sch・データ元のカード・結合・ダッシュボードの cm3 の分岐。sha1 のファイル名・Windows のプロキシ）。
 
+### 7 段目の手本: 数の読み方と勤務体系 — 版 3.75.0
+
+次に移す範囲は 3 回・16 案を別のエージェントが読んで・動かして採点した（`tools/ui-proposals/2026-11-port-rest.json`。1 回目 A 65.0・2 回目 I 75.4・
+3 回目 **N 78.2**）。3 回で合格点 80 に届かず、決まりどおり 3 回目の 1 位 N（数の読み方の事例の表を先に作り、その上に勤務体系）に決めた。足りない 1.8 点は、
+1 版に 2 つの話を乗せること・数字の表が日時と計算列にも効くので確かめる範囲が広いこと・作る・直す・消すが窓に 2 つ目の写しになること（採点者の指摘）。
+最後の点は、作るときに窓の書く型を 1 つにまとめて（`master_rows.rs`）権限の組もそこへ移し、解いた。
+
+- 数の読み方（`tests/fixtures/pynum_cases.json`・`tools/pynum-cases.py`）: Python 3.13（Unicode 15.1）の int()・float()・\d・shifts.hm が 477 の字を
+  どう読むかを焼いた表。窓の pyfmt の数字の表は 62 系統（カウィ・ナグムンダリが無い）、access_write.rs は別の 18 系統の表を持っていたのを、
+  68 系統の 1 つの表（pyfmt::DIGITS）にした。直す前の表では 12 件の食い違いが出ることを確かめた。
+- Python の欠けを先に直した（採点者が測った物）: 表示順の最大を str.isdigit と int で選ぶ所が 5 か所（勤務体系・設備グループ・変換表・変換表の取り込み・
+  起動の種まき）にあり、「²」「--5」の行で ValueError（400）になって表示順なしでは足せなかった → `services/row_order.next_order`（読めない行は数えない）。
+  プリセットの chartAt も同じ形。勤務体系の日付補正・表示順の inf・1e400 は OverflowError（英語の 400）→ 日本語の理由で断る・空にする。
+- 勤務体系の 4 本（GET／POST /api/masters/shifts・PUT／DELETE /api/masters/shifts/<id>）を窓が受ける（`desktop/src/shifts_write.rs`。Lot::shifts_route）。
+  本文の読み方（clean_row・clean_segments。区分の JSON の字は json.dumps(separators) と同じ）・一覧（view・選べる設備・書けるか・共有か・版）を写した。
+  書く型は `desktop/src/master_rows.rs`（SPECS・作る／直す／消す・版・一意・版の番号の読み方）で、access_write.rs の作る・直す・消すもここへ移した。
+  読めない・表でない本文・項目が並び／表・i64 に入らない数・10 進でない数の字の版の番号は Python に任せる。
+- 評価関数: `cargo test --test pynum_cases`・`tests/test_pynum_cases.py`・`cargo test --test shifts_parity`（← `tests/shifts_oracle.py`。5 場面・49 歩。
+  一意を外す・表示順の最後を 0 から・日付補正の上限を外す 3 つの変異で落ちる）・`tests/test_work_summary.py` の
+  test_unreadable_order_and_numbers_do_not_block_adding（直す前の Python では落ちた）。
+- 残りの書く道（設備グループ・変換表・書式・プリセットなど）は、この型に組の clean_row と _check_row を足して移す。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

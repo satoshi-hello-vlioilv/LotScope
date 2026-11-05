@@ -21,8 +21,9 @@ const SPACES: &[(u32, u32)] = &[
     (0x205F, 0x205F),
     (0x3000, 0x3000),
 ];
-/// Python の正規表現の \d（Unicode の 10 進数字）に当たる文字の範囲。どれも 0 から始まる 10 文字ずつの並び。
-const DIGITS: &[(u32, u32)] = &[
+/// Python の正規表現の \d（Unicode の 10 進数字。Python 3.13・Unicode 15.1 の Nd）に当たる文字の範囲。0 から始まる 10 文字ずつの並び（続いた並びは 1 つ）。
+/// 表は tests/fixtures/pynum_cases.json の digits と同じ（版 3.75.0。前は 62 系統でカウィ・ナグムンダリが無かった。tests/pynum_cases.rs が止める）
+pub const DIGITS: &[(u32, u32)] = &[
     (0x30, 0x39),
     (0x660, 0x669),
     (0x6F0, 0x6F9),
@@ -77,12 +78,14 @@ const DIGITS: &[(u32, u32)] = &[
     (0x11C50, 0x11C59),
     (0x11D50, 0x11D59),
     (0x11DA0, 0x11DA9),
+    (0x11F50, 0x11F59),
     (0x16A60, 0x16A69),
     (0x16AC0, 0x16AC9),
     (0x16B50, 0x16B59),
     (0x1D7CE, 0x1D7FF),
     (0x1E140, 0x1E149),
     (0x1E2F0, 0x1E2F9),
+    (0x1E4F0, 0x1E4F9),
     (0x1E950, 0x1E959),
     (0x1FBF0, 0x1FBF9),
 ];

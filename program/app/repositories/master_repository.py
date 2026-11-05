@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..services import conversions, dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
+from ..services.row_order import next_order
 from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
 
 
@@ -81,6 +82,7 @@ def _normalize(row, spec):
 def _normalize_all(rows, spec):
     for r in rows:
         _normalize(r, spec)
+
 
 
 class MasterRepository:
@@ -527,8 +529,7 @@ class MasterRepository:
     def shift_create(self, data):
         """data はマスタの行の形（shifts.clean_row の答え）。表示順が無ければ最後（いまの最大 + 10）。"""
         if not str(data.get("表示順") or "").strip():
-            data = {**data, "表示順": str(max((int(r.get("表示順") or 0) for r in self.shift_patterns() if str(r.get("表示順") or "").lstrip("-").isdigit()),
-                                           default=0) + 10)}
+            data = {**data, "表示順": next_order(self.shift_patterns())}
         return self._create("shift_patterns", data)
 
     def shift_update(self, item_id, data, base_rev=None):
@@ -544,8 +545,7 @@ class MasterRepository:
     def equip_group_create(self, data):
         """data はマスタの行の形（equip_groups.clean_row の答え）。表示順が無ければ最後（いまの最大 + 10）。"""
         if not str(data.get("表示順") or "").strip():
-            data = {**data, "表示順": str(max((int(r.get("表示順") or 0) for r in self.equip_groups() if str(r.get("表示順") or "").lstrip("-").isdigit()),
-                                           default=0) + 10)}
+            data = {**data, "表示順": next_order(self.equip_groups())}
         return self._create("equipment_groups", data)
 
     def equip_group_update(self, item_id, data, base_rev=None):
@@ -561,8 +561,7 @@ class MasterRepository:
     def conversion_create(self, data):
         """data はマスタの行の形（conversions.clean_row の答え）。表示順が無ければ最後（いまの最大 + 10）。"""
         if not str(data.get("表示順") or "").strip():
-            data = {**data, "表示順": str(max((int(r.get("表示順") or 0) for r in self.conversions() if str(r.get("表示順") or "").lstrip("-").isdigit()),
-                                           default=0) + 10)}
+            data = {**data, "表示順": next_order(self.conversions())}
         return self._create("conversions", data)
 
     def conversion_update(self, item_id, data, base_rev=None):
@@ -605,7 +604,7 @@ class MasterRepository:
         def mutate(cur, stamp):
             _normalize_all(cur, spec)
             by = {str(r.get("名前") or ""): r for r in cur}
-            top = max((int(r.get("表示順") or 0) for r in cur if str(r.get("表示順") or "").lstrip("-").isdigit()), default=0)
+            top = int(next_order(cur)) - 10
             added = replaced = 0
             for data in rows:
                 old = by.get(str(data.get("名前") or ""))

@@ -21,8 +21,8 @@ use unicode_normalization::UnicodeNormalization;
 const START_CANDIDATES: &[&str] = &["BOX実績_作業開始_日付"];
 /// 0 件の日を埋める日数の上限（読み違えた古い日付で、何万行もの表にしない）
 const MAX_FILL_DAYS: i64 = 3660;
-const DAYOFF_DEFAULT: i64 = -1;
-const DAYOFF_LIMIT: i64 = 7;
+pub const DAYOFF_DEFAULT: i64 = -1;
+pub const DAYOFF_LIMIT: i64 = 7;
 /// 時刻はあるが、どの区分にも入らない（直の間の空き時間など）
 pub const OUTSIDE: i64 = -1;
 /// 時刻が無い（日付だけ）
@@ -212,7 +212,7 @@ pub struct Segment {
 }
 
 impl Segment {
-    fn json(&self) -> Value {
+    pub fn json(&self) -> Value {
         json!({"name": self.name, "start": self.start, "end": self.end, "dayOffset": self.day_offset, "crosses": self.crosses})
     }
 }
@@ -241,7 +241,7 @@ pub fn segments_of(row: &Value) -> Vec<Segment> {
     out
 }
 
-fn order_of(row: &Value) -> i64 {
+pub fn order_of(row: &Value) -> i64 {
     row.get("表示順").filter(|v| truthy(v)).and_then(py_int_of).unwrap_or(0)
 }
 
