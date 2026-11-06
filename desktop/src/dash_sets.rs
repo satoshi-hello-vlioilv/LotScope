@@ -117,6 +117,16 @@ fn sets<'a>(rows: &'a [Value], login: &str) -> Vec<&'a Map<String, Value>> {
         .collect()
 }
 
+/// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場のファイルに窓の読めない深い入れ子が
+/// ある（Place::too_deep）・置き場を読めないときは None（Python に任せる）
+pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
+    if place.too_deep(DASHBOARDS.name) {
+        return None;
+    }
+    let rows = place.rows(DASHBOARDS.name).ok()?;
+    handle(store, me, route, query, body, &rows)
+}
+
 /// 窓が受ける 4 本を答える。me は窓が決めた me、rows は置き場の dashboards の行。窓が答えない形は None
 pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], rows: &[Value]) -> Option<Answer> {
     if !pr::rows_plain(rows) {

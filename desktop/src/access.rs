@@ -77,35 +77,27 @@ pub(crate) fn text(v: Option<&Value>) -> String {
 
 /// 比べるための形（identity.normalize_part: NFKC・前後の空白を除く・大文字）
 /// 名前の比べ方（normalize_part: NFKC・前後の空白を除く・大文字）の答えが、Python 3.13（Unicode 15.1）と窓（Rust の std と
-/// unicode-normalization の表。より新しい Unicode）で割れる字（版 3.79.0。161 字。Unicode 16 から後に足された字と大文字の対）。
-/// tests/name_key_cases.rs が全部の字を Python と突き合わせ、この表で足りることを確かめる（Rust や crate の版を上げて増えたら落ちる）
-const KEY_SPLIT: &[(u32, u32)] = &[
-    (0x019B, 0x019B),
-    (0x0264, 0x0264),
-    (0x0558, 0x0558),
-    (0x058B, 0x058C),
-    (0x1C8A, 0x1C8A),
-    (0x209D, 0x209F),
-    (0xA7CD, 0xA7CD),
-    (0xA7CF, 0xA7CF),
-    (0xA7D3, 0xA7D3),
-    (0xA7D5, 0xA7D5),
-    (0xA7DB, 0xA7DB),
-    (0xA7F1, 0xA7F1),
-    (0x10791, 0x10791),
-    (0x107BB, 0x107BF),
-    (0x10D70, 0x10D85),
-    (0x16EBB, 0x16ED3),
-    (0x1B123, 0x1B126),
-    (0x1CCD6, 0x1CCF9),
-    (0x1D6A6, 0x1D6A6),
-    (0x1DF95, 0x1DF95),
-    (0x1DFCD, 0x1DFFF),
-];
+/// unicode-normalization の表。より新しい Unicode）で割れうる字（版 3.79.0）。表は src/key_split_table.rs（program/tools/key-split-table.py が焼く:
+/// Python でまだ割り当てのない字＋窓だけが大文字の対を持つ字）。割り当てのない字を含む名前を任せるので、1 字では割れず並びで割れる形
+/// （Unicode 16 の合成・新しい結合文字の並べ替え）も閉じる。tests/name_key_cases.rs が全部の字で Python と突き合わせる
+pub use crate::key_split_table::KEY_SPLIT;
 
-/// 名前に、比べ方が Python と割れる字があるか（あれば、名前で比べる道は窓が答えず Python に任せる）
+/// 名前に、比べ方が Python と割れうる字があるか（あれば、名前で比べる道は窓が答えず Python に任せる）
 pub fn key_split(s: &str) -> bool {
-    s.chars().any(|c| KEY_SPLIT.iter().any(|(a, b)| (*a..=*b).contains(&(c as u32))))
+    s.chars().any(|c| {
+        let c = c as u32;
+        KEY_SPLIT
+            .binary_search_by(|(a, b)| {
+                if *b < c {
+                    std::cmp::Ordering::Less
+                } else if *a > c {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
+            .is_ok()
+    })
 }
 
 pub fn normalize_part(v: Option<&Value>) -> String {
@@ -401,6 +393,22 @@ impl Place {
 
     /// マスタの行（MasterStore.read と同じ物: 共有するマスタは共有のファイル → 写し、無ければ同梱の data/ → 最初の中身）。
     /// 共有のファイルを直に読む（Python の写しは Python が読むときに取り直すので、窓が読むときに古いことがある）
+    /// 置き場のマスタのファイル（共有・写し・同梱の data/・既定）のどれかに、窓の serde が読めない深い入れ子
+    /// （master_rows::SERDE_DEPTH 段以上）があるか（版 3.79.0）。あれば窓は読む物が Python と割れる（共有を読めずに写しへ流れる・
+    /// 書けない）ので、そのマスタを使う道は Python に任せる
+    pub fn too_deep(&self, name: &str) -> bool {
+        let file = format!("{name}.json");
+        let mut dirs: Vec<&PathBuf> = vec![];
+        if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {
+            dirs.push(share);
+            dirs.push(&self.cache);
+        }
+        dirs.push(&self.data);
+        dirs.push(&self.defaults);
+        dirs.iter()
+            .any(|d| std::fs::read(d.join(&file)).is_ok_and(|b| crate::master_rows::json_depth(&b) >= crate::master_rows::SERDE_DEPTH))
+    }
+
     pub fn rows(&self, name: &str) -> Result<Vec<Value>, String> {
         let file = format!("{name}.json");
         let mut tries: Vec<PathBuf> = vec![];

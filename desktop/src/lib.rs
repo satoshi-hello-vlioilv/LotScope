@@ -12,6 +12,7 @@ pub mod formula;
 pub mod home;
 pub mod install;
 pub mod join;
+pub mod key_split_table;
 pub mod lists;
 pub mod lot;
 pub mod lotlist;

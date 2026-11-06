@@ -27,5 +27,33 @@ fn name_keys_split_only_where_the_window_hands_over() {
         }
     }
     assert!(split > 0, "割れる字が 1 つも無い（Python {}）: 表を見直す", oracle["python"]);
-    assert!(missing.is_empty(), "key_split の表に無い割れる字 {} 字: {}", missing.len(), missing.join(" "));
+    assert!(
+        missing.is_empty(),
+        "key_split の表に無い割れる字 {} 字（program/tools/key-split-table.py の ASSIGNED_SPLIT に足して焼き直す）: {}",
+        missing.len(),
+        missing.join(" ")
+    );
+    // 表は、Python でまだ割り当てのない字（並びで割れる形も閉じる）と、1 字で割れる字だけ（余分が無い。焼き直しを忘れていない）
+    let unassigned: Vec<(u32, u32)> =
+        oracle["unassigned"].as_array().unwrap().iter().map(|r| (r[0].as_u64().unwrap() as u32, r[1].as_u64().unwrap() as u32)).collect();
+    let mut extra = vec![];
+    for cp in 0u32..0x110000 {
+        let Some(c) = char::from_u32(cp) else { continue };
+        let cn = unassigned.iter().any(|(a, b)| (*a..=*b).contains(&cp));
+        let one = normalize_part(Some(&json!(c.to_string()))) != py.get(&cp).cloned().unwrap_or_else(|| c.to_string());
+        if key_split(&c.to_string()) != (cn || one) {
+            extra.push(format!("U+{cp:04X}"));
+        }
+    }
+    assert!(
+        extra.is_empty(),
+        "表と Python（Unicode {}）の割り当てが合わない {} 字（焼き直す）: {}",
+        oracle["unicode"],
+        extra.len(),
+        extra.iter().take(20).cloned().collect::<Vec<_>>().join(" ")
+    );
+    // 並びで割れる形（1 字では割れない）: Python で割り当てのない字を含むので、窓は Python に任せる
+    for s in ["\u{1611E}\u{1611E}", "a\u{0897}\u{0316}"] {
+        assert!(key_split(s), "{s:?} は任せる");
+    }
 }

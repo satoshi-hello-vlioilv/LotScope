@@ -58,6 +58,8 @@ ROWS = [R(1, "標準", "dash", "共通デフォルト", std="1", body='{"rows": 
         R(8, "並びの中身", "dashset", "共通", body='[1, 2]'),
         {"id": 9, "名前": "版の無い行", "元": "dashset", "範囲": "ID", "ログインID": "p1", "標準": "", "中身": '{"items": ["3"]}', "備考": ""}]
 DEEP = '{"items": ["1"], "x": ' + "[" * 200 + "]" * 200 + "}"     # 入れ子 200 段（serde は 128 段で読むのをやめる。Python は読む）
+EDGE = '{"items": ["1"], "x": ' + "[" * 126 + "]" * 126 + "}"     # 外の { と合わせて 127 段（窓も読む）
+OVER = '{"items": ["1"], "x": ' + "[" * 127 + "]" * 127 + "}"     # 128 段（窓は任せる）
 MANY = {"items": [str(i) for i in range(1, 14)]}
 ITEMS = {"items": ["1", "1", "b:standard", 5, "x", 1.5, True, "١٢", "b:", "b:" + "a" * 33, "1234567890", -1, None, [1], {"a": 1}]}
 SCENARIOS = [
@@ -87,7 +89,8 @@ SCENARIOS = [
         S(PART, "POST", body={"name": "字で並び", "scope": "me", "body": "[1]"}),
         S(PART, "POST", body={"name": "items が表", "scope": "me", "body": {"items": {"1": 1}}}),
         S(PART, "POST", body={"name": "読めない字", "scope": "me", "body": "abc"}),
-        S(PART, "POST", body={"name": "\u1c89", "scope": "me", "body": {"items": ["1"]}}),
+        S(PART, "POST", body={"name": "127 段", "scope": "me", "body": EDGE}),
+        S(PART, "POST", body={"name": "字の中の括弧", "scope": "me", "body": j({"items": ["1"], "x": "[" * 300})}),
         S(PART, "POST", body={"name": "読めない字 2", "scope": "me", "body": '{"items": ["1"'}),
         S(PART, "POST", body="null"), S(PART, "POST", body="0"), S(PART, "POST", body="[]"), S(PART, "POST", body='""'),
         S(PART, "POST", body={"name": "text", "scope": "me", "body": {"items": ["4"]}}, ctype="text/plain"),
@@ -133,6 +136,10 @@ SCENARIOS = [
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": 1e400}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["\\ud800"]}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": DEEP}),
+        S(PART, "POST", body={"name": "a", "scope": "me", "body": OVER}),
+        S(PART, "POST", body={"name": "\U0001611e\U0001611e", "scope": "me", "body": {"items": ["1"]}}),
+        S(PART, "POST", body={"name": "a\u0897\u0316", "scope": "me", "body": {"items": ["1"]}}),
+        S(PART, "POST", body={"name": "\u1c89", "scope": "me", "body": {"items": ["1"]}}),
         S(PART, "PUT", 4, {"name": "\u1c8a"}),
         S(PART, "PUT", 4, "[1]"), S(PART, "PUT", 4, ""), S(PART, "DELETE", 4, '"x"'),
         S(PART, "PUT", "４", {"name": "全角の id"}), S(PART, "DELETE", "١"),
@@ -165,7 +172,13 @@ SCENARIOS = [
                         ("版が読めない", R(2, "x", "dashset", "共通", rev="二")),
                         ("id が字", {"id": "4", "名前": "字の id", "元": "dashset", "範囲": "共通", "中身": "{}"}),
                         ("中身の入れ子が 200 段", R(2, "深い中身", "dashset", "共通", body=DEEP)),
-                        ("名前の大文字が Unicode の版で割れる字", R(2, "\u1c8a", "dashset", "ID", login="p1"))]],
+                        ("名前の大文字が Unicode の版で割れる字", R(2, "\u1c8a", "dashset", "ID", login="p1")),
+                        ("名前が Unicode 16 の合成でできる字", R(2, "\U00016121", "dashset", "ID", login="p1")),
+                        ("ほかの元の行の値の入れ子が 130 段", dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130)))]],
+    {"name": "共有のファイルの値の入れ子が 130 段・写しは前の中身（窓は答えず Python に任せる）", "mode": "shared",
+     "rows": [R(1, "新", "dashset", "共通"), dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130))],
+     "mirror_rows": [R(1, "前", "dashset", "共通")], "steps": [],
+     "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}})]},
 ]
 FILE_NAME = "dashboards"
 
@@ -182,6 +195,8 @@ def place(root, sc):
             (cache / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
         else:
             (share / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
+    if sc.get("mirror_rows") is not None:     # 写しは共有と違う中身（共有を読めないとき窓が写しへ流れないか）
+        (cache / f"{FILE_NAME}.json").write_text(j(doc(sc["mirror_rows"])), encoding="utf-8")
     if sc.get("lock"):          # ほかの PC が保存している途中（切れていない錠。窓も Python も 409 locked で答え、書かない）
         from datetime import datetime, timedelta
         n = datetime.now()

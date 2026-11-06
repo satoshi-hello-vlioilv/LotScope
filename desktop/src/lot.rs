@@ -280,9 +280,9 @@ impl Lot {
             self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
         }
         let me = self.gate.me(&s.access).ok()?;
-        let rows = crate::access::Place::from_json(&s.access["place"]).rows(crate::preset_rows::DASHBOARDS.name).ok()?;
+        let place = crate::access::Place::from_json(&s.access["place"]);
         let store = self.store_for(&s.access)?;
-        crate::dash_sets::handle(&store, &me, route, query, body, &rows)
+        crate::dash_sets::answer(&store, &me, route, query, body, &place)
     }
 
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。

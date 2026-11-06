@@ -132,28 +132,7 @@ pub fn sort_views(items: &mut [Value]) {
 /// 1e400 のような指数の数・片割れの代用字の \u）が入っていそうなら割れる、入っていなければ Python も読めない（どちらも「読めない」で同じ）
 pub fn text_split(t: &str) -> bool {
     // serde_json は入れ子 128 段で読むのをやめる（Python は読む）。字の外の [ { の深さで見る
-    let (mut depth, mut deepest, mut in_str, mut esc) = (0usize, 0usize, false, false);
-    for b in t.bytes() {
-        if in_str {
-            match (esc, b) {
-                (true, _) => esc = false,
-                (false, b'\\') => esc = true,
-                (false, b'"') => in_str = false,
-                _ => {}
-            }
-            continue;
-        }
-        match b {
-            b'"' => in_str = true,
-            b'[' | b'{' => {
-                depth += 1;
-                deepest = deepest.max(depth);
-            }
-            b']' | b'}' => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-    }
-    if deepest >= 128 {
+    if master_rows::json_depth(t.as_bytes()) >= master_rows::SERDE_DEPTH {
         return true;
     }
     if serde_json::from_str::<Value>(t).is_ok() {

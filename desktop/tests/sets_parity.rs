@@ -7,7 +7,7 @@
 mod common;
 
 use da_core::access;
-use da_core::dash_sets::{handle, route_of};
+use da_core::dash_sets::{answer, route_of};
 use da_core::master_store::{Config, Store};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
@@ -58,7 +58,7 @@ fn store_of(conf: &Value, who: &Value) -> Store {
 }
 
 /// 窓の道（門番の外。置けるかは handle が見る）。None は窓が答えない（Python に任せる）
-fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
+fn ask(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let mut c = conf.clone();
     c["who"]["login"] = step["who"][0].clone();
     c["who"]["pc"] = step["who"][1].clone();
@@ -69,8 +69,7 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let me = access::me(&c, revoked).expect("me");
     let route = route_of(step["method"].as_str().unwrap(), step["path"].as_str().unwrap())?; // 窓が受けない道（ASCII でない id）は Python
     let body = step["body"].as_str().unwrap_or("");
-    let rows = place.rows("dashboards").unwrap();
-    handle(store, &me, route, step["query"].as_str().unwrap_or(""), body.as_bytes(), &rows)
+    answer(store, &me, route, step["query"].as_str().unwrap_or(""), body.as_bytes(), &place)
 }
 
 /// 置き場のマスタのファイル（共有・同梱の data/・写し。錠と書きかけの残りは無いこと）
@@ -101,7 +100,7 @@ fn dashboard_sets_match_python() {
         let store = store_of(&sc["conf"], &sc["storeWho"]);
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             steps += 1;
-            let Some((status, got)) = answer(&store, &sc["conf"], st) else {
+            let Some((status, got)) = ask(&store, &sc["conf"], st) else {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
                 continue;
             };
@@ -122,7 +121,7 @@ fn dashboard_sets_match_python() {
         // 窓が答えず Python に任せる歩（書く前に断る＝窓のファイルは変わらない）
         for st in sc["delegates"].as_array().unwrap() {
             delegated += 1;
-            if let Some((status, got)) = answer(&store, &sc["conf"], st) {
+            if let Some((status, got)) = ask(&store, &sc["conf"], st) {
                 bad.push(format!(
                     "{name}: 窓が答えた（Python に任せるはず） {} {} {}: 窓 {status} {got}",
                     st["method"], st["path"], st["body"]
@@ -145,7 +144,7 @@ fn dashboard_sets_match_python() {
             }
         }
     }
-    assert!(steps >= 80 && delegated >= 37, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 85 && delegated >= 47, "歩が少ない: {steps}・{delegated}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
