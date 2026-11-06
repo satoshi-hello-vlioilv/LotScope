@@ -2087,9 +2087,10 @@ impl<'de> serde::Deserialize<'de> for Item {
     }
 }
 
-/// 計算列の JSON の字 → 計算列（無い・読めない・式が 1 つも無ければ None）
+/// 計算列の JSON の字 → 計算列（無い・読めない・式が 1 つも無ければ None）。空白は Python の str.strip と同じ字（\x1c〜\x1f も。
+/// 版 3.81.0 の採点で、trim〈Unicode の White_Space〉では {"\x1c": "1"} の式を残して割れると分かった）
 pub fn clean_calc(text: &str) -> Option<Calc> {
-    if text.trim().is_empty() {
+    if crate::pyfmt::strip(text).is_empty() {
         return None;
     }
     let Ok(Item::Map(top)) = serde_json::from_str::<Item>(text) else { return None };
@@ -2100,13 +2101,13 @@ pub fn clean_calc(text: &str) -> Option<Calc> {
         m.iter()
             .take(n)
             .filter_map(|(k, x)| match x {
-                Item::Text(t) if !k.trim().is_empty() => Some((cut(k, 200), cut(t, size))),
+                Item::Text(t) if !crate::pyfmt::strip(k).is_empty() => Some((cut(k, 200), cut(t, size))),
                 _ => None,
             })
             .collect()
     };
     let formulas: Vec<(String, String)> =
-        strs(get("formulas"), MAX_CALC, MAX_LEN).into_iter().filter(|(_, x)| !x.trim().is_empty()).collect();
+        strs(get("formulas"), MAX_CALC, MAX_LEN).into_iter().filter(|(_, x)| !crate::pyfmt::strip(x).is_empty()).collect();
     // 設備ごとの式（Python の clean_calc の equips）: 同じ設備名は後ろの値・先の場所（json.loads の dict）。200 台まで
     let mut seen: Vec<(String, &Item)> = vec![];
     if let Some(Item::Map(m)) = get("equips") {
@@ -2117,12 +2118,12 @@ pub fn clean_calc(text: &str) -> Option<Calc> {
     let mut equips: Vec<(String, Calc)> = vec![];
     for (k, x) in seen.into_iter().take(MAX_CALC_EQUIPS) {
         let Item::Map(sub) = x else { continue };
-        if k.trim().is_empty() {
+        if crate::pyfmt::strip(&k).is_empty() {
             continue;
         }
         let pick = |key: &str| sub.iter().rev().find(|(n, _)| n == key).map(|(_, v)| v);
         let f: Vec<(String, String)> =
-            strs(pick("formulas"), MAX_CALC, MAX_LEN).into_iter().filter(|(_, x)| !x.trim().is_empty()).collect();
+            strs(pick("formulas"), MAX_CALC, MAX_LEN).into_iter().filter(|(_, x)| !crate::pyfmt::strip(x).is_empty()).collect();
         if !f.is_empty() {
             put(&mut equips, cut(&k, 200), Calc { formulas: f, names: strs(pick("names"), 400, 200), equips: vec![] });
         }
@@ -2356,6 +2357,8 @@ mod tests {
         let cc = CalcColumns::new(&c, &["x".into(), "y".into()]);
         assert_eq!(cc.key("表示"), "x", "同じ表示名は後ろの列（Python の dict と同じ後勝ち）");
         assert_eq!(clean_calc("[1]"), None);
+        // 空白は Python の str.strip と同じ字（\x1c〜\x1f も空白。版 3.81.0 の採点で trim では割れると分かった）
+        assert_eq!(clean_calc("{\"formulas\": {\"\\u001c\": \"1\", \"a\": \"\\u001c\"}}"), None);
         assert_eq!(clean_calc(r#"{"formulas": {"a": 1}}"#), None, "式が字でなければ無い");
     }
 
