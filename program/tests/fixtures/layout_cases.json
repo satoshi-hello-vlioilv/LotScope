@@ -636,6 +636,286 @@
 },
 {
 "fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"p6\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}, {\"id\": \"a\", \"x\": 4, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}, {\"id\": \"a\", \"x\": 8, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}]}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [
+{
+"id": "p6",
+"x": 0,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+},
+{
+"id": "a",
+"x": 4,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+},
+{
+"id": "p7",
+"x": 8,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+}
+]
+},
+"{\"panels\": [{\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"p6\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 0, \"y\": 0}, {\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"a\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 4, \"y\": 0}, {\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"p7\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 8, \"y\": 0}], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"p5\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}, {\"id\": \"p6\", \"x\": 4, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}, {\"id\": \"a\", \"x\": 8, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}, {\"id\": \"a\", \"x\": 0, \"y\": 2, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}]}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [
+{
+"id": "p5",
+"x": 0,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+},
+{
+"id": "p6",
+"x": 4,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+},
+{
+"id": "a",
+"x": 8,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+},
+{
+"id": "p8",
+"x": 0,
+"y": 2,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+}
+]
+},
+"{\"panels\": [{\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"p5\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 0, \"y\": 0}, {\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"p6\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 4, \"y\": 0}, {\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"a\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 8, \"y\": 0}, {\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"p8\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 0, \"y\": 2}], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
 "in": "{\"rows\": \" 6 \", \"panels\": [{\"id\": \"a\", \"x\": \"1_0\", \"y\": 0, \"w\": 4.9, \"h\": true, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}]}",
 "want": {
 "ok": [
@@ -2221,6 +2501,119 @@
 ]
 },
 "{\"panels\": [{\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [{\"column\": \"x\", \"op\": \"=\", \"value\": \"{'k': '\\\\x01'}\"}], \"h\": 2, \"id\": \"a\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 0, \"y\": 0}], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"filters\": [{\"column\": \"x\", \"op\": \"=\", \"value\": [\"぀\"]}]}]}",
+"py": true,
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [
+{
+"id": "a",
+"x": 0,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [
+{
+"column": "x",
+"op": "=",
+"value": "['\\u3040']"
+}
+],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+}
+]
+},
+"{\"panels\": [{\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [{\"column\": \"x\", \"op\": \"=\", \"value\": \"['\\\\u3040']\"}], \"h\": 2, \"id\": \"a\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 0, \"y\": 0}], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"filters\": [{\"column\": \"x\", \"op\": \"=\", \"value\": [\"あ\", \"ア\", \"漢\", \"Ａ\", \"、\"]}]}]}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [
+{
+"id": "a",
+"x": 0,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [
+{
+"column": "x",
+"op": "=",
+"value": "['あ', 'ア', '漢', 'Ａ', '、']"
+}
+],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+}
+]
+},
+"{\"panels\": [{\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [{\"column\": \"x\", \"op\": \"=\", \"value\": \"['あ', 'ア', '漢', 'Ａ', '、']\"}], \"h\": 2, \"id\": \"a\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 0, \"y\": 0}], \"rows\": 8}"
 ]
 }
 },

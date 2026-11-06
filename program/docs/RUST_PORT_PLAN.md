@@ -742,8 +742,13 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
 - ダッシュボードの中身の確かめの部品（`desktop/src/layout_clean.rs`。clean_layout・clean_hide_body・condition_of）。送った順を保つ木（jsontree）で読み、
   Python の送った順の dict と同じに確かめる（色・系列は送った順の先頭 40 個・120 字で切った後に重なる名前は後ろが勝つ・字にした表〈str(dict)〉の並び）。
   数として読む字は Python の int()・float() と同じ（\x1c〜\x1f は空白と読まない・int() は 4,300 桁で断る）。事例の表 `tests/fixtures/layout_cases.json`
-  （`python program/tools/layout-cases.py` が Python で焼き、古い表は `tests/test_layout_cases.py` が止める）の 84 件で `cargo test --test layout_cases` が突き合わせる。
+  （`python program/tools/layout-cases.py` が Python で焼き、古い表は `tests/test_layout_cases.py` が止める）の 84 件（版 3.81.1 で 88 件）で `cargo test --test layout_cases` が突き合わせる。
   道（GET・POST・PUT・DELETE /api/dashboards・PUT /api/dashboards-hidden）は次の版でこの部品の上に載せる。
+- 作った後の採点（1 回だけ。55.1 点。減点 −15）で、探った約 700 歩のうち割れが 5 つ見つかった（版 3.81.1 で直した）: すぐに見るを置くときの行の版
+  （"3"・2.0・真を Python は int() で読む）・表でない行がある置き場・中身まで同じ自分の行が 2 つ（Python の rows.remove は == で先の行を消す）・既定のすぐに見るを
+  並べる id に真偽・小数・null が混ざる形・部品の repr で割り当ての無い和文の字。前の 3 つと 4 つ目は窓が Python に任せる形にし、版は Python と同じに読む。
+  あわせて、パネルの id の付け直しが、付け直す先の名前ももうあると止まらなかった（Python も）のを、次の数へ進む形に Python と窓で一緒に直した。
+  どの形も presets_oracle.py（7 場面）と layout_cases（4 件。88 件）に足した。決まり 2026-11-06 により採点し直さない（`"built_fixed"`）。
 - 採点の指摘で直した既存の割れ: 計算列の確かめ（`formula::clean_calc`）の空白を trim（Unicode の White_Space）から Python の str.strip と同じ字にした
   （{"\x1c": "1"} の式を窓だけが残していた）。
 

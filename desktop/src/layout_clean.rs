@@ -189,7 +189,14 @@ fn truthy_o(t: Option<&Tree>) -> bool {
 fn repr_safe(s: &str) -> bool {
     s.chars().all(|c| {
         let n = c as u32;
-        (0x20..0x7f).contains(&n) || (0x3001..=0x9fff).contains(&n) || (0xff01..=0xff5e).contains(&n)
+        // 割り当てのある和文の範囲だけ（Python 3.13〈Unicode 15.1〉で isprintable が真。版 3.81.0 の採点で、U+3040・U+3097 などの割り当ての無い字は
+        // Python が \\u で逃がすと分かった）: 和文の記号・ひらがな・カタカナ・CJK 統合漢字・全角の英数と記号
+        (0x20..0x7f).contains(&n)
+            || (0x3001..=0x303f).contains(&n)
+            || (0x3041..=0x3096).contains(&n)
+            || (0x3099..=0x30ff).contains(&n)
+            || (0x4e00..=0x9fff).contains(&n)
+            || (0xff01..=0xff5e).contains(&n)
     })
 }
 
@@ -1139,8 +1146,11 @@ pub fn clean_layout(body: &Tree) -> R<(Value, String)> {
     let mut ids: Vec<String> = vec![];
     for (i, p) in raw.iter().enumerate() {
         let mut x = clean_panel(p, i, rows)?;
+        // 付け直す先の名前ももうあれば、次の数へ（Python と一緒に直した。前は同じ名前を作り続けて止まらなかった。版 3.81.0 の採点）
+        let mut n = ids.len() + i + 2;
         while ids.iter().any(|id| Some(id.as_str()) == x["id"].as_str()) {
-            x.insert("id".into(), json!(format!("p{}", ids.len() + i + 2)));
+            x.insert("id".into(), json!(format!("p{n}")));
+            n += 1;
         }
         ids.push(x["id"].as_str().unwrap_or("").to_string());
         if let Some(hit) = panels.iter().find(|q| overlaps(q, &x)) {
