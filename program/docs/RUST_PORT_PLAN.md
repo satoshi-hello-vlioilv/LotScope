@@ -724,6 +724,29 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
   書き終えてからもう片方が書くことがあった（保存が消えない・id が重ならないの確かめは通っていた）。両方が互いの始まりの印を待ち、3 分の 1・3 分の 2 で待ち合わせる形にした
   （どの区切りにも両方の行が入るので入れ替わりは必ず 3 回以上。区切りの中は本当に取り合う）。窓を 2 秒遅らせても通り、待ち合わせを外すと同じ遅れで CI と同じ形に落ちる。
 
+### 段 2 の 4 歩目: 組み方のプリセットの道とダッシュボードの中身の確かめの部品 — 版 3.81.0
+
+保存の道の残り 10 本（組み方のプリセット 5・ダッシュボード 5）のどれを移すかは、画面に関係のない改良の決まり（2026-11-06）で、6 案を別のエージェントが 1 回だけ
+読んで・動かして採点した（`tools/ui-proposals/2026-11-port-saves4.json`。1 位 **E** 62.1 点）。E は、組み方のプリセットの 5 本を窓へ移し、ダッシュボードの道は
+次の版へ回して、割れのいちばん多い中身の確かめ（clean_layout 一式）を先に部品にして Python の答えを焼いた事例の表で突き合わせる（版 3.80.0 の「土台を先に」と同じ型）。
+
+- 組み方のプリセットの 5 本（GET／POST／PUT／DELETE /api/pivot-presets・PUT /api/pivot-quick）を窓が受ける（`desktop/src/pivot_presets.rs`。Lot::presets_route）。
+  中身は pivot_presets.clean_body（段・値〈計算の式は num_expr で読めるか・桁は数だけを読み偶数へ丸める〉・形・真偽・chartAt の int(str().strip())）。
+  組み込みの組み方 18 は、Python の builtin_views の答えを焼いた表（`desktop/src/pivot_builtins.json`。`python program/tools/pivot-builtins.py` が焼き、古い表は
+  `tests/test_pivot_builtins.py` が止める）を窓が持つ（中身の元は Python の BUILTINS の 1 か所）。すぐに見るの並びは ID・元ごとに 1 行（2 つ目から消す）。
+  窓が Python と同じに読めない形は任せる: すぐに見るの id の字が ASCII でない（Python の isdigit は「²」「①」も数字と読む）・chartAt の字が 18 字より長い
+  （Python の int() は i64 を超えても読み、4,300 桁で断る）・段の part・値の column・expr が並び・表。
+  評価関数: `cargo test --test presets_parity`（← `tests/presets_oracle.py`。17 場面の答えとできたファイル〈組み方とすぐに見るの中身の字まで〉、Python に任せる歩）。
+  桁の丸めを偶数へにしないと 4 件、段を 4 つまで読むと 4 件、ASCII でない id を任せないと 5 件、すぐに見るの行を 1 つにまとめないと 2 件、小計・総計の既定を変えると、
+  chartAt の負を 0 にしないと 2 件、計算の式を確かめないと 5 件、組み込みを元ごとに分けないと 5 件、すぐに見るの既定を id の順にしないと 16 件落ちる。
+- ダッシュボードの中身の確かめの部品（`desktop/src/layout_clean.rs`。clean_layout・clean_hide_body・condition_of）。送った順を保つ木（jsontree）で読み、
+  Python の送った順の dict と同じに確かめる（色・系列は送った順の先頭 40 個・120 字で切った後に重なる名前は後ろが勝つ・字にした表〈str(dict)〉の並び）。
+  数として読む字は Python の int()・float() と同じ（\x1c〜\x1f は空白と読まない・int() は 4,300 桁で断る）。事例の表 `tests/fixtures/layout_cases.json`
+  （`python program/tools/layout-cases.py` が Python で焼き、古い表は `tests/test_layout_cases.py` が止める）の 84 件で `cargo test --test layout_cases` が突き合わせる。
+  道（GET・POST・PUT・DELETE /api/dashboards・PUT /api/dashboards-hidden）は次の版でこの部品の上に載せる。
+- 採点の指摘で直した既存の割れ: 計算列の確かめ（`formula::clean_calc`）の空白を trim（Unicode の White_Space）から Python の str.strip と同じ字にした
+  （{"\x1c": "1"} の式を窓だけが残していた）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

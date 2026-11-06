@@ -1,0 +1,227 @@
+{
+ "title": "Rust 化の段 2 の残り: 保存の道 10 本（組み方のプリセット 5・ダッシュボード 5）のどれを次の版で窓へ移すか（2026-11-06）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-06・main 28814d4）: 保存の道の残りは 10 本。組み方のプリセット 5（routes/presets.py 119 行。services/pivot_presets.py 254 行: clean_body は約 40 行・組み込み 18・すぐに見る〈マスタ pivot_quick・clean_quick の isdigit〉）・ダッシュボード 5（routes/dashboard.py :78〜177。services/dashboard.py の中身の確かめは :91〜700 の約 490 行〈空行・注を除く〉: clean_panel・clean_fmt・clean_board・clean_link・clean_ops・abc_lims・clean_slicer・clean_egroup・clean_calc・clean_layout〈パネル 24 枚・128KB・重なり・id の付け直し〉・組み込みの標準 1〈BUILTIN_LAYOUTS・board_default〉・外す〈dashoff の行〉・入れ替え〈replaces・builtin_named〉・前の版の条件〈with_legacy_conditions。マスタ dashboard_settings〉）。窓は dashboard.rs（1,828 行）に問い合わせ用の clean_panel（:380。x/y/w/h・id・fmt を持たない）を持つ。保存の行の部品は preset_rows.rs（版 3.79.0）・送った順の木 jsontree.rs と小数の書き手（版 3.80.0）がある。版 3.80.0 の採点で残した注: ダッシュボードの colors・series は送った順の先頭 40 個・外した組み込みの中身 '[1]' で Python の GET は 500・keys が字なら 1 字ずつ・前の版の条件は置き場の別のマスタ・chartAt は int(str().strip())・すぐに見るの isdigit。",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-06。決まり 2026-11-06『画面に関係のない改良は採点を 1 回ずつ』の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・前の記録 2026-11-port-saves3.json（evaluator・score・minus・seen）、program/app の routes/presets.py・routes/dashboard.py :60〜185・routes/common.py の master_call・web.py の get_json と jsonify・services/pivot_presets.py 全部・services/dashboard.py 全部・services/aggregate.py の clean・services/formula.py の clean_calc・services/data_sources.py の is_screen_source・repositories/master_repository.py の _preset_write・dashboard_*・quick_set・dashboard_rows、desktop/src の dashboard.rs :60〜600・:1400・preset_rows.rs 全部・jsontree.rs 全部・pyfmt.rs（strip・digit・py_int・py_float）・aggregate.rs の clean と py_round・num_expr.rs（num_expr_cases.json の試験）・formula.rs の clean_calc・join.rs の py_dumps と py_number・lotlist.rs の json_str と json_repr・worksum.rs の py_str・master_rows.rs の text_split と unreadable、program/tests/sets_oracle.py。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4）: (1) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py … pivot_presets.clean_body・clean_quick・dashboard.clean_layout・abc_lims・clean_hide_body・condition_of を直接呼んだ（約 60 の際どい値）。(2) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py … tests/sets_oracle.py の place・store_of で共有の置き場を作り、create_app と test_client でダッシュボードの GET・PUT・PUT hidden と組み方の POST・PUT quick・GET を当て、答えとできたファイルを見た（置き場 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/w）。(3) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py … すぐに見るの並びの読み方・chartAt の大きな字・isdigit。(4) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ws.rs … rustc で desktop/src/pyfmt.rs を #[path] で読み、py_int・py_float・float_repr と aggregate::py_round の写しを Python と比べ、Rust の is_whitespace の U+001C〜U+001F を見た（desktop/target は使っていない）。物差しの読み替えは前の記録と同じ（順序＝段の進め方の筋〈土台が先か〉／チャンク＝1 版のまとまりの大きさと揃い／階層化＝狙いが 1 つか／視覚化＝評価関数で食い違いを数で見せられるか／ステップ数＝Python 無しへ近づく量／考えさせない＝落とし穴を先に潰しているか／直感的＝作りが素直か・既存の型に載るか／形と色・言葉と置き場＝決まりが 1 か所か／美しさ＝量と釣り合い）。減点は、案の文のとおりに作ると Python と窓の答え・置く字が割れる所で、Python を自分で動かし、窓の今の部品を読んで（または rustc で動かして）確かめた物だけを『状態が見えない −3』で引いた。同じ割れは案ごとに 1 つに数え、案の文で潰している物は引かなかった。",
+ "rounds": [
+  {
+   "name": "1 回目（画面に関係のない改良。採点は 1 回だけ）",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと（2026-11-06）: routes/presets.py・routes/dashboard.py :70〜180・services/pivot_presets.py 全部・services/dashboard.py :600〜824（clean_layout・clean_layout_row・builtin_named・with_builtin_replace・layout_view・BUILTIN_LAYOUTS・builtin_layouts・clean_hide_body・builtin_skip）・repositories/master_repository.py :440〜520（_preset_write・quick_set）と、窓の desktop/src/dashboard.rs の関数の並び・num_expr.rs・preset_rows.rs。6 案の方向は、量（A・D 小さい／C・F 全部）・順（E 部品を先に）・作り（F 問い合わせと保存で 1 つの部品）・残す道（B 読む道を残す）で偏りが無いことを見た。",
+   "proposals": {
+    "A 組み方のプリセット 5 本だけ（組み込みは Python から焼いた表）": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "すぐに見るの置き場（マスタ pivot_quick）の行: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で 並び が数の 5 → Python の quick_for は json.loads(5) の TypeError を捕まえず GET /api/pivot-presets は 500、'[NaN, \"1\"]' → Python は ['1']（serde は NaN を読めない）、'{\"a\":1}'・'\"12\"' → None（既定）。preset_rows::rows_plain は pivot_presets の FIELDS しか見ないので、pivot_quick の 並び を見る確かめ（字でない・text_split）が要る。isdigit は ①・𝟙・² が真、⑩・¼ が偽（pyfmt::digit は 10 進の字だけ）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "数の読み方: 組み方の chartAt は int(str(v).strip()) で上の限りが無い。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で chartAt '100000000000000000000'（字）→ Python は 100000000000000000000 を置く、'9' を 5000 個 → 0（int の 4,300 桁の限り）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs で窓の pyfmt::py_int は どちらも 9223372036854775807（i128 で読んで i64 に詰める）。ダッシュボードの _int も同じで、w '9'*5000 → Python 4（既定）・窓は 12（上の限り）、w '4\\x1c' → Python 既定・窓 4。組み方の dec は数（int・float）だけを読み字は見ない・round は偶数へ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で 2.5 → 2・0.5 → 0・3.5 → 4）で、aggregate::clean（_num は字も読む）とは別の読み手。案の文は『pyfmt の数の読み方の表』で足りるとしている"
+      }
+     ],
+     "seen": "読んだ物: routes/presets.py 全部・services/pivot_presets.py 全部（clean_body・clean_row・view・builtin_views・clean_quick・default_quick・quick_for）・master_repository.py の _preset_write・quick_set・desktop/src の preset_rows.rs・dash_sets.rs・aggregate.rs（clean・py_round）・num_expr.rs（事例表 num_expr_cases.json と突き合わせる試験がある）・pyfmt.rs。確かめた事: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py（clean_body に際どい値）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の presets・presets-stored（test_client で POST・PUT quick・GET）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs。良い所: 狙いが 1 つ・置き場 2 つ（pivot_presets・pivot_quick）・Python 側は約 370 行で、1 回の作った後の採点で確かめきれる大きさ（チャンク・階層 8）。組み込み 18 を Python の builtin_views から焼いた表にする形は正しい（答えは jsonify の sort_keys なので並びは割れず、中身は clean_body 済み・quick の印も表に入る）。chartAt の「²」、isdigit の表、sort_keys の json.dumps を名指ししている。dec の round は窓の aggregate.rs:221 に round_ties_even の前例がある。保存済みの中身に Infinity（dec Infinity は GET が OverflowError で 500）・大きな整数がある行は text_split で任せられる。悪い所: 進む量は 10 本のうち 5 本だけで、重いダッシュボードの確かめ（約 490 行）は手つかず（ステップ 3）。段の筋としては、前の版で作った土台（jsontree・小数の書き手）の上にダッシュボードを載せる順でもない（順序 6）。下の 2 つの減点（すぐに見るの置き場の行・数の読み方）は案の文で潰していない。"
+    },
+    "B 組み方 5 本＋ダッシュボードの書く道 4 本（読む道は Python のまま）": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 5,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "送った順で切る・書く所: clean_fmt の colors・series（list(items())[:40]）・formula.clean_calc の formulas 40・names 400・equips 200、_filters の value・title・_keys の str(表)（送った順の repr）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で colors {'x'*121: '#000000', 'x'*120: '#111111'} → Python は切った後に重なり {'x'*120: '#111111'}（窓の serde の Map は字の順なので 'x'*120 が先に入り '#000000' が残る）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ の確かめで条件の value {b:1, a:2} → Python \"{'b': 1, 'a': 2}\"・題 {z:1, a:[1.5]} → \"{'z': 1, 'a': [1.5]}\"。窓の lotlist.rs:335 json_repr は Map を字の順で書く（\"{'a': 2, 'b': 1}\"）。案の文に、中身を jsontree の木で読んでから確かめると書いていない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "計算列の確かめ: 窓の formula.rs:2103・2109 の clean_calc は k.trim()・x.trim()（Unicode の White_Space）で、Python の str.strip（isspace。\\x1c〜\\x1f も空白）と違う。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ws.rs で U+001C・U+001F は Rust の is_whitespace が偽。Python で formula.clean_calc({'formulas': {'\\x1c': '1', 'a': '\\x1c'}}) → None（どちらも外す）、窓は 2 つとも残す。さらに dashboard.rs:276 の data() は確かめた後に送られた calc をそのまま（c.clone()）入れる。保存では確かめた形（own は formulas にある名前だけ・names は字だけ）を置くので、問い合わせ用の data() は保存に使えない。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "すぐに見るの置き場（マスタ pivot_quick）の行: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で 並び が数の 5 → Python の quick_for は json.loads(5) の TypeError を捕まえず GET /api/pivot-presets は 500、'[NaN, \"1\"]' → Python は ['1']（serde は NaN を読めない）、'{\"a\":1}'・'\"12\"' → None（既定）。preset_rows::rows_plain は pivot_presets の FIELDS しか見ないので、pivot_quick の 並び を見る確かめ（字でない・text_split）が要る。isdigit は ①・𝟙・² が真、⑩・¼ が偽（pyfmt::digit は 10 進の字だけ）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "数の読み方: 組み方の chartAt は int(str(v).strip()) で上の限りが無い。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で chartAt '100000000000000000000'（字）→ Python は 100000000000000000000 を置く、'9' を 5000 個 → 0（int の 4,300 桁の限り）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs で窓の pyfmt::py_int は どちらも 9223372036854775807（i128 で読んで i64 に詰める）。ダッシュボードの _int も同じで、w '9'*5000 → Python 4（既定）・窓は 12（上の限り）、w '4\\x1c' → Python 既定・窓 4。組み方の dec は数（int・float）だけを読み字は見ない・round は偶数へ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で 2.5 → 2・0.5 → 0・3.5 → 4）で、aggregate::clean（_num は字も読む）とは別の読み手。案の文は『pyfmt の数の読み方の表』で足りるとしている"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "PUT /api/dashboards-hidden の形: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の hide-keys-str で keys 'standard'（字）→ 1 字ずつに分けて [] になり、その置き場の行を消して 200 {keys: []}・keys 5 → 400 {type: TypeError, error: \"'int' object is not iterable\"}・keys {standard: 1} → 鍵を読んで ['standard']・本文 [1] → 400 AttributeError・本文 '{bad' → get_json が master_call の外なので 400 の HTML（Flask の BadRequest の頁）。案の文に無い"
+      }
+     ],
+     "seen": "読んだ物: A に加えて routes/dashboard.py :78〜177・services/dashboard.py 全部（clean_layout とその下の確かめ一式・with_builtin_replace・builtin_named・layout_view・clean_hide_body）・desktop/src/dashboard.rs :60〜600（問い合わせ用の clean_panel・int_of・dims・filters・data・clean_board・float_of・abc_lims）・formula.rs の clean_calc・lotlist.rs の json_str・json_repr。確かめた事: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py（clean_layout に約 40 の際どい値）・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の rename-builtin・hide-keys-str。良い所: 書く道 4 本を窓へ移すので、書く係（dashboards の置き場）は窓に集まる。with_builtin_replace・builtin_named を名指ししている。rename-builtin で、名前が組み込みと同じ ID の行に {standard: true} だけを送ると、送っていない中身も sort_keys の字 '{\"panels\": [], \"replaces\": \"standard\", \"rows\": 8}' に書き直る・前の中身が 'abc' の行を「標準」に名前替えすると 400「中身の形が違います。」になる、のを確かめた（案の文の with_builtin_replace に含まれる）。悪い所: 書く道の答えも layout_view（置いた字を clean_layout で読み直す）なので、読む道を Python に残しても clean_layout は丸ごと要り、GET だけが Python に残る（Python 無しへの残りが 1 本・同じ置き場の読み手が 2 つに割れる。チャンク・言葉と置き場 5）。窓の問い合わせ用 clean_panel（x/y/w/h・id・fmt・legacy を持たない・id の既定が p1）と別の保存用の確かめを持つ（形と色 6）。下の 5 つの減点はどれも案の文で潰していない。"
+    },
+    "C 保存の道の残り 10 本を 1 版で": {
+     "score": {
+      "order": 6,
+      "chunk": 4,
+      "hierarchy": 4,
+      "visual": 7,
+      "steps": 10,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "送った順で切る・書く所: clean_fmt の colors・series（list(items())[:40]）・formula.clean_calc の formulas 40・names 400・equips 200、_filters の value・title・_keys の str(表)（送った順の repr）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で colors {'x'*121: '#000000', 'x'*120: '#111111'} → Python は切った後に重なり {'x'*120: '#111111'}（窓の serde の Map は字の順なので 'x'*120 が先に入り '#000000' が残る）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ の確かめで条件の value {b:1, a:2} → Python \"{'b': 1, 'a': 2}\"・題 {z:1, a:[1.5]} → \"{'z': 1, 'a': [1.5]}\"。窓の lotlist.rs:335 json_repr は Map を字の順で書く（\"{'a': 2, 'b': 1}\"）。案の文に、中身を jsontree の木で読んでから確かめると書いていない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "計算列の確かめ: 窓の formula.rs:2103・2109 の clean_calc は k.trim()・x.trim()（Unicode の White_Space）で、Python の str.strip（isspace。\\x1c〜\\x1f も空白）と違う。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ws.rs で U+001C・U+001F は Rust の is_whitespace が偽。Python で formula.clean_calc({'formulas': {'\\x1c': '1', 'a': '\\x1c'}}) → None（どちらも外す）、窓は 2 つとも残す。さらに dashboard.rs:276 の data() は確かめた後に送られた calc をそのまま（c.clone()）入れる。保存では確かめた形（own は formulas にある名前だけ・names は字だけ）を置くので、問い合わせ用の data() は保存に使えない。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "すぐに見るの置き場（マスタ pivot_quick）の行: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で 並び が数の 5 → Python の quick_for は json.loads(5) の TypeError を捕まえず GET /api/pivot-presets は 500、'[NaN, \"1\"]' → Python は ['1']（serde は NaN を読めない）、'{\"a\":1}'・'\"12\"' → None（既定）。preset_rows::rows_plain は pivot_presets の FIELDS しか見ないので、pivot_quick の 並び を見る確かめ（字でない・text_split）が要る。isdigit は ①・𝟙・² が真、⑩・¼ が偽（pyfmt::digit は 10 進の字だけ）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "数の読み方: 組み方の chartAt は int(str(v).strip()) で上の限りが無い。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で chartAt '100000000000000000000'（字）→ Python は 100000000000000000000 を置く、'9' を 5000 個 → 0（int の 4,300 桁の限り）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs で窓の pyfmt::py_int は どちらも 9223372036854775807（i128 で読んで i64 に詰める）。ダッシュボードの _int も同じで、w '9'*5000 → Python 4（既定）・窓は 12（上の限り）、w '4\\x1c' → Python 既定・窓 4。組み方の dec は数（int・float）だけを読み字は見ない・round は偶数へ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で 2.5 → 2・0.5 → 0・3.5 → 4）で、aggregate::clean（_num は字も読む）とは別の読み手。案の文は『pyfmt の数の読み方の表』で足りるとしている"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET /api/dashboards が Python で 500 になる形: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の legacy-list で、前の版の条件のマスタ dashboard_settings の 条件 '[1]' → condition_of の d.get が AttributeError（捕まえるのは TypeError・ValueError だけ）→ 500。hide-list-body で 外した組み込みの行の中身 '[1]' → clean_hide_body の (body or {}).get で 500。案の文は外した組み込みの方しか挙げず、前の版の条件のマスタ（置き場の別のファイル）の行を窓が任せる決まりが無い"
+      }
+     ],
+     "seen": "読んだ物: B と同じ＋ routes/dashboard.py の dashboards_list・services/dashboard.py の BUILTIN_LAYOUTS・builtin_layouts・builtin_skip・with_legacy_conditions・condition_of・board_default。確かめた事: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の legacy-ok（前の版の条件 {filters, search: ' x '} が legacy の 1 枚の表の列のまとまりに入り search は 'x' に）・legacy-list・hide-list-body・hide-keys-str。良い所: 保存の道が全部窓へ移り、段 2 が終わる（ステップ 10）。組み込みの標準を焼いた表にする・外した組み込みの '[1]'（GET 500）と keys の字の 1 字ずつを Python に任せる形を名指ししている（PUT hidden の割れは潰している）。悪い所: Python 側だけで約 860 行（組み方 370・ダッシュボードの道 100・確かめ 490）、置き場 4 つ（pivot_presets・pivot_quick・dashboards・dashboard_settings）、組み込みの焼いた表 2 つ。作った後の採点は 1 回だけなので、1 版で割れを確かめきれない（前の版 3.80.0 の作った後の採点でも割れが見つかった）。board_default は窓の問い合わせ用（dashboard.rs:334。look・total・zero・color・order の中身が無い）と保存・前の版の条件用の 2 か所になる。前の版の条件のマスタの行の割れ（下の減点）を挙げていない。"
+    },
+    "D 組み方 5 本＋ダッシュボードの中身の小さい 2 本（消す・外す）": {
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "すぐに見るの置き場（マスタ pivot_quick）の行: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で 並び が数の 5 → Python の quick_for は json.loads(5) の TypeError を捕まえず GET /api/pivot-presets は 500、'[NaN, \"1\"]' → Python は ['1']（serde は NaN を読めない）、'{\"a\":1}'・'\"12\"' → None（既定）。preset_rows::rows_plain は pivot_presets の FIELDS しか見ないので、pivot_quick の 並び を見る確かめ（字でない・text_split）が要る。isdigit は ①・𝟙・² が真、⑩・¼ が偽（pyfmt::digit は 10 進の字だけ）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "数の読み方: 組み方の chartAt は int(str(v).strip()) で上の限りが無い。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で chartAt '100000000000000000000'（字）→ Python は 100000000000000000000 を置く、'9' を 5000 個 → 0（int の 4,300 桁の限り）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs で窓の pyfmt::py_int は どちらも 9223372036854775807（i128 で読んで i64 に詰める）。ダッシュボードの _int も同じで、w '9'*5000 → Python 4（既定）・窓は 12（上の限り）、w '4\\x1c' → Python 既定・窓 4。組み方の dec は数（int・float）だけを読み字は見ない・round は偶数へ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で 2.5 → 2・0.5 → 0・3.5 → 4）で、aggregate::clean（_num は字も読む）とは別の読み手。案の文は『pyfmt の数の読み方の表』で足りるとしている"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "PUT /api/dashboards-hidden の形: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の hide-keys-str で keys 'standard'（字）→ 1 字ずつに分けて [] になり、その置き場の行を消して 200 {keys: []}・keys 5 → 400 {type: TypeError, error: \"'int' object is not iterable\"}・keys {standard: 1} → 鍵を読んで ['standard']・本文 [1] → 400 AttributeError・本文 '{bad' → get_json が master_call の外なので 400 の HTML（Flask の BadRequest の頁）。案の文に無い"
+      }
+     ],
+     "seen": "読んだ物: A と同じ＋ routes/dashboard.py の dashboards_hidden・dashboards_delete・services/dashboard.py の clean_hide_body・clean_hide_row・hidden_rows。確かめた事: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の hide-keys-str。良い所: DELETE は中身を見ない（find_row・元が dash・_gate・_delete）ので、窓の dash_sets.rs の消す道と同じ形でほぼそのまま載る。小さく確かに進む（直感的 7）。悪い所: 足すのは易しい 2 本だけで、Python 無しを止めている clean_layout（POST・PUT・GET が要る）は次へ送る。DELETE と hidden を移しても、同じ置き場 dashboards を読む GET・書く POST・PUT は Python に残り、置き場の書き手が窓と Python に分かれる期間が延びる（チャンク 6・言葉と置き場 6）。案の文の『clean_hide_body は keys の字の並びだけ』は誤り: keys は字（1 字ずつ）・表（鍵）・数（TypeError の 400）も来る（下の減点）。"
+    },
+    "E 組み方 5 本＋ダッシュボードの中身の確かめを部品として先に（道は次の版）（新）": {
+     "score": {
+      "order": 9,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "計算列の確かめ: 窓の formula.rs:2103・2109 の clean_calc は k.trim()・x.trim()（Unicode の White_Space）で、Python の str.strip（isspace。\\x1c〜\\x1f も空白）と違う。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ws.rs で U+001C・U+001F は Rust の is_whitespace が偽。Python で formula.clean_calc({'formulas': {'\\x1c': '1', 'a': '\\x1c'}}) → None（どちらも外す）、窓は 2 つとも残す。さらに dashboard.rs:276 の data() は確かめた後に送られた calc をそのまま（c.clone()）入れる。保存では確かめた形（own は formulas にある名前だけ・names は字だけ）を置くので、問い合わせ用の data() は保存に使えない。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "すぐに見るの置き場（マスタ pivot_quick）の行: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で 並び が数の 5 → Python の quick_for は json.loads(5) の TypeError を捕まえず GET /api/pivot-presets は 500、'[NaN, \"1\"]' → Python は ['1']（serde は NaN を読めない）、'{\"a\":1}'・'\"12\"' → None（既定）。preset_rows::rows_plain は pivot_presets の FIELDS しか見ないので、pivot_quick の 並び を見る確かめ（字でない・text_split）が要る。isdigit は ①・𝟙・² が真、⑩・¼ が偽（pyfmt::digit は 10 進の字だけ）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "数の読み方: 組み方の chartAt は int(str(v).strip()) で上の限りが無い。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で chartAt '100000000000000000000'（字）→ Python は 100000000000000000000 を置く、'9' を 5000 個 → 0（int の 4,300 桁の限り）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs で窓の pyfmt::py_int は どちらも 9223372036854775807（i128 で読んで i64 に詰める）。ダッシュボードの _int も同じで、w '9'*5000 → Python 4（既定）・窓は 12（上の限り）、w '4\\x1c' → Python 既定・窓 4。組み方の dec は数（int・float）だけを読み字は見ない・round は偶数へ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で 2.5 → 2・0.5 → 0・3.5 → 4）で、aggregate::clean（_num は字も読む）とは別の読み手。案の文は『pyfmt の数の読み方の表』で足りるとしている"
+      }
+     ],
+     "seen": "読んだ物: A・B と同じ。確かめた事: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ws.rs。良い所（1 位）: いちばん割れの多い clean_layout 一式（clean_panel・clean_fmt・clean_board・clean_link・clean_ops・abc_lims・clean_slicer・clean_egroup・clean_calc・id の付け直し・重なり・128KB）を、道より先に Python で焼いた事例の表で突き合わせる筋（順序 9）。前の版 3.80.0 の 1 位（土台を先に）と同じ型で、{DIRECT} で見つけた形（id [a, a, p3] → [a, p4, p3]・[p2, ―, p2] → [p2, p4, p6]・w 4.9 → 4・'1_0' → 10・true → 1・ymin true → 1.0・'1_0' → 10.0・lims 0.00005 → 0.0001〈窓の aggregate::py_round は {PROBE} で Python と同じ〉・期間の全角の日付をそのまま置く・pct の p 2.5 → 2・legacy・noslice 1 は置かない）はどれも事例の表の 1 行にでき、食い違いを数で見せられる（視覚化 9）。案の文が事例に『送った順・小数・大きさの境』を挙げているので、colors の切った後の重なり・str(表) の並び（減点 S1 の形）は表が捕まえる。進む量は組み方の 5 本と部品だけ（ステップ 5）だが、次の版はこの部品の上に道 5 本を載せるだけになる。悪い所: 部品は窓の問い合わせ用 clean_panel と並ぶ 2 つ目の確かめになり、1 か所にしない（言葉と置き場 6）。下の 3 つの減点は案の文で名指ししていない（計算列の空白の割れは事例の表の『壊れた形』に入れないと捕まらない）。次の版の道に向けて、GET の 500 の形（前の版の条件 '[1]'・外した組み込み '[1]'）・PUT hidden の形・with_builtin_replace の書き直しを、部品の事例（condition_of・clean_hide_body）として今の版の表に入れておくとよい。"
+    },
+    "F 組み方 5 本＋ダッシュボード 5 本を、問い合わせと保存で 1 つの clean_panel にして（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 3,
+      "hierarchy": 3,
+      "visual": 8,
+      "steps": 10,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 9,
+      "place": 9,
+      "layout": 3,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "送った順で切る・書く所: clean_fmt の colors・series（list(items())[:40]）・formula.clean_calc の formulas 40・names 400・equips 200、_filters の value・title・_keys の str(表)（送った順の repr）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で colors {'x'*121: '#000000', 'x'*120: '#111111'} → Python は切った後に重なり {'x'*120: '#111111'}（窓の serde の Map は字の順なので 'x'*120 が先に入り '#000000' が残る）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ の確かめで条件の value {b:1, a:2} → Python \"{'b': 1, 'a': 2}\"・題 {z:1, a:[1.5]} → \"{'z': 1, 'a': [1.5]}\"。窓の lotlist.rs:335 json_repr は Map を字の順で書く（\"{'a': 2, 'b': 1}\"）。案の文に、中身を jsontree の木で読んでから確かめると書いていない"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "計算列の確かめ: 窓の formula.rs:2103・2109 の clean_calc は k.trim()・x.trim()（Unicode の White_Space）で、Python の str.strip（isspace。\\x1c〜\\x1f も空白）と違う。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/ws.rs で U+001C・U+001F は Rust の is_whitespace が偽。Python で formula.clean_calc({'formulas': {'\\x1c': '1', 'a': '\\x1c'}}) → None（どちらも外す）、窓は 2 つとも残す。さらに dashboard.rs:276 の data() は確かめた後に送られた calc をそのまま（c.clone()）入れる。保存では確かめた形（own は formulas にある名前だけ・names は字だけ）を置くので、問い合わせ用の data() は保存に使えない。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "すぐに見るの置き場（マスタ pivot_quick）の行: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で 並び が数の 5 → Python の quick_for は json.loads(5) の TypeError を捕まえず GET /api/pivot-presets は 500、'[NaN, \"1\"]' → Python は ['1']（serde は NaN を読めない）、'{\"a\":1}'・'\"12\"' → None（既定）。preset_rows::rows_plain は pivot_presets の FIELDS しか見ないので、pivot_quick の 並び を見る確かめ（字でない・text_split）が要る。isdigit は ①・𝟙・² が真、⑩・¼ が偽（pyfmt::digit は 10 進の字だけ）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "数の読み方: 組み方の chartAt は int(str(v).strip()) で上の限りが無い。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_quick.py で chartAt '100000000000000000000'（字）→ Python は 100000000000000000000 を置く、'9' を 5000 個 → 0（int の 4,300 桁の限り）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe.rs で窓の pyfmt::py_int は どちらも 9223372036854775807（i128 で読んで i64 に詰める）。ダッシュボードの _int も同じで、w '9'*5000 → Python 4（既定）・窓は 12（上の限り）、w '4\\x1c' → Python 既定・窓 4。組み方の dec は数（int・float）だけを読み字は見ない・round は偶数へ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py で 2.5 → 2・0.5 → 0・3.5 → 4）で、aggregate::clean（_num は字も読む）とは別の読み手。案の文は『pyfmt の数の読み方の表』で足りるとしている"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET /api/dashboards が Python で 500 になる形: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の legacy-list で、前の版の条件のマスタ dashboard_settings の 条件 '[1]' → condition_of の d.get が AttributeError（捕まえるのは TypeError・ValueError だけ）→ 500。hide-list-body で 外した組み込みの行の中身 '[1]' → clean_hide_body の (body or {}).get で 500。案の文は外した組み込みの方しか挙げず、前の版の条件のマスタ（置き場の別のファイル）の行を窓が任せる決まりが無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "PUT /api/dashboards-hidden の形: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py の hide-keys-str で keys 'standard'（字）→ 1 字ずつに分けて [] になり、その置き場の行を消して 200 {keys: []}・keys 5 → 400 {type: TypeError, error: \"'int' object is not iterable\"}・keys {standard: 1} → 鍵を読んで ['standard']・本文 [1] → 400 AttributeError・本文 '{bad' → get_json が master_call の外なので 400 の HTML（Flask の BadRequest の頁）。案の文に無い"
+      }
+     ],
+     "seen": "読んだ物: C と同じ＋ routes/dashboard.py :63・:778（Python は問い合わせでも dashboard.clean_panel を使う。案の前提は正しい）・desktop/src/dashboard.rs :1400（窓の問い合わせが clean_panel を呼ぶ所）・:1807〜1821 の試験。確かめた事: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/direct.py・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves4/probe_http.py。良い所: 確かめを問い合わせと保存で 1 つにするので、Python と同じく決まりが 1 か所になる（形と色・言葉と置き場 9）。問い合わせの dash_parity と保存の新しい試験の 2 つで同じ部品を突き合わせられる（視覚化 8）。窓の問い合わせ用 clean_panel の id の既定 p1（Python は p{i+1}）・calc をそのまま置く所も一緒に直る。悪い所: 10 本を移しつつ、1,828 行の dashboard.rs の数える道（dash_parity・ops_parity が通っている所）の入口を作り替える。作った後の採点が 1 回だけの決まりで、数える答えの割れと保存の割れが同じ版に混ざる（チャンク・階層・釣り合い 3、直感的 5）。案の文は C の 10 本を引くが、C が挙げた外した組み込みの割れ（GET 500・keys の字）を書いておらず、下の 6 つの減点はどれも潰していない。"
+    }
+   }
+  }
+ ],
+ "proposals_text": {
+  "A 組み方のプリセット 5 本だけ（組み込みは Python から焼いた表）": "GET /api/pivot-presets・PUT /api/pivot-quick・POST・PUT・DELETE /api/pivot-presets を窓へ。中身は pivot_presets.clean_body（_dims・measures〈num_expr の式は窓の num_expr.rs で読めるか〉・chart・真偽・chartAt の int(str().strip())〈「²」は isdigit が真でも int が読まない＝pyfmt の数の読み方の表〉・sort_keys の json.dumps＝serde の順で足りる）。組み込み 18（BUILTINS）とすぐに見るの既定（default_quick）は、Python の builtin_views の答えを焼いた表（tests/fixtures/pivot_builtins.json。tools で焼き、古い表は試験が止める）を窓が include_str! で持つ（中身の元は Python の 1 か所）。すぐに見るの選び（pivot_quick のマスタ。quick_set は 1 回の書き込みで行を 1 つに）・clean_quick の isdigit（Unicode の数字の表）。保存の行は preset_rows.rs。",
+  "B 組み方 5 本＋ダッシュボードの書く道 4 本（読む道は Python のまま）": "A に加えて POST・PUT・DELETE /api/dashboards と PUT /api/dashboards-hidden を窓へ。clean_layout（clean_panel・clean_fmt〈colors・series は送った順の先頭 40 個＝jsontree〉・clean_board・clean_link・clean_ops・abc_lims・clean_slicer・clean_egroup・clean_calc・パネルの id の付け直し・重なり・128KB）と with_builtin_replace・builtin_named を Rust に。窓の dashboard.rs の問い合わせ用 clean_panel（x/y/w/h・id・fmt を持たない）とは別の保存用の確かめになる。GET /api/dashboards は組み込み・外した物・入れ替え・前の版の条件を混ぜるので Python に残す。",
+  "C 保存の道の残り 10 本を 1 版で": "A と B に、GET /api/dashboards（組み込みの標準〈BUILTIN_LAYOUTS を焼いた表〉・builtin_skip〈外した物・入れ替えた物・版 3.49.0 より前の同じ名前〉・replaces の id・with_legacy_conditions〈dashboard_settings の前の版の 1 枚の表の条件。置き場の別のマスタ〉・hidden の名前）を足し、保存の道を全部窓へ。clean_hide_body の割れ（中身 '[1]' の行で Python の GET は 500・keys が字なら 1 字ずつ）は Python に任せる形にする。",
+  "D 組み方 5 本＋ダッシュボードの中身の小さい 2 本（消す・外す）": "A に加えて DELETE /api/dashboards/<id>（中身を見ない）と PUT /api/dashboards-hidden（clean_hide_body は keys の字の並びだけ）を窓へ。clean_layout が要る GET・POST・PUT は Python に残す。小さく確かに進める。",
+  "E 組み方 5 本＋ダッシュボードの中身の確かめを部品として先に（道は次の版）（新）": "A に加えて、clean_layout 一式を Rust の部品（desktop/src/layout_clean.rs）にし、Python の clean_layout と事例の表（tests/fixtures/layout_cases.json。画面が作るパネルの形・組み込み・壊れた形・送った順・小数・大きさの境を Python で焼く）で突き合わせる。道（ダッシュボード 5 本）は次の版でこの部品の上に載せる。中身の確かめの割れを道の前に閉じる。",
+  "F 組み方 5 本＋ダッシュボード 5 本を、問い合わせと保存で 1 つの clean_panel にして（新）": "C と同じ 10 本を窓へ移すが、窓の dashboard.rs の問い合わせ用 clean_panel を Python の clean_panel と同じ形（x/y/w/h・id・fmt・legacy を持つ）に広げ、保存も問い合わせも同じ部品を通す（Python も 1 つの clean_panel を両方に使っている）。問い合わせの答え（dash_parity）と保存の答え（新しい dashboards_parity）の両方で突き合わせる。組み込みは焼いた表。"
+ }
+}

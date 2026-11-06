@@ -1,0 +1,681 @@
+{
+ "lot": [
+  {
+   "body": {
+    "chart": "time",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     },
+     {
+      "agg": "lots"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$date",
+      "part": "ym"
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:date-ym",
+   "login": "",
+   "name": "$date（年月）ごとの件数",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "hist",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$weight",
+      "part": "bin"
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:hist",
+   "login": "",
+   "name": "$weightのヒストグラム",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "stack",
+    "chartAt": 0,
+    "cols": [
+     {
+      "column": "$few2",
+      "part": ""
+     }
+    ],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:few-pair",
+   "login": "",
+   "name": "$few1×$few2の件数",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "pareto",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:pareto",
+   "login": "",
+   "name": "$few1のパレート図",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "donut",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:donut",
+   "login": "",
+   "name": "$few1の内訳",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "heat",
+    "chartAt": 0,
+    "cols": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$date",
+      "part": "weekday"
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:week-heat",
+   "login": "",
+   "name": "曜日×$few1の件数（ヒートマップ）",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "control",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "avg",
+      "column": "$weight"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$date",
+      "part": "date"
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:date-control",
+   "login": "",
+   "name": "$weightの管理図（日ごとの平均）",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "box",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "avg",
+      "column": "$weight"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:box",
+   "login": "",
+   "name": "$few1ごとの$weightの箱ひげ図",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "scatter",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "avg",
+      "column": "$weight"
+     },
+     {
+      "agg": "avg",
+      "column": "$num2"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$lot",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:scatter",
+   "login": "",
+   "name": "ロットごとの$weight×$num2（散布図）",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "lot",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  }
+ ],
+ "work": [
+  {
+   "body": {
+    "chart": "time",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "lots"
+     },
+     {
+      "agg": "sum",
+      "column": "$weight"
+     }
+    ],
+    "rows": [
+     {
+      "column": "@workday",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:work-day",
+   "login": "",
+   "name": "作業日ごとのロット数・$weight",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "time",
+    "chartAt": 0,
+    "cols": [
+     {
+      "column": "@shift",
+      "part": ""
+     }
+    ],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "lots"
+     }
+    ],
+    "rows": [
+     {
+      "column": "@workday",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:work-shift",
+   "login": "",
+   "name": "日×直のロット数",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "hist",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$weight",
+      "part": "bin"
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:hist",
+   "login": "",
+   "name": "$weightのヒストグラム",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "stack",
+    "chartAt": 0,
+    "cols": [
+     {
+      "column": "$few2",
+      "part": ""
+     }
+    ],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:few-pair",
+   "login": "",
+   "name": "$few1×$few2の件数",
+   "note": "",
+   "quick": true,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "column",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": true,
+    "measures": [
+     {
+      "agg": "lots"
+     },
+     {
+      "agg": "sum",
+      "column": "$weight"
+     }
+    ],
+    "rows": [
+     {
+      "column": "@workday",
+      "part": "ym"
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:work-month",
+   "login": "",
+   "name": "月ごとのロット数・$weight",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "heat",
+    "chartAt": 0,
+    "cols": [
+     {
+      "column": "@shift",
+      "part": ""
+     }
+    ],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "lots"
+     }
+    ],
+    "rows": [
+     {
+      "column": "@workday",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:work-heat",
+   "login": "",
+   "name": "日×直のロット数（ヒートマップ）",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "control",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "avg",
+      "column": "$weight"
+     }
+    ],
+    "rows": [
+     {
+      "column": "@workday",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:work-control",
+   "login": "",
+   "name": "$weightの管理図（作業日ごとの平均）",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "pareto",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "count"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:pareto",
+   "login": "",
+   "name": "$few1のパレート図",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  },
+  {
+   "body": {
+    "chart": "box",
+    "chartAt": 0,
+    "cols": [],
+    "grand": true,
+    "labels": false,
+    "measures": [
+     {
+      "agg": "avg",
+      "column": "$weight"
+     }
+    ],
+    "rows": [
+     {
+      "column": "$few1",
+      "part": ""
+     }
+    ],
+    "split": false,
+    "sub": true
+   },
+   "builtin": true,
+   "canEdit": false,
+   "id": "b:box",
+   "login": "",
+   "name": "$few1ごとの$weightの箱ひげ図",
+   "note": "",
+   "quick": false,
+   "rev": 0,
+   "scope": "default",
+   "source": "work",
+   "standard": false,
+   "updatedAt": "",
+   "updatedBy": {}
+  }
+ ]
+}

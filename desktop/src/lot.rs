@@ -285,6 +285,21 @@ impl Lot {
         crate::dash_sets::answer(&store, &me, route, query, body, &place)
     }
 
+    /// 集計表・グラフの組み方のプリセットの 5 本（版 3.81.0。src/pivot_presets.rs）。書けるかは範囲で決める（セットと同じ。門番の外）
+    fn presets_route(&self, route: crate::pivot_presets::Route, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        if route != crate::pivot_presets::Route::List {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        let place = crate::access::Place::from_json(&s.access["place"]);
+        let store = self.store_for(&s.access)?;
+        crate::pivot_presets::answer(&store, &me, route, query, body, &place)
+    }
+
     /// カードの設計の 4 本（版 3.80.0。src/card_forms.rs）。書けるかは範囲で決める（セットと同じ。門番の外）
     fn cards_route(&self, route: crate::card_forms::Route, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
         let s = self.settings(ask).ok()?;
@@ -544,6 +559,9 @@ impl Lot {
         }
         if let Some(route) = crate::card_forms::route_of(method, path) {
             return self.cards_route(route, query, body, ask);
+        }
+        if let Some(route) = crate::pivot_presets::route_of(method, path) {
+            return self.presets_route(route, query, body, ask);
         }
         if let Some(route) = crate::formats_write::route_of(method, path) {
             return self.formats_route(method, path, route, query, body, ask);
@@ -1173,6 +1191,45 @@ mod tests {
         assert!(lot.handle_body("POST", "/api/card-forms", "", full.as_bytes(), &ask).is_none(), "全角の数の字は Python の int()");
         let none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
         assert!(Lot::new(dir.join("c2")).handle_body("GET", "/api/card-forms", "source=card%3Alotlist%3AT", b"", &none).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_answers_pivot_presets() {
+        // 版 3.81.0: 組み方のプリセットの 5 本は窓が受ける（本物の道: Lot::handle_body → presets_route）。組み込みの組み方は焼いた表から。
+        // 窓が Python と同じに読めない形（ASCII でないすぐに見るの id・NaN の本文・ASCII でない id の道）は Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-presets-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(local.join("instance_id"), "inst1").unwrap();
+        let doc = |rows: Value| json!({"schema": 1, "revision": 1, "rows": rows}).to_string();
+        let perm = json!([{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "rev": 1}]);
+        std::fs::write(share.join("access_permissions.json"), doc(perm)).unwrap();
+        std::fs::write(share.join("pivot_presets.json"), doc(json!([]))).unwrap();
+        std::fs::write(share.join("pivot_quick.json"), doc(json!([]))).unwrap();
+        let conf = json!({"who": {"login": "boss", "pc": "PC-1", "pcSource": "", "key": "PC-1@boss"},
+                          "place": {"shareDir": share, "shared": ["access_permissions", "tab_access", "pivot_presets", "pivot_quick"],
+                                    "data": dir.join("data"), "defaults": dir.join("defaults"), "cache": local.join("master_cache"),
+                                    "presence": "", "lockTtl": 20.0}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let (st, v) = lot.handle_body("GET", "/api/pivot-presets", "source=lot", b"", &ask).expect("窓が受ける");
+        assert_eq!((st, v["items"].as_array().map(Vec::len), v["quickCustom"].clone()), (200, Some(9), json!(false)), "{v}");
+        let body = r#"{"name": "朝", "source": "lot", "scope": "me", "standard": true, "body": {"rows": [{"column": "工程"}], "measures": [{"agg": "sum", "column": "w", "dec": 2.5}]}}"#;
+        let (st, v) = lot.handle_body("POST", "/api/pivot-presets", "", body.as_bytes(), &ask).unwrap();
+        assert_eq!((st, v["body"]["measures"][0]["dec"].clone()), (201, json!(2)), "桁は偶数へ丸める: {v}");
+        let (st, v) = lot.handle_body("PUT", "/api/pivot-quick", "", br#"{"source": "lot", "keys": ["1", "b:hist", "1"]}"#, &ask).unwrap();
+        assert_eq!((st, v["quick"].clone()), (200, json!(["1", "b:hist"])), "{v}");
+        let (_, v) = lot.handle_body("GET", "/api/pivot-presets", "source=lot", b"", &ask).unwrap();
+        assert_eq!((v["quick"].clone(), v["standardId"].clone()), (json!(["1", "b:hist"]), json!(1)), "{v}");
+        let q = "{\"source\": \"lot\", \"keys\": [\"\u{b2}\"]}";
+        assert!(lot.handle_body("PUT", "/api/pivot-quick", "", q.as_bytes(), &ask).is_none(), "「²」は Python の isdigit");
+        assert!(lot.handle_body("POST", "/api/pivot-presets", "", br#"{"name": "a", "x": NaN}"#, &ask).is_none());
+        assert!(lot.handle_body("DELETE", "/api/pivot-presets/\u{ff11}", "", b"", &ask).is_none());
+        assert_eq!(lot.handle_body("DELETE", "/api/pivot-presets/1", "rev=1", b"", &ask).unwrap(), (200, json!({"ok": true})));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
