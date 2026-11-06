@@ -181,6 +181,16 @@ SCENARIOS = [
                                   S(PART, "PUT", 1, {"name": "b"})]}
       for what, note, raw in [("NaN", "", "NaN"), ("Infinity", "", "Infinity"), ("1e400", "", "1e400"), ("整数の -0", "", "-0"),
                               ("i64 に入らない整数", "", "1" + "0" * 30), ("対の無い代用字", "@SUR@", '"x"')]],
+    *[{"name": f"共有のファイルの版 revision が {what}（Python の int() が読めない。窓は答えず Python に任せる）", "mode": "shared",
+       "rows": [R(1, "良い行", "dashset", "共通"), R(4, "私の", "dashset", "ID", login="p1")], "rev": rev, "steps": [],
+       "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}),
+                     S(PART, "PUT", 4, {"name": "b"}), S(PART, "DELETE", 4)]}
+      for what, rev in [("字の abc", "abc"), ("null", None), ("表", {}), ("字の 3.5", "3.5")]],
+    {"name": "共有のファイルの版 revision が前後に空白のある字の 3（Python も窓も読む）", "mode": "shared", "rows": [R(1, "良い行", "dashset", "共通")],
+     "rev": " 3 ", "steps": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}), S(PART, "GET")],
+     "delegates": []},
+    {"name": "共有のフォルダにまだ無い・写しだけで最初に読む（Python は読むだけで共有に最初の版を作る）", "mode": "mirror",
+     "rows": [R(1, "写しの行", "dashset", "共通")], "steps": [], "delegates": [S(PART, "GET")]},
     {"name": "共有のファイルの値の入れ子が 130 段・写しは前の中身（窓は答えず Python に任せる）", "mode": "shared",
      "rows": [R(1, "新", "dashset", "共通"), dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130))],
      "mirror_rows": [R(1, "前", "dashset", "共通")], "steps": [],
@@ -200,7 +210,7 @@ def place(root, sc):
         elif sc["mode"] == "mirror":
             (cache / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
         else:
-            (share / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
+            (share / f"{name}.json").write_text(j(doc(rows, sc.get("rev", 3) if name == FILE_NAME else 3)), encoding="utf-8")
     if sc.get("raw") is not None:             # 生の字を置く（json.dumps では書けない NaN・-0・大きな整数・対の無い代用字）
         f = share / f"{FILE_NAME}.json"
         t = f.read_text(encoding="utf-8").replace('"@RAW@"', sc["raw"]).replace("@SUR@", "\\ud800")

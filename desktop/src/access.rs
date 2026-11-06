@@ -409,9 +409,17 @@ impl Place {
         dirs.iter().any(|d| {
             std::fs::read(d.join(&file)).is_ok_and(|b| {
                 let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
-                std::str::from_utf8(b).map_or(true, crate::master_rows::text_split)
+                std::str::from_utf8(b).map_or(true, |t| crate::master_rows::text_split(t) || revision_split(t))
             })
         })
+    }
+
+    /// 共有に置くマスタで、共有のフォルダはあるのにそのファイルがまだ無いか（版 3.79.0）。Python は読むだけで写しから共有に最初の版を
+    /// 作る（MasterStore._maybe_refresh）が、窓の読みは作らないので、読む道は Python に任せる（書く道は窓の書く係も最初の版を作る）
+    pub fn share_absent(&self, name: &str) -> bool {
+        self.share_dir
+            .as_ref()
+            .is_some_and(|d| self.shared.iter().any(|n| n == name) && d.is_dir() && !d.join(format!("{name}.json")).exists())
     }
 
     pub fn rows(&self, name: &str) -> Result<Vec<Value>, String> {
@@ -437,6 +445,15 @@ impl Place {
             }
         }
         Ok(vec![])
+    }
+}
+
+/// マスタのファイルの revision を、Python（MasterStore._as_doc の int(revision)）が読めない形か（null・表・"3.5"・"abc" など）。
+/// 読めなければ Python は写しで答える・書けない（400）が、窓は rows だけを読むので割れる（版 3.79.0）
+fn revision_split(t: &str) -> bool {
+    match serde_json::from_str::<Value>(t) {
+        Ok(Value::Object(o)) => o.get("revision").is_some_and(|v| crate::master_rows::py_int(v).is_none()),
+        _ => false,
     }
 }
 
