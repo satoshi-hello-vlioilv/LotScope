@@ -752,6 +752,23 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
 - 採点の指摘で直した既存の割れ: 計算列の確かめ（`formula::clean_calc`）の空白を trim（Unicode の White_Space）から Python の str.strip と同じ字にした
   （{"\x1c": "1"} の式を窓だけが残していた）。
 
+### 段 2 の 5 歩目: ダッシュボードの 5 本の道 — 版 3.82.0（保存の道はこれで全部）
+
+移し方は、画面に関係のない改良の決まり（2026-11-06）で 6 案を別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-saves5.json`。1 位 **A** 65.8 点）。
+A（5 本を 1 版で・組み込みは焼いた表）に、採点の指摘 4 つを直して入れて作った。
+
+- ダッシュボードの 5 本（GET／POST／PUT／DELETE /api/dashboards・PUT /api/dashboards-hidden）を窓が受ける（`desktop/src/dashboards_write.rs`。Lot::dashboards_route）。
+  中身の確かめは版 3.81.0 の部品 layout_clean、行の決まりは preset_rows。組み込みのダッシュボードは Python の builtin_layouts の答えを焼いた表
+  （`desktop/src/dash_builtins.json`。`python program/tools/dash-builtins.py` が焼き、古い表は `tests/test_dash_builtins.py` が止める）。
+- 採点の指摘で入れた決まり: (1) 組み込みと同じ名前の行は中身に replaces を入れる（with_builtin_replace）。Python はこのとき中身の確かめを 2〜3 回通し、
+  通すたびに字が変わることがある（60 字で切った題の末尾の空白）・大きさも確かめ直すので、窓も同じ回数だけ通す。(2) 一覧で、組み込みと同じ名前の行の中身が
+  確かめに通らないと Python は 500（窓は答えない）。(3) 一覧は前の版の条件のマスタ dashboard_settings も読む（まだ無い・読めない・表でない行は窓は答えない）。
+  (4) 中身は送った順の木で確かめる（色・系列の先頭 40 個）。
+- 採点のついでに見つかった既存の割れ: 問い合わせの道（dashboard.rs の int_of）が、4,300 桁を超える数の字と \x1c〜\x1f を含む字を Python の int() と違って読んでいた
+  （top の '9'×5000 で Python は 0、窓は 60）。その 2 つだけ Python と同じに読む（ほかの数の読み方 py_int は変えない）。
+- 評価関数: `cargo test --test dashboards_parity`（← `tests/dashboards_oracle.py`。22 場面・114 歩の答えとできたファイル〈ダッシュボードと前の版の条件のマスタの中身の字まで〉、
+  Python に任せる 33 歩〈Python が落ちる置き場・まだ無いファイルの最初の読み・読めない本文・ASCII でない id〉）。わざと壊した 9 か所はどれも試験が捕まえる。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

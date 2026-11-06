@@ -1,0 +1,271 @@
+{
+ "layouts": [
+  {
+   "key": "standard",
+   "name": "標準",
+   "view": {
+    "body": {
+     "panels": [
+      {
+       "basis": "work",
+       "body": {
+        "chartAt": 0,
+        "cols": [],
+        "grand": true,
+        "labels": true,
+        "measures": [
+         {
+          "agg": "lots"
+         }
+        ],
+        "rows": [],
+        "sub": false
+       },
+       "emph": true,
+       "equip": "",
+       "filters": [],
+       "frame": "emph",
+       "h": 1,
+       "id": "wipTotal",
+       "period": null,
+       "search": "",
+       "sort": "",
+       "source": "src:wip",
+       "title": "仕掛ロット数",
+       "top": 0,
+       "visual": "kpi",
+       "w": 4,
+       "x": 0,
+       "y": 0
+      },
+      {
+       "basis": "work",
+       "body": {
+        "chartAt": 0,
+        "cols": [],
+        "grand": true,
+        "labels": true,
+        "measures": [
+         {
+          "agg": "lots"
+         }
+        ],
+        "rows": [],
+        "sub": false
+       },
+       "emph": false,
+       "equip": "",
+       "filters": [],
+       "h": 1,
+       "id": "workTotal",
+       "period": {
+        "column": "@workday",
+        "kind": "yesterday",
+        "n": 7
+       },
+       "search": "",
+       "sort": "",
+       "source": "work",
+       "title": "前日の実績本数",
+       "top": 0,
+       "visual": "kpi",
+       "w": 4,
+       "x": 4,
+       "y": 0
+      },
+      {
+       "basis": "work",
+       "body": {
+        "chartAt": 0,
+        "cols": [],
+        "grand": true,
+        "labels": true,
+        "measures": [
+         {
+          "agg": "lots"
+         }
+        ],
+        "rows": [],
+        "sub": false
+       },
+       "emph": false,
+       "equip": "",
+       "filters": [],
+       "h": 1,
+       "id": "workMonth",
+       "period": {
+        "column": "@workday",
+        "kind": "this_month",
+        "n": 7
+       },
+       "search": "",
+       "sort": "",
+       "source": "work",
+       "title": "今月の実績本数",
+       "top": 0,
+       "visual": "kpi",
+       "w": 4,
+       "x": 8,
+       "y": 0
+      },
+      {
+       "basis": "work",
+       "body": {
+        "chartAt": 0,
+        "cols": [],
+        "grand": false,
+        "labels": true,
+        "measures": [
+         {
+          "agg": "lots"
+         }
+        ],
+        "rows": [
+         {
+          "column": "仕掛区分",
+          "part": ""
+         }
+        ],
+        "sub": false
+       },
+       "emph": false,
+       "equip": "",
+       "filters": [],
+       "h": 4,
+       "id": "wipClass",
+       "period": null,
+       "search": "",
+       "sort": "desc",
+       "source": "src:wip",
+       "title": "仕掛区分ごとの仕掛ロット数",
+       "top": 0,
+       "visual": "bar",
+       "w": 5,
+       "x": 0,
+       "y": 1
+      },
+      {
+       "basis": "work",
+       "body": {
+        "chartAt": 0,
+        "cols": [],
+        "grand": false,
+        "labels": true,
+        "measures": [
+         {
+          "agg": "lots"
+         }
+        ],
+        "rows": [
+         {
+          "column": "@workday",
+          "part": ""
+         }
+        ],
+        "sub": false
+       },
+       "emph": false,
+       "equip": "",
+       "filters": [],
+       "h": 3,
+       "id": "workDays",
+       "period": {
+        "column": "@workday",
+        "kind": "days",
+        "n": 14
+       },
+       "search": "",
+       "sort": "",
+       "source": "work",
+       "title": "直近 14 日の実績本数",
+       "top": 0,
+       "visual": "time",
+       "w": 5,
+       "x": 0,
+       "y": 5
+      },
+      {
+       "emph": false,
+       "groups": [
+        {
+         "basis": "work",
+         "color": "",
+         "cols": [],
+         "equip": "",
+         "filters": [],
+         "look": "bar",
+         "measure": {
+          "agg": "lots"
+         },
+         "period": null,
+         "search": "",
+         "source": "src:wip",
+         "title": "仕掛ロット数",
+         "total": true,
+         "zero": false
+        },
+        {
+         "basis": "work",
+         "color": "",
+         "cols": [
+          {
+           "column": "@shift",
+           "part": ""
+          }
+         ],
+         "equip": "",
+         "filters": [],
+         "look": "heat",
+         "measure": {
+          "agg": "lots"
+         },
+         "period": {
+          "column": "@workday",
+          "kind": "yesterday",
+          "n": 7
+         },
+         "search": "",
+         "source": "work",
+         "title": "",
+         "total": true,
+         "zero": true
+        }
+       ],
+       "h": 7,
+       "id": "board",
+       "order": {
+        "by": "value",
+        "dir": "desc",
+        "group": 0,
+        "hide": [],
+        "list": []
+       },
+       "rows": {
+        "column": "@equip",
+        "part": ""
+       },
+       "title": "設備ごとの仕掛と前日の実績",
+       "visual": "board",
+       "w": 7,
+       "x": 5,
+       "y": 1
+      }
+     ],
+     "rows": 8
+    },
+    "builtin": true,
+    "canEdit": false,
+    "id": "b:standard",
+    "login": "",
+    "name": "標準",
+    "note": "",
+    "rev": 0,
+    "scope": "default",
+    "source": "dash",
+    "standard": false,
+    "updatedAt": "",
+    "updatedBy": {}
+   }
+  }
+ ]
+}

@@ -26,7 +26,7 @@ pub(crate) const DASHBOARDS: Spec = Spec { name: "dashboards", fields: &FIELDS, 
 
 pub type Answer = (u16, Value);
 
-fn scope_value(key: &str) -> &'static str {
+pub(crate) fn scope_value(key: &str) -> &'static str {
     SCOPES.iter().find(|(k, _)| *k == key).map(|(_, v)| *v).unwrap_or("")
 }
 
@@ -40,7 +40,7 @@ pub fn scope_of(row: &Map<String, Value>) -> &'static str {
 }
 
 /// 名前・標準を 1 つに決める組（元・範囲・持ち主。Python の値をそのまま比べる: 無いと空の字は別）
-fn group_of(row: &Map<String, Value>) -> (Option<Value>, Option<Value>, Option<Value>) {
+pub(crate) fn group_of(row: &Map<String, Value>) -> (Option<Value>, Option<Value>, Option<Value>) {
     let owner =
         if row.get("範囲").is_some_and(|x| x == scope_value("me")) { row.get("ログインID").cloned() } else { Some(json!("")) };
     (row.get("元").cloned(), row.get("範囲").cloned(), owner)

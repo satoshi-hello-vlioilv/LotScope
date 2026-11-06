@@ -83,6 +83,18 @@ impl Tree {
         }
     }
 
+    /// serde の値から（鍵は serde の Map の順＝字の順。Python で json.dumps(sort_keys=True) した字を読み直した形と同じ順）
+    pub fn from_value(v: &Value) -> Tree {
+        match v {
+            Value::Null => Tree::Null,
+            Value::Bool(b) => Tree::Bool(*b),
+            Value::Number(n) => Tree::Num(n.clone()),
+            Value::String(s) => Tree::Str(s.clone()),
+            Value::Array(a) => Tree::Arr(a.iter().map(Tree::from_value).collect()),
+            Value::Object(m) => Tree::Obj(m.iter().map(|(k, v)| (k.clone(), Tree::from_value(v))).collect()),
+        }
+    }
+
     /// serde の値へ（鍵の順は失う。比べる・読むため）
     pub fn to_value(&self) -> Value {
         match self {
