@@ -237,7 +237,23 @@ def hammer(work, n, shared):
     st = ms.MasterStore(work, local_root=work / "local", settings={"dir": str(work / "share")} if shared else {}, who=dict(WHO), role="py")
     ok = 0
     (work / "py_started").write_text("1", encoding="utf-8")   # 窓はこの印を見てから書き始める（本当に同時に書く）
+    marks = {n // 3: 1, 2 * n // 3: 2}
+
+    def wait_for(name):
+        t0 = time.monotonic()
+        while not (work / name).exists():
+            if time.monotonic() - t0 > 60:
+                raise SystemExit(f"窓の印 {name} が来ない")
+            time.sleep(0.001)
+
+    wait_for("rs_started")
     while ok < n:
+        if ok in marks:
+            # 3 分の 1・3 分の 2 で窓と待ち合わせる（どの区切りにも両方の行が入り、入れ替わりは必ず 3 回以上。時間に頼らない。
+            # 版 3.80.0: 遅い CI で片方が 150 回を書き終えてから、もう片方が書いて落ちた）
+            k = marks.pop(ok)
+            (work / f"py_mark{k}").write_text("1", encoding="utf-8")
+            wait_for(f"rs_mark{k}")
         try:
             st.write(EQ, lambda rows, stamp: rows.append({"id": ms.next_id(rows), "by": "py", **stamp}))
             ok += 1

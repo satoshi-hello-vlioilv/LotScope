@@ -191,7 +191,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     };
     let (row, base, id) = match route {
         Route::Create => {
-            let row = match pr::clean_row(d, &who.login, false, SOURCE, &body_text) {
+            let row = match pr::clean_row(d, &who.login, false, Some(SOURCE), &body_text) {
                 Ok(r) => r,
                 Err(m) => return Some(layout_error(m)),
             };
@@ -211,7 +211,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             if let Err(a) = who.gate(old, WHAT) {
                 return Some(a);
             }
-            let mut row = match pr::clean_row(d, &who.login, true, SOURCE, &body_text) {
+            let mut row = match pr::clean_row(d, &who.login, true, Some(SOURCE), &body_text) {
                 Ok(r) => r,
                 Err(m) => return Some(layout_error(m)),
             };

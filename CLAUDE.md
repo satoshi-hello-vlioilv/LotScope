@@ -79,6 +79,11 @@ UI/UX に限らず、何かを改良するときは、必ず次の順で設計�
 7. 決めた案を作ったら、作る前と後を `ui-check.mjs` で撮り、別のエージェントが同じ物差しで採点する（採点のファイルの `"built"`）。
    作った後も、合格点以上か、減点が残っていないかを確かめ、届かなければ直して撮り直す。比べた画像は比較のページ（Artifact）で見せる
 
+**画面に関係のない改良（Rust 化・作り・速さ・保存の確かさ など）は、採点を 1 回ずつにする**（利用者が決めた。2026-11-06）:
+案は 5 案以上を出し、別のエージェントの採点は **1 回だけ**。合格点に届かなくても案出しをやり直さず、1 位の案に採点の指摘（割れ・落とし穴・足りない所）を
+直して入れた形で作る。作った後の採点も **1 回だけ**で、見つかった割れはすべて直し、その形を突き合わせの試験（Python の答えと窓の答えを比べる評価関数）に
+足して、試験が通ったら終わりにする（採点し直さない）。採点のファイルには `"rule": "2026-11-06"` を書く。画面の改良（UI/UX）は上の 1〜7 のまま（最大 3 回）
+
 **加点**（100 点満点。4 分類・11 項目を 0〜10 で付け、重みを掛けて足す）
 
 | 分類 | 項目（重み） |
@@ -239,6 +244,7 @@ python program/tools/ui_score.py 採点.json                                    
 - 設備・ロールのマスタを窓へ移した評価関数（版 3.77.0）: `cargo test --test equip_rows_parity`（← `program/tests/equip_rows_oracle.py`。10 場面・74 歩の答えとファイル、Python に任せる 40 歩〈本文と置き場の行〉）・`cargo test --test jsonnum_cases`（← `tests/fixtures/jsonnum_cases.json`。書く道の本文の数の字〈整数の -0・i64 に入らない整数〉を窓が Python と同じに読むか任せるか。表を作り直すのは `python program/tools/jsonnum-cases.py`、古い表は `tests/test_jsonnum_cases.py`）・`tests/test_body_reading.py`（書く道の本文と版は Content-Type によらず読む・表でない本文では書かない・必須の null）・`lot::tests::the_window_writes_equipment_and_rolls`
 - 表示の初期設定を窓へ移した評価関数（版 3.78.0）: `cargo test --test ui_defaults_parity`（← `program/tests/ui_defaults_oracle.py`。8 場面・35 歩の答えとファイル〈開発者でない・切断中・表でない本文・2 MB の境・手元だけ・写しから・同じ名前の行・保存中の錠〉、Python に任せる 6 歩）・`tests/test_body_reading.py` の UiDefaults（表でない本文で消さない・切断中は置けない）・`lot::tests::the_window_answers_ui_defaults`
 - ダッシュボードのセットと保存の行の部品を窓へ移した評価関数（版 3.79.0）: `cargo test --test sets_parity`（← `program/tests/sets_oracle.py`。27 場面・97 歩の答えとファイル〈範囲 3 つ × 書ける／書けない・切断中・★標準の付け替え・同じ組の名前・版・手元だけ・写しから・保存中の錠〉、Python に任せる 74 歩〈本文の小数・並び・表の項目・NaN の中身・入れ子 128 段以上・置き場のファイルの生の NaN・-0・大きな整数・対の無い代用字・読めない版の番号・写しだけの最初の読み・置き場の行の形・ASCII でない id〉）・`lot::tests::the_window_answers_dashboard_sets`・`cargo test --test name_key_cases`（← `program/tests/name_key_oracle.py`。名前の比べ方〈NFKC・大文字。窓は `access::py_key` の 1 か所〉が全部の字と並びの例で Python 3.13 と同じ答えか・Python でまだ割り当てのない字の表〈そのまま残す字〉が過不足なく合うか。表を焼き直すのは `python program/tools/key-split-table.py > desktop/src/key_split_table.rs`）。部品は `desktop/src/preset_rows.rs`（組み方・カード・ダッシュボードも同じ行の形）
+- 小数の書き方・共有の書式・カードの設計を窓へ移した評価関数（版 3.80.0）: `cargo test --test pyfloat_cases`（← `tests/fixtures/pyfloat_cases.json`。Python 3.13 の float の repr と json.dumps の 5,754 の数〈丁度まん中の値は偶数へ〉。表を作り直すのは `python program/tools/pyfloat-cases.py`、古い表は `tests/test_pyfloat_cases.py`）・`cargo test --test formats_parity`（← `program/tests/formats_oracle.py`。16 場面・72 歩の答えとファイル〈中身の字は送った順の json.dumps。窓は `desktop/src/jsontree.rs` の木で読み書きする〉、Python に任せる 44 歩）・`cargo test --test cards_parity`（← `program/tests/cards_oracle.py`。12 場面・103 歩〈方眼の数の int()〈先頭の 0 の長い字も〉・タブごとの重なり・日付のまとまり・64KB・範囲と★〉、Python に任せる 37 歩〈全角の数の字・並びの項目など〉）・`lot::tests::the_window_answers_formats_and_card_forms`
 - 検索の索引とカラムの札を覚える評価関数（版 3.66.0）: `cargo test --test search_index`（語ごとに索引と今の形〈全列に CStr LIKE〉で当たる行を突き合わせる・
   * ? とつなぎの字・ビュー・WITHOUT ROWID は今の形・書き換えた後に作り直す〈時刻を戻した書き換えも〉・壊れた索引は作り直す・1 つの接続で 2 つの表・札は覚える／書き換えで数え直す／計算列は覚えない）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`

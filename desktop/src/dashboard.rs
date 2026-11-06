@@ -248,7 +248,7 @@ fn clean_egroup(v: Option<&Value>) -> Value {
     out
 }
 
-fn is_screen_source(s: &str) -> bool {
+pub(crate) fn is_screen_source(s: &str) -> bool {
     s == "lot"
         || s == "work"
         || s.strip_prefix("src:")

@@ -23,6 +23,8 @@
     "applies": "決めた採点のファイル名" … ほかの比較で決めた形を、別の画面にそろえて当てただけのとき（案出しの回は持たず、
     "rounds" は空）。決めたファイルの判定を引き、"baseline"（今）と "built"（作った後）だけを同じ物差しで採点する（版 3.49.0）。
     "accepted_by_user": {"date": "…", "note": "…"} … 作った後を直して採点し直しても合格点に届かず、利用者がその形で決めたとき（版 3.63.0）。
+    "rule": "2026-11-06" … 画面に関係のない改良（Rust 化・作り・速さなど）。案の採点は 1 回だけで、届かなくても 1 位に指摘を直して入れた形で作る。
+    作った後の採点も 1 回だけで、"built_fixed" に、見つかった割れを直した事と、足した突き合わせの試験を書く（採点し直さない）。
     判定は「利用者が受け入れた」（届いていれば、ほかと同じく「当てた」）。足りない点と理由は note と採点の記録に残す。
     案の値が 7 つの数の並び（list）のファイルは、旧い決まり（7 基準・80 点・7 案）の記録として読む（判定はしない）。
 
@@ -73,6 +75,9 @@ DEDUCTIONS = {
 RULES = {
     "2026-10": {"pass": (95, 90, 80), "self_check": False},  # 前の決まり（"rule" が無いファイル）
     "2026-10-17": {"pass": (80,), "self_check": True},  # いまの決まり: 回によらず 80 点・渡す前に自分で画像を見る
+    # 画面に関係のない改良（Rust 化・作り・速さなど。利用者が決めた 2026-11-06）: 案の採点は 1 回だけ（届かなくても 1 位に指摘を直して入れて作る）・
+    # 作った後の採点も 1 回だけ（見つかった割れを直し、その形を突き合わせの試験に足す。"built_fixed" に直した事と試験を書く）
+    "2026-11-06": {"pass": (80,), "self_check": True, "max_rounds": 1, "built_once": True},
 }
 CURRENT_RULE = "2026-10-17"
 PASS_BY_ROUND = RULES[CURRENT_RULE]["pass"]
@@ -186,9 +191,10 @@ def decide(data):
         return "記録", rows[0][1], rows
     if not data.get("evaluator"):
         raise ValueError("採点した者（evaluator）が無い。採点は、案を作った者ではない別のエージェントが、自分で撮った画像を見て付ける")
-    if len(rounds) > MAX_ROUNDS:
-        raise ValueError(f"回は {MAX_ROUNDS} 回まで（{MAX_ROUNDS} 回目で必ず決める。いま {len(rounds)} 回）")
     rule, before = rule_of(data), set()
+    most = rule.get("max_rounds", MAX_ROUNDS)
+    if len(rounds) > most:
+        raise ValueError(f"回は {most} 回まで（{most} 回目で必ず決める。いま {len(rounds)} 回）")
     for i, rnd in enumerate(rounds):
         problem = check_round(i, rnd, before, rule)
         if problem:
@@ -198,7 +204,7 @@ def decide(data):
             if i < len(rounds) - 1:
                 raise ValueError(f"{rnd['name']} で {pass_mark(i, rule)} 点に届いて決まっているのに、後の回がある")
             return "選ぶ", rows[0][1], rows
-        if i == MAX_ROUNDS - 1:
+        if i == most - 1:
             return "届かずに選ぶ", rows[0][1], rows
         before |= set(rnd["proposals"])
     return "出し直す", rows[0][1], rows
@@ -244,7 +250,8 @@ def report(data):
     rule = rule_of(data)
     marks = rule["pass"]
     when = f"回によらず {marks[0]}" if len(marks) == 1 else f"{'・'.join(f'{i + 1} 回目 {p}' for i, p in enumerate(marks))} 点（以降も {marks[-1]}）"
-    print(f"決めてよい点 {when} 点・1 回 {MIN_PROPOSALS} 案以上・{MAX_ROUNDS} 回まで" + ("・渡す前に自分で画像を確かめる" if rule["self_check"] else "（前の決まり）"))
+    most = rule.get("max_rounds", MAX_ROUNDS)
+    print(f"決めてよい点 {when} 点・1 回 {MIN_PROPOSALS} 案以上・{most} 回まで" + ("・渡す前に自分で画像を確かめる" if rule["self_check"] else "（前の決まり）"))
     mark = pass_mark(len(data["rounds"]) - 1, rule)
     for rnd in data["rounds"]:
         print(f"== {rnd['name']}（{len(rnd['proposals'])} 案）" + (f"  画像: {rnd['images']}" if rnd.get("images") else ""))
@@ -257,8 +264,12 @@ def report(data):
     if kind == "選ぶ":
         print(f"→ 選ぶ: {who}（{rows[0][0]:.1f} 点）")
     elif kind == "届かずに選ぶ":
-        print(f"→ {MAX_ROUNDS} 回で合格点 {mark} 点に届かなかった。いちばん高い {who}（{rows[0][0]:.1f} 点）に決め、"
-              f"足りない {mark - rows[0][0]:.1f} 点とその理由（減点・低い項目）を利用者に伝える")
+        if most == 1:
+            print(f"→ 画面に関係のない改良（採点は 1 回）。合格点 {mark} 点に届かないが、1 位の {who}（{rows[0][0]:.1f} 点）に、採点の指摘"
+                  f"（割れ・落とし穴・足りない所）を直して入れた形で作る。足りない {mark - rows[0][0]:.1f} 点とその理由を利用者に伝える")
+        else:
+            print(f"→ {most} 回で合格点 {mark} 点に届かなかった。いちばん高い {who}（{rows[0][0]:.1f} 点）に決め、"
+                  f"足りない {mark - rows[0][0]:.1f} 点とその理由（減点・低い項目）を利用者に伝える")
     else:
         print(f"→ まだ選ばない（1 位 {rows[0][0]:.1f} 点 < この回の合格点 {mark} 点。次の回は {pass_mark(len(data['rounds']), rule)} 点）。低い項目と減点を見直し、案出しからやり直す"
               f"（{MIN_PROPOSALS} 案以上・新しい案 {MIN_NEW} 案以上）。採点はまた別のエージェントが、撮り直した画像で付ける")
@@ -267,7 +278,13 @@ def report(data):
         t = total(built["result"])
         print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
         accepted = data.get("accepted_by_user")
-        if t < mark and accepted:
+        fixed = data.get("built_fixed")
+        if t < mark and rule.get("built_once"):
+            if fixed:
+                print(f"→ 作った後の採点は 1 回（画面に関係のない改良）。{mark} 点に届かないが、見つかった割れを直して突き合わせの試験に足した: {fixed}")
+            else:
+                print("→ 作った後の採点は 1 回（画面に関係のない改良）。見つかった割れをすべて直し、その形を突き合わせの試験に足して、直した事を \"built_fixed\" に書く")
+        elif t < mark and accepted:
             print(f"→ 作った後は {mark} 点（決めた回の合格点）に届かないが、利用者がこの形で決めた（{accepted.get('date', '')}）。{accepted.get('note', '')}")
         else:
             print("→ 作った後も " + (f"{mark} 点以上（決めた回の合格点）" if t >= mark else f"{mark} 点（決めた回の合格点）に届かない。減点の所を直して撮り直し、採点し直す"))

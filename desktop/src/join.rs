@@ -379,7 +379,20 @@ pub fn py_dumps(v: &Value) -> String {
         }
         Value::Null => "null".into(),
         Value::Bool(b) => b.to_string(),
-        Value::Number(n) => n.to_string(),
+        Value::Number(n) => py_number(n),
+    }
+}
+
+/// json.dumps の数の字: 整数は桁のまま、小数は Python の float.__repr__（1e-05・1e+16・3.0。版 3.80.0。前は serde の字〈0.00001・1e16〉だった）
+pub fn py_number(n: &serde_json::Number) -> String {
+    if n.is_i64() || n.is_u64() {
+        return n.to_string();
+    }
+    match n.as_f64() {
+        Some(f) if f.is_nan() => "NaN".into(),
+        Some(f) if f.is_infinite() => (if f > 0.0 { "Infinity" } else { "-Infinity" }).into(),
+        Some(f) => crate::pyfmt::float_repr(f),
+        None => n.to_string(),
     }
 }
 
