@@ -296,14 +296,26 @@ fn python_and_window_writing_together_lose_nothing() {
             .stderr(std::process::Stdio::null())
             .spawn()
             .unwrap();
-        let t0 = std::time::Instant::now();
-        while !work.join("py_started").exists() {
-            assert!(t0.elapsed().as_secs() < 30, "Python が始まらない");
-            std::thread::sleep(std::time::Duration::from_millis(2));
-        }
+        let wait_for = |name: &str| {
+            let t0 = std::time::Instant::now();
+            while !work.join(name).exists() {
+                assert!(t0.elapsed().as_secs() < 60, "Python の印 {name} が来ない");
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        };
+        wait_for("py_started");
+        std::fs::write(work.join("rs_started"), "1").unwrap();
+        // 3 分の 1・3 分の 2 で Python と待ち合わせる（どの区切りにも両方の行が入り、入れ替わりは必ず 3 回以上。時間に頼らない。
+        // 版 3.80.0: 遅い CI で片方が書き終えてから、もう片方が書いて落ちた）
+        let mut marks = vec![(n / 3, 1), (2 * n / 3, 2)];
         let mut ok = 0;
         let mut refused = 0;
         while ok < n {
+            if let Some(i) = marks.iter().position(|(at, _)| *at == ok) {
+                let (_, k) = marks.remove(i);
+                std::fs::write(work.join(format!("rs_mark{k}")), "1").unwrap();
+                wait_for(&format!("py_mark{k}"));
+            }
             match st.write("equipment_master", |rows, stamp| {
                 let mut row = json!({"id": next_id(rows), "by": "rs"});
                 for (k, v) in stamp.as_object().unwrap() {
