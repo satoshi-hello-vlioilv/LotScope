@@ -711,3 +711,5 @@ pub const KEY_SPLIT: &[(u32, u32)] = &[
     (0xFFFFE, 0xFFFFF),
     (0x10FFFE, 0x10FFFF),
 ];
+// 上の表のうち、Python で割り当て済みで窓だけが大文字の対を持つ字（NFKC は通し、大文字にだけしない）
+pub const ASSIGNED_SPLIT: &[u32] = &[0x019B, 0x0264, 0xA7D3, 0xA7D5, 0x10791];

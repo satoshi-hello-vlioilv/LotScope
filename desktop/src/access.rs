@@ -75,34 +75,66 @@ pub(crate) fn text(v: Option<&Value>) -> String {
     }
 }
 
-/// 比べるための形（identity.normalize_part: NFKC・前後の空白を除く・大文字）
-/// 名前の比べ方（normalize_part: NFKC・前後の空白を除く・大文字）の答えが、Python 3.13（Unicode 15.1）と窓（Rust の std と
-/// unicode-normalization の表。より新しい Unicode）で割れうる字（版 3.79.0）。表は src/key_split_table.rs（program/tools/key-split-table.py が焼く:
-/// Python でまだ割り当てのない字＋窓だけが大文字の対を持つ字）。割り当てのない字を含む名前を任せるので、1 字では割れず並びで割れる形
-/// （Unicode 16 の合成・新しい結合文字の並べ替え）も閉じる。tests/name_key_cases.rs が全部の字で Python と突き合わせる
-pub use crate::key_split_table::KEY_SPLIT;
+/// Python 3.13（Unicode 15.1）でまだ割り当てのない字と、窓だけが大文字の対を持つ字の表（src/key_split_table.rs。
+/// program/tools/key-split-table.py が Python から焼く）。この字は Python では分解も合成も大文字も無い字なので、比べ方 py_key がそのまま残す
+pub use crate::key_split_table::{ASSIGNED_SPLIT, KEY_SPLIT};
 
-/// 名前に、比べ方が Python と割れうる字があるか（あれば、名前で比べる道は窓が答えず Python に任せる）
+/// その字が表にあるか（Python では NFKC も大文字も変えない字）
+pub fn is_key_split(c: char) -> bool {
+    let c = c as u32;
+    KEY_SPLIT
+        .binary_search_by(|(a, b)| {
+            if *b < c {
+                std::cmp::Ordering::Less
+            } else if *a > c {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+}
+
+/// Python でまだ割り当てのない字か（表の字のうち ASSIGNED_SPLIT でない字。Python では分解も合成も大文字も無い）
+fn unassigned_in_python(c: char) -> bool {
+    is_key_split(c) && !ASSIGNED_SPLIT.contains(&(c as u32))
+}
+
+/// 名前に表の字があるか（試験と文書のため。比べ方は py_key が Python と同じに扱うので、道を任せる判定には使わない）
 pub fn key_split(s: &str) -> bool {
-    s.chars().any(|c| {
-        let c = c as u32;
-        KEY_SPLIT
-            .binary_search_by(|(a, b)| {
-                if *b < c {
-                    std::cmp::Ordering::Less
-                } else if *a > c {
-                    std::cmp::Ordering::Greater
-                } else {
-                    std::cmp::Ordering::Equal
-                }
-            })
-            .is_ok()
+    s.chars().any(is_key_split)
+}
+
+/// 比べるための形（Python の identity.normalize_part: NFKC・前後の空白を除く・大文字）を、Python 3.13 と同じ答えで（版 3.79.0）。
+/// 窓の std と unicode-normalization は Python より新しい Unicode の表を持つので、そのまま NFKC・大文字にすると、Python で割り当てのない字
+/// （Unicode 16 から後の字）の合成・並べ替え・大文字が Python と割れる。表の字はそのまま残し、表の字で区切った間だけを NFKC にする
+/// （割り当てのない字は Python では結合の段 0 の分解も合成も無い字なので、間を越えて合成も並べ替えも起きない。窓だけが大文字の対を持つ
+/// 割り当て済みの字〈ASSIGNED_SPLIT〉は NFKC を通し、大文字にだけしない）。割り当て済みの字どうしの分解・合成は
+/// Unicode の正規化の安定の約束で版が上がっても変わらない。tests/name_key_cases.rs が全部の字と並びの例を Python と突き合わせる
+pub fn py_key(s: &str) -> String {
+    let (mut out, mut seg) = (String::new(), String::new());
+    for c in s.chars() {
+        if unassigned_in_python(c) {
+            out.extend(seg.nfkc());
+            seg.clear();
+            out.push(c);
+        } else {
+            seg.push(c);
+        }
+    }
+    out.extend(seg.nfkc());
+    pyfmt::strip(&out).chars().fold(String::new(), |mut acc, c| {
+        if is_key_split(c) {
+            acc.push(c);
+        } else {
+            acc.extend(c.to_uppercase());
+        }
+        acc
     })
 }
 
 pub fn normalize_part(v: Option<&Value>) -> String {
-    let n: String = text(v).nfkc().collect();
-    pyfmt::strip(&n).to_uppercase()
+    py_key(&text(v))
 }
 
 pub(crate) fn is_tab_key(t: &str) -> bool {

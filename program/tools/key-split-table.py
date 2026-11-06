@@ -39,6 +39,8 @@ def main():
     for a, b in rs:
         w(f"    (0x{a:04X}, 0x{b:04X}),\n")
     w("];\n")
+    w("// 上の表のうち、Python で割り当て済みで窓だけが大文字の対を持つ字（NFKC は通し、大文字にだけしない）\n")
+    w("pub const ASSIGNED_SPLIT: &[u32] = &[" + ", ".join(f"0x{c:04X}" for c in ASSIGNED_SPLIT) + "];\n")
 
 
 if __name__ == "__main__":

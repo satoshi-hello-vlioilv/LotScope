@@ -29,5 +29,9 @@ for cp in range(0x110000):
             unassigned[-1][1] = cp
         else:
             unassigned.append([cp, cp])
+# 並びの例（1 字では割れず並びで割れうる形: Unicode 16 の合成・新しい結合文字の並べ替え・表の字の後の結合文字・ふつうの名前）
+SAMPLES = ["\U0001611e\U0001611e", "a\u0897\u0316", "\u1c89\u1c8a", "e\u0301", "\U0001611e\u0301", "\u0301\U0001611e\u0316\u0301",
+           "ｶﾞ\U0001611eﾞ", "  ᲊ ", "ß\u1c8a", "㌀ ⅻ ＡＢＣ", "標準 1", "\u019b\u0264ꟓ", "a\U00016121\u0308", "\u0897a\u0316"]
+samples = [[t, normalize_part(t)] for t in SAMPLES]
 sys.stdout.write(json.dumps({"python": sys.version.split()[0], "unicode": unicodedata.unidata_version, "changed": out,
-                             "unassigned": unassigned}, ensure_ascii=False))
+                             "unassigned": unassigned, "samples": samples}, ensure_ascii=False))

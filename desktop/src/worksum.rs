@@ -16,7 +16,6 @@ use rusqlite::{params_from_iter, Connection};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::time::Instant;
-use unicode_normalization::UnicodeNormalization;
 
 const START_CANDIDATES: &[&str] = &["BOX実績_作業開始_日付"];
 /// 0 件の日を埋める日数の上限（読み違えた古い日付で、何万行もの表にしない）
@@ -100,8 +99,7 @@ pub fn num(v: &Py) -> Option<f64> {
 
 /// 比べるための形（NFKC・前後の空白を除く・大文字。Python の identity.normalize_part と同じ）
 pub fn normalize_part(s: &str) -> String {
-    let n: String = s.nfkc().collect();
-    strip(&n).to_uppercase()
+    crate::access::py_key(s) // 窓の 1 か所（Python 3.13 と同じ答え。Unicode の版の違いも扱う）
 }
 
 // ------------------------------------------------------------------ 勤務体系（Python の shifts.py）

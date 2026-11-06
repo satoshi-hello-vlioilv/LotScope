@@ -137,7 +137,6 @@ pub fn rows_plain(rows: &[Value]) -> bool {
         r.as_object().is_some_and(|o| {
             master_rows::row_readable(o)
                 && FIELDS.iter().all(|k| o.get(*k).is_none_or(Value::is_string))
-                && s(o, "名前").is_none_or(|n| !crate::access::key_split(n))
                 && s(o, "中身").is_none_or(|t| !text_split(t))
         })
     })
@@ -153,11 +152,9 @@ fn str_plain(v: &Value) -> bool {
 }
 
 /// 本文の行の項目（clean_row が読む物）を窓が Python と同じに扱えるか。name・note は str() の字、scope は辞書の鍵として比べる
-/// （並び・表は Python では TypeError）、standard は真偽だけ（どの形でもよい）。名前に比べ方が割れる字（access::key_split）があれば任せる
+/// （並び・表は Python では TypeError）、standard は真偽だけ（どの形でもよい）
 pub fn plain_input(d: &Map<String, Value>) -> bool {
-    ["name", "note"].iter().all(|k| d.get(*k).is_none_or(str_plain))
-        && d.get("scope").is_none_or(|v| !v.is_array() && !v.is_object())
-        && d.get("name").and_then(Value::as_str).is_none_or(|n| !crate::access::key_split(n))
+    ["name", "note"].iter().all(|k| d.get(*k).is_none_or(str_plain)) && d.get("scope").is_none_or(|v| !v.is_array() && !v.is_object())
 }
 
 /// Python の str(v or "")（真でない値は空の字）
