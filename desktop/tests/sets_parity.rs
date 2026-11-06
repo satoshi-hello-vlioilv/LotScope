@@ -145,7 +145,7 @@ fn dashboard_sets_match_python() {
             }
         }
     }
-    assert!(steps >= 80 && delegated >= 30, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 80 && delegated >= 37, "歩が少ない: {steps}・{delegated}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

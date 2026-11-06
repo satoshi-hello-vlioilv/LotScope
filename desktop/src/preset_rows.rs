@@ -131,6 +131,31 @@ pub fn sort_views(items: &mut [Value]) {
 /// （master_rows::split_number: -0・i64 に入らない整数）だけを見る。serde が読めない字は、Python だけが読む形（NaN・Infinity・
 /// 1e400 のような指数の数・片割れの代用字の \u）が入っていそうなら割れる、入っていなければ Python も読めない（どちらも「読めない」で同じ）
 pub fn text_split(t: &str) -> bool {
+    // serde_json は入れ子 128 段で読むのをやめる（Python は読む）。字の外の [ { の深さで見る
+    let (mut depth, mut deepest, mut in_str, mut esc) = (0usize, 0usize, false, false);
+    for b in t.bytes() {
+        if in_str {
+            match (esc, b) {
+                (true, _) => esc = false,
+                (false, b'\\') => esc = true,
+                (false, b'"') => in_str = false,
+                _ => {}
+            }
+            continue;
+        }
+        match b {
+            b'"' => in_str = true,
+            b'[' | b'{' => {
+                depth += 1;
+                deepest = deepest.max(depth);
+            }
+            b']' | b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    if deepest >= 128 {
+        return true;
+    }
     if serde_json::from_str::<Value>(t).is_ok() {
         return master_rows::split_number(t.as_bytes());
     }
@@ -148,6 +173,7 @@ pub fn rows_plain(rows: &[Value]) -> bool {
         r.as_object().is_some_and(|o| {
             master_rows::row_readable(o)
                 && FIELDS.iter().all(|k| o.get(*k).is_none_or(Value::is_string))
+                && s(o, "名前").is_none_or(|n| !crate::access::key_split(n))
                 && s(o, "中身").is_none_or(|t| !text_split(t))
         })
     })
@@ -163,9 +189,11 @@ fn str_plain(v: &Value) -> bool {
 }
 
 /// 本文の行の項目（clean_row が読む物）を窓が Python と同じに扱えるか。name・note は str() の字、scope は辞書の鍵として比べる
-/// （並び・表は Python では TypeError）、standard は真偽だけ（どの形でもよい）
+/// （並び・表は Python では TypeError）、standard は真偽だけ（どの形でもよい）。名前に比べ方が割れる字（access::key_split）があれば任せる
 pub fn plain_input(d: &Map<String, Value>) -> bool {
-    ["name", "note"].iter().all(|k| d.get(*k).is_none_or(str_plain)) && d.get("scope").is_none_or(|v| !v.is_array() && !v.is_object())
+    ["name", "note"].iter().all(|k| d.get(*k).is_none_or(str_plain))
+        && d.get("scope").is_none_or(|v| !v.is_array() && !v.is_object())
+        && d.get("name").and_then(Value::as_str).is_none_or(|n| !crate::access::key_split(n))
 }
 
 /// Python の str(v or "")（真でない値は空の字）

@@ -57,6 +57,7 @@ ROWS = [R(1, "標準", "dash", "共通デフォルト", std="1", body='{"rows": 
         R(7, "壊れ", "dashset", "共通", body=""),
         R(8, "並びの中身", "dashset", "共通", body='[1, 2]'),
         {"id": 9, "名前": "版の無い行", "元": "dashset", "範囲": "ID", "ログインID": "p1", "標準": "", "中身": '{"items": ["3"]}', "備考": ""}]
+DEEP = '{"items": ["1"], "x": ' + "[" * 200 + "]" * 200 + "}"     # 入れ子 200 段（serde は 128 段で読むのをやめる。Python は読む）
 MANY = {"items": [str(i) for i in range(1, 14)]}
 ITEMS = {"items": ["1", "1", "b:standard", 5, "x", 1.5, True, "١٢", "b:", "b:" + "a" * 33, "1234567890", -1, None, [1], {"a": 1}]}
 SCENARIOS = [
@@ -86,6 +87,7 @@ SCENARIOS = [
         S(PART, "POST", body={"name": "字で並び", "scope": "me", "body": "[1]"}),
         S(PART, "POST", body={"name": "items が表", "scope": "me", "body": {"items": {"1": 1}}}),
         S(PART, "POST", body={"name": "読めない字", "scope": "me", "body": "abc"}),
+        S(PART, "POST", body={"name": "\u1c89", "scope": "me", "body": {"items": ["1"]}}),
         S(PART, "POST", body={"name": "読めない字 2", "scope": "me", "body": '{"items": ["1"'}),
         S(PART, "POST", body="null"), S(PART, "POST", body="0"), S(PART, "POST", body="[]"), S(PART, "POST", body='""'),
         S(PART, "POST", body={"name": "text", "scope": "me", "body": {"items": ["4"]}}, ctype="text/plain"),
@@ -130,6 +132,8 @@ SCENARIOS = [
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": -0}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": 1e400}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["\\ud800"]}'}),
+        S(PART, "POST", body={"name": "a", "scope": "me", "body": DEEP}),
+        S(PART, "PUT", 4, {"name": "\u1c8a"}),
         S(PART, "PUT", 4, "[1]"), S(PART, "PUT", 4, ""), S(PART, "DELETE", 4, '"x"'),
         S(PART, "PUT", "４", {"name": "全角の id"}), S(PART, "DELETE", "١"),
     ]},
@@ -159,7 +163,9 @@ SCENARIOS = [
                         ("中身に NaN", R(2, "NaN の中身", "dashset", "共通", body='{"items": ["1"], "x": NaN}')),
                         ("中身に -0", R(2, "-0 の中身", "dashset", "共通", body='{"items": [-0]}')),
                         ("版が読めない", R(2, "x", "dashset", "共通", rev="二")),
-                        ("id が字", {"id": "4", "名前": "字の id", "元": "dashset", "範囲": "共通", "中身": "{}"})]],
+                        ("id が字", {"id": "4", "名前": "字の id", "元": "dashset", "範囲": "共通", "中身": "{}"}),
+                        ("中身の入れ子が 200 段", R(2, "深い中身", "dashset", "共通", body=DEEP)),
+                        ("名前の大文字が Unicode の版で割れる字", R(2, "\u1c8a", "dashset", "ID", login="p1"))]],
 ]
 FILE_NAME = "dashboards"
 

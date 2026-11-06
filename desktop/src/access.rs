@@ -76,6 +76,38 @@ pub(crate) fn text(v: Option<&Value>) -> String {
 }
 
 /// 比べるための形（identity.normalize_part: NFKC・前後の空白を除く・大文字）
+/// 名前の比べ方（normalize_part: NFKC・前後の空白を除く・大文字）の答えが、Python 3.13（Unicode 15.1）と窓（Rust の std と
+/// unicode-normalization の表。より新しい Unicode）で割れる字（版 3.79.0。161 字。Unicode 16 から後に足された字と大文字の対）。
+/// tests/name_key_cases.rs が全部の字を Python と突き合わせ、この表で足りることを確かめる（Rust や crate の版を上げて増えたら落ちる）
+const KEY_SPLIT: &[(u32, u32)] = &[
+    (0x019B, 0x019B),
+    (0x0264, 0x0264),
+    (0x0558, 0x0558),
+    (0x058B, 0x058C),
+    (0x1C8A, 0x1C8A),
+    (0x209D, 0x209F),
+    (0xA7CD, 0xA7CD),
+    (0xA7CF, 0xA7CF),
+    (0xA7D3, 0xA7D3),
+    (0xA7D5, 0xA7D5),
+    (0xA7DB, 0xA7DB),
+    (0xA7F1, 0xA7F1),
+    (0x10791, 0x10791),
+    (0x107BB, 0x107BF),
+    (0x10D70, 0x10D85),
+    (0x16EBB, 0x16ED3),
+    (0x1B123, 0x1B126),
+    (0x1CCD6, 0x1CCF9),
+    (0x1D6A6, 0x1D6A6),
+    (0x1DF95, 0x1DF95),
+    (0x1DFCD, 0x1DFFF),
+];
+
+/// 名前に、比べ方が Python と割れる字があるか（あれば、名前で比べる道は窓が答えず Python に任せる）
+pub fn key_split(s: &str) -> bool {
+    s.chars().any(|c| KEY_SPLIT.iter().any(|(a, b)| (*a..=*b).contains(&(c as u32))))
+}
+
 pub fn normalize_part(v: Option<&Value>) -> String {
     let n: String = text(v).nfkc().collect();
     pyfmt::strip(&n).to_uppercase()

@@ -653,11 +653,18 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
   入っていそうな字。どちらも読めない字は同じ「読めない」）、置き場の行の id・版が読めない・置く項目が字でない、道の id が ASCII の数字でない。
 - ダッシュボードのセットの 4 本（GET／POST /api/dashboard-sets・PUT／DELETE …/<id>）を窓が受ける（`desktop/src/dash_sets.rs`。Lot::dash_sets_route）。
   中身は clean_set_body（items の \d{1,9}〈Python 3.13 の 68 系統の数字。pyfmt::digit〉か b:鍵・同じ物は 1 つ・1〜12・置く字は json.dumps と同じ py_dumps）。
-- 評価関数: `cargo test --test sets_parity`（← `tests/sets_oracle.py`。11 場面・83 歩の答えとできたファイル〈書く人と範囲・中身・名前の重なり〈NFKC・大文字〉・
-  版・★の付け替え〈同じ組だけ・名前だけ直しても〉・切断中・手元だけ・写しから・保存中の錠・表でない本文・text/plain〉、Python に任せる 31 歩〈本文・置き場の行の形を 1 つずつ〉）。
+- 評価関数: `cargo test --test sets_parity`（← `tests/sets_oracle.py`。13 場面・84 歩の答えとできたファイル〈書く人と範囲・中身・名前の重なり〈NFKC・大文字〉・
+  版・★の付け替え〈同じ組だけ・名前だけ直しても〉・切断中・手元だけ・写しから・保存中の錠・表でない本文・text/plain〉、Python に任せる 37 歩〈本文・置き場の行の形を 1 つずつ〉）。
   ★の付け替えを外す・足すときの名前の重なりを外すと 13 件、切断の確かめを外すと 6 件、name・note の任せる判定を外すと 7 件、置き場の中身の任せる判定を外すと 8 件、
   置く項目が字の判定を外すと 4 件、\d を ASCII だけにすると 4 件、備考の 200 字を外すと 4 件、並びの順を変えると 11 件落ちる。
   `lot::tests::the_window_answers_dashboard_sets`（本物の道・置く字・ほかの元の★は外さない・版の衝突・セットでない行・Python に任せる形）。
+- 作った後の採点の 1 回目（70.0 点。減点 −6）で、中身の字の入れ子が 128 段を超えると窓の serde が読むのをやめる（Python は読む。POST は 201 と 400、
+  置き場の行は body が {items: ["1"]} と {items: []} に割れる）・名前の比べ方（NFKC・大文字）が Unicode の版で割れる字（「ᲊ」U+1C8A があると「Ᲊ」は
+  Python では別、窓では同じ名前）、が見つかった。字の外の [ { の深さが 128 段以上なら Python に任せる（text_split）・割れる 161 字の表を
+  `access::key_split` に持ち、その字を含む名前（本文と置き場の行）は Python に任せる。表が足りていることは `cargo test --test name_key_cases`
+  （← `tests/name_key_oracle.py`。全部の字の normalize_part を Python 3.13 と突き合わせる。Rust や crate の版を上げて割れる字が増えたら落ちる）で確かめる。
+  深さの判定を外すと 5 件、置き場の名前の判定を外すと 4 件、本文の名前の判定を外すと 1 件落ちる。同じ部品（normalize_part）を使う勤務体系・設備・権限の
+  一意の確かめは、まだこの表を見ていない（割れる字の名前は工場ではまず出ない。次に書く道を移すときに master_rows::check_unique へ足す）。
 - 版 3.77.0 の配る版が作られなかった原因（Windows の CI で、スケジュールの同時に取りに行く試験が合計の時間 1.15 秒の上限を 1.38 秒で越えた）も、
   この版で直した（tests/test_schedule.py。L-2 と L-3 の取りに行きが Barrier で居合わせたかを見る。順に取りに行く作りでは落ちる）。
 
