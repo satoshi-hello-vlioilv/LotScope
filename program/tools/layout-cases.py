@@ -54,6 +54,8 @@ add(*lay(L(P(), P("b", x=4), P("c", x=8, visual="kpi", body={"measures": [{"agg"
 # ---- 大きさ・置き場・id の付け直し・重なり
 add(*lay(L(P("a"), P("a", x=4), P("p3", x=8))))
 add(*lay(L(P("p2"), P(None, x=4), P("p2", x=8))))
+add(*lay(L(P("p6"), P("a", x=4), P("a", x=8))))     # 付け直す先 p6 がもうある（前は Python も窓も止まらなかった。版 3.81.0 の採点）
+add(*lay(L(P("p5"), P("p6", x=4), P("a", x=8), P("a", y=2))))
 add(*lay(L(P("a", w=4.9, h=True, x="1_0"), rows=" 6 ")))
 add(*lay(L(P("a", w="9" * 5000), rows=4)))
 add(*lay(L(P("a", w="5\x1c"))), py=True)
@@ -107,6 +109,8 @@ add(*lay(L(P(source="src:ABC"))))
 add(*lay(L(P(visual="bar", body={"rows": []}))))
 add(*lay(L(P(visual="kpi", body={}), P("b", x=4, visual="slicer", body={"rows": [{"column": "工程"}]}))))
 add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": {"k": "\x01"}}]))), py=True)
+add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": ["\u3040"]}]))), py=True)   # 割り当ての無い字（Python は \\u で逃がす）
+add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": ["あ", "ア", "漢", "Ａ", "、"]}]))))
 # ---- 稼働・ABC
 add(*lay(L(P(visual="gantt", ops={"start": " 開始 ", "end": "終了", "label": "", "color": "色", "span": "lead", "refPeriod": {"kind": "months", "n": 3, "column": "x"},
                                   "hide": ["chart", "x", "share"], "cls": [" 合金 ", "調質", "合金", "", "a", "b", "c"], "qty": "", "base": "  ",

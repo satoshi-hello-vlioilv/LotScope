@@ -349,6 +349,11 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         items.extend(builtins(&src));
         let chosen = quick_for(&quick_rows, &src, &who.login).ok()?;
         let known: Vec<String> = items.iter().map(|x| py_str(&x["id"])).collect();
+        // 既定のすぐに見るは共通デフォルトの行を id で並べる（Python の sorted。真偽・小数・null の id は比べ方が違う・null は TypeError）
+        let placed: Vec<&Value> = items.iter().filter(|x| x["scope"] == "default" && x["builtin"] != true).collect();
+        if placed.len() >= 2 && placed.iter().any(|x| x["id"].as_i64().is_none()) {
+            return None;
+        }
         let dflt = default_quick(&items);
         let quick = match &chosen {
             Some(c) => c.iter().filter(|k| known.contains(k)).cloned().collect(),
@@ -391,6 +396,19 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     let empty = Map::new();
     let d = parsed.as_object().unwrap_or(&empty);
     if route == Route::Quick {
+        // すぐに見るの置き場の行も、窓が Python と同じに読めること（表でない行は Python が落ちて書かない）。
+        // 自分の行が中身まで同じ物を 2 つ持つと、Python の rows.remove(r) は == で先の行を消し、書いた行が残らない（窓は答えない）
+        let quick_rows = place.rows(QUICK_NAME).ok()?;
+        if !quick_rows_plain(&quick_rows) {
+            return None;
+        }
+        let login = who.login.as_str();
+        let src = d.get("source").and_then(Value::as_str).unwrap_or("");
+        let mine: Vec<&Value> =
+            quick_rows.iter().filter(|r| r["ログインID"].as_str() == Some(login) && r["元"].as_str() == Some(src)).collect();
+        if mine.iter().enumerate().any(|(i, a)| mine[..i].contains(a)) {
+            return None;
+        }
         return quick_put(store, &who, d);
     }
     if !pr::plain_input(d) || !body_plain(d.get("body")) {
@@ -476,7 +494,7 @@ fn quick_put(store: &Store, who: &Who, d: &Map<String, Value>) -> Option<Answer>
                 rows.len() - 1
             }
         };
-        let rev = rows[i]["rev"].as_i64().unwrap_or(0) + 1;
+        let rev = master_rows::py_int(&rows[i]["rev"]).unwrap_or(0) + 1; // Python の int(row.get("rev", 0)) + 1（"3"・2.0・真も読む）
         let row = rows[i].as_object_mut().unwrap();
         row.insert("並び".into(), json!(crate::join::py_dumps(&json!(keys))));
         row.insert("rev".into(), json!(rev));

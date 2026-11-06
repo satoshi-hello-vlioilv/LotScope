@@ -223,5 +223,66 @@
   "D 組み方 5 本＋ダッシュボードの中身の小さい 2 本（消す・外す）": "A に加えて DELETE /api/dashboards/<id>（中身を見ない）と PUT /api/dashboards-hidden（clean_hide_body は keys の字の並びだけ）を窓へ。clean_layout が要る GET・POST・PUT は Python に残す。小さく確かに進める。",
   "E 組み方 5 本＋ダッシュボードの中身の確かめを部品として先に（道は次の版）（新）": "A に加えて、clean_layout 一式を Rust の部品（desktop/src/layout_clean.rs）にし、Python の clean_layout と事例の表（tests/fixtures/layout_cases.json。画面が作るパネルの形・組み込み・壊れた形・送った順・小数・大きさの境を Python で焼く）で突き合わせる。道（ダッシュボード 5 本）は次の版でこの部品の上に載せる。中身の確かめの割れを道の前に閉じる。",
   "F 組み方 5 本＋ダッシュボード 5 本を、問い合わせと保存で 1 つの clean_panel にして（新）": "C と同じ 10 本を窓へ移すが、窓の dashboard.rs の問い合わせ用 clean_panel を Python の clean_panel と同じ形（x/y/w/h・id・fmt・legacy を持つ）に広げ、保存も問い合わせも同じ部品を通す（Python も 1 つの clean_panel を両方に使っている）。問い合わせの答え（dash_parity）と保存の答え（新しい dashboards_parity）の両方で突き合わせる。組み込みは焼いた表。"
+ },
+ "built": {
+  "name": "作った後",
+  "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-06。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・両方へ当てて確かめた事実で採点した。リポジトリの中には何も置かず、窓は scratchpad の作業用クレート（da_core を path 依存・CARGO_TARGET_DIR は desktop/target を共用）から呼んだ",
+  "result": {
+   "proposal": "E 組み方 5 本＋ダッシュボードの中身の確かめを部品として先に（作った後）",
+   "score": {
+    "order": 9,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 9,
+    "steps": 5,
+    "effortless": 6,
+    "intuitive": 7,
+    "form": 7,
+    "place": 6,
+    "layout": 7,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "PUT /api/pivot-quick の版の読み方: 自分の行の rev が字 \"3\"・2.0・真・\"３\"・\" 4 \" の置き場で、keys を 2 回置く（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe_quick2.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/quick2.tsv）。Python は int(row.get(\"rev\", 0)) + 1 で 5・4・3・5・6、窓の pivot_presets.rs quick_put は rows[i][\"rev\"].as_i64().unwrap_or(0) + 1 なので 2 と置き、共有と写しのファイルの rev が割れる（答えは同じ）。直し方: master_rows::py_int（preset_rows::write と同じ）で読む"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "PUT /api/pivot-quick は置き場のすぐに見るの行を確かめない: 行に表でない物（\"x\"）がある置き場（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe_presets.py の「すぐに見るの行: 表でない行」→ /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/presets_probe.tsv）で、Python は _normalize_all の setdefault が AttributeError で 400 と答えて書かず、窓は 200 で書き（既定に戻すと行が [\"x\"] だけになる）答えもファイルも割れる。GET は quick_rows_plain で Python に任せているが、Route::Quick は pivot_presets の行しか見ない。直し方: Quick でも quick_rows_plain（表でない行・項目が字でない行）を見て任せる"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "すぐに見るの行が中身まで同じ 2 つ（QR(1,p1,lot,[3]) が 2 回）: Python の quick_set は rows.remove(r) が == で最初の行を消すので、1 つ目の行（row = mine[0]）が rows から外れたまま書き換えられ、置いた並びが残らない（GET の quick は [\"3\"]。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/quick2.tsv・/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/presets_probe.tsv）。窓は 1 つ目を残して書き換え [\"7\"]・rev 3、Python は rev 2 で古い並び。直し方: Python を「is で外す」に直す（Python の誤り）か、窓が同じ行の重なりを Python に任せる。どちらでも事例を presets_oracle に足す"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "GET /api/pivot-presets のすぐに見るの既定（default_quick）の並べ方: 共通デフォルトの行の id が null と 2（Python は sorted が TypeError で 500、窓は 200）・真と 0（Python は id の値の順で [\"0\",\"True\"]、窓は as_i64 が真を 0 と読まず [\"True\",\"0\"]）・2.0 と 1（Python [\"1\",\"2.0\"]、窓 [\"2.0\",\"1\"]）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/presets_probe.tsv の「置き場の行: id が …」。row_readable は id の null・真偽・小数を通すので答えが割れる。直し方: 並べる鍵を Python と同じ数の比べ方（真偽は 0・1、小数はそのまま）にし、null が 2 つ以上と混ざるときは任せる"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "layout_clean の repr（py_repr の repr_safe）: 0x3001〜0x9fff を印字できる字と見るが、Python 3.13（Unicode 15.1）では割り当ての無い 22 字（U+3040・U+3097・U+3098・U+3100〜3104・U+3130・U+318F・U+31E4〜31EE・U+321F）が isprintable でなく、repr が \\\\u3040 の形に逃がす。条件の値 [\"\\u3040\"] → Python \"['\\\\u3040']\"・窓 \"['぀']\"（置く字が割れる。本文の数の門〈master_rows::unreadable〉は通る）。condition_of の前の版の条件の中でも同じ（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe_layout.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/layout_probe.tsv の [4]〜[7]・[219]）。直し方: 22 字を除く（または Python の isprintable を焼いた表）・事例を layout_cases に足す"
+    }
+   ],
+   "seen": "読んだ物: desktop/src の pivot_presets.rs 全部・layout_clean.rs 全部・preset_rows.rs 全部・lot.rs の presets_route と試験・formula.rs の clean_calc と CalcColumns・master_rows.rs（text_split・unreadable・split_number・same_id・row_readable・value_plain・clean・base_rev・py_int）・jsontree.rs の木の読み方・pyfmt.rs（strip・is_space・digit・py_int・py_float・float_repr・str_repr）・dashboard.rs の is_screen_source、program/app の routes/presets.py・services/pivot_presets.py 全部・services/dashboard.py の clean_layout 一式（:25〜:824）・services/aggregate.py の _num と clean・services/formula.py の clean_calc・repositories/master_repository.py の _normalize・_check_row・_preset_write・quick_set・routes/common.py の base_rev と find_row・web.py の int の道、program/tests/presets_oracle.py と desktop/tests の presets_parity.rs・layout_cases.rs と program/tools/layout-cases.py。【当てた物】作業用クレート /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe（main.rs が presets_parity と同じ形で pivot_presets::answer を当て、答えと置き場のファイルを突き合わせる・layout_cases と同じ形で clean_layout・clean_hide_body・condition_of を当てる・formula::clean_calc を当てる）。(1) 組み方の道: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe_presets.py（presets_oracle の場面を差し替え）368 歩 → 窓が答えた 333・任せた 35、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe_quick2.py 44 歩 → 43・1。当てた形: すぐに見るの置き場の行 19 通り（版の字・2.0・真・無い・同じ行 2 つ・id だけ違う 2 つ・表でない行・id が字・ほかの人のログインID が数・並びが数・null・NaN の字・大きな数・\" 3 \"/3/3.0/真/null/\\x1c7\\x1c/1e2 の混ざった字・表・字の字・空・25 個・全角）×（GET・PUT・GET・reset・GET）、すぐに見るの本文（50 字の数・b:é・前後の空白と \\x1c・全角空白・1e2・-5・+5・05・空・reset が字/0/[]/null・source が数・25 個・keys が表/字/null・並びと表の要素・src:abc・source の問い合わせ 2 つ/%6C/+/大文字の鍵/17 字）、chartAt の字 15 通り（18 字の先頭 0・+・1_000_000_000_000・-1・\\x0b3・٣٣・𝟑・³・0003・ -0 ・1_・_1・1__0・١_٢）と数 10 通り（1e2・3.5・-3・0・偽・null・{}・[]・空・i64 の最大）、dec 15 通り（2.5・3.5・0.5・1.5・5.5・6.5・1e300・-1e300・-0.5・7・\"3\"・真・null・2.4999999999999996・1e-300）、段の part と width・origin 13 通り（1.5・1e16・真・0.1+0.2・1e-7・5e-324・最大・1e21・1e22・123456789012345680000.0・\\x1c・12 字の空白・11 字）、値の式 33 通り（x/0・2x・x x・値÷1000・x**2・−x・x/1e3・x%2・√x・x^-1・--x・ｘ＊２・x÷・0.5x・x.5・x^0.5^2・x(2)・(x)(2)・２・61 字・数・真 ほか）、名前 11 通り（空白・\\x1c・結合字 40/41・絵文字 40/41・真・0・偽・-5・全角空白）・備考 7・標準 7・範囲の数と null・ログイン ID なし、中身の字 7 通り（空白・\"{}\"・鍵の重なり・末尾の空白・BOM・1E2・\\u0061）、200 字を超える列・\\x00・U+2028・src: の 16/17 字、形 5・真偽 7、置き場の組み方の行 15 通り（id が null 2 つ/1 つ・真と 0・2.0 と 1・無い、版が字・2.0・真・無い、範囲が知らない値・空、updated_by が字・空、名前が無い・全角と半角の同じ名前、中身の形〈part 1.5・width 1e16・dec 2.5・chartAt ٣・1e20・[]・\"x\"・行が空・鍵の重なり・空白・17 字の chartAt〉、Infinity・大きな chartAt・-0 は任せる）×（GET 2・★を付けて PUT・版 \"1\" で PUT・DELETE ?rev=1・★の POST・GET）、名前の重なり（ｐ１/P1/p1・ﬁ/FI・ß/SS・İ/i̇・Ω/Ω）と版（1.5・真・\"1.0\"・[1]・abc・2）。割れは減点の 4 つ（版の読み方・表でない行・同じ行 2 つ・既定の並べ方）だけで、ほかの 330 余りの歩は答えも共有・写し・同梱のファイルも同じ。(2) 部品: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe_layout.py 232 件 → 答えた 179・任せた 53、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/probe_layout_ws.py 40 件 → 40 件とも同じ。当てた形: repr 35 通り（引用符・\\・印字できない字・入れ子・小数 1e16/0.1+0.2/1e-7/5e-324/最大/1e20/1.0/100.0）、生の数の字 12 通り×2（1E2・-1.5E-3・1e-5・0e0・大きな整数・-0・9007199254740993 ほか。-0 と大きな整数は木では割れるが本文の門 unreadable が任せる）、str.strip の空白 20 通り（\\x1c〜\\x1f・\\x85・\\xa0・U+1680・U+2000・U+200A・U+2028・U+2029・U+202F・U+205F・U+3000・ZWSP・BOM・U+180E・\\x0b・\\x0c）を題・検索・設備・条件・期間の列・グループ・書式の num/utext/expr/colors/series/refs/numUi/labels・段・値・計算列・稼働・合わせた表・スライサーに、int() の字 19 通り（4,301 桁と 4,300 桁・下線つき 2,201 桁・+_1・1__0・ -0 ・\\t7\\n・0b11・1.0・1e1・全角・٣・²）・真偽と小数と並び、float() の字 24 通り（1_0・1e1_0・.5・5.・infinity・nAn・0x10・1e-400・1e400・3,000 桁の小数・3,990 桁 ほか）×（書式・基準線・ABC の線・p 点・桁・Cpk）、ABC の線の丸め（0.12345・33.33335・99.99995・100.00004・4.99995e-5・2.67505・x/7 の 59 本）、\\d の日付 12 通り（アラビア・デーヴァナーガリー・数学の太字・上付き・ローマ数字・ジャワ・リンブ）、送った順と鍵の重なり（色・系列の 41 個・同じ鍵 2 つ・201 字で切った後の重なり・own・names 410・設備 205）、id の付け直し 10 通り、128KB の境の前後 5 件、外した組み込み 15 通り・前の版の条件 13 通り。割れは減点の repr の 1 つ（割り当ての無い 22 字）だけ。(3) formula::clean_calc の直し: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves4/calc_ws.json の 18 通りの空白で式・表示名・設備の鍵が Python の formula.clean_calc と同じ（割れ 0）。【流した評価関数】cd desktop && cargo test --locked --test presets_parity --test layout_cases（どちらも ok）・python -m unittest tests.test_layout_cases tests.test_pivot_builtins（Ran 4 tests・OK）・python tools/layout-cases.py --check（同じ）。【割れではないが次の版の落とし穴】(a) clean_layout の id の付け直しは、panels の id が [p6, a, a] のように付け直した先の名前がもうあると while が終わらない（Python で 10 秒で打ち切り＝止まったまま。窓の部品も同じ形の loop なので、道に載せると窓の糸が止まる。Python と窓を一緒に直し、事例に足す）。(b) 部品は木を受けるので、-0・i64 に入らない整数は木のままでは割れる（-0 → \"-0.0\"・12345678901234567890 → \"1.2345678901234567e+19\"）。道に載せるときは本文に master_rows::unreadable を先に当てること（今の部品の事例の表には、この形が無い）。【点】前の記録と同じ読み替え。部品を道より先に事例の表で閉じる筋（順序 9）と、表と道の parity で食い違いを数で見せられる所（視覚化 9）は案どおり。組み方の 5 本は、中身・名前・版・★・範囲・錠・手元だけ・写しのどれも割れず、任せる形の判定も狭すぎない。一方、PUT /api/pivot-quick は GET と違って置き場の行の確かめ（quick_rows_plain・py_int）を通しておらず、同じ部品の中で読み方が 2 通りある（考えさせない 6・言葉と置き場 6）。減点は 5 つ（状態が見えない −3 × 5）"
+  }
+ },
+ "built_fixed": {
+  "date": "2026-11-06",
+  "fixed": [
+   "1. PUT /api/pivot-quick の版: 置き場の行の rev が \"3\"・2.0・真・\" 4 \" のとき窓は 2 にしていた。Python と同じ int(rev) + 1（master_rows::py_int）で読む。",
+   "2. PUT /api/pivot-quick で、すぐに見るの置き場に表でない行があれば窓は答えず Python に任せる（Python は落ちて書かない）。",
+   "3. 自分のすぐに見るの行が中身まで同じ 2 つあるとき、窓は答えず Python に任せる（Python の rows.remove(r) は == で先の行を消し、置いた並びが残らない）。",
+   "4. 既定のすぐに見るの並べ方: 共通デフォルトの行の id に数でない物（null・真偽・小数）が混ざって 2 つ以上なら、窓は答えず Python に任せる。",
+   "5. 部品 layout_clean の repr: 和文の範囲から割り当ての無い字（U+3040・U+3097・U+3098 など。Python は \\u で逃がす）を外し、割り当てのある範囲だけを字のまま書く。",
+   "落とし穴 (a): パネルの id の付け直しで、付け直す先の名前ももうあると止まらなかった（[p6, a, a]）。Python（services/dashboard.py の clean_layout）と窓を一緒に、次の数へ進む形に直した。"
+  ],
+  "tests": [
+   "program/tests/presets_oracle.py に 7 場面を足した（すぐに見るの行の版が字・小数・真／表でない行／中身まで同じ 2 行／共通デフォルトの id が null と 2・真と 0・小数と 1）。cargo test --test presets_parity",
+   "program/tools/layout-cases.py に 4 件を足して焼き直した（付け直す先がもうある id 2 件・割り当ての無い字・和文の字）。cargo test --test layout_cases。88 件",
+   "直しを 1 つずつ元へ戻すと、版 2 件・行の形 4 件・同じ 2 行 3 件・id の並べ方 3 件・repr 1 件が落ちる（id の付け直しは前の形では止まらない）"
+  ],
+  "note": "決まり 2026-11-06 により採点し直さない。落とし穴 (b)（木のままでは -0・大きな整数が字に変わる）は、道に載せる次の版で本文に master_rows::unreadable を先に当てる。"
  }
 }

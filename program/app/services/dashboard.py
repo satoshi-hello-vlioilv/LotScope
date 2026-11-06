@@ -638,8 +638,10 @@ def clean_layout(body):
     panels, ids = [], set()
     for i, p in enumerate(raw):
         x = clean_panel(p, i, rows)
-        while x["id"] in ids:
-            x["id"] = f"p{len(ids) + i + 2}"
+        n = len(ids) + i + 2
+        while x["id"] in ids:       # 付け直す先の名前ももうあれば次の数へ（版 3.81.0。前は同じ名前を作り続けて止まらなかった）
+            x["id"] = f"p{n}"
+            n += 1
         ids.add(x["id"])
         hit = next((q for q in panels if overlaps(q, x)), None)
         if hit:
