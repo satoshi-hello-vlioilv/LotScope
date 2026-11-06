@@ -393,10 +393,11 @@ impl Place {
 
     /// マスタの行（MasterStore.read と同じ物: 共有するマスタは共有のファイル → 写し、無ければ同梱の data/ → 最初の中身）。
     /// 共有のファイルを直に読む（Python の写しは Python が読むときに取り直すので、窓が読むときに古いことがある）
-    /// 置き場のマスタのファイル（共有・写し・同梱の data/・既定）のどれかに、窓の serde が読めない深い入れ子
-    /// （master_rows::SERDE_DEPTH 段以上）があるか（版 3.79.0）。あれば窓は読む物が Python と割れる（共有を読めずに写しへ流れる・
-    /// 書けない）ので、そのマスタを使う道は Python に任せる
-    pub fn too_deep(&self, name: &str) -> bool {
+    /// 置き場のマスタのファイル（共有・写し・同梱の data/・既定）のどれかを、窓が Python と同じに読めないか（版 3.79.0）:
+    /// master_rows::text_split（入れ子 SERDE_DEPTH 段以上・NaN・Infinity・1e400 のような指数の数・-0・i64 に入らない整数・
+    /// 対の無い代用字の \u）か、UTF-8 でない。あれば窓は読む物・書き戻す物が Python と割れる（共有を読めずに写しへ流れる・
+    /// NaN を読めずに書けない・-0 を -0.0 と書き戻す・代用字を U+FFFD に読み替える）ので、そのマスタを使う道は Python に任せる
+    pub fn split_file(&self, name: &str) -> bool {
         let file = format!("{name}.json");
         let mut dirs: Vec<&PathBuf> = vec![];
         if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {
@@ -405,8 +406,12 @@ impl Place {
         }
         dirs.push(&self.data);
         dirs.push(&self.defaults);
-        dirs.iter()
-            .any(|d| std::fs::read(d.join(&file)).is_ok_and(|b| crate::master_rows::json_depth(&b) >= crate::master_rows::SERDE_DEPTH))
+        dirs.iter().any(|d| {
+            std::fs::read(d.join(&file)).is_ok_and(|b| {
+                let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
+                std::str::from_utf8(b).map_or(true, crate::master_rows::text_split)
+            })
+        })
     }
 
     pub fn rows(&self, name: &str) -> Result<Vec<Value>, String> {

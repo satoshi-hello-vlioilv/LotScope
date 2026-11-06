@@ -175,6 +175,12 @@ SCENARIOS = [
                         ("名前の大文字が Unicode の版で割れる字", R(2, "\u1c8a", "dashset", "ID", login="p1")),
                         ("名前が Unicode 16 の合成でできる字", R(2, "\U00016121", "dashset", "ID", login="p1")),
                         ("ほかの元の行の値の入れ子が 130 段", dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130)))]],
+    *[{"name": f"共有のファイルの字に {what}（窓は答えず Python に任せる）", "mode": "shared",
+       "rows": [R(1, "良い行", "dashset", "共通"), dict(R(2, "生の値", "dash", "共通", note=note), x="@RAW@")], "raw": raw,
+       "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}),
+                                  S(PART, "PUT", 1, {"name": "b"})]}
+      for what, note, raw in [("NaN", "", "NaN"), ("Infinity", "", "Infinity"), ("1e400", "", "1e400"), ("整数の -0", "", "-0"),
+                              ("i64 に入らない整数", "", "1" + "0" * 30), ("対の無い代用字", "@SUR@", '"x"')]],
     {"name": "共有のファイルの値の入れ子が 130 段・写しは前の中身（窓は答えず Python に任せる）", "mode": "shared",
      "rows": [R(1, "新", "dashset", "共通"), dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130))],
      "mirror_rows": [R(1, "前", "dashset", "共通")], "steps": [],
@@ -195,6 +201,10 @@ def place(root, sc):
             (cache / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
         else:
             (share / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
+    if sc.get("raw") is not None:             # 生の字を置く（json.dumps では書けない NaN・-0・大きな整数・対の無い代用字）
+        f = share / f"{FILE_NAME}.json"
+        t = f.read_text(encoding="utf-8").replace('"@RAW@"', sc["raw"]).replace("@SUR@", "\\ud800")
+        f.write_text(t, encoding="utf-8")
     if sc.get("mirror_rows") is not None:     # 写しは共有と違う中身（共有を読めないとき窓が写しへ流れないか）
         (cache / f"{FILE_NAME}.json").write_text(j(doc(sc["mirror_rows"])), encoding="utf-8")
     if sc.get("lock"):          # ほかの PC が保存している途中（切れていない錠。窓も Python も 409 locked で答え、書かない）

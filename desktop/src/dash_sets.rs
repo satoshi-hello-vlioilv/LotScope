@@ -117,10 +117,10 @@ fn sets<'a>(rows: &'a [Value], login: &str) -> Vec<&'a Map<String, Value>> {
         .collect()
 }
 
-/// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場のファイルに窓の読めない深い入れ子が
-/// ある（Place::too_deep）・置き場を読めないときは None（Python に任せる）
+/// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場のファイルを窓が Python と同じに
+/// 読めない（Place::split_file: 深い入れ子・NaN・-0・大きな整数・対の無い代用字など）・置き場を読めないときは None（Python に任せる）
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
-    if place.too_deep(DASHBOARDS.name) {
+    if place.split_file(DASHBOARDS.name) {
         return None;
     }
     let rows = place.rows(DASHBOARDS.name).ok()?;

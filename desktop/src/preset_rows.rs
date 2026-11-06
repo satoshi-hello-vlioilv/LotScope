@@ -127,23 +127,8 @@ pub fn sort_views(items: &mut [Value]) {
     items.sort_by(|a, b| order(a).cmp(&order(b)).then_with(|| a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or(""))));
 }
 
-/// 字の JSON を Python の json.loads と窓の serde で読みが割れるか（割れるなら Python に任せる）。serde が読める字は数の割れ
-/// （master_rows::split_number: -0・i64 に入らない整数）だけを見る。serde が読めない字は、Python だけが読む形（NaN・Infinity・
-/// 1e400 のような指数の数・片割れの代用字の \u）が入っていそうなら割れる、入っていなければ Python も読めない（どちらも「読めない」で同じ）
-pub fn text_split(t: &str) -> bool {
-    // serde_json は入れ子 128 段で読むのをやめる（Python は読む）。字の外の [ { の深さで見る
-    if master_rows::json_depth(t.as_bytes()) >= master_rows::SERDE_DEPTH {
-        return true;
-    }
-    if serde_json::from_str::<Value>(t).is_ok() {
-        return master_rows::split_number(t.as_bytes());
-    }
-    let b = t.as_bytes();
-    t.contains("NaN")
-        || t.contains("Infinity")
-        || t.contains("\\u")
-        || b.windows(2).any(|w| w[0].is_ascii_digit() && matches!(w[1], b'e' | b'E'))
-}
+/// 字の JSON を Python と窓で読みが割れるか（master_rows::text_split。ここでも同じ名前で使う）
+pub use crate::master_rows::text_split;
 
 /// 置き場の行を窓が Python と同じに読めるか: id・版が読め（master_rows::row_readable）、置く項目は字か無い（Python の並べ替え・比べ方が
 /// 字のときと同じになる）、中身の字は窓の serde が Python の json.loads と同じに読める（text_split）
