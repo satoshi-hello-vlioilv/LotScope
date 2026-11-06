@@ -151,6 +151,37 @@ impl Py<'_> {
 }
 
 /// Python の repr(float)（いちばん短く元へ戻る数字で、小数点の位置が -4〜16 の外なら指数で書く）。
+/// いちばん短く戻る数字と指数（例 1234.5 → ("12345", 3)）。Rust の {:e} は、いちばん短い字の候補が 2 つあり本当の値が丁度その
+/// まん中のとき（1059438285926254.25 など。1e11〜1e16 の大きさで 2 進の短い小数を持つ値）上へ丸めるが、Python の repr（dtoa の mode 0）は
+/// 偶数へ寄せる。そのときだけ 1 つ下（偶数）の字にする（版 3.80.0。事例の表 tests/fixtures/pyfloat_cases.json で Python 3.13 と突き合わせる）
+fn shortest_digits(f: f64) -> (String, i32) {
+    let e = format!("{:e}", f.abs());
+    let (mant, exp) = e.split_once('e').unwrap();
+    let mut digits: String = mant.chars().filter(|c| *c != '.').collect();
+    let exp: i32 = exp.parse().unwrap();
+    let n = digits.len();
+    let last = digits.as_bytes()[n - 1] - b'0';
+    if n > 1 && last % 2 == 1 {
+        let mut mid = digits[..n - 1].to_string();
+        mid.push((b'0' + last - 1) as char);
+        mid.push('5');
+        // 1 桁多く丸めた字がまん中の字のときだけ、本当の値（800 桁。f64 の 10 進の展開は 767 桁で終わる）で丁度かを確かめる
+        let near = format!("{:.*e}", n, f.abs());
+        let nd: String = near.split_once('e').unwrap().0.chars().filter(|c| *c != '.').collect();
+        if nd == mid {
+            let exact = format!("{:.800e}", f.abs());
+            let ed: String = exact.split_once('e').unwrap().0.chars().filter(|c| *c != '.').collect();
+            if ed.trim_end_matches('0') == mid {
+                let lower = &mid[..n];
+                if format!("{}.{}e{}", &lower[..1], &lower[1..], exp).parse::<f64>().ok() == Some(f.abs()) {
+                    digits = lower.to_string();
+                }
+            }
+        }
+    }
+    (digits, exp)
+}
+
 pub fn float_repr(f: f64) -> String {
     if f.is_nan() {
         return "nan".into();
@@ -158,10 +189,7 @@ pub fn float_repr(f: f64) -> String {
     if f.is_infinite() {
         return if f > 0.0 { "inf".into() } else { "-inf".into() };
     }
-    let e = format!("{:e}", f.abs()); // いちばん短く戻る数字（例 "1.2345e3"）
-    let (mant, exp) = e.split_once('e').unwrap();
-    let digits: String = mant.chars().filter(|c| *c != '.').collect();
-    let exp: i32 = exp.parse().unwrap();
+    let (digits, exp) = shortest_digits(f);
     let decpt = exp + 1; // 0.d1d2… × 10^decpt
     let sign = if f.is_sign_negative() { "-" } else { "" };
     let n = digits.len() as i32;

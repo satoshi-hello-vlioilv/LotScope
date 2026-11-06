@@ -692,6 +692,32 @@ Rust の実際の時間は「手を 0 にした下限」の 0.7〜1.7 倍に収�
 - 版 3.77.0 の配る版が作られなかった原因（Windows の CI で、スケジュールの同時に取りに行く試験が合計の時間 1.15 秒の上限を 1.38 秒で越えた）も、
   この版で直した（tests/test_schedule.py。L-2 と L-3 の取りに行きが Barrier で居合わせたかを見る。順に取りに行く作りでは落ちる）。
 
+### 段 2 の 3 歩目: 小数の書き方・送った順の木・共有の書式とカードの設計 — 版 3.80.0
+
+保存の道の残り 18 本（組み方のプリセット 5・ダッシュボード 5・カード 4・書式 4）のどれを移すかは、画面に関係のない改良の決まり（2026-11-06。採点は 1 回ずつ）で、
+6 案を別のエージェントが 1 回だけ読んで・動かして採点した（`tools/ui-proposals/2026-11-port-saves3.json`。1 位 **D** 64.8 点）。合格点に届かなくても案出しをやり直さず、
+採点の指摘を直して入れた D（小数の書き方の直し・送った順の JSON の木・共有の書式 4 本・カードの設計 4 本）を作った。
+
+- 小数の書き方（`pyfmt::shortest_digits`・`float_repr`、`join::py_number`）: Rust の最短の桁は、丁度まん中の値（例 1059438285926254.25）で Python の float.__repr__ と
+  逆に丸めていた（Python は偶数へ）。最短の桁の最後の字が奇数のとき、1 つ下の偶数の桁との丁度まん中かを正確な桁（{:.800e}）で確かめ、まん中なら偶数へ。
+  py_dumps の数も Python の json.dumps（NaN・Infinity・float の repr）と同じにした。評価関数: `cargo test --test pyfloat_cases`
+  （← `tests/fixtures/pyfloat_cases.json`。Python 3.13 の repr と json.dumps の 5,754 の数〈まん中の値・10 の冪・境・乱数〉。前の書き方では repr 9・dumps 82 が割れる。
+  表を作り直すのは `python program/tools/pyfloat-cases.py`、古い表は `tests/test_pyfloat_cases.py` が止める）。
+- 送った順の JSON の木（`desktop/src/jsontree.rs`）: serde_json の Map は鍵を字の順に並べ直す（preserve_order は tauri を含む crate 全体を替えるので使わない）。
+  共有の書式の中身は Python が送った順のまま json.dumps(separators=(',', ':')) で置くので、この木で読み、この木で書く（同じ鍵は後ろの値を前の位置に。Python の dict と同じ）。
+- 共有の書式の 4 本（GET／POST /api/masters/formats・PUT／DELETE …/<id>）を窓が受ける（`desktop/src/formats_write.rs`。Lot::formats_route。書くのは門番を通す）。
+  中身は display_formats.clean_body（部品ごとに並びか表か・Python の真偽・512KB）、同じ（名前の比べ方, 元）は 1 つ。
+  評価関数: `cargo test --test formats_parity`（← `tests/formats_oracle.py`。16 場面・72 歩の答えとできたファイル〈中身の字の鍵の順まで〉、Python に任せる 44 歩）。
+  serde の順で書くと 3 件、同じ鍵を後ろに足すと 2 件、serde の小数で書くと 2 件、名前の比べ方を素の比べにすると 10 件、元の 80 字を外すと 5 件、任せる判定を外すと 6 件落ちる。
+- カードの設計の 4 本（GET／POST /api/card-forms・PUT／DELETE …/<id>）を窓が受ける（`desktop/src/card_forms.rs`。Lot::cards_route。書けるかは範囲で決める）。
+  中身は card_forms.clean_body（方眼の数は Python の int() を範囲に収める〈bool・小数の切り捨て・下線・前後の空白・読めなければ既定〉・項目の重なりはタブごと・
+  タブの id と名前・日付のまとまりの列・見出しの畳み・字の飾り・64KB）。方眼の数の字を Python の int() と同じに読めない形（全角や他の系統の数字・\x1c〜\x1f・
+  4,000 字を超える字）と、名前・列・式・字・タブが並び・表の項目は Python に任せる。
+  評価関数: `cargo test --test cards_parity`（← `tests/cards_oracle.py`。12 場面・98 歩の答えとできたファイル、Python に任せる 37 歩）。
+  重なりをタブごとに見ないと 7 件、任せる判定を外すと 14 件、畳まない見出しの閉じを残すと 4 件、大きな桁の頭打ちを変えると 4 件、日付の列の 30 を外すと 4 件、
+  真偽を数に読まないと 4 件落ちる。`lot::tests::the_window_answers_formats_and_card_forms`（本物の道・送った順の置く字・任せる形）。
+- 保存の行の部品 `preset_rows::clean_row` に元の確かめ（Some(元) なら合う元だけ）を足し、セット・書式・カードが同じ部品を使う。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

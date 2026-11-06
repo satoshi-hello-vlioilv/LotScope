@@ -165,13 +165,13 @@ fn str_or_empty(v: Option<&Value>) -> String {
     }
 }
 
-/// 画面から来た値 → マスタの行（pivot_presets.clean_row。source は呼ぶ側が決めた元〈セットは dashset〉。partial は直すとき〈来た物だけ〉。
+/// 画面から来た値 → マスタの行（pivot_presets.clean_row。source は呼ぶ側が確かめた元〈セットは dashset・カードは本文の source。合わなければ None〉。partial は直すとき〈来た物だけ〉。
 /// body_text は中身を確かめて置く字にする関数）。誤りは知らせの言葉
 pub fn clean_row(
     d: &Map<String, Value>,
     login: &str,
     partial: bool,
-    source: &str,
+    source: Option<&str>,
     body_text: &dyn Fn(Option<&Value>) -> Result<String, String>,
 ) -> Result<Map<String, Value>, String> {
     let mut row = Map::new();
@@ -186,6 +186,8 @@ pub fn clean_row(
         row.insert("名前".into(), json!(name));
     }
     if !partial {
+        // 元は呼ぶ側が確かめた物（None は合わない元。言葉は pivot_presets.clean_row と同じ。名前の次・範囲の前に見る）
+        let Some(source) = source else { return Err("元（lot・work・src:<キー>）が違います。".into()) };
         let scope = d.get("scope").and_then(Value::as_str).filter(|k| SCOPES.iter().any(|(s, _)| s == k));
         let Some(scope) = scope else { return Err("置き場（all か me）が違います。".into()) };
         if scope == "me" && login.is_empty() {
