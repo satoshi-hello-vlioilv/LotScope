@@ -11,6 +11,7 @@
 ここで変えるとこのマスタ自体が別の場所を見てしまう（設定ファイルで変える）。
 """
 import copy
+import math
 import os
 import sqlite3
 import time
@@ -105,6 +106,8 @@ def parse(item, raw):
             n = float(s)
         except ValueError:
             raise ValueError(f"「{item['label']}」は数で入れてください。") from None
+        if not math.isfinite(n):     # nan・inf は範囲の比べ方をすり抜け、設定の答えの JSON に NaN が入って窓が読めない（版 3.83.0）
+            raise ValueError(f"「{item['label']}」は数で入れてください。")
         if kind == "int":
             if n != int(n):
                 raise ValueError(f"「{item['label']}」は整数で入れてください。")

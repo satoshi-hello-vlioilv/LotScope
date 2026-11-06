@@ -1016,8 +1016,8 @@ fn clean_slicer(t: Option<&Tree>) -> Value {
     Value::Object(out)
 }
 
-/// clean_panel
-fn clean_panel(p: &Tree, i: usize, rows: i64) -> R<Map<String, Value>> {
+/// clean_panel（保存の道〈clean_layout〉と問い合わせの道〈dashboard::query〉の 1 か所。版 3.83.0）
+pub fn clean_panel(p: &Tree, i: usize, rows: i64) -> R<Map<String, Value>> {
     if !matches!(p, Tree::Obj(_)) {
         return err("パネルの形が違います。");
     }

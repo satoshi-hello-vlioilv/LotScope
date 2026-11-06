@@ -1,12 +1,14 @@
 //! ダッシュボードのパネルの数（版 3.62.0。Python の routes/dashboard.py の /api/dashboard/query と services/dashboard.py の確かめと同じ答え）。
 //!
-//! 1 枚のパネル（本文 {panel}）を確かめ（clean_panel）、段取り（どのファイルを読むか: lists.rs）をして、集計（pivot.rs の query_many）で数え、
+//! 1 枚のパネル（本文 {panel}。送った順の木で読む）を確かめ（保存の道と同じ layout_clean::clean_panel。版 3.83.0）、段取り（どのファイルを読むか: lists.rs）をして、集計（pivot.rs の query_many）で数え、
 //! 形に合わせて組み立てる: 設備の分け方（重ねる series・並べる facet・合算 sum）・別のデータを合わせる（link）・合わせた表（board）。
 //! 稼働（ガント・ABC）とスケジュール（CM3）のデータは Python が答える（None を返す。2 段目の版 3.63.0 で移す）。
 //! 材料（データ元・作業実績の登録・勤務体系・設備の名前・設備グループ・試験の「いま」）は、一覧の設定の答え（lists）で受け取る。
 //! 答えが同じことは desktop/tests/dash_parity.rs が Python の答え（program/tests/dash_oracle.py）と突き合わせて確かめる。
 
 use crate::formula::{self, Calc, Tables};
+use crate::jsontree::Tree;
+use crate::layout_clean::{self, Stop};
 use crate::lists::{Conf, Lists, Plan, Quality};
 use crate::lotlist::{json_str, json_truthy, TABLE_CANDIDATES, WORK_TABLES};
 use crate::operation::{self, ReadArgs};
@@ -20,52 +22,12 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-const MAX_FILTERS: usize = 20;
-const IN_MAX: usize = 20000;
 const MAX_EQUIPS: usize = 200;
-const MAX_EGROUPS: usize = 24;
-const SUM_NAME: &str = "選んだ設備の計";
 const MAX_FACETS: usize = 24;
-const MAX_SIDES: usize = 4;
-const MAX_GROUPS: usize = 4;
 const FIRST_WAIT: Duration = Duration::from_secs(30);
 const CACHE_MAX: usize = 96;
-const CHARTS: &[&str] = &[
-    "time",
-    "line",
-    "area",
-    "control",
-    "xbar",
-    "swimlane",
-    "column",
-    "bar",
-    "lollipop",
-    "pareto",
-    "stack",
-    "stack100",
-    "hstack",
-    "hstack100",
-    "stackarea",
-    "donut",
-    "treemap",
-    "sankey",
-    "hist",
-    "box",
-    "violin",
-    "heat",
-    "scatter",
-    "bubble",
-    "diag45",
-    "combo",
-    "waterfall",
-    "none",
-];
-const EXTRA_VISUALS: &[&str] = &["kpi", "board", "gantt", "abc", "slicer"];
 const OPS_VISUALS: &[&str] = &["gantt", "abc"];
 const BOX_VISUALS: &[&str] = &["box", "violin", "xbar"];
-
-/// パネルの確かめの失敗（Python の LayoutError。400）
-type R<T> = Result<T, String>;
 
 // ------------------------------------------------------------------ Python の字の扱い
 fn s_or(v: Option<&Value>) -> String {
@@ -80,102 +42,11 @@ fn cut(s: &str, n: usize) -> String {
 fn strip(s: &str) -> String {
     pyfmt::strip(s).to_string()
 }
-/// Python の _int(v, lo, hi, default)
-fn int_of(v: Option<&Value>, lo: i64, hi: i64, d: i64) -> i64 {
-    let n = match v {
-        Some(Value::Bool(b)) => Some(*b as i64),
-        Some(Value::Number(k)) => k.as_i64().or_else(|| k.as_f64().map(|f| f.trunc() as i64)),
-        // Python の int(): \x1c〜\x1f は空白と読まず、4,300 桁を超える数は断る（どちらも既定の値。版 3.82.0 の採点で top の '9'×5000 が割れていた）
-        Some(Value::String(t)) if t.chars().any(|c| ('\x1c'..='\x1f').contains(&c)) => None,
-        Some(Value::String(t)) if t.chars().filter(|c| pyfmt::digit(*c).is_some()).count() > 4300 => None,
-        Some(Value::String(t)) => pyfmt::py_int(t).ok(),
-        _ => None,
-    };
-    n.map(|n| n.clamp(lo, hi)).unwrap_or(d)
-}
 fn arr(v: Option<&Value>) -> &[Value] {
     v.and_then(Value::as_array).map(|a| a.as_slice()).unwrap_or(&[])
 }
-fn obj(v: &Value) -> Option<&Map<String, Value>> {
-    v.as_object()
-}
 
 // ------------------------------------------------------------------ 確かめ（services/dashboard.py）
-/// 段の並び（Python の pivot_presets._dims）
-fn dims(v: Option<&Value>) -> Vec<Value> {
-    let Some(Value::Array(a)) = v else { return vec![] };
-    let mut out = vec![];
-    for d in a.iter().take(3) {
-        let Some(m) = obj(d) else { continue };
-        let Some(col) = m.get("column").and_then(Value::as_str).filter(|c| !c.is_empty()) else { continue };
-        let mut x = Map::new();
-        x.insert("column".into(), json!(cut(col, 200)));
-        x.insert("part".into(), json!(cut(&s_or(m.get("part")), 10)));
-        for k in ["width", "origin"] {
-            if let Some(n @ Value::Number(_)) = m.get(k) {
-                x.insert(k.into(), n.clone());
-            }
-        }
-        out.push(Value::Object(x));
-    }
-    out
-}
-
-fn filters(v: Option<&Value>) -> Vec<Value> {
-    let mut out = vec![];
-    for f in arr(v).iter().take(MAX_FILTERS) {
-        let Some(m) = obj(f) else { continue };
-        let (col, op) = (strip(&s_or(m.get("column"))), strip(&s_or(m.get("op"))));
-        if col.is_empty() || op.is_empty() {
-            continue;
-        }
-        let op = cut(&op, 20);
-        let col = cut(&strip(&json_str(&m["column"])), 200);
-        let value = match m.get("value") {
-            None | Some(Value::Null) => String::new(),
-            Some(x) => cut(&json_str(x), if op == "in" { IN_MAX } else { 400 }),
-        };
-        let mut x = json!({"column": col, "op": op, "value": value});
-        if op == "in" {
-            if let Some(k) = m.get("key").and_then(Value::as_str).filter(|k| ["date", "month", "year"].contains(k)) {
-                x["key"] = json!(k);
-            }
-        }
-        out.push(x);
-    }
-    out
-}
-
-fn day_of(v: Option<&Value>) -> String {
-    let t = cut(&s_or(v), 10);
-    // Python の \d{4}-\d{2}-\d{2}（\d は全角などの数字にも当たる。pivot がその日付を読めずに断る所まで同じにする）
-    let cs: Vec<char> = t.chars().collect();
-    let ok = cs.len() == 10 && cs.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == '-' } else { pyfmt::digit(*c).is_some() });
-    if ok {
-        t
-    } else {
-        String::new()
-    }
-}
-
-fn period(v: Option<&Value>) -> Value {
-    let Some(m) = v.and_then(obj) else { return Value::Null };
-    let kind = m.get("kind").and_then(Value::as_str).unwrap_or("");
-    let col = strip(&s_or(m.get("column")));
-    if !pivot::PERIODS.iter().any(|(k, _)| *k == kind) || col.is_empty() {
-        return Value::Null;
-    }
-    let mut out = json!({"column": cut(&col, 200), "kind": kind, "n": int_of(m.get("n"), 1, 3660, 7)});
-    if kind == "range" {
-        let days: Vec<String> = [day_of(m.get("from")), day_of(m.get("to"))].into_iter().filter(|d| !d.is_empty()).collect();
-        if days.is_empty() {
-            return Value::Null;
-        }
-        out["from"] = json!(days.iter().min().unwrap());
-        out["to"] = json!(days.iter().max().unwrap());
-    }
-    out
-}
 
 fn names(v: Option<&Value>, n: usize) -> Vec<String> {
     let mut out: Vec<String> = vec![];
@@ -188,69 +59,6 @@ fn names(v: Option<&Value>, n: usize) -> Vec<String> {
     out
 }
 
-/// 値（Python の _measure）。合わなければ None
-fn measure(m: Option<&Value>) -> Option<Value> {
-    let m = m.and_then(obj)?;
-    if !m.get("agg").and_then(Value::as_str).is_some_and(aggregate::is_agg) {
-        return None;
-    }
-    let mut m = m.clone();
-    m.insert("column".into(), json!(cut(&s_or(m.get("column")), 200)));
-    let out = match aggregate::clean(&m, &|c| !c.is_empty()) {
-        Ok(o) => o,
-        Err(_) => {
-            if !m.get("expr").is_some_and(json_truthy) {
-                return None;
-            }
-            m.remove("expr");
-            return measure(Some(&Value::Object(m)));
-        }
-    };
-    let mut out = out;
-    if out.get("column").and_then(Value::as_str) == Some("") {
-        out.remove("column");
-    }
-    Some(Value::Object(out))
-}
-
-fn clean_egroup(v: Option<&Value>) -> Value {
-    let Some(m) = v.and_then(obj) else { return Value::Null };
-    let mode = m.get("mode").and_then(Value::as_str).unwrap_or("");
-    if !["sum", "panel", "master"].contains(&mode) {
-        return Value::Null;
-    }
-    let rest = m.get("rest").and_then(Value::as_str).filter(|r| ["keep", "other", "hide"].contains(r)).unwrap_or("keep");
-    let mut out = json!({"mode": mode, "rest": rest});
-    match mode {
-        "sum" => {
-            let n = cut(&strip(&s_or(m.get("name"))), 40);
-            out["name"] = json!(if n.is_empty() { SUM_NAME.to_string() } else { n });
-        }
-        "panel" => {
-            let mut gs = vec![];
-            for g in arr(m.get("groups")).iter().take(MAX_EGROUPS) {
-                let Some(g) = obj(g) else { continue };
-                let n = strip(&s_or(g.get("name")));
-                if !n.is_empty() {
-                    gs.push(json!({"name": cut(&n, 40), "members": names(g.get("members"), MAX_EQUIPS)}));
-                }
-            }
-            if gs.is_empty() {
-                return Value::Null;
-            }
-            out["groups"] = json!(gs);
-        }
-        _ => {
-            let set = cut(&strip(&s_or(m.get("set"))), 40);
-            if set.is_empty() {
-                return Value::Null;
-            }
-            out["set"] = json!(set);
-        }
-    }
-    out
-}
-
 pub(crate) fn is_screen_source(s: &str) -> bool {
     s == "lot"
         || s == "work"
@@ -258,194 +66,20 @@ pub(crate) fn is_screen_source(s: &str) -> bool {
             .is_some_and(|k| (1..=16).contains(&k.len()) && k.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
 }
 
-/// 数える元と行の決め方（Python の _data）
-fn data(p: &Map<String, Value>, what: &str) -> R<Map<String, Value>> {
-    let src = s_or(p.get("source"));
-    if !is_screen_source(&src) {
-        return Err(format!("{what}のデータ（lot・work・src:<キー>）が違います。"));
+/// 画面から来たパネル → 数える形。確かめは保存の道と同じ 1 か所（layout_clean::clean_panel。Python も services/dashboard.py の
+/// clean_panel を問い合わせと保存の両方で使う。版 3.83.0 で 1 つにした）。Err(None) は窓が Python と同じに読めない形（Python に任せる）
+fn clean_panel(p: &Tree) -> Result<Map<String, Value>, Option<String>> {
+    match layout_clean::clean_panel(p, 0, layout_clean::ROWS_MAX) {
+        Ok(m) => Ok(m),
+        Err(Stop::Layout(e)) => Err(Some(e)),
+        Err(Stop::Py) => Err(None),
     }
-    let mut out = Map::new();
-    out.insert("source".into(), json!(src));
-    out.insert("equip".into(), json!(cut(&s_or(p.get("equip")), 40)));
-    out.insert("filters".into(), json!(filters(p.get("filters"))));
-    out.insert("search".into(), json!(cut(&strip(&s_or(p.get("search"))), 200)));
-    out.insert("period".into(), period(p.get("period")));
-    out.insert("basis".into(), json!(if p.get("basis").and_then(Value::as_str) == Some("cal") { "cal" } else { "work" }));
-    let eq = names(p.get("equips"), MAX_EQUIPS);
-    if !eq.is_empty() {
-        out.insert("equips".into(), json!(eq));
-    }
-    if let Some(c) = p.get("calc").filter(|c| c.is_object()) {
-        if formula::clean_calc(&c.to_string()).is_some() {
-            out.insert("calc".into(), c.clone());
-        }
-    }
-    Ok(out)
 }
 
-fn clean_link(v: Option<&Value>, what: &str) -> R<Value> {
-    let Some(m) = v.and_then(obj) else { return Ok(Value::Null) };
-    let raw = arr(m.get("sides"));
-    if raw.is_empty() {
-        return Ok(Value::Null);
-    }
-    if !(2..=MAX_SIDES).contains(&raw.len()) {
-        return Err(format!("{what}の合わせるデータは 2〜{MAX_SIDES} つです。"));
-    }
-    let mut sides = vec![];
-    for (i, x) in raw.iter().enumerate() {
-        let Some(x) = obj(x) else { return Err(format!("{what}の合わせるデータの形が違います。")) };
-        let key = dims(Some(&json!(x.get("key").filter(|k| k.is_object()).cloned().into_iter().collect::<Vec<_>>())));
-        if key.is_empty() {
-            return Err(format!("{what}の合わせるデータ {} に、軸（合わせる段）がありません。", i + 1));
-        }
-        let mut msr = measure(x.get("measure")).unwrap_or_else(|| json!({"agg": "lots"}));
-        msr.as_object_mut().unwrap().remove("show");
-        let mut side = data(x, &format!("{what}の合わせるデータ {}", i + 1))?;
-        side.insert("title".into(), json!(cut(&strip(&s_or(x.get("title"))), 40)));
-        let role = x.get("role").and_then(Value::as_str).filter(|r| ["target", "actual"].contains(r)).unwrap_or("");
-        side.insert("role".into(), json!(role));
-        side.insert("build".into(), json!(if x.get("build").and_then(Value::as_str) == Some("cum") { "cum" } else { "as" }));
-        side.insert("key".into(), key[0].clone());
-        side.insert("measure".into(), msr);
-        sides.push(Value::Object(side));
-    }
-    let given = arr(m.get("extra"));
-    let extra: Vec<&str> = ["diff", "rate"].into_iter().filter(|e| given.iter().any(|g| g == e)).collect();
-    let mut out = json!({"sides": sides});
-    if !extra.is_empty() {
-        out["extra"] = json!(extra);
-    }
-    Ok(out)
-}
-
-fn clean_group(g: &Value, i: usize) -> R<Value> {
-    let Some(g) = obj(g) else { return Err("列のまとまりの形が違います。".into()) };
-    let title = cut(&strip(&s_or(g.get("title"))), 40);
-    let what = format!("列のまとまり「{}」", if title.is_empty() { (i + 1).to_string() } else { title.clone() });
-    let mut out = data(g, &what)?;
-    out.insert("title".into(), json!(title));
-    out.insert("measure".into(), measure(g.get("measure")).unwrap_or_else(|| json!({"agg": "lots"})));
-    out.insert("cols".into(), json!(dims(g.get("cols")).into_iter().take(2).collect::<Vec<_>>()));
-    Ok(Value::Object(out))
-}
-
-fn rows_is_equip(rows: &[Value]) -> bool {
-    rows.first().is_none_or(|r| r["column"] == "@equip")
-}
-
-fn board_default() -> Value {
-    json!({"rows": {"column": "@equip", "part": ""},
-           "groups": [{"title": "仕掛ロット数", "source": "src:wip", "equip": "", "filters": [], "search": "", "period": null, "basis": "work",
-                       "measure": {"agg": "lots"}, "cols": []},
-                      {"title": "", "source": "work", "equip": "", "filters": [], "search": "",
-                       "period": {"column": "@workday", "kind": "yesterday", "n": 7}, "basis": "work", "measure": {"agg": "lots"},
-                       "cols": [{"column": "@shift", "part": ""}]}],
-           "order": {}})
-}
-
-fn clean_board(p: &Map<String, Value>, what: &str) -> R<Map<String, Value>> {
-    let groups = arr(p.get("groups"));
-    let Value::Object(mut out) = (if groups.is_empty() {
-        board_default()
-    } else {
-        if groups.len() > MAX_GROUPS {
-            return Err(format!("{what}の列のまとまりは {MAX_GROUPS} つまでです。"));
-        }
-        let rows = dims(Some(&json!(p.get("rows").filter(|r| r.is_object()).cloned().into_iter().collect::<Vec<_>>())));
-        let gs: Vec<Value> = groups.iter().enumerate().map(|(i, g)| clean_group(g, i)).collect::<R<_>>()?;
-        let o = p.get("order").and_then(obj).cloned().unwrap_or_default();
-        let mut order = Map::new();
-        if rows_is_equip(&rows) && !strip(&s_or(o.get("tree"))).is_empty() {
-            order.insert("tree".into(), json!(cut(&strip(&s_or(o.get("tree"))), 40)));
-        }
-        let mut b =
-            json!({"rows": rows.first().cloned().unwrap_or_else(|| json!({"column": "@equip", "part": ""})), "groups": gs, "order": order});
-        for (k, v) in [
-            ("equips", json!(names(p.get("equips"), MAX_EQUIPS))),
-            ("egroup", clean_egroup(p.get("egroup"))),
-            ("filters", json!(filters(p.get("filters")))),
-        ] {
-            if json_truthy(&v) {
-                b[k] = v;
-            }
-        }
-        b
-    }) else {
-        unreachable!()
-    };
-    out.remove("legacy");
-    Ok(out)
-}
-
-/// 画面から来たパネル → 数える形（Python の clean_panel の、数えるのに要る所。見せ方〈書式・枠〉は数えないので見ない）。
-/// 稼働（ガント・ABC）は out["ops"] に選び方を置く（版 3.63.0。数えるのは operation.rs）
-fn clean_panel(p: &Value) -> R<Map<String, Value>> {
-    let Some(p) = obj(p) else { return Err("パネルの形が違います。".into()) };
-    let id = s_or(p.get("id"));
-    let pid = if (1..=16).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
-        id
-    } else {
-        "p1".into()
-    };
-    let title = cut(&strip(&s_or(p.get("title"))), 60);
-    let visual = p.get("visual").and_then(Value::as_str).filter(|v| CHARTS.contains(v) || EXTRA_VISUALS.contains(v)).unwrap_or("column");
-    let mut out = Map::new();
-    out.insert("id".into(), json!(pid));
-    out.insert("title".into(), json!(title));
-    out.insert("visual".into(), json!(visual));
-    let what = format!("パネル「{}」", if title.is_empty() { pid.clone() } else { title.clone() });
-    if visual == "board" {
-        out.extend(clean_board(p, &what)?);
-        return Ok(out);
-    }
-    let body = p.get("body").filter(|b| b.is_object()).cloned().unwrap_or(json!({}));
-    let ms: Vec<Value> = arr(body.get("measures")).iter().take(pivot::MAX_MEASURES).filter_map(|m| measure(Some(m))).collect();
-    let rows = dims(body.get("rows"));
-    out.extend(data(p, &what)?);
-    out.insert(
-        "body".into(),
-        json!({"rows": rows, "cols": dims(body.get("cols")), "measures": if ms.is_empty() { vec![json!({"agg": "lots"})] } else { ms }}),
-    );
-    let eg = clean_egroup(p.get("egroup"));
-    if !eg.is_null() {
-        out.insert("egroup".into(), eg);
-    }
-    if let Some(e) = p.get("esplit").and_then(Value::as_str).filter(|e| ["series", "facet", "sum"].contains(e)) {
-        out.insert("esplit".into(), json!(e));
-    }
-    let eo = names(p.get("eorder"), MAX_EQUIPS);
-    if !eo.is_empty() {
-        out.insert("eorder".into(), json!(eo));
-    }
-    if OPS_VISUALS.contains(&visual) {
-        // 稼働・ABC 分析（版 3.63.0 から窓が数える）: 作業実績だけ・行と列の段は使わない・設備のまとめと分け方は外す
-        if out["source"] != "work" {
-            return Err(format!("{what}の稼働・ABC 分析は、作業実績（作業開始と作業終了がある）で使えます。"));
-        }
-        out.insert("ops".into(), clean_ops(p.get("ops")));
-        out["body"]["rows"] = json!([]);
-        out["body"]["cols"] = json!([]);
-        out.remove("egroup");
-        out.remove("esplit");
-        return Ok(out);
-    }
-    let link = clean_link(p.get("link"), &what)?;
-    if !link.is_null() {
-        out.insert("link".into(), link);
-        return Ok(out);
-    }
-    if !["kpi", "none"].contains(&visual) && out["body"]["rows"].as_array().is_none_or(|r| r.is_empty()) {
-        return Err(format!("{what}は行の段が要ります（大きな数にするなら「数字」の形を選んでください）。"));
-    }
-    Ok(out)
-}
-
-// ------------------------------------------------------------------ 稼働・ABC 分析の確かめ（Python の clean_ops・abc_lims）
+// ------------------------------------------------------------------ 稼働・ABC 分析の線（確かめた後の ops を読む。確かめは layout_clean の clean_ops）
 const ABC_A: f64 = 70.0;
 const ABC_B: f64 = 90.0;
 const ABC_LIMS_MAX: usize = 50;
-const ABC_ITEMS: &[&str] = &["share", "occ", "lshare", "cum", "rank", "avg", "factor", "conv", "chart", "foot"];
 
 /// Python の _float（読めない・NaN・無限は None）
 fn float_of(v: &Value) -> Option<f64> {
@@ -473,61 +107,6 @@ fn abc_lims(v: &Map<String, Value>) -> Vec<f64> {
     } else {
         xs
     }
-}
-
-fn clean_ops(v: Option<&Value>) -> Value {
-    let empty = Map::new();
-    let v = v.and_then(obj).unwrap_or(&empty);
-    let col = |k: &str| cut(&strip(&s_or(v.get(k))), 200);
-    let lims = abc_lims(v);
-    let mut out = Map::new();
-    for k in ["start", "end", "label", "color"] {
-        if !col(k).is_empty() {
-            out.insert(k.into(), json!(col(k)));
-        }
-    }
-    if v.get("span").and_then(Value::as_str) == Some("lead") {
-        out.insert("span".into(), json!("lead"));
-    }
-    if let Some(Value::Object(r)) = v.get("refPeriod") {
-        let mut r = r.clone();
-        r.insert("column".into(), json!("@workday"));
-        let rp = period(Some(&Value::Object(r)));
-        if !rp.is_null() {
-            out.insert("refPeriod".into(), rp);
-        }
-    }
-    let given = arr(v.get("hide"));
-    let hide: Vec<&str> = ABC_ITEMS.iter().copied().filter(|x| given.iter().any(|g| g == x)).collect();
-    if !hide.is_empty() {
-        out.insert("hide".into(), json!(hide));
-    }
-    let raw_cls: Vec<String> = match v.get("cls") {
-        Some(Value::Array(a)) => a.iter().map(|x| cut(&strip(&s_or(Some(x))), 200)).collect(),
-        _ => vec![col("cls")],
-    };
-    let mut cls: Vec<String> = vec![];
-    for x in raw_cls {
-        if !x.is_empty() && !cls.contains(&x) {
-            cls.push(x);
-        }
-    }
-    cls.truncate(4);
-    if cls.len() == 1 {
-        out.insert("cls".into(), json!(cls[0]));
-    } else if !cls.is_empty() {
-        out.insert("cls".into(), json!(cls));
-    }
-    let (qty, base) = (col("qty"), cut(&strip(&s_or(v.get("base"))), 120));
-    out.insert("qty".into(), json!(if qty.is_empty() { "lots".to_string() } else { qty }));
-    out.insert("base".into(), json!(if base.is_empty() { "avg".to_string() } else { base }));
-    if lims != [ABC_A, ABC_B] {
-        out.insert("lims".into(), json!(lims));
-    }
-    if v.get("rankBy").and_then(Value::as_str) == Some("each") {
-        out.insert("rankBy".into(), json!("each"));
-    }
-    Value::Object(out)
 }
 
 // ------------------------------------------------------------------ 材料（一覧の設定の答えの dash）
@@ -1277,7 +856,7 @@ fn board_query(board: &Map<String, Value>, i: usize) -> Map<String, Value> {
     }
     out.insert("filters".into(), json!(arr(g.get("filters")).iter().chain(arr(board.get("filters"))).cloned().collect::<Vec<_>>()));
     out.insert("visual".into(), json!("none"));
-    out.insert("body".into(), json!({"rows": [board["rows"]], "cols": g["cols"], "measures": [g["measure"]]}));
+    out.insert("body".into(), json!({"rows": [board["rows"]], "cols": g["cols"], "measures": [g["measure"]], "sub": false, "grand": true}));
     out
 }
 
@@ -1397,12 +976,32 @@ fn facets_of(a: &Value, measures: &[Value]) -> Vec<Value> {
     out
 }
 
-/// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（スケジュール）
-pub fn query(cx: &Ctx, body: &Value) -> Option<(u16, Value)> {
-    // Python の body.get("panel") or {}: null・[]・0 のような空の値は、空のパネルとして確かめる
-    let p = match clean_panel(body.get("panel").filter(|v| json_truthy(v)).unwrap_or(&json!({}))) {
+/// 本文の字 → 確かめに渡すパネル（Python の body = get_json(silent=True) or {}・body.get("panel") or {}）。中身は送った順の木で読む
+/// （色・系列の先頭 40 個を残す所が送った順に効く）。None は窓が Python と同じに読めない本文（NaN・大きな数・入れ子の深い字・
+/// 表でない真の本文〈Python は .get で落ちる〉）で、Python に任せる
+fn panel_of(body: &[u8]) -> Option<Tree> {
+    if crate::master_rows::unreadable(body) {
+        return None;
+    }
+    let empty = Tree::Obj(vec![]);
+    if body.iter().all(|b| b.is_ascii_whitespace()) {
+        return Some(empty);
+    }
+    let t: Tree = serde_json::from_slice(body).ok()?;
+    match &t {
+        Tree::Obj(_) => {}
+        x if !layout_clean::truthy(x) => return Some(empty),
+        _ => return None,
+    }
+    Some(t.get("panel").filter(|p| layout_clean::truthy(p)).cloned().unwrap_or(empty))
+}
+
+/// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（スケジュール・読めない本文）
+pub fn query(cx: &Ctx, body: &[u8]) -> Option<(u16, Value)> {
+    let p = match clean_panel(&panel_of(body)?) {
         Ok(p) => p,
-        Err(e) => return Some((400, json!({"error": e}))),
+        Err(Some(e)) => return Some((400, json!({"error": e}))),
+        Err(None) => return None,
     };
     if p["visual"] == "board" {
         let n = arr(p.get("groups")).len();
@@ -1806,19 +1405,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn int_of_reads_like_python_int() {
-        // Python の max(lo, min(hi, int(v)))（読めなければ既定）。\x1c〜\x1f は空白と読まない・4,300 桁を超える数は断る（版 3.82.0）
-        let at = |v: Value| int_of(Some(&v), 0, 60, 0);
-        assert_eq!(at(json!("9".repeat(5000))), 0);
-        assert_eq!(at(json!("9".repeat(4300))), 60);
-        assert_eq!(at(json!("5\u{1c}")), 0);
-        assert_eq!(at(json!("\u{3000}7")), 7);
-        assert_eq!(at(json!("7")), 7);
+    fn query_body_is_read_like_python() {
+        // Python の get_json(silent=True) or {}・body.get("panel") or {}（版 3.83.0。本文は送った順の木で読む）
+        assert_eq!(panel_of(b""), Some(Tree::Obj(vec![])));
+        assert_eq!(panel_of(b"null"), Some(Tree::Obj(vec![])));
+        assert_eq!(panel_of(b"[]"), Some(Tree::Obj(vec![])));
+        assert_eq!(panel_of(br#"{"panel": 0}"#), Some(Tree::Obj(vec![])));
+        assert_eq!(panel_of(br#"{"panel": {"id": "a"}}"#), Tree::parse(r#"{"id": "a"}"#));
+        assert_eq!(panel_of(b"[1]"), None, "表でない真の本文は Python が .get で落ちる: Python に任せる");
+        assert_eq!(panel_of(b"\"x\""), None);
+        assert_eq!(panel_of(br#"{"panel": {"top": NaN}}"#), None, "NaN は Python だけが読む");
+        assert_eq!(panel_of(b"{"), None, "読めない本文");
+        // 数の字は Python の int() と同じに読む（4,300 桁を超える数・\x1c〜\x1f は読めず既定。全角の空白は外す。字の読み方は layout_clean の int_of）
+        let top = |v: Value| clean_panel(&Tree::from_value(&json!({"visual": "kpi", "source": "lot", "top": v}))).map(|p| p["top"].clone());
+        assert_eq!(top(json!("9".repeat(5000))), Ok(json!(0)));
+        assert_eq!(top(json!("5\u{1c}")), Err(None), "\\x1c は窓が読まずに Python に任せる（layout_clean の決まり）");
+        assert_eq!(top(json!("7")), Ok(json!(7)));
     }
 
     #[test]
     fn clean_panel_messages_like_python() {
-        let e = |p: Value| clean_panel(&p).unwrap_err();
+        let e = |p: Value| clean_panel(&Tree::from_value(&p)).unwrap_err().unwrap();
         assert_eq!(e(json!(1)), "パネルの形が違います。");
         assert_eq!(e(json!({"title": "t", "source": "x"})), "パネル「t」のデータ（lot・work・src:<キー>）が違います。");
         assert_eq!(
@@ -1826,14 +1433,16 @@ mod tests {
             "パネル「a1」は行の段が要ります（大きな数にするなら「数字」の形を選んでください）。"
         );
         assert_eq!(e(json!({"visual": "board", "groups": [1, 2, 3, 4, 5]})), "パネル「p1」の列のまとまりは 4 つまでです。");
-        let g = clean_panel(&json!({"visual": "gantt", "source": "work"})).unwrap();
+        let g = clean_panel(&Tree::from_value(&json!({"visual": "gantt", "source": "work"}))).unwrap();
         assert!(g["ops"].is_object() && g.get("egroup").is_none(), "{g:?}");
         assert_eq!(
             e(json!({"title": "t", "visual": "abc", "source": "lot"})),
             "パネル「t」の稼働・ABC 分析は、作業実績（作業開始と作業終了がある）で使えます。"
         );
-        let p = clean_panel(&json!({"visual": "kpi", "source": "src:wip", "period": {"column": "@workday", "kind": "days", "n": "99999"}}))
-            .unwrap();
+        let p = clean_panel(&Tree::from_value(
+            &json!({"visual": "kpi", "source": "src:wip", "period": {"column": "@workday", "kind": "days", "n": "99999"}}),
+        ))
+        .unwrap();
         assert_eq!(p["period"]["n"], 3660);
         assert_eq!(p["body"]["measures"], json!([{"agg": "lots"}]));
         assert_eq!(link_key("$Ａ1"), "A1");

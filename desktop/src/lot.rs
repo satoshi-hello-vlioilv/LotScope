@@ -597,7 +597,6 @@ impl Lot {
         if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
             return None; // ダッシュボードの材料を答えない中身（前の版の Python）は、Python が答える
         }
-        let body: Value = serde_json::from_slice(body).unwrap_or_default();
         let m = self.mirror(&s);
         let lists = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
         let conf = Conf { v: &lists };
@@ -610,7 +609,7 @@ impl Lot {
             conv: &self.tables(&s),
             cache: &self.dash,
         };
-        dashboard::query(&cx, &body)
+        dashboard::query(&cx, body)
     }
 
     /// 窓が答える問い合わせなら (状態, 答え)。Python に任せるなら None。

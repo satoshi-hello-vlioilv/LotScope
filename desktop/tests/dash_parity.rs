@@ -27,6 +27,14 @@ fn strip(v: &mut Value) {
     }
 }
 
+/// Python へ送った本文の字そのもの（鍵は送った順。版 3.83.0。読み直した serde の値は鍵を字の順に並べ直すので使わない）
+fn sent(c: &Value) -> Vec<u8> {
+    match c["raw"].as_str() {
+        Some(t) => t.as_bytes().to_vec(),
+        None => serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap(),
+    }
+}
+
 #[test]
 fn dashboard_answers_like_python() {
     let work = common::work("dash");
@@ -41,7 +49,7 @@ fn dashboard_answers_like_python() {
     for c in o["cases"].as_array().unwrap() {
         total += 1;
         let name = c["name"].as_str().unwrap();
-        let body = serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap();
+        let body = sent(c);
         let Some((status, mut got)) = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask) else {
             bad.push(format!("{name}: 窓が答えません（Python に回した）"));
             continue;
@@ -68,7 +76,7 @@ fn dashboard_answers_like_python() {
         for c in ph["cases"].as_array().unwrap() {
             total += 1;
             let name = format!("{} / {}", ph["name"].as_str().unwrap(), c["name"].as_str().unwrap());
-            let body = serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap();
+            let body = sent(c);
             if ph["warm"] == true {
                 lot.invalidate();
                 let _ = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask);
@@ -91,6 +99,8 @@ fn dashboard_answers_like_python() {
         phases += 1;
     }
     lot.invalidate();
+    assert!(o["cases"].as_array().unwrap().iter().all(|c| c["raw"].is_string()), "送った本文の字（raw）が答えの見本に無い");
+    assert!(o["cases"].as_array().unwrap().iter().any(|c| c["name"] == "計算列 式の上限は送った順の先頭 40 個"), "送った順に効く組が無い");
     assert!(phases >= 3, "設定を替えて問い直す段が足りません: {phases}");
     assert!(
         total >= 60 && cells >= 35 && fails >= 12 && facets >= 4 && boards >= 4 && links >= 4,
