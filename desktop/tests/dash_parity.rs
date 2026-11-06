@@ -101,6 +101,10 @@ fn dashboard_answers_like_python() {
     lot.invalidate();
     assert!(o["cases"].as_array().unwrap().iter().all(|c| c["raw"].is_string()), "送った本文の字（raw）が答えの見本に無い");
     assert!(o["cases"].as_array().unwrap().iter().any(|c| c["name"] == "計算列 式の上限は送った順の先頭 40 個"), "送った順に効く組が無い");
+    for name in ["順 表示名の重なり 合金→重量", "順 表示名の重なり 合わせた表 合金→重量", "順 設備の式＋共通 40 先頭の z"]
+    {
+        assert!(o["cases"].as_array().unwrap().iter().any(|c| c["name"] == name), "計算列の中で送った順に効く組が無い: {name}");
+    }
     assert!(phases >= 3, "設定を替えて問い直す段が足りません: {phases}");
     assert!(
         total >= 60 && cells >= 35 && fails >= 12 && facets >= 4 && boards >= 4 && links >= 4,

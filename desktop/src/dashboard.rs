@@ -70,9 +70,49 @@ pub(crate) fn is_screen_source(s: &str) -> bool {
 /// clean_panel を問い合わせと保存の両方で使う。版 3.83.0 で 1 つにした）。Err(None) は窓が Python と同じに読めない形（Python に任せる）
 fn clean_panel(p: &Tree) -> Result<Map<String, Value>, Option<String>> {
     match layout_clean::clean_panel(p, 0, layout_clean::ROWS_MAX) {
-        Ok(m) => Ok(m),
+        Ok(mut m) => {
+            keep_calc_order(&mut m, p);
+            Ok(m)
+        }
         Err(Stop::Layout(e)) => Err(Some(e)),
         Err(Stop::Py) => Err(None),
+    }
+}
+
+/// 確かめた計算列（calc）を、送られた字（送った順）に替える（版 3.83.0 の作った後の採点で直した）。確かめの答えは serde の値で鍵が字の順に
+/// 並び直るが、Python は送った順の dict のまま使う: 同じ表示名を 2 つの列に付けたときの後勝ち（names）・設備の式と共通の式を合わせた
+/// 先頭 40 個（calc_for）が順に効く。formula::clean_calc は送った順のまま同じ確かめ（数と長さの上限・空白）をするので、字を渡す。
+/// 置き場はパネル・合わせるデータ（link.sides）・合わせた表のまとまり（groups）。確かめは並びを落とさないので、番目は送った物と同じ
+fn keep_calc_order(m: &mut Map<String, Value>, raw: &Tree) {
+    fn put(slot: Option<&mut Value>, raw: Option<&Tree>) {
+        if let (Some(slot @ Value::Object(_)), Some(t @ Tree::Obj(_))) = (slot, raw) {
+            *slot = Value::String(t.dumps(", ", ": "));
+        }
+    }
+    let items = |t: Option<&Tree>| match t {
+        Some(Tree::Arr(a)) => a.clone(),
+        _ => vec![],
+    };
+    put(m.get_mut("calc"), raw.get("calc"));
+    let sides = items(raw.get("link").and_then(|l| l.get("sides")));
+    if let Some(Value::Array(xs)) = m.get_mut("link").and_then(|l| l.get_mut("sides")) {
+        for (x, r) in xs.iter_mut().zip(&sides) {
+            put(x.get_mut("calc"), r.get("calc"));
+        }
+    }
+    let groups = items(raw.get("groups"));
+    if let Some(Value::Array(xs)) = m.get_mut("groups") {
+        for (x, r) in xs.iter_mut().zip(&groups) {
+            put(x.get_mut("calc"), r.get("calc"));
+        }
+    }
+}
+
+/// 計算列の値（送った順の字か、表）→ 計算列
+fn calc_of(v: &Value) -> Option<Calc> {
+    match v {
+        Value::String(t) => formula::clean_calc(t),
+        other => formula::clean_calc(&other.to_string()),
     }
 }
 
@@ -480,7 +520,7 @@ impl Ctx<'_> {
         let b = &p["body"];
         let (rows, cols, measures) = (b["rows"].to_string(), b["cols"].to_string(), b["measures"].to_string());
         let (search, filters) = (s_or(p.get("search")), p.get("filters").cloned().unwrap_or(json!([])).to_string());
-        let calc = p.get("calc").and_then(|c| formula::clean_calc(&c.to_string()));
+        let calc = p.get("calc").and_then(calc_of);
         let equips = names(p.get("equips"), MAX_EQUIPS);
         let bx = Self::box_column(p);
         let period = p.get("period").filter(|x| !x.is_null());
@@ -1168,7 +1208,7 @@ impl Ctx<'_> {
     fn ops_count(&self, p: &Map<String, Value>, parts: Vec<Part>, period: &Value) -> Value {
         let o = p.get("ops").cloned().unwrap_or(json!({}));
         let filters = p.get("filters").cloned().unwrap_or(json!([])).to_string();
-        let calc = p.get("calc").and_then(|c| formula::clean_calc(&c.to_string()));
+        let calc = p.get("calc").and_then(calc_of);
         let per = Some(period).filter(|x| !x.is_null());
         if p["visual"] == "abc" {
             return self.abc_count(p, parts, &o, per, &filters, calc.as_ref());

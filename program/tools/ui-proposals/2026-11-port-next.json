@@ -208,5 +208,46 @@
         }
       }
     }
-  ]
+  ],
+  "built": {
+    "name": "作った後",
+    "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+    "evaluator": "案を作っていない採点者（別のエージェント・2026-11-06。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・両方へ当てて確かめた事実で採点した。リポジトリの中には何も置かず、Python は dashboard_oracle.py の setup・cases を import した係で Flask の test_client へ本文の字をそのまま送り、窓は scratchpad の作業用クレート（da_core を path 依存・CARGO_TARGET_DIR は desktop/target を共用）から Lot::handle_body に同じ字を送った",
+    "result": {
+      "proposal": "E 問い合わせの clean_panel と保存の layout_clean を 1 つにする（作った後）",
+      "score": {
+        "order": 6,
+        "chunk": 9,
+        "hierarchy": 7,
+        "visual": 8,
+        "steps": 3,
+        "effortless": 7,
+        "intuitive": 8,
+        "form": 9,
+        "place": 9,
+        "layout": 8,
+        "tone": 8
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "計算列の表示名（calc.names。共通・設備ごと）の値が 2 つの列で同じとき: Python の CalcColumns は names_rev を送った順で作り、後ろの列が勝つ。窓は layout_clean::clean_panel の答え（serde の Map＝鍵が字の順）を dashboard.rs:483・1171 の formula::clean_calc(&c.to_string()) へ渡すので、字の順で後ろの列が勝つ（送った順の木で読んだ順が、確かめの後で消える）。再現の本文: {\"panel\": {\"id\": \"n1\", \"visual\": \"bar\", \"source\": \"lot\", \"body\": {\"rows\": [{\"column\": \"k\", \"part\": \"\"}], \"cols\": [], \"measures\": [{\"agg\": \"lots\"}]}, \"calc\": {\"formulas\": {\"k\": \"[W]\"}, \"names\": {\"重量\": \"W\", \"合金\": \"W\"}}}} → Python 200・升 4（k＝合金の値）／窓 200・升 597（k＝重量の値）。names を {\"調質\": \"W\", \"合金\": \"W\"} にすると Python の行の 1 つ目 $A1100・窓 $H14。同じ割れが、設備ごとの names（{\"equips\": {\"CAL\": {\"formulas\": {\"q\": \"1\"}, \"names\": {\"合金\": \"W\", \"作業区分\": \"W\"}}}}。升 4 / 5）・合わせるデータの calc（升 5 / 601）・合わせた表のまとまりの calc（升 10 / 244）・条件の列に計算列（k＝A5052 の件数 1 / 0）・ABC の品種の列に計算列（all.conv 906.4559 / 905.6335）にも出る。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/res.tsv の『割れ』の行。前の版（345cc2e）の serde の値で読む問い合わせからある割れで、この版の『送った順の木で読む』が計算列の中まで届いていない（dash_parity・layout_cases はどちらも通る＝試験で見えない）"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "設備ごとの式＋共通の式が 40 を超えるとき（Python の calc_for は {その設備の式（送った順）, 共通の式（送った順）} を作り、CalcColumns が先頭 40 個で切る）: 窓は確かめの後の Map が字の順なので、共通の式のどれが切られるかが違う。再現の本文: パネル {\"id\": \"c1\", \"visual\": \"bar\", \"source\": \"work\", \"equips\": [\"CAL\"], \"body\": {\"rows\": [{\"column\": \"z\", \"part\": \"\"}], \"cols\": [], \"measures\": [{\"agg\": \"lots\"}]}, \"calc\": {\"formulas\": {\"z\": \"[作業区分]\", \"a00\": \"[重量]\", …, \"a38\": \"[重量]\"}, \"equips\": {\"CAL\": {\"formulas\": {\"m\": \"[作業者]\"}}}}} → Python 200（z は残る）／窓 400『列「z」がありません。』。行を a38 にすると Python 400『列「a38」がありません。』／窓 200。すべての設備で設備の段＋z は升 40 / 36。設備の式 39＋共通 {\"b\", \"a\"} でも b・a で同じに割れる。版 3.83.0 で足した dashboard_oracle.py の『式の上限は送った順の先頭 40 個』は確かめ（clean_calc の 40）だけを見ていて、calc_for の後の 40 は見ていない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/res.tsv"
+        }
+      ],
+      "seen": "読んだ物: git diff 345cc2e HEAD（dashboard.rs の panel_of・query・clean_panel の包み・board_query の sub・grand・消した写し、layout_clean.rs の clean_panel を pub に、lot.rs の handle_body、dash_parity.rs の sent、dashboard_oracle.py の raw と 2 場面、path_settings.py の parse、test_path_settings.py）・jsontree.rs（同じ鍵は後ろの値を前の位置に）・master_rows.rs の unreadable・layout_clean.rs の truthy・clean_calc（答えは serde の Map）・formula.rs の clean_calc・Calc::for_part・CalcColumns::new、program/app の routes/dashboard.py の dashboard_query・_answer（答えの控えの鍵は json.dumps(p, sort_keys=True)）・_count・_split_answer・_group_sets、services/dashboard.py の clean_panel・clean_board・board_query・board_default・clean_ops・abc_lims、services/formula.py の clean_calc・calc_for・CalcColumns。【確かめた鍵】窓の数える側は clean_panel の答えから visual・source・equip・equips・basis・search・period・filters・calc・egroup・esplit・eorder・link・ops・groups・rows・order（by・tree）・body（rows・cols・measures）を読む。body の sub・grand・chartAt・labels と sort・top・fmt・frame・legacy は数える所で読まず、Python も pivot.query_many に渡さない（どちらも答えに効かない）。前の版の写しに無かった legacy の合わせた表（groups が無い・空・字）は board_default の 2 まとまり（仕掛は period null・実績は前日 n 7）で、どちらも同じ答え。【本文の読み方】panel_of を Python の get_json(force=True, silent=True) or {}・body.get('panel') or {} と突き合わせた: 空・空白だけ・FF だけ・null・[]・0・false・\"\"・{}・0.0・-0.0・1e-400・panel が null／0／[]／\"\"／false／{}／0.0／-0.0／1e-400／無い は両方とも空のパネル（400 の同じ言葉）。panel が 1・\"x\"・[1]・true は両方とも『パネルの形が違います。』。表でない真の本文（[1]・\"x\"・1・true）と 1e400・NaN・Infinity は Python 500 で窓は任せる。-0・panel の中の NaN・1e400・-0・大きな整数・BOM・前の FF・後ろのごみ・片割れの代用字（\\\\ud800 も生の字も）・入れ子 200／2000 段・UTF-16／UTF-32／壊れた UTF-8・ED A0 80 は窓が任せる（Python は 200／400／500 のどれでも割れにならない）。入れ子 120・127 段・後ろと前の空白・\\\\u0000 と U+2028 の題・panel の重なり（後ろが kpi／{}／null）・panel の中の鍵の重なり（visual・source・body）は窓が答えて同じ。【当てた物】(1) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/probe.py＋cases_gen.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/oracle.json、窓は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/probe（main.rs）→ /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/res.tsv: 見本の組 305（送った順の字）・本文の形 65・計算列の順と上限 36・書式 36（色 41／45・系列 31・refs・num 200 字・ymin『nan』・target『1e309』・字と並びの fmt ほか × 棒と数字）・鍵 20（sort・top の字／全角／\\\\x1c／1.9／true・frame・emph・noslice・x y w h・id）・本文の段 21（sub・grand・chartAt・labels × 表・棒・数字）・形の崩れ 42・稼働と ABC 82（ops の字・並び・end・start・label・color・span・cls 5 つと重なり・qty・base・lims〈0・101・nan・51 本・小数〉・a b・rankBy・hide・refPeriod と、設備・eorder・egroup・esplit・段・条件・検索・設備の鍵・期間・品質・計算列）・合わせる 84（21 形 × 棒・数字・表・組み合わせ）・合わせた表 32（groups 無し・空・字・legacy・rows・order の by／dir／group 9／manual list と hide／tree〈合金の行・長い・無い・glist・数〉・look・measure・cols 3・period・basis・まとまりの計算列・全体の egroup・esplit・条件 21）。723 歩: 同じ 682・任せた 29・割れ 12（減点の 2 つの決まりだけ）。(2) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/probe2.py＋cases_gen2.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/oracle2.json → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-next/res2.tsv: 見本の組の鍵をすべての段で逆の順にした 305 と、見本の組に書式（色 45 個・系列・num）・sort・top・frame・noslice・x y w h を足した 303。608 歩: 同じ 608・割れ 0。合わせて 1,331 歩・答えの割れ 12（2 つの決まり）。cargo test --test dash_parity --test layout_cases と --lib dashboard::（query_body_is_read_like_python ほか）はどれも ok。参照先の数の直しは parse に nan・inf・-inf・NaN・1e309・Infinity・『 nan 』を 5 項目で当てて全部『数で入れてください』、置き場に前からある壊れた値は effective が既定に戻す（tests/test_path_settings.py 13 件 OK）。良い所: 決まりが 1 か所になり（約 450 行が消え、問い合わせと保存が同じ断る言葉と Stop::Py）、案の採点の指摘（本文を木で読む・panel が偽なら {}・ROWS_MAX・断る言葉と任せる形・試験の向け直し・送った順の場面・速さ）が全部入った（形と色 9・言葉と置き場 9・チャンク 9）。本文の読み方は境を広く当てても割れが無く、任せる形も Python が落ちる・窓が同じに読めない字だけだった。悪い所: 送った順は確かめ（clean_panel）の中だけで保たれ、答えが serde の Map で返るので、その後の計算列（表示名の重なり・calc_for の後の 40）で字の順に戻る。Python では順が効くのに試験は通る（考えさせない 7・順序 6）。Python の答えの控えの鍵も sort_keys で、同じ組を順だけ替えて送ると Python は先に数えた方の答えを返す（Python の中でも順の効きが揺れる。直すなら clean_calc の答えを送った順で持つか、Python と窓の両方で names・式の順を決まった順にそろえる）。案のとおり Python 無しへは 1 本も進まない（ステップ数 3）"
+    }
+  },
+  "built_fixed": {
+    "name": "作った後の採点の割れを直した形（決まり 2026-11-06 により採点し直さない）",
+    "fixed": [
+      "割れ 1（計算列の表示名の後勝ち）と割れ 2（設備の式＋共通の式の先頭 40 個）: 窓は確かめた後の計算列を serde の値（鍵が字の順）から読み直していた。dashboard.rs の keep_calc_order が、パネル・合わせるデータ（link.sides）・合わせた表のまとまり（groups）の calc を送られた字（送った順）に替え、calc_of がその字を formula::clean_calc（送った順のまま同じ確かめをする）へ渡す",
+      "Python の答えの控えの鍵（routes/dashboard.py の _answer・_ops_answer）を sort_keys にしない: 順だけ違う組が同じ鍵に当たり、先に数えた方の答えを返していた（合わせるデータ・合わせた表では panel の id が数える形に入らないので、試験でも当たる）"
+    ],
+    "tests": "tests/dashboard_oracle.py の order_cases（表示名の重なり 4 通り × パネル・直接・合わせる側・合わせた表・条件、ABC の品種・設備の表示名 2 通り、設備の式＋共通 40 の 3 通り）を dash_parity が突き合わせる。keep_calc_order を外す変異で 12 か所すべてが落ちることを確かめた",
+    "evaluator": "案を作った者（直した者）が記録した。採点し直さない（決まり 2026-11-06）"
+  }
 }
