@@ -280,21 +280,31 @@ class Api(unittest.TestCase):
 
     def test_same_equipment_is_fetched_once_at_a_time(self):
         calls = []
+        # HOT の設備を同時に取りに行くかは、時間ではなく「2 つの取りに行きが同時に居合わせたか」で見る（版 3.79.0。
+        # 前は合計の時間で測り、遅い Windows の CI で 1.38 秒 > 1.15 秒で落ち、版 3.77.0 が配られなかった。順に取りに行っても 0.9 秒で通っていた）
+        both = threading.Barrier(2, timeout=10)
+        met = []
 
         def slow(cfg, code, kbn, kws):
             calls.append(code)
-            time.sleep(0.3)
+            if code == "L-1":
+                time.sleep(0.3)  # 先の問い合わせが答える前に、後の 4 つが来る
+            else:
+                try:
+                    both.wait()  # 順に取りに行く作りなら、相手が来ずに 10 秒で切れる
+                    met.append(code)
+                except threading.BrokenBarrierError:
+                    pass
             return cm3_schedule.normalize(self.answers[code], code, kws)
         s = schedule.Schedules(self.run_dir / "slow", fetch=slow)
         ts = [threading.Thread(target=s.ensure, args=(self.cfg, "L-1")) for _ in range(5)]
-        t0 = time.time()
         [t.start() for t in ts]
         [t.join() for t in ts]
         self.assertEqual(calls, ["L-1"], "後から来た問い合わせは先の答えを使う")
         calls.clear()
         got = s.ensure_many(self.cfg, ["L-2", "L-3"])
         self.assertEqual(sorted(calls), ["L-2", "L-3"])
-        self.assertLess(time.time() - t0, 0.3 * 3 + 0.25, "HOT の設備は同時に取りに行く")
+        self.assertEqual(sorted(met), ["L-2", "L-3"], "HOT の設備は同時に取りに行く")
         self.assertTrue(all("path" in v for v in got.values()))
 
     def test_source_and_refresh(self):

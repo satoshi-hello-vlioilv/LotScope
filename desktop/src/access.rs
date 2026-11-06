@@ -75,10 +75,66 @@ pub(crate) fn text(v: Option<&Value>) -> String {
     }
 }
 
-/// 比べるための形（identity.normalize_part: NFKC・前後の空白を除く・大文字）
+/// Python 3.13（Unicode 15.1）でまだ割り当てのない字と、窓だけが大文字の対を持つ字の表（src/key_split_table.rs。
+/// program/tools/key-split-table.py が Python から焼く）。この字は Python では分解も合成も大文字も無い字なので、比べ方 py_key がそのまま残す
+pub use crate::key_split_table::{ASSIGNED_SPLIT, KEY_SPLIT};
+
+/// その字が表にあるか（Python では NFKC も大文字も変えない字）
+pub fn is_key_split(c: char) -> bool {
+    let c = c as u32;
+    KEY_SPLIT
+        .binary_search_by(|(a, b)| {
+            if *b < c {
+                std::cmp::Ordering::Less
+            } else if *a > c {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+}
+
+/// Python でまだ割り当てのない字か（表の字のうち ASSIGNED_SPLIT でない字。Python では分解も合成も大文字も無い）
+fn unassigned_in_python(c: char) -> bool {
+    is_key_split(c) && !ASSIGNED_SPLIT.contains(&(c as u32))
+}
+
+/// 名前に表の字があるか（試験と文書のため。比べ方は py_key が Python と同じに扱うので、道を任せる判定には使わない）
+pub fn key_split(s: &str) -> bool {
+    s.chars().any(is_key_split)
+}
+
+/// 比べるための形（Python の identity.normalize_part: NFKC・前後の空白を除く・大文字）を、Python 3.13 と同じ答えで（版 3.79.0）。
+/// 窓の std と unicode-normalization は Python より新しい Unicode の表を持つので、そのまま NFKC・大文字にすると、Python で割り当てのない字
+/// （Unicode 16 から後の字）の合成・並べ替え・大文字が Python と割れる。表の字はそのまま残し、表の字で区切った間だけを NFKC にする
+/// （割り当てのない字は Python では結合の段 0 の分解も合成も無い字なので、間を越えて合成も並べ替えも起きない。窓だけが大文字の対を持つ
+/// 割り当て済みの字〈ASSIGNED_SPLIT〉は NFKC を通し、大文字にだけしない）。割り当て済みの字どうしの分解・合成は
+/// Unicode の正規化の安定の約束で版が上がっても変わらない。tests/name_key_cases.rs が全部の字と並びの例を Python と突き合わせる
+pub fn py_key(s: &str) -> String {
+    let (mut out, mut seg) = (String::new(), String::new());
+    for c in s.chars() {
+        if unassigned_in_python(c) {
+            out.extend(seg.nfkc());
+            seg.clear();
+            out.push(c);
+        } else {
+            seg.push(c);
+        }
+    }
+    out.extend(seg.nfkc());
+    pyfmt::strip(&out).chars().fold(String::new(), |mut acc, c| {
+        if is_key_split(c) {
+            acc.push(c);
+        } else {
+            acc.extend(c.to_uppercase());
+        }
+        acc
+    })
+}
+
 pub fn normalize_part(v: Option<&Value>) -> String {
-    let n: String = text(v).nfkc().collect();
-    pyfmt::strip(&n).to_uppercase()
+    py_key(&text(v))
 }
 
 pub(crate) fn is_tab_key(t: &str) -> bool {
@@ -369,6 +425,35 @@ impl Place {
 
     /// マスタの行（MasterStore.read と同じ物: 共有するマスタは共有のファイル → 写し、無ければ同梱の data/ → 最初の中身）。
     /// 共有のファイルを直に読む（Python の写しは Python が読むときに取り直すので、窓が読むときに古いことがある）
+    /// 置き場のマスタのファイル（共有・写し・同梱の data/・既定）のどれかを、窓が Python と同じに読めないか（版 3.79.0）:
+    /// master_rows::text_split（入れ子 SERDE_DEPTH 段以上・NaN・Infinity・1e400 のような指数の数・-0・i64 に入らない整数・
+    /// 対の無い代用字の \u）か、UTF-8 でない。あれば窓は読む物・書き戻す物が Python と割れる（共有を読めずに写しへ流れる・
+    /// NaN を読めずに書けない・-0 を -0.0 と書き戻す・代用字を U+FFFD に読み替える）ので、そのマスタを使う道は Python に任せる
+    pub fn split_file(&self, name: &str) -> bool {
+        let file = format!("{name}.json");
+        let mut dirs: Vec<&PathBuf> = vec![];
+        if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {
+            dirs.push(share);
+            dirs.push(&self.cache);
+        }
+        dirs.push(&self.data);
+        dirs.push(&self.defaults);
+        dirs.iter().any(|d| {
+            std::fs::read(d.join(&file)).is_ok_and(|b| {
+                let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
+                std::str::from_utf8(b).map_or(true, |t| crate::master_rows::text_split(t) || revision_split(t))
+            })
+        })
+    }
+
+    /// 共有に置くマスタで、共有のフォルダはあるのにそのファイルがまだ無いか（版 3.79.0）。Python は読むだけで写しから共有に最初の版を
+    /// 作る（MasterStore._maybe_refresh）が、窓の読みは作らないので、読む道は Python に任せる（書く道は窓の書く係も最初の版を作る）
+    pub fn share_absent(&self, name: &str) -> bool {
+        self.share_dir
+            .as_ref()
+            .is_some_and(|d| self.shared.iter().any(|n| n == name) && d.is_dir() && !d.join(format!("{name}.json")).exists())
+    }
+
     pub fn rows(&self, name: &str) -> Result<Vec<Value>, String> {
         let file = format!("{name}.json");
         let mut tries: Vec<PathBuf> = vec![];
@@ -392,6 +477,15 @@ impl Place {
             }
         }
         Ok(vec![])
+    }
+}
+
+/// マスタのファイルの revision を、Python（MasterStore._as_doc の int(revision)）が読めない形か（null・表・"3.5"・"abc" など）。
+/// 読めなければ Python は写しで答える・書けない（400）が、窓は rows だけを読むので割れる（版 3.79.0）
+fn revision_split(t: &str) -> bool {
+    match serde_json::from_str::<Value>(t) {
+        Ok(Value::Object(o)) => o.get("revision").is_some_and(|v| crate::master_rows::py_int(v).is_none()),
+        _ => false,
     }
 }
 

@@ -155,6 +155,53 @@ pub(crate) fn split_number(body: &[u8]) -> bool {
     false
 }
 
+/// JSON の字の、字の外の [ { の入れ子のいちばん深い段（serde_json は 128 段で読むのをやめる。Python の json は読む）
+pub(crate) fn json_depth(t: &[u8]) -> usize {
+    let (mut depth, mut deepest, mut in_str, mut esc) = (0usize, 0usize, false, false);
+    for &b in t {
+        if in_str {
+            match (esc, b) {
+                (true, _) => esc = false,
+                (false, b'\\') => esc = true,
+                (false, b'"') => in_str = false,
+                _ => {}
+            }
+            continue;
+        }
+        match b {
+            b'"' => in_str = true,
+            b'[' | b'{' => {
+                depth += 1;
+                deepest = deepest.max(depth);
+            }
+            b']' | b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    deepest
+}
+
+/// serde_json が読むのをやめる入れ子の段（これ以上の字は窓が答えず Python に任せる）
+pub(crate) const SERDE_DEPTH: usize = 128;
+
+/// 字の JSON を Python の json.loads と窓の serde で読みが割れるか（割れるなら Python に任せる）。serde が読める字は数の割れ
+/// （split_number: -0・i64 に入らない整数）だけを見る。serde が読めない字は、Python だけが読む形（NaN・Infinity・
+/// 1e400 のような指数の数・片割れの代用字の \u）が入っていそうなら割れる、入っていなければ Python も読めない（どちらも「読めない」で同じ）
+pub fn text_split(t: &str) -> bool {
+    // serde_json は入れ子 128 段で読むのをやめる（Python は読む）。字の外の [ { の深さで見る
+    if json_depth(t.as_bytes()) >= SERDE_DEPTH {
+        return true;
+    }
+    if serde_json::from_str::<Value>(t).is_ok() {
+        return split_number(t.as_bytes());
+    }
+    let b = t.as_bytes();
+    t.contains("NaN")
+        || t.contains("Infinity")
+        || t.contains("\\u")
+        || b.windows(2).any(|w| w[0].is_ascii_digit() && matches!(w[1], b'e' | b'E'))
+}
+
 /// 窓では Python と同じに読めない本文か（空でない本文を serde_json が読めない〈NaN・Infinity・1e400・片割れの代用字など〉か、
 /// 読みが割れる数がある）。そのときは窓は答えず Python に任せる。書く道の組（権限・勤務体系・設備・ロール）はみなこれを使う
 pub fn unreadable(body: &[u8]) -> bool {
