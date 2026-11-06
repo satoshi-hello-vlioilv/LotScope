@@ -96,6 +96,30 @@ class UiScore(unittest.TestCase):
             ui.decide(data(*r[:2], round_("3 回目", entry(7), entry(6), entry(6), entry(5), entry(4), names="VWXYZ"),
                            round_("4 回目", entry(10), entry(9), entry(9), entry(9), entry(9), names="PQRST")))
 
+    def test_non_screen_rule_scores_once(self):
+        """画面に関係のない改良（rule 2026-11-06。利用者が決めた）: 案の採点は 1 回だけで、届かなくても 1 位に決める・2 回目は無い。
+        作った後の採点も 1 回だけで、直した事（built_fixed）を書けば採点し直さない"""
+        one = round_("1 回目", entry(7), entry(6), entry(5), entry(4), entry(3))
+        kind, who, _ = ui.decide(data(one, rule="2026-11-06"))
+        self.assertEqual((kind, who), ("届かずに選ぶ", "A"), "1 回目で 70 点でも 1 位に決める")
+        with self.assertRaisesRegex(ValueError, "1 回まで"):
+            ui.decide(data(one, round_("2 回目", entry(8), entry(7), entry(6), entry(5), entry(4), names="VWXYZ"), rule="2026-11-06"))
+        self.assertEqual(ui.decide(data(round_("1 回目", entry(8), entry(7), entry(6), entry(5), entry(4)), rule="2026-11-06"))[0], "選ぶ")
+        self.assertEqual(ui.decide(data(one))[0], "出し直す", "画面の改良（2026-10-17）は届かなければ出し直す")
+        import contextlib
+        import io
+        d = {**data(one, rule="2026-11-06"), "built": {"name": "作った後", "images": "—", "result": entry(7)}}
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ui.report(d)
+        self.assertIn("built_fixed", out.getvalue(), "直した事が無ければ書くように言う")
+        d["built_fixed"] = "割れ 2 つを直し、突き合わせに足した"
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ui.report(d)
+        self.assertIn("割れ 2 つを直し", out.getvalue())
+        self.assertNotIn("採点し直す", out.getvalue(), "採点し直さない")
+
     def test_ties_go_to_the_heavier_group(self):
         # どちらも 98 点: A は統一感を、B は使いやすさを 2 点落とす（使いやすさの方が重い分類）
         a = entry(10, form=8)
