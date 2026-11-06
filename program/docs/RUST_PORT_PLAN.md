@@ -787,6 +787,7 @@ A（5 本を 1 版で・組み込みは焼いた表）に、採点の指摘 4 �
   nan・inf は「数で入れてください」と断り、前に置かれた値は使わずに既定で動く（`tests/test_path_settings.py`）。
 - 評価関数: `cargo test --test dash_parity`（← `tests/dashboard_oracle.py`。本文の字〈raw〉をそのまま送る・式の上限が送った順の先頭 40 個／41 個目は残らない を足した）・
   `layout_cases`・`ops_parity`・`dashboards_parity`・`dashboard::tests::query_body_is_read_like_python`。
+- 速さ（`dashboard_oracle.py --bench` → `dash_bench`。品質 20,000 行・実績 12 台 × 2,000 行・仕掛 20,000 ロットの全パネルの合計・5 回の中央値）: 前 853 ms・後 761 ms（遅くならない。差は測るたびの揺れの幅）。
 - 採点者の見立て: 次の段は A（設定の束を窓が自分で組む）を、指摘（引っ越しの係を 1 つに・数の読み方・Python に任せる形・試験の差し替えを窓へ渡す道・
   名乗りの決まり・Python の設定の道を答え合わせに残す）を入れた形で出し直すのが筋。窓が答える道も、いまは Python が起きていないと答えない
   （lot.rs の settings が Python の GET /api/lotlist/settings に頼る）ため、Python 無しで動かすための土台になる。
