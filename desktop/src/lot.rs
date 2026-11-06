@@ -270,6 +270,21 @@ impl Lot {
         crate::ui_defaults::handle(&store, &me, route, body, &rows, &profile)
     }
 
+    /// ダッシュボードのセットの 4 本（版 3.79.0。src/dash_sets.rs）。設定・権限・置き場が無い・窓が答えない形は Python が答える
+    fn dash_sets_route(&self, route: crate::dash_sets::Route, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        if route != crate::dash_sets::Route::List {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める（ほかの書く道と同じ）
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        let rows = crate::access::Place::from_json(&s.access["place"]).rows(crate::preset_rows::DASHBOARDS.name).ok()?;
+        let store = self.store_for(&s.access)?;
+        crate::dash_sets::handle(&store, &me, route, query, body, &rows)
+    }
+
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
     /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
     /// 頻繁な書き込みでは尋ね直さない
@@ -481,6 +496,9 @@ impl Lot {
         }
         if let Some(route) = crate::ui_defaults::route_of(method, path) {
             return self.ui_defaults_route(route, body, ask);
+        }
+        if let Some(route) = crate::dash_sets::route_of(method, path) {
+            return self.dash_sets_route(route, query, body, ask);
         }
         if presence::is_route(method, path) || path == "/api/ui-state" {
             return self.presence_route(method, path, query, body, ask);
@@ -1009,6 +1027,58 @@ mod tests {
         assert!(Lot::new(dir.join("c3")).handle_body("GET", "/api/ui-defaults", "", b"", &none).is_none());
         assert!(lot.handle_body("PUT", "/api/ui-defaults", "", br#"{"keys": {}, "x": NaN}"#, &ask_boss).is_none());
         assert!(lot.handle_body("POST", "/api/ui-defaults", "", b"{}", &ask_boss).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_answers_dashboard_sets() {
+        // 版 3.79.0: ダッシュボードのセットの 4 本は窓が受ける（本物の道: Lot::handle_body → dash_sets_route）。判定の材料が無い・
+        // 窓が Python と同じに書けない本文（小数の名前・NaN）・置き場の行の形が違う・ASCII でない id の道は Python に任せる
+        let dir = std::env::temp_dir().join(format!("da-lot-sets-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (share, local) = (dir.join("share"), dir.join("local"));
+        for d in [&share, &local, &dir.join("data")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(local.join("instance_id"), "inst1").unwrap();
+        let perm = json!([{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "rev": 1}]);
+        let doc = |rows: Value| json!({"schema": 1, "revision": 1, "rows": rows}).to_string();
+        std::fs::write(share.join("access_permissions.json"), doc(perm)).unwrap();
+        let dash = json!([{"id": 1, "名前": "標準", "元": "dash", "範囲": "共通デフォルト", "ログインID": "", "標準": "1", "中身": "{}", "備考": "", "rev": 1}]);
+        std::fs::write(share.join("dashboards.json"), doc(dash)).unwrap();
+        let conf = json!({"who": {"login": "boss", "pc": "PC-1", "pcSource": "", "key": "PC-1@boss"},
+                          "place": {"shareDir": share, "shared": ["access_permissions", "tab_access", "dashboards"], "data": dir.join("data"),
+                                    "defaults": dir.join("defaults"), "cache": local.join("master_cache"), "presence": "", "lockTtl": 20.0}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let (st, v) = lot.handle_body("GET", "/api/dashboard-sets", "", b"", &ask).expect("窓が受ける");
+        assert_eq!((st, v["items"].clone(), v["max"].clone(), v["standardId"].clone()), (200, json!([]), json!(12), Value::Null), "{v}");
+        let body = serde_json::to_vec(&json!({"name": "朝", "scope": "me", "standard": true, "body": {"items": ["1", "b:standard", "1"]}}))
+            .unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/dashboard-sets", "", &body, &ask).unwrap();
+        assert_eq!(
+            (st, v["id"].clone(), v["body"].clone(), v["standard"].clone()),
+            (201, json!(2), json!({"items": ["1", "b:standard"]}), json!(true)),
+            "{v}"
+        );
+        let d: Value = serde_json::from_slice(&std::fs::read(share.join("dashboards.json")).unwrap()).unwrap();
+        assert_eq!(d["rows"][1]["中身"], json!(r#"{"items": ["1", "b:standard"]}"#), "置く字は json.dumps と同じ");
+        assert_eq!(d["rows"][0]["標準"], json!("1"), "ほかの元（ダッシュボード）の★は外さない");
+        let (st, v) = lot.handle_body("GET", "/api/dashboard-sets", "", b"", &ask).unwrap();
+        assert_eq!((st, v["standardId"].clone(), v["items"][0]["name"].clone()), (200, json!(2), json!("朝")), "{v}");
+        let (st, _) = lot.handle_body("PUT", "/api/dashboard-sets/2", "", r#"{"name": "朝 2", "base_rev": 9}"#.as_bytes(), &ask).unwrap();
+        assert_eq!(st, 409, "開いてから変わった行は直さない");
+        assert_eq!(lot.handle_body("PUT", "/api/dashboard-sets/1", "", br#"{"name": "x"}"#, &ask).unwrap().0, 400, "セットでない行");
+        assert_eq!(lot.handle_body("DELETE", "/api/dashboard-sets/2", "rev=1", b"", &ask).unwrap(), (200, json!({"ok": true})));
+        // Python に任せる: 判定の材料が無い・書けない本文・ASCII でない id
+        let none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
+        assert!(Lot::new(dir.join("c2")).handle_body("GET", "/api/dashboard-sets", "", b"", &none).is_none());
+        assert!(lot
+            .handle_body("POST", "/api/dashboard-sets", "", br#"{"name": 1.5, "scope": "me", "body": {"items": ["1"]}}"#, &ask)
+            .is_none());
+        assert!(lot.handle_body("POST", "/api/dashboard-sets", "", br#"{"name": "a", "x": NaN}"#, &ask).is_none());
+        assert!(lot.handle_body("PUT", "/api/dashboard-sets/２", "", b"{}", &ask).is_none());
+        assert!(lot.handle_body("PATCH", "/api/dashboard-sets/2", "", b"{}", &ask).is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
