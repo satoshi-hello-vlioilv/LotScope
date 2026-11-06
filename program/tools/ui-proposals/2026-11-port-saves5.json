@@ -1,0 +1,238 @@
+{
+ "title": "Rust 化の段 2 の残り: ダッシュボードの 5 本の道（版 3.81.0 の部品 layout_clean の上に）をどう窓へ移すか（2026-11-06）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-06・main 72af6bf）: 保存の道の残りはダッシュボードの 5 本だけ（routes/dashboard.py :78〜177）。中身の確かめは版 3.81.0 で部品 desktop/src/layout_clean.rs（clean_layout・clean_hide_body・condition_of。事例の表 88 件で Python と一致）。行の決まりは preset_rows.rs。GET は組み込みの標準 1（BUILTIN_LAYOUTS・board_default）・builtin_skip（dashoff の行・replaces・版 3.49.0 より前の同じ名前）・with_legacy_conditions（マスタ dashboard_settings）・hidden の名前・cols・rowsRange を返す。POST・PUT は with_builtin_replace（組み込みと同じ名前で自分の ID か共通デフォルトに置く行は中身に replaces）。PUT /api/dashboards-hidden は get_json(force=True) が master_call の外（壊れた本文は HTML の 400）。版 3.81.0 の作った後の採点の注: 木のままでは -0・大きな整数が字に変わるので本文には master_rows::unreadable を先に当てる。窓の dashboard.rs（1,828 行）は問い合わせ用の clean_panel を別に持つ。",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-06。決まり 2026-11-06『画面に関係のない改良は採点を 1 回ずつ』の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・前の記録 2026-11-port-saves4.json（evaluator・score・minus・seen）、program/app の routes/dashboard.py :55〜180・routes/common.py の master_call・exception_error・base_rev・find_row、services/dashboard.py（condition_of・_int・board_default・with_legacy_conditions・clean_panel・clean_board・clean_fmt の colors・clean_layout・clean_layout_row・builtin_named・with_builtin_replace・layout_view・BUILTIN_LAYOUTS・builtin_layouts・clean_hide_body・clean_hide_row・hidden_rows・builtin_skip）、services/pivot_presets.py の view・standard_for、repositories/master_repository.py の dashboards・dashboard_rows・_preset_write・dashboard_update、master_store.py の共有するマスタ、desktop/src の layout_clean.rs 全部の要所（clean_layout・clean_hide_body・condition_of・py_int_of・board_default）・preset_rows.rs 全部・dash_sets.rs 全部・card_forms.rs の冒頭と本文の読み方・formats_write.rs の木の本文・jsontree.rs・access.rs の Place（split_file・share_absent・rows）・master_store.rs の SHARED_ALWAYS・dashboard.rs の問い合わせ用 clean_panel と int_of・pyfmt.rs の py_int・lot.rs の dash_sets_route・presets_route・cards_route、program/tests/sets_oracle.py。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5）: (1) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py … sets_oracle.py の place・store_of で共有の置き場を作り（dashboard_settings も置く）、create_app と test_client で GET・POST・PUT・DELETE /api/dashboards と PUT /api/dashboards-hidden を 17 の場面で当て、答えとできたファイルを見た（置き場 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/w）。(2) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe_absent.py … 共有に dashboard_settings.json が無いときの GET（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/w2）。(3) python -c で clean_layout を 2 回通す冪等さ・with_builtin_replace の大きさの確かめ・fmt.colors 41 個の送った順を直接見た。物差しの読み替えは前の記録と同じ（順序＝段の進め方の筋〈土台が先か〉／チャンク＝1 版のまとまりの大きさと揃い／階層化＝狙いが 1 つか／視覚化＝評価関数で食い違いを数で見せられるか／ステップ数＝Python 無しへ近づく量／考えさせない＝落とし穴を先に潰しているか／直感的＝作りが素直か・既存の型に載るか／形と色・言葉と置き場＝決まりが 1 か所か／美しさ＝量と釣り合い）。減点は、案の文のとおりに作ると Python と窓の答え・置く字・できるファイルが割れる所で、Python を自分で動かし、窓の今の部品を読んで確かめた物だけを『状態が見えない −3』で引いた。同じ割れは案ごとに 1 つに数え、案の文で潰している物と、その案が移さない道の割れは引かなかった。",
+ "rounds": [
+  {
+   "name": "1 回目（画面に関係のない改良。採点は 1 回だけ）",
+   "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+   "self_check": "案を作った者が採点に渡す前に確かめたこと（2026-11-06）: routes/dashboard.py :70〜180・services/dashboard.py :600〜830（clean_layout_row・builtin_named・with_builtin_replace・layout_view・BUILTIN_LAYOUTS・builtin_layouts・clean_hide_body・clean_hide_row・hidden_rows・builtin_skip）・repositories/master_repository.py の dashboards・dashboard_rows・_preset_write と、窓の layout_clean.rs・preset_rows.rs・dash_sets.rs。6 案の方向は、量（A・D・E・F 全部／B・C 半分）・残す道（B 読む・C 書く）・作り（D 組み込みを 1 つの JSON・E 問い合わせと保存の部品を 1 つ）・落とし穴の扱い（F 古い置き場は任せる）で偏りが無いことを見た。",
+   "proposals": {
+    "A ダッシュボードの 5 本を 1 版で（組み込みは焼いた表）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 7,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET の with_builtin_replace が道の外で落ちる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py の『ID の「標準」の中身が重なる』『ID の「標準」の中身が並び』）: 自分の ID か共通デフォルトに名前「標準」で置いた行の中身が重なるパネル・'[1]' のように clean_layout が LayoutError を出す形だと、GET /api/dashboards は master_call の外なので Python は例外（本番は 500）。共通の「標準」・ほかの名前の同じ中身は 200（panels 空）。部品 layout_clean はこれを Stop::Layout で返すので、view と同じく『読めなければ panels 空』で受けると窓だけ 200 になる。GET では builtin_named の行の clean_layout の Stop::Layout も Python に任せる（または 500 を同じ形で返す）が要る。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "with_builtin_replace は中身を clean_layout にもう 1〜2 回通す（python -c で確かめた）: clean_layout は冪等でない。title「a×59＋空白＋b」はstrip してから 60 字で切るので 1 回目は末尾に空白が残り（'aa '）、2 回目で落ちる（'aaa'）。POST {name: 標準, scope: me} は 3 回通した字を置き（末尾 'aa'）、本文に replaces: standard を付けて送ると 1 回目の字のまま置く（'a '）。大きさも 2 回目で確かめ直すので、置く字が 131,053 バイト（上限 131,072）の中身は scope all なら 201、scope me の「標準」なら replaces の分で 400『ダッシュボードが大きすぎます。』。窓が 1 回の答えに replaces を差し込んで py_dumps すると両方割れる。clean_layout(Tree::Str(1 回目の字)) → 中身に replaces を足した木で もう一度 clean_layout、と Python と同じ回数を通す（PUT は前の行の中身でも）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET はもう 1 つのマスタ dashboard_settings を読む（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe_absent.py）: 共有のフォルダに dashboard_settings.json が無いと、Python の GET は読むだけで共有と写しに最初の版を作る（前 [access_permissions, dashboards, path_settings] → 後に dashboard_settings.json・tab_access.json）。窓は作らないので、dash_sets.rs が dashboards に当てている Place::share_absent・split_file を dashboard_settings にも当てて Python に任せる要がある。同じく行が表でない（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py『前の版の条件の行が並び』）は Python の _list が AttributeError で落ちる（condition_of の Stop::Py は効くが、rows_plain は dashboards の FIELDS しか見ない）。案の文は with_legacy_conditions の中身だけで、2 つ目の置き場の読み方が無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "POST・PUT の本文の中身は送った順のまま clean_layout に渡す要がある（python -c で確かめた）: fmt.colors を 41 個（k40, k39, … k00 の順）送ると、Python は先に来た 40 個（k01〜k40）を残し、鍵の字の順に並べ直した本文なら k00〜k39 が残る。preset_rows::clean_row の body_text は serde の Value（鍵を字の順に並べ直す）を受けるので、そのまま Value → 木に直すと割れる。formats_write.rs のように本文のバイトを jsontree::Tree でも読み、body はその木を clean_layout に渡す（jsontree に Value → Tree は無い）。案の文に無い"
+      }
+     ],
+     "seen": "良い所: 版 3.81.0 の部品 layout_clean（88 件で一致）・preset_rows・dash_sets の型にそのまま載り、保存の道の残り 5 本を 1 版で終える（ステップ 8）。組み込みを Python の builtin_layouts から焼いた表にする形は pivot_builtins.json と同じ先例で、古い表を試験が止める（直感的・視覚化 8）。builtin_skip・replaces・hidden・with_legacy_conditions・master_rows::unreadable を名指ししている。確かめた答え: 基本の並び（me → all → default、名前は字の順）・standardId は標準の行が無ければ items の最後（組み込みを外すと最後の共通デフォルトの行。『並び順と standardId』で 2）・中身に replaces があるが panels が [1] の行は view の panels 空で replaces も出ないのに組み込みは隠れる（builtin_skip は生の json.loads）・外した組み込みの中身が '[1]'・'\"standard\"' や前の版の条件が '[1]'・'5' は Python が落ちるが、部品の clean_hide_body・condition_of が Stop::Py で任せる。PUT hidden の keys が字 'standard' は 1 字ずつで keys [] → 行を消す・keys が表 {standard: 1} は鍵で読む・keys が数は TypeError 400（部品は Stop::Py）・本文 '' と '{' は HTML の 400（任せる）。DELETE の本文 '\"x\"' は base_rev が道の外で TypeError（dash_sets と同じく任せる）。悪い所: 下の 4 つ（GET の with_builtin_replace が道の外で落ちる・clean_layout を通す回数・2 つ目の置き場 dashboard_settings・本文の送った順）を案の文で潰していない（考えさせない 6）。問い合わせ用の clean_panel（dashboard.rs）は別のまま（形と色 7）"
+    },
+    "B 書く 4 本だけ（POST・PUT・DELETE・外す。GET は Python のまま）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 6,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "with_builtin_replace は中身を clean_layout にもう 1〜2 回通す（python -c で確かめた）: clean_layout は冪等でない。title「a×59＋空白＋b」はstrip してから 60 字で切るので 1 回目は末尾に空白が残り（'aa '）、2 回目で落ちる（'aaa'）。POST {name: 標準, scope: me} は 3 回通した字を置き（末尾 'aa'）、本文に replaces: standard を付けて送ると 1 回目の字のまま置く（'a '）。大きさも 2 回目で確かめ直すので、置く字が 131,053 バイト（上限 131,072）の中身は scope all なら 201、scope me の「標準」なら replaces の分で 400『ダッシュボードが大きすぎます。』。窓が 1 回の答えに replaces を差し込んで py_dumps すると両方割れる。clean_layout(Tree::Str(1 回目の字)) → 中身に replaces を足した木で もう一度 clean_layout、と Python と同じ回数を通す（PUT は前の行の中身でも）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "POST・PUT の本文の中身は送った順のまま clean_layout に渡す要がある（python -c で確かめた）: fmt.colors を 41 個（k40, k39, … k00 の順）送ると、Python は先に来た 40 個（k01〜k40）を残し、鍵の字の順に並べ直した本文なら k00〜k39 が残る。preset_rows::clean_row の body_text は serde の Value（鍵を字の順に並べ直す）を受けるので、そのまま Value → 木に直すと割れる。formats_write.rs のように本文のバイトを jsontree::Tree でも読み、body はその木を clean_layout に渡す（jsontree に Value → Tree は無い）。案の文に無い"
+      }
+     ],
+     "seen": "良い所: GET の割れ（P1・P3）と組み込みの焼いた表を次の版へ送るので、この版の落とし穴は少ない。書く 4 本は dash_sets の型そのもの。悪い所: 進む量は 5 本のうち 4 本で、いちばん呼ばれる GET（画面を開くたび）が Python に残り、Python 無しには近づきにくい（ステップ 5）。書いた後の画面の形は窓、並びは Python と、1 つの置き場の読みが 2 か所に分かれる（言葉と置き場 6）。POST・PUT にある with_builtin_replace の回数（P2）と本文の送った順（P4）は残る"
+    },
+    "C 読む 1 本と易しい 2 本（GET・DELETE・外す。足す・直すは Python のまま）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET の with_builtin_replace が道の外で落ちる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py の『ID の「標準」の中身が重なる』『ID の「標準」の中身が並び』）: 自分の ID か共通デフォルトに名前「標準」で置いた行の中身が重なるパネル・'[1]' のように clean_layout が LayoutError を出す形だと、GET /api/dashboards は master_call の外なので Python は例外（本番は 500）。共通の「標準」・ほかの名前の同じ中身は 200（panels 空）。部品 layout_clean はこれを Stop::Layout で返すので、view と同じく『読めなければ panels 空』で受けると窓だけ 200 になる。GET では builtin_named の行の clean_layout の Stop::Layout も Python に任せる（または 500 を同じ形で返す）が要る。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "with_builtin_replace は中身を clean_layout にもう 1〜2 回通す（python -c で確かめた）: clean_layout は冪等でない。title「a×59＋空白＋b」はstrip してから 60 字で切るので 1 回目は末尾に空白が残り（'aa '）、2 回目で落ちる（'aaa'）。POST {name: 標準, scope: me} は 3 回通した字を置き（末尾 'aa'）、本文に replaces: standard を付けて送ると 1 回目の字のまま置く（'a '）。大きさも 2 回目で確かめ直すので、置く字が 131,053 バイト（上限 131,072）の中身は scope all なら 201、scope me の「標準」なら replaces の分で 400『ダッシュボードが大きすぎます。』。窓が 1 回の答えに replaces を差し込んで py_dumps すると両方割れる。clean_layout(Tree::Str(1 回目の字)) → 中身に replaces を足した木で もう一度 clean_layout、と Python と同じ回数を通す（PUT は前の行の中身でも）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET はもう 1 つのマスタ dashboard_settings を読む（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe_absent.py）: 共有のフォルダに dashboard_settings.json が無いと、Python の GET は読むだけで共有と写しに最初の版を作る（前 [access_permissions, dashboards, path_settings] → 後に dashboard_settings.json・tab_access.json）。窓は作らないので、dash_sets.rs が dashboards に当てている Place::share_absent・split_file を dashboard_settings にも当てて Python に任せる要がある。同じく行が表でない（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py『前の版の条件の行が並び』）は Python の _list が AttributeError で落ちる（condition_of の Stop::Py は効くが、rows_plain は dashboards の FIELDS しか見ない）。案の文は with_legacy_conditions の中身だけで、2 つ目の置き場の読み方が無い"
+      }
+     ],
+     "seen": "良い所: DELETE と PUT hidden は中身の確かめがほぼ無く、確かに易しい。悪い所: 『易しい』と分けた GET がいちばん重い。GET も行ごとに with_builtin_replace を通す（routes/dashboard.py :83）ので、案が次の版へ送るwith_builtin_replace をこの版でも作ることになり、分け方の狙いが立たない（考えさせない 5・直感的 6）。GET の割れ（P1・P3）と、GET でのclean_layout の回数（P2: 名前「標準」の ID の行で、置いた字に replaces が無い前の版の行は view の中身を 3 回通した形で出す）が残る。PUT hidden は scope・門・同じ組の行の探し方・空なら消すがあり、keys だけではない"
+    },
+    "D 5 本＋組み込みの中身を Python・窓の共通のデータに（新）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 9,
+      "place": 9,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET の with_builtin_replace が道の外で落ちる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py の『ID の「標準」の中身が重なる』『ID の「標準」の中身が並び』）: 自分の ID か共通デフォルトに名前「標準」で置いた行の中身が重なるパネル・'[1]' のように clean_layout が LayoutError を出す形だと、GET /api/dashboards は master_call の外なので Python は例外（本番は 500）。共通の「標準」・ほかの名前の同じ中身は 200（panels 空）。部品 layout_clean はこれを Stop::Layout で返すので、view と同じく『読めなければ panels 空』で受けると窓だけ 200 になる。GET では builtin_named の行の clean_layout の Stop::Layout も Python に任せる（または 500 を同じ形で返す）が要る。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "with_builtin_replace は中身を clean_layout にもう 1〜2 回通す（python -c で確かめた）: clean_layout は冪等でない。title「a×59＋空白＋b」はstrip してから 60 字で切るので 1 回目は末尾に空白が残り（'aa '）、2 回目で落ちる（'aaa'）。POST {name: 標準, scope: me} は 3 回通した字を置き（末尾 'aa'）、本文に replaces: standard を付けて送ると 1 回目の字のまま置く（'a '）。大きさも 2 回目で確かめ直すので、置く字が 131,053 バイト（上限 131,072）の中身は scope all なら 201、scope me の「標準」なら replaces の分で 400『ダッシュボードが大きすぎます。』。窓が 1 回の答えに replaces を差し込んで py_dumps すると両方割れる。clean_layout(Tree::Str(1 回目の字)) → 中身に replaces を足した木で もう一度 clean_layout、と Python と同じ回数を通す（PUT は前の行の中身でも）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET はもう 1 つのマスタ dashboard_settings を読む（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe_absent.py）: 共有のフォルダに dashboard_settings.json が無いと、Python の GET は読むだけで共有と写しに最初の版を作る（前 [access_permissions, dashboards, path_settings] → 後に dashboard_settings.json・tab_access.json）。窓は作らないので、dash_sets.rs が dashboards に当てている Place::share_absent・split_file を dashboard_settings にも当てて Python に任せる要がある。同じく行が表でない（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py『前の版の条件の行が並び』）は Python の _list が AttributeError で落ちる（condition_of の Stop::Py は効くが、rows_plain は dashboards の FIELDS しか見ない）。案の文は with_legacy_conditions の中身だけで、2 つ目の置き場の読み方が無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "POST・PUT の本文の中身は送った順のまま clean_layout に渡す要がある（python -c で確かめた）: fmt.colors を 41 個（k40, k39, … k00 の順）送ると、Python は先に来た 40 個（k01〜k40）を残し、鍵の字の順に並べ直した本文なら k00〜k39 が残る。preset_rows::clean_row の body_text は serde の Value（鍵を字の順に並べ直す）を受けるので、そのまま Value → 木に直すと割れる。formats_write.rs のように本文のバイトを jsontree::Tree でも読み、body はその木を clean_layout に渡す（jsontree に Value → Tree は無い）。案の文に無い"
+      }
+     ],
+     "seen": "良い所: 組み込みの中身と board_default の元が 1 つの JSON になり、焼き直し・古い表の試験が要らない（形と色・言葉と置き場 9）。悪い所: 消していく側の Python を書き換える（BUILTIN_LAYOUTS は _pv の既定〈grand は visual で決まる〉と board_default() と YESTERDAY を組んだ物で、board_default(conds) は with_legacy_conditions・clean_board の空の groups からも呼ぶ関数。JSON の型紙に直すと Python の試験と版の書き直しまで広がる）。窓の board_default（layout_clean.rs）も JSON から読むように変えると layout_cases の 88 件も流し直し。desktop の crate が program/app/data をinclude_str! する前例は無い（pivot_builtins.json は desktop/src に焼いた）。直感的 6・チャンク 6。A と同じ 4 つの割れが残る"
+    },
+    "E 5 本＋問い合わせと保存の clean_panel を 1 つに（新）": {
+     "score": {
+      "order": 6,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 9,
+      "place": 9,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET の with_builtin_replace が道の外で落ちる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py の『ID の「標準」の中身が重なる』『ID の「標準」の中身が並び』）: 自分の ID か共通デフォルトに名前「標準」で置いた行の中身が重なるパネル・'[1]' のように clean_layout が LayoutError を出す形だと、GET /api/dashboards は master_call の外なので Python は例外（本番は 500）。共通の「標準」・ほかの名前の同じ中身は 200（panels 空）。部品 layout_clean はこれを Stop::Layout で返すので、view と同じく『読めなければ panels 空』で受けると窓だけ 200 になる。GET では builtin_named の行の clean_layout の Stop::Layout も Python に任せる（または 500 を同じ形で返す）が要る。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "with_builtin_replace は中身を clean_layout にもう 1〜2 回通す（python -c で確かめた）: clean_layout は冪等でない。title「a×59＋空白＋b」はstrip してから 60 字で切るので 1 回目は末尾に空白が残り（'aa '）、2 回目で落ちる（'aaa'）。POST {name: 標準, scope: me} は 3 回通した字を置き（末尾 'aa'）、本文に replaces: standard を付けて送ると 1 回目の字のまま置く（'a '）。大きさも 2 回目で確かめ直すので、置く字が 131,053 バイト（上限 131,072）の中身は scope all なら 201、scope me の「標準」なら replaces の分で 400『ダッシュボードが大きすぎます。』。窓が 1 回の答えに replaces を差し込んで py_dumps すると両方割れる。clean_layout(Tree::Str(1 回目の字)) → 中身に replaces を足した木で もう一度 clean_layout、と Python と同じ回数を通す（PUT は前の行の中身でも）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET はもう 1 つのマスタ dashboard_settings を読む（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe_absent.py）: 共有のフォルダに dashboard_settings.json が無いと、Python の GET は読むだけで共有と写しに最初の版を作る（前 [access_permissions, dashboards, path_settings] → 後に dashboard_settings.json・tab_access.json）。窓は作らないので、dash_sets.rs が dashboards に当てている Place::share_absent・split_file を dashboard_settings にも当てて Python に任せる要がある。同じく行が表でない（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py『前の版の条件の行が並び』）は Python の _list が AttributeError で落ちる（condition_of の Stop::Py は効くが、rows_plain は dashboards の FIELDS しか見ない）。案の文は with_legacy_conditions の中身だけで、2 つ目の置き場の読み方が無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "POST・PUT の本文の中身は送った順のまま clean_layout に渡す要がある（python -c で確かめた）: fmt.colors を 41 個（k40, k39, … k00 の順）送ると、Python は先に来た 40 個（k01〜k40）を残し、鍵の字の順に並べ直した本文なら k00〜k39 が残る。preset_rows::clean_row の body_text は serde の Value（鍵を字の順に並べ直す）を受けるので、そのまま Value → 木に直すと割れる。formats_write.rs のように本文のバイトを jsontree::Tree でも読み、body はその木を clean_layout に渡す（jsontree に Value → Tree は無い）。案の文に無い"
+      }
+     ],
+     "seen": "良い所: Python は保存と問い合わせ（routes/dashboard.py :63 の clean_panel(…, 0, ROWS_MAX)）に 1 つの clean_panel を使うので、1 つにする向きは正しい（形と色・言葉と置き場 9）。今の dashboard.rs の int_of は pyfmt::py_int で 4,300 桁の上限が無く（top に '9'×5000 → Python は int() が断って 0、窓は 60 に詰める）、layout_clean の py_int_of は上限を写してあるので、1 つにすると問い合わせのこの割れも消える。悪い所: 保存の 5 本と問い合わせの道（dash_parity・ops_parity）を 1 版で動かすので大きい（チャンク 5・釣り合い 5）。layout_clean は全角の数の字・\\x1c〜\\x1f の空白などを Stop::Py で任せ、Tree で読む（問い合わせの本文は今 serde の Value）ので、今は窓が答えている問い合わせが Python に戻る形が出るのに、案の文はそれを書いていない（考えさせない 5）。A と同じ 4 つの割れも残る"
+    },
+    "F 5 本・前の版の条件があれば GET は任せる（新）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET の with_builtin_replace が道の外で落ちる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py の『ID の「標準」の中身が重なる』『ID の「標準」の中身が並び』）: 自分の ID か共通デフォルトに名前「標準」で置いた行の中身が重なるパネル・'[1]' のように clean_layout が LayoutError を出す形だと、GET /api/dashboards は master_call の外なので Python は例外（本番は 500）。共通の「標準」・ほかの名前の同じ中身は 200（panels 空）。部品 layout_clean はこれを Stop::Layout で返すので、view と同じく『読めなければ panels 空』で受けると窓だけ 200 になる。GET では builtin_named の行の clean_layout の Stop::Layout も Python に任せる（または 500 を同じ形で返す）が要る。案の文に無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "with_builtin_replace は中身を clean_layout にもう 1〜2 回通す（python -c で確かめた）: clean_layout は冪等でない。title「a×59＋空白＋b」はstrip してから 60 字で切るので 1 回目は末尾に空白が残り（'aa '）、2 回目で落ちる（'aaa'）。POST {name: 標準, scope: me} は 3 回通した字を置き（末尾 'aa'）、本文に replaces: standard を付けて送ると 1 回目の字のまま置く（'a '）。大きさも 2 回目で確かめ直すので、置く字が 131,053 バイト（上限 131,072）の中身は scope all なら 201、scope me の「標準」なら replaces の分で 400『ダッシュボードが大きすぎます。』。窓が 1 回の答えに replaces を差し込んで py_dumps すると両方割れる。clean_layout(Tree::Str(1 回目の字)) → 中身に replaces を足した木で もう一度 clean_layout、と Python と同じ回数を通す（PUT は前の行の中身でも）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "GET はもう 1 つのマスタ dashboard_settings を読む（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe_absent.py）: 共有のフォルダに dashboard_settings.json が無いと、Python の GET は読むだけで共有と写しに最初の版を作る（前 [access_permissions, dashboards, path_settings] → 後に dashboard_settings.json・tab_access.json）。窓は作らないので、dash_sets.rs が dashboards に当てている Place::share_absent・split_file を dashboard_settings にも当てて Python に任せる要がある。同じく行が表でない（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py『前の版の条件の行が並び』）は Python の _list が AttributeError で落ちる（condition_of の Stop::Py は効くが、rows_plain は dashboards の FIELDS しか見ない）。案の文は with_legacy_conditions の中身だけで、2 つ目の置き場の読み方が無い"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "POST・PUT の本文の中身は送った順のまま clean_layout に渡す要がある（python -c で確かめた）: fmt.colors を 41 個（k40, k39, … k00 の順）送ると、Python は先に来た 40 個（k01〜k40）を残し、鍵の字の順に並べ直した本文なら k00〜k39 が残る。preset_rows::clean_row の body_text は serde の Value（鍵を字の順に並べ直す）を受けるので、そのまま Value → 木に直すと割れる。formats_write.rs のように本文のバイトを jsontree::Tree でも読み、body はその木を clean_layout に渡す（jsontree に Value → Tree は無い）。案の文に無い"
+      }
+     ],
+     "seen": "良い所: A と同じ型・同じ量で、前の版の条件が入った PC の GET は Python に任せ、with_legacy_conditions の board_default(conds) の差し替えを持ち込まない。悪い所: 落とす割れはもう部品が潰している（前の版の条件 '[1]'・'5'・行が並びは layout_clean::condition_of が Stop::Py。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-saves5/probe.py で Python は AttributeError、条件が正しい表なら legacy の表の filters・search〈strip 済み 'ab'〉を入れて 200）ので、得る安全は小さく、任せる形が 1 つ増える（ステップ 7）。dashboard_settings を読むこと自体は残るので、2 つ目の置き場の share_absent（P3）はこの案でも要る。A と同じ 4 つの割れが残る"
+    }
+   }
+  }
+ ],
+ "proposals_text": {
+  "A ダッシュボードの 5 本を 1 版で（組み込みは焼いた表）": "GET／POST／PUT／DELETE /api/dashboards と PUT /api/dashboards-hidden を窓へ。中身は版 3.81.0 の部品 layout_clean（clean_layout・clean_hide_body・condition_of）、行の決まりは preset_rows（範囲・★・書ける人・名前の重なり・版）。組み込みの標準（BUILTIN_LAYOUTS を clean_layout した builtin_layouts の答え）は Python から焼いた表（desktop/src/dash_builtins.json。tools で焼き、古い表は試験が止める）。GET は builtin_skip（外した組み込み・入れ替えた物・版 3.49.0 より前の同じ名前）・replaces の id・with_legacy_conditions（マスタ dashboard_settings の前の版の条件）・hidden の名前を Python と同じに組む。POST・PUT は with_builtin_replace（組み込みと同じ名前は中身に replaces）。本文には先に master_rows::unreadable（-0・大きな整数・NaN）を当てる。突き合わせは dashboards_oracle.py → dashboards_parity.rs。",
+  "B 書く 4 本だけ（POST・PUT・DELETE・外す。GET は Python のまま）": "A のうち書く道だけを窓へ。GET は組み込み・外した物・入れ替え・前の版の条件を混ぜるので Python に残し、次の版で移す。書いた後の画面の形（layout_view）は部品で作る。",
+  "C 読む 1 本と易しい 2 本（GET・DELETE・外す。足す・直すは Python のまま）": "GET（組み込みの焼いた表・builtin_skip・前の版の条件）と、中身を確かめない DELETE、keys だけの PUT /api/dashboards-hidden を窓へ。with_builtin_replace の要る POST・PUT は次の版。",
+  "D 5 本＋組み込みの中身を Python・窓の共通のデータに（新）": "A と同じ 5 本を移すが、組み込みの標準を焼いた表ではなく、program/app/data/dashboard_builtins.json に置き、Python の BUILTIN_LAYOUTS もそこから読む（中身の元が 1 つの JSON。窓は include_str!）。board_default も同じ JSON の 1 か所に。Python 側を書き換えるので、Python の試験（dashboard の組み込み・入れ替え）も流す。",
+  "E 5 本＋問い合わせと保存の clean_panel を 1 つに（新）": "A の 5 本に加えて、窓の dashboard.rs の問い合わせ用 clean_panel を layout_clean の clean_panel に置き換える（Python も 1 つの clean_panel を保存と問い合わせに使う）。dash_parity・ops_parity と dashboards_parity の両方で突き合わせる。",
+  "F 5 本・前の版の条件があれば GET は任せる（新）": "A の 5 本を移すが、マスタ dashboard_settings に条件（filters・search）が入った行が 1 つでもあれば GET は Python に任せる（版 3.36.0 の古い置き場。今の PC ではまず空）。with_legacy_conditions の割れ（'[1]' で 500 など）を道に持ち込まない。組み込みは焼いた表。"
+ },
+ "built": {
+  "name": "作った後",
+  "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-06。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・両方へ当てて確かめた事実で採点した。リポジトリの中には何も置かず、窓は scratchpad の作業用クレート（da_core を path 依存・CARGO_TARGET_DIR は desktop/target を共用）から呼んだ",
+  "result": {
+   "proposal": "A ダッシュボードの 5 本を 1 版で（組み込みは焼いた表）（作った後）",
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 9,
+    "steps": 9,
+    "effortless": 9,
+    "intuitive": 8,
+    "form": 7,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "読んだ物: desktop/src の dashboards_write.rs 全部・lot.rs の dashboards_route・dashboard.rs の int_of の直し（git show HEAD）・jsontree.rs の get と同じ鍵の扱い・preset_rows.rs の rows_plain・plain_input・clean_row・master_rows.rs の text_split・unreadable・split_number・same_id、program/app の routes/dashboard.py :78〜177・services/dashboard.py の condition_of・_int・_period・clean_fmt の数・board_default・with_legacy_conditions・clean_layout・builtin_named・with_builtin_replace・layout_view・builtin_layouts・clean_hide_body・builtin_skip・services/pivot_presets.py の clean_row・group_of・visible・repositories/master_repository.py の _list・_find・_check_row・_preset_write・dashboard_update・routes/common.py の base_rev、program/tests/dashboards_oracle.py と desktop/tests/dashboards_parity.rs。【当てた物】作業用クレート /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/probe（main.rs が dashboards_parity と同じ形で dashboards_write::answer を当て、1 歩ごとの答えと終わった後のファイルを突き合わせる。窓が None を返した歩は「任せた」で割れに数えない）。Python は dashboards_oracle の場面を差し替えて流した: (1) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/probe.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/res.tsv: 外した組み込みの行の中身 15 形 × 範囲 3（keys が表・字・並びの中の数と null と真・null・空・\"x\"・同じ鍵 keys が 2 つ・重なり）、一覧の行 23 形（共通・ID の replaces・知らない replaces・名前「標準」の共通・前後の空白・空の中身・題の末尾の空白・\"x\" の中身・panels [1] と replaces・同じ鍵の replaces 2 つ・並びの中身・replaces が並び・replaces の末尾の空白・★のある共通「標準」と外した組み込み・セット・カード・名前の重なり〈Ｂ・b・B・空〉・知らない範囲・重なるパネル・legacy の合わせた表と replaces）、前の版の条件 19 形（値が数・空白だけの検索・同じキー 2 つ・前後に空白のキー・300 字・キーが無い・空の条件・同じ鍵 search・filters が数・NaN・1e400・片割れの代用字・-0・大きな整数・1.0・キーが数・条件が数・条件が表・版が字）、足す（大きさの境: 131,048／131,062／131,072／131,073 バイトの中身を「標準」の me・all・default、replaces を付けた default）・本文の同じ鍵（name・scope・body）・replaces の有無・全角の名前・空白の全角・題の末尾の空白・字の中身・slicer・id の付け直し・表の項目・閲覧のみの人・本文 0／false／\"\"／{}・名前が真／0／12・note が真・scope が null／1・fmt.colors 46 個を逆順・パネル 25 枚、直す 33 形・消す 16 形（本文 []・0・{}・base_rev・?rev= の重なり・空・1.0・%201・外した組み込みの id・閲覧のみ・ほかの ID・共通デフォルト）・外す 25 形（本文の同じ鍵 keys・scope・keys が [[…]]・\"\"・0・1.5・[真, null, …]・表・scope が並び・余計な項目・本文 0／false・同じ名前のダッシュボードがある・同じ組の行が 2 つ・★の付いた別の名前の行・共通デフォルトの行のログインID・共通の外した行・id が字・id が null・版が字・版が 2.0・閲覧のみ・だれでもない人）、置き場 local・mirror。窓が答えた 419・任せた 21・答えの割れ 0（ファイルの差 2 は、窓が任せた外す 18・19〈外した行の id が字・null〉の後の差で、割れではない）。(2) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/probe2.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/res2.tsv: 重なりの無い置き場で直す 35 形（★・備考だけ・名前替え・「標準」へ・共通・共通デフォルト・replaces を持つ行の名前替えと中身替えと版・大きさの境の名前替え・scope は直さない・id 007・本文 0／{}・?rev=・body null・\"abc\"・小数 -0.0・1e16・5e-324・0.1+0.2・\"١٢\"・\" 1_0 \"・末尾の空白 60 字の題と 200 字の列・id の付け直し）と、足す 8 形 × 範囲 3（同じ物を名前「標準」と「x」で）。窓が答えた 170・任せた 7・答えの割れ 0（ファイルの割れ 8 は、窓が任せた歩〈period の n に \\x1c・refs の \"١٢\"〉の後の写しの差で、割れではない）。(3) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/probe3.py・probe4.py → res3.tsv・res4.tsv: 前の版の条件のファイルが壊れた字・空・並び・rows が数・版が字・BOM・NaN・rows が無い・写しだけ・無い（local・shared・mirror）と、共有が壊れて写しに条件がある形。窓が答えた 37・任せた 22・答えの割れ 0（ファイルの差は Python が読むたびに写しを取り直す分だけで、前の版から割れに数えていない）。(4) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/probe5.py → /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/res5.tsv: 送った順に効く中身（calc の formulas・names 61 個の逆順・同じに読める鍵・own・fmt.series 31 個・fmt.colors の鍵・equips 211 個・eorder・egroup 31 組・link 6 つ・合わせた表の order.list 250）を名前「標準」（確かめを 3 回）と「x」で足して直す 7 形 × 範囲 3。窓が答えた 105・任せた 0・割れ 0。(5) int_of の直し: dashboard.rs の int_of を写して Python の _int と 64 の値（\\x1c〜\\x1f・全角と各国の数字・4,300 桁の境〈先頭の 0・下線・符号・空白・アラビアの数字〉・小数・真偽・null・大きな数）を突き合わせ割れ 0（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-built-saves5/ints.json）。int_of を呼ぶのは period の n だけで、変わるのは \\x1c〜\\x1f を含む字と 4,300 桁を超える字だけ（どちらも Python は既定の 7）。cargo test --test dashboards_parity --test dash_parity はどちらも ok。良い所: 案の採点の 4 つの指摘（GET の with_builtin_replace の失敗は任せる・確かめを Python と同じ回数通す〈大きさの境も 131,062 バイトで me の「標準」は 400、all は 201 で一致〉・dashboard_settings の share_absent・split_file と表でない行・本文は送った順の木）が全部入り、当てた 731 歩で答えの割れが見つからなかった（考えさせない 9・視覚化 9）。保存の道がこれで全部窓に移る（ステップ 9）。dash_sets・pivot_presets と同じ型（answer・Route・preset_rows）に載る（直感的 8）。悪い所: 問い合わせ用の clean_panel（dashboard.rs）と保存用の layout_clean はまだ 2 つで、int_of の直しも片方だけに入れた形（形と色 7）。問い合わせの道の int_of の直しを保存の版に混ぜた（階層化 8）。減点なし: 見つけた差は、窓が任せた歩の後の写しの差と、Python が読むたびに写しを取り直す読みの副作用だけで、窓が答えた歩の答え・残るファイルの割れは無かった"
+  }
+ }
+}

@@ -7,6 +7,7 @@ pub mod calc;
 pub mod card_forms;
 pub mod dash_sets;
 pub mod dashboard;
+pub mod dashboards_write;
 pub mod distribute;
 pub mod equip_write;
 pub mod formats_write;

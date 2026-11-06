@@ -85,6 +85,9 @@ fn int_of(v: Option<&Value>, lo: i64, hi: i64, d: i64) -> i64 {
     let n = match v {
         Some(Value::Bool(b)) => Some(*b as i64),
         Some(Value::Number(k)) => k.as_i64().or_else(|| k.as_f64().map(|f| f.trunc() as i64)),
+        // Python の int(): \x1c〜\x1f は空白と読まず、4,300 桁を超える数は断る（どちらも既定の値。版 3.82.0 の採点で top の '9'×5000 が割れていた）
+        Some(Value::String(t)) if t.chars().any(|c| ('\x1c'..='\x1f').contains(&c)) => None,
+        Some(Value::String(t)) if t.chars().filter(|c| pyfmt::digit(*c).is_some()).count() > 4300 => None,
         Some(Value::String(t)) => pyfmt::py_int(t).ok(),
         _ => None,
     };
@@ -1801,6 +1804,17 @@ pub fn now_of(conf: &Conf) -> NaiveDateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn int_of_reads_like_python_int() {
+        // Python の max(lo, min(hi, int(v)))（読めなければ既定）。\x1c〜\x1f は空白と読まない・4,300 桁を超える数は断る（版 3.82.0）
+        let at = |v: Value| int_of(Some(&v), 0, 60, 0);
+        assert_eq!(at(json!("9".repeat(5000))), 0);
+        assert_eq!(at(json!("9".repeat(4300))), 60);
+        assert_eq!(at(json!("5\u{1c}")), 0);
+        assert_eq!(at(json!("\u{3000}7")), 7);
+        assert_eq!(at(json!("7")), 7);
+    }
 
     #[test]
     fn clean_panel_messages_like_python() {
