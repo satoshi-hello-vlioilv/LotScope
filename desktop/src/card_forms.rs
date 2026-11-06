@@ -108,6 +108,8 @@ fn int_of(v: Option<&Value>, lo: i64, hi: i64, default: i64) -> i64 {
                 && body.bytes().all(|b| b.is_ascii_digit() || b == b'_');
             ok.then(|| {
                 let digits: String = body.chars().filter(|c| *c != '_').collect();
+                // 先頭の 0 は桁に数えない（Python の int("0"×30+"7") は 7。版 3.80.0 の作った後の採点で見つかった）
+                let digits = digits.trim_start_matches('0');
                 let v: i128 = if digits.len() > 30 { i128::MAX / 2 } else { digits.parse().unwrap_or(0) };
                 if neg {
                     -v

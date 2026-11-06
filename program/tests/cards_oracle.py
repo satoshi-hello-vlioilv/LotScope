@@ -74,7 +74,8 @@ def P(name, body, scope="me", **kw):
     return {"name": name, "source": SRC, "scope": scope, "body": body, **kw}
 
 
-INTS = ["5", " 7 ", "+3", "-2", "1_0", "00", "2.9", "1e3", "", "abc", "_1", "1__0", "9" * 40, "-" + "9" * 40]
+INTS = ["5", " 7 ", "+3", "-2", "1_0", "00", "2.9", "1e3", "", "abc", "_1", "1__0", "9" * 40, "-" + "9" * 40,
+        "0" * 30 + "7", "0_" * 20 + "7", "0" * 3999 + "7", "-" + "0" * 40 + "3", "0" * 50]
 SCENARIOS = [
     {"name": "書く人と範囲・中身・名前・版", "mode": "shared", "rows": ROWS, "steps": [
         S(BOSS, "GET"), S(PART, "GET"), S(VIEW, "GET"), S(NOBODY, "GET"),
