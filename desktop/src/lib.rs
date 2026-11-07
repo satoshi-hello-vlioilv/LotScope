@@ -42,4 +42,5 @@ pub mod sources_list;
 pub mod sources_write;
 pub mod ui_defaults;
 pub mod update;
+pub mod worklog_write;
 pub mod worksum;

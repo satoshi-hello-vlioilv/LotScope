@@ -59,7 +59,7 @@ fn text(v: &Value) -> String {
 
 /// フォルダ・ファイルの欄の字（前後の空白と " を除く。Python の fsio.unquote_path）
 pub fn unquote_path(s: &str) -> String {
-    s.trim().trim_matches('"').to_string()
+    crate::pyfmt::strip(s).trim_matches('"').to_string()
 }
 
 // ------------------------------------------------------------------ 作業実績のフォルダ（Python の work_log.scan・match・resolve）
@@ -67,11 +67,16 @@ pub fn unquote_path(s: &str) -> String {
 pub struct Found {
     pub file: String,
     pub fid: String,
+    /// ファイル名の * の所（Python の work_log.equipment_of）
+    pub equipment: String,
+    pub size: u64,
+    /// 更新時刻（Python の st_mtime と同じ「秒 + ナノ秒 × 1e-9」。版 3.91.0）
+    pub mtime: f64,
 }
 
 /// 「実績_*.sqlite3」→ ("実績_", ".sqlite3")。* はちょうど 1 つ
 pub fn split_pattern(pattern: &str) -> Result<(String, String), String> {
-    let p = pattern.trim();
+    let p = crate::pyfmt::strip(pattern);
     if p.matches('*').count() != 1 {
         return Err(format!("ファイル名の決まり「{p}」には、設備名の所に * をちょうど 1 つ書いてください（例: 実績_*.sqlite3）。"));
     }
@@ -79,15 +84,16 @@ pub fn split_pattern(pattern: &str) -> Result<(String, String), String> {
     Ok((h.into(), t.into()))
 }
 
-/// ファイル名が決まりに合うか（* の所＝設備名が空でない。大文字・小文字は区別しない）
-fn fits(name: &str, head: &str, tail: &str) -> bool {
+/// ファイル名が決まりに合えば * の所（設備名。前後の空白を除く。空なら合わない）。大文字・小文字は区別しない（Python の work_log.equipment_of）
+pub(crate) fn equipment_of(name: &str, head: &str, tail: &str) -> Option<String> {
     let (low, h, t) = (name.to_lowercase(), head.to_lowercase(), tail.to_lowercase());
     let n = name.chars().count();
     if n <= head.chars().count() + tail.chars().count() || !low.starts_with(&h) || !low.ends_with(&t) {
-        return false;
+        return None;
     }
     let mid: String = name.chars().skip(head.chars().count()).take(n - head.chars().count() - tail.chars().count()).collect();
-    !crate::pyfmt::strip(&mid).is_empty()
+    let mid = crate::pyfmt::strip(&mid);
+    (!mid.is_empty()).then(|| mid.to_string())
 }
 
 /// 書き手の作業用のファイルか（隠し・.pending_・-journal・-wal・-shm・.incoming。Python の db_mirror.is_side_file）
@@ -156,6 +162,22 @@ pub fn same_fid(a: &str, b: &str) -> bool {
 }
 
 /// フォルダの中で決まりに合うファイル（名前の順）。届かなければ理由
+/// Python の st_mtime（秒を床・ナノ秒を正にして「秒 + ナノ秒 × 1e-9」。1970 年より前は負の秒）
+fn py_mtime(t: std::time::SystemTime) -> f64 {
+    match t.duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => d.as_secs() as f64 + d.subsec_nanos() as f64 * 1e-9,
+        Err(e) => {
+            let d = e.duration();
+            let (s, n) = (d.as_secs() as i64, d.subsec_nanos());
+            if n == 0 {
+                -s as f64
+            } else {
+                -(s + 1) as f64 + (1_000_000_000 - n) as f64 * 1e-9
+            }
+        }
+    }
+}
+
 pub fn scan(folder: &str, pattern: &str) -> Result<Vec<Found>, String> {
     let folder = unquote_path(folder);
     if folder.is_empty() {
@@ -164,19 +186,24 @@ pub fn scan(folder: &str, pattern: &str) -> Result<Vec<Found>, String> {
     let (head, tail) = split_pattern(pattern)?;
     let rd = std::fs::read_dir(&folder).map_err(|e| {
         let why = e.to_string();
-        let why = why.split(" (os error").next().unwrap_or(&why).to_string();
+        // OS の言葉（Python の strerror と同じ所まで: 「(os error n)」と末尾の「.」・空白を除く。英語の Windows は末尾に「.」が付く）
+        let why = why.split(" (os error").next().unwrap_or(&why).trim_end_matches(['.', ' ']).to_string();
         format!("作業実績のフォルダに届きません（{why}）: {folder}")
     })?;
     let mut out = vec![];
     for e in rd.flatten() {
         let name = e.file_name().to_string_lossy().into_owned();
-        if is_side_file(&name) || !fits(&name, &head, &tail) {
+        if is_side_file(&name) {
             continue;
         }
+        let Some(equipment) = equipment_of(&name, &head, &tail) else { continue };
         if !e.file_type().map(|t| t.is_file()).unwrap_or(false) && !e.path().is_file() {
             continue;
         }
-        out.push(Found { fid: file_id(&e.path()), file: name });
+        // 属性を読めないファイルは除く（Python の os.stat が落ちた行と同じ）
+        let Ok(m) = std::fs::metadata(e.path()) else { continue };
+        let mtime = m.modified().map(py_mtime).unwrap_or(0.0);
+        out.push(Found { fid: file_id(&e.path()), file: name, equipment, size: m.len(), mtime });
     }
     out.sort_by_key(|f| f.file.to_lowercase());
     Ok(out)
@@ -312,10 +339,18 @@ impl Lists {
 
     /// フォルダで見つけたファイル（10 秒覚える）
     fn found(&self, folder: &str, pattern: &str) -> Result<Vec<Found>, String> {
+        self.found_fresh(folder, pattern, false)
+    }
+
+    /// フォルダで見つけたファイル（Python の work_log.Listing.get。fresh は覚えを使わずに探し、探した中身を覚える）。
+    /// 作業実績の一覧の段取りと、マスタ管理の作業実績の登録（版 3.91.0。src/worklog_write.rs）が同じ覚えを使う
+    pub fn found_fresh(&self, folder: &str, pattern: &str, fresh: bool) -> Result<Vec<Found>, String> {
         let key = (unquote_path(folder), pattern.to_string());
-        if let Some((at, r)) = self.listing.lock().unwrap().get(&key) {
-            if at.elapsed() < self.list_ttl {
-                return r.clone();
+        if !fresh {
+            if let Some((at, r)) = self.listing.lock().unwrap().get(&key) {
+                if at.elapsed() < self.list_ttl {
+                    return r.clone();
+                }
             }
         }
         let r = scan(&key.0, &key.1);
@@ -596,8 +631,14 @@ mod tests {
     #[test]
     fn folder_rules_like_python() {
         assert!(split_pattern("実績_*.sqlite3").is_ok() && split_pattern("実績.sqlite3").is_err() && split_pattern("**").is_err());
-        assert!(fits("実績_CR1.sqlite3", "実績_", ".sqlite3") && fits("実績_cr1.SQLITE3", "実績_", ".sqlite3"));
-        assert!(!fits("実績_.sqlite3", "実績_", ".sqlite3") && !fits("実績_ .sqlite3", "実績_", ".sqlite3"), "設備名が空");
+        assert!(
+            equipment_of("実績_CR1.sqlite3", "実績_", ".sqlite3").is_some()
+                && equipment_of("実績_cr1.SQLITE3", "実績_", ".sqlite3").is_some()
+        );
+        assert!(
+            equipment_of("実績_.sqlite3", "実績_", ".sqlite3").is_none() && equipment_of("実績_ .sqlite3", "実績_", ".sqlite3").is_none(),
+            "設備名が空"
+        );
         assert!(is_side_file(".x.incoming") && is_side_file("実績_A.sqlite3-wal") && is_side_file("実績_A.pending_2026"));
         assert!(same_fid("65024:11", "65024:11") && same_fid("4294967297:7:100", "1:7") && !same_fid("1:7:100", "1:7:200"));
         assert!(!same_fid("", "") && !same_fid("1:2", "1:3"));

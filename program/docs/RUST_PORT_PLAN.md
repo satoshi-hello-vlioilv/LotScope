@@ -996,6 +996,27 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   失敗を捨てる、の 2 件と、?engine=python・本文の読み方が 2 か所・試験の場面の足りない所を直した（`"built_fixed"`）。思いがけない失敗の言葉は OS の言葉なので
   Python〈[Errno 13] …〉と窓〈… (os error 13)〉で字が違う（状態・kind・type は同じ）。
 
+### 段 3 の 9 歩目: 作業実績の登録（6 本）を窓が答える — 版 3.91.0
+
+作業実績の登録の移し方を決まり 2026-11-06 で 6 案にして別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-worklog.json`）。
+1 位 **E**〈A の 5 本に、フォルダの答えを 1 つの型〈Found に equipment・size・mtime〉にして一覧の段取りと共にする〉に、採点の指摘 17 個を入れて作った。
+
+- 先に直した Python の割れ（採点で見つけた）: (1) 並べ替えの番号を {キー: 番号} で返していたので、キーの無い行が 2 つ以上あると同じ番号に潰れた
+  （work_log.order_numbers が行ごとに返す）。(2) ファイルID を字の一致で比べていたので、窓と Python が交互に探し直すたびに ID が書き換わって行の版が上がった
+  （work_log.same_fid。窓の lists::same_fid と同じ決まりで、事例の表 `tests/fixtures/fid_cases.json` を両方が読む）。
+- 窓（`desktop/src/worklog_write.rs`）: GET /api/masters/worklog・POST /scan・PUT /order・PUT・DELETE /<id>・GET /api/worklog/files。
+  view・match（同じ名前〈大文字小文字を区別しない〉→ same_fid の順・taken つき。一覧は並びの順、探し直しは登録の順で結ぶ）・ordered（Python の int()）・
+  order_numbers・mark_stale（Python の round）・work_log_sync を写した。フォルダの中身と 10 秒の覚えは `lists.rs` の 1 つ（found_fresh。Found の mtime は
+  Python の st_mtime と同じ式〈1970 年より前も〉）。Python が参照先・データ元の接続を書いたときはフォルダの覚えも捨てる（after_python）。
+  足す行のキーは uuid の 16 進 12 字（突き合わせは Lot::set_new_key）、古さを測る時刻は Lot::set_clock で差し替えられる。
+- 本文の読み方: 並べ替えと直す道は get_json(force=True)（silent でない）なので、空・読めない本文は Python（400 の HTML）に任せる。表でない真の本文・並びや表の値・
+  i64 に入らない id・数の字が 10 進でない版・i128 に入らない並びの番号も Python に任せる。探し直しでフォルダに届かない・決まりの字の誤りは 503 unreachable、
+  結び直しで届かないときは 400 type FolderError（決まりの字の誤りは ValueError）。
+- 評価関数: `cargo test --test worklog_write_parity`（← `tests/worklog_write_oracle.py`。12 場面・80 歩で本物の窓の道〈Lot〉の答え・断る言葉・できたファイルを
+  Python と突き合わせる。実績のファイルのフォルダは 3 つの置き場で共にし、更新時刻は os.utime で決め〈ちょうど .25・.35 時間・1970 年より前・0〉、
+  ファイルID は same_fid で同じファイルを指す物をそろえて比べる）・`cargo test --lib worklog_write`・`lot::tests::the_window_answers_the_work_log_registration`・
+  自己診断の「作業実績の登録の一覧は窓が答え、Python と同じ答え」「作業実績の登録を書く道も窓が受ける」。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。
