@@ -10,6 +10,16 @@
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   const get = async (url, opt) => { const r = await fetch(url, opt); return { r, by: r.headers.get("X-TPA-By"), text: await r.text() }; };
   const json = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  // 窓の情報（版 3.86.0: 画面は中身の準備を待たずに開くので、中身の版〈backend〉は準備ができてから載る。60 秒まで待つ）
+  const infoReady = async () => {
+    let i = {};
+    for (let n = 0; n < 300; n++) {
+      i = await (await fetch("/__desktop/info")).json();
+      if (i.backend && i.backend.version) return i;
+      await sleep(200);
+    }
+    return i;
+  };
   try {
     // 1) 起動が終わる（画面の JS が設定と自分の権限を読み終えた）
     const end = performance.now() + 60000;
@@ -105,7 +115,7 @@
        JSON.stringify(saved));
 
     // 9) 窓の情報（枠の約束の版・目印・受け持ち）
-    const info = await (await fetch("/__desktop/info")).json();
+    const info = await infoReady();
     const ready = info.backend || {};
     ok("窓の情報: 枠の約束の版が中身と同じ・目印・作業場所", info.protocol === 1 && ready.protocol === info.protocol && /transferpitchanalyzer/.test(info.app_id) && !!info.local_root,
        `protocol ${info.protocol}/${ready.protocol} serves=${JSON.stringify(info.serves)} root=${info.local_root}`);
@@ -276,7 +286,7 @@
       if (!["idle", "checking", "staging"].includes(update.state) || performance.now() > end) break;
       await sleep(500);
     }
-    info = await (await fetch("/__desktop/info")).json();
+    info = await infoReady();
     info.install = await (await fetch("/__desktop/install")).json();
     ok("更新の係が答える（取り込めない理由が無い）", update.state !== "error", `${update.state} ${update.ready || ""} ${update.problem || update.detail || ""}`);
   } catch (e) {

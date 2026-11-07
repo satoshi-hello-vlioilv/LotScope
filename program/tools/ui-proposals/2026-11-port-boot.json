@@ -1,15 +1,202 @@
 {
-  "title": "Rust 化の次の段（版 3.86.0）: 画面と最初の読む道を窓が答えるようになった次に、Python が答えない・起きていない間も画面がどこまで使えるかをどう広げるか（2026-11-07）",
-  "rule": "2026-11-06",
-  "measured": "棚卸し（2026-11-07・main e292008）: 版 3.85.0 で GET /・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree は窓が答える（Python が答えないときは既定の形で画面を描く）。起動の流れ（desktop/src/main.rs の start :481〜612）はまだ『Supervisor::get で Python の ready を待つ → Router を slot に置く → navigate(app_url(\"/\"))』の順で、Python の import（Linux で約 0.14 秒、版 3.66.0 の測りで 151 ms。利用者の Windows〈同梱の Python・ウイルス対策〉では測っていないので分からない）と起動前の確認の間、窓は起動画面（splash）のまま。Supervisor::get は current の錠を持ったまま Sidecar::spawn を最大 start_wait 120 秒待つので、その間に来た Python の道はすべて錠で並ぶ。router.rs の Backend for Supervisor の alive() も self.get() を呼ぶ（止まっていれば起こし直しを待つ）。起動の流れを変えると CLAUDE.md の決まりで verify.py の通し（local・update・distribute）を本物の窓で流す。入れ替えた直後の版が起動できないときの戻し（update::revert・relaunch）は ready の失敗を見て動く（main.rs :540〜557）。画面の app.js の boot() は /api/config（窓）を待ったあと loadSources()（:1047・:1261）で GET /api/sources（Python。routes/sources.py の sources_list）を尋ね、品質・実績のタブの名前・データ元とグループのタブ・window.LotList.defineSources を作る。Python が答えないと、見出しのタブとデータ元の画面が欠ける。GET /api/sources の答えは 22〜27 KB・中央 2.8〜3.0 ms（試験の口）。中身: data_sources.sources（束の sources と同じ元）に _public（写しの様子 mirror.source_info()・行の数 _rows_of・結合の数 _join_stats〈Python の Joiner のこのプロセスの覚え〉・結合した表の行の数 _view_rows・スケジュールのカード schedule_card）と _conn（data_sources.conn_of: 参照先の項目の答え path_settings.effective の items・行に結ぶ項目の既定）・placeChanged・shellLists・equipCount、others（そのほかの接続）・othersCanEdit・newConn・roles・equipModes・canEdit・shared・revision。写しの様子は、窓が品質の一覧を受け持つと Python の LOT_MIRROR は受け身（窓が写す）で、Python の mirror.source_info() は窓の写しのファイルを読む形。窓には lists.rs・mirror.rs に自分の写しの様子がある。結合の数は Python の Joiner の覚え（窓が組んだ答えのファイル db_cache/joins も読む）。残る Python の道（読む）: GET /api/sources・/api/settings・/api/changelog（387 KB。version.py の CHANGELOG）・/api/build・/api/health・/api/fs/places・/api/worklog/files・/api/schedule・/api/data/columns・/api/dashboard/fields（POST）・/lotdsp-link。書く道: データ元・参照先・設備グループ・変換表・作業実績の登録・更新の置き場・LotDsp の取込など。",
-  "proposals_text": {
-    "A 起動で Python を待たずに画面を開く": "main.rs の start を組み替え、Python を起こし始めたら（spawn を裏の糸で）ready を待たずに Router を slot に置いて画面へ navigate する。窓の道（画面・/api/config・ダッシュボード・一覧・保存の道）はすぐ答え、Python の道は Supervisor::get が ready まで待つ。Python が起動できないときの戻し（update::revert・relaunch）と起動画面の『起動できません』は、裏の糸の失敗から今と同じに出す（画面を開いた後なら画面の上の帯で言う）。verify.py の通しを本物の窓で流す。",
-    "B GET /api/sources を窓が答える": "routes/sources.py の sources_list を窓へ写す。データ元の並びは束の sources（bundle.rs）を土台にし、_public の写しの様子と行の数は窓の写しの係（lists.rs・mirror.rs）から、結合の数は db_cache/joins の答えのファイルから、_conn は参照先の項目の答え（path_settings.effective の items）を写して作る。スケジュールのカードは Python に任せる（スケジュールの元に場所があれば道ごと Python）。canEdit・othersCanEdit は窓の me。突き合わせは settings_oracle の場面で。",
-    "C A と B を 1 段で": "起動で Python を待たずに画面を開き（A）、見出しのタブの元（B）も窓が答える。Python が起きる前から画面の見出しとダッシュボードが出る。",
-    "D Supervisor の錠を直す（待たずに答える）": "Supervisor::get が錠を持ったまま spawn を待つのをやめ、起こしている最中は『起こしています』の状態を持って、Python の道には 503（backend_starting）をすぐ返す。router.rs の alive() は起こし直しを待たずに今の状態を見る。画面は 503 の道を少し後で尋ね直す（shared.js の fetch の包み）。Python が起動の後で止まった・起こし直しの最中でも、窓の道が並ばずに答える。",
-    "E 更新履歴と版の道（/api/changelog・/api/build・/api/health）": "version.py の CHANGELOG と APP_VERSION を、窓が program/app/version.py から読む（Python の字の並びの小さな読み手を写すか、app_build が焼く changelog.json を同梱して読む）。版の吹き出し・接続の札が Python 無しで出る。",
-    "F 参照先の読む道（GET /api/settings）と /api/sources の接続の段": "マスタ管理の参照先・データ元の接続の段が使う path_settings.effective の items（項目ごとの値・既定・効いている値・版）を窓の部品にし、GET /api/settings を窓が答える。/api/sources の _conn も同じ部品で作れるので、B の前段にする。",
-    "G 写しの係の取り直し（master_cache）を窓が": "版 3.84.0 の『まだの所 (6)』。Python の MasterStore._maybe_refresh（共有を読むたびに 5 秒に 1 回、共有から写しを取り直し、共有に最初の版を作る）を窓へ写し、Python が起きていない PC でも共有に届かない日に読む写しが古くならないようにする。窓が共有にまだ無いマスタ（share_absent）で Python に任せている形も、窓が最初の版を作れば答えられる。"
-  },
-  "rounds": []
+ "title": "Rust 化の次の段（版 3.86.0）: 画面と最初の読む道を窓が答えるようになった次に、Python が答えない・起きていない間も画面がどこまで使えるかをどう広げるか（2026-11-07）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-07・main e292008）: 版 3.85.0 で GET /・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree は窓が答える（Python が答えないときは既定の形で画面を描く）。起動の流れ（desktop/src/main.rs の start :481〜612）はまだ『Supervisor::get で Python の ready を待つ → Router を slot に置く → navigate(app_url(\"/\"))』の順で、Python の import（Linux で約 0.14 秒、版 3.66.0 の測りで 151 ms。利用者の Windows〈同梱の Python・ウイルス対策〉では測っていないので分からない）と起動前の確認の間、窓は起動画面（splash）のまま。Supervisor::get は current の錠を持ったまま Sidecar::spawn を最大 start_wait 120 秒待つので、その間に来た Python の道はすべて錠で並ぶ。router.rs の Backend for Supervisor の alive() も self.get() を呼ぶ（止まっていれば起こし直しを待つ）。起動の流れを変えると CLAUDE.md の決まりで verify.py の通し（local・update・distribute）を本物の窓で流す。入れ替えた直後の版が起動できないときの戻し（update::revert・relaunch）は ready の失敗を見て動く（main.rs :540〜557）。画面の app.js の boot() は /api/config（窓）を待ったあと loadSources()（:1047・:1261）で GET /api/sources（Python。routes/sources.py の sources_list）を尋ね、品質・実績のタブの名前・データ元とグループのタブ・window.LotList.defineSources を作る。Python が答えないと、見出しのタブとデータ元の画面が欠ける。GET /api/sources の答えは 22〜27 KB・中央 2.8〜3.0 ms（試験の口）。中身: data_sources.sources（束の sources と同じ元）に _public（写しの様子 mirror.source_info()・行の数 _rows_of・結合の数 _join_stats〈Python の Joiner のこのプロセスの覚え〉・結合した表の行の数 _view_rows・スケジュールのカード schedule_card）と _conn（data_sources.conn_of: 参照先の項目の答え path_settings.effective の items・行に結ぶ項目の既定）・placeChanged・shellLists・equipCount、others（そのほかの接続）・othersCanEdit・newConn・roles・equipModes・canEdit・shared・revision。写しの様子は、窓が品質の一覧を受け持つと Python の LOT_MIRROR は受け身（窓が写す）で、Python の mirror.source_info() は窓の写しのファイルを読む形。窓には lists.rs・mirror.rs に自分の写しの様子がある。結合の数は Python の Joiner の覚え（窓が組んだ答えのファイル db_cache/joins も読む）。残る Python の道（読む）: GET /api/sources・/api/settings・/api/changelog（387 KB。version.py の CHANGELOG）・/api/build・/api/health・/api/fs/places・/api/worklog/files・/api/schedule・/api/data/columns・/api/dashboard/fields（POST）・/lotdsp-link。書く道: データ元・参照先・設備グループ・変換表・作業実績の登録・更新の置き場・LotDsp の取込など。",
+ "proposals_text": {
+  "A 起動で Python を待たずに画面を開く": "main.rs の start を組み替え、Python を起こし始めたら（spawn を裏の糸で）ready を待たずに Router を slot に置いて画面へ navigate する。窓の道（画面・/api/config・ダッシュボード・一覧・保存の道）はすぐ答え、Python の道は Supervisor::get が ready まで待つ。Python が起動できないときの戻し（update::revert・relaunch）と起動画面の『起動できません』は、裏の糸の失敗から今と同じに出す（画面を開いた後なら画面の上の帯で言う）。verify.py の通しを本物の窓で流す。",
+  "B GET /api/sources を窓が答える": "routes/sources.py の sources_list を窓へ写す。データ元の並びは束の sources（bundle.rs）を土台にし、_public の写しの様子と行の数は窓の写しの係（lists.rs・mirror.rs）から、結合の数は db_cache/joins の答えのファイルから、_conn は参照先の項目の答え（path_settings.effective の items）を写して作る。スケジュールのカードは Python に任せる（スケジュールの元に場所があれば道ごと Python）。canEdit・othersCanEdit は窓の me。突き合わせは settings_oracle の場面で。",
+  "C A と B を 1 段で": "起動で Python を待たずに画面を開き（A）、見出しのタブの元（B）も窓が答える。Python が起きる前から画面の見出しとダッシュボードが出る。",
+  "D Supervisor の錠を直す（待たずに答える）": "Supervisor::get が錠を持ったまま spawn を待つのをやめ、起こしている最中は『起こしています』の状態を持って、Python の道には 503（backend_starting）をすぐ返す。router.rs の alive() は起こし直しを待たずに今の状態を見る。画面は 503 の道を少し後で尋ね直す（shared.js の fetch の包み）。Python が起動の後で止まった・起こし直しの最中でも、窓の道が並ばずに答える。",
+  "E 更新履歴と版の道（/api/changelog・/api/build・/api/health）": "version.py の CHANGELOG と APP_VERSION を、窓が program/app/version.py から読む（Python の字の並びの小さな読み手を写すか、app_build が焼く changelog.json を同梱して読む）。版の吹き出し・接続の札が Python 無しで出る。",
+  "F 参照先の読む道（GET /api/settings）と /api/sources の接続の段": "マスタ管理の参照先・データ元の接続の段が使う path_settings.effective の items（項目ごとの値・既定・効いている値・版）を窓の部品にし、GET /api/settings を窓が答える。/api/sources の _conn も同じ部品で作れるので、B の前段にする。",
+  "G 写しの係の取り直し（master_cache）を窓が": "版 3.84.0 の『まだの所 (6)』。Python の MasterStore._maybe_refresh（共有を読むたびに 5 秒に 1 回、共有から写しを取り直し、共有に最初の版を作る）を窓へ写し、Python が起きていない PC でも共有に届かない日に読む写しが古くならないようにする。窓が共有にまだ無いマスタ（share_absent）で Python に任せている形も、窓が最初の版を作れば答えられる。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い",
+   "self_check": "案を作った者が自分で読んで確かめた（画面に出ない改良）",
+   "proposals": {
+    "A 起動で Python を待たずに画面を開く": {
+     "score": {
+      "order": 9,
+      "chunk": 7,
+      "hierarchy": 9,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "lot.rs の heartbeat（:581〜587）と access_read（:263）は必ず alive() を呼び、router.rs :29 の alive() は Supervisor::get＝sidecar.rs :334 の錠を持ったまま spawn を最大 120 秒待つ。A で裏の糸が spawn している間は、画面を開いても /api/access/me（自分の区分の札・マスタ管理の入口）と心拍（接続 ●）がその間ずっと答えず、待っているのか止まったのかが画面に出ない。案の文は『Python の道は ready まで待つ』だけで、窓の道のうち alive を見る 3 本（画面の既定の形・心拍・権限の読む 2 本）も待つことに触れていない"
+      }
+     ],
+     "seen": "版 3.66.0〜3.85.0 で窓へ移した道（画面・/api/config・ダッシュボードの数・一覧・保存の道）は、いまの起動の流れでは Python の ready の後でしか使われない。A はそれを起動の直後から効かせる唯一の案で、Python 無しへの道筋の要になる。量は main.rs の start 1 つで、受け口（:877）は既に 1 問い合わせ 1 糸・slot が空なら 503 starting の型があり、型に沿う。利用者の得は Python の起動にかかる時間で、create_app が起動のたびに共有を見に行く（手元でも『共有フォルダに届きません』を出した。is_dir に待ちの上限が無い）ので、共有が遅い工場の PC ほど大きい。ただ measured は Windows の時間を測っていない。案の文は revert・relaunch・画面の上の帯・verify.py に触れているが、次を潰していない: info の backend（ready の中身）を navigate の前に作っている（selftest.js :109・:286 と verify.py はそこから版を読む）、update::confirm は ready の後のままにすること、spawn の失敗の後も Supervisor::get が問い合わせのたびに壊れた版を起こし直す（失敗の嵐）、起動前の確認の進み具合（Progress の字）の行き先、壊れた版の画面が戻す前に一瞬出ること、/api/sources と /api/access/me が Python／alive 待ちで見出しのタブと区分の札が遅れて出ること",
+     "fixes": [
+      "Supervisor に『起こしている・起きた・起こせなかった』の状態を持たせ、錠は状態を見る間だけにする（spawn は錠の外。D の錠の部分だけを入れる）。alive() は待たずに今の状態を返し（起こしている最中は偽）、heartbeat・access_read・page の既定の形が spawn を待たないようにする。Python の道は 503 を返さず、状態の変わり目を待ち合わせる（Condvar）。画面は 503 を尋ね直さない（loadSources は 1 回だけ）ので、503 にしない",
+      "起こせなかった（fatal・start_wait 切れ）後は、入れ替えた直後の版なら今と同じく update::revert → relaunch。そうでなければ『起こせなかった』を覚えて、問い合わせのたびに起こし直さない（今は get が毎回 spawn する）。起こし直すのは画面の『もう一度』か、決めた間隔（例 30 秒）が過ぎてから",
+      "update::confirm は今と同じく ready を見てから（裏の糸の成功で）呼ぶ。画面を開いたことを confirm の代わりにしない。verify.py の update の 4（壊した版 → 前の版に戻る・FAILED.json）を本物の窓で通す",
+      "/__desktop/info は navigate の前の物を固定せず、問い合わせのたびに今の ready を入れて答える（ready 前は backend: null と starting: true）。selftest.js の『窓の版と中身の版が同じ』（:109）と verify.py が読む版（:286）は ready を待ってから見るように直す",
+      "起動画面の Progress（起動前の確認の字・bad の warn）と、画面を開いた後の『起動できません』は、画面の上の帯（版の吹き出しと同じ置き場）に出す。帯は『アプリの中身を起こしています… n 秒』を出し、ready で消す",
+      "壊れた版で画面を一瞬描かないよう、入れ替えた直後の起動（apply_staged が Some を返した時）だけは今と同じく ready を待ってから navigate する",
+      "measured に無い数を測る: Windows の CI（desktop.yml）で READY elapsed と navigate までの時間を、共有に届く形・届かない UNC の形の 2 つで記録し、版の記録に残す（得の大きさを数で言う）",
+      "試験: router.rs の Echo の Backend に『ready まで n 秒かかる』作り物を足し、ready の前に /・/api/config・/api/dashboard/query・心拍が待たずに答え、Python の道は ready の後に答えることを確かめる（lot::tests の通しにも 1 本）"
+     ]
+    },
+    "F 参照先の読む道（GET /api/settings）と /api/sources の接続の段": {
+     "score": {
+      "order": 5,
+      "chunk": 8,
+      "hierarchy": 5,
+      "visual": 8,
+      "steps": 2,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "量が小さく（12 KB・items 16）、bundle.rs の effective と焼いた表の型に乗るので危うさは低く、settings_oracle の場面でそのまま突き合わせられる。/api/sources の _conn と GET /api/settings の答えの元を 1 つの部品にできるのも良い。ただ利用者の得がほとんど無い: 画面で /api/settings を読むのは master.js :1340 の 1 か所（更新の置き場）だけで、参照先のタブは visible: () => false。この段の問い『Python が答えない・起きていない間も画面がどこまで使えるか』に直には答えない。案の文は、窓の effective が束の pathItems・configItems の項目しか重ねず、items の label・hint・kind・min・max・source・updated_at・updated_by（path_settings の SPECS）を持たないこと、share_dir・config_file の字の作り方に触れていない",
+     "fixes": [
+      "path_settings の項目の決まり（SPECS: key・label・hint・kind・page・min・max）を bundle_tables.json に焼き足し、古い表は試験で止める（bundle-tables.py の型）",
+      "items の source・updated_at・updated_by・rev は行から、effective は束と同じ effective で作る（2 つ目の重ね方を作らない）",
+      "/api/sources を後で移すときは、_conn がこの部品の items を引くだけにする"
+     ]
+    },
+    "E 更新履歴と版の道（/api/changelog・/api/build・/api/health）": {
+     "score": {
+      "order": 4,
+      "chunk": 8,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 2,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "道は 3 本とも小さく答えの形も単純で、1 字ずつ突き合わせやすい。ただ画面の JS が使うのは /api/changelog（app.js :526。版の札を押したとき）だけで、/api/build と /api/health は画面が使っていない（使うのは自己診断）。selftest.js :45 は /api/build が by===\"python\" で答えることを見ているので、窓が答えると自己診断が割れる。version.py の CHANGELOG は 388 KB の Python の字の並びで、窓が読むには Python の字の並びの読み手を写すか、app_build が焼く changelog.json を配る物に足すかで、後者は version.py と json の 2 つの元になる（古さを止める試験が要る）。web.dumps の ensure_ascii・sort_keys との字の揃いにも触れていない",
+     "fixes": [
+      "app_build.py --release が CHANGELOG と APP_VERSION を changelog.json に焼き、test_version.py の型で古さを止める（読み手の写しは作らない）",
+      "selftest.js :45 の /api/build の by===\"python\" は Python が生きているかを見る別の道（例 ?engine=python）に替える",
+      "/api/health は窓の状態（Supervisor の状態）を返すように意味を決め直すか、Python のまま残す"
+     ]
+    },
+    "G 写しの係の取り直し（master_cache）を窓が": {
+     "score": {
+      "order": 4,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 2,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 5,
+      "layout": 6,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "版 3.84.0 のまだの所 (6) を片付ける案で、masters_oracle の型で突き合わせられる。ただ窓は共有を直に読み、届かないときだけ写しを読む（RUST_PORT_PLAN の (6)）ので、写しが古くなるのは『届く間に誰も読まなかった』ときだけで得は小さい。共有にまだ無いマスタの最初の版を窓が作るのは、窓が共有へ書く新しい形で、Python の _seed・_pull と同じ PC の 2 つのプロセスが同時に写し・作る。follow_moved（置き場の引っ越し）と 5 秒に 1 回の見張りも 2 つになる。起動とも見出しのタブとも関係が無く、この段の問いからは外れる",
+     "fixes": [
+      "作るなら、最初の版を作る（_seed）は Python に任せ、窓は取り直し（_pull）だけにする",
+      "錠は master_store.rs の既存の錠のファイルを使い、2 つのプロセスが同時に写したときに写しが半端にならない場面を masters_oracle に足す"
+     ]
+    },
+    "D Supervisor の錠を直す（待たずに答える）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "app.js :1047〜1049 の loadSources は、503 の答えも JSON として読み items=[] にし、src: と grp: のタブを外して（:1066〜1069）尋ね直さない（呼ぶのは頁の読み込みの 1 回〈:1261〉・tpa:sources-changed・権限の変化だけ）。D のように起こしている最中の Python の道へ 503 をすぐ返すと、Python の再起動の間に読み込んだ画面ではデータ元のタブとグループのタブが消えたままになる。案の文の『shared.js の fetch の包み』は無く（shared.js に 503 の扱いは無い）、画面の fetch は 79 か所ある"
+      }
+     ],
+     "seen": "錠を持ったまま spawn を 120 秒待つ（sidecar.rs :334〜343）のと、alive() が起こし直しを待つ（router.rs :29）のは本当の詰まりで、A を効かせるにも要る所を突いている。受け口に 503 starting の型も既にある。ただ『Python の道に 503 をすぐ返す』は、画面に尋ね直しの仕組みが無いので機能が消える。書く道に 503 を返すのは良いが、読む道は待ち合わせる方が型に合う。単独では、効くのは Python が起動の後で止まった・起こし直しの最中だけ",
+     "fixes": [
+      "503 にせず、状態の変わり目を待ち合わせる（Condvar）。alive() だけは待たずに今の状態を返す",
+      "A の fixes の 1・2 として入れる"
+     ]
+    },
+    "B GET /api/sources を窓が答える": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 6,
+      "place": 4,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/sources.py :68〜70 の sch（スケジュール）は組み込みの元で必ず並び、カードの mirror・equipCount は routes/schedule.py :155〜163 の schedule_card＝Schedules の peek（このプロセスの覚え）。窓はこれを持たない。案の文の『スケジュールの元に場所があれば道ごと Python』では製品の形（CM3 の URL がある）でいつも Python になり、場所が無くても窓が null と答えると、Python が CM3 を取った後のカードの『最後に取った時刻』が出ない"
+      }
+     ],
+     "seen": "見出しのタブの名前とデータ元のタブ（loadSources）が Python に頼る所を直に突く案で、狙いは正しい。ただ答えの中身の多くが Python のこのプロセスの覚えに頼る: lot 以外の mirror と rows は _mirrors().peek(k)（このプロセスが写しの係に触れたか。試験の口では null）、joinStats・結合した表の rows は Joiner.last（『試す』の try- の答えはこのプロセスの覚え）、sch のカードは Schedules の peek。窓の lists.rs・mirror.rs の様子から作ると、Python の答えと同じにならず 1 字ずつの突き合わせが成り立たない（答えの元が 2 つ）。_conn も参照先の項目の答え（label・hint・updated_by を持つ形）が窓に無い。いまの起動の流れでは画面は Python の ready の後に開くので、単独の得は Python の起こし直しの最中に限られる",
+     "fixes": [
+      "F を先に作り、_conn はその部品から",
+      "写しの様子・行の数・結合の数は、Python も窓も作業場所のファイル（写しの台帳・db_cache/joins）から読む形に Python 側を揃えてから突き合わせる。揃えられない sch のカードと try- の数は、窓が答えるとき null とし、Python が生きていれば Python に任せる"
+     ]
+    },
+    "C A と B を 1 段で": {
+     "score": {
+      "order": 8,
+      "chunk": 3,
+      "hierarchy": 4,
+      "visual": 5,
+      "steps": 9,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 6,
+      "place": 5,
+      "layout": 3,
+      "tone": 3
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "A の減点と同じ所（lot.rs の heartbeat・access_read の alive() が sidecar.rs :334 の錠の中の spawn を待ち、区分の札と接続 ● が待っている間に何も言わない）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "B の減点と同じ所（sch のカードは routes/schedule.py の Schedules の peek＝Python のこのプロセスの覚えで、窓は持たない）"
+      }
+     ],
+     "seen": "両方が揃えば Python が起きる前から見出しとダッシュボードが出て、利用者の得はいちばん大きい。ただ起動の流れの組み替え（verify.py の通し）と、Python のこのプロセスの覚えに頼る 33 項目の答えの写しを 1 つの版でやることになり、どちらかが割れたときに切り分けにくい。前の段でも『型の写しと起動の流れを両方』の案は最下位だった。案の文が 2 行で、A・B のどちらの落とし穴も潰していない",
+     "fixes": [
+      "分けて、A（D の錠の部分を入れて）→ F → B の順に段を切る"
+     ]
+    }
+   }
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節と push 前の確かめ（起動の流れを変えたら verify.py の通し）・ui_score.py の冒頭・2026-11-port-page.json の evaluator と rounds（手本）・RUST_PORT_PLAN.md の段 3 の 3 歩目、desktop/src の main.rs（start :481〜612: sup.get() の ready → update::confirm → info〈backend に ready を入れる〉→ slot.set(Router) → upd.run・lot.warm → navigate。失敗は update::revert・relaunch と splash.fail。受け口 :877 は 1 問い合わせ 1 糸で、slot が空なら 503 starting）・sidecar.rs（Supervisor::get は current の錠を持ったまま Sidecar::spawn を start_wait 120 秒まで待つ。失敗しても次の get がまた spawn する）・router.rs（Backend for Supervisor の alive() は self.get()＝止まっていれば起こし直しを錠の中で待つ。ask も get）・lot.rs（page は埋める物が揃わないときだけ alive を呼ぶ・heartbeat と access_read は必ず alive を呼ぶ・settings は窓の束が先）・bundle.rs（effective は束の pathItems・configItems の項目だけを重ね、/api/settings の items の形〈label・hint・source・updated_at・updated_by〉は持たない。Inputs::check の share_absent は Python に任せる）・mirror.rs（source_info は Python の DbMirror.source_info と同じ形）・selftest.js（:45 は /api/build の答えが by===\"python\" であること・:109 と :286 は info.backend.version を読む）・bundle/verify.py（update の 4 で壊した版を置き、revert で前の版に戻ることを見る）、Python の routes/sources.py（sources_list・_public・_conn・_conn_items・_rows_of・_view_rows・_join_stats・_joiner）・services/data_sources.py（sch は組み込みの元で必ず並ぶ・conn_of）・routes/schedule.py（schedule_card は Schedules の peek＝このプロセスの覚え）・services/data_join.py（Joiner.recent はまずこのプロセスの last、無ければ db_cache/joins のファイル）・__init__.py（work_mirrors・make_lot_mirror・create_app が effective_settings で共有を見る）・services/db_mirror.py（source_info）・routes/settings.py・routes/system.py（/api/build・/api/changelog・/api/health）・repositories/master_store.py（_maybe_refresh・share_reachable は share_dir.is_dir() だけで待ちの上限が無い）・sidecar.py と app/boot.py（ready の前は create_app と写しの糸を起こすだけ）、画面の app.js（boot は /api/config を待ち、loadMe は待たない。loadSources は頁の読み込みで 1 回だけ〈:1261〉と tpa:sources-changed・権限の変化のときで、答えが 503 でも items=[] として src: と grp: のタブを外し、尋ね直さない）・shared.js（fetch の包みは無い。画面の fetch は 79 か所）・master.js（/api/settings は :1340 の 1 か所。参照先のタブは visible: () => false）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-boot。TRANSFER_LOCAL_ROOT は一時フォルダ）: probe.py（ui_server.build〈品質 300 行〉の試験の口で 20 回の中央値: GET /api/sources 200・26,501 バイト・2.28 ms／/api/settings 12,322 バイト 0.24 ms〈items 16〉／/api/build 21 バイト／/api/health 16 バイト／/api/changelog 388,373 バイト 0.76 ms。/api/sources の items は lot・work・wip・m0000001・m0000002・sch の 6 つ、項目 33 種、conn は並び〈lot は 5 段〉、others 3、sch だけ equipCount・joinsDefault・last が付く。写しを起こしていない試験の口では lot 以外の mirror と rows は null〈Python の答えがこのプロセスで写しの係に触れたかで変わる〉）・create_app の時間（3 回: import 0.04〜0.05 秒・create_app 0.07 秒。どの回も『共有フォルダに届きません: \\\\nlmsrvngy03\\…』を出した＝create_app は起動のたびに共有を見に行く。Windows で届かない UNC の is_dir は数秒〜数十秒かかりうるので、ready までの時間は共有の届き方で大きく変わる〈measured の『Linux で 0.14 秒』は届かない共有がすぐ失敗する形〉）。cargo は流していない。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲（利用者の得）・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の数（22〜27 KB・2.8〜3.0 ms・387 KB）は手元で同じ桁に出た。measured に無い事実: /api/build と /api/health は画面の JS が使っていない（使うのは自己診断）・/api/settings を画面が読むのは 1 か所だけ・create_app が共有を見る・selftest が info.backend を読む。"
 }

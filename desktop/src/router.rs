@@ -16,9 +16,13 @@ use tauri::http::{Request, Response};
 pub trait Backend: Send + Sync {
     fn ask(&self, ask: &Ask) -> Reply;
     /// 中身（Python）が生きているか（版 3.71.0。窓が心拍に答えるとき、画面の「接続 ●」を今と同じに保つ）。
-    /// 止まっていれば起こし直してから見る（前は心拍の問い合わせが Python を起こし直していた）
+    /// 待たずに今を答える（止まっていれば裏で起こし直しを始める。版 3.86.0）
     fn alive(&self) -> bool {
         true
+    }
+    /// 中身が準備できたときの知らせ（窓の情報に載せる。版 3.86.0。動いていなければ null）
+    fn ready(&self) -> serde_json::Value {
+        serde_json::Value::Null
     }
 }
 
@@ -26,8 +30,17 @@ pub trait Backend: Send + Sync {
 const ASK_WAIT: Duration = Duration::from_secs(600);
 
 impl Backend for Supervisor {
+    /// 待たない（版 3.86.0）: いま動いているかだけを見る。止まっていれば裏で起こし直しを始め、今は偽（心拍は「未接続」）。
+    /// 前は起こし直しを錠を持ったまま最大 120 秒待ったので、その間は心拍・権限の読む 2 本・画面も止まっていた
     fn alive(&self) -> bool {
-        self.get().is_ok_and(|s| s.is_alive())
+        let up = self.up().is_some();
+        if !up {
+            self.kick();
+        }
+        up
+    }
+    fn ready(&self) -> serde_json::Value {
+        Supervisor::ready(self)
     }
 
     fn ask(&self, ask: &Ask) -> Reply {
