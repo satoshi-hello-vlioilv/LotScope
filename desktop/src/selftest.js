@@ -59,7 +59,10 @@
     const ch = await get("/api/changelog?engine=python");
     ok("大きな答え（更新履歴）が欠けずに届く", ch.r.ok && ch.by === "python" && JSON.parse(ch.text).entries.length > 10, ch.text.length + " 字");
     const sb = await get("/api/build"), sch = await get("/api/changelog");
-    ok("版と更新履歴は窓が答え、Python と 1 字も違わない", sb.by === "shell" && sch.by === "shell" && sb.text === b.text && sch.text === ch.text,
+    // 更新履歴の先頭が中身の版と違う版（desktop/bundle/verify.py が版の字だけを書き換えた試験の版）は、焼いた更新履歴の版も違うので
+    // 窓は Python に任せる（本物の配る版は tests/test_version.py が先頭と版を揃え、--release が焼く）
+    const chv = (() => { try { const j = JSON.parse(ch.text); return j.entries[0].version === j.version; } catch (_) { return true; } })();
+    ok("版と更新履歴は窓が答え、Python と 1 字も違わない", sb.by === "shell" && (sch.by === "shell" || !chv) && sb.text === b.text && sch.text === ch.text,
        `${sb.by}/${sch.by}・${sch.text.length} 字 / ${ch.text.length} 字`);
     const nf = await get("/api/no-such-route");
     ok("無いところは 404", nf.r.status === 404 && nf.by === "python", nf.r.status);

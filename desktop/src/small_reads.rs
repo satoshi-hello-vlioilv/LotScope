@@ -91,8 +91,11 @@ pub fn changelog(program: &Path) -> Option<Vec<u8>> {
     (r.baked.as_deref() == Some(want.as_str())).then(|| r.bytes.clone())
 }
 
+/// 窓の答え（見出し・本文）
+pub type Answer = (Vec<(String, String)>, Vec<u8>);
+
 /// 窓の受け口（main.rs の native）: 窓が答えるなら (見出し, 本文)。Python に任せるなら None
-pub fn reply(method: &str, path: &str, query: &str, program: &Path) -> Option<(Vec<(String, String)>, Vec<u8>)> {
+pub fn reply(method: &str, path: &str, query: &str, program: &Path) -> Option<Answer> {
     if !matches!(method, "GET" | "HEAD") || crate::lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
         return None;
     }
