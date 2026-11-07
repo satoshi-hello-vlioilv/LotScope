@@ -132,21 +132,32 @@ impl Splash {
     }
     fn fail(&self, app: &AppHandle, title: &str, detail: &str) {
         log(&format!("FAIL {title}: {}", detail.replace('\n', " / ")));
-        if self.left.load(Ordering::SeqCst) {
-            // 画面を開いたあと: 画面の上の帯で言う（窓の道は答え続ける。中身〈Python〉の道は 503 で理由を返す）
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.eval(format!("({})(...{})", FAIL_BAND_JS, json!([title, detail])));
-            }
-        }
+        // 画面を開いたあとの帯は、起こした結果の受け手（on_changed・band）が出す
         self.say(app, format!("splash.fail(...{})", json!([title, detail])));
         selftest_finish(app, &json!({"ok": false, "error": format!("{title}: {detail}")}));
     }
 }
 
-/// 画面を開いたあとに中身（Python）を起こせなかったとき、画面の上に出す帯（版 3.86.0）
-const FAIL_BAND_JS: &str = "(title, detail) => { const d = document.createElement('div'); d.setAttribute('role', 'alert'); d.id = 'tpa-backend-fail'; \
-d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#9b1c1c;color:#fff;padding:8px 16px;font:14px/1.6 sans-serif;white-space:pre-wrap'; \
-d.textContent = title + '\\n' + detail; (document.getElementById('tpa-backend-fail') || {}).remove?.(); document.body.appendChild(d); }";
+/// 画面を開いたあとに中身（Python）を起こせなかったとき、画面の下に出す帯（版 3.86.0。見出しのタブ・「終了」を覆わない）。
+/// ✕ で閉じる・「もう一度起こす」は /__desktop/backend/retry。中身が起きたら band(None) で消す
+const FAIL_BAND_JS: &str = "(title, detail) => { const old = document.getElementById('tpa-backend-fail'); if (old) old.remove(); if (title === null) return; \
+const d = document.createElement('div'); d.setAttribute('role', 'alert'); d.id = 'tpa-backend-fail'; \
+d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#9b1c1c;color:#fff;padding:8px 16px;font:14px/1.6 sans-serif;display:flex;gap:12px;align-items:flex-start'; \
+const t = document.createElement('div'); t.style.cssText = 'flex:1;white-space:pre-wrap'; t.textContent = title + '\\n' + detail; \
+const b = (label, f) => { const x = document.createElement('button'); x.type = 'button'; x.textContent = label; x.style.cssText = 'font:inherit;padding:2px 10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:4px;cursor:pointer'; x.onclick = f; return x; }; \
+d.append(t, b('もう一度起こす', () => { d.remove(); fetch('/__desktop/backend/retry', { method: 'POST' }); }), b('✕', () => d.remove())); document.body.appendChild(d); }";
+
+/// 画面（アプリの頁）に、中身を起こせなかった帯を出す（reason が None なら消す）
+fn band(w: &WebviewWindow, reason: Option<&str>) {
+    let args = match reason {
+        Some(e) => json!(["アプリの中身（Python）が起動できません。画面・ダッシュボード・一覧は使えます。", e]),
+        None => json!([null, null]),
+    };
+    let _ = w.eval(format!("({})(...{})", FAIL_BAND_JS, args));
+}
+
+/// 中身の起こし直しの係（画面を読み直したときに帯を出し直す。版 3.86.0）
+static SUP: OnceLock<Supervisor> = OnceLock::new();
 
 /// 自己診断の結果を書いて終わる（TPA_SELFTEST が無ければ何もしない）。
 fn selftest_finish(app: &AppHandle, result: &serde_json::Value) {
@@ -174,6 +185,11 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             Some(json_reply(&json!({"ok": true})))
         }
         // 中身の準備の知らせ（backend）は、問い合わせのたびに今の物（版 3.86.0: 画面は中身の準備を待たずに開く）
+        // 画面の帯の「もう一度起こす」（版 3.86.0）
+        ("POST", "/__desktop/backend/retry") => {
+            backend.retry();
+            Some(json_reply(&json!({"ok": true})))
+        }
         ("GET", "/__desktop/info") => {
             let mut v = info.clone();
             v["backend"] = backend.ready();
@@ -293,7 +309,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         (method @ ("GET" | "HEAD"), "/")
             if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") =>
         {
-            lot.page(method == "HEAD", &|| backend.alive()).map(|h| Reply { status: 200, headers: h.headers, body: h.body })
+            lot.page(method == "HEAD", &|| backend.ready_now()).map(|h| Reply { status: 200, headers: h.headers, body: h.body })
         }
         // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
         (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => lot
@@ -439,8 +455,14 @@ fn window(app: &AppHandle, label: &str, url: WebviewUrl, splash: Arc<Splash>) ->
             }
             if is_splash(p.url()) {
                 splash.flush(&w);
-            } else if is_app_url(p.url()) && p.url().path() == "/" && selftest_on() {
-                let _ = w.eval(SELFTEST_JS);
+            } else if is_app_url(p.url()) && p.url().path() == "/" {
+                // 中身を起こせなかったままなら、読み直した画面にも帯を出す
+                if let Some(e) = SUP.get().and_then(|s| s.down_reason()) {
+                    band(&w, Some(&e));
+                }
+                if selftest_on() {
+                    let _ = w.eval(SELFTEST_JS);
+                }
             }
         });
     // 保存（書き出し）を見届け、置いた場所を画面へ知らせる（画面が「保存しました・フォルダを開く」を出す）。
@@ -560,7 +582,28 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     });
     let version = update::program_version(&program).unwrap_or_else(|| "?".into());
     let sup = Supervisor::new(py, program.clone(), locate::local_root().join("logs"), progress);
+    let _ = SUP.set(sup.clone());
     let t0 = Instant::now();
+    // 入れ替えた直後の印が残っている（前の起動が、中身の準備の前に閉じた）ときも、入れ替えた直後と同じに準備を待つ
+    fresh = fresh || (installed && paths.applied().exists());
+    // 起こした結果（最初・止まったあとの起こし直し・「もう一度」）: 記録に残し、画面を開いたあとは帯を出す・消す
+    let (app_c, splash_c) = (app.clone(), splash.clone());
+    sup.on_changed(Arc::new(move |r| {
+        match r {
+            Ok(ready) => log(&format!(
+                "READY version={} elapsed={:.2} spawn_ms={}",
+                ready["version"].as_str().unwrap_or("?"),
+                ready["elapsed"].as_f64().unwrap_or(0.0),
+                t0.elapsed().as_millis()
+            )),
+            Err(e) => log(&format!("BACKEND 起こせません: {}", e.replace('\n', " / "))),
+        }
+        if splash_c.left.load(Ordering::SeqCst) {
+            if let Some(w) = app_c.get_webview_window("main") {
+                band(&w, r.err());
+            }
+        }
+    }));
     if fresh {
         // 入れ替えた直後: 今までと同じく準備を待つ（起動できなければ控え〈直前の版〉へ戻して開き直す）
         if let Err(e) = sup.get() {
@@ -618,7 +661,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         log(&format!(
             "OPEN 画面を開きます ms={} backend={}",
             t0.elapsed().as_millis(),
-            if slot.get().is_some_and(|r| r.backend.up().is_some()) { "ready" } else { "starting" }
+            if slot.get().is_some_and(|r| r.backend.ready_now()) { "ready" } else { "starting" }
         ));
         let _ = w.navigate(app_url("/"));
     }
@@ -633,12 +676,6 @@ fn started(app: &AppHandle, sup: &Supervisor, splash: &Splash, paths: &Paths, in
             if let Some((spawned, Some(real))) = sup.up().map(|s| s.pids()) {
                 log(&format!("PID 起こした {spawned}・本物の Python {real}"));
             }
-            log(&format!(
-                "READY version={} elapsed={:.2} spawn_ms={}",
-                ready["version"].as_str().unwrap_or("?"),
-                ready["elapsed"].as_f64().unwrap_or(0.0),
-                t0.elapsed().as_millis()
-            ));
             splash.step(
                 app,
                 "backend",

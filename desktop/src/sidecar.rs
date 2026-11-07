@@ -320,6 +320,8 @@ enum Phase<T> {
     Up(Arc<T>),
     /// 起こせなかった（理由と時刻）。RETRY_AFTER の間は起こし直さず同じ理由を返す（壊れた版を問い合わせのたびに起こさない）
     Down(String, Instant),
+    /// 止めた（窓を閉じる）。もう起こさない（起こしている最中に止めたら、起き上がった物は捨てる）
+    Stopped,
 }
 
 /// 起こせなかったあと、起こし直すまでの間
@@ -338,13 +340,25 @@ impl<T: Live> Phases<T> {
     }
 
     /// 動いている物（無ければ・止まっていれば start で起こす。だれかが起こしている最中なら wait まで待ち合わせる）
+    #[cfg(test)]
     pub fn get(&self, start: impl FnOnce() -> Result<T, String>, wait: Duration) -> Result<Arc<T>, String> {
+        self.get_then(start, wait, |_| {})
+    }
+
+    /// get と同じ。自分が起こしたときだけ、状態を変えたあと（錠の外で）done に結果を渡す（記録・画面の帯）
+    pub fn get_then(
+        &self,
+        start: impl FnOnce() -> Result<T, String>,
+        wait: Duration,
+        done: impl FnOnce(&Result<Arc<T>, String>),
+    ) -> Result<Arc<T>, String> {
         let deadline = Instant::now() + wait;
         let mut start = Some(start);
         let mut g = self.cur.lock().unwrap();
         loop {
             match &*g {
                 Phase::Up(s) if s.is_alive() => return Ok(s.clone()),
+                Phase::Stopped => return Err("アプリを終えています。".into()),
                 Phase::Starting => {
                     let left = deadline.saturating_duration_since(Instant::now());
                     if left.is_zero() {
@@ -359,23 +373,34 @@ impl<T: Live> Phases<T> {
                     let Some(f) = start.take() else {
                         return Err("アプリの中身（Python）を起こし直せませんでした。".into());
                     };
-                    *g = Phase::Starting; // 古い物はここで捨てる（Drop で後始末）
+                    // 古い物（止まった Sidecar）は錠の外で捨てる（Drop は片付けを最大 5 秒待つ。その間 up()・心拍を待たせない）
+                    let old = std::mem::replace(&mut *g, Phase::Starting);
                     drop(g);
+                    drop(old);
+                    // 起こす途中の panic は、試験の組み方（unwind）では Down にする。製品の組み方は panic = "abort" なので窓ごと終わる
                     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
                         .unwrap_or_else(|_| Err("アプリの中身（Python）を起こす途中で止まりました。".into()));
                     g = self.cur.lock().unwrap();
-                    let out = match r {
-                        Ok(s) => {
-                            let s = Arc::new(s);
-                            *g = Phase::Up(s.clone());
-                            Ok(s)
-                        }
-                        Err(e) => {
-                            *g = Phase::Down(e.clone(), Instant::now());
-                            Err(e)
+                    let (out, late) = if matches!(*g, Phase::Stopped) {
+                        // 起こしている最中に止めた: 起き上がった物は捨てる（錠の外で）
+                        (Err("アプリを終えています。".to_string()), r.ok())
+                    } else {
+                        match r {
+                            Ok(s) => {
+                                let s = Arc::new(s);
+                                *g = Phase::Up(s.clone());
+                                (Ok(s), None)
+                            }
+                            Err(e) => {
+                                *g = Phase::Down(e.clone(), Instant::now());
+                                (Err(e), None)
+                            }
                         }
                     };
                     self.changed.notify_all();
+                    drop(g);
+                    drop(late);
+                    done(&out);
                     return out;
                 }
             }
@@ -390,22 +415,43 @@ impl<T: Live> Phases<T> {
         }
     }
 
-    /// だれかが起こしている最中か・起こせなかった直後か（このときは起こしに行かない）
+    /// だれかが起こしている最中か・起こせなかった直後か・止めたか（このときは起こしに行かない）
     pub fn busy(&self) -> bool {
         match &*self.cur.lock().unwrap() {
-            Phase::Starting => true,
+            Phase::Starting | Phase::Stopped => true,
             Phase::Down(_, at) => at.elapsed() < self.retry_after,
             _ => false,
         }
     }
 
-    /// 止める（持っている物を捨てる）
-    pub fn take(&self) {
+    /// だれかが起こしている最中か
+    pub fn starting(&self) -> bool {
+        matches!(*self.cur.lock().unwrap(), Phase::Starting)
+    }
+
+    /// 起こせなかった理由（起こせなかったあと、まだ起こし直していなければ）
+    pub fn down_reason(&self) -> Option<String> {
+        match &*self.cur.lock().unwrap() {
+            Phase::Down(e, _) => Some(e.clone()),
+            _ => None,
+        }
+    }
+
+    /// 起こせなかった理由を忘れる（「もう一度」: 次の get で待たずに起こし直す）
+    pub fn forget_down(&self) {
         let mut g = self.cur.lock().unwrap();
-        if !matches!(*g, Phase::Starting) {
+        if matches!(*g, Phase::Down(..)) {
             *g = Phase::Idle;
         }
+    }
+
+    /// 止める（持っている物を錠の外で捨て、もう起こさない。起こしている最中なら、起き上がった物を get が捨てる）
+    pub fn take(&self) {
+        let mut g = self.cur.lock().unwrap();
+        let old = std::mem::replace(&mut *g, Phase::Stopped);
         self.changed.notify_all();
+        drop(g);
+        drop(old);
     }
 }
 
@@ -423,7 +469,12 @@ struct Inner {
     progress: Progress,
     notices: Notices,
     start_wait: Duration,
+    /// 起こした結果（起きた・起こせなかった）の受け手（記録・画面の帯。版 3.86.0）
+    changed: Mutex<Option<Changed>>,
 }
+
+/// 起こした結果の受け手（起きた: 準備の知らせ・起こせなかった: 理由）
+pub type Changed = Arc<dyn Fn(Result<&Value, &str>) + Send + Sync>;
 
 impl Supervisor {
     pub fn new(py: Python, program: PathBuf, log_dir: PathBuf, progress: Progress) -> Self {
@@ -436,6 +487,7 @@ impl Supervisor {
                 progress,
                 notices: Notices::default(),
                 start_wait: Duration::from_secs(120),
+                changed: Mutex::new(None),
             }),
         }
     }
@@ -448,10 +500,37 @@ impl Supervisor {
     /// 動いている中身（無ければ・止まっていれば起こす。だれかが起こしている最中なら待ち合わせる）。
     pub fn get(&self) -> Result<Arc<Sidecar>, String> {
         let i = &self.inner;
-        i.phases.get(
+        let changed = i.changed.lock().unwrap().clone();
+        i.phases.get_then(
             || Sidecar::spawn(&i.py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
             i.start_wait + Duration::from_secs(5),
+            |r| {
+                if let Some(f) = changed {
+                    f(r.as_ref().map(|s| &s.ready).map_err(String::as_str));
+                }
+            },
         )
+    }
+
+    /// 起こした結果の受け手を置く（起こすたび: 最初・止まったあと・「もう一度」）
+    pub fn on_changed(&self, f: Changed) {
+        *self.inner.changed.lock().unwrap() = Some(f);
+    }
+
+    /// 起こしている最中か
+    pub fn starting(&self) -> bool {
+        self.inner.phases.starting()
+    }
+
+    /// 起こせなかった理由（まだ起こし直していなければ）
+    pub fn down_reason(&self) -> Option<String> {
+        self.inner.phases.down_reason()
+    }
+
+    /// 「もう一度」: 起こせなかった理由を忘れて、裏で起こし直す
+    pub fn retry(&self) {
+        self.inner.phases.forget_down();
+        self.kick();
     }
 
     /// 待たずに、いま動いている中身（無い・起こしている最中は None）
@@ -530,6 +609,93 @@ mod tests {
         assert!(p.up().is_none());
         let again = p.get(|| Ok(Fake(AtomicBool::new(true))), Duration::from_secs(1)).unwrap();
         assert!(!Arc::ptr_eq(&first, &again));
+    }
+
+    struct SlowDrop(AtomicBool);
+    impl Live for SlowDrop {
+        fn is_alive(&self) -> bool {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+    impl Drop for SlowDrop {
+        fn drop(&mut self) {
+            std::thread::sleep(Duration::from_millis(400));
+        }
+    }
+
+    #[test]
+    fn stopping_while_starting_leaves_it_stopped() {
+        // 作った後の採点（版 3.86.0）: 起こしている最中に止めたら、起き上がった物は捨てて「止めた」のまま。止めたあとは起こさない
+        let p = Arc::new(Phases::<Fake>::new(Duration::from_millis(100)));
+        let p1 = p.clone();
+        let t = std::thread::spawn(move || {
+            p1.get(
+                || {
+                    std::thread::sleep(Duration::from_millis(300));
+                    Ok(Fake(AtomicBool::new(true)))
+                },
+                Duration::from_secs(5),
+            )
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        p.take();
+        assert!(t.join().unwrap().is_err(), "止めたあとに起き上がった物は渡さない");
+        assert!(p.up().is_none() && p.busy(), "止めたまま（起こしに行かない）");
+        let tries = AtomicUsize::new(0);
+        assert!(p
+            .get(
+                || {
+                    tries.fetch_add(1, Ordering::SeqCst);
+                    Ok(Fake(AtomicBool::new(true)))
+                },
+                Duration::from_secs(1)
+            )
+            .is_err());
+        assert_eq!(tries.load(Ordering::SeqCst), 0, "止めたあとは起こさない");
+    }
+
+    #[test]
+    fn the_old_one_is_dropped_outside_the_lock() {
+        // 止まった古い物の後片付け（Drop。本物は最大 5 秒）の間も、up()・busy() は待たない
+        let p = Arc::new(Phases::<SlowDrop>::new(Duration::from_millis(100)));
+        let first = p.get(|| Ok(SlowDrop(AtomicBool::new(true))), Duration::from_secs(1)).unwrap();
+        first.0.store(false, Ordering::SeqCst);
+        drop(first);
+        let p1 = p.clone();
+        let t = std::thread::spawn(move || p1.get(|| Ok(SlowDrop(AtomicBool::new(true))), Duration::from_secs(5)).map(|_| ()));
+        std::thread::sleep(Duration::from_millis(80));
+        let at = Instant::now();
+        let _ = (p.up(), p.busy());
+        assert!(at.elapsed() < Duration::from_millis(150), "古い物を捨てている間も待たない: {:?}", at.elapsed());
+        assert!(t.join().unwrap().is_ok());
+    }
+
+    #[test]
+    fn only_the_starter_hears_the_result() {
+        // 起こした結果（記録・画面の帯）は、起こした 1 人だけが受け取る（待ち合わせた者は受け取らない）
+        let p = Arc::new(Phases::<Fake>::new(Duration::from_millis(100)));
+        let heard = Arc::new(AtomicUsize::new(0));
+        let mut ts = vec![];
+        for _ in 0..4 {
+            let (p1, h1) = (p.clone(), heard.clone());
+            ts.push(std::thread::spawn(move || {
+                p1.get_then(
+                    || {
+                        std::thread::sleep(Duration::from_millis(150));
+                        Ok(Fake(AtomicBool::new(true)))
+                    },
+                    Duration::from_secs(5),
+                    |r| {
+                        assert!(r.is_ok());
+                        h1.fetch_add(1, Ordering::SeqCst);
+                    },
+                )
+            }));
+        }
+        for t in ts {
+            assert!(t.join().unwrap().is_ok());
+        }
+        assert_eq!(heard.load(Ordering::SeqCst), 1);
     }
 
     #[test]

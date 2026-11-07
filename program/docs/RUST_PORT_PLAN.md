@@ -868,7 +868,9 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
 1 位 **A** 68.3 点・F 67.2・E 62.2・G 50.6・D 48.6・B 45.7・C 44.4）。80 点に届かないので、A に採点の指摘 8 つを入れて作った。
 
 - 起こし直しの係（`desktop/src/sidecar.rs`）: 芯の `Phases<T>`（Idle・Starting・Up・Down）を足し、起こすのは最初に来た 1 人で錠の外（ほかは Condvar で待ち合わせる）。
-  Down（起こせなかった）は理由と時刻を RETRY_AFTER 30 秒おぼえ、その間は問い合わせのたびに起こし直さず同じ理由を返す。起こす途中の panic も Down にする。
+  Down（起こせなかった）は理由と時刻を RETRY_AFTER 30 秒おぼえ、その間は問い合わせのたびに起こし直さず同じ理由を返す。起こす途中の panic を Down にするのは
+  試験の組み方（unwind）だけで、製品の組み方は panic = "abort" なので窓ごと終わる。Stopped（窓を閉じる）のあとは起こさず、起こしている最中に止めたら起き上がった物は捨てる。
+  止まった古い Sidecar は錠の外で捨てる（Drop は片付けを最大 5 秒待つ）。
   `Supervisor` は複製できる係（Arc の芯）になり、`up()`（待たない）・`kick()`（裏の糸で起こし始める）・`ready()`（準備の知らせ）を持つ。router.rs の alive() は待たずに今を答え、
   止まっていれば kick する（心拍は「未接続」をすぐ返す）。
 - 起動（`desktop/src/main.rs`）: 入れ替えた直後の版（apply_staged が入れ替えた）だけは今までどおり準備を待ち、起動できなければ控えの版へ戻して開き直す（壊れた版の画面を描かない）。
@@ -879,10 +881,15 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   入れ替えた直後は READY のあと OPEN ms=375〜420。
 - 自己診断（selftest.js）: 共有に初期設定がまだ無い PC では、最初の画面を Python の準備前に窓が既定の形で描くので、Python が写しから最初の版を作るのは Python が画面を
   描いたとき。画面の突き合わせは先に Python の画面（?engine=python）を尋ねてから窓の画面を尋ねる（verify.py update の共有の exe の形で割れた）。
+- 作った後の採点（1 回だけ。61.5 点。減点 −11）: 割れ 10 件。帯が見出しにかぶる・帯が消えず起こし直しが記録に残らない・帯は 1 回だけ・起こしている最中の心拍が 503・
+  権限の読む 2 本が Python を待つ・stop と起こしている最中の重なり・入れ替えた直後を準備の前に閉じた PC・古い Sidecar を錠の中で捨てる・release の panic・試験と時間の記録。
+  どれも直した（帯は画面の下に ✕ と「もう一度起こす」・Supervisor::on_changed で記録と帯・読み直しで帯を出し直す・Backend::alive は起こしている最中も真で、画面の既定の形は
+  ready_now・Phase::Stopped・applied の印でも準備を待つ・錠の外で drop・desktop.yml で TIMING の行。`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
 - まだの所: 起動前の確認の進み具合を画面の中に出す所（今は記録だけ）・GET /api/sources（見出しのタブ）は Python のまま。CLAUDE.md の verify.py の通しの名前
   （local・update・distribute）は今の verify.py（update・rename）と合っていない（利用者に伝えた）。
 - 評価関数: `cargo test --bin LotScope sidecar::`（作り物の中身で、起こしている最中も up・busy が待たない・待ち合わせた者も同じ物・起こすのは 1 回・止まった物は起こし直す・
-  起こせなかった理由を覚える・間が過ぎれば起こし直す・panic でも Starting に残らない）・`verify.py update`（本物の窓で、入れ替え・戻し・配る版・新しい PC の入口）・
+  起こせなかった理由を覚える・間が過ぎれば起こし直す・panic でも Starting に残らない・止めたら起こさない・古い物は錠の外で捨てる・結果を受け取るのは 1 人）・
+  `cargo test --bin LotScope router::the_window_answers_while_the_backend_is_slow`（窓の道は中身を待たない）・`verify.py update`（本物の窓で、入れ替え・戻し・配る版・新しい PC の入口）・
   Windows の WebView2 の自己診断（CI）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
