@@ -225,6 +225,11 @@ def cases(eq):
                       calc={"equips": {"CAL": {"formulas": {"k": "[作業者]"}}}})),
         ("計算列 設備ごとの式 共通の式が上限（40）でも設備の式が残る", pv("bar", "work", rows=[D("k")], equips=["CAL"],
                       calc={"formulas": {f"共通{i}": "[重量]" for i in range(40)}, "equips": {"CAL": {"formulas": {"k": "[作業者]"}}}})),
+        # 送った順に効く（版 3.83.0）: 式は送った順の先頭 40 個だけ残る。字の順では最後の「zz」が、送った順では先頭で残る
+        ("計算列 式の上限は送った順の先頭 40 個", pv("bar", "work", rows=[D("zz")],
+                      calc={"formulas": {"zz": "[作業区分]", **{f"a{i:02d}": "[重量]" for i in range(40)}}})),
+        ("計算列 式の上限 送った順の 41 個目は残らない", pv("bar", "work", rows=[D("a00")],
+                      calc={"formulas": {**{f"z{i:02d}": "[重量]" for i in range(40)}, "a00": "[作業区分]"}})),
         ("計算列 設備ごとの式 知らない設備・壊れた式", pv("kpi", "work", measures=[{"agg": "sum", "column": "w2"}],
                       calc={"formulas": {"w2": "[重量]"}, "equips": {"無い設備": {"formulas": {"w2": "[重量] * 3"}}, "CAL": {"formulas": {"w2": "[重量"}}}})),
         ("値の計算と小数", pv("bar", "lot", rows=[D("合金")], measures=[{"agg": "sum", "column": "重量", "expr": "÷1000", "dec": 2},
@@ -298,6 +303,7 @@ def cases(eq):
         ("確かめ 合わせた表 まとまりの形", {"visual": "board", "groups": [{"source": "lot"}, 3]}),
         ("確かめ 合わせた表 まとまりのデータ", {"visual": "board", "groups": [{"source": "lot", "title": "t"}, {"source": "y"}]}),
     ]
+    out += order_cases()
     out += boundaries(eq)
     out += [("稼働 ガント（版 3.63.0 から窓）", pv("gantt", "work", period=yday)), ("ABC（版 3.63.0 から窓）", pv("abc", "work", period=yday)),
             ("稼働 品質のデータ（確かめの失敗）", pv("gantt", "lot")),
@@ -341,6 +347,34 @@ def bench(c, app, plain, out):
             xs.append((time.perf_counter() - t) * 1000)
         rows.append({"name": name, "panel": panel, "ms": round(sorted(xs)[2], 2), "shape": shape(first.get_json() or {})})
     Path(out).write_text(json.dumps({"settings": c.get("/api/lotlist/settings").get_json(), "cases": rows}, ensure_ascii=False), encoding="utf-8")
+
+
+def order_cases():
+    """送った順に効く計算列（版 3.83.0 の作った後の採点で見つかった割れ）。Python は calc を送った順の dict のまま使う:
+    同じ表示名を 2 つの列に付けたときの後勝ち（names）・設備の式＋共通の式の先頭 40 個（calc_for）。窓は確かめた後の値を鍵の字の順で
+    読み直していた。同じ組を順だけ替えて送ると Python の答えの控え（json.dumps(sort_keys=True) の鍵）に当たるので、id で分ける"""
+    W, out = "W", []
+    for i, (n, names) in enumerate([("重量→合金", {"重量": W, "合金": W}), ("合金→重量", {"合金": W, "重量": W}),
+                                    ("調質→合金", {"調質": W, "合金": W}), ("合金→調質", {"合金": W, "調質": W})]):
+        calc = {"formulas": {"k": "[W]"}, "names": names}
+        out += [(f"順 表示名の重なり {n}", pv("bar", "lot", rows=[D("k")], calc=calc, id=f"n{i}")),
+                (f"順 表示名の重なり 直接 {n}", pv("bar", "lot", rows=[D("W")], calc=calc, id=f"m{i}")),
+                (f"順 表示名の重なり 合わせる側 {n}", pv("bar", "lot", id=f"l{i}", link={"sides": [side("lot", D("k"), calc=calc), side("work", D("合金"))]})),
+                (f"順 表示名の重なり 合わせた表 {n}", {"id": f"b{i}", "visual": "board", "rows": D("合金"),
+                                                 "groups": [{"source": "lot", "calc": calc, "cols": [D("k")]}]}),
+                (f"順 表示名の重なり 条件 {n}", pv("kpi", "lot", id=f"f{i}", measures=[CNT], calc=calc,
+                                                filters=[{"column": "k", "op": "eq", "value": "A5052"}]))]
+    for i, names in enumerate([{"作業区分": W, "合金": W}, {"合金": W, "作業区分": W}]):
+        calc = {"formulas": {"k": "[W]"}, "names": names}
+        out += [(f"順 表示名の重なり ABC の品種 {i}", pv("abc", "work", id=f"a{i}", ops={"cls": "k"}, calc=calc)),
+                (f"順 表示名の重なり 設備の表示名 {i}", pv("bar", "work", rows=[D("k")], equips=["CAL"], id=f"e{i}",
+                                                       calc={"formulas": {"k": "[W]"}, "equips": {"CAL": {"formulas": {"q": "1"}, "names": names}}}))]
+    commons = {"z": "[作業区分]", **{f"a{i:02d}": "[重量]" for i in range(39)}}
+    mine = {"CAL": {"formulas": {"m": "[作業者]"}}}
+    out += [("順 設備の式＋共通 40 先頭の z", pv("bar", "work", rows=[D("z")], equips=["CAL"], id="c1", calc={"formulas": commons, "equips": mine})),
+            ("順 設備の式＋共通 40 最後の a38", pv("bar", "work", rows=[D("a38")], equips=["CAL"], id="c2", calc={"formulas": commons, "equips": mine})),
+            ("順 設備の式＋共通 40 すべての設備", pv("bar", "work", rows=[D("@equip"), D("z")], id="c4", calc={"formulas": commons, "equips": mine}))]
+    return out
 
 
 def boundaries(eq):
@@ -436,8 +470,10 @@ def boundaries(eq):
 
 
 def ask(c, name, panel):
-    r = c.post("/api/dashboard/query", json={"panel": panel})
-    return {"name": name, "panel": panel, "status": r.status_code, "body": r.get_json()}
+    # raw: 送った本文の字（鍵は送った順。窓の試験はこの字をそのまま送る: 送った順に効く確かめ〈計算列の式の先頭 40 個など〉。版 3.83.0）
+    raw = json.dumps({"panel": panel}, ensure_ascii=False)
+    r = c.post("/api/dashboard/query", data=raw.encode("utf-8"), content_type="application/json")
+    return {"name": name, "panel": panel, "raw": raw, "status": r.status_code, "body": r.get_json()}
 
 
 def main():
@@ -450,8 +486,7 @@ def main():
         return bench(c, app, plain, sys.argv[sys.argv.index("--bench") + 1])
     rows = []
     for name, panel in plain:
-        r = c.post("/api/dashboard/query", json={"panel": panel})
-        rows.append({"name": name, "panel": panel, "status": r.status_code, "body": r.get_json()})
+        rows.append(ask(c, name, panel))
     settings = c.get("/api/lotlist/settings").get_json()
     phases = []
     # 「いま」を変えて同じ組を問い直す（答えの控えは今日・作業日で分ける）: 日付を跨ぐ・同じ日の 1 直の始め（07:00）より前

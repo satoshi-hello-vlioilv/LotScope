@@ -771,6 +771,32 @@ A（5 本を 1 版で・組み込みは焼いた表）に、採点の指摘 4 �
 - 作った後の採点（1 回だけ。82.6 点。減点なし。合格点 80 点を超えた）: 別のエージェントが 731 歩を窓に答えさせ、答えとファイルの割れは 0。採点者の注:
   問い合わせ用の clean_panel（dashboard.rs）と保存用の layout_clean がまだ 2 つに分かれている（形と色 7）。次の段で 1 つにするかを案に入れる。
 
+### 段 3 の 1 歩目: 問い合わせと保存のパネルの確かめを 1 つに — 版 3.83.0
+
+保存の道が窓に移ったあと、何から Python を外すかを、画面に関係のない改良の決まり（2026-11-06）で 7 案にして、別のエージェントが 1 回だけ採点した
+（`tools/ui-proposals/2026-11-port-next.json`。1 位 **E** 73.6 点・C 67.6・A 63.0〈減点の前は 75.0〉・B 62.8・F 61.0・D 53.6・G 53.1）。
+80 点に届かないので、決まりどおり 1 位の E に採点の指摘を直して入れて作った。
+
+- 問い合わせの道（POST /api/dashboard/query。dashboard.rs）のパネルの確かめを、保存の道の部品 `layout_clean::clean_panel` の 1 か所にした
+  （Python も services/dashboard.py の clean_panel を問い合わせと保存の両方で使う）。dashboard.rs の写し（約 450 行）は消した。
+- 本文は送った順の木（jsontree::Tree）で読む。前は serde の値で読み、鍵が字の順に並び直っていた。計算列の式を 40 を超えて送ると、残る式が
+  Python（送った順の先頭 40 個）と違った（既存の割れ。足した場面で再現し、送った順を崩す変異で試験が落ちることを確かめた）。
+- 窓が Python と同じに読めない本文（NaN・大きな数・深い入れ子・表でない真の本文・読めない字）と、確かめの部品が Stop::Py を返す形は Python に任せる。
+  合わせた表の数える形（board_query）にも Python と同じ sub・grand を入れた。
+- 採点で見つかった既存の割れ: 参照先の数の欄（path_settings.parse）が nan・inf を通し、設定の答えに NaN が入って窓が読めず、窓が全部の道を Python へ回していた。
+  nan・inf は「数で入れてください」と断り、前に置かれた値は使わずに既定で動く（`tests/test_path_settings.py`）。
+- 評価関数: `cargo test --test dash_parity`（← `tests/dashboard_oracle.py`。本文の字〈raw〉をそのまま送る・式の上限が送った順の先頭 40 個／41 個目は残らない を足した）・
+  `layout_cases`・`ops_parity`・`dashboards_parity`・`dashboard::tests::query_body_is_read_like_python`。
+- 作った後の採点（1 回だけ。68.4 点。減点 −6）: 別のエージェントが 1,331 歩を当て、割れが 2 つの決まりで 12 歩。どちらも計算列の中で送った順が字の順に戻る所
+  （同じ表示名を 2 つの列に付けたときの後勝ち・設備の式＋共通の式の先頭 40 個〈calc_for〉）。窓は確かめた後の calc を serde の値から読み直していたので、
+  パネル・合わせるデータ・合わせた表のまとまりの calc を送られた字のまま formula::clean_calc へ渡す形に直した（keep_calc_order）。あわせて、Python の答えの控えの鍵
+  （_answer・_ops_answer の json.dumps(sort_keys=True)）が順だけ違う組を同じ鍵にして、先に数えた方の答えを返していたのを、送った順の鍵に直した。
+  どの形も `dashboard_oracle.py` の order_cases に足し、直しを外す変異で 12 か所すべてが落ちることを確かめた。決まり 2026-11-06 により採点し直さない（`"built_fixed"`）。
+- 速さ（`dashboard_oracle.py --bench` → `dash_bench`。品質 20,000 行・実績 12 台 × 2,000 行・仕掛 20,000 ロットの全パネルの合計・5 回の中央値）: 前 853 ms・後 761 ms（遅くならない。差は測るたびの揺れの幅）。
+- 採点者の見立て: 次の段は A（設定の束を窓が自分で組む）を、指摘（引っ越しの係を 1 つに・数の読み方・Python に任せる形・試験の差し替えを窓へ渡す道・
+  名乗りの決まり・Python の設定の道を答え合わせに残す）を入れた形で出し直すのが筋。窓が答える道も、いまは Python が起きていないと答えない
+  （lot.rs の settings が Python の GET /api/lotlist/settings に頼る）ため、Python 無しで動かすための土台になる。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

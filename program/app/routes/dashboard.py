@@ -424,7 +424,9 @@ def _answer(p, now):
     sets = _group_sets(p)
     stamp = now.strftime("%Y-%m-%d %H:%M:%S")
     days = [x.work["clock"].place(stamp, x.work["basis"])[0] if x.work else "" for x in parts]
-    key = json.dumps([p, egroups, sets, [_file_sig(x.path) for x in parts], days, now.date().isoformat(), [f["name"] for f in failed]], ensure_ascii=False, sort_keys=True)
+    # 鍵は送った順のまま（sort_keys にしない。版 3.83.0）: 計算列（calc）の表示名の後勝ち・式の先頭 40 個は順で答えが変わるので、
+    # 順だけ違う組を同じ鍵にすると、先に数えた方の答えを返してしまう
+    key = json.dumps([p, egroups, sets, [_file_sig(x.path) for x in parts], days, now.date().isoformat(), [f["name"] for f in failed]], ensure_ascii=False)
     cache = _cache()
     hit = cache.get(key)
     if hit is None:
@@ -656,7 +658,7 @@ def _ops_answer(p, now):
     stamp = now.strftime("%Y-%m-%d %H:%M:%S")
     days = [x.work["clock"].place(stamp, x.work["basis"])[0] if x.work else "" for x in parts]
     key = json.dumps(["ops", p, period, [_file_sig(x.path) for x in parts], days, now.date().isoformat(), now.hour if p["visual"] == "gantt" else 0,
-                      [f["name"] for f in failed]], ensure_ascii=False, sort_keys=True, default=str)
+                      [f["name"] for f in failed]], ensure_ascii=False, default=str)  # 鍵は送った順のまま（上の _answer と同じ）
     cache = _cache()
     hit = cache.get(key)
     if hit is None:

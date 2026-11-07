@@ -60,6 +60,13 @@ class Effective(unittest.TestCase):
         with self.assertRaises(ValueError):
             path_settings.parse(by["lotdsp_import.url"], "nlmfangyweb1a/LotDspWeb/")
         self.assertEqual(path_settings.parse(by["lot_list.stale_hours"], "0"), 0)
+        # nan・inf は範囲の比べ方をすり抜けていた（版 3.83.0。設定の答えに NaN が入り、窓が読めずに全部の道を Python へ回した）
+        for key in ("lot_list.stale_hours", "lot_list.refresh_seconds"):
+            for bad in ("nan", "NaN", "inf", "-inf", "Infinity"):
+                with self.assertRaises(ValueError, msg=f"{key} {bad}"):
+                    path_settings.parse(by[key], bad)
+        eff, _ = path_settings.effective({"lot_list": {"stale_hours": 36}}, [{"項目": "lot_list.stale_hours", "値": "nan"}])
+        self.assertEqual(eff["lot_list"]["stale_hours"], 36, "前に置いた nan は使わず既定で動く")
         self.assertEqual(path_settings.parse(by["update.source"], ' "C:\\a\\R" ;\n"%USERPROFILE%\\Box\\R";; '), "C:\\a\\R;%USERPROFILE%\\Box\\R",
                          "更新の置き場は候補を「;」で区切れる（それぞれの \" を外す）")
         self.assertEqual(path_settings.BY_KEY["update.source"]["check_url"], "/__desktop/update/probe", "確かめるのは探す本人（デスクトップ版）")
