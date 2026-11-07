@@ -135,7 +135,7 @@ impl Splash {
         if self.left.load(Ordering::SeqCst) {
             // 画面を開いたあと: 画面の上の帯で言う（窓の道は答え続ける。中身〈Python〉の道は 503 で理由を返す）
             if let Some(w) = app.get_webview_window("main") {
-                let _ = w.eval(&format!("({})(...{})", FAIL_BAND_JS, json!([title, detail])));
+                let _ = w.eval(format!("({})(...{})", FAIL_BAND_JS, json!([title, detail])));
             }
         }
         self.say(app, format!("splash.fail(...{})", json!([title, detail])));
@@ -615,7 +615,11 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     if let Some(w) = app.get_webview_window("main") {
         // 画面を開いたあとは、起動前の確認の進み具合を起動画面へ流さない（画面の中で splash は動かない）
         splash.left.store(true, Ordering::SeqCst);
-        log(&format!("OPEN 画面を開きます ms={} backend={}", t0.elapsed().as_millis(), if slot.get().is_some_and(|r| r.backend.up().is_some()) { "ready" } else { "starting" }));
+        log(&format!(
+            "OPEN 画面を開きます ms={} backend={}",
+            t0.elapsed().as_millis(),
+            if slot.get().is_some_and(|r| r.backend.up().is_some()) { "ready" } else { "starting" }
+        ));
         let _ = w.navigate(app_url("/"));
     }
 }
