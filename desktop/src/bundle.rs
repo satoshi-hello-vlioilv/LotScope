@@ -815,7 +815,7 @@ fn num_of(v: Option<&Value>, dflt: &Value) -> R<Value> {
     }
     if n.abs() < 9.223_372_036_854_775e18 {
         Ok(json!(n as i64))
-    } else if n >= 0.0 && n < 1.844_674_407_370_955_2e19 {
+    } else if (0.0..1.844_674_407_370_955_2e19).contains(&n) {
         Ok(json!(n as u64))
     } else {
         Err(Py("データ元の行の間隔が u64 に入らない整数"))
