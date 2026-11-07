@@ -75,6 +75,11 @@ fn quote_plus(s: &str) -> String {
     out
 }
 
+/// Path.read_text と同じ改行の読み方（\r\n と \r を \n に。Windows で取り出した型は CRLF のことがある）
+pub fn universal_newlines(s: &str) -> String {
+    s.replace("\r\n", "\n").replace('\r', "\n")
+}
+
 // ------------------------------------------------------------------ 型（web.Template）
 #[derive(Debug, Clone, PartialEq)]
 enum Expr {
@@ -350,7 +355,7 @@ impl Page {
                 return tpl.clone();
             }
         }
-        let tpl = std::fs::read_to_string(&path).ok().and_then(|src| Template::parse(&src));
+        let tpl = std::fs::read_to_string(&path).ok().and_then(|src| Template::parse(&universal_newlines(&src)));
         t.insert(path, (s, tpl.clone()));
         tpl
     }
@@ -413,6 +418,9 @@ mod tests {
             got,
             "<p>A&amp;B&lt;&#34;&#39;&gt;</p>{\"a\": [1, 2.0], \"b\": \"\\u003c/script\\u003e\\u5b57\"}<b>/static/js/a.js?v=3.0-x+y"
         );
+        // CRLF の型（Windows で取り出した物）も Python の read_text と同じ字になる
+        assert_eq!(universal_newlines("a\r\nb\rc\n"), "a\nb\nc\n");
+        assert_eq!(Template::parse(&universal_newlines("x\r\n")).unwrap().render(&Map::new(), "").unwrap(), "x");
         // 最後の改行は 1 つだけ落とす
         assert_eq!(Template::parse("x\n\n").unwrap().render(&Map::new(), "").unwrap(), "x\n");
         // 表を字にする・字の属性・_Undefined を JSON にするのは Python に任せる
