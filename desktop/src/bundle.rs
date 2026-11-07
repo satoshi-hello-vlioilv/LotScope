@@ -514,8 +514,10 @@ pub struct Env {
 impl Env {
     /// 製品の形（窓が中身〈program〉と作業場所から決める。app_env.config_path と同じ順）
     pub fn production(program: &Path, local: &Path) -> Env {
-        let config =
-            std::env::var_os("TRANSFER_APP_CONFIG").map(PathBuf::from).unwrap_or_else(|| program.join("config").join("appsettings.json"));
+        // 相対の道は中身のフォルダから（Python は中身のフォルダで動く: sidecar.rs の current_dir）
+        let config = std::env::var_os("TRANSFER_APP_CONFIG")
+            .map(|v| program.join(v))
+            .unwrap_or_else(|| program.join("config").join("appsettings.json"));
         let config = if config.exists() { config } else { program.join("config").join("appsettings.example.json") };
         // create_app の base は Path(__file__).resolve() の親（道を解いた形）
         let program = resolved(program);
@@ -729,36 +731,15 @@ impl Builder {
 }
 
 // ------------------------------------------------------------------ 参照先の重ね（services/path_settings.py の effective・parse）
-/// 画面から来た字 → その項目の値（Ok(None) は空・合わない値で、既定のまま。Python の parse の ValueError と同じ）
+/// 画面から来た字 → その項目の値（Ok(None) は空・合わない値で、既定のまま。Python の parse の ValueError と同じ）。
+/// 読み方は書く道と同じ 1 つの関数（settings_write::parse_value。版 3.89.0）。ブラウザの欄・並びの値は Python に任せる
 fn parse_item(item: &Value, raw: Option<&Value>) -> R<Option<Value>> {
-    let text = match raw {
-        None | Some(Value::Null) => String::new(),
-        Some(Value::Array(_) | Value::Object(_)) => return Err(Py("参照先の値が表・並び")),
-        Some(x) => pyfmt::strip(&py_str(x)).to_string(),
-    };
-    if text.is_empty() {
-        return Ok(None);
+    use crate::settings_write::{parse_value, Bad};
+    match parse_value(item, raw) {
+        Ok(v) => Ok(v),
+        Err(Bad::Invalid(_)) => Ok(None),
+        Err(Bad::Python) => Err(Py("参照先の値は Python が読む（ブラウザの欄・表・並び）")),
     }
-    let kind = item["kind"].as_str().unwrap_or("");
-    Ok(match kind {
-        "int" | "number" => {
-            let Ok(n) = pyfmt::py_float(&text) else { return Ok(None) };
-            if !n.is_finite() || (kind == "int" && n.fract() != 0.0) {
-                return Ok(None);
-            }
-            let lo = item.get("min").and_then(Value::as_f64);
-            let hi = item.get("max").and_then(Value::as_f64);
-            if lo.is_some_and(|l| n < l) || hi.is_some_and(|h| n > h) {
-                return Ok(None);
-            }
-            Some(if kind == "int" { json!(n as i64) } else { json!(n) })
-        }
-        "url" => (text.starts_with("http://") || text.starts_with("https://")).then(|| json!(text)),
-        "sqlite" | "folder" => Some(json!(unquote(&text))),
-        "pattern" => (pyfmt::strip(&text).matches('*').count() == 1).then(|| json!(text)),
-        "text" => Some(json!(text)),
-        _ => return Err(Py("束に出ない種類の項目")),
-    })
 }
 
 fn set_dotted(d: &mut Value, key: &str, v: Value) -> R<()> {
@@ -1555,6 +1536,12 @@ impl Inputs {
     pub fn revision(&self, name: &str) -> R<i64> {
         self.p.revision(name).map_err(|_| Py("マスタの版が読めない"))
     }
+
+    /// 参照先の項目ごとの答え（GET /api/settings の items。path_settings.effective の items。版 3.89.0）。Python と同じに組めなければ Err
+    pub fn settings_items(&self) -> R<Vec<Value>> {
+        self.check("path_settings")?;
+        effective_items(&self.settings, &self.rows("path_settings")?)
+    }
 }
 
 /// GET /api/sources のうち、マスタと設定から決まる部分（版 3.87.0。写しの様子・行の数・結合の数・スケジュールのカードは src/sources_list.rs）
@@ -1567,29 +1554,18 @@ pub struct SourcesParts {
     pub schedule_equips: usize,
 }
 
-/// path_settings.parse の窓の写し（束に出る種類は parse_item・更新の置き場は「;」の候補。exe は Python に任せる）
-fn parse_any(item: &Value, raw: Option<&Value>) -> R<Option<Value>> {
-    match item["kind"].as_str().unwrap_or("") {
-        "release" => {
-            let text = match raw {
-                None | Some(Value::Null) => String::new(),
-                Some(Value::Array(_) | Value::Object(_)) => return Err(Py("参照先の値が表・並び")),
-                Some(x) => pyfmt::strip(&py_str(x)).to_string(),
-            };
-            if text.is_empty() {
-                return Ok(None);
-            }
-            let parts: Vec<String> =
-                text.replace('\n', ";").split(';').map(|p| unquote(pyfmt::strip(p))).filter(|x| !x.is_empty()).collect();
-            Ok(Some(json!(parts.join(";"))))
+/// 参照先の値を配った設定に重ねられるか（path_settings._set: 途中の段が無ければ作り、表なら下りる。表でない段〈字・null・並び〉は Python が落ちる）
+pub fn sections_ok(settings: &Value, key: &str) -> bool {
+    let parts: Vec<&str> = key.split('.').collect();
+    let mut cur = settings;
+    for p in &parts[..parts.len() - 1] {
+        match cur.get(p) {
+            None => return true,
+            Some(v) if v.is_object() => cur = v,
+            Some(_) => return false,
         }
-        "exe" => match raw {
-            None | Some(Value::Null) => Ok(None),
-            Some(x) if pyfmt::strip(&py_str(x)).is_empty() => Ok(None),
-            _ => Err(Py("ブラウザの欄（trusted_browser）は Python が確かめる")),
-        },
-        _ => parse_item(item, raw),
     }
+    true
 }
 
 /// path_settings.effective の items（項目ごとの答え: 既定・マスタの値・効いている値・版）
@@ -1608,11 +1584,14 @@ fn effective_items(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         let default = dotted(settings, key).cloned().unwrap_or(Value::Null);
         let row = by.iter().find(|(n, _)| n == key).map(|(_, r)| *r);
         let value = match row {
-            Some(r) => parse_any(it, r.get("値"))?,
+            Some(r) => parse_item(it, r.get("値"))?,
             None => None,
         };
         let mut o = it.as_object().cloned().unwrap_or_default();
         let has = value.is_some();
+        if has && !sections_ok(settings, key) {
+            return Err(Py("値を重ねる配った設定の段が表でない（Python の _set が落ちる）"));
+        }
         o.insert("default".into(), default.clone());
         o.insert("value".into(), value.clone().unwrap_or(Value::Null));
         o.insert("effective".into(), value.unwrap_or(default));
@@ -1893,6 +1872,22 @@ impl Builder {
         let r = self.build_inner();
         *self.last_skip.lock().unwrap() = r.as_ref().err().map(|e| e.0);
         r
+    }
+
+    /// 配った設定のファイル（app_env.config_path を問い合わせのたびに: TRANSFER_APP_CONFIG か config/appsettings.json。無ければ見本。
+    /// 基の置き場は create_app の BASE_DIR〈中身を解いた道〉）。GET /api/settings の config_file（版 3.89.0）
+    pub fn config_file(&self) -> String {
+        let base = resolved(&self.env.program);
+        // str(Path(字)) は字のまま（相対の道も）。有るかは Python の今のフォルダ＝中身のフォルダ（sidecar.rs の current_dir）から見る
+        let (text, at) = match std::env::var_os("TRANSFER_APP_CONFIG") {
+            Some(v) => (PathBuf::from(&v), base.join(&v)),
+            None => {
+                let p = base.join("config").join("appsettings.json");
+                (p.clone(), p)
+            }
+        };
+        let p = if at.exists() { text } else { base.join("config").join("appsettings.example.json") };
+        py_path(&p.to_string_lossy())
     }
 
     /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）

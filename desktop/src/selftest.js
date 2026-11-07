@@ -41,8 +41,14 @@
     // 画面は窓が描く（版 3.85.0。src/page.rs）。使い回さない（no-store）・CSP の印。Python が描いた画面（?engine=python）と、印を揃えると 1 字も違わない
     // 先に Python の画面（共有に初期設定がまだ無い PC では、Python が描くときに写しから最初の版を作る。窓はその形を Python に任せる）。
     // 版 3.86.0 から最初の画面は Python の準備を待たずに窓が描くので、その版はここで初めてできることがある
-    const pyPage = await get("/?engine=python");
-    const page = await get("/");
+    // 新しい共有を最初に開いたときは、最初の版を置く錠がぶつかって置けない回がある（「保存中」。窓はその間 Python に任せる）ので、
+    // 置かれるまで 15 秒まで尋ね直す（版 3.89.0 の CI で、起動の直後に Python が描いた。10a' と同じ）
+    let pyPage = await get("/?engine=python");
+    let page = await get("/");
+    for (const until = Date.now() + 15000; page.by !== "shell" && Date.now() < until;) {
+      await new Promise((r) => setTimeout(r, 1000));
+      pyPage = await get("/?engine=python"); page = await get("/");
+    }
     const csp = page.r.headers.get("Content-Security-Policy") || "";
     ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
     const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
@@ -179,6 +185,26 @@
       try { same = same && JSON.stringify(canonS(JSON.parse(rs.text))) === JSON.stringify(canonS(JSON.parse(py.text))); } catch (_) { same = false; }
       ok("データ元の並びは窓が答え、Python と同じ答え（写しの様子・行の数を除く）", rs.by === "shell" && same,
          `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}・${(JSON.parse(rs.text || "{}").items || []).length} 件`);
+    }
+
+    // 10a'') 参照先の項目（版 3.89.0 から窓が答える: settings_write.rs）。読む道は Python と同じ答え（配った設定のファイルの道は
+    //        Windows の字〈\〉も）。書く道は書かずに確かめる（知らない項目・合わない値は窓が Python と同じ言葉で断る）
+    {
+      const canonP = (v) => Array.isArray(v) ? v.map(canonP) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonP(v[k])])) : v;
+      const py = await get("/api/settings?engine=python"), rs = await get("/api/settings");
+      let same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
+      try { same = same && JSON.stringify(canonP(JSON.parse(rs.text))) === JSON.stringify(canonP(JSON.parse(py.text))); } catch (_) { same = false; }
+      ok("参照先の項目は窓が答え、Python と同じ答え", rs.by === "shell" && same, `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}`);
+      const put = (key, value) => get("/api/settings/" + key, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value }) });
+      const unk = await put("selftest.unknown", "x"), bad = await put("lot_list.refresh_seconds", "10.5");
+      const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
+      // 書けない人の PC（管理のマスタを書けない段）では、窓の門番が先に断る（403 forbidden。これも窓が受けた形）
+      const denied = [unk, bad].every((x) => x.by === "shell" && x.r.status === 403 && why(x).kind === "forbidden");
+      ok("参照先を書く道も窓が受ける（知らない項目・整数でない値を、Python と同じ言葉で断る。書けない人は門番が断る）", denied || (
+         unk.by === "shell" && unk.r.status === 400 && why(unk).error === "知らない項目です。"
+         && bad.by === "shell" && bad.r.status === 400 && why(bad).kind === "invalid" && /整数で入れてください/.test(why(bad).error || "")),
+         `${unk.by} ${unk.r.status} / ${bad.by} ${bad.r.status} ${(why(bad).error || "").slice(0, 40)}`);
     }
 
     // 10b) 作業実績の設備（Python）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す（画面は案内を出す）

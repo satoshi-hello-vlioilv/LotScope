@@ -13,7 +13,7 @@
 同じ置き場を書くかを見る（製品では、印をたどる係は窓の 1 つ）。
 
 版 3.85.0 から、同じ場面で画面（GET /）・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree の答えも取る（"reads"。
-desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。版 3.87.0 から GET /api/sources も。スケジュールの元に場所がある場面の
+desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。版 3.87.0 から GET /api/sources も。版 3.89.0 から GET /api/settings（参照先の項目）も。スケジュールの元に場所がある場面の
 設備の木は尋ねない（Python は CM3 へ読みに行く。窓は Python に任せる）。
 """
 import json
@@ -407,6 +407,15 @@ def scenarios(work):
         write(r / "share" / "path_settings.json", ps)
         return config(r)
     sc("ブラウザの欄に値がある", sources_exe)
+
+    # 版 3.89.0（作った後の採点で見つけた）: 参照先の値を重ねる配った設定の段が表でない（Python の path_settings._set が落ちる）
+    def section_null(r):
+        masters(share=r / "share")
+        ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))
+        ps["rows"].append({"id": 31, "項目": "update.source", "値": "C:\\置き場"})
+        write(r / "share" / "path_settings.json", ps)
+        return config(r, update=None)
+    sc("更新の段が null で参照先に更新の置き場", section_null, expect="delegate")
     return out
 
 
@@ -449,7 +458,7 @@ def ask(s, follows):
     return answer, after, reads
 
 
-READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources")
+READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings")
 
 
 def page_reads(c, bundle, tree, mirrors):

@@ -11,12 +11,15 @@ use da_core::lot::Lot;
 use serde_json::Value;
 use std::path::PathBuf;
 
-const READS: [&str; 5] = ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources"];
+const READS: [&str; 6] = ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings"];
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
-const MUST_DELEGATE: [(&str, &str); 13] = [
-    // 版 3.87.0: ブラウザの欄は Python が trusted_browser で確かめる
+const MUST_DELEGATE: [(&str, &str); 15] = [
+    // 版 3.87.0: ブラウザの欄は Python が trusted_browser で確かめる（版 3.89.0 から参照先の項目〈GET /api/settings〉も）
     ("ブラウザの欄に値がある", "/api/sources"),
+    ("ブラウザの欄に値がある", "/api/settings"),
+    // 版 3.89.0（作った後の採点）: 参照先の値を重ねる配った設定の段が表でない（Python の _set が落ちる）
+    ("更新の段が null で参照先に更新の置き場", "/api/settings"),
     // 作った後の採点（版 3.85.0）の割れ
     ("画面の控えの rev が i64 に入らない", "/"),
     ("画面の控えの rev が字の大きな整数", "/"),
@@ -44,9 +47,11 @@ fn page_and_first_reads_are_like_python() {
     let (mut same, mut delegated) = (std::collections::BTreeMap::<&str, usize>::new(), 0);
     for sc in o["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
-        let saved: Vec<(String, Option<String>)> =
-            sc["vars"].as_object().unwrap().keys().map(|k| (k.clone(), std::env::var(k).ok())).collect();
-        for (k, v) in sc["vars"].as_object().unwrap() {
+        // 配った設定のファイル（GET /api/settings の config_file）: 場面の Python と同じく TRANSFER_APP_CONFIG で指す（版 3.89.0）
+        let mut vars = sc["vars"].as_object().unwrap().clone();
+        vars.insert("TRANSFER_APP_CONFIG".into(), sc["env"]["config"].clone());
+        let saved: Vec<(String, Option<String>)> = vars.keys().map(|k| (k.clone(), std::env::var(k).ok())).collect();
+        for (k, v) in &vars {
             // SAFETY: この試験の糸だけが環境を変える（ほかの試験はこの名前を読まない）
             unsafe { std::env::set_var(k, v.as_str().unwrap()) };
         }
@@ -155,7 +160,9 @@ fn page_and_first_reads_are_like_python() {
         }
     }
     eprintln!("窓が同じに答えた数: {same:?}・Python に任せた数: {delegated}");
-    for (path, n) in [("/", 15), ("/api/config", 15), ("/api/dashboard/sources", 15), ("/api/dashboard/equip-tree", 2)] {
+    for (path, n) in
+        [("/", 15), ("/api/config", 15), ("/api/dashboard/sources", 15), ("/api/dashboard/equip-tree", 2), ("/api/settings", 30)]
+    {
         assert!(same.get(path).copied().unwrap_or(0) >= n, "{path} を窓が答えた場面が足りません: {same:?}");
     }
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));
