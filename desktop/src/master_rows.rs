@@ -434,3 +434,34 @@ pub(crate) fn put_by_key(
         Ok(Value::Object(row.clone()))
     })
 }
+
+/// 書く道の本文（routes の request.get_json(force=True, silent=True) or {}）。版 3.90.0 から参照先の項目・データ元の書く道の 1 か所。
+/// 読めない本文は {}（Python と同じ）。Python だけが読む字・読みの割れる数・表でない真の本文（Python は 400 か 500）は None（Python に任せる）
+pub(crate) fn py_body(body: &[u8]) -> Option<Value> {
+    let v = match serde_json::from_slice::<Value>(body) {
+        _ if body.iter().all(|b| b.is_ascii_whitespace()) => Value::Null,
+        Ok(_) if split_number(body) => return None,
+        Ok(v) => v,
+        Err(_) => match std::str::from_utf8(body) {
+            Ok(t) if text_split(t) => return None,
+            _ => Value::Null,
+        },
+    };
+    if crate::worksum::truthy(&v) && !v.is_object() {
+        return None;
+    }
+    Some(if v.is_object() { v } else { json!({}) })
+}
+
+/// 書く係の思いがけない失敗（ファイルの読み書き）の答え（master_call の exception_error: 400・kind error・type は例外の種類）。
+/// 言葉は OS の言葉なので Python と同じ字にはできない（状態・種類は同じ）
+pub(crate) fn error_answer(m: &str) -> (u16, Value) {
+    let kind = if m.contains("os error 13") || m.contains("os error 5)") {
+        "PermissionError"
+    } else if m.contains("os error 2)") || m.contains("os error 3)") {
+        "FileNotFoundError"
+    } else {
+        "OSError"
+    };
+    (400, json!({"error": m, "kind": "error", "type": kind}))
+}

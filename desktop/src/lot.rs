@@ -542,6 +542,9 @@ impl Lot {
         body: &[u8],
         ask: AskSettings,
     ) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
         let builder = self.bundle.lock().unwrap().clone()?;
         let inp = builder.inputs().ok()?;
         for name in ["data_sources", "path_settings"] {
@@ -565,7 +568,7 @@ impl Lot {
             rows: &rows,
             ps_rows: &ps_rows,
             new_key: &|| match self.new_key.lock().unwrap().clone() {
-                Some(f) => f(),
+                Some(f) => Some(f()),
                 None => crate::sources_write::new_key(),
             },
             settings_ok: &settings_ok,
@@ -1637,6 +1640,61 @@ mod tests {
         std::fs::write(share.join("path_settings.json"), ps.to_string()).unwrap();
         assert!(lot.handle_body("GET", "/api/settings", "", b"", &down).is_none(), "重ねる行があると Python は落ちる");
         assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).is_none());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_writes_data_sources_and_rebuilds() {
+        // 版 3.90.0: データ元の書く道は Python が起きていなくても窓が答え（本物の道: Lot::handle_body → sources_write_route）、
+        // 書いた直後の並び（GET /api/sources）と一覧の設定（束）は新しい行で組み直す。?engine=python・門番
+        let work = std::env::temp_dir().join(format!("da-lot-srcw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "sources": {"wip": {"source": "/w.sqlite3"}}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm =
+            json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in
+            ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversions"]
+        {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let listed = |lot: &Lot| {
+            let (_, v) = lot.sources_list("", &down, &|| None).unwrap();
+            v["items"].as_array().unwrap().iter().find(|d| d["key"] == "wip").unwrap()["listed"].clone()
+        };
+        assert_eq!(listed(&lot), json!(true));
+        let _ = lot.settings(&down).unwrap(); // 束を覚えさせる（書いた後に捨てるかを見る）
+        let (st, v) = lot
+            .handle_body("POST", "/api/sources/wip/quick", "", r#"{"画面": "無", "表示名": "仕掛2", "base_rev": 0}"#.as_bytes(), &down)
+            .unwrap();
+        assert_eq!((st, v["row"]["画面"].clone()), (200, json!("無")), "{v}");
+        assert_eq!(listed(&lot), json!(false), "書いた直後の並びに効く");
+        let lists = lot.settings(&down).unwrap().lists;
+        let wip = lists["sources"].as_array().unwrap().iter().find(|d| d["key"] == "wip").unwrap().clone();
+        assert_eq!(wip["name"], json!("仕掛2"), "一覧の設定（束）も組み直す: {wip}");
+        let (st, v) =
+            lot.handle_body("POST", "/api/sources", "", r#"{"表示名": "足した", "場所": "/a.sqlite3"}"#.as_bytes(), &down).unwrap();
+        assert_eq!(st, 201, "{v}");
+        let key = v["row"]["キー"].as_str().unwrap().to_string();
+        assert!(key.len() == 9 && key.starts_with('s'), "{key}");
+        assert!(lot.handle_body("POST", "/api/sources", "engine=python", b"{}", &down).is_none(), "?engine=python は Python");
+        // 門番: 閲覧の人は書けない
+        std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 2, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]}).to_string()).unwrap();
+        let (st, v) = lot.handle_body("DELETE", &format!("/api/sources/{key}"), "", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
         let _ = std::fs::remove_dir_all(&work);
     }
 

@@ -80,6 +80,9 @@ fn data_source_writes_match_python() {
                 bad.push(format!("{name} [{i}] 窓が答えない: {} {} {}", st["method"], st["path"], st["body"]));
                 continue;
             };
+            // 言葉の中の場面のフォルダ（共有に届かない置き場など）は Python の側の名前にそろえる
+            let (rs_dir, py_dir) = (sc["rs"].as_str().unwrap(), sc["py"].as_str().unwrap());
+            let got: Value = serde_json::from_str(&got.to_string().replace(rs_dir, py_dir)).unwrap();
             let want = &st["json"];
             if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want), &norm(&got), "").is_some() {
                 bad.push(format!(

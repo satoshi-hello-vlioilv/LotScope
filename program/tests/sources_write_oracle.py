@@ -165,6 +165,20 @@ SCENARIOS = [
         S("POST", f"{P}/order", {"keys": ["s4", "s3"]}),
         S("DELETE", f"{P}/s4"),
     ]},
+    {"name": "壊れた結合した表（元が無い）", "mode": "shared",
+     "rows": ROWS + [{"id": 9, "キー": "s9", "表示名": "壊れた", "元": "無い元", "結合": j([{"with": "s1", "on": [["a", "b"]]}]), "rev": 1}], "steps": [
+        S("POST", f"{P}/s9/quick", {"画面": "無", "base_rev": 1}),
+        S("PUT", f"{P}/s9/conn", {"field": "refresh", "value": "60"}),
+        S("POST", f"{P}/order", {"keys": ["s9", "s4"]}),
+        S("PUT", f"{P}/s9", {"元": "wip", "base_rev": 2}),
+        S("POST", f"{P}/s9/quick", {"画面": "無"}),
+    ]},
+    {"name": "共有に届かない（写しから）", "mode": "unreachable", "rows": ROWS, "steps": [
+        S("POST", P, {"表示名": "届かない", "場所": "/u.sqlite3"}),
+        S("PUT", f"{P}/s3", {"備考": "x", "base_rev": 5}),
+        S("POST", f"{P}/order", {"keys": ["s4", "s3"]}),
+        S("DELETE", f"{P}/s4"),
+    ]},
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "lock": True, "steps": [
         S("POST", P, {"表示名": "錠", "場所": "/l.sqlite3"}),
         S("POST", f"{P}/order", {"keys": ["wip"]}),
@@ -186,6 +200,10 @@ def place(root, sc):
             continue
         if sc["mode"] == "local":
             (data / f"{name}.json").write_text(j(rows), encoding="utf-8")
+        elif sc["mode"] == "unreachable":       # 共有のフォルダが無い（届かない）: 写しだけがある
+            cache = root / "local" / "master_cache"
+            cache.mkdir(parents=True, exist_ok=True)
+            (cache / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
         else:
             (share / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
     if sc["mode"] == "empty":
@@ -197,7 +215,8 @@ def place(root, sc):
                                                    "expires_at": (n + timedelta(seconds=600)).isoformat(timespec="seconds")}), encoding="utf-8")
     cfg = {"lot_list": {"source": "/配った/品質.sqlite3", "table": ""}, "desktop": {"lotlist_engine": "rust"},
            "identity": {"pc_name": "PC-ORACLE"}, "sources": {"wip": {"source": "/既定の仕掛.sqlite3"}},
-           "master_share": {} if sc["mode"] == "local" else {"dir": str(share), "refresh_seconds": 0}}
+           "master_share": {} if sc["mode"] == "local" else {"dir": str(root / "届かない共有" if sc["mode"] == "unreachable" else share),
+                                                               "refresh_seconds": 0}}
     (root / "config.json").write_text(j(cfg), encoding="utf-8")
 
 

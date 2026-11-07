@@ -502,7 +502,7 @@ pub struct Ctx<'a> {
     /// 参照先のマスタの行（接続の設定の settings の欄）
     pub ps_rows: &'a [Value],
     /// 足す元のキー（"s" と 16 進 8 字。試験は差し替える）
-    pub new_key: &'a dyn Fn() -> String,
+    pub new_key: &'a dyn Fn() -> Option<String>,
     /// 参照先の項目をその値で重ねられるか（bundle::sections_ok。重ねられない形は Python が書いた後に落ちるので任せる）
     pub settings_ok: &'a dyn Fn(&str) -> bool,
 }
@@ -515,7 +515,7 @@ pub struct Done {
 
 fn of_master(e: MasterError) -> Answer {
     match e {
-        MasterError::Error(m) => (400, json!({"error": m, "kind": "error"})),
+        MasterError::Error(m) => crate::master_rows::error_answer(&m),
         e => (e.status(), e.payload()),
     }
 }
@@ -527,28 +527,11 @@ fn wrote(r: Result<Value, MasterError>, ok: u16) -> Answer {
     }
 }
 
-/// 本文（get_json(force=True, silent=True) or {}）。None は Python に任せる（読みが割れる・表でない真の本文）
-fn body_of(body: &[u8]) -> Option<Value> {
-    let v = match serde_json::from_slice::<Value>(body) {
-        _ if body.iter().all(|b| b.is_ascii_whitespace()) => Value::Null,
-        Ok(_) if crate::master_rows::split_number(body) => return None,
-        Ok(v) => v,
-        Err(_) => match std::str::from_utf8(body) {
-            Ok(t) if crate::master_rows::text_split(t) => return None,
-            _ => Value::Null,
-        },
-    };
-    if truthy(&v) && !v.is_object() {
-        return None;
-    }
-    Some(if v.is_object() { v } else { json!({}) })
-}
-
-/// 新しい元のキー（data_sources.new_key: "s" + uuid4 の 16 進の頭 8 字）
-pub fn new_key() -> String {
+/// 新しい元のキー（data_sources.new_key: "s" + uuid4 の 16 進の頭 8 字）。乱数を取れなければ None（窓は答えず Python に任せる）
+pub fn new_key() -> Option<String> {
     let mut b = [0u8; 4];
-    let _ = getrandom::fill(&mut b);
-    format!("s{}", b.iter().map(|x| format!("{x:02x}")).collect::<String>())
+    getrandom::fill(&mut b).ok()?;
+    Some(format!("s{}", b.iter().map(|x| format!("{x:02x}")).collect::<String>()))
 }
 
 fn first<'a>(items: &'a [Map<String, Value>], key: &str) -> Option<&'a Map<String, Value>> {
@@ -564,7 +547,7 @@ pub fn handle(store: &Store, route: &Route, query: &str, body: &[u8], cx: &Ctx) 
     if !crate::master_rows::rows_plain(cx.rows, &fields.iter().map(String::as_str).collect::<Vec<_>>()) {
         return None;
     }
-    let parsed = body_of(body)?;
+    let parsed = crate::master_rows::py_body(body)?;
     let data = parsed.as_object().cloned().unwrap_or_default();
     let known = join_targets(cx.items);
     let done = |answer: Answer| Some(Done { answer, setting: None });
@@ -575,7 +558,7 @@ pub fn handle(store: &Store, route: &Route, query: &str, body: &[u8], cx: &Ctx) 
     }
     match route {
         Route::Add => {
-            let key = (cx.new_key)();
+            let key = (cx.new_key)()?;
             match clean_row(&data, Some(&key), &known).ok()? {
                 Err(m) => done(invalid(m)),
                 Ok(row) => done(wrote(data_source_put(store, &key, &row, Some(Rev::Small(0))), 201)),
@@ -791,8 +774,9 @@ mod tests {
 
     #[test]
     fn new_keys_look_like_python() {
-        let k = new_key();
+        let k = new_key().unwrap();
         assert!(k.len() == 9 && k.starts_with('s') && k[1..].bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()), "{k}");
         assert_ne!(new_key(), new_key());
+        assert_eq!(crate::master_rows::error_answer("Permission denied (os error 13)").1["type"], "PermissionError");
     }
 }

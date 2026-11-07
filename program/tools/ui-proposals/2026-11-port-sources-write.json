@@ -194,5 +194,44 @@
         }
       }
     }
-  ]
+  ],
+  "built": {
+    "name": "作った後",
+    "images": "画面に出ない改良なので画像は無い",
+    "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、読んで・動かして確かめた事実で採点した。リポジトリの中で変えたのはこのファイルだけ・git の操作はしていない・cargo は流していない（Rust はコードを読んで確かめた）。読んだ物: git show b4b7ce0 19d9712 の全部（sources_write.rs・lot.rs の sources_write_route と handle_body の並び・bundle_tables.json・bundle-tables.py・selftest.js 10a‴・sources_write_parity.rs・sources_write_oracle.py・RUST_PORT_PLAN.md）、比べる相手の Python（routes/sources.py の 7 本と _conn_field・_conn、services/data_sources.py の clean_row・row_of・sources・join_targets・conn_of、services/data_join.py の parse・clean、repositories/master_repository.py の _clean・_cell・data_source_put・order・delete・_check_rev・_check_unique、master_store.py の read・_cached・_maybe_refresh・write の届かない形、routes/common.py の base_rev・master_call・error・exception_error・tab_denied、routes/settings.py の settings_put・put_setting、routes/access.py の _access_guard、web.py の get_json・dispatch・handle、画面の master-sources.js の保存の順）、窓の部品（master_rows.rs の py_rev・base_rev・row_readable・value_plain・rows_plain・check_rev・check_unique・split_number・text_split、settings_write.rs の put・after_of、bundle.rs の sources_parts・inputs・check、access.rs の Place::doc・share_absent・guard、master_store.rs の届かない形、worksum.rs の py_str・truthy、pyfmt.rs の strip・py_float・float_repr、lot.rs の settings_route・after_python・invalidate・warm、main.rs の native と after）。動かした物（置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-srcw）: sources_write_oracle.py をそのまま流して 7 場面の Python の答えを読んだ（oracle.json）・probe1.py（共有に届かない形で quick・PUT・order・DELETE、元の無い結合した表への quick・conn・order・PUT）・python -m unittest tests.test_bundle_tables tests.test_data_sources（Ran 14・OK）。",
+    "result": {
+      "proposal": "E 決まりを表に焼く（データで書く clean_row）（指摘 16 個入り・作った後）",
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 8,
+        "visual": 7,
+        "steps": 8,
+        "effortless": 7,
+        "intuitive": 8,
+        "form": 7,
+        "place": 7,
+        "layout": 7,
+        "tone": 7
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "sources_write.rs の of_master（MasterError::Error → 400 {error, kind: error}）: 書く係の io の失敗のとき、Python の exception_error が付ける type（PermissionError など）が無く、字も Rust の io の字（Permission denied (os error 13)）で Python（[Errno 13] Permission denied: '…'）と違う。何の失敗かが画面・記録で分かりにくい"
+        }
+      ],
+      "seen": "【全体】窓（sources_write.rs）は Python の routes/sources.py の 7 本を、clean_row・data_join.parse／clean・row_of・data_source_put／order／delete と同じ順・同じ言葉で写している。答えられない形（読みの割れる本文・表でない真の本文・並びや表の値の repr・keys が表や数・on／cols が数や真偽・cols が表・百分率符号・置き場の行が読めない・版の数字でない字）は書く前に None で Python に任せる。読んだ所と、Python で動かした所（オラクルの 7 場面の答え・下の probe1.py）の範囲では、窓が答える形で状態・本文・ファイルが Python と違う入力は見つからなかった（重い割れは無し）。【指摘 16 個の入り方】1 Python の repr の割れ: 入った（b4b7ce0。master_repository._cell で結合の並びを json.dumps(ensure_ascii=False)・空なら \"\"。order と groups の両方が data_source_order を通るので両方に効く。試験 test_order_keeps_the_builtin_join_of_a_source_without_a_row は通った）。2 道の表: 入った（route_of は 7 本だけ。GET・/check・/conn/check・/join/preview・/columns・% の道・a/b は None。PUT /order・DELETE /check は <key> の道として場面にある。web.py の dispatch も最初に道と方法の合う規則を使うので同じ）。3 本文の形: 入った（body_of: 空白だけ・読めない本文は {}、偽の本文は {}、表でない真の本文と split_number・text_split は None）。4 keys の回し方: 入った（iter_of: 字は 1 字ずつ・並びはそのまま・表と数と真偽は任せる。場面に {keys: \"wip\"}→400、{keys: {wip:1}}・5・[[\"wip\"]] は任せる）。5 値の字: 入った（py_s＝pyfmt::strip(py_str)・並び／表は任せる・グループは pyfmt::is_space で split して 24 字・ロット番号の列 120 字は符号位置で切る。代用字は serde が読めず text_split の \\u で任せる）。6 結合: 入った（字の結合は text_split で NaN・1e400・-0 を任せ、ほかは serde で読む〈同じ鍵は後ろ・空白だけは []〉。on は表なら鍵が字なので空、cols が表・数は任せる。置く字は with・how・on・cols の順・\", \" \": \"・serde の字の書き方〈\\b\\f\\n\\r\\t と小文字の \\u00XX〉は Python の ensure_ascii=False と同じ。誤りの言葉は 1 字まで同じ・6 つ／8 つで切ってから確かめる順も同じ）。7 間隔・古さ: 入った（pyfmt::py_float・nan／inf は範囲の言葉・refresh は切り捨て・stale は整数なら整数の字〈-0→0〉・ほかは float_repr〈1e-05〉。範囲の字は焼いた connSpecs の 10〜3600・0〜1440）。8 書く係: 入った（data_source_put は正規化しないキーの最初の行・行が無ければ版 0 と比べる・足すときだけ check_unique・{id, rev:0} に FIELDS の順で strip・rev+1・stamped。order は rposition＝by の後ろの行・決めた列だけ・同じなら版を上げない・新しい行は _cell。delete は最初の行・check_rev・無ければ何もしない。どれも store.write で版が上がる。ファイルは解いた値で比べるので鍵の並びの違い〈serde の Map は字の順〉は前の段と同じく許している）。9 row_of: 入った（表示名は組み込みと同じ名前なら空・役割は組み込みなら空・場所は storage master で元が無いときだけ・表は元が無いとき・結合・グループ＝groupSet・元・rowRead・lotSet。lot の表に参照先の『品質表』が写る形は場面の PUT /lot にある）。10 言葉と状態: 入った（PUT・quick は 400 invalid、conn は 404 unknown、知らない項目 400、groups の 2 つの言葉、order の言葉、結合した表の 3 つの言葉、足すは 201。オラクルの答えで確かめた）。11 conn の settings の欄: 入った（settings_write::put を同じ本文・?rev で呼び、sections_ok が駄目なら任せる。後始末は after_of: lot_list.→warm・work_log.→forget_listing。Python の WORK_LISTING は 3.89.0 の直しで stamp の変化で捨てるので窓が書いても効く）。12 書いた後の後始末: 一部（invalidate と gate.forget は after_python と同じに入った。だが指摘の『lot::tests で確かめる』は入っていない: lot.rs の試験に sources_write_route を通す試験が無く、書いた後に窓の束・me を組み直すことも、Python の次の GET /api/src/<key>・/columns が新しい行を読むことも試験に無い。ほかの段〈the_window_answers_path_settings など〉にはある）。13 新しいキー: 入った（\"s\"+小文字の 16 進 8 字。Lot::set_new_key で k001… に揃え、失敗した足す歩でもキーを 1 つ使う Python の順と同じ）。ただし getrandom::fill の失敗を捨てている（下の割れ 2）。14 measured に無い物: 入った（RUST_PORT_PLAN.md に /check・/conn/check・/join/preview・/columns が Python に残ることを書いた）。15 突き合わせ: 大半（7 場面・書く歩 77・任せる歩 17。共有・手元だけ・錠・門番・行の無い組み込み〈sch・wip〉・結合した表 s2 がある。指摘の『写しから』と『壊れた結合した表』の場面は無い。probe1.py で Python の答えを取り、窓のコードを読んで同じと見た: 共有に届かないと 4 本とも 503 unavailable『共有フォルダに届かないため保存できません（読みは手元の写しで続けています）: …』〈master_store.rs :648 も同じ字〉、元の無い結合した表 s9 は quick・conn が 400『結合した表の元にするデータ元を選んでください…』・order は 200・元を直す PUT は 200）。16 表: 入った（sourcesList に fields・patchFields〈sorted〉・groupMax。bundle-tables.py を直し、tests/test_bundle_tables.py が通った）。【見つけた割れ（どれも軽い）】割れ 1（答えの本文。書く係の思いがけない失敗）: 共有を置き換えた後の写しの書き換えの失敗・ファイルの権限など io の失敗のとき、Python は master_call の exception_error で 400 {error: \"[Errno 13] Permission denied: '…'\", kind: \"error\", type: \"PermissionError\"}、窓は of_master で 400 {error: \"Permission denied (os error 13)\", kind: \"error\"}（type が無く字も違う）。3.89.0 の直し（窓が答えて Python に二度書かせない）を引き継いだ形なので状態は合う。直し方: of_master で io の失敗の種類から type（PermissionError・FileNotFoundError・OSError）を足す。字は揃えられないので、揃えない理由を RUST_PORT_PLAN に書く。割れ 2（極めてまれ）: sources_write::new_key は getrandom::fill の失敗を let _ = で捨て、そのとき 's00000000' を返す。2 回目の足すは 409 duplicate になる（Python の uuid4 は os.urandom の失敗で例外＝500）。直し方: 失敗したら窓は答えず Python に任せる（Ctx の new_key を Option にして None なら handle が None）。【割れではないが直すとよい所】・lot.rs の sources_write_route は settings_route にある ?engine=python（Python に回す口）を見ない。自己診断や調べるときに Python の答えと並べられない（ほかの道と揃えるなら足す）。・body_of は settings_write::put の本文の読み方の写し（同じ 12 行が 2 か所）。1 つの関数にすると決まりを変えるとき 1 か所で済む。・指摘 12・15 の試験の穴（上）: lot::tests に the_window_answers_data_source_writes（書いた後に束と me を組み直す・Python が新しい行を読む）を足し、オラクルに『共有に届かない（写しから）』『壊れた結合した表』の場面を足す。"
+    }
+  },
+  "built_fixed": {
+    "by": "作った者（2026-11-07）。決まり 2026-11-06 により採点し直さず、見つかった割れと直すとよい所をすべて直して突き合わせの試験に足した",
+    "fixes": [
+      "割れ 1（書く係の思いがけない失敗の答え）: master_rows::error_answer（type を OS の失敗の番号から PermissionError・FileNotFoundError・OSError に）を参照先の項目とデータ元の書く道の 1 か所に。言葉は OS の言葉なので Python と同じ字にはできない（RUST_PORT_PLAN に書いた）。試験: sources_write::tests",
+      "割れ 2（新しいキーの乱数の失敗を捨てる）: sources_write::new_key は乱数を取れなければ None、そのとき窓は答えず Python に任せる",
+      "?engine=python を Lot::sources_write_route でも見る（参照先の項目の道と同じ）",
+      "本文の読み方を master_rows::py_body の 1 か所に（settings_write と sources_write が呼ぶ）",
+      "指摘 12: lot::tests::the_window_writes_data_sources_and_rebuilds（本物の道で書いた直後の GET /api/sources と一覧の設定〈束〉が新しい行・新しいキーの形・?engine=python・門番）",
+      "指摘 15: 突き合わせに場面「共有に届かない（写しから）」（4 本とも 503・同じ言葉）と「壊れた結合した表（元が無い）」（quick・conn は 400、order と元を直す PUT は 200）を足した。9 場面とも Python と同じ"
+    ]
+  }
 }

@@ -17,7 +17,7 @@
 use crate::master_rows::{base_rev, put_by_key, Rev, Spec};
 use crate::master_store::{MasterError, Store};
 use crate::pyfmt;
-use crate::worksum::{py_str, truthy};
+use crate::worksum::py_str;
 use serde_json::{json, Value};
 
 pub const NAME: &str = "path_settings";
@@ -143,22 +143,8 @@ pub fn put(store: &Store, key: &str, query: &str, body: &[u8], rows: &[Value]) -
     let Some(item) = item_of(key) else {
         return Some((400, json!({"error": "知らない項目です。", "kind": "error"})));
     };
-    // get_json(force=True, silent=True): 読めない本文は None（＝空の本文。値も無いので行を消す）。Python だけが読む本文
-    // （NaN・1e400・片割れの代用字）と読みの割れる数（-0・i64 に入らない整数）は Python に任せる
-    let parsed: Value = match serde_json::from_slice::<Value>(body) {
-        _ if body.iter().all(|b| b.is_ascii_whitespace()) => Value::Null,
-        Ok(_) if crate::master_rows::split_number(body) => return None,
-        Ok(v) => v,
-        Err(_) => match std::str::from_utf8(body) {
-            Ok(t) if crate::master_rows::text_split(t) => return None,
-            _ => Value::Null,
-        },
-    };
-    // get_json(...) or {}: 偽の本文は {}。表でない真の本文（[1]・"x"・5）は Python が body.get で落ちる（500）
-    if truthy(&parsed) && !parsed.is_object() {
-        return None;
-    }
-    let parsed = if parsed.is_object() { parsed } else { json!({}) };
+    // get_json(force=True, silent=True) or {}（読めない本文は {}。Python に任せる本文は master_rows::py_body が決める）
+    let parsed = crate::master_rows::py_body(body)?;
     let value = match parse(item, parsed.get("value")) {
         Ok(v) => v,
         Err(Bad::Invalid(m)) => return Some((400, json!({"error": m, "kind": "invalid"}))),
@@ -172,7 +158,7 @@ pub fn put(store: &Store, key: &str, query: &str, body: &[u8], rows: &[Value]) -
         Ok(row) => Some((200, json!({"row": row}))),
         // 書く係の思いがけない失敗（読めない・書けない）も窓が答える（ほかの書く道と同じ形。共有を置き換えた後の写しの失敗を
         // Python に回すと、Python がもう一度書いて「ほかの PC が先に直した」と答える。作った後の採点で見つけた）
-        Err(MasterError::Error(m)) => Some((400, json!({"error": m, "kind": "error"}))),
+        Err(MasterError::Error(m)) => Some(crate::master_rows::error_answer(&m)),
         Err(e) => Some((e.status(), e.payload())),
     }
 }

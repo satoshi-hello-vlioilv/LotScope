@@ -992,6 +992,9 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
 - 評価関数: `cargo test --test sources_write_parity`（← `tests/sources_write_oracle.py`。7 場面で本物の窓の道〈Lot〉の答え・断る言葉・できたファイルを
   Python と突き合わせる。足す元のキーは同じ並びに差し替える〈Lot::set_new_key〉）・`cargo test --lib sources_write`・自己診断の
   「データ元を書く道も窓が受ける」。
+- 作った後の採点（1 回だけ。71.4 点。減点 −3）: 重い割れは無し。書く係の思いがけない失敗（ファイルの読み書き）の答えに type が無い・新しいキーの乱数の
+  失敗を捨てる、の 2 件と、?engine=python・本文の読み方が 2 か所・試験の場面の足りない所を直した（`"built_fixed"`）。思いがけない失敗の言葉は OS の言葉なので
+  Python〈[Errno 13] …〉と窓〈… (os error 13)〉で字が違う（状態・kind・type は同じ）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
