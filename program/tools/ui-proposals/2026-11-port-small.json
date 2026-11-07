@@ -210,5 +210,55 @@
         }
       }
     }
-  ]
+  ],
+  "built": {
+    "name": "作った後",
+    "images": "画面に出ない改良なので画像は無い",
+    "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、読んで・動かして確かめた事実で採点した。リポジトリの中で変えたのはこのファイルだけ・git の操作はしていない・cargo は流していない（作った者が同じ作業フォルダで確かめ一式を流しているため。Rust はコードを読んで確かめた）。読んだ物: git show HEAD の全部（small_reads.rs・main.rs の受け口・update.rs の program_version・page.rs の app_version と HEAD の Content-Length〈:386〉・selftest.js の 3) 6) 13)・app_build.py の changelog_text／write_changelog／record_release／RELEASE_SKIP・version.py の冒頭・test_version.py の ChangelogJson・app.js の openChangelog と fail〈:199〉・RUST_PORT_PLAN.md）と、router.rs（native が先・X-TPA-By・to_response）・access.rs の guard（GET は止めない）・web.py の jsonify〈:163〜168〉と HEAD〈:572〉・desktop/bundle/bundle.py の program_files（git ls-files）と ZIP の作り方（作業ツリーのファイルを z.write）・.github/workflows/desktop.yml（windows-latest・actions/checkout@v4・改行の設定なし・自己診断の失敗は exit 1・release は needs: windows）。.gitattributes は無い。動かした物（置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-small）: probe.py（試験の口の GET /api/build・/api/changelog・?engine=python・HEAD の見出しと字。/api/changelog は 200・Content-Type application/json・392,701 バイト・末尾は \"}\\n\"・HEAD は Content-Length 392701 と空の本文。焼いた app/changelog.json は 392,701 バイトで Python の答えと 1 バイトも違わず \\r は 0・changelog_text と同じ）・crlf.py（Windows の checkout〈core.autocrlf=true〉で LF が CRLF になった形を作ると、test_baked_changelog_is_current の read_text は同じと読んで通り、バイトは 392,702 対 392,701 で違う）。git ls-files に program/app/changelog.json がある（配る ZIP に入る）。",
+    "result": {
+      "proposal": "A 焼いた更新履歴の JSON を窓が読む（指摘入り・作った後）",
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 8,
+        "visual": 7,
+        "steps": 7,
+        "effortless": 6,
+        "intuitive": 8,
+        "form": 8,
+        "place": 8,
+        "layout": 8,
+        "tone": 6
+      },
+      "minus": [
+        {
+          "kind": "lost",
+          "where": "program/app/changelog.json は改行の決まり（.gitattributes）が無い。CI の windows-latest は core.autocrlf=true で checkout するので、作業ツリーの changelog.json は末尾が \\r\\n（392,702 バイト）になり、窓（small_reads.rs :62 は字をそのまま返す）の /api/changelog が Python（\\n。392,701 バイト）と 1 バイト違う。selftest.js :61〜63 の『版と更新履歴は窓が答え、Python と 1 字も違わない』が落ち、desktop.yml の自己診断が exit 1 → release（needs: windows）が動かず版を配れない。CI の作業ツリーから作る配る ZIP（bundle.py :105〜107）にも CRLF の字が入る。Linux の試験（test_baked_changelog_is_current は read_text が \\r\\n を \\n に読む）では気づけない（crlf.py で確かめた）"
+        }
+      ],
+      "seen": "【指摘 9 つの入り方】1 焼く: 入った（record_release の最初に write_changelog。記録済みで戻る道・--amend・版を上げ忘れて止まる道でも先に書く。字は web.dumps と同じ json.dumps〈ensure_ascii・sort_keys・詰めた区切り〉＋改行・newline=\"\\n\"。RELEASE_SKIP に app/changelog.json）。2 試験: 入った（古さ・Python の答えとのバイト・git ls-files の 3 本）。ただし古さの試験は read_text なので CRLF を止めない。3 窓の /api/changelog: 入った（焼いた版＝program_version のときだけ・無い／読めない／版が違う／?engine=python は Python。Content-Type は application/json で Python と同じ）。覚えは読みだけで、392 KB の JSON を問い合わせのたびに serde で読み直す（:59〜62）。4 版の読み手を 1 つ: 半分（読む字は version_py の 1 か所で更新時刻と大きさで覚えるが、読み方は update::program_version の行の読み方と page::app_version の正規表現の 2 つのまま。/api/build は前者、画面の版は後者）。5 /api/health は Python のまま: 入った。6 自己診断 3 か所: 入った（:56・:59・:100・:307 を ?engine=python、窓〈shell〉と Python の字の一致を足した。40 本同時・速さは前と同じ Python の往復を測る）。7 Python が起きていない間・版が違う／無いの試験: 半分（small_reads::tests は版が違う・無い・読めない・中身の版が変わる を見るが、main.rs :195〜205 の受け口〈準備の前に待たず 200・HEAD・engine=python で任せる〉を通す試験は無い）。8 app.js: 入った（r.ok を見て fail。ただし fetch の失敗〈TypeError〉と r.json() の失敗は拾わない）。9 説明: 入った（version.py の冒頭・RUST_PORT_PLAN の段 3 の 6 歩目・約 390 KB）。【字】GET は Python と同じ（Linux）。HEAD は窓が空の本文で Content-Length を付けない（Python は 392701。page.rs :386 は付けている）。【覚え方】(更新時刻, 大きさ) で覚え、中身の版が変わると changelog の版の比べで外れる（試験あり）。同じ大きさの書き直しが時刻の刻みの中で起きると古いまま（NTFS・ext4 では刻みが細かく、版を上げると大きさも変わるので実害は小さい）。【戻す・配る】前の版の program には changelog.json が無いか版が違うので Python に任せる（試験あり）。changelog.json は git が知る物なので ZIP に入る。【焼き忘れ】test_version が止める（check-all・ci.yml）。【CI】Windows の checkout の改行で自己診断が必ず落ちる（減点）。それ以外の自己診断の 3 か所は前と同じく Python を通るので揺れない。",
+      "splits": [
+        "program/app/changelog.json（.gitattributes が無い）と desktop/src/small_reads.rs:62: Windows の checkout（core.autocrlf=true・desktop.yml の windows-latest）で末尾が \\r\\n になり、窓が字をそのまま返すので Python の答えと 1 バイト違い、selftest.js:61〜63 が落ちて release が止まる。配る ZIP にも CRLF が入る。tests/test_version.py:73 は read_text で \\r\\n を \\n に読むので止めない。直し方: リポジトリの最上位に .gitattributes を置き `program/app/changelog.json -text`（改行を変えない）を書く／test_version に read_bytes で b\"\\r\" が無いこと・git check-attr で -text が効いていることを足す／窓でも焼いた字の末尾が \"}\\n\" でなければ（\\r を含めば）Python に任せる",
+        "desktop/src/main.rs:203: HEAD の答えに Content-Length が無い（Python の HEAD は Content-Length 392701・空の本文。窓の page.rs:386 は付けている）。直し方: HEAD のときは headers に (\"Content-Length\", b.len()) を足す（page.rs と同じ）",
+        "desktop/src/small_reads.rs:59〜62: 覚えるのは読んだバイトだけで、問い合わせのたびに 392 KB を serde_json::from_slice で読み直し、to_vec で写す。直し方: 覚えるときに先頭の version（と entries が並びか）も一緒に覚え（Memo の値に Option<String> を足す）、Arc<Vec<u8>> を返して写さない",
+        "desktop/src/small_reads.rs:19〜21・:28: (更新時刻, 大きさ) だけで覚えるので、同じ大きさの書き直しが時刻の刻み（FAT・共有の 2 秒など）の中で起きると古い version.py・changelog.json のまま答える。直し方: 覚えた時刻が更新時刻から 2 秒以内なら覚えを使わず読み直す（git の racy の扱いと同じ）か、大きさ＋時刻に加えて先頭の数 KB の要約を比べる",
+        "desktop/src/main.rs:195〜205: 受け口の決まり（Python の準備の前でも待たずに 200・HEAD・?engine=python は任せる・焼いた物が無ければ None）を通す試験が無い（指摘 7 の半分）。直し方: 受け口を small_reads::reply(method, query, program) -> Option<Reply> に移し、lot::tests と同じ形で ready_now が偽の backend と HEAD・engine=python・版違いを試す",
+        "desktop/src/page.rs:242 と desktop/src/update.rs:97: 版の読み方が 2 つ（正規表現 APP_VERSION\\s*=\\s*\"…\" と 行頭の APP_VERSION の行の読み方）。`APP_VERSION: str = \"…\"` や字下げした行・単引用符で食い違い、/api/build（後者）と画面の版（前者）が別の答えになりうる（指摘 4 の半分）。直し方: page::app_version を update::program_version に寄せる（どちらも Python の app_build.app_version と事例で突き合わせる）",
+        "program/app/static/js/app.js:526〜528: fetch が投げる（つながらない・TypeError）・r.json() が投げる形を拾わず、版の札を押しても何も出ない（unhandled rejection）。直し方: try/catch で包み、catch でも同じ fail の字を出す"
+      ]
+    }
+  },
+  "built_fixed": {
+    "by": "作った者（決まり 2026-11-06: 採点し直さず、割れをすべて直して試験に足す）",
+    "fixed": [
+      "1 改行: 最上位に .gitattributes（program/app/changelog.json -text。Windows の checkout で CRLF にしない）。test_version が read_bytes で \\r が無いことを止め、窓も LF の改行 1 つで終わらない字・\\r を含む字は Python に任せる（試験 changelog_only_when_the_baked_version_is_the_program_version の crlf）",
+      "2 HEAD: 窓の答えに Content-Length を付ける（試験 the_window_reply_is_like_python）",
+      "3 覚えの中身: 焼いた版の字も一緒に覚え、問い合わせのたびに 392 KB を読み直さない",
+      "4 覚えの古さ: 書いてから 2 秒以内（RACY）の覚えは使わない（刻みの粗い置き場で同じ大きさの書き直しを古いまま答えない）",
+      "5 受け口の試験: 受け口を small_reads::reply に移し、Python の準備によらず答える・HEAD・?engine=python・/api/health は Python・POST・焼いていない形を試験にした",
+      "6 版の読み方: 窓の版の読み手を small_reads::app_version の 1 つにした（行の頭の APP_VERSION = \"…\"。update::program_version は版の形も確かめる・page::app_version・/api/build）",
+      "7 app.js: openChangelog は fetch・r.json() の例外も拾い、止まらずに『少し待ってから』と出す"
+    ],
+    "not_fixed": []
+  }
 }

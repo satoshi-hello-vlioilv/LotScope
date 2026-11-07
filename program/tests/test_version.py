@@ -72,6 +72,7 @@ class ChangelogJson(unittest.TestCase):
         path = app_build.BASE / app_build.CHANGELOG_JSON
         want = app_build.changelog_text(app_build._version_module(app_build.BASE))
         self.assertTrue(path.exists(), "app/changelog.json がありません。`python app_build.py --release`（--amend）で焼いてください")
+        self.assertNotIn(b"\r", path.read_bytes(), "改行が CRLF です（窓は字のまま返すので Python と 1 バイト違う）。.gitattributes の -text を確かめてください")
         self.assertEqual(path.read_text(encoding="utf-8"), want,
                          "app/changelog.json が app/version.py の更新履歴と違います。`python app_build.py --release`（--amend）で焼き直してください")
 

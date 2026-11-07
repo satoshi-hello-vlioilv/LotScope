@@ -944,6 +944,10 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   1 字も違わないかを足した。画面の openChangelog は答えが 200 でなければ止まらずに「少し待ってから」と出す。
 - 評価関数: `tests/test_version.py`（ChangelogJson）・`cargo test --lib small_reads::`（jsonify と同じ字・版が違う／無い／読めないは任せる・書き直しで覚えを捨てる）・
   自己診断の「版と更新履歴は窓が答え、Python と 1 字も違わない」。
+- 作った後の採点（1 回だけ。64.4 点。減点 −10）: 割れ 7 件。Windows の checkout で焼いた更新履歴が CRLF になり窓の答えが 1 バイトずれる（自己診断が落ち、
+  版を配れない）・HEAD に Content-Length が無い・問い合わせのたびに 392 KB を読み直す・同じ大きさの書き直しを古いまま答える・受け口の試験が無い・
+  版の読み方が 2 つ・app.js が例外を拾わない。どれも直した（.gitattributes の -text と \r の試験・Content-Length・焼いた版も覚える・書いて 2 秒は覚えない・
+  small_reads::reply と試験・読み手は small_reads::app_version の 1 つ・try/catch。`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
