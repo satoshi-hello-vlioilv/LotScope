@@ -614,7 +614,7 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     splash.step(&app, "open", "now", "画面を開いています…");
     if let Some(w) = app.get_webview_window("main") {
         // 画面を開いたあとは、起動前の確認の進み具合を起動画面へ流さない（画面の中で splash は動かない）
-        splash.left.store(!fresh, Ordering::SeqCst);
+        splash.left.store(true, Ordering::SeqCst);
         log(&format!("OPEN 画面を開きます ms={} backend={}", t0.elapsed().as_millis(), if slot.get().is_some_and(|r| r.backend.up().is_some()) { "ready" } else { "starting" }));
         let _ = w.navigate(app_url("/"));
     }
