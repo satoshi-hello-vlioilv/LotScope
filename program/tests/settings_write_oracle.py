@@ -153,8 +153,14 @@ SCENARIOS = [
         S(BOSS, "PUT", P + "lot_list.stale_hours", V(12)),
         S(BOSS, "PUT", P + "work_log.pattern", V("")),
     ]},
+    # 共有にまだ無い（写しから最初の版）: 場面を組むときに Python が権限を読み、共有に最初の版を作る（読みの副作用）。窓はその後の形に答える
+    # （まだ無いうちは窓は答えない: Lot::settings_route の Inputs::check と、parity の answer の share_absent）
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": OLD[:1], "steps": [
         S(BOSS, "PUT", P + "lot_list.table", V("写しから", base_rev=2)),
+    ]},
+    {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": OLD[:1], "lock": True, "steps": [
+        S(BOSS, "PUT", P + "lot_list.table", V("錠", base_rev=2)),
+        S(BOSS, "PUT", P + "lot_list.refresh_seconds", V("x")),
     ]},
 ]
 
@@ -171,6 +177,12 @@ def place(root, sc):
             (cache / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
         else:
             (share / f"{name}.json").write_text(j(doc(rows)), encoding="utf-8")
+    if sc.get("lock"):          # ほかの PC が保存している途中（切れていない錠。窓も Python も locked で答え、書かない）
+        from datetime import datetime, timedelta
+        n = datetime.now()
+        (share / "master.lock.json").write_text(j({"token": "t", "holder_pc": "PC-8", "holder_login": "u8", "holder_instance": "z:1",
+                                                   "acquired_at": n.isoformat(timespec="seconds"),
+                                                   "expires_at": (n + timedelta(seconds=600)).isoformat(timespec="seconds")}), encoding="utf-8")
 
 
 def store_of(root, sc):

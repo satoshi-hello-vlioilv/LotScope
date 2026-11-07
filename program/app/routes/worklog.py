@@ -27,9 +27,18 @@ def _params():
 
 
 def _listing():
+    """フォルダの中身の覚え。参照先のマスタが変わったら捨てる（版 3.89.0: 参照先は窓〈desktop/src/settings_write.rs〉も書くので、
+    Python が書いたときの forget だけでは、窓が実績のフォルダを A → B → A と置き直した 10 秒の内に古い答えを返した）"""
     li = current_app.config.get("WORK_LISTING")
     if li is None:
         li = current_app.config["WORK_LISTING"] = work_log.Listing()
+    try:
+        stamp = current_app.config["MASTER_STORE"].stamp("path_settings")
+    except Exception:       # 置き場を読めない: 覚えの長さ（10 秒）だけで決める
+        stamp = None
+    if stamp is not None and current_app.config.get("WORK_LISTING_STAMP") != stamp:
+        li.forget()
+        current_app.config["WORK_LISTING_STAMP"] = stamp
     return li
 
 

@@ -62,7 +62,12 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
         return Some((status, json!({"error": msg, "kind": kind})));
     }
     let body = step["body"].as_str().unwrap_or("");
-    let rows = access::Place::from_json(&c["place"]).rows(NAME).ok()?;
+    let place = access::Place::from_json(&c["place"]);
+    // 共有にまだ無い・窓の読めない字のマスタは Python に任せる（Lot::settings_route の Inputs::check と同じ）
+    if place.share_absent(NAME) || place.split_file(NAME) {
+        return None;
+    }
+    let rows = place.rows(NAME).ok()?;
     put(store, &key, step["query"].as_str().unwrap_or(""), body.as_bytes(), &rows)
 }
 

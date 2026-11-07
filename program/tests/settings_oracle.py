@@ -407,6 +407,15 @@ def scenarios(work):
         write(r / "share" / "path_settings.json", ps)
         return config(r)
     sc("ブラウザの欄に値がある", sources_exe)
+
+    # 版 3.89.0（作った後の採点で見つけた）: 参照先の値を重ねる配った設定の段が表でない（Python の path_settings._set が落ちる）
+    def section_null(r):
+        masters(share=r / "share")
+        ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))
+        ps["rows"].append({"id": 31, "項目": "update.source", "値": "C:\\置き場"})
+        write(r / "share" / "path_settings.json", ps)
+        return config(r, update=None)
+    sc("更新の段が null で参照先に更新の置き場", section_null)
     return out
 
 

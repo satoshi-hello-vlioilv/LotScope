@@ -499,6 +499,11 @@ impl Lot {
                 Some((200, crate::settings_write::get_answer(items, &store, share, &builder.config_file())))
             }
             Route::Put(key) => {
+                // 書いた後に Python が配った設定へ重ねて落ちる形（段が表でない）は、Python に任せて同じ答えにする（作った後の採点で見つけた）
+                inp.settings_items().ok()?;
+                if !crate::bundle::sections_ok(&inp.settings, &key) {
+                    return None;
+                }
                 let rows = crate::access::Place::from_json(&inp.place).rows(NAME).ok()?;
                 let (status, v) = crate::settings_write::put(&store, &key, query, body, &rows)?;
                 if (200..300).contains(&status) {
@@ -1554,6 +1559,16 @@ mod tests {
         std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 2, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]}).to_string()).unwrap();
         let (st, v) = lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).unwrap();
         assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
+        // 作った後の採点で見つけた形: 値を重ねる配った設定の段が表でない（Python の _set が落ちる）は、読む道も書く道も Python に任せる
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "update": null}).to_string()).unwrap();
+        lot.invalidate();
+        assert!(lot.handle_body("PUT", "/api/settings/update.source", "", br#"{"value": "C:/x"}"#, &down).is_none(), "書くと落ちる段");
+        assert!(lot.handle_body("GET", "/api/settings", "", b"", &down).is_some(), "まだ重ねる行が無ければ落ちない");
+        let ps = json!({"schema": 1, "revision": 5, "rows": [{"id": 1, "項目": "update.source", "値": "C:/x", "rev": 1}]});
+        std::fs::write(share.join("path_settings.json"), ps.to_string()).unwrap();
+        assert!(lot.handle_body("GET", "/api/settings", "", b"", &down).is_none(), "重ねる行があると Python は落ちる");
+        assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).is_none());
         let _ = std::fs::remove_dir_all(&work);
     }
 

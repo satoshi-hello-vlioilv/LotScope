@@ -967,6 +967,12 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
 - 評価関数: `cargo test --test settings_write_parity`（← `tests/settings_write_oracle.py`。10 場面の書く歩の答えと断る言葉・できたファイル、Python に任せる歩）・
   `cargo test --test page_parity`（GET /api/settings を束の場面で）・`lot::tests::the_window_answers_path_settings`（本物の道・門番・組み直し）・自己診断の
   「参照先の項目は窓が答え、Python と同じ答え」「参照先を書く道も窓が受ける」。
+- 作った後の採点（1 回だけ。62.5 点。減点 −9）: 割れ 4 件と指摘の抜け 2 件。写しの書き換えの失敗を Python に回すと Python がもう一度書いて「ほかの PC が先に直した」と
+  答える・配った設定の段が表でないと Python は 500 なのに窓は 200・Python のフォルダの覚え（WORK_LISTING）が窓の書いた参照先で捨てられない・相対の
+  TRANSFER_APP_CONFIG・値の読み方が窓に 2 か所・試験の道が本物の確かめ（共有にまだ無い）を通らない。どれも直した（書く係の失敗も窓が答える・
+  bundle::sections_ok・Python の _listing が参照先の stamp で覚えを捨てる・相対の道は中身のフォルダから・settings_write::parse_value の 1 つ・錠の場面。
+  `"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
+- 残り: データ元の接続の設定（PUT /api/sources/<key>/conn）が書く参照先の欄は、データ元の書く道の段で、行と参照先を一緒に移す。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

@@ -103,6 +103,16 @@ class Api(unittest.TestCase):
     def items(self, **q):
         return {x["name"]: x for x in self.c.get("/api/worklog/files", query_string=q).get_json()["items"]}
 
+    def test_folder_memo_is_dropped_when_path_settings_change(self):
+        """版 3.89.0: 参照先は窓も書く（Python の forget を通らない）。参照先のマスタが変わったら、フォルダの覚え（10 秒）を捨てて探し直す"""
+        self.app.config["WORK_LISTING"] = work_log.Listing(ttl=3600)
+        self.assertEqual(sorted(x["file"] for x in self.c.get("/api/worklog/files").get_json()["new"]), ["実績_CR1.sqlite3", "実績_L-1.sqlite3"])
+        make_db(self.folder / "実績_L-2.sqlite3", ["N0001"])
+        self.assertNotIn("実績_L-2.sqlite3", [x["file"] for x in self.c.get("/api/worklog/files").get_json()["new"]], "覚えている間は探さない")
+        st = self.app.config["MASTER_STORE"]
+        st.write("path_settings", lambda rows, stamp: rows.append({"id": 99, "項目": "work_log.stale_hours", "値": "12.0", "rev": 1}))
+        self.assertIn("実績_L-2.sqlite3", [x["file"] for x in self.c.get("/api/worklog/files").get_json()["new"]], "参照先が変わったら探し直す")
+
     def test_scan_registers_each_equipment_once(self):
         d = self.scan()
         self.assertEqual(sorted(d["result"]["added"]), ["CR1", "L-1"])

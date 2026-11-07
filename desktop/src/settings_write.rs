@@ -50,7 +50,7 @@ fn item_of(key: &str) -> Option<&'static Value> {
 }
 
 /// parse の誤り（Invalid は ValueError の言葉。Python は error(str(e), 400, "invalid")）か、窓が Python と同じに読めない値
-enum Bad {
+pub(crate) enum Bad {
     Invalid(String),
     Python,
 }
@@ -64,8 +64,9 @@ fn edge(v: &Value) -> String {
     }
 }
 
-/// path_settings.parse: 画面から来た値 → 置く字（Python の str(value)。None は空＝行を消して既定へ）
-fn parse(item: &Value, raw: Option<&Value>) -> Result<Option<String>, Bad> {
+/// path_settings.parse の窓の 1 つの写し（読む道〈bundle.rs の束・GET /api/settings〉と書く道で同じ）: 画面から来た値 → その項目の値
+/// （int は整数・number は小数・ほかは字。None は空＝既定へ）。読む道は Invalid を「壊れた値は使わない」として None に読む
+pub(crate) fn parse_value(item: &Value, raw: Option<&Value>) -> Result<Option<Value>, Bad> {
     let s = match raw {
         None | Some(Value::Null) => String::new(),
         Some(Value::Array(_) | Value::Object(_)) => return Err(Bad::Python),
@@ -90,30 +91,34 @@ fn parse(item: &Value, raw: Option<&Value>) -> Result<Option<String>, Bad> {
             if lo.as_f64().is_some_and(|l| n < l) || hi.as_f64().is_some_and(|h| n > h) {
                 return fail(format!("「{label}」は {}〜{} で入れてください。", edge(&lo), edge(&hi)));
             }
-            Ok(Some(if kind == "int" { format!("{}", n as i64) } else { pyfmt::float_repr(n) }))
+            Ok(Some(if kind == "int" { json!(n as i64) } else { json!(n) }))
         }
         "url" if !(s.starts_with("http://") || s.starts_with("https://")) => {
             fail(format!("「{label}」は http:// か https:// で始まる URL を入れてください。"))
         }
-        "url" | "text" => Ok(Some(s)),
+        "url" | "text" => Ok(Some(json!(s))),
         // unquote_path: str(value or "").strip().strip('"')
-        "sqlite" | "folder" => Ok(Some(pyfmt::strip(&s).trim_matches('"').to_string())),
+        "sqlite" | "folder" => Ok(Some(json!(pyfmt::strip(&s).trim_matches('"')))),
         "pattern" => {
             if s.matches('*').count() != 1 {
                 return fail(format!(
                     "ファイル名の決まり「{s}」には、設備名の所に * をちょうど 1 つ書いてください（例: 実績_*.sqlite3）。"
                 ));
             }
-            Ok(Some(s))
+            Ok(Some(json!(s)))
         }
         "release" => {
-            let parts: Vec<String> =
-                s.replace('\n', ";").split(';').map(|p| pyfmt::strip(p).trim_matches('"').to_string()).filter(|x| !x.is_empty()).collect();
-            Ok(Some(parts.join(";")))
+            let parts: Vec<&str> = s.split(['\n', ';']).map(|p| pyfmt::strip(p).trim_matches('"')).filter(|x| !x.is_empty()).collect();
+            Ok(Some(json!(parts.join(";"))))
         }
         // ブラウザの欄は Python の trusted_browser（Edge・Chrome の決まった形）が確かめる
         _ => Err(Bad::Python),
     }
+}
+
+/// 置く字（Python の str(value)。整数は桁・小数は float の repr）
+fn parse(item: &Value, raw: Option<&Value>) -> Result<Option<String>, Bad> {
+    Ok(parse_value(item, raw)?.map(|v| py_str(&v)))
 }
 
 /// 置き場の行を窓が Python と同じに読み書きできるか（id・版は master_rows の読み方・項目と値は字か数か真偽）
@@ -165,8 +170,9 @@ pub fn put(store: &Store, key: &str, query: &str, body: &[u8], rows: &[Value]) -
     }
     match put_by_key(store, &SPEC, "項目", key, value.as_deref(), "値", base) {
         Ok(row) => Some((200, json!({"row": row}))),
-        // 書く係の思いがけない失敗（読めない・書けない）は書いていない: Python に任せて Python の言葉で答える
-        Err(MasterError::Error(_)) => None,
+        // 書く係の思いがけない失敗（読めない・書けない）も窓が答える（ほかの書く道と同じ形。共有を置き換えた後の写しの失敗を
+        // Python に回すと、Python がもう一度書いて「ほかの PC が先に直した」と答える。作った後の採点で見つけた）
+        Err(MasterError::Error(m)) => Some((400, json!({"error": m, "kind": "error"}))),
         Err(e) => Some((e.status(), e.payload())),
     }
 }
@@ -220,6 +226,17 @@ mod tests {
         assert_eq!(p("lotdsp_import.direct.browser", json!("C:\\x.exe")).unwrap_err(), "python");
         assert_eq!(p("lotdsp_import.direct.browser", json!(" ")).unwrap(), None, "空は窓が答える（既定へ）");
         assert_eq!(p("lot_list.table", json!([1])).unwrap_err(), "python");
+    }
+
+    #[test]
+    fn sections_and_config_file_are_like_python() {
+        // _set: 無い段は作る・表なら下りる・字・null・並びの段は落ちる
+        let cfg = json!({"lot_list": {"a": 1}, "update": null, "lotdsp_import": "x", "schedule": [1]});
+        assert!(crate::bundle::sections_ok(&cfg, "lot_list.table"));
+        assert!(crate::bundle::sections_ok(&cfg, "work_log.folder"), "無い段は作る");
+        for k in ["update.source", "lotdsp_import.url", "schedule.client_ip", "lotdsp_import.direct.browser"] {
+            assert!(!crate::bundle::sections_ok(&cfg, k), "{k}");
+        }
     }
 
     #[test]
