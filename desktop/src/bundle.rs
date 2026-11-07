@@ -1211,9 +1211,9 @@ mod tests {
     #[test]
     fn terminal_keys_are_like_python() {
         assert_eq!(terminal_key("yamada", "PC01"), "PC01@yamada");
-        assert_eq!(terminal_key("", ""), "?@?");
-        let k = terminal_key("a b", "C:1");
-        assert!(k.starts_with("C_1@a_b-") && k.len() == "C_1@a_b-".len() + 6, "{k}");
+        // 名乗れないときの「?」もファイル名に使えない字なので「_」にして sha1 を足す（Python の presence.terminal_key の答え）
+        assert_eq!(terminal_key("", ""), "_@_-06d90d");
+        assert_eq!(terminal_key("a b", "C:1"), "C_1@a_b-b5ea73");
     }
 
     #[test]
