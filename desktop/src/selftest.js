@@ -41,8 +41,14 @@
     // 画面は窓が描く（版 3.85.0。src/page.rs）。使い回さない（no-store）・CSP の印。Python が描いた画面（?engine=python）と、印を揃えると 1 字も違わない
     // 先に Python の画面（共有に初期設定がまだ無い PC では、Python が描くときに写しから最初の版を作る。窓はその形を Python に任せる）。
     // 版 3.86.0 から最初の画面は Python の準備を待たずに窓が描くので、その版はここで初めてできることがある
-    const pyPage = await get("/?engine=python");
-    const page = await get("/");
+    // 新しい共有を最初に開いたときは、最初の版を置く錠がぶつかって置けない回がある（「保存中」。窓はその間 Python に任せる）ので、
+    // 置かれるまで 15 秒まで尋ね直す（版 3.89.0 の CI で、起動の直後に Python が描いた。10a' と同じ）
+    let pyPage = await get("/?engine=python");
+    let page = await get("/");
+    for (const until = Date.now() + 15000; page.by !== "shell" && Date.now() < until;) {
+      await new Promise((r) => setTimeout(r, 1000));
+      pyPage = await get("/?engine=python"); page = await get("/");
+    }
     const csp = page.r.headers.get("Content-Security-Policy") || "";
     ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
     const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
