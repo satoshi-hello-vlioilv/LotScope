@@ -62,6 +62,11 @@ fn readable(rows: &[Value]) -> bool {
     rows.iter().all(|r| r.as_object().is_some_and(|o| ["名前", "値"].iter().all(|k| o.get(*k).is_none_or(Value::is_string))))
 }
 
+/// 画面に埋める形（system.ui_profile）。窓が Python と同じに読めない行なら None（版 3.85.0。page.rs）
+pub fn profile_of(rows: &[Value], profile: &[String]) -> Option<Value> {
+    readable(rows).then(|| profile_view(rows, profile))
+}
+
 /// 画面に渡す形（system.ui_profile: 範囲・初期設定・置いた時刻と人。読めなければ既定の見せ方＝空）
 fn profile_view(rows: &[Value], profile: &[String]) -> Value {
     // ui_defaults.load: {名前: 値} を行の順に作り（同じ名前は後ろの行が勝つ。値の無い行も None で上書きする）、字でない値を落とす

@@ -1,4 +1,11 @@
 {
+ "configItems": [
+  {
+   "key": "lotdsp_import.url",
+   "kind": "url"
+  }
+ ],
+ "defaultUnwind": "上",
  "equipGroups": {
   "maxRules": 12,
   "ruleOps": [
@@ -10,6 +17,19 @@
   ],
   "setDefault": "グループ"
  },
+ "fingerprint": {
+  "exts": [
+   ".py",
+   ".html",
+   ".js",
+   ".css",
+   ".json"
+  ],
+  "skipDirs": [
+   "__pycache__",
+   "vendor"
+  ]
+ },
  "join": {
   "hows": [
    "left",
@@ -19,6 +39,29 @@
   ],
   "maxJoins": 6,
   "maxKeys": 8
+ },
+ "lotdsp": {
+  "minSeen": 2,
+  "required": {
+   "actual": [
+    "equipment",
+    "work_date",
+    "thickness",
+    "width",
+    "weight",
+    "off_front_m",
+    "off_back_m"
+   ],
+   "design": [
+    "equipment",
+    "horizontal_split",
+    "vertical_split"
+   ],
+   "lot": [
+    "lot_no"
+   ]
+  },
+  "tieSeen": 3
  },
  "otherItems": [
   "lotdsp_import.url",
@@ -89,6 +132,20 @@
    "min": 10
   }
  ],
+ "periods": {
+  "days": "直近 n 日",
+  "days_before": "直近 n 日（今日を含まない）",
+  "last_month": "先月",
+  "last_year": "昨年",
+  "month": "n か月前",
+  "months": "直近 n か月",
+  "range": "日付で決める",
+  "this_month": "今月",
+  "this_year": "今年",
+  "today": "今日",
+  "years": "直近 n 年",
+  "yesterday": "前日"
+ },
  "renamed": {
   "conversions": {},
   "data_sources": {},

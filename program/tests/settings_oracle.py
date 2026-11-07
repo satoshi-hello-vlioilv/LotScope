@@ -11,10 +11,15 @@
 尋ねる場面（窓の読めない字・Python が束を作れずに落ちる形・共有にまだ無いマスタ・設備グループの正規表現）。
 "pyFollows" の場面は Python に引っ越しの印をたどらせて（bundle を名乗らない）答えを取り、窓が同じ置き場へたどるか・この PC の覚えに
 同じ置き場を書くかを見る（製品では、印をたどる係は窓の 1 つ）。
+
+版 3.85.0 から、同じ場面で画面（GET /）・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree の答えも取る（"reads"。
+desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。スケジュールの元に場所がある場面の
+設備の木は尋ねない（Python は CM3 へ読みに行く。窓は Python に任せる）。
 """
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -83,6 +88,9 @@ def masters(share=None, data=None):
     for n in NAMES:
         if share is not None:
             write(share / f"{n}.json", doc(rows[n]))
+    if share is not None:      # 画面の初期設定（版 3.85.0。共有に置く名前。無ければ Python が写しから最初の版を作るので窓は描かない）
+        write(share / "ui_defaults.json", doc([{"名前": "tpa.lotlist.cols", "値": "[1]", "updated_at": "2026-11-01T00:00:00",
+                                                 "updated_by": {"login": "x"}}, {"名前": "外", "値": "y"}]))
         if data is not None:
             write(data / f"{n}.json", rows[n])
 
@@ -100,7 +108,7 @@ def config(root, **kw):
 def scenarios(work):
     out = []
 
-    def sc(name, setup, expect="same", py_follows=False, now=None, env=None, program=None, override=None):
+    def sc(name, setup, expect="same", py_follows=False, now=None, env=None, program=None, override=None, tree=False, serves=None):
         root = work / f"s{len(out)}"
         root.mkdir(parents=True)
         (root / "base").mkdir()
@@ -108,11 +116,11 @@ def scenarios(work):
         cfg = setup(root)
         write(root / "config.json", cfg) if isinstance(cfg, dict) else (root / "config.json").write_text(cfg, encoding="utf-8")
         out.append({"name": name, "root": root, "expect": expect, "pyFollows": py_follows, "now": now, "env": env or {},
-                    "program": program, "expectOverride": override})
+                    "program": program, "expectOverride": override, "tree": tree, "serves": serves})
 
     sc("共有・ふつう", lambda r: (masters(share=r / "share"), config(r))[1])
     sc("手元だけ（同梱の data/）", lambda r: (masters(data=r / "base" / "data"), config(r, master_share={}))[1])
-    sc("既定の中身だけ（master_defaults）", lambda r: config(r, master_share={}, identity={}))
+    sc("既定の中身だけ（master_defaults）", lambda r: config(r, master_share={}, identity={}), tree=True)
     sc("共有に置く名前を選ぶ・字の秒", lambda r: (masters(share=r / "share", data=r / "base" / "data"),
                                           config(r, master_share={"dir": str(r / "share") + "//", "masters": ["roll_master"],
                                                                   "lock_ttl_seconds": "7.5", "refresh_seconds": True}))[1])
@@ -277,13 +285,82 @@ def scenarios(work):
     sc("設備グループの正規表現", regex, expect="delegate")
     sc("共有にまだ無いマスタ", lambda r: ((r / "share").mkdir(), config(r))[1], expect="delegate")
     sc("lot_list が表でない", lambda r: (masters(share=r / "share"), config(r, lot_list="x"))[1], expect="delegate")
+
+    # 画面と最初の画面の読む道（版 3.85.0。page_parity.rs）
+    def page_parts(r):
+        masters(share=r / "share")
+        cv = json.loads((r / "share" / "conversions.json").read_text(encoding="utf-8"))
+        cv["rows"] += [{"id": 7, "名前": "絵文字😀と<b>&'", "入力": json.dumps([{"name": "a", "columns": ["Ａ"]}]),
+                        "判定": json.dumps([{"when": {"a": [{"op": "ge", "v": [1.5, 2.0, -0.0, 1e16]}]}, "out": "</script>"}]),
+                        "当て方": json.dumps({"列": "x", "n": 3}), "表示順": 2.7},
+                       {"id": "12", "名前": "id が字", "入力": "[]", "判定": "{}", "当て方": "[]", "表示順": True}]
+        cv["revision"] = 41
+        write(r / "share" / "conversions.json", cv)
+        write(r / "local" / "ui_state.json", {"rev": 7, "keys": {"tpa.dash.open": "1", "tpa.x": "字<\u2028>", "外": "y", "tpa.n": 3}})
+        write(r / "local" / "lotdsp_api_map.json", {
+            "actual": {"list": "entity.rows", "cols": {"equipment": {"cands": ["a.b"], "seen": 2}, "work_date": {"cands": ["d"], "trusted": True},
+                                                      "thickness": {"cands": ["t1", "t2"], "seen": 9}, "width": {"cands": None, "seen": 0}}},
+            "design": {"list": None, "cols": {}},
+            "lot": {"cols": {"lot_no": {"cands": ["x", "y"], "seen": 3}, "density": {"cands": ["z"], "seen": 1}}},
+            "login_free": True, "last_error": "時間切れ", "probe": {"actual.width": {"shape": "数"}}})
+        return config(r, lotdsp_import={"url": " http://lotdsp/x/ ", "api": {"enabled": True, "timeout_seconds": "20"},
+                                        "direct": {"enabled": 1, "login_window": 0, "keep_seconds": 30}},
+                      presence={"heartbeat_interval_seconds": "2.5"}, ui_defaults={"max_rows": "30", "found_pitch_mm": 610})
+    sc("画面の材料（控え・初期設定・変換表の小数と絵文字・LotDsp の学び）", page_parts)
+
+    def page_learned(r):
+        masters(share=r / "share")
+        write(r / "local" / "lotdsp_api_map.json", {"actual": {"list": "e", "cols": {c: {"cands": [c], "trusted": True} for c in
+                                                                                 ("equipment", "work_date", "thickness", "width", "weight", "off_front_m", "off_back_m")}},
+                                                    "design": {"list": "d", "cols": {c: {"cands": [c], "seen": 5} for c in ("equipment", "horizontal_split", "vertical_split")}},
+                                                    "lot": {"cols": {"lot_no": {"cands": ["n"], "seen": 2}}}})
+        return config(r, lotdsp_import={"url": "", "api": {"search_url": "http://s"}, "direct": {"enabled": False}},
+                      presence={"heartbeat_interval_seconds": 4}, ui_defaults={"max_rows": 12.9})
+    sc("LotDsp の学びが済んだ・API だけの URL・数の max_rows", page_learned)
+    sc("参照先で LotDsp の URL を変える・初期設定が無い", lambda r: (masters(share=r / "share"), (r / "share" / "ui_defaults.json").unlink(),
+                                                      write(r / "share" / "ui_defaults.json", doc([])),
+                                                      config(r, lotdsp_import={"url": "http://配った"}, presence={}, ui_defaults={}))[3])
+
+    def ps_lotdsp(r):
+        masters(share=r / "share")
+        ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))
+        ps["rows"].append({"id": 50, "項目": "lotdsp_import.url", "値": ' "http://参照先/lotdsp" '})
+        write(r / "share" / "path_settings.json", ps)
+        return config(r, lotdsp_import={"url": "http://配った", "direct": {"login_window": True}})
+    sc("参照先の LotDsp の URL を重ねる", ps_lotdsp)
+    sc("心拍の段が null（Python は /api/config で落ちる）", lambda r: (masters(share=r / "share"), config(r, presence=None))[1])
+    sc("max_rows が int() で読めない", lambda r: (masters(share=r / "share"), config(r, ui_defaults={"max_rows": "x"}))[1])
+    sc("LotDsp の待つ秒が読めない", lambda r: (masters(share=r / "share"), config(r, lotdsp_import={"url": "u", "direct": {"timeout_seconds": "長い"}}))[1])
+    sc("LotDsp の学びの形が違う", lambda r: (masters(share=r / "share"),
+                                       write(r / "local" / "lotdsp_api_map.json", {"actual": {"list": "e", "cols": {"equipment": {"cands": "ab", "seen": "多い"}}}}),
+                                       config(r))[2])
+    def tree_data(r):
+        masters(share=r / "share")
+        import sqlite3
+        db = r / "品質.sqlite3"
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE 品質 (ロットNo TEXT, 設備 TEXT, 合金 TEXT)")
+        con.executemany("INSERT INTO 品質 VALUES (?, ?, ?)", [("A1", "CR1", "x"), ("A2", " L-2 ", "x"), ("A3", "TLV", "y"), ("A4", "", "y"),
+                                                                ("A5", "ｃｒ１", "y"), ("A6", "新設備", "z"), ("A7", None, "z")])
+        con.commit()
+        con.close()
+        ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))
+        ps["rows"] = [x for x in ps["rows"] if x["項目"] not in ("lot_list.source", "lot_list.table", "schedule.cm3_base_url")]
+        write(r / "share" / "path_settings.json", ps)
+        ds = json.loads((r / "share" / "data_sources.json").read_text(encoding="utf-8"))
+        ds["rows"] = [x for x in ds["rows"] if x.get("キー") != "lot"]
+        write(r / "share" / "data_sources.json", ds)
+        return config(r, lot_list={"source": str(db), "table": "品質", "refresh_seconds": 60, "stale_hours": 36, "page_size": 300})
+    # 窓が品質の一覧を受け持つと Python は品質データを自分で写さない（写しは窓の係）。ここでは Python に写させて、窓と同じ写しで数えさせる
+    sc("設備の木（品質データの設備の列・表示しない設備・設備グループ）", tree_data, tree=True, serves=SERVES.replace("lotlist,", ""))
+    sc("初期設定が共有にまだ無い", lambda r: (masters(share=r / "share"), (r / "share" / "ui_defaults.json").unlink(), config(r))[2])
     return out
 
 
 def ask(s, follows):
     root = s["root"]
     os.environ["TPA_SHELL"] = "desktop"
-    os.environ["TPA_SHELL_SERVES"] = SERVES.replace(",bundle", "") if follows else SERVES
+    os.environ["TPA_SHELL_SERVES"] = s["serves"] or (SERVES.replace(",bundle", "") if follows else SERVES)
     os.environ["TRANSFER_APP_CONFIG"] = str(root / "config.json")
     os.environ["TRANSFER_LOCAL_ROOT"] = str(root / "local")
     saved = {k: os.environ.get(k) for k in s["env"]}
@@ -299,10 +376,12 @@ def ask(s, follows):
         tc["DASHBOARD_NOW"] = datetime.strptime(s["now"], "%Y-%m-%d %H:%M:%S")
     try:
         app = create_app(tc)
-        r = app.test_client().get("/api/lotlist/settings")
+        c = app.test_client()
+        r = c.get("/api/lotlist/settings")
         answer = r.get_json() if r.status_code == 200 else None
+        reads = page_reads(c, answer, s["tree"])
     except Exception as e:      # Python が束を作れずに落ちる形（窓は Python に尋ねる）
-        answer = {"error": repr(e)}
+        answer, reads = {"error": repr(e)}, {}
     over = root / "local" / "master_share.json"
     after = json.loads(over.read_text(encoding="utf-8")) if over.exists() else None
     after = {k: after.get(k) for k in ("dir", "history")} if isinstance(after, dict) else None   # 比べるのは置き場と履歴（NaN を渡さない）
@@ -311,7 +390,31 @@ def ask(s, follows):
             os.environ.pop(k, None)
         else:
             os.environ[k] = v
-    return answer, after
+    return answer, after, reads
+
+
+READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree")
+
+
+def page_reads(c, bundle, tree):
+    """画面と最初の画面の読む道の答え → {道: {status, body（字）, headers}}。印（nonce）は @NONCE@ に揃える。
+    設備の木は tree の場面だけ（届かない品質データの最初の写しを 30 秒待つので）。スケジュールの元に場所があれば尋ねない"""
+    out = {}
+    srcs = ((bundle or {}).get("lists") or {}).get("sources") or []
+    sch = any(d.get("key") == "sch" and d.get("place") for d in srcs)
+    for path in READS:
+        if path.endswith("equip-tree") and (sch or not tree):
+            out[path] = None
+            continue
+        r = c.get(path)
+        csp = r.headers.get("Content-Security-Policy") or ""
+        m = re.search(r"nonce-([A-Za-z0-9_-]+)", csp)
+        text = r.get_data(as_text=True)
+        if m:
+            text, csp = text.replace(m.group(1), "@NONCE@"), csp.replace(m.group(1), "@NONCE@")
+        out[path] = {"status": r.status_code, "body": text,
+                     "headers": {k: r.headers.get(k) for k in ("Content-Type", "Cache-Control") if r.headers.get(k)} | ({"Content-Security-Policy": csp} if csp else {})}
+    return out
 
 
 def main():
@@ -323,13 +426,13 @@ def main():
     for s in scenarios(work):
         keep = work / "_keep"
         shutil.copytree(s["root"], keep)
-        answer, after = ask(s, s["pyFollows"])
+        answer, after, reads = ask(s, s["pyFollows"])
         shutil.rmtree(s["root"])
         shutil.move(str(keep), s["root"])          # 尋ねる前の形へ戻す（窓は同じフォルダから組む）
         root = s["root"]
         # 窓が Python に尋ねる場面の答えは比べない（NaN を含むと JSON で渡せない）
         out.append({"name": s["name"], "expect": s["expect"], "pyFollows": s["pyFollows"],
-                    "answer": answer if s["expect"] == "same" else None, "override": after,
+                    "answer": answer if s["expect"] == "same" else None, "override": after, "reads": reads,
                     "expectOverride": str(root / s["expectOverride"]) if s["expectOverride"] else None,
                     "env": {"base": str(root / "base"), "program": s["program"] or str(PROGRAM), "local": str(root / "local"),
                             "config": str(root / "config.json"),

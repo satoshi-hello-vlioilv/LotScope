@@ -1,15 +1,205 @@
 {
-  "title": "Rust 化の次の段（版 3.85.0）: 設定の束を窓が組めるようになった次に、Python が答えなくても画面が開いて動く範囲をどう広げるか（2026-11-07）",
-  "rule": "2026-11-06",
-  "measured": "棚卸し（2026-11-07・main 3ce0456）: program/app/routes の道の飾りと desktop/src の \"/api/…\" の字を突き合わせると、窓が答えない道は 35 本（一覧・作業実績の一覧と集計とスライサーの 6 本は lot.rs の Route::of が strip_prefix で受けるので実際は 29 本）。残り: 画面 GET /（と /lotdsp-link）・系の読む道（/api/build・/api/changelog・/api/config・/api/health・GET /api/settings）・ダッシュボードの読む道（/api/dashboard/sources・/api/dashboard/equip-tree・POST /api/dashboard/fields・/api/data/columns）・ファイル（/api/fs/places・POST /api/fs/browse）・作業実績（/api/worklog/files・POST /api/worklog/refresh）・データ元（GET・POST /api/sources とその下・グループ）・スケジュール（/api/schedule）・LotDsp の 8 本・更新の置き場の 3 本・マスタの equipgroups・conversions・worklog・status。版 3.84.0 で設定の束は窓が組むが、起動の流れ（main.rs :530〜612）は今も Supervisor が Python の『ready』を受けてから画面へ navigate(app_url(\"/\")) する。画面 GET / は Python の routes/system.py index が app/templates/index.html（454 行。{{ 式 }} だけの小さな型。web.py の Template）を描く: 中身は build（app_build.fingerprint: 版＋app/ の下の .py .html .js .css .json の名前・大きさ・mtime_ns を sha1。12 桁）・app_version・brand（brand.json。窓に brand.rs がある）・url_for('static', …?v=build) が 15 か所・csp_nonce（secrets.token_urlsafe(16)。<script nonce> 4 か所と CSP の見出し script-src 'self' 'nonce-…'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'）・ui_state（ui_state.load。窓に presence::ui_state がある）・ui_profile（ui_defaults.load と PROFILE_KEYS。窓に ui_defaults.rs と束の uiProfileKeys がある）・conversions（変換表の view〈id・name・inputs・rows・other・apply・order〉を表示順で並べた物と store.revision。窓の束は tables〈名前の表〉だけ）。Cache-Control: no-store。測った数（開発用の create_app・試験の口・20 回の中央）: GET / は 53,420 バイト・1.52 ms、fingerprint だけで 4.05 ms（作るときに 1 回）。最初の画面（ダッシュボード）が開くと呼ぶ Python の道: /api/config（609 バイト・0.31 ms。lotdsp の状態・既定・心拍の間隔・アプリの名前）・/api/dashboard/sources（853 バイト・0.32 ms。data_sources.sources と作業実績の表示する設備と equip_groups.sets）・/api/dashboard/equip-tree（136 バイト・35 ms。設備を見分けるためにデータ元ごとに集計を 1 回ずつ流す）・GET /api/sources（22,379 バイト・2.77 ms。マスタ管理と見出しのタブ）・/api/changelog（387,017 バイト・0.83 ms。版の吹き出しを押したとき）・GET /api/settings（12,525 バイト・0.30 ms）。Python の起動（import と create_app）はこの Linux で約 0.14 秒、版 3.66.0 の測りで 151 ms（利用者の Windows の同梱 Python・ウイルス対策では測っていないので分からない）。窓に既にある部品: bundle.rs（effective・sources・group_views・conv_tables・名乗り）・router.rs の static_file（?v= の付いた URL は長く覚える）・presence::ui_state・ui_defaults・brand.rs・access（me）・pivot.rs と dashboard.rs（集計）・layout_clean。",
-  "proposals_text": {
-    "A 画面（GET /）を窓が描く": "routes/system.py の index を窓が答える。web.py の小さな型（{{ 名前・名前.名前・url_for('static', filename=…)・字 }} と |tojson・|safe、HTML の逃がし、最後の改行 1 つを落とす）を Rust に写し、同梱の index.html をそのまま描く。中身は build（app_build.fingerprint を窓で数える。プログラムの置き場が変わらない間は 1 度だけ）・brand・ui_state（presence::ui_state::load）・ui_profile（ui_defaults と束の uiProfileKeys）・conversions（束の組み方で view の並びと版）・csp_nonce（窓が乱数で作り、CSP の見出しも付ける）。読めない形（型に知らない式・ファイルが無い）は Python に尋ねる。突き合わせは page_oracle.py が場面ごとに Python の答えの HTML を出し、nonce の字だけを揃えて 1 字ずつ比べる。起動の流れは変えない（Python の ready を待ってから開く）。",
-    "B A ＋ 起動の流れで Python を待たずに画面を開く": "A に加え、main.rs の起動の流れを替え、Supervisor が Python を起こし始めたら ready を待たずに画面へ navigate する（窓の道は束と自分の部品ですぐ答え、Python の道は Supervisor の get が ready まで待つ）。起動の画面は Python の起動の失敗を画面の上の帯で言う。起動が Python の import の分（約 0.15 秒〜利用者の PC で分からない）速くなる。verify.py の通し（local・update・distribute）を本物の窓で流す。",
-    "C 最初の画面の読む道 3 本（/api/config・/api/dashboard/sources・/api/dashboard/equip-tree）": "ダッシュボードが開くときに尋ねる Python の 3 本を窓が答える。config は束の effective と lotdsp の状態（lotdsp_api.status の api_map は Python の学んだ項目名のファイルを読む）・既定・心拍の間隔・brand、sources は bundle.rs の sources と作業実績の表示する設備と設備グループの sets、equip-tree は equipment_seen（作業実績の登録・設備マスタ・データ元ごとに設備の列の集計を pivot.rs で流す）と members_in（ルールの当て方は bundle の group_rules）。道ごとに oracle と parity を足す。",
-    "D データ元の読む道（GET /api/sources・GET /api/settings）": "マスタ管理のデータ元と参照先の読む 2 本を、版 3.84.0 の bundle.rs の部品（effective・parse_item・sources・read_params）で窓が答える。_conn_items・_conn・_public・conn_of・placeChanged・shellLists・equipCount・canEdit（窓の me）・shared・revision を写す。書く道（POST /api/sources など）は次の版。",
-    "E 系の読む道（/api/build・/api/changelog・/api/health・/api/config）と画面": "画面（A）と、版・更新履歴（version.py の CHANGELOG を Python から焼いた表 changelog.json。古い表は試験が止める）・health・config を窓が答える。版の吹き出し・接続の札が Python 無しで出る。",
-    "F 写し（master_cache）の取り直しを窓が": "Python の MasterStore._maybe_refresh（共有のマスタを読むたびに 5 秒に 1 回、共有から写しを取り直し、共有に最初の版を作る）を master_store.rs に写し、Python が起きていない PC でも、共有に届かない日に読む写しが古いまま残らないようにする（版 3.84.0 の『まだの所 (6)』）。写しの係は窓 1 つに（SERVES に cache）。",
-    "G 画面 A ＋ 最初の画面の読む道 C を 1 段で": "A と C を 1 つの版で作る。Python が答えない形でも、最初の画面（ダッシュボード）が開いてパネルが出るところまでを窓だけで通す（ダッシュボードのパネルの問い合わせは版 3.62.0・3.63.0 で既に窓）。起動の流れ（B）は次の版。"
-  },
-  "rounds": []
+ "title": "Rust 化の次の段（版 3.85.0）: 設定の束を窓が組めるようになった次に、Python が答えなくても画面が開いて動く範囲をどう広げるか（2026-11-07）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-07・main 3ce0456）: program/app/routes の道の飾りと desktop/src の \"/api/…\" の字を突き合わせると、窓が答えない道は 35 本（一覧・作業実績の一覧と集計とスライサーの 6 本は lot.rs の Route::of が strip_prefix で受けるので実際は 29 本）。残り: 画面 GET /（と /lotdsp-link）・系の読む道（/api/build・/api/changelog・/api/config・/api/health・GET /api/settings）・ダッシュボードの読む道（/api/dashboard/sources・/api/dashboard/equip-tree・POST /api/dashboard/fields・/api/data/columns）・ファイル（/api/fs/places・POST /api/fs/browse）・作業実績（/api/worklog/files・POST /api/worklog/refresh）・データ元（GET・POST /api/sources とその下・グループ）・スケジュール（/api/schedule）・LotDsp の 8 本・更新の置き場の 3 本・マスタの equipgroups・conversions・worklog・status。版 3.84.0 で設定の束は窓が組むが、起動の流れ（main.rs :530〜612）は今も Supervisor が Python の『ready』を受けてから画面へ navigate(app_url(\"/\")) する。画面 GET / は Python の routes/system.py index が app/templates/index.html（454 行。{{ 式 }} だけの小さな型。web.py の Template）を描く: 中身は build（app_build.fingerprint: 版＋app/ の下の .py .html .js .css .json の名前・大きさ・mtime_ns を sha1。12 桁）・app_version・brand（brand.json。窓に brand.rs がある）・url_for('static', …?v=build) が 15 か所・csp_nonce（secrets.token_urlsafe(16)。<script nonce> 4 か所と CSP の見出し script-src 'self' 'nonce-…'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'）・ui_state（ui_state.load。窓に presence::ui_state がある）・ui_profile（ui_defaults.load と PROFILE_KEYS。窓に ui_defaults.rs と束の uiProfileKeys がある）・conversions（変換表の view〈id・name・inputs・rows・other・apply・order〉を表示順で並べた物と store.revision。窓の束は tables〈名前の表〉だけ）。Cache-Control: no-store。測った数（開発用の create_app・試験の口・20 回の中央）: GET / は 53,420 バイト・1.52 ms、fingerprint だけで 4.05 ms（作るときに 1 回）。最初の画面（ダッシュボード）が開くと呼ぶ Python の道: /api/config（609 バイト・0.31 ms。lotdsp の状態・既定・心拍の間隔・アプリの名前）・/api/dashboard/sources（853 バイト・0.32 ms。data_sources.sources と作業実績の表示する設備と equip_groups.sets）・/api/dashboard/equip-tree（136 バイト・35 ms。設備を見分けるためにデータ元ごとに集計を 1 回ずつ流す）・GET /api/sources（22,379 バイト・2.77 ms。マスタ管理と見出しのタブ）・/api/changelog（387,017 バイト・0.83 ms。版の吹き出しを押したとき）・GET /api/settings（12,525 バイト・0.30 ms）。Python の起動（import と create_app）はこの Linux で約 0.14 秒、版 3.66.0 の測りで 151 ms（利用者の Windows の同梱 Python・ウイルス対策では測っていないので分からない）。窓に既にある部品: bundle.rs（effective・sources・group_views・conv_tables・名乗り）・router.rs の static_file（?v= の付いた URL は長く覚える）・presence::ui_state・ui_defaults・brand.rs・access（me）・pivot.rs と dashboard.rs（集計）・layout_clean。",
+ "proposals_text": {
+  "A 画面（GET /）を窓が描く": "routes/system.py の index を窓が答える。web.py の小さな型（{{ 名前・名前.名前・url_for('static', filename=…)・字 }} と |tojson・|safe、HTML の逃がし、最後の改行 1 つを落とす）を Rust に写し、同梱の index.html をそのまま描く。中身は build（app_build.fingerprint を窓で数える。プログラムの置き場が変わらない間は 1 度だけ）・brand・ui_state（presence::ui_state::load）・ui_profile（ui_defaults と束の uiProfileKeys）・conversions（束の組み方で view の並びと版）・csp_nonce（窓が乱数で作り、CSP の見出しも付ける）。読めない形（型に知らない式・ファイルが無い）は Python に尋ねる。突き合わせは page_oracle.py が場面ごとに Python の答えの HTML を出し、nonce の字だけを揃えて 1 字ずつ比べる。起動の流れは変えない（Python の ready を待ってから開く）。",
+  "B A ＋ 起動の流れで Python を待たずに画面を開く": "A に加え、main.rs の起動の流れを替え、Supervisor が Python を起こし始めたら ready を待たずに画面へ navigate する（窓の道は束と自分の部品ですぐ答え、Python の道は Supervisor の get が ready まで待つ）。起動の画面は Python の起動の失敗を画面の上の帯で言う。起動が Python の import の分（約 0.15 秒〜利用者の PC で分からない）速くなる。verify.py の通し（local・update・distribute）を本物の窓で流す。",
+  "C 最初の画面の読む道 3 本（/api/config・/api/dashboard/sources・/api/dashboard/equip-tree）": "ダッシュボードが開くときに尋ねる Python の 3 本を窓が答える。config は束の effective と lotdsp の状態（lotdsp_api.status の api_map は Python の学んだ項目名のファイルを読む）・既定・心拍の間隔・brand、sources は bundle.rs の sources と作業実績の表示する設備と設備グループの sets、equip-tree は equipment_seen（作業実績の登録・設備マスタ・データ元ごとに設備の列の集計を pivot.rs で流す）と members_in（ルールの当て方は bundle の group_rules）。道ごとに oracle と parity を足す。",
+  "D データ元の読む道（GET /api/sources・GET /api/settings）": "マスタ管理のデータ元と参照先の読む 2 本を、版 3.84.0 の bundle.rs の部品（effective・parse_item・sources・read_params）で窓が答える。_conn_items・_conn・_public・conn_of・placeChanged・shellLists・equipCount・canEdit（窓の me）・shared・revision を写す。書く道（POST /api/sources など）は次の版。",
+  "E 系の読む道（/api/build・/api/changelog・/api/health・/api/config）と画面": "画面（A）と、版・更新履歴（version.py の CHANGELOG を Python から焼いた表 changelog.json。古い表は試験が止める）・health・config を窓が答える。版の吹き出し・接続の札が Python 無しで出る。",
+  "F 写し（master_cache）の取り直しを窓が": "Python の MasterStore._maybe_refresh（共有のマスタを読むたびに 5 秒に 1 回、共有から写しを取り直し、共有に最初の版を作る）を master_store.rs に写し、Python が起きていない PC でも、共有に届かない日に読む写しが古いまま残らないようにする（版 3.84.0 の『まだの所 (6)』）。写しの係は窓 1 つに（SERVES に cache）。",
+  "G 画面 A ＋ 最初の画面の読む道 C を 1 段で": "A と C を 1 つの版で作る。Python が答えない形でも、最初の画面（ダッシュボード）が開いてパネルが出るところまでを窓だけで通す（ダッシュボードのパネルの問い合わせは版 3.62.0・3.63.0 で既に窓）。起動の流れ（B）は次の版。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い",
+   "self_check": "案を作った者が自分で読んで確かめた（画面に出ない改良）",
+   "proposals": {
+    "A 画面（GET /）を窓が描く": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 9,
+      "steps": 2,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "app.js の boot()（:204〜）は最初に await fetch(\"/api/config\") をしてから buildViewTabs・showScreen へ進む。/api/config は Python の道なので、Python が答えない（起こし直しの最中・import が止まった）PC では、Supervisor::get が錠を持ったまま Sidecar::spawn を start_wait 120 秒（sidecar.rs :323）待ち、そのあいだ画面は見出しだけでダッシュボードへ進まない。画面だけを窓が描いても、最初の画面は Python の答えを待つ"
+      }
+     ],
+     "seen": "画面 1 本だけで、量の切り方と狙いはいちばん素直。型は {{ 式 }} だけの小さな物で、2 回描いた HTML は nonce を揃えれば同じ（手元で確かめた）ので page_oracle の 1 字ずつの突き合わせが成り立つ。部品（presence::ui_state・ui_defaults・束の uiProfileKeys）も揃っている。ただ起動の流れを変えないので、いまの PC では Python の ready の後でしか画面を開かず、利用者の得は Python が起動の後で止まった時に開き直せることだけ。しかも開き直しても boot が /api/config を待つので、最初の画面は Python 次第のまま。案の文は nonce の乱数の元（直の依存に無い）・brand を exe に焼いた brand.rs で読む危うさ・|tojson の区切りと ensure_ascii・conversions の revision の数・url_for の数（58）に触れていない",
+     "fixes": [
+      "G の fixes の 1〜7（型・|tojson・指紋・brand・nonce・見出し・埋める 3 つ）はそのまま要る",
+      "A だけを作るなら、/api/config を窓が答えない限り最初の画面は Python を待つことを文書に書き、C の /api/config だけでも同じ段に入れる"
+     ]
+    },
+    "B A ＋ 起動の流れで Python を待たずに画面を開く": {
+     "score": {
+      "order": 8,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "main.rs :531〜558: 入れ替えた直後の版で Python が起動できないと update::revert で前の版へ戻して開き直し、起動できたら update::confirm する。ready を待たずに画面を開くと、この戻しと確かめをいつ・どこでするかが要るが、案の文は『画面の上の帯で言う』だけ。起動前の確認の進み具合（Progress の字）も起動画面に出なくなる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "app.js の boot()（:204〜）は最初に await fetch(\"/api/config\") をしてから buildViewTabs・showScreen へ進む。/api/config は Python の道なので、Python が答えない（起こし直しの最中・import が止まった）PC では、Supervisor::get が錠を持ったまま Sidecar::spawn を start_wait 120 秒（sidecar.rs :323）待ち、そのあいだ画面は見出しだけでダッシュボードへ進まない。画面だけを窓が描いても、最初の画面は Python の答えを待つ。B は ready を待たずに開くが、/api/config と /api/dashboard/sources・equip-tree・/api/sources は Python のままなので、開いた画面は結局 Python の ready を待つ。『起動が import の分速くなる』は JS・CSS の読み込みが重なる分だけで、最初の画面が出るまでの時間はほぼ縮まない"
+      }
+     ],
+     "seen": "Python を待たずに開くのは Python 無しへの道筋の要で、順序は高い。ただ 1 つの版で型の写し（A）と起動の流れの組み替えを両方やり、起動・更新の流れ（main.rs）を変えるので verify.py の通し（local・update・distribute）を本物の窓で流す重い確かめが要る。slot.set(Router) を ready の前に置く・info の backend（ready の中身）・lot.warm と upd.run の settings の尋ね方・Supervisor::get の錠（spawn を 120 秒持つ）の間に来た問い合わせの扱いも決めないといけない。危うさがいちばん高い"
+    },
+    "C 最初の画面の読む道 3 本（/api/config・/api/dashboard/sources・/api/dashboard/equip-tree）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 3,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "/api/config の lotdsp_api は Python が裏の糸（learn_later）で学び、メモリの km.data を lotdsp_api_map.json に書く。窓がファイルを読むと、学んでいる最中は Python の答えと違い得る。案の文は『学んだ項目名のファイルを読む』とだけで、どちらを元にするか・いつ読み直すかが無い"
+      }
+     ],
+     "seen": "3 本はどれも小さく（0.3〜0.5 ms。equip-tree だけ集計を流すので重い）、pivot.rs・bundle.rs を使えば作れる。parity も立つ。ただ画面（GET /）が Python のままなので、Python が答えない PC では画面そのものが開かず、3 本を窓が答えても使われない。/api/config が boot の最初の await であることを捉えれば A と組む意味が出る（＝G）。lotdsp の状態は Python が学ぶ係なので答えの元が 2 つに割れやすい"
+    },
+    "D データ元の読む道（GET /api/sources・GET /api/settings）": {
+     "score": {
+      "order": 5,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 3,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 9,
+      "place": 7,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET /api/settings の share_dir・config_file は Python の str(Path)（Windows の UNC・ドライブの字）で、Linux の試験では窓の字が同じか確かめられない。案の文に Windows の通しで見ることが無い"
+      }
+     ],
+     "seen": "bundle.rs に effective・sources・read_params が既にあり、部品の使い回しはいちばん良い。量も中くらいで突き合わせやすい。案の文は『マスタ管理のデータ元と参照先』と書くが、GET /api/sources は app.js の loadSources が見出しのタブ（品質・実績の名前・データ元とグループのタブ・LotList.defineSources）を作る元でもあり、Python 無しの見出しに要る道。そこを狙いに書いていない。ただ画面（GET /）と /api/config が Python のままなので、これだけでは Python が答えない PC で画面が開かない。canEdit・othersCanEdit は窓の me の can_write、shared・revision は MasterStore、newConn は read_params(\"+\")（設定の既定に inf があると Python は落ちる）を写す要がある",
+     "fixes": [
+      "見出しのタブの元であることを狙いに入れ、G と同じ段か直後に置く",
+      "newConn の read_params の inf・nan、others の page の無い項目、roles・equipModes の表は Python から焼き、読めない形は Python に任せる",
+      "share_dir・config_file の字は Windows の窓の通しで Python と比べる"
+     ]
+    },
+    "E 系の読む道（/api/build・/api/changelog・/api/health・/api/config）と画面": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 4,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "更新履歴を Python から焼いた changelog.json（窓に焼く表）で答える案: 版は program だけを配る更新でも上がり（update::apply_staged の exe_changed が偽の時は exe を替えない）、焼いた更新履歴と /api/build の版が実際の program と食い違う。版の札を押すと古い更新履歴が出る。program の version.py（か app_build --release が書く JSON）を走るたびに読む形にしないと割れる"
+      }
+     ],
+     "seen": "画面と /api/config を窓が答えるので、boot の最初の await が窓で済み、最初の画面が進む所は G に近い（ダッシュボードの組む所の元の並びとスライサーの設備は出ない）。ただ build・health は画面が使っておらず（app.js は /api/build・/api/health を尋ねない）、changelog は押した時だけの 387 KB で、狙いが『系』という寄せ集めになっている。焼いた更新履歴は答えの元が version.py と窓の表の 2 つになる"
+    },
+    "F 写し（master_cache）の取り直しを窓が": {
+     "score": {
+      "order": 4,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 7,
+      "place": 8,
+      "layout": 7,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "MasterStore._maybe_refresh は共有のマスタを読むたびに 5 秒に 1 回写しを取り直すだけでなく、共有に最初の版を作る（共有へ書く）。窓が写しの係になっても、Python が自分の道のためにマスタを読む限り同じ係が 2 つになる。SERVES に cache と書くだけで、Python の _maybe_refresh をどう止めるか・止めた Python の読みが古い写しを読まないかが案の文に無い"
+      }
+     ],
+     "seen": "前の段の『まだの所 (6)』を埋める物で、答えの元を 1 つにする筋は良い。ただ最初の画面とは関わらず、起動はいまも Python を待つので、いまの PC の利用者に見える得は無い。5 秒の間隔と時刻で動くので、Python と窓の突き合わせは時計を差し替えないと揺れる。共有へ書く（最初の版）係を移すので危うさは高め"
+    },
+    "G 画面 A ＋ 最初の画面の読む道 C を 1 段で": {
+     "score": {
+      "order": 9,
+      "chunk": 6,
+      "hierarchy": 9,
+      "visual": 9,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "app.js の loadSources（:1047〜）は GET /api/sources（Python）の答えで、品質・実績のタブの名前・データ元とグループのタブ・window.LotList.defineSources を作る。Python が答えないとこのどれも出ず、データ元の一覧の画面にも入れない。案の文の『最初の画面が開いてパネルが出る』の外に、見出しのタブが欠ける形が残ることが書かれていない"
+      }
+     ],
+     "seen": "A と C を 1 段にすると、最初の画面の道筋（GET / → boot の await /api/config → dashboard.start の /api/dashboards〈窓〉・/api/dashboard/sources・/api/dashboard-sets〈窓〉→ loadTree の equip-tree → /api/dashboard/query〈窓〉）のうち、Python に残る物が無くなる。特に /api/config は boot の最初の await で、ここを窓が答えないと画面だけを窓が描いても進まない（A の弱み）ので、G だけが『Python が答えなくても最初の画面が動く』を実際に満たす。狙いが 1 つで、窓だけで最初の画面を開く通しの試験（Python の役を 503 にした lot::tests の形）と、page_oracle の 1 字ずつの突き合わせ（nonce を揃えれば 2 回の描きは同じ。手元で確かめた）・3 本の parity で測れる。部品は presence::ui_state・ui_defaults・bundle.rs（effective・sources・group_views・conv_tables）・pivot.rs・dashboard.rs が使える。量は 7 案でいちばん大きい（型の移し・指紋・CSP・3 本の道。equip-tree はデータ元ごとに集計を流す）。起動の流れは変えないので、いまの PC では Python が起動のあとで止まった・起こし直している時だけ得がある（B が次の版）。ほかに残る Python の道: /api/sources（見出しのタブ）・/api/changelog（版の札を押したとき）・/api/equipment/inspection など",
+     "fixes": [
+      "型の写し: web.py の Template と同じ 3 つだけを読む（{{ 名前・名前.名前・url_for('static', filename='…')・字と数 }}・|tojson・|safe）。{% %}・{# #}・知らない式・知らないフィルタは描かずに Python に任せる。_escape は & < > \" ' の 5 字を &amp; &lt; &gt; &#34; &#39;、_Undefined は空の字、最後の改行 1 つだけ落とす",
+      "|tojson は web.dumps（sort_keys・ensure_ascii・区切りは既定の \", \" と \": \"〈詰めない〉）のあとで < > & ' を \\u003c \\u003e \\u0026 \\u0027 に替えた字。小数は pyfloat の repr、BMP の外の字は代用字の対（\\ud83d\\ude00）、鍵の並びは Python の str の順。変換表の判定に小数・全角・絵文字を入れた場面で 1 字ずつ突き合わせる",
+      "指紋（build）は app_build.fingerprint をそのまま写す: app_version は re.search(r'APP_VERSION\\s*=\\s*\"([^\"]+)\"')（update::program_version は ' も読み版の形も確かめるので違う。使い回さない）・os.walk の __pycache__ と vendor を飛ばす・EXTS 5 つ・app/ からの相対の posix の名前|大きさ|mtime_ns を並べて sha1・12 桁。Windows の mtime_ns と、シンボリックリンクのフォルダに降りない所も合わせる。static_file は ?v= を immutable で 1 年覚えるので、指紋がずれる・古いままだと古い JS を使い回す。program の置き場ごとに数え、Python の BUILD と同じかを試験で突き合わせる",
+      "brand は brand.rs（exe に焼いた include_str!）ではなく、描くたびに（か program ごとに）program/app/brand.json を読む。program だけを配る更新（exe_changed が偽）で名前が変わると、焼いた brand は古い",
+      "nonce は暗号の乱数で作る（secrets.token_urlsafe(16) と同じ 16 バイト・base64url・詰め字なしの 22 字）。直の依存に乱数の crate が無いので、Cargo.lock に既にある getrandom（0.3.4）を同じ版で足すか、Windows の BCryptGenRandom を使う。時刻や数え上げから作らない（版 3.52.1 の CSP が効かなくなる）。同じ字を 4 つの <script nonce> と見出し Content-Security-Policy に入れ、見出しの字は web.csp と 1 字も違えない（試験で字を比べる）",
+      "答えの見出し: Content-Type text/html; charset=utf-8・Cache-Control no-store・CSP。HEAD は本文なしで Content-Length。X-TPA-By は shell",
+      "埋める 3 つ: ui_state は presence::ui_state::load（作業場所の ui_state.json。Python の app_env.local_root と同じ所か試験で）・ui_profile は ui_defaults を読めなければ {keys:{}, updated_at:\"\", updated_by:{}, revision:0} に落とす（Python の except と同じ。画面は開く）・conversions は view の 7 つの鍵（id・name・inputs・rows・other・apply・order。order は int() で読めなければ 0）を (order, int(id)) で並べ、revision は MasterStore の revision（Python の GET /api/masters/conversions と同じ数。conversions.js は revision が違えば取り直すので、束の conversions.rev〈sha1〉は使わない）。読めなければ {items:[], revision:null}",
+      "/api/config は boot の最初の await なので、この段の要。lotdsp_url・lotdsp_direct・lotdsp_login_window は束の effective の lotdsp_import から（lotdsp_direct.settings_of の既定と型を写す）。lotdsp_api の status は Python が裏の糸で学んで lotdsp_api_map.json に書く KeyMap を、尋ねるたびにファイルから読む（窓で覚えない。MIN_SEEN・TIE_SEEN と key() の決まりを写す）。max_rows は int()（全角の数も pynum の表で）、heartbeat_interval_seconds は float の repr（3 は 3.0）、default_unwind は models.DEFAULT_UNWIND を焼いた表から。読めない形は Python に任せる",
+      "/api/dashboard/sources は source_items（作業実績の _shown_work の並びと表示）と pivot.PERIODS と equip_groups.sets。equip-tree は equipment_seen の順（作業実績の登録 → 設備マスタ → データ元の設備の列の集計）・normalize_part の鍵・n の足し方・答えに cells が無い元〈写している最中・読めない〉を飛ばす所まで同じに。写しの進み具合で答えが変わるので、parity は写し終えた形と写している最中の形を分けて突き合わせる",
+      "Python が答えないときの形を決めて試す: いまの Supervisor::get は錠を持ったまま spawn を 120 秒待つので、Python に残る道（/api/sources・/api/changelog・心拍以外）は答えが返らないまま並ぶ。最初の画面が窓の道だけで描けることを、Python の役を 503・答えない、の 2 つにした通しの試験で確かめる",
+      "見出しのタブ（GET /api/sources）がこの段では Python のままで、Python が答えないと品質・実績の名前・データ元のタブが出ないことを文書の『まだの所』に書く（できれば D の GET /api/sources を同じ段に入れる。部品は bundle.rs の sources と窓の me）",
+      "起動の流れは変えないので、Python が起動のあとで止まった時にしか効かないことを RUST_PORT_PLAN に正直に書き、B（Python を待たずに開く）を次の段の 1 つ目に置く"
+     ]
+    }
+   }
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-settings.json の evaluator と rounds（形と読み替えの手本）・RUST_PORT_PLAN.md の「段 3 の 2 歩目」、program の app/routes/system.py（ui_profile・conversion_tables・index・/api/build・/api/changelog・/api/health・/api/config）・app/web.py（Template・_tojson・_escape・render・url_for・csp・handle の CSP の見出し・_static）・app/templates/index.html（{{ }} の 66 か所。url_for('static') は 58 か所）・app_build.py（app_version・fingerprint・EXTS）・app/__init__.py（BUILD・url_defaults・_brand）・routes/dashboard.py（equipment_seen・equip_tree・source_items・dashboard_sources）・routes/sources.py（GET /api/sources）・routes/settings.py（GET /api/settings）・routes/common.py（api_map・api_settings）・services の ui_state.py・conversions.py（view・ordered・tables）・lotdsp_api.py（status・KeyMap.save・learn_later）・app/version.py の形、desktop/src の main.rs（start :475〜613: sup.get() の ready を待ってから slot.set(Router) と navigate(app_url(\"/\"))、update::confirm と revert、protocol の受け口 :869〜 は slot が空なら 503 starting、自己診断は path \"/\" の読み終わり）・router.rs（handle・static_file の ?v= は immutable で長く覚える・Supervisor の ask）・sidecar.rs（SERVES・Supervisor::get が錠を持ったまま spawn・start_wait 120 秒）・lot.rs の Route::of・bundle.rs（conv_tables・関数の並び）・presence.rs の ui_state::load・ui_defaults.rs・brand.rs（include_str! で exe に焼く）・update.rs（program_version・exe_changed）・Cargo.toml と Cargo.lock（乱数の crate は直の依存に無い。getrandom 0.3.4 / 0.4.3 は Tauri の下にある）、画面の JS の app.js（checkPageBuild・boot・loadMe・loadSources）・dashboard.js（start: loadList と loadSources → loadSets → loadTree → open）・conversions.js（TPA_CONVERSIONS と revision の比べ方）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-page）: probe.py（ui_server.build の開発用サーバー〈品質 300 行〉の試験の口で各道を 20 回: GET / 200・53,420 バイト・中央 1.44 ms・Cache-Control no-store・CSP 付き／/api/config 609 バイト 0.29 ms／/api/changelog 387,017 バイト 0.88 ms／/api/dashboard/sources 2,104 バイト 0.54 ms／/api/dashboard/equip-tree 353 バイト 6.5 ms〈この小さな作り物で。measured の 35 ms より小さい〉／GET /api/sources 27,200 バイト 3.0 ms／GET /api/settings 12,322 バイト 0.24 ms。画面の nonce は 4 か所とも同じで CSP の見出しに入る。2 回描いた HTML は nonce の字を揃えると 1 字も違わない〈1 字ずつの突き合わせは成り立つ〉。?v= は 58 か所。埋めた JSON は TPA_UI_STATE 22 字・TPA_UI_PROFILE 519 字・TPA_CONVERSIONS 18,111 字〈変換表 9 つ・revision 0〉。fingerprint は 133 ファイルで 3.8 ms）・create_app の時間（3 回 0.11〜0.14 秒）。cargo は流していない（採点に要る事実はコードと Python で確かめた）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲（利用者の得）・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の数のうち『url_for が 15 か所』は 58 か所（css 15 本＋js 42 本＋explain3d 1）で、ほかの数は手元で同じ桁に出た。"
 }

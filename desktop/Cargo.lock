@@ -666,10 +666,11 @@ dependencies = [
 
 [[package]]
 name = "defect-analyzer-desktop"
-version = "3.84.0"
+version = "3.85.0"
 dependencies = [
  "chrono",
  "fancy-regex",
+ "getrandom 0.3.4",
  "regex",
  "rusqlite",
  "serde",

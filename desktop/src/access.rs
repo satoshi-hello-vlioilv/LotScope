@@ -455,6 +455,16 @@ impl Place {
     }
 
     pub fn rows(&self, name: &str) -> Result<Vec<Value>, String> {
+        self.doc(name).map(|(rows, _)| rows)
+    }
+
+    /// マスタの版の番号（MasterStore.revision: {revision} の int。行の配列〈同梱の data/ の昔の形〉・無いファイルは 0）
+    pub fn revision(&self, name: &str) -> Result<i64, String> {
+        self.doc(name).map(|(_, rev)| rev)
+    }
+
+    /// 読むファイル（共有 → 写し → 同梱の data/ → 最初の中身）の行と版の番号
+    fn doc(&self, name: &str) -> Result<(Vec<Value>, i64), String> {
         let file = format!("{name}.json");
         let mut tries: Vec<PathBuf> = vec![];
         if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {
@@ -467,16 +477,28 @@ impl Place {
         for (i, path) in tries.iter().enumerate() {
             match std::fs::read(path) {
                 Ok(b) => match doc_rows(&b) {
-                    Ok(rows) => return Ok(rows),
+                    Ok(rows) => return Ok((rows, doc_revision(&b)?)),
                     // 共有のファイルが書きかけ・壊れている: 写しで続ける（Python の _maybe_refresh も写しで続ける）
                     Err(_) if i == 0 && tries.len() > 3 => continue,
                     Err(e) => return Err(format!("{}: {e}", path.display())),
                 },
                 Err(_) if i < last => continue,
-                Err(_) => return Ok(vec![]),
+                Err(_) => return Ok((vec![], 0)),
             }
         }
-        Ok(vec![])
+        Ok((vec![], 0))
+    }
+}
+
+/// {revision} の int（_as_doc の int(revision)。無ければ 0。読めない形は Err）
+fn doc_revision(b: &[u8]) -> Result<i64, String> {
+    let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
+    match py_json(std::str::from_utf8(b).map_err(|e| e.to_string())?) {
+        Some(Value::Object(o)) => match o.get("revision") {
+            None => Ok(0),
+            Some(v) => crate::master_rows::py_int(v).ok_or_else(|| "版の番号が読めません".to_string()),
+        },
+        _ => Ok(0),
     }
 }
 

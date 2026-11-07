@@ -27,6 +27,7 @@ pub mod master_store;
 pub mod mirror;
 pub mod num_expr;
 pub mod operation;
+pub mod page;
 pub mod pivot;
 pub mod pivot_presets;
 pub mod presence;

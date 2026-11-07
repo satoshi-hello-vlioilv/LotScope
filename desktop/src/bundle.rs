@@ -30,6 +30,11 @@ use std::time::Instant;
 
 static TABLES: LazyLock<Value> = LazyLock::new(|| serde_json::from_str(include_str!("bundle_tables.json")).expect("bundle_tables.json"));
 
+/// Python から焼いた決まりの表（page.rs も使う）
+pub fn tables() -> &'static Value {
+    &TABLES
+}
+
 fn t(path: &[&str]) -> &'static Value {
     let mut v: &Value = &TABLES;
     for k in path {
@@ -758,7 +763,8 @@ fn set_dotted(d: &mut Value, key: &str, v: Value) -> R<()> {
 }
 
 /// 配った設定に、参照先マスタで変えた値を重ねた設定（束に出る項目だけ。path_settings.effective）
-fn effective(settings: &Value, rows: &[Value]) -> R<Value> {
+/// 参照先マスタを配った設定に重ねる（path_settings.effective）。重ねる項目は焼いた表の items（束は pathItems、/api/config は configItems も）
+fn effective(settings: &Value, rows: &[Value], items: &[&str]) -> R<Value> {
     let mut by: Vec<(String, &Value)> = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("参照先の行が表でない"))?;
@@ -791,7 +797,7 @@ fn effective(settings: &Value, rows: &[Value]) -> R<Value> {
         }
     }
     let mut eff = settings.clone();
-    for item in t(&["pathItems"]).as_array().into_iter().flatten() {
+    for item in items.iter().flat_map(|k| t(&[k]).as_array().into_iter().flatten()) {
         let key = item["key"].as_str().unwrap_or("");
         if let Some((_, row)) = by.iter().find(|(n, _)| n == key) {
             if let Some(v) = parse_item(item, row.get("値"))? {
@@ -1001,7 +1007,9 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         }
         let name = s(r.get("表示名"))?;
         let mode = s(r.get("設備の取り出し方"))?;
+        let role = s(r.get("役割"))?;
         let d = json!({"key": k, "name": if name.is_empty() { k.clone() } else { name }, "kind": "file",
+                       "role": if role.is_empty() { "その他".to_string() } else { role },
                        "place": unquote(&s(r.get("場所"))?), "table": s(r.get("表"))?, "equipColumn": s(r.get("設備の列"))?,
                        "equipMode": if mode.is_empty() { "そのまま".to_string() } else { mode }, "builtin": false,
                        "api": format!("/api/src/{k}"), "id": r.get("id").cloned().unwrap_or(Value::Null),
@@ -1047,8 +1055,9 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
             }
         }
     }
-    const KEEP: [&str; 13] =
-        ["key", "kind", "name", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode"];
+    // role（版 3.85.0）: ダッシュボードのデータの並び（/api/dashboard/sources）を窓が束から答える
+    const KEEP: [&str; 14] =
+        ["key", "kind", "name", "role", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode"];
     Ok(out
         .into_iter()
         .map(|d| Value::Object(KEEP.iter().map(|k| (k.to_string(), d.get(*k).cloned().unwrap_or(Value::Null))).collect()))
@@ -1168,7 +1177,8 @@ fn conv_order(o: &Map<String, Value>) -> i128 {
     }
 }
 
-fn conv_tables(rows: &[Value]) -> R<Value> {
+/// 変換表の行（conversions.view の表示順を除いた形）を ordered（表示順 → id）の順に
+fn conv_rows(rows: &[Value]) -> R<Vec<(i128, Value)>> {
     let mut keyed = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("変換表の行が表でない"))?;
@@ -1176,12 +1186,8 @@ fn conv_tables(rows: &[Value]) -> R<Value> {
         keyed.push(((conv_order(o), id), o));
     }
     keyed.sort_by_key(|x| x.0);
-    let mut out = Map::new();
-    for (_, o) in keyed {
-        let name = pstr(o.get("名前"))?;
-        if name.is_empty() || out.contains_key(&name) {
-            continue;
-        }
+    let mut out = vec![];
+    for ((order, _), o) in keyed {
         let rows = match conv_j(o.get("判定"), true)? {
             Value::Array(a) => a
                 .into_iter()
@@ -1196,15 +1202,156 @@ fn conv_tables(rows: &[Value]) -> R<Value> {
             Some(x) => py_str(x),
             None => String::new(),
         };
-        out.insert(name, json!({"inputs": conv_j(o.get("入力"), true)?, "rows": rows, "other": other}));
+        out.push((
+            order,
+            json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pstr(o.get("名前"))?, "inputs": conv_j(o.get("入力"), true)?,
+                                "rows": rows, "other": other, "apply": conv_j(o.get("当て方"), false)?}),
+        ));
+    }
+    Ok(out)
+}
+
+/// 変換表の画面の形（conversions.view。表示順も）を ordered の順に。表示順が JSON の数（i64）に入らなければ Err（画面は Python が描く）
+pub fn conv_views(rows: &[Value]) -> R<Vec<Value>> {
+    conv_rows(rows)?
+        .into_iter()
+        .map(|(order, mut v)| {
+            v["order"] = json!(i64::try_from(order).map_err(|_| Py("変換表の表示順が大きすぎる"))?);
+            Ok(v)
+        })
+        .collect()
+}
+
+/// 式の conv が引く形（conversions.tables: 名前ごとに最初の表）
+fn conv_tables(rows: &[Value]) -> R<Value> {
+    let mut out = Map::new();
+    for (_, v) in conv_rows(rows)? {
+        let name = v["name"].as_str().unwrap_or("").to_string();
+        if name.is_empty() || out.contains_key(&name) {
+            continue;
+        }
+        out.insert(name, json!({"inputs": v["inputs"], "rows": v["rows"], "other": v["other"]}));
     }
     Ok(Value::Object(out))
+}
+
+// ------------------------------------------------------------------ LotDsp の API の学び（services/lotdsp_api.py の KeyMap と status）
+/// KeyMap.key が真の値を返すか（窓は値を使わず、真か偽かだけを見る。Python が落ちる形は Err）
+fn km_key(data: &Map<String, Value>, name: &str, col: &str) -> R<bool> {
+    let sec = match data.get(name) {
+        x if !truthy(x) => return Ok(false),
+        Some(Value::Object(o)) => o,
+        _ => return Err(Py("学びの段が表でない")),
+    };
+    let cols = match sec.get("cols") {
+        None => return Ok(false),
+        Some(Value::Object(o)) => o,
+        _ => return Err(Py("学びの列が表でない")),
+    };
+    let c = match cols.get(col) {
+        x if !truthy(x) => return Ok(false),
+        Some(Value::Object(o)) => o,
+        _ => return Err(Py("学びの列の形が違う")),
+    };
+    let cands = match c.get("cands") {
+        x if !truthy(x) => return Ok(false),
+        Some(Value::Array(a)) => a,
+        _ => return Err(Py("候補が並びでない")),
+    };
+    let seen = match c.get("seen") {
+        None => 0.0,
+        Some(Value::Number(n)) => n.as_f64().ok_or(Py("数"))?,
+        Some(Value::Bool(b)) => *b as i64 as f64,
+        _ => return Err(Py("seen が数でない")),
+    };
+    let tie = t(&["lotdsp", "tieSeen"]).as_f64().unwrap_or(3.0);
+    let min = t(&["lotdsp", "minSeen"]).as_f64().unwrap_or(2.0);
+    Ok(if cands.len() > 1 {
+        name == "lot" && seen >= tie && truthy(cands.first())
+    } else {
+        (truthy(c.get("trusted")) || seen >= min) && truthy(cands.first())
+    })
+}
+
+/// lotdsp_api.status(KeyMap(作業場所の lotdsp_api_map.json), settings)。学びのファイルは尋ねるたびに読む（Python が裏で書く）
+pub fn lotdsp_status(path: &Path, enabled: bool) -> R<Value> {
+    let data = match std::fs::read_to_string(path) {
+        Err(_) => Map::new(),
+        Ok(text) => {
+            if crate::master_rows::text_split(&text) {
+                return Err(Py("学びのファイルが窓の読めない JSON"));
+            }
+            match serde_json::from_str::<Value>(&text) {
+                Ok(Value::Object(o)) => o,
+                _ => Map::new(),
+            }
+        }
+    };
+    let req = t(&["lotdsp", "required"]).as_object().cloned().unwrap_or_default();
+    let mut missing = vec![];
+    for (name, cols) in &req {
+        let sec = match data.get(name) {
+            x if !truthy(x) => Map::new(),
+            Some(Value::Object(o)) => o.clone(),
+            _ => return Err(Py("学びの段が表でない")),
+        };
+        if name != "lot" && !truthy(sec.get("list")) {
+            missing.push(format!("{name}.（並び）"));
+            continue;
+        }
+        for c in cols.as_array().into_iter().flatten().filter_map(Value::as_str) {
+            if !km_key(&data, name, c)? {
+                missing.push(format!("{name}.{c}"));
+            }
+        }
+    }
+    let density_seen = match data.get("lot") {
+        Some(Value::Object(l)) => match l.get("cols") {
+            Some(Value::Object(cols)) => match cols.get("density") {
+                x if !truthy(x) => false,
+                Some(Value::Object(d)) => truthy(d.get("seen")),
+                _ => return Err(Py("比重の学びの形が違う")),
+            },
+            None => false,
+            _ => return Err(Py("学びの列が表でない")),
+        },
+        x if !truthy(x) => false,
+        _ => return Err(Py("学びの段が表でない")),
+    };
+    if density_seen && !km_key(&data, "lot", "density")? {
+        missing.push("lot.density".into());
+    }
+    let mut learned = 0;
+    for name in ["actual", "design", "lot"] {
+        if let Some(Value::Object(sec)) = data.get(name) {
+            if let Some(Value::Object(cols)) = sec.get("cols") {
+                for c in cols.keys() {
+                    learned += km_key(&data, name, c)? as i64;
+                }
+            }
+        }
+    }
+    Ok(json!({"enabled": enabled, "ready": !data.is_empty() && missing.is_empty(), "missing": missing,
+              "login_free": data.get("login_free").cloned().unwrap_or(Value::Null),
+              "last_error": data.get("last_error").cloned().unwrap_or(Value::Null),
+              "probe": if truthy(data.get("probe")) { data["probe"].clone() } else { json!({}) }, "learned": learned}))
 }
 
 // ------------------------------------------------------------------ 束を組む
 /// 束に使うマスタ（MasterStore の写しの名前）
 const MASTERS: [&str; 7] =
     ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "conversions", "shift_patterns"];
+
+/// work_log.ordered を、選んだ行（ダッシュボードの表示する設備など）に。並びが字にできなければ None
+pub fn work_order(rows: Vec<&Value>) -> Option<Vec<&Value>> {
+    let mut keyed = vec![];
+    for (i, r) in rows.into_iter().enumerate() {
+        let n = wide_int_str(&pstr(r.get("並び")).ok()?);
+        keyed.push(((n.is_none(), n.unwrap_or(0), i), r));
+    }
+    keyed.sort_by_key(|x| x.0);
+    Some(keyed.into_iter().map(|(_, r)| r).collect())
+}
 
 /// work_log.ordered: 並びの番号 → 番号の無い行は登録の順で後ろに
 fn work_ordered(rows: &[Value]) -> R<Vec<&Value>> {
@@ -1227,6 +1374,56 @@ fn name_of(r: &Value, k: &str) -> R<String> {
     }
 }
 
+/// 束・画面・/api/config の材料（Builder::inputs）
+pub struct Inputs {
+    /// 配った設定（APP_SETTINGS）
+    pub settings: Value,
+    /// 参照先マスタを重ねた設定（effective_settings。束に出る項目だけ）
+    pub eff: Value,
+    pub who: Value,
+    /// マスタの置き場（束の access.place）
+    pub place: Value,
+    p: Place,
+}
+
+impl Inputs {
+    /// 窓が Python と同じに読めないマスタ（読めない字・共有にまだ無い）は組まない
+    pub fn check(&self, name: &str) -> R<()> {
+        if self.p.split_file(name) {
+            return Err(Py("マスタのファイルが窓の読めない字"));
+        }
+        if self.p.share_absent(name) {
+            return Err(Py("共有にまだ無いマスタ（Python が写しから最初の版を作る）"));
+        }
+        Ok(())
+    }
+
+    /// マスタの行（MasterRepository の読み方: 前の名前の列を今の名前へ・版の無い行は 1）。行が表でなければ Err
+    pub fn rows(&self, name: &str) -> R<Vec<Value>> {
+        let mut rows = self.p.rows(name).map_err(|_| Py("マスタが読めない"))?;
+        if !rows.iter().all(Value::is_object) {
+            return Err(Py("マスタの行が表でない（Python の _normalize が落ちる）"));
+        }
+        let renamed = t(&["renamed", name]).as_object().cloned().unwrap_or_default();
+        for r in rows.iter_mut() {
+            let Some(o) = r.as_object_mut() else { continue };
+            for (old, new) in &renamed {
+                if let Some(v) = o.remove(old) {
+                    let new = new.as_str().unwrap_or("").to_string();
+                    o.entry(new).or_insert(v);
+                }
+            }
+            o.entry("rev").or_insert(json!(1));
+        }
+        Ok(rows)
+    }
+
+    /// マスタの版の番号（MasterStore.revision。読めなければ Err）
+    pub fn revision(&self, name: &str) -> R<i64> {
+        self.p.revision(name).map_err(|_| Py("マスタの版が読めない"))
+    }
+}
+
 impl Builder {
     /// 名乗り（identity.current と terminal_key）。PC 名は設定の「この端末の名前」があればそれ
     pub fn who(settings: &Value) -> R<Value> {
@@ -1244,6 +1441,82 @@ impl Builder {
         Ok(json!({"login": login, "pc": pc, "pcSource": source, "key": terminal_key(&login, &pc)}))
     }
 
+    /// 作業場所（この PC の ui_state.json・lotdsp_api_map.json の置き場）とプログラムの置き場
+    pub fn env(&self) -> &Env {
+        &self.env
+    }
+
+    /// GET /api/config（routes/system.py の config）。Python が落ちる形・窓が同じに読めない形は Err（Python に任せる）
+    pub fn config(&self) -> R<Value> {
+        let inp = self.inputs()?;
+        inp.check("path_settings")?;
+        let eff = effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems", "configItems"])?;
+        let li = match eff.get("lotdsp_import") {
+            x if !truthy(x) => Map::new(),
+            Some(Value::Object(o)) => o.clone(),
+            _ => return Err(Py("lotdsp_import が表でない")),
+        };
+        let sub = |k: &str| -> R<Map<String, Value>> {
+            match li.get(k) {
+                x if !truthy(x) => Ok(Map::new()),
+                Some(Value::Object(o)) => Ok(o.clone()),
+                _ => Err(Py("lotdsp_import の段が表でない")),
+            }
+        };
+        let (a, d) = (sub("api")?, sub("direct")?);
+        let url = if truthy(li.get("url")) { s(li.get("url"))? } else { String::new() };
+        let flag = |m: &Map<String, Value>, k: &str| m.get(k).map(|v| truthy(Some(v))).unwrap_or(true);
+        // lotdsp_api.settings_of・lotdsp_direct.settings_of が読む値（float・並び）を Python と同じに読めるか（読めなければ Python は落ちる）
+        let num = |m: &Map<String, Value>, k: &str| -> R<()> { m.get(k).map(|v| py_float(Some(v)).map(|_| ())).unwrap_or(Ok(())) };
+        num(&a, "timeout_seconds")?;
+        if truthy(a.get("request_fields")) && !a.get("request_fields").is_some_and(Value::is_object) {
+            return Err(Py("request_fields が表でない"));
+        }
+        for k in [
+            "timeout_seconds",
+            "reach_timeout_seconds",
+            "start_timeout_seconds",
+            "keep_seconds",
+            "login_wait_seconds",
+            "window_keep_seconds",
+        ] {
+            num(&d, k)?;
+        }
+        if truthy(d.get("extra_args")) && !d.get("extra_args").is_some_and(|v| v.is_array() || v.is_object() || v.is_string()) {
+            return Err(Py("extra_args が並びでない"));
+        }
+        for k in ["search_url", "entity_path", "candidates_path", "detail_path"] {
+            if a.get(k).is_some_and(|v| v.is_array() || v.is_object()) {
+                return Err(Py("LotDsp の道の字が表・並び"));
+            }
+        }
+        let api_on = flag(&a, "enabled") && (!url.is_empty() || truthy(a.get("search_url")));
+        let direct_on = flag(&d, "enabled") && !url.is_empty();
+        let section = |k: &str| -> R<Map<String, Value>> {
+            match eff.get(k) {
+                None => Ok(Map::new()),
+                Some(Value::Object(o)) => Ok(o.clone()),
+                _ => Err(Py("設定の段が表でない")),
+            }
+        };
+        let (beat, ui) = (section("presence")?, section("ui_defaults")?);
+        let max_rows = match ui.get("max_rows") {
+            None => 25,
+            Some(v) => i64::try_from(wide_int(v).ok_or(Py("max_rows が int() で読めない"))?).map_err(|_| Py("max_rows が大きすぎる"))?,
+        };
+        let interval = match beat.get("heartbeat_interval_seconds") {
+            None => 3.0,
+            Some(v) => py_float(Some(v))?,
+        };
+        let km = crate::bundle::lotdsp_status(&self.env.local.join("lotdsp_api_map.json"), api_on)?;
+        let brand = read_json(&self.env.program.join("app").join("brand.json")).ok_or(Py("brand.json が読めない"))?;
+        Ok(json!({"lotdsp_url": li.get("url").cloned().unwrap_or(json!("")), "lotdsp_direct": direct_on,
+                  "lotdsp_login_window": direct_on && flag(&d, "login_window"), "lotdsp_api": km,
+                  "default_unwind": t(&["defaultUnwind"]), "defaults": eff.get("ui_defaults").cloned().unwrap_or(json!({})),
+                  "max_rows": max_rows, "heartbeat_interval_seconds": interval,
+                  "app": {"name": brand["name"], "subtitle": brand["subtitle"]}}))
+    }
+
     /// 束（Python の GET /api/lotlist/settings と同じ形）。組めなければ Err（窓は Python に尋ねる）
     pub fn build(&self) -> R<Value> {
         let r = self.build_inner();
@@ -1251,7 +1524,8 @@ impl Builder {
         r
     }
 
-    fn build_inner(&self) -> R<Value> {
+    /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）
+    pub fn inputs(&self) -> R<Inputs> {
         let text = std::fs::read_to_string(&self.env.config).map_err(|_| Py("配った設定が読めない"))?;
         // 引っ越しの印をたどる係は窓の 1 つ（Python は窓が名乗るとたどらない）なので、束を組めない設定（NaN など）でも、
         // Python と同じに読める置き場の段（master_share）と名乗りから先にたどる
@@ -1288,34 +1562,19 @@ impl Builder {
                            "defaults": join(&join(&program, "app"), "master_defaults"), "cache": cache, "presence": presence,
                            "lockTtl": st.lock_ttl});
         let p = Place::from_json(&place);
-        for name in MASTERS {
-            if p.split_file(name) {
-                return Err(Py("マスタのファイルが窓の読めない字"));
-            }
-            if p.share_absent(name) {
-                return Err(Py("共有にまだ無いマスタ（Python が写しから最初の版を作る）"));
-            }
-        }
-        let rows = |name: &str| -> R<Vec<Value>> {
-            let mut rows = p.rows(name).map_err(|_| Py("マスタが読めない"))?;
-            if !rows.iter().all(Value::is_object) {
-                return Err(Py("マスタの行が表でない（Python の _normalize が落ちる）"));
-            }
-            let renamed = t(&["renamed", name]).as_object().cloned().unwrap_or_default();
-            for r in rows.iter_mut() {
-                let Some(o) = r.as_object_mut() else { continue };
-                for (old, new) in &renamed {
-                    if let Some(v) = o.remove(old) {
-                        let new = new.as_str().unwrap_or("").to_string();
-                        o.entry(new).or_insert(v);
-                    }
-                }
-                o.entry("rev").or_insert(json!(1));
-            }
-            Ok(rows)
-        };
+        let mut inp = Inputs { settings, eff: Value::Null, who, place, p };
         // 参照先が読めなくても配った設定で動く（effective_settings と同じ）
-        let eff = effective(&settings, &rows("path_settings").unwrap_or_default())?;
+        inp.eff = effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems"])?;
+        Ok(inp)
+    }
+
+    fn build_inner(&self) -> R<Value> {
+        let inp = self.inputs()?;
+        for name in MASTERS {
+            inp.check(name)?;
+        }
+        let (settings, eff, who, place) = (&inp.settings, &inp.eff, inp.who.clone(), inp.place.clone());
+        let rows = |name: &str| inp.rows(name);
         let ll = dict_or_empty(eff.get("lot_list"))?;
         let get = |k: &str, d: Value| ll.get(k).cloned().unwrap_or(d);
         let wl_rows = rows("work_log_files")?;
@@ -1349,7 +1608,7 @@ impl Builder {
             }
         }
         let groups = group_views(&rows("equipment_groups")?)?;
-        let srcs = sources(&eff, &rows("data_sources")?)?;
+        let srcs = sources(eff, &rows("data_sources")?)?;
         let tables = conv_tables(&rows("conversions")?)?;
         let conv_rev = format!("rs:{}", &sha1_hex(tables.to_string().as_bytes())[..16]);
         let shifts = rows("shift_patterns")?;

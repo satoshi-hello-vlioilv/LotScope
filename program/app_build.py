@@ -22,6 +22,7 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 EXTS = (".py", ".html", ".js", ".css", ".json")
+SKIP_DIRS = ("__pycache__", "vendor")     # 指紋に入れないフォルダ（窓の src/page.rs も同じ表〈bundle_tables.json〉で数える）
 
 
 def app_version(base=BASE):
@@ -39,7 +40,7 @@ def fingerprint(base=BASE):
     root = base / "app"
     items = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in ("__pycache__", "vendor"))
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         for name in filenames:
             if name.endswith(EXTS):
                 p = Path(dirpath) / name

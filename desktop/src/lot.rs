@@ -90,6 +90,8 @@ pub struct Lot {
     local_root: PathBuf,
     /// 設定の束を自分で組む係（版 3.84.0。src/bundle.rs）。窓（main.rs）が入れる。無い・組めないときは Python に尋ねる
     bundle: Mutex<Option<Arc<crate::bundle::Builder>>>,
+    /// 画面（GET /）を描く係（版 3.85.0。src/page.rs）。型と指紋を覚える
+    page: crate::page::Page,
 }
 
 impl Lot {
@@ -109,6 +111,7 @@ impl Lot {
             gate: Gate::default(),
             store: Mutex::default(),
             bundle: Mutex::default(),
+            page: crate::page::Page::default(),
         }
     }
 
@@ -122,6 +125,54 @@ impl Lot {
     pub fn own_bundle(&self) -> Option<Result<Value, &'static str>> {
         let b = self.bundle.lock().unwrap().clone()?;
         Some(b.build().map_err(|e| e.0))
+    }
+
+    /// 画面（GET /・HEAD /。版 3.85.0）を窓が描く。束を組む係が無い・窓が Python と同じに描けない形は None（Python に任せる）
+    pub fn page(&self, head: bool) -> Option<crate::page::Html> {
+        let b = self.bundle.lock().unwrap().clone()?;
+        let inp = b.inputs().ok()?;
+        for name in ["ui_defaults", "conversions"] {
+            inp.check(name).ok()?;
+        }
+        let profile: Vec<String> = crate::bundle::tables()["uiProfileKeys"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|x| x.as_str().map(String::from))
+            .collect();
+        let parts = crate::page::Parts {
+            ui_state: presence::ui_state::load(&b.env().local),
+            ui_profile: crate::ui_defaults::profile_of(&inp.rows("ui_defaults").ok()?, &profile)?,
+            conversions: crate::page::conversion_views(&inp.rows("conversions").ok()?, inp.revision("conversions").ok()?).ok()?,
+        };
+        self.page.index(&b.env().program, parts, head)
+    }
+
+    /// GET /api/config（版 3.85.0）。束を組む係が無い・組めない形は None
+    fn config_route(&self) -> Option<(u16, Value)> {
+        let b = self.bundle.lock().unwrap().clone()?;
+        b.config().ok().map(|v| (200, v))
+    }
+
+    /// ダッシュボードの数える係の持ち物を組んで f に渡す（POST /api/dashboard/query・GET /api/dashboard/equip-tree）
+    fn with_dash<T>(&self, ask: AskSettings, f: impl FnOnce(&dashboard::Ctx) -> Option<T>) -> Option<T> {
+        let s = self.settings(ask).ok()?;
+        if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
+            return None; // ダッシュボードの材料を答えない中身（前の版の Python）は、Python が答える
+        }
+        let m = self.mirror(&s);
+        let lists = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
+        let conf = Conf { v: &lists };
+        let q = Quality { mirror: m, table: &s.table, page_size: s.page_size };
+        let cx = dashboard::Ctx {
+            lists: &self.lists,
+            conf: &conf,
+            q: &q,
+            now: dashboard::now_of(&conf),
+            conv: &self.tables(&s),
+            cache: &self.dash,
+        };
+        f(&cx)
     }
 
     /// 置き場の答え（一覧の設定の access）に合わせた書く係（置き場か名乗りが変われば作り直す）
@@ -607,29 +658,27 @@ impl Lot {
         if presence::is_route(method, path) || path == "/api/ui-state" {
             return self.presence_route(method, path, query, body, ask);
         }
+        // 最初の画面が尋ねる読む道（版 3.85.0）: 画面の設定・ダッシュボードのデータの並び・設備の木
+        match (method, path) {
+            ("GET", "/api/config") => return self.config_route(),
+            ("GET", "/api/dashboard/sources") => {
+                let s = self.settings(ask).ok()?;
+                if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
+                    return None;
+                }
+                let lists = self.lists_of(&s)?;
+                return dashboard::sources_answer(&Conf { v: &lists }, &crate::bundle::tables()["periods"]).map(|v| (200, v));
+            }
+            ("GET", "/api/dashboard/equip-tree") => return self.with_dash(ask, dashboard::equip_tree_answer).map(|v| (200, v)),
+            _ => {}
+        }
         if (method, path) != ("POST", "/api/dashboard/query") {
             return self.handle(method, path, query, ask);
         }
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
         }
-        let s = self.settings(ask).ok()?;
-        if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
-            return None; // ダッシュボードの材料を答えない中身（前の版の Python）は、Python が答える
-        }
-        let m = self.mirror(&s);
-        let lists = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
-        let conf = Conf { v: &lists };
-        let q = Quality { mirror: m, table: &s.table, page_size: s.page_size };
-        let cx = dashboard::Ctx {
-            lists: &self.lists,
-            conf: &conf,
-            q: &q,
-            now: dashboard::now_of(&conf),
-            conv: &self.tables(&s),
-            cache: &self.dash,
-        };
-        dashboard::query(&cx, body)
+        self.with_dash(ask, |cx| dashboard::query(cx, body))
     }
 
     /// 窓が答える問い合わせなら (状態, 答え)。Python に任せるなら None。
