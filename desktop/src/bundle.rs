@@ -350,10 +350,13 @@ fn host_name() -> String {
     std::fs::read_to_string("/proc/sys/kernel/hostname").map(|x| x.trim_end_matches('\n').to_string()).unwrap_or_default()
 }
 
+/// 設定の値ごとに覚えた PC 名（設定の値 → (名前, どこから)）
+type PcCache = (String, (String, String));
+
 /// identity.resolve_pc_name: 設定（この端末の名前）→ ホスト名 → COMPUTERNAME → platform.node → HOSTNAME → FQDN → /etc/hostname
 /// （使えない名前〈localhost など〉は飛ばし、80 字まで）→ (名前, どこから)
 pub fn pc_name(over: &str) -> (String, String) {
-    static CACHE: LazyLock<Mutex<Vec<(String, (String, String))>>> = LazyLock::new(Mutex::default);
+    static CACHE: LazyLock<Mutex<Vec<PcCache>>> = LazyLock::new(Mutex::default);
     let key = pyfmt::strip(over).to_string();
     if let Some((_, v)) = CACHE.lock().unwrap().iter().find(|(k, _)| *k == key) {
         return v.clone();
@@ -761,6 +764,9 @@ fn joins_of(v: Option<&Value>) -> R<Value> {
     Ok(Value::Array(out))
 }
 
+/// 並べる鍵（並びの番号・組み込みが先・id）と元
+type Keyed = ((i64, i64, i64), Map<String, Value>);
+
 fn order_of(v: &str) -> i64 {
     let x = if v.is_empty() { "1000000" } else { v };
     pyfmt::py_int(x).unwrap_or(1_000_000)
@@ -863,7 +869,7 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         out.push(d.as_object().cloned().unwrap());
     }
     let rest = out.split_off(2.min(out.len()));
-    let mut keyed: Vec<((i64, i64, i64), Map<String, Value>)> = vec![];
+    let mut keyed: Vec<Keyed> = vec![];
     for d in rest {
         let builtin = d["builtin"] == true;
         let order = d["order"].as_str().unwrap_or("").to_string();
@@ -877,7 +883,7 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         let id = if truthy(d.get("id")) { int_of(d.get("id"))? } else { 0 };
         keyed.push(((a, if builtin { 0 } else { 1 }, id), d));
     }
-    keyed.sort_by(|x, y| x.0.cmp(&y.0));
+    keyed.sort_by_key(|x| x.0);
     out.extend(keyed.into_iter().map(|(_, d)| d));
     // 結合した表: 場所・表は元の物
     let snapshot = out.clone();
@@ -960,7 +966,7 @@ fn group_views(rows: &[Value]) -> R<Vec<Value>> {
         let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { 0 };
         keyed.push(((group_order(o), id), o));
     }
-    keyed.sort_by(|a, b| a.0.cmp(&b.0));
+    keyed.sort_by_key(|x| x.0);
     let set_default = t(&["equipGroups", "setDefault"]).clone();
     let mut out = vec![];
     for (_, o) in keyed {
@@ -1008,7 +1014,7 @@ fn conv_tables(rows: &[Value]) -> R<Value> {
         let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { 0 };
         keyed.push(((conv_order(o), id), o));
     }
-    keyed.sort_by(|a, b| a.0.cmp(&b.0));
+    keyed.sort_by_key(|x| x.0);
     let mut out = Map::new();
     for (_, o) in keyed {
         let name = if truthy(o.get("名前")) { py_str(&o["名前"]) } else { String::new() };
@@ -1047,7 +1053,7 @@ fn work_ordered(rows: &[Value]) -> R<Vec<&Value>> {
         let n = pyfmt::py_int(&raw).ok();
         keyed.push(((n.is_none(), n.unwrap_or(0), i), r));
     }
-    keyed.sort_by(|a, b| a.0.cmp(&b.0));
+    keyed.sort_by_key(|x| x.0);
     Ok(keyed.into_iter().map(|(_, r)| r).collect())
 }
 
