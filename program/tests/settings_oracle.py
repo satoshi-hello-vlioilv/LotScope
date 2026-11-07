@@ -188,14 +188,15 @@ def scenarios(work):
 
     def over_nan(r):
         masters(share=r / "share2")
-        (r / "local" / "master_share.json").write_text('{"dir": "%s", "n": NaN, "big": 123456789012345678901234567890}' % (r / "share2"), encoding="utf-8")
+        (r / "local" / "master_share.json").write_text('{"dir": %s, "n": NaN, "big": 123456789012345678901234567890}' % json.dumps(str(r / "share2")),
+                                                     encoding="utf-8")
         return config(r)
     sc("この PC の覚えに NaN と大きな整数", over_nan)
 
     def moved_nan(r):
         masters(share=r / "share")
         masters(share=r / "share2")
-        (r / "share" / "_MOVED.json").write_text('{"to": "%s", "at": "2026-11-01T09:00:00", "x": NaN}' % (r / "share2"), encoding="utf-8")
+        (r / "share" / "_MOVED.json").write_text('{"to": %s, "at": "2026-11-01T09:00:00", "x": NaN}' % json.dumps(str(r / "share2")), encoding="utf-8")
         return config(r)
     sc("引っ越しの印に NaN", moved_nan, py_follows=True)
 
