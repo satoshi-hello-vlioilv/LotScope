@@ -239,12 +239,7 @@ fn eval(e: &Expr, ctx: &Map<String, Value>, build: &str) -> Option<Evaled> {
 // ------------------------------------------------------------------ 指紋（app_build.fingerprint）
 /// app/version.py の APP_VERSION（app_build.app_version と同じ読み方。読めなければ空）
 pub fn app_version(program: &Path) -> String {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r#"APP_VERSION\s*=\s*"([^"]+)""#).unwrap());
-    std::fs::read_to_string(program.join("app").join("version.py"))
-        .ok()
-        .and_then(|t| re.captures(&t).map(|c| c[1].to_string()))
-        .unwrap_or_default()
+    crate::small_reads::app_version(program).unwrap_or_default() // 窓の版の読み手は 1 つ（版 3.88.0）
 }
 
 fn walk(root: &Path, dir: &Path, exts: &[String], skip: &[String], items: &mut Vec<String>) {

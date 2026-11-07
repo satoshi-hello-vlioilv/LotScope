@@ -53,10 +53,17 @@
     ok("static の外へは出ない", escape.r.status === 404, escape.r.status);
 
     // 3) API
-    const b = await get("/api/build");
+    // 版 3.88.0 から /api/build・/api/changelog は窓が答える（src/small_reads.rs）。Python を通る確かめは ?engine=python で
+    const b = await get("/api/build?engine=python");
     ok("API が答える（/api/build）", b.r.ok && b.by === "python" && JSON.parse(b.text).version, b.text.slice(0, 80));
-    const ch = await get("/api/changelog");
-    ok("大きな答え（更新履歴）が欠けずに届く", ch.r.ok && JSON.parse(ch.text).entries.length > 10, ch.text.length + " 字");
+    const ch = await get("/api/changelog?engine=python");
+    ok("大きな答え（更新履歴）が欠けずに届く", ch.r.ok && ch.by === "python" && JSON.parse(ch.text).entries.length > 10, ch.text.length + " 字");
+    const sb = await get("/api/build"), sch = await get("/api/changelog");
+    // 更新履歴の先頭が中身の版と違う版（desktop/bundle/verify.py が版の字だけを書き換えた試験の版）は、焼いた更新履歴の版も違うので
+    // 窓は Python に任せる（本物の配る版は tests/test_version.py が先頭と版を揃え、--release が焼く）
+    const chv = (() => { try { const j = JSON.parse(ch.text); return j.entries[0].version === j.version; } catch (_) { return true; } })();
+    ok("版と更新履歴は窓が答え、Python と 1 字も違わない", sb.by === "shell" && (sch.by === "shell" || !chv) && sb.text === b.text && sch.text === ch.text,
+       `${sb.by}/${sch.by}・${sch.text.length} 字 / ${ch.text.length} 字`);
     const nf = await get("/api/no-such-route");
     ok("無いところは 404", nf.r.status === 404 && nf.by === "python", nf.r.status);
     // 画面の設定の控えは窓が答える（版 3.71.0。src/presence.rs）。engine=python は Python に任せる（中身との枠の往復を確かめる）
@@ -93,7 +100,7 @@
     ok("日本語の問い合わせ文字（Python が JSON で答える）", q.by === "python" && qj && (q.r.ok || qj.error), `${q.r.status} ${q.text.slice(0, 80)}`);
 
     // 6) 同時の問い合わせが混ざらない
-    const paths = Array.from({ length: 40 }, (_, i) => (i % 2 ? "/api/build" : `/static/js/shared.js?v=p${i}`));
+    const paths = Array.from({ length: 40 }, (_, i) => (i % 2 ? "/api/build?engine=python" : `/static/js/shared.js?v=p${i}`));
     const all = await Promise.all(paths.map((p) => get(p)));
     ok("40 本同時でも、それぞれの答えが届く", all.every((x, i) => x.r.ok && (i % 2 ? JSON.parse(x.text).version : x.by === "shell")));
 
@@ -300,7 +307,7 @@
 
     // 13) 速さ（参考）: Python へ 30 回・Rust の部品 30 回の平均（ミリ秒）
     const avg = async (url) => { const s = performance.now(); for (let i = 0; i < 30; i++) await (await fetch(url)).arrayBuffer(); return (performance.now() - s) / 30; };
-    const py = await avg("/api/build"), sh = await avg(`/static/js/shared.js?v=${fp}`);
+    const py = await avg("/api/build?engine=python"), sh = await avg(`/static/js/shared.js?v=${fp}`);
     ok("問い合わせの速さ（参考）", py < 300, `Python ${py.toFixed(1)}ms / Rust の部品 ${sh.toFixed(1)}ms`);
   } catch (e) {
     ok("例外", false, e && (e.stack || e.message || e));

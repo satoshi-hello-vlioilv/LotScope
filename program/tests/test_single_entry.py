@@ -49,7 +49,8 @@ FORBIDDEN = {
     "TPA_VBS_DRYRUN": "Start.vbs の確かめ",
     "vbs_launcher": "Start.vbs の記録",
 }
-SKIP = {PROGRAM / "app" / "version.py", Path(__file__).resolve()}
+# 更新履歴は昔の版の注記を含む（app/changelog.json は version.py の更新履歴を焼いた物。版 3.88.0）
+SKIP = {PROGRAM / "app" / "version.py", PROGRAM / "app" / "changelog.json", Path(__file__).resolve()}
 
 
 def scanned():

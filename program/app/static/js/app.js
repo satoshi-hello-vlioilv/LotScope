@@ -523,7 +523,10 @@ $("#scNever").onclick = async () => {
 TPA.layer($("#shortcutModal"), closeShortcut);
 
 async function openChangelog() {
-  const d = await (await fetch("/api/changelog")).json();
+  // 読めない（中身の準備の前・つながらない・壊れた答え）ときは止まらずに知らせる（版 3.88.0）
+  let d = null;
+  try { const r = await fetch("/api/changelog"); d = r.ok ? await r.json() : null; } catch (_) { d = null; }
+  if (!d || !Array.isArray(d.entries)) { fail("更新履歴を読めませんでした。少し待ってからもう一度押してください。"); return; }
   $("#clSub").innerHTML = `いまの版: <b class="cl-ver">${esc(d.version)}</b>`;
   paintUpdateBox();
   $("#clBody").innerHTML = d.entries.map((e) => `<div class="cl-entry"><h4>${esc(e.version)}<small>${esc(e.date || "")}</small>${e.version === d.version ? '<span class="cl-now">いまの版</span>' : ""}</h4>

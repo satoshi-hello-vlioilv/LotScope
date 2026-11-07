@@ -927,6 +927,28 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
 - 評価関数（足した物）: `cargo test --lib sources_list::`（結合の覚えの読み方・Python が落ちる形）・`the_window_answers_the_sources_list` に周回の様子のファイル・engine = python・
   周回の途中でも待たない、を足した。page_parity は場面の Python が窓へ知らせなくなったので、写しを待たずに 3 秒で流れる（前は約 150 秒）。
 
+### 段 3 の 6 歩目: 版と更新履歴（GET /api/build・/api/changelog）を窓が答える — 版 3.88.0
+
+小さい読む道 3 本（routes/system.py の build・changelog・health）の移し方を決まり 2026-11-06 で 7 案にして別のエージェントが 1 回だけ採点した
+（`tools/ui-proposals/2026-11-port-small.json`。1 位 **A** 69.1 点・C 63.9・G 59.6・F 58.4・B 53.7・D 53.6・E 37.5）。80 点に届かないので、A に採点の指摘を入れて作った。
+
+- 焼く: `app_build.py --release`（--amend・記録済みで戻る道でも）の最初に `write_changelog` が app/version.py の CHANGELOG を
+  app/changelog.json へ、Python の jsonify と 1 バイトも違わない字（鍵の順・日本語は \u・詰めた区切り・改行。約 390 KB）で焼く。配った版の注記を
+  直しても要約が変わらないよう RELEASE_SKIP に入れる。`tests/test_version.py` の ChangelogJson が、古くないか・Python の答えと同じバイトか・
+  git が知るファイルか（配る ZIP は git ls-files）を止める。
+- 窓（`desktop/src/small_reads.rs`）: /api/build は `{"version":…}`、/api/changelog は焼いた字をそのまま（焼いた版が中身の版と同じときだけ。無い・読めない・
+  版が違う〈前の版へ戻した形〉は Python）。?engine=python は Python。version.py と changelog.json は更新時刻と大きさで覚え、窓の版の読み手
+  （update::program_version・page::app_version）はどちらも `small_reads::version_py` から読む。/api/health は Python のまま（Python が答えているかの印。
+  窓が ok を返すと Python が止まっても ok になる）。
+- 自己診断（selftest.js）: Python を通る確かめ（API が答える・40 本同時・速さ）は `?engine=python` に替え、窓と Python の /api/build・/api/changelog が
+  1 字も違わないかを足した。画面の openChangelog は答えが 200 でなければ止まらずに「少し待ってから」と出す。
+- 評価関数: `tests/test_version.py`（ChangelogJson）・`cargo test --lib small_reads::`（jsonify と同じ字・版が違う／無い／読めないは任せる・書き直しで覚えを捨てる）・
+  自己診断の「版と更新履歴は窓が答え、Python と 1 字も違わない」。
+- 作った後の採点（1 回だけ。64.4 点。減点 −10）: 割れ 7 件。Windows の checkout で焼いた更新履歴が CRLF になり窓の答えが 1 バイトずれる（自己診断が落ち、
+  版を配れない）・HEAD に Content-Length が無い・問い合わせのたびに 392 KB を読み直す・同じ大きさの書き直しを古いまま答える・受け口の試験が無い・
+  版の読み方が 2 つ・app.js が例外を拾わない。どれも直した（.gitattributes の -text と \r の試験・Content-Length・焼いた版も覚える・書いて 2 秒は覚えない・
+  small_reads::reply と試験・読み手は small_reads::app_version の 1 つ・try/catch。`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

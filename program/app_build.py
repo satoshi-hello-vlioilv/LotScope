@@ -15,6 +15,7 @@
       まだ配っていない版を直しただけなら `python app_build.py --amend`（版はそのままで要約だけ書き直す）
 """
 import hashlib
+import json
 import os
 import re
 import sys
@@ -58,7 +59,10 @@ def fingerprint(base=BASE):
 # 配る物: app/（three.js も）・窓口（sidecar.py）と場所の決まり・設定・マスタの初期値（入口の exe は desktop/ で作る）。
 # 説明（README・docs・.md）とテストは含めない。app/version.py 自身も含めない（RELEASE を書くと要約が変わるため）
 RELEASE_GLOBS = ("app/**/*", "*.py", "config/*.json", "data/*")
-RELEASE_SKIP = {"app/version.py"}
+# app/changelog.json は app/version.py の CHANGELOG を焼いた物（版 3.88.0。窓が /api/changelog を答える）。
+# 配った版の注記を直しただけで要約が変わらないよう、version.py と同じく要約に入れない
+RELEASE_SKIP = {"app/version.py", "app/changelog.json"}
+CHANGELOG_JSON = "app/changelog.json"
 
 
 def release_files(base=BASE):
@@ -101,8 +105,25 @@ def _write_release(base, version, digest):
     Path(importlib.util.cache_from_source(str(path))).unlink(missing_ok=True)   # 直後のテストが古い控えを読まないように
 
 
+def changelog_text(v):
+    """GET /api/changelog の答えの字（routes/system.py の jsonify と 1 バイトも違わない形: 鍵の順・日本語は \\u・詰めた区切り・改行）。"""
+    return json.dumps({"version": v["APP_VERSION"], "entries": v["CHANGELOG"]}, ensure_ascii=True, sort_keys=True,
+                      separators=(",", ":")) + "\n"
+
+
+def write_changelog(base=BASE):
+    """app/version.py の更新履歴を app/changelog.json に焼く（版 3.88.0。窓〈desktop/src/small_reads.rs〉が読む）。変わらなければ書かない。"""
+    path = Path(base) / CHANGELOG_JSON
+    text = changelog_text(_version_module(base))
+    if not path.exists() or path.read_text(encoding="utf-8") != text:
+        path.write_text(text, encoding="utf-8", newline="\n")
+    return path
+
+
 def record_release(base=BASE, amend=False):
-    """RELEASE を書く。版を上げずに中身だけ変えた記録は作らない（上げ忘れを止めるための仕組みなので）。"""
+    """RELEASE を書く。版を上げずに中身だけ変えた記録は作らない（上げ忘れを止めるための仕組みなので）。
+    更新履歴の焼いた物（app/changelog.json）も、記録の前に必ず書く（記録済みで戻る道・--amend でも）"""
+    write_changelog(base)
     v = _version_module(base)
     digest = release_digest(base)
     cur, rel, key = v["APP_VERSION"], v["RELEASE"], v["version_key"]

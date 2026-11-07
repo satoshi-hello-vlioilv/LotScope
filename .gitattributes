@@ -1,0 +1,2 @@
+# 焼いた更新履歴（版 3.88.0）: 窓が字のまま返し、Python の答えと 1 バイトも違わないことを確かめる。Windows の checkout で改行を CRLF にしない
+program/app/changelog.json -text
