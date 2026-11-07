@@ -138,6 +138,12 @@ def _now():
     return datetime.now()
 
 
+def _shell_follows():
+    """引っ越しの印をたどるのは窓か（窓が bundle を受け持つと名乗ったとき。版 3.84.0。app/__init__.py の shell_serves）"""
+    from .. import shell_serves
+    return "bundle" in shell_serves()
+
+
 def _iso(dt):
     return dt.isoformat(timespec="seconds")
 
@@ -426,6 +432,10 @@ class MasterStore:
         if not force and now - self._moved_checked < self.refresh_sec:
             return False
         self._moved_checked = now
+        if _shell_follows():
+            # 窓（desktop/src/bundle.rs）が引っ越しの係（版 3.84.0）。2 つの係が同じ印をたどると、この PC の覚えの履歴に同じ置き場が
+            # 2 回載る。Python は印をたどらず、窓が書いたこの PC の覚えを読み直して、置き場を合わせるだけ
+            return self._reload_override()
         # 配る版の覚えに全員が使う置き場があれば、それに従う（印をたどるより確か。版 3.34.0）
         pin = self._pin_target()
         if pin is not None:
@@ -455,6 +465,18 @@ class MasterStore:
             return False
         log.info("MASTER_FOLLOW_MOVED from=%s to=%s", self.share_dir, cur)
         self.retarget(cur)
+        return True
+
+    def _reload_override(self):
+        """この PC の覚え（master_share.json）の置き場が今の置き場と違えば、そちらへ合わせる（覚えは書かない）。合わせたら True"""
+        try:
+            ov = str(_read_json(self.override_path).get("dir") or "").strip()
+        except (OSError, ValueError, AttributeError):
+            return False
+        if not ov or (self.share_dir is not None and _norm(ov) == _norm(self.share_dir)):
+            return False
+        log.info("MASTER_FOLLOW_SHELL from=%s to=%s", self.share_dir, ov)
+        self.retarget(Path(ov), persist=False)
         return True
 
     def _maybe_refresh(self, name, force=False):

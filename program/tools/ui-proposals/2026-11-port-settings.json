@@ -1,0 +1,229 @@
+{
+  "title": "Rust 化の次の段: 窓が毎回 Python に尋ねている設定の束（GET /api/lotlist/settings）をどう窓へ移すか（2026-11-07）",
+  "rule": "2026-11-06",
+  "measured": "棚卸し（2026-11-07・main ecf0e34）: 窓は 10 秒ごと（lot.rs SETTINGS_TTL）に Python へ GET /api/lotlist/settings を尋ね（main.rs :282）、その答えで一覧・集計・ダッシュボード・保存の道・権限・使用の履歴・計算の全部を段取りする。Python が答えないと lot.rs の settings が Err になり、窓が受け持つ道もすべて None（Python へ回す）。束の中身（routes/lotlist.py の lotlist_settings・lists_settings・_access_place・_conversions）: (1) source・refresh_seconds・stale_hours・table・page_size … 配った設定 config/appsettings.json（APP_SETTINGS）に参照先マスタ path_settings を重ねた物（services/path_settings.py 245 行の effective・parse。__init__.py の effective_settings）、(2) engine … APP_SETTINGS.desktop.lotlist_engine と shell_serves・タブの権限の条件、(3) conversions … 変換表マスタの版（store.stamp）と tables、(4) lists … hidden（窓が権限を受け持つとき null）・dash（_equipment_names: 作業実績の登録→設備マスタの設備名・equip_groups.view の並び・試験の『いま』DASHBOARD_NOW）・sources（routes/sources.py の all_sources → services/data_sources.py 383 行の sources: 組み込みの元＋足した元・並び・結合・read_params・結合した表）・work（work_log.params と登録の行）・shifts（勤務体系の行）、(5) access … who（identity.current: ログイン ID の順・PC 名の 7 つの候補と設定の上書き・presence.terminal_key は sha1 の 6 字）と place（共有の置き場・共有の名前・data・defaults・cache・presence・lockTtl。読む前に master_store.follow_moved〈46 行。引っ越しの印をたどる〉）、(6) calculation … APP_SETTINGS.calculation、(7) uiProfileKeys … 定数。答えは 24,016 バイト・20 回の中央 2.1 ms（前回の採点者の測り）。窓に既にある部品: master_store.rs（読み書き・錠）・access.rs（Place・me・py_key）・lists.rs（sources を読む側）・formula.rs（変換表を引く側）・worksum.rs（勤務体系）・pyfmt（int・float の読み方）。窓に無い物: path_settings の重ねと parse・data_sources.sources・follow_moved・identity・terminal_key（sha1。依存は sha2 だけ）。前回の採点（2026-11-port-next.json）の A への指摘: 引っ越しの係を 1 つに（両方がたどると master_share.json の履歴に同じ置き場が 2 回載る）・参照先の数は pynum の表で読み NaN・inf を断る（版 3.83.0 で Python 側は直した）・Python に任せる形をはっきり（マスタが読めない・前の版の中身）・試験の差し替え（DASHBOARD_NOW・as_role・メモリの APP_SETTINGS）を窓へ渡す道（環境変数と TRANSFER_APP_CONFIG）・名乗りは identity.py の順のまま・Windows だけのコードは MSVC の clippy・Python の設定の道は前の版の窓と答え合わせの相手として残す・lists.sources に role が無い。",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-next.json の rounds、program/app の __init__.py（effective_settings・lot_list_params・lot_engine・shell_serves・MasterStore と presence.configure・on_moved）・routes/lotlist.py（lotlist_settings・lists_settings・_access_place・_conversions）・routes/dashboard.py（_equipment_names・_now_override）・routes/sources.py（_all・GET /api/sources・_rows_of）・routes/settings.py（GET /api/settings）・services の path_settings.py（ITEMS・parse・effective）・data_sources.py（sources・read_params・_num・_order・clean_row）・identity.py・presence.py（terminal_key）・work_log.py（params・split_pattern）・repositories/master_store.py（__init__・_doc_path・retarget・_pin_target・moved_to・follow_moved・_maybe_refresh）・master_repository.py の読む所・tools/ui_server.py（as_role・build）、desktop/src の lot.rs（Settings・from_json・SETTINGS_TTL・settings・store_for・lists_of・access_check。self.settings(ask).ok()? の 17 か所）・main.rs :260〜290・router.rs（Supervisor の ask・起こし直し）・sidecar.rs の SERVES・access.rs（Place・rows・split_file・share_absent・me）・dashboard.rs の groups_for・lists.rs（unquote_path・split_pattern）・pyfmt.rs・Cargo.toml。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-settings）: probe.py（ui_server.build の開発用サーバーで GET /api/lotlist/settings を 20 回。200・24,647 バイト・中央 2.8 ms。束の鍵の全部を bundle.json に書き出し、窓の Rust が読む鍵と読まない鍵を grep で分けた。place.cache・presence が TRANSFER_LOCAL_ROOT でなく WORK/masters の下）・Python の起動から最初の束まで（create_app＋1 回の問い合わせ。約 0.2 秒）・read_params に inf・nan・1e400・全角・下線を当てた（inf・1e400 は OverflowError、nan は ValueError、『１２』は 12）・clean_row は同じ字を 10〜3600 で断る・moved.py（同じ作業場所の MasterStore 2 つが同じ引っ越しの印をたどると、master_share.json の history が ['A', 'A']）。cargo は流していない（採点に要る事実はコードと Python で確かめた）。11 項目の読み替え: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ",
+  "proposals_text": {
+    "A 束を一括で窓が組む（指摘入り）": "束の全部（1〜7）を窓が配った設定とマスタの置き場から組み、Python には尋ねない（窓が組めない形〈マスタを読めない・前の版の中身〉だけ今のとおり尋ねる）。path_settings の重ねと parse（数は pynum で読み NaN・inf を断る）・data_sources.sources・work_log.params・設備の名前と設備グループの view・変換表の tables・名乗り（identity.py の順・terminal_key に sha1）・置き場と follow_moved（引っ越しの係は窓 1 つ。Python は読み直すだけ）を Rust に写す。試験の差し替えは環境変数と設定ファイルで窓へ渡す。突き合わせは settings_oracle.py が場面ごとに Python の答えの JSON と窓の束を 1 字ずつ比べる。",
+    "B 影の形（窓が組み、Python と突き合わせてから切り替える）": "A と同じ部品を作るが、この版では窓の束は Python が答えないときだけ使う。Python が答えるときは両方を作って比べ、違えば Python の答えを使い、違いを窓の作業場所の記録に残す（次の版で切り替える判断の材料）。名乗りと引っ越しは Python の答えを控えに持ち、Python が答えないときは控えを使う（引っ越しの係は Python のまま 1 つ）。",
+    "C 段で分ける（1 段目: 静的な物とマスタの読み）": "この版は (1)(2)(3)(6)(7) と lists の dash・work・shifts（配った設定と参照先の重ね・変換表・作業実績の登録・勤務体系・設備の名前と設備グループ）を窓が組む。データ元の並び（lists.sources）と名乗り・置き場（access）は、Python の最後の答えを窓の作業場所に控えて使う（Python が答えないときも控えで動く）。2 段目で sources、3 段目で access を移す。",
+    "D 最後の答えの控えだけ": "Rust で束は組まない。窓が Python の最後の答え（束）を作業場所のファイルに控え、Python が答えないときはその控えで段取りする（控えの古さは記録し、マスタの版が変われば捨てる）。量は最小だが、Python が一度も起きない PC（入れた直後）では動かない。",
+    "E 窓が組み、組めない名乗りだけ小さな道で尋ねる": "束のうち名乗り（who）以外を窓が組む（引っ越しの係も窓）。名乗りは Python の新しい小さな道 GET /api/shell/identity に起動のときだけ尋ね、答えを控える（変わらないので 10 秒ごとに尋ねない）。名乗りは次の版で窓へ。",
+    "F 先に共通の部品（参照先の重ね・データ元の並び）と読む道": "path_settings.effective・parse と data_sources.sources を Rust の部品にし、GET /api/settings（参照先の一覧）・GET /api/sources（データ元の一覧）の読む道を窓が答える。束の (1) と lists.sources はこの部品で窓が組み、Python の答えと突き合わせる（束の残りは次の版）。部品が既にある所から道を増やす。"
+  },
+  "rounds": [
+    {
+      "name": "1 回目",
+      "images": "画面に出ない改良なので画像は無い",
+      "self_check": "案を作った者が自分で読んで確かめた（画面に出ない改良）",
+      "proposals": {
+        "A 束を一括で窓が組む（指摘入り）": {
+          "score": {
+            "order": 10,
+            "chunk": 6,
+            "hierarchy": 9,
+            "visual": 8,
+            "steps": 9,
+            "effortless": 6,
+            "intuitive": 7,
+            "form": 8,
+            "place": 8,
+            "layout": 6,
+            "tone": 7
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "引っ越しの係を窓 1 つにする所: Python の MasterStore.follow_moved は lotlist._access_place（束を尋ねるたび）だけでなく、_maybe_refresh（repositories/master_store.py :463。共有するマスタを読むたびに 5 秒〈REFRESH_DEFAULT〉に 1 回）と _doc_path（:324。手元だけの PC）からも呼ばれ、Python はほかの道のために起きている限り自分の share_dir でたどり続ける。Python の share_dir は __init__ で master_share.json を 1 度読むだけで、読み直す所が無い。同じ作業場所の 2 つの係が同じ印をたどると history に同じ前の置き場が 2 つ載る（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-settings/moved.py で確かめた: 1 つ目 True・2 つ目 True・history ['A', 'A']）。『Python は読み直すだけ』には MasterStore の 3 か所を窓の名乗りで切り替え、master_share.json を読み直して retarget(persist=False) と on_moved（presence.configure）をする形が要るが、案の文に無い"
+            },
+            {
+              "kind": "hidden_state",
+              "where": "Python が束を作れない形: data_sources の行の『確かめる間隔』『古さの警告』が inf・nan・1e400 だと read_params の _num が int(n) で OverflowError・ValueError を投げ（try の外）、lists_settings が落ちて Python は lists=null・engine=python を答える（窓は全部を Python へ）。clean_row は 10〜3600 で断るので、手で直したファイル・前の版の中身で起きる。全角『１２』・『1_0』は float() が 12・10 と読む（pynum の float の表の範囲）。窓が組むなら同じ形で組まない（任せる）か両方を直すかを決める要があり、案の文は NaN・inf を参照先の parse でしか見ていない"
+            }
+          ],
+          "seen": "良い所: 窓の道は lot.rs の 17 か所が self.settings(ask).ok()? で束に頼り、main.rs :282 の lot_settings は Python の GET /api/lotlist/settings が 200 でなければ Err。束を窓が組むのが、移した道を Python が起きていない・落ちた PC で答えさせる唯一の形で、入れた直後の PC（Python が一度も答えていない）でも効くのは A だけ（順序 10・ステップ 9）。答えは JSON 1 つで、settings_oracle.py が場面ごとに Python の答えと 1 つずつ比べられる（routes_parity・masters_parity と同じ型。視覚化 8）。部品は窓に多い: access::Place::rows（共有 → 写し → data → 既定。版 3.79.0 の split_file・share_absent も）・master_rows.rs（SPECS の読み替え）・lists::unquote_path・split_pattern・join::list・pyfmt::py_int・py_float・access::py_key・master_store.rs の SHARED_ALWAYS（形と色 8）。前回の指摘（引っ越しの係・pynum・任せる形・試験の差し替え・名乗りの順・MSVC・Python の道を残す）は案の文に入った。悪い所: 量が大きい（path_settings 245・data_sources 383・identity 91・master_store の置き場の 120 行ほどと equip_groups・conversions.tables・work_log.params）。名乗り（os.getlogin・getfqdn の DNS）は Windows でしか本物が見えない（危うさ 7・釣り合い 6）。減点の 2 つ（Python が自分でも引っ越しをたどる 3 か所・read_params が落ちる形）と、ui_server.py の置き場のずれ（fixes）は案の文で潰れていない（考えさせない 6）。測った束: 24,647 バイト・20 回の中央 2.8 ms（開発用サーバーの形）。鍵のうち窓が読まない物: lists.dash.equipGroups の id・rev・order・note・updated_at・updated_by（dashboard.rs の groups_for・sets は name・equipment・rules・except・set だけ）、shifts の rev・updated_*。access.who.pcSource は access.rs :382 で me の pcNameSource に使う",
+          "fixes": [
+            "引っ越しの係は窓 1 つ: 窓が SERVES に place（仮の名）を足して名乗ったら、Python の MasterStore は follow_moved の 3 か所（_access_place・_maybe_refresh :463・_doc_path :324）で印と配る版の覚えをたどらず、master_share.json の dir を読み直して違えば retarget(persist=False) と on_moved（presence.configure）だけをする。窓は follow_moved・_pin_target（chosenAt と setAt の字の比べ・MASTER_MARKERS の有無）・moved_to（_MOVED.json）・MOVED_HOPS・輪と古い印の止め・_norm・retarget の history（HISTORY_KEEP・by）を master_store.rs へ写す。試験は masters_oracle に『印 1 つ・印の輪・古い印・配る版の覚え・人が選んだ時刻が新しい・届かない先』を足し、移った先と master_share.json の中身を比べ、Python と窓を同時に動かして history が 1 つしか増えないことも見る",
+            "Python が束を作れない形は窓も組まない: read_params の _num が inf・nan・1e400 で落ちる（OverflowError は ValueError でない）・マスタが読めない・Place::split_file（NaN・-0・大きな整数・読めない revision）・share_absent の形は、窓は束を作らず Python に尋ね、Python も居なければ今と同じ『一覧の設定を読めません』の 503。直すなら Python の _num も同じ版で直し、事例の表に入れる。全角の数・下線は pynum の float の表で読む",
+            "写すのは束に出る項目だけにする: path_settings の 16 項目のうち束が読むのは lot_list.*・work_log.*・schedule.cm3_base_url（sch の place）。exe（lotdsp_direct.trusted_browser。窓に無い）・release・lotdsp_import.url は束に出ないので parse を写さない。ただし配った設定（appsettings.json）の値は parse を通らず、そのまま束に出る（『60』の字・NaN・1e400 の数）。窓も通して出し、Settings::from_json の as_f64 の読み方と同じ境で場面に入れる",
+            "1 字ずつ比べられない所を決めておく: conversions.rev は Python の f\"{revision}:{(mtime_ns, size)}\"（タプルの repr）で窓の中の『変わったか』にしか使わない → 窓は同じ字を作るか、比べるのをやめて『変換表のファイルを書くと変わる』を試験で見る。place の data（BASE_DIR/data）・defaults（app/master_defaults）・cache・presence は locate.rs の program の置き場と作業場所から作るので、Windows の区切り・大文字・UNC で同じ字になるかを verify.py の通しで見る",
+            "試験と開発用の差し替え: tools/ui_server.py は TRANSFER_LOCAL_ROOT＝WORK/local なのに MasterStore(local_root=WORK/masters) を渡す（測った束の place.cache は …/masters/master_cache、presence は …/masters/presence）。窓が作業場所から組むと置き場が食い違うので、マスタの作業場所（例 TPA_MASTER_LOCAL_ROOT）・『いま』（DASHBOARD_NOW）・権限を決めない形（as_role の _access_place=None）・メモリの APP_SETTINGS（TRANSFER_APP_CONFIG のファイルへ書く）を窓へ渡す道を作り、settings_oracle.py は同じ値で Python の答えを出す",
+            "Python が居ない PC の写し: Python の _maybe_refresh が共有から写し（master_cache）を取り直し、共有に最初の版を作るが、窓の Place::rows は共有を直に読むだけ。共有に届かない日に読む写しが古いまま残らないよう、窓の Store の pull で写しを取り直す（Python と同じ 5 秒の間隔・同じ印）か、Python が居ないときの形を決めて場面に入れる",
+            "名乗りは identity.py の順のまま（os.getlogin → getpass.getuser〈LOGNAME・USER・LNAME・USERNAME・pwd〉→ USERNAME → USER → LOGNAME、PC 名は設定 identity.pc_name → gethostname → COMPUTERNAME → platform.node → HOSTNAME → getfqdn の頭 → /etc/hostname。_usable は lower で比べ 80 字〈コードポイント〉）。Windows は #[cfg(windows)] で GetUserNameW・GetComputerNameExW、MSVC 向け clippy を通す。terminal_key は re の \\s（Unicode）・100 字・sha1 の頭 6 字で、Cargo.toml に sha1 を足す（今は sha2 だけ）か小さな自前にし、字の事例の表を焼いて突き合わせる",
+            "束の鍵は窓が読まない物も Python と同じに出す（settings_oracle が束の全部を比べられるように。equipGroups の id・rev・order・note・updated_*、shifts の rev・updated_*）。読む側は今のまま Settings::from_json",
+            "Python の GET /api/lotlist/settings は残す（前の版の窓・engine=python・答え合わせの相手）。窓が組む束も SETTINGS_TTL 10 秒で覚え、after_python と窓の書く道の後で捨てる。組む速さは共有（SMB）のマスタを 8 つほど直に読むので、遅い共有を作り物で測り（今の Python の束は中央 2.8 ms）、マスタの印（_stat_sig）が同じなら読み直さない"
+          ]
+        },
+        "B 影の形（窓が組み、Python と突き合わせてから切り替える）": {
+          "score": {
+            "order": 8,
+            "chunk": 6,
+            "hierarchy": 6,
+            "visual": 9,
+            "steps": 6,
+            "effortless": 5,
+            "intuitive": 6,
+            "form": 8,
+            "place": 6,
+            "layout": 5,
+            "tone": 8
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "案の文: 名乗りと引っ越しは Python の答えの控えを使う。入れた直後の PC（Python が一度も答えていない）・控えが無いときは access が無く、窓の lot.rs lists_of は access が表でないとき lists.hidden が表でなければ None（Python へ）を返す。窓が組んだ lists の hidden を何にするか（null か、権限を決めずに [] か）が決まっておらず、Python 無しで答えるのか任せるのかが見えない"
+            }
+          ],
+          "seen": "良い所: 引っ越しの係は Python のまま 1 つで、A の減点の 1 つ目（history が 2 回）を避ける。両方を作って比べるので、現場の形での割れが記録に残る（視覚化 9・危うさ 8）。悪い所: 作る量は A と同じで、その上に 10 秒ごとの比べと記録が載る（釣り合い 5）。比べる束には conversions.rev（mtime_ns の字）・place の道・lists.dash.now など、同じ中身でも字が揃わない所があり、比べ方を決めないと記録が割れで埋まる（考えさせない 5）。違えば Python の答えを使うので、割れは利用者に見えず直される時期が延びる。Python が起きていない・落ちた PC では効くが、名乗りと引っ越しは控え頼みで、入れた直後の PC では動かない（ステップ 6）。狙いが『作る』と『比べる』の 2 つ（階層化 6）。答えの元が実行時に 2 つ（言葉と置き場 6）"
+        },
+        "C 段で分ける（1 段目: 静的な物とマスタの読み）": {
+          "score": {
+            "order": 7,
+            "chunk": 8,
+            "hierarchy": 7,
+            "visual": 8,
+            "steps": 6,
+            "effortless": 6,
+            "intuitive": 7,
+            "form": 7,
+            "place": 6,
+            "layout": 8,
+            "tone": 7
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "束の世代が混ざる: lists.sources の品質（lot）の place・table・read は path_settings の lot_list.*（束の上の source・table・refresh_seconds と同じ値）から作る。C は上の (1) を窓が今の参照先で組み、sources は Python の最後の答えの控えを使うので、Python が落ちている間に参照先を直すと、束の source と lists.sources[lot].place が食い違い、一覧の写し（lot.rs）と段取り（lists.rs）が別の元を読む。作業実績も work と sources[work] で同じことが起きる。案の文に無い"
+            }
+          ],
+          "seen": "良い所: 段が分かれ、1 段目は静的な物とマスタの読み（Place::rows・master_rows の SPECS・worksum の勤務体系が使える）で割れにくい（チャンク 8・釣り合い 8）。悪い所: データ元（data_sources.sources・read_params・data_join.parse）と名乗り・置き場は控え頼みで、入れた直後の PC では動かない（ステップ 6）。控えの置き場（作業場所のファイル）と古さの決まりを新しく作り、2 段目・3 段目で捨てる（言葉と置き場 6）。引っ越しは Python の係のままなので history の二重は起きないが、Python が落ちている間は窓は控えの shareDir で読み続ける"
+        },
+        "D 最後の答えの控えだけ": {
+          "score": {
+            "order": 4,
+            "chunk": 9,
+            "hierarchy": 7,
+            "visual": 5,
+            "steps": 3,
+            "effortless": 5,
+            "intuitive": 7,
+            "form": 6,
+            "place": 6,
+            "layout": 9,
+            "tone": 6
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "案の文『マスタの版が変われば捨てる』: Python が落ちている間にほかの PC が変換表・データ元・設備グループを直すと控えを捨て、窓は束が無くなって全部を Python へ回す（落ちているので答えられない）。捨てないと古い束で答える。どちらにするか・古さをどう画面に出すかが無い。lists.hidden・canEditShifts は窓が me から決めるが、access（名乗り・置き場）も控えなので、置き場が引っ越すと古い置き場の権限で門番を通す"
+            }
+          ],
+          "seen": "良い所: 量が最も小さく、束を作る中身は Python のまま 1 つ（割れを生まない。チャンク 9・釣り合い 9）。悪い所: Rust で束を組まないので、Python 無しへの道は進まず、次の段で A と同じ量が残る（順序 4）。入れた直後の PC と、控えを捨てた後は動かない（ステップ 3）。突き合わせる物が無く、試験は控えの読み書きと古さだけ（視覚化 5）"
+        },
+        "E 窓が組み、組めない名乗りだけ小さな道で尋ねる": {
+          "score": {
+            "order": 8,
+            "chunk": 7,
+            "hierarchy": 8,
+            "visual": 8,
+            "steps": 7,
+            "effortless": 6,
+            "intuitive": 6,
+            "form": 8,
+            "place": 6,
+            "layout": 7,
+            "tone": 8
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "A と同じ: 案の文『引っ越しの係も窓』。Python は _maybe_refresh（master_store.py :463）・_doc_path（:324）でも follow_moved を呼び続けるので、Python の MasterStore を窓の名乗りで切り替えないと history に同じ置き場が 2 つ載る（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-settings/moved.py で ['A', 'A']）。切り替えの形が案の文に無い"
+            }
+          ],
+          "seen": "良い所: Windows でしか本物が見えない名乗り（os.getlogin・gethostname・getfqdn の DNS・sha1）を外し、A の残り（参照先・データ元・置き場・引っ越し）を先に移す。名乗りは Python の答えそのものなので、窓と Python の who・key が割れない（危うさ 8）。悪い所: 名乗りを尋ねる新しい道 GET /api/shell/identity を作り、次の版で消す（直感的 6・言葉と置き場 6）。起動のときに Python が答えないと名乗りが無く、access が組めない（控えを作業場所のファイルに残すかが案の文で曖昧）ので、入れた直後の PC・Python が起きない PC では A ほど効かない（ステップ 7・順序 8）。identity.py は 91 行で、名乗りを外して減る量は小さい（チャンク 7）"
+        },
+        "F 先に共通の部品（参照先の重ね・データ元の並び）と読む道": {
+          "score": {
+            "order": 5,
+            "chunk": 7,
+            "hierarchy": 6,
+            "visual": 8,
+            "steps": 3,
+            "effortless": 5,
+            "intuitive": 7,
+            "form": 8,
+            "place": 7,
+            "layout": 6,
+            "tone": 6
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "読む道の中身が束の部品より広い: GET /api/settings（routes/settings.py :13）は path_settings.effective の items を 16 項目すべて答え、exe（lotdsp_direct.trusted_browser。窓に無い）・release・url の parse と config_file（app_env.config_path）・share_dir・revision が要る。GET /api/sources（routes/sources.py :95）は _conn（接続の設定の項目）・placeChanged・shellLists・equipCount・others・newConn・roles・canEdit（me）・shared・revision を答え、_rows_of は写しの SQLite で表を選んで COUNT する。案の文は『部品が既にある所から道を増やす』とするが、この 2 本は部品の外の物が多い"
+            }
+          ],
+          "seen": "良い所: 参照先の重ねとデータ元の並びは束と画面の両方が使う共通の部品で、作れば A の半分ほどが揃う（形と色 8）。悪い所: 束の残り（名乗り・置き場・設備・変換表・勤務体系）は Python に尋ねたままなので、Python が起きていない PC では窓の道は 1 本も答えない（ステップ 3・順序 5）。束の部品と、画面の 2 本の道（設定の画面・データ元の画面）の 2 つの狙いが混ざる（階層化 6）。2 本の道は、読める・読めない・確かめの言葉の割れの元が多い（危うさ 6）"
+        }
+      }
+    }
+  ],
+  "built": {
+    "name": "作った後",
+    "images": "画面に出ない改良なので画像は無い（確かめた事は seen）",
+    "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・両方へ当てて確かめた事実で採点した。リポジトリの中には何も置かず、Python は settings_oracle.py と同じ作り方の係（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/harness.py）で create_app の test_client に GET /api/lotlist/settings を尋ね、窓は scratchpad の作業用クレート（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/probe。da_core を path 依存・CARGO_TARGET_DIR は desktop/target を共用・debug）で bundle::Builder に同じフォルダを渡した",
+    "result": {
+      "proposal": "A 束を一括で窓が組む（指摘入り・作った後）",
+      "score": {
+        "order": 9,
+        "chunk": 6,
+        "hierarchy": 9,
+        "visual": 7,
+        "steps": 9,
+        "effortless": 5,
+        "intuitive": 8,
+        "form": 8,
+        "place": 7,
+        "layout": 6,
+        "tone": 6
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "Python が束を作れない（lists=null・engine=python か、道が落ちる）のに窓が組む形が残る（指摘 (2) の漏れ。窓は engine=rust の束で全部の道を受ける）。(a) 設備マスタ・勤務体系の行に表でない物: equipment_master の rows が [\"x\", {\"id\": 1, \"設備名\": \"A\"}]（[5, …] も）・shift_patterns の rows が [\"x\", …]（[[1], …] も） → Python は MasterRepository._normalize の row.setdefault で落ち、lists_settings の except で lists=null・engine=python ／ 窓は組む（設備の名前は飛ばし、shifts には \"x\" をそのまま入れる）。bundle.rs の rows() が表でない行を continue で残すのに、表でない行で止まるのはデータ元・設備グループ・変換表・作業実績だけ。(b) 設備グループのルールの op が並び・表: ルール {\"rules\": [{\"op\": [\"prefix\"], \"value\": \"L\"}]}（op が {\"a\": 1} も） → Python は equip_groups.clean_rules の r.get(\"op\") not in RULE_OPS（RULE_OPS は dict）で TypeError（unhashable）、rules_of は GroupError しか受けないので lists=null・engine=python ／ 窓は ops.contains で飛ばして組む。(c) 配った設定の update・lotdsp_import が字で、参照先にその項目の行がある: config {\"update\": \"x\"} ＋ path_settings {\"項目\": \"update.source\", \"値\": \"C:\\\\x\"}（{\"lotdsp_import\": \"x\"} ＋ lotdsp_import.url \"http://a\" も） → Python は path_settings.effective の _set で TypeError（'str' object does not support item assignment。create_app も落ちる） ／ 窓は束に出ない項目を写していないので組む。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/out2・out3・out1 の result.json の『割れ』"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "引っ越しの印・配る版の覚え・この PC の覚えの読み方が Python の MasterStore と違い、移る先が割れる（指摘 (1) の写しの細部）。(a) 時刻の字: 窓は _MOVED.json の at・want.json の setAt・master_share.json の chosenAt を s()（strip・偽の値も字に）で読み、Python は str(v or \"\") のまま比べる。share→share2 の印 at \"2026-11-01T09:00:00\"・share2→share3 の印 at \" 2026-11-02T09:00:00\"（前に空白） → Python は share2 で止まる ／ 窓は share3 へ移り覚えにも share3。配る版の覚え setAt \" 2026-11-09\"・この PC の chosenAt \"2026-11-05T00:00:00\" → Python は移らない（share） ／ 窓は share3 へ移る。setAt が false でも同じ（窓は \"False\" の字で比べて移る）。chosenAt \" 2026-11-05\"・setAt \"2026-11-04\" → Python は share3 へ移る ／ 窓は移らない。(b) 窓の読めない字: master_share.json が {\"dir\": \"…/share2\", \"n\": NaN}（i64 に入らない整数 12345678901234567890 も） → Python は share2（MasterStore.__init__ と _reload_override が読む） ／ 窓は read_json の text_split で覚えが無いと見て設定の share で束を組む（製品では Python と窓が別の置き場を読み書きする）。_MOVED.json に NaN → Python（前の版の係）は share2 へたどる ／ 窓はたどらずに束を組み、bundle を名乗られた Python もたどらないので、だれも移らない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/out6/result.json"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "窓が配った設定を読めない PC（appsettings.json に NaN・-0・i64 に入らない整数など。build_inner の最初で Err）では、follow_moved の前に止まるので印をたどる係が居なくなる。Python は TPA_SHELL_SERVES の bundle を見て印をたどらず、覚えを読み直すだけ。再現: 配った設定の lot_list.page_size を NaN、share に {\"to\": \"…/share2\", \"at\": \"2026-11-01T09:00:00\"} の印 → この版: Python の束の shareDir は share のまま・覚えは書かれない・窓は Err（Python に任せる） ／ 前の版（bundle を名乗らない Python）: shareDir share2・覚えに share2。前の版より移れる形が減る（identity.pc_name が並び・master_share.masters が表など、who・store で Err になる形も同じ）。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/out6 の c0043・c0045"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "大きな数の並べ替え: 窓は master_rows::py_int（9.2e18 以上と i64 に入らない字は None → 0）と pyfmt::py_int（i64 の端で止める）で読み、Python は大きな整数のまま並べる。設備グループ a（表示順 \"99999999999999999999\"・1e20・9.3e18・\"9223372036854775808\"）・b（\"5\"）・c（\"12\"） → Python は b, c, a（a の order 99999999999999999999） ／ 窓は a, b, c（a の order 0）。変換表で同じ名前「a」の 2 行（表示順 \"99999999999999999999\" の other \"1\"・\"99999999999999999998\" の other \"2\"） → Python は \"2\" ／ 窓は \"1\"。データ元の並び \"99999999999999999999\"（s1）と \"99999999999999999998\"（s2）・作業実績の並びでも順が逆になる。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/out3・out4・out2 の result.json"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "中身の置き場の道: Python の place.defaults（DEFAULTS_DIR）と create_app の base（data）は Path(__file__).resolve() から作る。窓は locate::program_dir の字のまま（current_exe・--program・TPA_PROGRAM_DIR。canonicalize しない）で、..・symlink・Windows の短い名前や junction を残す。Env の program を \"/home/user/LotScope/desktop/../program\"（lot.rs の the_window_builds_the_settings_bundle_itself と同じ書き方）にすると Python \"/home/user/LotScope/program/app/master_defaults\" ／ 窓 \"/home/user/LotScope/desktop/../program/app/master_defaults\"。bundle_parity は Python と同じ resolve 済みの PROGRAM を渡すので見えない。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/out5 の c0134"
+        }
+      ],
+      "seen": "読んだ物: git diff ecf0e34 HEAD の全部（desktop/src/bundle.rs 1231 行・bundle_tables.json・lot.rs の set_bundle と settings()・main.rs・sidecar.rs の SERVES・master_store.py の _shell_follows と _reload_override・settings_oracle.py・bundle_parity.rs・test_shell_follows.py・test_bundle_tables.py・RUST_PORT_PLAN.md の段 3 の 2 歩目）と、Python の答えの元（routes/lotlist.py の lotlist_settings・lists_settings・_access_place・_conversions、app/__init__.py の effective_settings・lot_list_params・lot_engine・create_app、app_env.py、services の path_settings.py・data_sources.py・data_join.parse・equip_groups.py・conversions.py の view・ordered・tables・work_log.params・ordered・shifts.equipment_list・identity.py・presence.terminal_key、routes/dashboard.py の _equipment_names、master_repository.py の _normalize・_list、master_store.py の __init__・_doc_path・retarget・_pin_target・moved_to・follow_moved・_maybe_refresh・_pull）、窓の access.rs の Place（rows・split_file・share_absent）・master_rows.rs の py_rev・text_split・pyfmt.rs・worksum.rs の py_str・equipment_list・locate.rs。【当てた物】/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/harness.py が場面ごとのフォルダ（config.json・share・local・base/data）を作り、settings_oracle.py と同じ名乗り（TPA_SHELL=desktop・TPA_SHELL_SERVES に bundle・TRANSFER_APP_CONFIG・TRANSFER_LOCAL_ROOT・create_app に MasterStore）で Python に束を尋ね、尋ねる前の形に戻してから、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-settings/probe（da_core::bundle::{Builder, Env} を path 依存・CARGO_TARGET_DIR は desktop/target）が同じフォルダから束を組み、conversions.rev を除いて 1 つずつ（数は int と小数の別も）比べた。引っ越しの場面は Python に印をたどらせ（bundle を名乗らない前の版の係）、移った先と覚えの dir・履歴の数も比べた。場面は cases1〜7.py の 1,266: 参照先の値 13 項目 × 47 通り（数・字・真偽・全角・空白・範囲の端・小数・1_0・\\x1f・\\x85・inf・nan・1e400・引用符・* の数・URL）と項目の型・重なり・表でない行・配った設定の段の欠け・型違い 48・名乗りの pc_name 20（数・真偽・空・localhost・100 字・空白とコロン・全角空白・並び）・データ元 355（間隔 25 通り × 3 元・並び 20 通り・id 15 通り・キーの型と重なり・表示名・場所・表・設備の列・取り出し方・ロット番号の列・元・グループの型・結合 40 通り × 足した元と sch〈on・how・cols・with の型・数・NaN・代用字・入れ子 200 段・1e400・-0〉・元の連鎖と自分と同じキー）・作業実績と設備マスタ（並び・設備名の型・表でない行・読み替え）・勤務体系・設備グループ（表示順 20 通り・id・ルール 27 通り・名称・まとめ方・設備・except の型）・変換表（名前・入力・判定・その他・表示順・id）・master_share（dir の型・末尾の / と //・.. ・相対・空白・expandvars 16 通り・masters 13 通り・lock_ttl と refresh_seconds 各 20 通り）・マスタの置き場（共有のファイルが壊れた／空／rows 無し／昔の形／BOM／revision が字・小数／NaN × 写しあり・data あり・どちらも無し、共有に届かない、共有と写しが違う、手元だけで壊れたマスタ 7 つ、共有しない名前、共有にほとんど無い）・ログインの環境 8・program の道 2・引っ越し 46（印 1〜6 段・輪・古い印・時刻なし／空白／数／偽・先が無い／自分／並び／空白・壊れた印・大文字違い・履歴 12 個と字・配る版の覚え 13 通り・この PC の覚え 10 通り・窓が組めない形と印）・本物の設定 5（appsettings.example.json と appsettings.json × 同梱の data・既定の中身だけ・共有に同梱の中身）。答え: 同じ 1,055・窓が任せる（Python は組める）96・どちらも組めない 51・割れ 64（減点の 5 つの決まり＋減点しない 3 つ）。ふつうの形（本物の設定 5 と settings_oracle の基の形・参照先のふつうの値）はすべて窓が組んで同じで、任せすぎは見つからない（任せるのは並び・表の値〈Python は repr の字〉・窓の読めない字・共有にまだ無いマスタ・inf・正規表現・手元だけの変換表が壊れた形〈Python は表なしで答える〉だけ）。減点しない割れ: (1) データ元の行の間隔「9e15」〜「1e20」は Python が int（10000000000000000）・窓が小数（1e16）で、型だけ違う（読む lists.rs は as_f64）。(2) 設備グループの 設備・except、変換表の 名前に入れ子の並び・表を書くと、Python は repr（\"['a']\"・\"{'a': 1}\"）・窓は JSON の字（'[\"a\"]'）。この PC の覚えの dir が並び・表のときも、Python は repr の字の置き場（\"['x']\"）・窓は覚えを使わず設定の置き場。(3) Linux で LOGNAME が空白だけ（ほかの名前の環境変数が無い）: Python は getpass.getuser が \" \" を返して login \"\"・窓は飛ばして LNAME か /etc/passwd（\"root\"・\"carol\"）。製品の Windows は両方 GetUserNameW。流した評価関数: cargo test --test bundle_parity（ok・15 場面）・--lib the_window_builds_the_settings_bundle_itself（ok）・tests.test_shell_follows と test_bundle_tables（4 件 OK）。【指摘 9 つの入り方】(1) 引っ越しの係は窓 1 つ: 入った（Python の follow_moved の頭で _shell_follows を見て _reload_override。_access_place・_maybe_refresh・_doc_path の 3 か所はどれも follow_moved を通るので全部効く。窓は bundle.rs に pin_target・moved_to・follow_moved・retarget）。ただし試験は印 1 つと配る版の覚えの 2 場面だけで、指摘の『輪・古い印・人が選んだ時刻・届かない先』は bundle_parity に無い（今回当てた輪・古い印・届かない先・6 段は同じ。時刻の字の扱いと窓の読めない覚えで割れ、窓が早く止まる PC で係が居なくなる＝減点 2 つ）。(2) 作れない形は組まない: inf・nan・表でない段・split_file・share_absent・正規表現は入った。Python の _num は直していない（任せる形）。表でない行（設備マスタ・勤務体系）・op の型・束に出ない項目の _set の 3 つが漏れた（減点）。(3) 束に出る項目だけ: 入った（pathItems は 13 項目。配った設定の値は parse を通さずそのまま。『60』の字・True も Python と同じ）。(4) conversions.rev は窓の字（表の中身の sha1 の頭 16 字。中身が変われば変わる）で比べない: 入った。Windows の道の字は verify.py の通しに回した（確かめていない）。(5) 試験の差し替え: Env（base・program・local・config・now）と TPA_DASHBOARD_NOW は入ったが、Python は TPA_DASHBOARD_NOW を読まず、ui_server.py の置き場のずれ（MasterStore(local_root=WORK/masters)）・as_role は手つかず（窓の束は開発用サーバーでは使われないので今は割れない）。(6) Python が居ない PC の写し: まだ（RUST_PORT_PLAN に書いてある）。(7) 名乗り: 入った（identity.py の順・Windows は GetUserNameW・GetComputerNameExW・sha1 は自前で既知の値の試験）。terminal_key の字の事例の表は焼いていない（単体の試験 3 つと場面 1 つ）。(8) 窓が読まない鍵も同じに出す: 入った（equipGroups の id・rev・order・note・updated_*、shifts の rev も 1 つずつ同じ）。(9) Python の道は残す・10 秒覚える: 入った。『遅い共有を作り物で測り、_stat_sig が同じなら読み直さない』は入っていない（10 秒ごとに 7 つのマスタを共有から直に読む。手元で 3.7 ms）。まとめると 9 つのうち (3)(4)(7)(8) はほぼ入り、(1)(2)(5)(9) は一部、(6) はまだ。【点】良い所: 窓の道の根の依存（lot.rs の settings が Python の答え頼み）が消え、Python が答えない PC でも束がある（lot の試験）。ふつうの形の割れは無く、任せる形も Python と窓の読みが割れる字に絞れている（順序 9・ステップ 9・階層化 9）。決まりの表は Python から焼き、古くなれば test_bundle_tables が止める型で、Err(Py) も前の版の型と同じ（直感的 8・形と色 8）。悪い所: 1,231 行の 1 つの部品に、参照先・データ元・設備グループ・変換表・名乗り・置き場・引っ越しが入る（チャンク 6・釣り合い 6）。bundle_parity は 15 場面で、今回の 1,266 場面で 5 つの決まりの割れが出た（視覚化 7）。Python の決まりを写した所（strip・偽の字・大きな数・表でない行）の細部で割れ、引っ越しのように置き場が PC ごとにずれる所に割れが残る（考えさせない 5・言葉と置き場 7・危うさ 6）"
+    }
+  },
+  "built_fixed": {
+    "name": "作った後の採点の割れを直した形（決まり 2026-11-06 により採点し直さない）",
+    "fixed": [
+      "Python が束を作れない形は窓も組まない: マスタの行が表でない（_normalize が落ちる。参照先だけは Python が読めずに空として続けるので窓も空）・設備グループのルールの op が並び・表（RULE_OPS への in で落ちる）・束に出ない項目（update.source・lotdsp_import.*）の段が表でない設定に値を重ねる（_set が落ちる）",
+      "引っ越しの読み方: 印・覚えの時刻（at・setAt・chosenAt）は str(v or \"\") のまま（前後の空白を落とさない・偽は空）。この PC の覚え・配る版の覚え・引っ越しの印は json.loads と同じに読む（NaN・大きな整数も読む）。覚えの dir が並び・表なら組まない",
+      "束を組めない配った設定（NaN など）でも、置き場の段と名乗りは Python と同じに読めるので、窓が先に引っ越しの印をたどる（印をたどる係が居なくならない）",
+      "大きな数の並べ替え: 表示順・並び・id を Python の int と同じ桁（i128）で並べる（全角の数字・_ も）。i64 に入らない表示順を答えに出す設備グループ・u64 に入らない間隔は組まない。間隔の 9e15〜1.8e19 の整数は整数で出す",
+      "同梱の最初の中身の置き場は道を解いた形（DEFAULTS_DIR は Path(__file__).resolve() から）。製品の窓は base・program も解いた形（create_app と同じ）",
+      "設備の並び・変換表の名前に並び・表が入ると Python の repr の字になるので組まない",
+      "ログイン ID は getpass.getuser と同じ順（空白だけの環境の値も getuser の答えにして strip し、空なら USERNAME・USER・LOGNAME）"
+    ],
+    "tests": "settings_oracle.py に 16 場面を足した（引っ越しの印の時刻の空白・輪・古い印と偽の時刻・配る版の覚えの時刻の空白・人が選んだ時刻の方が新しい・覚えと印に NaN・大きな数と全角の並べ替え・道の ..・ログイン ID の環境が空白だけ・束を組めない設定でも印をたどる、と窓が組まない 6 形）。bundle_parity は合わせて 31 場面。直しを 1 つずつ外す 7 つの変異はどれも試験が捕まえる",
+    "remaining": "(5) Python は TPA_DASHBOARD_NOW を読まない・ui_server.py の置き場のずれと as_role は手つかず（試験の道具だけの差で、製品の答えには効かない）。(6) Python が居ない PC での共有の写しの取り直しはまだ Python の係。(9) 共有の印が同じなら束を読み直さない形はまだ（束は 10 秒覚える）",
+    "evaluator": "案を作った者（直した者）が記録した。採点し直さない（決まり 2026-11-06）"
+  }
+}
