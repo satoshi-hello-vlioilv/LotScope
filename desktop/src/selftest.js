@@ -161,8 +161,13 @@
     {
       const canonS = (v) => Array.isArray(v) ? v.map(canonS) : v && typeof v === "object"
         ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["mirror", "rows"].includes(k)).map((k) => [k, canonS(v[k])])) : v;
-      // 先に Python に尋ねる（共有にまだマスタの最初の版が無い PC では、Python が読んだときに写しから作る。それまで窓は Python に任せる）
-      const py = await get("/api/sources?engine=python"), rs = await get("/api/sources");
+      // 先に Python に尋ねる（共有にまだマスタの最初の版が無い PC では、Python が読んだときに写しから作る。それまで窓は Python に任せる）。
+      // 新しい共有を最初に開いたときは、最初の版を置く錠がぶつかって置けない回がある（「保存中」）ので、置かれるまで 15 秒まで尋ね直す
+      let py = await get("/api/sources?engine=python"), rs = await get("/api/sources");
+      for (const until = Date.now() + 15000; rs.by !== "shell" && Date.now() < until;) {
+        await new Promise((r) => setTimeout(r, 1000));
+        py = await get("/api/sources?engine=python"); rs = await get("/api/sources");
+      }
       let same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
       try { same = same && JSON.stringify(canonS(JSON.parse(rs.text))) === JSON.stringify(canonS(JSON.parse(py.text))); } catch (_) { same = false; }
       ok("データ元の並びは窓が答え、Python と同じ答え（写しの様子・行の数を除く）", rs.by === "shell" && same,
