@@ -173,8 +173,16 @@
         `/api/worklog?equip=${eq}&work=1&total=` + encodeURIComponent("重量"), "/api/worklog?equip=" + encodeURIComponent("登録の無い設備"),
         "/api/src/wip?page=1", "/api/src/wip?group=1&page_size=30", "/api/src/" + encodeURIComponent("無い元")];
       const differ = [], by = [];
+      // 写し待ち（503 copying）の答えは写しの進み具合（source）が尋ねた時刻で変わる。版 3.86.0 から画面は中身の準備を待たずに開くので、
+      // 写し終えるまで（60 秒まで）待ってから比べる
+      const copying = (x) => { try { return x.r.status === 503 && JSON.parse(x.text).kind === "copying"; } catch (_) { return false; } };
       for (const a of asks) {
-        const rs = await get(a), py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python");
+        const pyAsk = a + (a.includes("?") ? "&" : "?") + "engine=python";
+        let rs = await get(a), py = await get(pyAsk);
+        for (const until = Date.now() + 60000; (copying(rs) || copying(py)) && Date.now() < until;) {
+          await new Promise((r) => setTimeout(r, 500));
+          rs = await get(a); py = await get(pyAsk);
+        }
         by.push(rs.by);
         let same = rs.r.status === py.r.status && py.by === "python";
         try { same = same && JSON.stringify(canon2(JSON.parse(rs.text))) === JSON.stringify(canon2(JSON.parse(py.text))); } catch (_) { same = false; }
