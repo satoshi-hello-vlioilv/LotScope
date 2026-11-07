@@ -418,7 +418,7 @@ class MasterRepository:
                 if r.get("ファイル名") != f["file"]:
                     changed["ファイル名"] = f["file"]
                     out["renamed"].append({"id": r.get("id"), "from": r.get("ファイル名"), "to": f["file"]})
-                if f["fid"] and r.get("ファイルID") != f["fid"]:
+                if f["fid"] and not work_log.same_fid(r.get("ファイルID"), f["fid"]):
                     changed["ファイルID"] = f["fid"]
                 if not r.get("キー"):
                     changed["キー"] = work_log.new_key()

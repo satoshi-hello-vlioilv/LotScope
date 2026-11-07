@@ -141,7 +141,12 @@ pub fn same_fid(a: &str, b: &str) -> bool {
     if a == b {
         return true;
     }
-    let p = |s: &str| s.split(':').map(|x| x.parse::<u128>().ok()).collect::<Vec<_>>();
+    // 数字だけ（ASCII・38 桁まで。Python の work_log.same_fid と同じ読み方。parse は「+」も読むので先に見る）
+    let p = |s: &str| {
+        s.split(':')
+            .map(|x| (!x.is_empty() && x.len() <= 38 && x.bytes().all(|b| b.is_ascii_digit())).then(|| x.parse::<u128>().ok()).flatten())
+            .collect::<Vec<_>>()
+    };
     let (x, y) = (p(a), p(b));
     if x.len() < 2 || y.len() < 2 || x.iter().chain(&y).any(Option::is_none) {
         return false;
@@ -574,6 +579,18 @@ fn actual_table(path: &Path, preferred: &str, key: &str) -> Result<String, Strin
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn same_fid_follows_the_shared_cases() {
+        // 版 3.91.0: Python の work_log.same_fid と同じ事例の表（program/tests/fixtures/fid_cases.json）
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../program/tests/fixtures/fid_cases.json");
+        let v: serde_json::Value = serde_json::from_slice(&std::fs::read(p).unwrap()).unwrap();
+        for c in v["cases"].as_array().unwrap() {
+            let (a, b, want) = (c[0].as_str().unwrap(), c[1].as_str().unwrap(), c[2].as_bool().unwrap());
+            assert_eq!(super::same_fid(a, b), want, "{a} / {b}");
+        }
+    }
+
     use super::*;
 
     #[test]

@@ -67,6 +67,13 @@ class Order(unittest.TestCase):
     def test_ordered_puts_numbered_rows_first(self):
         self.assertEqual([r["キー"] for r in work_log.ordered(self.ROWS)], ["c", "b", "a", "d"])
 
+    def test_same_fid_follows_the_shared_cases(self):
+        """版 3.91.0: ファイルID の比べ方は窓（desktop/src/lists.rs の same_fid）と同じ事例の表（tests/fixtures/fid_cases.json）で突き合わせる"""
+        import json
+        cases = json.loads((Path(__file__).parent / "fixtures" / "fid_cases.json").read_text(encoding="utf-8"))["cases"]
+        for a, b, want in cases:
+            self.assertEqual(work_log.same_fid(a, b), want, (a, b))
+
     def test_rows_without_a_key_keep_their_own_numbers(self):
         """版 3.91.0: キーの無い行（null・項目なし）が 2 行あっても、並べ替えでそれぞれの番号を持つ（前は同じ番号に潰れた）"""
         rows = [{"キー": "a1", "並び": "1"}, {"キー": "b1", "並び": "2"}, {"キー": None, "並び": "3"}, {"並び": "4"}]

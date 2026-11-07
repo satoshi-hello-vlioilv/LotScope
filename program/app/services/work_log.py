@@ -86,6 +86,24 @@ def file_id(st):
     return f"{int(getattr(st, 'st_dev', 0) or 0)}:{ino}" + (f":{int(birth)}" if birth else "")
 
 
+def same_fid(a, b):
+    """ファイルID が同じファイルを指すか（版 3.91.0。窓〈desktop/src/lists.rs の same_fid〉と同じ決まり）。Python の版・窓で装置の番号の幅
+    （Windows の 32/64 ビット）と作った時刻の有無が違っても、装置の番号の下 32 ビット・ファイル番号が同じで、作った時刻が両方にあれば同じ、を
+    同じファイルと見る（前は字の一致で、窓と Python が交互に探し直すと ID が書き換わって行の版が上がった）"""
+    a, b = str(a or ""), str(b or "")
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    parts = a.split(":") + b.split(":")
+    if not all(v.isascii() and v.isdigit() and len(v) <= 38 for v in parts):     # 数字だけ（窓の u128 と同じ読み方）
+        return False
+    x, y = [int(v) for v in a.split(":")], [int(v) for v in b.split(":")]
+    if len(x) < 2 or len(y) < 2:
+        return False
+    return (x[0] & 0xFFFFFFFF) == (y[0] & 0xFFFFFFFF) and x[1] == y[1] and (len(x) < 3 or len(y) < 3 or x[2] == y[2])
+
+
 # ------------------------------------------------------------------ フォルダを探す
 class FolderError(Exception):
     """フォルダに届かない・読めない（理由つき）。"""
@@ -168,7 +186,7 @@ def match(rows, found):
         if id(r) in done:
             continue
         fid = str(r.get("ファイルID") or "")
-        f = next((x for x in found if fid and x["fid"] == fid and x["file"].lower() not in taken), None)
+        f = next((x for x in found if fid and same_fid(x["fid"], fid) and x["file"].lower() not in taken), None)
         if f:
             taken.add(f["file"].lower())
             renamed.append((r, f))
