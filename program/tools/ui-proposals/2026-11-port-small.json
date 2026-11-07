@@ -1,0 +1,14 @@
+{
+  "title": "Rust 化 版 3.88.0: 小さい読む道（/api/build・/api/health・/api/changelog）を窓が答える",
+  "rule": "2026-11-06",
+  "measured": "棚卸し（2026-11-07・main 18fd899）: routes/system.py の /api/build は {version: APP_VERSION}・/api/health は {status: 'ok'}・/api/changelog は {version, entries: CHANGELOG}（123 件・JSON で約 80 KB）。APP_VERSION と CHANGELOG は program/app/version.py の Python の字（CHANGELOG は辞書の並びで、notes は字の連結〈隣り合う字〉で書く）。窓は update::program_version で APP_VERSION の行だけを読む（版の字の行の決まり）。画面は版の札を押したとき openChangelog（app.js :525）で /api/changelog を 1 回尋ねる（Python の準備の前に押すと待つ）。/api/build・/api/health を画面は使わない。自己診断（selftest.js）は /api/build を (a) by===\"python\" で『API が答える』の確かめ（:56）、(b) 40 本同時の問い合わせで Python へ回る道として（:96）、(c)『問い合わせの速さ（参考）』で Python への往復の時間を測る道として（:303）使っている。窓が /api/build を答えると (a)(b)(c) の意味が変わる（Python へ回る道として残すか、別の道に替える）。/api/health は CI の desktop.yml・verify.py では使っていない（grep で 0 件）。版 3.87.0 の残り: Python を起こしている間のスケジュールの行の『まだ取っていない』（画面 master-sources.js も直す）。",
+  "proposals_text": {
+    "A 焼いた更新履歴の JSON を窓が読む": "app_build.py --release が program/app/changelog.json（version と entries）を書き、tests/test_version.py が version.py と同じかを止める。窓は /api/changelog をそのファイルから・/api/build を program_version から・/api/health を {status:'ok'} で答える。自己診断の『Python へ回る道』は ?engine=python 付きの /api/build に替える。",
+    "B 窓が version.py の Python の字を読む": "窓に Python の字の小さな読み手（字・連結・並び・辞書・数）を置き、version.py の CHANGELOG をそのまま読む（焼かない）。読めない書き方なら Python に任せる。",
+    "C 元を JSON に移す": "CHANGELOG を version.py から program/app/changelog.json へ移し、Python（version.py は JSON を読む）も窓も同じファイルを読む（元を 1 つ。焼く手間も古い表も無い）。APP_VERSION は今のまま version.py。",
+    "D /api/build と /api/health だけ窓": "更新履歴は Python のまま。版と生きているかの 2 本だけ窓が答える（量が最小）。",
+    "E 窓が Python の答えを控える": "Python が答えた /api/changelog を窓が db_cache に控え、Python の準備の前はそれを返す（版が同じときだけ）。",
+    "F 小さい読む道＋スケジュールの行の起こしている印": "A に加え、3.87.0 の残り: Python を起こしている間はスケジュールのカードに starting: true を添え、master-sources.js が『中身を起こしています』と出す（画面の字は 1 か所）。",
+    "G 小さい読む道＋参照先の項目（GET /api/settings）": "A に加え、3.87.0 で作った effective_items を使って GET /api/settings（参照先の項目の答え）も窓が答える（マスタ管理の参照先の面が Python を待たない）。"
+  }
+}
