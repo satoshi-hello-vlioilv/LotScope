@@ -465,10 +465,13 @@ def page_reads(c, bundle, tree, mirrors):
         if path == "/api/sources":
             # どの元も写しの係を作っておく（Python の答えは、そのプロセスが開いた元だけ写しの様子を言う。窓は全部の元で言う）
             ms = mirrors
+            # 並びは /api/sources の答えから（束を組めない場面でもデータ元の並びは答える）
+            first = c.get(path)
+            items = (first.get_json(silent=True) or {}).get("items") or [] if first.status_code == 200 else srcs
             by = {}
-            for d in srcs:              # 同じキーの行が 2 つあれば最初の行（一覧を開く道 data_sources.find と同じ）
+            for d in items:             # 同じキーの行が 2 つあれば最初の行（一覧を開く道 data_sources.find と同じ）
                 by.setdefault(d.get("key"), d)
-            for d in srcs:
+            for d in items:
                 k = d.get("base") or d.get("key")
                 b = by.get(k) or d
                 if str(d.get("api") or "").startswith("/api/src/") and d.get("kind") != "cm3" and k != "lot" and b.get("place"):
