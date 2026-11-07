@@ -300,6 +300,11 @@ impl Lists {
         }
     }
 
+    /// フォルダの覚えを捨てる（参照先の実績のフォルダ・決まりを書いたとき。Python の WORK_LISTING.forget と同じ）
+    pub fn forget_listing(&self) {
+        self.listing.lock().unwrap().clear();
+    }
+
     /// フォルダで見つけたファイル（10 秒覚える）
     fn found(&self, folder: &str, pattern: &str) -> Result<Vec<Found>, String> {
         let key = (unquote_path(folder), pattern.to_string());

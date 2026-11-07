@@ -35,6 +35,7 @@ pub mod preset_rows;
 pub mod pyfmt;
 pub mod release;
 pub mod search_index;
+pub mod settings_write;
 pub mod shifts_write;
 pub mod small_reads;
 pub mod sources_list;

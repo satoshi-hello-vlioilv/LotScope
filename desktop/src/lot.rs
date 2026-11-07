@@ -468,6 +468,52 @@ impl Lot {
         crate::sources_list::answer(&inp, &me, &store, &live).map(|v| (200, v))
     }
 
+    /// 参照先の項目の 2 本（版 3.89.0。src/settings_write.rs）を窓が受ける。材料は窓の束の材料（Inputs。Python が居なくても読める）、
+    /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定を捨て、品質の元・実績のフォルダを当て直す
+    /// （Python の put_setting と同じ。更新の置き場は main.rs が更新の係を起こす）。組めない・窓が答えない形は None（Python が答える）
+    pub fn settings_route(&self, route: crate::settings_write::Route, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        use crate::settings_write::{Route, NAME};
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        inp.check(NAME).ok()?;
+        let access = json!({"who": inp.who, "place": inp.place});
+        let (method, path) = match &route {
+            Route::Get => ("GET", "/api/settings".to_string()),
+            Route::Put(k) => ("PUT", format!("/api/settings/{k}")),
+        };
+        if method != "GET" {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める
+        }
+        let me = self.gate.me(&access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, &path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let store = self.store_for(&access)?;
+        match route {
+            Route::Get => {
+                let items = inp.settings_items().ok()?;
+                let share = inp.place["shareDir"].as_str().unwrap_or("");
+                Some((200, crate::settings_write::get_answer(items, &store, share, &builder.config_file())))
+            }
+            Route::Put(key) => {
+                let rows = crate::access::Place::from_json(&inp.place).rows(NAME).ok()?;
+                let (status, v) = crate::settings_write::put(&store, &key, query, body, &rows)?;
+                if (200..300).contains(&status) {
+                    self.invalidate(); // 一覧の設定（元ファイル・間隔・しきい・実績の決まり）を次の問い合わせで組み直す
+                    match crate::settings_write::after_of(&key) {
+                        "lot_list." => self.warm(ask), // 品質の写しを、起動し直さずに新しい元・間隔へ切り替える（lot_mirror と同じ）
+                        "work_log." => self.lists.forget_listing(), // 実績のフォルダ・決まりを変えた → 次は探し直す
+                        _ => {}
+                    }
+                }
+                Some((status, v))
+            }
+        }
+    }
+
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
     /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
     /// 頻繁な書き込みでは尋ね直さない
@@ -678,6 +724,9 @@ impl Lot {
         }
         if let Some(route) = crate::shifts_write::route_of(method, path) {
             return self.shifts_route(method, path, route, query, body, ask);
+        }
+        if let Some(route) = crate::settings_write::route_of(method, path) {
+            return self.settings_route(route, query, body, ask);
         }
         if let Some(route) = crate::equip_write::route_of(method, path) {
             return self.equip_route(method, path, route, query, body, ask);
@@ -1436,6 +1485,75 @@ mod tests {
         let (_, d) = lot.handle_body("GET", "/api/dashboard/sources", "", b"", &down).expect("データの並びは窓");
         assert_eq!(d["items"][0]["key"], "lot");
         assert!(d["periods"]["today"].is_string());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_path_settings() {
+        // 版 3.89.0: 参照先の項目の 2 本（GET /api/settings・PUT /api/settings/<key>）は Python が起きていなくても窓が答える
+        // （本物の道: Lot::handle_body → settings_route。材料は窓の束の材料）。書いたら一覧の設定を捨てて組み直し、次の束・GET に効く。
+        // 門番（書けない人は 403）・知らない項目・誤りの言葉・行の版・ブラウザの欄（Python に任せる）・?engine=python
+        let work = std::env::temp_dir().join(format!("da-lot-pathset-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "lot_list": {"table": "既定の表"}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm =
+            json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in
+            ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversions"]
+        {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let item = |v: &Value, k: &str| v["items"].as_array().unwrap().iter().find(|i| i["key"] == k).unwrap().clone();
+        let (st, v) = lot.handle_body("GET", "/api/settings", "", b"", &down).expect("Python が起きていなくても窓が答える");
+        let t = item(&v, "lot_list.table");
+        assert_eq!(
+            (st, t["default"].clone(), t["effective"].clone(), t["source"].clone()),
+            (200, json!("既定の表"), json!("既定の表"), json!("default"))
+        );
+        assert_eq!((v["shared"].clone(), v["revision"].clone()), (json!(true), json!(4)), "{v}");
+        assert!(v["config_file"].as_str().is_some_and(|c| !c.is_empty()), "{v}");
+        // 書く: 行を足す → GET と一覧の設定（束）に効く
+        let (st, v) = lot
+            .handle_body("PUT", "/api/settings/lot_list.table", "", r#"{"value": " 窓の表 ", "base_rev": 0}"#.as_bytes(), &down)
+            .unwrap();
+        assert_eq!((st, v["row"]["値"].clone(), v["row"]["rev"].clone()), (200, json!("窓の表"), json!(1)), "{v}");
+        let (_, v) = lot.handle_body("GET", "/api/settings", "", b"", &down).unwrap();
+        assert_eq!(
+            (item(&v, "lot_list.table")["effective"].clone(), item(&v, "lot_list.table")["source"].clone()),
+            (json!("窓の表"), json!("master"))
+        );
+        assert_eq!(lot.settings(&down).unwrap().table, "窓の表", "書いたら一覧の設定を組み直す（invalidate）");
+        // 行の版・誤りの言葉・知らない項目・消す
+        let (st, v) = lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "x", "base_rev": 0}"#, &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (409, json!("conflict")), "{v}");
+        let (st, v) = lot.handle_body("PUT", "/api/settings/lot_list.refresh_seconds", "", br#"{"value": "10.5"}"#, &down).unwrap();
+        assert_eq!((st, v), (400, json!({"error": "「品質の元ファイルを確かめる間隔（秒）」は整数で入れてください。", "kind": "invalid"})));
+        assert_eq!(lot.handle_body("PUT", "/api/settings/x", "", b"{}", &down).unwrap().0, 400);
+        let (st, v) = lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": ""}"#, &down).unwrap();
+        assert_eq!((st, v), (200, json!({"row": null})));
+        assert_eq!(lot.settings(&down).unwrap().table, "既定の表", "既定へ戻した");
+        // Python に任せる: ブラウザの欄・?engine=python・表でない本文
+        assert!(lot.handle_body("PUT", "/api/settings/lotdsp_import.direct.browser", "", br#"{"value": "C:\\x.exe"}"#, &down).is_none());
+        assert!(lot.handle_body("GET", "/api/settings", "engine=python", b"", &down).is_none());
+        assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", b"[1]", &down).is_none());
+        // 門番: 閲覧の人は書けない（読むことはできる）
+        std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 2, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]}).to_string()).unwrap();
+        let (st, v) = lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
         let _ = std::fs::remove_dir_all(&work);
     }
 

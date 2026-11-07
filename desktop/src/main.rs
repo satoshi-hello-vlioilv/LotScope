@@ -326,9 +326,13 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         ("GET", "/api/sources") => lot
             .sources_list(req.query, &|| lot_settings(backend), &|| schedule_card(backend))
             .map(|(status, v)| Reply { status, ..json_reply(&v) }),
-        (method, path) => lot
-            .handle_body(method, path, req.query, req.body, &|| lot_settings(backend))
-            .map(|(status, v)| Reply { status, ..json_reply(&v) }),
+        (method, path) => lot.handle_body(method, path, req.query, req.body, &|| lot_settings(backend)).map(|(status, v)| {
+            // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
+            if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
+                upd.wake();
+            }
+            Reply { status, ..json_reply(&v) }
+        }),
     })
 }
 

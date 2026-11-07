@@ -1555,6 +1555,12 @@ impl Inputs {
     pub fn revision(&self, name: &str) -> R<i64> {
         self.p.revision(name).map_err(|_| Py("マスタの版が読めない"))
     }
+
+    /// 参照先の項目ごとの答え（GET /api/settings の items。path_settings.effective の items。版 3.89.0）。Python と同じに組めなければ Err
+    pub fn settings_items(&self) -> R<Vec<Value>> {
+        self.check("path_settings")?;
+        effective_items(&self.settings, &self.rows("path_settings")?)
+    }
 }
 
 /// GET /api/sources のうち、マスタと設定から決まる部分（版 3.87.0。写しの様子・行の数・結合の数・スケジュールのカードは src/sources_list.rs）
@@ -1893,6 +1899,20 @@ impl Builder {
         let r = self.build_inner();
         *self.last_skip.lock().unwrap() = r.as_ref().err().map(|e| e.0);
         r
+    }
+
+    /// 配った設定のファイル（app_env.config_path を問い合わせのたびに: TRANSFER_APP_CONFIG か config/appsettings.json。無ければ見本。
+    /// 基の置き場は create_app の BASE_DIR〈中身を解いた道〉）。GET /api/settings の config_file（版 3.89.0）
+    pub fn config_file(&self) -> String {
+        let base = resolved(&self.env.program);
+        let want = match std::env::var_os("TRANSFER_APP_CONFIG") {
+            // Path("") は「.」（今のフォルダ。いつも有る）
+            Some(v) if v.is_empty() => PathBuf::from("."),
+            Some(v) => PathBuf::from(v),
+            None => base.join("config").join("appsettings.json"),
+        };
+        let p = if want.exists() { want } else { base.join("config").join("appsettings.example.json") };
+        py_path(&p.to_string_lossy())
     }
 
     /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）

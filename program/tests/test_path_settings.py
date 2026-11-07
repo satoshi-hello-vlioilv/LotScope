@@ -192,6 +192,27 @@ class Api(unittest.TestCase):
         self.assertEqual(got["source"], str(drop), "パスのコピーの引用符を外し、ほかの PC にも効く")
         self.assertEqual(set(got["who"]), {"login", "pc", "role", "canRelease"}, "だれが（版を置く・配ってよいか）も窓へ伝える")
 
+    def test_python_reads_what_the_window_wrote(self):
+        """版 3.89.0: 参照先の項目は窓（desktop/src/settings_write.rs）が書く。Python は窓が書いた行（Python の str(value) と同じ字）を、
+        起動し直さずに次の問い合わせで読む（品質の元の切り替え・更新の置き場・数の項目）。"""
+        import json
+        c = self.pc("PC-A")
+        self.assertEqual(self.lots(c), ["A0001"])
+        stamp = {"updated_at": "2026-11-07T10:00:00", "updated_by": {"pc": "PC-W", "login": "w", "role": "rs"}}
+        rows = [{"id": 1, "項目": "lot_list.source", "rev": 1, "値": str(self.b), **stamp},
+                {"id": 2, "項目": "lot_list.refresh_seconds", "rev": 1, "値": "60", **stamp},
+                {"id": 3, "項目": "lot_list.stale_hours", "rev": 1, "値": "36.0", **stamp},
+                {"id": 4, "項目": "update.source", "rev": 1, "値": "a;b", **stamp}]
+        (self.share / "path_settings.json").write_text(json.dumps({"schema": 1, "revision": 9, "rows": rows}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual((self.item(c, "lot_list.refresh_seconds")["effective"], self.item(c, "lot_list.stale_hours")["effective"]), (60, 36.0))
+        self.assertEqual(self.item(c, "lot_list.source")["updated_by"]["pc"], "PC-W")
+        self.assertEqual(c.get("/api/update/settings").get_json()["source"], "a;b")
+        for _ in range(40):
+            if self.lots(c) == ["B0001", "B0002"]:
+                break
+            time.sleep(0.1)
+        self.assertEqual(self.lots(c), ["B0001", "B0002"], "窓が書いた品質の元へ、次の問い合わせで切り替わる")
+
     def test_listing_says_where_it_is_kept(self):
         c = self.pc("PC-A")
         d = c.get("/api/settings").get_json()

@@ -1,14 +1,181 @@
 {
-  "title": "Rust 化 版 3.89.0: 参照先の項目とデータ元の書く道（の入口）を窓へ",
-  "rule": "2026-11-06",
-  "measured": "棚卸し（2026-11-07・main 90e2a98）: 残る Python の道のうち、版 3.87.0 で作った窓の部品をそのまま使える物。(1) GET /api/settings（routes/settings.py の settings_get。path_settings.effective の items〈窓の bundle.rs の effective_items と同じ〉・shared・share_dir・config_file・revision。画面はマスタ管理の参照先・データ元の接続の面〈master.js :1340 の 1 か所〉）。(2) PUT /api/settings/<key>（parse → master_repository.path_setting_put〈項目で有れば直す・無ければ足す・base_rev は行の版〈行が無ければ 0〉〉・書いた後に Python の lot_mirror を当て直し、作業実績のフォルダの覚えを捨てる）。(3) データ元の書く道 11 本（routes/sources.py: POST /api/sources・PUT/DELETE /api/sources/<key>・/order・/groups・/<key>/quick・PUT /<key>/conn・/conn/check・/check・/join/preview・/api/src/<key>/refresh）。行を直すだけの物（足す・直す・消す・並べ替え・グループ・quick）は data_sources.clean_row と master_repository の data_source_put などの決まり、接続の設定（conn）は参照先の項目と行の両方へ書く。確かめる物（check・conn/check・join/preview）は共有のファイルを開いて数える。窓には書く型（desktop/src/master_rows.rs: create／update／delete・版の確かめ・必須と重複・Python に任せる本文の判定。使う組は権限・勤務体系・設備とロール）と、門番（access::guard）・書いた後に束を捨てる道（Lot::changes_settings に /api/settings/ と /api/sources がある）がある。窓が書くと、Python の覚え（effective_settings・lot_mirror・WORK_LISTING）は Python が自分で読み直すかを確かめる必要がある。3.87.0 の残り: スケジュールの行の起こしている印（画面も直す）。",
-  "proposals_text": {
-    "A 参照先の項目を読む道だけ（GET /api/settings）": "窓の effective_items に shared・share_dir・config_file・revision を足して答える。突き合わせは settings_oracle.py の reads に足す。書く道は Python のまま。",
-    "B 参照先の読む道と書く道（GET・PUT /api/settings）": "A に加え、PUT /api/settings/<key> を窓の書く型で（parse・項目で有れば直す／無ければ足す・base_rev・値を消すと既定へ）。書いた後は窓の束・写しの係・フォルダの覚えを当て直し、Python の覚えは Python が読み直す形を確かめる（試験）。突き合わせの試験は settings_write_oracle.py。",
-    "C データ元の行を直す道（足す・直す・消す・並べ替え・グループ・quick）": "data_sources.clean_row・new_key・data_source_put の決まりを窓に写し、書く型で書く。確かめる道（check・conn/check・join/preview）と接続の設定（conn）は Python のまま。",
-    "D B と C を一度に": "参照先の読み書きとデータ元の行の書く道をまとめて移す（量は B の 3 倍ほど。接続の設定 conn は両方に書くので、B と C が揃ってから移せる）。",
-    "E 作業実績の登録の道": "GET /api/masters/worklog・PUT/DELETE・order（scan と /api/worklog/files はフォルダを探すので Python のまま）を窓の書く型で。",
-    "F 参照先を読む道＋スケジュールの行の起こしている印": "A に加え、3.87.0 の残り（Python を起こしている間のスケジュールのカードに starting の印を添え、master-sources.js が『中身を起こしています』と出す）。",
-    "G 読む道をまとめて（参照先・作業実績の登録・マスタの状態）": "GET /api/settings・/api/masters/worklog・/api/masters/status を窓が答える（書く道はどれも Python のまま）。"
+ "title": "Rust 化 版 3.89.0: 参照先の項目とデータ元の書く道（の入口）を窓へ",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-07・main 90e2a98）: 残る Python の道のうち、版 3.87.0 で作った窓の部品をそのまま使える物。(1) GET /api/settings（routes/settings.py の settings_get。path_settings.effective の items〈窓の bundle.rs の effective_items と同じ〉・shared・share_dir・config_file・revision。画面はマスタ管理の参照先・データ元の接続の面〈master.js :1340 の 1 か所〉）。(2) PUT /api/settings/<key>（parse → master_repository.path_setting_put〈項目で有れば直す・無ければ足す・base_rev は行の版〈行が無ければ 0〉〉・書いた後に Python の lot_mirror を当て直し、作業実績のフォルダの覚えを捨てる）。(3) データ元の書く道 11 本（routes/sources.py: POST /api/sources・PUT/DELETE /api/sources/<key>・/order・/groups・/<key>/quick・PUT /<key>/conn・/conn/check・/check・/join/preview・/api/src/<key>/refresh）。行を直すだけの物（足す・直す・消す・並べ替え・グループ・quick）は data_sources.clean_row と master_repository の data_source_put などの決まり、接続の設定（conn）は参照先の項目と行の両方へ書く。確かめる物（check・conn/check・join/preview）は共有のファイルを開いて数える。窓には書く型（desktop/src/master_rows.rs: create／update／delete・版の確かめ・必須と重複・Python に任せる本文の判定。使う組は権限・勤務体系・設備とロール）と、門番（access::guard）・書いた後に束を捨てる道（Lot::changes_settings に /api/settings/ と /api/sources がある）がある。窓が書くと、Python の覚え（effective_settings・lot_mirror・WORK_LISTING）は Python が自分で読み直すかを確かめる必要がある。3.87.0 の残り: スケジュールの行の起こしている印（画面も直す）。",
+ "proposals_text": {
+  "A 参照先の項目を読む道だけ（GET /api/settings）": "窓の effective_items に shared・share_dir・config_file・revision を足して答える。突き合わせは settings_oracle.py の reads に足す。書く道は Python のまま。",
+  "B 参照先の読む道と書く道（GET・PUT /api/settings）": "A に加え、PUT /api/settings/<key> を窓の書く型で（parse・項目で有れば直す／無ければ足す・base_rev・値を消すと既定へ）。書いた後は窓の束・写しの係・フォルダの覚えを当て直し、Python の覚えは Python が読み直す形を確かめる（試験）。突き合わせの試験は settings_write_oracle.py。",
+  "C データ元の行を直す道（足す・直す・消す・並べ替え・グループ・quick）": "data_sources.clean_row・new_key・data_source_put の決まりを窓に写し、書く型で書く。確かめる道（check・conn/check・join/preview）と接続の設定（conn）は Python のまま。",
+  "D B と C を一度に": "参照先の読み書きとデータ元の行の書く道をまとめて移す（量は B の 3 倍ほど。接続の設定 conn は両方に書くので、B と C が揃ってから移せる）。",
+  "E 作業実績の登録の道": "GET /api/masters/worklog・PUT/DELETE・order（scan と /api/worklog/files はフォルダを探すので Python のまま）を窓の書く型で。",
+  "F 参照先を読む道＋スケジュールの行の起こしている印": "A に加え、3.87.0 の残り（Python を起こしている間のスケジュールのカードに starting の印を添え、master-sources.js が『中身を起こしています』と出す）。",
+  "G 読む道をまとめて（参照先・作業実績の登録・マスタの状態）": "GET /api/settings・/api/masters/worklog・/api/masters/status を窓が答える（書く道はどれも Python のまま）。"
+ },
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-small.json と 2026-11-port-sources.json（rounds の形・11 項目の読み替え）、program/app の routes/settings.py（settings_get・settings_put・put_setting）・services/path_settings.py（ITEMS 16・parse・effective）・repositories/master_repository.py（path_setting_put :281・data_source_put :310・data_source_order :330・data_source_delete :350）・repositories/master_store.py（RowConflict・status）・routes/common.py（base_rev・master_call）・routes/sources.py の書く道（sources_add・sources_put・sources_delete・sources_patch・sources_order・sources_conn_put・sources_groups ほか）・services/data_sources.py（clean_row・new_key・row_of）・services/data_join.py（parse・clean）・routes/worklog.py（_master_view と登録の道）・services/work_log.py（Listing・split_pattern）・routes/masters.py（status）・__init__.py（effective_settings）・routes/lotlist.py（lot_mirror）、desktop/src の master_rows.rs（create／update／delete は id で引く・部品）・shifts_write.rs・lot.rs（handle_body・shifts_route／equip_route の invalidate・changes_settings・after_python・mirror の reconfigure・sources_list）・main.rs（native の道・after の upd.wake）・router.rs（native が答えると after は呼ばない）・access.rs（GUARDED・guard の確かめの道）・bundle.rs（parse_item・parse_any・effective_items・sources_full・conn_of）・bundle_tables.json（settingsItems 16）・sources_list.rs・lists.rs（found の覚えの鍵）、画面の master.js（:96 の paths は visible false・:411〜 のカード・:792・:841・:1340）・master-sources.js（:46〜56 stateOf・:186〜222 ほかの接続・:452 conn・:638 行の PUT／POST）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-settings。TRANSFER_LOCAL_ROOT はその中の一時フォルダで、終わりに消した）: probe.py（ui_server.build〈品質 300 行〉の試験の口。identity を差し替えて boss を開発者・編集可にした）で GET 3 本を 20 回（/api/settings 12,322 バイト 0.41 ms・/api/masters/worklog 3,887 バイト 0.94 ms・/api/masters/status 1,724 バイト 0.85 ms）、PUT /api/settings/<項目> を 17 の本文で（答えは B の seen）、マスタのファイルを Python の外から書き換えた後の GET（新しい値を返す）。cargo は流していない（Rust はコードを読んで確かめた）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲（利用者の得）・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の誤り・足りない所: GET /api/settings を読むのは master.js :1340 だけでなく :792・:841（ensureTabLoaded(\"paths\")）も・『conn は参照先の項目と行の両方へ書く』は誤りで欄ごとにどちらか一方・『書く型をそのまま使える』は誤りで path_setting_put・data_source_put は鍵で引く upsert（master_rows は id で引く）・窓が答えた書き込みでは main.rs の after（upd.wake）が走らない・Python の覚えは問い合わせごとに読み直すので直しは要らない（試験で確かめた）。",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない改良なので画像は無い",
+   "self_check": "案を作った者が自分で読んで確かめた（画面に出ない改良）",
+   "proposals": {
+    "A 参照先の項目を読む道だけ（GET /api/settings）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 3,
+      "effortless": 7,
+      "intuitive": 9,
+      "form": 9,
+      "place": 8,
+      "layout": 5,
+      "tone": 9
+     },
+     "minus": [],
+     "seen": "GET /api/settings は 200・12,322 バイト・中央 0.41 ms（手元の probe.py（ui_server.build〈品質 300 行〉の試験の口。boss を開発者・編集可にした））。答えの鍵は config_file・items・revision・share_dir・shared、items は 16 で各項目に default・effective・hint・id・key・kind・label・page・rev・source・updated_at・updated_by・value。窓の bundle.rs の effective_items（:1596）は settingsItems（bundle_tables.json に 16 項目の label・hint・kind・min・max・page・check_url が焼いてある）から同じ形を既に作っており、exe の欄に値がある形は parse_any が Py（Python に任せる）にする＝足すのは shared・share_dir・config_file・revision の 4 つだけ。突き合わせは settings_oracle.py の READS（:452）と page_parity.rs の READS（:14）に 1 本足すだけで、束の場面のフォルダがそのまま使える（測りやすさは 7 案でいちばん）。ただ利用者の得は小さい: この道は最初の画面・見出しの道ではなく、読むのはマスタ管理の作業実績の『探す』（master.js :792・:841 の ensureTabLoaded(\"paths\")。行の版を取る）・配布の置き場を変えた後（:1340）・参照先のカード（:411〜。MASTER_DEFS.paths は visible: () => false で頁は出ない）だけ。どれも Python が起きた後に押す所。measured の『画面は master.js :1340 の 1 か所』は誤り（:792・:841 もある）。量が小さすぎ、1 版としては釣り合いが悪い",
+     "fixes": [
+      "config_file は app_env.config_path(BASE_DIR) の str（窓は Builder の env.config）、share_dir は str(st.share_dir or \"\")（Windows の区切りのまま）、shared は is_shared(\"path_settings\")、revision は窓の Store の revision。READS に足して 1 字ずつ突き合わせる"
+     ]
+    },
+    "B 参照先の読む道と書く道（GET・PUT /api/settings）": {
+     "score": {
+      "order": 9,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 9,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/settings.py の後始末は Python が答えたときだけ main.rs の after（:372〜377）が走る（router.rs :125 で native が答えると after は呼ばれない）。after は PUT /api/settings/update.* の 200 で upd.wake()（更新の置き場を保存したらすぐ確かめる）をする。案の文の『窓の束・写しの係・フォルダの覚えを当て直し』に更新の係が無く、窓が書くと更新の置き場の確かめが次の周回まで黙って遅れる（画面からは分からない）"
+      }
+     ],
+     "seen": "PUT の決まりを動かして確かめた（手元の probe.py（ui_server.build〈品質 300 行〉の試験の口。boss を開発者・編集可にした））: 版の無い行に base_rev 0 で 200（rev 1）・版違いで 409 {current: 行}・値を空にすると行を消して {row: null}（もう一度空でも 200 null）・base_rev 9 で 409。字の読み方: int は 60 → \"60\"、number は 36 → \"36.0\"・\"1e1\" → \"10.0\"（str(float)＝窓の pyfloat の repr が要る）、全角の \"１２０\" は 120 として通る（float() の読み方＝pynum_cases の型）、true は『数で入れてください』400、\"nan\" も 400（版 3.83.0 の isfinite）、\"10.5\" は『整数で』400、pattern の \"a*b*\" は split_pattern の言葉で 400、exe の \"C:\\\\x.exe\" は trusted_browser の言葉で 400（窓に無い。bundle.rs の parse_any も exe は Py）、release の ' \"a\" ; b \\n c ' は \"a;b;c\"、知らない項目は 400 {error: 知らない項目です。, kind: error}、本文が並び [1] は 500 で本文 null（settings_put の body.get が master_call の外で落ちる）。Python が窓の書き込みを拾うか: マスタのファイルを Python の外から書き換えたあと GET /api/settings は新しい値（300）を返した＝effective_settings（__init__.py :12）は問い合わせごとに読み直し、lot_mirror（routes/lotlist.py :11）も問い合わせごとに LOT_APPLIED と比べて reconfigure する、WORK_LISTING（services/work_log.py :122）の覚えは (folder, pattern) の鍵で 10 秒なので、フォルダ・決まりを変えれば鍵が変わる＝Python 側に直しは要らない（共有の置き場では MasterStore の refresh 5 秒ぶん古い値で動きうるのは、ほかの PC が書いたときと同じ）。窓側: 門番 GUARDED に /api/settings/ があり（access.rs :54）、確かめの POST /api/settings/check は除いてある（:809）。書いた後の束の捨て方は shifts_route・equip_route と同じく自分で invalidate を呼ぶ形（lot.rs :302・:330）で、窓の品質の写しの係は次の settings() で mirror() が reconfigure する（lot.rs :560）。ただし書く型 master_rows.rs の create／update／delete は id で引く形で、path_setting_put は『項目』で引いて有れば直す・無ければ足す・None は消す（master_repository.py :281〜305）の別の mutate。部品（normalize_all・check_rev・stamped・next_id・MasterError::Conflict の言葉は Python の RowConflict と同じ）は揃っているが、案の文の『窓の書く型で』はそのままでは使えない。突き合わせは shifts_oracle.py と同じ型（場面ごとに py と rs のフォルダ・答えとファイル）で組める",
+     "fixes": [
+      "master_rows.rs に『鍵の列で引いて有れば直す・無ければ足す・None は消す』の 1 つの型（put_by_key。normalize_all → 鍵で探す → base_rev は行が無ければ 0 と比べる → 値を str で置く → rev+1・stamped）を足し、参照先とあとのデータ元（data_source_put・data_source_delete）で使い回す",
+      "書く道の parse は、読む道の parse_item（bundle.rs :733。壊れた値は None）と同じ 1 つの関数から『理由つきの誤り』を返す形にする（読むときは誤りを None に読み替える）。言葉は settingsItems の label から Python と同じ字で作る（数で・整数で・{lo}〜{hi} で・http:// か https://・split_pattern の言葉）。min・max の言葉の数の字は Python の str（10・3600・1440 の int）",
+      "置く字は Python の str(value): int は整数の字、number は pyfloat の repr（36 → 36.0、1e1 → 10.0）。字の読みは pyfmt::py_float（全角・下線・前後の空白は pynum_cases と同じ）。本文の値が true／false・並び・表のときの str（True・[1]）も Python と同じ字で読むか、任せる",
+      "Python に任せる形: exe の欄に空でない値（trusted_browser は窓に無い）・本文が表でない（Python は 500 で本文 null。窓は写さず任せる）・道の鍵に % がある（Flask は戻した鍵で引く）・base_rev の字が py_int で読めない形（master_rows の base_rev と同じ決まり）",
+      "窓が書いて 2xx のあと: self.invalidate()、鍵が update. で始まれば更新の係を起こす（main.rs の after と同じ upd.wake。handle_body から呼べるよう Lot に起こす手を渡すか、main.rs の native の道で答えの後に呼ぶ）、lot_list. なら mirror() をその場で当て直す（Python の put_setting が lot_mirror() をすぐ呼ぶのと同じ。次の問い合わせを待たない）、work_log. なら lists の listing を捨てる（Python の forget と同じ）",
+      "PUT /api/sources/<キー>/conn のうち bind が settings の欄（接続の設定の品質・実績・スケジュールの場所と間隔）は put_setting と同じ道なので、この版で窓へ移せる（_conn_field の欄の並びは bundle.rs の conn_of が既に作る）。bind が row の欄は Python に任せる（C の段で）",
+      "GET /api/settings（A）も一緒に: shared・share_dir・config_file・revision を足し、settings_oracle.py と page_parity.rs の READS に足す",
+      "突き合わせの試験 settings_write_parity（← program/tests/settings_write_oracle.py。shifts_oracle.py と同じ型）: 置き場 3 つ（手元だけ・写しから・共有）× 書ける／書けない（forbidden）・切断中・錠。項目の種類ごと（int・number・url・sqlite・folder・pattern・text・release・exe）に上で確かめた字（60・\"１２０\"・\"1e1\"・true・\"nan\"・\"10.5\"・範囲の端・a*b*・引用符つきの場所・;区切り）・空で既定へ（行あり／なし）・base_rev〈無し・0・1・\"1\"・1.0・\"x\"・違う版〉・知らない項目・本文が並び。1 歩ごとに時計を差し替え、答えと path_settings.json の中身を比べ、任せた歩を数える。Python 側の試験に『窓の外から書いた参照先を Python が次の問い合わせで使う』（lot_mirror の reconfigure・effective_settings）を 1 本"
+     ]
+    },
+    "C データ元の行を直す道（足す・直す・消す・並べ替え・グループ・quick）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "6 本（POST /api/sources・PUT/DELETE /api/sources/<キー>・/order・/groups・/<キー>/quick。routes/sources.py :153〜195・:456〜491・:561〜581）。どれも先に _all()（data_sources.sources の全部の項目）を作り、row_of（data_sources.py :242。groupSet・rowRead・lotSet・storage・base・listed・order・note を使う）で今の行に戻してから clean_row に通す。窓には bundle.rs の sources_full（:944）があるので材料はある。ただ clean_row（:197〜239）は data_join.clean（data_join.py :90）で『結合』の字を json.loads（NaN・大きな整数・同じ鍵を許す読み方）→ parse → json.dumps(ensure_ascii=False、区切り ', ' ': ')し直し、確かめる間隔・古さの警告は float の範囲と str(int(n))／str(n) の字、場所は unquote、グループは空白を詰めて 24 字で切る。POST のキーは uuid4 の 8 桁（new_key :155）で、突き合わせは Python の new_key を差し替えないと比べられない。書く mutate は data_source_put（鍵で upsert・_check_unique）と data_source_order（並びの列だけを変えて変わった行だけ rev+1）の 2 つで、master_rows の create／update／delete とは別の形。案の文に突き合わせの試験が無い。接続の設定（conn）は Python に残すが、conn の row の欄は同じ data_sources を書くので、同じマスタの書く道が窓と Python に分かれる（錠は同じ置き場のファイルなので壊れはしないが、決まりの写しが 2 か所になる）",
+     "fixes": [
+      "B の put_by_key の型の上に作る・new_key を差し替える口（試験だけ）を窓と Python の両方に・data_join.clean の字は jsontree.rs と join.rs の py_dumps で Python と同じに書けるかを事例の表で突き合わせ、読めない字（NaN・大きな整数など）は任せる・sources_oracle 風の突き合わせ（場面と歩・できたファイル）を必ず付ける"
+     ]
+    },
+    "D B と C を一度に": {
+     "score": {
+      "order": 8,
+      "chunk": 3,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 8,
+      "layout": 3,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "B と C の和（道は 2＋11 のうち書く 9 本前後）。参照先とデータ元の書く道が一度に窓へ移り、同じマスタの書く道が窓と Python に分かれる期間が無いのは良い（言葉と置き場 8）。ただ C の落とし穴（結合の字の json.loads／dumps・uuid のキー・並びの mutate・row_of の全部の項目）と B の落とし穴（数の字・exe・更新の係の起こし）が 1 版に重なり、突き合わせの場面も 2 つの型を一度に作ることになる。measured・案の文の『conn は参照先の項目と行の両方へ書く』は誤りで、sources_conn_put（routes/sources.py :505〜531）は欄ごとに bind が settings なら put_setting、row ならこのマスタの行の一方だけへ書く＝settings の欄は B だけで移せる（D にまとめる理由にならない）",
+     "fixes": [
+      "分けて出す（B → C の順）。どうしても一度なら、B の突き合わせを先に通してから C を足す"
+     ]
+    },
+    "E 作業実績の登録の道": {
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "GET /api/masters/worklog は 200・3,887 バイト・中央 0.94 ms（手元の probe.py（ui_server.build〈品質 300 行〉の試験の口。boss を開発者・編集可にした））。鍵は canEdit・error・folder・items・new・pattern・revision・shared・staleHours。案の文は『scan と /api/worklog/files はフォルダを探すので Python のまま』とするが、GET も PUT／DELETE／order も答えは _master_view（routes/worklog.py :146〜153）で、毎回フォルダを読み（_found → Listing。PUT は fresh=True でもう一度 :201）、work_log.view で登録とファイルを結び、mark_stale で今の時刻と比べて古さを付ける＝書く道を移すにはフォルダを探す・結ぶ・古さの判定も窓が答える要がある（lists.rs に scan・resolve・view に近い形〈:154・:181・:416 の renamed〉はある）。時刻とファイルの mtime で答えが動くので、突き合わせは時計とファイルの時刻を揃える場面作りが要る。いまの順（参照先 → データ元）から外れ、狙いの道筋が弱い",
+     "fixes": [
+      "移すなら、_master_view を窓で組めるか（view・mark_stale の答え）を先に読む道だけで突き合わせ、書く道はその後"
+     ]
+    },
+    "F 参照先を読む道＋スケジュールの行の起こしている印": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 8,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 6,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "A の分は上と同じ（足すのは 4 つの鍵だけ・READS に 1 本）。足す『起こしている印』は 3.87.0 の採点で残した hidden_state（main.rs の schedule_card は ready_now が偽なら None → sources_list.rs は {mirror: null, equipCount}。master-sources.js :49〜50 の stateOf は cm3 で mirror が無ければ『まだ取っていない』）を消すので、利用者に見える得がある（考えさせない 8）。ただ狙いが 2 つ（読む道の Rust 化と画面の言葉）に割れ、後者は画面に出る改良なので CLAUDE.md の決まりでは UI の流れ（撮って別のエージェントが採点）が要る。量はどちらも小さく、Rust 化として前へ進む量は A と同じ",
+     "fixes": [
+      "起こしている印は B の版に添えるか、別の小さな UI の改良として撮って採点する（画面に出る改良は 2026-11-06 の 1 回だけの決まりの外）"
+     ]
+    },
+    "G 読む道をまとめて（参照先・作業実績の登録・マスタの状態）": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 4,
+      "visual": 5,
+      "steps": 4,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 6,
+      "place": 4,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "GET /api/masters/status（routes/masters.py :71〜76・master_store.py :767〜789）の last_sync・error・lock は Python の MasterStore の覚え（プロセスのメモリ。_last_sync・_last_error）と _maybe_refresh で、窓の Store が答えると Python 側の写しが止まっている・失敗しているかが画面から見えなくなる（2 つの係の様子が食い違ったときにどちらが正しいか分からない）。sync_caution（クラウドの同期フォルダの注意）も窓に無い"
+      }
+     ],
+     "seen": "GET /api/masters/status は 200・1,724 バイト・中央 0.85 ms（鍵は caution・configured・dir・masters・mode・override・pin・who。共有の置き場なら reachable・lock・last_sync・error も）、GET /api/masters/worklog は上の E のとおりフォルダを探して結ぶ。読む 3 本を束ねるが、狙いが 1 つにまとまらず（参照先・作業実績・置き場の様子）、status は Python のプロセスの覚えに依るので 1 字ずつの突き合わせが成り立たない場面が多い。書く道はどれも Python のままで、同じマスタの読みと書きの係が分かれる",
+     "fixes": [
+      "status を外し、参照先（A）を書く道（B）と組む"
+     ]
+    }
+   }
   }
+ ]
 }

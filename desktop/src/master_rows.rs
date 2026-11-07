@@ -384,3 +384,53 @@ pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> 
 pub(crate) fn no_check(_: &[Value], _: &Map<String, Value>, _: Option<i64>) -> Result<(), MasterError> {
     Ok(())
 }
+
+/// 鍵の列で行を置く（master_repository.path_setting_put。版 3.89.0）: 鍵の列の値が key と同じ最初の行を直し、無ければ足す。
+/// value が None なら行を消す（無ければ何もしない）。base は開いたときの行の版（行が無かったときは 0。違えば行の衝突）。
+/// 足す行は {id, 鍵, rev: 0} に値を書いてから版を 1 つ上げる（Python と同じ項目の順）。答えは書いた行（消したときは null）
+pub(crate) fn put_by_key(
+    store: &Store,
+    spec: &Spec,
+    key_col: &str,
+    key: &str,
+    value: Option<&str>,
+    value_col: &str,
+    base: Option<Rev>,
+) -> Result<Value, MasterError> {
+    store.write(spec.name, |rows, stamp| {
+        normalize_all(rows, spec);
+        let i = rows.iter().position(|r| r.get(key_col).and_then(Value::as_str) == Some(key));
+        if let Some(b) = base {
+            let have = match i {
+                Some(i) => py_int(rows[i].get("rev").unwrap_or(&json!(1))),
+                None => Some(0),
+            };
+            if !matches!((have, b), (Some(h), Rev::Small(b)) if h == b) {
+                return Err(MasterError::Conflict(i.map(|i| rows[i].clone())));
+            }
+        }
+        let Some(value) = value else {
+            if let Some(i) = i {
+                rows.remove(i);
+            }
+            return Ok(Value::Null);
+        };
+        let i = match i {
+            Some(i) => i,
+            None => {
+                let mut row = Map::new();
+                row.insert("id".into(), json!(next_id(rows)));
+                row.insert(key_col.into(), json!(key));
+                row.insert("rev".into(), json!(0));
+                rows.push(Value::Object(row));
+                rows.len() - 1
+            }
+        };
+        let row = rows[i].as_object_mut().ok_or_else(|| MasterError::Error("行の形が違います".into()))?;
+        row.insert(value_col.into(), json!(value));
+        let rev = row.get("rev").map(|v| py_int(v).ok_or_else(|| MasterError::Error("版が読めません".into()))).transpose()?.unwrap_or(0);
+        row.insert("rev".into(), json!(rev + 1));
+        stamped(row, stamp);
+        Ok(Value::Object(row.clone()))
+    })
+}

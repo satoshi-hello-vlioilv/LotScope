@@ -949,6 +949,25 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   版の読み方が 2 つ・app.js が例外を拾わない。どれも直した（.gitattributes の -text と \r の試験・Content-Length・焼いた版も覚える・書いて 2 秒は覚えない・
   small_reads::reply と試験・読み手は small_reads::app_version の 1 つ・try/catch。`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
 
+### 段 3 の 7 歩目: 参照先の項目（GET /api/settings・PUT /api/settings/<key>）を窓が答える — 版 3.89.0
+
+データ元の書く道の入口として、参照先の項目の読む道と書く道の移し方を決まり 2026-11-06 で 7 案にして別のエージェントが 1 回だけ採点した
+（`tools/ui-proposals/2026-11-port-settings.json`。1 位 **B** 73.7 点・A 71.8・F 67.8・D 56.9・C 56.8・E 54.5・G 42.3）。80 点に届かないので、B に採点の指摘 7 つを入れて作った。
+
+- 窓（`desktop/src/settings_write.rs`）: GET は窓の束の材料（`bundle::Inputs::settings_items`＝path_settings.effective の items）に、共有か・共有の置き場・
+  配った設定のファイル（`Builder::config_file`。app_env.config_path を問い合わせのたびに）・マスタの版を足す。PUT は path_settings.parse と同じ読み方
+  （誤りの言葉も同じ字。項目の名前と範囲は焼いた settingsItems）で値を Python の str(value) の字にし、`master_rows::put_by_key`
+  （path_setting_put と同じ: 「項目」が同じ最初の行・無ければ {id, 項目, rev:0} を足して版を上げる・空なら消す・行の版）で書く。
+- 書いた後（`Lot::settings_route`・main.rs）: 一覧の設定を捨てて組み直す・lot_list.* は品質の写しを当て直す・work_log.* はフォルダの覚えを捨てる・
+  update.* は更新の係がすぐ確かめる（Python が書いたときの after と同じ）。Python は参照先を問い合わせのたびに読むので、窓が書いた値も次の問い合わせで効く
+  （`tests/test_path_settings.py` の test_python_reads_what_the_window_wrote）。
+- Python に任せる形: ブラウザの欄（trusted_browser）に値がある・Python だけが読む本文（NaN・1e400・片割れの代用字）と読みの割れる数・表でない真の本文（Python は 500）・
+  値が並び・表・版の番号に 10 進でない数の字・置き場の行を窓が同じに読めない・道に百分率符号・書く係の思いがけない失敗。読めない本文（Python も読めない字）は
+  Python と同じく空の本文として扱う。?engine=python。
+- 評価関数: `cargo test --test settings_write_parity`（← `tests/settings_write_oracle.py`。10 場面の書く歩の答えと断る言葉・できたファイル、Python に任せる歩）・
+  `cargo test --test page_parity`（GET /api/settings を束の場面で）・`lot::tests::the_window_answers_path_settings`（本物の道・門番・組み直し）・自己診断の
+  「参照先の項目は窓が答え、Python と同じ答え」「参照先を書く道も窓が受ける」。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

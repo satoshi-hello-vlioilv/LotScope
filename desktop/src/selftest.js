@@ -181,6 +181,24 @@
          `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}・${(JSON.parse(rs.text || "{}").items || []).length} 件`);
     }
 
+    // 10a'') 参照先の項目（版 3.89.0 から窓が答える: settings_write.rs）。読む道は Python と同じ答え（配った設定のファイルの道は
+    //        Windows の字〈\〉も）。書く道は書かずに確かめる（知らない項目・合わない値は窓が Python と同じ言葉で断る）
+    {
+      const canonP = (v) => Array.isArray(v) ? v.map(canonP) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonP(v[k])])) : v;
+      const py = await get("/api/settings?engine=python"), rs = await get("/api/settings");
+      let same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
+      try { same = same && JSON.stringify(canonP(JSON.parse(rs.text))) === JSON.stringify(canonP(JSON.parse(py.text))); } catch (_) { same = false; }
+      ok("参照先の項目は窓が答え、Python と同じ答え", rs.by === "shell" && same, `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}`);
+      const put = (key, value) => get("/api/settings/" + key, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value }) });
+      const unk = await put("selftest.unknown", "x"), bad = await put("lot_list.refresh_seconds", "10.5");
+      const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
+      ok("参照先を書く道も窓が受ける（知らない項目・整数でない値を、Python と同じ言葉で断る）",
+         unk.by === "shell" && unk.r.status === 400 && why(unk).error === "知らない項目です。"
+         && bad.by === "shell" && bad.r.status === 400 && why(bad).kind === "invalid" && /整数で入れてください/.test(why(bad).error || ""),
+         `${unk.by} ${unk.r.status} / ${bad.by} ${bad.r.status} ${(why(bad).error || "").slice(0, 40)}`);
+    }
+
     // 10b) 作業実績の設備（Python）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す（画面は案内を出す）
     const wl = await get("/api/worklog/files");
     let wlj = {}; try { wlj = JSON.parse(wl.text); } catch (_) { /* 下で言う */ }
