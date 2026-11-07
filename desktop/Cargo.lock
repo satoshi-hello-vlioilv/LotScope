@@ -666,7 +666,7 @@ dependencies = [
 
 [[package]]
 name = "defect-analyzer-desktop"
-version = "3.85.0"
+version = "3.86.0"
 dependencies = [
  "chrono",
  "fancy-regex",

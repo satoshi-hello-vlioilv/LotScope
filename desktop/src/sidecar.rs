@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// 答え（HTTP の答えと同じ中身）。
@@ -300,51 +300,423 @@ pub fn tail(path: &PathBuf, lines: usize) -> String {
     v[v.len().saturating_sub(lines)..].join("\n")
 }
 
-/// 中身の Python を1つ持ち、止まっていたら次の問い合わせで起こし直す係。
+/// 生きているかを答えられる物（起こし直しの係が持つ物。本物は Sidecar、試験では作り物）
+pub trait Live {
+    fn is_alive(&self) -> bool;
+}
+
+impl Live for Sidecar {
+    fn is_alive(&self) -> bool {
+        Sidecar::is_alive(self)
+    }
+}
+
+/// 起こし直しの係の状態（版 3.86.0。起動で Python を待たずに画面を開くため、起こしている最中を錠の外に出した）
+enum Phase<T> {
+    /// まだ起こしていない・止めた
+    Idle,
+    /// だれかが錠の外で起こしている（ほかの者は changed で待ち合わせる）
+    Starting,
+    Up(Arc<T>),
+    /// 起こせなかった（理由と時刻）。RETRY_AFTER の間は起こし直さず同じ理由を返す（壊れた版を問い合わせのたびに起こさない）
+    Down(String, Instant),
+    /// 止めた（窓を閉じる）。もう起こさない（起こしている最中に止めたら、起き上がった物は捨てる）
+    Stopped,
+}
+
+/// 起こせなかったあと、起こし直すまでの間
+pub const RETRY_AFTER: Duration = Duration::from_secs(30);
+
+/// 1 つの物を起こし直す係の芯（錠を持ったまま起こさない。起こすのは最初に来た 1 人で、ほかは待ち合わせる）
+pub struct Phases<T> {
+    cur: Mutex<Phase<T>>,
+    changed: Condvar,
+    retry_after: Duration,
+}
+
+impl<T: Live> Phases<T> {
+    pub fn new(retry_after: Duration) -> Self {
+        Phases { cur: Mutex::new(Phase::Idle), changed: Condvar::new(), retry_after }
+    }
+
+    /// 動いている物（無ければ・止まっていれば start で起こす。だれかが起こしている最中なら wait まで待ち合わせる）
+    #[cfg(test)]
+    pub fn get(&self, start: impl FnOnce() -> Result<T, String>, wait: Duration) -> Result<Arc<T>, String> {
+        self.get_then(start, wait, |_| {})
+    }
+
+    /// get と同じ。自分が起こしたときだけ、状態を変えたあと（錠の外で）done に結果を渡す（記録・画面の帯）
+    pub fn get_then(
+        &self,
+        start: impl FnOnce() -> Result<T, String>,
+        wait: Duration,
+        done: impl FnOnce(&Result<Arc<T>, String>),
+    ) -> Result<Arc<T>, String> {
+        let deadline = Instant::now() + wait;
+        let mut start = Some(start);
+        let mut g = self.cur.lock().unwrap();
+        loop {
+            match &*g {
+                Phase::Up(s) if s.is_alive() => return Ok(s.clone()),
+                Phase::Stopped => return Err("アプリを終えています。".into()),
+                Phase::Starting => {
+                    let left = deadline.saturating_duration_since(Instant::now());
+                    if left.is_zero() {
+                        return Err(
+                            "アプリの中身（Python）を起こしている最中で、待ちきれませんでした。少し待ってからお試しください。".into()
+                        );
+                    }
+                    g = self.changed.wait_timeout(g, left).unwrap().0;
+                }
+                Phase::Down(e, at) if at.elapsed() < self.retry_after => return Err(e.clone()),
+                _ => {
+                    let Some(f) = start.take() else {
+                        return Err("アプリの中身（Python）を起こし直せませんでした。".into());
+                    };
+                    // 古い物（止まった Sidecar）は錠の外で捨てる（Drop は片付けを最大 5 秒待つ。その間 up()・心拍を待たせない）
+                    let old = std::mem::replace(&mut *g, Phase::Starting);
+                    drop(g);
+                    drop(old);
+                    // 起こす途中の panic は、試験の組み方（unwind）では Down にする。製品の組み方は panic = "abort" なので窓ごと終わる
+                    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+                        .unwrap_or_else(|_| Err("アプリの中身（Python）を起こす途中で止まりました。".into()));
+                    g = self.cur.lock().unwrap();
+                    let (out, late) = if matches!(*g, Phase::Stopped) {
+                        // 起こしている最中に止めた: 起き上がった物は捨てる（錠の外で）
+                        (Err("アプリを終えています。".to_string()), r.ok())
+                    } else {
+                        match r {
+                            Ok(s) => {
+                                let s = Arc::new(s);
+                                *g = Phase::Up(s.clone());
+                                (Ok(s), None)
+                            }
+                            Err(e) => {
+                                *g = Phase::Down(e.clone(), Instant::now());
+                                (Err(e), None)
+                            }
+                        }
+                    };
+                    self.changed.notify_all();
+                    drop(g);
+                    drop(late);
+                    done(&out);
+                    return out;
+                }
+            }
+        }
+    }
+
+    /// 待たずに、いま動いている物（無い・止まった・起こしている最中は None）
+    pub fn up(&self) -> Option<Arc<T>> {
+        match &*self.cur.lock().unwrap() {
+            Phase::Up(s) if s.is_alive() => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    /// だれかが起こしている最中か・起こせなかった直後か・止めたか（このときは起こしに行かない）
+    pub fn busy(&self) -> bool {
+        match &*self.cur.lock().unwrap() {
+            Phase::Starting | Phase::Stopped => true,
+            Phase::Down(_, at) => at.elapsed() < self.retry_after,
+            _ => false,
+        }
+    }
+
+    /// だれかが起こしている最中か
+    pub fn starting(&self) -> bool {
+        matches!(*self.cur.lock().unwrap(), Phase::Starting)
+    }
+
+    /// 起こせなかった理由（起こせなかったあと、まだ起こし直していなければ）
+    pub fn down_reason(&self) -> Option<String> {
+        match &*self.cur.lock().unwrap() {
+            Phase::Down(e, _) => Some(e.clone()),
+            _ => None,
+        }
+    }
+
+    /// 起こせなかった理由を忘れる（「もう一度」: 次の get で待たずに起こし直す）
+    pub fn forget_down(&self) {
+        let mut g = self.cur.lock().unwrap();
+        if matches!(*g, Phase::Down(..)) {
+            *g = Phase::Idle;
+        }
+    }
+
+    /// 止める（持っている物を錠の外で捨て、もう起こさない。起こしている最中なら、起き上がった物を get が捨てる）
+    pub fn take(&self) {
+        let mut g = self.cur.lock().unwrap();
+        let old = std::mem::replace(&mut *g, Phase::Stopped);
+        self.changed.notify_all();
+        drop(g);
+        drop(old);
+    }
+}
+
+/// 中身の Python を1つ持ち、止まっていたら次の問い合わせで起こし直す係（複製しても同じ係）。
+#[derive(Clone)]
 pub struct Supervisor {
+    inner: Arc<Inner>,
+}
+
+struct Inner {
     py: Python,
     program: PathBuf,
     log_dir: PathBuf,
-    current: Mutex<Option<Arc<Sidecar>>>,
+    phases: Phases<Sidecar>,
     progress: Progress,
     notices: Notices,
-    pub start_wait: Duration,
+    start_wait: Duration,
+    /// 起こした結果（起きた・起こせなかった）の受け手（記録・画面の帯。版 3.86.0）
+    changed: Mutex<Option<Changed>>,
 }
+
+/// 起こした結果の受け手（起きた: 準備の知らせ・起こせなかった: 理由）
+pub type Changed = Arc<dyn Fn(Result<&Value, &str>) + Send + Sync>;
 
 impl Supervisor {
     pub fn new(py: Python, program: PathBuf, log_dir: PathBuf, progress: Progress) -> Self {
         Supervisor {
-            py,
-            program,
-            log_dir,
-            current: Mutex::new(None),
-            progress,
-            notices: Notices::default(),
-            start_wait: Duration::from_secs(120),
+            inner: Arc::new(Inner {
+                py,
+                program,
+                log_dir,
+                phases: Phases::new(RETRY_AFTER),
+                progress,
+                notices: Notices::default(),
+                start_wait: Duration::from_secs(120),
+                changed: Mutex::new(None),
+            }),
         }
     }
 
     /// 動いている間の知らせ（作業実績・データ元の「写して」）の受け手を置く
     pub fn on_notice(&self, f: Progress) {
-        *self.notices.lock().unwrap() = Some(f);
+        *self.inner.notices.lock().unwrap() = Some(f);
     }
 
-    /// 動いている中身（無ければ・止まっていれば起こす）。
+    /// 動いている中身（無ければ・止まっていれば起こす。だれかが起こしている最中なら待ち合わせる）。
     pub fn get(&self) -> Result<Arc<Sidecar>, String> {
-        let mut cur = self.current.lock().unwrap();
-        if let Some(s) = cur.as_ref() {
-            if s.is_alive() {
-                return Ok(s.clone());
-            }
+        let i = &self.inner;
+        let changed = i.changed.lock().unwrap().clone();
+        i.phases.get_then(
+            || Sidecar::spawn(&i.py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
+            i.start_wait + Duration::from_secs(5),
+            |r| {
+                if let Some(f) = changed {
+                    f(r.as_ref().map(|s| &s.ready).map_err(String::as_str));
+                }
+            },
+        )
+    }
+
+    /// 起こした結果の受け手を置く（起こすたび: 最初・止まったあと・「もう一度」）
+    pub fn on_changed(&self, f: Changed) {
+        *self.inner.changed.lock().unwrap() = Some(f);
+    }
+
+    /// 起こしている最中か
+    pub fn starting(&self) -> bool {
+        self.inner.phases.starting()
+    }
+
+    /// 起こせなかった理由（まだ起こし直していなければ）
+    pub fn down_reason(&self) -> Option<String> {
+        self.inner.phases.down_reason()
+    }
+
+    /// 「もう一度」: 起こせなかった理由を忘れて、裏で起こし直す
+    pub fn retry(&self) {
+        self.inner.phases.forget_down();
+        self.kick();
+    }
+
+    /// 待たずに、いま動いている中身（無い・起こしている最中は None）
+    pub fn up(&self) -> Option<Arc<Sidecar>> {
+        self.inner.phases.up()
+    }
+
+    /// 動いていなければ裏の糸で起こし始める（待たない。起こしている最中・起こせなかった直後は何もしない）
+    pub fn kick(&self) {
+        if self.up().is_some() || self.inner.phases.busy() {
+            return;
         }
-        *cur = None; // 古いものを捨てる（Drop で後始末）
-        let s = Arc::new(Sidecar::spawn(&self.py, &self.program, &self.log_dir, self.start_wait, &self.progress, self.notices.clone())?);
-        *cur = Some(s.clone());
-        Ok(s)
+        let me = self.clone();
+        let _ = std::thread::Builder::new().name("sidecar-start".into()).spawn(move || {
+            let _ = me.get();
+        });
+    }
+
+    /// 準備できたときの知らせ（動いていなければ null。窓の情報 /__desktop/info に載せる）
+    pub fn ready(&self) -> Value {
+        self.up().map(|s| s.ready.clone()).unwrap_or(Value::Null)
     }
 
     /// 終わるとき: 中身を捨てる（入力を閉じる → Python が自分で終わる）。
     pub fn stop(&self) {
-        self.current.lock().unwrap().take();
+        self.inner.phases.take();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    struct Fake(AtomicBool);
+    impl Live for Fake {
+        fn is_alive(&self) -> bool {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+
+    #[test]
+    fn starting_does_not_block_the_quick_questions() {
+        // 版 3.86.0: 起こしている最中も up()・busy() は待たない。get() は待ち合わせて同じ物を受け取り、起こすのは 1 回だけ
+        let p = Arc::new(Phases::<Fake>::new(Duration::from_millis(300)));
+        let starts = Arc::new(AtomicUsize::new(0));
+        let (p1, s1) = (p.clone(), starts.clone());
+        let first = std::thread::spawn(move || {
+            p1.get(
+                || {
+                    s1.fetch_add(1, Ordering::SeqCst);
+                    std::thread::sleep(Duration::from_millis(400));
+                    Ok(Fake(AtomicBool::new(true)))
+                },
+                Duration::from_secs(5),
+            )
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        let t = Instant::now();
+        assert!(p.up().is_none() && p.busy(), "起こしている最中");
+        assert!(t.elapsed() < Duration::from_millis(50), "待たずに答える");
+        let s2 = starts.clone();
+        let second = p.get(
+            || {
+                s2.fetch_add(1, Ordering::SeqCst);
+                Ok(Fake(AtomicBool::new(true)))
+            },
+            Duration::from_secs(5),
+        );
+        let first = first.join().unwrap().unwrap();
+        assert!(Arc::ptr_eq(&first, &second.unwrap()), "待ち合わせた者も同じ物");
+        assert_eq!(starts.load(Ordering::SeqCst), 1, "起こすのは 1 回");
+        assert!(p.up().is_some() && !p.busy());
+        // 止まった物は次の get で起こし直す
+        first.0.store(false, Ordering::SeqCst);
+        assert!(p.up().is_none());
+        let again = p.get(|| Ok(Fake(AtomicBool::new(true))), Duration::from_secs(1)).unwrap();
+        assert!(!Arc::ptr_eq(&first, &again));
+    }
+
+    struct SlowDrop(AtomicBool);
+    impl Live for SlowDrop {
+        fn is_alive(&self) -> bool {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+    impl Drop for SlowDrop {
+        fn drop(&mut self) {
+            std::thread::sleep(Duration::from_millis(400));
+        }
+    }
+
+    #[test]
+    fn stopping_while_starting_leaves_it_stopped() {
+        // 作った後の採点（版 3.86.0）: 起こしている最中に止めたら、起き上がった物は捨てて「止めた」のまま。止めたあとは起こさない
+        let p = Arc::new(Phases::<Fake>::new(Duration::from_millis(100)));
+        let p1 = p.clone();
+        let t = std::thread::spawn(move || {
+            p1.get(
+                || {
+                    std::thread::sleep(Duration::from_millis(300));
+                    Ok(Fake(AtomicBool::new(true)))
+                },
+                Duration::from_secs(5),
+            )
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        p.take();
+        assert!(t.join().unwrap().is_err(), "止めたあとに起き上がった物は渡さない");
+        assert!(p.up().is_none() && p.busy(), "止めたまま（起こしに行かない）");
+        let tries = AtomicUsize::new(0);
+        assert!(p
+            .get(
+                || {
+                    tries.fetch_add(1, Ordering::SeqCst);
+                    Ok(Fake(AtomicBool::new(true)))
+                },
+                Duration::from_secs(1)
+            )
+            .is_err());
+        assert_eq!(tries.load(Ordering::SeqCst), 0, "止めたあとは起こさない");
+    }
+
+    #[test]
+    fn the_old_one_is_dropped_outside_the_lock() {
+        // 止まった古い物の後片付け（Drop。本物は最大 5 秒）の間も、up()・busy() は待たない
+        let p = Arc::new(Phases::<SlowDrop>::new(Duration::from_millis(100)));
+        let first = p.get(|| Ok(SlowDrop(AtomicBool::new(true))), Duration::from_secs(1)).unwrap();
+        first.0.store(false, Ordering::SeqCst);
+        drop(first);
+        let p1 = p.clone();
+        let t = std::thread::spawn(move || p1.get(|| Ok(SlowDrop(AtomicBool::new(true))), Duration::from_secs(5)).map(|_| ()));
+        std::thread::sleep(Duration::from_millis(80));
+        let at = Instant::now();
+        let _ = (p.up(), p.busy());
+        assert!(at.elapsed() < Duration::from_millis(150), "古い物を捨てている間も待たない: {:?}", at.elapsed());
+        assert!(t.join().unwrap().is_ok());
+    }
+
+    #[test]
+    fn only_the_starter_hears_the_result() {
+        // 起こした結果（記録・画面の帯）は、起こした 1 人だけが受け取る（待ち合わせた者は受け取らない）
+        let p = Arc::new(Phases::<Fake>::new(Duration::from_millis(100)));
+        let heard = Arc::new(AtomicUsize::new(0));
+        let mut ts = vec![];
+        for _ in 0..4 {
+            let (p1, h1) = (p.clone(), heard.clone());
+            ts.push(std::thread::spawn(move || {
+                p1.get_then(
+                    || {
+                        std::thread::sleep(Duration::from_millis(150));
+                        Ok(Fake(AtomicBool::new(true)))
+                    },
+                    Duration::from_secs(5),
+                    |r| {
+                        assert!(r.is_ok());
+                        h1.fetch_add(1, Ordering::SeqCst);
+                    },
+                )
+            }));
+        }
+        for t in ts {
+            assert!(t.join().unwrap().is_ok());
+        }
+        assert_eq!(heard.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_failure_is_remembered_for_a_while() {
+        // 起こせなかった理由は retry_after の間おぼえ、問い合わせのたびに起こし直さない（壊れた版を何度も起こさない）
+        let p = Phases::<Fake>::new(Duration::from_millis(200));
+        let tries = AtomicUsize::new(0);
+        let bad = || {
+            tries.fetch_add(1, Ordering::SeqCst);
+            Err::<Fake, _>("起動できません".to_string())
+        };
+        assert_eq!(p.get(bad, Duration::from_secs(1)).err().as_deref(), Some("起動できません"));
+        assert!(p.busy(), "起こせなかった直後は起こしに行かない");
+        assert_eq!(p.get(bad, Duration::from_secs(1)).err().as_deref(), Some("起動できません"));
+        assert_eq!(tries.load(Ordering::SeqCst), 1, "覚えている間は起こさない");
+        std::thread::sleep(Duration::from_millis(250));
+        assert!(!p.busy());
+        assert!(p.get(|| Ok(Fake(AtomicBool::new(true))), Duration::from_secs(1)).is_ok(), "間が過ぎれば起こし直す");
+        // 起こす途中で止まっても（panic）、起こしている最中のまま残らない
+        let q = Phases::<Fake>::new(Duration::from_millis(10));
+        assert!(q.get(|| panic!("止まった"), Duration::from_secs(1)).is_err());
+        assert!(q.busy() && q.up().is_none());
     }
 }

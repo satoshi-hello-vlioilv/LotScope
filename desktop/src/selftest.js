@@ -10,6 +10,16 @@
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   const get = async (url, opt) => { const r = await fetch(url, opt); return { r, by: r.headers.get("X-TPA-By"), text: await r.text() }; };
   const json = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  // 窓の情報（版 3.86.0: 画面は中身の準備を待たずに開くので、中身の版〈backend〉は準備ができてから載る。60 秒まで待つ）
+  const infoReady = async () => {
+    let i = {};
+    for (let n = 0; n < 300; n++) {
+      i = await (await fetch("/__desktop/info")).json();
+      if (i.backend && i.backend.version) return i;
+      await sleep(200);
+    }
+    return i;
+  };
   try {
     // 1) 起動が終わる（画面の JS が設定と自分の権限を読み終えた）
     const end = performance.now() + 60000;
@@ -29,10 +39,12 @@
     const three = await get(`/static/vendor/three/three-bundle.min.js?v=${fp}`);
     ok("大きな部品（three.js）も Rust が返す", three.by === "shell" && three.r.ok && three.text.length > 100000, `${three.r.status} ${three.text.length}字`);
     // 画面は窓が描く（版 3.85.0。src/page.rs）。使い回さない（no-store）・CSP の印。Python が描いた画面（?engine=python）と、印を揃えると 1 字も違わない
+    // 先に Python の画面（共有に初期設定がまだ無い PC では、Python が描くときに写しから最初の版を作る。窓はその形を Python に任せる）。
+    // 版 3.86.0 から最初の画面は Python の準備を待たずに窓が描くので、その版はここで初めてできることがある
+    const pyPage = await get("/?engine=python");
     const page = await get("/");
     const csp = page.r.headers.get("Content-Security-Policy") || "";
     ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
-    const pyPage = await get("/?engine=python");
     const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
     const norm = (x) => x.text.split(nonceOf(x)).join("@NONCE@");
     const at = [...norm(page)].findIndex((c, i) => c !== norm(pyPage)[i]);
@@ -105,7 +117,7 @@
        JSON.stringify(saved));
 
     // 9) 窓の情報（枠の約束の版・目印・受け持ち）
-    const info = await (await fetch("/__desktop/info")).json();
+    const info = await infoReady();
     const ready = info.backend || {};
     ok("窓の情報: 枠の約束の版が中身と同じ・目印・作業場所", info.protocol === 1 && ready.protocol === info.protocol && /transferpitchanalyzer/.test(info.app_id) && !!info.local_root,
        `protocol ${info.protocol}/${ready.protocol} serves=${JSON.stringify(info.serves)} root=${info.local_root}`);
@@ -161,8 +173,16 @@
         `/api/worklog?equip=${eq}&work=1&total=` + encodeURIComponent("重量"), "/api/worklog?equip=" + encodeURIComponent("登録の無い設備"),
         "/api/src/wip?page=1", "/api/src/wip?group=1&page_size=30", "/api/src/" + encodeURIComponent("無い元")];
       const differ = [], by = [];
+      // 写し待ち（503 copying）の答えは写しの進み具合（source）が尋ねた時刻で変わる。版 3.86.0 から画面は中身の準備を待たずに開くので、
+      // 写し終えるまで（60 秒まで）待ってから比べる
+      const copying = (x) => { try { return x.r.status === 503 && JSON.parse(x.text).kind === "copying"; } catch (_) { return false; } };
       for (const a of asks) {
-        const rs = await get(a), py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python");
+        const pyAsk = a + (a.includes("?") ? "&" : "?") + "engine=python";
+        let rs = await get(a), py = await get(pyAsk);
+        for (const until = Date.now() + 60000; (copying(rs) || copying(py)) && Date.now() < until;) {
+          await new Promise((r) => setTimeout(r, 500));
+          rs = await get(a); py = await get(pyAsk);
+        }
         by.push(rs.by);
         let same = rs.r.status === py.r.status && py.by === "python";
         try { same = same && JSON.stringify(canon2(JSON.parse(rs.text))) === JSON.stringify(canon2(JSON.parse(py.text))); } catch (_) { same = false; }
@@ -276,7 +296,7 @@
       if (!["idle", "checking", "staging"].includes(update.state) || performance.now() > end) break;
       await sleep(500);
     }
-    info = await (await fetch("/__desktop/info")).json();
+    info = await infoReady();
     info.install = await (await fetch("/__desktop/install")).json();
     ok("更新の係が答える（取り込めない理由が無い）", update.state !== "error", `${update.state} ${update.ready || ""} ${update.problem || update.detail || ""}`);
   } catch (e) {

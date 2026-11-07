@@ -16,18 +16,45 @@ use tauri::http::{Request, Response};
 pub trait Backend: Send + Sync {
     fn ask(&self, ask: &Ask) -> Reply;
     /// 中身（Python）が生きているか（版 3.71.0。窓が心拍に答えるとき、画面の「接続 ●」を今と同じに保つ）。
-    /// 止まっていれば起こし直してから見る（前は心拍の問い合わせが Python を起こし直していた）
+    /// 待たずに今を答える（止まっていれば裏で起こし直しを始める。版 3.86.0）
     fn alive(&self) -> bool {
         true
     }
+    /// 中身が準備できたときの知らせ（窓の情報に載せる。版 3.86.0。動いていなければ null）
+    fn ready(&self) -> serde_json::Value {
+        serde_json::Value::Null
+    }
+    /// 中身がいま答えられるか（起こしている最中は偽。画面の既定の形を選ぶ。版 3.86.0）
+    fn ready_now(&self) -> bool {
+        true
+    }
+    /// 起こせなかった理由を忘れて起こし直す（画面の帯の「もう一度起こす」）
+    fn retry(&self) {}
 }
 
 /// 長い問い合わせ（見えない Edge で LotDsp を読む・共有の写し直し）を待てる長さ。
 const ASK_WAIT: Duration = Duration::from_secs(600);
 
 impl Backend for Supervisor {
+    /// 待たない（版 3.86.0）: いま動いているかだけを見る。止まっていれば裏で起こし直しを始め、今は偽（心拍は「未接続」）。
+    /// 前は起こし直しを錠を持ったまま最大 120 秒待ったので、その間は心拍・権限の読む 2 本・画面も止まっていた
+    /// 起きている・起こしている最中なら真（心拍は「接続 ●」・権限の読む 2 本は窓が答える。版 3.86.0 の作った後の採点: 起こしている最中に
+    /// 503 を 2 回返すと画面が「未接続・開き直してください」を出していた）。止まっていれば裏で起こし直しを始め、今は偽
     fn alive(&self) -> bool {
-        self.get().is_ok_and(|s| s.is_alive())
+        if self.up().is_some() || self.starting() {
+            return true;
+        }
+        self.kick();
+        self.starting()
+    }
+    fn ready(&self) -> serde_json::Value {
+        Supervisor::ready(self)
+    }
+    fn ready_now(&self) -> bool {
+        self.up().is_some()
+    }
+    fn retry(&self) {
+        Supervisor::retry(self);
     }
 
     fn ask(&self, ask: &Ask) -> Reply {
@@ -223,6 +250,49 @@ mod tests {
             }),
             after: Box::new(|_, _, _| {}),
         }
+    }
+
+    /// 準備に時間がかかる中身（版 3.86.0 の作った後の採点: 窓の道が中身を待たずに答えるか）
+    struct Slow;
+    impl Backend for Slow {
+        fn ask(&self, _: &Ask) -> Reply {
+            std::thread::sleep(Duration::from_millis(500));
+            error_reply(200, "py", "中身")
+        }
+        fn alive(&self) -> bool {
+            true // 起こしている最中（心拍は「接続」のまま）
+        }
+        fn ready_now(&self) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn the_window_answers_while_the_backend_is_slow() {
+        let dir = std::env::temp_dir().join(format!("da-router-slow-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("js")).unwrap();
+        std::fs::write(dir.join("js").join("app.js"), "x=1").unwrap();
+        let r = std::sync::Arc::new(Router {
+            static_dir: dir.clone(),
+            backend: Slow,
+            native: Box::new(|q, b| {
+                (q.path == "/__desktop/info").then(|| error_reply(200, if b.ready_now() { "ready" } else { "starting" }, "窓"))
+            }),
+            guard: Box::new(|_, _| Ok(None)),
+            after: Box::new(|_, _, _| {}),
+        });
+        let r1 = r.clone();
+        let py = std::thread::spawn(move || r1.handle(&req("GET", "tpa://localhost/api/schedule", b"")));
+        std::thread::sleep(Duration::from_millis(50));
+        let at = std::time::Instant::now();
+        let info = r.handle(&req("GET", "tpa://localhost/__desktop/info", b""));
+        let js = r.handle(&req("GET", "tpa://localhost/static/js/app.js", b""));
+        assert!(at.elapsed() < Duration::from_millis(200), "窓の道は中身を待たない: {:?}", at.elapsed());
+        assert_eq!((info.headers()["x-tpa-by"].to_str().unwrap(), js.status().as_u16()), ("shell", 200));
+        assert!(String::from_utf8_lossy(info.body()).contains("starting"));
+        let py = py.join().unwrap();
+        assert_eq!(py.headers()["x-tpa-by"], "python", "中身の道は準備のあとに答える");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     fn req(method: &str, uri: &str, body: &[u8]) -> Request<Vec<u8>> {

@@ -66,6 +66,8 @@ jobs:
           while (-not (Test-Path $env:TPA_SELFTEST) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
           Wait-Process -Name ([IO.Path]::GetFileNameWithoutExtension($env:EXE)) -Timeout 30 -ErrorAction SilentlyContinue
           Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName -Tail 25 -Encoding utf8 }
+          # 起動の時間（版 3.86.0）: 画面を開いた時刻（OPEN ms）と中身の準備（READY spawn_ms）。Windows の WebView2 と同梱でない Python での数を残す
+          Get-ChildItem "$env:TRANSFER_LOCAL_ROOT\logs\desktop.log" -ErrorAction SilentlyContinue | Select-String -Pattern "START program|OPEN |READY |BACKEND " | ForEach-Object { Write-Host "TIMING $($_.Line)" }
           if (-not (Test-Path $env:TPA_SELFTEST)) { Write-Host "結果のファイルがありません"; exit 2 }
           $r = Get-Content $env:TPA_SELFTEST -Raw -Encoding utf8 | ConvertFrom-Json
           $r.results | ForEach-Object { Write-Host ("{0}: {1} -- {2}" -f ($(if ($_.ok) { "PASS" } else { "FAIL" })), $_.name, $_.info) }
