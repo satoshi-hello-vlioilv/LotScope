@@ -13,7 +13,7 @@
 同じ置き場を書くかを見る（製品では、印をたどる係は窓の 1 つ）。
 
 版 3.85.0 から、同じ場面で画面（GET /）・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree の答えも取る（"reads"。
-desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。スケジュールの元に場所がある場面の
+desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。版 3.87.0 から GET /api/sources も。スケジュールの元に場所がある場面の
 設備の木は尋ねない（Python は CM3 へ読みに行く。窓は Python に任せる）。
 """
 import json
@@ -370,6 +370,37 @@ def scenarios(work):
     sc("LotDsp の学びの cols が並び", lambda r: (masters(share=r / "share"),
                                               write(r / "local" / "lotdsp_api_map.json", {"design": {"list": "e", "cols": ["a"]}}), config(r))[2])
     sc("初期設定が共有にまだ無い", lambda r: (masters(share=r / "share"), (r / "share" / "ui_defaults.json").unlink(), config(r))[2])
+
+    # 版 3.87.0: データ元の並び（GET /api/sources）。グループ（消した印「-」・マスタの役割）・結合の答えの覚え（今の決まり・try- だけ・
+    # 決まりが違う）・参照先の項目のゆれ（ブラウザの欄が空・鍵の無い行・URL の欄が http でない）・スケジュールの設備が並び・端末区分つき
+    def sources_rich(r):
+        from app.services import data_join
+        masters(share=r / "share")
+        ds = json.loads((r / "share" / "data_sources.json").read_text(encoding="utf-8"))
+        for x in ds["rows"]:
+            x.update({"wip": {"グループ": "現場"}, "s5": {"グループ": "-"}, "s6": {"グループ": "現場", "役割": "マスタ"}}.get(x.get("キー"), {}))
+        write(r / "share" / "data_sources.json", ds)
+        ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))
+        ps["rows"] += [{"id": 20, "項目": "lotdsp_import.direct.browser", "値": " "}, {"id": 21, "項目": None, "値": "x"},
+                       {"id": 22, "項目": "lotdsp_import.url", "値": "ftp://x"}, {"id": 23, "項目": "update.source", "値": ' "C:\\a" ;\n; D:\\b '}]
+        write(r / "share" / "path_settings.json", ps)
+        joins = r / "local" / "db_cache" / "joins"
+        s1 = next(x for x in ds["rows"] if x.get("キー") == "s1")
+        s2 = next(x for x in ds["rows"] if x.get("キー") == "s2")
+        write(joins / "s1_aaaa.json", {"items": data_join.parse(s1["結合"]), "builtAt": 10, "seconds": 0.1,
+                                       "stats": [{"hit": 3, "rows": 5, "miss": 2, "out": 5}, {"hit": 1, "rows": 5, "miss": 4, "out": 5}]})
+        write(joins / "s1_bbbb.json", {"items": [], "builtAt": 99, "stats": [{"hit": 9}]})          # 決まりが違う（使わない）
+        write(joins / "try-s2_cccc.json", {"items": data_join.parse(s2["結合"]), "builtAt": 5, "stats": [{"hit": 7, "rows": 8, "miss": 1, "out": 8}]})
+        return config(r, schedule={"auto_refresh_sec": 90, "equipments": ["L-1", "L-2:2", "L-1", " "], "hot": {"equipments": ""}})
+    sc("データ元の並び（グループ・結合の覚え・項目のゆれ・設備の並び）", sources_rich)
+    # ブラウザの欄に値があると Python は trusted_browser で確かめる（窓は Python に任せる）
+    def sources_exe(r):
+        masters(share=r / "share")
+        ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))
+        ps["rows"].append({"id": 30, "項目": "lotdsp_import.direct.browser", "値": "C:\\Program Files\\x.exe"})
+        write(r / "share" / "path_settings.json", ps)
+        return config(r)
+    sc("ブラウザの欄に値がある", sources_exe)
     return out
 
 
@@ -409,7 +440,7 @@ def ask(s, follows):
     return answer, after, reads
 
 
-READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree")
+READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources")
 
 
 def page_reads(c, bundle, tree):

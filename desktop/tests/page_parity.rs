@@ -11,10 +11,12 @@ use da_core::lot::Lot;
 use serde_json::Value;
 use std::path::PathBuf;
 
-const READS: [&str; 4] = ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree"];
+const READS: [&str; 5] = ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources"];
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
-const MUST_DELEGATE: [(&str, &str); 12] = [
+const MUST_DELEGATE: [(&str, &str); 13] = [
+    // 版 3.87.0: ブラウザの欄は Python が trusted_browser で確かめる
+    ("ブラウザの欄に値がある", "/api/sources"),
     // 作った後の採点（版 3.85.0）の割れ
     ("画面の控えの rev が i64 に入らない", "/"),
     ("画面の控えの rev が字の大きな整数", "/"),
@@ -70,6 +72,9 @@ fn page_and_first_reads_are_like_python() {
                         h.headers.into_iter().map(|(k, v)| (k, Value::String(v.replace(&nonce, "@NONCE@")))).collect();
                     (200, body.replace(&nonce, "@NONCE@"), Value::Object(heads))
                 })
+            } else if path == "/api/sources" {
+                // スケジュールのカードは Python が起きていない形（起こした直後と同じ。場面の Python も CM3 を見に行っていない）
+                lot.sources_list("", &ask, &|| None).map(|(st, v)| (st, String::new(), v))
             } else {
                 lot.handle_body("GET", path, "", b"", &ask).map(|(st, v)| (st, String::new(), v))
             };
@@ -118,7 +123,31 @@ fn page_and_first_reads_are_like_python() {
                 continue;
             }
             match serde_json::from_str::<Value>(text) {
-                Ok(want) => {
+                Ok(mut want) => {
+                    let mut v = v;
+                    if path == "/api/sources" {
+                        // 写しの様子のうち、見に行った時刻で決まる物（確かめた・写した時刻・届かない理由・いまからの古さ）は比べない。
+                        // 場面の Python は尋ねたときに共有を見に行き、窓の写しの係は場面ごとに起こし直さない。元の場所・写したか・元の時刻・
+                        // 間隔・古さのしきいは比べる（窓が写しを受け持つ製品では、窓の写しの係の値が答え）
+                        // Python の写しの様子（と行の数）は、そのプロセスが開いた元だけ（ほかは null）。窓はまだ開いていない元も台帳から
+                        // 様子を読むので、Python が null の元は窓の答えを比べない（窓がより多く答える）
+                        let py_items = want["items"].as_array().cloned().unwrap_or_default();
+                        for (i, it) in v["items"].as_array_mut().into_iter().flatten().enumerate() {
+                            if py_items.get(i).is_some_and(|p| p["mirror"].is_null()) && it["key"] != "lot" {
+                                it["mirror"] = Value::Null;
+                                it["rows"] = py_items[i]["rows"].clone();
+                            }
+                        }
+                        for x in [&mut want, &mut v] {
+                            for it in x["items"].as_array_mut().into_iter().flatten() {
+                                if let Some(m) = it.get_mut("mirror").and_then(Value::as_object_mut) {
+                                    for k in ["checkedAt", "copiedAt", "unreachable", "reason", "ageHours"] {
+                                        m.remove(k);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if let Some(d) = common::diff(&want, &v, "") {
                         bad.push(format!("{name} {path}: {d}\n  窓     {}\n  Python {}", short(&v), short(&want)));
                     }

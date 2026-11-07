@@ -707,6 +707,12 @@ impl Mirrors {
         self.all.lock().unwrap().get(key).cloned()
     }
 
+    /// キーの写しの係。まだ無ければ、写さずに台帳から様子を読むだけの係（束に入れない・背景の周回を始めない。版 3.87.0:
+    /// データ元の並びの答えは、窓がまだ開いていない元も写しの様子を言う）
+    pub fn peek_or_passive(&self, key: &str, remote: &str, interval_sec: i64, stale_hours: f64) -> Arc<DbMirror> {
+        self.peek(key).unwrap_or_else(|| DbMirror::new(&format!("{}_{key}", self.prefix), remote, &self.cache_dir, interval_sec, stale_hours))
+    }
+
     /// keys の係が最初の写しを済ませるまで待つ（全部で timeout まで。1 つずつ timeout ずつ待たない）
     pub fn wait_first(&self, keys: &[String], timeout: Duration) {
         let end = Instant::now() + timeout;

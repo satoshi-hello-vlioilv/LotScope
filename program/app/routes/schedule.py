@@ -163,6 +163,12 @@ def schedule_card():
     return {"mirror": schedule.source_info(c, st, k), "equipCount": len(sts)}
 
 
+@bp.get("/api/schedule/card")
+def schedule_card_route():
+    """データ元の一覧のスケジュールの行の様子（版 3.87.0。窓が GET /api/sources を答えるとき、Python の覚えだけをここで尋ねる）。"""
+    return jsonify(schedule_card())
+
+
 @bp.get("/api/schedule")
 def schedule_meta():
     """設備のタブ（設備・HOT）と、画面が使う設定。"""

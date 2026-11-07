@@ -156,6 +156,18 @@
       ok("一覧の突き合わせ: 元ファイルが無いので比べない（CI は試験用の品質データで比べる）", true, ll.text.slice(0, 120));
     }
 
+    // 10a') データ元の並び（版 3.87.0 から窓が答える: sources_list.rs）。同じ問い合わせを Python でも引き、写しの様子・行の数
+    //       （尋ねた時刻と、そのプロセスが開いた元で変わる）を除いて同じか
+    {
+      const canonS = (v) => Array.isArray(v) ? v.map(canonS) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["mirror", "rows"].includes(k)).map((k) => [k, canonS(v[k])])) : v;
+      const rs = await get("/api/sources"), py = await get("/api/sources?engine=python");
+      let same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
+      try { same = same && JSON.stringify(canonS(JSON.parse(rs.text))) === JSON.stringify(canonS(JSON.parse(py.text))); } catch (_) { same = false; }
+      ok("データ元の並びは窓が答え、Python と同じ答え（写しの様子・行の数を除く）", rs.by === "shell" && same,
+         `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}・${(JSON.parse(rs.text || "{}").items || []).length} 件`);
+    }
+
     // 10b) 作業実績の設備（Python）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す（画面は案内を出す）
     const wl = await get("/api/worklog/files");
     let wlj = {}; try { wlj = JSON.parse(wl.text); } catch (_) { /* 下で言う */ }

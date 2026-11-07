@@ -157,6 +157,128 @@
   "shift_patterns": {},
   "work_log_files": {}
  },
+ "settingsItems": [
+  {
+   "hint": "共有の .sqlite3 ファイル。WaveLog の品質データと同じファイルを指します（例: \\\\Nlmsrvngy03\\Read\\【New】仕掛\\台帳\\SIKADEF.sqlite3）。保存するとすぐ、このファイルを手元へ写し直して一覧に使います。",
+   "key": "lot_list.source",
+   "kind": "sqlite",
+   "label": "品質異常の元ファイル（品質データ）",
+   "page": "sources"
+  },
+  {
+   "hint": "元ファイルの中の表の名前。空なら 仕掛 → 品質情報 → 品質 → 保留 の順に探します。",
+   "key": "lot_list.table",
+   "kind": "text",
+   "label": "品質異常の表",
+   "page": "sources"
+  },
+  {
+   "hint": "この間隔で元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。",
+   "key": "lot_list.refresh_seconds",
+   "kind": "int",
+   "label": "品質の元ファイルを確かめる間隔（秒）",
+   "max": 3600,
+   "min": 10,
+   "page": "sources"
+  },
+  {
+   "hint": "元ファイルの最後の更新からこの時間を過ぎたら、一覧の上で警告します。0 にすると警告しません。土日に更新しない運用なら 72 など。",
+   "key": "lot_list.stale_hours",
+   "kind": "number",
+   "label": "品質の元データが古いと警告するまで（時間）",
+   "max": 1440,
+   "min": 0,
+   "page": "sources"
+  },
+  {
+   "hint": "設備ごとの実績ファイル（例: 実績_CR1.sqlite3）が並ぶフォルダ（例: \\\\Nlmsrvngy03\\Read\\【New】実績）。保存すると、このフォルダを探して設備を見つけ、下の設備の表に並べます（表示する・しないはそこで決めます）。",
+   "key": "work_log.folder",
+   "kind": "folder",
+   "label": "実績のフォルダ（設備ごとの実績 .sqlite3 を置く所）",
+   "page": "sources"
+  },
+  {
+   "hint": "* の所が設備名になります（既定: 実績_*.sqlite3）。* はちょうど 1 つ書きます。",
+   "key": "work_log.pattern",
+   "kind": "pattern",
+   "label": "実績のファイル名の決まり",
+   "page": "sources"
+  },
+  {
+   "hint": "この間隔で設備ごとの元ファイルが変わったかを見て、変わったときだけ写し直します（10〜3600 秒）。",
+   "key": "work_log.refresh_seconds",
+   "kind": "int",
+   "label": "実績の元ファイルを確かめる間隔（秒）",
+   "max": 3600,
+   "min": 10,
+   "page": "sources"
+  },
+  {
+   "hint": "設備ごとの元ファイルの最後の更新からこの時間を過ぎたら、設備の札と表で「古い」と知らせます。0 にすると知らせません。",
+   "key": "work_log.stale_hours",
+   "kind": "number",
+   "label": "実績の元データが古いと警告するまで（時間）",
+   "max": 1440,
+   "min": 0,
+   "page": "sources"
+  },
+  {
+   "hint": "「検索」で読みに行く LotDsp の場所。社内（ログイン不要）ではこのアプリだけで読み、VPN でログインが要るときは LotDsp の窓が開きます（ログインはその窓で利用者が行う）。貼り付けで取り込むときの「LotDsp を開く」もここを開きます。",
+   "key": "lotdsp_import.url",
+   "kind": "url",
+   "label": "ロット問い合わせ（LotDsp）の URL"
+  },
+  {
+   "hint": "設備ごとの作業予定を読みに行く CM3 スケジューリングシステムの場所（例: http://nlmfangyweb1a:9085）。「スケジュール」のタブは、ここから設備ごとに作業予定を取り、仕掛と突き合わせて並べます。",
+   "key": "schedule.cm3_base_url",
+   "kind": "url",
+   "label": "スケジュール（CM3）の URL",
+   "page": "sources"
+  },
+  {
+   "hint": "CM3 への問い合わせに入れる端末の IP（CM3 の画面を開いたときにブラウザが送る値と同じ）。",
+   "key": "schedule.client_ip",
+   "kind": "text",
+   "label": "CM3 に名乗る端末の IP",
+   "page": "sources"
+  },
+  {
+   "hint": "「スケジュール」のタブに並べる設備（「、」か「,」で区切る。例: L-1, L-2, L-3）。端末区分が既定（4）と違う設備は「L-9:2」のように : の後ろに書きます。HOT コイル作業順はこの設備から作ります。",
+   "key": "schedule.equipments",
+   "kind": "text",
+   "label": "スケジュールの設備",
+   "page": "sources"
+  },
+  {
+   "hint": "ロットNo か用途名にこの言葉を含み、板厚・幅のある行を「点検」とします（「、」で区切って複数。既定: 点検板）。点検の行は製造件数・ロット数・仕掛との突合せから除きます。",
+   "key": "schedule.inspect_keywords",
+   "kind": "text",
+   "label": "スケジュールの点検の行の言葉",
+   "page": "sources"
+  },
+  {
+   "hint": "「スケジュール」の画面を開いている間、この間隔で CM3 から取り直し、変わっていれば画面を出し直します（10〜3600 秒）。",
+   "key": "schedule.auto_refresh_sec",
+   "kind": "int",
+   "label": "スケジュールを取り直す間隔（秒）",
+   "max": 3600,
+   "min": 10,
+   "page": "sources"
+  },
+  {
+   "check_url": "/__desktop/update/probe",
+   "hint": "版ごとのフォルダ（例 …\\90_Releases\\LotScope\\3.2.0）に release.json と配る ZIP を置く、その上のフォルダ。下のフォルダをたどって、このアプリの版（release.json の目印）を探すので、アプリやフォルダの名前が変わっても構いません。BOX の権限で人ごとに見え方が違っても（上の階層が見えない人がいても）、この PC で見える場所を探し直します。「;」で区切って候補を複数書けます（%USERPROFILE% なども使えます）。空なら更新を確かめません。",
+   "key": "update.source",
+   "kind": "release",
+   "label": "更新の置き場（新しい版を置くフォルダ）"
+  },
+  {
+   "hint": "このアプリだけで LotDsp を読むとき、画面に出さずに動かすブラウザの実行ファイル。ふつうは空のままで、Edge（C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe）を自動で使います。",
+   "key": "lotdsp_import.direct.browser",
+   "kind": "exe",
+   "label": "LotDsp を裏で読むブラウザ（空なら Edge を自動で探す）"
+  }
+ ],
  "sources": {
   "builtins": [
    {
@@ -277,6 +399,188 @@
    "source": "\\\\Nlmsrvngy03\\Read\\【New】仕掛\\台帳\\LOTNOW.sqlite3",
    "table": ""
   }
+ },
+ "sourcesList": {
+  "connBind": {
+   "lot": [
+    [
+     "place",
+     "lot_list.source"
+    ],
+    [
+     "table",
+     "lot_list.table"
+    ],
+    [
+     "refresh",
+     "lot_list.refresh_seconds"
+    ],
+    [
+     "stale",
+     "lot_list.stale_hours"
+    ],
+    [
+     "lot",
+     "row:ロット番号の列"
+    ]
+   ],
+   "sch": [
+    [
+     "url",
+     "schedule.cm3_base_url"
+    ],
+    [
+     "client_ip",
+     "schedule.client_ip"
+    ],
+    [
+     "equipments",
+     "schedule.equipments"
+    ],
+    [
+     "inspect",
+     "schedule.inspect_keywords"
+    ],
+    [
+     "refresh",
+     "schedule.auto_refresh_sec"
+    ],
+    [
+     "lot",
+     "row:ロット番号の列"
+    ]
+   ],
+   "work": [
+    [
+     "folder",
+     "work_log.folder"
+    ],
+    [
+     "pattern",
+     "work_log.pattern"
+    ],
+    [
+     "refresh",
+     "work_log.refresh_seconds"
+    ],
+    [
+     "stale",
+     "work_log.stale_hours"
+    ],
+    [
+     "lot",
+     "row:ロット番号の列"
+    ]
+   ]
+  },
+  "connFile": [
+   [
+    "place",
+    "row:場所"
+   ],
+   [
+    "table",
+    "row:表"
+   ],
+   [
+    "refresh",
+    "row:確かめる間隔"
+   ],
+   [
+    "stale",
+    "row:古さの警告"
+   ],
+   [
+    "lot",
+    "row:ロット番号の列"
+   ]
+  ],
+  "connSpecs": {
+   "client_ip": {
+    "kind": "text",
+    "label": "CM3 に名乗る端末の IP"
+   },
+   "equipments": {
+    "kind": "text",
+    "label": "設備（「、」区切り。端末区分が違う設備は L-9:2）"
+   },
+   "folder": {
+    "kind": "folder",
+    "label": "フォルダ（設備ごとの .sqlite3 を置く所）"
+   },
+   "inspect": {
+    "kind": "text",
+    "label": "点検の行の言葉（「、」区切り）"
+   },
+   "lot": {
+    "hint": "押すとロットを計算へ取り込む・虫眼鏡・ロットでまとめる列。自動は名前（ロット番号・ﾛｯﾄ番号・ロット№・LTNO → 名前に「ロット」を含む最初の列）で探します。ロット番号ではない列が選ばれたときは「なし」か正しい列にしてください。",
+    "kind": "lotcol",
+    "label": "ロット番号の列"
+   },
+   "pattern": {
+    "kind": "pattern",
+    "label": "ファイル名の決まり（* が設備名）"
+   },
+   "place": {
+    "kind": "sqlite",
+    "label": "場所（共有の .sqlite3）"
+   },
+   "refresh": {
+    "kind": "int",
+    "label": "確かめる間隔（秒）",
+    "max": 3600,
+    "min": 10
+   },
+   "stale": {
+    "kind": "number",
+    "label": "古さの警告（時間）",
+    "max": 1440,
+    "min": 0
+   },
+   "table": {
+    "kind": "text",
+    "label": "表（空なら自動）"
+   },
+   "url": {
+    "kind": "url",
+    "label": "CM3 の URL"
+   }
+  },
+  "equipModes": [
+   "そのまま",
+   "前方一致"
+  ],
+  "howLabels": {
+   "full": "完全外部結合",
+   "inner": "内部結合",
+   "left": "左外部結合",
+   "right": "右外部結合"
+  },
+  "lotTables": [
+   "仕掛",
+   "品質情報",
+   "品質",
+   "保留"
+  ],
+  "masterRole": "マスタ",
+  "noGroup": "-",
+  "roles": [
+   "品質",
+   "実績",
+   "仕掛",
+   "マスタ",
+   "その他"
+  ],
+  "schedule": {
+   "equipments": "L-1, L-2, L-3",
+   "term_kbn": "4"
+  },
+  "srcTables": [
+   "仕掛",
+   "品質情報",
+   "品質",
+   "保留"
+  ]
  },
  "store": {
   "historyKeep": 10,
