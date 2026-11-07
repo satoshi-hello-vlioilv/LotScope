@@ -241,8 +241,7 @@ fn eval(e: &Expr, ctx: &Map<String, Value>, build: &str) -> Option<Evaled> {
 pub fn app_version(program: &Path) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r#"APP_VERSION\s*=\s*"([^"]+)""#).unwrap());
-    std::fs::read_to_string(program.join("app").join("version.py"))
-        .ok()
+    crate::small_reads::version_py(program) // 更新時刻と大きさで覚えた字（版 3.88.0）
         .and_then(|t| re.captures(&t).map(|c| c[1].to_string()))
         .unwrap_or_default()
 }

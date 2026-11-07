@@ -63,3 +63,32 @@ class Desktop(unittest.TestCase):
         cargo = re.search(r'^version\s*=\s*"([^"]+)"', (root / "Cargo.toml").read_text(encoding="utf-8"), re.M).group(1)
         conf = json.loads((root / "tauri.conf.json").read_text(encoding="utf-8"))["version"]
         self.assertEqual((cargo, conf), (APP_VERSION, APP_VERSION), "desktop/Cargo.toml と tauri.conf.json の version をアプリの版に合わせてください")
+
+
+class ChangelogJson(unittest.TestCase):
+    """版 3.88.0: 窓が GET /api/changelog を答えるための焼いた更新履歴（app/changelog.json。`python app_build.py --release` が書く）。"""
+
+    def test_baked_changelog_is_current(self):
+        path = app_build.BASE / app_build.CHANGELOG_JSON
+        want = app_build.changelog_text(app_build._version_module(app_build.BASE))
+        self.assertTrue(path.exists(), "app/changelog.json がありません。`python app_build.py --release`（--amend）で焼いてください")
+        self.assertEqual(path.read_text(encoding="utf-8"), want,
+                         "app/changelog.json が app/version.py の更新履歴と違います。`python app_build.py --release`（--amend）で焼き直してください")
+
+    def test_baked_changelog_is_the_same_bytes_as_python(self):
+        # 窓は焼いた字をそのまま返す。Python の答え（jsonify）と 1 バイトも違わないこと
+        from app import create_app
+        body = create_app({"TESTING": True}).test_client().get("/api/changelog").get_data()
+        self.assertEqual(body, (app_build.BASE / app_build.CHANGELOG_JSON).read_bytes())
+
+    def test_baked_changelog_is_tracked_by_git(self):
+        # 配る ZIP（desktop/bundle の program_files）は git が知るファイルだけを入れる。commit し忘れると窓は Python に任せたまま
+        import shutil
+        import subprocess
+        if not shutil.which("git"):
+            self.skipTest("git がありません")
+        r = subprocess.run(["git", "ls-files", "--error-unmatch", app_build.CHANGELOG_JSON], cwd=app_build.BASE,
+                           capture_output=True, text=True)
+        if r.returncode != 0 and "not a git repository" in (r.stderr or ""):
+            self.skipTest("git の中ではありません")
+        self.assertEqual(r.returncode, 0, "app/changelog.json を git に足してください（配る ZIP に入らない）")

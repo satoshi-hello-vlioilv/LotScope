@@ -10,5 +10,205 @@
     "E 窓が Python の答えを控える": "Python が答えた /api/changelog を窓が db_cache に控え、Python の準備の前はそれを返す（版が同じときだけ）。",
     "F 小さい読む道＋スケジュールの行の起こしている印": "A に加え、3.87.0 の残り: Python を起こしている間はスケジュールのカードに starting: true を添え、master-sources.js が『中身を起こしています』と出す（画面の字は 1 か所）。",
     "G 小さい読む道＋参照先の項目（GET /api/settings）": "A に加え、3.87.0 で作った effective_items を使って GET /api/settings（参照先の項目の答え）も窓が答える（マスタ管理の参照先の面が Python を待たない）。"
-  }
+  },
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-sources.json（rounds の形・evaluator・11 項目の読み替えの手本）、program の app/routes/system.py（build・changelog・health）・app/version.py（123 件・注記 498・使う形は Constant/List/Dict だけ・エスケープは \\\" 14 と \\\\ 21・連結 46 行）・app/web.py（jsonify＝dumps の sort_keys・ensure_ascii・区切り詰め＋改行）・app_build.py（EXTS に .json・fingerprint は app/ の下・RELEASE_GLOBS の app/**/* と RELEASE_SKIP は version.py だけ・record_release は先頭で要約を数える・_version_module は ns={} に exec）・tests/test_version.py・routes/settings.py の GET /api/settings、desktop/bundle/bundle.py（_version_py も ns={} に exec・program_files は git ls-files）、desktop/src の update.rs（program_version）・page.rs（app_version・指紋の表）・main.rs（native の道・schedule_card は ready_now が偽なら None・json_reply）・router.rs（native が先・ready_now）・selftest.js（/api/build の 3 か所 :56・:96・:303）・lot.rs（sources_list の engine=python）・bundle.rs（effective_items・config の決め方）・bundle_tables.json（fingerprint・settingsItems 16）・sources_list.rs、画面の app.js（openChangelog :525 は r.ok を見ない）・master-sources.js（stateOf :47〜56）・master.js（:1340 の /api/settings）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-small。ui_server.build が /tmp に作った作業フォルダは消した）: probe.py（ui_server.build〈品質 300 行〉の試験の口で 4 本を 20 回ずつ: /api/build 21 バイト・/api/health 16 バイト・/api/changelog 391,737 バイト 中央 1.25 ms・/api/settings 12,322 バイト 中央 0.36 ms。web.dumps＋改行と /api/changelog の本文が 1 バイトも違わない）。cargo は流していない（言われたとおり。Rust はコードを読んで確かめた）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲（利用者の得）・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の誤り・足りない所: /api/changelog は『約 80 KB』ではなく 391,737 バイト（前の段の measured の 387 KB が近い）・焼いた JSON は app/ の下なので release_digest と指紋の両方に入る・自己診断の /api/build の 3 か所はどれも『Python を通す』意味で使っている・/api/health を窓が答えると Python の生死の印でなくなる。",
+  "rounds": [
+    {
+      "name": "1 回目",
+      "images": "画面に出ない改良なので画像は無い",
+      "self_check": "案を作った者が自分で読んで確かめた（画面に出ない改良）",
+      "proposals": {
+        "A 焼いた更新履歴の JSON を窓が読む": {
+          "score": {
+            "order": 8,
+            "chunk": 8,
+            "hierarchy": 8,
+            "visual": 8,
+            "steps": 6,
+            "effortless": 5,
+            "intuitive": 8,
+            "form": 8,
+            "place": 6,
+            "layout": 8,
+            "tone": 7
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "routes/system.py の /api/health は Python が答えているかの印（{status:'ok'}）。窓が {status:'ok'} を返すと、Python が止まっている・起こせないときも ok になる（画面は使わないが、Python の生きているかを測る印が消える。test_sidecar.py・rust-port-bench.py は sidecar に直接尋ねるので影響しないが、窓を通す確かめで使うと誤る）"
+            }
+          ],
+          "seen": "狙いは『更新履歴（版の札を押すと開く。app.js :525 openChangelog が /api/changelog を 1 回）を Python 無しで開く』で、利用者に見える得はここだけ（/api/build・/api/health は画面が使わない＝grep で app.js の /api/changelog 1 か所だけ）。得が出るのは Python の準備の前に版の札を押したときと、Python を起こせなかったとき（帯が出る形）。後者では今 openChangelog が r.ok を見ずに d.entries.map で落ちる。手元で試験の口（ui_server.build）に尋ねた答え: /api/changelog は 200・391,737 バイト・中央 1.25 ms（measured の『約 80 KB』は誤り。jsonify は web.dumps〈sort_keys・ensure_ascii・区切り詰め〉＋改行で、日本語を \\u で書くので UTF-8 の約 205 KB の倍近い）、/api/build は 21 バイト、/api/health は 16 バイト。web.dumps({version, entries}, separators=(',',':'))+'\\n' と /api/changelog の答えが 1 バイトも違わないことを確かめた＝焼くときにこの形で書けば、窓はファイルの字をそのまま返すだけで Python と同じ答えになり、突き合わせは Python の試験 1 本で済む。焼いた表は pivot_builtins.json・dash_builtins.json の先例（tools で焼き、tests が古さを止める）に沿う。ただし置き場は desktop/src ではなく program/app が正しい（中身だけの更新〈exe_changed が偽〉で exe は入れ替わらないので、exe に焼くと古くなる）。配る ZIP は bundle.py の program_files＝git ls-files なので、焼いたファイルは commit しないと配られない。落とし穴: (1) app_build.record_release は先頭で release_digest を数える（:107）。RELEASE_GLOBS の app/**/* に app/changelog.json が入り、RELEASE_SKIP は app/version.py だけなので、焼く前に数えると要約が古く test_version が落ちる。また今は更新履歴の字だけを直しても要約は変わらない（version.py は外す）が、A では changelog.json 経由で要約が変わり、配った版の注記の直しに --amend か版上げが要るようになる。(2) 指紋（app_build.fingerprint・page.rs。EXTS に .json が入り、app/ の下を数える）にも入るので、焼き直すたびに画面の部品の ?v= が変わる（害は無い）。(3) 戻し（update::revert で前の版の program に戻る）・古い program に新しい窓の形では changelog.json が無いか版が違う → Python に任せる決まりが要る。(4) 版の読み手が窓に 2 つある（update::program_version は行頭の APP_VERSION と parse_version、page.rs :240 の app_version は app_build と同じ正規表現）。/api/build はどちらで答えるかを決める。どちらも 212 KB の version.py を毎回読むので覚えが要る。(5) 自己診断の /api/build は 3 か所（selftest.js :56 by===python の『API が答える』、:96 の 40 本同時、:303 の『問い合わせの速さ（参考）』の Python の列）。案の文の『?engine=python に替える』は 3 か所ともに当てる必要があり、窓の道は engine=python を見て Python へ回す（lot.rs の sources_list と同じ）。(6) /api/health を窓が答えると Python の生死と無関係に ok になる（減点）",
+          "fixes": [
+            "app_build.record_release の最初（要約を数える前・『記録済み』で戻る道でも・--amend でも）に program/app/changelog.json を書く。中身は web.dumps({'version': APP_VERSION, 'entries': CHANGELOG}, separators=(',', ':')) + '\\n'（/api/changelog の答えと 1 バイトも違わない形。手元で確かめた）。app/changelog.json は RELEASE_SKIP に足す（version.py から作る物で、元の version.py も外している。注記の直しで要約が変わらない今の決まりを保つ）",
+            "tests/test_version.py に: changelog.json の字が今の version.py から作った字と同じ（古ければ『python app_build.py --release で焼き直す』と言う）・ファイルが git の知る物（bundle.program_files に入る＝配る ZIP に入る）・Flask の試験の口の GET /api/changelog の本文と同じ",
+            "窓の /api/changelog: program/app/changelog.json を読み、先頭の version が program の版（/api/build と同じ読み手）と同じときだけ字をそのまま返す（Content-Type application/json）。ファイルが無い・読めない・版が違う（戻した前の版・古い program）・?engine=python は Python に任せる（前と同じ答え・前と同じ失敗）。読み込みは mtime と大きさで覚える",
+            "/api/build の版の読み手を 1 つにする（page.rs の app_version〈app_build.app_version と同じ〉と update::program_version のどちらかに寄せる）。212 KB の version.py を問い合わせのたびに読まないよう mtime で覚える",
+            "/api/health は Python のまま残す（画面は使わず、Python が答えるかの印。窓が答えると Python が止まっていても ok になる）。どうしても窓で答えるなら、Python が答えない間は Python へ回す（heartbeat の backend.alive() と同じ扱い）",
+            "selftest.js の 3 か所: :56 は /api/build?engine=python で by===python を確かめ、別に窓の /api/build（by===shell）と版が同じことを足す。:96 の 40 本同時と :303 の速さの Python の列は ?engine=python に替える（今のままだと Python を通さず、確かめの意味が変わる）。/api/changelog も窓（shell）と ?engine=python（python）の本文が同じことを足す",
+            "lot::tests か main の試験に 1 本: Python が起きていない（ready_now 偽）ときに /api/changelog・/api/build が待たずに 200、changelog.json の版が違う・無いときは None（Python へ）",
+            "app.js の openChangelog は r.ok を見て、答えが無いときは fail で理由を出す（いまは 503 で d.entries が無く例外。窓が答える後も、ファイルが無い戻しの形で起こりうる）",
+            "version.py の冒頭の手順と test の言葉に『--release で changelog.json も焼く』を足す。measured の『約 80 KB』は 391,737 バイトに直して版の記録に書く"
+          ]
+        },
+        "B 窓が version.py の Python の字を読む": {
+          "score": {
+            "order": 7,
+            "chunk": 7,
+            "hierarchy": 8,
+            "visual": 5,
+            "steps": 6,
+            "effortless": 4,
+            "intuitive": 4,
+            "form": 4,
+            "place": 9,
+            "layout": 5,
+            "tone": 4
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "routes/system.py の /api/health は Python が答えているかの印（{status:'ok'}）。窓が {status:'ok'} を返すと、Python が止まっている・起こせないときも ok になる（画面は使わないが、Python の生きているかを測る印が消える。test_sidecar.py・rust-port-bench.py は sidecar に直接尋ねるので影響しないが、窓を通す確かめで使うと誤る）"
+            }
+          ],
+          "seen": "元を 1 つ（version.py）のまま窓が読むので古い表の心配は無い（言葉と置き場 9）。今の CHANGELOG を ast で見ると使っているのは Constant・List・Dict だけで、エスケープは \\\" が 14 個と \\\\ が 21 個、隣り合う字の連結が 46 行（手元で数えた）＝今の書き方なら小さな読み手で読める。ただし Python の字の読み手は窓に先例が無い新しい部品（pynum・pyfloat は数の字で、字の並びと連結・エスケープ〈\\n \\x \\u \\N{…}・r 接頭・三重引用符〉・# の注記は無い）。誤って読んでも黙って違う字を返す形（例: 将来 \\n や \\u を書いた注記）を見つけるには Python の答えとの突き合わせが要り、それは結局 Python から焼いた表（A の形）を試験の側に持つことになる。読めない書き方を Python に任せる決まりは良いが、『読めない』と『読み違えた』は区別できない。量の割に危うい",
+          "fixes": [
+            "読み手が受ける形を Constant（字・連結）・List・Dict に限り、それ以外の字（接頭・\\ の後が \" \\ 以外）を見たら Python に任せる。Python の試験で version.py を ast で歩き、その形の外を使っていないかを止める",
+            "cargo test で今の version.py を読み、Python が焼いた答えと突き合わせる"
+          ]
+        },
+        "C 元を JSON に移す": {
+          "score": {
+            "order": 8,
+            "chunk": 7,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 6,
+            "effortless": 4,
+            "intuitive": 6,
+            "form": 7,
+            "place": 10,
+            "layout": 6,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "routes/system.py の /api/health は Python が答えているかの印（{status:'ok'}）。窓が {status:'ok'} を返すと、Python が止まっている・起こせないときも ok になる（画面は使わないが、Python の生きているかを測る印が消える。test_sidecar.py・rust-port-bench.py は sidecar に直接尋ねるので影響しないが、窓を通す確かめで使うと誤る）"
+            }
+          ],
+          "seen": "元が 1 つの JSON になり、焼く手間も古い表も無い（言葉と置き場 10）。ただし version.py を読む係が 3 つあり、2 つは exec で読む: app_build._version_module（:85。ns={} に exec）と desktop/bundle/bundle.py の _version_py（:37。同じく ns={}）。version.py が Path(__file__) で JSON を読むと、この 2 つは __file__ が無く NameError で止まる（release_notes・record_release が壊れる）。直す所が program・desktop/bundle・test の言葉・version.py の手順の説明と広がる。JSON は注記の連結も注記の字の折り返しも書けないので、500 近い長い日本語の注記を 1 行で書くことになり、差分が読みにくい（人が書く物を機械の形にする）。CHANGELOG が app/ の下の JSON になると release_digest に入り、配った版の注記の直しで要約が変わる（今の決まりと違う）。窓は JSON を読んで返すが、Python の答え（sort_keys・ensure_ascii）とは字が違い、値で突き合わせる",
+          "fixes": [
+            "app_build._version_module・bundle._version_py に __file__ を渡すか、JSON を直接読む形に替える",
+            "changelog.json を RELEASE_SKIP に入れるかを決める"
+          ]
+        },
+        "D /api/build と /api/health だけ窓": {
+          "score": {
+            "order": 4,
+            "chunk": 6,
+            "hierarchy": 5,
+            "visual": 6,
+            "steps": 2,
+            "effortless": 5,
+            "intuitive": 8,
+            "form": 8,
+            "place": 6,
+            "layout": 4,
+            "tone": 8
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "routes/system.py の /api/health は Python が答えているかの印（{status:'ok'}）。窓が {status:'ok'} を返すと、Python が止まっている・起こせないときも ok になる（画面は使わないが、Python の生きているかを測る印が消える。test_sidecar.py・rust-port-bench.py は sidecar に直接尋ねるので影響しないが、窓を通す確かめで使うと誤る）"
+            }
+          ],
+          "seen": "量は最小で危うさも低いが、画面が使うのは /api/changelog だけ（app.js :526）で、/api/build・/api/health は画面が使わない（grep で 0 件）。利用者に見える得は無く、残る Python の読む道が 2 本減るだけ。自己診断の 3 か所（selftest.js :56・:96・:303）の書き替えは A と同じだけ要る。/api/health の意味が変わる減点も同じ",
+          "fixes": [
+            "selftest.js の 3 か所を ?engine=python に"
+          ]
+        },
+        "E 窓が Python の答えを控える": {
+          "score": {
+            "order": 3,
+            "chunk": 6,
+            "hierarchy": 5,
+            "visual": 4,
+            "steps": 3,
+            "effortless": 3,
+            "intuitive": 4,
+            "form": 5,
+            "place": 3,
+            "layout": 5,
+            "tone": 4
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "控えは Python が 1 度答えた後にしか無い。版が変わった直後（更新の後の最初の起動＝更新履歴をいちばん見たい時）は版が違って使えず、その起動も入れ替えた直後の版は main.rs で Python の準備を待つ形なので得が無い。控えが古いのか無いのかが画面から分からない"
+            }
+          ],
+          "seen": "答えの元が version.py・Python の覚え・db_cache の控えの 3 つになる（言葉と置き場 3）。控えが効くのは『前の起動と同じ版』で『Python の準備の前に版の札を押した』ときだけ。Python を起こせない PC で、一度も Python が答えていなければ控えも無い。/api/build・/api/health は案の文に無い",
+          "fixes": [
+            "版で控えを分け、無いときは Python へ"
+          ]
+        },
+        "F 小さい読む道＋スケジュールの行の起こしている印": {
+          "score": {
+            "order": 8,
+            "chunk": 6,
+            "hierarchy": 6,
+            "visual": 7,
+            "steps": 7,
+            "effortless": 5,
+            "intuitive": 7,
+            "form": 7,
+            "place": 6,
+            "layout": 6,
+            "tone": 6
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "routes/system.py の /api/health は Python が答えているかの印（{status:'ok'}）。窓が {status:'ok'} を返すと、Python が止まっている・起こせないときも ok になる（画面は使わないが、Python の生きているかを測る印が消える。test_sidecar.py・rust-port-bench.py は sidecar に直接尋ねるので影響しないが、窓を通す確かめで使うと誤る）"
+            },
+            {
+              "kind": "hidden_state",
+              "where": "master-sources.js :49〜50 のスケジュールの行に『中身を起こしています』を出す案だが、窓の schedule_card（main.rs）は ready_now が偽のとき None を返すだけで、起こしている最中と起こせなかった（帯が出る形）を分けていない。starting: true を ready_now の偽だけで決めると、起こせなかった PC で『起こしています』が出続ける。マスタ管理を開いたまま Python が起きても行は描き直されない"
+            }
+          ],
+          "seen": "3.87.0 の残り（version.py の 3.87.0 の注記にも『中身の準備の前は「まだ取っていない」』と書いてある）を片付ける所は良いが、狙いが 2 つ（更新履歴の道と、データ元の画面の字）に分かれる（階層化 6）。後者は画面の字を変えるので、CLAUDE.md の画面の改良の流れ（ui-check.mjs で前後を撮る）の対象になりうる。sources_list の答えに鍵を足すと、Python の答え（starting を持たない）との突き合わせ（selftest.js :166〜174・sources_parity）で、Python が起きている形では鍵を出さない決まりが要る",
+          "fixes": [
+            "starting は backend.ready() の状態が『起こしている』ときだけ、起こせなかったときは別の字",
+            "Python が起きたら master-sources.js が描き直す"
+          ]
+        },
+        "G 小さい読む道＋参照先の項目（GET /api/settings）": {
+          "score": {
+            "order": 8,
+            "chunk": 6,
+            "hierarchy": 6,
+            "visual": 7,
+            "steps": 7,
+            "effortless": 4,
+            "intuitive": 7,
+            "form": 8,
+            "place": 6,
+            "layout": 5,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "routes/system.py の /api/health は Python が答えているかの印（{status:'ok'}）。窓が {status:'ok'} を返すと、Python が止まっている・起こせないときも ok になる（画面は使わないが、Python の生きているかを測る印が消える。test_sidecar.py・rust-port-bench.py は sidecar に直接尋ねるので影響しないが、窓を通す確かめで使うと誤る）"
+            }
+          ],
+          "seen": "GET /api/settings の答え（手元で 200・12,322 バイト・中央 0.36 ms）は items（16 項目。default・effective・hint・id・key・kind・label・page・rev・source・updated_at・updated_by・value）と shared・share_dir・config_file・revision。窓には 3.87.0 の bundle.rs effective_items（:1596。settingsItems 16 項目を焼いた表から）と、config/appsettings.json の決め方（bundle.rs :515〜519。app_env.config_path と同じ順）があり、部品の使い回しは利く（形と色 8）。ただし読むのは master.js :1340 のマスタ管理の参照先の面で、ふつうは Python の準備の後に開く＝得は小さい。share_dir・shared・revision の形の突き合わせ（settings_oracle の場面で page_parity に足す）と、parse が読めない値を Python に任せる形が増え、A の量の倍以上になる。狙いが 2 つ",
+          "fixes": [
+            "page_parity の reads に GET /api/settings を足す（config_file は場面のフォルダで同じになるよう TRANSFER_APP_CONFIG をそろえる）"
+          ]
+        }
+      }
+    }
+  ]
 }

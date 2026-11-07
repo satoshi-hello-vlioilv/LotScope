@@ -94,7 +94,7 @@ pub fn write_json(p: &Path, v: &Value) -> Result<(), String> {
 
 /// アプリの版（program/app/version.py の `APP_VERSION = "X.Y.Z"`）。読めなければ None。
 pub fn program_version(program: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(program.join("app").join("version.py")).ok()?;
+    let text = crate::small_reads::version_py(program)?; // 更新時刻と大きさで覚えた字（版 3.88.0）
     text.lines().find_map(|l| {
         let rest = l.strip_prefix("APP_VERSION")?.trim_start().strip_prefix('=')?.trim();
         let q = rest.chars().next().filter(|c| *c == '\'' || *c == '"')?;

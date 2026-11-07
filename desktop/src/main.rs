@@ -190,6 +190,19 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             backend.retry();
             Some(json_reply(&json!({"ok": true})))
         }
+        // 版と更新履歴（版 3.88.0。src/small_reads.rs）: Python の準備を待たずに答える。?engine=python・焼いた更新履歴の版が中身と
+        // 違う・無いときは Python に任せる。/api/health は Python のまま（Python が答えているかの印）
+        (method @ ("GET" | "HEAD"), path @ ("/api/build" | "/api/changelog"))
+            if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") =>
+        {
+            let program = std::path::PathBuf::from(info["program"].as_str().unwrap_or(""));
+            let body = if path == "/api/build" { da_core::small_reads::build(&program) } else { da_core::small_reads::changelog(&program) };
+            body.map(|b| Reply {
+                status: 200,
+                headers: vec![("Content-Type".into(), "application/json".into())],
+                body: if method == "HEAD" { vec![] } else { b },
+            })
+        }
         ("GET", "/__desktop/info") => {
             let mut v = info.clone();
             v["backend"] = backend.ready();

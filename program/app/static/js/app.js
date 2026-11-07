@@ -523,7 +523,9 @@ $("#scNever").onclick = async () => {
 TPA.layer($("#shortcutModal"), closeShortcut);
 
 async function openChangelog() {
-  const d = await (await fetch("/api/changelog")).json();
+  const r = await fetch("/api/changelog");
+  if (!r.ok) { fail("更新履歴を読めませんでした。少し待ってからもう一度押してください。"); return; }   // 中身の準備の前など（版 3.88.0）
+  const d = await r.json();
   $("#clSub").innerHTML = `いまの版: <b class="cl-ver">${esc(d.version)}</b>`;
   paintUpdateBox();
   $("#clBody").innerHTML = d.entries.map((e) => `<div class="cl-entry"><h4>${esc(e.version)}<small>${esc(e.date || "")}</small>${e.version === d.version ? '<span class="cl-now">いまの版</span>' : ""}</h4>
