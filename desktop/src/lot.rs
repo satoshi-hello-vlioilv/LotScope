@@ -92,7 +92,12 @@ pub struct Lot {
     bundle: Mutex<Option<Arc<crate::bundle::Builder>>>,
     /// 画面（GET /）を描く係（版 3.85.0。src/page.rs）。型と指紋を覚える
     page: crate::page::Page,
+    /// 足すデータ元のキーを作る係（版 3.90.0。既定は sources_write::new_key。突き合わせの試験は Python と同じ並びに差し替える）
+    new_key: Mutex<Option<NewKey>>,
 }
+
+/// 足すデータ元のキーを作る係
+pub type NewKey = Arc<dyn Fn() -> String + Send + Sync>;
 
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
@@ -112,7 +117,13 @@ impl Lot {
             store: Mutex::default(),
             bundle: Mutex::default(),
             page: crate::page::Page::default(),
+            new_key: Mutex::default(),
         }
+    }
+
+    /// 足すデータ元のキーの作り方を差し替える（試験: Python の data_sources.new_key と同じ並び）
+    pub fn set_new_key(&self, f: NewKey) {
+        *self.new_key.lock().unwrap() = Some(f);
     }
 
     /// 設定の束を窓が組む（版 3.84.0）。入れると、束は窓が組み、組めない形だけ Python に尋ねる
@@ -519,6 +530,60 @@ impl Lot {
         }
     }
 
+    /// データ元の書く道の 7 本（版 3.90.0。src/sources_write.rs）を窓が受ける。材料は窓の束の材料（GET /api/sources と同じ並び）、
+    /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定と権限の覚えを捨てる（Python が書いたときの after_python と同じ）。
+    /// 接続の設定で参照先の項目を書いたときは、参照先を書いたときと同じ後始末（品質の写し・実績のフォルダの覚え）。組めない・窓が答えない形は None
+    pub fn sources_write_route(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::sources_write::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        for name in ["data_sources", "path_settings"] {
+            inp.check(name).ok()?;
+        }
+        let parts = inp.sources_parts().ok()?;
+        let access = json!({"who": inp.who, "place": inp.place});
+        self.gate.forget(); // 書く前は、いまの権限の表で決める
+        let me = self.gate.me(&access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let store = self.store_for(&access)?;
+        let place = crate::access::Place::from_json(&inp.place);
+        let rows = place.rows(crate::sources_write::NAME).ok()?;
+        let ps_rows = place.rows(crate::settings_write::NAME).ok()?;
+        let settings = inp.settings.clone();
+        let settings_ok = |k: &str| crate::bundle::sections_ok(&settings, k);
+        let cx = crate::sources_write::Ctx {
+            items: &parts.items,
+            rows: &rows,
+            ps_rows: &ps_rows,
+            new_key: &|| match self.new_key.lock().unwrap().clone() {
+                Some(f) => f(),
+                None => crate::sources_write::new_key(),
+            },
+            settings_ok: &settings_ok,
+        };
+        let done = crate::sources_write::handle(&store, &route, query, body, &cx)?;
+        let (status, v) = done.answer;
+        if (200..300).contains(&status) {
+            self.invalidate(); // 一覧の設定（データ元の並び・場所・結合）を次の問い合わせで組み直す
+            self.gate.forget(); // データ元を書いた: 次の問い合わせで me を読み直す（after_python と同じ）
+            match done.setting.as_deref().map(crate::settings_write::after_of) {
+                Some("lot_list.") => self.warm(ask),
+                Some("work_log.") => self.lists.forget_listing(),
+                _ => {}
+            }
+        }
+        Some((status, v))
+    }
+
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
     /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
     /// 頻繁な書き込みでは尋ね直さない
@@ -732,6 +797,9 @@ impl Lot {
         }
         if let Some(route) = crate::settings_write::route_of(method, path) {
             return self.settings_route(route, query, body, ask);
+        }
+        if let Some(route) = crate::sources_write::route_of(method, path) {
+            return self.sources_write_route(method, path, route, query, body, ask);
         }
         if let Some(route) = crate::equip_write::route_of(method, path) {
             return self.equip_route(method, path, route, query, body, ask);

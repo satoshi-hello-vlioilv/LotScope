@@ -62,7 +62,9 @@ def table():
                         "connBind": {k: list(v.items()) for k, v in data_sources.CONN_BIND.items()}, "roles": data_sources.ROLES,
                         "equipModes": data_sources.EQUIP_MODES, "noGroup": data_sources.NO_GROUP, "masterRole": data_sources.MASTER_ROLE,
                         "howLabels": data_join.HOW_LABELS, "lotTables": lot_list.TABLE_CANDIDATES, "srcTables": data_sources.TABLE_CANDIDATES,
-                        "schedule": {k: schedule.DEFAULTS[k] for k in ("equipments", "term_kbn")}},
+                        "schedule": {k: schedule.DEFAULTS[k] for k in ("equipments", "term_kbn")},
+                        # 版 3.90.0: データ元の書く道（desktop/src/sources_write.rs）。行の列の順・その場で変えられる列・グループの長さ
+                        "fields": data_sources.FIELDS, "patchFields": sorted(data_sources.PATCH_FIELDS), "groupMax": data_sources.GROUP_MAX},
     }
 
 

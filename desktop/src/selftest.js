@@ -207,6 +207,20 @@
          `${unk.by} ${unk.r.status} / ${bad.by} ${bad.r.status} ${(why(bad).error || "").slice(0, 40)}`);
     }
 
+    // 10a‴) データ元の書く道（版 3.90.0 から窓が答える: sources_write.rs）。書かずに確かめる（無いデータ元を直す・項目の無い接続の設定は、
+    //       窓が Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）
+    {
+      const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
+      const send = (path, method, body) => get(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const gone = await send("/api/sources/selftest-none", "PUT", { "表示名": "x" });
+      const conn = await send("/api/sources/selftest-none/conn", "PUT", { field: "place", value: "x" });
+      const denied = [gone, conn].every((x) => x.by === "shell" && x.r.status === 403 && why(x).kind === "forbidden");
+      ok("データ元を書く道も窓が受ける（無いデータ元は Python と同じ言葉で断る。書けない人は門番が断る）", denied || (
+         gone.by === "shell" && gone.r.status === 400 && /そのデータ元はありません/.test(why(gone).error || "")
+         && conn.by === "shell" && conn.r.status === 404 && why(conn).kind === "unknown"),
+         `${gone.by} ${gone.r.status} / ${conn.by} ${conn.r.status} ${(why(gone).error || "").slice(0, 30)}`);
+    }
+
     // 10b) 作業実績の設備（Python）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す（画面は案内を出す）
     const wl = await get("/api/worklog/files");
     let wlj = {}; try { wlj = JSON.parse(wl.text); } catch (_) { /* 下で言う */ }

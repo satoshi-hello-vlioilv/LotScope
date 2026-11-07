@@ -294,7 +294,7 @@ pub(crate) struct Spec {
 pub(crate) type CheckRow<'a> = &'a dyn Fn(&[Value], &Map<String, Value>, Option<i64>) -> Result<(), MasterError>;
 
 /// 名前が 1 つずつの列（_check_unique。NFKC・前後の空白を除く・大文字で比べる）
-fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
+pub(crate) fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
     let Some(col) = spec.unique else { return Ok(()) };
     if !data.contains_key(col) {
         return Ok(());
