@@ -315,6 +315,11 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => lot
             .access_read(method, path, &|| lot_settings(backend), &|| backend.alive())
             .map(|(status, v)| Reply { status, ..json_reply(&v) }),
+        // データ元の並び（版 3.87.0。src/sources_list.rs）: 見出しのタブを Python の準備を待たずに描く。スケジュールのカードは
+        // Python の覚え（プロセスのメモリ）なので、中身が起きているときだけ尋ねる（起きていなければ起こした直後と同じ形）
+        ("GET", "/api/sources") => lot
+            .sources_list(req.query, &|| lot_settings(backend), &|| schedule_card(backend))
+            .map(|(status, v)| Reply { status, ..json_reply(&v) }),
         (method, path) => lot
             .handle_body(method, path, req.query, req.body, &|| lot_settings(backend))
             .map(|(status, v)| Reply { status, ..json_reply(&v) }),
@@ -328,6 +333,15 @@ fn lot_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
         return Err(format!("一覧の設定を読めません（{}）", r.status));
     }
     serde_json::from_slice(&r.body).map_err(|e| e.to_string())
+}
+
+/// スケジュールのカード（routes/schedule.py の schedule_card）を中身（Python）に尋ねる。起きていなければ待たずに None
+fn schedule_card(backend: &dyn Backend) -> Option<serde_json::Value> {
+    if !backend.ready_now() {
+        return None;
+    }
+    let r = backend.ask(&Ask { method: "GET", path: "/api/schedule/card", query: "", headers: vec![], body: &[] });
+    (r.status == 200).then(|| serde_json::from_slice(&r.body).ok()).flatten()
 }
 
 /// 更新の置き場の設定を中身（Python）に尋ねる。

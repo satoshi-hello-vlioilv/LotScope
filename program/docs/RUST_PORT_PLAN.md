@@ -885,12 +885,47 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   権限の読む 2 本が Python を待つ・stop と起こしている最中の重なり・入れ替えた直後を準備の前に閉じた PC・古い Sidecar を錠の中で捨てる・release の panic・試験と時間の記録。
   どれも直した（帯は画面の下に ✕ と「もう一度起こす」・Supervisor::on_changed で記録と帯・読み直しで帯を出し直す・Backend::alive は起こしている最中も真で、画面の既定の形は
   ready_now・Phase::Stopped・applied の印でも準備を待つ・錠の外で drop・desktop.yml で TIMING の行。`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
-- まだの所: 起動前の確認の進み具合を画面の中に出す所（今は記録だけ）・GET /api/sources（見出しのタブ）は Python のまま。CLAUDE.md の verify.py の通しの名前
+- まだの所: 起動前の確認の進み具合を画面の中に出す所（今は記録だけ）・GET /api/sources（見出しのタブ）は Python のまま（版 3.87.0 で窓へ移した）。CLAUDE.md の verify.py の通しの名前
   （local・update・distribute）は今の verify.py（update・rename）と合っていない（利用者に伝えた）。
 - 評価関数: `cargo test --bin LotScope sidecar::`（作り物の中身で、起こしている最中も up・busy が待たない・待ち合わせた者も同じ物・起こすのは 1 回・止まった物は起こし直す・
   起こせなかった理由を覚える・間が過ぎれば起こし直す・panic でも Starting に残らない・止めたら起こさない・古い物は錠の外で捨てる・結果を受け取るのは 1 人）・
   `cargo test --bin LotScope router::the_window_answers_while_the_backend_is_slow`（窓の道は中身を待たない）・`verify.py update`（本物の窓で、入れ替え・戻し・配る版・新しい PC の入口）・
   Windows の WebView2 の自己診断（CI）。
+
+### 段 3 の 5 歩目: 見出しのタブの元（GET /api/sources）を窓が答える — 版 3.87.0
+
+版 3.86.0 で画面は Python の準備を待たずに開く（Windows の CI: OPEN ms=0 backend=starting → READY spawn_ms=1369）が、見出しのタブの元
+（app.js の loadSources が頁の読み込みで 1 回だけ尋ねる GET /api/sources）は Python が答えていたので、準備ができるまで品質・実績の名前と
+データ元のタブが出なかった。移し方を決まり 2026-11-06 で 7 案にして別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-sources.json`。
+1 位 **A** 71.2 点・F 60.3・B 54.7・C 48.7・G 40.0・E 39.6・D 35.5）。80 点に届かないので、A に採点の指摘 9 つを入れて作った。
+
+- 並び（bundle.rs の `sources_full`）: 束の sources と同じ作りで、data_sources.sources の全部の鍵（listed・screen・storage・pattern・placeDefault・rowRead・
+  groupSet・group・joinText〈data_join.describe〉・usedBy・note・rev・baseName・joinsDefault）を作る。束はそこから 14 の鍵に絞る（作り方は 1 か所。
+  束は備考などの字を読まない: 読めない字で束を組めなくしない）。
+- マスタと設定から決まる部分（`Inputs::sources_parts`）: 参照先の項目の答え（path_settings.effective の items。項目の言葉は焼いた表 `settingsItems`。
+  更新の置き場の候補「;」も読む。ブラウザの欄に値があれば Python が trusted_browser で確かめるので任せる）・接続の設定（data_sources.conn_of。
+  欄の並びは答えの順なので、焼いた表は対の並び `connBind`・`connFile`）・placeChanged・shellLists・equipCount・others・newConn、スケジュールの設備の数
+  （schedule.config の equipments の区切り方）。焼くのは `python program/tools/bundle-tables.py`（`sourcesList`）。
+- 動く部分（`desktop/src/sources_list.rs`）: 写しの様子は品質は窓の写しの係、ほかの元は窓の写しの係（まだ開いていない元も `Mirrors::peek_or_passive` で
+  写さずに台帳から読む。Python の `_mirrors().peek` はそのプロセスが開いた元だけで、ほかは null だった。窓はより多く答える）・行の数は手元の写しの
+  COUNT(*)（待たない）・結合の数と結合した表の行の数は db_cache/joins の答えの覚え（Joiner.recent のファイルの読み方: `<キー>_*.json` → `try-<キー>_*.json`、
+  決まりが今と同じ物のうち新しい物）。スケジュールのカードは Python の Schedules の覚え（プロセスのメモリだけ）なので、中身が起きているとき（ready_now）だけ
+  新しい内側の道 GET /api/schedule/card に尋ね、起きていなければ待たずに Python を起こした直後と同じ `{mirror: null, equipCount}`。書けるか（canEdit・
+  othersCanEdit）は窓の me、shared・revision は窓のマスタの置き場の係。窓が受けるのは GET /api/sources だけ（?engine=python は Python）。書く道は Python のままで、
+  書いた後は読み直すたびにマスタを読む（覚えない）。
+- 評価関数: `cargo test --test page_parity`（← settings_oracle.py の reads に /api/sources を足した。38 の場面で Python が居ない形の窓の答えを Python と突き合わせる。
+  写しの様子のうち見に行った時刻で決まる物〈checkedAt・copiedAt・unreachable・reason・ageHours〉は比べず、Python が null の元は窓がより多く答えてよい。
+  足した場面: グループ〈現場・消した印「-」・マスタの役割〉・結合の答えの覚え〈今の決まり・try- だけ・決まりが違う〉・参照先の項目のゆれ〈ブラウザの欄が空・
+  鍵の無い行・http でない URL・更新の置き場の候補〉・スケジュールの設備が並び〈端末区分つき・同じ設備〉、ブラウザの欄に値がある〈Python に任せる〉）・
+  `cargo test --lib lot::tests::the_window_answers_the_sources_list`（Python が起きていなくても待たずに 200・既定の 3 設備・中身が起きていればカードは Python の覚え・
+  窓が写した仕掛は行の数・?engine=python）・Windows の WebView2 の自己診断（selftest.js の 10a': 窓と Python の答えが写しの様子・行の数を除いて同じ）。
+- 作った後の採点（1 回だけ。64.7 点。減点 −6）: 割れ 10 件。行の数が最初の周回を最大 30 秒待つ・lotlist_engine = python でも答える・同じファイルの別の元を
+  分け合わない・受け身の係が周回の様子（state.json）を読まない・Python が null の元を比べていない・結合の決まりの 1 と 1.0・間隔を数でしか読まない・
+  Python が落ちる形を答える・2 つの時点が混ざる、を直した（待たない read_path_wait(false)・engine を見る・peek_or_passive が same_place で分け合う・
+  DbMirror::load_state・場面の Python に受け身の係を全部の元で作らせて全部比べる・py_eq・lists の num・落ちる形は任せる・場所はこの答えの並びから。`"built_fixed"`）。
+  ブラウザの欄に値がある PC は Python に任せたまま（数は分からない）。中身を起こしている間のスケジュールの行の印は画面も直すので次の段。決まり 2026-11-06 により採点し直さない。
+- 評価関数（足した物）: `cargo test --lib sources_list::`（結合の覚えの読み方・Python が落ちる形）・`the_window_answers_the_sources_list` に周回の様子のファイル・engine = python・
+  周回の途中でも待たない、を足した。page_parity は場面の Python が窓へ知らせなくなったので、写しを待たずに 3 秒で流れる（前は約 150 秒）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

@@ -1,0 +1,263 @@
+{
+  "title": "Rust 化 版 3.87.0: 見出しのタブの元（GET /api/sources）を窓が答える",
+  "rule": "2026-11-06",
+  "measured": "棚卸し（2026-11-07・main 241abaf）: 版 3.86.0 で画面は Python の準備を待たずに開く（Windows の CI: OPEN ms=0 backend=starting → READY spawn_ms=1369。利用者の PC では測っていないので分からない）。画面の app.js は頁の読み込みで 1 回だけ（と tpa:sources-changed・タブの権限の変化）GET /api/sources（Python。routes/sources.py の sources_list）を尋ね、品質・実績のタブの名前・データ元とグループのタブ・LotList.defineSources を作る。Python の準備の前に尋ねると、窓の Router は Python の道を ready まで待ち合わせる（3.86.0）ので、その間見出しのタブ（品質・実績の名前・データ元のタブ）が出ない。ダッシュボード（dashboard.js の loadSources）とマスタ管理のデータ元（master-sources.js）も同じ道を読む。答え: 22〜27 KB・Python で 2.3〜3.0 ms。中身は items（data_sources.sources＝窓の bundle.rs の sources と同じ元）ごとに _public（写しの様子 mirror.source_info〈窓の mirror.rs にも同じ形の source_info がある。窓が一覧を受け持つと Python の写しの係は受け身〉・行の数〈手元の写しの COUNT(*)〉・結合の数 joinStats〈Python の Joiner.recent: このプロセスの覚え → 無ければ db_cache/joins の答えのファイル〈窓が組んだ物も〉〉・結合した表の行の数）と conn（data_sources.conn_of: 参照先の項目の答え path_settings.effective の items〈窓の bundle.rs に effective がある〉・行に結ぶ項目の既定 read_params〈窓にある〉）・lot の placeChanged・shellLists・作業実績の equipCount、スケジュール（kind cm3）は schedule_card（Python の Schedules の覚え＝プロセスのメモリだけ。Python を起こした直後は mirror: null）。ほかに others（参照先の項目のうち page の無い物）・othersCanEdit・newConn・roles・equipModes・canEdit・shared・revision。残る Python の読む道は /api/settings・/api/changelog（387 KB）・/api/build・/api/health（画面は使わず自己診断が使う）・/api/fs/places・/api/worklog/files・/api/schedule・/api/data/columns・/api/dashboard/fields（POST）・/lotdsp-link。",
+  "proposals_text": {
+    "A 全部を窓が答え、スケジュールのカードだけ Python に尋ねる": "sources_list を窓（新しい sources.rs）へ写す。並びは束の sources、conn は bundle.rs の effective の items と read_params、写しの様子と行の数は窓の写しの係（lists.rs・mirror.rs の source_info と手元の写しの COUNT）、結合の数は db_cache/joins の答えのファイル（Joiner.recent の後半と同じ読み方）、others・newConn・roles・equipModes・canEdit・shared・revision は束と窓の me から。スケジュールのカードだけは Python が起きていれば内側の小さな道（GET /api/schedule/card）で尋ね、起きていなければ Python を起こした直後と同じ { mirror: null, equipCount }。突き合わせの試験 sources_parity（← sources_oracle.py。束の場面のフォルダで）。",
+    "B 静かな部分と動く部分を 2 本の道に分ける": "GET /api/sources は定義（items の並び・conn・others・newConn・roles…）だけにして窓が答え、写しの様子・行の数・結合の数・スケジュールのカードは新しい GET /api/sources/status（はじめは Python、あとで窓）にして、画面（app.js・dashboard.js・master-sources.js）が後から足す。見出しのタブは定義だけで描ける。",
+    "C Python が起きる前だけ窓が答える": "Python が起きていれば今と同じく Python に任せ、起きていない（起こしている最中・起こせなかった）ときだけ窓が答える。窓の答えは定義と窓の写しの様子、スケジュールは null。突き合わせは『起きる前の形』だけ。",
+    "D 前の答えを控えて起動の直後に返す": "Python が答えた GET /api/sources の本文を窓が db_cache に控え、次の起動で Python が起きる前はそれを返す（古い印 stale: true）。Python が起きたら画面に tpa:sources-changed を投げて読み直させる。",
+    "E 画面が束の sources で先にタブを描く": "道は Python のまま。app.js の boot は、窓が組む GET /api/lotlist/settings の束（sources を持つ）で先に見出しのタブと品質・実績の名前を描き、/api/sources の答えが来たら上書きする。",
+    "F 全部を窓が答え、スケジュールの覚えはファイルで渡す": "A と同じく窓が全部を答える。スケジュールのカードは、Python の Schedules が取った設備の覚え（path・checkedAt・changedAt・error・updateTs）を db_cache/schedule/state.json に書き、窓はそれを読んで schedule.source_info と同じ形を作る（Python に尋ねない。Python が居なくても答える）。",
+    "G 小さい読む道を先に移す": "/api/sources は次の段に回し、/api/build・/api/health・/api/changelog（version.py の CHANGELOG を焼いた表）・/api/settings（参照先の項目の答え）を窓へ移す。"
+  },
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-boot.json と 2026-11-port-page.json の evaluator と rounds（形と読み替えの手本）、program/app の routes/sources.py（sources_list・_public・_rows_of・_conn_items・_conn・_view_rows・_join_stats・_joiner）・services/data_sources.py（sources :257〜・conn_of・conn_spec・read_params）・services/path_settings.py（ITEMS 16 項目・effective）・routes/schedule.py（schedules・cfg・schedule_card・schedule_meta）・services/schedule.py（Schedules の _state はメモリだけ・config・source_info）・services/data_join.py（Joiner.path_for・recent は先にこのプロセスの last）・services/db_mirror.py（受け身の決まり・_status・wait_first・source_info）・__init__.py（work_mirrors・lists_are_external）、desktop/src の bundle.rs（sources は KEEP の 14 鍵 :1064・read_params・bundle_tables.json の pathItems は key と kind だけ）・mirror.rs（source_info は Python と同じ形・ageHours は now()）・lists.rs（写しの係は開いた時に作る・スケジュールは Python）・join.rs（答えのファイルの形は Python と同じ）・lot.rs（GET /api/sources は窓が答えない・/api/lotlist/settings も Python へ〈:996〉・after_python と LIST_MASTERS・SETTINGS_TTL 10 秒）・router.rs（ready_now）・selftest.js（/api/build を by===python で確かめる）、画面の app.js（boot・loadSources :1047〜・:1261 で 1 回だけ）・dashboard.js（loadSources は /api/dashboard/sources を読む＝measured の『同じ道』は誤り）・master-sources.js（renderSources・カードの様子 :47〜56）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-sources、TRANSFER_LOCAL_ROOT はその中の一時フォルダ）: probe.py（ui_server.build〈品質 300 行・仕掛 100〉の試験の口で GET /api/sources を 20 回: 200・26,501 バイト・中央 2.59 ms。items は lot・work・wip・m0000001・m0000002・sch の 6 つ、項目 37 種、others 3、roles 5、equipModes 2。開く前は lot 以外の mirror・rows が全部 null、/api/src/… を開いた後に聞き直すと wip 100 行・マスタ 8 行・mirrored true に変わった＝Python の答えはこのプロセスが開いた元に依る）。cargo は流していない（採点に要る事実はコードと Python で確かめた）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲（利用者の得）・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の数（22〜27 KB・2.3〜3.0 ms）は手元で同じ桁に出た。measured の誤り・足りない所: dashboard.js は /api/sources を読まない・束の sources は data_sources.sources の 37 種のうち 14 鍵だけ・窓が一覧を受け持つ今は Python の答えで wip・マスタの写しの様子が null のまま。",
+  "rounds": [
+    {
+      "name": "1 回目",
+      "images": "画面に出ない改良なので画像は無い",
+      "self_check": "案を作った者が自分で読んで確かめた（画面に出ない改良）",
+      "proposals": {
+        "A 全部を窓が答え、スケジュールのカードだけ Python に尋ねる": {
+          "score": {
+            "order": 9,
+            "chunk": 7,
+            "hierarchy": 9,
+            "visual": 7,
+            "steps": 8,
+            "effortless": 5,
+            "intuitive": 8,
+            "form": 8,
+            "place": 7,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "routes/schedule.py の schedule_card は Schedules の peek（services/schedule.py :134 の self._state＝プロセスのメモリだけ）。A は Python が起きていないとき { mirror: null, equipCount } を返すので、master-sources.js :49〜52 のカードは『まだ写していない』（title『開くと共有から手元へ写します』）と出る。Python を起こしている最中なのか、まだ取っていないのかが画面から分からない（Python を起こした直後と同じ形なので割れではないが、窓が先に答えるぶん、この形を見る時間が長くなる）"
+            }
+          ],
+          "seen": "狙いは『見出しのタブの元（app.js :1047 loadSources。頁の読み込みで 1 回だけ :1261）を Python 無しで答える』の 1 つで、ここが Python 待ちで遅れる最後の見出しの道（boot の /api/config・loadMe の /api/access/me・ダッシュボードの /api/dashboard/sources は既に窓）。量は 1 本の道だが、手元で流した Python の答え（ui_server.build〈品質 300 行〉の試験の口、20 回の中央 2.59 ms・26,501 バイト）は項目が 37 種（api・base・builtin・conn・equipColumn・equipCount・equipMode・group・groupSet・id・joinStats・joinText・joins・joinsDefault・key・kind・last・listed・lotSet・mirror・name・note・order・pattern・place・placeChanged・placeDefault・read・rev・role・rowRead・rows・screen・settings・shellLists・storage・table・usedBy）で、窓の bundle.rs の sources は KEEP の 14 鍵（:1064）に絞って捨てている。listed・screen・group・groupSet・joinText（data_join.describe）・usedBy・placeDefault・rev などは窓に無い（作っていない物もある）。conn と others は path_settings.ITEMS の言葉（label・hint・kind・min・max・page・check_url の 16 項目）と CONN_SPECS が要るが、焼いた表 bundle_tables.json の pathItems は key と kind だけ。案の文は『conn は bundle.rs の effective の items』と書くが、その形は窓に無い。大事な事実: Python の答えはこのプロセスの覚えで変わる。_public は _mirrors().peek(k)（このプロセスが開いた元だけ）なので、窓が /api/src を受け持つ今の形では Python は src の写しの係を作らず、wip・マスタの mirror と rows はずっと null（手元で、開く前は全部 null、/api/src/… を開いた後は wip 100 行・マスタ 8 行に変わった）。窓が自分の写しの係（lists.rs の Mirrors。これも開いた時に作る）か台帳で答えると、今の Python より多くを答える＝1 字ずつの突き合わせは、オラクルで両方を同じ状態（開いた後）にしないと成り立たない。同じく joinStats は Joiner.recent が先にこのプロセスの last（data_join.py :289）を見る・mirror の ageHours は時計で動く・copiedAt はファイルの mtime。スケジュールだけ Python に尋ねる形は 3.86.0 の ready_now（router.rs :28）で待たずに分けられ、窓の Router の『Python の道は ready まで待つ』と食い違わない。部品（bundle.rs の sources・read_params・effective、mirror.rs の source_info〈Python と同じ形〉、join.rs の答えのファイル〈stamps・stats・builtAt・seconds・items。Python と同じ形〉、access の me）は揃っている",
+          "fixes": [
+            "bundle.rs の sources を束（14 鍵）と別に、data_sources.sources の全部の項目を持つ形で返す内側の関数にする（listed・screen・group・groupSet・joinText〈data_join.describe を写す〉・usedBy・placeDefault・pattern・note・rev・storage・rowRead・settings・joinsDefault・last・builtin・order・id）。束はそこから KEEP で絞る（作り方を 1 か所に）",
+            "path_settings.ITEMS（16 項目の label・hint・kind・min・max・page・check_url）と data_sources.CONN_SPECS・conn_bind・ROLES・EQUIP_MODES を bundle_tables.json に焼き（tests/test_bundle_tables.py が古さを止める）、effective の items の形（default・value・effective・source・id・rev・updated_at・updated_by）を窓で作る。parse で壊れた値は None（既定で動く）の決まりも同じに。読めない形（設定の既定の inf・nan など）は Python に任せる",
+            "写しの様子と行の数: 窓の写しの係にまだ無いキーでも、台帳（ledger）と <キー>.state.json を受け身の Python と同じ決まり（same_place で別のキーの行も引く）で読んで答える。手元の写しの COUNT は pick_table（lists_parity の表の候補）で表を選び、待たない（Python の _rows_of は read_path(wait=True) で最大 30 秒待ちうる。窓は待たない）。今の Python は窓が受け持つ元で mirror: null を返すので、これは答えが変わる（良くなる）事として版の記録に書き、ui-eval-sources.mjs・ui-eval-srclist.mjs の期待を確かめる",
+            "結合の数は db_cache/joins の <キー>_*.json と try-<キー>_*.json を Joiner.recent と同じ決まり（items が同じ・builtAt が新しい物）で読む。items の比べ方は Python の == と同じに（1 と 1.0 を同じとみなす。serde の Value の == では違う）",
+            "スケジュールのカードは router の ready_now が真のときだけ Python の内側の道（GET /api/schedule/card。schedule_card をそのまま返す）に尋ね、偽なら待たずに { mirror: null, equipCount }。equipCount は schedule.config（_words の区切り・同じ設備は 1 つ）を窓で数える。カードの字は master-sources.js で、mirror が null かつ Python を起こしている最中なら『中身を起こしています』と出す（窓が starting の印を添える）",
+            "canEdit・othersCanEdit は窓の me の can_write（data_sources・path_settings）、shared・revision は窓の MasterStore、shellLists は窓が lists を受け持つと名乗り、かつ lot の係が rust のとき（lists_are_external と同じ）。placeChanged は path_settings の行で lot_list.source・lot_list.table の値が空でない時",
+            "道は GET /api/sources だけ（完全一致）。/api/sources/<キー>/columns・check・join/preview・書く道は Python のまま。書いた後は今の after_python（lot.rs :441 の LIST_MASTERS）で束を捨てるので、続けて読む master-sources.js の renderSources は新しい rev を見る。ほかの PC の書き込みは SETTINGS_TTL（10 秒）遅れうるが、rev が古ければ書く道が 409 で止める（今の Python の 5 秒の写しと同じ扱い）ことを試験に入れる",
+            "突き合わせの試験 sources_parity（← program/tests/sources_oracle.py。settings_oracle.py の束の場面のフォルダを使う）: Python 側は答える前に /api/src/… を開いて写しの係を作り、窓には同じ db_cache を渡す。時計を差し替え（ageHours）、copiedAt は同じファイルの mtime。場面に 結合した表〈組んだ／組んでいない／try- だけ／決まりが変わった〉・壊れた結合元（broken）・グループを消した元（NO_GROUP）・役割マスタ・出さない元・作業実績の表示しない設備・参照先で場所を変えた品質・CM3 の設備の書き方のゆれ を入れる。Python に任せる形も数える",
+            "lot::tests に 1 本: Python が起きていない（ready_now 偽）ときに GET /api/sources が待たずに 200 で答え、items の並び・listed・screen・group が束と同じこと（app.js の見出しのタブが描ける）"
+          ]
+        },
+        "B 静かな部分と動く部分を 2 本の道に分ける": {
+          "score": {
+            "order": 8,
+            "chunk": 6,
+            "hierarchy": 6,
+            "visual": 6,
+            "steps": 6,
+            "effortless": 4,
+            "intuitive": 5,
+            "form": 7,
+            "place": 5,
+            "layout": 6,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "app.js :1047〜・master-sources.js :88 の renderSources は 1 本の答えで札とカードの様子を描く。B は様子を GET /api/sources/status に分けて後から足すので、マスタ管理のデータ元のカードは定義だけで描いたあと様子が後から入る（入るまで『まだ写していない』と同じ形）。しかも status を Python のままにすると、窓が受け持つ元では Python の peek が null なので様子はずっと出ない（手元で確かめた）"
+            }
+          ],
+          "seen": "見出しのタブに要るのは定義（listed・screen・group・name・api）だけなので、定義だけを窓が答える切り方は筋が通り、量も A より軽い（写しの様子・行の数・結合の数・スケジュールを後回しにできる）。ただ道の約束を変え、画面の 3 つの JS（実際に /api/sources を読むのは app.js と master-sources.js の 2 つ。dashboard.js の loadSources は /api/dashboard/sources を読むので measured の『同じ道』は誤り）と ui-eval-sources・ui-eval-srclist の試験を直す。答えの元が定義（窓）と様子（はじめ Python・あとで窓）の 2 本に割れ、その間の版では様子の答えが今より悪い（Python の peek が null のまま）。定義の窓側の写しは A と同じ量（37 種のうち定義の分・ITEMS の言葉・conn）が要る"
+        },
+        "C Python が起きる前だけ窓が答える": {
+          "score": {
+            "order": 5,
+            "chunk": 6,
+            "hierarchy": 6,
+            "visual": 4,
+            "steps": 6,
+            "effortless": 4,
+            "intuitive": 6,
+            "form": 7,
+            "place": 2,
+            "layout": 6,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "窓の答え（窓の写しの係の様子・行の数あり）と Python の答え（窓が受け持つ元では peek が null で mirror・rows が null。手元で確かめた）が違うので、Python が起きる前に開いた画面と後で開いた画面（マスタ管理のデータ元を開き直す）でカードの『100 行 10:02』が『まだ写していない』に戻る。いまどちらが答えたかが画面に出ない"
+            }
+          ],
+          "seen": "Python が起きていればそのまま任せるので、起きた後の危うさは低く見えるが、答えの元が状態で 2 つに替わり、その差が実際にある（上の減点）。突き合わせは『起きる前の形』だけで、窓の答えの正しさを Python の答えと比べる場面が無い（起きる前は Python が答えないので、比べる相手が居ない）。作る量は A とほぼ同じ（定義・conn・others を窓が全部作る）なのに、得は起動の直後だけで、Python 無しへの道筋（いずれ Python の道を消す）にも進まない"
+        },
+        "D 前の答えを控えて起動の直後に返す": {
+          "score": {
+            "order": 3,
+            "chunk": 6,
+            "hierarchy": 5,
+            "visual": 4,
+            "steps": 5,
+            "effortless": 3,
+            "intuitive": 4,
+            "form": 5,
+            "place": 2,
+            "layout": 6,
+            "tone": 3
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "控えた本文には行の版（rev）と conn の rev・revision が入る。前の起動の後にほかの PC がデータ元・参照先を直していると、Python が起きる前に開いたマスタ管理は古い rev で書き、409 で止まる（なぜ止まったかが利用者に分からない）。古い名前のタブも出る"
+            },
+            {
+              "kind": "hidden_state",
+              "where": "『Python が起きたら画面に tpa:sources-changed を投げる』: 窓から頁の中の出来事を起こす道（eval か __desktop の知らせ）は今の起動の流れに無く、app.js は tpa:sources-changed を document の CustomEvent として受けるだけ。届かなければ古い控えのまま見出しが残る"
+            }
+          ],
+          "seen": "作る量は小さい（本文を控える・返す・知らせる）が、古い答えを正しい答えと同じ形で返すので、答えの元が 2 つ（控えと Python）になり、突き合わせで測れる物が無い（控えの古さはいつも違う）。初めての起動・控えの消えた PC では今と同じで、Python 無しへの道筋にもならない。stale の印を画面が読む作りも要る"
+        },
+        "E 画面が束の sources で先にタブを描く": {
+          "score": {
+            "order": 4,
+            "chunk": 7,
+            "hierarchy": 6,
+            "visual": 4,
+            "steps": 3,
+            "effortless": 2,
+            "intuitive": 4,
+            "form": 6,
+            "place": 3,
+            "layout": 7,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "前提が違う: 画面の JS は GET /api/lotlist/settings を 1 か所も読まない（grep で app.js・lotlist.js・master-*.js に無い）。束は窓の中だけで使い、頁から尋ねると lot.rs :996 の試験のとおり窓は答えず Python に回す（Python の ready を待つ）。しかも束の sources は KEEP の 14 鍵（bundle.rs :1064）で、見出しのタブに要る listed・screen・group が無い（app.js :1063〜1064 が使う）。案の文のままでは先にタブを描けない"
+            },
+            {
+              "kind": "hidden_state",
+              "where": "先に描いたタブを /api/sources の答えで上書きするので、出さないタブ（tabHidden）・消えた元・グループの組み替えが後から来ると、タブが一度出てから消える・Alt＋数字の割り当てが後で替わる"
+            }
+          ],
+          "seen": "道を Python のままにして画面で先に描く考えは、量が小さく危うさも低く見えるが、上の 2 つで前提が崩れている。直すには窓に頁向けの束の道を足し、束の sources に listed・screen・group を足す（＝A の一部を作る）ことになり、答えの元が束と /api/sources の 2 つになる。Python の道の数は減らない"
+        },
+        "F 全部を窓が答え、スケジュールの覚えはファイルで渡す": {
+          "score": {
+            "order": 9,
+            "chunk": 6,
+            "hierarchy": 8,
+            "visual": 5,
+            "steps": 9,
+            "effortless": 4,
+            "intuitive": 6,
+            "form": 7,
+            "place": 5,
+            "layout": 6,
+            "tone": 5
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "Schedules の覚えはプロセスのメモリ（services/schedule.py :134）で、Python を起こし直すと空になる。F の state.json は前の起動の物が残るので、窓のカードは『3 設備 10:02』と出すのに、同じ時の Python の GET /api/schedule は設備ごとに state: \"unknown\"（routes/schedule.py :170）、/api/src/sch は CM3 から取り直す。カードと画面の言うことが食い違い、どちらが今の様子か分からない"
+            }
+          ],
+          "seen": "A と同じく窓が全部答え、スケジュールのカードも Python に尋ねないので、Python が居なくても答えられる範囲はいちばん広い。ただ答えの元を『Python のメモリ』から『ファイル』へ移すには、Python 側も起動時にそのファイルを読むよう変えないと、Python の答え（起動直後は mirror: null）と窓の答えが割れる。案の文はそこを書いていない。Python の ensure（auto_refresh_sec ごと）の度に書く手が増え、書いている途中を窓が読む（原子的に書く・錠）・db_cache/schedule の掃除（_sweep）で path のファイルが消えた後の扱いも要る。カードの様子のためだけに保存の形を 1 つ増やすのは釣り合わない。A の残りの部分（37 種の項目・ITEMS の言葉・peek の違い）の落とし穴は A と同じく潰していない"
+        },
+        "G 小さい読む道を先に移す": {
+          "score": {
+            "order": 4,
+            "chunk": 7,
+            "hierarchy": 3,
+            "visual": 6,
+            "steps": 2,
+            "effortless": 3,
+            "intuitive": 6,
+            "form": 6,
+            "place": 4,
+            "layout": 6,
+            "tone": 4
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "desktop/src/selftest.js :57 は『API が答える（/api/build）』を b.by === \"python\" で確かめ、:96・:285 も /api/build を Python の道の代表に測る。/api/build を窓へ移すと自己診断が落ちるか、Python の道を見る確かめが消える"
+            },
+            {
+              "kind": "hidden_state",
+              "where": "/api/changelog を version.py から焼いた表で答えると、program だけを配る更新（exe を替えない）で版が上がったとき、窓の更新履歴が古いまま出る（前の段の採点でも同じ指摘）"
+            }
+          ],
+          "seen": "4 本とも小さく突き合わせやすいが、狙いが寄せ集め。/api/build・/api/health は画面の JS が使わず（自己診断だけ）、/api/changelog は版の札を押した時だけ、GET /api/settings を画面が読むのは master.js の 1 か所。どれも起動の直後に見出しが遅れる理由（/api/sources）を解かないので、利用者の得はほとんど無い。/api/settings の items の形（label・hint・updated_by…）は窓に無く、A の fixes の 2 と同じ物が要る"
+        }
+      }
+    }
+  ],
+  "built": {
+    "name": "作った後",
+    "images": "画面に出ない改良なので画像は無い",
+    "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、読んで・動かして確かめた事実で採点した。リポジトリの中で変えたのはこのファイルだけ。cargo は流していない（作った者が同じ作業フォルダで確かめ一式を流しているため）。読んだ物: git show HEAD の全部（bundle.rs の sources_all〈full〉・row_read・groups_and_uses・parse_any・effective_items・conn_bind・conn_of・schedule_equips・Inputs::sources_parts、sources_list.rs の全部、lot.rs の Lot::sources_list と試験、main.rs の受け口と schedule_card、mirror.rs の peek_or_passive、page_parity.rs、settings_oracle.py の 2 場面、bundle-tables.py、selftest.js の 10a'）と、Python の routes/sources.py（sources_list・_public・_conn・_rows_of・_view_rows・_join_stats・_joiner）、data_sources.py（sources・conn_bind・conn_of・read_params）、path_settings.py（parse・effective・_get・ITEMS）、schedule.py（config・_words・DEFAULTS）、routes/schedule.py（schedule_card・cfg）、data_join.py（Joiner.recent・describe）、db_mirror.py（read_path・wait_first・_status・source_info）、app/__init__.py（lists_are_external・lot_engine・work_mirrors・make_lot_mirror）、窓の mirror.rs（DbMirror::new・wait_first・read_path・source_info・Mirrors::get）・lists.rs（src.get と num）・lot.rs（mirror・warm・engine の扱い）、master-sources.js の stateOf と joinCell・app.js の loadSources。動かした物: python program/tests/settings_oracle.py（置き場は scratchpad/built-sources/work。終了コード 0・2 分 36 秒）で 49 場面の /api/sources の Python の答えを出し、『データ元の並び（グループ・結合の覚え・項目のゆれ・設備の並び）』の答えを 1 件ずつ窓の組み方と読み合わせた",
+    "result": {
+      "proposal": "A 全部を窓が答え、スケジュールのカードだけ Python に尋ねる（指摘入り・作った後）",
+      "score": {
+        "order": 8,
+        "chunk": 7,
+        "hierarchy": 9,
+        "visual": 6,
+        "steps": 7,
+        "effortless": 5,
+        "intuitive": 8,
+        "form": 8,
+        "place": 7,
+        "layout": 7,
+        "tone": 6
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "スケジュールのカード: 中身を起こしている間（ready_now が偽）は {mirror: null, equipCount} で、master-sources.js :49〜50 は『まだ取っていない』（title『開くと CM3 から取ります』）と出る。指摘 5 の『中身を起こしています』の字と、窓が添える starting の印は入っていない（sources_list.rs :113〜114・main.rs の schedule_card）。窓が先に答えるぶん、Python がもう取っていた PC でもこの形を見る時間が長くなる"
+        },
+        {
+          "kind": "hidden_state",
+          "where": "まだ開いていない元の写しの様子（peek_or_passive・lot の DbMirror::new）は、窓のメモリの state が空の係なので、窓が前の回に置いた <キー>.state.json を読まない。届かない（unreachable）・理由（reason）・確かめた時刻（checkedAt）がいつも false・空・null で、master-sources.js :55 の『届かない』が出ない（受け身の Python の _status は state.json を読む。指摘 3 の『受け身の Python と同じ決まり』の半分）。page_parity.rs はちょうどこの鍵（checkedAt・unreachable・reason）を比べずに外しているので、試験では見えない"
+        }
+      ],
+      "seen": "【指摘 9 つの入り方】1 sources_full: 入った（sources_all の full で 1 か所。束は KEEP で絞る。listed・screen・group・groupSet・joinText・usedBy・placeDefault・pattern・note・rev・storage・rowRead・settings・joinsDefault・baseName も）。Python の答え（場面『データ元の並び…』）と 1 件ずつ読み合わせ、同じキーの 2 行（s6 が 2 つ）・壊れた結合した表（s3 の元が結合した表・s4 の元が無い）・グループの『-』・マスタの役割の『マスタ』・usedBy（wip → s1・s2・sch）・joinText の『（）』まで同じ組み方。2 参照先の項目: 入った（settingsItems に ITEMS をそのまま焼き、effective_items で default・value・effective・source・id・rev・updated_at・updated_by。壊れた値は None・exe に値があれば Python に任せる〈trusted_browser は置き場と resolve に依るので任せるのは妥当〉）。conn_of の row: と settings: の 2 つの形、rev の `or 0`、`str(r.get(\"キー\") or \"\")`〈strip しない・最初の行〉も Python と同じ。3 写しの様子と行の数: 半分（まだ開いていない元も台帳から読む・pick_table で表を選ぶ、は入った。『待たない』・state.json・same_place は入っていない: 下の割れ 1〜3）。4 結合の数: 半分（<キー>_*.json → try-<キー>_*.json・items が同じで builtAt が新しい物、は入った。items の比べ方は serde の == のままで、1 と 1.0 を別とみなす）。5 カード: 半分（ready_now のときだけ Python の GET /api/schedule/card。equipCount は schedule.config の _words・『:』・同じ設備は 1 つを窓で数え、Python が落ちる hot・schedule の形は任せる。starting の印と画面の字は無い）。GET /api/schedule/card には門番・タブの権限は無く（tab_denied を呼ばない。前の sources_list も呼んでいない）、窓は X-TPA-Me を付けずに尋ねるが、カードは me を使わないので答えは変わらない。6 canEdit・shared・revision・shellLists・placeChanged: 入った（shellLists は『lists を名乗る』を常に真とみなし、設定の desktop.lotlist_engine だけを見る。SERVES に lists がある今の窓では正しい）。7 道は GET /api/sources だけ: 入った（main.rs の完全一致。書いた後は LIST_MASTERS に /api/sources があり、項目は builder.inputs() で毎回読み直す。409 の試験は無い）。8 突き合わせ: 半分（sources_parity は作らず、page_parity に /api/sources と 2 場面を足した。Python 側は /api/src/… を開かないので、Python の mirror が null の元は窓の mirror と rows を Python の値に差し替えてから比べる → src の元の写しの様子・行の数と、結合した表の行の数〈view_rows〉は Python と一度も比べていない）。9 lot::tests: 入った（待たない・並び・既定の 3 設備・まだ写していない・カードは Python の覚え・窓が写した後は 3 行・engine=python）。【副作用】peek_or_passive と lot の DbMirror::new はファイルに触らない（Arc を作るだけ。束に入れず周回も始めない）。ただし窓の係が既に動いている元・品質の写しは read_path（待つ形）を呼ぶ。【selftest 10a'】窓と ?engine=python の Python を同じ頁から続けて引き、mirror・rows を全段で外して比べる。joinStats は同じ joins のファイル、canEdit は同じ me、equipCount は同じ Python の覚えなので、CI で揺れる所は見当たらない（Python の Joiner.last がこのプロセスで組んだ物を持つと先にそれを見るが、窓が lists を受け持つ CI では Python は組まない）。【11 項目】読み替えは前の段と同じ（順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲・考えさせない＝落とし穴を潰したか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ）。視覚化 6 は写しの様子・行の数・view_rows を Python と比べていないため、考えさせない 5 は品質の写しの最初の周回で最大 30 秒待つ所・engine=python で答えてしまう所、ステップ数 7 はブラウザの欄に値がある PC では毎回 Python 待ちに戻る所、言葉と置き場 7 は写しの間隔の読み方が lists.rs と違う・束と設定の覚え（10 秒）の 2 つの時点を混ぜる所",
+      "splits": [
+        "desktop/src/sources_list.rs:35 rows_of が m.read_path()（= read_path_wait(true)・FIRST_WAIT 30 秒）を呼ぶ。品質の写しは起動の直後に Lot::warm（lot.rs :566〜572）が start するので、最初の周回（新しい PC の最初の写し・届かない UNC の stat）が終わるまで GET /api/sources が最大 30 秒待つ。見出しのタブ（app.js :1047 loadSources）がそれを待つので、狙い『Python を待たずにタブを描く』がちょうど遅い PC で崩れる。今の Python の LOT_MIRROR は受け身で、窓へ『写して』と頼んでいなければ wait_first が待たない（db_mirror.py :412〜414）ので、これは窓で新しく増えた待ち。窓で開いた元（lists.src の係）も同じ。指摘 3 の『窓は待たない』が入っていない。read_path_wait(false) にし、lot::tests に『写しの係が最初の周回の途中でも 2 秒以内に答える』を足す",
+        "desktop/src/lot.rs:441〜460 Lot::sources_list は Settings の engine を見ない。設定 desktop.lotlist_engine が python のとき、窓のほかの道（lot.rs :173・:733 など）は Python に任せるのに、ここだけ窓が答える。そのとき写しの係は Python の能動の係（様子は Python のメモリ）で、窓は受け身の空の係（DbMirror::new・peek_or_passive）から答えるので、届かない・理由・確かめた時刻が消え、Python の答えと違う。s.engine != \"rust\" なら None を返し、page_parity に engine=python の場面を足す",
+        "desktop/src/mirror.rs:712〜714 peek_or_passive は Mirrors::get（:663〜704）の『同じ場所を指す別のキーの係を分け合う』（same_place）をしない。2 つの元が同じ .sqlite3 を指し、窓が片方を開いた後は、もう片方を台帳の自分のキー（src_<キー>）で読んで『まだ写していない』・rows: null と言う（開けば分け合った係で、すぐ読める）。指摘 3 の『same_place で別のキーの行も引く』が入っていない",
+        "desktop/src/mirror.rs:167〜179 と :503〜528 受け身の係（DbMirror::new のまま周回しない係）の source_info は、メモリの state（空）を読むので <キー>.state.json（mirror.rs :440 で窓が置く）を読まない。受け身の Python の _status（db_mirror.py :211〜221）は読む。まだ開いていない元・lot.rs :454〜456 の品質の写しの係が無いときに、届かない・理由・確かめた時刻が出ない（減点の 2 つ目）。page_parity.rs :143〜150 はこの 3 つを比べずに外す",
+        "desktop/tests/page_parity.rs:133〜140 Python の mirror が null の元（lot 以外の全部）は、窓の mirror を null に・rows を Python の rows に差し替えてから比べる。Python の場面は /api/src/… を開かないので、src の元はすべて差し替わり、窓の写しの様子・行の数（rows_of と count）と、結合した表の行の数（view_rows。場面の s2 は Python が 8 を答え、窓の値は上書きされる）は Python と一度も比べていない。指摘 8 の『Python 側は答える前に /api/src/… を開いて写しの係を作り、同じ db_cache を渡す』を入れ、view_rows は差し替えの外に出す",
+        "desktop/src/sources_list.rs:72 recent の items の比べ方が serde の Value の ==（1 と 1.0・true と 1 を別とみなす）。Python の Joiner.recent（data_join.py :298）は == で同じとみなすので、決まりの数を小数で書いた答えのファイルを窓は使わず、joinStats・rows が null になる。指摘 4 で名指ししたが入っていない（page_parity の場面は字だけの決まり）",
+        "desktop/src/sources_list.rs:129〜130 受け身の係の間隔・古さを read の as_f64 だけで読む。窓が本当に開くときの lists.rs :482 は num（字の数〈\"120\"〉も読む）なので、設定 sources.<キー>.refresh_seconds を字で書くと、開く前は interval_sec 60・開いた後は 120 と、同じ元の答えが開く前後で変わる。lists.rs の num を使う",
+        "desktop/src/sources_list.rs:68〜73・:87〜99 Python が落ちる（500）形を窓が答える: 答えのファイルの builtAt が字（Python は str > int で TypeError）・stats の 1 つが表でない（Python は x.get で AttributeError）・stats が表（Python は st[-1] で KeyError）。窓は 0・null として答える。答えのファイルは窓（join.rs）が書くので起こりにくいが、Python に任せる形として None を返すか、Python と同じに読めない形として数える",
+        "desktop/src/lot.rs:447〜451 項目は builder.inputs()（毎回読み直す）から、me・品質の写しの場所は self.settings(ask)（10 秒の覚え・組めなければ Python を待つ）から組む。ほかの PC がデータ元・権限を書いた直後の 10 秒は、並び（新しい）と canEdit・品質の remote（古い）が別の時点になりうる。Python は 1 回の問い合わせで 1 つの MasterStore を読む。inputs から me も組むか、覚えの時刻を揃える",
+        "page_parity.rs の MUST_DELEGATE『ブラウザの欄に値がある』: 参照先で LotDsp のブラウザ（lotdsp_import.direct.browser）を決めた PC では、bundle.rs :1582 の exe で毎回 Python に任せるので、その PC の見出しのタブはずっと Python の準備を待つ（窓が答える形から外れたことが画面にも記録にも出ない）。割れではないが、任せる形が現場で多いかどうかを数えておく（Windows では trusted_browser が置き場と resolve に依るので、窓で写すなら『Edge・Chrome の名前で Program Files・AppData の下』の判定を release と同じく焼いた表で持つ）"
+      ]
+    }
+  },
+  "built_fixed": {
+    "by": "作った者（決まり 2026-11-06: 採点し直さず、割れをすべて直して試験に足す）",
+    "fixed": [
+      "1 行の数が最初の周回を最大 30 秒待つ: rows_of は read_path_wait(false)（待たない）。試験 the_window_answers_the_sources_list で、品質の写しの係を動かした直後（warm）も 2 秒以内に答える",
+      "2 lotlist_engine = python でも窓が答える: Lot::sources_list は engine が rust でなければ Python に任せる（試験: 配った設定を python にして None）",
+      "3 同じファイルの別の元を分け合わない: Mirrors::peek_or_passive は同じファイル（same_place）を指す別のキーの係を使い、1 つの答えの中で作った受け身の係も分け合う（場面: 仕掛と同じ場所の s7）",
+      "4 受け身の係が周回の様子を読まない: DbMirror::load_state で <キー>.state.json を読む（元が違う物は読まない。受け身の Python の _status と同じ）。試験で届かない・理由・確かめた時刻が出る。品質の写しの係も、場所が今の並びと違う・まだ無ければ受け身の係で読む",
+      "5 Python が null の元を比べていない: 場面の Python に、窓へ知らせない受け身の写しの係（notify=None）を全部の元で作らせてから尋ね、page_parity は全部の元の写しの様子と行の数・結合した表の行の数を比べる（見に行った時刻で決まる checkedAt・copiedAt・unreachable・reason・ageHours だけ外す）。同じキーの行が 2 つあれば最初の行（一覧を開く道と同じ）",
+      "6 結合の決まりを serde の == で比べる: Python の ==（1 と 1.0 は同じ）で比べる py_eq（試験 join_memos_are_read_like_python）",
+      "7 間隔を数でしか読まない: 本当に開くときの lists.rs と同じ num（字の数も）",
+      "8 Python が落ちる形を窓が答える: 比べられない builtAt（2 つ以上の覚えがあるとき）・表の stats・表でない stats の項目は Python に任せる（試験 python_crashes_are_left_to_python）",
+      "9 2 つの時点が混ざる: 品質の写しの場所・間隔は、この答えで読んだ並びから取る（覚えた設定の場所と違えば、動いている係を使わず受け身の係で読む）"
+    ],
+    "not_fixed": [
+      "10 ブラウザの欄に値がある PC は Python に任せたまま（trusted_browser は Windows の決まった置き場で確かめる。値のある PC の数は数えていないので分からない）",
+      "減点の「状態が見えない」1: 中身を起こしている間のスケジュールの行は「まだ取っていない」のまま（起こしている印を出すには画面〈master-sources.js〉も直す。次の段）"
+    ]
+  }
+}

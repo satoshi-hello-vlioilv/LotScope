@@ -58,6 +58,11 @@ fn s(v: Option<&Value>) -> R<String> {
     }
 }
 
+/// Python の真偽（bool(v)。窓のほかの部品が使う: sources_list.rs）
+pub fn py_truthy(v: &Value) -> bool {
+    truthy(Some(v))
+}
+
 /// Python の真偽（bool(v)）
 fn truthy(v: Option<&Value>) -> bool {
     match v {
@@ -926,6 +931,22 @@ fn order_of(v: &str) -> i128 {
 
 /// いま効いているデータ元の並び（data_sources.sources）を、束に出す鍵だけにした物
 fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
+    // role（版 3.85.0）: ダッシュボードのデータの並び（/api/dashboard/sources）を窓が束から答える
+    const KEEP: [&str; 14] =
+        ["key", "kind", "name", "role", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode"];
+    Ok(sources_all(settings, rows, false)?
+        .into_iter()
+        .map(|d| Value::Object(KEEP.iter().map(|k| (k.to_string(), d.get(*k).cloned().unwrap_or(Value::Null))).collect()))
+        .collect())
+}
+
+/// data_sources.sources の全部の鍵（版 3.87.0。GET /api/sources: src/sources_list.rs）
+pub(crate) fn sources_full(settings: &Value, rows: &[Value]) -> R<Vec<Map<String, Value>>> {
+    sources_all(settings, rows, true)
+}
+
+/// data_sources.sources。full でなければ束に出す鍵の材料だけを作る（束は備考などの字を読まない: 読めない字で束を組めなくしない）
+fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String, Value>>> {
     let mut by: Vec<(String, Map<String, Value>)> = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("データ元の行が表でない"))?;
@@ -942,6 +963,13 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         let row = by.iter().find(|(n, _)| n == bk).map(|(_, r)| r.clone()).unwrap_or_default();
         let mut d = b.as_object().cloned().unwrap_or_default();
         d.insert("builtin".into(), json!(true));
+        if full {
+            d.insert("id".into(), row.get("id").cloned().unwrap_or(Value::Null));
+            d.insert("rev".into(), row.get("rev").cloned().unwrap_or(Value::Null));
+            d.insert("note".into(), json!(s(row.get("備考"))?));
+            d.insert("storage".into(), json!(if b["settings"].is_object() { "settings" } else { "master" }));
+            d.insert("pattern".into(), json!(""));
+        }
         let dflt: Map<String, Value>;
         if b["kind"] == "cm3" {
             let place = s(b["settings"]["place"].as_str().and_then(|k| dotted(settings, k)))?;
@@ -953,6 +981,9 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
             let get = |k: &str| keys[k].as_str().and_then(|k| dotted(settings, k));
             d.insert("place".into(), json!(unquote(&s(get("place"))?)));
             d.insert("table".into(), json!(s(get("table"))?));
+            if full && keys.get("pattern").is_some_and(|p| truthy(Some(p))) {
+                d.insert("pattern".into(), json!(s(get("pattern"))?));
+            }
             dflt = json!({"equip_column": b["equipColumn"], "equip_mode": b["equipMode"]}).as_object().cloned().unwrap();
         } else {
             let mut m = t(&["sources", "wipDefault"]).as_object().cloned().unwrap_or_default();
@@ -976,6 +1007,9 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
             };
             d.insert("place".into(), json!(unquote(&place)));
             d.insert("table".into(), json!(table));
+            if full {
+                d.insert("placeDefault".into(), json!(unquote(&s(m.get("source"))?)));
+            }
             dflt = m;
         }
         let has_row = !row.is_empty();
@@ -1001,6 +1035,15 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         d.insert("joins".into(), joins);
         d.insert("order".into(), json!(s(row.get("並び"))?));
         d.insert("id".into(), row.get("id").cloned().unwrap_or(Value::Null));
+        if full {
+            if b["kind"] == "cm3" && !has_row {
+                d.insert("joinsDefault".into(), json!(true));
+            }
+            d.insert("listed".into(), json!(matches!(bk, "lot" | "work") || s(row.get("画面"))? != "無"));
+            d.insert("rowRead".into(), row_read(&row)?);
+            let groupable = t(&["sources", "groupable"]).as_array().is_some_and(|g| g.iter().any(|x| x.as_str() == Some(bk)));
+            d.insert("groupSet".into(), json!(if groupable { s(row.get("グループ"))? } else { String::new() }));
+        }
         out.push(d);
     }
     // 足した元は行の順（同じキーの行が 2 つあれば 2 つとも。Python の added は rows を回す）
@@ -1013,13 +1056,25 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
         let name = s(r.get("表示名"))?;
         let mode = s(r.get("設備の取り出し方"))?;
         let role = s(r.get("役割"))?;
-        let d = json!({"key": k, "name": if name.is_empty() { k.clone() } else { name }, "kind": "file",
+        let mut d = json!({"key": k, "name": if name.is_empty() { k.clone() } else { name }, "kind": "file",
                        "role": if role.is_empty() { "その他".to_string() } else { role },
                        "place": unquote(&s(r.get("場所"))?), "table": s(r.get("表"))?, "equipColumn": s(r.get("設備の列"))?,
                        "equipMode": if mode.is_empty() { "そのまま".to_string() } else { mode }, "builtin": false,
                        "api": format!("/api/src/{k}"), "id": r.get("id").cloned().unwrap_or(Value::Null),
                        "read": read_params(settings, k, r)?, "lotSet": s(r.get("ロット番号の列"))?, "joins": joins_of(r.get("結合"))?,
                        "order": s(r.get("並び"))?, "base": s(r.get("元"))?});
+        if full {
+            let o = d.as_object_mut().unwrap();
+            o.insert("pattern".into(), json!(""));
+            o.insert("screen".into(), json!(format!("src:{k}")));
+            o.insert("listed".into(), json!(s(r.get("画面"))? != "無"));
+            o.insert("storage".into(), json!("master"));
+            o.insert("settings".into(), Value::Null);
+            o.insert("rev".into(), r.get("rev").cloned().unwrap_or(Value::Null));
+            o.insert("note".into(), json!(s(r.get("備考"))?));
+            o.insert("rowRead".into(), row_read(r)?);
+            o.insert("groupSet".into(), json!(s(r.get("グループ"))?));
+        }
         out.push(d.as_object().cloned().unwrap());
     }
     let rest = out.split_off(2.min(out.len()));
@@ -1051,6 +1106,9 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
                 d.insert("kind".into(), json!("view"));
                 d.insert("place".into(), b["place"].clone());
                 d.insert("table".into(), b["table"].clone());
+                if full {
+                    d.insert("baseName".into(), b["name"].clone());
+                }
             }
             _ => {
                 d.insert("kind".into(), json!("view"));
@@ -1060,13 +1118,76 @@ fn sources(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
             }
         }
     }
-    // role（版 3.85.0）: ダッシュボードのデータの並び（/api/dashboard/sources）を窓が束から答える
-    const KEEP: [&str; 14] =
-        ["key", "kind", "name", "role", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode"];
-    Ok(out
-        .into_iter()
-        .map(|d| Value::Object(KEEP.iter().map(|k| (k.to_string(), d.get(*k).cloned().unwrap_or(Value::Null))).collect()))
-        .collect())
+    if full {
+        groups_and_uses(&mut out);
+    }
+    Ok(out)
+}
+
+/// 行の「確かめる間隔」「古さの警告」の字（data_sources の rowRead）
+fn row_read(row: &Map<String, Value>) -> R<Value> {
+    let mut o = Map::new();
+    for (_, col) in t(&["sources", "rowRead"]).as_object().into_iter().flatten() {
+        let col = col.as_str().unwrap_or("");
+        o.insert(col.into(), json!(s(row.get(col))?));
+    }
+    Ok(Value::Object(o))
+}
+
+/// グループ（見出しのタブのまとまり）・結合の要約（data_join.describe）・使っている元（usedBy）
+fn groups_and_uses(out: &mut [Map<String, Value>]) {
+    let tl = &t(&["sourcesList"]);
+    let (no_group, master) = (tl["noGroup"].as_str().unwrap_or("-"), tl["masterRole"].as_str().unwrap_or("マスタ"));
+    let mut names: Vec<(String, Value)> = vec![];
+    for d in out.iter() {
+        let k = d["key"].as_str().unwrap_or("").to_string();
+        match names.iter_mut().find(|(n, _)| *n == k) {
+            Some(slot) => slot.1 = d["name"].clone(),
+            None => names.push((k, d["name"].clone())),
+        }
+    }
+    let snapshot: Vec<Map<String, Value>> = out.to_vec();
+    for (i, d) in out.iter_mut().enumerate() {
+        let set = d["groupSet"].as_str().unwrap_or("").to_string();
+        let group = if set == no_group {
+            String::new()
+        } else if !set.is_empty() {
+            set
+        } else if d["role"].as_str() == Some(master) && d["api"].as_str().is_some_and(|a| a.starts_with("/api/src/")) {
+            master.to_string()
+        } else {
+            String::new()
+        };
+        d.insert("group".into(), json!(group));
+        let text: Vec<String> = d["joins"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|j| {
+                let w = j["with"].as_str().unwrap_or("");
+                let name = names.iter().find(|(n, _)| n == w).map(|(_, v)| py_str(v)).unwrap_or_else(|| w.to_string());
+                let how = tl["howLabels"][j["how"].as_str().unwrap_or("")].as_str().unwrap_or("");
+                let on: Vec<String> = j["on"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|p| format!("{} = {}", p[0].as_str().unwrap_or(""), p[1].as_str().unwrap_or("")))
+                    .collect();
+                format!("{name} を{how}（{}）", on.join("・"))
+            })
+            .collect();
+        d.insert("joinText".into(), json!(text.join("・")));
+        let key = d["key"].clone();
+        let used: Vec<Value> = snapshot
+            .iter()
+            .enumerate()
+            .filter(|(j, x)| {
+                *j != i && (x.get("base") == Some(&key) || x["joins"].as_array().into_iter().flatten().any(|jn| jn["with"] == key))
+            })
+            .map(|(_, x)| x["key"].clone())
+            .collect();
+        d.insert("usedBy".into(), Value::Array(used));
+    }
 }
 
 // ------------------------------------------------------------------ 設備グループ（services/equip_groups.py の view・ordered）
@@ -1433,6 +1554,244 @@ impl Inputs {
     /// マスタの版の番号（MasterStore.revision。読めなければ Err）
     pub fn revision(&self, name: &str) -> R<i64> {
         self.p.revision(name).map_err(|_| Py("マスタの版が読めない"))
+    }
+}
+
+/// GET /api/sources のうち、マスタと設定から決まる部分（版 3.87.0。写しの様子・行の数・結合の数・スケジュールのカードは src/sources_list.rs）
+pub struct SourcesParts {
+    /// データ元の並び（data_sources.sources の全部の鍵）に conn・placeChanged・shellLists・equipCount を足した物
+    pub items: Vec<Map<String, Value>>,
+    pub others: Vec<Value>,
+    pub new_conn: Value,
+    /// スケジュールの設備の数（schedule.config の equipments。カードを Python に尋ねられないとき）
+    pub schedule_equips: usize,
+}
+
+/// path_settings.parse の窓の写し（束に出る種類は parse_item・更新の置き場は「;」の候補。exe は Python に任せる）
+fn parse_any(item: &Value, raw: Option<&Value>) -> R<Option<Value>> {
+    match item["kind"].as_str().unwrap_or("") {
+        "release" => {
+            let text = match raw {
+                None | Some(Value::Null) => String::new(),
+                Some(Value::Array(_) | Value::Object(_)) => return Err(Py("参照先の値が表・並び")),
+                Some(x) => pyfmt::strip(&py_str(x)).to_string(),
+            };
+            if text.is_empty() {
+                return Ok(None);
+            }
+            let parts: Vec<String> =
+                text.replace('\n', ";").split(';').map(|p| unquote(pyfmt::strip(p))).filter(|x| !x.is_empty()).collect();
+            Ok(Some(json!(parts.join(";"))))
+        }
+        "exe" => match raw {
+            None | Some(Value::Null) => Ok(None),
+            Some(x) if pyfmt::strip(&py_str(x)).is_empty() => Ok(None),
+            _ => Err(Py("ブラウザの欄（trusted_browser）は Python が確かめる")),
+        },
+        _ => parse_item(item, raw),
+    }
+}
+
+/// path_settings.effective の items（項目ごとの答え: 既定・マスタの値・効いている値・版）
+fn effective_items(settings: &Value, rows: &[Value]) -> R<Vec<Value>> {
+    let mut by: Vec<(String, &Value)> = vec![];
+    for r in rows {
+        let k = pstr(r.get("項目"))?;
+        match by.iter_mut().find(|(n, _)| *n == k) {
+            Some(slot) => slot.1 = r,
+            None => by.push((k, r)),
+        }
+    }
+    let mut out = vec![];
+    for it in t(&["settingsItems"]).as_array().into_iter().flatten() {
+        let key = it["key"].as_str().unwrap_or("");
+        let default = dotted(settings, key).cloned().unwrap_or(Value::Null);
+        let row = by.iter().find(|(n, _)| n == key).map(|(_, r)| *r);
+        let value = match row {
+            Some(r) => parse_any(it, r.get("値"))?,
+            None => None,
+        };
+        let mut o = it.as_object().cloned().unwrap_or_default();
+        let has = value.is_some();
+        o.insert("default".into(), default.clone());
+        o.insert("value".into(), value.clone().unwrap_or(Value::Null));
+        o.insert("effective".into(), value.unwrap_or(default));
+        o.insert("source".into(), json!(if has { "master" } else { "default" }));
+        for k in ["id", "rev", "updated_at", "updated_by"] {
+            o.insert(k.into(), row.and_then(|r| r.get(k)).cloned().unwrap_or(Value::Null));
+        }
+        out.push(Value::Object(o));
+    }
+    Ok(out)
+}
+
+/// data_sources.conn_bind（項目 → 置き場。並びは答えの順）
+fn conn_bind(item: &Map<String, Value>) -> Vec<(String, String)> {
+    let tl = &t(&["sourcesList"]);
+    let pairs = |v: &Value| -> Vec<(String, String)> {
+        v.as_array()
+            .into_iter()
+            .flatten()
+            .map(|p| (p[0].as_str().unwrap_or("").to_string(), p[1].as_str().unwrap_or("").to_string()))
+            .collect()
+    };
+    if item.get("kind").and_then(Value::as_str) == Some("view") || truthy(item.get("base")) {
+        return vec![("lot".into(), "row:ロット番号の列".into())];
+    }
+    let key = item.get("key").and_then(Value::as_str).unwrap_or("");
+    let bound = &tl["connBind"][key];
+    if bound.is_array() {
+        pairs(bound)
+    } else if item.get("kind").and_then(Value::as_str) == Some("file") {
+        pairs(&tl["connFile"])
+    } else {
+        vec![]
+    }
+}
+
+/// data_sources.conn_of（接続の設定の欄の並び）
+fn conn_of(item: &Map<String, Value>, row: Option<&Map<String, Value>>, items: &[Value], defaults: &Map<String, Value>) -> R<Value> {
+    let specs = &t(&["sourcesList", "connSpecs"]);
+    let mut out = vec![];
+    for (field, place) in conn_bind(item) {
+        let mut o = Map::new();
+        o.insert("id".into(), json!(field));
+        o.extend(specs[field.as_str()].as_object().cloned().unwrap_or_default());
+        if let Some(col) = place.strip_prefix("row:") {
+            let v = s(row.and_then(|r| r.get(col)))?;
+            let dflt = defaults.get(&field).cloned().unwrap_or(json!(""));
+            let eff = if v.is_empty() { dflt.clone() } else { json!(v) };
+            let rev = row.and_then(|r| r.get("rev")).filter(|x| truthy(Some(x))).cloned().unwrap_or(json!(0));
+            o.extend([
+                ("bind".into(), json!("row")),
+                ("item".into(), json!(col)),
+                ("value".into(), json!(v)),
+                ("default".into(), dflt),
+                ("effective".into(), eff),
+                ("rev".into(), rev),
+            ]);
+        } else {
+            let it =
+                items.iter().find(|i| i["key"].as_str() == Some(place.as_str())).and_then(Value::as_object).cloned().unwrap_or_default();
+            if !it.is_empty() {
+                for k in ["kind", "min", "max", "hint", "check_url"] {
+                    if let Some(v) = it.get(k) {
+                        o.insert(k.into(), v.clone());
+                    }
+                }
+            }
+            let blank = |k: &str| it.get(k).filter(|x| !x.is_null()).cloned().unwrap_or(json!(""));
+            let rev = it.get("rev").filter(|x| truthy(Some(x))).cloned().unwrap_or(json!(0));
+            o.extend([
+                ("bind".into(), json!("settings")),
+                ("item".into(), json!(place)),
+                ("value".into(), blank("value")),
+                ("default".into(), blank("default")),
+                ("effective".into(), it.get("effective").cloned().unwrap_or(Value::Null)),
+                ("rev".into(), rev),
+            ]);
+        }
+        out.push(Value::Object(o));
+    }
+    Ok(Value::Array(out))
+}
+
+/// schedule.config の設備の数（「、」「,」「，」・空白で区切り、「:」の前が設備。同じ設備は 1 つ）
+fn schedule_equips(eff: &Value) -> R<usize> {
+    let raw = dict_or_empty(eff.get("schedule"))?;
+    if truthy(raw.get("hot")) && !raw.get("hot").is_some_and(Value::is_object) {
+        return Err(Py("schedule.hot が表でない（Python は落ちる）"));
+    }
+    let v = match raw.get("equipments") {
+        Some(v) if present(Some(v)) => v.clone(),
+        _ => t(&["sourcesList", "schedule", "equipments"]).clone(),
+    };
+    let text = match &v {
+        Value::Array(a) => {
+            let mut parts = vec![];
+            for x in a {
+                if x.is_array() || x.is_object() {
+                    return Err(Py("設備の並びに表・並び"));
+                }
+                parts.push(py_str(x));
+            }
+            parts.join(",")
+        }
+        Value::Object(_) => return Err(Py("設備が表")),
+        x if !truthy(Some(x)) => String::new(),
+        x => py_str(x),
+    };
+    let mut codes: Vec<String> = vec![];
+    for w in text.split(|c: char| matches!(c, ',' | '、' | '，') || pyfmt::is_space(c)).filter(|w| !w.is_empty()) {
+        let code = w.split(':').next().unwrap_or("").to_string();
+        if !code.is_empty() && !codes.contains(&code) {
+            codes.push(code);
+        }
+    }
+    Ok(codes.len())
+}
+
+impl Inputs {
+    /// GET /api/sources のマスタと設定から決まる部分（routes/sources.py の sources_list）。Python と同じに組めなければ Err
+    pub fn sources_parts(&self) -> R<SourcesParts> {
+        for name in ["path_settings", "data_sources", "work_log_files"] {
+            self.check(name)?;
+        }
+        let ps_rows = self.rows("path_settings")?;
+        let ds_rows = self.rows("data_sources")?;
+        let wl_rows = self.rows("work_log_files")?;
+        let mut changed: Vec<String> = vec![];
+        for r in &ps_rows {
+            if !pyfmt::strip(&pstr(r.get("値"))?).is_empty() {
+                changed.push(pstr(r.get("項目"))?);
+            }
+        }
+        let mut shown = 0;
+        for r in &wl_rows {
+            let v = if truthy(r.get("表示")) { pstr(r.get("表示"))? } else { "有".into() };
+            if v != "無" {
+                shown += 1;
+            }
+        }
+        let items_ps = effective_items(&self.settings, &ps_rows)?;
+        let engine_rust = match self.settings.get("desktop") {
+            Some(Value::Object(o)) => o.get("lotlist_engine").map(|v| v == "rust").unwrap_or(true),
+            x if !truthy(x) => true,
+            _ => return Err(Py("desktop が表でない")),
+        };
+        let mut items = sources_full(&self.eff, &ds_rows)?;
+        for x in items.iter_mut() {
+            let key = x["key"].as_str().unwrap_or("").to_string();
+            let mut row = None;
+            for r in &ds_rows {
+                if pstr(r.get("キー"))? == key {
+                    row = r.as_object();
+                    break;
+                }
+            }
+            let dr = read_params(&self.eff, &key, &Map::new())?;
+            let mut defaults = Map::new();
+            defaults.insert("place".into(), x.get("placeDefault").cloned().unwrap_or(json!("")));
+            defaults.insert("refresh".into(), dr["refresh_seconds"].clone());
+            defaults.insert("stale".into(), dr["stale_hours"].clone());
+            let conn = conn_of(x, row, &items_ps, &defaults)?;
+            x.insert("conn".into(), conn);
+            if key == "lot" {
+                x.insert("placeChanged".into(), json!(changed.iter().any(|c| c == "lot_list.source" || c == "lot_list.table")));
+                x.insert("shellLists".into(), json!(engine_rust));
+            }
+            if x.get("kind").and_then(Value::as_str) == Some("folder") {
+                x.insert("equipCount".into(), json!(shown));
+            }
+        }
+        let others: Vec<Value> = items_ps.iter().filter(|i| !truthy(i.get("page"))).cloned().collect();
+        let dr = read_params(&self.eff, "+", &Map::new())?;
+        let mut defaults = Map::new();
+        defaults.insert("refresh".into(), dr["refresh_seconds"].clone());
+        defaults.insert("stale".into(), dr["stale_hours"].clone());
+        let plus = json!({"key": "+", "kind": "file"});
+        let new_conn = conn_of(plus.as_object().unwrap(), None, &items_ps, &defaults)?;
+        Ok(SourcesParts { items, others, new_conn, schedule_equips: schedule_equips(&self.eff)? })
     }
 }
 

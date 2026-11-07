@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.repositories import master_store as ms  # noqa: E402
 from app.repositories.master_repository import SPECS  # noqa: E402
-from app.services import data_join, data_sources, equip_groups, identity, lotdsp_api, path_settings, pivot, presence, ui_defaults, work_log  # noqa: E402
+from app.services import data_join, lot_list, data_sources, equip_groups, identity, lotdsp_api, path_settings, pivot, presence, schedule, ui_defaults, work_log  # noqa: E402
 from app.models import DEFAULT_UNWIND  # noqa: E402
 import app_build  # noqa: E402
 
@@ -55,6 +55,14 @@ def table():
         "lotdsp": {"required": {k: list(v) for k, v in lotdsp_api.REQUIRED.items()}, "minSeen": lotdsp_api.MIN_SEEN,
                    "tieSeen": lotdsp_api.TIE_SEEN},
         "fingerprint": {"exts": list(app_build.EXTS), "skipDirs": list(app_build.SKIP_DIRS)},
+        # 版 3.87.0: データ元の並び（GET /api/sources）を窓が答える（desktop/src/sources_list.rs）。参照先の項目の言葉・接続の欄の決まり。
+        # 接続の欄は並びが答えの順になるので、表（鍵が字の順に並び替わる）でなく対の並びで持つ
+        "settingsItems": path_settings.ITEMS,
+        "sourcesList": {"connSpecs": data_sources.CONN_SPECS, "connFile": list(data_sources.CONN_FILE.items()),
+                        "connBind": {k: list(v.items()) for k, v in data_sources.CONN_BIND.items()}, "roles": data_sources.ROLES,
+                        "equipModes": data_sources.EQUIP_MODES, "noGroup": data_sources.NO_GROUP, "masterRole": data_sources.MASTER_ROLE,
+                        "howLabels": data_join.HOW_LABELS, "lotTables": lot_list.TABLE_CANDIDATES, "srcTables": data_sources.TABLE_CANDIDATES,
+                        "schedule": {k: schedule.DEFAULTS[k] for k in ("equipments", "term_kbn")}},
     }
 
 

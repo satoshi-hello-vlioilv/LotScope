@@ -37,6 +37,10 @@ python -m unittest discover -s desktop/bundle -t desktop/bundle
 (cd desktop && cargo test --locked)
 ```
 
+- 上の 8 つは `bash program/tools/check-all.sh 記録のフォルダ [--verify]` で 1 回に流せる（版 3.87.0。始める前に cargo の作業フォルダの古い
+  試験の実行ファイル・incremental を消し、空きが 8 GB 未満なら始めない〈空きが尽きると窓の通しの取り込みの段が落ち、コードの割れと見分けにくい〉。
+  段ごとの記録と、終了コード・Ran/OK/FAILED・test result のまとめ〈summary.txt〉を残す。--verify は窓の通し〈verify.py update〉も流して作業フォルダを消す）。
+  全部で 20〜30 分かかるので、背景で流すときは制限時間を 60 分にする（既定の 10 分で切られると結果が残らない）
 - 型検査の道具（TypeScript・mypy）は入れていないので、JavaScript・Python は構文の確かめで代えている。入れたら差し替える。Rust はコンパイラが型を確かめる。
 - JavaScript の lint の設定は無い（2 は Python と Rust）。JavaScript のテスト（`npm test`）も、このリポジトリにはまだ無い。
 - CI（`.github/workflows/ci.yml`）も同じ物を流す。ruff と Rust（clippy）は手元と同じ版に留めてある（ruff 0.15.20・Rust 1.97.0。
@@ -249,7 +253,7 @@ python program/tools/ui_score.py 採点.json                                    
 - ダッシュボードの 5 本の道を窓へ移した評価関数（版 3.82.0）: `cargo test --test dashboards_parity`（← `program/tests/dashboards_oracle.py`。22 場面・114 歩の答えとファイル〈書く人と範囲・★標準・組み込みと同じ名前の入れ替え〈確かめを 2〜3 回通す〉・組み込みを外す／戻す・前の版の条件のマスタ・切断中・手元だけ・写しから・錠〉、Python に任せる歩〈Python が落ちる置き場・まだ無いファイルの最初の読み・読めない本文〉。組み込みは Python から焼いた `desktop/src/dash_builtins.json`〈焼くのは `python program/tools/dash-builtins.py`、古い表は `tests/test_dash_builtins.py`〉）
 - 問い合わせと保存のパネルの確かめを 1 つにした評価関数（版 3.83.0）: `cargo test --test dash_parity`（← `program/tests/dashboard_oracle.py`。本文は送った字〈raw〉のまま送り、送った順に効く計算列の式の上限も突き合わせる）・`layout_cases`・`dashboards_parity`。確かめは `desktop/src/layout_clean.rs` の clean_panel の 1 か所（dashboard.rs は呼ぶだけ）
 - 設定の束を窓が組む評価関数（版 3.84.0）: `cargo test --test bundle_parity`（← `program/tests/settings_oracle.py`。場面ごとのフォルダから窓〈`desktop/src/bundle.rs`〉が組んだ束を Python の GET /api/lotlist/settings と 1 字ずつ突き合わせる〈conversions.rev は除く〉・Python に任せる形・引っ越しの印をたどる係は窓）・`tests/test_shell_follows.py`・`tests/test_bundle_tables.py`（焼いた決まりの表 `desktop/src/bundle_tables.json` が古くないか。焼くのは `python program/tools/bundle-tables.py`）
-- 画面と最初の画面の読む道を窓が答える評価関数（版 3.85.0）: `cargo test --test page_parity`（← `program/tests/settings_oracle.py` の reads。束の場面と同じフォルダで、Python が居ない形の窓の答え〈GET / の画面の字と見出し〈印は @NONCE@〉・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree〉を Python の答えと突き合わせる。Python が落ちる形・窓が同じに読めない形は Python に任せる。焼いた決まりは `bundle_tables.json`〈期間・巻出しの既定・LotDsp の学び・指紋の拡張子〉）
+- 画面と最初の画面の読む道を窓が答える評価関数（版 3.85.0）: `cargo test --test page_parity`（← `program/tests/settings_oracle.py` の reads。束の場面と同じフォルダで、Python が居ない形の窓の答え〈GET / の画面の字と見出し〈印は @NONCE@〉・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree・版 3.87.0 から /api/sources〈写しの様子の時刻は比べない。窓は `desktop/src/sources_list.rs`〉〉を Python の答えと突き合わせる。Python が落ちる形・窓が同じに読めない形は Python に任せる。焼いた決まりは `bundle_tables.json`〈期間・巻出しの既定・LotDsp の学び・指紋の拡張子〉）
 - 検索の索引とカラムの札を覚える評価関数（版 3.66.0）: `cargo test --test search_index`（語ごとに索引と今の形〈全列に CStr LIKE〉で当たる行を突き合わせる・
   * ? とつなぎの字・ビュー・WITHOUT ROWID は今の形・書き換えた後に作り直す〈時刻を戻した書き換えも〉・壊れた索引は作り直す・1 つの接続で 2 つの表・札は覚える／書き換えで数え直す／計算列は覚えない）
 - Python を Rust へ移す順の評価関数（版 3.58.1）: `python program/tools/rust-port-bench.py [--calibrate 20000] [--json 出力.json] [--static-only]`

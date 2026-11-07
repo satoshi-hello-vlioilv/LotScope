@@ -436,6 +436,38 @@ impl Lot {
         crate::formats_write::answer(&store, &me, route, query, body, &place)
     }
 
+    /// データ元の並び（版 3.87.0。GET /api/sources: src/sources_list.rs）。窓の束を組めない・権限や置き場を決められない・
+    /// Python と同じに組めない形は Python が答える。card はスケジュールのカード（中身が起きていれば Python の答え）
+    /// 名乗り・置き場・設定は、この道が読む材料（Builder::inputs）から取る（束全体を組めない PC〈共有にまだ設備マスタなどの最初の版が
+    /// 無い〉でも答える。束を Python に尋ねた答えと、この道で読んだ並びの 2 つの時点を混ぜない）
+    pub fn sources_list(&self, query: &str, _ask: AskSettings, card: &dyn Fn() -> Option<Value>) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        // 品質の写しを Python が受け持つ設定（desktop.lotlist_engine = python）は、ほかの道と同じく Python に任せる
+        let engine = match inp.settings.get("desktop") {
+            Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
+            None | Some(Value::Null) => json!("rust"),
+            Some(_) => return None,
+        };
+        if engine != "rust" {
+            return None;
+        }
+        let access = json!({"who": inp.who, "place": inp.place});
+        let me = self.gate.me(&access).ok()?;
+        let store = self.store_for(&access)?;
+        let live = crate::sources_list::Live {
+            lot: self.mirror.lock().unwrap().clone(),
+            cache: self.cache_dir.clone(),
+            src: &self.lists.src,
+            joins: self.cache_dir.join("joins"),
+            card,
+        };
+        crate::sources_list::answer(&inp, &me, &store, &live).map(|v| (200, v))
+    }
+
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
     /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
     /// 頻繁な書き込みでは尋ね直さない
@@ -1404,6 +1436,99 @@ mod tests {
         let (_, d) = lot.handle_body("GET", "/api/dashboard/sources", "", b"", &down).expect("データの並びは窓");
         assert_eq!(d["items"][0]["key"], "lot");
         assert!(d["periods"]["today"].is_string());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_the_sources_list() {
+        // 版 3.87.0: データ元の並び（GET /api/sources）は Python が起きていなくても窓が待たずに答える（見出しのタブを先に描く）。
+        // スケジュールのカードは Python の覚えなので、中身が起きていれば尋ね、起きていなければ起こした直後と同じ形。
+        // まだ開いていない元も写しの様子を台帳から読み、窓が写した元は行の数も言う
+        let work = std::env::temp_dir().join(format!("da-lot-srclist-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let wip = work.join("仕掛.sqlite3");
+        let c = rusqlite::Connection::open(&wip).unwrap();
+        c.execute_batch("CREATE TABLE 仕掛 (ﾛｯﾄ番号 TEXT); INSERT INTO 仕掛 VALUES ('A'), ('B'), ('C');").unwrap();
+        drop(c);
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "sources": {"wip": {"source": wip}}}).to_string()).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in
+            ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversions"]
+        {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        // 周回の様子のファイル（窓のほかの係が置いた物）: 仕掛は今の元の様子として読む
+        let srcs = work.join("local").join("db_cache").join("sources");
+        std::fs::create_dir_all(&srcs).unwrap();
+        std::fs::write(
+            srcs.join("src_wip.state.json"),
+            json!({"remote": wip, "at": 1.5, "unreachable": true, "reason": "届きません"}).to_string(),
+        )
+        .unwrap();
+        let t0 = Instant::now();
+        let (st, v) = lot.sources_list("", &down, &|| None).expect("Python が起きていなくても窓が答える");
+        assert!(t0.elapsed() < Duration::from_secs(2), "待たない: {:?}", t0.elapsed());
+        let keys: Vec<&str> = v["items"].as_array().unwrap().iter().filter_map(|d| d["key"].as_str()).collect();
+        assert_eq!((st, keys), (200, vec!["lot", "work", "wip", "sch"]));
+        let sch = &v["items"][3];
+        assert_eq!(
+            (sch["mirror"].clone(), sch["equipCount"].clone(), sch["rows"].clone()),
+            (Value::Null, json!(3), Value::Null),
+            "既定の 3 設備"
+        );
+        let wipd = &v["items"][2];
+        assert_eq!((wipd["mirror"]["mirrored"].clone(), wipd["rows"].clone()), (json!(false), Value::Null), "まだ写していない: {wipd}");
+        assert_eq!(wipd["mirror"]["remote"], json!(wip.to_string_lossy()));
+        assert_eq!(
+            (wipd["mirror"]["unreachable"].clone(), wipd["mirror"]["reason"].clone(), wipd["mirror"]["checkedAt"].clone()),
+            (json!(true), json!("届きません"), json!(1.5)),
+            "受け身の係は周回の様子のファイルを読む"
+        );
+        // 品質の写しを Python が受け持つ設定（desktop.lotlist_engine = python）は Python に任せる
+        let conf = |engine: &str| json!({"master_share": {"dir": share}, "sources": {"wip": {"source": wip}}, "desktop": {"lotlist_engine": engine}});
+        std::fs::write(work.join("config.json"), conf("python").to_string()).unwrap();
+        lot.invalidate();
+        assert!(lot.sources_list("", &down, &|| None).is_none(), "engine = python");
+        std::fs::write(work.join("config.json"), conf("rust").to_string()).unwrap();
+        lot.invalidate();
+        // 品質の写しの係が最初の周回の途中でも待たない（届かない共有を指す係を動かしてから尋ねる）
+        lot.warm(&down);
+        let t1 = Instant::now();
+        assert!(lot.sources_list("", &down, &|| None).is_some());
+        assert!(t1.elapsed() < Duration::from_secs(2), "周回の途中でも待たない: {:?}", t1.elapsed());
+        assert!(v["roles"].is_array() && v["newConn"].as_array().is_some_and(|a| a.len() == 5) && v["revision"] == json!(4), "{v}");
+        // 中身が起きていれば、スケジュールのカードは Python の覚え
+        let card = || Some(json!({"mirror": {"kind": "cm3", "mirrored": true}, "equipCount": 5}));
+        let (_, v) = lot.sources_list("", &down, &card).unwrap();
+        assert_eq!((v["items"][3]["mirror"]["kind"].clone(), v["items"][3]["equipCount"].clone()), (json!("cm3"), json!(5)));
+        // 窓が写した元は行の数も言う
+        let _ = lot.handle("GET", "/api/src/wip", "", &down);
+        lot.lists.src.wait_first(&["wip".to_string()], Duration::from_secs(10));
+        let (_, v) = lot.sources_list("", &down, &|| None).unwrap();
+        assert_eq!(
+            (v["items"][2]["mirror"]["mirrored"].clone(), v["items"][2]["rows"].clone()),
+            (json!(true), json!(3)),
+            "{}",
+            v["items"][2]
+        );
+        assert!(lot.sources_list("engine=python", &down, &|| None).is_none(), "?engine=python は Python");
+        // 束全体は組めない（共有にまだ設備マスタ・設備グループの最初の版が無い）PC でも、データ元の並びは窓が答える（自己診断の共有の exe の形）
+        for n in ["equipment_master", "equipment_groups"] {
+            std::fs::remove_file(share.join(format!("{n}.json"))).unwrap();
+        }
+        lot.invalidate();
+        assert!(lot.own_bundle().unwrap().is_err(), "束は組めない");
+        assert_eq!(lot.sources_list("", &down, &|| None).map(|(st, _)| st), Some(200), "データ元の並びは答える");
         let _ = std::fs::remove_dir_all(&work);
     }
 
