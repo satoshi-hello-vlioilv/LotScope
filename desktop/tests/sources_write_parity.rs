@@ -81,8 +81,12 @@ fn data_source_writes_match_python() {
                 continue;
             };
             // 言葉の中の場面のフォルダ（共有に届かない置き場など）は Python の側の名前にそろえる
-            let (rs_dir, py_dir) = (sc["rs"].as_str().unwrap(), sc["py"].as_str().unwrap());
-            let got: Value = serde_json::from_str(&got.to_string().replace(rs_dir, py_dir)).unwrap();
+            // JSON の字の中の形（Windows の道の \ は \\ と書かれる）どうしで置き換える
+            let esc = |k: &str| {
+                let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
+                t[1..t.len() - 1].to_string()
+            };
+            let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
             let want = &st["json"];
             if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want), &norm(&got), "").is_some() {
                 bad.push(format!(
