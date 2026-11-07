@@ -37,6 +37,10 @@ python -m unittest discover -s desktop/bundle -t desktop/bundle
 (cd desktop && cargo test --locked)
 ```
 
+- 上の 8 つは `bash program/tools/check-all.sh 記録のフォルダ [--verify]` で 1 回に流せる（版 3.87.0。始める前に cargo の作業フォルダの古い
+  試験の実行ファイル・incremental を消し、空きが 8 GB 未満なら始めない〈空きが尽きると窓の通しの取り込みの段が落ち、コードの割れと見分けにくい〉。
+  段ごとの記録と、終了コード・Ran/OK/FAILED・test result のまとめ〈summary.txt〉を残す。--verify は窓の通し〈verify.py update〉も流して作業フォルダを消す）。
+  全部で 20〜30 分かかるので、背景で流すときは制限時間を 60 分にする（既定の 10 分で切られると結果が残らない）
 - 型検査の道具（TypeScript・mypy）は入れていないので、JavaScript・Python は構文の確かめで代えている。入れたら差し替える。Rust はコンパイラが型を確かめる。
 - JavaScript の lint の設定は無い（2 は Python と Rust）。JavaScript のテスト（`npm test`）も、このリポジトリにはまだ無い。
 - CI（`.github/workflows/ci.yml`）も同じ物を流す。ruff と Rust（clippy）は手元と同じ版に留めてある（ruff 0.15.20・Rust 1.97.0。
