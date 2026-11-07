@@ -1,0 +1,169 @@
+{
+  "title": "Rust 化 版 3.91.0: 作業実績の登録（/api/masters/worklog）を窓へ",
+  "rule": "2026-11-06",
+  "measured": "棚卸し（2026-11-07・main 74fa2a6）: routes/worklog.py のマスタ管理の 5 本。GET /api/masters/worklog（_master_view: 参照先の folder・pattern・stale_hours〈work_log.params〉・フォルダの覚え _found〈fresh=1 は読み直す〉・work_log.view〈登録の行と見つけたファイルを match で結ぶ・まだ登録していないファイル〉・mark_stale〈更新が止まった〉・canEdit・shared・revision）、POST /scan（フォルダを fresh で探す〈届かなければ FolderUnreachable〉→ master_repository.work_log_sync〈名前が変わったファイルをたどる・ファイルID を入れる・キーの無い行にキー・新しいファイルは行を足す〉→ 結果と _master_view）、PUT /order（keys の順に並びを振る: work_log.order_keys・番号が変わった行だけ版を上げる）、PUT /<int:id>（設備名・表示・表・備考・ファイル名〈結び直し: フォルダにあるファイルの名前とファイルID〉。_update の汎用）、DELETE /<int:id>（_delete の汎用）。窓には lists.rs の scan（決まりに合う名前・名前の順・file_id〈Windows はファイル番号〉）・split_pattern・resolve・フォルダの覚え（10 秒）、master_rows の update／delete（汎用）、書いた後に束を捨てる道（changes_settings に /api/masters/worklog がある）がある。scan は size・mtime・equipment を返さない（view・mark_stale に要る）。画面は master.js の作業実績のタブ（7 か所）と、作業実績のタブの並べ替え（order）。",
+  "proposals_text": {
+    "A 5 本を全部（scan に設備名・大きさ・時刻を足し、view・match・sync・order を写す）": "lists::scan を Python の work_log.scan と同じ答え（equipment・size・mtime・fid）に広げ、work_log.view・match・mark_stale・order_keys・ordered と master_repository.work_log_sync・update・delete を desktop/src/worklog_write.rs に写す。突き合わせは worklog_write_oracle.py（作業実績のフォルダを場面ごとに作る）",
+    "B 書く 4 本だけ（GET は Python のまま）": "scan・order・update・delete を窓で書き、一覧（GET）は Python。書いた後の答え（_master_view）は窓が組めないので、書いた後に Python へ GET を尋ねて答える",
+    "C 読む 1 本だけ（GET /api/masters/worklog）": "一覧だけを窓が答える（view・match・mark_stale）。書く 4 本は Python のまま",
+    "D 並べ替えと消すだけ（フォルダを読まない 2 本）": "order と delete は登録の行だけを書く（フォルダを読まない）。scan・update（結び直し）・GET は Python",
+    "E A を、フォルダの答えを 1 つの型にして（Found に equipment・size・mtime。作業実績の一覧の段取りも同じ型）": "A と同じ範囲。フォルダで見つけたファイルの型を lists.rs の 1 つに広げ、作業実績の一覧の段取り（resolve・写し）と登録の画面が同じ答えを使う。覚え（10 秒）も 1 つ",
+    "F A に加えて、作業実績のファイルの写しの様子（stale）を窓の写しの係から言う": "mark_stale を Python のファイルの時刻ではなく、窓の Mirrors の様子（写した時刻・届かない）から作る（一覧のパネルと同じ言葉）"
+  },
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-sources-write.json（rounds の形・11 項目の読み替え）、program/app の routes/worklog.py（5 本と _master_view・_listing・_found・/api/worklog/files）・services/work_log.py（params・split_pattern・equipment_of・file_id・scan・Listing・match・new_key・ordered・order_keys・view・mark_stale・resolve）・repositories/master_repository.py（SPECS・_clean・_update・_delete・_check_rev・work_log_update・work_log_delete・work_log_order・work_log_sync）・repositories/master_store.next_id・routes/common.py（base_rev・master_call）・web.py（get_json の force と silent・BadRequest・道の <int:> は \\d+ と int()）・fsio.unquote_path・画面の master.js（:701 order・:720 GET・:780 scan・:817 PUT・:836 DELETE）と lotlist.js（:1972 /api/worklog/files・:2130 order・:2154 scan）、desktop/src の lists.rs（Found は file と fid だけ・split_pattern・fits・is_side_file・file_id〈unix は dev:ino、Windows は GetFileInformationByHandle の 32 ビットのボリューム番号・64 ビットの番号・作った時刻〉・same_fid・scan・resolve〈1 行ずつ・same_fid・taken 無し〉・Lists::found の 10 秒の覚え・forget_listing・work_plan_wait）・master_rows.rs（py_rev・py_int・base_rev・clean・update・delete・put_by_key・py_body〈silent の読み方〉・split_number・text_split・row_readable・value_plain）・master_store.next_id・lot.rs（settings_route・sources_write_route・changes_settings・after_python・Route::of〈/api/worklog は List・Slicer・Pivot・Source・Refresh だけ〉）・access.rs（/api/masters/worklog → work_log_files）・bundle.rs（work の rows）・desktop/tests/sources_write_parity.rs と program/tests/sources_write_oracle.py（場面の作り方・ファイルは読んで比べる）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-wl の probe.py〈sources_write_oracle.place の共有の形に作業実績のフォルダと path_settings の work_log.folder・pattern を足した create_app の test_client〉・t1〜t6.py）: t1 一覧と探し直し（全角の並び「２」・空のキー・名前の大文字小文字の違いを renamed と言う・新しい行の項目の順）・t2 st_mtime の式（3000 件で sec＋nsec×1e-9 と全部同じ、nsec÷1e9〈Rust の as_secs_f64〉とは 7 件違う。25.628931477000002 と 25.628931477）と round(0.25,1)＝0.2・t3 書く道の本文と言葉 40 歩（キーの無い 2 行が同じ並び「4」になる・何もしない並べ替えでもファイルの版が上がる・空と壊れた本文は 400 Bad Request〈JSON でない〉・[1] は order で 400 AttributeError、PUT・DELETE で 500・道の「１」「0001」は id 1・大きな id は 404 の言葉・「-1」は道が無い 404・結び直しで届かないと 400 FolderError・探し直しで届かないと 503 unreachable）・t4 古さの設定（abc→36・0→0.0・ ２ →2.0）・決まりの字（a*b* は既定に戻る）・覚えの 10 秒（/api/masters/worklog と /api/worklog/files の両方）・大文字小文字だけ違う 2 つのファイル・t5 並びが数 2.0・真偽 true は番号なし・20 桁の並びは i64 を超えても後ろに並ぶ・設備名の数 5 はそのまま・表示 0 は出す・同じファイル名の 2 行で一覧（並びの順で結ぶ）と探し直し（登録の順で結ぶ）が別の行を結ぶ・速さ（GET fresh 中央 0.9 ms・scan 4.2 ms。速さの得は無い）・t6 門番（一般ユーザーは GET 200・canEdit false、書く 4 本は 403）。cargo は流していない（Rust はコードを読んで確かめた）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の足りない所: 作業実績のタブが開くたびに呼ぶ GET /api/worklog/files（同じ view・mark_stale・同じ覚え）が棚卸しに無い・Windows の fid の字が Python と窓で違う（same_fid で吸っているのは resolve だけで、sync の書き換え・match は字の一致）・覚えが Python と窓で 2 つ・PUT /order の答えも _master_view（フォルダを読む）",
+  "rounds": [
+    {
+      "name": "1 回目",
+      "self_check": "画面に出ない改良（決まり 2026-11-06）なので画像は無い。案の文は棚卸しの事実（routes/worklog.py の 5 本・lists.rs の scan と Found・master_rows）と突き合わせて読み直した。採点者の指摘で、案 D の前提の誤り（PUT /order の答えはフォルダを読む）と棚卸しの抜け（GET /api/worklog/files）を確かめた",
+      "proposals": {
+        "A 5 本を全部（scan に設備名・大きさ・時刻を足し、view・match・sync・order を写す）": {
+          "score": {
+            "order": 8,
+            "chunk": 7,
+            "hierarchy": 7,
+            "visual": 7,
+            "steps": 8,
+            "effortless": 4,
+            "intuitive": 8,
+            "form": 6,
+            "place": 5,
+            "layout": 7,
+            "tone": 5
+          },
+          "minus": [],
+          "seen": "範囲は 5 本（画面の書き込みと一覧が全部窓へ）。Python の速さは GET fresh 0.9 ms・scan 4.2 ms で速さの得は無く、得は Python が答えない PC でも作業実績の登録を直せること。部品は揃う（master_rows の update・delete・py_rev・value_plain・pyfloat・pyfmt::strip・門番・set_new_key）。ただ落とし穴の見積もりが無い: ファイルID の字が Windows で Python と違い sync の字の一致で版の行き来が起きる・st_mtime の式（÷1e9 で割れる）・view と sync で結ぶ順が違う・order_keys のキーの無い行の潰れ（Python の割れ）・get_json が silent でない道の 400 Bad Request・覚えが Python と窓で 2 つ・/api/worklog/files が範囲に無い。scan を広げる・match を写す・resolve とで、結ぶ決まりが窓に 2 か所（resolve は same_fid・taken 無し）になる",
+          "fixes": [
+            "E の fixes と同じ（A を作るなら、フォルダの答えと覚えを E の形で 1 つにする）"
+          ]
+        },
+        "B 書く 4 本だけ（GET は Python のまま）": {
+          "score": {
+            "order": 4,
+            "chunk": 6,
+            "hierarchy": 4,
+            "visual": 5,
+            "steps": 2,
+            "effortless": 3,
+            "intuitive": 4,
+            "form": 5,
+            "place": 4,
+            "layout": 4,
+            "tone": 4
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "Python が起きていない PC で窓が scan・order を書いた後、答え（_master_view）を Python に尋ねられず失敗を返す: 保存は済んだのに画面は失敗と言う（routes/worklog.py の scan・order は書いた後の _master_view を答えに入れる）"
+            }
+          ],
+          "seen": "書く 4 本のうち 3 本（scan・order・PUT の結び直し）はフォルダを読むので、書く係を写しても view・match・Listing の半分はどのみち要る。それでいて GET は Python のままで、Python が居ない PC では書けても答えを組めない。答えが 2 つの係（窓が書き Python が読む）にまたがり、Python の MasterStore の覚えが古いと書く前の行を返しうる。得が小さく形が崩れる",
+          "fixes": [
+            "採らない。採るなら書いた後の答えも窓で組む（＝A・E）"
+          ]
+        },
+        "C 読む 1 本だけ（GET /api/masters/worklog）": {
+          "score": {
+            "order": 7,
+            "chunk": 7,
+            "hierarchy": 7,
+            "visual": 8,
+            "steps": 4,
+            "effortless": 6,
+            "intuitive": 8,
+            "form": 7,
+            "place": 6,
+            "layout": 7,
+            "tone": 8
+          },
+          "minus": [],
+          "seen": "読むだけなのでファイルを書く割れ（版・項目の順・キー）が無く、危うさは低い。一覧は 1 本で、答えは match・ordered・mark_stale と Found の size・mtime（式の割れ）・fid の比べ方（字の一致）で、E の半分の落とし穴はここにもある。ただ得が小さい: 作業実績のタブが開くたびに呼ぶのは /api/worklog/files（案に無い）で、マスタ管理の GET だけ窓にしても Python が居ない PC で作業実績の登録は直せない。書いた後の答え（_master_view）が Python なので、view の決まりが窓と Python の 2 か所に残る",
+          "fixes": [
+            "採るなら /api/worklog/files も同じ view で窓が答える",
+            "E の fixes の 3〜6・12〜14・17 番（Found・結ぶ順・並びの数・値・覚え・言葉・突き合わせ）"
+          ]
+        },
+        "D 並べ替えと消すだけ（フォルダを読まない 2 本）": {
+          "score": {
+            "order": 5,
+            "chunk": 6,
+            "hierarchy": 5,
+            "visual": 6,
+            "steps": 3,
+            "effortless": 3,
+            "intuitive": 6,
+            "form": 6,
+            "place": 5,
+            "layout": 5,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "前提が誤り: PUT /order の答えは _master_view()（フォルダの中身・mark_stale・match）なので「フォルダを読まない」は DELETE だけ。order を窓が答えるには view の全部が要る。DELETE は {status, id} だけで master_rows::delete の汎用で済むが、それだけでは Python が居ない PC の得はほとんど無い。order_keys のキーの無い行の潰れ（Python の割れ）はこの案にもかかる",
+          "fixes": [
+            "採らない。DELETE だけなら master_rows::delete と base_rev（本文 [1] は 500 で Python に任せる・rev=x は確かめない）で足りる"
+          ]
+        },
+        "E A を、フォルダの答えを 1 つの型にして（Found に equipment・size・mtime。作業実績の一覧の段取りも同じ型）": {
+          "score": {
+            "order": 8,
+            "chunk": 7,
+            "hierarchy": 8,
+            "visual": 7,
+            "steps": 8,
+            "effortless": 5,
+            "intuitive": 8,
+            "form": 8,
+            "place": 8,
+            "layout": 7,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "A と同じ範囲で、フォルダの答え（Found）と 10 秒の覚えを lists.rs の 1 つにし、一覧の段取り（work_plan・resolve）と登録の画面が同じ中身を見る。窓の中では答えの元が 1 か所になり、scan（fresh）の後に段取りが古い中身を見る割れが起きない。手本（sources_write・settings_write の本物の Lot の道で突き合わせる・Python に任せる形）にそのまま沿う。足りない所は A と同じ落とし穴の見積もり（ファイルID の字・mtime の式・結ぶ順・order_keys の割れ・Bad Request・Python 側の覚え・/api/worklog/files）で、とくにファイルID は窓の中を 1 つにしても Python との字の一致が残る。match を 1 つにするなら、いまの resolve（same_fid・taken 無し）と Python の match（字の一致・taken つき）の差をどちらに寄せるかを決める必要がある",
+          "fixes": [
+            "先に Python の割れを直す（版を上げ RELEASE を書き直す）: work_log.order_keys は {キー: 番号} の辞書なので、キーの無い行（キーが null・項目が無い）が 2 行以上あると同じ番号に潰れる。再現: 行 id3「キー」: null・id4 キーの項目なし・ほか a1・b1 で PUT /api/masters/worklog/order {\"keys\": [\"b1\", \"a1\"]} → id3 と id4 の並びがどちらも \"4\"。行の位置で番号を返す（または並べる前にキーの無い行へ new_key を入れる）形に直し、test を足す。窓はこの直した形に合わせる",
+            "ファイルID の字をそろえる（いちばん大きい落とし穴）: Python の work_log_sync は `f[\"fid\"] and r[\"ファイルID\"] != f[\"fid\"]` の字の一致で書き換え、match も字の一致でたどる。窓の file_id は Windows で GetFileInformationByHandle（ボリューム番号 32 ビット・番号 64 ビット）、Python 3.12〜の os.stat は st_dev・st_ino の幅が違いうる（だから lists::same_fid がある）。このままだと、窓と Python が交互に「探し直す」たびに全部の行のファイルID が書き換わって版が上がり（画面の開いた行が 409）、窓が書いた ID で Python の /api/worklog/files は名前を変えたファイルを「見つからない」と言う。直し: same_fid を Python（work_log.same_fid）にも写して match と sync の比べ方・書き換える条件（same_fid が偽のときだけ）を両方で同じにし、事例の表（tests/fixtures/fid_cases.json）で突き合わせる。加えて CI の Windows（desktop.yml）で同じファイルの Python の file_id と窓の file_id が same_fid で同じかを確かめる",
+            "Found に equipment・size・mtime を足す（E の 1 つの型）: mtime は Python の st_mtime と同じ式 `秒 as f64 + ナノ秒 as f64 * 1e-9`（as_secs_f64 の ÷1e9 ではない。再現: os.utime(ns=25_628_931_477) → Python 25.628931477000002・as_secs_f64 25.628931477。1970 年より前は秒を床・ナノ秒を正に）で作り、pyfloat の repr で書く。Windows はファイルID と同じ取っ手の BY_HANDLE_FILE_INFORMATION（ftLastWriteTime・nFileSize）から読み、開けないときは fs::metadata（Python の os.stat も FindFirstFile に落ちて st_ino 0＝ID \"\"）。metadata も読めないファイルは Python と同じく除く（今の窓は fid \"\" で残す）。equipment は * の所を pyfmt::strip した字",
+            "一覧（view）と探し直し（sync）は結ぶ順が違うのを写す: view は ordered(rows) の順で match、sync は登録の順で match。再現: 行 id1・id4 がどちらも「実績_A.sqlite3」・id4 の並び \"99999999999999999999\" → 一覧は id4 を ok・id1 を missing、探し直しは id1 に結ぶ。match は全部の行を一度に（taken つき・名前は lower・名前で結べない行だけ ID で）。lists::resolve（1 行ずつ・taken 無し・same_fid）を流用しない。Linux で大文字小文字だけ違う 2 つのファイルは、後の方が new にも出ない",
+            "ordered の番号は str(並び).strip() を Python の int() で読む（pyfmt の数字・全角「２」→2・「 1 」→1・20 桁は i64 を超えても後ろへ）。並びが数 2.0 → \"2.0\" → 番号なし・true → \"True\" → 番号なし（py_rev は 2.0 を 2、true を 1 と読むので使わない）。番号が同じ・無い行は登録の順",
+            "答えの値は行のまま返す: id・rev（1.0 は 1.0・\"3\" は \"3\"）・name は `設備名 or \"\"`（数 5 は 5）・visible は str(表示 or \"有\") != \"無\"（0 も出す）・updated_by は `or {}`。ageHours は Python の round(x, 1)（0.25→0.2・0.35→0.3。(x*10).round()/10 は 0.3・0.4）・mtime が 0.0 は ageHours null・stale false。staleHours は束の値の数の形のまま（\"0\"→0.0・\"abc\"→36・\" ２ \"→2.0）",
+            "本文の読み方は道ごとに違う: PUT /order と PUT /<id> は get_json(force=True)（silent でない）なので、空の本文・読めない本文は 400 Bad Request（JSON でない答え）→ 窓は答えず Python に任せる（py_body の {} にしない。{} だと order は 400「並べるキー（keys）がありません。」になり割れる）。PUT・DELETE は先に base_rev を silent で読み、表でない真の本文（[1]・[[\"備考\",\"x\"]]）は 500 TypeError → Python に任せる。order の [1] は master_call の中で 400 type AttributeError（答えるか任せる）",
+            "order の keys: 並びでない・空（\"ab\"・[]・{} が無い）は 400 ValueError「並べるキー（keys）がありません。」。要素は str()（true→\"True\"・1.0→\"1.0\"・null→\"None\"。NaN の字は text_split で Python に任せる）。番号が変わった行だけ rev＋1 と書いた人・時刻、答えは _master_view（覚えのフォルダの中身。D 案の前提は誤り）。何もしない並べ替えでもファイルの revision と updated_at は上がる（測った: 5→6）",
+            "PUT /<id>: 項目は FIELDS のうちキー以外・表示は strip して「無」なら無、ほか（true も）は有・設備名が空白だけなら 400 invalid「設備名を入れてください。」・備考 1.0 → \"1.0\"・並びとファイルID も直せる・並び・表の値（備考 [1,\"a\"] → \"[1, 'a']\"）は value_plain で Python に任せる。結び直し（ファイル名）は fresh で探し、str(値).lower() で比べ（null → 「「None」はフォルダにありません。」400 ValueError）、フォルダに届かないときは 400 kind error type FolderError（探し直しの 503 unreachable と違う）。書いた行の末尾にファイルID が付く（項目の順）",
+            "道の id: Python は \\d+（Unicode の数字）と int()。「/１」「/0001」は id 1、「/99999999999999999999」は 404「id=99999999999999999999 が見つかりません。」（base_rev つきは 409 current null）、「/-1」「/x」は道が無い 404 → 窓は受けない。pyfmt の数字で読み、i64 を超える id は Python に任せる",
+            "POST /scan: 届かない・決まりの字の誤りは 503 kind unreachable（FolderUnreachable の言葉は Python の字）。キーは linked → renamed（登録の順）→ 新しいファイルの順に作る（突き合わせは work_log.new_key と Lot::set_new_key を同じ並びに差し替える）。足す行は id・キー・設備名・ファイル名・ファイルID・表示「有」・表・備考・rev 1・書いた人と時刻（並びは無い）。直した行はファイルID・キーが後ろに足される。大文字小文字だけの違いも renamed に出す（実績_b.SQLITE3 → 実績_B.sqlite3）。result の files は見つけた数",
+            "覚えは 1 つにし、参照先の印で捨てる: 窓の Lists::found の 10 秒の覚えを、Python の _listing と同じく path_settings の stamp が変わったら捨てる（Python が参照先を書いた・engine=python の歩のあと、A→B→A の 10 秒の内に古い中身を返さない）。scan（fresh）で読んだ中身は覚えに入れ、同じ答えの _master_view と一覧の段取り（work_plan）が同じ中身を見る",
+            "GET /api/worklog/files も同じ view で窓が答える（棚卸しに無い。lotlist.js:1972 が作業実績のタブを開くたびに呼ぶ。all=1 で全部・既定は表示の行だけ）。Python のまま残すなら、窓が探し直した後の 10 秒、Python の覚えが古い new を出すことを試験で確かめて受け入れると書く",
+            "フォルダに届かない言葉: Python は strerror（Windows は FormatMessage の末尾の空白と ASCII の「.」を除く）、窓は io::Error の字の「 (os error n)」の前。英語の Windows では「The system cannot find the path specified」の「.」が窓だけに残るので、末尾の空白と「.」を除く。フォルダの字は Python の unquote_path（Python の空白で strip）と同じく pyfmt::strip",
+            "書いた後: self.invalidate()（束の work.rows を一覧の段取りが使う）と gate.forget、Python の次の /api/worklog/files・/api/worklog が窓の書いた行を読むこと（受け身の写し）を lot::tests で確かめる。?engine=python・束が組めない・inputs.check(work_log_files・path_settings) が通らない・row_readable でない行は Python に任せる",
+            "門番: GET は誰でも（一般ユーザーは canEdit false）、書く 4 本は 403「…管理のマスタ（アクセス権限・タブの権限・データ元）を書き換えられません。」（言葉に作業実績が無いのは Python の言葉の誤り。直すなら Python と窓を一緒に）。canEdit・shared・revision は窓の me と Store から",
+            "突き合わせ（worklog_write_oracle.py → worklog_write_parity.rs）の作り: py・rs・pd の 3 つのフォルダに作業実績のフォルダを別々に写すと inode が違い ID が合わない。ファイルを変えない場面は 1 つの読むだけのフォルダを 3 つが指し、名前を変える・消す・足す場面は歩ごとのファイルの操作を各フォルダに当てて、答えとファイルの ID を「フォルダごとの本物の ID → F1, F2…」で置き換えて比べる。mtime は os.utime(ns=…) で同じに置き（小さい秒の 25.628931477・年 1969 も）、時計は Python の time.time と窓の Lot に差し込んで ageHours（ちょうど .25・.35 時間）と stale を比べる"
+          ]
+        },
+        "F A に加えて、作業実績のファイルの写しの様子（stale）を窓の写しの係から言う": {
+          "score": {
+            "order": 6,
+            "chunk": 5,
+            "hierarchy": 5,
+            "visual": 4,
+            "steps": 8,
+            "effortless": 3,
+            "intuitive": 5,
+            "form": 6,
+            "place": 3,
+            "layout": 5,
+            "tone": 3
+          },
+          "minus": [
+            {
+              "kind": "hidden_state",
+              "where": "同じ設備の「更新が止まった」が、窓の答える GET /api/masters/worklog（写しの係の様子）と Python の /api/worklog/files（ファイルの mtime。work_log.mark_stale）で食い違う。写しの係は画面が開いた設備にしか無い（services/work_log.py の冒頭: 写すのは画面がその設備を開いたときから）ので、開いていない設備は言えない"
+            }
+          ],
+          "seen": "A に意味の違う変更を足す: mark_stale を Python のファイルの時刻ではなく窓の Mirrors の様子から作ると、Python の答えと突き合わせられない（決まり 2026-11-06 の突き合わせの試験が組めない）。言葉と元が 2 か所に分かれ、まだ写していない設備で stale が出ない。直すなら Python も同時に変える別の改良で、移す段に混ぜない",
+          "fixes": [
+            "採らない。写しの様子を言いたいなら、移した後に Python と窓を一緒に変える別の版にする"
+          ]
+        }
+      }
+    }
+  ]
+}

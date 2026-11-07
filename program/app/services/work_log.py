@@ -192,18 +192,26 @@ def ordered(rows):
     return [r for _, r in sorted(enumerate(rows), key=lambda x: (num(x[1]) is None, num(x[1]) or 0, x[0]))]
 
 
-def order_keys(rows, keys):
+def order_numbers(rows, keys):
     """並び替え: keys（キーの並び）に入っている行だけを、その行たちがいま占めている所へ keys の順で入れ直し、全部に 1 から番号を振る。
-    keys に無い行（タブに出していない「表示しない」設備など）は、いまの所から動かない。知らないキー・重なりは無視。→ {キー: 新しい番号}"""
-    cur = [r.get("キー") for r in ordered(rows)]
+    keys に無い行（タブに出していない「表示しない」設備・キーの無い行）は、いまの所から動かない。知らないキー・重なりは無視。
+    → [(行, 新しい番号)]（並びの順）。版 3.91.0: 行ごとに返す（前は {キー: 番号} で、キーの無い行が 2 つあると同じ番号に潰れた）"""
+    cur = ordered(rows)
+    keyed = [r.get("キー") for r in cur]
     seen, want = set(), []
     for k in (str(k) for k in keys):
-        if k in cur and k not in seen:
+        if k in keyed and k not in seen:
             seen.add(k)
             want.append(k)
-    it = iter(want)
-    new = [next(it) if k in seen else k for k in cur]
-    return {k: str(i + 1) for i, k in enumerate(new)}
+    moved = [r for k in want for r in cur if r.get("キー") == k]
+    it = iter(moved)
+    new = [next(it) if r.get("キー") in seen else r for r in cur]
+    return [(r, str(i + 1)) for i, r in enumerate(new)]
+
+
+def order_keys(rows, keys):
+    """order_numbers の {キー: 新しい番号}（キーのある行だけ）"""
+    return {r.get("キー"): n for r, n in order_numbers(rows, keys) if r.get("キー")}
 
 
 def view(rows, found, folder_error=""):

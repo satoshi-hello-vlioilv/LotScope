@@ -67,6 +67,12 @@ class Order(unittest.TestCase):
     def test_ordered_puts_numbered_rows_first(self):
         self.assertEqual([r["キー"] for r in work_log.ordered(self.ROWS)], ["c", "b", "a", "d"])
 
+    def test_rows_without_a_key_keep_their_own_numbers(self):
+        """版 3.91.0: キーの無い行（null・項目なし）が 2 行あっても、並べ替えでそれぞれの番号を持つ（前は同じ番号に潰れた）"""
+        rows = [{"キー": "a1", "並び": "1"}, {"キー": "b1", "並び": "2"}, {"キー": None, "並び": "3"}, {"並び": "4"}]
+        got = [(r.get("キー"), n) for r, n in work_log.order_numbers(rows, ["b1", "a1"])]
+        self.assertEqual(got, [("b1", "1"), ("a1", "2"), (None, "3"), (None, "4")])
+
     def test_order_keys_numbers_from_one_and_keeps_the_rest(self):
         # いまの並び c・b・a・d。a と d（タブに出ている物）だけを d・a の順に → a と d が占めていた所（3・4 番目）へ入れ直す
         self.assertEqual(work_log.order_keys(self.ROWS, ["d", "a", "zz", "d"]), {"c": "1", "b": "2", "d": "3", "a": "4"},

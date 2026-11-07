@@ -397,10 +397,8 @@ class MasterRepository:
 
         def mutate(rows, stamp):
             _normalize_all(rows, spec)
-            nums = work_log.order_keys(rows, keys)
-            for r in rows:
-                n = nums.get(r.get("キー"))
-                if n and str(r.get("並び") or "") != n:
+            for r, n in work_log.order_numbers(rows, keys):
+                if str(r.get("並び") or "") != n:
                     r.update({"並び": n, "rev": int(r.get("rev", 1)) + 1, **stamp})
             return [dict(r) for r in work_log.ordered(rows)]
         return self.store.write("work_log_files", mutate)
