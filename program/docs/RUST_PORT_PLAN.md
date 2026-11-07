@@ -860,6 +860,31 @@ C 60.2・F 57.0・E 54.6・B 48.1）。80 点に届かないので、G（画面�
   画面は印を @NONCE@ に揃えて 1 字ずつ・見出しも。窓が同じに答えた場面: 画面 34・/api/config 32・データの並び 30・設備の木 2〈品質データの設備の列・書きゆれ・空・全角を含む〉。
   Python が落ちる 3 形と、窓が同じに読めない 3 形は Python に任せる）・`cargo test --test bundle_parity`（束の sources の role）・page.rs の単体試験（型・JSON の字・印）。
 
+### 段 3 の 4 歩目: 起動で Python の準備を待たずに画面を開く — 版 3.86.0
+
+版 3.85.0 で画面と最初の読む道は窓が答えるようになったが、起動の流れ（main.rs の start）は Supervisor::get で Python の ready を待ってから画面へ
+navigate していた。Supervisor::get は錠を持ったまま spawn を最大 120 秒待ち、alive()（心拍・権限の読む 2 本・画面の既定の形）も get() を呼ぶので、
+起こし直しの最中は窓の道まで並んでいた。移し方を決まり 2026-11-06 で 7 案にして別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-boot.json`。
+1 位 **A** 68.3 点・F 67.2・E 62.2・G 50.6・D 48.6・B 45.7・C 44.4）。80 点に届かないので、A に採点の指摘 8 つを入れて作った。
+
+- 起こし直しの係（`desktop/src/sidecar.rs`）: 芯の `Phases<T>`（Idle・Starting・Up・Down）を足し、起こすのは最初に来た 1 人で錠の外（ほかは Condvar で待ち合わせる）。
+  Down（起こせなかった）は理由と時刻を RETRY_AFTER 30 秒おぼえ、その間は問い合わせのたびに起こし直さず同じ理由を返す。起こす途中の panic も Down にする。
+  `Supervisor` は複製できる係（Arc の芯）になり、`up()`（待たない）・`kick()`（裏の糸で起こし始める）・`ready()`（準備の知らせ）を持つ。router.rs の alive() は待たずに今を答え、
+  止まっていれば kick する（心拍は「未接続」をすぐ返す）。
+- 起動（`desktop/src/main.rs`）: 入れ替えた直後の版（apply_staged が入れ替えた）だけは今までどおり準備を待ち、起動できなければ控えの版へ戻して開き直す（壊れた版の画面を描かない）。
+  ほかは Python を裏の糸で起こし、準備を待たずに画面を開く。準備・失敗のあとの片付け（update::confirm・ショートカット・写しの片付け・前の版へ戻す）は `started` の 1 か所。
+  画面を開いたあとは起動画面へ知らせを流さず（Splash の left）、起こせなかったときは画面の上の帯（FAIL_BAND_JS）で言う。版は program/app/version.py から読む（Updater・起動画面）。
+  /__desktop/info の backend は問い合わせのたびに今の ready（自己診断は版が載るまで待つ）。記録に `OPEN 画面を開きます ms=… backend=starting|ready` を足した。
+- 測った（Linux・verify.py update の窓。Windows の利用者の PC では測っていないので分からない）: ふだんの起動は OPEN ms=0（backend=starting）のあと READY spawn_ms 670〜750、
+  入れ替えた直後は READY のあと OPEN ms=375〜420。
+- 自己診断（selftest.js）: 共有に初期設定がまだ無い PC では、最初の画面を Python の準備前に窓が既定の形で描くので、Python が写しから最初の版を作るのは Python が画面を
+  描いたとき。画面の突き合わせは先に Python の画面（?engine=python）を尋ねてから窓の画面を尋ねる（verify.py update の共有の exe の形で割れた）。
+- まだの所: 起動前の確認の進み具合を画面の中に出す所（今は記録だけ）・GET /api/sources（見出しのタブ）は Python のまま。CLAUDE.md の verify.py の通しの名前
+  （local・update・distribute）は今の verify.py（update・rename）と合っていない（利用者に伝えた）。
+- 評価関数: `cargo test --bin LotScope sidecar::`（作り物の中身で、起こしている最中も up・busy が待たない・待ち合わせた者も同じ物・起こすのは 1 回・止まった物は起こし直す・
+  起こせなかった理由を覚える・間が過ぎれば起こし直す・panic でも Starting に残らない）・`verify.py update`（本物の窓で、入れ替え・戻し・配る版・新しい PC の入口）・
+  Windows の WebView2 の自己診断（CI）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

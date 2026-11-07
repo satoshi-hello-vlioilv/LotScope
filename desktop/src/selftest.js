@@ -39,10 +39,12 @@
     const three = await get(`/static/vendor/three/three-bundle.min.js?v=${fp}`);
     ok("大きな部品（three.js）も Rust が返す", three.by === "shell" && three.r.ok && three.text.length > 100000, `${three.r.status} ${three.text.length}字`);
     // 画面は窓が描く（版 3.85.0。src/page.rs）。使い回さない（no-store）・CSP の印。Python が描いた画面（?engine=python）と、印を揃えると 1 字も違わない
+    // 先に Python の画面（共有に初期設定がまだ無い PC では、Python が描くときに写しから最初の版を作る。窓はその形を Python に任せる）。
+    // 版 3.86.0 から最初の画面は Python の準備を待たずに窓が描くので、その版はここで初めてできることがある
+    const pyPage = await get("/?engine=python");
     const page = await get("/");
     const csp = page.r.headers.get("Content-Security-Policy") || "";
     ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
-    const pyPage = await get("/?engine=python");
     const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
     const norm = (x) => x.text.split(nonceOf(x)).join("@NONCE@");
     const at = [...norm(page)].findIndex((c, i) => c !== norm(pyPage)[i]);
