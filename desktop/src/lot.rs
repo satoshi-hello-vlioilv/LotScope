@@ -94,6 +94,8 @@ pub struct Lot {
     page: crate::page::Page,
     /// 足すデータ元のキーを作る係（版 3.90.0。既定は sources_write::new_key。突き合わせの試験は Python と同じ並びに差し替える）
     new_key: Mutex<Option<NewKey>>,
+    /// 画面（GET /）を最後に Python に任せた理由（記録: main.rs が desktop.log に書く）
+    page_why: Mutex<String>,
 }
 
 /// 足すデータ元のキーを作る係
@@ -118,6 +120,7 @@ impl Lot {
             bundle: Mutex::default(),
             page: crate::page::Page::default(),
             new_key: Mutex::default(),
+            page_why: Mutex::default(),
         }
     }
 
@@ -142,8 +145,15 @@ impl Lot {
     /// 中身（Python）が答えないとき（alive が偽）は、窓が同じに読めない埋める物（画面の控え・初期設定・変換表）を Python の except と同じ
     /// 既定の形（空の控え・既定の見せ方・空の変換表）に落として描く（画面は開く。作った後の採点の指摘 7）
     pub fn page(&self, head: bool, alive: &dyn Fn() -> bool) -> Option<crate::page::Html> {
-        let b = self.bundle.lock().unwrap().clone()?;
-        let inp = b.inputs().ok()?;
+        let why = |w: String| {
+            *self.page_why.lock().unwrap() = w;
+            None
+        };
+        let Some(b) = self.bundle.lock().unwrap().clone() else { return why("束を組む係が無い".into()) };
+        let inp = match b.inputs() {
+            Ok(i) => i,
+            Err(e) => return why(format!("束の材料: {}", e.0)),
+        };
         let profile: Vec<String> = crate::bundle::tables()["uiProfileKeys"]
             .as_array()
             .into_iter()
@@ -167,9 +177,30 @@ impl Lot {
                 ui_profile: p.unwrap_or_else(|| json!({"keys": profile, "defaults": {}, "updatedAt": "", "updatedBy": {}})),
                 conversions: c.unwrap_or_else(|| json!({"items": [], "revision": null})),
             },
-            _ => return None,
+            (s, p, c) => {
+                let mut miss = vec![];
+                if s.is_none() {
+                    miss.push("画面の控え".to_string());
+                }
+                if p.is_none() {
+                    miss.push(format!("初期設定（{}）", inp.check("ui_defaults").err().map(|e| e.0).unwrap_or("読めない")));
+                }
+                if c.is_none() {
+                    miss.push(format!("変換表（{}）", inp.check("conversions").err().map(|e| e.0).unwrap_or("読めない")));
+                }
+                return why(miss.join("・"));
+            }
         };
-        self.page.index(&b.env().program, parts, head)
+        let html = self.page.index(&b.env().program, parts, head);
+        if html.is_none() {
+            return why("画面の型・指紋".into());
+        }
+        html
+    }
+
+    /// 画面を最後に Python に任せた理由（記録）
+    pub fn page_why(&self) -> String {
+        self.page_why.lock().unwrap().clone()
     }
 
     /// GET /api/config（版 3.85.0）。束を組む係が無い・組めない形は None
