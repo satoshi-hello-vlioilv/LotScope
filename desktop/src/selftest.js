@@ -192,10 +192,25 @@
     {
       const canonP = (v) => Array.isArray(v) ? v.map(canonP) : v && typeof v === "object"
         ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonP(v[k])])) : v;
-      const py = await get("/api/settings?engine=python"), rs = await get("/api/settings");
-      let same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
-      try { same = same && JSON.stringify(canonP(JSON.parse(rs.text))) === JSON.stringify(canonP(JSON.parse(py.text))); } catch (_) { same = false; }
-      ok("参照先の項目は窓が答え、Python と同じ答え", rs.by === "shell" && same, `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}`);
+      // 違う所の道（最初の 1 つ）。新しい PC を最初に開いたときは、Python が共有へマスタの最初の版を置く途中で版の番号が動くので、
+      // 置き終わるまで 15 秒まで尋ね直す（版 3.90.0 の手元の通しで、新しい PC の場面で 1 回だけ食い違った。ほかの確かめと同じ待ち方）
+      const diffAt = (a, b, at = "") => {
+        if (JSON.stringify(a) === JSON.stringify(b)) return "";
+        if (a && b && typeof a === "object" && typeof b === "object") {
+          for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) { const d = diffAt(a[k], b[k], `${at}/${k}`); if (d) return d; }
+        }
+        return `${at || "/"}: 窓 ${JSON.stringify(a)?.slice(0, 60)} / Python ${JSON.stringify(b)?.slice(0, 60)}`;
+      };
+      let py, rs, same = false, where = "";
+      for (const until = Date.now() + 15000; ;) {
+        py = await get("/api/settings?engine=python"); rs = await get("/api/settings");
+        same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
+        try { where = diffAt(canonP(JSON.parse(rs.text)), canonP(JSON.parse(py.text))); } catch (_) { where = "読めない答え"; }
+        same = same && !where;
+        if ((same && rs.by === "shell") || Date.now() > until) break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      ok("参照先の項目は窓が答え、Python と同じ答え", rs.by === "shell" && same, `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${where ? "・" + where : ""}`);
       const put = (key, value) => get("/api/settings/" + key, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value }) });
       const unk = await put("selftest.unknown", "x"), bad = await put("lot_list.refresh_seconds", "10.5");
       const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
@@ -205,6 +220,20 @@
          unk.by === "shell" && unk.r.status === 400 && why(unk).error === "知らない項目です。"
          && bad.by === "shell" && bad.r.status === 400 && why(bad).kind === "invalid" && /整数で入れてください/.test(why(bad).error || "")),
          `${unk.by} ${unk.r.status} / ${bad.by} ${bad.r.status} ${(why(bad).error || "").slice(0, 40)}`);
+    }
+
+    // 10a‴) データ元の書く道（版 3.90.0 から窓が答える: sources_write.rs）。書かずに確かめる（無いデータ元を直す・項目の無い接続の設定は、
+    //       窓が Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）
+    {
+      const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
+      const send = (path, method, body) => get(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const gone = await send("/api/sources/selftest-none", "PUT", { "表示名": "x" });
+      const conn = await send("/api/sources/selftest-none/conn", "PUT", { field: "place", value: "x" });
+      const denied = [gone, conn].every((x) => x.by === "shell" && x.r.status === 403 && why(x).kind === "forbidden");
+      ok("データ元を書く道も窓が受ける（無いデータ元は Python と同じ言葉で断る。書けない人は門番が断る）", denied || (
+         gone.by === "shell" && gone.r.status === 400 && /そのデータ元はありません/.test(why(gone).error || "")
+         && conn.by === "shell" && conn.r.status === 404 && why(conn).kind === "unknown"),
+         `${gone.by} ${gone.r.status} / ${conn.by} ${conn.r.status} ${(why(gone).error || "").slice(0, 30)}`);
     }
 
     // 10b) 作業実績の設備（Python）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す（画面は案内を出す）

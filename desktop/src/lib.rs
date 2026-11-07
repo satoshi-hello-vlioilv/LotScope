@@ -39,6 +39,7 @@ pub mod settings_write;
 pub mod shifts_write;
 pub mod small_reads;
 pub mod sources_list;
+pub mod sources_write;
 pub mod ui_defaults;
 pub mod update;
 pub mod worksum;

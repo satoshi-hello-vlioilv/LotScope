@@ -315,7 +315,11 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         (method @ ("GET" | "HEAD"), "/")
             if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") =>
         {
-            lot.page(method == "HEAD", &|| backend.ready_now()).map(|h| Reply { status: 200, headers: h.headers, body: h.body })
+            let r = lot.page(method == "HEAD", &|| backend.ready_now()).map(|h| Reply { status: 200, headers: h.headers, body: h.body });
+            if r.is_none() {
+                log(&format!("PAGE python {}", lot.page_why())); // 窓が画面を描けなかった理由（Python が描く）
+            }
+            r
         }
         // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
         (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => lot

@@ -974,6 +974,28 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   `"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
 - 残り: データ元の接続の設定（PUT /api/sources/<key>/conn）が書く参照先の欄は、データ元の書く道の段で、行と参照先を一緒に移す。
 
+### 段 3 の 8 歩目: データ元の書く道（7 本）を窓が答える — 版 3.90.0
+
+データ元の書く道の移し方を決まり 2026-11-06 で 7 案にして別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-sources-write.json`。
+1 位 **E** 73.6 点〈決まりを表に焼く〉・A 69.5・D 56.9・B 56.6・C 54.1・F 48.6・G 45.6）。80 点に届かないので、E に採点の指摘 16 個を入れて作った。
+
+- 窓（`desktop/src/sources_write.rs`）: POST /api/sources・PUT・DELETE /api/sources/<key>・POST /<key>/quick・POST /order・POST /groups・PUT /<key>/conn。
+  行の整え方は data_sources.clean_row、結合は data_join.parse・clean を、Python と同じ順に確かめる（誤りの出る順が答えになる）。列の順・その場で変えられる列・
+  グループの長さは焼いた表の sourcesList（fields・patchFields・groupMax。ほかの決まりは前から焼いてあった sources・sourcesList・join）。書く係は
+  master_repository の data_source_put・order・delete と同じ書き方（キーは正規化しない一致・足すときだけ一意・order は決めた列だけ・同じなら行の版を上げない）。
+  今の並びは窓の束の材料（GET /api/sources と同じ sources_parts）。接続の設定の参照先の欄は版 3.89.0 の settings_write を使う。
+- Python の不具合（採点で見つけた）: 並べ替え・グループで行の無い組み込みの元に行を作るとき、結合の並びが str() の repr の字になり、スケジュールの
+  既定の結合が消えた。master_repository._cell で JSON の字にした（`tests/test_data_sources.py`）。
+- Python に任せる形: 読みの割れる本文・表でない真の本文・並びや表の値（repr）・keys が表か数・結合の on・cols が数や真偽・cols が表・百分率符号・
+  置き場の行を窓が同じに読めない・配った設定の段が表でない（接続の設定の参照先）。確かめる 3 本（/check・/conn/check・/join/preview）と列を読む
+  GET /api/sources/<key>/columns は Python のまま。
+- 評価関数: `cargo test --test sources_write_parity`（← `tests/sources_write_oracle.py`。7 場面で本物の窓の道〈Lot〉の答え・断る言葉・できたファイルを
+  Python と突き合わせる。足す元のキーは同じ並びに差し替える〈Lot::set_new_key〉）・`cargo test --lib sources_write`・自己診断の
+  「データ元を書く道も窓が受ける」。
+- 作った後の採点（1 回だけ。71.4 点。減点 −3）: 重い割れは無し。書く係の思いがけない失敗（ファイルの読み書き）の答えに type が無い・新しいキーの乱数の
+  失敗を捨てる、の 2 件と、?engine=python・本文の読み方が 2 か所・試験の場面の足りない所を直した（`"built_fixed"`）。思いがけない失敗の言葉は OS の言葉なので
+  Python〈[Errno 13] …〉と窓〈… (os error 13)〉で字が違う（状態・kind・type は同じ）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

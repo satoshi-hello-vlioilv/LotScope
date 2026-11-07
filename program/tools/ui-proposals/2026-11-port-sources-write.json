@@ -1,0 +1,237 @@
+{
+  "title": "Rust 化 版 3.90.0: データ元の書く道を窓へ",
+  "rule": "2026-11-06",
+  "measured": "棚卸し（2026-11-07・main 0317593）: routes/sources.py の書く道 8 本。行を書く 7 本: POST /api/sources（足す。キーは new_key＝s+uuid8）・PUT /api/sources/<key>（送った列だけ今の行に重ねる）・DELETE /api/sources/<key>（決まった元は既定へ戻す）・POST /<key>/quick（画面・グループ・表示名だけ）・POST /order（並びを 10 刻みで振る・行が無い決まった元は作る）・POST /groups（グループの名前を変える・消す。マスタの役割は NO_GROUP「-」）・PUT /<key>/conn（項目ごとに置き場が違う: settings は参照先の項目〈版 3.89.0 で窓へ移した settings_write と同じ〉・row は行の列）。確かめる 3 本（POST /check・/<key>/conn/check・/join/preview）は共有の .sqlite3 を開いて数える（path_settings.check・data_join の当て）。どの行の道も data_sources.clean_row（役割・設備の取り出し方・画面・場所の引用符・グループ 24 字・ロット番号の列 120 字・確かめる間隔／古さの警告の範囲と字・決まった元の元とグループ・結合した表の元と相手・表示名と場所の必須）と data_join.clean（結合の並びの形・相手・鍵。字は json.dumps(ensure_ascii=False)）を通り、_all()＝data_sources.sources(effective_settings, rows)（窓には bundle.rs の sources_full がある）と row_of を使う。書く係は master_repository の data_source_put（キーで有れば直す・無ければ足す・base_rev は行が無ければ 0・_check_unique）・data_source_order（fields の列だけ・同じなら版を上げない）・data_source_delete（_check_rev・無ければ何もしない）。窓には版 3.89.0 の master_rows::put_by_key（鍵で 1 行を置く型）・門番・書いた後に束を捨てる道がある。画面は master-sources.js の 7 か所（quick・groups・order・conn・行の PUT/POST・DELETE）。試験は tests/test_data_sources.py・test_data_join.py・test_sources_unify.py。",
+  "proposals_text": {
+    "A 行を書く 7 本を全部（clean_row と data_join.clean を窓へ）": "desktop/src/sources_write.rs に clean_row・row_of・data_join.clean（窓の join.rs の list と同じ形）を写し、7 本を窓が答える。書く係は put_by_key を一般にした「キーで行を置く」型（data_source_put・order・delete の 3 つ）。キーは窓で uuid。確かめる 3 本は Python のまま。突き合わせは sources_write_oracle.py（場面ごとに 7 本の歩）",
+    "B 結合の無い行だけ（結合・結合した表は Python に任せる）": "A と同じ 7 本だが、本文や今の行に「結合」「元」があれば Python に任せる。data_join.clean を写さない分小さい。結合を使う PC では Python に残る道が増える",
+    "C 簡単な 4 本だけ（quick・order・groups・DELETE）": "clean_row を通る quick は写すが、足す・直す（行の PUT/POST）と conn は Python のまま。order・groups・DELETE は clean_row を通らない",
+    "D 接続の設定の 1 本（PUT /<key>/conn）だけ": "settings の欄は settings_write をそのまま使い、row の欄だけ clean_row を写す。版 3.89.0 の残り（参照先を書く決まりが 2 か所）を片付ける最小の段",
+    "E 決まりを表に焼く（データで書く clean_row）": "CONN_SPECS・ROLES・EQUIP_MODES・FIELDS・BUILTIN_KEYS・GROUPABLE と言葉を bundle_tables.json に焼き、clean_row を表を引く 1 つの関数に。A の範囲を、言葉の写し間違いが出ない形で作る（焼いた表の古さは tests が止める）",
+    "F A に確かめる 3 本も足す（check・conn/check・join/preview）": "共有の .sqlite3 を開いて数える所まで窓へ（path_settings.check の sqlite・folder・url・pattern と、data_join の当ての数）。データ元の道を Python から無くす",
+    "G 書く道は Python のまま、窓は書いた後の覚えだけ揃える": "移さず、Python が書いた後の after_python と束の作り直しを速くする（書いた後に画面が古い数を見ないように）"
+  },
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-settings.json（rounds の形・11 項目の読み替え）、program/app の routes/sources.py（書く道 7 本と確かめる 3 本・_conn_field・source_def）・services/data_sources.py（FIELDS・CONN_SPECS・clean_row・row_of・sources・join_targets・new_key）・services/data_join.py（parse・clean）・repositories/master_repository.py（data_source_put・data_source_order・data_source_delete・_check_unique・_check_rev・_clean）・routes/common.py（base_rev・master_call）・routes/settings.py（put_setting）・routes/access.py（_GUARDED・確かめの道の除き方）・fsio.unquote_path・__init__.py（work_mirrors）・画面の master-sources.js（:323 quick・:336 groups・:372 order・:421 columns・:452 conn・:629〜638 保存の順・:656 DELETE）と master-join.js（:68 columns・:105 preview）、desktop/src の settings_write.rs（parse_value・put・after_of）・master_rows.rs（put_by_key・base_rev・split_number・text_split）・master_store.rs（write はいつも書く・write_json_atomic）・bundle.rs（joins_of・py_iter・sources_all）・bundle_tables.json の段（sources・sourcesList・join）・jsontree.rs・worksum.rs の py_str・lot.rs（sources_list・settings_route・changes_settings・after_python）・access.rs（GUARDED）・Cargo.toml（serde_json は preserve_order 無し）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-srcw の probe.py・t1〜t4.py。場面は settings_write_oracle.place の共有の形に data_sources.json を置き、boss を開発者・編集可にした create_app の test_client）: t1 行の無い sch・wip の order（結合が repr になり sch の既定の結合が消える）・t2 本文の形と値の読み方 27 歩（500 になる 3 本・400 type の 3 本・str() の repr・空白・間隔の読み方・結合の字の NaN と 1.0）・t3 何もしない書き込みでもファイルの版が上がる・グループを消す・lot の行に参照先の表が写る・conn の参照先と行・結合した表の 3 つの言葉・t4 書く道の速さ（20 回の中央 3.5〜5.5 ms）。cargo は流していない（Rust はコードを読んで確かめた）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲（利用者の得）・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の誤り・足りない所: 『窓には put_by_key がある』は型が違う（data_source_put は足す行の項目の順・キーの比べ方・_check_unique が違う）・カードを開くと呼ぶ GET /api/sources/<key>/columns と /api/src/<key>/refresh が棚卸しに無い・order が行の無い組み込みの元に repr の結合を置く Python の割れ・表の大半はもう bundle_tables.json に焼いてある。",
+  "rounds": [
+    {
+      "name": "1 回目",
+      "self_check": "画面に出ない改良（決まり 2026-11-06）なので画像は無い。案の文は作った者が棚卸しの事実（routes/sources.py の 8 本・clean_row・data_join.clean・master-sources.js の 7 か所）と突き合わせて読み直した。採点者の指摘で、棚卸しの抜け（GET /api/sources/<key>/columns）と、案 D の前提（画面は conn の後に行の PUT も送る）を確かめた",
+      "proposals": {
+        "A 行を書く 7 本を全部（clean_row と data_join.clean を窓へ）": {
+          "score": {
+            "order": 8,
+            "chunk": 7,
+            "hierarchy": 8,
+            "visual": 8,
+            "steps": 7,
+            "effortless": 5,
+            "intuitive": 8,
+            "form": 7,
+            "place": 6,
+            "layout": 7,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "範囲は書く道 7 本（画面の 7 か所の書き込みが全部窓へ）。Python の書く道は 3〜6 ms（20 回の中央: quick 3.5・PUT 3.7・order 5.2・conn の行 5.5・conn の参照先 4.4・GET 5.1）で速さの得は無く、得は Python が答えない PC でも保存できること。部品は揃っている（sources_full・pyfmt・jsontree・settings_write・門番）。ただ落とし穴の見積もりが無い: order が行の無い sch を作ると結合が repr になり既定の結合が消える Python の割れ・本文の形で 500 と 400 が分かれる・表の keys・on・cols の鍵の順・str() の repr・put_by_key と data_source_put の新しい行の項目の順の違い・何もしない書き込みでもファイルの版が上がる。clean_row の言葉を Rust へ写すので答えの元が 2 か所になる。measured は GET /api/sources/<key>/columns（カードを開くと呼ぶ）を数えていない",
+          "fixes": [
+            "先に Python の割れを直す: POST /api/sources/order が行の無い組み込みの元（sch・wip）の行を作るとき、row_of の「結合」（並び）を master_repository._clean が str() にするので、Python の repr の字が置かれる。再現: data_sources が空の共有で POST /api/sources/order {\"keys\": [\"sch\", \"wip\"]} → sch の行の結合が \"[{'with': 'wip', 'how': 'left', …}]\"、wip は \"[]\"。そのあと GET /api/sources の sch の joins は [] になり、スケジュールの既定の結合（仕掛と合わせる・釜番などの列）が消える。routes/sources.py の sources_order（と sources_groups）で、作る行の結合を data_join の json.dumps(ensure_ascii=False)（空なら \"\"）にし、test_data_sources.py に試験を足す（版を上げ RELEASE を書き直す）。窓はこの直した形に合わせる（repr を写さない）",
+            "道の表を Python の道と同じにする: POST /api/sources・PUT/DELETE /api/sources/<key>・POST /<key>/quick・/order・/groups・PUT /<key>/conn だけを窓が受け、ほかの組（GET /api/sources/order・PUT /api/sources/order/x など）と、道に百分率符号がある物は Python に任せる。DELETE /api/sources/check・/order・/groups は「check」などのキーの行を消す道（無ければ何もしない。200 {ok: true}）、PUT /api/sources/order は 400「そのデータ元はありません…」になることを場面に入れる",
+            "本文の形: /order・/groups・/<key>/conn は body.get が master_call の外にあり、表でない真の本文（[1]・\"x\"・5）は 500（試験の口では AttributeError が上がる）。POST /api/sources・quick・PUT は master_call の中で 400 {kind: error, type: AttributeError / TypeError}。どちらも窓は答えず Python に任せる（settings_write::put と同じ truthy・is_object・split_number・text_split の判定）",
+            "keys の回し方: keys が字なら 1 字ずつ（{\"keys\": \"wip\"} → 400 並びと合わない）・表なら鍵を送った順（{\"keys\": {\"s0000aaaa\": 1}} → 200）・数なら 500。serde_json の Map は鍵を字の順に並べ直すので、表の keys と結合の on・cols が表の形は jsontree（送った順）で読むか Python に任せる",
+            "値の字: 欄の値は Python の str(v).strip()。真偽・数は py_str（true → \"True\"・1.0 → \"1.0\"・1e16 → \"1e+16\"）、並び・表の値（備考 [1, \"a\"] → \"[1, 'a']\"・conn の value {\"a\": 1} → \"{'a': 1}\"・groups の to [\"a\", \"b\"] → \"['a', 'b']\"）は repr が要るので Python に任せる。strip と split は Python の空白（\\x1c〜\\x1f・\\x85・全角の空白）で pyfmt::strip を使う（「  名\\x1f」→「名」・グループ「  a　 b\\x1c 」→「a b」）。グループの 24 字・ロット番号の列の 120 字は符号位置で切る。片割れの代用字は Python に任せる",
+            "結合（data_join.parse・clean）: 結合が字なら json.loads（NaN・Infinity・1e400・同じ鍵 2 つは Python の読み方。'[{\"with\":\"wip\",\"on\":[[\"a\",1.0]],\"cols\":[NaN]}]' → on [[\"a\",\"1.0\"]]・cols [\"nan\"]）なので text_split で Python に任せる。cols・on が字なら 1 字ずつ（cols \"xy\" → [\"x\",\"y\"]）、cols が数なら TypeError の 400（Python に任せる）。置く字は鍵の順 with・how・on・cols、区切り \", \" \": \"、ensure_ascii=False（jsontree の書き方）。誤りの言葉は「n つ目の結合の相手（zz）がありません。…」などを 1 字ずつ",
+            "間隔・古さ: float() の読み方は pyfmt::py_float（「１０」・「1_0」・「1e1」→ 10）、nan・inf は範囲の言葉（「確かめる間隔（秒）」は 10〜3600 で入れてください。）、refresh は str(int(n))、stale は整数なら str(int(n))（\"-0\" → \"0\"）・ほかは float の repr（0.1 → \"0.1\"・1e-05 → \"1e-05\"）。範囲の端の字は 0〜1440",
+            "書く係は put_by_key ではなく data_source_put を写す: キーは正規化しない一致（r.get(\"キー\") == key）・版は int(row.rev か 1)・行が無ければ 0 と比べる・足す行は {id, rev: 0} に FIELDS の順で _clean した値、キー、rev + 1、stamp（put_by_key は {id, 鍵, rev} で作る）・足すときだけ _check_unique（正規化した鍵で DuplicateKey）。order は fields の列だけ・同じなら行の版を上げない。どの書き方も Python の MasterStore.write は何も変えなくてもファイルの revision と updated_at を上げる（測った: 消すキーが無い DELETE・同じ並びの order で 3 → 4 → 5）ので、窓も書く",
+            "row_of を sources_full の答えから同じに組む: lot・work の「表」は参照先の効いている値が行に写る（PUT /api/settings/lot_list.table「品質表」のあと PUT /api/sources/lot {設備の列} で行の表が「品質表」）・行の無い wip の quick・PUT・order は WIP_DEFAULT の場所が行に固まる・行の無い sch は既定の結合が入る・表示名は組み込みの名前と同じなら \"\"・role は組み込みなら \"\"・結合した表は場所と表が \"\"",
+            "言葉と状態: 無いキーは PUT・quick が 400 invalid「そのデータ元はありません（ほかの PC が消した可能性があります）。」、conn は 404 unknown（同じ字）・知らない項目は 400「「足した」に「nope」の設定はありません。」・groups の「グループ「-」はありません…」・order の「並べ替えるデータ元が、いまの並びと合いません…」・結合した表の 3 つの言葉・表示名と場所の必須。POST /api/sources は 201",
+            "conn の settings の欄は settings_write の parse と put を path_settings の置き場（共有かは path_settings で決まる。data_sources と別）で使い、後始末も同じ（after_of: lot_list. → warm、work_log. → forget_listing）。門番は道 /api/sources/…（data_sources の段）で見る",
+            "窓が書いた後は after_python と同じ後始末（invalidate と gate.forget）をし、Python の次の GET /api/src/<key>・/api/sources/<key>/columns・join/preview が新しい行を読むこと（受け身の写し）を lot::tests で確かめる",
+            "新しいキー: 窓は \"s\" + 小文字の 16 進 8 字。突き合わせは Python の data_sources.new_key と窓の作り方を差し替えられる口で同じキーにし、ファイルを 1 字ずつ比べる",
+            "measured に無い物を書く: カードの接続の欄を開くと画面は GET /api/sources/<key>/columns（master-sources.js :421 loadLotCols）を呼び、結合の欄は join/preview（POST で門番が書く道として見る）を呼ぶ。どちらも Python に残るので、Python が居ない PC では保存はできてもロット番号の列の候補と「試す」は出ない。columns を同じ版で窓へ移すか、残ることを PR に書く",
+            "突き合わせは sources_write_oracle.py → sources_write_parity.rs（settings_write_oracle の形）。場面: 共有・手元だけ・写しから・錠、組み込み 4 つの行の有る無し、結合した表と壊れた結合した表、上の再現の本文すべて、Python に任せる歩"
+          ]
+        },
+        "B 結合の無い行だけ（結合・結合した表は Python に任せる）": {
+          "score": {
+            "order": 7,
+            "chunk": 6,
+            "hierarchy": 6,
+            "visual": 7,
+            "steps": 5,
+            "effortless": 4,
+            "intuitive": 6,
+            "form": 6,
+            "place": 4,
+            "layout": 6,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "画面の保存は「結合」を必ず送る（master-sources.js :636 の body に f.joins。空でも []）し、行の無い sch は row_of に既定の結合が入るので、「結合があれば Python」をそのまま読むと保存のほとんどが Python に残る。「空でない結合」と読み替えても、結合を使う PC ほど Python に残り、同じ道を中身で窓と Python が分けて答える（答えの元が 2 つ）。data_join.clean を写さない分は小さいが、quick・order も row_of の結合を通るので割れの数はほぼ A と同じ",
+          "fixes": [
+            "「結合があれば」を「空でない結合が本文か今の行にある」と決め、行の無い sch（既定の結合）がいつも Python に行くことを書く",
+            "先に Python の割れを直す: POST /api/sources/order が行の無い組み込みの元（sch・wip）の行を作るとき、row_of の「結合」（並び）を master_repository._clean が str() にするので、Python の repr の字が置かれる。再現: data_sources が空の共有で POST /api/sources/order {\"keys\": [\"sch\", \"wip\"]} → sch の行の結合が \"[{'with': 'wip', 'how': 'left', …}]\"、wip は \"[]\"。そのあと GET /api/sources の sch の joins は [] になり、スケジュールの既定の結合（仕掛と合わせる・釜番などの列）が消える。routes/sources.py の sources_order（と sources_groups）で、作る行の結合を data_join の json.dumps(ensure_ascii=False)（空なら \"\"）にし、test_data_sources.py に試験を足す（版を上げ RELEASE を書き直す）。窓はこの直した形に合わせる（repr を写さない）",
+            "本文の形: /order・/groups・/<key>/conn は body.get が master_call の外にあり、表でない真の本文（[1]・\"x\"・5）は 500（試験の口では AttributeError が上がる）。POST /api/sources・quick・PUT は master_call の中で 400 {kind: error, type: AttributeError / TypeError}。どちらも窓は答えず Python に任せる（settings_write::put と同じ truthy・is_object・split_number・text_split の判定）",
+            "値の字: 欄の値は Python の str(v).strip()。真偽・数は py_str（true → \"True\"・1.0 → \"1.0\"・1e16 → \"1e+16\"）、並び・表の値（備考 [1, \"a\"] → \"[1, 'a']\"・conn の value {\"a\": 1} → \"{'a': 1}\"・groups の to [\"a\", \"b\"] → \"['a', 'b']\"）は repr が要るので Python に任せる。strip と split は Python の空白（\\x1c〜\\x1f・\\x85・全角の空白）で pyfmt::strip を使う（「  名\\x1f」→「名」・グループ「  a　 b\\x1c 」→「a b」）。グループの 24 字・ロット番号の列の 120 字は符号位置で切る。片割れの代用字は Python に任せる"
+          ]
+        },
+        "C 簡単な 4 本だけ（quick・order・groups・DELETE）": {
+          "score": {
+            "order": 6,
+            "chunk": 5,
+            "hierarchy": 6,
+            "visual": 7,
+            "steps": 4,
+            "effortless": 4,
+            "intuitive": 6,
+            "form": 6,
+            "place": 5,
+            "layout": 5,
+            "tone": 6
+          },
+          "minus": [],
+          "seen": "「order・groups・DELETE は clean_row を通らない」は合っているが、quick は clean_row（結合の確かめを含む）を丸ごと通る。order は行の無い組み込みの元の行を作り、そこで結合が repr になる Python の割れを写すことになる。画面の主な保存（行の PUT・POST と conn）は Python に残るので、Python が居ない PC で直せるのは見出しのスイッチ・並べ替え・グループ・消すだけ。量の切り方は小さいが、利用者の得も小さい",
+          "fixes": [
+            "quick は clean_row を丸ごと通る（結合の確かめも）ことを範囲に入れる",
+            "先に Python の割れを直す: POST /api/sources/order が行の無い組み込みの元（sch・wip）の行を作るとき、row_of の「結合」（並び）を master_repository._clean が str() にするので、Python の repr の字が置かれる。再現: data_sources が空の共有で POST /api/sources/order {\"keys\": [\"sch\", \"wip\"]} → sch の行の結合が \"[{'with': 'wip', 'how': 'left', …}]\"、wip は \"[]\"。そのあと GET /api/sources の sch の joins は [] になり、スケジュールの既定の結合（仕掛と合わせる・釜番などの列）が消える。routes/sources.py の sources_order（と sources_groups）で、作る行の結合を data_join の json.dumps(ensure_ascii=False)（空なら \"\"）にし、test_data_sources.py に試験を足す（版を上げ RELEASE を書き直す）。窓はこの直した形に合わせる（repr を写さない）",
+            "書く係は put_by_key ではなく data_source_put を写す: キーは正規化しない一致（r.get(\"キー\") == key）・版は int(row.rev か 1)・行が無ければ 0 と比べる・足す行は {id, rev: 0} に FIELDS の順で _clean した値、キー、rev + 1、stamp（put_by_key は {id, 鍵, rev} で作る）・足すときだけ _check_unique（正規化した鍵で DuplicateKey）。order は fields の列だけ・同じなら行の版を上げない。どの書き方も Python の MasterStore.write は何も変えなくてもファイルの revision と updated_at を上げる（測った: 消すキーが無い DELETE・同じ並びの order で 3 → 4 → 5）ので、窓も書く"
+          ]
+        },
+        "D 接続の設定の 1 本（PUT /<key>/conn）だけ": {
+          "score": {
+            "order": 6,
+            "chunk": 5,
+            "hierarchy": 7,
+            "visual": 7,
+            "steps": 3,
+            "effortless": 4,
+            "intuitive": 7,
+            "form": 7,
+            "place": 6,
+            "layout": 4,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "画面の保存（saveSource）は接続の欄の参照先の分を PUT /<key>/conn で 1 つずつ置いた後に、行の分を PUT /api/sources/<key> で置く（:629〜638）。conn だけ移しても保存のたびに Python が要る。conn の row の欄は「その列だけ」ではなく、row_of で組んだ行を丸ごと clean_row に通す（結合の確かめも）ので、clean_row の写しは結局全部要る。settings の欄で settings_write を使い回せるのは良い",
+          "fixes": [
+            "画面の保存は conn の後に行の PUT を送るので、conn だけでは Python が要ることを書く。conn の row の欄も clean_row を丸ごと要る",
+            "conn の settings の欄は settings_write の parse と put を path_settings の置き場（共有かは path_settings で決まる。data_sources と別）で使い、後始末も同じ（after_of: lot_list. → warm、work_log. → forget_listing）。門番は道 /api/sources/…（data_sources の段）で見る"
+          ]
+        },
+        "E 決まりを表に焼く（データで書く clean_row）": {
+          "score": {
+            "order": 8,
+            "chunk": 7,
+            "hierarchy": 7,
+            "visual": 8,
+            "steps": 7,
+            "effortless": 6,
+            "intuitive": 8,
+            "form": 8,
+            "place": 8,
+            "layout": 7,
+            "tone": 7
+          },
+          "minus": [],
+          "seen": "A と同じ範囲で、決まりの元を Python から焼く。焼く仕組み（program/tools/bundle-tables.py → bundle_tables.json・tests/test_bundle_tables.py）は既にあり、データ元の表の大半（sourcesList.connSpecs・roles・equipModes・noGroup・masterRole、sources.builtins・groupable・scheduleJoin・connBind・rowRead、join.hows・maxKeys・maxJoins）はもう焼いてある。足すのは FIELDS・PATCH_FIELDS・GROUP_MAX・120 と言葉だけで、表の古さも試験が止める。言葉と範囲の写し間違いは減る。ただ『clean_row を表を引く 1 つの関数に』は手順（誤りの出る順）まで表にすると読みにくくなる。落とし穴（order の repr・本文の形・鍵の順・str()・書く係の違い）は A と同じく書かれていない",
+          "fixes": [
+            "先に Python の割れを直す: POST /api/sources/order が行の無い組み込みの元（sch・wip）の行を作るとき、row_of の「結合」（並び）を master_repository._clean が str() にするので、Python の repr の字が置かれる。再現: data_sources が空の共有で POST /api/sources/order {\"keys\": [\"sch\", \"wip\"]} → sch の行の結合が \"[{'with': 'wip', 'how': 'left', …}]\"、wip は \"[]\"。そのあと GET /api/sources の sch の joins は [] になり、スケジュールの既定の結合（仕掛と合わせる・釜番などの列）が消える。routes/sources.py の sources_order（と sources_groups）で、作る行の結合を data_join の json.dumps(ensure_ascii=False)（空なら \"\"）にし、test_data_sources.py に試験を足す（版を上げ RELEASE を書き直す）。窓はこの直した形に合わせる（repr を写さない）",
+            "道の表を Python の道と同じにする: POST /api/sources・PUT/DELETE /api/sources/<key>・POST /<key>/quick・/order・/groups・PUT /<key>/conn だけを窓が受け、ほかの組（GET /api/sources/order・PUT /api/sources/order/x など）と、道に百分率符号がある物は Python に任せる。DELETE /api/sources/check・/order・/groups は「check」などのキーの行を消す道（無ければ何もしない。200 {ok: true}）、PUT /api/sources/order は 400「そのデータ元はありません…」になることを場面に入れる",
+            "本文の形: /order・/groups・/<key>/conn は body.get が master_call の外にあり、表でない真の本文（[1]・\"x\"・5）は 500（試験の口では AttributeError が上がる）。POST /api/sources・quick・PUT は master_call の中で 400 {kind: error, type: AttributeError / TypeError}。どちらも窓は答えず Python に任せる（settings_write::put と同じ truthy・is_object・split_number・text_split の判定）",
+            "keys の回し方: keys が字なら 1 字ずつ（{\"keys\": \"wip\"} → 400 並びと合わない）・表なら鍵を送った順（{\"keys\": {\"s0000aaaa\": 1}} → 200）・数なら 500。serde_json の Map は鍵を字の順に並べ直すので、表の keys と結合の on・cols が表の形は jsontree（送った順）で読むか Python に任せる",
+            "値の字: 欄の値は Python の str(v).strip()。真偽・数は py_str（true → \"True\"・1.0 → \"1.0\"・1e16 → \"1e+16\"）、並び・表の値（備考 [1, \"a\"] → \"[1, 'a']\"・conn の value {\"a\": 1} → \"{'a': 1}\"・groups の to [\"a\", \"b\"] → \"['a', 'b']\"）は repr が要るので Python に任せる。strip と split は Python の空白（\\x1c〜\\x1f・\\x85・全角の空白）で pyfmt::strip を使う（「  名\\x1f」→「名」・グループ「  a　 b\\x1c 」→「a b」）。グループの 24 字・ロット番号の列の 120 字は符号位置で切る。片割れの代用字は Python に任せる",
+            "結合（data_join.parse・clean）: 結合が字なら json.loads（NaN・Infinity・1e400・同じ鍵 2 つは Python の読み方。'[{\"with\":\"wip\",\"on\":[[\"a\",1.0]],\"cols\":[NaN]}]' → on [[\"a\",\"1.0\"]]・cols [\"nan\"]）なので text_split で Python に任せる。cols・on が字なら 1 字ずつ（cols \"xy\" → [\"x\",\"y\"]）、cols が数なら TypeError の 400（Python に任せる）。置く字は鍵の順 with・how・on・cols、区切り \", \" \": \"、ensure_ascii=False（jsontree の書き方）。誤りの言葉は「n つ目の結合の相手（zz）がありません。…」などを 1 字ずつ",
+            "間隔・古さ: float() の読み方は pyfmt::py_float（「１０」・「1_0」・「1e1」→ 10）、nan・inf は範囲の言葉（「確かめる間隔（秒）」は 10〜3600 で入れてください。）、refresh は str(int(n))、stale は整数なら str(int(n))（\"-0\" → \"0\"）・ほかは float の repr（0.1 → \"0.1\"・1e-05 → \"1e-05\"）。範囲の端の字は 0〜1440",
+            "書く係は put_by_key ではなく data_source_put を写す: キーは正規化しない一致（r.get(\"キー\") == key）・版は int(row.rev か 1)・行が無ければ 0 と比べる・足す行は {id, rev: 0} に FIELDS の順で _clean した値、キー、rev + 1、stamp（put_by_key は {id, 鍵, rev} で作る）・足すときだけ _check_unique（正規化した鍵で DuplicateKey）。order は fields の列だけ・同じなら行の版を上げない。どの書き方も Python の MasterStore.write は何も変えなくてもファイルの revision と updated_at を上げる（測った: 消すキーが無い DELETE・同じ並びの order で 3 → 4 → 5）ので、窓も書く",
+            "row_of を sources_full の答えから同じに組む: lot・work の「表」は参照先の効いている値が行に写る（PUT /api/settings/lot_list.table「品質表」のあと PUT /api/sources/lot {設備の列} で行の表が「品質表」）・行の無い wip の quick・PUT・order は WIP_DEFAULT の場所が行に固まる・行の無い sch は既定の結合が入る・表示名は組み込みの名前と同じなら \"\"・role は組み込みなら \"\"・結合した表は場所と表が \"\"",
+            "言葉と状態: 無いキーは PUT・quick が 400 invalid「そのデータ元はありません（ほかの PC が消した可能性があります）。」、conn は 404 unknown（同じ字）・知らない項目は 400「「足した」に「nope」の設定はありません。」・groups の「グループ「-」はありません…」・order の「並べ替えるデータ元が、いまの並びと合いません…」・結合した表の 3 つの言葉・表示名と場所の必須。POST /api/sources は 201",
+            "conn の settings の欄は settings_write の parse と put を path_settings の置き場（共有かは path_settings で決まる。data_sources と別）で使い、後始末も同じ（after_of: lot_list. → warm、work_log. → forget_listing）。門番は道 /api/sources/…（data_sources の段）で見る",
+            "窓が書いた後は after_python と同じ後始末（invalidate と gate.forget）をし、Python の次の GET /api/src/<key>・/api/sources/<key>/columns・join/preview が新しい行を読むこと（受け身の写し）を lot::tests で確かめる",
+            "新しいキー: 窓は \"s\" + 小文字の 16 進 8 字。突き合わせは Python の data_sources.new_key と窓の作り方を差し替えられる口で同じキーにし、ファイルを 1 字ずつ比べる",
+            "measured に無い物を書く: カードの接続の欄を開くと画面は GET /api/sources/<key>/columns（master-sources.js :421 loadLotCols）を呼び、結合の欄は join/preview（POST で門番が書く道として見る）を呼ぶ。どちらも Python に残るので、Python が居ない PC では保存はできてもロット番号の列の候補と「試す」は出ない。columns を同じ版で窓へ移すか、残ることを PR に書く",
+            "突き合わせは sources_write_oracle.py → sources_write_parity.rs（settings_write_oracle の形）。場面: 共有・手元だけ・写しから・錠、組み込み 4 つの行の有る無し、結合した表と壊れた結合した表、上の再現の本文すべて、Python に任せる歩",
+            "表はもう大半が焼いてある（bundle_tables.json の sourcesList.connSpecs・roles・equipModes・noGroup・masterRole、sources.builtins・groupable・scheduleJoin・connBind・rowRead、join.hows・maxKeys・maxJoins）。足すのは FIELDS・PATCH_FIELDS・GROUP_MAX・ロット番号の列の 120 と誤りの言葉だけにして、新しい段を作らず sourcesList に足す（古さは tests/test_bundle_tables.py が止める）。clean_row の手順そのものは表にせず、Rust の 1 つの関数で Python と同じ順に確かめる（誤りの出る順が答えになる）"
+          ]
+        },
+        "F A に確かめる 3 本も足す（check・conn/check・join/preview）": {
+          "score": {
+            "order": 6,
+            "chunk": 3,
+            "hierarchy": 5,
+            "visual": 5,
+            "steps": 9,
+            "effortless": 3,
+            "intuitive": 5,
+            "form": 5,
+            "place": 6,
+            "layout": 3,
+            "tone": 3
+          },
+          "minus": [],
+          "seen": "確かめる 3 本は書かない道だが重い: /check と conn/check は path_settings.check（sqlite を開いて表とロット番号の列を探す・folder を見る・url は CM3 に問い合わせる・pattern）で、答えがファイル・ネットワーク・時刻で変わり突き合わせにくい。join/preview は data_join の Joiner で答えのファイルを作る（窓の join.rs と同じ組み方か・try- の名前・見本 5 つ）。量が A の 2 倍を超え、1 版としては釣り合わない。Python が居ない PC での得は最も大きい",
+          "fixes": [
+            "確かめる 3 本は別の版に分ける（url の確かめは CM3 に問い合わせる・join/preview は答えのファイルを作る）"
+          ]
+        },
+        "G 書く道は Python のまま、窓は書いた後の覚えだけ揃える": {
+          "score": {
+            "order": 3,
+            "chunk": 6,
+            "hierarchy": 4,
+            "visual": 3,
+            "steps": 1,
+            "effortless": 3,
+            "intuitive": 6,
+            "form": 5,
+            "place": 7,
+            "layout": 3,
+            "tone": 9
+          },
+          "minus": [],
+          "seen": "書いた後の覚えは既に揃っている: Lot::changes_settings の LIST_MASTERS に /api/sources があり、after_python が invalidate と gate.forget をする。Python の書く道は 3〜6 ms で、速くする所が無い。移す段が進まず、狙いの問題が無い",
+          "fixes": [
+            "after_python は既に /api/sources を見ている（lot.rs の changes_settings）。案にする問題が無い"
+          ]
+        }
+      }
+    }
+  ],
+  "built": {
+    "name": "作った後",
+    "images": "画面に出ない改良なので画像は無い",
+    "evaluator": "案を作っていない採点者（別のエージェント・2026-11-07。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、読んで・動かして確かめた事実で採点した。リポジトリの中で変えたのはこのファイルだけ・git の操作はしていない・cargo は流していない（Rust はコードを読んで確かめた）。読んだ物: git show b4b7ce0 19d9712 の全部（sources_write.rs・lot.rs の sources_write_route と handle_body の並び・bundle_tables.json・bundle-tables.py・selftest.js 10a‴・sources_write_parity.rs・sources_write_oracle.py・RUST_PORT_PLAN.md）、比べる相手の Python（routes/sources.py の 7 本と _conn_field・_conn、services/data_sources.py の clean_row・row_of・sources・join_targets・conn_of、services/data_join.py の parse・clean、repositories/master_repository.py の _clean・_cell・data_source_put・order・delete・_check_rev・_check_unique、master_store.py の read・_cached・_maybe_refresh・write の届かない形、routes/common.py の base_rev・master_call・error・exception_error・tab_denied、routes/settings.py の settings_put・put_setting、routes/access.py の _access_guard、web.py の get_json・dispatch・handle、画面の master-sources.js の保存の順）、窓の部品（master_rows.rs の py_rev・base_rev・row_readable・value_plain・rows_plain・check_rev・check_unique・split_number・text_split、settings_write.rs の put・after_of、bundle.rs の sources_parts・inputs・check、access.rs の Place::doc・share_absent・guard、master_store.rs の届かない形、worksum.rs の py_str・truthy、pyfmt.rs の strip・py_float・float_repr、lot.rs の settings_route・after_python・invalidate・warm、main.rs の native と after）。動かした物（置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-srcw）: sources_write_oracle.py をそのまま流して 7 場面の Python の答えを読んだ（oracle.json）・probe1.py（共有に届かない形で quick・PUT・order・DELETE、元の無い結合した表への quick・conn・order・PUT）・python -m unittest tests.test_bundle_tables tests.test_data_sources（Ran 14・OK）。",
+    "result": {
+      "proposal": "E 決まりを表に焼く（データで書く clean_row）（指摘 16 個入り・作った後）",
+      "score": {
+        "order": 8,
+        "chunk": 8,
+        "hierarchy": 8,
+        "visual": 7,
+        "steps": 8,
+        "effortless": 7,
+        "intuitive": 8,
+        "form": 7,
+        "place": 7,
+        "layout": 7,
+        "tone": 7
+      },
+      "minus": [
+        {
+          "kind": "hidden_state",
+          "where": "sources_write.rs の of_master（MasterError::Error → 400 {error, kind: error}）: 書く係の io の失敗のとき、Python の exception_error が付ける type（PermissionError など）が無く、字も Rust の io の字（Permission denied (os error 13)）で Python（[Errno 13] Permission denied: '…'）と違う。何の失敗かが画面・記録で分かりにくい"
+        }
+      ],
+      "seen": "【全体】窓（sources_write.rs）は Python の routes/sources.py の 7 本を、clean_row・data_join.parse／clean・row_of・data_source_put／order／delete と同じ順・同じ言葉で写している。答えられない形（読みの割れる本文・表でない真の本文・並びや表の値の repr・keys が表や数・on／cols が数や真偽・cols が表・百分率符号・置き場の行が読めない・版の数字でない字）は書く前に None で Python に任せる。読んだ所と、Python で動かした所（オラクルの 7 場面の答え・下の probe1.py）の範囲では、窓が答える形で状態・本文・ファイルが Python と違う入力は見つからなかった（重い割れは無し）。【指摘 16 個の入り方】1 Python の repr の割れ: 入った（b4b7ce0。master_repository._cell で結合の並びを json.dumps(ensure_ascii=False)・空なら \"\"。order と groups の両方が data_source_order を通るので両方に効く。試験 test_order_keeps_the_builtin_join_of_a_source_without_a_row は通った）。2 道の表: 入った（route_of は 7 本だけ。GET・/check・/conn/check・/join/preview・/columns・% の道・a/b は None。PUT /order・DELETE /check は <key> の道として場面にある。web.py の dispatch も最初に道と方法の合う規則を使うので同じ）。3 本文の形: 入った（body_of: 空白だけ・読めない本文は {}、偽の本文は {}、表でない真の本文と split_number・text_split は None）。4 keys の回し方: 入った（iter_of: 字は 1 字ずつ・並びはそのまま・表と数と真偽は任せる。場面に {keys: \"wip\"}→400、{keys: {wip:1}}・5・[[\"wip\"]] は任せる）。5 値の字: 入った（py_s＝pyfmt::strip(py_str)・並び／表は任せる・グループは pyfmt::is_space で split して 24 字・ロット番号の列 120 字は符号位置で切る。代用字は serde が読めず text_split の \\u で任せる）。6 結合: 入った（字の結合は text_split で NaN・1e400・-0 を任せ、ほかは serde で読む〈同じ鍵は後ろ・空白だけは []〉。on は表なら鍵が字なので空、cols が表・数は任せる。置く字は with・how・on・cols の順・\", \" \": \"・serde の字の書き方〈\\b\\f\\n\\r\\t と小文字の \\u00XX〉は Python の ensure_ascii=False と同じ。誤りの言葉は 1 字まで同じ・6 つ／8 つで切ってから確かめる順も同じ）。7 間隔・古さ: 入った（pyfmt::py_float・nan／inf は範囲の言葉・refresh は切り捨て・stale は整数なら整数の字〈-0→0〉・ほかは float_repr〈1e-05〉。範囲の字は焼いた connSpecs の 10〜3600・0〜1440）。8 書く係: 入った（data_source_put は正規化しないキーの最初の行・行が無ければ版 0 と比べる・足すときだけ check_unique・{id, rev:0} に FIELDS の順で strip・rev+1・stamped。order は rposition＝by の後ろの行・決めた列だけ・同じなら版を上げない・新しい行は _cell。delete は最初の行・check_rev・無ければ何もしない。どれも store.write で版が上がる。ファイルは解いた値で比べるので鍵の並びの違い〈serde の Map は字の順〉は前の段と同じく許している）。9 row_of: 入った（表示名は組み込みと同じ名前なら空・役割は組み込みなら空・場所は storage master で元が無いときだけ・表は元が無いとき・結合・グループ＝groupSet・元・rowRead・lotSet。lot の表に参照先の『品質表』が写る形は場面の PUT /lot にある）。10 言葉と状態: 入った（PUT・quick は 400 invalid、conn は 404 unknown、知らない項目 400、groups の 2 つの言葉、order の言葉、結合した表の 3 つの言葉、足すは 201。オラクルの答えで確かめた）。11 conn の settings の欄: 入った（settings_write::put を同じ本文・?rev で呼び、sections_ok が駄目なら任せる。後始末は after_of: lot_list.→warm・work_log.→forget_listing。Python の WORK_LISTING は 3.89.0 の直しで stamp の変化で捨てるので窓が書いても効く）。12 書いた後の後始末: 一部（invalidate と gate.forget は after_python と同じに入った。だが指摘の『lot::tests で確かめる』は入っていない: lot.rs の試験に sources_write_route を通す試験が無く、書いた後に窓の束・me を組み直すことも、Python の次の GET /api/src/<key>・/columns が新しい行を読むことも試験に無い。ほかの段〈the_window_answers_path_settings など〉にはある）。13 新しいキー: 入った（\"s\"+小文字の 16 進 8 字。Lot::set_new_key で k001… に揃え、失敗した足す歩でもキーを 1 つ使う Python の順と同じ）。ただし getrandom::fill の失敗を捨てている（下の割れ 2）。14 measured に無い物: 入った（RUST_PORT_PLAN.md に /check・/conn/check・/join/preview・/columns が Python に残ることを書いた）。15 突き合わせ: 大半（7 場面・書く歩 77・任せる歩 17。共有・手元だけ・錠・門番・行の無い組み込み〈sch・wip〉・結合した表 s2 がある。指摘の『写しから』と『壊れた結合した表』の場面は無い。probe1.py で Python の答えを取り、窓のコードを読んで同じと見た: 共有に届かないと 4 本とも 503 unavailable『共有フォルダに届かないため保存できません（読みは手元の写しで続けています）: …』〈master_store.rs :648 も同じ字〉、元の無い結合した表 s9 は quick・conn が 400『結合した表の元にするデータ元を選んでください…』・order は 200・元を直す PUT は 200）。16 表: 入った（sourcesList に fields・patchFields〈sorted〉・groupMax。bundle-tables.py を直し、tests/test_bundle_tables.py が通った）。【見つけた割れ（どれも軽い）】割れ 1（答えの本文。書く係の思いがけない失敗）: 共有を置き換えた後の写しの書き換えの失敗・ファイルの権限など io の失敗のとき、Python は master_call の exception_error で 400 {error: \"[Errno 13] Permission denied: '…'\", kind: \"error\", type: \"PermissionError\"}、窓は of_master で 400 {error: \"Permission denied (os error 13)\", kind: \"error\"}（type が無く字も違う）。3.89.0 の直し（窓が答えて Python に二度書かせない）を引き継いだ形なので状態は合う。直し方: of_master で io の失敗の種類から type（PermissionError・FileNotFoundError・OSError）を足す。字は揃えられないので、揃えない理由を RUST_PORT_PLAN に書く。割れ 2（極めてまれ）: sources_write::new_key は getrandom::fill の失敗を let _ = で捨て、そのとき 's00000000' を返す。2 回目の足すは 409 duplicate になる（Python の uuid4 は os.urandom の失敗で例外＝500）。直し方: 失敗したら窓は答えず Python に任せる（Ctx の new_key を Option にして None なら handle が None）。【割れではないが直すとよい所】・lot.rs の sources_write_route は settings_route にある ?engine=python（Python に回す口）を見ない。自己診断や調べるときに Python の答えと並べられない（ほかの道と揃えるなら足す）。・body_of は settings_write::put の本文の読み方の写し（同じ 12 行が 2 か所）。1 つの関数にすると決まりを変えるとき 1 か所で済む。・指摘 12・15 の試験の穴（上）: lot::tests に the_window_answers_data_source_writes（書いた後に束と me を組み直す・Python が新しい行を読む）を足し、オラクルに『共有に届かない（写しから）』『壊れた結合した表』の場面を足す。"
+    }
+  },
+  "built_fixed": {
+    "by": "作った者（2026-11-07）。決まり 2026-11-06 により採点し直さず、見つかった割れと直すとよい所をすべて直して突き合わせの試験に足した",
+    "fixes": [
+      "割れ 1（書く係の思いがけない失敗の答え）: master_rows::error_answer（type を OS の失敗の番号から PermissionError・FileNotFoundError・OSError に）を参照先の項目とデータ元の書く道の 1 か所に。言葉は OS の言葉なので Python と同じ字にはできない（RUST_PORT_PLAN に書いた）。試験: sources_write::tests",
+      "割れ 2（新しいキーの乱数の失敗を捨てる）: sources_write::new_key は乱数を取れなければ None、そのとき窓は答えず Python に任せる",
+      "?engine=python を Lot::sources_write_route でも見る（参照先の項目の道と同じ）",
+      "本文の読み方を master_rows::py_body の 1 か所に（settings_write と sources_write が呼ぶ）",
+      "指摘 12: lot::tests::the_window_writes_data_sources_and_rebuilds（本物の道で書いた直後の GET /api/sources と一覧の設定〈束〉が新しい行・新しいキーの形・?engine=python・門番）",
+      "指摘 15: 突き合わせに場面「共有に届かない（写しから）」（4 本とも 503・同じ言葉）と「壊れた結合した表（元が無い）」（quick・conn は 400、order と元を直す PUT は 200）を足した。9 場面とも Python と同じ"
+    ]
+  }
+}

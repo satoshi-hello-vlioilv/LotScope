@@ -92,7 +92,14 @@ pub struct Lot {
     bundle: Mutex<Option<Arc<crate::bundle::Builder>>>,
     /// 画面（GET /）を描く係（版 3.85.0。src/page.rs）。型と指紋を覚える
     page: crate::page::Page,
+    /// 足すデータ元のキーを作る係（版 3.90.0。既定は sources_write::new_key。突き合わせの試験は Python と同じ並びに差し替える）
+    new_key: Mutex<Option<NewKey>>,
+    /// 画面（GET /）を最後に Python に任せた理由（記録: main.rs が desktop.log に書く）
+    page_why: Mutex<String>,
 }
+
+/// 足すデータ元のキーを作る係
+pub type NewKey = Arc<dyn Fn() -> String + Send + Sync>;
 
 impl Lot {
     pub fn new(cache_dir: PathBuf) -> Lot {
@@ -112,7 +119,14 @@ impl Lot {
             store: Mutex::default(),
             bundle: Mutex::default(),
             page: crate::page::Page::default(),
+            new_key: Mutex::default(),
+            page_why: Mutex::default(),
         }
+    }
+
+    /// 足すデータ元のキーの作り方を差し替える（試験: Python の data_sources.new_key と同じ並び）
+    pub fn set_new_key(&self, f: NewKey) {
+        *self.new_key.lock().unwrap() = Some(f);
     }
 
     /// 設定の束を窓が組む（版 3.84.0）。入れると、束は窓が組み、組めない形だけ Python に尋ねる
@@ -131,8 +145,15 @@ impl Lot {
     /// 中身（Python）が答えないとき（alive が偽）は、窓が同じに読めない埋める物（画面の控え・初期設定・変換表）を Python の except と同じ
     /// 既定の形（空の控え・既定の見せ方・空の変換表）に落として描く（画面は開く。作った後の採点の指摘 7）
     pub fn page(&self, head: bool, alive: &dyn Fn() -> bool) -> Option<crate::page::Html> {
-        let b = self.bundle.lock().unwrap().clone()?;
-        let inp = b.inputs().ok()?;
+        let why = |w: String| {
+            *self.page_why.lock().unwrap() = w;
+            None
+        };
+        let Some(b) = self.bundle.lock().unwrap().clone() else { return why("束を組む係が無い".into()) };
+        let inp = match b.inputs() {
+            Ok(i) => i,
+            Err(e) => return why(format!("束の材料: {}", e.0)),
+        };
         let profile: Vec<String> = crate::bundle::tables()["uiProfileKeys"]
             .as_array()
             .into_iter()
@@ -156,9 +177,30 @@ impl Lot {
                 ui_profile: p.unwrap_or_else(|| json!({"keys": profile, "defaults": {}, "updatedAt": "", "updatedBy": {}})),
                 conversions: c.unwrap_or_else(|| json!({"items": [], "revision": null})),
             },
-            _ => return None,
+            (s, p, c) => {
+                let mut miss = vec![];
+                if s.is_none() {
+                    miss.push("画面の控え".to_string());
+                }
+                if p.is_none() {
+                    miss.push(format!("初期設定（{}）", inp.check("ui_defaults").err().map(|e| e.0).unwrap_or("読めない")));
+                }
+                if c.is_none() {
+                    miss.push(format!("変換表（{}）", inp.check("conversions").err().map(|e| e.0).unwrap_or("読めない")));
+                }
+                return why(miss.join("・"));
+            }
         };
-        self.page.index(&b.env().program, parts, head)
+        let html = self.page.index(&b.env().program, parts, head);
+        if html.is_none() {
+            return why("画面の型・指紋".into());
+        }
+        html
+    }
+
+    /// 画面を最後に Python に任せた理由（記録）
+    pub fn page_why(&self) -> String {
+        self.page_why.lock().unwrap().clone()
     }
 
     /// GET /api/config（版 3.85.0）。束を組む係が無い・組めない形は None
@@ -519,6 +561,63 @@ impl Lot {
         }
     }
 
+    /// データ元の書く道の 7 本（版 3.90.0。src/sources_write.rs）を窓が受ける。材料は窓の束の材料（GET /api/sources と同じ並び）、
+    /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定と権限の覚えを捨てる（Python が書いたときの after_python と同じ）。
+    /// 接続の設定で参照先の項目を書いたときは、参照先を書いたときと同じ後始末（品質の写し・実績のフォルダの覚え）。組めない・窓が答えない形は None
+    pub fn sources_write_route(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::sources_write::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        for name in ["data_sources", "path_settings"] {
+            inp.check(name).ok()?;
+        }
+        let parts = inp.sources_parts().ok()?;
+        let access = json!({"who": inp.who, "place": inp.place});
+        self.gate.forget(); // 書く前は、いまの権限の表で決める
+        let me = self.gate.me(&access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let store = self.store_for(&access)?;
+        let place = crate::access::Place::from_json(&inp.place);
+        let rows = place.rows(crate::sources_write::NAME).ok()?;
+        let ps_rows = place.rows(crate::settings_write::NAME).ok()?;
+        let settings = inp.settings.clone();
+        let settings_ok = |k: &str| crate::bundle::sections_ok(&settings, k);
+        let cx = crate::sources_write::Ctx {
+            items: &parts.items,
+            rows: &rows,
+            ps_rows: &ps_rows,
+            new_key: &|| match self.new_key.lock().unwrap().clone() {
+                Some(f) => Some(f()),
+                None => crate::sources_write::new_key(),
+            },
+            settings_ok: &settings_ok,
+        };
+        let done = crate::sources_write::handle(&store, &route, query, body, &cx)?;
+        let (status, v) = done.answer;
+        if (200..300).contains(&status) {
+            self.invalidate(); // 一覧の設定（データ元の並び・場所・結合）を次の問い合わせで組み直す
+            self.gate.forget(); // データ元を書いた: 次の問い合わせで me を読み直す（after_python と同じ）
+            match done.setting.as_deref().map(crate::settings_write::after_of) {
+                Some("lot_list.") => self.warm(ask),
+                Some("work_log.") => self.lists.forget_listing(),
+                _ => {}
+            }
+        }
+        Some((status, v))
+    }
+
     /// 中身（Python）が答えた書き込みが、一覧の設定（段取りの材料）に効くマスタを変えたか（版 3.60.0。main.rs の after が見て invalidate する）。
     /// 参照先・データ元・作業実績の登録・勤務体系・権限・タブの権限・変換表・マスタの置き場。画面の状態の保存・生存の知らせのような
     /// 頻繁な書き込みでは尋ね直さない
@@ -732,6 +831,9 @@ impl Lot {
         }
         if let Some(route) = crate::settings_write::route_of(method, path) {
             return self.settings_route(route, query, body, ask);
+        }
+        if let Some(route) = crate::sources_write::route_of(method, path) {
+            return self.sources_write_route(method, path, route, query, body, ask);
         }
         if let Some(route) = crate::equip_write::route_of(method, path) {
             return self.equip_route(method, path, route, query, body, ask);
@@ -1569,6 +1671,61 @@ mod tests {
         std::fs::write(share.join("path_settings.json"), ps.to_string()).unwrap();
         assert!(lot.handle_body("GET", "/api/settings", "", b"", &down).is_none(), "重ねる行があると Python は落ちる");
         assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).is_none());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_writes_data_sources_and_rebuilds() {
+        // 版 3.90.0: データ元の書く道は Python が起きていなくても窓が答え（本物の道: Lot::handle_body → sources_write_route）、
+        // 書いた直後の並び（GET /api/sources）と一覧の設定（束）は新しい行で組み直す。?engine=python・門番
+        let work = std::env::temp_dir().join(format!("da-lot-srcw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "sources": {"wip": {"source": "/w.sqlite3"}}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm =
+            json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in
+            ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversions"]
+        {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let listed = |lot: &Lot| {
+            let (_, v) = lot.sources_list("", &down, &|| None).unwrap();
+            v["items"].as_array().unwrap().iter().find(|d| d["key"] == "wip").unwrap()["listed"].clone()
+        };
+        assert_eq!(listed(&lot), json!(true));
+        let _ = lot.settings(&down).unwrap(); // 束を覚えさせる（書いた後に捨てるかを見る）
+        let (st, v) = lot
+            .handle_body("POST", "/api/sources/wip/quick", "", r#"{"画面": "無", "表示名": "仕掛2", "base_rev": 0}"#.as_bytes(), &down)
+            .unwrap();
+        assert_eq!((st, v["row"]["画面"].clone()), (200, json!("無")), "{v}");
+        assert_eq!(listed(&lot), json!(false), "書いた直後の並びに効く");
+        let lists = lot.settings(&down).unwrap().lists;
+        let wip = lists["sources"].as_array().unwrap().iter().find(|d| d["key"] == "wip").unwrap().clone();
+        assert_eq!(wip["name"], json!("仕掛2"), "一覧の設定（束）も組み直す: {wip}");
+        let (st, v) =
+            lot.handle_body("POST", "/api/sources", "", r#"{"表示名": "足した", "場所": "/a.sqlite3"}"#.as_bytes(), &down).unwrap();
+        assert_eq!(st, 201, "{v}");
+        let key = v["row"]["キー"].as_str().unwrap().to_string();
+        assert!(key.len() == 9 && key.starts_with('s'), "{key}");
+        assert!(lot.handle_body("POST", "/api/sources", "engine=python", b"{}", &down).is_none(), "?engine=python は Python");
+        // 門番: 閲覧の人は書けない
+        std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 2, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]}).to_string()).unwrap();
+        let (st, v) = lot.handle_body("DELETE", &format!("/api/sources/{key}"), "", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
         let _ = std::fs::remove_dir_all(&work);
     }
 
