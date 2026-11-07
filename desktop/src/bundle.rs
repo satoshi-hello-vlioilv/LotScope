@@ -93,12 +93,103 @@ fn unquote(x: &str) -> String {
     pyfmt::strip(x).trim_matches('"').to_string()
 }
 
+/// Python の int(字)（10 進。前後の空白・符号・数字の間の _。大きな数も並べ替えに使えるよう i128 で持つ。読めなければ None）
+fn wide_int_str(x: &str) -> Option<i128> {
+    let t = pyfmt::strip(x);
+    let (neg, rest) = match t.chars().next() {
+        Some('-') => (true, &t[1..]),
+        Some('+') => (false, &t[1..]),
+        _ => (false, t),
+    };
+    let cs: Vec<char> = rest.chars().collect();
+    if cs.is_empty() || cs[0] == '_' || cs[cs.len() - 1] == '_' {
+        return None;
+    }
+    let mut v: i128 = 0;
+    let mut prev_us = false;
+    for c in cs {
+        if c == '_' {
+            if prev_us {
+                return None;
+            }
+            prev_us = true;
+            continue;
+        }
+        prev_us = false;
+        let d = pyfmt::digit(c)? as i128;
+        v = v.saturating_mul(10).saturating_add(d);
+    }
+    Some(if neg { -v } else { v })
+}
+
+/// Python の int(値)（JSON の値: 真偽は 0・1、小数は 0 の向きへ切る、字は int(字)）。読めなければ None（Python は落ちる）
+fn wide_int(v: &Value) -> Option<i128> {
+    match v {
+        Value::Bool(b) => Some(*b as i128),
+        Value::Number(n) => match (n.as_i64(), n.as_u64(), n.as_f64()) {
+            (Some(i), _, _) => Some(i as i128),
+            (_, Some(u), _) => Some(u as i128),
+            (_, _, Some(f)) if f.is_finite() => Some(f.trunc() as i128),
+            _ => None,
+        },
+        Value::String(x) => wide_int_str(x),
+        _ => None,
+    }
+}
+
 /// int(x)（JSON の値。読めなければ Python は落ちる）
-fn int_of(v: Option<&Value>) -> R<i64> {
+fn int_of(v: Option<&Value>) -> R<i128> {
     match v {
         None | Some(Value::Null) => Ok(0),
-        Some(x) => crate::master_rows::py_int(x).ok_or(Py("int() で読めない値")),
+        Some(x) => wide_int(x).ok_or(Py("int() で読めない値")),
     }
+}
+
+/// Python の str(v or "")（空白は落とさない。表・並びは Python の repr と字が違うので組まない）
+fn pstr(v: Option<&Value>) -> R<String> {
+    match v {
+        x if !truthy(x) => Ok(String::new()),
+        Some(Value::Array(_) | Value::Object(_)) => Err(Py("字にする表・並び")),
+        Some(x) => Ok(py_str(x)),
+        None => Ok(String::new()),
+    }
+}
+
+/// Python の json.loads と同じに読む（NaN・Infinity も読む。この PC の覚え・配る版の覚え・引っ越しの印・配った設定の置き場の段のため）。
+/// NaN などは null に読み替える（これらのファイルで使う値〈dir・to・at・setAt・chosenAt・master_share〉には効かない）
+fn lenient_json(t: &str) -> Option<Value> {
+    if let Ok(v) = serde_json::from_str(t) {
+        return Some(v);
+    }
+    let mut out = String::with_capacity(t.len());
+    let (mut in_str, mut esc) = (false, false);
+    let mut rest = t;
+    while let Some(c) = rest.chars().next() {
+        if in_str {
+            out.push(c);
+            if esc {
+                esc = false;
+            } else if c == '\\' {
+                esc = true;
+            } else if c == '"' {
+                in_str = false;
+            }
+            rest = &rest[c.len_utf8()..];
+            continue;
+        }
+        if c == '"' {
+            in_str = true;
+        }
+        let tok = ["-Infinity", "Infinity", "NaN"].into_iter().find(|k| rest.starts_with(k));
+        if let Some(k) = tok {
+            out.push_str("null");
+            rest = &rest[k.len()..];
+            continue;
+        }
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
+    }
+    serde_json::from_str(&out).ok()
 }
 
 // ------------------------------------------------------------------ 道（pathlib の str(Path(x))）
@@ -283,7 +374,17 @@ pub fn login_id() -> String {
     if let Some(v) = os_login() {
         return v;
     }
-    ["LOGNAME", "USER", "LNAME", "USERNAME"].iter().find_map(|k| env_nonempty(k)).or_else(account_name).unwrap_or_default()
+    // getpass.getuser: 空でない（空白だけでも）最初の環境の値。無ければ利用者の名前。その答えを strip して空なら次へ
+    let user = ["LOGNAME", "USER", "LNAME", "USERNAME"]
+        .iter()
+        .find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty()))
+        .or_else(account_name)
+        .unwrap_or_default();
+    let user = pyfmt::strip(&user).to_string();
+    if !user.is_empty() {
+        return user;
+    }
+    ["USERNAME", "USER", "LOGNAME"].iter().find_map(|k| env_nonempty(k)).unwrap_or_default()
 }
 
 #[cfg(windows)]
@@ -401,13 +502,28 @@ impl Env {
         let config =
             std::env::var_os("TRANSFER_APP_CONFIG").map(PathBuf::from).unwrap_or_else(|| program.join("config").join("appsettings.json"));
         let config = if config.exists() { config } else { program.join("config").join("appsettings.example.json") };
+        // create_app の base は Path(__file__).resolve() の親（道を解いた形）
+        let program = resolved(program);
         Env {
-            base: program.to_path_buf(),
-            program: program.to_path_buf(),
+            base: program.clone(),
+            program: program.clone(),
             local: local.to_path_buf(),
             config,
             now: std::env::var("TPA_DASHBOARD_NOW").ok().filter(|v| !v.is_empty()),
         }
+    }
+}
+
+/// Path.resolve() と同じく道を解く（Windows の \\?\ の頭は外す）。解けなければそのまま
+fn resolved(p: &Path) -> PathBuf {
+    let Ok(c) = std::fs::canonicalize(p) else { return p.to_path_buf() };
+    let t = c.to_string_lossy().into_owned();
+    if let Some(r) = t.strip_prefix("\\\\?\\UNC\\") {
+        PathBuf::from(format!("\\\\{r}"))
+    } else if let Some(r) = t.strip_prefix("\\\\?\\") {
+        PathBuf::from(r)
+    } else {
+        c
     }
 }
 
@@ -423,11 +539,7 @@ fn norm(p: &str) -> String {
 fn read_json(p: &Path) -> Option<Value> {
     let b = std::fs::read(p).ok()?;
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
-    let t = std::str::from_utf8(b).ok()?;
-    if crate::master_rows::text_split(t) {
-        return None;
-    }
-    serde_json::from_str(t).ok()
+    lenient_json(std::str::from_utf8(b).ok()?)
 }
 
 fn py_float(v: Option<&Value>) -> R<f64> {
@@ -498,10 +610,9 @@ impl Builder {
         // この PC が覚えた置き場（画面で変えた・引っ越し先をたどった）があれば、設定ファイルの値より先に使う
         if let Some(Value::Object(o)) = read_json(&self.local(t(&["store", "override"]).as_str().unwrap_or("master_share.json"))) {
             if let Some(v) = o.get("dir").filter(|v| truthy(Some(v))) {
-                if let Ok(ov) = s(Some(v)) {
-                    if !ov.is_empty() {
-                        share = Some(py_path(&ov));
-                    }
+                let ov = s(Some(v))?;
+                if !ov.is_empty() {
+                    share = Some(py_path(&ov));
                 }
             }
         }
@@ -522,8 +633,8 @@ impl Builder {
             _ => return None,
         };
         let dir = s(pin.get("dir")).ok().filter(|d| !d.is_empty())?;
-        let chosen = self.override_doc().get("chosenAt").and_then(|v| s(Some(v)).ok()).unwrap_or_default();
-        if !chosen.is_empty() && s(pin.get("setAt")).unwrap_or_default() <= chosen {
+        let chosen = pstr(self.override_doc().get("chosenAt")).unwrap_or_default();
+        if !chosen.is_empty() && pstr(pin.get("setAt")).unwrap_or_default() <= chosen {
             return None;
         }
         let d = py_path(&dir);
@@ -561,7 +672,7 @@ impl Builder {
         let mut seen = vec![norm(&share)];
         while hops < t(&["store", "movedHops"]).as_i64().unwrap_or(5) {
             let Some(m) = Self::moved_to(&cur) else { break };
-            let at = if truthy(m.get("at")) { s(m.get("at")).unwrap_or_default() } else { String::new() };
+            let at = pstr(m.get("at")).unwrap_or_default();
             if last_at.as_ref().is_some_and(|l| at <= *l) {
                 break;
             }
@@ -659,6 +770,26 @@ fn effective(settings: &Value, rows: &[Value]) -> R<Value> {
             None => by.push((k, r)),
         }
     }
+    // 束に出ない項目も Python は重ねる。その段が表でない設定に重ねると Python は落ちる（_set の setdefault）ので、窓も組まない
+    for key in t(&["otherItems"]).as_array().into_iter().flatten().filter_map(Value::as_str) {
+        let Some((_, row)) = by.iter().find(|(n, _)| n == key) else { continue };
+        let raw = match row.get("値") {
+            None | Some(Value::Null) => String::new(),
+            Some(x) => pyfmt::strip(&py_str(x)).to_string(),
+        };
+        if raw.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = key.split('.').collect();
+        let mut cur = settings;
+        for p in &parts[..parts.len() - 1] {
+            match cur.as_object().and_then(|o| o.get(*p)) {
+                None => break,
+                Some(x) if x.is_object() => cur = x,
+                Some(_) => return Err(Py("束に出ない項目の段が表でない（Python は重ねるときに落ちる）")),
+            }
+        }
+    }
     let mut eff = settings.clone();
     for item in t(&["pathItems"]).as_array().into_iter().flatten() {
         let key = item["key"].as_str().unwrap_or("");
@@ -678,7 +809,17 @@ fn num_of(v: Option<&Value>, dflt: &Value) -> R<Value> {
     if !n.is_finite() {
         return Err(Py("データ元の行の間隔が inf・nan（Python は int() で落ちる）"));
     }
-    Ok(if n.fract() == 0.0 && n.abs() < 9.0e15 { json!(n as i64) } else { json!(n) })
+    // int(n) if n == int(n) else n（Python の int は桁に限りが無い。i64・u64 に入らない整数は JSON で同じに渡せないので組まない）
+    if n.fract() != 0.0 {
+        return Ok(json!(n));
+    }
+    if n.abs() < 9.223_372_036_854_775e18 {
+        Ok(json!(n as i64))
+    } else if n >= 0.0 && n < 1.844_674_407_370_955_2e19 {
+        Ok(json!(n as u64))
+    } else {
+        Err(Py("データ元の行の間隔が u64 に入らない整数"))
+    }
 }
 
 /// 写し直す間隔・古いとみなす時間・1 頁の件数（data_sources.read_params）
@@ -765,11 +906,11 @@ fn joins_of(v: Option<&Value>) -> R<Value> {
 }
 
 /// 並べる鍵（並びの番号・組み込みが先・id）と元
-type Keyed = ((i64, i64, i64), Map<String, Value>);
+type Keyed = ((i128, i128, i128), Map<String, Value>);
 
-fn order_of(v: &str) -> i64 {
+fn order_of(v: &str) -> i128 {
     let x = if v.is_empty() { "1000000" } else { v };
-    pyfmt::py_int(x).unwrap_or(1_000_000)
+    wide_int_str(x).unwrap_or(1_000_000)
 }
 
 /// いま効いているデータ元の並び（data_sources.sources）を、束に出す鍵だけにした物
@@ -933,6 +1074,9 @@ fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
     if let Some(Value::Array(a)) = d.get("rules") {
         for r in a.iter().take(max) {
             let Some(o) = r.as_object() else { continue };
+            if matches!(o.get("op"), Some(Value::Array(_) | Value::Object(_))) {
+                return Err(Py("設備グループのルールの op が並び・表（Python は in で落ちる）"));
+            }
             let Some(op) = o.get("op").filter(|op| ops.contains(op)) else { continue };
             if op == "regex" {
                 return Err(Py("設備グループの正規表現（Python の re で確かめる）"));
@@ -948,15 +1092,32 @@ fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
             }
         }
     }
-    let ex = if rules.is_empty() { vec![] } else { equipment_list(d.get("except")) };
+    let ex = if rules.is_empty() { vec![] } else { eq_list(d.get("except"))? };
     Ok((json!(rules), json!(ex)))
 }
 
-fn group_order(row: &Map<String, Value>) -> i64 {
+/// 設備の並び（shifts.equipment_list）。並びの中の並び・表は Python の repr の字になるので組まない
+fn eq_list(v: Option<&Value>) -> R<Vec<String>> {
+    if let Some(Value::Array(a)) = v {
+        if a.iter().any(|x| x.is_array() || x.is_object()) {
+            return Err(Py("設備の並びの中に並び・表"));
+        }
+    }
+    if matches!(v, Some(Value::Object(o)) if !o.is_empty()) {
+        return Err(Py("設備の並びが表"));
+    }
+    Ok(equipment_list(v))
+}
+
+fn order_i64(n: i128) -> R<i64> {
+    i64::try_from(n).map_err(|_| Py("表示順が i64 に入らない（JSON で同じに渡せない）"))
+}
+
+fn group_order(row: &Map<String, Value>) -> i128 {
     if !truthy(row.get("表示順")) {
         return 0;
     }
-    crate::master_rows::py_int(&row["表示順"]).unwrap_or(0)
+    wide_int(&row["表示順"]).unwrap_or(0)
 }
 
 fn group_views(rows: &[Value]) -> R<Vec<Value>> {
@@ -973,7 +1134,7 @@ fn group_views(rows: &[Value]) -> R<Vec<Value>> {
         let (rules, ex) = group_rules(o)?;
         let pick = |k: &str, d: Value| o.get(k).filter(|v| truthy(Some(v))).cloned().unwrap_or(d);
         out.push(json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pick("名称", json!("")), "set": pick("まとめ方", set_default.clone()),
-                        "equipment": equipment_list(o.get("設備")), "rules": rules, "except": ex, "order": group_order(o),
+                        "equipment": eq_list(o.get("設備"))?, "rules": rules, "except": ex, "order": order_i64(group_order(o))?,
                         "note": pick("備考", json!("")), "rev": o.get("rev").cloned().unwrap_or(json!(1)),
                         "updated_at": o.get("updated_at").cloned().unwrap_or(json!("")), "updated_by": pick("updated_by", json!({}))}));
     }
@@ -1000,10 +1161,10 @@ fn conv_j(v: Option<&Value>, list: bool) -> R<Value> {
     Ok(if x.is_array() == list && (x.is_array() || x.is_object()) { x } else { dflt })
 }
 
-fn conv_order(o: &Map<String, Value>) -> i64 {
+fn conv_order(o: &Map<String, Value>) -> i128 {
     match o.get("表示順") {
         None | Some(Value::Null) => 0,
-        Some(x) => crate::master_rows::py_int(x).unwrap_or(0),
+        Some(x) => wide_int(x).unwrap_or(0),
     }
 }
 
@@ -1017,7 +1178,7 @@ fn conv_tables(rows: &[Value]) -> R<Value> {
     keyed.sort_by_key(|x| x.0);
     let mut out = Map::new();
     for (_, o) in keyed {
-        let name = if truthy(o.get("名前")) { py_str(&o["名前"]) } else { String::new() };
+        let name = pstr(o.get("名前"))?;
         if name.is_empty() || out.contains_key(&name) {
             continue;
         }
@@ -1049,8 +1210,8 @@ const MASTERS: [&str; 7] =
 fn work_ordered(rows: &[Value]) -> R<Vec<&Value>> {
     let mut keyed = vec![];
     for (i, r) in rows.iter().enumerate() {
-        let raw = if truthy(r.get("並び")) { s(r.get("並び"))? } else { String::new() };
-        let n = pyfmt::py_int(&raw).ok();
+        let raw = pstr(r.get("並び"))?;
+        let n = wide_int_str(&raw);
         keyed.push(((n.is_none(), n.unwrap_or(0), i), r));
     }
     keyed.sort_by_key(|x| x.0);
@@ -1092,6 +1253,19 @@ impl Builder {
 
     fn build_inner(&self) -> R<Value> {
         let text = std::fs::read_to_string(&self.env.config).map_err(|_| Py("配った設定が読めない"))?;
+        // 引っ越しの印をたどる係は窓の 1 つ（Python は窓が名乗るとたどらない）なので、束を組めない設定（NaN など）でも、
+        // Python と同じに読める置き場の段（master_share）と名乗りから先にたどる
+        let loose = lenient_json(&text).filter(Value::is_object);
+        let mut st = None;
+        if let Some(l) = &loose {
+            if let (Ok(who), Ok(store)) = (Self::who(l), self.store(l)) {
+                let mut store = store;
+                if let Some(moved) = self.follow_moved(&store, &who) {
+                    store.share = Some(moved);
+                }
+                st = Some(store);
+            }
+        }
         if crate::master_rows::text_split(&text) {
             return Err(Py("配った設定が窓の読めない JSON"));
         }
@@ -1100,12 +1274,10 @@ impl Builder {
             return Err(Py("配った設定が表でない"));
         }
         let who = Self::who(&settings)?;
-        let mut st = self.store(&settings)?;
-        if let Some(moved) = self.follow_moved(&st, &who) {
-            st.share = Some(moved);
-        }
+        let st = st.ok_or(Py("置き場の段が読めない"))?;
         let base = py_path(&self.env.base.to_string_lossy());
-        let program = py_path(&self.env.program.to_string_lossy());
+        // 同梱の最初の中身は master_store.DEFAULTS_DIR（Path(__file__).resolve() から決まる。道を解いた形）
+        let program = py_path(&resolved(&self.env.program).to_string_lossy());
         let local = py_path(&self.env.local.to_string_lossy());
         let cache = join(&local, "master_cache");
         let presence = match &st.share {
@@ -1126,6 +1298,9 @@ impl Builder {
         }
         let rows = |name: &str| -> R<Vec<Value>> {
             let mut rows = p.rows(name).map_err(|_| Py("マスタが読めない"))?;
+            if !rows.iter().all(Value::is_object) {
+                return Err(Py("マスタの行が表でない（Python の _normalize が落ちる）"));
+            }
             let renamed = t(&["renamed", name]).as_object().cloned().unwrap_or_default();
             for r in rows.iter_mut() {
                 let Some(o) = r.as_object_mut() else { continue };

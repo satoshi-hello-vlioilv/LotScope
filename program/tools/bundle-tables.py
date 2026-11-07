@@ -31,6 +31,8 @@ def table():
     items = [{k: it[k] for k in ("key", "kind", "min", "max") if k in it} for it in path_settings.ITEMS if it["key"].startswith(BUNDLE_PREFIXES)]
     return {
         "pathItems": items,
+        # 束に出ない項目（窓は値を写さない）。ただ、その段が表でない設定に値を重ねると Python は落ちるので、窓も組まない（版 3.84.0）
+        "otherItems": [it["key"] for it in path_settings.ITEMS if not it["key"].startswith(BUNDLE_PREFIXES)],
         "sources": {"builtins": data_sources.BUILTINS, "wipDefault": data_sources.WIP_DEFAULT, "readDefaults": data_sources.READ_DEFAULTS,
                     "connBind": data_sources.CONN_BIND, "rowRead": data_sources.ROW_READ, "scheduleJoin": data_sources.SCHEDULE_JOIN,
                     "groupable": sorted(data_sources.GROUPABLE)},

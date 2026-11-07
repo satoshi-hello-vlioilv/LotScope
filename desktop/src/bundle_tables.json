@@ -20,6 +20,11 @@
   "maxJoins": 6,
   "maxKeys": 8
  },
+ "otherItems": [
+  "lotdsp_import.url",
+  "update.source",
+  "lotdsp_import.direct.browser"
+ ],
  "pathItems": [
   {
    "key": "lot_list.source",

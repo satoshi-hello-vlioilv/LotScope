@@ -17,6 +17,8 @@ fn bundle_is_built_like_python() {
     let (mut same, mut delegated) = (0, 0);
     for sc in o["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
+        let saved: Vec<(String, Option<String>)> =
+            sc["vars"].as_object().unwrap().keys().map(|k| (k.clone(), std::env::var(k).ok())).collect();
         for (k, v) in sc["vars"].as_object().unwrap() {
             // SAFETY: この試験の糸だけが環境を変える（ほかの試験はこの名前を読まない）
             unsafe { std::env::set_var(k, v.as_str().unwrap()) };
@@ -31,8 +33,19 @@ fn bundle_is_built_like_python() {
             now: e["now"].as_str().map(String::from),
         });
         let got = b.build();
-        for k in sc["vars"].as_object().unwrap().keys() {
-            unsafe { std::env::remove_var(k) };
+        for (k, v) in &saved {
+            // 場面の前の値へ戻す（名乗りの環境はほかの場面にも効く）
+            match v {
+                Some(v) => unsafe { std::env::set_var(k, v) },
+                None => unsafe { std::env::remove_var(k) },
+            }
+        }
+        if let Some(want) = sc["expectOverride"].as_str() {
+            let over: Value =
+                serde_json::from_slice(&std::fs::read(p("local").join("master_share.json")).unwrap_or_default()).unwrap_or(Value::Null);
+            if over["dir"].as_str() != Some(want) {
+                bad.push(format!("{name}: 窓が束を組めなくても引っ越しの印をたどるはず（覚えの置き場 {}）", over["dir"]));
+            }
         }
         if sc["expect"] == "delegate" {
             delegated += 1;
@@ -89,6 +102,6 @@ fn bundle_is_built_like_python() {
         .collect();
     ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
     eprintln!("窓が束を組む時間（中央値）: {:.2} ms", ms[10]);
-    assert!(same >= 9 && delegated >= 5, "場面が足りません: 同じ {same}・任せる {delegated}");
+    assert!(same >= 19 && delegated >= 11, "場面が足りません: 同じ {same}・任せる {delegated}");
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));
 }

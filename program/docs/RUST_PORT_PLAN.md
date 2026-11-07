@@ -820,7 +820,11 @@ A（5 本を 1 版で・組み込みは焼いた表）に、採点の指摘 4 �
 - まだの所（分からない・次の段）: (6) Python が居ない PC での共有の写し（master_cache）の取り直しは、まだ Python の係（窓は共有を直に読み、届かないときだけ写しを読む）。
   Windows の道の字（UNC・ドライブ）が Python の str(Path) と同じかは、Linux の試験では確かめられない（Windows の窓の通しで見る）。os.getlogin が
   端末で読める Linux の PC では、窓（環境と利用者の名前）と Python の名乗りが違うことがあり得る（製品の Windows は GetUserNameW で同じ）。
-- 評価関数: `cargo test --test bundle_parity`（← `program/tests/settings_oracle.py`。15 場面: 共有・手元だけ・既定の中身だけ・共有に置く名前・$ を開く・
+- 作った後の採点（1 回だけ。57.6 点。減点 −15）: 別のエージェントが 1,266 場面を両方に当て、割れが 5 つの決まり（減点）と 3 つ（減点なし）。
+  Python が束を作れないのに窓が組む形（表でない行・ルールの op が並び・束に出ない項目の段が字）・引っ越しの時刻の空白と偽・覚えと印の NaN・
+  束を組めない設定で印をたどる係が居なくなる・i64 に入らない数の並べ替え・中身の置き場の道を解かない、と型だけ・入れ子の字・Linux のログイン ID。
+  どれも直して settings_oracle.py に 16 場面を足した（`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
+- 評価関数: `cargo test --test bundle_parity`（← `program/tests/settings_oracle.py`。31 場面〈作った後の採点で 16 を足した〉。初めの 15 場面: 共有・手元だけ・既定の中身だけ・共有に置く名前・$ を開く・
   名乗りの鍵の sha1・試験の「いま」・引っ越しの印・配る版の覚え・この PC の覚え の束を 1 字ずつ、Python に任せる 5 形、引っ越しの覚えと 2 回目にたどらないこと）・
   `tests/test_shell_follows.py`（Python は窓が名乗ると印をたどらない）・`lot::tests::the_window_builds_the_settings_bundle_itself`（Python が答えなくても束がある・
   組めない形は Python）。わざと壊した 7 か所（並べ替え・参照先の範囲・名乗りの鍵・引っ越し・版の既定・正規表現の任せ）はどれも試験が捕まえる。

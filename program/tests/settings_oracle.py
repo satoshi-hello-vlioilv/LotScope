@@ -100,14 +100,15 @@ def config(root, **kw):
 def scenarios(work):
     out = []
 
-    def sc(name, setup, expect="same", py_follows=False, now=None, env=None):
+    def sc(name, setup, expect="same", py_follows=False, now=None, env=None, program=None, override=None):
         root = work / f"s{len(out)}"
         root.mkdir(parents=True)
         (root / "base").mkdir()
         (root / "local").mkdir()
         cfg = setup(root)
         write(root / "config.json", cfg) if isinstance(cfg, dict) else (root / "config.json").write_text(cfg, encoding="utf-8")
-        out.append({"name": name, "root": root, "expect": expect, "pyFollows": py_follows, "now": now, "env": env or {}})
+        out.append({"name": name, "root": root, "expect": expect, "pyFollows": py_follows, "now": now, "env": env or {},
+                    "program": program, "expectOverride": override})
 
     sc("共有・ふつう", lambda r: (masters(share=r / "share"), config(r))[1])
     sc("手元だけ（同梱の data/）", lambda r: (masters(data=r / "base" / "data"), config(r, master_share={}))[1])
@@ -142,6 +143,120 @@ def scenarios(work):
         return config(r)
     sc("この PC が覚えた置き場", remembered)
 
+    # 作った後の採点（版 3.84.0）で見つかった形
+    def chain(r):
+        masters(share=r / "share")
+        masters(share=r / "share2")
+        masters(share=r / "share3")
+        write(r / "share" / "_MOVED.json", {"to": str(r / "share2"), "at": "2026-11-01T09:00:00"})
+        write(r / "share2" / "_MOVED.json", {"to": str(r / "share3"), "at": " 2026-11-02T09:00:00"})   # 前に空白（字の順で前の印より前）
+        return config(r)
+    sc("引っ越しの印の時刻の空白は落とさない", chain, py_follows=True)
+
+    def loop(r):
+        masters(share=r / "share")
+        masters(share=r / "share2")
+        write(r / "share" / "_MOVED.json", {"to": str(r / "share2"), "at": "2026-11-01T09:00:00"})
+        write(r / "share2" / "_MOVED.json", {"to": str(r / "share"), "at": "2026-11-03T09:00:00"})
+        return config(r)
+    sc("引っ越しの印の輪", loop, py_follows=True)
+
+    def old_mark(r):
+        masters(share=r / "share")
+        masters(share=r / "share2")
+        masters(share=r / "share3")
+        write(r / "share" / "_MOVED.json", {"to": str(r / "share2"), "at": "2026-11-05T09:00:00", "by": False})
+        write(r / "share2" / "_MOVED.json", {"to": str(r / "share3"), "at": False})
+        return config(r)
+    sc("前の印より古い・偽の時刻の印", old_mark, py_follows=True)
+
+    def pin_space(r):
+        masters(share=r / "share")
+        masters(share=r / "share3")
+        write(r / "local" / "want.json", {"masters": {"dir": str(r / "share3"), "setAt": " 2026-11-09"}})
+        write(r / "local" / "master_share.json", {"dir": str(r / "share"), "chosenAt": "2026-11-05T00:00:00"})
+        return config(r)
+    sc("配る版の覚えの時刻の空白", pin_space, py_follows=True)
+
+    def pin_chosen(r):
+        masters(share=r / "share")
+        masters(share=r / "share3")
+        write(r / "local" / "want.json", {"masters": {"dir": str(r / "share3"), "setAt": "2026-11-01T00:00:00"}})
+        write(r / "local" / "master_share.json", {"dir": str(r / "share"), "chosenAt": "2026-11-05T00:00:00"})
+        return config(r)
+    sc("人が選んだ時刻の方が新しい配る版の覚えには従わない", pin_chosen, py_follows=True)
+
+    def over_nan(r):
+        masters(share=r / "share2")
+        (r / "local" / "master_share.json").write_text('{"dir": "%s", "n": NaN, "big": 123456789012345678901234567890}' % (r / "share2"), encoding="utf-8")
+        return config(r)
+    sc("この PC の覚えに NaN と大きな整数", over_nan)
+
+    def moved_nan(r):
+        masters(share=r / "share")
+        masters(share=r / "share2")
+        (r / "share" / "_MOVED.json").write_text('{"to": "%s", "at": "2026-11-01T09:00:00", "x": NaN}' % (r / "share2"), encoding="utf-8")
+        return config(r)
+    sc("引っ越しの印に NaN", moved_nan, py_follows=True)
+
+    def big_orders(r):
+        masters(share=r / "share")
+        g = [{"id": 1, "名称": "a", "設備": "CR1", "表示順": "999999999999999999"}, {"id": 2, "名称": "b", "設備": "CR1", "表示順": "5"},
+             {"id": 3, "名称": "c", "設備": "CR1", "表示順": "１２"}, {"id": 4, "名称": "d", "設備": "CR1", "表示順": "1_0"}]
+        write(r / "share" / "equipment_groups.json", doc(g))
+        cv = json.loads((r / "share" / "conversions.json").read_text(encoding="utf-8"))
+        cv["rows"] += [{"id": 9, "名前": "同じ名", "入力": "[]", "その他": "1", "表示順": "99999999999999999999"},
+                       {"id": 8, "名前": "同じ名", "入力": "[]", "その他": "2", "表示順": "7"}]
+        write(r / "share" / "conversions.json", cv)
+        ds = json.loads((r / "share" / "data_sources.json").read_text(encoding="utf-8"))
+        ds["rows"] += [{"id": 30, "キー": "b1", "表示名": "大", "場所": "/b1", "並び": "99999999999999999999"},
+                       {"id": 31, "キー": "b2", "表示名": "小", "場所": "/b2", "並び": "4", "確かめる間隔": "1e18"},
+                       {"id": 32, "キー": "b3", "表示名": "u64", "場所": "/b3", "古さの警告": "1e19"}]
+        write(r / "share" / "data_sources.json", ds)
+        wl = json.loads((r / "share" / "work_log_files.json").read_text(encoding="utf-8"))
+        wl["rows"] += [{"id": 9, "キー": "w9", "設備名": "BIG", "並び": "99999999999999999999"}, {"id": 10, "キー": "w10", "設備名": "全角", "並び": "３"}]
+        write(r / "share" / "work_log_files.json", wl)
+        return config(r)
+    sc("大きな数・全角の並べ替え", big_orders)
+    sc("中身の置き場の道に ..", lambda r: (masters(share=r / "share"), config(r))[1], program=str(PROGRAM.parent / "desktop" / ".." / "program"))
+    sc("ログイン ID の環境が空白だけ", lambda r: (masters(share=r / "share"), config(r))[1], env={"LOGNAME": "  ", "USER": "  ", "LNAME": "", "USERNAME": "名乗り"})
+
+    def nan_cfg_moved(r):
+        masters(share=r / "share")
+        masters(share=r / "share2")
+        write(r / "share" / "_MOVED.json", {"to": str(r / "share2"), "at": "2026-11-01T09:00:00"})
+        return json.dumps(config(r), ensure_ascii=False).replace('"page_size": 300', '"page_size": NaN')
+    sc("束を組めない設定でも引っ越しの印は窓がたどる", nan_cfg_moved, expect="delegate", override="share2")
+
+    def bad_rows(r):
+        masters(share=r / "share")
+        write(r / "share" / "shift_patterns.json", doc(["x", {"id": 1, "名称": "a"}]))
+        return config(r)
+    sc("勤務体系に表でない行", bad_rows, expect="delegate")
+
+    def op_list(r):
+        masters(share=r / "share")
+        write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "ルール": json.dumps({"rules": [{"op": ["prefix"], "value": "L"}]})}]))
+        return config(r)
+    sc("設備グループのルールの op が並び", op_list, expect="delegate")
+
+    def update_str(r):
+        masters(share=r / "share")
+        ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))
+        ps["rows"].append({"id": 99, "項目": "update.source", "値": "C:\\x"})
+        write(r / "share" / "path_settings.json", ps)
+        return config(r, update="x")
+    sc("束に出ない項目の段が字", update_str, expect="delegate")
+
+    def nested(r):
+        masters(share=r / "share")
+        write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": [["a"], "b"]}]))
+        return config(r)
+    sc("設備の並びの中に並び", nested, expect="delegate")
+    sc("表示順が i64 に入らない設備グループ", lambda r: (masters(share=r / "share"),
+                                                 write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": "a", "表示順": "99999999999999999999"}])),
+                                                 config(r))[2], expect="delegate")
+
     # 窓は組まず Python に尋ねる形
     sc("配った設定に NaN", lambda r: (masters(share=r / "share"),
                                      json.dumps(config(r), ensure_ascii=False).replace('"page_size": 300', '"page_size": NaN'))[1], expect="delegate")
@@ -170,6 +285,7 @@ def ask(s, follows):
     os.environ["TPA_SHELL_SERVES"] = SERVES.replace(",bundle", "") if follows else SERVES
     os.environ["TRANSFER_APP_CONFIG"] = str(root / "config.json")
     os.environ["TRANSFER_LOCAL_ROOT"] = str(root / "local")
+    saved = {k: os.environ.get(k) for k in s["env"]}
     for k, v in s["env"].items():
         os.environ[k] = str(root) if v == "@root" else v
     try:
@@ -188,8 +304,12 @@ def ask(s, follows):
         answer = {"error": repr(e)}
     over = root / "local" / "master_share.json"
     after = json.loads(over.read_text(encoding="utf-8")) if over.exists() else None
-    for k in s["env"]:
-        os.environ.pop(k, None)
+    after = {k: after.get(k) for k in ("dir", "history")} if isinstance(after, dict) else None   # 比べるのは置き場と履歴（NaN を渡さない）
+    for k, v in saved.items():           # 場面の前の値へ戻す（名乗りの環境はほかの場面にも効く）
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
     return answer, after
 
 
@@ -209,7 +329,9 @@ def main():
         # 窓が Python に尋ねる場面の答えは比べない（NaN を含むと JSON で渡せない）
         out.append({"name": s["name"], "expect": s["expect"], "pyFollows": s["pyFollows"],
                     "answer": answer if s["expect"] == "same" else None, "override": after,
-                    "env": {"base": str(root / "base"), "program": str(PROGRAM), "local": str(root / "local"), "config": str(root / "config.json"),
+                    "expectOverride": str(root / s["expectOverride"]) if s["expectOverride"] else None,
+                    "env": {"base": str(root / "base"), "program": s["program"] or str(PROGRAM), "local": str(root / "local"),
+                            "config": str(root / "config.json"),
                             "now": s["now"]},
                     "vars": {k: (str(root) if v == "@root" else v) for k, v in s["env"].items()}})
     json.dump({"scenarios": out}, sys.stdout, ensure_ascii=False)
