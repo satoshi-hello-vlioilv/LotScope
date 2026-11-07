@@ -584,6 +584,8 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
     let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
     lot.set_program(program.clone()); // 利用状況に書く版（中身の版。更新で入れ替わる）
+                                      // 設定の束は窓が組む（版 3.84.0。src/bundle.rs）。組めない形だけ中身（Python）に尋ねる
+    lot.set_bundle(da_core::bundle::Builder::new(da_core::bundle::Env::production(&program, &locate::local_root())));
     let _ = LOT.set(lot.clone()); // 窓を閉じるときの使い終わり（RunEvent::Exit）
                                   // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
     let told = lot.clone();

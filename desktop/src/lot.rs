@@ -88,6 +88,8 @@ pub struct Lot {
     presence: Arc<Presence>,
     /// この PC の作業場所（画面の設定の控え ui_state.json・配る版の覚え want.json の置き場）
     local_root: PathBuf,
+    /// 設定の束を自分で組む係（版 3.84.0。src/bundle.rs）。窓（main.rs）が入れる。無い・組めないときは Python に尋ねる
+    bundle: Mutex<Option<Arc<crate::bundle::Builder>>>,
 }
 
 impl Lot {
@@ -106,7 +108,20 @@ impl Lot {
             dash: Mutex::default(),
             gate: Gate::default(),
             store: Mutex::default(),
+            bundle: Mutex::default(),
         }
+    }
+
+    /// 設定の束を窓が組む（版 3.84.0）。入れると、束は窓が組み、組めない形だけ Python に尋ねる
+    pub fn set_bundle(&self, b: crate::bundle::Builder) {
+        *self.bundle.lock().unwrap() = Some(Arc::new(b));
+        self.invalidate();
+    }
+
+    /// 窓が組んだ束（組めなければ None）。試験と記録のため
+    pub fn own_bundle(&self) -> Option<Result<Value, &'static str>> {
+        let b = self.bundle.lock().unwrap().clone()?;
+        Some(b.build().map_err(|e| e.0))
     }
 
     /// 置き場の答え（一覧の設定の access）に合わせた書く係（置き場か名乗りが変われば作り直す）
@@ -395,7 +410,12 @@ impl Lot {
                 return Ok(s.clone());
             }
         }
-        let s = Settings::from_json(&ask()?);
+        // 窓が組めれば窓の束（Python が起きていなくても答えられる）。組めない形（bundle.rs の Py）だけ Python に尋ねる
+        let own = self.bundle.lock().unwrap().clone().and_then(|b| b.build().ok());
+        let s = Settings::from_json(&match own {
+            Some(v) => v,
+            None => ask()?,
+        });
         *self.settings.lock().unwrap() = Some((Instant::now(), s.clone()));
         Ok(s)
     }
@@ -1248,6 +1268,33 @@ mod tests {
         assert!(lot.handle_body("DELETE", "/api/pivot-presets/\u{ff11}", "", b"", &ask).is_none());
         assert_eq!(lot.handle_body("DELETE", "/api/pivot-presets/1", "rev=1", b"", &ask).unwrap(), (200, json!({"ok": true})));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_builds_the_settings_bundle_itself() {
+        // 版 3.84.0: 束は窓が組む（Python が答えなくても窓の道が答える）。組めない形だけ Python に尋ねる
+        let work = std::env::temp_dir().join(format!("da-lot-bundle-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        std::fs::create_dir_all(work.join("local")).unwrap();
+        std::fs::create_dir_all(work.join("base")).unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, r#"{"lot_list": {"source": "/q.sqlite3", "refresh_seconds": 30}, "master_share": {}}"#).unwrap();
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let s = lot.settings(&down).expect("Python が答えなくても束がある");
+        assert_eq!((s.source.as_str(), s.refresh_seconds), ("/q.sqlite3", 30));
+        assert!(s.access["who"]["key"].is_string() && s.lists["sources"].as_array().is_some_and(|a| a.len() >= 4), "{:?}", s.lists);
+        // 組めない形（配った設定が読めない JSON）は Python に尋ねる
+        std::fs::write(&cfg, r#"{"lot_list": {"page_size": NaN}}"#).unwrap();
+        lot.invalidate();
+        assert!(lot.settings(&down).is_err(), "組めず Python も答えなければ前と同じ失敗");
+        let py = || -> Result<Value, String> { Ok(json!({"source": "/py.sqlite3"})) };
+        assert_eq!(lot.settings(&py).unwrap().source, "/py.sqlite3");
+        assert_eq!(lot.own_bundle().unwrap().unwrap_err(), "配った設定が窓の読めない JSON");
+        let _ = std::fs::remove_dir_all(&work);
     }
 
     #[test]

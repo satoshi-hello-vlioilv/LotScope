@@ -1,0 +1,294 @@
+{
+ "equipGroups": {
+  "maxRules": 12,
+  "ruleOps": [
+   "prefix",
+   "suffix",
+   "contains",
+   "equals",
+   "regex"
+  ],
+  "setDefault": "グループ"
+ },
+ "join": {
+  "hows": [
+   "left",
+   "inner",
+   "right",
+   "full"
+  ],
+  "maxJoins": 6,
+  "maxKeys": 8
+ },
+ "pathItems": [
+  {
+   "key": "lot_list.source",
+   "kind": "sqlite"
+  },
+  {
+   "key": "lot_list.table",
+   "kind": "text"
+  },
+  {
+   "key": "lot_list.refresh_seconds",
+   "kind": "int",
+   "max": 3600,
+   "min": 10
+  },
+  {
+   "key": "lot_list.stale_hours",
+   "kind": "number",
+   "max": 1440,
+   "min": 0
+  },
+  {
+   "key": "work_log.folder",
+   "kind": "folder"
+  },
+  {
+   "key": "work_log.pattern",
+   "kind": "pattern"
+  },
+  {
+   "key": "work_log.refresh_seconds",
+   "kind": "int",
+   "max": 3600,
+   "min": 10
+  },
+  {
+   "key": "work_log.stale_hours",
+   "kind": "number",
+   "max": 1440,
+   "min": 0
+  },
+  {
+   "key": "schedule.cm3_base_url",
+   "kind": "url"
+  },
+  {
+   "key": "schedule.client_ip",
+   "kind": "text"
+  },
+  {
+   "key": "schedule.equipments",
+   "kind": "text"
+  },
+  {
+   "key": "schedule.inspect_keywords",
+   "kind": "text"
+  },
+  {
+   "key": "schedule.auto_refresh_sec",
+   "kind": "int",
+   "max": 3600,
+   "min": 10
+  }
+ ],
+ "renamed": {
+  "conversions": {},
+  "data_sources": {},
+  "equipment_groups": {},
+  "equipment_master": {
+   "巻出し方向": "巻取方向"
+  },
+  "path_settings": {},
+  "shift_patterns": {},
+  "work_log_files": {}
+ },
+ "sources": {
+  "builtins": [
+   {
+    "api": "/api/lotlist",
+    "equipColumn": "設備",
+    "equipMode": "そのまま",
+    "key": "lot",
+    "kind": "file",
+    "name": "品質",
+    "role": "品質",
+    "screen": "list",
+    "settings": {
+     "place": "lot_list.source",
+     "table": "lot_list.table"
+    }
+   },
+   {
+    "api": "/api/worklog",
+    "equipColumn": "",
+    "equipMode": "そのまま",
+    "key": "work",
+    "kind": "folder",
+    "name": "実績",
+    "role": "実績",
+    "screen": "work",
+    "settings": {
+     "pattern": "work_log.pattern",
+     "place": "work_log.folder",
+     "table": "work_log.table"
+    }
+   },
+   {
+    "api": "/api/src/wip",
+    "key": "wip",
+    "kind": "file",
+    "name": "仕掛",
+    "role": "仕掛",
+    "screen": "src:wip",
+    "settings": null
+   },
+   {
+    "api": "/api/src/sch",
+    "equipColumn": "設備",
+    "equipMode": "そのまま",
+    "key": "sch",
+    "kind": "cm3",
+    "last": true,
+    "name": "スケジュール",
+    "role": "予定",
+    "screen": "src:sch",
+    "settings": {
+     "place": "schedule.cm3_base_url"
+    }
+   }
+  ],
+  "connBind": {
+   "lot": {
+    "lot": "row:ロット番号の列",
+    "place": "lot_list.source",
+    "refresh": "lot_list.refresh_seconds",
+    "stale": "lot_list.stale_hours",
+    "table": "lot_list.table"
+   },
+   "sch": {
+    "client_ip": "schedule.client_ip",
+    "equipments": "schedule.equipments",
+    "inspect": "schedule.inspect_keywords",
+    "lot": "row:ロット番号の列",
+    "refresh": "schedule.auto_refresh_sec",
+    "url": "schedule.cm3_base_url"
+   },
+   "work": {
+    "folder": "work_log.folder",
+    "lot": "row:ロット番号の列",
+    "pattern": "work_log.pattern",
+    "refresh": "work_log.refresh_seconds",
+    "stale": "work_log.stale_hours"
+   }
+  },
+  "groupable": [
+   "wip"
+  ],
+  "readDefaults": {
+   "page_size": 500,
+   "refresh_seconds": 60,
+   "stale_hours": 36
+  },
+  "rowRead": {
+   "refresh_seconds": "確かめる間隔",
+   "stale_hours": "古さの警告"
+  },
+  "scheduleJoin": {
+   "cols": [
+    "製造調質",
+    "ｵｰﾀﾞｰ板厚",
+    "ｵｰﾀﾞｰ板幅",
+    "BOX実績_良品重量",
+    "実績_設備ｺｰｽ",
+    "残仕掛設備ｺｰｽ",
+    "設計_PIT炉番炉順",
+    "特急区分",
+    "保留_区分",
+    "工場納期",
+    "約束納期"
+   ],
+   "how": "left",
+   "on": [
+    [
+     "ロットNo",
+     "ﾛｯﾄ番号"
+    ]
+   ],
+   "with": "wip"
+  },
+  "wipDefault": {
+   "equip_column": "残仕掛設備ｺｰｽ",
+   "equip_mode": "前方一致",
+   "source": "\\\\Nlmsrvngy03\\Read\\【New】仕掛\\台帳\\LOTNOW.sqlite3",
+   "table": ""
+  }
+ },
+ "store": {
+  "historyKeep": 10,
+  "lockTtl": 20.0,
+  "markers": [
+   "equipment_master.json",
+   "roll_master.json",
+   "path_settings.json"
+  ],
+  "moved": "_MOVED.json",
+  "movedHops": 5,
+  "override": "master_share.json",
+  "pin": "want.json",
+  "presenceSubdir": "presence_tpa",
+  "refresh": 5.0,
+  "sharedAlways": [
+   "access_permissions",
+   "app_seeds",
+   "conversion_defaults",
+   "conversions",
+   "dashboard_settings",
+   "dashboards",
+   "data_sources",
+   "display_formats",
+   "equipment_groups",
+   "path_settings",
+   "pivot_presets",
+   "pivot_quick",
+   "shift_patterns",
+   "tab_access",
+   "ui_defaults",
+   "work_log_files"
+  ],
+  "sharedDefault": [
+   "roll_master",
+   "equipment_master"
+  ]
+ },
+ "uiProfileKeys": [
+  "tpa.lotlist.layout.v1",
+  "tpa.lotlist.colPresets.v1",
+  "tpa.lotlist.rules.v1",
+  "tpa.lotlist.rowGap.v1",
+  "tpa.lotlist.cellPad.v1",
+  "tpa.lotlist.overflow.v1",
+  "tpa.lotlist.freeze.v1",
+  "tpa.lotlist.arrange.v1",
+  "tpa.lotlist.sorts.v1",
+  "tpa.lotlist.pageSize.v1",
+  "tpa.lotlist.features.v1",
+  "tpa.lotlist.slicer.v1",
+  "tpa.lotlist.marks.v1",
+  "tpa.lotlist.zoomStep.v1",
+  "tpa.lotlist.presets.v1",
+  "tpa.lotlist.views.v1",
+  "tpa.lotlist.pivot.v1",
+  "tpa.worklog.count.v1"
+ ],
+ "uselessPcNames": [
+  "",
+  "(none)",
+  "0.0.0.0",
+  "127.0.0.1",
+  "::1",
+  "localhost",
+  "localhost.localdomain",
+  "unknown"
+ ],
+ "workDefaults": {
+  "folder": "\\\\Nlmsrvngy03\\Read\\【New】実績",
+  "page_size": 500,
+  "pattern": "実績_*.sqlite3",
+  "refresh_seconds": 60,
+  "stale_hours": 36,
+  "table": ""
+ }
+}

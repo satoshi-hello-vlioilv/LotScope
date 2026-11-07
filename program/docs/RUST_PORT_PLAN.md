@@ -797,6 +797,34 @@ A（5 本を 1 版で・組み込みは焼いた表）に、採点の指摘 4 �
   名乗りの決まり・Python の設定の道を答え合わせに残す）を入れた形で出し直すのが筋。窓が答える道も、いまは Python が起きていないと答えない
   （lot.rs の settings が Python の GET /api/lotlist/settings に頼る）ため、Python 無しで動かすための土台になる。
 
+### 段 3 の 2 歩目: 設定の束を窓が組む — 版 3.84.0（Python が起きていなくても窓の道が答える）
+
+窓は 10 秒ごとに Python へ設定の束（GET /api/lotlist/settings）を尋ね、窓が受け持つ道もすべてこの束で段取りしていた。Python が答えないと
+`lot.rs` の settings が Err になり、窓の道もすべて Python へ回っていた（Python 無しで動かすうえで、いちばん根の依存）。移し方を決まり 2026-11-06 で
+6 案にして別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-settings.json`。1 位 **A** 70.1 点・E 68.3・C 66.5・B 62.9・F 58.6・D 57.5）。
+80 点に届かないので、A（束を一括で窓が組む）に採点の指摘 9 つを入れて作った。
+
+- 部品は `desktop/src/bundle.rs`（Builder・Env）。配った設定（TRANSFER_APP_CONFIG → config/appsettings.json → 見本）とマスタの置き場から、
+  束の全部（lot_list・engine・変換表・lists〈dash・sources・work・shifts〉・access〈who・place〉・calculation・uiProfileKeys）を組む。
+  Python の決まり（参照先の項目・組み込みのデータ元・既定・名前の読み替え・使えない PC 名・設備グループのルールの種類）は、Python から焼いた表
+  `desktop/src/bundle_tables.json`（`python program/tools/bundle-tables.py` が焼き、古い表は `tests/test_bundle_tables.py` が止める）。
+- 窓（main.rs）は `Lot::set_bundle` で係を入れる。束は窓が組み、組めない形（`bundle::Py`）だけ前と同じく Python に尋ねる。Python の道は残す
+  （前の版の窓・答え合わせの相手）。束は前と同じく 10 秒覚え、書いた後に捨てる。窓が束を組む時間は 3.7 ms（最適化なしの組み立て・中央値。Python の束は 2〜3 ms）。
+- 採点の指摘で入れた決まり: (1) 引っ越しの印をたどる係は窓の 1 つ（SERVES に bundle。Python の follow_moved は窓が名乗ると印をたどらず、この PC の覚え
+  master_share.json を読み直して合わせるだけ: `_reload_override`。2 つの係が同じ印をたどると履歴が ['A', 'A'] になる）。(2) Python が束を作れない形
+  （データ元の行の間隔が inf・nan・設定の段が表でない）と、窓が Python と同じに読めない形（NaN などの字・共有にまだ無いマスタ・設備グループの正規表現）は組まない。
+  (3) 写すのは束に出る項目（lot_list・work_log・schedule）だけ（exe・release は写さない）。(4) conversions.rev は窓の字（表の中身の sha1）で、Python とは比べない。
+  (5) 試験の差し替えは Env（base・program・local・config・now〈TPA_DASHBOARD_NOW〉）で渡す。(7) 名乗りは identity.py の順のまま（Windows は GetUserNameW・
+  GetComputerNameExW。MSVC 向けの clippy を作業用クレートで通した）。terminal_key の sha1 は依存を足さずに窓で数える。(8) 束の鍵は窓が読まない物も Python と同じに出す。
+  (9) Python の道は残す。
+- まだの所（分からない・次の段）: (6) Python が居ない PC での共有の写し（master_cache）の取り直しは、まだ Python の係（窓は共有を直に読み、届かないときだけ写しを読む）。
+  Windows の道の字（UNC・ドライブ）が Python の str(Path) と同じかは、Linux の試験では確かめられない（Windows の窓の通しで見る）。os.getlogin が
+  端末で読める Linux の PC では、窓（環境と利用者の名前）と Python の名乗りが違うことがあり得る（製品の Windows は GetUserNameW で同じ）。
+- 評価関数: `cargo test --test bundle_parity`（← `program/tests/settings_oracle.py`。15 場面: 共有・手元だけ・既定の中身だけ・共有に置く名前・$ を開く・
+  名乗りの鍵の sha1・試験の「いま」・引っ越しの印・配る版の覚え・この PC の覚え の束を 1 字ずつ、Python に任せる 5 形、引っ越しの覚えと 2 回目にたどらないこと）・
+  `tests/test_shell_follows.py`（Python は窓が名乗ると印をたどらない）・`lot::tests::the_window_builds_the_settings_bundle_itself`（Python が答えなくても束がある・
+  組めない形は Python）。わざと壊した 7 か所（並べ替え・参照先の範囲・名乗りの鍵・引っ越し・版の既定・正規表現の任せ）はどれも試験が捕まえる。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。
