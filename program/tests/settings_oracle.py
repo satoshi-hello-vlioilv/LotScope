@@ -415,7 +415,7 @@ def scenarios(work):
         ps["rows"].append({"id": 31, "項目": "update.source", "値": "C:\\置き場"})
         write(r / "share" / "path_settings.json", ps)
         return config(r, update=None)
-    sc("更新の段が null で参照先に更新の置き場", section_null)
+    sc("更新の段が null で参照先に更新の置き場", section_null, expect="delegate")
     return out
 
 

@@ -193,9 +193,11 @@
       const put = (key, value) => get("/api/settings/" + key, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value }) });
       const unk = await put("selftest.unknown", "x"), bad = await put("lot_list.refresh_seconds", "10.5");
       const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
-      ok("参照先を書く道も窓が受ける（知らない項目・整数でない値を、Python と同じ言葉で断る）",
+      // 書けない人の PC（管理のマスタを書けない段）では、窓の門番が先に断る（403 forbidden。これも窓が受けた形）
+      const denied = [unk, bad].every((x) => x.by === "shell" && x.r.status === 403 && why(x).kind === "forbidden");
+      ok("参照先を書く道も窓が受ける（知らない項目・整数でない値を、Python と同じ言葉で断る。書けない人は門番が断る）", denied || (
          unk.by === "shell" && unk.r.status === 400 && why(unk).error === "知らない項目です。"
-         && bad.by === "shell" && bad.r.status === 400 && why(bad).kind === "invalid" && /整数で入れてください/.test(why(bad).error || ""),
+         && bad.by === "shell" && bad.r.status === 400 && why(bad).kind === "invalid" && /整数で入れてください/.test(why(bad).error || "")),
          `${unk.by} ${unk.r.status} / ${bad.by} ${bad.r.status} ${(why(bad).error || "").slice(0, 40)}`);
     }
 
