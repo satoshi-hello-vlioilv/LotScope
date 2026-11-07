@@ -70,6 +70,15 @@ def _clean(v):
     return ("" if v is None else str(v)).strip()
 
 
+def _cell(v):
+    """行へ置く字（_clean。並びは JSON の字: 結合〈data_join.clean と同じ json.dumps(ensure_ascii=False)・空なら ""〉。
+    版 3.90.0: 並べ替え・グループで行の無い組み込みの元に行を作るとき、row_of の結合の並びが str() の repr の字になり、
+    スケジュールの既定の結合〈仕掛と合わせる〉が読めずに消えた）"""
+    if isinstance(v, list):
+        return json.dumps(v, ensure_ascii=False) if v else ""
+    return _clean(v)
+
+
 def _normalize(row, spec):
     """読むときの形をそろえる（旧い列名の読み替え・版が無い行は1）。"""
     for old, new in spec["renamed"].items():
@@ -338,7 +347,7 @@ class MasterRepository:
             for key, data in rows.items():
                 row = by.get(key)
                 if row is None:
-                    row = {"id": next_id(have), "rev": 0, **{k: _clean(data.get(k)) for k in spec["fields"]}, "キー": key}
+                    row = {"id": next_id(have), "rev": 0, **{k: _cell(data.get(k)) for k in spec["fields"]}, "キー": key}
                     have.append(row)
                 elif all(_clean(row.get(f)) == _clean(data.get(f)) for f in fields):
                     continue

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """データ元（services/data_sources.py・routes/sources.py）: 品質データ・作業実績・仕掛・足した元を 1 つの並びで扱い、
 1 ファイルの元（仕掛・足した元）を品質異常と同じ形で引く。設備の見分け（そのまま・前方一致）。"""
+import json
 import shutil
 import sqlite3
 import tempfile
@@ -100,6 +101,18 @@ class Api(unittest.TestCase):
 
     def items(self):
         return {x["key"]: x for x in self.c.get("/api/sources").get_json()["items"]}
+
+    def test_order_keeps_the_builtin_join_of_a_source_without_a_row(self):
+        """版 3.90.0: 行の無い組み込みの元（スケジュール・仕掛）を並べ替え・グループで行にしても、既定の結合が JSON の字で残る
+        （前は str() の repr の字〈[{'with': 'wip', …}]〉が置かれ、スケジュールの仕掛との結合が消えた）"""
+        before = self.items()["sch"]["joins"]
+        self.assertTrue(before, "スケジュールは既定で仕掛と合わせる")
+        r = self.c.post("/api/sources/order", json={"keys": ["sch", "wip"]})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual(self.items()["sch"]["joins"], before)
+        rows = {x["キー"]: x for x in self.app.config["MASTER_STORE"].read("data_sources")}
+        self.assertEqual(json.loads(rows["sch"]["結合"]), before)
+        self.assertEqual(rows["wip"]["結合"], "", "結合の無い元は空の字")
 
     def test_wip_list_has_the_same_shape_as_the_lot_list(self):
         r = self.c.get("/api/src/wip", query_string={"sorts": '[{"column":"ロット番号","dir":"desc"}]', "page_size": 5})
