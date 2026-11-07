@@ -19,7 +19,9 @@ sys.path.insert(0, str(ROOT))
 
 from app.repositories import master_store as ms  # noqa: E402
 from app.repositories.master_repository import SPECS  # noqa: E402
-from app.services import data_join, data_sources, equip_groups, identity, path_settings, pivot, presence, ui_defaults, work_log  # noqa: E402
+from app.services import data_join, data_sources, equip_groups, identity, lotdsp_api, path_settings, pivot, presence, ui_defaults, work_log  # noqa: E402
+from app.models import DEFAULT_UNWIND  # noqa: E402
+import app_build  # noqa: E402
 
 OUT = ROOT.parent / "desktop" / "src" / "bundle_tables.json"
 # 束に出る項目（lot_list・work_log・schedule）。exe（trusted_browser）・release・lotdsp_import は束に出ないので窓は写さない
@@ -46,6 +48,13 @@ def table():
         "renamed": {n: SPECS[n]["renamed"] for n in MASTERS},
         "uselessPcNames": sorted(identity.USELESS_PC_NAMES),
         "uiProfileKeys": list(ui_defaults.PROFILE_KEYS),
+        # 版 3.85.0: 画面（GET /）・/api/config・/api/dashboard/sources を窓が答える（desktop/src/page.rs・bundle.rs の config）
+        "configItems": [{k: it[k] for k in ("key", "kind") if k in it} for it in path_settings.ITEMS if it["key"] == "lotdsp_import.url"],
+        "periods": pivot.PERIODS,
+        "defaultUnwind": DEFAULT_UNWIND,
+        "lotdsp": {"required": {k: list(v) for k, v in lotdsp_api.REQUIRED.items()}, "minSeen": lotdsp_api.MIN_SEEN,
+                   "tieSeen": lotdsp_api.TIE_SEEN},
+        "fingerprint": {"exts": list(app_build.EXTS), "skipDirs": list(app_build.SKIP_DIRS)},
     }
 
 

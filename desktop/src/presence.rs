@@ -1069,6 +1069,32 @@ pub mod ui_state {
         json!({"rev": rev, "keys": keys})
     }
 
+    /// 控えを Python の ui_state.load と同じに読めるときだけ load の答え（版 3.85.0。作った後の採点の割れ）。読めない形は None（Python に任せる）:
+    /// serde が読めない・入れ子 128 段以上（text_split）・代用字の \\u（対の無い代用字を窓は置き換える）・rev が i64 に入らない数
+    pub fn load_exact(local_root: &Path) -> Option<Value> {
+        if let Ok(t) = std::fs::read_to_string(path(local_root)) {
+            let surrogate = t.as_bytes().windows(4).any(|w| {
+                (w[0] == b'u' || w[0] == b'U')
+                    && w[1].eq_ignore_ascii_case(&b'd')
+                    && matches!(w[2].to_ascii_lowercase(), b'8'..=b'9' | b'a'..=b'f')
+            });
+            if crate::master_rows::text_split(&t) || (surrogate && t.contains('\\')) {
+                return None;
+            }
+            if let Ok(Value::Object(d)) = serde_json::from_str::<Value>(&t) {
+                let big = match d.get("rev") {
+                    Some(Value::Number(n)) => n.as_i64().is_none() && n.as_f64().is_some_and(|f| f.abs() >= 9.2e18),
+                    Some(Value::String(x)) => crate::bundle::wide_int_text(x).is_some_and(|n| i64::try_from(n).is_err()),
+                    _ => false,
+                };
+                if big {
+                    return None;
+                }
+            }
+        }
+        Some(load(local_root))
+    }
+
     /// 変わった名前と消した名前を控えに重ねる（ui_state.merge。POST /api/ui-state）。読めない本文（片割れの代用字など）は None（Python に任せる）
     pub fn post(local_root: &Path, body: &[u8]) -> Option<(u16, Value)> {
         if crate::access_write::needs_python(body) {

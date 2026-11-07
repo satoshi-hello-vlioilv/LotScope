@@ -1037,6 +1037,73 @@ fn panel_of(body: &[u8]) -> Option<Tree> {
 }
 
 /// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（スケジュール・読めない本文）
+/// GET /api/dashboard/sources（routes/dashboard.py の dashboard_sources・source_items）: パネルに使えるデータの並びと、作業実績の表示する設備・
+/// 期間の種類・設備グループのまとめ方。材料は一覧の設定の答え（lists）。役割（role）の無い答え（前の版の Python）なら None（Python に任せる）
+pub fn sources_answer(conf: &Conf, periods: &Value) -> Option<Value> {
+    let work_rows = arr(conf.v["work"].get("rows"));
+    let shown: Vec<&Value> = crate::bundle::work_order(
+        work_rows.iter().filter(|r| r.get("表示").filter(|v| json_truthy(v)).map(json_str).as_deref() != Some("無")).collect(),
+    )?;
+    let mut items = vec![];
+    for d in arr(conf.v.get("sources")) {
+        let key = d["key"].as_str()?;
+        let k = if key == "lot" || key == "work" { key.to_string() } else { format!("src:{key}") };
+        let mut x = json!({"key": k, "name": d["name"], "role": d.get("role").filter(|r| r.is_string())?.clone(),
+                           "equip": json_truthy(&d["equipColumn"]) || key == "work", "place": json_truthy(&d["place"])});
+        if key == "work" {
+            x["equips"] = Value::Array(
+                shown.iter().map(|r| json!({"key": r.get("キー").cloned().unwrap_or(Value::Null), "name": r.get("設備名").cloned().unwrap_or(Value::Null)})).collect(),
+            );
+        }
+        items.push(x);
+    }
+    let sets: Vec<Value> =
+        Dash { conf }.sets().into_iter().map(|(n, gs)| json!({"name": n, "groups": gs.into_iter().cloned().collect::<Vec<_>>()})).collect();
+    Some(json!({"items": items, "periods": periods, "egroupSets": sets}))
+}
+
+/// GET /api/dashboard/equip-tree（dashboard_equip_tree・equipment_seen）: 実際に出てくる設備（作業実績の設備 → 設備マスタ → データ元の
+/// 設備の列の値から見分けた設備）と、設備グループのまとめ方ごとの入り方。窓が数えられない元（スケジュール）があれば None（Python に任せる）
+pub fn equip_tree_answer(cx: &Ctx) -> Option<Value> {
+    let mut seen: Vec<(String, String)> = vec![]; // (鍵, 名前)
+    let mut add = |name: &str| {
+        let name = strip(name);
+        if name.is_empty() {
+            return;
+        }
+        let k = normalize_part(&name);
+        if !seen.iter().any(|(x, _)| *x == k) {
+            seen.push((k, name));
+        }
+    };
+    for n in cx.dash().names() {
+        add(&n);
+    }
+    for d in arr(cx.conf.v.get("sources")) {
+        if !json_truthy(&d["equipColumn"]) || !json_truthy(&d["place"]) {
+            continue;
+        }
+        let key = d["key"].as_str()?;
+        let src = if key == "lot" { "lot".to_string() } else { format!("src:{key}") };
+        let panel = json!({"visual": "none", "source": src, "body": {"rows": [{"column": pivot::EQUIP_DIM, "part": ""}], "measures": [{"agg": "count"}]}});
+        let p = clean_panel(&Tree::from_value(&panel)).ok()?;
+        let a = cx.answer(&p)?;
+        if a.get("cells").is_none() {
+            continue; // 写している最中・読めない元は飛ばす（Python と同じ）
+        }
+        for k in arr(a["orders"].get(0)) {
+            if !json_truthy(k) {
+                continue;
+            }
+            let ks = json_str(k);
+            add(&a["labels"][0].get(&ks).map(json_str).unwrap_or(ks));
+        }
+    }
+    let names: Vec<String> = seen.into_iter().map(|(_, n)| n).collect();
+    let sets = cx.equip_tree(&names, "");
+    Some(json!({"names": names, "sets": sets}))
+}
+
 pub fn query(cx: &Ctx, body: &[u8]) -> Option<(u16, Value)> {
     let p = match clean_panel(&panel_of(body)?) {
         Ok(p) => p,

@@ -1,6 +1,6 @@
 /* 自己診断（環境変数 TPA_SELFTEST=結果のファイル で起動したときだけ、窓が画面に流し込む）。
    本物の WebView の中から、窓（Rust）と中身（Python）の組が正しく動くかを確かめて /__desktop/selftest へ送る。窓は結果を書いて終わる。
-   調べること: 起動が終わる・振り分け（部品は Rust・画面と API は Python・窓のことは Rust）・使い回しの決まり・大きな日本語の本文・
+   調べること: 起動が終わる・振り分け（部品と画面は Rust〈画面は Python の画面と突き合わせる〉・API は Python・窓のことは Rust）・使い回しの決まり・大きな日本語の本文・
    日本語の問い合わせ文字・40 本同時・安全な文脈・保存領域・保存（ダウンロード）・窓の情報・品質異常（Rust と Python の突き合わせ）・
    画面のエラーが無い・速さ。 */
 (async () => {
@@ -17,7 +17,7 @@
     while (!booted() && performance.now() < end) await sleep(200);
     ok("起動が終わる（設定と権限を読み終える）", booted(), ((performance.now() - t0) / 1000).toFixed(1) + " 秒");
     const app = document.querySelector('meta[name="tpa-app"]');
-    ok("画面の題（Python が作った HTML・アプリの名前）", app && document.title === app.content, document.title);
+    ok("画面の題（窓が描いた HTML・アプリの名前）", app && document.title === app.content, document.title);
     ok("画面の JS が動いている（TPA の共通部品）", typeof TPA === "object" && typeof TPA.download === "function");
 
     // 2) 振り分けと使い回しの決まり
@@ -28,8 +28,15 @@
     ok("指紋の無い部品は毎回確かめる（no-cache）", plain.by === "shell" && plain.r.headers.get("Cache-Control") === "no-cache" && plain.text === js.text);
     const three = await get(`/static/vendor/three/three-bundle.min.js?v=${fp}`);
     ok("大きな部品（three.js）も Rust が返す", three.by === "shell" && three.r.ok && three.text.length > 100000, `${three.r.status} ${three.text.length}字`);
+    // 画面は窓が描く（版 3.85.0。src/page.rs）。使い回さない（no-store）・CSP の印。Python が描いた画面（?engine=python）と、印を揃えると 1 字も違わない
     const page = await get("/");
-    ok("画面は Python が作る（使い回さない）", page.by === "python" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store", page.by);
+    const csp = page.r.headers.get("Content-Security-Policy") || "";
+    ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
+    const pyPage = await get("/?engine=python");
+    const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
+    const norm = (x) => x.text.split(nonceOf(x)).join("@NONCE@");
+    const at = [...norm(page)].findIndex((c, i) => c !== norm(pyPage)[i]);
+    ok("窓の画面と Python の画面が同じ（印を揃えて）", pyPage.by === "python" && norm(page) === norm(pyPage), at < 0 ? pyPage.by : `${at} 字目: ${norm(page).slice(Math.max(0, at - 30), at + 40)}`);
     const escape = await get("/static/%2e%2e/templates/index.html");
     ok("static の外へは出ない", escape.r.status === 404, escape.r.status);
 

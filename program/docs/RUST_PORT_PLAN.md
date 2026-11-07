@@ -829,6 +829,37 @@ A（5 本を 1 版で・組み込みは焼いた表）に、採点の指摘 4 �
   `tests/test_shell_follows.py`（Python は窓が名乗ると印をたどらない）・`lot::tests::the_window_builds_the_settings_bundle_itself`（Python が答えなくても束がある・
   組めない形は Python）。わざと壊した 7 か所（並べ替え・参照先の範囲・名乗りの鍵・引っ越し・版の既定・正規表現の任せ）はどれも試験が捕まえる。
 
+### 段 3 の 3 歩目: 画面と最初の画面の読む道を窓が答える — 版 3.85.0
+
+版 3.84.0 で束は窓が組むようになったが、画面そのもの（GET / の HTML）と、最初の画面（ダッシュボード）が開くときに尋ねる道は Python の物だった。
+画面の app.js の boot() は最初に /api/config を待つので、Python が答えない（止まった・起こし直しの最中）と画面は見出しだけで止まっていた。
+移し方を決まり 2026-11-06 で 7 案にして別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-page.json`。1 位 **G** 70.1 点・A 68.8・D 65.8・
+C 60.2・F 57.0・E 54.6・B 48.1）。80 点に届かないので、G（画面と最初の画面の読む道 3 本を 1 段で）に採点の指摘を入れて作った。
+
+- 画面は `desktop/src/page.rs`: web.py の小さな型（{{ 名前・名前.名前・url_for('static', filename=…)・字と数 }}・|tojson・|safe。知らない書き方は Python）、
+  |tojson（web.dumps の sort_keys・ensure_ascii と < > & ' の \u）、指紋（app_build.fingerprint をそのまま。プログラムの置き場ごとに 1 度）、
+  印（getrandom の 16 バイト・base64url の 22 字。同じ字を <script nonce> と CSP の見出しに）、brand.json は描くたびに読む（program だけを配る更新でも新しい名前）。
+  埋める物は画面の控え（presence::ui_state）・初期設定（ui_defaults::profile_of）・変換表（bundle::conv_views と MasterStore の revision。束の conversions.rev は使わない）。
+  答えの見出しは text/html・no-store・CSP、HEAD は本文なしで Content-Length。main.rs が GET・HEAD / を窓の native で受ける。
+- /api/config は `bundle.rs` の Builder::config（束と同じ材料 inputs に configItems〈lotdsp_import.url〉も重ねる）。LotDsp の状態は作業場所の lotdsp_api_map.json を
+  尋ねるたびに読み（lotdsp_status。KeyMap.key・missing・ready・learned を写した）、Python が落ちる形（段が表でない・float() で読めない秒・int() で読めない max_rows）は Python に任せる。
+- /api/dashboard/sources・/api/dashboard/equip-tree は `dashboard.rs` の sources_answer・equip_tree_answer（束の lists から。束の sources に role を足した: Python の
+  lotlist.lists_settings の keep も同じ）。設備の木はデータ元ごとに設備の段の数を窓の集計で数える（写している最中・読めない元は飛ばす）。スケジュール（CM3）の元に場所が
+  あれば Python に任せる（窓は CM3 を数えない）。
+- Python の決まり（期間の名前・巻出しの既定・LotDsp の学びの決まり・指紋の拡張子と飛ばすフォルダ）は bundle_tables.json に焼き足した（app_build.SKIP_DIRS を 1 か所に）。
+- まだの所（正直に）: 起動の流れは変えていない（Python の ready を待ってから画面を開く）ので、効くのは Python が起動の後で止まった・起こし直しの最中の時だけ。
+  Python を待たずに開く形（案 B）は次の段の 1 つ目。見出しのタブとデータ元の定義（GET /api/sources。app.js の loadSources）は Python のままで、Python が答えないと
+  品質・実績のタブの名前とデータ元のタブが出ない（案 D を次の段に）。/api/changelog・/api/build・/lotdsp-link も Python。スケジュールの元に場所がある PC（製品の形）では
+  設備の木は Python が答える（スケジュールを窓へ移すまで）。窓の答えの控え（10 秒）は束と同じで、Python の道は毎回読む。
+- 作った後の採点（1 回だけ。58.6 点。減点 −12）: 別のエージェントが 80 を超える場面を両方に当て、割れが 6 つ。Windows で取り出した CRLF の型
+  （Python の read_text は改行を \n に直す。Windows の CI で全場面の画面が割れた）・画面の控えの rev が i64 に入らない数・対の無い代用字・入れ子 128 段以上・
+  LotDsp の学びの cols が表でない（Python は 500）・型の {{ url_for }}。どれも直し（読めない形は Python に任せる）、settings_oracle.py に 6 場面を足した。
+  あわせて指摘 7（Python が答えないときは、窓が同じに読めない埋める物を Python の except と同じ既定の形に落として画面を描く）と指摘 9（Python が答えない形の
+  通しの試験 `lot::tests::the_window_draws_the_page_without_python`）を入れた（`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
+- 評価関数: `cargo test --test page_parity`（← `program/tests/settings_oracle.py` の reads。束の 47 場面と同じフォルダで、Python が居ない形の窓の答えを Python の答えと突き合わせる。
+  画面は印を @NONCE@ に揃えて 1 字ずつ・見出しも。窓が同じに答えた場面: 画面 34・/api/config 32・データの並び 30・設備の木 2〈品質データの設備の列・書きゆれ・空・全角を含む〉。
+  Python が落ちる 3 形と、窓が同じに読めない 3 形は Python に任せる）・`cargo test --test bundle_parity`（束の sources の role）・page.rs の単体試験（型・JSON の字・印）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

@@ -164,7 +164,7 @@ def lists_settings():
             hidden = []
     repo = master_repo()
     wl = work_log.params(effective_settings(current_app))
-    keep = ("key", "kind", "name", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode")
+    keep = ("key", "kind", "name", "role", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode")
     from ..services import equip_groups
     from .dashboard import _equipment_names, _now_override
     return {"hidden": hidden,

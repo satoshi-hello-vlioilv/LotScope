@@ -267,6 +267,13 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         ("POST", "/api/heartbeat") => {
             lot.heartbeat(&|| lot_settings(backend), &|| backend.alive()).map(|(status, v)| Reply { status, ..json_reply(&v) })
         }
+        // 画面（版 3.85.0。src/page.rs）: Python が答えなくても画面の HTML は窓が描く。描けない形は Python へ回す
+        // （?engine=python は Python が描く。自己診断が 2 つの画面を突き合わせる）
+        (method @ ("GET" | "HEAD"), "/")
+            if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") =>
+        {
+            lot.page(method == "HEAD", &|| backend.alive()).map(|h| Reply { status: 200, headers: h.headers, body: h.body })
+        }
         // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
         (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => lot
             .access_read(method, path, &|| lot_settings(backend), &|| backend.alive())

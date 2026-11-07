@@ -1,6 +1,6 @@
 [package]
 name = "defect-analyzer-desktop"
-version = "3.84.0"
+version = "3.85.0"
 description = "LotScope（仕掛・作業実績・品質の見える化）デスクトップ版の窓"
 edition = "2021"
 rust-version = "1.90"
@@ -42,6 +42,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 fancy-regex = "0.14"
 unicode-normalization = "0.1"
 regex = "1"
+# 画面の CSP の印（版 3.85.0。src/page.rs。secrets.token_urlsafe と同じ暗号の乱数。Tauri が既に使っている版）
+getrandom = "0.3"
 
 # 本物の Python を PID で見る・止める（src/proc.rs）・ショートカットを作る（src/lnk.rs）。版は Tauri が使っているものに合わせる（同じ crate を2つ持たない）
 [target.'cfg(windows)'.dependencies]
