@@ -58,6 +58,11 @@ fn s(v: Option<&Value>) -> R<String> {
     }
 }
 
+/// Python の真偽（bool(v)。窓のほかの部品が使う: sources_list.rs）
+pub fn py_truthy(v: &Value) -> bool {
+    truthy(Some(v))
+}
+
 /// Python の真偽（bool(v)）
 fn truthy(v: Option<&Value>) -> bool {
     match v {
@@ -1177,8 +1182,7 @@ fn groups_and_uses(out: &mut [Map<String, Value>]) {
             .iter()
             .enumerate()
             .filter(|(j, x)| {
-                *j != i
-                    && (x.get("base") == Some(&key) || x["joins"].as_array().into_iter().flatten().any(|jn| jn["with"] == key))
+                *j != i && (x.get("base") == Some(&key) || x["joins"].as_array().into_iter().flatten().any(|jn| jn["with"] == key))
             })
             .map(|(_, x)| x["key"].clone())
             .collect();
@@ -1667,7 +1671,8 @@ fn conn_of(item: &Map<String, Value>, row: Option<&Map<String, Value>>, items: &
                 ("rev".into(), rev),
             ]);
         } else {
-            let it = items.iter().find(|i| i["key"].as_str() == Some(place.as_str())).and_then(Value::as_object).cloned().unwrap_or_default();
+            let it =
+                items.iter().find(|i| i["key"].as_str() == Some(place.as_str())).and_then(Value::as_object).cloned().unwrap_or_default();
             if !it.is_empty() {
                 for k in ["kind", "min", "max", "hint", "check_url"] {
                     if let Some(v) = it.get(k) {

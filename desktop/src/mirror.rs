@@ -459,6 +459,21 @@ impl DbMirror {
         }
     }
 
+    /// 写さない係（受け身）: 窓のほかの係が置いた周回の様子（`<キー>.state.json`）を読む。元が今と違う物は読まない
+    /// （受け身の Python の _status と同じ）。もう様子を持っていれば何もしない
+    pub fn load_state(&self) {
+        let mut st = self.state.lock().unwrap();
+        if !st.is_empty() {
+            return;
+        }
+        let path = self.cache_dir.join(format!("{}.state.json", self.key));
+        let Some(Value::Object(d)) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()) else { return };
+        let remote = d.get("remote").and_then(Value::as_str).unwrap_or("");
+        if remote.is_empty() || same_place(remote) == same_place(&self.remote()) {
+            *st = d;
+        }
+    }
+
     /// 読む場所（read_path）。wait=false は最初の周回を待たない（いくつもの係をまとめて待った後: Mirrors::wait_first）
     pub fn read_path_wait(&self, wait: bool) -> Option<PathBuf> {
         if !self.enabled() {
@@ -707,10 +722,24 @@ impl Mirrors {
         self.all.lock().unwrap().get(key).cloned()
     }
 
-    /// キーの写しの係。まだ無ければ、写さずに台帳から様子を読むだけの係（束に入れない・背景の周回を始めない。版 3.87.0:
-    /// データ元の並びの答えは、窓がまだ開いていない元も写しの様子を言う）
+    /// キーの写しの係。まだ無ければ、同じファイルを指す別のキーの係（get と同じく分け合う）、それも無ければ写さずに台帳と
+    /// 周回の様子（`<キー>.state.json`）を読むだけの係（束に入れない・背景の周回を始めない。版 3.87.0: データ元の並びの答えは、
+    /// 窓がまだ開いていない元も写しの様子を言う。受け身の Python の _status と同じ読み方）
     pub fn peek_or_passive(&self, key: &str, remote: &str, interval_sec: i64, stale_hours: f64) -> Arc<DbMirror> {
-        self.peek(key).unwrap_or_else(|| DbMirror::new(&format!("{}_{key}", self.prefix), remote, &self.cache_dir, interval_sec, stale_hours))
+        let place = same_place(remote);
+        let shared = {
+            let all = self.all.lock().unwrap();
+            all.get(key).cloned().or_else(|| {
+                (!place.is_empty())
+                    .then(|| all.iter().find(|(k, m)| *k != key && same_place(&m.remote()) == place).map(|(_, m)| m.clone()))
+                    .flatten()
+            })
+        };
+        shared.unwrap_or_else(|| {
+            let m = DbMirror::new(&format!("{}_{key}", self.prefix), remote, &self.cache_dir, interval_sec, stale_hours);
+            m.load_state();
+            m
+        })
     }
 
     /// keys の係が最初の写しを済ませるまで待つ（全部で timeout まで。1 つずつ timeout ずつ待たない）

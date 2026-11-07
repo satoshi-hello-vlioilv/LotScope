@@ -249,7 +249,7 @@ impl Conf<'_> {
     }
 }
 
-fn num(v: &Value, d: f64) -> f64 {
+pub(crate) fn num(v: &Value, d: f64) -> f64 {
     v.as_f64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())).unwrap_or(d)
 }
 

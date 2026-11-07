@@ -390,6 +390,12 @@ def scenarios(work):
         write(joins / "s1_aaaa.json", {"items": data_join.parse(s1["結合"]), "builtAt": 10, "seconds": 0.1,
                                        "stats": [{"hit": 3, "rows": 5, "miss": 2, "out": 5}, {"hit": 1, "rows": 5, "miss": 4, "out": 5}]})
         write(joins / "s1_bbbb.json", {"items": [], "builtAt": 99, "stats": [{"hit": 9}]})          # 決まりが違う（使わない）
+        # 周回の様子（窓のほかの係が置いた物）: 仕掛は今の元の様子・s5 は元が違う（読まない）。s7 は仕掛と同じファイル（写しを分け合う）
+        write(r / "local" / "db_cache" / "sources" / "src_wip.state.json",
+              {"remote": "/wip.sqlite3", "at": 1700000000.5, "unreachable": True, "reason": "届きません（試験）"})
+        write(r / "local" / "db_cache" / "sources" / "src_s5.state.json", {"remote": "/別の.sqlite3", "at": 1, "unreachable": True, "reason": "古い"})
+        ds["rows"].append({"id": 13, "キー": "s7", "表示名": "仕掛と同じ", "場所": "/wip.sqlite3", "並び": "9"})
+        write(r / "share" / "data_sources.json", ds)
         write(joins / "try-s2_cccc.json", {"items": data_join.parse(s2["結合"]), "builtAt": 5, "stats": [{"hit": 7, "rows": 8, "miss": 1, "out": 8}]})
         return config(r, schedule={"auto_refresh_sec": 90, "equipments": ["L-1", "L-2:2", "L-1", " "], "hot": {"equipments": ""}})
     sc("データ元の並び（グループ・結合の覚え・項目のゆれ・設備の並び）", sources_rich)
@@ -421,12 +427,15 @@ def ask(s, follows):
                                       settings=cfg.get("master_share") if isinstance(cfg, dict) else None)}
     if s["now"]:
         tc["DASHBOARD_NOW"] = datetime.strptime(s["now"], "%Y-%m-%d %H:%M:%S")
+    # データ元の写しの係（版 3.87.0）: 受け身で、窓へ「写して」と知らせない（知らせると窓の周回を最大 30 秒待つ。場面に窓は居ない）
+    from app.services import work_log
+    tc["SRC_MIRRORS"] = work_log.Mirrors(root / "local" / "db_cache" / "sources", passive=True, prefix="src", notify=None)
     try:
         app = create_app(tc)
         c = app.test_client()
         r = c.get("/api/lotlist/settings")
         answer = r.get_json() if r.status_code == 200 else None
-        reads = page_reads(c, answer, s["tree"])
+        reads = page_reads(c, answer, s["tree"], tc["SRC_MIRRORS"])
     except Exception as e:      # Python が束を作れずに落ちる形（窓は Python に尋ねる）
         answer, reads = {"error": repr(e)}, {}
     over = root / "local" / "master_share.json"
@@ -443,7 +452,7 @@ def ask(s, follows):
 READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources")
 
 
-def page_reads(c, bundle, tree):
+def page_reads(c, bundle, tree, mirrors):
     """画面と最初の画面の読む道の答え → {道: {status, body（字）, headers}}。印（nonce）は @NONCE@ に揃える。
     設備の木は tree の場面だけ（届かない品質データの最初の写しを 30 秒待つので）。スケジュールの元に場所があれば尋ねない"""
     out = {}
@@ -453,6 +462,18 @@ def page_reads(c, bundle, tree):
         if path.endswith("equip-tree") and (sch or not tree):
             out[path] = None
             continue
+        if path == "/api/sources":
+            # どの元も写しの係を作っておく（Python の答えは、そのプロセスが開いた元だけ写しの様子を言う。窓は全部の元で言う）
+            ms = mirrors
+            by = {}
+            for d in srcs:              # 同じキーの行が 2 つあれば最初の行（一覧を開く道 data_sources.find と同じ）
+                by.setdefault(d.get("key"), d)
+            for d in srcs:
+                k = d.get("base") or d.get("key")
+                b = by.get(k) or d
+                if str(d.get("api") or "").startswith("/api/src/") and d.get("kind") != "cm3" and k != "lot" and b.get("place"):
+                    rd = b.get("read") or {}
+                    ms.get(k, b["place"], rd.get("refresh_seconds", 60), rd.get("stale_hours", 36))
         r = c.get(path)
         csp = r.headers.get("Content-Security-Policy") or ""
         m = re.search(r"nonce-([A-Za-z0-9_-]+)", csp)

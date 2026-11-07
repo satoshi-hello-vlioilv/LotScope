@@ -919,6 +919,13 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   鍵の無い行・http でない URL・更新の置き場の候補〉・スケジュールの設備が並び〈端末区分つき・同じ設備〉、ブラウザの欄に値がある〈Python に任せる〉）・
   `cargo test --lib lot::tests::the_window_answers_the_sources_list`（Python が起きていなくても待たずに 200・既定の 3 設備・中身が起きていればカードは Python の覚え・
   窓が写した仕掛は行の数・?engine=python）・Windows の WebView2 の自己診断（selftest.js の 10a': 窓と Python の答えが写しの様子・行の数を除いて同じ）。
+- 作った後の採点（1 回だけ。64.7 点。減点 −6）: 割れ 10 件。行の数が最初の周回を最大 30 秒待つ・lotlist_engine = python でも答える・同じファイルの別の元を
+  分け合わない・受け身の係が周回の様子（state.json）を読まない・Python が null の元を比べていない・結合の決まりの 1 と 1.0・間隔を数でしか読まない・
+  Python が落ちる形を答える・2 つの時点が混ざる、を直した（待たない read_path_wait(false)・engine を見る・peek_or_passive が same_place で分け合う・
+  DbMirror::load_state・場面の Python に受け身の係を全部の元で作らせて全部比べる・py_eq・lists の num・落ちる形は任せる・場所はこの答えの並びから。`"built_fixed"`）。
+  ブラウザの欄に値がある PC は Python に任せたまま（数は分からない）。中身を起こしている間のスケジュールの行の印は画面も直すので次の段。決まり 2026-11-06 により採点し直さない。
+- 評価関数（足した物）: `cargo test --lib sources_list::`（結合の覚えの読み方・Python が落ちる形）・`the_window_answers_the_sources_list` に周回の様子のファイル・engine = python・
+  周回の途中でも待たない、を足した。page_parity は場面の Python が窓へ知らせなくなったので、写しを待たずに 3 秒で流れる（前は約 150 秒）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

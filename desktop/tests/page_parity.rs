@@ -126,18 +126,10 @@ fn page_and_first_reads_are_like_python() {
                 Ok(mut want) => {
                     let mut v = v;
                     if path == "/api/sources" {
-                        // 写しの様子のうち、見に行った時刻で決まる物（確かめた・写した時刻・届かない理由・いまからの古さ）は比べない。
-                        // 場面の Python は尋ねたときに共有を見に行き、窓の写しの係は場面ごとに起こし直さない。元の場所・写したか・元の時刻・
-                        // 間隔・古さのしきいは比べる（窓が写しを受け持つ製品では、窓の写しの係の値が答え）
-                        // Python の写しの様子（と行の数）は、そのプロセスが開いた元だけ（ほかは null）。窓はまだ開いていない元も台帳から
-                        // 様子を読むので、Python が null の元は窓の答えを比べない（窓がより多く答える）
-                        let py_items = want["items"].as_array().cloned().unwrap_or_default();
-                        for (i, it) in v["items"].as_array_mut().into_iter().flatten().enumerate() {
-                            if py_items.get(i).is_some_and(|p| p["mirror"].is_null()) && it["key"] != "lot" {
-                                it["mirror"] = Value::Null;
-                                it["rows"] = py_items[i]["rows"].clone();
-                            }
-                        }
+                        // 場面の Python は、どの元にも受け身の写しの係を作ってから尋ねる（settings_oracle.py）ので、どの元も写しの様子を比べる
+                        // （Python が null・窓が答える、は割れ）。見に行った時刻で決まる物（確かめた・写した時刻・届かない理由・いまからの古さ）
+                        // だけは比べない: 窓の写しの係は場面の前の道（画面・設備の木）で動き始めていることがあり、動いている係の値が答え。
+                        // 周回の様子のファイル（state.json）を受け身の係が読むことは lot::tests::the_window_answers_the_sources_list
                         for x in [&mut want, &mut v] {
                             for it in x["items"].as_array_mut().into_iter().flatten() {
                                 if let Some(m) = it.get_mut("mirror").and_then(Value::as_object_mut) {
