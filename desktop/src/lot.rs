@@ -438,19 +438,26 @@ impl Lot {
 
     /// データ元の並び（版 3.87.0。GET /api/sources: src/sources_list.rs）。窓の束を組めない・権限や置き場を決められない・
     /// Python と同じに組めない形は Python が答える。card はスケジュールのカード（中身が起きていれば Python の答え）
-    pub fn sources_list(&self, query: &str, ask: AskSettings, card: &dyn Fn() -> Option<Value>) -> Option<(u16, Value)> {
+    /// 名乗り・置き場・設定は、この道が読む材料（Builder::inputs）から取る（束全体を組めない PC〈共有にまだ設備マスタなどの最初の版が
+    /// 無い〉でも答える。束を Python に尋ねた答えと、この道で読んだ並びの 2 つの時点を混ぜない）
+    pub fn sources_list(&self, query: &str, _ask: AskSettings, card: &dyn Fn() -> Option<Value>) -> Option<(u16, Value)> {
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
         }
         let builder = self.bundle.lock().unwrap().clone()?;
         let inp = builder.inputs().ok()?;
-        let s = self.settings(ask).ok()?;
         // 品質の写しを Python が受け持つ設定（desktop.lotlist_engine = python）は、ほかの道と同じく Python に任せる
-        if s.engine != "rust" || !s.access.is_object() {
+        let engine = match inp.settings.get("desktop") {
+            Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
+            None | Some(Value::Null) => json!("rust"),
+            Some(_) => return None,
+        };
+        if engine != "rust" {
             return None;
         }
-        let me = self.gate.me(&s.access).ok()?;
-        let store = self.store_for(&s.access)?;
+        let access = json!({"who": inp.who, "place": inp.place});
+        let me = self.gate.me(&access).ok()?;
+        let store = self.store_for(&access)?;
         let live = crate::sources_list::Live {
             lot: self.mirror.lock().unwrap().clone(),
             cache: self.cache_dir.clone(),
@@ -1515,6 +1522,13 @@ mod tests {
             v["items"][2]
         );
         assert!(lot.sources_list("engine=python", &down, &|| None).is_none(), "?engine=python は Python");
+        // 束全体は組めない（共有にまだ設備マスタ・設備グループの最初の版が無い）PC でも、データ元の並びは窓が答える（自己診断の共有の exe の形）
+        for n in ["equipment_master", "equipment_groups"] {
+            std::fs::remove_file(share.join(format!("{n}.json"))).unwrap();
+        }
+        lot.invalidate();
+        assert!(lot.own_bundle().unwrap().is_err(), "束は組めない");
+        assert_eq!(lot.sources_list("", &down, &|| None).map(|(st, _)| st), Some(200), "データ元の並びは答える");
         let _ = std::fs::remove_dir_all(&work);
     }
 
