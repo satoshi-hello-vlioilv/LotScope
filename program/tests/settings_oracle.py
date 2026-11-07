@@ -353,6 +353,22 @@ def scenarios(work):
         return config(r, lot_list={"source": str(db), "table": "品質", "refresh_seconds": 60, "stale_hours": 36, "page_size": 300})
     # 窓が品質の一覧を受け持つと Python は品質データを自分で写さない（写しは窓の係）。ここでは Python に写させて、窓と同じ写しで数えさせる
     sc("設備の木（品質データの設備の列・表示しない設備・設備グループ）", tree_data, tree=True, serves=SERVES.replace("lotlist,", ""))
+    # 作った後の採点（版 3.85.0）で見つかった割れ: 窓は Python に任せる
+    sc("画面の控えの rev が i64 に入らない", lambda r: (masters(share=r / "share"),
+                                              (r / "local" / "ui_state.json").write_text('{"rev": 99999999999999999999, "keys": {"tpa.a": "1"}}', encoding="utf-8"),
+                                              config(r))[2])
+    sc("画面の控えの rev が字の大きな整数", lambda r: (masters(share=r / "share"),
+                                              write(r / "local" / "ui_state.json", {"rev": "99999999999999999999", "keys": {}}), config(r))[2])
+    sc("画面の控えに対の無い代用字", lambda r: (masters(share=r / "share"),
+                                          (r / "local" / "ui_state.json").write_text('{"rev": 2, "keys": {"tpa.a": "x\\ud800y"}}', encoding="utf-8"),
+                                          config(r))[2])
+    sc("画面の控えに入れ子 130 段", lambda r: (masters(share=r / "share"),
+                                         (r / "local" / "ui_state.json").write_text('{"rev": 3, "keys": {"tpa.a": "1"}, "x": ' + "[" * 130 + "]" * 130 + "}",
+                                                                                     encoding="utf-8"), config(r))[2])
+    sc("LotDsp の学びの cols が null", lambda r: (masters(share=r / "share"),
+                                              write(r / "local" / "lotdsp_api_map.json", {"actual": {"list": "e", "cols": None}}), config(r))[2])
+    sc("LotDsp の学びの cols が並び", lambda r: (masters(share=r / "share"),
+                                              write(r / "local" / "lotdsp_api_map.json", {"design": {"list": "e", "cols": ["a"]}}), config(r))[2])
     sc("初期設定が共有にまだ無い", lambda r: (masters(share=r / "share"), (r / "share" / "ui_defaults.json").unlink(), config(r))[2])
     return out
 

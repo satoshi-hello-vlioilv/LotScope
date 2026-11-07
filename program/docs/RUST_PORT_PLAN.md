@@ -851,7 +851,12 @@ C 60.2・F 57.0・E 54.6・B 48.1）。80 点に届かないので、G（画面�
   Python を待たずに開く形（案 B）は次の段の 1 つ目。見出しのタブとデータ元の定義（GET /api/sources。app.js の loadSources）は Python のままで、Python が答えないと
   品質・実績のタブの名前とデータ元のタブが出ない（案 D を次の段に）。/api/changelog・/api/build・/lotdsp-link も Python。スケジュールの元に場所がある PC（製品の形）では
   設備の木は Python が答える（スケジュールを窓へ移すまで）。窓の答えの控え（10 秒）は束と同じで、Python の道は毎回読む。
-- 評価関数: `cargo test --test page_parity`（← `program/tests/settings_oracle.py` の reads。束の 41 場面と同じフォルダで、Python が居ない形の窓の答えを Python の答えと突き合わせる。
+- 作った後の採点（1 回だけ。58.6 点。減点 −12）: 別のエージェントが 80 を超える場面を両方に当て、割れが 6 つ。Windows で取り出した CRLF の型
+  （Python の read_text は改行を \n に直す。Windows の CI で全場面の画面が割れた）・画面の控えの rev が i64 に入らない数・対の無い代用字・入れ子 128 段以上・
+  LotDsp の学びの cols が表でない（Python は 500）・型の {{ url_for }}。どれも直し（読めない形は Python に任せる）、settings_oracle.py に 6 場面を足した。
+  あわせて指摘 7（Python が答えないときは、窓が同じに読めない埋める物を Python の except と同じ既定の形に落として画面を描く）と指摘 9（Python が答えない形の
+  通しの試験 `lot::tests::the_window_draws_the_page_without_python`）を入れた（`"built_fixed"`）。決まり 2026-11-06 により採点し直さない。
+- 評価関数: `cargo test --test page_parity`（← `program/tests/settings_oracle.py` の reads。束の 47 場面と同じフォルダで、Python が居ない形の窓の答えを Python の答えと突き合わせる。
   画面は印を @NONCE@ に揃えて 1 字ずつ・見出しも。窓が同じに答えた場面: 画面 34・/api/config 32・データの並び 30・設備の木 2〈品質データの設備の列・書きゆれ・空・全角を含む〉。
   Python が落ちる 3 形と、窓が同じに読めない 3 形は Python に任せる）・`cargo test --test bundle_parity`（束の sources の role）・page.rs の単体試験（型・JSON の字・印）。
 

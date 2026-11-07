@@ -99,6 +99,11 @@ fn unquote(x: &str) -> String {
 }
 
 /// Python の int(字)（10 進。前後の空白・符号・数字の間の _。大きな数も並べ替えに使えるよう i128 で持つ。読めなければ None）
+/// Python の int(字)（窓のほかの部品が使う。page.rs・presence.rs）
+pub fn wide_int_text(x: &str) -> Option<i128> {
+    wide_int_str(x)
+}
+
 fn wide_int_str(x: &str) -> Option<i128> {
     let t = pyfmt::strip(x);
     let (neg, rest) = match t.chars().next() {
@@ -1321,14 +1326,21 @@ pub fn lotdsp_status(path: &Path, enabled: bool) -> R<Value> {
     if density_seen && !km_key(&data, "lot", "density")? {
         missing.push("lot.density".into());
     }
+    // (data.get(s) or {}).get("cols", {}) を回す: 段が真で表でない・cols が有って表でない（null も）と Python は落ちる
     let mut learned = 0;
     for name in ["actual", "design", "lot"] {
-        if let Some(Value::Object(sec)) = data.get(name) {
-            if let Some(Value::Object(cols)) = sec.get("cols") {
-                for c in cols.keys() {
-                    learned += km_key(&data, name, c)? as i64;
-                }
-            }
+        let sec = match data.get(name) {
+            x if !truthy(x) => continue,
+            Some(Value::Object(o)) => o,
+            _ => return Err(Py("学びの段が表でない")),
+        };
+        let cols = match sec.get("cols") {
+            None => continue,
+            Some(Value::Object(o)) => o,
+            _ => return Err(Py("学びの列が表でない")),
+        };
+        for c in cols.keys() {
+            learned += km_key(&data, name, c)? as i64;
         }
     }
     Ok(json!({"enabled": enabled, "ready": !data.is_empty() && missing.is_empty(), "missing": missing,

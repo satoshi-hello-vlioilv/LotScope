@@ -138,7 +138,8 @@ fn parse_expr(e: &str) -> Option<Expr> {
         return Some(Expr::Static(Box::new(parse_expr(v)?)));
     }
     let names: Vec<String> = e.split('.').map(|x| x.trim().to_string()).collect();
-    names.iter().all(|n| is_ident(n) && !["None", "True", "False"].contains(&n.as_str())).then_some(Expr::Path(names))
+    // url_for を呼ばずに名前だけ書くと Python は関数の repr を出す（窓は描かない）
+    names.iter().all(|n| is_ident(n) && !["None", "True", "False", "url_for"].contains(&n.as_str())).then_some(Expr::Path(names))
 }
 
 impl Template {
@@ -408,6 +409,7 @@ mod tests {
         assert!(Template::parse("{# x #}").is_none());
         assert!(Template::parse("{{ x|upper }}").is_none());
         assert!(Template::parse("{{ f(x) }}").is_none());
+        assert!(Template::parse("{{ url_for }}").is_none());
         assert!(Template::parse("{{ url_for('other', filename='a') }}").is_none());
         let t = Template::parse("<p>{{ brand.name }}</p>{{ v|tojson }}{{ h|safe }}{{ nope }}{{ url_for('static', filename='js/a.js') }}\n")
             .unwrap();

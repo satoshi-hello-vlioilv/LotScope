@@ -14,7 +14,14 @@ use std::path::PathBuf;
 const READS: [&str; 4] = ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree"];
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
-const MUST_DELEGATE: [(&str, &str); 6] = [
+const MUST_DELEGATE: [(&str, &str); 12] = [
+    // 作った後の採点（版 3.85.0）の割れ
+    ("画面の控えの rev が i64 に入らない", "/"),
+    ("画面の控えの rev が字の大きな整数", "/"),
+    ("画面の控えに対の無い代用字", "/"),
+    ("画面の控えに入れ子 130 段", "/"),
+    ("LotDsp の学びの cols が null", "/api/config"),
+    ("LotDsp の学びの cols が並び", "/api/config"),
     ("大きな数・全角の並べ替え", "/"), // 変換表の表示順が i64 に入らない（窓の JSON の数では書けない）
     ("心拍の段が null（Python は /api/config で落ちる）", "/api/config"),
     ("max_rows が int() で読めない", "/api/config"),
@@ -55,7 +62,7 @@ fn page_and_first_reads_are_like_python() {
         for path in READS {
             let py = &sc["reads"][path];
             let got: Option<(u16, String, Value)> = if path == "/" {
-                lot.page(false).map(|h| {
+                lot.page(false, &|| true).map(|h| {
                     let csp = h.headers.iter().find(|(k, _)| k == "Content-Security-Policy").map(|(_, v)| v.clone()).unwrap_or_default();
                     let nonce = csp.split("nonce-").nth(1).and_then(|x| x.split('\'').next()).unwrap_or("").to_string();
                     let body = String::from_utf8(h.body).unwrap();
