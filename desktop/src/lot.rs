@@ -98,6 +98,8 @@ pub struct Lot {
     page_why: Mutex<String>,
     /// いまの時刻（秒。版 3.91.0: 作業実績の登録の古さ〈mark_stale〉。突き合わせの試験は Python と同じ時刻に差し替える）
     clock: Mutex<Option<Clock>>,
+    /// 配布の置き場を写す係（版 3.95.0。src/release_place.rs。このプロセスに 1 つ。写している印はこの PC の作業場所の release_move.json）
+    release: crate::release_place::Mover,
 }
 
 /// いまの時刻（秒）を答える係
@@ -112,6 +114,7 @@ impl Lot {
         crate::search_index::set_dir(cache_dir.join("search_index"));
         let local_root = cache_dir.parent().map(PathBuf::from).unwrap_or_else(|| cache_dir.clone());
         Lot {
+            release: crate::release_place::Mover::new(Some(local_root.join("release_move.json"))),
             presence: Arc::new(Presence::new(local_root.clone(), presence::system_clock())),
             local_root,
             lists: Lists::new(&cache_dir),
@@ -729,6 +732,40 @@ impl Lot {
         }
     }
 
+    /// 更新と配布の流れの 4 本（版 3.95.0。src/release_place.rs）: GET /api/update/settings・POST /api/release/place/check・move・
+    /// GET progress。材料は窓の束の材料（Python が居なくても読める）。?engine=python は Python（move は Python が断る: 写す係は窓の 1 つ）。
+    /// 束の材料を組めない形は、更新の置き場は Python に任せ、move の門番は「権限を読めない」で断る（Python の Mover を動かさない）
+    pub fn release_route(&self, route: crate::release_place::Route, query: &str, body: &[u8]) -> Option<(u16, Value)> {
+        use crate::release_place::Route;
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        if route == Route::Settings {
+            return self.update_settings().map(|v| (200, v));
+        }
+        let builder = self.bundle.lock().unwrap().clone();
+        // Python の今のフォルダ（中身のフォルダ。sidecar.rs の current_dir）から相対の道を見る
+        let cwd = builder.as_ref().map(|b| b.env().program.clone()).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        let me = || -> Result<Value, String> {
+            let b = builder.as_ref().ok_or("設定の束を組む係がありません")?;
+            let inp = b.inputs().map_err(|e| format!("配った設定・マスタの置き場を読めません: {}", e.0))?;
+            self.gate.forget(); // 置き場を変える前は、いまの権限の表で決める
+            self.gate.me(&json!({"who": inp.who, "place": inp.place}))
+        };
+        crate::release_place::handle(route, query, body, &me, &self.release, &cwd)
+    }
+
+    /// GET /api/update/settings の答え（版 3.95.0。更新の係・配布の画面と操作〈main.rs〉もここから読む）。束の材料を組めない・
+    /// 更新の置き場を Python と同じ字にできない形は None（Python に尋ねる）
+    pub fn update_settings(&self) -> Option<Value> {
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        let source = inp.update_source().ok()?;
+        let me = self.gate.me(&json!({"who": inp.who, "place": inp.place}));
+        let share = inp.place["shareDir"].as_str().unwrap_or("").to_string();
+        Some(crate::release_place::settings_answer(&source, &me, &share))
+    }
+
     /// データ元の書く道の 7 本（版 3.90.0。src/sources_write.rs）を窓が受ける。材料は窓の束の材料（GET /api/sources と同じ並び）、
     /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定と権限の覚えを捨てる（Python が書いたときの after_python と同じ）。
     /// 接続の設定で参照先の項目を書いたときは、参照先を書いたときと同じ後始末（品質の写し・実績のフォルダの覚え）。組めない・窓が答えない形は None
@@ -993,6 +1030,9 @@ impl Lot {
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if let Some(route) = crate::release_place::route_of(method, path) {
+            return self.release_route(route, query, body);
+        }
         if let Some(route) = crate::access_write::route_of(method, path) {
             return self.access_write(method, path, route, query, body, ask);
         }
@@ -2088,6 +2128,119 @@ mod tests {
         std::fs::write(share.join("path_settings.json"), ps.to_string()).unwrap();
         assert!(lot.handle_body("GET", "/api/settings", "", b"", &down).is_none(), "重ねる行があると Python は落ちる");
         assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).is_none());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_update_and_release_place() {
+        // 版 3.95.0: 更新の置き場（GET /api/update/settings）と配布の置き場の 3 本は Python が起きていなくても窓が答える
+        // （本物の道: Lot::handle_body → release_route。材料は窓の束の材料）。更新の係・配布の画面（main.rs）が読む update_settings も同じ答え。
+        // 参照先を窓が書くと次の答えに効く・写す（裏の糸・進み具合・更新時刻）・忙しい・門番・?engine=python・Python が落ちる段
+        let work = std::env::temp_dir().join(format!("da-lot-release-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone(), work.join("new")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let rel = work.join("rel").join("LotScope");
+        std::fs::create_dir_all(rel.join("3.7.0")).unwrap();
+        std::fs::write(rel.join("3.7.0").join("release.json"), "{}").unwrap();
+        std::fs::write(rel.join("distribute.json"), "{\"version\": \"3.7.0\"}").unwrap();
+        let old = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_650_000_000);
+        std::fs::File::options().write(true).open(rel.join("distribute.json")).unwrap().set_modified(old).unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "update": {"source": "C:/既定の置き場"}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm = |role: &str| {
+            json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": role, "マスタ編集": "編集可", "rev": 1}]})
+                .to_string()
+        };
+        std::fs::write(share.join("access_permissions.json"), perm("開発者")).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in
+            ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversions"]
+        {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let (st, v) = lot.handle_body("GET", "/api/update/settings", "", b"", &down).expect("Python が起きていなくても窓が答える");
+        assert_eq!(
+            (st, v["source"].clone(), v["masters"]["dir"].clone()),
+            (200, json!("C:/既定の置き場"), json!(share.to_string_lossy())),
+            "{v}"
+        );
+        assert_eq!(
+            (v["who"]["login"].clone(), v["who"]["role"].clone(), v["who"]["canRelease"].clone()),
+            (json!(login), json!("開発者"), json!(true))
+        );
+        assert_eq!(lot.update_settings(), Some(v), "更新の係・配布の画面が読む答えも同じ");
+        // 参照先の更新の置き場を窓が書く → 次の答えに効く（「;」の候補は字のまま）
+        let (st, _) = lot
+            .handle_body("PUT", "/api/settings/update.source", "", r#"{"value": " \"D:/a\" ; E:/b ", "base_rev": 0}"#.as_bytes(), &down)
+            .unwrap();
+        assert_eq!(st, 200);
+        assert_eq!(lot.update_settings().unwrap()["source"], "D:/a;E:/b");
+        // 確かめる・写す（裏の糸）→ 進み具合 → 写した物は元の更新時刻
+        let body = json!({"from": rel, "parent": work.join("new"), "name": "LotScope", "copy": true}).to_string();
+        let (st, v) = lot.handle_body("POST", "/api/release/place/check", "", body.as_bytes(), &down).unwrap();
+        assert_eq!((st, v["mode"].clone(), v["files"].clone()), (200, json!("copy"), json!(2)), "{v}");
+        assert_eq!(lot.handle_body("GET", "/api/release/place/progress", "", b"", &down).unwrap().1, json!({"state": "idle"}));
+        lot.release.hold(true);
+        let (st, v) = lot.handle_body("POST", "/api/release/place/move", "", body.as_bytes(), &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (409, json!("busy")), "写す係は 1 つ: {v}");
+        lot.release.hold(false);
+        let (st, v) = lot.handle_body("POST", "/api/release/place/move", "", body.as_bytes(), &down).unwrap();
+        assert_eq!((st, v["started"].clone()), (200, json!(true)), "{v}");
+        let end = Instant::now() + Duration::from_secs(30);
+        let p = loop {
+            let (_, p) = lot.handle_body("GET", "/api/release/place/progress", "", b"", &down).unwrap();
+            if p["state"] != "running" || Instant::now() > end {
+                break p;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        assert_eq!((p["state"].clone(), p["files"].clone(), p["totalFiles"].clone()), (json!("done"), json!(2), json!(2)), "{p}");
+        let copied = work.join("new").join("LotScope").join("distribute.json");
+        assert_eq!(std::fs::metadata(copied).unwrap().modified().unwrap(), old, "copy2 と同じく更新時刻を写す");
+        assert!(!work.join("local").join("release_move.json").exists(), "写し終えたら写している印を消す");
+        let (_, v) = lot.handle_body("POST", "/api/release/place/move", "", body.as_bytes(), &down).unwrap();
+        assert_eq!((v["mode"].clone(), v["started"].clone()), (json!("switch"), json!(false)), "写した後は既に置き場: {v}");
+        // Python に任せる: ?engine=python（move も: 製品の Python は写さずに断る）・並びの名前
+        for (m, p) in [
+            ("GET", "/api/update/settings"),
+            ("POST", "/api/release/place/check"),
+            ("POST", "/api/release/place/move"),
+            ("GET", "/api/release/place/progress"),
+        ] {
+            assert!(lot.handle_body(m, p, "engine=python", body.as_bytes(), &down).is_none(), "{p}");
+        }
+        assert!(lot.handle_body("POST", "/api/release/place/check", "", br#"{"name": ["a"], "parent": "x"}"#, &down).is_none());
+        // 門番: 版を置けない人は move を断る（確かめるは門番なし）。だれが（who）も canRelease が偽
+        std::fs::write(share.join("access_permissions.json"), perm("一般ユーザー")).unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/release/place/move", "", body.as_bytes(), &down).unwrap();
+        assert_eq!(
+            (st, v),
+            (
+                403,
+                json!({"error": "配布の置き場を変えられるのは、開発者・メンテナンス者だけです（この PC は「一般ユーザー」）。", "kind": "forbidden"})
+            )
+        );
+        assert_eq!(lot.handle_body("POST", "/api/release/place/check", "", body.as_bytes(), &down).unwrap().0, 200);
+        std::thread::sleep(Duration::from_millis(2100)); // me の覚え（2 秒）が切れるのを待つ
+        assert_eq!(lot.update_settings().unwrap()["who"]["canRelease"], false);
+        // Python が落ちる段（update が字）・窓が同じ字にできない置き場（並び）は Python に尋ねる（main.rs は中身に尋ねる）
+        for up in [json!("x"), json!({"source": ["a"]})] {
+            std::fs::write(&cfg, json!({"master_share": {"dir": share}, "update": up}).to_string()).unwrap();
+            std::fs::write(share.join("path_settings.json"), &doc).unwrap();
+            assert!(lot.update_settings().is_none(), "{up}");
+        }
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "update": {"source": 12}}).to_string()).unwrap();
+        assert_eq!(lot.update_settings().unwrap()["source"], "12", "str(12)");
         let _ = std::fs::remove_dir_all(&work);
     }
 

@@ -13,7 +13,7 @@
 同じ置き場を書くかを見る（製品では、印をたどる係は窓の 1 つ）。
 
 版 3.85.0 から、同じ場面で画面（GET /）・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree の答えも取る（"reads"。
-desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。版 3.87.0 から GET /api/sources も。版 3.89.0 から GET /api/settings（参照先の項目）も。スケジュールの元に場所がある場面の
+desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。版 3.87.0 から GET /api/sources も。版 3.89.0 から GET /api/settings（参照先の項目）も。版 3.95.0 から GET /api/update/settings（更新の置き場・だれが・マスタの置き場）も。スケジュールの元に場所がある場面の
 設備の木は尋ねない（Python は CM3 へ読みに行く。窓は Python に任せる）。
 """
 import json
@@ -31,7 +31,7 @@ sys.path.insert(0, str(PROGRAM))
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 
-SERVES = "lotlist,lists,access,presence,ui_state,bundle"
+SERVES = "lotlist,lists,access,presence,ui_state,bundle,release"
 NAMES = ("path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "conversions", "shift_patterns")
 
 
@@ -458,7 +458,7 @@ def ask(s, follows):
     return answer, after, reads
 
 
-READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings")
+READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings", "/api/update/settings")
 
 
 def page_reads(c, bundle, tree, mirrors):

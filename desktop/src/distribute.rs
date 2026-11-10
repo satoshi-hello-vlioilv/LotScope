@@ -23,7 +23,7 @@ use serde_json::{json, Value};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-/// だれが（Python の /api/update/settings の who）。
+/// だれが（/api/update/settings の who。版 3.95.0 から窓が答える: release_place::settings_answer）。
 #[derive(Debug, Clone, Default)]
 pub struct Who {
     pub login: String,

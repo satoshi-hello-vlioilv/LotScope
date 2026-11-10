@@ -1098,6 +1098,73 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   自分の物と見ない・seed も書き込みと 1 本にまとめる（同じ係の糸は待つ）・中身の読めない錠は戻さない。試験は `master_store::tests`（3 件）と
   `tests/test_master_share.py` の SameProcess（3 件）。どれも直す前に落ちた。
 
+### 段 3 の 12 歩目: 更新と配布の流れを縦に閉じる（GET /api/update/settings と配布の置き場の 3 本）— 版 3.95.0
+
+採点（`tools/ui-proposals/2026-11-port-next2.json`。画面に関係のない改良の決まり・1 回）の 1 位 **C**（70.6 点）に、採点の指摘（fixes の 1〜8）を入れて作った。
+fixes の 9〜12 はスケジュール（D）、13 はマスタの置き場の読む道（B）を移すときに入れる物で、この版では持ち越す。
+
+- 窓（`desktop/src/release_place.rs`・`Lot::release_route`・`Lot::update_settings`）: GET /api/update/settings・POST /api/release/place/check・move・GET progress。
+  材料は窓の束の材料（`bundle::Inputs`。Python が居なくても読める）。
+  * update/settings: source は効いている設定の update.source（`Inputs::update_source`: path_settings.effective を全部の項目で通した後の値を `str(… or "")`。
+    「;」の候補も字のまま）、who は窓の me の login・pc・flags.role・`canRelease and not revoked`、me を決められないときは Python の except と同じ形
+    （login・pc・role が空・canRelease が偽・error に理由。置き場は読む）、masters.dir は束の place.shareDir（引っ越しの印をたどった後の置き場。手元だけなら空）。
+  * main.rs が Python に尋ねていた 7 か所（更新の係 updater の check・配布の画面 /__desktop/release・place・distribute・masters・recommend・remove）は
+    `update_settings(&lot, backend)` にし、窓が組めない形だけ中身に尋ねる。Python が起きていなくても更新を確かめ、配布の操作が 503 にならない。
+  * plan: 同じ所・中は Python の Path.resolve(strict=False)＋os.path.normcase と同じ解き方（POSIX は posixpath.realpath〈3.13〉と同じく道を 1 つずつたどって
+    記号リンクを解く。canonicalize は使わない）。Windows は abspath・normpath の字で整えるだけ（junction・8.3 の短い名前は解かない＝それを含む道どうしは
+    Python と違いうる。残す差）。Path.exists・is_dir・iterdir は Python 3.13 と同じく「無い」の誤り（ENOENT・ENOTDIR・EBADF・ELOOP・WinError 21・123・1921）
+    だけを偽にし、ほかの誤り（名前が長すぎる・権限）は Python が落ちる形として任せる。相対の道は Python の今のフォルダ（中身のフォルダ）から見る。
+    check_name（使えない字・制御文字・末尾の点と空白・予約名・120 字）・has_release（3 階層・iterdir を読み切る・どこで誤っても偽）・_tree_size（os.walk と同じ:
+    記号リンクのフォルダに入らない・stat できないファイルは数えない）を写した。
+  * 写す係（Mover）: プロセスに 1 つ。progress の形（state・src・dest・files・totalFiles・done・total・started・elapsed・finished・error）も同じ。
+    shutil.copy2 と同じく中身・更新時刻（と触れた時刻）・権限を写す（Linux の std::fs::copy は更新時刻を写さない。同じ手で時刻を付けてから権限）。
+    一時フォルダは `.名前.copying-<pid>-<秒>`、失敗したら片付ける。写している最中に窓を閉じた残り物は、この PC の作業場所の印 `release_move.json` を見て
+    次に開いたときに消す（印の無いほかの PC の一時フォルダは消さない）。同じ置き場を 2 つの PC が写すと、先に名前を付け替えた方が置き場になり、後の方は
+    空でない置き場を消せずに失敗して自分の写しを片付ける（Python と同じ。誤りの字は `[Errno n] 理由: '道'`）。
+  * 門番は `_release_place_gate` と同じ順と言葉（権限を読めない 503 unavailable → 切断 403 revoked → 版を置けない 403 forbidden〈区分の字〉→ 参照先を書けない
+    403 forbidden〈マスタ編集の字〉）。check・progress は門番なし。本文は get_json(force=True, silent=True) or {}（`master_rows::py_body`）、from・parent・name は
+    `str(b.get(k) or "")`、copy は「is not False」（0・"false"・null は写す）。
+  * 写す係を 2 つ動かさない: 窓は `sidecar.rs` の SERVES に **release** を名乗り、Python は名乗られたら /api/release/place/move で写さずに 409 で断る
+    （進み具合は窓の係が答えるので、Python が写すと画面は写し終える前に参照先を書き換える）。?engine=python の move も Python が断る形になる。
+- Python に任せる形: ?engine=python（4 本とも）・束を組めない（update/settings。move の門番は「権限を読めない」で窓が断る）・update の段が表でない／値を重ねる段が
+  表でない（Python は落ちる）・update.source が並び・表・i64 に入らない整数・参照先が窓の読めない字／共有にまだ無い・本文の値が並びや表（Python は repr の字）・
+  読みの割れる数（NaN・大きな整数）・表でない真の本文（500）・Path.exists などが「無い」でない誤りで落ちる形（名前が 255 バイトを超えるなど）。
+- 評価関数: `cargo test --test release_parity`（← `tests/release_place_oracle.py`。Linux 6 場面〈確かめる・写す・門番・権限を読めない・2 つの PC・読めないファイル〉
+  87 歩・写し終えるまで見た歩 5・任せる歩 12。Windows は読めないファイルの場面を除く）で、答え・断る言葉・写し終えた後の進み具合・終わった後のフォルダの中身
+  （中身・大きさ・更新時刻・権限）を Python と突き合わせ、写しかけが残らないことも見る。GET /api/update/settings は `page_parity`（束の 44 場面で Python と同じ。
+  `settings_oracle.py` の reads に足した）。`lot::tests::the_window_answers_update_and_release_place`（Python が居ない形・参照先を窓が書くと効く・写す・忙しい・
+  門番・engine=python・Python が落ちる段）・`release_place::tests`・`tests/test_release_place.py`（名乗られたら Python は写さない）・自己診断の
+  「更新の置き場と、だれがは窓が答え、Python と同じ答え」。窓をわざと崩して（resolve を外す・更新時刻を写さない・門番の順を変える）落ちることを確かめて戻した。
+- 作った後の採点（1 回・61.4 点。`scratchpad/built-rel` の場面）で見つけた割れ 4 つを直した（決まりどおり採点し直さず、割れの形を突き合わせに足した）:
+  (1) 上のフォルダが根のときの dest の字（/・/// で窓は //name、// で /name、Windows の C: で C:\name）: 字でつないでいた所を `release_place::join_for`
+  （posixpath.join・ntpath.join）と `py_path_for`（PureWindowsPath の splitroot・_parse_path・字の組み方を Python 3.13 と同じに。UNC の根・//server・
+  ドライブだけ・a:b の先頭に .）にし、事例の表（22 の上のフォルダ × 2 つの名前 × POSIX と Windows の決まり＝88 件。`release_place_oracle.py --tables`）で
+  突き合わせる。(2) 誤りの字: 一時フォルダを作れないとき道の末尾に / が付いていた（いちばん上の rel が空のとき tmp そのもの）・写す途中の誤りが道 1 つだった。
+  OSError の str と同じ形を組む部品（`py_oserror`・`py_repr`〈引用符・\ と制御文字・印字できない字の逃がし〉）にし、copy2 の道は Python と同じ
+  （開けない元・先は 1 つ、写す途中は「元 -> 先」〈何も写せずに失敗したときは copyfileobj へ移って道なし。容量切れは必ず 2 つ〉、時刻・権限は先）。
+  mkdir は Path.mkdir(parents=True, exist_ok=True) と同じく失敗した段の道。事例の表（7 つの errno × 12 の道の組＝84 件）で突き合わせる。
+  (3) 名前付きパイプ（Linux）: 窓は開いて止まり、以後の move がずっと 409・一時フォルダが残った。shutil.copyfile と同じく開く前に os.stat（先をたどる）で
+  名前付きパイプを見て「`道` is a named pipe」で失敗にし、写しかけを片付ける（ソケットは開けずに ENXIO、装置は Python と同じく読んで写す）。
+  (4) Windows の「同じ所・中」: 字で整えるだけだったのを、ntpath.realpath と同じく整えた後に在る所までを canonicalize で解いて（\\?\・\\?\UNC\ を外す）
+  残りを字でつなぐ形にした（`resolve_by_prefix`）。無い・届かない（2・3・21・53・67・123・161・1005）でない誤り（権限・輪）は答えず Python に任せる
+  （move は製品では Python が断る＝置けない側）。壊れた記号リンクは ntpath の _readlink_deep が先をたどるが窓はたどらない（残す差）。Linux の試験でも
+  この解き方を記号リンクの道で posixpath.realpath と比べる（`release_place::tests`）。Windows だけのコード（`#[cfg(not(unix))]` の名前付きパイプの見分け）は
+  窓全体を Linux から Windows 向けに組めないので、release_place.rs を小さな作業用クレートへ写して `cargo clippy --target x86_64-pc-windows-msvc
+  --all-targets -- -D warnings` で確かめた（公開の関数が `Result<_, ()>` を返す指摘を直した）。
+  落とし穴も直した: 名乗り（who）を権限の表のある 4 人（開発者・メンテナンス者〈部分的編集可〉・一般ユーザー・切断された開発者）と権限を読めない形で
+  突き合わせる。写している最中に閉じた後、次に開いたとき共有に届かないと印だけ消えて一時フォルダが残った: 印を並び（`{"tmps": […]}`）にし、届かない物は
+  残して次に開いたとき・次に写すときに片付ける。突き合わせは 6 場面・87 歩 → Linux 11 場面・178 歩（写し終えるまで見た歩 5 → 11・任せる歩 12 → 15）と
+  事例の表 172 件（道のつなぎ方 88・OSError の字 84）になった。verify.py update の「Python を起こさない形」は足さなかった: 窓の自己診断は中身（Python）と突き合わせる項目が多く、中身が
+  起きない版は「起動できない版」として控えへ戻す流れ（通しの 4）に入るので、Python 無しで更新が入ることを通しで分けて見られない。
+  Python が居ない形は `lot::tests::the_window_answers_update_and_release_place`（更新の係・配布の画面が読む答え・写す・門番）で見る。
+- CI（root でない利用者）で見つけた事: 手元の container は root なので権限 000 のファイルも読め、oracle の listing が CI でだけ PermissionError で落ちた。
+  読めない・書けない形の答えも手元では一度も突き合わせていなかった。listing は読めないファイルを印（<読めない>）にし、権限の場面（読めないファイル・読めない
+  フォルダ・書けない上のフォルダ・中を読めない置き場）を足した。root でないときは Permission denied の答えを 3 歩以上比べたことを試験が確かめる（手元で
+  利用者を作って流し 8 歩・窓は直す所なし。root では写せる答えどうしを比べる。Linux 12 場面・root 187 歩／root でない 186 歩と任せる 16 歩）。
+  同じ PR の Windows の CI では oracle の時刻そろえ（os.utime の follow_symlinks は Windows に無い）で落ちた。渡さない形に分け、読み通して直した:
+  根の上のフォルダ（/・//）の確かめは POSIX の場面にし（Windows の根・ドライブ・UNC の字は事例の表で両方の決まりを突き合わせる）、ドライブだけの道（C:x。
+  Python はドライブごとの今のフォルダで解く）は窓が任せる歩、Windows で「無い」とみなす誤りの番号に CPython が ENOENT へ読み替える物を足した。Windows では流せていない。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

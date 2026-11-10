@@ -154,6 +154,20 @@ class ApiTests(unittest.TestCase):
             r = self.c.post("/api/release/place/move", json=self.body(name="a:b"))
         self.assertEqual(r.status_code, 400)
 
+    def test_python_does_not_copy_when_the_window_serves_release(self):
+        """版 3.95.0: デスクトップ版で窓が配布の置き場を受け持つ（TPA_SHELL_SERVES に release）ときは、Python は写さずに断る
+        （写す係はプロセスに 1 つ。進み具合は窓の係が答えるので、Python が写すと画面は写し終える前に参照先を書き換える）。
+        確かめる・進み具合は答える（窓が任せる形〈?engine=python〉）"""
+        env = {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists,access,presence,ui_state,bundle,release"}
+        with mock.patch.dict("os.environ", env), self.gate(True):
+            r = self.c.post("/api/release/place/move", json=self.body())
+            self.assertEqual((r.status_code, r.get_json()["kind"]), (409, "busy"))
+            self.assertEqual(self.c.post("/api/release/place/check", json=self.body()).get_json()["mode"], "copy")
+            self.assertEqual(self.c.get("/api/release/place/progress").get_json(), {"state": "idle"})
+        self.assertFalse((self.tmp / "rel" / "New").exists(), "写していない")
+        with self.gate(True):          # 名乗らない窓（前の版）・ブラウザの開発の形では今までどおり写す
+            self.assertEqual(self.c.post("/api/release/place/move", json=self.body()).get_json()["started"], True)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -45,7 +45,9 @@ pub const PROTOCOL: u64 = 1;
 /// presence・ui_state: 心拍と利用状況・使用の履歴の 7 本・画面の設定の控え（版 3.71.0。src/presence.rs。書き手は窓の 1 つ。Python は心拍で書かない）。
 /// bundle: 設定の束を窓が組み、マスタの置き場の引っ越しの印をたどる（版 3.84.0。src/bundle.rs。Python は印をたどらず、この PC の覚え
 /// master_share.json を読み直すだけ: master_store.follow_moved）。
-pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle"];
+/// release: 更新の置き場（GET /api/update/settings）と配布の置き場を写す係（版 3.95.0。src/release_place.rs。写す係はプロセスに 1 つなので、
+/// Python は /api/release/place/move で写さない: routes/settings.py）。
+pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);
 /// 止めたあと、本当に終わったと見えるまで待つ長さ（その間に入れ替えを始めない）。

@@ -114,7 +114,12 @@ def release_place_check():
 
 @bp.post("/api/release/place/move")
 def release_place_move():
-    """置き場を写し始める（写さないときは確かめるだけ）。→ {mode, dest, started}。進み具合は /progress。"""
+    """置き場を写し始める（写さないときは確かめるだけ）。→ {mode, dest, started}。進み具合は /progress。
+    デスクトップ版で窓が配布の置き場を受け持つ（shell_serves に release。版 3.95.0。desktop/src/release_place.rs）ときは写さない:
+    写す係はプロセスに 1 つで、進み具合は窓の係が答える（ここで写すと、画面は写し終える前に参照先を書き換える）"""
+    from .. import shell_serves
+    if "release" in shell_serves():
+        return error("配布の置き場を写すのはデスクトップ版の窓の係です。窓の画面からやり直してください。", 409, "busy")
     denied = _release_place_gate()
     if denied:
         return denied
