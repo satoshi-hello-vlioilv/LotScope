@@ -144,6 +144,13 @@ fn normcase(s: &str) -> String {
     }
 }
 
+/// Windows（Win32）は道の各段の末尾の空白と「.」を黙って削る（「 」は空の名前・「a. 」は「a」になる）。Python は字のまま
+/// os.stat に渡し、窓は今のフォルダにつないでから見るので、削られた後の道が食い違う（版 3.95.0 の Windows の CI で、上のフォルダ
+/// 「" "」を Python は「届きません」、窓は今のフォルダとして通した）。そういう段を含む道は、窓は答えず Python に任せる
+fn win_trims(p: &str) -> bool {
+    p.split(['\\', '/']).any(|seg| seg != "." && seg != ".." && (seg.ends_with(' ') || seg.ends_with('.')))
+}
+
 /// 道を字のまま Python の今のフォルダ（cwd）から見た道にする（Path(相対).is_dir() は Python の今のフォルダから見る）
 fn at(cwd: &Path, p: &str) -> PathBuf {
     let q = Path::new(p);
@@ -480,6 +487,9 @@ pub fn plan(src: &str, parent: &str, name: &str, copy: bool, cwd: &Path) -> Opti
         return Some(json!({"ok": false, "problem": "置く場所（上のフォルダ）を入れてください。"}));
     }
     let base = py_path(&up);
+    if cfg!(windows) && win_trims(&base) {
+        return None; // Win32 が段の末尾の空白・「.」を削る道（win_trims）。Python に任せる
+    }
     if !py_is_dir(&at(cwd, &base)).ok()? {
         return Some(
             json!({"ok": false, "problem": format!("上のフォルダに届きません: {up}（場所・BOX の同期・権限を確かめてください）")}),
@@ -493,6 +503,9 @@ pub fn plan(src: &str, parent: &str, name: &str, copy: bool, cwd: &Path) -> Opti
     out.insert("parent".into(), json!(base));
     let s = unquote(src);
     let srcp = (!s.is_empty()).then(|| py_path(&s));
+    if cfg!(windows) && srcp.as_deref().is_some_and(win_trims) {
+        return None;
+    }
     let src_dir = match srcp.as_deref() {
         Some(p) => py_is_dir(&at(cwd, p)).ok()?,
         None => false,
@@ -1021,6 +1034,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn win32_trimmed_parts_are_found() {
+        for p in [" ", "  ", "a ", "a.", "C:\\x\\ ", "\\\\srv\\share\\d.\\e", "x/y ./z"] {
+            assert!(win_trims(p), "{p:?}");
+        }
+        for p in ["", ".", "..", "a", "C:\\x\\y", "..\\a", "./a", "\\\\srv\\share\\d", "a b\\c"] {
+            assert!(!win_trims(p), "{p:?}");
+        }
     }
 
     #[test]

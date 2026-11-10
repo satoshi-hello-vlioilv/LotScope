@@ -356,7 +356,8 @@ def probe_scenario():
              S(BOSS, "POST", C, A("@ROOT/pfile", "x")),
              S(BOSS, "POST", C, A("@ROOT/rel", "LotScope", src="@ROOT/rel/LotScope/3.6.0/..")),
              S(BOSS, "POST", C, A("@ROOT/rel/LotScope", "sub", src="@ROOT/rel/LotScope/../LotScope")),
-             S(BOSS, "POST", C, A(' "  " ', "x")),
+             # 空白だけの上のフォルダ: Windows（Win32）は段の末尾の空白を削るので、窓は答えず Python に任せる（release_place::win_trims）
+             *([] if os.name == "nt" else [S(BOSS, "POST", C, A(' "  " ', "x"))]),
              S(BOSS, "POST", C, A("@ROOT/new/../rel/../link", "LotScope")),
              S(BOSS, "POST", C, A("@ROOT/new", "LotScope", src="@ROOT/rel/LotScope/")),
              S(BOSS, "POST", C, A("@ROOT/new", "linked/")),
@@ -370,7 +371,9 @@ def probe_scenario():
              {"sync": {"src": SRC, "dest": "@ROOT/new/occupied/x/y"}}]
     nul = [S(BOSS, "POST", C, A("@ROOT/new\u0000x", "x")),
            S(BOSS, "POST", C, A("@ROOT/new", "x", src="@ROOT/rel\u0000")),
-           S(BOSS, "POST", M, A("@ROOT/new\u0000x", "x"))]
+           S(BOSS, "POST", M, A("@ROOT/new\u0000x", "x")),
+           *([S(BOSS, "POST", C, A(' "  " ', "x")), S(BOSS, "POST", C, A("@ROOT/new. ", "x")),
+              S(BOSS, "POST", C, A("@ROOT/new", "x", src="@ROOT/rel/LotScope. "))] if os.name == "nt" else [])]
     return {"name": "採点者: 確かめる・名乗り・写す", "setup": setup_probe, "revoke": CUT, "steps": steps, "delegates": nul}
 
 
