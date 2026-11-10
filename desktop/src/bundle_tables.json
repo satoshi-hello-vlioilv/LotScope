@@ -8,6 +8,13 @@
  "defaultUnwind": "上",
  "equipGroups": {
   "maxRules": 12,
+  "ruleOpLabels": {
+   "contains": "を含む",
+   "equals": "と同じ",
+   "prefix": "で始まる",
+   "regex": "に当たる（正規表現）",
+   "suffix": "で終わる"
+  },
   "ruleOps": [
    "prefix",
    "suffix",

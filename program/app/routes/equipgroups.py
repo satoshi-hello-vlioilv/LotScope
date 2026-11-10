@@ -5,7 +5,7 @@ from ..web import jsonify, request
 
 from ..services import equip_groups
 from ..services.identity import normalize_part
-from .common import base_rev, bp, can_write, master_call, master_repo
+from .common import base_rev, bp, can_write, find_row, master_call, master_repo
 from .dashboard import equipment_seen
 
 
@@ -56,7 +56,13 @@ def equipgroups_update(item_id):
     base = base_rev()
     body = dict(request.get_json(force=True) or {})
     body.pop("base_rev", None)
-    return master_call(lambda: master_repo().equip_group_update(item_id, equip_groups.clean_row(body, partial=True), base) and _listing())
+
+    def run():
+        # 設備・ルール・除く設備の一部だけが来たら、残りは今の行の値で組む（版 3.94.0。clean_row の old）
+        repo = master_repo()
+        old = find_row(repo.equip_groups(), item_id) or {}
+        return repo.equip_group_update(item_id, equip_groups.clean_row(body, partial=True, old=old), base) and _listing()
+    return master_call(run)
 
 
 @bp.delete("/api/masters/equipgroups/<int:item_id>")

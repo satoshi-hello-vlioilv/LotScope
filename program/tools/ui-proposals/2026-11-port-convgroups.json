@@ -206,5 +206,28 @@
    "checks": "cargo fmt・clippy -D warnings・build・test --lib 112 passed・conversions_write_parity ok・ruff・compileall・Python 723 tests OK",
    "note": "指摘 3（窓が書いた表を Python の TableSource が引く確かめ）は、書くファイルの中身が Python と 1 字ずつ同じことを parity が突き合わせているので、同じファイルを Python が読む形として足さなかった"
   }
+ },
+ "built_394": {
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の作った後の 1 回だけの採点。版 3.94.0 の設備グループの 4 本）。画面に出ない改良なので画像は無く、読んで・動かして測った事実で付けた",
+  "seen": "【だれが・何を】案を作っていない採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、読んで・動かして確かめた事実で付けた。リポジトリの中で変えたのはこのファイルの built_394 だけ・git の操作はしていない。cargo は debug だけ（release は組んでいない）。読んだ物: git status・git diff（routes/equipgroups.py・services/equip_groups.py・dashboard.rs の equipment_seen と equip_tree_answer・master_rows.rs の py_int_text・conversions_write.rs の order_text・bundle.rs の group_rules／group_views の pub・bundle_tables.json の ruleOpLabels・lot.rs の equipgroups_route と the_window_answers_equipment_groups・selftest.js の 10b''・version.py）、新しい desktop/src/equipgroups_write.rs（455 行）の全部・desktop/tests/equipgroups_write_parity.rs・program/tests/equipgroups_oracle.py、比べる相手の Python（routes/dashboard.equipment_seen・routes/common.find_row・master_repository の SPECS・_check_row・equip_group_*・_clean・services/identity.normalize_part）。【流した物】cargo test --locked --test equipgroups_write_parity（ok・4.5 秒）・cargo test --locked --lib -- equipgroups equipment_groups（3 passed: routes_and_ids_are_like_python・rows_are_written_like_python・lot::tests::the_window_answers_equipment_groups）・cargo test --locked --test page_parity（ok。設備の木〈equip_tree_answer が equipment_seen を使う形〉）・python -m unittest tests.test_dashboard_link tests.test_version tests.test_bundle_tables（32 OK。test_partial_put_keeps_the_rest を含む）・uvx ruff@0.15.20 check program（All checks passed。この PC の ruff は 0.16.8 で、変えていないファイルにも UP009 などを出すので版の違い）・node --check selftest.js。【足した場面】リポジトリを変えずに、TPA_PYTHON を /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-eg/py.sh（equipgroups_oracle.py の呼び出しを my_oracle.py に差し替える）にして、元の 33 場面に M1〜M17 の 17 場面・約 110 歩を足し、本物の窓の道（Lot::handle_body → equipgroups_route）で流した（置き場は scratch の run/ に残し、cmpfiles.py で share・base/data・local/master_cache の JSON を全部比べた。probe1〜3.log）。M1 一部だけの直しの組み合わせ 22 歩（rules＋except・except だけ〈数・真偽の設備〉・ルールの無い行に except・rules: null・equipment: null〈400〉・rules と equipment・except と rules: []・equipment と except: null・rules が字・equipment が \"\"〈ルールが残るので通る／残らない行は 400〉・無い id に except だけ〈Python も 404 より先に 400 GroupError〉・無い id に {}〈404〉・名前とまとめ方を同時に重ねる 409・まとめ方だけ「ﾗｲﾝ別」で 409「…グループ「ｃｒ ライン」…」〈直した後の行の字〉・base_rev 2.0／true／\"3.0\"／\" 3 \"）、M2 置き場のルールの字 10 種（JSON でない・重ね〈\" L- \" と \"L-\"〉・知らない op・except が字「X1、X2」・数・除くだけ・値が数 5／1.5・並び・rules が字・鍵が 2 つ〈後ろ勝ち〉・除くが [5, true, 1.0, null, \"\"]・ルール 14 個〈[:12]〉）にそれぞれ一部だけの直し、M3 名前の比べ方 37 歩（Ⅳ号/IV号・straße/STRASSE・ﬁx/FIX・ǆ/Ǆ/ǅ・ı/I・全角空白・\\u2028・\\x85・\\u200b・39 字＋\" い\" を 40 字で切る・ŉ/ʼN・ΐ/Ϊ́・ﾃｽﾄ/テスト・まとめ方「ｸﾞﾙｰﾌﾟ」と空のまとめ方の行・制御字 \\x1f\\x1c・名前 1e16→「1e+16」・1.0・-0.0〈400〉・1e-07・絵文字 45 字のまとめ方）、M4 表示順の字 14 種（٣・+5・-3・0x10・1e3・1.0・全角空白・１_２・-1.9・1e18・9223372036854775807・false・PUT の \"  \"・null）、M5 作業実績・設備マスタの名前（5・true・1.5・\" ＣＲ1 \"・0・false・表示しない行・並びの重なり・旧い列名つきの行・\"５\"・全角空白）、M10 置き場の行の欠け（列の無い行・名称が数 5・知らない列）、M11 錠と一部だけ、M12 手元だけで一部だけ、M13 共有にまだ無い置き場で一部だけ。窓が答えた 258 歩はすべて、状態・本文〈断る言葉・選べる設備の from と n・matched・sets〉・共有と data/ の equipment_groups.json が Python と同じだった（データ元の設備の列から数えた答え 171）。窓が任せた歩はすべて Python が答えられる形で安全側（名前 1e400・対の無い代用字〈Python は 400 UnicodeEncodeError〉・表示順 9.3e18 と 9223372036854775808・置き場の id が 1.0／\"22\"／true・M6〜M8 と M14〜M17 の下の形）。【指摘の入り方（3.94.0 の分 7 個）】1 equipment_seen を 1 つの係に: 入った（dashboard::equipment_seen を設備の木と一覧が使い、from〈作業実績・設備マスタ・データ元の名前〉と n〈データ元の数え cells の和〉を持つ。データ元はダッシュボードの数え方〈clean_panel → cx.answer〉で、写している最中の元は飛ばす）。2 正規表現は Python: 入った（足す・直すのルールにも、置き場の行にも正規表現があれば 4 本とも任せる）。3 部分 PUT の Python の不具合を先に直した: 入った（clean_row(old=)・find_row・版 3.94.0・RELEASE・test_partial_put_keeps_the_rest。窓は同じ形を写し、M1・M2・M11〜M13 も同じ答え）。4 clean_row の字: 入った。5 一意は normalize_part（NFKC・strip・upper。窓は access::py_key の 1 か所）で直した後の行・言葉は来た字: 入った（M3 の 37 歩が同じ）。6 一覧（group_views・names の足し方・members_in・ruleOps の焼いた表・canEdit・shared・revision）: 入った。7 書いた後の invalidate と突き合わせ: 入った（足したグループが一覧の設定と設備の木に効くことは lot::tests）。【割れ】見つからなかった（答え・断る言葉・共有と data/ の equipment_groups.json）。【割れではないが落とし穴】(a) 共有に作業実績（work_log_files）・設備マスタ・データ元のどれか 1 つでもまだ無いと、窓は一覧・足す・直す・消すを Python に任せる（M6・M7・M14〜M17。写しも data/ も無くても同じ）。Python はそのとき読んだマスタを共有に最初の版として置く。安全側だが、Python が一度も起きていない新しい共有では、設備グループのタブは Python 無しで開けない。(b) 窓は選べる設備を数えるために読む作業実績・設備マスタ・データ元と、断る道・錠で止まる道の設備グループの、この PC の写し（local/master_cache）を置かない。Python は読んだマスタをすべて写す（M8〈直すの誤り〉と M11〈錠〉で equipment_groups.json の写しが Python だけ）。突き合わせの比べる範囲（share・base/data）の外で、これまでの窓の道と同じ扱い。門番が読む tab_access の最初の版も Python だけが置く。(c) 置き場に正規表現のルールの行が 1 つでもあると 4 本とも Python（指摘どおり。正規表現を使う現場では窓の得が出ない）。(d) 窓は選べる設備を書く前に数え、Python は書いた後に数える（設備グループを書いても変わらないので同じ答え）。(e) Python 側の直しで、置き場に今は通らない正規表現（regex_risk に当たる）の行へ「設備だけ」「除くだけ」を直すと、rules_of がルールを空にしてその正規表現が消える（前の版でも同じく消えていた。窓は任せる）。",
+  "scores": {
+   "order": 9,
+   "chunk": 9,
+   "hierarchy": 8,
+   "visual": 9,
+   "steps": 8,
+   "effortless": 8,
+   "intuitive": 8,
+   "form": 9,
+   "place": 9,
+   "layout": 8,
+   "tone": 8
+  },
+  "deductions": [],
+  "total": 84.4,
+  "fixes": [
+   "落とし穴 (a): 共有にまだ無い作業実績・設備マスタ・データ元を、Python がその道で読むときと同じく seed（store.pull）してから数えるか、今のまま任せるかを決め、どちらでも equipgroups_oracle.py に「共有に作業実績だけ無い／設備マスタだけ無い／データ元だけ無い」の 3 場面（GET と POST）を足す（今は場面が無く、任せることも試験に無い）",
+   "落とし穴 (b): 突き合わせのファイルの比べに local/master_cache を入れるかを決める（入れないなら、窓が写しを置かないことを試験の説明に書く）"
+  ]
  }
 }

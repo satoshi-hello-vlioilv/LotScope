@@ -404,6 +404,26 @@ pub(crate) fn next_order(rows: &[Value]) -> Option<String> {
     Some((best + 10).to_string())
 }
 
+/// 表示順の字（Python の `str(int(v))`。読めなければ ""）: 真偽・整数・小数（切り捨て）・字（前後の空白・数字の間の _・Unicode の数字）。
+/// 版 3.94.0 から変換表と設備グループの 1 つ。i64 に入らない数・38 桁を超える字は None（Python の int は桁のまま。窓は答えず任せる）
+pub(crate) fn py_int_text(v: Option<&Value>) -> Option<String> {
+    Some(match v {
+        None | Some(Value::Null | Value::Array(_) | Value::Object(_)) => String::new(),
+        Some(Value::Bool(b)) => (*b as i64).to_string(),
+        Some(Value::Number(n)) => match (n.as_i64(), n.as_f64()) {
+            (Some(i), _) => i.to_string(),
+            (None, Some(f)) if f.is_finite() && f.trunc().abs() < 9.2e18 => (f.trunc() as i64).to_string(),
+            _ => return None,
+        },
+        Some(Value::String(x)) => {
+            if x.chars().filter(|c| crate::pyfmt::digit(*c).is_some()).count() > 38 {
+                return None;
+            }
+            crate::bundle::wide_int_text(x).map(|n| n.to_string()).unwrap_or_default()
+        }
+    })
+}
+
 /// 行の確かめの無い組
 pub(crate) fn no_check(_: &[Value], _: &Map<String, Value>, _: Option<i64>) -> Result<(), MasterError> {
     Ok(())

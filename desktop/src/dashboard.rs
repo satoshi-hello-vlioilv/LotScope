@@ -197,7 +197,7 @@ impl Dash<'_> {
 }
 
 /// グループに入る設備（Python の equip_groups.members_in）
-fn members_in(g: &Value, names: &[String]) -> Vec<String> {
+pub(crate) fn members_in(g: &Value, names: &[String]) -> Vec<String> {
     let test = pivot::compile_rules(g.get("rules"));
     let ex: Vec<String> = arr(g.get("except")).iter().map(|x| normalize_part(&json_str(x))).collect();
     let mine: Vec<String> = arr(g.get("equipment")).iter().map(|x| normalize_part(&json_str(x))).collect();
@@ -1069,22 +1069,39 @@ pub fn sources_answer(conf: &Conf, periods: &Value) -> Option<Value> {
     Some(json!({"items": items, "periods": periods, "egroupSets": sets}))
 }
 
-/// GET /api/dashboard/equip-tree（dashboard_equip_tree・equipment_seen）: 実際に出てくる設備（作業実績の設備 → 設備マスタ → データ元の
-/// 設備の列の値から見分けた設備）と、設備グループのまとめ方ごとの入り方。窓が数えられない元（スケジュール）があれば None（Python に任せる）
-pub fn equip_tree_answer(cx: &Ctx) -> Option<Value> {
-    let mut seen: Vec<(String, String)> = vec![]; // (鍵, 名前)
-    let mut add = |name: &str| {
+/// 実際に出てくる設備（Python の routes/dashboard.equipment_seen。版 3.94.0 から設備の木と設備グループの一覧の 1 か所）→
+/// [{name, from: [どこで見たか], n: 件数（データ元の行の数）}]。known は先に並べる設備とその出どころ（作業実績の設備〈表示しない設備も〉→
+/// 設備マスタ。出どころが空なら from に入れない）。続けて、データ元の設備の列の値から見分けた設備（ダッシュボードの「設備」と同じ見分け方・
+/// 数え方）。名前は前後の空白を除き、同じ名前（NFKC・大文字）は最初の書き方に 1 つ。窓が数えられない元（スケジュール）があれば None
+pub fn equipment_seen(cx: &Ctx, known: &[(String, &str)]) -> Option<Vec<Value>> {
+    let mut seen: Vec<(String, String, Vec<String>, Value)> = vec![]; // (鍵, 名前, 出どころ, 件数)
+    let mut add = |name: &str, from: &str, n: Option<&Value>| {
         let name = strip(name);
         if name.is_empty() {
             return;
         }
         let k = normalize_part(&name);
-        if !seen.iter().any(|(x, _)| *x == k) {
-            seen.push((k, name));
+        let i = match seen.iter().position(|x| x.0 == k) {
+            Some(i) => i,
+            None => {
+                seen.push((k, name, vec![], json!(0)));
+                seen.len() - 1
+            }
+        };
+        let x = &mut seen[i];
+        if !from.is_empty() && !x.2.iter().any(|f| f == from) {
+            x.2.push(from.to_string());
+        }
+        // x["n"] += n or 0（整数どうしは整数。小数が混ざれば小数）
+        if let Some(n) = n.filter(|n| json_truthy(n)) {
+            x.3 = match (x.3.as_i64(), n.as_i64()) {
+                (Some(a), Some(b)) => a.checked_add(b).map(Value::from).unwrap_or_else(|| json!(a as f64 + b as f64)),
+                _ => json!(x.3.as_f64().unwrap_or(0.0) + n.as_f64().unwrap_or(0.0)),
+            };
         }
     };
-    for n in cx.dash().names() {
-        add(&n);
+    for (n, from) in known {
+        add(n, from, None);
     }
     for d in arr(cx.conf.v.get("sources")) {
         if !json_truthy(&d["equipColumn"]) || !json_truthy(&d["place"]) {
@@ -1098,15 +1115,26 @@ pub fn equip_tree_answer(cx: &Ctx) -> Option<Value> {
         if a.get("cells").is_none() {
             continue; // 写している最中・読めない元は飛ばす（Python と同じ）
         }
+        // {c["r"][0]: c["v"][0] for c in cells if len(c["r"]) == 1}（同じ鍵は後ろ）
+        let cells = arr(a.get("cells"));
+        let from = s_or(d.get("name"));
         for k in arr(a["orders"].get(0)) {
             if !json_truthy(k) {
                 continue;
             }
+            let n = cells.iter().rev().find(|c| arr(c.get("r")).len() == 1 && c["r"][0] == *k).and_then(|c| arr(c.get("v")).first());
             let ks = json_str(k);
-            add(&a["labels"][0].get(&ks).map(json_str).unwrap_or(ks));
+            add(&a["labels"][0].get(&ks).map(json_str).unwrap_or(ks), &from, n);
         }
     }
-    let names: Vec<String> = seen.into_iter().map(|(_, n)| n).collect();
+    Some(seen.into_iter().map(|(_, name, from, n)| json!({"name": name, "from": from, "n": n})).collect())
+}
+
+/// GET /api/dashboard/equip-tree（dashboard_equip_tree）: 実際に出てくる設備（equipment_seen。作業実績の設備 → 設備マスタは一覧の設定の
+/// 設備の名前の並び）と、設備グループのまとめ方ごとの入り方。窓が数えられない元（スケジュール）があれば None（Python に任せる）
+pub fn equip_tree_answer(cx: &Ctx) -> Option<Value> {
+    let known: Vec<(String, &str)> = cx.dash().names().into_iter().map(|n| (n, "")).collect();
+    let names: Vec<String> = equipment_seen(cx, &known)?.iter().map(|x| json_str(&x["name"])).collect();
     let sets = cx.equip_tree(&names, "");
     Some(json!({"names": names, "sets": sets}))
 }

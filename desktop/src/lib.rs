@@ -12,6 +12,7 @@ pub mod dashboard;
 pub mod dashboards_write;
 pub mod distribute;
 pub mod equip_write;
+pub mod equipgroups_write;
 pub mod formats_write;
 pub mod formula;
 pub mod home;

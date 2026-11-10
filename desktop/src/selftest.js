@@ -305,6 +305,30 @@
          `${gone.by} ${gone.r.status} / ${preset.by} ${preset.r.status} ${(why(gone).error || "").slice(0, 30)}`);
     }
 
+    // 10b'') 設備グループ（版 3.94.0 から窓が答える: equipgroups_write.rs）: 一覧（選べる設備の出どころと件数も）は Python と同じ答え。
+    //        書く道は書かずに確かめる（無いグループを直すは Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）
+    {
+      const canonG = (v) => Array.isArray(v) ? v.map(canonG) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonG(v[k])])) : v;
+      const a = "/api/masters/equipgroups";
+      let rs, py, same = false;
+      for (const until = Date.now() + 15000; ;) {      // 最初の版を置く途中・データ元の最初の写しの途中は尋ね直す（10b' と同じ）
+        py = await get(a + "?engine=python"); rs = await get(a);
+        same = rs.r.status === py.r.status && py.by === "python";
+        try { same = same && JSON.stringify(canonG(JSON.parse(rs.text))) === JSON.stringify(canonG(JSON.parse(py.text))); } catch (_) { same = false; }
+        if ((same && rs.by === "shell") || Date.now() > until) break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      ok("設備グループの一覧は窓が答え、Python と同じ答え（選べる設備の出どころと件数も）", rs.by === "shell" && same,
+         `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}`);
+      const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
+      const gone = await get(a + "/987654321", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "x" }) });
+      ok("設備グループを書く道も窓が受ける（無いグループを直すを Python と同じ言葉で断る。書けない人は門番が断る）",
+         gone.by === "shell" && (gone.r.status === 403 && why(gone).kind === "forbidden"
+           || gone.r.status === 404 && why(gone).error === "id=987654321 が見つかりません。"),
+         `${gone.by} ${gone.r.status} ${(why(gone).error || "").slice(0, 30)}`);
+    }
+
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
     //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる
     {
