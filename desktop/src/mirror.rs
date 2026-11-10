@@ -450,6 +450,11 @@ impl DbMirror {
         self.reconfigure_quiet("", interval, stale);
     }
 
+    /// 最初の周回（写し）が済んだか（糸が動いていなければ済んだと見る。Python の wait_first(0) と同じ）
+    pub fn first_done(&self) -> bool {
+        !*self.started.lock().unwrap() || self.wake.0.lock().unwrap().first_done
+    }
+
     /// 起動して最初の周回（写し）が済むまで、timeout まで待つ（済んだか、糸が動いていなければすぐ）
     pub fn wait_first(&self, timeout: Duration) {
         if *self.started.lock().unwrap() {

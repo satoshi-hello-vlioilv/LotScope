@@ -123,7 +123,7 @@ const ALIGNS: [&str; 3] = ["left", "center", "right"];
 const VALIGNS: [&str; 3] = ["top", "middle", "bottom"];
 const NSIZES: [&str; 3] = ["s", "l", "xl"];
 const STYLES: [&str; 7] = ["", "round", "grad", "outline", "soft", "shadow", "bold"];
-const FMT_CHOICES: [(&str, &[&str]); 8] = [
+const FMT_CHOICES: [(&str, &[&str]); 10] = [
     ("labels", &["auto", "none", "top", "inside", "both"]),
     ("xdate", &["auto", "md", "mdw", "d", "dw", "ymd", "ym", "w"]),
     ("xrot", &["auto", "0", "45", "90"]),
@@ -138,6 +138,9 @@ const FMT_CHOICES: [(&str, &[&str]); 8] = [
         ],
     ),
     ("kpi", &["num", "bar", "gauge"]),
+    // 数字のパネルの置き方（版 3.92.0。Python の KPI_PAIRS・KPI_METAS）
+    ("kpair", &["side", "stack"]),
+    ("kmeta", &["top", "row"]),
 ];
 // aggregate.AGGS・COUNTS・SHOWS
 const AGGS: [&str; 19] = [
@@ -526,6 +529,12 @@ fn agg_clean(m: &Tree, column: &str) -> R<Map<String, Value>> {
     }
     if let Some(d) = float_of(get(m, "dec"))? {
         out.insert("dec".into(), json!(d.round_ties_even().clamp(0.0, 6.0) as i64));
+    }
+    if let Some(Tree::Str(u)) = get(m, "utext") {
+        out.insert("utext".into(), json!(take(strip(u), 12)));
+    }
+    if matches!(get(m, "hideExpr"), Some(Tree::Bool(true))) {
+        out.insert("hideExpr".into(), json!(true));
     }
     Ok(out)
 }

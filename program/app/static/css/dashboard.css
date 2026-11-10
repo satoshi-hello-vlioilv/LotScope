@@ -49,7 +49,9 @@ body.db-dragging{cursor:grabbing;user-select:none}
 .dp-kpi.is-row .dp-num{flex:0 0 auto}
 .db-pm{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1000 auto}
 .db-pb{flex:1;min-height:0;min-width:0;position:relative;overflow:hidden;transition:opacity .12s}
-.db-pb.is-busy{opacity:.55}
+/* 引き直している間は中身を薄く（版 3.92.0 から: 添え書き〈待ちの理由の字が入る〉は薄くしない。字のコントラストを 4.5 以上に保つ） */
+.db-pb.is-busy > :not(.dp-kpi):not(.dp-kbar){opacity:.55}
+.db-pb.is-busy :is(.dp-kpi,.dp-kbar) > :not(.dp-kmeta){opacity:.55}
 .db-pf{flex:0 0 auto;font-size:11.5px;color:var(--h-meta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:2px}
 .db-pbtn{height:24px;padding:0 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:inherit;font-size:12px;font-weight:700;color:var(--h-meta);cursor:pointer;flex:0 0 auto}
 .db-pbtn:hover{border-color:var(--h-input);color:var(--h-input)}
@@ -151,6 +153,7 @@ body.db-dragging{cursor:grabbing;user-select:none}
   background:var(--surface);border:1px solid var(--pop-line);border-radius:var(--radius);box-shadow:0 10px 30px var(--pop-shadow);overflow:hidden;overflow:clip}
 .db-scrim{position:fixed;left:0;right:0;top:calc(var(--header-h) + 54px);bottom:0;z-index:19;background:rgba(238,242,245,.9)}
 .db-p.is-focus{z-index:20;box-shadow:0 12px 36px rgba(12,34,48,.22)!important}
+.db-ftag{position:fixed;z-index:20;margin:0;padding:2px 9px;font-size:12px;color:#6a4b10;background:#fff8ea;border:1px solid #e8cf98;border-radius:5px;white-space:nowrap}
 .db-editor-pane[hidden]{display:none}
 .de-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line-soft);background:var(--surface-1)}
 .de-head b{font-size:14px;white-space:nowrap}
@@ -1025,3 +1028,51 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .de-pane .de-palg.is-mono .de-pals{grid-template-columns:repeat(5,minmax(0,1fr))}
 .de-pane .de-palg.is-mono .de-pal{white-space:nowrap;padding:0 6px 0 5px}
 .de-pane .de-palg.is-mono .de-pal span i:nth-child(n+5){display:none}
+
+/* ---- 待っている様子（版 3.92.0。3 回目の採点で決めた F3）: 上の縁の細い進みの線・添え書きの段の理由と秒・道具の行の空きの進み ---- */
+.db-p.is-wait::before{content:"";position:absolute;left:0;top:0;height:3px;width:30%;border-radius:3px;background:#3f6591;z-index:3;animation:db-wline 1.6s ease-in-out infinite}
+@keyframes db-wline{0%{left:0;width:12%}50%{left:35%;width:35%}100%{left:88%;width:12%}}
+@media (prefers-reduced-motion:reduce){.db-p.is-wait::before{animation:none;width:100%;opacity:.55}}
+.db-wst{display:inline-flex;align-items:center;gap:5px;margin-left:8px;color:#3f6591;white-space:nowrap}
+.db-wst::before{content:"";flex:0 0 6px;height:6px;border-radius:50%;background:#3f6591}
+.db-wbar{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;margin-left:12px;font-size:12px;color:#3b4652;white-space:nowrap;overflow:hidden}
+.db-wbar[hidden]{display:none}
+.db-wbar:not([hidden])+.db-sp{flex:0 0 8px}
+.db-wpg{flex:0 0 110px;height:6px;border-radius:3px;background:#e3e9ee;position:relative;overflow:hidden}
+.db-wpg::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--w);background:#3f6591}
+.db-wnames{display:flex;gap:6px;min-width:0;overflow:hidden}
+/* 札は縮めない（理由と秒を札の外へあふれさせない。作った後の採点し直し: 1536 で「（数え直し」で切れた）。長いパネルの名前だけ 9 字ほどで切る */
+.db-witem{flex:0 0 auto;display:inline-flex;padding:1px 8px;border-radius:10px;background:#eef2f5;color:#24384d;white-space:nowrap}
+.db-wn{max-width:9em;overflow:hidden;text-overflow:ellipsis}
+.db-witem[hidden]{display:none}
+.db-wmore{flex:0 0 auto}
+.de-kcap{margin:2px 0 4px;font-size:12px;color:#3b4652;font-weight:600}
+
+/* ---- 数字のパネルで 2 つの値を並べる（版 3.92.0。fmt.kpair）: 左右は仕切りの線・上下は数の右端をそろえる ---- */
+.dp-kpi.is-pair{gap:6px}
+.dp-kpair{display:grid;min-width:0}
+.dp-kpair.is-side{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
+.dp-kpair.is-side .dp-kv{min-width:0;padding:0 18px;overflow:hidden}
+.dp-kpair.is-side .dp-kv:first-child{padding-left:0}
+.dp-kpair.is-side .dp-kv+.dp-kv{border-left:1px solid var(--line,#d9e1e8)}
+.dp-kpair.is-stack{grid-template-columns:max-content max-content;column-gap:12px;row-gap:2px;align-items:baseline;justify-content:start}
+.dp-kpair.is-stack .dp-kv{display:contents}
+.dp-kpair.is-stack .dp-num{text-align:right}
+.dp-kv>small{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-kpair .dp-num small{margin-left:.3em}
+.dp-kpair .dp-num{display:inline-block}      /* 数の幅を測れるように（単位を仕切りの線に付けない） */
+[data-al="center"] .dp-kpi.is-pair .dp-kpair.is-stack{justify-content:center}
+[data-al="right"] .dp-kpi.is-pair .dp-kpair.is-stack{justify-content:end}
+
+/* ---- ④ 置き方の見本の札（版 3.92.0）: 3 列 × 2 段。選んだ札は濃い青の枠 ---- */
+.de-kthumbs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 8px}
+.de-kth{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px;border:1px solid #c9d4de;border-radius:8px;background:#fff;font:inherit;color:#24384d;cursor:pointer}
+.de-kth:hover:not(:disabled){border-color:#3f6591}
+.de-kth.on{border-color:#3f6591;box-shadow:0 0 0 2px #c9dbef}
+.de-kth:disabled{opacity:.45;cursor:not-allowed}
+.de-kth>small{font-size:12px;white-space:nowrap}
+.de-kmini{width:100%;height:40px;border-radius:4px;background:#f3f6f9;display:flex;align-items:center;justify-content:center;gap:6px}
+.de-kmini b{font-size:15px;line-height:1}.de-kmini i{font-style:normal;font-size:11px;color:#5d6b78}
+.de-kth-kpair-def .de-kmini i{font-size:11px;align-self:flex-end;margin-bottom:9px}
+.de-kth-kpair-side .de-kmini b+b{padding-left:8px;border-left:1px solid #b9c5d0}
+.de-kth-kpair-stack .de-kmini,.de-kth-kmeta-def .de-kmini,.de-kth-kmeta-top .de-kmini{flex-direction:column;gap:1px}

@@ -14,6 +14,8 @@
 桁（dec。値ごと。版 3.50.1）: 小数の桁 0〜6。値は丸めず、見せる字だけをその桁にそろえる（表・グラフ・Excel の表示形式。Excel のセルの書式と同じ考え）。
 計算（expr。値ごと。版 3.50.0）: 数え終えたセルの値に四則演算を当てる（÷1000・×100・(値−10)×2 など。services/num_expr.py）。
     小計・総計のセルにも同じ式を当てる。表し方（割合・累計など）は、計算した後の値から決める（apply_expr → apply_show）
+単位（utext。値ごと。版 3.92.0）: 数の後ろに付ける字（t・本 など。12 字まで）。空の字はこの値に単位を付けない。無ければパネルの書式に従う。
+見出しの式（hideExpr。値ごと。版 3.92.0）: true なら計算の式（［値÷1000］）を列の見出しに出さない。見せる字だけで、名前（系列の色・書式の鍵）は変えない
 """
 from __future__ import annotations
 
@@ -36,6 +38,7 @@ LABEL = {"count": "件数", "lots": "ロット数", "sum": "合計", "avg": "平
          "iqr": "四分位範囲", "pct": "%点", "mode": "最頻値", "distinct": "種類の数"}
 EXPR_MAX = 60
 DEC_MAX = 6
+UTEXT_MAX = 12
 SHOW_LABEL = {"pct_total": "総計に対する%", "pct_row": "行の計に対する%", "pct_col": "列の計に対する%", "cum": "累計", "diff": "前との差", "rank": "順位"}
 
 
@@ -48,7 +51,7 @@ def _num(v):
 
 
 def clean(m, has_column):
-    """画面から来た値 → {agg, column, p?, lsl?, usl?, show?, expr?}。has_column(列) → その列があるか。合わなければ ValueError（理由の字）"""
+    """画面から来た値 → {agg, column, p?, lsl?, usl?, show?, expr?, dec?, utext?, hideExpr?}。has_column(列) → その列があるか。合わなければ ValueError（理由の字）"""
     agg = str(m.get("agg") or "count")
     if agg not in AGGS:
         agg = "count"
@@ -78,6 +81,11 @@ def clean(m, has_column):
     dec = _num(m.get("dec"))
     if dec is not None:
         out["dec"] = int(min(DEC_MAX, max(0, round(dec))))
+    ut = m.get("utext")
+    if isinstance(ut, str):                 # 値ごとの単位の字（版 3.92.0。空はこの値に単位を付けない。無ければパネルの書式に従う）
+        out["utext"] = ut.strip()[:UTEXT_MAX]
+    if m.get("hideExpr") is True:          # 計算（expr）を列の見出しに出さない（版 3.92.0。見せる字だけ。系列の鍵は変えない）
+        out["hideExpr"] = True
     return out
 
 

@@ -85,6 +85,15 @@ add(*lay(L(P(fmt={"colors": {"\x1c": "#000000", "\u3000": "#111111", "a": "#2222
 add(*lay(L(P(fmt={"ymin": "inf", "ymax": "nan", "target": "1e400", "refs": [{"value": "1e3"}]}))))
 add(*lay(L(P(fmt={"ymin": "１"}))), py=True)
 # ---- 値・段・条件・期間・計算列
+# 数字のパネルの置き方（版 3.92.0）: 決まった字だけ・既定（主と添え・数の下）は書かない
+add(*lay(L(P(visual="kpi", fmt={"kpair": "side", "kmeta": "top"}), P(visual="kpi", fmt={"kpair": "stack", "kmeta": "row"}),
+           P(visual="kpi", fmt={"kpair": "main", "kmeta": "bottom"}), P(visual="kpi", fmt={"kpair": 1, "kmeta": None}))))
+# 値ごとの単位・見出しの式（版 3.92.0）: 字だけ・前後の空白・12 字まで・空は残す・true だけ
+add(*lay(L(P(body={"rows": [{"column": "a"}], "measures": [
+    {"agg": "sum", "column": "重量", "expr": "÷1000", "utext": " t ", "hideExpr": True},
+    {"agg": "lots", "utext": "", "hideExpr": "true"}, {"agg": "count", "utext": 5, "hideExpr": 1},
+    {"agg": "avg", "column": "w", "utext": "あいうえおかきくけこさしすせそ", "hideExpr": False}, {"agg": "n", "column": "w", "utext": None},
+    {"agg": "sum", "column": "w", "expr": "x+", "utext": "\u3000本\u3000", "hideExpr": True}]}))))
 add(*lay(L(P(body={"rows": [{"column": "a", "part": "ym", "width": 2.5}, {"column": ""}, {"column": 5}, {"column": "b"}, {"column": "c"}],
                    "cols": [{"column": "d", "part": 3}], "sub": 1, "grand": 0, "chartAt": "2", "labels": None,
                    "measures": [{"agg": "sum", "column": "重量", "expr": "x/1000", "dec": "2.5", "show": "cum"},

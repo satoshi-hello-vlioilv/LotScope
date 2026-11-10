@@ -1875,6 +1875,89 @@
 },
 {
 "fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"kpi\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"fmt\": {\"kpair\": \"side\", \"kmeta\": \"top\"}}, {\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"kpi\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"fmt\": {\"kpair\": \"stack\", \"kmeta\": \"row\"}}, {\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"kpi\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"fmt\": {\"kpair\": \"main\", \"kmeta\": \"bottom\"}}, {\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"kpi\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"fmt\": {\"kpair\": 1, \"kmeta\": null}}]}",
+"want": {
+"error": "パネル「p4」と「a」が重なっています。"
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"a\"}], \"measures\": [{\"agg\": \"sum\", \"column\": \"重量\", \"expr\": \"÷1000\", \"utext\": \" t \", \"hideExpr\": true}, {\"agg\": \"lots\", \"utext\": \"\", \"hideExpr\": \"true\"}, {\"agg\": \"count\", \"utext\": 5, \"hideExpr\": 1}, {\"agg\": \"avg\", \"column\": \"w\", \"utext\": \"あいうえおかきくけこさしすせそ\", \"hideExpr\": false}, {\"agg\": \"n\", \"column\": \"w\", \"utext\": null}, {\"agg\": \"sum\", \"column\": \"w\", \"expr\": \"x+\", \"utext\": \"　本　\", \"hideExpr\": true}]}}]}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [
+{
+"id": "a",
+"x": 0,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "a",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "sum",
+"column": "重量",
+"expr": "÷1000",
+"utext": "t",
+"hideExpr": true
+},
+{
+"agg": "lots",
+"utext": ""
+},
+{
+"agg": "count"
+},
+{
+"agg": "avg",
+"column": "w",
+"utext": "あいうえおかきくけこさし"
+},
+{
+"agg": "n",
+"column": "w"
+},
+{
+"agg": "sum",
+"column": "w",
+"utext": "本",
+"hideExpr": true
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+}
+]
+},
+"{\"panels\": [{\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"sum\", \"column\": \"重量\", \"expr\": \"÷1000\", \"hideExpr\": true, \"utext\": \"t\"}, {\"agg\": \"lots\", \"utext\": \"\"}, {\"agg\": \"count\"}, {\"agg\": \"avg\", \"column\": \"w\", \"utext\": \"あいうえおかきくけこさし\"}, {\"agg\": \"n\", \"column\": \"w\"}, {\"agg\": \"sum\", \"column\": \"w\", \"hideExpr\": true, \"utext\": \"本\"}], \"rows\": [{\"column\": \"a\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"a\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 0, \"y\": 0}], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
 "in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"none\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"a\", \"part\": \"ym\", \"width\": 2.5}, {\"column\": \"\"}, {\"column\": 5}, {\"column\": \"b\"}, {\"column\": \"c\"}], \"cols\": [{\"column\": \"d\", \"part\": 3}], \"sub\": 1, \"grand\": 0, \"chartAt\": \"2\", \"labels\": null, \"measures\": [{\"agg\": \"sum\", \"column\": \"重量\", \"expr\": \"x/1000\", \"dec\": \"2.5\", \"show\": \"cum\"}, {\"agg\": \"avg\", \"column\": \"\", \"expr\": \"x\"}, {\"agg\": \"pct\", \"column\": \"w\", \"p\": 2.5}, {\"agg\": \"cpk\", \"column\": \"w\", \"lsl\": 5, \"usl\": 1}, {\"agg\": \"cpk\", \"column\": \"w\", \"usl\": \"3\"}, {\"agg\": \"sum\", \"column\": \"w\", \"expr\": \"x+\"}, {\"agg\": \"bad\"}, {\"agg\": \"lots\", \"column\": \"x\"}]}, \"filters\": [{\"column\": \" 工程 \", \"op\": \" = \", \"value\": {\"b\": 1, \"a\": 2}}, {\"column\": \"x\", \"op\": \"in\", \"value\": \"[\\\"a\\\"]\", \"key\": \"month\"}, {\"column\": \"\", \"op\": \"=\"}, {\"column\": \"y\", \"op\": \"contains\", \"value\": null}, {\"column\": \"z\", \"op\": \"=\", \"value\": false}, {\"column\": \"t\", \"op\": \"=\", \"value\": [1.5, true, null, \"字\"]}, \"x\", {\"column\": \"c0\", \"op\": \"=\"}, {\"column\": \"c1\", \"op\": \"=\"}, {\"column\": \"c2\", \"op\": \"=\"}, {\"column\": \"c3\", \"op\": \"=\"}, {\"column\": \"c4\", \"op\": \"=\"}, {\"column\": \"c5\", \"op\": \"=\"}, {\"column\": \"c6\", \"op\": \"=\"}, {\"column\": \"c7\", \"op\": \"=\"}, {\"column\": \"c8\", \"op\": \"=\"}, {\"column\": \"c9\", \"op\": \"=\"}, {\"column\": \"c10\", \"op\": \"=\"}, {\"column\": \"c11\", \"op\": \"=\"}, {\"column\": \"c12\", \"op\": \"=\"}, {\"column\": \"c13\", \"op\": \"=\"}, {\"column\": \"c14\", \"op\": \"=\"}, {\"column\": \"c15\", \"op\": \"=\"}, {\"column\": \"c16\", \"op\": \"=\"}, {\"column\": \"c17\", \"op\": \"=\"}, {\"column\": \"c18\", \"op\": \"=\"}, {\"column\": \"c19\", \"op\": \"=\"}, {\"column\": \"c20\", \"op\": \"=\"}, {\"column\": \"c21\", \"op\": \"=\"}, {\"column\": \"c22\", \"op\": \"=\"}, {\"column\": \"c23\", \"op\": \"=\"}, {\"column\": \"c24\", \"op\": \"=\"}], \"search\": \"  検索  \", \"period\": {\"column\": \" @workday \", \"kind\": \"days\", \"n\": \"30\"}, \"basis\": \"cal\", \"equips\": [\" CR1 \", \"CR1\", \"\", null, 5, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"], \"calc\": {\"formulas\": {\"\\u001c\": \"1\", \"a\": \"\\u001c\", \"b\": \"1+1\", \"  \": \"2\", \"c\": 5}, \"names\": {\"a\": \"名\", \"b\": 5}, \"own\": [\"b\", \"a\", \"zz\", 5], \"equips\": {\"HOT\": {\"formulas\": {\"x\": \"2\"}}, \"\": {\"formulas\": {\"y\": \"1\"}}, \"Z\": 5}}, \"sort\": \"desc\", \"top\": \"7\", \"esplit\": \"facet\", \"eorder\": [\"L-1\", \"L-1\", \"CR1\"], \"egroup\": {\"mode\": \"panel\", \"rest\": \"other\", \"groups\": [{\"name\": \" A \", \"members\": [\"CR1\", \"CR2\"]}, {\"name\": \"\"}, \"x\"]}}]}",
 "want": {
 "ok": [

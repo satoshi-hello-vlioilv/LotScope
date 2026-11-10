@@ -1149,7 +1149,10 @@
   /* ---- 答え → 表の形（行・列の葉。小計・総計を入れる）と表（集計表・ダッシュボードのパネルで同じ。版 3.37.0 で lotlist-pivot.js から移した） ---- */
   function buildModel(d, s) {
     const nr = d.dims.rows.length, nc = d.dims.cols.length, M = d.measures.length, split = dayAt(d) === 1;
-    const cellMap = new Map(d.cells.map((x) => [x.r.join(SEP) + "\u001e" + x.c.join(SEP), x.v]));
+    // セルの鍵は段の数と字（版 3.92.0。字の join だけだと、段の頭が空〈総計・行の全体〉と 1 段目が空の値〈「-」〉の [""] が同じ鍵になり、
+    // 総計が「-」のまとまりの小計で上書きされた）
+    const key = (r, c) => `${r.length}:${r.join(SEP)}\u001e${c.length}:${c.join(SEP)}`;
+    const cellMap = new Map(d.cells.map((x) => [key(x.r, x.c), x.v]));
     const lab = (i, k) => (d.labels[i] || {})[k] ?? k;
     const leaves = (n, off, axis) => {
       if (!n) return [{ type: "all", path: [] }];
@@ -1170,7 +1173,7 @@
       return out;
     };
     const rows = leaves(nr, 0, "r"), cols = leaves(nc, nr, "c");
-    const value = (r, c, j) => { const v = cellMap.get(r.path.join(SEP) + "\u001e" + c.path.join(SEP)); return v ? v[j] : null; };
+    const value = (r, c, j) => { const v = cellMap.get(key(r.path, c.path)); return v ? v[j] : null; };
     return { nr, nc, M, rows, cols, value, lab, rowName: (r) => r.path.map((k, i) => lab(i, k)).join(" / "), colName: (c) => c.path.map((k, i) => lab(nr + i, k)).join(" / ") };
   }
   /** names: {measName, dimName}（値・段の見せる名前。一覧は列の表示名を使う） */
@@ -1202,6 +1205,7 @@
     const body = rows.map((r, i) => {
       let th = "";
       if (r.type === "grand") th = `<th colspan="${Math.max(1, nr)}" class="pv-gt">総計</th>`;
+      else if (r.type === "other") th = `<th colspan="${Math.max(1, nr)}" class="pv-ot" title="上位に入らなかった ${r.n} 行をまとめた値">その他（${r.n} 行）</th>`;   // 版 3.92.0
       else if (r.type === "sub") th = `<th colspan="${nr}" class="pv-st">${esc(m.rowName(r))} 小計</th>`;   // 段の数に関わらず全段にまたがらせる（列がずれない）
       else if (!nr) th = "<th>（全体）</th>";
       else for (let lv = 0; lv < nr; lv++) {
@@ -1210,7 +1214,7 @@
         if (!cont) th += `<th rowspan="${lv === nr - 1 ? 1 : span(i, lv)}">${esc(m.lab(lv, r.path[lv]))}</th>`;
       }
       const tds = cols.map((c) => d.measures.map((_, j) => { const v = m.value(r, c, j); return `<td class="${c.type === "grand" ? "pv-gtc" : c.type === "sub" ? "pv-stc" : ""}">${num(v, j)}</td>`; }).join("")).join("");
-      return `<tr class="${r.type === "grand" ? "is-grand" : r.type === "sub" ? "is-sub" : ""}">${th}${tds}</tr>`;
+      return `<tr class="${r.type === "grand" ? "is-grand" : r.type === "sub" ? "is-sub" : r.type === "other" ? "is-other" : ""}">${th}${tds}</tr>`;
     }).join("");
     return `<thead>${head}</thead><tbody>${body}</tbody>`;
   }
@@ -1246,9 +1250,11 @@
       ctx.rowColor(名前) があれば、1 系列の棒を行ごとの色で塗る（ダッシュボード: 同じ種類はどのパネルでも同じ色） */
   /** 書式（fmt の桁・単位）で数を字にする（ダッシュボードの数字・合わせた表）。fmt が空なら fmt と同じ見せ方（丸めない） */
   function numText(v, fm) {
-    if (!fm || (fm.digits == null && !fm.unit && !fm.num)) return fmt(v);
+    // 値ごとの単位（版 3.92.0。measFmt が suffix に入れる）: 数の後ろに付ける（数の無い所には付けない）
+    const tail = fm && fm.suffix && v != null && v !== "" ? fm.suffix : "";
+    if (!fm || (fm.digits == null && !fm.unit && !fm.num)) return fmt(v) + tail;
     const keep = F; F = fm;
-    try { return nf(v); } finally { F = keep; }
+    try { return nf(v) + tail; } finally { F = keep; }
   }
   /** 表のセル・数字の字（HTML）: 表示形式の色（[赤] など）か、書式の字の色（fm.ncolor）を付ける */
   function numHtml(v, fm) {
@@ -1260,10 +1266,17 @@
   /** 値の桁（版 3.50.1。値ごとの dec）を書式に重ねる: 桁を決めた値は、その桁で書く（書式の桁・表示形式コードを決めていれば、そちらが先）。
       千・万の自動の割り算はせず（表の数は割らずに並べる）、書式で千・万を決めていればそれに従う */
   function measFmt(fm, m) {
-    const f = fm || {};
-    if (!m || m.dec == null || f.digits != null || f.num) return f;
-    return { ...f, digits: m.dec, unit: f.unit && f.unit !== "auto" ? f.unit : "none" };
+    const f0 = fm || {};
+    const f = !m || m.dec == null || f0.digits != null || f0.num ? f0 : { ...f0, digits: m.dec, unit: f0.unit && f0.unit !== "auto" ? f0.unit : "none" };
+    // 値ごとの単位（版 3.92.0。m.utext）: パネルの書式の単位の字（表示形式の "t" など）を外し、この値の字を付ける。空の字は単位なし
+    // 値ごとに単位を決めた値は、パネルの表示形式（"t" や小数の桁を含む書式コード）を引き継がず、値ごとの桁（m.dec。無ければ数に合わせる）で書く
+    // （重量は 1 桁の t・ロット数は整数で単位なし、が値の段だけで決まる。パネルの小数 1 桁がロット数に .0 を付けていた）
+    if (!m || m.utext == null) return f;
+    const { num: _n, numUi: _u, ...rest } = f0;
+    return { ...rest, digits: m.dec ?? f0.digits, unit: f0.unit && f0.unit !== "auto" ? f0.unit : "none", suffix: m.utext };
   }
+  /** 列の見出しに出す値の名前（版 3.92.0）: 計算の式を出さない値（m.hideExpr）は式を外す。系列の色・書式の鍵は measLabel のまま */
+  const measHead = (m, label) => measLabel(m && m.hideExpr ? { ...m, expr: undefined } : m, label);
   /** ctx.fmt（版 3.39.0）があれば、描く間だけ書式を当てる（数値ラベル・日付の形・桁・単位・縦軸・基準線・名前ごとの色） */
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
@@ -1280,5 +1293,5 @@
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
     try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, measHead, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();
