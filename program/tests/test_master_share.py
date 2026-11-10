@@ -713,6 +713,71 @@ class LockRaces(Base):
         self.assertEqual(doc["revision"], start + 45)
 
 
+class SameProcess(Base):
+    """同じプロセスの中の糸どうし（版 3.94.0 の CI）。起動の直後に並んだ道が、共有にまだ無いマスタの最初の版（seed）を置くとき、
+    同じ係のほかの糸の生きた錠を「自分が残した錠」と見てどけると、持っていた方の保存が途中で断られ（MASTER_WRITE_ABORT）、
+    外すときに戻した空の錠が名乗りの無い「ほかの PC が保存中（あと約20秒）」として残った。"""
+
+    def test_seed_does_not_take_a_live_lock_of_the_same_role(self):
+        a, b = self.env.store("PC-A", login="me", root="pc1"), self.env.store("PC-A", login="me", root="pc1")
+        self.assertEqual(a.holder, b.holder, "同じ作業場所の同じ係")
+        box = {}
+
+        def mutate(rows, stamp):
+            def seed():
+                try:
+                    b._pull("conversions")
+                    box["b"] = "seeded"
+                except MasterLocked:
+                    box["b"] = "locked"
+            th = threading.Thread(target=seed)
+            th.start()
+            th.join(10)
+            rows.append({"id": 1})
+        a.write("equipment_groups", mutate)               # 前は b が錠をどけ、ここで MasterLocked（保存が途中で断られた）
+        self.assertEqual(box["b"], "locked", "生きた錠はどけない")
+        self.assertFalse((self.env.share / "master.lock.json").exists(), "錠は残らない")
+        b._pull("conversions")
+        self.assertTrue((self.env.share / "conversions.json").exists(), "錠が外れたら最初の版を置ける")
+        self.env.put_lock("PC-A", login="me", seconds=15, instance=a.holder)   # 自分が落ちて残した錠は今までどおり引き継ぐ
+        a.write("equipment_groups", lambda rows, stamp: rows.append({"id": 2}))
+
+    def test_threads_of_one_store_wait_for_each_other_to_seed(self):
+        a = self.env.store("PC-A", login="me", root="pc1")
+        box = {}
+
+        def mutate(rows, stamp):
+            th = threading.Thread(target=lambda: box.update(b=a._pull("conversions")))
+            th.start()
+            time.sleep(0.2)
+            box["th"] = th
+            rows.append({"id": 1})
+        a.write("equipment_groups", mutate)
+        box["th"].join(10)
+        self.assertTrue(box.get("b"), "保存の後に最初の版を置く（断って写しで続けない）")
+        self.assertTrue((self.env.share / "conversions.json").exists())
+        self.assertFalse((self.env.share / "master.lock.json").exists())
+
+    def test_release_does_not_leave_an_empty_lock_behind(self):
+        """外すとき、どけた錠が自分の物でなく中身もまだ無い（ほかが作って書く前）なら戻さない。戻した空の錠はだれの物でもない"""
+        py = self.env.store("PC-A", login="me", root="pc1")
+        rs = MasterStore(self.env.base, local_root=self.env.tmp / "pc1", settings={"dir": str(self.env.share)},
+                         who={"pc": "PC-A", "login": "me"}, role="rs")
+        lock = self.env.share / "master.lock.json"
+        token = rs._acquire_lock()
+        lock.unlink()
+        lock.write_bytes(b"")                             # 自分の錠がどけられ、ほかが作った直後（まだ書いていない）
+        rs._release_lock(token)
+        self.assertFalse(lock.exists(), "空の錠を戻して残さない")
+        py._pull("ui_defaults")                           # 前はここで「ほかの PC がマスタを保存中です（あと約20秒）」
+        self.assertTrue((self.env.share / "ui_defaults.json").exists())
+        token = rs._acquire_lock()
+        lock.unlink()
+        self.env.put_lock("PC-B", seconds=15)            # 書き終えたほかの錠は元へ戻す
+        rs._release_lock(token)
+        self.assertEqual(json.loads(lock.read_text(encoding="utf-8"))["holder_pc"], "PC-B")
+
+
 class Api(Base):
     def client(self, store):
         app = create_app({"MASTER_STORE": store})

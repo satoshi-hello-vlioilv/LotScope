@@ -52,6 +52,11 @@ MASTER_MARKERS = ("equipment_master.json", "roll_master.json", "path_settings.js
 HISTORY_KEEP = 10                     # この PC が覚えておく、前の置き場の数
 LOCK_TRIES = 5                  # 錠を取る試み（外された直後・切れた錠をどけた直後に取り直す回数）
 LOCK_MOVE_BUDGET_SEC = 0.5      # 錠をどける（名前を変える）のを、Windows でほかが開いている間に待つ長さ
+# このプロセスのどこかの糸が、いま持っている錠の印（取れたら入れ、外したら出す）。同じ係の錠でも、ここにある錠は「自分が落ちて
+# 残した錠」ではなく生きた錠なので、引き継がずに待つ（版 3.94.0 の CI。起動の直後に並んだ道が最初の版を置くとき、互いの生きた錠を
+# どけ合い、保存が途中で断られ〈MASTER_WRITE_ABORT〉、空の錠が残った。窓の master_store.rs の LIVE と同じ）
+_LIVE_TOKENS = set()
+_LIVE_GUARD = threading.Lock()
 LOCK_TTL_DEFAULT = 20.0
 # 共有フォルダがあればいつも共有するマスタ（設定 master_store.masters に書かなくても。全員で 1 つでないと決まりが PC ごとにずれる物）
 SHARED_ALWAYS = frozenset({"path_settings", "access_permissions", "app_seeds", "ui_defaults", "work_log_files", "display_formats",
@@ -521,18 +526,20 @@ class MasterStore:
         """共有にマスタが無いとき、手元の写し（無ければ同梱の data/）を最初の版として置く。錠を取って行う
         （書き込みの途中なら、もう持っている錠のまま）。"""
         have_lock = have_lock or getattr(self._where, "held", False)   # exclusive() の中は、もう錠を持っている
-        token = None if have_lock else self._acquire_lock()
-        try:
-            src = self._share_file(name)
-            if _stat_sig(src) is not None:
-                return
-            seed = self._mirror(name) if self._mirror(name).exists() else self._initial(name)
-            doc = _as_doc(_read_json(seed)) if seed.exists() else _doc([])
-            doc.update(revision=max(1, doc["revision"]), updated_at=_iso(_now()), updated_by=dict(self.who))
-            _write_json_atomic(src, doc)
-            log.info("MASTER_SEED name=%s from=%s rows=%d", name, seed, len(doc["rows"]))
-        finally:
-            self._release_lock(token)
+        # この PC の書き込みと 1 本にまとめる（保存中のほかの糸の錠に当たって断らず、終わるのを待って置く。版 3.94.0）
+        with contextlib.nullcontext() if have_lock else self._write_lock:
+            token = None if have_lock else self._acquire_lock()
+            try:
+                src = self._share_file(name)
+                if _stat_sig(src) is not None:
+                    return
+                seed = self._mirror(name) if self._mirror(name).exists() else self._initial(name)
+                doc = _as_doc(_read_json(seed)) if seed.exists() else _doc([])
+                doc.update(revision=max(1, doc["revision"]), updated_at=_iso(_now()), updated_by=dict(self.who))
+                _write_json_atomic(src, doc)
+                log.info("MASTER_SEED name=%s from=%s rows=%d", name, seed, len(doc["rows"]))
+            finally:
+                self._release_lock(token)
 
     # ---------------------------------------------------------- 錠（共有フォルダの master.lock.json）
     def _read_lock(self):
@@ -593,6 +600,11 @@ class MasterStore:
         pc, login = self.who.get("pc", ""), self.who.get("login", "")
         if not pc or not login or not lock:
             return False
+        token = lock.get("token")
+        if isinstance(token, str):
+            with _LIVE_GUARD:
+                if token in _LIVE_TOKENS:
+                    return False                   # このプロセスのほかの糸がいま持っている生きた錠（どけると、その保存が途中で断られる）
         mine = (self.holder, self.instance) if self.role == "py" else (self.holder,)   # 係の無い錠は Python の物（版 3.63.0 まで）
         return lock.get("holder_pc") == pc and lock.get("holder_login") == login and lock.get("holder_instance") in mine
 
@@ -636,6 +648,8 @@ class MasterStore:
         check = self._read_lock()
         if not check or check.get("token") != token:
             raise self._locked(check, 2)
+        with _LIVE_GUARD:
+            _LIVE_TOKENS.add(token)
         return token
 
     @staticmethod
@@ -667,8 +681,11 @@ class MasterStore:
                 got = None                          # 書きかけ・壊れた錠
             if got == expected_token or (got is None and str(expected_token).startswith("broken:")):
                 return "ok"                         # 思っていた錠（壊れた錠をどけるときは、どけた物も壊れた錠なら同じ物）
-            with contextlib.suppress(FileExistsError):
-                self._create_exclusive(p, raw)      # 取り違えた。元の持ち主へ戻す（その間に別の PC が取っていればそのまま）
+            if got is not None:
+                with contextlib.suppress(FileExistsError):
+                    self._create_exclusive(p, raw)  # 取り違えた。元の持ち主へ戻す（その間に別の PC が取っていればそのまま）
+            # 中身の読めない錠（ほかが「無ければ作る」で作り、まだ書いていない）は戻さない: 作った方はどけられた方へ書き、確かめで断るので、
+            # 戻した錠はだれの物でもなく、名乗りの無い「ほかの PC が保存中」として錠の長さのあいだ皆を止める（版 3.94.0 の CI）
             return "other"
         finally:
             with contextlib.suppress(OSError):
@@ -680,6 +697,8 @@ class MasterStore:
             return
         if self._take_away(token) == "error":
             log.warning("マスタの錠を消せませんでした（%s秒で切れます）", self.lock_ttl)
+        with _LIVE_GUARD:
+            _LIVE_TOKENS.discard(token)             # 消せずに残った錠は、落ちて残した錠と同じく引き継げる
 
     def lock_status(self):
         if self.share_dir is None:

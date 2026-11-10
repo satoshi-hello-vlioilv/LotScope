@@ -251,6 +251,26 @@ pub(crate) fn has_wide_int(b: &[u8]) -> bool {
     false
 }
 
+/// この窓（このプロセス）のどこかの糸が、いま持っている錠の印（取れたら入れ、外したら出す）。
+/// 同じ係の錠でも、ここにある錠は「自分が落ちて残した錠」ではなく生きた錠なので、引き継がずに待つ（版 3.94.0 の CI。
+/// 起動の直後に並んだ道が最初の版を置くとき、互いの生きた錠をどけ合い、保存が途中で断られ、空の錠が残った）
+static LIVE: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+fn live(token: &str, add: bool) {
+    let mut g = LIVE.lock().unwrap_or_else(|e| e.into_inner());
+    let set = g.get_or_insert_with(HashSet::new);
+    if add {
+        set.insert(token.to_string());
+    } else {
+        set.remove(token);
+    }
+}
+
+fn is_live(token: Option<&Value>) -> bool {
+    let Some(t) = token.and_then(Value::as_str) else { return false };
+    LIVE.lock().unwrap_or_else(|e| e.into_inner()).as_ref().is_some_and(|s| s.contains(t))
+}
+
 /// 錠の印（無い・null は印なし。Python の lock.get("token") が None）
 fn token_of(v: Option<&Value>) -> Option<Value> {
     v.filter(|x| !x.is_null()).cloned()
@@ -624,10 +644,11 @@ impl Store {
         MasterError::Locked { pc, login, remaining, same_pc: same }
     }
 
-    /// 持ち主が自分（この PC のこのアプリのこの係）か。名乗れない PC は自分と言わない
+    /// 持ち主が自分（この PC のこのアプリのこの係）が落ちて残した錠か。名乗れない PC は自分と言わない。
+    /// この窓のほかの糸がいま持っている錠（生きた錠）は自分の物と言わない（どけると、持っている方の保存が途中で断られる）
     fn is_mine(&self, lock: &Map<String, Value>) -> bool {
         let (pc, login) = (&self.cfg.pc, &self.cfg.login);
-        if pc.is_empty() || login.is_empty() || lock.is_empty() {
+        if pc.is_empty() || login.is_empty() || lock.is_empty() || is_live(lock.get("token")) {
             return false;
         }
         let inst = lock.get("holder_instance");
@@ -686,6 +707,7 @@ impl Store {
         if check.as_ref().and_then(|c| c.get("token")) != Some(&json!(token)) {
             return Err(self.locked(check.as_ref(), 2));
         }
+        live(&token, true);
         Ok(token)
     }
 
@@ -709,7 +731,11 @@ impl Store {
                 if same {
                     Away::Ok
                 } else {
-                    let _ = create_exclusive(&p, &raw); // 取り違えた。元の持ち主へ戻す
+                    // 取り違えた。元の持ち主へ戻す。ただし中身の読めない錠（ほかが「無ければ作る」で作り、まだ書いていない）は戻さない:
+                    // 作った方はどけられた方へ書き、確かめで断るので、戻した錠はだれの物でもなく、錠の長さのあいだ皆を止める（版 3.94.0 の CI）
+                    if got.is_some() {
+                        let _ = create_exclusive(&p, &raw);
+                    }
                     Away::Other
                 }
             }
@@ -724,6 +750,7 @@ impl Store {
             if self.take_away(Some(&json!(t))) == Away::Error {
                 eprintln!("マスタの錠を消せませんでした（{}秒で切れます）", self.cfg.lock_ttl);
             }
+            live(t, false); // 消せずに残った錠は、落ちて残した錠と同じく引き継げる
         }
     }
 
@@ -793,7 +820,8 @@ impl Store {
         if have {
             go("")
         } else {
-            self.with_lock(go)
+            // この窓の書き込みと 1 本にまとめる（保存中のほかの糸の錠に当たって断り、最初の版を Python に任せない）
+            self.serialized(|| self.with_lock(go))
         }
     }
 
@@ -904,4 +932,136 @@ pub fn next_id(rows: &[Value]) -> i64 {
         .max()
         .unwrap_or(0)
         + 1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 一時の置き場（共有・写し・作業場所）。同じ作業場所の係 role の書く係を作る
+    struct Env {
+        root: PathBuf,
+    }
+
+    impl Env {
+        fn new(tag: &str) -> Env {
+            let root = std::env::temp_dir().join(format!("da-mstore-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            for d in ["data", "defaults", "share", "local/master_cache"] {
+                std::fs::create_dir_all(root.join(d)).unwrap();
+            }
+            std::fs::write(root.join("local").join(INSTANCE_FILENAME), "inst1").unwrap();
+            Env { root }
+        }
+
+        fn store(&self, role: &str) -> Store {
+            Store::new(Config {
+                data: self.root.join("data"),
+                defaults: self.root.join("defaults"),
+                share_dir: Some(self.root.join("share")),
+                shared: SHARED_ALWAYS.iter().map(|s| s.to_string()).collect(),
+                cache: self.root.join("local").join("master_cache"),
+                local_root: self.root.join("local"),
+                pc: "PC-A".into(),
+                login: "me".into(),
+                role: role.into(),
+                lock_ttl: LOCK_TTL_DEFAULT,
+            })
+        }
+
+        fn lock(&self) -> PathBuf {
+            self.root.join("share").join(LOCK_FILENAME)
+        }
+
+        fn shared(&self, name: &str) -> bool {
+            self.root.join("share").join(format!("{name}.json")).exists()
+        }
+    }
+
+    impl Drop for Env {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn a_live_lock_of_the_same_role_in_this_process_is_not_taken_over() {
+        // 版 3.94.0 の CI: 起動の直後に画面が並べて問い合わせる道（変換表・設備グループ…）が、それぞれ共有にまだ無いマスタの最初の版を置く。
+        // 同じ係（窓）のほかの糸・ほかの書く係が持つ生きた錠を「自分が残した錠」と見てどけると、持っていた方の保存は途中で断られる
+        // （Python の MASTER_WRITE_ABORT と同じ形）。生きている錠は待つ（断る）。自分が落ちて残した錠（持ち主がもう居ない）だけを引き継ぐ
+        let env = Env::new("steal");
+        let (a, b) = (env.store("rs"), env.store("rs"));
+        assert_eq!(a.holder, b.holder, "同じ作業場所の同じ係");
+        let mut seeded = None;
+        let out = a.write("equipment_groups", |rows, _| {
+            seeded = Some(std::thread::scope(|s| s.spawn(|| b.pull("conversions", false, false)).join().unwrap()));
+            rows.push(json!({"id": 1}));
+            Ok(())
+        });
+        assert!(out.is_ok(), "持っている方の保存は通る: {out:?}");
+        assert!(matches!(seeded, Some(Err(MasterError::Locked { .. }))), "生きた錠はどけない: {seeded:?}");
+        assert!(!env.lock().exists(), "錠は残らない");
+        assert!(b.pull("conversions", false, false).unwrap(), "錠が外れたら最初の版を置ける");
+        assert!(env.shared("conversions"));
+        // 自分が落ちて残した錠（この糸たちのどれも持っていない）は、今までどおり引き継ぐ
+        std::fs::write(
+            env.lock(),
+            json!({"token": "left", "holder_pc": "PC-A", "holder_login": "me", "holder_instance": a.holder, "expires_at": ""}).to_string(),
+        )
+        .unwrap();
+        a.write("equipment_groups", |rows, _| {
+            rows.push(json!({"id": 2}));
+            Ok(())
+        })
+        .unwrap();
+        assert!(!env.lock().exists());
+    }
+
+    #[test]
+    fn threads_of_one_store_wait_for_each_other_to_seed() {
+        // 同じ書く係のほかの糸が保存している間に最初の版を置く道は、保存が終わるのを待ってから置く（断って Python に任せない）
+        let env = Env::new("wait");
+        let a = env.store("rs");
+        let (out, seeded) = std::thread::scope(|s| {
+            let mut seeder = None;
+            let out = a.write("equipment_groups", |rows, _| {
+                seeder = Some(s.spawn(|| a.pull("conversions", false, false)));
+                std::thread::sleep(Duration::from_millis(200));
+                rows.push(json!({"id": 1}));
+                Ok(())
+            });
+            (out, seeder.unwrap().join().unwrap())
+        });
+        assert!(out.is_ok(), "{out:?}");
+        assert_eq!(seeded, Ok(true), "保存の後に最初の版を置く");
+        assert!(env.shared("conversions") && !env.lock().exists());
+    }
+
+    #[test]
+    fn releasing_does_not_leave_an_empty_lock_behind() {
+        // 錠を外すとき、どけた錠が自分の物でなく、しかも中身がまだ無い（ほかの糸・ほかの PC が「無ければ作る」で作り、書く前）なら、
+        // 元へ戻さない。戻した空の錠はだれの物でもなく（作った方はどけられた方へ書き、確かめで断る）、名乗りの無い「ほかの PC が
+        // 保存中（あと約20秒）」として錠の長さのあいだ残り、Python の最初の版を置くのが止まった（版 3.94.0 の CI の 16 秒）
+        let env = Env::new("empty");
+        let a = env.store("rs");
+        a.with_lock(|_| {
+            std::fs::remove_file(env.lock()).unwrap(); // 自分の錠がどけられ、
+            std::fs::write(env.lock(), b"").unwrap(); // ほかが作った直後（まだ書いていない）
+            Ok(())
+        })
+        .unwrap();
+        assert!(!env.lock().exists(), "空の錠を戻して残さない");
+        let py = env.store("py");
+        assert_eq!(py.pull("ui_defaults", false, false), Ok(true), "もう 1 つの係はすぐに最初の版を置ける");
+        assert!(env.shared("ui_defaults"));
+        // 中身のある錠（作った方が書き終えた）は元へ戻す（持ち主の確かめが通る）
+        let live = json!({"token": "other", "holder_pc": "PC-B", "holder_login": "x", "holder_instance": "y:py"}).to_string();
+        a.with_lock(|_| {
+            std::fs::remove_file(env.lock()).unwrap();
+            std::fs::write(env.lock(), &live).unwrap();
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(std::fs::read_to_string(env.lock()).unwrap(), live, "ほかの生きた錠は戻す");
+    }
 }
