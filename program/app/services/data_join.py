@@ -177,15 +177,18 @@ def _step(c, acc, acc_cols, j, rt, right_cols, side_name, stats):
     # 内部・右外部は当たった行だけ（右外部は下で相手だけの行を足す）、左外部・完全外部はこの元の行を全部残す
     kind = "JOIN" if j["how"] in ("inner", "right") else "LEFT JOIN"
     body = f"SELECT {sel} FROM {acc} AS a {kind} {rk} AS r ON {cond}"
+    # この元の鍵（比べ方の値）の一時表と索引。相手だけの行（右外部・完全外部）と、相手の行のうち当たった数（rightHit）を索引で見る
+    # （版 3.96.0: rightHit は相手の行ごとにこの元を JoinKey つきで全部なめる入れ子だった。仕掛 20,000 で 1 秒ほど。答えは同じ）
+    ak = f"_tpa_a{n}"
+    c.execute(f"CREATE TEMP TABLE {ak} AS SELECT DISTINCT " + ", ".join(f"JoinKey({qi(a)}) AS {k}" for (a, _), k in zip(on, ks)) + f" FROM {acc}")
+    c.execute(f"CREATE INDEX temp.{ak}_ix ON {ak}({', '.join(ks)})")
+    same = " AND ".join(f"x.{k} = r.{k}" for k in ks)
     if j["how"] in ("right", "full"):
         # 相手だけの行: この元の列は空（鍵の列だけ相手の値）。この元の鍵の一時表で「無い」を索引で見る
-        ak = f"_tpa_a{n}"
-        c.execute(f"CREATE TEMP TABLE {ak} AS SELECT DISTINCT " + ", ".join(f"JoinKey({qi(a)}) AS {k}" for (a, _), k in zip(on, ks)) + f" FROM {acc}")
-        c.execute(f"CREATE INDEX temp.{ak}_ix ON {ak}({', '.join(ks)})")
         only_left = ", ".join((f"r.{qi('r_' + key_of[col])}" if col in key_of else "NULL") + f" AS {qi(col)}" for col in acc_cols)
         only = (f"SELECT {only_left}{', ' + right_sel if right_sel else ''} FROM {rk} AS r WHERE "
                 + " AND ".join(f"r.{k} IS NOT NULL" for k in ks)
-                + f" AND NOT EXISTS (SELECT 1 FROM {ak} AS x WHERE " + " AND ".join(f"x.{k} = r.{k}" for k in ks) + ")")
+                + f" AND NOT EXISTS (SELECT 1 FROM {ak} AS x WHERE {same})")
         body = f"{body} UNION ALL {only}"
     c.execute(f"CREATE TEMP TABLE {out} AS {body}")
     # 数（画面の「当たった・当たらない」と、相手の鍵の重なり）
@@ -194,7 +197,7 @@ def _step(c, acc, acc_cols, j, rt, right_cols, side_name, stats):
     rtotal = c.execute(f"SELECT COUNT(*) FROM {rk}").fetchone()[0]
     rdup = c.execute(f"SELECT COUNT(*) FROM (SELECT 1 FROM {rk} WHERE {' AND '.join(f'{k} IS NOT NULL' for k in ks)} "
                      f"GROUP BY {', '.join(ks)} HAVING COUNT(*) > 1)").fetchone()[0]
-    rhit = c.execute(f"SELECT COUNT(*) FROM {rk} AS r WHERE EXISTS (SELECT 1 FROM {acc} AS a WHERE {cond})").fetchone()[0] if rtotal <= 200000 else None
+    rhit = c.execute(f"SELECT COUNT(*) FROM {rk} AS r WHERE EXISTS (SELECT 1 FROM {ak} AS x WHERE {same})").fetchone()[0] if rtotal <= 200000 else None
     miss = [list(r) for r in c.execute(f"SELECT DISTINCT {', '.join('a.' + qi(a) for a, _ in on)} FROM {acc} AS a "
                                        f"WHERE NOT EXISTS (SELECT 1 FROM {rk} AS r WHERE {cond}) LIMIT {SAMPLE}")]
     rows = c.execute(f"SELECT COUNT(*) FROM {out}").fetchone()[0]

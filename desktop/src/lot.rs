@@ -671,12 +671,15 @@ impl Lot {
         let access = json!({"who": inp.who, "place": inp.place});
         let me = self.gate.me(&access).ok()?;
         let store = self.store_for(&access)?;
+        // スケジュールのカード（版 3.96.0）: 窓の係の状態のファイルから（受け身の Python の答えと同じ所を読む）。設定を組めなければ中身に尋ねる
+        let cfg = crate::schedule::Cfg::from_section(inp.eff.get("schedule")).ok();
+        let own = || cfg.as_ref().map(|c| self.lists.sched.card(c)).or_else(card);
         let live = crate::sources_list::Live {
             lot: self.mirror.lock().unwrap().clone(),
             cache: self.cache_dir.clone(),
             src: &self.lists.src,
             joins: self.cache_dir.join("joins"),
-            card,
+            card: &own,
         };
         crate::sources_list::answer(&inp, &me, &store, &live).map(|v| (200, v))
     }
@@ -867,11 +870,21 @@ impl Lot {
             }
         }
         // 窓が組めれば窓の束（Python が起きていなくても答えられる）。組めない形（bundle.rs の Py）だけ Python に尋ねる
-        let own = self.bundle.lock().unwrap().clone().and_then(|b| b.build().ok());
-        let s = Settings::from_json(&match own {
+        let b = self.bundle.lock().unwrap().clone();
+        let own = b.as_ref().and_then(|b| b.build().ok());
+        let mine = own.is_some();
+        let mut v = match own {
             Some(v) => v,
             None => ask()?,
-        });
+        };
+        // スケジュールの設定（版 3.96.0）: 窓の束の材料の schedule の段（effective_settings と同じ重ね方）。Python に尋ねた設定には
+        // 入れない（窓は設定を組めないので、スケジュールの道は Python が答え、知らせに設定を載せて窓に取らせる）
+        if mine {
+            if let (Some(inp), Some(l)) = (b.and_then(|b| b.inputs().ok()), v.get_mut("lists").and_then(Value::as_object_mut)) {
+                l.insert("scheduleConf".into(), inp.eff.get("schedule").cloned().unwrap_or(Value::Null));
+            }
+        }
+        let s = Settings::from_json(&v);
         *self.settings.lock().unwrap() = Some((Instant::now(), s.clone()));
         Ok(s)
     }
@@ -1093,6 +1106,18 @@ impl Lot {
                 return dashboard::sources_answer(&Conf { v: &lists }, &crate::bundle::tables()["periods"]).map(|v| (200, v));
             }
             ("GET", "/api/dashboard/equip-tree") => return self.with_dash(ask, dashboard::equip_tree_answer).map(|v| (200, v)),
+            // スケジュールの設備のタブと設定・データ元の一覧の行の様子（版 3.96.0。Python の schedule_meta・schedule_card）
+            ("GET", "/api/schedule" | "/api/schedule/card") => {
+                if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+                    return None;
+                }
+                let s = self.settings(ask).ok()?;
+                if s.engine != "rust" {
+                    return None;
+                }
+                let cfg = crate::schedule::Cfg::from_section(Some(s.lists.get("scheduleConf")?)).ok()?;
+                return Some((200, if path == "/api/schedule" { self.lists.sched.meta(&cfg) } else { self.lists.sched.card(&cfg) }));
+            }
             _ => {}
         }
         if (method, path) != ("POST", "/api/dashboard/query") {
@@ -1140,7 +1165,15 @@ impl Lot {
                     Some(w) => (200, w.source_info()),
                 })
             }
-            Route::Src(key, Kind::Source | Kind::Refresh) if raw.source(key).is_some_and(|d| d["kind"] == "cm3") => return None,
+            // スケジュール（版 3.96.0 から窓が係）: データの時刻は覚えから答えて古い設備を裏で取り直し、再読込は今すぐ取り直す
+            // （Python の src_source・src_refresh の cm3。出さないタブは見ない）
+            Route::Src(key, Kind::Source) if raw.source(key).is_some_and(|d| d["kind"] == "cm3") => {
+                return lists.sch_source(&raw, &arg("equip"));
+            }
+            Route::Src(key, Kind::Refresh) if raw.source(key).is_some_and(|d| d["kind"] == "cm3") => {
+                let q = Quality { mirror: m.clone(), table: &s.table, page_size: s.page_size };
+                return lists.sch_refresh(&raw, &q, key, &arg("equip"));
+            }
             Route::Src(key, Kind::Source) => {
                 let d = raw.source(key);
                 let k = d.and_then(|d| d["base"].as_str()).filter(|b| !b.is_empty()).unwrap_or(key).to_string();
@@ -1160,8 +1193,8 @@ impl Lot {
             Route::Work(k) => (*k, lists.work_plan(&conf, &q, &arg("equip"), *k != Kind::Refresh, true)),
             Route::Src(key, k) => {
                 let refresh = *k == Kind::Refresh;
-                match lists.src_plan(&conf, &q, key, !refresh, !refresh) {
-                    Ok(None) => return None, // スケジュール（CM3）は Python
+                match lists.src_plan_eq(&conf, &q, key, !refresh, !refresh, &arg("equip"), false) {
+                    Ok(None) => return None, // 窓が答えない形（スケジュールの設定を組めない・係を降りた）は Python
                     Ok(Some(p)) => (*k, Ok(p)),
                     Err(f) => (*k, Err(f)),
                 }
@@ -1212,9 +1245,17 @@ impl Lot {
             (Route::Work(_), Some(p)) => Grouping::from_query(&qs, p.as_ref()),
             _ => None,
         };
+        // スケジュールの答えに添える数（設備の札・HOT の札。Python の schedule_extra）。組めなければ Python に任せる
+        let extra = match plan.sched {
+            Some(_) => Some(lists.sch_extra(&plan)?),
+            None => None,
+        };
         Some(match lotlist::query(&path, &args, &opts, today, &self.tables(&s), grouping.as_mut()) {
             Ok(mut v) => {
                 v["source"] = source;
+                if let Some(x) = extra {
+                    v["schedule"] = x;
+                }
                 if let Some(e) = &plan.equip {
                     v["equip"] = e.clone();
                     if let Some(w) = v.get_mut("work").and_then(Value::as_object_mut) {
@@ -2015,18 +2056,21 @@ mod tests {
         assert!(lot.handle_body("GET", e, "engine=python", b"", &down).is_none());
         assert!(lot.handle_body("POST", e, "", b"", &down).is_none(), "空の本文は Python（400 の HTML）");
         assert!(lot.handle_body("PUT", &format!("{e}/1"), "", b"[1]", &down).is_none(), "表でない真の本文は Python（500）");
-        // 配る設定の形（CI の自己診断・製品）: CM3 の場所と設備があると、組み込みのスケジュールの元が設備の列を持つ。Python の答えは CM3 に
-        // 届くか（とその PC の Python が前に取れたか）で決まり、窓は同じにできないので、一覧と書ける歩は任せる。断る歩（無い行を直す・消す・
-        // 名前の重なり・確かめの誤り）は Python も数えないので窓が答える（版 3.94.0。CI の 10b'' で見つけた）
+        // 配る設定の形（CI の自己診断・製品）: CM3 の場所と設備があると、組み込みのスケジュールの元が設備の列を持つ。選べる設備は CM3 に
+        // 届くかで決まる（版 3.94.0 は一覧と書ける歩を Python に任せた）。版 3.96.0 から窓がスケジュールの係なので、一覧も書ける歩も窓が答える
+        // （届かない CM3 はスケジュールを数えない。Python と同じ）
         std::fs::write(
             &cfg,
             json!({"master_share": {"dir": share}, "schedule": {"cm3_base_url": "http://127.0.0.1:1", "equipments": "L-1"}}).to_string(),
         )
         .unwrap();
         lot.invalidate();
-        assert!(lot.handle_body("GET", e, "", b"", &down).is_none(), "スケジュールの元があれば一覧は Python");
-        assert!(lot.handle_body("GET", "/api/dashboard/equip-tree", "", b"", &down).is_none(), "設備の木も同じ部品で Python");
-        assert!(lot.handle_body("PUT", &format!("{e}/1"), "", br#"{"note": "x"}"#, &down).is_none(), "書ける歩は Python");
+        let (st, v) = lot.handle_body("GET", e, "", b"", &down).expect("スケジュールの元があっても一覧は窓");
+        assert_eq!(st, 200);
+        assert!(!v["seen"].to_string().contains("スケジュール"), "届かない CM3 は数えない: {}", v["seen"]);
+        assert!(lot.handle_body("GET", "/api/dashboard/equip-tree", "", b"", &down).is_some(), "設備の木も窓");
+        let (st, _) = lot.handle_body("PUT", &format!("{e}/1"), "", br#"{"note": "x"}"#, &down).expect("書ける歩も窓");
+        assert_eq!(st, 200);
         let (st, v) = lot.handle_body("PUT", &format!("{e}/987654321"), "", br#"{"note": "x"}"#, &down).unwrap();
         assert_eq!((st, v["error"].clone()), (404, json!("id=987654321 が見つかりません。")));
         let (st, _) = lot.handle_body("DELETE", &format!("{e}/987654321"), "", b"", &down).unwrap();
@@ -2038,8 +2082,8 @@ mod tests {
             .unwrap();
         assert_eq!(st, 409, "名前の重なりも数えずに断る");
         assert!(
-            lot.handle_body("DELETE", &format!("{e}/987654321"), "rev=1", b"", &down).is_none(),
-            "版を添えた無い行は一覧を返す（Python）"
+            lot.handle_body("DELETE", &format!("{e}/987654321"), "rev=1", b"", &down).is_some(),
+            "版を添えた無い行は一覧を返す（版 3.96.0 から窓）"
         );
         // 書けない人は門番が断る（読むのは誰でも・canEdit は偽）
         std::fs::write(&cfg, json!({"master_share": {"dir": share}}).to_string()).unwrap();
@@ -2367,10 +2411,10 @@ mod tests {
         assert!(lot.sources_list("", &down, &|| None).is_some());
         assert!(t1.elapsed() < Duration::from_secs(2), "周回の途中でも待たない: {:?}", t1.elapsed());
         assert!(v["roles"].is_array() && v["newConn"].as_array().is_some_and(|a| a.len() == 5) && v["revision"] == json!(4), "{v}");
-        // 中身が起きていれば、スケジュールのカードは Python の覚え
+        // スケジュールのカードは窓の係の状態から（版 3.96.0。前は中身が起きていれば Python の覚え）。中身に尋ねる係は使わない
         let card = || Some(json!({"mirror": {"kind": "cm3", "mirrored": true}, "equipCount": 5}));
         let (_, v) = lot.sources_list("", &down, &card).unwrap();
-        assert_eq!((v["items"][3]["mirror"]["kind"].clone(), v["items"][3]["equipCount"].clone()), (json!("cm3"), json!(5)));
+        assert_eq!((v["items"][3]["mirror"].clone(), v["items"][3]["equipCount"].clone()), (Value::Null, json!(3)), "{}", v["items"][3]);
         // 窓が写した元は行の数も言う
         let _ = lot.handle("GET", "/api/src/wip", "", &down);
         lot.lists.src.wait_first(&["wip".to_string()], Duration::from_secs(10));
@@ -2905,6 +2949,109 @@ mod tests {
         assert!(lot3.heartbeat(&fail, &|| true).is_none());
         assert_eq!(lot3.heartbeat(&fail, &|| false).unwrap().0, 503);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_answers_the_schedule() {
+        // 版 3.96.0: スケジュール（CM3）は窓がただ 1 つの係（本物の道: Lot::handle_body → lists.src_plan_eq → schedule.rs）。Python が
+        // 起きていなくても一覧・設備のタブ・カード・データの時刻・再読込を答え、世代と状態のファイルを置く。受け身の Python の知らせ
+        // （event: schedule）でも取り、状態の seq を進める。窓が取れない設定（https）は答えず、状態に「係を降りた」と書く
+        use std::io::{Read, Write};
+        let work = std::env::temp_dir().join(format!("da-lot-schedule-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let srv = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = srv.local_addr().unwrap().port();
+        let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let h2 = hits.clone();
+        std::thread::spawn(move || {
+            for c in srv.incoming().flatten() {
+                let mut c = c;
+                let mut buf = vec![0u8; 65536];
+                let _ = c.read(&mut buf);
+                h2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let body = json!({"status": "SUCCESS", "entity": {"setsubiName": "L-1", "updateTs": 1790982300000_i64, "meisaiList": [
+                    {"kanryoYotei": "10/03 08:30", "lotNo": "A1", "zaishitsu": "A1100", "inItaAtsu": "1.0", "outItaAtsu": "0.5", "reienHaba": "1", "keijo": "C", "yotoMei": "缶&#12288;材"},
+                    {"kanryoYotei": "     07:10", "lotNo": "ロール", "zaishitsu": "交換", "inItaAtsu": "7分"}]}})
+                .to_string();
+                let _ = c.write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json;charset=UTF-8\r\nContent-Length: {}\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .as_bytes(),
+                );
+            }
+        });
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        let conf = |url: &str| {
+            json!({"master_share": {"dir": share}, "schedule": {"cm3_base_url": url, "equipments": "L-1", "timeout_sec": 2}}).to_string()
+        };
+        std::fs::write(&cfg, conf(&format!("http://127.0.0.1:{port}"))).unwrap();
+        let login = crate::bundle::login_id();
+        let doc = |rows: Value| json!({"schema": 1, "revision": 4, "rows": rows}).to_string();
+        std::fs::write(
+            share.join("access_permissions.json"),
+            doc(json!([{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "rev": 1}])),
+        )
+        .unwrap();
+        for n in ["path_settings", "equipment_groups", "shift_patterns", "conversions", "work_log_files", "equipment_master"] {
+            std::fs::write(share.join(format!("{n}.json")), doc(json!([]))).unwrap();
+        }
+        // スケジュールの行（結合なし）。仕掛と合わせない形
+        std::fs::write(share.join("data_sources.json"), doc(json!([{"id": 1, "キー": "sch", "結合": "", "rev": 1}]))).unwrap();
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let (st, v) = lot.handle_body("GET", "/api/src/sch", "equip=L-1", b"", &down).expect("Python が起きていなくても窓が答える");
+        assert_eq!((st, v["count"].clone(), v["schedule"]["summary"]["count"].clone()), (200, json!(2), json!(1)), "{v}");
+        assert_eq!(v["rows"][0]["用途名"], json!("缶 材"), "HTML の文字参照を直す");
+        assert_eq!(v["rows"][1]["停止内容"], json!("ロール交換 7分"));
+        assert_eq!(v["rows"][1]["完了予定"], json!("10/04 07:10"), "時刻だけの行が前より早ければ翌日");
+        let root = work.join("local").join("db_cache").join("schedule");
+        let state_file = root.join(format!("{}.state.json", crate::schedule::safe("L-1")));
+        let state = |f: &std::path::Path| serde_json::from_slice::<Value>(&std::fs::read(f).unwrap()).unwrap();
+        let s1 = state(&state_file);
+        assert_eq!((s1["writer"].clone(), s1["seq"].clone()), (json!("rs"), json!(1)));
+        assert!(s1["path"].as_str().unwrap().ends_with(".g1.rs.sqlite3"));
+        let (_, m) = lot.handle_body("GET", "/api/schedule", "", b"", &down).unwrap();
+        assert_eq!(m["equipments"][0]["state"], json!("ok"));
+        let (_, card) = lot.handle_body("GET", "/api/schedule/card", "", b"", &down).unwrap();
+        assert_eq!((card["mirror"]["kind"].clone(), card["equipCount"].clone()), (json!("cm3"), json!(1)));
+        let (st, src) = lot.handle_body("GET", "/api/src/sch/source", "equip=L-1", b"", &down).unwrap();
+        assert_eq!((st, src["at"].clone()), (200, json!(1790982300.0)));
+        assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 1, "新しい間は取り直さない");
+        let (st, _) = lot.handle_body("POST", "/api/src/sch/refresh", "equip=L-1", b"", &down).unwrap();
+        assert_eq!((st, hits.load(std::sync::atomic::Ordering::SeqCst)), (200, 2), "再読込は今すぐ取り直す");
+        assert_eq!(state(&state_file)["path"], s1["path"], "中身が同じなら置き直さない");
+        assert!(lot.handle_body("GET", "/api/src/sch", "engine=python&equip=L-1", b"", &down).is_none());
+        // 受け身の Python の知らせ: 窓が取って状態の seq を進める
+        let seq = state(&state_file)["seq"].as_u64().unwrap();
+        lot.notice(&json!({"event": "schedule", "equip": "L-1", "termKbn": "4", "inspect": ["点検板"], "maxAge": 0, "force": true, "seq": seq,
+                           "fetch": {"cm3_base_url": format!("http://127.0.0.1:{port}"), "init_path": "/x", "client_ip": "1.2.3.4", "timeout_sec": 2, "use_system_proxy": false}}));
+        let t0 = Instant::now();
+        while state(&state_file)["seq"].as_u64().unwrap() == seq && t0.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 3);
+        // 窓が取れない設定（https）: 答えず（Python が取る）、状態に係を降りたと書く
+        std::fs::write(&cfg, conf("https://cm3.example")).unwrap();
+        lot.invalidate();
+        assert!(lot.handle_body("GET", "/api/src/sch", "equip=L-1", b"", &down).is_none(), "https は Python");
+        assert!(lot.handle_body("GET", "/api/src/sch/source", "equip=L-1", b"", &down).is_none(), "降りた設備のデータの時刻も Python");
+        let s2 = state(&state_file);
+        assert_eq!(
+            (s2["resigned"]["once"].clone(), s2["resigned"]["for"]["cm3_base_url"].clone()),
+            (json!(false), json!("https://cm3.example"))
+        );
+        assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 3, "降りたら取りに行かない");
+        let _ = std::fs::remove_dir_all(&work);
     }
 
     #[test]

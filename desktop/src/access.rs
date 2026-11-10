@@ -112,6 +112,11 @@ pub fn key_split(s: &str) -> bool {
 /// 割り当て済みの字〈ASSIGNED_SPLIT〉は NFKC を通し、大文字にだけしない）。割り当て済みの字どうしの分解・合成は
 /// Unicode の正規化の安定の約束で版が上がっても変わらない。tests/name_key_cases.rs が全部の字と並びの例を Python と突き合わせる
 pub fn py_key(s: &str) -> String {
+    pyfmt::strip(&py_nfkc_upper(s)).to_string()
+}
+
+/// NFKC・大文字（Python の unicodedata.normalize("NFKC", s).upper()。前後の空白は残す。py_key と同じ表の扱い。版 3.96.0）
+pub fn py_nfkc_upper(s: &str) -> String {
     let (mut out, mut seg) = (String::new(), String::new());
     for c in s.chars() {
         if unassigned_in_python(c) {
@@ -123,7 +128,7 @@ pub fn py_key(s: &str) -> String {
         }
     }
     out.extend(seg.nfkc());
-    pyfmt::strip(&out).chars().fold(String::new(), |mut acc, c| {
+    out.chars().fold(String::new(), |mut acc, c| {
         if is_key_split(c) {
             acc.push(c);
         } else {

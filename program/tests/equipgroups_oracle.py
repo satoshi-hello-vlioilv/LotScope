@@ -275,17 +275,17 @@ for _absent, _copy in (("work_log_files", True), ("work_log_files", False), ("eq
                       "delegates": [S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"name": "x"}), S("PUT", f"{E}/2", {"equipment": "A"}),
                                     S("DELETE", f"{E}/4"), S("DELETE", f"{E}/999", query="rev=1")]})
 # CI の自己診断で見つけた形（版 3.94.0）: 配る設定に CM3 の場所と設備があると、組み込みのスケジュールの元が設備の列を持つ。Python の選べる設備は
-# CM3 に届くか（とその PC の Python が前に取れたか。覚えはメモリの中）で変わり、窓は同じにできないので、一覧と書ける歩は任せる。
-# 断る歩（確かめの誤り・名前の重なり・無い行・版の食い違い）は Python も一覧を組まずに答えるので、窓が同じ答えを返す。届かない CM3 と、
-# 届く作り物の CM3（tests/schedule_fixture.py）の 2 つ。任せた一覧で Python がスケジュールの設備を数えたか（"from"）も残す
+# CM3 に届くかで変わる（届けばスケジュールの最初の設備の予定も数える）。版 3.96.0 から窓がスケジュールの係（CM3 へ取りに行く）なので、
+# 一覧と書ける歩も窓が答え、Python と同じ答え（前は任せていた）。届かない CM3 と、届く作り物の CM3（tests/schedule_fixture.py。
+# 窓が問い合わせる間も起こしておく: main の serve）の 2 つ。一覧でスケジュールの設備を数えたか（"from"）も見る
 SCH_STEPS = [S("POST", E, {"name": ""}), S("POST", E, G("CR ライン")), S("PUT", f"{E}/999", {"name": "x"}),
              S("PUT", f"{E}/999", {"name": "x", "base_rev": 1}), S("PUT", f"{E}/1", {"name": "x", "base_rev": 9}),
              S("PUT", f"{E}/1", {"set": "工場", "name": "ｃｒ ライン"}), S("PUT", f"{E}/1", {"name": ""}), S("DELETE", f"{E}/999"),
              S("DELETE", f"{E}/1", query="rev=9"), S("PUT", f"{E}/987654321", {"note": "x"})]
 SCH_DELEGATES = [S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"note": "x"}), S("DELETE", f"{E}/4"),
                  S("DELETE", f"{E}/999", query="rev=1")]
-SCENARIOS += [{"name": "スケジュールの元がある（CM3 に届かない）", "mode": "shared", "cm3": "down", "steps": SCH_STEPS, "delegates": SCH_DELEGATES},
-              {"name": "スケジュールの元がある（作り物の CM3 に届く）", "mode": "shared", "cm3": "up", "steps": SCH_STEPS, "delegates": SCH_DELEGATES}]
+SCENARIOS += [{"name": "スケジュールの元がある（CM3 に届かない）", "mode": "shared", "cm3": "down", "steps": SCH_DELEGATES[:1] + SCH_STEPS + SCH_DELEGATES},
+              {"name": "スケジュールの元がある（作り物の CM3 に届く）", "mode": "shared", "cm3": "up", "steps": SCH_DELEGATES[:1] + SCH_STEPS + SCH_DELEGATES}]
 CM3 = {}                                    # 届く作り物の CM3 の URL（main が起こす）
 
 # 共有にまだ無いとき、Python はその道が読むときに最初の版を置く（道ごとに 1 場面で、置かれるファイルを突き合わせる）
@@ -398,8 +398,12 @@ def main():
                     "cm3": sc.get("cm3"),
                     "delegatedFiles": sorted(f"{d}/{f.name}" for d in ("share", "base/data") for f in (pd / d).glob("*.json")),
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
+    sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+    if "--serve" in sys.argv:              # 窓が同じ作り物の CM3 に問い合わせる間は起こしておく（標準入力が閉じるまで）
+        for _ in sys.stdin:
+            pass
     srv.shutdown()
-    sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

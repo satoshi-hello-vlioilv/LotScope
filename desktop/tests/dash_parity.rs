@@ -2,7 +2,8 @@
 //! Python の道（routes/dashboard.py の dashboard_query）と同じ答え・同じ失敗を返すか。program/tests/dashboard_oracle.py が開発用サーバーと
 //! 同じ試験データに読めない設備・表示しない設備・設備の並び・設備の列の書きゆれ・30 を超える設備・設備グループ（正規表現・除く）・
 //! 全角の合金を足し、パネルの形ごと（数字・グラフ・合わせた表・別のデータ・設備の分け方・まとめ・設備グループの段・手で並べた順・
-//! 期間・計算列・箱ひげ・確かめの失敗）に Python で答えた物と突き合わせる。稼働（ガント・ABC）とスケジュールは Python へ回す（None）。
+//! 期間・計算列・箱ひげ・確かめの失敗）に Python で答えた物と突き合わせる。スケジュールは窓の束の設定が無いこの試験では Python へ回す（None。
+//! 窓が答える形は tests/schedule_parity.rs）。
 //! 写しは窓が自分の置き場へ写す。写しの様子（mirrors）は元の場所・間隔・古さのしきい・写したかを比べ、かかった時間（timing）は比べない。
 
 mod common;
@@ -110,7 +111,8 @@ fn dashboard_answers_like_python() {
         total >= 60 && cells >= 35 && fails >= 12 && facets >= 4 && boards >= 4 && links >= 4,
         "組が足りません: {total} 通り・答え {cells}・失敗 {fails}・並べる {facets}・合わせた表 {boards}・合わせる {links}"
     );
-    // 稼働・ABC・スケジュールは Python が答える
+    // スケジュールは、Python に尋ねた設定（窓の束を組めない形。この試験の設定）では窓は答えず Python が答える（版 3.96.0 から窓の束の設定では
+    // 窓が係になって答える: tests/schedule_parity.rs のパネル・合わせた表・設備の木）
     for c in o["python"].as_array().unwrap() {
         let body = serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap();
         if lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask).is_some() {

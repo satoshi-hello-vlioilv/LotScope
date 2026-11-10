@@ -21,8 +21,9 @@ ScheduleView は「CM3 の作業予定」と「仕掛台帳（LOTNOW.sqlite3）�
   hot                   … HOT コイル作業順（title・equipments〈空なら全設備〉・prev_value・result_course_column・
                           remain_course_column・kama_column）
 
-置き方: 中身が変わったときだけ、新しい世代のファイル（<設備>.g<番号>.sqlite3）に書く（Windows では読んでいる途中のファイルを
+置き方: 中身が変わったときだけ、新しい世代のファイル（<設備>.g<番号>.<書き手>.sqlite3）に書く（Windows では読んでいる途中のファイルを
 置き換えられないため。db_mirror.py と同じ考え）。古い世代は次に書くときに消す（1 つ前は残す。消せなければその次）。
+版 3.96.0: デスクトップ版は窓（desktop/src/schedule.rs）がただ 1 つの係で、ここは受け身（Schedules の説明）。
 """
 from __future__ import annotations
 
@@ -123,16 +124,136 @@ def _safe(code):
     return re.sub(r"[^0-9A-Za-z_\-]", "_", code) + "-" + hashlib.sha1(code.encode("utf-8")).hexdigest()[:6]
 
 
-class Schedules:
-    """設備ごとの予定を覚え、手元の表に置く係（アプリに 1 つ）。同じ設備を同時に取りに行かない（先に取りに行った答えを待って使う）。"""
+def fetch_conf(cfg):
+    """取りに行く設定（状態の resigned.for と、窓への知らせに載せる。窓が降りた設定と比べる）"""
+    return {k: cfg.get(k) for k in ("cm3_base_url", "init_path", "client_ip", "timeout_sec", "use_system_proxy")}
 
-    def __init__(self, root, fetch=cm3_schedule.get_schedule):
+
+def _sig(rows):
+    """表の行の指紋（窓 desktop/src/schedule.rs の sig_of と同じ字。版 3.96.0 の作った後の直し: 書き手によらず比べられるので、
+    相手の置いた世代を覚えに取り込んだ後も、中身が同じなら置き直さない＝changedAt が Python だけの形と同じ）"""
+    h = []
+    for r in rows:
+        for v in r:
+            if v is None:
+                h.append("N")
+            elif isinstance(v, (bool, int)):
+                h.append(f"I{int(v)}")
+            elif isinstance(v, float):
+                h.append("R" + repr(v))
+            else:
+                h.append("T" + json.dumps(v if isinstance(v, str) else str(v), ensure_ascii=False))
+            h.append("\x01")
+        h.append("\n")
+    return hashlib.sha1("".join(h).encode("utf-8", "surrogatepass")).hexdigest()
+
+
+def _sendable(cfg):
+    """知らせの枠に載せられる設定か（NaN・無限は窓が JSON として読めない。そのときは窓に頼まず、ここが取る＝Python と同じ誤り）"""
+    try:
+        json.dumps(fetch_conf(cfg), allow_nan=False, default=str)
+        return True
+    except ValueError:
+        return False
+
+
+def _gen_of(name, head):
+    """<safe>.g<番号>[.<書き手>].sqlite3 → (番号, 書き手〈無ければ ""〉)。合わなければ None"""
+    if not (name.startswith(head) and name.endswith(".sqlite3")):
+        return None
+    n, _, w = name[len(head):-len(".sqlite3")].partition(".")
+    return (int(n), w) if n.isascii() and n.isdigit() else None
+
+
+class Schedules:
+    """設備ごとの予定を覚え、手元の表に置く係（アプリに 1 つ）。同じ設備を同時に取りに行かない（先に取りに行った答えを待って使う）。
+
+    版 3.96.0: デスクトップ版で窓が schedule を名乗ると受け身（passive）。窓（desktop/src/schedule.rs）がただ 1 つの係で、
+    ここは窓の状態のファイル（<設備>.state.json）と世代を読むだけ。取りに行く要るときは notify（知らせ {"event": "schedule", …}。
+    効いている設定 fetch・端末区分・点検の言葉を載せる）で窓に頼み、状態の seq が変わるまで待つ（窓の接続＋読みの timeout より長く）。
+    窓が取れない設定・整えられない答えで係を降りた（状態の resigned.for がこちらの設定と同じ）設備は、ここが取りに行って置く（書き手 py）。
+    世代の番号は置き場にある最大＋1（書き手を名前に入れ、片付けるのは自分の書いた物だけ）。状態のファイルは一時ファイルから置き換える。"""
+
+    def __init__(self, root, fetch=cm3_schedule.get_schedule, passive=False, notify=None, writer="py"):
         self.root = Path(root)
         self.fetch = fetch                  # 試験は作り物に差し替える
+        self.passive = passive
+        self.notify = notify
+        self.writer = writer
         self._lock = threading.Lock()
         self._eq_locks = {}
         self._state = {}                    # 設備 → {data, path, sig, fetchedAt, changedAt, checkedAt, error, gen}
+        self._seq = {}                      # 設備 → 済んだ回数（錠を待っていた問い合わせが、先に済んだ結果を使う）
         self._bg = set()                    # 裏で取りに行っている設備
+        self._cleaned = passive             # 受け身は片付けない（係の窓が片付ける）
+
+    # ------------------------------------------------------------ 状態のファイル
+    def _state_path(self, code):
+        return self.root / f"{_safe(code)}.state.json"
+
+    def read_state(self, code, busy=None):
+        """状態のファイル（無ければ {}）。書き手が置き換えている途中で読めない（Windows の共有違反・半端な中身）ときは、少し待って読み直し、
+        それでも読めなければ busy（既定 {}）"""
+        for i in range(5):
+            try:
+                v = json.loads(self._state_path(code).read_text(encoding="utf-8"))
+                return v if isinstance(v, dict) else {}
+            except FileNotFoundError:
+                return {}
+            except (OSError, ValueError):
+                time.sleep(0.02 * (i + 1))
+        return {} if busy is None else busy
+
+    def _write_state(self, code):
+        """状態のファイルを書く（seq はファイルの seq＋1。降りた印は、1 回だけの物を消し、設定の物は残す）"""
+        had = self.read_state(code)
+        res = had.get("resigned")
+        keep = res if isinstance(res, dict) and res.get("once") is False else None
+        with self._lock:
+            st = dict(self._state.get(code) or {})
+        v = {"code": code, "writer": self.writer, "seq": int(had.get("seq") or 0) + 1, "path": st.get("path"), "sig": st.get("sig", ""),
+             "gen": st.get("gen", 0), "fetchedAt": st.get("fetchedAt"), "changedAt": st.get("changedAt"), "checkedAt": st.get("checkedAt"),
+             "error": st.get("error", ""), "data": st.get("data"), "resigned": keep}
+        self.root.mkdir(parents=True, exist_ok=True)
+        tmp = self.root / f"{_safe(code)}.state.{os.getpid()}.{threading.get_ident()}.tmp"
+        tmp.write_text(json.dumps(v, ensure_ascii=False, default=str), encoding="utf-8")
+        _replace(tmp, self._state_path(code))
+
+    def _clean_once(self):
+        """起こしてから初めて使うとき（係のときだけ）: 前の状態を読まず、状態のファイルと自分の書いた世代を片付ける"""
+        with self._lock:
+            if self._cleaned:
+                return
+            self._cleaned = True
+        for p in self.root.glob("*.state.json"):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+        for p in self.root.glob("*.g*.sqlite3"):
+            m = _gen_of(p.name, p.name[:p.name.rfind(".g") + 2])
+            if m and m[1] in ("", self.writer):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+
+    def _adopt(self, code):
+        """受け身で係になったとき: 状態のファイルの書き手が自分でなければ（窓が係の間に取った・窓が起こし直して消した）、ファイルの方を覚えにする。
+        前に自分が係だったときの古い覚え（消えたかもしれない世代）を答えない（版 3.96.0 の作った後の直し。窓の adopt と対）"""
+        st = self.read_state(code)
+        if st.get("writer") == self.writer:
+            return
+        with self._lock:
+            self._state[code] = {k: st[k] for k in ("data", "path", "sig", "gen", "fetchedAt", "changedAt", "checkedAt", "error")
+                                 if k in st and st[k] is not None}
+
+    def keeps(self, cfg, code):
+        """受け身でも、この設備はここが係か（窓が係を降りた印の設定がこちらの設定と同じ）"""
+        if not self.passive:
+            return True
+        r = self.read_state(code).get("resigned")
+        return isinstance(r, dict) and r.get("for") == fetch_conf(cfg)
 
     # ------------------------------------------------------------ 取る
     def _eq_lock(self, code):
@@ -140,6 +261,9 @@ class Schedules:
             return self._eq_locks.setdefault(code, threading.Lock())
 
     def peek(self, code):
+        if self.passive and code != HOT_KEY:
+            st = self.read_state(code)
+            return {k: st[k] for k in ("data", "path", "sig", "gen", "fetchedAt", "changedAt", "checkedAt", "error") if k in st and st[k] is not None}
         with self._lock:
             return dict(self._state.get(code) or {})
 
@@ -149,15 +273,31 @@ class Schedules:
 
     def ensure(self, cfg, code, *, max_age=None, force=False):
         """設備 code の予定を、max_age 秒より古ければ取り直して表に置く → 覚え（peek の形）。
-        取れなかったら、前に取れた答えがあればそれを使い続ける（error に理由）。一度も取れていなければ Cm3Error。"""
+        取れなかったら、前に取れた答えがあればそれを使い続ける（error に理由）。一度も取れていなければ Cm3Error。
+        錠を待っている間に先の取り直しが済んでいれば、その結果を失敗も含めて使う（版 3.96.0。同じ設備の問い合わせが重なっても、
+        届かない CM3 を 1 本ずつ timeout 秒待ち直さない）"""
         e = next((x for x in cfg["equipments"] if x["code"] == code), None)
         if e is None:
             raise Cm3Error(f"未登録の設備です: {code}")
         max_age = cfg["cache_sec"] if max_age is None else max_age
+        if self.passive and not self.keeps(cfg, code) and _sendable(cfg):
+            return self._ensure_passive(cfg, e, max_age, force)
+        self._clean_once()
+        with self._lock:
+            seq0 = self._seq.get(code, 0)
         lk = self._eq_lock(code)
         with lk:                                     # 同じ設備は 1 本ずつ（後から来た問い合わせは、先の答えを待って使う）
-            age = self._age(code)
-            st = self.peek(code)
+            if self.passive:
+                self._adopt(code)
+            with self._lock:
+                st = dict(self._state.get(code) or {})
+                waited = self._seq.get(code, 0) != seq0
+            if waited:
+                if st.get("path"):
+                    return st
+                if st.get("error"):
+                    raise Cm3Error(st["error"])
+            age = time.time() - st["checkedAt"] if st.get("checkedAt") else None
             if not force and st.get("path") and age is not None and age < max_age:
                 return st
             now = time.time()
@@ -168,12 +308,55 @@ class Schedules:
                     cur = self._state.setdefault(code, {})
                     cur.update(checkedAt=now, error=str(err))
                     st = dict(cur)
+                    self._seq[code] = self._seq.get(code, 0) + 1
+                self._write_state(code)
                 if not st.get("path"):
                     raise
                 return st
             data["fetchedAt"] = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime(now))
             self._store(code, data, now)
+            with self._lock:
+                self._seq[code] = self._seq.get(code, 0) + 1
+            self._write_state(code)
+            with self._lock:
+                return dict(self._state.get(code) or {})
+
+    def _ensure_passive(self, cfg, e, max_age, force):
+        """受け身: 窓の状態が新しければそれ。古ければ窓に知らせて、状態の seq が変わるまで待つ"""
+        code = e["code"]
+        st = self.read_state(code)
+        age = time.time() - st["checkedAt"] if isinstance(st.get("checkedAt"), (int, float)) else None
+        if not force and st.get("path") and age is not None and age < max_age:
             return self.peek(code)
+        seq0 = st.get("seq") or 0
+        try:                                         # 窓の最悪の時間: 30x を 10 回たどる 11 本 × （接続＋読み の timeout）
+            wait = float(cfg.get("timeout_sec") or 15) * 2 * 11 + 5
+        except (TypeError, ValueError):
+            wait = 335.0
+        self._tell(cfg, e, max_age, force, seq0)
+        end = time.monotonic() + max(min(wait, 600.0), 5.0)
+        while time.monotonic() < end:
+            time.sleep(0.03)
+            st = self.read_state(code, busy={"seq": seq0})
+            if (st.get("seq") or 0) != seq0:
+                break
+        else:
+            st = self.read_state(code)
+            if st.get("path"):
+                return self.peek(code)
+            raise Cm3Error("CM3の応答がタイムアウトしました")
+        if self.keeps(cfg, code):                    # 窓が係を降りた: ここが取りに行く
+            return self.ensure(cfg, code, max_age=max_age, force=force)
+        st = self.peek(code)
+        if not st.get("path"):
+            raise Cm3Error(st.get("error") or "CM3の応答がタイムアウトしました")
+        return st
+
+    def _tell(self, cfg, e, max_age, force, seq=0):
+        if self.notify is None:
+            return
+        self.notify(equip=e["code"], termKbn=e["term_kbn"], inspect=list(cfg["inspect_keywords"]), fetch=fetch_conf(cfg),
+                    maxAge=max_age, force=bool(force), seq=seq)
 
     def ensure_many(self, cfg, codes, *, max_age=None, force=False):
         """いくつかの設備を同時に取りに行く（待ちはいちばん遅い設備の分だけ）→ {設備: 覚え か Cm3Error}"""
@@ -188,9 +371,14 @@ class Schedules:
             return dict(zip(codes, ex.map(one, codes)))
 
     def refresh_later(self, cfg, codes):
-        """古くなった設備を裏で取り直す（画面の鮮度の問い合わせから。答えは待たない）。"""
+        """古くなった設備を裏で取り直す（画面の鮮度の問い合わせから。答えは待たない）。受け身は窓に知らせるだけ"""
         due = [c for c in codes if (self._age(c) is None or self._age(c) >= cfg["auto_refresh_sec"]) and c not in self._bg]
         for c in due:
+            if self.passive and not self.keeps(cfg, c):
+                e = next((x for x in cfg["equipments"] if x["code"] == c), None)
+                if e is not None:
+                    self._tell(cfg, e, cfg["auto_refresh_sec"], False, self.read_state(c).get("seq") or 0)
+                continue
             with self._lock:
                 if c in self._bg:
                     continue
@@ -208,14 +396,22 @@ class Schedules:
         return due
 
     # ------------------------------------------------------------ 置く
+    def _max_gen(self, code):
+        head = f"{_safe(code)}.g"
+        gens = [m[0] for m in (_gen_of(p.name, head) for p in self.root.glob(f"{_safe(code)}.g*.sqlite3")) if m]
+        return max(gens, default=0)
+
+    def _new_path(self, code, cur):
+        gen = max(int(cur.get("gen") or 0), self._max_gen(code)) + 1
+        return gen, self.root / f"{_safe(code)}.g{gen}.{self.writer}.sqlite3"
+
     def _store(self, code, data, now):
         rows = cm3_schedule.table_rows(data)
-        sig = hashlib.sha1(json.dumps(rows, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+        sig = _sig(rows)
         with self._lock:
             cur = dict(self._state.get(code) or {})
         if cur.get("sig") != sig or not cur.get("path") or not Path(cur["path"]).exists():
-            gen = int(cur.get("gen") or 0) + 1
-            path = self.root / f"{_safe(code)}.g{gen}.sqlite3"
+            gen, path = self._new_path(code, cur)
             write_table(path, TABLE, cm3_schedule.COLUMN_NAMES, rows)
             self._sweep(code, (path, cur.get("path")))
             cur.update(path=str(path), sig=sig, gen=gen, changedAt=now)
@@ -224,12 +420,15 @@ class Schedules:
             self._state[code] = cur
 
     def _sweep(self, code, keep):
-        """古い世代を消す（読んでいて消せなければ次の機会に）。keep: 残すファイル（新しい世代と 1 つ前）。
+        """自分の書いた古い世代を消す（読んでいて消せなければ次の機会に）。keep: 残すファイル（新しい世代と 1 つ前）。
         1 つ前を残すのは、裏の取り直しが新しい世代を置いた直後に、前の世代のパスを受け取った問い合わせが
-        まだ開いていない（結合を組む前の）ことがあるため。消すと「unable to open database」になる（版 3.57.1）"""
+        まだ開いていない（結合を組む前の）ことがあるため。消すと「unable to open database」になる（版 3.57.1）。
+        ほかの書き手（窓 rs）の世代は消さない（版 3.96.0: 相手の今の世代を消し合わない）"""
         keep = {Path(k) for k in keep if k}
+        head = f"{_safe(code)}.g"
         for p in self.root.glob(f"{_safe(code)}.g*.sqlite3"):
-            if p not in keep:
+            m = _gen_of(p.name, head)
+            if m and m[1] in ("", self.writer) and p not in keep:
                 try:
                     p.unlink()
                 except OSError:
@@ -290,8 +489,7 @@ class Schedules:
             cur = dict(self._state.get(HOT_KEY) or {})
         now = time.time()
         if cur.get("sig") != sig or not cur.get("path") or not Path(cur["path"]).exists():
-            gen = int(cur.get("gen") or 0) + 1
-            path = self.root / f"{_safe(HOT_KEY)}.g{gen}.sqlite3"
+            gen, path = self._new_path(HOT_KEY, cur)
             write_table(path, HOT_TABLE, cols, out)
             self._sweep(HOT_KEY, (path, cur.get("path")))
             cur.update(path=str(path), sig=sig, gen=gen, changedAt=now)
@@ -318,7 +516,19 @@ def write_table(path, table, cols, rows):
         c.commit()
     finally:
         c.close()
-    os.replace(tmp, path)
+    _replace(tmp, path)
+
+
+def _replace(tmp, path):
+    """置き換える（Windows で読んでいる途中なら少し待って取り直す。版 3.96.0）"""
+    for i in range(20):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if i == 19:
+                raise
+            time.sleep(0.025 * (i + 1))
 
 
 def summary(state, joined=None):

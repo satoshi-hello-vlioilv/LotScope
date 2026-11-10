@@ -18,9 +18,15 @@ from .common import bp, error
 
 
 def schedules():
+    """スケジュールの係（アプリに 1 つ）。デスクトップ版で窓が schedule を名乗ると受け身（版 3.96.0。窓の状態と世代を読み、
+    取りに行く要るときは知らせで窓に頼む: services/schedule.Schedules）"""
     s = current_app.config.get("SCHEDULES")
     if s is None:
-        s = current_app.config["SCHEDULES"] = schedule.Schedules(app_env.local_root() / "db_cache" / "schedule")
+        from .. import schedule_is_external, shell_notice
+        passive = schedule_is_external(current_app.config["APP_SETTINGS"])
+        s = current_app.config["SCHEDULES"] = schedule.Schedules(
+            app_env.local_root() / "db_cache" / "schedule", passive=passive,
+            notify=(lambda **kw: shell_notice("schedule", **kw)) if passive else None)
     return s
 
 

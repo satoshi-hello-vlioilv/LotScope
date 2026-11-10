@@ -14,7 +14,7 @@
 
 版 3.85.0 から、同じ場面で画面（GET /）・/api/config・/api/dashboard/sources・/api/dashboard/equip-tree の答えも取る（"reads"。
 desktop/tests/page_parity.rs が窓の答えと突き合わせる）。画面の印（nonce）は @NONCE@ に揃える。版 3.87.0 から GET /api/sources も。版 3.89.0 から GET /api/settings（参照先の項目）も。版 3.95.0 から GET /api/update/settings（更新の置き場・だれが・マスタの置き場）も。スケジュールの元に場所がある場面の
-設備の木は尋ねない（Python は CM3 へ読みに行く。窓は Python に任せる）。
+設備の木も尋ねる（版 3.96.0 から窓がスケジュールの係。前は尋ねず窓は Python に任せていた）。
 """
 import json
 import logging
@@ -353,6 +353,11 @@ def scenarios(work):
         return config(r, lot_list={"source": str(db), "table": "品質", "refresh_seconds": 60, "stale_hours": 36, "page_size": 300})
     # 窓が品質の一覧を受け持つと Python は品質データを自分で写さない（写しは窓の係）。ここでは Python に写させて、窓と同じ写しで数えさせる
     sc("設備の木（品質データの設備の列・表示しない設備・設備グループ）", tree_data, tree=True, serves=SERVES.replace("lotlist,", ""))
+
+    # 版 3.96.0: スケジュールの元に場所がある設備の木も窓が答える（窓がスケジュールの係。CM3 に届かなければスケジュールは数えない）
+    def tree_sch(r):
+        return {**tree_data(r), "schedule": {"cm3_base_url": "http://127.0.0.1:1", "equipments": "L-1, L-2", "timeout_sec": 2}}
+    sc("設備の木（スケジュールの元に場所がある・CM3 に届かない）", tree_sch, tree=True, serves=SERVES.replace("lotlist,", ""))
     # 作った後の採点（版 3.85.0）で見つかった割れ: 窓は Python に任せる
     sc("画面の控えの rev が i64 に入らない", lambda r: (masters(share=r / "share"),
                                               (r / "local" / "ui_state.json").write_text('{"rev": 99999999999999999999, "keys": {"tpa.a": "1"}}', encoding="utf-8"),
@@ -463,12 +468,12 @@ READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tre
 
 def page_reads(c, bundle, tree, mirrors):
     """画面と最初の画面の読む道の答え → {道: {status, body（字）, headers}}。印（nonce）は @NONCE@ に揃える。
-    設備の木は tree の場面だけ（届かない品質データの最初の写しを 30 秒待つので）。スケジュールの元に場所があれば尋ねない"""
+    設備の木は tree の場面だけ（届かない品質データの最初の写しを 30 秒待つので）。版 3.96.0 からスケジュールの元に場所があっても尋ねる
+    （窓がスケジュールの係。前は窓が Python に任せていた）"""
     out = {}
     srcs = ((bundle or {}).get("lists") or {}).get("sources") or []
-    sch = any(d.get("key") == "sch" and d.get("place") for d in srcs)
     for path in READS:
-        if path.endswith("equip-tree") and (sch or not tree):
+        if path.endswith("equip-tree") and not tree:
             out[path] = None
             continue
         if path == "/api/sources":

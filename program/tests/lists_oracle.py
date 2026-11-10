@@ -150,7 +150,36 @@ JOINS = [
     {"base": "quality", "items": [{"with": "cond", "how": "left", "on": [["無い鍵", "材質"]], "cols": []}]},
     {"base": "quality", "items": [{"with": "cond", "how": "left", "on": [["合金", "無い相手の鍵"]], "cols": []}]},
 ]
-MASTER_TABLES = {"cond": ("製造条件マスタ", "製造条件"), "eq": ("設備マスタ", "設備")}
+MASTER_TABLES = {"cond": ("製造条件マスタ", "製造条件"), "eq": ("設備マスタ", "設備"), "dup": ("重なりマスタ", "設備")}
+# 版 3.96.0（rightHit を索引で数える直し）: 相手の鍵が NULL・空・重なり・相手の方が多い・複数の鍵の形
+_DUP = [["設備", "設備名"]]
+JOINS += [
+    {"base": "quality", "items": [{"with": "dup", "how": "left", "on": _DUP, "cols": ["ライン"]}]},
+    {"base": "quality", "items": [{"with": "dup", "how": "inner", "on": _DUP, "cols": []}]},
+    {"base": "quality", "items": [{"with": "dup", "how": "right", "on": _DUP, "cols": ["ライン"]}]},
+    {"base": "quality", "items": [{"with": "dup", "how": "full", "on": _DUP + [["合金", "材質"]], "cols": ["ライン"]}]},
+    {"base": "wip", "items": [{"with": "dup", "how": "left", "on": [["製造材質", "材質"]], "cols": []},
+                              {"with": "dup", "how": "left", "on": [["BOX設計_設備名", "設備名"]], "cols": ["ライン"]}]},
+]
+
+
+def make_dup(path):
+    """相手の方が多く（2,400 行）、鍵が NULL・空・前後の空白・大小のゆれ・重なり（当たる設備は 3 行ずつ）を持つ表"""
+    from tests.lotlist_fixture import EQUIPMENT
+    c = sqlite3.connect(path)
+    c.execute("CREATE TABLE 設備 ([設備名], [材質], [ライン])")
+    rows = []
+    for i in range(2400):
+        if i < 30:                                  # 当たる設備は 3 行ずつ重なる（NULL・空・前後の空白と大小のゆれも）
+            e = EQUIPMENT[i % len(EQUIPMENT)]
+            e = None if i % 11 == 0 else "" if i % 13 == 0 else (f" {e.lower()} " if i % 7 == 0 else e)
+            m = ("A1100", "A5052", None, "a3004 ")[i % 4]
+        else:                                       # 当たらない行（相手の方が多い）
+            e, m = f"無い設備{i}", f"M{i}"
+        rows.append((e, m, f"線{i % 6}"))
+    c.executemany("INSERT INTO 設備 VALUES (?,?,?)", rows)
+    c.commit()
+    c.close()
 
 
 def join_answer(work, dbs, masters, i, case):
@@ -211,6 +240,8 @@ def main():
     for d in ("masters", "joins_py", "joiner_py"):
         shutil.rmtree(work / d, ignore_errors=True)
     masters = lotlist_fixture.make_masters(work / "masters")
+    masters["重なりマスタ"] = work / "masters" / "重なりマスタ.sqlite3"
+    make_dup(masters["重なりマスタ"])
     joins = [{**c, "expected": join_answer(work, dbs, masters, i, c)} for i, c in enumerate(JOINS)]
     datetimes = [[v, t, to_datetime(v, t)] for v in DT_VALUES for t in TIMES]
     minutes = [[v, (lambda m: list(m) if m else None)(to_minutes(v))] for v in DT_VALUES + TIMES]

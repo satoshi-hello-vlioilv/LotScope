@@ -219,11 +219,14 @@ fn step(
     let sel = if right_sel.is_empty() { left_sel } else { format!("{left_sel}, {right_sel}") };
     let kind = if j.how == "inner" || j.how == "right" { "JOIN" } else { "LEFT JOIN" };
     let mut body = format!("SELECT {sel} FROM {acc} AS a {kind} {rk} AS r ON {cond}");
+    // この元の鍵（比べ方の値）の一時表と索引。相手だけの行（右外部・完全外部）と、相手の行のうち当たった数（rightHit）を索引で見る
+    // （版 3.96.0: rightHit は相手の行ごとにこの元を JoinKey つきで全部なめる入れ子だった。Python の _step と同じ直し。答えは同じ）
+    let ak = format!("_tpa_a{n}");
+    let distinct = j.on.iter().zip(&ks).map(|((a, _), k)| format!("JoinKey({}) AS {k}", qi(a))).collect::<Vec<_>>().join(", ");
+    c.execute_batch(&format!("CREATE TEMP TABLE {ak} AS SELECT DISTINCT {distinct} FROM {acc}")).map_err(other)?;
+    c.execute_batch(&format!("CREATE INDEX temp.{ak}_ix ON {ak}({})", ks.join(", "))).map_err(other)?;
+    let same = ks.iter().map(|k| format!("x.{k} = r.{k}")).collect::<Vec<_>>().join(" AND ");
     if j.how == "right" || j.how == "full" {
-        let ak = format!("_tpa_a{n}");
-        let distinct = j.on.iter().zip(&ks).map(|((a, _), k)| format!("JoinKey({}) AS {k}", qi(a))).collect::<Vec<_>>().join(", ");
-        c.execute_batch(&format!("CREATE TEMP TABLE {ak} AS SELECT DISTINCT {distinct} FROM {acc}")).map_err(other)?;
-        c.execute_batch(&format!("CREATE INDEX temp.{ak}_ix ON {ak}({})", ks.join(", "))).map_err(other)?;
         let only_left = acc_cols
             .iter()
             .map(|col| match key_of.get(col) {
@@ -234,7 +237,6 @@ fn step(
             .join(", ");
         let tail = if right_sel.is_empty() { String::new() } else { format!(", {right_sel}") };
         let not_null = ks.iter().map(|k| format!("r.{k} IS NOT NULL")).collect::<Vec<_>>().join(" AND ");
-        let same = ks.iter().map(|k| format!("x.{k} = r.{k}")).collect::<Vec<_>>().join(" AND ");
         body = format!(
             "{body} UNION ALL SELECT {only_left}{tail} FROM {rk} AS r WHERE {not_null} AND NOT EXISTS (SELECT 1 FROM {ak} AS x WHERE {same})"
         );
@@ -247,7 +249,7 @@ fn step(
     let nn = ks.iter().map(|k| format!("{k} IS NOT NULL")).collect::<Vec<_>>().join(" AND ");
     let rdup = count(c, &format!("SELECT COUNT(*) FROM (SELECT 1 FROM {rk} WHERE {nn} GROUP BY {} HAVING COUNT(*) > 1)", ks.join(", ")))?;
     let rhit = if rtotal <= RIGHT_HIT_LIMIT {
-        Some(count(c, &format!("SELECT COUNT(*) FROM {rk} AS r WHERE EXISTS (SELECT 1 FROM {acc} AS a WHERE {cond})"))?)
+        Some(count(c, &format!("SELECT COUNT(*) FROM {rk} AS r WHERE EXISTS (SELECT 1 FROM {ak} AS x WHERE {same})"))?)
     } else {
         None
     };

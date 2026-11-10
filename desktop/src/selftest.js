@@ -307,16 +307,15 @@
 
     // 10b'') 設備グループ（版 3.94.0 から窓が答える: equipgroups_write.rs）: 一覧（選べる設備の出どころと件数も）は Python と同じ答え。
     //        書く道は書かずに確かめる（無いグループを直すは Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）。
-    //        スケジュールの元（CM3 の場所と設備の列。配る設定の既定）がある PC では、Python の選べる設備は CM3 に届くか（とその Python が
-    //        前に取れたか）で変わり、窓は CM3 へ取りに行かないので同じにできない。そのときの一覧は窓が Python に任せ、答えが同じことを見る
-    //        （CI の自己診断で見つけた。断る歩は Python も数えないので、どちらの PC でも窓が答える）
+    //        スケジュールの元（CM3 の場所と設備の列。配る設定の既定）がある PC でも、版 3.96.0 から窓がスケジュールの係（CM3 へ取りに行く）
+    //        なので窓が答え、Python（受け身。窓の状態を読む）と同じ答え（版 3.94.0 は Python に任せていた）
     {
       const canonG = (v) => Array.isArray(v) ? v.map(canonG) : v && typeof v === "object"
         ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonG(v[k])])) : v;
       const a = "/api/masters/equipgroups";
       let sch = false;
       try { sch = (JSON.parse((await get("/api/dashboard/sources")).text).items || []).some((x) => x.key === "src:sch" && x.place && x.equip); } catch (_) { sch = false; }
-      const want = sch ? "python" : "shell";
+      const want = "shell";
       let rs, py, same = false;
       for (const until = Date.now() + 15000; ;) {      // 最初の版を置く途中・データ元の最初の写しの途中は尋ね直す（10b' と同じ）
         py = await get(a + "?engine=python"); rs = await get(a);
@@ -325,7 +324,7 @@
         if ((same && rs.by === want) || Date.now() > until) break;
         await new Promise((r) => setTimeout(r, 1000));
       }
-      ok(sch ? "設備グループの一覧は、スケジュールの元（CM3）がある PC では Python に任せ、答えが同じ（窓は CM3 の設備を数えられない）"
+      ok(sch ? "設備グループの一覧は、スケジュールの元（CM3）がある PC でも窓が答え、Python と同じ答え（版 3.96.0 から窓がスケジュールの係）"
              : "設備グループの一覧は窓が答え、Python と同じ答え（選べる設備の出どころと件数も）", rs.by === want && same,
          `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${sch ? "・スケジュールの元あり" : ""}`);
       const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
@@ -355,6 +354,33 @@
       ok("更新の置き場と、だれが（版を置ける・配る版を決められる）は窓が答え、Python と同じ答え。配布の置き場を写す進み具合も窓",
          rs.by === "shell" && same && pg.by === "shell" && pg.r.status === 200 && st === "idle",
          `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}・進み具合 ${pg.by} ${st}${same ? "" : "・" + rs.text.slice(0, 80) + " / " + py.text.slice(0, 80)}`);
+    }
+
+    // 10b'''') スケジュール（版 3.96.0 から窓がただ 1 つの係: schedule.rs。CM3 へ取りに行く・世代を置く・状態を書く）: 設備のタブ・
+    //          データ元の一覧の行の様子・最初の設備の一覧（届かない CM3 なら 502 の言葉）を窓が答え、受け身の Python（engine=python。
+    //          窓の状態のファイルを読み、取りに行く要るときは窓に知らせて待つ）と同じ答え。時刻は比べない
+    {
+      const dropT = (v) => Array.isArray(v) ? v.map(dropT) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["fetchedAt", "checkedAt", "copiedAt", "timing"].includes(k)).map((k) => [k, dropT(v[k])])) : v;
+      const canonS = (t) => { try { return JSON.stringify(dropT(JSON.parse(t))); } catch (_) { return "?"; } };
+      let first = "";
+      try { first = ((JSON.parse((await get("/api/schedule")).text).equipments || [])[0] || {}).key || ""; } catch (_) { first = ""; }
+      const paths = ["/api/schedule", "/api/schedule/card"].concat(first ? [`/api/src/sch?equip=${encodeURIComponent(first)}`] : []);
+      const got = [];
+      let allSame = true;
+      for (const p of paths) {
+        let rs, py, same = false;
+        for (const until = Date.now() + 30000; ;) {
+          rs = await get(p);
+          py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python");
+          same = rs.r.status === py.r.status && py.by === "python" && canonS(rs.text) === canonS(py.text);
+          if ((same && rs.by === "shell") || Date.now() > until) break;
+          await sleep(1000);
+        }
+        allSame = allSame && same && rs.by === "shell";
+        got.push(`${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${same ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+      }
+      ok("スケジュールの設備のタブ・行の様子・一覧は窓が答え、受け身の Python と同じ答え（窓がただ 1 つの係）", allSame, got.join("・"));
     }
 
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、

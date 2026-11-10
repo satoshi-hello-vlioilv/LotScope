@@ -53,6 +53,13 @@ def lists_are_external(settings):
     return "lists" in shell_serves() and lot_engine(settings) == "rust"
 
 
+def schedule_is_external(settings):
+    """スケジュール（CM3 から取る・世代を置く・状態を書く）の係が、このプロセスの外（デスクトップ版の Rust）か（版 3.96.0）。
+    窓が schedule を名乗り、設定の係も rust のときだけ。そのときスケジュールの係は受け身（窓の状態と世代を読み、取りに行く要るときは
+    窓へ知らせる: shell_notice("schedule", …)。窓が係を降りた設定の間だけ自分で取る）"""
+    return "schedule" in shell_serves() and lot_engine(settings) == "rust"
+
+
 _SHELL_NOTICE = []
 
 

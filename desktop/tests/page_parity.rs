@@ -98,15 +98,7 @@ fn page_and_first_reads_are_like_python() {
                 continue;
             }
             if py.is_null() {
-                // 尋ねていない設備の木。スケジュールの元に場所があれば窓は Python に任せるはず（窓は CM3 を数えない）
-                let sch = sc["answer"]["lists"]["sources"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .any(|d| d["key"] == "sch" && d["place"].as_str().is_some_and(|p| !p.is_empty()));
-                if sch {
-                    bad.push(format!("{name} {path}: スケジュールの場所がある設備の木を窓が答えた（Python に任せるはず）"));
-                }
+                // 尋ねていない設備の木（tree の場面だけ尋ねる。版 3.96.0 からスケジュールの元に場所があっても窓が答える）
                 continue;
             }
             if py["status"] != 200 || status != 200 {

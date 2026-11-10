@@ -152,3 +152,105 @@ def serve(answers, port=0):
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+# ---------------------------------------------------------------- 形を変えられる作り物の CM3（版 3.96.0。schedule_oracle.py・試験）
+def reply(status=200, reason="OK", body=b"", headers=None, version="HTTP/1.1", chunked=False, length=True):
+    """答えのバイト列。headers: [(名前, 値)]（並びのまま）。chunked は 7 バイトずつに切る。length=False は長さを書かない（閉じるまで）"""
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    hs = list(headers or [])
+    if chunked:
+        hs.append(("Transfer-Encoding", "chunked"))
+        out = b"".join(b"%x\r\n" % len(body[i:i + 7]) + body[i:i + 7] + b"\r\n" for i in range(0, len(body), 7)) + b"0\r\n\r\n"
+    else:
+        if length:
+            hs.append(("Content-Length", str(len(body))))
+        out = body
+    head = f"{version} {status} {reason}\r\n" + "".join(f"{k}: {v}\r\n" for k, v in hs) + "\r\n"
+    return head.encode("latin-1") + out
+
+
+def json_reply(obj, charset="UTF-8", encoding="utf-8", **kw):
+    ct = "application/json" + (f";charset={charset}" if charset is not None else "")
+    return reply(body=json.dumps(obj, ensure_ascii=False).encode(encoding), headers=[("Content-Type", ct)], **kw)
+
+
+class Cm3Server:
+    """生のソケットの作り物の CM3。道の頭 /<走る係>/<場面>/… で場面を選ぶ（窓と Python が同じ作り物に別々に問い合わせ、数えも分ける）。
+    handler(場面, 要求, 回数) → 答えのバイト列か ("sleep", 秒)（受けて黙る）か None（何も言わずに閉じる）。
+    要求は {"method", "path", "headers": [(名前, 値)], "body", "equip"}。log に (走る係, 場面, 要求) を残す"""
+
+    def __init__(self, handler):
+        import socket
+        self.handler = handler
+        self.log = []
+        self.counts = {}
+        self.lock = threading.Lock()
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(64)
+        self.port = self.sock.getsockname()[1]
+        self.url = f"http://127.0.0.1:{self.port}"
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _loop(self):
+        while True:
+            try:
+                c, _ = self.sock.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._one, args=(c,), daemon=True).start()
+
+    def _one(self, c):
+        import time as _t
+        try:
+            data = b""
+            while b"\r\n\r\n" not in data:
+                got = c.recv(65536)
+                if not got:
+                    return
+                data += got
+            head, _, body = data.partition(b"\r\n\r\n")
+            lines = head.decode("latin-1").split("\r\n")
+            method, path, _v = lines[0].split(" ", 2)
+            hs = [tuple(x.split(": ", 1)) for x in lines[1:]]
+            n = int(dict((k.lower(), v) for k, v in hs).get("content-length") or 0)
+            while len(body) < n:
+                got = c.recv(65536)
+                if not got:
+                    break
+                body += got
+            parts = path.split("/")
+            runner, scene = (parts[1], parts[2]) if len(parts) > 2 else ("", "")
+            try:
+                equip = json.loads(body.decode("utf-8")).get("setsubiName") or "" if body else ""
+            except ValueError:
+                equip = ""
+            if not equip and "eq=" in path:
+                equip = path.split("eq=", 1)[1].split("&")[0]
+            req = {"method": method, "path": path, "headers": hs, "body": body.decode("utf-8", "replace"), "equip": equip}
+            with self.lock:
+                key = (runner, scene, equip)
+                self.counts[key] = self.counts.get(key, 0) + 1
+                k = self.counts[key]
+                self.log.append((runner, scene, req))
+            out = self.handler(scene, req, k)
+            if isinstance(out, tuple) and out[0] == "sleep":
+                _t.sleep(out[1])
+            elif out:
+                c.sendall(out)
+        except OSError:
+            pass
+        finally:
+            try:
+                c.close()
+            except OSError:
+                pass
+
+    def requests(self, runner, scene):
+        with self.lock:
+            return [r for (ru, sc, r) in self.log if ru == runner and sc == scene]
+
+    def close(self):
+        self.sock.close()
