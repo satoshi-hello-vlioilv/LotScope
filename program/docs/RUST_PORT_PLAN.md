@@ -1021,6 +1021,34 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
   版が 2 つ上がった → 書く前に古さの時間と並びの番号を確かめる。あわせて、窓の束の材料（work_log_files・path_settings の check）を通った形だけ答え、Windows の
   file_id は作った時刻が 0 なら付けない（Python と同じ）。
 
+### 段 3 の 10 歩目: 変換表（8 本）を窓が答える — 版 3.93.0
+
+設備グループと変換表の移し方を決まり 2026-11-06 で 6 案にして別のエージェントが 1 回だけ採点した（`tools/ui-proposals/2026-11-port-convgroups.json`）。
+1 位 **F**〈A〈12 本を全部〉を 2 つの版に分ける: 3.93.0 は変換表 8 本、3.94.0 は設備グループ 4 本〉に、採点の指摘のうち変換表に当たる物をすべて入れて作った。
+
+- 窓（`desktop/src/conversions_write.rs`）: GET・POST /api/masters/conversions・PUT・DELETE /<id>・POST /<id>/preset・GET /export・POST /import・POST /defaults。
+  services/conversions の clean_row・clean_inputs・clean_test・clean_rows・_check_out・clean_apply・clean_import・export_items・check_unique と、
+  master_repository の conversion_create・conversion_import・conversion_defaults_set・conversion_presets・conversion_bundled を、誤りの出る順まで写した。
+  本文は送った順の木（`jsontree::Tree`）で読み、入力・判定・当て方の字は json.dumps の既定の区切り（", "・": "）で書く（when の鍵は送った順・同じ鍵は後ろの値を
+  前の位置へ）。値の字は _text（0 → "0"・false → "False"・小数は Python の repr）、範囲の端は pyfmt::py_float（「１,000」→ 1000・「-0」→ 0・true は断る）、
+  出す値の式は `formula::Formula::compile`（「=」だけは「式が途中で終わっています」）。表示順の無い行の決まり（row_order.next_order）は `master_rows::next_order`
+  の 1 つにし、勤務体系も使う。一覧と書き出しの形は `bundle::conv_views`（並びの順は `bundle::conv_order_index`）。取り込みは名前の引き当てでファイルの後ろの行が勝ち、
+  asDefault は Python の真偽（字の "false" も標準にする）で、変換表 → 標準の 2 回に分けて書く（後ろが錠で止まれば、前は書けたまま断りを返す）。
+  共有にまだ無い変換表・標準は、Python が読むときと同じく窓の書く係（Store::pull）で最初の版を置いてから読む。書いたら一覧の設定（式の conv の表）を捨てる。
+- Python に任せる形: 空・読めない本文（400 の HTML）・表でない真の本文のうち道の外で落ちる物（直す・標準に戻す・消す・標準を決める。500）・値が並びや表（repr）・
+  inputs が表・apply が並び・op・mode・place が並びや表（unhashable）・2^63 以上の範囲の端と表示順・式の正規表現が読めない（言葉が割れうる）・入れ子の深い式・
+  置き場の行を窓が同じに読めない（id・版・値の形・i64 を超える表示順・JSON の字の NaN など）・標準の行の名前が字でない・標準に戻す中身の列が無い・
+  i64 に入らない id・百分率符号の道。足す・取り込むの表でない真の本文は Python と同じ 400 AttributeError を窓が答える。
+- 評価関数: `cargo test --test conversions_write_parity`（← `tests/conversions_oracle.py`。23 場面・204 歩〈作った後の採点の後は 43 場面・224 歩〉で本物の窓の道〈Lot〉の答え・断る言葉・
+  できたファイル〈変換表・標準〉を Python と突き合わせる。任せる歩 45。取り込みの 2 回の書き込みの間に錠を置く場面は `conversions_write::set_between_writes`）・
+  `cargo test --lib conversions_write`・`lot::tests::the_window_answers_conversions`・自己診断の「変換表の一覧と書き出しは窓が答え、Python と同じ答え」
+  「変換表を書く道も窓が受ける」。
+- 作った後の採点（1 回・80.6 点）で見つけた割れ 2 つを直した: (1) 式の入れ子の深さ — 窓の式は 200 段で「式の入れ子が深すぎます」と断るが、Python は
+  再帰の上限まで読む（not を 90 重ねた式で窓だけが断った）。入れ子の深さで断った式と、かっこ・負の符号・not の重ねが多い式は Python に任せる。
+  (2) 最初の版の置き方 — 共有にまだ無いとき、前はどの道でも変換表と標準の 2 つに最初の版を置いたが、Python はその道で読んだマスタだけに置く。
+  道ごとに Python が読む所（一覧は標準 → 変換表・書き出しは which の 1 つ・表示順の無い足すは変換表・標準に戻すは変換表 → 標準・標準を決める〈current〉は変換表、
+  書く道は書く係が書くマスタ）でだけ置くようにした。突き合わせに not の重ねの任せる歩 3 つと、共有にまだ無い 1 歩だけの場面 20 を足した（43 場面・224 歩・任せる歩 48）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

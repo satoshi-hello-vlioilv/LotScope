@@ -1,0 +1,210 @@
+{
+ "title": "設備グループ（4 本）と変換表（8 本）の道を窓が答える（版 3.93.0。Rust 化の段 3 の 10 歩目）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-10・main 6b23586＋版 3.92.0）: routes/equipgroups.py（65 行・4 本: GET 一覧〈_listing: 行・まとめ方ごとの組〈sets〉・選べる設備〈equipment_seen: 作業実績の設備→設備マスタ→データ元の設備の列の値。データ元ごとにダッシュボードの数の道〈_answer〉で数える〉・ルールの答え〈members_in〉・canEdit・shared・revision〉・POST・PUT・DELETE〈clean_row・check_unique・表示順〉）、routes/conversions.py（104 行・8 本: GET 一覧〈view・プリセットの名前・customDefaults〉・POST・PUT・POST /<id>/preset〈標準に戻す〉・DELETE・GET /export〈which=current|defaults〉・POST /import〈clean_import・同じ名前は置き換え・asDefault〉・POST /defaults〈from=current|bundled〉）。services/equip_groups.py 146 行・services/conversions.py 312 行（clean_inputs・clean_test・clean_rows・clean_apply・clean_import・export_items）・master_repository の conversion_import・conversion_defaults_set（1 回の書き込みで置き換え・足す）。窓に既にある部品: master_rows（行の作る・直す・消す・版・錠・本文の読み方）・dashboard.rs の members_in（設備グループのルールの答え）・bundle の conv_views（変換表の読み）・dashboard の数の道（equipment_seen のデータ元ごとの数え）。速さ（ui_server・試験データ 1500 行、3 回）: GET /api/masters/equipgroups 197 ms（冷えた最初）→ 10 ms・9 ms、GET /api/masters/conversions 3.9・3.3・2.7 ms、GET /export 2〜3 ms。Python の速さは足りているので、得は Python が答えない間（起動直後・Python を外した後）もマスタ管理の設備グループと変換表を開いて直せること（Python を外す道のり）",
+ "proposals_text": {
+  "A": "12 本を全部（設備グループ 4 本＋変換表 8 本）。equipment_seen は窓のダッシュボードの数の道でデータ元ごとに数える。clean_row・clean_import・export・defaults を写す",
+  "B": "変換表の 8 本だけ（設備グループは次の版）。変換表は画面の計算列の元で、窓は既に読み（conv_views）を持つ。equipment_seen が要らないので割れが少ない",
+  "C": "設備グループの 4 本だけ。equipment_seen を窓のダッシュボードの数の道で作る（ダッシュボードの設備の木〈equip_tree_answer〉と同じ部品）",
+  "D": "読む道だけ（GET の一覧 2 本・export）。書く道は Python に任せたまま（書く型の割れを避け、開くのを窓に）",
+  "E": "書く道の型をそろえる: 変換表と設備グループの clean_row を master_rows の組（SPECS の clean_row・_check_row）に足し、作る・直す・消すの 6 本＋一覧 2 本を窓へ。import・defaults・preset・export（4 本）は Python に任せる",
+  "F": "A を 2 つの版に分ける: 版 3.93.0 は変換表 8 本、版 3.94.0 は設備グループ 4 本（一度に 12 本の突き合わせを書かない）"
+ },
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-worklog.json（rounds の形・11 項目の読み替え）、program/app の routes/equipgroups.py（4 本と _listing）・services/equip_groups.py（clean_row・clean_rules・rules_of・members_in・check_unique・ordered・view・sets）・routes/conversions.py（8 本と _listing）・services/conversions.py（_j・_text・_num_or_blank・clean_inputs・clean_test・_check_out・clean_rows・clean_apply・clean_row・clean_import・export_items・check_unique・view・ordered・tables・preset_of・TableSource）・repositories/master_repository.py（_create・_update・_delete・_check_row・equip_group_*・conversion_*〈bundled・presets・defaults_custom・defaults_set・import〉）・master_store.read と _seed・services/row_order.next_order・shifts.equipment_list と _EQ_SPLIT・pivot.compile_rules・formula.columns_used・routes/dashboard.py の equipment_seen・_equipment_names・equip_tree・_answer〈first_wait〉・routes/lotlist.py の束の dash と keep・routes/common.py（base_rev・master_call・error）・app/__init__.py の TableSource〈stamp で読み直す〉、画面の master.js（:999 GET・:1084 保存の本文）・master-conv.js（:381 export・:394 import・:405 defaults・:488 保存・:497 preset・:504 DELETE）・conversions.js（:25 一覧の画面が refresh のたびに GET /api/masters/conversions）、desktop/src の master_rows.rs（py_rev・base_rev・create・update・delete・CheckRow・py_body・text_split・value_plain）・shifts_write.rs（clean_row の手本・private の next_order・readable）・worklog_write.rs（道の id・Delegate・任せる形）・lot.rs（handle_body の割り振り・shifts_route・equip_route・changes_settings・after_python・invalidate）・access.rs（門番の表・Place::doc は無いファイルで seed しない）・bundle.rs（conv_j・conv_rows・conv_views・group_rules〈正規表現は Python に任せる〉・eq_list・group_views）・dashboard.rs（Dash::names・members_in〈private〉・equip_tree・equip_tree_answer〈名前だけで from・n を持たない〉）・pivot.rs（compile_rules は fancy_regex）・formula.rs（Formula::compile と check の違い・columns_used・regex_risk）・jsontree.rs（送った順の木と dumps(item, key)）・master_store.rs（write_json_atomic は鍵を字の順に書く）、desktop/tests/formula_cases.rs（失敗の言葉は RE_HEAD より後ろを比べない）。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-cg の probe.py ほか。開発用サーバー ui_server.py 8791 を起こして curl・urllib で尋ね、終わって止めた）: 速さ（3 回）GET /api/masters/equipgroups 118→10.3→8.6 ms（別の回 41.6→12.7→10.6）・GET /api/masters/conversions 2.9・2.6 ms・export 1.6 ms・export?which=defaults 2.3 ms・GET /api/dashboard/equip-tree 8.2 ms・PUT /api/masters/conversions/<id> 5.8〜6.9 ms・PUT /api/masters/equipgroups/<id> 11.9〜14.1 ms（答えに equipment_seen を組む）。速さの得は無い（measured と同じ）。端の答え 25 歩: 空の本文の PUT は 400 の HTML・[[\"note\",\"x\"]] の PUT は base_rev が先に落ちて 500 の HTML・[1] の POST は 400 AttributeError・正規表現「(a」は 400 GroupError「…読めません（missing ), unterminated subpattern at position 0）。」・「(a+)+$」は regex_risk の言葉・op が並びは 400 TypeError「unhashable type: 'list'」・order 1e20 は表示順「100000000000000000000」・設備 [\"CR1\",5,true,1.0] は「CR1,5,True,1.0」・order「１２」は「12」・「ｃｒ ライン」「ﾗｲﾝ別」は 409 duplicate・rules だけの PUT で設備「CR1,CR2」が「」に消える・変換表の rows だけの PUT は 400「入力を 1 つ以上…」・preset の id 999 は base_rev つきでも 404 not_found・defaults の from=x は 400（kind 無し）・[1] は 500・空は 400 の HTML・import の items [] は 400・範囲の min「１,000」→1000・max 1e16→10000000000000000・min「-0」→0・min true は「（True）」の断り・その他 1e16 は「1e+16」・when の鍵は送った順（b → a）のまま 判定 の字に入り、同じ鍵は後ろの値・eq の値 1.0/true/null は「1.0」「True」・除く・置き場に同じ名前が 2 行あると import はファイルの後ろの行を置き換える・asDefault「false」（字）でも標準を書く（customDefaults true）。cargo は流していない（Rust はコードを読んで確かめた）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲・考えさせない＝落とし穴を案の文で潰しているか・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ。measured の足りない所: 一覧の画面（conversions.js:25）が refresh のたびに GET /api/masters/conversions を呼ぶ（得は変換表の方が大きい）・equipment_seen の答えは名前だけでなく from（作業実績・設備マスタ・データ元の名前）と n（件数）を持ち、窓の equip_tree_answer は名前だけ・正規表現のルールは窓の束も Python に任せている・置き場にまだ無いファイルを Python は読むときに最初の版として置く（窓の Place::doc は置かない）・Python 側の割れ（部分の直しで設備・ルールが消える）。作った後（built）の採点: 案を作っていない採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、読んで・動かして確かめた事実で付けた。リポジトリの中で変えたのはこのファイルだけ・git の操作はしていない。読んだ物: git status・git diff（lot.rs の conversions_route と the_window_answers_conversions・master_rows.rs の next_order・bundle.rs の conv_order_index・shifts_write.rs・worklog_write.rs の id_of・selftest.js の 10b'・CLAUDE.md・version.py）、新しい desktop/src/conversions_write.rs の全部・desktop/tests/conversions_write_parity.rs・program/tests/conversions_oracle.py、比べる相手の Python（routes/conversions.py の 8 本と _listing、services/conversions.py の _j・_text・_num_or_blank・clean_*・_check_out・export_items・check_unique・view・ordered・tables・preset_of・TableSource、master_repository の _create・_update・_delete・_check_row・conversion_*、master_store の read・_doc_path・_maybe_refresh・_pull・_seed、routes/common の base_rev・master_call・error、services/row_order.next_order、services/formula の parse〈RecursionError → 入れ子が深すぎます〉とdesktop/src/formula.rs の MAX_DEPTH 200）・static/js/conversions.js（revision が変わったときだけ取り込む）・web.py の jsonify（sort_keys。窓の serde も鍵の字の順で同じ）。流した物（置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-cv）: cargo test --locked --test conversions_write_parity（debug。1 passed・9.56 秒）・cargo test --locked --lib -- conversions（routes_and_ids_are_like_python・rows_keep_the_sent_order_and_python_text・lot::tests::the_window_answers_conversions の 3 passed）・cargo test --locked --test shifts_parity（next_order を master_rows へ移した後も 1 passed）・python -m unittest tests.test_version（9 OK）。さらに、リポジトリを変えずに場面を足して突き合わせた: 環境変数 TPA_PYTHON を py.sh（conversions_oracle.py の呼び出しを my_oracle.py に差し替える）にして、元の 23 場面に P1〜P8 の 10 場面・約 50 歩（深い not とかっこの式・共有にまだ無い置き場で書き出す／断られる／無い id を消す・表示順の字 12 種〈1_0・+5・٣・1__0・_1・-3・0x10・1e3・١٢・全角の空白・-1.9・0.0〉・字の書き方〈制御字・\\x1f と \\x85 の strip・\\u2028・絵文字 45 字の切り方・字の rows の同じ鍵・1E5・字の apply〉・正規表現 10 種・版の字〈2.0・\"2.0\"・\" 3 \"・true・?rev= の 2 つ〉・asDefault の 0.0・{}・\"0\"・取り込みの断りの頭〈1.5・空白〉・範囲の端「１e3」「1_000」・共有にまだ無いうえに錠）を足して本物の窓の道（Lot::handle_body）で流した（probe.log・probe2.log・probe3.log）。割れは下の 2 つだけで、ほかの歩は答え・ファイルとも Python と同じ（正規表現の読めない言葉・1e22 の値は窓が任せる＝安全側）。cargo の release は組んでいない",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "self_check": "案を作った者が棚卸しと測った数で見込みを確かめた: 窓へ移す得は速さでなく Python が答えない間も開ける・直せること。equipment_seen はデータ元ごとにダッシュボードの数え（_answer）をするので、窓で作るとダッシュボードの数の道と同じ答え（設備の列の見分け・ラベル）になるかの突き合わせが要る。変換表の取り込みは 1 回の書き込みで置き換えと足しを行う（版の上げ方・表示順の振り方を写す）。標準に戻す・標準を決めるは conversion_defaults（別のマスタ）と同梱のプリセット（app/master_defaults/conversions.json）を読む",
+   "proposals": {
+    "A 12 本を全部（設備グループ 4 本＋変換表 8 本）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 9,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 5,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "終わったときの範囲はいちばん広い（マスタ管理の 2 つのタブと一覧の画面の変換表の読みが Python 無しで動く）。ただ 2 つの組は部品をほとんど共にしない（変換表は式・送った順の JSON・同梱の標準・2 つのファイル、設備グループはダッシュボードの数え・ルール）ので、1 つの版に 12 本と 2 つの突き合わせが乗る。案の文は equipment_seen を「ダッシュボードの数の道で数える」とだけ言い、from・n（窓の equip_tree_answer に無い）・正規表現の扱い・本文の鍵の順・import の後ろ勝ち・asDefault の真偽・まだ無いファイルの seed・部分の直しで消える Python の割れに触れていない。速さの得は無い（GET 2.6〜10 ms）",
+     "fixes": [
+      "F の fixes と同じ（A を作るなら F の 2 つの版の中身を 1 つの版で入れる。突き合わせは組ごとに分ける）"
+     ]
+    },
+    "B 変換表の 8 本だけ（設備グループは次の版）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "変換表は一覧の画面（conversions.js:25 の refresh）も尋ねる道で、Python が居ない間の得が大きい。窓には読み（conv_views・conv_tables）・書く型（master_rows）・送った順の木（jsontree）・式（formula::Formula）・小数の字（pyfloat）・数の読み（py_float）が揃い、equipment_seen が要らないので割れの元が少ない。8 本で 1 つの突き合わせにまとまる。足りない所は案の文に落とし穴が無いこと（本文の鍵の順・_text と or の違い・import の後ろ勝ち・asDefault・2 回の書き込み・preset の 404・seed）と、設備グループをいつやるかが書いていないこと",
+     "fixes": [
+      "F の fixes の 3.93.0 の分と同じ"
+     ]
+    },
+    "C 設備グループの 4 本だけ": {
+     "score": {
+      "order": 5,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "設備グループの GET はマスタ管理（master.js:999）だけが呼び、一覧・ダッシュボードの数え（egroupSets・equip-tree）はもう窓が答えているので、先にやる得が小さい。書く型は勤務体系（shifts_write）に近いが、一覧の equipment_seen は from と n を持ち、窓の equip_tree_answer（名前だけ）を広げる必要がある。正規表現のルールは窓の束も Python に任せており、書く道も Python の re の言葉が要るので、正規表現を使う現場では得が出ない。測った速さは 8.6〜12.7 ms（得は無い）",
+     "fixes": [
+      "F の fixes の 3.94.0 の分と同じ"
+     ]
+    },
+    "D 読む道だけ（GET の一覧 2 本・export）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 6,
+      "place": 4,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "Python が起きていない PC で窓が一覧を答えると canEdit true の画面が開くが、保存（POST・PUT・DELETE・import・defaults・preset）は Python なので必ず失敗する。開ける・直せるに見えて直せない（routes/equipgroups.py・conversions.py の書く道の答えは _listing を Python が組む）"
+      }
+     ],
+     "seen": "書く割れが無いので危うさは低いが、いちばん重い equipment_seen（from・n）は読む道に入っている。書いた後の答え（_listing）は Python が組むので、一覧の組み方が窓と Python の 2 か所に残る。得は一覧の画面の変換表の読み（conversions.js）と、開くことだけ",
+     "fixes": [
+      "採らない。採るなら書く道も窓で（＝B・F）。読むだけの部分は F の fixes の一覧・export・seed の項"
+     ]
+    },
+    "E 書く道の型をそろえる（作る・直す・消す 6 本＋一覧 2 本。import・defaults・preset・export は Python）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 8,
+      "place": 6,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "変換表のタブの中で、保存・消すは窓、書き出す・取り込む・標準にする・標準に戻す（master-conv.js:381・394・405・497）は Python と道が分かれ、Python が居ない PC では同じタブのボタンの半分だけが失敗する。何が動いて何が動かないかが画面から分からない"
+      }
+     ],
+     "seen": "clean_row を master_rows の 1 つの形にそろえる考えは良い（形と色）。ただ export は読むだけで conv_views からすぐ作れるのに Python に残り、import・defaults・preset も _listing を Python が組むので、変換表の一覧の組み方が 2 か所に残る。設備グループの一覧（equipment_seen）は範囲に入るのに、その落とし穴（from・n・正規表現）は書いていない。master_rows には SPECS ごとの clean_row の表は無く（CheckRow を渡す形）、案の文の前提が少し違う",
+     "fixes": [
+      "採らない。型をそろえる考えは F で next_order・clean の共通を master_rows へ移すことで入れる"
+     ]
+    },
+    "F A を 2 つの版に分ける（3.93.0 変換表 8 本・3.94.0 設備グループ 4 本）": {
+     "score": {
+      "order": 9,
+      "chunk": 9,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 8,
+      "place": 7,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "得の大きい変換表（一覧の画面も尋ねる）を先に、部品の違う設備グループ（ダッシュボードの数え・ルール）を次の版にする切り方で、版ごとに 1 つの突き合わせにまとまる。終わったときの範囲は A と同じ。3.93.0 は窓に揃った部品（conv_views・master_rows・jsontree・formula・pyfloat・py_float）でほぼ組め、3.94.0 は equip_tree_answer を広げて equipment_seen を 1 か所にできる。足りない所は、案の文に落とし穴の見積もりが無いこと（測って見つけた割れ: 本文の鍵の順・_text と or の違い・数の字・import の後ろ勝ち・asDefault の字・2 回の書き込み・preset の 404・seed・正規表現・部分の直しで消える Python の割れ・from と n）で、1 回だけの採点なので合格点に届かない。作るときに下の指摘を入れる",
+     "fixes": [
+      "【3.93.0 変換表】本文は道ごとに読み方が違う: POST・PUT・import・defaults は get_json(force=True)（silent でない）なので、空・読めない本文は 400 の HTML → 窓は答えず Python に任せる。PUT・DELETE・preset は先に base_rev が silent で読み、表でない真の本文は 500 の HTML（shifts_write と同じ形）。POST・import の [1] は master_call の中の 400 AttributeError、defaults の [1] は外の 500",
+      "本文は jsontree::Tree（送った順）で読み、入力・判定・当て方の字は Tree::dumps(\", \", \": \")（json.dumps の既定の区切り・ensure_ascii=False）で書く。when の鍵は送った順のまま・同じ鍵は後ろの値を前の位置へ（再現: when {b, a} → 判定の字も b → a、b が 2 つなら後ろの {op: empty}）。作る物の鍵の順は inputs {name, type, columns}・test {op, v} か {op, min, minInc, max, maxInc}・行 {when, out}・apply {mode, column, place}（column・place は add だけ）。serde の Map で読むと鍵が字の順に並び替わって割れる",
+      "値の字: conversions._text は `v if v is not None else \"\"`（0 → \"0\"・false → \"False\"）で、equip_groups の `str(v or \"\")`（0 → \"\"）と違う。小数は pyfloat の repr（1.0 → \"1.0\"・1e16 → \"1e+16\"）・並びや表の値は repr なので Python に任せる（value_plain）。[:N] は strip の後に code point で切る（UTF-16 でも byte でもない）。出す値・その他は str(o)[:500] で strip しない",
+      "_num_or_blank は float(str(v).replace(\",\", \"\").strip())（pyfmt::py_float。全角・下線も読む）: 「１,000」→1000・「-0」→0・true →「範囲の端は数で入れてください（True）。」・nan・inf は同じ断り。is_integer なら int（1e16 → 10000000000000000）、|x| ≥ 2^63 の整数は double の正確な桁が要るので Python に任せる。minInc・maxInc は JSON の false のときだけ残す",
+      "clean_test・clean_rows・clean_inputs の切り方の順を写す: rows は 300 を超えたら先に断る・表でない行は飛ばすが「n 行目」の n は飛ばした行も数える・tests は全部確かめてから [:12]（13 個目の誤りでも断る）・値は None を除き重ねを除いて [:60]・\"\" は eq と ne だけ残す・inputs は [:9] で切ってから表でない物を飛ばし、9 個残れば「8 つまで」・columns は空を除いて [:12]・type は字の \"num\" のときだけ num。op が並び・表は 400 TypeError「unhashable type: 'list'」（Python の言葉。答えるなら同じ字、迷えば任せる）",
+      "出す値の式は formula::Formula::compile で読む（check は「=」だけのとき「式を入力してください」と言うが、Python の compile_formula は「式が途中で終わっています」）。列の並びは columns_used（初めて出た順・重ねなし）で両方同じ。正規表現の読めない言葉は RE_HEAD より後ろが Python と違いうるので、その言葉のときは任せる",
+      "名前: ' と \" を両方含めば断る・一意は字そのまま（normalize しない）で `str(r.get(\"名前\") or \"\")` と比べる（設備グループは normalize_part。2 つの組で比べ方が違う）。表示順は str(int(order))（Unicode の数字・下線・小数は切り捨て・true → 1・読めなければ \"\" → 作るときは next_order）。next_order は shifts_write の private を master_rows の 1 つへ移して使い回す",
+      "import: 名前の引き当ては `{str(r.get(\"名前\") or \"\"): r for r in cur}` でファイルの後ろの行が勝つ（再現: id2 と id11 が同じ「地取区分」→ id11 を置き換え）。式の conv（tables・preset_of）は ordered の最初の行を使うので、Python を先に直す（ordered の最初の行を置き換える）か、そのまま写して事例に入れるかを決める。置き換えた行は表示順と位置を残し rev＋1（読めない版は 400 で何も書かない）、足す行は next_order(cur)−10 から 10 ずつ・表示順 \"\" を入れてから上書き。断りの頭は「{x.get('name') or f'{i+1} つ目'}」（0 → 「1 つ目」・true → 「True」）",
+      "asDefault は Python の真偽（再現: 字の \"false\" でも標準を書き customDefaults が true）。書くのは conversions → conversion_defaults の 2 回（錠も 2 回）で、後ろが失敗すると前は書けたまま失敗を返す。窓も同じ順にし、錠で後ろを止めた場面を試験に入れる",
+      "defaults: from は \"current\"・\"bundled\" のときだけ（ほかは 400 で kind が無い）。current は ordered の行の FIELDS をそのまま渡し _clean、bundled は [] で空にする（標準は同梱へ戻る）。id は 1 から振り直し・rev 1・書いた人と時刻",
+      "preset（標準に戻す）: 行は `r.get(\"id\") == item_id`（1.0 も 1）で探し、無ければ base_rev を添えても 404 not_found（_update の 409 と違う。再現 id 999）。標準は conversion_defaults に行があればそれ、無ければ同梱 app/master_defaults/conversions.json（窓の Store の defaults の置き場から読み _normalize）。名前は字そのままで最初の行・無ければ 400（kind 無し）。値が並び・表なら任せる",
+      "一覧: items は bundle::conv_views（表示順が i64 に入らなければ任せる）＋ rev ＋ preset（view の名前が標準の名前の集まりにあるか）。標準の名前に字でない物があると Python の sorted が 500 なので任せる。ops・modes・places は定数（bundle_tables に焼くか Python から焼いた表）。export は which=defaults のときだけ標準・view から id と order を除く",
+      "まだ無いファイルの最初の読み: Python の MasterStore は共有に conversions.json・conversion_defaults.json が無いと、読むときに写し → data/ → master_defaults の中身を最初の版（revision 1 以上）として置く。窓の Place::doc は置かないので revision 0 になり割れる → 共有に無いときは Python に任せる（dashboards_parity と同じ）か、Store の seed を通して読む",
+      "書いた後: self.invalidate()（束の conversions の表・印）と書く前の gate.forget。Python の式の conv は TableSource が stamp を 2 秒ごとに見るので、窓が書いた表を Python が使うまでを lot::tests で確かめる。一覧の画面の conversions.js は revision が変わったときだけ取り込むので、手元だけの PC（revision 0 のまま）での見え方も確かめる",
+      "道の id: \\d+（Unicode の数字・先頭の 0）と int()。i64 を超える id・百分率符号の道は任せる。/<id>/preset も同じ。突き合わせは program/tests/conversions_write_oracle.py ＋ desktop/tests/conversions_write_parity.rs（sources_write・worklog_write の手本: 本物の Lot の道・ファイルは読んで比べる・任せる歩の一覧）",
+      "【3.94.0 設備グループ】equipment_seen を窓の 1 つの係にし、equip_tree_answer もそれを使う（答えの元を 1 か所に）: 名前だけでなく from（「作業実績」← 作業実績の登録の行を work_log.ordered の順で・表示しない行も、「設備マスタ」、データ元の名前）と n（データ元の数え cells の件数の和）を持つ。Dash::names は作業実績と設備マスタを混ぜた並びなので、from を出すには 2 つを分けて読む。スケジュールのように数えられない元・待ち（first_wait 2 秒）は今の答えと同じく扱う",
+      "正規表現のルールは Python に任せる: 書くときは re.compile の言葉（再現「(a」→「missing ), unterminated subpattern at position 0」）と regex_risk（再現「(a+)+$」）が要り、窓の fancy_regex とは受ける形も言葉も違う。束の group_rules も正規表現の行で任せているので、一覧も置き場に正規表現の行があれば任せる（そろう）",
+      "先に Python の割れを直す（版を上げ RELEASE を書き直す）: clean_row(partial=True) は \"equipment\" か \"rules\" のどちらかが来ると両方を作り直すので、rules だけの PUT で設備が消える（再現: id1 の「CR1,CR2」が PUT {rules: [prefix CR]} で「」）・equipment だけならルールが消える。前の行と合わせて作るよう直して試験を足し、窓はその形を写す（画面は両方を送るので今は出ない）",
+      "clean_row の字: 名称は `str(v or \"\")`（0 は断る）・strip → [:40]（置き場では _clean がもう一度 strip）・まとめ方は空なら「グループ」・設備は worksum::equipment_list（並びの中の 5・true・1.0 は「5」「True」「1.0」。再現「CR1,5,True,1.0」）・rules は [:12] で切ってから表でない・知らない op を飛ばす・op が並びは 400 TypeError・値は `str(v or \"\")`.strip()[:80]・重ねを除く・except はルールがあるときだけ・ルールの字は {\"rules\": …, \"except\": …}（except は空なら無い）を Tree::dumps(\", \", \": \") で・ルールが無ければ \"\"・表示順 str(int())（「１２」→「12」・1e20 →「100000000000000000000」は任せる）・備考 [:200]",
+      "一意: (normalize_part(まとめ方 or \"グループ\"), normalize_part(名称)) を直した後の行（{**old, **data}）で比べ、言葉は data の字のまま（再現 409「まとめ方「ﾗｲﾝ別」には、グループ「ｃｒ ライン」がもうあります。」）",
+      "一覧: items は bundle::group_views（pub にする。表示順の大きな行は任せる）・names は seen の名前 ＋ グループに書いた名前で seen に無い物（from []・n 0 で seen にも足す）・items と sets の各グループに members_in（dashboard.rs の private を pub に）・ruleOps は焼いた表・canEdit・shared・revision",
+      "書いた後: invalidate（束の dash.equipGroups）。ダッシュボードの控えの鍵は egroups を含むので古い答えは出ない。突き合わせは equipgroups_write_oracle.py ＋ equipgroups_write_parity.rs（データ元の写しが済んだ形と、読めない元がある形）"
+     ]
+    }
+   }
+  }
+ ],
+ "built": {
+  "name": "作った後",
+  "self_check": "F（1 位 76.7 点）の版 3.93.0 として変換表の 8 本を窓が答える形に作った（desktop/src/conversions_write.rs・lot.rs の conversions_route・selftest.js の 10b'）。指摘 22 項目のうち変換表の分をすべて入れた（送った順の木で読む・_text と同じ字・範囲の端は py_float・2^63 以上は Python・式は Formula::compile・取り込みの同じ名前は後ろ勝ち・asDefault は Python の真偽・2 回の書き込みの順・標準に戻すの 404・共有にまだ無いファイルは Store::pull で最初の版を置く・書いた後に一覧の設定を捨てる）。部品: bundle::conv_order_index（並びの順を 3 か所で共に）・master_rows::next_order（勤務体系もこれを使う）。突き合わせ: program/tests/conversions_oracle.py ↔ desktop/tests/conversions_write_parity.rs 23 場面・204 歩一致・Python に任せる歩 45。lot::tests::the_window_answers_conversions。手元の確かめ: cargo build・fmt・clippy・cargo test --lib 112・関わる parity 7 本・ruff・compileall・js-check・Python 723 件がすべて通る",
+  "result": {
+   "proposal": "F（作った後）",
+   "score": {
+    "order": 9,
+    "chunk": 9,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "【全体】conversions_write.rs（922 行）は routes/conversions.py の 8 本を、本文を送った順の木（jsontree）で読み json.dumps の区切りで書く・_text と同じ字（pyfloat の repr・code point で切る）・_num_or_blank は py_float・clean_* の切り方の順・Formula::compile・同じ名前の後ろ勝ち・asDefault の Python の真偽・変換表 → 標準の 2 回の書き込み・標準に戻すの 404・標準の置き場（conversion_defaults → 同梱）で写している。直すときの一意の確かめは直した後の行（{**row, **data}）で見る（master_rows::update の merged。同じ名前の行が 2 つある置き場で PUT {order} が 409 になるのも同じ）。部品は master_rows（create・update・delete・next_order〈勤務体系と 1 つに〉）・bundle::conv_views と conv_order_index（並びの順を 3 か所で共に）・worklog_write::id_of で、新しい型は無い。答えられない形（空・読めない本文・道の外で落ちる本文・並びや表の値・unhashable・2^63 以上・正規表現の言葉・入れ子の深い式・置き場の読めない行・読めない同梱）は書く前に None。書いた後は invalidate（窓の束の変換表）と書く前の gate.forget。Python の式の conv は stamp（版・更新時刻・大きさ）で読み直すので窓の書き込みにも付いていく。jsonify は鍵を字の順に並べ、窓の serde の Map も同じ順なので ops・modes・places の並びも同じ。突き合わせは 23 場面・204 歩＋任せる 45 歩が通り、TPA_PYTHON で足した 10 場面・約 50 歩も、下の 2 つを除いて答えとファイルが同じだった。【指摘 15 個（3.93.0 の分）の入り方】1 本文: 入った（strict と rev_of）。2 送った順: 入った（字の rows の同じ鍵も同じ）。3 値の字: 入った（\\x1f・\\x85・\\u3000 の strip・制御字の \\u0001 の書き方・絵文字の 40 字）。4 範囲の端: 入った（「１e3」「1_000」も同じ）。5 切り方の順: 入った。6 式: 一部（compile と正規表現の任せは入ったが、窓の入れ子の上限 200 と Python の再帰の上限の違いが残る＝割れ 1）。7 名前・表示順・next_order: 入った（表示順の字 12 種が同じ）。8 取り込み: 入った（後ろ勝ちはそのまま写した。Python の conv が ordered の最初の行を使う食い違いは Python 側に残る）。9 asDefault と 2 回の書き込み: 入った（錠の場面あり）。10 標準を決める: 入った。11 標準に戻す: 入った。12 一覧と export: 入った。13 まだ無いファイル: 一部（Store::pull で最初の版を置くようになったが、どの道でも 2 つのファイルを置く＝割れ 2）。14 書いた後: 一部（invalidate・gate.forget は入った。lot::tests は窓の束が新しい表を引くことを見るが、Python の TableSource が窓の書いた表を引くことは試験に無い。conversions.js は revision が変わったときだけ取り込むので、手元だけの PC〈revision が動かない〉では一覧の画面が新しい表を取り込まない——Python が書いても同じ答えなので割れではない）。15 道の id と突き合わせ: 入った。【割れ 1（答え）】出す値の式の入れ子: 窓の Formula::compile は入れ子 200 段で「式の入れ子が深すぎます」と断るが、Python は再帰の上限（約 1000 フレーム。かっこ 1 段で 7 フレーム）まで読む。deep() は ( と - の数（60 を超えたら任せる）しか見ないので、not を重ねた式が抜ける。再現: 共有の置き場（oracle の base_rows）に POST /api/masters/conversions {name: \"深い\", inputs: [{name: \"a\"}], other: \"=\" + \"not \"×90 + \"(\"×60 + \"1\" + \")\"×60}（482 字）→ Python 201（表を足す）・窓 400「どれにも当たらないときの値の式が読めません: 式の入れ子が深すぎます」。rows の out に入れても同じ（「1 行目の出す値の式が…」）。窓が先に答えるので、Python が起きていても保存できない（普通の式では出ない、作った形）。【割れ 2（ファイル）】read() が、どの道でも共有にまだ無い conversions と conversion_defaults の両方へ最初の版を置く。Python は読んだマスタだけを置く。再現（oracle の mode seed: 共有に 2 つとも無く、写しに conversions だけ）: (a) GET /api/masters/conversions/export → Python は share/conversions.json だけ、窓は share/conversion_defaults.json も置く。(b) POST {name: \"\"}（400 ConversionError）→ Python は何も置かない、窓は 2 つとも置く。(c) DELETE /999（404）→ Python は conversions だけ、窓は conversion_defaults も。置く中身は Python が次に一覧を読むときに置く物と同じ（版 1・空の行）なので害は小さいが、突き合わせのファイルの比べでは「窓だけのファイル」になる。【割れではないが落とし穴】・正規表現の読めない式（「(a」「x{2,1}」「a**」）と 1e22 の値は窓が任せる。Python が起きていない PC では、正規表現を打ち間違えた保存が分かりやすい言葉にならない（安全側）。・deep() の ( と - の 60 は Formula の上限と別の物差しで、-1-1-…の長い式（61 個の -）は Python が答えられるのに任せる（安全側）。・取り込みで標準を書く 2 回目が失敗したときも invalidate は呼ばれる（窓の束は正しい）。",
+   "fixes": [
+    "割れ 1: conversions_write.rs の check_out は、Formula::compile の失敗が「式の入れ子が深すぎます」のときも Python に任せる（Bad::Delegate。deep() の ( と - の数は、それに替えるか残す）。場面を conversions_oracle.py に足す: other と rows の out に \"=\" + \"not \"×90 + \"(\"×60 + \"1\" + \")\"×60（Python 201）→ 窓は任せる歩（delegates）。あわせて、窓の式の計算（formula.rs の MAX_DEPTH 200）と Python の再帰の上限の違いは一覧の計算列でも同じなので、formula_cases に not を重ねた式の事例を足して、どちらに合わせるかを決める",
+    "割れ 2: read() で最初の版を置くのを、Python がその道で読むマスタだけにする（一覧・標準に戻す・取り込みの後・書いた後の一覧は 2 つ、書き出し which=current と 404・409 で終わる直す／消すは conversions だけ、書き出し which=defaults は 2 つ〈own が空なら同梱を読む〉、ConversionError で断る足す・取り込むは置かない〈確かめの後に読む〉）。場面を conversions_oracle.py に足す: mode seed で [GET /export]・[POST {name: \"\"}]・[DELETE /999]（ファイルの比べで share/conversion_defaults.json が窓だけにならない）",
+    "指摘 14 の残り: lot::tests か selftest.js に、窓が足した変換表を Python の式の conv（TableSource。2 秒の stamp）が引く確かめを足す（?engine=python の一覧の計算列か /api/formula 系で）"
+   ]
+  },
+  "images": "画面に出ない改良なので画像は無い",
+  "built_fixed": {
+   "fixed": [
+    "式の入れ子の深さ: 窓の式の『入れ子が深すぎます』は Python に任せる。deep() に not の重ねと ! も数える（かっこ・負の符号・not が 60 を超える式は Python）",
+    "最初の版の置き方: read() は置かず、seed() で Python のその道がそのマスタを読む所だけに置く（一覧は標準→変換表・書き出しは which の 1 つ・表示順の無い足すは変換表・標準に戻すは変換表→標準・断る道は置かない）"
+   ],
+   "added_to_parity": "conversions_oracle.py: 任せる歩 3（not の重ね〈その他・出す値・120〉）＋共有にまだ無い 1 歩の場面 20（道ごとに置かれたファイルを突き合わせる）。23→43 場面・204→224 歩・任せる 45→48。窓を前の置き方に戻すと 13 件の食い違いで落ちることを確かめた",
+   "checks": "cargo fmt・clippy -D warnings・build・test --lib 112 passed・conversions_write_parity ok・ruff・compileall・Python 723 tests OK",
+   "note": "指摘 3（窓が書いた表を Python の TableSource が引く確かめ）は、書くファイルの中身が Python と 1 字ずつ同じことを parity が突き合わせているので、同じファイルを Python が読む形として足さなかった"
+  }
+ }
+}

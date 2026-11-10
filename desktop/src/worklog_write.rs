@@ -38,8 +38,9 @@ pub enum Route {
     Files,
 }
 
-/// Python の int(字)（\d+ の道の id。Unicode の数字も・先頭の 0 も）。i64 に入らなければ None（Python に任せる）
-fn id_of(s: &str) -> Option<i64> {
+/// Python の int(字)（\d+ の道の id。Unicode の数字も・先頭の 0 も）。i64 に入らなければ None（Python に任せる）。
+/// 版 3.93.0 から変換表の道（src/conversions_write.rs）も使う
+pub(crate) fn id_of(s: &str) -> Option<i64> {
     if s.is_empty() || !s.chars().all(|c| pyfmt::digit(c).is_some()) {
         return None;
     }

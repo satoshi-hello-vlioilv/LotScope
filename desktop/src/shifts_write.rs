@@ -293,18 +293,6 @@ fn listing(store: &Store, me: &Value, read: &Read) -> Value {
            "shared": store.is_shared(NAME), "revision": store.revision(NAME), "dayOffsetDefault": crate::worksum::DAYOFF_DEFAULT})
 }
 
-/// 表示順を書かずに足す行の表示順（row_order.next_order: 読めない表示順の行は数えない）
-fn next_order(rows: &[Value]) -> String {
-    let best = rows
-        .iter()
-        .filter_map(|r| {
-            let v = r.get("表示順").filter(|v| truthy(v)).map(py_str).unwrap_or_else(|| "0".into());
-            pyfmt::py_int(strip(&v)).ok().filter(|_| digits_len(&v) <= 18)
-        })
-        .fold(0, i64::max);
-    (best + 10).to_string()
-}
-
 /// 窓が Python と同じに読める行か（版 3.75.0。作った後の採点で見つけた形は Python に任せる）: i64 に入らない表示順
 /// （Python の int は桁のまま並べる・次の表示順を数える）・数でない id（Python の並べ替えは数と字を比べられず 500）・
 /// Python の json は読めて窓は読めない区分の字（NaN・Infinity など）
@@ -380,7 +368,8 @@ pub fn handle(
                 Err(e) => return Some(shift_error(e)),
             };
             if strip(&s_or(row.get("表示順"))).is_empty() {
-                row.insert("表示順".into(), json!(next_order(&read.shifts)));
+                // 表示順の決まりは master_rows の 1 つ（変換表と同じ。版 3.93.0）
+                row.insert("表示順".into(), json!(crate::master_rows::next_order(&read.shifts)?));
             }
             match crate::master_rows::create(store, &SPEC, &row, &no_check) {
                 Ok(r) => done(201, Some(r.get("id").cloned().unwrap_or(Value::Null))),
