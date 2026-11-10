@@ -1,0 +1,203 @@
+{
+ "title": "ダッシュボードの表示の速さと、待っている理由の見せ方（版 3.92.0。利用者の要望 2026-11-10 の 4）",
+ "rule": "2026-11-06",
+ "measured": "測った数（2026-11-10・作業フォルダ）: (1) パネルを数える時間（控えを空にして 5 回の中央値。python tests/dashboard_oracle.py --bench → cargo run --release --example dash_bench）: 窓（Rust）は 25 枚で計 1,058.8 ms・いちばん重い ABC 全期間でも 147.3 ms（Python は計 3,137.3 ms）。数える処理は遅さの主因ではない。(2) 共有から写すのに時間がかかる形（python tools/worklog-first-bench.py）: 1 台 1.5 秒・11 台では最初の答えまで 1.56 秒。遅い設備が混ざる形（--delay 4 --spread）では最初の答えまで 12.04 秒で、その間パネルは回る印だけ（何を待っているか分からない）。ダッシュボードの道（desktop/src/dashboard.rs の panel_parts）は、作業実績の全設備の最初の写しの周回を FIRST_WAIT＝30 秒まで待ってから答える（Python の dashboard も同じ）。(3) 画面（static/js/dashboard.js の queryPanel）は全部のパネルを一度に問い合わせ、答えが「写している」なら 4 秒ごとに引き直す。待っている間に出すのは見出しの回る印（.db-spin）だけ",
+ "proposals_text": {
+  "A": "最初の写しを待つ長さを短くする（ダッシュボードの道だけ 30 秒 → 2 秒。窓と Python）。写し終えた設備だけの途中の数を、写していない設備を failed の copying として返す（今の途中の数の仕組みと同じ形）。画面は今の 4 秒ごとの引き直しで正しい数へ着く。遅い設備が混ざっても、最初の数は約 2 秒で出る",
+  "B": "画面の控え: パネルの答えを組みの鍵ごとにこの PC に覚え（localStorage・新しい 60 件まで）、開いた直後は前回の答えを薄く描いて「前回 hh:mm の数」と添え、裏で引き直す。体感の最初の数は 0 秒（ただし古い数を見せる）",
+  "C": "進みの問い合わせ: 窓（と Python）が問い合わせごとに段（設定を読む・写しを待つ n/m 設備・数える）と経過を記録し、GET /api/dashboard/progress で答える。画面は 0.7 秒を超えて待つパネルがある間だけ 0.5 秒ごとに尋ね、パネルの待ちの字と道具の行に出す（何を待っているかを、推測でなくサーバーの事実で出す）",
+  "D": "起動直後の予熱: 窓が起動直後に、開くダッシュボード（覚えた物か標準）の全パネルを裏で数えて答えの控えに入れる。画面が尋ねた時には控えから答える",
+  "E": "まとめて問い合わせる道 POST /api/dashboard/query-many: 全部のパネルを 1 往復で尋ね、窓の中で並べて数える（画面とサーバーの往復と、同時に開ける数の上限を減らす）",
+  "F": "写し終えた知らせで引き直す: 「写している」答えの 4 秒ごとの引き直しをやめ、写しの周回が終わったら画面へ知らせる（長く待つ問い合わせ）。無駄な引き直しを減らし、写し終えてすぐ正しい数へ"
+ },
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして測った数で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・2026-11-port-worklog.json（11 項目の読み替え）・static/js/dashboard.js（queryPanel〈:216。全部のパネルを一度に問い合わせ、写し中なら RETRY_MS 4 秒後に引き直す〉・refresh・errHtml〈:422 写し中は「共有から写しています。写し終えると出ます…」だけ〉・見出しの .db-spin）・dashboard-panels.js（:548 写し中の設備の名前を下の知らせに出す）・routes/dashboard.py（panel_parts〈:356 start_mirrors(rows, db_mirror.FIRST_WAIT_SEC)〉・_answer の控えの鍵〈ファイルの印と failed の名前を含む＝途中の数を正しい数として覚えない〉）・routes/worklog.py の start_mirrors・services/db_mirror.py（FIRST_WAIT_SEC=30 は一覧・作業実績のタブと共通・read_path(wait)・wait_first は手元に写しがあっても最初の周回が済むまで待つ）・work_log.Mirrors.wait_first・desktop/src/dashboard.rs（FIRST_WAIT 30 秒〈:27〉・:339 lists.work.wait_first）・mirror.rs（FIRST_WAIT〈:22〉・read_path_wait・wait_first は first_done まで待つ）・lists.rs（:380 品質・データ元の read_path() も 30 秒待つ）・lot.rs（with_dash・warm〈:807 起動直後に起こすのは品質の写しだけで、作業実績の写しはダッシュボードが尋ねて初めて起きる〉）・main.rs（:1003 独自の scheme は問い合わせごとに別の糸＝E の得の元が小さい）。流した物（作業ツリーは変えていない。待つ長さは worklog-first-bench.py の --first-wait で変えたので dashboard.py は書き換えていない）: (1) worklog-first-bench.py --equip 11 --delay 4 --spread → 最初の答え 12.05 秒（200・正しい数 51。その前は答え無し＝回る印だけ）。(2) 同じ形で --first-wait 2（案 A の見込み）→ 2.03 秒は 503 copying（数は 1 つも無い。速い設備も 4 秒かかるため）、8.05 秒に途中の数 31（5 台 copying と言う）、正しい数 51 は 12.09 秒。ただし --first-wait は db_mirror 全体の長さなので ④ 作業実績のタブで初めて開いた答えも 4.02 秒・200 → 2.00 秒・503 copying に変わった（ダッシュボードの道だけで変えないと作業実績のタブが悪くなる）。(3) --delay 1.5 → 1.56 秒で正しい数（今のままで速い）。(4) --delay 1.5 --spread → 今は 4.54 秒で正しい数。--first-wait 2 では 2.04 秒に途中の数 31・正しい数は 6.07 秒（4 秒の引き直しの刻みのため、正しい数に着くのが今より 1.5 秒遅れる）。(5) 自分で書いた /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/dsp/relaunch.py（作業ツリーの外。bench の build を使い、1 回目に全部写した後、同じ写しの置き場でアプリを作り直し、共有のファイルの時刻を進めて〈書き足された形〉遅い写し --delay 4 --spread で 2 回目の起動を作る）: 今は最初の答えまで 12.04 秒（手元に前回の写しがあるのに、最初の周回の写し直しを待つ）。FIRST_WAIT 2 秒では 2.04 秒で前回の写しの数 51・failed は空（新しくしている最中と言わない）。＝ふだんの起動（2 回目以降）でも、書き足された実績ファイルを写し直す間ずっと待つのが「遅いときがある」の主な元と見た。数える時間は measured の dash_bench（窓 25 枚で計 1,058.8 ms・重い物でも 147 ms）を使った。cargo は流していない。11 項目の読み替え: 順序＝作りの流れが素直か・チャンク＝部品のまとまり・階層化＝主の効き目がはっきりしているか・視覚化＝測れる・確かめられるか・ステップ数＝利用者が数を見るまでの待ち・考えさせない＝何を待っているかが分かるか・直感的＝古い数を今の数と取り違えないか・形と色／言葉と置き場＝窓と Python で同じ答え・同じ決まりか・整列＝作りの量と保守の重さ・調子＝落とし穴の少なさ。減点「状態が見えない」は、要望の後半（何の処理を待っているかを見せる）に何もしない案に付けた（どこで見たか＝案の文と、今の画面の errHtml・.db-spin）。 作った後の採点（built）: 作っていない別の採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の 1 回だけ）。git diff（routes/dashboard.py・dashboard.rs・mirror.rs・dashboard.js・worklog-first-bench.py）と、Python の db_mirror.wait_first・work_log.Mirrors.peek／wait_first・窓の DbMirror::first_done／start・Mirrors::peek／wait_first、panel_parts の呼び手（routes/dashboard.py の /api/dashboard/fields・/api/data/columns、窓は query と ops だけ）、画面の呼び手（dashboard-editor.js の loadFields・dashboard-filter.js の fieldsOf・dashboard.js の addSlicerPanel・master-conv.js の /api/data/columns）を読んだ。流した物: worklog-first-bench.py を --equip 11 --delay 4 --spread／--delay 1.5 --spread／--delay 1.5 の 3 つ（どれも終了コード 0・すべて OK）、python -m unittest tests.test_dashboard（Ran 19・OK）、作業ツリーの外に書いた /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-speed/relaunch2.py（2 回目の起動: 1 回目に全部写した後、同じ写しの置き場でアプリを作り直し、共有のファイルに行を足して時刻を進め、遅い写し --delay 4 --spread。画面と同じく 1.5 秒ごと・copying か refreshing の間引き直す）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-speed/fields.py（入れた直後・遅い写しで /api/dashboard/fields と /api/data/columns を 1 回尋ねる）。cargo は流していない。11 項目の読み替えは 1 回目と同じ。",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "self_check": "案を作った者が測った数（measured）で、案ごとに何秒が何秒になるかの見込みを確かめた: A は --spread の形で最初の答え 12.04 秒 → 約 2 秒（写し終えていない設備は copying と言う。③ 正しい数に着くのは今と同じ 12〜16 秒）。B は開き直した時の最初の数が 0 秒になるが、初めての PC・組みを変えた時は効かず、古い数を今の数と取り違える恐れ。C は速さは変えず、待ちの理由を正しく出す（要望 4 の後半）。D は起動直後の 1 回だけ効き、写しの待ちは減らない。E は数える時間が 1 枚 150 ms 以下なので、往復を減らす得は小さい（WebView2 の独自の scheme の同時の数の上限は測っていない）。F は 4 秒の間を短くするが、作りが大きい（長く待つ問い合わせと写しの係の知らせ）",
+   "proposals": {
+    "A 写しを待つ長さを短く（ダッシュボードの道だけ 30 秒 → 2 秒）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 8,
+      "place": 8,
+      "layout": 9,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "主の効き目がはっきりしている。遅い設備が混ざる形の入れた直後（--delay 4 --spread）で最初の答えが 12.05 → 2.03 秒、2 回目の起動（手元に写しがあり共有が書き足された形。relaunch.py）で 12.04 → 2.04 秒。後者がふだんの「遅いときがある」に当たり、得がいちばん大きい。数える時間は 1 枚 150 ms 以下なので、待ちの元は写しの最初の周回だけ、という見立ては測った数と合う。ただし案の文のままだと割れが 4 つある: (a) 入れた直後で速い設備も 2 秒より遅いと、2.03 秒の答えは 503 copying（数は無い）で、数が出るのは 8.05 秒（4 秒の引き直しの刻み）。速い設備は 4 秒で写し終えているのに 4 秒遅れる。(b) --delay 1.5 --spread では正しい数に着くのが 4.54 → 6.07 秒と今より遅くなる（同じく 4 秒の刻み）。(c) 2 回目の起動の 2.04 秒の答えは前回の写しの数で failed が空＝写し直している最中と言わない。画面は 60 秒後まで引き直さず、古い数を今の数と取り違える。(d) db_mirror の FIRST_WAIT_SEC（Python）・mirror.rs の FIRST_WAIT は一覧・作業実績のタブとも共通。全体を短くすると作業実績のタブの初めての答えが 4.02 秒・200 → 2.00 秒・503 に悪くなった（案の文どおり「ダッシュボードの道だけ」で変えること）。要望の後半（何を待っているか）は、途中の数の下の知らせ（dashboard-panels.js:550 の写し中の設備の名前）が早く出るぶん良くなるが、503 copying の間は「共有から写しています…」だけで、何台中何台かは出ない。",
+     "fixes": [
+      "待つ長さは dashboard.rs の FIRST_WAIT と routes/dashboard.py の start_mirrors に渡す長さだけを短くする（db_mirror.FIRST_WAIT_SEC・mirror.rs の FIRST_WAIT は変えない。作業実績のタブ〈bench の ④〉を悪くしない）。品質・データ元のパネル（lists.rs:380 の read_path() と Python の lotlist_plan・src_plan も 30 秒待つ）も同じ決まりにそろえる",
+      "手元に前回の写しがある設備は待たない（0 秒）か短く待ち、写し直している最中なら答えに印を付ける（例: failed とは別の refreshing:[{name, copiedAt}]。数は前回の写しで数えたと分かる形）。画面はパネルの下に「前回の写し（hh:mm）で数えています・新しくしています: CR2 ほか」と出し、写し中と同じく引き直す（2 回目の起動の 2.04 秒の答えが failed 空で古い数を今の数に見せる割れを潰す）",
+      "4 秒の引き直しの刻みで正しい数が遅れる割れ（1.5 秒・spread で 4.54 → 6.07 秒、4 秒・spread で速い設備の数が 4 → 8.05 秒）を直す: 引き直しの問い合わせでは、サーバーが「まだ写していない設備のどれかが写し終える」まで最大 4 秒待ってから答える（F の長く待つ形を、引き直しの 1 本だけに小さく入れる）。正しい数に着くまでが今より遅くならないことを bench の合格の線に足す",
+      "C を小さく組み合わせる: 別の進みの道（/progress と 0.5 秒の引き直し）は作らず、問い合わせの答え（copying の 503 と failed の copying）に「写し終えた n/m 設備・まだの設備の名前・待っている元〈作業実績・品質データ・データ元の名前〉」を入れ、パネルの待ちの字（errHtml の dp-wait）と道具の行に「共有から写しています 6/11 設備（CR2・HOT ほか）」と出す。待ちが 2 秒で切れるので、0.7 秒を超える沈黙は最初の 2 秒だけになる",
+      "D の安い部分を入れる: 起動直後の warm（lot.rs:807。いまは品質の写しだけ）で、作業実績の表示する設備の写しの係も起こしておく（パネルを数えて控えに入れる予熱はしない）",
+      "Python と窓で同じ答えの形にする（copying・refreshing・n/m の字）。dash_parity に写し中・写し直し中の場面を足す。worklog-first-bench.py に 2 回目の起動の形（手元に写しあり・共有が書き足された）と「正しい数に着くまでが今より遅くない」線を足す"
+     ]
+    },
+    "B 画面の控え（前回の答えを薄く描く）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 5,
+      "steps": 9,
+      "effortless": 5,
+      "intuitive": 3,
+      "form": 7,
+      "place": 5,
+      "layout": 7,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文: 前回の数を薄く描くだけで、いま何を待っているか（写している設備・段）は見せない。今の errHtml〈dashboard.js:422〉のまま"
+      }
+     ],
+     "seen": "体感の最初の数は 0 秒だが、測った待ち（2 回目の起動で 12.04 秒）は少しも減らない。見せるのは前回の数で、薄く描いても数字は読めるので今の数と取り違えやすい（前日の実績本数は日が替わると別物）。初めての PC・組みを変えたとき・入れた直後（bench の形）は効かない。localStorage に答えを 60 件（表・グラフの cells）置くのは容量と、権限・マスタ・設備グループの変更で古い組みの数を出す落とし穴がある（CLAUDE.md も確かに残る状態は browser storage に置かない）。窓と Python の作りは変えないので統一感は崩さない。",
+     "fixes": [
+      "採らない。体感を上げたいなら、A の「前回の写しで数えて、新しくしていると添える」でサーバーの事実として出す（画面に古い答えを覚えない）"
+     ]
+    },
+    "C 進みの問い合わせ（GET /api/dashboard/progress）": {
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 9,
+      "intuitive": 8,
+      "form": 5,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "要望の後半にはいちばん正面から答える（サーバーの事実で「写しを待つ n/m 設備」を出す）。ただ速さは変えない: 入れた直後・2 回目の起動とも 12 秒の待ちはそのまま。作りが重い: 問い合わせごとの段と経過の記録を窓と Python の 2 か所に持ち、新しい道を足し、0.5 秒ごとに尋ねる。時間に依る答えなので dash_parity で突き合わせにくい。main.rs:1003 で問い合わせごとに別の糸なので、待っている間に progress へ答えること自体はできる。A で待ちが 2 秒まで縮めば、問い合わせの答えに n/m を載せるだけで同じ事が言える。",
+     "fixes": [
+      "単独では採らない。A の答え（copying・failed）に n/m と待っている元の名前を入れる形に縮めて組み合わせる（新しい道・0.5 秒の尋ね・記録の掃除は作らない）"
+     ]
+    },
+    "D 起動直後の予熱": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 5,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文: 予熱するだけで、待っている間の画面は今の .db-spin と errHtml のまま"
+      }
+     ],
+     "seen": "lot.rs:807 の warm は品質の写しだけを起こしており、作業実績の写しはダッシュボードが尋ねて初めて起きる、という作りの隙はある（起動から最初の問い合わせまでの数秒を写しに回せる）。しかし待ちの元は最初の周回の写し（12 秒）で、全部のパネルを裏で数えて控えに入れても、写しを待つ所で同じだけ止まる。数える時間は 25 枚で 1 秒なので、控えに入れる得は小さい。窓だけの作りで Python には無い。",
+     "fixes": [
+      "写しの係を起こすところだけを A に入れる（パネルを数える予熱はしない）"
+     ]
+    },
+    "E まとめて問い合わせる道（query-many）": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 4,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 4,
+      "place": 5,
+      "layout": 4,
+      "tone": 4
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文: 往復を減らすだけで、待っている理由は見せない"
+      }
+     ],
+     "seen": "数える時間は 1 枚 150 ms 以下・25 枚で計 1 秒（measured）、独自の scheme は問い合わせごとに別の糸で答えている（main.rs:1003）ので、往復をまとめる得は小さい。逆に 1 本にまとめると、作業実績の写しを待つパネルに品質データの速いパネルまで巻き込まれ、今はすぐ出るパネルが遅くなる（パネルごとに描く・組みが変わったら捨てる今の queryPanel の作りも崩れる）。窓と Python に新しい道が要る。",
+     "fixes": [
+      "採らない"
+     ]
+    },
+    "F 写し終えた知らせで引き直す（長く待つ問い合わせ）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 5,
+      "place": 6,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の文: 引き直しの間を詰めるだけで、待っている間の見せ方は今のまま"
+      }
+     ],
+     "seen": "4 秒の引き直しの刻みで正しい数が遅れる所（測った: A の形で 1.5 秒・spread の正しい数が 6.07 秒＝写し終えてから最大 4 秒遅れ）を潰せるのは確か。ただ単独では最初の答えの 12 秒（入れた直後・2 回目の起動とも）は変わらない。写しの係から画面への知らせの道を窓と Python に作るのは重い。引き直しの問い合わせ 1 本で「次の設備が写し終えるまで最大 4 秒待つ」形にすれば、知らせの道を作らずに同じ効き目が得られる。",
+     "fixes": [
+      "単独では採らない。引き直しの問い合わせ 1 本の中で待つ小さな形にして A に組み合わせる"
+     ]
+    }
+   }
+  }
+ ],
+ "built": {
+  "name": "作った後",
+  "self_check": "A（1 位 75.9 点）に採点の指摘を入れて作った: (1) 待ちを短くするのはダッシュボードの道だけ（Python の routes/dashboard.py の DASH_FIRST_WAIT_SEC＝2・窓の dashboard.rs の FIRST_WAIT＝2 秒。db_mirror.FIRST_WAIT_SEC・mirror.rs の FIRST_WAIT〈作業実績のタブ〉は 30 秒のまま） (2) 前の写しで数えた設備（最初の写し直しが済んでいない）は写しの様子 mirrors[] に refreshing: true を付け（窓は DbMirror::first_done、Python は wait_first(0)）、画面は「前回の写しで数えています（写し直し中 n 設備）」と言い、写し終えるまで引き直す (3) 引き直しの間を 4 秒 → 1.5 秒にして、正しい数に着くのが今より遅くならないようにした (4) 待ちの理由は答えの failed（copying）と mirrors から画面が作る（写しています n/m 設備）。/progress の道は作らない (5) 起動直後の作業実績の写しの予熱は入れていない（範囲を絞った）。測った数（worklog-first-bench.py）: --delay 4 --spread で最初の答え 12.05 → 2.02 秒・正しい数 12.04 秒（前 12.05）／--delay 1.5 --spread で最初 2.03 秒・正しい数 4.54 秒（前 4.54）／--delay 1.5 で 1.54 秒（前 1.56）。作業実績のタブで初めて 1 台を開いた答えは 4.01・1.51 秒（前と同じ）",
+  "result": {
+   "proposal": "A（作った後）",
+   "score": {
+    "order": 8,
+    "chunk": 7,
+    "hierarchy": 9,
+    "visual": 6,
+    "steps": 9,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 7,
+    "place": 7,
+    "layout": 9,
+    "tone": 5
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "fields.py（入れた直後・--delay 4 --spread）: /api/data/columns が 2.05 秒で作業実績の列 0・「まだ手元へ写せていません」（前は 30 秒まで待って列が出た）。master-conv.js:228 は 1 回しか読まず、読めなければ印を出さないので、変換表の「当てる列」から作業実績の列が消える。原因は panel_parts（routes/dashboard.py:344）の待ちを DASH_FIRST_WAIT_SEC に替えたため、同じ関数を使う /api/data/columns・/api/dashboard/fields（:813・:855）まで 2 秒になった"
+    }
+   ],
+   "seen": "主の効き目は測った数で出た。入れた直後・遅い設備が混ざる形（--delay 4 --spread）: 最初の答え 12.05 → 2.03 秒。ただし 2.03 秒は 503 copying（数は無い）で、最初の数（途中の 31・5 台 copying と言う）は 5.55 秒、9.06 秒も途中、正しい数 51 は 12.05 秒（前と同じ。引き直しは 1.5 秒＋問い合わせの中の 2 秒の待ちで実際は約 3.5 秒刻み）。self_check の「最初の答え 2.02 秒」は数の出る時刻ではない。--delay 1.5 --spread: 2.03 秒に途中の数 31・正しい数 4.54 秒（前 4.54。1 回目の見込みの 6.07 秒の遅れは 1.5 秒の引き直しで消えた）。--delay 1.5: 1.55 秒で正しい数（前 1.56）。④ 作業実績のタブの初めての答えは 4.01・1.51・1.52 秒で前と同じ（db_mirror.FIRST_WAIT_SEC・mirror.rs の FIRST_WAIT は 30 秒のまま）。2 回目の起動（relaunch2.py）: 2.04 秒に前回の写しの数 51・refreshing 11 設備 → 5.58 秒 5 → 9.09 秒 5 → 12.04 秒に refreshing 0 で引き直しが止まる（前は 12.04 秒まで何も出なかった。1 回目の割れ c〈古い数を今の数に見せる〉は潰れた）。窓と Python の決まり: 窓の first_done（糸が動いていなければ済み・最初の refresh の後に立つ）と Python の wait_first(0)（_first か糸が無い・死んでいれば True、最初の _loop の refresh の finally で set）は同じ。mirrors は控えに入れず毎回作る（Python :453・窓 :515）ので、写し終えた後に refreshing が残ることは無い。作業実績の道は窓が答え、Python の受け身の wait_first(0) の違いは効かない。割れ: (1) Python の panel_parts は /api/dashboard/fields と /api/data/columns でも使うので、待ちが 2 秒になった（窓はこの 2 本を Python に任せるので窓でも同じ）。fields.py で /api/dashboard/fields は 2.03 秒・503 copying（組む所は 4 秒後に引き直すが、dashboard-filter.js:114 の fieldsOf は引き直さず誤りを出す・addSlicerPanel は列なしで足す）、/api/data/columns は作業実績の列 0（減点）。(2) 写しを作れない設備（lot.rs:1405 の形）は copying のまま残るので、画面は 1.5 秒ごとに引き直し続ける（前は 4 秒）。作業実績のパネルが多いと問い合わせが 2.7 倍。(3) 待ちの字が刻みごとに替わる: 引き直しのたびに since が今に戻り（前の答えが busy でないため）、0.7 秒までは何も出ず、次に「前回 hh:mm の数・数え直しています n 秒」、答えが来ると「写しています n/m 設備」に戻る。hh:mm は 1.5 秒前の答えの時刻で写しの時刻ではない。(4) 503 copying（数が 1 つも無い間）は「共有から写しています」だけで n/m が無い（1 回目の指摘の一部が入っていない）。(5) 確かめが足りない: bench の ① の線は db_mirror.FIRST_WAIT_SEC（30）で 13 秒のまま、2 回目の起動の形・「前より遅くない」線・dash_parity の写し中／写し直し中の場面・品質とデータ元のパネルの 30 秒の待ちは入っていない。作りの量は小さく素直（定数 2 つ・印 1 つ・画面の引き直しの条件）。",
+   "fixes": [
+    "panel_parts の待ちを引数にし、2 秒にするのは POST /api/dashboard/query（_answer・_ops_answer）だけにする。/api/dashboard/fields・/api/data/columns は前の db_mirror.FIRST_WAIT_SEC で待つ（変換表の当てる列から作業実績の列が消えない・パネルを絞る面が誤りにならない）。あるいは fields を使う 3 か所（dashboard-filter.js の fieldsOf・addSlicerPanel・master-conv.js）に copying の引き直しを入れる",
+    "写せない設備（最初の周回の後も copying のまま・unreachable 等）は引き直しの間を延ばす（例: 最初の 30 秒は 1.5 秒、その後 10 秒→ 60 秒）。答えの mirrors の様子か、同じ答えが続いた回数で決める",
+    "待ちの字がちらつかないようにする: 引き直しの busy の間は前の答えの waitInfo（写しています n/m・写し直し中）を出し続け、since は最初に待ち始めた時刻を写し終えるまで持ち越す。「前回 hh:mm」は答えの mirrors[].at（写しの時刻）を使う",
+    "503 copying の答えにも写し終えた数とまだの設備の名前（n/m）を入れ、画面の「共有から写しています」に添える（Python と窓で同じ形）",
+    "確かめを足す: worklog-first-bench.py の ① の線を DASH_FIRST_WAIT_SEC（2 秒）＋1 秒にし、docstring の「4 秒」を直す。2 回目の起動の形（relaunch2.py と同じ: 手元に写しあり・共有に書き足し）で refreshing が言われ、引き直しが写し終えたら止まることと、最初の数・正しい数が前より遅くない線を足す。dash_parity に写し中・写し直し中（refreshing）の場面を足して窓と Python の mirrors を突き合わせる",
+    "品質・データ元のパネル（窓の lists.rs の read_path()・Python の lotlist_plan・src_plan の 30 秒）も、ダッシュボードの問い合わせでは同じ 2 秒の決まりにそろえる（1 回目の指摘の残り）"
+   ]
+  }
+ },
+ "built_fixed": "作った後の採点（64.6 点）で見つかった割れを直した: (1) 2 秒の待ちがダッシュボードの数の道以外（/api/dashboard/fields・/api/data/columns。窓も Python に任せる）にも効き、作業実績の列が 0 になって変換表の当てる列から消えた → Python の panel_parts に first_wait を足し、2 秒はパネルの数の道（_answer と稼働・ABC の 2 か所）だけ。列の一覧・絞る面の項目は前どおり最初の写しを待つ（窓の panel_parts は数の道からしか呼ばれない）。試験 tests/test_dash_wait.py（窓と Python の待つ長さが同じ・2 秒は 2 か所だけ・既定は最初の写しを待つ）を足した (2) 写せない設備が残ると 1.5 秒ごとの引き直しがずっと続く → 引き直した回数を答えに持ち、8 回目から 6 秒ごと (3) 引き直すたびに待ち始めの時刻が戻り字がちらつく → 待っている間（引いている・写している・写し直している）は待ち始めの時刻を保ち、写している・写し直している間の引き直しはその言い方のまま（数え直し中と交互に出さない） (5) bench の ① の線を 2 秒＋1 秒（DASH_FIRST_WAIT_SEC から）に、説明文の 4 秒を 1.5 秒に、③ の線にダッシュボードの待ちの 2 秒を足した。直した後の数: --delay 4 --spread で最初の答え 2.03 秒（線 3.0 秒）・正しい数 12.04 秒・作業実績のタブ 4.02 秒（すべて OK）。残した事: (4) 数が 1 つも無い 503 の間は n/m を出さない（答えに設備の並びが無い）・(6) 品質・データ元のパネルの最初の写しの待ち（30 秒）は今回の範囲の外・2 回目の起動の形の bench（採点者の relaunch2.py）と dash_parity の写し中の場面は足していない（写しの周回の時刻に左右されるため。窓の first_done と Python の wait_first(0) を同じ決まりにしたことはコードで確かめた）"
+}

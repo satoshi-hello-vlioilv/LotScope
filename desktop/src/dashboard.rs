@@ -24,7 +24,9 @@ use std::time::Duration;
 
 const MAX_EQUIPS: usize = 200;
 const MAX_FACETS: usize = 24;
-const FIRST_WAIT: Duration = Duration::from_secs(30);
+/// ダッシュボードが作業実績の最初の写しを待つ長さ（版 3.92.0。前は 30 秒: 遅い設備が混ざると最初の数まで 12 秒かかった。
+/// Python の routes/dashboard.py の DASH_FIRST_WAIT_SEC と同じ）。写し終えていない設備は「写しています」で、画面が引き直す
+const FIRST_WAIT: Duration = Duration::from_secs(2);
 const CACHE_MAX: usize = 96;
 const OPS_VISUALS: &[&str] = &["gantt", "abc"];
 const BOX_VISUALS: &[&str] = &["box", "violin", "xbar"];
@@ -361,7 +363,12 @@ impl Ctx<'_> {
                             start: String::new(),
                         };
                         parts.push(self.part(&plan, WORK_TABLES, Some(work), Some(Equip::Name(name.clone())), &name, lot.clone()));
-                        mirrors.push(plan.source.clone());
+                        // 前の写しで数えた設備（最初の写し直しが済んでいない）: 写しの様子に印（Python と同じ。画面は引き直す）
+                        let mut src = plan.source.clone();
+                        if lists.work.peek(&s_or(r.get("キー"))).is_some_and(|m| !m.first_done()) {
+                            src["refreshing"] = json!(true);
+                        }
+                        mirrors.push(src);
                     }
                 }
             }

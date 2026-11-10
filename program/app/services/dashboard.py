@@ -215,6 +215,10 @@ PALETTES = ("", "vivid", "calm", "cud", "mono", "warm", "cool", "biz", "pastel",
 STYLES = ("", "round", "grad", "outline", "soft", "shadow", "bold")    # グラフのスタイル（版 3.69.0）
 PCOLORS_MAX = 10
 KPI_LOOKS = ("num", "bar", "gauge")
+# 数字のパネルの置き方（版 3.92.0）: kpair … 値が 2 つ以上のときの並べ方（無し＝主と添え・side＝左右に並べる・stack＝上下に並べる）・
+# kmeta … 添え書き（期間・元）の置き場（無し＝数の下・top＝数の上・row＝数の横に 1 列）
+KPI_PAIRS = ("side", "stack")
+KPI_METAS = ("top", "row")
 MAX_REFS = 4
 MAX_COLORS = 40
 SERIES_LABELS = ("top", "below", "off")
@@ -250,12 +254,12 @@ def clean_fmt(v):
     refs（基準線 [{value, label, color}]）・palette（色の組）・colors（系列・項目の名前 → 色）・size（字の大きさ）・kpi（数字の形）・target（目標）・
     series（版 3.41.0。系列の名前 → {label: top〈上〉・below〈下〉・off〈出さない〉, dash: True〈破線〉, kind: bar・line・area〈形。版 3.46.0〉, axis: left・right}）・
     num（版 3.43.0。表示形式: Excel の書式コード）と numUi（その選び {cat, dec, sep, neg, pre, suf}）・align（横の配置）・valign（縦の配置）・
-    nsize（字の大きさ s・l・xl）・bold（off で太字にしない）・ncolor（字の色）"""
+    nsize（字の大きさ s・l・xl）・bold（off で太字にしない）・ncolor（字の色）・kpair・kmeta（版 3.92.0。数字のパネルの 2 つの値の並べ方・添え書きの置き場）"""
     if not isinstance(v, dict):
         return None
     out = {}
     for k, choices in (("labels", LABELS), ("xdate", XDATES), ("xrot", XROTS), ("unit", UNITS), ("legend", LEGENDS), ("size", SIZES),
-                       ("palette", PALETTES), ("kpi", KPI_LOOKS)):
+                       ("palette", PALETTES), ("kpi", KPI_LOOKS), ("kpair", KPI_PAIRS), ("kmeta", KPI_METAS)):
         x = str(v.get(k) or "")
         if x in choices and x not in ("auto", "", "m", "num"):
             out[k] = x

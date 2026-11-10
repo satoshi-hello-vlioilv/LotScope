@@ -19,7 +19,7 @@ from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
 from .presets import _gate, _who
 from .sources import src_plan
-from .worklog import start_mirrors, worklog_plan
+from .worklog import _mirrors as _work_mirrors, start_mirrors, worklog_plan
 
 
 def _fail(fail):
@@ -338,7 +338,10 @@ def _equip_of(src, repo, wl_rows):
     return {"column": col, "match": data_sources.EquipmentMatcher(_equipment_names(repo, wl_rows), src.get("equipMode"))}
 
 
-def panel_parts(source, equip="", basis="work", equips=None):
+# ダッシュボードのパネルの数（/api/dashboard/query）が作業実績の最初の写しを待つ長さ（秒。版 3.92.0。窓は desktop/src/dashboard.rs の FIRST_WAIT）
+DASH_FIRST_WAIT_SEC = 2
+
+def panel_parts(source, equip="", basis="work", equips=None, first_wait=None):
     """パネルのデータ → (数える Part の並び, 読めなかった設備 [{name, error, kind}], 元の名前, 写しの様子の並び)。
     1 つも読めなければ _Fail（写し中が 1 つでもあれば、その答え＝画面は待って引き直す）"""
     settings = effective_settings(current_app)
@@ -353,7 +356,11 @@ def panel_parts(source, equip="", basis="work", equips=None):
         pats = repo.shift_patterns()
         work_lot = next((d.get("lotSet") for d in defs if d["key"] == "work"), "") or None     # 実績の「ロット番号の列」（版 3.58.0）
         parts, failed, mirrors, first = [], [], [], None
-        start_mirrors(rows, db_mirror.FIRST_WAIT_SEC)        # 全部の設備の写しを一度に始めて、まとめて待つ（1 台ずつ順に待たない。版 3.46.0）
+        # 全部の設備の写しを一度に始めて、まとめて待つ（1 台ずつ順に待たない。版 3.46.0）。ダッシュボードは 2 秒まで（版 3.92.0。前は 30 秒:
+        # 遅い設備が混ざると最初の数まで 12 秒かかった）。写し終えていない設備は「写しています」（failed の copying）で、画面が引き直す
+        # パネルの数（/api/dashboard/query）だけ 2 秒。列の一覧・絞る面の項目（fields・columns）は前どおり最初の写しを待つ（作った後の採点:
+        # 2 秒で作業実績の列が 0 になり、変換表の「当てる列」から消えた）
+        start_mirrors(rows, db_mirror.FIRST_WAIT_SEC if first_wait is None else first_wait)
         for row in rows:
             name = str(row.get("設備名") or "")
             plan, fail = worklog_plan(key=row.get("キー"), rows=wl_rows, wait=False)
@@ -366,7 +373,9 @@ def panel_parts(source, equip="", basis="work", equips=None):
             work = {"clock": shifts.Clock(pat["segments"] if pat else []), "basis": basis, "start": ""}
             parts.append(pivot.Part(plan["path"], preferred_table=plan["table"], table_candidates=work_log.TABLE_CANDIDATES, work=work,
                                     equip={"name": name}, name=name, lot_col=work_lot))
-            mirrors.append(plan["source"])
+            # 前の写しで数えた設備（最初の写し直しが済んでいない）: 写しの様子に印を付ける（画面は「前回の写しで数えています」と言い、引き直す）
+            m = _work_mirrors().peek(row.get("キー"))
+            mirrors.append({**plan["source"], "refreshing": True} if m is not None and not m.wait_first(0) else plan["source"])
         if not parts:
             raise _Fail(first[0])
         return parts, failed, next((d["name"] for d in defs if d["key"] == "work"), "作業実績"), mirrors
@@ -416,7 +425,7 @@ def _answer(p, now):
     """1 つの組み（パネルか、合わせた表の列のまとまり）の数 → 答え（集計表と同じ形に、元の名前・写しの様子・読めなかった設備）。
     数えられなければ {error, kind, status}。同じ組み・同じ写し・同じ「今日」なら前の答え（パネルは 1 分ごとに引き直すため）"""
     try:
-        parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"))
+        parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"), first_wait=DASH_FIRST_WAIT_SEC)
     except _Fail as f:
         return _fail(f.resp)
     egroups = dashboard.resolve_egroup(p.get("egroup"), p.get("equips"),
@@ -650,7 +659,7 @@ def _ops_answer(p, now):
     abc   … {kind, equips: [{name, items, total, base, conv, lots}], all: 全設備を合わせた答え}。期間が無ければ全期間。
     同じ組み・同じ写し・同じ「今日」なら前の答え（_answer と同じ控え）"""
     try:
-        parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"))
+        parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"), first_wait=DASH_FIRST_WAIT_SEC)
     except _Fail as f:
         return _fail(f.resp)
     o = p.get("ops") or {}

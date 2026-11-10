@@ -193,6 +193,8 @@
   /** コードを確かめる → 知らせ（使えない字など）の並び。空なら使える */
   const check = (code) => compile(code).warn;
   /** そのままの字（単位など）を含むか（数字の自動の単位「本・件」を出さない決め手） */
+  /** 書式コードから字（"t"・\本）を外した物（版 3.92.0。値ごとの単位を付けるとき、パネルの書式の単位の字を重ねない） */
+  const bare = (code) => String(code || "").replace(/"[^"]*"?/g, "").replace(/\\./g, "").trim();
   const hasLiteral = (code) => compile(code).secs.slice(0, 1).some((s) => s.toks.some((t) => t.t === "lit" && t.v.trim() && !/^[\s\-+()]+$/.test(t.v)));
 
   /* ---------- 画面の選び（分類・桁・桁区切り・負の数・前後の字）→ コード ---------- */
@@ -249,5 +251,5 @@
       return { fn: (x) => { const v = f(x); return Number.isFinite(v) ? v : null; }, error: "", text };
     } catch (e) { return { fn: null, error: e.message, text: "" }; }
   }
-  window.NumFormat = { format, text, check, hasLiteral, build, compile, expr, CATS, NEGS, COLORS };
+  window.NumFormat = { format, text, check, hasLiteral, bare, build, compile, expr, CATS, NEGS, COLORS };
 })();

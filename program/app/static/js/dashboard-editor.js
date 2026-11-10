@@ -697,7 +697,9 @@
     if (isOps(p) && !inGroup()) return "";
     const a = host && host.answer ? host.answer() : null;
     if (a && a.cells) window.PivotCalc.remember(a, a.measures);
-    return window.PivotCalc.html(t.body.measures, { name: (m) => P.measName({ ...m, expr: undefined }), answer: a && a.cells && !inGroup() && !inSide() ? a : null, num: (v, m) => C.numText(v, C.measFmt(p.fmt || {}, m)) });
+    return window.PivotCalc.html(t.body.measures, { name: (m) => P.measName({ ...m, expr: undefined }), answer: a && a.cells && !inGroup() && !inSide() ? a : null, num: (v, m) => C.numText(v, C.measFmt(p.fmt || {}, m)),
+      // 値ごとの単位と見出しの式（版 3.92.0）。単位の欄の薄い字は、いま付いている単位（パネルの書式の字・数字の自動の単位）
+      units: true, unitHint: (m) => { const lit = (p.fmt || {}).num && N.bare ? String(p.fmt.num).replace(N.bare(p.fmt.num), "") : ""; return (p.fmt || {}).utext ?? (lit.replace(/["\\]/g, "").trim() || P.autoUnit({ ...p, fmt: {} }, m)); } });
   }
   /** 答えが届いたら、段の変わり方（総計）だけを描き直す（打っている欄はそのまま） */
   function paintCalc0() {
@@ -1071,6 +1073,19 @@
     if (change.cat !== undefined && change.cat !== was.cat && $("#deFmt")) $("#deFmt").innerHTML = fmtHtml();
   }
   /** 書式を 1 つ変える（既定に戻す物は消す） */
+  /** ④ 置き方の見本の札（版 3.92.0）: 1 段目は値の並べ方（主と添え・左右に 2 つ・上下に 2 つ）、2 段目は期間・元の置き場（下・上・横 1 列）。
+      各段で 1 つを選ぶ。値が 1 つのときは並べ方の 2 つを押せない（理由は札の説明に） */
+  function kpiLayHtml() {
+    const fm = p.fmt || {}, n = (t.body.measures || []).length, pair = fm.kpair || "", meta = fm.kmeta || "";
+    const th = (k, v, on, name, inner, off) => `<button type="button" class="de-kth de-kth-${k}-${v || "def"}${on ? " on" : ""}" data-de-klay="${k}" data-v="${v}" aria-pressed="${on}"`
+      + `${off ? ' disabled title="値が 2 つ以上のときに選べます（② の値に足すと並びます）"' : ""}><span class="de-kmini" aria-hidden="true">${inner}</span><small>${name}</small></button>`;
+    return `<p class="de-kcap">値の並べ方<small class="de-hint">${n < 2 ? "（値が 2 つ以上のとき）" : ""}</small></p><div class="de-kthumbs" role="group" aria-label="値の並べ方">`
+      + th("kpair", "", !pair, "主と添え", "<b>88</b><i>12</i>") + th("kpair", "side", pair === "side", "左右に 2 つ", "<b>88</b><b>12</b>", n < 2)
+      + th("kpair", "stack", pair === "stack", "上下に 2 つ", "<b>88</b><b>12</b>", n < 2) + "</div>"
+      + `<p class="de-kcap">期間・元の置き場</p><div class="de-kthumbs" role="group" aria-label="期間・元の置き場">`
+      + th("kmeta", "", !meta, "期間を下", "<b>88</b><i>期間</i>") + th("kmeta", "top", meta === "top", "期間を上", "<i>期間</i><b>88</b>")
+      + th("kmeta", "row", meta === "row", "横 1 列", "<b>88</b><i>期間</i>") + "</div>";
+  }
   function setFmt(k, v) {
     const fm = { ...(p.fmt || {}) };
     if (v === "" || v == null || (k === "grid" && v === true)) delete fm[k]; else fm[k] = v;
@@ -1343,7 +1358,9 @@
         + `<div class="de-main"><div class="de-ptabs" id="dePtabs" role="tablist" aria-label="組む所の中身"></div>`
         + `<div class="de-pane" data-pane="data"><div class="de-step"><i>1</i>データ<small>何を数えるか</small></div><div id="deData"></div>`
         + `<div class="de-step"><i>2</i>数え方<small>行・列・値・期間・条件</small></div><div id="deSent"></div><div id="deCond"></div><div id="deSort"></div><div id="deSlice"></div>`
-        + `<div class="de-step"><i>3</i>形<small>どう描くか</small></div><div id="deVis"></div><div id="deBoard"></div></div>`
+        + `<div class="de-step"><i>3</i>形<small>どう描くか</small></div><div id="deVis"></div><div id="deBoard"></div>`
+        // ④ 置き方（版 3.92.0。数字のパネルだけ）: 値の並べ方と、期間・元の置き場を見本の札で選ぶ（3 回目の採点で決めた F3）
+        + `<div class="de-step"><i>4</i>置き方<small>数字のパネルの値と期間の置き場（見本を押すとパネルがその形に）</small></div><div id="deKLay"></div></div>`
         + `<div class="de-pane" data-pane="design" hidden><div id="deTheme"></div><div id="deLook"></div><div id="deDesign"></div></div>`
         + `<div class="de-pane" data-pane="fmt" hidden><div id="deFmt"></div></div>`
         + `<div id="deGacts"></div><p class="de-msg" id="deMsg" aria-live="polite"></p></div></div>`
@@ -1366,6 +1383,9 @@
     const steps = el.querySelectorAll(".de-step"), lw = isLink() && whole;
     steps[0].innerHTML = lw ? "<i>1</i>合わせ方<small>データ・役割・軸・作り方</small>" : "<i>1</i>データ<small>何を数えるか</small>";
     steps[1].hidden = lw; steps[2].hidden = inSide();
+    const kOn = !whole && !inSide() && !inGroup() && p.visual === "kpi" && !((p.fmt || {}).kpi === "bar" || (p.fmt || {}).kpi === "gauge");
+    if (steps[3]) steps[3].hidden = !kOn;
+    $("#deKLay").innerHTML = kOn ? kpiLayHtml() : "";
     // 番号は見えている段の順（全体の札は ① 合わせ方 → ② 形 → ③ 見せ方。① → ③ と飛ばない）
     let no = 0; steps.forEach((st) => { if (!st.hidden) { const i = st.querySelector("i"); if (i) i.textContent = String(++no); } });
     if (lw) { const d = $("#deData"); d.hidden = false; if (!typingIn("#deData")) d.innerHTML = linkHtml(); }
@@ -1417,12 +1437,23 @@
       const m = t && t.body.measures[i]; if (!m) return;
       if (dec == null || dec === "") delete m.dec; else m.dec = Math.max(0, Math.min(6, +dec));
       changed(false);
+    }, {
+      // 値ごとの単位（版 3.92.0）: どれかの値に単位を決めたら、まだ決めていない値は「単位なし」にする（パネルの書式の単位を重ねない。
+      // 重量に t・ロット数は単位なし、が 1 手で決まる）
+      unit: (i, v) => {
+        const ms = t ? t.body.measures : [], m = ms[i]; if (!m || (m.utext ?? null) === v) return;
+        ms.forEach((x, j) => { if (j === i) x.utext = v; else if (x.utext == null) x.utext = ""; });
+        changed(false);
+      },
+      head: (i, hide) => { const m = t && t.body.measures[i]; if (!m || !!m.hideExpr === hide) return; if (hide) m.hideExpr = true; else delete m.hideExpr; changed(false); },
+      allHead: (show) => { (t ? t.body.measures : []).forEach((m) => { if (!m.expr) return; if (show) delete m.hideExpr; else m.hideExpr = true; }); changed(false); },
     });
   }
   function bind(el) {
     bindDnd(el);
     el.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b || !p) return;
+      if (b.hasAttribute("data-de-klay")) { setFmt(b.dataset.deKlay, b.dataset.v); return; }     // ④ 置き方の見本（版 3.92.0）
       if (b.hasAttribute("data-de-cancel")) { host.onCancel(); return; }
       if (b.hasAttribute("data-de-apply")) { host.onApply(TPA.clone(p)); return; }
       if (b.dataset.deTab != null) { select(+b.dataset.deTab); return; }

@@ -22,6 +22,7 @@ const KINDS: &[&str] = &["distinct"];
 const SHOWS: &[&str] = &["", "pct_total", "pct_row", "pct_col", "cum", "diff", "rank"];
 const EXPR_MAX: usize = 60;
 const DEC_MAX: f64 = 6.0;
+const UTEXT_MAX: usize = 12;
 
 pub fn is_agg(a: &str) -> bool {
     [COUNTS, SIMPLE, SPREAD, ORDERED, KINDS].iter().any(|g| g.contains(&a))
@@ -219,6 +220,13 @@ pub fn clean(m: &Map<String, Value>, has_column: &dyn Fn(&str) -> bool) -> Resul
     }
     if let Some(d) = num_of(m.get("dec")) {
         out.insert("dec".into(), json!(d.round_ties_even().clamp(0.0, DEC_MAX) as i64));
+    }
+    // 値ごとの単位の字と、見出しに式を出さない印（版 3.92.0。Python の aggregate.clean と同じ）
+    if let Some(Value::String(u)) = m.get("utext") {
+        out.insert("utext".into(), json!(crate::pyfmt::strip(u).chars().take(UTEXT_MAX).collect::<String>()));
+    }
+    if m.get("hideExpr") == Some(&Value::Bool(true)) {
+        out.insert("hideExpr".into(), json!(true));
     }
     Ok(out)
 }

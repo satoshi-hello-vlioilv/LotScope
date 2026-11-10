@@ -5,7 +5,9 @@
 - LotDsp を開く URL（static/js/lotdsp-url.js）: WaveLog と同じ URL（ロット番号・鋳造番号の linkkey・タブ）を作る（lotdsp-url-check.mjs）
 - 変換表を一覧の列に当てる計画（static/js/conversions.js）: 列の見つけ方・足す所・当て直し・当てた式の答え（conv-plan-check.mjs）
 - 行・列・値の札を引いて組み替える決まり（static/js/pivot-dnd.js）: 並べ替え・行 ⇔ 列・カラムの札から足す・入れ替え（pivot-dnd-check.mjs）
-- 数の表示形式（static/js/num-format.js）: Excel の書式コード（区分・条件・色・桁・桁区切り・%・指数・字）と同じ字（num-format-check.mjs）"""
+- 数の表示形式（static/js/num-format.js）: Excel の書式コード（区分・条件・色・桁・桁区切り・%・指数・字）と同じ字（num-format-check.mjs）
+- 集計の答え → 表の形（lotlist-pivot-charts.js の buildModel）と、ダッシュボードの表の上位 N＋その他（dashboard-panels.js）: 総計を空の値の小計と
+  取り違えない・上位＋その他＝総計（pivot-model-check.mjs。版 3.92.0）"""
 import shutil
 import subprocess
 import unittest
@@ -39,6 +41,9 @@ class ScreenParts(unittest.TestCase):
 
     def test_pivot_drag_and_drop_rules(self):
         self.run_tool("pivot-dnd-check.mjs")
+
+    def test_pivot_table_model_and_top_rows(self):
+        self.run_tool("pivot-model-check.mjs")
 
 
 if __name__ == "__main__":

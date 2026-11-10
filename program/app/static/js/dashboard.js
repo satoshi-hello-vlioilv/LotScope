@@ -15,7 +15,7 @@
   const { $, esc } = TPA;
   const P = window.DashPanels, E = window.DashEditor, Q = window.DashFilter, D = window.DashSlicer;
   const KEY = "tpa.dash.v1";
-  const POLL_MS = 60000, RETRY_MS = 4000, COLS = 12, GAP = 10, HISTORY = 30;
+  const POLL_MS = 60000, RETRY_MS = 1500, COLS = 12, GAP = 10, HISTORY = 30;
   // 置き場の言葉（版 3.49.0。利用者の要望 2026-10-21 の 4 回目の 1: 「共通」と「共通デフォルト」の違いが分からなかった）。
   // 違いは「だれに見えるか」ではなく「だれが直せるか」と「★の強さ」なので、名前と添え書きでそれを言う。マスタの値（ID・共通・共通デフォルト）は変えない
   // 2026-10-dashsave の 2 回目で決めた G: 置き場は人の印と「見える」「直せる」の 2 行（面の見出しと保存の窓の札で同じ形）
@@ -215,23 +215,30 @@
   const setAnswer = (id, a) => { a.n = ++ansSeq; S.answers.set(id, a); };
   async function queryPanel(p) {
     const k = qkey(p), old = S.answers.get(p.id);
-    setAnswer(p.id, { ...(old || {}), key: k, busy: true });
+    // 待ち始めの時刻は、待っている間（引いている・写している・写し直している）は保つ（引き直すたびに 0 秒へ戻ると、字がちらついた）
+    const waiting0 = old && old.since && (old.busy || waitInfo(old));
+    setAnswer(p.id, { ...(old || {}), key: k, busy: true, since: waiting0 ? old.since : Date.now() });
     paintPanel(p.id);
     let a;
     try {
       const r = await fetch("/api/dashboard/query", TPA.json("POST", { panel: asked(p) }));
       const d = await r.json().catch(() => ({}));
-      a = r.ok ? { key: k, d } : { key: k, err: d.error || `読めませんでした（${r.status}）`, kind: d.kind || "error", d: old && old.key === k ? old.d : null };
+      a = r.ok ? { key: k, d, at: Date.now() } : { key: k, err: d.error || `読めませんでした（${r.status}）`, kind: d.kind || "error", d: old && old.key === k ? old.d : null, at: old && old.at };
     } catch (e) { a = { key: k, err: String(e), kind: "error" }; }
     const now = panelOf(p.id);
     if (!now || qkey(now) !== k) return;                 // 引いている間に組みが変わった（新しい方が引き直す）
+    const still = waitInfo(a);                            // まだ写している: 待ち始めの時刻と、引き直した回数を引き継ぐ
+    if (still) { const b = S.answers.get(p.id); a.since = b && b.since; a.tries = ((old && old.tries) || 0) + 1; }
     setAnswer(p.id, a);
     paintPanel(p.id);
     if (S.editing === p.id && E.isOpen()) E.answered();
     // 写している最中: 答え全部（kind）か、合わせた表のまとまりか、写し終えていない設備がある（写し終えた設備だけの途中の数。版 3.46.0）
     const stillCopying = (x) => !!x && (x.kind === "copying" || (x.failed || []).some((f) => f.kind === "copying"));
-    const copying = stillCopying(a) || (a.d && (stillCopying(a.d) || (a.d.groups || []).some(stillCopying)));
-    if (copying) setTimeout(() => { const q = panelOf(p.id); if (q && S.active && qkey(q) === k) queryPanel(q); }, RETRY_MS);
+    // 前の写しで数えた設備がある（最初の写し直しが済んでいない。版 3.92.0 の mirrors[].refreshing）も、写し終えるまで引き直す
+    const refreshing = (x) => !!x && (x.mirrors || []).some((m) => m && m.refreshing);
+    const copying = stillCopying(a) || (a.d && (stillCopying(a.d) || refreshing(a.d) || (a.d.groups || []).some((g) => stillCopying(g) || refreshing(g))));
+    // 引き直しの間は 1.5 秒。写せない設備が残り続けるときは延ばす（8 回目から 6 秒。作った後の採点: 1.5 秒ごとがずっと続いた）
+    if (copying) setTimeout(() => { const q = panelOf(p.id); if (q && S.active && qkey(q) === k) queryPanel(q); }, (a.tries || 0) >= 8 ? RETRY_MS * 4 : RETRY_MS);
   }
   /** 全部を引き直す（force でなければ、組みが変わったパネルだけ） */
   function refresh(force = true) {
@@ -352,6 +359,71 @@
     return `${dot}<h3 title="${esc(titleOf(p))}">${titleHtml(p)}</h3><span class="db-sp"></span>`
       + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + filt + tools;
   }
+  /* ---- 待っている様子（版 3.92.0。利用者の要望 2026-11-10 の 4。3 回目の採点で決めた F3）----
+     パネル: 上の縁の細い進みの線・添え書きの段（数字のパネルは数の横・下の添え書き）に理由と秒（見出しは題と回る印だけ。題を切らない）。道具の行の空きに「n 枚中 k 枚 済み・待っている: 名前（理由 秒）・ほか n 枚」。
+     数え直しで 0.7 秒より早く済む物は出さない（1 分ごとの引き直しでちらつかない） */
+  const WAIT_SHOW = 0.7;
+  const hm = (t) => { const d = new Date(t || Date.now()); return `${TPA.pad2(d.getHours())}:${TPA.pad2(d.getMinutes())}`; };
+  /** 答え → 待っている様子 {why, sec, busy}（待っていなければ null）: 数えている・写している（写し終えた設備だけの途中の数）・前の写しで数えた */
+  function waitInfo(a) {
+    if (!a) return null;
+    const d = a.d || {}, gs = [d, ...(d.groups || [])];
+    const cop = gs.flatMap((g) => (g.failed || []).filter((f) => f && f.kind === "copying"));
+    const ref = gs.flatMap((g) => (g.mirrors || []).filter((m) => m && m.refreshing)).length;
+    const mir = gs.reduce((n, g) => n + (g.mirrors || []).length, 0);
+    // short … 添え書き・道具の行の札に出す短い言い方（長い言い方は説明〈title〉に）
+    // 写している・写し直している間の引き直しは、その言い方のまま（数え直し中と交互に出してちらつかない）
+    const sec = a.since ? (Date.now() - a.since) / 1000 : 0;
+    if (cop.length) return { why: `共有から写しています ${mir}/${mir + cop.length} 設備`, short: `写しています ${mir}/${mir + cop.length}`, names: cop.map((f) => f.name), sec, busy: !!a.busy };
+    if (ref) return { why: `前回の写しで数えています（写し直し中 ${ref} 設備）`, short: "写し直し中", sec, busy: !!a.busy };
+    if (a.busy) return { why: a.d ? `前回 ${hm(a.at)} の数・数え直しています` : "数えています", short: a.d ? "数え直し中" : "数えています", sec: a.since ? (Date.now() - a.since) / 1000 : 0, busy: true };
+    if (a.kind === "copying" && !a.d) return { why: "共有から写しています", short: "写しています", sec };
+    return null;
+  }
+  const waitShown = (w) => !!w && (!w.busy || w.sec >= WAIT_SHOW || /写/.test(w.short));
+  /** 1 枚のパネルの待ちの字・秒・進みの線を、描き直さずに当て直す（秒は 0.5 秒ごと） */
+  function paintWait(el, a) {
+    const w = waitInfo(a), show = waitShown(w);
+    el.classList.toggle("is-wait", show);
+    // 言い方と秒の置き場は 1 つ（作った後の採点: 見出しに秒が出るパネルと添え書きに出るパネル・2 通りの言い方があった）:
+    // 添え書きの段に短い言い方＋秒。長い言い方（前回 hh:mm の数・…）は説明（title）と道具の行の説明に
+    const secTxt = show && w.sec != null ? `${w.sec.toFixed(1)} 秒` : "";
+    const sub = el.querySelector(".db-psub"), km = el.querySelector(".db-pb .dp-kmeta");
+    const host = sub && !sub.hidden && !sub.dataset.wonly ? sub : km || sub;
+    el.querySelectorAll(".db-wst").forEach((x) => { if (!show || x.parentElement !== host) x.remove(); });
+    if (sub && sub.dataset.wonly && (!show || host !== sub)) { sub.hidden = true; delete sub.dataset.wonly; }
+    if (!show || !host) return;
+    if (host === sub && sub.hidden) { sub.hidden = false; sub.dataset.wonly = "1"; }        // 添え書きの無い数字のパネル: 段を出して理由だけ
+    let st = host.querySelector(".db-wst");
+    if (!st) { host.insertAdjacentHTML("beforeend", '<span class="db-wst"></span>'); st = host.querySelector(".db-wst"); }
+    st.textContent = w.short + (secTxt ? ` ${secTxt}` : "");
+    st.title = w.why;
+  }
+  /** 道具の行の空きの進み（待っているパネルの名前・理由・秒。名前を先に縮め、「ほか n 枚」は残す） */
+  function paintWaitBar() {
+    const box = document.querySelector("#dashBar .db-wbar"); if (!box) return;
+    const rows = (S.layout ? S.layout.panels : []).filter((p) => S.answers.has(p.id)).map((p) => ({ p, w: waitInfo(S.answers.get(p.id)) }));
+    const wait = rows.filter((x) => waitShown(x.w)).sort((x, y) => (y.w.sec || 0) - (x.w.sec || 0));
+    box.hidden = !wait.length;
+    if (!wait.length) { box.innerHTML = ""; box.title = ""; return; }
+    const done = rows.filter((x) => !x.w).length;
+    const tail = (x) => `（${x.w.short}${x.w.sec != null ? ` ${x.w.sec.toFixed(1)} 秒` : ""}）`, item = (x) => titleOf(x.p) + tail(x);
+    // 待っているパネルは 1 枚ずつの札。入らない札は隠して「ほか n 枚」に数える（見える札＋ほか＝待っている枚数。作った後の採点:
+    // 2 つの名前をまとめて「…」で切り、見える数と枚数が合わなかった）
+    box.innerHTML = `<i class="db-wpg" style="--w:${Math.round((done / Math.max(1, rows.length)) * 100)}%" aria-hidden="true"></i><b>${rows.length} 枚中 ${done} 枚 済み</b>`
+      + `<span class="db-wnames">待っている:${wait.map((x) => `<span class="db-witem"><span class="db-wn">${esc(titleOf(x.p))}</span>${esc(tail(x))}</span>`).join("")}</span><b class="db-wmore" hidden></b>`;
+    box.title = wait.map((x) => `${titleOf(x.p)}（${x.w.why}${x.w.sec != null ? ` ${x.w.sec.toFixed(1)} 秒` : ""}）`).join("\n");
+    const items = [...box.querySelectorAll(".db-witem")], more = box.querySelector(".db-wmore"), names = box.querySelector(".db-wnames");
+    let hid = 0;
+    const fits = () => names.scrollWidth <= names.clientWidth + 1 && box.scrollWidth <= box.clientWidth + 1;
+    for (let i = items.length - 1; i >= 0 && !fits(); i--) { items[i].hidden = true; hid++; more.hidden = false; more.textContent = hid === items.length ? `${hid} 枚` : `ほか ${hid} 枚`; }
+  }
+  function paintWaits() {
+    if (!S.active || !S.layout) return;
+    S.layout.panels.forEach((p) => { const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(p.id)}"]`); if (el) paintWait(el, S.answers.get(p.id)); });
+    paintWaitBar();
+  }
+  setInterval(() => { if (S.active && [...S.answers.values()].some((a) => a && a.busy)) paintWaits(); }, 500);
   /** パネルを描く。組み・答え・大きさ・編集の様子が前に描いた時と同じなら描かない（force で必ず） */
   function paintPanel(id, force = false) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
@@ -412,6 +484,8 @@
       if (a && a.d && p.visual === "board") P.board(body, p, a.d, body.clientHeight);
       else if (a && a.d) P.render(body, slicerView(p), a.d, { w: body.clientWidth, h: body.clientHeight }, p.visual === "kpi" ? meta : "");
     }
+    paintWait(el, a1);
+    paintWaitBar();
   }
   const md = (d) => (d ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : "");
   /** スライサーの期間の短い字（日付で決めた期間は 10/5〜10/20・1 日だけなら 10/20。版 3.52.0） */
@@ -441,10 +515,11 @@
       + `${icon}<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : it.replaces ? "・組み込みと入れ替え" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
     const msg = `<span class="db-msg" aria-live="polite">${esc(S.msg)}</span>`;
     if (!S.edit) {
-      bar.innerHTML = pick + msg + `<span class="db-sp"></span>${barCfg().off && S.layout ? D.cfgBtn(sliceInfo(), true) : ""}<small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
+      bar.innerHTML = pick + msg + `<span class="db-wbar" hidden></span><span class="db-sp"></span>${barCfg().off && S.layout ? D.cfgBtn(sliceInfo(), true) : ""}<small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
         + `<button type="button" class="pv-btn" data-db-refresh title="いま引き直す">↻ 引き直す</button>`
         // ダッシュボードが 1 つも無いときは「編集」を出さない（何を編集するのか分からない。空の画面の知らせから作る・戻す）
         + (it ? `<button type="button" class="btn-primary db-editbtn" data-db-editmode title="パネルを足す・動かす・大きさを変える・組む">編集</button>` : "");
+      paintWaitBar();
       paintSlicer();
       return;
     }
@@ -957,19 +1032,27 @@
   }
   /** 焦点（2026-10-grid の 1 回目で 1 位の D）: 組む間、組むパネルをグリッドの左の空きに大きく出し（グリッドの大きさの 1.5 倍まで・
       窓に収まる大きさ）、ほかのパネルは淡い幕で覆う。組む所は右に重ねる（グリッドは縮めない＝ほかのパネルの字が切れない） */
+  /** 組んでいるパネルを、組む所の左の空きに確定後と同じ大きさで見せる（版 3.92.0。前は 1.5 倍に広げて描き直し、確定後と字の置き場がずれた）。
+      パネルはグリッドでの大きさのまま描き、空きに入らないときだけ同じ並びのまま縮めて見せる（transform。中の描き方は確定後と同じ） */
   function focusFrame(id) {
     const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), g = $("#dashGrid");
     if (!el || !g) return;
     const r = el.getBoundingClientRect(), gr = g.getBoundingClientRect(), ed = E.width() + 24;   // 組む所の幅は引いて変えられる（版 3.45.0）
-    const aw = Math.max(320, innerWidth - ed - gr.left - 16), ah = gr.height;
-    const w = Math.min(aw, Math.max(520, r.width * 1.5)), h = Math.min(ah, Math.max(340, r.height * 1.5));
-    Object.assign(el.style, { position: "fixed", left: `${Math.round(gr.left + (aw - w) / 2)}px`, top: `${Math.round(gr.top + (ah - h) / 2)}px`, width: `${Math.round(w)}px`, height: `${Math.round(h)}px` });
+    const aw = Math.max(240, innerWidth - ed - gr.left - 16), ah = gr.height, TAG = 30;
+    const z = Math.min(1, (aw - 24) / r.width, (ah - TAG - 24) / r.height);
+    const w = r.width * z, h = r.height * z, left = Math.round(gr.left + (aw - w) / 2), top = Math.round(gr.top + (ah - h - TAG) / 2);
+    Object.assign(el.style, { position: "fixed", left: `${left}px`, top: `${top}px`, width: `${Math.round(r.width)}px`, height: `${Math.round(r.height)}px`,
+      transformOrigin: "0 0", transform: z < 1 ? `scale(${z.toFixed(4)})` : "" });
     el.classList.add("is-focus");
     if (!$("#dbScrim")) $("#dashScreen").insertAdjacentHTML("beforeend", '<div id="dbScrim" class="db-scrim" aria-hidden="true"></div>');
+    $("#dbFocusTag")?.remove();
+    $("#dashScreen").insertAdjacentHTML("beforeend", `<p id="dbFocusTag" class="db-ftag" style="left:${left}px;top:${Math.round(top + h + 8)}px">${z < 1
+      ? `確定後の ${Math.round(z * 100)}%（空きに入るよう縮めています。並び・字の置き場は確定後と同じ）`
+      : `確定後と同じ大きさ（${Math.round(r.width)}×${Math.round(r.height)}）。並び・字の置き場も同じ`}</p>`);
   }
   function unfocus() {
-    document.querySelectorAll("#dashGrid .db-p.is-focus").forEach((el) => { el.classList.remove("is-focus"); ["position", "left", "top", "width", "height"].forEach((k) => { el.style[k] = ""; }); });
-    $("#dbScrim")?.remove();
+    document.querySelectorAll("#dashGrid .db-p.is-focus").forEach((el) => { el.classList.remove("is-focus"); ["position", "left", "top", "width", "height", "transform", "transformOrigin"].forEach((k) => { el.style[k] = ""; }); });
+    $("#dbScrim")?.remove(); $("#dbFocusTag")?.remove();
   }
   function closeEditor() {
     S.editing = ""; editBase = null; E.close(); unfocus();

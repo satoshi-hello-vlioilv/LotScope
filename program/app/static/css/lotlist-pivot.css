@@ -100,6 +100,7 @@
 .pv-table td.pv-stc{background:#f6f8fa}
 .pv-table td.pv-gtc{background:#eef3f7;font-weight:700}
 .pv-table tr.is-sub td,.pv-table tr.is-sub th{background:#f2f6f9;font-weight:700}
+.pv-table tr.is-other td,.pv-table tr.is-other th{background:#f6f8fa;color:#4a5866;font-style:normal;border-top:1px dashed #c9d4de}
 .pv-table tr.is-grand td,.pv-table tr.is-grand th{background:#e6edf3;font-weight:800;border-top:2px solid #c9d4de}
 .pv-table tbody tr:hover td{background:#f4faf9}
 .pv-hint{color:var(--muted);font-size:12px}
@@ -290,5 +291,9 @@ body.pv-dnd-body,body.pv-dnd-body *{cursor:grabbing!important;user-select:none}
   .pc-qs{display:none}
   .pc-more{display:inline-block}
 }
+/* 値ごとの単位と見出しの式（版 3.92.0。ダッシュボードの組む所）: 小数の札と同じ行の続き。すべての値の切り替えは段の幅の 1 行 */
+.pc-ug{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pc-uin{width:64px;font-family:inherit}
+.pc-all{grid-column:1 / -1;display:inline-flex;align-items:center;gap:6px;margin-top:2px;padding-top:5px;border-top:1px dashed #e2cfa6;font-size:12.5px;color:var(--ink);cursor:pointer}
 /* 引き始めに札の字が選ばれない（引く前の 5px の間に字の選びが始まっていた） */
 .pv-chip[data-dnd-role],.pv-f[data-dnd-col] > span{user-select:none;-webkit-user-select:none}

@@ -200,7 +200,11 @@ python program/tools/ui_score.py 採点.json                                    
   保存のときの確かめは `tests/test_dashboard_slice.py`）・
   `ui-eval-dashopscol.mjs`（版 3.73.0。ガント・ABC の作業開始・作業終了の列: 候補に今の列・選ぶと答えの列と棒が替わる・自動に戻す・組む所で作った計算列を選ぶ〈式が問い合わせに載る・同じ棒〉・当てて開き直す・計算列の名前を変える／消すと付いていく・一覧で設備ごとに作った同じ名前の計算列は選んだ設備〈HOT〉の式で数える。選んだ列が空・式が読めないときにほかの列へ移らないことは `ops_parity`。版 3.74.0 から: 設備を 2 つ選ぶ・すべての設備でも、設備ごとにその設備の式で数える〈パネルの calc.equips。サーバーの設備ごとの重ね方は `dash_parity`・`ops_parity`〉）・
   `ui-eval-dashscroll.mjs`（版 3.74.0。組む所で設備の並びを下へ送ってチェック・もう 1 つ・外すをしても、並びと右の欄の送り位置が戻らない・押した設備が見えている）・
-  `ui-eval-waterfall.mjs`（ウォーターフォール: 棒の数・計＝サーバーの総計・前の棒の終わりから・増加と減少・足せない値は計なし・計算・はみ出さない・一覧でも）。
+  `ui-eval-waterfall.mjs`（ウォーターフォール: 棒の数・計＝サーバーの総計・前の棒の終わりから・増加と減少・足せない値は計なし・計算・はみ出さない・一覧でも）・
+  `ui-eval-dashunit.mjs`（版 3.92.0。表の上位 N＋「その他（n 行）」＝総計・値ごとの単位〈重量だけに t・ロット数に t も .0 も無い〉・見出しに式を出さない・
+  数字のパネルの 2 つの値〈同じ大きさ・単位と仕切りの間 8px 以上・添え書きを上〉・組む所は確定後と同じ大きさ・④ 置き方の見本・
+  待っている間〈進みの線・広いパネルは見出しに秒・狭いパネルの題が切れない・道具の行の「n 枚中 k 枚 済み」・グリッドが下へずれない〉。3 つの大きさで。
+  撮るだけの道具は `shot-dashunit.mjs`〈作った後は TPA_DASHUNIT_BUILT=1〉。表の形の決まりは node で流す `pivot-model-check.mjs`〈`tests/test_screen_parts.py` からも〉）。
   値の計算の式の読み方は、画面（num-format.js）とサーバー（services/num_expr.py）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・`tests/test_num_expr.py`）。どれも終了コード 0 で OK
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`
   （本物にありそうな作業開始・作業終了の 9 つの書き方〈日時・日付だけ＋年月日時分秒の 14 桁・14 桁だけ・午前／午後・日時の数・日付＋時刻の列・焼鈍炉の 20〜60 時間・日跨ぎで作業終了の日付が作業開始の日・作業終了が空〉の設備を作り、
@@ -208,7 +212,9 @@ python program/tools/ui_score.py 採点.json                                    
 - 釜番 → 日付の評価関数（版 3.51.2）: `tests/test_kama.py`（利用者の渡した kama_to_date・date_to_kama をそのまま答えの元にして、2020〜2030 年の 5 日おき × 全部の釜番で
   式 kamadate が同じ日付〈基準日にいちばん近い前月・当月・翌月〉を出すか・釜番でない値は空か・同梱の変換表「釜番日付」。画面の式とは `tests/test_formula_parity.py`）
 - 入れた直後（写しの無い PC）の作業実績の評価関数: `python program/tools/worklog-first-bench.py [--equip 11] [--delay 1.5] [--spread] [--first-wait 秒]`
-  （共有から写すのに時間がかかる形で、最初の画面の作業実績のパネルが答えるまで・途中の数を「写しています」と言うか・正しい数に着くまでを測る）
+  （共有から写すのに時間がかかる形で、最初の画面の作業実績のパネルが答えるまで・途中の数を「写しています」と言うか・正しい数に着くまでを測る。
+  版 3.92.0 からダッシュボードは最初の写しを 2 秒まで待つ〈routes/dashboard.py の DASH_FIRST_WAIT_SEC・dashboard.rs の FIRST_WAIT〉。
+  --delay 4 --spread で最初の答え 12.05 → 2.02 秒・正しい数に着くのは前と同じ）
 - 画面に出ない改良（速さ）の評価関数: `python program/tools/dash-bench.py [--rows 20000] [--save 前.json] [--compare 前.json]`
   （ダッシュボードの標準の全パネルを大きな試験データで数え、冷えた時・控えから・ファイルが変わった後を、順に・一度に問い合わせて測る。--compare で前と同じ数かを突き合わせる）
 - 一覧の道を Rust へ移した評価関数（版 3.60.0）: `cargo test --test lists_parity`（← `program/tests/lists_oracle.py`。表の候補・ロット番号の列・作業でまとめる・

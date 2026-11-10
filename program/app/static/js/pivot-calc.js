@@ -47,16 +47,33 @@
         + `<option value="">${QUICK.includes(cur(m)) ? "計算なしにする" : "よく使う"}</option>${QUICK.map((q) => `<option value="${esc(q)}"${cur(m) === q ? " selected" : ""}>${q}</option>`).join("")}</select>`
         + `<span class="pc-dg"><span class="pc-div" aria-hidden="true"></span><span class="pc-l">小数</span>`
         + `<span class="pc-dec" role="radiogroup" aria-label="「${esc(opt.name(m))}」の小数の桁">${DECS.map(([k, t, tip]) => { const on = (m.dec ?? null) === k;
-          return `<button type="button" role="radio" aria-checked="${on}" class="${on ? "on" : ""}" data-pc-dec="${k ?? ""}" data-pc-di="${j}" title="${tip}">${t}</button>`; }).join("")}</span></span></span>`;
+          return `<button type="button" role="radio" aria-checked="${on}" class="${on ? "on" : ""}" data-pc-dec="${k ?? ""}" data-pc-di="${j}" title="${tip}">${t}</button>`; }).join("")}</span></span>`
+        + (opt.units ? unitHtml(m, j, opt) : "") + "</span>";
     };
+    const exprs = ms.filter((m) => m.expr).length;
+    // 式のある値が 2 つ以上のときだけ、まとめて切り替える 1 手（1 つなら値の段の 2 択と同じなので出さない。3 回目の採点の指摘）
+    const all = opt.units && exprs >= 2
+      ? `<label class="pc-all"><input type="checkbox" data-pc-allhead${ms.every((m) => !m.expr || !m.hideExpr) ? " checked" : ""}>すべての値で見出しに式を出す</label>` : "";
     return `<div class="pc-band" role="group" aria-label="値の計算"><b class="pc-cap" title="値ごとに四則演算を当てます（÷1000・×100・(値−10)×2 など。演算子から書くと前に値が入ります）。表・グラフ・Excel の数が変わります">値の計算</b>`
-      + ms.map(one).join("") + "</div>";
+      + ms.map(one).join("") + all + "</div>";
+  }
+  /** 値ごとの単位と、見出しの式を出す・出さない（版 3.92.0。ダッシュボードの組む所: opt.units。3 回目の採点で決めた F3）。
+      単位は数の後ろに付く字（t・本 など）。空は単位なし。どれかの値に単位を決めると、ほかの値も値ごとの単位になる（パネルの書式の単位は重ねない） */
+  function unitHtml(m, j, opt) {
+    const nm = esc(opt.name(m));
+    const head = m.expr
+      ? `<span class="pc-l">見出し</span><span class="pc-dec pc-head" role="radiogroup" aria-label="「${nm}」の見出しに計算の式を出すか">`
+        + [[0, "式を出す", "列の見出しに［値÷1000］のように式を出します"], [1, "出さない", "列の見出しは値の名前だけにします（単位を変えた後など）"]].map(([k, t, tip]) => {
+          const on = !!m.hideExpr === !!k; return `<button type="button" role="radio" aria-checked="${on}" class="${on ? "on" : ""}" data-pc-head="${k}" data-pc-hi="${j}" title="${tip}">${t}</button>`; }).join("") + "</span>"
+      : "";
+    return `<span class="pc-ug"><span class="pc-l">単位</span><input class="pc-in pc-uin" data-pc-unit="${j}" value="${esc(m.utext ?? "")}" maxlength="12" spellcheck="false" autocomplete="off"`
+      + ` placeholder="${m.utext == null ? esc(opt.unitHint ? opt.unitHint(m) : "") || "書式のまま" : "なし"}" aria-label="「${nm}」の単位（数の後ろに付ける字）">${head}</span>`;
   }
   const cur = (m) => (m.expr || "").replace(/\s/g, "");
   /** 見張り（root は描き直しても同じ要素）。set(i, 式) → 読めなければ理由の字（入れない）。打つ間は 0.6 秒待って当てる（変換中は待つ）。
       setDec(i, 桁 か null) … 小数の札 */
-  function bind(root, set, setDec) {
-    root._pcDec = setDec;
+  function bind(root, set, setDec, more) {
+    root._pcDec = setDec; root._pcMore = more || null;      // more: {unit(i, 字), head(i, 隠すか), allHead(出すか)}（版 3.92.0）
     if (root._pcSet) { root._pcSet = set; return; }
     root._pcSet = set;
     const timers = new Map();
@@ -72,12 +89,20 @@
       timers.set(i, setTimeout(() => apply(el), 600));
     });
     root.addEventListener("change", (e) => {
+      const mo = root._pcMore, un = e.target.closest && e.target.closest("[data-pc-unit]"), ah = e.target.closest && e.target.closest("[data-pc-allhead]");
+      if (un && mo) { mo.unit(+un.dataset.pcUnit, un.value.trim()); return; }
+      if (ah && mo) { mo.allHead(ah.checked); return; }
       const sel = e.target.closest && e.target.closest("[data-pc-qsel]");
       if (sel) { const i = +sel.dataset.pcQsel, inp = root.querySelector(`[data-pc-in="${i}"]`); if (inp) inp.value = sel.value; root._pcSet(i, sel.value); return; }
       const el = e.target.closest && e.target.closest("[data-pc-in]"); if (el) { clearTimeout(timers.get(el.dataset.pcIn)); apply(el); }
     });
-    root.addEventListener("keydown", (e) => { const el = e.target.closest && e.target.closest("[data-pc-in]"); if (el && e.key === "Enter" && !TPA.composing(e)) { clearTimeout(timers.get(el.dataset.pcIn)); apply(el); } });
+    root.addEventListener("keydown", (e) => {
+      const un = e.target.closest && e.target.closest("[data-pc-unit]");
+      if (un && e.key === "Enter" && !TPA.composing(e) && root._pcMore) { root._pcMore.unit(+un.dataset.pcUnit, un.value.trim()); return; }
+      const el = e.target.closest && e.target.closest("[data-pc-in]"); if (el && e.key === "Enter" && !TPA.composing(e)) { clearTimeout(timers.get(el.dataset.pcIn)); apply(el); } });
     root.addEventListener("click", (e) => {
+      const hd = e.target.closest && e.target.closest("[data-pc-head]");
+      if (hd && root.contains(hd) && root._pcMore) { root._pcMore.head(+hd.dataset.pcHi, hd.dataset.pcHead === "1"); return; }
       const dz = e.target.closest && e.target.closest("[data-pc-dec]");
       if (dz && root.contains(dz)) { if (root._pcDec) root._pcDec(+dz.dataset.pcDi, dz.dataset.pcDec === "" ? null : +dz.dataset.pcDec); return; }
       const b = e.target.closest && e.target.closest("[data-pc-q]"); if (!b || !root.contains(b)) return;
@@ -90,6 +115,9 @@
   /** 描き直しても、打っている欄の焦点と字の位置を保つ（render を呼ぶ前後で） */
   function keepFocus(root, render) {
     const a = document.activeElement, i = a && a.matches && a.matches("[data-pc-in]") && root.contains(a) ? a.dataset.pcIn : null;
+    if (i == null && a && a.matches && a.matches("[data-pc-unit]") && root.contains(a)) {        // 単位の欄も、打っている字と焦点を残す
+      const u = a.dataset.pcUnit, v = a.value; render(); const b = root.querySelector(`[data-pc-unit="${u}"]`); if (b) { b.value = v; b.focus(); } return;
+    }
     const sel = i != null ? [a.selectionStart, a.selectionEnd, a.value] : null;
     render();
     if (i == null) return;

@@ -314,6 +314,10 @@ def main():
         run("計算の長い式・桁の半分", [lot], rows=[{"column": "合金"}],
             measures=[{"agg": "sum", "column": "重量", "expr": "((値-10)*2+0.5+0.25+0.125)÷1000+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0", "dec": 2.5},
                       {"agg": "avg", "column": "重量", "dec": "3.5"}]),
+        run("値ごとの単位と見出しの式（版 3.92.0）", [lot], rows=[{"column": "合金"}],
+            measures=[{"agg": "sum", "column": "重量", "expr": "÷1000", "dec": 1, "utext": " t ", "hideExpr": True},
+                      {"agg": "lots", "utext": "", "hideExpr": "true"}, {"agg": "count", "utext": 3, "hideExpr": 1},
+                      {"agg": "avg", "column": "重量", "utext": "あいうえおかきくけこさしすせそ"}]),
     ]
     # カラムの札（計算列も: 式が読む列 deps・読めない式・日付と読める計算列）
     calc = {"formulas": {"区分2": "[作業区分] + '!'", "倍重量": "[重量] * 2", "壊れ": "[重量] +", "日": "left([BOX実績_作業開始_日付], 10)",

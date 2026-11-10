@@ -2,7 +2,7 @@
 
 利用者の要望（2026-10-21 の 6）: 「設備実績取得、初回インストール時直後不安定です」。
 共有の実績ファイルを手元へ写すのに時間がかかる形（1 ファイルを写すのに --delay 秒）を作り、最初の画面（ダッシュボード）が
-作業実績のパネル（前日の実績本数）を問い合わせたときの動きを、画面と同じ問い合わせ方（答えが「写している」なら 4 秒ごとに引き直す）で測る。
+作業実績のパネル（前日の実績本数）を問い合わせたときの動きを、画面と同じ問い合わせ方（答えが「写している」なら 1.5 秒ごとに引き直す。版 3.92.0 から）で測る。
 
     python tools/worklog-first-bench.py [--equip 11] [--delay 1.5] [--first-wait 秒]
     （--delay 4 --first-wait 2 で、1 台を写すのに待ちの長さより長くかかる遠い共有の形。--spread で速い設備と遅い設備が混ざる形）
@@ -10,7 +10,7 @@
 測る物と合格の線（どれかが外れれば終了コード 1）:
   ① 最初の答えが返るまでの時間 … いちばん遅い 1 台を写す時間（か、写しを待つ長さ）＋ 1 秒まで（写しを 1 台ずつ順に待たない）
   ② 途中の数（写し終えた設備だけで数えた数）を、写し中と言わずに出していない（写し中の設備は copying と分かる）
-  ③ 画面の引き直しの決まりで、正しい数（全部を写した後の数）に着くまでの時間 … 1 ファイルを写す時間 ＋ 引き直しの間（4 秒）＋ 2 秒まで
+  ③ 画面の引き直しの決まりで、正しい数（全部を写した後の数）に着くまでの時間 … 1 ファイルを写す時間 ＋ 引き直しの間（1.5 秒）＋ ダッシュボードが写しを待つ長さ（2 秒）＋ 2 秒まで
   ④ 作業実績のタブで、初めて 1 台を開いたときの答えの時間 … 1 ファイルを写す時間 ＋ 1 秒まで
 """
 import argparse
@@ -37,7 +37,7 @@ from app.services.db_mirror import DbMirror  # noqa: E402
 from tests import lotlist_fixture  # noqa: E402
 
 EQUIPMENT = ("CR1", "CR2", "L-1", "L-2", "TLV", "LS3", "DL2", "CAL", "ANF", "HOT", "SL1", "SL2", "CS3", "TU1", "P12", "INS1")
-RETRY_S = 4.0            # 画面（dashboard.js の RETRY_MS）が「写している」答えを引き直す間
+RETRY_S = 1.5            # 画面（dashboard.js の RETRY_MS。版 3.92.0 から 1.5 秒）が「写している」答えを引き直す間
 
 
 def build(equip):
@@ -121,12 +121,13 @@ def main():
             break
         time.sleep(0.3)
     truth = kpi_value(d)
-    line = min(a.delay * (3 if a.spread else 1), db_mirror.FIRST_WAIT_SEC) + 1.0     # いちばん遅い 1 台（か、待つ長さ）＋ 1 秒
+    from app.routes.dashboard import DASH_FIRST_WAIT_SEC
+    line = min(a.delay * (3 if a.spread else 1), DASH_FIRST_WAIT_SEC) + 1.0     # いちばん遅い 1 台（か、ダッシュボードが待つ 2 秒）＋ 1 秒
     check("① 最初の答えが返るまで（写しを 1 台ずつ順に待たない）", first["t"] <= line, f"{first['t']} 秒（線 {line:.1f} 秒）")
     partial_silent = [x for x in log if x["status"] == 200 and x["value"] != truth and not x["copyingSaid"]]
     check("② 途中の数を、写し中と言わずに出さない", not partial_silent, partial_silent[:2] or "なし")
     reach = final["t"] if final and final["value"] == truth else None
-    check("③ 画面の引き直しで正しい数に着く", reach is not None and reach <= a.delay * (3 if a.spread else 1) + RETRY_S + 2, f"{reach} 秒（正しい数 {truth}）")
+    check("③ 画面の引き直しで正しい数に着く", reach is not None and reach <= a.delay * (3 if a.spread else 1) + RETRY_S + DASH_FIRST_WAIT_SEC + 2, f"{reach} 秒（正しい数 {truth}）")
 
     # ④ 作業実績のタブで、まだ写していない 1 台を初めて開く
     app2 = build_again(a.equip)

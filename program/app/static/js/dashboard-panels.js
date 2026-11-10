@@ -53,6 +53,8 @@
       : x.column + (x.part ? `（${PART_NAME[x.part] || x.part}）` : ""));
   // 別のデータを合わせた答え（版 3.40.0。link）の値は、サーバーが役割つきの名前（目標：仕掛のロット数 など）を付ける
   const measName = (m) => (m.role != null && m.name ? m.name : C.measLabel(m));
+  /** 見出し・数字の名前に出す字（版 3.92.0）: 計算の式を出さない値は式を外す（系列の色・書式の鍵は measName のまま） */
+  const headName = (m) => (m.role != null && m.name ? m.name : C.measHead(m));
   const md = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ""); return m ? `${+m[2]}/${+m[3]}` : iso || ""; };
   /** 期間の見せ方（「前日 10/15（現場歴）」「直近 14 日 10/2〜10/15」）。設備で日が違えば、いちばん多い範囲 */
   function periodText(p, d) {
@@ -87,6 +89,24 @@
     return { m: { ...m, rows: rows.concat(other) }, rest, total: data.length };
   }
 
+  /** 上位 N で切った表（版 3.92.0）: 切った行を「その他（n 行）」の 1 行にまとめ、総計をその表の行の足し上げにする（表の中で数が合う）。
+      足し上げられる値（件数・ロット数・合計・個数で、割合などの見せ方でない物）だけ。平均・最大などは「その他」を空にし、総計はサーバーの全体のまま。
+      ロット数は行ごとのロットの数を足すので、同じロットが 2 つの行にあると全体のロットの数（重ならない数）より大きくなる（表の中で合わせることを先にした） */
+  function withOther(t, m0, d) {
+    if (!t.rest) return t;
+    const data = m0.rows.filter((r) => r.type === "data"), kept = new Set(t.m.rows.filter((r) => r.type === "data"));
+    const cut = data.filter((r) => !kept.has(r)), add = d.measures.map((x) => C.ADDITIVE.has(x.agg) && !x.show);
+    const other = { type: "other", path: [], n: cut.length };
+    const sum = (rows, c, j) => rows.reduce((a, r) => { const v = m0.value(r, c, j); return typeof v === "number" ? a + v : a; }, 0);
+    const value = (r, c, j) => {
+      if (r.type === "other") return add[j] ? sum(cut, c, j) : null;
+      if (r.type === "grand" && add[j]) return sum(data, c, j);
+      return m0.value(r, c, j);
+    };
+    const rows = t.m.rows.filter((r) => r.type === "data"), rest = t.m.rows.filter((r) => r.type !== "data");
+    return { ...t, m: { ...t.m, value, rows: [...rows, other, ...rest] } };
+  }
+
   /* ---- 値の見せ方（版 3.43.0。書式の配置・字。Excel のセルの書式の「配置」「フォント」に当たる） ----
      align: left・center・right（数字・表のセルの横の置き場）・valign: top・middle・bottom（数字の縦の置き場）・
      nsize: s・l・xl（字の大きさ。数字は入りきらなければ縮める）・bold: off（太字にしない）・ncolor: 字の色（表示形式の [赤] などが先） */
@@ -99,6 +119,7 @@
   }
   /** 数字の自動の単位（本・ロット・件）。表示形式に単位の字（"本" など）を入れたら、そちらに任せて出さない */
   const autoUnit = (p, m) => {
+    if (m && m.utext != null) return esc(m.utext);     // 値ごとの単位（版 3.92.0。組む所の値の計算の段で決めた字。空は単位なし）
     const u = (p.fmt || {}).utext;
     if (u != null) return esc(u);          // 書式の「単位」で決めた字（版 3.45.0。空なら単位を出さない）
     if (!m || ((p.fmt || {}).num && window.NumFormat && NumFormat.hasLiteral(p.fmt.num))) return "";
@@ -111,25 +132,56 @@
     const vals = cell ? cell.v : [];
     const main = vals[0], ms = d.measures || [], fm = p.fmt || {};
     if ((fm.kpi === "bar" || fm.kpi === "gauge") && typeof main === "number" && fm.target) return kpiTarget(box, p, d, W, H, sub0, main);
-    const fm0 = C.measFmt(fm, ms[0]);        // 値の桁（版 3.50.1）を重ねた書式
+    if ((fm.kpair === "side" || fm.kpair === "stack") && vals.length > 1) return kpiPair(box, p, d, W, H, sub0, vals);
+    const fm0 = numOnly(fm, ms[0]);          // 値の桁（版 3.50.1）を重ねた書式（単位は下の小さな字で 1 回だけ）
     const text = main == null ? "–" : C.numText(main, fm0);
     const unit = autoUnit(p, ms[0]);
     // 字の大きさ: 高さの 5 割・幅に収まる大きさ（数字 1 字 ≒ 0.6em・単位は 1 字 ≒ 0.34em〈字の 0.32 倍の大きさ〉）の小さい方。14〜88px
-    // 低いパネル（1 段）は、数と添え書きを横に並べる（縦に積むと数が小さくなり、添え書きが下で切れる）
-    const row = H < 96 && W >= 240;
+    // 低いパネル（1 段）か、添え書きを横に置くと決めたパネル（版 3.92.0 の kmeta=row）は、数と添え書きを横に並べる
+    const row = (fm.kmeta === "row" || H < 96) && W >= 240;
     const room = row ? H : H - (sub0 ? 20 : 0);    // 添え書き（期間・元）の行の分
     const wide = row ? W * 0.55 : W - 8;   // 横に並べるときは、数に幅の 55% まで（残りは添え書き）
     const z = SIZE_RATE[fm.nsize] || 1;    // 書式の字の大きさ（版 3.43.0）。入りきらなければ下で縮める
     const size = Math.round(Math.max(14, Math.min(88 * z, room * (row ? 0.92 : vals.length > 1 ? 0.42 : 0.56) * z, wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
-    const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(measName(ms[i + 1]))}</small><b>${C.numHtml(v, C.measFmt(fm, ms[i + 1]))}</b></span>`).join("");
-    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}"><b class="dp-num" style="font-size:${size}px">${main == null ? "–" : C.numHtml(main, fm0)}<small>${unit}</small></b>`
+    const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(headName(ms[i + 1]))}</small><b>${C.numHtml(v, C.measFmt(fm, ms[i + 1]))}</b></span>`).join("");
+    const metaHtml = sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}" style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}">${esc(sub0)}</small>` : "";
+    const top = fm.kmeta === "top" && !row;          // 添え書きを数の上に（版 3.92.0）
+    box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}">${top ? metaHtml : ""}<b class="dp-num" style="font-size:${size}px">${main == null ? "–" : C.numHtml(main, fm0)}<small>${unit}</small></b>`
       + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")
-      + (sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}" style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}">${esc(sub0)}</small>` : "") + "</div>";
+      + (top ? "" : metaHtml) + "</div>";
     // 描いた後に、いま居る面に収まるまで数を小さくする（測った時と面の大きさが違っても、はみ出さない）
     const num = box.querySelector(".dp-num"), limit = box.clientHeight || H;
     // 横に並べる形は、数そのものが収まるかだけを見る（添え書きは 2 行で切る。添え書きが長いと数が 14px まで縮んだ: 版 3.41.0）
     const over = row ? () => box.scrollHeight > limit + 1 || num.getBoundingClientRect().height > limit + 1 || num.offsetWidth > W * 0.62 : () => box.scrollHeight > limit + 1 || box.scrollWidth > box.clientWidth + 1;
     for (let f = size; f > 12 && over(); f -= 2) num.style.fontSize = `${f - 2}px`;
+  }
+
+  /** 数の字だけの書式（値ごとの単位〈suffix〉は外す。単位は数の後ろの小さな字で 1 回だけ出す。版 3.92.0） */
+  const numOnly = (fm, m) => { const f = C.measFmt(fm, m); return f.suffix == null ? f : { ...f, suffix: undefined }; };
+  /** 数字のパネルで 2 つ以上の値を同じ大きさで並べる（版 3.92.0。利用者の要望 2026-11-10 の 5。3 回目の採点で決めた F3）:
+      side＝左右に並べ、間に仕切りの線（単位と線の間は 8px 以上）・stack＝上下に並べ、数の右端をそろえる。名前は各数の上（左右）か左（上下）。
+      添え書き（期間・元）は kmeta（top＝上・無し＝下）。入りきらなければ、どの数も同じだけ縮める（単位より先に数を縮める） */
+  function kpiPair(box, p, d, W, H, sub0, vals) {
+    const fm = p.fmt || {}, ms = d.measures || [], side = fm.kpair === "side", n = Math.min(3, vals.length);
+    const items = vals.slice(0, n).map((v, i) => ({ name: headName(ms[i]), text: v == null ? "–" : C.numText(v, numOnly(fm, ms[i])), html: v == null ? "–" : C.numHtml(v, numOnly(fm, ms[i])), unit: autoUnit(p, ms[i]) }));
+    const z = SIZE_RATE[fm.nsize] || 1, room = H - (sub0 ? 20 : 0);
+    const longest = Math.max(...items.map((x) => x.text.length * 0.62 + x.unit.length * 0.36 + 0.4));
+    const size = Math.round(Math.max(14, Math.min(72 * z, (side ? room - 18 : room / n - 14) * 0.9 * z, ((side ? W / n : W * 0.7) - 28) / longest)));
+    const metaHtml = sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}">${esc(sub0)}</small>` : "";
+    const cells = items.map((x) => `<div class="dp-kv"><small>${esc(x.name)}</small><b class="dp-num" style="font-size:${size}px">${x.html}<small>${x.unit}</small></b></div>`).join("");
+    box.innerHTML = `<div class="dp-kpi is-pair">${fm.kmeta === "top" ? metaHtml : ""}<div class="dp-kpair ${side ? "is-side" : "is-stack"}">${cells}</div>${fm.kmeta === "top" ? "" : metaHtml}</div>`;
+    const nums = [...box.querySelectorAll(".dp-num")], pair = box.querySelector(".dp-kpair"), limit = box.clientHeight || H;
+    // 数（単位まで）が札の中身の幅に入るか（札の右の余白〈仕切りの線との間〉に入り込まない）
+    const inBox = (c) => { const num = c.querySelector(".dp-num"), end = num.lastElementChild || num, r = c.getBoundingClientRect(), cs = getComputedStyle(c);
+      return end.getBoundingClientRect().right <= r.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth) + 0.5; };
+    const over = () => box.scrollHeight > limit + 1 || pair.scrollWidth > pair.clientWidth + 1 || [...pair.children].some((c) => c.scrollWidth > c.clientWidth + 1 || !inBox(c));
+    for (let f = size; f > 12 && over(); f -= 2) nums.forEach((x) => { x.style.fontSize = `${f - 2}px`; });
+    // 空きがあれば大きくする（見積もりは数字 1 字を広めに数えるので、広いパネルで数が小さく下が空いた。作った後の採点）
+    const cap = Math.min(88 * z, (side ? room : room / n) * 0.6);      // 1 つの数のパネルと同じ割合（高さの 6 割まで）
+    for (let f = parseFloat(nums[0].style.fontSize) + 2; f <= cap; f += 2) {
+      nums.forEach((x) => { x.style.fontSize = `${f}px`; });
+      if (over()) { nums.forEach((x) => { x.style.fontSize = `${f - 2}px`; }); break; }
+    }
   }
 
   /** 数字の形（版 3.39.0。書式 kpi）: 目標に対する進み。bar＝数と、目標までの横の棒（達成率）・gauge＝半円のメーター（真ん中に数・下に達成率） */
@@ -204,15 +256,17 @@
   /* ---- 表（集計表と同じ表を、字と行の高さを詰めて収める） ---- */
   function table(box, p, d, W, H) {
     const { m: m0 } = modelOf(p, d);
-    const t = trimRows(m0, p, Infinity);
-    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName, dimName: (x) => dimName(x, p), num: (v, j) => C.numHtml(v, C.measFmt(p.fmt, d.measures[j])) })}</table></div>`;
+    const t = withOther(trimRows(m0, p, Infinity), m0, d);
+    box.innerHTML = `<div class="dp-tbl"><table class="pv-table">${C.tableHtml(t.m, d, { measName: headName, dimName: (x) => dimName(x, p), num: (v, j) => C.numHtml(v, C.measFmt(p.fmt, d.measures[j])) })}</table></div>`;
     return moreText(fitRows(box.querySelector(".dp-tbl"), H), "行");
   }
   /** 表を高さ H に収める: 字を 14 → 11px まで詰め、それでも入らなければ下の行を隠す → 隠した行の数 */
   function fitRows(wrap, H) {
     if (!wrap || !shrink(wrap, H)) return 0;
     const rows = [...wrap.querySelector("table").tBodies[0].rows];
-    const keepLast = rows.length && rows[rows.length - 1].classList.contains("is-grand") ? 1 : 0;
+    // 下の総計と「その他」は隠さない（版 3.92.0。表の中で数が合うように）
+    let keepLast = 0;
+    while (keepLast < rows.length - 1 && rows[rows.length - 1 - keepLast].matches(".is-grand,.is-other")) keepLast++;
     // 縦にまたがる見出し（小計のある表の上の段）は、隠した行の分だけまたがりを縮める（縮めないと下の行の字の列がずれた: 3 回目の採点の 1280 の小計の表）
     const spans = rows.flatMap((tr, r) => [...tr.cells].filter((c) => c.rowSpan > 1).map((c) => ({ c, r })));
     let hidden = 0;
@@ -234,7 +288,7 @@
   /** まとまりの題（空なら組み方から: 「前日 10/15 の実績本数（現場歴）」「仕掛のロット数」） */
   function groupTitle(g, a) {
     if (g.title) return g.title;
-    const word = g.measure.agg === "lots" ? (g.source === "work" ? "実績本数" : "ロット数") : measName(g.measure);
+    const word = g.measure.agg === "lots" ? (g.source === "work" ? "実績本数" : "ロット数") : headName(g.measure);
     const pr = a && a.period, r = pr && (pr.ranges || [])[0];
     if (pr && r) {
       const name = PERIOD_N[pr.kind] ? periodWord(pr) : pr.kind === "range" ? "" : pr.name, span = r.from === r.to ? md(r.from) : `${md(r.from)}〜${md(r.to)}`;
@@ -555,6 +609,6 @@
   const periodNFor = (old, kind) => { const u = PERIOD_N[kind]; if (!u) return old && old.n ? old.n : 7;
     const ou = PERIOD_N[old && old.kind]; return ou && ou[0] === u[0] ? periodN({ kind, n: old.n }) : u[2]; };
 
-  window.DashPanels = { PERIOD_KINDS, PERIOD_N, periodN, periodWord, periodNInput, periodNFor, ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
+  window.DashPanels = { withOther, trimRows, PERIOD_KINDS, PERIOD_N, periodN, periodWord, periodNInput, periodNFor, ROLE_COLOR, render, calcd, autoUnit, board, notes, periodText, measName, headName, dimName, md, colorOf, kindOf, groupTitle, unitOf, boardKeys, boardTree, NONE_GROUP, SOURCE_COLOR, PALETTES, seriesColors, drawnColor: (id, name) => (drawn.get(id) || new Map()).get(name),
     drawnSeries: (id, name) => (drawnSer.get(id) || new Map()).get(name) || null };
 })();
