@@ -12,7 +12,9 @@
 歩の形: hold（写す係を「写している最中」にしてから尋ねる。忙しい 409）・sync（写す係をその場で動かす: 2 つの PC が同じ置き場を写す形）。
 GET /api/update/settings は page_parity.rs（settings_oracle.py の reads）が突き合わせ、ここでは名乗り（who）を 4 人と権限を読めない形で見る。
 版 3.95.0 の作った後の採点（61.4 点）で見つけた割れの場面も入れた: 根の上のフォルダ（/・//・///・C:）・一時フォルダを作れない（ファイルが邪魔をする）・
-名前付きパイプ・採点者の場面（記号リンク・権限 0・改行の名前・名前と本文の字）。`--tables` は事例の表だけ（Path(上)/名前 の字を POSIX と Windows の
+名前付きパイプ・採点者の場面（記号リンク・権限 0・改行の名前・名前と本文の字）。
+権限の場面（読めないファイル・フォルダ・書けない上のフォルダ）は root では意味を持たない（root は権限を見ずに読み書きできるので写せる答えどうしを比べる）。
+CI は root でない利用者で動くので、そこで Python の PermissionError の答えと写しかけの片付けを必ず突き合わせる（出力の "root" を見て release_parity.rs が数を確かめる）。`--tables` は事例の表だけ（Path(上)/名前 の字を POSIX と Windows の
 決まりで・OSError の str）を出す。
 """
 import hashlib
@@ -261,11 +263,17 @@ def scenarios():
     out.append({"name": "名乗り（4 人・切断）", "setup": setup_unreadable, "revoke": CUT, "steps": [S(w, "GET", U) for w in (BOSS, MAINT, VIEW, CUT)]})
     out.append({"name": "名乗り（権限を読めない）", "setup": setup_unreadable, "perm": ["表でない行"], "steps": [S(BOSS, "GET", U)]})
     # 上のフォルダが根・ファイルが邪魔をする（写す係の一時フォルダを作れない）・上が無い（作ってから写す）
+    if os.name != "nt":
+        out.append(perm_scenario())
+    # 根の上のフォルダ（/・//・///）は POSIX の場面（Windows の / は今のドライブの根・// は UNC で、意味が違う。Windows の根・ドライブ・UNC の
+    # 字は事例の表 joined_paths_match_python で両方の決まりを突き合わせる）。ドライブだけの上のフォルダ（C:）は、Python がドライブごとの
+    # 今のフォルダで解くので窓は答えず任せる（Windows）。一時フォルダを作れない形（ファイルが邪魔をする）・上が無い形はどちらでも
+    drive = os.path.splitdrive(str(Path.cwd()))[0]
     out.append({"name": "根の上のフォルダ・一時フォルダを作れない", "setup": setup_two_pcs, "steps": [
-        S(BOSS, "POST", C, A(x, "relprobe-nonexist-q9")) for x in ("/", "//", "///", "//tmp", "/tmp/", " / ")] + [
+        S(BOSS, "POST", C, A(x, "relprobe-nonexist-q9")) for x in (("/", "//", "///", "//tmp", "/tmp/", " / ") if os.name != "nt" else ())] + [
         {"sync": {"src": SRC, "dest": "@ROOT/new/first/release.json/under"}},
         {"sync": {"src": SRC, "dest": "@ROOT/new/無い/上/置き場"}},
-    ]})
+    ], "delegates": [S(BOSS, "POST", C, A(drive, "relprobe-nonexist-q9"))] if os.name == "nt" and drive else []})
     if os.name != "nt":
         out.append(probe_scenario())
         out.append({"name": "名前付きパイプ（開く前に断る・写しかけを片付ける・次の move は忙しくない）", "setup": setup_fifo, "steps": [
@@ -281,6 +289,48 @@ def scenarios():
             S(BOSS, "GET", P, wait=True),
         ]})
     return out
+
+
+ROOT = os.name != "nt" and os.geteuid() == 0
+
+
+def setup_perm(r: Path):
+    place_files(r / "rel" / "LotScope")
+    (r / "rel" / "LotScope" / "zz.bin").write_bytes(b"zz")
+    (r / "rel" / "LotScope" / "secret").mkdir()
+    (r / "rel" / "LotScope" / "secret" / "s.txt").write_text("s", encoding="utf-8")
+    (r / "rel2" / "LotScope").mkdir(parents=True)
+    (r / "rel2" / "LotScope" / "only").mkdir()
+    (r / "rel2" / "LotScope" / "only" / "a.txt").write_text("a", encoding="utf-8")
+    (r / "rel2" / "LotScope" / "hidden").mkdir()
+    (r / "rel2" / "LotScope" / "hidden" / "h.txt").write_text("h", encoding="utf-8")
+    (r / "new" / "ro").mkdir(parents=True)
+    (r / "new" / "noread").mkdir()
+    (r / "new" / "noread" / "x").write_text("x", encoding="utf-8")
+
+
+def lock_perm(r: Path):
+    os.chmod(r / "rel" / "LotScope" / "zz.bin", 0)               # 読めないファイル（写すと PermissionError）
+    os.chmod(r / "rel2" / "LotScope" / "hidden", 0)              # 読めないフォルダ（os.walk は黙って飛ばす・写す量に数えない）
+    os.chmod(r / "new" / "ro", 0o555)                             # 書けない上のフォルダ（一時フォルダを作れない）
+    os.chmod(r / "new" / "noread", 0)                             # 中を読めない置き場（iterdir が落ちる: Python は 500）
+
+
+def perm_scenario():
+    """権限の場面（POSIX）。root は権限を見ずに読み書きできるので、root で流すと読めない・書けない形にならず、写せる答えどうしを比べる。
+    CI（root でない利用者）では Python の PermissionError の答えと、写しかけの片付けを突き合わせる（release_parity.rs が数を確かめる）"""
+    noread = S(BOSS, "POST", C, A("@ROOT/new", "noread"))
+    return {"name": "権限（読めないファイル・読めないフォルダ・書けない上のフォルダ・中を読めない置き場）", "setup": setup_perm, "lock": lock_perm,
+            "steps": [S(BOSS, "POST", C, A("@ROOT/new", "fresh")),
+                      S(BOSS, "POST", M, A("@ROOT/new", "fresh"), wait=True),
+                      S(BOSS, "POST", C, A("@ROOT/new", "only", src="@ROOT/rel2/LotScope")),
+                      S(BOSS, "POST", M, A("@ROOT/new", "only", src="@ROOT/rel2/LotScope"), wait=True),
+                      S(BOSS, "POST", C, A("@ROOT/new/ro", "x", src="@ROOT/rel2/LotScope")),
+                      S(BOSS, "POST", M, A("@ROOT/new/ro", "x", src="@ROOT/rel2/LotScope"), wait=True),
+                      {"sync": {"src": "@ROOT/rel2/LotScope", "dest": "@ROOT/new/ro/y"}},
+                      *([noread] if ROOT else []),
+                      S(BOSS, "GET", P)],
+            "delegates": [] if ROOT else [noread]}
 
 
 def probe_scenario():
@@ -367,7 +417,11 @@ def fix_times(root: Path):
     """作った物の更新時刻をそろえる（道の字の順に 1 秒ずつ。py と rs で同じ）"""
     files = sorted(p for p in root.rglob("*") if p.is_file() and not p.is_symlink())
     for i, p in enumerate(files):
-        os.utime(p, ns=(T0 + i * 1_000_000_000, T0 + i * 1_000_000_000), follow_symlinks=False)
+        t = T0 + i * 1_000_000_000
+        if os.utime in os.supports_follow_symlinks:       # POSIX（記号リンクは上で除いているが、念のためたどらない）
+            os.utime(p, ns=(t, t), follow_symlinks=False)
+        else:                                            # Windows は follow_symlinks を渡せない（記号リンクは上で除いた）
+            os.utime(p, ns=(t, t))
 
 
 def listing(root: Path):
@@ -385,8 +439,12 @@ def listing(root: Path):
             out[rel] = {"type": "special"}       # 名前付きパイプなど（読むと止まる）
         else:
             st = p.stat()
+            try:
+                sha = hashlib.sha1(p.read_bytes()).hexdigest()
+            except OSError:
+                sha = "<読めない>"                # 権限の無いファイル（root でない利用者。CI）
             out[rel] = {"type": "file", "size": st.st_size, "mtimeNs": str(st.st_mtime_ns),
-                        "sha1": hashlib.sha1(p.read_bytes()).hexdigest(), **({"mode": oct(st.st_mode & 0o777)} if os.name != "nt" else {})}
+                        "sha1": sha, **({"mode": oct(st.st_mode & 0o777)} if os.name != "nt" else {})}
     return out
 
 
@@ -445,6 +503,8 @@ def main():
                 place_masters(r, sc)
                 sc["setup"](r)
                 fix_times(r)
+                if sc.get("lock"):           # 権限を落とすのは時刻をそろえた後（読めないフォルダの中の時刻もそろえる）
+                    sc["lock"](r)
             # 記号リンクの歩は POSIX だけ（Windows の CI は記号リンクを作れないことがある。壊れた記号リンクは ntpath の _readlink_deep が
             # 先をたどるが、窓は在る所までしか解かないので違いうる: 残す差。release_place.rs の冒頭）
             steps_def = list(sc["steps"]) + (link_steps() if CAN_LINK and os.name != "nt" and sc["setup"] is setup_plan and i == 0 else [])
@@ -502,7 +562,7 @@ def main():
     finally:
         for p in patches:
             p.stop()
-    sys.stdout.write(json.dumps({"scenarios": out, "canLink": CAN_LINK, "joins": joins(), "oserrors": oserrors()}, ensure_ascii=False))
+    sys.stdout.write(json.dumps({"scenarios": out, "canLink": CAN_LINK, "root": ROOT, "joins": joins(), "oserrors": oserrors()}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

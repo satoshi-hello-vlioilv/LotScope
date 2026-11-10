@@ -160,6 +160,10 @@ fn at(cwd: &Path, p: &str) -> PathBuf {
 pub fn py_resolve(x: &str, cwd: &Path) -> Option<String> {
     let p = py_path(x);
     if cfg!(windows) {
+        let (drive, root, _) = win_splitroot(&p);
+        if drive.ends_with(':') && root.is_empty() {
+            return None; // ドライブだけの道（C:x）は Python がドライブごとの今のフォルダで解く（GetFullPathName）。窓は任せる
+        }
         resolve_by_prefix(&win_abspath(&p, cwd), true).ok()
     } else {
         let base = if cwd.is_absolute() { realpath_posix(&cwd.to_string_lossy(), "/") } else { "/".to_string() };
@@ -358,8 +362,10 @@ pub fn check_name(name: &str) -> Result<String, String> {
 /// ほかの誤り（名前が長すぎる・権限が無い）は Python では例外になる
 fn ignorable(e: &io::Error) -> bool {
     match e.raw_os_error() {
-        // ERROR_FILE_NOT_FOUND・PATH_NOT_FOUND（ENOENT）・INVALID_HANDLE（EBADF）・NOT_READY・DIRECTORY（ENOTDIR）・INVALID_NAME・CANT_RESOLVE_FILENAME
-        Some(n) if cfg!(windows) => matches!(n, 2 | 3 | 6 | 21 | 267 | 123 | 1921),
+        // CPython が ENOENT に読み替える物（FILE_NOT_FOUND・PATH_NOT_FOUND・INVALID_DRIVE・NO_MORE_FILES・BAD_NETPATH・BAD_NET_NAME・
+        // BAD_PATHNAME・FILENAME_EXCED_RANGE）・EBADF（INVALID_HANDLE）・ENOTDIR（DIRECTORY）と、pathlib が見る NOT_READY・INVALID_NAME・
+        // CANT_RESOLVE_FILENAME
+        Some(n) if cfg!(windows) => matches!(n, 2 | 3 | 15 | 18 | 53 | 67 | 161 | 206 | 6 | 267 | 21 | 123 | 1921),
         // ENOENT・EBADF・ENOTDIR・ELOOP（Linux 40・macOS 62）
         Some(n) => matches!(n, 2 | 9 | 20) || n == if cfg!(target_os = "macos") { 62 } else { 40 },
         None => e.kind() == io::ErrorKind::NotFound,

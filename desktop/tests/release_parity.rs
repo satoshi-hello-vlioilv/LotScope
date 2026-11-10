@@ -7,6 +7,10 @@
 //! 窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
 //! 比べない所: 道の字の場面のフォルダ（@ROOT にそろえる）・時刻（started・finished・elapsed）・一時フォルダの名前の pid と秒・
 //! 権限を読めない理由（Python の例外の字。言葉の形は比べる）・Windows の OS の言葉（Python は errno と WinError で書き分ける）。
+//! 権限の場面（読めないファイル・読めないフォルダ・書けない上のフォルダ・中を読めない置き場）は、root で流すと意味を持たない
+//! （root は権限を見ずに読み書きできるので、写せる答えどうしを比べる）。CI は root でない利用者で動くので、そこでは Python の
+//! PermissionError の答え（進み具合の error の字）と写しかけの片付けを必ず突き合わせる: oracle の "root" が偽なら、
+//! Permission denied の答えを 3 つ以上比べたことを確かめる（版 3.95.0 の CI で、手元の root では一度も比べていなかったと分かった）。
 
 mod common;
 
@@ -51,6 +55,21 @@ fn sub(x: &str, root: &str) -> String {
 fn sub_json(x: &str, root: &str) -> String {
     let esc = serde_json::to_string(root).unwrap();
     x.replace("@ROOT", &esc[1..esc.len() - 1])
+}
+
+/// 権限の場面で落とした権限を戻す（root でない利用者でも作業フォルダを消せるように）
+fn unlock(dir: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o755));
+    }
+    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    for e in rd.flatten() {
+        if e.file_type().is_ok_and(|t| t.is_dir()) {
+            unlock(&e.path());
+        }
+    }
 }
 
 /// 写し終えるまで待つ
@@ -123,8 +142,9 @@ fn listing(root: &Path) -> Map<String, Value> {
                 out.insert(rel, json!({"type": "special"})); // 名前付きパイプなど（読むと止まる）
             } else {
                 let mt = lm.modified().unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-                let data = std::fs::read(&p).unwrap();
-                let mut f = json!({"type": "file", "size": lm.len(), "mtimeNs": mt.to_string(), "sha1": da_core::bundle::sha1_hex(&data)});
+                // 権限の無いファイル（root でない利用者。CI）は中身を比べず印にする（oracle の listing と同じ）
+                let sha = std::fs::read(&p).map(|d| da_core::bundle::sha1_hex(&d)).unwrap_or_else(|_| "<読めない>".into());
+                let mut f = json!({"type": "file", "size": lm.len(), "mtimeNs": mt.to_string(), "sha1": sha});
                 if let Some(m) = mode_of(&lm) {
                     f["mode"] = json!(m);
                 }
@@ -171,7 +191,7 @@ fn release_place_matches_python() {
     let base = common::work("release");
     let oracle = common::python_json("release_place_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
-    let (mut steps, mut delegated, mut copied) = (0, 0, 0);
+    let (mut steps, mut delegated, mut copied, mut denied) = (0, 0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         let (py, rs) = (sc["roots"]["py"].as_str().unwrap(), sc["roots"]["rs"].as_str().unwrap());
@@ -181,6 +201,7 @@ fn release_place_matches_python() {
             if let Some(s) = st.get("sync") {
                 // 写す係をその場で動かす（2 つの PC が同じ置き場を写す形）
                 let got = Mover::new(None).run_sync(&sub(s["src"].as_str().unwrap(), rs), &sub(s["dest"].as_str().unwrap(), rs));
+                denied += st["json"].to_string().contains("Permission denied") as usize;
                 if let Some(d) = common::diff(&norm(&st["json"], py), &norm(&got, rs), "") {
                     bad.push(format!("{name} [{i}] 写す係: {d}"));
                 }
@@ -203,6 +224,7 @@ fn release_place_matches_python() {
             if st["wait"] == true {
                 copied += 1;
                 let fin = wait_done(&mover);
+                denied += st["final"].to_string().contains("Permission denied") as usize;
                 if let Some(d) = common::diff(&norm(&st["final"], py), &norm(&fin, rs), "") {
                     bad.push(format!(
                         "{name} [{i}] 写し終えた後の進み具合: {d}\n  Python {}\n  窓     {}",
@@ -233,8 +255,14 @@ fn release_place_matches_python() {
             }
         }
     }
-    eprintln!("歩 {steps}・写し終えるまで見た歩 {copied}・Python に任せた歩 {delegated}");
+    eprintln!(
+        "歩 {steps}・写し終えるまで見た歩 {copied}・Python に任せた歩 {delegated}・権限の答え（Permission denied）を比べた歩 {denied}"
+    );
     assert!(steps >= 70 && delegated >= 10 && copied >= 2, "歩が少ない: {steps}・{delegated}・{copied}");
+    if cfg!(unix) && oracle["root"] == false {
+        assert!(denied >= 3, "root でないのに権限の答え（Permission denied）を比べた歩が少ない: {denied}");
+    }
+    unlock(&base);
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
