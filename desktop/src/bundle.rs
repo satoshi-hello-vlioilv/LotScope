@@ -218,7 +218,8 @@ pub fn py_path(x: &str) -> String {
     }
 }
 
-fn posix_path(x: &str) -> String {
+/// str(PurePosixPath(x))（release_place の事例の表が両方の決まりを使う）
+pub fn posix_path(x: &str) -> String {
     if x.is_empty() {
         return ".".into();
     }
@@ -238,7 +239,8 @@ fn posix_path(x: &str) -> String {
     }
 }
 
-fn win_path(x: &str) -> String {
+/// str(PureWindowsPath(x))
+pub fn win_path(x: &str) -> String {
     let x = x.replace('/', "\\");
     if x.is_empty() {
         return ".".into();
@@ -1548,6 +1550,62 @@ impl Inputs {
     pub fn settings_items(&self) -> R<Vec<Value>> {
         self.check("path_settings")?;
         effective_items(&self.settings, &self.rows("path_settings")?)
+    }
+
+    /// 更新の置き場（GET /api/update/settings の source。版 3.95.0）: `str((effective_settings(app).get("update") or {}).get("source") or "")`。
+    /// 参照先が読めない（行が表でない・ファイルが読めない）ときは配った設定で動く（effective_settings と同じ）。Python が落ちる形
+    /// （値を重ねる段・update の段が表でない）・窓が同じ字にできない値（並び・表・大きな整数）・窓の読めない参照先は Err（Python に任せる）
+    pub fn update_source(&self) -> R<String> {
+        self.check("path_settings")?;
+        let rows = self.rows("path_settings").unwrap_or_default();
+        let v = update_source_of(&self.settings, &rows)?;
+        match &v {
+            x if !truthy(Some(x)) => Ok(String::new()),
+            Value::String(x) => Ok(x.clone()),
+            Value::Number(n) if n.as_i64().is_some() || n.is_f64() => Ok(py_str(&v)),
+            Value::Bool(_) => Ok(py_str(&v)),
+            _ => Err(Py("更新の置き場が字・数でない（Python は repr の字）")),
+        }
+    }
+}
+
+/// effective_settings の update.source（path_settings.effective を全部の項目で通した後の値）。Python の effective は、どの項目も
+/// 読めた値を配った設定の段へ重ねる（_set）ので、値のある項目の段が表でなければ落ちる。ブラウザの欄（Python が trusted_browser で
+/// 確かめる）は値になるか分からないが、段が表なら落ちず update.source にも効かない
+fn update_source_of(settings: &Value, rows: &[Value]) -> R<Value> {
+    use crate::settings_write::{parse_value, Bad};
+    let mut by: Vec<(String, &Value)> = vec![];
+    for r in rows {
+        let k = pstr(r.get("項目"))?;
+        match by.iter_mut().find(|(n, _)| *n == k) {
+            Some(slot) => slot.1 = r, // dict の内包表記と同じく後ろの行が勝つ
+            None => by.push((k, r)),
+        }
+    }
+    let mut master = None;
+    for it in t(&["settingsItems"]).as_array().into_iter().flatten() {
+        let key = it["key"].as_str().unwrap_or("");
+        let Some((_, row)) = by.iter().find(|(n, _)| n == key) else { continue };
+        let value = match parse_value(it, row.get("値")) {
+            Ok(v) => v,
+            Err(Bad::Invalid(_)) => None,
+            Err(Bad::Python) if key != "update.source" && sections_ok(settings, key) => None,
+            Err(Bad::Python) => return Err(Py("値を重ねる段が表でない項目の値を Python が読む")),
+        };
+        if value.is_some() && !sections_ok(settings, key) {
+            return Err(Py("値を重ねる配った設定の段が表でない（Python の _set が落ちる）"));
+        }
+        if key == "update.source" {
+            master = value;
+        }
+    }
+    if let Some(v) = master {
+        return Ok(v);
+    }
+    match settings.get("update") {
+        x if !truthy(x) => Ok(Value::Null),
+        Some(Value::Object(o)) => Ok(o.get("source").cloned().unwrap_or(Value::Null)),
+        _ => Err(Py("update の段が表でない（Python は .get で落ちる）")),
     }
 }
 

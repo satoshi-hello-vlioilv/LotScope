@@ -1,7 +1,8 @@
 //! 窓の更新の係（裏の糸と画面への答え）。取り込み・入れ替えの中身は da_core::update、置き場の探し方は da_core::release。
 //!
 //! - 確かめる: 中身が起動した直後・30 分ごと・画面の「確かめる」（参照先で更新の置き場を保存したとき）
-//! - 置き場（参照先 update.source）は中身（Python）に尋ねる（GET /api/update/settings。共有のマスタにあるため）
+//! - 置き場（参照先 update.source）は GET /api/update/settings の答え。版 3.95.0 から窓が読む（da_core::release_place・Lot::update_settings。
+//!   共有のマスタの参照先を窓の束の材料から重ねる。Python が起きていなくても確かめる。窓が同じ字にできない形だけ中身〈Python〉に尋ねる）
 //! - 配る版が決まっていればその版（前の版へ戻すときも）、決まっていなければいちばん新しい版を、使っている間に取り込む（決め方は update::pick）
 //! - 置き場を控える（update::remember_source）。次の起動の最初に、中身を起こす前にも確かめる（起動していない間に配った版を 1 回の起動で入れる）
 //! - 画面: GET /__desktop/update（状態）・POST /__desktop/update/check・POST /__desktop/update/apply（開き直す）・
@@ -191,7 +192,7 @@ impl Updater {
         }
     }
 
-    /// 配布の画面（GET /__desktop/release）。settings は Python の /api/update/settings（置き場と、だれか）。
+    /// 配布の画面（GET /__desktop/release）。settings は /api/update/settings の答え（置き場と、だれか。窓が読む: Lot::update_settings）。
     pub fn release_view(&self, settings: &Value, cached: bool) -> Value {
         let b = brand();
         let who = &settings["who"];

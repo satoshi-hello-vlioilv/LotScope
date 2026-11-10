@@ -1,4 +1,4 @@
-//! 画面と最初の画面の読む道（版 3.85.0）: 窓（src/page.rs・bundle.rs の config・dashboard.rs の sources_answer・equip_tree_answer）が、
+//! 画面と最初の画面の読む道（版 3.85.0。版 3.95.0 から GET /api/update/settings〈src/release_place.rs〉も）: 窓（src/page.rs・bundle.rs の config・dashboard.rs の sources_answer・equip_tree_answer）が、
 //! Python の道（routes/system.py の index・config、routes/dashboard.py の dashboard_sources・dashboard_equip_tree）と同じ答えを返すか。
 //! program/tests/settings_oracle.py が束の場面と同じフォルダで Python に尋ねた答え（reads）と突き合わせる。窓の Lot には Python が居ない
 //! （設定を尋ねると失敗する）形で尋ね、窓が自分で答えた物は 1 字（JSON は値）も違わないこと、答えなかった物（Python に任せる）は
@@ -11,7 +11,8 @@ use da_core::lot::Lot;
 use serde_json::Value;
 use std::path::PathBuf;
 
-const READS: [&str; 6] = ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings"];
+const READS: [&str; 7] =
+    ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings", "/api/update/settings"];
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 const MUST_DELEGATE: [(&str, &str); 15] = [
@@ -160,9 +161,14 @@ fn page_and_first_reads_are_like_python() {
         }
     }
     eprintln!("窓が同じに答えた数: {same:?}・Python に任せた数: {delegated}");
-    for (path, n) in
-        [("/", 15), ("/api/config", 15), ("/api/dashboard/sources", 15), ("/api/dashboard/equip-tree", 2), ("/api/settings", 30)]
-    {
+    for (path, n) in [
+        ("/", 15),
+        ("/api/config", 15),
+        ("/api/dashboard/sources", 15),
+        ("/api/dashboard/equip-tree", 2),
+        ("/api/settings", 30),
+        ("/api/update/settings", 30),
+    ] {
         assert!(same.get(path).copied().unwrap_or(0) >= n, "{path} を窓が答えた場面が足りません: {same:?}");
     }
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));

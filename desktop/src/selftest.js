@@ -336,6 +336,27 @@
          `${gone.by} ${gone.r.status} ${(why(gone).error || "").slice(0, 30)}`);
     }
 
+    // 10b''') 更新の置き場と、だれが（版 3.95.0 から窓が答える: release_place.rs。更新の係・配布の画面も同じ答えを読み、Python が居なくても
+    //         更新を確かめる）。Python（engine=python）と同じ答え（権限を読めない理由の字だけは比べない）。配布の置き場を写す進み具合も窓が答える
+    {
+      const sortU = (v) => Array.isArray(v) ? v.map(sortU) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortU(v[k])])) : v;
+      const canonU = (t) => { const v = JSON.parse(t); if (v && v.who && "error" in v.who) v.who.error = "<理由>"; return JSON.stringify(sortU(v)); };
+      let rs, py, same = false;
+      for (const until = Date.now() + 15000; ;) {      // 最初の版を置く途中は尋ね直す（10b' と同じ）
+        py = await get("/api/update/settings?engine=python"); rs = await get("/api/update/settings");
+        same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
+        try { same = same && canonU(rs.text) === canonU(py.text); } catch (_) { same = false; }
+        if ((same && rs.by === "shell") || Date.now() > until) break;
+        await sleep(1000);
+      }
+      const pg = await get("/api/release/place/progress");
+      let st = ""; try { st = JSON.parse(pg.text).state; } catch (_) { st = ""; }
+      ok("更新の置き場と、だれが（版を置ける・配る版を決められる）は窓が答え、Python と同じ答え。配布の置き場を写す進み具合も窓",
+         rs.by === "shell" && same && pg.by === "shell" && pg.r.status === 200 && st === "idle",
+         `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}・進み具合 ${pg.by} ${st}${same ? "" : "・" + rs.text.slice(0, 80) + " / " + py.text.slice(0, 80)}`);
+    }
+
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
     //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる
     {

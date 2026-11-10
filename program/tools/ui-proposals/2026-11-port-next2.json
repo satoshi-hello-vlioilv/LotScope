@@ -1,0 +1,228 @@
+{
+ "title": "Rust 化の次の段（版 3.95.0）: Python だけが答える 32 本と、Python を外すのに残る物から、何をどう移すか（2026-11-10）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-10・ブランチ claude/friendly-hamilton-8g6s3p の f0db2c4＝版 3.94.0。Python の道は app.routes の bp.rules をそのまま読み、窓の道は lot.rs の handle_body と各部品の route_of・main.rs の native の腕と 1 本ずつ突き合わせた）: Python の道は 136 本（メソッド×型。HEAD は GET に付くので除く。定義は 128 か所）。窓が答えるのは 104 本、Python だけが答えるのは 32 本。Python だけの 32 本の群: (1) 利用状況・置き場・設定 12 本（GET /api/masters/status・GET /api/masters/tabaccess・POST /api/settings/check・GET /api/update/settings・POST /api/release/place/check・POST move・GET progress・GET /api/masters/place・POST check・POST move・POST /api/fs/browse・GET /api/fs/places。道の関数 116 行＋部品 master_place 104・release_place 138・folder_browse 215・path_settings 196 行〈check の分は約 70 行〉、部品を読む試験 66〈ファイルでは test_master_place 9・test_release_place 14・test_folder_browse 11・test_path_settings 14〉）。利用状況のタブそのもの（/api/presence の 7 本・心拍・画面の設定の控え）は版 3.71.0 で窓が答え済み。残るのは順 5 の 3 段目〈使用の履歴・置き場・設定〉の残りで、GET /api/masters/place の using は利用状況の記録（presence.online_in）を読む。(2) 組む所の読み・確かめ 7 本（GET・POST /api/dashboard/fields・GET /api/data/columns・POST /api/sources/check・GET /api/sources/<key>/columns・POST /api/sources/join/preview・POST /api/sources/<key>/conn/check。道の関数 214 行。中身の部品は窓に有る: dashboard.rs の panel_parts・pivot::fields〈版 3.66.0 から覚える。2 回目 0.03 ms〉・lotlist の tables・pick_table・lot_column・join.rs）。(3) 外部連携 LotDsp 9 本（import-lotdsp・fetch-lotdsp・fetch-lotdsp-api・lotdsp-api/survey・lotdsp-api/link・/lotdsp-link の画面・lotdsp-api/status・fetch-lotdsp/status・fetch-lotdsp/cancel。部品 lotdsp_direct 502＋lotdsp_direct.js 134・lotdsp_api 467・lotdsp_progress 308・lotdsp_link 252・models 35・画面の型 73 ≈ 1,771 行、部品を読む試験 148〈ファイルでは 75〉）。(4) 外部連携 スケジュール 2 本（GET /api/schedule・GET /api/schedule/card。部品 schedule 275・cm3_schedule 222・routes.schedule 137 = 634 行、試験 26＋schedule_golden.json・ui-eval-schedule.mjs）。(5) 枠 2 本（GET /api/lotlist/settings〈窓が束を組めない形 bundle::Py だけ尋ねる〉・GET /api/health〈Python が答えているかの印〉）。製品の形で窓の道が Python に回る所（測って分かった）: 配る appsettings.json に schedule.cm3_base_url があり、組み込みのスケジュールの元（sch）は設備の列「設備」を持つので、窓は選べる設備を数えられず、GET /api/dashboard/equip-tree・設備グループの 4 本・/api/src/sch の 5 本（一覧・スライサー・集計・データの時刻・再読込）・sch を使うパネルが Python へ回る（移したはずの 10 本＋パネル）。内側の問い合わせ（main.rs が Python に尋ねる）3 本: /api/lotlist/settings（bundle::Py の形だけ）・/api/schedule/card（中身が起きているときだけ）・/api/update/settings（更新の係 updater.rs の check と配布の画面 release_view・distribute の Who が毎回頼る。Python が答えないと「更新の置き場の設定を読めません」）。Python に任せる形: 窓の部品の `return None` は 276 か所。突き合わせで数えた任せる歩は分かっている物だけで 360 を超える（設備・ロール 40・初期設定 6・セット 74・書式 44・カード 37・変換表 48・設備グループ 85 ほか）。Python を外すと、それぞれに窓の答えが要る。速さ（Python。開発用サーバーと同じ試験データ・品質 20,000 行・実績 12 台×2,000 行・仕掛 20,000 ロット・開発者の権限・1 回温めて 5 回の中央値。Linux の開発機）: GET /api/dashboard/fields?source=lot 99.9 ms（最大 114）・実績 1 台 10.6 ms・POST /api/dashboard/fields（仕掛・計算列なし）285.4 ms（最大 411）・GET /api/data/columns 292.1 ms（最大 374）・GET /api/sources/wip/columns 3.95 ms・POST /api/sources/check 1.19 ms・conn/check 1.84 ms・join/preview 3.9 ms（鍵の列が無い 400 の形）・POST /api/settings/check（SQLite）1.45 ms・（フォルダ）0.26 ms・GET /api/masters/place 0.73 ms・POST /api/masters/place/check 2.28 ms・POST /api/release/place/check 0.20 ms・progress 0.04 ms・POST /api/fs/browse 0.83 ms・GET /api/fs/places 1.95 ms・GET /api/update/settings 0.40 ms・GET /api/masters/tabaccess 0.88 ms・GET /api/masters/status 0.37 ms・GET /api/lotlist/settings 2.52 ms・GET /api/health 0.05 ms・GET /api/schedule 0.20 ms・/api/schedule/card 0.18 ms・GET /api/src/sch 4.43 ms・POST /api/src/sch/refresh（作り物の CM3）21.3 ms・GET /api/src/sch?equip=__HOT__ 初回 1,766 ms → 13.1 ms・GET /api/dashboard/equip-tree 初回 1,071 ms → 6.7 ms（スケジュールの元を数える形）・GET /api/masters/equipgroups 6.4 ms・POST /api/lots/import-lotdsp（試験の HTML を読む）43.6 ms・lotdsp-api/status 0.14 ms。一般ユーザーの形では fs/browse・fs/places・join/preview は 403（門番どおり）。Rust は組んでいない（target が 13 GB・空き 8.2 GB のため。窓の札の速さは版 3.66.0 の記録を使う）。依存: Cargo.toml に HTTP の crate（ureq など）は無い。LotDsp・CM3 の既定の URL は http（https を使うなら TLS が要る）。WebSocket は Python も手で組んでいる。sha1 は窓に有る（bundle の terminal_key）。html.unescape に当たる物は窓に無い。Python を外すのに道のほかで残る物: 起動の Python（Windows の CI の spawn_ms 1,099〜1,369 ms・Linux 670〜750 ms）・配る ZIP の同梱の Python（版 3.58.0 で 528 ファイル・9.3 MB のうち Python の分は測っていない）・boot.start の master_seeds.run（配った初期値を共有へ 1 度当てる。Python だけ）・マスタの写し（local/master_cache）の取り直し（Python の MasterStore が 5 秒ごと。窓の Store::pull は書くときだけ）・LotDsp の学び（learn_later の裏の糸が lotdsp_api_map.json を書き、窓の /api/config が読む。測りの後片付けの後にもこの糸がファイルを書き足した）・見えない Edge の片付け（boot.stop）・自己診断 selftest.js と verify.py の ?engine=python の突き合わせ・開発の道具（ui_server.py・ui-*.mjs・*_oracle.py は Python のアプリを答えの見本に起こす）・sidecar.rs と sidecar.py・/api/health の意味。",
+ "proposals_text": {
+  "A 利用状況のまとまり 12 本を 1 版で": "移す道: GET /api/masters/status・GET /api/masters/tabaccess・POST /api/settings/check・GET /api/update/settings・POST /api/release/place/check・move・GET progress・GET /api/masters/place・POST check・move・POST /api/fs/browse・GET /api/fs/places（12 本）。更新の係（updater.rs の check・release_view）と distribute の Who は Python に尋ねず、窓の束（update 段）と me から組む。作る部品: places.rs（master_place の plan・move を master_store.rs の exclusive の上に・release_place の plan と写す係〈Mover・進み具合・止める〉・置き場ごとの using〈presence の記録〉・history〈master_share.json〉・pin〈want.json〉）、folder_browse.rs（%VAR%・ドライブ・UNC・読めない理由・目的ごとの印）、path_settings の check（sqlite・folder・数。url と exe の確かめは LotDsp の部品なので Python に任せる）、tabaccess の読み（access.rs の tab_rules を使う）。評価関数: places_parity（← places_oracle.py。共有／手元だけ／届かない／履歴／pin のずれ／いま使う PC・引っ越し〈写す・切り替えるだけ・錠・名前の誤り・途中〉・配布の置き場の写しと進み具合を本物の窓の道〈Lot〉で Python と突き合わせる）、フォルダの読み方は事例の表 tests/fixtures/browse_cases.json（Windows の字は Windows の CI の自己診断で）、check の言葉は ms・localtime・〇時間前を伏せて比べる。危うさ: 1 版に 12 本と 2 つの引っ越し（exclusive・写す糸）が乗る・Windows の道の字は Linux の試験で確かめられない・check の言葉に時刻と ms・move の途中で窓を閉じる形。得: 利用者の順の 1 つ目が 1 版で閉じる。マスタ管理の置き場・配布・参照先の確かめると、更新の係が Python 無しで動く。速さの得はほぼ無い（Python で 0.04〜2.3 ms）。",
+  "B 読む道を先に・動かす道は次の版（3.95.0 は 6 本＋更新の係、3.96.0 は 6 本）": "3.95.0 で移す道: GET /api/update/settings（＋updater.rs・release_view・distribute が Python に尋ねるのをやめて窓の関数を呼ぶ）・GET /api/masters/status・GET /api/masters/tabaccess・GET /api/masters/place・GET /api/fs/places・POST /api/fs/browse（6 本）。3.96.0: POST /api/settings/check・POST /api/release/place/check・move・GET progress・POST /api/masters/place/check・move（6 本。progress は写す係〈Python のメモリ〉と同じプロセスに要るので move と一緒に移す）。作る部品（3.95.0）: 読みは窓に有る物を使う（access::Place・me・presence の記録・master_share.json の履歴・want.json の pin・束の update 段）。新しく作るのは folder_browse.rs と、置き場の答えの組み立てだけ。評価関数: page_parity（settings_oracle.py の reads に 6 本を足し、束の場面のフォルダで Python が居ない形の窓の答えと突き合わせる）・browse_cases.json（OS の字の事例）・lot::tests に「中身を起こさずに更新の係が置き場を確かめる」。危うさ: 版が 2 つ（ステップ数）。3.95.0 の間は置き場の画面は窓・引っ越しは Python で、引っ越した後に窓の覚え（Place・束）を捨てる配線（after_python）が要る。fs/browse の OS の字。得: 更新の係が Python に依らない（Python を外した版を配る前の前提）・マスタ管理の置き場の画面と「参照…」の窓が Python 無しで開く。危ない引っ越し（exclusive と写す糸）を次の版で単独で確かめられる。",
+  "C 更新と配布の流れを縦に閉じる（update/settings と配布の置き場 3 本）": "移す道: GET /api/update/settings（窓の束の update 段と me。画面からの問い合わせも窓）・POST /api/release/place/check・move・GET progress（4 本）と、更新の係・配布の画面・distribute の Who の内側の問い合わせ。作る部品: release_place.rs（plan〈同じ所・中・名前の空・既にある・写す量〉・写す係〈裏の糸・進み具合・1 つだけ・止める〉・門番〈canRelease・参照先を書けるか〉）。評価関数: release_parity（← release_place_oracle.py。plan の場面と写した後のフォルダを Python と突き合わせる）・verify.py update の通しを Python を起こさない形でも流し、更新が入ること・Windows の CI。危うさ: 範囲が狭い（マスタの置き場・フォルダの補助・状態の 8 本は次へ）。写す糸の途中で窓を閉じる・同じ置き場を 2 つの PC が写す形。得: 「更新・配布」が Python 無しで動く（Python を外す版を配る道の前提）。起動の最初の確認（launch_check）と同じ置き場の決め方が 1 つになる。",
+  "D 外部連携のスケジュール（CM3）を先に": "移す道: GET /api/schedule・GET /api/schedule/card・/api/src/sch の 5 本（設備ごと・HOT）と、ダッシュボードの sch のパネル。これで製品の形で Python に回っていた設備の木・設備グループの 4 本の「選べる設備を数えられない」任せも消える（合わせて 10 本＋パネル）。作る部品: http.rs（std の TcpStream で HTTP/1.1 の GET・POST。既定はプロキシを通さない。use_system_proxy と https は Python に任せる）・cm3.rs（cm3_schedule の答えの読み）・schedule.rs（Schedules: sha1 のファイル名・max_age・裏の取り直し・HOT の組み〈join.rs〉・summary・missing_lots）・lists.rs の src_plan と dashboard.rs の cm3 の分岐。評価関数: schedule_parity（← schedule_oracle.py。schedule_fixture.serve の作り物の CM3 を両方に当て、手元の表〈SQLite の中身〉・一覧の答え・HOT・失敗〈届かない・遅い・形が違う・設備が未登録〉を突き合わせる。schedule_golden.json も）・dash_parity に sch のパネル・equipgroups_write_parity の任せる歩が窓の答えに替わること。危うさ: 利用者の順（利用状況が先）と違う。634 行＋道の分岐で大きい。ネットの待ちと裏の糸・Windows のプロキシ・本物の CM3 は CI に無い（作り物だけ）。得: 製品の形で、移したはずの 10 本が Python に回らなくなる。設備の木の冷えた 1,071 ms・HOT の冷えた 1,766 ms（Python）を窓の道で（取り直しの時間はネットの待ちなので縮まない）。",
+  "E 組む所の読みと確かめる 7 本（速さの得がいちばん大きい）": "移す道: GET・POST /api/dashboard/fields・GET /api/data/columns・POST /api/sources/check・GET /api/sources/<key>/columns・POST /api/sources/join/preview・POST /api/sources/<key>/conn/check（7 本）。作る部品: 窓に有る panel_parts・pivot::fields（覚えつき）・lotlist の表の読み・join.rs（Joiner の try- の答えのファイル）をつなぐ道と、path_settings の check の sqlite・folder（url と exe は任せる）。評価関数: fields_parity（← fields_oracle.py。品質・実績の設備 1 台／すべて・データ元・結合した表・計算列・設備グループの段・作業日と直・読めない設備）・sources_check の場面（check の言葉の ms・localtime・時間前を伏せる）。危うさ: 利用者の順から外れる。check の言葉に時刻と ms・SQLite の誤りの字が rusqlite と違う・try- の答えのファイルの名前。スケジュールの元は Python のまま（D が要る）。得: 組む所を開く・計算列を足すときの 100〜285 ms と、変換表の当てる列の 292 ms が窓の覚えの札（2 回目 0.03 ms）に。データ元の「確かめる」も Python 無しで。",
+  "F Python 無しで動かす試しを先に（測る土台を作る）": "移す道: 無し。窓に「中身を起こさない」形（開発用の環境変数）を足し、Python が居ないとき、Python だけの道と任せる形が何を答えるかを道ごとに表にする評価関数 no-python-bench（verify・自己診断で画面の主な流れ約 30 を Python 無しで当て、止まる所を数える）。任せる形は Python が居ないときだけ「この形は窓が読めません（Python が要ります）」と kind をそろえて返す。作る部品: Supervisor の起こさない形・任せる形の答えの 1 か所・表を出す道具。評価関数: 画面の流れごとに「Python 無しで答えた／止まった」を数える表を RUST_PORT_PLAN に載せ、版ごとに減ることを見る。危うさ: 道が 1 本も移らない（得は数だけ）。任せる形の答えを変えると Python がいる PC の動きに混ざりうる（Python が居ない形だけに限る）。得: 残りの順を測った数（どの操作が止まるか）で決められる。Python を外す最後の段の確かめを先に持てる。",
+  "G 窓から Python への内側の問い合わせ 3 本を切る（依存の向き）": "移す道: GET /api/update/settings（窓の束と me で組む。画面の問い合わせも窓）と、内側の 2 本の頼りを切る: /api/schedule/card は Python の覚え（Schedules のメモリ）の代わりに db_cache/schedule の状態のファイルを窓が受け身で読む（sources_list と同じ読み方）、/api/lotlist/settings は束を組めない形（bundle::Py）で Python に尋ねる代わりに、Python が居なければ理由を言って止める。作る部品: update の設定の組み立て（bundle の update 段・me）・schedule の状態ファイルの受け身の読み。評価関数: bundle_parity の Py の形の数・page_parity の /api/sources のスケジュールのカードが Python と同じ・lot::tests に「中身を起こさずに更新を確かめる」。危うさ: lotlist/settings の頼りを切ると、束を組めない少数の形で窓の道が止まる（Python が居る間は今までどおりにするかの判断が要る）。状態ファイルと Python の覚えで時点がずれる。道として移るのは 1 本。得: 窓が Python へ尋ねる向きの依存が無くなる（更新の係も）。Python を外す段で、窓の中から Python を呼ぶ所が残らない。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目（画面に関係のない改良。採点は 1 回だけ）",
+   "self_check": "案を作った者が、棚卸しと測った数で案を読み直して確かめた: (1) 道の数は app.routes の bp.rules（136 本）と窓の route_of・main.rs の腕（104 本）の突き合わせで、窓の表にあって Python に無い道は 0 本。Python だけ 32 本は群の合計（12＋7＋9＋2＋2）と合う。(2) 利用状況のタブの道（presence 7 本・心拍・控え）は版 3.71.0 で済んでいるので、どの案も「利用状況」を順 5 の 3 段目の残り（置き場・設定の 12 本）として扱った。依頼の言葉と食い違うので、採点者・利用者に伝える。(3) release/place/progress は写す係（Python のメモリの Mover）の進み具合なので、move と別の版に分けると答えが割れる。B では move と同じ 3.96.0 に置き直した。(4) settings/check の url と exe の確かめは lotdsp_direct（reachable・find_browser・trusted_browser）を使うので、A・B・E では Python に任せる形とし、外部連携（LotDsp）の段で移すと書いた。(5) D の「10 本＋パネル」は、配る appsettings.json の cm3_base_url と、組み込みの sch の equipColumn「設備」、dashboard.rs の src_plan が Ok(None) を返す所・equipment_seen が ? で止まる所を読んで数えた（設備の木 1・設備グループ 4・/api/src/sch 5）。(6) 速さは Linux の開発機で 1 回分（5 回の中央値）。Rust は組んでいないので、E の窓の速さは版 3.66.0 の記録（札の 2 回目 0.03 ms）からの見積もり。Windows の数は分からない。(7) 抜けを探した: Python を外すのに道のほかで残る物（seed・master_cache の取り直し・LotDsp の学びの糸・Edge の片付け・自己診断の ?engine=python・開発の道具）は measured に書き、どの案もまだ受け持たない（F が数える土台）。(8) 依頼のファイル名 2026-11-port-next.json は版 3.83.0 の決定の記録（built・built_fixed まで入っている）として既にあるので上書きせず、2026-11-port-next2.json に書いた。",
+   "proposals": {
+    "A 利用状況のまとまり 12 本を 1 版で": {
+     "score": {
+      "order": 8,
+      "chunk": 5,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/masters.py の masters_status → repositories/master_store.py :767 status は、共有のマスタごとに self._maybe_refresh(n) を呼び（共有を写し local/master_cache へ取り直す係）、答えに Python のメモリの last_sync・error と、写しがあるかで決まる source（shared／bundled-fallback）を入れる。画面は master.js :226 refreshPlace でこれを pollTimer ごとに尋ねるので、今はマスタ管理を開いている間ずっと Python が写しを取り直している。窓が答えると、取り直す係が居なくなり（窓の Store::pull は書くときだけ）、source・last_sync・error が Python と割れる。GET /api/masters/place も st.status() を使うので同じ。案の文は status を「窓に有る物を使う」とだけ書き、取り直しに触れない（measured には『マスタの写しの取り直し』が残る物として書いてあるのに、案が結んでいない）"
+      }
+     ],
+     "seen": "良い所: 案を作った者の読みでは利用者の順の 1 つ目が 1 版で閉じ、更新の係・配布の画面（main.rs :226〜258 の 6 か所と :677）の Python への問い合わせが無くなる（ステップ 8）。窓には master_store.rs の exclusive・bundle.rs の follow_moved と master_share.json の書き方・access.rs の me（canRelease）が既にあり、土台はある。悪い所: 1 版に 12 本・2 つの引っ越し（exclusive の中で写す・裏の糸で写す Mover と進み具合）・OS に依る fs/browse（%VAR%・ドライブ・UNC・_bounded の待ち）・時刻と ms の入る check の言葉が乗る（チャンク 5・釣り合い 5）。release_place の _same・_inside は Path.resolve と os.path.normcase で、Rust の canonicalize は無いパスで失敗し Windows では \\\\?\\ を付ける。masters/status の取り直しの係（下の減点）にも触れていない。速さの得はほぼ無い（Python で 0.1〜2.6 ms）。"
+    },
+    "B 読む道を先に・動かす道は次の版（3.95.0 は 6 本＋更新の係、3.96.0 は 6 本）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "routes/masters.py の masters_status → repositories/master_store.py :767 status は、共有のマスタごとに self._maybe_refresh(n) を呼び（共有を写し local/master_cache へ取り直す係）、答えに Python のメモリの last_sync・error と、写しがあるかで決まる source（shared／bundled-fallback）を入れる。画面は master.js :226 refreshPlace でこれを pollTimer ごとに尋ねるので、今はマスタ管理を開いている間ずっと Python が写しを取り直している。窓が答えると、取り直す係が居なくなり（窓の Store::pull は書くときだけ）、source・last_sync・error が Python と割れる。GET /api/masters/place も st.status() を使うので同じ。案の文は status を「窓に有る物を使う」とだけ書き、取り直しに触れない（measured には『マスタの写しの取り直し』が残る物として書いてあるのに、案が結んでいない）"
+      }
+     ],
+     "seen": "良い所: 読むだけの 6 本と更新の係を先にし、危ない引っ越し（exclusive と写す糸）を次の版で単独で確かめる分け方は筋が良い（直感的 8）。progress を move と同じ版にしたのも正しい（Mover は Python のメモリ）。3.95.0 でマスタ管理を開いたときの Python への問い合わせ（refreshPlace の pollTimer・置き場の頁・タブの権限の読み・参照…）と、更新の係の頼りが無くなる。update/settings は束の update 段と me と置き場の share から組め、窓の部品で足りる。悪い所: 「引っ越した後に窓の覚えを捨てる配線（after_python）が要る」とあるが、lot.rs :785 changes_settings と :815 に /api/masters/place は既にあり（invalidate・gate.forget・forget_listing）、要るのは置き場の答えの覚えを持つときだけ。GET /api/masters/place の using は前の置き場ごとの presence.online_in（届かなければ None）で、窓の presence.rs の online は今の置き場だけの private な関数。fs/browse の Windows の字は Linux で確かめられない。版が 2 つ（ステップ 6）。masters/status の取り直し（下の減点）が抜けている。"
+    },
+    "C 更新と配布の流れを縦に閉じる（update/settings と配布の置き場 3 本）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 狙いが 1 つ（更新・配布が Python 無しで動く）で、Python を外した版を配る道の前提をいちばん小さく閉じる。main.rs は update_settings を 7 か所（更新の係 :677・配布の画面と place・distribute・set_masters・set_recommended・remove :226〜258）で Python に尋ねており、Python が答えないと配布の操作がすべて 503。update/settings は束の update 段・me・置き場の share から組め、案を作った者の読みでも利用状況のまとまり（12 本）の一部なので利用者の順にも沿う（順序 7）。verify.py update の通しと Windows の CI で確かめられる。割れる所はコードを読んで見つからなかった（減点 0）。悪い所: 範囲が狭い（ステップ 5）。マスタ管理の状況の問い合わせ（pollTimer）・置き場・参照… は Python のまま、CM3 の穴も残る。release_place の _same・_inside（resolve＋normcase）、shutil.copy2（更新時刻を写す）、Mover の 1 つだけがプロセスごとであること、check_name の決まりを案の文が書いていない（fixes に入れた）。"
+    },
+    "D 外部連携のスケジュール（CM3）を先に": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 9,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "services/schedule.py :211 _store は local_root/db_cache/schedule（routes/schedule.py :23）に {_safe(設備)}.g{世代}.sqlite3 を書き、:226 _sweep は自分の新旧 2 つ以外の世代を消す。案は窓の Schedules を『sha1 のファイル名』で同じ形に作るとし、Python の Schedules（?engine=python・自己診断の突き合わせ・束を組めない形 bundle::Py で Python が全部の道を答えるとき）も同じフォルダで生きたまま。2 つのプロセスが互いの今の世代を消し、版 3.57.1 で直した『unable to open database』がプロセスの間で戻る。sidecar.rs の SERVES に schedule が無く、係を 1 つにする決め（presence・bundle と同じ名乗り）が案に無い"
+      }
+     ],
+     "seen": "良い所: 製品の形（config/appsettings.json :34 に cm3_base_url）で窓の道が Python に回る穴（dashboard.rs :396 src_plan → Ok(None)、equipment_seen が数えられない → 設備の木 1・設備グループ 4・/api/src/sch 5・sch のパネル）を塞ぐのはこの案だけで、/api/schedule/card の内側の問い合わせも無くなる（ステップ 9・階層化 9）。利用状況のタブ（/api/presence ほか）は版 3.71.0 で済んでいるので、字どおりに読めば利用者の順の次は外部連携で、順にも沿う。作り物の CM3 と schedule_golden.json で突き合わせられる。測った: equip-tree 初回 1,040 ms・HOT 初回 2,236 ms（取りに行く時間は縮まない）。悪い所: 落とし穴が多い（考えさせない 3）。(1) 上の減点の 2 つの係。(2) cm3_schedule の _decode_body は charset→UTF-8→CP932、fix_text は html.unescape（HTML5 の 2,231 の名前の表・セミコロンの無い古い書き方）と latin-1/cp1252→utf-8/cp932 の戻しで、窓には encoding_rs も文字参照の表も無い（Cargo.lock で確かめた）。golden には &# 5・Ã がある。(3) 手で書く HTTP/1.1 は、作り物（http.server・HTTP/1.0・Content-Length）でしか試せず、本物の CM3 が chunked・keep-alive・30x を返す形は CI に無い。(4) ensure は取れないと毎回取り直す（失敗を覚えない）ので、届かない CM3 では設備の木・設備グループの一覧が毎回 timeout_sec（15 秒）×設備を待つ。窓の糸は 1 問い合わせ 1 本で止まりはしないが、画面が待つ。(5) 窓と Python が別々に CM3 を取りに行くと、自己診断・engine=python の間は社内の CM3 への問い合わせが 2 倍。634 行＋道の分岐で 1 版にはいちばん重い（釣り合い 5）。https・use_system_proxy は Python のままで、Python の外しには TLS がまだ要る。"
+    },
+    "E 組む所の読みと確かめる 7 本（速さの得がいちばん大きい）": {
+     "score": {
+      "order": 2,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 測って速さの得があるのはこの案だけ（GET fields 125 ms・POST fields 279 ms・/api/data/columns 275 ms。窓の pivot::fields の覚えに載る）。部品（panel_parts・pivot::fields・lotlist の表・join.rs）が窓に有り、作りが素直（直感的 8）。突き合わせも立てやすい。悪い所: 利用者の望む順（利用状況 → 外部連携 → Python の外し）のどの読みでも先頭ではない（順序 2）。check の言葉に ms・localtime・〇時間前と Python の sqlite3 の例外の字が入り、join/preview は try- の答えのファイルの名前が sources_list の読み方と結ぶ（案は伏せて比べると書いている）。スケジュールの元の fields・columns は D が無いと Python のまま。速さの得は Python を外す狙いとは別の物。"
+    },
+    "F Python 無しで動かす試しを先に（測る土台を作る）": {
+     "score": {
+      "order": 5,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 1,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 画面の流れごとに Python 無しで止まる所を数で出す土台で、最終の目的（Python を外す）の確かめを先に持てる（視覚化 9）。D の穴のような『移したはずの道が製品の形で Python に回る』を、CI の自己診断より前に表で見つけられる。悪い所: 道が 1 本も移らない（ステップ 1）。任せる形の答えを変えるのは Python が居ない形だけに限る必要があり、今の 276 か所の return None と router の 503 の言葉の 2 つに手が入る。measured の道のほかで残る物（seed・master_cache の取り直し・LotDsp の学びの糸）は数えるだけで減らない。"
+    },
+    "G 窓から Python への内側の問い合わせ 3 本を切る（依存の向き）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案は /api/schedule/card を『db_cache/schedule の状態のファイルを窓が受け身で読む（sources_list と同じ読み方）』とするが、services/schedule.py の Schedules の状態（data・path・fetchedAt・changedAt・checkedAt・error・gen）は :134 self._state のメモリだけで、状態のファイルは書いていない（db_cache/schedule には表の世代ファイルだけ）。読む物が無く、Python に書かせる変更が案に無いので、カードの mirror（at・copiedAt・checkedAt・unreachable・reason）が Python と割れる"
+      }
+     ],
+     "seen": "良い所: 窓の中から Python を呼ぶ所（main.rs :345 lot_settings・:357 schedule_card・:363 update_settings）を無くすという狙いは Python の外しに効き、update/settings の分は C と同じく価値がある。悪い所: 道として移るのは 1 本（ステップ 3）。lotlist/settings の頼りを切ると、束を組めない形（bundle::Py）で Python が居るのに窓の道が止まる（今は Python が答えている）。カードの受け身の読みは上の減点のとおり読む物が無い。3 本は互いに関係が薄い（チャンク 6）。"
+    }
+   },
+   "fixes": [
+    "1 位は C（更新と配布の流れ）。CI の穴（CM3）は塞がないので、C の後に D を、下の 9〜13 を入れた形で続けるのが筋。利用状況の読みは利用者に確かめる（画面の『利用状況』のタブは版 3.71.0 で済んでいる。案を作った者の読みなら C は 12 本の一部で、字どおりなら次は外部連携の D）",
+    "GET /api/update/settings の答えを Python と 1 字ずつ同じに: source は効いている設定の update.source をそのまま（『;』の候補もそのまま str）、who は me の login・pc・flags.role・canRelease && !revoked、me を決められないときは {login:'', pc:'', role:'', canRelease:false, error:理由}（Python の except と同じ形。置き場は読む）、masters.dir は Python の str(st.share_dir)（引っ越しの印をたどった後の置き場。手元だけなら空）。束を組めない形（bundle::Py）は Python に任せる。page_parity の束の場面に足して突き合わせる",
+    "main.rs の update_settings を窓の関数に替え、更新の係（:677）・配布の画面と place・distribute・set_masters・set_recommended・remove（:226〜258）が Python に尋ねないようにする。Python が起きていない・起こせない形で更新が確かめられ、配布の操作が 503 にならないことを lot::tests か main の試験と verify.py update（Python を起こさない形）で見る。?engine=python は Python の答え、自己診断に窓と Python の答えの突き合わせを足す",
+    "release_place.plan を写すとき: _same・_inside は Path.resolve(strict=False)＋os.path.normcase（Windows は大文字小文字と / \\ を同じに）。Rust の canonicalize は無いパスで失敗し、Windows では \\\\?\\ を付けるので使わない（Python と同じ解き方を書く）。check_name（使えない字・予約名・末尾の点と空白）と has_release の深さ・_tree_size の数え方は焼いた表か事例の表（Windows の字は Windows の CI）で突き合わせる。答えの dest・parent・name・files・bytes・problem の言葉も同じ字",
+    "Mover を写すとき: 1 つだけはプロセスごとなので、窓が受けたら Python の Mover は動かさない（?engine=python の move は断るか、置き場の親に写している印を置いて 2 つのプロセスと 2 つの PC で 1 つにする）。progress の形（state・files・bytes・done・error）を同じに。shutil.copy2 は更新時刻を写す（Linux の std::fs::copy は写さない → set_modified）。一時フォルダの名前・失敗したときの片付け・写している最中に窓を閉じたときの残り物（次に開いたとき消す）・同じ置き場を 2 つの PC が写す形を試験に",
+    "門番は _release_place_gate と同じ順と言葉: me を決められない 503 unavailable・切断 403 revoked・canRelease で無い 403 forbidden（区分の字入り）・参照先（path_settings）を書けない 403 forbidden（masterEdit の字入り）。release/place/check は門番なし（Python と同じ）",
+    "本文の読み方: get_json(force=True, silent=True) or {} と同じ（読めない本文は空の表）。from・parent・name は str(b.get(...) or '')、copy は『is not False』（0・'false' は写す）。値が並び・表（Python は repr の字）は Python に任せる",
+    "評価関数: release_parity（← release_place_oracle.py。plan の場面〈同じ所・中・名前の誤り・既にある・空でない・写す量・届かない〉と写した後のフォルダの中身・更新時刻、門番の 4 形）を本物の窓の道で Python と突き合わせる。わざと崩して（normcase を外す・copy2 の時刻を落とす・門番の順を変える）落ちることを確かめる",
+    "（D を次に作るときに入れる）スケジュールの係は 1 つに: sidecar.rs の SERVES に schedule を足し、Python は名乗られたら Schedules を作らない・_sweep しない（presence・bundle と同じ名乗り）。束を組めない形で Python が答えるときは窓と別の置き場を使うか、窓の係に尋ねる",
+    "（D）CM3 の答えの字: _decode_body（charset → UTF-8 → CP932 → UTF-8 の置き換え）と fix_text（タグ → 空白・html.unescape〈HTML5 の名前の表・数の参照の 0x80〜0x9F の読み替え〉・latin-1/cp1252 → utf-8/cp932 の戻し・全角空白）を、Python から焼いた表（文字参照・CP932 の符号表）か新しい crate（encoding_rs。Cargo.toml の『同じ crate を 2 つ持たない』を確かめて）で写し、schedule_golden.json と事例の表で突き合わせる",
+    "（D）手で書く HTTP は Content-Length・chunked・接続を閉じるまで・HTTP/1.0 と 1.1・30x（urllib の POST の扱い）・timeout は 1 回の読み書きごと（urllib と同じ）を持ち、作り物の CM3 に chunked と HTTP/1.1 と遅い答えと charset=Shift_JIS の形を足す。https・use_system_proxy は Python に任せると言葉に残し、Python の外しの段で TLS を決める",
+    "（D）届かない CM3 を毎回 15 秒待たない: 失敗を設備ごとに数十秒覚える（Python の ensure は覚えない。答えを同じにするなら、設備の木・設備グループの一覧の答えに出る『飛ばした』だけが同じになるように決め、突き合わせで見る）。自己診断・engine=python の間に CM3 へ 2 倍問い合わせることを記録に残す",
+    "（B の読む道を移すときに入れる）GET /api/masters/status・/api/masters/place を窓が答えるなら、Python の status と同じく共有のマスタごとに取り直す（Store::pull を refresh_seconds に 1 回）係も窓に持たせ、source（shared／bundled-fallback）・last_sync・error・lock を窓の状態から同じ形で返す。Python のマスタの写しの取り直しが居なくなる形（measured の残る物）をここで閉じる"
+   ]
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに読んで・動かして確かめた事実で採点した。読んだ物: CLAUDE.md の改良の節・program/tools/ui_score.py の冒頭・前の記録 2026-11-port-next.json・2026-11-port-convgroups.json・RUST_PORT_PLAN.md の 4 章と 7 章（順 5 の 3 段目の残り 15 道の行き先・段 3 の 1〜11 歩目）、program/app の routes/settings.py（settings_check・update_settings・_release_place_gate・release_place の 3 本・_master_using・master_place の 3 本・_browse_gate・fs の 2 本）・routes/masters.py の masters_status・routes/schedule.py（schedules() の置き場 local_root/db_cache/schedule）・services/schedule.py（Schedules の _state はメモリだけ・_store の世代ファイル {_safe}.g{gen}.sqlite3・_sweep は自分の 2 つだけ残す・ensure は取れなければ毎回取り直す）・services/cm3_schedule.py（urllib・ProxyHandler({})・_decode_body の charset→UTF-8→CP932・fix_text の html.unescape と latin-1/cp1252→utf-8/cp932 の文字化け直し）・services/master_place.py（plan・move を store.exclusive の中で・retarget）・services/release_place.py（_same・_inside は resolve と normcase・Mover は threading と shutil.copy2）・services/folder_browse.py の関数の並び・repositories/master_store.py（status が共有のマスタごとに _maybe_refresh を呼ぶ・last_sync・error・follow_moved・_reload_override）・static/js/master.js（:226 refreshPlace が /api/masters/status を pollTimer で尋ね続ける・:132 利用状況のタブ・:1361 置き場）・pathpick.js、desktop/src の main.rs（:345 lot_settings・:357 schedule_card・:363 update_settings と :226〜258 の配布の 6 か所・:677 更新の係・:1003 問い合わせは 1 つずつ別の糸）・lot.rs（:785 changes_settings と after_python に /api/masters/place が既にある）・dashboard.rs（:396 src_plan が Ok(None)・:1076 equipment_seen）・lists.rs :500・master_store.rs（exclusive は有る・status・last_sync に当たる物は無い）・access.rs の me（canRelease）・presence.rs（online は private）・bundle.rs（follow_moved・schedule_equips）・sidecar.rs の SERVES（schedule は無い）・Cargo.toml と Cargo.lock。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-next2）: (1) /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-next2/probe.py … Python の create_app の url_map で道を数えた（136 本。案の数と同じ）。窓の部品の字を grep して Python だけの 32 本が窓に無いことを確かめた（/api/masters/tabaccess は PUT だけ窓・settings_write.rs の試験が /api/settings/check を Python と明記）。窓の `return None` は 276 か所（案と同じ）。(2) 同じ probe.py で ui_server.build(品質 20,000・実績 2,000 行×12・仕掛 20,000・開発者) を試験の client で 1 回温めて 5 回の中央値: equip-tree 初回 1,040 ms → 6.3・/api/src/sch?equip=__HOT__ 初回 2,236 ms → 9.2・/api/src/sch 6.6・GET /api/dashboard/fields?source=lot 125 ms（最大 143）・POST fields（仕掛）279 ms・/api/data/columns 275 ms・/api/update/settings 0.38・masters/place 0.64・masters/status 0.41・tabaccess 0.62・fs/places 2.8・fs/browse 1.15・release/place/check 0.12・masters/place/check 2.55・settings/check 1.53・lotlist/settings 3.9・health 0.06 ms。案の数とほぼ同じ（速さの得があるのは E の 3 本だけ）。(3) Cargo.lock: reqwest は tauri の任意の依存で、この窓の組みには入らない（cargo tree -i reqwest が空）。ureq・hyper・rustls・native-tls・encoding_rs・sha1 は無い。(4) tests/fixtures/schedule_golden.json に文字参照 &# が 5・&amp; 1・<br 1・文字化け（Ã）がある（D の突き合わせはこれで割れを捕まえられるが、窓に CP932 の符号表と HTML の文字参照の表が無い）。tests/schedule_fixture.py は http.server の既定（HTTP/1.0・Content-Length）だけ。物差しの読み替えは前の記録と同じ（順序＝段の進め方の筋〈利用者の望む順・土台が先か〉／チャンク＝1 版のまとまりの大きさと揃い／階層化＝狙いが 1 つか／視覚化＝評価関数で食い違いを数で見せられるか／ステップ数＝Python 無しへ近づく量／考えさせない＝落とし穴を先に潰しているか／直感的＝作りが素直か・今の型に載るか／形と色・言葉と置き場＝決まりが 1 か所か／美しさ＝量の釣り合い・範囲の言葉の明るさ）。依頼の 2 点の入れ方: (a) 利用者の望む順は順序に入れた。「利用状況」は画面の言葉ではマスタ管理の「利用状況」のタブ（master.js :132。/api/presence の 7 本・心拍・控え）で、これは版 3.71.0 で済んでいる。字どおりに読めば次は「外部連携」で D が順どおり、案を作った者の読み（置き場・設定の 12 本）なら A・B・C が順どおり。どちらの読みでも外れる E は 2 点、Python の外しの土台の F は 5 点にした。(b) 製品の形の穴（CM3 の場所があると設備の木・設備グループ・/api/src/sch・sch のパネルが Python に回る）は、D の順序とステップ数に入れた（ほかの案は塞がない）。減点は、案の文のとおりに作ると Python と窓の答え・できるファイルが割れる所を、コードを読んで確かめた物だけ『状態が見えない −3』で引いた（同じ割れは案ごとに 1 つ）。",
+ "built": {
+  "name": "作った後",
+  "evaluator": "案を作っていない別の採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、作業ツリーの未 commit の変更（release_place.rs 792 行・release_parity.rs・release_place_oracle.py・lot.rs・main.rs・bundle.rs・sidecar.rs・selftest.js・routes/settings.py・settings_oracle.py・page_parity.rs・test_release_place.py）を読み、動かして測った事実で採点した。作業ツリーのファイルは変えていない（この記録に built を足しただけ。場面の道具は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-rel/probe_oracle.py〈release_place_oracle.py を読み込み、場面だけ差し替える〉と fifo.py。窓の側は release_parity.rs を写した一時の試験 desktop/tests/zz_relprobe.rs で当て、流した後に試験と実行ファイル・incremental を消した）。",
+  "seen": "【流した物】cargo test --locked --test release_parity（1 passed）・--lib release_place（4 passed: names・realpath_follows_links_like_python・mover_copies_times_and_cleans_up・lot::tests::the_window_answers_update_and_release_place）・--test page_parity（1 passed）・python -m unittest tests.test_release_place（Ran 15・OK）。どれも debug。【採点者が足した場面】probe_oracle.py の 3 場面・78 歩（写し終えるまで見た歩 3・任せる歩 3）を Python の道（test_client）と窓の handle に同じ並びで当てた: check_name の字 24（\\u3000・\\x1f/\\x1c・\\x85・\\xa0・\\x7f・Com1・nul.tar.gz・lpt1 .txt・COM¹・LPT0・lpt²・conı・ＣＯＮ・「.」「..」・\" .x\"・AUX 末尾の空白・Con.・120 字＋全角空白・\\u200b・\\u2028）、名前の値の型 14（5e-324・-1.5e-07・1.0・1e+100・123456789012345678・-0.0・\"0\"・[]・{}・0.0・1e+22・1e-05・0.1・2.5e15）、copy の値 6（\"\"・[]・{}・null・0.0・\"False\"）、同じ鍵 2 つの本文、相対の道（from \".\"・parent \"..\"・name program など。Python の今のフォルダ＝中身のフォルダ）、記号リンクの後の ..・輪・壊れたリンク・空のフォルダへのリンク・ファイルへのリンク・ファイルを上のフォルダに、名乗り（GET /api/update/settings の who を 開発者・メンテナンス者・一般ユーザー・切断の 4 人と、権限を読めない形）、写す（記号リンクのファイルとフォルダ・空のファイル・権限 0 のファイル・改行の名前・入れ子の空のフォルダ・壊れたリンクへ写す・空のフォルダへのリンクへ写す・ファイルの下へ写す・空でない置き場の下へ写す）。このうち 73 歩は答え・断る言葉・写し終えた後の進み具合・フォルダの中身（中身・大きさ・更新時刻・権限）まで Python と同じだった（who の 4 人も 1 字同じ。違ったのは下の割れ (1) の 3 歩・(2) の 1 歩と、落とし穴 (a) の 1 歩）。NUL を含む道の 3 歩は窓が答えず Python に任せた（Python は「届きません」）。【割れ（下の減点）】(1) 上のフォルダが根のとき dest の字（測った）: parent \"/\" で Python dest \"/relprobe-nonexist-q9\"・窓 \"//relprobe-nonexist-q9\"、parent \"///\" も同じ、parent \"//\" は Python \"//relprobe-nonexist-q9\"・窓 \"/relprobe-nonexist-q9\"。plan が dest を py_path(\"{base}/{name}\") と字でつなぐため（Path の / と違う）。Windows では同じ作りで parent \"C:\"（ドライブの今のフォルダ）が Python \"C:name\"・窓 \"C:\\\\name\" になり、写す先のフォルダそのものが変わる（読んで確かめた。Linux では試せない）。(2) 写しかけの一時フォルダを作れないときの言葉（測った）: 2 つの PC の形で dest を「ファイルの下」にすると Python の error は \"写せませんでした: [Errno 20] Not a directory: '@ROOT/file.txt/.under.copying-<pid>-<t>'\"、窓は同じ字の後ろに \"/\" が付く（run の tmp.join(rel) は rel が空のとき末尾に区切りを足し、os_error がその道を出す。Python は tmp / '.' で区切りが付かない）。上のフォルダに書けない（権限）・BOX の同期で消えた、の本物の形も同じ道を通る。あわせて読んで見つけた同じ種類の割れ: 写している途中の書き込みの誤り（容量が尽きた ENOSPC など）は、Python の shutil.copyfile（Linux の sendfile）が誤りに filename と filename2 を付けて \"'元' -> '先'\" と書くが、窓の copy2 は元の道 1 つだけ。(3) 名前付きパイプ（FIFO）のある置き場を写す（測った。Linux だけ）: Python は即座に failed「写せませんでした: `…/src/pipe` is a named pipe」で写しかけを片付ける。窓は File::open が書き手を待って止まり、3 秒後も state running・files 0 のまま、2 回目の start は false（以後の move はずっと 409「ほかの置き場を写している最中です」）、一時フォルダ .dest.copying-… が残る。書き手を開いても終わらない（読み切りを待つ）。窓を閉じるまで写す係が戻らない。(4) Windows の「同じ所・中」（読んで確かめた。Linux では試せない）: Python 3.13 の ntpath.realpath は GetFinalPathNameByHandle で記号リンク・junction・subst・8.3 の短い名前を解き、割り当てたネットワークドライブ（Z:\\）を UNC（\\\\srv\\share）へ直す。窓の win_abspath は字で整えるだけなので、置き場が \\\\srv\\share\\rel、選んだ上のフォルダが Z:\\rel\\LotScope\\sub（同じ所の中）のとき、Python は「いまの置き場の中には置けません」で断るが、窓は copy で通し、置き場を置き場自身の中へ写す（深い所へ置くと os.walk の途中で写しかけの一時フォルダの中へも入る）。同じ所を指すときは Python が断り、窓は switch で通る。RUST_PORT_PLAN と冒頭の注で「残す差」と書いてあるが、窓は違いうる形を Python に任せずに答えている。ntpath.realpath と同じく『在る所までを canonicalize（\\\\?\\・\\\\?\\UNC\\ を外す）＋残りを字で足す』で写せるので、残す理由が薄い。【割れではない落とし穴】(a) who.error（権限を読めない理由）の字は Python の例外の字（\"'str' object has no attribute 'setdefault'\"）と窓（\"権限の行の形が違います\"）で違う。形は同じで、自己診断も伏せて比べているので割れに数えない。(b) page_parity の 44 場面には権限の表が無く、update/settings の who は既定の 1 形しか Python と突き合わせていない（区分ごと・切断・読めない形は lot::tests と採点者の場面だけ）。release_parity に GET /api/update/settings の who を足すとよい。(c) 窓が move を Python に任せる形（NUL を含む道・本文の値が並び・Path が「無い」でない誤り）は、製品では Python が 409「…窓の画面からやり直してください」で断る（Python だけなら 400 か 200）。写す係を 2 つにしない代わりの決めとして妥当だが、言葉は窓の画面からの操作でも出る。(d) 束の材料を組めない形の move は窓が 503「権限を読めないので…（配った設定・マスタの置き場を読めません: …）」で断る（Python だけなら答えた形）。同じ理由で妥当。(e) 写している最中に窓を閉じた残り物は、次に開いたとき共有に届かなければ消せず、印（release_move.json）だけ先に消えるので、その一時フォルダは残り続ける。【指摘 1〜8 の入り方】1 順: 入った（C の後に D と、9〜13 の持ち越しを RUST_PORT_PLAN に書いた）。2 update/settings: 入った（source は効いている設定を str・「;」も字のまま、who・me を決められない形、masters.dir、束を組めない形は Python。page_parity に足した。ただし上の (b)）。3 main.rs の 7 か所: 入った（:226〜258 の 6 か所と更新の係の :683。set_bundle は upd.run より前）。Python が居ない形は lot::tests と自己診断の 10b'''。ただし案と指摘にある verify.py update の『Python を起こさない形』の通しは足していない（desktop/bundle は変わっていない）。4 resolve＋normcase: POSIX は posixpath.realpath（3.13）を写し、記号リンク・..・輪・相対の道まで Python と同じ（測った）。check_name・has_release・_tree_size も同じ（測った）。Windows は上の (4)。dest のつなぎ方は上の (1)。5 Mover: 入った（SERVES の release と Python の 409・進み具合の形・copy2 の更新時刻〈ns まで〉と権限・一時フォルダの名前・失敗の片付け・閉じた残り物の印・2 つの PC）。ただし上の (2)(3)。6 門番: 入った（503 → 403 revoked → 403 区分 → 403 マスタ編集、check と progress は門番なし。並びの名前でも門番が先）。7 本文: 入った（読めない本文・null・0・[]・表でない真の本文は任せる・copy の is not False・同じ鍵は後ろ勝ち・数の字〈5e-324・1e+22・2500000000000000.0〉も Python と同じ）。8 release_parity: 入った（Linux 87 歩・任せる 12）。わざと崩す確かめは RUST_PORT_PLAN に書いてある（採点者は作業ツリーを変えないので試していない）。【9〜13 の持ち越し】9〜12 はスケジュール（D）の部品・13 はマスタの置き場の読む道（B）の取り直しの係で、この版はどちらの道も移していない（/api/schedule・/api/masters/status・/api/masters/place は Python のまま）。持ち越しは妥当。【3・4 の問い】Python が居ない形: Lot::update_settings は束の材料だけで答え、更新の係・配布の画面と 5 つの操作が 503 にならない（lot::tests で ask が失敗する形で 200・同じ答え）。束を組めない形（bundle::Py）だけ Python に尋ね、そのときは前と同じく 503。写す係: 窓は SERVES に release を名乗り、Python は move を 409 で断る（test_release_place で確かめた）。?engine=python・百分率符号で書いた道・窓が任せる形の move も Python に届くが 409 で写さない。進み具合は窓の係だけが動く。",
+  "result": {
+   "proposal": "C 更新と配布の流れを縦に閉じる（作った後）",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 7,
+    "steps": 6,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/release_place.rs の plan（dest = py_path(\"{base}/{name}\")）: 上のフォルダが根のとき dest の字が Python の Path の / と違う。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-rel/probe_oracle.py の歩 0〜2: parent \"/\"・\"///\" は Python \"/relprobe-nonexist-q9\"・窓 \"//relprobe-nonexist-q9\"、parent \"//\" は Python \"//…\"・窓 \"/…\"。Windows では parent \"C:\" が Python \"C:name\"（ドライブの今のフォルダの下）・窓 \"C:\\\\name\" で、写す先のフォルダが変わる（読んで確かめた）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "release_place.rs の run（create_dir_all(tmp.join(rel)) と os_error）: 写しかけの一時フォルダを作れないとき、進み具合の error が Python \"写せませんでした: [Errno 20] Not a directory: '@ROOT/file.txt/.under.copying-<pid>-<t>'\"・窓は末尾に \"/\" が付く（probe_oracle.py の sync で dest を @ROOT/file.txt/under にした形。上のフォルダに書けない権限の形も同じ道）。読んで: 写す途中の書き込みの誤り（ENOSPC）は Python が \"'元' -> '先'\" の 2 つの道を書き、窓は元の道 1 つだけ"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "release_place.rs の copy2（File::open）: 置き場に名前付きパイプがあると窓の写す係が止まる（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-rel/fifo.py と一時の試験 zz_fifo）。Python は即座に failed「`…/pipe` is a named pipe」で片付ける。窓は 3 秒後も state running・files 0、2 回目の start は false（以後の move はずっと 409）、一時フォルダ .dest.copying-… が残る。Linux だけ"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "release_place.rs の win_abspath・same・inside（Windows）: Python 3.13 の ntpath.realpath は記号リンク・junction・subst・8.3・割り当てたネットワークドライブ（Z:\\ → \\\\srv\\share）を解くが、窓は字で整えるだけ。置き場 \\\\srv\\share\\rel と上のフォルダ Z:\\rel\\LotScope\\sub（同じ所の中）で、Python は「いまの置き場の中には置けません」、窓は copy で通り置き場を自分の中へ写す。違いうる形を Python に任せずに答えている（読んで確かめた。Linux では試せない）"
+    }
+   ],
+   "seen": "更新と配布の流れ（GET /api/update/settings と配布の置き場 3 本、main.rs の 7 か所）は Python が居なくても窓が答え、release_parity（87 歩）・page_parity・lot::tests・test_release_place が通る。採点者が足した 78 歩のうち 73 歩（check_name の字 24・値の型 20・相対の道・記号リンクの .. と輪・壊れたリンク・who の 4 人・写した後のフォルダの中身と更新時刻と権限）は Python と 1 字同じ。割れは 4 つ（減点）: 根の上のフォルダの dest の字（Windows の \"C:\" では写す先が変わる）・一時フォルダを作れないときの言葉の末尾の区切り（と ENOSPC の道の数）・名前付きパイプで写す係が止まる・Windows の同じ所／中を字だけで比べて Python と違う答えを返す。指摘 1〜8 は入った（3 の verify.py update の Python を起こさない通しは無い・2 の who の突き合わせは page_parity では 1 形だけ）。9〜13 の持ち越しは妥当。"
+  }
+ },
+ "built_fixed": {
+  "fixed": [
+   "割れ 1 上のフォルダが根のときの dest の字: 字でつながず release_place::join_for（posixpath.join・ntpath.join と同じ）と py_path_for（PureWindowsPath の splitroot・字の組み方を Python 3.13 と同じ）にした",
+   "割れ 2 誤りの字: OSError の str と同じ形を組む部品（py_oserror・py_repr。[Errno n] 文: '元' -> '先'・WinError）。一時フォルダの道の末尾の / を外し、mkdir は失敗した段の道、copy2 の道の数も Python と同じ",
+   "割れ 3 名前付きパイプ: 開く前に os.stat と同じく見て『… is a named pipe』で failed にして写しかけを片付ける（次の move は 409 にならない）。ソケット・装置も Python と同じ",
+   "割れ 4 Windows の同じ所・中: 在る所までを canonicalize（\\\\?\\・\\\\?\\UNC\\ を外す）して残りを字でつなぐ resolve_by_prefix（ntpath.realpath に寄せる）。無い・届かない以外の誤りは Python に任せる（製品では置けない側）。壊れた記号リンクを辿らない差は計画書に残した",
+   "落とし穴: who を 4 人＋権限を読めない形で突き合わせ。写している印を並びにし、共有に届かない一時フォルダは印に残して次に片付ける。verify.py の Python を起こさない通しは足さず理由を計画書に書いた（lot::tests で見る）"
+  ],
+  "added_to_parity": "release_parity: Linux 6 場面 87 歩 → 11 場面 178 歩（写し終えるまで 5 → 11・任せる 12 → 15）＋事例の表 172 件（Path(上)/名前 88・OSError の str 84。release_place_oracle.py --tables）。道のつなぎ方を前の形に崩すと 6 件と 4 件の食い違いで落ちることを確かめた",
+  "checks": "cargo fmt・clippy -D warnings・test --lib 123 passed・release_parity 2 passed・page_parity・bundle_parity・settings_write_parity ok・Windows 向けの clippy（作業用クレート）0・ruff・compileall・js-check・Python Ran 728 OK"
+ }
+}
