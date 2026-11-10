@@ -165,7 +165,8 @@ def scenarios():
             S(BOSS, "POST", C, A("@ROOT/new", "x" * 121)),
             *([S(BOSS, "POST", C, A("@ROOT/new", "字" * 120))] if os.name == "nt" else []),
             S(BOSS, "POST", C, A("", "x")),
-            S(BOSS, "POST", C, A(' " " ', "x")),
+            # 空白だけの上のフォルダ: Windows（Win32）は段の末尾の空白を削るので、窓は答えず Python に任せる（release_place::win_trims）
+            *([] if os.name == "nt" else [S(BOSS, "POST", C, A(' " " ', "x"))]),
             S(BOSS, "POST", C, A("@ROOT/無い", "x")),
             S(BOSS, "POST", C, A(' "@ROOT/new" ', "fresh")),
             S(BOSS, "POST", C, A("@ROOT/new", "fresh", copy=False)),
@@ -207,6 +208,7 @@ def scenarios():
             S(BOSS, "POST", C, "{壊れた"),
             S(VIEW, "POST", C, A("@ROOT/new", "見るだけの人も確かめられる")),
         ], "delegates": [
+            *([S(BOSS, "POST", C, A(' " " ', "x"))] if os.name == "nt" else []),
             # 名前が 255 バイトを超える（Linux）: Python 3.13 の Path.exists は ENAMETOOLONG で落ちる（500）。窓は答えない
             *([] if os.name == "nt" else [S(BOSS, "POST", C, A("@ROOT/new", "字" * 120))]),
             S(BOSS, "POST", C, "[1]"),
