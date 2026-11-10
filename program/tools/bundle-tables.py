@@ -40,7 +40,7 @@ def table():
                     "groupable": sorted(data_sources.GROUPABLE)},
         "join": {"hows": data_join.HOWS, "maxJoins": data_join.MAX_JOINS, "maxKeys": data_join.MAX_KEYS},
         "workDefaults": work_log.DEFAULTS,
-        "equipGroups": {"ruleOps": list(pivot.RULE_OPS), "maxRules": equip_groups.MAX_RULES, "setDefault": equip_groups.SET_DEFAULT},
+        "equipGroups": {"ruleOps": list(pivot.RULE_OPS), "ruleOpLabels": pivot.RULE_OPS, "maxRules": equip_groups.MAX_RULES, "setDefault": equip_groups.SET_DEFAULT},
         "store": {"sharedAlways": sorted(ms.SHARED_ALWAYS), "sharedDefault": ["roll_master", "equipment_master"],
                   "lockTtl": ms.LOCK_TTL_DEFAULT, "refresh": ms.REFRESH_DEFAULT, "override": ms.OVERRIDE_FILENAME, "pin": ms.PIN_FILENAME,
                   "moved": ms.MOVED_FILENAME, "movedHops": ms.MOVED_HOPS, "historyKeep": ms.HISTORY_KEEP, "markers": list(ms.MASTER_MARKERS),

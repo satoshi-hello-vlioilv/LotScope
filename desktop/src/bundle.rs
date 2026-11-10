@@ -1172,7 +1172,7 @@ fn groups_and_uses(out: &mut [Map<String, Value>]) {
 }
 
 // ------------------------------------------------------------------ 設備グループ（services/equip_groups.py の view・ordered）
-fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
+pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
     let text = if truthy(row.get("ルール")) { row.get("ルール").cloned().unwrap() } else { json!("{}") };
     let d: Value = match &text {
         Value::String(x) => {
@@ -1236,7 +1236,7 @@ fn group_order(row: &Map<String, Value>) -> i128 {
     wide_int(&row["表示順"]).unwrap_or(0)
 }
 
-fn group_views(rows: &[Value]) -> R<Vec<Value>> {
+pub(crate) fn group_views(rows: &[Value]) -> R<Vec<Value>> {
     let mut keyed = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("設備グループの行が表でない"))?;

@@ -31,8 +31,10 @@ class GroupError(ValueError):
     pass
 
 
-def clean_row(data, partial=False):
-    """画面から来た値（name・set・equipment・order・note）→ マスタの行。partial は直すとき（来た物だけ）。"""
+def clean_row(data, partial=False, old=None):
+    """画面から来た値（name・set・equipment・rules・except・order・note）→ マスタの行。partial は直すとき（来た物だけ）。
+    設備・ルール・除く設備は 1 組で置く（設備とルールのどちらかがあればよい）。直すときに組の一部だけが来たら、残りは前の行（old）の値で組む
+    （版 3.94.0。前は rules だけの PUT で設備が消え、equipment だけの PUT でルールが消えた）"""
     out = {}
     if not partial or "name" in data:
         name = str(data.get("name") or "").strip()
@@ -41,13 +43,16 @@ def clean_row(data, partial=False):
         out["名称"] = name[:NAME_MAX]
     if not partial or "set" in data:
         out["まとめ方"] = (str(data.get("set") or "").strip() or SET_DEFAULT)[:NAME_MAX]
-    if not partial or "equipment" in data or "rules" in data:
-        eq = equipment_list(data.get("equipment"))
-        rules = clean_rules(data.get("rules"))
+    if not partial or any(k in data for k in ("equipment", "rules", "except")):
+        def came(k):
+            return not partial or k in data
+        before = rules_of(old or {}) if partial and not (came("rules") and came("except")) else {"rules": [], "except": []}
+        eq = equipment_list(data.get("equipment") if came("equipment") else (old or {}).get("設備"))
+        rules = clean_rules(data.get("rules")) if came("rules") else before["rules"]
         if not eq and not rules:
             raise GroupError("グループに入れる設備を 1 つ以上選ぶか、設備の名前の決まり（ルール）を 1 つ以上入れてください。")
         out["設備"] = ",".join(eq)
-        ex = equipment_list(data.get("except")) if rules else []
+        ex = (equipment_list(data.get("except")) if came("except") else before["except"]) if rules else []
         out["ルール"] = json.dumps({"rules": rules, **({"except": ex} if ex else {})}, ensure_ascii=False) if rules else ""
     if "order" in data:
         try:

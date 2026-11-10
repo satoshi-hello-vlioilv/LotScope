@@ -239,6 +239,64 @@ impl Lot {
         Some((status, v))
     }
 
+    /// 設備グループの 4 本（版 3.94.0。src/equipgroups_write.rs）を窓が受ける。材料は変換表と同じ（窓の束の材料: 名乗り・置き場）。
+    /// 選べる設備（実際に出てくる設備）は設備の木と同じ dashboard::equipment_seen で数える（作業実績の設備〈表示しない設備も〉と設備マスタは
+    /// 置き場から読み、データ元の設備の列はダッシュボードの数え方で数える）。書いたら一覧の設定（ダッシュボードの設備グループ）を捨てる。
+    /// 組めない・窓が答えない・選べる設備を数えられない形は None（Python が答える）
+    fn equipgroups_route(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::equipgroups_write::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        use crate::equipgroups_write::Route;
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        let access = json!({"who": inp.who, "place": inp.place});
+        let writes = route != Route::List;
+        if writes {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める
+        }
+        let me = self.gate.me(&access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let store = self.store_for(&access)?;
+        let place = crate::access::Place::from_json(&inp.place);
+        // 作業実績の設備（work_log.ordered の順・表示しない設備も）→ 設備マスタ（行の順）。名前が並び・表・大きな数なら任せる
+        let known = || -> Option<Vec<(String, &'static str)>> {
+            let work = place.rows("work_log_files").ok()?;
+            let equip = place.rows("equipment_master").ok()?;
+            let mut out = vec![];
+            for (rows, from) in [(crate::bundle::work_order(work.iter().collect())?, "作業実績"), (equip.iter().collect(), "設備マスタ")]
+            {
+                for r in rows {
+                    let n = r.get("設備名").filter(|v| worksum::truthy(v));
+                    if n.is_some_and(|v| !crate::master_rows::value_plain(v)) {
+                        return None;
+                    }
+                    out.push((n.map(worksum::py_str).unwrap_or_default(), from));
+                }
+            }
+            Some(out)
+        };
+        let seen = || -> Option<Vec<Value>> {
+            let known = known()?;
+            self.with_dash(ask, |cx| dashboard::equipment_seen(cx, &known))
+        };
+        let (status, v) = crate::equipgroups_write::handle(&store, &me, &place, route, query, body, &seen)?;
+        if writes {
+            self.invalidate(); // 一覧の設定（ダッシュボードの設備グループ）を次の問い合わせで組み直す
+        }
+        Some((status, v))
+    }
+
     /// 設定の束を窓が組む（版 3.84.0）。入れると、束は窓が組み、組めない形だけ Python に尋ねる
     pub fn set_bundle(&self, b: crate::bundle::Builder) {
         *self.bundle.lock().unwrap() = Some(Arc::new(b));
@@ -955,6 +1013,9 @@ impl Lot {
         }
         if let Some(route) = crate::conversions_write::route_of(method, path) {
             return self.conversions_route(method, path, route, query, body);
+        }
+        if let Some(route) = crate::equipgroups_write::route_of(method, path) {
+            return self.equipgroups_route(method, path, route, query, body, ask);
         }
         if let Some(route) = crate::equip_write::route_of(method, path) {
             return self.equip_route(method, path, route, query, body, ask);
@@ -1848,6 +1909,106 @@ mod tests {
         assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
         let (st, v) = lot.handle_body("GET", "/api/masters/conversions", "", b"", &down).unwrap();
         assert_eq!((st, v["canEdit"].clone(), v["items"].as_array().unwrap().len()), (200, json!(false), 2));
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_equipment_groups() {
+        // 版 3.94.0: 設備グループの 4 本は Python が起きていなくても窓が答える（本物の道: Lot::handle_body → equipgroups_route）。
+        // 選べる設備は設備の木と同じ数え方（作業実績 → 設備マスタ。出どころつき）。足したグループはダッシュボードの設備グループ（一覧の設定・
+        // 設備の木）に効く（invalidate）。一部だけの直しは残りを今の行から。正規表現・門番・?engine=python・空の本文は Python に任せる
+        let work = std::env::temp_dir().join(format!("da-lot-egroups-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm = |edit: &str| json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": edit, "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm("部分的編集可").to_string()).unwrap();
+        let doc = |rows: Value| json!({"schema": 1, "revision": 4, "rows": rows}).to_string();
+        for n in ["path_settings", "data_sources", "equipment_groups", "shift_patterns", "conversions"] {
+            std::fs::write(share.join(format!("{n}.json")), doc(json!([]))).unwrap();
+        }
+        let wl = json!([{"id": 1, "キー": "w1", "設備名": "L-1", "表示": "無"}, {"id": 2, "キー": "w2", "設備名": "CR1"}]);
+        std::fs::write(share.join("work_log_files.json"), doc(wl)).unwrap();
+        std::fs::write(share.join("equipment_master.json"), doc(json!([{"id": 1, "設備名": "cr1 "}, {"id": 2, "設備名": "TLV"}]))).unwrap();
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let e = "/api/masters/equipgroups";
+        let (st, v) = lot.handle_body("GET", e, "", b"", &down).expect("Python が起きていなくても窓が答える");
+        assert_eq!((st, v["items"].as_array().unwrap().len(), v["canEdit"].clone()), (200, 0, json!(true)));
+        assert_eq!(
+            v["seen"],
+            json!([{"name": "L-1", "from": ["作業実績"], "n": 0}, {"name": "CR1", "from": ["作業実績", "設備マスタ"], "n": 0},
+                   {"name": "TLV", "from": ["設備マスタ"], "n": 0}]),
+            "作業実績（表示しない設備も）→ 設備マスタ。同じ設備は最初の書き方に 1 つ"
+        );
+        assert_eq!(v["ruleOps"]["prefix"], json!("で始まる"));
+        let body = json!({"name": "L ライン", "set": "ライン別", "equipment": ["X-1"], "rules": [{"op": "prefix", "value": "l-"}]});
+        let (st, v) = lot.handle_body("POST", e, "", body.to_string().as_bytes(), &down).unwrap();
+        assert_eq!((st, v["created"].clone(), v["items"][0]["matched"].clone()), (201, json!(1), json!(["L-1", "X-1"])), "{v}");
+        assert_eq!(v["equipments"], json!(["L-1", "CR1", "TLV", "X-1"]), "グループに書いた設備も選べる");
+        let groups = |lot: &Lot| lot.settings(&down).unwrap().lists["dash"]["equipGroups"].clone();
+        assert_eq!(groups(&lot)[0]["name"], json!("L ライン"), "足したグループはダッシュボードの設備グループに効く");
+        let (_, tree) = lot.handle_body("GET", "/api/dashboard/equip-tree", "", b"", &down).unwrap();
+        assert_eq!(tree["sets"][0]["groups"][0]["members"], json!(["L-1"]), "{tree}");
+        // ルールだけの直しで設備は消えない（版 3.94.0 で Python も直した）
+        let (st, v) = lot.handle_body("PUT", &format!("{e}/1"), "", br#"{"rules": [{"op": "suffix", "value": "1"}]}"#, &down).unwrap();
+        assert_eq!(
+            (st, v["items"][0]["equipment"].clone(), v["items"][0]["matched"].clone()),
+            (200, json!(["X-1"]), json!(["L-1", "CR1", "X-1"]))
+        );
+        let (st, v) = lot
+            .handle_body("POST", e, "", json!({"name": "L ライン", "set": "ﾗｲﾝ別", "equipment": "A"}).to_string().as_bytes(), &down)
+            .unwrap();
+        assert_eq!((st, v["error"].as_str().unwrap_or("")), (409, "まとめ方「ﾗｲﾝ別」には、グループ「L ライン」がもうあります。"));
+        // Python に任せる形
+        let regex = json!({"name": "R", "rules": [{"op": "regex", "value": "^C"}]}).to_string();
+        assert!(lot.handle_body("POST", e, "", regex.as_bytes(), &down).is_none(), "正規表現は Python（re の言葉と重さの決まり）");
+        assert!(lot.handle_body("GET", e, "engine=python", b"", &down).is_none());
+        assert!(lot.handle_body("POST", e, "", b"", &down).is_none(), "空の本文は Python（400 の HTML）");
+        assert!(lot.handle_body("PUT", &format!("{e}/1"), "", b"[1]", &down).is_none(), "表でない真の本文は Python（500）");
+        // 配る設定の形（CI の自己診断・製品）: CM3 の場所と設備があると、組み込みのスケジュールの元が設備の列を持つ。Python の答えは CM3 に
+        // 届くか（とその PC の Python が前に取れたか）で決まり、窓は同じにできないので、一覧と書ける歩は任せる。断る歩（無い行を直す・消す・
+        // 名前の重なり・確かめの誤り）は Python も数えないので窓が答える（版 3.94.0。CI の 10b'' で見つけた）
+        std::fs::write(
+            &cfg,
+            json!({"master_share": {"dir": share}, "schedule": {"cm3_base_url": "http://127.0.0.1:1", "equipments": "L-1"}}).to_string(),
+        )
+        .unwrap();
+        lot.invalidate();
+        assert!(lot.handle_body("GET", e, "", b"", &down).is_none(), "スケジュールの元があれば一覧は Python");
+        assert!(lot.handle_body("GET", "/api/dashboard/equip-tree", "", b"", &down).is_none(), "設備の木も同じ部品で Python");
+        assert!(lot.handle_body("PUT", &format!("{e}/1"), "", br#"{"note": "x"}"#, &down).is_none(), "書ける歩は Python");
+        let (st, v) = lot.handle_body("PUT", &format!("{e}/987654321"), "", br#"{"note": "x"}"#, &down).unwrap();
+        assert_eq!((st, v["error"].clone()), (404, json!("id=987654321 が見つかりません。")));
+        let (st, _) = lot.handle_body("DELETE", &format!("{e}/987654321"), "", b"", &down).unwrap();
+        assert_eq!(st, 404);
+        let (st, v) = lot.handle_body("PUT", &format!("{e}/1"), "rev=99", br#"{"note": "x"}"#, &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (409, json!("conflict")), "{v}");
+        let (st, _) = lot
+            .handle_body("POST", e, "", json!({"name": "L ライン", "set": "ライン別", "equipment": "A"}).to_string().as_bytes(), &down)
+            .unwrap();
+        assert_eq!(st, 409, "名前の重なりも数えずに断る");
+        assert!(
+            lot.handle_body("DELETE", &format!("{e}/987654321"), "rev=1", b"", &down).is_none(),
+            "版を添えた無い行は一覧を返す（Python）"
+        );
+        // 書けない人は門番が断る（読むのは誰でも・canEdit は偽）
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}}).to_string()).unwrap();
+        std::fs::write(share.join("access_permissions.json"), perm("閲覧のみ").to_string()).unwrap();
+        lot.invalidate();
+        let (st, v) = lot.handle_body("DELETE", &format!("{e}/1"), "", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
+        let (st, v) = lot.handle_body("GET", e, "", b"", &down).unwrap();
+        assert_eq!((st, v["canEdit"].clone(), v["items"].as_array().unwrap().len()), (200, json!(false), 1));
         let _ = std::fs::remove_dir_all(&work);
     }
 

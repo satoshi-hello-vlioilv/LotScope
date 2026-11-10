@@ -6,6 +6,7 @@
 4) 設備グループで選べる設備が、実際に出てくる設備（作業実績・設備マスタ・データ元の設備の列）と合う・ルールで決めるグループ
 5) 設備グループごとの小計（設備グループの段＋設備の段＋小計）
 数はどれも、試験のデータ（tests/test_dashboard.py の Api: 仕掛 3 ロット・作業実績 CR1〈10/15 に 2 本〉・L-1〈10/14 に 1 本〉）を素朴に数えた数と比べる。"""
+import json
 import sqlite3
 import time
 import unittest
@@ -114,6 +115,33 @@ class Groups(Base):
         self.assertEqual(r.status_code, 400, "読めない正規表現は断る")
         r = self.c.post("/api/masters/equipgroups", json={"name": "空", "set": "ライン", "equipment": [], "rules": []})
         self.assertEqual(r.status_code, 400, "設備もルールも無いグループは置かない")
+
+    def test_partial_put_keeps_the_rest(self):
+        """版 3.94.0: 設備・ルール・除く設備の一部だけを直しても、残りは前の行のまま（前は rules だけの PUT で設備が消えた・逆も）"""
+        d = self.put_group(name="組", set="部分", equipment=["CR1", "CR2"], rules=[{"op": "prefix", "value": "L-"}], **{"except": ["L-9"]})
+        g = next(x for x in d["items"] if x["name"] == "組")
+        url = f"/api/masters/equipgroups/{g['id']}"
+
+        def now():
+            x = next(x for x in self.c.get("/api/masters/equipgroups").get_json()["items"] if x["id"] == g["id"])
+            return x["equipment"], x["rules"], x["except"]
+        r = self.c.put(url, json={"rules": [{"op": "suffix", "value": "-1"}]})
+        self.assertEqual(r.status_code, 200, r.get_json())
+        self.assertEqual(now(), (["CR1", "CR2"], [{"op": "suffix", "value": "-1"}], ["L-9"]), "設備と除く設備は残る")
+        self.c.put(url, json={"equipment": "TLV"})
+        self.assertEqual(now(), (["TLV"], [{"op": "suffix", "value": "-1"}], ["L-9"]), "ルールは残る")
+        self.c.put(url, json={"except": []})
+        self.assertEqual(now(), (["TLV"], [{"op": "suffix", "value": "-1"}], []), "除く設備だけも直せる")
+        self.c.put(url, json={"rules": []})
+        self.assertEqual(now(), (["TLV"], [], []), "ルールを外すと除く設備も無い")
+        r = self.c.put(url, json={"equipment": []})
+        self.assertEqual(r.status_code, 400, "設備もルールも無くなる直しは断る")
+        self.assertEqual(now(), (["TLV"], [], []))
+        self.c.put(url, json={"name": "組 2"})
+        self.assertEqual(now(), (["TLV"], [], []), "名前だけの直しは設備に触らない")
+        self.assertEqual(equip_groups.clean_row({"rules": [{"op": "equals", "value": "X"}]}, partial=True,
+                                                old={"設備": "A, B", "ルール": json.dumps({"rules": [{"op": "prefix", "value": "Q"}], "except": ["Q1"]})}),
+                         {"設備": "A,B", "ルール": json.dumps({"rules": [{"op": "equals", "value": "X"}], "except": ["Q1"]}, ensure_ascii=False)})
 
     def test_rules_count_in_panels(self):
         """ルールのグループで合算（パネルの「設備グループのマスタから合算」）"""

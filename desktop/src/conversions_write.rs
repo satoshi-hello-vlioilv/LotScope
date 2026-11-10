@@ -112,7 +112,7 @@ fn conv_error(m: String) -> Answer {
     (400, json!({"error": m, "kind": "error", "type": "ConversionError"}))
 }
 
-fn of_master(e: MasterError) -> Answer {
+pub(crate) fn of_master(e: MasterError) -> Answer {
     match e {
         MasterError::Error(m) => master_rows::error_answer(&m),
         e => (e.status(), e.payload()),
@@ -399,23 +399,9 @@ fn clean_apply(v: Option<&Tree>) -> C<Tree> {
     Ok(Tree::Obj(out))
 }
 
-/// 表示順（str(int(order))。読めなければ ""）
+/// 表示順（str(int(order))。読めなければ ""。master_rows::py_int_text の 1 つ）
 fn order_text(v: Option<&Tree>) -> C<String> {
-    Ok(match v {
-        None | Some(Tree::Null) | Some(Tree::Arr(_) | Tree::Obj(_)) => String::new(),
-        Some(Tree::Bool(b)) => (*b as i64).to_string(),
-        Some(Tree::Num(n)) => match (n.as_i64(), n.as_f64()) {
-            (Some(i), _) => i.to_string(),
-            (None, Some(f)) if f.is_finite() && f.trunc().abs() < 9.2e18 => (f.trunc() as i64).to_string(),
-            _ => return Err(Bad::Delegate),
-        },
-        Some(Tree::Str(x)) => {
-            if x.chars().filter(|c| pyfmt::digit(*c).is_some()).count() > 38 {
-                return Err(Bad::Delegate);
-            }
-            crate::bundle::wide_int_text(x).map(|n| n.to_string()).unwrap_or_default()
-        }
-    })
+    master_rows::py_int_text(v.map(Tree::to_value).as_ref()).ok_or(Bad::Delegate)
 }
 
 /// json.dumps(x, ensure_ascii=False)（既定の区切り）
@@ -548,7 +534,7 @@ fn bundled(place: &Place) -> Option<Vec<Value>> {
 
 /// 共有にまだ無いマスタに、Python が読むときと同じく最初の版を置く（MasterStore._maybe_refresh → _seed。置けなければ写しで続ける）。
 /// 置くのは、Python のその道がそのマスタを読む所だけ（作った後の採点: 前はどの道でも 2 つとも置き、書き出し・断る道で Python と割れた）
-fn seed(store: &Store, place: &Place, name: &str) {
+pub(crate) fn seed(store: &Store, place: &Place, name: &str) {
     if place.share_absent(name) {
         let _ = store.pull(name, false, false);
     }
@@ -623,7 +609,7 @@ fn export_items(rows: &[Value]) -> Option<Vec<Value>> {
 // ------------------------------------------------------------------ 本文
 /// 本文の読み方（get_json(force=True)〈silent でない〉 or {}）。空・読めない本文は Python（400 の HTML）。
 /// 表でない真の本文は、Python が道の外で落ちる道（other_500）では任せ、master_call の中で落ちる道（足す・取り込む）は同じ答え
-fn strict(body: &[u8], other_500: bool) -> Option<Result<Tree, Answer>> {
+pub(crate) fn strict(body: &[u8], other_500: bool) -> Option<Result<Tree, Answer>> {
     if body.iter().all(|b| b.is_ascii_whitespace()) || master_rows::unreadable(body) {
         return None;
     }
@@ -648,7 +634,7 @@ fn strict(body: &[u8], other_500: bool) -> Option<Result<Tree, Answer>> {
 }
 
 /// 開いたときの行の版（routes/common.base_rev: 本文を silent で読む・表でない真の本文は道の外で 500）。読めない版の字は None（任せる）
-fn rev_of(body: &[u8], query: &str) -> Option<Option<Rev>> {
+pub(crate) fn rev_of(body: &[u8], query: &str) -> Option<Option<Rev>> {
     let parsed = master_rows::py_body(body)?;
     match base_rev(&parsed, query) {
         Some(Rev::Unknown) => None,
