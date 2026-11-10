@@ -6,6 +6,7 @@ pub mod aggregate;
 pub mod bundle;
 pub mod calc;
 pub mod card_forms;
+pub mod conversions_write;
 pub mod dash_sets;
 pub mod dashboard;
 pub mod dashboards_write;

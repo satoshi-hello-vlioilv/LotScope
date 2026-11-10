@@ -203,6 +203,42 @@ impl Lot {
         Some((status, v))
     }
 
+    /// 変換表の 8 本（版 3.93.0。src/conversions_write.rs）を窓が受ける。材料は窓の束の材料（名乗り・置き場。Python が居なくても読める）、
+    /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定（式の conv の表・画面の埋める物）を捨てる
+    /// （Python が書いたときの after_python と同じ。書けずに断った答えでも、取り込みは前の書き込みが残りうるので捨てる）。
+    /// 組めない・窓が答えない形は None（Python が答える）
+    fn conversions_route(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::conversions_write::Route,
+        query: &str,
+        body: &[u8],
+    ) -> Option<(u16, Value)> {
+        use crate::conversions_write::Route;
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        let access = json!({"who": inp.who, "place": inp.place});
+        let writes = !matches!(route, Route::List | Route::Export);
+        if writes {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める
+        }
+        let me = self.gate.me(&access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let store = self.store_for(&access)?;
+        let place = crate::access::Place::from_json(&inp.place);
+        let (status, v) = crate::conversions_write::handle(&store, &me, &place, route, query, body)?;
+        if writes {
+            self.invalidate(); // 一覧の設定（変換表の表と版の印）を次の問い合わせで組み直す
+        }
+        Some((status, v))
+    }
+
     /// 設定の束を窓が組む（版 3.84.0）。入れると、束は窓が組み、組めない形だけ Python に尋ねる
     pub fn set_bundle(&self, b: crate::bundle::Builder) {
         *self.bundle.lock().unwrap() = Some(Arc::new(b));
@@ -916,6 +952,9 @@ impl Lot {
         }
         if let Some(route) = crate::worklog_write::route_of(method, path) {
             return self.worklog_route(method, path, route, query, body, ask);
+        }
+        if let Some(route) = crate::conversions_write::route_of(method, path) {
+            return self.conversions_route(method, path, route, query, body);
         }
         if let Some(route) = crate::equip_write::route_of(method, path) {
             return self.equip_route(method, path, route, query, body, ask);
@@ -1744,6 +1783,71 @@ mod tests {
         assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
         let (st, v) = lot.handle_body("GET", "/api/worklog/files", "", b"", &down).unwrap();
         assert_eq!((st, v["canEdit"].clone()), (200, json!(false)));
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_conversions() {
+        // 版 3.93.0: 変換表の 8 本は Python が起きていなくても窓が答える（本物の道: Lot::handle_body → conversions_route）。
+        // 足した表・取り込んだ表は一覧の設定（式の conv が引く表）に効く（invalidate）。共有にまだ無い標準は最初の版を置いてから読む。
+        // 門番（書けない人は 403）・?engine=python・空の本文は Python に任せる
+        let work = std::env::temp_dir().join(format!("da-lot-conv-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm = |edit: &str| json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": edit, "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm("部分的編集可").to_string()).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in
+            ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversions"]
+        {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let (st, v) = lot.handle_body("GET", "/api/masters/conversions", "", b"", &down).expect("Python が起きていなくても窓が答える");
+        assert_eq!((st, v["items"].as_array().unwrap().len(), v["canEdit"].clone()), (200, 0, json!(true)));
+        assert_eq!(v["presets"].as_array().unwrap().len(), 9, "標準は同梱のプリセット");
+        assert!(share.join("conversion_defaults.json").exists(), "共有にまだ無い標準は、Python が読むときと同じく最初の版を置く");
+        let table = json!({"name": "課", "inputs": [{"name": "設備"}], "rows": [{"when": {"設備": [{"op": "starts", "v": ["L-"]}]}, "out": "L 課"}]});
+        let (st, v) = lot.handle_body("POST", "/api/masters/conversions", "", table.to_string().as_bytes(), &down).unwrap();
+        assert_eq!((st, v["created"].clone(), v["items"][0]["order"].clone()), (201, json!(1), json!(10)), "{v}");
+        let tables = |lot: &Lot| lot.settings(&down).unwrap().conversions;
+        assert_eq!(tables(&lot)["課"]["rows"][0]["out"], json!("L 課"), "足した表は式の conv が引く表に効く");
+        let body = json!({"items": [{"name": "形", "inputs": [{"name": "a"}], "rows": []}], "asDefault": true}).to_string();
+        let (st, v) = lot.handle_body("POST", "/api/masters/conversions/import", "", body.as_bytes(), &down).unwrap();
+        assert_eq!(
+            (st, v["added"].clone(), v["customDefaults"].clone(), v["presets"].clone()),
+            (200, json!(1), json!(true), json!(["形"]))
+        );
+        assert!(tables(&lot).get("形").is_some(), "取り込んだ表も効く");
+        let (st, v) = lot.handle_body("POST", "/api/masters/conversions/1/preset", "", b"", &down).unwrap();
+        assert_eq!(
+            (st, v["error"].as_str().unwrap_or("")),
+            (400, "「課」は同梱のプリセットにありません（標準に戻せるのはプリセットの表だけです）。")
+        );
+        let (st, v) = lot.handle_body("GET", "/api/masters/conversions/export", "which=defaults", b"", &down).unwrap();
+        assert_eq!((st, v["items"][0]["name"].clone()), (200, json!("形")));
+        // Python に任せる形
+        assert!(lot.handle_body("GET", "/api/masters/conversions", "engine=python", b"", &down).is_none());
+        assert!(lot.handle_body("POST", "/api/masters/conversions", "", b"", &down).is_none(), "空の本文は Python（400 の HTML）");
+        assert!(lot.handle_body("PUT", "/api/masters/conversions/1", "", b"[1]", &down).is_none(), "表でない真の本文は Python（500）");
+        // 書けない人は門番が断る（読むのは誰でも・canEdit は偽）
+        std::fs::write(share.join("access_permissions.json"), perm("閲覧のみ").to_string()).unwrap();
+        lot.invalidate();
+        let (st, v) = lot.handle_body("DELETE", "/api/masters/conversions/1", "", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
+        let (st, v) = lot.handle_body("GET", "/api/masters/conversions", "", b"", &down).unwrap();
+        assert_eq!((st, v["canEdit"].clone(), v["items"].as_array().unwrap().len()), (200, json!(false), 2));
         let _ = std::fs::remove_dir_all(&work);
     }
 

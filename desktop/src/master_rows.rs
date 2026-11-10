@@ -380,6 +380,30 @@ pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> 
     })
 }
 
+/// 表示順を書かずに足す行の表示順（row_order.next_order: いまの最大 + 10。版 3.93.0 から勤務体系と変換表の 1 つ）。
+/// 各行の str(表示順 or 0).strip() を int() で読み、読めない行（小数の字・「²」・並び）は数えない。Python の int は桁のまま数えるので、
+/// 38 桁を超える表示順の行があれば None（窓は答えず Python に任せる）
+pub(crate) fn next_order(rows: &[Value]) -> Option<String> {
+    let mut best: i128 = 0;
+    for r in rows {
+        let n = match r.get("表示順").filter(|v| crate::worksum::truthy(v)) {
+            None => Some(0),
+            Some(Value::Number(n)) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
+            Some(Value::String(s)) => {
+                if s.chars().filter(|c| crate::pyfmt::digit(*c).is_some()).count() > 38 {
+                    return None;
+                }
+                crate::bundle::wide_int_text(s)
+            }
+            Some(_) => None, // 真偽・並び・表の字（True・[1]）は int() が読めない
+        };
+        if let Some(n) = n {
+            best = best.max(n);
+        }
+    }
+    Some((best + 10).to_string())
+}
+
 /// 行の確かめの無い組
 pub(crate) fn no_check(_: &[Value], _: &Map<String, Value>, _: Option<i64>) -> Result<(), MasterError> {
     Ok(())

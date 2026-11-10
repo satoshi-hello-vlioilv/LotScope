@@ -1284,17 +1284,24 @@ fn conv_order(o: &Map<String, Value>) -> i128 {
     }
 }
 
-/// 変換表の行（conversions.view の表示順を除いた形）を ordered（表示順 → id）の順に
-fn conv_rows(rows: &[Value]) -> R<Vec<(i128, Value)>> {
+/// conversions.ordered の順（表示順 → id。同じなら元の順）の行の位置（版 3.93.0 から変換表の道〈src/conversions_write.rs〉も使う）
+pub fn conv_order_index(rows: &[Value]) -> R<Vec<usize>> {
     let mut keyed = vec![];
-    for r in rows {
+    for (i, r) in rows.iter().enumerate() {
         let o = r.as_object().ok_or(Py("変換表の行が表でない"))?;
         let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { 0 };
-        keyed.push(((conv_order(o), id), o));
+        keyed.push(((conv_order(o), id), i));
     }
     keyed.sort_by_key(|x| x.0);
+    Ok(keyed.into_iter().map(|(_, i)| i).collect())
+}
+
+/// 変換表の行（conversions.view の表示順を除いた形）を ordered（表示順 → id）の順に
+fn conv_rows(rows: &[Value]) -> R<Vec<(i128, Value)>> {
     let mut out = vec![];
-    for ((order, _), o) in keyed {
+    for i in conv_order_index(rows)? {
+        let o = rows[i].as_object().ok_or(Py("変換表の行が表でない"))?;
+        let order = conv_order(o);
         let rows = match conv_j(o.get("判定"), true)? {
             Value::Array(a) => a
                 .into_iter()

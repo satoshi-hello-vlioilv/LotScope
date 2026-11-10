@@ -273,6 +273,38 @@
          `${gone.by} ${gone.r.status} / ${keys.by} ${keys.r.status} ${(why(gone).error || "").slice(0, 30)}`);
     }
 
+    // 10b') 変換表（版 3.93.0 から窓が答える: conversions_write.rs）: 一覧と書き出しは Python と同じ答え。書く道は書かずに確かめる
+    //       （無い表を直す・無い表を標準に戻すは Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）
+    {
+      const canonC = (v) => Array.isArray(v) ? v.map(canonC) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonC(v[k])])) : v;
+      const differ = [], by = [];
+      for (const a of ["/api/masters/conversions", "/api/masters/conversions/export?which=defaults"]) {
+        // 新しい PC を最初に開いたときは共有へマスタの最初の版を置く途中なので、15 秒まで尋ね直す（10a' と同じ）
+        let rs, py, same = false;
+        for (const until = Date.now() + 15000; ;) {
+          py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python"); rs = await get(a);
+          same = rs.r.status === py.r.status && py.by === "python";
+          try { same = same && JSON.stringify(canonC(JSON.parse(rs.text))) === JSON.stringify(canonC(JSON.parse(py.text))); } catch (_) { same = false; }
+          if ((same && rs.by === "shell") || Date.now() > until) break;
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        by.push(rs.by);
+        if (!same) differ.push(`${a} 窓 ${rs.r.status} / Python ${py.r.status} ${py.by}`);
+      }
+      ok("変換表の一覧と書き出しは窓が答え、Python と同じ答え", by.every((x) => x === "shell") && !differ.length,
+         differ.join("・") || `窓 ${by.join("・")}`);
+      const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
+      const send = (path, method, body) => get(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const gone = await send("/api/masters/conversions/987654321", "PUT", {});
+      const preset = await send("/api/masters/conversions/987654321/preset", "POST", {});
+      const denied = [gone, preset].every((x) => x.by === "shell" && x.r.status === 403 && why(x).kind === "forbidden");
+      ok("変換表を書く道も窓が受ける（無い表を直す・標準に戻すを Python と同じ言葉で断る。書けない人は門番が断る）", denied || (
+         gone.by === "shell" && gone.r.status === 404 && why(gone).error === "id=987654321 が見つかりません。"
+         && preset.by === "shell" && preset.r.status === 404 && why(preset).kind === "not_found"),
+         `${gone.by} ${gone.r.status} / ${preset.by} ${preset.r.status} ${(why(gone).error || "").slice(0, 30)}`);
+    }
+
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
     //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる
     {
