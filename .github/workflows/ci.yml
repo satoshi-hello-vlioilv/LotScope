@@ -40,7 +40,7 @@ jobs:
 
   desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60   # 窓の通し（約 25 分）と Rust の組み立て（控えが効かないと約 13 分）で 40 分を越えた（版 3.91.0 の PR）
     env:
       TPA_PYTHON: python
     steps:

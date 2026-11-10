@@ -96,7 +96,12 @@ pub struct Lot {
     new_key: Mutex<Option<NewKey>>,
     /// 画面（GET /）を最後に Python に任せた理由（記録: main.rs が desktop.log に書く）
     page_why: Mutex<String>,
+    /// いまの時刻（秒。版 3.91.0: 作業実績の登録の古さ〈mark_stale〉。突き合わせの試験は Python と同じ時刻に差し替える）
+    clock: Mutex<Option<Clock>>,
 }
+
+/// いまの時刻（秒）を答える係
+pub type Clock = Arc<dyn Fn() -> f64 + Send + Sync>;
 
 /// 足すデータ元のキーを作る係
 pub type NewKey = Arc<dyn Fn() -> String + Send + Sync>;
@@ -121,12 +126,81 @@ impl Lot {
             page: crate::page::Page::default(),
             new_key: Mutex::default(),
             page_why: Mutex::default(),
+            clock: Mutex::default(),
         }
     }
 
     /// 足すデータ元のキーの作り方を差し替える（試験: Python の data_sources.new_key と同じ並び）
     pub fn set_new_key(&self, f: NewKey) {
         *self.new_key.lock().unwrap() = Some(f);
+    }
+
+    /// いまの時刻の係を差し替える（試験: Python の time.time と同じ時刻）
+    pub fn set_clock(&self, f: Clock) {
+        *self.clock.lock().unwrap() = Some(f);
+    }
+
+    fn now(&self) -> f64 {
+        match self.clock.lock().unwrap().clone() {
+            Some(f) => f(),
+            None => std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0),
+        }
+    }
+
+    /// 作業実績の登録の 6 本（版 3.91.0。src/worklog_write.rs）を窓が受ける。フォルダの中身は一覧の段取りと同じ覚え（lists.found_fresh）、
+    /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定（作業実績の行）と権限の覚えを捨てる。組めない・窓が答えない形は None
+    fn worklog_route(
+        &self,
+        method: &str,
+        path: &str,
+        route: crate::worklog_write::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        use crate::worklog_write::{Route, NAME};
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        // 窓が束を組める形だけ（データ元の書く道と同じ）。束が Python から来た形（窓が置き場を同じに読めない）は Python に任せる
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        for name in [NAME, "path_settings"] {
+            inp.check(name).ok()?;
+        }
+        let s = self.settings(ask).ok()?;
+        let work = &s.lists["work"];
+        if !s.access.is_object() || !work.is_object() {
+            return None;
+        }
+        let writes = !matches!(route, Route::Get | Route::Files);
+        if writes {
+            self.gate.forget(); // 書く前は、いまの権限の表で決める
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let rows = crate::access::Place::from_json(&s.access["place"]).rows(NAME).ok()?;
+        let store = self.store_for(&s.access)?;
+        let (folder, pattern) = (work["folder"].as_str()?.to_string(), work["pattern"].as_str()?.to_string());
+        let cx = crate::worklog_write::Ctx {
+            rows: &rows,
+            work,
+            found: &|fresh| self.lists.found_fresh(&folder, &pattern, fresh),
+            can_edit: crate::access::can_write(&me, NAME),
+            now: self.now(),
+            new_key: &|| match self.new_key.lock().unwrap().clone() {
+                Some(f) => Some(f()),
+                None => crate::worklog_write::new_key(),
+            },
+        };
+        let (status, v) = crate::worklog_write::handle(&store, route, query, body, &cx)?;
+        if writes && (200..300).contains(&status) {
+            self.invalidate(); // 一覧の設定（作業実績の行・設備の名前）を次の問い合わせで組み直す
+            self.gate.forget();
+        }
+        Some((status, v))
     }
 
     /// 設定の束を窓が組む（版 3.84.0）。入れると、束は窓が組み、組めない形だけ Python に尋ねる
@@ -642,6 +716,11 @@ impl Lot {
         if Self::changes_settings(method, path, status) {
             self.invalidate();
             self.gate.forget(); // 権限・タブの権限・置き場を書いた: 次の問い合わせで me を読み直す
+                                // 参照先・データ元の接続を Python が書いた（実績のフォルダ・決まりかもしれない）: フォルダの覚えも捨てる
+                                // （版 3.91.0。Python の _listing が参照先の印で捨てるのと同じ。A → B → A と置き直した 10 秒の内に古い中身を返さない）
+            if path.starts_with("/api/settings/") || path.starts_with("/api/sources") || path.starts_with("/api/masters/place") {
+                self.lists.forget_listing();
+            }
         }
     }
 
@@ -834,6 +913,9 @@ impl Lot {
         }
         if let Some(route) = crate::sources_write::route_of(method, path) {
             return self.sources_write_route(method, path, route, query, body, ask);
+        }
+        if let Some(route) = crate::worklog_write::route_of(method, path) {
+            return self.worklog_route(method, path, route, query, body, ask);
         }
         if let Some(route) = crate::equip_write::route_of(method, path) {
             return self.equip_route(method, path, route, query, body, ask);
@@ -1592,6 +1674,76 @@ mod tests {
         let (_, d) = lot.handle_body("GET", "/api/dashboard/sources", "", b"", &down).expect("データの並びは窓");
         assert_eq!(d["items"][0]["key"], "lot");
         assert!(d["periods"]["today"].is_string());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_the_work_log_registration() {
+        // 版 3.91.0: 作業実績の登録の 6 本は Python が起きていなくても窓が答える（本物の道: Lot::handle_body → worklog_route）。
+        // 探し直して足した行・並べ替えは一覧の設定（束の work.rows）に効く（invalidate）。答えの古さは差し替えた時刻で測る。
+        // 門番（書けない人は 403）・?engine=python・読めない本文は Python に任せる
+        let work = std::env::temp_dir().join(format!("da-lot-worklog-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let (share, folder) = (work.join("share"), work.join("実績"));
+        for d in [work.join("local"), work.join("base"), share.clone(), folder.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        for n in ["実績_A.sqlite3", "実績_B.sqlite3"] {
+            std::fs::write(folder.join(n), b"x").unwrap();
+        }
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "work_log": {"folder": folder, "stale_hours": 1}}).to_string())
+            .unwrap();
+        let login = crate::bundle::login_id();
+        let perm = |role: &str, edit: &str| json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": role, "マスタ編集": edit, "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm("開発者", "編集可").to_string()).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in
+            ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversions"]
+        {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64() + 7200.0;
+        lot.set_clock(Arc::new(move || now));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let (st, v) = lot.handle_body("GET", "/api/masters/worklog", "", b"", &down).expect("Python が起きていなくても窓が答える");
+        assert_eq!(
+            (st, v["items"].as_array().unwrap().len(), v["new"].as_array().unwrap().len(), v["canEdit"].clone()),
+            (200, 0, 2, json!(true))
+        );
+        let (st, v) = lot.handle_body("POST", "/api/masters/worklog/scan", "", b"", &down).unwrap();
+        assert_eq!((st, v["result"]["added"].clone()), (200, json!(["A", "B"])), "{v}");
+        assert_eq!(
+            (v["items"][0]["stale"].clone(), v["items"][0]["ageHours"].as_f64().map(|h| h >= 2.0)),
+            (json!(true), Some(true)),
+            "差し替えた時刻で 2 時間前"
+        );
+        let names = |lot: &Lot| -> Vec<Value> {
+            lot.settings(&down).unwrap().lists["work"]["rows"].as_array().unwrap().iter().map(|r| r["設備名"].clone()).collect()
+        };
+        assert_eq!(names(&lot), vec![json!("A"), json!("B")], "足した行は一覧の設定に効く");
+        let keys: Vec<Value> = v["items"].as_array().unwrap().iter().map(|x| x["key"].clone()).collect();
+        let body = json!({"keys": [keys[1], keys[0]]}).to_string();
+        let (st, v) = lot.handle_body("PUT", "/api/masters/worklog/order", "", body.as_bytes(), &down).unwrap();
+        assert_eq!((st, v["items"][0]["name"].clone()), (200, json!("B")));
+        let (_, files) = lot.handle_body("GET", "/api/worklog/files", "", b"", &down).unwrap();
+        assert_eq!(files["items"][0]["name"], json!("B"), "並べ替えは作業実績のタブの並びに効く");
+        // Python に任せる形
+        assert!(lot.handle_body("GET", "/api/masters/worklog", "engine=python", b"", &down).is_none());
+        assert!(lot.handle_body("PUT", "/api/masters/worklog/order", "", b"", &down).is_none(), "空の本文は Python（400 の HTML）");
+        assert!(lot.handle_body("PUT", "/api/masters/worklog/1", "", b"[1]", &down).is_none());
+        // 書けない人は門番が断る（読むのは誰でも・canEdit は偽）
+        std::fs::write(share.join("access_permissions.json"), perm("一般ユーザー", "部分的編集可").to_string()).unwrap();
+        lot.invalidate();
+        let (st, v) = lot.handle_body("DELETE", "/api/masters/worklog/1", "", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
+        let (st, v) = lot.handle_body("GET", "/api/worklog/files", "", b"", &down).unwrap();
+        assert_eq!((st, v["canEdit"].clone()), (200, json!(false)));
         let _ = std::fs::remove_dir_all(&work);
     }
 

@@ -236,11 +236,42 @@
          `${gone.by} ${gone.r.status} / ${conn.by} ${conn.r.status} ${(why(gone).error || "").slice(0, 30)}`);
     }
 
-    // 10b) 作業実績の設備（Python）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す（画面は案内を出す）
+    // 10b) 作業実績の設備（版 3.91.0 から窓が答える: worklog_write.rs）: 答えが返る。フォルダに届かない（CI）ときも、理由つきで空の設備を返す
+    //      （画面は案内を出す）。同じ問い合わせを Python でも引き、何時間前か（尋ねた時刻で変わる）を除いて同じか
     const wl = await get("/api/worklog/files");
     let wlj = {}; try { wlj = JSON.parse(wl.text); } catch (_) { /* 下で言う */ }
     ok("作業実績の設備の問い合わせが答える（届かなければ理由つき）", wl.r.ok && Array.isArray(wlj.items) && (wlj.items.length > 0 || !!wlj.error || Array.isArray(wlj.new)),
        `設備 ${(wlj.items || []).length} 台・未登録 ${(wlj.new || []).length}・${wlj.error || "フォルダに届いた"}`);
+    {
+      const canonW = (v) => Array.isArray(v) ? v.map(canonW) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => k !== "ageHours").map((k) => [k, canonW(v[k])])) : v;
+      const differ = [], by = [];
+      for (const a of ["/api/worklog/files?all=1", "/api/masters/worklog"]) {
+        // 新しい PC を最初に開いたときは Python が共有へマスタの最初の版を置く途中なので、15 秒まで尋ね直す（10a' と同じ）
+        let rs, py, same = false;
+        for (const until = Date.now() + 15000; ;) {
+          py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python"); rs = await get(a);
+          same = rs.r.status === py.r.status && py.by === "python";
+          try { same = same && JSON.stringify(canonW(JSON.parse(rs.text))) === JSON.stringify(canonW(JSON.parse(py.text))); } catch (_) { same = false; }
+          if ((same && rs.by === "shell") || Date.now() > until) break;
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        by.push(rs.by);
+        if (!same) differ.push(`${a} 窓 ${rs.r.status} / Python ${py.r.status} ${py.by}`);
+      }
+      ok("作業実績の登録の一覧は窓が答え、Python と同じ答え（何時間前かを除く）", by.every((x) => x === "shell") && !differ.length,
+         differ.join("・") || `窓 ${by.join("・")}`);
+      // 書く道は書かずに確かめる（無い行を直す・消すは Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）
+      const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
+      const send = (path, method, body) => get(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const gone = await send("/api/masters/worklog/987654321", "PUT", { "設備名": "x" });
+      const keys = await send("/api/masters/worklog/order", "PUT", { keys: [] });
+      const denied = [gone, keys].every((x) => x.by === "shell" && x.r.status === 403 && why(x).kind === "forbidden");
+      ok("作業実績の登録を書く道も窓が受ける（無い行・空の並びを Python と同じ言葉で断る。書けない人は門番が断る）", denied || (
+         gone.by === "shell" && gone.r.status === 404 && why(gone).error === "id=987654321 が見つかりません。"
+         && keys.by === "shell" && keys.r.status === 400 && why(keys).error === "並べるキー（keys）がありません。"),
+         `${gone.by} ${gone.r.status} / ${keys.by} ${keys.r.status} ${(why(gone).error || "").slice(0, 30)}`);
+    }
 
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
     //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる

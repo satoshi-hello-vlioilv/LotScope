@@ -86,6 +86,24 @@ def file_id(st):
     return f"{int(getattr(st, 'st_dev', 0) or 0)}:{ino}" + (f":{int(birth)}" if birth else "")
 
 
+def same_fid(a, b):
+    """ファイルID が同じファイルを指すか（版 3.91.0。窓〈desktop/src/lists.rs の same_fid〉と同じ決まり）。Python の版・窓で装置の番号の幅
+    （Windows の 32/64 ビット）と作った時刻の有無が違っても、装置の番号の下 32 ビット・ファイル番号が同じで、作った時刻が両方にあれば同じ、を
+    同じファイルと見る（前は字の一致で、窓と Python が交互に探し直すと ID が書き換わって行の版が上がった）"""
+    a, b = str(a or ""), str(b or "")
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    parts = a.split(":") + b.split(":")
+    if not all(v.isascii() and v.isdigit() and len(v) <= 38 for v in parts):     # 数字だけ（窓の u128 と同じ読み方）
+        return False
+    x, y = [int(v) for v in a.split(":")], [int(v) for v in b.split(":")]
+    if len(x) < 2 or len(y) < 2:
+        return False
+    return (x[0] & 0xFFFFFFFF) == (y[0] & 0xFFFFFFFF) and x[1] == y[1] and (len(x) < 3 or len(y) < 3 or x[2] == y[2])
+
+
 # ------------------------------------------------------------------ フォルダを探す
 class FolderError(Exception):
     """フォルダに届かない・読めない（理由つき）。"""
@@ -168,7 +186,7 @@ def match(rows, found):
         if id(r) in done:
             continue
         fid = str(r.get("ファイルID") or "")
-        f = next((x for x in found if fid and x["fid"] == fid and x["file"].lower() not in taken), None)
+        f = next((x for x in found if fid and same_fid(x["fid"], fid) and x["file"].lower() not in taken), None)
         if f:
             taken.add(f["file"].lower())
             renamed.append((r, f))
@@ -192,18 +210,26 @@ def ordered(rows):
     return [r for _, r in sorted(enumerate(rows), key=lambda x: (num(x[1]) is None, num(x[1]) or 0, x[0]))]
 
 
-def order_keys(rows, keys):
+def order_numbers(rows, keys):
     """並び替え: keys（キーの並び）に入っている行だけを、その行たちがいま占めている所へ keys の順で入れ直し、全部に 1 から番号を振る。
-    keys に無い行（タブに出していない「表示しない」設備など）は、いまの所から動かない。知らないキー・重なりは無視。→ {キー: 新しい番号}"""
-    cur = [r.get("キー") for r in ordered(rows)]
+    keys に無い行（タブに出していない「表示しない」設備・キーの無い行）は、いまの所から動かない。知らないキー・重なりは無視。
+    → [(行, 新しい番号)]（並びの順）。版 3.91.0: 行ごとに返す（前は {キー: 番号} で、キーの無い行が 2 つあると同じ番号に潰れた）"""
+    cur = ordered(rows)
+    keyed = [r.get("キー") for r in cur]
     seen, want = set(), []
     for k in (str(k) for k in keys):
-        if k in cur and k not in seen:
+        if k in keyed and k not in seen:
             seen.add(k)
             want.append(k)
-    it = iter(want)
-    new = [next(it) if k in seen else k for k in cur]
-    return {k: str(i + 1) for i, k in enumerate(new)}
+    moved = [r for k in want for r in cur if r.get("キー") == k]
+    it = iter(moved)
+    new = [next(it) if r.get("キー") in seen else r for r in cur]
+    return [(r, str(i + 1)) for i, r in enumerate(new)]
+
+
+def order_keys(rows, keys):
+    """order_numbers の {キー: 新しい番号}（キーのある行だけ）"""
+    return {r.get("キー"): n for r, n in order_numbers(rows, keys) if r.get("キー")}
 
 
 def view(rows, found, folder_error=""):
