@@ -129,6 +129,10 @@ pub(crate) fn file_id(path: &Path) -> String {
         return String::new();
     }
     let ft = ((info.ftCreationTime.dwHighDateTime as u64) << 32) | info.ftCreationTime.dwLowDateTime as u64;
+    if ft == 0 {
+        // 作った時刻を答えない置き場（Python も st_birthtime が 0 なら付けない）
+        return format!("{}:{ino}", info.dwVolumeSerialNumber);
+    }
     let birth = (ft as i128 - 116_444_736_000_000_000) * 100; // 1601 年からの 100ns → 1970 年からの ns（Python の st_birthtime_ns）
     format!("{}:{ino}:{birth}", info.dwVolumeSerialNumber)
 }

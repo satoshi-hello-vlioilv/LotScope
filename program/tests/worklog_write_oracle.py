@@ -148,6 +148,15 @@ SCENARIOS = [
     ]},
     {"name": "同じファイル名の行が 2 つ（一覧は並びの順・探し直しは登録の順で結ぶ）", "mode": "shared", "dup": True, "steps": [
         S("GET", M), S("POST", f"{M}/scan"), S("GET", M)]},
+    # 作った後の採点で見つけた割れ（版 3.91.0）: 39 桁を超える並び（窓は書く前・読む前に Python に任せる）
+    {"name": "39 桁を超える並びが 2 行", "mode": "shared", "big": True, "steps": [S("DELETE", f"{M}/5", query="rev=1")], "delegates": [
+        S("GET", M), S("GET", F), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("POST", f"{M}/scan")]},
+    # 配った設定の古さの時間が数でない（参照先は数に直すが、配った設定はそのまま束に入る）: 書く前に Python に任せる（書いた後だと版が 2 つ上がる）
+    {"name": "配った設定の古さが abc（フォルダに届く）", "mode": "shared", "cfg_stale": "abc", "steps": [
+        S("PUT", f"{M}/1", {"備考": "直せる"}), S("DELETE", f"{M}/5")], "delegates": [
+        S("GET", M), S("GET", F), S("POST", f"{M}/scan"), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]})]},
+    {"name": "配った設定の古さが abc（フォルダに届かない）", "mode": "shared", "cfg_stale": "abc", "folder": "無いフォルダ", "steps": [
+        S("PUT", f"{M}/1", {"備考": "直せる"})], "delegates": [S("POST", f"{M}/scan"), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]})]},
     {"name": "古さの警告の時間（字の 12.5）", "mode": "shared", "stale": "12.5", "steps": [S("GET", F, query="all=1")]},
     {"name": "書ける段と門番", "mode": "shared", "perm": perm("一般ユーザー", "部分的編集可"), "steps": [
         S("GET", M),
@@ -195,6 +204,8 @@ def place(root, sc, folder, fid):
     if sc.get("stale"):
         ps.append({"id": 3, "項目": "work_log.stale_hours", "値": sc["stale"], "rev": 1})
     wl = [] if sc["mode"] == "empty" else rows_of(fid)
+    if sc.get("big"):
+        wl[0]["並び"], wl[1]["並び"] = "2" + "0" * 40, "1" + "0" * 40
     if sc.get("dup"):
         wl.append({"id": 9, "キー": "e9", "設備名": "CR1 の 2 つ目", "ファイル名": "実績_cr1.sqlite3", "並び": "0", "rev": 1})
     masters = {"access_permissions": sc.get("perm") or perm(), "work_log_files": wl,
@@ -216,7 +227,8 @@ def place(root, sc, folder, fid):
                                                    "acquired_at": n.isoformat(timespec="seconds"),
                                                    "expires_at": (n + timedelta(seconds=600)).isoformat(timespec="seconds")}), encoding="utf-8")
     cfg = {"lot_list": {"source": "/配った/品質.sqlite3", "table": ""}, "desktop": {"lotlist_engine": "rust"},
-           "identity": {"pc_name": "PC-ORACLE"}, "work_log": {"pattern": sc["pattern"]} if sc.get("pattern") else {},
+           "identity": {"pc_name": "PC-ORACLE"}, "work_log": {**({"pattern": sc["pattern"]} if sc.get("pattern") else {}),
+                                                                  **({"stale_hours": sc["cfg_stale"]} if sc.get("cfg_stale") else {})},
            "master_share": {} if sc["mode"] == "local" else {"dir": str(root / "届かない共有" if sc["mode"] == "unreachable" else share),
                                                                "refresh_seconds": 0}}
     (root / "config.json").write_text(j(cfg), encoding="utf-8")

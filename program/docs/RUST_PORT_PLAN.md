@@ -1012,10 +1012,14 @@ navigate していた。Supervisor::get は錠を持ったまま spawn を最大
 - 本文の読み方: 並べ替えと直す道は get_json(force=True)（silent でない）なので、空・読めない本文は Python（400 の HTML）に任せる。表でない真の本文・並びや表の値・
   i64 に入らない id・数の字が 10 進でない版・i128 に入らない並びの番号も Python に任せる。探し直しでフォルダに届かない・決まりの字の誤りは 503 unreachable、
   結び直しで届かないときは 400 type FolderError（決まりの字の誤りは ValueError）。
-- 評価関数: `cargo test --test worklog_write_parity`（← `tests/worklog_write_oracle.py`。12 場面・80 歩で本物の窓の道〈Lot〉の答え・断る言葉・できたファイルを
+- 評価関数: `cargo test --test worklog_write_parity`（← `tests/worklog_write_oracle.py`。15 場面で本物の窓の道〈Lot〉の答え・断る言葉・できたファイルを
   Python と突き合わせる。実績のファイルのフォルダは 3 つの置き場で共にし、更新時刻は os.utime で決め〈ちょうど .25・.35 時間・1970 年より前・0〉、
   ファイルID は same_fid で同じファイルを指す物をそろえて比べる）・`cargo test --lib worklog_write`・`lot::tests::the_window_answers_the_work_log_registration`・
   自己診断の「作業実績の登録の一覧は窓が答え、Python と同じ答え」「作業実績の登録を書く道も窓が受ける」。
+- 作った後の採点（1 回だけ。71.5 点。減点 −3）: 割れ 2 つを直した（`"built_fixed"`）。(1) 39 桁を超える並びが 2 行あると、窓は i128 の端に潰して順が
+  Python と違った → 桁を数えて Python に任せる。(2) 配った設定の古さの時間が数でないとき、探し直し・並べ替えで窓が書いた後に Python へ任せ、Python がもう一度書いて
+  版が 2 つ上がった → 書く前に古さの時間と並びの番号を確かめる。あわせて、窓の束の材料（work_log_files・path_settings の check）を通った形だけ答え、Windows の
+  file_id は作った時刻が 0 なら付けない（Python と同じ）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

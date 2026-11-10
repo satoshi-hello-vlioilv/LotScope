@@ -162,6 +162,12 @@ impl Lot {
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
         }
+        // 窓が束を組める形だけ（データ元の書く道と同じ）。束が Python から来た形（窓が置き場を同じに読めない）は Python に任せる
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let inp = builder.inputs().ok()?;
+        for name in [NAME, "path_settings"] {
+            inp.check(name).ok()?;
+        }
         let s = self.settings(ask).ok()?;
         let work = &s.lists["work"];
         if !s.access.is_object() || !work.is_object() {

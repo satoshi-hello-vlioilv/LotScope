@@ -93,14 +93,12 @@ fn order_num(r: &Value) -> D<Option<i128>> {
     if t.is_empty() {
         return Ok(None);
     }
-    match crate::bundle::wide_int_text(t) {
-        Some(n) => Ok(Some(n)),
-        // i128 に入らない桁の数（Python の int は桁のまま並べる）は Python に任せる
-        None if t.chars().any(|c| pyfmt::digit(c).is_some()) && t.chars().all(|c| "+-_".contains(c) || pyfmt::digit(c).is_some()) => {
-            Err(Delegate)
-        }
-        None => Ok(None),
+    // i128 に入らない桁の数（39 桁から。Python の int は桁のまま並べる）は Python に任せる。wide_int_text は桁があふれると
+    // i128 の端に潰すので、先に桁を数える（版 3.91.0 の作った後の採点: 40 桁の並びが 2 行あると順が Python と違った）
+    if t.chars().filter(|c| pyfmt::digit(*c).is_some()).count() > 38 {
+        return Err(Delegate);
     }
+    Ok(crate::bundle::wide_int_text(t))
 }
 
 /// ordered: 並びの番号 → 番号の無い行は登録の順で後ろ（行の位置の並び）
@@ -298,6 +296,11 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
     let flag = |k: &str| q.iter().any(|(n, v)| n == k && v == "1");
     let rows = normalized(cx.rows);
     let ok = |v: D<Value>| v.ok().map(|v| (200, v));
+    // 書いた後の答え（_master_view）は古さの時間を読む。読めない形は書く前に Python に任せる（書いた後に任せると Python がもう一度書き、版が 2 つ上がる）
+    // 並びの番号（ordered）も同じ（39 桁を超える並びは Python に任せる）
+    if matches!(route, Route::Scan | Route::Order) && (stale_of(cx.work).is_err() || ordered(&rows).is_err()) {
+        return None;
+    }
     match route {
         Route::Get => ok(master_view(store, cx, &rows, flag("fresh"))),
         Route::Files => {
