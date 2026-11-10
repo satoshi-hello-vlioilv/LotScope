@@ -1975,7 +1975,34 @@ mod tests {
         assert!(lot.handle_body("GET", e, "engine=python", b"", &down).is_none());
         assert!(lot.handle_body("POST", e, "", b"", &down).is_none(), "空の本文は Python（400 の HTML）");
         assert!(lot.handle_body("PUT", &format!("{e}/1"), "", b"[1]", &down).is_none(), "表でない真の本文は Python（500）");
+        // 配る設定の形（CI の自己診断・製品）: CM3 の場所と設備があると、組み込みのスケジュールの元が設備の列を持つ。Python の答えは CM3 に
+        // 届くか（とその PC の Python が前に取れたか）で決まり、窓は同じにできないので、一覧と書ける歩は任せる。断る歩（無い行を直す・消す・
+        // 名前の重なり・確かめの誤り）は Python も数えないので窓が答える（版 3.94.0。CI の 10b'' で見つけた）
+        std::fs::write(
+            &cfg,
+            json!({"master_share": {"dir": share}, "schedule": {"cm3_base_url": "http://127.0.0.1:1", "equipments": "L-1"}}).to_string(),
+        )
+        .unwrap();
+        lot.invalidate();
+        assert!(lot.handle_body("GET", e, "", b"", &down).is_none(), "スケジュールの元があれば一覧は Python");
+        assert!(lot.handle_body("GET", "/api/dashboard/equip-tree", "", b"", &down).is_none(), "設備の木も同じ部品で Python");
+        assert!(lot.handle_body("PUT", &format!("{e}/1"), "", br#"{"note": "x"}"#, &down).is_none(), "書ける歩は Python");
+        let (st, v) = lot.handle_body("PUT", &format!("{e}/987654321"), "", br#"{"note": "x"}"#, &down).unwrap();
+        assert_eq!((st, v["error"].clone()), (404, json!("id=987654321 が見つかりません。")));
+        let (st, _) = lot.handle_body("DELETE", &format!("{e}/987654321"), "", b"", &down).unwrap();
+        assert_eq!(st, 404);
+        let (st, v) = lot.handle_body("PUT", &format!("{e}/1"), "rev=99", br#"{"note": "x"}"#, &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (409, json!("conflict")), "{v}");
+        let (st, _) = lot
+            .handle_body("POST", e, "", json!({"name": "L ライン", "set": "ライン別", "equipment": "A"}).to_string().as_bytes(), &down)
+            .unwrap();
+        assert_eq!(st, 409, "名前の重なりも数えずに断る");
+        assert!(
+            lot.handle_body("DELETE", &format!("{e}/987654321"), "rev=1", b"", &down).is_none(),
+            "版を添えた無い行は一覧を返す（Python）"
+        );
         // 書けない人は門番が断る（読むのは誰でも・canEdit は偽）
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}}).to_string()).unwrap();
         std::fs::write(share.join("access_permissions.json"), perm("閲覧のみ").to_string()).unwrap();
         lot.invalidate();
         let (st, v) = lot.handle_body("DELETE", &format!("{e}/1"), "", b"", &down).unwrap();

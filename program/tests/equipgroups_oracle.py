@@ -264,16 +264,30 @@ SCENARIOS = [
      "delegates": [S("GET", E), S("POST", E, G("x"))]},
 ]
 # 作った後の採点の提案: 選べる設備を数えるマスタ（作業実績・設備マスタ・データ元）のどれかが共有にまだ無いと、窓は束を組めず数えられないので、
-# 書く前に Python に任せる（Python は読むときにそのマスタの最初の版を置く）。確かめで断る歩（数えずに答える）は窓も同じ答え。
+# 書く前に Python に任せる（Python は読むときにそのマスタの最初の版を置く）。断る歩（確かめの誤り・無い行。数えずに答える）は窓も同じ答え。
 # 写しがある形と、写しも data/ も無い形（Python は最初の中身から置く）
 for _absent, _copy in (("work_log_files", True), ("work_log_files", False), ("equipment_master", True), ("equipment_master", False),
                        ("data_sources", True), ("data_sources", False)):
     SCENARIOS.append({"name": f"共有に {_absent} が無い（{'写しから' if _copy else '写しも data/ も無い'}）", "mode": "shared",
                       "absent": _absent, "absent_copy": _copy, "steps": [
                           S("POST", E, {"name": ""}), S("POST", E, "[1]"), S("PUT", f"{E}/1", {"name": ""}),
-                          S("PUT", f"{E}/1", {"equipment": [], "rules": []})],
+                          S("PUT", f"{E}/1", {"equipment": [], "rules": []}), S("DELETE", f"{E}/999"), S("PUT", f"{E}/999", {"name": "x"})],
                       "delegates": [S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"name": "x"}), S("PUT", f"{E}/2", {"equipment": "A"}),
-                                    S("DELETE", f"{E}/4"), S("DELETE", f"{E}/999")]})
+                                    S("DELETE", f"{E}/4"), S("DELETE", f"{E}/999", query="rev=1")]})
+# CI の自己診断で見つけた形（版 3.94.0）: 配る設定に CM3 の場所と設備があると、組み込みのスケジュールの元が設備の列を持つ。Python の選べる設備は
+# CM3 に届くか（とその PC の Python が前に取れたか。覚えはメモリの中）で変わり、窓は同じにできないので、一覧と書ける歩は任せる。
+# 断る歩（確かめの誤り・名前の重なり・無い行・版の食い違い）は Python も一覧を組まずに答えるので、窓が同じ答えを返す。届かない CM3 と、
+# 届く作り物の CM3（tests/schedule_fixture.py）の 2 つ。任せた一覧で Python がスケジュールの設備を数えたか（"from"）も残す
+SCH_STEPS = [S("POST", E, {"name": ""}), S("POST", E, G("CR ライン")), S("PUT", f"{E}/999", {"name": "x"}),
+             S("PUT", f"{E}/999", {"name": "x", "base_rev": 1}), S("PUT", f"{E}/1", {"name": "x", "base_rev": 9}),
+             S("PUT", f"{E}/1", {"set": "工場", "name": "ｃｒ ライン"}), S("PUT", f"{E}/1", {"name": ""}), S("DELETE", f"{E}/999"),
+             S("DELETE", f"{E}/1", query="rev=9"), S("PUT", f"{E}/987654321", {"note": "x"})]
+SCH_DELEGATES = [S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"note": "x"}), S("DELETE", f"{E}/4"),
+                 S("DELETE", f"{E}/999", query="rev=1")]
+SCENARIOS += [{"name": "スケジュールの元がある（CM3 に届かない）", "mode": "shared", "cm3": "down", "steps": SCH_STEPS, "delegates": SCH_DELEGATES},
+              {"name": "スケジュールの元がある（作り物の CM3 に届く）", "mode": "shared", "cm3": "up", "steps": SCH_STEPS, "delegates": SCH_DELEGATES}]
+CM3 = {}                                    # 届く作り物の CM3 の URL（main が起こす）
+
 # 共有にまだ無いとき、Python はその道が読むときに最初の版を置く（道ごとに 1 場面で、置かれるファイルを突き合わせる）
 SEED_STEPS = [
     ("一覧", S("GET", E)),
@@ -324,6 +338,10 @@ def place(root, sc):
         (share / "master.lock.json").write_text(j(lock_doc()), encoding="utf-8")
     cfg = {"lot_list": {"source": str(root / "無い品質.sqlite3"), "table": ""}, "desktop": {"lotlist_engine": "rust"},
            "identity": {"pc_name": "PC-ORACLE"},
+           **({"schedule": {"cm3_base_url": CM3["url"] if sc["cm3"] == "up" else "http://127.0.0.1:1", "equipments": "L-1",
+                            "timeout_sec": 3},
+                  # スケジュールは既定で仕掛と結合する（届かない仕掛は「写し中」でスケジュールごと飛ぶ）。仕掛は場面の SQLite に
+                  "sources": {"wip": {"source": str(root / "仕掛.sqlite3"), "table": "仕掛"}}} if sc.get("cm3") else {}),
            "master_share": {} if sc["mode"] == "local" else {"dir": str(root / "届かない共有" if sc["mode"] == "unreachable" else share),
                                                                "refresh_seconds": 0}}
     (root / "config.json").write_text(j(cfg), encoding="utf-8")
@@ -360,6 +378,12 @@ def main():
     base = Path(sys.argv[1])
     if base.exists():
         shutil.rmtree(base)
+    from datetime import datetime as dt, timedelta as td, timezone as tz
+    from tests import schedule_fixture
+    lots = [(f"S{n}", "CR1", "L-1 LS3") for n in range(6)]
+    rows = schedule_fixture.schedule_rows("L-1", lots, dt(2026, 10, 3, 8, 12, tzinfo=tz(td(hours=9))), 1)
+    srv, CM3["url"] = schedule_fixture.serve({"L-1": {"status": "SUCCESS", "entity": {"setsubiName": "L-1", "termKbn": "4", "updateTs": 0,
+                                                                                        "error": False, "errorMessage": "", "meisaiList": rows}}})
     out = []
     for i, sc in enumerate(SCENARIOS):
         py, rs, pd = (base / f"s{i}" / x for x in ("py", "rs", "pd"))
@@ -367,11 +391,14 @@ def main():
             place(r, sc)
         steps = run(py, sc["steps"])
         # 任せる歩は答えの本文を比べない（NaN の答えもある）。状態と、Python が置いたマスタのファイルの名前（共有・data/）は残す
-        dele = [{**x, "json": None} for x in run(pd, sc.get("delegates", []))]
+        dele = [{**x, "json": None, "from": sorted({f for e in (x["json"] or {}).get("seen") or [] for f in e.get("from") or []})}
+                for x in run(pd, sc.get("delegates", []))]
         out.append({"name": sc["name"], "py": str(py), "rs": str(rs), "steps": steps, "delegates": dele,
                     "absent": sc.get("absent"),
+                    "cm3": sc.get("cm3"),
                     "delegatedFiles": sorted(f"{d}/{f.name}" for d in ("share", "base/data") for f in (pd / d).glob("*.json")),
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
+    srv.shutdown()
     sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False))
 
 

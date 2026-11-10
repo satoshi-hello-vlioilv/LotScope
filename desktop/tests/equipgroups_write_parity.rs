@@ -72,7 +72,7 @@ fn equipment_groups_match_python() {
     let base = common::work("equipgroups-write");
     let oracle = common::python_json("equipgroups_oracle.py", &[base.to_str().unwrap()]);
     let mut bad = vec![];
-    let (mut steps, mut delegated, mut seen, mut placed_by_python) = (0, 0, 0, 0);
+    let (mut steps, mut delegated, mut seen, mut placed_by_python, mut cm3_cases) = (0, 0, 0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         let e = &sc["env"];
@@ -152,6 +152,16 @@ fn equipment_groups_match_python() {
                 bad.push(format!("{name}: {f} を Python が置いた {python_placed}・窓が置いた {}", nr.contains(&f)));
             }
         }
+        // スケジュールの元がある場面（版 3.94.0。CI の自己診断で見つけた）: 任された Python の選べる設備は CM3 に届くかで変わる（届けば
+        // スケジュールの設備も数える）。窓は CM3 へ取りに行かないので同じにできず、一覧と書ける歩は任せる（断る歩は上で同じ答え）
+        if let Some(cm3) = sc["cm3"].as_str() {
+            let counted = sc["delegates"][0]["from"].as_array().is_some_and(|f| f.contains(&json!("スケジュール")));
+            if counted == (cm3 == "up") {
+                cm3_cases += 1;
+            } else {
+                bad.push(format!("{name}: CM3 {cm3} で Python がスケジュールの設備を数えた {counted}"));
+            }
+        }
         let (fp, fr) = (files(Path::new(sc["py"].as_str().unwrap())), files(&rs));
         for (k, v) in &fp {
             if let Some(d) = common::diff(v, fr.get(k).unwrap_or(&Value::Null), k) {
@@ -176,8 +186,9 @@ fn equipment_groups_match_python() {
     eprintln!(
         "答えた歩 {steps}・任せた歩 {delegated}・データ元の設備を数えた答え {seen}・共有に無い数える材料を任せた場面 {placed_by_python}"
     );
-    assert!(steps >= 170 && delegated >= 80, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 190 && delegated >= 90, "歩が少ない: {steps}・{delegated}");
     assert!(placed_by_python >= 6, "共有にまだ無いマスタを任せる場面が空振り: {placed_by_python}");
+    assert!(cm3_cases >= 2, "スケジュールの元の場面が空振り: {cm3_cases}");
     assert!(seen >= 40, "データ元の設備の列から数えた答えが少ない: {seen}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));

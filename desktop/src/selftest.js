@@ -306,21 +306,28 @@
     }
 
     // 10b'') 設備グループ（版 3.94.0 から窓が答える: equipgroups_write.rs）: 一覧（選べる設備の出どころと件数も）は Python と同じ答え。
-    //        書く道は書かずに確かめる（無いグループを直すは Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）
+    //        書く道は書かずに確かめる（無いグループを直すは Python と同じ言葉で断る。書けない人の PC では窓の門番が先に断る）。
+    //        スケジュールの元（CM3 の場所と設備の列。配る設定の既定）がある PC では、Python の選べる設備は CM3 に届くか（とその Python が
+    //        前に取れたか）で変わり、窓は CM3 へ取りに行かないので同じにできない。そのときの一覧は窓が Python に任せ、答えが同じことを見る
+    //        （CI の自己診断で見つけた。断る歩は Python も数えないので、どちらの PC でも窓が答える）
     {
       const canonG = (v) => Array.isArray(v) ? v.map(canonG) : v && typeof v === "object"
         ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonG(v[k])])) : v;
       const a = "/api/masters/equipgroups";
+      let sch = false;
+      try { sch = (JSON.parse((await get("/api/dashboard/sources")).text).items || []).some((x) => x.key === "src:sch" && x.place && x.equip); } catch (_) { sch = false; }
+      const want = sch ? "python" : "shell";
       let rs, py, same = false;
       for (const until = Date.now() + 15000; ;) {      // 最初の版を置く途中・データ元の最初の写しの途中は尋ね直す（10b' と同じ）
         py = await get(a + "?engine=python"); rs = await get(a);
         same = rs.r.status === py.r.status && py.by === "python";
         try { same = same && JSON.stringify(canonG(JSON.parse(rs.text))) === JSON.stringify(canonG(JSON.parse(py.text))); } catch (_) { same = false; }
-        if ((same && rs.by === "shell") || Date.now() > until) break;
+        if ((same && rs.by === want) || Date.now() > until) break;
         await new Promise((r) => setTimeout(r, 1000));
       }
-      ok("設備グループの一覧は窓が答え、Python と同じ答え（選べる設備の出どころと件数も）", rs.by === "shell" && same,
-         `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}`);
+      ok(sch ? "設備グループの一覧は、スケジュールの元（CM3）がある PC では Python に任せ、答えが同じ（窓は CM3 の設備を数えられない）"
+             : "設備グループの一覧は窓が答え、Python と同じ答え（選べる設備の出どころと件数も）", rs.by === want && same,
+         `窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${sch ? "・スケジュールの元あり" : ""}`);
       const why = (x) => { try { return JSON.parse(x.text); } catch (_) { return {}; } };
       const gone = await get(a + "/987654321", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "x" }) });
       ok("設備グループを書く道も窓が受ける（無いグループを直すを Python と同じ言葉で断る。書けない人は門番が断る）",

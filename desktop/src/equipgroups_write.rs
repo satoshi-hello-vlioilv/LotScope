@@ -299,9 +299,9 @@ pub fn handle(
     seen: &dyn Fn() -> Option<Vec<Value>>,
 ) -> Option<Answer> {
     // 書いた後の一覧（読み直せなければ、書いたことだけを知らせる。None を返すと Python がもう一度書く）。選べる設備は書く前に数えた物
-    // （書くのは設備グループだけで、選べる設備は変わらない）
-    let done = |status: u16, extra: Value, seen: Vec<Value>| -> Option<Answer> {
-        let Some(mut v) = read(place).and_then(|rows| listing(store, me, &rows, seen)) else {
+    // （書くのは設備グループだけで、選べる設備は変わらない）。断ると見込んで数えなかった歩が書けた（ほかの PC と行き違った）ときだけ、ここで数える
+    let done = |status: u16, extra: Value, counted: Option<Vec<Value>>| -> Option<Answer> {
+        let Some(mut v) = read(place).and_then(|rows| listing(store, me, &rows, counted.or_else(seen)?)) else {
             return Some((
                 503,
                 json!({"error": "保存しましたが、読み直せませんでした。画面を開き直してください。", "kind": "reread", "saved": true}),
@@ -322,6 +322,16 @@ pub fn handle(
         let named = row.contains_key("名称") || row.contains_key("まとめ方");
         move |rows: &[Value], d: &Map<String, Value>, self_id: Option<i64>| if named { check_unique(rows, d, self_id) } else { Ok(()) }
     };
+    // 選べる設備を数える（Some(Some)）。書く係が断ると読んだ行から分かる歩（無い行・版の食い違い・名前の重なり）は、Python も一覧を組まずに
+    // 断る（選べる設備を数えない）ので、数えずに書く係へ渡す（Some(None)。版 3.94.0: スケジュールの元があって数えられない PC でも、無い行を
+    // 直す・消すは Python と同じ 404 を窓が答える）。書けると見込む歩で数えられなければ None（書かずに Python に任せる）
+    let count = |refused: bool| -> Option<Option<Vec<Value>>> {
+        if refused {
+            Some(None)
+        } else {
+            seen().map(Some)
+        }
+    };
     match route {
         Route::List => {
             seed(store, place, NAME); // 共有にまだ無ければ、Python が読むときと同じく最初の版を置く
@@ -341,7 +351,7 @@ pub fn handle(
             };
             seed(store, place, NAME); // equip_group_create は表示順を数えるか書くために設備グループを読む
             let rows = read(place)?;
-            let seen = seen()?;
+            let seen = count(check_unique(&rows, &row, None).is_err())?;
             if strip(&py_str(row.get("表示順").unwrap_or(&json!("")))).is_empty() {
                 let order = master_rows::next_order(&rows)?;
                 order.parse::<i64>().ok()?;
@@ -365,7 +375,16 @@ pub fn handle(
                 Ok(row) => row,
                 Err(a) => return a,
             };
-            let seen = seen()?;
+            let named = row.contains_key("名称") || row.contains_key("まとめ方");
+            let refused = match rows.iter().find(|r| master_rows::same_id(r, id)) {
+                None => true, // 無い行は 404（版を添えたなら 409）
+                Some(r) => {
+                    let mut merged = r.as_object().cloned().unwrap_or_default();
+                    merged.extend(row.clone());
+                    master_rows::check_rev(r, base).is_err() || named && check_unique(&rows, &merged, Some(id)).is_err()
+                }
+            };
+            let seen = count(refused)?;
             let check = checker(&row);
             match master_rows::update(store, &SPEC, id, &row, base, &check) {
                 Ok(_) => done(200, json!({}), seen),
@@ -375,8 +394,12 @@ pub fn handle(
         Route::Delete(id) => {
             let base = rev_of(body, query)?;
             seed(store, place, NAME); // 消す係は書く前に共有から取り直す（無ければ最初の版を置く）
-            read(place)?;
-            let seen = seen()?;
+            let rows = read(place)?;
+            let refused = match rows.iter().find(|r| master_rows::same_id(r, id)) {
+                None => base.is_none(), // 無い行は 404（版を添えたなら、もう消えている＝望みどおりで一覧）
+                Some(r) => master_rows::check_rev(r, base).is_err(),
+            };
+            let seen = count(refused)?;
             match master_rows::delete(store, &SPEC, id, base) {
                 Ok(()) => done(200, json!({}), seen),
                 Err(e) => Some(of_master(e)),
