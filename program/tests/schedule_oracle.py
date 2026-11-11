@@ -37,6 +37,7 @@ from tests import lotlist_fixture, schedule_fixture as fx  # noqa: E402
 from tests.equipgroups_oracle import LOGIN, doc, j, perm  # noqa: E402
 
 JST = timezone(timedelta(hours=9))
+WINDOWS = os.name == "nt"           # Windows でだけ窓が Python に任せる歩
 SCH = "/api/src/sch"
 
 
@@ -115,6 +116,8 @@ def shape_answers(update):
         "SA": {"status": "SUCCESS", "entity": None},
         "SB": {"status": "SUCCESS", "entity": {"error": True, "errorMessage": ""}},
         "SC": {"status": "SUCCESS", "entity": {"updateTs": -1000, "meisaiList": None}},
+        "SD": {"status": "SUCCESS", "entity": {"updateTs": 33_000_000_000_000, "meisaiList": rows}},        # 3015 年
+        "SE": {"status": "SUCCESS", "entity": {"updateTs": -100_000_000_000_000, "meisaiList": None}},   # 1 年より前（どの OS でも None）
     }
 
 
@@ -243,7 +246,7 @@ LIST_STEPS = [S("/api/schedule"), S("/api/schedule/card"), S(SCH, "equip=L-1"), 
               S("/api/src/v1"), S("/api/src/v1/source"), S("/api/src/v1/refresh", method="POST"),
               S(SCH, "equip=__HOT__&search=HOT"), S(f"{SCH}/pivot", "equip=__HOT__&fields=1")]
 ONE = [S(SCH, "equip=L-1"), S(SCH, "equip=L-1"), S(f"{SCH}/source", "equip=L-1"), S("/api/schedule/card")]
-SHAPES = [S(SCH, f"equip={e}") for e in ("S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "SA", "SB", "SC")] + \
+SHAPES = [S(SCH, f"equip={e}") for e in ("S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "SA", "SB")] + \
          [S("/api/schedule/card"), S(f"{SCH}/source", "equip=S9"), S(f"{SCH}/source", "equip=S7")]
 
 
@@ -281,8 +284,12 @@ def scenes(world_port, blackhole):
         ("引用符つきの charset", {**base, "cm3_base_url": u("quoted")}, ONE[:1], None),
         ("charset=ISO-8859-1（文字化けを戻す）", {**base, "cm3_base_url": u("latin")}, ONE[:1], None),
         ("文字化けと HTML の壊れ方", {**base, "equipments": "L-1", "cm3_base_url": u("html")}, ONE[:1], None),
-        ("答えの形の端", {**base, "equipments": "S1 S2 S3 S4 S5 S6 S7 S8 S9 SA SB SC", "inspect_keywords": "点検板、Y7",
+        ("答えの形の端", {**base, "equipments": "S1 S2 S3 S4 S5 S6 S7 S8 S9 SA SB", "inspect_keywords": "点検板、Y7",
                        "cm3_base_url": u("shapes")}, SHAPES, None),
+        # 1970 年より前・3000 年から後の更新時刻: Windows の gmtime_s（UCRT）が受けるかは CPython のソースで決まらない（CI で −1 秒を受けた）ので、
+        # Windows では窓が答えず Python に任せる。1 年より前（どの OS でも None）は窓が答える
+        ("1970 年より前・3000 年から後の更新時刻", {**base, "equipments": "SC SD SE", "cm3_base_url": u("shapes")},
+         [S(SCH, "equip=SC", delegate=WINDOWS), S(SCH, "equip=SD", delegate=WINDOWS), S(SCH, "equip=SE")], None),
         ("URL に種類が無い", {**base, "cm3_base_url": "nlmfangyweb1a:9085"}, ONE[:1], None),
         ("URL が決まっていない", {**base, "cm3_base_url": "", "init_path": "", "client_ip": 0}, ONE[:1], None),
         ("設備が無い", {**base, "equipments": "、", "cm3_base_url": u("ok")}, [S(SCH), S("/api/schedule"), S("/api/schedule/card")], None),

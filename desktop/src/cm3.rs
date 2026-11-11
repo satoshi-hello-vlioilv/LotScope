@@ -585,7 +585,17 @@ pub fn ms_to_seconds(ts: &Tree) -> Result<Option<f64>, Overflow> {
     Ok(Some(if neg { -v } else { v }))
 }
 
-/// datetime.fromtimestamp(t, tz=JST)。範囲の外（OverflowError・ValueError・OSError）は None
+/// Windows の CPython で datetime.fromtimestamp(t, tz=JST) の答えが確かでない時刻か（版 3.96.0。Windows の CI で見つけた）。
+/// tz を渡すと CPython は _PyTime_gmtime（Windows は UCRT の gmtime_s）で UTC にし、gmtime_s が断れば OSError（Python は None にする）。
+/// gmtime_s の受ける範囲は CPython のソースでは決まらない（CI で −1 秒を受けた。前の版はここを 0 から〈3000 年の後まで〉と推して None を
+/// 答え、Python の「1970/01/01 08:59:59」と割れた）。Linux の答えが時刻になる値のうち、1970 年より前と 3000 年から後は窓が答えず Python に任せる。
+/// 両方の OS で None になる値（1 年より前・9999 年より後）は窓が答える
+fn windows_unsure(t: f64) -> bool {
+    cfg!(windows) && !(0.0..32_535_216_000.0).contains(&t)
+}
+
+/// datetime.fromtimestamp(t, tz=JST)（Linux の gmtime の範囲）。範囲の外（OverflowError・ValueError・OSError）は None。
+/// Windows で答えの確かでない値は呼ぶ前に windows_unsure で除く
 fn from_timestamp(t: f64) -> Option<Jst> {
     // _PyTime_DoubleToDenominator（マイクロ秒は偶数への丸め）
     let ip = t.trunc();
@@ -602,10 +612,6 @@ fn from_timestamp(t: f64) -> Option<Jst> {
         return None;
     }
     let sec = sec as i64;
-    // Windows の gmtime_s は負と 3000 年の後を断る（OSError）
-    if cfg!(windows) && !(0..=32_536_850_399).contains(&sec) {
-        return None;
-    }
     let utc = chrono::DateTime::from_timestamp(sec, (fp as u32) * 1000)?.naive_utc();
     use chrono::Datelike;
     if utc.year() < 1 || utc.year() > 9999 {
@@ -738,7 +744,13 @@ pub fn normalize(raw: &Tree, own: &str, keywords: &[String]) -> R<Value> {
     }
     let ts = entity.get("updateTs").cloned().unwrap_or(Tree::Null);
     let update_dt = match ms_to_seconds(&ts) {
-        Ok(Some(t)) => from_timestamp(t),
+        Ok(Some(t)) => {
+            let d = from_timestamp(t);
+            if d.is_some() && windows_unsure(t) {
+                return py("Windows の gmtime_s が受けるか確かでない更新時刻（1970 年より前・3000 年から後）");
+            }
+            d
+        }
         _ => None,
     };
     use chrono::Datelike;

@@ -39,16 +39,52 @@ pub fn os_text(e: &std::io::Error) -> String {
     }
     match e.raw_os_error() {
         Some(n) => {
-            let full = e.to_string();
-            let msg = full.strip_suffix(&format!(" (os error {n})")).unwrap_or(&full).to_string();
-            if cfg!(windows) {
-                format!("[WinError {n}] {}", msg.trim_end_matches(|c: char| c.is_whitespace() || c == '.'))
-            } else {
+            #[cfg(windows)]
+            {
+                format!("[WinError {n}] {}", win_message(n))
+            }
+            #[cfg(not(windows))]
+            {
+                let full = e.to_string();
+                let msg = full.strip_suffix(&format!(" (os error {n})")).unwrap_or(&full).to_string();
                 format!("[Errno {n}] {msg}")
             }
         }
         None => full_text(e),
     }
+}
+
+/// Windows の誤りの文（CPython の PyErr_SetExcFromWindowsErr と同じ: FormatMessageW を言語 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)
+/// ＝0x0400 で引き、末尾の「' ' 以下の字」と「.」を切る。引けなければ「Windows Error 0x<16 進>」）。Rust の io::Error の文は言語 0 で引き
+/// （スレッドの UI の言語が先）、切り方も違うので使わない（版 3.96.0。Windows の CI の後に、推して書いた所を CPython のソースに合わせた）
+#[cfg(windows)]
+fn win_message(n: i32) -> String {
+    use windows::Win32::System::Diagnostics::Debug::{FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS};
+    let mut buf = vec![0u16; 8192];
+    // SAFETY: buf は nsize 字ぶん確保してある。挿入（arguments）は使わない
+    let len = unsafe {
+        FormatMessageW(
+            FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            None,
+            n as u32,
+            0x0400,
+            windows::core::PWSTR(buf.as_mut_ptr()),
+            buf.len() as u32,
+            None,
+        )
+    } as usize;
+    if len == 0 {
+        return format!("Windows Error 0x{:x}", n as u32);
+    }
+    let mut w = &buf[..len.min(buf.len())];
+    while let Some((&last, rest)) = w.split_last() {
+        if last <= u16::from(b' ') || last == u16::from(b'.') {
+            w = rest;
+        } else {
+            break;
+        }
+    }
+    String::from_utf16_lossy(w)
 }
 
 fn full_text(e: &std::io::Error) -> String {
