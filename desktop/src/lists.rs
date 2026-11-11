@@ -6,11 +6,13 @@
 //!   マスタは共有のマスタにあるので読むのは Python、決めるのは Rust
 //! - 作業実績のフォルダは窓が見る（10 秒覚える）。名前が変わったファイルは、同じファイルID の物をたどる（work_log.match と同じ決まり）
 //! - 写しは窓の写しの係（mirror::Mirrors）。結合は src/join.rs
-//! - スケジュール（CM3）は Python のまま（None を返して Python へ回す）
+//! - スケジュール（CM3。版 3.96.0 から窓が係）: 設備ごとに src/schedule.rs が CM3 から取って置いた世代に、データ元の結合を当てる。
+//!   設定（schedule の段）は一覧の設定の scheduleConf（窓の束から。Python に尋ねた設定には無い＝窓は答えず Python に任せる）
 
 use crate::join::{Join, JoinError, Joiner, Right};
 use crate::lotlist::{self, Opts, TABLE_CANDIDATES, WORK_TABLES};
 use crate::mirror::{DbMirror, Mirrors};
+use crate::schedule::{self, Cfg, Schedules, St, HOT_KEY};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -235,6 +237,21 @@ pub struct Plan {
     /// 表の候補を決める元（結合した表は元の元。Python の candKey）
     pub cand_key: String,
     pub lot_col: Option<String>,
+    /// 結合の数（with_joins の stats。結合が無ければ Null）
+    pub joined: Value,
+    /// スケジュールの段取り（設備・覚え。版 3.96.0）
+    pub sched: Option<SchPlan>,
+}
+
+/// スケジュールの段取りの残り（一覧の答えに添える数のため）
+pub struct SchPlan {
+    pub cfg: Cfg,
+    pub equip: String,
+    pub state: St,
+    /// HOT の設備ごとの覚え
+    pub states: Vec<(String, St)>,
+    /// HOT の情報
+    pub hot: Option<Value>,
 }
 
 impl Plan {
@@ -280,6 +297,12 @@ impl Conf<'_> {
     pub fn work(&self) -> &Value {
         &self.v["work"]
     }
+    /// スケジュールの設定（一覧の設定の scheduleConf）。無ければ None（窓は答えず Python に任せる）・組めなければ Some(Err)
+    pub fn sched_cfg(&self) -> Option<Result<Cfg, &'static str>> {
+        let v = self.v.get("scheduleConf")?;
+        Some(Cfg::from_section(Some(v)))
+    }
+
     pub fn shifts(&self) -> Vec<Value> {
         self.v["shifts"].as_array().cloned().unwrap_or_default()
     }
@@ -304,6 +327,8 @@ pub struct Lists {
     pub work: Mirrors,
     pub src: Mirrors,
     pub joiner: Joiner,
+    /// スケジュールの係（版 3.96.0。この PC の作業場所の db_cache/schedule）
+    pub sched: Arc<Schedules>,
     listing: Mutex<Listing>,
     /// フォルダの中身を覚える長さ（既定 LIST_TTL。試験は 0 にして、届かなくなったフォルダをすぐ見る）
     pub list_ttl: Duration,
@@ -315,6 +340,7 @@ impl Lists {
             work: Mirrors::new(cache_root.join("work_log"), "work_log"),
             src: Mirrors::new(cache_root.join("sources"), "src"),
             joiner: Joiner::new(cache_root.join("joins")),
+            sched: Arc::new(Schedules::new(cache_root.join("schedule"))),
             listing: Mutex::default(),
             list_ttl: LIST_TTL,
         }
@@ -322,6 +348,12 @@ impl Lists {
 
     /// 受け身の Python からの「写して」（{prefix, key, remote, interval, stale}）
     pub fn notice(&self, v: &Value) {
+        if v["event"] == "schedule" {
+            // 受け身の Python からの「取って」（版 3.96.0）: 窓の係が裏で取り、状態のファイルを書く（知らせの糸を止めない）
+            let (me, v) = (self.sched.clone(), v.clone());
+            std::thread::spawn(move || me.on_notice(&v));
+            return;
+        }
         if v["event"] != "mirror" {
             return;
         }
@@ -389,6 +421,8 @@ impl Lists {
             equip: None,
             cand_key: "lot".into(),
             lot_col: conf.lot_set("lot"),
+            joined: Value::Null,
+            sched: None,
         };
         match (joined, conf.source("lot")) {
             (true, Some(s)) => self.with_joins(conf, q, plan, s, None),
@@ -477,6 +511,8 @@ impl Lists {
             equip: Some(equip),
             cand_key: "work".into(),
             lot_col: conf.lot_set("work"),
+            joined: Value::Null,
+            sched: None,
         };
         match (joined && plan.path.is_some(), conf.source("work")) {
             (true, Some(s)) => self.with_joins(conf, q, plan, s, Some(&format!("work-{key}"))),
@@ -486,6 +522,22 @@ impl Lists {
 
     /// データ元（/api/src/<キー>）の段取り（Python の src_plan）。Ok(None) はスケジュール（Python が答える）
     pub fn src_plan(&self, conf: &Conf, q: &Quality, key: &str, need_copy: bool, joined: bool) -> Result<Option<Plan>, Fail> {
+        self.src_plan_eq(conf, q, key, need_copy, joined, "", false)
+    }
+
+    /// src_plan に、スケジュールの設備（equip。空なら最初の設備・__HOT__ は HOT コイル作業順）と取り直し（force）を足した物。
+    /// Ok(None) は窓が答えない形（スケジュールの設定を窓が組めない・係を降りた）
+    #[allow(clippy::too_many_arguments)]
+    pub fn src_plan_eq(
+        &self,
+        conf: &Conf,
+        q: &Quality,
+        key: &str,
+        need_copy: bool,
+        joined: bool,
+        equip: &str,
+        force: bool,
+    ) -> Result<Option<Plan>, Fail> {
         let Some(s) = conf.source(key).filter(|s| text(&s["api"]).starts_with("/api/src/")) else {
             return Err(error(404, "そのデータ元はありません。「マスタ管理」の「データ元」で確かめてください。", Some("unknown"), &[]));
         };
@@ -497,7 +549,7 @@ impl Lists {
         }
         let read = &s["read"];
         match s["kind"].as_str() {
-            Some("cm3") => return Ok(None),
+            Some("cm3") => return self.sch_plan(conf, q, s, equip, force, joined),
             Some("view") => {
                 if truthy(&s["broken"]) {
                     return Err(error(
@@ -508,10 +560,8 @@ impl Lists {
                     ));
                 }
                 let base = text(&s["base"]);
-                if conf.source(&base).is_some_and(|b| b["kind"] == "cm3") {
-                    return Ok(None); // スケジュールを元にした結合した表は Python が答える
-                }
-                let mut plan = self.raw_plan(conf, q, &base)?;
+                // スケジュールを元にした結合した表（版 3.96.0 から窓）: 元は最初の設備の予定（Python の raw_plan → schedule_plan）
+                let Some(mut plan) = self.raw_plan_opt(conf, q, &base)? else { return Ok(None) };
                 plan.page_size = num(&read["page_size"], 500.0) as i64;
                 plan.cand_key = base;
                 plan.lot_col = Some(text(&s["lotSet"])).filter(|x| !x.is_empty());
@@ -542,12 +592,22 @@ impl Lists {
             equip: None,
             cand_key: key.into(),
             lot_col: Some(text(&s["lotSet"])).filter(|x| !x.is_empty()),
+            joined: Value::Null,
+            sched: None,
         };
         if joined && plan.path.is_some() {
             self.with_joins(conf, q, plan, s, None).map(Some)
         } else {
             Ok(Some(plan))
         }
+    }
+
+    /// raw_plan のうち、スケジュールの元で窓が答えない形を None にした物
+    fn raw_plan_opt(&self, conf: &Conf, q: &Quality, key: &str) -> Result<Option<Plan>, Fail> {
+        if conf.source(key).is_some_and(|b| b["kind"] == "cm3") {
+            return self.src_plan(conf, q, key, true, false);
+        }
+        self.raw_plan(conf, q, key).map(Some)
     }
 
     /// 結合しない元のままの段取り（結合の相手・結合した表の元。Python の raw_plan）
@@ -600,13 +660,262 @@ impl Lists {
         let name = text(&s["name"]);
         let key = scope.map(str::to_string).unwrap_or_else(|| text(&s["key"]));
         match self.joiner.path_for(&key, &base, &table, &joins, &rights) {
-            Ok((path, _)) => Ok(Plan { path: Some(path), table, ..plan }),
+            Ok((path, stats)) => Ok(Plan { path: Some(path), table, joined: stats, ..plan }),
             Err(e) => {
                 let st = if matches!(e, JoinError::Rule(_)) { 400 } else { 503 };
                 Err(error(st, &format!("「{name}」の結合を組めませんでした: {e}"), Some("join"), &[]))
             }
         }
     }
+}
+
+// ------------------------------------------------------------------ スケジュール（版 3.96.0。Python の routes/schedule.py）
+impl Lists {
+    /// 問い合わせの設備（空なら最初の設備。Python の equip_of）
+    fn sch_equip(cfg: &Cfg, equip: &str) -> Result<String, Fail> {
+        let codes: Vec<&str> = cfg.equipments.iter().map(|e| e.code.as_str()).collect();
+        if equip.is_empty() {
+            return codes
+                .first()
+                .map(|c| c.to_string())
+                .ok_or_else(|| error(400, "スケジュールの設備が決まっていません（参照先の「スケジュールの設備」）。", Some("unset"), &[]));
+        }
+        if equip == HOT_KEY {
+            if cfg.hot.equipments.is_empty() {
+                return Err(error(400, "HOT コイル作業順の設備が決まっていません。", Some("unset"), &[]));
+            }
+            return Ok(equip.into());
+        }
+        if !codes.contains(&equip) {
+            return Err(error(400, &format!("未登録の設備です: {equip}"), Some("unset"), &[]));
+        }
+        Ok(equip.into())
+    }
+
+    /// スケジュールの段取り（Python の schedule_plan）。Ok(None) は窓が答えない形（Python に任せる）
+    fn sch_plan(&self, conf: &Conf, q: &Quality, s: &Value, equip: &str, force: bool, joined: bool) -> Result<Option<Plan>, Fail> {
+        let Some(Ok(cfg)) = conf.sched_cfg() else { return Ok(None) };
+        let code = Self::sch_equip(&cfg, equip)?;
+        if code == HOT_KEY {
+            return self.hot_plan(conf, q, s, cfg, force);
+        }
+        let st = match self.sched.ensure(&cfg, &code, cfg.auto_refresh(), force) {
+            Ok(st) => st,
+            Err(crate::cm3::Fail::Cm3(e)) => {
+                return Err(error(502, &format!("{code} の予定を CM3 から取れません: {e}"), Some("cm3"), &[]));
+            }
+            Err(crate::cm3::Fail::Python(_)) => return Ok(None),
+        };
+        if schedule::source_info_falls(&st) {
+            return Ok(None);
+        }
+        let plan = Plan {
+            mirror: None,
+            path: st.path.clone(),
+            table: schedule::TABLE.into(),
+            page_size: num(&s["read"]["page_size"], 500.0) as i64,
+            source: schedule::source_info(&cfg, &st, &code),
+            equip: None,
+            cand_key: text(&s["key"]),
+            lot_col: Some(text(&s["lotSet"])).filter(|x| !x.is_empty()),
+            joined: Value::Null,
+            sched: Some(SchPlan { cfg, equip: code.clone(), state: st, states: vec![], hot: None }),
+        };
+        if !joined {
+            return Ok(Some(plan));
+        }
+        let rs = self.sch_resolved(conf, q, s);
+        self.with_joins(conf, q, plan, &rs, Some(&format!("sch_{}", schedule::safe(&code)))).map(Some)
+    }
+
+    /// 結合の仕掛の鍵の列を、仕掛の写しの実際の列に合わせる（Python の _resolved。写せていなければそのまま）
+    fn sch_resolved(&self, conf: &Conf, q: &Quality, s: &Value) -> Value {
+        let joins = s["joins"].as_array().cloned().unwrap_or_default();
+        if !joins.iter().any(|j| j["with"] == "wip") {
+            return s.clone();
+        }
+        let Ok(plan) = self.raw_plan(conf, q, "wip") else { return s.clone() };
+        let path = plan.path.clone().unwrap_or_default();
+        let Ok(t) = actual_table(&path, &plan.table, "wip") else { return s.clone() };
+        let Ok(cols) = table_columns(&path, &t) else { return s.clone() };
+        let auto = lotlist::lot_column(&cols, None);
+        let mut out = s.clone();
+        let new: Vec<Value> = joins
+            .into_iter()
+            .map(|mut j| {
+                if j["with"] == "wip" {
+                    if let Some(on) = j["on"].as_array() {
+                        let on: Vec<Value> = on
+                            .iter()
+                            .map(|p| {
+                                let (a, b) = (p[0].clone(), text(&p[1]));
+                                let b = if cols.contains(&b) || auto.is_empty() { b } else { auto.clone() };
+                                json!([a, b])
+                            })
+                            .collect();
+                        j["on"] = Value::Array(on);
+                    }
+                }
+                j
+            })
+            .collect();
+        out["joins"] = Value::Array(new);
+        out
+    }
+
+    /// HOT コイル作業順（Python の hot_plan）
+    fn hot_plan(&self, conf: &Conf, q: &Quality, s: &Value, cfg: Cfg, force: bool) -> Result<Option<Plan>, Fail> {
+        let got = self.sched.ensure_many(&cfg, &cfg.hot.equipments, cfg.auto_refresh(), force);
+        if got.iter().any(|(_, r)| matches!(r, Err(crate::cm3::Fail::Python(_)))) {
+            return Ok(None);
+        }
+        let rs = self.sch_resolved(conf, q, s);
+        if Join::list(&rs["joins"]).is_empty() {
+            return Err(error(
+                400,
+                "HOT コイル作業順は、スケジュールを仕掛と結合して使います（前工程・次の設備・釜番は仕掛の列）。「マスタ管理」の「データ元」で、スケジュールに仕掛の結合を足してください。",
+                Some("join"),
+                &[],
+            ));
+        }
+        let (mut parts, mut errors, mut states) = (vec![], vec![], vec![]);
+        for (code, r) in got {
+            let st = match r {
+                Ok(st) => st,
+                Err(crate::cm3::Fail::Cm3(e)) => {
+                    errors.push(format!("{code}: {e}"));
+                    continue;
+                }
+                Err(crate::cm3::Fail::Python(_)) => return Ok(None),
+            };
+            if schedule::source_info_falls(&st) {
+                return Ok(None);
+            }
+            let base = Plan {
+                mirror: None,
+                path: st.path.clone(),
+                table: schedule::TABLE.into(),
+                page_size: 0,
+                source: Value::Null,
+                equip: None,
+                cand_key: text(&s["key"]),
+                lot_col: None,
+                joined: Value::Null,
+                sched: None,
+            };
+            let p = self.with_joins(conf, q, base, &rs, Some(&format!("sch_{}", schedule::safe(&code))))?;
+            parts.push((code.clone(), p.path.unwrap_or_default(), p.table));
+            states.push((code, st));
+        }
+        if parts.is_empty() {
+            let msg = if errors.is_empty() { "HOT の設備の予定を取れません。".to_string() } else { errors.join(" / ") };
+            return Err(error(502, &msg, Some("cm3"), &[]));
+        }
+        let Ok((path, info)) = self.sched.build_hot(&cfg, &parts, &errors) else { return Ok(None) };
+        let hot = self.sched.peek(HOT_KEY);
+        let ats: Vec<f64> =
+            states.iter().filter_map(|(k, st)| schedule::source_info(&cfg, st, k)["at"].as_f64()).filter(|x| *x != 0.0).collect();
+        let mut src = schedule::source_info(&cfg, &St { data: Some(json!({})), error: errors.join(" / "), ..hot.clone() }, HOT_KEY);
+        src["at"] = ats.into_iter().reduce(f64::max).map(|x| json!(x)).unwrap_or(Value::Null);
+        Ok(Some(Plan {
+            mirror: None,
+            path: Some(path),
+            table: schedule::HOT_TABLE.into(),
+            page_size: num(&s["read"]["page_size"], 500.0) as i64,
+            source: src,
+            equip: None,
+            cand_key: text(&s["key"]),
+            lot_col: Some(text(&s["lotSet"])).filter(|x| !x.is_empty()),
+            joined: Value::Null,
+            sched: Some(SchPlan { cfg, equip: HOT_KEY.into(), state: hot, states, hot: Some(info) }),
+        }))
+    }
+
+    /// 一覧の答えに添える数（設備の札・HOT の札。Python の schedule_extra）。窓が同じに組めなければ None
+    pub fn sch_extra(&self, plan: &Plan) -> Option<Value> {
+        let sp = plan.sched.as_ref()?;
+        if sp.equip == HOT_KEY {
+            let mut per = serde_json::Map::new();
+            for (k, st) in &sp.states {
+                per.insert(k.clone(), schedule::summary(st, None));
+            }
+            return Some(json!({"equip": HOT_KEY, "hot": sp.hot, "perEquipment": per}));
+        }
+        let stats = plan.joined.as_array().cloned().unwrap_or_default();
+        let wip = stats.iter().find(|x| x["with"] == "wip");
+        let joined = wip.or(stats.first()).filter(|j| j.as_object().is_some_and(|o| !o.is_empty()));
+        let mut sm = schedule::summary(&sp.state, joined);
+        sm["missLots"] = match wip {
+            Some(w) => {
+                let cols: Vec<String> = w["columns"].as_array()?.iter().map(text).collect();
+                Value::Array(schedule::missing_lots(plan.path.as_ref()?, &plan.table, &cols).ok()??)
+            }
+            None => json!([]),
+        };
+        Some(json!({"equip": sp.equip, "summary": sm, "viewUrl": schedule::view_url(&sp.cfg, &sp.equip), "joined": wip.is_some()}))
+    }
+
+    /// データの時刻（GET /api/src/<スケジュール>/source。Python の schedule_source）: 古くなった設備は裏で取り直す（答えは待たない）。
+    /// 窓が答えない形（設定を組めない・係を降りた設備がある）は None
+    pub fn sch_source(&self, conf: &Conf, equip: &str) -> Option<(u16, Value)> {
+        let Ok(cfg) = conf.sched_cfg()? else { return None };
+        let code = match Self::sch_equip(&cfg, equip) {
+            Ok(c) => c,
+            Err(f) => return Some(f),
+        };
+        let codes: Vec<String> = if code == HOT_KEY { cfg.hot.equipments.clone() } else { vec![code.clone()] };
+        if codes.iter().any(|c| self.sched.resigned(&cfg, c)) {
+            return None;
+        }
+        self.sched.refresh_later(&cfg, &codes);
+        let sts: Vec<St> = codes.iter().map(|c| self.sched.shared(c)).collect();
+        if sts.iter().any(schedule::source_info_falls) {
+            return None;
+        }
+        let infos: Vec<Value> = codes.iter().zip(&sts).map(|(k, st)| schedule::source_info(&cfg, st, k)).collect();
+        if code != HOT_KEY {
+            return Some((200, infos[0].clone()));
+        }
+        let mut v = infos[0].clone();
+        let fmax = |k: &str| infos.iter().filter_map(|i| i[k].as_f64()).filter(|x| *x != 0.0).reduce(f64::max);
+        v["remote"] = json!(cfg.base_text());
+        v["at"] = fmax("at").map(|x| json!(x)).unwrap_or(Value::Null);
+        let changed: Vec<f64> = infos.iter().filter_map(|i| i["copiedAt"].as_f64()).filter(|x| *x != 0.0).collect();
+        v["copiedAt"] = changed.into_iter().reduce(f64::max).map(|x| json!(x)).unwrap_or(Value::Null);
+        v["mirrored"] = json!(infos.iter().all(|i| i["mirrored"] == true));
+        v["unreachable"] = json!(infos.iter().any(|i| i["unreachable"] == true));
+        v["reason"] = json!(codes
+            .iter()
+            .zip(&infos)
+            .filter(|(_, i)| i["reason"].as_str().is_some_and(|r| !r.is_empty()))
+            .map(|(k, i)| format!("{k}: {}", text(&i["reason"])))
+            .collect::<Vec<_>>()
+            .join(" / "));
+        Some((200, v))
+    }
+
+    /// 今すぐ取り直す（POST /api/src/<スケジュール>/refresh。Python の src_refresh の cm3）
+    pub fn sch_refresh(&self, conf: &Conf, q: &Quality, key: &str, equip: &str) -> Option<(u16, Value)> {
+        let s = conf.source(key)?.clone();
+        match self.sch_plan(conf, q, &s, equip, true, false) {
+            Ok(None) => None,
+            Ok(Some(p)) => Some((200, json!({"result": {"copied": true}, "source": p.source}))),
+            Err(f) => Some(f),
+        }
+    }
+}
+
+/// 表の列（同じ名前は 1 つ。Python の lot_list.columns）
+fn table_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
+    let c = lotlist::connect_ro(path)?;
+    let st = c.prepare(&format!("SELECT * FROM {} LIMIT 0", lotlist::qi(table))).map_err(|e| e.to_string())?;
+    let mut out: Vec<String> = vec![];
+    for n in st.column_names() {
+        if !out.iter().any(|x| x == n) {
+            out.push(n.to_string());
+        }
+    }
+    Ok(out)
 }
 
 /// 写しの中で実際に読む表の名前（設定の表 → 候補 → 最初の表。Python の sources.actual_table）

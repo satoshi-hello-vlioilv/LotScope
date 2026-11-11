@@ -47,7 +47,10 @@ pub const PROTOCOL: u64 = 1;
 /// master_share.json を読み直すだけ: master_store.follow_moved）。
 /// release: 更新の置き場（GET /api/update/settings）と配布の置き場を写す係（版 3.95.0。src/release_place.rs。写す係はプロセスに 1 つなので、
 /// Python は /api/release/place/move で写さない: routes/settings.py）。
-pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release"];
+/// schedule: スケジュール（CM3）の係（版 3.96.0。src/schedule.rs。CM3 へ取りに行く・世代を置く・状態を書くのは窓の 1 つ。Python の
+/// Schedules は受け身で、取りに行く要るときは知らせの枠 {"id": 0, "event": "schedule", …}〈効いている設定つき〉で窓に頼んで待つ。
+/// 窓が取れない設定の間は窓が状態に「係を降りた」と書き、Python が取る）。
+pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);
 /// 止めたあと、本当に終わったと見えるまで待つ長さ（その間に入れ替えを始めない）。

@@ -70,7 +70,8 @@ fn names(root: &Path) -> Vec<String> {
 #[test]
 fn equipment_groups_match_python() {
     let base = common::work("equipgroups-write");
-    let oracle = common::python_json("equipgroups_oracle.py", &[base.to_str().unwrap()]);
+    // 作り物の CM3 は窓が問い合わせる間も起こしておく（版 3.96.0 から窓がスケジュールの係）
+    let (live, oracle) = common::Live::start("equipgroups_oracle.py", &[base.to_str().unwrap(), "--serve"]);
     let mut bad = vec![];
     let (mut steps, mut delegated, mut seen, mut placed_by_python, mut cm3_cases) = (0, 0, 0, 0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
@@ -152,10 +153,12 @@ fn equipment_groups_match_python() {
                 bad.push(format!("{name}: {f} を Python が置いた {python_placed}・窓が置いた {}", nr.contains(&f)));
             }
         }
-        // スケジュールの元がある場面（版 3.94.0。CI の自己診断で見つけた）: 任された Python の選べる設備は CM3 に届くかで変わる（届けば
-        // スケジュールの設備も数える）。窓は CM3 へ取りに行かないので同じにできず、一覧と書ける歩は任せる（断る歩は上で同じ答え）
+        // スケジュールの元がある場面（版 3.94.0。CI の自己診断で見つけた）: 選べる設備は CM3 に届くかで変わる（届けばスケジュールの設備も数える）。
+        // 版 3.96.0 から窓がスケジュールの係なので、一覧も書ける歩も窓が答え、上で Python と同じ答え。ここでは数えたかが場面どおりかを見る
         if let Some(cm3) = sc["cm3"].as_str() {
-            let counted = sc["delegates"][0]["from"].as_array().is_some_and(|f| f.contains(&json!("スケジュール")));
+            let list = &sc["steps"][0]["json"]["seen"];
+            let counted =
+                list.as_array().into_iter().flatten().any(|x| x["from"].as_array().is_some_and(|f| f.contains(&json!("スケジュール"))));
             if counted == (cm3 == "up") {
                 cm3_cases += 1;
             } else {
@@ -183,10 +186,11 @@ fn equipment_groups_match_python() {
         }
     }
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
+    drop(live);
     eprintln!(
         "答えた歩 {steps}・任せた歩 {delegated}・データ元の設備を数えた答え {seen}・共有に無い数える材料を任せた場面 {placed_by_python}"
     );
-    assert!(steps >= 190 && delegated >= 90, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 200 && delegated >= 80, "歩が少ない: {steps}・{delegated}");
     assert!(placed_by_python >= 6, "共有にまだ無いマスタを任せる場面が空振り: {placed_by_python}");
     assert!(cm3_cases >= 2, "スケジュールの元の場面が空振り: {cm3_cases}");
     assert!(seen >= 40, "データ元の設備の列から数えた答えが少ない: {seen}");

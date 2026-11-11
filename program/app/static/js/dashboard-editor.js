@@ -1084,7 +1084,20 @@
       + th("kpair", "stack", pair === "stack", "上下に 2 つ", "<b>88</b><b>12</b>", n < 2) + "</div>"
       + `<p class="de-kcap">期間・元の置き場</p><div class="de-kthumbs" role="group" aria-label="期間・元の置き場">`
       + th("kmeta", "", !meta, "期間を下", "<b>88</b><i>期間</i>") + th("kmeta", "top", meta === "top", "期間を上", "<i>期間</i><b>88</b>")
-      + th("kmeta", "row", meta === "row", "横 1 列", "<b>88</b><i>期間</i>") + "</div>";
+      + th("kmeta", "row", meta === "row", "横 1 列", "<b>88</b><i>期間</i>") + "</div>"
+      + `<p id="deKNote" class="de-knote" role="status"${kNote ? "" : " hidden"}>${esc(kNote)}</p>`;
+  }
+  /** 選んだ置き方だとパネルに入りきらず、数が小さくなった（版 3.96.0。dashboard.js がパネルを描いた後に知らせる）。
+      置き方は黙って替えない（利用者の報告 2026-11-11: 低いパネルで「期間を下」が横 1 列に替わった）。替えるかは利用者が決める */
+  let kNote = "";
+  function kfit(tight) {
+    const fm = (p && p.fmt) || {}, where = { top: "期間を上", row: "横 1 列" }[fm.kmeta] || "期間を下";
+    const [px, hid] = String(tight || "").split(" ");
+    kNote = !tight ? "" : hid
+      ? `このパネルの高さでは「${where}」に期間・元が入らないので、期間・元を出していません（数にマウスを置くと出ます）。パネルを高くするか、${fm.kmeta === "row" ? "パネルを広くする" : "「横 1 列」を選ぶ"}と出せます`
+      : `このパネルの大きさでは「${where}」に置くと、数が ${px}px まで小さくなります。パネルを大きくするか、ほかの置き方を選ぶと数を大きく出せます`;
+    const el = document.querySelector("#deKNote");
+    if (el) { el.textContent = kNote; el.hidden = !kNote; }
   }
   function setFmt(k, v) {
     const fm = { ...(p.fmt || {}) };
@@ -1875,7 +1888,7 @@
     /** 開く。h = {panel, sources, answer() → いまの答え, onChange(panel), onApply(panel), onCancel(), toast(text)} */
     async open(h) {
       host = h; sources = h.sources || []; pane = "data";   // 開くたびに「データと数え方」のタブから（版 3.70.0）
-      p = TPA.clone(h.panel);
+      p = TPA.clone(h.panel); kNote = "";
       if (p.visual !== "board") {
         p.body = Object.assign({ rows: [], cols: [], measures: [{ agg: "lots" }], grand: false, labels: true, chartAt: 0 }, p.body || {});
         p.filters = p.filters || [];
@@ -1910,7 +1923,7 @@
       else if (!typingIn("#deFmt") && $("#deFmt")) $("#deFmt").innerHTML = fmtHtml();   // 系列の名前と描いた色（描き終えてから分かる）
       else paintCalc0();                                                                   // 値の計算の変わり方（総計）は今の答えで
     },
-    message, autoTitle,
+    message, autoTitle, kfit,
     setSources(list) { sources = list || []; },
   };
 })();

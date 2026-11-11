@@ -752,13 +752,16 @@ def _pv(pid, x, y, w, h, title, visual, source, rows=(), cols=(), measures=({"ag
             "body": {"rows": list(rows), "cols": list(cols), "measures": list(measures), "grand": visual in ("none", "kpi"), "labels": True}, **kw}
 
 
+# 上 1 段の数字は、期間・元を数の横に 1 列（版 3.96.0）。前は低いパネルを画面が黙って横 1 列にしていた（組む所では「期間を下」が選ばれて見えた）。
+# いまは画面が選んだ置き方を変えないので、組み込みは今までの見え方（横 1 列）を設定に書く
+ROW_META = {"kmeta": "row"}
 # 並び（2026-10-grid の 2 回目で 1 位の J＋3 回目）: 上 1 段に数字 3 つ → 左にグラフ 2 つ（仕掛区分・直近 14 日）・右に縦長の 1 枚の表。
 # 設備ごとの仕掛ロット数は 1 枚の表の棒と同じ数なので、別のグラフにはしない（同じ数を 2 回見せない）
 BUILTIN_LAYOUTS = [
     {"key": "standard", "name": "標準", "body": {"rows": 8, "panels": [
-        _pv("wipTotal", 0, 0, 4, 1, "仕掛ロット数", "kpi", "src:wip", emph=True),
-        _pv("workTotal", 4, 0, 4, 1, "前日の実績本数", "kpi", "work", period=YESTERDAY),
-        _pv("workMonth", 8, 0, 4, 1, "今月の実績本数", "kpi", "work", period={"column": "@workday", "kind": "this_month"}),
+        _pv("wipTotal", 0, 0, 4, 1, "仕掛ロット数", "kpi", "src:wip", emph=True, fmt=dict(ROW_META)),
+        _pv("workTotal", 4, 0, 4, 1, "前日の実績本数", "kpi", "work", period=YESTERDAY, fmt=dict(ROW_META)),
+        _pv("workMonth", 8, 0, 4, 1, "今月の実績本数", "kpi", "work", period={"column": "@workday", "kind": "this_month"}, fmt=dict(ROW_META)),
         _pv("wipClass", 0, 1, 5, 4, "仕掛区分ごとの仕掛ロット数", "bar", "src:wip", rows=[{"column": WIP_CLASS_COLUMN}], sort="desc"),
         _pv("workDays", 0, 5, 5, 3, "直近 14 日の実績本数", "time", "work", rows=[{"column": "@workday"}],
             period={"column": "@workday", "kind": "days", "n": 14}),

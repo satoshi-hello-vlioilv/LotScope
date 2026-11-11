@@ -1,0 +1,214 @@
+{
+ "title": "Rust 化の次の段（版 3.96.0）: スケジュール（CM3）を窓へ移す範囲と作り方（2026-11-10）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-10・ブランチ claude/friendly-hamilton-8g6s3p の 1b8c659＝版 3.95.0。Linux の開発機・Python 3.13。Rust は組んでいない〈空き 7.7 GB・desktop/target 14 GB〉ので、窓の速さは SQLite の C の関数で測った下限の目安と前の記録）。【部品と行】Python: services/cm3_schedule.py 303 行（空行と注釈を除く 246。問い合わせ build_payload・fetch_raw〈urllib・ProxyHandler({})・timeout_sec 既定 15〉・_decode_body〈charset の見出し→UTF-8→CP932→UTF-8 の置き換え〉・fix_text〈タグ→空白・html.unescape・Latin-1/CP1252→UTF-8/CP932 の文字化けの戻し・全角空白〉・行の区分 is_stop_row／is_inspect_row〈NFKC・upper〉・_stop_text〈答えの項目の順につなぐ〉・normalize〈updateTs→JST・時刻だけの行は前の行の日付・前より早ければ翌日・12 月に見た 1 月は翌年・開始予定は前の行の完了予定・パス・圧下率 round(…,1)〉・table_rows〈21 列〉）、services/schedule.py 363 行（316。config〈既定に重ね、設備は [,、，\\s]+ で区切り「:」の後ろは端末区分〉・view_url〈quote〉・norm_name・norm_key〈NFKC・upper・\\s を除き、数は %.6f〉・find_column・_safe〈英数字以外を _ に＋sha1 の頭 6 字〉・Schedules〈設備ごとの錠・ensure・ensure_many〈8 本まで同時〉・refresh_later〈裏の糸〉・_store〈表の sha1 が変わったときだけ新しい世代 <_safe>.g<n>.sqlite3〉・_sweep〈自分の今と 1 つ前のほかを消す〉・build_hot〉・write_table・summary・missing_lots・source_info）、routes/schedule.py 180 行（154。schedules() の置き場は local_root/db_cache/schedule・equip_of・_resolved〈仕掛の鍵の列を写しのロット番号の列に合わせる〉・schedule_plan・hot_plan・schedule_extra・schedule_source・schedule_card・GET /api/schedule/card・GET /api/schedule）。合わせて 846 行（716）。ほかに routes/sources.py の cm3 の分岐 5 か所（_public・src_plan・src_list の schedule_extra・src_source・src_refresh）、data_sources.py（組み込みの sch〈kind cm3・equipColumn「設備」〉・SCHEDULE_JOIN・接続の欄 6 つ）、routes/dashboard.py の panel_parts（src_plan を経てパネル）と equipment_seen。画面は static/js/lotlist-schedule.js（/api/schedule と /api/src/sch・/source を 20 秒ごと）。【試験】tests/test_schedule.py 13 件（344 行。golden〈旧版の答え: text 26・normKey 25・normName 9・normalizeErrors 4〉・整形・本物の HTTP で作り物の CM3・HOT の決まり・世代・届かない・同時に取りに行く〈Barrier〉・結合の列の追従・設定の形）、tests/schedule_fixture.py 154 行（http.server の HTTP/1.0・Content-Length・charset=UTF-8 だけ。設備 3 × 46 行・停止 2・点検 1・文字化け 1・&#12288; 1・仕掛に無いロット 1・前工程 HOT 6）、スケジュールに触れるほかの試験: test_sources_unify・equipgroups_oracle〈CM3 に届く／届かない 2 場面〉・routes_oracle・settings_oracle・settings_write_oracle・desktop/tests/equipgroups_write_parity.rs・lot.rs の試験・selftest.js の 10b''（スケジュールの元がある PC では Python に任せる形）・tools/ui-eval-schedule.mjs と ui_server.py（どちらも Python のアプリに当たる。窓の道は通らない）。【依存】HTTP（urllib）・文字コード（CP932・charset の見出しにある Python の codec なら何でも〈Shift_JIS は shift_jis で cp932 と違う〉）・HTML の文字参照（html.unescape）・JSON（項目の順・NaN を読む）・sha1・SQLite（世代の表・結合）・仕掛との結合（data_join。窓の join.rs に有る）・HOT（結合した答えの列 実績_設備ｺｰｽ・残仕掛設備ｺｰｽ・設計_PIT炉番炉順）・釜番（HOT の列を写すだけ。釜番→日付の式 kamadate は計算列の部品で窓に有る）・時刻（JST 固定と、fetchedAt だけはこの PC の localtime）・裏の糸。窓（desktop/src）: lists.rs :500 と :511（cm3 と cm3 を元にした結合した表は Ok(None)）・lot.rs :1143 :1164（/source・/refresh・一覧を Python へ）・dashboard.rs :396（パネル）と equipment_seen（数えられず設備の木・設備グループが任せる）・sources_list.rs :155 と main.rs :354（カードは中身が起きていれば内側の GET /api/schedule/card）・bundle.rs :1744 schedule_equips（設備の数だけ）・sidecar.rs :50 SERVES に schedule は無い。窓に有って使える物: join.rs（with_joins の scope も）・lotlist の一覧とロット番号の列・jsontree（送った順の木）・pyfmt（float() と repr）・access::py_key（NFKC と upper）・aggregate::py_round・bundle::sha1_hex・percent-encoding（Cargo.lock に 2.3.2。url が使う）。窓に無い物: HTTP の書き手・CP932 の表・HTML の文字参照の表・_resolved。【製品の形で Python に回る道】GET /api/schedule・/api/src/sch と /slicer・/pivot・/source・POST /refresh（5 本）・内側の /api/schedule/card・GET /api/dashboard/equip-tree・設備グループの 4 本（断る歩のほか。equipgroups_write_parity の任せる 10 歩）・sch のパネル（board・link の中も。パネルごとに Python）・sch を元にした結合した表の 5 本。組む所の /api/dashboard/fields?source=src:sch と /api/data/columns は今も Python だけの道。【速さ（Python。作り物の CM3・仕掛 1,200 ロット・設備 46 行。5〜20 回の中央値）】fetch_raw 21.2 ms（うち urllib.request.build_opener〈毎回 SSL の既定の文脈を作る〉23.8 ms とほぼ同じ。同じ要求をソケットで 1 回に送ると 0.74 ms）・normalize 1.33 ms・table_rows 0.17 ms・write_table 1.54 ms。道: 一覧 L-1 冷えた 80.8 ms → 控えから 3.8 ms・HOT 冷えた 157.2 ms → 8.1 ms・/source 0.40・/refresh 21.8・/api/schedule 0.19（冷えた 0.33）・カード 0.18・/api/sources 2.3・スライサー 2.9・集計 4.5・設備の木 冷えた 97.4 → 4.8・設備グループの一覧 4.6 ms。行を 6 倍（276 行・本文 92 KB）: normalize 5.0・一覧 冷えた 373.6 → 7.1・HOT 冷えた 710.0 → 17.5・設備の木 冷えた 324.8 ms。仕掛を 20,000 ロット: 一覧 冷えた 1,253.9 → 4.0・HOT 冷えた 1,710.7 → 9.8・設備の木 冷えた 983.1 → 4.6 ms。冷えた時の大半は結合（data_join.build）で、cProfile で join_key が 323,671 回＝相手（仕掛）の行 × この元の行。_step の rightHit（相手の行ごとに EXISTS でこの元を JoinKey つきで全部なめる）が入れ子で、窓の join.rs :249 も同じ SQL（RIGHT_HIT_LIMIT 200,000 まで）。仕掛 20,000 × 46 行を SQLite の C の関数（upper(trim)）で数えると入れ子 163 ms・この元の鍵を DISTINCT の一時表と索引にすると 2.9 ms（Python の関数なら入れ子 236 ms〜本物の join_key で約 1.2 s）。中身が変わるたび（既定 60 秒ごとに取り直し、CM3 が変われば新しい世代）に組み直すので、この冷えた時間は 1 回きりではない。【届かない CM3】断られる（Connection refused）: 1 本 17〜37 ms・HOT 3 台同時 71 ms。名前が引けない: 22〜40 ms（[Errno -2] Name or service not known）。黙る（受けて答えない）: timeout_sec=2 で設備の木 2,041 ms・もう一度 2,024 ms・一覧 2,035 ms・HOT 2,069 ms＝失敗を覚えず毎回 timeout 秒待つ（既定 15 秒。窓の問い合わせは 1 本 1 糸なので止まりはしないが、画面が待つ）。一度も取れていない設備は 502「L-1 の予定を CM3 から取れません: CM3に接続できません: [Errno 111] Connection refused」、取れた後に届かなくなれば前の予定のまま理由（error）だけ変わる。覚え（_state）はメモリだけで、Python を起こし直すと一度も取れていない形に戻る（世代ファイルは残るが読まない）。【2 つの係】同じ置き場に Schedules を 2 つ（窓と Python の見立て）置いて取り直すと、7 回のうち 4 回で相手の今の世代が消えた（Python が g1 を置くと窓の g1 を同じ名前で上書き・窓が g3 を置くと Python の g1 を消す・Python が g2 を置くと窓の g3 を消す）。世代の番号はプロセスごとに 1 から数えるので名前もぶつかる。【選べる設備】Python の equipment_seen は sch を src_plan の既定（最初の設備）でだけ数える: 作り物の CM3 に届くとき from に「スケジュール」が付くのは L-1 だけ（n 277）で、取りに行った世代も L-1 だけだった。【同じにしにくい端（Python で確かめた）】HTTP: charset=Shift_JIS の chunked の答え「～」(cp932 の 0x8160) を Python は shift_jis で読み「〜」(U+301C) にする・302 は本文なしの GET に替わり HTML が返って「CM3の応答がJSONではありません」・307 は「CM3がHTTPエラーを返しました: 307 Temporary Redirect」・500 は「… 500 Internal Server Error」（理由の句は相手の字のまま）・scheme の無い URL は「CM3に接続できません: unknown url type: nlmfangyweb1a」・timeout_sec が数でない字は ValueError で 500（Cm3Error でない）・https は Python の ssl・use_system_proxy は環境変数と Windows のレジストリ・timeout は 1 回の接続と読みごと（合計でない）・接続の timeout は「CM3に接続できません: timed out」、読みの timeout は「CM3の応答がタイムアウトしました」。誤りの字は OS ごと（Linux は [Errno 111] …、Windows は [WinError 10061] と日本語の文、名前が引けないと [Errno 11001] getaddrinfo failed。Rust の io::Error の字は「… (os error n)」で形が違う）。文字: Python の cp932 は 9,800 字（1 バイト 196・2 バイト 9,604）で 0x80→U+0080・0xA0→U+F8F0・0xFD〜0xFF→U+F8F1〜F8F3。shift_jis とは 6 字（8160・8161・817C・8191・8192・81CA）が違い、cp932 だけが読む 2 バイトが 2,730。charset の見出しは re の [\\w\\-]+ で読むので引用符つき（\"UTF-8\"）は読めず UTF-8→CP932 へ、windows-31j・MS932 は cp932、x-sjis は LookupError で次へ。焼くなら cp932 の表は JSON で 126 KB（連続の区間で 7,128）。html.unescape: html5 の名前 2,231 語（うちセミコロンの無い 106 語は最長一致: &ampx→&x・&notit;→¬it;）・数の参照の読み替え 34（&#128;→€）・捨てる符号 126（&#1;→空）・範囲外と代用字は U+FFFD・&#x3000（セミコロン無し）も読む（表の JSON 36 KB）。fix_text の strip と split・norm_key の \\s は Python の空白（\\x1c〜\\x1f を含む。Rust の trim と split_whitespace は含まない）。答えの形: 停止の文は答えの項目の順でつなぐ（serde_json の既定の表は名前順なので jsontree が要る）・値が数なら str(v) は Python の repr（7.0・1e+16）・NaN の updateTs は int() の ValueError で None・負の updateTs は Linux で 1970/01/01 08:59:59、Windows の fromtimestamp は OSError で None（OS で答えが違う）・updateTs が無ければ datetime.now(JST) の年・entity が並び、meisaiList の行が表でない、kanryoYotei が数は Python が AttributeError／TypeError で 500・status が並びなら「CM3応答 status=['a', 1]」（Python の repr）・errorMessage が数なら「CM3エラー: 5」・float() の読み（全角・下線・1e400→inf）と round(x,1)・inItaAtsu が 400 桁の整数なら float() の OverflowError で 500・表の値が数のまま来れば SQLite には INTEGER／REAL で入る（並び・表は sqlite3 が断り 500）・missing_lots の sorted は数と字が混ざると TypeError。世代の sig は json.dumps(rows, ensure_ascii=False, default=str) の sha1（係が 1 つなら窓の中だけで閉じる）。結合の答えのファイルは db_cache/joins の scope「sch_<_safe>」（窓の join.rs と同じ名前の決まりを使えば共にできる）。【要る crate】作り方しだい。手で書くなら std の TcpStream だけで足りる（Cargo.lock に httparse 1.10.1 は有るが hyper の依存で窓は使っていない）。CP932 と HTML の文字参照は Python から焼いた表なら crate は要らない。crate に頼るなら: encoding_rs 0.8.44（crates.io で 2026-10-30・crate 555 KB・純 Rust で Windows の MSVC でも組める・依存 cfg-if は Cargo.lock に有る。WHATWG の Shift_JIS なので上の 0xA0・0xFD〜0xFF と shift_jis の 6 字は Python と違う〈表の差は encoding_rs を動かしては確かめていない。WHATWG の決まりからの読み〉）、ureq 3.5.1（2026-11-02・186 KB。default-features=false なら必須の依存は base64・log・percent-encoding〈Cargo.lock に有る〉と ureq-proto・utf8-zero〈無い〉。既定の rustls を入れると rustls 0.23.46〈386 KB〉と ring 0.17.14〈1.5 MB・C とアセンブリ〉）、minreq 3.0.0（42 KB）、html-escape 0.3.1（Python の unescape の決まりと違うので使えない）。html5ever・markup5ever（web_atoms の文字参照の表）は Cargo.lock に有るが tauri-macros〈proc-macro〉の組みの依存で、窓の実行に使うと新しい依存になる。sha1 は bundle::sha1_hex（手書き）が有る。",
+ "proposals_text": {
+  "A 1 版で縦に全部（窓がただ 1 つの係・手で書く HTTP・Python から焼いた表）": "移す道: GET /api/schedule・GET /api/src/sch（設備・__HOT__）と /slicer・/pivot・/source・POST /refresh・sch を元にした結合した表の 5 本・ダッシュボードの sch のパネル（board・link の中も）、設備の木（/api/dashboard/equip-tree）と設備グループの 4 本の「スケジュールの元があるから任せる」形、GET /api/sources のカード（内側の /api/schedule/card を尋ねない）。係の持ち方: sidecar.rs の SERVES に schedule を足し、窓がただ 1 つの係。Python は名乗られたら Schedules を受け身にする: 窓の状態ファイル（db_cache/schedule/state.json。設備ごとの path・sig・gen・fetchedAt・changedAt・checkedAt・error と、整えた答え data は世代の SQLite の 2 つ目の表か横の .json）と世代ファイルを読むだけで、取りに行かず _sweep もしない。取りに行く要るとき（engine=python・束を組めない形で Python が答える道）は shell_notice(\"schedule\", equip, force) で窓に頼み、状態が変わるのを timeout_sec まで待つ（lists の受け身の写しと同じ形）。作る部品: http.rs（std の TcpStream。HTTP/1.1・Connection: close・Content-Length／chunked／閉じるまで・30x は urllib と同じ〈POST の 301/302/303 は本文なしの GET、307/308 は HTTP の誤り〉・timeout は 1 回の接続と読みごと・誤りの字は Python の OSError の str と同じ形〈Linux は [Errno n] 理由、getaddrinfo は [Errno -2] …、Windows は [WinError n] 文と [Errno 11001] getaddrinfo failed〉。https・use_system_proxy・scheme の無い URL・数でない timeout_sec は Python に任せる）、cm3.rs（_decode_body・fix_text・行の区分・_stop_text・normalize・table_rows。CP932・shift_jis・HTML5 の文字参照は Python から焼いた表 cm3_tables.json〈cp932 の 9,800 字・shift_jis との差 6 字・cp932 だけの 2,730・名前 2,231 語・数の参照の読み替え 34・捨てる符号 126〉。charset が utf-8・cp932・shift_jis・latin-1 の名前でなければ Python に任せる。JSON は jsontree〈停止の文は項目の順〉・数の字は pyfmt・NFKC と upper は access::py_key・round は aggregate::py_round）、schedule.rs（config・view_url・norm_name・norm_key・_safe〈bundle::sha1_hex〉・Schedules〈設備ごとの錠・同じ設備は 1 本ずつ・ensure_many は 8 本まで同時・refresh_later・世代と _sweep〈1 つ前を残す〉・失敗を設備ごとに覚える〈届かない CM3 を毎回 15 秒待たない〉〉・build_hot・summary・missing_lots・source_info）、lists.rs の src_plan の cm3 の腕と _resolved（仕掛の鍵の列を写しのロット番号の列に）・dashboard.rs の panel_parts と equipment_seen・sources_list のカード。評価関数: schedule_parity（← tests/schedule_oracle.py。作り物の CM3 の形を足す〈HTTP/1.0 と 1.1・chunked・charset=Shift_JIS／cp932／引用符つき／無し・30x・500・遅い・黙る・断る・名前が引けない・形が違う・NaN・数の値〉。本物の窓の道〈Lot〉と Python の道の答え・断る言葉・世代ファイルの中身〈行と型〉・HOT・summary を突き合わせ、時刻〈checkedAt・copiedAt・fetchedAt〉は伏せる）、tests/fixtures/cm3_cases.json（fix_text・_decode_body・normalize・norm_key・norm_name の事例を Python から焼く。golden の 64 件・文字化けの作り物・数の参照の端・年の境・日付の ValueError・全角の数字・\\x1c〜\\x1f・Python が落ちる形）、equipgroups_write_parity の任せる 10 歩と page_parity の設備の木が窓の答えに替わる、dash_parity に sch のパネル、test_schedule に受け身の Python と失敗を覚える形、自己診断に作り物の CM3（verify.py が起こす）。危うさ: 1 版に Python 716 行分（Rust で 1,500〜1,800 行の見込み）＋表 2 つ＋HTTP＋受け身の Python と知らせが乗る。誤りの字が OS ごと（Windows の字は Windows の CI でしか見られない）。受け身の Python の待ち合わせ。ui-eval-schedule.mjs は Python のアプリに当たるので、画面の確かめは窓の道を通らない（自己診断で見る）。得: 製品の形で Python に回る 7 本（/api/schedule・一覧の 5 本・カード）＋設備の木 1・設備グループ 4・結合した表 5・パネルが窓の答えになり、Python が居なくても動く。2 つの係の消し合い（測って 7 回に 4 回）が起きない。冷えた 1 回目は urllib の作り（24 ms）が 1 ms ほどに、Python の結合が窓の join.rs になる（ただし rightHit の入れ子は窓にも同じにあるので、索引にする直しを Python と窓に一緒に入れないと仕掛 20,000 で 160 ms 以上残る）。",
+  "B 2 段: 3.96.0 は係（取りに行く・置く・状態）だけ窓へ、道は 3.97.0": "3.96.0 で移す物: 道は移さない。窓がただ 1 つの係になる（SERVES に schedule）: http.rs・cm3.rs（A と同じ焼いた表）・schedule.rs の係の部分（ensure・ensure_many・refresh_later・置く・世代と _sweep・失敗を覚える）と状態ファイル（A と同じ形）。窓は画面の 20 秒ごとの /source の代わりに、状態が古い設備を自分の裏の糸で取り直す（Python の refresh_later と同じ間隔・同じ設備）。Python の道（/api/src/sch ほか）は今どおり Python が答えるが、Schedules は受け身で窓の状態と世代ファイルを読み、取りに行く要るときは知らせで窓に頼んで待つ。GET /api/sources のカードは窓が状態ファイルから答える（内側の /api/schedule/card が要らなくなる）。3.97.0: A の道すべて（一覧の 5 本・/api/schedule・パネル・設備の木・設備グループ・結合した表）と build_hot・summary・missing_lots を窓へ。評価関数（3.96.0）: cm3_cases.json（字と整形）・http の作り物の形（A と同じ）・table_parity（窓の係が置いた世代ファイルの中身と状態を、Python の係が同じ作り物の CM3 から置いた物と突き合わせる。時刻は伏せる）・受け身の Python の試験（知らせを出して待つ・状態の読み方・2 つのプロセスで消し合わない＝測った消し合いの形を試験にする）・test_schedule が受け身の Python でも通る。危うさ: 版が 2 つ。3.96.0 の間は道が Python のままなので、Python が居ないと動かない（Python を外す得と、CI で落ちた設備の木・設備グループの任せは 3.97.0）。状態ファイルの形を 2 つの言語で読み書きする（時刻の小数・NaN・大きな数）。窓が取りに行き Python が待つ間の行き違い。得: 危ない所（HTTP・字・世代の消し合い）を道と切り離して 1 版で確かめられる。消し合いと、Python を起こし直すと前の予定を読まない形（覚えがメモリだけ）が 3.96.0 で無くなる。カードの mirror も Python の覚えに頼らない。3.97.0 は窓に有る lists・dashboard の作りに乗るだけになる。",
+  "C Python を係のまま残し、窓は状態と世代ファイルを読んで道を答える": "移す道: /api/src/sch（設備ごと）の一覧・スライサー・集計・/source、sch のパネル、設備の木、設備グループの 4 本、カード、/api/schedule。HOT（__HOT__）と POST /refresh は Python のまま。係の持ち方: Python の Schedules に状態ファイル（db_cache/schedule/state.json）を書かせる（今はメモリだけ）。窓は状態と世代ファイルを受け身で読む。古い・無いときは新しい内側の道（POST /api/schedule/ensure）で Python に取らせ、答えを待つ。Python が起きていなければ前の状態で答え、一度も取れていなければ「Python を起こしています」と 503。作る部品: 状態ファイルの読み・HOT 以外の段取り（src_plan の cm3 の腕・_resolved）・summary・missing_lots・source_info・view_url・config。http.rs と cm3.rs は作らない（CP932・HTML・HTTP の端に触れない）。評価関数: schedule_parity の読みの場面（Python が作り物の CM3 から置いた状態と世代で、窓と Python の答えが同じ）・equipgroups_write_parity と page_parity の設備の木・内側の道の試験（Python が答えない・遅い）。危うさ: Python を外す向きと逆（窓→Python の内側の問い合わせが 1 本増える。前の採点で G が狙った「内側の問い合わせを切る」と逆）。Python が居ないときは古い予定のまま。届かない CM3 の待ちは Python の中に残り、窓はそれを待つ。状態ファイルの書き手と読み手が別の言語で、書いている途中を読む形。得: いちばん小さい（字・HTTP・世代の作りを写さない）。危ない端（CP932・HTML・OS の誤りの字）が無い。製品の形で設備の木・設備グループ・パネルが窓の数え方になり、CI で落ちた形が閉じる。冷えた時の結合は窓の join.rs。",
+  "D crate に頼る（ureq・encoding_rs）で A の範囲": "移す道と係の持ち方: A と同じ（道すべて・窓がただ 1 つの係・受け身の Python）。作る部品: HTTP は ureq 3.5.1（default-features=false で TLS なし。新しい crate は ureq・ureq-proto・utf8-zero。base64・log・percent-encoding は Cargo.lock に有る）。CP932 と charset の読みは encoding_rs 0.8.44（新しい。純 Rust で Windows でも組める）。HTML の文字参照は Python から焼いた表（html-escape は Python の unescape の決まり〈セミコロンの無い 106 語の最長一致・数の参照の読み替え〉と違うので使わない）。Python と違う所を埋める: encoding_rs の Shift_JIS は WHATWG の表で Python の cp932 と 1 バイトの 0xA0・0xFD〜0xFF（Python は U+F8F0〜F8F3、WHATWG は読めない）と、Python の shift_jis の 6 字（～∥－￠￡￢）が違う → 事例の表で端を直して読む。ureq の誤りの字・30x の扱い・timeout の意味（1 回ごとか全体か）は urllib と違うので、答えの字は窓で組み直す。評価関数: A と同じ＋全部の 1・2 バイトの読みを Python の cp932・shift_jis と比べる表（9,800＋差の字）・ureq の 30x と timeout を作り物の CM3 で urllib と比べる。危うさ: 新しい crate 4 つ（ureq・ureq-proto・utf8-zero・encoding_rs）。依存の版上げで読みが変わりうる（Python の codec と違う表を持つ）。Cargo.toml の「同じ crate を 2 つ持たない」は守れるが、https を後で足すと rustls と ring（1.5 MB・C とアセンブリ）が要る。差を埋める直しが結局 Python の表を要る（crate に頼る得が薄い）。得: chunked・keep-alive・壊れた見出しの扱いを自分で書かずに済む。https と環境変数のプロキシ（use_system_proxy の一部）へ進める道が残る（Windows のレジストリのプロキシは ureq も読まない）。",
+  "E 決まりを変えて CM3 に依らず設備を数え、設備の木と設備グループの 5 本だけを閉じる（＋届かない CM3 を待たない）": "移す道: GET /api/dashboard/equip-tree と設備グループの 4 本（スケジュールの元があっても窓が答える）。スケジュールの道とパネルは Python のまま。決まりの変更（Python と窓の両方）: 選べる設備（equipment_seen）のスケジュールの分は、CM3 を取らずに設定の設備（schedule.config の equipments。既定 L-1・L-2・L-3）から数える。今の Python は sch を最初の設備でだけ取りに行き、その行の数を n に足す（測った: from に「スケジュール」が付くのは L-1 だけ・n 277）。変えた後は全部の設備に「スケジュール」が付き、n はスケジュールの分を足さない。あわせて Python の Schedules に失敗を設備ごとに覚える（auto_refresh_sec か 30 秒。覚えている間は待たずに同じ理由で答える）を入れる。作る部品: 窓の equipment_seen のスケジュールの腕（bundle の schedule_equips の区切り方を使う）。Python は equipment_seen と Schedules.ensure の 2 か所。評価関数: equipgroups_write_parity（任せる 10 歩が答える歩へ。CM3 に届く／届かない の 2 場面で窓と Python が同じ）・page_parity の設備の木・test_schedule に失敗を覚える試験（黙る CM3 で 2 回目は待たない）・自己診断の 10b'' を「窓が答え、Python と同じ」に戻す。危うさ: 利用者に見える中身が変わる（選べる設備に L-2・L-3 が増え、件数 n が変わる）＝決まりの変更で、利用者に決めてもらう事。スケジュールの道は動かないので Python を外す得は小さい。CM3 の 2 倍の問い合わせ・消し合いは、窓が CM3 を取らないので起きない。得: CI で落ちた形（配る設定に CM3 がある PC）の 5 本が、CM3 に届くかによらず窓の答えになる。設備の木と設備グループの一覧が CM3 の待ち（測った: 黙る CM3 で毎回 timeout 秒〈試験の 2 秒で 2,024〜2,041 ms、既定 15 秒〉）を受けない。小さく 1 版で閉じる。",
+  "F 2 つの係が並んでも壊れない置き場にする（共存）": "移す道: A と同じ（道すべて）。係の持ち方: 係を 1 つにせず、置き場を 2 つのプロセスで安全に分け合う。世代ファイルの名前に書き手（rs／py と pid）を入れる・設備ごとの状態ファイルを錠つきで書き、どちらも最新の状態を読んで同じ世代を使う・_sweep は状態ファイルが指す今と 1 つ前を残し、ほかは 10 分より古い物だけ消す・取りに行く前に状態の checkedAt を見て、相手が取ったばかりなら取らない（同じ PC から CM3 への問い合わせを 1 回に）。窓は A と同じ道を答え、Python も今どおり自分で答えられる（engine=python・束を組めない形も）。作る部品: A と同じ（http.rs・cm3.rs・schedule.rs）＋置き場の錠（master_store の exclusive の作りを写す）と、Python の Schedules の状態ファイル・錠・名前の付け方の直し。評価関数: A の schedule_parity＋2 つのプロセスを同時に動かす試験（測った消し合いの形が起きない・同時に取りに行かない・錠が残らない）。危うさ: 錠と状態の読み書きを 2 つの言語で同じに作る（Windows の置き換え・読んでいる途中のファイル・落ちたプロセスの錠。版 3.94.0 の「生きた錠をどける」と同じ種類の割れ）。係が 2 つ残るので、Python を外す段でまた片付けが要る。得: Python の道が今のまま動く（受け身の Python と知らせの作りが要らない）。engine=python と自己診断の突き合わせがそのまま使える。CM3 への問い合わせは 2 倍にならない。",
+  "H 設備ごとの道を先に、HOT は次の版（範囲で分ける）": "3.96.0 で移す道: A のうち HOT（equip=__HOT__）を除く物。/api/schedule・設備ごとの /api/src/sch と /slicer・/pivot・/source・POST /refresh・sch のパネル（既定は最初の設備）・設備の木・設備グループの 4 本・カード・sch を元にした結合した表。係の持ち方: A と同じ（窓がただ 1 つの係・SERVES に schedule・Python は受け身で、状態ファイルと世代を読む）。HOT の問い合わせ（__HOT__ の一覧・/source）は Python に任せ、受け身の Python が窓の世代ファイル（取りに行くのは窓。ensure_many に当たる頼みは知らせで）から build_hot で組む（__HOT__ の世代は Python だけが書くので _sweep はぶつからない）。3.97.0: build_hot・HOT の source・HOT の summary を窓へ。作る部品: A の http.rs・cm3.rs・schedule.rs（build_hot を除く）・lists と dashboard の腕・_resolved・失敗を覚える。評価関数: A と同じ（cm3_cases.json・schedule_parity・equipgroups_write_parity・dash_parity）。HOT の場面は Python に任せる歩として数え、受け身の Python が窓の世代から組んだ HOT が今の Python の HOT と同じことを test_schedule で見る。危うさ: HOT の間だけ、Python が窓の世代を読んで組む（受け身の係に HOT の頼みの知らせが要る）。版が 2 つ。3.96.0 でも HTTP・字・係・受け身の Python が乗るので軽くはない。得: 製品の形で Python に回る形の大半（パネル・設備の木・設備グループ・一覧）が 3.96.0 で窓になり、CI で落ちた形と消し合いが閉じる。HOT の並べ方の端（Python の str.split の空白〈\\x1c〜\\x1f〉・norm_key の %.6f・並べ替えの組・パス 1.0）を次の版で単独に確かめられる。"
+ },
+ "rounds": [
+  {
+   "name": "1 回目",
+   "self_check": "案を作った者が、棚卸しの数を測り直して案を読み直した（採点に渡す前の自分の確かめ。画面に出ない改良なので画像の代わりに動かして測った数で見た）: (1) 行の数は wc と空行・注釈を除いた数の両方を書いた（前の段の記録の 275・222・137 は数え方が違い、今は 316・246・154）。(2) 速さは作り物の CM3（tests/schedule_fixture.py）を本物の HTTP で起こし、test_schedule の Api と同じ組みのアプリで 5〜20 回の中央値を取った（行 1 倍・6 倍、仕掛 1,200・20,000）。冷えた時の大半が結合の rightHit の入れ子であることは cProfile（join_key 323,671 回）と、SQLite の C の関数での入れ子 163 ms／索引 2.9 ms の比べで確かめた。窓の速さは組んでいないので下限の目安で、Windows の数は無い。(3) 2 つの係の消し合いは、同じ置き場に Schedules を 2 つ置いて交互に取り直して確かめた（7 回に 4 回、相手の今の世代が無くなった）。(4) 選べる設備がスケジュールの最初の設備だけを数えることは、設備グループの一覧の seen と置き場の世代で確かめた（E の決まりの変更はこの事実に立つ）。(5) HTTP の端（chunked・charset=Shift_JIS・302・307・500・scheme 無し・数でない timeout）と答えの形の端（status が並び・entity が並び・行が表でない・kanryoYotei が数・負と NaN の updateTs）は、手で作ったサーバーと normalize に当てて Python の答えを見た。Windows の誤りの字と fromtimestamp の負は試していない（CPython の作りからの読み）。(6) encoding_rs と Python の cp932 の差は WHATWG の決まりからの読みで、encoding_rs を動かしては確かめていない（D の採点で確かめてほしい）。crate の版と大きさは crates.io に 2026-11-10 に尋ねた。(7) 偏りを見た: 範囲（A 全部・E 5 本・H 設備ごと・C HOT 以外を読むだけ）、係の持ち方（A・B・H 窓がただ 1 つ・C Python のまま・F 共存）、HTTP（A・B・H 手で書く・D crate・C・E 作らない）、状態の共有（窓が書く・Python が書く・錠つきで分け合う・持たない）、段の分け方（A 1 段・B 係→道・H 設備→HOT）、決まりを変える（E）。(8) 前の採点の指摘 9〜12 は A・B・D・F・H に入れた（9 は SERVES と受け身の Python〈F は共存で代える〉・10 は焼いた表〈D は crate〉・11 は http.rs の形と作り物の CM3 の形・12 は失敗を覚える）。12 の「自己診断・engine=python で CM3 へ 2 倍問い合わせる」は、受け身の Python なら起きない（A・B・H）。(9) どの案にも足せる直し: 結合の rightHit を索引にする（Python と窓に一緒に。答えは同じ）・Python の fetch_raw が毎回作る urllib の opener（24 ms）。採点は付けていない（別のエージェントが付ける）。",
+   "proposals": {
+    "A 1 版で縦に全部（窓がただ 1 つの係・手で書く HTTP・Python から焼いた表）": {
+     "score": {
+      "order": 9,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 4,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "proposals_text の案で、窓がただ 1 つの係（SERVES に schedule）になるのに「https・use_system_proxy・scheme の無い URL・数でない timeout_sec・知らない charset は Python に任せる」と書く所。services/schedule.py の ensure は取る・整える・置くが 1 本の流れで、受け身の Python は取りに行かない。窓が取れない設定・読めない charset のとき、だれが CM3 へ取りに行き、だれが世代を置くのかが案に無い（Python に取らせると 2 つの係に戻る。charset は取った後でしか分からないので、取ったバイトをどう渡すかも要る）。束を組めない形（bundle::Py）で Python が答えるときも、窓は効いている設定（cm3_base_url など）を自分で組めないので、知らせに設定を載せる決めが要る"
+      }
+     ],
+     "seen": "良い所: この段の狙い（製品の形で CM3 のために Python へ回る穴を全部塞ぎ、Python が居なくても動く）を 1 版で満たすのはこの案だけ（順序 9・ステップ 9）。窓のコードで穴を確かめた: lists.rs :500（cm3 は Ok(None)）・:511（cm3 を元にした結合した表）・lot.rs :1143（/source・/refresh）・:1164・dashboard.rs :396（パネル → equipment_seen が数えられず設備の木と設備グループの 4 本が任せる）・sidecar.rs :50 の SERVES に schedule が無い。係を 1 つにする作り（SERVES と受け身の Python と知らせ）は lists の受け身の写し（app/__init__.py の lists_are_external・work_log.Mirrors の passive・shell_notice）と同じ型で、前の採点の指摘 9〜12 を全部入れている（形と色 8）。2 つの係の消し合いを自分で再現した（同じ置き場に Schedules を 2 つ置き、中身を変えながら取り直す: 交互なら 0 件だが、rrprrp の順で 4 回中 4 回・prrrpp で 5 回中 2 回、相手の今の世代が消えた。世代の番号がプロセスごとに 1 から数えるので、交互でも g1・g2 を同じ名前で上書きし合う〈Windows では読んでいる途中のファイルへの os.replace が OSError になり、Cm3Error でないので 500 になる形〉）。窓がただ 1 つの係ならこれが起きない。悪い所: 1 版に HTTP・字の表 2 つ・係・受け身の Python・道・HOT・パネルが乗る（チャンク 6・釣り合い 4）。上の減点の「係の層での任せ方」が無い。黙る CM3 の待ちは、指摘 12 の「失敗を覚える」だけでなく、同じ設備の問い合わせが錠で並んで 1 本ずつ取り直す形（下の fixes 3。4 本同時で 2・4・6・8 秒）がそのまま写ると窓でも残る。cp932 の表を 126 KB で焼く代わりに encoding_rs でも 4 バイトの差しかない（D で確かめた）。結合の rightHit の入れ子（窓の join.rs :249 も同じ SQL）を直さないと仕掛 20,000 で冷えた時の得が出ない。"
+    },
+    "B 2 段: 3.96.0 は係（取りに行く・置く・状態）だけ窓へ、道は 3.97.0": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 7,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "proposals_text の案で、窓がただ 1 つの係（SERVES に schedule）になるのに「https・use_system_proxy・scheme の無い URL・数でない timeout_sec・知らない charset は Python に任せる」と書く所。services/schedule.py の ensure は取る・整える・置くが 1 本の流れで、受け身の Python は取りに行かない。窓が取れない設定・読めない charset のとき、だれが CM3 へ取りに行き、だれが世代を置くのかが案に無い（Python に取らせると 2 つの係に戻る。charset は取った後でしか分からないので、取ったバイトをどう渡すかも要る）。束を組めない形（bundle::Py）で Python が答えるときも、窓は効いている設定（cm3_base_url など）を自分で組めないので、知らせに設定を載せる決めが要る"
+      }
+     ],
+     "seen": "良い所: 危ない所（HTTP・字・世代の消し合い）を道と切り離し、table_parity（窓の係と Python の係が同じ作り物の CM3 から置いた世代の中身を突き合わせる）と 2 つのプロセスの試験で 1 版の中で確かめられる（チャンク 8・視覚化 8）。Python を起こし直すと前の予定を読まない形（_state はメモリだけ）も 3.96.0 で無くなる。悪い所: 3.96.0 は道が 1 本も窓に移らず（カードだけ）、この段の狙いの穴（設備の木・設備グループ・パネル・一覧）は 3.97.0 まで Python のまま（順序 6・ステップ 5）。しかも 3.96.0 の間は Python の道がすべて窓の係を待つ（受け身の Python が知らせて待つ）ので、Python が居ないと動かないまま、窓と Python の行き違いの危うさだけが先に来る。上の減点の任せ方の穴は A と同じ。"
+    },
+    "C Python を係のまま残し、窓は状態と世代ファイルを読んで道を答える": {
+     "score": {
+      "order": 3,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 5,
+      "place": 6,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: いちばん小さい。CP932・HTML の文字参照・HTTP・OS の誤りの字に触れない（調子 8）。設備の木・設備グループ・パネルが窓の数え方になり、CI で落ちた形は閉じる。悪い所: 利用者の目的（Python を外す）と逆向きで、窓→Python の内側の問い合わせ（POST /api/schedule/ensure）が 1 本増える（前の採点で G の狙いだった『内側の問い合わせを切る』とも逆。順序 3）。CM3 を取るにはずっと Python が要り、Python を外す段でまた全部を作り直す。状態ファイルの書き手（Python）と読み手（窓）が別の言語で、書いている途中を読む形と Windows の置き換えの割れが新しく入る。黙る CM3 の待ち（測った: 毎回 timeout 秒）は Python の中に残り、窓はそれを待つ。HOT と POST /refresh は Python のままで、道が 2 つの言語にまたがる（形と色 5）。"
+    },
+    "D crate に頼る（ureq・encoding_rs）で A の範囲": {
+     "score": {
+      "order": 9,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 7,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "proposals_text の案で、窓がただ 1 つの係（SERVES に schedule）になるのに「https・use_system_proxy・scheme の無い URL・数でない timeout_sec・知らない charset は Python に任せる」と書く所。services/schedule.py の ensure は取る・整える・置くが 1 本の流れで、受け身の Python は取りに行かない。窓が取れない設定・読めない charset のとき、だれが CM3 へ取りに行き、だれが世代を置くのかが案に無い（Python に取らせると 2 つの係に戻る。charset は取った後でしか分からないので、取ったバイトをどう渡すかも要る）。束を組めない形（bundle::Py）で Python が答えるときも、窓は効いている設定（cm3_base_url など）を自分で組めないので、知らせに設定を載せる決めが要る"
+      }
+     ],
+     "seen": "案を作った者が確かめてほしいと書いた encoding_rs と Python の差を、手元の控えにあった encoding_rs 0.8.35 で小さな道具を組み、1 バイト 256 と 2 バイト（1 バイト目 0x81〜0x9F・0xE0〜0xFF × 2 バイト目 0x40〜0xFF）の全部で Python 3.13 と比べた: Python の cp932 が読む 9,800（1 バイト目 FD〜FF を除く）のうち違うのは 1 バイトの 0xA0・0xFD・0xFE・0xFF の 4 つだけ（Python は U+F8F0〜F8F3、encoding_rs は読めない〈had_errors〉。0x80 は両方 U+0080）。Python の shift_jis とは 8160・8161・817C・8191・8192・81CA の 6 字だけが違い、encoding_rs はそこを cp932 の字（U+FF5E など）で読む。encoding_rs だけが読む物は 0。node の TextDecoder（WHATWG）でも 6 字は cp932 の字だった。→ 字の側は案の読みどおりで、差は 10 字の当て直しで埋まる（焼いた 126 KB の表より小さい）。ただし 0.8.44 では確かめていない。良い所: 範囲は A と同じで狙いを満たす（順序 9・ステップ 9）。悪い所: ureq（＋ureq-proto・utf8-zero）は 30x・timeout の意味（全体か 1 回ごとか）・誤りの字が urllib と違い、答えの字は窓で組み直す要るので、HTTP を crate に頼る得が薄い（直感的 6）。新しい crate 4 つと版上げで読みが変わりうる（形と色 6・調子 5）。https を後で足すと rustls と ring（C とアセンブリ）が来る。上の減点の任せ方の穴は A と同じ。"
+    },
+    "E 決まりを変えて CM3 に依らず設備を数え、設備の木と設備グループの 5 本だけを閉じる（＋届かない CM3 を待たない）": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 4,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "良い所: 小さく 1 版で閉じ、設備の木と設備グループの 5 本が CM3 に届くかによらず窓の答えになる（釣り合い 8・調子 8）。測った事実の上に立っている: 作り物の CM3 に届くとき、設備グループの一覧の seen で from に「スケジュール」が付くのは L-1 だけ（n 277）で、置き場の世代も L-1-…g1 だけ（routes/dashboard.py :59〜70 が sch を src_plan の既定〈最初の設備〉で数える）。黙る CM3（timeout_sec 2）では設備の木 2,032・2,037 ms・設備グループの一覧 2,024 ms と毎回待った（断られる CM3 は 29 ms）。悪い所: 利用者に見える中身が変わる（選べる設備に L-2・L-3 が増え、件数 n からスケジュールの分が消え、届かない CM3 でも「スケジュール」が付く）＝利用者がまだ決めていない決まりの変更で、『今の答えを変えない』の既定に反する（言葉と置き場 4）。失敗を覚える秒数も利用者の決め。スケジュールの道とパネルは Python のままなので、Python を外す得は小さい（ステップ 4）。"
+    },
+    "F 2 つの係が並んでも壊れない置き場にする（共存）": {
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 5,
+      "place": 7,
+      "layout": 4,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "良い所: Python が今のまま自分で取りに行ける（engine=python・束を組めない形・窓が取れない設定）ので、A・B・D・H の『係の層での任せ方』の穴がこの案には無い（言葉と置き場 7）。CM3 への問い合わせも 2 倍にならない。悪い所: 錠と状態の読み書きを 2 つの言語で同じに作る（Windows の置き換え・読んでいる途中のファイル・落ちたプロセスの錠）。版 3.94.0 で CI が 2 回見つけた『生きた錠をどける』『空の錠が残る』と同じ種類の割れで、いちばん割れやすい（考えさせない 3）。再現した消し合いの形（世代の名前がぶつかる・相手の今を消す）は錠と名前の書き手で直るが、係が 2 つ残り Python を外す段でまた片付けが要る（形と色 5）。1 版に A の全部＋錠が乗る（チャンク 5・釣り合い 4）。"
+    },
+    "H 設備ごとの道を先に、HOT は次の版（範囲で分ける）": {
+     "score": {
+      "order": 9,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "proposals_text の案で、窓がただ 1 つの係（SERVES に schedule）になるのに「https・use_system_proxy・scheme の無い URL・数でない timeout_sec・知らない charset は Python に任せる」と書く所。services/schedule.py の ensure は取る・整える・置くが 1 本の流れで、受け身の Python は取りに行かない。窓が取れない設定・読めない charset のとき、だれが CM3 へ取りに行き、だれが世代を置くのかが案に無い（Python に取らせると 2 つの係に戻る。charset は取った後でしか分からないので、取ったバイトをどう渡すかも要る）。束を組めない形（bundle::Py）で Python が答えるときも、窓は効いている設定（cm3_base_url など）を自分で組めないので、知らせに設定を載せる決めが要る"
+      }
+     ],
+     "seen": "良い所: 製品の形で Python に回る形の大半（パネル・設備の木・設備グループ・一覧）が 3.96.0 で窓になり、CI で落ちた形と消し合いが閉じる（順序 9）。悪い所: HOT を残すために、受け身の Python が窓の世代と結合から build_hot で組み、HOT の頼み（ensure_many に当たる知らせ）を窓へ出すという、ほかに無い混ざった道を新しく作り、次の版で捨てる（直感的 5・チャンク 6）。build_hot は 90 行ほどで、試験には HOT の決まりを素直に当てた oracle（tests/test_schedule.py の oracle_hot）が既にあり、分けて減る危うさは小さい。HOT の画面は 3.96.0 でも Python が要る（ステップ 8）。上の減点の任せ方の穴は A と同じ。"
+    }
+   },
+   "fixes": [
+    "（A に入れる。答えは変えない）係の層での任せ方を決める: 窓がただ 1 つの係のまま、窓が取れない設定（https・use_system_proxy・scheme の無い URL・数でない timeout_sec）は、その設定の間だけ窓が係を降りたと状態ファイルに書き（設定の指紋ごと）、受け身の Python が自分で取りに行って置く（世代の名前に書き手を入れ、同じ設備を 2 つの係が同時に持たない）。知らない charset は、窓が取ったバイトと Content-Type を世代の横に置き、Python が _decode_body から整えて置く形か、Python の codec の名前の表を焼いて同じ順（charset → UTF-8 → CP932 → UTF-8 の置き換え）で窓が読む形のどちらかに決め、schedule_parity に場面を足す",
+    "（A）知らせに効いている設定（cm3_base_url・init_path・client_ip・timeout_sec・設備と端末区分・点検の言葉）を載せる。束を組めない形（bundle::Py）で Python が答えるとき、窓は設定を自分で組めない。受け身の Python が待つ長さは窓の接続＋読みの timeout より長くし、待った後は窓の状態の error から Python と同じ 502 の字を組む（待ちきれずに違う字を返さない）",
+    "（A・Python と窓の両方。答えを変えない直し）同じ設備の錠を待っていた問い合わせは、待っている間に済んだ取り直しの結果を失敗も含めて使う（services/schedule.py の docstring の『先の答えを待って使う』どおりに）。今は失敗すると次の問い合わせが錠を取ってまた取りに行くので、黙る CM3（timeout_sec 2）に同じ設備を 4 本同時に送ると 2,028・4,049・6,073・8,097 ms と積み重なった（既定 15 秒なら 4 本目は 60 秒）。ダッシュボードの sch のパネル・設備の木・一覧が同時に開く形で起きる。そのうえで、失敗を数十秒覚える秒数（利用者の決め。既定の候補は今ある cache_sec〈10 秒〉）を Python と窓に同じに入れ、突き合わせは時計を差し替えて見る",
+    "（A・Python と窓の両方。答えは同じ）結合の rightHit を、この元の鍵を DISTINCT の一時表と索引にして数える（右外部・完全外部で既に作る _tpa_a と同じ形）。data_join.py :198 と join.rs :249 の EXISTS は相手の行ごとにこの元を JoinKey つきで全部なめる入れ子で、仕掛 20,000 で join_key が 939,321 回（1,200 で 55,721 回）呼ばれ、冷えた一覧が 886〜1,248 ms（1,200 で 78〜100 ms）だった。SQLite の C の関数で同じ形を数えると入れ子 148 ms・索引 4.4 ms（答えは同じ 46）。スケジュールに限らず全部の結合に効くので、鍵が NULL・重なり・複数の鍵・相手の方が多い形を lists_parity と routes_parity に足す",
+    "（A）世代の番号を置き場にある最大＋1 から数える（か書き手と時刻を名前に入れる）。今はプロセスごとに 1 から数えるので、起こし直した後に前の g1 と同じ名前へ os.replace し、Windows で読んでいる途中なら OSError（Cm3Error でないので 500）になる。起こし直したときは前の状態を読まず（今の答えのまま。前の予定を出すかは利用者の決め）、残った世代は片付ける。状態ファイルは一時ファイルから置き換え、Windows で読んでいる途中の置き換えの失敗は少し待って取り直す",
+    "（A）字の表: encoding_rs 0.8.35 で確かめた事実（Python の cp932 とは 1 バイトの 0xA0・0xFD〜0xFF の 4 つだけ、Python の shift_jis とは 8160・8161・817C・8191・8192・81CA の 6 つだけが違う）を cm3_cases.json に入れ、焼いた表（連続の区間にして持つ）でも crate でも、1・2 バイトの全部を Python と比べる試験を置く。crate を選ぶなら版を固定し、0.8.44 で同じ数を確かめる",
+    "（A）手で書く HTTP は送る見出しを urllib と同じにし（Host・Content-Length・Connection: close・Accept-Encoding を送らない）、作り物の CM3 に HTTP/1.1・chunked・閉じるまで・30x・500・遅い・黙る・断る・名前が引けないを足す。接続の timeout（「CM3に接続できません: timed out」）と読みの timeout（「CM3の応答がタイムアウトしました」）を分けて突き合わせる。Windows の誤りの字（[WinError 10061] と日本語の文・[Errno 11001] getaddrinfo failed）は Windows の CI の突き合わせに入れる。字を同じにできるまでは、利用者の決め（Windows の誤りの字）として記録に残す",
+    "（A）2 つの係の試験: 採点者が再現した順（rrprrp で 4 回中 4 回、prrrpp で 5 回中 2 回、相手の今の世代が消えた。交互でも同じ名前で上書きし合う）を、受け身の Python と窓の係で流し、相手の今の世代が消えない・Python が世代を置かない・CM3 への問い合わせが 1 回であることを確かめる。窓をわざと崩して（Python に _sweep させる）落ちることも見る",
+    "（A）答えを変える物（E の選べる設備の数え方・起こし直した後の前の予定・失敗を覚える秒数・https・Windows の誤りの字）は今の答えのまま作り、利用者に決めてもらう事として版の記録に残す。E の数え方は、決まれば窓の equipment_seen を bundle の schedule_equips から数える小さな直しで後から足せる"
+   ]
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりにコードを読み、動かして測った事実で採点した。読んだ物: CLAUDE.md の改良の節と加点・減点・program/tools/ui_score.py の冒頭・2026-11-port-next2.json（採点と fixes 9〜12）・RUST_PORT_PLAN.md の 4 章と段 3 の 11・12 歩目、program/app の services/schedule.py（ensure・_store・_sweep・build_hot。失敗は path が無いと覚えない）・services/cm3_schedule.py の fetch_raw・routes/schedule.py（schedules・_resolved・schedule_plan・hot_plan）・routes/dashboard.py の equipment_seen・services/data_join.py の _step と Joiner._sweep・app/__init__.py の lists_are_external と shell_notice・tests/test_schedule.py と schedule_fixture.py、desktop/src の lists.rs :494〜515・lot.rs :1138〜1170・dashboard.rs :388〜402・join.rs :180〜270 と :440〜470・sidecar.rs の SERVES・Cargo.lock。流した物（作業ツリーは変えていない。置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-sch）: (1) probe.py … test_schedule の Api と同じ組みのアプリで、黙る CM3（受けて答えないソケット・timeout_sec 2）に設備の木 2,032・2,037 ms・設備グループの一覧 2,024・一覧 L-1 2,024・2,024 ms（502「CM3の応答がタイムアウトしました」）・HOT 2,073 ms。断られる CM3 は設備の木 29・一覧 20 ms。作り物の CM3 に届くとき seen の「スケジュール」は L-1 だけ（n 277）・世代も L-1 だけ。冷えた一覧 L-1: 仕掛 1,200 で 86・100・78 ms（控えから 4.3）・20,000 で 1,248・886・1,018 ms（控えから 4.5）。cProfile の join_key は 55,721 回と 939,321 回（案の 323,671 回はどちらとも違うが、相手の行 × この元の行の入れ子であることは同じ）。SQLite の C の関数での rightHit は入れ子 148 ms・索引 4.4 ms（答えは同じ）。fetch_raw 20.1 ms・build_opener 17.7 ms。(2) two.py … 同じ置き場に Schedules を 2 つ置き、中身を変えながら順を変えて取り直した: 交互 rprp・rpprrp は 0 件、rrprrp は 4 回中 4 回、prrrpp は 5 回中 2 回、相手の今の世代が消えた（案の 7 回中 4 回は順しだいで再現する）。交互でも g1・g2 を同じ名前で上書きし合った。(3) silent2.py … 黙る CM3 に同じ設備の ensure を 4 本同時に送ると 2,028・4,049・6,073・8,097 ms（錠で並び、失敗のたびに取り直す。案に無い形）。(4) encprobe（手元の cargo の控えの encoding_rs 0.8.35 を --offline で組んだ小さな道具。desktop の組みは使っていない）… 1・2 バイトの全部を Python 3.13 の cp932・shift_jis と比べた（差は cp932 と 4・shift_jis と 6）。node の TextDecoder でも 6 字を見た。Rust の窓は組んでいない（release の組みもしていない）。Windows の誤りの字・fromtimestamp の負・本物の CM3 の HTTP は確かめていない。採点の物差し: わかりやすさ＝狙いの順・まとまり・主の狙いが 1 つか・突き合わせで数と状態が見えるか、使いやすさ＝この段の狙い（Python に回る穴を塞ぐ）への手の少なさ・落とし穴の少なさ・今の型に沿うか、統一感＝今の作り（SERVES・受け身・焼いた表）と同じか・Python と同じ答えか、美しさ＝1 版の量と危うさの釣り合い・依存と範囲の控えめさ。答えを変える案（E）は、利用者がまだ決めていないので言葉と置き場を下げた。",
+ "built": {
+  "name": "作った後",
+  "evaluator": "案を作っていない別の採点者（別のエージェント・2026-11-10。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、作業ツリーの未 commit の変更（schedule.rs・cm3.rs・cm3_http.rs・cm3_tables.json・schedule_parity.rs・schedule_oracle.py・lists.rs・lot.rs・join.rs・services/schedule.py・data_join.py・routes/schedule.py・app/__init__.py・計画書の段 3 の 13 歩目）を読み、動かして測った事実で採点した。作業ツリーのファイルは変えていない（この記録に built を足しただけ）。場面の道具は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-sch/probe.py（schedule_oracle.py を読み込み、World と scenes だけ差し替える。作り物の CM3 に、本文を少しずつ送る・RST・閉じる・送る順を決める形を足した）・passive2.py（受け身の Python の係）・mixed.py（窓が schedule を名乗った受け身の Python のアプリ）。窓の側は schedule_parity.rs を写した一時の試験 desktop/tests/zz_schprobe.rs・zz_schtwo.rs・zz_schmixed.rs で当て、流した後に試験と実行ファイル・incremental を消した。cargo はどれも debug。",
+  "seen": "【流した物】cargo test --locked --test schedule_parity（2 passed: 答えた歩 86・任せた歩 6・比べたファイル 74・要求 58・答えた一覧 27・字の読み 70,353）・equipgroups_write_parity・page_parity・lists_parity・routes_parity・dash_parity（どれも passed）・--lib schedule／cm3（8 passed。lot::tests::the_window_answers_the_schedule を含む）・python -m unittest tests.test_schedule tests.test_cm3_tables（Ran 20・OK）。root でない利用者（nobody。TMPDIR を nobody の置き場に）でも、同じ試験の実行ファイルと Python の試験がすべて通った。cargo fmt --check は差なし。ruff はこの機械に 0.16.8 しか無く（決めた版は 0.15.20）、確かめられなかった。【採点者が足した場面 1: 答え・ファイル・要求】probe.py の 66 場面・276 歩を Python の道（係）と本物の窓の道（Lot::handle_body。Python は居ない）に同じ並びで当てた: 字の読み 9（shift_jis と cp932 で違う 6 字 8160・8161・817C・8191・8192・81CA・shift_jis で読めない NEC 特殊字 → utf-8 → cp932・知らない charset〈cp943c〉・MS_Kanji・US-ASCII に UTF-8・BOM・utf-8 も cp932 も読めない〈置き換え〉・Content-Type が 2 つ・見出しの大小と空白・見出しの折り返し）、HTTP 30（本文を 0.45 秒ずつ 5 回〈timeout 1 秒・合わせて 2.3 秒〉・見出しを 1 行ずつ 0.6 秒・見出しの後に黙る・本文や見出しの途中の RST・Content-Length より短い／長い／数でない／負／2 つ・chunk の拡張と大文字の 16 進と後ろの見出し・Transfer-Encoding: gzip, chunked・chunked と Content-Length の両方・壊れた chunk・最後の 0 が無い・HTTP/1.1 の閉じるまで・100 と 102・204・201・299・600・理由の無い状態の行・Latin-1 とタブの理由・LF だけの改行・状態の行が無い・小文字の http/1.1）、30x 14（POST の 301・308・相対の Location・# と空白・//host・ftp と https へ・URI の見出し・300・304・違う URL を 11 回・本文つき・ASCII でない Location）、答えの形 41（1 == 1.0 == True のロット番号・\\x1c と U+2028 と 𝟏𝟎 と ١٠ の完了予定・停止の行の 1e16・1e-05・1e+22・-1.5・١٠分・10　時間・2.H・寸法の 1_0・True・１．５・infinity・文字参照 32〈&#x0d; &#xFFFE; &#65 &AMP &notin &#x110000; &#150; &#55296; <<a>> x<\\n>y など〉・文字化け 11・点検の言葉の NFKC・updateTs 11〈空白つき・全角・下線・True・1e300・1.5e12・-1e15・9999 年・+・小数・-1〉・9999 年の繰り上がり・entity と status と error の型 13・同じ鍵・\\ud83d\\ude00・-0.0・1.0E+2・0.30000000000000004）、URL の形 13（HTTP:// の大文字・ポートの頭の 0・init_path の # と ASCII でない字・/// と相対・localhost・client_ip が数と表・timeout が \"2\"・True・0・\" 1e0 \"・ポートが空・タブ・設備の字の重なり）。窓が答えた 276 歩は、答え・断る言葉・置いた世代と状態のファイル 108・CM3 への要求 161 本がすべて Python と同じだった（違いとして出た 5 件は、窓が 1 回だけ降りた後を Python が取る形を道具が流さないための見かけ）。窓が任せた歩はすべて状態に「係を降りた」を書いた（ただし仕掛に無いロット番号に字と数が混ざる形は、取った後の sorted で任せるので印は無い。受け身の Python は窓の新しい世代を読んで同じ 500 を返すので止まらない）。【場面 2: 結合・HOT・設備の木】同じ道具の 2 組目 9 場面・39 歩（仕掛のロット番号の小文字・全角・前後の空白と全角空白・仕掛に無いロットが数だけ〈1・True・1.0・2.5・12345678901234・1e16〉で missLots が [1, 2.5, 3, 12345678901234, 1e+16]・スライサー・集計・並べ替え・HOT の設定の端〈設備 L-3 L-2 ZZ・前工程「ｈｏｔ」・無い釜番の列・前工程が数・設備が無い・空〉・設備の木と /api/dashboard/sources〈重なる設備の字・届かない CM3・設備が空〉・パネル・結合した表〈左外部〉）がすべて同じ（ファイル 44・要求 50）。【場面 3: 受け身の Python が答える形】mixed.py（TPA_SHELL_SERVES=schedule。schedule_is_external が真になることを確かめた）を oracle の 34 場面・92 歩に当て、知らせを本物の窓（Lot::notice）へ渡した: 答えは 92 歩すべて Python だけの形と同じで、どの歩も 8 秒未満。世代は窓（.rs.）が置き、CM3 への要求は届く・変わる・黙るで Python だけの形と同じ数（窓の持たない charset と NaN は 2 回: 窓が 1 回取って降り、Python がもう 1 回）。【場面 4: 2 つのプロセス】passive2.py と窓で pprr・rprp・prpr・pppp・rpprrpp の順に取り直し、どの歩も今の世代がある・Python の世代が無い・CM3 へ 1 回ずつ。Python の p と窓の r を同時に送ると CM3 へ 1 回。窓を起こし直す（Python は起きたまま）と、前の窓の状態（seq 2）を読んだ Python の p に、新しい窓は片付けてから取り、seq を 1 にして bump で起こした（待たずに 0.03 秒）。【割れ】(1) 窓が係を降りた間に Python が取った後、窓は自分のメモリの前の覚えを答える: 2 回目の答えだけ NaN の CM3（probe.py の flip）で、窓の GET（08:06）→ 窓の再読込（NaN で 1 回だけ降りる）→ 受け身の Python が取る（08:08。状態の書き手 py・印は消えた）→ すぐ窓の GET が 08:06 の予定を返した（状態のファイルは 08:08）。Python だけの形なら再読込の後は新しい予定。use_system_proxy で降りて Python が取り（08:07）、設定を戻した直後の窓の GET も 08:06 を返した。どちらも cache_sec（10 秒）の間で、一覧は古く、カード（状態のファイル）は新しい。(2) Python が係のときに置いた世代（.g2.py.sqlite3）は、窓が係に戻った後も消えない: 受け身の Python は片付けず、窓の片付け（sweep・clean_once）は自分と前の版の名前だけなので、降りるたびに 1 つずつ残る（起こし直しても残る）。【割れではない落とし穴】受け身の Python も HOT の表は自分で作って置く（__HOT__.g1.py.sqlite3。設備の世代とは名前が別で、片付けも書き手ごとなので消し合わない）。1 回だけ降りる形（窓の持たない charset・壊れた chunked・途中で切れた本文・相対の 30x など）が続く CM3 では、窓と Python が 1 回ずつ取り、CM3 への問い合わせが 2 倍になる（計画書に記録あり）。受け身の Python が待つのは timeout×4＋5 秒で、窓は 30x を 10 回までたどり、行き先ごとに接続と読みの timeout を持つので、遅い 30x が何段も続くと Python が先に「CM3の応答がタイムアウトしました」と答えうる（作り物の CM3 では起こしていない）。Windows の誤りの字は Linux では確かめられない（利用者の決めとして記録済み）。",
+  "result": {
+   "proposal": "A 1 版で縦に全部（作った後）",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 7,
+    "steps": 7,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/schedule.rs の ensure（let st = self.peek(code) と age < max_age で返す所）: 窓が係を降りた間（1 回だけの once・設定の once: false）に受け身の Python が取って状態のファイルを書き換えても、窓のメモリの覚えは前のまま。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-sch/probe.py の 3 組目（PROBE_SET=3・場面 flip と plain）と一時の試験 zz_schtwo: 窓 GET 08:06 → 窓の再読込（2 回目の答えが NaN）は任せる → Python が取って 08:08（書き手 py）→ すぐ窓の GET は 08:06（Python だけなら新しい予定）。use_system_proxy で降りて Python が 08:07 を取り、設定を戻した直後の窓の GET も 08:06。cache_sec（10 秒）の間、一覧は古い予定・カードは新しい予定で食い違う。状態のファイルの書き手が py で seq が進んでいたら、メモリの覚えを捨てる（か状態から読み直す）直しが要る"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "schedule.rs の sweep・clean_once（自分〈rs〉と前の版の名前の世代だけ消す）と services/schedule.py の受け身（_cleaned=True・_sweep しない）: 窓が降りた間に Python が置いた世代（zz_schtwo の場面 down で L-1-4cfbc7.g2.py.sqlite3）が、窓が係に戻った後も、窓を起こし直しても残る。Python だけの形なら次に置くときに消える。降りるたびに 1 つずつ増える"
+    }
+   ],
+   "seen": "指摘 1〜9 と next2 の 9〜12 は入った: 係は窓 1 つ（SERVES・schedule_is_external・受け身の Python は知らせで頼んで seq を待つ・降りた印は for と once）、知らせに fetch の設定、錠を待った問い合わせは先の結果を使う（4 本同時で 1 回）、rightHit は DISTINCT の一時表と索引（Python と窓）、世代は <設備>.g<最大＋1>.<書き手> と一時ファイルからの状態、字は焼いた表（1・2 バイトの全部を Python と比べる）、HTTP は urllib と同じ見出しと 30x・chunked・timeout、2 つのプロセスの試験、答えを変える物 5 つは利用者の決めとして記録。採点者が足した 315 歩（窓が答えた形）と 92 歩（受け身の Python が答え窓が取る形）は Python と 1 字同じで、2 つのプロセスの 5 つの順と同時・起こし直しでも相手の世代を消さず CM3 へ 1 回ずつ。root でない利用者でも通る。割れは 2 つ（減点）: 降りた後の窓のメモリの古い覚え・Python が係の間に置いた世代が残る。fixes 6 の「cm3_cases.json に入れる」は、表の代わりに schedule_oracle.py codecs で Python と直に比べる形になった（同じ事を見ている）。"
+  }
+ },
+ "built_fixed": {
+  "fixed": [
+   "割れ 1 降りた後に Python が取っても窓が古い予定を答える: 窓（adopt）は降りたことのある設備で答える前と裏の取り直しの前に状態のファイルを読み、書き手 py の世代・指紋・番号・時刻・error が覚えと違えばファイルを覚えにする。受け身の Python も係になったとき（_adopt）同じ。行の指紋を窓と Python で同じ字にした（突き合わせで伏せていた指紋も比べる）",
+   "割れ 2 Python が係の間に置いた世代が残る: 窓が自分の世代を置いた後の sweep で py の世代も消す（新しい世代と 1 つ前は残す。Windows で開いていて消せなければ次の機会）",
+   "落とし穴: 受け身の Python の待ちを窓の最悪（30x を 10 回 × 接続＋読み）に合わせて timeout×2×11＋5 秒（600 秒まで）。計画書の『Python は世代を置かない』を『設備の予定の世代は置かない（HOT の表は置く）』に直した。1 回だけ降りる形で CM3 への問い合わせが 2 本になる理由を書いた"
+  ],
+  "added_to_parity": "schedule_parity に「降りて戻る」2 形（NaN で 1 回だけ降りる・システムのプロキシで降りて戻す）各 6 歩。状態のファイルの指紋も比べる（74 ファイル同じ）。tests/test_schedule.py に受け身の Python が窓の状態を覚えにする試験。adopt を外すと 4 件・片付けの py を外すと 2 件の食い違いで落ちる",
+  "checks": "cargo fmt・clippy -D warnings・test（lib 132・schedule_parity 2・ほか 6 本 ok）・root でない利用者でも同じ・ruff・compileall・js-check・Python Ran 736 OK・bundle Ran 5 OK"
+ }
+}

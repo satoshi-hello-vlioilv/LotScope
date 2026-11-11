@@ -2,7 +2,7 @@
 //!
 //! 1 枚のパネル（本文 {panel}。送った順の木で読む）を確かめ（保存の道と同じ layout_clean::clean_panel。版 3.83.0）、段取り（どのファイルを読むか: lists.rs）をして、集計（pivot.rs の query_many）で数え、
 //! 形に合わせて組み立てる: 設備の分け方（重ねる series・並べる facet・合算 sum）・別のデータを合わせる（link）・合わせた表（board）。
-//! 稼働（ガント・ABC）とスケジュール（CM3）のデータは Python が答える（None を返す。2 段目の版 3.63.0 で移す）。
+//! スケジュール（CM3）は版 3.96.0 から窓が係（lists.rs の src_plan_eq → schedule.rs）。窓の束の設定が無い形・係を降りた設定は Python が答える（None）。
 //! 材料（データ元・作業実績の登録・勤務体系・設備の名前・設備グループ・試験の「いま」）は、一覧の設定の答え（lists）で受け取る。
 //! 答えが同じことは desktop/tests/dash_parity.rs が Python の答え（program/tests/dash_oracle.py）と突き合わせて確かめる。
 
@@ -262,7 +262,7 @@ struct Parts {
     mirrors: Vec<Value>,
 }
 
-/// 段取りの答え: Ok(Some) 数える物・Ok(None) Python へ回す（スケジュール）・Err 失敗の答え
+/// 段取りの答え: Ok(Some) 数える物・Ok(None) Python へ回す（スケジュールを窓が答えない形）・Err 失敗の答え
 type Planned = Result<Option<Parts>, Value>;
 
 impl Ctx<'_> {
@@ -393,7 +393,7 @@ impl Ctx<'_> {
         }
         let key = source.strip_prefix("src:").unwrap_or("");
         let plan = match lists.src_plan(conf, q, key, true, true) {
-            Ok(None) => return Ok(None), // スケジュール（CM3）は Python
+            Ok(None) => return Ok(None), // スケジュールを窓が答えない形（設定を組めない・係を降りた）は Python
             Ok(Some(p)) => p,
             Err(f) => return Err(fail_of(&f)),
         };
@@ -1043,7 +1043,7 @@ fn panel_of(body: &[u8]) -> Option<Tree> {
     Some(t.get("panel").filter(|p| layout_clean::truthy(p)).cloned().unwrap_or(empty))
 }
 
-/// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（スケジュール・読めない本文）
+/// 1 枚のパネルの数（本文 {panel}。Python の dashboard_query）。None は Python へ回す（スケジュールを窓が答えない形・読めない本文）
 /// GET /api/dashboard/sources（routes/dashboard.py の dashboard_sources・source_items）: パネルに使えるデータの並びと、作業実績の表示する設備・
 /// 期間の種類・設備グループのまとめ方。材料は一覧の設定の答え（lists）。役割（role）の無い答え（前の版の Python）なら None（Python に任せる）
 pub fn sources_answer(conf: &Conf, periods: &Value) -> Option<Value> {
@@ -1072,7 +1072,7 @@ pub fn sources_answer(conf: &Conf, periods: &Value) -> Option<Value> {
 /// 実際に出てくる設備（Python の routes/dashboard.equipment_seen。版 3.94.0 から設備の木と設備グループの一覧の 1 か所）→
 /// [{name, from: [どこで見たか], n: 件数（データ元の行の数）}]。known は先に並べる設備とその出どころ（作業実績の設備〈表示しない設備も〉→
 /// 設備マスタ。出どころが空なら from に入れない）。続けて、データ元の設備の列の値から見分けた設備（ダッシュボードの「設備」と同じ見分け方・
-/// 数え方）。名前は前後の空白を除き、同じ名前（NFKC・大文字）は最初の書き方に 1 つ。窓が数えられない元（スケジュール）があれば None
+/// 数え方）。名前は前後の空白を除き、同じ名前（NFKC・大文字）は最初の書き方に 1 つ。窓が数えられない元（スケジュールを窓が答えない形）があれば None
 pub fn equipment_seen(cx: &Ctx, known: &[(String, &str)]) -> Option<Vec<Value>> {
     let mut seen: Vec<(String, String, Vec<String>, Value)> = vec![]; // (鍵, 名前, 出どころ, 件数)
     let mut add = |name: &str, from: &str, n: Option<&Value>| {
@@ -1131,7 +1131,7 @@ pub fn equipment_seen(cx: &Ctx, known: &[(String, &str)]) -> Option<Vec<Value>> 
 }
 
 /// GET /api/dashboard/equip-tree（dashboard_equip_tree）: 実際に出てくる設備（equipment_seen。作業実績の設備 → 設備マスタは一覧の設定の
-/// 設備の名前の並び）と、設備グループのまとめ方ごとの入り方。窓が数えられない元（スケジュール）があれば None（Python に任せる）
+/// 設備の名前の並び）と、設備グループのまとめ方ごとの入り方。窓が数えられない元（スケジュールを窓が答えない形）があれば None（Python に任せる）
 pub fn equip_tree_answer(cx: &Ctx) -> Option<Value> {
     let known: Vec<(String, &str)> = cx.dash().names().into_iter().map(|n| (n, "")).collect();
     let names: Vec<String> = equipment_seen(cx, &known)?.iter().map(|x| json_str(&x["name"])).collect();

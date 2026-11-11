@@ -69,6 +69,11 @@ fn page_and_first_reads_are_like_python() {
         let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
         for path in READS {
             let py = &sc["reads"][path];
+            if py.is_null() {
+                // 尋ねていない読み（設備の木は tree の場面だけ）。窓にも尋ねない（版 3.96.0: スケジュールの元に場所がある場面では窓が CM3 へ
+                // 取りに行くので、Windows では届かない名前の引きで 1 場面 2 秒ほどかかり、44 場面で CI の時間を 100 秒延ばした）
+                continue;
+            }
             let got: Option<(u16, String, Value)> = if path == "/" {
                 lot.page(false, &|| true).map(|h| {
                     let csp = h.headers.iter().find(|(k, _)| k == "Content-Security-Policy").map(|(_, v)| v.clone()).unwrap_or_default();
@@ -98,15 +103,7 @@ fn page_and_first_reads_are_like_python() {
                 continue;
             }
             if py.is_null() {
-                // 尋ねていない設備の木。スケジュールの元に場所があれば窓は Python に任せるはず（窓は CM3 を数えない）
-                let sch = sc["answer"]["lists"]["sources"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .any(|d| d["key"] == "sch" && d["place"].as_str().is_some_and(|p| !p.is_empty()));
-                if sch {
-                    bad.push(format!("{name} {path}: スケジュールの場所がある設備の木を窓が答えた（Python に任せるはず）"));
-                }
+                // 尋ねていない設備の木（tree の場面だけ尋ねる。版 3.96.0 からスケジュールの元に場所があっても窓が答える）
                 continue;
             }
             if py["status"] != 200 || status != 200 {

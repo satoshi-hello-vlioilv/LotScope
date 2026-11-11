@@ -10,6 +10,7 @@
   5. 覚え: 同じ中身なら置き直さない・変われば新しい世代・CM3 に届かなくなっても前の予定を出し続け、理由を言う・一度も取れなければ 502
 """
 import json
+import os
 import shutil
 import sqlite3
 import tempfile
@@ -338,6 +339,193 @@ class Api(unittest.TestCase):
         self.assertEqual([(e["code"], e["term_kbn"]) for e in c["equipments"]], [("L-1", "4"), ("L-9", "2")])
         self.assertEqual(c["inspect_keywords"], ["点検板", "テスト材"])
         self.assertEqual(c["hot"]["equipments"], ["L-9"], "HOT の設備は登録した設備だけ")
+
+
+class OneKeeper(unittest.TestCase):
+    """版 3.96.0: 係は 1 つ（窓）。受け身の Python・錠を待つ問い合わせが先の結果を使う・世代の番号と書き手・状態のファイル"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.root = self.tmp / "schedule"
+        self.cfg = schedule.config({"schedule": {"equipments": "L-1, L-2", "timeout_sec": 1, "cm3_base_url": "http://cm3.example"}})
+        self.n = 0
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def fetch(self, cfg, code, kbn, kws):
+        self.n += 1
+        rows = [schedule_fixture._row(f"10/03 {8 + i:02d}:00", lotNo=f"A{self.n}{i}", zaishitsu="A", inItaAtsu="1", outItaAtsu="0.5",
+                                      reienHaba="1", keijo="C") for i in range(3)]
+        return cm3_schedule.normalize({"status": "SUCCESS", "entity": {"setsubiName": code, "updateTs": 1790982300000, "meisaiList": rows}}, code, kws)
+
+    def test_waiters_use_the_first_result_even_a_failure(self):
+        """黙る CM3 に同じ設備の問い合わせが 4 本重なっても、待っていた 3 本は先の失敗を使う（前は 1 本ずつ取り直し、2・4・6・8 秒と積み重なった）"""
+        calls = []
+
+        def silent(cfg, code, kbn, kws):
+            calls.append(code)
+            time.sleep(0.4)
+            raise cm3_schedule.Cm3Error("CM3の応答がタイムアウトしました")
+        s = schedule.Schedules(self.root, fetch=silent)
+        errs = []
+
+        def one():
+            try:
+                s.ensure(self.cfg, "L-1", max_age=60)
+            except cm3_schedule.Cm3Error as e:
+                errs.append(str(e))
+        t0 = time.monotonic()
+        ts = [threading.Thread(target=one) for _ in range(4)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        self.assertEqual(len(calls), 1, "取りに行くのは 1 回")
+        self.assertEqual(errs, ["CM3の応答がタイムアウトしました"] * 4)
+        self.assertLess(time.monotonic() - t0, 1.2)
+        # 続けて来た（待っていない）問い合わせは取り直す（失敗を覚える秒数は利用者の決め。今の答えのまま覚えない）
+        with self.assertRaises(cm3_schedule.Cm3Error):
+            s.ensure(self.cfg, "L-1", max_age=60)
+        self.assertEqual(len(calls), 2)
+
+    def test_passive_keeper_takes_the_window_state_over_its_old_memory(self):
+        """受け身の Python が係になったとき（窓が降りた）、前に自分が係だったときの古い覚えではなく、状態のファイル（窓が係の間に取った新しい答え・
+        世代）を使う（版 3.96.0 の作った後の直し。窓の adopt と対）。指紋は窓と同じ字なので、中身が同じなら置き直さない"""
+        self.root.mkdir(parents=True)
+        s = schedule.Schedules(self.root, fetch=self.fetch, passive=True)
+        old = self.root / f"{schedule._safe('L-1')}.g1.py.sqlite3"
+        s._state["L-1"] = {"path": str(old), "sig": "x", "gen": 1, "checkedAt": time.time(), "data": {"count": 0}}
+        data = self.fetch(self.cfg, "L-1", "4", [])
+        rows = cm3_schedule.table_rows(data)
+        win = self.root / f"{schedule._safe('L-1')}.g2.rs.sqlite3"
+        schedule.write_table(win, schedule.TABLE, cm3_schedule.COLUMN_NAMES, rows)
+        now = time.time()
+        (self.root / f"{schedule._safe('L-1')}.state.json").write_text(json.dumps({
+            "code": "L-1", "writer": "rs", "seq": 4, "path": str(win), "sig": schedule._sig(rows), "gen": 2, "fetchedAt": now, "changedAt": now,
+            "checkedAt": now, "error": "", "data": data, "resigned": {"for": schedule.fetch_conf(self.cfg), "why": "x", "once": False}}), encoding="utf-8")
+        st = s.ensure(self.cfg, "L-1", max_age=60)
+        self.assertEqual((st["path"], self.n), (str(win), 1), "窓の今の世代を使い、取り直さない（n の 1 は答えを作った分）")
+        s.fetch = lambda *a: json.loads(json.dumps(data))
+        st = s.ensure(self.cfg, "L-1", force=True)
+        self.assertEqual((st["path"], st["changedAt"]), (str(win), now), "中身が同じなら置き直さない（窓と同じ指紋）")
+
+    def test_generation_numbers_and_writers(self):
+        self.root.mkdir(parents=True)
+        other = self.root / f"{schedule._safe('L-1')}.g5.rs.sqlite3"
+        other.write_bytes(b"")
+        s = schedule.Schedules(self.root, fetch=self.fetch)
+        st = s.ensure(self.cfg, "L-1", force=True)
+        self.assertTrue(st["path"].endswith(".g6.py.sqlite3"), "置き場にある最大＋1（ほかの書き手の番号も数える）")
+        st2 = s.ensure(self.cfg, "L-1", force=True)
+        st3 = s.ensure(self.cfg, "L-1", force=True)
+        self.assertTrue(st3["path"].endswith(".g8.py.sqlite3"))
+        self.assertTrue(other.exists(), "ほかの書き手（窓）の世代は消さない")
+        self.assertTrue(Path(st2["path"]).exists() and not Path(st["path"]).exists(), "自分の 2 つ前は消す")
+        state = json.loads((self.root / f"{schedule._safe('L-1')}.state.json").read_text(encoding="utf-8"))
+        self.assertEqual((state["writer"], state["seq"], state["path"], state["error"]), ("py", 3, st3["path"], ""))
+        self.assertEqual(state["data"]["count"], 3)
+        # 起こし直し: 前の状態を読まず（今の答えのまま）、状態のファイルと自分の世代を片付ける。番号はほかの書き手の続き
+        s2 = schedule.Schedules(self.root, fetch=self.fetch)
+        self.assertEqual(s2.peek("L-1"), {})
+        st4 = s2.ensure(self.cfg, "L-1", force=True)
+        self.assertTrue(st4["path"].endswith(".g6.py.sqlite3") and other.exists())
+        self.assertEqual(sorted(p.name.split(".", 1)[1] for p in self.root.glob("*.sqlite3")), ["g5.rs.sqlite3", "g6.py.sqlite3"])
+
+    def window(self):
+        """作り物の窓（係。書き手 rs）と、その知らせの受け口"""
+        w = schedule.Schedules(self.root, fetch=self.fetch, writer="rs")
+
+        def on_notice(**kw):
+            def run():
+                # 窓と同じく、知らせを受けた印を先に書く（受け身の Python は印が無ければ TAKE_WAIT 秒で待つのをやめる）
+                self.root.mkdir(parents=True, exist_ok=True)
+                (self.root / f"{schedule._safe(kw['equip'])}.taken.json").write_text(json.dumps({"seq": kw["seq"]}), encoding="utf-8")
+                cfg = schedule.config({"schedule": {**kw["fetch"], "equipments": kw["equip"]}})
+                try:
+                    w.ensure(cfg, kw["equip"], max_age=kw["maxAge"], force=kw["force"])
+                except cm3_schedule.Cm3Error:
+                    pass
+            threading.Thread(target=run, daemon=True).start()
+        return w, on_notice
+
+    def test_passive_python_asks_the_window_and_places_nothing(self):
+        w, notice = self.window()
+        told = []
+        p = schedule.Schedules(self.root, passive=True, notify=lambda **kw: (told.append(kw), notice(**kw)))
+        st = p.ensure(self.cfg, "L-1", max_age=60)
+        self.assertEqual(told[0]["equip"], "L-1")
+        self.assertEqual(told[0]["fetch"], schedule.fetch_conf(self.cfg), "効いている設定を知らせに載せる")
+        self.assertEqual(st["path"], w.peek("L-1")["path"])
+        self.assertEqual(st["data"]["count"], 3)
+        self.assertEqual(p.peek("L-1")["path"], st["path"], "受け身の覚えは窓の状態のファイル")
+        p.ensure(self.cfg, "L-1", max_age=60)
+        self.assertEqual(len(told), 1, "新しければ頼まない")
+        p.ensure(self.cfg, "L-1", max_age=60, force=True)
+        self.assertEqual(self.n, 2)
+        self.assertFalse(list(self.root.glob("*.py.sqlite3")), "受け身の Python は世代を置かない")
+        self.assertEqual(len(list(self.root.glob("*.rs.sqlite3"))), 2, "受け身の Python は窓の世代を片付けない")
+        p.notify = lambda **kw: told.append(kw)
+        p.refresh_later({**self.cfg, "auto_refresh_sec": 0}, ["L-1"])
+        self.assertEqual(told[-1]["maxAge"], 0, "裏の取り直しも窓に頼む")
+
+    def test_passive_python_does_not_wait_long_when_the_window_does_not_take_the_notice(self):
+        """窓が知らせを受けない（落ちている・名乗ったが受け口が無い）ときは、受けた印を TAKE_WAIT 秒待ってやめる（版 3.96.0 の Windows の CI の後。
+        前は timeout × 2 × 11 ＋ 5 秒〈既定 15 秒で 335 秒〉待った）。受けた後は、窓の取りに行く時間ぶん待つ"""
+        told = []
+        cfg = {**self.cfg, "timeout_sec": 15}
+        p = schedule.Schedules(self.root, passive=True, notify=lambda **kw: told.append(kw))
+        t0 = time.monotonic()
+        with self.assertRaises(cm3_schedule.Cm3Error):
+            p.ensure(cfg, "L-1", max_age=0, force=True)
+        took = time.monotonic() - t0
+        self.assertEqual(len(told), 1)
+        self.assertTrue(schedule.TAKE_WAIT <= took < schedule.TAKE_WAIT + 2, took)
+        # 受けた印があれば、短く切らずに待つ（窓が取り終えて seq を進めたら答える）
+        w, notice = self.window()
+        self.root.mkdir(parents=True, exist_ok=True)
+        p.notify = lambda **kw: threading.Timer(schedule.TAKE_WAIT + 1, lambda: notice(**kw)).start() or \
+            (self.root / f"{schedule._safe('L-1')}.taken.json").write_text(json.dumps({"seq": kw["seq"]}), encoding="utf-8")
+        st = p.ensure(cfg, "L-1", max_age=0, force=True)
+        self.assertTrue(st["path"].endswith(".rs.sqlite3"))
+
+    def test_python_keeps_while_the_window_resigned(self):
+        self.root.mkdir(parents=True)
+        st_file = self.root / f"{schedule._safe('L-1')}.state.json"
+        st_file.write_text(json.dumps({"writer": "rs", "seq": 4, "resigned": {"for": schedule.fetch_conf(self.cfg), "why": "https", "once": False}}),
+                           encoding="utf-8")
+        told = []
+        p = schedule.Schedules(self.root, passive=True, notify=lambda **kw: told.append(kw), fetch=self.fetch)
+        st = p.ensure(self.cfg, "L-1", max_age=60)
+        self.assertFalse(told, "窓が降りた設定では、窓に頼まず自分で取る")
+        self.assertTrue(st["path"].endswith(".py.sqlite3"))
+        state = json.loads(st_file.read_text(encoding="utf-8"))
+        self.assertEqual((state["writer"], state["seq"], state["resigned"]["why"]), ("py", 5, "https"), "設定で降りた印は残す")
+        # 1 回だけ降りた（窓が整えられない答え）: 取り終えたら印を消す（次は窓が係）
+        state["resigned"] = {"for": schedule.fetch_conf(self.cfg), "why": "charset", "once": True}
+        st_file.write_text(json.dumps(state), encoding="utf-8")
+        p.ensure(self.cfg, "L-1", max_age=60, force=True)
+        self.assertIsNone(json.loads(st_file.read_text(encoding="utf-8"))["resigned"])
+        # 設定が違えば（窓が降りたのは別の設定）、窓に頼む
+        st_file.write_text(json.dumps({"writer": "rs", "seq": 9, "resigned": {"for": {"cm3_base_url": "https://x"}, "once": False}}), encoding="utf-8")
+        p2 = schedule.Schedules(self.root, passive=True, notify=lambda **kw: told.append(kw), fetch=self.fetch)
+        with self.assertRaises(cm3_schedule.Cm3Error):
+            p2.ensure({**self.cfg, "timeout_sec": 0.1}, "L-1", max_age=0, force=True)   # だれも答えないので待ち切る
+        self.assertEqual(len(told), 1)
+
+    def test_shell_names_schedule_and_python_becomes_passive(self):
+        from app import schedule_is_external
+        env = {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lists,schedule"}
+        old = {k: os.environ.get(k) for k in env}
+        os.environ.update(env)
+        try:
+            self.assertTrue(schedule_is_external({}))
+            self.assertFalse(schedule_is_external({"desktop": {"lotlist_engine": "python"}}))
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        self.assertFalse(schedule_is_external({}))
 
 
 if __name__ == "__main__":

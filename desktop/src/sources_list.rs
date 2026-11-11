@@ -5,8 +5,8 @@
 //!   Python の `_mirrors().peek` はそのプロセスが開いた元だけで、ほかは null だった。窓はより多く答える）
 //! - 行の数（rows）: 手元の写しの COUNT(*)（待たない）。結合した表は最後に組んだ答えの行の数
 //! - 結合の数（joinStats）: db_cache/joins の答えの覚え（Python の Joiner.recent のファイルの読み方と同じ。`<キー>_*.json` → `try-<キー>_*.json`）
-//! - スケジュールのカード: Python の Schedules の覚え（プロセスのメモリだけ）。中身が起きていれば尋ね、起きていなければ
-//!   Python を起こした直後と同じ `{mirror: null, equipCount}`
+//! - スケジュールのカード: 版 3.96.0 から窓の係（schedule.rs）の状態のファイルから（Lot::sources_list が渡す。受け身の Python と同じ所を読む）。
+//!   窓がスケジュールの設定を組めないときだけ中身に尋ね、起きていなければ起こした直後と同じ `{mirror: null, equipCount}`
 //!
 //! 書けるか（canEdit・othersCanEdit）は窓の me、共有か・版（shared・revision）は窓のマスタの置き場の係から。
 
@@ -28,7 +28,7 @@ pub struct Live<'a> {
     pub src: &'a Mirrors,
     /// 結合した答えの置き場（db_cache/joins）
     pub joins: PathBuf,
-    /// スケジュールのカード（中身が起きていれば Python の答え。None なら起こした直後の形）
+    /// スケジュールのカード（窓の係の答え。設定を組めなければ中身の答え。None なら起こした直後の形）
     pub card: &'a dyn Fn() -> Option<Value>,
 }
 

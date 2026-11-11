@@ -69,7 +69,7 @@ fn routes_answer_like_python() {
     }
     assert!(total >= 40 && filled >= 16 && forbidden >= 5, "問い合わせの組が足りません: {total} 通り・中身 {filled}・権限 {forbidden}");
     let ask = || Ok(phases[0]["settings"].clone());
-    // スケジュール（CM3）は Python が答える
+    // スケジュール（CM3）は、Python に尋ねた設定（窓の束の設定が無い形）では Python が答える（窓が答える形は tests/schedule_parity.rs）
     assert!(lot.handle("GET", o["python"].as_str().unwrap(), "", &ask).is_none(), "スケジュールは Python へ回す");
     // 作業実績の写しは窓の置き場（db_cache/work_log）・結合の答えは db_cache/joins（Python と同じ名前の決まり）
     assert!(work.join("db_cache").join("work_log").join("_mirror.json").exists(), "作業実績の写しの台帳");

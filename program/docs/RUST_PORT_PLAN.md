@@ -1165,6 +1165,112 @@ fixes の 9〜12 はスケジュール（D）、13 はマスタの置き場の�
   根の上のフォルダ（/・//）の確かめは POSIX の場面にし（Windows の根・ドライブ・UNC の字は事例の表で両方の決まりを突き合わせる）、ドライブだけの道（C:x。
   Python はドライブごとの今のフォルダで解く）は窓が任せる歩、Windows で「無い」とみなす誤りの番号に CPython が ENOENT へ読み替える物を足した。Windows では流せていない。
 
+### 段 3 の 13 歩目: スケジュール（CM3）を 1 版で窓へ。窓がただ 1 つの係で、Python は受け身 — 版 3.96.0
+
+採点（`tools/ui-proposals/2026-11-port-schedule.json`。画面に関係のない改良の決まり・1 回）の 1 位 **A**（65.8 点）に、採点の指摘（fixes の 1〜9）と
+前の採点（`2026-11-port-next2.json`）の fixes 9〜12 を入れて作った。
+
+- 係を 1 つに（fixes 1・2・8、next2 の 9）: 窓は `sidecar.rs` の SERVES に **schedule** を名乗り、CM3 へ取りに行く・世代を置く・状態を書くのは窓の
+  `desktop/src/schedule.rs`（`Schedules`）だけ。Python の `services/schedule.Schedules` は名乗られると受け身（`passive`。`app/__init__.py` の
+  `schedule_is_external`）: 窓の状態のファイル（`db_cache/schedule/<設備>.state.json`）と世代を読むだけで、取りに行く要るときは知らせ
+  `{"event": "schedule", equip, termKbn, inspect, fetch〈効いている設定: cm3_base_url・init_path・client_ip・timeout_sec・use_system_proxy〉, maxAge, force, seq}`
+  で窓に頼み、状態の seq が変わるまで待つ（timeout_sec × 2 × 11 ＋ 5 秒〈600 秒まで〉。窓の最悪の時間＝30x を 10 回たどる 11 本 × 接続＋読み に合わせた。作った後の採点の落とし穴で × 4 から直した。本文を少しずつ送り続ける CM3 は読みの timeout にならず、Python だけの形でもこれより長くかかりうる。そのときは受け身の Python が先に「タイムアウト」を答え、窓の結果は次の問い合わせから使う）。待った後は状態の error から Python と同じ
+  502 の字を組む。束を組めない形（窓が設定を組めない）では窓はスケジュールの道を答えず、Python が受け身のまま知らせに設定を載せるので、窓は
+  知らせの設定で取りに行く。窓が取れない設定（https・ftp などの種類・システムのプロキシ・正の有限の数でない timeout・ASCII でない／空白のある URL・
+  % @ [ ] のある Host・65535 を超えるポート）のあいだは、窓が状態の `resigned`（`for`: その設定・`once: false`）に「係を降りた」と書き、窓はその設備の道を
+  答えない。受け身の Python は `resigned.for` が自分の設定と同じなら自分で取りに行って置く（書き手 py。印は残す）。窓が同じに整えられない答え
+  （窓の持たない codec の charset・NaN や読みの割れる JSON・Python が落ちる形）はその 1 回だけ降り（`once: true`）、Python が取り終えて印を消したら
+  窓が係に戻る。知らせの枠に載せられない設定（NaN）は窓に頼まず Python が取る（Python と同じ誤り）。だれが取りに行き、だれが設備の予定の世代を置くかは
+  この 3 つの形だけ。HOT の表（`__HOT__-….g<n>.py.sqlite3`）は、受け身の Python も自分が答える HOT の一覧のために自分で組んで置く（設備の予定の世代から組む表で、CM3 へは問い合わせない。片付けるのも Python）。1 回だけ降りる形では、窓が取った答えを整えられず、Python が取り直すので、CM3 への問い合わせはその 1 回に 2 本になる（Python だけの形は 1 本。窓の受けたバイトを Python に渡せば 1 本にできるが、渡し口が増えるので今は 2 本のまま）。
+- 錠を待っていた問い合わせは先に済んだ結果を使う（fixes 3。Python と窓の両方）: 設備ごとに済んだ回数を数え、錠を取ったときに増えていれば、
+  その結果（取れた予定・届かなかった理由）を返す。黙る CM3（timeout 1 秒）に同じ設備を 4 本同時に送ると、前は 1・2・3・4 秒と積み重なり 4 回
+  問い合わせたのが、1 回・約 1 秒になった（`schedule_parity` で測る）。続けて来た（待っていない）問い合わせは前どおり取り直す（失敗を覚える秒数は
+  利用者に決めてもらう事。今の答えのまま覚えない）。
+- 結合の当たり数（rightHit）を索引で数える（fixes 4。Python の `data_join._step` と窓の `join.rs` の両方。答えは同じ）: この元の鍵を DISTINCT の一時表
+  `_tpa_a<n>` と索引にし（右外部・完全外部で前から作っていた物を、どの結合でも作る）、相手の行ごとに索引で引く。採点で測った形（仕掛 20,000 × 46 行）で
+  入れ子 148 ms → 索引 4.4 ms。`lists_parity` に鍵の NULL・空・重なり・相手の方が多い（2,400 行）・複数の鍵・2 つ続けた結合の 5 例を足した。
+- 世代と状態（fixes 5）: 世代の名前は `<設備>.g<番号>.<書き手>.sqlite3`（rs＝窓・py＝Python）。番号は置き場にある最大＋1（書き手によらず数える）。
+  片付けるのは自分の書いた世代と前の版の名前の世代だけ（相手の今の世代を消さない。ただし窓は、自分の世代を置いた後に、係の間に Python が置いた古い世代も消す。下の作った後の直し）。状態のファイルは一時ファイルから置き換え（Windows で読んでいる
+  途中なら少し待って取り直す。Python も `_replace`）、seq はファイルの seq＋1。起こし直したときは前の状態を読まない（今の答えのまま。取れていない間は
+  502）。係は起こしてから初めて使うときに状態のファイルと自分の世代を片付ける（受け身の Python は片付けない）。
+- 字の表（fixes 6、next2 の 10）: `program/tools/cm3-tables.py` が Python 3.13 から `desktop/src/cm3_tables.json`（108 KB）を焼く: cp932・shift_jis の
+  1 バイトの 256 字と 2 バイトの 1 バイト目ごとの 189 字（cp932 の 0x80・0xA0・0xFD〜0xFF と shift_jis の 6 字の違いも表に入る）、cp1252、
+  html.unescape の名前 2,231（「;」の無い 106 は最長一致）・数の参照の読み替え 34・捨てる符号 126、charset の名前 → codec（encodings の別名とモジュール
+  449）、0xFF までの \w。古い表は `tests/test_cm3_tables.py` が止める。窓が読む codec は utf-8・cp932・shift_jis・latin-1・ascii（cp1252 は書き戻しにだけ）。
+  空白は Python の isspace（\x1c〜\x1f も）で strip・split する。
+- HTTP（fixes 7、next2 の 11）: `desktop/src/cm3_http.rs`（std の TcpStream だけ）。送る見出しは urllib と同じ並びと値（Accept-Encoding: identity・
+  Content-Length・Host〈URL の netloc のまま〉・User-Agent: Python-urllib/3.13・Accept・Content-Type・Origin・Referer・Connection: close。30x の GET は
+  内容の見出しを除く）。受けるのは http.client と同じ（HTTP/1.0 と 1.1・Content-Length・chunked〈後ろの見出しは捨てる〉・閉じるまで・100 Continue を
+  飛ばす・誤りの答えの本文は読まない）。30x は urllib と同じ（POST の 301・302・303 は本文なしの GET、POST の 307・308 は HTTP の誤り、同じ URL 4 回・
+  全部で 10 回で「…infinite loop…」、行き先の無い 30x は誤り）。timeout は 1 回の接続・読み・書きごと。誤りの字: 接続の timeout は「CM3に接続できません:
+  timed out」、読みの timeout は「CM3の応答がタイムアウトしました」、OS の誤りは Linux で `[Errno n] 文`（getaddrinfo は glibc の文から EAI の番号）、
+  Windows で `[WinError n] 文`（末尾の空白と「.」を除く）と `[Errno n] getaddrinfo failed`。種類の無い URL は「unknown url type: …」、Host が空は
+  「no host given」。壊れた状態の行・途中で切れた本文・壊れた chunked（Python は http.client の例外で 500）は窓が答えず Python に任せる。
+- 移した道（範囲 8）: GET /api/schedule・/api/schedule/card・/api/src/sch（設備・__HOT__）と /slicer・/pivot・/source・POST /refresh
+  （`lists.rs` の `src_plan_eq`・`sch_plan`・`hot_plan`・`sch_resolved`〈仕掛の鍵の列を写しのロット番号の列に〉・`sch_extra`・`sch_source`・`sch_refresh`）、
+  スケジュールを使うダッシュボードのパネル（数字・グラフ・合わせた表の中も。`dashboard::panel_parts` の Ok(None) が無くなった）、設備の木と
+  設備グループの 4 本（選べる設備を窓が数える。届けば最初の設備の予定も数え、届かなければ飛ばす。Python と同じ）、GET /api/sources のカード
+  （窓の状態のファイルから。内側の /api/schedule/card を尋ねない）。スケジュールを元にした結合した表は、Python でも元にできない
+  （結合した表の元は 1 ファイルの元だけ。data_sources が broken にする）ので、窓も同じ 400 を答える（突き合わせに入れた）。
+  自己診断の 10b'' は「スケジュールの元がある PC でも窓が答え、Python と同じ」に戻し、10b'''' に「スケジュールの設備のタブ・行の様子・最初の設備の
+  一覧は窓が答え、受け身の Python と同じ」を足した。
+- Python に任せる形: ?engine=python・束を組めない（窓が設定を組めない。Python は受け身で知らせに設定を載せる）・上の「窓が取れない設定」と
+  「1 回だけ降りる答え」・schedule の段や hot が表でない・取り直しの秒が数でない・設備や点検の言葉の字が並びや表の repr（窓が同じ字にできない）・
+  updateTs の int(ts)/1000 が float に入らない（Python の source_info が落ちる）・仕掛に無いロットNo に字と数が混ざる（sorted が落ちる）・
+  HOT の表にバイナリや字でない完了予定日時・世代のファイルを置けない。
+- 評価関数: `cargo test --test schedule_parity`（← `tests/schedule_oracle.py serve`。作り物の CM3〈`tests/schedule_fixture.Cm3Server`。生のソケットで
+  chunked・HTTP/1.0 と 1.1・30x・500・404・黙る・何も言わずに閉じる・JSON でない・charset の 6 形〉と、断られる口・待ち行列を埋めた口〈接続の timeout〉・
+  引けない名前を起こし、窓が問い合わせる間も起こしておく。34 場面・答えた歩 86・任せた歩 6 で、1 歩ごとの答え・世代の表〈列・行・値の型〉と状態のファイル 74
+  ・CM3 が受けた要求 58 本〈要求の行・見出しの並びと値・本文〉を Python の道と突き合わせる。任せた歩は窓が答えず、状態に「係を降りた」を
+  書いたことを見る。続けて黙る CM3 に 4 本同時〈1 回・2.2 秒未満〉と、2 つのプロセス〈窓と受け身の Python が rrprrp・prrrpp の順に取り直す: 相手の今の世代が
+  消えない・受け身の Python は設備の予定の世代を置かない・CM3 へ 1 回ずつ・書き手は rs〉と、降りる → Python が取る → 窓が戻る 2 形〈下の作った後の直し〉）・`codecs_match_python`（cp932・shift_jis・cp1252 の 1・2 バイトの全部と
+  UTF-8 の strict と置き換え 4,006 例・charset の名前 35・見出しの読み 9。合わせて 70,353 の読み）・`equipgroups_write_parity`（スケジュールの元の 2 場面の
+  一覧と書ける歩を窓が答え、届く CM3 ではスケジュールの設備を数える。作り物の CM3 を窓が問い合わせる間も起こしておく）・`page_parity`（設備の木を
+  スケジュールの元に場所がある場面でも尋ねる。場面を 1 つ足した）・`lists_parity`（結合の 5 例）・`tests/test_schedule.py` の OneKeeper（待っていた
+  問い合わせが先の失敗を使う・番号と書き手・起こし直し・受け身の Python が窓に頼み設備の予定の世代を置かない・降りた設定では Python が取る・名乗り・受け身の Python が係になったとき窓の状態を覚えにする）・
+  `tests/test_cm3_tables.py`・`lot::tests::the_window_answers_the_schedule`（Python が居ない形・知らせ・https で降りる）・自己診断の 10b''・10b''''。
+  窓をわざと崩して落ちることを確かめて戻した: 錠を待つ問い合わせの「先の結果を使う」を外す（4 本同時で 4 回問い合わせ）・送る見出しの並びを入れ替える（要求の突き合わせ 50 件）・字の直しの latin-1 の戻しを外す・受け身の Python に世代を置かせて片付けさせる（2 つのプロセスで窓の今の世代が消え、Python の世代が残る 10 件）。Python も受け身に窓の世代を片付けさせる・待つ問い合わせが取り直す形で `test_schedule` が落ちることを見た。
+- 作った後の採点（`2026-11-port-schedule.json` の built。別の採点者・1 回・69.4 点）で見つけた割れ 2 つを直した（決まり 2026-11-06 なので採点し直さない）:
+  (1) 窓が係を降りた後に受け身の Python が取っても、戻った窓が自分の覚え（メモリ）の古い予定を答えた（2 回目だけ NaN の答えで 1 回だけ降りる・
+  システムのプロキシで降りて戻す の両方。cache_sec の間、一覧は古い予定・カード〈状態のファイル〉は新しい予定で食い違った）。窓は係を降りたことの
+  ある設備では、答える前に状態のファイルを読み、書き手が py で世代・指紋・番号・時刻・error が覚えと違えば、その答えを覚えにする（`schedule.rs` の
+  `adopt`。取り直しの判断の前と、裏の取り直しの鮮度を見る前）。Python も受け身で係になったときは、状態の書き手が自分でなければファイルの方を覚えに
+  する（`_adopt`。前に係だったときの古い覚え・消えたかもしれない世代を答えない）。表の行の指紋は窓と Python で同じ字にした（`_sig`＝`sig_of`。
+  N・I・R〈repr〉・T〈json.dumps〉と区切り）ので、相手の世代を覚えにした後も中身が同じなら置き直さず、changedAt は Python だけの形と同じ。
+  `schedule_parity` の状態のファイルの突き合わせで指紋も比べる（前は伏せていた。74 のファイルで同じ）。
+  (2) 係の間に Python が置いた世代（`.g<n>.py.sqlite3`）が、受け身の Python も窓も片付けないので残った。窓は自分の世代を置いた後の片付け（`sweep`）で
+  py の世代も消す。残すのは新しい世代と 1 つ前で、戻った窓は Python の今の世代を覚えにしているので、それが「1 つ前」として残る（Python が読んでいる
+  途中の問い合わせが開ける。版 3.57.1 の「unable to open database」を戻さない）。Windows で開いていて消せなければ次の機会に。起こし直したときの
+  片付け（`clean_once`）は前と同じく自分の世代だけで、Python の世代は窓が次に置いたときに消える。
+  突き合わせ: `schedule_parity` に「降りて戻る」2 形（NaN で 1 回だけ・システムのプロキシの設定で降りて戻す。作り物の CM3 の場面 `flip` を足し、
+  `schedule_oracle.py passive` に設定を足す口を付けた）・各 6 歩〈窓が取る → 降りる → 受け身の Python が取る〈書き手 py〉 → 戻った窓の一覧の行の数と
+  データの札が状態のファイルと同じで CM3 へ取り直さない → 1 回目の置き直しで Python の世代は 1 つ前として残る → 2 回目で残らず、置き場は 2 つ
+  〈Python だけの形と同じ〉〉を足した。窓の adopt を外すと 4 件、片付けの py を外すと 2 件で落ちることを確かめて戻した。
+  `tests/test_schedule.py` に受け身の Python が係になったとき窓の状態を覚えにし、中身が同じなら置き直さない試験を足した（`_adopt` を外すと落ちる）。
+- Windows の CI（PR #96）で見つけた事: 負の updateTs（−1000 ms）に Windows の Python は「1970/01/01 08:59:59」を答え、窓は null だった
+  （窓は Windows の gmtime_s が負を断ると推して書いていた。CI では −1 秒を受けた）。gmtime_s の受ける範囲は CPython のソースでは決まらないので、
+  Linux で時刻になる値のうち 1970 年より前と 3000 年から後は、Windows では窓が答えず Python に任せる（`cm3.rs` の `windows_unsure`。
+  場面「1970 年より前・3000 年から後の更新時刻」を分け、Windows では任せる歩）。読み通して、Windows の誤りの字も推して書いていたので
+  （Rust の io::Error の文は言語 0 で引き、切り方も違う）、CPython と同じ FormatMessageW（言語 0x0400・末尾の「' ' 以下」と「.」を切る・引けなければ
+  「Windows Error 0x…」）で組むようにした（`cm3_http.rs` の `win_message`。Windows 向けの型は作業用クレートで確かめた）。
+- Windows の CI（PR #96・886131e）が 45 分で切られた事（止まったのではなく、時間が延びて足りなくなった）: 3.95.0 の通った回（全部で 33.5 分・
+  更新の通し 14 分）と比べると、rust-cache の鍵（Cargo.toml に windows の機能を足した）が外れて全部を組み直し、試験の組み立て 1 分 37 秒 → 4 分 03 秒・
+  exe 4 分 18 秒 → 7 分 42 秒。`cargo test` の流す時間は 9 分 47 秒 → 13 分 28 秒で、内訳は `page_parity` 9.76 → 112.12 秒（尋ねていない設備の木を
+  窓に尋ねていて、スケジュールの元に場所がある場面では窓が CM3 へ取りに行き、Windows は届かない名前を引くのに 1 場面 2 秒ほどかかる。44 場面）・
+  新しい `schedule_parity` 46.87 秒・`equipgroups_write_parity` 33.10 → 55.32 秒・lib 3.62 → 11.75 秒。Python の 2 段 23 → 41 秒。自己診断は同じ
+  （153 → 157 秒）。更新の通しは 1〜5 段で約 1 分延び、6 段の途中で 45 分に着いた。手元の Linux の通し（debug の exe・xvfb）は 20 分 28 秒 → 21 分 15 秒で、
+  1 回の起動（OPEN → 終わり）は 125〜128 秒 → 126〜133 秒（2 回目からの起動で約 7 秒。自己診断のスケジュールの項目は 4〜70 ms で、ここではない）。
+  直した事（答えは変えない）: (1) `page_parity` は Python に尋ねていない読みを窓にも尋ねない（112 秒の大半が消える） (2) 窓は知らせを受けたら
+  `<設備>.taken.json`（seq）を先に書き、受け身の Python は 5 秒（`TAKE_WAIT`）のうちに受け取りが無ければ待たずに誤りを返す（窓が答えないときに
+  timeout_sec × 22 秒も待たない。窓が受け取った後は前どおり状態が替わるまで待つ。`tests/test_schedule.py` に試験を足した） (3) Windows の job の
+  制限を 60 分に (4) 自己診断の 10b'''' に道ごとの時間と回数を出す（Windows の CI で CM3 に届かない形の時間を読める）。
+- 利用者に決めてもらう事（答えを変えるので、今の答えのまま作った）: (1) 選べる設備を設定の設備から数えるか（案 E。今は最初の設備の予定を取り、
+  届いたときだけ数える。決まれば窓の equipment_seen を `bundle::schedule_equips` から数える小さな直しで足せる） (2) 起こし直した後に前の予定を出すか
+  （今は出さない。取れるまで 502） (3) 届かなかった失敗を何秒覚えるか（今は覚えない。並んで待っていた分だけ先の結果を使う。候補は cache_sec の 10 秒）
+  (4) https・TLS（今は Python が取る。窓で取るなら TLS の crate が要る） (5) Windows の誤りの字（Python は `[WinError 10061] 文`・getaddrinfo は
+  `[Errno 11001] getaddrinfo failed`。窓は FormatMessage の文を Python と同じく整えるが、Linux の CI では確かめられず、Windows の CI に作り物の CM3 の
+  突き合わせを入れるまで差が残りうる。突き合わせでは Linux の字だけを比べる）。User-Agent の版（3.13）は製品と CI の Python に合わせた字。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。
