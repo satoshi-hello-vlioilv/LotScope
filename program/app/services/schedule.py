@@ -43,6 +43,9 @@ from .cm3_schedule import Cm3Error
 from .sqlite_ro import connect_ro, qi
 
 HOT_KEY = "__HOT__"
+# 受け身の Python が、窓が知らせを受けた印（<設備>.taken.json）を待つ秒（版 3.96.0。窓が答えないときに timeout × 2 × 11 秒待たない。
+# 窓は知らせを受けた糸ですぐ印を書く）
+TAKE_WAIT = 5.0
 TABLE = "予定"
 HOT_TABLE = "HOT"
 DEFAULTS = {
@@ -334,12 +337,18 @@ class Schedules:
         except (TypeError, ValueError):
             wait = 335.0
         self._tell(cfg, e, max_age, force, seq0)
-        end = time.monotonic() + max(min(wait, 600.0), 5.0)
+        start = time.monotonic()
+        end = start + max(min(wait, 600.0), 5.0)
+        taken = False
         while time.monotonic() < end:
             time.sleep(0.03)
             st = self.read_state(code, busy={"seq": seq0})
             if (st.get("seq") or 0) != seq0:
                 break
+            if not taken:                            # 窓が知らせを受けたか（受けた印の seq）。受けなければ TAKE_WAIT 秒で待つのをやめる
+                taken = self._taken(code) == seq0
+                if not taken and time.monotonic() - start > TAKE_WAIT:
+                    break
         else:
             st = self.read_state(code)
             if st.get("path"):
@@ -351,6 +360,13 @@ class Schedules:
         if not st.get("path"):
             raise Cm3Error(st.get("error") or "CM3の応答がタイムアウトしました")
         return st
+
+    def _taken(self, code):
+        """窓が受けた知らせの seq（<設備>.taken.json。無い・読めなければ None）"""
+        try:
+            return json.loads((self.root / f"{_safe(code)}.taken.json").read_text(encoding="utf-8")).get("seq")
+        except (OSError, ValueError, AttributeError):
+            return None
 
     def _tell(self, cfg, e, max_age, force, seq=0):
         if self.notify is None:

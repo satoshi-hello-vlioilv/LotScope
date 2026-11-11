@@ -69,6 +69,11 @@ fn page_and_first_reads_are_like_python() {
         let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
         for path in READS {
             let py = &sc["reads"][path];
+            if py.is_null() {
+                // 尋ねていない読み（設備の木は tree の場面だけ）。窓にも尋ねない（版 3.96.0: スケジュールの元に場所がある場面では窓が CM3 へ
+                // 取りに行くので、Windows では届かない名前の引きで 1 場面 2 秒ほどかかり、44 場面で CI の時間を 100 秒延ばした）
+                continue;
+            }
             let got: Option<(u16, String, Value)> = if path == "/" {
                 lot.page(false, &|| true).map(|h| {
                     let csp = h.headers.iter().find(|(k, _)| k == "Content-Security-Policy").map(|(_, v)| v.clone()).unwrap_or_default();

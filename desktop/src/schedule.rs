@@ -444,7 +444,7 @@ impl Schedules {
                     let w = r.trim_end_matches(".sqlite3").split_once('.').map(|x| x.1).unwrap_or("");
                     w.is_empty() || w == WRITER
                 });
-            if n.ends_with(".state.json") || own_gen {
+            if n.ends_with(".state.json") || n.ends_with(".taken.json") || own_gen {
                 let _ = std::fs::remove_file(e.path());
             }
         }
@@ -800,6 +800,13 @@ impl Schedules {
         let Some(cfg) = Cfg::from_notice(v) else { return };
         let code = cfg.equipments[0].code.clone();
         let seq0 = v["seq"].as_u64().unwrap_or(0);
+        // 受けた印（<設備>.taken.json の seq）。受け身の Python は、窓が受けたと分かるまでは短く（TAKE_WAIT 秒）しか待たない
+        // （窓が答えないときに timeout × 2 × 11 秒待たない。版 3.96.0 の Windows の CI で見つけた落とし穴）
+        let _ = std::fs::create_dir_all(&self.root);
+        let tmp = self.root.join(format!("{}.taken.{}.tmp", safe(&code), std::process::id()));
+        if std::fs::write(&tmp, json!({"seq": seq0, "at": now()}).to_string()).is_ok() {
+            let _ = replace(&tmp, &self.root.join(format!("{}.taken.json", safe(&code))));
+        }
         let max_age = v["maxAge"].as_f64().unwrap_or(cfg.auto_refresh());
         let _ = self.ensure(&cfg, &code, max_age, v["force"].as_bool().unwrap_or(false));
         if self.read_state(&code)["seq"].as_u64().unwrap_or(0) == seq0 {

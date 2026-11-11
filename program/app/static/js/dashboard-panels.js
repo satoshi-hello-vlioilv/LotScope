@@ -137,44 +137,82 @@
     const text = main == null ? "–" : C.numText(main, fm0);
     const unit = autoUnit(p, ms[0]);
     // 字の大きさ: 高さの 5 割・幅に収まる大きさ（数字 1 字 ≒ 0.6em・単位は 1 字 ≒ 0.34em〈字の 0.32 倍の大きさ〉）の小さい方。14〜88px
-    // 低いパネル（1 段）か、添え書きを横に置くと決めたパネル（版 3.92.0 の kmeta=row）は、数と添え書きを横に並べる
-    const row = (fm.kmeta === "row" || H < 96) && W >= 240;
-    const room = row ? H : H - (sub0 ? 20 : 0);    // 添え書き（期間・元）の行の分
+    // 添え書き（期間・元）の置き場は、組む所の ④ で選んだとおり（kmeta: 無し＝数の下・top＝数の上・row＝数の横に 1 列）。
+    // 前は低いパネル（中身の高さ 96px 未満）を黙って横 1 列にしていた。編集中と確定後でパネルの高さが違うと、同じ設定なのに
+    // 片方は下・片方は横になり、組む所で「期間を下」を押しても見本が横のままだった（利用者の報告 2026-11-11）。
+    // いまは選んだ置き場を変えない。入りきらなければ数を縮め、それでも入らなければ添え書きを 11px にし、なお入らなければ添え書きを出さない（squeeze）。
+    // 数が 16px 未満になる形・それでも入らない形は、組む所の ④ で知らせる（kfit）
+    const row = fm.kmeta === "row", top = fm.kmeta === "top";
+    const metaH = sub0 ? 22 : 0;                    // 添え書き（1 行・12px の字で高さ 17px）と間（4px）の分
+    const room = row ? H : H - metaH;
     const wide = row ? W * 0.55 : W - 8;   // 横に並べるときは、数に幅の 55% まで（残りは添え書き）
     const z = SIZE_RATE[fm.nsize] || 1;    // 書式の字の大きさ（版 3.43.0）。入りきらなければ下で縮める
-    const size = Math.round(Math.max(14, Math.min(88 * z, room * (row ? 0.92 : vals.length > 1 ? 0.42 : 0.56) * z, wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
+    // 低いパネル（数の高さの空きが 100px 未満）は、空いた高さいっぱいまで（下・上でも横 1 列と同じ大きさに近づける）
+    const rate = row ? 0.92 : room < 100 ? 0.9 : vals.length > 1 ? 0.42 : 0.56;
+    const size = Math.round(Math.max(14, Math.min(88 * z, room * rate * z, wide / Math.max(2, text.length * 0.62 + unit.length * 0.36 + 0.2))));
     const sub = vals.slice(1, 4).map((v, i) => `<span><small>${esc(headName(ms[i + 1]))}</small><b>${C.numHtml(v, C.measFmt(fm, ms[i + 1]))}</b></span>`).join("");
-    const metaHtml = sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}" style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}">${esc(sub0)}</small>` : "";
-    const top = fm.kmeta === "top" && !row;          // 添え書きを数の上に（版 3.92.0）
+    const metaHtml = sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}"${row ? ` style="-webkit-line-clamp:${Math.max(1, Math.min(2, Math.floor(H / 16)))}"` : ""}>${esc(sub0)}</small>` : "";
     box.innerHTML = `<div class="dp-kpi${row ? " is-row" : ""}">${top ? metaHtml : ""}<b class="dp-num" style="font-size:${size}px">${main == null ? "–" : C.numHtml(main, fm0)}<small>${unit}</small></b>`
       + (sub && room > size + 40 ? `<div class="dp-ksub">${sub}</div>` : "")
       + (top ? "" : metaHtml) + "</div>";
     // 描いた後に、いま居る面に収まるまで数を小さくする（測った時と面の大きさが違っても、はみ出さない）
     const num = box.querySelector(".dp-num"), limit = box.clientHeight || H;
     // 横に並べる形は、数そのものが収まるかだけを見る（添え書きは 2 行で切る。添え書きが長いと数が 14px まで縮んだ: 版 3.41.0）
-    const over = row ? () => box.scrollHeight > limit + 1 || num.getBoundingClientRect().height > limit + 1 || num.offsetWidth > W * 0.62 : () => box.scrollHeight > limit + 1 || box.scrollWidth > box.clientWidth + 1;
+    const over = row ? () => box.scrollHeight > limit + 1 || num.getBoundingClientRect().height > limit + 1 || num.offsetWidth > W * 0.62 || spill(box) : () => box.scrollHeight > limit + 1 || box.scrollWidth > box.clientWidth + 1 || spill(box);
     for (let f = size; f > 12 && over(); f -= 2) num.style.fontSize = `${f - 2}px`;
+    squeeze(box, over);
+  }
+  /** 選んだ置き方のまま数を縮めても入らない: まず添え書きを 11px にする。それでも入らない（1280 の 1 段のパネルは中身の高さが 20px ほどで、
+      数と添え書きを上下に重ねる高さが無い）ときは、置き場は変えずに添え書きを出さず（中身は数の説明〈title〉に）、数を入るだけ大きくし直す。
+      数が 16px 未満・添え書きを出せない形は「きつい」の印（組む所の ④ で、どう直せば出せるかを知らせる） */
+  function squeeze(box, over) {
+    const meta = box.querySelector(".dp-kmeta"), kpi = box.querySelector(".dp-kpi"), nums = [...box.querySelectorAll(".dp-num")];
+    const px = () => Math.min(...nums.map((x) => parseFloat(x.style.fontSize) || 99));
+    if (meta && over()) meta.style.fontSize = "11px";
+    let hid = false;
+    if (meta && over()) {
+      meta.hidden = true; hid = true;
+      if (kpi) kpi.title = meta.title;
+      const cap = Math.min(88, box.clientHeight);
+      for (let f = px() + 2; f <= cap; f += 2) {
+        nums.forEach((x) => { x.style.fontSize = `${f}px`; });
+        if (over()) { nums.forEach((x) => { x.style.fontSize = `${f - 2}px`; }); break; }
+      }
+    }
+    if (!kpi) return;
+    if (px() < 16 || hid || over()) kpi.dataset.ktight = `${Math.round(px())}${hid ? " hid" : ""}`; else delete kpi.dataset.ktight;
+  }
+  /** 数・名前・添え書きが中身の枠の外へ出ているか（縦の真ん中に寄せた形は、上へあふれても scrollHeight に出ないので枠と比べる） */
+  function spill(box) {
+    const b = box.getBoundingClientRect();
+    return [...box.querySelectorAll(".dp-num,.dp-kmeta,.dp-kv>small,.dp-ksub")].some((x) => { if (x.hidden) return false; const r = x.getBoundingClientRect();
+      return r.top < b.top - 0.5 || r.bottom > b.bottom + 0.5 || r.left < b.left - 0.5 || r.right > b.right + 0.5; });
   }
 
   /** 数の字だけの書式（値ごとの単位〈suffix〉は外す。単位は数の後ろの小さな字で 1 回だけ出す。版 3.92.0） */
   const numOnly = (fm, m) => { const f = C.measFmt(fm, m); return f.suffix == null ? f : { ...f, suffix: undefined }; };
   /** 数字のパネルで 2 つ以上の値を同じ大きさで並べる（版 3.92.0。利用者の要望 2026-11-10 の 5。3 回目の採点で決めた F3）:
       side＝左右に並べ、間に仕切りの線（単位と線の間は 8px 以上）・stack＝上下に並べ、数の右端をそろえる。名前は各数の上（左右）か左（上下）。
-      添え書き（期間・元）は kmeta（top＝上・無し＝下）。入りきらなければ、どの数も同じだけ縮める（単位より先に数を縮める） */
+      添え書き（期間・元）は kmeta（top＝上・無し＝下・row＝数の右横に 1 列。版 3.96.0 で横 1 列も効くように）。入りきらなければ、どの数も同じだけ縮める（単位より先に数を縮める） */
   function kpiPair(box, p, d, W, H, sub0, vals) {
     const fm = p.fmt || {}, ms = d.measures || [], side = fm.kpair === "side", n = Math.min(3, vals.length);
     const items = vals.slice(0, n).map((v, i) => ({ name: headName(ms[i]), text: v == null ? "–" : C.numText(v, numOnly(fm, ms[i])), html: v == null ? "–" : C.numHtml(v, numOnly(fm, ms[i])), unit: autoUnit(p, ms[i]) }));
-    const z = SIZE_RATE[fm.nsize] || 1, room = H - (sub0 ? 20 : 0);
+    const row = fm.kmeta === "row", top = fm.kmeta === "top";
+    const z = SIZE_RATE[fm.nsize] || 1, room = H - (sub0 && !row ? 20 : 0), Wn = row && sub0 ? W * 0.62 : W;   // 横 1 列は、数に幅の 62% まで（残りは添え書き）
     const longest = Math.max(...items.map((x) => x.text.length * 0.62 + x.unit.length * 0.36 + 0.4));
-    const size = Math.round(Math.max(14, Math.min(72 * z, (side ? room - 18 : room / n - 14) * 0.9 * z, ((side ? W / n : W * 0.7) - 28) / longest)));
+    const size = Math.round(Math.max(14, Math.min(72 * z, (side ? room - 18 : room / n - 14) * 0.9 * z, ((side ? Wn / n : Wn * 0.7) - 28) / longest)));
     const metaHtml = sub0 ? `<small class="dp-kmeta" title="${esc(sub0)}">${esc(sub0)}</small>` : "";
     const cells = items.map((x) => `<div class="dp-kv"><small>${esc(x.name)}</small><b class="dp-num" style="font-size:${size}px">${x.html}<small>${x.unit}</small></b></div>`).join("");
-    box.innerHTML = `<div class="dp-kpi is-pair">${fm.kmeta === "top" ? metaHtml : ""}<div class="dp-kpair ${side ? "is-side" : "is-stack"}">${cells}</div>${fm.kmeta === "top" ? "" : metaHtml}</div>`;
+    box.innerHTML = `<div class="dp-kpi is-pair${row ? " is-row" : ""}">${top ? metaHtml : ""}<div class="dp-kpair ${side ? "is-side" : "is-stack"}">${cells}</div>${top ? "" : metaHtml}</div>`;
     const nums = [...box.querySelectorAll(".dp-num")], pair = box.querySelector(".dp-kpair"), limit = box.clientHeight || H;
-    // 数（単位まで）が札の中身の幅に入るか（札の右の余白〈仕切りの線との間〉に入り込まない）
-    const inBox = (c) => { const num = c.querySelector(".dp-num"), end = num.lastElementChild || num, r = c.getBoundingClientRect(), cs = getComputedStyle(c);
-      return end.getBoundingClientRect().right <= r.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth) + 0.5; };
-    const over = () => box.scrollHeight > limit + 1 || pair.scrollWidth > pair.clientWidth + 1 || [...pair.children].some((c) => c.scrollWidth > c.clientWidth + 1 || !inBox(c));
+    // 数（単位まで）が札の中身の幅に入るか（札の右の余白〈仕切りの線との間〉に入り込まない）。
+    // 上下に 2 つ（is-stack）の札は display:contents で枠が無い（測ると幅 0 で、いつも「入らない」になり数が 12px まで縮んでいた）。並びの幅で見る
+    const inBox = (c) => { if (getComputedStyle(c).display === "contents") return true;
+      const num = c.querySelector(".dp-num"), end = num.lastElementChild || num, r = c.getBoundingClientRect(), cs = getComputedStyle(c);
+      const z = c.offsetWidth ? r.width / c.offsetWidth : 1;     // 組む所は縮めて見せる（transform）: 余白も同じだけ縮めて比べる（縮めた枠と縮めない余白を比べて、数が 12px まで縮んでいた）
+      return end.getBoundingClientRect().right <= r.right - (parseFloat(cs.paddingRight) + parseFloat(cs.borderRightWidth)) * z + 0.5; };
+    const over = () => box.scrollHeight > limit + 1 || box.scrollWidth > box.clientWidth + 1 || pair.scrollWidth > pair.clientWidth + 1 || (row && sub0 && pair.offsetWidth > W * 0.66)
+      || [...pair.children].some((c) => c.scrollWidth > c.clientWidth + 1 || !inBox(c)) || spill(box);
     for (let f = size; f > 12 && over(); f -= 2) nums.forEach((x) => { x.style.fontSize = `${f - 2}px`; });
     // 空きがあれば大きくする（見積もりは数字 1 字を広めに数えるので、広いパネルで数が小さく下が空いた。作った後の採点）
     const cap = Math.min(88 * z, (side ? room : room / n) * 0.6);      // 1 つの数のパネルと同じ割合（高さの 6 割まで）
@@ -182,6 +220,7 @@
       nums.forEach((x) => { x.style.fontSize = `${f}px`; });
       if (over()) { nums.forEach((x) => { x.style.fontSize = `${f - 2}px`; }); break; }
     }
+    squeeze(box, over);
   }
 
   /** 数字の形（版 3.39.0。書式 kpi）: 目標に対する進み。bar＝数と、目標までの横の棒（達成率）・gauge＝半円のメーター（真ん中に数・下に達成率） */

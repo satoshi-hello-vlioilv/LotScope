@@ -388,7 +388,7 @@
     // 言い方と秒の置き場は 1 つ（作った後の採点: 見出しに秒が出るパネルと添え書きに出るパネル・2 通りの言い方があった）:
     // 添え書きの段に短い言い方＋秒。長い言い方（前回 hh:mm の数・…）は説明（title）と道具の行の説明に
     const secTxt = show && w.sec != null ? `${w.sec.toFixed(1)} 秒` : "";
-    const sub = el.querySelector(".db-psub"), km = el.querySelector(".db-pb .dp-kmeta");
+    const sub = el.querySelector(".db-psub"), km = el.querySelector(".db-pb .dp-kmeta:not([hidden])");   // 入らなくて出していない添え書きには書かない
     const host = sub && !sub.hidden && !sub.dataset.wonly ? sub : km || sub;
     el.querySelectorAll(".db-wst").forEach((x) => { if (!show || x.parentElement !== host) x.remove(); });
     if (sub && sub.dataset.wonly && (!show || host !== sub)) { sub.hidden = true; delete sub.dataset.wonly; }
@@ -429,7 +429,7 @@
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
     if (!p || !el) return;
     const a1 = S.answers.get(id), bd = el.querySelector(".db-pb");
-    const sig = canon([{ ...p, x: 0, y: 0 }, a1 ? a1.n : 0, el.clientWidth, el.clientHeight, bd.clientWidth, bd.clientHeight, S.edit, S.confirm, quickOf(id), sliceOf(p), picksOn(p), p.visual === "slicer" ? pickOf(id) : 0, S.sources.length]);
+    const sig = canon([{ ...p, x: 0, y: 0 }, a1 ? a1.n : 0, el.clientWidth, el.clientHeight, bd.clientWidth, bd.clientHeight, S.edit, S.editing === id, S.confirm, quickOf(id), sliceOf(p), picksOn(p), p.visual === "slicer" ? pickOf(id) : 0, S.sources.length]);
     if (!force && el._sig === sig) return;
     el._sig = sig;
     // 形を替えた直後は、前の形の答え（合わせた表の答えとふつうの答えは形が違う）では描かない（引き直した答えを待つ）
@@ -484,6 +484,8 @@
       if (a && a.d && p.visual === "board") P.board(body, p, a.d, body.clientHeight);
       else if (a && a.d) P.render(body, slicerView(p), a.d, { w: body.clientWidth, h: body.clientHeight }, p.visual === "kpi" ? meta : "");
     }
+    // 組んでいる数字のパネル: 選んだ置き方で数が小さくなりすぎたら、組む所の ④ で知らせる（版 3.96.0。置き方は替えない）
+    if (S.editing === id && p.visual === "kpi") { const k = body.querySelector(".dp-kpi"); E.kfit(k && k.dataset.ktight ? k.dataset.ktight : ""); }
     paintWait(el, a1);
     paintWaitBar();
   }
@@ -1029,6 +1031,8 @@
       // 組む所の幅を変えた → 組むパネルを左の空きに置き直して描き直す
       onResize: () => { unfocus(); focusFrame(id); paintPanel(id); },
     });
+    // 開く前に描いたパネルの「きつい」の印を、開いた組む所の ④ に知らせる（開く前は組む所がまだ無く、知らせが消えていた。版 3.96.0）
+    if (p.visual === "kpi") { const k = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"] .db-pb .dp-kpi`); E.kfit(k && k.dataset.ktight ? k.dataset.ktight : ""); }
   }
   /** 焦点（2026-10-grid の 1 回目で 1 位の D）: 組む間、組むパネルをグリッドの左の空きに大きく出し（グリッドの大きさの 1.5 倍まで・
       窓に収まる大きさ）、ほかのパネルは淡い幕で覆う。組む所は右に重ねる（グリッドは縮めない＝ほかのパネルの字が切れない） */

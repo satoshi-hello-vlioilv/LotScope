@@ -369,8 +369,10 @@
       const got = [];
       let allSame = true;
       for (const p of paths) {
-        let rs, py, same = false;
+        let rs, py, same = false, tries = 0;
+        const t0 = Date.now();
         for (const until = Date.now() + 30000; ;) {
+          tries += 1;
           rs = await get(p);
           py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python");
           same = rs.r.status === py.r.status && py.by === "python" && canonS(rs.text) === canonS(py.text);
@@ -378,7 +380,8 @@
           await sleep(1000);
         }
         allSame = allSame && same && rs.by === "shell";
-        got.push(`${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${same ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+        // かかった時間と尋ねた回数も残す（版 3.96.0: Windows の CI の時間切れを調べた。届かない CM3 の名前の引きは Windows で数秒かかる）
+        got.push(`${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by} ${Date.now() - t0}ms×${tries}${same ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
       }
       ok("スケジュールの設備のタブ・行の様子・一覧は窓が答え、受け身の Python と同じ答え（窓がただ 1 つの係）", allSame, got.join("・"));
     }

@@ -24,6 +24,9 @@
        "emph": true,
        "equip": "",
        "filters": [],
+       "fmt": {
+        "kmeta": "row"
+       },
        "frame": "emph",
        "h": 1,
        "id": "wipTotal",
@@ -56,6 +59,9 @@
        "emph": false,
        "equip": "",
        "filters": [],
+       "fmt": {
+        "kmeta": "row"
+       },
        "h": 1,
        "id": "workTotal",
        "period": {
@@ -91,6 +97,9 @@
        "emph": false,
        "equip": "",
        "filters": [],
+       "fmt": {
+        "kmeta": "row"
+       },
        "h": 1,
        "id": "workMonth",
        "period": {

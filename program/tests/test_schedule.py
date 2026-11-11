@@ -436,6 +436,9 @@ class OneKeeper(unittest.TestCase):
 
         def on_notice(**kw):
             def run():
+                # 窓と同じく、知らせを受けた印を先に書く（受け身の Python は印が無ければ TAKE_WAIT 秒で待つのをやめる）
+                self.root.mkdir(parents=True, exist_ok=True)
+                (self.root / f"{schedule._safe(kw['equip'])}.taken.json").write_text(json.dumps({"seq": kw["seq"]}), encoding="utf-8")
                 cfg = schedule.config({"schedule": {**kw["fetch"], "equipments": kw["equip"]}})
                 try:
                     w.ensure(cfg, kw["equip"], max_age=kw["maxAge"], force=kw["force"])
@@ -463,6 +466,26 @@ class OneKeeper(unittest.TestCase):
         p.notify = lambda **kw: told.append(kw)
         p.refresh_later({**self.cfg, "auto_refresh_sec": 0}, ["L-1"])
         self.assertEqual(told[-1]["maxAge"], 0, "裏の取り直しも窓に頼む")
+
+    def test_passive_python_does_not_wait_long_when_the_window_does_not_take_the_notice(self):
+        """窓が知らせを受けない（落ちている・名乗ったが受け口が無い）ときは、受けた印を TAKE_WAIT 秒待ってやめる（版 3.96.0 の Windows の CI の後。
+        前は timeout × 2 × 11 ＋ 5 秒〈既定 15 秒で 335 秒〉待った）。受けた後は、窓の取りに行く時間ぶん待つ"""
+        told = []
+        cfg = {**self.cfg, "timeout_sec": 15}
+        p = schedule.Schedules(self.root, passive=True, notify=lambda **kw: told.append(kw))
+        t0 = time.monotonic()
+        with self.assertRaises(cm3_schedule.Cm3Error):
+            p.ensure(cfg, "L-1", max_age=0, force=True)
+        took = time.monotonic() - t0
+        self.assertEqual(len(told), 1)
+        self.assertTrue(schedule.TAKE_WAIT <= took < schedule.TAKE_WAIT + 2, took)
+        # 受けた印があれば、短く切らずに待つ（窓が取り終えて seq を進めたら答える）
+        w, notice = self.window()
+        self.root.mkdir(parents=True, exist_ok=True)
+        p.notify = lambda **kw: threading.Timer(schedule.TAKE_WAIT + 1, lambda: notice(**kw)).start() or \
+            (self.root / f"{schedule._safe('L-1')}.taken.json").write_text(json.dumps({"seq": kw["seq"]}), encoding="utf-8")
+        st = p.ensure(cfg, "L-1", max_age=0, force=True)
+        self.assertTrue(st["path"].endswith(".rs.sqlite3"))
 
     def test_python_keeps_while_the_window_resigned(self):
         self.root.mkdir(parents=True)
