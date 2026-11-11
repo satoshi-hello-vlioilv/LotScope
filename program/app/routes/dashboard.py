@@ -13,7 +13,7 @@ from datetime import date, datetime
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings
-from ..services import aggregate, card_forms, dash_progress, dashboard, data_sources, db_mirror, equip_groups, formula, operation, pivot, shifts, work_log
+from ..services import aggregate, builder, card_forms, dash_progress, dashboard, data_sources, db_mirror, equip_groups, formula, operation, pivot, shifts, work_log
 from ..services.identity import normalize_part
 from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
@@ -873,31 +873,35 @@ def _dashboard_query():
 @bp.route("/api/dashboard/fields", methods=["GET", "POST"])
 def dashboard_fields():
     """パネルを組む所の左のカラムの札（source・equip）: 列ごとの手がかり（種類の数・数・日付）と、特別な段（設備・作業日・直）。
-    作業実績のすべての設備は、読めた設備の列を合わせる（設備で列が違っても選べる）。
-    POST {source, equip, calc}（版 3.38.0）: 計算列（一覧の表示列の設定の式）も同じ手がかりで後ろに並べる（calc: true）"""
+    作業実績のすべての設備は、表示する全部の設備の列を合わせる（設備で列が違っても選べる）。数え方は pivot.field_sets・merge_fields の 1 か所
+    （版 3.99.0。決めは services/builder.py: 値を合わせた本当の種類・全部の設備・SortKey の見分け。前は最初の 12 台の設備ごとの最大で、
+    1 台が空だと数の列でなくなった）。読めなかった設備は failed。
+    POST {source, equip, calc}（版 3.38.0）: 計算列（一覧の表示列の設定の式）も同じ手がかりで後ろに並べる（calc: true）。
+    ?ask=<印>（版 3.99.0。決め 7）: 待っている間の段（写した・読んだ設備 n/m）を GET /api/dashboard/progress で答える"""
+    ask = dash_progress.begin(request.args.get("ask", ""), request.get_data())
+    try:
+        return _dashboard_fields()
+    finally:
+        dash_progress.finish(ask)
+
+
+def _dashboard_fields():
     a = (request.get_json(force=True, silent=True) or {}) if request.method == "POST" else request.args
     calc = dashboard.clean_calc(a.get("calc")) if request.method == "POST" else None
     try:
         parts, failed, name, _ = panel_parts(a.get("source", ""), a.get("equip", ""), equips=a.get("equips") if isinstance(a.get("equips"), list) else None)
     except _Fail as f:
         return f.resp
-    merged, order, table = {}, [], ""
-    for x in parts[:12]:
+    use = builder.use_parts(parts)
+    per = []
+    for i, x in enumerate(use):
+        dash_progress.step("read", i, len(use))       # 読み終えた設備 i / 全部（版 3.99.0）
         try:
-            d = pivot.fields(x.path, preferred_table=x.preferred_table, table_candidates=x.table_candidates, calc=formula.calc_for(calc, x.name))
+            per.append((x.name, pivot.field_sets(x.path, preferred_table=x.preferred_table, table_candidates=x.table_candidates,
+                                                 calc=formula.calc_for(calc, x.name))))
         except Exception as e:
             failed.append({"name": x.name, "error": str(e), "kind": "error"})
-            continue
-        table = table or d["table"]
-        for f in d["fields"]:
-            m = merged.get(f["column"])
-            if m is None:
-                merged[f["column"]] = dict(f)
-                order.append(f["column"])
-            else:
-                m.update(kinds=max(m["kinds"], f["kinds"]), many=m["many"] or f["many"], numeric=m["numeric"] and f["numeric"], date=m["date"] or f["date"])
-                if m.get("error") and not f.get("error"):
-                    m.pop("error")
+    dash_progress.step("read", len(use), len(use))
     special = []
     if all(x.equip for x in parts):
         col = parts[0].equip.get("column")
@@ -909,37 +913,44 @@ def dashboard_fields():
     if parts[0].work:
         special += [{"column": "@workday", "name": "作業日", "hint": "作業開始の日（現場歴／太陽暦）", "date": True},
                     {"column": "@shift", "name": "直", "hint": "作業開始の時刻が入る直（マスタ管理の勤務体系）"}]
-    return jsonify(fields=[merged[c] for c in order], special=special, table=table, sourceName=name, failed=failed)
+    return jsonify(fields=pivot.merge_fields(per), special=special, table=per[0][1]["table"] if per else "", sourceName=name, failed=failed)
 
 
 @bp.get("/api/data/columns")
 def data_columns():
     """データ元ごとの、実際の列の名前と値の見本（版 3.44.0。変換表の「当てる列」を、取り込んでいるデータの列から選ぶ）。
-    → {sources: [{key, name, columns: [{column, samples}], error}]}。作業実績は読めた設備の列を合わせる（設備で列が違っても選べる）"""
-    out = []
-    for src in source_items(master_repo()):
-        x = {"key": src["key"], "name": src["name"], "columns": [], "error": ""}
-        try:
-            parts, failed, _, _ = panel_parts(src["key"])
-        except _Fail as f:
-            x["error"] = _fail(f.resp)["error"]
-            out.append(x)
-            continue
-        seen = {}
-        for part in parts[:12]:
+    → {sources: [{key, name, columns: [{column, samples}], error}]}。作業実績は表示する全部の設備の列を合わせる（版 3.99.0。前は最初の 12 台）。
+    見本は pivot.samples_of（結合の欄の列 /api/sources/<key>/columns と同じ決まり。版 3.99.0）。?ask=<印> で待ちの段（版 3.99.0）"""
+    ask = dash_progress.begin(request.args.get("ask", ""), request.get_data())
+    try:
+        out = []
+        for src in source_items(master_repo()):
+            x = {"key": src["key"], "name": src["name"], "columns": [], "error": ""}
             try:
-                cols = pivot.column_names(part.path, preferred_table=part.preferred_table, table_candidates=part.table_candidates)
-            except Exception as e:  # 読めない設備は飛ばす（ほかの設備の列で選べる）
-                x["error"] = x["error"] or f"{part.name}: {e}"
+                parts, failed, _, _ = panel_parts(src["key"])
+            except _Fail as f:
+                x["error"] = _fail(f.resp)["error"]
+                out.append(x)
                 continue
-            for col in cols:
-                m = seen.setdefault(col["column"], {"column": col["column"], "samples": []})
-                m["samples"] = list(dict.fromkeys(m["samples"] + col["samples"]))[:3]
-        x["columns"] = list(seen.values())
-        if not x["columns"] and failed:
-            x["error"] = x["error"] or failed[0]["error"]
-        out.append(x)
-    return jsonify(sources=out)
+            seen = {}
+            use = builder.use_parts(parts)
+            for i, part in enumerate(use):
+                dash_progress.step("read", i, len(use))
+                try:
+                    _, cols = pivot.column_names(part.path, preferred_table=part.preferred_table, table_candidates=part.table_candidates)
+                except Exception as e:  # 読めない設備は飛ばす（ほかの設備の列で選べる）
+                    x["error"] = x["error"] or f"{part.name}: {e}"
+                    continue
+                for col in cols:
+                    m = seen.setdefault(col["column"], {"column": col["column"], "samples": []})
+                    m["samples"] = list(dict.fromkeys(m["samples"] + col["samples"]))[:pivot.SAMPLES]
+            x["columns"] = list(seen.values())
+            if not x["columns"] and failed:
+                x["error"] = x["error"] or failed[0]["error"]
+            out.append(x)
+        return jsonify(sources=out)
+    finally:
+        dash_progress.finish(ask)
 
 
 def equip_tree(names, set_name=None):

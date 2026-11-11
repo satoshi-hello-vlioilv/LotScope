@@ -11,7 +11,7 @@ import app_env
 
 from .. import effective_settings, lists_are_external
 from ..repositories.master_store import MasterError
-from ..services import data_join, data_sources, lot_list, path_settings, pivot, work_log
+from ..services import builder, data_join, data_sources, lot_list, path_settings, pivot, work_log
 from .common import base_rev, bp, can_write, error, master_call, master_repo, tab_denied
 
 
@@ -124,30 +124,12 @@ def sources_list():
 
 @bp.post("/api/sources/check")
 def sources_check():
-    """「確かめる」: その場所（.sqlite3）に届き、表とロット番号の列があるか。設備の列を書いたら、その列があるか・値の例。"""
+    """「確かめる」: その場所（.sqlite3）に届き、一覧が読む表（欄の表 → 役割の候補）とロット番号の列（品質だけ要る）があるか。
+    設備の列を書いたら、その列があるか・値の例。決まりは services/builder.check_sqlite の 1 か所（版 3.99.0。前は欄の表を見ず既定の候補の表を数え、
+    " で括った場所で設備の列だけ開けず、値の例に空の字が混ざった）"""
     body = request.get_json(force=True, silent=True) or {}
-    place = str(body.get("place") or "").strip()
-    out = path_settings.check(path_settings.BY_KEY["lot_list.source"], place)
-    det = out.get("detail") or {}
-    if str(body.get("role") or "") != "品質" and det.get("table") and not det.get("lotColumn"):
-        # ロット番号の列が要るのは品質データだけ（マスタ・仕掛などは無くてよい。結合の鍵は列を自由に選ぶ。版 3.53.0）
-        out["message"] = out["message"].replace(" ロット番号の列が見つかりません（ロット番号・ﾛｯﾄ番号・ロット№・LTNO）。", "")
-        out["ok"] = True
-    col = str(body.get("equipColumn") or "").strip()
-    if out.get("ok") and col:
-        from ..services.sqlite_ro import connect_ro, qi
-        try:
-            with connect_ro(Path(place), timeout=5) as c:
-                t = lot_list.pick_table(lot_list.tables(c), str(body.get("table") or ""), data_sources.TABLE_CANDIDATES)
-                cols = lot_list.columns(c, t) if t else []
-                if col not in cols:
-                    out.update(ok=False, message=out["message"] + f" 設備の列「{col}」が表「{t}」にありません。")
-                else:
-                    vals = [r[0] for r in c.execute(f"SELECT DISTINCT {qi(col)} FROM {qi(t)} WHERE {qi(col)} IS NOT NULL LIMIT 4")]
-                    out["message"] += f" 設備の列「{col}」の値の例: {'・'.join(str(v) for v in vals) or '（空）'}。"
-        except Exception as e:      # 開けないことは上の確かめが言う
-            out.update(ok=False, message=f"{out['message']} 設備の列を確かめられません（{e}）。")
-    return jsonify(out)
+    return jsonify(builder.check_sqlite(str(body.get("place") or ""), str(body.get("table") or ""), str(body.get("role") or ""),
+                                        str(body.get("equipColumn") or "")))
 
 
 @bp.post("/api/sources")
@@ -342,15 +324,43 @@ def raw_plan(key):
         from .lotlist import lotlist_plan
         return lotlist_plan(joined=False)
     if key == "work":
-        rows = [r for r in master_repo().work_logs() if str(r.get("表示") or "有") != "無"]
-        if not rows:
-            return None, error("作業実績の設備がありません。", 404, "unknown")
-        from .worklog import worklog_plan
-        return worklog_plan(key=rows[0].get("キー"), rows=rows, joined=False)
+        got, _, fail = work_plans()
+        return (got[0][1], None) if got else (None, fail)
     s = source_def(key)
     if s and s["kind"] == "view":           # 結合した表: 結合の欄の「この元」は元の表（列の手がかり・試す）
         return raw_plan(s["base"]) if not s.get("broken") else (None, error("結合した表の元がありません。", 400, "unset"))
     return src_plan(key, joined=False)
+
+
+def work_plans():
+    """作業実績の表示する設備（表示の並び: work_log.ordered）ごとの、結合しない段取り（版 3.99.0。決め 4）→
+    ([(行, 段取り)], 読めなかった設備 [{name, error, kind}], 1 台も読めないときの失敗の答え（写し中を先に）)。
+    写しを一度に始めて最初の写しを待つ（start_mirrors）。読めない設備は飛ばす。前は登録の順で最初の設備 1 台だけで、その 1 台が読めないと全部が読めなかった"""
+    from ..services import db_mirror
+    from .worklog import start_mirrors, worklog_plan
+    rows = work_log.ordered([r for r in master_repo().work_logs() if str(r.get("表示") or "有") != "無"])
+    if not rows:
+        return [], [], error("作業実績の設備がありません。", 404, "unknown")
+    if not builder.JOIN_ALL_EQUIPS:
+        rows = rows[:1]
+    start_mirrors(rows, db_mirror.FIRST_WAIT_SEC)
+    got, failed, first = [], [], None
+    for r in rows:
+        plan, fail = worklog_plan(key=r.get("キー"), rows=rows, wait=False, joined=False)
+        if fail is not None:
+            f = _fail_of(fail)
+            failed.append({"name": str(r.get("設備名") or ""), **f})
+            if first is None or (f["kind"] == "copying" and _fail_of(first)["kind"] != "copying"):
+                first = fail
+            continue
+        got.append((r, plan))
+    return got, failed, (first if not got else None)
+
+
+def _fail_of(fail):
+    """失敗の答え（(応答, 状態)）→ {error, kind}"""
+    d = fail[0].get_json(silent=True) or {}
+    return {"error": d.get("error") or "読めませんでした。", "kind": d.get("kind") or "error"}
 
 
 def _rights(joins, items):
@@ -394,37 +404,90 @@ def lot_col_of(key):
     return (s or {}).get("lotSet") or None
 
 
+def _columns_of(path, table, key):
+    """1 つのファイルの (表, 列, 行の数, 値の見本 {列: [字]})。見本は pivot.samples_of（data/columns と同じ決まり。版 3.99.0）"""
+    from ..services.sqlite_ro import connect_ro, qi
+    with connect_ro(Path(path), timeout=5) as c:
+        t = lot_list.pick_table(lot_list.tables(c), table or "", _candidates(key))
+        cols = lot_list.columns(c, t)
+        n = int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}").fetchone()[0])
+        return t, cols, n, {col: pivot.samples_of(c, t, qi(col)) for col in cols}
+
+
 @bp.get("/api/sources/<key>/columns")
 def sources_columns(key):
-    """結合の欄の手がかり: その元の表の列（結合しない元のまま）と、値の見本（列ごとに 3 つまで）。写しがまだ無ければ 503 copying。"""
+    """結合の欄の手がかり: その元の表の列（結合しない元のまま）と、値の見本（列ごとに 3 つまで）。写しがまだ無ければ 503 copying。
+    作業実績（版 3.99.0。決め 4）は表示する全部の設備の列を合わせ、行は足す（設備ごとの行 equips・読めなかった設備 failed）。前は最初の設備 1 台だけ"""
     s = source_def(key)
     if s is None:
         return error("そのデータ元はありません。", 404, "unknown")
-    plan, fail = raw_plan(key)
-    if fail:
-        return fail
-    from ..services.sqlite_ro import connect_ro, qi
-    try:
-        with connect_ro(Path(plan["path"]), timeout=5) as c:
-            t = lot_list.pick_table(lot_list.tables(c), plan["table"] or "", _candidates(key))
-            cols = lot_list.columns(c, t)
-            rows = c.execute(f"SELECT * FROM {qi(t)} LIMIT 200").fetchall()
-            n = int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}").fetchone()[0])
-    except Exception as e:
-        return error(str(e), 503)
-    samples = {}
-    for i, col in enumerate(cols):
-        vals = list(dict.fromkeys(str(r[i]).strip() for r in rows if i < len(r) and r[i] not in (None, "") and str(r[i]).strip()))
-        samples[col] = vals[:3]
-    # ロット番号の列（版 3.58.0）: 自動で見つける列（autoLot）と、決めてある値（lotSet: 空＝自動・"-"＝無い・列名）
-    return jsonify(key=key, name=s["name"], table=t, columns=cols, samples=samples, rows=n,
-                   autoLot=lot_list.lot_column(cols), lotSet=s.get("lotSet") or "")
+    if key == "work":
+        got, failed, fail = work_plans()
+        if fail:
+            return fail
+        plans = [(r, p) for r, p in got]
+    else:
+        plan, fail = raw_plan(key)
+        if fail:
+            return fail
+        plans, failed = [(None, plan)], []
+    table, cols, rows, samples, equips = "", [], 0, {}, []
+    for r, plan in plans:
+        try:
+            t, cs, n, sm = _columns_of(plan["path"], plan["table"], key)
+        except Exception as e:
+            if r is None:
+                return error(str(e), 503)
+            failed.append({"name": str(r.get("設備名") or ""), "error": str(e), "kind": "error"})
+            continue
+        table = table or t
+        rows += n
+        for col in cs:
+            if col not in samples:
+                cols.append(col)
+                samples[col] = []
+            samples[col] = list(dict.fromkeys(samples[col] + sm[col]))[:pivot.SAMPLES]
+        if r is not None:
+            equips.append({"name": str(r.get("設備名") or ""), "key": r.get("キー"), "rows": n})
+    if key == "work" and not equips:
+        return error((failed[0] if failed else {}).get("error") or "作業実績を読めませんでした。", 503)
+    out = {"key": key, "name": s["name"], "table": table, "columns": cols, "samples": samples, "rows": rows,
+           # ロット番号の列（版 3.58.0）: 自動で見つける列（autoLot）と、決めてある値（lotSet: 空＝自動・"-"＝無い・列名）
+           "autoLot": lot_list.lot_column(cols), "lotSet": s.get("lotSet") or ""}
+    if key == "work":
+        out.update(equips=equips, failed=failed)
+    return jsonify(out)
+
+
+def _sum_stats(per):
+    """設備ごとの結合の数 [[段ごとの数]] → 足した数（版 3.99.0。決め 4）。行・当たった・当たらない・答えの行・相手の行・相手の当たった・
+    相手だけは足す（一覧は設備ごとに結合するので、全部の設備の一覧に出る数と同じ）。相手の鍵の重なりは相手の表の数（同じ）。当たらない鍵の見本は
+    設備の順に重ならない物を data_join.SAMPLE まで。相手の数を数えなかった（大きい）設備があれば相手の当たった・相手だけは None"""
+    out = []
+    for i, first in enumerate(per[0]):
+        steps = [p[i] for p in per]
+        x = dict(first)
+        for k in ("rows", "hit", "miss", "out", "rightRows"):
+            x[k] = sum(int(st.get(k) or 0) for st in steps)
+        for k in ("rightHit", "rightOnly"):
+            x[k] = None if any(st.get(k) is None for st in steps) else sum(int(st[k]) for st in steps)
+        x["rightDup"] = max(int(st.get("rightDup") or 0) for st in steps)
+        miss = []
+        for st in steps:
+            for m in st.get("missSample") or []:
+                if m not in miss and len(miss) < data_join.SAMPLE:
+                    miss.append(m)
+        x["missSample"] = miss
+        out.append(x)
+    return out
 
 
 @bp.post("/api/sources/join/preview")
 def sources_join_preview():
     """「試す」: 決まり（joins）をその元に当てたときの数（当たった・当たらない・相手だけ・相手の鍵の重なり）と、当たらない鍵の見本。
-    答えのファイルは本物と同じ係で組む（保存しなくても、同じ決まりを保存したら組み直さずに使える）。"""
+    答えのファイルは本物と同じ係で組む（保存しなくても、同じ決まりを保存したら組み直さずに使える）。
+    作業実績（版 3.99.0。決め 4）は表示する全部の設備で数えて足し、設備ごとの内訳（byEquip）と読めなかった設備（failed）を答えに書く。
+    答えのファイルは設備ごと（try-work-<キー>）。前は登録の順で最初の設備 1 台だけで、画面は全体の数のように出していた"""
     body = request.get_json(force=True, silent=True) or {}
     key, base = str(body.get("key") or ""), str(body.get("base") or "")
     items = _all()
@@ -443,14 +506,25 @@ def sources_join_preview():
         return error(str(e), 400, "invalid")
     if not joins:
         return jsonify(stats=[], rows=None)
+    if key == "work":
+        got, failed, fail = work_plans()
+        if fail:
+            return fail
+        per, table = [], ""
+        for r, plan in got:
+            out, f = with_joins(plan, s, scope=f"try-work-{r.get('キー')}", joins=joins)
+            if f:
+                return f
+            table = table or out["table"]
+            per.append({"name": str(r.get("設備名") or ""), "key": r.get("キー"), "stats": out["joined"]})
+        return jsonify(stats=_sum_stats([x["stats"] for x in per]), table=table, equip=None, byEquip=per, failed=failed)
     plan, fail = raw_plan(base or key)
     if fail:
         return fail
-    scope = (key or f"new-{base}") if key != "work" else f"work-{plan.get('equip', {}).get('key', '')}"
-    out, fail = with_joins(plan, s, scope=f"try-{scope}", joins=joins)
+    out, fail = with_joins(plan, s, scope=f"try-{key or f'new-{base}'}", joins=joins)
     if fail:
         return fail
-    return jsonify(stats=out["joined"], table=out["table"], equip=plan.get("equip"))
+    return jsonify(stats=out["joined"], table=out["table"], equip=None)
 
 
 @bp.post("/api/sources/<key>/quick")
@@ -533,7 +607,9 @@ def sources_conn_put(key):
 
 @bp.post("/api/sources/<key>/conn/check")
 def sources_conn_check(key):
-    """接続の設定の 1 項目を「確かめる」（保存の前に、その値で読めるか）。空なら既定の値で確かめる。"""
+    """接続の設定の 1 項目を「確かめる」（保存の前に、その値で読めるか）。空なら既定の値で確かめる。
+    場所（.sqlite3）は一覧と同じ表（その元の表）と役割で数える（版 3.99.0。services/builder.check_sqlite。sources_check と同じ）。
+    作業実績のフォルダは、本文の pattern（カードで打ち替えたファイル名の決まり。版 3.99.0）があればその決まりで探す"""
     body = request.get_json(force=True, silent=True) or {}
     s, f, fail = _conn_field(key, str(body.get("field") or ""))
     if fail:
@@ -549,13 +625,14 @@ def sources_conn_check(key):
         return jsonify(ok=False, message=str(e))
     if value is None:
         return jsonify(ok=False, message="値を入れてください。")
-    out = path_settings.check(item, value, effective_settings(current_app))
-    if f["kind"] == "sqlite" and s["role"] != "品質":     # ロット番号の列が要るのは品質だけ（sources_check と同じ）
-        det = out.get("detail") or {}
-        if det.get("table") and not det.get("lotColumn"):
-            out["message"] = out["message"].replace(" ロット番号の列が見つかりません（ロット番号・ﾛｯﾄ番号・ロット№・LTNO）。", "")
-            out["ok"] = True
-    return jsonify(out)
+    pattern = None
+    if f["kind"] == "folder" and str(body.get("pattern") or "").strip():
+        try:
+            pattern = path_settings.parse(path_settings.BY_KEY["work_log.pattern"], body.get("pattern"))
+        except ValueError as e:
+            return jsonify(ok=False, message=str(e))
+    return jsonify(path_settings.check(item, value, effective_settings(current_app), table=str(s.get("table") or ""),
+                                       role=str(s.get("role") or ""), pattern=pattern))
 
 
 @bp.post("/api/sources/groups")

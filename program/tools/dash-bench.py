@@ -4,10 +4,14 @@
 答え（数）も控えるので、速くする前後で同じ答えかを突き合わせられる。
 
     python tools/dash-bench.py [--rows 20000] [--equip 11] [--save 前.json] [--compare 前.json]
+    python tools/dash-bench.py --fields [--equip 15]       # 組む所の札（版 3.99.0）だけを測る
 
 - データ: 作業実績 設備 --equip 台 × --rows 行（tests/lotlist_fixture.make_work。120 日に散らす）・仕掛 20,000 ロット・品質データ 20,000 行
 - 測り方: ①冷えた（サーバーの答えの控えを空にし、開いて最初に出す時）②ファイルが変わった（写しが新しくなった・1 分ごとの引き直し）
   ③同じ組み（控えから）。①②は「画面が全部のパネルを一度に問い合わせる」形（並行 8）でも測る
+- --fields（版 3.99.0）: 組む所の左のカラムの札（GET /api/dashboard/fields?source=work。すべての設備）を、1 回目・2 回目・
+  1 台だけ写しが新しくなった後・計算列あり（POST。計算列の札は覚えない）で測る。デスクトップ版の窓の札は src/pivot.rs の fields_many
+  （合わせた全部のファイルの指紋ごとに答えを覚える）。Python の道は覚えない
 - --compare は、答えの数（cells・orders・count）が前に控えた物と同じかを確かめる（違えば終了コード 1）
 """
 import argparse
@@ -94,10 +98,13 @@ def main():
     ap.add_argument("--equip", type=int, default=11)
     ap.add_argument("--save")
     ap.add_argument("--compare")
+    ap.add_argument("--fields", action="store_true")
     a = ap.parse_args()
     t0 = time.perf_counter()
     app = build(a.rows, a.equip)
     c = app.test_client()
+    if a.fields:
+        return fields_bench(c, a)
     ps = panels(c)
     for p in ps:                       # 写し終えるまで待つ（写すのは測らない）
         for _ in range(600):
@@ -152,6 +159,26 @@ def main():
         code = 1 if bad else 0
     shutil.rmtree(WORK, ignore_errors=True)
     return code
+
+
+def fields_bench(c, a):
+    """組む所の札の速さ（版 3.99.0）"""
+    def one(label, method="GET", body=None):
+        t = time.perf_counter()
+        r = c.get("/api/dashboard/fields", query_string={"source": "work"}) if method == "GET" else c.post("/api/dashboard/fields", json=body)
+        ms = round((time.perf_counter() - t) * 1000, 1)
+        d = r.get_json() or {}
+        print(f"{label}: {ms} ms（{r.status_code}・列 {len(d.get('fields') or [])}・読めない設備 {len(d.get('failed') or [])}）")
+        return ms
+    out = {"1 回目": one("1 回目（最初の写しを待つ）"), "2 回目": one("2 回目"), "3 回目": one("3 回目")}
+    f = next(iter(sorted((WORK / "実績").glob("*.sqlite3"))))
+    os.utime(f, None)
+    time.sleep(1.5)
+    out["1 台だけ新しい"] = one("1 台だけ写しが新しくなった後")
+    out["計算列あり"] = one("計算列あり（POST）", "POST", {"source": "work", "calc": {"formulas": {"重さ2": "[重量]*2"}, "names": {}}})
+    print(json.dumps({"equip": a.equip, "rows": a.rows, "ms": out}, ensure_ascii=False))
+    shutil.rmtree(WORK, ignore_errors=True)
+    return 0
 
 
 if __name__ == "__main__":

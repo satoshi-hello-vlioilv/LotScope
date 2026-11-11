@@ -597,7 +597,9 @@ function bindSourceForm(card, s, can, isView = false) {
       res = await masterRequest("/api/sources/check", TPA.json("POST", { place: (c("place") || {}).value?.trim() || connText(f.default), table: (c("table") || {}).value?.trim() || "",
         equipColumn: val("equip"), role: val("role") || (s && s.role) || "" }));
     } else {
-      res = await masterRequest(`/api/sources/${encodeURIComponent(s.key)}/conn/check`, TPA.json("POST", { field: main, value: c(main).value.trim() }));
+      // 作業実績のフォルダは、カードで打ち替えたファイル名の決まりで探す（版 3.99.0。前は保存済みの決まりで探した）
+      const pat = main === "folder" && c("pattern") ? c("pattern").value.trim() : "";
+      res = await masterRequest(`/api/sources/${encodeURIComponent(s.key)}/conn/check`, TPA.json("POST", { field: main, value: c(main).value.trim(), ...(pat ? { pattern: pat } : {}) }));
     }
     const x = res.data || {};
     say(x.ok ? "ok" : "ng", `${x.ok ? "✓" : "✕"} ${escapeHtml(x.message || x.error || "確かめられませんでした")}`);

@@ -12,10 +12,7 @@
 """
 import copy
 import math
-import os
-import sqlite3
 import time
-from pathlib import Path
 
 from ..brand import BRAND
 from ..fsio import unquote_path
@@ -156,47 +153,21 @@ def effective(settings, rows):
     return eff, items
 
 
-def check(item, value, settings=None):
+def check(item, value, settings=None, *, table=None, role="品質", pattern=None):
     """「確かめる」: その値で本当に読めるか（保存の前に）。settings はいま効いている設定（ほかの項目と組んで確かめるとき）。
+    table・role（.sqlite3 の場所。版 3.99.0）… 一覧が読む表（欄の表）と役割（品質だけロット番号の列が要る・古さの警告は services/builder.py の STALE_ROLES）。
+    table が None なら、品質データの場所は効いている lot_list.table。pattern（作業実績のフォルダ。版 3.99.0）… カードで打ち替えたファイル名の決まり。
     -> {ok, message, detail}"""
-    fn = _CHECKS.get(item["kind"])
-    if fn is _check_folder:
-        return fn(item, value, settings)
+    kind = item["kind"]
+    if kind == "sqlite":
+        from .builder import check_sqlite
+        if table is None:
+            table = str(_get(settings or {}, "lot_list.table") or "") if item["key"] == "lot_list.source" else ""
+        return check_sqlite(value, table, role)
+    if kind == "folder":
+        return _check_folder(item, value, settings, pattern)
+    fn = _CHECKS.get(kind)
     return fn(item, value) if fn else {"ok": True, "message": "値の形は正しいです。"}
-
-
-def _check_sqlite(item, value):
-    """ファイルに届くか・SQLite として開けるか・一覧に使う表と行数・ロット番号の列・最後の更新。"""
-    p = unquote_path(value)
-    if not p:
-        return {"ok": False, "message": "ファイルの場所を入れてください。"}
-    t0 = time.perf_counter()
-    try:
-        st = os.stat(p)
-    except OSError as e:
-        return {"ok": False, "message": f"ファイルに届きません（{getattr(e, 'strerror', None) or e}）。場所・名前・共有フォルダへの接続を確かめてください。"}
-    from . import lot_list
-    from .sqlite_ro import connect_ro, qi
-    try:
-        with connect_ro(Path(p), timeout=5) as c:
-            names = lot_list.tables(c)
-            t = lot_list.pick_table(names, "")
-            n = c.execute(f"SELECT COUNT(*) FROM {qi(t)}").fetchone()[0] if t else 0
-            cs = lot_list.columns(c, t) if t else []
-    except (sqlite3.Error, RuntimeError, FileNotFoundError) as e:
-        return {"ok": False, "message": f"SQLite のファイルとして開けません（{e}）。"}
-    age_h = (time.time() - st.st_mtime) / 3600
-    lot = lot_list.lot_column(cs)
-    msg = (f"開けました。表 {len(names)} 個（一覧に使う表: {t or 'なし'}・{n:,}行）・"
-           f"最後の更新 {time.strftime('%Y/%m/%d %H:%M', time.localtime(st.st_mtime))}（{age_h:.0f}時間前）・"
-           f"{st.st_size / 1024 / 1024:.1f} MB・{(time.perf_counter() - t0) * 1000:.0f} ms")
-    warn = []
-    if not lot:
-        warn.append("ロット番号の列が見つかりません（ロット番号・ﾛｯﾄ番号・ロット№・LTNO）。")
-    if age_h > 36:
-        warn.append("最後の更新が古いファイルです。名前の違う別のファイルではないか確かめてください。")
-    return {"ok": bool(t) and bool(lot), "message": msg + ("" if not warn else " " + " ".join(warn)),
-            "detail": {"tables": names, "table": t, "rows": n, "lotColumn": lot, "mtime": st.st_mtime}}
 
 
 def _check_url(item, value):
@@ -206,7 +177,10 @@ def _check_url(item, value):
         ok = reachable(site_base(value), 4)          # # から後ろを捨てた場所へ（版 3.98.0。見えない Edge と同じ決まり）
         return {"ok": ok, "message": "LotDsp に届きました（ログインが要るかは「検索」で分かります）。" if ok
                 else "LotDsp に届きません（社外・VPN 未接続・場所の間違い）。"}
-    return {"ok": True, "message": "URL の形は正しいです（つながるかは LotDsp を開いて確かめてください）。"}
+    if item["key"] == "schedule.cm3_base_url":         # スケジュール（CM3。版 3.99.0 の決め 6: 届くかまで見る。前は LotDsp の言葉だった）
+        from .builder import CM3_REACH, cm3_reach
+        return cm3_reach(value) if CM3_REACH else {"ok": True, "message": "URL の形は正しいです（つながるかは「スケジュール」のタブで確かめてください）。"}
+    return {"ok": True, "message": "URL の形は正しいです。"}
 
 
 def _check_exe(item, value):
@@ -221,10 +195,11 @@ def _check_exe(item, value):
             "Edge が見つかりません。msedge.exe の場所を入れてください。"}
 
 
-def _check_folder(item, value, settings=None):
-    """作業実績のフォルダ: 届くか・決まりに合うファイル（設備）がいくつあるか（ファイル名の決まりは、いま効いている物）。"""
+def _check_folder(item, value, settings=None, pattern=None):
+    """作業実績のフォルダ: 届くか・決まりに合うファイル（設備）がいくつあるか。ファイル名の決まりは、カードで打ち替えた物（pattern。版 3.99.0）か、
+    いま効いている物"""
     from .work_log import FolderError, params, scan
-    pattern = params(settings)["pattern"]
+    pattern = pattern or params(settings)["pattern"]
     t0 = time.perf_counter()
     try:
         found = scan(value, pattern)
@@ -243,4 +218,4 @@ def _check_pattern(item, value):
     return {"ok": True, "message": f"「{head}設備名{tail}」の形のファイルを探します。"}
 
 
-_CHECKS = {"sqlite": _check_sqlite, "url": _check_url, "exe": _check_exe, "folder": _check_folder, "pattern": _check_pattern}
+_CHECKS = {"url": _check_url, "exe": _check_exe, "folder": _check_folder, "pattern": _check_pattern}

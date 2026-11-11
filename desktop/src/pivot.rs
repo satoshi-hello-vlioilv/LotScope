@@ -1181,7 +1181,7 @@ fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, sp
     })
 }
 
-fn commas(n: i64) -> String {
+pub(crate) fn commas(n: i64) -> String {
     let t = n.abs().to_string();
     let mut out = String::new();
     for (i, ch) in t.chars().enumerate() {
@@ -1631,31 +1631,280 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
     Ok(out)
 }
 
-// ------------------------------------------------------------------ カラムの札
-/// 集計の左のカラムの札に出す手がかり（Python の fields）
-pub fn fields(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: usize) -> R<Value> {
-    // 計算列の無い札は、データのファイル（場所・更新時刻・大きさ）と表の選び方ごとに覚える（版 3.66.0。開き直した後・ダッシュボードの組む所を
-    // 開くたびに数え直さない。写しが新しくなればファイルが替わり数え直す）。計算列のある札は式と変換表で変わるので覚えない
-    let key = calc.is_none().then(|| fields_key(part, sample)).flatten();
-    if let Some(k) = &key {
-        if let Some(v) = FIELDS.lock().ok().and_then(|m| m.get(k).cloned()) {
-            return Ok(v);
+// ------------------------------------------------------------------ カラムの札（版 3.99.0。Python の pivot.field_sets・merge_fields・fields）
+/// 札の種類を数える上限（1,000 を超えたら「1,000 種類以上」。Python の pivot.KINDS_MAX）
+pub const KINDS_MAX: usize = 1001;
+/// 値の見本の数（Python の pivot.SAMPLES）
+pub const SAMPLES: usize = 3;
+
+/// 同じ値の見分け（SortKey の答え）。Python の set と同じく、整数と同じ大きさの小数は同じ値（1 と 1.0）
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum KeyV {
+    I(i64),
+    F(u64),
+    T(String),
+    B(Vec<u8>),
+}
+
+impl KeyV {
+    fn of(v: SqlValue) -> Option<KeyV> {
+        Some(match v {
+            SqlValue::Null => return None,
+            SqlValue::Integer(i) => KeyV::I(i),
+            SqlValue::Real(f) => {
+                if f.fract() == 0.0 && (-9.223_372_036_854_775e18..9.223_372_036_854_775e18).contains(&f) && (f as i64) as f64 == f {
+                    KeyV::I(f as i64)
+                } else {
+                    KeyV::F(f.to_bits())
+                }
+            }
+            SqlValue::Text(t) => KeyV::T(t),
+            SqlValue::Blob(b) => KeyV::B(b),
+        })
+    }
+}
+
+/// 1 つのファイルの 1 列の札の材料（合わせる前）
+#[derive(Debug, Clone)]
+pub struct FieldSet {
+    pub column: String,
+    pub calc: bool,
+    pub broken: bool,
+    /// 同じ値の見分け（SortKey）の集合（KINDS_MAX で止める）
+    pub keys: HashSet<KeyV>,
+    /// 空欄（SortKey が NULL）がある
+    pub blank: bool,
+    /// 空欄でない値の先頭 sample 個がみな数か（値が無ければ None）
+    pub numeric: Option<bool>,
+    pub date: bool,
+    /// 計算列: 先頭 60 個の 8 割が日付
+    pub dated: bool,
+    pub deps: Vec<String>,
+}
+
+/// 1 つのファイルの札の材料（Python の field_sets）
+#[derive(Debug, Clone)]
+pub struct FieldSets {
+    pub table: String,
+    pub fields: Vec<FieldSet>,
+}
+
+/// 1 つのファイルの札の材料（Python の field_sets）。合わせ方は merge_fields（作業実績のすべての設備も、1 つのファイルも同じ）
+pub fn field_sets(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: usize) -> R<FieldSets> {
+    let c = connect_ro(&part.path).map_err(down)?;
+    let names = lotlist::tables(&c).map_err(down)?;
+    let t =
+        if names.contains(&part.table) { part.table.clone() } else { lotlist::pick_table(&names, &part.preferred_table, part.candidates) };
+    if t.is_empty() {
+        return Err(down("表が 1 つもありません。".into()));
+    }
+    let cs = lotlist::dedup(&lotlist::raw_columns(&c, &t).map_err(down)?);
+    let dates: HashSet<String> = lotlist::date_columns(&c, &t, &cs).map_err(down)?.into_iter().collect();
+    let qt = qi(&t);
+    let hint = |col: &str, sql: &str| -> R<(FieldSet, Vec<Own>)> {
+        let mut st =
+            c.prepare(&format!("SELECT DISTINCT SortKey({sql}) FROM {qt} LIMIT {}", KINDS_MAX + 1)).map_err(|e| down(sql_err(e)))?;
+        let mut rows = st.query([]).map_err(|e| down(sql_err(e)))?;
+        let (mut keys, mut blank) = (HashSet::new(), false);
+        while let Some(r) = rows.next().map_err(|e| down(sql_err(e)))? {
+            match KeyV::of(r.get::<_, SqlValue>(0).map_err(|e| down(sql_err(e)))?) {
+                Some(k) => {
+                    keys.insert(k);
+                }
+                None => blank = true,
+            }
+        }
+        let mut st =
+            c.prepare(&format!("SELECT {sql} FROM {qt} WHERE SortKey({sql}) IS NOT NULL LIMIT {sample}")).map_err(|e| down(sql_err(e)))?;
+        let mut rows = st.query([]).map_err(|e| down(sql_err(e)))?;
+        let mut vals = vec![];
+        while let Some(r) = rows.next().map_err(|e| down(sql_err(e)))? {
+            vals.push(r.get_ref(0).map(Own::of_ref).unwrap_or(Own::None));
+        }
+        let numeric = (!vals.is_empty()).then(|| vals.iter().all(|v| worksum::num(&v.py()).is_some()));
+        let f = FieldSet { column: col.into(), calc: false, broken: false, keys, blank, numeric, date: false, dated: false, deps: vec![] };
+        Ok((f, vals))
+    };
+    let mut out = vec![];
+    for col in &cs {
+        let (mut f, _) = hint(col, &qi(col))?;
+        f.date = dates.contains(col);
+        out.push(f);
+    }
+    let (exprs, calcs, broken, cc) = calc_exprs(&c, calc, &cs, conv)?;
+    for col in &calcs {
+        if broken.contains(col) {
+            out.push(FieldSet {
+                column: col.clone(),
+                calc: true,
+                broken: true,
+                keys: HashSet::new(),
+                blank: false,
+                numeric: None,
+                date: false,
+                dated: false,
+                deps: vec![],
+            });
+            continue;
+        }
+        let (mut f, vals) = hint(col, &exprs[col])?;
+        let head: Vec<&Own> = vals.iter().take(60).collect();
+        f.dated =
+            !head.is_empty() && head.iter().filter(|v| pyfmt::to_date(&v.py()).is_some()).count() as f64 / head.len() as f64 >= DATE_RATIO;
+        f.calc = true;
+        f.deps = cc.as_ref().map(|x| x.raw_deps(col)).unwrap_or_default();
+        out.push(f);
+    }
+    Ok(FieldSets { table: t, fields: out })
+}
+
+/// ファイルごとの札の材料 [(名前, 材料)] → 札の並び（Python の merge_fields。決まりは src/builder.rs の冒頭）
+pub fn merge_fields(per: &[(String, FieldSets)]) -> Vec<Value> {
+    struct Acc {
+        keys: HashSet<KeyV>,
+        most: usize,
+        blank: bool,
+        nums: Vec<bool>,
+        date: bool,
+        dated: bool,
+        calc: bool,
+        deps: Option<Vec<String>>,
+        broken: Vec<String>,
+        seen: usize,
+    }
+    let mut acc: HashMap<String, Acc> = HashMap::new();
+    let (mut raw_order, mut calc_order) = (vec![], vec![]);
+    for (name, d) in per {
+        for f in &d.fields {
+            let m = acc.entry(f.column.clone()).or_insert_with(|| {
+                if f.calc {
+                    calc_order.push(f.column.clone());
+                } else {
+                    raw_order.push(f.column.clone());
+                }
+                Acc {
+                    keys: HashSet::new(),
+                    most: 0,
+                    blank: false,
+                    nums: vec![],
+                    date: false,
+                    dated: false,
+                    calc: f.calc,
+                    deps: None,
+                    broken: vec![],
+                    seen: 0,
+                }
+            });
+            m.seen += 1;
+            if f.broken {
+                m.broken.push(name.clone());
+                continue;
+            }
+            if m.deps.is_none() && f.calc {
+                m.deps = Some(f.deps.clone());
+            }
+            if crate::builder::KINDS_UNION {
+                for k in &f.keys {
+                    if m.keys.len() >= KINDS_MAX {
+                        break;
+                    }
+                    m.keys.insert(k.clone());
+                }
+            }
+            m.most = m.most.max(f.keys.len());
+            m.blank |= f.blank;
+            if let Some(n) = f.numeric {
+                m.nums.push(n);
+            }
+            m.date |= f.date;
+            m.dated |= f.dated;
         }
     }
-    let v = fields_count(part, calc, conv, sample)?;
-    if let Some(k) = key {
+    let mut out = vec![];
+    for col in raw_order.iter().chain(&calc_order) {
+        let m = &acc[col];
+        if m.calc && m.broken.len() == m.seen {
+            out.push(
+                json!({"column": col, "calc": true, "kinds": 0, "many": false, "numeric": false, "date": false, "error": "式が読めません"}),
+            );
+            continue;
+        }
+        let n = (if crate::builder::KINDS_UNION { m.keys.len() } else { m.most }).min(KINDS_MAX);
+        let kinds = (n + usize::from(m.blank && n > 0)).min(KINDS_MAX);
+        let numeric = !m.nums.is_empty() && m.nums.iter().all(|x| *x);
+        let mut x = Map::new();
+        x.insert("column".into(), json!(col));
+        x.insert("kinds".into(), json!(kinds));
+        x.insert("many".into(), json!(kinds > KINDS_MAX - 1));
+        x.insert("numeric".into(), json!(numeric));
+        x.insert("date".into(), json!(if m.calc { m.dated && !numeric } else { m.date }));
+        if n == 0 && m.blank {
+            x.insert("blankOnly".into(), json!(true));
+        }
+        if m.calc {
+            x.insert("calc".into(), json!(true));
+            x.insert("deps".into(), json!(m.deps.clone().unwrap_or_default()));
+            if !m.broken.is_empty() {
+                x.insert("brokenIn".into(), json!(m.broken));
+            }
+        }
+        out.push(Value::Object(x));
+    }
+    out
+}
+
+/// いくつかのファイルの札（作業実績のすべての設備・1 つのファイル）: 読めたファイルの札を合わせた答えと、読めなかったファイル [{name, error, kind}]。
+/// 計算列の無い札は、合わせた全部のファイルの指紋（場所・更新時刻・大きさ・表の選び方）の並びごとに、合わせた答えを覚える（版 3.99.0。
+/// 前は 1 ファイルずつ覚えた。値の集合は数えている間だけ持つ）。読めないファイルがあれば覚えない。progress の read に n/m を載せる
+pub fn fields_many(
+    parts: &[Part],
+    calc: &dyn Fn(&Part) -> Option<Calc>,
+    plain: bool,
+    conv: &Arc<Tables>,
+    sample: usize,
+) -> (String, Vec<Value>, Vec<Value>) {
+    let key =
+        plain.then(|| parts.iter().map(|p| fields_key(p, sample)).collect::<Option<Vec<String>>>()).flatten().map(|v| v.join("\u{1d}"));
+    if let Some(k) = &key {
+        if let Some(v) = FIELDS.lock().ok().and_then(|m| m.get(k).cloned()) {
+            crate::progress::step("read", parts.len(), parts.len());
+            return (v.0, v.1, vec![]);
+        }
+    }
+    let (mut per, mut failed) = (vec![], vec![]);
+    for (i, p) in parts.iter().enumerate() {
+        crate::progress::step("read", i, parts.len()); // 読み終えたファイル i / 全部（版 3.99.0）
+        match field_sets(p, calc(p).as_ref(), conv, sample) {
+            Ok(d) => per.push((p.name.clone(), d)),
+            Err(e) => failed.push(json!({"name": p.name, "error": e.text(), "kind": "error"})),
+        }
+    }
+    crate::progress::step("read", parts.len(), parts.len());
+    let table = per.first().map(|(_, d)| d.table.clone()).unwrap_or_default();
+    let fields = merge_fields(&per);
+    if let (Some(k), true) = (key, failed.is_empty()) {
         if let Ok(mut m) = FIELDS.lock() {
             if m.len() >= FIELDS_KEEP {
                 m.clear();
             }
-            m.insert(k, v.clone());
+            m.insert(k, (table.clone(), fields.clone()));
         }
     }
-    Ok(v)
+    (table, fields, failed)
 }
 
-/// 覚えたカラムの札（鍵 → 答え）。数が多くなったら全部を捨てる（写しの版が替わると古い鍵は使われない）
-static FIELDS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, Value>>> = std::sync::LazyLock::new(Default::default);
+/// 集計の左のカラムの札に出す手がかり（1 つのファイル。Python の fields）
+pub fn fields(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: usize) -> R<Value> {
+    let (table, fields, failed) = fields_many(std::slice::from_ref(part), &|_| calc.cloned(), calc.is_none(), conv, sample);
+    if let Some(f) = failed.first() {
+        return Err(down(f["error"].as_str().unwrap_or("").to_string()));
+    }
+    Ok(json!({"table": table, "fields": fields}))
+}
+
+/// 覚えたカラムの札（合わせたファイルの指紋の並び → (表, 札)）。数が多くなったら全部を捨てる（写しの版が替わると古い鍵は使われない）
+type Kept = (String, Vec<Value>);
+static FIELDS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, Kept>>> = std::sync::LazyLock::new(Default::default);
 const FIELDS_KEEP: usize = 64;
 
 fn fields_key(part: &Part, sample: usize) -> Option<String> {
@@ -1671,59 +1920,39 @@ fn fields_key(part: &Part, sample: usize) -> Option<String> {
     ))
 }
 
-fn fields_count(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: usize) -> R<Value> {
+/// 空欄でない値の見本（Python の samples_of。決まりは src/builder.rs の冒頭）: 空欄（SortKey が NULL）を除き、表の行の順に、
+/// 見せる字（生の値の Python の str）が同じ物を 1 つにして n 個まで
+pub fn samples_of(c: &rusqlite::Connection, t: &str, sql: &str, n: usize) -> Result<Vec<String>, String> {
+    let mut st =
+        c.prepare(&format!("SELECT DISTINCT {sql} FROM {} WHERE SortKey({sql}) IS NOT NULL LIMIT {}", qi(t), n * 4)).map_err(sql_err)?;
+    let mut rows = st.query([]).map_err(sql_err)?;
+    let mut out: Vec<String> = vec![];
+    while let Some(r) = rows.next().map_err(sql_err)? {
+        let s = r.get_ref(0).map(Own::of_ref).unwrap_or(Own::None).py().py_str();
+        if !out.contains(&s) {
+            out.push(s);
+        }
+        if out.len() >= n {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+/// 列ごとの値の見本 [(列, 見本)]
+pub type Samples = Vec<(String, Vec<String>)>;
+
+/// 表の列の名前と値の見本 → (表, [(列, 見本)])（Python の column_names）
+pub fn column_names(part: &Part, n: usize) -> R<(String, Samples)> {
     let c = connect_ro(&part.path).map_err(down)?;
-    let names = lotlist::tables(&c).map_err(down)?;
-    let t =
-        if names.contains(&part.table) { part.table.clone() } else { lotlist::pick_table(&names, &part.preferred_table, part.candidates) };
+    let t = lotlist::pick_table(&lotlist::tables(&c).map_err(down)?, &part.preferred_table, part.candidates);
     if t.is_empty() {
         return Err(down("表が 1 つもありません。".into()));
     }
-    let cs = lotlist::dedup(&lotlist::raw_columns(&c, &t).map_err(down)?);
-    let dates: HashSet<String> = lotlist::date_columns(&c, &t, &cs).map_err(down)?.into_iter().collect();
-    let qt = qi(&t);
-    let hint = |col: &str, sql: &str| -> R<(Map<String, Value>, Vec<Own>)> {
-        let kinds: i64 = c
-            .query_row(&format!("SELECT COUNT(*) FROM (SELECT DISTINCT {sql} FROM {qt} LIMIT 1001)"), [], |r| r.get(0))
-            .map_err(|e| down(sql_err(e)))?;
-        let mut st =
-            c.prepare(&format!("SELECT {sql} FROM {qt} WHERE TRIM(CStr({sql})) <> '' LIMIT {sample}")).map_err(|e| down(sql_err(e)))?;
-        let mut rows = st.query([]).map_err(|e| down(sql_err(e)))?;
-        let mut vals = vec![];
-        while let Some(r) = rows.next().map_err(|e| down(sql_err(e)))? {
-            vals.push(r.get_ref(0).map(Own::of_ref).unwrap_or(Own::None));
-        }
-        let numeric = !vals.is_empty() && vals.iter().all(|v| worksum::num(&v.py()).is_some());
-        let mut m = Map::new();
-        m.insert("column".into(), json!(col));
-        m.insert("kinds".into(), json!(kinds));
-        m.insert("many".into(), json!(kinds > 1000));
-        m.insert("numeric".into(), json!(numeric));
-        Ok((m, vals))
-    };
     let mut out = vec![];
-    for col in &cs {
-        let (mut m, _) = hint(col, &qi(col))?;
-        m.insert("date".into(), json!(dates.contains(col)));
-        out.push(Value::Object(m));
+    for col in lotlist::dedup(&lotlist::raw_columns(&c, &t).map_err(down)?) {
+        let s = samples_of(&c, &t, &qi(&col), n).map_err(down)?;
+        out.push((col, s));
     }
-    let (exprs, calcs, broken, cc) = calc_exprs(&c, calc, &cs, conv)?;
-    for col in &calcs {
-        if broken.contains(col) {
-            out.push(
-                json!({"column": col, "calc": true, "kinds": 0, "many": false, "numeric": false, "date": false, "error": "式が読めません"}),
-            );
-            continue;
-        }
-        let (mut m, vals) = hint(col, &exprs[col])?;
-        let head: Vec<&Own> = vals.iter().take(60).collect();
-        let dated =
-            !head.is_empty() && head.iter().filter(|v| pyfmt::to_date(&v.py()).is_some()).count() as f64 / head.len() as f64 >= DATE_RATIO;
-        let numeric = m["numeric"].as_bool().unwrap_or(false);
-        m.insert("date".into(), json!(dated && !numeric));
-        m.insert("calc".into(), json!(true));
-        m.insert("deps".into(), json!(cc.as_ref().map(|x| x.raw_deps(col)).unwrap_or_default()));
-        out.push(Value::Object(m));
-    }
-    Ok(json!({"table": t, "fields": out}))
+    Ok((t, out))
 }
