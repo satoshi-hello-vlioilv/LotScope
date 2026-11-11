@@ -526,7 +526,13 @@ fn check_candidates(_role: &str) -> &'static [&'static str] {
 }
 
 /// OS の言葉（Python の OSError の strerror: 「(os error n)」を除く）
+/// Python の OSError.strerror（Windows は CPython と同じ FormatMessage の文から末尾の空白と「.」を切った形。Rust の io::Error の文は
+/// 言語も切り方も違う〈版 3.96.0 の cm3_http::win_message〉。Windows の CI で「…specified」と「…specified.」が食い違った）
 fn strerror(e: &std::io::Error) -> String {
+    #[cfg(windows)]
+    if let Some(n) = e.raw_os_error() {
+        return crate::cm3_http::win_message(n);
+    }
     let t = e.to_string();
     t.split(" (os error").next().unwrap_or(&t).to_string()
 }

@@ -435,10 +435,15 @@
         const opt = m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
         const rs = await get(p, opt);
         const py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
-        const good = rs.by === "shell" && py.by === "python" && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
+        // 「試す」は答えのファイルを作るので門番を通る（Python のときから同じ決まり）。書けない人（CI の一般ユーザー）は、窓の道も
+        // engine=python の道も門番（窓）が同じ言葉で断る。そのときは両方が門番の 403 で、同じ答えなら同じとみなす
+        const gate = rs.r.status === 403 && py.r.status === 403 && py.by === "shell";
+        const good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
         allOk = allOk && good;
         rows.push(`${m} ${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${good ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
       }
+      // 食い違った道を先に書く（記録は 300 字で切る。版 3.99.0 の CI で 6 本目の食い違いが切れて見えなかった）
+      rows.sort((a, b) => (b.includes("・{") || b.includes(" / {")) - (a.includes("・{") || a.includes(" / {")));
       ok("組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）", allOk, rows.join("・"));
     }
 
