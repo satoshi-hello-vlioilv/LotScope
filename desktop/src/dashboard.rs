@@ -304,6 +304,49 @@ impl Ctx<'_> {
 
     /// パネルのデータ → 数えるファイルの並び（Python の panel_parts）
     fn panel_parts(&self, source: &str, equip: &str, basis: &str, equips: &[String]) -> Planned {
+        self.panel_parts_wait(source, equip, basis, equips, FIRST_WAIT).map_err(|(v, _)| v)
+    }
+
+    /// 組む所の読み（版 3.99.0。src/builder.rs）: パネルのデータ → (数えるファイル, 読めなかった設備, データの名前)。
+    /// 作業実績の最初の写しを wait まで待つ（札・当てる列は Python の db_mirror.FIRST_WAIT_SEC と同じ 30 秒。パネルの数は 2 秒）。
+    /// Ok(None) は Python に任せる形（スケジュールを窓が答えない）・Err は失敗の答え {error, kind, status}
+    /// Err は段取りの失敗の答えそのもの（状態・本文。Python の _Fail の resp）
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn parts_for(
+        &self,
+        source: &str,
+        equip: &str,
+        equips: &[String],
+        wait: Duration,
+    ) -> Result<Option<(Vec<Part>, Vec<Value>, String)>, (u16, Value)> {
+        Ok(self.panel_parts_wait(source, equip, "work", equips, wait).map_err(|(_, raw)| raw)?.map(|p| (p.parts, p.failed, p.name)))
+    }
+
+    /// 設備グループのまとめ方の名前（Python の equip_groups.sets の name）
+    pub(crate) fn set_names(&self) -> Vec<String> {
+        self.dash().sets().into_iter().map(|(n, _)| n).collect()
+    }
+
+    /// パネルのデータの名前（Python の source_items: データ元の並び。作業実績・品質はそのキー・ほかは src:キー）
+    pub(crate) fn source_keys(&self) -> Vec<(String, Value)> {
+        arr(self.conf.v.get("sources"))
+            .iter()
+            .map(|d| {
+                let k = s_or(d.get("key"));
+                (if k == "lot" || k == "work" { k } else { format!("src:{k}") }, d.get("name").cloned().unwrap_or(Value::Null))
+            })
+            .collect()
+    }
+
+    /// panel_parts の本体。Err は (パネルの中に出す失敗 {error, kind, status}, 段取りの失敗の答えそのもの)
+    fn panel_parts_wait(
+        &self,
+        source: &str,
+        equip: &str,
+        basis: &str,
+        equips: &[String],
+        wait: Duration,
+    ) -> Result<Option<Parts>, (Value, (u16, Value))> {
         let (lists, conf, q) = (self.lists, self.conf, self.q);
         let def_of = |k: &str| self.dash().source(k).cloned();
         if source == "work" {
@@ -324,9 +367,8 @@ impl Ctx<'_> {
                 .filter(|r| pick.is_empty() || pick.contains(&normalize_part(&s_or(r.get("設備名")))))
                 .collect();
             if rows.is_empty() {
-                return Err(
-                    json!({"error": "数える設備がありません（「マスタ管理」の「データ元」の「実績」で表示する設備を決めてください）。", "kind": "unknown", "status": 404}),
-                );
+                let e = "数える設備がありません（「マスタ管理」の「データ元」の「実績」で表示する設備を決めてください）。";
+                return Err((json!({"error": e, "kind": "unknown", "status": 404}), (404, json!({"error": e, "kind": "unknown"}))));
             }
             let work_def = def_of("work");
             let lot = work_def.as_ref().map(|d| s_or(d.get("lotSet")));
@@ -343,12 +385,13 @@ impl Ctx<'_> {
             // 共有から写した設備 n / 設備 of（最初の写しを待つ間。版 3.97.0）
             let ready = |keys: &[String]| keys.iter().filter(|k| lists.work.peek(k).is_some_and(|m| m.first_done())).count();
             crate::progress::step("copy", ready(&keys), keys.len());
-            lists.work.wait_first(&keys, FIRST_WAIT);
+            // 待つ間も間をおいて数え直す（版 3.99.0。パネルの 2 秒の待ちも札の 30 秒の待ちも同じ部品）
+            lists.work.wait_first_tick(&keys, wait, &|| crate::progress::step("copy", ready(&keys), keys.len()));
             crate::progress::step("copy", ready(&keys), keys.len());
             let shifts = conf.shifts();
             let (mut parts, mut failed, mut mirrors) = (Vec::<Part>::new(), Vec::<Value>::new(), Vec::<Value>::new());
             let mut copying = vec![];
-            let mut first: Option<(Value, String)> = None; // 1 つも読めないときの答え（写し中を先に選ぶ）
+            let mut first: Option<(Value, String, (u16, Value))> = None; // 1 つも読めないときの答え（写し中を先に選ぶ）
             for r in &rows {
                 let name = s_or(r.get("設備名"));
                 match lists.work_plan_wait(conf, q, &s_or(r.get("キー")), true, true, false) {
@@ -361,8 +404,8 @@ impl Ctx<'_> {
                         let mut x = json!({"name": name});
                         x.as_object_mut().unwrap().extend(fv.as_object().unwrap().clone());
                         failed.push(x);
-                        if !first.as_ref().is_some_and(|(_, k)| k == "copying") {
-                            first = Some((fv, kind));
+                        if !first.as_ref().is_some_and(|(_, k, _)| k == "copying") {
+                            first = Some((fv, kind, f));
                         }
                     }
                     Ok(plan) => {
@@ -385,8 +428,9 @@ impl Ctx<'_> {
             let name = work_def.map(|d| s_or(d.get("name"))).unwrap_or_else(|| "作業実績".into());
             if parts.is_empty() {
                 // 1 台も写し終えていない: 失敗の答えにも写しの様子（台・バイト・あと何秒）を付ける（版 3.97.0）
-                let copying_now = first.as_ref().is_some_and(|(_, k)| k == "copying");
-                let mut f = first.map(|(f, _)| f).unwrap_or(Value::Null);
+                let copying_now = first.as_ref().is_some_and(|(_, k, _)| k == "copying");
+                let raw = first.as_ref().map(|(_, _, r)| r.clone()).unwrap_or((500, Value::Null));
+                let mut f = first.map(|(f, _, _)| f).unwrap_or(Value::Null);
                 if copying_now && f.is_object() {
                     if let Some(c) = copy_of(&Parts {
                         parts: vec![],
@@ -398,12 +442,12 @@ impl Ctx<'_> {
                         f["copy"] = c;
                     }
                 }
-                return Err(f);
+                return Err((f, raw));
             }
             return Ok(Some(Parts { parts, failed, name, mirrors, copying }));
         }
         if source == "lot" {
-            let plan = lists.lot_plan(conf, q, true).map_err(|f| fail_of(&f))?;
+            let plan = lists.lot_plan(conf, q, true).map_err(|f| (fail_of(&f), f))?;
             let d = def_of("lot");
             let named = d.as_ref().and_then(|d| d.get("name")).map(|n| s_or(Some(n)));
             let lot = d.as_ref().map(|d| s_or(d.get("lotSet")));
@@ -420,7 +464,7 @@ impl Ctx<'_> {
         let plan = match lists.src_plan(conf, q, key, true, true) {
             Ok(None) => return Ok(None), // スケジュールを窓が答えない形（設定を組めない・係を降りた）は Python
             Ok(Some(p)) => p,
-            Err(f) => return Err(fail_of(&f)),
+            Err(f) => return Err((fail_of(&f), f)),
         };
         let d = def_of(key);
         let name = d.as_ref().map(|d| s_or(d.get("name"))).unwrap_or_default();

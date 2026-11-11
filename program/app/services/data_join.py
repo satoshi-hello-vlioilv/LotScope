@@ -236,7 +236,14 @@ def build(dest, base_path, base_table, items, rights):
         tmp.unlink(missing_ok=True)
         raise
     c.close()
-    os.replace(tmp, dest)
+    # 置き換え（版 3.99.0）: 窓と Python が同じ答えのファイルを同時に組むと、Windows では相手が開いている間 os.replace が拒まれる。
+    # 窓（desktop/src/join.rs の replace）と同じく 2 秒まで間を広げながらやり直す
+    from ..fsio import retrying
+    try:
+        retrying(lambda: os.replace(tmp, dest))
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
     return stats
 
 

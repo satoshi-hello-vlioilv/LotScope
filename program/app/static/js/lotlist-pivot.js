@@ -261,7 +261,7 @@
     if (hit("作業日 直 ロット数 件数")) html += special;
     html += (fields || []).filter((f) => hit(f.column) || hit(host.label(f.column))).map((f) => {
       const c = f.column, u = used(c), date = isDate(c);
-      const sub = date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : `${f.kinds} 種類`;
+      const sub = date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.kinds} 種類`);
       return `<div class="pv-f${u || anyVal(c) ? " is-used" : ""}${date ? " is-date" : ""}${f.numeric ? " is-num" : ""}" data-col="${esc(c)}"${fa(c, f.numeric ? ["rows", "cols", "vals"] : ["rows", "cols"])}><span title="${esc(c)}"><b>${esc(host.label(c))}</b><small>${sub}</small></span>`
         + btn("rows", c, u === "rows") + btn("cols", c, u === "cols") + (f.numeric ? btn("vals", c, anyVal(c), 'title="合計を値に足します（値の札で平均・最小・最大に替えられます）"') : "<i></i>") + "</div>";
     }).join("");

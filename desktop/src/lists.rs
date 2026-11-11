@@ -169,7 +169,7 @@ pub fn same_fid(a: &str, b: &str) -> bool {
 
 /// フォルダの中で決まりに合うファイル（名前の順）。届かなければ理由
 /// Python の st_mtime（秒を床・ナノ秒を正にして「秒 + ナノ秒 × 1e-9」。1970 年より前は負の秒）
-fn py_mtime(t: std::time::SystemTime) -> f64 {
+pub(crate) fn py_mtime(t: std::time::SystemTime) -> f64 {
     match t.duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => d.as_secs() as f64 + d.subsec_nanos() as f64 * 1e-9,
         Err(e) => {
@@ -602,8 +602,58 @@ impl Lists {
         }
     }
 
+    /// 作業実績の表示する設備（表示の並び）ごとの、結合しない段取り（版 3.99.0。Python の routes/sources.work_plans）→
+    /// ([(登録の行, 段取り)], 読めなかった設備 [{name, error, kind}], 1 台も読めないときの失敗の答え〈写し中を先に〉)。
+    /// 写しを一度に始めて、最初の写しを wait まで待つ（Python の start_mirrors）。読めない設備は飛ばす
+    pub(crate) fn work_raw_plans(
+        &self,
+        conf: &Conf,
+        q: &Quality,
+        all: bool,
+        wait: std::time::Duration,
+    ) -> (Vec<(Value, Plan)>, Vec<Value>, Option<Fail>) {
+        let wl = conf.work();
+        let rows: Vec<&Value> = wl["rows"].as_array().into_iter().flatten().filter(|r| text(&r["表示"]) != "無").collect();
+        let Some(mut rows) = crate::bundle::work_order(rows) else {
+            return (vec![], vec![], Some(error(503, "作業実績の登録を読めません。", None, &[])));
+        };
+        if rows.is_empty() {
+            return (vec![], vec![], Some(error(404, "作業実績の設備がありません。", Some("unknown"), &[])));
+        }
+        if !all {
+            rows.truncate(1);
+        }
+        let mut keys = vec![];
+        for r in &rows {
+            let key = text(&r["キー"]);
+            match self.work_plan_wait(conf, q, &key, true, false, false) {
+                Ok(_) => keys.push(key),
+                Err((_, v)) if v["kind"] == "copying" => keys.push(key),
+                Err(_) => {}
+            }
+        }
+        self.work.wait_first(&keys, wait);
+        let (mut got, mut failed, mut first): (Vec<(Value, Plan)>, Vec<Value>, Option<Fail>) = (vec![], vec![], None);
+        for r in rows {
+            match self.work_plan_wait(conf, q, &text(&r["キー"]), true, false, false) {
+                Ok(p) => got.push((r.clone(), p)),
+                Err(f) => {
+                    let kind = f.1["kind"].as_str().filter(|k| !k.is_empty()).unwrap_or("error").to_string();
+                    let e = f.1["error"].as_str().filter(|e| !e.is_empty()).unwrap_or("読めませんでした。").to_string();
+                    failed.push(json!({"name": text(&r["設備名"]), "error": e, "kind": kind}));
+                    let first_copying = first.as_ref().is_some_and(|(_, v)| v["kind"] == "copying");
+                    if first.is_none() || (kind == "copying" && !first_copying) {
+                        first = Some(f);
+                    }
+                }
+            }
+        }
+        let fail = if got.is_empty() { first } else { None };
+        (got, failed, fail)
+    }
+
     /// raw_plan のうち、スケジュールの元で窓が答えない形を None にした物
-    fn raw_plan_opt(&self, conf: &Conf, q: &Quality, key: &str) -> Result<Option<Plan>, Fail> {
+    pub(crate) fn raw_plan_opt(&self, conf: &Conf, q: &Quality, key: &str) -> Result<Option<Plan>, Fail> {
         if conf.source(key).is_some_and(|b| b["kind"] == "cm3") {
             return self.src_plan(conf, q, key, true, false);
         }
@@ -633,12 +683,42 @@ impl Lists {
 
     /// 段取りの読むファイルを、データ元 s の結合を当てた答えのファイルに替える（結合が無ければそのまま。Python の with_joins）
     fn with_joins(&self, conf: &Conf, q: &Quality, plan: Plan, s: &Value, scope: Option<&str>) -> Result<Plan, Fail> {
-        let joins = Join::list(&s["joins"]);
+        self.with_joins_as(conf, q, plan, s, scope, None)
+    }
+
+    /// with_joins に、決まりを替えて試す（「試す」の数。Python の with_joins の joins）口を足した物（版 3.99.0）
+    pub(crate) fn with_joins_as(
+        &self,
+        conf: &Conf,
+        q: &Quality,
+        plan: Plan,
+        s: &Value,
+        scope: Option<&str>,
+        over: Option<Vec<Join>>,
+    ) -> Result<Plan, Fail> {
+        let joins = over.unwrap_or_else(|| Join::list(&s["joins"]));
         if joins.is_empty() {
             return Ok(plan);
         }
+        let rights = self.rights_of(conf, q, &joins)?;
+        let base = plan.path.clone().unwrap_or_default();
+        let ck = if !plan.cand_key.is_empty() { plan.cand_key.clone() } else { text(&s["key"]) };
+        let table = actual_table(&base, &plan.table, &ck).map_err(|e| error(503, &e, None, &[]))?;
+        let name = text(&s["name"]);
+        let key = scope.map(str::to_string).unwrap_or_else(|| text(&s["key"]));
+        match self.joiner.path_for(&key, &base, &table, &joins, &rights) {
+            Ok((path, stats)) => Ok(Plan { path: Some(path), table, joined: stats, ..plan }),
+            Err(e) => {
+                let st = if matches!(e, JoinError::Rule(_)) { 400 } else { 503 };
+                Err(error(st, &format!("「{name}」の結合を組めませんでした: {e}"), Some("join"), &[]))
+            }
+        }
+    }
+
+    /// 結合ごとの相手の (写し, 表, 名前)（Python の _rights）
+    pub(crate) fn rights_of(&self, conf: &Conf, q: &Quality, joins: &[Join]) -> Result<Vec<Right>, Fail> {
         let mut rights = vec![];
-        for j in &joins {
+        for j in joins {
             let d = conf.source(&j.with).filter(|d| d["kind"] == "file");
             let Some(d) = d else {
                 return Err(error(
@@ -654,18 +734,7 @@ impl Lists {
             let table = actual_table(&path, &rp.table, &dk).map_err(|e| error(503, &e, None, &[]))?;
             rights.push(Right { path, table, name: text(&d["name"]) });
         }
-        let base = plan.path.clone().unwrap_or_default();
-        let ck = if !plan.cand_key.is_empty() { plan.cand_key.clone() } else { text(&s["key"]) };
-        let table = actual_table(&base, &plan.table, &ck).map_err(|e| error(503, &e, None, &[]))?;
-        let name = text(&s["name"]);
-        let key = scope.map(str::to_string).unwrap_or_else(|| text(&s["key"]));
-        match self.joiner.path_for(&key, &base, &table, &joins, &rights) {
-            Ok((path, stats)) => Ok(Plan { path: Some(path), table, joined: stats, ..plan }),
-            Err(e) => {
-                let st = if matches!(e, JoinError::Rule(_)) { 400 } else { 503 };
-                Err(error(st, &format!("「{name}」の結合を組めませんでした: {e}"), Some("join"), &[]))
-            }
-        }
+        Ok(rights)
     }
 }
 
@@ -919,7 +988,7 @@ fn table_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
 }
 
 /// 写しの中で実際に読む表の名前（設定の表 → 候補 → 最初の表。Python の sources.actual_table）
-fn actual_table(path: &Path, preferred: &str, key: &str) -> Result<String, String> {
+pub(crate) fn actual_table(path: &Path, preferred: &str, key: &str) -> Result<String, String> {
     let c = lotlist::connect_ro(path)?;
     let names = lotlist::tables(&c)?;
     Ok(lotlist::pick_table(&names, preferred, if key == "work" { WORK_TABLES } else { TABLE_CANDIDATES }))

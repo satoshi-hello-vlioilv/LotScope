@@ -804,6 +804,70 @@ impl Lot {
     /// データ元の書く道の 7 本（版 3.90.0。src/sources_write.rs）を窓が受ける。材料は窓の束の材料（GET /api/sources と同じ並び）、
     /// 書く道は権限を読み直して門番に通し、窓の書く係で書く。書いたら一覧の設定と権限の覚えを捨てる（Python が書いたときの after_python と同じ）。
     /// 接続の設定で参照先の項目を書いたときは、参照先を書いたときと同じ後始末（品質の写し・実績のフォルダの覚え）。組めない・窓が答えない形は None
+    /// 組む所の読み 7 本（版 3.99.0。src/builder.rs）。None は Python に任せる
+    pub fn builder_route(
+        &self,
+        method: &str,
+        route: crate::builder::Route,
+        query: &str,
+        body: &[u8],
+        ask: AskSettings,
+    ) -> Option<(u16, Value)> {
+        use crate::builder::{self, Route as B};
+        let qs = lotlist::parse_query(query);
+        let python = qs.iter().any(|(k, v)| k == "engine" && v == "python");
+        if python && !matches!(route, B::Fields | B::DataColumns) {
+            return None;
+        }
+        match route {
+            B::Check => builder::check(body),
+            B::SrcColumns(key) => self.with_dash(ask, |cx| builder::src_columns(cx, &key)),
+            B::ConnCheck(key) => {
+                let inp = self.bundle.lock().unwrap().clone()?.inputs().ok()?;
+                let parts = inp.sources_parts().ok()?;
+                self.with_dash(ask, |cx| {
+                    let pattern = cx.conf.work().get("pattern").and_then(Value::as_str).unwrap_or("").to_string();
+                    builder::conn_check(&builder::ConnInputs { items: &parts.items, pattern }, &key, body)
+                })
+            }
+            B::JoinPreview => {
+                // 書き込みの門番（Python の _access_guard: 「試す」は答えのファイルを作るので、データ元を書ける段だけ）
+                let inp = self.bundle.lock().unwrap().clone()?.inputs().ok()?;
+                let parts = inp.sources_parts().ok()?;
+                let access = json!({"who": inp.who, "place": inp.place});
+                let me = self.gate.me(&access).ok()?;
+                if let Some((status, kind, msg)) = crate::access::guard(method, "/api/sources/join/preview", &me) {
+                    return Some((status, json!({"error": msg, "kind": kind})));
+                }
+                self.with_dash(ask, |cx| builder::join_preview(cx, &parts.items, body))
+            }
+            B::Fields | B::DataColumns => {
+                // 待っている間の段（決め 7）: 写した・読んだ設備 n/m を GET /api/dashboard/progress で答える
+                let tag = qs.iter().find(|(k, _)| k == "ask").map(|(_, v)| v.clone()).unwrap_or_default();
+                let guard = self.progress.begin(&tag, body);
+                if python {
+                    if let Some(g) = guard {
+                        g.python(); // Python が数える（段は分からない）
+                    }
+                    return None;
+                }
+                let r = self.with_dash(ask, |cx| {
+                    if route == B::Fields {
+                        builder::fields(cx, method == "POST", query, body)
+                    } else {
+                        builder::data_columns(cx)
+                    }
+                });
+                if r.is_none() {
+                    if let Some(g) = guard {
+                        g.python();
+                    }
+                }
+                r
+            }
+        }
+    }
+
     pub fn sources_write_route(
         &self,
         method: &str,
@@ -1081,6 +1145,10 @@ impl Lot {
         }
         if let Some(route) = crate::release_place::route_of(method, path) {
             return self.release_route(route, query, body);
+        }
+        // 組む所の読み 7 本（版 3.99.0。src/builder.rs）: 窓が答え、窓が同じに答えられない形だけ Python に任せる
+        if let Some(route) = crate::builder::route_of(method, path) {
+            return self.builder_route(method, route, query, body, ask);
         }
         if let Some(route) = crate::access_write::route_of(method, path) {
             return self.access_write(method, path, route, query, body, ask);
@@ -3044,6 +3112,94 @@ mod tests {
         let lot2 = Lot::new(dir.join("cache2")); // 設定の覚えを持たない窓（前の版の中身は段取りの材料を答えない）
         assert!(lot2.handle_body("POST", "/api/dashboard/query", "ask=p-6", &body, &old).is_none());
         assert_eq!(lot2.handle_body("GET", "/api/dashboard/progress", "ask=p-6", b"", &old).unwrap().1["asks"]["p-6"]["stage"], "python");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_answers_the_builder_reads() {
+        // 版 3.99.0: 組む所の札（すべての設備）を窓が答え、合わせた本当の種類・値の無い設備を数えない数・13 台目からの列を出す。
+        // 印（ask）を付けると読んだ設備 n/m を待ちの段に載せる。?engine=python・窓が答えない形は Python（段は「python」）
+        let dir = std::env::temp_dir().join(format!("da-lot-builder-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = dir.join("実績");
+        std::fs::create_dir_all(&folder).unwrap();
+        let mut rows = vec![];
+        for i in 0..14 {
+            let e = format!("E{i:02}");
+            let c = rusqlite::Connection::open(folder.join(format!("実績_{e}.sqlite3"))).unwrap();
+            let extra = if i == 13 { ", 最後だけ TEXT" } else { "" };
+            c.execute_batch(&format!("CREATE TABLE 実績 (ロット番号 TEXT, 速度 TEXT{extra});")).unwrap();
+            let v = if i == 3 { "NULL".to_string() } else { format!("'{}'", 100 + i) };
+            let last = if i == 13 { ", 'z'" } else { "" };
+            c.execute_batch(&format!("INSERT INTO 実績 VALUES ('L{i}', {v}{last}); INSERT INTO 実績 VALUES ('共通', {v}{last});")).unwrap();
+            rows.push(json!({"キー": e.to_lowercase(), "設備名": e, "ファイル名": format!("実績_{e}.sqlite3"), "ファイルID": "", "表示": "有", "表": "", "並び": i.to_string()}));
+        }
+        let lists = json!({"hidden": [], "sources": [{"key": "work", "name": "実績"}], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
+            "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
+                     "page_size": 500, "canEditShifts": false, "rows": rows}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let (st, v) = lot.handle_body("GET", "/api/dashboard/fields", "source=work&ask=f-1", b"", &ask).expect("窓が答える");
+        assert_eq!(st, 200, "{v}");
+        let f = |c: &str| v["fields"].as_array().unwrap().iter().find(|x| x["column"] == c).cloned().unwrap_or(Value::Null);
+        assert_eq!(f("ロット番号")["kinds"], json!(15), "14 台を合わせた本当の種類（L0〜L13 と 共通）: {v}");
+        assert_eq!(
+            (f("速度")["numeric"].clone(), f("速度")["kinds"].clone()),
+            (json!(true), json!(14)),
+            "値の無い E03 は数えない（13 種類＋空欄）"
+        );
+        assert_eq!(f("最後だけ")["kinds"], json!(1), "14 台目にだけある列も出る");
+        let p = lot.handle_body("GET", "/api/dashboard/progress", "ask=f-1", b"", &ask).unwrap().1;
+        assert_eq!((p["asks"]["f-1"]["stage"].as_str(), p["asks"]["f-1"]["of"].as_u64()), (Some("read"), Some(14)), "{p}");
+        // 2 回目は合わせた答えを覚えている（同じ答え）
+        assert_eq!(lot.handle_body("GET", "/api/dashboard/fields", "source=work", b"", &ask).unwrap().1, v);
+        // Python に任せる形
+        assert!(lot.handle_body("GET", "/api/dashboard/fields", "source=work&engine=python&ask=f-2", b"", &ask).is_none());
+        assert_eq!(lot.handle_body("GET", "/api/dashboard/progress", "ask=f-2", b"", &ask).unwrap().1["asks"]["f-2"]["stage"], "python");
+        assert!(lot.handle_body("POST", "/api/dashboard/fields", "", b"[1]", &ask).is_none(), "表でない本文");
+        assert!(lot.handle_body("POST", "/api/sources/check", "", br#"{"place": ["x"]}"#, &ask).is_none(), "字でない場所");
+        // 確かめるは材料の要らない道（Python が居なくても答える）
+        let (st, c) = lot.handle_body("POST", "/api/sources/check", "", br#"{"place": ""}"#, &ask).unwrap();
+        assert_eq!((st, c["ok"].as_bool()), (200, Some(false)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_copy_stage_moves_while_waiting() {
+        // 作った後の採点（版 3.99.0）: 最初の写しを待つ間も、写し終えた設備の数を数え直して段に記録する（0/m → k/m → m/m の途中が出る）。
+        // 前は待つ前と後の 2 回だけで、組む所の札が最大 30 秒「共有から写した 0/m 台」のまま進まなかった。1 台（SLOWX）だけ写しを遅くする
+        let dir = std::env::temp_dir().join(format!("da-lot-copytick-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = dir.join("実績");
+        std::fs::create_dir_all(&folder).unwrap();
+        let mut rows = vec![];
+        for e in ["FA", "FB", "SLOWX"] {
+            let c = rusqlite::Connection::open(folder.join(format!("実績_{e}.sqlite3"))).unwrap();
+            c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT); INSERT INTO 実績 VALUES ('L1');").unwrap();
+            rows.push(json!({"キー": e.to_lowercase(), "設備名": e, "ファイル名": format!("実績_{e}.sqlite3"), "ファイルID": "", "表示": "有", "表": ""}));
+        }
+        crate::mirror::SLOW_COPY.lock().unwrap().push(("SLOWX".into(), std::time::Duration::from_millis(1500)));
+        let lists = json!({"hidden": [], "sources": [{"key": "work", "name": "実績"}], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
+            "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
+                     "page_size": 500, "canEditShifts": false, "rows": rows}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let seen = std::sync::Mutex::new(vec![]);
+        std::thread::scope(|s| {
+            let h = s.spawn(|| lot.handle_body("GET", "/api/dashboard/fields", "source=work&ask=c-1", b"", &ask));
+            while !h.is_finished() {
+                let p = lot.handle_body("GET", "/api/dashboard/progress", "ask=c-1", b"", &ask).unwrap().1;
+                let e = &p["asks"]["c-1"];
+                if e["stage"] == "copy" && e.get("of").is_some() {
+                    seen.lock().unwrap().push((e["n"].as_u64().unwrap(), e["of"].as_u64().unwrap()));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(40));
+            }
+            assert_eq!(h.join().unwrap().unwrap().0, 200);
+        });
+        crate::mirror::SLOW_COPY.lock().unwrap().clear();
+        let seen = seen.into_inner().unwrap();
+        assert!(seen.contains(&(2, 3)), "写した 2/3 台の途中が段に出る: {seen:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// 当たらなかった鍵の見本の数
-const SAMPLE: usize = 5;
+pub const SAMPLE: usize = 5;
 /// 相手の行がこれより多いときは「相手の当たった数」を数えない（重い）
 const RIGHT_HIT_LIMIT: i64 = 200_000;
 

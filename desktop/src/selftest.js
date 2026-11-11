@@ -414,6 +414,34 @@
       ok("LotDsp の 9 本は窓が答える（途中経過・学びの状態・画面の表・ロット番号の形・調べる道具の画面。Python には来ない）", allOk && pageOk, rows.join("・"));
     }
 
+    // 10b-B) 組む所の読み 7 本（版 3.99.0 から窓が答える: builder.rs）。本物の WebView2 の窓で、窓の答え（shell）と Python の答え
+    //          （engine=python）が同じか（確かめるの ms・写しの係の時刻は比べない）。品質データの無い PC（CI）でも、失敗の答えどうしを比べる
+    {
+      const dropB = (v) => Array.isArray(v) ? v.map(dropB) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["mtime", "checkedAt", "copiedAt", "at", "ageHours"].includes(k)).map((k) => [k, dropB(v[k])]))
+        : typeof v === "string" ? v.replace(/・\d+ ms/g, "・ms") : v;
+      const canonB = (t) => { try { return JSON.stringify(dropB(JSON.parse(t))); } catch (_) { return "?"; } };
+      const want = [
+        ["GET", "/api/dashboard/fields?source=lot", null],
+        ["GET", "/api/data/columns", null],
+        ["GET", "/api/sources/lot/columns", null],
+        ["POST", "/api/sources/check", { place: "", role: "品質" }],
+        ["POST", "/api/sources/lot/conn/check", { field: "refresh", value: "5" }],
+        ["POST", "/api/sources/join/preview", { key: "lot", joins: [] }],
+      ];
+      const rows = [];
+      let allOk = true;
+      for (const [m, p, body] of want) {
+        const opt = m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+        const rs = await get(p, opt);
+        const py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
+        const good = rs.by === "shell" && py.by === "python" && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
+        allOk = allOk && good;
+        rows.push(`${m} ${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${good ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+      }
+      ok("組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）", allOk, rows.join("・"));
+    }
+
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
     //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる
     {

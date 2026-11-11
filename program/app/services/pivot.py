@@ -813,23 +813,40 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     return out
 
 
-def column_names(path, *, preferred_table="", table_candidates=TABLE_CANDIDATES, samples=3):
-    """表の列の名前と、値の見本（空でない値を samples 個まで）→ [{column, samples}]（版 3.44.0。変換表の当てる列を、実際の列から選ぶ）。
+# 札の種類を数える上限（1,000 を超えたら「1,000 種類以上」）。窓は desktop/src/pivot.rs の KINDS_MAX
+KINDS_MAX = 1001
+# 値の見本の数（変換表の当てる列・結合の欄・確かめるの値の例。版 3.99.0 で 1 つの決まりに）
+SAMPLES = 3
+
+
+def samples_of(c, t, sql, n=SAMPLES):
+    """空欄でない値の見本（版 3.99.0。決まりは services/builder.py の冒頭）: 空欄（SortKey が NULL）を除き、表の行の順に、見せる字（生の値の
+    str。前後の空白も残す）が同じ物を 1 つにして n 個まで。前は道ごとに違った（data/columns は SQL の TRIM で半角の空白だけを除き生の値・
+    sources/<key>/columns は先頭 200 行を strip した字・確かめるの値の例は IS NOT NULL で空の字を通した）"""
+    out = []
+    for (v,) in c.execute(f"SELECT DISTINCT {sql} FROM {qi(t)} WHERE SortKey({sql}) IS NOT NULL LIMIT {int(n) * 4}"):
+        s = str(v)
+        if s not in out:
+            out.append(s)
+        if len(out) >= n:
+            break
+    return out
+
+
+def column_names(path, *, preferred_table="", table_candidates=TABLE_CANDIDATES, samples=SAMPLES):
+    """表の列の名前と、値の見本（samples_of）→ (表, [{column, samples}])（版 3.44.0。変換表の当てる列を、実際の列から選ぶ）。
     手がかり（fields）と違い、種類を数えないので軽い"""
     with connect_ro(path) as c:
         t = pick_table(tables(c), preferred_table, table_candidates)
         if not t:
             raise RuntimeError("表が 1 つもありません。")
-        out = []
-        for col in columns(c, t, raw_columns(c, t)):
-            vals = [r[0] for r in c.execute(f"SELECT DISTINCT {qi(col)} FROM {qi(t)} WHERE TRIM(CStr({qi(col)})) <> '' LIMIT {int(samples)}")]
-            out.append({"column": col, "samples": [str(v) for v in vals]})
-    return out
+        return t, [{"column": col, "samples": samples_of(c, t, qi(col), samples)} for col in columns(c, t, raw_columns(c, t))]
 
 
-def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, sample=300, calc=None):
-    """集計の左のカラムの札に出す手がかり: 列ごとの値の種類の数（多ければ 1000+）と、数の列か（読める値がみな数）・日付の列か。
-    calc（版 3.38.0）… 計算列も同じ手がかりで後ろに並べる（calc: true・式が読む列 deps。式が読めなければ error）"""
+def field_sets(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, sample=300, calc=None):
+    """1 つのファイルの札の材料（合わせる前。版 3.99.0）→ {table, fields: [{column, keys（同じ値の見分け SortKey の集合。KINDS_MAX で止める）,
+    blank（空欄がある）, numeric（空欄でない値の先頭 sample 個がみな数か。値が無ければ None）, date, dated（計算列: 先頭 60 個の 8 割が日付）,
+    calc?, deps?, broken?}]}。合わせ方は merge_fields（作業実績のすべての設備も、1 つのファイルも同じ）"""
     with connect_ro(path) as c:
         names = tables(c)
         t = table if table in names else pick_table(names, preferred_table, table_candidates)
@@ -841,10 +858,20 @@ def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDA
         out = []
 
         def hint(col, sql):
-            kinds = int(c.execute(f"SELECT COUNT(*) FROM (SELECT DISTINCT {sql} FROM {qi(t)} LIMIT 1001)").fetchone()[0])
-            vals = [r[0] for r in c.execute(f"SELECT {sql} FROM {qi(t)} WHERE TRIM(CStr({sql})) <> '' LIMIT {int(sample)}")]
-            numeric = bool(vals) and all(num(v) is not None for v in vals)
-            return {"column": col, "kinds": kinds, "many": kinds > 1000, "numeric": numeric, "vals": vals}
+            # 生の値の種類を SQLite の DISTINCT で先に出し、その値にだけ同じ見分け（sort_key）を当てる（作った後の採点で速さを直した:
+            # 前は全部の行に SortKey を通してから DISTINCT した。答えは同じ）。値が KINDS_MAX に届いたら止める（1,000 を超えれば many）
+            keys, blank = set(), False
+            for (v,) in c.execute(f"SELECT DISTINCT {sql} FROM {qi(t)}"):
+                k = sort_key(v)
+                if k is None:
+                    blank = True
+                else:
+                    keys.add(k)
+                    if len(keys) >= KINDS_MAX:
+                        break
+            vals = [r[0] for r in c.execute(f"SELECT {sql} FROM {qi(t)} WHERE SortKey({sql}) IS NOT NULL LIMIT {int(sample)}")]
+            numeric = all(num(v) is not None for v in vals) if vals else None
+            return {"column": col, "keys": keys, "blank": blank, "numeric": numeric, "vals": vals}
         for col in cs:
             h = hint(col, qi(col))
             h.pop("vals")
@@ -852,10 +879,71 @@ def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDA
         exprs, broken, cc = calc_exprs(c, calc, cs)
         for col in (cc.calcs if cc else []):
             if col in broken:
-                out.append({"column": col, "calc": True, "kinds": 0, "many": False, "numeric": False, "date": False, "error": "式が読めません"})
+                out.append({"column": col, "calc": True, "broken": True, "keys": set(), "blank": False, "numeric": None, "date": False})
                 continue
             h = hint(col, exprs[col])
             vals = h.pop("vals")
-            dated = vals and sum(1 for v in vals[:60] if to_date(v)) / len(vals[:60]) >= DATE_RATIO
-            out.append({**h, "date": bool(dated) and not h["numeric"], "calc": True, "deps": cc.raw_deps(col)})
+            dated = bool(vals) and sum(1 for v in vals[:60] if to_date(v)) / len(vals[:60]) >= DATE_RATIO
+            out.append({**h, "date": False, "dated": dated, "calc": True, "deps": cc.raw_deps(col)})
     return {"table": t, "fields": out}
+
+
+def merge_fields(per):
+    """ファイルごとの札の材料 [(名前, field_sets の答え)] → 札の並び（版 3.99.0。決まりは services/builder.py の冒頭）。
+    並び: 元の列をファイルの順に初めて出た順 → 計算列。種類: 値の集合を合わせた大きさ（空欄があれば「（空欄）」を 1 つ足す・KINDS_MAX で止める。
+    値が無く空欄だけなら 0 と blankOnly）。数: 値のあったファイルの全部が数。日付: どれかのファイルで日付。
+    計算列の式が読めないファイルがあれば、その名前を brokenIn に（全部で読めなければ error）"""
+    from . import builder
+    acc, raw_order, calc_order = {}, [], []
+    for name, d in per:
+        for f in d["fields"]:
+            col = f["column"]
+            m = acc.get(col)
+            if m is None:
+                m = acc[col] = {"keys": set(), "blank": False, "nums": [], "date": False, "dated": False, "calc": bool(f.get("calc")),
+                                "deps": None, "broken": [], "seen": 0, "most": 0}
+                (calc_order if f.get("calc") else raw_order).append(col)
+            m["seen"] += 1
+            if f.get("broken"):
+                m["broken"].append(name)
+                continue
+            if m["deps"] is None and f.get("calc"):
+                m["deps"] = f.get("deps")
+            if builder.KINDS_UNION:
+                for k in f["keys"]:
+                    if len(m["keys"]) >= KINDS_MAX:
+                        break
+                    m["keys"].add(k)
+            m["most"] = max(m["most"], len(f["keys"]))
+            m["blank"] = m["blank"] or f["blank"]
+            if f["numeric"] is not None:
+                m["nums"].append(f["numeric"])
+            m["date"] = m["date"] or f["date"]
+            m["dated"] = m["dated"] or bool(f.get("dated"))
+    out = []
+    for col in raw_order + calc_order:
+        m = acc[col]
+        if m["calc"] and len(m["broken"]) == m["seen"]:
+            out.append({"column": col, "calc": True, "kinds": 0, "many": False, "numeric": False, "date": False, "error": "式が読めません"})
+            continue
+        n = min(len(m["keys"]) if builder.KINDS_UNION else m["most"], KINDS_MAX)
+        kinds = min(n + (1 if m["blank"] and n else 0), KINDS_MAX)
+        numeric = bool(m["nums"]) and all(m["nums"])
+        x = {"column": col, "kinds": kinds, "many": kinds > KINDS_MAX - 1, "numeric": numeric,
+             "date": (m["dated"] and not numeric) if m["calc"] else m["date"]}
+        if n == 0 and m["blank"]:
+            x["blankOnly"] = True
+        if m["calc"]:
+            x.update(calc=True, deps=m["deps"] or [])
+            if m["broken"]:
+                x["brokenIn"] = m["broken"]
+        out.append(x)
+    return out
+
+
+def fields(path, *, table="", preferred_table="", table_candidates=TABLE_CANDIDATES, sample=300, calc=None):
+    """集計の左のカラムの札に出す手がかり（1 つのファイル）: 列ごとの値の種類の数（多ければ 1000+）と、数の列か・日付の列か。
+    calc（版 3.38.0）… 計算列も同じ手がかりで後ろに並べる（calc: true・式が読む列 deps。式が読めなければ error）。
+    版 3.99.0 から field_sets と merge_fields（ダッシュボードの作業実績のすべての設備と同じ数え方）"""
+    d = field_sets(path, table=table, preferred_table=preferred_table, table_candidates=table_candidates, sample=sample, calc=calc)
+    return {"table": d["table"], "fields": merge_fields([("", d)])}
