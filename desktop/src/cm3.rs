@@ -264,7 +264,7 @@ pub fn unescape(s: &str) -> R<String> {
             continue;
         }
         let rest = &cs[i + 1..];
-        // 1. #10 進  2. #x16 進  3. 名前（[^\t\n\f <&#;]{1,32}）。どれも後ろの「;」は 1 つまで
+        // 1. #10 進  2. #x16 進  3. 名前（[^\t\n\f <&#;]{1,32}）。どれも後ろの「;」は 1 つまで（10 進の桁の数は先頭の 0 も数える: Python の int() の 4300 桁の上限。版 3.98.0 で直した）
         let digits = |from: usize, hex: bool| {
             rest[from..].iter().take_while(|c| if hex { c.is_ascii_hexdigit() } else { c.is_ascii_digit() }).count()
         };
@@ -272,7 +272,7 @@ pub fn unescape(s: &str) -> R<String> {
         let (len, rep) = if rest.first() == Some(&'#') && digits(1, false) > 0 {
             let n = digits(1, false);
             let txt: String = rest[1..1 + n].iter().collect();
-            if txt.trim_start_matches('0').len() > 4300 {
+            if txt.len() > 4300 {
                 return py("4300 桁を超える数の参照（Python の int() が落ちる）");
             }
             (1 + n + semi(1 + n), charref(t, txt.parse::<u128>().unwrap_or(u128::MAX)))

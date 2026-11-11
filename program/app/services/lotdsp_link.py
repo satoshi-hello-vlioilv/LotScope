@@ -20,6 +20,7 @@ import unicodedata
 
 from . import lotdsp_api as api
 from . import lotdsp_progress as lp
+from . import lotdsp_rules
 
 LABEL_MAX = 24
 HOW_RANK = {"header": 0, "above": 1, "left": 2, "row": 3}
@@ -122,12 +123,8 @@ class _Index:
             elif _DATEISH.match(v) and len(re.sub(r"\D", "", v)) >= 6:
                 self.dates.append((re.sub(r"\D", "", v), c))
 
-    @staticmethod
-    def _round_eq(shown, dec, raw):
-        """画面の数（小数 dec 桁）が、応答の数を丸めたものか。整数の欄は、応答も整数のときだけ（2.73 が 3 に当たらないように）。"""
-        if abs(shown - raw) > 0.5 * 10 ** -dec + 1e-9:
-            return False
-        return dec > 0 or abs(raw - round(raw)) < 1e-9
+    # 画面の数（小数 dec 桁）が、応答の数を丸めたものか（学ぶ方と 1 つの決まり: lotdsp_rules.round_eq）
+    _round_eq = staticmethod(lotdsp_rules.round_eq)
 
     def find(self, raw):
         """API の値と同じ値の欄。"""
@@ -260,7 +257,16 @@ def link_files(files, km, cfg):
     """画面のファイル（{name, html}）の並び → 紐づけの結果。同じロットの応答は1回だけ取る。同じタブの複数のロットで絞る。"""
     results, per_file, acc, gone = {}, [], {}, {}
     for f in files:
-        name, html = str(f.get("name") or "画面"), str(f.get("html") or "")
+        name = f.get("name") if isinstance(f.get("name"), str) and f.get("name") else "画面"
+        html = f.get("html")
+        if html is None:
+            html = ""
+        if not isinstance(html, str):
+            per_file.append({"name": name, "error": "画面を読めませんでした: HTML は字で送ってください。"})
+            continue
+        if len(html) > lotdsp_rules.MAX_HTML_CHARS:      # 取込と同じ上限（版 3.98.0。前は上限が無かった）
+            per_file.append({"name": name, "error": "画面を読めませんでした: HTML が大きすぎます（進度情報の画面だけを渡してください）。"})
+            continue
         try:
             screen = read_screen(html)
         except Exception as e:                                  # 読めない画面は、そう言って飛ばす

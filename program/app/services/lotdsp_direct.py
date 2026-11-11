@@ -40,6 +40,7 @@ from pathlib import Path
 import app_env
 
 from ..fsio import unquote_path
+from . import lotdsp_rules
 
 SCRIPT = Path(__file__).with_name("lotdsp_direct.js")
 _LOCK = threading.Lock()
@@ -70,7 +71,8 @@ def settings_of(lotdsp_import):
         "enabled": bool(d.get("enabled", True)) and bool(url),
         "url": url,
         # LotData-Link の config.js の searchUrl と同じ最初の画面
-        "search_url": str(d.get("search_url") or (url.rstrip("/") + "/#/lotdsp" if url else "")),
+        # 場所の組み立ては lotdsp_rules.site_base の 1 か所（版 3.98.0。前は # の URL で # を 2 つ重ねた場所を開いた）
+        "search_url": str(d.get("search_url") or lotdsp_rules.direct_search_url(url)),
         "browser": unquote_path(d.get("browser")),
         "timeout_seconds": float(d.get("timeout_seconds", 60)),
         "reach_timeout_seconds": float(d.get("reach_timeout_seconds", 4)),
@@ -137,16 +139,27 @@ def find_browser(configured=""):
 
 def reachable(url, timeout):
     """LotDsp のサイトへ届くか（届かなければブラウザを起こさずに早く答える）。HTTP の答えが返れば届いている。
-    社内のサイトなので、まずプロキシを通さずに試し、だめなら PC のプロキシ設定で試す（どちらかで届けばよい）。"""
-    for opener in (_local(), urllib.request.build_opener()):
-        try:
-            with opener.open(urllib.request.Request(url, method="GET"), timeout=timeout):
-                return True
-        except urllib.error.HTTPError:
-            return True      # 401 などでも、サイトには届いている（ログインの有無はブラウザで見る）
-        except Exception:
-            continue
-    return False
+    版 3.98.0（決め ③）: プロキシを通さない 1 回だけ（社内のサイトなので。前は PC のプロキシで 2 回目を試し、プロキシの断りのページで
+    届いたと言えた）。401・403 などは届いている（ログインの有無はブラウザで見る）が、プロキシの答え（407・502・503・504）は届いていない"""
+    try:
+        with _local().open(urllib.request.Request(url, method="GET"), timeout=timeout):
+            return True
+    except urllib.error.HTTPError as e:
+        return lotdsp_rules.reached_status(e.code)
+    except Exception:
+        return False
+
+
+def _reach_or_cancel(url, timeout):
+    """reachable を裏の糸で行い、待つ間も 0.1 秒ごとに中止を見る（版 3.98.0。前は最大 4 秒中止が効かなかった）。"""
+    out = []
+    t = threading.Thread(target=lambda: out.append(reachable(url, timeout)), name="lotdsp-reach", daemon=True)
+    t.start()
+    while t.is_alive():
+        _check_cancel()
+        t.join(0.1)
+    _check_cancel()
+    return bool(out and out[0])
 
 
 # ------------------------------------------------------------------ WebSocket（最小限）
@@ -171,15 +184,42 @@ class _WebSocket:
         if b" 101 " not in status.split(b"\r\n", 1)[0]:
             raise DirectError("browser", "ブラウザが DevTools の接続を断りました（管理者の設定で止められている可能性があります）")
         self.buf = rest
+        self.parts = []
 
-    def _read(self, n):
-        while len(self.buf) < n:
-            chunk = self.sock.recv(65536)
-            if not chunk:
-                raise DirectError("browser", "ブラウザとの接続が切れました")
-            self.buf += chunk
-        out, self.buf = self.buf[:n], self.buf[n:]
-        return out
+    def _frame(self):
+        """buf に揃った枠を 1 つ取り出す → (b1, opcode, payload)。揃っていなければ None（版 3.98.0: 待つ間に中止を見るため、
+        読んだ途中の字を捨てない）"""
+        b = self.buf
+        if len(b) < 2:
+            return None
+        b1, b2 = b[0], b[1]
+        n, at = b2 & 0x7F, 2
+        if n == 126:
+            if len(b) < 4:
+                return None
+            n, at = struct.unpack(">H", b[2:4])[0], 4
+        elif n == 127:
+            if len(b) < 10:
+                return None
+            n, at = struct.unpack(">Q", b[2:10])[0], 10
+        mask = None
+        if b2 & 0x80:
+            if len(b) < at + 4:
+                return None
+            mask, at = b[at:at + 4], at + 4
+        if len(b) < at + n:
+            return None
+        payload = b[at:at + n]
+        if mask:
+            payload = bytes(x ^ mask[i % 4] for i, x in enumerate(payload))
+        self.buf = b[at + n:]
+        return b1, b1 & 0x0F, payload
+
+    def _fill(self):
+        chunk = self.sock.recv(65536)
+        if not chunk:
+            raise DirectError("browser", "ブラウザとの接続が切れました")
+        self.buf += chunk
 
     def send(self, text):
         data = text.encode("utf-8")
@@ -198,29 +238,32 @@ class _WebSocket:
         mask = os.urandom(4)
         self.sock.sendall(bytes([0x80 | opcode, 0x80 | len(payload)]) + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
 
-    def recv(self):
-        parts = []
+    def recv(self, deadline=None, cancellable=True):
+        """1 つの文を受ける。deadline（time.time の時刻）を過ぎたら socket.timeout。待つ間は 0.1 秒ごとに中止を見る。"""
         while True:
-            b1, b2 = self._read(2)
-            opcode, n = b1 & 0x0F, b2 & 0x7F
-            if n == 126:
-                n = struct.unpack(">H", self._read(2))[0]
-            elif n == 127:
-                n = struct.unpack(">Q", self._read(8))[0]
-            if b2 & 0x80:
-                mask = self._read(4)
-                payload = bytes(b ^ mask[i % 4] for i, b in enumerate(self._read(n)))
-            else:
-                payload = self._read(n)
+            f = self._frame()
+            if f is None:
+                if cancellable:
+                    _check_cancel()
+                if deadline is not None and time.time() > deadline:
+                    raise socket.timeout()
+                self.sock.settimeout(0.1)
+                try:
+                    self._fill()
+                except socket.timeout:
+                    pass
+                continue
+            b1, opcode, payload = f
             if opcode == 0x9:
                 self._send_control(0xA, payload)
                 continue
             if opcode == 0x8:
                 raise DirectError("browser", "ブラウザが接続を閉じました")
             if opcode in (0x1, 0x2, 0x0):
-                parts.append(payload)
+                self.parts.append(payload)
                 if b1 & 0x80:
-                    return b"".join(parts).decode("utf-8", "replace")
+                    out, self.parts = b"".join(self.parts).decode("utf-8", "replace"), []
+                    return out
 
     def close(self):
         with contextlib.suppress(OSError):
@@ -235,14 +278,15 @@ class _Cdp:
         self.ws = _WebSocket(ws_url, timeout)
         self.next_id = 0
 
-    def call(self, method, params=None, timeout=30):
+    def call(self, method, params=None, timeout=30, cancellable=True):
         self.next_id += 1
         mid = self.next_id
         self.ws.sock.settimeout(timeout)
         self.ws.send(json.dumps({"id": mid, "method": method, "params": params or {}}))
+        deadline = time.time() + timeout
         while True:
             try:
-                msg = json.loads(self.ws.recv())
+                msg = json.loads(self.ws.recv(deadline, cancellable))
             except socket.timeout:
                 raise DirectError("screen", "ロット問い合わせの画面の応答がありません（時間切れ）") from None
             if msg.get("id") == mid:
@@ -269,6 +313,8 @@ _STATUS = {"lot": "", "stage": "", "since": 0.0, "reused": False}
 _CANCEL = threading.Event()
 _SESSION = None          # 使い回す見えない Edge（_Browser）
 _SESSION_LOCK = threading.Lock()
+_WATCH = {"gen": 0, "alive": False, "cfg": {}, "wake": threading.Event()}   # 見張りは 1 つ（版 3.98.0）。gen はブラウザの世代
+
 
 
 def status():
@@ -286,10 +332,25 @@ def cancel():
     return False
 
 
+def _check_cancel():
+    if _CANCEL.is_set() and _LOCK.locked():
+        raise DirectError("cancelled", "中止しました")
+
+
 def _stage(name):
     _STATUS["stage"] = name
-    if _CANCEL.is_set():
-        raise DirectError("cancelled", "中止しました")
+    _check_cancel()
+
+
+def _nap(seconds):
+    """待つ（0.1 秒ごとに中止を見る。版 3.98.0: どの待ちの間も中止が効く）。"""
+    end = time.time() + seconds
+    while True:
+        _check_cancel()
+        left = end - time.time()
+        if left <= 0:
+            return
+        time.sleep(min(0.1, left))
 
 
 def _launch(exe, profile, extra=(), visible=False):
@@ -303,7 +364,10 @@ def _launch(exe, profile, extra=(), visible=False):
     kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if sys.platform.startswith("win"):
         kw["creationflags"] = 0x08000000          # CREATE_NO_WINDOW: 黒い窓を出さない
-    return subprocess.Popen(args, **kw)
+    try:
+        return subprocess.Popen(args, **kw)
+    except OSError:                                # 実行できない（版 3.98.0。前は 500。窓と同じ字）
+        raise DirectError("browser", "ブラウザを起こせません（実行できるファイルか確かめてください）") from None
 
 
 def _devtools_port(profile, proc, timeout=15.0):
@@ -311,6 +375,7 @@ def _devtools_port(profile, proc, timeout=15.0):
     f = Path(profile) / "DevToolsActivePort"
     end = time.time() + timeout
     while time.time() < end:
+        _check_cancel()
         if proc.poll() is not None:
             raise DirectError("browser", "ブラウザがすぐに終わりました（管理者の設定でヘッドレス起動・DevTools が止められている可能性があります）")
         try:
@@ -319,7 +384,7 @@ def _devtools_port(profile, proc, timeout=15.0):
                 return port
         except (OSError, ValueError, IndexError):
             pass
-        time.sleep(0.1)
+        _nap(0.1)
     raise DirectError("browser", f"ブラウザの DevTools が開きませんでした（{timeout:g} 秒待ちました。管理者の設定で止められているか、"
                                  "起動に時間がかかっている可能性があります）")
 
@@ -336,7 +401,7 @@ def _page_ws(port, timeout=10, skip=()):
                 return pages[0]
         except (OSError, ValueError):
             pass
-        time.sleep(0.1)
+        _nap(0.1)
     raise DirectError("browser", "ブラウザのページに接続できませんでした")
 
 
@@ -384,14 +449,16 @@ class _Browser:
         return self.proc is not None and self.proc.poll() is None
 
     def close(self):
+        polite = self.cdp is not None
         if self.cdp:
             with contextlib.suppress(Exception):
-                self.cdp.call("Browser.close", timeout=3)
+                self.cdp.call("Browser.close", timeout=3, cancellable=False)   # 中止のあとも閉じてと頼む
             self.cdp.close()
             self.cdp = None
         if self.proc:
             try:
-                self.proc.wait(timeout=5)
+                # DevTools につながる前（起動を待つ間の中止など）は、閉じてと頼めないのですぐ止める
+                self.proc.wait(timeout=5 if polite else 0.1)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
                 with contextlib.suppress(subprocess.TimeoutExpired):
@@ -411,21 +478,44 @@ def shutdown():
     global _SESSION
     with _SESSION_LOCK:
         b, _SESSION = _SESSION, None
+        _WATCH["gen"] += 1          # 古い見張りは何もしない
+        _WATCH["wake"].set()        # 見張りを起こす（いまのブラウザで測り直す・無ければ終わる）
     if b:
         b.close()
 
 
-def _idle_watch(keep_seconds):
-    """keep_seconds 使われなければ閉じる（読んでいる最中は閉じない）。"""
+def _idle_watch(cfg):
+    """いまのブラウザを、その種類の秒数（lotdsp_rules.keep_of: 見えない Edge は keep_seconds・LotDsp の窓は window_keep_seconds）
+    使われなければ閉じる（読んでいる最中は閉じない）。見張りは 1 つ（版 3.98.0: 前は起こすたびに増え、見えない Edge の見張りが
+    あとから開いた窓を keep_seconds で閉じた）。ブラウザの世代が変われば、いまのブラウザの秒数で測り直す"""
+    with _SESSION_LOCK:
+        _WATCH["cfg"] = cfg
+        if _WATCH["alive"]:
+            return
+        _WATCH["alive"] = True
+
     def loop():
+        global _SESSION
         while True:
-            time.sleep(min(30, max(5, keep_seconds / 4)))
-            b = _SESSION
-            if b is None:
-                return
-            if not _LOCK.locked() and time.time() - b.used > keep_seconds:
-                shutdown()
-                return
+            # 起きるたびに、いまのブラウザ（世代）をその種類の秒数で測る
+            with _SESSION_LOCK:
+                b = _SESSION
+                keep = lotdsp_rules.keep_of(_WATCH["cfg"], bool(b and b.visible))
+                if b is None or keep <= 0:
+                    _WATCH["alive"] = False
+                    return
+                gone = None
+                if not _LOCK.locked() and time.time() - b.used > keep:
+                    gone, _SESSION = b, None          # 閉じるのは測った世代だけ（間に起こし直した物は閉じない）
+                    _WATCH["gen"] += 1
+            if gone is not None:
+                gone.close()
+                continue
+            # 1 秒ずつ待ち、ブラウザが替わったら（wake）すぐ測り直す
+            end = time.time() + min(30, max(5, keep / 4))
+            while time.time() < end and not _WATCH["wake"].is_set():
+                time.sleep(min(1.0, max(0.0, end - time.time())))
+            _WATCH["wake"].clear()
     threading.Thread(target=loop, name="lotdsp-idle", daemon=True).start()
 
 
@@ -442,10 +532,10 @@ def _session(cfg, exe, visible=False):
                  cfg.get("start_timeout_seconds", 15))
     with _SESSION_LOCK:
         _SESSION = b
+        _WATCH["gen"] += 1
     _window(b, "minimized")                 # 窓はログインが要るときだけ前に出す
-    keep = cfg.get("window_keep_seconds", 0) if visible else cfg.get("keep_seconds", 0)
-    if keep > 0:
-        _idle_watch(keep)
+    if lotdsp_rules.keep_of(cfg, visible) > 0:
+        _idle_watch(cfg)
     return b, False
 
 
@@ -474,7 +564,7 @@ _PAGE_STATE = """(() => {
 def _open_search_page(b, cfg, lot_no, reused):
     """LotDsp の検索できる画面にする。使い回しのページが LotDsp にいて、別のロットを出していれば読み込み直さない
     （上の検索欄からそのまま検索する）。同じロットを出していれば、新しい値を読むために開き直す。"""
-    site = cfg["url"].rstrip("/")
+    site = lotdsp_rules.site_base(cfg["url"])
     here = False
     if reused:
         try:
@@ -504,7 +594,7 @@ def _open_search_page(b, cfg, lot_no, reused):
         if time.time() > end:
             raise DirectError("unreachable", "LotDsp のページを開けませんでした（時間切れ）")
         _stage("load")
-        time.sleep(0.2)
+        _nap(0.2)
 
 
 def _run(b, cfg, lot_no, wait_login=False):
@@ -522,8 +612,8 @@ def _run(b, cfg, lot_no, wait_login=False):
             while _eval_quiet(b, _LOGIN_SHOWN) is not False:
                 _login_deadline(cfg, end)
                 _stage("login")
-                time.sleep(1)
-            time.sleep(1.5)
+                _nap(1)
+            _nap(1.5)
         try:
             html = _run_once(b, cfg, lot_no)
             if asked:
@@ -539,7 +629,7 @@ def _run(b, cfg, lot_no, wait_login=False):
                 _eval_quiet(b, _PREFILL.replace("__LOT__", json.dumps(lot_no)))
             _login_deadline(cfg, end)
         _stage("login")
-        time.sleep(1)
+        _nap(1)
 
 
 def _login_deadline(cfg, end):
@@ -597,14 +687,15 @@ def _run_once(b, cfg, lot_no):
             raise DirectError("cancelled", "中止しました")
         if time.time() > end:
             raise DirectError("screen", "ロット問い合わせの画面の応答がありません（時間切れ）")
-        time.sleep(0.25)
+        _nap(0.25)
 
 
 def _checked_lot(lot_no):
-    lot_no = str(lot_no or "").strip().upper()
-    if not lot_no or not lot_no.isalnum() or len(lot_no) > 12:
-        raise DirectError("invalid", f"ロット番号の形が違います（{lot_no or '空'}）")
-    return lot_no
+    """ロット番号の形（lotdsp_rules.checked_lot。3 つの道で同じ）"""
+    try:
+        return lotdsp_rules.checked_lot(lot_no)
+    except lotdsp_rules.LotShapeError as e:
+        raise DirectError("invalid", str(e)) from None
 
 
 @contextlib.contextmanager
@@ -628,7 +719,7 @@ def _drive(cfg, lot_no, visible, work):
         b = _SESSION
         if not (b and b.alive()):
             _stage("reach")          # 起こす前にだけ確かめる（使い回しのときは届いている）。社外なら Edge を探す前に言う
-            if not reachable(cfg["url"], cfg["reach_timeout_seconds"]):
+            if not _reach_or_cancel(lotdsp_rules.site_base(cfg["url"]), cfg["reach_timeout_seconds"]):
                 raise DirectError("unreachable", f"LotDsp（{cfg['url']}）に届きません（社外・VPN 未接続・サイトの停止）")
         exe = find_browser(cfg.get("browser", ""))
         if not exe:
@@ -661,6 +752,8 @@ def fetch_progress_html(lot_no, cfg, window=False):
     with _turn(lot_no):
         visible = bool(window and cfg.get("login_window"))
         html = _drive(cfg, lot_no, visible, lambda b: _run(b, cfg, lot_no, wait_login=visible))
-        if not cfg.get("keep_seconds", 0) > 0:
+        # 閉じるかは、使ったブラウザの種類の秒数で決める（見張りと同じ lotdsp_rules.keep_of。版 3.98.0: 前は窓も keep_seconds 0 で閉じた）
+        b = _SESSION
+        if b is not None and not lotdsp_rules.keep_of(cfg, b.visible) > 0:
             shutdown()
         return html

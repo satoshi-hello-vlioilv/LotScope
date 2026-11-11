@@ -123,7 +123,7 @@ fn norm(v: Option<&Value>) -> String {
     compact(v).to_uppercase()
 }
 
-fn norm_str(s: &str) -> String {
+pub(crate) fn norm_str(s: &str) -> String {
     compact_str(s).to_uppercase()
 }
 
@@ -211,8 +211,9 @@ pub(crate) fn equipment_check(rows: &[Value], data: &Row, self_id: Option<i64>) 
     None
 }
 
-/// 設備マスタの行から「出てきた設備名 → マスタの行」を引く（EquipmentResolver）
-struct Resolver<'a> {
+/// 設備マスタの行から「出てきた設備名 → マスタの行」を引く（EquipmentResolver）。版 3.98.0 から LotDsp の取込（src/lotdsp.rs）も使い、
+/// どう当たったか（name・alias・pattern）と当たった書き方も返す（resolve_how。report.renamed の by。計算の答えは変えない）
+pub(crate) struct Resolver<'a> {
     rows: &'a [Row],
     by_name: HashMap<String, usize>,
     by_alias: HashMap<String, usize>,
@@ -220,7 +221,7 @@ struct Resolver<'a> {
 }
 
 impl<'a> Resolver<'a> {
-    fn new(all: &'a [Row]) -> Resolver<'a> {
+    pub(crate) fn new(all: &'a [Row]) -> Resolver<'a> {
         let mut r = Resolver { rows: all, by_name: HashMap::new(), by_alias: HashMap::new(), wild: vec![] };
         let live: Vec<usize> = (0..all.len()).filter(|&i| !norm(all[i].get("設備名")).is_empty()).collect();
         for &i in &live {
@@ -241,14 +242,27 @@ impl<'a> Resolver<'a> {
     }
 
     fn resolve_norm(&self, k: &str) -> Option<usize> {
+        self.how_norm(k).map(|x| x.0)
+    }
+
+    /// (行の番号, どう当たったか, 当たった書き方)。Python の resolve の (行, how, pattern)
+    fn how_norm(&self, k: &str) -> Option<(usize, &'static str, String)> {
         if k.is_empty() {
             return None;
         }
-        if let Some(i) = self.by_name.get(k).or_else(|| self.by_alias.get(k)) {
-            return Some(*i);
+        if let Some(i) = self.by_name.get(k) {
+            return Some((*i, "name", k.to_string()));
+        }
+        if let Some(i) = self.by_alias.get(k) {
+            return Some((*i, "alias", k.to_string()));
         }
         let s: Vec<char> = k.chars().collect();
-        self.wild.iter().find(|(_, p, _)| wild_match(p, &s)).map(|w| w.2)
+        self.wild.iter().find(|(_, p, _)| wild_match(p, &s)).map(|w| (w.2, "pattern", w.1.iter().collect()))
+    }
+
+    /// 出てきた名前 → (行, どう当たったか, 当たった書き方)
+    pub(crate) fn resolve_how(&self, name: &str) -> Option<(&'a Row, &'static str, String)> {
+        self.how_norm(&norm_str(name)).map(|(i, how, p)| (&self.rows[i], how, p))
     }
 
     fn resolve(&self, name: &str) -> Option<usize> {
@@ -263,7 +277,7 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn same(&self, a: &str, b: &str) -> bool {
+    pub(crate) fn same(&self, a: &str, b: &str) -> bool {
         match (self.resolve(a), self.resolve(b)) {
             (Some(x), Some(y)) => x == y,
             _ => norm_str(a) == norm_str(b),

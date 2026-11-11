@@ -22,12 +22,12 @@
     - 学んだ対応はこの PC の作業場所（lotdsp_api_map.json）に置く。中身はキーの名前と、いつどのロット番号で学んだかだけ
       （寸法・重量などの値は置かない）。
 """
+import copy
 import functools
 import json
 import re
 import socket
 import threading
-import time
 import unicodedata
 import urllib.error
 import urllib.request
@@ -35,6 +35,7 @@ from datetime import datetime
 
 from ..fsio import now_iso, write_json_atomic
 from . import lotdsp_progress as lp
+from . import lotdsp_rules
 
 @functools.lru_cache(maxsize=1)
 def _local():
@@ -87,7 +88,8 @@ def settings_of(lotdsp_import):
     url = str(li.get("url") or "").strip()
     return {
         "enabled": bool(a.get("enabled", True)) and bool(url or a.get("search_url")),
-        "search_url": str(a.get("search_url") or (url.rstrip("/") + "/service/lotdsp/search//searchAction" if url else "")),
+        # 場所の組み立ては lotdsp_rules.site_base の 1 か所（版 3.98.0。前は # の URL で問い合わせ先を取り違えた）
+        "search_url": str(a.get("search_url") or lotdsp_rules.api_search_url(url)),
         "timeout_seconds": float(a.get("timeout_seconds", 15)),
         "fields": dict({"lotNo": "lotNo", "inspectionNo": "kensaNo", "page": "nowPage"}, **(a.get("request_fields") or {})),
         "entity": str(a.get("entity_path", "entity")),
@@ -168,19 +170,20 @@ def informative(display):
 
 
 def moment(raw):
-    """API の日時の値 → この PC の時刻の datetime（読めなければ None）。
-    数なら 1970 年からの経過ミリ秒（13桁前後）か秒（10桁前後）、字なら ISO 形式（Z・+0900 などのずれつきもよい。ずれつきはこの PC の時刻へ）。"""
+    """API の日時の値 → 日本時間の datetime（ずれは持たない。読めなければ None）。
+    数なら 1970 年からの経過ミリ秒（13桁前後）か秒（10桁前後）、字なら ISO 形式（Z・+0900 などのずれつきもよい。ずれつきは日本時間へ）。
+    版 3.98.0: 日本時間に固定（決め ①。lotdsp_rules.TZ。前は PC の時間帯で、UTC の PC では 9 時間ずれた）。ずれの無い字はそのまま"""
     try:
         if isinstance(raw, (int, float)) and not isinstance(raw, bool):
             if raw >= 1e11:
-                return datetime.fromtimestamp(raw / 1000)
-            return datetime.fromtimestamp(raw) if raw >= 1e9 else None
+                return datetime.fromtimestamp(raw / 1000, lotdsp_rules.TZ).replace(tzinfo=None)
+            return datetime.fromtimestamp(raw, lotdsp_rules.TZ).replace(tzinfo=None) if raw >= 1e9 else None
         t = str(raw or "").strip().replace("Z", "+00:00").replace("/", "-")
         t = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", t)
         if not re.match(r"^\d{4}-\d{2}-\d{2}", t):
             return None
         dt = datetime.fromisoformat(t.replace(" ", "T", 1))
-        return dt.astimezone().replace(tzinfo=None) if dt.tzinfo else dt
+        return dt.astimezone(lotdsp_rules.TZ).replace(tzinfo=None) if dt.tzinfo else dt
     except (ValueError, OverflowError, OSError):
         return None
 
@@ -205,7 +208,8 @@ def same(display, raw):
             return False
         dv = float(d.replace(",", ""))
         dec = len(d.split(".")[1]) if "." in d else 0
-        return abs(dv - rv) <= 0.5 * 10 ** -dec + 1e-9
+        # 整数の欄は応答も整数のときだけ（版 3.98.0。調べる道具の照らし方と 1 つ: lotdsp_rules.round_eq。前は '7' と 7.4 が一致した）
+        return lotdsp_rules.round_eq(dv, dec, rv)
     dd, rd = re.sub(r"\D", "", d), re.sub(r"\D", "", r)
     if len(dd) >= 6 and re.search(r"[/:\-年]", d):          # 日付・時刻: 26/09/17 17:16:31 ↔ 2026-09-17T17:16:31 など
         if dd in rd:
@@ -251,7 +255,7 @@ def align(items, rows):
         vals = [x.get(k) for x in items]
         try:
             ints = [int(float(str(v))) for v in vals]
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):          # inf は OverflowError（版 3.98.0 から読まない）
             continue
         if len(set(ints)) == len(ints) and nos <= set(ints) and not all(i == j + 1 for j, i in enumerate(ints)):
             return {i: x for i, x in zip(ints, items)}, k
@@ -439,24 +443,33 @@ def learn(km, entity, cfg, html_tables, actual_rows, design_rows, lot_no):
     km.data["login_free"] = {"at": now_iso(), "lot": lot_no}   # ログインなしで、このロットの応答が返った（確かめた記録）
 
 
+def _change(km, fn):
+    """覚えを錠の中で変えて保存する。保存に失敗したらメモリも前に戻す（版 3.98.0: メモリとファイルを食い違わせない。前は
+    メモリだけ学び、/api/config〈ファイル〉と状態〈メモリ〉が違う ready を答えた）。保存の失敗は OSError のまま投げる"""
+    with _LOCK:
+        before = copy.deepcopy(km.data)
+        try:
+            fn()
+            km.save()
+        except BaseException:
+            km.data = before
+            raise
+
+
 def learn_from_html(km, cfg, html, lot_no, read_cfg=None):
     """画面（HTML）で読めたあと: 同じロットを API で引いて学ぶ。失敗は記録だけして投げない（取込は済んでいる）。"""
     try:
         tables, actual_rows, design_rows = lp.progress_tables(html, read_cfg)
         entity = search(lot_no, cfg)
-        with _LOCK:
-            learn(km, entity, cfg, tables, actual_rows, design_rows, lot_no)
-            km.save()
+        _change(km, lambda: learn(km, entity, cfg, tables, actual_rows, design_rows, lot_no))
         return None
-    except ApiError as e:
-        with _LOCK:
-            km.data["last_error"] = {"at": now_iso(), "lot": lot_no, "kind": e.kind, "message": str(e)}
-            km.save()
-        return e
     except Exception as e:                       # 学べなくても取込は済んでいる
-        with _LOCK:
-            km.data["last_error"] = {"at": now_iso(), "lot": lot_no, "kind": "learn", "message": str(e)}
-            km.save()
+        kind = e.kind if isinstance(e, ApiError) else "learn"
+        err = {"at": now_iso(), "lot": lot_no, "kind": kind, "message": str(e)}
+        try:
+            _change(km, lambda: km.data.__setitem__("last_error", err))
+        except OSError:                          # 記録も書けない: 覚えは前のまま
+            pass
         return e
 
 
@@ -491,9 +504,13 @@ def _rows(km, name, entity, columns):
     box = sec.get("box")
     out = []
     for i, x in enumerate(items):
+        if not isinstance(x, dict):                  # 表でない要素は読まない（版 3.98.0。前は AttributeError で 500）
+            continue
         try:
-            no = int(float(str(x.get(box)))) if box else i + 1
-        except (TypeError, ValueError):
+            no = lotdsp_rules.box_of(float(str(x.get(box)))) if box else i + 1
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if no is None:
             continue
         row = {"no": no}
         for col in columns:
@@ -515,7 +532,6 @@ def read_lot(km, cfg, lot_no, equipment_master, read_cfg=None):
     if not km.ready():
         miss = "、".join(f"{s}.{c}" for s, c in km.missing()[:6])
         raise ApiError("not_ready", f"LotDsp の API の項目名をまだ学び終えていません（{miss}）。")
-    t0 = time.perf_counter()
     entity = search(lot_no, cfg)
     actual = _rows(km, "actual", entity, tuple(lp.DEFAULT_ACTUAL_COLUMNS)[1:])
     design = _rows(km, "design", entity, tuple(lp.DEFAULT_DESIGN_COLUMNS)[1:])
@@ -532,7 +548,6 @@ def read_lot(km, cfg, lot_no, equipment_master, read_cfg=None):
     except ValueError as e:
         raise ApiError("mismatch", str(e)) from e
     data, report = lp.build_lot(lot, actual, design, equipment_master, read_cfg, source="LotDsp API（ログインなし）")
-    report["seconds"] = round(time.perf_counter() - t0, 2)
     return lp.to_models(data, report, lot_no)
 
 
@@ -607,7 +622,13 @@ def survey(result, km, cfg, values=False):
 
 
 def status(km, cfg):
-    """画面に出す状態: 使えるか・学び終えていない列・最後に確かめた時刻。"""
+    """画面に出す状態: 使えるか・学び終えていない列・最後に確かめた時刻。学ぶ糸と同じ錠の中で読む（版 3.98.0。前は学ぶ糸が列を
+    足している最中に回して dictionary changed size during iteration で 500 になりえた）"""
+    with _LOCK:
+        return copy.deepcopy(_status(km, cfg))
+
+
+def _status(km, cfg):
     return {
         "enabled": cfg["enabled"],
         "ready": km.ready(),

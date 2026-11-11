@@ -322,6 +322,13 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             }
             r
         }
+        // LotDsp の調べる道具の画面（版 3.98.0）: 窓がただ 1 つの係（Python に任せない。型を描けなければ 500）
+        (method @ ("GET" | "HEAD"), "/lotdsp-link") => Some(match lot.lotdsp_page(method == "HEAD") {
+            Some(h) => Reply { status: 200, headers: h.headers, body: h.body },
+            None => Reply {
+                status: 500, ..json_reply(&json!({"error": "調べる道具の画面を描けません（型が読めません）。"}))
+            },
+        }),
         // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
         (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => lot
             .access_read(method, path, &|| lot_settings(backend), &|| backend.alive())
@@ -672,7 +679,8 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
                                       // 設定の束は窓が組む（版 3.84.0。src/bundle.rs）。組めない形だけ中身（Python）に尋ねる
     lot.set_bundle(da_core::bundle::Builder::new(da_core::bundle::Env::production(&program, &locate::local_root())));
     let _ = LOT.set(lot.clone()); // 窓を閉じるときの使い終わり（RunEvent::Exit）
-                                  // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
+    std::thread::spawn(da_core::lotdsp_direct::sweep_profiles); // 前に落ちた窓が残した見えない Edge の一時プロファイルを消す（版 3.98.0）
+                                                                // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
     let told = lot.clone();
     sup.on_notice(Arc::new(move |h| told.notice(h)));
     let _ = slot.set(Router {
@@ -1060,6 +1068,10 @@ fn main() {
             }
         }
         RunEvent::Exit => {
+            // 使い回している見えない Edge・LotDsp の窓を閉じる（版 3.98.0。Windows では窓のジョブも Edge を止める）
+            if let Some(lot) = LOT.get() {
+                lot.lotdsp.shutdown();
+            }
             // 使い終わり（窓の × で閉じたときも。版 3.71.0）。共有が遅くても閉じるのを待たせない（LEAVE_WAIT が上限）
             if let Some(lot) = LOT.get() {
                 let (tx, rx) = std::sync::mpsc::channel();
