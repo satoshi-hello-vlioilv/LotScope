@@ -50,6 +50,11 @@ class BuilderReads(unittest.TestCase):
         cal = folder / "実績_CAL.sqlite3"
         with sqlite3.connect(cal) as k:
             k.execute(f'UPDATE "{table_of(cal)}" SET "速度" = NULL')
+        # 作った後の採点: 1 台（CAL）にだけある鍵の列
+        with sqlite3.connect(cal) as k:
+            t = table_of(cal)
+            k.execute(f'ALTER TABLE "{t}" ADD COLUMN "CALだけ" TEXT')
+            k.execute(f'UPDATE "{t}" SET "CALだけ" = "ロット番号"')
         # 確か 3: 13 台目からにだけある列（ZZ3 だけ）
         for i in range(1, 4):
             p = folder / f"実績_ZZ{i}.sqlite3"
@@ -152,6 +157,20 @@ class BuilderReads(unittest.TestCase):
         self.assertEqual((st["rows"], st["hit"], st["miss"]), (want["rows"], want["hit"], want["miss"]))
         self.assertEqual(len(d["byEquip"]), len(self.files))
         self.assertEqual(sum(x["stats"][0]["rows"] for x in d["byEquip"]), want["rows"])
+
+    def test_join_preview_skips_equipment_without_the_key(self):
+        """作った後の採点: 一部の設備にだけある鍵の列で「試す」と、その設備で数え、ほかの設備は数えずに名前と理由を言う（前は全体が 400）"""
+        lc = next(x for x in self.c.get("/api/sources/wip/columns").get_json()["columns"] if "ロット" in x)
+        r = self.c.post("/api/sources/join/preview", json={"key": "work", "joins": [{"with": "wip", "on": [["CALだけ", lc]]}]})
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        d = r.get_json()
+        want = truth.join_try(self.files, self.wip, [("CALだけ", lc)])
+        self.assertEqual((d["counted"], d["stats"][0]["rows"], d["stats"][0]["hit"]), (want["counted"], want["rows"], want["hit"]))
+        self.assertEqual([x["name"] for x in d["byEquip"]], ["CAL"])
+        self.assertEqual(sum(1 for x in d["failed"] if x["kind"] == "join"), len(want["skipped"]))
+        self.assertTrue(all("CALだけ" in x["error"] for x in d["failed"] if x["kind"] == "join"))
+        r = self.c.post("/api/sources/join/preview", json={"key": "work", "joins": [{"with": "wip", "on": [["無い列", lc]]}]})
+        self.assertEqual((r.status_code, r.get_json()["kind"]), (400, "join"), "どの設備でも組めなければ断る")
 
     # ------------------------------------------------------------------ 確かめる（確か 5・6・7・9・10・疑い 1・2）
     def check(self, **b):

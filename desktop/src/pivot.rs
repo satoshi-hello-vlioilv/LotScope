@@ -1702,14 +1702,19 @@ pub fn field_sets(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: 
     let dates: HashSet<String> = lotlist::date_columns(&c, &t, &cs).map_err(down)?.into_iter().collect();
     let qt = qi(&t);
     let hint = |col: &str, sql: &str| -> R<(FieldSet, Vec<Own>)> {
-        let mut st =
-            c.prepare(&format!("SELECT DISTINCT SortKey({sql}) FROM {qt} LIMIT {}", KINDS_MAX + 1)).map_err(|e| down(sql_err(e)))?;
+        // 生の値の種類を SQLite の DISTINCT で先に出し、その値にだけ同じ見分け（sort_key）を当てる（作った後の採点で速さを直した: 前は全部の行に
+        // SortKey を通してから DISTINCT した。答えは同じ。Python も同じ）。値が KINDS_MAX に届いたら止める（1,000 を超えれば many）
+        let mut st = c.prepare(&format!("SELECT DISTINCT {sql} FROM {qt}")).map_err(|e| down(sql_err(e)))?;
         let mut rows = st.query([]).map_err(|e| down(sql_err(e)))?;
         let (mut keys, mut blank) = (HashSet::new(), false);
         while let Some(r) = rows.next().map_err(|e| down(sql_err(e)))? {
-            match KeyV::of(r.get::<_, SqlValue>(0).map_err(|e| down(sql_err(e)))?) {
+            let v = r.get_ref(0).map_err(|e| down(sql_err(e)))?;
+            match KeyV::of(lotlist::sort_key(&lotlist::py_of(v))) {
                 Some(k) => {
                     keys.insert(k);
+                    if keys.len() >= KINDS_MAX {
+                        break;
+                    }
                 }
                 None => blank = true,
             }
@@ -1759,9 +1764,10 @@ pub fn field_sets(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: 
 }
 
 /// ファイルごとの札の材料 [(名前, 材料)] → 札の並び（Python の merge_fields。決まりは src/builder.rs の冒頭）
-pub fn merge_fields(per: &[(String, FieldSets)]) -> Vec<Value> {
-    struct Acc {
-        keys: HashSet<KeyV>,
+pub fn merge_fields<T: std::borrow::Borrow<FieldSets>>(per: &[(String, T)]) -> Vec<Value> {
+    // 値は写さずに借りて数える（合わせる手を軽く。作った後の採点で速さを直した）
+    struct Acc<'a> {
+        keys: HashSet<&'a KeyV>,
         most: usize,
         blank: bool,
         nums: Vec<bool>,
@@ -1775,7 +1781,7 @@ pub fn merge_fields(per: &[(String, FieldSets)]) -> Vec<Value> {
     let mut acc: HashMap<String, Acc> = HashMap::new();
     let (mut raw_order, mut calc_order) = (vec![], vec![]);
     for (name, d) in per {
-        for f in &d.fields {
+        for f in &d.borrow().fields {
             let m = acc.entry(f.column.clone()).or_insert_with(|| {
                 if f.calc {
                     calc_order.push(f.column.clone());
@@ -1808,7 +1814,7 @@ pub fn merge_fields(per: &[(String, FieldSets)]) -> Vec<Value> {
                     if m.keys.len() >= KINDS_MAX {
                         break;
                     }
-                    m.keys.insert(k.clone());
+                    m.keys.insert(k);
                 }
             }
             m.most = m.most.max(f.keys.len());
@@ -1874,8 +1880,29 @@ pub fn fields_many(
     let (mut per, mut failed) = (vec![], vec![]);
     for (i, p) in parts.iter().enumerate() {
         crate::progress::step("read", i, parts.len()); // 読み終えたファイル i / 全部（版 3.99.0）
+                                                       // 計算列の無い札は、ファイルごとの材料も覚える（作った後の採点で速さを直した: 1 台だけ写しが新しくなったとき、その 1 台だけ数え直す。
+                                                       // 前の窓は 1 ファイルずつ覚えていた）。値の集合の大きさに上限を設け（SETS_KEYS_MAX）、超えたら全部を捨てる
+        let fp = if plain { fields_key(p, sample) } else { None };
+        if let Some(d) = fp.as_ref().and_then(|k| SETS.lock().ok().and_then(|m| m.0.get(k).cloned())) {
+            per.push((p.name.clone(), d));
+            continue;
+        }
         match field_sets(p, calc(p).as_ref(), conv, sample) {
-            Ok(d) => per.push((p.name.clone(), d)),
+            Ok(d) => {
+                let d = Arc::new(d);
+                if let (Some(k), Ok(mut m)) = (fp, SETS.lock()) {
+                    let n: usize = d.fields.iter().map(|f| f.keys.len() + 1).sum();
+                    if m.1 + n > SETS_KEYS_MAX {
+                        m.0.clear();
+                        m.1 = 0;
+                    }
+                    if n <= SETS_KEYS_MAX {
+                        m.0.insert(k, d.clone());
+                        m.1 += n;
+                    }
+                }
+                per.push((p.name.clone(), d));
+            }
             Err(e) => failed.push(json!({"name": p.name, "error": e.text(), "kind": "error"})),
         }
     }
@@ -1901,6 +1928,12 @@ pub fn fields(part: &Part, calc: Option<&Calc>, conv: &Arc<Tables>, sample: usiz
     }
     Ok(json!({"table": table, "fields": fields}))
 }
+
+/// 覚えたファイルごとの札の材料（ファイルの指紋 → 材料）と、覚えている値の数の計。値の数が SETS_KEYS_MAX を超えたら全部を捨てる
+/// （1 ファイル 20 列 × 1,001 値でも 2 万。40 万なら作業実績 20 台の多い形も入り、字の値で数十 MB に収まる）
+type KeptSets = (HashMap<String, Arc<FieldSets>>, usize);
+static SETS: std::sync::LazyLock<std::sync::Mutex<KeptSets>> = std::sync::LazyLock::new(Default::default);
+const SETS_KEYS_MAX: usize = 400_000;
 
 /// 覚えたカラムの札（合わせたファイルの指紋の並び → (表, 札)）。数が多くなったら全部を捨てる（写しの版が替わると古い鍵は使われない）
 type Kept = (String, Vec<Value>);

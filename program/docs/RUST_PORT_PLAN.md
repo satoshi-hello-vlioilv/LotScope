@@ -1424,7 +1424,27 @@ DevTools での突き合わせを足す）に、採点の指摘（rounds[0].fixe
 - 速さ（`python tools/dash-bench.py --fields --equip 15 --rows 2000`。Linux の開発機・test_client）: Python の札（すべての設備）は前の作り（12 台・SortKey なし）の
   170〜270 ms から、15 台・SortKey で 410〜480 ms（全部の設備を数え、Python の SortKey〈UDF〉で見分けるので遅くなった。答えの正しさを取った）。
   窓は 2 回目から合わせた答えの覚えで数え直さない（`lot::tests` で同じ答え）。窓の 1 回目の時間は release を組んでいないので**分からない**（容器の空き）。
-- 作った後の採点: この作業のエージェントは別のエージェントを起こす道具を持たなかったので、主のセッションに頼んだ（記録の built は空）。
+- 作った後の採点（決まり 2026-11-06 の 1 回。主のセッションが別のエージェントに頼んだ・71.9 点。`2026-11-port-builder.json` の built）で見つけた割れを
+  直した（built_fixed。採点し直さない）:
+  (1) 作業実績の「試す」が、一部の設備にだけある鍵の列で全体ごと 400（窓と Python が同じ）→ 設備ごとの結合を `builder.try_each`（窓 `builder::try_each`。
+  `sum_stats` も同じ所）で組み、組めない設備は failed（設備名・理由・kind join）に入れて飛ばし、数えた設備の数（counted）と表示する設備の数（total）を
+  答えに書く。全部の設備で組めないときだけ断る。画面（`master-join.js`）は「（k / n 台の設備で数えました）」「n 台は鍵の列が無く数えていません（設備名）」。
+  (2) 写した設備の数が待つ間に進まない（待つ前と後の 2 回だけ記録）→ 待つ間 0.25 秒ごとに数え直して段に記録する部品（窓 `mirror::Mirrors::wait_first_tick`・
+  Python `work_log.Mirrors.wait_first(tick=)`。札の 30 秒の待ちもパネルの 2 秒の待ちも同じ部品）。
+  (3) 狭い札の欄で「0/11」と「台）」が別の行 → n/m と「台）」を折れない字の並び（`de-nw`）。1728 で撮って 1 行を確かめた。
+  (4) 速さ: `dash-bench.py --fields --window` で窓も測る（`examples/fields_bench.rs`。前の窓は 2fe540c の作業フォルダで同じ形の example を組んだ）。
+  release を組む空きが無いので **debug** で比べた（15 台 × 2,000 行・同じファイル）: 窓の札は、作った後の最初の形で 1 回目 717 ms（前の窓 12 台 274 ms）・
+  1 台だけ新しい 709 ms（前 18 ms）と遅くなっていた。原因は (a) 全部の行に SortKey を通してから DISTINCT していた・(b) 合わせた答えだけを覚え、
+  1 台変わると全部を数え直した。直した: (a) 生の値の種類を SQLite の DISTINCT で先に出し、その値にだけ同じ見分けを当てる（答えは同じ。Python も同じに直した）・
+  (b) 窓はファイルごとの材料も覚える（値の数の計 40 万で全部を捨てる）・合わせる手は値を写さずに借りる。直した後（debug・2 回の測り）: 1 回目 487〜500 ms
+  （15 台。1 台あたり約 32 ms・前の窓は約 19〜23 ms）・2 回目から 0.1 ms・1 台だけ新しい 41〜70 ms（前 19〜22 ms）・計算列あり 600〜900 ms（前 12 台 317〜418 ms）。
+  1 台あたりはまだ前の窓より 1.4〜1.7 倍かかる（debug では Rust の手〈値ごとの見分け〉が重く出る。release の速さは**分からない**）。Python の道は 15 台で
+  270〜490 ms（前の Python は 12 台で 170〜270 ms。製品は窓が答える）。
+  (5) 主の PR の先頭 1dc720e（Windows の CI の直し 2 つ）を取り込んだ。
+  足した試験（どれも直す前に落ちることを確かめた）: `test_builder_reads` の `test_join_preview_skips_equipment_without_the_key`（直す前の e7eda84 の Python で
+  400 / 200）・`test_dash_wait` の `test_copy_stage_moves_while_waiting`（直す前は途中の段が 1 つも出ない）・`lot::tests::the_copy_stage_moves_while_waiting`
+  （直す前は 0/3 のまま）・事例の表の joins 3 例（Python と窓の `try_each`・独立の答え）・`builder_parity` の 2 歩（1 台だけの鍵の列・どの設備にも無い列）と
+  独立の答えの counted・skipped（直す前の e7eda84 の builder.rs に戻すと 8 件の食い違い）。
 - 分からない事: SQLite の英語の誤りの字を日本語に読み替えるか（疑い 4）・窓の札の 1 回目の速さ（release）・本物の作業実績の列の数と値の多さで、合わせた答えの覚え
   （64 件）がどれだけ当たるか・Windows の WebView2 での 10b-B（CI で見る）・exe の確かめ（`find_browser`）は Linux では Python と窓のどちらも見つけないことしか
   突き合わせていない。

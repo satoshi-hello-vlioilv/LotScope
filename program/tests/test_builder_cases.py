@@ -97,6 +97,32 @@ class BuilderCases(unittest.TestCase):
                         self.assertEqual({k: tr[k] for k in ("table", "rows", "lotColumn") if k in cs["want"]},
                                          {k: cs["want"][k] for k in ("table", "rows", "lotColumn") if k in cs["want"]}, "独立の答え")
 
+    def test_join_cases(self):
+        """作業実績の「試す」（決め 4・作った後の採点の割れ）: 設備ごとに組んで足し、組めない設備は飛ばして名前を言う"""
+        from app.services import data_join
+        with tempfile.TemporaryDirectory() as d:
+            for i, cs in enumerate(CASES["joins"]):
+                with self.subTest(cs["name"]):
+                    files = [make(d, f"j{i}_{j}.sqlite3", p) for j, p in enumerate(cs["parts"])]
+                    right = truth.make_file(Path(d) / f"r{i}.sqlite3", cs["right"])
+                    items = data_join.parse(json.dumps([{"with": "r", "on": cs["on"]}]))
+                    lefts = [(f"台{j + 1}", f"k{i}_{j}", str(f), "実績") for j, f in enumerate(files)]
+                    ans, failed, status = builder.try_each(data_join.Joiner(Path(d) / "joins"), lefts, items, [(str(right), "仕掛", "相手")], "実績")
+                    w = cs["want"]
+                    self.assertEqual([x["name"] for x in failed], w["failed"])
+                    self.assertTrue(all(x["kind"] == "join" for x in failed))
+                    if w["counted"] == 0:
+                        self.assertIsNone(ans)
+                        self.assertEqual(status, w["status"])
+                    else:
+                        st = ans["stats"][0]
+                        self.assertEqual((ans["counted"], st["rows"], st["hit"], st["miss"]), (w["counted"], w["rows"], w["hit"], w["miss"]))
+                        self.assertEqual(len(ans["byEquip"]), w["counted"])
+                    tr = truth.join_try(files, right, [tuple(x) for x in cs["on"]], right_table="仕掛")
+                    self.assertEqual(tr["counted"], w["counted"], "独立の答え")
+                    if w["counted"]:
+                        self.assertEqual((tr["rows"], tr["hit"], tr["miss"]), (w["rows"], w["hit"], w["miss"]), "独立の答え")
+
     def test_truth_does_not_import_the_app(self):
         """独立の答えは app を読まない（Python と同じ誤りを持たない）"""
         src = (PROGRAM / "tools" / "builder-truth.py").read_text(encoding="utf-8")

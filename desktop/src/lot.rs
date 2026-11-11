@@ -3165,6 +3165,45 @@ mod tests {
     }
 
     #[test]
+    fn the_copy_stage_moves_while_waiting() {
+        // 作った後の採点（版 3.99.0）: 最初の写しを待つ間も、写し終えた設備の数を数え直して段に記録する（0/m → k/m → m/m の途中が出る）。
+        // 前は待つ前と後の 2 回だけで、組む所の札が最大 30 秒「共有から写した 0/m 台」のまま進まなかった。1 台（SLOWX）だけ写しを遅くする
+        let dir = std::env::temp_dir().join(format!("da-lot-copytick-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = dir.join("実績");
+        std::fs::create_dir_all(&folder).unwrap();
+        let mut rows = vec![];
+        for e in ["FA", "FB", "SLOWX"] {
+            let c = rusqlite::Connection::open(folder.join(format!("実績_{e}.sqlite3"))).unwrap();
+            c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT); INSERT INTO 実績 VALUES ('L1');").unwrap();
+            rows.push(json!({"キー": e.to_lowercase(), "設備名": e, "ファイル名": format!("実績_{e}.sqlite3"), "ファイルID": "", "表示": "有", "表": ""}));
+        }
+        crate::mirror::SLOW_COPY.lock().unwrap().push(("SLOWX".into(), std::time::Duration::from_millis(1500)));
+        let lists = json!({"hidden": [], "sources": [{"key": "work", "name": "実績"}], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
+            "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
+                     "page_size": 500, "canEditShifts": false, "rows": rows}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let seen = std::sync::Mutex::new(vec![]);
+        std::thread::scope(|s| {
+            let h = s.spawn(|| lot.handle_body("GET", "/api/dashboard/fields", "source=work&ask=c-1", b"", &ask));
+            while !h.is_finished() {
+                let p = lot.handle_body("GET", "/api/dashboard/progress", "ask=c-1", b"", &ask).unwrap().1;
+                let e = &p["asks"]["c-1"];
+                if e["stage"] == "copy" && e.get("of").is_some() {
+                    seen.lock().unwrap().push((e["n"].as_u64().unwrap(), e["of"].as_u64().unwrap()));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(40));
+            }
+            assert_eq!(h.join().unwrap().unwrap().0, 200);
+        });
+        crate::mirror::SLOW_COPY.lock().unwrap().clear();
+        let seen = seen.into_inner().unwrap();
+        assert!(seen.contains(&(2, 3)), "写した 2/3 台の途中が段に出る: {seen:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn only_master_writes_ask_the_settings_again() {
         for (m, p, s) in [
             ("PUT", "/api/settings/lot_list.source", 200),

@@ -557,10 +557,12 @@
   /** 札を待っている間の字（版 3.99.0）: 待ちの円（n/m の量。n/m の無い段は輪だけ）と「写した n/m 台」「読んだ n/m 台」 */
   function waitHtml() {
     const a = fieldsProg, nof = a && a.of > 1 ? a : null;
-    const word = !a ? "" : a.stage === "copy" ? `共有から写した ${nof ? `${nof.n}/${nof.of} 台` : "…"}` : a.stage === "read" && nof ? `読んだ ${nof.n}/${nof.of} 台` : "";
+    // n/m と「台）」は 1 つの折れない字の並び（作った後の採点: 狭い欄で「0/11」と「台）」が別の行に分かれた）
+    const nm = nof ? `<span class="de-nw">${nof.n}/${nof.of} 台）</span>` : "";
+    const word = !a ? "" : a.stage === "copy" ? `（共有から写した ${nm || "…）"}` : a.stage === "read" && nof ? `（読んだ ${nm}` : "";
     const f = nof ? Math.round((nof.n / Math.max(1, nof.of)) * 100) : 0;
     return `<p class="pv-none de-fwait" data-de-fwait><i class="db-dot is-pie${nof ? "" : " is-ring"}" style="--c:${P.colorOf(t.source)};--f:${f}%" aria-hidden="true"></i>`
-      + `<span>カラムを読んでいます${word ? `（${esc(word)}）` : ""}…</span></p>`;
+      + `<span>カラムを読んでいます${word}…</span></p>`;
   }
 
   /* ---- 描く ---- */

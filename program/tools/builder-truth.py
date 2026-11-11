@@ -11,7 +11,8 @@
 - 数（numeric）… 値のあったファイルごとに、空欄でない値の先頭 300 個がみな数に読めるか（「,」を除く・前後の空白・有限）。値のあったファイルの全部が数なら数
 - 列の並び … 元の列を、ファイルの順に初めて出た順（計算列はその後ろ）
 - 値の見本 … 空欄でない値を表の行の順に、字（Python の str）が同じ物を 1 つにして 3 つまで（見せる字は生の値。空白も残す）
-- 結合の「試す」… 鍵の比べ方は JoinKey（同じ値の見分けの後、数は整数なら整数の字・字は NFKC・前後の空白を除き大文字）。全部の設備の行を足す
+- 結合の「試す」… 鍵の比べ方は JoinKey（同じ値の見分けの後、数は整数なら整数の字・字は NFKC・前後の空白を除き大文字）。全部の設備の行を足す。
+  鍵の列が無い設備は数えず（skipped）、数えた設備の数（counted）を言う
 - 確かめる … 一覧が読むのと同じ表（欄の表 → 役割の候補 → 候補を含む名前 → 最初の表）
 """
 import json
@@ -187,18 +188,21 @@ def join_try(left_files, right_file, on, left_candidates=WORK_TABLES, right_cand
         k = tuple(join_key(r[i]) for i in ri)
         if all(x is not None for x in k):
             have.add(k)
-    rows = hit = 0
+    rows = hit = counted = 0
+    skipped = []
     for path in left_files:
         _, cols, lrows = read_table(path, left_table, left_candidates)
-        if any(a not in cols for a, _ in on):
+        if any(a not in cols for a, _ in on):        # この設備には鍵の列が無い: 数えない（ほかの設備で数える）
+            skipped.append(str(path))
             continue
+        counted += 1
         li = [cols.index(a) for a, _ in on]
         for r in lrows:
             rows += 1
             k = tuple(join_key(r[i]) for i in li)
             if all(x is not None for x in k) and k in have:
                 hit += 1
-    return {"rows": rows, "hit": hit, "miss": rows - hit}
+    return {"rows": rows, "hit": hit, "miss": rows - hit, "counted": counted, "skipped": skipped}
 
 
 def check(path, table="", role="品質"):

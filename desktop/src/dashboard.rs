@@ -385,7 +385,8 @@ impl Ctx<'_> {
             // 共有から写した設備 n / 設備 of（最初の写しを待つ間。版 3.97.0）
             let ready = |keys: &[String]| keys.iter().filter(|k| lists.work.peek(k).is_some_and(|m| m.first_done())).count();
             crate::progress::step("copy", ready(&keys), keys.len());
-            lists.work.wait_first(&keys, wait);
+            // 待つ間も間をおいて数え直す（版 3.99.0。パネルの 2 秒の待ちも札の 30 秒の待ちも同じ部品）
+            lists.work.wait_first_tick(&keys, wait, &|| crate::progress::step("copy", ready(&keys), keys.len()));
             crate::progress::step("copy", ready(&keys), keys.len());
             let shifts = conf.shifts();
             let (mut parts, mut failed, mut mirrors) = (Vec::<Part>::new(), Vec::<Value>::new(), Vec::<Value>::new());

@@ -330,5 +330,62 @@
   "passes_after": "直した後: test_builder_reads 12・test_builder_cases 5・cargo test --test builder_cases 2・--test builder_parity 1（58 歩・任せる 11 歩・一般ユーザー 3 歩・独立の答え・同時に組む）・lot::tests::the_window_answers_the_builder_reads・既存の routes・dash・pivot・lists・page・sources_write・ops の突き合わせも通った",
   "not_scored": "作った後の採点（別のエージェントに 1 回）は、この作業のエージェントが別のエージェントを起こす道具を持たなかったので、主のセッションに頼んだ（built は空）",
   "check_all": "bash program/tools/check-all.sh（3 回目）: js-check 0・compileall 0・cargo-build 0・ruff 0（0.15.20）・fmt-clippy 0・py-tests 0（Ran 794・OK・skipped 6）・bundle-tests 0（Ran 5）・cargo-test 0（45 本の test result がどれも ok）。1 回目は ruff（使わない import）と py-tests 13 件（test_builder_reads が ui_server.as_role の権限の差し替えを戻さず、同じプロセスのほかの試験へ漏れた）で落ちたので直した。2 回目は空きが 6 GB で始まらず、1 時間より前の試験の実行ファイルだけを消した"
+ },
+ "built": {
+  "name": "作った後（版 3.99.0・commit e7eda84）",
+  "evaluator": "案を作っていない、作った者でもない採点者（別のエージェント・2026-11-11。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良が主なので、worktree port-builder-399 の commit e7eda84 のコードを読み、動かして測った事実で採点し、画面の変わった所（組む所の札の欄の待ち）は開発用サーバーを Playwright で撮って見た。worktree のファイルは変えていない（この記録に built を足しただけ）。道具と記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/builder-score（b1.py〈前後で同じ再現〉・mutate.py〈program の写しに変異〉・shot.mjs と shots/・built_cargo.txt）。窓の札の速さ・Windows の本物の機械・check-all の全体は確かめていない。",
+  "seen": "良い所: 7 本を窓が答え（builder.rs）、窓が同じに答えられない形だけ Python に任せる。任せる形は冒頭に一覧があり、束や材料を組めないときは None（Python が答える）で、3.98.0 の作った後に見つけた『材料を読めないと黙って空にする』形は見当たらなかった（この 7 本は Python も答えられる読む道なので、任せても係は 2 つにならない）。指摘 11 件は入った: 札の覚えは合わせた全部のファイルの指紋を鍵にした合わせた答え（値の集合は数えている間だけ）・SortKey で数え空欄は 1 つ・全部空欄は kinds 0 と blankOnly（画面は『空欄だけ』）・値のあった設備だけで numeric・元の列 → 計算列・12 台の上限なし・試すと列は全部の設備（byEquip・failed）・確かめるは欄の表と入口の unquote・値の例は空欄を除いて 3 つ・0 時間前・古さの警告は品質・仕掛・実績だけ・CM3 に届くか・フォルダはカードの決まり・見本の部品は 1 つ・独立の答え builder-truth.py（app を import しない）と事例の表を Python と窓が読む・窓と Python が同時に試すを組む場面（Python も os.replace をやり直す）。自分で確かめた: 前と同じ再現の台本 b1.py を、前の版（主の作業ツリー）と作った後（worktree）の Python に当てると、確か 1〜11 と疑い 1・3 が全部直っていた（ロット番号 382 → 1,001・速度 numeric False → True・不良名 8 → 7＝スライサー・計算列が元の列の後ろ・B表 を数える・\" の場所で ok・値の例の頭の『・』なし・『-0時間前』→『0時間前』・マスタは古さの警告なし・CM3『届きました』・見本 'a5052 ' にそろう・work/columns 175 → 4,175 行・試す 175 → 4,175 行で byEquip 11）。cargo test builder_cases 2・builder_parity 1 が ok。Python の 7 ファイル 86 件 OK。決めの値を前の形に戻す 4 つの変異（種類は最大・12 台・試すは 1 台・古さを全部の役割）はどれも test_builder_reads・test_builder_cases が落とした。画面: 写しを遅くした開発用サーバー（TPA_UI_SLOW_FILE の copy 8,000 B/s）で『前日の実績本数』を組むと、札の欄に待ちの円と『カラムを読んでいます（共有から写した 0/11 台）…』が出て、パネルの『写した 0/11 台』と同じ数。終わると札が並び、ロット番号は『1,000 種類以上』（1728 と 1280 で撮った）。悪い所: 下の 2 つの減点。Python の札は遅くなった（試験の形で work 83 → 128 ms・lot 29 → 65 ms。SortKey を全部の値に通すため。製品は窓が答えるが、?engine=python と任せる形は Python）。窓の札の速さは測られていない（dash-bench --fields は Python の道だけ）。狭い欄で『0/11』と『台）』が別の行に分かれる。画面の待ちの表示は、案では『UI の改良として別の採点』としていたのに、この版で作った。1 版が大きい（3,671 行）。",
+  "result": {
+   "proposal": "E 札の作りを直してから移す: 設備ごとの札を『値の集合』で覚えて合わせ、全部の設備・本当の種類・数の見分けを出す（12 台の上限を外す）。待つ間は progress に載せる",
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 9,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "POST /api/sources/join/preview（作業実績）: 結合の欄の列（GET /api/sources/work/columns）は全部の設備の和になり、一部の設備にしか無い列（再現: CAL だけに足した列「CALだけ」）も選べるのに、それで「試す」と 1 台の結合の失敗で全体が 400「…との鍵の列「CALだけ」がこの元にありません」になる（builder.rs join_preview の `Err(f) => return Some(f)`・routes/sources.py の `if f: return f`。窓と Python が同じ）。列は出しているのに、どの設備で無いのかを言わず、読めた設備の数も出ない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "組む所の札の欄の待ち（決め 7）: 写した設備の数を、最初の写しを待つ前と後の 2 回だけ記録する（desktop/src/dashboard.rs 387・389 行・routes/dashboard.py 367・369 行）。札は最大 30 秒待つので、その間ずっと『共有から写した 0/11 台』と空の円のまま進まず、終わると一度に替わる（写しを遅くした開発用サーバーで、待っている間の字は 0/11 だけだった）"
+    }
+   ],
+   "seen": "良い所: 7 本を窓が答え（builder.rs）、窓が同じに答えられない形だけ Python に任せる。任せる形は冒頭に一覧があり、束や材料を組めないときは None（Python が答える）で、3.98.0 の作った後に見つけた『材料を読めないと黙って空にする』形は見当たらなかった（この 7 本は Python も答えられる読む道なので、任せても係は 2 つにならない）。指摘 11 件は入った: 札の覚えは合わせた全部のファイルの指紋を鍵にした合わせた答え（値の集合は数えている間だけ）・SortKey で数え空欄は 1 つ・全部空欄は kinds 0 と blankOnly（画面は『空欄だけ』）・値のあった設備だけで numeric・元の列 → 計算列・12 台の上限なし・試すと列は全部の設備（byEquip・failed）・確かめるは欄の表と入口の unquote・値の例は空欄を除いて 3 つ・0 時間前・古さの警告は品質・仕掛・実績だけ・CM3 に届くか・フォルダはカードの決まり・見本の部品は 1 つ・独立の答え builder-truth.py（app を import しない）と事例の表を Python と窓が読む・窓と Python が同時に試すを組む場面（Python も os.replace をやり直す）。自分で確かめた: 前と同じ再現の台本 b1.py を、前の版（主の作業ツリー）と作った後（worktree）の Python に当てると、確か 1〜11 と疑い 1・3 が全部直っていた（ロット番号 382 → 1,001・速度 numeric False → True・不良名 8 → 7＝スライサー・計算列が元の列の後ろ・B表 を数える・\" の場所で ok・値の例の頭の『・』なし・『-0時間前』→『0時間前』・マスタは古さの警告なし・CM3『届きました』・見本 'a5052 ' にそろう・work/columns 175 → 4,175 行・試す 175 → 4,175 行で byEquip 11）。cargo test builder_cases 2・builder_parity 1 が ok。Python の 7 ファイル 86 件 OK。決めの値を前の形に戻す 4 つの変異（種類は最大・12 台・試すは 1 台・古さを全部の役割）はどれも test_builder_reads・test_builder_cases が落とした。画面: 写しを遅くした開発用サーバー（TPA_UI_SLOW_FILE の copy 8,000 B/s）で『前日の実績本数』を組むと、札の欄に待ちの円と『カラムを読んでいます（共有から写した 0/11 台）…』が出て、パネルの『写した 0/11 台』と同じ数。終わると札が並び、ロット番号は『1,000 種類以上』（1728 と 1280 で撮った）。悪い所: 下の 2 つの減点。Python の札は遅くなった（試験の形で work 83 → 128 ms・lot 29 → 65 ms。SortKey を全部の値に通すため。製品は窓が答えるが、?engine=python と任せる形は Python）。窓の札の速さは測られていない（dash-bench --fields は Python の道だけ）。狭い欄で『0/11』と『台）』が別の行に分かれる。画面の待ちの表示は、案では『UI の改良として別の採点』としていたのに、この版で作った。1 版が大きい（3,671 行）。"
+  },
+  "found": [
+   "割れ 1（試す・窓と Python）一部の設備にしか無い列で作業実績の『試す』と、全体が 400。再現: 実績_CAL に列を足し（最初の問い合わせの前）、POST /api/sources/join/preview {key: work, joins: [{with: wip, on: [[CALだけ, ロット番号の列]]}]}。直し方: 設備ごとの結合の失敗は failed（{name, error}）に入れて飛ばし、読めた設備の数を足す（全部の設備で組めないときだけ失敗）。画面は『n 台は列が無く数えていません』と出す。足す形: builder_cases と builder_parity に『一部の設備だけの鍵の列』を、builder-truth.py に同じ数を",
+   "割れ 2（画面の待ち）写した設備の数が、最大 30 秒の待ちの間進まない。直し方: 待つ間 0.25〜0.5 秒ごとに写し終えた設備を数え直して step('copy', n, of) を書く（窓は lists.work.wait_first に数え直しの口、Python は start_mirrors の待ちを小分けに）。足す形: progress の試験に『写し終える時刻が設備でずれる』場面（1 台だけ遅い）を足し、段の列に 0/m → k/m → m/m の途中があるかを見る",
+   "割れ 3（表示・小）狭い欄で『0/11』と『台）』が別の行に分かれる（1728・1280 の両方）。直し方: n/m と『台』を折れない字（white-space: nowrap の span）にする",
+   "速さ: Python の札は 1.5〜2.2 倍に遅くなった（試験の形で work 83 → 128 ms・lot 29 → 65 ms。作った者の大きな形では 170〜270 → 410〜480 ms）。製品の道は窓だが、窓の札の速さは測られていない。dash-bench --fields に窓の道（examples/dash_bench の札の場面）を足して前後を測る",
+   "決めの確かめ: 画面の待ちの表示は、案では『UI の改良として別の採点』としていたが、この版で作った（今の待ちの部品〈db-dot is-pie〉を使う小さな変更）。主のセッションが UI の採点の流れを要るか決める"
+  ]
+ },
+ "built_fixed": {
+  "name": "作った後の採点（71.9 点）の割れを直した（採点し直さない。決まり 2026-11-06）",
+  "fixed": [
+   "1 作業実績の「試す」が一部の設備にだけある鍵の列で全体ごと 400（窓と Python が同じ）: 設備ごとの結合を Python の builder.try_each・窓の builder::try_each で組み、組めない設備は failed（設備名・理由・kind join）に入れて飛ばし、counted（数えた設備）と total（表示する設備）を答えに書く。全部の設備で組めないときだけ断る（400 kind join）。画面 master-join.js は「（k / n 台の設備で数えました）」「n 台は鍵の列が無く数えていません（設備名）」",
+   "2 写した設備の数が待つ間に進まない: 待つ間 0.25 秒ごとに写し終えた設備を数え直して段に記録する部品（窓 mirror::Mirrors::wait_first_tick・Python work_log.Mirrors.wait_first の tick）。札の 30 秒の待ちもパネルの 2 秒の待ちも同じ部品",
+   "3 狭い札の欄で「0/11」と「台）」が別の行: n/m と「台）」を折れない字の並び（de-nw）。採点者の shot.mjs で 1728 を撮り、「0/11 台）…」が 1 行にそろうのを見た（scratchpad/build399/shots）",
+   "4 速さ: dash-bench.py --fields --window で窓も測る（examples/fields_bench.rs。前の窓は 2fe540c の作業フォルダで同じ形の fields_bench_old を組んだ）。debug で比べた（release を組む空きが無い）。作った後の最初の形は窓の札が遅くなっていた（15 台 1 回目 717 ms・1 台だけ新しい 709 ms。前の窓 12 台 274 ms・18 ms）。原因: 全部の行に SortKey を通してから DISTINCT・合わせた答えだけを覚えた。直した: 生の値の DISTINCT の後に見分け（Python も同じ）・窓はファイルごとの材料も覚える（値の数の計 40 万で捨てる）・合わせる手は値を借りる。直した後（debug）: 1 回目 487〜500 ms（1 台あたり約 32 ms。前の窓は約 19〜23 ms）・2 回目 0.1 ms・1 台だけ新しい 41〜70 ms（前 19〜22 ms）。1 台あたりはまだ前より 1.4〜1.7 倍（debug の Rust の手。release は分からない）。Python は 15 台で 270〜490 ms（前は 12 台で 170〜270 ms）",
+   "5 主の PR の先頭 1dc720e を取り込んだ（食い違いなし）"
+  ],
+  "tests_added": [
+   "tests/test_builder_reads.py の test_join_preview_skips_equipment_without_the_key（直す前の e7eda84 の Python: 400 != 200 で落ちた）",
+   "tests/test_dash_wait.py の test_copy_stage_moves_while_waiting（直す前: 途中の段が 1 つも出ず落ちた）",
+   "lot::tests::the_copy_stage_moves_while_waiting（直す前: 0/3 のままで落ちた）",
+   "tests/fixtures/builder_cases.json の joins 3 例（一部の設備だけの鍵の列・全部の設備にある鍵・どの設備にも無い鍵）を Python（test_builder_cases の test_join_cases）と窓（builder_cases.rs）と独立の答え（builder-truth.py の join_try に counted・skipped）が読む",
+   "builder_parity の 2 歩（CAL にだけある鍵の列・どの設備にも無い列）と、窓の答えを独立の答えの counted・skipped と比べる所（直す前の e7eda84 の builder.rs に戻すと 8 件の食い違いで落ちた）"
+  ],
+  "check_all": "bash program/tools/check-all.sh（直した後・1dc720e を取り込んだ上）: js-check 0・compileall 0・cargo-build 0・ruff 0（0.15.20）・fmt-clippy 0・py-tests 0（Ran 797・OK・skipped 6）・bundle-tests 0（Ran 5）・cargo-test 0（45 本の test result がどれも ok）"
  }
 }

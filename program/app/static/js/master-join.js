@@ -59,6 +59,8 @@ window.MasterJoin = (() => {
     const nameOf = (k) => (sources.find((d) => d.key === k) || {}).name || k;
     let items = (self.joins || []).map((j) => ({ ...j, on: j.on.map((p) => [...p]), cols: [...(j.cols || [])] }));
     const stats = [], cols = {};
+    // 作業実績で数えなかった設備（版 3.99.0。その設備にだけ鍵の列が無い・写しが読めない。答えの failed・counted・total）
+    let skipped = { failed: [], counted: 0, total: 0 };
     let note = "", timer = 0, seq = 0;
     const dis = can ? "" : " disabled";
     /** 列の手がかり（元のままの列。写しがまだ無ければ写し終えるまで待って読み直す） */
@@ -105,7 +107,11 @@ window.MasterJoin = (() => {
       const r = await request("/api/sources/join/preview", TPA.json("POST", self.key ? { key: self.key, joins } : { base: self.base, joins }));
       if (my !== seq || !box.isConnected) return;
       stats.length = 0;
-      if (r.ok) { (r.data.stats || []).forEach((s, i) => { stats[i] = s; }); note = ""; }
+      skipped = { failed: [], counted: 0, total: 0 };
+      if (r.ok) {
+        (r.data.stats || []).forEach((s, i) => { stats[i] = s; }); note = "";
+        if (r.data.byEquip) skipped = { failed: r.data.failed || [], counted: r.data.counted || 0, total: r.data.total || 0 };
+      }
       else if (r.data && r.data.kind === "copying") { note = "相手のファイルを手元へ写しています…（写し終えると数が出ます）"; setTimeout(preview, 2000); }
       else note = `✕ ${(r.data && r.data.error) || "数えられませんでした"}`;
       paintResults();
@@ -139,12 +145,23 @@ window.MasterJoin = (() => {
         <div class="jn-cols"><span class="jn-lab">持ってくる列</span>${chips || '<span class="jn-msg">列を読んでいます…</span>'}</div>
         <div class="jn-res" data-jn-res aria-live="polite"></div></div>`;
     }
+    /** 数えなかった設備の知らせ（作業実績の「試す」は設備ごとに組み、組めない設備は飛ばして、ほかの設備で数える。版 3.99.0） */
+    function skipHtml() {
+      const f = skipped.failed || [];
+      if (!f.length) return "";
+      const names = (xs) => xs.slice(0, 4).map((x) => x.name).join("・") + (xs.length > 4 ? ` ほか ${xs.length - 4}` : "");
+      const join = f.filter((x) => x.kind === "join"), other = f.filter((x) => x.kind !== "join");
+      const out = [`<span>（${skipped.counted.toLocaleString()} / ${skipped.total.toLocaleString()} 台の設備で数えました）</span>`];
+      if (join.length) out.push(`<span class="ng" title="${esc(join.map((x) => `${x.name}: ${x.error}`).join("\n"))}">${join.length} 台は鍵の列が無く数えていません（${esc(names(join))}）</span>`);
+      if (other.length) out.push(`<span class="ng" title="${esc(other.map((x) => `${x.name}: ${x.error}`).join("\n"))}">${other.length} 台は読めず数えていません（${esc(names(other))}）</span>`);
+      return out.join("");
+    }
     function paintResults() {
       items.forEach((j, i) => {
         const el = box.querySelector(`[data-jn-i="${i}"] [data-jn-res]`); if (!el) return;
         const st = stats[i];
         el.className = `jn-res${st ? "" : note.startsWith("✕") ? " is-ng" : " is-wait"}`;
-        el.innerHTML = st ? resultHtml(st, j.how, self.name, nameOf(j.with))
+        el.innerHTML = st ? resultHtml(st, j.how, self.name, nameOf(j.with)) + skipHtml()
           : !complete(j) ? "鍵の列を両方とも選ぶと、当たる行の数を出します。"
             : note === "wait" ? "数えています…" : esc(note || "数えています…");
         const n = counts(st);

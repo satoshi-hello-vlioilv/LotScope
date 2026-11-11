@@ -95,6 +95,31 @@ class Progress(unittest.TestCase):
         self.assertIn((1, 2), seen, f"設備 2 台を 1 台ずつ読む: {seen}")
         self.assertTrue(all(n < of for n, of in seen))
 
+    def test_copy_stage_moves_while_waiting(self):
+        """作った後の採点（版 3.99.0）: 最初の写しを待つ間も、写し終えた設備の数を数え直して段に記録する（0/m → k/m → m/m の途中が出る）。
+        前は待つ前と後の 2 回だけで、組む所の札は最大 30 秒「共有から写した 0/2 台」のまま進まなかった。1 台（L-1）だけ写しを遅くする"""
+        orig = db_mirror.DbMirror._copy
+
+        def slow(remote, tmp):
+            if "L-1" in str(remote):
+                time.sleep(1.5)
+            return orig(remote, tmp)
+
+        seen = []
+        db_mirror.DbMirror._copy = staticmethod(slow)
+        try:
+            t = threading.Thread(target=lambda: self.app.test_client().get("/api/dashboard/fields?source=work&ask=c-1"))
+            t.start()
+            while t.is_alive():
+                e = self.prog("c-1").get("c-1")
+                if e and e["stage"] == "copy" and e.get("of"):
+                    seen.append((e["n"], e["of"]))
+                time.sleep(0.05)
+            t.join()
+        finally:
+            db_mirror.DbMirror._copy = orig
+        self.assertIn((1, 2), seen, f"写した 1/2 台の途中が段に出る: {seen}")
+
     def test_board_copy_counts_one_data_source(self):
         """写している最中の数え方は、そのデータ元の設備だけ（前は画面が合わせた表のまとまりの写しを全部足し、仕掛の写しまで数えた: 6/12）"""
         failed = [{"name": "CR2", "kind": "copying"}, {"name": "L-2", "kind": "copying"}, {"name": "SL3", "kind": "unknown"}]

@@ -365,7 +365,8 @@ def panel_parts(source, equip="", basis="work", equips=None, first_wait=None):
             ms = [m for m in (_work_mirrors().peek(r.get("キー")) for r in rows) if m is not None]
             return sum(1 for m in ms if m.wait_first(0)), len(ms)
         dash_progress.step("copy", *ready())     # 共有から写した設備 n / 写す設備の数（版 3.97.0。窓と同じく写しの係のある設備だけ）
-        start_mirrors(rows, db_mirror.FIRST_WAIT_SEC if first_wait is None else first_wait)
+        # 待つ間も間をおいて数え直す（版 3.99.0。前は待つ前と後の 2 回だけで、札は最大 30 秒「写した 0/m 台」のまま進まなかった）
+        start_mirrors(rows, db_mirror.FIRST_WAIT_SEC if first_wait is None else first_wait, tick=lambda: dash_progress.step("copy", *ready()))
         dash_progress.step("copy", *ready())
         for row in rows:
             name = str(row.get("設備名") or "")

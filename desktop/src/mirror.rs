@@ -29,6 +29,8 @@ const COPY_CHUNK: usize = 4 * 1024 * 1024;
 const REPLACE_BUDGET: f64 = 2.0;
 /// 同じ台帳に、いくつもの係（作業実績の設備ごと・データ元ごと）が書くので、読んで直して書くあいだは 1 本にする（ほかの係の行を消さない）
 static LEDGER_LOCK: Mutex<()> = Mutex::new(());
+/// 最初の写しを待つ間に、写し終えた設備を数え直す間（版 3.99.0。Python の work_log.WAIT_TICK と同じ）
+pub const WAIT_TICK: Duration = Duration::from_millis(250);
 
 fn now() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
@@ -99,9 +101,17 @@ pub fn open_shared(remote: &str) -> std::io::Result<std::fs::File> {
     o.open(remote)
 }
 
+/// 試験だけ: 名前にこの字を含む元の写しを、この長さ遅くする（1 台だけ写しが遅い場面）
+#[cfg(test)]
+pub(crate) static SLOW_COPY: Mutex<Vec<(String, Duration)>> = Mutex::new(Vec::new());
+
 /// 元をファイルとして丸ごと写す（SQLite として開かない・休まない。開き方は open_shared）。
 pub fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
     use std::io::{Read, Write};
+    #[cfg(test)]
+    if let Some(d) = SLOW_COPY.lock().unwrap().iter().find(|(k, _)| remote.contains(k.as_str())).map(|x| x.1) {
+        std::thread::sleep(d); // 試験: この元だけ写しを遅くする
+    }
     let mut src = open_shared(remote)?;
     let mut dst = std::fs::File::create(tmp)?;
     let mut buf = vec![0u8; COPY_CHUNK];
@@ -767,6 +777,21 @@ impl Mirrors {
             m.load_state();
             m
         })
+    }
+
+    /// wait_first に、待つ間 WAIT_TICK ごとに tick を呼ぶ口を足した物（版 3.99.0。写し終えた設備の数を待ちの段に記録する。
+    /// 前は待つ前と後の 2 回だけで、組む所の札が最大 30 秒「写した 0/m 台」のまま進まなかった。Python の work_log.Mirrors.wait_first と同じ）
+    pub fn wait_first_tick(&self, keys: &[String], timeout: Duration, tick: &dyn Fn()) {
+        let end = Instant::now() + timeout;
+        loop {
+            let pending: Vec<Arc<DbMirror>> = keys.iter().filter_map(|k| self.peek(k)).filter(|m| !m.first_done()).collect();
+            tick();
+            let left = end.saturating_duration_since(Instant::now());
+            if pending.is_empty() || left.is_zero() {
+                return;
+            }
+            pending[0].wait_first(left.min(WAIT_TICK));
+        }
     }
 
     /// keys の係が最初の写しを済ませるまで待つ（全部で timeout まで。1 つずつ timeout ずつ待たない）

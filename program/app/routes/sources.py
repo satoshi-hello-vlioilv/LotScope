@@ -459,29 +459,6 @@ def sources_columns(key):
     return jsonify(out)
 
 
-def _sum_stats(per):
-    """設備ごとの結合の数 [[段ごとの数]] → 足した数（版 3.99.0。決め 4）。行・当たった・当たらない・答えの行・相手の行・相手の当たった・
-    相手だけは足す（一覧は設備ごとに結合するので、全部の設備の一覧に出る数と同じ）。相手の鍵の重なりは相手の表の数（同じ）。当たらない鍵の見本は
-    設備の順に重ならない物を data_join.SAMPLE まで。相手の数を数えなかった（大きい）設備があれば相手の当たった・相手だけは None"""
-    out = []
-    for i, first in enumerate(per[0]):
-        steps = [p[i] for p in per]
-        x = dict(first)
-        for k in ("rows", "hit", "miss", "out", "rightRows"):
-            x[k] = sum(int(st.get(k) or 0) for st in steps)
-        for k in ("rightHit", "rightOnly"):
-            x[k] = None if any(st.get(k) is None for st in steps) else sum(int(st[k]) for st in steps)
-        x["rightDup"] = max(int(st.get("rightDup") or 0) for st in steps)
-        miss = []
-        for st in steps:
-            for m in st.get("missSample") or []:
-                if m not in miss and len(miss) < data_join.SAMPLE:
-                    miss.append(m)
-        x["missSample"] = miss
-        out.append(x)
-    return out
-
-
 @bp.post("/api/sources/join/preview")
 def sources_join_preview():
     """「試す」: 決まり（joins）をその元に当てたときの数（当たった・当たらない・相手だけ・相手の鍵の重なり）と、当たらない鍵の見本。
@@ -510,14 +487,22 @@ def sources_join_preview():
         got, failed, fail = work_plans()
         if fail:
             return fail
-        per, table = [], ""
+        total = len(got) + len(failed)            # 表示する設備（読めた設備と、写し・ファイルで読めなかった設備）
+        rights, fail = _rights(joins, items)
+        if fail:
+            return fail
+        lefts = []
         for r, plan in got:
-            out, f = with_joins(plan, s, scope=f"try-work-{r.get('キー')}", joins=joins)
-            if f:
-                return f
-            table = table or out["table"]
-            per.append({"name": str(r.get("設備名") or ""), "key": r.get("キー"), "stats": out["joined"]})
-        return jsonify(stats=_sum_stats([x["stats"] for x in per]), table=table, equip=None, byEquip=per, failed=failed)
+            name = str(r.get("設備名") or "")
+            try:
+                lefts.append((name, r.get("キー"), plan["path"], actual_table(plan["path"], plan["table"], "work")))
+            except Exception as e:      # 写しを開けない設備は飛ばす
+                failed.append({"name": name, "error": f"「{s['name']}」の結合を組めませんでした: {e}", "kind": "join"})
+        ans, bad, status = builder.try_each(_joiner(), lefts, joins, rights, s["name"])
+        failed += bad
+        if ans is None:                 # 全部の設備で組めない: 最初の設備の理由で断る
+            return error(failed[-len(bad)]["error"] if bad else failed[0]["error"], status or 503, "join")
+        return jsonify(**ans, failed=failed, total=total)
     plan, fail = raw_plan(base or key)
     if fail:
         return fail

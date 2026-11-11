@@ -187,6 +187,43 @@ fn builder_cases_match_the_spec() {
             }
         }
     }
+    // 結合の「試す」（作業実績の設備ごとに組んで足す。組めない設備は飛ばして名前を言う。作った後の採点の割れ）
+    for (i, c) in cs["joins"].as_array().unwrap().iter().enumerate() {
+        let name = c["name"].as_str().unwrap();
+        let mut lefts = vec![];
+        for (j, p) in c["parts"].as_array().unwrap().iter().enumerate() {
+            let f = d.join(format!("j{i}_{j}.sqlite3"));
+            make(&f, p);
+            lefts.push(builder::Left { name: format!("台{}", j + 1), key: json!(format!("k{i}_{j}")), path: f, table: "実績".into() });
+        }
+        let r = d.join(format!("r{i}.sqlite3"));
+        make(&r, &c["right"]);
+        let items = da_core::join::Join::list(&json!([{"with": "r", "how": "left", "on": c["on"], "cols": []}]));
+        let rights = vec![da_core::join::Right { path: r, table: "仕掛".into(), name: "相手".into() }];
+        let joiner = da_core::join::Joiner::new(d.join("joins"));
+        let (ans, failed, status) = builder::try_each(&joiner, &lefts, &items, &rights, "実績");
+        let w = &c["want"];
+        let names: Vec<Value> = failed.iter().map(|f| f["name"].clone()).collect();
+        if json!(names) != w["failed"] || failed.iter().any(|f| f["kind"] != "join") {
+            bad.push(format!("{name}: 組めなかった設備 事例 {} / 窓 {}", w["failed"], json!(failed)));
+        }
+        match ans {
+            None if w["counted"] == 0 => {
+                if status.map(|x| json!(x)) != Some(w["status"].clone()) {
+                    bad.push(format!("{name}: 状態 事例 {} / 窓 {status:?}", w["status"]));
+                }
+            }
+            Some(a) if w["counted"] != 0 => {
+                let st = &a["stats"][0];
+                let got = json!({"counted": a["counted"], "rows": st["rows"], "hit": st["hit"], "miss": st["miss"]});
+                let want = json!({"counted": w["counted"], "rows": w["rows"], "hit": w["hit"], "miss": w["miss"]});
+                if got != want {
+                    bad.push(format!("{name}: 事例 {want} / 窓 {got}"));
+                }
+            }
+            other => bad.push(format!("{name}: 数えた設備 事例 {} / 窓 {other:?}", w["counted"])),
+        }
+    }
     let _ = std::fs::remove_dir_all(&d);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

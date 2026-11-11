@@ -82,7 +82,7 @@ def make_data(d):
     folder = d / "実績"
     folder.mkdir()
     for k, eq in enumerate(EQUIPS):
-        cols = ["ロット番号", "BOX実績_作業開始_日付", "重量", "速度", "合金"] + (["ZZだけの列"] if eq == "ZZ3" else [])
+        cols = ["ロット番号", "BOX実績_作業開始_日付", "重量", "速度", "合金"] + (["ZZだけの列"] if eq == "ZZ3" else []) + (["CALだけ"] if eq == "CAL" else [])
         rows = []
         for i in range(60):
             n = (k * 37 + i * 11) % 1200
@@ -90,6 +90,8 @@ def make_data(d):
                  None if eq == "CAL" else str(100 + (n % 17)), ["A1100", "a5052", "A3004", None][i % 4]]
             if eq == "ZZ3":
                 r.append(f"z{i % 4}")
+            if eq == "CAL":                     # 作った後の採点: 1 台にだけある鍵の列（仕掛のロット番号に当たる値と当たらない値）
+                r.append(lots[(i * 2) % 1200] if i % 3 else f"無{i}")
             rows.append(r)
         table(folder / f"実績_{eq}.sqlite3", "実績", cols, rows)
     # 確かめる用: 表 2 つ・SQLite でないファイル・30 分先・40 時間前
@@ -180,6 +182,8 @@ def steps_of(d, cm3):
         S("POST", C, {}),
         S("POST", C, {"place": lot_place, "role": 0}),
         S("POST", "/api/sources/join/preview", {"key": "work", "joins": jw}),
+        S("POST", "/api/sources/join/preview", {"key": "work", "joins": [{"with": "wip", "on": [["CALだけ", "ロット番号"]]}]}),
+        S("POST", "/api/sources/join/preview", {"key": "work", "joins": [{"with": "wip", "on": [["無い列", "ロット番号"]]}]}),
         S("POST", "/api/sources/join/preview", {"key": "wip", "joins": [{"with": "m1", "how": "full", "on": [["合金", "材質"]]}]}),
         S("POST", "/api/sources/join/preview", {"base": "wip", "joins": [{"with": "m1", "on": [["合金", "材質"]], "cols": ["強さ"]}]}),
         S("POST", "/api/sources/join/preview", {"key": "v1", "joins": [{"with": "m1", "how": "inner", "on": [["合金", "材質"]]}]}),
@@ -301,6 +305,7 @@ def main():
           "workColumns": truth.samples(files, candidates=truth.WORK_TABLES)["order"],
           "workRows": truth.rows_of(files, candidates=truth.WORK_TABLES),
           "workJoin": truth.join_try(files, d / "仕掛.sqlite3", [("ロット番号", "ロット番号")]),
+          "workJoinCal": truth.join_try(files, d / "仕掛.sqlite3", [("CALだけ", "ロット番号")]),
           "m1Samples": truth.samples([d / "製造条件.sqlite3"])["samples"]}
     print(j({"scenarios": out, "decisions": builder.decisions(), "truth": tr, "cm3": cm3,
              "shared": {"root": str(shared), "body": j({"key": "work", "joins": jw}),

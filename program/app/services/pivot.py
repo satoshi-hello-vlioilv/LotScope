@@ -858,12 +858,17 @@ def field_sets(path, *, table="", preferred_table="", table_candidates=TABLE_CAN
         out = []
 
         def hint(col, sql):
+            # 生の値の種類を SQLite の DISTINCT で先に出し、その値にだけ同じ見分け（sort_key）を当てる（作った後の採点で速さを直した:
+            # 前は全部の行に SortKey を通してから DISTINCT した。答えは同じ）。値が KINDS_MAX に届いたら止める（1,000 を超えれば many）
             keys, blank = set(), False
-            for (k,) in c.execute(f"SELECT DISTINCT SortKey({sql}) FROM {qi(t)} LIMIT {KINDS_MAX + 1}"):
+            for (v,) in c.execute(f"SELECT DISTINCT {sql} FROM {qi(t)}"):
+                k = sort_key(v)
                 if k is None:
                     blank = True
                 else:
                     keys.add(k)
+                    if len(keys) >= KINDS_MAX:
+                        break
             vals = [r[0] for r in c.execute(f"SELECT {sql} FROM {qi(t)} WHERE SortKey({sql}) IS NOT NULL LIMIT {int(sample)}")]
             numeric = all(num(v) is not None for v in vals) if vals else None
             return {"column": col, "keys": keys, "blank": blank, "numeric": numeric, "vals": vals}

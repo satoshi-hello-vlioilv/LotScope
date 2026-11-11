@@ -700,8 +700,25 @@ impl Lists {
         if joins.is_empty() {
             return Ok(plan);
         }
+        let rights = self.rights_of(conf, q, &joins)?;
+        let base = plan.path.clone().unwrap_or_default();
+        let ck = if !plan.cand_key.is_empty() { plan.cand_key.clone() } else { text(&s["key"]) };
+        let table = actual_table(&base, &plan.table, &ck).map_err(|e| error(503, &e, None, &[]))?;
+        let name = text(&s["name"]);
+        let key = scope.map(str::to_string).unwrap_or_else(|| text(&s["key"]));
+        match self.joiner.path_for(&key, &base, &table, &joins, &rights) {
+            Ok((path, stats)) => Ok(Plan { path: Some(path), table, joined: stats, ..plan }),
+            Err(e) => {
+                let st = if matches!(e, JoinError::Rule(_)) { 400 } else { 503 };
+                Err(error(st, &format!("「{name}」の結合を組めませんでした: {e}"), Some("join"), &[]))
+            }
+        }
+    }
+
+    /// 結合ごとの相手の (写し, 表, 名前)（Python の _rights）
+    pub(crate) fn rights_of(&self, conf: &Conf, q: &Quality, joins: &[Join]) -> Result<Vec<Right>, Fail> {
         let mut rights = vec![];
-        for j in &joins {
+        for j in joins {
             let d = conf.source(&j.with).filter(|d| d["kind"] == "file");
             let Some(d) = d else {
                 return Err(error(
@@ -717,18 +734,7 @@ impl Lists {
             let table = actual_table(&path, &rp.table, &dk).map_err(|e| error(503, &e, None, &[]))?;
             rights.push(Right { path, table, name: text(&d["name"]) });
         }
-        let base = plan.path.clone().unwrap_or_default();
-        let ck = if !plan.cand_key.is_empty() { plan.cand_key.clone() } else { text(&s["key"]) };
-        let table = actual_table(&base, &plan.table, &ck).map_err(|e| error(503, &e, None, &[]))?;
-        let name = text(&s["name"]);
-        let key = scope.map(str::to_string).unwrap_or_else(|| text(&s["key"]));
-        match self.joiner.path_for(&key, &base, &table, &joins, &rights) {
-            Ok((path, stats)) => Ok(Plan { path: Some(path), table, joined: stats, ..plan }),
-            Err(e) => {
-                let st = if matches!(e, JoinError::Rule(_)) { 400 } else { 503 };
-                Err(error(st, &format!("「{name}」の結合を組めませんでした: {e}"), Some("join"), &[]))
-            }
-        }
+        Ok(rights)
     }
 }
 
@@ -982,7 +988,7 @@ fn table_columns(path: &Path, table: &str) -> Result<Vec<String>, String> {
 }
 
 /// 写しの中で実際に読む表の名前（設定の表 → 候補 → 最初の表。Python の sources.actual_table）
-fn actual_table(path: &Path, preferred: &str, key: &str) -> Result<String, String> {
+pub(crate) fn actual_table(path: &Path, preferred: &str, key: &str) -> Result<String, String> {
     let c = lotlist::connect_ro(path)?;
     let names = lotlist::tables(&c)?;
     Ok(lotlist::pick_table(&names, preferred, if key == "work" { WORK_TABLES } else { TABLE_CANDIDATES }))

@@ -4,14 +4,17 @@
 答え（数）も控えるので、速くする前後で同じ答えかを突き合わせられる。
 
     python tools/dash-bench.py [--rows 20000] [--equip 11] [--save 前.json] [--compare 前.json]
-    python tools/dash-bench.py --fields [--equip 15]       # 組む所の札（版 3.99.0）だけを測る
+    python tools/dash-bench.py --fields [--equip 15] [--window 窓の測り…]   # 組む所の札（版 3.99.0）だけを測る
 
 - データ: 作業実績 設備 --equip 台 × --rows 行（tests/lotlist_fixture.make_work。120 日に散らす）・仕掛 20,000 ロット・品質データ 20,000 行
 - 測り方: ①冷えた（サーバーの答えの控えを空にし、開いて最初に出す時）②ファイルが変わった（写しが新しくなった・1 分ごとの引き直し）
   ③同じ組み（控えから）。①②は「画面が全部のパネルを一度に問い合わせる」形（並行 8）でも測る
 - --fields（版 3.99.0）: 組む所の左のカラムの札（GET /api/dashboard/fields?source=work。すべての設備）を、1 回目・2 回目・
   1 台だけ写しが新しくなった後・計算列あり（POST。計算列の札は覚えない）で測る。デスクトップ版の窓の札は src/pivot.rs の fields_many
-  （合わせた全部のファイルの指紋ごとに答えを覚える）。Python の道は覚えない
+  （合わせた全部のファイルの指紋ごとに答えを覚える）。Python の道は覚えない。
+  --window（作った後の採点で足した）: 窓の札を、同じ試験データの作業実績のファイルで測る実行ファイル（`cargo build --example fields_bench`。
+  前の窓〈版 3.98.0〉は pivot::fields を 1 ファイルずつ・最初の 12 台で測る同じ形の example を前の版の作業フォルダで組んだ物）を渡す。
+  release を組む空きが無いときは debug で組み、答えの "build" に debug と書く（前後は同じ組みで比べる）
 - --compare は、答えの数（cells・orders・count）が前に控えた物と同じかを確かめる（違えば終了コード 1）
 """
 import argparse
@@ -99,6 +102,7 @@ def main():
     ap.add_argument("--save")
     ap.add_argument("--compare")
     ap.add_argument("--fields", action="store_true")
+    ap.add_argument("--window", action="append", default=[])
     a = ap.parse_args()
     t0 = time.perf_counter()
     app = build(a.rows, a.equip)
@@ -176,7 +180,12 @@ def fields_bench(c, a):
     time.sleep(1.5)
     out["1 台だけ新しい"] = one("1 台だけ写しが新しくなった後")
     out["計算列あり"] = one("計算列あり（POST）", "POST", {"source": "work", "calc": {"formulas": {"重さ2": "[重量]*2"}, "names": {}}})
-    print(json.dumps({"equip": a.equip, "rows": a.rows, "ms": out}, ensure_ascii=False))
+    print(json.dumps({"python": True, "equip": a.equip, "rows": a.rows, "ms": out}, ensure_ascii=False))
+    import subprocess
+    files = [str(p) for p in sorted((WORK / "実績").glob("*.sqlite3"))]
+    for exe in a.window:                  # 窓の札（同じファイル。写しではなく元を読む）
+        r = subprocess.run([exe, *files], capture_output=True, text=True, encoding="utf-8")
+        print(r.stdout.strip() or r.stderr.strip()[-400:])
     shutil.rmtree(WORK, ignore_errors=True)
     return 0
 

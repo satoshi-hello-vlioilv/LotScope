@@ -109,6 +109,51 @@ def check_sqlite(value, table="", role="品質", equip_column=""):
     return out
 
 
+def try_each(joiner, lefts, items, rights, source_name):
+    """作業実績の「試す」（決め 4）: 設備ごとに結合を組んで数え、足す（版 3.99.0）。組めない設備（その設備にだけ鍵の列が無い など）は
+    failed（設備名と理由・kind join）に入れて飛ばし、ほかの設備で数える。前は 1 台が組めないと全体が 400 になった（作った後の採点）。
+    lefts: [(設備名, キー, 読むファイル, 表)]・items: 結合の決まり・rights: 相手の [(ファイル, 表, 名前)]。
+    → (答え〈数えた設備が 1 台も無ければ None〉, 組めなかった設備 [{name, error, kind}], 最初の失敗の状態〈400 か 503〉)。窓は builder.rs の try_each"""
+    from . import data_join
+    per, failed, table, status = [], [], "", None
+    for name, key, path, tbl in lefts:
+        try:
+            _, stats = joiner.path_for(f"try-work-{key}", path, tbl, items, rights)
+        except Exception as e:      # 決まりがこの設備の表に合わない（列が無い など）: 理由を言い、ほかの設備で数える
+            failed.append({"name": name, "error": f"「{source_name}」の結合を組めませんでした: {e}", "kind": "join"})
+            status = status or (400 if isinstance(e, data_join.JoinError) else 503)
+            continue
+        table = table or tbl
+        per.append({"name": name, "key": key, "stats": stats})
+    if not per:
+        return None, failed, status
+    return {"stats": sum_stats([x["stats"] for x in per]), "table": table, "equip": None, "byEquip": per, "counted": len(per)}, failed, status
+
+
+def sum_stats(per):
+    """設備ごとの結合の数 [[段ごとの数]] → 足した数（版 3.99.0。決め 4）。行・当たった・当たらない・答えの行・相手の行・相手の当たった・
+    相手だけは足す（一覧は設備ごとに結合するので、全部の設備の一覧に出る数と同じ）。相手の鍵の重なりは相手の表の数（同じ）。当たらない鍵の見本は
+    設備の順に重ならない物を data_join.SAMPLE まで。相手の数を数えなかった（大きい）設備があれば相手の当たった・相手だけは None"""
+    from . import data_join
+    out = []
+    for i, first in enumerate(per[0]):
+        steps = [p[i] for p in per]
+        x = dict(first)
+        for k in ("rows", "hit", "miss", "out", "rightRows"):
+            x[k] = sum(int(st.get(k) or 0) for st in steps)
+        for k in ("rightHit", "rightOnly"):
+            x[k] = None if any(st.get(k) is None for st in steps) else sum(int(st[k]) for st in steps)
+        x["rightDup"] = max(int(st.get("rightDup") or 0) for st in steps)
+        miss = []
+        for st in steps:
+            for m in st.get("missSample") or []:
+                if m not in miss and len(miss) < data_join.SAMPLE:
+                    miss.append(m)
+        x["missSample"] = miss
+        out.append(x)
+    return out
+
+
 def cm3_reach(url):
     """CM3 に届くか（決め 6）→ {ok, message}"""
     from .lotdsp_direct import reachable

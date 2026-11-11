@@ -156,8 +156,22 @@ fn builder_reads_match_python_and_the_truth() {
     }
     let jp = ans(r#"POST /api/sources/join/preview? {"key": "work""#);
     let st = &jp["stats"][0];
-    if json!({"rows": st["rows"], "hit": st["hit"], "miss": st["miss"]}) != t["workJoin"] {
+    let tw = &t["workJoin"];
+    if json!({"rows": st["rows"], "hit": st["hit"], "miss": st["miss"], "counted": jp["counted"]})
+        != json!({"rows": tw["rows"], "hit": tw["hit"], "miss": tw["miss"], "counted": tw["counted"]})
+    {
         bad.push(format!("独立の答え 作業実績の試す: {} / 窓 {}", t["workJoin"], st));
+    }
+    // 1 台（CAL）にだけある鍵の列で「試す」: その設備で数え、ほかの設備は数えず名前と理由を言う（作った後の採点。前は全体が 400）
+    let jc = ans(r#"POST /api/sources/join/preview? {"key": "work", "joins": [{"with": "wip", "on": [["CALだけ""#);
+    let w = &t["workJoinCal"];
+    let st = &jc["stats"][0];
+    let joinfail = jc["failed"].as_array().map(|a| a.iter().filter(|f| f["kind"] == "join").count()).unwrap_or(0);
+    if json!({"rows": st["rows"], "hit": st["hit"], "counted": jc["counted"]})
+        != json!({"rows": w["rows"], "hit": w["hit"], "counted": w["counted"]})
+        || joinfail != w["skipped"].as_array().map(|a| a.len()).unwrap_or(99)
+    {
+        bad.push(format!("独立の答え 1 台だけの鍵の列: {w} / 窓 {jc}"));
     }
     if ans("GET /api/sources/m1/columns")["samples"] != t["m1Samples"] {
         bad.push(format!("独立の答え マスタの見本: {} / 窓 {}", t["m1Samples"], ans("GET /api/sources/m1/columns")["samples"]));

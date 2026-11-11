@@ -366,8 +366,8 @@ fn name_of(r: &Value) -> String {
 }
 
 // ------------------------------------------------------------------ 試す（POST /api/sources/join/preview）
-/// 設備ごとの結合の数 → 足した数（Python の _sum_stats）
-fn sum_stats(per: &[Value]) -> Value {
+/// 設備ごとの結合の数 → 足した数（Python の builder.sum_stats）
+pub fn sum_stats(per: &[Value]) -> Value {
     let first = per[0].as_array().cloned().unwrap_or_default();
     let mut out = vec![];
     for (i, f) in first.iter().enumerate() {
@@ -394,6 +394,53 @@ fn sum_stats(per: &[Value]) -> Value {
         out.push(Value::Object(x));
     }
     Value::Array(out)
+}
+
+/// 試す設備（設備名, キー, 読むファイル, 表）
+pub struct Left {
+    pub name: String,
+    pub key: Value,
+    pub path: std::path::PathBuf,
+    pub table: String,
+}
+
+/// 作業実績の「試す」（決め 4。Python の builder.try_each）: 設備ごとに結合を組んで数え、足す。組めない設備（その設備にだけ鍵の列が無い など）は
+/// failed（設備名と理由・kind join）に入れて飛ばし、ほかの設備で数える（前は 1 台が組めないと全体が 400 になった。作った後の採点）。
+/// → (答え〈数えた設備が 1 台も無ければ None〉, 組めなかった設備, 最初の失敗の状態〈400 か 503〉)
+pub fn try_each(
+    joiner: &crate::join::Joiner,
+    lefts: &[Left],
+    items: &[crate::join::Join],
+    rights: &[crate::join::Right],
+    source_name: &str,
+) -> (Option<Map<String, Value>>, Vec<Value>, Option<u16>) {
+    let (mut per, mut failed, mut table, mut status) = (vec![], vec![], String::new(), None);
+    for l in lefts {
+        let scope = format!("try-work-{}", py_str(&l.key));
+        match joiner.path_for(&scope, &l.path, &l.table, items, rights) {
+            Err(e) => {
+                failed.push(json!({"name": l.name, "error": format!("「{source_name}」の結合を組めませんでした: {e}"), "kind": "join"}));
+                status = status.or(Some(if matches!(e, crate::join::JoinError::Rule(_)) { 400 } else { 503 }));
+            }
+            Ok((_, stats)) => {
+                if table.is_empty() {
+                    table = l.table.clone();
+                }
+                per.push(json!({"name": l.name, "key": l.key, "stats": stats}));
+            }
+        }
+    }
+    if per.is_empty() {
+        return (None, failed, status);
+    }
+    let stats: Vec<Value> = per.iter().map(|x| x["stats"].clone()).collect();
+    let mut out = Map::new();
+    out.insert("stats".into(), sum_stats(&stats));
+    out.insert("table".into(), json!(table));
+    out.insert("equip".into(), Value::Null);
+    out.insert("counted".into(), json!(per.len()));
+    out.insert("byEquip".into(), Value::Array(per));
+    (Some(out), failed, status)
 }
 
 /// 「試す」（Python の sources_join_preview）。None は Python に任せる
@@ -427,25 +474,37 @@ pub fn join_preview(cx: &Ctx, items: &[Map<String, Value>], body: &[u8]) -> Opti
         return Some((200, json!({"stats": [], "rows": null})));
     }
     if key == "work" {
-        let (got, failed, fail) = cx.lists.work_raw_plans(cx.conf, cx.q, JOIN_ALL_EQUIPS, FIRST_WAIT);
+        let (got, mut failed, fail) = cx.lists.work_raw_plans(cx.conf, cx.q, JOIN_ALL_EQUIPS, FIRST_WAIT);
         if let Some(f) = fail {
             return Some(f);
         }
-        let (mut per, mut table) = (vec![], String::new());
+        let total = got.len() + failed.len(); // 表示する設備（読めた設備と、写し・ファイルで読めなかった設備）
+        let rights = match cx.lists.rights_of(cx.conf, cx.q, &joins) {
+            Ok(r) => r,
+            Err(f) => return Some(f),
+        };
+        let sname = s.get("name").map(py_str).unwrap_or_default();
+        let mut lefts = vec![];
         for (r, plan) in got {
-            let scope = format!("try-work-{}", py_str(r.get("キー").unwrap_or(&Value::Null)));
-            match cx.lists.with_joins_as(cx.conf, cx.q, plan, &s, Some(&scope), Some(joins.clone())) {
-                Err(f) => return Some(f),
-                Ok(out) => {
-                    if table.is_empty() {
-                        table = out.table.clone();
-                    }
-                    per.push(json!({"name": name_of(&r), "key": r.get("キー").cloned().unwrap_or(Value::Null), "stats": out.joined}));
+            let path = plan.path.clone().unwrap_or_default();
+            match crate::lists::actual_table(&path, &plan.table, "work") {
+                Ok(table) => lefts.push(Left { name: name_of(&r), key: r.get("キー").cloned().unwrap_or(Value::Null), path, table }),
+                Err(e) => {
+                    failed.push(json!({"name": name_of(&r), "error": format!("「{sname}」の結合を組めませんでした: {e}"), "kind": "join"}))
                 }
             }
         }
-        let stats: Vec<Value> = per.iter().map(|x| x["stats"].clone()).collect();
-        return Some((200, json!({"stats": sum_stats(&stats), "table": table, "equip": null, "byEquip": per, "failed": failed})));
+        let (ans, bad, status) = try_each(&cx.lists.joiner, &lefts, &joins, &rights, &sname);
+        let first_bad = bad.first().cloned();
+        failed.extend(bad);
+        let Some(mut ans) = ans else {
+            // 全部の設備で組めない: 最初の設備の理由で断る
+            let e = first_bad.or_else(|| failed.first().cloned()).map(|f| f["error"].clone()).unwrap_or(json!(""));
+            return Some((status.unwrap_or(503), json!({"error": e, "kind": "join"})));
+        };
+        ans.insert("failed".into(), json!(failed));
+        ans.insert("total".into(), json!(total));
+        return Some((200, Value::Object(ans)));
     }
     let from = if base.is_empty() { key.clone() } else { base.clone() };
     let plan = match cx.lists.raw_plan_opt(cx.conf, cx.q, &from) {
