@@ -386,6 +386,34 @@
       ok("スケジュールの設備のタブ・行の様子・一覧は窓が答え、受け身の Python と同じ答え（窓がただ 1 つの係）", allSame, got.join("・"));
     }
 
+    // 10b-L) LotDsp の 9 本（版 3.98.0 から窓がただ 1 つの係: lotdsp.rs・lotdsp_direct.rs。見えない Edge・錠・学びの覚えは窓の 1 つ）:
+    //          どの形も窓が答える（?engine=python も。Python の 9 本は来たら誤りの印）。本物の WebView2 の窓で、途中経過・学びの状態・
+    //          画面の表の読み方（実績の表が無い画面は窓の LookupError の字）・形の違うロット番号・調べる道具の画面（CSP の印つき）
+    {
+      const rows = [];
+      const want = [
+        ["GET", "/api/lots/fetch-lotdsp/status", null, 200, (v) => v.busy === false],
+        ["GET", "/api/lots/lotdsp-api/status?engine=python", null, 200, (v) => typeof v.ready === "boolean" && Array.isArray(v.missing)],
+        ["POST", "/api/lots/import-lotdsp", { html: "<table><tr><td>a</td></tr></table>", lot_no: "L1" }, 400, (v) => v.type === "LookupError"],
+        ["POST", "/api/lots/import-lotdsp", { html: 5 }, 400, (v) => v.kind === "invalid"],
+        ["POST", "/api/lots/fetch-lotdsp", { lot_no: "L71;50" }, 400, (v) => v.kind === "invalid"],
+        ["POST", "/api/lots/fetch-lotdsp/cancel", {}, 200, (v) => v.cancelled === false],
+      ];
+      let allOk = true;
+      for (const [m, p, body, st, check] of want) {
+        const g = await get(p, m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        let v = null; try { v = JSON.parse(g.text); } catch (_) { v = null; }
+        const good = g.by === "shell" && g.r.status === st && v && check(v);
+        allOk = allOk && good;
+        rows.push(`${m} ${p.split("?")[0]} ${g.r.status} ${g.by}${good ? "" : "・" + g.text.slice(0, 60)}`);
+      }
+      const page = await get("/lotdsp-link");
+      const pageOk = page.by === "shell" && page.r.status === 200 && /nonce-/.test(page.r.headers.get("Content-Security-Policy") || "")
+        && page.text.includes("LotDsp 項目の紐づけ");
+      rows.push(`/lotdsp-link ${page.r.status} ${page.by}`);
+      ok("LotDsp の 9 本は窓が答える（途中経過・学びの状態・画面の表・ロット番号の形・調べる道具の画面。Python には来ない）", allOk && pageOk, rows.join("・"));
+    }
+
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
     //      状態と答え（いつのデータか・かかった時間を除く）が同じか。設備・データ元が無い PC（CI）でも、失敗の答えどうしを比べる
     {

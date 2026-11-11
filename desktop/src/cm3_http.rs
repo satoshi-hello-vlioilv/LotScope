@@ -441,20 +441,49 @@ fn redirect_url(cur: &Target, loc: &str) -> R<String> {
 
 /// CM3 へ POST して答えを受ける（30x をたどり、2xx でなければ HTTP の誤り）
 pub fn post(url: &str, base: &str, body: &[u8], timeout: Duration) -> R<Resp> {
+    let r = follow(url, body, timeout, &|t, b| headers_for(t, b, base))?;
+    if (200..300).contains(&r.status) {
+        return Ok(r);
+    }
+    Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason)))
+}
+
+/// LotDsp の API へ POST する（版 3.98.0。src/lotdsp.rs。urllib.request の Request〈data・Accept・Content-Type〉と同じ見出し:
+/// Origin・Referer は付けない）。2xx でない答えも Ok（呼ぶ側が HTTPError の扱いをする）
+pub fn post_plain(url: &str, body: &[u8], timeout: Duration) -> R<Resp> {
+    follow(url, body, timeout, &|t, b| {
+        let mut h = headers_for(t, b, "");
+        h.retain(|(k, _)| k != "Origin" && k != "Referer");
+        h
+    })
+}
+
+/// GET を 1 回（版 3.98.0。LotDsp に届くかの確かめ。30x はたどらない: 答えが返れば届いている）
+pub fn get_once(url: &str, timeout: Duration) -> R<Resp> {
+    let t = target(url)?;
+    let h = vec![
+        ("Host".to_string(), t.netloc.clone()),
+        ("User-Agent".to_string(), USER_AGENT.to_string()),
+        ("Connection".to_string(), "close".to_string()),
+    ];
+    once(&t, "GET", &h, None, timeout)
+}
+
+type Heads<'a> = &'a dyn Fn(&Target, Option<&[u8]>) -> Vec<(String, String)>;
+
+/// POST して 30x をたどる（urllib の HTTPRedirectHandler と同じ）。たどった後の答え（2xx でなければ HTTP の誤りの答え）
+fn follow(url: &str, body: &[u8], timeout: Duration, heads: Heads) -> R<Resp> {
     let mut t = target(url)?;
     let mut method = "POST";
     let mut visited: Vec<(String, u32)> = vec![];
     loop {
         let post_body = (method == "POST").then_some(body);
-        let r = once(&t, method, &headers_for(&t, post_body, base), post_body, timeout)?;
-        if (200..300).contains(&r.status) {
+        let mut r = once(&t, method, &heads(&t, post_body), post_body, timeout)?;
+        if (200..300).contains(&r.status) || !matches!(r.status, 301 | 302 | 303 | 307 | 308) {
             return Ok(r);
         }
-        if !matches!(r.status, 301 | 302 | 303 | 307 | 308) {
-            return Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason)));
-        }
         let Some(loc) = r.header("location").or_else(|| r.header("uri")).map(str::to_string) else {
-            return Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason)));
+            return Ok(r);
         };
         let low = loc.to_ascii_lowercase();
         let scheme = low.find(':').map(|i| &low[..i]).filter(|s| !s.contains(['/', '?', '#']));
@@ -463,7 +492,7 @@ pub fn post(url: &str, base: &str, body: &[u8], timeout: Duration) -> R<Resp> {
         }
         // POST の 307・308 は urllib がたどらない（行き先の種類を見た後・行き先を組む前）
         if method == "POST" && matches!(r.status, 307 | 308) {
-            return Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {}", r.status, r.reason)));
+            return Ok(r);
         }
         if scheme.is_some_and(|s| matches!(s, "https" | "ftp")) {
             return py("30x の行き先が https・ftp");
@@ -471,7 +500,8 @@ pub fn post(url: &str, base: &str, body: &[u8], timeout: Duration) -> R<Resp> {
         let new_url = redirect_url(&t, &loc)?;
         let seen = visited.iter().find(|(u, _)| *u == new_url).map(|x| x.1).unwrap_or(0);
         if seen >= 4 || visited.len() >= 10 {
-            return Err(Fail::Cm3(format!("CM3がHTTPエラーを返しました: {} {INF_MSG}{}", r.status, r.reason)));
+            r.reason = format!("{INF_MSG}{}", r.reason);
+            return Ok(r);
         }
         match visited.iter_mut().find(|(u, _)| *u == new_url) {
             Some(x) => x.1 += 1,

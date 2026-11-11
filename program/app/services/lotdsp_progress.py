@@ -24,11 +24,12 @@ import re
 from html.parser import HTMLParser
 
 from ..models import DEFAULT_UNWIND, Lot, Process
+from . import lotdsp_rules
 from .equipment_names import EquipmentResolver
 from .equipment_names import compact as norm       # 見出しの比較用（大小はそのまま）
 from .equipment_names import norm as name_key      # ロット番号・設備名の比較用（大文字にそろえる）
 
-MAX_HTML_CHARS = 5_000_000
+MAX_HTML_CHARS = lotdsp_rules.MAX_HTML_CHARS
 
 # 列の見出し（正規化後の文字で完全一致）。設定 lotdsp_import.* で上書きできる。
 DEFAULT_ACTUAL_COLUMNS = {
@@ -71,10 +72,8 @@ DEFAULT_PRODUCT_COLUMNS = {
 PROCESS_HEADER_KEYS = ("設備", "日付", "板厚", "板幅", "重量")
 
 
-def to_number(text):
-    """'1,200.00' → 1200.0、空・数字なし → None。"""
-    m = re.search(r"-?\d+(?:\.\d+)?", str(text or "").replace(",", ""))
-    return float(m.group()) if m else None
+# 数の字は字の全体を数として読む（版 3.98.0。決め ②。lotdsp_rules.to_number）。'1,200.00' → 1200.0、空・数でない字 → None
+to_number = lotdsp_rules.to_number
 
 
 class _TableCollector(HTMLParser):
@@ -137,6 +136,7 @@ class _TableCollector(HTMLParser):
         t = self._stack[-1] if self._stack else None
         if t is None or t["cell"] is None:
             return
+        # 空白は Python の \s（29 字。\x1c〜\x1f・\x85 を含む）を 1 つに縮める。窓（desktop/src/lotdsp_html.rs）は同じ 29 字の表で縮める
         text = re.sub(r"\s+", " ", "".join(t["cell"])).strip()
         t["rows"][-1].append(text)
         t["cell"] = None
@@ -147,6 +147,10 @@ def inner_tables(html):
     c = _TableCollector()
     c.feed(html)
     c.close()
+    # 終わりまで閉じなかった欄も読む（版 3.98.0。前は閉じない注釈などで </td> が無いまま終わると、最後の欄の字を捨てた。DOM と同じ）
+    while c._stack:
+        c._close_cell()
+        c._stack.pop()
     out = []
     for t in c.tables:
         if t["has_child"]:
@@ -182,6 +186,8 @@ def _process_rows(rows, columns):
         # 実績の表は、実績が無い BOX では設備名が空欄になる。値も無ければ「実績なし」として読まない
         # （設計の設備名だけを入れた行として後で足す）。値があって名前だけ空欄の行は、名前を設計から取る
         if not equipment and not any(to_number(cell(k)) for k in ("thickness", "width", "weight")):
+            continue
+        if lotdsp_rules.box_of(no) is None:          # 有限で |№| < 1e9 だけ（版 3.98.0）
             continue
         row = {k: cell(k) for k in idx}
         row["no"] = int(no)
@@ -236,7 +242,7 @@ def _product(tables, columns):
 
 def _int_or(value, default=1):
     n = to_number(value)
-    return int(round(n)) if n else default
+    return int(round(n)) if n and abs(n) < lotdsp_rules.BOX_MAX else default
 
 
 def _process_tables(tables, actual_cols, design_cols):
@@ -300,7 +306,7 @@ def _processes(actual_rows, design_rows, equipment_master, only_master):
         if m is None and only_master:
             skipped.append({"no": no, "equipment": raw, "reason": skip_reason})
             return None
-        eq = (m.get("設備名") or "").strip() if m else raw
+        eq = str(m.get("設備名") or "").strip() if m else raw
         if m is not None and how in ("alias", "pattern") and norm(raw) != norm(eq):
             renamed.append({"no": no, "from": raw, "to": eq, "by": pattern})
         return eq

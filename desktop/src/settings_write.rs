@@ -10,7 +10,7 @@
 //!   置く字は Python の str(value)（整数は桁、小数は float の repr〈36.0・1e+16〉）
 //! - 行の書き方は master_repository.path_setting_put（「項目」が同じ最初の行を直す・無ければ足す・値が空なら消す）を master_rows::put_by_key で
 //!
-//! 窓が答えず Python に任せる形: ブラウザの欄（exe。Python の trusted_browser が確かめる）に値がある・読めない本文（NaN・1e400・
+//! 窓が答えず Python に任せる形（ブラウザの欄〈exe〉は版 3.98.0 から窓も lotdsp_direct::trusted_browser で確かめて答える）: 読めない本文（NaN・1e400・
 //! 読みの割れる数）・表でない本文（Python は body.get で落ちる）・値が並び・表（Python の str() の書き方が要る）・版の番号に 10 進でない数の字・
 //! 置き場の行の id・版・項目・値を窓が Python と同じに読めない・道に百分率符号（Python は戻してから項目を探す）・書く係の思いがけない失敗。
 
@@ -111,7 +111,15 @@ pub(crate) fn parse_value(item: &Value, raw: Option<&Value>) -> Result<Option<Va
             let parts: Vec<&str> = s.split(['\n', ';']).map(|p| pyfmt::strip(p).trim_matches('"')).filter(|x| !x.is_empty()).collect();
             Ok(Some(json!(parts.join(";"))))
         }
-        // ブラウザの欄は Python の trusted_browser（Edge・Chrome の決まった形）が確かめる
+        // ブラウザの欄（版 3.98.0 から窓も確かめる: lotdsp_direct::trusted_browser〈Edge・Chrome の決まった形。Python と同じ〉）
+        "exe" => {
+            let s = pyfmt::strip(&s).trim_matches('"').to_string();
+            let why = if s.is_empty() { String::new() } else { crate::lotdsp_direct::trusted_browser(&s) };
+            if !why.is_empty() {
+                return fail(format!("「{label}」: {why}"));
+            }
+            Ok(Some(json!(s)))
+        }
         _ => Err(Bad::Python),
     }
 }
@@ -208,8 +216,11 @@ mod tests {
         assert!(p("work_log.pattern", json!("a*b*")).unwrap_err().starts_with("ファイル名の決まり「a*b*」"));
         assert_eq!(p("lot_list.source", json!("\"C:\\x.sqlite3\"")).unwrap().as_deref(), Some("C:\\x.sqlite3"));
         assert_eq!(p("update.source", json!("\"a\"; b\n\"c\" ;")).unwrap().as_deref(), Some("a;b;c"));
-        // Python に任せる: ブラウザの欄・並び
-        assert_eq!(p("lotdsp_import.direct.browser", json!("C:\\x.exe")).unwrap_err(), "python");
+        // ブラウザの欄（版 3.98.0 から窓も確かめる）・Python に任せる: 並び
+        if !cfg!(windows) {
+            assert!(p("lotdsp_import.direct.browser", json!("C:\\x.exe")).unwrap_err().contains("だけを指せます"));
+            assert_eq!(p("lotdsp_import.direct.browser", json!("\"/usr/bin/msedge\"")).unwrap().as_deref(), Some("/usr/bin/msedge"));
+        }
         assert_eq!(p("lotdsp_import.direct.browser", json!(" ")).unwrap(), None, "空は窓が答える（既定へ）");
         assert_eq!(p("lot_list.table", json!([1])).unwrap_err(), "python");
     }

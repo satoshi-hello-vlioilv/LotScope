@@ -1955,6 +1955,18 @@ impl Builder {
         py_path(&p.to_string_lossy())
     }
 
+    /// LotDsp の道の材料（版 3.98.0。src/lotdsp.rs）: (配った lotdsp_import, 参照先を重ねた lotdsp_import, 設備マスタの行)。
+    /// 参照先を読めなければ配った設定（Python の effective_settings と同じ）
+    pub fn lotdsp_inputs(&self) -> R<(Value, Value, Vec<Value>)> {
+        let inp = self.inputs()?;
+        let rows = if inp.check("path_settings").is_ok() { inp.rows("path_settings").unwrap_or_default() } else { vec![] };
+        let eff = effective(&inp.settings, &rows, &["pathItems", "configItems"]).unwrap_or_else(|_| inp.settings.clone());
+        let app = inp.settings.get("lotdsp_import").cloned().unwrap_or(Value::Null);
+        let eff_li = eff.get("lotdsp_import").cloned().unwrap_or(Value::Null);
+        let equipment = inp.rows("equipment_master").unwrap_or_default();
+        Ok((app, eff_li, equipment))
+    }
+
     /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）
     pub fn inputs(&self) -> R<Inputs> {
         let text = std::fs::read_to_string(&self.env.config).map_err(|_| Py("配った設定が読めない"))?;

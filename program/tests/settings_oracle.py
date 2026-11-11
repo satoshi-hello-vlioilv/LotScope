@@ -404,7 +404,7 @@ def scenarios(work):
         write(joins / "try-s2_cccc.json", {"items": data_join.parse(s2["結合"]), "builtAt": 5, "stats": [{"hit": 7, "rows": 8, "miss": 1, "out": 8}]})
         return config(r, schedule={"auto_refresh_sec": 90, "equipments": ["L-1", "L-2:2", "L-1", " "], "hot": {"equipments": ""}})
     sc("データ元の並び（グループ・結合の覚え・項目のゆれ・設備の並び）", sources_rich)
-    # ブラウザの欄に値があると Python は trusted_browser で確かめる（窓は Python に任せる）
+    # ブラウザの欄に値がある（Python も窓も trusted_browser で確かめる。版 3.98.0 から窓も答える）
     def sources_exe(r):
         masters(share=r / "share")
         ps = json.loads((r / "share" / "path_settings.json").read_text(encoding="utf-8"))

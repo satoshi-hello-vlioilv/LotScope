@@ -143,7 +143,7 @@ fn path_settings_writes_match_python() {
             }
         }
     }
-    assert!(steps >= 70 && delegated >= 14, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 70 && delegated >= 13, "歩が少ない: {steps}・{delegated}"); // 版 3.98.0: ブラウザの欄は窓が答える（任せる歩が 1 つ減った）
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

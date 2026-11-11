@@ -100,6 +100,8 @@ pub struct Lot {
     clock: Mutex<Option<Clock>>,
     /// 配布の置き場を写す係（版 3.95.0。src/release_place.rs。このプロセスに 1 つ。写している印はこの PC の作業場所の release_move.json）
     release: crate::release_place::Mover,
+    /// LotDsp の係（版 3.98.0。src/lotdsp.rs・lotdsp_direct.rs。見えない Edge・錠・中止・学びの覚えはこのプロセスに 1 つ）
+    pub lotdsp: Arc<crate::lotdsp::Lotdsp>,
 }
 
 /// いまの時刻（秒）を答える係
@@ -115,6 +117,14 @@ impl Lot {
         let local_root = cache_dir.parent().map(PathBuf::from).unwrap_or_else(|| cache_dir.clone());
         Lot {
             release: crate::release_place::Mover::new(Some(local_root.join("release_move.json"))),
+            lotdsp: Arc::new(crate::lotdsp::Lotdsp::new(
+                local_root.clone(),
+                crate::lotdsp_direct::Direct::new(
+                    Box::new(crate::lotdsp_direct::RealLaunch),
+                    crate::lotdsp_direct::system_clock(),
+                    Arc::new(|s| std::thread::sleep(Duration::from_secs_f64(s.max(0.0)))),
+                ),
+            )),
             presence: Arc::new(Presence::new(local_root.clone(), presence::system_clock())),
             local_root,
             lists: Lists::new(&cache_dir),
@@ -758,6 +768,25 @@ impl Lot {
         crate::release_place::handle(route, query, body, &me, &self.release, &cwd)
     }
 
+    /// 調べる道具の画面（GET /lotdsp-link。版 3.98.0）。型を描けなければ None（窓は 500 で答える）
+    pub fn lotdsp_page(&self, head: bool) -> Option<crate::page::Html> {
+        let b = self.bundle.lock().unwrap().clone()?;
+        self.page.lotdsp_link(&b.env().program, head)
+    }
+
+    /// LotDsp の 9 本の答え（版 3.98.0。src/lotdsp.rs）。材料は窓の束の材料（配った設定・参照先・設備マスタ。Python が居なくても読める）
+    pub fn lotdsp_route(&self, route: crate::lotdsp::Route, query: &str, body: &[u8]) -> (u16, Value) {
+        let builder = self.bundle.lock().unwrap().clone();
+        let inputs = || -> Result<crate::lotdsp::Inputs, String> {
+            let b = builder.as_ref().ok_or("設定の束を組む係がありません")?;
+            let (app, eff, equipment) = b.lotdsp_inputs().map_err(|e| e.0.to_string())?;
+            Ok(crate::lotdsp::Inputs { app, eff, equipment })
+        };
+        let t0 = Instant::now();
+        let clock = move || t0.elapsed().as_secs_f64();
+        self.lotdsp.handle(route, query, body, &inputs, &clock)
+    }
+
     /// GET /api/update/settings の答え（版 3.95.0。更新の係・配布の画面と操作〈main.rs〉もここから読む）。束の材料を組めない・
     /// 更新の置き場を Python と同じ字にできない形は None（Python に尋ねる）
     pub fn update_settings(&self) -> Option<Value> {
@@ -1043,6 +1072,10 @@ impl Lot {
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        // LotDsp の 9 本（版 3.98.0）: 窓がただ 1 つの係。どの形も窓が答える（Python に任せない。?engine=python も窓が答える）
+        if let Some(route) = crate::lotdsp::route_of(method, path) {
+            return Some(self.lotdsp_route(route, query, body));
+        }
         if let Some(route) = crate::release_place::route_of(method, path) {
             return self.release_route(route, query, body);
         }
@@ -2154,8 +2187,13 @@ mod tests {
         let (st, v) = lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": ""}"#, &down).unwrap();
         assert_eq!((st, v), (200, json!({"row": null})));
         assert_eq!(lot.settings(&down).unwrap().table, "既定の表", "既定へ戻した");
-        // Python に任せる: ブラウザの欄・?engine=python・表でない本文
-        assert!(lot.handle_body("PUT", "/api/settings/lotdsp_import.direct.browser", "", br#"{"value": "C:\\x.exe"}"#, &down).is_none());
+        // ブラウザの欄は窓が確かめて答える（版 3.98.0。Edge・Chrome の名前でなければ 400）
+        if !cfg!(windows) {
+            let (st, v) =
+                lot.handle_body("PUT", "/api/settings/lotdsp_import.direct.browser", "", br#"{"value": "C:\\x.exe"}"#, &down).unwrap();
+            assert_eq!((st, v["kind"].clone()), (400, json!("invalid")), "{v}");
+        }
+        // Python に任せる: ?engine=python・表でない本文
         assert!(lot.handle_body("GET", "/api/settings", "engine=python", b"", &down).is_none());
         assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", b"[1]", &down).is_none());
         // 門番: 閲覧の人は書けない（読むことはできる）

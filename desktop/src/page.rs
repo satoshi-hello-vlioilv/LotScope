@@ -343,7 +343,11 @@ impl Page {
     }
 
     fn template(&self, program: &Path) -> Option<Template> {
-        let path = program.join("app").join("templates").join("index.html");
+        self.template_named(program, "index.html")
+    }
+
+    fn template_named(&self, program: &Path, name: &str) -> Option<Template> {
+        let path = program.join("app").join("templates").join(name);
         let s = sig(&path);
         let mut t = self.templates.lock().unwrap();
         if let Some((old, tpl)) = t.get(&path) {
@@ -372,6 +376,33 @@ impl Page {
         ctx.insert("ui_state".into(), parts.ui_state);
         ctx.insert("ui_profile".into(), parts.ui_profile);
         ctx.insert("conversions".into(), parts.conversions);
+        let body = tpl.render(&ctx, &build)?.into_bytes();
+        let mut headers = vec![
+            ("Content-Type".to_string(), "text/html; charset=utf-8".to_string()),
+            ("Cache-Control".to_string(), "no-store".to_string()),
+            ("Content-Security-Policy".to_string(), csp(&nonce)),
+        ];
+        if head {
+            headers.push(("Content-Length".into(), body.len().to_string()));
+        }
+        Some(Html { headers, body: if head { vec![] } else { body } })
+    }
+}
+
+impl Page {
+    /// 調べる道具の画面（GET /lotdsp-link。版 3.98.0。型 app/templates/lotdsp_link.html。routes/lots.py の lotdsp_link_page と同じ:
+    /// brand・app_version・url_for・CSP の印・Cache-Control: no-store）。型を描けなければ None
+    pub fn lotdsp_link(&self, program: &Path, head: bool) -> Option<Html> {
+        let tpl = self.template_named(program, "lotdsp_link.html")?;
+        let brand: Value = serde_json::from_slice(&std::fs::read(program.join("app").join("brand.json")).ok()?).ok()?;
+        let brand: Map<String, Value> =
+            brand.as_object()?.iter().filter(|(k, _)| !k.starts_with('_')).map(|(k, v)| (k.clone(), v.clone())).collect();
+        let build = self.build(program);
+        let nonce = nonce()?;
+        let mut ctx = Map::new();
+        ctx.insert("csp_nonce".into(), json!(nonce));
+        ctx.insert("brand".into(), Value::Object(brand));
+        ctx.insert("app_version".into(), json!(app_version(program)));
         let body = tpl.render(&ctx, &build)?.into_bytes();
         let mut headers = vec![
             ("Content-Type".to_string(), "text/html; charset=utf-8".to_string()),
