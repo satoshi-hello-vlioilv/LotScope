@@ -62,42 +62,120 @@ pub mod rules {
     /// 決め ①: API の日時は日本時間（時）
     pub const TZ_HOURS: i64 = 9;
 
-    /// 決め ②: 数の字は字の全体を数として読む
-    pub fn to_number_str(text: &str) -> Option<f64> {
-        let s: String = text.nfkc().collect::<String>().replace(',', "").replace('\u{2212}', "-");
-        let s = crate::pyfmt::strip(&s);
-        let b = s.as_bytes();
+    /// 桁区切り（「,」と空白）を除く: 先頭の数の小数点・指数より前で、前が数字・後ろがちょうど 3 桁の数字のまとまりのときだけ
+    fn ungroup(s: &[char]) -> Vec<char> {
+        let dig = |c: char| c.is_ascii_digit();
+        let (mut out, n) = (Vec::with_capacity(s.len()), s.len());
         let mut i = 0;
-        if matches!(b.first(), Some(b'+' | b'-')) {
+        while i < n {
+            let c = s[i];
+            if matches!(c, '.' | 'e' | 'E') {
+                out.extend_from_slice(&s[i..]);
+                return out;
+            }
+            if (c == ',' || crate::pyfmt::is_space(c))
+                && out.last().is_some_and(|x: &char| dig(*x))
+                && i + 4 <= n
+                && s[i + 1..i + 4].iter().all(|x| dig(*x))
+                && (i + 4 == n || !dig(s[i + 4]))
+            {
+                i += 1;
+                continue;
+            }
+            if !(dig(c) || matches!(c, '+' | '-' | ',')) {
+                out.extend_from_slice(&s[i..]);
+                return out;
+            }
+            out.push(c);
             i += 1;
         }
-        let int_d = b[i..].iter().take_while(|c| c.is_ascii_digit()).count();
-        i += int_d;
-        let mut frac_d = 0;
-        if b.get(i) == Some(&b'.') {
+        out
+    }
+
+    /// 読んだ様子（read_number）
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum How {
+        Ok,
+        Empty,
+        Unreadable,
+        Extra,
+    }
+
+    impl How {
+        pub fn name(self) -> &'static str {
+            match self {
+                How::Ok => "ok",
+                How::Empty => "empty",
+                How::Unreadable => "unreadable",
+                How::Extra => "extra",
+            }
+        }
+    }
+
+    /// 決め ②（2026-11-11 に言い直した）: NFKC で全角をそろえ、桁区切りを除き、先頭の数の全体（符号・小数点・先頭の点・指数）を読み、
+    /// 後ろの単位などの字は捨てる → (値, 様子, 読んだ先頭の字)。先頭に数が無い空でない字は読めない・捨てた後ろに数字があれば Extra
+    pub fn read_number_str(text: &str) -> (Option<f64>, How, String) {
+        let s: String = text.nfkc().collect::<String>().replace('\u{2212}', "-");
+        let s = crate::pyfmt::strip(&s);
+        if s.is_empty() {
+            return (None, How::Empty, String::new());
+        }
+        let c = ungroup(&s.chars().collect::<Vec<char>>());
+        let dig = |i: usize| c.get(i).is_some_and(char::is_ascii_digit);
+        let mut i = 0;
+        if matches!(c.first(), Some('+' | '-')) {
             i += 1;
-            frac_d = b[i..].iter().take_while(|c| c.is_ascii_digit()).count();
-            i += frac_d;
+        }
+        let st = i;
+        while dig(i) {
+            i += 1;
+        }
+        let int_d = i - st;
+        let mut frac_d = 0;
+        if c.get(i) == Some(&'.') && (int_d > 0 || dig(i + 1)) {
+            i += 1;
+            while dig(i) {
+                i += 1;
+                frac_d += 1;
+            }
         }
         if int_d == 0 && frac_d == 0 {
-            return None;
+            return (None, How::Unreadable, String::new());
         }
-        if matches!(b.get(i), Some(b'e' | b'E')) {
+        if matches!(c.get(i), Some('e' | 'E')) {
             let mut j = i + 1;
-            if matches!(b.get(j), Some(b'+' | b'-')) {
+            if matches!(c.get(j), Some('+' | '-')) {
                 j += 1;
             }
-            let e = b[j..].iter().take_while(|c| c.is_ascii_digit()).count();
-            if e == 0 {
-                return None;
+            let e0 = j;
+            while dig(j) {
+                j += 1;
             }
-            i = j + e;
+            if j > e0 {
+                i = j;
+            }
         }
-        if i != b.len() {
-            return None;
+        let lead: String = c[..i].iter().collect();
+        let v: f64 = lead.parse().unwrap_or(f64::NAN);
+        if !v.is_finite() {
+            return (None, How::Unreadable, String::new());
         }
-        let v: f64 = s.parse().ok()?;
-        v.is_finite().then_some(v)
+        let extra = c[i..].iter().any(|x| crate::pyfmt::digit(*x).is_some());
+        (Some(v), if extra { How::Extra } else { How::Ok }, lead)
+    }
+
+    /// read_number の値だけ
+    pub fn to_number_str(text: &str) -> Option<f64> {
+        read_number_str(text).0
+    }
+
+    /// read_number（数そのものは str() してから読む。真偽・None は空）
+    pub fn read_number(v: &J) -> (Option<f64>, How, String) {
+        match v {
+            J::Null | J::Bool(_) => (None, How::Empty, String::new()),
+            J::Str(s) => read_number_str(s),
+            _ => read_number_str(&v.py_str()),
+        }
     }
 
     /// to_number（数そのものは str() してから読む。真偽・None は None）
@@ -593,14 +671,26 @@ fn int_or(v: &str, def: i64) -> i64 {
     }
 }
 
-fn num_or_zero(v: &str) -> J {
-    match rules::to_number_str(v) {
+/// 実績の数の欄（板厚・板幅・重量・オフ）→ 値。空は 0、読めない字は空（null）にして知らせる。先頭の数だけを読んで後ろに数字を
+/// 捨てたときも知らせる（版 3.98.0。作った後の採点の割れ 1。Python の lotdsp_progress._num_cell と同じ字）
+fn num_cell(v: &str, no: i64, label: &str, warnings: &mut Vec<J>) -> J {
+    let (n, how, lead) = rules::read_number_str(v);
+    match how {
+        rules::How::Unreadable => {
+            warnings.push(J::Str(format!("№{no}: {label}「{v}」を数として読めませんでした（空として取り込みました）")));
+            return J::Null;
+        }
+        rules::How::Extra => warnings.push(J::Str(format!("№{no}: {label}「{v}」は先頭の「{lead}」だけを数として読みました"))),
+        _ => {}
+    }
+    match n {
         Some(n) if n != 0.0 => J::Float(n),
         _ => J::Int(0),
     }
 }
 
-fn processes(actual: &[Row], design: &[Row], master: &Master, only_master: bool) -> (Vec<J>, J) {
+fn processes(actual: &[Row], design: &[Row], master: &Master, only_master: bool, labels: &[(String, String)]) -> (Vec<J>, J) {
+    let label = |k: &str| labels.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone()).unwrap_or_else(|| k.to_string());
     let resolver = crate::calc::Resolver::new(&master.rows);
     let (mut procs, mut skipped, mut warnings, mut renamed, mut pending) = (vec![], vec![], vec![], vec![], vec![]);
     let design_by: BTreeMap<i64, &Row> = design.iter().map(|r| (r.no, r)).collect();
@@ -682,6 +772,10 @@ fn processes(actual: &[Row], design: &[Row], master: &Master, only_master: bool)
                 d = None;
             }
         }
+        let nums: Vec<J> = ["thickness", "width", "weight", "off_front_m", "off_back_m"]
+            .iter()
+            .map(|k| num_cell(r.get(k), no, &label(k), &mut warnings))
+            .collect();
         let dget = |k: &str| d.map(|x| x.get(k)).unwrap_or("");
         let pieces = if !dget("pieces").is_empty() { dget("pieces") } else { r.get("pieces") };
         let n = procs.len() as i64 + 1;
@@ -689,11 +783,11 @@ fn processes(actual: &[Row], design: &[Row], master: &Master, only_master: bool)
             ("no".into(), J::Int(n)),
             ("equipment".into(), J::Str(eq)),
             ("unwind".into(), J::Str(DEFAULT_UNWIND.into())),
-            ("thickness".into(), num_or_zero(r.get("thickness"))),
-            ("width".into(), num_or_zero(r.get("width"))),
-            ("weight".into(), num_or_zero(r.get("weight"))),
-            ("off_front_m".into(), num_or_zero(r.get("off_front_m"))),
-            ("off_back_m".into(), num_or_zero(r.get("off_back_m"))),
+            ("thickness".into(), nums[0].clone()),
+            ("width".into(), nums[1].clone()),
+            ("weight".into(), nums[2].clone()),
+            ("off_front_m".into(), nums[3].clone()),
+            ("off_back_m".into(), nums[4].clone()),
             ("work_date".into(), J::Str(r.get("work_date").to_string())),
             ("design_split".into(), J::Int(int_or(pieces, 1))),
             ("horizontal_split".into(), J::Int(int_or(dget("horizontal_split"), 1))),
@@ -726,7 +820,8 @@ pub fn progress_tables(html: &str, cfg: &Value) -> Result<(Tables, Vec<Row>, Vec
 /// ロットの項目と実績・設計の行 → (lot, report)
 pub fn build_lot(lot: J, actual: &[Row], design: &[Row], master: &Master, cfg: &Value, source: &str) -> Result<(J, J), PyErr> {
     let only = cfg.get("only_master_equipment").map(|v| truthy(Some(v))).unwrap_or(true);
-    let (procs, notes) = processes(actual, design, master, only);
+    let labels = columns(cfg, "actual_columns", &DEFAULT_ACTUAL);
+    let (procs, notes) = processes(actual, design, master, only, &labels);
     if !procs.iter().any(|p| !matches!(p.get("thickness"), Some(J::Null))) {
         return py_err("LookupError", "取り込める工程がありません（実績の行が無いか、すべて設備マスタに無い設備です）。");
     }
@@ -2658,7 +2753,9 @@ mod tests {
     #[test]
     fn numbers_and_dates() {
         assert_eq!(rules::to_number_str(".5"), Some(0.5));
-        assert_eq!(rules::to_number_str("12mm"), None);
+        assert_eq!(rules::to_number_str("12mm"), Some(12.0), "単位は捨てる（決め ② の言い直し）");
+        assert_eq!(rules::read_number_str("7.0/8.0").1, rules::How::Extra);
+        assert_eq!(rules::read_number_str("*").1, rules::How::Unreadable);
         assert_eq!(date_text(&J::Int(1758097000000)), "25/09/17 17:16:40");
         assert_eq!(date_text(&J::Str("2025-09-17T08:16:40Z".into())), "25/09/17 17:16:40");
         assert_eq!(date_text(&J::Str("2025-09-17T17:16:40".into())), "25/09/17 17:16:40");

@@ -9,8 +9,14 @@
                        参照先の「確かめる」・画面の虫眼鏡〈lotdsp-url.js の searchBase〉が同じ決まり。前は # の URL で API が
                        問い合わせ先を取り違え、見えない Edge は # を 2 つ重ねた場所を開いた）
     TZ                 API の日時（経過ミリ秒・ずれつきの ISO）を字にする時間帯。日本時間に固定（決め ①。CM3 と同じ。前は PC の時間帯）
-    to_number          数の字は字の全体を数として読む（決め ②。「.5」→0.5・全角の「０．５」→0.5・「5e-05」→0.00005・読めない字は None。
-                       前は字の中の最初の 10 進の数を拾い、「.5」→5.0 だった）
+    read_number        数の字の読み方（決め ②。主のセッションが言い直した: 2026-11-11）: NFKC で全角をそろえ、数字の間の桁区切り
+                       （「,」と空白。小数点より前で、後ろがちょうど 3 桁のまとまり）を除いたうえで、先頭の数の全体（符号・小数点・
+                       「.5」の先頭の点・指数 e を含む最長の形）を読み、後ろの単位などの字（mm・kg・本）は捨てる。「7.000mm」→7.0・
+                       「6,220.0 kg」→6220.0・「1 200」→1200・「.5」→0.5・「０．５」→0.5・「5e-05」→0.00005。先頭に数が無い
+                       空でない字（「*」「(7)」「-」）は読めない（unreadable）、捨てた後ろに数字がある（「7.0/8.0」）は extra。
+                       取込はそれを report.warnings に出し、読めない欄は 0 にせず空にする（作った後の採点の割れ 1。前の 3.98.0 の
+                       作りかけは字の全体が数のときだけ読み、「7.000mm」を黙って 0 にした。その前の版は「.5」→5.0）
+    to_number          read_number の値だけ
     round_eq           画面の数（小数 dec 桁）が応答の数を丸めた物か。整数の欄は応答も整数のときだけ（調べる道具と学ぶ方で 1 つ）
     REACH_ONCE         届くかはプロキシを通さない 1 回だけ（決め ③）。HTTP の答えでも、プロキシの答え（PROXY_ANSWERS）は届いていない
     seconds_of         読んだ秒は道の全体で測り、小数 1 桁（前は API が 2 桁で search と組み立てだけ・見えない Edge が 1 桁）
@@ -52,21 +58,51 @@ def direct_search_url(url):
 TZ = timezone(timedelta(hours=9), "JST")        # 決め ①: 日本時間に固定（CM3 の cm3_schedule.normalize と同じ）
 
 # ------------------------------------------------------------------ 数
-_NUMBER = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", re.ASCII)
+_LEAD = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", re.ASCII)
+_DIGIT = re.compile(r"\d")
+
+
+def _ungroup(s):
+    """桁区切り（「,」と空白）を除く: 先頭の数の小数点・指数より前で、前が数字・後ろがちょうど 3 桁の数字のまとまりのときだけ。"""
+    out, n, i = [], len(s), 0
+    while i < n:
+        c = s[i]
+        if c in ".eE":
+            return "".join(out) + s[i:]
+        if ((c == "," or c.isspace()) and out and out[-1] in "0123456789" and i + 4 <= n and all(x in "0123456789" for x in s[i + 1:i + 4])
+                and (i + 4 == n or s[i + 4] not in "0123456789")):
+            i += 1
+            continue
+        if c not in "0123456789+-,":
+            return "".join(out) + s[i:]
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def read_number(text):
+    """数の字 → (値 or None, 様子, 読んだ先頭の字)。様子: ok・empty（空）・unreadable（先頭に数が無い）・extra（捨てた後ろに数字）。
+    数そのもの（API の値）は str() してから読む。真偽・None は空。有限でない数（1e400）は読めない。"""
+    if text is None or isinstance(text, bool):
+        return None, "empty", ""
+    if isinstance(text, (int, float)):
+        text = str(text)
+    s = unicodedata.normalize("NFKC", str(text)).replace("\u2212", "-").strip()
+    if not s:
+        return None, "empty", ""
+    s = _ungroup(s)
+    m = _LEAD.match(s)
+    if not m:
+        return None, "unreadable", ""
+    v = float(m.group())
+    if v != v or v in (float("inf"), float("-inf")):
+        return None, "unreadable", ""
+    return v, ("extra" if _DIGIT.search(s[m.end():]) else "ok"), m.group()
 
 
 def to_number(text):
-    """数の字 → float（決め ②: 字の全体が数のときだけ。'1,200.00' → 1200.0・'.5' → 0.5・'０．５' → 0.5・'5e-05' → 5e-05・
-    '−5'〈U+2212〉→ -5.0・空・数でない字・'12mm' → None）。数そのもの（API の値）は str() してから読む。"""
-    if text is None or isinstance(text, bool):
-        return None
-    if isinstance(text, (int, float)):
-        text = str(text)
-    s = unicodedata.normalize("NFKC", str(text)).replace(",", "").replace("−", "-").strip()
-    if not _NUMBER.fullmatch(s):
-        return None
-    v = float(s)
-    return v if v == v and v not in (float("inf"), float("-inf")) else None
+    """read_number の値だけ（'1,200.00' → 1200.0・'7.000mm' → 7.0・'.5' → 0.5・読めない字・空 → None）"""
+    return read_number(text)[0]
 
 
 def round_eq(shown, dec, raw):

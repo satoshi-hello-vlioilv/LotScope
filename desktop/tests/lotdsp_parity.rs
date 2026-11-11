@@ -92,6 +92,12 @@ fn lotdsp_matches_python() {
     let site = format!("{}/LotDspWeb/", oracle["base"].as_str().unwrap());
     for (i, sc) in oracle["direct"].as_array().unwrap().iter().enumerate() {
         let name = sc["name"].as_str().unwrap();
+        if sc["watch"] == true {
+            if let Some(x) = watch_scenario(sc, &browser, &site, &base.join("rs").join("direct-watch")) {
+                bad.push(format!("見えない Edge / {name}: {x}"));
+            }
+            continue;
+        }
         let d = base.join("rs").join(format!("direct-{i}"));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
@@ -143,6 +149,56 @@ fn lotdsp_matches_python() {
     println!("道 {steps} 歩・見えない Edge {} 場面", oracle["direct"].as_array().unwrap().len());
     assert!(steps >= 150, "歩が少ない: {steps}");
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// 差し替えた時計（本物の時計＋進めた秒）で、見張りが Browser.close を出す時期が Python と同じか（作った後の採点の足りない突き合わせ）
+fn watch_scenario(sc: &Value, browser: &str, site: &str, d: &Path) -> Option<String> {
+    use std::sync::{Condvar, Mutex};
+    let _ = std::fs::remove_dir_all(d);
+    std::fs::create_dir_all(d).unwrap();
+    let mut script = sc["script"].clone();
+    script["href"] = json!(format!("{site}#/lotdsp"));
+    script["log"] = json!(d.join("rs.log").to_string_lossy());
+    std::fs::write(d.join("rs.json"), script.to_string()).unwrap();
+    let li = json!({"url": site, "direct": {"browser": browser, "extra_args": [format!("--fake-script={}", d.join("rs.json").display())],
+                    "timeout_seconds": 12, "start_timeout_seconds": 10, "keep_seconds": 300, "window_keep_seconds": 1800,
+                    "login_wait_seconds": 30, "window_profile": d.join("rs-window").to_string_lossy()}});
+    let off = Arc::new((Mutex::new(0.0f64), Condvar::new()));
+    let real = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
+    let o1 = off.clone();
+    let clock: da_core::lotdsp_direct::Clock = Arc::new(move || real() + *o1.0.lock().unwrap());
+    let o2 = off.clone();
+    let sleep: da_core::lotdsp_direct::Sleep = Arc::new(move |s| {
+        let end = real() + *o2.0.lock().unwrap() + s;
+        let mut g = o2.0.lock().unwrap();
+        while real() + *g < end {
+            let left = (end - real() - *g).clamp(0.001, 0.05);
+            g = o2.1.wait_timeout(g, std::time::Duration::from_secs_f64(left)).unwrap().0;
+        }
+    });
+    let direct = Direct::new(Box::new(da_core::lotdsp_direct::RealLaunch), clock, sleep);
+    let tmp = d.join("tmp");
+    std::fs::create_dir_all(&tmp).unwrap();
+    direct.set_temp(&tmp);
+    let cfg = Cfg::from(&li, d).unwrap();
+    let closed = || std::fs::read_to_string(d.join("rs.log")).unwrap_or_default().contains("Browser.close");
+    if let Err(e) = direct.fetch("L7150C0", &cfg, false) {
+        return Some(format!("読めない {e:?}"));
+    }
+    let mut got = vec![closed()];
+    for s in sc["steps"].as_array().unwrap() {
+        *off.0.lock().unwrap() += s.as_f64().unwrap();
+        off.1.notify_all();
+        std::thread::sleep(std::time::Duration::from_millis(2500));
+        got.push(closed());
+    }
+    direct.shutdown();
+    if json!(got) != sc["closed"] {
+        return Some(format!("閉じた時期 Python {} / 窓 {}", sc["closed"], json!(got)));
+    }
+    let log: Vec<Value> =
+        std::fs::read_to_string(d.join("rs.log")).unwrap_or_default().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    common::diff(&sc["log"], &Value::Array(log), "").map(|x| format!("送った命令 {x}"))
 }
 
 fn temp_profiles(dir: &Path) -> Vec<std::path::PathBuf> {

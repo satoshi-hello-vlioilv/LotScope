@@ -292,9 +292,23 @@ def check_lot(lot, expect_lot):
     return lot
 
 
-def _processes(actual_rows, design_rows, equipment_master, only_master):
+def _num_cell(r, k, no, label, warnings):
+    """実績の数の欄（板厚・板幅・重量・オフ）→ 値。空は 0、読めない字は空（None）にして知らせる。先頭の数だけを読んで
+    後ろに数字を捨てたときも知らせる（版 3.98.0。作った後の採点の割れ 1: 前は読めない字を黙って 0 にした）"""
+    raw = r.get(k)
+    v, how, lead = lotdsp_rules.read_number(raw)
+    if how == "unreadable":
+        warnings.append(f"№{no}: {label}「{raw}」を数として読めませんでした（空として取り込みました）")
+        return None
+    if how == "extra":
+        warnings.append(f"№{no}: {label}「{raw}」は先頭の「{lead}」だけを数として読みました")
+    return v or 0
+
+
+def _processes(actual_rows, design_rows, equipment_master, only_master, labels=None):
     """実績（無い BOX は設計）の行 → 工程の配列と、読まなかった・読み替えた・実績待ちの記録。
     設備名は設備マスタで引く。同一工程の名前（ANF・ANI2・CAF など）で出てきたら、その行の設備名（代表）に読み替える。"""
+    labels = labels or DEFAULT_ACTUAL_COLUMNS
     resolver = EquipmentResolver(equipment_master)
     processes, skipped, warnings, renamed, pending = [], [], [], [], []
     design_by_no = {r["no"]: r for r in design_rows}
@@ -340,15 +354,13 @@ def _processes(actual_rows, design_rows, equipment_master, only_master):
         if d and not resolver.same(d["equipment"], raw):
             warnings.append(f"№{no}: 設計は{d['equipment']}、実績は{raw}でした。実績の設備で取り込み、分割数は実績の枚本を使いました。")
             d = None
+        nums = {k: _num_cell(r, k, no, str(labels.get(k, k)), warnings)
+                for k in ("thickness", "width", "weight", "off_front_m", "off_back_m")}
         processes.append({
             "no": len(processes) + 1,
             "equipment": eq,
             "unwind": DEFAULT_UNWIND,
-            "thickness": to_number(r.get("thickness")) or 0,
-            "width": to_number(r.get("width")) or 0,
-            "weight": to_number(r.get("weight")) or 0,
-            "off_front_m": to_number(r.get("off_front_m")) or 0,
-            "off_back_m": to_number(r.get("off_back_m")) or 0,
+            **nums,
             "work_date": r.get("work_date", ""),
             "design_split": _int_or((d or {}).get("pieces") or r.get("pieces")),
             "horizontal_split": _int_or((d or {}).get("horizontal_split")),
@@ -379,7 +391,8 @@ def build_lot(lot, actual_rows, design_rows, equipment_master, cfg=None, source=
     画面（HTML）から読んでも API（lotdsp_api）から読んでも、ここから先は同じ道（設備マスタで絞る・巻出しは初期値）。"""
     cfg = cfg or {}
     lot = dict(lot)
-    processes, notes = _processes(actual_rows, design_rows, equipment_master, cfg.get("only_master_equipment", True))
+    labels = dict(DEFAULT_ACTUAL_COLUMNS, **(cfg.get("actual_columns") or {}))
+    processes, notes = _processes(actual_rows, design_rows, equipment_master, cfg.get("only_master_equipment", True), labels)
     if not any(p["thickness"] is not None for p in processes):
         raise LookupError("取り込める工程がありません（実績の行が無いか、すべて設備マスタに無い設備です）。")
 

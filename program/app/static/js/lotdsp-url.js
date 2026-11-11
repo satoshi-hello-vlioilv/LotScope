@@ -55,5 +55,13 @@
     const title = `${rep.source || "LotDsp 進度情報"}（${via}・${hm}）・実績 ${rep.actual_rows} 行・巻出し方向は初期値「${rep.default_unwind}」（違う工程は表で直す）`;
     return { details, title, warn: skipped.length + warnings.length, planned: planned.length, renamed: renamed.length };
   }
-  root.LotDspReport = { report };
+  /* 札の題の「どの道で読んだか」（版 3.98.0。作った後の採点の割れ 2: 道の名前は report.source が言うので、API の道は秒だけ。
+     前は「LotDsp API（ログインなし）（LotDsp API・ログインなし・0.5 秒・09:12）」と同じ言葉を 2 回言った） */
+  function via(kind, seconds) {
+    const s = `${seconds} 秒`;
+    if (kind === "window") return `LotDsp の窓・${s}`;
+    if (kind === "direct") return `このアプリで直接・${s}`;
+    return s;
+  }
+  root.LotDspReport = { report, via };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -33,10 +33,10 @@ fn rules_cases() {
         }
     }
     for n in c["number"].as_array().unwrap() {
-        let got = rules::to_number(&J::from_value(&n[0]));
+        let (got, how, _) = rules::read_number(&J::from_value(&n[0]));
         let want = n[1].as_f64();
-        if got != want {
-            bad.push(format!("数 {}: {got:?} / {want:?}", n[0]));
+        if got != want || how.name() != n[2].as_str().unwrap() {
+            bad.push(format!("数 {}: {got:?} {} / {want:?} {}", n[0], how.name(), n[2]));
         }
     }
     for r in c["round_eq"].as_array().unwrap() {

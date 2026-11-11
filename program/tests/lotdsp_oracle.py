@@ -30,6 +30,7 @@ from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import lotdsp_api as api  # noqa: E402
 from app.services import lotdsp_direct as D  # noqa: E402
 from tests.test_lotdsp_api import FIXTURE, entity_of, html_with_offs  # noqa: E402
+from tests.test_lotdsp_rules import with_cells  # noqa: E402
 
 OFFS = [("12.5", "3.0"), ("", "4.5"), ("7.2", ""), ("1.1", "2.2")] + [("", "")] * 6
 TAB = ('<table><tr><td><a class="MniTabLnk">ICAS情報</a></td><td class="MniTabTblSelTd"><div class="MniTabSelTxt" title="Current Selection:">'
@@ -102,10 +103,7 @@ def run_steps(work, name, li, steps, setup=None, equipment=None):
     """Python の道に歩を当てる → 場面（窓へ渡す設定と、歩ごとの答えと覚え）。equipment は設備マスタの行を替える"""
     from unittest import mock
     if equipment is not None:
-        class Repo:
-            def equipment(self):
-                return equipment
-        with mock.patch("app.routes.lots.master_repo", lambda: Repo()):
+        with mock.patch("app.repositories.master_repository.MasterRepository.equipment", lambda self: equipment):
             out = run_steps(work, name, li, steps, setup)
         out["equipment"] = equipment
         return out
@@ -205,6 +203,12 @@ def scenarios(work, base):
         P(IMPORT, {"html": FIXTURE.replace("板厚", "厚み"), "lot_no": "L7150C0"}, name="列の見出しを設定で替える",
           li={**off, "actual_columns": {"thickness": "厚み"}, "product_columns": {"product_thickness": "厚み"}}),
         P(IMPORT, {"html": FIXTURE, "lot_no": "L7150C0"}, name="見出し項目を設定で替える", li={**off, "lot_labels": {"use_name": "用途", "density": "なし"}}),
+        # 作った後の採点の割れ 1（版 3.98.0）: 単位つきの数・桁区切りの空白・読めない欄・2 つの数
+        P(IMPORT, {"html": with_cells([("7.000mm", "1,200.00 mm", "6,220.0 kg"), ("*", "1 200", "(7)"), ("7.0/8.0", "-", "1e3kg"),
+                                       ("０．５０５", " ", "６，２２０")]), "lot_no": "L7150C0"}, name="単位つき・読めない欄"),
+        P(IMPORT, {"html": with_cells([("x", "y", "z")] * 10), "lot_no": "L7150C0"}, name="どの欄も読めない"),
+        P(IMPORT, {"html": with_cells([("7.0/8.0", None, None)]), "lot_no": "L7150C0"}, name="列の見出しを替えた知らせ",
+          li={**off, "actual_columns": {"thickness": "板厚"}}),
     ]
     out.append(run_steps(work, "画面の表", off, steps))
 
@@ -361,8 +365,14 @@ def direct_scenarios(work, base):
         left = set(Path(tempfile.gettempdir()).glob("tpa-lotdsp-*")) - before
         log = [json.loads(x) for x in (d / "py.log").read_text(encoding="utf-8").splitlines()] if (d / "py.log").exists() else []
         out.append({"name": name, "script": script, "over": over, "result": res, "log": log, "left": len(left), "seconds": round(time.time() - t, 1)})
+    # 実行できないブラウザ（作った後の採点の割れ 3: 窓と Python で同じ字）
+    noexec = work / "noexec" / "chromium"
+    noexec.parent.mkdir(parents=True, exist_ok=True)
+    noexec.write_text("not a program\n")
+    noexec.chmod(0o644)
     # 届かない・ブラウザが無い・使わない
-    for name, li, window in (("届かない", {"url": "http://127.0.0.1:9/LotDspWeb/", "direct": {"reach_timeout_seconds": 1}}, False),
+    for name, li, window in (("実行できないブラウザ", {"url": site, "direct": {"browser": str(noexec), "keep_seconds": 0}}, False),
+                             ("届かない", {"url": "http://127.0.0.1:9/LotDspWeb/", "direct": {"reach_timeout_seconds": 1}}, False),
                              ("ブラウザが無い", {"url": site, "direct": {"browser": str(work / "none" / "chromium")}}, False),
                              ("使わない", {"url": site, "direct": {"enabled": False}}, False)):
         try:
@@ -371,7 +381,62 @@ def direct_scenarios(work, base):
         except D.DirectError as e:
             res = {"ok": False, "kind": e.kind, "error": str(e)}
         out.append({"name": name, "li": li, "result": res})
+    out.append(watch_scenario(work, site, exe))
     return out
+
+
+class ClockPlus:
+    """差し替えた時計（本物の時計＋進めた秒）。sleep は差し替えた時計で測る（進めると早く起きる）"""
+
+    def __init__(self):
+        import time as real
+        self.real, self.off, self.cv = real, 0.0, threading.Condition()
+
+    def time(self):
+        return self.real.time() + self.off
+
+    def perf_counter(self):
+        return self.real.perf_counter() + self.off
+
+    def sleep(self, s):
+        end = self.time() + s
+        with self.cv:
+            while self.time() < end:
+                self.cv.wait(min(0.05, max(0.001, end - self.time())))
+
+    def advance(self, s):
+        with self.cv:
+            self.off += s
+            self.cv.notify_all()
+
+
+# 見張りで閉じる場面: 読む → 290 秒進める（閉じない）→ さらに 40 秒（330 秒: keep_seconds 300 を過ぎて閉じる）
+WATCH_STEPS = [290, 40]
+
+
+def watch_scenario(work, site, exe):
+    """作った後の採点の足りない突き合わせ: 差し替えた時計で、Python と窓が同じ時期に Browser.close を出すか"""
+    from unittest import mock
+    d = work / "direct-watch"
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True)
+    script = {"runs": [[["read", ok_result()]]]}
+    (d / "py.json").write_text(json.dumps({**script, "href": site + "#/lotdsp", "log": str(d / "py.log")}, ensure_ascii=False), encoding="utf-8")
+    li = direct_cfg(site, str(exe), d / "py.json", d / "py-window", {})
+    li["direct"].update(keep_seconds=300, window_keep_seconds=1800)
+    clock = ClockPlus()
+    closed = []
+    log = d / "py.log"
+    with mock.patch.object(D, "time", clock):
+        D.fetch_progress_html("L7150C0", D.settings_of(li))
+        closed.append("Browser.close" in log.read_text(encoding="utf-8"))
+        for s in WATCH_STEPS:
+            clock.advance(s)
+            time.sleep(2.5)
+            closed.append("Browser.close" in log.read_text(encoding="utf-8"))
+        D.shutdown()
+    lines = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+    return {"name": "見張りで閉じる（差し替えた時計）", "watch": True, "script": script, "steps": WATCH_STEPS, "closed": closed, "log": lines}
 
 
 def main():

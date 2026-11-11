@@ -87,10 +87,11 @@ class Rules(unittest.TestCase):
                 self.assertEqual(D.settings_of({"url": c["url"]})["search_url"], c["direct"])
 
     def test_numbers_are_read_whole(self):
-        for text, want in CASES["number"]:
+        for text, want, how in CASES["number"]:
             with self.subTest(text=text):
                 got = R.to_number(text)
                 self.assertEqual(got, want)
+                self.assertEqual(R.read_number(text)[1], how)
                 self.assertEqual(lp.to_number(text), want, "取込も同じ決まり")
 
     def test_round_eq(self):
@@ -483,6 +484,59 @@ class Routes(unittest.TestCase):
         out = link.link_files([{"name": "大", "html": "x" * (R.MAX_HTML_CHARS + 1)}], api.KeyMap(Path(self.tmp.name) / "x.json"),
                               api.settings_of({"url": "http://x/"}))
         self.assertEqual(out["files"], [{"name": "大", "error": "画面を読めませんでした: HTML が大きすぎます（進度情報の画面だけを渡してください）。"}])
+
+
+# ------------------------------------------------------------------ 作った後の採点（版 3.98.0）で見つけた割れ
+def with_cells(cells):
+    """見本の画面の実績の行（上から）の、板厚・板幅・重量の字を替える。cells: [(板厚, 板幅, 重量) か None]"""
+    import re
+    from tests.test_lotdsp_api import ACTUAL_ROW, FIXTURE
+    s = FIXTURE
+    for row, c in zip(ACTUAL_ROW.findall(FIXTURE), cells):
+        if c is None:
+            continue
+        new = row
+        for cls, v in zip(("prog-jbx", "prog-jby", "prog-jbrw"), c):
+            if v is not None:
+                new = re.sub(r'(<span class="' + cls + r' ng-binding">)[^<]*', lambda m, v=v: m.group(1) + v, new, count=1)
+        s = s.replace(row, new, 1)
+    return s
+
+
+class Units(unittest.TestCase):
+    """決め ② の言い直し（主のセッション・2026-11-11）: 先頭の数の全体を読み、後ろの単位は捨てる。読めない欄は空にして知らせる。"""
+
+    def test_numbers_with_units_are_read_and_unreadable_cells_are_told(self):
+        master = json.loads((ROOT / "data" / "equipment_master.json").read_text(encoding="utf-8"))
+        html = with_cells([("7.000mm", None, "6,220.0 kg"), ("*", "1 200", None), ("7.0/8.0", "(7)", None)])
+        lot, report = lp.parse_progress_html(html, master, expect_lot="L7150C0")
+        p = lot["processes"]
+        self.assertEqual((p[0]["thickness"], p[0]["weight"]), (7.0, 6220.0), "単位は捨てて読む（前の版は 7.0・6220。3.98.0 の作りかけは 0）")
+        self.assertEqual((p[1]["thickness"], p[1]["width"]), (None, 1200.0), "読めない欄は 0 にせず空・空白の桁区切りは読む")
+        self.assertEqual((p[2]["thickness"], p[2]["width"]), (7.0, None))
+        self.assertIn("№2: 板厚「*」を数として読めませんでした（空として取り込みました）", report["warnings"])
+        self.assertIn("№3: 板幅「(7)」を数として読めませんでした（空として取り込みました）", report["warnings"])
+        self.assertIn("№3: 板厚「7.0/8.0」は先頭の「7.0」だけを数として読みました", report["warnings"])
+        self.assertFalse(any("№1" in w for w in report["warnings"]), "単位だけを捨てたときは知らせない")
+
+
+class Inputs(unittest.TestCase):
+    """設備マスタ・参照先を読めないときは、どの道も 503 kind settings（前は取込が 400 JSONDecodeError・API の道が 500）。"""
+
+    def test_unreadable_masters_are_settings_errors(self):
+        import shutil
+        tmp = Path(tempfile.mkdtemp())
+        shutil.copytree(ROOT / "data", tmp / "data")
+        for name, why in (("equipment_master.json", "設備マスタ"), ("path_settings.json", "参照先")):
+            (tmp / "data" / name).write_text("{bad", encoding="utf-8")
+            app = create_app({"TESTING": True, "MASTER_STORE": MasterStore(tmp, local_root=tmp / ("local-" + why), settings={})})
+            app.config["APP_SETTINGS"]["lotdsp_import"] = {"url": "http://127.0.0.1:9/x/", "api": {"enabled": False}}
+            c = app.test_client()
+            for path, body in (("/api/lots/import-lotdsp", {"html": "<table></table>"}), ("/api/lots/fetch-lotdsp-api", {"lot_no": "L1"})):
+                r = c.post(path, json=body)
+                self.assertEqual((r.status_code, r.get_json()), (503, {"error": f"LotDsp の設定・設備マスタを読めません（{why}）。", "kind": "settings"}),
+                                 (name, path))
+            shutil.copy(ROOT / "data" / name, tmp / "data" / name)
 
 
 class Shell(unittest.TestCase):

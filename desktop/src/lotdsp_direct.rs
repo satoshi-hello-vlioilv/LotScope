@@ -747,9 +747,10 @@ impl Launch for RealLaunch {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: 黒い窓を出さない
         }
-        let child = cmd.spawn().map_err(|e| DirectError {
+        // 字は Python と同じ（作った後の採点の割れ 3。OS の理由は出さない）
+        let child = cmd.spawn().map_err(|_| DirectError {
             kind: "browser".into(),
-            msg: format!("ブラウザを起こせません（{}）", crate::cm3_http::os_text(&e)),
+            msg: "ブラウザを起こせません（実行できるファイルか確かめてください）".into(),
         })?;
         #[cfg(windows)]
         job_assign(&child);

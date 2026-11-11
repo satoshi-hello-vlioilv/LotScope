@@ -779,7 +779,7 @@ impl Lot {
         let builder = self.bundle.lock().unwrap().clone();
         let inputs = || -> Result<crate::lotdsp::Inputs, String> {
             let b = builder.as_ref().ok_or("設定の束を組む係がありません")?;
-            let (app, eff, equipment) = b.lotdsp_inputs().map_err(|e| e.0.to_string())?;
+            let (app, eff, equipment) = b.lotdsp_inputs().map_err(str::to_string)?;
             Ok(crate::lotdsp::Inputs { app, eff, equipment })
         };
         let t0 = Instant::now();
@@ -2210,6 +2210,105 @@ mod tests {
         std::fs::write(share.join("path_settings.json"), ps.to_string()).unwrap();
         assert!(lot.handle_body("GET", "/api/settings", "", b"", &down).is_none(), "重ねる行があると Python は落ちる");
         assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).is_none());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_lotdsp_from_the_bundle() {
+        // 版 3.98.0（作った後の採点の割れ 4）: LotDsp の道は本物の配線（Lot::handle_body → bundle.rs の lotdsp_inputs）で材料を読む。
+        // 参照先で直した URL が効く（調べる道具の場所）・設備マスタで取込を絞る。設備マスタ・参照先が読めなければ 503 kind settings
+        // （前は黙って空の設備マスタ・配った設定に戻り、「すべて設備マスタに無い設備です」と誤った理由で断った）
+        let work = std::env::temp_dir().join(format!("da-lot-lotdsp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(
+            &cfg,
+            json!({"master_share": {"dir": share}, "lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"enabled": false}}})
+                .to_string(),
+        )
+        .unwrap();
+        let login = crate::bundle::login_id();
+        let perm = json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        let doc = |rows: Value| json!({"schema": 1, "revision": 4, "rows": rows}).to_string();
+        for n in ["data_sources", "work_log_files", "equipment_groups", "shift_patterns", "conversions"] {
+            std::fs::write(share.join(format!("{n}.json")), doc(json!([]))).unwrap();
+        }
+        let master: Value = serde_json::from_slice(&std::fs::read(program.join("data/equipment_master.json")).unwrap()).unwrap();
+        let rows = master.get("rows").cloned().unwrap_or(master);
+        std::fs::write(share.join("equipment_master.json"), doc(rows)).unwrap();
+        std::fs::write(
+            share.join("path_settings.json"),
+            doc(json!([{"id": 1, "項目": "lotdsp_import.url", "値": "http://127.0.0.1:9/参照先/", "rev": 1}])),
+        )
+        .unwrap();
+        let env =
+            crate::bundle::Env { base: work.join("base"), program: program.clone(), local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let fixture = std::fs::read_to_string(program.join("tests/fixtures/lotdsp_progress_L7150C0.html")).unwrap();
+        let body = json!({"html": fixture, "lot_no": "L7150C0"}).to_string();
+        let (st, v) = lot.handle_body("POST", "/api/lots/import-lotdsp", "", body.as_bytes(), &down).expect("窓が答える");
+        assert_eq!(
+            (st, v["lot"]["processes"].as_array().map(Vec::len)),
+            (200, Some(10)),
+            "{}",
+            v.to_string().chars().take(300).collect::<String>()
+        );
+        // 参照先の URL が効く（API を使う設定にして、届かない場所の字に参照先の URL が出る）
+        std::fs::write(
+            share.join("path_settings.json"),
+            doc(json!([{"id": 1, "項目": "lotdsp_import.url", "値": "http://127.0.0.1:9/参照先/", "rev": 1}])),
+        )
+        .unwrap();
+        let cfg2 = work.join("config.json");
+        std::fs::write(
+            &cfg2,
+            json!({"master_share": {"dir": share}, "lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"timeout_seconds": 1}}})
+                .to_string(),
+        )
+        .unwrap();
+        let (st, v) = lot.handle_body("GET", "/api/lots/lotdsp-api/survey", "lot=L1", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (502, json!("unreachable")), "{v}");
+        assert!(v["error"].as_str().unwrap().contains("参照先/service/lotdsp"), "参照先で直した URL が効く: {v}");
+        // 設備マスタ・参照先が読めない → 503 settings（理由の字つき）。共有のファイルが壊れているときは写しで続ける（Python の _maybe_refresh と同じ）ので、
+        // 共有を使わない置き場（同梱の data/）で壊す。行が表でない形も（Python は TypeError）
+        let data = work.join("base").join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        for n in ["equipment_master", "path_settings"] {
+            std::fs::copy(program.join("data").join(format!("{n}.json")), data.join(format!("{n}.json"))).unwrap();
+        }
+        let cfg3 = work.join("config.json");
+        std::fs::write(&cfg3, json!({"lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"enabled": false}}}).to_string())
+            .unwrap();
+        for (name, bad, why) in [
+            ("equipment_master.json", "{bad", "設備マスタ"),
+            ("equipment_master.json", r#"{"schema": 1, "revision": 1, "rows": [1, 2]}"#, "設備マスタ"),
+            ("path_settings.json", "{bad", "参照先"),
+        ] {
+            let keep = std::fs::read(data.join(name)).unwrap();
+            std::fs::write(data.join(name), bad).unwrap();
+            for (m, p, b) in
+                [("POST", "/api/lots/import-lotdsp", body.as_str()), ("POST", "/api/lots/fetch-lotdsp-api", r#"{"lot_no": "L1"}"#)]
+            {
+                let (st, v) = lot.handle_body(m, p, "", b.as_bytes(), &down).unwrap();
+                assert_eq!(
+                    (st, v),
+                    (503, json!({"error": format!("LotDsp の設定・設備マスタを読めません（{why}）。"), "kind": "settings"})),
+                    "{name} {bad} {p}"
+                );
+            }
+            std::fs::write(data.join(name), keep).unwrap();
+        }
+        // 途中経過・中止は材料が要らない
+        assert_eq!(lot.handle_body("GET", "/api/lots/fetch-lotdsp/status", "", b"", &down).unwrap().0, 200);
         let _ = std::fs::remove_dir_all(&work);
     }
 

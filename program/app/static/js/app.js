@@ -1323,7 +1323,7 @@ async function fetchViaApi(lotNo) {
   if (cancelled) { fetchModal.close(); setStatus("中止", ""); return true; }      // 中止は、ほかの道へ回さない
   if (r && r.ok) {
     fetchModal.stage("import");
-    await applyImported(d, lotNo, `LotDsp API・ログインなし・${d.seconds} 秒`);
+    await applyImported(d, lotNo, LotDspReport.via("api", d.seconds));
     fetchModal.close(); return true;
   }
   fetchModal.close();
@@ -1429,7 +1429,7 @@ async function fetchDirect(lotNo, win = false) {
     if (!win) routeSet("");                         // 見えない Edge で読めた＝社内。窓を先に使う覚えは消す
     paintLotdspRoute();
     fetchModal.stage("import", sawLogin ? [] : ["login"]); fetchModal.hint("");
-    await applyImported(d, lotNo, `${win ? "LotDsp の窓" : "このアプリで直接"}・${d.seconds} 秒`);
+    await applyImported(d, lotNo, LotDspReport.via(win ? "window" : "direct", d.seconds));
     fetchModal.close(); return;
   }
   const why = d.error || "LotDsp を読めませんでした";

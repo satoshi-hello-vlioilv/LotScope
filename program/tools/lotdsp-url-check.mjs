@@ -52,7 +52,11 @@ const base = { lot_no: "L1", actual_rows: 10, default_unwind: "上", imported: [
 const r1 = R.report({ ...base, source: "LotDsp 進度情報", skipped: [
   { no: 11, equipment: "", reason: "設備名が実績にも設計にもありません" },
   { no: 4, equipment: "XYZ", reason: "設備マスタに無い設備" }, { no: 5, equipment: "XQ", reason: "設備マスタに無い設備" }] }, "このアプリで直接・2.9 秒", "12:03");
-const r2 = R.report({ ...base, source: "LotDsp API（ログインなし）", skipped: [], planned: [{ no: 7, equipment: "CAL" }] }, "LotDsp API・ログインなし・0.5 秒", "12:04");
+const r2 = R.report({ ...base, source: "LotDsp API（ログインなし）", skipped: [], planned: [{ no: 7, equipment: "CAL" }] }, R.via("api", 0.5), "12:04");
+const r4 = R.report({ ...base, source: "LotDsp 進度情報", skipped: [] }, R.via("window", 3.1), "12:06");
+// 題の中で同じ言葉（「（」「）」「・」で区切った 1 つ）が 2 回出ない（版 3.98.0。作った後の採点の割れ 2）
+const twice = (t) => { const parts = t.split(/[（）・]/).map((x) => x.trim()).filter(Boolean); return parts.some((x, i) => parts.indexOf(x) !== i)
+  || /ログインなし[\s\S]*ログインなし|LotDsp API[\s\S]*LotDsp API/.test(t); };
 const r3 = R.report({ ...base, source: "LotDsp 進度情報", skipped: [{ no: 3, equipment: "<b>", reason: "設備マスタに無い設備" }] }, "貼り付け", "12:05",
   (s) => String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;"));
 const reportChecks = [
@@ -62,7 +66,9 @@ const reportChecks = [
   ["設備マスタに無いでない理由には直し方を添えない", !r1.details[0].html.includes("マスタ管理")],
   ["⚠ の数", r1.warn === 3],
   ["札の題は report.source（画面で読んだ）", r1.title.startsWith("LotDsp 進度情報（このアプリで直接・2.9 秒・12:03）")],
-  ["札の題は report.source（API で読んだ）", r2.title.startsWith("LotDsp API（ログインなし）（") && !r2.title.startsWith("LotDsp 進度情報")],
+  ["札の題は report.source（API で読んだ）", r2.title.startsWith("LotDsp API（ログインなし）（0.5 秒・12:04）") && !r2.title.startsWith("LotDsp 進度情報")],
+  ["札の題に同じ言葉が 2 回出ない（API・窓・直接）", !twice(r1.title) && !twice(r2.title) && !twice(r4.title)],
+  ["窓で読んだ題", r4.title.startsWith("LotDsp 進度情報（LotDsp の窓・3.1 秒・12:06）")],
   ["未実績の行", r2.details.length === 1 && r2.details[0].html === "◌ 未実績（設計の設備名だけ）: №7 CAL"],
   ["設備名は逃がす", r3.details[0].html.includes("№3 &lt;b&gt;")],
 ];
