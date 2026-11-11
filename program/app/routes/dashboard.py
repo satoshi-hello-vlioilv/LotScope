@@ -13,7 +13,7 @@ from datetime import date, datetime
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings
-from ..services import aggregate, card_forms, dashboard, data_sources, db_mirror, equip_groups, formula, operation, pivot, shifts, work_log
+from ..services import aggregate, card_forms, dash_progress, dashboard, data_sources, db_mirror, equip_groups, formula, operation, pivot, shifts, work_log
 from ..services.identity import normalize_part
 from .common import base_rev, bp, error, find_row, master_call, master_repo
 from .lotlist import lotlist_plan
@@ -310,9 +310,10 @@ def card_forms_delete(item_id):
 class _Fail(Exception):
     """段取りの失敗（そのまま返す答え）"""
 
-    def __init__(self, resp):
+    def __init__(self, resp, copy=None):
         super().__init__("fail")
         self.resp = resp
+        self.copy = copy or {}        # 1 台も写し終えていない間の写しの様子（版 3.97.0。答えの copy）
 
 
 def _now():
@@ -360,13 +361,21 @@ def panel_parts(source, equip="", basis="work", equips=None, first_wait=None):
         # 遅い設備が混ざると最初の数まで 12 秒かかった）。写し終えていない設備は「写しています」（failed の copying）で、画面が引き直す
         # パネルの数（/api/dashboard/query）だけ 2 秒。列の一覧・絞る面の項目（fields・columns）は前どおり最初の写しを待つ（作った後の採点:
         # 2 秒で作業実績の列が 0 になり、変換表の「当てる列」から消えた）
+        def ready():
+            ms = [m for m in (_work_mirrors().peek(r.get("キー")) for r in rows) if m is not None]
+            return sum(1 for m in ms if m.wait_first(0)), len(ms)
+        dash_progress.step("copy", *ready())     # 共有から写した設備 n / 写す設備の数（版 3.97.0。窓と同じく写しの係のある設備だけ）
         start_mirrors(rows, db_mirror.FIRST_WAIT_SEC if first_wait is None else first_wait)
+        dash_progress.step("copy", *ready())
         for row in rows:
             name = str(row.get("設備名") or "")
             plan, fail = worklog_plan(key=row.get("キー"), rows=wl_rows, wait=False)
             if fail:
                 f = _fail(fail)
-                failed.append({"name": name, **f})
+                m = _work_mirrors().peek(row.get("キー")) if f["kind"] == "copying" else None
+                prog = m.copy_progress() if m is not None and hasattr(m, "copy_progress") else None
+                # 写している途中の様子は _answer が答えの copy にまとめる（失敗の並びには残さない。窓の答えと同じ形）
+                failed.append({"name": name, **f, **({"_copy": prog} if f["kind"] == "copying" and first_wait is not None else {})})
                 first = first if first and first[1] == "copying" else (fail, f["kind"])
                 continue
             pat = shifts.pattern_for(pats, name)
@@ -377,7 +386,7 @@ def panel_parts(source, equip="", basis="work", equips=None, first_wait=None):
             m = _work_mirrors().peek(row.get("キー"))
             mirrors.append({**plan["source"], "refreshing": True} if m is not None and not m.wait_first(0) else plan["source"])
         if not parts:
-            raise _Fail(first[0])
+            raise _Fail(first[0], _copy_of(next((d["name"] for d in defs if d["key"] == "work"), "作業実績"), mirrors, failed) if first[1] == "copying" else None)
         return parts, failed, next((d["name"] for d in defs if d["key"] == "work"), "作業実績"), mirrors
     if source == "lot":
         plan, fail = lotlist_plan()
@@ -427,7 +436,7 @@ def _answer(p, now):
     try:
         parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"), first_wait=DASH_FIRST_WAIT_SEC)
     except _Fail as f:
-        return _fail(f.resp)
+        return {**_fail(f.resp), **f.copy}
     egroups = dashboard.resolve_egroup(p.get("egroup"), p.get("equips"),
                                        lambda name: equip_groups.groups_for(master_repo().equip_groups(), name))
     sets = _group_sets(p)
@@ -439,9 +448,11 @@ def _answer(p, now):
     cache = _cache()
     hit = cache.get(key)
     if hit is None:
+        dash_progress.step("queue")   # ほかのパネルの集計が済むのを待つ（Python は 1 つずつ数える。版 3.97.0）
         with _COUNT_LOCK:             # 重い集計は 1 つずつ（待っている間に同じ組みを数え終えていれば、その答え）
             hit = cache.get(key)
             if hit is None:
+                dash_progress.counted()
                 hit = _count(p, parts, now, egroups, sets)
                 if "error" in hit:
                     return hit
@@ -452,7 +463,33 @@ def _answer(p, now):
         cache.move_to_end(key)
     note = "設備のまとめのマスタ「" + p["egroup"]["set"] + "」にグループがありません（マスタ管理の「設備グループ」）。" \
         if p.get("egroup") and p["egroup"]["mode"] == "master" and not egroups else ""
-    return {**with_eorder(hit, p), "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp, **({"note": " ".join(x for x in (hit.get("note"), note) if x)} if note else {})}
+    return {**with_eorder(hit, p), "sourceName": name, "mirrors": mirrors, "failed": failed, "now": stamp, **({"note": " ".join(x for x in (hit.get("note"), note) if x)} if note else {}),
+            **_copy_of(name, mirrors, failed)}
+
+
+def _copy_of(name, mirrors, failed):
+    """写している最中の数え方（版 3.97.0。窓の dashboard.rs の copy_of と同じ）: そのデータ元の設備のうち、写し終えた done / 写す total。
+    画面はこれをそのまま「写した done/total 台の分」と言う（前は合わせた表・合わせるで、ほかのデータの写しまで足して 6/12 と数えていた）。
+    写している途中の様子（設備ごとの済んだバイト・経過）があれば bytes・rate（バイト/秒）・leftSec（いちばん遅く終わる設備の残り秒。
+    写し始めていない・0.5 秒たっていない・1 バイトも写していない設備があれば出さない）。失敗の並びからは途中の様子を外す"""
+    cops = [f for f in failed if f.get("kind") == "copying"]
+    progs = [f.pop("_copy", None) for f in cops]
+    if not cops:
+        return {}
+    c = {"name": name, "done": len(mirrors), "total": len(mirrors) + len(cops)}
+    ps = [p for p in progs if p]
+    if ps:
+        done, total, secs = sum(p["done"] for p in ps), sum(p["total"] for p in ps), max(p["secs"] for p in ps)
+        c["bytes"] = [done, total]
+        if secs >= 0.5 and done > 0:
+            c["rate"] = round(done / secs, 1)
+        if all(p and p["secs"] >= 0.5 and p["done"] > 0 for p in progs):
+            c["leftSec"] = round(max((p["total"] - p["done"]) / (p["done"] / p["secs"]) for p in ps), 1)
+    return {"copy": c}
+
+
+def _first_copy(answers):
+    return next(({"copy": a["copy"]} for a in answers if isinstance(a.get("copy"), dict)), {})
 
 
 # 画面は全部のパネルを一度に問い合わせる。重い集計（Python の 1 行ずつの数え）を同時に走らせると取り合って、順に数えるより
@@ -560,7 +597,11 @@ def _link_answer(p, now):
     """合わせるデータを 1 つずつ数え（ふつうのパネルと同じ _answer）、軸の値でそろえて 1 つの答え（集計表と同じ形。値＝データごと）にする。
     積み上げ（cum）は軸の並び（日・年月なら古い順）に足していく。extra: diff（実績−目標）・rate（実績÷目標 %）"""
     link = p["link"]
-    answers = [_answer(dashboard.side_query(link, i, p), now) for i in range(len(link["sides"]))]
+    answers = []
+    for i in range(len(link["sides"])):
+        dash_progress.group(i, len(link["sides"]))    # 合わせるデータ i / 数 済み（版 3.97.0）
+        answers.append(_answer(dashboard.side_query(link, i, p), now))
+    dash_progress.group(len(link["sides"]), len(link["sides"]))
     if all("cells" not in a for a in answers):
         return answers[0]
     keys, labels, first = {}, {}, []
@@ -619,7 +660,7 @@ def _link_answer(p, now):
             "failed": [f for a in ok for f in a.get("failed") or []], "now": now.strftime("%Y-%m-%d %H:%M:%S"),
             "link": {"sides": [{"role": x["role"], "build": x["build"], "name": names[i], "sourceName": answers[i].get("sourceName") or "",
                                 "keyName": pivot._dim_name(x["key"]), **({"error": answers[i]["error"]} if "cells" not in answers[i] else {})}
-                               for i, x in enumerate(sides)]}}
+                               for i, x in enumerate(sides)]}, **_first_copy(answers)}
 
 
 # ---------------------------------------------------------------- 設備の手で並べた順（版 3.48.0。利用者の要望 2026-10-21 の 3 回目の 3）
@@ -661,7 +702,7 @@ def _ops_answer(p, now):
     try:
         parts, failed, name, mirrors = panel_parts(p["source"], p["equip"], p["basis"], p.get("equips"), first_wait=DASH_FIRST_WAIT_SEC)
     except _Fail as f:
-        return _fail(f.resp)
+        return {**_fail(f.resp), **f.copy}
     o = p.get("ops") or {}
     period = p["period"] or (GANTT_PERIOD if p["visual"] == "gantt" else None)
     stamp = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -671,6 +712,8 @@ def _ops_answer(p, now):
     cache = _cache()
     hit = cache.get(key)
     if hit is None:
+        dash_progress.counted()
+        dash_progress.step("queue")
         with _COUNT_LOCK:
             hit = _ops_count(p, parts, o, period, now)
         if "error" in hit:
@@ -678,7 +721,7 @@ def _ops_answer(p, now):
         cache[key] = hit
         while len(cache) > 96:
             cache.popitem(last=False)
-    return {**hit, "failed": failed + hit.get("skipped", []), "sourceName": name, "mirrors": mirrors, "now": stamp}
+    return {**hit, "failed": failed + hit.get("skipped", []), "sourceName": name, "mirrors": mirrors, "now": stamp, **_copy_of(name, mirrors, failed)}
 
 
 def _ops_count(p, parts, o, period, now):
@@ -687,7 +730,8 @@ def _ops_count(p, parts, o, period, now):
     pats = master_repo().shift_patterns()
     cols = [o.get("label") or "", o.get("color") or ""]
     equips, skipped, rng, start_col, end_col = [], [], None, "", ""
-    for part in order_parts(parts, p.get("eorder")):
+    for i, part in enumerate(order_parts(parts, p.get("eorder"))):
+        dash_progress.step("gantt", i, len(parts))     # 稼働のガントを組み終えた設備 i / 数（版 3.97.0）
         try:
             r = operation.read_ops(part, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False), today=now.date(), calc=p.get("calc"),
                                    period=period, now=now, end=o.get("end", ""), start=o.get("start", ""), cols=[c for c in cols if c], reach=True)
@@ -732,7 +776,8 @@ def _abc_pass(p, parts, o, period, now):
     lead = o.get("span") == "lead"
     args = (cls, qty, o.get("base") or "avg", dashboard.abc_lims(o), o.get("rankBy") == "each")
     equips, skipped, every, reads, rng, start_col, end_col = [], [], [], [], None, "", ""
-    for part in order_parts(parts, p.get("eorder")):
+    for i, part in enumerate(order_parts(parts, p.get("eorder"))):
+        dash_progress.step("read", i, len(parts))      # ABC 分析: 読み終えた設備 i / 数（版 3.97.0）
         try:
             r = operation.read_ops(part, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False), today=now.date(), calc=p.get("calc"),
                                    period=period, now=now, end=o.get("end", ""), start=o.get("start", ""), cols=[c for c in cols if c],
@@ -749,6 +794,7 @@ def _abc_pass(p, parts, o, period, now):
         return {"error": "数えられる設備がありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]), "kind": "invalid", "status": 400}
     if lead and not any(r["lot"] for r in reads):
         return {"error": "ロット番号の列が無いので、リードタイム（同じロットの最初の作業開始〜最後の作業終了）を出せません。", "kind": "invalid", "status": 400}
+    dash_progress.step("abc")                           # 品種を並べる（n/of なし）
     return equips, operation.abc(operation.lead_ops(reads) if lead else every, *args), skipped, rng, start_col, end_col
 
 
@@ -784,6 +830,20 @@ def dashboard_query():
     合わせた表（visual board）は {groups: [列のまとまりごとの答え（数えられなければ {error, kind}）], equipOrder: 設備の並び, now}。
     別のデータを合わせたパネル（link。版 3.40.0）は、データごとの値を並べた 1 つの答え（_link_answer）。
     設備の分け方（esplit。版 3.40.0）は _split_answer（並べる facet は答えに facets）"""
+    ask = dash_progress.begin(request.args.get("ask", ""), request.get_data())
+    try:
+        return _dashboard_query()
+    finally:
+        dash_progress.finish(ask)
+
+
+@bp.get("/api/dashboard/progress")
+def dashboard_progress():
+    """待っているパネルの段（版 3.97.0。services/dash_progress.py。デスクトップ版は窓が答える）"""
+    return jsonify(dash_progress.answer(",".join(request.args.getlist("ask")).split(",")))
+
+
+def _dashboard_query():
     body = request.get_json(force=True, silent=True) or {}
     try:
         p = dashboard.clean_panel(body.get("panel") or {}, 0, dashboard.ROWS_MAX)
@@ -792,14 +852,20 @@ def dashboard_query():
     now = _now()
     if p["visual"] == "board":
         repo = master_repo()
-        groups = [_answer(dashboard.board_query(p, i), now) for i in range(len(p["groups"]))]
-        extra = {}
+        groups = []
+        for i in range(len(p["groups"])):
+            dash_progress.group(i, len(p["groups"]))  # 合わせた表のまとまり i / 数 済み（版 3.97.0）
+            groups.append(_answer(dashboard.board_query(p, i), now))
+        dash_progress.group(len(p["groups"]), len(p["groups"]))
+        extra = _first_copy(groups)
         if p["order"].get("tree"):     # 行をグループの見出しの下にまとめる（版 3.41.0）: 表に出る行の名前で、グループの入り方を決める
             keys = list(dict.fromkeys(str((a.get("labels") or [{}])[0].get(k, k)) for a in groups if "orders" in a for k in a["orders"][0] if k != ""))
             extra["tree"] = (equip_tree(keys, p["order"]["tree"]) or [{"groups": []}])[0]["groups"]
         return jsonify(groups=groups, equipOrder=_equipment_names(repo, repo.work_logs()), now=now.strftime("%Y-%m-%d %H:%M:%S"), **extra)
     a = _ops_answer(p, now) if p["visual"] in dashboard.OPS_VISUALS else _link_answer(p, now) if p.get("link") else _split_answer(p, now)
     if "status" in a and "cells" not in a:
+        if a.get("copy"):         # 1 台も写し終えていない: 写しの様子（台・バイト・あと何秒）も返す（版 3.97.0）
+            return jsonify(error=a["error"], kind=a["kind"], copy=a["copy"]), a["status"]
         return error(a["error"], a["status"], a["kind"])
     return jsonify(a)
 

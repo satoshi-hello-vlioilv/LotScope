@@ -24,7 +24,7 @@ const answer = (p, id) => p.evaluate((k) => Dashboard._state().answers[k], id);
 const layout = (p) => p.evaluate(() => Dashboard._state().layout);
 const panelOf = async (p, id) => (await layout(p)).panels.find((x) => x.id === id);
 /** 答えが出そろうまで待つ（引いている間の印が消える） */
-async function settle(p, ms = 900) { await sleep(ms); for (let i = 0; i < 60; i++) { if (!(await p.$("#dashGrid .db-spin"))) break; await sleep(250); } await sleep(300); }
+async function settle(p, ms = 900) { await sleep(ms); for (let i = 0; i < 60; i++) { if (!(await p.$("#dashGrid .db-p[data-wait]"))) break; await sleep(250); } await sleep(300); }
 const click = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel);
 const pick = (p, sel, v) => p.evaluate(([s, x]) => { const el = document.querySelector(s); el.value = x; el.dispatchEvent(new Event("change", { bubbles: true })); }, [sel, v]);
 const work = (id, x, y, w, h, extra) => ({ id, x, y, w, h, title: "", source: "work", equip: "", filters: [], search: "", period: null, basis: "work", sort: "", top: 0, ...extra });

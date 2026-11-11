@@ -39,6 +39,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from . import aggregate
+from . import dash_progress
 from . import formula
 from .formula import calc_for, register as register_calc
 from .identity import normalize_part
@@ -634,7 +635,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     gsets = {k: EquipGroups(v) for k, v in (sets or {}).items()}
     need_equip = bool(pick) or bool(groups and groups.rest == "hide")
     states, skipped = [], []
-    for part in parts:
+    for i, part in enumerate(parts):
+        dash_progress.step("read", i, len(parts))     # 読み終えたファイル i / 数（版 3.97.0）
         try:
             states.append(_open_part(part, search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today, box=box, period=period,
                                      calc=calc, need_equip=need_equip, span=_part_span(part, period, now)))
@@ -648,6 +650,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
             skipped.append({"name": part.name, "error": str(e)})
     if not states:
         raise PivotError("数えられるファイルがありません。" + "".join(f" {x['name']}: {x['error']}" for x in skipped[:3]))
+    dash_progress.step("count")
     head = states[0]
     rd, cd, ms = head["rd"], head["cd"], head["ms"]
     # 設備で絞る（選んだ設備・まとめで数えない設備）。設備を見分けられない元は絞れない（知らせる）

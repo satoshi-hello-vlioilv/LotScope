@@ -161,6 +161,16 @@ pub struct DbMirror {
     refresh_lock: Mutex<()>,
     wake: Arc<(Mutex<Wake>, Condvar)>,
     started: Mutex<bool>,
+    /// いま写している途中のファイル（写しかけの一時ファイル・元の大きさ・写し始めた時刻。版 3.97.0: 画面の「あと約 n 秒」の材料）
+    copying: Mutex<Option<(PathBuf, u64, Instant)>>,
+}
+
+/// 写している途中の様子（copy_progress）
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CopyProgress {
+    pub done: u64,
+    pub total: u64,
+    pub secs: f64,
 }
 
 impl DbMirror {
@@ -175,6 +185,7 @@ impl DbMirror {
             refresh_lock: Mutex::new(()),
             wake: Arc::default(),
             started: Mutex::new(false),
+            copying: Mutex::default(),
         })
     }
 
@@ -405,7 +416,11 @@ impl DbMirror {
         let target = self.generation_path(self.next_generation());
         let tmp = target.with_extension("sqlite3.tmp");
         let _ = std::fs::remove_file(&tmp);
-        if let Err(e) = copy_shared(&remote, &tmp) {
+        let size = sig.get("size").and_then(Value::as_u64).unwrap_or(0);
+        *self.copying.lock().unwrap() = Some((tmp.clone(), size, Instant::now()));
+        let copied = copy_shared(&remote, &tmp);
+        *self.copying.lock().unwrap() = None;
+        if let Err(e) = copied {
             reason(&mut res, format!("写せませんでした: {}", copy_error_text(&e, &remote)));
             cleanup(&tmp);
             return self.record(res);
@@ -448,6 +463,13 @@ impl DbMirror {
             (c.interval, c.stale_hours)
         };
         self.reconfigure_quiet("", interval, stale);
+    }
+
+    /// いま写している途中なら、済んだバイト（写しかけの一時ファイルの大きさ）・元の大きさ・写し始めてからの秒（版 3.97.0）
+    pub fn copy_progress(&self) -> Option<CopyProgress> {
+        let (tmp, total, at) = self.copying.lock().unwrap().clone()?;
+        let done = std::fs::metadata(&tmp).map(|m| m.len()).unwrap_or(0);
+        Some(CopyProgress { done: done.min(total.max(done)), total: total.max(done), secs: at.elapsed().as_secs_f64() })
     }
 
     /// 最初の周回（写し）が済んだか（糸が動いていなければ済んだと見る。Python の wait_first(0) と同じ）

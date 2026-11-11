@@ -216,18 +216,22 @@
   async function queryPanel(p) {
     const k = qkey(p), old = S.answers.get(p.id);
     // 待ち始めの時刻は、待っている間（引いている・写している・写し直している）は保つ（引き直すたびに 0 秒へ戻ると、字がちらついた）
-    const waiting0 = old && old.since && (old.busy || waitInfo(old));
-    setAnswer(p.id, { ...(old || {}), key: k, busy: true, since: waiting0 ? old.since : Date.now() });
+    const waiting0 = old && old.since && (old.busy || waitInfo(old, p));
+    // 問い合わせの印（版 3.97.0）: 待っている間、GET /api/dashboard/progress でこの印の段（何を・n/m・経過・前回）を尋ねる
+    const tag = askTag(p.id);
+    setAnswer(p.id, { ...(old || {}), key: k, busy: true, since: waiting0 ? old.since : Date.now(), ask: tag, prog: null });
     paintPanel(p.id);
     let a;
     try {
-      const r = await fetch("/api/dashboard/query", TPA.json("POST", { panel: asked(p) }));
+      const r = await fetch(`/api/dashboard/query?ask=${encodeURIComponent(tag)}`, TPA.json("POST", { panel: asked(p) }));
       const d = await r.json().catch(() => ({}));
-      a = r.ok ? { key: k, d, at: Date.now() } : { key: k, err: d.error || `読めませんでした（${r.status}）`, kind: d.kind || "error", d: old && old.key === k ? old.d : null, at: old && old.at };
+      // 1 台も写し終えていない間の失敗の答えも、写しの様子（copy: 台・バイト・あと何秒）を持つ（版 3.97.0）
+      a = r.ok ? { key: k, d, at: Date.now() } : { key: k, err: d.error || `読めませんでした（${r.status}）`, kind: d.kind || "error", d: old && old.key === k ? old.d : null, at: old && old.at,
+        copy: d.copy && d.copy.total ? d.copy : null, copyAt: Date.now() };
     } catch (e) { a = { key: k, err: String(e), kind: "error" }; }
     const now = panelOf(p.id);
     if (!now || qkey(now) !== k) return;                 // 引いている間に組みが変わった（新しい方が引き直す）
-    const still = waitInfo(a);                            // まだ写している: 待ち始めの時刻と、引き直した回数を引き継ぐ
+    const still = waitInfo(a, p);                            // まだ写している: 待ち始めの時刻と、引き直した回数を引き継ぐ
     if (still) { const b = S.answers.get(p.id); a.since = b && b.since; a.tries = ((old && old.tries) || 0) + 1; }
     setAnswer(p.id, a);
     paintPanel(p.id);
@@ -357,73 +361,206 @@
     const filt = (width < NARROW || fold) && S.edit ? "" : `<button type="button" class="db-pbtn db-filt${qn ? " is-on" : ""}" data-db-filter aria-haspopup="dialog" title="このパネルだけを、設備・期間・値で絞ります（この PC の見え方）">`
       + `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.5 5.2V13l-3 1.2V8.2z"/></svg>${qn ? `絞り込み ${qn}` : "絞る"}</button>`;
     return `${dot}<h3 title="${esc(titleOf(p))}">${titleHtml(p)}</h3><span class="db-sp"></span>`
-      + badge + (a && a.busy ? '<i class="db-spin" aria-label="読んでいます"></i>' : "") + filt + tools;
+      + badge + filt + tools;
   }
-  /* ---- 待っている様子（版 3.92.0。利用者の要望 2026-11-10 の 4。3 回目の採点で決めた F3）----
-     パネル: 上の縁の細い進みの線・添え書きの段（数字のパネルは数の横・下の添え書き）に理由と秒（見出しは題と回る印だけ。題を切らない）。道具の行の空きに「n 枚中 k 枚 済み・待っている: 名前（理由 秒）・ほか n 枚」。
+  /* ---- 待っている様子（版 3.97.0。利用者の要望 2026-11-11。3 回目の採点で決めた I2。前は回る印・上の縁の進みの線・道具の行の棒の 3 つ）----
+     印は 1 つ: 待っている間だけ、題の左のデータの色の点が、字の n/m と同じだけ満ちる 16px の円になる（n/m の無い段は輪だけ。
+     前回より長くかかると、円の内側に茶色の輪と「前回 n.n 秒より長くかかっています」）。終われば元の点に戻る。
+     字は添え書きの段（数字のパネルは数の横の添え書き）に「段 → 何を → あとどのくらい」。数がまだ無い背の高いパネルは中身の真ん中に同じ円と字。
+     段はサーバーが知らせる（GET /api/dashboard/progress。窓 desktop/src/progress.rs・Python services/dash_progress.py）。円の量と字の n/m は同じ数から出す。
+     狭くて入らなければ（前回）→ データの名前（画面ぜんぶで）→ あとどのくらい → 段の言葉を短く の順に省き、最後まで n/m と「写した n/m 台分」を残す。
+     道具の行は「2 / 6 枚 済み・待っている 4 枚・あと約 2 秒」の字と、写している間だけデータ元の札（同じ円）。
      数え直しで 0.7 秒より早く済む物は出さない（1 分ごとの引き直しでちらつかない） */
   const WAIT_SHOW = 0.7;
-  const hm = (t) => { const d = new Date(t || Date.now()); return `${TPA.pad2(d.getHours())}:${TPA.pad2(d.getMinutes())}`; };
-  /** 答え → 待っている様子 {why, sec, busy}（待っていなければ null）: 数えている・写している（写し終えた設備だけの途中の数）・前の写しで数えた */
-  function waitInfo(a) {
-    if (!a) return null;
-    const d = a.d || {}, gs = [d, ...(d.groups || [])];
-    const cop = gs.flatMap((g) => (g.failed || []).filter((f) => f && f.kind === "copying"));
-    const ref = gs.flatMap((g) => (g.mirrors || []).filter((m) => m && m.refreshing)).length;
-    const mir = gs.reduce((n, g) => n + (g.mirrors || []).length, 0);
-    // short … 添え書き・道具の行の札に出す短い言い方（長い言い方は説明〈title〉に）
-    // 写している・写し直している間の引き直しは、その言い方のまま（数え直し中と交互に出してちらつかない）
-    const sec = a.since ? (Date.now() - a.since) / 1000 : 0;
-    if (cop.length) return { why: `共有から写しています ${mir}/${mir + cop.length} 設備`, short: `写しています ${mir}/${mir + cop.length}`, names: cop.map((f) => f.name), sec, busy: !!a.busy };
-    if (ref) return { why: `前回の写しで数えています（写し直し中 ${ref} 設備）`, short: "写し直し中", sec, busy: !!a.busy };
-    if (a.busy) return { why: a.d ? `前回 ${hm(a.at)} の数・数え直しています` : "数えています", short: a.d ? "数え直し中" : "数えています", sec: a.since ? (Date.now() - a.since) / 1000 : 0, busy: true };
-    if (a.kind === "copying" && !a.d) return { why: "共有から写しています", short: "写しています", sec };
-    return null;
+  let askSeq = 0;
+  /** 問い合わせの印（英数字と - _ . だけ・80 字まで。サーバーの valid_ask と同じ） */
+  const askTag = (id) => `${String(id).replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 60) || "p"}-${++askSeq}`;
+  const s1 = (x) => (Math.round((x || 0) * 10) / 10).toFixed(1);
+  const srcName = (k) => (S.sources.find((x) => x.key === k) || {}).name || "";
+  /** 写している最中の数え方: 答えの copy（そのデータ元の設備だけ）。copy を持たない答えは、写しているまとまりだけで数える
+      （前は合わせた表のまとまりの写しを全部足して、仕掛の写しまで 6/12 と数えた） */
+  function copyOf(d) {
+    if (!d) return null;
+    if (d.copy && d.copy.total) return d.copy;
+    const cop = (g) => (g.failed || []).filter((f) => f && f.kind === "copying").length;
+    const g = [d, ...(d.groups || [])].find((x) => x && cop(x));
+    return g ? { name: g.sourceName || "", done: (g.mirrors || []).length, total: (g.mirrors || []).length + cop(g) } : null;
   }
-  const waitShown = (w) => !!w && (!w.busy || w.sec >= WAIT_SHOW || /写/.test(w.short));
-  /** 1 枚のパネルの待ちの字・秒・進みの線を、描き直さずに当て直す（秒は 0.5 秒ごと） */
+  const unitOf = (stage) => (stage === "read" || stage === "copy" || stage === "gantt" ? " 台" : "");
+  /** 答え → 待っている様子（待っていなければ null）。
+      {kind, data（〜を）, verb, what（何を。n/m）, n, of（円の量。無ければ null）, sec（経過）, prev（前回）, over（前回を超えた）, busy} */
+  function waitInfo(a, p) {
+    if (!a) return null;
+    const d = a.d || {}, g = a.prog && !a.prog.done ? a.prog : null, vis = (p && p.visual) || "";
+    // 前回と比べる時間は、数えている段（読む・集計・ガント・ABC）にいた時間だけ（countMs）。写しを待つ・準備・順番待ちの間は比べず、
+    // あとどのくらいも言わない（作った後の採点: 順番を待っているだけのパネルに「前回より長くかかっています」が出た）
+    const counting = !!g && ["read", "count", "gantt", "abc"].includes(g.stage);
+    const sec = g ? (counting && g.countMs != null ? g.countMs : g.elapsedMs) / 1000 : a.since ? (Date.now() - a.since) / 1000 : 0;
+    const prev = counting && g.prevMs ? g.prevMs / 1000 : null;
+    // data … どのデータを（狭ければ画面ぜんぶで省く。添え書きの「実績」などが言う）・calc … どの計算を（省かない。段の言葉を短くする lv 3 からは省く）
+    const base = { sec, prev, over: !!(prev && sec > prev), busy: !!a.busy, data: "", calc: "", n: null, of: null, what: "" };
+    const cp = copyOf(a.d) || a.copy || null;
+    if (cp || (a.kind === "copying" && !a.d)) {        // 写しているデータの写し待ち（写した分だけの途中の数）
+      const live = g && g.stage === "copy" && g.of ? g : null;
+      // 数え方は答えの copy（そのデータ元の写す設備）を先に使う（段の知らせは、答えがまだ無い最初の 2 秒だけ）
+      const n = cp ? cp.done : live ? live.n : null, of = cp ? cp.total : live ? live.of : null;
+      return { ...base, prev: null, over: false, kind: "copy", verb: "写し待ち", n, of, copy: cp || (live ? { name: srcName(p && p.source), done: n, total: of } : null),
+        // 1 台も写し終えていない間は数が出ていないので「いまの数は」と言わない（数の無いパネルが「いまの数は…の分」と言う食い違い）
+        what: of ? (n ? `いまの数は写した ${n}/${of} 台の分` : `写した 0/${of} 台・写し終えると数が出ます`) : "共有から写しています", short: of ? `写した ${n}/${of} 台分` : "写し待ち" };
+    }
+    if (!a.busy) {
+      const ref = [d, ...(d.groups || [])].reduce((k, x) => k + ((x && x.mirrors) || []).filter((m) => m && m.refreshing).length, 0);
+      return ref ? { ...base, kind: "refresh", verb: "写し直し待ち", what: `いまの数は前の写しの分（${ref} 台）` } : null;
+    }
+    if (!g) return { ...base, kind: "busy", verb: a.d ? "数え直し" : "数えています" };
+    if (g.stage === "python") return { ...base, prev: null, over: false, kind: "python", verb: "Python が数えています" };
+    const grp = g.group && (vis === "board" || (p && p.link)) ? g.group : null;
+    if (grp) return { ...base, kind: "group", calc: vis === "board" ? "合わせた表を" : "データを", verb: vis === "board" ? "組む" : "合わせる", n: grp[0], of: grp[1], what: `${grp[0]}/${grp[1]} 済み` };
+    const nof = g.of > 1 ? { n: g.n, of: g.of, what: `${g.n}/${g.of}${unitOf(g.stage)}` } : {};
+    const src = srcName(p && p.source);
+    const by = {
+      plan: { verb: "準備" },
+      queue: { verb: "順番待ち", what: "ほかのパネルを数えています" },
+      copy: { data: src ? `${src}を` : "", verb: "写す" },
+      read: { data: src ? `${src}を` : "", verb: "読む" },
+      count: { verb: "集計する" },
+      gantt: { calc: "稼働のガントを", verb: "組む" },
+      abc: { calc: "ABC 分析の品種を", verb: "並べる" },
+    }[g.stage] || { verb: "数えています" };
+    return { ...base, kind: g.stage, ...by, ...(["plan", "queue", "count", "abc"].includes(g.stage) ? {} : nof) };
+  }
+  const waitShown = (w) => !!w && (!w.busy || w.sec >= WAIT_SHOW || w.kind === "copy");
+  /** あとどのくらい（前回からの見込みは「まもなく」「あと約 n 秒」まで。前回が無ければ経過の秒だけ） */
+  function etaOf(w) {
+    if (w.kind === "copy" || w.kind === "refresh") return "";
+    if (w.over) return `<i class="db-wover">前回 ${s1(w.prev)} 秒より長くかかっています（${s1(w.sec)} 秒）</i>`;
+    if (w.prev) { const left = w.prev - w.sec; return left < 1 ? "まもなく" : `あと約 ${Math.ceil(left)} 秒`; }
+    return `${s1(w.sec)} 秒`;
+  }
+  /** 字（段 → 何を → あとどのくらい）。lv … 0 全部 / 1（前回）を省く / 2 あとどのくらいを省く / 3 段の言葉を短く / 4 単位も省く。noData … データの名前を省く */
+  function waitText(w, lv, noData) {
+    if (w.kind === "copy") return lv >= 3 || (lv >= 2 && w.of) ? esc(w.short) : `<b>写し待ち</b> ${esc(noData && w.of ? w.what.replace(/^いまの数は/, "") : w.what)}`;
+    const step = `<b>${esc((lv >= 3 ? "" : w.calc) + (lv >= 3 || noData ? "" : w.data) + w.verb)}</b>`;
+    // n/m を持たない「何を」（順番待ちの「ほかのパネルを数えています」など）は、段の言葉を短くする所（lv 3）で省く。n/m は最後まで残す
+    const what = lv >= 3 && !/\d/.test(w.what) ? "" : lv >= 4 ? w.what.replace(/ (台|済み)$/, "") : w.what;
+    // 前回より長いことは、lv 3 まで字で言う（lv 4 は円の茶色の輪・説明・道具の行の「前回より長い n 枚」に任せる）
+    const eta = w.over ? (lv >= 4 ? "" : lv >= 2 ? '<i class="db-wover">前回より長い</i>' : etaOf(w)) : lv >= 2 ? "" : etaOf(w);
+    const detail = lv < 1 && w.prev && !w.over ? `（前回 ${s1(w.prev)} 秒）` : "";
+    return [what ? `${step} ${esc(what)}` : step, eta].filter(Boolean).join("・") + detail;
+  }
+  /** 説明（title）の全文: 段・何を・経過・前回 */
+  const waitTitle = (p, w, a) => [titleOf(p), `${w.calc}${w.data}${w.verb} ${w.what}`.trim(), w.kind === "copy" ? "" : `経過 ${s1(w.sec)} 秒`,
+    w.prev ? `前回 ${s1(w.prev)} 秒` : "", a && a.d && a.at ? `いま出ている数は ${hm(a.at)} の数` : ""].filter(Boolean).join("・");
+  const hm = (t) => { const d = new Date(t || Date.now()); return `${TPA.pad2(d.getHours())}:${TPA.pad2(d.getMinutes())}`; };
+  /** 円（字の n/m と同じ量。n/m の無い段は輪だけ・前回を超えたら内側に茶色の輪） */
+  const pieStyle = (w) => `--f:${w.of ? Math.round((Math.min(w.n, w.of) / w.of) * 100) : 0}%`;
+  const pieClass = (w) => `${w.of ? "" : " is-ring"}${w.over ? " is-over" : ""}`;
+  const W = { lv: {}, noData: false };     // 省く段（同じ形・同じ幅のパネルでそろえる）と、データの名前を省くか（画面ぜんぶ）
+  const setHtml = (el, html) => { if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; } };
+  /** 1 枚のパネルの円と字を、描き直さずに当て直す（0.5 秒ごと） */
   function paintWait(el, a) {
-    const w = waitInfo(a), show = waitShown(w);
+    const p = panelOf(el.dataset.id), w = waitInfo(a, p), show = waitShown(w);
+    // 待っている印（撮影・評価関数が「描き終えたか」を見る。前は回る印 .db-spin と中身の「数えています…」で見ていた）
+    if (a && (a.busy || (!a.d && !a.err) || (a.kind === "copying" && !a.d))) el.dataset.wait = "1"; else delete el.dataset.wait;
     el.classList.toggle("is-wait", show);
-    // 言い方と秒の置き場は 1 つ（作った後の採点: 見出しに秒が出るパネルと添え書きに出るパネル・2 通りの言い方があった）:
-    // 添え書きの段に短い言い方＋秒。長い言い方（前回 hh:mm の数・…）は説明（title）と道具の行の説明に
-    const secTxt = show && w.sec != null ? `${w.sec.toFixed(1)} 秒` : "";
-    const sub = el.querySelector(".db-psub"), km = el.querySelector(".db-pb .dp-kmeta:not([hidden])");   // 入らなくて出していない添え書きには書かない
+    const ph = el.querySelector(".db-ph"), sub = el.querySelector(".db-psub"), km = el.querySelector(".db-pb .dp-kmeta:not([hidden])");
+    const center = el.querySelector(".db-pb .db-wcenter");
+    // 題の頭の点 → 円（合わせた表は点が無いので、待っている間だけ円を置く）
+    let dot = ph && ph.querySelector(".db-dot");
+    if (show && ph && !dot) { ph.insertAdjacentHTML("afterbegin", `<i class="db-dot is-own" style="--c:${el.style.getPropertyValue("--pc") || "#3f6591"}" aria-hidden="true"></i>`); dot = ph.querySelector(".db-dot"); }
+    if (dot) {
+      dot.classList.toggle("is-pie", show);
+      dot.classList.toggle("is-ring", show && !w.of);
+      dot.classList.toggle("is-over", show && w.over);
+      if (show) { dot.style.setProperty("--f", pieStyle(w).slice(4)); dot.title = waitTitle(p, w, a); dot.removeAttribute("aria-hidden"); dot.setAttribute("role", "img"); dot.setAttribute("aria-label", dot.title); }
+      else if (dot.classList.contains("is-own")) dot.remove();
+      else { dot.removeAttribute("title"); dot.removeAttribute("role"); dot.removeAttribute("aria-label"); dot.setAttribute("aria-hidden", "true"); }
+    }
+    const big = !!center && el.querySelector(".db-pb").clientHeight >= 140;
+    if (center) {
+      center.hidden = !show || !big;
+      if (show && big) setHtml(center, `<i class="db-dot is-pie${pieClass(w)}" style="--c:${dot ? dot.style.getPropertyValue("--c") : "#3f6591"};${pieStyle(w)}" aria-hidden="true"></i>`
+        + `<div class="db-wc1">${waitText(w, 1, W.noData).split("・")[0]}</div><div class="db-wc2">${[waitText(w, 0, W.noData).split("・").slice(1).join("・")].filter(Boolean).join("")}</div>`);
+      if (show && big) center.title = waitTitle(p, w, a);
+    }
+    // 添え書きの段の字（数のまだ無い背の高いパネルは真ん中に出したので、ここには出さない）
     const host = sub && !sub.hidden && !sub.dataset.wonly ? sub : km || sub;
-    el.querySelectorAll(".db-wst").forEach((x) => { if (!show || x.parentElement !== host) x.remove(); });
-    if (sub && sub.dataset.wonly && (!show || host !== sub)) { sub.hidden = true; delete sub.dataset.wonly; }
-    if (!show || !host) return;
-    if (host === sub && sub.hidden) { sub.hidden = false; sub.dataset.wonly = "1"; }        // 添え書きの無い数字のパネル: 段を出して理由だけ
+    const want = show && !big && host;
+    el.querySelectorAll(".db-wst").forEach((x) => { if (!want || x.parentElement !== host) x.remove(); });
+    if (sub && sub.dataset.wonly && (!want || host !== sub)) { sub.hidden = true; delete sub.dataset.wonly; }
+    if (!want) return;
+    if (host === sub && sub.hidden) { sub.hidden = false; sub.dataset.wonly = "1"; }     // 添え書きの無い数字のパネル: 段を出して待ちの字だけ
     let st = host.querySelector(".db-wst");
     if (!st) { host.insertAdjacentHTML("beforeend", '<span class="db-wst"></span>'); st = host.querySelector(".db-wst"); }
-    st.textContent = w.short + (secTxt ? ` ${secTxt}` : "");
-    st.title = w.why;
+    st.title = waitTitle(p, w, a);
+    // 入る所まで省く（同じ形・同じ幅のパネルは同じ段にそろえる。データの名前を省くのは画面ぜんぶ）
+    const gk = `${host === km ? "k" : "s"}${Math.round(el.clientWidth / 20)}`;
+    const pb = el.querySelector(".db-pb");
+    const over = () => {
+      if (host.scrollWidth > host.clientWidth + 1) return true;
+      if (!pb.contains(host)) return false;
+      const b = pb.getBoundingClientRect(), r = host.getBoundingClientRect();
+      return r.bottom > b.bottom + 1 || host.scrollHeight > host.clientHeight + 1;
+    };
+    let lv = W.lv[gk] || 0;
+    setHtml(st, waitText(w, lv, W.noData));
+    if (lv < 1 && over()) setHtml(st, waitText(w, ++lv, W.noData));
+    if (!W.noData && over()) { W.noData = true; setHtml(st, waitText(w, lv, true)); }
+    while (lv < 4 && over()) setHtml(st, waitText(w, ++lv, W.noData));
+    W.lv[gk] = Math.max(W.lv[gk] || 0, lv);
   }
-  /** 道具の行の空きの進み（待っているパネルの名前・理由・秒。名前を先に縮め、「ほか n 枚」は残す） */
+  /** 道具の行: 写している間だけデータ元の札（同じ円）と、「2 / 6 枚 済み・待っている 4 枚・あと約 2 秒」の字 */
   function paintWaitBar() {
     const box = document.querySelector("#dashBar .db-wbar"); if (!box) return;
-    const rows = (S.layout ? S.layout.panels : []).filter((p) => S.answers.has(p.id)).map((p) => ({ p, w: waitInfo(S.answers.get(p.id)) }));
-    const wait = rows.filter((x) => waitShown(x.w)).sort((x, y) => (y.w.sec || 0) - (x.w.sec || 0));
+    const rows = (S.layout ? S.layout.panels : []).filter((p) => S.answers.has(p.id)).map((p) => ({ p, a: S.answers.get(p.id), w: waitInfo(S.answers.get(p.id), p) }));
+    const wait = rows.filter((x) => waitShown(x.w));
     box.hidden = !wait.length;
-    if (!wait.length) { box.innerHTML = ""; box.title = ""; return; }
+    if (!wait.length) { box.innerHTML = ""; box.title = ""; delete box.dataset.h; W.lv = {}; W.noData = false; return; }
     const done = rows.filter((x) => !x.w).length;
-    const tail = (x) => `（${x.w.short}${x.w.sec != null ? ` ${x.w.sec.toFixed(1)} 秒` : ""}）`, item = (x) => titleOf(x.p) + tail(x);
-    // 待っているパネルは 1 枚ずつの札。入らない札は隠して「ほか n 枚」に数える（見える札＋ほか＝待っている枚数。作った後の採点:
-    // 2 つの名前をまとめて「…」で切り、見える数と枚数が合わなかった）
-    box.innerHTML = `<i class="db-wpg" style="--w:${Math.round((done / Math.max(1, rows.length)) * 100)}%" aria-hidden="true"></i><b>${rows.length} 枚中 ${done} 枚 済み</b>`
-      + `<span class="db-wnames">待っている:${wait.map((x) => `<span class="db-witem"><span class="db-wn">${esc(titleOf(x.p))}</span>${esc(tail(x))}</span>`).join("")}</span><b class="db-wmore" hidden></b>`;
-    box.title = wait.map((x) => `${titleOf(x.p)}（${x.w.why}${x.w.sec != null ? ` ${x.w.sec.toFixed(1)} 秒` : ""}）`).join("\n");
-    const items = [...box.querySelectorAll(".db-witem")], more = box.querySelector(".db-wmore"), names = box.querySelector(".db-wnames");
-    let hid = 0;
-    const fits = () => names.scrollWidth <= names.clientWidth + 1 && box.scrollWidth <= box.clientWidth + 1;
-    for (let i = items.length - 1; i >= 0 && !fits(); i--) { items[i].hidden = true; hid++; more.hidden = false; more.textContent = hid === items.length ? `${hid} 枚` : `ほか ${hid} 枚`; }
+    const copies = [...new Map(wait.filter((x) => x.w.copy).map((x) => [x.w.copy.name, x])).values()];
+    const mb = (b) => (b / 1048576).toFixed(b >= 10485760 ? 0 : 1);
+    const chips = copies.map((x) => { const c = x.w.copy;
+      // あとどのくらい: 答えの leftSec（設備ごとの済んだバイト÷経過から、いちばん遅く終わる設備の残り）を、答えを受け取ってからの時間だけ減らす。
+      // 速さがまだ分からない間は、写し始めてからの秒だけ
+      const got = x.a.d && copyOf(x.a.d) === c ? x.a.at : x.a.copyAt;   // この見込みを受け取った時刻
+      const left = c.leftSec != null ? c.leftSec - (Date.now() - (got || Date.now())) / 1000 : null;
+      const eta = left != null ? (left < 1 ? "まもなく" : `あと約 ${Math.ceil(left)} 秒`) : `${s1(x.a.since ? (Date.now() - x.a.since) / 1000 : 0)} 秒`;
+      const detail = [c.bytes ? `いま写している設備 ${mb(c.bytes[0])} / ${mb(c.bytes[1])} MB` : "", c.rate ? `${mb(c.rate)} MB/秒` : "",
+        c.leftSec == null ? "速さがまだ分からないので、あとどのくらいは写し始めてからの秒で出しています" : ""].filter(Boolean).join("・");
+      return `<span class="db-wcopy" title="${esc(`${c.name}: 共有から手元へ写しています（${c.done}/${c.total} 台を写し終えました${detail ? `。${detail}` : ""}）。写し終えた設備から数え、全部を写し終えると正しい数になります`)}">`
+        + `<i class="db-dot is-pie" style="--c:${P.colorOf((x.p.visual === "board" ? "work" : x.p.source) || "work")};--f:${Math.round((c.done / Math.max(1, c.total)) * 100)}%" aria-hidden="true"></i>`
+        + `<b>${esc(c.name)}</b><span>共有から写しています ${c.done}/${c.total} 台・${eta}</span></span>`; }).join("");
+    const lefts = wait.filter((x) => x.w.prev && !x.w.over).map((x) => x.w.prev - x.w.sec);
+    const left = lefts.length ? Math.max(...lefts) : null, over = wait.filter((x) => x.w.over).length;
+    const txt = `<span class="db-wtxt"><b>${done} / ${rows.length} 枚 済み</b>・待っている ${wait.length} 枚`
+      + (left != null ? `・${left < 1 ? "まもなく" : `あと約 ${Math.ceil(left)} 秒`}` : "") + (over ? `・<i class="db-wover">前回より長い ${over} 枚</i>` : "") + "</span>";
+    setHtml(box, chips + txt);
+    box.title = wait.map((x) => waitTitle(x.p, x.w, x.a)).join("\n");
   }
   function paintWaits() {
     if (!S.active || !S.layout) return;
     S.layout.panels.forEach((p) => { const el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(p.id)}"]`); if (el) paintWait(el, S.answers.get(p.id)); });
     paintWaitBar();
   }
-  setInterval(() => { if (S.active && [...S.answers.values()].some((a) => a && a.busy)) paintWaits(); }, 500);
+  /** 待っている問い合わせの段を尋ねる（待っている間だけ・1 度に 1 つ・全部の印を 1 回で） */
+  let polling = false;
+  async function pollProgress() {
+    const busy = [...S.answers.values()].filter((a) => a && a.busy && a.ask && a.since && Date.now() - a.since >= 300);
+    if (polling || !busy.length) return;
+    polling = true;
+    try {
+      const r = await fetch(`/api/dashboard/progress?ask=${busy.map((a) => encodeURIComponent(a.ask)).join(",")}`, { cache: "no-store" });
+      const d = r.ok ? await r.json() : {};
+      for (const a of S.answers.values()) if (a && a.busy && a.ask && d.asks && d.asks[a.ask]) a.prog = d.asks[a.ask];
+    } catch (_) { /* 尋ねられなくても待ちの字は経過で出る */ } finally { polling = false; }
+    paintWaits();
+  }
+  setInterval(() => {
+    if (!S.active) return;
+    const vals = [...S.answers.values()];
+    if (vals.some((a) => a && a.busy)) pollProgress();
+    if (vals.some((a) => a && (a.busy || copyOf(a.d)))) paintWaits();
+  }, 500);
   /** パネルを描く。組み・答え・大きさ・編集の様子が前に描いた時と同じなら描かない（force で必ず） */
   function paintPanel(id, force = false) {
     const p = panelOf(id), el = document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`);
@@ -473,7 +610,7 @@
     const body = el.querySelector(".db-pb"), foot = el.querySelector(".db-pf");
     const size = { w: body.clientWidth, h: body.clientHeight };
     let note = "";
-    if (!a || (!a.d && !a.err)) body.innerHTML = '<p class="dp-wait">数えています…</p>';
+    if (!a || (!a.d && !a.err)) body.innerHTML = '<div class="db-wcenter" hidden></div>';     // 待ちの円と字は paintWait が入れる（版 3.97.0）
     else if (a.err && !a.d) body.innerHTML = errHtml(a);
     else {
       body.classList.toggle("is-busy", !!a.busy);
@@ -495,7 +632,7 @@
   /** 設備の並びの短い字: 設備グループとちょうど同じならグループの名前（スライサーの札と同じ言葉）、ほかは 3 つまで */
   const eqWord = (list) => { const g = D.groupsOf(S.tree || {}, (sliceState() || {}).set).find((x) => !x.none && D.same(x.members, list)); return g ? g.name : `${list.slice(0, 3).join("・")}${list.length > 3 ? ` ほか ${list.length - 3}` : ""}`; };
   function errHtml(a) {
-    if (a.kind === "copying") return '<p class="dp-wait">共有から写しています。写し終えると出ます…</p>';
+    if (a.kind === "copying") return '<div class="db-wcenter" hidden></div>';     // 写し待ち: 円と字は paintWait（版 3.97.0）
     return `<div class="dp-err"><b>数えられませんでした</b><span>${esc(a.err)}</span><button type="button" class="pv-btn" data-db-edit>パネルを組み直す</button></div>`;
   }
 

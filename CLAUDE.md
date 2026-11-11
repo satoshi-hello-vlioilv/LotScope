@@ -208,6 +208,12 @@ python program/tools/ui_score.py 採点.json                                    
   `ui-eval-kpimeta.mjs`（版 3.96.0。利用者の報告 2026-11-11: 数字のパネルの ④ 期間・元の置き場〈下・上・横 1 列〉が、組む所の見本・編集中・「編集を終える」で確定した所・保存して開き直した所で選んだとおり。
   置き方 3 × 値の並べ方 4〈主と添え・値 1 つ・左右・上下〉× 低い・普通・広い × 3 つの大きさ。見本を押して 150ms でその形・引き直さない・はみ出さない・期間の札が潰れない・
   入らない形〈数が 16px 未満・期間・元を出せない〉は ④ で知らせ、黙って横に替えない。前は中身の高さ 96px 未満を画面が横 1 列にしていた）。
+  `ui-eval-dashwait.mjs`（版 3.97.0。利用者の要望 2026-11-11: 待ちの印は 1 つ。開発用サーバーを TPA_UI_SLOW_FILE で遅くし、本物の段の道〈GET /api/dashboard/progress〉で待ちを起こして刻みごとに:
+  題の頭の点が円になり〈回る印・上の縁の線・道具の行の棒なし〉済めば点に戻る・円の量と字の n/m が同じ数〈n/m の無い段は輪だけ〉・作業実績を読む n/11 台／合わせた表を組む k/2 済み／稼働のガントを組む n/11 台・
+  前回が無い初回は経過の秒、前回があれば「あと約 n 秒」「まもなく」、前回より長ければ言い替えと茶色の輪と道具の行の「前回より長い n 枚」・字の要素を作り直さない・3 つの大きさではみ出さず n/m を残す・
+  写している間は「写した 5/11」〈合わせた表も。前は 6/12〉と道具の行の札 1 つ・Python に任せた形は経過だけ・順番待ち〈Python〉と写しを待つ間は前回と比べない〈比べるのは数え始めてからの時間〉・
+  本物の写し〈TPA_UI_SLOW_FILE の copy: バイト/秒で作業実績の写しを遅くする〉で札に「あと約 n 秒」〈速さが分かるまでは経過の秒〉と説明に MB・MB/秒。段を記録する係は窓 `desktop/src/progress.rs`〈`cargo test --lib progress`・
+  `lot::tests::the_window_answers_dashboard_progress`・写しの数え方は `dashboard::tests::copying_is_counted_within_one_data_source`〉と Python `services/dash_progress.py`〈`tests/test_dash_wait.py`〉）。
   値の計算の式の読み方は、画面（num-format.js）とサーバー（services/num_expr.py）で同じ事例の表（`tests/fixtures/num_expr_cases.json`）を突き合わせる（`num-format-check.mjs`・`tests/test_num_expr.py`）。どれも終了コード 0 で OK
 - 稼働（ガント）・ABC 分析の作業の区間の評価関数（版 3.47.0）: `python program/tools/ops-bench.py [--json]`
   （本物にありそうな作業開始・作業終了の 9 つの書き方〈日時・日付だけ＋年月日時分秒の 14 桁・14 桁だけ・午前／午後・日時の数・日付＋時刻の列・焼鈍炉の 20〜60 時間・日跨ぎで作業終了の日付が作業開始の日・作業終了が空〉の設備を作り、

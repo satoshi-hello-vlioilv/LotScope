@@ -144,7 +144,7 @@ export async function waitDash(page, timeout = 30000) {
   await page.waitForSelector("#dashGrid .db-p", { timeout });
   await page.waitForFunction(() => {
     const ps = [...document.querySelectorAll("#dashGrid .db-p")];
-    return ps.length && ps.every((p) => !p.querySelector(".dp-wait, .db-spin"));
+    return ps.length && ps.every((p) => !p.dataset.wait);    // 待っているパネルの印（版 3.97.0。前は回る印 .db-spin と中身の「数えています…」）
   }, null, { timeout });
 }
 

@@ -133,9 +133,69 @@ def build(quality=1500, work_rows=400, wip=1200):
     return app
 
 
+def slow_down():
+    """待っている所を本物の道で撮る・確かめるため（版 3.97.0。ui-eval-dashwait.mjs・shot-dashwait）: 環境の TPA_UI_SLOW_FILE が指す JSON
+    {"open": 秒, "ops": 秒, "only": [設備名…], "nocache": true, "copy": バイト/秒} を毎回読み、ダッシュボードの集計の 1 ファイルを開く（pivot._open_part）・稼働の 1 設備を読む
+    （operation.read_ops）たびにその秒だけ待つ（only があればその設備〈Part の名前〉だけ）。nocache はパネルの答えの控えを使わない
+    （ファイルが変わった後の数え直しと同じ形）。copy は共有から手元へ写す速さ（作業実績の写しは最初にダッシュボードを開いたときに始まる）。
+    ファイルが無い・読めなければ待たない"""
+    path = os.environ.get("TPA_UI_SLOW_FILE")
+    if not path:
+        return
+    from app.routes import dashboard as routes
+    from app.services import operation, pivot
+
+    def conf_of():
+        try:
+            return json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def wait(kind, part):
+        conf = conf_of()
+        only = conf.get("only")
+        if conf.get(kind) and (not only or getattr(part, "name", "") in only):
+            time.sleep(float(conf[kind]))
+
+    real_open, real_ops = pivot._open_part, operation.read_ops
+
+    def open_part(part, **kw):
+        wait("open", part)
+        return real_open(part, **kw)
+
+    def read_ops(part, **kw):
+        wait("ops", part)
+        return real_ops(part, **kw)
+
+    real_copy = DbMirror._copy
+
+    def copy(remote, tmp):
+        """共有から写すのを遅くする（"copy": バイト/秒。版 3.97.0: 写している間の「あと約 n 秒」を本物の写しで確かめる）"""
+        bps = float(conf_of().get("copy") or 0)
+        if not bps or not Path(remote).name.startswith("実績_"):       # 遅くするのは作業実績の写しだけ（品質・仕掛はそのまま）
+            return real_copy(remote, tmp)
+        with open(remote, "rb") as src, open(tmp, "wb") as dst:
+            while True:
+                chunk = src.read(16 * 1024)
+                if not chunk:
+                    break
+                dst.write(chunk)
+                dst.flush()
+                time.sleep(len(chunk) / bps)
+
+    DbMirror._copy = staticmethod(copy)
+    real_cache = routes._cache
+
+    def cache():
+        return {} if conf_of().get("nocache") else real_cache()
+
+    pivot._open_part, operation.read_ops, routes._cache = open_part, read_ops, cache
+
+
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5077
     as_role(sys.argv[2] if len(sys.argv) > 2 else "開発者")
+    slow_down()
     serve_http(build(), port=port)
 
 
