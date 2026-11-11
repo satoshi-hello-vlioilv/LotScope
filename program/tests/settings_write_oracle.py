@@ -102,6 +102,9 @@ SCENARIOS = [
         S(BOSS, "PUT", P + "schedule.equipments", V(False)),
         S(BOSS, "PUT", P + "schedule.inspect_keywords", V(12)),
         S(BOSS, "PUT", P + "lotdsp_import.direct.browser", V("  ")),
+        # 版 3.98.0 から窓もブラウザの欄を trusted_browser で確かめて答える（前は Python に任せた）
+        S(BOSS, "PUT", P + "lotdsp_import.direct.browser", V("C:\\x.exe")),
+        S(BOSS, "PUT", P + "lotdsp_import.direct.browser", V(' "/usr/bin/msedge" ')),
     ]},
     {"name": "本文の形", "mode": "shared", "rows": [{"id": 1, "項目": "lot_list.table", "値": "x", "rev": 1}], "steps": [
         S(BOSS, "PUT", P + "lot_list.table", "0"),
@@ -125,9 +128,8 @@ SCENARIOS = [
     {"name": "真偽の id（次の id は int(True)+1）", "mode": "shared", "rows": [{"id": True, "項目": "x", "値": "1"}], "steps": [
         S(BOSS, "PUT", P + "lot_list.table", V("t")),
     ]},
-    {"name": "Python に任せる形（ブラウザ・表でない本文・並びの値・読めない本文・数字でない版・百分率符号）", "mode": "shared",
+    {"name": "Python に任せる形（表でない本文・並びの値・読めない本文・数字でない版・百分率符号）", "mode": "shared",
      "rows": [{"id": 1, "項目": "lot_list.table", "値": "x", "rev": 1}], "steps": [], "delegates": [
-        S(BOSS, "PUT", P + "lotdsp_import.direct.browser", V("C:\\x.exe")),
         S(BOSS, "PUT", P + "lot_list.table", "[1]"),
         S(BOSS, "PUT", P + "lot_list.table", '"x"'),
         S(BOSS, "PUT", P + "lot_list.table", "5"),

@@ -1955,6 +1955,25 @@ impl Builder {
         py_path(&p.to_string_lossy())
     }
 
+    /// LotDsp の道の材料（版 3.98.0。src/lotdsp.rs）: (配った lotdsp_import, 参照先を重ねた lotdsp_import, 設備マスタの行)。
+    /// 読めなければ Err の字（「設定の束」「参照先」「設備マスタ」。道は 503 kind settings で断る。Python の routes/lots._inputs と同じ順・同じ字。
+    /// 作った後の採点の割れ 4: 前は黙って空の設備マスタ・配った設定に戻り、誤った理由で断った）
+    pub fn lotdsp_inputs(&self) -> Result<(Value, Value, Vec<Value>), &'static str> {
+        let inp = self.inputs().map_err(|_| "設定の束")?;
+        if inp.p.split_file("path_settings") {
+            return Err("参照先");
+        }
+        let rows = inp.rows("path_settings").map_err(|_| "参照先")?;
+        if inp.p.split_file("equipment_master") {
+            return Err("設備マスタ");
+        }
+        let equipment = inp.rows("equipment_master").map_err(|_| "設備マスタ")?;
+        let eff = effective(&inp.settings, &rows, &["pathItems", "configItems"]).map_err(|_| "参照先")?;
+        let app = inp.settings.get("lotdsp_import").cloned().unwrap_or(Value::Null);
+        let eff_li = eff.get("lotdsp_import").cloned().unwrap_or(Value::Null);
+        Ok((app, eff_li, equipment))
+    }
+
     /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）
     pub fn inputs(&self) -> R<Inputs> {
         let text = std::fs::read_to_string(&self.env.config).map_err(|_| Py("配った設定が読めない"))?;

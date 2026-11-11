@@ -1323,7 +1323,7 @@ async function fetchViaApi(lotNo) {
   if (cancelled) { fetchModal.close(); setStatus("中止", ""); return true; }      // 中止は、ほかの道へ回さない
   if (r && r.ok) {
     fetchModal.stage("import");
-    await applyImported(d, lotNo, `LotDsp API・ログインなし・${d.seconds} 秒`);
+    await applyImported(d, lotNo, LotDspReport.via("api", d.seconds));
     fetchModal.close(); return true;
   }
   fetchModal.close();
@@ -1429,7 +1429,7 @@ async function fetchDirect(lotNo, win = false) {
     if (!win) routeSet("");                         // 見えない Edge で読めた＝社内。窓を先に使う覚えは消す
     paintLotdspRoute();
     fetchModal.stage("import", sawLogin ? [] : ["login"]); fetchModal.hint("");
-    await applyImported(d, lotNo, `${win ? "LotDsp の窓" : "このアプリで直接"}・${d.seconds} 秒`);
+    await applyImported(d, lotNo, LotDspReport.via(win ? "window" : "direct", d.seconds));
     fetchModal.close(); return;
   }
   const why = d.error || "LotDsp を読めませんでした";
@@ -1471,25 +1471,14 @@ async function applyImported(d, lotNo, via) {
 function paintImportReport(rep, via) {
   const now = new Date();
   const hm = `${TPA.pad2(now.getHours())}:${TPA.pad2(now.getMinutes())}`;
-  const list = (xs, f) => xs.map(f).join("、");
-  const renamed = rep.renamed || [];
-  const skipped = rep.skipped || [], planned = rep.planned || [], warnings = rep.warnings || [];
-  const chips = [], details = [];
-  if (skipped.length || warnings.length) {
-    chips.push({ icon: "⚠", n: skipped.length + warnings.length, tone: "warn", title: "取り込まなかった行・注意（開くと中身）" });
-  }
-  if (skipped.length) details.push(`<span class="warn">⚠ 取り込まなかった行（設備マスタに無い）: ${list(skipped, (x) => `№${x.no} ${esc(x.equipment)}`)}。要るならマスタ管理で設備を足して取り込み直す</span>`);
-  warnings.forEach((w) => details.push(`<span class="warn">⚠ ${esc(w)}</span>`));
-  if (planned.length) {
-    chips.push({ icon: "◌", n: planned.length, tone: "plan", title: "未実績（設計の設備名だけ入れた行）" });
-    details.push(`◌ 未実績（設計の設備名だけ）: ${list(planned, (x) => `№${x.no} ${esc(x.equipment)}`)}`);
-  }
-  if (renamed.length) {
-    chips.push({ icon: "⇄", n: renamed.length, tone: "alias", title: "同一工程として読み替えた設備（設備マスタの「同一工程」）" });
-    details.push(`⇄ 読み替え: ${list(renamed, (x) => `№${x.no} ${esc(x.from)}→<b>${esc(x.to)}</b>`)}`);
-  }
-  note({ tone: skipped.length || warnings.length ? "warn" : "ok", lot: rep.lot_no, text: `${rep.imported.length}工程`, chips, details,
-    title: `LotDsp 進度情報（${via}・${hm}）・実績 ${rep.actual_rows} 行・巻出し方向は初期値「${rep.default_unwind}」（違う工程は表で直す）` });
+  // 字は lotdsp-url.js の LotDspReport.report が組む（理由ごとの「取り込まなかった行」・札の題は report.source。版 3.98.0）
+  const r = LotDspReport.report(rep, via, hm, esc);
+  const chips = [];
+  if (r.warn) chips.push({ icon: "⚠", n: r.warn, tone: "warn", title: "取り込まなかった行・注意（開くと中身）" });
+  if (r.planned) chips.push({ icon: "◌", n: r.planned, tone: "plan", title: "未実績（設計の設備名だけ入れた行）" });
+  if (r.renamed) chips.push({ icon: "⇄", n: r.renamed, tone: "alias", title: "同一工程として読み替えた設備（設備マスタの「同一工程」）" });
+  const details = r.details.map((d) => (d.tone === "warn" ? `<span class="warn">${d.html}</span>` : d.html));
+  note({ tone: r.warn ? "warn" : "ok", lot: rep.lot_no, text: `${rep.imported.length}工程`, chips, details, title: r.title });
 }
 
 /* ---- このアプリで読めないとき: 貼り付け・保存した HTML ---- */

@@ -47,13 +47,14 @@ def html_with_offs(offs, lot_no="L7150C0", thickness_shift=0.0):
 
 def to_moment(display, how):
     """画面の日時（YY/MM/DD hh:mm:ss）を、API の書き方に。iso=ふつうの ISO、epoch=1970年からの経過ミリ秒、utc=ずれつき（Z）の ISO。
-    経過ミリ秒とずれつきは、この PC の時刻として画面と同じになる向きに作る（アプリも同じ向きで読む）。"""
+    経過ミリ秒とずれつきは、日本時間として画面と同じになる向きに作る（版 3.98.0: アプリは日本時間で読む。lotdsp_rules.TZ）。"""
     from datetime import datetime, timezone
+    from app.services.lotdsp_rules import TZ
     dt = datetime.strptime(("20" + display).strip(), "%Y/%m/%d %H:%M:%S") if len(display) > 8 else datetime.strptime("20" + display, "%Y/%m/%d")
     if how == "epoch":
-        return int(dt.timestamp() * 1000)
+        return int(dt.replace(tzinfo=TZ).timestamp() * 1000)
     if how == "utc":
-        return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        return dt.replace(tzinfo=TZ).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 

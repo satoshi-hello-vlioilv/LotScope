@@ -29,7 +29,11 @@ def api_settings():
 
 
 def api_map():
-    """LotDsp の API の項目名の対応（この PC の作業場所。アプリで1つ）。"""
+    """LotDsp の API の項目名の対応（この PC の作業場所。アプリで1つ）。
+    窓が LotDsp を受け持つとき（shell_serves に lotdsp。版 3.98.0）、書き手は窓の 1 つ: 尋ねるたびにファイルから読む（古い学びを見せない）"""
+    from .. import shell_serves
+    if "lotdsp" in shell_serves() and current_app.config.get("LOTDSP_API_MAP") is None:
+        return lotdsp_api.KeyMap(app_env.local_root() / "lotdsp_api_map.json")
     km = current_app.config.get("LOTDSP_API_MAP")
     if km is None:
         km = current_app.config["LOTDSP_API_MAP"] = lotdsp_api.KeyMap(app_env.local_root() / "lotdsp_api_map.json")

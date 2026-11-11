@@ -202,7 +202,8 @@ def _check_sqlite(item, value):
 def _check_url(item, value):
     from .lotdsp_direct import reachable
     if item["key"] == "lotdsp_import.url":
-        ok = reachable(str(value), 4)
+        from .lotdsp_rules import site_base
+        ok = reachable(site_base(value), 4)          # # から後ろを捨てた場所へ（版 3.98.0。見えない Edge と同じ決まり）
         return {"ok": ok, "message": "LotDsp に届きました（ログインが要るかは「検索」で分かります）。" if ok
                 else "LotDsp に届きません（社外・VPN 未接続・場所の間違い）。"}
     return {"ok": True, "message": "URL の形は正しいです（つながるかは LotDsp を開いて確かめてください）。"}

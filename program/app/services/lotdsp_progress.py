@@ -24,11 +24,12 @@ import re
 from html.parser import HTMLParser
 
 from ..models import DEFAULT_UNWIND, Lot, Process
+from . import lotdsp_rules
 from .equipment_names import EquipmentResolver
 from .equipment_names import compact as norm       # 見出しの比較用（大小はそのまま）
 from .equipment_names import norm as name_key      # ロット番号・設備名の比較用（大文字にそろえる）
 
-MAX_HTML_CHARS = 5_000_000
+MAX_HTML_CHARS = lotdsp_rules.MAX_HTML_CHARS
 
 # 列の見出し（正規化後の文字で完全一致）。設定 lotdsp_import.* で上書きできる。
 DEFAULT_ACTUAL_COLUMNS = {
@@ -71,10 +72,8 @@ DEFAULT_PRODUCT_COLUMNS = {
 PROCESS_HEADER_KEYS = ("設備", "日付", "板厚", "板幅", "重量")
 
 
-def to_number(text):
-    """'1,200.00' → 1200.0、空・数字なし → None。"""
-    m = re.search(r"-?\d+(?:\.\d+)?", str(text or "").replace(",", ""))
-    return float(m.group()) if m else None
+# 数の字は字の全体を数として読む（版 3.98.0。決め ②。lotdsp_rules.to_number）。'1,200.00' → 1200.0、空・数でない字 → None
+to_number = lotdsp_rules.to_number
 
 
 class _TableCollector(HTMLParser):
@@ -137,6 +136,7 @@ class _TableCollector(HTMLParser):
         t = self._stack[-1] if self._stack else None
         if t is None or t["cell"] is None:
             return
+        # 空白は Python の \s（29 字。\x1c〜\x1f・\x85 を含む）を 1 つに縮める。窓（desktop/src/lotdsp_html.rs）は同じ 29 字の表で縮める
         text = re.sub(r"\s+", " ", "".join(t["cell"])).strip()
         t["rows"][-1].append(text)
         t["cell"] = None
@@ -147,6 +147,10 @@ def inner_tables(html):
     c = _TableCollector()
     c.feed(html)
     c.close()
+    # 終わりまで閉じなかった欄も読む（版 3.98.0。前は閉じない注釈などで </td> が無いまま終わると、最後の欄の字を捨てた。DOM と同じ）
+    while c._stack:
+        c._close_cell()
+        c._stack.pop()
     out = []
     for t in c.tables:
         if t["has_child"]:
@@ -182,6 +186,8 @@ def _process_rows(rows, columns):
         # 実績の表は、実績が無い BOX では設備名が空欄になる。値も無ければ「実績なし」として読まない
         # （設計の設備名だけを入れた行として後で足す）。値があって名前だけ空欄の行は、名前を設計から取る
         if not equipment and not any(to_number(cell(k)) for k in ("thickness", "width", "weight")):
+            continue
+        if lotdsp_rules.box_of(no) is None:          # 有限で |№| < 1e9 だけ（版 3.98.0）
             continue
         row = {k: cell(k) for k in idx}
         row["no"] = int(no)
@@ -236,7 +242,7 @@ def _product(tables, columns):
 
 def _int_or(value, default=1):
     n = to_number(value)
-    return int(round(n)) if n else default
+    return int(round(n)) if n and abs(n) < lotdsp_rules.BOX_MAX else default
 
 
 def _process_tables(tables, actual_cols, design_cols):
@@ -286,9 +292,23 @@ def check_lot(lot, expect_lot):
     return lot
 
 
-def _processes(actual_rows, design_rows, equipment_master, only_master):
+def _num_cell(r, k, no, label, warnings):
+    """実績の数の欄（板厚・板幅・重量・オフ）→ 値。空は 0、読めない字は空（None）にして知らせる。先頭の数だけを読んで
+    後ろに数字を捨てたときも知らせる（版 3.98.0。作った後の採点の割れ 1: 前は読めない字を黙って 0 にした）"""
+    raw = r.get(k)
+    v, how, lead = lotdsp_rules.read_number(raw)
+    if how == "unreadable":
+        warnings.append(f"№{no}: {label}「{raw}」を数として読めませんでした（空として取り込みました）")
+        return None
+    if how == "extra":
+        warnings.append(f"№{no}: {label}「{raw}」は先頭の「{lead}」だけを数として読みました")
+    return v or 0
+
+
+def _processes(actual_rows, design_rows, equipment_master, only_master, labels=None):
     """実績（無い BOX は設計）の行 → 工程の配列と、読まなかった・読み替えた・実績待ちの記録。
     設備名は設備マスタで引く。同一工程の名前（ANF・ANI2・CAF など）で出てきたら、その行の設備名（代表）に読み替える。"""
+    labels = labels or DEFAULT_ACTUAL_COLUMNS
     resolver = EquipmentResolver(equipment_master)
     processes, skipped, warnings, renamed, pending = [], [], [], [], []
     design_by_no = {r["no"]: r for r in design_rows}
@@ -300,7 +320,7 @@ def _processes(actual_rows, design_rows, equipment_master, only_master):
         if m is None and only_master:
             skipped.append({"no": no, "equipment": raw, "reason": skip_reason})
             return None
-        eq = (m.get("設備名") or "").strip() if m else raw
+        eq = str(m.get("設備名") or "").strip() if m else raw
         if m is not None and how in ("alias", "pattern") and norm(raw) != norm(eq):
             renamed.append({"no": no, "from": raw, "to": eq, "by": pattern})
         return eq
@@ -334,15 +354,13 @@ def _processes(actual_rows, design_rows, equipment_master, only_master):
         if d and not resolver.same(d["equipment"], raw):
             warnings.append(f"№{no}: 設計は{d['equipment']}、実績は{raw}でした。実績の設備で取り込み、分割数は実績の枚本を使いました。")
             d = None
+        nums = {k: _num_cell(r, k, no, str(labels.get(k, k)), warnings)
+                for k in ("thickness", "width", "weight", "off_front_m", "off_back_m")}
         processes.append({
             "no": len(processes) + 1,
             "equipment": eq,
             "unwind": DEFAULT_UNWIND,
-            "thickness": to_number(r.get("thickness")) or 0,
-            "width": to_number(r.get("width")) or 0,
-            "weight": to_number(r.get("weight")) or 0,
-            "off_front_m": to_number(r.get("off_front_m")) or 0,
-            "off_back_m": to_number(r.get("off_back_m")) or 0,
+            **nums,
             "work_date": r.get("work_date", ""),
             "design_split": _int_or((d or {}).get("pieces") or r.get("pieces")),
             "horizontal_split": _int_or((d or {}).get("horizontal_split")),
@@ -373,7 +391,8 @@ def build_lot(lot, actual_rows, design_rows, equipment_master, cfg=None, source=
     画面（HTML）から読んでも API（lotdsp_api）から読んでも、ここから先は同じ道（設備マスタで絞る・巻出しは初期値）。"""
     cfg = cfg or {}
     lot = dict(lot)
-    processes, notes = _processes(actual_rows, design_rows, equipment_master, cfg.get("only_master_equipment", True))
+    labels = dict(DEFAULT_ACTUAL_COLUMNS, **(cfg.get("actual_columns") or {}))
+    processes, notes = _processes(actual_rows, design_rows, equipment_master, cfg.get("only_master_equipment", True), labels)
     if not any(p["thickness"] is not None for p in processes):
         raise LookupError("取り込める工程がありません（実績の行が無いか、すべて設備マスタに無い設備です）。")
 
