@@ -50,7 +50,9 @@ pub const PROTOCOL: u64 = 1;
 /// schedule: スケジュール（CM3）の係（版 3.96.0。src/schedule.rs。CM3 へ取りに行く・世代を置く・状態を書くのは窓の 1 つ。Python の
 /// Schedules は受け身で、取りに行く要るときは知らせの枠 {"id": 0, "event": "schedule", …}〈効いている設定つき〉で窓に頼んで待つ。
 /// 窓が取れない設定の間は窓が状態に「係を降りた」と書き、Python が取る）。
-pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule"];
+/// lotdsp: LotDsp の 9 本の係（版 3.98.0。src/lotdsp.rs・lotdsp_direct.rs。見えない Edge・錠・中止・学びの覚えは窓の 1 つ。Python の 9 本は
+/// 来たら誤りの印〈409 kind shell〉を返す。窓はどの形も自分で答えるので来ない）
+pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule", "lotdsp"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);
 /// 止めたあと、本当に終わったと見えるまで待つ長さ（その間に入れ替えを始めない）。

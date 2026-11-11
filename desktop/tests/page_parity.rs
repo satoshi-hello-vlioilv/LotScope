@@ -15,10 +15,8 @@ const READS: [&str; 7] =
     ["/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings", "/api/update/settings"];
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
-const MUST_DELEGATE: [(&str, &str); 15] = [
-    // 版 3.87.0: ブラウザの欄は Python が trusted_browser で確かめる（版 3.89.0 から参照先の項目〈GET /api/settings〉も）
-    ("ブラウザの欄に値がある", "/api/sources"),
-    ("ブラウザの欄に値がある", "/api/settings"),
+// 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
+const MUST_DELEGATE: [(&str, &str); 13] = [
     // 版 3.89.0（作った後の採点）: 参照先の値を重ねる配った設定の段が表でない（Python の _set が落ちる）
     ("更新の段が null で参照先に更新の置き場", "/api/settings"),
     // 作った後の採点（版 3.85.0）の割れ

@@ -41,6 +41,6 @@ def stop() -> None:
     """終わるときの後始末（見えない Edge を閉じる）。失敗しても終わる。"""
     try:
         from .services import lotdsp_direct
-        lotdsp_direct.shutdown()
+        lotdsp_direct.shutdown()          # 窓が LotDsp を受け持つとき（版 3.98.0）は起こしていないので何もしない
     except Exception:
         log.exception("STOP cleanup failed")

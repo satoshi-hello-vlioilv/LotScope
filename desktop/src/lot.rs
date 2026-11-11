@@ -102,6 +102,8 @@ pub struct Lot {
     clock: Mutex<Option<Clock>>,
     /// 配布の置き場を写す係（版 3.95.0。src/release_place.rs。このプロセスに 1 つ。写している印はこの PC の作業場所の release_move.json）
     release: crate::release_place::Mover,
+    /// LotDsp の係（版 3.98.0。src/lotdsp.rs・lotdsp_direct.rs。見えない Edge・錠・中止・学びの覚えはこのプロセスに 1 つ）
+    pub lotdsp: Arc<crate::lotdsp::Lotdsp>,
 }
 
 /// いまの時刻（秒）を答える係
@@ -117,6 +119,14 @@ impl Lot {
         let local_root = cache_dir.parent().map(PathBuf::from).unwrap_or_else(|| cache_dir.clone());
         Lot {
             release: crate::release_place::Mover::new(Some(local_root.join("release_move.json"))),
+            lotdsp: Arc::new(crate::lotdsp::Lotdsp::new(
+                local_root.clone(),
+                crate::lotdsp_direct::Direct::new(
+                    Box::new(crate::lotdsp_direct::RealLaunch),
+                    crate::lotdsp_direct::system_clock(),
+                    Arc::new(|s| std::thread::sleep(Duration::from_secs_f64(s.max(0.0)))),
+                ),
+            )),
             presence: Arc::new(Presence::new(local_root.clone(), presence::system_clock())),
             local_root,
             lists: Lists::new(&cache_dir),
@@ -761,6 +771,25 @@ impl Lot {
         crate::release_place::handle(route, query, body, &me, &self.release, &cwd)
     }
 
+    /// 調べる道具の画面（GET /lotdsp-link。版 3.98.0）。型を描けなければ None（窓は 500 で答える）
+    pub fn lotdsp_page(&self, head: bool) -> Option<crate::page::Html> {
+        let b = self.bundle.lock().unwrap().clone()?;
+        self.page.lotdsp_link(&b.env().program, head)
+    }
+
+    /// LotDsp の 9 本の答え（版 3.98.0。src/lotdsp.rs）。材料は窓の束の材料（配った設定・参照先・設備マスタ。Python が居なくても読める）
+    pub fn lotdsp_route(&self, route: crate::lotdsp::Route, query: &str, body: &[u8]) -> (u16, Value) {
+        let builder = self.bundle.lock().unwrap().clone();
+        let inputs = || -> Result<crate::lotdsp::Inputs, String> {
+            let b = builder.as_ref().ok_or("設定の束を組む係がありません")?;
+            let (app, eff, equipment) = b.lotdsp_inputs().map_err(str::to_string)?;
+            Ok(crate::lotdsp::Inputs { app, eff, equipment })
+        };
+        let t0 = Instant::now();
+        let clock = move || t0.elapsed().as_secs_f64();
+        self.lotdsp.handle(route, query, body, &inputs, &clock)
+    }
+
     /// GET /api/update/settings の答え（版 3.95.0。更新の係・配布の画面と操作〈main.rs〉もここから読む）。束の材料を組めない・
     /// 更新の置き場を Python と同じ字にできない形は None（Python に尋ねる）
     pub fn update_settings(&self) -> Option<Value> {
@@ -1046,6 +1075,10 @@ impl Lot {
     /// 本文のある問い合わせも見る入口（main.rs）。ダッシュボードのパネルの数（POST /api/dashboard/query。版 3.62.0）は本文 {panel} で答え、
     /// ほかは handle と同じ
     pub fn handle_body(&self, method: &str, path: &str, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        // LotDsp の 9 本（版 3.98.0）: 窓がただ 1 つの係。どの形も窓が答える（Python に任せない。?engine=python も窓が答える）
+        if let Some(route) = crate::lotdsp::route_of(method, path) {
+            return Some(self.lotdsp_route(route, query, body));
+        }
         if let Some(route) = crate::release_place::route_of(method, path) {
             return self.release_route(route, query, body);
         }
@@ -2173,8 +2206,13 @@ mod tests {
         let (st, v) = lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": ""}"#, &down).unwrap();
         assert_eq!((st, v), (200, json!({"row": null})));
         assert_eq!(lot.settings(&down).unwrap().table, "既定の表", "既定へ戻した");
-        // Python に任せる: ブラウザの欄・?engine=python・表でない本文
-        assert!(lot.handle_body("PUT", "/api/settings/lotdsp_import.direct.browser", "", br#"{"value": "C:\\x.exe"}"#, &down).is_none());
+        // ブラウザの欄は窓が確かめて答える（版 3.98.0。Edge・Chrome の名前でなければ 400）
+        if !cfg!(windows) {
+            let (st, v) =
+                lot.handle_body("PUT", "/api/settings/lotdsp_import.direct.browser", "", br#"{"value": "C:\\x.exe"}"#, &down).unwrap();
+            assert_eq!((st, v["kind"].clone()), (400, json!("invalid")), "{v}");
+        }
+        // Python に任せる: ?engine=python・表でない本文
         assert!(lot.handle_body("GET", "/api/settings", "engine=python", b"", &down).is_none());
         assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", b"[1]", &down).is_none());
         // 門番: 閲覧の人は書けない（読むことはできる）
@@ -2191,6 +2229,105 @@ mod tests {
         std::fs::write(share.join("path_settings.json"), ps.to_string()).unwrap();
         assert!(lot.handle_body("GET", "/api/settings", "", b"", &down).is_none(), "重ねる行があると Python は落ちる");
         assert!(lot.handle_body("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).is_none());
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_lotdsp_from_the_bundle() {
+        // 版 3.98.0（作った後の採点の割れ 4）: LotDsp の道は本物の配線（Lot::handle_body → bundle.rs の lotdsp_inputs）で材料を読む。
+        // 参照先で直した URL が効く（調べる道具の場所）・設備マスタで取込を絞る。設備マスタ・参照先が読めなければ 503 kind settings
+        // （前は黙って空の設備マスタ・配った設定に戻り、「すべて設備マスタに無い設備です」と誤った理由で断った）
+        let work = std::env::temp_dir().join(format!("da-lot-lotdsp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(
+            &cfg,
+            json!({"master_share": {"dir": share}, "lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"enabled": false}}})
+                .to_string(),
+        )
+        .unwrap();
+        let login = crate::bundle::login_id();
+        let perm = json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        let doc = |rows: Value| json!({"schema": 1, "revision": 4, "rows": rows}).to_string();
+        for n in ["data_sources", "work_log_files", "equipment_groups", "shift_patterns", "conversions"] {
+            std::fs::write(share.join(format!("{n}.json")), doc(json!([]))).unwrap();
+        }
+        let master: Value = serde_json::from_slice(&std::fs::read(program.join("data/equipment_master.json")).unwrap()).unwrap();
+        let rows = master.get("rows").cloned().unwrap_or(master);
+        std::fs::write(share.join("equipment_master.json"), doc(rows)).unwrap();
+        std::fs::write(
+            share.join("path_settings.json"),
+            doc(json!([{"id": 1, "項目": "lotdsp_import.url", "値": "http://127.0.0.1:9/参照先/", "rev": 1}])),
+        )
+        .unwrap();
+        let env =
+            crate::bundle::Env { base: work.join("base"), program: program.clone(), local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let fixture = std::fs::read_to_string(program.join("tests/fixtures/lotdsp_progress_L7150C0.html")).unwrap();
+        let body = json!({"html": fixture, "lot_no": "L7150C0"}).to_string();
+        let (st, v) = lot.handle_body("POST", "/api/lots/import-lotdsp", "", body.as_bytes(), &down).expect("窓が答える");
+        assert_eq!(
+            (st, v["lot"]["processes"].as_array().map(Vec::len)),
+            (200, Some(10)),
+            "{}",
+            v.to_string().chars().take(300).collect::<String>()
+        );
+        // 参照先の URL が効く（API を使う設定にして、届かない場所の字に参照先の URL が出る）
+        std::fs::write(
+            share.join("path_settings.json"),
+            doc(json!([{"id": 1, "項目": "lotdsp_import.url", "値": "http://127.0.0.1:9/参照先/", "rev": 1}])),
+        )
+        .unwrap();
+        let cfg2 = work.join("config.json");
+        std::fs::write(
+            &cfg2,
+            json!({"master_share": {"dir": share}, "lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"timeout_seconds": 1}}})
+                .to_string(),
+        )
+        .unwrap();
+        let (st, v) = lot.handle_body("GET", "/api/lots/lotdsp-api/survey", "lot=L1", b"", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (502, json!("unreachable")), "{v}");
+        assert!(v["error"].as_str().unwrap().contains("参照先/service/lotdsp"), "参照先で直した URL が効く: {v}");
+        // 設備マスタ・参照先が読めない → 503 settings（理由の字つき）。共有のファイルが壊れているときは写しで続ける（Python の _maybe_refresh と同じ）ので、
+        // 共有を使わない置き場（同梱の data/）で壊す。行が表でない形も（Python は TypeError）
+        let data = work.join("base").join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        for n in ["equipment_master", "path_settings"] {
+            std::fs::copy(program.join("data").join(format!("{n}.json")), data.join(format!("{n}.json"))).unwrap();
+        }
+        let cfg3 = work.join("config.json");
+        std::fs::write(&cfg3, json!({"lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"enabled": false}}}).to_string())
+            .unwrap();
+        for (name, bad, why) in [
+            ("equipment_master.json", "{bad", "設備マスタ"),
+            ("equipment_master.json", r#"{"schema": 1, "revision": 1, "rows": [1, 2]}"#, "設備マスタ"),
+            ("path_settings.json", "{bad", "参照先"),
+        ] {
+            let keep = std::fs::read(data.join(name)).unwrap();
+            std::fs::write(data.join(name), bad).unwrap();
+            for (m, p, b) in
+                [("POST", "/api/lots/import-lotdsp", body.as_str()), ("POST", "/api/lots/fetch-lotdsp-api", r#"{"lot_no": "L1"}"#)]
+            {
+                let (st, v) = lot.handle_body(m, p, "", b.as_bytes(), &down).unwrap();
+                assert_eq!(
+                    (st, v),
+                    (503, json!({"error": format!("LotDsp の設定・設備マスタを読めません（{why}）。"), "kind": "settings"})),
+                    "{name} {bad} {p}"
+                );
+            }
+            std::fs::write(data.join(name), keep).unwrap();
+        }
+        // 途中経過・中止は材料が要らない
+        assert_eq!(lot.handle_body("GET", "/api/lots/fetch-lotdsp/status", "", b"", &down).unwrap().0, 200);
         let _ = std::fs::remove_dir_all(&work);
     }
 

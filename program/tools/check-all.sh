@@ -79,10 +79,12 @@ if [ $VERIFY -eq 1 ]; then
   echo "空き（窓の通しの前）: $(free_gb) GB" | tee -a "$OUT/summary.txt"
   W="$OUT/verify-work"
   rm -rf "$W"
+  # cargo の作業フォルダを替えている（CARGO_TARGET_DIR。worktree で主の作業フォルダを共にする）ときは、そこに組んだ exe（版 3.98.0）
+  EXE="${CARGO_TARGET_DIR:-desktop/target}/debug/LotScope"
   if command -v xvfb-run >/dev/null 2>&1 && [ "$(uname)" != "MINGW64_NT" ]; then
-    step verify xvfb-run -a python desktop/bundle/verify.py update --exe desktop/target/debug/LotScope --work "$W"
+    step verify xvfb-run -a python desktop/bundle/verify.py update --exe "$EXE" --work "$W"
   else
-    step verify python desktop/bundle/verify.py update --exe desktop/target/debug/LotScope --work "$W"
+    step verify python desktop/bundle/verify.py update --exe "$EXE" --work "$W"
   fi
   grep -E "^FAIL|^  \[" "$OUT"/*-verify.log | head -10 | tee -a "$OUT/summary.txt"
   rm -rf "$W"

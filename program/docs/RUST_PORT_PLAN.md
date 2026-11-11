@@ -1271,6 +1271,95 @@ fixes の 9〜12 はスケジュール（D）、13 はマスタの置き場の�
   `[Errno 11001] getaddrinfo failed`。窓は FormatMessage の文を Python と同じく整えるが、Linux の CI では確かめられず、Windows の CI に作り物の CM3 の
   突き合わせを入れるまで差が残りうる。突き合わせでは Linux の字だけを比べる）。User-Agent の版（3.13）は製品と CI の Python に合わせた字。
 
+### 段 3 の 14 歩目: LotDsp の 9 本を 1 版で窓へ。窓がただ 1 つの係で、Python は答えない — 版 3.98.0
+
+採点（`tools/ui-proposals/2026-11-port-lotdsp.json`。画面に関係のない改良の決まり・1 回）の 1 位 **F**（71.6 点。A の範囲と係に、作り物の
+DevTools での突き合わせを足す）に、採点の指摘（rounds[0].fixes の 14 件）を全部入れて作った。主のセッションが 3.97.0 を同時に作っているので版は 3.98.0。
+
+- 係（指摘 1）: `sidecar.rs` の SERVES に **lotdsp**。9 本（POST /api/lots/import-lotdsp・fetch-lotdsp・fetch-lotdsp-api・GET /api/lots/lotdsp-api/survey・
+  POST /api/lots/lotdsp-api/link・GET /lotdsp-link・GET /api/lots/lotdsp-api/status・GET /api/lots/fetch-lotdsp/status・POST /api/lots/fetch-lotdsp/cancel）は
+  窓の `lot.rs` の `lotdsp_route`（画面は `main.rs` が `page.rs` の `lotdsp_link` で描く）がどの形も答える。?engine=python も窓。本文の端
+  （字でない html・数や null のロット番号・NaN・並び・表でない本文・深すぎる入れ子・UTF-8 でない・BOM）は窓と Python が同じ字で断る（`lotdsp_rules.read_body`・
+  `lotdsp.rs` の `rules::read_body`）。材料（束）を組めないときも窓が 503 kind settings で答える（前の任せる形は無い）。Python の 9 本は名乗られると
+  409 kind shell（来たら誤りの印・`routes/lots.SHELL_HITS` で数える）。窓が Python に任せないことは `lotdsp_parity` の
+  `every_route_is_answered_by_the_window`（7 つの本文 × 3 つの問い合わせ × 材料あり／なし）と、名乗りの試験 `test_lotdsp_rules.Shell`、自己診断の 10b-L で見る。
+- 部品: `desktop/src/lotdsp.rs`（決まり rules・進度情報の表 → ロット・API・学びの覚え KeyMap・調べる道具・9 本）、`lotdsp_html.rs`（html.parser の表の
+  読み方の写し）、`lotdsp_direct.rs`（Edge を探す・起こす・DevToolsActivePort・/json/list・手書きの WebSocket・ページの手順〈`lotdsp_direct.js` を焼く〉・
+  錠・段・中止・使い回し・見張り・LotDsp の窓）、`pyjson.rs`（Python の json.loads・str()・repr()・json.dumps と同じ値。鍵の順・大きな整数・NaN）。
+  HTTP は `cm3_http.rs` に LotDsp 用の `post_plain`・`get_once` を足した（30x のたどり方は urllib と同じ 1 か所）。新しい crate は無い（Windows の
+  `windows` に Win32_System_JobObjects・Win32_Security の機能を足しただけ）。
+- 決めを 1 か所に（指摘 2・5・6・13・14）: Python は `app/services/lotdsp_rules.py`、窓は `lotdsp.rs` の `rules`。事例の表
+  `tests/fixtures/lotdsp_rules_cases.json`（仕様から人が書いた答え）を Python・窓・画面（`tools/lotdsp-url-check.mjs`）が読む。
+  - `site_base`: 前後の空白（Python と JS の両方で空白の字）を除き、# から後ろを捨て、末尾の / を除く。API・見えない Edge・届くか・参照先の「確かめる」・
+    画面の虫眼鏡（`lotdsp-url.js` の siteBase・searchBase）が同じ。
+  - 決め ①（利用者に尋ね中。推奨で作った）: API の日時は **日本時間に固定**（`TZ`・窓は `TZ_HOURS`）。
+  - 決め ②（作った後の採点の割れ 1 を受けて主のセッションが言い直した。2026-11-11）: 数の字は NFKC で全角をそろえ、桁区切り（「,」と空白。小数点より前で
+    後ろがちょうど 3 桁のまとまり）を除き、**先頭の数の全体**（符号・小数点・「.5」の先頭の点・指数）を読んで、後ろの単位などの字は捨てる（`read_number`・
+    窓は `read_number_str`。「7.000mm」→7.0・「6,220.0 kg」→6220.0・「1 200」→1200・「.5」→0.5・「０．５」→0.5・「5e-05」→0.00005）。実績の数の欄で
+    先頭に数が無い空でない字（「*」「(7)」「-」）は 0 にせず空（null）にして report.warnings に出し、捨てた後ろに数字がある（「7.0/8.0」）ときも知らせる。
+    最初の作りかけは「字の全体が数のときだけ」で、「7.000mm」を黙って 0 にしていた（作った後の採点で見つけた）。
+  - 決め ③（同上・採点者の推し）: 届くかは **プロキシなしの 1 回だけ**（`REACH_ONCE`）。HTTP の答えでもプロキシの答え（407・502・503・504）は届いていない。
+  - 整数の欄の照らし方（疑い 4）は調べる道具の `_round_eq` に 1 つ（`round_eq`。学ぶ方の `same` も使う）。
+  - 読んだ秒は道の全体で測り小数 1 桁（`seconds_of`。report.seconds と答えの seconds は同じ値）。
+  - 1 つの HTML の上限 5,000,000 字は取込と調べる道具で同じ（`MAX_HTML_CHARS`）。ロット番号の形（NFKC・大文字・英数字 1〜12 字）は 3 つの道で同じ（`checked_lot`）。
+  - BOX の№と分割の数は |値| < 1e9 だけ読む（`box_of`。前は巨大な整数をそのまま答えに書いた）。
+  - 疑い 2（日付だけの値に 00:00:00 を足す）は答えを変えずに残した: 本物の API がこの形を返すか**分からない**。
+- 見えない Edge（指摘 3・7・11・12）: 閉じる決めは `keep_of` の 1 か所（見えない Edge は keep_seconds・窓は window_keep_seconds）。見張りは 1 つで、
+  起きるたびにいまのブラウザ（世代 gen）をその種類の秒数で測る。keep 0 は見えない Edge だけ毎回閉じる。中止は届くかの確かめ（裏の糸）・
+  DevToolsActivePort の待ち・ページの待ち・DevTools の答えの待ち（WebSocket は読んだ途中の字を捨てずに 0.1 秒ずつ待つ）・ログインの待ちのどれでも 0.1 秒ごとに見る。
+  DevTools につながる前の中止はプロセスを待たずに止める。Windows: 起こした Edge を窓のジョブ（JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE）に入れる・
+  CREATE_NO_WINDOW・起動のときに前の一時プロファイル（tpa-lotdsp-*。1 分より前の物）を消す・設定のブラウザの置き場は canonicalize の \\?\ を外して
+  大小を見ずに段で比べる（`win_key`・`win_under`）。窓が終わるとき（RunEvent::Exit）に使い回しのブラウザを閉じる。Windows だけのコードは全体を
+  Linux から Windows 向けに組めない（libsqlite3-sys の C）ので、作業用クレートに写して `cargo clippy --target x86_64-pc-windows-msvc -- -D warnings` で確かめた。
+- 学びの覚え（指摘 8）: 窓の `Lotdsp::keymap`（プロセスに 1 つの Mutex）。変えて保存し、保存に失敗したらメモリも前に戻す（Python も `_change`）。
+  状態の道は同じ錠の中で読む（Python も `status` を錠の中で写して返す）。/api/config は `bundle.rs` が同じファイルを読む（メモリとファイルは食い違わない）。
+  ほかの書き手がファイルを替えたら（大きさ・時刻）読み直す。Python に残る道（名乗られたとき）は尋ねるたびにファイルから読む（`common.api_map`。N6）。
+- HTML の読み方（指摘 9）: `lotdsp_html.rs` は CPython 3.13.18 の html.parser（goahead・parse_starttag〈locatetagend・tagfind・attrfind〉・parse_endtag・
+  注釈・宣言・CDATA・RAWTEXT〈script・style・xmp・iframe・noembed・noframes〉・RCDATA〈textarea・title〉・plaintext）の写し。字の参照は `cm3::unescape`
+  （4300 桁を超える 10 進の参照は Python と同じ ValueError の字で断る。先頭の 0 も桁に数える: `cm3.rs` も同じに直した）。空白は Python の \s（29 字・
+  `pyfmt::is_space`）。事例の表 `tests/fixtures/lotdsp_html_cases.json`（56 例: 採点の前の 24 例・3.13 の修正版で替わった形〈閉じない注釈・--!>・<!-->・
+  title／textarea の中・script の中の </scriptx>・閉じない script・iframe・plaintext〉・閉じない属性の引用符・大きな数の参照・名前の参照の切り方・
+  Python だけ／JS だけの空白・入れ子 3 段・見本の画面）は `tools/lotdsp-cases.py` が焼いた Python の修正版を書き、`tests/test_lotdsp_html_cases.py` が
+  版の違いで止める。CI の Python は 3.13.18 に固定した（ci.yml・desktop.yml。配る物に同梱する Python と同じ）。独立の答えは `tools/lotdsp-dom-cases.mjs`
+  （Chromium の DOMParser）で、DOM と違う 5 例（template・<td/>・<script/>・空白の決まり 2 つ）は理由を書いた。
+  直した: 終わりまで閉じなかった欄（閉じない注釈など）の字を捨てていた（DOM と食い違っていた。Python も直した）。
+- 設備名の読み替え（指摘 10）: `calc.rs` の Resolver に `resolve_how`（行・name／alias／pattern・当たった書き方）を足した（report.renamed の by。計算の答えは変えない）。
+- 画面（指摘 4）: 取込の結果の札の字は `lotdsp-url.js` の `LotDspReport.report`（理由ごとの「取り込まなかった行」・設備マスタに無い理由にだけ直し方・
+  設備名が空の行は名前を出さない・札の題は report.source）。`tools/lotdsp-url-check.mjs`（`tests/test_screen_parts.py` から流れる）に 9 例を足した。
+- 参照先のブラウザの欄（PUT /api/settings/lotdsp_import.direct.browser）も窓が `trusted_browser` で確かめて答える（前は Python に任せた）。
+- 直した誤り（Python も直した。直す前に `tests/test_lotdsp_rules.py` を流して 24 件中 ほぼ全部が落ちることを確かめた: 失敗 29・誤り 7）:
+  # の URL（`test_settings_use_the_site_base`・`test_settings_check_uses_the_site_base`）・見張りの糸（`test_window_after_headless_stays_for_window_keep_seconds`・
+  `test_watchers_do_not_pile_up`）・keep 0（`test_keep_zero_closes_the_headless_but_not_the_window`）・秒の桁（`test_seconds_have_one_decimal_on_both_routes`: 0.14）・
+  届くか（`test_proxy_answers_are_not_reached`・`test_only_once_without_the_pc_proxy`）・中止（`test_cancel_while_checking_reach`・
+  `test_cancel_while_waiting_for_devtools`）・学びの錠（`test_status_while_learning_does_not_break`: dictionary changed size during iteration）・保存の失敗
+  （`test_failed_save_keeps_memory_and_file_together`）・ロット番号の形（`test_lot_shape_is_the_same_on_every_route`）・調べる道具の上限
+  （`test_link_has_the_same_size_limit`）・本文の形（`test_body_contract`）・日本時間（`test_dates_are_japan_time_whatever_the_pc`）・数の字（`test_numbers_are_read_whole`
+  の 16 例）・整数の欄（`test_integer_fields_do_not_take_fractions_when_learning`）・名乗り（`Shell`）。報告の理由と札の題は、前の `lotdsp-url.js` で
+  `lotdsp-url-check.mjs` が落ちることを確かめた。閉じない欄の字は `test_lotdsp_html_cases` の DOM の突き合わせで落ちた。ほかに Python で
+  直した所: API の並びの要素が表でないと 500（読まない）・inf の№で OverflowError の 500・ブラウザを起こせないと 500（kind browser）・
+  設備マスタの設備名が数だと AttributeError（str にする）・LOTDSP_API_SYNC（試験）で使わない設定でも学ぼうとした。
+- 評価関数: `cargo test --test lotdsp_parity`（← `program/tests/lotdsp_oracle.py serve`。作り物の LotDsp の API〈札ごと・ロット番号ごとの答え:
+  500・JSON でない・業務の誤り・並び・BOM・entity が無い・時間切れ・違うロット・307〉とサイトを起こしたまま、14 場面 186 歩の答え・1 歩ごとの学びの覚え
+  〈時刻・秒は伏せる〉を Python の道と突き合わせる。見えない Edge は作り物のブラウザ `tests/lotdsp_cdp_fake.py`〈DevToolsActivePort・/json/list・
+  WebSocket。台本: 読める・該当なし・ログイン・入れ替わり・移る途中・ページの誤り・知らない理由・65,536 字を超える枠と分けた枠と ping・すぐ終わる 2 つ目の起動・
+  起動が遅い・Browser.close を無視・時間切れ・newtab-footer が先に並ぶ LotDsp の窓でログインを待つ・待ちきれない〉で 15 場面と届かない・ブラウザが無い・
+  使わないの 3 場面を、答え・送った DevTools の命令の並び〈method と params〉・一時プロファイルの残りで突き合わせる。本物の Chromium がある PC では
+  `a_real_browser_reads_the_fake_site` で見本の LotDsp を読み、使い回し・該当なし・ログイン・一時プロファイルを消すを見る）・
+  `cargo test --test lotdsp_cases`（事例の表 2 つ: 決まりの全部と HTML の 56 例〈Python と DOM〉）・`lotdsp_direct` の試験（差し替えた時計と作り物の
+  起こし手で、見えない → 窓 → 600 秒残る → 1800 秒で閉じる・keep 0・見張り 1 つ・届くかの確かめの間の中止・枠・Windows の道の比べ）・
+  `tests/test_lotdsp_rules.py`・`tests/test_lotdsp_html_cases.py`・`tools/lotdsp-url-check.mjs`・自己診断の 10b-L（本物の WebView2）。
+- 作った後の採点（決まり 2026-11-06 の 1 回。主のセッションが別のエージェントに頼んだ・68.3 点。`2026-11-port-lotdsp.json` の built）で見つけた割れ 5 つを
+  直した（built_fixed。採点し直さない）: (1) 単位つきの数が黙って 0（上の決め ② の言い直し・読めない欄は空と知らせ）・(2) API で読んだ札の題が同じ言葉を
+  2 回言う（`LotDspReport.via`）・(3) ブラウザを起こせないときの字が窓と Python で違う・(4) 窓の `lotdsp_inputs` が設備マスタ・参照先を読めないと黙って
+  空・配った設定に戻る（どちらも 503 kind settings「LotDsp の設定・設備マスタを読めません（参照先／設備マスタ）。」に。Python も前は取込が 400・API の道が 500）・
+  (5) 作り物の DevTools の場面がどれも keep 0（差し替えた時計で Browser.close の時期を比べる場面を足した）。足した試験: `test_lotdsp_rules` の Units・Inputs、
+  事例の表の数の 47 例（様子つき）、`lotdsp-url-check.mjs` の題、`lotdsp_oracle` の単位の 3 歩・実行できないブラウザ・見張りで閉じる、
+  `lot::tests::the_window_answers_lotdsp_from_the_bundle`（本物の配線）。どれも直す前に落ちることを確かめた。
+- 分からない事: 本物の LotDsp の API の応答（項目名・日時の形・№のキー）・Windows の本物の Edge で手書きの WebSocket・ジョブ・起動の片付けが同じに
+  動くか（Windows の CI の自己診断で見る）・Store 版や管理者の設定でヘッドレスが止められた PC・接続の timeout を「届きません」と言う形（疑い 10。今の答えのまま）・
+  隠れた要素（ng-hide）の字・8 字以上のロット番号（疑い 6・7）。形（shape）の数字・字の見分けは Python の isdigit・isalpha に近い表で、まれな字で違いうる
+  （人が見る手がかりだけ）。https の LotDsp は窓では読めない（社内のサイトは http。https を入れたときは理由を添えて「届きません」）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。
