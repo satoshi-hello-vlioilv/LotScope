@@ -1,5 +1,5 @@
 {
- "about": "置き場と設定 8 本（版 3.100.0）の事例の表。仕様から人が書いた答え（Microsoft「Naming Files, Paths, and Namespaces」の予約名と使えない字・work_log.scan の決まり・エクスプローラーの並び・利用者の決め）。Python（tests/test_place_cases.py）と窓（desktop/tests/place_cases.rs。3.100.0 は名前とタブの例外。ほかは 3.101.0 で移すときに読む）が同じ表を読む。答えは tools/place-truth.py（app を import しない）でも確かめ直す。names … フォルダの名前（配布の置き場とマスタの置き場の check_name。ok なら want が使う名前・ng なら problem が理由の字）。sort … 「参照…」の並び（並べた答え）。clean … 欄の字 → 道（os があればその OS だけ）。sync … 同期フォルダの注意の呼び名（空は注意なし）。marks … 「参照…」の印（files・dirs を作ったフォルダの印の字。null は印なし。os があればその OS だけ: Windows は ? を名前に使えない）。moves … 引っ越しで写す物（share に置いた物 → copied が写る）。tabExceptions … アクセス権限の行の「タブの例外」の読み方。tabCounts … GET /api/masters/tabaccess の exceptions（効く行だけ）。blank … 参照先の「確かめる」で値も既定も空のとき。hidden … Windows の隠し・システムの属性（Windows の CI だけ）。",
+ "about": "置き場と設定 8 本（版 3.100.0）の事例の表。仕様から人が書いた答え（Microsoft「Naming Files, Paths, and Namespaces」の予約名と使えない字・work_log.scan の決まり・エクスプローラーの並び・利用者の決め）。Python（tests/test_place_cases.py）と窓（desktop/tests/place_cases.rs。3.100.0 は名前とタブの例外。ほかは 3.101.0 で移すときに読む）が同じ表を読む。答えは tools/place-truth.py（app を import しない）でも確かめ直す。names … フォルダの名前（配布の置き場とマスタの置き場の check_name。ok なら want が使う名前・ng なら problem が理由の字）。sort … 「参照…」の並び（並べた答え）。clean … 欄の字 → 道（os があればその OS だけ）。sync … 同期フォルダの注意の呼び名（空は注意なし）。marks … 「参照…」の印（files・dirs を作ったフォルダの印の字。null は印なし。os があればその OS だけ: Windows は ? を名前に使えない）。moves … 引っ越しで写す物（share に置いた物 → copied が写る）。tabExceptions … アクセス権限の行の「タブの例外」の読み方。tabCounts … GET /api/masters/tabaccess の exceptions（効く行だけ）。blank … 参照先の「確かめる」で値も既定も空のとき。hidden … Windows の隠し・システムの属性（Windows の CI だけ）。 moveRaces … 引っ越しが錠の長さを超える場面（錠を短く・読むのを遅く）。ほかの PC の保存は、引っ越し先か前の置き場のどちらか（その PC がたどった後に読む置き場）に必ずある（独立の答え place-truth.row_ids）。利用状況の記録は錠の外で写す。",
  "names": [
   {
    "name": "Defect-Analyzer",
@@ -529,7 +529,7 @@
    "dirs": [
     "実績_D.sqlite3"
    ],
-   "want": "設備 3 台"
+   "want": "ファイルのある設備 3 台"
   },
   {
    "name": "作業実績: [ ] は字のまま",
@@ -540,7 +540,7 @@
     "実績_[A]2.sqlite3",
     "実績_A1.sqlite3"
    ],
-   "want": "設備 2 台"
+   "want": "ファイルのある設備 2 台"
   },
   {
    "name": "作業実績: ? は字のまま",
@@ -550,7 +550,7 @@
     "実績_?1.sqlite3",
     "実績_X1.sqlite3"
    ],
-   "want": "設備 1 台",
+   "want": "ファイルのある設備 1 台",
    "os": "posix"
   },
   {
@@ -913,6 +913,16 @@
    "attrs": "",
    "file": true,
    "shown": true
+  }
+ ],
+ "moveRaces": [
+  {
+   "name": "錠の長さ 1 秒・共有の読みが 1 つ 0.3 秒（遅い共有）。名前の順で最初に写すマスタを、写した後でほかの PC が錠を切れたと見て保存する",
+   "lockTtl": 1.0,
+   "readDelay": 0.3,
+   "saveAfter": 0.2,
+   "presenceFiles": 6,
+   "master": "access_permissions"
   }
  ]
 }

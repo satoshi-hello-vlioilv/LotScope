@@ -114,21 +114,21 @@ def _share_files(share: Path) -> list:
 
 
 def _sources(store):
-    """写す物 → (どこから〈share|mirror|local〉, [(相対の道, 大きさ, 読む関数)])。
+    """写す物 → (どこから〈share|mirror|local〉, [(相対の道, 大きさ, 読む関数, 共有のファイル〈写し・手元は None〉)])。
     共有に届けば共有のファイルそのもの（錠を持って読むので、ほかの PC の直前の保存も入る）。届かなければこの PC の写し、手元のみなら data/"""
     cur = store.share_dir
     if cur is not None and store.share_reachable():
         out = []
         for rel, p in _share_files(cur):
             try:
-                out.append((rel, os.stat(p).st_size, (lambda p=p: _read_bytes(p))))
+                out.append((rel, os.stat(p).st_size, (lambda p=p: _read_bytes(p)), p))
             except FileNotFoundError:
                 if not rel.startswith(PRESENCE_DIR + "/"):
                     raise
                 # 利用状況は錠の外でほかの PC が書く・片付ける（古い履歴を消す）。見つけた後に消えた物は写さない
         return "share", out
     docs = {f"{n}.json": payload(d) for n, d in _docs(store).items()}
-    return ("mirror" if cur is not None else "local"), [(rel, len(b), (lambda b=b: b)) for rel, b in docs.items()]
+    return ("mirror" if cur is not None else "local"), [(rel, len(b), (lambda b=b: b), None) for rel, b in docs.items()]
 
 
 def _read_bytes(path: Path) -> bytes:
@@ -200,8 +200,8 @@ def plan(store, parent, name) -> dict:
     note = {"share": f"共有の置き場のマスタを写してから切り替えます。{RECORDS_NOTE if COPY_PRESENCE else ''}",
             "mirror": "共有の置き場に届かないので、この PC の写しから写して切り替えます（ほかの PC の最近の保存が入らないことがあります）。",
             "local": "この PC（手元のみ）のマスタを写してから切り替えます。"}[where]
-    return {"ok": True, "mode": "copy", "dest": str(dest), "files": len(items), "bytes": sum(n for _, n, _ in items),
-            "names": sorted(rel[:-5] for rel, _, _ in items if "/" not in rel), "caution": sync_caution(dest), "note": note}
+    return {"ok": True, "mode": "copy", "dest": str(dest), "files": len(items), "bytes": sum(i[1] for i in items),
+            "names": sorted(i[0][:-5] for i in items if "/" not in i[0]), "caution": sync_caution(dest), "note": note}
 
 
 def _share_root(store, server, name) -> dict:
@@ -222,40 +222,93 @@ def _share_root(store, server, name) -> dict:
             "note": "既にマスタがある置き場です。写さずに切り替えます（その置き場のマスタを使います）。"}
 
 
+LOCK_SHARE = 0.5     # 錠の長さ（lock_ttl）のうち、錠を持ってマスタを写すのに使ってよい割合（版 3.100.0。作った後の採点の割れ 2）
+
+
+def _presence(rel: str) -> bool:
+    return rel.startswith(PRESENCE_DIR + "/")
+
+
+def _copy_into(tmp: Path, items, done: dict, deadline=None, why=""):
+    """items を tmp の下へ写す（done に数と大きさを足す）。利用状況の記録は、見つけた後に消えた物を飛ばす（錠の外でほかの PC が片付ける）。
+    deadline（monotonic）を過ぎたら ValueError（why）"""
+    for rel, _, read, _ in items:
+        try:
+            data = read()
+        except FileNotFoundError:
+            if _presence(rel):
+                continue
+            raise
+        target = tmp / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _write_file(target, data)
+        done["files"] += 1
+        done["bytes"] += len(data)
+        if deadline is not None and time.monotonic() > deadline:
+            raise ValueError(why)
+
+
 def move(store, parent, name) -> dict:
-    """置き場を変える（plan が通るときだけ）。→ plan の答え＋{from}。失敗は ValueError（理由）。"""
+    """置き場を変える（plan が通るときだけ）。→ plan の答え＋{from}。失敗は ValueError（理由）。
+    利用状況の記録（もともと錠の外で書かれる物）は錠の外で先に写し、マスタだけを錠の中で写す（版 3.100.0。錠を持つ間を短くする）"""
     pl = plan(store, parent, name)
     if not pl["ok"]:
         raise ValueError(pl["problem"])
-    with store.exclusive():     # 写す・切り替える・印を置くまで、この PC の保存を止め、前の置き場の錠を持つ（途中の保存を前の置き場に落とさない）
-        return _move_locked(store, pl)
-
-
-def _move_locked(store, pl) -> dict:
-    dest, old = Path(pl["dest"]), store.share_dir
+    dest = Path(pl["dest"])
+    tmp, done = None, {"files": 0, "bytes": 0}
     if pl["mode"] == "copy":
         tmp = dest.parent / f".{dest.name}.tmp-{uuid.uuid4().hex[:8]}"
         try:
-            _, items = _sources(store)      # **錠を取ってから**読み直す（plan の後にほかの PC が保存した分も写す）
             tmp.mkdir()
-            files = size = 0
-            for rel, _, read in items:
-                try:
-                    data = read()
-                except FileNotFoundError:
-                    if rel.startswith(PRESENCE_DIR + "/"):
-                        continue            # 利用状況の片付けで消えた（錠の外）
-                    raise
-                target = tmp / rel
-                target.parent.mkdir(parents=True, exist_ok=True)
-                _write_file(target, data)
-                files, size = files + 1, size + len(data)
-            pl["files"], pl["bytes"] = files, size    # 写した量（plan の後に保存があれば、確かめた時の量と違う）
+            _, items = _sources(store)
+            _copy_into(tmp, [i for i in items if _presence(i[0])], done)
+        except OSError as e:
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise ValueError(f"写せませんでした: {e}") from e
+    try:
+        with store.exclusive():     # マスタを写す・切り替える・印を置くまで、この PC の保存を止め、前の置き場の錠を持つ（途中の保存を前の置き場に落とさない）
+            return _move_locked(store, pl, tmp, done)
+    finally:
+        if tmp is not None and tmp.exists():
+            shutil.rmtree(tmp, ignore_errors=True)       # 写し終えて名前を付けた後は無い。途中で止めたときの片付け
+
+
+def _sigs(items):
+    out = {}
+    for rel, _, _, path in items:
+        if path is not None:
+            try:
+                st = os.stat(path)
+                out[rel] = (st.st_mtime_ns, st.st_size)
+            except OSError:
+                out[rel] = None
+    return out
+
+
+def _move_locked(store, pl, tmp, done) -> dict:
+    dest, old = Path(pl["dest"]), store.share_dir
+    if pl["mode"] == "copy":
+        # 錠は延ばさない（錠の作りは別の係が直している）。錠の長さの半分を過ぎたら、ほかの PC が錠を切れたと見て前の置き場へ保存しうるので、
+        # 切り替えずに止める（前の置き場のまま。何も消えない）。止める前に読んだマスタが変わっていても止める
+        slow = (f"共有が遅く、錠の長さ（{store.lock_ttl:g} 秒）の半分のうちにマスタを写し終えられませんでした。前の置き場のまま変えていません。"
+                "共有が空いているときに、もう一度やり直してください。")
+        deadline = time.monotonic() + store.lock_ttl * LOCK_SHARE
+        try:
+            where, items = _sources(store)      # **錠を取ってから**読み直す（plan の後にほかの PC が保存した分も写す）
+            masters = [i for i in items if not _presence(i[0])]
+            before = _sigs(masters)
+            _copy_into(tmp, masters, done, deadline, slow)
+            if where == "share":
+                now_names = {rel for rel, _ in _share_files(old) if not _presence(rel)}
+                if _sigs(masters) != before or now_names != {i[0] for i in masters}:
+                    raise ValueError("写している間に、ほかの PC がマスタを保存しました（錠の長さを超えた）。前の置き場のまま変えていません。もう一度やり直してください。")
+            if time.monotonic() > deadline:
+                raise ValueError(slow)
+            pl["files"], pl["bytes"] = done["files"], done["bytes"]    # 写した量（plan の後に保存があれば、確かめた時の量と違う）
             if dest.exists():
                 dest.rmdir()          # plan で空と確かめた
             os.replace(tmp, dest)
         except OSError as e:
-            shutil.rmtree(tmp, ignore_errors=True)
             raise ValueError(f"写せませんでした: {e}") from e
     # 戻した先（前に使っていた置き場）に残っている引っ越し先の印は、もう古い。残すとほかの PC がたどって輪になる（版 3.34.0）
     try:
@@ -273,7 +326,9 @@ def _move_locked(store, pl) -> dict:
 
 
 # ---- 置き場の状態（GET /api/masters/status・/api/masters/place）。共有を見るのは SHARE_PROBE_SEC まで（版 3.100.0。疑い 2:
-# 届かない SMB は 1 か所数十秒待つことがあり、画面は 5 秒ごとに尋ねる）。終わらなければ写しで答え、届かないとする（画面は真偽で読む）
+# 届かない SMB は 1 か所数十秒待つことがあり、画面は 5 秒ごとに尋ねる）。終わらなければ写しで答え、reachable は null（確かめ中）。
+# false（届かない）にすると、画面はマスタ管理の保存を全部止める（遅いが届く共有〈VPN・眠っていたサーバーの 1 回目〉で保存できなくなる。
+# 作った後の採点の割れ 1）。保存そのものは、届かなければ MasterStore が断る
 _PROBES = {}
 _PROBES_LOCK = threading.Lock()
 
@@ -304,28 +359,28 @@ def _bounded(key, fn, seconds):
 
 
 def status(store) -> dict:
-    """GET /api/masters/status の答え（MasterStore.status＋同期フォルダの注意）。共有を見るのは SHARE_PROBE_SEC まで"""
+    """GET /api/masters/status の答え（MasterStore.status＋同期フォルダの注意）。共有を見るのは SHARE_PROBE_SEC まで（終わらなければ reachable null）"""
     if store.share_dir is None:
         st = store.status()
     else:
         done, st = _bounded(("status", id(store)), store.status, SHARE_PROBE_SEC)
         if not done:
             st = store.status(peek=True)
-            st.update(reachable=False, lock=None,
-                      error=f"共有の置き場が {SHARE_PROBE_SEC:g} 秒で答えません（前に取り込んだ写しで表示しています）: {store.share_dir}")
+            st.update(reachable=None, lock=None,
+                      error=f"共有の置き場が {SHARE_PROBE_SEC:g} 秒で答えません（確かめています。前に取り込んだ写しで表示しています）: {store.share_dir}")
     st["caution"] = sync_caution(st["dir"]) if st["mode"] == "shared" else ""
     return st
 
 
 def using(dirs, online_in) -> list:
-    """置き場ごとに、いま使っている PC → [{dir, reachable, pcs}]。届くかはまとめて SHARE_PROBE_SEC まで（終わらなければ届かない）"""
+    """置き場ごとに、いま使っている PC → [{dir, reachable, pcs}]。届くかはまとめて SHARE_PROBE_SEC まで（終わらなければ reachable null＝確かめ中）"""
     out, seen = [], set()
     for d in dirs:
         key = d.replace("/", "\\").rstrip("\\").lower()
         if not d or key in seen:
             continue
         seen.add(key)
-        out.append({"dir": d, "reachable": False, "pcs": []})
+        out.append({"dir": d, "reachable": None, "pcs": []})
     boxes = [{} for _ in out]
 
     def probe(row, box):

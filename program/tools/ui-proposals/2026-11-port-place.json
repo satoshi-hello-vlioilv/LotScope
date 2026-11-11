@@ -506,10 +506,82 @@
   "check_all": "bash program/tools/check-all.sh（--verify なし: 起動・更新・配布・main.rs は変えていない。自己診断 selftest.js も変えていない）: js-check 0・compileall 0・cargo-build 0・ruff 0.15.20 0・fmt-clippy 0・py-tests 0（Ran 821・OK skipped=9）・bundle-tests 0（Ran 5）・cargo-test 0（46 の test result がどれも ok・FAILED 0）。すべて通った"
  },
  "built": {
-  "evaluator": "なし。このセッション（作る者）には別のエージェントを起こす道具（Agent）が無く、作った後の採点を頼めなかった。主のセッションが別のエージェントに頼む",
-  "score": null
+  "name": "作った後（版 3.100.0・commit 557323b）",
+  "evaluator": "案を作っていない、作った者でもない採点者（別のエージェント・2026-11-11。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良が主なので、worktree port-place-3100 の commit 557323b のコードを読み、動かして測った事実で採点し、画面の変わった所は作った者の前後の画像（scratchpad の shots-before・shots-after の place/place-shared-copy-1280.png と pathpick/worklog-dlg.png）を自分で開いて見た。worktree のファイルは変えていない（この記録の built を採点で置き換えただけ。作った者が採点なしで書いた built〈score null〉は捨てた）。道具と記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/place-built（worktree へ向けた作者の probe_*.py・mutate.py〈program の写しに変異。終わって消した〉・write_built.py）。途中でディスクの空きが 227 MB まで減った時があり、cargo は空きが 8.3 GB に戻ってから place_cases と release_parity だけを流した。Windows の CI・SMB と BOX の共有・root でない利用者の場面（runuser）は、この採点では流していない。",
+  "seen": "良い所: 確か 11 件と、採点で足した『この PC が共有しないマスタを写さない』形が直った。前の採点で流した台本（作者の probe_*.py。独立の答え〈os.walk・os.stat・json・ntpath.isreserved〉と比べる作り）を worktree の Python に向けて流し直した: 引っ越しの直前に PC-B が足した行が引っ越し先に入る（版 前 2／後 2・PC-B が印をたどっても自分の行が見える）・写す量 183,220 と実際 183,220 バイト（手元のみ 162,287 と 162,287）・写さない物は _MOVED.json だけ（other_master・利用状況の記録・切断の指示も写す）・GET tabaccess は例外の字が並びでも 200・効く例外だけ数える（{}）・空の URL は『値を入れてください。』・印は『.sqlite が 1 個・.db が 2 個』と『設備 3 台』（確かめると同じ）・並びは 3.2.0 → 3.9.0 → 3.10.0・9 → 10・道の『..』を整える・\\\\srv\\share\\box で Box の注意なし。引っ越しは錠を取ってから共有のファイルそのものをバイトのまま写す（_sources・_share_files）。独立の答え place-truth.py は app を import しない（json・ntpath・os・posixpath・re・sys・pathlib だけ）。事例の表 place_cases.json は Python が全部、窓が名前・タブの例外・normcase を同じファイルから読む。cargo test place_cases 2・release_parity 2 が ok（名前の確かめを変えても配布の置き場の答えは Python と合う）。Python の関係する 8 ファイル 140 件 OK（skip 3）。直しを前の形に戻す変異: 写しから写す（確か 1）・利用状況を写さない・書けるかを os.access で見る、はどれも試験が落とした（字下げなしで数える変異は、数えるのと書くのが同じ payload なので『数＝書いた量』のまま崩れず、割れではない）。Windows の normcase は LCMapStringEx（Python の ntpath.normcase と同じ）で、全部の BMP の字を Windows の CI で突き合わせる試験と、Windows でだけ作れる事例（隠し属性・『C:』・試しのフォルダ）を desktop.yml で流す段がある（この容器では流せない）。画面: 置き場の確かめの説明が『いまの置き場のマスタと利用状況の記録を写す（17 ファイル・168 KB）』『利用状況の記録と切断の指示も写します。』に替わり、1280 で切れ・重なりは無い（前は 18 ファイル・148 KB。共有にまだ無い同梱だけのマスタを写さなくなった差で、それは後で種まきされる）。悪い所: 下の減点。引っ越しは写している間ずっと錠（長さ 20 秒・延ばさない）を持つので、利用状況の記録まで写すようになった分、遅い共有では 20 秒を超え、ほかの PC が錠を切れたと見て前の置き場へ保存し、その行が引っ越し先に入らない形（確か 1 と同じ消え方）が残る（SMB が作れず測っていない）。『参照…』の印が『設備 11 台』になり、同じ画面のデータ元のカードの『実績 ● 12 台』（登録の台数。1 台はファイルが見つからない）と、同じ『台』で違う数が並ぶ。0 バイトの錠（主のセッションが PR #99 で調べている形）はこの版で変えていない（_create_exclusive は作ってから書くので、その間に落ちると 0 バイトで残り、ほかの PC は最初に見てから 20 秒待つ）。",
+  "result": {
+   "proposal": "D 独立の答えと誤りの直しを先に（3.100.0 は Python を直し独立の答えと事例の表を作る、3.101.0 で移す）",
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 9,
+    "steps": 7,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 7,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "GET /api/masters/place・/api/masters/status（master_place.status・using）: 共有を見るのに 2 秒（SHARE_PROBE_SEC）を超えると reachable を false にし、画面（master.js の shareDown）は『届かない: 共有の置き場に届きません…届くまで保存できません』と出して、マスタ管理の保存を全部止める（master-conv.js・master-sources.js・master-tabaccess.js・master.js の can の判定）。遅いが届く共有（VPN・眠っていたサーバーの 1 回目）でも、届かない・保存できないと見せる。分からないなら『確かめています』（null）として保存を止めない方が状態どおり"
+    }
+   ],
+   "seen": "良い所: 確か 11 件と、採点で足した『この PC が共有しないマスタを写さない』形が直った。前の採点で流した台本（作者の probe_*.py。独立の答え〈os.walk・os.stat・json・ntpath.isreserved〉と比べる作り）を worktree の Python に向けて流し直した: 引っ越しの直前に PC-B が足した行が引っ越し先に入る（版 前 2／後 2・PC-B が印をたどっても自分の行が見える）・写す量 183,220 と実際 183,220 バイト（手元のみ 162,287 と 162,287）・写さない物は _MOVED.json だけ（other_master・利用状況の記録・切断の指示も写す）・GET tabaccess は例外の字が並びでも 200・効く例外だけ数える（{}）・空の URL は『値を入れてください。』・印は『.sqlite が 1 個・.db が 2 個』と『設備 3 台』（確かめると同じ）・並びは 3.2.0 → 3.9.0 → 3.10.0・9 → 10・道の『..』を整える・\\\\srv\\share\\box で Box の注意なし。引っ越しは錠を取ってから共有のファイルそのものをバイトのまま写す（_sources・_share_files）。独立の答え place-truth.py は app を import しない（json・ntpath・os・posixpath・re・sys・pathlib だけ）。事例の表 place_cases.json は Python が全部、窓が名前・タブの例外・normcase を同じファイルから読む。cargo test place_cases 2・release_parity 2 が ok（名前の確かめを変えても配布の置き場の答えは Python と合う）。Python の関係する 8 ファイル 140 件 OK（skip 3）。直しを前の形に戻す変異: 写しから写す（確か 1）・利用状況を写さない・書けるかを os.access で見る、はどれも試験が落とした（字下げなしで数える変異は、数えるのと書くのが同じ payload なので『数＝書いた量』のまま崩れず、割れではない）。Windows の normcase は LCMapStringEx（Python の ntpath.normcase と同じ）で、全部の BMP の字を Windows の CI で突き合わせる試験と、Windows でだけ作れる事例（隠し属性・『C:』・試しのフォルダ）を desktop.yml で流す段がある（この容器では流せない）。画面: 置き場の確かめの説明が『いまの置き場のマスタと利用状況の記録を写す（17 ファイル・168 KB）』『利用状況の記録と切断の指示も写します。』に替わり、1280 で切れ・重なりは無い（前は 18 ファイル・148 KB。共有にまだ無い同梱だけのマスタを写さなくなった差で、それは後で種まきされる）。悪い所: 下の減点。引っ越しは写している間ずっと錠（長さ 20 秒・延ばさない）を持つので、利用状況の記録まで写すようになった分、遅い共有では 20 秒を超え、ほかの PC が錠を切れたと見て前の置き場へ保存し、その行が引っ越し先に入らない形（確か 1 と同じ消え方）が残る（SMB が作れず測っていない）。『参照…』の印が『設備 11 台』になり、同じ画面のデータ元のカードの『実績 ● 12 台』（登録の台数。1 台はファイルが見つからない）と、同じ『台』で違う数が並ぶ。0 バイトの錠（主のセッションが PR #99 で調べている形）はこの版で変えていない（_create_exclusive は作ってから書くので、その間に落ちると 0 バイトで残り、ほかの PC は最初に見てから 20 秒待つ）。"
+  },
+  "found": [
+   "割れ 1（減点）2 秒で区切った reachable を false にする決め。直し方: 区切りで終わらないときは reachable null（確かめ中）とし、画面は『確かめています』と出して保存の手は止めない（保存そのものは届かなければ ShareUnavailable で断る今の作り）。足す形: test_place_cases に『is_dir が 3 秒かかる共有』（share_reachable を差し替え）で、答えが null・画面の can が真のまま、を足す。窓へ移す 3.101.0 でも同じ決まり",
+   "割れ 2（データが消える落とし穴・測っていない）引っ越しは写している間ずっと錠（20 秒・延ばさない）を持ち、この版から利用状況の記録（sessions・history。人と月ごとのファイル）まで写すので、遅い共有で 20 秒を超えうる。超えるとほかの PC が錠を切れたと見て取り、前の置き場へ保存し、その行が引っ越し先に入らない（確か 1 と同じ消え方）。直し方: マスタ（*.json）だけを錠の中で写し、利用状況は錠の外で（もともと錠の外で書かれる物）前か後に写す。あるいは写す間に錠を延ばす。足す形: 錠の長さを短く（例 1 秒）した Store と、読むのを遅くした _read_bytes で、引っ越しの途中にほかの Store が保存する場面を test_place_cases と place-truth.py に",
+   "割れ 3（言葉・小）『参照…』の印『設備 11 台』と、同じ画面のデータ元のカード『実績 ● 12 台』（登録の台数）が、同じ『台』で違う数に見える。直し方: 印を『ファイルのある設備 11 台』などにするか、カードの数を『登録 12 台』にする（画面の字なので、変えるなら UI の採点の流れを主のセッションが決める）",
+   "主のセッションの調べ物について: 0 バイトの錠（master.lock.json）の形はこの版でも変わらない。_create_exclusive は O_EXCL で作ってから書くので、作った後・書く前に落ちると 0 バイトで残り、ほかのプロセスは『壊れた錠』として最初に見てから lock_ttl（20 秒）待つ（_read_lock・_remaining）。起動し直した直後の保存が 409 で待たされるのはこの待ちと合う。直すなら、中身を一時ファイルに書いてから O_EXCL 相当で置く（os.link か、Windows では rename の失敗で見る）形が要る（直すのは別の係）"
+  ]
  },
  "maker_self_fixed": [
   "作る者が自分で見つけて直した（採点ではない）: (1) 利用状況の記録は錠の外でほかの PC が片付ける（消す）ので、写す間に消えた記録は飛ばす（前の形では引っ越し全体が「写せませんでした」になりえた）。試験 test_a_presence_record_swept_while_moving_is_skipped。(2) POSIX の //tmp を Windows の共有（\\\\tmp）と読んで字を書き換えていた（tidy）。事例の表 clean に //tmp/x/../y（POSIX）と //srv/share/a/../b（Windows）を足し、独立の答えも同じ決まりに"
- ]
+ ],
+ "built_fixed": {
+  "by": "作る者（採点し直さない。決まり 2026-11-06）",
+  "fixes": [
+   {
+    "split": "割れ 1（減点: 2 秒で区切った届くかを false にし、遅いが届く共有でマスタ管理の保存が全部止まる）",
+    "fix": "master_place.status・using は区切りで終わらないとき reachable を null（確かめ中）にする。画面 master.js は shareDown を reachable === false のときだけにし、null は帯に「確かめ中」（shareChecking）・置き場の頁の札も「確かめ中」・保存の手は止めない。ナビの札は 1280 で折れないよう「共有」のまま。using の null は札「確かめ中」で「この PC をそろえる」も出す。保存そのものは、届かなければ MasterStore が断る（今どおり）。計画書の 3.101.0 の形にも同じ決まりを書いた",
+    "tests": "tests/test_place_cases.py の SlowButReachable（is_dir が 3 秒の共有: 2 本の答えが 2.5 秒未満で null・そのまま保存できる）と SlowShare（null に）。ui-eval-masterpin.mjs の ⑥（null は保存の手を止めず帯は「確かめ中」・false は止めて「共有に届きません」。1728 と 1280）",
+    "failed_before": "直す前: SlowButReachable と SlowShare が False is not None で落ちた（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before-py-1.log）・ui-eval-masterpin の ⑥ が 2 件 NG（新規追加が押せず帯は「共有に届きません」。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before-masterpin.log）"
+   },
+   {
+    "split": "割れ 2（引っ越しが錠の長さ 20 秒を超えうる。超えるとほかの PC が錠を切れたと見て前の置き場へ保存し、その行が引っ越し先に入らない）",
+    "fix": "利用状況の記録（錠の外で書かれる物）は錠の外で先に一時フォルダへ写し、マスタだけを錠の中で写す（master_place.move・_move_locked・_copy_into）。錠の長さの LOCK_SHARE（半分）を過ぎた・写している間に読んだマスタの更新時刻と大きさ（と名前の並び）が変わったときは、切り替えずに止めて前の置き場のまま（ValueError の理由つき。何も消えない・写しかけを残さない）。錠を延ばすのは、錠の作り（PR #99 の 0 バイトの錠）を別の係が直しているので、この版ではしていない（主のセッションの指示: 今は錠の所は変えない。取り込んだ後に決める）",
+    "tests": "tests/test_place_cases.py の MoveRaces（事例の表 moveRaces: 錠 1 秒・共有の読み 0.3 秒・名前の順で最初に写すマスタ access_permissions を、写した後にほかの PC が錠を切れたと見て保存。その PC が印をたどった先の置き場に行がある）。独立の答え place-truth.row_ids・followed",
+    "failed_before": "直す前の 557323b の master_place.py に戻して流すと、AssertionError: 2 not found in {1}（印をたどった先 New にほかの PC の行が無い・引っ越しは成功と言った）（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before-py-2.log）"
+   },
+   {
+    "split": "割れ 3（言葉: 「参照…」の印「設備 11 台」と、同じ画面のデータ元のカード「実績 ● 12 台」〈登録の台数〉が同じ「台」で違う数に見える）",
+    "fix": "印を「ファイルのある設備 n 台」にした（主のセッションの決め。folder_browse.WORKLOG_MARK の 1 か所）。事例の表 marks・独立の答え・試験・ui-eval-pathpick の期待の字も合わせた",
+    "tests": "test_place_cases.Marks・test_folder_browse・ui-eval-pathpick（OK）",
+    "failed_before": "事例の表を直した後、直す前の字（「設備 n 台」）では Marks が落ちる形（表の字そのものの決め）"
+   },
+   {
+    "split": "4（0 バイトの錠）",
+    "fix": "主のセッションの指示どおり、この版では錠の所（master_store の _create_exclusive・_acquire_lock）を変えていない。別の係の直しの commit を伝えられたら取り込む"
+   }
+  ],
+  "screens": {
+   "before": [
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before/place-reach-null-1728.png（null でも「共有に届きません」・新規追加が押せない）",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before/place-reach-null-1280.png",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before/place-reach-false-1728.png",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-after/pathpick/worklog-dlg.png（557323b の「設備 11 台」）"
+   ],
+   "after": [
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/after/place-reach-null-1728.png（帯「確かめ中」・新規追加と保存が押せる）",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/after/place-reach-null-1280.png",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/after/place-reach-false-1280.png（届かないは今どおり止める）",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/after/pathpick/worklog-dlg.png（「ファイルのある設備 11 台」）"
+   ],
+   "self_check": "作る者が開いて見た: 1280 の帯は 1 行で切れない。最初の形はナビの札「確かめ中」が 1280 で 2 段に折れたので、ナビは「共有」のままにして撮り直した（「届かない」の札が 1280 で折れるのは前の版からの形で、この版では変えていない）。「参照…」の印「このフォルダ: ファイルのある設備 11 台」は 1 行に収まる"
+  }
+ }
 }

@@ -50,6 +50,7 @@ PURPOSES = {
 
 # ---- 利用者の決め（版 3.100.0。主のセッションが変えられるよう、ここ 1 か所）
 NATURAL_SORT = True       # 並びはエクスプローラーと同じ自然な並び（数字の続きは数として比べる: 9 → 10・3.9.0 → 3.10.0）
+WORKLOG_MARK = "ファイルのある設備"   # 作業実績のフォルダの印の頭（同じ画面のデータ元のカードの登録の台数と見分ける）
 HIDE_ATTRS = True         # Windows の隠し・システムの属性の物は出さない（エクスプローラーの既定と同じ。desktop.ini・Thumbs.db など）
 _HIDDEN_BITS = getattr(stat, "FILE_ATTRIBUTE_HIDDEN", 2) | getattr(stat, "FILE_ATTRIBUTE_SYSTEM", 4)
 
@@ -207,7 +208,8 @@ def _mark_dir(folder: Path, purpose: str, pattern: str):
             return {"text": "版の置き場", "tone": "ok"} if _has_versions(folder) else None
         if purpose == "worklog":
             n = equipment_count(folder, pattern or "*.sqlite3")
-            return {"text": f"設備 {n} 台", "tone": "ok"} if n else None     # 参照先の「確かめる」と同じ言葉と数（版 3.100.0）
+            # 参照先の「確かめる」と同じ数。登録の台数（データ元のカードの「n 台」）と見分けて「ファイルのある設備」（版 3.100.0・主のセッションの決め）
+            return {"text": f"{WORKLOG_MARK} {n} 台", "tone": "ok"} if n else None
         ext = PURPOSES.get(purpose, {}).get("ext")
         if ext:
             text = "・".join(f"{x} が {n} 個" for x, n in ext_counts(folder, ext))   # 数えた拡張子の名前（版 3.100.0）

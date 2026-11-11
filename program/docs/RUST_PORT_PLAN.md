@@ -1463,6 +1463,11 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   - 確か 1（最優先。引っ越しが手元の写しから写し、ほかの PC の直前の保存を落とす）: `master_place._move_locked` は錠を取ってから `_sources` で
     **共有のファイルそのもの**を読み直して写す（`test_a_save_just_before_the_move_is_carried`・`Moves.test_moves_copy_what_the_share_holds_at_the_lock`
     ＝錠を取った時の前の置き場のバイトと同じ）。共有に届かないときだけ、この PC の写しから写す（確かめの説明で「最近の保存が入らないことがあります」と言う）。
+    作った後の採点の割れ 2（錠の長さを超える）: 利用状況の記録（もともと錠の外で書かれる物）は錠の外で先に写し（`move`）、マスタだけを錠の中で写す。
+    錠の長さ（20 秒）の `LOCK_SHARE`（半分）を過ぎた・写している間に読んだマスタが変わった（ほかの PC が錠を切れたと見て保存した）ときは、切り替えずに
+    止めて前の置き場のまま（何も消えない）。錠を延ばすのは、錠の作り（0 バイトで残る錠。PR #99 の窓の通しの落ち）を別の係が直しているので、この版では
+    していない（重なると食い違う。取り込んだ後に決める）。試験 `MoveRaces`（錠 1 秒・読み 0.3 秒・名前の順で最初のマスタを写した後にほかの PC が保存。
+    直す前は印をたどった先にその行が無い）と、独立の答え `place-truth.row_ids`・`followed`、事例の表 `moveRaces`。
   - 疑い 3 の延長（この PC が共有しないマスタ〈other_master.json など〉を写さない）: 写す物は前の置き場の直下の *.json の全部（「.」で始まる一時ファイル・
     錠・引っ越しの印を除く）。決まりは `_share_files` の 1 か所（独立の答え `place-truth.copied_names`）。
   - 確か 2（写す量が 1 割強少ない）: 共有はファイルのまま写すので os.stat の大きさ、手元のみ・写しからは `payload`（字下げ 1・改行。数える字と書く字が同じ）。
@@ -1470,7 +1475,7 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   - 確か 3（読めない新しい場所で 500）: `release_place.unreadable` の言葉「新しい場所を読めません（理由）。…」を、マスタの置き場と配布の置き場の plan で返す
     （root でない利用者の本物の権限: `test_unreadable_new_place_for_real`。CI の Linux で流れる）。窓の配布の置き場の plan は 3.95.0 のまま Python に任せる形。
   - 確か 4・5（「参照…」の印）: 作業実績は `folder_browse.equipment_count`（work_log の `equipment_of`・`is_side_file`・ファイルだけ＝scan と同じ決まり）で
-    「設備 n 台」。ファイルを選ぶ欄は数えた拡張子の名前（`ext_counts`。「参照…」に出さない物は数えない）。
+    「ファイルのある設備 n 台」（作った後の採点の割れ 3: 同じ画面のデータ元のカードの「n 台」は登録の台数なので見分ける。`WORKLOG_MARK`）。ファイルを選ぶ欄は数えた拡張子の名前（`ext_counts`。「参照…」に出さない物は数えない）。
   - 確か 6（共有に Box の注意）: `sync_folder` は \\ と // で始まる道を見ない。
   - 確か 7（予約名・「.」で始まる名前・「..」の理由）: Python `release_place.check_name` と窓 `release_place::check_name` を事例の表 names（70 例）で直した。
     予約名は ntpath.isreserved と同じ（¹²³・CONIN$・CONOUT$・拡張子の前の空白を除く）。
@@ -1480,7 +1485,10 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   - 確か 11（「..」が残る）: `folder_browse.tidy`（字の上の normpath。Windows の形は ntpath、記号リンクは解かない）。
   - 疑い 1（Windows の os.access）: `master_place._can_write` は試しの一時フォルダ（.名前.probe-xxxxxxxx）を作って消す。
   - 疑い 2（届かない共有で待つ）: `master_place.status`・`using` は共有を見るのをまとめて `SHARE_PROBE_SEC`（2 秒）まで。終わらなければ写しで答え
-    （`MasterStore.status(peek=True)`）、reachable を **false**（places は null だが、この 2 本の答えは画面が真偽で読むので型を変えない）。同じ置き場へ尋ねる糸は 1 本まで。
+    （`MasterStore.status(peek=True)`）、reachable を **null**（確かめ中。fs/places と同じ）。同じ置き場へ尋ねる糸は 1 本まで。画面（`master.js`）は
+    false（届かない）のときだけ保存の手を止め（`shareDown`）、null は帯に「確かめ中」と出して保存の手を止めない（`shareChecking`。保存そのものは、
+    届かなければ MasterStore が断る）。作った後の採点の割れ 1: 最初の形は false にしたので、遅いが届く共有（VPN・眠っていたサーバーの 1 回目）で
+    マスタ管理の保存が全部止まった（`SlowButReachable`・`ui-eval-masterpin.mjs` の ⑥ が直す前に落ちる）。
     読む道（_maybe_refresh）そのものの待ちは残る（3.101.0 の写しの係で決める）。
   - 疑い 8（共有の根）: 上のフォルダがサーバーだけ（\\srv）なら、名前とつないだ置き場（\\srv\share）にマスタがあれば切り替えるだけ（`_share_root`）。
   - 疑い 13（「C:」）: `master_place.drive_root`（plan の上のフォルダ・「参照…」の欄の字）。
@@ -1508,6 +1516,9 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   この版の事例の表の残りの節（sort・clean・sync・marks・moves・tabCounts・blank）を窓も読み、独立の答え（place-truth.py）と比べる。写しの取り直し・種まきの係を
   窓 1 つにするか（案 C）は主のセッションが決め、決めるまでは GET status の種まきを Python に任せたままにし、2 つのプロセスが同時に空の共有を読む場面を
   突き合わせに入れる。status の last_sync・error の意味（疑い 10）と、同期フォルダの名前の表をどこまで足すか（疑い 6）は、そのとき決める。
+  窓へ移しても、置き場の状態で共有を見るのは区切った秒までで、終わらなければ reachable は **null**（確かめ中。保存の手は止めない）、false は届かないと
+  分かったときだけ（この版の決まり）。引っ越しは、利用状況を錠の外・マスタだけを錠の中で写し、錠の長さの半分を過ぎるか読んだマスタが変われば
+  切り替えずに止める（錠を延ばす口は、錠の作りの直しを取り込んでから決める）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

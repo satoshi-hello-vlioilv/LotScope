@@ -72,5 +72,5 @@ def equipment_inspection():
 def masters_status():
     """置き場（手元／共有）・共有へ届くか・錠・各マスタの版。画面はこれで「いつの・どこの」マスタかを言う。
     置き場がクラウドの同期フォルダなら、注意（caution）も返す（同時の保存で片方が消えうる）。
-    共有が master_place.SHARE_PROBE_SEC 秒で答えなければ、写しで答えて reachable を偽にする（版 3.100.0）"""
+    共有が master_place.SHARE_PROBE_SEC 秒で答えなければ、写しで答えて reachable を null（確かめ中）にする（版 3.100.0）"""
     return jsonify(master_place.status(current_app.config["MASTER_STORE"]))   # 共有を見るのは区切った秒まで（版 3.100.0）

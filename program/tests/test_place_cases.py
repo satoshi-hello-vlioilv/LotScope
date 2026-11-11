@@ -123,7 +123,7 @@ class Marks(unittest.TestCase):
                 (Path(t) / n).write_bytes(b"x")
             for n in cs["dirs"]:
                 (Path(t) / n).mkdir()
-            self.assertEqual(cs["want"], f"設備 {len(work_log.scan(t, cs['pattern']))} 台")
+            self.assertEqual(cs["want"], f"ファイルのある設備 {len(work_log.scan(t, cs['pattern']))} 台")
 
 
 class TabAccess(unittest.TestCase):
@@ -273,6 +273,63 @@ class Moves(MoveBase):
         self.assertIn("利用状況の記録と切断の指示も写します", pl["note"])
 
 
+class MoveRaces(MoveBase):
+    def test_a_save_while_a_slow_move_holds_the_lock_is_not_lost(self):
+        """引っ越しが錠の長さを超えると、ほかの PC は錠を切れたと見て前の置き場へ保存する。その行が引っ越し先に入らないまま切り替えると、
+        その PC が印をたどった後に行が消える（作った後の採点の割れ 2）。マスタだけを錠の中で写し、錠の長さの半分を過ぎたら切り替えずに止める"""
+        for cs in CASES["moveRaces"]:
+            with self.subTest(cs["name"]):
+                share = self.tmp / "nas" / "Masters"
+                master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+                hist = share / "presence_tpa" / "history"
+                hist.mkdir(parents=True)
+                for i in range(cs["presenceFiles"]):
+                    (hist / f"PC-{i}@u.json").write_text("{}", encoding="utf-8")
+                a = self.store("pcA", share)
+                a.lock_ttl = cs["lockTtl"]
+                b = self.store("pcB", share)
+                b.lock_ttl = cs["lockTtl"]
+                real = master_place._read_bytes
+                started = threading.Event()
+
+                def slow(p):
+                    started.set()
+                    time.sleep(cs["readDelay"])
+                    return real(p)
+                box = {}
+
+                def other_pc():
+                    started.wait(10)
+                    time.sleep(cs["saveAfter"])
+                    end = time.monotonic() + 20
+                    while time.monotonic() < end:
+                        try:
+                            def add(rows, stamp):
+                                rid = max([int(r.get("id") or 0) for r in rows] + [0]) + 1
+                                rows.append({"id": rid, "ログインID": "race", "PC名": "", "権限区分": "一般ユーザー", "有効": "有", "rev": 1})
+                                return rid
+                            box["rid"] = b.write(cs["master"], add)
+                            return
+                        except Exception:          # noqa: BLE001 保存中（錠）。待って送り直す（画面と同じ）
+                            time.sleep(0.1)
+                th = threading.Thread(target=other_pc)
+                th.start()
+                with mock.patch.object(master_place, "_read_bytes", slow):
+                    try:
+                        master_place.move(a, self.tmp / "nas", "New")
+                        box["moved"] = True
+                    except ValueError as e:
+                        box["moved"] = str(e)
+                th.join(30)
+                self.assertIn("rid", box, "ほかの PC は保存できた")
+                b2 = self.store("pcB", share)
+                b2.follow_moved(force=True)
+                where = truth.followed(share)
+                self.assertIn(box["rid"], truth.row_ids(where, cs["master"]), f"印をたどった先（{where}）に、ほかの PC の行がある（{box['moved']}）")
+                self.assertIn(box["rid"], [r["id"] for r in b2.read(cs["master"])])
+                self.assertFalse([p for p in (self.tmp / "nas").iterdir() if ".tmp-" in p.name], "写しかけを残さない")
+
+
 class PlanProblems(MoveBase):
     def test_unreadable_new_place_is_a_problem_not_a_500(self):
         (self.tmp / "nas" / "M").mkdir()
@@ -352,9 +409,36 @@ class SlowShare(MoveBase):
                 self.assertLess(time.monotonic() - t0, 2.5, url)
                 self.assertEqual(r.status_code, 200)
                 d = r.get_json()
-                self.assertIs(d["reachable"], False, url)
+                self.assertIsNone(d["reachable"], url)        # 区切りで終わらない＝確かめ中（届かないとは言わない。採点の割れ 1）
                 if "using" in d:
-                    self.assertTrue(all(u["reachable"] is False for u in d["using"] if u["dir"] == str(share)), d["using"])
+                    self.assertTrue(all(u["reachable"] is None for u in d["using"] if u["dir"] == str(share)), d["using"])
+
+
+class SlowButReachable(MoveBase):
+    def test_a_slow_share_is_checking_not_down_and_saving_still_works(self):
+        """遅いが届く共有（is_dir に 3 秒）。置き場の状態は区切った秒で打ち切り、reachable は null（確かめ中）。false（届かない）にすると
+        画面がマスタ管理の保存を全部止める（作った後の採点の割れ 1）。保存そのものは届くので通る"""
+        share = self.tmp / "nas" / "Masters"
+        master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+        a = self.store("pcA", share, refresh=60)
+        a.status()
+        app = create_app({"MASTER_STORE": a, "APP_SETTINGS": {}, "BASE_DIR": self.base, "LOT_MIRROR": DbMirror("lot_list", "", self.tmp / "c")})
+        real_dir = Path.is_dir
+
+        def slow_dir(p):
+            if str(p) == str(share):
+                time.sleep(3)
+            return real_dir(p)
+        with mock.patch.object(master_place, "SHARE_PROBE_SEC", 0.3), mock.patch.object(Path, "is_dir", slow_dir):
+            for url in ("/api/masters/status", "/api/masters/place"):
+                t0 = time.monotonic()
+                d = app.test_client().get(url).get_json()
+                self.assertLess(time.monotonic() - t0, 2.5, url)
+                self.assertIsNone(d["reachable"], f"{url}: 区切りで終わらないのは確かめ中（null）")
+                if "using" in d:
+                    self.assertTrue(all(u["reachable"] is None for u in d["using"] if u["dir"] == str(share)), d["using"])
+            rid = MasterRepository(a).rolls_create({"設備": "TLV", "ロール名": "遅い共有でも保存できる"})["id"]
+        self.assertIn(rid, [r["id"] for r in json.loads((share / "roll_master.json").read_text(encoding="utf-8"))["rows"]])
 
 
 @unittest.skipUnless(os.name == "nt", "Windows の CI だけ（隠し・システムの属性・ドライブだけの字）")

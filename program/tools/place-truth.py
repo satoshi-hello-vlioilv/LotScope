@@ -12,6 +12,7 @@ POST settings/check）の「Python に頼らない独立の答え」。app を i
   利用状況 presence_tpa の記録（history・sessions の下の全部・settings.json）と切断の指示（*.revoke.json）。心拍（presence_tpa 直下の
   ほかの *.json）は写さない（写すと、まだ移っていない PC が新しい置き場で使っているように見える）。写した物は錠を取った時の中身と同じ字
 - 写す量 … 書いた後のファイルの大きさ（os.stat の st_size）の計
+- 引っ越しの途中のほかの PC の保存 … 引っ越しが錠の長さを超えても、ほかの PC の行は、その PC が印をたどった先の置き場に必ずある（row_ids・followed）
 - 作業実績のフォルダの印 … ファイル名の決まり（* をちょうど 1 つ）に、大文字小文字を見ずに頭と尾が合い、* の所の前後の空白を除いて空でない、
   書き手の作業用でない（「.」で始まる・.pending_ を含む・-journal・-wal・-shm・.incoming で終わる）ファイル（フォルダは数えない）の数。[ ] ? は字のまま
 - ファイルを選ぶ欄の印 … 数えた拡張子ごとの数（大文字小文字を見ない。「.」「~$」で始まる物は出さないので数えない）
@@ -66,6 +67,30 @@ def copied_names(share: Path) -> list:
                     if not f.startswith("."):
                         out.append((Path(root) / f).relative_to(share).as_posix())
     return sorted(out)
+
+
+def row_ids(folder: Path, master: str) -> set:
+    """置き場のマスタの行の id（無ければ空）。引っ越しの場面で、ほかの PC の保存が消えていないかを見る"""
+    p = Path(folder) / f"{master}.json"
+    if not p.is_file():
+        return set()
+    doc = json.loads(p.read_bytes().decode("utf-8-sig"))
+    rows = doc["rows"] if isinstance(doc, dict) else doc
+    return {r.get("id") for r in rows if isinstance(r, dict)}
+
+
+def followed(start: Path, hops: int = 5) -> Path:
+    """引っ越しの印（_MOVED.json の to）をたどった先（ほかの PC が移る置き場）"""
+    cur = Path(start)
+    for _ in range(hops):
+        m = cur / MOVED
+        if not m.is_file():
+            break
+        nxt = Path(json.loads(m.read_bytes().decode("utf-8-sig")).get("to") or "")
+        if not nxt.is_dir():
+            break
+        cur = nxt
+    return cur
 
 
 def tree_bytes(folder: Path) -> dict:
@@ -198,7 +223,7 @@ def check_table(cases) -> list:
             _make_marks(d, cs)
             if cs["purpose"] == "worklog":
                 n = equipment_count(d, cs["pattern"])
-                got = f"設備 {n} 台" if n else None
+                got = f"ファイルのある設備 {n} 台" if n else None
             elif cs["purpose"] in ("sqlite", "exe"):
                 exts = (".sqlite3", ".sqlite", ".db") if cs["purpose"] == "sqlite" else (".exe",)
                 got = "・".join(f"{x} が {n} 個" for x, n in ext_counts(d, exts)) or None
