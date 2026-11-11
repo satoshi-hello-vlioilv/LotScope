@@ -137,6 +137,7 @@ class DbMirror:
         self._wake = threading.Event()
         self._thread = None
         self._state = {}
+        self._copying = None          # いま写している途中（写しかけの一時ファイル・元の大きさ・写し始めた時刻。版 3.97.0）
         self.passive = bool(passive)
         self._asked = None            # 受け身: 窓へ「写して」と知らせた時刻（wait_first はそれより後の周回を待つ）
         self._entry_key = self.key    # 受け身: いま読んでいる台帳の行のキー（同じ元を分け合う別のキーのこともある）
@@ -282,6 +283,19 @@ class DbMirror:
         with open_shared_read(remote) as src, open(tmp, "wb") as dst:
             shutil.copyfileobj(src, dst, COPY_CHUNK)
 
+    def copy_progress(self):
+        """いま写している途中なら {done: 済んだバイト（写しかけの一時ファイルの大きさ）, total: 元の大きさ, secs: 写し始めてからの秒}。
+        窓の mirror.rs の copy_progress と同じ（版 3.97.0。画面の「あと約 n 秒」の材料）"""
+        cur = self._copying
+        if not cur:
+            return None
+        tmp, total, at = cur
+        try:
+            done = tmp.stat().st_size
+        except OSError:
+            done = 0
+        return {"done": done, "total": max(total, done), "secs": time.monotonic() - at}
+
     @staticmethod
     def _verify(tmp):
         try:
@@ -349,12 +363,15 @@ class DbMirror:
         tmp = target.with_suffix(".sqlite3.tmp")
         with contextlib.suppress(OSError):
             tmp.unlink()
+        self._copying = (tmp, int(sig.get("size") or 0), time.monotonic())
         try:
             self._copy(self.remote, tmp)
         except Exception as e:
+            self._copying = None
             res["reason"] = f"写せませんでした: {e}"
             self._cleanup(tmp)
             return self._record(res)
+        self._copying = None
         moved = self._settled(sig)
         if moved:
             res.update(busy=True, reason=moved)

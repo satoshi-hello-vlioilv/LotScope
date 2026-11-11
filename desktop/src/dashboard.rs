@@ -260,6 +260,8 @@ struct Parts {
     failed: Vec<Value>,
     name: String,
     mirrors: Vec<Value>,
+    /// 写している設備ごとの途中の様子（まだ写し始めていない設備は None。版 3.97.0）
+    copying: Vec<Option<crate::mirror::CopyProgress>>,
 }
 
 /// 段取りの答え: Ok(Some) 数える物・Ok(None) Python へ回す（スケジュールを窓が答えない形）・Err 失敗の答え
@@ -338,9 +340,14 @@ impl Ctx<'_> {
                     Err(_) => {}
                 }
             }
+            // 共有から写した設備 n / 設備 of（最初の写しを待つ間。版 3.97.0）
+            let ready = |keys: &[String]| keys.iter().filter(|k| lists.work.peek(k).is_some_and(|m| m.first_done())).count();
+            crate::progress::step("copy", ready(&keys), keys.len());
             lists.work.wait_first(&keys, FIRST_WAIT);
+            crate::progress::step("copy", ready(&keys), keys.len());
             let shifts = conf.shifts();
             let (mut parts, mut failed, mut mirrors) = (Vec::<Part>::new(), Vec::<Value>::new(), Vec::<Value>::new());
+            let mut copying = vec![];
             let mut first: Option<(Value, String)> = None; // 1 つも読めないときの答え（写し中を先に選ぶ）
             for r in &rows {
                 let name = s_or(r.get("設備名"));
@@ -348,6 +355,9 @@ impl Ctx<'_> {
                     Err(f) => {
                         let fv = fail_of(&f);
                         let kind = fv["kind"].as_str().unwrap_or("").to_string();
+                        if kind == "copying" {
+                            copying.push(lists.work.peek(&s_or(r.get("キー"))).and_then(|m| m.copy_progress()));
+                        }
                         let mut x = json!({"name": name});
                         x.as_object_mut().unwrap().extend(fv.as_object().unwrap().clone());
                         failed.push(x);
@@ -372,11 +382,25 @@ impl Ctx<'_> {
                     }
                 }
             }
-            if parts.is_empty() {
-                return Err(first.map(|(f, _)| f).unwrap_or(Value::Null));
-            }
             let name = work_def.map(|d| s_or(d.get("name"))).unwrap_or_else(|| "作業実績".into());
-            return Ok(Some(Parts { parts, failed, name, mirrors }));
+            if parts.is_empty() {
+                // 1 台も写し終えていない: 失敗の答えにも写しの様子（台・バイト・あと何秒）を付ける（版 3.97.0）
+                let copying_now = first.as_ref().is_some_and(|(_, k)| k == "copying");
+                let mut f = first.map(|(f, _)| f).unwrap_or(Value::Null);
+                if copying_now && f.is_object() {
+                    if let Some(c) = copy_of(&Parts {
+                        parts: vec![],
+                        failed: failed.clone(),
+                        name: name.clone(),
+                        mirrors: mirrors.clone(),
+                        copying: copying.clone(),
+                    }) {
+                        f["copy"] = c;
+                    }
+                }
+                return Err(f);
+            }
+            return Ok(Some(Parts { parts, failed, name, mirrors, copying }));
         }
         if source == "lot" {
             let plan = lists.lot_plan(conf, q, true).map_err(|f| fail_of(&f))?;
@@ -385,6 +409,7 @@ impl Ctx<'_> {
             let lot = d.as_ref().map(|d| s_or(d.get("lotSet")));
             let part = self.part(&plan, TABLE_CANDIDATES, None, self.equip_of(d.as_ref()), &named.clone().unwrap_or_default(), lot);
             return Ok(Some(Parts {
+                copying: vec![],
                 parts: vec![part],
                 failed: vec![],
                 name: named.unwrap_or_else(|| "品質データ".into()),
@@ -401,7 +426,7 @@ impl Ctx<'_> {
         let name = d.as_ref().map(|d| s_or(d.get("name"))).unwrap_or_default();
         let lot = d.as_ref().map(|d| s_or(d.get("lotSet")));
         let part = self.part(&plan, TABLE_CANDIDATES, None, self.equip_of(d.as_ref()), &name, lot);
-        Ok(Some(Parts { parts: vec![part], failed: vec![], name, mirrors: vec![plan.source] }))
+        Ok(Some(Parts { parts: vec![part], failed: vec![], name, mirrors: vec![plan.source], copying: vec![] }))
     }
 
     /// パネルの設備のまとめ → 数える形（Python の resolve_egroup）
@@ -493,6 +518,7 @@ impl Ctx<'_> {
         let hit = match hit {
             Some(h) => h,
             None => {
+                crate::progress::counted();
                 let h = self.count(p, got.parts.clone(), &egroups, &sets);
                 if h.get("error").is_some() {
                     return Some(h);
@@ -514,6 +540,9 @@ impl Ctx<'_> {
         out["sourceName"] = json!(got.name);
         out["mirrors"] = json!(got.mirrors);
         out["failed"] = json!(got.failed);
+        if let Some(c) = copy_of(&got) {
+            out["copy"] = c;
+        }
         out["now"] = json!(stamp);
         if !note.is_empty() {
             let old = s_or(out.get("note"));
@@ -623,8 +652,10 @@ impl Ctx<'_> {
         let sides = arr(link.get("sides"));
         let mut answers = vec![];
         for i in 0..sides.len() {
+            crate::progress::group(i, sides.len()); // 合わせるデータ i / n 済み（版 3.97.0）
             answers.push(self.answer(&side_query(link, i, p))?);
         }
+        crate::progress::group(sides.len(), sides.len());
         if answers.iter().all(|a| a.get("cells").is_none()) {
             return Some(answers.swap_remove(0));
         }
@@ -786,7 +817,8 @@ impl Ctx<'_> {
                 v
             })
             .collect();
-        Some(json!({
+        let copy = first_copy(&answers);
+        let mut out = json!({
             "table": "", "count": ok.iter().map(|a| a["count"].as_i64().unwrap_or(0)).sum::<i64>(), "lotsBy": "", "start": "", "bins": [], "stats": {},
             "box": "", "boxes": [], "dims": {"rows": [row0], "cols": []}, "measures": ms, "orders": [order], "labels": [labels], "cells": cells,
             "truncated": {"rows": false, "cols": false}, "months": [], "month": "", "ignoredFilters": ignored,
@@ -795,7 +827,11 @@ impl Ctx<'_> {
             "mirrors": ok.iter().flat_map(|a| arr(a.get("mirrors")).to_vec()).collect::<Vec<_>>(),
             "failed": ok.iter().flat_map(|a| arr(a.get("failed")).to_vec()).collect::<Vec<_>>(), "now": self.stamp(),
             "link": {"sides": link_sides},
-        }))
+        });
+        if let Some(c) = copy {
+            out["copy"] = c;
+        }
+        Some(out)
     }
 
     /// 設備グループのまとめ方ごとに、names の設備がどのグループに入るか（Python の equip_tree）
@@ -1139,6 +1175,38 @@ pub fn equip_tree_answer(cx: &Ctx) -> Option<Value> {
     Some(json!({"names": names, "sets": sets}))
 }
 
+/// 写している最中の数え方（版 3.97.0）: そのデータ元の設備のうち、写し終えた設備 done / 写す設備 total。
+/// 画面はこれをそのまま「写した done/total 台の分」と言う（前は合わせた表・合わせるで、ほかのデータの写しまで足して 6/12 と数えていた）
+/// 写している設備は並べて写す（設備ごとに写しの係の糸）ので、あと何秒は「いちばん遅く終わる設備」の残り（済んだバイト÷経過＝その設備の速さ）。
+/// どれかの設備がまだ写し始めていない・0.5 秒たっていない・まだ 1 バイトも写していない間は、見込みを出さない（left は null）
+fn copy_of(got: &Parts) -> Option<Value> {
+    let cop = got.failed.iter().filter(|f| f["kind"] == "copying").count();
+    if cop == 0 {
+        return None;
+    }
+    let mut c = json!({"name": got.name, "done": got.mirrors.len(), "total": got.mirrors.len() + cop});
+    let ps: Vec<_> = got.copying.iter().flatten().collect();
+    if !ps.is_empty() {
+        let (done, total) = (ps.iter().map(|p| p.done).sum::<u64>(), ps.iter().map(|p| p.total).sum::<u64>());
+        let secs = ps.iter().map(|p| p.secs).fold(0.0, f64::max);
+        c["bytes"] = json!([done, total]);
+        if secs >= 0.5 && done > 0 {
+            c["rate"] = json!((done as f64 / secs * 10.0).round() / 10.0); // バイト/秒（いま写している設備を合わせた速さ）
+        }
+        let known = got.copying.len() == cop && got.copying.iter().all(|p| p.is_some_and(|p| p.secs >= 0.5 && p.done > 0));
+        if known {
+            let left = ps.iter().map(|p| (p.total.saturating_sub(p.done)) as f64 / (p.done as f64 / p.secs)).fold(0.0, f64::max);
+            c["leftSec"] = json!((left * 10.0).round() / 10.0);
+        }
+    }
+    Some(c)
+}
+
+/// いくつかの答え（合わせた表のまとまり・合わせるのデータ）のうち、写している最初のデータの数え方
+fn first_copy(answers: &[Value]) -> Option<Value> {
+    answers.iter().find_map(|a| a.get("copy").filter(|c| c.is_object()).cloned())
+}
+
 pub fn query(cx: &Ctx, body: &[u8]) -> Option<(u16, Value)> {
     let p = match clean_panel(&panel_of(body)?) {
         Ok(p) => p,
@@ -1149,9 +1217,14 @@ pub fn query(cx: &Ctx, body: &[u8]) -> Option<(u16, Value)> {
         let n = arr(p.get("groups")).len();
         let mut groups = vec![];
         for i in 0..n {
+            crate::progress::group(i, n); // 合わせた表のまとまり i / n 済み（版 3.97.0）
             groups.push(cx.answer(&board_query(&p, i))?);
         }
+        crate::progress::group(n, n);
         let mut out = json!({"groups": groups, "equipOrder": cx.dash().names(), "now": cx.stamp()});
+        if let Some(c) = first_copy(&groups) {
+            out["copy"] = c;
+        }
         let tree = s_or(p["order"].get("tree"));
         if !tree.is_empty() {
             let mut keys: Vec<String> = vec![];
@@ -1181,7 +1254,11 @@ pub fn query(cx: &Ctx, body: &[u8]) -> Option<(u16, Value)> {
     };
     if a.get("status").is_some() && a.get("cells").is_none() {
         let st = a["status"].as_u64().unwrap_or(503) as u16;
-        return Some((st, json!({"error": a["error"], "kind": a["kind"]})));
+        let mut e = json!({"error": a["error"], "kind": a["kind"]});
+        if let Some(c) = a.get("copy").filter(|c| c.is_object()) {
+            e["copy"] = c.clone(); // 1 台も写し終えていない: 写しの様子も返す（版 3.97.0）
+        }
+        return Some((st, e));
     }
     Some((200, a))
 }
@@ -1263,6 +1340,7 @@ impl Ctx<'_> {
         let hit = match hit {
             Some(h) => h,
             None => {
+                crate::progress::counted();
                 let h = self.ops_count(p, got.parts.clone(), &period);
                 if h.get("error").is_some() {
                     return Some(h);
@@ -1278,6 +1356,9 @@ impl Ctx<'_> {
         out["sourceName"] = json!(got.name);
         out["mirrors"] = json!(got.mirrors);
         out["now"] = json!(stamp);
+        if let Some(c) = copy_of(&got) {
+            out["copy"] = c;
+        }
         Some(out)
     }
 
@@ -1320,7 +1401,9 @@ impl Ctx<'_> {
         let eorder = names(p.get("eorder"), MAX_EQUIPS);
         let (mut equips, mut skipped): (Vec<Value>, Vec<Value>) = (vec![], vec![]);
         let (mut rng, mut start_col, mut end_col): (Option<(String, String)>, String, String) = (None, String::new(), String::new());
-        for part in order_parts(parts, &eorder) {
+        let total = parts.len();
+        for (i, part) in order_parts(parts, &eorder).into_iter().enumerate() {
+            crate::progress::step("gantt", i, total); // 稼働のガントを組み終えた設備 i / total（版 3.97.0）
             let mut args = self.read_args(p, &o, per, &filters, calc.as_ref());
             args.cols = [label.clone(), color.clone()].into_iter().filter(|c| !c.is_empty()).collect();
             args.reach = true;
@@ -1412,7 +1495,9 @@ impl Ctx<'_> {
         let eorder = names(p.get("eorder"), MAX_EQUIPS);
         let (mut equips, mut skipped, mut every, mut reads) = (vec![], vec![], vec![], vec![]);
         let (mut rng, mut start_col, mut end_col): (Option<(String, String)>, String, String) = (None, String::new(), String::new());
-        for part in order_parts(parts.to_vec(), &eorder) {
+        let total = parts.len();
+        for (i, part) in order_parts(parts.to_vec(), &eorder).into_iter().enumerate() {
+            crate::progress::step("read", i, total); // ABC 分析: 読み終えた設備 i / total（版 3.97.0）
             let mut args = self.read_args(p, o, period, filters, calc);
             args.cols = cols.iter().filter(|c| !c.is_empty()).cloned().collect();
             args.lots = lead;
@@ -1450,6 +1535,7 @@ impl Ctx<'_> {
                               "kind": "invalid", "status": 400}),
             );
         }
+        crate::progress::step("abc", 0, 0); // 品種を並べる（n/of なし）
         let ops = if lead { operation::lead_ops(&reads) } else { every };
         let all = operation::abc(&ops, &cls, &qty, &base, &lims, each);
         Ok(AbcPass { equips, all, skipped, range: rng, start: start_col, end: end_col })
@@ -1545,6 +1631,53 @@ pub fn now_of(conf: &Conf) -> NaiveDateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copying_is_counted_within_one_data_source() {
+        // 版 3.97.0: 写している最中の数え方は、そのデータ元の設備だけ（作業実績 11 台のうち 5 台を写し終えた → 5/11）。
+        // 前は画面が合わせた表のまとまりの写しを全部足して、仕掛の写し 1 つまで数えて 6/12 と言った
+        let cop = |n: &str| json!({"name": n, "kind": "copying", "error": "写しています", "status": 503});
+        let work = Parts {
+            parts: vec![],
+            failed: vec![cop("CR2"), cop("L-2"), cop("LS3"), cop("CAL"), cop("HOT"), cop("SL1"), json!({"name": "SL3", "kind": "unknown"})],
+            name: "作業実績".into(),
+            mirrors: (0..5).map(|i| json!({"remote": i})).collect(),
+            copying: vec![],
+        };
+        assert_eq!(copy_of(&work), Some(json!({"name": "作業実績", "done": 5, "total": 11})), "読めない設備（SL3）は数えない");
+        let wip = Parts { parts: vec![], failed: vec![], name: "仕掛".into(), mirrors: vec![json!({})], copying: vec![] };
+        assert_eq!(copy_of(&wip), None, "写し終えた元は数え方を持たない");
+        let groups = vec![json!({"cells": []}), json!({"cells": [], "copy": copy_of(&work)})];
+        assert_eq!(
+            first_copy(&groups),
+            Some(json!({"name": "作業実績", "done": 5, "total": 11})),
+            "合わせた表は写しているまとまりの数え方"
+        );
+        assert_eq!(first_copy(&[json!({"cells": []})]), None);
+    }
+
+    #[test]
+    fn copying_left_time_comes_from_bytes_of_each_equipment() {
+        // 版 3.97.0: 写している設備ごとの済んだバイト÷経過で速さを出し、いちばん遅く終わる設備の残りを「あと何秒」にする
+        use crate::mirror::CopyProgress as P;
+        let cop = |n: &str| json!({"name": n, "kind": "copying"});
+        let mut got =
+            Parts {
+                parts: vec![], failed: vec![cop("A"), cop("B")], name: "作業実績".into(), mirrors: vec![json!({})], copying: vec![]
+            };
+        got.copying =
+            vec![Some(P { done: 2_000_000, total: 4_000_000, secs: 2.0 }), Some(P { done: 1_000_000, total: 4_000_000, secs: 2.0 })];
+        let c = copy_of(&got).unwrap();
+        assert_eq!((c["done"].as_u64(), c["total"].as_u64()), (Some(1), Some(3)), "円と字の n/m は台のまま");
+        assert_eq!(c["bytes"], json!([3_000_000, 8_000_000]));
+        assert_eq!(c["rate"].as_f64(), Some(1_500_000.0));
+        assert_eq!(c["leftSec"].as_f64(), Some(6.0), "B は 3MB 残り・0.5MB/秒で 6 秒（A は 2 秒）: {c}");
+        got.copying = vec![Some(P { done: 2_000_000, total: 4_000_000, secs: 2.0 }), None];
+        assert!(copy_of(&got).unwrap().get("leftSec").is_none(), "まだ写し始めていない設備があれば見込みを出さない");
+        got.copying = vec![Some(P { done: 0, total: 4_000_000, secs: 0.2 }), Some(P { done: 10, total: 4_000_000, secs: 0.3 })];
+        let c = copy_of(&got).unwrap();
+        assert!(c.get("leftSec").is_none() && c.get("rate").is_none(), "速さがまだ分からない間は経過だけ: {c}");
+    }
 
     #[test]
     fn query_body_is_read_like_python() {

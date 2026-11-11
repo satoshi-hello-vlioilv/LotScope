@@ -1247,7 +1247,9 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
     let need_equip = !pick.is_empty() || groups.as_ref().is_some_and(|g| g.on() && g.rest == "hide");
     let mut states: Vec<State> = vec![];
     let mut skipped: Vec<Value> = vec![];
-    for part in &parts {
+    let total = parts.len();
+    for (i, part) in parts.iter().enumerate() {
+        crate::progress::step("read", i, total); // 読み終えたファイル i / total（版 3.97.0）
         let got = (|| {
             let span = match &period {
                 Some(p) => Some(period_range(
@@ -1277,6 +1279,7 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
             .collect();
         return invalid(format!("数えられるファイルがありません。{tail}"));
     }
+    crate::progress::step("count", 0, 0);
     let mut dims = states[0].dims.clone();
     let (nr, nc) = (states[0].nr, dims.len() - states[0].nr);
     let ms = states[0].ms.clone();

@@ -458,6 +458,18 @@
       }
       ok(`ダッシュボードのパネルは窓が答え、Python と同じ答え（${panels.length} 通り・数字・グラフ・合わせた表・別のデータ・稼働・ABC 分析・失敗の答え）`,
          dby.every((b) => b === "shell") && ddiff.length === 0, ddiff.length ? ddiff.join(" | ") : `設備 ${one ? one.name : "なし"}`);
+      // 待っているパネルの段（版 3.97.0。desktop/src/progress.rs）: 印を付けた問い合わせの段を窓が覚えて答える（済み・数えた段・前回の時間）。
+      // 窓が答えない形（?engine=python）は「python」と経過だけ
+      const tag = `selftest-${Date.now()}`, tp = panels[3];
+      await post(`?ask=${tag}a`, tp);
+      await post(`?ask=${tag}b`, tp);
+      await post(`?ask=${tag}c&engine=python`, tp);
+      const pg = await get(`/api/dashboard/progress?ask=${tag}a,${tag}b,${tag}c,無い印`);
+      let pj = {}; try { pj = JSON.parse(pg.text).asks || {}; } catch (_) { /* 下で言う */ }
+      const [pa, pb, pc] = [pj[`${tag}a`] || {}, pj[`${tag}b`] || {}, pj[`${tag}c`] || {}];
+      ok("待っているパネルの段を窓が答える（済み・前回の時間・Python に任せた形は python と経過だけ）",
+         pg.by === "shell" && pg.r.ok && pa.done === true && typeof pa.elapsedMs === "number" && pc.stage === "python" && !("n" in pc) && Object.keys(pj).length === 3,
+         `${pg.r.status} a=${JSON.stringify(pa)} b.prevMs=${pb.prevMs} c=${pc.stage}`);
     }
 
     // 11) 配布の画面の係（窓）: 答えが返る・版を置けない人は理由つきで断られる（だれが置けるかは Python の権限）

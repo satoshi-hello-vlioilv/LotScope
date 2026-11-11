@@ -20,7 +20,7 @@ const ask = (p, panel) => p.evaluate(async (x) => (await fetch("/api/dashboard/q
 const total = (d) => (d.cells.find((c) => !c.r.length && !c.c.length) || { v: [null] }).v;
 const answer = (p, id) => p.evaluate((k) => Dashboard._state().answers.get ? (Dashboard._state().answers.get(k) || {}).d : Dashboard._state().answers[k], id);
 const panelOf = async (p, id) => p.evaluate((k) => Dashboard._state().layout.panels.find((x) => x.id === k), id);
-async function settle(p, ms = 900) { await sleep(ms); for (let i = 0; i < 60; i++) { if (!(await p.$("#dashGrid .db-spin, #dashGrid .dp-wait"))) break; await sleep(250); } await sleep(300); }
+async function settle(p, ms = 900) { await sleep(ms); for (let i = 0; i < 60; i++) { if (!(await p.$("#dashGrid .db-p[data-wait]"))) break; await sleep(250); } await sleep(300); }
 const click = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel);
 const W = "#dashGrid .db-p[data-id=\"workDays\"]";
 

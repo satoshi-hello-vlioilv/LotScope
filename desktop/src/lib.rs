@@ -36,6 +36,7 @@ pub mod pivot;
 pub mod pivot_presets;
 pub mod presence;
 pub mod preset_rows;
+pub mod progress;
 pub mod pyfmt;
 pub mod release;
 pub mod release_place;

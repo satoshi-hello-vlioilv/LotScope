@@ -5,8 +5,8 @@
 // 2. 数字のパネルの 2 つの値（fmt.kpair=side）: 数が 2 つ・同じ大きさ・単位と仕切りの線の間が 8px 以上・パネルからはみ出さない。
 //    添え書きを上（kmeta=top）にすると、添え書きが数より上
 // 3. 組む所: 組んでいるパネルが確定後と同じ大きさ（空きに入らなければ同じ並びのまま縮める。札で言う）・④ 置き方の見本の札が 6 つ・左右に 2 つが選ばれている
-// 4. 待っている間（問い合わせを 3 秒遅らせる）: パネルに進みの線（is-wait）・添え書きの段に理由と秒（言い方は 1 つ）・題が切れない・
-//    道具の行に「n 枚中 k 枚 済み」と待っているパネルの札（見える札＋ほか n 枚＝待っている枚数）・待つ間にグリッドが下へずれない
+// 4. 待っている間（問い合わせを 3 秒遅らせる。版 3.97.0 の形）: 題の頭の円 1 つ（回る印・上の縁の線なし）・添え書きの段に段と経過の秒（言い方は 1 つ）・
+//    題が切れない・道具の行は「n / m 枚 済み・待っている k 枚」の字（棒・札なし）・待つ間にグリッドが下へずれない・済めば円は点に戻る
 // 全部合えば終了コード 0
 import { launch, parseView, sleep, waitDash } from "./ui-harness.mjs";
 import { LAYOUT } from "./shot-dashunit.mjs";
@@ -85,28 +85,27 @@ try {
     const wt = await page.evaluate(() => {
       const ps = [...document.querySelectorAll("#dashGrid .db-p")];
       return { gridTop: document.querySelector("#dashGrid").getBoundingClientRect().top,
-        panels: ps.map((p) => { const h = p.querySelector(".db-ph h3"); return { id: p.dataset.id, w: p.clientWidth, wait: p.classList.contains("is-wait"), sec: (p.querySelector(".db-wsec") || {}).textContent || "",
-          why: (p.querySelector(".db-wst") || {}).textContent || "", cut: h ? h.scrollWidth > h.clientWidth + 1 : false,
-          op: (() => { let o = 1; for (let x = p.querySelector(".db-wst"); x; x = x.parentElement) o *= +getComputedStyle(x).opacity; return o; })() }; }),
-        bar: (() => { const b = document.querySelector("#dashBar .db-wbar"); return b && !b.hidden ? b.textContent : ""; })() };
+        panels: ps.map((p) => { const h = p.querySelector(".db-ph h3"), dot = p.querySelector(".db-ph .db-dot");
+          return { id: p.dataset.id, w: p.clientWidth, wait: p.classList.contains("is-wait"), why: (p.querySelector(".db-wst") || {}).textContent || "",
+            cut: h ? h.scrollWidth > h.clientWidth + 1 : false, pie: !!(dot && dot.classList.contains("is-pie")), title: !!(dot && dot.title),
+            spin: !!p.querySelector(".db-spin"), line: getComputedStyle(p, "::before").content,
+            op: (() => { let o = 1; for (let x = p.querySelector(".db-wst"); x; x = x.parentElement) o *= +getComputedStyle(x).opacity; return o; })() }; }),
+        bar: (() => { const b = document.querySelector("#dashBar .db-wbar"); return b && !b.hidden ? b.textContent : ""; })(),
+        barFit: (() => { const b = document.querySelector("#dashBar .db-wbar"); return !!b && b.scrollWidth <= b.clientWidth + 1; })(),
+        barPg: !!document.querySelector("#dashBar .db-wpg, #dashBar .db-witem") };
     });
-    check(`${v} 4 待っているパネルに進みの線と理由`, wt.panels.every((p) => p.wait && /数え/.test(p.why)), wt.panels);
-    check(`${v} 4 どのパネルも添え書きの段に理由と秒（言い方は 1 つ）・題は切れない`, wt.panels.every((p) => !p.sec && /^(数え直し中|数えています) \d+\.\d 秒$/.test(p.why) && !p.cut), wt.panels);
-    const wb = await page.evaluate(() => { const b = document.querySelector("#dashBar .db-wbar"); const shown = [...b.querySelectorAll(".db-witem")].filter((x) => !x.hidden).length;
-      const more = b.querySelector(".db-wmore"), m = more && !more.hidden ? +(more.textContent.match(/\d+/) || [0])[0] : 0, tot = b.querySelectorAll(".db-witem").length;
-      const n = b.querySelector(".db-wnames"), vis = [...b.querySelectorAll(".db-witem")].filter((x) => !x.hidden), nr = n.getBoundingClientRect();
-      // どの札も中身が札に収まり（理由と秒が札の外へあふれない）・札どうしが重ならず・段の中に見える（作った後の採点し直しで見つけた見逃し）
-      const inner = vis.every((x) => x.scrollWidth <= x.clientWidth + 1), apart = vis.every((x, i) => !i || vis[i - 1].getBoundingClientRect().right <= x.getBoundingClientRect().left + 0.5);
-      const seen = vis.every((x) => x.getBoundingClientRect().right <= nr.right + 0.5 && /\d+\.\d 秒）$/.test(x.textContent));
-      return { shown, m, tot, inner, apart, seen, fit: n.scrollWidth <= n.clientWidth + 1 && b.scrollWidth <= b.clientWidth + 1 }; });
+    // 版 3.97.0: 待ちの印は題の頭の円 1 つ（回る印・上の縁の線・道具の行の棒をやめた）。この試験は問い合わせを画面の外で止めるので、
+    // サーバーは段を知らない（段の字と n/m は ui-eval-dashwait.mjs が本物の道で確かめる）: 「数え直し・経過の秒」と輪だけの円
+    check(`${v} 4 待っているパネルは題の頭の円 1 つ（回る印・上の縁の線なし）`, wt.panels.every((p) => p.wait && p.pie && p.title && !p.spin && (p.line === "none" || p.line === "normal")), wt.panels);
+    check(`${v} 4 どのパネルも添え書きの段に段と経過の秒（言い方は 1 つ）・題は切れない`, wt.panels.every((p) => /^(数え直し|数えています)・\d+\.\d 秒$/.test(p.why) && !p.cut), wt.panels);
     check(`${v} 4 待ちの字は薄くした中身に入らない（字のコントラストを保つ）`, wt.panels.every((p) => p.op === 1), wt.panels.map((p) => p.op));
-    check(`${v} 4 道具の行の札は切れず・重ならず、見える札＋ほか n 枚＝待っている枚数`, wb.fit && wb.inner && wb.apart && wb.seen && wb.shown + wb.m === wb.tot, wb);
-    check(`${v} 4 道具の行に「n 枚中 k 枚 済み」と待っているパネル`, /4 枚中 \d 枚 済み/.test(wt.bar) && /待っている:/.test(wt.bar), wt.bar);
+    check(`${v} 4 道具の行は「n / m 枚 済み・待っている k 枚」の字だけ（棒・札なし）で切れない`, /\d \/ 4 枚 済み・待っている \d 枚/.test(wt.bar) && wt.barFit && !wt.barPg, wt);
     check(`${v} 4 待つ間にグリッドが下へずれない`, Math.abs(wt.gridTop - gridTop0) < 1, [gridTop0, wt.gridTop]);
     await page.unroute("**/api/dashboard/query**");
     await sleep(3500);
-    const done = await page.evaluate(() => ({ wait: document.querySelectorAll("#dashGrid .db-p.is-wait").length, bar: (document.querySelector("#dashBar .db-wbar") || {}).hidden }));
-    check(`${v} 4 答えが届けば待ちの字・線が消える`, done.wait === 0 && done.bar === true, done);
+    const done = await page.evaluate(() => ({ wait: document.querySelectorAll("#dashGrid .db-p.is-wait").length, bar: (document.querySelector("#dashBar .db-wbar") || {}).hidden,
+      pie: document.querySelectorAll("#dashGrid .db-dot.is-pie").length, wst: document.querySelectorAll("#dashGrid .db-wst").length }));
+    check(`${v} 4 答えが届けば待ちの字が消え、円は元の点に戻る`, done.wait === 0 && done.bar === true && done.pie === 0 && done.wst === 0, done);
     await page.close();
   }
 } finally {

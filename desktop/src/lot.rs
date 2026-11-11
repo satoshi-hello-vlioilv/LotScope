@@ -80,6 +80,8 @@ pub struct Lot {
     tables: Mutex<Option<(String, Arc<Tables>)>>,
     /// ダッシュボードのパネルの答えの控え（版 3.62.0。src/dashboard.rs）
     dash: Mutex<dashboard::Cache>,
+    /// ダッシュボードのパネルの問い合わせの段（版 3.97.0。src/progress.rs。GET /api/dashboard/progress）
+    progress: Arc<crate::progress::Progress>,
     /// 権限の判定と書き込みの門番（版 3.65.0。src/access.rs）。マスタを書いた後（after_python）に覚えを捨てる
     gate: Gate,
     /// マスタの書く係（版 3.68.0。src/master_store.rs）。置き場と名乗りごとに 1 つ作って長く持つ（錠の残り秒を最初に見てからの経過で測るため）
@@ -123,6 +125,7 @@ impl Lot {
             settings: Mutex::default(),
             tables: Mutex::default(),
             dash: Mutex::default(),
+            progress: Arc::default(),
             gate: Gate::default(),
             store: Mutex::default(),
             bundle: Mutex::default(),
@@ -1120,13 +1123,29 @@ impl Lot {
             }
             _ => {}
         }
+        // 待っているパネルの段（版 3.97.0）: 窓の覚えから答える（Python に任せた問い合わせも「python」と経過で答える）
+        if (method, path) == ("GET", "/api/dashboard/progress") {
+            return Some((200, self.progress.answer(query)));
+        }
         if (method, path) != ("POST", "/api/dashboard/query") {
             return self.handle(method, path, query, ask);
         }
-        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+        let qs = lotlist::parse_query(query);
+        let tag = qs.iter().find(|(k, _)| k == "ask").map(|(_, v)| v.clone()).unwrap_or_default();
+        let guard = self.progress.begin(&tag, body);
+        if qs.iter().any(|(k, v)| k == "engine" && v == "python") {
+            if let Some(g) = guard {
+                g.python();
+            }
             return None;
         }
-        self.with_dash(ask, |cx| dashboard::query(cx, body))
+        let r = self.with_dash(ask, |cx| dashboard::query(cx, body));
+        if r.is_none() {
+            if let Some(g) = guard {
+                g.python(); // 窓が答えない形は Python が数える（段は分からない）
+            }
+        }
+        r
     }
 
     /// 窓が答える問い合わせなら (状態, 答え)。Python に任せるなら None。
@@ -2838,6 +2857,56 @@ mod tests {
         assert_eq!(lot3.handle("GET", "/api/lotlist/source", "", &ask).map(|r| r.0), Some(200), "品質のデータの時刻は窓");
         assert_eq!(lot3.handle("POST", "/api/lotlist/refresh", "", &ask).map(|r| r.0), Some(200), "品質の再読込は窓");
         assert!(lot3.handle("GET", "/api/worklog/source", "equip=a", &ask).is_some(), "作業実績のデータの時刻は窓");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_answers_dashboard_progress() {
+        // 版 3.97.0: パネルの問い合わせに印（ask）を付けると、窓が段を覚え、GET /api/dashboard/progress で答える。
+        // 前回の時間は同じ組みを数えた時だけ覚える（控えに当たった時は覚え直さない）・窓が答えない形は「python」と経過だけ
+        let dir = std::env::temp_dir().join(format!("da-lot-progress-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = dir.join("実績");
+        std::fs::create_dir_all(&folder).unwrap();
+        let mut rows = vec![];
+        for e in ["A", "B", "C"] {
+            let c = rusqlite::Connection::open(folder.join(format!("実績_{e}.sqlite3"))).unwrap();
+            c.execute_batch("CREATE TABLE 実績 (ロット番号 TEXT, 作業日 TEXT); INSERT INTO 実績 VALUES ('L1', '2026-11-04');").unwrap();
+            rows.push(json!({"キー": e.to_lowercase(), "設備名": e, "ファイル名": format!("実績_{e}.sqlite3"), "ファイルID": "", "表示": "有", "表": ""}));
+        }
+        let lists = json!({"hidden": [], "sources": [], "shifts": [], "dash": {"now": "2026-11-04 10:00:00"},
+            "work": {"folder": folder.display().to_string(), "pattern": "実績_*.sqlite3", "table": "", "refresh_seconds": 60, "stale_hours": 36,
+                     "page_size": 500, "canEditShifts": false, "rows": rows}});
+        let ask = || Ok(json!({"source": "", "engine": "rust", "lists": lists.clone()}));
+        let lot = Lot::new(dir.join("cache"));
+        let body = serde_json::to_vec(&json!({"panel": {"id": "p", "visual": "kpi", "source": "work"}})).unwrap();
+        let progress = |q: &str| lot.handle_body("GET", "/api/dashboard/progress", q, b"", &ask).unwrap();
+        let (st, v) = lot.handle_body("POST", "/api/dashboard/query", "ask=p-1", &body, &ask).unwrap();
+        assert_eq!(st, 200, "{v}");
+        let (st, p) = progress("ask=p-1");
+        let e = &p["asks"]["p-1"];
+        assert_eq!((st, e["done"].as_bool(), e["stage"].as_str()), (200, Some(true), Some("count")), "{p}");
+        assert!(e["prevMs"].is_null(), "初回は前回が無い: {e}");
+        // 同じ組みを数え直す（控えを捨てる）: 前回の時間を持つ
+        lot.forget_dashboard();
+        lot.handle_body("POST", "/api/dashboard/query", "ask=p-2", &body, &ask).unwrap();
+        let prev = progress("ask=p-2").1["asks"]["p-2"]["prevMs"].as_u64();
+        assert!(prev.is_some(), "数えた時間を前回として持つ");
+        // 控えに当たった問い合わせは前回を覚え直さない（前回は数えた時の時間のまま）
+        lot.handle_body("POST", "/api/dashboard/query", "ask=p-3", &body, &ask).unwrap();
+        lot.handle_body("POST", "/api/dashboard/query", "ask=p-4", &body, &ask).unwrap();
+        assert_eq!(progress("ask=p-4").1["asks"]["p-4"]["prevMs"].as_u64(), progress("ask=p-3").1["asks"]["p-3"]["prevMs"].as_u64());
+        // 印の無い問い合わせ・知らない印は記録しない／答えない
+        lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask).unwrap();
+        assert_eq!(progress("ask=zz,p-1").1["asks"].as_object().unwrap().len(), 1);
+        // ?engine=python・窓が答えない中身は Python が数える: 段は「python」、n/m を推して作らない
+        assert!(lot.handle_body("POST", "/api/dashboard/query", "ask=p-5&engine=python", &body, &ask).is_none());
+        let e = progress("ask=p-5").1["asks"]["p-5"].clone();
+        assert_eq!((e["stage"].as_str(), e["done"].as_bool(), e.get("n")), (Some("python"), Some(false), None), "{e}");
+        let old = || Ok(json!({"source": "", "engine": "python", "lists": lists.clone()}));
+        let lot2 = Lot::new(dir.join("cache2")); // 設定の覚えを持たない窓（前の版の中身は段取りの材料を答えない）
+        assert!(lot2.handle_body("POST", "/api/dashboard/query", "ask=p-6", &body, &old).is_none());
+        assert_eq!(lot2.handle_body("GET", "/api/dashboard/progress", "ask=p-6", b"", &old).unwrap().1["asks"]["p-6"]["stage"], "python");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
