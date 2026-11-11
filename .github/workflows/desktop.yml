@@ -49,6 +49,11 @@ jobs:
       - name: 結合・スケジュール（Python・Windows）
         working-directory: program
         run: python -m unittest tests.test_data_join tests.test_schedule tests.test_mirror_share -v
+      # 置き場と設定の事例の表（版 3.100.0）を Windows の本物で: 隠し・システムの属性を「参照…」に出さない・ドライブだけの「C:」・
+      # 書けるかを試しのフォルダで見る・Windows の道の字（窓の normcase と Python の ntpath.normcase は上の cargo test の place_cases）
+      - name: 置き場と設定の事例（Python・Windows）
+        working-directory: program
+        run: python -m unittest tests.test_place_cases -v
       - name: exe を作る
         working-directory: desktop
         run: cargo build --release --locked

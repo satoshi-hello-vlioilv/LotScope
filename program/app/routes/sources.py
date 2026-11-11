@@ -609,7 +609,7 @@ def sources_conn_check(key):
     except ValueError as e:
         return jsonify(ok=False, message=str(e))
     if value is None:
-        return jsonify(ok=False, message="値を入れてください。")
+        return jsonify(path_settings.check_entry(item, value))     # 「値を入れてください。」（参照先の settings/check と同じ入口。版 3.100.0）
     pattern = None
     if f["kind"] == "folder" and str(body.get("pattern") or "").strip():
         try:

@@ -52,20 +52,20 @@ class MasterPlaceTests(unittest.TestCase):
                 a = self.store("pcM" + share, share=str(old) if share else "")
                 repo = MasterRepository(a)
                 rid = repo.rolls_create({"設備": "TLV", "ロール名": f"引っ越し前{share}"})["id"]
-                real, box = master_place.write_json_atomic, {}
+                real, box = master_place._write_file, {}
 
-                def copying(path, doc, real=real, repo=repo, rid=rid, box=box, **kw):
+                def copying(path, data, real=real, repo=repo, rid=rid, box=box):
                     if "thread" not in box:   # 写す中身を読んだ後（1 つ目のファイルを写すとき）に、ほかの画面が保存する
                         th = threading.Thread(target=lambda: box.update(r=repo.rolls_update(rid, {"備考": "引っ越しの途中の保存"})))
                         th.start()
                         th.join(0.3)          # 保存は引っ越しが終わるまで待つ（ここで終わっていれば、前の置き場に入っている）
                         box["thread"] = th
-                    return real(path, doc, **kw)
-                master_place.write_json_atomic = copying
+                    return real(path, data)
+                master_place._write_file = copying
                 try:
                     master_place.move(a, self.tmp / "nas", f"New{share or 'L'}")
                 finally:
-                    master_place.write_json_atomic = real
+                    master_place._write_file = real
                 box["thread"].join(10)
                 self.assertIn("r", box, "途中の保存も、引っ越しの後で保存できる")
                 dest = self.tmp / "nas" / f"New{share or 'L'}"

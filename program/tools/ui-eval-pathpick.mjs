@@ -110,7 +110,7 @@ try {
     await p.click('#masterSettings [data-sr-edit="work"]'); await sleep(600);
     await p.click('#masterSettings .sr-card.is-open [data-conn-f="folder"] .pp-open'); await idle(p);
     d = await dlg(p);
-    check("実績: いまのフォルダから始まり、決まりに合うファイルの数が出る", d.here === "【New】実績" && /実績のファイル \d+ 個/.test(d.state), d);
+    check("実績: いまのフォルダから始まり、決まりに合う設備の数が出る（確かめるの「設備 n 台」と同じ言葉）", d.here === "【New】実績" && /設備 \d+ 台/.test(d.state), d);
     await shot(p, "worklog-dlg");
     await p.keyboard.press("Escape");
     check("頁の誤りが無い", !errors.length, errors);

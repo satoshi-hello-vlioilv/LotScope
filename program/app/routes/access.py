@@ -137,10 +137,7 @@ def tabaccess_get():
     st = current_app.config["MASTER_STORE"]
     m = me()
     rules = {t: [r for r in access.TAB_ROLES if r in roles] for t, roles in access.tab_rules(master_repo().tab_access()).items()}
-    exc = {}
-    for r in m["rows"]:
-        for t in access.tab_exceptions(r.get("タブの例外")):
-            exc[t] = exc.get(t, 0) + 1
+    exc = access.tab_exception_counts(m["rows"])      # 効く行だけ（版 3.100.0）
     return jsonify(rules=rules, tabs=tab_list(), roles=list(access.TAB_ROLES), exceptions=exc, canEdit=can_write("tab_access"),
                    revision=st.revision("tab_access"), shared=st.is_shared("tab_access"))
 

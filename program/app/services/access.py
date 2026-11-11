@@ -77,12 +77,26 @@ def clean_tab_rules(raw):
 
 
 def tab_exceptions(value):
-    """アクセス権限の行の「タブの例外」→ {タブ: 出す|出さない}（壊れた字は空）。"""
+    """アクセス権限の行の「タブの例外」→ {タブ: 出す|出さない}（壊れた字は空。JSON の表でない字〈並び・数・字〉も空。版 3.100.0:
+    前は「[1]」の行があると GET /api/masters/tabaccess と例外を置く道が 500 になった。事例は tests/fixtures/place_cases.json の tabExceptions）"""
     try:
         d = json.loads(value) if isinstance(value, str) and value.strip() else (value if isinstance(value, dict) else {})
     except ValueError:
         return {}
-    return {str(k): v for k, v in (d or {}).items() if TAB_KEY.fullmatch(str(k)) and v in (TAB_SHOW, TAB_HIDE)}
+    if not isinstance(d, dict):
+        return {}
+    return {str(k): v for k, v in d.items() if TAB_KEY.fullmatch(str(k)) and v in (TAB_SHOW, TAB_HIDE)}
+
+
+def tab_exception_counts(rows):
+    """{タブ: 例外を持つ人の数}。効く行だけ（有効な行・開発者でない行。hidden_tabs と同じ決まり。版 3.100.0: 前は止めた行と開発者の行も数えた）"""
+    out = {}
+    for r in rows or []:
+        if not enabled(r) or normalize_role(r.get("権限区分")) == ROLE_DEVELOPER:
+            continue
+        for t in tab_exceptions(r.get("タブの例外")):
+            out[t] = out.get(t, 0) + 1
+    return out
 
 
 def clean_tab_exceptions(raw):

@@ -1,0 +1,515 @@
+{
+ "title": "Rust 化の次の段（版 3.100.0 の候補）: ② 置き場と設定 8 本を窓へ移す範囲と作り方（2026-11-11）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-11・主の作業ツリー /home/user/LotScope・ブランチ claude/friendly-hamilton-8g6s3p・commit 3329b69＝版 3.99.0。Linux の開発機・Python 3.13.18・4 コア。Rust は組んでいない〈空き 9.7 GB〉。リポジトリのファイルは変えていない）。\n【道の数】前の道具 lotdsp/routes_inv.py を版 3.99.0 に合わせた /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-place/routes_inv2.py（組む所の読み 7 本・LotDsp の 9 本〈/lotdsp-link を含む〉・/api/dashboard/progress を窓の側へ）で、app.routes の bp.rules を読み、窓の振り分け（lot.rs の handle_body・各部品の route_of・main.rs の native）と 1 本ずつ突き合わせた。Python の道は 137 本（メソッド×型。HEAD を除く）、窓が答えるのは 127 本、Python だけが答えるのは 10 本: ② GET /api/masters/tabaccess・GET /api/masters/status・POST /api/fs/browse・GET /api/fs/places・GET /api/masters/place・POST /api/masters/place/check・POST /api/masters/place/move・POST /api/settings/check（8 本）と ③ GET /api/lotlist/settings・GET /api/health（2 本）。窓の route_of で確かめた: access_write::route_of は PUT tabaccess だけ（GET は受けない）・builder::route_of は POST /api/settings/check を受けない（試験 routes_are_the_seven_reads）・settings_write::route_of も受けない・small_reads は /api/health を受けない（Python が答えているかの印のまま）。\n【速さ】test_client・手元のディスク・5 回の中央値（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-place/probe_speed.py・probe_speed2.py）: GET masters/status 0.39 ms（1 回目は共有へ 15 個のマスタを種まきして 47.7 ms）・GET masters/tabaccess 0.38 ms・GET masters/place 0.45 ms・POST masters/place/check 1.44 ms・POST fs/browse 3.3 ms（60 フォルダ。450 フォルダ・印 120 個で 6.9〜8.4 ms）・GET fs/places 2.5 ms・POST settings/check 0.09〜0.18 ms（パターン・11 ファイルのフォルダ）・POST masters/place/move 8.7 ms（18 ファイル・160 KB）。どれも手元では ms で、製品の時間は共有（SMB・BOX）の往復で決まる（SMB の遅い・届かない形はこの容器で作れず、測っていない）。\n【行数】Python（ast で数えた）: routes/settings.py の 8 本の関数と門番 102 行・routes/masters.py masters_status 7 行・routes/access.py tabaccess_get 12＋tab_list 8 行・services/master_place.py 141 行・services/folder_browse.py 277 行・path_settings の check と _check_* 55 行（parse 36 行は窓に写しあり）・master_store の status・lock_status・history・pinned・_maybe_refresh・_pull・_seed・retarget・exclusive 計 約 140 行・presence.online_in＋_online 28 行・access.tab_rules＋tab_exceptions 16 行。計 約 790 行。\n【試験】道を通す試験は少ない: fs/browse・fs/places は tests/test_folder_browse.py の 11 件（うち道 2 件）、masters/place の GET は test_release_place.py の 2 か所、masters/place/check と move は道の試験が無く（門番だけ desktop/tests/access_parity.rs の 25 の道に move）、部品 master_place の試験が test_master_place.py に 9 件、masters/status は test_master_share.py の 1 か所と test_sidecar.py の 1 件（store.status() は test_master_place で 14 か所）、GET tabaccess は test_sources_unify.py の 3 か所と自己診断 selftest.js の 1 項目、settings/check は test_path_settings.py の test_check 1 件・test_work_log・test_access（門番を通らない）・access_oracle の 1 歩。窓と突き合わせる評価関数（*_parity）はどの道にも無い。\n【独立の答え】Python の app に頼らずに確かめた（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-place の probe_*.py。app の答えを、os.walk・os.stat・json・date・ntpath.isreserved〈Microsoft の決まりを写した標準ライブラリ。app ではない〉・仕様〈work_log.scan の決まり・各社の同期フォルダの既定の名前〉と比べた）。root でない利用者（runuser -u nobody。scratchpad は nobody が読めないので、台本は標準入力で渡し、作業は /tmp/pp-nobody-* に作って消した）で読めないフォルダ・書けない上のフォルダも流した。Windows の道の形（ドライブ・UNC・\\\\?\\・末尾の空白と点）はこの容器では流せないので、確かめた事と分からない事を分けて書いた。",
+ "inventory": [
+  {
+   "route": "GET /api/masters/tabaccess",
+   "python": "routes/access.py tabaccess_get（12 行）＋tab_list（8 行。sources._all の並び）＋access.tab_rules・tab_exceptions",
+   "input": "なし（me・マスタ tab_access・access_permissions・データ元の並び）",
+   "answer": "{rules:{タブ:[区分]}, tabs:[{key,name,kind,group,listed,role?}], roles:[メンテナンス者,一般ユーザー,設備作業者], exceptions:{タブ:数}, canEdit, revision, shared}",
+   "side_effects": "なし（読むだけ。マスタの写しの取り直し〈5 秒に 1 回〉は起きうる）",
+   "why_python": "版 3.68.0 で PUT だけを窓へ移した（access_write.rs）。GET は tabs にデータ元の並び（GET /api/sources の材料）が要り、その道の窓（sources_list.rs）が 3.87.0 で後から入ったため残った",
+   "tests": "test_sources_unify.py の 3 か所（rules・exceptions・revision）・selftest.js 1 項目。突き合わせ無し",
+   "speed_ms": 0.38,
+   "window_parts": "access.rs の tab_rules・tab_exceptions（Result を返す）・TAB_ROLES・Gate::me・can_write・Place::revision と is_shared 相当・sources_list.rs の並び（tab_list の材料）・access_write.rs の Tabs（同じ表）"
+  },
+  {
+   "route": "GET /api/masters/status",
+   "python": "routes/masters.py masters_status（7 行）＋MasterStore.status（23 行）・lock_status・_maybe_refresh・_pull・_seed＋master_place.sync_caution",
+   "input": "なし",
+   "answer": "{mode: shared|local, dir, configured, override, pin, who, masters:{名前:{revision, rows, updated_at, updated_by, source: shared|bundled-fallback|local}}, reachable, lock:{locked, holder_pc, holder_login, remaining, mine}|null, last_sync, error, caution}（16 のマスタ）",
+   "side_effects": "共有のマスタごとに写し（master_cache）を取り直す（refresh_seconds＝5 秒に 1 回）。共有にまだ無いマスタは錠を取って最初の版を共有へ書く（_seed。手で確かめた: 1 回目の GET で共有が 1 → 16 ファイル）。last_sync・error は Python の中の覚え。引っ越しの印の読み直し（窓が bundle を名乗るときは master_share.json を読み直すだけ）",
+   "why_python": "答えの last_sync・error・lock.remaining（自分の時計で見てからの経過）と、写しの取り直し・種まきが Python の MasterStore の状態。窓は共有を直接読み（access.rs の Place::doc）、写しの取り直しの係を持たない。前の採点 2026-11-port-next2.json の fixes 13 が『この道を移すときは写しの取り直しの係も窓に』と持ち越した",
+   "tests": "test_master_share.py の 1 か所・test_sidecar.py 1 件（枠を通す）・status() の部品の試験は test_master_place.py に 14 か所。突き合わせ無し",
+   "speed_ms": 0.39,
+   "window_parts": "master_store.rs の Store（pull・seed〈private〉・read_lock・remaining・wait・is_mine〈private〉・stat_sig）・bundle.rs の Builder::store（share・shared・lock_ttl・refresh）・override_doc・pin の読み（pin_target は private）・access.rs の Place::doc（版と行）"
+  },
+  {
+   "route": "GET /api/masters/place",
+   "python": "routes/settings.py master_place_get（10 行）＋_master_using（13 行）＋_release_place_gate（13 行）＋presence.online_in",
+   "input": "なし",
+   "answer": "{mode, dir, configured, override, reachable, history:[{dir,until,by}], pin, using:[{dir, reachable, pcs:[{pc,login}]}], canChange, why}",
+   "side_effects": "status と同じ取り直し・種まき。using のために置き場ごと（全員の置き場・今・これまで最大 10）に presence_tpa を読む（時間の区切りなし）",
+   "why_python": "status と同じ（MasterStore の状態）。門番は窓に写しあり（release_place::gate と同じ順と言葉）",
+   "tests": "test_release_place.py の 2 か所（canChange・why）・ui-eval-masterpin.mjs（画面）",
+   "speed_ms": 0.45,
+   "window_parts": "release_place::gate（_release_place_gate と同じ）・presence.rs の online（presence_tpa の読み）・bundle の override_doc（history）・pin"
+  },
+  {
+   "route": "POST /api/masters/place/check",
+   "python": "master_place_check（4 行）＋master_place.plan（38 行）＋release_place.check_name・_same・_inside",
+   "input": "{parent, name}（get_json(force=True, silent=True) or {}。b.get('parent', '')）",
+   "answer": "{ok, mode: copy|switch, dest, files, bytes, names, caution, note} か {ok:false, dest?, problem}",
+   "side_effects": "読むだけ（いまのマスタの中身を読み、写す量を数える。os.access で書けるかを見る）。門番なし（Python と同じ）",
+   "why_python": "plan が MasterStore（share_dir・shared_names・_read_doc の写し）を読む。窓は release の plan だけを写した（3.95.0）",
+   "tests": "道の試験なし。部品 plan は test_master_place.py で",
+   "speed_ms": 1.44,
+   "window_parts": "release_place.rs の check_name・py_resolve・same・inside（private）・py_path_for・join_for・py_oserror・ignorable と py_is_dir（Python 3.13 の『無い』の誤りの見分け）"
+  },
+  {
+   "route": "POST /api/masters/place/move",
+   "python": "master_place_move（10 行）＋_release_place_gate＋master_place.move・_move_locked（30 行）＋MasterStore.exclusive・retarget",
+   "input": "{parent, name}",
+   "answer": "plan の答え＋{from, warning?}。失敗は 400 invalid（理由）・門番 503/403",
+   "side_effects": "いまの置き場の錠を持ち（exclusive）、マスタを新しい場所の隣の一時フォルダ .名前.tmp-xxxxxxxx へ JSON で書き直し（indent=1。更新時刻は今）、名前を付け替え、引っ越し先の古い _MOVED.json を消し、この PC の覚え master_share.json を書き（chosenAt・history 10 個）、前の置き場に _MOVED.json を置く。presence_tpa（利用状況の記録・切断の指示）とこの PC の shared_names に無いマスタは写さない",
+   "why_python": "写すのと切り替えるのが MasterStore の状態（share_dir・写し・覚え）。窓は引っ越しの印をたどる係（bundle.rs の follow_moved・retarget）を 3.84.0 から持つが、写す係は無い",
+   "tests": "道の試験は門番（access_parity の 1 歩）だけ。部品は test_master_place.py 9 件（手元→共有・途中の保存が引っ越し先に入る・印をたどる・輪にならない・戻す）",
+   "speed_ms": 8.7,
+   "window_parts": "master_store::Store::exclusive・write_json_atomic・bundle.rs の retarget（履歴・chosenAt は残すだけ。chosen=True の時刻を書く口が要る）・release_place の gate"
+  },
+  {
+   "route": "POST /api/fs/browse",
+   "python": "fs_browse（8 行）＋_browse_gate（11 行）＋folder_browse.browse・_list・_mark_dir・clean・crumbs・_bounded（約 200 行）",
+   "input": "{path, purpose: master|release|worklog|folder|sqlite|exe, pattern}",
+   "answer": "{asked, path, exists, file, crumbs:[{name,path}], parent, entries:[{name,path,dir,mtime,size?,mark?}], more, others, mark, problem, kind}",
+   "side_effects": "読むだけ。4 秒で打ち切る糸（打ち切った糸は裏で終わるまで残る）。名前が「.」「~$」で始まる物と $RECYCLE.BIN・System Volume Information を出さない。400 件まで・印は先頭 120 フォルダ",
+   "why_python": "参照先を書ける PC だけの補助で、移す順の後ろに回した（読むだけで状態は無い）",
+   "tests": "test_folder_browse.py 11 件（clean・crumbs・印・ファイルの欄・届いた所まで上がる・相対を断る・遅い共有・places・道 2 件）・ui-eval-pathpick.mjs・ui-eval-pathfit.mjs（画面）",
+   "speed_ms": 3.3,
+   "window_parts": "release_place.rs の py_path_for・win_parse・win_splitroot（Windows の道の字）・has_release（印「版の置き場」）・lists.rs の scan・split_pattern・unquote_path・bundle の expandvars（%VAR%）・access::guard 相当の門番（_browse_gate と同じ言葉の物は無い: 作る）"
+  },
+  {
+   "route": "GET /api/fs/places",
+   "python": "fs_places（15 行）＋folder_browse.places・_user_dirs・parent_of",
+   "input": "なし（効いている設定の lot_list.source・work_log.folder・update.source・マスタの置き場・これまでの置き場）",
+   "answer": "{items:[{group: app|pc, key, label, path, reach: true|false|null}]}（この PC の場所は届く物だけ。2 秒で打ち切り、終わらなかった物は null）",
+   "side_effects": "読むだけ（場所ごとに 1 本の糸で is_dir）",
+   "why_python": "fs/browse と同じ",
+   "tests": "test_folder_browse.py の 2 件",
+   "speed_ms": 2.5,
+   "window_parts": "bundle::Inputs の eff（効いている設定）・place.shareDir・override の history・lists::unquote_path"
+  },
+  {
+   "route": "POST /api/settings/check",
+   "python": "settings_check（14 行）＋path_settings.parse（窓に写しあり）・check・_check_url・_check_exe・_check_folder・_check_pattern＋builder.check_sqlite",
+   "input": "{key, value}",
+   "answer": "{ok, message, detail?}（知らない項目は 400 {error}）",
+   "side_effects": "読むだけ（.sqlite3 を開く・フォルダを探す・LotDsp と CM3 へ 1 回の GET・Edge を探す）",
+   "why_python": "3.99.0 で conn/check を移したとき、② に残すと決めた（部品 check_sqlite・folder_check・cm3_reach・exe の分岐は窓にある）",
+   "tests": "test_path_settings.py test_check 1 件・test_work_log・test_access（門番を通らない）・access_oracle 1 歩",
+   "speed_ms": 0.17,
+   "window_parts": "builder.rs の check_sqlite・conn_check の分岐（folder_check・cm3_reach は private）・settings_write::item_of・parse_value・lotdsp_direct の reachable・trusted_browser・find_browser・lists::split_pattern。違いは空の値の扱い（settings/check は配った設定の既定を確かめ、conn/check は接続の設定の default）と表・役割の取り方だけ"
+  }
+ ],
+ "remaining": {
+  "道（Python だけが答える）": "10 本。② 8 本（上の表）・③ GET /api/lotlist/settings（設定の束。窓は bundle.rs で組めない形だけ Python に尋ねる）・GET /api/health（Python が答えているかの印。窓は答えない決め）",
+  "窓が Python に任せる端の形（④）": "窓の源で『return None』の行が 329（lot.rs 40・dashboards_write 17・pyfmt 15・pivot_presets 15・formula 15・access 15・lotdsp 14 ほか。? で返す None は数えていない。前の数え『約 500』はこれを含む目安）。lot.rs に engine=python の分かれが 47 か所",
+  "裏の係（窓が名乗っても Python で動く物）": [
+   "1 master-seeds（boot.py。起動の後に配った版の初期値を共有のマスタへ 1 度だけ当てる。窓に写しなし）",
+   "2 マスタの写しの取り直し（MasterStore._maybe_refresh・_pull。Python が読むたび 5 秒に 1 回 master_cache を共有から写す。窓は共有を直接読み、写しを新しくするのは窓と Python の書く係だけ。共有に届かないときの窓の読みはこの写しに頼る）",
+   "3 共有への種まき（MasterStore._seed。共有にまだ無いマスタを最初の版で置く。GET /api/masters/status でも起きる。窓は share_absent で Python に任せる）",
+   "4 マスタの引っ越しで写す係（master_place.move。この段で移す）",
+   "5 フォルダの補助の糸（folder_browse._bounded・places の probe。この段で移す）",
+   "6 受け身の係 4 つ（品質の写し DbMirror passive・作業実績とデータ元の写し・スケジュール Schedules・引っ越しの覚えの読み直し _reload_override）。窓が係で Python は読むだけ（⑥ で外す）",
+   "7 Python が答えたときだけ動く物（dash_progress の段・me の切断の覚え _REVOKE_CACHE〈窓の me があれば使わない〉・lotdsp_direct の idle〈窓が係のとき起こさない〉・presence の心拍〈窓が名乗ると書かない〉）"
+  ],
+  "数": "動いている係 3（1〜3）・この段で移す係 2（4・5）・受け身 4（6）・Python が答えたときだけ 4（7）"
+ },
+ "found_errors": {
+  "確か": [
+   {
+    "name": "1. マスタの置き場を変える（引っ越し）と、ほかの PC が直前（5 秒以内）に保存した行が引っ越し先に入らない（写しから写す）",
+    "再現": "probe_move.py の 2: PC-A が GET status を読んだ後、PC-B（refresh_seconds 0 の別の MasterStore）が共有の roll_master に行を足す（版 1 → 2）→ すぐ PC-A で POST /api/masters/place/move。前の置き場には PC-B の行があり（版 2）、引っ越し先は版 1 で行が無い。PC-B が _MOVED.json をたどって移った後に読むと、自分の行が消えている。",
+    "正しい答え": "錠（exclusive）を取った時の共有のファイルの中身そのもの（独立の答え: 錠を取った後の共有の各 .json を json で読んだ物と、引っ越し先の各 .json が同じ）。",
+    "直し方": "_move_locked で写す前に、共有の各マスタを錠を持ったまま取り直す（_pull(name, force=True, have_lock=True)）か、共有のファイルを直接読む（窓は access.rs の Place::doc のように共有を先に読む）。plan の数え（files・bytes）も同じ読み方に。試験: 引っ越しの直前に別の Store が書く場面を test_master_place と突き合わせに足す。"
+   },
+   {
+    "name": "2. 置き場の確かめの『写す量』が実際に書く量より 1 割強少ない（画面の『18 ファイル・141 KB』が実は 160 KB）",
+    "再現": "probe_move.py の 1・3: plan の bytes は json.dumps(doc, ensure_ascii=False)（字下げなし）の UTF-8 の長さの計、move は write_json_atomic(indent=1)＋改行で書く。共有 18 ファイルで 144,212 → 実際 164,315 バイト、手元のみ 5 ファイルで 142,414 → 162,287。画面 masterPlaceTree は Math.round(bytes/1024) KB を出す。",
+    "正しい答え": "書いた後のファイルの大きさの計（独立の答え: os.walk＋os.stat の st_size の計）。",
+    "直し方": "数えるのと書くのを同じ並べ方の 1 つの関数にする（書く字を作って長さを数え、その字を書く）。窓も同じ部品。事例: 日本語・字下げ・改行の有無。"
+   },
+   {
+    "name": "3. 置き場の確かめで、新しい場所が既にあり中を読めない（権限）と 500（HTML の頁）",
+    "再現": "root でない利用者（runuser -u nobody）で、上のフォルダ x の中に M（権限 000）を作り POST /api/masters/place/check {parent:x, name:M} → 500。master_place.is_master_place の (folder/m).is_file() が PermissionError（Python 3.13 の is_file は『無い』の誤りだけを偽にする）。画面は『✕ 変えられません。』しか出せない。",
+    "正しい答え": "{ok:false, dest, problem:『新しい場所を読めません（Permission denied）…』}（200）。",
+    "直し方": "is_master_place・dest.exists・iterdir の OSError を捕まえ、strerror を入れた problem にする（release の plan の読めない形も同じ部品で。窓は 3.95.0 で『Python に任せる』にした形）。"
+   },
+   {
+    "name": "4. 『参照…』の窓の印『.sqlite3 が n 個』が、.db・.DB・.sqlite も数えるのに字は .sqlite3",
+    "再現": "probe_browse.py の (a): .db・.DB・.sqlite だけが 3 個あるフォルダ → 印『.sqlite3 が 3 個』（_mark_dir の f\"{ext[0]} が {n} 個\"）。",
+    "正しい答え": "数えた物の名前（例『データベースのファイル 3 個』か『.db が 2 個・.sqlite が 1 個』）。",
+    "直し方": "印の字を拡張子の並びで作る（数えた拡張子だけを出す）。画面の字なので窓と Python を同じに直し、事例の表に入れる。"
+   },
+   {
+    "name": "5. 作業実績のフォルダの印『実績のファイル n 個』が、フォルダの確かめ（設備 n 台）と違う数になる",
+    "再現": "probe_browse.py の (b): 実績_CR1・実績_.sqlite3（設備名が空）・実績_ .sqlite3（空白）・.実績_X・実績_P.pending_1.sqlite3・実績_[A].sqlite3・実績_Z.SQLITE3・実績_W.sqlite3.incoming と、名前が 実績_D.sqlite3 のフォルダ → 印は 6 個、POST /api/settings/check（work_log.scan）は 3 台（[A]・CR1・Z）。決まり『実績_[A]*.sqlite3』では印は 0 個（fnmatch が [A] を字の組として読む）、scan は 1 台。",
+    "正しい答え": "work_log.scan と同じ決まり（equipment_of: 大文字小文字を見ない・* は 1 つで空でない設備名・[ ] ? は字のまま／is_side_file を除く／ファイルだけ）で数えた数。独立の答え: 仕様から書いた期待（3 台・1 台）。",
+    "直し方": "印も scan の決まり（窓は lists::scan）で数え、言葉も『設備 n 台』にそろえる。事例の表に上の 9 個の名前を入れる。"
+   },
+   {
+    "name": "6. ファイルサーバーの共有（\\\\サーバー\\共有\\box\\…）でも『Box の同期フォルダです』の注意が出る",
+    "再現": "probe_status.py の (s5): master_place.sync_folder('\\\\srv\\share\\box\\M') → 'Box'。道のどこかに『box』という名前のフォルダがあれば、UNC でも当たる。",
+    "正しい答え": "注意なし（同期フォルダは手元のドライブの中にしか作られない。注意の字は『ファイルサーバーの共有（\\\\サーバー\\共有）に置いてください』と言うので、勧めた先に警告が出て食い違う）。",
+    "直し方": "UNC（\\\\ で始まる）は見ない。名前の表の漏れ（疑い 6）と一緒に事例の表にする。"
+   },
+   {
+    "name": "7. フォルダの名前の確かめ（check_name。配布の置き場と共有）が Windows の予約名の一部を通し、先頭の「.」の名前を通すが『参照…』では出さない",
+    "再現": "Python 3.13 の ntpath.isreserved（Microsoft の決まりを写した標準ライブラリ。app ではない）と比べた: COM¹・LPT³・CONIN$・CONOUT$・『CON .txt』を check_name は通し、isreserved は予約。『.Masters』は check_name を通るが、fs/browse は名前が「.」で始まる物を出さない（作った置き場が『参照…』で見えない）。『..』は『最後に「.」や空白は付けられません』と言う（正しくは『フォルダの名前にできません』）。窓の release_place::check_name も同じ並び（RESERVED 4 個と COM/LPT 1〜9）。",
+    "正しい答え": "予約名は Microsoft の決まり（CON・PRN・AUX・NUL・COM1〜9・COM¹²³・LPT1〜9・LPT¹²³・CONIN$・CONOUT$。拡張子と、拡張子の前の空白を除いて比べる）。先頭の「.」は断るか、『参照…』で出す。",
+    "直し方": "予約名の表を仕様から書いた事例の表（Python・窓の両方が読む）にし、Python も窓も同じ表で確かめる。release の置き場の確かめも同じに直す（release_parity を流し直す）。"
+   },
+   {
+    "name": "8. GET /api/masters/tabaccess が、ある人の『タブの例外』の字が JSON の並び・数（壊れた行）だと 500",
+    "再現": "probe_tab.py の (t2): access_permissions に『タブの例外』'[1]' の行を足す → GET /api/masters/tabaccess 500（access.tab_exceptions の (d or {}).items() が list に無い）。同じとき GET /api/masters/access は 200、me は hidden_tabs を try で囲むので画面は開く。",
+    "正しい答え": "壊れた例外は空として数える（tab_exceptions の説明『壊れた字は空』どおり）。",
+    "直し方": "json.loads の答えが表でなければ {}。窓の access::tab_exceptions（Result）も同じ形を Err でなく空にするかを決めて、事例に入れる。"
+   },
+   {
+    "name": "9. GET /api/masters/tabaccess の exceptions（タブごとの例外の数）が、止めた行（有効=無）と開発者の行（例外が効かない）も数える",
+    "再現": "probe_tab.py の (t1): 有効=無の一般ユーザーの行（dash を出さない）と開発者の行（calc を出さない）を足す → exceptions {calc:1, dash:1}。access の決まり（『有効』が無の行は数えない・開発者はいつも全部）では効く例外は 0。",
+    "正しい答え": "効く例外の数（有効な行・開発者でない行）＝ {}。画面 master-tabaccess.js はこの値を使わず access の行から自分で数える（自己診断と test_sources_unify だけが読む）ので、いま画面の字には出ない。",
+    "直し方": "数えるのを hidden_tabs と同じ決まりの行に絞る。画面の exceptions() も同じ決まりにそろえるかは利用者に（画面の改良は別の採点）。"
+   },
+   {
+    "name": "10. 参照先の『確かめる』: LotDsp・CM3 の URL が空で既定も空のとき『届きません（社外・VPN 未接続・場所の間違い）』と出る",
+    "再現": "probe_check.py の (c1)(c2): 配った設定の lotdsp_import.url・schedule.cm3_base_url が空のとき POST /api/settings/check {key, value:''} → ok false『LotDsp に届きません（社外・VPN…）』『CM3 に届きません…』。同じ空を接続の設定の conn/check（窓の builder::conn_check）は『値を入れてください。』と答える。",
+    "正しい答え": "『値を入れてください。』（入っていないことを言う。2 つの確かめで同じ言葉）。",
+    "直し方": "parse の後も既定も空なら、種類によらず『値を入れてください。』（exe だけは空で Edge を探すので今のまま）。settings/check を窓へ移すとき conn_check と同じ入口にする。"
+   },
+   {
+    "name": "11. 『参照…』の区切り（パンくず）と選んだ道に『..』が残る",
+    "再現": "probe_browse の (f) と crumbs の確かめ: '…/c/../c' を開くと、区切りが『c › .. › c』、上は '…/c/..'、中の道は '…/c/../c/s'（それを選ぶと参照先に .. 入りの道が入る）。'…/c/./' は Path が「.」を落とすので区切りは正しいが、path の字は '…/c/.' のまま。",
+    "正しい答え": "字の上で整えた道（os.path.normpath と同じ: …/c）。エクスプローラーのアドレスも整えた形。",
+    "直し方": "clean の最後で字の上の normpath（記号リンクは解かない）。Windows の道は release_place の win_parse で整える。"
+   }
+  ],
+  "疑い": [
+   {
+    "name": "1. Windows では置き場の確かめの『書き込めません』が効かない（os.access はフォルダを常に書ける扱い）",
+    "根拠": "CPython の Windows の os.access は読み取り専用の属性だけを見て、フォルダには W_OK を常に真で返す（ACL は見ない）。plan は通り、move で WinError 5（アクセスが拒否されました）→『写せませんでした』になる。この容器では流せない（Linux の nobody では効いて『書き込めません』と出た: p4）。",
+    "確かめ方と直し方": "plan で上のフォルダに試しの一時フォルダを作って消す（独立の答え: 作れたか）。Windows の CI で読み取り専用の ACL（icacls）の場面。"
+   },
+   {
+    "name": "2. GET /api/masters/place・/api/masters/status が届かない共有を時間の区切りなしに見る（画面が止まりうる）",
+    "根拠": "status の share_reachable（is_dir）と place の using（全員の置き場・今・これまで最大 10 か所の presence_tpa）は区切りが無い。SMB の届かないサーバーは 1 か所数十秒待つことがある。fs/browse は 4 秒・places は 2 秒で区切っている。status は 5 秒ごとに尋ねる（MASTER_POLL_MS）。SMB はこの容器で作れず測っていない。",
+    "確かめ方と直し方": "窓へ移すとき、届くかの確かめを places と同じ区切り（まとめて 2 秒・終わらなければ reachable null）にする。Windows の本物の届かない UNC（存在しないサーバー名）で測る。"
+   },
+   {
+    "name": "3. 引っ越しで利用状況（presence_tpa: 記録と切断の指示）を写さない",
+    "根拠": "probe_move2.py: presence_tpa/history と *.revoke.json は前の置き場に残る。切断の指示（5 分効く）は引っ越し先では効かず、利用状況の記録は新しい置き場で空から。この PC の shared_names に無いマスタ（ほかの PC の設定で共有した物）も写さない。ファイルは書き直すので更新時刻は 18 個とも今になる（中身の updated_at・版は保つ）。",
+    "確かめ方と直し方": "仕様の決め（利用者）: 切断の指示は写すか。写さないなら、画面の『写す』の説明に入れる。"
+   },
+   {
+    "name": "4. 『参照…』の並びがエクスプローラーと違う（3.10.0 が 3.9.0 の前・10 が 9 の前・全角のＡがかなの後）",
+    "根拠": "probe_browse の (c): 並びは name.lower() の字の順。エクスプローラーは数を数として並べる（StrCmpLogicalW）。配布の置き場の版のフォルダで目立つ。窓へ移すときは Python の str.lower と Rust の to_lowercase の違い（Unicode の版）も揃える要がある。",
+    "確かめ方と直し方": "直すかは利用者に（画面の表示の改良）。直さないなら、並びの事例の表で Python と窓を突き合わせる。"
+   },
+   {
+    "name": "5. Windows の隠し・システムの属性のファイルとフォルダ（desktop.ini・Thumbs.db・AppData）を出す・数える",
+    "根拠": "probe_browse の (d): 隠すのは名前が「.」「~$」で始まる物と 2 つの名前だけ。desktop.ini・Thumbs.db は others に数えた。Windows の属性はこの容器で作れない。",
+    "確かめ方と直し方": "Windows の CI で attrib +h の場面。エクスプローラーに合わせるなら属性（FILE_ATTRIBUTE_HIDDEN・SYSTEM）で隠す。"
+   },
+   {
+    "name": "6. 同期フォルダの名前の漏れ（Dropbox (会社)・iCloudDrive・共有ドライブ・Box Sync・SharePoint の同期）",
+    "根拠": "probe_status の (s5): 各社の既定のフォルダ名（Dropbox Business の『Dropbox (会社名)』・Windows の iCloud の『iCloudDrive』・Google ドライブの『共有ドライブ』・旧 Box Sync の『Box Sync』・SharePoint の同期『会社名\\サイト - ドキュメント』）に注意が出ない。名前は知識からで、実機で確かめていない。",
+    "確かめ方と直し方": "名前の事例の表を利用者の会社の実際の置き方で確かめてから足す。"
+   },
+   {
+    "name": "7. 窓の normcase（release_place.rs: to_lowercase）と Python 3.13 の Windows の normcase（LCMapStringEx の不変の小文字）が一部の字で違う",
+    "根拠": "/usr/local/lib/python3.13/ntpath.py の normcase は Windows で _winapi.LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE)。Rust の to_lowercase は『İ』を 2 字（i＋結合点）にする等、長さの変わる対応を含む。置き場の『同じ所・中』の比べで割れうる（版 3.95.0 から。Windows の CI だけで分かる）。",
+    "確かめ方と直し方": "Windows の CI で LCMapStringEx の答えと窓の答えを字の表（全部の BMP の字）で突き合わせる。違えば窓も Windows の API を呼ぶ。"
+   },
+   {
+    "name": "8. 『この PC をそろえる』で全員の置き場が共有の根（\\\\srv\\share）だと失敗する",
+    "根拠": "master.js bindPinLine は最後の \\ で上のフォルダと名前に分け、plan は上のフォルダ『\\\\srv』の is_dir を見る（サーバーの根はフォルダではない）→『置く場所に届きません』。Windows でしか起きない（容器では流せない）。",
+    "確かめ方と直し方": "全員の置き場へそろえるのは『切り替えるだけ』なので、上のフォルダと名前に分けずに置き場そのものを渡す口にする。"
+   },
+   {
+    "name": "9. 読めない子のフォルダに印が無く、読めないことが見えない",
+    "根拠": "nobody の (p1): 権限 000 の子は印なしで並び、押すと『読めません』。画面は押すまで分からない。",
+    "確かめ方と直し方": "画面の改良なので別の採点で（印『読めません』を足すか）。"
+   },
+   {
+    "name": "10. GET /api/masters/status の last_sync・error は Python の中の覚えで、窓が書いても last_sync は進まない",
+    "根拠": "last_sync は Python の _pull と write だけが書く（窓の Store.write は書かない）。画面（master.js）は使っていない（mode・dir・reachable・masters・caution だけ）。窓へ移すと意味を決め直す要がある。",
+    "確かめ方と直し方": "窓の写しの係の時刻にする（前の採点 fixes 13）。使っていないなら答えから外すかは利用者に。"
+   },
+   {
+    "name": "11. GET /api/masters/status が共有へ書く（共有にまだ無いマスタを最初の版で置く）",
+    "根拠": "probe_status の (s1): 1 回目の GET で共有が 1 → 16 ファイル（錠を取って _seed）。設計どおりだが、読む道が書くので、窓へ移すときは係（種まきをだれがするか）を決めないと、窓と Python が同じ空の共有へ同時に種をまく形がありうる（錠で 1 つずつにはなる）。",
+    "確かめ方と直し方": "種まきの係を窓 1 つに（⑤ の前倒し）するか、Python に任せたままにするかを決め、2 つのプロセスが同時に status を尋ねる場面を突き合わせに。"
+   },
+   {
+    "name": "12. 参照先の『確かめる』で字の項目（品質異常の表 lot_list.table）は表があるかを見ない",
+    "根拠": "probe_check の (c4): 無い表の名前でも『値の形は正しいです。』。接続の設定の conn/check も同じ。",
+    "確かめ方と直し方": "表の名前は元ファイルと組んで確かめる（品質データの場所の確かめに表を渡す）かを決める。"
+   },
+   {
+    "name": "13. 『C:』だけを入れると『ドライブ（C:\\…）か共有から書いてください』と断る（Windows）",
+    "根拠": "clean は 2〜3 字の『C:』を残し、Path('C:').is_absolute() は偽（ドライブごとの今のフォルダ）。ドライブを入れた人に『ドライブから書いて』と言う。容器では流せない。",
+    "確かめ方と直し方": "『C:』は『C:\\』と読む（仕様の事例の表に入れる）。"
+   }
+  ],
+  "分からない": [
+   "SMB・BOX の届かない共有で、status・place・browse・places が実際に何秒待つか（この容器で作れない）",
+   "Windows の Win32 の道の整え（末尾の空白と点）が、最後の段だけか途中の段にも効くか（release_place.rs は途中の段も任せる形にしている。本物は CI でしか見られない）",
+   "利用者が『参照…』の並びに、エクスプローラーと同じ数の並びを望むか",
+   "引っ越しで利用状況（記録・切断の指示）を写すべきか",
+   "last_sync・error を画面が今後使うか（今は使っていない）"
+  ]
+ },
+ "proposals_text": {
+  "A 8 本を 1 版で縦に・窓が答え、同じに答えられない形だけ Python に任せる（前例 3.95.0・3.99.0 の型）": "移す道: 8 本全部（GET masters/tabaccess・GET masters/status・GET masters/place・POST masters/place/check・move・POST fs/browse・GET fs/places・POST settings/check）。作る部品: desktop/src/master_place.rs（status・place・plan・move・sync_caution・using。写す係はプロセスに 1 つで、sidecar.rs の SERVES に『masters_place』を名乗り、名乗られたら Python は move を 409 で断る〈release と同じ型〉）・desktop/src/fs_browse.rs（clean・crumbs・browse〈4 秒で打ち切る糸〉・places〈まとめて 2 秒〉・目的ごとの印）・builder.rs に settings_check（conn_check の分岐を、配った設定の既定と効いている表・決まりで呼ぶ入口）・access_write.rs に GET tabaccess（tab_rules・tab_exceptions・sources_list の並び）。使う部品: release_place の check_name・py_resolve・same・inside・gate・py_oserror・py_path_for・win_parse（pub(crate) に）・master_store の Store（exclusive・pull・seed・read_lock・wait・is_mine を pub(crate) に）・bundle の Builder::store・override_doc・pin・retarget（chosenAt を書く口を足す）・presence の online・lists の scan・split_pattern・unquote_path・builder の check_sqlite・folder_check・cm3_reach・settings_write の item_of・parse_value。状態: status の last_sync・error は窓の Store の覚え、写しの取り直しは status を尋ねたとき refresh_seconds に 1 回（前の採点 fixes 13）。直す誤り: 確か 1〜11 を Python と窓の両方で。任せる形: ?engine=python・束を組めない・表でない本文・並びの値・NaN・窓が同じに解けない道（py_resolve の None・win_trims）。評価関数: place_parity（← master_place_oracle.py。手元のみ→共有・共有→共有・切り替えるだけ・同じ所と中・名前の誤り・空でない・読めない・書けない・2 つの PC・引っ越しの直前のほかの PC の保存〈確か 1〉で、答え・断る言葉・できたフォルダの中身と覚えのファイルを突き合わせ）・fs_parity（← folder_browse_oracle.py。並び・印・隠す名前・記号リンク・権限・400 件・区切り・時刻）・settings/check を builder_parity に・GET tabaccess を access_write_parity に・lot::tests::the_window_answers_place_and_browse・自己診断に 1 項目。見積もり: Rust 約 1,400〜1,800 行（部品 900・試験 600）・oracle 約 450 行・Python の直し 約 150 行。危ない所: 1 版の大きさ（3.99.0 の約 1.3 倍）・status の意味（last_sync）が変わる・写しの取り直しを窓と Python の 2 つが続ける（Python は読むたびに取り直す）・Windows の道は CI だけ・任せる形が ④ に足される。",
+  "B 2 段に切る: 3.100.0 は状態を持たない 5 本、3.101.0 は MasterStore の状態を持つ 3 本と写しの係": "1 段目（3.100.0）の道: POST fs/browse・GET fs/places・POST settings/check・GET masters/tabaccess・POST masters/place/check（読むだけで係が要らない。3.99.0 の型そのまま。plan は 2 段目の move と共にする部品として作る）。2 段目（3.101.0）の道: GET masters/status・GET masters/place・POST masters/place/move と、その裏の係（写しの取り直し・種まき・last_sync・error）。SERVES に名乗り、Python は move を断る。作る部品: 1 段目 fs_browse.rs・master_place.rs の plan・builder の settings_check・access_write の GET。2 段目 master_place.rs の status・using・move と master_store の写しの係。直す誤り: 1 段目で確か 2〜11（読む道の誤り）、2 段目で確か 1（引っ越しの写し）と疑い 2・3・10・11。評価関数: 1 段目 fs_parity・builder_parity と access_write_parity に場面・place_parity の plan の場面。2 段目 place_parity の move と status の場面（2 つのプロセスが同時に status を尋ねる・引っ越しの直前の保存）。見積もり: 1 段目 Rust 約 700 行・oracle 約 250 行。2 段目 Rust 約 800〜1,000 行（写しの係を含む）・oracle 約 250 行。危ない所: 2 版になる（同じ版の突き合わせを 2 回組む）・1 段目の後も status と place は Python が答えるので、画面の 1 つの頁（マスタの置き場）で答える係が 2 つに分かれる期間がある（plan は窓・GET place は Python。どちらも同じ置き場を読むので答えは割れない）。",
+  "C マスタの置き場の係を窓 1 つに（⑤ の写しの取り直し・種まきを同じ版で前倒し。Python の MasterStore は受け身）": "移す道: 8 本＋係。sidecar.rs の SERVES に『masters』を名乗り、窓が写しの取り直し（refresh_seconds ごとの裏の糸）・共有への種まき（bundle の share_absent で Python に任せていた形をなくす）・引っ越し・last_sync・error を持つ。Python の MasterStore は名乗られたら _maybe_refresh・_pull・_seed・retarget をせず、窓が保つ写しを読むだけ（書く道は engine=python の時だけで、錠は共有の 1 つ）。作る部品: master_store.rs に写しの係（Mirror。共有の stat の印で取り直し・届かないときは error を覚える）・master_place.rs・fs_browse.rs・settings_check・GET tabaccess。直す誤り: 確か 1 は『錠を取ってから共有を読む』を係の中で 1 か所にして根から直る。疑い 2（区切りの無い待ち）・10・11 も係の決めで閉じる。評価関数: A の評価関数＋masters_parity に『窓が係のとき Python が読む写しが新しい』場面・2 つのプロセスが同時に空の共有を読む場面・窓を止めた後に Python だけで読める場面。見積もり: Rust 約 2,000〜2,400 行・oracle 約 600 行。危ない所: 大きい（⑤ の一部を前倒し）・Python が残る道（③ の lotlist/settings・engine=python の全部）の読む新しさが窓次第になる・起動の順（窓の係が始まる前に Python が読む）・Python だけで動く形（ブラウザの試験・ui_server.py）は今の係のまま残す分かれが要る。",
+  "D 独立の答えと誤りの直しを先に（3.100.0 は Python を直し独立の答えと事例の表を作る、3.101.0 で移す）": "3.100.0: Python の誤り（確か 1〜11）を直し、app を import しない place-truth.py（os・stat・json だけ: 置き場の中身と写す量・引っ越し先の中身＝錠を取った時の共有・印の数〈scan の決まり〉・並び・隠す名前・同期の名前・区切り）と、仕様から人が書いた事例の表 tests/fixtures/place_cases.json（Windows の道の字〈Microsoft『Naming Files, Paths, and Namespaces』の決まり: ドライブ・ドライブだけ『C:』・UNC と共有の根・\\\\?\\ と \\\\?\\UNC\\・\\\\.\\・末尾の空白と点・予約名〈¹²³・CONIN$・CONOUT$〉・/ と \\〉・同期フォルダの名前・並び・印の決まり）を作る。Python は事例の表を test_place_cases.py で読む。3.101.0 で A か B の形で移し、窓も同じ表（cargo test --test place_cases）と独立の答えを読む。移す道: 3.100.0 は 0 本、3.101.0 は 8 本。見積もり: 3.100.0 は Python 約 200 行＋truth 約 300 行＋表 約 150 件。3.101.0 は A と同じ。危ない所: 移すのが 1 版遅れる・事例の表は人が書くので、仕様の読み違いがあると Python と窓が同じに誤る（Windows の答えは CI でしか確かめられない）。",
+  "E Windows を本物で確かめる（A の範囲に、Windows の CI でだけ作る道の場面を足す）": "移す道: A と同じ 8 本。足す物: desktop.yml の Windows の段で、place_parity・fs_parity に Windows でだけ作る場面（cfg(windows) と oracle の os.name）を足す: junction（mklink /J）・subst のドライブ・8.3 の短い名前（dir /x で確かめる）・末尾の点と空白・\\\\?\\ の道・\\\\localhost\\C$ の UNC・読めない ACL（icacls /deny）・隠しとシステムの属性（attrib +h +s）・読み取り専用のフォルダ。check_name の予約名・normcase（LCMapStringEx と to_lowercase の字の表）・os.access の代わり（試しに作る）・『C:』の読み方を Windows の答えと突き合わせる。Windows だけのコードは小さな作業用クレートで cargo clippy --target x86_64-pc-windows-msvc。評価関数: A＋Windows の場面（約 20）。見積もり: A＋Rust の試験 約 300 行・CI の時間 +2〜4 分。危ない所: 手元では Windows の場面を流せず、push してから分かる（CLAUDE.md の『CI で初めて失敗に気づく push はしない』と合わない。手元は作業用クレートの型の確かめと Linux の同じ形〈記号リンク・nobody の権限〉まで）・CI の失敗を読む手間（3.95.0・3.98.0 で Windows の CI だけで落ちた）。",
+  "F 部品を寄せる（置き場を変えるを 1 つに・確かめるを 1 つに・unquote を 1 つに）": "移す道: 8 本。作り: release_place.rs の plan・check_name・gate・Mover とマスタの置き場の plan・move を『置き場を変える』部品 place_change.rs に寄せる（違いは目印〈release.json か MASTER_MARKERS〉・写す中身〈フォルダごとか、マスタの中身を錠を持って書き直すか〉・後始末〈_MOVED.json と覚え〉だけ）。check_name の予約名の直し（確か 7）・書けるかの試し（疑い 1）・共有の根（疑い 8）・読めない形の答え（確か 3）が配布の置き場にも一度で効く。builder::conn_check と settings/check は 1 つの確かめの入口 path_check（既定の取り方・表と役割を引数）。3.99.0 で残した unquote の写し 5 つ（bundle・lists・lotdsp_direct・lotlist・release_place）も 1 つにする。fs/browse の道の字は release_place の win_parse・py_path_for を使う。評価関数: A の評価関数＋release_parity を流し直す（寄せて答えが変わらない）・事例の表（予約名・道の字）を release とマスタの置き場の両方で読む。見積もり: Rust 約 1,500 行（寄せる分の書き換え 400 を含む）・oracle 約 450 行。危ない所: 3.95.0 で突き合わせた配布の置き場の答えを崩しうる・寄せる書き換えで版が大きくなる・配布の置き場の確かめの言葉が変わる（確か 7 を直すので、release_place_oracle の事例も直す）。",
+  "G 画面の問い合わせを減らす（status と place を 1 本に・places を browse に含める）": "移す道: 6 本相当（GET masters/status に place の項目〈history・pin・using・canChange・why〉を足して GET masters/place を外し、GET fs/places を POST fs/browse の最初の答えに含める）。画面 master.js（refreshPlace・renderMasterPlace・loadPlaceInfo）と pathpick.js を直す。窓の道の数・突き合わせの場面が減る。作る部品: A と同じ（道が 2 本減る）。評価関数: A の評価関数から 2 本分を除く＋ui-eval-masterpin.mjs・ui-eval-pathpick.mjs・ui-eval-pathfit.mjs を流し直す。見積もり: Rust 約 1,200 行・JS 約 80 行の直し。危ない所: 画面の JS を変えるので、前の版の中身と窓の組み合わせ（更新の途中）で答えが合わない・status は 5 秒ごとに尋ねるので using（届かない置き場を最大 12 か所）を毎回見ると重い（疑い 2 が悪くなる）・画面の挙動が変わるなら UI の採点（決まり 2026-10-17）が要る。"
+ },
+ "decide_by_user": [
+  "引っ越しで利用状況（記録・切断の指示）を写すか（疑い 3）",
+  "『参照…』の並びを、エクスプローラーと同じ数の並び（3.9.0 → 3.10.0）にするか（疑い 4。画面の改良）",
+  "Windows の隠し・システムの属性の物を『参照…』で隠すか（疑い 5）",
+  "同期フォルダの注意の名前の表を、どこまで足すか（疑い 6。会社の実際の置き方）",
+  "status の last_sync・error を窓の写しの係の時刻にするか、画面が使わないので答えから外すか（疑い 10）",
+  "共有への種まき（GET でも書く）の係を、この段で窓 1 つにするか（⑤ の前倒し。疑い 11・案 C）",
+  "先頭が「.」のフォルダの名前を断るか、『参照…』で出すか（確か 7 の後半）"
+ ],
+ "recommend_by_maker": "案を作った者の推し（採点ではない）: B（2 段）を土台に、D の独立の答え（place-truth.py）と仕様の事例の表、F の部品寄せのうち check_name・確かめるの入口・置き場を変えるの plan を入れ、2 段目で C の係（写しの取り直し・種まき・引っ越しを窓 1 つ）を入れる形。理由: (1) 5 本（browse・places・settings/check・GET tabaccess・place/check）は状態が無く、3.99.0 の型で迷いが少ない。(2) 残りの 3 本は MasterStore の状態（写し・last_sync・錠の見え方・種まき）を持ち、確か 1（引っ越しが写しから写す）はまさに『読む係と写す係が別』で起きているので、係を 1 つにする決めと同じ版で直すのが筋（前の採点 fixes 13 も同じ）。(3) 見つけた確か 11 件はどれも Python の答えを見本にした突き合わせでは見つからない（両方が同じ決まりで誤る）ので、OS の答え・Microsoft の決まり・work_log.scan の仕様から作る独立の答えが要る。(4) check_name と読めない形の答えは配布の置き場（3.95.0）と共有なので、寄せると 1 回で両方が直る。危ない所は 2 版になることと、Windows の場面が CI だけで分かること（E の場面を 2 段目に少しずつ足す）。",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-11。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりにコードを読み、動かして測った事実で採点した。cargo は流していない（主の作業ツリーで check-all が流れているため）。読んだ物（主の作業ツリー・版 3.99.0。ファイルは変えていない）: program/app/services/master_place.py（_docs が store._read_doc＝写しを読む・plan の bytes は字下げなしの json.dumps・_move_locked は exclusive の中でも _docs）・repositories/master_store.py の _doc_path（_maybe_refresh で 5 秒に 1 回の取り直し）・_read_doc・exclusive・retarget、services/release_place.check_name、routes/access.tabaccess_get と services/access.tab_exceptions、path_settings._check_url、desktop/src の release_place.rs（check_name・same・inside・gate・win_parse・py_resolve）・master_store.rs（pull・seed〈private〉・read_lock・remaining・wait・is_mine・exclusive）・presence.rs の online。fs_browse.rs・master_place.rs はまだ無い。src の『return None』の行は 329（案の数と同じ）。流した物: 作者の台本（os.walk・os.stat・json・ntpath.isreserved と比べる独立の答えの作り。台本が横に作る tmp/ は作者が消していたので作り直した）を自分で流した: probe_move（引っ越しの直前に PC-B が共有へ足した行が、引っ越し先に無い・PC-B が印をたどると自分の行が消える／写す量 144,212 と実際 164,315 バイト・手元のみ 142,414 と 162,287）・probe_move2（other_master.json〈この PC の shared_names に無い共有のマスタ〉・presence_tpa の記録と切断の指示を写さない・更新時刻は 0/16 保つ）・probe_tab（例外の字が並びの行で GET tabaccess 500・止めた行と開発者の行も {calc:1, dash:1} と数える）・probe_check（LotDsp・CM3 の URL が空で『届きません』・表の名前は表があるかを見ない）・probe_status（GET status で共有が 1 → 16 ファイル・届かない共有で reachable False・同期フォルダの名前 9 例のうち 6 例が違う〈\\\\srv\\share\\box で Box〉）・probe_browse（.db だけで『.sqlite3 が 3 個』・印 6 個と確かめる 3 台・『実績_[A]*.sqlite3』で印なし・並び 10 が 9 の前・…/c/../c が残る・450 件で 400＋50）。perm_all を root でない利用者（runuser -u nobody。台本は標準入力から）で流し、中を読めない置き場の確かめが 500（HTML の頁）。自分の台本で、release_place.check_name を Python 3.13 の ntpath.isreserved と比べた: COM¹・LPT³・CONIN$・CONOUT$・『CON .txt』を通し、『..』に『最後に「.」や空白は付けられません』と言い、『.Masters』を通す。Windows・SMB・BOX の形（os.access・normcase・『C:』・共有の根・届かない UNC の待ち）はこの容器で流せず、確かめていない。採点の物差し（前例の読み替え）: わかりやすさ＝狙いの順・まとまり・主の狙いが 1 つか・独立の答えで数が見えるか、使いやすさ＝この段の狙い（8 本を窓へ・確かな誤りを直す）への手の少なさ・落とし穴の少なさ・今の型に沿うか、統一感＝今の作り（SERVES・受け身・事例の表・部品の使い回し）と同じか・主のセッションの方針と同じ答えか、美しさ＝1 版の量と危うさの釣り合い。主のセッションの方針で、データが消える確か 1 をいつ・どの作りで直すかを特に重く見た。この 8 本は今の製品でも Python が答える道なので、Python で直せばその版で利用者に効く（案 D の利点）。好みの決め（利用状況を写すか・並び・種まきの係）を案の中で決めてしまう所は言葉と置き場を下げた。",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "self_check": "案を作った者が、採点に渡す前に棚卸しの数と誤りを動かして確かめた（画面に出ない改良なので、画像の代わりに動かして測った数で見た）: (1) 道の数は routes_inv2.py で bp.rules を読み、窓の route_of（access_write・builder・settings_write・small_reads・lotdsp・release_place）を読んで 10 本と確かめた。(2) 速さは harness.py（create_app＋MasterStore を作業フォルダに。権限の行は今の名乗りを開発者に）で test_client から 5 回の中央値（probe_speed.py・probe_speed2.py）。窓は組んでいない。(3) 確か 11 件はどれも再現した（probe_move.py・probe_move2.py・probe_browse.py・probe_status.py・probe_tab.py・probe_check.py と、root でない利用者の perm_all.py）。疑い 13 件のうち、2・7・8・13 は Windows か SMB でしか起きず、コードを読んだだけ（そう書いた）。(4) 窓の部品は関数の名前と中身を読んで確かめた（release_place の same・inside は private・builder の folder_check・cm3_reach は private・bundle の override_doc・pin_target・retarget は private・access.rs は共有を直接読む）。(5) 案は 7 つ: 範囲の切り方（A・B）・係を 1 つにするか（C）・独立の答えの作り方（D）・Windows の確かめ方（E）・既にある部品の使い方（F）・減らし方（G）に散らした。作業のファイルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-place/ に置き、作業フォルダ（tmp/pp-*・/tmp/pp-nobody-*・/tmp/pp-local-*）は消した。",
+   "proposals": {
+    "A 8 本を 1 版で縦に・窓が答え、同じに答えられない形だけ Python に任せる（前例 3.95.0・3.99.0 の型）": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 8 本を 1 版で窓へ移し、3.95.0・3.99.0 の型（窓が答え、同じに答えられない形だけ任せる・写す係は SERVES に名乗る）で迷いが少ない（直感的 8）。確か 1〜11 を Python と窓の両方で直すと書き、引っ越しの直前のほかの PC の保存（確か 1）を突き合わせの場面に入れる。窓には release_place・master_store の部品があり、使い回しの見込みは正しい（自分で関数を確かめた）。悪い所: 突き合わせは Python が答えの見本で、自分で再現した 11 件はどれも Python と窓が同じ決まりで誤る形なので、独立の答え（OS・Microsoft の決まり・scan の仕様）が案に無い（視覚化 6）。写しの取り直しを窓と Python の 2 つが続け、last_sync の意味が変わる（考えさせない 5）。確か 1 の直し方（錠を持って共有を読む）が書かれず、この PC の shared_names に無い共有のマスタを写さない形（probe_move2 で other_master.json が写らない）にも触れない。1 版が大きい（Rust 1,400〜1,800 行。釣り合い 5）。",
+     "text": "移す道: 8 本全部（GET masters/tabaccess・GET masters/status・GET masters/place・POST masters/place/check・move・POST fs/browse・GET fs/places・POST settings/check）。作る部品: desktop/src/master_place.rs（status・place・plan・move・sync_caution・using。写す係はプロセスに 1 つで、sidecar.rs の SERVES に『masters_place』を名乗り、名乗られたら Python は move を 409 で断る〈release と同じ型〉）・desktop/src/fs_browse.rs（clean・crumbs・browse〈4 秒で打ち切る糸〉・places〈まとめて 2 秒〉・目的ごとの印）・builder.rs に settings_check（conn_check の分岐を、配った設定の既定と効いている表・決まりで呼ぶ入口）・access_write.rs に GET tabaccess（tab_rules・tab_exceptions・sources_list の並び）。使う部品: release_place の check_name・py_resolve・same・inside・gate・py_oserror・py_path_for・win_parse（pub(crate) に）・master_store の Store（exclusive・pull・seed・read_lock・wait・is_mine を pub(crate) に）・bundle の Builder::store・override_doc・pin・retarget（chosenAt を書く口を足す）・presence の online・lists の scan・split_pattern・unquote_path・builder の check_sqlite・folder_check・cm3_reach・settings_write の item_of・parse_value。状態: status の last_sync・error は窓の Store の覚え、写しの取り直しは status を尋ねたとき refresh_seconds に 1 回（前の採点 fixes 13）。直す誤り: 確か 1〜11 を Python と窓の両方で。任せる形: ?engine=python・束を組めない・表でない本文・並びの値・NaN・窓が同じに解けない道（py_resolve の None・win_trims）。評価関数: place_parity（← master_place_oracle.py。手元のみ→共有・共有→共有・切り替えるだけ・同じ所と中・名前の誤り・空でない・読めない・書けない・2 つの PC・引っ越しの直前のほかの PC の保存〈確か 1〉で、答え・断る言葉・できたフォルダの中身と覚えのファイルを突き合わせ）・fs_parity（← folder_browse_oracle.py。並び・印・隠す名前・記号リンク・権限・400 件・区切り・時刻）・settings/check を builder_parity に・GET tabaccess を access_write_parity に・lot::tests::the_window_answers_place_and_browse・自己診断に 1 項目。見積もり: Rust 約 1,400〜1,800 行（部品 900・試験 600）・oracle 約 450 行・Python の直し 約 150 行。危ない所: 1 版の大きさ（3.99.0 の約 1.3 倍）・status の意味（last_sync）が変わる・写しの取り直しを窓と Python の 2 つが続ける（Python は読むたびに取り直す）・Windows の道は CI だけ・任せる形が ④ に足される。"
+    },
+    "B 2 段に切る: 3.100.0 は状態を持たない 5 本、3.101.0 は MasterStore の状態を持つ 3 本と写しの係": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 5,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 状態を持たない 5 本（browse・places・settings/check・GET tabaccess・place/check）と、MasterStore の状態を持つ 3 本と写しの係を版で分け、まとまりがはっきりする（チャンク 8・釣り合い 7）。1 段目は 3.99.0 の型そのまま。悪い所: データが消える確か 1（引っ越しが写しから写し、ほかの PC の直前の保存を落とす）の直しを 2 段目（3.101.0）に回す。主のセッションが特に重く見る誤りが 1 版長く製品に残る（Python の直しは数行で済むのに）（順序 6・言葉と置き場 5）。1 段目の間、マスタの置き場の頁は plan が窓・GET place が Python と答える係が分かれる。版が 2 つ（ステップ 6）。独立の答えは書かれていない。",
+     "text": "1 段目（3.100.0）の道: POST fs/browse・GET fs/places・POST settings/check・GET masters/tabaccess・POST masters/place/check（読むだけで係が要らない。3.99.0 の型そのまま。plan は 2 段目の move と共にする部品として作る）。2 段目（3.101.0）の道: GET masters/status・GET masters/place・POST masters/place/move と、その裏の係（写しの取り直し・種まき・last_sync・error）。SERVES に名乗り、Python は move を断る。作る部品: 1 段目 fs_browse.rs・master_place.rs の plan・builder の settings_check・access_write の GET。2 段目 master_place.rs の status・using・move と master_store の写しの係。直す誤り: 1 段目で確か 2〜11（読む道の誤り）、2 段目で確か 1（引っ越しの写し）と疑い 2・3・10・11。評価関数: 1 段目 fs_parity・builder_parity と access_write_parity に場面・place_parity の plan の場面。2 段目 place_parity の move と status の場面（2 つのプロセスが同時に status を尋ねる・引っ越しの直前の保存）。見積もり: 1 段目 Rust 約 700 行・oracle 約 250 行。2 段目 Rust 約 800〜1,000 行（写しの係を含む）・oracle 約 250 行。危ない所: 2 版になる（同じ版の突き合わせを 2 回組む）・1 段目の後も status と place は Python が答えるので、画面の 1 つの頁（マスタの置き場）で答える係が 2 つに分かれる期間がある（plan は窓・GET place は Python。どちらも同じ置き場を読むので答えは割れない）。"
+    },
+    "C マスタの置き場の係を窓 1 つに（⑤ の写しの取り直し・種まきを同じ版で前倒し。Python の MasterStore は受け身）": {
+     "score": {
+      "order": 8,
+      "chunk": 5,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 8,
+      "place": 6,
+      "layout": 3,
+      "tone": 5
+     },
+     "minus": [],
+     "seen": "良い所: 写しの取り直し・種まき・引っ越し・last_sync を窓 1 つの係にし、確か 1 を『錠を取ってから共有を読む』の 1 か所で根から直す。疑い 2（区切りの無い待ち）・10・11 も係の決めで閉じ、3.96.0・3.98.0 の『係を 1 つ』の型にそろう（形と色 8・階層化 8）。悪い所: 範囲が大きい（Rust 2,000〜2,400 行・oracle 600 行。釣り合い 3）。Python が残る道（lotlist/settings・engine=python の全部）の読む新しさが窓しだいになり、起動の順・Python だけで動く形（ui_server.py・ブラウザの試験）の分かれが要る（直感的 6）。種まきの係を窓にすることは、主のセッションが作るときに決める好みの決め（decide 6）を案の中で決めてしまう（言葉と置き場 6）。",
+     "text": "移す道: 8 本＋係。sidecar.rs の SERVES に『masters』を名乗り、窓が写しの取り直し（refresh_seconds ごとの裏の糸）・共有への種まき（bundle の share_absent で Python に任せていた形をなくす）・引っ越し・last_sync・error を持つ。Python の MasterStore は名乗られたら _maybe_refresh・_pull・_seed・retarget をせず、窓が保つ写しを読むだけ（書く道は engine=python の時だけで、錠は共有の 1 つ）。作る部品: master_store.rs に写しの係（Mirror。共有の stat の印で取り直し・届かないときは error を覚える）・master_place.rs・fs_browse.rs・settings_check・GET tabaccess。直す誤り: 確か 1 は『錠を取ってから共有を読む』を係の中で 1 か所にして根から直る。疑い 2（区切りの無い待ち）・10・11 も係の決めで閉じる。評価関数: A の評価関数＋masters_parity に『窓が係のとき Python が読む写しが新しい』場面・2 つのプロセスが同時に空の共有を読む場面・窓を止めた後に Python だけで読める場面。見積もり: Rust 約 2,000〜2,400 行・oracle 約 600 行。危ない所: 大きい（⑤ の一部を前倒し）・Python が残る道（③ の lotlist/settings・engine=python の全部）の読む新しさが窓次第になる・起動の順（窓の係が始まる前に Python が読む）・Python だけで動く形（ブラウザの試験・ui_server.py）は今の係のまま残す分かれが要る。"
+    },
+    "D 独立の答えと誤りの直しを先に（3.100.0 は Python を直し独立の答えと事例の表を作る、3.101.0 で移す）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 6,
+      "effortless": 8,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 3.100.0 で Python の確か 1〜11 を直し、app を import しない place-truth.py（os・stat・json だけ: 引っ越し先の中身＝錠を取った時の共有・写す量＝書いたファイルの大きさ・印の数＝scan の決まり）と、仕様から書いた事例の表（Microsoft の道と予約名の決まり・同期フォルダの名前・並び・印の決まり）を作る。この 8 本は今の製品でも Python が答える道なので、データが消える確か 1 の直しがこの版で利用者に効く。自分で再現した 11 件はどれも Python の答えを見本にした突き合わせでは見つからない形なので、独立の答えを先に作る筋が通る（視覚化 9・考えさせない 8）。3.99.0 の builder-truth.py の型の続き（直感的 7）。悪い所: この版で移す道は 0 本で、Rust 化が 1 版遅れる（ステップ 6）。3.101.0 の作りが『A か B の形』と決まっていない（階層化 7）。事例の表は人が書くので、仕様の読み違いがあると Python と窓が同じに誤る。Windows の答えは CI でしか確かめられない。",
+     "text": "3.100.0: Python の誤り（確か 1〜11）を直し、app を import しない place-truth.py（os・stat・json だけ: 置き場の中身と写す量・引っ越し先の中身＝錠を取った時の共有・印の数〈scan の決まり〉・並び・隠す名前・同期の名前・区切り）と、仕様から人が書いた事例の表 tests/fixtures/place_cases.json（Windows の道の字〈Microsoft『Naming Files, Paths, and Namespaces』の決まり: ドライブ・ドライブだけ『C:』・UNC と共有の根・\\\\?\\ と \\\\?\\UNC\\・\\\\.\\・末尾の空白と点・予約名〈¹²³・CONIN$・CONOUT$〉・/ と \\〉・同期フォルダの名前・並び・印の決まり）を作る。Python は事例の表を test_place_cases.py で読む。3.101.0 で A か B の形で移し、窓も同じ表（cargo test --test place_cases）と独立の答えを読む。移す道: 3.100.0 は 0 本、3.101.0 は 8 本。見積もり: 3.100.0 は Python 約 200 行＋truth 約 300 行＋表 約 150 件。3.101.0 は A と同じ。危ない所: 移すのが 1 版遅れる・事例の表は人が書くので、仕様の読み違いがあると Python と窓が同じに誤る（Windows の答えは CI でしか確かめられない）。"
+    },
+    "E Windows を本物で確かめる（A の範囲に、Windows の CI でだけ作る道の場面を足す）": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 4,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: A の範囲に、Windows でだけ作れる場面（junction・subst・8.3・末尾の点と空白・\\\\?\\・UNC・読めない ACL・隠し属性・読み取り専用）を CI で足す。疑い 1・7・8・13 はこの容器では確かめられない形で、本物で見る筋は正しい（視覚化 8）。悪い所: 手元で流せず push してから分かる形が多く、CLAUDE.md の『CI で初めて失敗に気づく push はしない』と食い違う（直感的 6）。A と同じく独立の答え・確か 1 の直し方が書かれていない。1 版が A より大きい（釣り合い 4）。",
+     "text": "移す道: A と同じ 8 本。足す物: desktop.yml の Windows の段で、place_parity・fs_parity に Windows でだけ作る場面（cfg(windows) と oracle の os.name）を足す: junction（mklink /J）・subst のドライブ・8.3 の短い名前（dir /x で確かめる）・末尾の点と空白・\\\\?\\ の道・\\\\localhost\\C$ の UNC・読めない ACL（icacls /deny）・隠しとシステムの属性（attrib +h +s）・読み取り専用のフォルダ。check_name の予約名・normcase（LCMapStringEx と to_lowercase の字の表）・os.access の代わり（試しに作る）・『C:』の読み方を Windows の答えと突き合わせる。Windows だけのコードは小さな作業用クレートで cargo clippy --target x86_64-pc-windows-msvc。評価関数: A＋Windows の場面（約 20）。見積もり: A＋Rust の試験 約 300 行・CI の時間 +2〜4 分。危ない所: 手元では Windows の場面を流せず、push してから分かる（CLAUDE.md の『CI で初めて失敗に気づく push はしない』と合わない。手元は作業用クレートの型の確かめと Linux の同じ形〈記号リンク・nobody の権限〉まで）・CI の失敗を読む手間（3.95.0・3.98.0 で Windows の CI だけで落ちた）。"
+    },
+    "F 部品を寄せる（置き場を変えるを 1 つに・確かめるを 1 つに・unquote を 1 つに）": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 9,
+      "place": 8,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 配布の置き場（3.95.0）とマスタの置き場の『置き場を変える』を 1 つの部品に寄せ、確かめるの入口（builder::conn_check と settings/check）と unquote の写し 5 つを 1 つにする。確か 7（予約名）・確か 3（読めない形の 500）・疑い 1・8 の直しが配布の置き場にも一度で効く（自分で確かめた: 配布の置き場の check_name も COM¹・CONIN$ などを通す同じ並び）（形と色 9・言葉と置き場 8）。悪い所: 3.95.0 で突き合わせた配布の置き場の答え（確かめるの言葉）が変わり、release_parity の事例も直す（考えさせない 7）。寄せる書き換えで 1 版が大きい（Rust 約 1,500 行。釣り合い 5）。独立の答えは書かれていない（視覚化 7）。",
+     "text": "移す道: 8 本。作り: release_place.rs の plan・check_name・gate・Mover とマスタの置き場の plan・move を『置き場を変える』部品 place_change.rs に寄せる（違いは目印〈release.json か MASTER_MARKERS〉・写す中身〈フォルダごとか、マスタの中身を錠を持って書き直すか〉・後始末〈_MOVED.json と覚え〉だけ）。check_name の予約名の直し（確か 7）・書けるかの試し（疑い 1）・共有の根（疑い 8）・読めない形の答え（確か 3）が配布の置き場にも一度で効く。builder::conn_check と settings/check は 1 つの確かめの入口 path_check（既定の取り方・表と役割を引数）。3.99.0 で残した unquote の写し 5 つ（bundle・lists・lotdsp_direct・lotlist・release_place）も 1 つにする。fs/browse の道の字は release_place の win_parse・py_path_for を使う。評価関数: A の評価関数＋release_parity を流し直す（寄せて答えが変わらない）・事例の表（予約名・道の字）を release とマスタの置き場の両方で読む。見積もり: Rust 約 1,500 行（寄せる分の書き換え 400 を含む）・oracle 約 450 行。危ない所: 3.95.0 で突き合わせた配布の置き場の答えを崩しうる・寄せる書き換えで版が大きくなる・配布の置き場の確かめの言葉が変わる（確か 7 を直すので、release_place_oracle の事例も直す）。"
+    },
+    "G 画面の問い合わせを減らす（status と place を 1 本に・places を browse に含める）": {
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 5,
+      "form": 6,
+      "place": 5,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: status と place を 1 本に、places を browse に含めて、道の数と突き合わせの場面を減らす。悪い所: 画面の JS を変えるので UI の採点（決まり 2026-10-17）が要り、更新の途中で前の版の画面と答えが合わない形がありうる（直感的 5）。status は 5 秒ごとに尋ねるので、using（届かない置き場を最大 12 か所見る）を毎回見ると、疑い 2（区切りの無い待ち）が悪くなる（考えさせない 4）。誤りの直し方・独立の答えは A のまま（言葉と置き場 5）。",
+     "text": "移す道: 6 本相当（GET masters/status に place の項目〈history・pin・using・canChange・why〉を足して GET masters/place を外し、GET fs/places を POST fs/browse の最初の答えに含める）。画面 master.js（refreshPlace・renderMasterPlace・loadPlaceInfo）と pathpick.js を直す。窓の道の数・突き合わせの場面が減る。作る部品: A と同じ（道が 2 本減る）。評価関数: A の評価関数から 2 本分を除く＋ui-eval-masterpin.mjs・ui-eval-pathpick.mjs・ui-eval-pathfit.mjs を流し直す。見積もり: Rust 約 1,200 行・JS 約 80 行の直し。危ない所: 画面の JS を変えるので、前の版の中身と窓の組み合わせ（更新の途中）で答えが合わない・status は 5 秒ごとに尋ねるので using（届かない置き場を最大 12 か所）を毎回見ると重い（疑い 2 が悪くなる）・画面の挙動が変わるなら UI の採点（決まり 2026-10-17）が要る。"
+    }
+   },
+   "checked_errors": {
+    "確か（自分で動かして再現）": [
+     "1 引っ越しが写しから写す: PC-B が共有の roll_master に足した直後に PC-A が引っ越すと、引っ越し先は版 1（PC-B の行なし）・前の置き場は版 2。PC-B が印をたどると自分の行が消える",
+     "2 写す量: 144,212 と実際 164,315 バイト（手元のみ 142,414 と 162,287）",
+     "3 中を読めない置き場（nobody・権限 000）の確かめが 500（HTML の頁）",
+     "4 .db・.DB・.sqlite だけで『.sqlite3 が 3 個』",
+     "5 印『実績のファイル 6 個』と確かめる『設備 3 台』・決まり『実績_[A]*.sqlite3』で印なし（scan は 1 台）",
+     "6 \\\\srv\\share\\box\\M に Box の注意",
+     "7 check_name が COM¹・LPT³・CONIN$・CONOUT$・『CON .txt』を通す（ntpath.isreserved は予約）・『..』に違う理由・『.Masters』を通す。配布の置き場も同じ部品",
+     "8 例外の字が並びの行で GET tabaccess 500（access・status は 200）",
+     "9 止めた行・開発者の行の例外も数える（{calc:1, dash:1}）",
+     "10 LotDsp・CM3 の URL が空で『届きません（社外・VPN…）』",
+     "11 『…/c/../c』の区切りと道に『..』が残る"
+    ],
+    "確か（動かして見た・誤りかは利用者の決め）": [
+     "疑い 3: 引っ越しで presence_tpa（記録・切断の指示）を写さない。足して: この PC の shared_names に無い共有のマスタ（other_master.json）も写さないので、ほかの PC がその置き場で共有していたマスタは、印をたどった先で無くなる（データが消える形。確か 1 と同じ重さで直す側に入れるのがよい）",
+     "疑い 11: GET status が共有へ 15 個のマスタを書く（1 → 16 ファイル）",
+     "疑い 4: 並びは字の順（10 が 9 の前）",
+     "疑い 6: 同期フォルダの名前 9 例のうち 6 例が期待と違う（名前は作者の知識から。実機の確かめは無い）"
+    ],
+    "コードで確か（動かしていない）": [
+     "疑い 10: last_sync は Python の _pull と write だけが書く",
+     "疑い 12: 字の項目（表の名前）は値の形だけを見る（probe_check の c4 で動かして見た）"
+    ],
+    "分からない（この容器で作れない）": [
+     "疑い 1（Windows の os.access）・2（SMB の待ち）・5（隠し属性）・7（normcase）・8（共有の根）・13（『C:』）"
+    ]
+   },
+   "fixes": [
+    "（D に入れる・確か 1。最優先）_move_locked で写す前に、共有の各マスタを錠を持ったまま取り直す（store._pull(name, force=True, have_lock=True)）か、共有のファイルを直接読む。plan の files・bytes も同じ読み方にする。写す対象は、この PC の shared_names ではなく共有の置き場にある全部のマスタ（*.json。錠と _MOVED.json は除く）にする（疑い 3 の other_master.json が写らない形も、ほかの PC の共有のマスタが消える形なので一緒に直す）。独立の答え: 錠を取った時点の共有の各 .json を json で読んだ物と、引っ越し先の各 .json が同じ。場面: 引っ越しの直前に別の Store が書く（refresh 5 秒の間）・この PC が共有しないマスタがある",
+    "（D・確か 2）書く字を 1 つの関数で作り、その長さを数え、その字を書く（indent=1 と改行）。独立の答え: os.stat の st_size の計",
+    "（D・確か 3）is_master_place・exists・iterdir の OSError を捕まえて {ok:false, dest, problem『新しい場所を読めません（理由）』}（200）。配布の置き場の plan も同じ（窓は 3.95.0 で Python に任せた形）。CI の Linux で root でない利用者の場面（runuser）を足す",
+    "（D・確か 4・5）印は scan の決まり（大文字小文字・* は空でない 1 つ・[ ] ? は字のまま・is_side_file を除く・ファイルだけ）で数え、字は『設備 n 台』と数えた拡張子の名前。作者の 9 個の名前を事例の表に",
+    "（D・確か 6・7・11）同期フォルダの注意は UNC を見ない。予約名は Microsoft の決まりの表（CON・PRN・AUX・NUL・COM1〜9・COM¹²³・LPT1〜9・LPT¹²³・CONIN$・CONOUT$。拡張子と拡張子の前の空白を除いて比べる）を事例の表にし、Python 3.13 の ntpath.isreserved を独立の答えにする。『..』『.』は『フォルダの名前にできません』。配布の置き場の check_name も同じ表で直し、release_parity の事例を直す（F の良い所）。区切りと道は字の上の normpath（記号リンクは解かない）",
+    "（D・確か 8・9）tab_exceptions は表でない字を空として読み、exceptions は効く行（有効な行・開発者でない行）だけを数える。窓の access::tab_exceptions も同じ（Err にしない）",
+    "（D・確か 10）settings/check と conn/check を 1 つの入口にし、値も既定も空なら『値を入れてください。』（exe は今のまま）",
+    "（D・疑い 1・2）書けるかは試しの一時フォルダを作って消す（os.access は Windows のフォルダで常に真）。status と place の届くかの確かめに places と同じ区切り（まとめて 2 秒・終わらなければ reachable null）",
+    "（D・独立の答え）place-truth.py は app を import しない。作者の probe の比べ方（os.walk・os.stat・json・ntpath.isreserved・scan の仕様）をそのまま試験にし、Python と 3.101.0 の窓の両方が事例の表を読む。Windows の答えは CI の Windows で事例の表を流して確かめる（E の場面を少しずつ）",
+    "（D・3.101.0 の形を今決める）移すときは A の範囲に F の寄せ（置き場を変える部品・確かめるの入口・unquote を 1 つ）を入れる形を推す。写す係は SERVES に名乗り、Python は move を 409 で断る。写しの取り直し・種まきの係（C・decide 6）は主のセッションが決め、決めるまでは GET status の種まきを Python に任せたままにして、2 つのプロセスが同時に空の共有を読む場面を突き合わせに入れる",
+    "（D・好みの決め）presence_tpa（記録・切断の指示）を写すか・並び・隠し属性・先頭の『.』は主のセッションが決める。写さないなら、画面の『写す』の説明に『利用状況の記録と切断の指示は前の置き場に残ります』と出す",
+    "（D・Windows）normcase（LCMapStringEx と to_lowercase）の字の表・『C:』・共有の根（\\\\srv\\share）は Windows の CI で事例を流す。手元では作業用クレートで型を確かめ、CLAUDE.md の『CI で初めて失敗に気づく push はしない』に合わせて、Windows でだけ分かる場面は『分からない』として版の記録に書く"
+   ]
+  }
+ ],
+ "decided": {
+  "round": "1 回目",
+  "pick": "D 独立の答えと誤りの直しを先に（3.100.0 は Python を直し独立の答えと事例の表を作る、3.101.0 で移す）",
+  "score": 74.4,
+  "why": "決まり 2026-11-06（画面に関係のない改良は採点 1 回）。80 点に届かないので、1 位の D に採点の指摘（rounds[0].fixes）を入れた形で作った"
+ },
+ "decide_by_main_session": {
+  "引っ越しで利用状況の記録と切断の指示も写す": "写す（データを落とさない側）。master_place.COPY_PRESENCE・PRESENCE_TREES・RECORDS_NOTE。心拍は写さない",
+  "「参照…」の並び": "エクスプローラーと同じ自然な並び。folder_browse.NATURAL_SORT・sort_key",
+  "Windows の隠し・システムの属性": "出さない。folder_browse.HIDE_ATTRS",
+  "先頭が「.」の名前": "断る。release_place.DOT_HEAD_PROBLEM（窓も同じ定数）",
+  "種まきの係・写しの取り直し": "この版では変えない。計画書に「3.101.0 で決める」と書いた"
+ },
+ "build": {
+  "version": "3.100.0",
+  "by": "作る者（別のエージェント。案を作った者・採点者とは別）",
+  "made": [
+   "Python の直し: services/master_place.py（_sources・_share_files・payload・_can_write・drive_root・_share_root・status・using・SHARE_PROBE_SEC）・release_place.py（check_name・unreadable）・folder_browse.py（tidy・sort_key・_hidden・equipment_count・ext_counts）・access.py（tab_exceptions・tab_exception_counts）・path_settings.check_entry・MasterStore.status(peek)・routes（masters・settings・access・sources）・画面の字（master.js の木・master-sources.js の窓の説明）",
+   "独立の答え: program/tools/place-truth.py（app を import しない）",
+   "事例の表: program/tests/fixtures/place_cases.json（names 70・sort 8・clean 17・sync 10・marks 9・moves 2・tabExceptions 17・tabCounts 1・blank 8・hidden 7）",
+   "試験: program/tests/test_place_cases.py・desktop/tests/place_cases.rs・Windows の CI の段（desktop.yml）",
+   "窓の部品: release_place::check_name（予約名・「.」）・normcase（Windows は LCMapStringEx）・access::tab_exceptions（Err をやめて空）"
+  ],
+  "failed_before_fix": {
+   "python": "直す前の test_place_cases: Ran 22・failures 60・errors 9（subTest ごと。名前・印・並び以外の道・空の確かめ・タブの例外・引っ越し 3 つ・写す量・読めない場所・書けるかの試し・共有の根以外の全部）。遅い共有は status が 170 秒（区切り 2.5 秒の試験が落ちる）。root でない利用者の本物の権限で 500（HTML の頁）",
+   "rust": "直す前の release_place.rs で place_cases の names が落ちる（「.」に「最後に「.」や空白は付けられません」）。直す前の access.rs は tab_exceptions が pub(crate) で、Python の同じ表の事例（[1] など）は Python の 500 で示した",
+   "logs": [
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/build3100/before-fix-tests.log",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/build3100/before-fix-tests2.log",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/build3100/before-fix-nobody.log",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/build3100/before-fix-rust.log"
+   ]
+  },
+  "screens": {
+   "before": [
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-before（ui-check 全部）",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-before/pathpick/worklog-dlg.png",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-before/place/place-shared-copy-1728.png",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-before/place/place-shared-copy-1280.png"
+   ],
+   "after": [
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-after（ui-check 全部）",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-after/pathpick/worklog-dlg.png",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-after/place/place-shared-copy-1728.png",
+    "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/shots-after/place/place-shared-copy-1280.png"
+   ],
+   "self_check": "作る者が前後の画像を開いて見た: 実績のフォルダの「参照…」の印が「実績のファイル n 個」→「設備 11 台」・窓の説明「印: ファイル名の決まりに合う設備の数」が 1 行に収まる。マスタの置き場（共有）の確かめの説明に「利用状況の記録と切断の指示も写します。」・木に「いまの置き場のマスタと利用状況の記録を写す（17 ファイル・168 KB）」。1280 でも 1 行で切れ・重なりなし（前は 18 ファイル・148 KB: 種まきした数と字下げの無い字の大きさ）"
+  },
+  "unknown": [
+   "書けるかの試し（疑い 1）を、Windows の本物の ACL で拒んだ形（icacls の場面は作っていない。mock でだけ見た）",
+   "本物の共有の根（\\\\サーバー\\共有）への切り替え（CI に共有が無い。mock でだけ見た）",
+   "届かない SMB で status・place・browse・places が実際に何秒待つか。区切ったのは置き場の状態の 2 本だけで、読む道（写しの取り直し）の待ちは残る",
+   "エクスプローラーがシステムの属性だけの物を出すか（決めに従って出さない）",
+   "窓の normcase（LCMapStringEx）と Python の ntpath.normcase が全部の BMP の字で同じか（Windows の CI で初めて分かる。型は作業用クレートで x86_64-pc-windows-msvc の clippy を通した）",
+   "自然な並びのかな・全角の字の順がエクスプローラーの言語の並びと同じか（ASCII の数字だけを数として比べる）",
+   "同期フォルダの名前の表をどこまで足すか（疑い 6。変えていない）"
+  ],
+  "check_all": "bash program/tools/check-all.sh（--verify なし: 起動・更新・配布・main.rs は変えていない。自己診断 selftest.js も変えていない）: js-check 0・compileall 0・cargo-build 0・ruff 0.15.20 0・fmt-clippy 0・py-tests 0（Ran 821・OK skipped=9）・bundle-tests 0（Ran 5）・cargo-test 0（46 の test result がどれも ok・FAILED 0）。すべて通った"
+ },
+ "built": {
+  "evaluator": "なし。このセッション（作る者）には別のエージェントを起こす道具（Agent）が無く、作った後の採点を頼めなかった。主のセッションが別のエージェントに頼む",
+  "score": null
+ },
+ "maker_self_fixed": [
+  "作る者が自分で見つけて直した（採点ではない）: (1) 利用状況の記録は錠の外でほかの PC が片付ける（消す）ので、写す間に消えた記録は飛ばす（前の形では引っ越し全体が「写せませんでした」になりえた）。試験 test_a_presence_record_swept_while_moving_is_skipped。(2) POSIX の //tmp を Windows の共有（\\\\tmp）と読んで字を書き換えていた（tidy）。事例の表 clean に //tmp/x/../y（POSIX）と //srv/share/a/../b（Windows）を足し、独立の答えも同じ決まりに"
+ ]
+}

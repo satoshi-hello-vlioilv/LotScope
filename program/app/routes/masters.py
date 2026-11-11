@@ -2,7 +2,7 @@
 """現場のマスタ（設備・ロール）の読み書き・マスタの置き場の状態。アクセス権限マスタは access.py。"""
 from ..web import current_app, jsonify, request
 
-from ..services.master_place import sync_caution
+from ..services import master_place
 from .common import base_rev, bp, master_call, master_repo
 
 # マスタごとの API（設備: 設備名が必須／ロール: 設備が必須）
@@ -71,7 +71,6 @@ def equipment_inspection():
 @bp.get("/api/masters/status")
 def masters_status():
     """置き場（手元／共有）・共有へ届くか・錠・各マスタの版。画面はこれで「いつの・どこの」マスタかを言う。
-    置き場がクラウドの同期フォルダなら、注意（caution）も返す（同時の保存で片方が消えうる）。"""
-    st = current_app.config["MASTER_STORE"].status()
-    st["caution"] = sync_caution(st["dir"]) if st["mode"] == "shared" else ""
-    return jsonify(st)
+    置き場がクラウドの同期フォルダなら、注意（caution）も返す（同時の保存で片方が消えうる）。
+    共有が master_place.SHARE_PROBE_SEC 秒で答えなければ、写しで答えて reachable を偽にする（版 3.100.0）"""
+    return jsonify(master_place.status(current_app.config["MASTER_STORE"]))   # 共有を見るのは区切った秒まで（版 3.100.0）

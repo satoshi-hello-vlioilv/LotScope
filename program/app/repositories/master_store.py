@@ -347,6 +347,11 @@ class MasterStore:
         path = self._doc_path(name)
         return self._cached(path) if path.exists() else _doc([])
 
+    def _peek_doc(self, name):
+        """共有を見ずに読む（写し → 同梱の data/ → 最初の中身）"""
+        path = self._mirror(name) if self.is_shared(name) and self._mirror(name).exists() else self._initial(name)
+        return self._cached(path) if path.exists() else _doc([])
+
     def _cached(self, path):
         sig = _stat_sig(path)
         key = str(path)
@@ -785,21 +790,24 @@ class MasterStore:
     # ---------------------------------------------------------- 状態（画面・起動画面へ）
     def status(self, names=("equipment_master", "roll_master", "path_settings", "access_permissions", "work_log_files", "display_formats",
                                 "shift_patterns", "pivot_presets", "pivot_quick", "data_sources", "dashboard_settings", "dashboards",
-                                "equipment_groups", "conversions", "conversion_defaults", "tab_access")):
+                                "equipment_groups", "conversions", "conversion_defaults", "tab_access"), peek=False):
+        """peek: 共有を見ずに、いま持っている写し（無ければ同梱の data/）だけで答える（共有が答えないとき。版 3.100.0。
+        services/master_place.status が区切った秒で打ち切った後に使う。reachable・lock は呼んだ側が決める）"""
         shared = self.share_dir is not None
         out = {"mode": "shared" if shared else "local", "dir": str(self.share_dir) if shared else "",
                "configured": str(self.configured_dir or ""), "override": self.override_path.exists(), "pin": self.pinned(),
                "who": dict(self.who), "masters": {}}
-        if shared:
+        if shared and not peek:
             for n in names:
                 if self.is_shared(n):
                     self._maybe_refresh(n)
             out["reachable"] = self.share_reachable()
             out["lock"] = self.lock_status() if out["reachable"] else None
+        if shared:
             out["last_sync"] = self._last_sync
             out["error"] = self._last_error
         for n in names:
-            doc = self._read_doc(n)
+            doc = self._peek_doc(n) if peek else self._read_doc(n)
             src = ("shared" if self.is_shared(n) and self._mirror(n).exists()
                    else "bundled-fallback" if self.is_shared(n) else "local")
             out["masters"][n] = {"revision": doc["revision"], "rows": len(doc["rows"]),

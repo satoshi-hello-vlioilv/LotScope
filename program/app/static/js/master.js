@@ -1430,7 +1430,7 @@ function masterPlaceTree(cur, a, pl, sep) {
   const [curParent, curName] = cur ? splitPath(cur) : ["", ""], newParent = clean(a.parent), newName = String(a.name || "").trim() || "（名前）";
   const same = curParent && curParent.toLowerCase() === newParent.toLowerCase();
   const mode = !pl.ok ? ["is-ng", "使えません"] : pl.mode === "switch" ? ["is-switch", "← 既にマスタがある（写さずに切り替える）"]
-    : ["is-copy", `← ${cur ? "いまの置き場" : "この PC"}のマスタを写す（${pl.files} ファイル・${Math.max(1, Math.round((pl.bytes || 0) / 1024))} KB）`];
+    : ["is-copy", `← ${cur ? "いまの置き場のマスタと利用状況の記録" : "この PC のマスタ"}を写す（${pl.files} ファイル・${Math.max(1, Math.round((pl.bytes || 0) / 1024))} KB）`];
   const oldLi = cur ? `<li class="dz-t-old">📁 ${escapeHtml(curName)}<em>いまの置き場・消さずに残す</em></li>` : "";
   const newLi = `<li class="dz-t-new ${mode[0]}">📁 <b>${escapeHtml(newName)}</b><em>${escapeHtml(mode[1])}</em></li>`;
   const root = (path, items) => `<ul class="dz-t-root"><li>📁 ${escapeHtml(path || "（場所）")}<ul>${items}</ul></li></ul>`;
