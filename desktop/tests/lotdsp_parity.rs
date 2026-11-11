@@ -93,6 +93,15 @@ fn lotdsp_matches_python() {
     for (i, sc) in oracle["direct"].as_array().unwrap().iter().enumerate() {
         let name = sc["name"].as_str().unwrap();
         if sc["watch"] == true {
+            if let Some(why) = sc["skipped"].as_str() {
+                // 作り物のブラウザを起こせない環境（Windows の trusted_browser の決まり）だけ。Linux の CI で飛ばしたら落とす
+                if cfg!(unix) {
+                    bad.push(format!("見えない Edge / {name}: unix で飛ばした（{why}）"));
+                } else {
+                    println!("見えない Edge / {name}: 飛ばす（{why}）");
+                }
+                continue;
+            }
             if let Some(x) = watch_scenario(sc, &browser, &site, &base.join("rs").join("direct-watch")) {
                 bad.push(format!("見えない Edge / {name}: {x}"));
             }

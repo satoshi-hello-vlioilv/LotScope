@@ -417,6 +417,11 @@ WATCH_STEPS = [290, 40]
 def watch_scenario(work, site, exe):
     """作った後の採点の足りない突き合わせ: 差し替えた時計で、Python と窓が同じ時期に Browser.close を出すか"""
     from unittest import mock
+    name = "見張りで閉じる（差し替えた時計）"
+    if D.find_browser(str(exe)) is None:
+        # Windows は Program Files の下のブラウザだけを起こす決まり（trusted_browser）で、作り物のブラウザ（sh の台本）を断る。
+        # 窓（lotdsp_parity.rs）は unix でこれが出たら落とす（Linux の CI で確かめる所を黙って飛ばさない）
+        return {"name": name, "watch": True, "skipped": "作り物のブラウザを起こせない環境（Windows の決まり・sh の台本）"}
     d = work / "direct-watch"
     shutil.rmtree(d, ignore_errors=True)
     d.mkdir(parents=True)
@@ -436,7 +441,7 @@ def watch_scenario(work, site, exe):
             closed.append("Browser.close" in log.read_text(encoding="utf-8"))
         D.shutdown()
     lines = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
-    return {"name": "見張りで閉じる（差し替えた時計）", "watch": True, "script": script, "steps": WATCH_STEPS, "closed": closed, "log": lines}
+    return {"name": name, "watch": True, "script": script, "steps": WATCH_STEPS, "closed": closed, "log": lines}
 
 
 def main():
