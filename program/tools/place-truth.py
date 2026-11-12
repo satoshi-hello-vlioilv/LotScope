@@ -242,7 +242,25 @@ def check_table(cases) -> list:
     return bad
 
 
+def ask(argv):
+    """窓の試験（desktop/tests/place_cases.rs。版 3.101.0）が独立の答えを尋ねる: --copied 置き場・--followed 置き場・--rows 置き場 マスタ・
+    --tree-size フォルダ → JSON"""
+    cmd, args = argv[0], argv[1:]
+    if cmd == "--copied":
+        return copied_names(Path(args[0]))
+    if cmd == "--followed":
+        return str(followed(Path(args[0])))
+    if cmd == "--rows":
+        return sorted(row_ids(Path(args[0]), args[1]), key=repr)
+    if cmd == "--tree-size":
+        return list(tree_size(Path(args[0])))
+    raise SystemExit(f"知らない問い: {cmd}")
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1].startswith("--"):
+        sys.stdout.write(json.dumps(ask(sys.argv[1:]), ensure_ascii=False))
+        return 0
     table = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "place_cases.json"
     bad = check_table(json.loads(table.read_text(encoding="utf-8")))
     for b in bad:

@@ -12,7 +12,7 @@ use crate::dashboard;
 use crate::formula::Tables;
 use crate::lists::{Conf, Lists, Quality};
 use crate::lotlist::{self, Args};
-use crate::master_store::{Config as StoreConfig, Store};
+use crate::master_store::Store;
 use crate::mirror::DbMirror;
 use crate::pivot;
 use crate::presence::{self, Presence};
@@ -423,21 +423,7 @@ impl Lot {
                 return Some(s.clone());
             }
         }
-        let p = &conf["place"];
-        let path = |k: &str| p[k].as_str().filter(|s| !s.is_empty()).map(PathBuf::from);
-        let cache = path("cache")?;
-        let s = Arc::new(Store::new(StoreConfig {
-            data: path("data")?,
-            defaults: path("defaults")?,
-            share_dir: path("shareDir"),
-            shared: p["shared"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default(),
-            local_root: cache.parent()?.to_path_buf(),
-            cache,
-            pc: conf["who"]["pc"].as_str().unwrap_or("").into(),
-            login: conf["who"]["login"].as_str().unwrap_or("").into(),
-            role: "rs".into(),
-            lock_ttl: p["lockTtl"].as_f64().unwrap_or(crate::master_store::LOCK_TTL_DEFAULT),
-        }));
+        let s = Arc::new(Store::from_access(conf, "rs")?);
         *cur = Some((key, s.clone()));
         Some(s)
     }
@@ -769,6 +755,102 @@ impl Lot {
             self.gate.me(&json!({"who": inp.who, "place": inp.place}))
         };
         crate::release_place::handle(route, query, body, &me, &self.release, &cwd)
+    }
+
+    /// マスタの置き場の 4 本（版 3.101.0。src/master_place.rs）: GET /api/masters/status・place・POST place/check・move。
+    /// 材料は窓の書く係（置き場ごとに 1 つ）と束の材料（配った設定の置き場・この PC の作業場所）。?engine=python・束を組めない形・
+    /// 窓が答えない形は Python（move は Python が断る: 写す係は窓の 1 つ）。写して切り替えたら、一覧の設定と権限の覚えを捨てる
+    /// （次に束を組むとき、この PC の覚え master_share.json から新しい置き場を読む）
+    fn place_route(&self, route: crate::master_place::Route, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let builder = self.bundle.lock().unwrap().clone()?;
+        let store = self.store_for(&s.access)?;
+        let local = crate::master_place::Local { configured: builder.configured_dir().ok()?, root: store.local_root().to_path_buf() };
+        let cwd = builder.env().program.clone();
+        let mv = route == crate::master_place::Route::Move;
+        let me = || {
+            if mv {
+                self.gate.forget(); // 置き場を変える前は、いまの権限の表で決める
+            }
+            self.gate.me(&s.access)
+        };
+        let r = crate::master_place::handle(route, query, body, &store, &local, &me, &cwd)?;
+        if mv && r.0 == 200 {
+            self.invalidate();
+            self.gate.forget();
+        }
+        Some(r)
+    }
+
+    /// 「参照…」の 2 本（版 3.101.0。src/folder_browse.rs）: POST /api/fs/browse・GET /api/fs/places
+    fn fs_route(&self, route: crate::folder_browse::Route, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let me = || self.gate.me(&s.access);
+        let app_paths = || -> Option<Vec<(String, String, String)>> {
+            let builder = self.bundle.lock().unwrap().clone()?;
+            let inp = builder.inputs().ok()?;
+            let text = |v: Option<&Value>| -> Option<String> {
+                match v {
+                    None | Some(Value::Null) => Some(String::new()),
+                    Some(x) if !crate::worksum::truthy(x) => Some(String::new()),
+                    Some(Value::String(x)) => Some(x.clone()),
+                    Some(x @ (Value::Number(_) | Value::Bool(_))) => Some(crate::worksum::py_str(x)),
+                    _ => None,
+                }
+            };
+            let src = text(inp.eff.get("lot_list").and_then(|l| l.get("source")))?;
+            let wl = text(inp.eff.get("work_log").and_then(|l| l.get("folder")))?;
+            let store = self.store_for(&s.access)?;
+            let local = crate::master_place::Local { configured: String::new(), root: store.local_root().to_path_buf() };
+            let mut out = vec![
+                ("master".into(), "マスタの置き場".into(), store.share_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default()),
+                ("quality".into(), "品質データのフォルダ".into(), crate::folder_browse::parent_of(&src)?),
+                ("worklog".into(), "作業実績のフォルダ".into(), wl),
+                ("release".into(), "配布の置き場".into(), inp.update_source().ok()?),
+            ];
+            for h in local.history() {
+                out.push(("oldmaster".into(), "前のマスタの置き場".into(), text(h.get("dir"))?));
+            }
+            Some(out)
+        };
+        crate::folder_browse::handle(route, query, body, &me, &app_paths)
+    }
+
+    /// 参照先の「確かめる」（POST /api/settings/check。版 3.101.0。入口はデータ元の conn/check と同じ builder::check_entry）
+    fn settings_check_route(&self, query: &str, body: &[u8], ask: AskSettings) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let inp = self.bundle.lock().unwrap().clone()?.inputs().ok()?;
+        self.with_dash(ask, |cx| {
+            let pattern = cx.conf.work().get("pattern").and_then(Value::as_str).unwrap_or("").to_string();
+            crate::builder::settings_check(body, &inp.settings, &inp.eff, &pattern)
+        })
+    }
+
+    /// タブの権限を読む（GET /api/masters/tabaccess。版 3.101.0。src/access_write.rs の tabs_answer）
+    fn tabaccess_route(&self, query: &str, ask: AskSettings) -> Option<(u16, Value)> {
+        if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+            return None;
+        }
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        let me = self.gate.me(&s.access).ok()?;
+        let store = self.store_for(&s.access)?;
+        let tabs = crate::access::Place::from_json(&s.access["place"]).rows("tab_access").ok()?;
+        let parts = self.bundle.lock().unwrap().clone()?.inputs().ok()?.sources_parts().ok()?;
+        crate::access_write::tabs_answer(&store, &me, &tabs, &parts.items)
     }
 
     /// 調べる道具の画面（GET /lotdsp-link。版 3.98.0）。型を描けなければ None（窓は 500 で答える）
@@ -1145,6 +1227,18 @@ impl Lot {
         }
         if let Some(route) = crate::release_place::route_of(method, path) {
             return self.release_route(route, query, body);
+        }
+        // 置き場と設定の 8 本（版 3.101.0）: マスタの置き場の 4 本・「参照…」の 2 本・参照先の「確かめる」・タブの権限を読む
+        if let Some(route) = crate::master_place::route_of(method, path) {
+            return self.place_route(route, query, body, ask);
+        }
+        if let Some(route) = crate::folder_browse::route_of(method, path) {
+            return self.fs_route(route, query, body, ask);
+        }
+        match (method, path) {
+            ("POST", "/api/settings/check") => return self.settings_check_route(query, body, ask),
+            ("GET", "/api/masters/tabaccess") => return self.tabaccess_route(query, ask),
+            _ => {}
         }
         // 組む所の読み 7 本（版 3.99.0。src/builder.rs）: 窓が答え、窓が同じに答えられない形だけ Python に任せる
         if let Some(route) = crate::builder::route_of(method, path) {
@@ -2396,6 +2490,62 @@ mod tests {
         }
         // 途中経過・中止は材料が要らない
         assert_eq!(lot.handle_body("GET", "/api/lots/fetch-lotdsp/status", "", b"", &down).unwrap().0, 200);
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn the_window_answers_the_place_and_settings_reads() {
+        // 版 3.101.0: 置き場と設定の 8 本は Python が起きていなくても窓が答える（本物の道: Lot::handle_body → place_route・fs_route・
+        // settings_check_route・tabaccess_route。材料は窓の束の材料）。写して切り替えたら、次の答えは新しい置き場（この PC の覚えから束を組み直す）
+        let work = std::env::temp_dir().join(format!("da-lot-place-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone(), work.join("nas")] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share, "refresh_seconds": 0}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm = json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者",
+                                                           "マスタ編集": "編集可", "rev": 1}]});
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in crate::master_store::SHARED_ALWAYS.iter().chain(["equipment_master", "roll_master"].iter()) {
+            std::fs::write(share.join(format!("{n}.json")), if *n == "access_permissions" { perm.to_string() } else { doc.clone() })
+                .unwrap();
+        }
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg.clone(), now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let ask = |m: &str, p: &str, q: &str, b: &str| lot.handle_body(m, p, q, b.as_bytes(), &down);
+        let (st, v) = ask("GET", "/api/masters/status", "", "").expect("Python が起きていなくても窓が答える");
+        assert_eq!(
+            (st, v["mode"].clone(), v["reachable"].clone(), v["masters"]["tab_access"]["revision"].clone()),
+            (200, json!("shared"), json!(true), json!(4)),
+            "{v}"
+        );
+        assert!(ask("GET", "/api/masters/status", "engine=python", "").is_none(), "?engine=python は Python");
+        let (st, v) = ask("GET", "/api/masters/place", "", "").unwrap();
+        assert_eq!((st, v["canChange"].clone(), v["using"][0]["reachable"].clone()), (200, json!(true), json!(true)), "{v}");
+        let body = json!({"parent": work.join("nas"), "name": "New"}).to_string();
+        let (st, v) = ask("POST", "/api/masters/place/check", "", &body).unwrap();
+        assert_eq!((st, v["mode"].clone(), v["files"].clone()), (200, json!("copy"), json!(18)), "{v}");
+        let (st, v) = ask("POST", "/api/masters/place/move", "", &body).unwrap();
+        assert_eq!((st, v["from"].clone()), (200, json!(share.to_string_lossy())), "{v}");
+        let (_, v) = ask("GET", "/api/masters/status", "", "").unwrap();
+        assert_eq!(v["dir"], json!(work.join("nas").join("New").to_string_lossy()), "切り替えた置き場で答える: {v}");
+        assert!(share.join("_MOVED.json").exists(), "前の置き場に引っ越し先の印");
+        let (st, v) = ask("POST", "/api/fs/browse", "", &json!({"path": work}).to_string()).unwrap();
+        assert_eq!((st, v["exists"].clone()), (200, json!(true)), "{v}");
+        assert!(v["entries"].as_array().unwrap().iter().any(|e| e["name"] == "nas"));
+        let (st, v) = ask("GET", "/api/fs/places", "", "").unwrap();
+        assert_eq!((st, v["items"][0]["key"].clone(), v["items"][0]["reach"].clone()), (200, json!("master"), json!(true)), "{v}");
+        let (st, v) = ask("POST", "/api/settings/check", "", r#"{"key": "work_log.pattern", "value": "実績_*.db"}"#).unwrap();
+        assert_eq!((st, v["ok"].clone()), (200, json!(true)), "{v}");
+        let (st, v) = ask("GET", "/api/masters/tabaccess", "", "").unwrap();
+        assert_eq!((st, v["tabs"][0]["key"].clone(), v["canEdit"].clone()), (200, json!("dash"), json!(true)), "{v}");
         let _ = std::fs::remove_dir_all(&work);
     }
 

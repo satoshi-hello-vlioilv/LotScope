@@ -53,7 +53,7 @@ pub fn py_path_for(x: &str, win: bool) -> String {
 }
 
 /// str(Path(x))（この PC の決まり）
-fn py_path(x: &str) -> String {
+pub(crate) fn py_path(x: &str) -> String {
     py_path_for(x, cfg!(windows))
 }
 
@@ -135,9 +135,9 @@ pub fn join_for(base: &str, name: &str, win: bool) -> String {
     py_path_for(&j, true)
 }
 
-/// fsio.unquote_path: str(value or "").strip().strip('"')
+/// fsio.unquote_path（写しは lists::unquote_path の 1 つ。版 3.101.0）
 fn unquote(x: &str) -> String {
-    crate::pyfmt::strip(x).trim_matches('"').to_string()
+    crate::lists::unquote_path(x)
 }
 
 /// os.path.normcase（Windows は \ と小文字。POSIX はそのまま）。Windows の小文字は Python 3.13 の ntpath.normcase と同じ
@@ -181,12 +181,12 @@ fn win_lower(s: &str) -> String {
 /// Windows（Win32）は道の各段の末尾の空白と「.」を黙って削る（「 」は空の名前・「a. 」は「a」になる）。Python は字のまま
 /// os.stat に渡し、窓は今のフォルダにつないでから見るので、削られた後の道が食い違う（版 3.95.0 の Windows の CI で、上のフォルダ
 /// 「" "」を Python は「届きません」、窓は今のフォルダとして通した）。そういう段を含む道は、窓は答えず Python に任せる
-fn win_trims(p: &str) -> bool {
+pub(crate) fn win_trims(p: &str) -> bool {
     p.split(['\\', '/']).any(|seg| seg != "." && seg != ".." && (seg.ends_with(' ') || seg.ends_with('.')))
 }
 
 /// 道を字のまま Python の今のフォルダ（cwd）から見た道にする（Path(相対).is_dir() は Python の今のフォルダから見る）
-fn at(cwd: &Path, p: &str) -> PathBuf {
+pub(crate) fn at(cwd: &Path, p: &str) -> PathBuf {
     let q = Path::new(p);
     if q.is_absolute() {
         q.to_path_buf()
@@ -359,12 +359,12 @@ fn win_abspath(p: &str, cwd: &Path) -> String {
 }
 
 /// release_place._same（resolve と normcase で比べる）。None は窓が解けない形（Python に任せる）
-fn same(a: &str, b: &str, cwd: &Path) -> Option<bool> {
+pub(crate) fn same(a: &str, b: &str, cwd: &Path) -> Option<bool> {
     Some(normcase(&py_resolve(a, cwd)?) == normcase(&py_resolve(b, cwd)?))
 }
 
 /// release_place._inside: c.startswith(p.rstrip("\\/") + os.sep)
-fn inside(child: &str, parent: &str, cwd: &Path) -> Option<bool> {
+pub(crate) fn inside(child: &str, parent: &str, cwd: &Path) -> Option<bool> {
     let (c, p) = (normcase(&py_resolve(child, cwd)?), normcase(&py_resolve(parent, cwd)?));
     let sep = if cfg!(windows) { '\\' } else { '/' };
     Some(c.starts_with(&format!("{}{sep}", p.trim_end_matches(['\\', '/']))))
@@ -413,7 +413,7 @@ pub fn check_name(name: &str) -> Result<String, String> {
 
 /// Path.stat の誤りのうち、Python 3.13 の Path.exists・is_dir・is_file が「無い」とみなす物（pathlib._abc._ignore_error）。
 /// ほかの誤り（名前が長すぎる・権限が無い）は Python では例外になる
-fn ignorable(e: &io::Error) -> bool {
+pub(crate) fn ignorable(e: &io::Error) -> bool {
     match e.raw_os_error() {
         // CPython が ENOENT に読み替える物（FILE_NOT_FOUND・PATH_NOT_FOUND・INVALID_DRIVE・NO_MORE_FILES・BAD_NETPATH・BAD_NET_NAME・
         // BAD_PATHNAME・FILENAME_EXCED_RANGE）・EBADF（INVALID_HANDLE）・ENOTDIR（DIRECTORY）と、pathlib が見る NOT_READY・INVALID_NAME・
@@ -426,7 +426,7 @@ fn ignorable(e: &io::Error) -> bool {
 }
 
 /// Path.stat（記号リンクは先をたどる）: Ok(Some) 有る・Ok(None) 無い・Err は Python が落ちる形
-fn py_stat(p: &Path) -> Result<Option<std::fs::Metadata>, ()> {
+pub(crate) fn py_stat(p: &Path) -> Result<Option<std::fs::Metadata>, ()> {
     match std::fs::metadata(p) {
         Ok(m) => Ok(Some(m)),
         Err(e) if ignorable(&e) => Ok(None),
@@ -435,12 +435,12 @@ fn py_stat(p: &Path) -> Result<Option<std::fs::Metadata>, ()> {
 }
 
 /// Path.is_dir()（Err は Python が落ちる形）
-fn py_is_dir(p: &Path) -> Result<bool, ()> {
+pub(crate) fn py_is_dir(p: &Path) -> Result<bool, ()> {
     py_stat(p).map(|m| m.is_some_and(|m| m.is_dir()))
 }
 
 /// DirEntry.is_dir()（記号リンクは先をたどる。読めなければ偽）と、記号リンクか
-fn entry_kind(e: &std::fs::DirEntry) -> (bool, bool) {
+pub(crate) fn entry_kind(e: &std::fs::DirEntry) -> (bool, bool) {
     let link = e.file_type().is_ok_and(|t| t.is_symlink());
     let dir = if link { std::fs::metadata(e.path()).is_ok_and(|m| m.is_dir()) } else { e.file_type().is_ok_and(|t| t.is_dir()) };
     (dir, link)
@@ -473,7 +473,7 @@ pub fn has_release(folder: &Path, depth: u32) -> bool {
 }
 
 /// os.walk（上から・記号リンクのフォルダには入らない・読めないフォルダは黙って飛ばす）。f は (フォルダ, 中のファイルの名前)
-fn walk(top: &Path, f: &mut dyn FnMut(&Path, &[OsString]) -> io::Result<()>) -> io::Result<()> {
+pub(crate) fn walk(top: &Path, f: &mut dyn FnMut(&Path, &[OsString]) -> io::Result<()>) -> io::Result<()> {
     let Ok(rd) = std::fs::read_dir(top) else { return Ok(()) };
     let (mut dirs, mut names) = (vec![], vec![]);
     for e in rd {
@@ -670,7 +670,7 @@ pub fn py_oserror(code: Option<i32>, msg: &str, p1: Option<&str>, p2: Option<&st
 }
 
 /// io::Error → OSError の str（道は 0〜2 つ）
-fn os_error(e: &io::Error, p1: Option<&Path>, p2: Option<&Path>) -> String {
+pub(crate) fn os_error(e: &io::Error, p1: Option<&Path>, p2: Option<&Path>) -> String {
     let text = e.to_string();
     let msg = match text.rfind(" (os error ") {
         Some(i) => text[..i].to_string(),

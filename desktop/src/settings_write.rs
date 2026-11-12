@@ -98,7 +98,7 @@ pub(crate) fn parse_value(item: &Value, raw: Option<&Value>) -> Result<Option<Va
         }
         "url" | "text" => Ok(Some(json!(s))),
         // unquote_path: str(value or "").strip().strip('"')
-        "sqlite" | "folder" => Ok(Some(json!(pyfmt::strip(&s).trim_matches('"')))),
+        "sqlite" | "folder" => Ok(Some(json!(crate::lists::unquote_path(&s)))),
         "pattern" => {
             if s.matches('*').count() != 1 {
                 return fail(format!(
@@ -108,12 +108,12 @@ pub(crate) fn parse_value(item: &Value, raw: Option<&Value>) -> Result<Option<Va
             Ok(Some(json!(s)))
         }
         "release" => {
-            let parts: Vec<&str> = s.split(['\n', ';']).map(|p| pyfmt::strip(p).trim_matches('"')).filter(|x| !x.is_empty()).collect();
+            let parts: Vec<String> = s.split(['\n', ';']).map(crate::lists::unquote_path).filter(|x| !x.is_empty()).collect();
             Ok(Some(json!(parts.join(";"))))
         }
         // ブラウザの欄（版 3.98.0 から窓も確かめる: lotdsp_direct::trusted_browser〈Edge・Chrome の決まった形。Python と同じ〉）
         "exe" => {
-            let s = pyfmt::strip(&s).trim_matches('"').to_string();
+            let s = crate::lists::unquote_path(&s);
             let why = if s.is_empty() { String::new() } else { crate::lotdsp_direct::trusted_browser(&s) };
             if !why.is_empty() {
                 return fail(format!("「{label}」: {why}"));

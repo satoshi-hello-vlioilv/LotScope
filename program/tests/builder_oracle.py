@@ -209,6 +209,30 @@ def steps_of(d, cm3):
         S("POST", "/api/sources/wip/conn/check", {"field": "nope", "value": "x"}),
         S("POST", "/api/sources/無い/conn/check", {"field": "place", "value": "x"}),
         S("POST", "/api/sources/wip/conn/check", {"field": "lot", "value": "ロット番号"}),
+        # 参照先の「確かめる」（版 3.101.0。入口は conn/check と同じ check_entry。値も既定も空なら「値を入れてください。」）
+        S("POST", "/api/settings/check", {"key": "lot_list.source", "value": lot_place}),
+        S("POST", "/api/settings/check", {"key": "lot_list.source", "value": f' "{lot_place}" '}),
+        S("POST", "/api/settings/check", {"key": "lot_list.source", "value": ""}),
+        S("POST", "/api/settings/check", {"key": "lot_list.source", "value": str(d / "無い.sqlite3")}),
+        S("POST", "/api/settings/check", {"key": "lot_list.table", "value": "x"}),
+        S("POST", "/api/settings/check", {"key": "lot_list.refresh_seconds", "value": "120"}),
+        S("POST", "/api/settings/check", {"key": "lot_list.refresh_seconds", "value": "abc"}),
+        S("POST", "/api/settings/check", {"key": "lot_list.refresh_seconds", "value": ""}),
+        S("POST", "/api/settings/check", {"key": "work_log.folder", "value": str(d / "実績")}),
+        S("POST", "/api/settings/check", {"key": "work_log.folder", "value": str(d / "無いフォルダ")}),
+        S("POST", "/api/settings/check", {"key": "work_log.folder", "value": ""}),
+        S("POST", "/api/settings/check", {"key": "work_log.pattern", "value": "実績_*.db"}),
+        S("POST", "/api/settings/check", {"key": "work_log.pattern", "value": "実績.db"}),
+        S("POST", "/api/settings/check", {"key": "schedule.cm3_base_url", "value": cm3}),
+        S("POST", "/api/settings/check", {"key": "schedule.cm3_base_url", "value": "ftp://x"}),
+        S("POST", "/api/settings/check", {"key": "schedule.cm3_base_url", "value": "  "}),
+        S("POST", "/api/settings/check", {"key": "lotdsp_import.url", "value": ""}),
+        S("POST", "/api/settings/check", {"key": "lotdsp_import.url", "value": "http://127.0.0.1:1/x#y"}),
+        S("POST", "/api/settings/check", {"key": "lotdsp_import.direct.browser", "value": "C:\\x\\notepad.exe"}),
+        S("POST", "/api/settings/check", {"key": "知らない", "value": "x"}),
+        S("POST", "/api/settings/check", {"key": 5}),
+        S("POST", "/api/settings/check", {}),
+        S("POST", "/api/settings/check", ""),
     ]
 
 
@@ -226,13 +250,17 @@ def delegates_of():
         S("POST", "/api/sources/join/preview", "[1]"),
         S("POST", "/api/sources/wip/conn/check", {"field": "place", "value": [1]}),
         S("GET", "/api/sources/%E7%84%A1/columns"),
+        S("POST", "/api/settings/check", "[1]"),
+        S("POST", "/api/settings/check", {"key": ["lot_list.source"]}),
+        S("POST", "/api/settings/check", {"key": "lot_list.source", "value": "x"}, query="engine=python"),
     ]
 
 
 def gate_steps(d):
     return [S("POST", "/api/sources/join/preview", {"key": "wip", "joins": [{"with": "m1", "on": [["合金", "材質"]]}]}),
             S("POST", "/api/sources/check", {"place": str(d / "two.sqlite3"), "role": "マスタ"}),
-            S("GET", "/api/dashboard/fields", query="source=src%3Am1")]
+            S("GET", "/api/dashboard/fields", query="source=src%3Am1"),
+            S("POST", "/api/settings/check", {"key": "work_log.pattern", "value": "実績_*.db"})]   # 参照先の「確かめる」は門番なし
 
 
 def app_of(root):

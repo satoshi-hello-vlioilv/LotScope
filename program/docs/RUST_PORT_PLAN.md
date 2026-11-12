@@ -1526,6 +1526,83 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   分かったときだけ（この版の決まり）。引っ越しは、利用状況を錠の外・マスタだけを錠の中で写し、錠の長さの半分を過ぎるか読んだマスタが変われば
   切り替えずに止める（錠は延ばさない。理由は上の割れ 2 の所）。
 
+### 段 3 の 17 歩目（② の 2 段目）: 置き場と設定 8 本を窓へ — 版 3.101.0（Python だけが答える道は 2 本）
+
+版 3.100.0 の節の「3.101.0 の形」のとおり、8 本（`GET /api/masters/tabaccess`・`GET /api/masters/status`・`GET /api/masters/place`・
+`POST /api/masters/place/check`・`POST /api/masters/place/move`・`POST /api/fs/browse`・`GET /api/fs/places`・`POST /api/settings/check`）を 1 版で窓へ移した
+（案 A の範囲）。これで Python だけが答える道は **2 本**（`GET /api/lotlist/settings`・`GET /api/health`。道の数え直しは Blueprint の 137 の型のうち窓 135）。
+窓が Python と同じに答えられない形（下）は今までどおり Python に任せる。
+
+- 部品: `desktop/src/master_place.rs`（status・place・plan・move_to・using）・`desktop/src/folder_browse.rs`（browse・places・clean・tidy・crumbs・sort_key・印）・
+  `builder::check_entry`（参照先の settings/check と、データ元の接続の設定の conn/check の 1 つの入口。値の確かめは check_value の 1 か所）・
+  `access_write::tabs_answer`（タブの権限を読む）・`access::tab_exception_counts`・`presence::online_in`。道は `Lot::place_route`・`fs_route`・
+  `settings_check_route`・`tabaccess_route`。
+- 案 F の寄せ: 置き場を変える部品（名前の確かめ・道のつなぎ方・同じ所と中〈resolve＋normcase〉・Path の stat の見方）は配布の置き場（`release_place.rs`）と
+  1 つ。確かめるの入口は `builder::check_entry` と 1 つ。unquote_path の写し 5 つ（bundle・lotdsp_direct・release_place・settings_write の 3 か所・sources_write）は
+  `lists::unquote_path` の 1 つ（mirror.rs・release.rs の trim は決まりが違う〈strip でなく trim〉ので別のまま）。書く係を一覧の設定から作るのは `Store::from_access` の 1 か所。
+- 写す係（引っ越し）は窓の 1 つ: `sidecar.rs` の SERVES に `place` を名乗り、Python は `POST /api/masters/place/move` を 409（kind busy）で断る。
+  窓が写して切り替えたら、この PC の覚え（master_share.json。chosenAt つき）を書き、一覧の設定と権限の覚えを捨てる（次に束を組むとき新しい置き場を読む）。
+  Python は窓が bundle を名乗るので印をたどらず、この PC の覚えを読み直して置き場を合わせる（版 3.84.0 と同じ）。
+- 引っ越しの形（3.100.0 の決まりのまま）: 利用状況の記録は錠の外で先に写し、マスタだけを錠の中で写す。錠は延ばさない。錠の長さの半分を過ぎた・
+  読んだマスタが変わった（更新時刻と大きさ・名前の並び）ときは、切り替えずに止める。共有に届けば共有のファイルをバイトのまま写し、
+  写しから・手元のみは json.dumps(indent=1) の字（`pyjson::J`。鍵の順も Python と同じ）。
+- 置き場の状態: 共有を見るのは `SHARE_PROBE_SEC`（2 秒）まで。終わらなければ写しで答え、reachable は null（確かめ中。保存の手は止めない）。false は
+  「届かない」と分かったときだけ。同じ置き場へ尋ねる糸は 1 本まで（試験 `master_place::tests::a_slow_share_is_checking_not_down`）。
+- 主のセッションの決め（3.100.0 で「主のセッションが決める」とした所）:
+  - 種まきの係（GET status が共有へ最初の版を書く・写しの取り直し）は、この版では Python に任せたまま。窓の status は、種まきの要る形
+    （共有に届くのに、まだ無いマスタがある: `Store::needs_seed`）を Python に任せる。窓へ移すのは、Python を外す段の「⑤ 裏の係」でまとめて行う。
+    2 つのプロセスが同時に空の共有を読む場面は `place_parity::an_empty_share_is_seeded_once_by_python`（Python の status を別のプロセスで動かす間、
+    窓も尋ね続ける: 窓は種まきの要る間は答えず、まき終えた後は Python と同じ答え・共有のマスタは版 1 以上で壊れない・錠が残らない）
+  - status の last_sync・error（疑い 10）は Python と同じ意味のまま（このプロセスが最後に共有から写しを取り直した時刻・最後に取り直せなかった理由）。
+    窓の書く係も同じ覚え（`Store::sync_state`）を持つ。窓と Python は別のプロセスなので、同じ PC でも 2 つの答えの時刻は違いうる
+  - 同期フォルダの名前の表（疑い 6）は今の表のまま（足さない）
+- 直した誤り（直す前に落ちる試験を先に足した。Python も直した）:
+  - 引っ越しの途中でほかの PC が保存中（錠）・共有に届かないと、Python の move は MasterLocked・ShareUnavailable が道の外へ出て 500 だった
+    （`tests/test_place_cases.py` の `MoveRoute.test_a_held_lock_is_answered_not_a_500`。直す前は MasterLocked の例外）。保存の道と同じく 409（locked・
+    あと約 n 秒）／503 で答える。窓も同じ形
+  - `services/folder_browse.py` の tidy の説明の「C:\」が無効な逃がし字で SyntaxWarning（Python の次の版では誤り）。`Sources.test_the_modules_compile_without_warnings`
+    （直す前は folder_browse で落ちた）
+- 評価関数（突き合わせ）:
+  - `cargo test --test place_parity`（← `program/tests/place_oracle.py`。5 場面・52 歩〈手元のみ・共有・共有に届かない・錠・空の共有〉で状態・置き場・確かめる・
+    門番・写して切り替える〈写す・既にある置き場へ・前の置き場へ戻す〉の答えと、終わった後のフォルダ〈引っ越し先・前の置き場の印・この PC の覚え・写し〉を
+    Python の道と突き合わせる。Python に任せる歩 5。種まきの競い合いの場面も）
+  - `cargo test --test fs_parity`（← `program/tests/fs_oracle.py`。1 つのフォルダの木に 40 歩〈目的ごとの印・自然な並び・隠し・記号リンク・400 を超える数・
+    file: の URL・読めないフォルダ・門番〉と、字の整え〈tidy〉と区切り〈crumbs〉の POSIX と Windows の決まりの事例 46 件）
+  - `cargo test --test builder_parity`（settings/check の 23 歩と任せる 3 歩を足した）・`cargo test --test access_write_parity`（GET tabaccess の 7 歩を足した）
+  - `cargo test --test place_cases`（事例の表の残りの節 sort・clean・sync・marks・moves・moveRaces・tabCounts・blank・hidden〈Windows の CI だけ〉を窓の部品で読み、
+    引っ越しの写す物・写す量・ほかの PC の行は独立の答え `tools/place-truth.py` の `--copied`・`--tree-size`・`--followed`・`--rows` と比べる）
+  - `lot::tests::the_window_answers_the_place_and_settings_reads`（本物の道。Python が居なくても 8 本が答え、写して切り替えた後は新しい置き場で答える）
+  - 自己診断の 10b-P（本物の窓で、窓の答えと engine=python の答えが同じ。門番が断る形は両方が同じ 403 なら同じ。引っ越しの engine=python は Python が 409）
+- 窓が答えず Python に任せる形: ?engine=python・束の材料を組めない・種まきの要る status と place・本文の欄が並び・表（Python は repr の字）・表でない本文・
+  読めないマスタ（版が整数でない・壊れた JSON）・Windows で段の末尾の空白・「.」のある道（win_trims）・解けない道（resolve の権限など）・
+  「参照…」の ~ユーザー名・file: の URL の [ ]・ASCII でないサーバー名・\\?\ と \\.\ の道。move を任せると Python は 409 で断る（写さない側）。
+- Windows だけのコード（folder_browse の隠し・システムの属性〈DirEntry の metadata の file_attributes〉と place_cases の hidden の試験〈attrib〉）は作業用クレートで
+  `cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` を通した。Windows の CI では cargo test の `place_cases::hidden_and_system_entries_are_not_listed`・
+  `normcase_is_pythons` と、`place_parity`・`fs_parity`（記号リンク・共有の道・ドライブの根・空白だけの道の歩は POSIX だけ）が流れる。
+- 作った後の採点（別のエージェント・1 回・75.1 点。`tools/ui-proposals/2026-11-port-place.json` の v3101.built）の割れを直した（採点し直さない。決まり 2026-11-06）:
+  - 割れ 1（データが古くなる）: 引っ越しで、写した一時フォルダを新しい置き場の名前に替えた後に、この PC の覚え（master_share.json）を書けないと 400 になり、
+    新しい置き場に写したマスタが残った。そのまま前の置き場で保存してから同じ所をもう一度選ぶと、plan が「既にマスタがある置き場です。写さずに切り替えます」と言い、
+    切り替えるとその間の保存が無かった。Python の move も同じ形で、しかも retarget がこのプロセスの置き場を先に替えてから覚えを書いていた（書けないと 500 で、
+    Python だけ新しい置き場を使い続けた）。直し: 覚えを書けるかを写す前に確かめ（`master_place.remember_problem`・`_remember_problem`。試しのファイルを作って消す・
+    同じ名前のフォルダ）、書けなければ写す前に断る。それでも名前を替えた後に書けなければ、写した置き場（自分が作った物だけ）を錠の中で消して元に戻し、
+    「写した置き場を消して元に戻しました（前の置き場のまま）」と答える（前の置き場の印はまだ書いていない）。Python の retarget は覚えを先に書き、書けたときだけ
+    このプロセスの置き場を替える。試験: `place_parity` の場面「この PC の覚えを書けない」（覚えの所にフォルダ。やり直しで切り替えた先の写した物を独立の答え
+    `place-truth.py --copied` と前の置き場の字と比べる。直す前は Python 500 / 窓 400・やり直しの先の roll_master が前の置き場と違う で落ちた）・
+    `place_cases::a_failed_remember_rolls_back_and_the_retry_copies_the_share`（名前を替えた後に書けない形は `TEST_REMEMBER_FAIL` で起こす）・
+    `tests/test_place_cases.py` の `MoveRemember`（直す前は IsADirectoryError・OSError の ERROR 2 件）
+  - 観察 2（Windows）: 窓の status が画面の問い合わせごとに写しを取り直すので、窓と Python が同じ写し（master_cache）を置き換え合う回数が増える。
+    取り直しの係を 1 つに寄せるのは、この版ではしない（理由: Python は status だけでなく、どの読む道でも写しを読み、5 秒に 1 回取り直す〈_doc_path〉。
+    Python の取り直しを止めると、窓が答えない道〈GET /api/lotlist/settings・任せる形〉で Python が古い写しを読み続ける。係を寄せるのは種まきと一緒に「⑤ 裏の係」で
+    行う）。代わりに、写しの置き換えの断り（Windows で相手が置き換えを許さずに開いている: PermissionDenied）は窓・Python とも 0.5 秒までやり直し
+    （`master_store::write_mirror`・`MIRROR_RETRY_SEC`）、それでも書けなければ取り直せなかった理由を覚えて status の error に出し、読んだ元を「共有」と言わない
+    （黙って古い写しのまま答えない: `master_place::tests::a_mirror_that_cannot_be_written_is_said`）。Windows の本物の開き方での形は Windows の CI で見る
+    （`place_cases::a_mirror_held_open_on_windows_is_retried_then_said`: 置き換えを許さない開き方で 0.2 秒は取り直せる・2 秒は理由を出す）
+  - 観察 1（鍵の順）: 窓の写し（serde の to_vec_pretty。鍵は名前の順）から写した引っ越し先は、行の鍵の並びが Python の書いた順と違う。版 3.67.0 から認めている違いと同じ
+    （読む側は鍵で引く。大きさは同じ）
+- **分からない**（確かめていない）: 本物の SMB の共有で 2 秒の区切りが効くか（試験は遅さを差し替えた形）・本物の共有の根（\\サーバー\共有）への切り替え・
+  Windows の本物の ACL で書けないフォルダ（試しのフォルダを作れない形）・Windows の CI での fs_parity の C:\ と共有の歩（POSIX だけにした）・
+  窓の写し（serde の鍵の順）から写した引っ越し先の字の並び（大きさは同じ。中身の比べは JSON の値で）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

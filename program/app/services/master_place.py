@@ -157,6 +157,27 @@ def _can_write(folder: Path, name: str) -> str:
     return ""
 
 
+def _remember_problem(store) -> str:
+    """この PC の覚え（作業場所の master_share.json）を書けるか（試しのファイルを作って消す）→ 書けなければ理由の字（版 3.101.0）"""
+    path = store.override_path
+    try:
+        if path.is_dir():
+            return "同じ名前のフォルダがあります"
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return getattr(e, "strerror", None) or str(e)
+    probe = path.parent / f".{path.name}.probe-{uuid.uuid4().hex[:8]}"
+    try:
+        os.close(os.open(probe, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except OSError as e:
+        return getattr(e, "strerror", None) or str(e)
+    try:
+        os.unlink(probe)
+    except OSError:
+        pass
+    return ""
+
+
 def plan(store, parent, name) -> dict:
     """→ {ok, mode: copy|switch, dest, files, bytes, note, problem}。ok が False なら problem に理由。"""
     try:
@@ -254,6 +275,11 @@ def move(store, parent, name) -> dict:
     pl = plan(store, parent, name)
     if not pl["ok"]:
         raise ValueError(pl["problem"])
+    # この PC の覚え（master_share.json）を書けるかを、写す前に確かめる（版 3.101.0 の作った後の採点の割れ 1: 写した後で書けないと、
+    # 新しい置き場に写したマスタが残り、同じ所をもう一度選ぶと「既にマスタがある置き場」として古い写しへ切り替わった）
+    why = _remember_problem(store)
+    if why:
+        raise ValueError(f"この PC の作業場所に新しい置き場を覚えられません（{why}）。写す前に止めました。前の置き場のまま変えていません。")
     dest = Path(pl["dest"])
     tmp, done = None, {"files": 0, "bytes": 0}
     if pl["mode"] == "copy":
@@ -315,7 +341,15 @@ def _move_locked(store, pl, tmp, done) -> dict:
         (dest / MOVED_FILENAME).unlink(missing_ok=True)
     except OSError:
         pl["warning"] = f"切り替えた置き場（{dest}）に残っていた前の引っ越し先の印を消せませんでした。"
-    store.retarget(dest, chosen=True)
+    try:
+        store.retarget(dest, chosen=True)       # 覚えを書けたときだけ、この PC の置き場が替わる（master_store.retarget）
+    except OSError as e:
+        # 確かめた後でも書けなかった（空きが尽きた・切断）: 写した置き場は自分が作った物だけ消して元に戻す（錠の中。前の置き場の印はまだ書いていない）
+        why = getattr(e, "strerror", None) or str(e)
+        if pl["mode"] == "copy":
+            shutil.rmtree(dest, ignore_errors=True)
+            raise ValueError(f"この PC に新しい置き場を覚えられませんでした（{why}）。写した置き場を消して元に戻しました（前の置き場のまま）。") from e
+        raise ValueError(f"この PC に新しい置き場を覚えられませんでした（{why}）。前の置き場のまま変えていません。") from e
     if old and old.is_dir() and not _same(old, dest):
         try:   # 前の置き場に引っ越し先の印（ほかの PC がたどる）
             write_json_atomic(old / MOVED_FILENAME, {"to": str(dest), "at": _iso(_now()), "by": dict(store.who)})
