@@ -190,7 +190,7 @@ fn equipment_groups_match_python() {
     eprintln!(
         "答えた歩 {steps}・任せた歩 {delegated}・データ元の設備を数えた答え {seen}・共有に無い数える材料を任せた場面 {placed_by_python}"
     );
-    assert!(steps >= 230 && delegated >= 70, "歩が少ない: {steps}・{delegated}"); // 版 3.102.0: 正規表現の歩は窓が答える
+    assert!(steps >= 252 && delegated >= 65, "歩が少ない: {steps}・{delegated}"); // 版 3.104.0: 本文の門と int() の部品で、任せていた歩を窓が答える
     assert!(placed_by_python >= 6, "共有にまだ無いマスタを任せる場面が空振り: {placed_by_python}");
     assert!(cm3_cases >= 2, "スケジュールの元の場面が空振り: {cm3_cases}");
     assert!(seen >= 40, "データ元の設備の列から数えた答えが少ない: {seen}");

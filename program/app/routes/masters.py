@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """現場のマスタ（設備・ロール）の読み書き・マスタの置き場の状態。アクセス権限マスタは access.py。"""
-from ..web import current_app, jsonify, request
+from ..web import current_app, jsonify
 
 from ..services import master_place
-from .common import base_rev, bp, master_call, master_repo
+from .common import base_rev, bp, master_call, master_repo, req_body
 
 # マスタごとの API（設備: 設備名が必須／ロール: 設備が必須）
 MASTER_APIS = {
@@ -18,7 +18,7 @@ def _blank(v):
 
 
 def _payload(required):
-    data = request.get_json(force=True) or {}
+    data = req_body()
     data.pop("base_rev", None)
     if required in data and _blank(data.get(required)):
         raise ValueError(f"{required}は必須です。")
@@ -64,7 +64,7 @@ for _kind, (_prefix, _required) in MASTER_APIS.items():
 @bp.post("/api/equipment/inspection")
 def equipment_inspection():
     """{names: [...]} → {inspection: {設備名: 検査計があるか}}。画面が発見設備を自動で選ぶ（実績のうち検査計がある最後の設備）ため。"""
-    names = [str(n) for n in ((request.get_json(force=True, silent=True) or {}).get("names") or [])][:100]
+    names = [str(n) for n in ((req_body()).get("names") or [])][:100]
     return master_call(lambda: {"inspection": master_repo().inspection_of(names)})
 
 

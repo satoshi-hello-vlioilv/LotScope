@@ -626,33 +626,9 @@ fn now() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
-/// Python の repr(str)（OSError の字の道。引用符の選び方・\\ と制御文字・印字できない字〈空白の仲間・書式の字・私用の字〉の逃がし）
+/// Python の repr(str)（OSError の字の道）。版 3.104.0 の作った後の採点から pyfmt::str_repr の 1 つ（Python の isprintable の表）
 pub fn py_repr(s: &str) -> String {
-    let quote = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
-    let mut out = String::from(quote);
-    for c in s.chars() {
-        let n = c as u32;
-        let hidden = n < 0x20
-            || (0x7f..=0xa0).contains(&n)
-            || matches!(n, 0xad | 0x1680 | 0x180e | 0x2000..=0x200f | 0x2028..=0x202f | 0x205f..=0x2064 | 0x2066..=0x206f | 0x3000 | 0xfeff)
-            || (0xe000..=0xf8ff).contains(&n)
-            || (0xfff9..=0xfffb).contains(&n);
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            _ if c == quote => {
-                out.push('\\');
-                out.push(c)
-            }
-            _ if hidden && n < 0x100 => out.push_str(&format!("\\x{n:02x}")),
-            _ if hidden => out.push_str(&format!("\\u{n:04x}")),
-            _ => out.push(c),
-        }
-    }
-    out.push(quote);
-    out
+    crate::pyfmt::str_repr(s)
 }
 
 /// OSError の str（[Errno n] 文: 'a' -> 'b'。道が無ければ [Errno n] 文。Windows は WinError）。code は OS の番号、msg は OS の文
@@ -923,23 +899,25 @@ fn run(inner: &Inner, record: Option<&Path>, src: &Path, dest: &Path) {
         // 写し終えてから名前を付ける（各 PC は写しかけを見ない）
         std::fs::rename(&tmp, dest).map_err(|e| os_error(&e, Some(&tmp), Some(dest)))
     })();
-    {
-        let mut p = inner.p.lock().unwrap();
-        match r {
-            Ok(()) => {
-                p.insert("state".into(), json!("done"));
-                p.insert("finished".into(), json!(now()));
-            }
-            Err(e) => {
-                let _ = std::fs::remove_dir_all(&tmp); // 届かない・権限・容量: 写しかけを片付けて理由を返す
-                p.insert("state".into(), json!("failed"));
-                p.insert("error".into(), json!(format!("写せませんでした: {e}")));
-            }
+    if r.is_err() {
+        let _ = std::fs::remove_dir_all(&tmp); // 届かない・権限・容量: 写しかけを片付けて理由を返す
+    }
+    // 印を片付けてから終わりを出す（版 3.104.0。前は done を出した後に印を消していて、done を見た直後の読み手〈Windows の CI〉が
+    // まだ残る印を見た）。done・failed は後片付けまで済んだ印
+    if let Some(rec) = record {
+        if !tmp.exists() {
+            record_remove(rec, &tmp); // 片付けられなかった写しかけは印に残す（次の機会に消す）
         }
     }
-    if let Some(r) = record {
-        if !tmp.exists() {
-            record_remove(r, &tmp); // 片付けられなかった写しかけは印に残す（次の機会に消す）
+    let mut p = inner.p.lock().unwrap();
+    match r {
+        Ok(()) => {
+            p.insert("state".into(), json!("done"));
+            p.insert("finished".into(), json!(now()));
+        }
+        Err(e) => {
+            p.insert("state".into(), json!("failed"));
+            p.insert("error".into(), json!(format!("写せませんでした: {e}")));
         }
     }
 }

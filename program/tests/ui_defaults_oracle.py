@@ -23,6 +23,8 @@ os.environ.pop("TPA_SHELL", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity, presence, ui_defaults  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 BOSS, PART, VIEW = ("boss", "PC-1"), ("p1", "PC-2"), ("v1", "PC-3")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -64,7 +66,7 @@ SCENARIOS = [
         S(BOSS, "PUT", {"keys": {}}),
         S(BOSS, "GET"),
     ], "delegates": [S(BOSS, "PUT", '{"keys": {}, "x": NaN}'), S(BOSS, "PUT", '{"keys": {"tpa.lotlist.layout.v1": "\\ud800"}}'),
-                     S(BOSS, "PUT", '{"keys": {}, "x": -0}'), S(BOSS, "PUT", "{")]},
+                     W(S(BOSS, "PUT", '{"keys": {}, "x": -0}')), S(BOSS, "PUT", "{")]},
     {"name": "開発者でない・切断中", "mode": "shared", "rows": OLD, "steps": [
         S(PART, "GET"), S(PART, "PUT", {"keys": {P: "1"}}), S(VIEW, "PUT", "[1]"),
     ], "delegates": []},
@@ -154,7 +156,7 @@ def main():
                                                                     encoding="utf-8")
             conf["place"]["presence"] = str(pdir)
             steps, dele = [], []
-            for st in sc["steps"] + [dict(x, delegate=True) for x in sc["delegates"]]:
+            for st in oracle_gate.seq(sc["steps"], sc.get("delegates", [])):
                 who.update(login=st["who"][0], pc=st["who"][1])
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 forget_tab_cache()

@@ -22,6 +22,8 @@ os.environ.pop("TPA_SHELL", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity, presence  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 BOSS, PART, VIEW, NOBODY = ("boss", "PC-1"), ("p1", "PC-2"), ("v1", "PC-3"), ("", "PC-4")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -130,7 +132,7 @@ SCENARIOS = [
         S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}, "note": 0.1}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}, "note": 12345678901234567890}),
         S(PART, "POST", body='{"name": "a", "scope": "me", "body": {"items": ["1"]}, "x": NaN}'),
-        S(PART, "POST", body='{"name": "a", "scope": "me", "body": {"items": ["1"]}, "x": -0}'),
+        W(S(PART, "POST", body='{"name": "a", "scope": "me", "body": {"items": ["1"]}, "x": -0}')),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": NaN}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": -0}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": 1e400}'}),
@@ -138,7 +140,7 @@ SCENARIOS = [
         S(PART, "POST", body={"name": "a", "scope": "me", "body": DEEP}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": OVER}),
         S(PART, "PUT", 4, "[1]"), S(PART, "PUT", 4, ""), S(PART, "DELETE", 4, '"x"'),
-        S(PART, "PUT", "４", {"name": "全角の id"}), S(PART, "DELETE", "١"),
+        W(S(PART, "PUT", "４", {"name": "全角の id"})), W(S(PART, "DELETE", "١")),
     ]},
     {"name": "★標準の付け替え（同じ組だけ・名前だけ直しても）", "mode": "shared",
      "rows": [R(1, "A", "dashset", "ID", login="p1", std="1"), R(2, "B", "dashset", "ID", login="p1", std="1", rev=4),
@@ -278,7 +280,7 @@ def main():
                                                                     encoding="utf-8")
             conf["place"]["presence"] = str(pdir)
             steps, dele = [], []
-            for st in sc["steps"] + [dict(x, delegate=True) for x in sc["delegates"]]:
+            for st in oracle_gate.seq(sc["steps"], sc.get("delegates", [])):
                 who.update(login=st["who"][0], pc=st["who"][1])
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 forget_tab_cache()

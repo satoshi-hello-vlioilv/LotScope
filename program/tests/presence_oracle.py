@@ -178,6 +178,19 @@ SCENARIOS = [
         F(at(57730, 30), "settings.json", {"historyDays": 99999}),
         R(at(57730, 30), BOSS, "POST", "/api/presence/prune"),
     ]},
+    # 版 3.104.0 の作った後の採点: 月の名前の年が datetime の外（i64 に入らない数・10000 年）。Python の _month_after は datetime で例外になる:
+    # 心拍の _prune_own は touch の糸を例外で終える（利用状況の履歴を書かない）・prune_all は 500（窓は答えず Python に任せる。delegate）
+    {"name": "月の名前の年が datetime の外（Python は例外）", "steps": [
+        F(at(0), "sessions/PC-9@u1/99999999999999999999-12.json", {"key": "PC-9@u1", "login": "u1", "pc": "PC-9", "sessions": []}),
+        B(at(10)),
+        R(at(20), BOSS, "GET", "/api/presence/sessions"),
+        dict(R(at(30), BOSS, "POST", "/api/presence/prune"), delegate=True),
+        F(at(40), "sessions/PC-9@u1/99999999999999999999-12.json", None),
+        F(at(40), "sessions/PC-9@u1/9999-12.json", {"key": "PC-9@u1", "login": "u1", "pc": "PC-9", "sessions": []}),
+        dict(R(at(50), BOSS, "POST", "/api/presence/prune"), delegate=True),
+        F(at(60), "sessions/PC-9@u1/9999-12.json", None),
+        R(at(70), BOSS, "POST", "/api/presence/prune"),
+    ]},
     {"name": "読めないファイル・鍵の正しくない記録・掃除", "steps": [
         F(at(0), "PC-3@x.json", "{bad"),
         F(at(0), "PC-4@y.json", online("PC-4@y", "y", "PC-4", "3.1.0", -1000)),
@@ -372,7 +385,13 @@ def main():
                     method, path = ("POST", "/api/heartbeat") if op == "beat" else (st["method"], st["path"])
                     url = path + (f"?{st['query']}" if st.get("query") else "")
                     ctype = "text/plain" if path == "/api/ui-state" else "application/json"
-                    r = client.open(url, method=method, data=(st.get("body") or "").encode("utf-8"), content_type=ctype)
+                    try:
+                        r = client.open(url, method=method, data=(st.get("body") or "").encode("utf-8"), content_type=ctype)
+                    except Exception as e:         # 道の外で落ちた（本番は 500）。窓は答えず Python に任せる歩（delegate）だけ
+                        assert st.get("delegate"), f"{sc['name']}: {method} {path} が落ちた: {e!r}"
+                        st = {**st, "status": 500, "json": None}
+                        steps.append(st)
+                        continue
                     try:
                         body = r.get_json()
                     except Exception:

@@ -21,7 +21,7 @@
 
 use crate::jsontree::Tree;
 use crate::layout_clean::{self as lc, Stop};
-use crate::master_rows::{self, base_rev, Rev};
+use crate::master_rows::{self, base_rev};
 use crate::master_store::Store;
 use crate::preset_rows::{self as pr, Answer, Who, DASHBOARDS};
 use crate::worksum::truthy;
@@ -54,10 +54,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -209,10 +207,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
-        let base = match base_rev(&parsed, query) {
-            Some(Rev::Unknown) => return None,
-            b => b,
-        };
+        let base = base_rev(&parsed, query);
         let Some(old) = find(id).filter(|r| is_dash(r)) else { return Some((200, json!({"ok": true}))) };
         if let Err(a) = who.gate(old, WHAT) {
             return Some(a);
@@ -265,10 +260,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             (row, None, None)
         }
         Route::Update(id) => {
-            let base = match base_rev(&parsed, query) {
-                Some(Rev::Unknown) => return None,
-                b => b,
-            };
+            let base = base_rev(&parsed, query);
             // routes/dashboard.dashboards_update: id の行が無いかダッシュボードでなければ「見つかりません」
             let Some(old) = find(id).filter(|r| is_dash(r)) else {
                 return Some(layout_error(format!("id={id} が見つかりません（ほかの PC が消した可能性があります）。")));

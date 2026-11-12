@@ -235,46 +235,10 @@ pub mod rules {
     pub const MAX_HTML_CHARS: usize = 5_000_000;
     pub const MAX_DEPTH: usize = 64;
 
-    fn depth_ok(text: &str) -> bool {
-        let (mut depth, mut in_str, mut esc) = (0i64, false, false);
-        for ch in text.chars() {
-            if in_str {
-                if esc {
-                    esc = false;
-                } else if ch == '\\' {
-                    esc = true;
-                } else if ch == '"' {
-                    in_str = false;
-                }
-            } else if ch == '"' {
-                in_str = true;
-            } else if ch == '[' || ch == '{' {
-                depth += 1;
-                if depth > MAX_DEPTH as i64 {
-                    return false;
-                }
-            } else if ch == ']' || ch == '}' {
-                depth -= 1;
-            }
-        }
-        true
-    }
-
-    /// 本文 → 表。空・null は空の表。読めなければ Err（400 invalid の字）
+    /// 本文（バイト）→ 表。書く道の門と 1 つの部品（版 3.104.0。src/body.rs の read。引数 LOTDSP: NaN を通す・64 段まで・
+    /// 対の無い代用字は U+FFFD・空は 0 バイトだけ。Python も services/body_rules.read_body の LOTDSP）
     pub fn read_body(raw: &[u8]) -> Result<J, String> {
-        if raw.is_empty() {
-            return Ok(J::obj());
-        }
-        let Ok(text) = std::str::from_utf8(raw) else { return Err("本文を UTF-8 として読めません。".into()) };
-        if !depth_ok(text) {
-            return Err("本文の入れ子が深すぎます。".into());
-        }
-        match crate::pyjson::loads(text) {
-            Err(_) => Err("本文を JSON として読めません。".into()),
-            Ok(J::Null) => Ok(J::obj()),
-            Ok(v @ J::Obj(_)) => Ok(v),
-            Ok(_) => Err("本文の形が違います（表で送ってください）。".into()),
-        }
+        crate::body::read(raw, &crate::body::Rules { max_depth: MAX_DEPTH, ..crate::body::LOTDSP }).map_err(str::to_string)
     }
 
     pub fn html_of(body: &J, key: &str) -> Result<String, String> {

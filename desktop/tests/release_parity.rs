@@ -100,7 +100,11 @@ fn answer(conf: &Value, st: &Value, root: &str, mover: &Mover) -> Option<(u16, V
     if st["hold"] == true {
         mover.hold(true);
     }
-    let r = handle(route, st["query"].as_str().unwrap_or(""), body.as_bytes(), &me, mover, &common::program());
+    // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
+    let r = match common::gate(method, path, body.as_bytes()) {
+        Err(a) => Some(a),
+        Ok(b) => handle(route, st["query"].as_str().unwrap_or(""), &b, &me, mover, &common::program()),
+    };
     if st["hold"] == true {
         mover.hold(false);
     }
@@ -258,7 +262,9 @@ fn release_place_matches_python() {
     eprintln!(
         "歩 {steps}・写し終えるまで見た歩 {copied}・Python に任せた歩 {delegated}・権限の答え（Permission denied）を比べた歩 {denied}"
     );
-    assert!(steps >= 70 && delegated >= 10 && copied >= 2, "歩が少ない: {steps}・{delegated}・{copied}");
+    // 任せた歩には下限を置かない（版 3.104.0。段 ① から 0 へ減らしていく数で、Windows では 9 になり落ちた）。任せるはずの歩を窓が
+    // 答えないことは上の歩ごとに、任せる歩の上限は予算（common::check_budget）が見る
+    assert!(steps >= 70 && copied >= 2, "歩が少ない: {steps}・{copied}");
     if cfg!(unix) && oracle["root"] == false {
         assert!(denied >= 3, "root でないのに権限の答え（Permission denied）を比べた歩が少ない: {denied}");
     }

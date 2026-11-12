@@ -14,7 +14,7 @@
 //! 読みの割れる数）・表でない本文（Python は body.get で落ちる）・値が並び・表（Python の str() の書き方が要る）・版の番号に 10 進でない数の字・
 //! 置き場の行の id・版・項目・値を窓が Python と同じに読めない・道に百分率符号（Python は戻してから項目を探す）・書く係の思いがけない失敗。
 
-use crate::master_rows::{base_rev, put_by_key, Rev, Spec};
+use crate::master_rows::{base_rev, put_by_key, Spec};
 use crate::master_store::{MasterError, Store};
 use crate::pyfmt;
 use crate::worksum::py_str;
@@ -159,7 +159,7 @@ pub fn put(store: &Store, key: &str, query: &str, body: &[u8], rows: &[Value]) -
         Err(Bad::Python) => return None,
     };
     let base = base_rev(&parsed, query);
-    if base == Some(Rev::Unknown) || !readable(rows) {
+    if !readable(rows) {
         return None;
     }
     match put_by_key(store, &SPEC, "項目", key, value.as_deref(), "値", base) {

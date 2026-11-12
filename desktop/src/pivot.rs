@@ -847,12 +847,8 @@ impl Period {
 /// Python の int(v or 7)（読めなければ 7）
 fn py_int_or(v: Option<&Value>, d: i64) -> i64 {
     match v {
-        Some(x) if json_truthy(x) => match x {
-            Value::Bool(b) => *b as i64,
-            Value::Number(k) => k.as_i64().unwrap_or_else(|| k.as_f64().map(|f| f.trunc() as i64).unwrap_or(d)),
-            Value::String(t) => pyfmt::py_int(t).unwrap_or(d),
-            _ => d,
-        },
+        // 版 3.104.0 から pyfmt::py_int_of の 1 つ（i64 に入らない数は端へ。前と同じ）
+        Some(x) if json_truthy(x) => pyfmt::py_int_of(x.into()).map_or(d, |n| n.saturating()),
         _ => d,
     }
 }

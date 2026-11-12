@@ -33,7 +33,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"          # Windows の機械には 3.13.18 がまだ無い（3.13.17 まで）。焼いた html.parser の表はこの job で流さず、LotDsp は窓が読むので修正版を決めない
-      - uses: dtolnay/rust-toolchain@stable
+      # 手元・ci.yml と同じ版（版 3.104.0。stable のままだと Rust 1.100.0 で std の Unicode の大文字の表が新しくなり、
+      # Python 3.13 と比べる name_key_cases が落ちた）。上げるときは手元・ci.yml と一緒に上げ、key-split-table.py で表を焼き直す
+      - uses: dtolnay/rust-toolchain@1.97.0
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: desktop

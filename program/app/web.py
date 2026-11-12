@@ -177,6 +177,9 @@ class Request:
         self.args = Args(self.query_string)
         self.headers = headers if isinstance(headers, Headers) else Headers(headers or {})
         self.data = body or b""
+        # 本文の門（routes/common.body_gate。版 3.104.0）が読んだ本文。門を当てた道では get_json はこれを返す（読み方は門の 1 つ）
+        self.gated = False
+        self.gated_body = None
         self.csp_nonce = secrets.token_urlsafe(16)     # 画面（HTML）の中の <script> に付ける印（版 3.52.1。CSP）
 
     def get_data(self, as_text=False):
@@ -192,7 +195,10 @@ class Request:
         return m == "application/json" or (m.startswith("application/") and m.endswith("+json"))
 
     def get_json(self, force=False, silent=False):
-        """本文の JSON。JSON でない（force でない）・読めないときは、silent なら None、でなければ 415／400（Flask と同じ）。"""
+        """本文の JSON。JSON でない（force でない）・読めないときは、silent なら None、でなければ 415／400（Flask と同じ）。
+        本文の門を当てた道（版 3.104.0）は、門が読んだ値（空は None）を返す（読めない本文は門が先に断っている）"""
+        if self.gated:
+            return self.gated_body
         if not (force or self.is_json):
             if silent:
                 return None
@@ -522,6 +528,13 @@ class App:
             del r.headers["Content-Type"]
             return r
         return Response(p.read_bytes(), 200, headers, mimetype=mt)
+
+    def rule_for(self, method: str, path: str):
+        """この問い合わせに当たる道（dispatch と同じ順で、道の形と方法の両方が合う最初の道。無ければ None）"""
+        for rule in self.rules:
+            if method in rule.methods and rule.match(path) is not None:
+                return rule
+        return None
 
     def dispatch(self, req: Request) -> Response:
         for fn in self.before:

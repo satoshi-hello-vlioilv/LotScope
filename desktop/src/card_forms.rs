@@ -11,11 +11,11 @@
 //! （評価関数: tests/cards_parity.rs ← program/tests/cards_oracle.py）。置き場はマスタ dashboards の行のうち元が「card:」で始まる行。
 //!
 //! 窓が答えず Python に任せる形（card_plain）: 項目の名前・列・式・字・日付の列・タブの名前が並び・表（Python は repr の字で置く）・
-//! 項目のタブが並び・表（Python は TypeError）・方眼の数の字に ASCII でない字（全角の数字・ASCII でない空白・制御字。Python の int() の
-//! 読みと窓の読みが割れうる）や 4,000 字を超える字（Python は桁の上限で既定の値）・中身の字を窓が Python と同じに読めない（text_split）。
-//! ほかはセットと同じ（preset_rows::plain_input・rows_plain・Place::split_file・share_absent・ASCII でない id）。
+//! 項目のタブが並び・表（Python は TypeError）・中身の字を窓が Python と同じに読めない（text_split）。
+//! ほかはセットと同じ（preset_rows::plain_input・rows_plain・Place::split_file・share_absent）。方眼の数の字（全角の数字・ASCII でない空白・
+//! 4,300 桁を超える字）と道の全角の id は、版 3.104.0 から窓が Python の int() と同じに読む（pyfmt::py_int_of・path_int）。
 
-use crate::master_rows::{self, base_rev, Rev};
+use crate::master_rows::{self, base_rev};
 use crate::master_store::Store;
 use crate::preset_rows::{self as pr, Answer, Who, DASHBOARDS};
 use crate::worksum::{py_str, truthy};
@@ -55,10 +55,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -87,42 +85,12 @@ fn card_error(msg: impl Into<String>) -> Answer {
     (400, json!({"error": msg.into(), "kind": "error", "type": "CardFormError"}))
 }
 
-/// Python の int(v) を範囲に収める（card_forms._int。読めなければ既定の値。card_plain を通った値だけを渡す）
+/// Python の int(v) を範囲に収める（card_forms._int: int() の TypeError・ValueError は既定の値。版 3.104.0 から pyfmt::py_int_of の 1 つ。
+/// 前は ASCII の字だけを読み、全角の数字・ASCII でない空白・4,000 字を超える字は Python に任せていた）
 fn int_of(v: Option<&Value>, lo: i64, hi: i64, default: i64) -> i64 {
-    let n: Option<i128> = match v {
-        Some(Value::Bool(b)) => Some(*b as i128),
-        Some(Value::Number(n)) => {
-            n.as_i64().map(i128::from).or_else(|| n.as_f64().filter(|f| f.is_finite()).map(|f| f.trunc().clamp(-1e30, 1e30) as i128))
-        }
-        Some(Value::String(s)) => {
-            let t = s.trim_matches(|c: char| c == ' ' || ('\t'..='\r').contains(&c));
-            let (neg, body) = match t.as_bytes().first() {
-                Some(b'-') => (true, &t[1..]),
-                Some(b'+') => (false, &t[1..]),
-                _ => (false, t),
-            };
-            let ok = !body.is_empty()
-                && !body.starts_with('_')
-                && !body.ends_with('_')
-                && !body.contains("__")
-                && body.bytes().all(|b| b.is_ascii_digit() || b == b'_');
-            ok.then(|| {
-                let digits: String = body.chars().filter(|c| *c != '_').collect();
-                // 先頭の 0 は桁に数えない（Python の int("0"×30+"7") は 7。版 3.80.0 の作った後の採点で見つかった）
-                let digits = digits.trim_start_matches('0');
-                let v: i128 = if digits.len() > 30 { i128::MAX / 2 } else { digits.parse().unwrap_or(0) };
-                if neg {
-                    -v
-                } else {
-                    v
-                }
-            })
-        }
-        _ => None,
-    };
-    match n {
-        Some(n) => n.clamp(lo as i128, hi as i128) as i64,
-        None => default,
+    match v.map(|x| crate::pyfmt::py_int_of(x.into())) {
+        Some(Ok(n)) => n.saturating().clamp(lo, hi),
+        _ => default,
     }
 }
 
@@ -147,17 +115,6 @@ fn id_ok(t: &str) -> bool {
 }
 
 /// 方眼の数の字を窓が Python の int() と同じに読めるか（ASCII の数字・符号・下線・ASCII の空白だけ・4,000 字まで）
-fn int_plain(v: Option<&Value>) -> bool {
-    match v {
-        Some(Value::String(s)) => {
-            s.len() <= 4000
-                && s.bytes().all(|b| b.is_ascii_digit() || b"+-_ \t\n\r\x0b\x0c".contains(&b) || b.is_ascii_alphabetic() || b == b'.')
-        }
-        Some(Value::Array(_) | Value::Object(_)) => true, // int([]) は TypeError で既定の値（窓も既定）
-        _ => true,
-    }
-}
-
 fn scalar(v: Option<&Value>) -> bool {
     !matches!(v, Some(Value::Array(_) | Value::Object(_)))
 }
@@ -165,16 +122,11 @@ fn scalar(v: Option<&Value>) -> bool {
 /// 中身（表）を窓が Python と同じに扱えるか（上の「任せる形」）
 fn card_plain(body: &Value) -> bool {
     let Some(b) = body.as_object() else { return true };
-    let ints = |o: &Map<String, Value>, ks: &[&str]| ks.iter().all(|k| int_plain(o.get(*k)));
-    if !ints(b, &["cols", "row"]) || !b.get("theme").and_then(Value::as_object).is_none_or(|t| int_plain(t.get("radius"))) {
-        return false;
-    }
     let tabs_ok =
         b.get("tabs").and_then(Value::as_array).is_none_or(|ts| ts.iter().filter_map(Value::as_object).all(|t| scalar(t.get("name"))));
     let items_ok = b.get("items").and_then(Value::as_array).is_none_or(|is| {
         is.iter().filter_map(Value::as_object).all(|it| {
-            ints(it, &["w", "x", "h", "y"])
-                && ["label", "col", "expr", "text", "tab"].iter().all(|k| scalar(it.get(*k)))
+            ["label", "col", "expr", "text", "tab"].iter().all(|k| scalar(it.get(*k)))
                 && it.get("cols").and_then(Value::as_array).is_none_or(|cs| cs.iter().all(|c| scalar(Some(c))))
         })
     });
@@ -402,10 +354,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
-        let base = match base_rev(&parsed, query) {
-            Some(Rev::Unknown) => return None,
-            b => b,
-        };
+        let base = base_rev(&parsed, query);
         let Some(old) = find(id).filter(|r| is_card(r)) else { return Some((200, json!({"ok": true}))) };
         if let Err(a) = who.gate(old, WHAT) {
             return Some(a);
@@ -437,10 +386,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             (row, None, None)
         }
         Route::Update(id) => {
-            let base = match base_rev(&parsed, query) {
-                Some(Rev::Unknown) => return None,
-                b => b,
-            };
+            let base = base_rev(&parsed, query);
             let Some(old) = find(id).filter(|r| is_card(r)) else {
                 return Some(card_error(format!("カードの設計 id={id} が見つかりません（ほかの PC が消した可能性があります）。")));
             };

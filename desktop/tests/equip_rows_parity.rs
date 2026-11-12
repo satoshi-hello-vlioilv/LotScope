@@ -54,6 +54,15 @@ fn store_of(conf: &Value, who: &Value) -> Store {
 /// 窓の道: 門番を通してから受ける（Lot と同じ順）。None は窓が答えない（Python に任せる）
 fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let mut c = conf.clone();
+    // 書く道の本文の門（版 3.104.0）: 本物の道（Lot::handle_body）と同じく、門番・部品より先
+    let gated = match common::gate(
+        step["method"].as_str().unwrap(),
+        step["path"].as_str().unwrap(),
+        step["body"].as_str().unwrap_or("").as_bytes(),
+    ) {
+        Ok(b) => b,
+        Err(a) => return Some(a),
+    };
     c["who"]["login"] = step["who"][0].clone();
     c["who"]["pc"] = step["who"][1].clone();
     let me = access::me(&c, None).expect("me");
@@ -62,9 +71,8 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
         return Some((status, json!({"error": msg, "kind": kind})));
     }
     let route = route_of(method, path).expect("窓が受ける道");
-    let body = step["body"].as_str().unwrap_or("");
     let rows = access::Place::from_json(&c["place"]).rows(route.kind().name()).unwrap();
-    handle(store, route, step["query"].as_str().unwrap_or(""), body.as_bytes(), &rows)
+    handle(store, route, step["query"].as_str().unwrap_or(""), &gated, &rows)
 }
 
 /// 置き場のマスタのファイル（共有・同梱の data/・写し。錠と書きかけの残りは無いこと）
@@ -144,7 +152,7 @@ fn equipment_and_roll_masters_match_python() {
             }
         }
     }
-    assert!(steps >= 70 && delegated >= 35, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 96 && delegated >= 33, "歩が少ない: {steps}・{delegated}"); // 版 3.104.0: 本文の門と int() の部品で、任せていた歩を窓が答える
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

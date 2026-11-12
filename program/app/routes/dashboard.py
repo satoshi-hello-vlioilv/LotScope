@@ -15,7 +15,7 @@ from ..web import current_app, jsonify, request
 from .. import effective_settings
 from ..services import aggregate, builder, card_forms, dash_progress, dashboard, data_sources, db_mirror, equip_groups, formula, operation, pivot, shifts, work_log
 from ..services.identity import normalize_part
-from .common import base_rev, bp, error, find_row, master_call, master_repo
+from .common import base_rev, bp, error, find_row, master_call, master_repo, req_body
 from .lotlist import lotlist_plan
 from .presets import _gate, _who
 from .sources import src_plan
@@ -106,7 +106,7 @@ def dashboards_hidden():
     """組み込みのダッシュボードを外す・戻す（版 3.48.0）。{scope: default（開発者。全員の一覧から）| me（自分の一覧から）, keys: [外す組み込みの鍵]}。
     keys が空なら、その置き場の「外した組み込み」の行を消す（全部戻す）"""
     login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
-    d = request.get_json(force=True) or {}
+    d = req_body()
 
     def go():
         scope = d.get("scope") if d.get("scope") in ("default", "me") else ""
@@ -140,7 +140,7 @@ def dashboards_create():
     login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
 
     def go():
-        row = dashboard.with_builtin_replace(dashboard.clean_layout_row(request.get_json(force=True) or {}, login))
+        row = dashboard.with_builtin_replace(dashboard.clean_layout_row(req_body(), login))
         _gate(row, login, common_ok, default_ok, revoked, "ダッシュボード")
         return dashboard.layout_view(master_repo().dashboard_create(row), login, common_ok, default_ok)
     return master_call(go, 201)
@@ -157,7 +157,7 @@ def dashboards_update(item_id):
         if old is None or old.get("元") != dashboard.LAYOUT_SOURCE:       # セット（元 dashset）はセットの道で直す
             raise dashboard.LayoutError(f"id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
         _gate(old, login, common_ok, default_ok, revoked, "ダッシュボード")
-        data = dashboard.with_builtin_replace(dashboard.clean_layout_row(request.get_json(force=True) or {}, login, partial=True), old)
+        data = dashboard.with_builtin_replace(dashboard.clean_layout_row(req_body(), login, partial=True), old)
         row = master_repo().dashboard_update(item_id, data, base)
         return dashboard.layout_view(row, login, common_ok, default_ok)
     return master_call(go)
@@ -206,7 +206,7 @@ def dashboard_sets_create():
     login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
 
     def go():
-        row = dashboard.clean_set_row(request.get_json(force=True) or {}, login)
+        row = dashboard.clean_set_row(req_body(), login)
         _gate(row, login, common_ok, default_ok, revoked, "ダッシュボードのセット")
         return dashboard.set_view(master_repo().dashboard_create(row), login, common_ok, default_ok)
     return master_call(go, 201)
@@ -220,7 +220,7 @@ def dashboard_sets_update(item_id):
 
     def go():
         _gate(_old_set(item_id), login, common_ok, default_ok, revoked, "ダッシュボードのセット")
-        row = master_repo().dashboard_update(item_id, dashboard.clean_set_row(request.get_json(force=True) or {}, login, partial=True), base)
+        row = master_repo().dashboard_update(item_id, dashboard.clean_set_row(req_body(), login, partial=True), base)
         return dashboard.set_view(row, login, common_ok, default_ok)
     return master_call(go)
 
@@ -273,7 +273,7 @@ def card_forms_create():
     login, common_ok, default_ok, revoked = _who(dashboard.LAYOUT_NAME)
 
     def go():
-        row = card_forms.clean_row(request.get_json(force=True) or {}, login)
+        row = card_forms.clean_row(req_body(), login)
         _gate(row, login, common_ok, default_ok, revoked, "カードの設計")
         return card_forms.view(master_repo().dashboard_create(row), login, common_ok, default_ok)
     return master_call(go, 201)
@@ -287,7 +287,7 @@ def card_forms_update(item_id):
 
     def go():
         _gate(_old_card(item_id), login, common_ok, default_ok, revoked, "カードの設計")
-        row = master_repo().dashboard_update(item_id, card_forms.clean_row(request.get_json(force=True) or {}, login, partial=True), base)
+        row = master_repo().dashboard_update(item_id, card_forms.clean_row(req_body(), login, partial=True), base)
         return card_forms.view(row, login, common_ok, default_ok)
     return master_call(go)
 
@@ -845,7 +845,7 @@ def dashboard_progress():
 
 
 def _dashboard_query():
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
     try:
         p = dashboard.clean_panel(body.get("panel") or {}, 0, dashboard.ROWS_MAX)
     except dashboard.LayoutError as e:
@@ -887,7 +887,7 @@ def dashboard_fields():
 
 
 def _dashboard_fields():
-    a = (request.get_json(force=True, silent=True) or {}) if request.method == "POST" else request.args
+    a = (req_body()) if request.method == "POST" else request.args
     calc = dashboard.clean_calc(a.get("calc")) if request.method == "POST" else None
     try:
         parts, failed, name, _ = panel_parts(a.get("source", ""), a.get("equip", ""), equips=a.get("equips") if isinstance(a.get("equips"), list) else None)

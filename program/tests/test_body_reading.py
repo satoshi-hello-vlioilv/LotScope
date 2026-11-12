@@ -50,10 +50,11 @@ class BodyReading(unittest.TestCase):
         self.assertEqual(r.status_code, 409, "text/plain でも版を確かめる")
 
     def test_non_object_body_does_not_delete(self):
-        self.c = create_app({"MASTER_STORE": self.store}).test_client()   # 本番と同じく、道の外の例外は 500 で答える
+        self.c = create_app({"MASTER_STORE": self.store}).test_client()
         for ctype in ("text/plain", "application/json"):
             r = self.send("DELETE", "/api/masters/rolls/1?rev=1", "[1]", ctype)
-            self.assertEqual(r.status_code, 500, ctype)
+            # 版 3.104.0 から本文の門が断る（前は base_rev の TypeError で 500）
+            self.assertEqual((r.status_code, r.get_json()), (400, {"error": "本文の形が違います（表で送ってください）。", "kind": "body"}), ctype)
         self.assertEqual([x["id"] for x in self.repo.rolls()], [1], "表でない本文では消さない")
 
 

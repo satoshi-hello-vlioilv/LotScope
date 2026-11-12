@@ -286,18 +286,28 @@ struct P<'a> {
     s: &'a [u8],
     i: usize,
     depth: usize,
+    /// 対の無い代用字（\ud800 など）を U+FFFD に替えたか（本文の門が断る。src/body.rs）
+    lone: bool,
 }
+
+/// int() の桁の上限（Python の sys.get_int_max_str_digits() の既定。json.loads は 4,300 桁を超える整数で ValueError）
+pub const INT_MAX_DIGITS: usize = 4300;
 
 /// json.loads(text)。読めなければ Err（Python は ValueError）
 pub fn loads(text: &str) -> Result<J, String> {
-    let mut p = P { s: text.as_bytes(), i: 0, depth: 0 };
+    loads_flagged(text).map(|(v, _)| v)
+}
+
+/// json.loads(text) と、対の無い代用字があったか（窓の字は片割れを持てないので U+FFFD に替えて読む。版 3.104.0）
+pub fn loads_flagged(text: &str) -> Result<(J, bool), String> {
+    let mut p = P { s: text.as_bytes(), i: 0, depth: 0, lone: false };
     p.ws();
     let v = p.value()?;
     p.ws();
     if p.i != p.s.len() {
         return Err("Extra data".into());
     }
-    Ok(v)
+    Ok((v, p.lone))
 }
 
 impl P<'_> {
@@ -377,6 +387,10 @@ impl P<'_> {
         if float {
             return Ok(J::Float(t.parse::<f64>().unwrap_or(if t.starts_with('-') { f64::NEG_INFINITY } else { f64::INFINITY })));
         }
+        // 整数の -0 は int の 0。4,300 桁を超える整数は int() が断る（Python の json.loads も ValueError。版 3.104.0）
+        if t.trim_start_matches('-').len() > INT_MAX_DIGITS {
+            return Err(format!("Exceeds the limit ({INT_MAX_DIGITS} digits) for integer string conversion"));
+        }
         Ok(match t.parse::<i64>() {
             Ok(i) => J::Int(i),
             Err(_) => J::Big(t.to_string()),
@@ -423,6 +437,9 @@ impl P<'_> {
                                     continue;
                                 }
                                 self.i = save;
+                            }
+                            if (0xD800..0xE000).contains(&hi) {
+                                self.lone = true;
                             }
                             out.push(char::from_u32(hi).unwrap_or('\u{FFFD}'));
                         }

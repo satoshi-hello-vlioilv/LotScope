@@ -72,7 +72,11 @@ fn folder_browse_matches_python() {
         let me = || Gate::default().me(&c);
         let paths = || Some(app_paths.clone());
         let body = st["body"].as_str().unwrap_or("").replace("@ROOT", &esc[1..esc.len() - 1]);
-        let r = handle(route, st["query"].as_str().unwrap_or(""), body.as_bytes(), &me, &paths);
+        // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
+        let r = match common::gate(st["method"].as_str().unwrap(), st["path"].as_str().unwrap(), body.as_bytes()) {
+            Err(a) => Some(a),
+            Ok(b) => handle(route, st["query"].as_str().unwrap_or(""), &b, &me, &paths),
+        };
         if st["revoke"] == true {
             let _ = std::fs::remove_file(&revoke);
         }

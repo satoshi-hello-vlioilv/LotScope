@@ -1665,6 +1665,37 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
 - **分からない**（確かめていない）: 本物の SMB で書きかけのファイルがどのくらい起きるか・現場の設備グループに正規表現の決まりがあるか（あれば (?x) なども
   当てなくなる）・現場で任せる形が何回起きているか（この版から数える）。
 
+### 段 ① の 1 歩目: 書く道の本文の門（A）と int() の部品（B）— 版 3.104.0（任せる歩 507 → 371）
+
+案出しと採点は `tools/ui-proposals/2026-11-delegates.md`・`.json`（決まり 2026-11-06・8 案を別のエージェントが 1 回採点。1 位の組み A＋B＋F＋G は
+78.7 点で 80 点に届かないので、採点の割れを入れた形で作る。作る順は A → B → G → F。この版は A と B。G と F は 3.105.0）。
+
+- A 本文の門（Python `services/body_rules.py`・`routes/common.body_gate`、窓 `desktop/src/body.rs`・`Lot::handle_body` のいちばん前）:
+  本文を読む部品を 1 つにし、違いは引数（GATE_READ・GATE_NEED・LOTDSP）で分ける。見る順は 空 → UTF-8 → 入れ子（127 段まで）→ JSON
+  （pyjson::loads。4,300 桁を超える整数は断る）→ NaN・Infinity・1e400（読んだ後に有限かを見る。parse_constant では 1e400 を捕まえられない）→
+  対の無い代用字（書く道では断る。LotDsp の読む道は U+FFFD に替えるまま）→ 表でない真の本文。断る言葉は日本語の {error, kind: "body"}（400）。
+  空の本文は、前に get_json(force=True) だった道（need）では断り（前は英語の 400）、silent だった道（read）は今までどおり {}。PUT {} は今の答えのまま
+  （版を確かめずに書く。cards_oracle の PUT /api/card-forms/4 '{}' の歩で突き合わせる）。門は前の係（門番）の列のいちばん前（Python は app.before の頭・
+  窓は Lot::handle_body の頭）。道ごとの門の決まりは `ROUTES`（need 27・read 40）と `SKIP`（LotDsp の 9 本・ダッシュボードの問い合わせ・本文を読まない道 13）で、
+  窓は Python の道の並びのまま焼いた `desktop/src/body_routes.json`（全角の数字の id・百分率符号の道も Python と同じに当てる）。通った本文の整数の -0 は
+  0 に書き直して部品へ渡す（i64 に入らない整数は書き直さず、部品が今までどおり任せる）。routes の本文の読みは `req_body()` の 1 つ（前は get_json の silent の
+  有無が道ごとに違った）。LotDsp の read_body も同じ部品（引数 LOTDSP）。
+- B int() の部品（`pyfmt::py_int`・`py_int_of`・`path_int`・`PyInt`）: 窓の 14 の写し（master_rows の py_rev・py_int・py_int_text、card_forms・layout_clean の
+  int_of、bundle の wide_int、calc、cm3 の py_int_digits、worksum、pivot の py_int_or）を 1 つにした。int()・float() の前後の空白から U+001C〜U+001F を外した
+  （str.strip と \s は今のまま）。i64 に入らない数は端へ丸めず `PyInt::Big`（丸めるのは呼ぶ側が saturating で決めた所だけ）。読めない字の誤りは repr の先頭 200 字
+  （CPython の %.200R）。道の id は Python の \d＋int()（全角・アラビア文字の数字も）。「²」のような版の字は Python と同じく「確かめない」（前は Unknown で任せた）。
+  版の読めない行（55 歩）は B で写さず E へ回す（決め）。
+- 減った歩（delegate-count.py。507 → 371、−136）: 本文の表でない 39・読めない JSON と空 37・NaN 等 21・-0 11・道の全角の id 10・版の字 10・数の欄の字 6・置き場の行の中身の全角の数 2。
+  残る本文の形は、中身を字で送る欄（"body": "{…}"）の中の NaN・-0・入れ子（15。門は外側だけ見る）と、字の欄の並び・小数（G・D）。
+- 直した割れ（作る前の採点の指摘）: 1e400 は読んだ後に isfinite で断る・空を一律に {} にしない・深さは 128 段から断る・門は J で読み Big は任せる・LotDsp との違いは
+  引数・routes の読み口を 1 つ・int() の空白の表・i64 へ丸めない・版の行は E・道の id・14 の写しを 1 つ・分け方の取り違え 5 つ（delegate-count.py: 変換表の式の入れ子・
+  id の型・配った設定の古さ・keys の strip・-0 は門）。
+- 評価関数: `body_cases`（Python `test_body_cases.py`）・`test_body_routes.py`・`body::tests`・本文の門を当てた道の *_parity（`tests/oracle_gate.py`）・`pynum_cases`。
+- 作った後の採点（別のエージェント・1 回・72.0 点。`2026-11-delegates.json` の built）の割れを直した（採点し直さない。直した形は built_fixed）:
+  `<path:…>` の 2 字目から先の改行に当てない・`str_repr` を Python の isprintable の表（焼いた `desktop/src/printable_table.rs`）で逃がす（layout_clean・cm3・
+  release_place の写しも 1 つに）・使用の履歴の月の年が datetime の外（Python は例外。prune は任せる）・写しの世代の番号と並び・表示順は `PyInt` の 1 足しと比べ方
+  （i64・i128 の端で丸めない）・一覧の頁が i64 を超えると Python と同じ 503・unquote は 16 進の 2 字だけ。どれも事例の表か突き合わせの場面に足し、直す前の src で落ちることを見た。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

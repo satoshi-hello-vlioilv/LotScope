@@ -146,6 +146,21 @@ impl Tree {
     }
 }
 
+/// int() に渡す値（pyfmt::py_int_of。版 3.104.0）
+impl<'a> From<&'a Tree> for crate::pyfmt::IntArg<'a> {
+    fn from(t: &'a Tree) -> crate::pyfmt::IntArg<'a> {
+        use crate::pyfmt::IntArg;
+        match t {
+            Tree::Null => IntArg::None,
+            Tree::Bool(b) => IntArg::Bool(*b),
+            Tree::Num(n) => IntArg::Num(n),
+            Tree::Str(s) => IntArg::Str(s),
+            Tree::Arr(_) => IntArg::Other("list"),
+            Tree::Obj(_) => IntArg::Other("dict"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Tree;

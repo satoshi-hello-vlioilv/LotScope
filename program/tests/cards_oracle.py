@@ -22,6 +22,8 @@ os.environ.pop("TPA_SHELL", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity, presence  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 BOSS, PART, VIEW, NOBODY = ("boss", "PC-1"), ("p1", "PC-2"), ("v1", "PC-3"), ("", "PC-4")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -140,13 +142,13 @@ SCENARIOS = [
         S(PART, "POST", body=P("a", B({"kind": "combo", "expr": [1]}))), S(PART, "POST", body=P("a", B({"kind": "text", "text": {"a": 1}}))),
         S(PART, "POST", body=P("a", B({"kind": "dates", "cols": [["x"]]}))), S(PART, "POST", body=P("a", B(F("a", tab=["t1"]), tabs=[{"id": "t1"}]))),
         S(PART, "POST", body=P("a", B(F("a"), tabs=[{"id": "t1", "name": ["x"]}]))),
-        S(PART, "POST", body=P("a", B(F("a", w="４")))), S(PART, "POST", body=P("a", B(F("a", w="4\x1c")))),
-        S(PART, "POST", body=P("a", B(F("a", w="　4")))), S(PART, "POST", body=P("a", B(F("a", w="1" * 4400)))),
-        S(PART, "POST", body=P("a", B(F("a"), cols="１２"))),
+        W(S(PART, "POST", body=P("a", B(F("a", w="４"))))), W(S(PART, "POST", body=P("a", B(F("a", w="4\x1c"))))),
+        W(S(PART, "POST", body=P("a", B(F("a", w="　4"))))), W(S(PART, "POST", body=P("a", B(F("a", w="1" * 4400))))),
+        W(S(PART, "POST", body=P("a", B(F("a"), cols="１２")))),
         S(PART, "POST", body='{"name": "a", "scope": "me", "source": "card:lotlist:品質", "body": {"items": []}, "x": NaN}'),
         S(PART, "POST", body=P("a", '{"items": [{"col": "a", "w": NaN}]}')), S(PART, "POST", body=P("a", '{"items": [{"col": "a", "w": -0}]}')),
         S(PART, "PUT", 3, "[1]"), S(PART, "PUT", 3, ""), S(PART, "DELETE", 3, '"x"'),
-        S(PART, "PUT", "４", {"name": "全角の id"}), S(PART, "DELETE", "١"),
+        W(S(PART, "PUT", "４", {"name": "全角の id"})), W(S(PART, "DELETE", "١")),
     ]},
     {"name": "★標準の付け替え（同じ組だけ）", "mode": "shared",
      "rows": [R(1, "A", SRC, "ID", login="p1", std="1", body=GOOD), R(2, "B", SRC, "ID", login="p1", std="1", rev=4, body=GOOD),
@@ -166,7 +168,8 @@ SCENARIOS = [
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "lock": True,
      "steps": [S(PART, "POST", body=P("錠", B(F("a")))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), S(PART, "GET")], "delegates": []},
     *[{"name": f"置き場のカードの行の中身が {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", SRC, "共通", body=GOOD), bad],
-       "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body=P("a", B(F("a"))))]}
+       # 版 3.104.0: 方眼の数の全角の数字は窓も Python の int() と同じに読む（pyfmt::py_int_of）ので、その場面の歩は窓が答える
+       "steps": [], "delegates": [(W if what == "全角の数" else dict)(x) for x in (S(PART, "GET"), S(PART, "POST", body=P("a", B(F("a")))))]}
       for what, bad in [("並びの名前", R(2, "x", SRC, "共通", body=j(B(F("a", label=["x"]))))),
                         ("全角の数", R(2, "x", SRC, "共通", body=j(B(F("a", w="３"))))),
                         ("NaN", R(2, "x", SRC, "共通", body='{"items": [{"col": "a", "w": NaN}]}')),
@@ -251,7 +254,7 @@ def main():
                                                                     encoding="utf-8")
             conf["place"]["presence"] = str(pdir)
             steps, dele = [], []
-            for st in sc["steps"] + [dict(x, delegate=True) for x in sc["delegates"]]:
+            for st in oracle_gate.seq(sc["steps"], sc.get("delegates", [])):
                 who.update(login=st["who"][0], pc=st["who"][1])
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 forget_tab_cache()

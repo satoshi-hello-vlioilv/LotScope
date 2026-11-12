@@ -27,6 +27,8 @@ from app import create_app  # noqa: E402
 from app.repositories.master_repository import MasterRepository  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 LOGIN = identity.current_login_id()
 BUNDLED = json.loads((PROGRAM / "app" / "master_defaults" / "conversions.json").read_text(encoding="utf-8"))
@@ -197,8 +199,8 @@ SCENARIOS = [
         S("GET", C),
     ], "delegates": [
         S("PUT", f"{C}/1", "[1]"), S("PUT", f"{C}/1", ""), S("PUT", f"{C}/1", "壊れた本文"),
-        S("PUT", f"{C}/1", {"name": "x", "base_rev": "²"}), S("PUT", f"{C}/99999999999999999999", {"name": "x"}),
-        S("PUT", f"{C}/1", {"name": {"a": 1}}), S("PUT", f"{C}/1", '{"name": "x", "base_rev": -0}'),
+        W(S("PUT", f"{C}/1", {"name": "x", "base_rev": "²"})), S("PUT", f"{C}/99999999999999999999", {"name": "x"}),
+        S("PUT", f"{C}/1", {"name": {"a": 1}}), W(S("PUT", f"{C}/1", '{"name": "x", "base_rev": -0}')),
     ]},
     {"name": "標準に戻す", "mode": "shared", "extra_rows": [{"id": 13, "名前": 5, "rev": 1}, {"id": 14, "rev": 1}], "steps": [
         S("POST", f"{C}/2/preset"),
@@ -213,7 +215,7 @@ SCENARIOS = [
         S("POST", f"{C}/０2/preset", "0"),
         S("GET", C),
     ], "delegates": [
-        S("POST", f"{C}/2/preset", "[1]"), S("POST", f"{C}/2/preset", {"base_rev": "²"}),
+        S("POST", f"{C}/2/preset", "[1]"), W(S("POST", f"{C}/2/preset", {"base_rev": "²"})),
         S("POST", f"{C}/2/preset", '{"base_rev": NaN}'),
     ]},
     {"name": "標準を差し替えた（取り込んだ標準）", "mode": "shared", "own": True, "steps": [
@@ -231,7 +233,7 @@ SCENARIOS = [
         S("DELETE", f"{C}/4", query="rev=x"),
         S("GET", C),
     ], "delegates": [
-        S("DELETE", f"{C}/5", "[1]"), S("DELETE", f"{C}/5", query="rev=²"), S("DELETE", f"{C}/5", '{"base_rev": NaN}'),
+        S("DELETE", f"{C}/5", "[1]"), W(S("DELETE", f"{C}/5", query="rev=²")), S("DELETE", f"{C}/5", '{"base_rev": NaN}'),
     ]},
     {"name": "取り込む", "mode": "shared", "steps": [
         S("POST", f"{C}/import", {"items": [T("新しい"), {**T("地取区分"), "other": " x "}, T("ｺﾝﾏ5本区分 ")]}),
@@ -435,8 +437,9 @@ def main():
         py, rs, pd = (base / f"s{i}" / x for x in ("py", "rs", "pd"))
         for r in (py, rs, pd):
             place(r, sc)
-        steps = run(py, sc["steps"], sc.get("between", False))
-        dele = [{**x, "json": None} for x in run(pd, sc.get("delegates", []))]     # 任せる歩は答えを比べない（NaN の答えもある）
+        mine, theirs = oracle_gate.split(sc["steps"], sc.get("delegates", []))
+        steps = run(py, mine, sc.get("between", False))
+        dele = [{**x, "json": None} for x in run(pd, theirs)]     # 任せる歩は答えを比べない（NaN の答えもある）
         out.append({"name": sc["name"], "py": str(py), "rs": str(rs), "steps": steps, "delegates": dele,
                     "between": j(lock_doc()) if sc.get("between") else None,
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})

@@ -37,6 +37,8 @@ STEPS = [
     {"do": "mark", "file": "share"},                         # 書き手（DataRelay）が公開している途中
     {"do": "refresh"},                                       # 写さずに見送る（busy）
     {"do": "unmark", "file": "share"},
+    # 版 3.104.0 の作った後の採点: i64 に入らない世代の名前があっても、次の世代は Python の int と同じく桁のまま 1 を足す（前は窓があふれた）
+    {"do": "plant", "name": "lot_list.g99999999999999999999.sqlite3"},
     {"do": "refresh"},                                       # 新しい世代・古い世代を片付ける
     {"do": "files"},
     {"do": "ledger"},
@@ -134,6 +136,9 @@ def run(work):
         elif do in ("mark", "unmark"):          # DataRelay の公開の書きかけ（.<名前>.<番号>.incoming）
             mark = where[st["file"]].parent / f".{where[st['file']].name}.4242.incoming"
             mark.write_bytes(b"x") if do == "mark" else mark.unlink()
+        elif do == "plant":                     # 写しの置き場に世代の名前のファイルを置く（中身は使わない）
+            cache.mkdir(parents=True, exist_ok=True)
+            (cache / st["name"]).write_bytes(b"x")
         elif do == "refresh":
             r = m.refresh()
         elif do == "read_path":

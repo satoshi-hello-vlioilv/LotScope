@@ -158,7 +158,11 @@ fn answer(conf: &Value, store: &Arc<Store>, st: &Value, root: &str) -> Option<(u
     let me = || Gate::default().me(&c);
     let local = Local { configured: conf["configured"].as_str().unwrap_or("").into(), root: store.local_root().to_path_buf() };
     let body = sub_json(st["body"].as_str().unwrap_or(""), root);
-    let r = handle(route, st["query"].as_str().unwrap_or(""), body.as_bytes(), store, &local, &me, &common::program());
+    // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
+    let r = match common::gate(method, path, body.as_bytes()) {
+        Err(a) => Some(a),
+        Ok(b) => handle(route, st["query"].as_str().unwrap_or(""), &b, store, &local, &me, &common::program()),
+    };
     if st["revoke"] == true {
         let _ = std::fs::remove_file(&revoke);
     }

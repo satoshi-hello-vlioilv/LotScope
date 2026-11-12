@@ -16,7 +16,7 @@
 //! 中身の str() する所（段の part・値の column・expr）が並び・表、chartAt の字が 18 字より長い（Python の int() は 4,300 桁で断り、
 //! i64 を超えても読む）、すぐに見るの id の字が ASCII でない（Python の isdigit は「²」なども数字と読む）、置き場の行の形が違う。
 
-use crate::master_rows::{self, base_rev, Rev, Spec};
+use crate::master_rows::{self, base_rev, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::preset_rows::{self as pr, Answer, Who};
 use crate::worksum::{py_str, truthy};
@@ -84,10 +84,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -172,7 +170,7 @@ fn dec_of(v: &Value) -> i64 {
 /// chartAt: max(0, int(str(v or 0).strip()))。読めなければ 0（字の長い物は body_plain が任せる）
 fn chart_at(v: Option<&Value>) -> i64 {
     match v {
-        Some(Value::String(s)) if !s.is_empty() => crate::pyfmt::py_int(crate::pyfmt::strip(s)).map_or(0, |n| n.max(0)),
+        Some(Value::String(s)) if !s.is_empty() => crate::pyfmt::py_int(crate::pyfmt::strip(s)).map_or(0, |n| n.saturating().max(0)),
         Some(Value::Number(n)) => n.as_i64().map_or(0, |n| n.max(0)), // 小数の str() は int() で読めない
         _ => 0,                                                       // 真偽・null・並び・表の str() も読めない
     }
@@ -376,10 +374,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         if truthy(&parsed) && !parsed.is_object() {
             return None; // 消す道は先に base_rev が本文を読む（表でない真の本文は Python では道の外の例外）
         }
-        let base = match base_rev(&parsed, query) {
-            Some(Rev::Unknown) => return None,
-            b => b,
-        };
+        let base = base_rev(&parsed, query);
         let Some(old) = find(id) else { return Some((200, json!({"ok": true}))) };
         if let Err(a) = who.gate(old, WHAT) {
             return Some(a);
@@ -428,10 +423,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             (row, None, None)
         }
         Route::Update(id) => {
-            let base = match base_rev(&parsed, query) {
-                Some(Rev::Unknown) => return None,
-                b => b,
-            };
+            let base = base_rev(&parsed, query);
             // routes/common.find_row: id の合う最初の行（元は見ない）
             let Some(old) = find(id) else { return Some(preset_error(format!("id={id} が見つかりません。"))) };
             if let Err(a) = who.gate(old, WHAT) {

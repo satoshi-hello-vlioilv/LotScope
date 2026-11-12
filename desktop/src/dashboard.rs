@@ -353,9 +353,10 @@ impl Ctx<'_> {
             let pick: Vec<String> = equips.iter().map(|x| normalize_part(x)).collect();
             let wl = conf.work();
             let mut all: Vec<&Value> = arr(wl.get("rows")).iter().collect();
+            // 並びは Python の int と同じく大きな数も桁で比べる（版 3.104.0 の作った後の採点: 前は i64 の端へ丸め、端を超える 2 行の順が変わった）
             let num = |r: &Value| pyfmt::py_int(&strip(&s_or(r.get("並び")))).ok();
             let mut idx: Vec<usize> = (0..all.len()).collect();
-            idx.sort_by_key(|&i| (num(all[i]).is_none(), num(all[i]).unwrap_or(0), i));
+            idx.sort_by_cached_key(|&i| (num(all[i]).is_none(), num(all[i]).unwrap_or(pyfmt::PyInt::Small(0)), i));
             all = idx.into_iter().map(|i| all[i]).collect();
             let rows: Vec<&Value> = all
                 .into_iter()
@@ -1736,10 +1737,11 @@ mod tests {
         assert_eq!(panel_of(b"\"x\""), None);
         assert_eq!(panel_of(br#"{"panel": {"top": NaN}}"#), None, "NaN は Python だけが読む");
         assert_eq!(panel_of(b"{"), None, "読めない本文");
-        // 数の字は Python の int() と同じに読む（4,300 桁を超える数・\x1c〜\x1f は読めず既定。全角の空白は外す。字の読み方は layout_clean の int_of）
+        // 数の字は Python の int() と同じに読む（4,300 桁を超える数・\x1c〜\x1f は読めず既定。全角の空白は外す。字の読み方は pyfmt::py_int_of）
         let top = |v: Value| clean_panel(&Tree::from_value(&json!({"visual": "kpi", "source": "lot", "top": v}))).map(|p| p["top"].clone());
         assert_eq!(top(json!("9".repeat(5000))), Ok(json!(0)));
-        assert_eq!(top(json!("5\u{1c}")), Err(None), "\\x1c は窓が読まずに Python に任せる（layout_clean の決まり）");
+        assert_eq!(top(json!("5\u{1c}")), Ok(json!(0)), "Python の int('5\\x1c') は ValueError（既定の値）。版 3.104.0 から窓も同じに読む");
+        assert_eq!(top(json!("\u{3000}5")), Ok(json!(5)), "全角の空白は int() が外す");
         assert_eq!(top(json!("7")), Ok(json!(7)));
     }
 

@@ -22,13 +22,15 @@
     seconds_of         読んだ秒は道の全体で測り、小数 1 桁（前は API が 2 桁で search と組み立てだけ・見えない Edge が 1 桁）
     keep_of            読み終わったブラウザを残す秒（見えない Edge は keep_seconds・LotDsp の窓は window_keep_seconds。見張りも同じ所で決める）
     checked_lot        ロット番号の形（NFKC・大文字にそろえ、英数字 1〜12 字。3 つの道で同じ。前は fetch-lotdsp だけが見た）
-    read_body          本文の読み方（UTF-8・JSON・入れ子は MAX_DEPTH 段まで・表であること）。窓も同じ字で断る
+    read_body          本文の読み方（UTF-8・JSON・入れ子は MAX_DEPTH 段まで・表であること）。窓も同じ字で断る。版 3.104.0 から
+                       書く道の門と 1 つの部品（services/body_rules.py の LOTDSP の引数）
     MAX_HTML_CHARS     1 つの HTML の大きさの上限（取込と調べる道具で同じ）
 """
-import json
 import re
 import unicodedata
 from datetime import timedelta, timezone
+
+from . import body_rules
 
 # ------------------------------------------------------------------ 場所
 # 前後から除く空白（Python の str.strip と JS の String.prototype.trim のどちらでも空白の字。片方だけの字〈\x1c〜\x1f・\x85・﻿〉は残す）
@@ -174,63 +176,14 @@ def box_of(f):
 MAX_HTML_CHARS = 5_000_000
 MAX_DEPTH = 64                                     # 本文の入れ子の段（表と並び）の上限。超えたら読まない（窓も同じ）
 
-
-class BodyError(ValueError):
-    pass
-
-
-def _depth_ok(text):
-    """本文の入れ子が MAX_DEPTH 段までか（字の中の括弧は数えない）。"""
-    depth, in_str, esc = 0, False, False
-    for ch in text:
-        if in_str:
-            if esc:
-                esc = False
-            elif ch == "\\":
-                esc = True
-            elif ch == '"':
-                in_str = False
-        elif ch == '"':
-            in_str = True
-        elif ch in "[{":
-            depth += 1
-            if depth > MAX_DEPTH:
-                return False
-        elif ch in "]}":
-            depth -= 1
-    return True
-
-
-def _clean(v):
-    """字の中の片割れの代用字は U+FFFD にする（窓の字は片割れを持てない）。"""
-    if isinstance(v, str):
-        return re.sub("[\ud800-\udfff]", "�", v)
-    if isinstance(v, list):
-        return [_clean(x) for x in v]
-    if isinstance(v, dict):
-        return {_clean(k): _clean(x) for k, x in v.items()}
-    return v
+# 本文の読み方は書く道の門と 1 つの部品（版 3.104.0。services/body_rules.py。違いは引数 body_rules.LOTDSP: NaN を通す・64 段まで・
+# 対の無い代用字は U+FFFD に替える・空は 0 バイトだけ）。BodyError も同じ型（道の入口 routes/lots.py は 400 invalid で答える）
+BodyError = body_rules.BodyError
 
 
 def read_body(raw):
     """本文（バイト）→ 表（dict）。空は {}。読めなければ BodyError（400 invalid）。"""
-    if not raw:
-        return {}
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        raise BodyError("本文を UTF-8 として読めません。") from None
-    if not _depth_ok(text):
-        raise BodyError("本文の入れ子が深すぎます。") from None
-    try:
-        body = json.loads(text)
-    except (ValueError, RecursionError):
-        raise BodyError("本文を JSON として読めません。") from None
-    if body is None:
-        return {}
-    if not isinstance(body, dict):
-        raise BodyError("本文の形が違います（表で送ってください）。")
-    return _clean(body)
+    return body_rules.read_body(raw, body_rules.LOTDSP._replace(max_depth=MAX_DEPTH))
 
 
 def html_of(body, key="html"):

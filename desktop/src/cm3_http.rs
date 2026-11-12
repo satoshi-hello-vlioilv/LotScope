@@ -354,7 +354,11 @@ fn once(t: &Target, method: &str, headers: &[(String, String)], body: Option<&[u
     }
     let mut resp = Resp { status, reason, headers: hs, body: vec![] };
     let chunked = resp.header("transfer-encoding").is_some_and(|v| v.eq_ignore_ascii_case("chunked"));
-    let length = if chunked { None } else { resp.header("content-length").and_then(|v| crate::pyfmt::py_int(v).ok()).filter(|n| *n >= 0) };
+    let length = if chunked {
+        None
+    } else {
+        resp.header("content-length").and_then(|v| crate::pyfmt::py_int(v).ok().map(|n| n.saturating())).filter(|n| *n >= 0)
+    };
     let length = if status == 204 || status == 304 || (100..200).contains(&status) { Some(0) } else { length };
     // urllib が本文を読むのは 2xx と、たどる 30x（行き先のある物）だけ。誤りの答えの本文は読まない
     let redirect = matches!(status, 301 | 302 | 303 | 307 | 308) && (resp.header("location").is_some() || resp.header("uri").is_some());

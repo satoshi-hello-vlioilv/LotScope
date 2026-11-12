@@ -84,7 +84,9 @@ def setup(app):
     db.commit()
     db.close()
     repo.work_log_update(keys["TLV"]["id"], {"表": "別表"})
-    for n, o in (("TLV", "1"), ("CAL", "2"), ("CR2", "x")):     # 並び（番号の無い・読めない番号は後ろに登録の順）
+    # 並び（番号の無い・読めない番号は後ろに登録の順）。版 3.104.0 の作った後の採点: i64 の端を超える 2 つの番号も Python の int と同じ順
+    # （前の窓は端へ丸めて同じ番号にし、登録の順に並べた）
+    for n, o in (("TLV", "9223372036854775808"), ("CAL", "9223372036854775809"), ("CR2", "x")):
         repo.work_log_update(keys[n]["id"], {"並び": o})
     # 仕掛の設備の列: 前方一致でだけ設備に見分けられる値（「CR1 南」「L-1 2号」）と、どの設備でもない値
     wdb = sqlite3.connect(settings["sources"]["wip"]["source"])
