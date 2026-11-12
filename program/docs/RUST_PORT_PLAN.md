@@ -1360,6 +1360,95 @@ DevTools での突き合わせを足す）に、採点の指摘（rounds[0].fixe
   隠れた要素（ng-hide）の字・8 字以上のロット番号（疑い 6・7）。形（shape）の数字・字の見分けは Python の isdigit・isalpha に近い表で、まれな字で違いうる
   （人が見る手がかりだけ）。https の LotDsp は窓では読めない（社内のサイトは http。https を入れたときは理由を添えて「届きません」）。
 
+### 段 3 の 15 歩目: 組む所の読み 7 本を窓へ。札の作りを直してから移す — 版 3.99.0
+
+採点（`tools/ui-proposals/2026-11-port-builder.json`。画面に関係のない改良の決まり・1 回）の 1 位 **E**（71.6 点。札の作りを直してから移す: 値の集合で合わせる・
+12 台の上限を外す・progress に載せる）に、採点の指摘（rounds[0].fixes の 11 件）を入れて作った。② の残りは 10 本（`GET /api/masters/tabaccess`・
+`GET /api/masters/status`・`POST /api/fs/browse`・`GET /api/fs/places`・`GET /api/masters/place`・`POST /api/masters/place/check`・`POST /api/masters/place/move`・
+`POST /api/settings/check`）と ③ の 2 本（`GET /api/lotlist/settings`・`GET /api/health`）。
+
+- 道: `GET`・`POST /api/dashboard/fields`・`GET /api/data/columns`・`GET /api/sources/<key>/columns`・`POST /api/sources/check`・
+  `POST /api/sources/join/preview`・`POST /api/sources/<key>/conn/check`。窓の `lot.rs` の `builder_route` → `desktop/src/builder.rs`。
+- 係（指摘 7）: 状態を持たない読む道なので SERVES は足さず、A の任せる形（窓が答え、窓が同じに答えられない形だけ Python）。任せる形の一覧は
+  `builder.rs` の冒頭: ?engine=python・窓の束や一覧の材料を組めない・窓が同じに読めない本文（NaN など）・表でない本文・字でない欄・字でない設備の並び・
+  スケジュールを窓が答えない形・道の鍵に百分率符号・結合の決まりの窓の読めない形・参照先の項目の値の窓の読めない形。黙って空や既定に替える形は作らない
+  （材料が読めないときは Python と同じ失敗の答え〈段取りの失敗の本文そのもの: `dashboard.rs` の `parts_for`〉を返すか、Python に任せる）。
+  門番は Python と同じ（「試す」は答えのファイルを作るのでデータ元を書ける段だけ・確かめるは門番を通らない）。
+- 主のセッションの決め（利用者の要望「計算ロジック・表示の間違いをしっかり直す」に沿って直す側に。2026-11-11）は、Python の `services/builder.py` と
+  窓の `builder.rs` の同じ名前の定数にまとめ、`builder_parity` が両方の値を突き合わせる:
+  1 `KINDS_UNION`（すべての設備の札の種類は合わせた本当の数）・2 `EQUIP_LIMIT = None`（12 台の上限を外す）・3 種類は SortKey の見分け
+  （`pivot.field_sets`・`merge_fields` の 1 か所）・4 `JOIN_ALL_EQUIPS`（作業実績の「試す」と列は表示する全部の設備。設備ごとの内訳 `byEquip`・
+  読めなかった設備 `failed`）・5 `STALE_ROLES = 品質・仕掛・実績`（古さの警告）・6 `CM3_REACH`（CM3 の URL の確かめは届くかまで。LotDsp と同じ
+  `reachable`: プロキシを通さない 1 回の GET。窓は `cm3_http::get_once`）・7 札を待つ間は待ちの段（`progress.rs`・`dash_progress.py`。?ask=）に
+  写した・読んだ設備 n/m。画面は組む所の札の欄に、題の頭と同じ待ちの円（`db-dot is-pie`）と「共有から写した n/m 台」「読んだ n/m 台」（新しい形は作らない）。
+  SQLite の英語の誤りの字（「file is not a database」など。疑い 4）は答えを変えない: 日本語に読み替えるかは**分からない**（突き合わせでは伏せる）。
+- 札の作り（指摘 1・2）: ファイルごとに「同じ値の見分け（SortKey）の集合（1,001 で止める）・空欄があるか・空欄でない値の先頭 300 個が数か（値が無ければ None）・
+  日付か」を数え（`field_sets`）、合わせる（`merge_fields`）: 種類は集合の和の大きさ（空欄があり値もあれば「（空欄）」を 1 つ足す・1,001 で止める）・
+  空欄だけの列は 0 種類と `blankOnly`・数は値のあったファイルの全部が数・並びは元の列を全部 → 計算列・計算列の式が読めない設備は `brokenIn`。
+  1 つのファイルの札（一覧の集計の /pivot?fields=1）も同じ部品。窓は値の集合を設備ごとに覚えず、合わせた答えを「合わせた全部のファイルの指紋
+  （場所・更新時刻・大きさ・表の選び方）の並び」ごとに覚える（`pivot::fields_many`。64 件で捨てる今の決まり。読めないファイルがあれば覚えない・
+  計算列のある札は覚えない）。値の集合は数えている間だけ持つ。
+- 見本（指摘 6）: `pivot.samples_of`（窓 `pivot::samples_of`）の 1 か所: 空欄（SortKey が NULL）を除き、表の行の順に、見せる字（生の値の str。
+  後ろの空白も残す）が同じ物を 1 つにして 3 つまで。data/columns・結合の欄の列・確かめるの値の例が使う。
+- 確かめる（指摘 5・9）: `builder.check_sqlite`（窓 `builder::check_sqlite`）の 1 か所。場所は入口で 1 回 " を外す・一覧と同じ表（欄の表 → 役割の候補 →
+  候補を含む名前 → 最初の表）・ロット番号の列は品質だけ要る・更新時刻が PC の時計より先なら 0 時間前・古さの警告は役割ごと・{n:,}・.1f・.0f は
+  Python の書き方（Rust の {:.1} も偶数へ寄せる）。接続の設定の確かめ（conn/check）の場所も同じ部品（その元の表と役割）。作業実績のフォルダの確かめは
+  本文の `pattern`（カードで打ち替えたファイル名の決まり）で探す（画面 `master-sources.js` も送る）。POST /api/settings/check（② に残る）も
+  Python では同じ部品を使う（品質データの場所は効いている lot_list.table と役割「品質」）。unquote の写しを 1 つにする（指摘 9）は、5 つの写しの中身が
+  同じ（`fsio.unquote_path` と同じ字）ことを確かめただけで、この版では束ねていない（**残した**）。
+- 作業実績の全部の設備（指摘 4）: `lists.rs` の `work_raw_plans`（Python `routes/sources.work_plans`）が表示の並びの全部の設備の写しを一度に始め、
+  最初の写しを 30 秒まで待ってから設備ごとに段取りする。「試す」は設備ごとの答えのファイル（`try-work-<キー>`）で数えて足す（行・当たった・当たらない・
+  答えの行・相手の行・相手の当たった・相手だけは足す＝全部の設備の一覧に出る数。相手の鍵の重なりは相手の表の数・当たらない鍵の見本は設備の順に 5 つまで）。
+  結合の欄の列は全部の設備の列と行（`equips`）。窓の `with_joins_as` は決まりを替えて試す口。窓と Python が同じ作業場所で同時に組んでも、答えが同じで
+  答えのファイルが壊れないこと（書きかけの残りが無い・14 台の答えのファイルが読める）を `builder_parity` の最後の場面で見る（窓が写した後、答えのファイルを
+  消してから両方が同じ名前を同時に組む）。Python の `data_join.build` の置き換えは、窓の `join.rs` の replace と同じく 2 秒まで間を広げながらやり直すように
+  した（Windows では相手が開いている間 os.replace が拒まれる。前は 503 で「結合を組めませんでした」になりえた）。
+- 直した誤り（Python も直した。直す前の Python で `tests/test_builder_reads.py` を流し、12 件中 11 件が落ち 1 件が誤りで止まることを確かめた。
+  記録 `2026-11-port-builder.json` の build）: 確か 1（合わせた種類: `test_all_equipment_kinds_are_the_union_of_every_equipment`）・確か 2（1 台が空で数でなくなる: 同）・
+  確か 3（12 台の上限: 同と `test_work_columns_cover_every_equipment`）・確か 4（スライサーと違う種類・全部空欄が 1 種類:
+  `test_kinds_use_the_same_values_as_the_slicer_and_blank_only`）・確か 5（欄の表を見ない: `test_check_counts_the_table_the_list_reads`）・確か 6・7（" の場所・値の例の「・」:
+  `test_check_quoted_place_and_equipment_examples`）・確か 8（最初の 1 台だけ: `test_join_preview_counts_every_equipment`・`test_work_columns_cover_every_equipment`）・
+  確か 9（CM3 の言葉: `test_cm3_url_check_sees_whether_cm3_answers`）・確か 10（-0時間前）と疑い 1（マスタの古さの警告: `test_check_future_mtime_and_stale_warning_by_role`）・
+  確か 11（見本が道で違う: `test_data_columns_and_source_columns_use_one_sample_rule`）・疑い 2（フォルダの決まり: `test_folder_check_uses_the_pattern_on_the_card`）・
+  疑い 3（計算列の並び: `test_calc_columns_come_after_every_raw_column`）・疑い 6（待ちの段: `test_fields_report_progress_per_equipment`）。疑い 5（列の重なり）は
+  起きない（SQLite の表は同じ名前の列を作れない）ので、窓は列を 1 つにした並びで読む（そのまま）。
+- 評価関数（Python に頼らない独立の答えと、Python との突き合わせの 2 つ）:
+  - 独立の答え `program/tools/builder-truth.py`（app を import しない sqlite3 だけ。種類・数・空欄だけ・列の並び・見本・行・作業実績の「試す」の数・確かめるの表）。
+    事例の表 `tests/fixtures/builder_cases.json`（仕様から人が書いた札 18 例・見本 3 例・確かめる 11 例）を Python（`tests/test_builder_cases.py`。独立の答えでも作り直す）と
+    窓（`cargo test --test builder_cases`）が読む。`python tools/builder-truth.py tests/fixtures/builder_cases.json` で独立の答えだけでも突き合わせられる。
+  - `tests/test_builder_reads.py`（撮影の試験データ＋設備 3 台で、Python の 7 本の答えを独立の答えと比べる）。
+  - `cargo test --test builder_parity`（← `program/tests/builder_oracle.py`。作業実績 14 台〈ZZ3 だけの列・CAL の速度が全部空・ファイルの無い設備・表示しない設備〉・
+    品質・仕掛・マスタ・結合した表・届かない元・確かめる用のファイル〈表 2 つ・SQLite でない・30 分先・40 時間前〉と作り物の CM3 で 58 歩と任せる 11 歩・
+    一般ユーザーの 3 歩を Python の道と突き合わせ、窓の答えを独立の答え〈札 3 つ・作業実績の列と行・試すの数・マスタの見本〉とも比べ、決めの値・同時に組む場面も見る）・
+    `lot::tests::the_window_answers_the_builder_reads`（本物の配線・待ちの段・覚え・任せる形）・`builder::tests`・自己診断の 10b-B（本物の WebView2 で窓と Python の答え）。
+- 速さ（`python tools/dash-bench.py --fields --equip 15 --rows 2000`。Linux の開発機・test_client）: Python の札（すべての設備）は前の作り（12 台・SortKey なし）の
+  170〜270 ms から、15 台・SortKey で 410〜480 ms（全部の設備を数え、Python の SortKey〈UDF〉で見分けるので遅くなった。答えの正しさを取った）。
+  窓は 2 回目から合わせた答えの覚えで数え直さない（`lot::tests` で同じ答え）。窓の 1 回目の時間は release を組んでいないので**分からない**（容器の空き）。
+- 作った後の採点（決まり 2026-11-06 の 1 回。主のセッションが別のエージェントに頼んだ・71.9 点。`2026-11-port-builder.json` の built）で見つけた割れを
+  直した（built_fixed。採点し直さない）:
+  (1) 作業実績の「試す」が、一部の設備にだけある鍵の列で全体ごと 400（窓と Python が同じ）→ 設備ごとの結合を `builder.try_each`（窓 `builder::try_each`。
+  `sum_stats` も同じ所）で組み、組めない設備は failed（設備名・理由・kind join）に入れて飛ばし、数えた設備の数（counted）と表示する設備の数（total）を
+  答えに書く。全部の設備で組めないときだけ断る。画面（`master-join.js`）は「（k / n 台の設備で数えました）」「n 台は鍵の列が無く数えていません（設備名）」。
+  (2) 写した設備の数が待つ間に進まない（待つ前と後の 2 回だけ記録）→ 待つ間 0.25 秒ごとに数え直して段に記録する部品（窓 `mirror::Mirrors::wait_first_tick`・
+  Python `work_log.Mirrors.wait_first(tick=)`。札の 30 秒の待ちもパネルの 2 秒の待ちも同じ部品）。
+  (3) 狭い札の欄で「0/11」と「台）」が別の行 → n/m と「台）」を折れない字の並び（`de-nw`）。1728 で撮って 1 行を確かめた。
+  (4) 速さ: `dash-bench.py --fields --window` で窓も測る（`examples/fields_bench.rs`。前の窓は 2fe540c の作業フォルダで同じ形の example を組んだ）。
+  release を組む空きが無いので **debug** で比べた（15 台 × 2,000 行・同じファイル）: 窓の札は、作った後の最初の形で 1 回目 717 ms（前の窓 12 台 274 ms）・
+  1 台だけ新しい 709 ms（前 18 ms）と遅くなっていた。原因は (a) 全部の行に SortKey を通してから DISTINCT していた・(b) 合わせた答えだけを覚え、
+  1 台変わると全部を数え直した。直した: (a) 生の値の種類を SQLite の DISTINCT で先に出し、その値にだけ同じ見分けを当てる（答えは同じ。Python も同じに直した）・
+  (b) 窓はファイルごとの材料も覚える（値の数の計 40 万で全部を捨てる）・合わせる手は値を写さずに借りる。直した後（debug・2 回の測り）: 1 回目 487〜500 ms
+  （15 台。1 台あたり約 32 ms・前の窓は約 19〜23 ms）・2 回目から 0.1 ms・1 台だけ新しい 41〜70 ms（前 19〜22 ms）・計算列あり 600〜900 ms（前 12 台 317〜418 ms）。
+  1 台あたりはまだ前の窓より 1.4〜1.7 倍かかる（debug では Rust の手〈値ごとの見分け〉が重く出る。release の速さは**分からない**）。Python の道は 15 台で
+  270〜490 ms（前の Python は 12 台で 170〜270 ms。製品は窓が答える）。
+  (5) 主の PR の先頭 1dc720e（Windows の CI の直し 2 つ）を取り込んだ。
+  足した試験（どれも直す前に落ちることを確かめた）: `test_builder_reads` の `test_join_preview_skips_equipment_without_the_key`（直す前の e7eda84 の Python で
+  400 / 200）・`test_dash_wait` の `test_copy_stage_moves_while_waiting`（直す前は途中の段が 1 つも出ない）・`lot::tests::the_copy_stage_moves_while_waiting`
+  （直す前は 0/3 のまま）・事例の表の joins 3 例（Python と窓の `try_each`・独立の答え）・`builder_parity` の 2 歩（1 台だけの鍵の列・どの設備にも無い列）と
+  独立の答えの counted・skipped（直す前の e7eda84 の builder.rs に戻すと 8 件の食い違い）。
+- 分からない事: SQLite の英語の誤りの字を日本語に読み替えるか（疑い 4）・窓の札の 1 回目の速さ（release）・本物の作業実績の列の数と値の多さで、合わせた答えの覚え
+  （64 件）がどれだけ当たるか・Windows の WebView2 での 10b-B（CI で見る）・exe の確かめ（`find_browser`）は Linux では Python と窓のどちらも見つけないことしか
+  突き合わせていない。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

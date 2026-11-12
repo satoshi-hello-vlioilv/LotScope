@@ -45,7 +45,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
 type Answer = (u16, Value);
 
 /// 焼いた表の項目（path_settings.BY_KEY）
-fn item_of(key: &str) -> Option<&'static Value> {
+pub(crate) fn item_of(key: &str) -> Option<&'static Value> {
     crate::bundle::tables()["settingsItems"].as_array()?.iter().find(|it| it["key"] == key)
 }
 

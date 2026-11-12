@@ -109,15 +109,16 @@ def worklog_plan(need_copy=True, key=None, rows=None, wait=True, joined=True):
     return with_joins(plan, s, scope=f"work-{key}") if s else (plan, None)
 
 
-def start_mirrors(rows, timeout):
+def start_mirrors(rows, timeout, tick=None):
     """いくつもの設備の写しを一度に始め、初めての写しを全部で timeout 秒まで待つ（版 3.46.0）。
-    この後の worklog_plan(wait=False) は待たない（写し終えていない設備は「写しています」と答える）"""
+    この後の worklog_plan(wait=False) は待たない（写し終えていない設備は「写しています」と答える）。
+    tick（版 3.99.0）: 待つ間、間をおいて呼ぶ（写し終えた設備の数を待ちの段に記録する）"""
     keys = []
     for r in rows:
         _, fail = worklog_plan(key=r.get("キー"), rows=rows, wait=False, joined=False)       # 写しの係を起こす（待たない。結合は読むときに組む）
         if fail is None or json.loads(fail[0].get_data(as_text=True) or "{}").get("kind") == "copying":
             keys.append(r.get("キー"))
-    _mirrors().wait_first(keys, timeout)
+    _mirrors().wait_first(keys, timeout, tick)
 
 
 def work_grouping(equip_name):

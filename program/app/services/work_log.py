@@ -269,6 +269,10 @@ def resolve(row, folder, found):
 
 
 # ------------------------------------------------------------------ 設備ごとの写し
+# 最初の写しを待つ間に、写し終えた設備を数え直す間（秒。版 3.99.0。窓の mirror.rs の WAIT_TICK と同じ）
+WAIT_TICK = 0.25
+
+
 class Mirrors:
     """設備ごとの写しの係（キー → DbMirror）。アプリに 1 つ。画面がその設備を開いたときに作って写し始める。
     データ元（data_sources.py）の 1 ファイルの元も同じ係で写す（prefix="src"・置き場 db_cache/sources）。"""
@@ -321,15 +325,21 @@ class Mirrors:
     def _shared(self, m, key):
         return any(k != key and x is m for k, x in self._all.items())
 
-    def wait_first(self, keys, timeout):
+    def wait_first(self, keys, timeout, tick=None):
         """keys の設備の写しの係が、最初の写しを済ませるまで待つ（全部で timeout 秒まで。1 台ずつ timeout 秒ずつ待たない）。
         版 3.46.0（利用者の要望 2026-10-21 の 6: 入れた直後の作業実績が不安定）: ダッシュボードが全部の設備を数えるとき、
-        1 台目の写しを待ってから 2 台目の写しを始めていた（11 台なら写す時間の 11 倍待った）。先に全部の係を起こしてから、まとめて待つ"""
+        1 台目の写しを待ってから 2 台目の写しを始めていた（11 台なら写す時間の 11 倍待った）。先に全部の係を起こしてから、まとめて待つ。
+        tick（版 3.99.0）: 待つ間 WAIT_TICK 秒ごとに呼ぶ（写し終えた設備の数を待ちの段に記録する。前は待つ前と後の 2 回だけで、
+        組む所の札が最大 30 秒「写した 0/m 台」のまま進まなかった）。窓の mirror.rs の wait_first_tick と同じ"""
         end = time.monotonic() + timeout
-        for k in keys:
-            m = self.peek(k)
-            if m is not None:
-                m.wait_first(end - time.monotonic())
+        while True:
+            pending = [m for m in (self.peek(k) for k in keys) if m is not None and not m.wait_first(0)]
+            if tick is not None:
+                tick()
+            left = end - time.monotonic()
+            if not pending or left <= 0:
+                return
+            pending[0].wait_first(min(WAIT_TICK, left))
 
     def peek(self, key):
         with self._lock:

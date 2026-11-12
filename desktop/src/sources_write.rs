@@ -77,7 +77,7 @@ type Answer = (u16, Value);
 
 /// 窓が Python と同じに答えられない形（Python に任せる）
 pub struct Delegate;
-type D<T> = Result<T, Delegate>;
+pub(crate) type D<T> = Result<T, Delegate>;
 
 fn t(path: &[&str]) -> &'static Value {
     path.iter().fold(tables(), |v, k| &v[*k])
@@ -109,7 +109,7 @@ fn invalid(msg: impl Into<String>) -> Answer {
 }
 
 // ------------------------------------------------------------------ 結合（services/data_join.parse・clean）
-struct Join {
+pub(crate) struct Join {
     with: String,
     how: String,
     on: Vec<(String, String)>,
@@ -217,7 +217,7 @@ fn dumps_join_values(v: &Value) -> String {
 }
 
 /// data_join.clean: Ok(Ok(置く字)) / Ok(Err(JoinError の言葉))
-fn clean_joins(text: Option<&Value>, self_key: &str, known: &[(String, String)]) -> D<Result<(String, Vec<Join>), String>> {
+pub(crate) fn clean_joins(text: Option<&Value>, self_key: &str, known: &[(String, String)]) -> D<Result<(String, Vec<Join>), String>> {
     let items = parse_joins(text)?;
     let name = |k: &str| known.iter().rev().find(|(n, _)| n == k).map(|(_, v)| v.clone());
     for (i, j) in items.iter().enumerate() {
@@ -241,7 +241,7 @@ fn clean_joins(text: Option<&Value>, self_key: &str, known: &[(String, String)])
 
 // ------------------------------------------------------------------ 行（services/data_sources.clean_row・row_of・join_targets）
 /// join_targets: 1 ファイルの元（kind file）→ (キー, 表示名)。同じキーは後ろの名前（Python の dict）
-fn join_targets(items: &[Map<String, Value>]) -> Vec<(String, String)> {
+pub(crate) fn join_targets(items: &[Map<String, Value>]) -> Vec<(String, String)> {
     items
         .iter()
         .filter(|d| d.get("kind").and_then(Value::as_str) == Some("file"))

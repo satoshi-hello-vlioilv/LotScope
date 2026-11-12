@@ -58,7 +58,7 @@ pub fn os_text(e: &std::io::Error) -> String {
 /// ＝0x0400 で引き、末尾の「' ' 以下の字」と「.」を切る。引けなければ「Windows Error 0x<16 進>」）。Rust の io::Error の文は言語 0 で引き
 /// （スレッドの UI の言語が先）、切り方も違うので使わない（版 3.96.0。Windows の CI の後に、推して書いた所を CPython のソースに合わせた）
 #[cfg(windows)]
-fn win_message(n: i32) -> String {
+pub(crate) fn win_message(n: i32) -> String {
     use windows::Win32::System::Diagnostics::Debug::{FormatMessageW, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS};
     let mut buf = vec![0u16; 8192];
     // SAFETY: buf は nsize 字ぶん確保してある。挿入（arguments）は使わない

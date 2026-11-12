@@ -1037,6 +1037,10 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .db-dot.is-pie{width:16px;height:16px;margin:0 -3.5px;background:conic-gradient(var(--c) var(--f,0%),#e6ebf0 0);box-shadow:inset 0 0 0 1.5px var(--c)}
 .db-dot.is-pie.is-ring{background:#fff}
 .db-dot.is-pie.is-over{box-shadow:inset 0 0 0 2.5px #b36b00}
+/* 組む所の札を待っている間（版 3.99.0）: 同じ円と n/m を札の欄に */
+.de-fwait{display:flex;align-items:center;gap:8px}
+.de-fwait .db-dot.is-pie{margin:0;flex:0 0 auto}
+.de-fwait .de-nw{white-space:nowrap}
 .db-wst{margin-left:10px;color:#2f557f;white-space:nowrap}
 .db-wst b,.db-wcenter b{font-weight:700;color:#24467a}
 .db-wover{font-style:normal;font-weight:700;color:#8a4b00}

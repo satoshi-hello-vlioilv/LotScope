@@ -654,12 +654,40 @@ class MasterStore:
 
     @staticmethod
     def _create_exclusive(path, body):
-        """無ければ作って書く（あれば FileExistsError）。作れた1台だけが持つ。"""
+        """無ければ作って書く（あれば FileExistsError）。作れた1台だけが持つ。
+        作れても書き切れない（共有の空きが尽きた ENOSPC・切断など）ときは、作った空・書きかけのファイルを残さずに投げる（版 3.99.0）。
+        前は 0 バイトの錠が残り、ほかの PC・次に開いた窓が、見てから錠の長さのあいだ「ほかの PC がマスタを保存中です」で断られた"""
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         try:
-            os.write(fd, body)
-        finally:
-            os.close(fd)
+            view = memoryview(body)
+            while view:
+                view = view[os.write(fd, view):]      # 短く書けたら残りを書き足す
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            MasterStore._drop_unwritten(path, body)
+            raise
+        os.close(fd)
+
+    @staticmethod
+    def _drop_unwritten(path, body):
+        """書き切れなかった自分のファイルを消す。名前を変えてどけてから中身を見る（その間にほかが置いた物を消さない）:
+        どけた物が自分の書きかけ（body の頭・空）なら消し、ほかの中身なら「無ければ作る」で元へ戻す"""
+        path = Path(path)
+        aside = path.with_name(f".{path.name}.{uuid.uuid4().hex}.gone")
+        try:
+            os.replace(path, aside)
+        except OSError:
+            return
+        try:
+            raw = aside.read_bytes()
+        except OSError:
+            raw = b""
+        if not body.startswith(raw):
+            with contextlib.suppress(OSError):
+                MasterStore._create_exclusive(path, raw)
+        with contextlib.suppress(OSError):
+            aside.unlink()
 
     def _take_away(self, expected_token):
         """錠を名前を変えてどける（名前の変更は1台しか成功しない）。どけた錠が思っていた錠（expected_token）でなければ、

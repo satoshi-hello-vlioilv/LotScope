@@ -94,7 +94,7 @@
   const REF_COLORS = ["#c9564a", "#b5822a", "#2f7d78", "#3f6591", "#5a6f77"];
   // まとまりの色（"" はデータの種類の色＝仕掛は藍・作業実績は青緑・品質データは琥珀。ほかは区分の色と同じ並び）
   const GROUP_COLORS = ["", "#7658ae", "#5c8a2a", "#8a5f18", "#5a6f77", "#8e4f76"];
-  let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", q = "", ctx = { formulas: {}, names: {} }, formOpen = false;
+  let host = null, p = null, t = null, gi = -1, sources = [], fields = null, fieldsKey = "", fieldsErr = "", fieldsProg = null, fieldsSeq = 0, q = "", ctx = { formulas: {}, names: {} }, formOpen = false;
   let eoAll = null, eoKey = "";      // 並べる設備（期間・条件によらないその元のすべての設備。版 3.48.0）
   let eqOpen = false, eqItems = null, eqKey = "", eqSearch = "", calcEdit = null, fmtOpen = true, numTimer = 0;
 
@@ -534,15 +534,35 @@
     ctx = calcContext();
     const key = JSON.stringify([t.source, t.equip, ctx]);
     if (fields && fieldsKey === key) return;
-    fields = null; fieldsErr = ""; fieldsKey = key; paint();
+    fields = null; fieldsErr = ""; fieldsKey = key; fieldsProg = null; paint();
+    // 待っている間の段（版 3.99.0。決め 7）: 作業実績の最初の写しを待つ・設備ごとに数える間、ダッシュボードの待ちの段
+    // （GET /api/dashboard/progress）を尋ね、札の欄に待ちの円（題の頭と同じ部品）と n/m を出す
+    const tag = `fields-${++fieldsSeq}`;
+    const poll = setInterval(async () => {
+      try {
+        const g = await fetch(`/api/dashboard/progress?ask=${tag}`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : {}));
+        const a = g.asks && g.asks[tag];
+        if (a && fieldsKey === key && !fields) { fieldsProg = a; const el = $("#dbEditor [data-de-fwait]"); if (el) el.outerHTML = waitHtml(); }
+      } catch (_) { /* 尋ねられなくても「読んでいます」は出る */ }
+    }, 500);
     try {
-      const r = await fetch("/api/dashboard/fields", TPA.json("POST", { source: t.source, equip: t.equip || "", calc: ctx }));
+      const r = await fetch(`/api/dashboard/fields?ask=${tag}`, TPA.json("POST", { source: t.source, equip: t.equip || "", calc: ctx }));
       const d = await r.json().catch(() => ({}));
       if (fieldsKey !== key) return;
       if (!r.ok) { fieldsErr = d.error || "カラムを読めませんでした"; if (d.kind === "copying") setTimeout(() => { if (fieldsKey === key) { fieldsKey = ""; loadFields().then(() => paint()); } }, 4000); }
       else fields = d;
-    } catch (e) { fieldsErr = String(e); }
+    } catch (e) { fieldsErr = String(e); } finally { clearInterval(poll); }
     paint();
+  }
+  /** 札を待っている間の字（版 3.99.0）: 待ちの円（n/m の量。n/m の無い段は輪だけ）と「写した n/m 台」「読んだ n/m 台」 */
+  function waitHtml() {
+    const a = fieldsProg, nof = a && a.of > 1 ? a : null;
+    // n/m と「台）」は 1 つの折れない字の並び（作った後の採点: 狭い欄で「0/11」と「台）」が別の行に分かれた）
+    const nm = nof ? `<span class="de-nw">${nof.n}/${nof.of} 台）</span>` : "";
+    const word = !a ? "" : a.stage === "copy" ? `（共有から写した ${nm || "…）"}` : a.stage === "read" && nof ? `（読んだ ${nm}` : "";
+    const f = nof ? Math.round((nof.n / Math.max(1, nof.of)) * 100) : 0;
+    return `<p class="pv-none de-fwait" data-de-fwait><i class="db-dot is-pie${nof ? "" : " is-ring"}" style="--c:${P.colorOf(t.source)};--f:${f}%" aria-hidden="true"></i>`
+      + `<span>カラムを読んでいます${word}…</span></p>`;
   }
 
   /* ---- 描く ---- */
@@ -555,7 +575,7 @@
   }
   function fieldsHtml() {
     if (fieldsErr) return `<p class="pv-none">${esc(fieldsErr)}</p>`;
-    if (!fields) return '<p class="pv-none">カラムを読んでいます…</p>';
+    if (!fields) return waitHtml();
     return fieldsBody();
   }
   function fieldsBody() {
@@ -564,7 +584,7 @@
       const ql = q.trim().toLowerCase();
       const list = fields.fields.filter((f) => !f.error && pickable(f) && (!ql || f.column.toLowerCase().includes(ql)));
       return `<p class="de-ophint">${gantt ? "［色］を押すと、その列の値ごとに棒の色を分けます（計算列も使えます）" : "［品種］を押すと、その列の値ごとに ABC に分けます。2 つ以上押すと、その組み合わせ（合金 × 調質 など）で分けます"}</p>`
-        + list.map((f) => `<div class="pv-f${on(f.column) ? " is-used" : ""}${f.calc ? " is-calc" : ""}"><span><b>${esc(f.column)}${calcMark(f)}</b><small>${f.many ? "1,000 種類以上" : `${f.numeric ? "数 · " : ""}${f.kinds} 種類`}</small></span><i></i><i></i>`
+        + list.map((f) => `<div class="pv-f${on(f.column) ? " is-used" : ""}${f.calc ? " is-calc" : ""}"><span><b>${esc(f.column)}${calcMark(f)}</b><small>${f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.numeric ? "数 · " : ""}${f.kinds} 種類`)}</small></span><i></i><i></i>`
           + `<button type="button" class="pv-r r-rows${on(f.column) ? " on" : ""}" data-de-opick="${esc(f.column)}" aria-pressed="${on(f.column)}">${word}</button></div>`).join("")
         // このパネルで作った計算列のうち、色・品種に選べない物（日付・時刻の列など。作業開始・作業終了に使う）も、直せるように並べる（版 3.73.0）
         + fields.fields.filter((f) => f.calc && !f.error && !pickable(f) && ((t.calc && t.calc.own) || []).includes(f.column) && (!ql || f.column.toLowerCase().includes(ql)))
@@ -586,7 +606,7 @@
     html += fields.fields.filter((f) => hit(f.column)).map((f) => {
       const c = f.column, u = used(c), anyVal = b.measures.some((m) => m.column === c);
       if (f.error) return `<div class="pv-f is-off" title="${esc(ctx.formulas[c] || "")}"><span><b>${esc(c)}<small class="sx-calc">式</small></b><small>${esc(f.error)}（一覧の「表示列」で直す）</small></span><i></i><i></i><i></i></div>`;
-      const sub = (f.calc ? "式の列 · " : "") + (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : `${f.kinds} 種類`);
+      const sub = (f.calc ? "式の列 · " : "") + (f.date ? "日付" : f.numeric ? `数${f.many ? "" : ` · ${f.kinds} 種類`}` : f.many ? "1,000 種類以上" : (f.blankOnly ? "空欄だけ" : `${f.kinds} 種類`));
       const tip = f.calc ? `${c}（計算列。一覧の表示列で作った式）\n${ctx.formulas[c] || ""}` : c;
       const mine = ownList.includes(c);
       return `<div class="pv-f${u || anyVal ? " is-used" : ""}${f.calc ? " is-calc" : ""}" title="${esc(tip)}"${fa(c, dimRoles.concat(["vals"]))}><span><b>${esc(c)}${calcMark(f)}</b><small>${mine ? "このパネルの式 · " : ""}${sub.replace(/^式の列 · /, "")}</small></span>`

@@ -530,6 +530,61 @@ class Lock(Base):
         with self.assertRaises(MasterLocked):
             a.rolls_update(1, {"備考": "x"})
 
+    def test_lock_that_could_not_be_written_is_not_left(self):
+        """錠を「無ければ作る」で作れても、中身を書けない（共有の空きが尽きた ENOSPC など）ときは、作った空の錠を残さない（版 3.99.0）。
+        前は 0 バイトの錠が残り、ほかの PC・次に開いた窓が、見てから錠の長さ（20 秒）のあいだ「ほかの PC がマスタを保存中です」で断られた
+        （手元の窓の通しの 6 段目。空きが尽きた時に開いた新しい PC の Python が、起動の最初の写しを置く錠で作って残した）"""
+        import errno
+        from unittest import mock
+
+        from app.repositories import master_store
+        a = self.env.repo("PC-A")
+        a.rolls()
+        lock = self.env.share / "master.lock.json"
+        real = master_store.os.write
+
+        def full(fd, data):
+            if master_store.os.fstat(fd).st_ino == lock.stat().st_ino:
+                raise OSError(errno.ENOSPC, "No space left on device")
+            return real(fd, data)
+
+        with mock.patch.object(master_store.os, "write", side_effect=full):
+            with self.assertRaises(ShareUnavailable) as cm:
+                a.rolls_update(1, {"備考": "空きが無い"})
+        self.assertIn("錠を置けません", str(cm.exception))
+        self.assertFalse(lock.exists(), "書けなかった錠（0 バイト）を残さない")
+        b = self.env.repo("PC-B")
+        b.rolls()
+        b.rolls_update(1, {"備考": "空きが戻ればすぐ保存できる"})   # 前は 20 秒「PC-A でない、名乗りの無い PC が保存中」で断られた
+        self.assertEqual({r["id"]: r for r in self.env.share_doc()["rows"]}[1]["備考"], "空きが戻ればすぐ保存できる")
+
+    def test_lock_written_short_is_not_left(self):
+        """書けたのが途中まで（短い書き込みのあとに ENOSPC）でも、書きかけの錠を残さない。ほかの PC の錠は消さない"""
+        import errno
+        from unittest import mock
+
+        from app.repositories import master_store
+        lock = self.env.share / "master.lock.json"
+        calls = []
+
+        def half(fd, data):
+            calls.append(len(data))
+            if len(calls) == 1:
+                return master_store.os.write.__wrapped__(fd, bytes(data)[:7])
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        with mock.patch.object(master_store.os, "write", side_effect=half) as w:
+            w.__wrapped__ = __import__("os").write
+            with self.assertRaises(OSError):
+                MasterStore._create_exclusive(lock, b'{"token": "mine"}')
+        self.assertEqual(len(calls), 2, "短く書けたら残りを書き足す")
+        self.assertFalse(lock.exists(), "書きかけの錠を残さない")
+        self.env.put_lock("PC-B")
+        with mock.patch.object(master_store.os, "write", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            with self.assertRaises(FileExistsError):
+                MasterStore._create_exclusive(lock, b'{"token": "mine"}')
+        self.assertEqual(json.loads(lock.read_text(encoding="utf-8"))["holder_pc"], "PC-B", "ほかの PC の錠は消さない")
+
 
 class Unreachable(Base):
     def test_read_continues_write_refused(self):

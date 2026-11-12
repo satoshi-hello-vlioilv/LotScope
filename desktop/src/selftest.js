@@ -53,6 +53,12 @@
     ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
     const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
     const norm = (x) => x.text.split(nonceOf(x)).join("@NONCE@");
+    // 起動の直後は Python がマスタの最初の版を置いている最中のことがあり、2 回の読みの間に置かれると埋め込んだマスタの revision だけが
+    // 食い違う（版 3.99.0 の CI: 窓の起動が 0.2 秒で、Python の種まきと重なった）。同じ時点の形になるまで 15 秒まで読み直す（比べる中身は同じ）
+    for (const until = Date.now() + 15000; page.by === "shell" && pyPage.by === "python" && norm(page) !== norm(pyPage) && Date.now() < until;) {
+      await new Promise((r) => setTimeout(r, 1000));
+      pyPage = await get("/?engine=python"); page = await get("/");
+    }
     const at = [...norm(page)].findIndex((c, i) => c !== norm(pyPage)[i]);
     ok("窓の画面と Python の画面が同じ（印を揃えて）", pyPage.by === "python" && norm(page) === norm(pyPage), at < 0 ? pyPage.by : `${at} 字目: ${norm(page).slice(Math.max(0, at - 30), at + 40)}`);
     const escape = await get("/static/%2e%2e/templates/index.html");
@@ -412,6 +418,39 @@
         && page.text.includes("LotDsp 項目の紐づけ");
       rows.push(`/lotdsp-link ${page.r.status} ${page.by}`);
       ok("LotDsp の 9 本は窓が答える（途中経過・学びの状態・画面の表・ロット番号の形・調べる道具の画面。Python には来ない）", allOk && pageOk, rows.join("・"));
+    }
+
+    // 10b-B) 組む所の読み 7 本（版 3.99.0 から窓が答える: builder.rs）。本物の WebView2 の窓で、窓の答え（shell）と Python の答え
+    //          （engine=python）が同じか（確かめるの ms・写しの係の時刻は比べない）。品質データの無い PC（CI）でも、失敗の答えどうしを比べる
+    {
+      const dropB = (v) => Array.isArray(v) ? v.map(dropB) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["mtime", "checkedAt", "copiedAt", "at", "ageHours"].includes(k)).map((k) => [k, dropB(v[k])]))
+        : typeof v === "string" ? v.replace(/・\d+ ms/g, "・ms") : v;
+      const canonB = (t) => { try { return JSON.stringify(dropB(JSON.parse(t))); } catch (_) { return "?"; } };
+      const want = [
+        ["GET", "/api/dashboard/fields?source=lot", null],
+        ["GET", "/api/data/columns", null],
+        ["GET", "/api/sources/lot/columns", null],
+        ["POST", "/api/sources/check", { place: "", role: "品質" }],
+        ["POST", "/api/sources/lot/conn/check", { field: "refresh", value: "5" }],
+        ["POST", "/api/sources/join/preview", { key: "lot", joins: [] }],
+      ];
+      const rows = [];
+      let allOk = true;
+      for (const [m, p, body] of want) {
+        const opt = m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+        const rs = await get(p, opt);
+        const py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
+        // 「試す」は答えのファイルを作るので門番を通る（Python のときから同じ決まり）。書けない人（CI の一般ユーザー）は、窓の道も
+        // engine=python の道も門番（窓）が同じ言葉で断る。そのときは両方が門番の 403 で、同じ答えなら同じとみなす
+        const gate = rs.r.status === 403 && py.r.status === 403 && py.by === "shell";
+        const good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
+        allOk = allOk && good;
+        rows.push(`${m} ${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${good ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+      }
+      // 食い違った道を先に書く（記録は 300 字で切る。版 3.99.0 の CI で 6 本目の食い違いが切れて見えなかった）
+      rows.sort((a, b) => (b.includes("・{") || b.includes(" / {")) - (a.includes("・{") || a.includes(" / {")));
+      ok("組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）", allOk, rows.join("・"));
     }
 
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
