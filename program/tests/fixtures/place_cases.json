@@ -1,0 +1,928 @@
+{
+ "about": "置き場と設定 8 本（版 3.100.0）の事例の表。仕様から人が書いた答え（Microsoft「Naming Files, Paths, and Namespaces」の予約名と使えない字・work_log.scan の決まり・エクスプローラーの並び・利用者の決め）。Python（tests/test_place_cases.py）と窓（desktop/tests/place_cases.rs。3.100.0 は名前とタブの例外。ほかは 3.101.0 で移すときに読む）が同じ表を読む。答えは tools/place-truth.py（app を import しない）でも確かめ直す。names … フォルダの名前（配布の置き場とマスタの置き場の check_name。ok なら want が使う名前・ng なら problem が理由の字）。sort … 「参照…」の並び（並べた答え）。clean … 欄の字 → 道（os があればその OS だけ）。sync … 同期フォルダの注意の呼び名（空は注意なし）。marks … 「参照…」の印（files・dirs を作ったフォルダの印の字。null は印なし。os があればその OS だけ: Windows は ? を名前に使えない）。moves … 引っ越しで写す物（share に置いた物 → copied が写る）。tabExceptions … アクセス権限の行の「タブの例外」の読み方。tabCounts … GET /api/masters/tabaccess の exceptions（効く行だけ）。blank … 参照先の「確かめる」で値も既定も空のとき。hidden … Windows の隠し・システムの属性（Windows の CI だけ）。 moveRaces … 引っ越しが錠の長さを超える場面（錠を短く・読むのを遅く）。ほかの PC の保存は、引っ越し先か前の置き場のどちらか（その PC がたどった後に読む置き場）に必ずある（独立の答え place-truth.row_ids）。利用状況の記録は錠の外で写す。",
+ "names": [
+  {
+   "name": "Defect-Analyzer",
+   "ok": true,
+   "want": "Defect-Analyzer"
+  },
+  {
+   "name": "配布 2026",
+   "ok": true,
+   "want": "配布 2026"
+  },
+  {
+   "name": "TPA.releases",
+   "ok": true,
+   "want": "TPA.releases"
+  },
+  {
+   "name": "COM0",
+   "ok": true,
+   "want": "COM0"
+  },
+  {
+   "name": "LPT10",
+   "ok": true,
+   "want": "LPT10"
+  },
+  {
+   "name": "CONSOLE",
+   "ok": true,
+   "want": "CONSOLE"
+  },
+  {
+   "name": "COM10",
+   "ok": true,
+   "want": "COM10"
+  },
+  {
+   "name": "NULL",
+   "ok": true,
+   "want": "NULL"
+  },
+  {
+   "name": "AUXILIARY",
+   "ok": true,
+   "want": "AUXILIARY"
+  },
+  {
+   "name": "CON-1",
+   "ok": true,
+   "want": "CON-1"
+  },
+  {
+   "name": "Masters",
+   "ok": true,
+   "want": "Masters"
+  },
+  {
+   "name": "a.b",
+   "ok": true,
+   "want": "a.b"
+  },
+  {
+   "name": "CONIN",
+   "ok": true,
+   "want": "CONIN"
+  },
+  {
+   "name": "COM¹0",
+   "ok": true,
+   "want": "COM¹0"
+  },
+  {
+   "name": "LPT ¹",
+   "ok": true,
+   "want": "LPT ¹"
+  },
+  {
+   "name": "LPT0",
+   "ok": true,
+   "want": "LPT0"
+  },
+  {
+   "name": "COM",
+   "ok": true,
+   "want": "COM"
+  },
+  {
+   "name": "a..b",
+   "ok": true,
+   "want": "a..b"
+  },
+  {
+   "name": "  Masters  ",
+   "ok": true,
+   "want": "Masters"
+  },
+  {
+   "name": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字",
+   "ok": true,
+   "want": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字"
+  },
+  {
+   "name": "",
+   "ok": false,
+   "problem": "フォルダの名前を入れてください。"
+  },
+  {
+   "name": "   ",
+   "ok": false,
+   "problem": "フォルダの名前を入れてください。"
+  },
+  {
+   "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "ok": false,
+   "problem": "フォルダの名前は 120 字までにしてください。"
+  },
+  {
+   "name": "a/b",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: /（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a\\b",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: \\（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a:b",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: :（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a*",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: *（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a?",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: ?（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a\"",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: \"（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a<",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: <（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a>",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: >（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a|",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: |（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "\u0001",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: （制御文字）（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a\tb",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: （制御文字）（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "a\u0001b\u0002:",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: （制御文字）（制御文字）:（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": "CON:x",
+   "ok": false,
+   "problem": "フォルダの名前に使えない字があります: :（\\ / : * ? \" < > | は使えません）"
+  },
+  {
+   "name": ".",
+   "ok": false,
+   "problem": "フォルダの名前にできません。"
+  },
+  {
+   "name": "..",
+   "ok": false,
+   "problem": "フォルダの名前にできません。"
+  },
+  {
+   "name": "  ..  ",
+   "ok": false,
+   "problem": "フォルダの名前にできません。"
+  },
+  {
+   "name": ".Masters",
+   "ok": false,
+   "problem": "「.」で始まる名前は「参照…」に出ないため使えません。"
+  },
+  {
+   "name": "...",
+   "ok": false,
+   "problem": "「.」で始まる名前は「参照…」に出ないため使えません。"
+  },
+  {
+   "name": ".a.b",
+   "ok": false,
+   "problem": "「.」で始まる名前は「参照…」に出ないため使えません。"
+  },
+  {
+   "name": ". x",
+   "ok": false,
+   "problem": "「.」で始まる名前は「参照…」に出ないため使えません。"
+  },
+  {
+   "name": "end.",
+   "ok": false,
+   "problem": "フォルダの名前の最後に「.」や空白は付けられません。"
+  },
+  {
+   "name": "end. ",
+   "ok": false,
+   "problem": "フォルダの名前の最後に「.」や空白は付けられません。"
+  },
+  {
+   "name": "end .",
+   "ok": false,
+   "problem": "フォルダの名前の最後に「.」や空白は付けられません。"
+  },
+  {
+   "name": "a..",
+   "ok": false,
+   "problem": "フォルダの名前の最後に「.」や空白は付けられません。"
+  },
+  {
+   "name": "CON.",
+   "ok": false,
+   "problem": "フォルダの名前の最後に「.」や空白は付けられません。"
+  },
+  {
+   "name": "CON",
+   "ok": false,
+   "problem": "「CON」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "con",
+   "ok": false,
+   "problem": "「con」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "Con.txt",
+   "ok": false,
+   "problem": "「Con.txt」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "CON .txt",
+   "ok": false,
+   "problem": "「CON .txt」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "CON  .x",
+   "ok": false,
+   "problem": "「CON  .x」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "PRN",
+   "ok": false,
+   "problem": "「PRN」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "AUX",
+   "ok": false,
+   "problem": "「AUX」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "NUL",
+   "ok": false,
+   "problem": "「NUL」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "nul.tar.gz",
+   "ok": false,
+   "problem": "「nul.tar.gz」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "COM1",
+   "ok": false,
+   "problem": "「COM1」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "com9",
+   "ok": false,
+   "problem": "「com9」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "COM¹",
+   "ok": false,
+   "problem": "「COM¹」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "COM²",
+   "ok": false,
+   "problem": "「COM²」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "COM³",
+   "ok": false,
+   "problem": "「COM³」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "LPT1",
+   "ok": false,
+   "problem": "「LPT1」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "LPT9",
+   "ok": false,
+   "problem": "「LPT9」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "LPT¹",
+   "ok": false,
+   "problem": "「LPT¹」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "lpt³.txt",
+   "ok": false,
+   "problem": "「lpt³.txt」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "CONIN$",
+   "ok": false,
+   "problem": "「CONIN$」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "conout$",
+   "ok": false,
+   "problem": "「conout$」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "CONOUT$.log",
+   "ok": false,
+   "problem": "「CONOUT$.log」は Windows が使う名前なので、フォルダの名前にできません。"
+  },
+  {
+   "name": "Lpt2 .a.b",
+   "ok": false,
+   "problem": "「Lpt2 .a.b」は Windows が使う名前なので、フォルダの名前にできません。"
+  }
+ ],
+ "sort": [
+  [
+   "3.2.0",
+   "3.9.0",
+   "3.10.0",
+   "3.11.1"
+  ],
+  [
+   "9",
+   "10",
+   "100"
+  ],
+  [
+   "a2",
+   "A10",
+   "b1"
+  ],
+  [
+   "file",
+   "file1",
+   "File2",
+   "file10"
+  ],
+  [
+   "1a",
+   "a1"
+  ],
+  [
+   "実績2",
+   "実績10"
+  ],
+  [
+   "v1.9",
+   "v1.10",
+   "V2"
+  ],
+  [
+   "2026-9",
+   "2026-10"
+  ]
+ ],
+ "clean": [
+  {
+   "text": "C:\\a\\..\\b",
+   "want": "C:\\b"
+  },
+  {
+   "text": "C:\\a\\.\\b\\",
+   "want": "C:\\a\\b"
+  },
+  {
+   "text": "\\\\srv\\share\\c\\..\\c\\d",
+   "want": "\\\\srv\\share\\c\\d"
+  },
+  {
+   "text": "C:/a//b",
+   "want": "C:\\a\\b"
+  },
+  {
+   "text": "C:",
+   "want": "C:\\"
+  },
+  {
+   "text": "c:",
+   "want": "c:\\"
+  },
+  {
+   "text": "  \"D:\"  ",
+   "want": "D:\\"
+  },
+  {
+   "text": "C:\\",
+   "want": "C:\\"
+  },
+  {
+   "text": "  \"C:\\データ\\検査\\\"  ",
+   "want": "C:\\データ\\検査"
+  },
+  {
+   "text": "file:///C:/a%20b/c/../d",
+   "want": "C:\\a b\\d"
+  },
+  {
+   "text": "file://srv/share/d",
+   "want": "\\\\srv\\share\\d"
+  },
+  {
+   "text": "/tmp/x/c/../c",
+   "want": "/tmp/x/c",
+   "os": "posix"
+  },
+  {
+   "text": "/tmp/x/c/./",
+   "want": "/tmp/x/c",
+   "os": "posix"
+  },
+  {
+   "text": "/",
+   "want": "/",
+   "os": "posix"
+  },
+  {
+   "text": "//tmp/x/../y",
+   "want": "//tmp/y",
+   "os": "posix"
+  },
+  {
+   "text": "//srv/share/a/../b",
+   "want": "\\\\srv\\share\\b",
+   "os": "nt"
+  },
+  {
+   "text": "",
+   "want": ""
+  }
+ ],
+ "sync": [
+  {
+   "path": "C:\\Users\\u\\Box\\Masters",
+   "kind": "Box"
+  },
+  {
+   "path": "C:\\Users\\u\\OneDrive - 会社\\Masters",
+   "kind": "OneDrive"
+  },
+  {
+   "path": "C:\\Users\\u\\Dropbox\\Masters",
+   "kind": "Dropbox"
+  },
+  {
+   "path": "G:\\マイドライブ\\Masters",
+   "kind": "Google ドライブ"
+  },
+  {
+   "path": "C:\\Users\\u\\iCloud Drive\\M",
+   "kind": "iCloud Drive"
+  },
+  {
+   "path": "\\\\srv\\share\\box\\Masters",
+   "kind": ""
+  },
+  {
+   "path": "\\\\srv\\OneDrive\\Masters",
+   "kind": ""
+  },
+  {
+   "path": "//srv/share/Box/Masters",
+   "kind": ""
+  },
+  {
+   "path": "D:\\共有\\Masters",
+   "kind": ""
+  },
+  {
+   "path": "/home/u/Dropbox/Masters",
+   "kind": "Dropbox"
+  }
+ ],
+ "marks": [
+  {
+   "name": "作業実績: 決まりに合う 3 台（空の設備名・空白・隠し・書き手の作業用・フォルダは数えない・大文字小文字は見ない）",
+   "purpose": "worklog",
+   "pattern": "実績_*.sqlite3",
+   "files": [
+    "実績_CR1.sqlite3",
+    "実績_.sqlite3",
+    "実績_ .sqlite3",
+    ".実績_X.sqlite3",
+    "実績_Y.sqlite3-journal",
+    "実績_P.pending_1.sqlite3",
+    "実績_[A].sqlite3",
+    "実績_Z.SQLITE3",
+    "実績_W.sqlite3.incoming"
+   ],
+   "dirs": [
+    "実績_D.sqlite3"
+   ],
+   "want": "ファイルのある設備 3 台"
+  },
+  {
+   "name": "作業実績: [ ] は字のまま",
+   "purpose": "worklog",
+   "pattern": "実績_[A]*.sqlite3",
+   "files": [
+    "実績_[A]1.sqlite3",
+    "実績_[A]2.sqlite3",
+    "実績_A1.sqlite3"
+   ],
+   "want": "ファイルのある設備 2 台"
+  },
+  {
+   "name": "作業実績: ? は字のまま",
+   "purpose": "worklog",
+   "pattern": "実績_?*.sqlite3",
+   "files": [
+    "実績_?1.sqlite3",
+    "実績_X1.sqlite3"
+   ],
+   "want": "ファイルのある設備 1 台",
+   "os": "posix"
+  },
+  {
+   "name": "作業実績: 決まりに * が無い",
+   "purpose": "worklog",
+   "pattern": "実績.sqlite3",
+   "files": [
+    "実績.sqlite3"
+   ],
+   "want": null
+  },
+  {
+   "name": "作業実績: 合う物が無い",
+   "purpose": "worklog",
+   "pattern": "実績_*.sqlite3",
+   "files": [
+    "メモ.txt"
+   ],
+   "want": null
+  },
+  {
+   "name": ".sqlite3 を選ぶ欄: .db と .sqlite だけ",
+   "purpose": "sqlite",
+   "files": [
+    "x.db",
+    "y.DB",
+    "z.sqlite"
+   ],
+   "want": ".sqlite が 1 個・.db が 2 個"
+  },
+  {
+   "name": ".sqlite3 を選ぶ欄: .sqlite3 だけ（隠しは数えない）",
+   "purpose": "sqlite",
+   "files": [
+    "a.sqlite3",
+    "b.SQLITE3",
+    ".c.sqlite3",
+    "~$d.sqlite3"
+   ],
+   "dirs": [
+    "e.sqlite3"
+   ],
+   "want": ".sqlite3 が 2 個"
+  },
+  {
+   "name": ".exe を選ぶ欄",
+   "purpose": "exe",
+   "files": [
+    "msedge.EXE",
+    "b.txt"
+   ],
+   "want": ".exe が 1 個"
+  },
+  {
+   "name": ".exe を選ぶ欄: 無い",
+   "purpose": "exe",
+   "files": [
+    "b.txt"
+   ],
+   "want": null
+  }
+ ],
+ "moves": [
+  {
+   "name": "共有のマスタは全部（この PC が共有しない名前も）・利用状況の記録と切断の指示も写す。錠・印・一時ファイル・心拍・マスタでない物は写さない",
+   "share": {
+    "roll_master.json": {
+     "schema": 1,
+     "revision": 2,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "設備": "TLV"
+      }
+     ]
+    },
+    "other_master.json": {
+     "schema": 1,
+     "revision": 5,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "名前": "ほかの PC の共有"
+      }
+     ]
+    },
+    "path_settings.json": {
+     "schema": 1,
+     "revision": 1,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": []
+    },
+    "_MOVED.json": {
+     "to": "X:\\古い",
+     "at": "2026-01-01T00:00:00"
+    },
+    ".roll_master.json.0123.tmp": "{",
+    "メモ.txt": "マスタではない",
+    "presence_tpa/PC-1@u.json": {
+     "key": "PC-1@u",
+     "at": "2026-11-11T00:00:00"
+    },
+    "presence_tpa/PC-1@u.revoke.json": {
+     "key": "PC-1@u",
+     "by": "boss"
+    },
+    "presence_tpa/settings.json": {
+     "historyDays": 400
+    },
+    "presence_tpa/history/PC-1@u.json": {
+     "key": "PC-1@u",
+     "count": 3
+    },
+    "presence_tpa/sessions/PC-1@u/2026-11.json": {
+     "rows": []
+    },
+    "presence_tpa/.x.tmp": "{"
+   },
+   "copied": [
+    "other_master.json",
+    "path_settings.json",
+    "roll_master.json",
+    "presence_tpa/PC-1@u.revoke.json",
+    "presence_tpa/settings.json",
+    "presence_tpa/history/PC-1@u.json",
+    "presence_tpa/sessions/PC-1@u/2026-11.json"
+   ]
+  },
+  {
+   "name": "利用状況が無い置き場",
+   "share": {
+    "equipment_master.json": {
+     "schema": 1,
+     "revision": 1,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": []
+    }
+   },
+   "copied": [
+    "equipment_master.json"
+   ]
+  }
+ ],
+ "tabExceptions": [
+  {
+   "value": "{\"lot\": \"出さない\", \"work\": \"出す\"}",
+   "want": {
+    "lot": "出さない",
+    "work": "出す"
+   }
+  },
+  {
+   "value": "{\"lot\": \"出さない\", \"X\": \"出さない\", \"sch\": \"見る\", \"dash\": 1}",
+   "want": {
+    "lot": "出さない"
+   }
+  },
+  {
+   "value": {
+    "dash": "出す",
+    "calc": "出さない",
+    "BAD": "出す"
+   },
+   "want": {
+    "dash": "出す",
+    "calc": "出さない"
+   }
+  },
+  {
+   "value": "[1]",
+   "want": {}
+  },
+  {
+   "value": "[1, 2]",
+   "want": {}
+  },
+  {
+   "value": "1",
+   "want": {}
+  },
+  {
+   "value": "0",
+   "want": {}
+  },
+  {
+   "value": "\"lot\"",
+   "want": {}
+  },
+  {
+   "value": "null",
+   "want": {}
+  },
+  {
+   "value": "true",
+   "want": {}
+  },
+  {
+   "value": "{work",
+   "want": {}
+  },
+  {
+   "value": "",
+   "want": {}
+  },
+  {
+   "value": "   ",
+   "want": {}
+  },
+  {
+   "value": null,
+   "want": {}
+  },
+  {
+   "value": [
+    "lot"
+   ],
+   "want": {}
+  },
+  {
+   "value": 5,
+   "want": {}
+  },
+  {
+   "value": true,
+   "want": {}
+  }
+ ],
+ "tabCounts": [
+  {
+   "name": "止めた行・開発者の行は数えない（例外が効かない）",
+   "rows": [
+    {
+     "ログインID": "u1",
+     "権限区分": "一般ユーザー",
+     "有効": "有",
+     "タブの例外": "{\"dash\": \"出さない\"}"
+    },
+    {
+     "ログインID": "u2",
+     "権限区分": "一般ユーザー",
+     "有効": "無",
+     "タブの例外": "{\"dash\": \"出さない\"}"
+    },
+    {
+     "ログインID": "u3",
+     "権限区分": "開発者",
+     "有効": "有",
+     "タブの例外": "{\"calc\": \"出さない\"}"
+    },
+    {
+     "ログインID": "u4",
+     "権限区分": "メンテナンス者",
+     "有効": "",
+     "タブの例外": "{\"calc\": \"出す\", \"dash\": \"出す\"}"
+    },
+    {
+     "ログインID": "u5",
+     "権限区分": "設備作業者",
+     "有効": "有",
+     "タブの例外": "[1]"
+    }
+   ],
+   "want": {
+    "dash": 2,
+    "calc": 1
+   }
+  }
+ ],
+ "blank": [
+  {
+   "key": "lotdsp_import.url",
+   "value": "",
+   "default": "",
+   "want": "値を入れてください。"
+  },
+  {
+   "key": "schedule.cm3_base_url",
+   "value": "  ",
+   "default": "",
+   "want": "値を入れてください。"
+  },
+  {
+   "key": "lot_list.table",
+   "value": "",
+   "default": "",
+   "want": "値を入れてください。"
+  },
+  {
+   "key": "work_log.folder",
+   "value": "",
+   "default": "",
+   "want": "値を入れてください。"
+  },
+  {
+   "key": "lot_list.source",
+   "value": "",
+   "default": "",
+   "want": "値を入れてください。"
+  },
+  {
+   "key": "work_log.pattern",
+   "value": "",
+   "default": "",
+   "want": "値を入れてください。"
+  },
+  {
+   "key": "lot_list.refresh_seconds",
+   "value": "",
+   "default": 30,
+   "want": "値の形は正しいです。"
+  },
+  {
+   "key": "lotdsp_import.direct.browser",
+   "value": "",
+   "default": "",
+   "want": null
+  }
+ ],
+ "hidden": [
+  {
+   "name": "見える",
+   "attrs": "",
+   "shown": true
+  },
+  {
+   "name": "隠し",
+   "attrs": "h",
+   "shown": false
+  },
+  {
+   "name": "システム",
+   "attrs": "s",
+   "shown": false
+  },
+  {
+   "name": "両方",
+   "attrs": "hs",
+   "shown": false
+  },
+  {
+   "name": "desktop.ini",
+   "attrs": "hs",
+   "file": true,
+   "shown": false
+  },
+  {
+   "name": "Thumbs.db",
+   "attrs": "hs",
+   "file": true,
+   "shown": false
+  },
+  {
+   "name": "見えるファイル.txt",
+   "attrs": "",
+   "file": true,
+   "shown": true
+  }
+ ],
+ "moveRaces": [
+  {
+   "name": "錠の長さ 1 秒・共有の読みが 1 つ 0.3 秒（遅い共有）。名前の順で最初に写すマスタを、写した後でほかの PC が錠を切れたと見て保存する",
+   "lockTtl": 1.0,
+   "readDelay": 0.3,
+   "saveAfter": 0.2,
+   "presenceFiles": 6,
+   "master": "access_permissions"
+  }
+ ]
+}

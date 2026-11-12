@@ -24,11 +24,16 @@ MARKER = "release.json"              # 版のフォルダの目印（窓が置�
 MARKER_DEPTH = 3                     # 置き場の下を何階層まで探すか（置き場\版\release.json が 2 階層目）
 NAME_MAX = 120
 _BAD = set('<>:"/\\|?*') | {chr(i) for i in range(32)}
-_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+# Windows の予約名（Microsoft「Naming Files, Paths, and Namespaces」。Python 3.13 の ntpath.isreserved と同じ: 上付きの ¹²³・CONIN$・CONOUT$ も。
+# 版 3.100.0 で足した。前は COM¹・CONIN$・「CON .txt」を通した）。比べるのは、最初の「.」より前を、後ろの空白を除いて大文字にした字
+_DIGITS = "123456789\u00b9\u00b2\u00b3"
+_RESERVED = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$", *(f"COM{c}" for c in _DIGITS), *(f"LPT{c}" for c in _DIGITS)}
+DOT_HEAD_PROBLEM = "「.」で始まる名前は「参照…」に出ないため使えません。"   # 利用者の決め（版 3.100.0。「参照…」は「.」で始まる物を出さない）
 
 
 def check_name(name) -> str:
-    """フォルダの名前（Windows で使えるもの）。合わなければ ValueError（理由つき）。"""
+    """フォルダの名前（Windows で使えるもの）。合わなければ ValueError（理由つき）。配布の置き場とマスタの置き場が使う。
+    答えは事例の表 tests/fixtures/place_cases.json の names（窓の desktop/src/release_place.rs の check_name も同じ表を読む）"""
     s = str(name or "").strip()
     if not s:
         raise ValueError("フォルダの名前を入れてください。")
@@ -38,13 +43,20 @@ def check_name(name) -> str:
     if bad:
         shown = "".join(c if c.isprintable() else "（制御文字）" for c in bad)
         raise ValueError(f"フォルダの名前に使えない字があります: {shown}（\\ / : * ? \" < > | は使えません）")
-    if s.endswith((".", " ")):
-        raise ValueError("フォルダの名前の最後に「.」や空白は付けられません。")
-    if s.split(".")[0].upper() in _RESERVED:
-        raise ValueError(f"「{s}」は Windows が使う名前なので、フォルダの名前にできません。")
     if s in (".", ".."):
         raise ValueError("フォルダの名前にできません。")
+    if s.startswith("."):
+        raise ValueError(DOT_HEAD_PROBLEM)
+    if s.endswith((".", " ")):
+        raise ValueError("フォルダの名前の最後に「.」や空白は付けられません。")
+    if s.split(".")[0].rstrip(" ").upper() in _RESERVED:
+        raise ValueError(f"「{s}」は Windows が使う名前なので、フォルダの名前にできません。")
     return s
+
+
+def unreadable(e) -> str:
+    """新しい場所の中を読めないとき（権限など）の理由（版 3.100.0。前は 500 の頁になった）"""
+    return f"新しい場所を読めません（{getattr(e, 'strerror', None) or e}）。権限か、つながりを確かめてください。"
 
 
 def has_release(folder: Path, depth: int = MARKER_DEPTH) -> bool:
@@ -110,11 +122,14 @@ def plan(src, parent, name, copy=True) -> dict:
             return {**out, "ok": False, "problem": "いまの置き場の中には置けません（置き場の外のフォルダを選んでください）。"}
         if _inside(srcp, dest):
             return {**out, "ok": False, "problem": "いまの置き場を含むフォルダは選べません。"}
-    exists = dest.exists()
-    if exists and not dest.is_dir():
-        return {**out, "ok": False, "problem": "同じ名前のファイルがあります。別の名前にしてください。"}
-    dest_release = exists and has_release(dest)
-    dest_empty = not exists or not any(dest.iterdir())
+    try:
+        exists = dest.exists()
+        if exists and not dest.is_dir():
+            return {**out, "ok": False, "problem": "同じ名前のファイルがあります。別の名前にしてください。"}
+        dest_release = exists and has_release(dest)
+        dest_empty = not exists or not any(dest.iterdir())
+    except OSError as e:
+        return {**out, "ok": False, "problem": unreadable(e)}
     if dest_release:
         return {**out, "mode": "switch", "note": "新しい場所は既に配布の置き場です（版があります）。写さずに切り替えます。"}
     if not dest_empty:

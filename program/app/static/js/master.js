@@ -221,7 +221,9 @@ async function closeMaster() {
 }
 
 /* ---------------- 置き場の帯（どこの・いつのマスタか）と、ほかの PC の変更の取り込み ---------------- */
-const shareDown = () => !!(mstate.place && mstate.place.mode === "shared" && !mstate.place.reachable);
+// 届かない（false）ときだけ保存を止める。null は共有が区切った秒で答えなかった「確かめ中」（遅いが届く共有。保存は、届かなければサーバーが断る。版 3.100.0）
+const shareDown = () => !!(mstate.place && mstate.place.mode === "shared" && mstate.place.reachable === false);
+const shareChecking = (p) => !!(p && p.mode === "shared" && p.reachable == null);
 async function refreshPlace() {
   const res = await masterRequest("/api/masters/status");
   if (!res.ok) return;
@@ -259,7 +261,10 @@ function paintPlace(news) {
   let html;
   if (p.mode !== "shared") {
     html = `<span class="place-tag local">手元のみ</span><span class="place-meta">この PC のアプリの data/ に保存します（ほかの PC とは共有しません）</span>`;
-  } else if (!p.reachable) {
+  } else if (shareChecking(p)) {
+    html = `<span class="place-tag shared">確かめ中</span><span class="place-dir">${escapeHtml(p.dir)}</span>
+      <span class="place-meta">共有の答えが遅く、届くかを確かめています（前に取り込んだ写しを表示中・保存はできます）</span>`;
+  } else if (p.reachable === false) {
     html = `<span class="place-tag off">共有に届きません</span><span class="place-dir">${escapeHtml(p.dir)}</span>
       <span class="place-meta">前に取り込んだ写しを表示中・届くまで保存できません</span>
       <button type="button" class="place-btn" id="masterPlaceRetry">もう一度つなぐ</button>`;
@@ -317,6 +322,7 @@ async function goTab(tab) {
 function placeState(p) {
   if (!p || p.mode !== "shared") return ["手元のみ", "local", "アプリの data/ に保存しています。ほかの PC とは共有していません。共有するときは、下で共有フォルダを選びます。"];
   if (p.reachable === false) return ["届かない", "off", "共有の置き場に届きません。前に取り込んだ写しを表示中で、届くまで保存できません。"];
+  if (p.reachable == null) return ["確かめ中", "shared", "共有の置き場の答えが遅く、届くかを確かめています。前に取り込んだ写しを表示中で、保存はできます（届かなければ、保存のときに断ります）。"];
   return ["共有", "shared", "共有フォルダに置き、全員の PC で同じマスタを使っています。"];
 }
 function paintPlaceNav() {
@@ -324,7 +330,8 @@ function paintPlaceNav() {
   if (!el || !mstate.place) return;
   const [t, cls] = placeState(mstate.place);
   el.className = `tab-state ${cls}`;
-  el.textContent = t === "手元のみ" ? "手元" : t;
+  // 確かめ中（版 3.100.0）は、ナビでは「共有」のまま（狭い窓〈1280〉で 3 字以上の札は折れる。帯と置き場の頁が「確かめ中」と言う）
+  el.textContent = t === "手元のみ" ? "手元" : t === "確かめ中" ? "共有" : t;
 }
 
 async function ensureTabLoaded(tab) {
@@ -1430,7 +1437,7 @@ function masterPlaceTree(cur, a, pl, sep) {
   const [curParent, curName] = cur ? splitPath(cur) : ["", ""], newParent = clean(a.parent), newName = String(a.name || "").trim() || "（名前）";
   const same = curParent && curParent.toLowerCase() === newParent.toLowerCase();
   const mode = !pl.ok ? ["is-ng", "使えません"] : pl.mode === "switch" ? ["is-switch", "← 既にマスタがある（写さずに切り替える）"]
-    : ["is-copy", `← ${cur ? "いまの置き場" : "この PC"}のマスタを写す（${pl.files} ファイル・${Math.max(1, Math.round((pl.bytes || 0) / 1024))} KB）`];
+    : ["is-copy", `← ${cur ? "いまの置き場のマスタと利用状況の記録" : "この PC のマスタ"}を写す（${pl.files} ファイル・${Math.max(1, Math.round((pl.bytes || 0) / 1024))} KB）`];
   const oldLi = cur ? `<li class="dz-t-old">📁 ${escapeHtml(curName)}<em>いまの置き場・消さずに残す</em></li>` : "";
   const newLi = `<li class="dz-t-new ${mode[0]}">📁 <b>${escapeHtml(newName)}</b><em>${escapeHtml(mode[1])}</em></li>`;
   const root = (path, items) => `<ul class="dz-t-root"><li>📁 ${escapeHtml(path || "（場所）")}<ul>${items}</ul></li></ul>`;
@@ -1470,6 +1477,7 @@ function pinCount(dir) {
   const here = using.find((u) => samePlace(u.dir, dir)), rest = using.filter((u) => !samePlace(u.dir, dir) && u.pcs.length);
   const names = (list) => list.map((x) => x.pc || x.login).join("・");
   const others = rest.reduce((n, u) => n + u.pcs.length, 0);
+  if (here && here.reachable == null) return chip("確かめ中", "c-plain", `${dir} の答えが遅く、届くかを確かめています`);
   if (here && !here.reachable) return chip("この PC から届きません", "c-warn", `${dir} に届きません（この PC の見え方・つながりを確かめてください）。届かないあいだ、この PC は今の置き場のまま使います`);
   return (here ? chip(`使っている PC ${here.pcs.length} 台`, "c-plain", here.pcs.length ? `いまこの置き場を使っている PC: ${names(here.pcs)}` : "いまこの置き場を使っている PC はありません") : "")
     + (others ? chip(`前の置き場に ${others} 台`, "c-warn", rest.map((u) => `${u.dir}: ${names(u.pcs)}`).join("\n") + "\n（起動したとき・30 分ごとに、全員の置き場へ移ります）") : "");
@@ -1488,7 +1496,7 @@ function pinLine(pin, { canPin, distributed }) {
   const who = [pin.setBy, pin.setPc].filter(Boolean).join("・");
   const tip = `${stamp(pin.setAt) || ""}${who ? ` ${who}` : ""} が配りました。配る版と一緒に全員の PC へ届き、各 PC は起動したとき・30 分ごとに受け取って、数秒でこの置き場へ移ります。マスタの置き場を変えると、ここも新しい置き場になります。`;
   const using = ((mstate.placeInfo && mstate.placeInfo.using) || []).find((u) => samePlace(u.dir, pin.dir));
-  const reach = !using || using.reachable;   // 届かない置き場へは、そろえられない（そろえる手を出さない）
+  const reach = !using || using.reachable !== false;   // 届かない置き場へは、そろえられない（確かめ中〈null〉は出す。確かめるのはサーバー）
   const fix = canPin && reach ? '<button type="button" class="pz-btn dz-go" data-pin="follow" title="この PC のマスタの置き場を、全員の置き場に切り替えます（写さずに切り替える）">この PC をそろえる</button>' + publish : canPin ? publish : "";
   return `<div class="pin-line${off ? " is-off" : ""}" title="${escapeHtml(tip)}"><b>全員のマスタの置き場</b><code title="${escapeHtml(pin.dir)}">${escapeHtml(shortPath(pin.dir))}</code>`
     + (off ? chip(`この PC は別: ${mine ? shortPath(mine, 2) : "手元のみ"}`, "c-warn", mine || "この PC の中だけ（手元のみ）") : chip("✓ この PC も同じ", "c-on"))

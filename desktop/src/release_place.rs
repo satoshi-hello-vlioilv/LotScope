@@ -32,7 +32,12 @@ pub const MARKER: &str = "release.json";
 pub const MARKER_DEPTH: u32 = 3;
 pub const NAME_MAX: usize = 120;
 const BAD: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
-const RESERVED: [&str; 4] = ["CON", "PRN", "AUX", "NUL"];
+/// Windows の予約名（Microsoft「Naming Files, Paths, and Namespaces」。Python 3.13 の ntpath.isreserved と同じ。版 3.100.0 で上付きの ¹²³・
+/// CONIN$・CONOUT$ を足した）。COM・LPT は後ろに 1〜9・¹²³ の 1 字
+const RESERVED: [&str; 6] = ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"];
+const PORT_DIGITS: [char; 12] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '\u{b9}', '\u{b2}', '\u{b3}'];
+/// 先頭が「.」の名前の理由（利用者の決め。版 3.100.0。「参照…」は「.」で始まる物を出さないので、作った置き場が見えなくなる）
+pub const DOT_HEAD_PROBLEM: &str = "「.」で始まる名前は「参照…」に出ないため使えません。";
 /// 写しているあいだの一時フォルダの名前の中の印（.<名前>.copying-<pid>-<秒>）
 const TMP_MARK: &str = ".copying-";
 
@@ -135,13 +140,42 @@ fn unquote(x: &str) -> String {
     crate::pyfmt::strip(x).trim_matches('"').to_string()
 }
 
-/// os.path.normcase（Windows は小文字と \。POSIX はそのまま）
-fn normcase(s: &str) -> String {
+/// os.path.normcase（Windows は \ と小文字。POSIX はそのまま）。Windows の小文字は Python 3.13 の ntpath.normcase と同じ
+/// LCMapStringEx（不変のロケール・LCMAP_LOWERCASE）で作る（版 3.100.0。前の to_lowercase は「İ」を 2 字にするなど、長さの変わる対応で
+/// 「同じ所・中」の比べが Python と割れうった。Windows の CI で全部の BMP の字を Python と突き合わせる: tests の normcase_is_pythons）
+pub fn normcase(s: &str) -> String {
     if cfg!(windows) {
-        s.replace('/', "\\").to_lowercase()
+        win_lower(&s.replace('/', "\\"))
     } else {
         s.to_string()
     }
+}
+
+#[cfg(windows)]
+fn win_lower(s: &str) -> String {
+    use windows::Win32::Foundation::LPARAM;
+    use windows::Win32::Globalization::{LCMapStringEx, LCMAP_LOWERCASE, LOCALE_NAME_INVARIANT};
+    let src: Vec<u16> = s.encode_utf16().collect();
+    if src.is_empty() {
+        return String::new();
+    }
+    // 1 回目で長さを尋ね、2 回目で書く（ntpath.normcase の _winapi.LCMapStringEx と同じ）
+    let n = unsafe { LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, &src, None, None, None, LPARAM(0)) };
+    if n <= 0 {
+        return s.to_lowercase();
+    }
+    let mut out = vec![0u16; n as usize];
+    let got = unsafe { LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, &src, Some(&mut out), None, None, LPARAM(0)) };
+    if got <= 0 {
+        return s.to_lowercase();
+    }
+    out.truncate(got as usize);
+    String::from_utf16_lossy(&out)
+}
+
+#[cfg(not(windows))]
+fn win_lower(s: &str) -> String {
+    s.to_lowercase()
 }
 
 /// Windows（Win32）は道の各段の末尾の空白と「.」を黙って削る（「 」は空の名前・「a. 」は「a」になる）。Python は字のまま
@@ -354,11 +388,23 @@ pub fn check_name(name: &str) -> Result<String, String> {
         let shown: String = bad.iter().map(|c| if (*c as u32) < 32 { "（制御文字）".to_string() } else { c.to_string() }).collect();
         return Err(format!("フォルダの名前に使えない字があります: {shown}（\\ / : * ? \" < > | は使えません）"));
     }
+    if s == "." || s == ".." {
+        return Err("フォルダの名前にできません。".into());
+    }
+    if s.starts_with('.') {
+        return Err(DOT_HEAD_PROBLEM.into());
+    }
     if s.ends_with(['.', ' ']) {
         return Err("フォルダの名前の最後に「.」や空白は付けられません。".into());
     }
-    let head = s.split('.').next().unwrap_or("").to_uppercase();
-    let numbered = |p: &str| head.strip_prefix(p).is_some_and(|d| d.len() == 1 && matches!(d.as_bytes()[0], b'1'..=b'9'));
+    // 最初の「.」より前を、後ろの空白を除いて大文字にした字で比べる（ntpath._isreservedname: name.partition('.')[0].rstrip(' ').upper()）
+    let head = s.split('.').next().unwrap_or("").trim_end_matches(' ').to_uppercase();
+    let numbered = |p: &str| {
+        head.strip_prefix(p).is_some_and(|d| {
+            let mut cs = d.chars();
+            matches!((cs.next(), cs.next()), (Some(c), None) if PORT_DIGITS.contains(&c))
+        })
+    };
     if RESERVED.contains(&head.as_str()) || numbered("COM") || numbered("LPT") {
         return Err(format!("「{s}」は Windows が使う名前なので、フォルダの名前にできません。"));
     }
