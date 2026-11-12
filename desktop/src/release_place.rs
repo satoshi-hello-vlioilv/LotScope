@@ -899,23 +899,25 @@ fn run(inner: &Inner, record: Option<&Path>, src: &Path, dest: &Path) {
         // 写し終えてから名前を付ける（各 PC は写しかけを見ない）
         std::fs::rename(&tmp, dest).map_err(|e| os_error(&e, Some(&tmp), Some(dest)))
     })();
-    {
-        let mut p = inner.p.lock().unwrap();
-        match r {
-            Ok(()) => {
-                p.insert("state".into(), json!("done"));
-                p.insert("finished".into(), json!(now()));
-            }
-            Err(e) => {
-                let _ = std::fs::remove_dir_all(&tmp); // 届かない・権限・容量: 写しかけを片付けて理由を返す
-                p.insert("state".into(), json!("failed"));
-                p.insert("error".into(), json!(format!("写せませんでした: {e}")));
-            }
+    if r.is_err() {
+        let _ = std::fs::remove_dir_all(&tmp); // 届かない・権限・容量: 写しかけを片付けて理由を返す
+    }
+    // 印を片付けてから終わりを出す（版 3.104.0。前は done を出した後に印を消していて、done を見た直後の読み手〈Windows の CI〉が
+    // まだ残る印を見た）。done・failed は後片付けまで済んだ印
+    if let Some(rec) = record {
+        if !tmp.exists() {
+            record_remove(rec, &tmp); // 片付けられなかった写しかけは印に残す（次の機会に消す）
         }
     }
-    if let Some(r) = record {
-        if !tmp.exists() {
-            record_remove(r, &tmp); // 片付けられなかった写しかけは印に残す（次の機会に消す）
+    let mut p = inner.p.lock().unwrap();
+    match r {
+        Ok(()) => {
+            p.insert("state".into(), json!("done"));
+            p.insert("finished".into(), json!(now()));
+        }
+        Err(e) => {
+            p.insert("state".into(), json!("failed"));
+            p.insert("error".into(), json!(format!("写せませんでした: {e}")));
         }
     }
 }
