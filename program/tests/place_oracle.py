@@ -288,7 +288,8 @@ def do(st, root):
     elif st["do"] == "rmtree":
         shutil.rmtree(sub(st["path"], root))
     elif st["do"] == "write":
-        Path(sub(st["path"], root)).write_text(st["text"], encoding="utf-8")
+        # 窓の試験（std::fs::write）と同じバイトで書く。write_text は Windows で改行を "\r\n" にし、写す量が行の数だけ食い違う
+        Path(sub(st["path"], root)).write_bytes(st["text"].encode("utf-8"))
 
 
 def one_status(folder):
