@@ -28,6 +28,7 @@ os.environ.pop("TPA_SHELL_SERVES", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import folder_browse, identity, presence  # noqa: E402
+import oracle_gate  # noqa: E402
 
 BOSS, VIEW, CUT = ("boss", "PC-1"), ("v1", "PC-3"), ("c1", "PC-4")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -223,7 +224,7 @@ def main():
         app_paths += [["oldmaster", "前のマスタの置き場", h.get("dir") or ""] for h in st.history()]
         pdir = root / "local" / "presence"
         out, dele = [], []
-        for s in steps() + [dict(x, delegate=True) for x in delegates()]:
+        for s in oracle_gate.seq(steps(), delegates()):
             presence.configure(pdir)
             if s.get("revoke"):
                 pdir.mkdir(parents=True, exist_ok=True)

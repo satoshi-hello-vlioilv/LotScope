@@ -35,11 +35,15 @@ I64 = 2 ** 63
 PLACE_RULES = [
     ("置き場の行: 版（rev・revision）が Python の int() で読めない", r"(行の|ファイルの|置き場の)版(が|・値| revision)|revision|版が読めない"),
     ("置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）", r"NaN|Infinity|1e400|代用字"),
-    ("置き場の字: 整数の -0（Python は 0、serde は -0.0）", r"-0"),
-    ("置き場の字: i64 に入らない整数・大きな id・大きな表示順", r"i64|大きな|表示順が大きい"),
+    ("置き場の字: 整数の -0（置き場の読み。Python は 0、serde は -0.0）", r"-0"),
+    # 版 3.104.0 の採点の指摘: 「id が大きな数・字」の行は id が字 "3"・小数 1e+19 の型の話（大きな整数ではない）
+    ("置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）", r"id が"),
+    ("置き場の字: i64 に入らない整数・大きな表示順", r"i64|大きな|表示順が大きい"),
     ("置き場の字: 入れ子 128 段以上（serde の上限）", r"入れ子"),
     ("置き場の行: 表でない行・null の条件（Python の落ち方）", r"表でない行|null の条件|並びの条件|前の版の条件"),
-    ("置き場・配った設定: 39 桁を超える並び・古さが数でない", r"39 桁|古さが abc"),
+    ("置き場の字: 39 桁を超える並び（i128 に入らない整数）", r"39 桁"),
+    # 版 3.104.0 の採点の指摘: マスタの行ではなく配った設定の値（float('abc') の ValueError）
+    ("配った設定: 作業実績の古さ（work_log.stale_hours）が数でない", r"古さが abc"),
     ("置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）", r"."),
 ]
 PLACE_SCENE = r"置き場|共有のファイル|窓は答えず|窓は答えない|前の版の条件|39 桁|配った設定|同じに読めない"
@@ -217,14 +221,16 @@ def body_kind(s, scene_name, prof):
     if "正規表現" in name:
         return "本文: 正規表現（Python の re）"
     if re.search("入れ子|重ね", name):
-        return "本文: 入れ子 128 段以上（serde の上限）"
+        # 版 3.104.0 の採点の指摘: 変換表の「入れ子の深い式」「not の重ね」は式の字の中の入れ子（本文の JSON の深さは 4〜7 段）
+        return "本文: 変換表の式の入れ子（not の重ね・深い式。JSON の深さではない）"
     if re.search("大きな|桁", name):
         return BODY_BIG
     if re.search("並び|が表", name):
         return BODY_LIST
     vals = leaves(o)
     if re.search(r"(?<![\d.eE])-0(?![\d.eE])", raw):
-        return "本文: 整数の -0（Python は 0、serde は -0.0）"
+        # 版 3.104.0 から本文の門が 0 に書き直す（中身を字で送る欄〈"body": "{…}"〉の中の -0 だけが残る）
+        return "本文: 整数の -0（中身を字で送る欄の中。門は外側だけ書き直す）"
     if any(isinstance(x, int) and not isinstance(x, bool) and not -I64 <= x < I64 for _, x in vals) \
             or any(isinstance(x, float) and abs(x) >= I64 for _, x in vals) \
             or any(isinstance(x, str) and re.fullmatch(r"\s*[+-]?\d{19,}\s*", x) and len(x) <= 4300 for _, x in vals):
@@ -233,6 +239,9 @@ def body_kind(s, scene_name, prof):
     if br is not None and not isinstance(br, bool) and (isinstance(br, (float, list, dict)) or (
             isinstance(br, str) and not re.fullmatch(r"\s*[+-]?\d+\s*", br))):
         return "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）"
+    if path.endswith("/api/pivot-quick") and any(isinstance(x, str) and not x.isascii() for _, x in vals):
+        # 版 3.104.0 の採点の指摘: すぐに見るの keys は str.strip と isdigit で読む（int() ではない）
+        return "本文: すぐに見るの keys の字（str.strip・isdigit。int() ではない）"
     if any(int_text_split(x) for _, x in vals):
         return "本文: 数の欄の字（全角・ASCII でない空白・制御字・4300 桁・²。Python の int()）"
     seen = prof.get((method, template(path)), {})

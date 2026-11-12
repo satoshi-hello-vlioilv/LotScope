@@ -23,6 +23,8 @@ os.environ.pop("TPA_SHELL", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 BOSS, PART, VIEW = ("boss", "PC-1"), ("p1", "PC-2"), ("v1", "PC-3")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -82,7 +84,7 @@ SCENARIOS = [
     ], "delegates": [
         S(BOSS, "POST", E, {"設備名": "並び", "同一工程": ["A", "B"]}),
         S(BOSS, "POST", E, {"設備名": "表", "巻取方向": {"b": 1, "a": 2}}),
-        S(BOSS, "POST", E, '{"設備名": "負の零", "ライン方向": -0}'),
+        W(S(BOSS, "POST", E, '{"設備名": "負の零", "ライン方向": -0}')),
         S(BOSS, "POST", E, '{"設備名": "大きな整数", "ライン方向": 100000000000000000000}'),
         S(BOSS, "POST", E, '{"設備名": "i64 の外", "ライン方向": 9223372036854775808}'),
         S(BOSS, "POST", E, '{"設備名": "NaN", "ライン方向": NaN}'),
@@ -90,8 +92,8 @@ SCENARIOS = [
         S(BOSS, "POST", E, '{"設備名": "片割れ", "ライン方向": "\\ud800"}'),
         S(BOSS, "POST", E, ""),
         S(BOSS, "POST", E, "[1]"),
-        S(BOSS, "PUT", f"{E}/1", '{"base_rev": -0}'),
-        S(BOSS, "PUT", f"{E}/1", {"巻取方向": "x", "base_rev": "²"}),
+        W(S(BOSS, "PUT", f"{E}/1", '{"base_rev": -0}')),
+        W(S(BOSS, "PUT", f"{E}/1", {"巻取方向": "x", "base_rev": "²"})),
     ]},
     {"name": "設備: 直す・消す・行の版・旧い列名", "mode": "shared", "rows": {"equipment_master": EQ, "roll_master": ROLLS}, "steps": [
         S(BOSS, "PUT", f"{E}/2", {"巻取方向": "上", "base_rev": 3}),
@@ -136,7 +138,7 @@ SCENARIOS = [
         S(BOSS, "GET", R),
     ], "delegates": [
         S(BOSS, "POST", R, {"設備": "CR1", "本数": [1, 2.5]}),
-        S(BOSS, "POST", R, '{"設備": "CR1", "本数": -0}'),
+        W(S(BOSS, "POST", R, '{"設備": "CR1", "本数": -0}')),
     ]},
     {"name": "id の無い行（一意と同一工程の確かめは id のある行とだけ比べる）", "mode": "shared",
      "rows": {"equipment_master": [{"設備名": "NOID", "同一工程": "NX*"}, {"id": 1, "設備名": "CR1", "rev": 1}],
@@ -250,7 +252,7 @@ def main():
             place(pd, sc)
             clients = {False: client, True: create_app({"TESTING": True, "MASTER_STORE": store_of(pd, sc)}).test_client()}
             steps, dele = [], []
-            for st in sc["steps"] + [dict(x, delegate=True) for x in sc["delegates"]]:
+            for st in oracle_gate.seq(sc["steps"], sc.get("delegates", [])):
                 who.update(login=st["who"][0], pc=st["who"][1])
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 forget_tab_cache()

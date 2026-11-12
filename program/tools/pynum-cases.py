@@ -6,8 +6,10 @@
 窓（desktop/src/pyfmt.rs）は Python の int()・float()・正規表現の \\d・勤務体系の時刻（shifts.hm）と同じ読み方をする約束で、
 その約束を 1 つの表にする（Rust の cargo test --test pynum_cases と Python の tests/test_pynum_cases.py が同じ表を読む）。
 - digits … Python の \\d が読む 10 進数字（Unicode の Nd）の範囲。0 から始まる並びごと（[はじめ, おわり]）
-- cases  … 字ごとの int()（読めなければ null・i64 に入らなければ "big"）・float()（"nan"・"inf"・"-inf" か数・読めなければ null）・
-            \\d+ に全部が当たるか・shifts.hm（0 時からの分か null）
+- cases  … 字ごとの int()（読めなければ null と int_err〈誤りの文〉・i64 に入らなければ桁の字〈版 3.104.0。前は "big"〉）・
+            float()（"nan"・"inf"・"-inf" か数・読めなければ null）・\\d+ に全部が当たるか・shifts.hm（0 時からの分か null）
+版 3.104.0: str.isspace の全部の字（29 字）を前後に付けた事例と、4,300 桁の上限の事例を足した（int()・float() は U+001C〜U+001F を
+空白に読まない。str.strip と \\s は読む）
 同梱の Python の版が上がり Unicode の数字が増えたら作り直す（試験が古い表を止める）。
 """
 import json
@@ -45,7 +47,20 @@ def _int(s):
         v = int(s)
     except (ValueError, OverflowError):
         return None
-    return v if I64[0] <= v <= I64[1] else "big"
+    return v if I64[0] <= v <= I64[1] else str(v)
+
+
+def _int_err(s):
+    try:
+        int(s)
+    except (ValueError, OverflowError) as e:
+        return str(e)
+    return None
+
+
+def spaces():
+    """str.isspace の字（Python の int()・float()・strip が見る空白の候補）"""
+    return [chr(n) for n in range(sys.maxunicode + 1) if chr(n).isspace()]
 
 
 def _float(s):
@@ -72,12 +87,17 @@ def samples(ranges):
            "²", "³", "½", "Ⅻ", "①", "--5", "+-5", "- 5", "9" * 25, "-" + "9" * 19, "9223372036854775807", "9223372036854775808",
            "1 2", "1\n", "\t7\t", "007", "0", "-0", "+0", "1e", "e5", "1.2.3", "08:15", "8:15", "24:00", "23:59", "7:60", "07:5",
            "２３:５９", "2３:00", "᠑:30", "𑽙:30", "𞓹:45", "12:3４", "1:2:3", ":30", "8:", "008:15"]
+    for ch in spaces():
+        xs += ["4" + ch, ch + "4" + ch, ch + "1.5"]
+    xs += ["1" * 4300, "1" * 4301, "-" + "1" * 4301, "0" * 4301, "1" * 4301 + "x", "1_" * 2150 + "1", "99999999999999999999",
+           "-9223372036854775809", "9223372036854775807", "-0009223372036854775808", "+00"]
     return list(dict.fromkeys(xs))
 
 
 def build():
     ranges = digit_ranges()
-    cases = [{"s": s, "int": _int(s), "float": _float(s), "d": bool(re.fullmatch(r"\d+", s)), "hm": shifts.hm(s)} for s in samples(ranges)]
+    cases = [{"s": s, "int": _int(s), **({"int_err": _int_err(s)} if _int(s) is None else {}), "float": _float(s),
+              "d": bool(re.fullmatch(r"\d+", s)), "hm": shifts.hm(s)} for s in samples(ranges)]
     return {"python": sys.version.split()[0], "unicode": unicodedata.unidata_version, "digits": ranges, "cases": cases}
 
 

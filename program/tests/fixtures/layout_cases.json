@@ -1026,7 +1026,6 @@
 {
 "fn": "layout",
 "in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": \"5\\u001c\", \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}]}",
-"py": true,
 "want": {
 "ok": [
 {
@@ -1077,7 +1076,6 @@
 {
 "fn": "layout",
 "in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": \"４\", \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}}]}",
-"py": true,
 "want": {
 "ok": [
 {

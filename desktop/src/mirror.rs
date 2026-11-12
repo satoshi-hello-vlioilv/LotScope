@@ -293,7 +293,7 @@ impl DbMirror {
             .iter()
             .filter_map(|p| {
                 let n = p.file_name()?.to_str()?;
-                crate::pyfmt::py_int(&n[prefix.len()..n.len() - ".sqlite3".len()]).ok()
+                crate::pyfmt::py_int(&n[prefix.len()..n.len() - ".sqlite3".len()]).ok().map(|n| n.saturating())
             })
             .fold(0, i64::max);
         top + 1

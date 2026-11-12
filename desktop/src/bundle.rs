@@ -110,46 +110,13 @@ pub fn wide_int_text(x: &str) -> Option<i128> {
 }
 
 fn wide_int_str(x: &str) -> Option<i128> {
-    let t = pyfmt::strip(x);
-    let (neg, rest) = match t.chars().next() {
-        Some('-') => (true, &t[1..]),
-        Some('+') => (false, &t[1..]),
-        _ => (false, t),
-    };
-    let cs: Vec<char> = rest.chars().collect();
-    if cs.is_empty() || cs[0] == '_' || cs[cs.len() - 1] == '_' {
-        return None;
-    }
-    let mut v: i128 = 0;
-    let mut prev_us = false;
-    for c in cs {
-        if c == '_' {
-            if prev_us {
-                return None;
-            }
-            prev_us = true;
-            continue;
-        }
-        prev_us = false;
-        let d = pyfmt::digit(c)? as i128;
-        v = v.saturating_mul(10).saturating_add(d);
-    }
-    Some(if neg { -v } else { v })
+    pyfmt::py_int(x).ok().map(|n| n.wide_saturating())
 }
 
-/// Python の int(値)（JSON の値: 真偽は 0・1、小数は 0 の向きへ切る、字は int(字)）。読めなければ None（Python は落ちる）
+/// Python の int(値)（JSON の値: 真偽は 0・1、小数は 0 の向きへ切る、字は int(字)）。読めなければ None（Python は落ちる）。
+/// 版 3.104.0 から pyfmt::py_int_of の 1 つ（大きな数は i128 の端へ。並べる順にだけ使う）
 fn wide_int(v: &Value) -> Option<i128> {
-    match v {
-        Value::Bool(b) => Some(*b as i128),
-        Value::Number(n) => match (n.as_i64(), n.as_u64(), n.as_f64()) {
-            (Some(i), _, _) => Some(i as i128),
-            (_, Some(u), _) => Some(u as i128),
-            (_, _, Some(f)) if f.is_finite() => Some(f.trunc() as i128),
-            _ => None,
-        },
-        Value::String(x) => wide_int_str(x),
-        _ => None,
-    }
+    pyfmt::py_int_of(v.into()).ok().map(|n| n.wide_saturating())
 }
 
 /// int(x)（JSON の値。読めなければ Python は落ちる）

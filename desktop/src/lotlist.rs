@@ -1194,7 +1194,7 @@ pub fn query(
     let t0 = Instant::now();
     let page = match a.page.as_deref() {
         None | Some("") => 1,
-        Some(p) => pyfmt::py_int(p)?,
+        Some(p) => pyfmt::py_int(p)?.saturating(),
     }
     .max(1);
     let size = match a.page_size.as_deref() {
@@ -1206,7 +1206,7 @@ pub fn query(
             }
         }
         Some("") => PAGE_SIZE_DEFAULT,
-        Some(s) => pyfmt::py_int(s)?,
+        Some(s) => pyfmt::py_int(s)?.saturating(),
     }
     .clamp(1, PAGE_SIZE_MAX);
     let q = pyfmt::strip(&a.search).to_string();

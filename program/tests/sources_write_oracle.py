@@ -26,6 +26,8 @@ os.environ.pop("TPA_SHELL_SERVES", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import data_sources, identity  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 LOGIN = identity.current_login_id()
 
@@ -110,7 +112,7 @@ SCENARIOS = [
         S("DELETE", f"{P}/wip", query="rev=x"),
     ], "delegates": [
         S("PUT", f"{P}/s4", "[1]"),
-        S("PUT", f"{P}/s4", {"表示名": "x", "base_rev": "²"}),
+        W(S("PUT", f"{P}/s4", {"表示名": "x", "base_rev": "²"})),
         S("PUT", f"{P}/s%34", {"表示名": "x"}),
         S("POST", f"{P}/s4/quick", {"表示名": ["x"]}),
     ]},
@@ -263,8 +265,9 @@ def main():
         py, rs, pd = (base / f"s{i}" / x for x in ("py", "rs", "pd"))
         for r in (py, rs, pd):
             place(r, sc)
-        steps, who = run(py, sc["steps"])
-        dele, _ = run(pd, sc.get("delegates", []))
+        mine, theirs = oracle_gate.split(sc["steps"], sc.get("delegates", []))
+        steps, who = run(py, mine)
+        dele, _ = run(pd, theirs)
         out.append({"name": sc["name"], "py": str(py), "rs": str(rs), "storeWho": who, "steps": steps, "delegates": dele,
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
     sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False))

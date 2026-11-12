@@ -16,7 +16,7 @@
 //! （中身の部品の形・字でない項目）・道の id が ASCII の数字でない。
 
 use crate::jsontree::Tree;
-use crate::master_rows::{self, base_rev, Rev, Spec};
+use crate::master_rows::{self, base_rev, Spec};
 use crate::master_store::{MasterError, Store};
 use crate::worksum::{py_str, truthy};
 use serde_json::{json, Map, Value};
@@ -55,10 +55,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -284,10 +282,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         return None; // 表でない真の本文は Python の例外（窓は答えない）
     }
     if let Route::Delete(id) = route {
-        let base = match base_rev(&parsed, query) {
-            Some(Rev::Unknown) => return None,
-            b => b,
-        };
+        let base = base_rev(&parsed, query);
         return Some(match master_rows::delete(store, &SPEC, id, base) {
             Ok(()) => (200, json!({"ok": true})),
             Err(e) => (e.status(), e.payload()),
@@ -309,10 +304,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             master_rows::create(store, &SPEC, &row, &check).map(|v| (201, v))
         }
         Route::Update(id) => {
-            let base = match base_rev(&parsed, query) {
-                Some(Rev::Unknown) => return None,
-                b => b,
-            };
+            let base = base_rev(&parsed, query);
             let mut row = match clean_row(d, &tree, true) {
                 Ok(Some(r)) => r,
                 Ok(None) => return None,

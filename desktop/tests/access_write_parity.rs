@@ -53,6 +53,15 @@ fn store_of(conf: &Value, who: &Value) -> Store {
 /// None は窓が答えない（Python に任せる）
 fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let mut c = conf.clone();
+    // 書く道の本文の門（版 3.104.0）: 本物の道（Lot::handle_body）と同じく、門番・部品より先
+    let gated = match common::gate(
+        step["method"].as_str().unwrap(),
+        step["path"].as_str().unwrap(),
+        step["body"].as_str().unwrap_or("").as_bytes(),
+    ) {
+        Ok(b) => b,
+        Err(a) => return Some(a),
+    };
     c["who"]["login"] = step["who"][0].clone();
     c["who"]["pc"] = step["who"][1].clone();
     let me = access::me(&c, None).expect("me");
@@ -68,9 +77,8 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
         return da_core::access_write::tabs_answer(store, &me, &tabs, &sources);
     }
     let route = route_of(method, path).expect("窓が受ける道");
-    let body = step["body"].as_str().unwrap_or("");
     let tabs = access::Place::from_json(&c["place"]).rows("tab_access").unwrap();
-    handle(store, &me, route, step["query"].as_str().unwrap_or(""), body.as_bytes(), &tabs)
+    handle(store, &me, route, step["query"].as_str().unwrap_or(""), &gated, &tabs)
 }
 
 /// 置き場のマスタのファイル（共有・同梱の data/・写し。錠と書きかけの残りは無いこと）

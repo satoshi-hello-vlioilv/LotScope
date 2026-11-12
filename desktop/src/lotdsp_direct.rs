@@ -671,7 +671,7 @@ fn devtools_port(profile: &Path, proc: &mut dyn Proc, timeout: f64, cx: &Cx) -> 
             );
         }
         if let Ok(t) = std::fs::read_to_string(&f) {
-            if let Some(Ok(p)) = t.lines().next().map(crate::pyfmt::py_int) {
+            if let Some(Some(p)) = t.lines().next().map(|l| crate::pyfmt::py_int(l).ok().and_then(|n| n.small())) {
                 if p != 0 && (1..=65535).contains(&p) {
                     return Ok(p as u16);
                 }

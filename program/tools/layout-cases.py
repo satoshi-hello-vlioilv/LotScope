@@ -58,8 +58,8 @@ add(*lay(L(P("p6"), P("a", x=4), P("a", x=8))))     # 付け直す先 p6 がも�
 add(*lay(L(P("p5"), P("p6", x=4), P("a", x=8), P("a", y=2))))
 add(*lay(L(P("a", w=4.9, h=True, x="1_0"), rows=" 6 ")))
 add(*lay(L(P("a", w="9" * 5000), rows=4)))
-add(*lay(L(P("a", w="5\x1c"))), py=True)
-add(*lay(L(P("a", w="４"))), py=True)
+add(*lay(L(P("a", w="5\x1c"))))     # 版 3.104.0 から窓も Python の int() と同じに読む（pyfmt::py_int_of。前は Python に任せた）
+add(*lay(L(P("a", w="４"))))
 add(*lay(L(P("a", x=0, w=6), P("b", x=3, w=6, title="二"))))
 add(*lay(L(P("bad id!", w=20, h=40, x=-3, y=99), rows=100)))
 add(*lay(L(*[P(f"q{k}", x=(k % 3) * 4, y=k // 3, h=1) for k in range(25)], rows=16)))

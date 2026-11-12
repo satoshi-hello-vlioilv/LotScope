@@ -145,5 +145,8 @@ def create_app(test_config=None):
 
     from .routes import bp
     app.register_blueprint(bp)
+    # 本文の門は、どの前の係（門番など）よりも先（版 3.104.0。窓も同じ順）
+    from .routes.common import body_gate
+    app.before.insert(0, body_gate)
 
     return app

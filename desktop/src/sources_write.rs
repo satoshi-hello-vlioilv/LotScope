@@ -553,9 +553,6 @@ pub fn handle(store: &Store, route: &Route, query: &str, body: &[u8], cx: &Ctx) 
     let done = |answer: Answer| Some(Done { answer, setting: None });
     // 開いたときの版（routes/common.base_rev）を読むのは、直す・その場で変える・消す・接続の設定だけ
     let base = || base_rev(&parsed, query);
-    if matches!(route, Route::Put(_) | Route::Quick(_) | Route::Delete(_) | Route::Conn(_)) && base() == Some(Rev::Unknown) {
-        return None;
-    }
     match route {
         Route::Add => {
             let key = (cx.new_key)()?;

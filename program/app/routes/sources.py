@@ -12,7 +12,7 @@ import app_env
 from .. import effective_settings, lists_are_external
 from ..repositories.master_store import MasterError
 from ..services import builder, data_join, data_sources, lot_list, path_settings, pivot, work_log
-from .common import base_rev, bp, can_write, error, master_call, master_repo, tab_denied
+from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body, tab_denied
 
 
 class SourceInvalid(MasterError):
@@ -127,7 +127,7 @@ def sources_check():
     """「確かめる」: その場所（.sqlite3）に届き、一覧が読む表（欄の表 → 役割の候補）とロット番号の列（品質だけ要る）があるか。
     設備の列を書いたら、その列があるか・値の例。決まりは services/builder.check_sqlite の 1 か所（版 3.99.0。前は欄の表を見ず既定の候補の表を数え、
     " で括った場所で設備の列だけ開けず、値の例に空の字が混ざった）"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
     return jsonify(builder.check_sqlite(str(body.get("place") or ""), str(body.get("table") or ""), str(body.get("role") or ""),
                                         str(body.get("equipColumn") or "")))
 
@@ -135,7 +135,7 @@ def sources_check():
 @bp.post("/api/sources")
 def sources_add():
     """データ元を足す（1 ファイルの元。キーはここで決める）。"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
 
     def run():
         try:
@@ -149,7 +149,7 @@ def sources_add():
 @bp.put("/api/sources/<key>")
 def sources_put(key):
     """データ元を直す（決まった元も同じ。参照先に結ぶ接続の設定は PUT /api/sources/<キー>/conn）。送らなかった列はいまの行のまま。base_rev は行の版（無ければ 0）。"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
 
     def run():
         items = _all()
@@ -465,7 +465,7 @@ def sources_join_preview():
     答えのファイルは本物と同じ係で組む（保存しなくても、同じ決まりを保存したら組み直さずに使える）。
     作業実績（版 3.99.0。決め 4）は表示する全部の設備で数えて足し、設備ごとの内訳（byEquip）と読めなかった設備（failed）を答えに書く。
     答えのファイルは設備ごと（try-work-<キー>）。前は登録の順で最初の設備 1 台だけで、画面は全体の数のように出していた"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
     key, base = str(body.get("key") or ""), str(body.get("base") or "")
     items = _all()
     if base and not key:                    # 足す前の結合した表（版 3.54.0）: 元の表に当てて数える
@@ -516,7 +516,7 @@ def sources_join_preview():
 def sources_patch(key):
     """一覧からその場で変える（版 3.54.0。POST /api/sources/<キー>/quick）: 見出しのタブに出すか（画面）・グループ・表示名だけ。ほかの列はそのまま。
     行が無い決まった元（仕掛など）は、いま効いている値で行を作る。base_rev は行の版（無ければ 0）。"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
 
     def run():
         items = _all()
@@ -536,7 +536,7 @@ def sources_patch(key):
 def sources_order():
     """並べ替え（版 3.54.0）: keys の順に「並び」を振る（品質データ・作業実績は先頭に決まっているので、並べるのはほかの元）。
     行が無い決まった元（仕掛）は、いま効いている値で行を作る。グループの中の順・グループどうしの順・見出しのタブの順がこの並びになる。"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
     keys = [str(k) for k in body.get("keys") or [] if str(k) not in ("lot", "work")]
 
     def run():
@@ -564,7 +564,7 @@ def _conn_field(key, field):
 @bp.put("/api/sources/<key>/conn")
 def sources_conn_put(key):
     """接続の設定の 1 項目を置く（空なら既定へ）。置き場はその元の決まり（参照先の項目か、このマスタの行）。base_rev はその置き場の版。"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
     s, f, fail = _conn_field(key, str(body.get("field") or ""))
     if fail:
         return fail
@@ -595,7 +595,7 @@ def sources_conn_check(key):
     """接続の設定の 1 項目を「確かめる」（保存の前に、その値で読めるか）。空なら既定の値で確かめる。
     場所（.sqlite3）は一覧と同じ表（その元の表）と役割で数える（版 3.99.0。services/builder.check_sqlite。sources_check と同じ）。
     作業実績のフォルダは、本文の pattern（カードで打ち替えたファイル名の決まり。版 3.99.0）があればその決まりで探す"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
     s, f, fail = _conn_field(key, str(body.get("field") or ""))
     if fail:
         return fail
@@ -624,7 +624,7 @@ def sources_conn_check(key):
 def sources_groups():
     """グループの名前を変える・消す（版 3.58.0）: from のグループの元を、まとめて to へ（to が空なら消す＝グループなしへ。
     役割「マスタ」の元は、消すと「マスタ」へ自動で入らない印 NO_GROUP を置く）。データ元そのものは消さない。"""
-    body = request.get_json(force=True, silent=True) or {}
+    body = req_body()
     src, to = str(body.get("from") or "").strip(), " ".join(str(body.get("to") or "").split())[:data_sources.GROUP_MAX]
     if not src:
         return error("グループを選んでください。", 400, "invalid")

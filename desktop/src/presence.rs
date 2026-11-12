@@ -194,14 +194,14 @@ fn month_after(month: &str) -> Option<NaiveDateTime> {
     if parts.len() != 2 {
         return None;
     }
-    let (y, m) = (pyfmt::py_int(parts[0]).ok()?, pyfmt::py_int(parts[1]).ok()?);
+    let (y, m) = (pyfmt::py_int(parts[0]).ok()?.saturating(), pyfmt::py_int(parts[1]).ok()?.saturating());
     let (y, m) = (y + (m == 12) as i64, m.rem_euclid(12) + 1);
     NaiveDate::from_ymd_opt(i32::try_from(y).ok().filter(|y| (1..=9999).contains(y))?, m as u32, 1)?.and_hms_opt(0, 0, 0)
 }
 
 /// version.version_key（'1.10.0' > '1.9.3'。読めない部分は 0）
 pub fn version_key(v: &str) -> Vec<i64> {
-    let mut out: Vec<i64> = v.split('.').map(|p| pyfmt::py_int(p).unwrap_or(0)).collect();
+    let mut out: Vec<i64> = v.split('.').map(|p| pyfmt::py_int(p).map_or(0, |n| n.saturating())).collect();
     while out.len() < 3 {
         out.push(0);
     }
@@ -993,7 +993,7 @@ impl Presence {
                 let arg = |k: &str| q.iter().find(|(x, _)| x == k).map(|(_, v)| v.clone()).unwrap_or_default();
                 let limit = match arg("limit") {
                     s if s.is_empty() => 300,
-                    s => pyfmt::py_int(&s).unwrap_or(300),
+                    s => pyfmt::py_int(&s).map_or(300, |n| n.saturating()),
                 }
                 .clamp(1, 2000) as usize;
                 let key = pyfmt::strip(&arg("key")).to_string();
@@ -1040,7 +1040,7 @@ impl Presence {
 pub fn parse_history_days(v: Option<&Value>) -> Result<i64, String> {
     let (lo, hi) = HISTORY_DAYS_RANGE;
     let s = py_str(v.unwrap_or(&Value::Null));
-    let n = pyfmt::py_int(pyfmt::strip(&s)).map_err(|_| "日数は整数で入れてください。".to_string())?;
+    let n = pyfmt::py_int(pyfmt::strip(&s)).map(|n| n.saturating()).map_err(|_| "日数は整数で入れてください。".to_string())?;
     if !(lo..=hi).contains(&n) {
         return Err(format!("日数は {lo}〜{hi} で入れてください。"));
     }

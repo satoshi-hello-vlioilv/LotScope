@@ -1,5 +1,5 @@
 {
- "python": "3.13.16",
+ "python": "3.13.18",
  "unicode": "15.1.0",
  "digits": [
   [
@@ -291,6 +291,7 @@
   {
    "s": "7:30",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '7:30'",
    "float": null,
    "d": false,
    "hm": 450
@@ -298,6 +299,7 @@
   {
    "s": "12:45",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '12:45'",
    "float": null,
    "d": false,
    "hm": 765
@@ -333,6 +335,7 @@
   {
    "s": "٧:3٠",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '٧:3٠'",
    "float": null,
    "d": false,
    "hm": 450
@@ -340,6 +343,7 @@
   {
    "s": "1٢:٤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1٢:٤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -375,6 +379,7 @@
   {
    "s": "۷:3۰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '۷:3۰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -382,6 +387,7 @@
   {
    "s": "1۲:۴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1۲:۴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -417,6 +423,7 @@
   {
    "s": "߇:3߀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '߇:3߀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -424,6 +431,7 @@
   {
    "s": "1߂:߄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1߂:߄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -459,6 +467,7 @@
   {
    "s": "७:3०",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '७:3०'",
    "float": null,
    "d": false,
    "hm": 450
@@ -466,6 +475,7 @@
   {
    "s": "1२:४5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1२:४5'",
    "float": null,
    "d": false,
    "hm": null
@@ -501,6 +511,7 @@
   {
    "s": "৭:3০",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '৭:3০'",
    "float": null,
    "d": false,
    "hm": 450
@@ -508,6 +519,7 @@
   {
    "s": "1২:৪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1২:৪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -543,6 +555,7 @@
   {
    "s": "੭:3੦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '੭:3੦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -550,6 +563,7 @@
   {
    "s": "1੨:੪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1੨:੪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -585,6 +599,7 @@
   {
    "s": "૭:3૦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '૭:3૦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -592,6 +607,7 @@
   {
    "s": "1૨:૪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1૨:૪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -627,6 +643,7 @@
   {
    "s": "୭:3୦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '୭:3୦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -634,6 +651,7 @@
   {
    "s": "1୨:୪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1୨:୪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -669,6 +687,7 @@
   {
    "s": "௭:3௦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '௭:3௦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -676,6 +695,7 @@
   {
    "s": "1௨:௪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1௨:௪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -711,6 +731,7 @@
   {
    "s": "౭:3౦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '౭:3౦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -718,6 +739,7 @@
   {
    "s": "1౨:౪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1౨:౪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -753,6 +775,7 @@
   {
    "s": "೭:3೦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '೭:3೦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -760,6 +783,7 @@
   {
    "s": "1೨:೪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1೨:೪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -795,6 +819,7 @@
   {
    "s": "൭:3൦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '൭:3൦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -802,6 +827,7 @@
   {
    "s": "1൨:൪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1൨:൪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -837,6 +863,7 @@
   {
    "s": "෭:3෦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '෭:3෦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -844,6 +871,7 @@
   {
    "s": "1෨:෪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1෨:෪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -879,6 +907,7 @@
   {
    "s": "๗:3๐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '๗:3๐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -886,6 +915,7 @@
   {
    "s": "1๒:๔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1๒:๔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -921,6 +951,7 @@
   {
    "s": "໗:3໐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '໗:3໐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -928,6 +959,7 @@
   {
    "s": "1໒:໔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1໒:໔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -963,6 +995,7 @@
   {
    "s": "༧:3༠",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '༧:3༠'",
    "float": null,
    "d": false,
    "hm": 450
@@ -970,6 +1003,7 @@
   {
    "s": "1༢:༤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1༢:༤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1005,6 +1039,7 @@
   {
    "s": "၇:3၀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '၇:3၀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1012,6 +1047,7 @@
   {
    "s": "1၂:၄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1၂:၄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1047,6 +1083,7 @@
   {
    "s": "႗:3႐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '႗:3႐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1054,6 +1091,7 @@
   {
    "s": "1႒:႔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1႒:႔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1089,6 +1127,7 @@
   {
    "s": "៧:3០",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '៧:3០'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1096,6 +1135,7 @@
   {
    "s": "1២:៤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1២:៤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1131,6 +1171,7 @@
   {
    "s": "᠗:3᠐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᠗:3᠐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1138,6 +1179,7 @@
   {
    "s": "1᠒:᠔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᠒:᠔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1173,6 +1215,7 @@
   {
    "s": "᥍:3᥆",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᥍:3᥆'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1180,6 +1223,7 @@
   {
    "s": "1᥈:᥊5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᥈:᥊5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1215,6 +1259,7 @@
   {
    "s": "᧗:3᧐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᧗:3᧐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1222,6 +1267,7 @@
   {
    "s": "1᧒:᧔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᧒:᧔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1257,6 +1303,7 @@
   {
    "s": "᪇:3᪀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᪇:3᪀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1264,6 +1311,7 @@
   {
    "s": "1᪂:᪄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᪂:᪄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1299,6 +1347,7 @@
   {
    "s": "᪗:3᪐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᪗:3᪐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1306,6 +1355,7 @@
   {
    "s": "1᪒:᪔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᪒:᪔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1341,6 +1391,7 @@
   {
    "s": "᭗:3᭐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᭗:3᭐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1348,6 +1399,7 @@
   {
    "s": "1᭒:᭔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᭒:᭔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1383,6 +1435,7 @@
   {
    "s": "᮷:3᮰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᮷:3᮰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1390,6 +1443,7 @@
   {
    "s": "1᮲:᮴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᮲:᮴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1425,6 +1479,7 @@
   {
    "s": "᱇:3᱀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᱇:3᱀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1432,6 +1487,7 @@
   {
    "s": "1᱂:᱄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᱂:᱄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1467,6 +1523,7 @@
   {
    "s": "᱗:3᱐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᱗:3᱐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1474,6 +1531,7 @@
   {
    "s": "1᱒:᱔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1᱒:᱔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1509,6 +1567,7 @@
   {
    "s": "꘧:3꘠",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '꘧:3꘠'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1516,6 +1575,7 @@
   {
    "s": "1꘢:꘤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1꘢:꘤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1551,6 +1611,7 @@
   {
    "s": "꣗:3꣐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '꣗:3꣐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1558,6 +1619,7 @@
   {
    "s": "1꣒:꣔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1꣒:꣔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1593,6 +1655,7 @@
   {
    "s": "꤇:3꤀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '꤇:3꤀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1600,6 +1663,7 @@
   {
    "s": "1꤂:꤄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1꤂:꤄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1635,6 +1699,7 @@
   {
    "s": "꧗:3꧐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '꧗:3꧐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1642,6 +1707,7 @@
   {
    "s": "1꧒:꧔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1꧒:꧔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1677,6 +1743,7 @@
   {
    "s": "꧷:3꧰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '꧷:3꧰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1684,6 +1751,7 @@
   {
    "s": "1꧲:꧴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1꧲:꧴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1719,6 +1787,7 @@
   {
    "s": "꩗:3꩐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '꩗:3꩐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1726,6 +1795,7 @@
   {
    "s": "1꩒:꩔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1꩒:꩔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1761,6 +1831,7 @@
   {
    "s": "꯷:3꯰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '꯷:3꯰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1768,6 +1839,7 @@
   {
    "s": "1꯲:꯴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1꯲:꯴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1803,6 +1875,7 @@
   {
    "s": "７:3０",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '７:3０'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1810,6 +1883,7 @@
   {
    "s": "1２:４5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1２:４5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1845,6 +1919,7 @@
   {
    "s": "𐒧:3𐒠",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𐒧:3𐒠'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1852,6 +1927,7 @@
   {
    "s": "1𐒢:𐒤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𐒢:𐒤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1887,6 +1963,7 @@
   {
    "s": "𐴷:3𐴰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𐴷:3𐴰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1894,6 +1971,7 @@
   {
    "s": "1𐴲:𐴴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𐴲:𐴴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1929,6 +2007,7 @@
   {
    "s": "𑁭:3𑁦",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑁭:3𑁦'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1936,6 +2015,7 @@
   {
    "s": "1𑁨:𑁪5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑁨:𑁪5'",
    "float": null,
    "d": false,
    "hm": null
@@ -1971,6 +2051,7 @@
   {
    "s": "𑃷:3𑃰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑃷:3𑃰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -1978,6 +2059,7 @@
   {
    "s": "1𑃲:𑃴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑃲:𑃴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2013,6 +2095,7 @@
   {
    "s": "𑄽:3𑄶",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑄽:3𑄶'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2020,6 +2103,7 @@
   {
    "s": "1𑄸:𑄺5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑄸:𑄺5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2055,6 +2139,7 @@
   {
    "s": "𑇗:3𑇐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑇗:3𑇐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2062,6 +2147,7 @@
   {
    "s": "1𑇒:𑇔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑇒:𑇔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2097,6 +2183,7 @@
   {
    "s": "𑋷:3𑋰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑋷:3𑋰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2104,6 +2191,7 @@
   {
    "s": "1𑋲:𑋴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑋲:𑋴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2139,6 +2227,7 @@
   {
    "s": "𑑗:3𑑐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑑗:3𑑐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2146,6 +2235,7 @@
   {
    "s": "1𑑒:𑑔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑑒:𑑔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2181,6 +2271,7 @@
   {
    "s": "𑓗:3𑓐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑓗:3𑓐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2188,6 +2279,7 @@
   {
    "s": "1𑓒:𑓔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑓒:𑓔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2223,6 +2315,7 @@
   {
    "s": "𑙗:3𑙐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑙗:3𑙐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2230,6 +2323,7 @@
   {
    "s": "1𑙒:𑙔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑙒:𑙔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2265,6 +2359,7 @@
   {
    "s": "𑛇:3𑛀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑛇:3𑛀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2272,6 +2367,7 @@
   {
    "s": "1𑛂:𑛄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑛂:𑛄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2307,6 +2403,7 @@
   {
    "s": "𑜷:3𑜰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑜷:3𑜰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2314,6 +2411,7 @@
   {
    "s": "1𑜲:𑜴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑜲:𑜴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2349,6 +2447,7 @@
   {
    "s": "𑣧:3𑣠",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑣧:3𑣠'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2356,6 +2455,7 @@
   {
    "s": "1𑣢:𑣤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑣢:𑣤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2391,6 +2491,7 @@
   {
    "s": "𑥗:3𑥐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑥗:3𑥐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2398,6 +2499,7 @@
   {
    "s": "1𑥒:𑥔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑥒:𑥔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2433,6 +2535,7 @@
   {
    "s": "𑱗:3𑱐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑱗:3𑱐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2440,6 +2543,7 @@
   {
    "s": "1𑱒:𑱔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑱒:𑱔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2475,6 +2579,7 @@
   {
    "s": "𑵗:3𑵐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑵗:3𑵐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2482,6 +2587,7 @@
   {
    "s": "1𑵒:𑵔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑵒:𑵔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2517,6 +2623,7 @@
   {
    "s": "𑶧:3𑶠",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑶧:3𑶠'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2524,6 +2631,7 @@
   {
    "s": "1𑶢:𑶤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑶢:𑶤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2559,6 +2667,7 @@
   {
    "s": "𑽗:3𑽐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑽗:3𑽐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2566,6 +2675,7 @@
   {
    "s": "1𑽒:𑽔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𑽒:𑽔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2601,6 +2711,7 @@
   {
    "s": "𖩧:3𖩠",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𖩧:3𖩠'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2608,6 +2719,7 @@
   {
    "s": "1𖩢:𖩤5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𖩢:𖩤5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2643,6 +2755,7 @@
   {
    "s": "𖫇:3𖫀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𖫇:3𖫀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2650,6 +2763,7 @@
   {
    "s": "1𖫂:𖫄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𖫂:𖫄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2685,6 +2799,7 @@
   {
    "s": "𖭗:3𖭐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𖭗:3𖭐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2692,6 +2807,7 @@
   {
    "s": "1𖭒:𖭔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𖭒:𖭔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2727,6 +2843,7 @@
   {
    "s": "𝟕:3𝟎",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𝟕:3𝟎'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2734,6 +2851,7 @@
   {
    "s": "1𝟐:𝟒5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𝟐:𝟒5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2769,6 +2887,7 @@
   {
    "s": "𝟟:3𝟘",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𝟟:3𝟘'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2776,6 +2895,7 @@
   {
    "s": "1𝟚:𝟜5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𝟚:𝟜5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2811,6 +2931,7 @@
   {
    "s": "𝟩:3𝟢",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𝟩:3𝟢'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2818,6 +2939,7 @@
   {
    "s": "1𝟤:𝟦5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𝟤:𝟦5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2853,6 +2975,7 @@
   {
    "s": "𝟳:3𝟬",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𝟳:3𝟬'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2860,6 +2983,7 @@
   {
    "s": "1𝟮:𝟰5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𝟮:𝟰5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2895,6 +3019,7 @@
   {
    "s": "𝟽:3𝟶",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𝟽:3𝟶'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2902,6 +3027,7 @@
   {
    "s": "1𝟸:𝟺5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𝟸:𝟺5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2937,6 +3063,7 @@
   {
    "s": "𞅇:3𞅀",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𞅇:3𞅀'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2944,6 +3071,7 @@
   {
    "s": "1𞅂:𞅄5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𞅂:𞅄5'",
    "float": null,
    "d": false,
    "hm": null
@@ -2979,6 +3107,7 @@
   {
    "s": "𞋷:3𞋰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𞋷:3𞋰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -2986,6 +3115,7 @@
   {
    "s": "1𞋲:𞋴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𞋲:𞋴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3021,6 +3151,7 @@
   {
    "s": "𞓷:3𞓰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𞓷:3𞓰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -3028,6 +3159,7 @@
   {
    "s": "1𞓲:𞓴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𞓲:𞓴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3063,6 +3195,7 @@
   {
    "s": "𞥗:3𞥐",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𞥗:3𞥐'",
    "float": null,
    "d": false,
    "hm": 450
@@ -3070,6 +3203,7 @@
   {
    "s": "1𞥒:𞥔5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1𞥒:𞥔5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3105,6 +3239,7 @@
   {
    "s": "🯷:3🯰",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '🯷:3🯰'",
    "float": null,
    "d": false,
    "hm": 450
@@ -3112,6 +3247,7 @@
   {
    "s": "1🯲:🯴5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1🯲:🯴5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3119,6 +3255,7 @@
   {
    "s": "",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: ''",
    "float": null,
    "d": false,
    "hm": null
@@ -3126,6 +3263,7 @@
   {
    "s": " ",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: ' '",
    "float": null,
    "d": false,
    "hm": null
@@ -3133,6 +3271,7 @@
   {
    "s": "　",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u3000'",
    "float": null,
    "d": false,
    "hm": null
@@ -3175,6 +3314,7 @@
   {
    "s": "－5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '－5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3189,6 +3329,7 @@
   {
    "s": "1__0",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1__0'",
    "float": null,
    "d": false,
    "hm": null
@@ -3196,6 +3337,7 @@
   {
    "s": "_1",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '_1'",
    "float": null,
    "d": false,
    "hm": null
@@ -3203,6 +3345,7 @@
   {
    "s": "1_",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1_'",
    "float": null,
    "d": false,
    "hm": null
@@ -3210,6 +3353,7 @@
   {
    "s": "1e400",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1e400'",
    "float": "inf",
    "d": false,
    "hm": null
@@ -3217,6 +3361,7 @@
   {
    "s": "-1e400",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '-1e400'",
    "float": "-inf",
    "d": false,
    "hm": null
@@ -3224,6 +3369,7 @@
   {
    "s": "1e5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1e5'",
    "float": 100000.0,
    "d": false,
    "hm": null
@@ -3231,6 +3377,7 @@
   {
    "s": "1E-7",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1E-7'",
    "float": 1e-07,
    "d": false,
    "hm": null
@@ -3238,6 +3385,7 @@
   {
    "s": ".5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '.5'",
    "float": 0.5,
    "d": false,
    "hm": null
@@ -3245,6 +3393,7 @@
   {
    "s": "5.",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '5.'",
    "float": 5.0,
    "d": false,
    "hm": null
@@ -3252,6 +3401,7 @@
   {
    "s": ".",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '.'",
    "float": null,
    "d": false,
    "hm": null
@@ -3259,6 +3409,7 @@
   {
    "s": "1.5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1.5'",
    "float": 1.5,
    "d": false,
    "hm": null
@@ -3266,6 +3417,7 @@
   {
    "s": "１．５",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '１．５'",
    "float": null,
    "d": false,
    "hm": null
@@ -3273,6 +3425,7 @@
   {
    "s": "١٫٥",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '١٫٥'",
    "float": null,
    "d": false,
    "hm": null
@@ -3280,6 +3433,7 @@
   {
    "s": "0x10",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '0x10'",
    "float": null,
    "d": false,
    "hm": null
@@ -3287,6 +3441,7 @@
   {
    "s": "12a",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '12a'",
    "float": null,
    "d": false,
    "hm": null
@@ -3294,6 +3449,7 @@
   {
    "s": "inf",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: 'inf'",
    "float": "inf",
    "d": false,
    "hm": null
@@ -3301,6 +3457,7 @@
   {
    "s": "-Infinity",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '-Infinity'",
    "float": "-inf",
    "d": false,
    "hm": null
@@ -3308,6 +3465,7 @@
   {
    "s": "+inf",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '+inf'",
    "float": "inf",
    "d": false,
    "hm": null
@@ -3315,6 +3473,7 @@
   {
    "s": "nan",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: 'nan'",
    "float": "nan",
    "d": false,
    "hm": null
@@ -3322,6 +3481,7 @@
   {
    "s": "NaN",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: 'NaN'",
    "float": "nan",
    "d": false,
    "hm": null
@@ -3329,6 +3489,7 @@
   {
    "s": "-nan",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '-nan'",
    "float": "nan",
    "d": false,
    "hm": null
@@ -3336,6 +3497,7 @@
   {
    "s": "infinity ",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: 'infinity '",
    "float": "inf",
    "d": false,
    "hm": null
@@ -3343,6 +3505,7 @@
   {
    "s": "²",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '²'",
    "float": null,
    "d": false,
    "hm": null
@@ -3350,6 +3513,7 @@
   {
    "s": "³",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '³'",
    "float": null,
    "d": false,
    "hm": null
@@ -3357,6 +3521,7 @@
   {
    "s": "½",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '½'",
    "float": null,
    "d": false,
    "hm": null
@@ -3364,6 +3529,7 @@
   {
    "s": "Ⅻ",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: 'Ⅻ'",
    "float": null,
    "d": false,
    "hm": null
@@ -3371,6 +3537,7 @@
   {
    "s": "①",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '①'",
    "float": null,
    "d": false,
    "hm": null
@@ -3378,6 +3545,7 @@
   {
    "s": "--5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '--5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3385,6 +3553,7 @@
   {
    "s": "+-5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '+-5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3392,20 +3561,21 @@
   {
    "s": "- 5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '- 5'",
    "float": null,
    "d": false,
    "hm": null
   },
   {
    "s": "9999999999999999999999999",
-   "int": "big",
+   "int": "9999999999999999999999999",
    "float": 1e+25,
    "d": true,
    "hm": null
   },
   {
    "s": "-9999999999999999999",
-   "int": "big",
+   "int": "-9999999999999999999",
    "float": -1e+19,
    "d": false,
    "hm": null
@@ -3419,7 +3589,7 @@
   },
   {
    "s": "9223372036854775808",
-   "int": "big",
+   "int": "9223372036854775808",
    "float": 9.223372036854776e+18,
    "d": true,
    "hm": null
@@ -3427,6 +3597,7 @@
   {
    "s": "1 2",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1 2'",
    "float": null,
    "d": false,
    "hm": null
@@ -3469,6 +3640,7 @@
   {
    "s": "1e",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1e'",
    "float": null,
    "d": false,
    "hm": null
@@ -3476,6 +3648,7 @@
   {
    "s": "e5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: 'e5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3483,6 +3656,7 @@
   {
    "s": "1.2.3",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1.2.3'",
    "float": null,
    "d": false,
    "hm": null
@@ -3490,6 +3664,7 @@
   {
    "s": "08:15",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '08:15'",
    "float": null,
    "d": false,
    "hm": 495
@@ -3497,6 +3672,7 @@
   {
    "s": "8:15",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '8:15'",
    "float": null,
    "d": false,
    "hm": 495
@@ -3504,6 +3680,7 @@
   {
    "s": "24:00",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '24:00'",
    "float": null,
    "d": false,
    "hm": null
@@ -3511,6 +3688,7 @@
   {
    "s": "23:59",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '23:59'",
    "float": null,
    "d": false,
    "hm": 1439
@@ -3518,6 +3696,7 @@
   {
    "s": "7:60",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '7:60'",
    "float": null,
    "d": false,
    "hm": null
@@ -3525,6 +3704,7 @@
   {
    "s": "07:5",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '07:5'",
    "float": null,
    "d": false,
    "hm": null
@@ -3532,6 +3712,7 @@
   {
    "s": "２３:５９",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '２３:５９'",
    "float": null,
    "d": false,
    "hm": null
@@ -3539,6 +3720,7 @@
   {
    "s": "2３:00",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '2３:00'",
    "float": null,
    "d": false,
    "hm": null
@@ -3546,6 +3728,7 @@
   {
    "s": "᠑:30",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '᠑:30'",
    "float": null,
    "d": false,
    "hm": 90
@@ -3553,6 +3736,7 @@
   {
    "s": "𑽙:30",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𑽙:30'",
    "float": null,
    "d": false,
    "hm": 570
@@ -3560,6 +3744,7 @@
   {
    "s": "𞓹:45",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '𞓹:45'",
    "float": null,
    "d": false,
    "hm": 585
@@ -3567,6 +3752,7 @@
   {
    "s": "12:3４",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '12:3４'",
    "float": null,
    "d": false,
    "hm": 754
@@ -3574,6 +3760,7 @@
   {
    "s": "1:2:3",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '1:2:3'",
    "float": null,
    "d": false,
    "hm": null
@@ -3581,6 +3768,7 @@
   {
    "s": ":30",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: ':30'",
    "float": null,
    "d": false,
    "hm": null
@@ -3588,6 +3776,7 @@
   {
    "s": "8:",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '8:'",
    "float": null,
    "d": false,
    "hm": null
@@ -3595,7 +3784,728 @@
   {
    "s": "008:15",
    "int": null,
+   "int_err": "invalid literal for int() with base 10: '008:15'",
    "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\t",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\t4\t",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\t1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\t1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\n",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\n4\n",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\n1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\n1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\u000b",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u000b4\u000b",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u000b1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x0b1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\f",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\f4\f",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\f1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x0c1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\r",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\r4\r",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\r1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\r1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\u001c",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '4\\x1c'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001c4\u001c",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1c4\\x1c'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001c1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1c1.5'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\u001d",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '4\\x1d'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001d4\u001d",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1d4\\x1d'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001d1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1d1.5'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\u001e",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '4\\x1e'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001e4\u001e",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1e4\\x1e'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001e1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1e1.5'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4\u001f",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '4\\x1f'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001f4\u001f",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1f4\\x1f'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001f1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1f1.5'",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: ' 1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x851.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\xa01.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u16801.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20001.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20011.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20021.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20031.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20041.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20051.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20061.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20071.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20081.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20091.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u200a1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20281.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u20291.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u202f1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 4 ",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": " 1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u205f1.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "4　",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "　4　",
+   "int": 4,
+   "float": 4.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "　1.5",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u30001.5'",
+   "float": 1.5,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "int": "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "float": "inf",
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "int": null,
+   "int_err": "Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit",
+   "float": "inf",
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "int": null,
+   "int_err": "Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit",
+   "float": "-inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "int": null,
+   "int_err": "Exceeds the limit (4300 digits) for integer string conversion: value has 4301 digits; use sys.set_int_max_str_digits() to increase the limit",
+   "float": 0.0,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111x",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "float": null,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1",
+   "int": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "float": "inf",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "99999999999999999999",
+   "int": "99999999999999999999",
+   "float": 1e+20,
+   "d": true,
+   "hm": null
+  },
+  {
+   "s": "-9223372036854775809",
+   "int": "-9223372036854775809",
+   "float": -9.223372036854776e+18,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "-0009223372036854775808",
+   "int": -9223372036854775808,
+   "float": -9.223372036854776e+18,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "+00",
+   "int": 0,
+   "float": 0.0,
    "d": false,
    "hm": null
   }

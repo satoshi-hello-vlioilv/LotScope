@@ -16,7 +16,7 @@
 //! 項目が並び・表のとき（Python の str() の書き方〈[1, 2]〉が要る）・i64 に入らない数・版の番号に 10 進でない数の字があるとき。
 
 use crate::access::{master_edit_can, master_scope};
-use crate::master_rows::{base_rev, no_check, Rev, Spec};
+use crate::master_rows::{base_rev, no_check, Spec};
 use crate::master_store::{MasterError, Store};
 use crate::pyfmt::{self, strip};
 use crate::worksum::{
@@ -45,10 +45,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "/api/masters/shifts") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), p) => {
             let id = p.strip_prefix("/api/masters/shifts/")?;
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -352,9 +350,6 @@ pub fn handle(
     let parsed: Value = serde_json::from_slice(body).ok().filter(truthy).unwrap_or(json!({}));
     let data = parsed.as_object().cloned().unwrap_or_default();
     let base = if matches!(route, Route::Update(_) | Route::Delete(_)) { base_rev(&parsed, query) } else { None };
-    if base == Some(Rev::Unknown) {
-        return None;
-    }
     // 書いた後は必ず窓が答える（None を返すと Python がもう一度書く）。読み直せなければ書いたことだけを知らせる
     let done = |status: u16, created: Option<Value>| -> Option<Answer> {
         let Some(now) = reread() else {

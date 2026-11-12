@@ -1,0 +1,485 @@
+{
+ "about": "本文の門を当てる道（Python の道の並びのまま。tools/body-routes.py が services/body_rules.py の ROUTES から焼く）",
+ "rules": [
+  {
+   "rule": "/api/masters/conversions/defaults",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/conversions/import",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/lots/fetch-lotdsp/cancel",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/masters/worklog/order",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/lots/fetch-lotdsp-api",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/sources/join/preview",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/worklog/scan",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/lots/lotdsp-api/link",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/equipment/inspection",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/presence/disconnect",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/conversions",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/equipgroups",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/release/place/check",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/place/check",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/presence/retention",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/lots/import-lotdsp",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/release/place/move",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/place/move",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/tabaccess",
+   "modes": {
+    "PUT": "read"
+   }
+  },
+  {
+   "rule": "/api/dashboards-hidden",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/lots/fetch-lotdsp",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/masters/equipment",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/dashboard/fields",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/presence/forget",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/lotlist/refresh",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/worklog/refresh",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/dashboard/query",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/masters/formats",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/access",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/presence/allow",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/presence/prune",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/sources/groups",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/dashboard-sets",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/settings/check",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/shifts",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/pivot-presets",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/sources/check",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/sources/order",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/rolls",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/pivot-quick",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/ui-defaults",
+   "modes": {
+    "PUT": "read"
+   }
+  },
+  {
+   "rule": "/api/dashboards",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/card-forms",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/calculate",
+   "modes": {
+    "POST": "need"
+   }
+  },
+  {
+   "rule": "/api/fs/browse",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/heartbeat",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/ui-state",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/sources",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/conversions/<int:item_id>/preset",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/conversions/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/conversions/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/equipgroups/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/equipgroups/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/sources/<key>/conn/check",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/equipment/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/equipment/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/worklog/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/worklog/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/formats/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/formats/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/access/<int:item_id>",
+   "modes": {
+    "PUT": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/access/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/dashboard-sets/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/dashboard-sets/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/shifts/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/shifts/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/pivot-presets/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/pivot-presets/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/sources/<key>/quick",
+   "modes": {
+    "POST": "read"
+   }
+  },
+  {
+   "rule": "/api/masters/rolls/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/masters/rolls/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/sources/<key>/conn",
+   "modes": {
+    "PUT": "read"
+   }
+  },
+  {
+   "rule": "/api/src/<key>/refresh",
+   "modes": {
+    "POST": "skip"
+   }
+  },
+  {
+   "rule": "/api/dashboards/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/dashboards/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/card-forms/<int:item_id>",
+   "modes": {
+    "PUT": "need"
+   }
+  },
+  {
+   "rule": "/api/card-forms/<int:item_id>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/sources/<key>",
+   "modes": {
+    "PUT": "read"
+   }
+  },
+  {
+   "rule": "/api/sources/<key>",
+   "modes": {
+    "DELETE": "read"
+   }
+  },
+  {
+   "rule": "/api/settings/<path:key>",
+   "modes": {
+    "PUT": "read"
+   }
+  }
+ ]
+}

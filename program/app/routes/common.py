@@ -9,7 +9,7 @@ import app_env
 from .. import effective_settings
 from ..repositories.master_repository import MasterRepository
 from ..repositories.master_store import MasterError
-from ..services import access, identity, lotdsp_api, presence
+from ..services import access, body_rules, identity, lotdsp_api, presence
 from ..services.calculator import Calculator
 
 bp = Blueprint("main", __name__)
@@ -56,15 +56,36 @@ class Forbidden(MasterError):
     kind, status = "forbidden", 403
 
 
+def body_gate():
+    """本文の門（版 3.104.0。services/body_rules.py）: 門を当てる道（ROUTES）なら、道の前に本文を 1 つの読み方で読む。
+    読めない本文（UTF-8・JSON・入れ子・NaN・対の無い代用字・表でない・本文が要る道の空）は 400 {error, kind: body} で断る。
+    門番（routes/access._access_guard）より先に見る（窓〈desktop/src/body.rs・Lot::handle_body〉も同じ順）"""
+    rule = current_app.rule_for(request.method, request.path)
+    mode = body_rules.mode_of(request.method, rule.pattern) if rule else None
+    if mode is None:
+        return None
+    try:
+        value = body_rules.read_body(request.data, body_rules.rules_of(mode))
+    except body_rules.BodyError as e:
+        return error(str(e), e.status, e.kind)
+    request.gated, request.gated_body = True, value
+    return None
+
+
+def req_body_value():
+    """門が読んだ本文の値（空は None。偽の値〈[]・0 など〉もそのまま）。門を当てない道では、読めない本文を None と読む"""
+    return request.get_json(force=True, silent=True)
+
+
+def req_body():
+    """門が読んだ本文の表（空・偽の値は {}）。書く道の本文はこれで読む（版 3.104.0。前は道ごとに get_json の silent の有無が違った）"""
+    return req_body_value() or {}
+
+
 def base_rev():
     """画面が開いたときの行の版（無ければ確かめない）。PUT は本文の base_rev、DELETE は ?rev=。
-    本文は Content-Type によらず読む（版 3.77.0。書く道の本文と同じ読み方。窓〈desktop/src/master_rows.rs〉も同じ）。
-    本文が表でない（並び・字・数）ときは行を書かない（500。前は Content-Type が JSON のときだけこうなり、text/plain の [1] では消した）"""
-    body = request.get_json(force=True, silent=True)
-    if body and not isinstance(body, dict):
-        raise TypeError("本文の形が違います")
-    body = body or {}
-    v = body.get("base_rev", request.args.get("rev"))
+    本文は門（body_gate）が読んだ物（表でない本文は門が断る。版 3.104.0。前はここで TypeError の 500）"""
+    v = req_body().get("base_rev", request.args.get("rev"))
     try:
         return None if v in (None, "") else int(v)
     except (TypeError, ValueError):

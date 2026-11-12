@@ -5,7 +5,7 @@ from ..web import jsonify, request
 
 from ..services import display_formats as df
 from ..services.data_sources import is_screen_source
-from .common import base_rev, bp, can_write, error, master_call, master_repo
+from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body
 
 
 @bp.get("/api/masters/formats")
@@ -23,7 +23,7 @@ def formats_list():
 @bp.post("/api/masters/formats")
 def formats_create():
     """{name, source, table, origin, note, body} を新しい書式として置く。"""
-    body = request.get_json(force=True) or {}
+    body = req_body()
     return master_call(lambda: df.view(master_repo().format_create(df.clean_row(body))), 201)
 
 
@@ -31,7 +31,7 @@ def formats_create():
 def formats_update(item_id):
     """名前・中身（上書き）・備考を直す。base_rev が今の版と違えば 409（ほかの PC が先に直した）。"""
     base = base_rev()
-    body = dict(request.get_json(force=True) or {})
+    body = dict(req_body())
     return master_call(lambda: df.view(master_repo().format_update(item_id, df.clean_row(body, partial=True), base)))
 
 

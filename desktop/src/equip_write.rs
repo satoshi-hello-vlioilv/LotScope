@@ -16,7 +16,7 @@
 //! 窓が答えず Python に任せる形: 窓が読めない・読みが割れる数のある本文（master_rows::unreadable）・空の本文・足す道の表でない本文・
 //! 項目の値が並び・表のとき（Python の str() の書き方〈[1, 2]〉）・置き場の行の項目が並び・表のとき・版の番号に 10 進でない数の字があるとき。
 
-use crate::master_rows::{self, base_rev, Rev, Spec};
+use crate::master_rows::{self, base_rev, Spec};
 use crate::master_store::{MasterError, Store};
 use crate::worksum::truthy;
 use serde_json::{json, Map, Value};
@@ -97,10 +97,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create(kind)),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(kind, id) } else { Route::Delete(kind, id) })
         }
         _ => None,
@@ -167,10 +165,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
     let empty = Map::new();
     let obj = parsed.as_object().unwrap_or(&empty);
     let base = match route {
-        Route::Update(..) | Route::Delete(..) => match base_rev(&parsed, query) {
-            Some(Rev::Unknown) => return None,
-            b => b,
-        },
+        Route::Update(..) | Route::Delete(..) => base_rev(&parsed, query),
         _ => None,
     };
     let name = spec.name;

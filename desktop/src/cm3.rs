@@ -522,26 +522,12 @@ impl Jst {
 
 /// 字の Python の int()（10 進）の符号と数字（Unicode の数字・あいだの _）。読めなければ None
 pub fn py_int_digits(s: &str) -> Option<(bool, String)> {
-    let t = crate::pyfmt::strip(s);
-    let (neg, rest) = match t.chars().next() {
-        Some('-') => (true, &t[1..]),
-        Some('+') => (false, &t[1..]),
-        _ => (false, t),
-    };
-    let cs: Vec<char> = rest.chars().collect();
-    let mut out = String::new();
-    let mut prev = false;
-    for (i, c) in cs.iter().enumerate() {
-        if let Some(d) = crate::pyfmt::digit(*c) {
-            out.push(char::from_digit(d, 10).unwrap());
-            prev = true;
-        } else if *c == '_' && prev && cs.get(i + 1).and_then(|n| crate::pyfmt::digit(*n)).is_some() {
-            prev = false;
-        } else {
-            return None;
-        }
-    }
-    (!out.is_empty()).then_some((neg, out))
+    // 版 3.104.0 から pyfmt::py_int の 1 つ（前後の空白は int() の空白・4,300 桁の上限も同じ）
+    let t = crate::pyfmt::py_int(s).ok()?.text();
+    Some(match t.strip_prefix('-') {
+        Some(d) => (true, d.to_string()),
+        None => (false, t),
+    })
 }
 
 /// int(ts) / 1000 が float に入らない（Python は OverflowError）

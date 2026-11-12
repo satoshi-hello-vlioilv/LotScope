@@ -260,44 +260,9 @@ fn num_text_plain(s: &str) -> bool {
     s.len() <= 4000 && s.bytes().all(|b| (0x20..0x7f).contains(&b) || b"\t\n\r\x0b\x0c".contains(&b))
 }
 
-/// Python の int(v)（読めなければ None）
+/// Python の int(v)（読めなければ None。版 3.104.0 から pyfmt::py_int_of の 1 つ。前は ASCII でない字を Python に任せていた）
 fn py_int_of(t: Option<&Tree>) -> R<Option<i128>> {
-    Ok(match t {
-        Some(Tree::Bool(b)) => Some(*b as i128),
-        Some(Tree::Num(n)) => match n.as_i64() {
-            Some(i) => Some(i as i128),
-            None => n.as_f64().filter(|f| f.is_finite()).map(|f| f.trunc().clamp(-1e30, 1e30) as i128),
-        },
-        Some(Tree::Str(s)) => {
-            // int() の字: ASCII の印字できる字と空白だけ（長さは問わない。4,300 桁を超える数は Python の int() が断る）
-            if !s.bytes().all(|b| (0x20..0x7f).contains(&b) || b"\t\n\r\x0b\x0c".contains(&b)) {
-                return Err(Stop::Py);
-            }
-            let t = s.trim_matches(|c: char| " \t\n\r\x0b\x0c".contains(c));
-            let (neg, body) = match t.as_bytes().first() {
-                Some(b'-') => (true, &t[1..]),
-                Some(b'+') => (false, &t[1..]),
-                _ => (false, t),
-            };
-            let ok = !body.is_empty()
-                && !body.starts_with('_')
-                && !body.ends_with('_')
-                && !body.contains("__")
-                && body.bytes().all(|b| b.is_ascii_digit() || b == b'_');
-            if !ok {
-                None
-            } else {
-                let digits: String = body.chars().filter(|c| *c != '_').collect();
-                if digits.len() > 4300 {
-                    return Ok(None); // int() の桁の上限（sys.get_int_max_str_digits）。読めない＝既定の値
-                }
-                let digits = digits.trim_start_matches('0');
-                let v: i128 = if digits.len() > 30 { i128::MAX / 2 } else { digits.parse().unwrap_or(0) };
-                Some(if neg { -v } else { v })
-            }
-        }
-        _ => None,
-    })
+    Ok(t.and_then(|x| pyfmt::py_int_of(x.into()).ok()).map(|n| n.wide_saturating()))
 }
 
 /// _int(v, lo, hi, default)

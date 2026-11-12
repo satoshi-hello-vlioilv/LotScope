@@ -129,19 +129,25 @@ fn presence_matches_python() {
                 }
                 _ => {
                     let (method, path) = (st["method"].as_str().unwrap(), st["path"].as_str().unwrap());
-                    let body = st["body"].as_str().unwrap_or("").as_bytes();
-                    if path == "/api/ui-state" {
-                        if method == "GET" {
-                            Some((200, ui_state::load(&local)))
-                        } else {
-                            Some(ui_state::post(&local, body).expect("窓が答える"))
+                    // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
+                    match common::gate(method, path, st["body"].as_str().unwrap_or("").as_bytes()) {
+                        Err(a) => Some(a),
+                        Ok(gb) => {
+                            let body = &gb[..];
+                            if path == "/api/ui-state" {
+                                if method == "GET" {
+                                    Some((200, ui_state::load(&local)))
+                                } else {
+                                    Some(ui_state::post(&local, body).expect("窓が答える"))
+                                }
+                            } else {
+                                let m = me();
+                                Some(
+                                    pres.handle(&m, place.share_dir.is_some(), method, path, st["query"].as_str().unwrap_or(""), body)
+                                        .expect("窓が答える"),
+                                )
+                            }
                         }
-                    } else {
-                        let m = me();
-                        Some(
-                            pres.handle(&m, place.share_dir.is_some(), method, path, st["query"].as_str().unwrap_or(""), body)
-                                .expect("窓が答える"),
-                        )
                     }
                 }
             };

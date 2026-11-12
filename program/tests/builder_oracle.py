@@ -35,6 +35,7 @@ os.environ.pop("TPA_SHELL_SERVES", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import builder, identity  # noqa: E402
+import oracle_gate  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("builder_truth", PROGRAM / "tools" / "builder-truth.py")
 truth = importlib.util.module_from_spec(_spec)
@@ -318,6 +319,7 @@ def main():
               ("一般ユーザー（データ元を書けない）", perm("一般ユーザー", "部分的編集可"), gate_steps(d), [])]
     out = []
     for i, (name, prm, steps, dele) in enumerate(scenes):
+        steps, dele = oracle_gate.split(steps, dele)       # 版 3.104.0: 本文の門が断る歩は窓が答える
         py, rs = base / f"s{i}" / "py", base / f"s{i}" / "rs"
         for r in (py, rs):
             place(r, d, folder, prm)

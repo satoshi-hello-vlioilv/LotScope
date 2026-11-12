@@ -13,66 +13,14 @@ use serde_json::{json, Map, Value};
 pub(crate) enum Rev {
     Small(i64),
     Big,
-    /// 10 進の数字でない数の字（「²」・「½」など。Python の int() も読まない）。窓は答えず Python に任せる
-    Unknown,
 }
 
-/// Unicode の 10 進の数字の値（Python の int() が読む字。版 3.75.0 から pyfmt の 1 つの表〈Python 3.13・Unicode 15.1 の 68 系統〉。
-/// 前はここに 18 系統の別の表を持ち、モンゴルの数字などを窓だけ読めなかった）
-pub(crate) fn digit_of(c: char) -> Option<u32> {
-    crate::pyfmt::digit(c)
-}
-
-/// Python の int(v)（数・小数〈切り捨て〉・真偽・字〈前後の空白・数字の間の _・Unicode の数字〉）。読めなければ None（版を確かめない）
+/// Python の int(v)（pyfmt::py_int_of。版 3.104.0 から窓の int() の写しは 1 つ）。読めなければ None（版を確かめない）。
+/// 前は「²」「½」のような数の字を Unknown にして Python に任せていた（Python の int() も ValueError で、base_rev は確かめない）
 pub(crate) fn py_rev(v: &Value) -> Option<Rev> {
-    match v {
-        Value::Bool(b) => Some(Rev::Small(*b as i64)),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                return Some(Rev::Small(i));
-            }
-            if n.is_u64() {
-                return Some(Rev::Big);
-            }
-            let f = n.as_f64()?;
-            if !f.is_finite() {
-                return None;
-            }
-            let t = f.trunc();
-            Some(if t.abs() < 9.2e18 { Rev::Small(t as i64) } else { Rev::Big })
-        }
-        Value::String(s) => {
-            let t = s.trim();
-            let (neg, body) = match t.chars().next() {
-                Some('-') => (true, &t[1..]),
-                Some('+') => (false, &t[1..]),
-                _ => (false, t),
-            };
-            if body.is_empty() || body.starts_with('_') || body.ends_with('_') || body.contains("__") {
-                return None;
-            }
-            let mut acc: i128 = 0;
-            let mut big = false;
-            for c in body.chars() {
-                if c == '_' {
-                    continue;
-                }
-                let Some(d) = digit_of(c) else {
-                    return c.is_numeric().then_some(Rev::Unknown);
-                };
-                let d = d as i128;
-                acc = match acc.checked_mul(10).and_then(|x| x.checked_add(d)) {
-                    Some(x) => x,
-                    None => {
-                        big = true;
-                        0
-                    }
-                };
-            }
-            let v = if neg { -acc } else { acc };
-            Some(if big || v > i64::MAX as i128 || v < i64::MIN as i128 { Rev::Big } else { Rev::Small(v as i64) })
-        }
-        _ => None,
+    match crate::pyfmt::py_int_of(v.into()).ok()? {
+        crate::pyfmt::PyInt::Small(i) => Some(Rev::Small(i)),
+        crate::pyfmt::PyInt::Big(_) => Some(Rev::Big),
     }
 }
 
@@ -80,7 +28,7 @@ pub(crate) fn py_rev(v: &Value) -> Option<Rev> {
 pub(crate) fn py_int(v: &Value) -> Option<i64> {
     match py_rev(v)? {
         Rev::Small(i) => Some(i),
-        Rev::Big | Rev::Unknown => None,
+        Rev::Big => None,
     }
 }
 
@@ -407,20 +355,15 @@ pub(crate) fn next_order(rows: &[Value]) -> Option<String> {
 /// 表示順の字（Python の `str(int(v))`。読めなければ ""）: 真偽・整数・小数（切り捨て）・字（前後の空白・数字の間の _・Unicode の数字）。
 /// 版 3.94.0 から変換表と設備グループの 1 つ。i64 に入らない数・38 桁を超える字は None（Python の int は桁のまま。窓は答えず任せる）
 pub(crate) fn py_int_text(v: Option<&Value>) -> Option<String> {
+    // 版 3.104.0 から pyfmt::py_int_of の 1 つ。並び・表・null・読めない字は ""（前と同じ）
     Some(match v {
         None | Some(Value::Null | Value::Array(_) | Value::Object(_)) => String::new(),
-        Some(Value::Bool(b)) => (*b as i64).to_string(),
-        Some(Value::Number(n)) => match (n.as_i64(), n.as_f64()) {
-            (Some(i), _) => i.to_string(),
-            (None, Some(f)) if f.is_finite() && f.trunc().abs() < 9.2e18 => (f.trunc() as i64).to_string(),
-            _ => return None,
+        Some(Value::Number(n)) if n.as_i64().is_none() && n.as_f64().is_some_and(|f| f.trunc().abs() >= 9.2e18) => return None,
+        Some(x) => match crate::pyfmt::py_int_of(x.into()) {
+            Ok(n) if n.text().trim_start_matches('-').len() > 38 => return None,
+            Ok(n) => n.text(),
+            Err(_) => String::new(),
         },
-        Some(Value::String(x)) => {
-            if x.chars().filter(|c| crate::pyfmt::digit(*c).is_some()).count() > 38 {
-                return None;
-            }
-            crate::bundle::wide_int_text(x).map(|n| n.to_string()).unwrap_or_default()
-        }
     })
 }
 

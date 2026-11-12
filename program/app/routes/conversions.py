@@ -4,7 +4,7 @@
 from ..web import jsonify, request
 
 from ..services import conversions
-from .common import base_rev, bp, can_write, error, master_call, master_repo
+from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body
 
 
 def _listing():
@@ -27,7 +27,7 @@ def conversions_list():
 @bp.post("/api/masters/conversions")
 def conversions_create():
     """{name, inputs, rows, other, apply, order} を新しい表として置く。→ 一覧（足した行の id は created）。"""
-    body = request.get_json(force=True) or {}
+    body = req_body()
 
     def run():
         row = master_repo().conversion_create(conversions.clean_row(body))
@@ -39,7 +39,7 @@ def conversions_create():
 def conversions_update(item_id):
     """直す（来た物だけ）。base_rev が今の版と違えば 409（ほかの PC が先に直した）。"""
     base = base_rev()
-    body = dict(request.get_json(force=True) or {})
+    body = dict(req_body())
     body.pop("base_rev", None)
     return master_call(lambda: master_repo().conversion_update(item_id, conversions.clean_row(body, partial=True), base) and _listing())
 
@@ -78,7 +78,7 @@ def conversions_export():
 def conversions_import():
     """取り込む（版 3.43.0）: {items, asDefault}。同じ名前の表は中身を置き換え、無い名前は足す。asDefault なら、
     取り込んだ表を標準（「標準に戻す」で戻る中身）にもする。どれか 1 つでも形が違えば、何も取り込まずに断る"""
-    body = request.get_json(force=True) or {}
+    body = req_body()
 
     def run():
         rows = conversions.clean_import(body.get("items"))
@@ -93,7 +93,7 @@ def conversions_import():
 @bp.post("/api/masters/conversions/defaults")
 def conversions_defaults():
     """標準を決める（版 3.43.0）: from=current（今の表をすべて標準にする）か bundled（同梱のプリセットに戻す）"""
-    which = (request.get_json(force=True) or {}).get("from")
+    which = (req_body()).get("from")
     if which not in ("current", "bundled"):
         return error("from は current か bundled です。", 400)
 

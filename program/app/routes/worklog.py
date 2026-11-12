@@ -9,7 +9,7 @@ from ..web import current_app, jsonify, request
 from .. import effective_settings
 from ..repositories.master_store import MasterError
 from ..services import lot_list, pivot, shifts, work_log, work_summary
-from .common import base_rev, bp, can_write, error, master_call, master_repo, tab_denied
+from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body, tab_denied
 
 
 class FolderUnreachable(MasterError):
@@ -246,7 +246,7 @@ def worklog_scan():
 @bp.put("/api/masters/worklog/order")
 def worklog_order():
     """設備の並び（作業実績のタブ・マスタ管理の一覧。全員で 1 つ）を {keys: [キー…]} の順にする。書けるのは管理のマスタを書ける人（門番 routes/access.py）。"""
-    body = request.get_json(force=True) or {}
+    body = req_body()
 
     def run():
         keys = body.get("keys")
@@ -261,7 +261,7 @@ def worklog_order():
 def worklog_update(item_id):
     """設備名・表示・表・備考と、結ぶファイル（見つからない行を、フォルダにあるファイルへ結び直す: ファイル名）を直す。"""
     base = base_rev()
-    body = dict(request.get_json(force=True) or {})
+    body = dict(req_body())
     body.pop("base_rev", None)
 
     def run():

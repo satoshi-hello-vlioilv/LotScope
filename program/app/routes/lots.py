@@ -8,7 +8,7 @@ from ..web import current_app, jsonify, render_template, request
 
 from ..services import lotdsp_api, lotdsp_direct, lotdsp_link, lotdsp_progress, lotdsp_rules
 from ..version import APP_VERSION
-from .common import api_map, bp, calculator, error, exception_error
+from .common import api_map, bp, calculator, error, exception_error, req_body
 
 
 # 窓（デスクトップ版の Rust）が LotDsp を受け持つと名乗ったとき（TPA_SHELL_SERVES に lotdsp。版 3.98.0。desktop/src/lotdsp.rs）、
@@ -232,7 +232,7 @@ def lot_fetch_lotdsp_cancel():
 @bp.post("/api/calculate")
 def calculate():
     try:
-        payload = request.get_json(force=True) or {}
+        payload = req_body()
         if not payload.get("lot"):
             return error("計算するロット（lot）がありません。", 400)
         return jsonify(calculator().calculate(payload["lot"], payload["inputs"]))
