@@ -59,6 +59,8 @@ fn check_budget(script: &str, args: &[&str], v: &serde_json::Value) {
     let budget: serde_json::Value = serde_json::from_str(include_str!("../../program/tests/fixtures/delegates_budget.json")).unwrap();
     let name = script.trim_end_matches(".py");
     let Some(max) = budget["per"][name].as_u64() else { return };
+    // 環境で増える歩（root でない利用者・Windows でだけ任せる形。理由は envWhy）。per は手元で数えた数なので、その分を足して上限にする
+    let max = max + budget["envExtra"][name].as_u64().unwrap_or(0);
     if args.len() != 1 || args[0].starts_with("--") {
         return;
     }

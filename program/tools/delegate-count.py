@@ -128,7 +128,10 @@ def run(work):
 
 def main():
     args = sys.argv[1:]
-    if args and args[0] == "--files":
+    # 作業フォルダが無い・知らない「--」の引数は、作業フォルダと読まずに使い方を出す（前は --help を作業フォルダと読み、program/--help に答えの元を流した）
+    if not args or (args[0] != "--files" and (args[0].startswith("-") or any(a.startswith("-") and a != "--budget" for a in args[1:]))):
+        sys.exit(__doc__)
+    if args[0] == "--files":
         answers = {Path(f).stem: load(f) for f in args[1:]}
     else:
         answers = run(args[0])
@@ -150,8 +153,11 @@ def main():
     for k, n in grand.most_common():
         print(f"   {n:4d}  {k}")
     if "--budget" in args:
+        # 環境で増える歩（envExtra と理由の envWhy）は手で書く物なので、書き直しても残す（窓の試験は per＋envExtra を上限にする）
+        old = json.loads(BUDGET.read_text(encoding="utf-8")) if BUDGET.exists() else {}
+        keep = {k: old[k] for k in ("envExtra", "envWhy") if k in old}
         BUDGET.write_text(json.dumps({"about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
-                                      "total": sum(grand.values()), "per": {k: sum(v.values()) for k, v in sorted(per.items())}},
+                                      "total": sum(grand.values()), "per": {k: sum(v.values()) for k, v in sorted(per.items())}, **keep},
                                      ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         print(f"{BUDGET} に書きました")
 
