@@ -288,8 +288,8 @@ def _sigs(items):
 def _move_locked(store, pl, tmp, done) -> dict:
     dest, old = Path(pl["dest"]), store.share_dir
     if pl["mode"] == "copy":
-        # 錠は延ばさない（錠の作りは別の係が直している）。錠の長さの半分を過ぎたら、ほかの PC が錠を切れたと見て前の置き場へ保存しうるので、
-        # 切り替えずに止める（前の置き場のまま。何も消えない）。止める前に読んだマスタが変わっていても止める
+        # 錠は延ばさない（ほかの PC は錠の残りを自分の時計でも測るので、期限を書き直しても延びない PC が残る。理由は docs/RUST_PORT_PLAN.md の
+        # 版 3.100.0）。錠の長さの半分を過ぎたら、切り替えずに止める（前の置き場のまま。何も消えない）。読んだマスタが変わっていても止める
         slow = (f"共有が遅く、錠の長さ（{store.lock_ttl:g} 秒）の半分のうちにマスタを写し終えられませんでした。前の置き場のまま変えていません。"
                 "共有が空いているときに、もう一度やり直してください。")
         deadline = time.monotonic() + store.lock_ttl * LOCK_SHARE

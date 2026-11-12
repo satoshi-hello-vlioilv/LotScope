@@ -34,7 +34,12 @@ import bundle
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-WAIT = 240
+# 1 回開いて結果のファイルが置かれるまで待つ秒。自己診断だけで約 130 秒（手元・CI とも）、そこへ起動の最初の取り込み（150 MB の zip を
+# 確かめて解く）と入れ替え・新しい PC の据え付けが乗る。手元では開いてから結果まで約 160 秒だが、CI の Linux はファイルを写すのが
+# 約 3.5 倍遅く（6 段目の据え付け: 手元 22 秒・CI 約 76 秒）、3・5 段目が 240 秒の際にあった（版 3.98.0 の CI も 2〜5 段目にかかった
+# 時間は版 3.99.0 で 240 秒切れになったときとほぼ同じ）。版 3.99.0 の CI で 3 段目が切れ、切れた窓が動いたまま 4・5 段目を開いて
+# 続けて落ちた。待つ秒を延ばし、段ごとにかかった秒と空きを書く（際に近づいたら記録で分かる）。切れたら窓の記録を出し、窓を止めてから進む
+WAIT = 480
 
 
 def bump(v: str, n: int) -> str:
@@ -83,11 +88,15 @@ class Run:
         out = self.work / f"selftest-{self.n}-{label}.json"
         env = {**self.env, "TPA_SELFTEST": str(out)}
         subprocess.Popen([str(exe)], cwd=str(exe.parent), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        end = time.time() + WAIT
+        t0 = time.time()
+        end = t0 + WAIT
         while time.time() < end and not out.exists():
             time.sleep(1)
+        took = time.time() - t0
         time.sleep(3)    # 窓と Python が終わるのを待つ
+        print(f"  [{label}] 開いてから結果まで {took:.0f} 秒（待つのは {WAIT} 秒まで）・空き {free_gb(self.work):.1f} GB")
         if not out.exists():
+            self.tell_timeout(label)
             return {"ok": False, "error": f"{WAIT} 秒たっても結果がありません（{label}）"}
         r = json.loads(out.read_text(encoding="utf-8"))
         # 試験の版は program の版だけを書き換えた物（窓の exe は元の版のまま）なので、「窓の版と中身の版が同じ」は数えない。
@@ -99,6 +108,52 @@ class Run:
         if "results" in r:
             r["ok"] = bool(res) and all(x["ok"] for x in res)
         return r
+
+
+    def tell_timeout(self, label: str) -> None:
+        """結果が来なかった段: 作業場所の窓・Python の記録の終わりを出し（CI で何が止まったか分かるように）、その段の窓を止める
+        （動いたまま次の段を開くと、同じ app を 2 つの窓が使い、次の段も続けて落ちる。版 3.99.0 の CI の 4・5 段目）"""
+        logs = Path(self.env.get("TRANSFER_LOCAL_ROOT", "")) / "logs"
+        for name in ("desktop.log", "app.log", "sidecar_stderr.log"):
+            f = logs / name
+            if f.is_file():
+                tail = f.read_text(encoding="utf-8", errors="replace").splitlines()[-25:]
+                print(f"  [{label}] {name} の終わり:")
+                for line in tail:
+                    print(f"    {line[:300]}")
+        stopped = stop_leftovers(self.work)
+        if stopped:
+            print(f"  [{label}] 残っていた窓・Python を止めた: {stopped}")
+
+
+def free_gb(path: Path) -> float:
+    try:
+        return shutil.disk_usage(path).free / 1e9
+    except OSError:
+        return -1.0
+
+
+def stop_leftovers(root: Path) -> list[str]:
+    """作業フォルダの窓・Python を止める（Linux は /proc。Windows は省く）"""
+    if os.name == "nt":
+        return []
+    import signal
+    out = []
+    for d in Path("/proc").iterdir():
+        if d.name.isdigit() and int(d.name) != os.getpid():
+            try:
+                cmd = (d / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+            except OSError:
+                continue
+            if str(root) in cmd and "verify.py" not in cmd:
+                try:
+                    os.kill(int(d.name), signal.SIGKILL)
+                    out.append(f"{d.name}: {cmd[:120]}")
+                except OSError:
+                    pass
+    if out:
+        time.sleep(2)
+    return out
 
 
 def check(cond: bool, what: str, info="") -> bool:

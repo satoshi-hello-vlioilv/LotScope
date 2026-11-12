@@ -109,8 +109,13 @@ pub(crate) static SLOW_COPY: Mutex<Vec<(String, Duration)>> = Mutex::new(Vec::ne
 pub fn copy_shared(remote: &str, tmp: &Path) -> std::io::Result<()> {
     use std::io::{Read, Write};
     #[cfg(test)]
-    if let Some(d) = SLOW_COPY.lock().unwrap().iter().find(|(k, _)| remote.contains(k.as_str())).map(|x| x.1) {
-        std::thread::sleep(d); // 試験: この元だけ写しを遅くする
+    {
+        // 錠は長さを読んだらすぐ外す（if let の頭で錠を取ると、edition 2021 では本体の終わりまで錠が生き、遅くした元の糸が眠る間
+        // ほかの元の写しもこの錠で待たされた。the_copy_stage_moves_while_waiting が遅くした元が先に写し始めた回だけ落ちた）
+        let slow = SLOW_COPY.lock().unwrap().iter().find(|(k, _)| remote.contains(k.as_str())).map(|x| x.1);
+        if let Some(d) = slow {
+            std::thread::sleep(d); // 試験: この元だけ写しを遅くする
+        }
     }
     let mut src = open_shared(remote)?;
     let mut dst = std::fs::File::create(tmp)?;

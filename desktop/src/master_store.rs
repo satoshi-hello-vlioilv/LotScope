@@ -320,10 +320,40 @@ pub fn write_json_atomic(path: &Path, data: &Value) -> std::io::Result<()> {
     res
 }
 
-/// 無ければ作って書く（あれば AlreadyExists）。作れた 1 つだけが持つ
+/// 無ければ作って書く（あれば AlreadyExists）。作れた 1 つだけが持つ。
+/// 作れても書き切れない（共有の空きが尽きた・切断など）ときは、作った空・書きかけのファイルを残さずに返す（版 3.99.0。Python の _create_exclusive）。
+/// 前は 0 バイトの錠が残り、ほかの PC・次に開いた窓が、見てから錠の長さのあいだ「ほかの PC がマスタを保存中です」で断られた
 fn create_exclusive(path: &Path, body: &[u8]) -> std::io::Result<()> {
+    create_exclusive_with(path, body, |f, b| f.write_all(b))
+}
+
+fn create_exclusive_with(
+    path: &Path,
+    body: &[u8],
+    write: impl FnOnce(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
+) -> std::io::Result<()> {
     let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
-    f.write_all(body)
+    let res = write(&mut f, body);
+    drop(f);
+    if res.is_err() {
+        drop_unwritten(path, body);
+    }
+    res
+}
+
+/// 書き切れなかった自分のファイルを消す。名前を変えてどけてから中身を見る（その間にほかが置いた物を消さない）:
+/// どけた物が自分の書きかけ（body の頭・空）なら消し、ほかの中身なら「無ければ作る」で元へ戻す（Python の _drop_unwritten）
+fn drop_unwritten(path: &Path, body: &[u8]) {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let aside = path.with_file_name(format!(".{name}.{}.gone", hex_id()));
+    if std::fs::rename(path, &aside).is_err() {
+        return;
+    }
+    let raw = std::fs::read(&aside).unwrap_or_default();
+    if !body.starts_with(&raw) {
+        let _ = create_exclusive(path, &raw);
+    }
+    let _ = std::fs::remove_file(&aside);
 }
 
 /// fn() を、OSError のあいだ budget まで間を広げながらやり直す（無い〈NotFound〉はやり直さない。Python の fsio.retrying）
@@ -1063,5 +1093,32 @@ mod tests {
         })
         .unwrap();
         assert_eq!(std::fs::read_to_string(env.lock()).unwrap(), live, "ほかの生きた錠は戻す");
+    }
+
+    #[test]
+    fn a_lock_that_could_not_be_written_is_not_left() {
+        // 版 3.99.0: 錠を「無ければ作る」で作れても、中身を書けない（共有の空きが尽きた ENOSPC など）ときは、作った空・書きかけの錠を残さない。
+        // 前は 0 バイトの錠が残り、もう 1 つの係・次に開いた窓が、見てから錠の長さ（20 秒）のあいだ「ほかの PC が保存中」で断られた
+        let env = Env::new("unwritten");
+        let full = || std::io::Error::new(std::io::ErrorKind::StorageFull, "No space left on device");
+        let got = create_exclusive_with(&env.lock(), b"{\"token\": \"mine\"}", |_, _| Err(full()));
+        assert!(got.is_err());
+        assert!(!env.lock().exists(), "書けなかった空の錠を残さない");
+        let got = create_exclusive_with(&env.lock(), b"{\"token\": \"mine\"}", |f, b| {
+            f.write_all(&b[..7])?;
+            Err(full())
+        });
+        assert!(got.is_err());
+        assert!(!env.lock().exists(), "書きかけの錠を残さない");
+        assert_eq!(env.store("py").pull("ui_defaults", false, false), Ok(true), "空きが戻ればもう 1 つの係はすぐに最初の版を置ける");
+        // その間にほかが置いた錠（自分の書きかけでない中身）は消さずに戻す
+        let other = json!({"token": "other", "holder_pc": "PC-B"}).to_string();
+        let got = create_exclusive_with(&env.lock(), b"{\"token\": \"mine\"}", |_, _| {
+            std::fs::remove_file(env.lock()).unwrap();
+            std::fs::write(env.lock(), &other).unwrap();
+            Err(full())
+        });
+        assert!(got.is_err());
+        assert_eq!(std::fs::read_to_string(env.lock()).unwrap(), other, "ほかの錠は戻す");
     }
 }

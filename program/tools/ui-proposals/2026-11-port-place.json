@@ -555,7 +555,8 @@
     "split": "割れ 2（引っ越しが錠の長さ 20 秒を超えうる。超えるとほかの PC が錠を切れたと見て前の置き場へ保存し、その行が引っ越し先に入らない）",
     "fix": "利用状況の記録（錠の外で書かれる物）は錠の外で先に一時フォルダへ写し、マスタだけを錠の中で写す（master_place.move・_move_locked・_copy_into）。錠の長さの LOCK_SHARE（半分）を過ぎた・写している間に読んだマスタの更新時刻と大きさ（と名前の並び）が変わったときは、切り替えずに止めて前の置き場のまま（ValueError の理由つき。何も消えない・写しかけを残さない）。錠を延ばすのは、錠の作り（PR #99 の 0 バイトの錠）を別の係が直しているので、この版ではしていない（主のセッションの指示: 今は錠の所は変えない。取り込んだ後に決める）",
     "tests": "tests/test_place_cases.py の MoveRaces（事例の表 moveRaces: 錠 1 秒・共有の読み 0.3 秒・名前の順で最初に写すマスタ access_permissions を、写した後にほかの PC が錠を切れたと見て保存。その PC が印をたどった先の置き場に行がある）。独立の答え place-truth.row_ids・followed",
-    "failed_before": "直す前の 557323b の master_place.py に戻して流すと、AssertionError: 2 not found in {1}（印をたどった先 New にほかの PC の行が無い・引っ越しは成功と言った）（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before-py-2.log）"
+    "failed_before": "直す前の 557323b の master_place.py に戻して流すと、AssertionError: 2 not found in {1}（印をたどった先 New にほかの PC の行が無い・引っ越しは成功と言った）（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/built-fix/before-py-2.log）",
+    "lock_extension": "PR #99 の錠の直し 9cf5fb2 を取り込んだ後に決めた: 錠は延ばさず、錠の長さの半分を過ぎるか読んだマスタが変わったら切り替えずに止める形のまま。ほかの PC は錠の残りを自分の時計（最初に見てからの経過）でも測るので、期限を書き直しても時計の進んだ PC では延びない。印を替えて延ばすと、どけている途中の PC と重なる。止める形はどの時計でも行が前の置き場に残る（データが消えない側）。理由は計画書の版 3.100.0"
    },
    {
     "split": "割れ 3（言葉: 「参照…」の印「設備 11 台」と、同じ画面のデータ元のカード「実績 ● 12 台」〈登録の台数〉が同じ「台」で違う数に見える）",
@@ -565,7 +566,7 @@
    },
    {
     "split": "4（0 バイトの錠）",
-    "fix": "主のセッションの指示どおり、この版では錠の所（master_store の _create_exclusive・_acquire_lock）を変えていない。別の係の直しの commit を伝えられたら取り込む"
+    "fix": "主のセッションが伝えた 9cf5fb2（書けなかった錠を残さない）を git merge で取り込んだ。食い違いは version.py の版の行と changelog.json だけ（版は 3.100.0、3.99.0 の注記は 9cf5fb2 の 1 行を足した形。changelog.json は app_build --release --amend で焼き直した）。錠の所は 9cf5fb2 のまま"
    }
   ],
   "screens": {
