@@ -98,9 +98,9 @@ fn present(v: Option<&Value>) -> bool {
     !matches!(v, None | Some(Value::Null)) && v != Some(&Value::String(String::new()))
 }
 
-/// fsio.unquote_path: str(v or "").strip().strip('"')
+/// fsio.unquote_path（写しは lists::unquote_path の 1 つ。版 3.101.0）
 fn unquote(x: &str) -> String {
-    pyfmt::strip(x).trim_matches('"').to_string()
+    crate::lists::unquote_path(x)
 }
 
 /// Python の int(字)（10 進。前後の空白・符号・数字の間の _。大きな数も並べ替えに使えるよう i128 で持つ。読めなければ None）
@@ -636,6 +636,18 @@ impl Builder {
             }
         }
         Ok(Store { share, shared, lock_ttl, refresh })
+    }
+
+    /// 設定ファイルの master_share.dir（Python の MasterStore.configured_dir: Path(os.path.expandvars(dir))。無ければ ""）。版 3.101.0
+    pub fn configured_dir(&self) -> R<String> {
+        let text = std::fs::read_to_string(&self.env.config).map_err(|_| Py("配った設定が読めない"))?;
+        let v = lenient_json(&text).filter(Value::is_object).ok_or(Py("配った設定が表でない"))?;
+        let cfg = dict_or_empty(v.get("master_share"))?;
+        let raw = match cfg.get("dir") {
+            Some(x) if truthy(Some(x)) => s(Some(x))?,
+            _ => String::new(),
+        };
+        Ok(if raw.is_empty() { raw } else { py_path(&expandvars(&raw)) })
     }
 
     fn override_doc(&self) -> Map<String, Value> {

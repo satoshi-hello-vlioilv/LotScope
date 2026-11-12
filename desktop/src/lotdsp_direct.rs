@@ -82,8 +82,7 @@ pub struct Cfg {
 
 /// fsio.unquote_path: str(value or "").strip().strip('"')
 pub fn unquote_path(v: Option<&Value>) -> String {
-    let s = crate::lotdsp::py_text(v);
-    crate::pyfmt::strip(&s).trim_matches('"').to_string()
+    crate::lists::unquote_path(&crate::lotdsp::py_text(v))
 }
 
 impl Cfg {

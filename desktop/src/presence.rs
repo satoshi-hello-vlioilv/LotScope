@@ -23,16 +23,18 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub const TTL_SEC: f64 = 75.0;
+/// マスタの置き場の下の、利用状況のフォルダの名前（Python の presence.SUBDIR）
+pub const SUBDIR: &str = "presence_tpa";
 const WRITE_INTERVAL_SEC: f64 = 20.0;
 const HISTORY_WRITE_SEC: f64 = 60.0;
 pub const REVOKE_COOLDOWN_SEC: f64 = 300.0;
 const SWEEP_INTERVAL_SEC: f64 = 300.0;
 const NEWEST_INTERVAL_SEC: f64 = 300.0;
 const HISTORY_VERSIONS: usize = 10;
-const REVOKE_SUFFIX: &str = ".revoke.json";
+pub const REVOKE_SUFFIX: &str = ".revoke.json";
 const LATEST_EXCLUDED_ROLE: &str = "開発者";
-const SESSIONS_DIR: &str = "sessions";
-const SETTINGS_FILE: &str = "settings.json";
+pub const SESSIONS_DIR: &str = "sessions";
+pub const SETTINGS_FILE: &str = "settings.json";
 const DEFAULT_HISTORY_DAYS: i64 = 365;
 pub const HISTORY_DAYS_RANGE: (i64, i64) = (30, 3650);
 /// 窓の update.rs が作業場所に覚える配る版（presence.WANT_FILE）
@@ -249,6 +251,33 @@ struct Who {
     login: String,
     pc: String,
     key: String,
+}
+
+/// その置き場をいま使っている PC（その置き場の利用状況の印から。Python の presence.online_in。版 3.101.0: マスタの置き場の画面の using）
+/// → [{pc, login}]（pc・login の順）。置き場に届かなければ None
+pub fn online_in(master_dir: &Path, now: NaiveDateTime) -> Option<Vec<Value>> {
+    let d = master_dir.join(SUBDIR);
+    match crate::release_place::py_is_dir(&d) {
+        Err(()) => return None,
+        Ok(false) => return if crate::release_place::py_is_dir(master_dir) == Ok(true) { Some(vec![]) } else { None },
+        Ok(true) => {}
+    }
+    let mut seen: Vec<(String, String)> = vec![];
+    for p in Presence::pc_files(&d) {
+        if p.to_string_lossy().ends_with(REVOKE_SUFFIX) {
+            continue;
+        }
+        let Some(data) = live(read(&p)) else { continue };
+        if age_sec(&data, now).is_some_and(|a| a <= TTL_SEC) && safe_key(data.get("key")) {
+            let g = |k: &str| data.get(k).map(crate::worksum::py_str).unwrap_or_default();
+            let k = (g("pc"), g("login"));
+            if !seen.contains(&k) {
+                seen.push(k);
+            }
+        }
+    }
+    seen.sort();
+    Some(seen.into_iter().map(|(pc, login)| json!({"pc": pc, "login": login})).collect())
 }
 
 pub struct Presence {

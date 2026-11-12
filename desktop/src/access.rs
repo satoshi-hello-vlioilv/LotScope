@@ -37,6 +37,8 @@ pub(crate) const TAB_SHOW: &str = "出す";
 pub(crate) const TAB_HIDE: &str = "出さない";
 /// タブの決まりを決められる区分（開発者はいつも全部）
 pub(crate) const TAB_ROLES: [&str; 3] = [ROLE_MAINTAINER, ROLE_USER, ROLE_OPERATOR];
+/// データ元ではない画面（データ元のタブはデータ元のキー。Python の access.TAB_FIXED）
+pub(crate) const TAB_FIXED: [(&str, &str); 2] = [("dash", "ダッシュボード"), ("calc", "転写・ピッチ計算")];
 
 /// 切断の指示が効く長さ（presence.REVOKE_COOLDOWN_SEC）
 const REVOKE_COOLDOWN_SEC: f64 = 300.0;
@@ -263,7 +265,7 @@ pub fn flags(rows: &[Map<String, Value>], login: &str, pc: &str) -> Map<String, 
 }
 
 /// マスタ tab_access の行 → [(タブ, 出さない区分)]（知らない区分は数えない。後の行が勝つ）
-fn tab_rules(rows: &[Value]) -> Result<Vec<(String, Vec<&'static str>)>, String> {
+pub(crate) fn tab_rules(rows: &[Value]) -> Result<Vec<(String, Vec<&'static str>)>, String> {
     let mut out: Vec<(String, Vec<&'static str>)> = vec![];
     for r in rows {
         let r = r.as_object().ok_or("タブの権限の行の形が違います")?;
@@ -313,6 +315,21 @@ pub fn tab_exceptions(value: Option<&Value>) -> Result<Vec<(String, bool)>, Stri
             .collect()),
         _ => Ok(vec![]),
     }
+}
+
+/// {タブ: 例外を持つ人の数}。効く行だけ（有効な行・開発者でない行。hidden_tabs と同じ決まり。Python の access.tab_exception_counts）
+pub fn tab_exception_counts(rows: &[Map<String, Value>]) -> Map<String, Value> {
+    let mut out = Map::new();
+    for r in rows {
+        if !enabled(r) || normalize_role(r.get("権限区分")) == ROLE_DEVELOPER {
+            continue;
+        }
+        for (t, _) in tab_exceptions(r.get("タブの例外")).unwrap_or_default() {
+            let n = out.get(&t).and_then(Value::as_i64).unwrap_or(0);
+            out.insert(t, json!(n + 1));
+        }
+    }
+    out
 }
 
 /// その人に出さないタブ（開発者はいつも空。区分の決まりに人ごとの例外を重ねる）

@@ -171,7 +171,14 @@ def master_place_check():
 
 @bp.post("/api/masters/place/move")
 def master_place_move():
-    """マスタを写して置き場を変える（この PC は今すぐ・ほかの PC は前の置き場の印をたどって移る）。"""
+    """マスタを写して置き場を変える（この PC は今すぐ・ほかの PC は前の置き場の印をたどって移る）。
+    デスクトップ版で窓がマスタの置き場を受け持つ（shell_serves に place。版 3.101.0。desktop/src/master_place.rs）ときは写さない:
+    写す係はプロセスに 1 つ（配布の置き場と同じ型）。ほかの PC が保存中（錠）・共有に届かないときは、保存の道と同じ形で答える
+    （版 3.101.0: 前は MasterLocked・ShareUnavailable が道の外へ出て 500 になった）"""
+    from .. import shell_serves
+    from ..repositories.master_store import MasterError
+    if "place" in shell_serves():
+        return error("マスタの置き場を写すのはデスクトップ版の窓の係です。窓の画面からやり直してください。", 409, "busy")
     denied = _release_place_gate()
     if denied:
         return denied
@@ -179,6 +186,8 @@ def master_place_move():
         return jsonify(master_place.move(current_app.config["MASTER_STORE"], *_master_place_args()))
     except ValueError as e:
         return error(str(e), 400, "invalid")
+    except MasterError as e:
+        return jsonify(e.payload()), e.status
 
 
 # ---- フォルダ・ファイルの欄の補助（「参照…」の窓・よく使う場所。services/folder_browse.py）。読むだけ

@@ -435,22 +435,87 @@
         ["POST", "/api/sources/lot/conn/check", { field: "refresh", value: "5" }],
         ["POST", "/api/sources/join/preview", { key: "lot", joins: [] }],
       ];
+      // 最初に違った所（キーの道と両方の値）。前は答えの頭 60 字を書き、300 字で切れて違いが見えなかった（版 3.101.0 の Windows の CI）
+      const firstDiff = (a, b, at = "") => {
+        if (JSON.stringify(a) === JSON.stringify(b)) return "";
+        if (a && b && typeof a === "object" && typeof b === "object" && Array.isArray(a) === Array.isArray(b)) {
+          for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])]) {
+            const d = firstDiff(a[k], b[k], `${at}.${k}`);
+            if (d) return d;
+          }
+        }
+        return `${at || "."}: ${JSON.stringify(a)?.slice(0, 50)} / ${JSON.stringify(b)?.slice(0, 50)}`;
+      };
+      const parse = (t) => { try { return dropB(JSON.parse(t)); } catch (_) { return t.slice(0, 50); } };
       const rows = [];
       let allOk = true;
       for (const [m, p, body] of want) {
         const opt = m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
-        const rs = await get(p, opt);
-        const py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
-        // 「試す」は答えのファイルを作るので門番を通る（Python のときから同じ決まり）。書けない人（CI の一般ユーザー）は、窓の道も
-        // engine=python の道も門番（窓）が同じ言葉で断る。そのときは両方が門番の 403 で、同じ答えなら同じとみなす
-        const gate = rs.r.status === 403 && py.r.status === 403 && py.by === "shell";
-        const good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
+        // 列の値の見本は写しの中身から出すので、写しが入れ替わる途中（更新の通しの、版を入れ替えた直後の起動）に窓と Python が
+        // 違う時点を読むことがある。同じ時点の答えになるまで 30 秒まで読み直す（スケジュール・画面の比べと同じ。コードの違いは残る）
+        let rs, py, good, tries = 0;
+        for (const until = Date.now() + 30000; ;) {
+          tries += 1;
+          rs = await get(p, opt);
+          py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
+          // 「試す」は答えのファイルを作るので門番を通る（Python のときから同じ決まり）。書けない人（CI の一般ユーザー）は、窓の道も
+          // engine=python の道も門番（窓）が同じ言葉で断る。そのときは両方が門番の 403 で、同じ答えなら同じとみなす
+          const gate = rs.r.status === 403 && py.r.status === 403 && py.by === "shell";
+          good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
+          if (good || Date.now() > until) break;
+          await sleep(1000);
+        }
         allOk = allOk && good;
-        rows.push(`${m} ${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${good ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+        rows.push(`${m} ${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${tries > 1 ? `×${tries}` : ""}${good ? "" : "・違い " + firstDiff(parse(rs.text), parse(py.text))}`);
       }
       // 食い違った道を先に書く（記録は 300 字で切る。版 3.99.0 の CI で 6 本目の食い違いが切れて見えなかった）
-      rows.sort((a, b) => (b.includes("・{") || b.includes(" / {")) - (a.includes("・{") || a.includes(" / {")));
+      rows.sort((a, b) => b.includes("・違い ") - a.includes("・違い "));
       ok("組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）", allOk, rows.join("・"));
+    }
+
+    // 10b-P) 置き場と設定の 8 本（版 3.101.0 から窓が答える: master_place.rs・folder_browse.rs・builder.rs の check_entry・
+    //          access_write.rs の tabs_answer）。本物の WebView2 の窓で、窓の答え（shell）と Python の答え（engine=python）が同じか
+    //          （このプロセスの覚え〈last_sync・error〉と錠の残り秒は比べない）。CI は一般ユーザーで動くので、門番が断る形は両方が同じ 403 で同じ言葉なら
+    //          同じとみなす（10b-B の gate と同じ）。引っ越し（move）は写す係が窓の 1 つ: engine=python は Python が 409 で断る
+    {
+      const dropP = (v) => Array.isArray(v) ? v.map(dropP) : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v).sort().filter((k) => !["last_sync", "error", "remaining"].includes(k)).map((k) => [k, dropP(v[k])]))
+        : v;
+      const canonP = (t) => { try { return JSON.stringify(dropP(JSON.parse(t))); } catch (_) { return "?"; } };
+      const want = [
+        ["GET", "/api/masters/status", null],
+        ["GET", "/api/masters/place", null],
+        ["POST", "/api/masters/place/check", { parent: "", name: "x" }],
+        ["POST", "/api/fs/browse", { path: "" }],
+        ["GET", "/api/fs/places", null],
+        ["POST", "/api/settings/check", { key: "work_log.pattern", value: "実績_*.db" }],
+        ["GET", "/api/masters/tabaccess", null],
+      ];
+      const rows = [];
+      let allOk = true;
+      for (const [m, p, body] of want) {
+        const opt = m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+        let rs = await get(p, opt);
+        // 共有にまだ無いマスタの最初の版を置く（種まき）のは Python の係（版 3.101.0 の主のセッションの決め）。窓は種まきの要る status・place を
+        // Python に任せるので、新しい置き場の最初の 1 回は Python が答えて種をまく。まき終えた後は窓が答える
+        if (rs.by === "python" && p.startsWith("/api/masters/")) rs = await get(p, opt);
+        const py = await get(p + "?engine=python", opt);
+        const gate = rs.r.status === 403 && py.r.status === 403;
+        const good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonP(rs.text) === canonP(py.text);
+        allOk = allOk && good;
+        rows.push(`${m} ${p} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${good ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+      }
+      // 引っ越し: 窓は門番（一般ユーザーは 403）か確かめ（名前が空は 400）で答え、engine=python は Python が「窓の係」と 409 で断る（写さない）
+      const mv = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parent: "", name: "" }) };
+      const mrs = await get("/api/masters/place/move", mv);
+      const mpy = await get("/api/masters/place/move?engine=python", mv);
+      let mk = ""; try { mk = JSON.parse(mpy.text).kind; } catch (_) { mk = ""; }
+      const moveOk = mrs.by === "shell" && [400, 403].includes(mrs.r.status) && (mpy.r.status === 409 && mk === "busy" || mpy.r.status === 403);
+      allOk = allOk && moveOk;
+      rows.push(`POST move 窓 ${mrs.r.status} ${mrs.by} / Python ${mpy.r.status} ${mk}${moveOk ? "" : "・" + mrs.text.slice(0, 60) + " / " + mpy.text.slice(0, 60)}`);
+      // 食い違った道を先に書く（記録は 300 字で切る）
+      rows.sort((a, b) => (b.includes("・{") || b.includes(" / {")) - (a.includes("・{") || a.includes(" / {")));
+      ok("置き場と設定の 8 本は窓が答え、Python と同じ答え（置き場の状態・確かめる・参照…・参照先の確かめる・タブの権限。引っ越しは窓の係）", allOk, rows.join("・"));
     }
 
     // 10c) 作業実績・データ元の一覧（版 3.60.0 から窓が段取り・写し・結合も受け持つ: lists.rs）。同じ問い合わせを Python でも引き、
@@ -556,7 +621,8 @@
 
     // 11b) 権限（版 3.65.0 から窓が決める: access.rs）: 画面が名乗った見出し X-TPA-Me は効かない。
     //     版 3.76.0 から /api/access/me は窓が自分の me で答えるので、見出しを捨ててから Python へ渡すことは、Python が答える
-    //     タブの権限の GET（canEdit は me から決める）で確かめる。偽の me は書けない段（設備作業者・非表示）にする
+    //     タブの権限の GET（canEdit は me から決める）で確かめる。偽の me は書けない段（設備作業者・非表示）にする。
+    //     版 3.101.0 からタブの権限の GET も窓が答えるので、engine=python で Python へ回した道で確かめる（窓は見出しを捨てて自分の me を載せる）
     {
       const am = await get("/api/access/me");
       let amj = {}; try { amj = JSON.parse(am.text); } catch (_) { /* 下で言う */ }
@@ -568,7 +634,7 @@
       let fj = {}; try { fj = JSON.parse(forged.text); } catch (_) { /* 下で言う */ }
       ok("権限: 窓が決めた名乗りで答え（版 3.76.0 から窓が答える）、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && am.by === "shell" && forged.by === "shell" && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
          `${amj.loginId}@${amj.pcName} ${amj.role}・${amj.masterEdit} / 偽の見出し → ${fj.loginId} ${fj.role}`);
-      const ta = await get("/api/masters/tabaccess"), tf = await get("/api/masters/tabaccess", { headers: { "X-TPA-Me": fake } });
+      const ta = await get("/api/masters/tabaccess?engine=python"), tf = await get("/api/masters/tabaccess?engine=python", { headers: { "X-TPA-Me": fake } });
       let taj = {}, tfj = {}; try { taj = JSON.parse(ta.text); tfj = JSON.parse(tf.text); } catch (_) { /* 下で言う */ }
       ok("権限: Python が答える道でも、画面が名乗った見出しは効かない（窓が捨てて自分の me を載せる）",
          // 書けるか（can_write）は切断中なら書けない。偽の me は書けない段なので、本当の me が書けるときだけ見分けられる（見分けたかを言葉に出す）

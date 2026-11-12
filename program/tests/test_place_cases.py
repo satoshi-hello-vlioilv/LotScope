@@ -330,6 +330,116 @@ class MoveRaces(MoveBase):
                 self.assertFalse([p for p in (self.tmp / "nas").iterdir() if ".tmp-" in p.name], "写しかけを残さない")
 
 
+class MoveRoute(MoveBase):
+    """POST /api/masters/place/move の道（版 3.101.0）"""
+
+    def client(self, share):
+        st = self.store("pcR", share)
+        perm = {"schema": 1, "revision": 1, "updated_at": "", "updated_by": {},
+                "rows": [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1}]}
+        (share / "access_permissions.json").write_text(json.dumps(perm, ensure_ascii=False), encoding="utf-8")
+        pats = [mock.patch.object(identity, "current_login_id", lambda: "boss"),
+                mock.patch.object(identity, "resolve_pc_name", lambda override="", force=False: {"name": "PC-1", "source": "試験", "tried": []})]
+        for p in pats:
+            p.start()
+            self.addCleanup(p.stop)
+        return create_app({"TESTING": True, "MASTER_STORE": st}).test_client()
+
+    def test_a_held_lock_is_answered_not_a_500(self):
+        """ほかの PC が保存中（錠）のときの引っ越しは、保存の道と同じく 409 と「保存中です」で答える（前は MasterLocked が道の外へ出て 500）"""
+        share = self.tmp / "nas" / "Masters"
+        master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+        c = self.client(share)
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        (share / "master.lock.json").write_text(json.dumps({
+            "token": "x", "holder_pc": "PC-9", "holder_login": "o", "holder_instance": "z:py", "acquired_at": now.isoformat(timespec="seconds"),
+            "expires_at": (now + timedelta(seconds=20)).isoformat(timespec="seconds")}), encoding="utf-8")
+        r = c.post("/api/masters/place/move", data=json.dumps({"parent": str(self.tmp / "nas"), "name": "New"}), content_type="application/json")
+        self.assertEqual(r.status_code, 409, r.get_json())
+        self.assertEqual(r.get_json()["kind"], "locked")
+        self.assertIn("保存中", r.get_json()["error"])
+        self.assertFalse([p for p in (self.tmp / "nas").iterdir() if ".tmp-" in p.name], "写しかけを残さない")
+
+    def test_the_window_is_the_one_mover(self):
+        """窓が place を名乗ったら、Python は写さずに 409（写す係は窓の 1 つ。配布の置き場と同じ型）"""
+        share = self.tmp / "nas" / "Masters"
+        master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+        c = self.client(share)
+        with mock.patch.dict(os.environ, {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "place"}):
+            r = c.post("/api/masters/place/move", data=json.dumps({"parent": str(self.tmp / "nas"), "name": "New"}),
+                       content_type="application/json")
+        self.assertEqual((r.status_code, r.get_json()["kind"]), (409, "busy"))
+        self.assertFalse((self.tmp / "nas" / "New").exists())
+
+
+class MoveRemember(MoveBase):
+    """この PC の覚え（作業場所の master_share.json）を書けないときの引っ越し（版 3.101.0 の作った後の採点の割れ 1）。前は写して名前を
+    付けた後に覚えを書き、書けないと新しい置き場に写したマスタが残った。そのまま前の置き場で保存してから同じ所をもう一度選ぶと、
+    「既にマスタがある置き場」として写さずに切り替わり、その間の保存が無くなった"""
+
+    def shared(self):
+        share = self.tmp / "nas" / "Masters"
+        master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+        return share
+
+    def save(self, share, pc, text):
+        b = self.store(pc, share)
+        return MasterRepository(b).rolls_create({"設備": "TLV", "ロール名": text})["id"]
+
+    def test_cannot_remember_is_refused_before_copying(self):
+        share = self.shared()
+        a = self.store("pcA", share)
+        (self.tmp / "pcA" / "master_share.json").mkdir(parents=True)     # 覚えのファイルの所にフォルダ（書けない形。root でも効く）
+        with self.assertRaises(ValueError) as cm:
+            master_place.move(a, self.tmp / "nas", "New")
+        self.assertIn("写す前に止めました", str(cm.exception))
+        self.assertFalse((self.tmp / "nas" / "New").exists(), "写していない")
+        self.assertEqual(a.share_dir, share)
+        self.assertFalse((share / "_MOVED.json").exists())
+
+    def test_a_failed_remember_after_the_copy_rolls_back(self):
+        share = self.shared()
+        a = self.store("pcA", share)
+        from app.repositories import master_store as ms
+        real = ms._write_json_atomic
+
+        def full(path, data, retry=0.0):
+            if Path(path) == a.override_path:
+                raise OSError(28, "No space left on device")
+            return real(path, data, retry)
+        with mock.patch.object(ms, "_write_json_atomic", full), self.assertRaises(ValueError) as cm:
+            master_place.move(a, self.tmp / "nas", "New")
+        self.assertIn("写した置き場を消して元に戻しました", str(cm.exception))
+        self.assertFalse((self.tmp / "nas" / "New").exists(), "写した置き場を消した")
+        self.assertEqual(a.share_dir, share, "この PC の置き場は替わらない")
+        self.assertFalse((share / "_MOVED.json").exists(), "前の置き場の印は書かない")
+        self.assertFalse([p for p in (self.tmp / "nas").iterdir() if ".tmp-" in p.name])
+        # 前の置き場で保存 → 同じ所をもう一度選ぶ: 写して切り替える（古い写しへ切り替えない）。写した物＝錠を取った時の共有
+        rid = self.save(share, "pcB", "やり直しの前の保存")
+        held = truth.tree_bytes(share)
+        pl = master_place.plan(a, self.tmp / "nas", "New")
+        self.assertEqual(pl["mode"], "copy", pl)
+        master_place.move(a, self.tmp / "nas", "New")
+        got = truth.tree_bytes(self.tmp / "nas" / "New")
+        self.assertEqual(sorted(got), truth.copied_names(share))
+        for rel in got:
+            self.assertEqual(got[rel], held[rel], rel)
+        self.assertIn(rid, truth.row_ids(truth.followed(share), "roll_master"))
+
+
+class Sources(unittest.TestCase):
+    def test_the_modules_compile_without_warnings(self):
+        """置き場と設定の部品の字が、警告なしに読める（版 3.101.0: folder_browse の説明の「C:\」が無効な逃がし字の SyntaxWarning だった。
+        Python の次の版では誤りになる）"""
+        import warnings
+        for name in ("folder_browse", "master_place", "release_place", "path_settings", "access"):
+            src = (PROGRAM / "app" / "services" / f"{name}.py").read_text(encoding="utf-8")
+            with self.subTest(name), warnings.catch_warnings():
+                warnings.simplefilter("error")
+                compile(src, f"{name}.py", "exec")
+
+
 class PlanProblems(MoveBase):
     def test_unreadable_new_place_is_a_problem_not_a_500(self):
         (self.tmp / "nas" / "M").mkdir()

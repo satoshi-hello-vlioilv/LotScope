@@ -52,7 +52,9 @@ pub const PROTOCOL: u64 = 1;
 /// 窓が取れない設定の間は窓が状態に「係を降りた」と書き、Python が取る）。
 /// lotdsp: LotDsp の 9 本の係（版 3.98.0。src/lotdsp.rs・lotdsp_direct.rs。見えない Edge・錠・中止・学びの覚えは窓の 1 つ。Python の 9 本は
 /// 来たら誤りの印〈409 kind shell〉を返す。窓はどの形も自分で答えるので来ない）
-pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule", "lotdsp"];
+/// place: マスタの置き場の 4 本と「参照…」の 2 本（版 3.101.0。src/master_place.rs・folder_browse.rs）。マスタの置き場を写す係
+/// （引っ越し）はプロセスに 1 つなので、Python は /api/masters/place/move で写さずに 409 で断る（routes/settings.py。配布の置き場と同じ型）
+pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule", "lotdsp", "place"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);
 /// 止めたあと、本当に終わったと見えるまで待つ長さ（その間に入れ替えを始めない）。

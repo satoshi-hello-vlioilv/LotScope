@@ -60,6 +60,13 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     if let Some((status, kind, msg)) = access::guard(method, path, &me) {
         return Some((status, json!({"error": msg, "kind": kind})));
     }
+    if (method, path) == ("GET", "/api/masters/tabaccess") {
+        // タブの権限を読む（版 3.101.0。Lot::tabaccess_route と同じ材料: タブの権限の行・いま効いているデータ元の並び）
+        let tabs = access::Place::from_json(&c["place"]).rows("tab_access").unwrap();
+        let sources: Vec<serde_json::Map<String, Value>> =
+            step["sources"].as_array().unwrap().iter().map(|x| x.as_object().unwrap().clone()).collect();
+        return da_core::access_write::tabs_answer(store, &me, &tabs, &sources);
+    }
     let route = route_of(method, path).expect("窓が受ける道");
     let body = step["body"].as_str().unwrap_or("");
     let tabs = access::Place::from_json(&c["place"]).rows("tab_access").unwrap();
