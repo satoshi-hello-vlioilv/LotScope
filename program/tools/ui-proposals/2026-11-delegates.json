@@ -1,0 +1,450 @@
+{
+ "title": "Rust 化の段 ①: 窓が Python に任せる歩を減らす（形ごとの数と減らし方の案。2026-11-12）",
+ "rule": "2026-11-06",
+ "measured": "作業場所 /home/user/LotScope/.claude/worktrees/deleg-3104（ブランチ deleg-3104・版 3.103.0 の 23586d9）。Linux の開発機・Python 3.13.18。python program/tools/delegate-count.py 作業フォルダ --json 出力.json（19 の答えの元を流して約 30 秒）で数えた。計 507 歩（delegates_budget.json の total と同じ）。窓（cargo）は組んでいない（下調べと案出しだけ。ディスクの空き 8.7 GB）。形の分け方を組み直した: 前の RULES は場面の名前と本文の字を 1 本の正規表現の並びに当て、置き場の場面の GET・DELETE を「表でない本文」に（表でない本文 95 のうち本当に表でない本文は 39）、「前の版の条件」を「版が読めない」に数えていた。いまは層（場面の形か本文の形か）を先に決め、本文は Python の json.loads で読み、欄の型は同じ元の窓が答えた歩の同じ欄の型と比べる（「そのほか」0）。元ごとの数（予算）は数え方だけで決まるので変わらない（前の分け方でも 507）。",
+ "counts": {
+  "total": 507,
+  "layers": {
+   "本文": 231,
+   "置き場": 197,
+   "種まき": 45,
+   "道": 15,
+   "OS": 8,
+   "束": 6,
+   "口": 5
+  },
+  "kinds": {
+   "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 58,
+   "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 56,
+   "置き場の行: 版（rev・revision）が Python の int() で読めない": 55,
+   "本文: 表でない（並び・字・数・null）": 39,
+   "本文: 読めない JSON・空": 37,
+   "種まき: 数える材料のマスタが共有に無い（設備グループ）": 36,
+   "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 30,
+   "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 29,
+   "置き場の字: i64 に入らない整数・大きな id・大きな表示順": 26,
+   "本文: 整数の -0（Python は 0、serde は -0.0）": 15,
+   "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 15,
+   "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 12,
+   "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": 10,
+   "置き場・配った設定: 39 桁を超える並び・古さが数でない": 10,
+   "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": 9,
+   "本文: 字の欄に小数（Python の str() は repr の字）": 8,
+   "本文: 数の欄の字（全角・ASCII でない空白・制御字・4300 桁・²。Python の int()）": 8,
+   "置き場の字: 整数の -0（Python は 0、serde は -0.0）": 8,
+   "OS の道（~ユーザー・file: の [ ]・NUL・読めない置き場）": 8,
+   "置き場の行: 表でない行・null の条件（Python の落ち方）": 7,
+   "本文: 入れ子 128 段以上（serde の上限）": 6,
+   "置き場の字: 入れ子 128 段以上（serde の上限）": 6,
+   "engine=python（自己診断・突き合わせの口）": 5,
+   "本文: 並び・字の欄に数・真偽（Python の str()・回し方）": 4,
+   "束: 配った設定・束の材料の形（NaN・段が字・表でない）": 4,
+   "道: id が i64 に入らない（Python の int() は読む）": 3,
+   "本文: 正規表現（Python の re）": 1,
+   "束: 引っ越しの印": 1,
+   "束: 種まき（共有にまだ無いマスタ）": 1
+  },
+  "pythonStatus": {
+   "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": {
+    "4xx": 5,
+    "2xx": 43,
+    "5xx": 8
+   },
+   "置き場の行: 版（rev・revision）が Python の int() で読めない": {
+    "2xx": 35,
+    "4xx": 20
+   },
+   "本文: 表でない（並び・字・数・null）": {
+    "4xx": 11,
+    "5xx": 28
+   },
+   "本文: 読めない JSON・空": {
+    "4xx": 37
+   },
+   "本文: 字の欄に小数（Python の str() は repr の字）": {
+    "2xx": 6,
+    "4xx": 2
+   },
+   "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": {
+    "2xx": 35,
+    "4xx": 23
+   },
+   "本文: 数の欄の字（全角・ASCII でない空白・制御字・4300 桁・²。Python の int()）": {
+    "4xx": 6,
+    "2xx": 2
+   },
+   "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": {
+    "4xx": 21,
+    "2xx": 9
+   },
+   "本文: 整数の -0（Python は 0、serde は -0.0）": {
+    "4xx": 11,
+    "2xx": 4
+   },
+   "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": {
+    "4xx": 5,
+    "2xx": 7
+   },
+   "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": {
+    "2xx": 9
+   },
+   "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": {
+    "2xx": 27,
+    "4xx": 2
+   },
+   "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": {
+    "2xx": 10,
+    "4xx": 5
+   },
+   "本文: 正規表現（Python の re）": {
+    "4xx": 1
+   },
+   "本文: 入れ子 128 段以上（serde の上限）": {
+    "2xx": 4,
+    "4xx": 2
+   },
+   "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": {
+    "2xx": 9,
+    "4xx": 1
+   },
+   "道: id が i64 に入らない（Python の int() は読む）": {
+    "4xx": 3
+   },
+   "本文: 並び・字の欄に数・真偽（Python の str()・回し方）": {
+    "4xx": 3,
+    "5xx": 1
+   },
+   "置き場の行: 表でない行・null の条件（Python の落ち方）": {
+    "5xx": 4,
+    "2xx": 3
+   },
+   "置き場の字: i64 に入らない整数・大きな id・大きな表示順": {
+    "2xx": 17,
+    "4xx": 8,
+    "5xx": 1
+   },
+   "種まき: 数える材料のマスタが共有に無い（設備グループ）": {
+    "2xx": 30,
+    "4xx": 6
+   },
+   "置き場の字: 整数の -0（Python は 0、serde は -0.0）": {
+    "2xx": 8
+   },
+   "engine=python（自己診断・突き合わせの口）": {
+    "2xx": 4,
+    "4xx": 1
+   },
+   "OS の道（~ユーザー・file: の [ ]・NUL・読めない置き場）": {
+    "2xx": 7,
+    "4xx": 1
+   },
+   "置き場の字: 入れ子 128 段以上（serde の上限）": {
+    "2xx": 6
+   },
+   "束: 引っ越しの印": {
+    "なし": 1
+   },
+   "束: 配った設定・束の材料の形（NaN・段が字・表でない）": {
+    "なし": 4
+   },
+   "束: 種まき（共有にまだ無いマスタ）": {
+    "なし": 1
+   },
+   "置き場・配った設定: 39 桁を超える並び・古さが数でない": {
+    "2xx": 5,
+    "4xx": 3,
+    "5xx": 2
+   }
+  },
+  "per": {
+   "access_write_oracle": {
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 6,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 2
+   },
+   "calc_oracle": {},
+   "cards_oracle": {
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 9,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 6,
+    "本文: 数の欄の字（全角・ASCII でない空白・制御字・4300 桁・²。Python の int()）": 5,
+    "本文: 表でない（並び・字・数・null）": 3,
+    "本文: 読めない JSON・空": 3,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 2,
+    "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 2,
+    "本文: 字の欄に小数（Python の str() は repr の字）": 1,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 1,
+    "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": 1
+   },
+   "conversions_oracle": {
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 11,
+    "本文: 読めない JSON・空": 8,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 5,
+    "本文: 入れ子 128 段以上（serde の上限）": 4,
+    "本文: 表でない（並び・字・数・null）": 4,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 3,
+    "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": 3,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 3,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 2,
+    "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "本文: 正規表現（Python の re）": 1,
+    "道: id が i64 に入らない（Python の int() は読む）": 1,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 1
+   },
+   "dashboards_oracle": {
+    "本文: 読めない JSON・空": 5,
+    "本文: 表でない（並び・字・数・null）": 4,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 4,
+    "置き場の行: 表でない行・null の条件（Python の落ち方）": 4,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 2,
+    "本文: 並び・字の欄に数・真偽（Python の str()・回し方）": 2,
+    "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": 2,
+    "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 2,
+    "本文: 字の欄に小数（Python の str() は repr の字）": 1,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 1,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 1,
+    "本文: 数の欄の字（全角・ASCII でない空白・制御字・4300 桁・²。Python の int()）": 1
+   },
+   "equip_rows_oracle": {
+    "置き場の字: i64 に入らない整数・大きな id・大きな表示順": 12,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 8,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 8,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 4,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 3,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 3,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 2,
+    "本文: 読めない JSON・空": 2,
+    "本文: 表でない（並び・字・数・null）": 1,
+    "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": 1
+   },
+   "equipgroups_oracle": {
+    "種まき: 数える材料のマスタが共有に無い（設備グループ）": 36,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 10,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 5,
+    "本文: 読めない JSON・空": 4,
+    "置き場の字: i64 に入らない整数・大きな id・大きな表示順": 4,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 4,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 3,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 2,
+    "本文: 表でない（並び・字・数・null）": 2,
+    "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": 2,
+    "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "道: id が i64 に入らない（Python の int() は読む）": 1
+   },
+   "formats_oracle": {
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 8,
+    "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 5,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 5,
+    "本文: 表でない（並び・字・数・null）": 3,
+    "本文: 読めない JSON・空": 3,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 3,
+    "置き場の字: 整数の -0（Python は 0、serde は -0.0）": 3,
+    "置き場の字: i64 に入らない整数・大きな id・大きな表示順": 3,
+    "本文: 字の欄に小数（Python の str() は repr の字）": 2,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 2,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 2,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 2,
+    "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 2,
+    "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": 1
+   },
+   "fs_oracle": {
+    "OS の道（~ユーザー・file: の [ ]・NUL・読めない置き場）": 2,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 1,
+    "本文: 表でない（並び・字・数・null）": 1,
+    "engine=python（自己診断・突き合わせの口）": 1
+   },
+   "place_oracle": {
+    "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": 2,
+    "engine=python（自己診断・突き合わせの口）": 1,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 1,
+    "本文: 表でない（並び・字・数・null）": 1
+   },
+   "presets_oracle": {
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 11,
+    "本文: 表でない（並び・字・数・null）": 4,
+    "本文: 読めない JSON・空": 4,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 4,
+    "置き場の行: 表でない行・null の条件（Python の落ち方）": 3,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 2,
+    "本文: 数の欄の字（全角・ASCII でない空白・制御字・4300 桁・²。Python の int()）": 2,
+    "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": 2,
+    "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 2,
+    "本文: 字の欄に小数（Python の str() は repr の字）": 1,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 1,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 1
+   },
+   "release_place_oracle": {
+    "OS の道（~ユーザー・file: の [ ]・NUL・読めない置き場）": 6,
+    "本文: 表でない（並び・字・数・null）": 3,
+    "engine=python（自己診断・突き合わせの口）": 3,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 1,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 1,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 1
+   },
+   "sets_oracle": {
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 18,
+    "置き場の字: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 14,
+    "置き場の字: 入れ子 128 段以上（serde の上限）": 6,
+    "置き場の字: 整数の -0（Python は 0、serde は -0.0）": 5,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 4,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 4,
+    "本文: 表でない（並び・字・数・null）": 3,
+    "本文: 読めない JSON・空": 3,
+    "本文: 字の欄に小数（Python の str() は repr の字）": 3,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 3,
+    "置き場の字: i64 に入らない整数・大きな id・大きな表示順": 3,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 2,
+    "本文: 入れ子 128 段以上（serde の上限）": 2,
+    "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 2,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 1,
+    "種まき: 読むだけで共有に最初の版を置く（Python の読みの副作用）": 1
+   },
+   "settings_oracle": {
+    "束: 配った設定・束の材料の形（NaN・段が字・表でない）": 4,
+    "束: 引っ越しの印": 1,
+    "束: 種まき（共有にまだ無いマスタ）": 1
+   },
+   "settings_write_oracle": {
+    "本文: 表でない（並び・字・数・null）": 3,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 2,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 2,
+    "本文: i64 に入らない整数・1e20・19 桁以上の数の字（serde の数・Python の int()）": 1,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 1,
+    "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": 1,
+    "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 1
+   },
+   "shifts_oracle": {
+    "置き場の行: 版（rev・revision）が Python の int() で読めない": 4,
+    "置き場の字: i64 に入らない整数・大きな id・大きな表示順": 4,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 2
+   },
+   "sources_write_oracle": {
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 7,
+    "本文: 表でない（並び・字・数・null）": 4,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "本文: 並び・字の欄に数・真偽（Python の str()・回し方）": 2,
+    "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": 1,
+    "道: id の字（全角・ほかの字の数・百分率符号。Python の int()・道の読み）": 1
+   },
+   "ui_defaults_oracle": {
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 2,
+    "置き場の行: 項目の型が違う（並び・数・字。Python の str()・比べ方・落ち方）": 2,
+    "本文: 整数の -0（Python は 0、serde は -0.0）": 1,
+    "本文: 読めない JSON・空": 1
+   },
+   "worklog_write_oracle": {
+    "置き場・配った設定: 39 桁を超える並び・古さが数でない": 10,
+    "本文: 読めない JSON・空": 4,
+    "本文: 表でない（並び・字・数・null）": 3,
+    "本文: 字・数の欄に並び・表（並びの欄に表も。Python は str() で repr の字・TypeError）": 3,
+    "本文: 版 base_rev・?rev= の字・型（²・小数・並び。Python の int()）": 2,
+    "本文: NaN・Infinity・1e400・片割れの代用字（serde が読めない）": 1,
+    "道: id が i64 に入らない（Python の int() は読む）": 1
+   }
+  }
+ },
+ "why": [
+  "JSON の読み（serde と json.loads）: master_rows::unreadable（master_rows.rs 207 行）・text_split（190 行）・split_number（124 行）・access::Place::split_file（access.rs 455 行）。serde の Value は NaN・Infinity を持てず、整数の -0 を -0.0 に、u64 を超える整数を小数に読み、入れ子 128 段で読むのをやめ、鍵を字の順に並べ直す（preserve_order は入れていない）。割れうる字があればその道を任せる",
+  "Python の int(): 窓に int() の写しが 14 ある（pyfmt::py_int・master_rows::py_rev／py_int／py_int_text・card_forms::int_of・layout_clean::py_int_of／int_of・bundle::wide_int_text／int_of・calc::py_int_value／py_int_exact・cm3::py_int_digits・worksum::py_int_of・pivot::py_int_or）。読める字の範囲が違うので、ASCII でない字・版の読めない行は任せる（card_forms::int_plain 150 行・master_rows::row_readable 230 行・access::revision_split 557 行）",
+  "Python の str()・repr()・型の誤り: str() の写しが 9 か所以上（worksum::py_str 172 行は並び・表を serde の字 [\"x\"] にする。Python は ['x']）。並び・表・小数の欄は preset_rows::str_plain（146 行）・card_forms::scalar（161 行）・master_rows::value_plain（241 行）で任せる",
+  "本文の読み方が道ごとに違う（Python）: routes の get_json 50 か所のうち silent（読めない本文は {}）25・silent 無し（英語の 400 Bad Request）24。表でない本文は .get の AttributeError（400）か routes/common.base_rev の TypeError(\"本文の形が違います\")（500）。窓は写さず任せる（card_forms::answer 397〜418 行など）",
+  "種まき: 窓は変換表と設備グループには最初の版を置く（conversions_write::seed 538 行）が、カード・ダッシュボード・組み方・書式・セットの一覧（share_absent）・置き場の状態（needs_seed: master_place 813 行）・束の節（section_broken の seed: bundle.rs 2183 行 → 設備グループの一覧が数える材料を組めず lot.rs 353〜356 行で任せる）は任せる",
+  "前例: LotDsp の 9 本（3.98.0）は本文を pyjson::J で読み、1 つの read_body（Python services/lotdsp_rules.read_body・窓 lotdsp.rs 264 行）で空・null は {}、UTF-8・JSON・入れ子・表でない は 400 で断り、任せる歩を 0 にした"
+ ],
+ "found_errors": [
+  {
+   "name": "窓の pyfmt::SPACES（pyfmt.rs 12 行）は 0x1C〜0x1F を空白に入れているが、Python 3.13.18 の int('4\\x1c')・float('4\\x1c') は ValueError",
+   "再現": "python3 -c \"int('4\\x1c')\" → ValueError（'\\x1c'.isspace() は True・'4\\x1c'.strip() は '4'）。int() が読む空白は 0x0B・0x0C・0x85・0xA0・0x2028・0x3000 など。pynum_cases.json（477 件）に 0x1C〜0x1F の事例が無い",
+   "影響": "pyfmt::py_int／py_float（38 か所で使う）が '4\\x1c' を 4 と読み、Python と割れうる（SQLite の値の読み）。案 B で int() を 1 つの部品にする前に、表へ足して直す要",
+   "who": "窓（試験の表の穴）"
+  }
+ ],
+ "combos": {
+  "A+F+G": {
+   "減る": 170,
+   "残る": 337
+  },
+  "A+B+F+G": {
+   "減る": 279,
+   "残る": 228
+  },
+  "A+B+D+E+F+G": {
+   "減る": 445,
+   "残る": 62
+  },
+  "A+B+D+E+F+G+H": {
+   "減る": 486,
+   "残る": 21
+  },
+  "note": "形は重ならないように数えた（B と E は版の行 55 が重なる）。残る 21 は OS の道 8・engine=python 5・束 5・道の百分率符号 2・正規表現 1"
+ },
+ "decide_by_user": [
+  "画面が送らない本文の形（表でない・NaN・入れ子・字の欄の並び）で、Python の答え（英語の例外・500・repr の字の保存）を「理由を添えて断る」に替えてよいか（A・D）",
+  "置き場の読めない行を、Python も飛ばして知らせる形に替えてよいか（E。今は 200 で全部の行を出す・名前が数なら 500）",
+  "本文の片割れの代用字を断るか U+FFFD に替えるか（A。LotDsp は替える）",
+  "種まきを窓も行うか（F。3.101.0 の「⑤ まで Python のまま」の決めは、変換表・設備グループで既に一部替わっている）"
+ ],
+ "evaluator": "",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "self_check": "案を作った者が自分で確かめたこと: delegate-count.py を前の分け方と新しい分け方で流し、どちらも計 507・元ごとの数が予算と同じ。新しい分け方の形ごとに歩の本文と場面を 1 つずつ目で見て取り違えを直した（置き場の場面の GET を本文に数える・「前の版の条件」を版に数える・\"4\\x1c\" を数えない・u64 の数を大きな数に数える）。Python 3.13.18 で int()・float() の制御字と Unicode の空白・json.loads('-0')・str(['x'])・str({'b':1,'a':2})・str(1059438285926254.2)・str(10**20) の答えを確かめた。案ごとの減る見込みは形の数の足し算で、重なり（B と E の版の行 55・G と H の大きな整数）を除いて組み合わせの数を出した。直した道具は ruff 0.15.20（CI と同じ版）と compileall を通した。窓は組んでいないので、G の「既にある部品で同じ字が出せる」はコードを読んだ見込みで、流して確かめていない",
+   "proposals": {
+    "A 本文の門を 1 つに（LotDsp の read_body を全部の書く道へ・Python も同じ言葉で断る）": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 112: 本文の表でない 39（Python 4xx 11・5xx 28）・読めない JSON・空 37（4xx 37）・NaN・Infinity・1e400・代用字 30（2xx 9・4xx 21）・入れ子 6。Python の get_json は 50 か所で silent 25・非 silent 24 と道ごとに違い、表でない本文は AttributeError（400）か base_rev の TypeError（500）。前例は LotDsp の read_body（任せる歩 0）",
+     "text": "方向: 断る形にそろえる。変える所: Python は lotdsp_rules.read_body を共通の部品へ出し、routes の get_json 50 か所と common.base_rev の本文の読みを替える（空・null は {}、UTF-8 でない・JSON でない・NaN／Infinity〈parse_constant〉・入れ子・表でない は 400 {error, kind: body}）。中身を字で送る欄の json.loads も同じ部品。窓は lotdsp::rules::read_body を共通の部品へ出し、router で書く道の前に 1 回当て、master_rows::unreadable と各部品の「表でなければ None」を外す。落とし穴: silent の 25 か所は読めない本文を {} として受けていた → 400 に替わる（画面が空で送る /scan・/preset は {} のまま。画面の本文を全部の ui-eval で通す要）。-0 と大きな整数は画面から来うるので門で断らない（B・H）。代用字は LotDsp では U+FFFD に替える → 書く道で断るか替えるかの決めが要る。確かめ方: 仕様から人が書く事例の表 tests/fixtures/body_cases.json を Python（test_body_reading.py）と Rust（cargo test --test body_cases）が読む・独立の答えは app を import しない json.loads（parse_constant）・各 *_parity の 112 歩を steps へ（答えとファイルが変わらないこと）・予算を下げる。手間: Python 約 80 行・Rust 約 150 行・答えの元 15 本の場面の書き換え。1 版"
+    },
+    "B int() の部品を 1 つに（窓の 14 の写しを 1 つへ・Python の誤りの言葉ごと）": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 109（版の行 55 を E に回すと 54）: 置き場の行の版 55（2xx 35・4xx 20）・本文の -0 15・道の id の字 10・base_rev／?rev= の字 10（2xx 9）・数の欄の字 8・置き場の -0 8・道の id が i64 に入らない 3。窓に int() の写しが 14 あり、読める字の範囲がそれぞれ違う。測った割れ: pyfmt::SPACES は 0x1C〜0x1F を空白にするが Python の int('4\\x1c') は ValueError",
+     "text": "方向: 共通の部品 1 つで Python の読み方を写す（Python は変えない）。変える所: py_int(&str) -> Result<Int, PyErr>（Int は i64 か桁の字。誤りは Python と同じ字）と値の版（真偽・小数の trunc）。14 か所を替え、route_of の ASCII だけの id・int_plain・row_readable・revision_split を外す。整数の -0 は読む前に 0（小数の -0.0 はそのまま）。落とし穴: 0x1C〜0x1F の割れを先に直す。版の読めない行は Python が GET は 200・書くと英語の ValueError（400）→ 写すと誤りの言葉まで写す（E と組むか決めが要る）。桁の大きい版を i64 に丸めると比べ方が割れる。確かめ方: pynum_cases.json を全部の Unicode の空白・制御字・Nd の数字・4300 桁の境・「_」・「²」に広げて焼き直し（tools/pynum-cases.py）、cargo test --test pynum_cases で 1 つの部品を突き合わせる・各 *_parity の歩を steps へ。手間: Rust 約 250 行・表の道具 50 行。1 版"
+    },
+    "C str()・repr() と型の誤りを pyjson::J で写す（書く道の本文を J で受ける）": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 118: 本文の字・数の欄に並び・表 58（2xx 35・4xx 23）・並び・字の欄に数・真偽 4・置き場の行の項目の型 56（2xx 43・4xx 5・5xx 8）。str() の写しが 9 か所以上・serde の Map は鍵を並べ直すので表の repr を同じ字にできない。pyjson::J は送った順・py_str・repr を持つ（LotDsp で使用）",
+     "text": "方向: 元ごとに直す（書く道 12 部品の値を Value → J）。変える所: preset_rows・card_forms・pivot_presets・dash_sets・dashboards_write・formats_write・conversions_write・equipgroups_write・sources_write・worklog_write・master_rows・settings_write の本文を J で受け、欄の字は J::py_str、unhashable・'<' not supported の TypeError の字も同じに作る。置き場の行の型の違いも Python の落ち方（500）まで写す。落とし穴: Python の誤り（repr の字で保存・一覧が 500。前の決め 2）まで写す。部品の型の替えが大きい。TypeError の言葉は Python の版で変わる。確かめ方: 事例の表 pyrepr_cases.json（Python 3.13 の str()・repr() を入れ子・鍵の順・小数・大きな整数・引用符で焼く）を窓が読む・各 *_parity の歩を steps へ。手間: Rust 1,200〜1,800 行・2〜3 版"
+    },
+    "D 欄の型の表で断る（Python が repr の字で置いていた形を Python も窓も 400 で断る）": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 62: 本文の字・数の欄に並び・表 58（Python は 2xx 35 で repr の字を保存: conversions の名前 [\"名前が並び\"] 201・sets の名前 [\"x\"] 201・設備の 同一工程 [\"A\",\"B\"] 201。4xx 23 は unhashable など英語の TypeError）・並び・字の欄に数・真偽 4。画面（JSON.stringify）は字の欄に並びを送らない",
+     "text": "方向: Python の誤りを直して窓に合わせる（本文）＋型の表。変える所: 道 → 欄 → 型の表 tests/fixtures/body_spec.json を Python（clean_row 群の str(v) の前）と窓が読み、違えば 400 {error: 「名前」は字で送ってください。, kind: body}。断るのは並び・表だけ（数・真偽・小数は今どおり str()）。落とし穴: 表を書き間違えると画面の正しい本文を断る（ui-eval の全部で通す要）。前の版で保存された repr の字の行は残る。確かめ方: body_spec.json と事例の表 body_cases.json（欄の型 × 値 → 断る言葉）を Python と Rust が読む・独立の答えは表から作る確かめ（app を import しない）・*_parity の歩を「窓も Python も断り、ファイルが変わらない」へ。手間: Python 約 150 行＋表・Rust 約 200 行。1 版"
+    },
+    "E 置き場の読めない行・ファイルを名指しで隔てる（3.102.0 の badRows の続き）": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 159: 置き場の行の項目の型 56・版 55・置き場の字の NaN 29（2xx 27）・表でない行・null 7（5xx 4）・入れ子 6・配った設定の古さが数でない 6。置き場の場面では 1 行が読めないだけで、その道の歩が本文によらず全部任される（cards の「行の中身が NaN」は GET と POST の 2 歩とも: card_forms::answer 361〜371 行）。Python の壊れ方はまちまち（名前が数で一覧が 500・null の条件で 500・版が字なら書くと英語の 400）",
+     "text": "方向: Python の誤りを直して窓に合わせる（置き場）。変える所: Python の MasterRepository の読みで、版が int() で読めない・名前が字でない・中身が読めない（NaN・入れ子・表でない）行は飛ばして badRows（{行, 理由}）に数え、書くときはその行を名指しで断る（503 master_unreadable）。ファイルの字に NaN・Infinity・入れ子 128 段以上があれば理由つきで読めない。一覧の並べ替えは名前を字で比べる。窓は Place・Store の読みで同じ決まり。落とし穴: Python の答えが替わる（今は 200 で全部の行）→ 画面で行が消えて見えるので帯で知らせる（画面の改良の決まりで別に）。-0 と大きな整数は正しい JSON なので読む（B・H）。ファイルは消さない・書き換えない。確かめ方: tests/test_broken_masters.py に版・型・NaN の行を足す（独立の答えは app を使わない json.loads と行ごとの確かめ）・bundle_cases.json に行の形・*_parity の置き場の場面を steps へ。手間: Python 約 200 行・Rust 約 250 行。1〜2 版"
+    },
+    "F 種まきの係を窓へ（読む道でも Store::pull が最初の版を置く）": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 46: 数える材料のマスタが共有に無い 36（設備グループの 6 場面。2xx 30・4xx 6）・読むだけで最初の版 9・束の種まき 1。窓は変換表と設備グループには既に最初の版を置く（conversions_write::seed 538 行。3.93.0・3.94.0）。ほかは share_absent・needs_seed・束の section_broken の seed で任せる",
+     "text": "方向: 係を移す。変える所: share_absent・needs_seed で任せていた所を Store::pull（無ければ錠を取って seed: master_store.rs 922〜970 行）に替える。束の節の seed は窓が置いてから組み直す。落とし穴: 窓と古い Python・窓 2 つが同時に置く競い合い（seed は錠の中で共有のファイルの有無を見直すので 1 回だけのはず）。読む道が共有に書く（錠を待つ）。共有に書けない PC では写しで答える（今の Python と同じかを確かめる）。確かめ方: place_parity の種まきの競い合いに窓と窓・窓と Python を足す・equipgroups_write_parity の「共有に X が無い」6 場面と各一覧の「写しだけで最初に読む」を steps へ・できたファイル（版 1・updated_by）を突き合わせる。手間: Rust 約 150 行・試験の場面の書き換え。1 版"
+    },
+    "G 既にある部品で同じ字が出せるのに任せている形を、焼いた表で確かめて外す": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 12: 本文の字の欄に小数 8（pyfmt::float_repr と pyfloat_cases.json 5,754 件が既にある・serde は float_roundtrip）・u64 に入る大きな整数 4（12345678901234567890 ×3・9223372036854775808。serde は u64 で正確に持つが worksum::py_str は as_i64 だけを見て小数の字にする）。窓を組んで流していないので、コードを読んだ見込み",
+     "text": "方向: 事例の表を焼いて突き合わせ、判定を緩める。変える所: preset_rows::str_plain・formats_write::str_plain・master_rows::value_plain を「有限の小数・u64 の整数は答える」に、py_str は as_u64 も見る。落とし穴: -0.0 の小数（Python の str は '-0.0'）・1e16 以上の小数の字・名前の比べ方（normalize_part）が小数の字でも同じか。確かめ方: pyfloat_cases.json に欄の値としての str() の事例（1.5・0.1・1059438285926254.2・-0.0・1e16・u64 の境）を足す・*_parity の 12 歩を steps へ。手間: Rust 約 40 行（ほかの案の版に入る大きさ）"
+    },
+    "H 大きな整数を Python と同じに持つ（置き場も本文も J::Big）": {
+     "score": {},
+     "minus": [],
+     "seen": "減る見込み 41: 置き場の字の i64 に入らない整数・大きな id・大きな表示順 26・本文の i64 に入らない整数（u64 の 4 を除く）11・39 桁を超える並び 4。画面から来うる（表示順に 1e20 → JSON.stringify は 100000000000000000000 → Python は int で持って共有に桁のまま書く → 窓は小数に丸める）。窓は split_number（master_rows.rs 124 行）・wide_int_text（bundle.rs 108 行。i128 まで）で任せる",
+     "text": "方向: 共通の値の木で Python を写す（数の持ち方）。変える所: Store の行・本文の数を J で持つ（または読む前に大きな整数だけを印の字にして serde で持ち、書くときに戻す）。表示順・id・版の比べ方は桁で比べる。落とし穴: next_id（max+1）が桁で同じか。浮動の 1e20 と字の \"1e20\" の違い。serde の arbitrary_precision は tauri を含む crate 全体の Number を替えるので使わない。確かめ方: jsonnum_cases.json を置き場のファイルと表示順・id の計算に広げる・*_parity の歩を steps へ。手間: Rust 400〜600 行・1〜2 版"
+    }
+   }
+  }
+ ]
+}
