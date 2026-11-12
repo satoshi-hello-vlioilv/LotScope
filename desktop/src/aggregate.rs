@@ -288,7 +288,13 @@ pub fn name(m: &Map<String, Value>) -> String {
     let per = ms(m, "per");
     let calc = format!(
         "{}{}",
-        if !expr.is_empty() { expr_text(&expr) } else if !per.is_empty() { "値".into() } else { String::new() },
+        if !expr.is_empty() {
+            expr_text(&expr)
+        } else if !per.is_empty() {
+            "値".into()
+        } else {
+            String::new()
+        },
         if per.is_empty() { String::new() } else { format!("÷{per}") }
     );
     format!(

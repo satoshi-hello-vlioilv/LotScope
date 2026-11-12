@@ -62,7 +62,12 @@ pub fn clean_own(v: Option<&Value>) -> Option<Vec<OwnBase>> {
         let Value::Object(m) = x else { continue };
         let name = take(crate::pyfmt::strip(&py_s(m.get("name"))), NAME_MAX);
         let expr = take(crate::pyfmt::strip(&py_s(m.get("expr"))), EXPR_MAX);
-        if name.is_empty() || name.contains('[') || name.contains(']') || FIXED.contains(&name.as_str()) || out.iter().any(|o| o.name == name) {
+        if name.is_empty()
+            || name.contains('[')
+            || name.contains(']')
+            || FIXED.contains(&name.as_str())
+            || out.iter().any(|o| o.name == name)
+        {
             continue;
         }
         let Ok(Some(e)) = num_expr::compile_with(&expr, Some(&fixed), false) else { continue };
@@ -168,9 +173,12 @@ pub struct Unit {
     pub ekeys: Vec<String>,
 }
 
+/// 設備 1 つの（作業日, 直）と作業日の集まり（日は通し番号）
+type PerUnit = (usize, HashSet<(u32, i64)>, HashSet<u32>);
+
 #[derive(Default)]
 struct Stat {
-    per: Vec<(usize, HashSet<(u32, i64)>, HashSet<u32>)>,
+    per: Vec<PerUnit>,
     span: Option<(u32, u32)>,
 }
 
@@ -200,7 +208,15 @@ pub struct Cells {
 
 impl Cells {
     /// dims … (列, まとめ方) の並び（行の段が先）・period_col … 期間の列（無ければ ""）
-    pub fn new(fixed: BTreeSet<String>, mine: &BTreeSet<String>, own: &[OwnBase], dims: Vec<(String, String)>, nr: usize, period_col: &str, by_name: bool) -> Cells {
+    pub fn new(
+        fixed: BTreeSet<String>,
+        mine: &BTreeSet<String>,
+        own: &[OwnBase],
+        dims: Vec<(String, String)>,
+        nr: usize,
+        period_col: &str,
+        by_name: bool,
+    ) -> Cells {
         let clip = dims
             .iter()
             .enumerate()
@@ -238,7 +254,14 @@ impl Cells {
         }
         let u = self.units.len();
         self.unit_at.insert((pi, name.to_string()), u);
-        self.units.push(Unit { pi, name: name.into(), spd: segments.as_ref().map(|s| s.len() as i64), names: segments, range, ekeys: vec![] });
+        self.units.push(Unit {
+            pi,
+            name: name.into(),
+            spd: segments.as_ref().map(|s| s.len() as i64),
+            names: segments,
+            range,
+            ekeys: vec![],
+        });
         u
     }
 
@@ -289,7 +312,9 @@ impl Cells {
     pub fn spans(&self) -> Vec<(&Key, (String, String))> {
         self.at
             .iter()
-            .filter_map(|(k, &i)| self.stats[i].span.map(|(a, b)| (k, (self.day_text[a as usize].clone(), self.day_text[b as usize].clone()))))
+            .filter_map(|(k, &i)| {
+                self.stats[i].span.map(|(a, b)| (k, (self.day_text[a as usize].clone(), self.day_text[b as usize].clone())))
+            })
             .collect()
     }
 
@@ -356,10 +381,7 @@ impl Cells {
         let mut per: Vec<Env> = vec![];
         for &j in &mem {
             let u = &self.units[j];
-            let (sh, dy) = st
-                .and_then(|s| s.per.iter().find(|x| x.0 == j))
-                .map(|x| (x.1.len() as i64, x.2.len() as i64))
-                .unwrap_or((0, 0));
+            let (sh, dy) = st.and_then(|s| s.per.iter().find(|x| x.0 == j)).map(|x| (x.1.len() as i64, x.2.len() as i64)).unwrap_or((0, 0));
             let spd = self.spd(u, key, name_of);
             let pd = self.pdays(u, key, name_of).unwrap_or(cell_span);
             let mut e = Env::new();

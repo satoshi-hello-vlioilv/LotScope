@@ -8,7 +8,7 @@ app を import しない（sqlite3・json・datetime だけ）。作業実績の
     python tools/capacity-truth.py 入力.json      → 答えの JSON を標準出力へ
 
 入力: {"now": "YYYY-MM-DD HH:MM:SS",
-       "equipment": [{"name", "path", "table", "start": 作業開始の列, "weight": 重量の列, "segments": [{"name", "start", "end", "dayOffset"}]}],
+       "equipment": [{"name", "path", "table"（省けば最初の表）, "start": 作業開始の列, "weight": 重量の列, "segments": [{"name", "start", "end", "dayOffset"}]}],
        "views": [{"id", "kind": "equip" | "equip_month" | "day" | "equip_shift", "period": {"kind": "days"|"yesterday"|"days_before", "n"} | null}]}
 作業開始の字は「YYYY/MM/DD H:MM[:SS]」「YYYY-MM-DD HH:MM[:SS]」だけを読む（読めない行の数を unread に出す。試験はそれが 0 のデータで比べる）。
 答え: {"unread": n, "views": {id: {"cells": [{"r": [鍵…], "稼働直", "稼働日", "1日の直数", "期間の日数", "期間の直数", "換算稼働日", "稼働率",
@@ -49,7 +49,8 @@ def place(segs, stamp):
 
 def read(eq):
     c = sqlite3.connect(f"file:{eq['path']}?mode=ro", uri=True)
-    rows = c.execute(f'SELECT "{eq["start"]}", "{eq["weight"]}" FROM "{eq["table"]}"').fetchall()
+    table = eq.get("table") or c.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY rowid").fetchone()[0]   # 表が 1 つのファイル
+    rows = c.execute(f'SELECT "{eq["start"]}", "{eq["weight"]}" FROM "{table}"').fetchall()
     c.close()
     out, bad = [], 0
     for st, w in rows:

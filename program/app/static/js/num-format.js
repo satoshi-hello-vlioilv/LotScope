@@ -271,5 +271,7 @@
       return { fn: (x, e) => { let v; try { v = f(x, e); } catch (err) { if (err === MISS) return null; throw err; } return Number.isFinite(v) ? v : null; }, error: "", text };
     } catch (e) { return { fn: null, error: e.message, text: "" }; }
   }
-  window.NumFormat = { format, text, check, hasLiteral, bare, build, compile, expr, CATS, NEGS, COLORS };
+  /** 式の見せ方（読めるかは見ない。×÷ と 値 にし、［名前］はそのまま。サーバーの num_expr.show_text と同じ字） */
+  const showText = (src) => exprNorm(src).split(PIECES).map((p, k) => (k % 2 ? p : p.replace(/\*/g, "×").replace(/\//g, "÷").replace(/x/g, "値"))).join("");
+  window.NumFormat = { format, text, check, hasLiteral, bare, build, compile, expr, showText, CATS, NEGS, COLORS };
 })();

@@ -9,6 +9,7 @@
 を数え、総計は Σ分子÷Σ分母であること（行の比の平均ではない）も確かめる。窓（Rust）は dash_parity・pivot_parity で Python と突き合わせる。"""
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -37,7 +38,14 @@ class CapacityTruthTest(unittest.TestCase):
     def setUpClass(cls):
         import ui_server
         from app.repositories.master_repository import MasterRepository
+        from app.routes import lotlist
+        from app.services import access
+        # as_role は権限の判定を差し替える（同じプロセスのほかの試験へ漏らさないよう、終わったら戻す）
+        cls._saved = (access.flags, lotlist._access_place)
         ui_server.as_role("開発者")
+        # 試験データの置き場は ui_server の 1 つの一時フォルダ（前の試験〈test_builder_reads〉が消した後でも作り直す）
+        shutil.rmtree(ui_server.WORK, ignore_errors=True)
+        ui_server.WORK.mkdir(parents=True, exist_ok=True)
         app = ui_server.build(quality=200, work_rows=160, wip=100)
         repo = MasterRepository(app.config["MASTER_STORE"])
         pats = repo.shift_patterns()
@@ -67,6 +75,14 @@ class CapacityTruthTest(unittest.TestCase):
         out = subprocess.run([sys.executable, str(PROGRAM / "tools" / "capacity-truth.py"), f.name], capture_output=True, check=True)
         os.unlink(f.name)
         cls.truth = json.loads(out.stdout.decode("utf-8"))
+
+    @classmethod
+    def tearDownClass(cls):
+        from app.routes import lotlist
+        from app.services import access
+        access.flags, lotlist._access_place = cls._saved
+        import ui_server
+        shutil.rmtree(ui_server.WORK, ignore_errors=True)
 
     def ask(self, rows, cols, measures, period=None):
         return pivot.query_many(self.parts, rows=json.dumps(rows, ensure_ascii=False), cols=json.dumps(cols, ensure_ascii=False),

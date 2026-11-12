@@ -70,7 +70,11 @@ pub fn var_names(s: &str) -> Vec<String> {
 /// 式の見せ方（読めるかは見ない。Python の show_text）
 pub fn show_text(src: &str) -> String {
     let s = normalize(src);
-    pieces(&s).iter().enumerate().map(|(k, p)| if k % 2 == 1 { p.clone() } else { p.replace('*', "×").replace('/', "÷").replace('x', "値") }).collect()
+    pieces(&s)
+        .iter()
+        .enumerate()
+        .map(|(k, p)| if k % 2 == 1 { p.clone() } else { p.replace('*', "×").replace('/', "÷").replace('x', "値") })
+        .collect()
 }
 
 pub fn normalize(src: &str) -> String {
@@ -267,7 +271,11 @@ pub fn compile_with(src: &str, names: Option<&[String]>, need_x: bool) -> Result
             Tok::V(v) if !names.iter().any(|n| n == v) => Some(v.clone()),
             _ => None,
         }) {
-            return Err(if u.is_empty() { "［］の中に基準の数の名前がありません".into() } else { format!("「{u}」という基準の数はありません") });
+            return Err(if u.is_empty() {
+                "［］の中に基準の数の名前がありません".into()
+            } else {
+                format!("「{u}」という基準の数はありません")
+            });
         }
     }
     let mut p = Parser { toks, pos: 0, uses_x: false, uses_v: false };

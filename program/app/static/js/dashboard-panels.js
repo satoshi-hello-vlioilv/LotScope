@@ -601,8 +601,18 @@
     box.innerHTML = `<div class="sp-wrap">${head}<div class="sp-list" style="--sp-cols:${cols};--sp-h:${h}px" role="group" aria-label="値で絞る">${cards}</div>${foot}</div>`;
     return "";
   }
+  /** 途中の月（版 3.103.0。採点の指摘 7）: 基準の数を数えた答えの月の段で、終わりまで数えていない月の札に「途中（10/1〜10/2）」を添える */
+  function partialMark(d) {
+    const pt = d && d.bases && d.bases.partial;
+    if (!pt || !d.labels) return d;
+    const labels = d.labels.map((x) => ({ ...x }));
+    Object.entries(pt).forEach(([i, keys]) => Object.entries(keys).forEach(([k, [a, b]]) => {
+      if (labels[+i] && labels[+i][k] != null) labels[+i][k] = `${labels[+i][k]}\n途中（${md(a)}〜${md(b)}）`;     // 表は 2 行（th は pre-line）・グラフの字は空白で 1 行
+    }));
+    return { ...d, labels };
+  }
   function render(box, p, d, size, sub = "") {
-    d = calcd(p, d);
+    d = partialMark(calcd(p, d));
     const W = Math.max(60, Math.floor(size.w)), H = Math.max(40, Math.floor(size.h));
     look(box, p.fmt);
     if (p.visual === "gantt" || p.visual === "abc") return d.kind === p.visual ? window.DashOps[p.visual](box, p, d, W, H) : "";   // 稼働・ABC 分析（版 3.46.0。dashboard-ops.js）
@@ -623,6 +633,8 @@
     if ((d.ignoredFilters || []).length) out.push(`効かない条件（表に無い列）: ${d.ignoredFilters.join("・")}`);
     if (d.equipIgnored) out.push("このデータは設備を見分けられないので、設備の選び・まとめは効きません（データ元で設備の列を決めてください）");
     if (d.note) out.push(d.note);
+    if (d.bases && d.bases.outside) out.push(`直の分からない実績が ${d.bases.outside.toLocaleString()} 行あります（勤務体系の直の外・時刻なし。稼働直・稼働率には入りません）`);
+    if (d.bases && (d.bases.noShift || []).length) out.push(`勤務体系の無い設備（${d.bases.noShift.join("・")}）は、1日の直数が 0 なので直で割れません（マスタ管理の「勤務体系」）`);
     return out;
   }
 

@@ -1044,7 +1044,14 @@ fn calc_exprs(c: &rusqlite::Connection, calc: Option<&Calc>, cs: &[String], conv
     Ok((exprs, order, broken, Some(cc)))
 }
 
-fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, span: Option<&(String, String)>, own: &[OwnBase]) -> R<State> {
+fn open_part(
+    part: &Part,
+    a: &Ask,
+    period: Option<&Period>,
+    need_equip: bool,
+    span: Option<&(String, String)>,
+    own: &[OwnBase],
+) -> R<State> {
     let work = part.work.as_ref();
     let c = connect_ro(&part.path).map_err(down)?;
     let names = lotlist::tables(&c).map_err(down)?;
@@ -1160,11 +1167,18 @@ fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, sp
         } else {
             let lack: Vec<&str> = capacity::NEED_SHIFT.iter().copied().filter(|x| fixed.contains(*x)).collect();
             if !lack.is_empty() {
-                return invalid(format!("基準の数「{}」は、作業日と直のある作業実績だけで使えます（このデータは直が分かりません）。", lack.join("」「")));
+                return invalid(format!(
+                    "基準の数「{}」は、作業日と直のある作業実績だけで使えます（このデータは直が分かりません）。",
+                    lack.join("」「")
+                ));
             }
             let day_col = match period {
                 Some(p) if p.column != "@workday" => p.column.clone(),
-                _ => dims.iter().find(|d| cs.contains(&d.column) && DATE_PARTS.contains(&d.part.as_str())).map(|d| d.column.clone()).unwrap_or_default(),
+                _ => dims
+                    .iter()
+                    .find(|d| cs.contains(&d.column) && DATE_PARTS.contains(&d.part.as_str()))
+                    .map(|d| d.column.clone())
+                    .unwrap_or_default(),
             };
             if day_col.is_empty() {
                 return invalid("稼働日を数える日付の列がありません（期間で絞るか、日付の列を年月日・年月などで段に置いてください）。");
@@ -1447,7 +1461,8 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         base_units(&mut b, &states, &dims, &pick, groups_on, &gsets, multi);
         Some(b)
     };
-    // 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
+    let mut outside = 0usize; // 作業日はあるが直の分からない行（直の外・時刻なし。稼働直に入らない）
+                              // 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
     let mut ids: Vec<Ids> = (0..dims.len()).map(|_| Ids::default()).collect();
     let mut cells: HashMap<Vec<u32>, usize> = HashMap::new();
     let mut accs: Vec<(Vec<u32>, Acc3)> = vec![];
@@ -1494,6 +1509,9 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
                     };
                     (b.unit(pi, &name, segs.clone(), st.range.clone()), day, idx)
                 });
+                if bu.as_ref().is_some_and(|(_, day, idx)| !st.start.is_empty() && !day.is_empty() && *idx < 0) {
+                    outside += 1;
+                }
                 let lk = if !st.lots_by.is_empty() {
                     let (x, y) = st.kpos;
                     let k = if st.lots_by == "work" {
@@ -1651,6 +1669,12 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         .collect();
     let order_keys: Vec<Vec<String>> =
         orders.iter().enumerate().map(|(i, o)| o.iter().map(|&k| ids[i].keys[k].0.clone()).collect()).collect();
+    // 割る数のある値の、計算の前の総計（Python の pre）
+    let pre: Option<Vec<aggregate::Cell>> = if ms.iter().any(|m| m.get("per").and_then(Value::as_str).is_some_and(|s| !s.is_empty())) {
+        out_cells.iter().find(|x| x.r.is_empty() && x.c.is_empty()).map(|x| x.v.clone())
+    } else {
+        None
+    };
     aggregate::apply_expr_env(&mut out_cells, &ms, &envs, &capacity::names_of(&own));
     aggregate::apply_show(&mut out_cells, &ms, nr, &order_keys);
     for x in out_cells.iter_mut() {
@@ -1693,6 +1717,12 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
     });
     if let Some(b) = &base {
         out["bases"] = bases_info(b, &own, &dims, nr, &states, a.now, &label_of);
+        if outside > 0 && capacity::NEED_SHIFT.iter().any(|x| b.fixed.contains(*x)) {
+            out["bases"]["outside"] = json!(outside);
+        }
+    }
+    if let Some(pre) = pre {
+        out["pre"] = json!(pre.iter().map(|v| v.map(N::json).unwrap_or(Value::Null)).collect::<Vec<_>>());
     }
     if let Some(p) = &period {
         let name = if p.kind != "month" || ranges.is_empty() {
@@ -1768,7 +1798,15 @@ fn base_units(
 }
 
 /// 答えの基準の数の手がかり（Python の _bases_info）: 使った数・作った数・勤務体系の無い設備・途中の月
-fn bases_info(b: &Cells, own: &[OwnBase], dims: &[Dim], nr: usize, states: &[State], now: NaiveDateTime, name_of: &dyn Fn(usize, u32) -> String) -> Value {
+fn bases_info(
+    b: &Cells,
+    own: &[OwnBase],
+    dims: &[Dim],
+    nr: usize,
+    states: &[State],
+    now: NaiveDateTime,
+    name_of: &dyn Fn(usize, u32) -> String,
+) -> Value {
     let mut info = json!({
         "fixed": capacity::FIXED.iter().filter(|x| b.fixed.contains(**x)).collect::<Vec<_>>(),
         "own": own.iter().filter(|o| b.own.iter().any(|x| x.name == o.name)).map(|o| o.json.clone()).collect::<Vec<_>>(),
@@ -1805,11 +1843,7 @@ fn bases_info(b: &Cells, own: &[OwnBase], dims: &[Dim], nr: usize, states: &[Sta
         let mut got: std::collections::BTreeMap<String, (String, String)> = std::collections::BTreeMap::new();
         for (k, (lo, hi)) in &spans {
             let (ra, cb) = (k[0] as usize, k[1] as usize);
-            let key = if i < nr {
-                (i < ra).then(|| name_of(i, k[2 + i]))
-            } else {
-                (i - nr < cb).then(|| name_of(i, k[2 + ra + i - nr]))
-            };
+            let key = if i < nr { (i < ra).then(|| name_of(i, k[2 + i])) } else { (i - nr < cb).then(|| name_of(i, k[2 + ra + i - nr])) };
             let Some(key) = key.filter(|x| !x.is_empty()) else { continue };
             let e = got.entry(key).or_insert_with(|| (lo.clone(), hi.clone()));
             if *lo < e.0 {

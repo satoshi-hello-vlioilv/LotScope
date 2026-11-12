@@ -598,7 +598,12 @@ fn clean_own(t: Option<&Tree>) -> R<Option<Vec<Value>>> {
         }
         let name = stripped(get(x, "name"), 16)?;
         let expr = stripped(get(x, "expr"), 60)?;
-        if name.is_empty() || name.contains('[') || name.contains(']') || fixed.contains(&name) || out.iter().any(|o| o["name"] == json!(name)) {
+        if name.is_empty()
+            || name.contains('[')
+            || name.contains(']')
+            || fixed.contains(&name)
+            || out.iter().any(|o| o["name"] == json!(name))
+        {
             continue;
         }
         if !matches!(crate::num_expr::compile_with(&expr, Some(&fixed), false), Ok(Some(_))) {

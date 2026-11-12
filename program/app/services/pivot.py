@@ -736,6 +736,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     base = capacity.Cells(fixed, mine, own, dims, nr, period["column"] if period else "", multi) if fixed else None
     if base:
         _base_units(base, states, pick, groups, gsets, multi)
+    outside = 0                        # 作業日はあるが直の分からない行（直の外・時刻なし。稼働直に入らない）
     # 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
     cells = {}
     box_vals = {}                      # 箱ひげ: 行の葉 → 数の並び
@@ -785,6 +786,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
                     st = to_datetime(row[ca])
                     day, idx = (st[:10] if st else ""), -2
                 u = base.unit(pi, ukey.equip_name(row[s["upos"]]) if ukey else s["name"], segs, s.get("range"))
+                if s["start"] and day and idx < 0:
+                    outside += 1
                 base.add([(tuple(rk[:a]), tuple(ck[:b])) for a in range(nr + 1) for b in range(nc + 1)], u, day, idx)
             for a in range(nr + 1):
                 for b in range(nc + 1):
@@ -834,6 +837,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     def clean(x):          # 足し算の誤差（1248967.0999999992）を丸める
         return round(x, 6) if isinstance(x, float) else x
     out_cells = [{"r": list(k[0]), "c": list(k[1]), "v": [clean(value(acc, j, m, k)) for j, m in enumerate(ms)]} for k, acc in cells.items()]
+    # 割る数のある値の、計算の前の総計（画面の「計算の前 → 割った後」。版 3.103.0）
+    pre = next((list(x["v"]) for x in out_cells if not x["r"] and not x["c"]), None) if any(m.get("per") for m in ms) else None
     aggregate.apply_expr(out_cells, ms, (lambda x: env_of((tuple(x["r"]), tuple(x["c"])))) if base else None, capacity.names_of(own))
     aggregate.apply_show(out_cells, ms, nr, nc, orders)
     for x in out_cells:
@@ -853,6 +858,10 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     }
     if base:
         out["bases"] = _bases_info(base, own, dims, nr, period, states, now)
+        if outside and set(base.fixed) & set(capacity.NEED_SHIFT):
+            out["bases"]["outside"] = outside
+    if pre is not None:
+        out["pre"] = pre
     if period:
         name = PERIODS[period["kind"]] if period["kind"] != "month" or not ranges else f"{int(ranges[0][0][:4])}年{int(ranges[0][0][5:7])}月"
         out["period"] = {**period, "name": name, "ranges": [{"from": a, "to": b} for a, b in ranges]}

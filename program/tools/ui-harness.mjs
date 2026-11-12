@@ -88,6 +88,20 @@ const WATERFALL_LAYOUT = { rows: 8, panels: [
   { id: "wf1", x: 0, y: 0, w: 6, h: 4, title: "", visual: "waterfall", source: "work", period: { column: "@workday", kind: "days", n: 7 }, body: { rows: [{ column: "@equip", part: "" }], cols: [], measures: [{ agg: "lots" }] }, fmt: { labels: "top" } },
   { id: "wf2", x: 6, y: 0, w: 6, h: 4, title: "", visual: "waterfall", source: "work", period: { column: "@workday", kind: "days", n: 14 }, body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "lots", show: "diff" }] }, fmt: { labels: "top" } },
   { id: "wf3", x: 0, y: 4, w: 12, h: 4, title: "", visual: "waterfall", source: "work", period: { column: "@workday", kind: "days", n: 7 }, body: { rows: [{ column: "@equip", part: "" }], cols: [], measures: [{ agg: "sum", column: "重量", expr: "÷1000" }] }, fmt: { labels: "top" } }] };
+// 設備の実力（版 3.103.0。基準の数: 2026-11-capacity）: 見本「設備の実力」（重量÷稼働直・稼働率・稼働直）・「月の稼働日数」（設備×作業月の換算稼働日）と、作業日ごとの本数
+const CAP_PERIOD = { column: "@workday", kind: "days", n: 14 };
+const CAP_EQ = [{ column: "@equip", part: "" }];
+export const CAP_LAYOUT = { rows: 8, panels: [
+  { id: "cap", x: 0, y: 0, w: 6, h: 5, title: "設備の実力（直あたり重量）", visual: "none", source: "work", period: CAP_PERIOD, sort: "desc",
+    body: { rows: CAP_EQ, cols: [], grand: true, measures: [{ agg: "sum", column: "重量", expr: "÷1000", per: "稼働直", utext: "t/直", hideExpr: true, dec: 1 },
+      { agg: "base", base: "稼働率", utext: "%", dec: 0 }, { agg: "base", base: "稼働直", utext: "直", dec: 0 }],
+    bases: [{ name: "稼働率", expr: "[稼働直]÷[期間の直数]×100", unit: "%" }] } },
+  { id: "capMonth", x: 6, y: 0, w: 6, h: 5, title: "月ごとの稼働日数（換算稼働日）", visual: "none", source: "work",
+    body: { rows: CAP_EQ, cols: [{ column: "@workday", part: "ym" }], grand: true, measures: [{ agg: "base", base: "換算稼働日", utext: "日", dec: 1 }],
+      bases: [{ name: "換算稼働日", expr: "[稼働直]÷[1日の直数]", each: true, unit: "日" }] } },
+  { id: "capDays", x: 0, y: 5, w: 12, h: 3, title: "日あたり重量の推移（直近 14 日）", visual: "time", source: "work", period: CAP_PERIOD,
+    body: { rows: [{ column: "@workday", part: "" }], cols: [], measures: [{ agg: "sum", column: "重量", expr: "÷1000", per: "換算稼働日", utext: "t/日", hideExpr: true, dec: 1 }],
+      bases: [{ name: "換算稼働日", expr: "[稼働直]÷[1日の直数]", each: true, unit: "日" }] } }] };
 const SORTED = { sorts: { "仕掛": [{ column: "重量", dir: "desc" }, { column: "板厚", dir: "asc" }] }, active: { "仕掛": [{ column: "不良名", op: "not_empty", value: "" }] } };
 
 /** サーバーとブラウザーを起こす。{ browser, newPage(テーマ, 大きさ), close() } */
@@ -520,6 +534,20 @@ export const STATES = [
   ["dash-hstack", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), HSTACK_LAYOUT); await sleep(500); await waitDash(p); await sleep(600); }, "[data-next], [data-db-editmode]"],
   // 版 3.50.0: ウォーターフォール図（直近 7 日の設備ごとのロット数・直近 14 日の作業日ごとの前との差・重量の合計 ÷1000）
   ["dash-waterfall", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), WATERFALL_LAYOUT); await sleep(500); await waitDash(p); await sleep(700); }, "[data-next], [data-db-editmode]"],
+  // 版 3.103.0: 設備の実力（基準の数）。cap … 3 枚のパネル（設備の実力・月の稼働日数〈10 月は途中〉・日あたり重量の推移）。
+  // cap-edit … 設備の実力を組む所で開き、② の頭の見本と値の計算の段を出して、重量の合計の「÷ 稼働直 ▾」の面を開いた所
+  ["cap", async (p) => { await p.evaluate((l) => Dashboard._setLayout(l), CAP_LAYOUT); await sleep(500); await waitDash(p); await sleep(700); }, "[data-next], [data-db-editmode]"],
+  ["cap-edit", async (p) => {
+    if (!(await p.$('#dashGrid .db-p[data-id="cap"]'))) { await p.evaluate((l) => Dashboard._setLayout(l), CAP_LAYOUT); await sleep(500); await waitDash(p); }
+    if (!(await p.$("#dashScreen.is-edit"))) { await p.click("[data-db-editmode]"); await sleep(400); }
+    const b = await p.$('#dashGrid .db-p[data-id="cap"] [data-db-edit]');
+    if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="cap"]'); await p.keyboard.press("Enter"); }
+    await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
+    await p.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deSent .cp-ex") || document.querySelector("#deSent");
+      if (m && f) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 48); window.scrollTo(0, 0); });
+    await sleep(300);
+    await p.click('#deSent [data-de-per="0"]'); await p.waitForSelector("#dePerPop .cp-it"); await sleep(1200);
+  }, "[data-next], [data-de-apply], #dePerPop [data-cp-pick]"],
   ["dash-swap-pop", async (p) => {
     await p.evaluate(async (l) => {
       await fetch("/api/dashboards", TPA.json("POST", { name: "標準", scope: "default", standard: true, body: { ...l, replaces: "standard" } }));
