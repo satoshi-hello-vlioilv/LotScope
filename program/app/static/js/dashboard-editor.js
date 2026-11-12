@@ -779,11 +779,13 @@
     const i = perPop.i, m = i >= 0 ? t.body.measures[i] : null;
     if (ownEdit) return ownFormHtml();
     const sel = m ? m.per || "" : "", rows = baseNums.rows || {}, work = isWork();
-    const item = (n) => { const b = baseOf(n), off = !work && (BASE_SHIFT.has(n) || (b.own && varsOf(b.own.expr).some((v) => BASE_SHIFT.has(v)))), r = rows[n] || [];
-      return `<button type="button" class="cp-it${n === sel ? " on" : ""}" role="option" aria-selected="${n === sel}" data-cp-pick="${esc(n)}"${off ? ' disabled title="このデータは作業日・直が分からないので使えません（作業実績で使えます）"' : ""}>`
-        + `<i aria-hidden="true"></i><span><b>${esc(n)}</b><small>${esc(b.how)}</small></span><em>${off ? "–" : esc(fmtBase(r[0], n))}</em><em>${off ? "–" : esc(fmtBase(r[1], n))}</em>`
+    const have = new Set(m ? [] : t.body.measures.filter((x) => x.agg === "base").map((x) => x.base));     // 値にある基準の数（足す面だけ。押せない）
+    const item = (n) => { const b = baseOf(n), off = !work && (BASE_SHIFT.has(n) || (b.own && varsOf(b.own.expr).some((v) => BASE_SHIFT.has(v)))), r = rows[n] || [], had = have.has(n);
+      return `<button type="button" class="cp-it${n === sel || had ? " on" : ""}${had ? " is-have" : ""}" role="option" aria-selected="${n === sel || had}" data-cp-pick="${esc(n)}"`
+        + `${off ? ' disabled title="このデータは作業日・直が分からないので使えません（作業実績で使えます）"' : had ? ' disabled title="もう値にあります（外すときは値の札の ×）"' : ""}>`
+        + `<i aria-hidden="true"></i><span><b>${esc(n)}${had ? '<span class="cp-have">値にあります</span>' : ""}</b><small>${esc(b.how)}</small></span><em>${off ? "–" : esc(fmtBase(r[0], n))}</em><em>${off ? "–" : esc(fmtBase(r[1], n))}</em>`
         + (b.own ? `<span class="cp-ed" role="button" tabindex="0" data-cp-edit="${esc(n)}" title="「${esc(n)}」の決め方を直す（このダッシュボードで共通）" aria-label="「${esc(n)}」を直す">✎</span>` : "<span></span>") + "</button>"; };
-    const title = m ? `「${P.measName({ ...m, expr: undefined, per: undefined })}」を割る数（あたり）` : "基準の数を値として足す";
+    const title = m ? `「${P.measName({ ...m, expr: undefined, per: undefined })}」を割る数（あたり）` : "基準の数を値に（表の列として足す）";
     const ex = baseNums.ex ? `例 ${baseNums.ex}` : "例";
     return `<div class="cp-head"><b>${esc(title)}</b><button type="button" class="cp-x" data-cp-close aria-label="閉じる">×</button></div>`
       + `<div class="cp-hd"><i></i><span>基準の数（行ごとに数える）</span><span>${esc(ex)}</span><span>総計</span><span></span></div>`
@@ -808,29 +810,49 @@
     if (!perPop) { if (el) el.remove(); return; }
     if (!el) { el = document.createElement("div"); el.id = "dePerPop"; el.className = "cp-pop"; el.setAttribute("role", "dialog"); document.body.append(el); bindPop(el); }
     const keep = document.activeElement && el.contains(document.activeElement) && document.activeElement.matches("input") ? [document.activeElement.dataset, document.activeElement.selectionStart] : null;
+    const ae = document.activeElement, pick = ae && el.contains(ae) && ae.dataset && ae.dataset.cpPick != null ? ae.dataset.cpPick : null;    // 数が届いて描き直しても、焦点の項目を保つ
     el.innerHTML = popHtml();
+    if (pick != null) { const b = [...el.querySelectorAll("[data-cp-pick]")].find((x) => x.dataset.cpPick === pick); if (b) b.focus({ preventScroll: true }); }
     if (keep) { const a = el.querySelector(Object.keys(keep[0]).map((k) => `[data-${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}]`).join("")); if (a) { a.focus(); try { a.setSelectionRange(keep[1], keep[1]); } catch (_) { /* 選べない欄 */ } } }
     placePop(el);
   }
   /** 置き場: 札の下（入らなければ、組む所の左〈カラムの欄の上〉に札の高さで）。当てるボタン・題の欄・値の札を覆わない（採点の指摘 8） */
-  function placePop(el) {
-    const a = document.querySelector(perPop.i >= 0 ? `#deSent [data-de-per="${perPop.i}"]` : "#deSent [data-de-addbase]"), ed = $("#dbEditor");
+  function placePop(el, scroll = false) {
+    const anchor = () => document.querySelector(perPop.i >= 0 ? `#deSent [data-de-per="${perPop.i}"]` : "#deSent [data-de-addbase]"), ed = $("#dbEditor");
+    let a = anchor();
     if (!a || !ed) return;
-    const r = a.getBoundingClientRect(), er = ed.getBoundingClientRect(), main = ed.querySelector(".de-main"), mr = main ? main.getBoundingClientRect() : er;
-    const head = ed.querySelector(".de-head"), top0 = head ? head.getBoundingClientRect().bottom + 6 : er.top + 8;
-    const w = Math.min(440, innerWidth - 16); el.style.width = `${w}px`; el.style.maxHeight = `${Math.max(240, innerHeight - top0 - 8)}px`;
+    const main = ed.querySelector(".de-main"), er = ed.getBoundingClientRect(), mr = main ? main.getBoundingClientRect() : er;
+    const box = { l: Math.max(er.left + 6, mr.left - 4), r: Math.min(er.right - 6, innerWidth - 8), b: Math.min(er.bottom - 6, innerHeight - 8) };
+    const w = Math.min(440, box.r - box.l); el.style.width = `${w}px`; el.style.maxHeight = "";
     const h = el.offsetHeight;
-    if (r.bottom + 4 + h <= innerHeight - 8) { el.style.top = `${r.bottom + 4}px`; el.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`; el.dataset.side = "below"; return; }
-    el.style.left = `${Math.max(8, mr.left - w - 6)}px`;
-    el.style.top = `${Math.max(top0, Math.min(r.top - 40, innerHeight - h - 8))}px`;
-    el.dataset.side = "left";
+    let r = a.getBoundingClientRect();
+    if (scroll && main && r.bottom + 4 + h > box.b) {
+      // 札の下に入らない: 組む所の中を送り、札を固定のタブのすぐ下へ寄せる（値の札は上へ送られて見えなくなるだけで、覆わない）
+      const tabs = ed.querySelector(".de-ptabs"), top = (tabs ? tabs.getBoundingClientRect().bottom : mr.top) + 8;
+      const want = Math.max(0, Math.min(r.top - top, r.bottom + 4 + h - box.b));
+      // 値の札の段が見えたまま（固定のタブの下で切れない）でも面に 300px 入るなら、そこまでで止める（面の中を送る）
+      const slot = document.querySelector('#deSent .pv-slot[data-role="vals"]'), keep = slot ? Math.max(0, slot.getBoundingClientRect().top - top) : want;
+      main.scrollTop += box.b - (r.bottom - Math.min(want, keep)) - 4 >= 300 ? Math.min(want, keep) : want;
+      a = anchor(); r = a.getBoundingClientRect();
+    }
+    el.style.top = `${r.bottom + 4}px`;
+    el.style.maxHeight = `${Math.max(160, box.b - r.bottom - 4)}px`;
+    el.style.left = `${Math.max(box.l, Math.min(r.right - w, box.r - w))}px`;     // 札の右の縁にそろえ、組む所の右の縁を越えない
+    el.dataset.side = "below";
   }
   function openPop(i) {
     if (perPop && perPop.i === i) { closePop(); return; }
-    perPop = { i }; ownEdit = null; paintPop(); loadBaseNums();
+    perPop = { i }; ownEdit = null; paintPop(); placePop(document.getElementById("dePerPop"), true); loadBaseNums();
     const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", String(+b.dataset.dePer === i)));
+    // 焦点は面の中へ（選んでいる項目・無ければ最初の押せる項目。作った後の採点 2: 札に焦点が残ると Esc が効かなかった）
+    const pop = document.getElementById("dePerPop"), first = pop && (pop.querySelector(".cp-it.on:not(:disabled)") || pop.querySelector(".cp-it:not(:disabled)") || pop.querySelector("[data-cp-close]"));
+    if (first) first.focus({ preventScroll: true });
   }
-  function closePop() { perPop = null; ownEdit = null; paintPop(); const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", "false")); }
+  function closePop(back = false) {
+    const i = perPop ? perPop.i : null;
+    perPop = null; ownEdit = null; paintPop(); const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    if (back && i != null) { const b = document.querySelector(i >= 0 ? `#deSent [data-de-per="${i}"]` : "#deSent [data-de-addbase]"); if (b) b.focus({ preventScroll: true }); }     // Esc は札へ焦点を戻す
+  }
   /** 割る数を当てる（単位は「本/直」「t/直」に。見出しには式も割る数も出さない: 採点の指摘 2） */
   function setPer(i, name) {
     const m = t.body.measures[i]; if (!m) return;
@@ -875,7 +897,7 @@
       if (b.hasAttribute("data-cp-back")) { ownEdit = null; paintPop(); return; }
       if (b.hasAttribute("data-cp-osave")) { saveOwn(); return; }
       if (b.dataset.cpIns != null) { const inp = el.querySelector("[data-cp-oexpr]"); if (inp) { const at = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, at) + `[${b.dataset.cpIns}]` + inp.value.slice(at); ownEdit.expr = inp.value; inp.focus(); } return; }
-      if (b.dataset.cpPick != null) { const i = perPop.i, n = b.dataset.cpPick; closePop(); if (i >= 0) setPer(i, n); else addBase(n); }
+      if (b.dataset.cpPick != null) { const i = perPop.i, n = b.dataset.cpPick; closePop(); if (i >= 0) setPer(i, n); else addBase(n); const x = document.querySelector(i >= 0 ? `#deSent [data-de-per="${i}"]` : "#deSent [data-de-addbase]"); if (x) x.focus({ preventScroll: true }); }
     });
     el.addEventListener("input", (e) => {
       const x = e.target; if (!ownEdit) return;
@@ -889,8 +911,10 @@
       bindPop.outside = true;
       document.addEventListener("mousedown", (e) => { const cur = document.getElementById("dePerPop");
         if (perPop && cur && !cur.contains(e.target) && !e.target.closest("[data-de-per],[data-de-addbase]")) closePop(); }, true);
+      // Esc は焦点がどこにあっても閉じる（札に焦点が残っていても。組む所の Esc〈やめる〉より先に受け、札へ焦点を戻す）
+      document.addEventListener("keydown", (e) => { if (perPop && e.key === "Escape" && !TPA.composing(e)) { e.preventDefault(); e.stopPropagation(); closePop(true); } }, true);
     }
-    el.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closePop(); } else if (e.key === "Enter" && ownEdit && !TPA.composing(e) && e.target.matches("input:not([type=checkbox])")) { e.preventDefault(); saveOwn(); } });
+    el.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closePop(true); } else if (e.key === "Enter" && ownEdit && !TPA.composing(e) && e.target.matches("input:not([type=checkbox])")) { e.preventDefault(); saveOwn(); } });
   }
   /** 名前を変えた作った数に、値（割る数・基準の数の値・式の［名前］）を付いていかせる */
   function renameBase(x, ren) {

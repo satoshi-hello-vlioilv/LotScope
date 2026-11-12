@@ -1154,3 +1154,8 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .cp-form .cp-note{margin:0}
 /* 途中の月（版 3.103.0）: 表の見出しの「途中（10/1〜10/2）」は 2 行目に（列を広げない） */
 .dp-tbl .pv-table th{white-space:pre-line}
+.cp-it.is-have:disabled{opacity:1;cursor:default}
+.cp-it.is-have i{border-color:#5c6b78;background:#5c6b78}
+.cp-have{display:inline-block;margin-left:8px;padding:0 6px;border-radius:999px;background:#5c6b78;color:#fff;font-size:11.5px;font-weight:700;line-height:18px;vertical-align:1px}
+.cp-pop > *{flex:none}       /* 面が低いとき、項目を縮めて重ねない（面の中を送る） */
+.cp-ft{position:sticky;bottom:-6px;padding-bottom:6px;background:var(--surface)}     /* 面の中を送っても、なし・作るは下に見えたまま */

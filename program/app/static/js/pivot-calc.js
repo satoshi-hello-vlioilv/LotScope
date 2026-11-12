@@ -32,7 +32,8 @@
       // 計算の前の総計はサーバーの答えの pre（割る前・計算の前の総計。無ければ覚えた総計）
       const pre = d && Array.isArray(d.pre) && typeof d.pre[j] === "number" ? d.pre[j] : null;
       const raw0 = m.show ? null : pre ?? raws.get(keyOf(m)), before = raw0 != null && ex.fn ? ex.fn(raw0, {}) : null, after = grandOf(d, j);
-      const bare = { ...m, dec: m.dec, utext: m.utext == null ? undefined : String(m.utext).replace(/\/.*$/, "") };
+      // 前の数は前の数の自然な桁（後の桁〈本/直の 2 桁〉を当てない。作った後の採点: 322.00本）・単位は「/直」を外した字
+      const bare = { ...m, dec: undefined, utext: m.utext == null ? undefined : String(m.utext).replace(/\/.*$/, "") };
       if (after == null) return "";
       return before != null ? `<span class="pc-prev" title="総計: 計算の前 → 割った後">${esc(num(before, bare))}<i aria-hidden="true">→</i>${esc(num(after, m))}</span>`
         : `<span class="pc-prev" title="割った後の総計">計 ${esc(num(after, m))}</span>`;
@@ -51,7 +52,6 @@
       return `<span class="pc-item" data-pc-i="${j}"><span class="pc-name">${esc(opt.name(m))}</span>`
         + `<input class="pc-in${ex.error ? " is-bad" : ""}" data-pc-in="${j}" value="${esc(m.expr || "")}" maxlength="60" spellcheck="false" autocomplete="off" placeholder="例: ÷1000" aria-label="「${esc(opt.name(m))}」の計算（四則演算）">`
         + `<span class="pc-out" data-pc-out="${j}">${ex.error ? `<em class="pc-bad">${esc(ex.error)}</em>` : prevHtml(m, j, opt.answer, opt.num, opt.names)}</span>`
-        + (opt.per ? opt.per(m, j) : "")       // 割る数の札（版 3.103.0。ダッシュボードの組む所: 前→後の後ろ。値の行を増やさない）
         + `<span class="pc-qs">${QUICK.map((q) => `<button type="button" class="pc-q${cur(m) === q ? " on" : ""}" data-pc-q="${esc(q)}" data-pc-qi="${j}" title="「${esc(opt.name(m))}」を ${q} にする（もう一度押すと外す）">${q}</button>`).join("")}</span>`
         // 狭い所の畳んだ形（CSS の @container で、札の代わりに出す）。当てている計算は選んだ字で見える
         + `<select class="pc-more" data-pc-qsel="${j}" aria-label="「${esc(opt.name(m))}」のよく使う計算" title="よく使う計算">`
@@ -59,6 +59,8 @@
         + `<span class="pc-dg"><span class="pc-div" aria-hidden="true"></span><span class="pc-l">小数</span>`
         + `<span class="pc-dec" role="radiogroup" aria-label="「${esc(opt.name(m))}」の小数の桁">${DECS.map(([k, t, tip]) => { const on = (m.dec ?? null) === k;
           return `<button type="button" role="radio" aria-checked="${on}" class="${on ? "on" : ""}" data-pc-dec="${k ?? ""}" data-pc-di="${j}" title="${tip}">${t}</button>`; }).join("")}</span></span>`
+        // 割る数の札（版 3.103.0。ダッシュボードの組む所）: 小数の札の後ろ・単位の前（割る数 → 単位の順。作った後の採点: 前→後の後ろに置くと値の行が 1 段増えた）
+        + (opt.per ? opt.per(m, j) : "")
         + (opt.units ? unitHtml(m, j, opt) : "") + "</span>";
     };
     const exprs = ms.filter((m) => m.expr).length;

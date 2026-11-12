@@ -13,6 +13,9 @@
 //   6. ② の見出し・見本・値の札が、組む所の中で一度に見える（固定のタブの下へ送られない）。見本は畳める
 //   7. ＋ 基準の数を作る（稼働直÷稼働日）→ ＋ 基準の数を値に → 表の列の数が独立の答えと同じ（作った数はダッシュボードで共通）
 //   8. 作業日・直の無いデータ（品質）で稼働直を使うと断る（黙って 0 にしない）
+//   作った後の採点（2026-11-12）で足した形: 値の計算の行の段が作る前を超えない（ロット数 2 段・重量の合計 3 段）・Esc で閉じて札へ焦点を戻す
+//   （札に焦点が残っていても）・前→後の前の数は前の数の桁（322本。後の桁を当てない）・割った列の見出しは「重量（t/直）」・
+//   足す面の「値にあります」・面が組むパネルの変わる列（稼働率・稼働直）と組む所の右の縁を越えない
 // 終了コード 0 で OK。
 import fs from "node:fs";
 import os from "node:os";
@@ -105,6 +108,7 @@ try {
       // 3. 見出し
       const h1 = await page.$$eval('#dashGrid .db-p[data-id="cap"] thead th', (th) => th.map((x) => x.textContent.trim()));
       check(!h1.some((x) => /÷|［/.test(x)), `見出しに式・割る数が出ている: ${h1.join(" / ")}`);
+      check(h1.includes("重量（t/直）") && !h1.includes("重量の合計"), `割った列の見出しが合計でないと分からない: ${h1.join(" / ")}`);
       check(h1.includes("稼働率") && h1.includes("稼働直"), `稼働率・稼働直の列が無い: ${h1.join(" / ")}`);
       const sub = await page.$eval('#dashGrid .db-p[data-id="cap"]', (el) => el.textContent);
       check(!/見本/.test(sub), "パネルに「見本…から組んだ」の字が出ている");
@@ -127,6 +131,19 @@ try {
         grand: document.querySelector('#dashGrid .db-p[data-id="cap"] tr.is-grand td')?.textContent.trim() || "" };
     });
     check(!!geo.pop, `${tag}: 割る数の面が開かない`);
+    // 面が組むパネルの変わる列（稼働率・稼働直。見出しから表の下まで）と組む所の右の縁を越えない
+    const cover = await page.evaluate(() => {
+      const pop = document.querySelector("#dePerPop"), tb = document.querySelector('#dashGrid .db-p[data-id="cap"] table'), ed = document.querySelector("#dbEditor");
+      if (!pop || !tb) return null;
+      const p = pop.getBoundingClientRect(), t = tb.getBoundingClientRect();
+      const cols = [...tb.querySelectorAll("thead th")].filter((x) => /稼働率|稼働直/.test(x.textContent)).map((x) => { const r = x.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: t.bottom }; });
+      return { pop: { l: p.left, r: p.right, t: p.top, b: p.bottom }, cols, edR: ed.getBoundingClientRect().right, focus: !!(document.activeElement && pop.contains(document.activeElement)) };
+    });
+    if (cover) {
+      check(cover.cols.length === 2 && !cover.cols.some((c) => hit(cover.pop, c)), `${tag}: 面が組むパネルの変わる列を覆う`);
+      check(cover.pop.r <= cover.edR + 0.5, `${tag}: 面が組む所の右の縁を越える（${cover.pop.r} > ${cover.edR}）`);
+      check(cover.focus, `${tag}: 開いた面に焦点が移らない`);
+    }
     if (geo.pop) {
       const P = rect(geo.pop);
       check(!hit(P, rect(geo.apply)), `${tag}: 面が「当てる」を覆う`);
@@ -142,6 +159,14 @@ try {
     check(/→/.test(geo.prev) && geo.prev.split("→")[1].trim() === geo.grand, `${tag}: 値の計算の前→後「${geo.prev}」の後が表の総計「${geo.grand}」と違う`);
     check(/÷\s*稼働直/.test(geo.per), `${tag}: 割る数の札「${geo.per}」`);
     // 6. ② の見出しから見本・値の札までが組む所の中に一度に見える
+    // Esc: 札に焦点が残っていても閉じ、札へ焦点を戻す
+    await page.focus('#deSent [data-de-per="0"]'); await page.keyboard.press("Escape"); await sleep(200);
+    check(!(await page.$("#dePerPop")) && await page.evaluate(() => document.activeElement && document.activeElement.matches('[data-de-per="0"]')), `${tag}: 札に焦点がある Esc で閉じない・焦点が札に戻らない`);
+    check(!!(await page.$("#dbEditor .de-main")), `${tag}: Esc で組む所まで閉じた`);
+    await page.click('#deSent [data-de-per="0"]'); await page.waitForSelector("#dePerPop .cp-it"); await sleep(200);
+    await page.keyboard.press("Escape"); await sleep(200);
+    check(!(await page.$("#dePerPop")), `${tag}: 面の中の Esc で閉じない`);
+    await page.click('#deSent [data-de-per="0"]'); await page.waitForSelector("#dePerPop .cp-it"); await sleep(200);
     // 面の外（組む所の題の欄）を押すと閉じる
     await page.mouse.click(...(await page.evaluate(() => { const r = document.querySelector("#deTitle").getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2]; }))); await sleep(200);
     check(!(await page.$("#dePerPop")), `${tag}: 面の外を押しても閉じない`);
@@ -162,6 +187,23 @@ try {
     const folded = await page.evaluate(() => document.querySelector("#deSent .cp-ex")?.getBoundingClientRect().height || 0);
     check(folded > 0 && folded < fit.ex - 30, `${tag}: 見本を畳んでも低くならない（${folded}）`);
     await page.click("#deSent [data-de-extoggle]"); await sleep(250);
+    // 値の計算の行の段（作る前: ロット数 2 段・重量の合計 3 段）。割る数の札を足しても増えない
+    const lines = (i) => page.evaluate((k) => { const it = document.querySelector(`#deSent .pc-item[data-pc-i="${k}"]`); if (!it) return 0;
+      const tops = [...it.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => Math.round(c.getBoundingClientRect().top));
+      return tops.sort((a, b) => a - b).filter((v, j, a) => j === 0 || v - a[j - 1] > 8).length; }, i);
+    check((await lines(0)) <= 3, `${tag}: 重量の合計の行が ${await lines(0)} 段（作る前は 3 段）`);
+    await page.click('#deSent [data-de-ex="lots"]'); await sleep(400); await waitDash(page); await sleep(900);
+    const lotsRow = await lines(0), prevL = await page.evaluate(() => document.querySelector('#deSent [data-pc-out="0"] .pc-prev')?.textContent || "");
+    check(lotsRow <= 2, `${tag}: 割る数を付けたロット数の行が ${lotsRow} 段（作る前は 2 段）`);
+    check(/^[\d,]+本→[\d.]+本\/直$/.test(prevL.replace(/\s/g, "")), `${tag}: ロット数の前→後「${prevL}」（前の数は前の数の桁）`);
+    await page.click('#deSent [data-de-ex="power"]'); await sleep(400); await waitDash(page); await sleep(900);
+    // 足す面: 値にある基準の数は「値にあります」で押せない・面の題と札の言葉
+    await page.click("#deSent [data-de-addbase]"); await page.waitForSelector("#dePerPop .cp-it"); await sleep(200);
+    const addp = await page.evaluate(() => ({ title: document.querySelector("#dePerPop .cp-head b")?.textContent || "", btn: document.querySelector("#deSent [data-de-addbase]")?.textContent || "",
+      have: [...document.querySelectorAll("#dePerPop .cp-it")].filter((x) => x.disabled && /値にあります/.test(x.textContent)).map((x) => x.querySelector("b").firstChild.textContent) }));
+    check(addp.have.sort().join() === "稼働率,稼働直", `${tag}: 足す面の「値にあります」 ${addp.have.join("・")}`);
+    check(addp.title.startsWith("基準の数を値に") && addp.btn.includes("基準の数を値に"), `${tag}: 足す面の題「${addp.title}」と札「${addp.btn}」の言葉`);
+    await page.keyboard.press("Escape"); await sleep(200);
     if (view.width === 1728) {
       // 4. 見本を押すと組みが入る（ほかの形から: 日あたり重量の推移 → 設備の実力）
       await page.click('#deSent [data-de-ex="daily"]'); await sleep(400);
