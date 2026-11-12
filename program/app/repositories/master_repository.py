@@ -170,7 +170,10 @@ class MasterRepository:
             g = pivot_presets.group_of(data)
             for r in rows:
                 if r.get("id") != self_id and pivot_presets.group_of(r) == g and _key(r.get("名前")) == _key(data.get("名前")):
-                    what = "組み方" if name == "pivot_presets" else "ダッシュボード"
+                    # 組の言葉（版 3.106.0: カードの設計・セットも同じ置き場なので、前は「ダッシュボード」と言っていた）
+                    src = str(data.get("元") or "")
+                    what = ("組み方" if name == "pivot_presets" else "カードの設計" if src.startswith("card:")
+                            else "セット" if src == "dashset" else "ダッシュボード")
                     raise DuplicateKey(f"{what}「{data.get('名前')}」はもうあります。上書きするか、別の名前にしてください。")
         if name == "equipment_groups" and ("名称" in data or "まとめ方" in data):
             old = next((r for r in rows if r.get("id") == self_id), {})

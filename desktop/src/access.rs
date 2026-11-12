@@ -464,7 +464,8 @@ impl Place {
         dirs.iter().any(|d| {
             std::fs::read(d.join(&file)).is_ok_and(|b| {
                 let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
-                std::str::from_utf8(b).map_or(true, |t| crate::master_rows::text_split(t) || revision_split(t))
+                // 整数の -0 は Python と同じ 0 と読む（版 3.106.0。read_doc・Store の読みも master_rows::inner_text を通す）
+                std::str::from_utf8(b).map_or(true, |t| crate::master_rows::text_split_py(t) || revision_split(t))
             })
         })
     }
@@ -565,7 +566,7 @@ impl Place {
 /// {revision} の int（_as_doc の int(revision)。無ければ 0。読めない形は Err）
 fn doc_revision(b: &[u8]) -> Result<i64, String> {
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
-    match py_json(std::str::from_utf8(b).map_err(|e| e.to_string())?) {
+    match py_json(&crate::master_rows::inner_text(std::str::from_utf8(b).map_err(|e| e.to_string())?)) {
         Some(Value::Object(o)) => match o.get("revision") {
             None => Ok(0),
             Some(v) => crate::master_rows::py_int(v).ok_or_else(|| "版の番号が読めません".to_string()),
@@ -586,7 +587,7 @@ fn revision_split(t: &str) -> bool {
 /// {schema, revision, rows} か行の配列（同梱の data/ の昔の形）
 fn doc_rows(b: &[u8]) -> Result<Vec<Value>, String> {
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
-    let v = py_json(std::str::from_utf8(b).map_err(|e| e.to_string())?).ok_or("JSON として読めません")?;
+    let v = py_json(&crate::master_rows::inner_text(std::str::from_utf8(b).map_err(|e| e.to_string())?)).ok_or("JSON として読めません")?;
     match v {
         Value::Array(a) => Ok(a),
         Value::Object(mut o) => match o.remove("rows") {

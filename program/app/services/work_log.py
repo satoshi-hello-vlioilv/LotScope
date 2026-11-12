@@ -48,10 +48,19 @@ LIST_TTL_SEC = 10.0          # フォルダの中身を覚える長さ（タブ�
 
 
 def params(settings):
-    """設定（参照先で変えた値を重ねた物）から、作業実績の設定（足りない項目は既定）。"""
+    """設定（参照先で変えた値を重ねた物）から、作業実績の設定（足りない項目は既定）。
+    古さの警告の時間（stale_hours）が数として読めなければ（配った設定を手で直した「abc」など）、既定の 36 時間で続け、staleWarn で知らせる
+    （版 3.106.0。前は float() の ValueError で登録の画面が 400・作業実績のタブが 500。窓の worklog_write・lists.rs も同じ）"""
     wl = dict(DEFAULTS)
     wl.update({k: v for k, v in ((settings or {}).get("work_log") or {}).items() if v not in (None, "")})
     wl["folder"] = unquote_path(wl["folder"])
+    wl["staleWarn"] = ""
+    try:
+        float(wl["stale_hours"] or 0)
+    except (TypeError, ValueError):
+        wl["staleWarn"] = (f"配った設定の古さの警告の時間（work_log.stale_hours）「{wl['stale_hours']}」が数ではないので、"
+                           f"既定の {DEFAULTS['stale_hours']} 時間で見ています。")
+        wl["stale_hours"] = DEFAULTS["stale_hours"]
     return wl
 
 

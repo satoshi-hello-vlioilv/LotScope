@@ -222,6 +222,15 @@ fn read_json(path: &Path) -> std::io::Result<Value> {
     let b = std::fs::read(path)?;
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
     let bad = |m: String| std::io::Error::new(std::io::ErrorKind::InvalidData, m);
+    // 字の外の整数の -0 は Python の json.loads と同じ 0 に読む（版 3.106.0。書き戻す字も Python と同じ 0。Place の読みも同じ部品）
+    let fixed;
+    let b = match std::str::from_utf8(b) {
+        Ok(t) if crate::master_rows::has_int_minus_zero(b) => {
+            fixed = crate::master_rows::inner_text(t).into_owned();
+            fixed.as_bytes()
+        }
+        _ => b,
+    };
     match serde_json::from_slice(b) {
         Ok(v) => {
             // serde_json は i64・u64 に入らない整数を小数に変えて読む。書き戻すと値が黙って変わるので、窓は書かずに断る

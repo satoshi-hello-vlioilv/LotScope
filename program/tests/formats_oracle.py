@@ -122,7 +122,7 @@ SCENARIOS = [
         W(S(PART, "POST", body='{"name": "a", "source": "lot", "body": {"sorts": [-0]}}')),
         W(S(PART, "POST", body='{"name": "a", "source": "lot", "body": {"sorts": [12345678901234567890]}}')),
         S(PART, "POST", body={"name": "a", "source": "lot", "body": '{"sorts": [NaN]}'}),
-        S(PART, "POST", body={"name": "a", "source": "lot", "body": '{"sorts": [-0]}'}),
+        W(S(PART, "POST", body={"name": "a", "source": "lot", "body": '{"sorts": [-0]}'})),
         S(PART, "POST", body={"name": "a", "source": "lot", "body": '{"sorts": ["\\ud800"]}'}),
         S(PART, "PUT", 2, "[1]"), S(PART, "PUT", 2, ""), S(PART, "DELETE", 2, '"x"'),
         W(S(PART, "PUT", "４", {"name": "全角の id"})), W(S(PART, "DELETE", "١")),
@@ -156,8 +156,9 @@ SCENARIOS = [
                         ("id が字", {"id": "4", "名前": "字の id", "元": "lot", "中身": "{}"})]],
     *[{"name": f"共有のファイルの字に {what}（窓は答えず Python に任せる）", "mode": "shared",
        "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), dict(R(2, "生の値", "work", '{"sorts":[]}'), x="@RAW@")], "raw": raw,
-       "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}}),
-                                  S(PART, "PUT", 1, {"name": "b"})]}
+       "steps": [], "delegates": [(W if raw == "-0" else (lambda x: x))(x) for x in [
+           S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}}), S(PART, "PUT", 1, {"name": "b"})]]}
+      # 版 3.106.0: 整数の -0 は窓も Python と同じ 0 と読み、0 と書き戻す（master_rows::inner_text）
       for what, raw in [("NaN", "NaN"), ("整数の -0", "-0"), ("i64 に入らない整数", "1" + "0" * 30)]],
     {"name": "共有のファイルの版 revision が読めない（Python の int() が読めない。窓は答えず Python に任せる）", "mode": "shared",
      "rows": [R(1, "良い行", "lot", '{"sorts":[]}')], "rev": "abc", "steps": [],

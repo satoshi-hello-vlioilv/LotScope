@@ -145,13 +145,32 @@ def clean_test(t):
     return {"op": op, "v": vs}
 
 
+# 式の入れ子の上限（版 3.106.0）: かっこ・負の符号・「!」と not（大文字・小文字を問わない）の数の合計。Python の再帰の上限と窓の段の数
+# （formula.rs の MAX_DEPTH）は境が違うので、どちらも同じ字の数え方で先に断る。同梱の変換表（master_defaults）の式はいちばん多くて 5
+NEST_MAX = 60
+
+
+def nest_count(src):
+    """式の入れ子の数え方（窓の conversions_write::nest_count と同じ）"""
+    return sum(src.count(c) for c in "(-!") + src.lower().count("not")
+
+
+def _formula_error(e):
+    """式の読めない理由の言葉。正規表現の読めない理由は Python の re の言葉（位置など）を出さない（窓と同じ言葉。版 3.106.0）"""
+    m = str(e)
+    cut = m.find("の正規表現として読めません")
+    return m[:cut + len("の正規表現として読めません")] if cut >= 0 else m
+
+
 def _check_out(o, names, where):
     t = "" if o is None else str(o)[:OUT_MAX]
     if t.startswith("="):
+        if nest_count(t[1:]) > NEST_MAX:
+            raise ConversionError(f"{where}の式の入れ子が深すぎます（かっこ・負の符号・not は合わせて {NEST_MAX} までです）。")
         try:
             f = compile_formula(t[1:])
         except FormulaError as e:
-            raise ConversionError(f"{where}の式が読めません: {e}") from None
+            raise ConversionError(f"{where}の式が読めません: {_formula_error(e)}") from None
         extra = [c for c in f.columns if c not in names]
         if extra:
             raise ConversionError(f"{where}の式は入力の名前だけを [ ] で読めます（{'・'.join(extra)} は入力にありません）。")

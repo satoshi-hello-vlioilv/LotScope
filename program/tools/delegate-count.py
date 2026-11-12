@@ -6,6 +6,8 @@
     python tools/delegate-count.py 作業フォルダ --check         … 元ごとの数が予算と合うか（版 3.105.0）。予算を超えた・予算より減った
                                                                  （予算を下げ忘れた）なら終了コード 1。環境で増える幅 envExtra・減る幅 envLess は外す
     python tools/delegate-count.py --files 答え.json …          … 流してある答えの JSON を数える
+    python tools/delegate-count.py 作業フォルダ --proposals 出力.json … 形ごとの数に加えて、段 ① の 3 歩目の案（2026-11-delegates-3106）
+                                                                 への 1 歩ずつの割り当てと案ごとの数を書く（版 3.106.0）
 
 数え方（窓の試験 desktop/tests/common.rs の delegate_count と同じ）: 答えの中の "delegates" の並びの中身・"delegate": true の歩・
 "expect": "delegate" の場面。数は数え方だけで決まり、形の分け方を変えても元ごとの数（予算）は変わらない。
@@ -292,6 +294,46 @@ def kind_of(scene, s, prof, oracle=""):
     return "そのほか", "そのほか"
 
 
+# 段 ① の 3 歩目の案（tools/ui-proposals/2026-11-delegates-3106.md）への割り当て（版 3.106.0。採点の係の数え直しを入れた形:
+# すぐに見るの ASCII でない id・中身まで同じ 2 行は G2、変換表の置き場の大きな表示順・長い chartAt は H2、置き場の整数の -0 は G2）
+PROPOSAL_RULES = [
+    ("D2", lambda k, s: k.startswith(("本文: 字・数の欄に並び", "本文: 並び・字の欄に数", "本文: 並び・表の欄に字"))),
+    ("G2", lambda k, s: "ASCII でない id" in s or "中身まで同じ" in s),
+    ("H2", lambda k, s: "長い chartAt" in s or "置き場の行を窓が同じに読めない" in s),
+    ("E3", lambda k, s: k.startswith(("置き場の行: 版", "置き場の行: 項目の型", "置き場の行: 表でない行"))),
+    ("E4", lambda k, s: k.startswith(("置き場の字: NaN", "置き場の字: 入れ子"))),
+    ("G2", lambda k, s: k.startswith("置き場の字: 整数の -0")),
+    ("H2", lambda k, s: k.startswith(("置き場の字: i64", "置き場の字: 39", "本文: i64"))),
+    ("A2", lambda k, s: k.startswith(("本文: NaN", "本文: 整数の -0", "本文: 入れ子"))),
+    ("S", lambda k, s: k.startswith(("配った設定", "本文: 変換表の式", "本文: 正規表現"))),
+    ("G2", lambda k, s: k.startswith(("道", "本文: すぐに見る"))),
+]
+
+
+def proposal_of(kind, scene_name):
+    """形と場面の名前 → 案（どれにも当たらなければ「残る」: OS の道・engine=python・束）"""
+    return next((p for p, f in PROPOSAL_RULES if f(kind, scene_name)), "残る")
+
+
+def proposals(answers):
+    """{案: {steps, python: 状態の頭 → 数, per: 元 → 数}, rows: [1 歩ずつ]}"""
+    out, rows = {}, []
+    for name, d in answers.items():
+        prof = profile(d)
+        for scene, s in walk_count(d):
+            _, k = kind_of(scene, s, prof, name)
+            sname = scene.get("name", "") if isinstance(scene, dict) else ""
+            p = proposal_of(k, sname)
+            st = s.get("status") if isinstance(s, dict) else None
+            e = out.setdefault(p, {"steps": 0, "python": Counter(), "per": Counter()})
+            e["steps"] += 1
+            e["python"][f"{str(st)[0]}xx" if st else "なし"] += 1
+            e["per"][name.removesuffix("_oracle")] += 1
+            rows.append({"src": name, "proposal": p, "kind": k, "scene": sname, "method": s.get("method") if isinstance(s, dict) else None,
+                         "path": s.get("path") if isinstance(s, dict) else None, "status": st})
+    return {k: {"steps": v["steps"], "python": dict(v["python"]), "per": dict(v["per"])} for k, v in sorted(out.items())}, rows
+
+
 def run(work):
     work = Path(work)
     work.mkdir(parents=True, exist_ok=True)
@@ -349,13 +391,14 @@ def check(per, budget=None):
 def main():
     args = sys.argv[1:]
     # 作業フォルダが無い・知らない「--」の引数は、作業フォルダと読まずに使い方を出す（前は --help を作業フォルダと読み、program/--help に答えの元を流した）
-    known = ("--budget", "--json", "--check")
-    flags = [a for i, a in enumerate(args[1:], 1) if a.startswith("-") and args[i - 1] != "--json"]
+    known = ("--budget", "--json", "--check", "--proposals")
+    flags = [a for i, a in enumerate(args[1:], 1) if a.startswith("-") and args[i - 1] not in ("--json", "--proposals")]
     if not args or (args[0] != "--files" and (args[0].startswith("-") or any(a not in known for a in flags))):
         sys.exit(__doc__)
     out_json = args[args.index("--json") + 1] if "--json" in args and args.index("--json") + 1 < len(args) else None
+    out_props = args[args.index("--proposals") + 1] if "--proposals" in args and args.index("--proposals") + 1 < len(args) else None
     if args[0] == "--files":
-        answers = {Path(f).stem: load(f) for f in args[1:] if f.endswith(".json") and f != out_json}
+        answers = {Path(f).stem: load(f) for f in args[1:] if f.endswith(".json") and f not in (out_json, out_props)}
     else:
         answers = run(args[0])
     got = count(answers)
@@ -378,6 +421,12 @@ def main():
             "per": {k: dict(v.most_common()) for k, v in sorted(got["per"].items())}, "others": got["others"]},
             ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         print(f"{out_json} に書きました")
+    if out_props:
+        by, rows = proposals(answers)
+        for p, v in by.items():
+            print(f"   案 {p}: {v['steps']}  （Python の答え {v['python']}）")
+        Path(out_props).write_text(json.dumps({"byProposal": by, "rows": rows}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
+        print(f"{out_props} に書きました")
     if "--check" in args:
         bad = check(got["per"])
         for line in bad:

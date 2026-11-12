@@ -2096,8 +2096,25 @@ impl Builder {
                 x => unquote(&s(x)?),
             };
             wl.insert("folder".into(), json!(folder));
+            // 古さの警告の時間（版 3.106.0。work_log.params）: float(v or 0) で読めなければ既定の時間で続け、staleWarn で知らせる
+            let stale = wl.get("stale_hours").cloned().unwrap_or(Value::Null);
+            let readable = match &stale {
+                Value::Array(_) | Value::Object(_) => return Err(Py("古さの警告の時間が表・並び")),
+                Value::String(x) if truthy(Some(&stale)) => pyfmt::py_float(x).is_ok(),
+                _ => true,
+            };
+            let mut warn = String::new();
+            if !readable {
+                let dflt = t(&["workDefaults"])["stale_hours"].clone();
+                warn = format!(
+                    "配った設定の古さの警告の時間（work_log.stale_hours）「{}」が数ではないので、既定の {} 時間で見ています。",
+                    py_str(&stale),
+                    py_str(&dflt)
+                );
+                wl.insert("stale_hours".into(), dflt);
+            }
             Ok(json!({"folder": wl["folder"], "pattern": wl["pattern"], "table": wl["table"], "refresh_seconds": wl["refresh_seconds"],
-                      "stale_hours": wl["stale_hours"], "page_size": wl["page_size"],
+                      "stale_hours": wl["stale_hours"], "page_size": wl["page_size"], "staleWarn": warn,
                       "rows": wl_rows.iter().map(|r| Value::Object(["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び"].iter()
                           .map(|k| (k.to_string(), r.get(*k).cloned().unwrap_or(Value::Null))).collect())).collect::<Vec<_>>(),
                       "canEditShifts": null}))

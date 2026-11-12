@@ -133,10 +133,25 @@ fn body_obj_plain(b: &Value) -> bool {
     dims_ok("rows") && dims_ok("cols") && ms_ok && at_ok
 }
 
-/// 中身の字・表 → 窓が答えてよいか（字は text_split も見る）
+/// 本文の中身 → 窓が答えてよいか（字は text_split・中身の chartAt の字の長さ）
+fn body_input_ok(b: Option<&Value>) -> bool {
+    let at_ok = |v: &Value| v.get("chartAt").and_then(Value::as_str).is_none_or(|s| s.chars().count() <= 18);
+    match b {
+        Some(Value::String(t)) => {
+            !master_rows::text_split_py(t) && serde_json::from_str::<Value>(&master_rows::inner_text(t)).map_or(true, |v| at_ok(&v))
+        }
+        Some(v) => at_ok(v),
+        None => true,
+    }
+}
+
+/// 置き場の行の中身の字・表 → 窓が答えてよいか（字は text_split も見る。置き場の行の型は版 3.107.0 の E3 で隔てる）
 fn body_plain(b: Option<&Value>) -> bool {
     match b {
-        Some(Value::String(t)) => !master_rows::text_split(t) && serde_json::from_str::<Value>(t).map_or(true, |v| body_obj_plain(&v)),
+        Some(Value::String(t)) => {
+            !master_rows::text_split_py(t)
+                && serde_json::from_str::<Value>(&master_rows::inner_text(t)).map_or(true, |v| body_obj_plain(&v))
+        }
         Some(v) => body_obj_plain(v),
         None => true,
     }
@@ -181,7 +196,7 @@ pub fn clean_body(body: Option<&Value>) -> Result<(Value, String), String> {
     let parsed;
     let body = match body {
         Some(Value::String(t)) => {
-            parsed = serde_json::from_str::<Value>(t).map_err(|_| "中身の形が違います。".to_string())?;
+            parsed = serde_json::from_str::<Value>(&crate::master_rows::inner_text(t)).map_err(|_| "中身の形が違います。".to_string())?;
             &parsed
         }
         Some(b) => b,
@@ -244,19 +259,17 @@ fn builtins(source: &str) -> Vec<Value> {
     t.get(source).and_then(Value::as_array).cloned().unwrap_or_default()
 }
 
-/// すぐに見るの id の字（str(k).strip()[:40]）を窓が Python と同じに読めるか（ASCII でない字は Python の isdigit の表が要る。
-/// 並び・表・小数・真偽・null の str() は数字にも b:鍵 にもならないので、どれでも同じに捨てる）
+/// すぐに見るの id の字（str(k).strip()[:40] が isdigit か "b:鍵"）。isdigit は Python の表（pyfmt::is_digit。版 3.106.0 から
+/// 全角の数字・「²」も Python と同じに読む。前は ASCII でない字を Python に任せた）。
+/// 並び・表・小数・真偽・null の str() は数字にも b:鍵 にもならないので、どれでも同じに捨てる
 fn quick_key(k: &Value) -> Option<Option<String>> {
     let t = match k {
         Value::String(s) => take(crate::pyfmt::strip(s), 40),
-        Value::Number(n) if n.as_i64().is_some() => n.to_string(),
+        Value::Number(n) if n.as_i64().is_some() || n.as_u64().is_some() => n.to_string(),
         _ => return Some(None),
     };
     let b = t.strip_prefix("b:").is_some_and(|r| !r.is_empty());
-    if !b && !t.is_ascii() {
-        return None; // Python の isdigit（Unicode の数字の表）。窓は答えない
-    }
-    Some((b || (!t.is_empty() && t.bytes().all(|c| c.is_ascii_digit()))).then_some(t))
+    Some((b || (!t.is_empty() && t.chars().all(crate::pyfmt::is_digit))).then_some(t))
 }
 
 /// clean_quick: 数の id か "b:鍵"・同じ物は 1 つ・QUICK_MAX まで。窓が読めない字があれば None（Python に任せる）
@@ -393,21 +406,16 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     let d = parsed.as_object().unwrap_or(&empty);
     if route == Route::Quick {
         // すぐに見るの置き場の行も、窓が Python と同じに読めること（表でない行は Python が落ちて書かない）。
-        // 自分の行が中身まで同じ物を 2 つ持つと、Python の rows.remove(r) は == で先の行を消し、書いた行が残らない（窓は答えない）
+        // 自分の行が中身まで同じ物を 2 つ持つ形は、quick_put が Python の rows.remove(r)（== で先の行を消す）を写す（版 3.106.0）
         let quick_rows = place.rows(QUICK_NAME).ok()?;
         if !quick_rows_plain(&quick_rows) {
             return None;
         }
-        let login = who.login.as_str();
-        let src = d.get("source").and_then(Value::as_str).unwrap_or("");
-        let mine: Vec<&Value> =
-            quick_rows.iter().filter(|r| r["ログインID"].as_str() == Some(login) && r["元"].as_str() == Some(src)).collect();
-        if mine.iter().enumerate().any(|(i, a)| mine[..i].contains(a)) {
-            return None;
-        }
         return quick_put(store, &who, d);
     }
-    if !pr::plain_input(d) || !body_plain(d.get("body")) {
+    // 本文の欄の型（名前・備考・範囲・段の part・値の column・expr が並び・表）は本文の門が断る（body_rules.TYPES。版 3.106.0。前は
+    // plain_input・body_obj_plain で任せていた）。ここで見るのは、中身の字を窓が同じに読めるか（text_split）と長い chartAt（大きな整数。H2）だけ
+    if !body_input_ok(d.get("body")) {
         return None;
     }
     let body_text = |b: Option<&Value>| -> Result<String, String> { clean_body(b).map(|(_, t)| t) };
@@ -467,22 +475,30 @@ fn quick_put(store: &Store, who: &Who, d: &Map<String, Value>) -> Option<Answer>
     let login = who.login.clone();
     let done = store.write(QUICK_NAME, |rows, stamp| {
         master_rows::normalize_all(rows, &QUICK_SPEC);
+        // Python の quick_set を写す: mine = 自分の行（id は Python の物の同一）。mine[1:]（既定に戻すときは mine[:1] も）を
+        // rows.remove(r) で消す。remove は == で「先に並ぶ同じ中身の行」を消すので、中身まで同じ行が 2 つあると mine[0] の方が消え、
+        // その後で書き換える mine[0] は並びに残らない（書いた答えを返すが、ファイルには前の行が残る。版 3.106.0）
+        let mut slots: Vec<(usize, Value)> = std::mem::take(rows).into_iter().enumerate().collect();
         let is_mine = |r: &Value| r["ログインID"].as_str() == Some(login.as_str()) && r["元"].as_str() == Some(src);
-        let first = rows.iter().position(is_mine);
-        // 自分の行は 1 つに（2 つ目から消す。既定に戻すときは 1 つ目も）
-        let mut seen = false;
-        rows.retain(|r| {
-            if !is_mine(r) {
-                return true;
+        let mine: Vec<(usize, Value)> = slots.iter().filter(|(_, r)| is_mine(r)).cloned().collect();
+        let mut gone: Vec<&Value> = mine.iter().skip(1).map(|(_, r)| r).collect();
+        if keys.is_none() {
+            gone.extend(mine.iter().take(1).map(|(_, r)| r));
+        }
+        for r in gone {
+            if let Some(at) = slots.iter().position(|(_, x)| x == r) {
+                slots.remove(at);
             }
-            let keep = !seen && keys.is_some();
-            seen = true;
-            keep
-        });
+        }
+        let first = mine.first().map(|(i, _)| *i);
+        let still = first.and_then(|f| slots.iter().position(|(i, _)| *i == f));
+        *rows = slots.into_iter().map(|(_, r)| r).collect();
         let Some(keys) = &keys else { return Ok::<(), MasterError>(()) };
-        let i = match first {
-            Some(_) => rows.iter().position(is_mine).unwrap(),
-            None => {
+        let i = match (first, still) {
+            (Some(_), Some(at)) => at,
+            // mine[0] は並びから消えた（同じ中身の行を remove した）: 書き換えた行はファイルに残らない
+            (Some(_), None) => return Ok(()),
+            (None, _) => {
                 rows.push(json!({"id": next_id(rows), "ログインID": login, "元": src, "rev": 0}));
                 rows.len() - 1
             }

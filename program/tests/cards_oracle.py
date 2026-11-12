@@ -146,7 +146,7 @@ SCENARIOS = [
         W(S(PART, "POST", body=P("a", B(F("a", w="　4"))))), W(S(PART, "POST", body=P("a", B(F("a", w="1" * 4400))))),
         W(S(PART, "POST", body=P("a", B(F("a"), cols="１２")))),
         S(PART, "POST", body='{"name": "a", "scope": "me", "source": "card:lotlist:品質", "body": {"items": []}, "x": NaN}'),
-        S(PART, "POST", body=P("a", '{"items": [{"col": "a", "w": NaN}]}')), S(PART, "POST", body=P("a", '{"items": [{"col": "a", "w": -0}]}')),
+        S(PART, "POST", body=P("a", '{"items": [{"col": "a", "w": NaN}]}')), W(S(PART, "POST", body=P("a", '{"items": [{"col": "a", "w": -0}]}'))),
         S(PART, "PUT", 3, "[1]"), S(PART, "PUT", 3, ""), S(PART, "DELETE", 3, '"x"'),
         W(S(PART, "PUT", "４", {"name": "全角の id"})), W(S(PART, "DELETE", "١")),
     ]},

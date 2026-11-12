@@ -757,7 +757,8 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
   const shown = d.items.filter((x) => x.visible).length;
   const miss = d.items.filter((x) => x.state === "missing"), old = d.items.filter((x) => x.stale), moved = d.items.filter((x) => x.state === "renamed");
   /* 直すこと（次の手つき）。無ければ出さない */
-  const todo = d.error ? [] : [
+  /* 配った設定の古さの時間が数でない（版 3.106.0）: 既定の 36 時間で続けていることを、直すことの 1 行目で言う */
+  const todo = [...(d.staleWarn ? [`<div><span class="m-chip c-warn">配った設定</span><span>${escapeHtml(d.staleWarn)}</span></div>`] : []), ...(d.error ? [] : [
     ...miss.map((x) => `<div><span class="m-chip c-off">見つからない</span><span><b>${escapeHtml(x.name)}</b>: ${escapeHtml(x.file)} がフォルダにありません</span>`
       + (can && loose.length ? `<button type="button" class="pz-btn" data-wl-go="${x.id}">結ぶファイルを選ぶ</button>` : "<small>名前が変わったか、消されました</small>") + "</div>"),
     ...old.map((x) => `<div><span class="m-chip c-warn">古い</span><span><b>${escapeHtml(x.name)}</b>: ${Math.round(x.ageHours)} 時間、更新されていません（ファイルを書く元のアプリ・仕組みが止まっていないか確かめてください）</span></div>`),
@@ -765,7 +766,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
       + (can ? '<button type="button" class="pz-btn" data-wl-scan>登録の名前を直す</button>' : "") + "</div>"] : []),
     ...(loose.length ? [`<div><span class="m-chip c-plain">登録していない</span><span>${loose.length} 個（${loose.map((f) => escapeHtml(f.equipment)).join("・")}）</span>`
       + (can ? '<button type="button" class="pz-btn" data-wl-scan>設備として足す</button>' : "") + "</div>"] : []),
-  ];
+  ])];
   const tally = [`<span class="wl-n">表示 ${shown}</span>`, miss.length ? `<span class="wl-n is-ng">見つからない ${miss.length}</span>` : "",
     old.length ? `<span class="wl-n is-warn">古い ${old.length}</span>` : "", shown < d.items.length ? `<span class="wl-n">表示しない ${d.items.length - shown}</span>` : ""].join("");
   box.innerHTML = `<section class="wl-page${embed ? " is-embed" : ""}">

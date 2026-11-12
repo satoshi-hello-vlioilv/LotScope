@@ -214,7 +214,7 @@ def lists_settings(section=None):
 
     def work():
         wl = work_log.params(effective_settings(current_app))
-        return {**{k: wl[k] for k in ("folder", "pattern", "table", "refresh_seconds", "stale_hours", "page_size")},
+        return {**{k: wl[k] for k in ("folder", "pattern", "table", "refresh_seconds", "stale_hours", "page_size", "staleWarn")},
                 "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び")} for r in repo.work_logs()],
                 "canEditShifts": None if shell_decides else can_write(shifts.NAME)}
     return {"hidden": hidden,

@@ -113,7 +113,7 @@ fn view(row: &Map<String, Value>) -> Value {
         .get("中身")
         .and_then(Value::as_str)
         .filter(|t| !t.is_empty())
-        .and_then(|t| serde_json::from_str::<Value>(t).ok())
+        .and_then(|t| serde_json::from_str::<Value>(&master_rows::inner_text(t)).ok())
         .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
     json!({"id": row.get("id").cloned().unwrap_or(Value::Null), "name": s("名前"), "source": s("元"), "table": s("表"),
@@ -131,10 +131,10 @@ fn rows_plain(rows: &[Value]) -> bool {
             return false;
         }
         let Some(t) = o.get("中身").and_then(Value::as_str).filter(|t| !t.is_empty()) else { return true };
-        if crate::master_rows::text_split(t) {
+        if crate::master_rows::text_split_py(t) {
             return false;
         }
-        let Ok(Value::Object(b)) = serde_json::from_str::<Value>(t) else { return true }; // 読めない・表でない中身は Python も {}
+        let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return true }; // 読めない・表でない中身は Python も {}
         PARTS.iter().all(|(k, list, _)| match b.get(*k) {
             None => true,
             Some(v) if !truthy(v) => true,
@@ -159,10 +159,10 @@ fn clean_body(body: Option<&Tree>) -> Result<Option<String>, String> {
     let parsed;
     let body = match body {
         Some(Tree::Str(t)) => {
-            if master_rows::text_split(t) {
+            if master_rows::text_split_py(t) {
                 return Ok(None);
             }
-            parsed = Tree::parse(t).ok_or("書式の中身が JSON ではありません。")?;
+            parsed = Tree::parse(&master_rows::inner_text(t)).ok_or("書式の中身が JSON ではありません。")?;
             &parsed
         }
         Some(b) => b,
@@ -282,9 +282,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     }
     let empty = Map::new();
     let d = parsed.as_object().unwrap_or(&empty);
-    if !["name", "table", "origin", "note"].iter().all(|k| d.get(*k).is_none_or(crate::worksum::str_plain)) {
-        return None;
-    }
+    // 名前・表・作った所・備考の型は本文の門が断る（body_rules.TYPES。版 3.106.0。前は str_plain で任せていた）
     let tree = if parsed.is_object() { tree } else { Tree::Obj(vec![]) };
     let done = match route {
         Route::Create => {

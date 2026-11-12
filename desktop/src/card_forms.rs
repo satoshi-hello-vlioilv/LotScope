@@ -12,7 +12,7 @@
 //!
 //! 窓が答えず Python に任せる形（card_plain）: 項目の名前・列・式・字・日付の列・タブの名前が並び・表（Python は repr の字で置く）・
 //! 項目のタブが並び・表（Python は TypeError）・中身の字を窓が Python と同じに読めない（text_split）。
-//! ほかはセットと同じ（preset_rows::plain_input・rows_plain・Place::split_file・share_absent）。方眼の数の字（全角の数字・ASCII でない空白・
+//! ほかはセットと同じ（rows_plain・Place::split_file・share_absent。本文の欄の型は版 3.106.0 から本文の門が断る）。方眼の数の字（全角の数字・ASCII でない空白・
 //! 4,300 桁を超える字）と道の全角の id は、版 3.104.0 から窓が Python の int() と同じに読む（pyfmt::py_int_of・path_int）。
 
 use crate::master_rows::{self, base_rev};
@@ -119,7 +119,8 @@ fn scalar(v: Option<&Value>) -> bool {
     !matches!(v, Some(Value::Array(_) | Value::Object(_)))
 }
 
-/// 中身（表）を窓が Python と同じに扱えるか（上の「任せる形」）
+/// 置き場の行の中身（表）を窓が Python と同じに扱えるか（上の「任せる形」。本文は門が型を断るので、版 3.106.0 から置き場の行だけに使う。
+/// 置き場の行の型は版 3.107.0 の E3 で隔てる）
 fn card_plain(body: &Value) -> bool {
     let Some(b) = body.as_object() else { return true };
     let tabs_ok =
@@ -136,7 +137,9 @@ fn card_plain(body: &Value) -> bool {
 /// 中身の字・表 → 窓が答えてよいか（字は text_split も見る）
 fn body_plain(b: Option<&Value>) -> bool {
     match b {
-        Some(Value::String(t)) => !master_rows::text_split(t) && serde_json::from_str::<Value>(t).map_or(true, |v| card_plain(&v)),
+        Some(Value::String(t)) => {
+            !master_rows::text_split_py(t) && serde_json::from_str::<Value>(&master_rows::inner_text(t)).map_or(true, |v| card_plain(&v))
+        }
         Some(v) => card_plain(v),
         None => true,
     }
@@ -163,7 +166,7 @@ fn clean_body(body: Option<&Value>) -> Result<(Value, String), String> {
     let parsed;
     let body = match body {
         Some(Value::String(t)) => {
-            parsed = serde_json::from_str::<Value>(t).map_err(|_| "中身の形が違います。".to_string())?;
+            parsed = serde_json::from_str::<Value>(&crate::master_rows::inner_text(t)).map_err(|_| "中身の形が違います。".to_string())?;
             &parsed
         }
         Some(b) => b,
@@ -370,7 +373,9 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     }
     let empty = Map::new();
     let d = parsed.as_object().unwrap_or(&empty);
-    if !pr::plain_input(d) || !body_plain(d.get("body")) {
+    // 本文の欄の型（名前・備考・範囲・中身の項目の字の欄が並び・表）は本文の門が断る（body_rules.TYPES。版 3.106.0。前は plain_input・card_plain で
+    // 任せていた）。ここで見るのは、中身の字を窓が同じに読めるか（大きな整数など。text_split）だけ
+    if matches!(d.get("body"), Some(Value::String(t)) if master_rows::text_split_py(t)) {
         return None;
     }
     let body_text = |b: Option<&Value>| -> Result<String, String> { clean_body(b).map(|(_, t)| t) };
@@ -403,7 +408,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         _ => return None,
     };
-    Some(match pr::write(store, &DASHBOARDS, id, &row, base, "ダッシュボード") {
+    Some(match pr::write(store, &DASHBOARDS, id, &row, base, "カードの設計") {
         Ok(Value::Object(done)) => (if id.is_none() { 201 } else { 200 }, who.view(&done, view_body(&done))),
         Ok(_) => (500, json!({"error": "カードの設計を書けませんでした。", "kind": "error"})),
         Err(e) => (e.status(), e.payload()),

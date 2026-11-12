@@ -1766,6 +1766,51 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
 - テストの元の直し: `settings_oracle.py` の `masters(data=…)` が、共有と一緒のときに最後の 1 つだけを data/ に書き、手元だけの場面の data/ は
   空だった（版 3.84.0 から）。7 つとも書くように直した。
 
+### 段 ① の 3 歩目: 本文の欄の型（D2）・中身の欄の門（A2）・既にある部品で外す（G2）・断る言葉と境（S）— 版 3.106.0（任せる歩 313 → 209）
+
+案出しと採点は `tools/ui-proposals/2026-11-delegates-3106.md`・`.json`（決まり 2026-11-06・9 案と組み合わせを別のエージェントが 1 回採点。1 位の組み
+A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘〈first_fixes の 11 件〉を全部入れた形で作った。E3・E4 は 3.107.0、H2 は 3.108.0）。
+
+- D2 欄の型（Python `services/body_rules.TYPES`・`check_types`、窓 `desktop/src/body.rs` の `check_types`）: 道 → 欄の道（`name`・`rules[].op`・
+  `rows[].when.*[].v[]`）→ 型（s 字の欄: 並び・表を断る／l 並びの欄: 数・真偽・表を断る／o 表の欄: 並びを断る／j 中身の欄）の表を app 側に置き、
+  窓へは `tools/body-routes.py` が `body_routes.json` の types に焼く（見る順は表の並び。窓の Map は鍵を並べ直すので並びで焼く）。違えば 400
+  {error: 「本文の「name」は字で送ってください（並び・表は送れません）。」, kind: body}。前の版で窓が答えていた数・真偽・null は字の欄でも今どおり
+  str() で受ける（変換表の取り込みの前の版のファイルも）。道は 37（表を当てる道）。fs/browse・masters/place/check・release/place/check も入れた。
+  画面が字の欄に字でない物を送る所（タブの例外〈表〉・データ元の結合〈並び〉・presence の days〈字〉・勤務体系の dayOffset・設備グループの rules[] の
+  知らない鍵）は表に入れない。
+- 入れ方（採点の指摘 3）: 断る前に、記録だけの形（`TPA_BODY_TYPES_LOG`。Python の門が型の違いを断らずに書く）で ui-eval の全部（66 本）を 4 本ずつ
+  流した。表を当てた道を 21 本通り（POST /api/sources 156 回・fs/browse 56 回・データ元の直す・その場で変える・ダッシュボードの保存・参照先・すぐに見る・
+  組み方・並べ替え・接続・作業実績の並べ替え・組み込みを外す・グループ・置き場の確かめ・書式・設備グループ・勤務体系・変換表・取り込み・カードの設計）、
+  表に無い型は 0 件。通らなかった 16 道（カードの設計・組み方・セット・書式・変換表・設備グループの直す道、設備・ロール、作業実績の行を直す道、
+  配布の置き場など）は、画面の送り方を読んで確かめた（汎用の欄は formValues の el.value、名前は入力欄の字）。ui-eval の colsort（5 番）と
+  equiporder（TimeoutError）は直す前の版（dd48159）でも同じに落ちる（この版と関わらない）。
+- 型の知識は 1 つ（指摘 2）: 本文の欄の並び・表で任せていた `preset_rows::plain_input`（名前・備考・範囲）・`formats_write` の str_plain の確かめ・
+  `card_forms` と `pivot_presets` の本文の中身の確かめ（card_plain・body_obj_plain を本文に当てていた所）・`worklog_write` の value_plain を外した
+  （作業実績の行の表は ファイルID・並び も入れた。数の大きさの確かめ `master_rows::num_plain` は残す）。置き場の行の型を見る card_plain・
+  body_obj_plain・value_plain・rows_plain と、本文と置き場の両方に使う `equipgroups_write::s_or`・`conversions_write::scalar` は、置き場の行のために
+  残した（E3 の 3.107.0 で隔てるときに外す）。
+- A2 中身の欄（j）: 中身を JSON の字で送る欄（カード・組み方・ダッシュボード・セット・書式の body、データ元の 結合）は、門と同じ決まり
+  （入れ子 127 段・NaN・Infinity・1e400・対の無い代用字）で読み、後ろの欄の道を中身に当てる。JSON として読めない字は今どおり道が自分の言葉で断る。
+  代用字は日本語で断る（前の Python は英語の utf-8 codec の 400）。整数の -0 は Python の json.loads が 0 と読むので断らず、窓は中身の字の -0 を 0 に
+  書き直して部品へ渡す。
+- G2: 字の外の整数の -0 を 0 に書き直す読み手 `master_rows::inner_text` を 1 つにし（門の has_int_minus_zero も同じ部品）、本文の中身の字・置き場の
+  行の中身の字（カード・組み方・セット・ダッシュボード・書式・結合・前の版の条件・計算列）・置き場のファイル（`access::Place` の読み・
+  `master_store::read_json`・`split_file`）に当てた。Python は -0 を 0 と書き戻すので、窓が書く 0 も同じ字。道の百分率符号は、データ元と参照先の道も
+  `body::unquote` で戻してから合わせる。すぐに見るの id の isdigit は Python から焼いた表（`desktop/src/isdigit_table.rs`）。自分のすぐに見るの行が
+  中身まで同じ 2 つの形は、Python の `rows.remove(r)`（== で先の行を消し、書き換えた行がファイルに残らない）を写した（`pivot_presets::quick_put`）。
+- S: 配った設定の古さの時間（work_log.stale_hours）が数でなければ、Python（`work_log.params`）も窓（束の work・`worklog_write`）も既定の 36 時間で続け、
+  `staleWarn` をマスタ管理の作業実績の「直すこと」の 1 行目に出す（前は Python が float() の 400・500）。窓の一覧の `lists.rs` の num は
+  `pyfmt::py_float`（Python の float() と同じ読み）。変換表の式の入れ子は、かっこ・負の符号・! と not の数の合計 60 まで（`conversions.NEST_MAX`・
+  `conversions_write::NEST_MAX`。同梱の変換表の式はいちばん多くて 5）で、どちらも同じ言葉で断る。正規表現の読めない式は re の言葉（位置）を出さない。
+- 誤り 2（採点で確かめた）: カードの設計・セットの名前が重なると「ダッシュボード「a」はもうあります」と言っていた → 「カードの設計」「セット」。
+- 減った歩（delegate-count.py。313 → 209、−104）: D2 62（OS と数えていた配布の置き場の名前の並び 2 も）・A2 15・G2 14（置き場の -0 8・百分率符号 2・
+  すぐに見るの keys 2・すぐに見るの行 2）・S 11。案への割り当ては `delegate-count.py 作業フォルダ --proposals 出力.json`（採点の係の数え直しの形）。
+- 残す: 道の id が i64 に入らない 3 歩（G2 の案にあったが、3 つの部品の id を Big で持つ要があり H2 と一緒に 3.108.0 へ）。
+- 評価関数: `body_cases`（types_like_the_table・minus_zero_reader）・`tests/test_body_types.py`（事例・渡す字の独立の答え・記録だけの形）・
+  `tests/test_isdigit_table.py`・本文の門を当てた道の *_parity（`tests/oracle_gate.py` の gate_refuses は `body_rules.gate` で型と中身の欄も見る）・
+  W の印を付けた歩（中身の字の -0・置き場の -0・百分率符号の道・すぐに見るの id と同じ中身の行〈3 つと他人の行を挟む場面を足した〉・
+  配った設定の古さ〈全角の数の場面を足した〉・式の入れ子〈上限ちょうど・1 つ超える〉・正規表現〈出す値〉）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

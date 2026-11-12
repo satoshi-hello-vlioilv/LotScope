@@ -109,6 +109,55 @@ fn split_number_in(body: &[u8], wide: bool) -> bool {
     false
 }
 
+/// 字の外の整数の -0 の位置（「-0」の後ろが数の続き〈. e E 数字〉でない）。本文の門（body::gate）・中身の欄・置き場のファイルの読みが共にする
+fn int_minus_zero_at(b: &[u8]) -> Vec<usize> {
+    let (mut i, mut in_str, mut out) = (0usize, false, vec![]);
+    while i < b.len() {
+        let c = b[i];
+        if in_str {
+            match c {
+                b'\\' => i += 1,
+                b'"' => in_str = false,
+                _ => {}
+            }
+        } else if c == b'"' {
+            in_str = true;
+        } else if c == b'-' && b.get(i + 1) == Some(&b'0') && !matches!(b.get(i + 2), Some(b'.' | b'e' | b'E' | b'0'..=b'9')) {
+            out.push(i);
+        }
+        i += 1;
+    }
+    out
+}
+
+/// 本文・字の JSON に、Python と同じ 0 に書き直す要のある整数の -0 があるか（Python の json.loads は int の 0、serde_json は小数の -0.0）
+pub fn has_int_minus_zero(b: &[u8]) -> bool {
+    !int_minus_zero_at(b).is_empty()
+}
+
+/// JSON の字を Python の json.loads と同じ値に読めるように、字の外の整数の -0 を 0 に書き直す（版 3.106.0。字の中・-0.0 は替えない）。
+/// 本文の中身の欄（body::gate）と置き場の行の中身の字・置き場のファイル（access::Place・master_store::read_json）は、この 1 つの読み手を通す。
+/// Python は -0 を 0 と書き戻すので、窓が書き戻す 0 も同じ字になる
+pub fn inner_text(t: &str) -> std::borrow::Cow<'_, str> {
+    let at = int_minus_zero_at(t.as_bytes());
+    if at.is_empty() {
+        return std::borrow::Cow::Borrowed(t);
+    }
+    let mut out = String::with_capacity(t.len());
+    let mut last = 0;
+    for i in at {
+        out.push_str(&t[last..i]);
+        last = i + 1; // 「-」だけを落とす
+    }
+    out.push_str(&t[last..]);
+    std::borrow::Cow::Owned(out)
+}
+
+/// text_split を inner_text の後の字で見る（整数の -0 は 0 として読むので割れない）
+pub fn text_split_py(t: &str) -> bool {
+    text_split(&inner_text(t))
+}
+
 /// JSON の字の、字の外の [ { の入れ子のいちばん深い段（serde_json は 128 段で読むのをやめる。Python の json は読む）
 pub(crate) fn json_depth(t: &[u8]) -> usize {
     let (mut depth, mut deepest, mut in_str, mut esc) = (0usize, 0usize, false, false);
@@ -203,6 +252,15 @@ pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
 pub(crate) fn value_plain(v: &Value) -> bool {
     match v {
         Value::Array(_) | Value::Object(_) => false,
+        Value::Number(n) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| !(f.fract() == 0.0 && f.abs() >= 9.2e18)),
+        _ => true,
+    }
+}
+
+/// 数の値を窓が Python の str() と同じ字に書けるか（value_plain の数の所。i64 に入らない整数の形の小数は Python では桁のまま）。
+/// 本文の欄の並び・表は版 3.106.0 から本文の門（body_rules.TYPES）が断るので、本文の欄にはこれだけを見る
+pub(crate) fn num_plain(v: &Value) -> bool {
+    match v {
         Value::Number(n) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| !(f.fract() == 0.0 && f.abs() >= 9.2e18)),
         _ => true,
     }

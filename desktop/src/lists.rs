@@ -308,8 +308,10 @@ impl Conf<'_> {
     }
 }
 
+/// 数の設定（写し直す間隔・古さの時間）。字は Python の float() と同じに読み（pyfmt::py_float。版 3.106.0。前は str::parse で、
+/// 「１２」・「1_000」を読めず既定にしていた）、読めなければ既定（Python の work_log.params・data_sources._num も既定で続ける）
 pub(crate) fn num(v: &Value, d: f64) -> f64 {
-    v.as_f64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())).unwrap_or(d)
+    v.as_f64().or_else(|| v.as_str().and_then(|s| crate::pyfmt::py_float(s).ok())).unwrap_or(d)
 }
 
 /// 品質の写し（Lot が持つ）と、その設定

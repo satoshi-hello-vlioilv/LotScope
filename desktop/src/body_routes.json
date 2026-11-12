@@ -1,5 +1,5 @@
 {
- "about": "本文の門を当てる道（Python の道の並びのまま。tools/body-routes.py が services/body_rules.py の ROUTES から焼く）",
+ "about": "本文の門を当てる道（Python の道の並びのまま。tools/body-routes.py が services/body_rules.py の ROUTES と、版 3.106.0 から欄の型の TYPES〈道 → [欄の道, 型] の並び。見る順もこの並び〉から焼く）",
  "rules": [
   {
    "rule": "/api/masters/conversions/defaults",
@@ -11,6 +11,70 @@
    "rule": "/api/masters/conversions/import",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "items",
+      "l"
+     ],
+     [
+      "items[].name",
+      "s"
+     ],
+     [
+      "items[].other",
+      "s"
+     ],
+     [
+      "items[].inputs",
+      "l"
+     ],
+     [
+      "items[].inputs[].name",
+      "s"
+     ],
+     [
+      "items[].inputs[].type",
+      "s"
+     ],
+     [
+      "items[].inputs[].columns[]",
+      "s"
+     ],
+     [
+      "items[].rows",
+      "l"
+     ],
+     [
+      "items[].rows[].out",
+      "s"
+     ],
+     [
+      "items[].rows[].when.*[].op",
+      "s"
+     ],
+     [
+      "items[].rows[].when.*[].v[]",
+      "s"
+     ],
+     [
+      "items[].rows[].when.*[].min",
+      "s"
+     ],
+     [
+      "items[].rows[].when.*[].max",
+      "s"
+     ],
+     [
+      "items[].apply",
+      "o"
+     ],
+     [
+      "items[].apply.mode",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -23,6 +87,18 @@
    "rule": "/api/masters/worklog/order",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "keys",
+      "l"
+     ],
+     [
+      "keys[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -65,24 +141,156 @@
    "rule": "/api/masters/conversions",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "other",
+      "s"
+     ],
+     [
+      "inputs",
+      "l"
+     ],
+     [
+      "inputs[].name",
+      "s"
+     ],
+     [
+      "inputs[].type",
+      "s"
+     ],
+     [
+      "inputs[].columns[]",
+      "s"
+     ],
+     [
+      "rows",
+      "l"
+     ],
+     [
+      "rows[].out",
+      "s"
+     ],
+     [
+      "rows[].when.*[].op",
+      "s"
+     ],
+     [
+      "rows[].when.*[].v[]",
+      "s"
+     ],
+     [
+      "rows[].when.*[].min",
+      "s"
+     ],
+     [
+      "rows[].when.*[].max",
+      "s"
+     ],
+     [
+      "apply",
+      "o"
+     ],
+     [
+      "apply.mode",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/masters/equipgroups",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "set",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "equipment",
+      "l"
+     ],
+     [
+      "equipment[]",
+      "s"
+     ],
+     [
+      "except",
+      "l"
+     ],
+     [
+      "except[]",
+      "s"
+     ],
+     [
+      "rules",
+      "l"
+     ],
+     [
+      "rules[].op",
+      "s"
+     ],
+     [
+      "rules[].value",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/release/place/check",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "from",
+      "s"
+     ],
+     [
+      "parent",
+      "s"
+     ],
+     [
+      "name",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/masters/place/check",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "parent",
+      "s"
+     ],
+     [
+      "name",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -101,12 +309,40 @@
    "rule": "/api/release/place/move",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "from",
+      "s"
+     ],
+     [
+      "parent",
+      "s"
+     ],
+     [
+      "name",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/masters/place/move",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "parent",
+      "s"
+     ],
+     [
+      "name",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -119,6 +355,22 @@
    "rule": "/api/dashboards-hidden",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "keys",
+      "l"
+     ],
+     [
+      "keys[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -131,6 +383,30 @@
    "rule": "/api/masters/equipment",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "設備名",
+      "s"
+     ],
+     [
+      "巻取方向",
+      "s"
+     ],
+     [
+      "ライン方向",
+      "s"
+     ],
+     [
+      "同一工程",
+      "s"
+     ],
+     [
+      "検査計",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -167,6 +443,34 @@
    "rule": "/api/masters/formats",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "table",
+      "s"
+     ],
+     [
+      "origin",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ]
+    ]
    }
   },
   {
@@ -191,12 +495,48 @@
    "rule": "/api/sources/groups",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "from",
+      "s"
+     ],
+     [
+      "to",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/dashboard-sets",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ]
+    ]
    }
   },
   {
@@ -209,12 +549,88 @@
    "rule": "/api/masters/shifts",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "equipment",
+      "l"
+     ],
+     [
+      "equipment[]",
+      "s"
+     ],
+     [
+      "segments",
+      "l"
+     ],
+     [
+      "segments[].name",
+      "s"
+     ],
+     [
+      "segments[].start",
+      "s"
+     ],
+     [
+      "segments[].end",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/pivot-presets",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ],
+     [
+      "body.rows[].part",
+      "s"
+     ],
+     [
+      "body.cols[].part",
+      "s"
+     ],
+     [
+      "body.measures[].column",
+      "s"
+     ],
+     [
+      "body.measures[].expr",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -227,18 +643,106 @@
    "rule": "/api/sources/order",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "keys",
+      "l"
+     ],
+     [
+      "keys[]",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/masters/rolls",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "設備",
+      "s"
+     ],
+     [
+      "入出位置",
+      "s"
+     ],
+     [
+      "接触面",
+      "s"
+     ],
+     [
+      "ロール径MAX",
+      "s"
+     ],
+     [
+      "ロール径MIN",
+      "s"
+     ],
+     [
+      "ロール面長",
+      "s"
+     ],
+     [
+      "材質",
+      "s"
+     ],
+     [
+      "硬度",
+      "s"
+     ],
+     [
+      "本数",
+      "s"
+     ],
+     [
+      "ロール名",
+      "s"
+     ],
+     [
+      "ロール使用条件",
+      "s"
+     ],
+     [
+      "駆動方式",
+      "s"
+     ],
+     [
+      "基準番号",
+      "s"
+     ],
+     [
+      "備考",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/pivot-quick",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "source",
+      "s"
+     ],
+     [
+      "keys",
+      "l"
+     ],
+     [
+      "keys[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -251,12 +755,88 @@
    "rule": "/api/dashboards",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/card-forms",
    "modes": {
     "POST": "need"
+   },
+   "types": {
+    "POST": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ],
+     [
+      "body.tabs[].name",
+      "s"
+     ],
+     [
+      "body.items[].label",
+      "s"
+     ],
+     [
+      "body.items[].col",
+      "s"
+     ],
+     [
+      "body.items[].expr",
+      "s"
+     ],
+     [
+      "body.items[].text",
+      "s"
+     ],
+     [
+      "body.items[].tab",
+      "s"
+     ],
+     [
+      "body.items[].cols[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -269,6 +849,22 @@
    "rule": "/api/fs/browse",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "path",
+      "s"
+     ],
+     [
+      "purpose",
+      "s"
+     ],
+     [
+      "pattern",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -287,6 +883,94 @@
    "rule": "/api/sources",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "キー",
+      "s"
+     ],
+     [
+      "表示名",
+      "s"
+     ],
+     [
+      "役割",
+      "s"
+     ],
+     [
+      "場所",
+      "s"
+     ],
+     [
+      "表",
+      "s"
+     ],
+     [
+      "設備の列",
+      "s"
+     ],
+     [
+      "設備の取り出し方",
+      "s"
+     ],
+     [
+      "画面",
+      "s"
+     ],
+     [
+      "並び",
+      "s"
+     ],
+     [
+      "備考",
+      "s"
+     ],
+     [
+      "グループ",
+      "s"
+     ],
+     [
+      "元",
+      "s"
+     ],
+     [
+      "確かめる間隔",
+      "s"
+     ],
+     [
+      "古さの警告",
+      "s"
+     ],
+     [
+      "ロット番号の列",
+      "s"
+     ],
+     [
+      "結合",
+      "j"
+     ],
+     [
+      "結合[].with",
+      "s"
+     ],
+     [
+      "結合[].how",
+      "s"
+     ],
+     [
+      "結合[].on",
+      "l"
+     ],
+     [
+      "結合[].cols",
+      "l"
+     ],
+     [
+      "結合[].cols[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -299,6 +983,66 @@
    "rule": "/api/masters/conversions/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "other",
+      "s"
+     ],
+     [
+      "inputs",
+      "l"
+     ],
+     [
+      "inputs[].name",
+      "s"
+     ],
+     [
+      "inputs[].type",
+      "s"
+     ],
+     [
+      "inputs[].columns[]",
+      "s"
+     ],
+     [
+      "rows",
+      "l"
+     ],
+     [
+      "rows[].out",
+      "s"
+     ],
+     [
+      "rows[].when.*[].op",
+      "s"
+     ],
+     [
+      "rows[].when.*[].v[]",
+      "s"
+     ],
+     [
+      "rows[].when.*[].min",
+      "s"
+     ],
+     [
+      "rows[].when.*[].max",
+      "s"
+     ],
+     [
+      "apply",
+      "o"
+     ],
+     [
+      "apply.mode",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -311,6 +1055,50 @@
    "rule": "/api/masters/equipgroups/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "set",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "equipment",
+      "l"
+     ],
+     [
+      "equipment[]",
+      "s"
+     ],
+     [
+      "except",
+      "l"
+     ],
+     [
+      "except[]",
+      "s"
+     ],
+     [
+      "rules",
+      "l"
+     ],
+     [
+      "rules[].op",
+      "s"
+     ],
+     [
+      "rules[].value",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -329,6 +1117,30 @@
    "rule": "/api/masters/equipment/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "設備名",
+      "s"
+     ],
+     [
+      "巻取方向",
+      "s"
+     ],
+     [
+      "ライン方向",
+      "s"
+     ],
+     [
+      "同一工程",
+      "s"
+     ],
+     [
+      "検査計",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -341,6 +1153,38 @@
    "rule": "/api/masters/worklog/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "設備名",
+      "s"
+     ],
+     [
+      "ファイル名",
+      "s"
+     ],
+     [
+      "ファイルID",
+      "s"
+     ],
+     [
+      "表示",
+      "s"
+     ],
+     [
+      "表",
+      "s"
+     ],
+     [
+      "備考",
+      "s"
+     ],
+     [
+      "並び",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -353,6 +1197,34 @@
    "rule": "/api/masters/formats/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "table",
+      "s"
+     ],
+     [
+      "origin",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ]
+    ]
    }
   },
   {
@@ -377,6 +1249,30 @@
    "rule": "/api/dashboard-sets/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ]
+    ]
    }
   },
   {
@@ -389,6 +1285,42 @@
    "rule": "/api/masters/shifts/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "equipment",
+      "l"
+     ],
+     [
+      "equipment[]",
+      "s"
+     ],
+     [
+      "segments",
+      "l"
+     ],
+     [
+      "segments[].name",
+      "s"
+     ],
+     [
+      "segments[].start",
+      "s"
+     ],
+     [
+      "segments[].end",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -401,6 +1333,46 @@
    "rule": "/api/pivot-presets/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ],
+     [
+      "body.rows[].part",
+      "s"
+     ],
+     [
+      "body.cols[].part",
+      "s"
+     ],
+     [
+      "body.measures[].column",
+      "s"
+     ],
+     [
+      "body.measures[].expr",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -413,12 +1385,88 @@
    "rule": "/api/sources/<key>/quick",
    "modes": {
     "POST": "read"
+   },
+   "types": {
+    "POST": [
+     [
+      "表示名",
+      "s"
+     ],
+     [
+      "画面",
+      "s"
+     ],
+     [
+      "グループ",
+      "s"
+     ]
+    ]
    }
   },
   {
    "rule": "/api/masters/rolls/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "設備",
+      "s"
+     ],
+     [
+      "入出位置",
+      "s"
+     ],
+     [
+      "接触面",
+      "s"
+     ],
+     [
+      "ロール径MAX",
+      "s"
+     ],
+     [
+      "ロール径MIN",
+      "s"
+     ],
+     [
+      "ロール面長",
+      "s"
+     ],
+     [
+      "材質",
+      "s"
+     ],
+     [
+      "硬度",
+      "s"
+     ],
+     [
+      "本数",
+      "s"
+     ],
+     [
+      "ロール名",
+      "s"
+     ],
+     [
+      "ロール使用条件",
+      "s"
+     ],
+     [
+      "駆動方式",
+      "s"
+     ],
+     [
+      "基準番号",
+      "s"
+     ],
+     [
+      "備考",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -431,6 +1479,18 @@
    "rule": "/api/sources/<key>/conn",
    "modes": {
     "PUT": "read"
+   },
+   "types": {
+    "PUT": [
+     [
+      "field",
+      "s"
+     ],
+     [
+      "value",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -443,6 +1503,30 @@
    "rule": "/api/dashboards/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ]
+    ]
    }
   },
   {
@@ -455,6 +1539,58 @@
    "rule": "/api/card-forms/<int:item_id>",
    "modes": {
     "PUT": "need"
+   },
+   "types": {
+    "PUT": [
+     [
+      "name",
+      "s"
+     ],
+     [
+      "note",
+      "s"
+     ],
+     [
+      "scope",
+      "s"
+     ],
+     [
+      "source",
+      "s"
+     ],
+     [
+      "body",
+      "j"
+     ],
+     [
+      "body.tabs[].name",
+      "s"
+     ],
+     [
+      "body.items[].label",
+      "s"
+     ],
+     [
+      "body.items[].col",
+      "s"
+     ],
+     [
+      "body.items[].expr",
+      "s"
+     ],
+     [
+      "body.items[].text",
+      "s"
+     ],
+     [
+      "body.items[].tab",
+      "s"
+     ],
+     [
+      "body.items[].cols[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -467,6 +1603,94 @@
    "rule": "/api/sources/<key>",
    "modes": {
     "PUT": "read"
+   },
+   "types": {
+    "PUT": [
+     [
+      "キー",
+      "s"
+     ],
+     [
+      "表示名",
+      "s"
+     ],
+     [
+      "役割",
+      "s"
+     ],
+     [
+      "場所",
+      "s"
+     ],
+     [
+      "表",
+      "s"
+     ],
+     [
+      "設備の列",
+      "s"
+     ],
+     [
+      "設備の取り出し方",
+      "s"
+     ],
+     [
+      "画面",
+      "s"
+     ],
+     [
+      "並び",
+      "s"
+     ],
+     [
+      "備考",
+      "s"
+     ],
+     [
+      "グループ",
+      "s"
+     ],
+     [
+      "元",
+      "s"
+     ],
+     [
+      "確かめる間隔",
+      "s"
+     ],
+     [
+      "古さの警告",
+      "s"
+     ],
+     [
+      "ロット番号の列",
+      "s"
+     ],
+     [
+      "結合",
+      "j"
+     ],
+     [
+      "結合[].with",
+      "s"
+     ],
+     [
+      "結合[].how",
+      "s"
+     ],
+     [
+      "結合[].on",
+      "l"
+     ],
+     [
+      "結合[].cols",
+      "l"
+     ],
+     [
+      "結合[].cols[]",
+      "s"
+     ]
+    ]
    }
   },
   {
@@ -479,6 +1703,14 @@
    "rule": "/api/settings/<path:key>",
    "modes": {
     "PUT": "read"
+   },
+   "types": {
+    "PUT": [
+     [
+      "value",
+      "s"
+     ]
+    ]
    }
   }
  ]

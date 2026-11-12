@@ -235,6 +235,11 @@ fn of_master(e: MasterError) -> Answer {
     }
 }
 
+/// 配った設定の古さの時間が数でないときの知らせ（版 3.106.0。束の work の staleWarn。読めない時間は束が既定に替えてある）
+fn stale_warn(work: &Value) -> Value {
+    work.get("staleWarn").cloned().unwrap_or(json!(""))
+}
+
 /// 古さの警告の時間（float(stale_hours or 0)）。読めなければ Python に任せる
 fn stale_of(work: &Value) -> D<f64> {
     let v = &work["stale_hours"];
@@ -258,7 +263,8 @@ fn master_view(store: &Store, cx: &Ctx, rows: &[Value], fresh: bool) -> D<Value>
     let (mut items, new) = view(rows, &found, &err)?;
     mark_stale(&mut items, stale_of(cx.work)?, cx.now);
     Ok(json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit, "shared": store.is_shared(NAME),
-              "revision": store.revision(NAME), "staleHours": cx.work["stale_hours"], "items": items, "new": new, "error": err}))
+              "revision": store.revision(NAME), "staleHours": cx.work["stale_hours"], "staleWarn": stale_warn(cx.work), "items": items,
+              "new": new, "error": err}))
 }
 
 /// 本文（get_json(force=True)〈silent でない〉 or {}）: 空・読めない本文は Python（400 の HTML）、表でない真の本文も Python（500）
@@ -310,7 +316,8 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
             Some((
                 200,
                 json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit,
-                              "staleHours": cx.work["stale_hours"], "items": items, "new": new, "error": err}),
+                              "staleHours": cx.work["stale_hours"], "staleWarn": stale_warn(cx.work), "items": items, "new": new,
+                              "error": err}),
             ))
         }
         Route::Scan => {
@@ -445,7 +452,8 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
             let mut d = Map::new();
             for (k, v) in &data {
                 if FIELDS.contains(&k.as_str()) && k != "キー" {
-                    if !crate::master_rows::value_plain(v) {
+                    // 並び・表は本文の門が断る（body_rules.TYPES。版 3.106.0）。ここで見るのは大きな数だけ
+                    if !crate::master_rows::num_plain(v) {
                         return None;
                     }
                     d.insert(k.clone(), v.clone());

@@ -134,7 +134,7 @@ SCENARIOS = [
         S(PART, "POST", body='{"name": "a", "scope": "me", "body": {"items": ["1"]}, "x": NaN}'),
         W(S(PART, "POST", body='{"name": "a", "scope": "me", "body": {"items": ["1"]}, "x": -0}')),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": NaN}'}),
-        S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": -0}'}),
+        W(S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": -0}'})),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["1"], "x": 1e400}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": '{"items": ["\\ud800"]}'}),
         S(PART, "POST", body={"name": "a", "scope": "me", "body": DEEP}),
@@ -177,7 +177,8 @@ SCENARIOS = [
      "steps": [S(PART, "POST", body={"name": "錠", "scope": "me", "body": {"items": ["1"]}}), S(PART, "PUT", 4, {"name": "x"}),
                S(PART, "DELETE", 4), S(PART, "GET")], "delegates": []},
     *[{"name": f"置き場の行の形が違う: {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", "dashset", "共通"), bad],
-       "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}})]}
+       "steps": [], "delegates": [(W if what == "中身に -0" else (lambda x: x))(x)
+                                  for x in [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}})]]}
       for what, bad in [("名前が数", R(2, 5, "dashset", "共通")),
                         ("中身に NaN", R(2, "NaN の中身", "dashset", "共通", body='{"items": ["1"], "x": NaN}')),
                         ("中身に -0", R(2, "-0 の中身", "dashset", "共通", body='{"items": [-0]}')),
@@ -187,8 +188,9 @@ SCENARIOS = [
                         ("ほかの元の行の値の入れ子が 130 段", dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130)))]],
     *[{"name": f"共有のファイルの字に {what}（窓は答えず Python に任せる）", "mode": "shared",
        "rows": [R(1, "良い行", "dashset", "共通"), dict(R(2, "生の値", "dash", "共通", note=note), x="@RAW@")], "raw": raw,
-       "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}),
-                                  S(PART, "PUT", 1, {"name": "b"})]}
+       "steps": [], "delegates": [(W if raw == "-0" else (lambda x: x))(x) for x in [
+           S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}), S(PART, "PUT", 1, {"name": "b"})]]}
+      # 版 3.106.0: 整数の -0 は窓も Python と同じ 0 と読み、0 と書き戻す（master_rows::inner_text）
       for what, note, raw in [("NaN", "", "NaN"), ("Infinity", "", "Infinity"), ("1e400", "", "1e400"), ("整数の -0", "", "-0"),
                               ("i64 に入らない整数", "", "1" + "0" * 30), ("対の無い代用字", "@SUR@", '"x"')]],
     *[{"name": f"共有のファイルの版 revision が {what}（Python の int() が読めない。窓は答えず Python に任せる）", "mode": "shared",

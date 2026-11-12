@@ -160,16 +160,20 @@ SCENARIOS = [
         S("POST", C, T("当て方が並び", apply=[1])),
         S("POST", C, T("入力が表", inputs={"a": 1})),
         S("POST", C, T("大きな範囲", rows=[{"when": {"b": [{"op": "range", "min": "1e19"}]}}])),
-        S("POST", C, T("正規表現", other="=extract([a], '(')")),
+        W(S("POST", C, T("正規表現", other="=extract([a], '(')"))),       # 版 3.106.0: re の言葉（位置）を出さない
         S("POST", C, T(["名前が並び"])),
         S("POST", C, T("順が大きい", order="1" + "0" * 40)),
         S("POST", C, T("出す値が並び", other=[1])),
         S("POST", C, T("値が並び", rows=[{"when": {"a": [{"op": "eq", "v": [[1]]}]}}])),
-        S("POST", C, T("入れ子の深い式", other="=" + "(" * 70 + "1" + ")" * 70)),
+        # 版 3.106.0: 式の入れ子は Python も窓も同じ数え方（かっこ・負の符号・! と not の数）の上限 60 で断る（conversions.NEST_MAX）
+        W(S("POST", C, T("入れ子の深い式", other="=" + "(" * 70 + "1" + ")" * 70))),
         # 作った後の採点で見つけた割れ: not の重ね（窓は 200 段で断り、Python は再帰の上限まで読む）
-        S("POST", C, T("not の重ね", other="=" + "not " * 90 + "(" * 60 + "1" + ")" * 60)),
-        S("POST", C, T("not の重ね（出す値）", rows=[{"when": {}, "out": "=" + "not " * 90 + "(" * 60 + "1" + ")" * 60}])),
-        S("POST", C, T("not だけの重ね", other="=" + "not " * 120 + "1")),
+        W(S("POST", C, T("not の重ね", other="=" + "not " * 90 + "(" * 60 + "1" + ")" * 60))),
+        W(S("POST", C, T("not の重ね（出す値）", rows=[{"when": {}, "out": "=" + "not " * 90 + "(" * 60 + "1" + ")" * 60}]))),
+        W(S("POST", C, T("not だけの重ね", other="=" + "not " * 120 + "1"))),
+        W(S("POST", C, T("入れ子の上限ちょうど", other="=" + "not " * 20 + "(" * 20 + "-" * 20 + "1" + ")" * 20))),
+        W(S("POST", C, T("入れ子の上限を 1 つ超える", other="=" + "not " * 20 + "(" * 20 + "-" * 21 + "1" + ")" * 20))),
+        W(S("POST", C, T("正規表現の誤り（出す値）", rows=[{"when": {}, "out": "=match([a], '[')"}]))),
     ]},
     {"name": "足す・取り込むの本文の形", "mode": "shared", "steps": [
         S("POST", C, "[1]"), S("POST", C, '"abc"'), S("POST", C, "5"), S("POST", C, "1.5"), S("POST", C, "true"),
