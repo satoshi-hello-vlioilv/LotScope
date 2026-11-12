@@ -776,5 +776,46 @@
    }
   ],
   "check_all": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3104/check5/summary.txt"
+ },
+ "built_3105": {
+  "name": "作った後（版 3.105.0・commit 3f5b615。F＋G。A＋B は版 3.104.0 の built）",
+  "images": "画面に出ない改良なので画像は無い（自分で流した試験と数え直した数、読んだコード、一時の確かめで採点した）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-12。決まり 2026-11-06 の作った後の 1 回だけの採点）。リポジトリの中で変えたのはこのファイルだけ（一時の確かめの試験 desktop/tests/zz_scoring_probe.rs は流した後に消した）。読んだ物: git diff d5093ef..3f5b615（master_store.rs の seed_absent・share_absent・seeded と既にある pull／seed／with_lock／serialized／acquire_lock・lot.rs の Lot::settings と store_for・equip_route・ui_defaults_route・shifts_route・access の読み・page の GET /・bundle.rs の Inputs::absent・SECTIONS・section_broken・Inputs::check・access.rs の Place::doc／rows／share_absent・master_place.rs の status_of・card_forms／dash_sets／formats_write／pivot_presets／dashboards_write／conversions_write の answer の入口・master_rows.rs の split_number_in／unreadable_u64_ok／base_rev／py_rev／create／update・worksum.rs の py_str／str_plain／truthy・calc.rs の equipment_check・dash_sets の clean_body・試験の place_parity／bundle_parity／equipgroups_write_parity と答えの元 place_oracle／settings_oracle／equipgroups_oracle／oracle_gate）と Python の repositories/master_store.py（_maybe_refresh・_pull・_seed・_acquire_lock・_is_mine・read・_doc_path・_initial・_doc）・services/master_seeds.py・boot.py・routes/common.py の revoked。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝Python が起きていない PC で答えられる範囲・考えさせない＝落とし穴の少なさ・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ",
+  "measured": {
+   "cargo": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked --test <名前>（作業場所 deleg-3105）: bundle_parity 1 passed（3.3 秒）・pyfloat_cases 3 passed・equipgroups_write_parity 1 passed（6.8 秒）・sets_parity 1 passed（11.7 秒）・formats_parity 1 passed（8.6 秒）・jsonnum_cases 1 passed・equip_rows_parity 1 passed（6.6 秒）・cards_parity 1 passed（20.1 秒）・dashboards_parity 1 passed（32.7 秒）・presets_parity 1 passed（35.6 秒）・page_parity 1 passed（4.8 秒）・place_parity を 3 回（どれも 3 passed・34.8／34.0／34.1 秒。競い合い an_empty_share_is_seeded_once_by_whoever_comes_first は 1 回に 5 周なので計 15 周で落ちない）。どれも終了コード 0。記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3105/score/t-*.log",
+   "python": "cd program && python -m unittest tests.test_pyfloat_cases tests.test_ui_score → Ran 14 tests・OK（終了コード 0）",
+   "count": "python program/tools/delegate-count.py score-count --json → 計 313（置き場 195・本文 95・OS 8・道 5・口 5・束 5。答えの元ごとの数も tests/fixtures/delegates_budget.json の per と全部同じ。28 秒）",
+   "probe": "一時の試験（Lot::handle_body）: 共有に roll_master.json が無く写し（版 3・行「写し」）がある形で GET /api/masters/rolls → 窓は 200 [{id:1, rev:1, 設備:写し}] と答え、share/roll_master.json は作られない。Python の MasterStore.read('roll_master')（同じ形・refresh_seconds 0）は share/roll_master.json を作る（_doc_path → _maybe_refresh → _pull → _seed）"
+  },
+  "result": {
+   "proposal": "組み合わせ A＋B＋F＋G（版 3.105.0 の F＋G）",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 9,
+    "steps": 8,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 9,
+    "place": 7,
+    "layout": 8,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "読む道の種まきが Lot::settings の SECTIONS（path_settings・data_sources・work_log_files・equipment_master・equipment_groups・shift_patterns・conversions）と 6 つの一覧の入口だけで、ほかの読む道は Place::rows（共有 → 写し → data/ → 最初の中身。置かない）で答える: GET /api/masters/rolls（roll_master）・GET /api/ui-defaults（ui_defaults）・GET /api/access/me・/api/masters/access・/api/masters/tabaccess と門番の me（access_permissions・tab_access）。Python の同じ GET は MasterStore.read → _maybe_refresh → _seed で共有に最初の版を置く。一時の試験で確かめた（上の probe）: 答えの中身は同じだが、終わった後の共有のフォルダが違う（窓は置かない）。答えの元はこの形を歩に入れていない（equip_rows・ui_defaults・shifts・access_write の「共有にまだ無い（写しから最初の版）」は書く歩から始め、settings_write_oracle は Python が先に読んでから窓に当てる）ので、delegate-count.py の 313 にも突き合わせにも出ない（GET / の ui_defaults・conversions〈Inputs::check が任せる〉も同じく数に出ない）。直し方: equip_route の List・ui_defaults_route の Get・権限の読む道（と GET / の部品）で Place::rows の前に store.seed_absent(&[名前]) を呼び（false なら None）、4 つの答えの元の「共有にまだ無い」場面の先頭に GET の歩を足して、置いたファイルも突き合わせる"
+    }
+   ],
+   "seen": "良い所: 種まきの係は既にある Store::pull → seed（錠の中で共有を見直す・写し → 同梱の data/ → 最初の中身 → 空の版 1。Python の _pull → _seed と同じ順）をそのまま使い、新しい部品は seed_absent（共有に届くのにまだ無い名前だけ refresh し、置けたかを返す）の 1 つ。置けない（錠・書けない）ときは前どおり Python に任せる（Lot::settings は束を尋ね、一覧は None）ので、答えが今より悪くなる形は無い。競い合いの試験は窓 2 つ（別の PC）と Python（別のプロセス）を合図でそろえ、どのマスタも 1 回だけ・置いた者の写し・錠と一時ファイルが残らない・後の 3 つの答えが同じを 5 周ずつ見る（3 回流して 15 周落ちない）。bundle_parity の seed の 2 場面は窓が置いたファイルの中身と「窓だけが置いた物が無い」まで見る。G は str_plain が 1 つになり、py_str の u64 は全部の呼び元で Python の str(int) に近づく（前の 1.2345678901234567e+19 は誤り）。依頼の 6 点: (1) 閲覧だけ・切断中: Python の読む道も役割・切断を見ずに種をまく（切断は routes/common.py の can_write で書く道だけを止める）ので同じ。手元だけは is_shared が偽、写しだけ（届かない）は share_reachable が偽で種をまかない。共有に書けない PC は錠を置けずに理由を覚え、一覧は Python に任せ、束は Python に尋ねる（Python も置けずに写しで答える）。Lot::settings は門番の度（10 秒の覚え）に SECTIONS の 7 つをまくが、Python も画面を開いた時の GET /api/lotlist/settings で同じ 7 つをまく（bundle_parity の seed の場面で置いた物の集合が同じ）。(2) 錠に当たった側は errors にその名前の理由（『…が保存中です』）を覚え、その回の状態の答えは error と source bundled-fallback になる。次の状態は STATUS_NAMES を取り直してから答えるので古い理由は残らない。Python 同士でも同じ形で、利用者に見えるのは同時に起動した最初の一瞬の状態の帯だけ。(3) 鍵の並び: 種の元（data/ の 4 つ・master_defaults/conversions.json）の行に入れ子の表は無く、画面は行の鍵の順に頼らない（app.js の Object.keys(row) は値を移すだけ）ので見える違いは無い。(4) unreadable_u64_ok の 3 つの道: formats_write は数を as_i64 で読まない（Tree は visit_u64 で桁のまま）・dash_sets の clean_body は items の u64 を飛ばすが Python の str() は 20 桁で item_ok（1〜9 桁）に当たらないので同じ・equip_write は create／update が clean（py_str の字）だけを置き、base_rev は py_rev で Big → 409（Python の int の比べと同じ）、equipment_check は text（py_str）で読む。as_i64 で数として使う所は無い。(5) GET / は ui_defaults・conversions が共有に無いと Inputs::check で任せたまま（上の減点と同じ形）。(6) 読みは妥当: master_seeds.run は起動のときに一度だけ当てる初期値（app_seeds に記録）で、読みの種まき（_seed）とは別の係。突き合わせるべきは最初の中身（写し → data/ → 最初の中身 → 空）で、equipgroups の 6 場面と bundle の seed の 2 場面が見ている。ただし起動の同じ瞬間に窓の種まきが共有の錠（持ち主 instance:rs）を持つと、master_seeds の store.write は MasterLocked（_is_mine は instance:py だけ）で break し、次の起動へ回る（落とし穴 1）",
+   "pitfalls": [
+    "1（低・新しい）: 同じ PC の起動の競い合い。窓の Lot::settings（最初の問い合わせの門番）が空の共有にまく間、Python の boot.py の master_seeds.run が store.write で MasterLocked に当たると break して次の起動へ回す。空の共有では data/ と master_defaults に初期値が入っている（LS3・LS4・NS1・DL2・TLV の検査計「有」・satoshi-harada・釜番日付）ので中身は同じで、遅れるのは app_seeds の記録だけ。版を上げた起動で共有にまだ無いマスタがあると、その初期値が 1 回の起動ぶん遅れる。直し方: master_seeds.run は MasterLocked（同じ PC のもう 1 つの係）なら 1 秒おきに数回やり直す、か窓の seed が同じ PC の錠には短く待つ",
+    "2（低・Python と同じ形だが、まく者が増えた）: 錠に当たった名前は errors に残り、その回の状態の帯に『共有マスタを取り込めませんでした（写しで続けます）: …保存中です』と出る（作った係の手元の 1 回では 80 のうち 9 が錠に当たった）。直し方: 種まきで Locked のときは 1 秒ほど共有のファイルが現れるのを待って取り直す、か種まきの Locked は errors に入れない",
+    "3（低・負荷）: 窓の Store::refresh には Python の refresh_seconds の間引きが無い。共有に書けない PC では、束の組み直し（10 秒）と 6 つの一覧の GET の度に錠を置こうとして断られ、その度に Python に任せる。直し方: 置けなかった名前と時刻を覚え、refresh_seconds の間はまかない",
+    "4（言葉）: CLAUDE.md の置き場と設定 8 本の行に『種まきの競い合い〈Python が種をまく間、窓は答えない〉』が残り、版 3.105.0 の行（窓も種をまく）と食い違う。直し方: 前の行の括弧を新しい試験の名前と中身に書き替える",
+    "5（数え方）: 突き合わせの試験の『任せた歩の下限』を外したので、答えの元が任せる歩を作らなくなっても試験は気づかない。上限（予算）と歩ごとの確かめで足りるが、減らした版で delegates_budget.json を下げ忘れても通る（上限なので）。直し方: delegate-count.py --budget との差を check-all の summary に出す"
+   ]
+  }
  }
 }
