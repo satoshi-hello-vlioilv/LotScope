@@ -55,5 +55,17 @@ for (const [src, x, want] of exprs) {
   if (got !== want) { bad++; console.log(`NG expr ${JSON.stringify(src)}(${x}) → ${JSON.stringify(got)}（期待 ${JSON.stringify(want)}）`); }
 }
 cases.push(...exprs);
+// 基準の数（版 3.103.0）: ［名前］をセルの数に読む式と、基準の数を作る式（値 x を使わない）
+const table = JSON.parse(fs.readFileSync(path.resolve(JS, "../../../tests/fixtures/num_expr_cases.json"), "utf8"));
+const near = (a, b) => (typeof a === "number" && typeof b === "number" ? Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b)) : a === b);
+const vcases = table.varCases.map(([src, x, env, want]) => [src, x, env, want, false]).concat(table.baseCases.map(([src, env, want]) => [src, null, env, want, true]));
+for (const [src, x, env, want, base] of vcases) {
+  const r = N.expr(src, { names: Object.keys(env), base });
+  const got = want === "err" ? (r.error ? "err" : r.fn(x, env)) : want === "none" ? (r.fn ? "fn" : "none") : r.fn ? r.fn(x, env) : r.error;
+  if (!near(got, want)) { bad++; console.log(`NG expr ${JSON.stringify(src)}(${x}, ${base ? "基準" : "値"}) → ${JSON.stringify(got)}（期待 ${JSON.stringify(want)}）`); }
+}
+for (const [src, names, text] of table.texts) { const t = N.expr(src, { names }).text; if (t !== text) { bad++; console.log(`NG 見せ方 ${src} → ${t}（期待 ${text}）`); } }
+if (!N.expr("÷[稼働直]").error) { bad++; console.log("NG 名前を渡さない式の角かっこが読めた"); }
+cases.push(...vcases, ...table.texts);
 console.log(bad ? `NG ${cases.length + built.length + warns.length + 1} 件中 ${bad} 件が違う` : `OK（${cases.length + built.length + warns.length + 1} 件が Excel の決まりと同じ）`);
 process.exit(bad ? 1 : 0);

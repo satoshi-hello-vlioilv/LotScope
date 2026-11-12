@@ -8,7 +8,8 @@ from pathlib import Path
 
 from app.services import aggregate, num_expr
 
-CASES = json.loads((Path(__file__).parent / "fixtures" / "num_expr_cases.json").read_text(encoding="utf-8"))["cases"]
+TABLE = json.loads((Path(__file__).parent / "fixtures" / "num_expr_cases.json").read_text(encoding="utf-8"))
+CASES = TABLE["cases"]
 
 
 class NumExprTest(unittest.TestCase):
@@ -25,6 +26,31 @@ class NumExprTest(unittest.TestCase):
                     self.assertIsNone(fn(x))
                 else:
                     self.assertAlmostEqual(fn(x), want, places=9)
+
+    def check(self, src, got, want, x, env):
+        fn, err, _ = got
+        if want == "err":
+            self.assertTrue(err and fn is None, (src, err))
+        elif want == "none":
+            self.assertIsNone(fn)
+            self.assertEqual(err, "")
+        elif want is None:
+            self.assertIsNone(fn(x, env), src)
+        else:
+            self.assertAlmostEqual(fn(x, env), want, places=9, msg=src)
+
+    def test_variables(self):
+        """基準の数（版 3.103.0）: ［名前］をセルの数に読む。画面（num-format.js）と窓（num_expr.rs）も同じ表"""
+        for src, x, env, want in TABLE["varCases"]:
+            with self.subTest(src=src):
+                self.check(src, num_expr.compile_expr(src, names=list(env)), want, x, env)
+        for src, env, want in TABLE["baseCases"]:
+            with self.subTest(src=src):
+                self.check(src, num_expr.compile_expr(src, names=list(env), need_x=False), want, None, env)
+        for src, names, text in TABLE["texts"]:
+            self.assertEqual(num_expr.compile_expr(src, names=names)[2], text)
+        # 名前を渡さなければ角かっこは使えない字（前の版の読み方のまま）
+        self.assertIn("使えない字", num_expr.compile_expr("÷[稼働直]")[1])
 
     def test_text(self):
         self.assertEqual(num_expr.compile_expr("÷1000")[2], "値÷1000")

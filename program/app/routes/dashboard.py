@@ -505,7 +505,7 @@ def _count(p, parts, now, egroups, sets):
         return pivot.query_many(parts, search=p["search"], filters=json.dumps(p["filters"], ensure_ascii=False),
                                 rows=json.dumps(b["rows"], ensure_ascii=False), cols=json.dumps(b["cols"], ensure_ascii=False),
                                 measures=json.dumps(b["measures"], ensure_ascii=False), today=now.date(), period=p["period"], now=now,
-                                calc=p.get("calc"), equips=p.get("equips"), egroups=egroups, box=_box_column(p), sets=sets)
+                                calc=p.get("calc"), equips=p.get("equips"), egroups=egroups, box=_box_column(p), sets=sets, bases=b.get("bases"))
     except pivot.PivotError as e:
         return {"error": str(e), "kind": "invalid", "status": 400}
     except Exception as e:

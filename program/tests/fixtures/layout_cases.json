@@ -2711,6 +2711,373 @@
 },
 {
 "fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"none\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@equip\"}], \"bases\": [{\"name\": \" 換算稼働日 \", \"expr\": \"[稼働直]÷[1日の直数]\", \"each\": true, \"unit\": \"日\"}, {\"name\": \"稼働率\", \"expr\": \"[稼働直]÷[期間の直数]×100\", \"unit\": \" % \"}, {\"name\": \"稼働直\", \"expr\": \"[稼働日]\"}, {\"name\": \"x\", \"expr\": \"x×2\"}, {\"name\": \"換算稼働日\", \"expr\": \"[稼働日]\"}, {\"name\": \"a]b\", \"expr\": \"[稼働日]\"}, {\"name\": \"\", \"expr\": \"[稼働日]\"}, {\"name\": \"長長長長長長長長長長長長長長長長長長長長\", \"expr\": \"［稼働日］×２\", \"each\": \"true\", \"unit\": 5}, {\"name\": 5, \"expr\": \"[稼働日]+[期間の日数]\"}, {\"name\": \"空\", \"expr\": \"\"}, {\"name\": \"使えない\", \"expr\": \"[無い]\"}, \"x\", null, {\"name\": \"単位\", \"expr\": \"[稼働日]\", \"unit\": \"あいうえおかきく\"}], \"measures\": [{\"agg\": \"sum\", \"column\": \"重量\", \"expr\": \"÷1000\", \"per\": \"稼働直\", \"utext\": \"t/直\", \"hideExpr\": true}, {\"agg\": \"lots\", \"per\": \" 稼働率 \"}, {\"agg\": \"base\", \"base\": \"稼働率\"}, {\"agg\": \"base\", \"base\": \"無い\"}, {\"agg\": \"base\", \"base\": \" 期間の直数 \", \"column\": \"x\"}, {\"agg\": \"sum\", \"column\": \"重量\", \"per\": \"無い\"}, {\"agg\": \"sum\", \"column\": \"重量\", \"expr\": \"÷[換算稼働日]\", \"per\": 5}]}}, {\"id\": \"b\", \"x\": 4, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"bases\": \"x\", \"measures\": [{\"agg\": \"lots\", \"per\": \"換算稼働日\"}, {\"agg\": \"lots\", \"per\": \"\"}, {\"agg\": \"lots\", \"per\": \"1日の直数\", \"expr\": \"÷[稼働率]\"}]}}, {\"id\": \"c\", \"x\": 8, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"bar\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"bases\": [], \"measures\": [{\"agg\": \"base\"}, {\"agg\": \"base\", \"base\": 5}, {\"agg\": \"base\", \"base\": \"稼働日\", \"show\": \"cum\"}]}}], \"bases\": [{\"name\": \" 換算稼働日 \", \"expr\": \"[稼働直]÷[1日の直数]\", \"each\": true, \"unit\": \"日\"}, {\"name\": \"稼働率\", \"expr\": \"[稼働直]÷[期間の直数]×100\", \"unit\": \" % \"}, {\"name\": \"稼働直\", \"expr\": \"[稼働日]\"}, {\"name\": \"x\", \"expr\": \"x×2\"}, {\"name\": \"換算稼働日\", \"expr\": \"[稼働日]\"}, {\"name\": \"a]b\", \"expr\": \"[稼働日]\"}, {\"name\": \"\", \"expr\": \"[稼働日]\"}, {\"name\": \"長長長長長長長長長長長長長長長長長長長長\", \"expr\": \"［稼働日］×２\", \"each\": \"true\", \"unit\": 5}, {\"name\": 5, \"expr\": \"[稼働日]+[期間の日数]\"}, {\"name\": \"空\", \"expr\": \"\"}, {\"name\": \"使えない\", \"expr\": \"[無い]\"}, \"x\", null, {\"name\": \"単位\", \"expr\": \"[稼働日]\", \"unit\": \"あいうえおかきく\"}]}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [
+{
+"id": "a",
+"x": 0,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "none",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@equip",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "sum",
+"column": "重量",
+"expr": "÷1000",
+"per": "稼働直",
+"utext": "t/直",
+"hideExpr": true
+},
+{
+"agg": "lots",
+"per": "稼働率"
+},
+{
+"agg": "base",
+"base": "稼働率"
+},
+{
+"agg": "base",
+"base": "期間の直数"
+},
+{
+"agg": "sum",
+"column": "重量"
+}
+],
+"sub": false,
+"grand": true,
+"chartAt": 0,
+"labels": true,
+"bases": [
+{
+"name": "換算稼働日",
+"expr": "[稼働直]÷[1日の直数]",
+"each": true,
+"unit": "日"
+},
+{
+"name": "稼働率",
+"expr": "[稼働直]÷[期間の直数]×100",
+"unit": "%"
+},
+{
+"name": "長長長長長長長長長長長長長長長長",
+"expr": "［稼働日］×２"
+},
+{
+"name": "5",
+"expr": "[稼働日]+[期間の日数]"
+},
+{
+"name": "単位",
+"expr": "[稼働日]",
+"unit": "あいうえおか"
+}
+]
+},
+"sort": "",
+"top": 0
+},
+{
+"id": "b",
+"x": 4,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "lots"
+},
+{
+"agg": "lots"
+},
+{
+"agg": "lots",
+"per": "1日の直数"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+},
+{
+"id": "c",
+"x": 8,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "bar",
+"emph": false,
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"body": {
+"rows": [
+{
+"column": "@workday",
+"part": ""
+}
+],
+"cols": [],
+"measures": [
+{
+"agg": "base",
+"base": "稼働日",
+"show": "cum"
+}
+],
+"sub": false,
+"grand": false,
+"chartAt": 0,
+"labels": true
+},
+"sort": "",
+"top": 0
+}
+],
+"bases": [
+{
+"name": "換算稼働日",
+"expr": "[稼働直]÷[1日の直数]",
+"each": true,
+"unit": "日"
+},
+{
+"name": "稼働率",
+"expr": "[稼働直]÷[期間の直数]×100",
+"unit": "%"
+},
+{
+"name": "長長長長長長長長長長長長長長長長",
+"expr": "［稼働日］×２"
+},
+{
+"name": "5",
+"expr": "[稼働日]+[期間の日数]"
+},
+{
+"name": "単位",
+"expr": "[稼働日]",
+"unit": "あいうえおか"
+}
+]
+},
+"{\"bases\": [{\"each\": true, \"expr\": \"[稼働直]÷[1日の直数]\", \"name\": \"換算稼働日\", \"unit\": \"日\"}, {\"expr\": \"[稼働直]÷[期間の直数]×100\", \"name\": \"稼働率\", \"unit\": \"%\"}, {\"expr\": \"［稼働日］×２\", \"name\": \"長長長長長長長長長長長長長長長長\"}, {\"expr\": \"[稼働日]+[期間の日数]\", \"name\": \"5\"}, {\"expr\": \"[稼働日]\", \"name\": \"単位\", \"unit\": \"あいうえおか\"}], \"panels\": [{\"basis\": \"work\", \"body\": {\"bases\": [{\"each\": true, \"expr\": \"[稼働直]÷[1日の直数]\", \"name\": \"換算稼働日\", \"unit\": \"日\"}, {\"expr\": \"[稼働直]÷[期間の直数]×100\", \"name\": \"稼働率\", \"unit\": \"%\"}, {\"expr\": \"［稼働日］×２\", \"name\": \"長長長長長長長長長長長長長長長長\"}, {\"expr\": \"[稼働日]+[期間の日数]\", \"name\": \"5\"}, {\"expr\": \"[稼働日]\", \"name\": \"単位\", \"unit\": \"あいうえおか\"}], \"chartAt\": 0, \"cols\": [], \"grand\": true, \"labels\": true, \"measures\": [{\"agg\": \"sum\", \"column\": \"重量\", \"expr\": \"÷1000\", \"hideExpr\": true, \"per\": \"稼働直\", \"utext\": \"t/直\"}, {\"agg\": \"lots\", \"per\": \"稼働率\"}, {\"agg\": \"base\", \"base\": \"稼働率\"}, {\"agg\": \"base\", \"base\": \"期間の直数\"}, {\"agg\": \"sum\", \"column\": \"重量\"}], \"rows\": [{\"column\": \"@equip\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"a\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"none\", \"w\": 4, \"x\": 0, \"y\": 0}, {\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"lots\"}, {\"agg\": \"lots\"}, {\"agg\": \"lots\", \"per\": \"1日の直数\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"b\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 4, \"y\": 0}, {\"basis\": \"work\", \"body\": {\"chartAt\": 0, \"cols\": [], \"grand\": false, \"labels\": true, \"measures\": [{\"agg\": \"base\", \"base\": \"稼働日\", \"show\": \"cum\"}], \"rows\": [{\"column\": \"@workday\", \"part\": \"\"}], \"sub\": false}, \"emph\": false, \"equip\": \"\", \"filters\": [], \"h\": 2, \"id\": \"c\", \"period\": null, \"search\": \"\", \"sort\": \"\", \"source\": \"work\", \"title\": \"\", \"top\": 0, \"visual\": \"bar\", \"w\": 4, \"x\": 8, \"y\": 0}], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [], \"bases\": []}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [],
+"bases": []
+},
+"{\"bases\": [], \"panels\": [], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [], \"bases\": \"x\"}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": []
+},
+"{\"panels\": [], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [], \"bases\": [{\"name\": \"a\", \"expr\": \"[稼働日]\"}, {\"name\": \"a\", \"expr\": \"[稼働日]\"}, {\"name\": \"a\", \"expr\": \"[稼働日]\"}, {\"name\": \"b0\", \"expr\": \"[稼働日]\"}, {\"name\": \"b1\", \"expr\": \"[稼働日]\"}, {\"name\": \"b2\", \"expr\": \"[稼働日]\"}, {\"name\": \"b3\", \"expr\": \"[稼働日]\"}, {\"name\": \"b4\", \"expr\": \"[稼働日]\"}, {\"name\": \"b5\", \"expr\": \"[稼働日]\"}, {\"name\": \"b6\", \"expr\": \"[稼働日]\"}, {\"name\": \"b7\", \"expr\": \"[稼働日]\"}, {\"name\": \"b8\", \"expr\": \"[稼働日]\"}, {\"name\": \"b9\", \"expr\": \"[稼働日]\"}, {\"name\": \"b10\", \"expr\": \"[稼働日]\"}, {\"name\": \"b11\", \"expr\": \"[稼働日]\"}, {\"name\": \"b12\", \"expr\": \"[稼働日]\"}, {\"name\": \"b13\", \"expr\": \"[稼働日]\"}]}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [],
+"bases": [
+{
+"name": "a",
+"expr": "[稼働日]"
+},
+{
+"name": "b0",
+"expr": "[稼働日]"
+},
+{
+"name": "b1",
+"expr": "[稼働日]"
+},
+{
+"name": "b2",
+"expr": "[稼働日]"
+},
+{
+"name": "b3",
+"expr": "[稼働日]"
+},
+{
+"name": "b4",
+"expr": "[稼働日]"
+},
+{
+"name": "b5",
+"expr": "[稼働日]"
+},
+{
+"name": "b6",
+"expr": "[稼働日]"
+},
+{
+"name": "b7",
+"expr": "[稼働日]"
+},
+{
+"name": "b8",
+"expr": "[稼働日]"
+},
+{
+"name": "b9",
+"expr": "[稼働日]"
+},
+{
+"name": "b10",
+"expr": "[稼働日]"
+}
+]
+},
+"{\"bases\": [{\"expr\": \"[稼働日]\", \"name\": \"a\"}, {\"expr\": \"[稼働日]\", \"name\": \"b0\"}, {\"expr\": \"[稼働日]\", \"name\": \"b1\"}, {\"expr\": \"[稼働日]\", \"name\": \"b2\"}, {\"expr\": \"[稼働日]\", \"name\": \"b3\"}, {\"expr\": \"[稼働日]\", \"name\": \"b4\"}, {\"expr\": \"[稼働日]\", \"name\": \"b5\"}, {\"expr\": \"[稼働日]\", \"name\": \"b6\"}, {\"expr\": \"[稼働日]\", \"name\": \"b7\"}, {\"expr\": \"[稼働日]\", \"name\": \"b8\"}, {\"expr\": \"[稼働日]\", \"name\": \"b9\"}, {\"expr\": \"[稼働日]\", \"name\": \"b10\"}], \"panels\": [], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
+"in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"board\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"groups\": [{\"source\": \"work\", \"measure\": {\"agg\": \"sum\", \"column\": \"重量\", \"per\": \"稼働直\"}}, {\"source\": \"work\", \"measure\": {\"agg\": \"base\", \"base\": \"換算稼働日\"}}]}]}",
+"want": {
+"ok": [
+{
+"rows": 8,
+"panels": [
+{
+"id": "a",
+"x": 0,
+"y": 0,
+"w": 4,
+"h": 2,
+"title": "",
+"visual": "board",
+"emph": false,
+"rows": {
+"column": "@equip",
+"part": ""
+},
+"groups": [
+{
+"title": "",
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"measure": {
+"agg": "sum",
+"column": "重量",
+"per": "稼働直"
+},
+"cols": [],
+"look": "num",
+"total": true,
+"zero": false,
+"color": ""
+},
+{
+"title": "",
+"source": "work",
+"equip": "",
+"filters": [],
+"search": "",
+"period": null,
+"basis": "work",
+"measure": {
+"agg": "lots"
+},
+"cols": [],
+"look": "num",
+"total": true,
+"zero": false,
+"color": ""
+}
+],
+"order": {
+"by": "value",
+"group": 0,
+"dir": "desc",
+"list": [],
+"hide": []
+}
+}
+]
+},
+"{\"panels\": [{\"emph\": false, \"groups\": [{\"basis\": \"work\", \"color\": \"\", \"cols\": [], \"equip\": \"\", \"filters\": [], \"look\": \"num\", \"measure\": {\"agg\": \"sum\", \"column\": \"重量\", \"per\": \"稼働直\"}, \"period\": null, \"search\": \"\", \"source\": \"work\", \"title\": \"\", \"total\": true, \"zero\": false}, {\"basis\": \"work\", \"color\": \"\", \"cols\": [], \"equip\": \"\", \"filters\": [], \"look\": \"num\", \"measure\": {\"agg\": \"lots\"}, \"period\": null, \"search\": \"\", \"source\": \"work\", \"title\": \"\", \"total\": true, \"zero\": false}], \"h\": 2, \"id\": \"a\", \"order\": {\"by\": \"value\", \"dir\": \"desc\", \"group\": 0, \"hide\": [], \"list\": []}, \"rows\": {\"column\": \"@equip\", \"part\": \"\"}, \"title\": \"\", \"visual\": \"board\", \"w\": 4, \"x\": 0, \"y\": 0}], \"rows\": 8}"
+]
+}
+},
+{
+"fn": "layout",
 "in": "{\"rows\": 8, \"panels\": [{\"id\": \"a\", \"x\": 0, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"gantt\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"ops\": {\"start\": \" 開始 \", \"end\": \"終了\", \"label\": \"\", \"color\": \"色\", \"span\": \"lead\", \"refPeriod\": {\"kind\": \"months\", \"n\": 3, \"column\": \"x\"}, \"hide\": [\"chart\", \"x\", \"share\"], \"cls\": [\" 合金 \", \"調質\", \"合金\", \"\", \"a\", \"b\", \"c\"], \"qty\": \"\", \"base\": \"  \", \"lims\": [90, \"70\", 0, -5, 150, 5e-05, 70.0, \"x\"], \"rankBy\": \"each\"}, \"egroup\": {\"mode\": \"sum\"}, \"esplit\": \"series\"}, {\"id\": \"b\", \"x\": 4, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"abc\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"ops\": {\"a\": 60, \"b\": \"80\"}}, {\"id\": \"c\", \"x\": 8, \"y\": 0, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"abc\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"ops\": {\"cls\": \"  合金  \", \"lims\": []}}, {\"id\": \"d\", \"x\": 0, \"y\": 2, \"w\": 4, \"h\": 2, \"title\": \"\", \"visual\": \"abc\", \"source\": \"work\", \"body\": {\"rows\": [{\"column\": \"@workday\"}], \"measures\": [{\"agg\": \"lots\"}]}, \"ops\": 5}]}",
 "want": {
 "ok": [

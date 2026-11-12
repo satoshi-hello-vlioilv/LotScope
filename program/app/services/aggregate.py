@@ -16,20 +16,24 @@
     小計・総計のセルにも同じ式を当てる。表し方（割合・累計など）は、計算した後の値から決める（apply_expr → apply_show）
 単位（utext。値ごと。版 3.92.0）: 数の後ろに付ける字（t・本 など。12 字まで）。空の字はこの値に単位を付けない。無ければパネルの書式に従う。
 見出しの式（hideExpr。値ごと。版 3.92.0）: true なら計算の式（［値÷1000］）を列の見出しに出さない。見せる字だけで、名前（系列の色・書式の鍵）は変えない
+基準の数（版 3.103.0。services/capacity.py）: base（agg "base"。その基準の数そのものを値に。列は要らない）・per（割る数。計算の後に セルの値 ÷ セルの基準の数）・
+    計算の式の ［名前］（その数を式で読む）。名前は names（決まった数＋そのパネルの作った数）に無ければ断る
 """
 from __future__ import annotations
 
 import math
 from collections import Counter
 
-from app.services import num_expr
+from app.services import capacity, num_expr
 
 COUNTS = ("count", "lots")
 SIMPLE = ("sum", "avg", "min", "max", "n", "range")
 SPREAD = ("sd", "var", "cv", "cpk")
 ORDERED = ("median", "q1", "q3", "iqr", "pct", "mode")
 KINDS = ("distinct",)
-AGGS = COUNTS + SIMPLE + SPREAD + ORDERED + KINDS
+BASE = ("base",)                             # 基準の数そのもの（版 3.103.0）
+AGGS = COUNTS + SIMPLE + SPREAD + ORDERED + KINDS + BASE
+NOCOL = COUNTS + BASE                        # 列の要らない値
 NUMERIC = SIMPLE + SPREAD + ORDERED          # 数の列が要る
 ADDITIVE = ("count", "lots", "sum", "n")     # 下の段から足し上げられる（積み上げ・割合・ドーナツに使える）
 SHOWS = ("", "pct_total", "pct_row", "pct_col", "cum", "diff", "rank")
@@ -50,15 +54,22 @@ def _num(v):
     return f if math.isfinite(f) else None
 
 
-def clean(m, has_column):
-    """画面から来た値 → {agg, column, p?, lsl?, usl?, show?, expr?, dec?, utext?, hideExpr?}。has_column(列) → その列があるか。合わなければ ValueError（理由の字）"""
+def clean(m, has_column, names=None):
+    """画面から来た値 → {agg, column, base?, p?, lsl?, usl?, show?, expr?, per?, dec?, utext?, hideExpr?}。has_column(列) → その列があるか。
+    names … 使える基準の数の名前（版 3.103.0。None は決まった数だけ）。合わなければ ValueError（理由の字）"""
+    names = list(capacity.FIXED) if names is None else names
     agg = str(m.get("agg") or "count")
     if agg not in AGGS:
         agg = "count"
-    col = str(m.get("column") or "") if agg not in COUNTS else ""
-    if agg not in COUNTS and not has_column(col):
+    col = str(m.get("column") or "") if agg not in NOCOL else ""
+    if agg not in NOCOL and not has_column(col):
         raise ValueError(f"値の列「{col}」がありません。")
     out = {"agg": agg, "column": col}
+    if agg == "base":
+        b = str(m.get("base") or "").strip()
+        if b not in names:
+            raise ValueError(f"基準の数「{b}」がありません。")
+        out["base"] = b
     if agg == "pct":
         p = _num(m.get("p"))
         out["p"] = int(min(99, max(1, round(p)))) if p is not None else 90
@@ -74,10 +85,16 @@ def clean(m, has_column):
         out["show"] = show
     expr = str(m.get("expr") or "").strip()[:EXPR_MAX]
     if expr:
-        _fn, err, _text = num_expr.compile_expr(expr)
+        _fn, err, _text = num_expr.compile_expr(expr, names=names)
         if err:
             raise ValueError(f"「{name(out)}」の計算「{expr}」が読めません（{err}）。")
         out["expr"] = expr
+    per = m.get("per")
+    if isinstance(per, str) and per.strip():
+        per = per.strip()
+        if per not in names:
+            raise ValueError(f"「{name(out)}」を割る基準の数「{per}」がありません。")
+        out["per"] = per
     dec = _num(m.get("dec"))
     if dec is not None:
         out["dec"] = int(min(DEC_MAX, max(0, round(dec))))
@@ -92,24 +109,34 @@ def clean(m, has_column):
 def name(m):
     """値の見せる名前（件数・ロット数・〇〇の平均・〇〇の90%点・〇〇の平均（累計））"""
     agg = m["agg"]
-    base = LABEL[agg] if agg in COUNTS else f"{m['column']}の{m['p'] if agg == 'pct' else ''}{LABEL[agg]}"
-    return base + (f"（{SHOW_LABEL[m['show']]}）" if m.get("show") else "") + (f"［{expr_text(m['expr'])}］" if m.get("expr") else "")
+    base = m.get("base", "") if agg == "base" else LABEL[agg] if agg in COUNTS else f"{m['column']}の{m['p'] if agg == 'pct' else ''}{LABEL[agg]}"
+    calc = (expr_text(m["expr"]) if m.get("expr") else "値" if m.get("per") else "") + (f"÷{m['per']}" if m.get("per") else "")
+    return base + (f"（{SHOW_LABEL[m['show']]}）" if m.get("show") else "") + (f"［{calc}］" if calc else "")
 
 
 def expr_text(expr):
-    """計算の見せ方（÷1000 → 値÷1000）。画面の measLabel と同じ字"""
-    return num_expr.compile_expr(expr)[2] or str(expr)
+    """計算の見せ方（÷1000 → 値÷1000・÷[稼働直] → 値÷[稼働直]）。画面の measLabel と同じ字"""
+    return num_expr.show_text(expr) or str(expr)
 
 
-def apply_expr(cells, measures):
-    """計算（expr）を当てる。cells … [{r, c, v}]。数でない値（None・字）はそのまま"""
-    fns = [(j, num_expr.compile_expr(m["expr"])[0]) for j, m in enumerate(measures) if m.get("expr")]
-    fns = [(j, f) for j, f in fns if f]
+def apply_expr(cells, measures, env_of=None, names=None):
+    """計算（expr）と割る数（per。版 3.103.0）を当てる。cells … [{r, c, v}]。数でない値（None・字）はそのまま。
+    env_of(セル) → {基準の数の名前: 数か None}（基準の数を使う値があるときだけ呼ぶ）。割る数が 0・None なら答え無し（None）"""
+    names = list(capacity.FIXED) if names is None else names
+    fns = [(j, num_expr.compile_expr(m["expr"], names=names)[0] if m.get("expr") else None, m.get("per")) for j, m in enumerate(measures)]
+    fns = [(j, f, per) for j, f, per in fns if f or per]
     for x in cells if fns else ():
-        for j, f in fns:
+        env = env_of(x) if env_of else {}
+        for j, f, per in fns:
             v = x["v"][j]
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
-                x["v"][j] = f(v)
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                continue
+            if f:
+                v = f(v, env)
+            if per and v is not None:
+                d = env.get(per)
+                v = v / d if isinstance(d, (int, float)) and not isinstance(d, bool) and d else None
+            x["v"][j] = v
     return cells
 
 

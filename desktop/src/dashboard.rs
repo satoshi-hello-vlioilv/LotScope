@@ -620,6 +620,7 @@ impl Ctx<'_> {
             equips: &equips,
             egroups: Some(egroups).filter(|e| !e.is_null()),
             sets: Some(sets).filter(|e| !e.is_null()),
+            bases: b.get("bases").filter(|x| !x.is_null()),
         };
         match pivot::query_many(parts, &ask) {
             Ok(v) => v,

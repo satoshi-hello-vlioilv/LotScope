@@ -83,6 +83,7 @@ fn pivot_answers_like_python() {
             equips: &equips,
             egroups: a.get("egroups"),
             sets: a.get("sets"),
+            bases: a.get("bases"),
         };
         let parts: Vec<Part> = c["parts"].as_array().unwrap().iter().map(part_of).collect();
         let name = c["name"].as_str().unwrap();

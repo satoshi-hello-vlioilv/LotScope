@@ -220,35 +220,55 @@
   /* ---------- 値の計算（版 3.45.0。利用者の要望 3: 数に四則演算を足す。ダッシュボードの書式の「計算」） ----------
      値は x（「値」「X」も同じ）。演算子から書けば前に値を置く（「÷1000」＝x÷1000・「×100」・「+5」・「-3」）。
      使える物: 数・小数点・＋ − × ÷ ^（累乗）・かっこ・全角の字。式は読むだけ（eval を使わない）。→ {fn(x)|null, error, text} */
-  const ZEN = /[０-９．（）＋－＊／＾]/g;
-  function expr(src) {
+  const ZEN = /[０-９．（）＋－＊／＾［］]/g;
+  // 基準の数（版 3.103.0）: ［稼働直］のように角かっこで名前を書く（中の字は値 x に読み替えない）。サーバーの services/num_expr.py と同じ読み方
+  const PIECES = /(\[[^[\]]*\])/;
+  /** 書いた式 → 読む形。allowX=false（基準の数を作る式）は前に x を置かない */
+  function exprNorm(src, allowX = true) {
     let s = String(src == null ? "" : src).trim();
+    if (!s) return "";
+    s = s.replace(ZEN, (c) => (c === "［" ? "[" : c === "］" ? "]" : String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
+    s = s.split(PIECES).map((p, i) => (i % 2 ? `[${p.slice(1, -1).trim()}]`
+      : p.replace(/[×✕]/g, "*").replace(/÷/g, "/").replace(/[−–]/g, "-").replace(/値|ｘ|Ｘ|X/g, "x").replace(/\s+/g, ""))).join("");
+    const outside = s.split(PIECES).filter((_, i) => i % 2 === 0).join("");
+    if (allowX && (/^[*/+^]/.test(s) || (/^-/.test(s) && !outside.includes("x")))) s = "x" + s;
+    return s;
+  }
+  /** opt.names … 使える基準の数の名前（無ければ角かっこは使えない字）・opt.base … 基準の数を作る式（値 x は使えない）。
+      → {fn(x, env)|null, error, text}。env … 名前 → 数（null はそのセルで決まらない → 答え null） */
+  function expr(src, opt) {
+    const o = opt || {}, needX = !o.base, names = o.names ? new Set(o.names) : null;
+    const s = exprNorm(src, needX);
     if (!s) return { fn: null, error: "", text: "" };
-    s = s.replace(ZEN, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[×✕]/g, "*").replace(/÷/g, "/").replace(/[−–]/g, "-")
-      .replace(/値|ｘ|Ｘ|X/g, "x").replace(/\s+/g, "");
-    if (/^[*/+^]/.test(s) || (/^-/.test(s) && !s.includes("x"))) s = "x" + s;
-    const toks = [], bad = s.replace(/(\d+\.?\d*|\.\d+)|([x+\-*/^()])/g, (m, n, o) => { toks.push(n != null ? { n: +n } : { o }); return ""; });
+    const toks = [], unknown = [];
+    const re = names ? /(\d+\.?\d*|\.\d+)|([x+\-*/^()])|\[([^[\]]*)\]/g : /(\d+\.?\d*|\.\d+)|([x+\-*/^()])/g;
+    const bad = s.replace(re, (m, n, op, v) => { if (n != null) toks.push({ n: +n }); else if (op != null) toks.push({ o: op }); else { if (!names.has(v)) unknown.push(v); toks.push({ v }); } return ""; });
     if (bad) return { fn: null, error: `使えない字です: ${[...new Set(bad)].join(" ")}`, text: "" };
-    let i = 0, usesX = false;
-    const peek = () => toks[i], eat = (o) => (toks[i] && toks[i].o === o ? (i++, true) : false);
+    if (unknown.length) return { fn: null, error: unknown[0] ? `「${unknown[0]}」という基準の数はありません` : "［］の中に基準の数の名前がありません", text: "" };
+    let i = 0, usesX = false, usesV = false;
+    const MISS = {};
+    const peek = () => toks[i], eat = (op) => (toks[i] && toks[i].o === op ? (i++, true) : false);
     const fail = (m) => { throw new Error(m); };
-    function sum() { let a = prod(); for (;;) { if (eat("+")) { const l = a, r = prod(); a = (x) => l(x) + r(x); } else if (eat("-")) { const l = a, r = prod(); a = (x) => l(x) - r(x); } else return a; } }
-    function prod() { let a = pow(); for (;;) { if (eat("*")) { const l = a, r = pow(); a = (x) => l(x) * r(x); } else if (eat("/")) { const l = a, r = pow(); a = (x) => l(x) / r(x); } else return a; } }
-    function pow() { const a = unary(); if (eat("^")) { const b = pow(); return (x) => a(x) ** b(x); } return a; }
-    function unary() { if (eat("-")) { const a = unary(); return (x) => -a(x); } if (eat("+")) return unary(); return atom(); }
+    function sum() { let a = prod(); for (;;) { if (eat("+")) { const l = a, r = prod(); a = (x, e) => l(x, e) + r(x, e); } else if (eat("-")) { const l = a, r = prod(); a = (x, e) => l(x, e) - r(x, e); } else return a; } }
+    function prod() { let a = pow(); for (;;) { if (eat("*")) { const l = a, r = pow(); a = (x, e) => l(x, e) * r(x, e); } else if (eat("/")) { const l = a, r = pow(); a = (x, e) => l(x, e) / r(x, e); } else return a; } }
+    function pow() { const a = unary(); if (eat("^")) { const b = pow(); return (x, e) => a(x, e) ** b(x, e); } return a; }
+    function unary() { if (eat("-")) { const a = unary(); return (x, e) => -a(x, e); } if (eat("+")) return unary(); return atom(); }
     function atom() {
       const t = peek(); if (!t) fail("式が途中で終わっています");
       if (t.n != null) { i++; return () => t.n; }
+      if (t.v != null) { i++; usesV = true; return (x, e) => { const v = e && e[t.v]; if (typeof v !== "number") throw MISS; return v; }; }
       if (eat("x")) { usesX = true; return (x) => x; }
       if (eat("(")) { const a = sum(); if (!eat(")")) fail("かっこが閉じていません"); return a; }
       return fail(`「${t.o}」の前に数か値がありません`);
     }
     try {
       const f = sum();
-      if (i < toks.length) fail(`「${toks[i].o ?? toks[i].n}」の前に演算子がありません`);
-      if (!usesX) fail("値（x）を使っていません。例: ÷1000・x×100");
-      const text = s.replace(/\*/g, "×").replace(/\//g, "÷").replace(/x/g, "値");
-      return { fn: (x) => { const v = f(x); return Number.isFinite(v) ? v : null; }, error: "", text };
+      if (i < toks.length) { const t = toks[i]; fail(`「${t.o ?? (t.v != null ? `[${t.v}]` : t.n)}」の前に演算子がありません`); }
+      if (needX && !usesX) fail("値（x）を使っていません。例: ÷1000・x×100");
+      if (!needX && usesX) fail("基準の数の式に値（x）は使えません");
+      if (!needX && !usesV) fail("基準の数（［稼働直］など）を使っていません");
+      const text = s.split(PIECES).map((p, k) => (k % 2 ? p : p.replace(/\*/g, "×").replace(/\//g, "÷").replace(/x/g, "値"))).join("");
+      return { fn: (x, e) => { let v; try { v = f(x, e); } catch (err) { if (err === MISS) return null; throw err; } return Number.isFinite(v) ? v : null; }, error: "", text };
     } catch (e) { return { fn: null, error: e.message, text: "" }; }
   }
   window.NumFormat = { format, text, check, hasLiteral, bare, build, compile, expr, CATS, NEGS, COLORS };

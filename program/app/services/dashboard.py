@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import aggregate, formula, pivot_presets
+from . import aggregate, capacity, formula, pivot_presets
 from .data_sources import is_screen_source
 from .pivot import MAX_MEASURES, PERIODS
 
@@ -134,17 +134,20 @@ def clean_calc(v):
     return formula.clean_calc(v) if isinstance(v, dict) else None
 
 
-def _measure(m):
-    """値（services/aggregate.py の形）。列があるかは数えるときに確かめる（ここは形だけ）。合わなければ None"""
+def _measure(m, names=None):
+    """値（services/aggregate.py の形）。列があるかは数えるときに確かめる（ここは形だけ）。合わなければ None。
+    names … 使える基準の数の名前（版 3.103.0。None は決まった数だけ。パネルの作った数は clean_panel が渡す）"""
     if not isinstance(m, dict) or m.get("agg") not in aggregate.AGGS:
         return None
     m = {**m, "column": str(m.get("column") or "")[:200]}
     try:
-        out = aggregate.clean(m, lambda c: bool(c))
+        out = aggregate.clean(m, lambda c: bool(c), names)
     except ValueError:
-        if not m.get("expr"):
-            return None
-        return _measure({k: v for k, v in m.items() if k != "expr"})     # 読めない計算は外す（値そのものは残す）
+        if m.get("expr"):
+            return _measure({k: v for k, v in m.items() if k != "expr"}, names)     # 読めない計算は外す（値そのものは残す）
+        if m.get("per"):
+            return _measure({k: v for k, v in m.items() if k != "per"}, names)      # 無い基準の数で割る物は、割らずに残す
+        return None
     return {k: v for k, v in out.items() if not (k == "column" and not v)}
 
 
@@ -529,7 +532,9 @@ def clean_panel(p, i, rows):
             out["legacy"] = True       # 前の版の 1 枚の表（前の版の条件を引き継ぐ印。組む所で組み直すと外れる）
         return {**out, **clean_board(p, what)}
     body = p.get("body") if isinstance(p.get("body"), dict) else {}
-    ms = [m for m in map(_measure, (body.get("measures") if isinstance(body.get("measures"), list) else [])[:MAX_MEASURES]) if m]
+    own = capacity.clean_own(body.get("bases")) or []          # このパネルが使う作った基準の数（版 3.103.0。ダッシュボードの bases の写し）
+    names = capacity.names_of(own)
+    ms = [m for m in (_measure(x, names) for x in (body.get("measures") if isinstance(body.get("measures"), list) else [])[:MAX_MEASURES]) if m]
     rows_ = pivot_presets._dims(body.get("rows"))
     out.update(_data(p, what),
                # 段は集計表の組み方と同じ形（pivot_presets._dims）。小計は表で行の段が 2 つ以上のとき（版 3.40.0）
@@ -537,6 +542,8 @@ def clean_panel(p, i, rows):
                      "sub": bool(body.get("sub")) and visual == "none" and len(rows_) > 1, "grand": bool(body.get("grand", visual in ("none", "kpi"))),
                      "chartAt": _int(body.get("chartAt"), 0, 3, 0), "labels": bool(body.get("labels", True))},
                sort=p.get("sort") if p.get("sort") in SORTS else "", top=_int(p.get("top"), 0, TOP_MAX, 0))
+    if own:
+        out["body"]["bases"] = own
     eg = clean_egroup(p.get("egroup"))
     if eg:
         out["egroup"] = eg
@@ -655,6 +662,9 @@ def clean_layout(body):
     sc = clean_slicer(body.get("slicer"))
     if sc:
         out["slicer"] = sc
+    own = capacity.clean_own(body.get("bases"))
+    if own is not None:
+        out["bases"] = own          # 作った基準の数（版 3.103.0。ダッシュボードで共通。無ければ画面は既定の 2 つ〈capacity.DEFAULT_OWN〉）
     if str(body.get("replaces") or "") in BUILTIN_KEYS:
         out["replaces"] = body["replaces"]      # 組み込みのダッシュボードと入れ替えた物（版 3.48.0。その組み込みの代わりに出す）
     text = json.dumps(out, ensure_ascii=False, sort_keys=True)

@@ -143,9 +143,9 @@ const FMT_CHOICES: [(&str, &[&str]); 10] = [
     ("kmeta", &["top", "row"]),
 ];
 // aggregate.AGGS・COUNTS・SHOWS
-const AGGS: [&str; 19] = [
+const AGGS: [&str; 20] = [
     "count", "lots", "sum", "avg", "min", "max", "n", "range", "sd", "var", "cv", "cpk", "median", "q1", "q3", "iqr", "pct", "mode",
-    "distinct",
+    "distinct", "base",
 ];
 const SHOWS: [&str; 6] = ["pct_total", "pct_row", "pct_col", "cum", "diff", "rank"];
 
@@ -485,10 +485,10 @@ fn clean_calc(t: Option<&Tree>) -> R<Option<Value>> {
 }
 
 /// aggregate.clean（has_column は bool(列)）。ValueError は Err(Stop::Layout(理由))
-fn agg_clean(m: &Tree, column: &str) -> R<Map<String, Value>> {
+fn agg_clean(m: &Tree, column: &str, names: &[String]) -> R<Map<String, Value>> {
     let agg = s_of(get(m, "agg")).unwrap_or("count");
     let agg = if agg.is_empty() { "count" } else { agg };
-    let counts = agg == "count" || agg == "lots";
+    let counts = agg == "count" || agg == "lots" || agg == "base";
     let col = if counts { String::new() } else { column.to_string() };
     if !counts && col.is_empty() {
         return err(format!("値の列「{col}」がありません。"));
@@ -496,6 +496,14 @@ fn agg_clean(m: &Tree, column: &str) -> R<Map<String, Value>> {
     let mut out = Map::new();
     out.insert("agg".into(), json!(agg));
     out.insert("column".into(), json!(col));
+    if agg == "base" {
+        // 基準の数（版 3.103.0）: その数そのものを値に（名前は決まった数かこのパネルの作った数）
+        let b = strip(&str_or(get(m, "base"))?).to_string();
+        if !names.contains(&b) {
+            return err(format!("基準の数「{b}」がありません。"));
+        }
+        out.insert("base".into(), json!(b));
+    }
     if agg == "pct" {
         let p = float_of(get(m, "p"))?;
         out.insert("p".into(), json!(p.map(|p| p.round_ties_even().clamp(1.0, 99.0) as i64).unwrap_or(90)));
@@ -522,10 +530,19 @@ fn agg_clean(m: &Tree, column: &str) -> R<Map<String, Value>> {
     }
     let expr = take(strip(&str_or(get(m, "expr"))?), EXPR_MAX);
     if !expr.is_empty() {
-        if let Err(e) = crate::num_expr::compile(&expr) {
+        if let Err(e) = crate::num_expr::compile_with(&expr, Some(names), true) {
             return err(format!("「{}」の計算「{expr}」が読めません（{e}）。", crate::aggregate::name(&out)));
         }
         out.insert("expr".into(), json!(expr));
+    }
+    if let Some(Tree::Str(per)) = get(m, "per") {
+        let per = strip(per);
+        if !per.is_empty() {
+            if !names.iter().any(|n| n == per) {
+                return err(format!("「{}」を割る基準の数「{per}」がありません。", crate::aggregate::name(&out)));
+            }
+            out.insert("per".into(), json!(per));
+        }
     }
     if let Some(d) = float_of(get(m, "dec"))? {
         out.insert("dec".into(), json!(d.round_ties_even().clamp(0.0, 6.0) as i64));
@@ -539,26 +556,72 @@ fn agg_clean(m: &Tree, column: &str) -> R<Map<String, Value>> {
     Ok(out)
 }
 
-/// _measure（合わなければ None。読めない計算は外して値は残す）
+/// _measure（合わなければ None。読めない計算は外して値は残す）。決まった数だけの名前（合わせた表・合わせるデータ）
 fn measure(m: Option<&Tree>) -> R<Option<Map<String, Value>>> {
+    measure_with(m, &crate::capacity::names_of(&[]))
+}
+
+/// names … 使える基準の数の名前（版 3.103.0。パネルの作った数も）。無い基準の数で割る物は、割らずに残す
+fn measure_with(m: Option<&Tree>, names: &[String]) -> R<Option<Map<String, Value>>> {
     let Some(m @ Tree::Obj(_)) = m else { return Ok(None) };
     if !is_in(get(m, "agg"), &AGGS) {
         return Ok(None);
     }
     let col = take(&str_or(get(m, "column"))?, 200);
-    let out = match agg_clean(m, &col) {
+    let out = match agg_clean(m, &col, names) {
         Ok(o) => o,
         Err(Stop::Py) => return Err(Stop::Py),
         Err(Stop::Layout(_)) => {
-            if !truthy_o(get(m, "expr")) {
+            let drop = if truthy_o(get(m, "expr")) {
+                "expr"
+            } else if truthy_o(get(m, "per")) {
+                "per"
+            } else {
                 return Ok(None);
-            }
+            };
             let Tree::Obj(items) = m else { unreachable!() };
-            let rest = Tree::Obj(items.iter().filter(|(k, _)| k != "expr").cloned().collect());
-            return measure(Some(&rest));
+            let rest = Tree::Obj(items.iter().filter(|(k, _)| k != drop).cloned().collect());
+            return measure_with(Some(&rest), names);
         }
     };
     Ok(Some(out.into_iter().filter(|(k, v)| !(k == "column" && v.as_str() == Some(""))).collect()))
+}
+
+/// 作った基準の数の並び（Python の capacity.clean_own）。並びでなければ None
+fn clean_own(t: Option<&Tree>) -> R<Option<Vec<Value>>> {
+    let Some(Tree::Arr(xs)) = t else { return Ok(None) };
+    let fixed = crate::capacity::names_of(&[]);
+    let mut out: Vec<Value> = vec![];
+    for x in xs {
+        if !matches!(x, Tree::Obj(_)) {
+            continue;
+        }
+        let name = stripped(get(x, "name"), 16)?;
+        let expr = stripped(get(x, "expr"), 60)?;
+        if name.is_empty() || name.contains('[') || name.contains(']') || fixed.contains(&name) || out.iter().any(|o| o["name"] == json!(name)) {
+            continue;
+        }
+        if !matches!(crate::num_expr::compile_with(&expr, Some(&fixed), false), Ok(Some(_))) {
+            continue;
+        }
+        let mut b = Map::new();
+        b.insert("name".into(), json!(name));
+        b.insert("expr".into(), json!(expr));
+        if matches!(get(x, "each"), Some(Tree::Bool(true))) {
+            b.insert("each".into(), json!(true));
+        }
+        if let Some(Tree::Str(u)) = get(x, "unit") {
+            let u = take(strip(u), 6);
+            if !u.is_empty() {
+                b.insert("unit".into(), json!(u));
+            }
+        }
+        out.push(Value::Object(b));
+        if out.len() >= 12 {
+            break;
+        }
+    }
+    Ok(Some(out))
 }
 
 /// _names
@@ -1066,9 +1129,13 @@ pub fn clean_panel(p: &Tree, i: usize, rows: i64) -> R<Map<String, Value>> {
     }
     let body = get(p, "body").filter(|b| matches!(b, Tree::Obj(_)));
     let bg = |k: &str| body.and_then(|b| get(b, k));
+    // このパネルが使う作った基準の数（版 3.103.0。ダッシュボードの bases の写し）
+    let own = clean_own(bg("bases"))?.unwrap_or_default();
+    let mut bnames = crate::capacity::names_of(&[]);
+    bnames.extend(own.iter().map(|o| o["name"].as_str().unwrap_or("").to_string()));
     let mut ms = vec![];
     for m in arr(bg("measures")).iter().take(MAX_MEASURES) {
-        if let Some(x) = measure(Some(m))? {
+        if let Some(x) = measure_with(Some(m), &bnames)? {
             ms.push(Value::Object(x));
         }
     }
@@ -1086,6 +1153,9 @@ pub fn clean_panel(p: &Tree, i: usize, rows: i64) -> R<Map<String, Value>> {
     );
     out.insert("sort".into(), json!(s_of(get(p, "sort")).filter(|s| SORTS.contains(s)).unwrap_or("")));
     out.insert("top".into(), json!(int_of(get(p, "top"), 0, TOP_MAX, 0)?));
+    if !own.is_empty() {
+        out["body"]["bases"] = json!(own);
+    }
     if let Some(e) = clean_egroup(get(p, "egroup"))? {
         out.insert("egroup".into(), e);
     }
@@ -1179,6 +1249,9 @@ pub fn clean_layout(body: &Tree) -> R<(Value, String)> {
     let sc = clean_slicer(get(body, "slicer"));
     if sc.as_object().is_some_and(|m| !m.is_empty()) {
         out["slicer"] = sc;
+    }
+    if let Some(own) = clean_own(get(body, "bases"))? {
+        out["bases"] = json!(own); // 作った基準の数（版 3.103.0。ダッシュボードで共通）
     }
     let rep = str_or(get(body, "replaces"))?;
     if BUILTIN_KEYS.contains(&rep.as_str()) {
