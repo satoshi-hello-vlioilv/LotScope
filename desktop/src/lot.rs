@@ -2668,7 +2668,18 @@ mod tests {
         lot.set_bundle(crate::bundle::Builder::new(env));
         let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
         let ask = |m: &str, p: &str, q: &str, b: &str| lot.handle_body(m, p, q, b.as_bytes(), &down);
-        let (st, v) = ask("GET", "/api/masters/status", "", "").expect("Python が起きていなくても窓が答える");
+        // 共有を見るのは 2 秒まで（master_place::SHARE_PROBE_SEC）。新しい置き場の最初の確かめ（全部のマスタを読んで写す）は、並んで流れる
+        // 試験で混んだ CI の機械では 2 秒を超え、そのあいだは「確かめ中」（reachable null・写しで答える）が正しい答え（PR #102 の CI）。
+        // 確かめ中は false（届かない）にならないことを見て、終わるまで 15 秒まで尋ね直す
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let (st, v) = loop {
+            let (st, v) = ask("GET", "/api/masters/status", "", "").expect("Python が起きていなくても窓が答える");
+            if !v["reachable"].is_null() || std::time::Instant::now() > end {
+                break (st, v);
+            }
+            assert_eq!(st, 200, "確かめ中も写しで答える: {v}");
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        };
         assert_eq!(
             (st, v["mode"].clone(), v["reachable"].clone(), v["masters"]["tab_access"]["revision"].clone()),
             (200, json!("shared"), json!(true), json!(4)),
