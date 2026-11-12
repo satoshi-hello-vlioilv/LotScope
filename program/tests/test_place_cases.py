@@ -373,6 +373,61 @@ class MoveRoute(MoveBase):
         self.assertFalse((self.tmp / "nas" / "New").exists())
 
 
+class MoveRemember(MoveBase):
+    """この PC の覚え（作業場所の master_share.json）を書けないときの引っ越し（版 3.101.0 の作った後の採点の割れ 1）。前は写して名前を
+    付けた後に覚えを書き、書けないと新しい置き場に写したマスタが残った。そのまま前の置き場で保存してから同じ所をもう一度選ぶと、
+    「既にマスタがある置き場」として写さずに切り替わり、その間の保存が無くなった"""
+
+    def shared(self):
+        share = self.tmp / "nas" / "Masters"
+        master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+        return share
+
+    def save(self, share, pc, text):
+        b = self.store(pc, share)
+        return MasterRepository(b).rolls_create({"設備": "TLV", "ロール名": text})["id"]
+
+    def test_cannot_remember_is_refused_before_copying(self):
+        share = self.shared()
+        a = self.store("pcA", share)
+        (self.tmp / "pcA" / "master_share.json").mkdir(parents=True)     # 覚えのファイルの所にフォルダ（書けない形。root でも効く）
+        with self.assertRaises(ValueError) as cm:
+            master_place.move(a, self.tmp / "nas", "New")
+        self.assertIn("写す前に止めました", str(cm.exception))
+        self.assertFalse((self.tmp / "nas" / "New").exists(), "写していない")
+        self.assertEqual(a.share_dir, share)
+        self.assertFalse((share / "_MOVED.json").exists())
+
+    def test_a_failed_remember_after_the_copy_rolls_back(self):
+        share = self.shared()
+        a = self.store("pcA", share)
+        from app.repositories import master_store as ms
+        real = ms._write_json_atomic
+
+        def full(path, data, retry=0.0):
+            if Path(path) == a.override_path:
+                raise OSError(28, "No space left on device")
+            return real(path, data, retry)
+        with mock.patch.object(ms, "_write_json_atomic", full), self.assertRaises(ValueError) as cm:
+            master_place.move(a, self.tmp / "nas", "New")
+        self.assertIn("写した置き場を消して元に戻しました", str(cm.exception))
+        self.assertFalse((self.tmp / "nas" / "New").exists(), "写した置き場を消した")
+        self.assertEqual(a.share_dir, share, "この PC の置き場は替わらない")
+        self.assertFalse((share / "_MOVED.json").exists(), "前の置き場の印は書かない")
+        self.assertFalse([p for p in (self.tmp / "nas").iterdir() if ".tmp-" in p.name])
+        # 前の置き場で保存 → 同じ所をもう一度選ぶ: 写して切り替える（古い写しへ切り替えない）。写した物＝錠を取った時の共有
+        rid = self.save(share, "pcB", "やり直しの前の保存")
+        held = truth.tree_bytes(share)
+        pl = master_place.plan(a, self.tmp / "nas", "New")
+        self.assertEqual(pl["mode"], "copy", pl)
+        master_place.move(a, self.tmp / "nas", "New")
+        got = truth.tree_bytes(self.tmp / "nas" / "New")
+        self.assertEqual(sorted(got), truth.copied_names(share))
+        for rel in got:
+            self.assertEqual(got[rel], held[rel], rel)
+        self.assertIn(rid, truth.row_ids(truth.followed(share), "roll_master"))
+
+
 class Sources(unittest.TestCase):
     def test_the_modules_compile_without_warnings(self):
         """置き場と設定の部品の字が、警告なしに読める（版 3.101.0: folder_browse の説明の「C:\」が無効な逃がし字の SyntaxWarning だった。

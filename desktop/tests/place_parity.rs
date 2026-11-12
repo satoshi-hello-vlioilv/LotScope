@@ -75,6 +75,31 @@ fn listing(root: &Path) -> Map<String, Value> {
     out
 }
 
+/// 独立の答え（tools/place-truth.py）に尋ねる
+fn truth(args: &[&str]) -> Value {
+    let py = std::env::var("TPA_PYTHON").unwrap_or_else(|_| if cfg!(windows) { "python".into() } else { "python3".into() });
+    let out = std::process::Command::new(&py)
+        .arg(common::program().join("tools").join("place-truth.py"))
+        .args(args)
+        .env("PYTHONIOENCODING", "utf-8")
+        .output()
+        .expect("Python を起こせない");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    serde_json::from_slice(&out.stdout).unwrap()
+}
+
+/// フォルダの中のファイルの相対の道（/ 区切り）
+fn collect(d: &Path, root: &Path, out: &mut Vec<String>) {
+    for e in std::fs::read_dir(d).unwrap().flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            collect(&p, root, out);
+        } else {
+            out.push(p.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/"));
+        }
+    }
+}
+
 fn store_of(conf: &Value) -> Arc<Store> {
     Arc::new(Store::from_access(conf, "rs").expect("置き場の材料"))
 }
@@ -129,6 +154,8 @@ fn master_place_matches_python() {
                 match op {
                     "rename" => std::fs::rename(sub(st["a"].as_str().unwrap(), rs), sub(st["b"].as_str().unwrap(), rs)).unwrap(),
                     "remove" => std::fs::remove_file(sub(st["path"].as_str().unwrap(), rs)).unwrap(),
+                    "rmtree" => std::fs::remove_dir_all(sub(st["path"].as_str().unwrap(), rs)).unwrap(),
+                    "write" => std::fs::write(sub(st["path"].as_str().unwrap(), rs), st["text"].as_str().unwrap()).unwrap(),
                     x => panic!("知らない do: {x}"),
                 }
                 continue;
@@ -151,6 +178,22 @@ fn master_place_matches_python() {
             }
             if st["path"] == "/api/masters/place/move" && status == 200 {
                 moved += 1;
+                if name.contains("覚えを書けない") {
+                    // やり直しで切り替えた先の写した物＝前の置き場の今の中身（独立の答え place-truth.py の --copied と同じ名前・同じ字）
+                    let (old, new) = (Path::new(rs).join("share"), Path::new(rs).join("nas").join("New"));
+                    let want = truth(&["--copied", &old.to_string_lossy()]);
+                    let mut got: Vec<String> = vec![];
+                    collect(&new, &new, &mut got);
+                    got.sort();
+                    if json!(got) != want {
+                        bad.push(format!("{name}: 写した物 {got:?} / 独立の答え {want}"));
+                    }
+                    for rel in &got {
+                        if std::fs::read(new.join(rel)).ok() != std::fs::read(old.join(rel)).ok() {
+                            bad.push(format!("{name}: {rel} が前の置き場の中身と違う"));
+                        }
+                    }
+                }
                 follow(&mut conf, Path::new(rs));
                 store = store_of(&conf);
             }

@@ -620,7 +620,60 @@
     "Windows の CI での fs_parity・place_parity（POSIX だけの歩を除いた形。CI で初めて分かる）"
    ]
   },
-  "built": "未（作る者の道具に Agent が無いので、作った後の採点〈別のエージェント・1 回〉は主のセッションが頼む）",
-  "built_fixed": null
+  "built": {
+   "name": "作った後（版 3.101.0・commit e08b03d）",
+   "evaluator": "案を作っていない、作った者でもない採点者（別のエージェント・2026-11-12。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、worktree port-place-3101 の commit e08b03d のコードを読み、動かした突き合わせの結果で採点した。worktree のファイルは変えていない（この記録の v3101.built を足しただけ）。記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/place-built（v3101_cargo.txt・write_v3101.py）。Windows の CI・本物の SMB・root でない利用者の場面は流していない。窓だけの 400 の割れは、コードを読んで確かめた（動かしていない）。",
+   "seen": "良い所: 8 本を窓が答え、写す係（引っ越し）は SERVES の place の 1 つ（sidecar.rs）で、Python の move は名乗られると 409 busy（routes/settings.py）。窓の引っ越し（master_place.rs move_to・locked）は、利用状況の記録を錠の外で先に写し、マスタだけを錠の中で写し、錠の長さの半分を過ぎるか、読んだマスタ（stat の印と名前の並び）が変われば切り替えずに止める（3.100.0 の割れ 2 の直し）。共有に届けば共有のファイルをバイトのまま写す。status は種まきの要る形を None（Python に任せる）で返し、2 秒で終わらなければ写しで答えて reachable null。同じ置き場へ尋ねる糸は 1 本。画面は null を『確かめ中・保存はできます』と読み、保存を止めない（3.100.0 の割れ 1 は直った）。案 F の寄せ（release_place と 1 つの部品・確かめるの入口 1 つ・unquote 1 つ）が入った。自分で流した: cargo test place_parity 2（空の共有の種まきは Python が 1 回を含む）・fs_parity 2・place_cases 7（引っ越しは独立の答え place-truth.py と比べる・遅い引っ越しの間の保存が消えない）・builder_parity 1・access_write_parity 1、どれも ok。黙って空や別の答えにする所は、status（read_doc の失敗・種まきの要る形は None）・引っ越し（読めない形は Python／理由つきの 400）で見当たらなかった。悪い所: 下の減点（覚えを書けない 400 の後に、残った写しへ『写さずに切り替える』）。窓の写しの取り直し（Store::pull）は serde の to_vec_pretty で書く（鍵は名前の順・字下げ 2）ので、共有に届かないときの引っ越し（写しから写す）は、引っ越し先の行の鍵の並びが Python の書いた順と違う。画面が鍵の並びで列を作る所・ファイルの中身から指紋を作る所は見つからず、読む側は鍵で引くので害は見当たらない（版 3.67.0 から認めた違いと同じ）。窓の status が 5 秒ごとの問い合わせで写しを取り直すようになり、Python と窓の 2 つが同じ写しのファイルを置き換え合う回数が増える（Windows で開いている間の置き換えの失敗は確かめていない）。1 版が大きい（3,925 行）。",
+   "result": {
+    "proposal": "D 独立の答えと誤りの直しを先に（3.100.0 は Python を直し独立の答えと事例の表を作る、3.101.0 で移す）",
+    "score": {
+     "order": 9,
+     "chunk": 7,
+     "hierarchy": 8,
+     "visual": 9,
+     "steps": 8,
+     "effortless": 7,
+     "intuitive": 8,
+     "form": 9,
+     "place": 8,
+     "layout": 6,
+     "tone": 7
+    },
+    "minus": [
+     {
+      "kind": "hidden_state",
+      "where": "desktop/src/master_place.rs の locked: 写した一時フォルダを新しい置き場の名前に替えた（rename）後で remember（この PC の master_share.json）を書けないと、400『この PC に新しい置き場を覚えられませんでした』を返す。新しい置き場には写したマスタが残り（_MOVED の印は書かない）、利用者がもう一度同じ所を選ぶと、plan は『既にマスタがある置き場です。写さずに切り替えます』と答え、その間に前の置き場へ保存された行の無い古い写しへ切り替わる。答えの字は、残った写しのことも、やり直すと古い写しになることも言わない"
+     }
+    ],
+    "seen": "良い所: 8 本を窓が答え、写す係（引っ越し）は SERVES の place の 1 つ（sidecar.rs）で、Python の move は名乗られると 409 busy（routes/settings.py）。窓の引っ越し（master_place.rs move_to・locked）は、利用状況の記録を錠の外で先に写し、マスタだけを錠の中で写し、錠の長さの半分を過ぎるか、読んだマスタ（stat の印と名前の並び）が変われば切り替えずに止める（3.100.0 の割れ 2 の直し）。共有に届けば共有のファイルをバイトのまま写す。status は種まきの要る形を None（Python に任せる）で返し、2 秒で終わらなければ写しで答えて reachable null。同じ置き場へ尋ねる糸は 1 本。画面は null を『確かめ中・保存はできます』と読み、保存を止めない（3.100.0 の割れ 1 は直った）。案 F の寄せ（release_place と 1 つの部品・確かめるの入口 1 つ・unquote 1 つ）が入った。自分で流した: cargo test place_parity 2（空の共有の種まきは Python が 1 回を含む）・fs_parity 2・place_cases 7（引っ越しは独立の答え place-truth.py と比べる・遅い引っ越しの間の保存が消えない）・builder_parity 1・access_write_parity 1、どれも ok。黙って空や別の答えにする所は、status（read_doc の失敗・種まきの要る形は None）・引っ越し（読めない形は Python／理由つきの 400）で見当たらなかった。悪い所: 下の減点（覚えを書けない 400 の後に、残った写しへ『写さずに切り替える』）。窓の写しの取り直し（Store::pull）は serde の to_vec_pretty で書く（鍵は名前の順・字下げ 2）ので、共有に届かないときの引っ越し（写しから写す）は、引っ越し先の行の鍵の並びが Python の書いた順と違う。画面が鍵の並びで列を作る所・ファイルの中身から指紋を作る所は見つからず、読む側は鍵で引くので害は見当たらない（版 3.67.0 から認めた違いと同じ）。窓の status が 5 秒ごとの問い合わせで写しを取り直すようになり、Python と窓の 2 つが同じ写しのファイルを置き換え合う回数が増える（Windows で開いている間の置き換えの失敗は確かめていない）。1 版が大きい（3,925 行）。"
+   },
+   "found": [
+    "割れ 1（減点・データが古くなる・コードの読み）覚えを書けない 400 の後のやり直しが、残った古い写しへ切り替わる。再現の手順: この PC の作業場所（master_share.json の置き場）を書けなくして（読み取り専用・空きが尽きた）引っ越す → 400 → 前の置き場のまま保存を 1 行 → 同じ所をもう一度選ぶ → plan が switch → 切り替えると、その 1 行が無い。直し方: remember を先に書けるか確かめる（一時ファイルを書いてから rename の前に置く）か、remember に失敗したら新しい置き場の名前を一時フォルダへ戻して消す（写した置き場を残さない）。答えの字にも、写した置き場をどうしたかを書く。足す形: place_parity と place_cases に『覚えを書けない』場面（local_root を読み取り専用）と、その後のやり直しで切り替えた先が錠を取った時の共有と同じか（place-truth.py の --copied と比べる）を足す",
+    "観察（害は見当たらない）: 共有に届かないときの引っ越しは窓の写しから写し、窓の写しの取り直し（Store::pull）は serde の to_vec_pretty（鍵は名前の順・字下げ 2）で書くので、引っ越し先の行の鍵の並びが Python の書いた順と違う。画面・指紋・版の比べは鍵の並びに頼っていない（master*.js・master_store.py を見た）。そろえるなら、写しの取り直しを Python と同じくファイルのバイトのまま写すか、pyjson の J で読み書きする",
+    "観察（Windows・確かめていない）: 窓の status が 5 秒ごとの問い合わせで写しを取り直すようになり、Python（読むたび 5 秒に 1 回）と窓の 2 つが同じ写しのファイルを置き換え合う。Windows で相手が開いている間の置き換えの失敗（Python の写しの書き込みにやり直しがあるか）を Windows の CI で見る",
+    "分からない: Windows の CI での fs_parity・place_parity（POSIX だけの歩を除いた形）・本物の SMB での 2 秒の区切り・共有の根への切り替え・Windows の ACL"
+   ]
+  },
+  "built_fixed": {
+   "by": "作る者（採点し直さない。決まり 2026-11-06）",
+   "fixes": [
+    {
+     "split": "割れ 1（減点 −3・データが古くなる）: 写した後に覚え（master_share.json）を書けない 400 の後、同じ所をもう一度選ぶと残った写しへ『写さずに切り替える』",
+     "fix": "窓 master_place.rs: 覚えを書けるかを写す前に確かめる（remember_problem: 同じ名前のフォルダ・試しのファイル）→ 書けなければ写す前に断る（400『写す前に止めました。前の置き場のまま変えていません。』）。名前を替えた後に書けなければ、写した置き場（自分が作った物だけ）を錠の中で消して元に戻す（400『写した置き場を消して元に戻しました（前の置き場のまま）。』。前の置き場の印は書かない）。Python も同じ形だった（retarget が置き場を替えてから覚えを書き、書けないと 500・Python だけ新しい置き場を使い続けた）ので、master_place._remember_problem・_move_locked の戻し・master_store.retarget を『覚えを先に書く』に直した",
+     "tests": "place_parity の場面『この PC の覚えを書けない』（写す前に断る → 前の置き場で保存 → やり直すと写して切り替える。切り替えた先を place-truth.py --copied と前の置き場の字と比べる）・place_cases::a_failed_remember_rolls_back_and_the_retry_copies_the_share（TEST_REMEMBER_FAIL で名前を替えた後に書けない形）・tests/test_place_cases.py MoveRemember 2 件",
+     "failed_before": "直す前（commit e08b03d の master_place.rs・master_place.py・master_store.py）: place_parity が Python 500（IsADirectoryError）/ 窓 400、やり直しの check が ok: false / true、『roll_master.json が前の置き場の中身と違う』、前の置き場に _MOVED.json で落ちた（scratchpad/port-place/before-remember-rs.log）。MoveRemember は ERROR 2 件（IsADirectoryError・OSError 28。scratchpad/port-place/before-remember-py.log）"
+    },
+    {
+     "split": "観察 2（Windows）: 窓の status が写しを取り直すので、窓と Python が同じ写しを置き換え合う回数が増える",
+     "fix": "取り直しの係を 1 つに寄せるのはこの版ではしない（Python はどの読む道でも写しを読み 5 秒に 1 回取り直すので、止めると窓が答えない道で古い写しを読み続ける。種まきと一緒に ⑤ 裏の係で行う。計画書に理由）。写しの置き換えの断り（PermissionDenied）は窓・Python とも 0.5 秒までやり直す（master_store::write_mirror・MIRROR_RETRY_SEC）。それでも書けなければ理由を status の error に出し、読んだ元を『共有』と言わない",
+     "tests": "master_place::tests::a_mirror_that_cannot_be_written_is_said（Linux）・place_cases::a_mirror_held_open_on_windows_is_retried_then_said（Windows の CI だけ。置き換えを許さない開き方で 0.2 秒は取り直せる・2 秒は理由を出す。型は作業用クレートで Windows 向けの clippy を通した）",
+     "failed_before": "Windows の CI の試験は Windows でだけ流れる（この容器では流せない。CI で初めて分かる）"
+    },
+    {
+     "split": "観察 1（鍵の順・害なし）",
+     "fix": "計画書に『版 3.67.0 から認めている違いと同じ』と書いた"
+    }
+   ]
+  }
  }
 }

@@ -375,3 +375,93 @@ fn hidden_and_system_entries_are_not_listed() {
     }
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// この PC の覚えを、確かめた後（名前を替えた後）に書けない（空きが尽きた形）: 写した置き場を消して元に戻し、前の置き場の印は書かない。
+/// 前の置き場で保存してから同じ所をもう一度選ぶと、写して切り替える（古い写しへ切り替えない）。写した物は独立の答え（place-truth.py）と比べる
+#[test]
+fn a_failed_remember_rolls_back_and_the_retry_copies_the_share() {
+    let d = move_base("remember");
+    let cwd = program();
+    let nas = d.join("nas").to_string_lossy().into_owned();
+    let seed = store(&d, "pcS", None, 20.0);
+    assert!(master_place::move_to(&seed, &nas, "Masters", &cwd, &master_place::read_file).is_ok());
+    let share = d.join("nas").join("Masters");
+    let a = store(&d, "pcA", Some(&share), 20.0);
+    *master_place::TEST_REMEMBER_FAIL.lock().unwrap() = Some(d.join("pcA"));
+    let r = master_place::move_to(&a, &nas, "New", &cwd, &master_place::read_file);
+    *master_place::TEST_REMEMBER_FAIL.lock().unwrap() = None;
+    match r {
+        Err(master_place::MoveError::Invalid(m)) => assert!(m.contains("写した置き場を消して元に戻しました"), "{m}"),
+        _ => panic!("断るはず"),
+    }
+    assert!(!d.join("nas").join("New").exists(), "写した置き場を消した");
+    assert!(!share.join("_MOVED.json").exists(), "前の置き場の印は書かない");
+    assert!(!d.join("pcA").join("master_share.json").exists(), "この PC の置き場は替わらない");
+    // 覚えのファイルの所がフォルダ: 写す前に断る
+    std::fs::create_dir_all(d.join("pcA").join("master_share.json")).unwrap();
+    match master_place::move_to(&a, &nas, "New", &cwd, &master_place::read_file) {
+        Err(master_place::MoveError::Invalid(m)) => assert!(m.contains("写す前に止めました"), "{m}"),
+        _ => panic!("断るはず"),
+    }
+    assert!(!d.join("nas").join("New").exists());
+    std::fs::remove_dir_all(d.join("pcA").join("master_share.json")).unwrap();
+    // 前の置き場で保存 → やり直す
+    let b = store(&d, "pcB", Some(&share), 20.0);
+    let rid = b
+        .write("roll_master", |rows, _| {
+            let id = da_core::master_store::next_id(rows);
+            rows.push(json!({"id": id, "設備": "TLV", "ロール名": "やり直しの前の保存", "rev": 1}));
+            Ok(id)
+        })
+        .unwrap();
+    let held = tree_bytes(&share);
+    let pl = master_place::plan(&a, &nas, "New", &cwd).unwrap();
+    assert_eq!(pl["mode"], "copy", "古い写しへ「写さずに切り替える」にならない: {pl}");
+    assert!(master_place::move_to(&a, &nas, "New", &cwd, &master_place::read_file).is_ok());
+    let dest = d.join("nas").join("New");
+    let got = tree_bytes(&dest);
+    assert_eq!(json!(got.keys().cloned().collect::<Vec<_>>()), truth(&["--copied", &share.to_string_lossy()]));
+    for (rel, sha) in &got {
+        assert_eq!(Some(sha), held.get(rel), "{rel} は錠を取った時の前の置き場の中身と同じ字");
+    }
+    let ids = truth(&["--rows", truth(&["--followed", &share.to_string_lossy()]).as_str().unwrap(), "roll_master"]);
+    assert!(ids.as_array().unwrap().contains(&json!(rid)));
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Windows の CI: 窓と Python は同じ写し（master_cache）を置き換え合う。相手が置き換えを許さずに開いている間の断りは 0.5 秒までやり直し
+/// （master_store::write_mirror）、それを超えたら取り直せなかった理由を覚える（黙って古い写しのまま答えない。版 3.101.0 の作った後の採点の観察 2）
+#[cfg(windows)]
+#[test]
+fn a_mirror_held_open_on_windows_is_retried_then_said() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let d = move_base("winmirror");
+    let share = d.join("nas").join("Masters");
+    std::fs::create_dir_all(&share).unwrap();
+    let doc = |rev: i64| json!({"schema": 1, "revision": rev, "rows": []}).to_string();
+    std::fs::write(share.join("roll_master.json"), doc(1)).unwrap();
+    let a = store(&d, "pcA", Some(&share), 20.0);
+    a.refresh("roll_master");
+    let mirror = a.mirror("roll_master");
+    assert!(mirror.exists());
+    for (hold_ms, ok) in [(200u64, true), (2000, false)] {
+        let rev = if ok { 2 } else { 3 };
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(share.join("roll_master.json"), doc(rev)).unwrap();
+        // FILE_SHARE_READ だけ（置き換え・消すを許さない開き方。ほかのアプリが写しを開いている形）
+        let f = std::fs::OpenOptions::new().read(true).share_mode(1).open(&mirror).unwrap();
+        let t = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(hold_ms));
+            drop(f);
+        });
+        a.refresh("roll_master");
+        t.join().unwrap();
+        let (_, err) = a.sync_state();
+        assert_eq!(err.is_empty(), ok, "開いている {hold_ms} ms: {err}");
+        if ok {
+            let v: Value = serde_json::from_slice(&std::fs::read(&mirror).unwrap()).unwrap();
+            assert_eq!(v["revision"], rev);
+        }
+    }
+    let _ = std::fs::remove_dir_all(&d);
+}

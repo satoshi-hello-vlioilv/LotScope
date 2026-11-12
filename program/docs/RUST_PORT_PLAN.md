@@ -1579,6 +1579,26 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
 - Windows だけのコード（folder_browse の隠し・システムの属性〈DirEntry の metadata の file_attributes〉と place_cases の hidden の試験〈attrib〉）は作業用クレートで
   `cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` を通した。Windows の CI では cargo test の `place_cases::hidden_and_system_entries_are_not_listed`・
   `normcase_is_pythons` と、`place_parity`・`fs_parity`（記号リンク・共有の道・ドライブの根・空白だけの道の歩は POSIX だけ）が流れる。
+- 作った後の採点（別のエージェント・1 回・75.1 点。`tools/ui-proposals/2026-11-port-place.json` の v3101.built）の割れを直した（採点し直さない。決まり 2026-11-06）:
+  - 割れ 1（データが古くなる）: 引っ越しで、写した一時フォルダを新しい置き場の名前に替えた後に、この PC の覚え（master_share.json）を書けないと 400 になり、
+    新しい置き場に写したマスタが残った。そのまま前の置き場で保存してから同じ所をもう一度選ぶと、plan が「既にマスタがある置き場です。写さずに切り替えます」と言い、
+    切り替えるとその間の保存が無かった。Python の move も同じ形で、しかも retarget がこのプロセスの置き場を先に替えてから覚えを書いていた（書けないと 500 で、
+    Python だけ新しい置き場を使い続けた）。直し: 覚えを書けるかを写す前に確かめ（`master_place.remember_problem`・`_remember_problem`。試しのファイルを作って消す・
+    同じ名前のフォルダ）、書けなければ写す前に断る。それでも名前を替えた後に書けなければ、写した置き場（自分が作った物だけ）を錠の中で消して元に戻し、
+    「写した置き場を消して元に戻しました（前の置き場のまま）」と答える（前の置き場の印はまだ書いていない）。Python の retarget は覚えを先に書き、書けたときだけ
+    このプロセスの置き場を替える。試験: `place_parity` の場面「この PC の覚えを書けない」（覚えの所にフォルダ。やり直しで切り替えた先の写した物を独立の答え
+    `place-truth.py --copied` と前の置き場の字と比べる。直す前は Python 500 / 窓 400・やり直しの先の roll_master が前の置き場と違う で落ちた）・
+    `place_cases::a_failed_remember_rolls_back_and_the_retry_copies_the_share`（名前を替えた後に書けない形は `TEST_REMEMBER_FAIL` で起こす）・
+    `tests/test_place_cases.py` の `MoveRemember`（直す前は IsADirectoryError・OSError の ERROR 2 件）
+  - 観察 2（Windows）: 窓の status が画面の問い合わせごとに写しを取り直すので、窓と Python が同じ写し（master_cache）を置き換え合う回数が増える。
+    取り直しの係を 1 つに寄せるのは、この版ではしない（理由: Python は status だけでなく、どの読む道でも写しを読み、5 秒に 1 回取り直す〈_doc_path〉。
+    Python の取り直しを止めると、窓が答えない道〈GET /api/lotlist/settings・任せる形〉で Python が古い写しを読み続ける。係を寄せるのは種まきと一緒に「⑤ 裏の係」で
+    行う）。代わりに、写しの置き換えの断り（Windows で相手が置き換えを許さずに開いている: PermissionDenied）は窓・Python とも 0.5 秒までやり直し
+    （`master_store::write_mirror`・`MIRROR_RETRY_SEC`）、それでも書けなければ取り直せなかった理由を覚えて status の error に出し、読んだ元を「共有」と言わない
+    （黙って古い写しのまま答えない: `master_place::tests::a_mirror_that_cannot_be_written_is_said`）。Windows の本物の開き方での形は Windows の CI で見る
+    （`place_cases::a_mirror_held_open_on_windows_is_retried_then_said`: 置き換えを許さない開き方で 0.2 秒は取り直せる・2 秒は理由を出す）
+  - 観察 1（鍵の順）: 窓の写し（serde の to_vec_pretty。鍵は名前の順）から写した引っ越し先は、行の鍵の並びが Python の書いた順と違う。版 3.67.0 から認めている違いと同じ
+    （読む側は鍵で引く。大きさは同じ）
 - **分からない**（確かめていない）: 本物の SMB の共有で 2 秒の区切りが効くか（試験は遅さを差し替えた形）・本物の共有の根（\\サーバー\共有）への切り替え・
   Windows の本物の ACL で書けないフォルダ（試しのフォルダを作れない形）・Windows の CI での fs_parity の C:\ と共有の歩（POSIX だけにした）・
   窓の写し（serde の鍵の順）から写した引っ越し先の字の並び（大きさは同じ。中身の比べは JSON の値で）。

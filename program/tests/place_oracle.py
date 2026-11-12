@@ -135,6 +135,14 @@ def setup_lock(r: Path):
         "expires_at": (now + timedelta(hours=1)).isoformat(timespec="seconds")}), encoding="utf-8")
 
 
+def setup_cannot_remember(r: Path):
+    """この PC の覚え（作業場所の master_share.json）の所にフォルダ（書けない形。root でも効く）"""
+    fill_share(r / "share")
+    (r / "nas").mkdir()
+    (r / "local" / "master_share.json").mkdir(parents=True)
+    (r / "local" / "master_share.json" / "x").write_text("x", encoding="utf-8")
+
+
 def setup_empty(r: Path):
     (r / "share").mkdir()
     (r / "share" / "access_permissions.json").write_text(j(doc(PERM)), encoding="utf-8")
@@ -211,6 +219,18 @@ def scenarios():
             DO("remove", path="@ROOT/share/master.lock.json"),
             S(BOSS, "GET", ST),
         ]},
+        {"name": "この PC の覚えを書けない: 写す前に断る → 前の置き場で保存 → やり直すと写して切り替える（古い写しへ切り替えない）",
+         "setup": setup_cannot_remember, "shared": True, "steps": [
+            S(BOSS, "POST", MV, A("@ROOT/nas", "New")),
+            S(BOSS, "POST", CK, A("@ROOT/nas", "New")),
+            DO("rmtree", path="@ROOT/local/master_share.json"),
+            DO("write", path="@ROOT/share/roll_master.json",
+               text=json.dumps(doc(rows_of("roll_master") + [{"id": 2, "設備": "CR1", "ロール名": "やり直しの前の保存", "rev": 1}], rev=2),
+                               ensure_ascii=False, indent=2)),
+            S(BOSS, "POST", CK, A("@ROOT/nas", "New")),
+            S(BOSS, "POST", MV, A("@ROOT/nas", "New")),
+            S(BOSS, "GET", ST),
+        ]},
         {"name": "空の共有（種まきは Python）", "setup": setup_empty, "shared": True, "steps": [], "delegates": [
             S(BOSS, "GET", ST),
             S(BOSS, "GET", PL),
@@ -265,6 +285,10 @@ def do(st, root):
         os.rename(sub(st["a"], root), sub(st["b"], root))
     elif st["do"] == "remove":
         os.remove(sub(st["path"], root))
+    elif st["do"] == "rmtree":
+        shutil.rmtree(sub(st["path"], root))
+    elif st["do"] == "write":
+        Path(sub(st["path"], root)).write_text(st["text"], encoding="utf-8")
 
 
 def one_status(folder):

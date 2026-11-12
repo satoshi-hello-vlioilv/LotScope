@@ -306,6 +306,24 @@ pub fn write_json_atomic(path: &Path, data: &Value) -> std::io::Result<()> {
     write_bytes_atomic(path, &body)
 }
 
+/// この PC の写し（master_cache）を書く。窓と Python は同じ写しのファイルを置き換え合うので、Windows で相手が開いている間の置き換えの
+/// 断り（ERROR_ACCESS_DENIED・ERROR_SHARING_VIOLATION＝PermissionDenied）は 0.5 秒までやり直す（版 3.101.0。Python の _pull も同じ長さ）。
+/// それでも書けなければ Err（呼ぶ側は取り直せなかった理由を覚え、status の error に出す: 黙って古い写しのまま答えない）
+pub fn write_mirror(path: &Path, data: &Value) -> std::io::Result<()> {
+    let end = Instant::now() + MIRROR_RETRY;
+    loop {
+        match write_json_atomic(path, data) {
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied && Instant::now() < end => {
+                std::thread::sleep(Duration::from_millis(50))
+            }
+            r => return r,
+        }
+    }
+}
+
+/// 写しの置き換えをやり直す長さ
+pub const MIRROR_RETRY: Duration = Duration::from_millis(500);
+
 /// 字を書き切ってから置き換える（write_json_atomic の中身。Python の json.dumps の字〈鍵の順・字下げ〉を書くとき: 版 3.101.0）
 pub fn write_bytes_atomic(path: &Path, body: &[u8]) -> std::io::Result<()> {
     let dir = path.parent().unwrap_or(Path::new("."));
@@ -856,7 +874,7 @@ impl Store {
             }
         }
         let doc = Doc::read(&src)?;
-        write_json_atomic(&mirror, &doc.to_value()).map_err(io_err)?;
+        write_mirror(&mirror, &doc.to_value()).map_err(io_err)?;
         self.share_sig.lock().unwrap_or_else(|e| e.into_inner()).insert(name.to_string(), sig.unwrap_or_default());
         *self.last_error.lock().unwrap_or_else(|e| e.into_inner()) = String::new();
         *self.last_sync.lock().unwrap_or_else(|e| e.into_inner()) = iso(now_local());

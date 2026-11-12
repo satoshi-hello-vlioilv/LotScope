@@ -574,11 +574,41 @@ fn remember(store: &Store, old: Option<&str>, new: &str) -> io::Result<()> {
     write_bytes_atomic(&path, body.as_bytes())
 }
 
+/// この PC の覚え（作業場所の master_share.json）を書けるか（Python の master_place._remember_problem）→ 書けなければ理由の字
+pub fn remember_problem(root: &Path) -> String {
+    let path = root.join(OVERRIDE_FILENAME);
+    if path.is_dir() {
+        return "同じ名前のフォルダがあります".into();
+    }
+    let _ = std::fs::create_dir_all(root);
+    let probe = root.join(format!(".{OVERRIDE_FILENAME}.probe-{}", &crate::master_store::hex_id()[..8]));
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
+        Ok(f) => {
+            drop(f);
+            let _ = std::fs::remove_file(&probe);
+            String::new()
+        }
+        Err(e) => strerror(&e),
+    }
+}
+
+/// 試験だけ: その作業場所の覚えを、確かめた後（名前を替えた後）に書けない形にする（空きが尽きた形。製品では None）
+#[doc(hidden)]
+pub static TEST_REMEMBER_FAIL: Mutex<Option<PathBuf>> = Mutex::new(None);
+
 /// 置き場を変える（plan が通るときだけ）→ plan の答え＋{from}（と warning）。read は共有のファイルの読み方（試験は遅い共有を差し替える）
 pub fn move_to(store: &Store, parent: &str, name: &str, cwd: &Path, read: Reader) -> Result<Value, MoveError> {
     let mut pl = plan(store, parent, name, cwd).ok_or(MoveError::Py)?;
     if pl["ok"] != json!(true) {
         return Err(MoveError::Invalid(pl["problem"].as_str().unwrap_or("").into()));
+    }
+    // この PC の覚え（master_share.json）を書けるかを、写す前・名前を替える前に確かめる（版 3.101.0 の作った後の採点の割れ 1: 写した後で
+    // 書けないと、新しい置き場に写したマスタが残り、同じ所をもう一度選ぶと「既にマスタがある置き場」として古い写しへ切り替わった）
+    let why = remember_problem(store.local_root());
+    if !why.is_empty() {
+        return Err(MoveError::Invalid(format!(
+            "この PC の作業場所に新しい置き場を覚えられません（{why}）。写す前に止めました。前の置き場のまま変えていません。"
+        )));
     }
     let dest = pl["dest"].as_str().unwrap_or("").to_string();
     let destp = at(cwd, &dest);
@@ -686,9 +716,18 @@ fn locked(
         Err(_) => pl["warning"] = json!(format!("切り替えた置き場（{dest}）に残っていた前の引っ越し先の印を消せませんでした。")),
     }
     let old_s = old.as_ref().map(|p| p.to_string_lossy().into_owned());
-    if let Err(e) = remember(store, old_s.as_deref(), dest) {
-        // Python の retarget は書けないと例外（500）。窓は理由を返して前の置き場のまま（写した置き場は残る）
-        return Err(MoveError::Invalid(format!("この PC に新しい置き場を覚えられませんでした: {}", os_error(&e, None, None))));
+    let failed = TEST_REMEMBER_FAIL.lock().unwrap_or_else(|e| e.into_inner()).as_deref() == Some(store.local_root());
+    let remembered = if failed { Err(io::Error::from_raw_os_error(28)) } else { remember(store, old_s.as_deref(), dest) };
+    if let Err(e) = remembered {
+        // 確かめた後でも書けなかった（空きが尽きた・切断）: 写した置き場は自分が作った物だけ消して元に戻す（錠の中。前の置き場の印はまだ書いていない）
+        let why = strerror(&e);
+        if tmp.is_some() {
+            let _ = std::fs::remove_dir_all(destp);
+            return Err(MoveError::Invalid(format!(
+                "この PC に新しい置き場を覚えられませんでした（{why}）。写した置き場を消して元に戻しました（前の置き場のまま）。"
+            )));
+        }
+        return Err(MoveError::Invalid(format!("この PC に新しい置き場を覚えられませんでした（{why}）。前の置き場のまま変えていません。")));
     }
     if let Some(o) = old_s.as_deref() {
         let op = at(cwd, o);
@@ -1009,10 +1048,40 @@ mod tests {
         let t1 = Instant::now();
         let v2 = status(&store, &local).unwrap();
         assert!(t1.elapsed().as_secs_f64() < 0.5 && v2["reachable"].is_null(), "前の糸が終わるまでは待たずに写しで答える");
-        std::thread::sleep(Duration::from_millis(1800));
         *TEST_SLOW.lock().unwrap() = None;
-        let v3 = status(&store, &local).unwrap();
+        // 前の糸（3.5 秒）が終われば、次の問い合わせで新しい糸が届くと答える（忙しい PC で前の糸が延びても待てるよう 15 秒まで）
+        let end = Instant::now() + Duration::from_secs(15);
+        let v3 = loop {
+            let v = status(&store, &local).unwrap();
+            if v["reachable"] == json!(true) || Instant::now() > end {
+                break v;
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        };
         assert_eq!((v3["reachable"].clone(), v3["masters"]["tab_access"]["revision"].clone()), (json!(true), json!(2)), "{v3}");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_mirror_that_cannot_be_written_is_said() {
+        // 写しを書けない（Windows で相手が開いている間の置き換えの断りが 0.5 秒を超えた・作業場所に書けない）とき、黙って古い写しのまま
+        // 答えない: 取り直せなかった理由を status の error に出し、読んだ元は「共有」と言わない（版 3.101.0 の作った後の採点の観察 2）
+        let d = std::env::temp_dir().join(format!("da-mplace-mirror-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let share = d.join("share");
+        std::fs::create_dir_all(&share).unwrap();
+        std::fs::create_dir_all(d.join("local")).unwrap();
+        std::fs::write(d.join("local").join("master_cache"), "写しのフォルダの所にファイル").unwrap();
+        for n in STATUS_NAMES {
+            std::fs::write(share.join(format!("{n}.json")), r#"{"schema": 1, "revision": 2, "rows": []}"#).unwrap();
+        }
+        let conf = json!({"who": {"pc": "P", "login": "u"}, "place": {"shareDir": share, "data": d.join("data"), "defaults": d.join("defaults"),
+                          "cache": d.join("local").join("master_cache"), "shared": STATUS_NAMES, "lockTtl": 20.0}});
+        let store = Arc::new(Store::from_access(&conf, "rs").unwrap());
+        let v = status(&store, &Local { configured: String::new(), root: d.join("local") }).unwrap();
+        assert_eq!(v["reachable"], true);
+        assert!(v["error"].as_str().unwrap().starts_with("共有マスタを取り込めませんでした（写しで続けます）"), "{v}");
+        assert_eq!(v["masters"]["tab_access"]["source"], "bundled-fallback", "{v}");
         let _ = std::fs::remove_dir_all(&d);
     }
 

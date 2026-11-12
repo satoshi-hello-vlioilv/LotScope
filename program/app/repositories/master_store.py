@@ -187,9 +187,12 @@ def _instance_id(root):
     return mine
 
 
-def _write_json_atomic(path, data):
-    """マスタ・錠はディスクへ書き切ってから置き換える（停電・切断でも書きかけを残さない）。"""
-    write_json_atomic(path, data, durable=True)
+MIRROR_RETRY_SEC = 0.5    # 写しの置き換えをやり直す長さ（窓と Python が同じ写しを置き換え合う。Windows で相手が開いている間の断り。版 3.101.0）
+
+
+def _write_json_atomic(path, data, retry=0.0):
+    """マスタ・錠はディスクへ書き切ってから置き換える（停電・切断でも書きかけを残さない）。retry 秒まで置き換えの断りをやり直す"""
+    write_json_atomic(path, data, durable=True, retry_budget=retry)
 
 
 def _doc(rows, revision=0, updated_at="", updated_by=None):
@@ -366,18 +369,19 @@ class MasterStore:
     def retarget(self, new_dir, persist=True, chosen=False):
         """置き場を new_dir に切り替える（写しは次に読むときに新しい置き場から取り直す）。persist ならこの PC に覚える。
         chosen: この PC で人が選んだ（画面で置き場を変えた）。その時刻より古い配る版の覚えには従わない（follow_moved）"""
-        with self._write_lock, self._state_lock:
-            before = self.share_dir
-            self.share_dir = Path(new_dir)
-            self._checked.clear()
-            self._share_sig.clear()
-            self._mem.clear()
-            self._last_error = ""
-        if persist:
-            hist = [{"dir": str(before or ""), "until": _iso(_now()), "by": dict(self.who)}] + self.history()
-            chosen_at = _iso(_now()) if chosen else self._chosen_at()
-            _write_json_atomic(self.override_path, {"dir": str(new_dir), "at": _iso(_now()), "by": dict(self.who),
-                                                    "history": hist[:HISTORY_KEEP], **({"chosenAt": chosen_at} if chosen_at else {})})
+        with self._write_lock:
+            if persist:     # 覚えを先に書く（書けなければ OSError で、この PC の置き場は替えない。版 3.101.0: 前は替えてから書き、書けないと
+                # このプロセスだけ新しい置き場を使い、ほかの PC と窓は前の置き場のままになった）
+                hist = [{"dir": str(self.share_dir or ""), "until": _iso(_now()), "by": dict(self.who)}] + self.history()
+                chosen_at = _iso(_now()) if chosen else self._chosen_at()
+                _write_json_atomic(self.override_path, {"dir": str(new_dir), "at": _iso(_now()), "by": dict(self.who),
+                                                        "history": hist[:HISTORY_KEEP], **({"chosenAt": chosen_at} if chosen_at else {})})
+            with self._state_lock:
+                self.share_dir = Path(new_dir)
+                self._checked.clear()
+                self._share_sig.clear()
+                self._mem.clear()
+                self._last_error = ""
         log.info("MASTER_RETARGET dir=%s", new_dir)
         if self.on_moved:
             self.on_moved(Path(new_dir))
@@ -521,7 +525,7 @@ class MasterStore:
         if not force and self._share_sig.get(name) == sig and self._mirror(name).exists():
             return False
         doc = _as_doc(_read_json(src))
-        _write_json_atomic(self._mirror(name), doc)
+        _write_json_atomic(self._mirror(name), doc, retry=MIRROR_RETRY_SEC)   # 書けなければ投げる（_maybe_refresh が理由を覚えて status の error に出す）
         self._share_sig[name] = sig
         self._last_error = ""
         self._last_sync = _iso(_now())
