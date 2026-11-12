@@ -1537,6 +1537,20 @@ pub struct Inputs {
 }
 
 impl Inputs {
+    /// 束の節が使うマスタのうち、共有に届くのにまだ無い物（SECTIONS の順・同じ名前は 1 つ）。窓が種をまく（Lot::settings・
+    /// seed_absent。版 3.105.0。前は束を Python に尋ね、Python が読むときに最初の版を置いた）
+    pub fn absent(&self) -> Vec<&'static str> {
+        let mut out: Vec<&'static str> = vec![];
+        for (_, files) in SECTIONS {
+            for f in files.iter() {
+                if self.p.share_absent(f) && !out.contains(f) {
+                    out.push(f);
+                }
+            }
+        }
+        out
+    }
+
     /// 窓が Python と同じに読めないマスタ（読めない字・共有にまだ無い）は組まない
     pub fn check(&self, name: &str) -> R<()> {
         if self.p.split_file(name) {
@@ -2145,7 +2159,8 @@ pub fn bad_rows_text(name: &str, bad: &[usize]) -> String {
 }
 
 /// 節が使うマスタが組めるか → 組めなければ {why, file, seed?, window?}・表でない行だけなら {why, file, warn: true}（Python の section_broken と同じ順で見る）。
-/// seed: 共有にまだ無いマスタ（Python が読むと最初の版を置く。窓はまだ置かないので、束を Python に尋ねる。版 3.103.0 で窓へ移す）・
+/// seed: 共有にまだ無いマスタ（Python が読むと最初の版を置く。版 3.105.0 から窓も置く: Lot::settings が Inputs::absent に種をまいて組み直し、
+/// 置けなかったときだけ束を Python に尋ねる）・
 /// window: 窓が Python と同じに読めない字（Python は組めることがある）
 fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
     let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);

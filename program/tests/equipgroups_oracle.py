@@ -281,17 +281,18 @@ SCENARIOS = [
     {"name": "置き場の設備名が並び", "mode": "shared", "equip_extra": [{"id": 9, "設備名": ["X"]}], "steps": [],
      "delegates": [S("GET", E), S("POST", E, G("x"))]},
 ]
-# 作った後の採点の提案: 選べる設備を数えるマスタ（作業実績・設備マスタ・データ元）のどれかが共有にまだ無いと、窓は束を組めず数えられないので、
-# 書く前に Python に任せる（Python は読むときにそのマスタの最初の版を置く）。断る歩（確かめの誤り・無い行。数えずに答える）は窓も同じ答え。
-# 写しがある形と、写しも data/ も無い形（Python は最初の中身から置く）
+# 作った後の採点の提案: 選べる設備を数えるマスタ（作業実績・設備マスタ・データ元）のどれかが共有にまだ無い形。前は窓が束を組めず数えられないので
+# 書く前に Python に任せた（Python は読むときにそのマスタの最初の版を置く）。版 3.105.0 から窓も束を組むときに同じ最初の版を置き（種まき）、
+# 数えて答える（置いたファイルの中身も Python と突き合わせる）。断る歩（確かめの誤り・無い行。数えずに答える）は窓も同じ答え。
+# 写しがある形と、写しも data/ も無い形（Python も窓も最初の中身〈program/app/master_defaults。無ければ空の版 1〉から置く）
 for _absent, _copy in (("work_log_files", True), ("work_log_files", False), ("equipment_master", True), ("equipment_master", False),
                        ("data_sources", True), ("data_sources", False)):
     SCENARIOS.append({"name": f"共有に {_absent} が無い（{'写しから' if _copy else '写しも data/ も無い'}）", "mode": "shared",
                       "absent": _absent, "absent_copy": _copy, "steps": [
                           S("POST", E, {"name": ""}), S("POST", E, "[1]"), S("PUT", f"{E}/1", {"name": ""}),
                           S("PUT", f"{E}/1", {"equipment": [], "rules": []}), S("DELETE", f"{E}/999"), S("PUT", f"{E}/999", {"name": "x"})],
-                      "delegates": [S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"name": "x"}), S("PUT", f"{E}/2", {"equipment": "A"}),
-                                    S("DELETE", f"{E}/4"), S("DELETE", f"{E}/999", query="rev=1")]})
+                      "delegates": [W(S("GET", E)), W(S("POST", E, G("x"))), W(S("PUT", f"{E}/1", {"name": "x"})),
+                                    W(S("PUT", f"{E}/2", {"equipment": "A"})), W(S("DELETE", f"{E}/4")), W(S("DELETE", f"{E}/999", query="rev=1"))]})
 # CI の自己診断で見つけた形（版 3.94.0）: 配る設定に CM3 の場所と設備があると、組み込みのスケジュールの元が設備の列を持つ。Python の選べる設備は
 # CM3 に届くかで変わる（届けばスケジュールの最初の設備の予定も数える）。版 3.96.0 から窓がスケジュールの係（CM3 へ取りに行く）なので、
 # 一覧と書ける歩も窓が答え、Python と同じ答え（前は任せていた）。届かない CM3 と、届く作り物の CM3（tests/schedule_fixture.py。
@@ -416,6 +417,9 @@ def main():
                     "absent": sc.get("absent"),
                     "cm3": sc.get("cm3"),
                     "delegatedFiles": sorted(f"{d}/{f.name}" for d in ("share", "base/data") for f in (pd / d).glob("*.json")),
+                    # 共有にまだ無かった数える材料を Python が置いた中身（版 3.105.0: 窓が置いた物と突き合わせる）
+                    "absentPlaced": (json.loads((py / "share" / f"{sc['absent']}.json").read_text(encoding="utf-8"))
+                                     if sc.get("absent") and (py / "share" / f"{sc['absent']}.json").exists() else None),
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
     sys.stdout.write(json.dumps({"scenarios": out}, ensure_ascii=False) + "\n")
     sys.stdout.flush()

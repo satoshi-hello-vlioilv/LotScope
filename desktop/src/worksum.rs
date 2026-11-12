@@ -164,18 +164,34 @@ pub fn truthy(v: &Value) -> bool {
     }
 }
 
-/// Python の str(値)（JSON の値）
+/// Python の str(値)（JSON の値）。整数は桁のまま（版 3.105.0 から i64 に入らない u64 の整数も。前は as_i64 だけを見て
+/// 12345678901234567890 を小数の字 1.2345678901234567e+19 にした）、小数は float.__repr__（pyfmt::float_repr）。
+/// serde は u64 を超える整数の字を小数に読むので、その字は呼ぶ側が先に master_rows::unreadable（split_number）で Python に任せる。
+/// 事例は program/tests/fixtures/pyfloat_cases.json の fields（cargo test --test pyfloat_cases）
 pub fn py_str(v: &Value) -> String {
     match v {
         Value::Null => "None".into(),
         Value::Bool(b) => if *b { "True" } else { "False" }.into(),
         Value::String(s) => s.clone(),
-        Value::Number(n) => match n.as_i64() {
-            Some(i) => i.to_string(),
-            None => pyfmt::float_repr(n.as_f64().unwrap_or(0.0)),
-        },
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i.to_string()
+            } else if let Some(u) = n.as_u64() {
+                u.to_string()
+            } else {
+                pyfmt::float_repr(n.as_f64().unwrap_or(0.0))
+            }
+        }
         x => x.to_string(),
     }
+}
+
+/// 本文の項目の値を窓が Python の str() と同じ字にできるか（版 3.105.0。前は preset_rows と formats_write に同じ写しがあり、
+/// 字・i64 の整数・真偽・null だけを答え、小数と u64 の整数も Python に任せていた）: 並び・表は Python では repr の字（['x']）なので任せる。
+/// 小数は float_repr（pyfloat_cases.json の 5,754 件と fields）、整数は桁のまま（py_str）。u64 を超える整数の字・-0・NaN は
+/// 呼ぶ側が先に本文の門（body::gate）と master_rows::unreadable で断るか任せる（ここへは来ない）
+pub fn str_plain(v: &Value) -> bool {
+    !matches!(v, Value::Array(_) | Value::Object(_))
 }
 
 /// 適用設備（カンマ区切りの字・並び）→ 設備名の並び（前後の空白を除き、同じ名前は 1 つ）

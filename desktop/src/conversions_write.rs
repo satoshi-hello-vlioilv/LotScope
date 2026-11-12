@@ -536,7 +536,7 @@ fn bundled(place: &Place) -> Option<Vec<Value>> {
 /// 置くのは、Python のその道がそのマスタを読む所だけ（作った後の採点: 前はどの道でも 2 つとも置き、書き出し・断る道で Python と割れた）
 pub(crate) fn seed(store: &Store, place: &Place, name: &str) {
     if place.share_absent(name) {
-        let _ = store.pull(name, false, false);
+        store.seed_absent(&[name]);
     }
 }
 

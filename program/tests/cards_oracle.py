@@ -136,7 +136,7 @@ SCENARIOS = [
         S(BOSS, "GET"), S(PART, "GET"),
     ], "delegates": [
         S(PART, "POST", body="[1]"), S(PART, "POST", body=""), S(PART, "POST", body="{"),
-        S(PART, "POST", body=P(1.5, B(F("a")))), S(PART, "POST", body=P(["x"], B(F("a")))),
+        W(S(PART, "POST", body=P(1.5, B(F("a"))))), S(PART, "POST", body=P(["x"], B(F("a")))),
         S(PART, "POST", body=P("a", B(F("a"), label=1)) | {"note": ["x"]}),
         S(PART, "POST", body=P("a", B(F("a", label=["x"])))), S(PART, "POST", body=P("a", B(F("a", col={"a": 1})))),
         S(PART, "POST", body=P("a", B({"kind": "combo", "expr": [1]}))), S(PART, "POST", body=P("a", B({"kind": "text", "text": {"a": 1}}))),
@@ -164,7 +164,7 @@ SCENARIOS = [
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": ROWS, "steps": [
         S(PART, "POST", body=P("写し", B(F("a")))), S(PART, "GET"),
     ], "delegates": []},
-    {"name": "写しだけで最初に読む（Python は読むだけで共有に最初の版を作る）", "mode": "mirror", "rows": ROWS, "steps": [], "delegates": [S(PART, "GET")]},
+    {"name": "写しだけで最初に読む（版 3.105.0 から窓も Python も読むだけで共有に最初の版を作る）", "mode": "mirror", "rows": ROWS, "steps": [], "delegates": [W(S(PART, "GET"))]},
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "lock": True,
      "steps": [S(PART, "POST", body=P("錠", B(F("a")))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), S(PART, "GET")], "delegates": []},
     *[{"name": f"置き場のカードの行の中身が {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", SRC, "共通", body=GOOD), bad],

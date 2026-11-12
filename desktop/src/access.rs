@@ -470,7 +470,7 @@ impl Place {
     }
 
     /// 共有に置くマスタで、共有のフォルダはあるのにそのファイルがまだ無いか（版 3.79.0）。Python は読むだけで写しから共有に最初の版を
-    /// 作る（MasterStore._maybe_refresh）が、窓の読みは作らないので、読む道は Python に任せる（書く道は窓の書く係も最初の版を作る）
+    /// 作る（MasterStore._maybe_refresh）。版 3.105.0 から窓の読む道も Store::seed_absent で同じく置いてから読む（置けなければ Python に任せる）
     pub fn share_absent(&self, name: &str) -> bool {
         self.share_dir
             .as_ref()

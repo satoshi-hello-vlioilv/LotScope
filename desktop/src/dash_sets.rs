@@ -10,8 +10,8 @@
 //! 行の決まり（範囲・★標準・書ける人・名前の重なり）は src/preset_rows.rs、中身の決まりは services/dashboard.clean_set_body と同じ
 //! （評価関数: tests/sets_parity.rs ← program/tests/sets_oracle.py）。置き場はマスタ dashboards の行のうち元 dashset だけ。
 //!
-//! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable）・空の本文・表でない真の本文・本文の name・note が小数・並び・表・
-//! 大きな整数、scope が並び・表（preset_rows::plain_input）・中身を字で送り、その字を窓が読めない（NaN・-0 など）・置き場の行の形が違う
+//! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
+//! 本文の name・note が並び・表（小数と u64 の整数は版 3.105.0 から窓が答える）、scope が並び・表（preset_rows::plain_input）・中身を字で送り、その字を窓が読めない（NaN・-0 など）・置き場の行の形が違う
 //! （preset_rows::rows_plain）・道の id が ASCII の数字でない。
 
 use crate::master_rows::{self, base_rev};
@@ -118,7 +118,8 @@ fn sets<'a>(rows: &'a [Value], login: &str) -> Vec<&'a Map<String, Value>> {
 /// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場のファイルを窓が Python と同じに
 /// 読めない（Place::split_file: 深い入れ子・NaN・-0・大きな整数・対の無い代用字など）・置き場を読めないときは None（Python に任せる）
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
-    if place.split_file(DASHBOARDS.name) || (route == Route::List && place.share_absent(DASHBOARDS.name)) {
+    // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）
+    if place.split_file(DASHBOARDS.name) || (route == Route::List && !store.seed_absent(&[DASHBOARDS.name])) {
         return None;
     }
     let rows = place.rows(DASHBOARDS.name).ok()?;
@@ -142,7 +143,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
                    "canEditCommon": who.common_ok, "canEditDefault": who.default_ok, "max": MAX_ITEMS}),
         ));
     }
-    if master_rows::unreadable(body) {
+    if master_rows::unreadable_u64_ok(body) {
         return None;
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());

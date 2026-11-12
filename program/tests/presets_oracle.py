@@ -122,7 +122,7 @@ SCENARIOS = [
         S(BOSS, "GET"), S(PART, "GET"),
     ], "delegates": [
         S(PART, "POST", body="[1]"), S(PART, "POST", body=""), S(PART, "POST", body="{"),
-        S(PART, "POST", body=P(1.5, B(D("a")))), S(PART, "POST", body=P(["x"], B(D("a")))),
+        W(S(PART, "POST", body=P(1.5, B(D("a"))))), S(PART, "POST", body=P(["x"], B(D("a")))),
         S(PART, "POST", body=P("a", B(D("a", part=["x"])))), S(PART, "POST", body=P("a", B(D("a"), measures=[{"agg": "sum", "column": {"a": 1}}]))),
         S(PART, "POST", body=P("a", B(D("a"), measures=[{"agg": "sum", "expr": [1]}]))), S(PART, "POST", body=P("a", B(D("a"), chartAt="1" * 19))),
         S(PART, "POST", body='{"name": "a", "scope": "me", "source": "lot", "body": {"rows": [{"column": "a"}]}, "x": NaN}'),
@@ -172,9 +172,10 @@ SCENARIOS = [
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": ROWS, "quick": QUICK_ROWS, "steps": [
         S(PART, "POST", body=P("写し", B(D("a")))), Q(PART, {"source": "lot", "keys": ["1"]}),
     ], "delegates": []},
-    {"name": "写しだけで最初に読む（Python は読むだけで共有に最初の版を作る）", "mode": "mirror", "rows": ROWS, "quick": QUICK_ROWS, "steps": [],
-     "delegates": [S(PART, "GET")]},
-    {"name": "すぐに見るのファイルがまだ無い（読むだけで作る形は Python）", "mode": "shared", "rows": ROWS, "steps": [], "delegates": [S(PART, "GET")]},
+    {"name": "写しだけで最初に読む（版 3.105.0 から窓も Python も読むだけで共有に最初の版を作る）", "mode": "mirror", "rows": ROWS, "quick": QUICK_ROWS, "steps": [],
+     "delegates": [W(S(PART, "GET"))]},
+    {"name": "すぐに見るのファイルがまだ無い（版 3.105.0 から窓も Python も読むだけで最初の版を作る）", "mode": "shared", "rows": ROWS, "steps": [],
+     "delegates": [W(S(PART, "GET"))]},
     {"name": "すぐに見るのファイルがまだ無い所へ置く（最初の版を作る）", "mode": "shared", "rows": ROWS,
      "steps": [Q(PART, {"source": "lot", "keys": ["1"]}), S(PART, "GET")], "delegates": []},
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "quick": QUICK_ROWS, "lock": True,

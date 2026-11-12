@@ -8,7 +8,8 @@
 尋ねる前の形に戻す（Python が写しを作る・この PC の覚えを書き直す前の形）。窓の試験は同じフォルダから自分で束を組み、答えを突き合わせる。
 
 "expect": "same" は窓が同じ束を組む場面（conversions.rev は窓と Python で別の字なので比べない。組めない節〈broken〉も同じ理由で同じ）・
-"delegate" は窓が束を組まずに Python に尋ねる場面（配った設定が窓の読めない字・共有にまだ無いマスタ〈種まき。版 3.103.0 で窓へ〉）・
+"delegate" は窓が束を組まずに Python に尋ねる場面（配った設定が窓の読めない字など）・"seed" は共有にまだ無いマスタがある場面（版 3.105.0 から
+窓も Python と同じく最初の版を置いてから組む。前は "delegate"。Python が束を答えた直後の共有のマスタ〈shareAfter〉も渡し、窓が置いた物と比べる）・
 "broken:節,…" は窓がその節だけを組まずに理由を言い、ほかの節は Python と同じに組む場面（版 3.102.0。前は束全部を Python に尋ねた。
 窓の読めない字・窓が Python と同じに組めない形）。broken の場面の Python の答えは JSON で渡せるとき（NaN が無いとき）だけ渡す。
 "pyFollows" の場面は Python に引っ越しの印をたどらせて（bundle を名乗らない）答えを取り、窓が同じ置き場へたどるか・この PC の覚えに
@@ -90,11 +91,11 @@ def masters(share=None, data=None):
     for n in NAMES:
         if share is not None:
             write(share / f"{n}.json", doc(rows[n]))
+        if data is not None:      # 版 3.105.0: 前は下の共有の段の中にあり、共有と一緒のときに最後の 1 つだけを書いていた（手元だけの場面の data/ は空だった）
+            write(data / f"{n}.json", rows[n])
     if share is not None:      # 画面の初期設定（版 3.85.0。共有に置く名前。無ければ Python が写しから最初の版を作るので窓は描かない）
         write(share / "ui_defaults.json", doc([{"名前": "tpa.lotlist.cols", "値": "[1]", "updated_at": "2026-11-01T00:00:00",
                                                  "updated_by": {"login": "x"}}, {"名前": "外", "値": "y"}]))
-        if data is not None:
-            write(data / f"{n}.json", rows[n])
 
 
 def config(root, **kw):
@@ -322,7 +323,13 @@ def scenarios(work):
         write(r / "share" / "work_log_files.json", wl)
         return config(r)
     sc("作業実績の登録に表でない行（実績と設備の名前の節）", bad_work_row)
-    sc("共有にまだ無いマスタ", lambda r: ((r / "share").mkdir(), config(r))[1], expect="delegate")
+    sc("共有にまだ無いマスタ", lambda r: ((r / "share").mkdir(), config(r))[1], expect="seed")
+    # 版 3.105.0: 写しがあるマスタと、同梱の data/ にあるマスタも共有にまだ無い（窓も Python も写し → data/ → 最初の中身の順に置く）
+    sc("共有にまだ無いマスタ（写しと data/ から）", lambda r: (masters(share=r / "share"), masters(data=r / "base" / "data"),
+                                                [(r / "local" / "master_cache").mkdir(parents=True, exist_ok=True),
+                                                 shutil.copy(r / "share" / "work_log_files.json", r / "local" / "master_cache"),
+                                                 (r / "share" / "work_log_files.json").unlink(), (r / "share" / "shift_patterns.json").unlink(),
+                                                 (r / "share" / "conversions.json").unlink()], config(r))[3], expect="seed")
     sc("lot_list が表でない", lambda r: (masters(share=r / "share"), config(r, lot_list="x"))[1], expect="delegate")
 
     # 画面と最初の画面の読む道（版 3.85.0。page_parity.rs）
@@ -488,6 +495,7 @@ def ask(s, follows):
         c = app.test_client()
         r = c.get("/api/lotlist/settings")
         answer = r.get_json() if r.status_code == 200 else None
+        s["shareAfter"] = share_files(root)
         reads = page_reads(c, answer, s["tree"], tc["SRC_MIRRORS"])
     except Exception as e:      # Python が束を作れずに落ちる形（窓は Python に尋ねる）
         answer, reads = {"error": repr(e)}, {}
@@ -500,6 +508,12 @@ def ask(s, follows):
         else:
             os.environ[k] = v
     return answer, after, reads
+
+
+def share_files(root):
+    """共有のマスタのファイル → 中身（種まきの場面で、Python が束を答えた直後に置いていた物。版 3.105.0）"""
+    share = root / "share"
+    return {f.name: json.loads(f.read_text(encoding="utf-8-sig")) for f in sorted(share.glob("*.json"))} if share.is_dir() else {}
 
 
 READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings", "/api/update/settings")
@@ -565,7 +579,8 @@ def main():
         root = s["root"]
         # 窓が Python に尋ねる場面の答えは比べない（NaN を含むと JSON で渡せない）。broken の場面は渡せるときだけ
         out.append({"name": s["name"], "expect": s["expect"], "pyFollows": s["pyFollows"],
-                    "answer": answer if s["expect"] == "same" or (s["expect"].startswith("broken:") and finite(answer)) else None, "override": after, "reads": reads,
+                    "answer": answer if s["expect"] in ("same", "seed") or (s["expect"].startswith("broken:") and finite(answer)) else None, "override": after, "reads": reads,
+                    "shareAfter": s.get("shareAfter") if s["expect"] == "seed" else None,
                     "expectOverride": str(root / s["expectOverride"]) if s["expectOverride"] else None,
                     "env": {"base": str(root / "base"), "program": s["program"] or str(PROGRAM), "local": str(root / "local"),
                             "config": str(root / "config.json"),

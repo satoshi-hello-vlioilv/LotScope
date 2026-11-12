@@ -592,6 +592,8 @@ pub struct Store {
     /// 名前 → 最後に共有から取り直せなかった理由（取り直せた名前だけ消す。版 3.102.0: Python の _errors と同じ。前は 1 つの字で、
     /// ほかのマスタを取り直せると消え、読めないマスタを言わなくなった）
     errors: Mutex<std::collections::BTreeMap<String, String>>,
+    /// この Store が種をまいたマスタの名前（版 3.105.0。seeded）
+    seeded: Mutex<Vec<String>>,
 }
 
 impl Store {
@@ -611,6 +613,7 @@ impl Store {
             share_sig: Mutex::new(HashMap::new()),
             last_sync: Mutex::new(String::new()),
             errors: Mutex::new(Default::default()),
+            seeded: Mutex::new(vec![]),
         }
     }
 
@@ -964,7 +967,9 @@ impl Store {
             doc.revision = doc.revision.max(1);
             doc.updated_at = json!(iso(now_local()));
             doc.updated_by = self.who();
-            write_json_atomic(&src, &doc.to_value()).map_err(io_err)
+            write_json_atomic(&src, &doc.to_value()).map_err(io_err)?;
+            self.seeded.lock().unwrap_or_else(|e| e.into_inner()).push(name.to_string());
+            Ok(())
         };
         if have {
             go("")
@@ -1063,9 +1068,31 @@ impl Store {
         &self.cfg.local_root
     }
 
-    /// 共有に届くのに、まだ無いマスタがあるか（取り直すと最初の版を置く＝種まき。窓は Python に任せる。版 3.101.0 の主のセッションの決め）
-    pub fn needs_seed(&self, names: &[&str]) -> bool {
-        self.share_reachable() && names.iter().any(|n| self.is_shared(n) && self.share_file(n).is_some_and(|p| stat_sig(&p).is_none()))
+    /// 共有に届くのに、まだ無いマスタか（取り直すと最初の版を置く＝種まき）
+    pub fn share_absent(&self, name: &str) -> bool {
+        self.share_reachable() && self.is_shared(name) && self.share_file(name).is_some_and(|p| stat_sig(&p).is_none())
+    }
+
+    /// 種まき（版 3.105.0。前は Python だけの係で、要る間は窓が Python に任せた）: 共有に届くのにまだ無いマスタを、Python の読み
+    /// （MasterStore._maybe_refresh → _pull → _seed）と同じく取り直して最初の版を置く（手元の写し → 同梱の data/ → 最初の中身）。
+    /// 置くのは錠の中で共有を見直してから（seed）なので、窓と窓・窓と Python が同時にまいても 1 回だけ置かれる。置けない（錠・書けない）
+    /// ときは投げずに理由を覚える（refresh。Python の _errors と同じ）。→ 渡した名前がどれも共有にあるか（置けずに無いままなら false）
+    pub fn seed_absent(&self, names: &[&str]) -> bool {
+        let mut all = true;
+        for n in names {
+            if self.share_absent(n) {
+                self.refresh(n);
+                if self.share_absent(n) {
+                    all = false;
+                }
+            }
+        }
+        all
+    }
+
+    /// この Store が種をまいた（共有に最初の版を置いた）マスタの名前（置いた順。試験が 1 回だけ置かれたかを数える）
+    pub fn seeded(&self) -> Vec<String> {
+        self.seeded.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// いま読むマスタ（Python の _read_doc。peek は共有を見ない _peek_doc）→ (中身, 読んだ元〈shared・bundled-fallback・local〉)。

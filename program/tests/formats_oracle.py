@@ -113,19 +113,23 @@ SCENARIOS = [
         S(BOSS, "GET"), S(PART, "GET", query="source=lot"),
     ], "delegates": [
         S(PART, "POST", body="[1]"), S(PART, "POST", body=""), S(PART, "POST", body="{"),
-        S(PART, "POST", body={"name": 1.5, "source": "lot", "body": {"sorts": []}}),
+        W(S(PART, "POST", body={"name": 1.5, "source": "lot", "body": {"sorts": []}})),
         S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}, "table": ["x"]}),
-        S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}, "origin": 1.5}),
+        W(S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}, "origin": 1.5})),
         S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}, "note": {"a": 1}}),
-        S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}, "note": 12345678901234567890}),
+        W(S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}, "note": 12345678901234567890})),
         S(PART, "POST", body='{"name": "a", "source": "lot", "body": {"sorts": []}, "x": NaN}'),
         W(S(PART, "POST", body='{"name": "a", "source": "lot", "body": {"sorts": [-0]}}')),
-        S(PART, "POST", body='{"name": "a", "source": "lot", "body": {"sorts": [12345678901234567890]}}'),
+        W(S(PART, "POST", body='{"name": "a", "source": "lot", "body": {"sorts": [12345678901234567890]}}')),
         S(PART, "POST", body={"name": "a", "source": "lot", "body": '{"sorts": [NaN]}'}),
         S(PART, "POST", body={"name": "a", "source": "lot", "body": '{"sorts": [-0]}'}),
         S(PART, "POST", body={"name": "a", "source": "lot", "body": '{"sorts": ["\\ud800"]}'}),
         S(PART, "PUT", 2, "[1]"), S(PART, "PUT", 2, ""), S(PART, "DELETE", 2, '"x"'),
         W(S(PART, "PUT", "４", {"name": "全角の id"})), W(S(PART, "DELETE", "١")),
+        # 版 3.105.0（G）: u64 の整数を置く形も突き合わせる（中身は送った順の木で桁のまま・欄は str()。置いた後の行は窓が読めないので最後に）
+        W(S(PART, "PUT", 2, '{"note": "版が u64", "base_rev": 12345678901234567890}')),
+        W(S(PART, "POST", body='{"name": "u64 の中身", "source": "lot", "body": {"sorts": [12345678901234567890, 18446744073709551615]}, '
+                               '"note": 18446744073709551615, "origin": 9223372036854775808, "table": 1e16}')),
     ]},
     {"name": "切断中", "mode": "shared", "rows": ROWS, "revoked": True, "steps": [
         S(BOSS, "GET"), S(BOSS, "POST", body={"name": "切断中", "source": "lot", "body": {"sorts": []}}),
@@ -137,8 +141,8 @@ SCENARIOS = [
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": ROWS, "steps": [
         S(PART, "POST", body={"name": "写し", "source": "lot", "body": {"sorts": []}}), S(PART, "GET"),
     ], "delegates": []},
-    {"name": "共有のフォルダにまだ無い・写しだけで最初に読む（Python は読むだけで共有に最初の版を作る）", "mode": "mirror",
-     "rows": ROWS, "steps": [], "delegates": [S(PART, "GET")]},
+    {"name": "共有のフォルダにまだ無い・写しだけで最初に読む（版 3.105.0 から窓も Python も読むだけで共有に最初の版を作る）", "mode": "mirror",
+     "rows": ROWS, "steps": [], "delegates": [W(S(PART, "GET"))]},
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "lock": True,
      "steps": [S(PART, "POST", body={"name": "錠", "source": "lot", "body": {"sorts": []}}), S(PART, "PUT", 1, {"name": "x"}),
                S(PART, "DELETE", 1), S(PART, "GET")], "delegates": []},

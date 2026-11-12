@@ -179,9 +179,9 @@ fn with_legacy_conditions(body: &mut Value, conds: &Option<Value>) {
 /// 置き場から行を読んで答える（Lot::dashboards_route と試験 tests/dashboards_parity.rs の入口）。窓が答えない形は None
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
     let name = DASHBOARDS.name;
-    if place.split_file(name)
-        || (route == Route::List && (place.share_absent(name) || place.share_absent(SETTINGS) || place.split_file(SETTINGS)))
-    {
+    // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（ダッシュボードと前の版の条件。版 3.105.0。
+    // 置けなければ前どおり任せる）
+    if place.split_file(name) || (route == Route::List && (place.split_file(SETTINGS) || !store.seed_absent(&[name, SETTINGS]))) {
         return None;
     }
     let rows = place.rows(name).ok()?;

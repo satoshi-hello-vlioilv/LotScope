@@ -1110,10 +1110,22 @@ impl Lot {
         }
         // 窓が組めれば窓の束（Python が起きていなくても答えられる）。組めない形（bundle.rs の Py）だけ Python に尋ねる
         let b = self.bundle.lock().unwrap().clone();
-        let own = b.as_ref().and_then(|b| b.build().ok());
-        // 共有にまだ無いマスタ（種まき）の節があれば、束を Python に尋ねる（Python は読むと最初の版を置く。版 3.103.0 で窓へ移す）。
-        // Python が答えなければ自分の束のまま（その節を使う道は理由つきで断る）
-        let seed = own.as_ref().is_some_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
+        let mut own = b.as_ref().and_then(|b| b.build().ok());
+        let seeds =
+            |v: &Option<Value>| v.as_ref().is_some_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
+        // 共有にまだ無いマスタ（種まき）の節があれば、Python の束の読みと同じく窓が最初の版を置いて組み直す（版 3.105.0。前は束を
+        // Python に尋ね、Python が読むときに置いた）。置くのは錠の中で共有を見直してから（Store::seed）なので、Python と同時でも 1 回だけ
+        if seeds(&own) {
+            if let Some(inp) = b.as_ref().and_then(|b| b.inputs().ok()) {
+                if let Some(store) = self.store_for(&json!({"who": inp.who, "place": inp.place})) {
+                    store.seed_absent(&inp.absent());
+                    own = b.as_ref().and_then(|b| b.build().ok());
+                }
+            }
+        }
+        // 置けなかった（錠・書けない）ときだけ、束を Python に尋ねる（Python は写しで答える）。Python が答えなければ自分の束のまま
+        // （その節を使う道は理由つきで断る）
+        let seed = seeds(&own);
         let (mine, mut v) = match own {
             Some(v) if seed => match ask() {
                 Ok(p) => {
@@ -2011,12 +2023,16 @@ mod tests {
         assert_eq!(st, 409, "開いてから変わった行は直さない");
         assert_eq!(lot.handle_body("PUT", "/api/dashboard-sets/1", "", br#"{"name": "x"}"#, &ask).unwrap().0, 400, "セットでない行");
         assert_eq!(lot.handle_body("DELETE", "/api/dashboard-sets/2", "rev=1", b"", &ask).unwrap(), (200, json!({"ok": true})));
-        // Python に任せる: 判定の材料が無い・書けない本文・ASCII でない id
+        // Python に任せる: 判定の材料が無い・書けない本文（名前が並び）。版 3.105.0 から名前の小数は窓が str() の字で答える
         let none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
         assert!(Lot::new(dir.join("c2")).handle_body("GET", "/api/dashboard-sets", "", b"", &none).is_none());
         assert!(lot
-            .handle_body("POST", "/api/dashboard-sets", "", br#"{"name": 1.5, "scope": "me", "body": {"items": ["1"]}}"#, &ask)
+            .handle_body("POST", "/api/dashboard-sets", "", br#"{"name": ["x"], "scope": "me", "body": {"items": ["1"]}}"#, &ask)
             .is_none());
+        let (st, v) = lot
+            .handle_body("POST", "/api/dashboard-sets", "", br#"{"name": 1.5, "scope": "me", "body": {"items": ["1"]}}"#, &ask)
+            .expect("名前の小数は窓が答える");
+        assert_eq!((st, v["name"].clone()), (201, json!("1.5")), "{v}");
         assert!(body_refused(lot.handle_body("POST", "/api/dashboard-sets", "", br#"{"name": "a", "x": NaN}"#, &ask)));
         assert!(lot.handle_body("PUT", "/api/dashboard-sets/２", "", b"{}", &ask).is_some(), "全角の id も Python の <int:…> と同じに読む");
         assert!(lot.handle_body("PATCH", "/api/dashboard-sets/2", "", b"{}", &ask).is_none());
@@ -3025,12 +3041,10 @@ mod tests {
                                     "presence": "", "lockTtl": 20.0}});
         let ask = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}, "access": conf.clone()}));
         let lot = Lot::new(dir.join("cache"));
-        assert!(
-            lot.handle_body("GET", "/api/dashboards", "", b"", &ask).is_none(),
-            "前の版の条件のマスタがまだ無い（読むだけで作るのは Python）"
-        );
-        std::fs::write(share.join("dashboard_settings.json"), doc(json!([]))).unwrap();
+        // 前の版の条件のマスタがまだ無い: 版 3.105.0 から窓も Python と同じく読むときに最初の版を置いて答える（前は Python に任せた）
         let (st, v) = lot.handle_body("GET", "/api/dashboards", "", b"", &ask).expect("窓が受ける");
+        let seeded: Value = serde_json::from_slice(&std::fs::read(share.join("dashboard_settings.json")).expect("最初の版を置く")).unwrap();
+        assert_eq!((seeded["revision"].clone(), seeded["rows"].clone()), (json!(1), json!([])), "{seeded}");
         assert_eq!((st, v["items"][0]["id"].clone(), v["standardId"].clone()), (200, json!("b:standard"), json!("b:standard")), "{v}");
         let body = r#"{"name": "標準", "scope": "me", "body": {"rows": 8, "panels": []}}"#;
         let (st, v) = lot.handle_body("POST", "/api/dashboards", "", body.as_bytes(), &ask).unwrap();

@@ -104,7 +104,7 @@ SCENARIOS = [
         S(BOSS, "GET"), S(PART, "GET"), S(VIEW, "GET"),
     ], "delegates": [
         S(PART, "POST", body="[1]"), S(PART, "POST", body=""), S(PART, "POST", body="{"),
-        S(PART, "POST", body=P(1.5, L(Pn()))), S(PART, "POST", body=P(["x"], L(Pn()))),
+        W(S(PART, "POST", body=P(1.5, L(Pn())))), S(PART, "POST", body=P(["x"], L(Pn()))),
         S(PART, "POST", body='{"name": "a", "scope": "me", "body": {"rows": 8, "panels": []}, "x": NaN}'),
         W(S(PART, "POST", body='{"name": "a", "scope": "me", "body": {"rows": -0, "panels": []}}')),
         W(S(PART, "POST", body=P("a", L(Pn(w="５"))))), S(PART, "POST", body=P("a", '{"rows": NaN}')),
@@ -141,8 +141,8 @@ SCENARIOS = [
     *[{"name": f"前の版の条件のマスタが {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": ROWS, "settings": rows,
        "steps": [S(PART, "POST", body=P("書くのは窓", L(Pn())))], "delegates": [S(PART, "GET")]}
       for what, rows in [("並びの条件", [{"id": 1, "キー": "wip", "条件": "[1]"}]), ("表でない行", ["x"]), ("2 つの条件の後ろに表でない行", [{"id": 1, "キー": "wip", "条件": "{}"}, {"id": 2, "キー": "work", "条件": "{}"}, "x"]), ("null の条件", [{"id": 1, "キー": "wip", "条件": "null"}])]],
-    {"name": "前の版の条件のマスタがまだ無い（読むだけで作る形は Python）", "mode": "shared", "rows": ROWS, "steps": [S(PART, "DELETE", 3)],
-     "delegates": [S(PART, "GET")]},
+    {"name": "前の版の条件のマスタがまだ無い（版 3.105.0 から窓も Python も読むだけで最初の版を作る）", "mode": "shared", "rows": ROWS,
+     "steps": [S(PART, "DELETE", 3)], "delegates": [W(S(PART, "GET"))]},
     {"name": "外した組み込みの行の中身が並び（Python は落ちる。窓は答えない）", "mode": "shared", "settings": [],
      "rows": [R(1, "外した組み込み", "dashoff", "ID", login="p1", body="[1]")], "steps": [S(BOSS, "GET")], "delegates": [S(PART, "GET")]},
     {"name": "★標準の付け替え（同じ組だけ）", "mode": "shared", "settings": [],
@@ -160,8 +160,8 @@ SCENARIOS = [
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": ROWS, "settings": [], "steps": [
         S(PART, "POST", body=P("写し", L(Pn()))), H(PART, {"scope": "me", "keys": ["standard"]}),
     ], "delegates": []},
-    {"name": "写しだけで最初に読む（Python は読むだけで共有に最初の版を作る）", "mode": "mirror", "rows": ROWS, "settings": [], "steps": [],
-     "delegates": [S(PART, "GET")]},
+    {"name": "写しだけで最初に読む（版 3.105.0 から窓も Python も読むだけで共有に最初の版を作る）", "mode": "mirror", "rows": ROWS, "settings": [], "steps": [],
+     "delegates": [W(S(PART, "GET"))]},
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "settings": [], "lock": True,
      "steps": [S(PART, "POST", body=P("錠", L(Pn()))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), H(PART, {"scope": "me", "keys": ["standard"]}),
                S(PART, "GET")], "delegates": []},

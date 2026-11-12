@@ -6,8 +6,8 @@
 //! 同じ行の形（マスタ dashboards・pivot_presets の FIELDS）なので、移すときはこの部品に中身の確かめだけを足す。
 //!
 //! 窓が Python と同じに書けない値は呼ぶ側が先に Python に任せる（plain_input・rows_plain）: 本文の項目が並び・表（Python は str() の
-//! ['x'] の形か TypeError）・小数（いちばん短い字が 2 つ並ぶ丁度まん中の値で窓の float_repr が Python の repr と逆に丸める）・
-//! i64 に入らない整数（Python は桁のまま）。
+//! ['x'] の形か TypeError）・u64 に入らない整数（serde は小数に読む。master_rows::unreadable が先に任せる）。
+//! 小数（float_repr。版 3.80.0 から丁度まん中の値も Python の repr と同じ）と u64 の整数は、版 3.105.0 から窓が答える（worksum::str_plain）。
 
 use crate::master_rows::{self, Rev, Spec};
 use crate::master_store::{next_id, MasterError, Store};
@@ -142,19 +142,11 @@ pub fn rows_plain(rows: &[Value]) -> bool {
     })
 }
 
-/// 本文の項目の値を窓が Python の str() と同じ字にできるか（字・i64 の整数・真偽・null。小数・並び・表・大きな整数は Python に任せる）
-fn str_plain(v: &Value) -> bool {
-    match v {
-        Value::Number(n) => n.as_i64().is_some(),
-        Value::Array(_) | Value::Object(_) => false,
-        _ => true,
-    }
-}
-
 /// 本文の行の項目（clean_row が読む物）を窓が Python と同じに扱えるか。name・note は str() の字、scope は辞書の鍵として比べる
 /// （並び・表は Python では TypeError）、standard は真偽だけ（どの形でもよい）
 pub fn plain_input(d: &Map<String, Value>) -> bool {
-    ["name", "note"].iter().all(|k| d.get(*k).is_none_or(str_plain)) && d.get("scope").is_none_or(|v| !v.is_array() && !v.is_object())
+    ["name", "note"].iter().all(|k| d.get(*k).is_none_or(crate::worksum::str_plain))
+        && d.get("scope").is_none_or(|v| !v.is_array() && !v.is_object())
 }
 
 /// Python の str(v or "")（真でない値は空の字）

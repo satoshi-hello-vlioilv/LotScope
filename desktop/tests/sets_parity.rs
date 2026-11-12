@@ -152,7 +152,8 @@ fn dashboard_sets_match_python() {
             }
         }
     }
-    assert!(steps >= 107 && delegated >= 64, "歩が少ない: {steps}・{delegated}"); // 版 3.104.0: 本文の門と int() の部品で、任せていた歩を窓が答える
+    // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
+    assert!(steps >= 114, "歩が少ない: {steps}・{delegated}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

@@ -318,7 +318,8 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         Route::Quick => &[QUICK_NAME],
         _ => &[NAME],
     };
-    if names.iter().any(|n| place.split_file(n) || (route == Route::List && place.share_absent(n))) {
+    // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（組み方とすぐに見る。版 3.105.0。置けなければ前どおり任せる）
+    if names.iter().any(|n| place.split_file(n)) || (route == Route::List && !store.seed_absent(names)) {
         return None;
     }
     let rows = place.rows(NAME).ok()?;
