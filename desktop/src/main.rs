@@ -36,7 +36,10 @@ use updater::Updater;
 /// 自前の仕組みの名前。program/sidecar.py の BASE_URL（http://tpa.localhost/）と同じ（食い違うと URL の組み立てがずれる）。
 const SCHEME: &str = "tpa";
 const SELFTEST_JS: &str = include_str!("selftest.js");
-const SELFTEST_LIMIT: Duration = Duration::from_secs(180);
+/// 自己診断が終わらないときの窓の見張り。窓の通し（desktop/bundle/verify.py の WAIT 480 秒）より短く、ふつうの自己診断（CI で約 130 秒・
+/// 入れ替えて開き直す段は前の窓の分も含めて約 210 秒）より長く（版 3.99.0: 180 秒だと CI の遅い機械で入れ替えの段が先に切れ、
+/// 版の番号の無い「180 秒で終わりませんでした」だけが書かれて、窓の通しの 3・5 段目が落ちた）
+const SELFTEST_LIMIT: Duration = Duration::from_secs(400);
 /// 終了（/api/shutdown）を受けてから窓を閉じるまで。答えが画面へ届いてから閉じる。
 const QUIT_DELAY: Duration = Duration::from_millis(150);
 /// 窓を閉じるとき、使い終わり（利用状況の印を消す）を待つ長さ

@@ -105,6 +105,8 @@ class Run:
         for x in res:
             if not x["ok"]:
                 print(f"  [{label}] FAIL {x['name']} -- {x['info']}")
+        if r.get("error"):    # 窓が自己診断の前に書いた誤り（見張りの時間切れ・起動の失敗）。前は出さず、版の無い FAIL だけが見えた
+            print(f"  [{label}] ERROR {r['error']}")
         if "results" in r:
             r["ok"] = bool(res) and all(x["ok"] for x in res)
         return r
