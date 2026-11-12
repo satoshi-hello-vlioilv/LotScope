@@ -795,5 +795,131 @@
    "5（版の読めない行）: 直して断る（E3）。B2 で写すと『消したつもりで残る』（誤り 3）を窓の決まりに焼き込み、段 ④ の後に答えの元の無い所で窓だけを直すことになる。前の採点の答えと同じ",
    "6（A2・S で 201 が 400 に替わる 6 歩）: 断ってよい。dashboards の rows: NaN と結合の NaN は画面から来ない（中身は表で、結合は master-join.js が並びで送る。JSON.stringify は NaN を null にする）。深い式 4 歩は式ビルダーが作らない段で、上限を同梱の変換表の最大の段より十分大きくすれば保存済みの表は通る。ただし S の stale_hours は断らずに既定で続ける"
   ]
+ },
+ "built_ui": {
+  "name": "作った後の画面の 1 か所（版 3.106.0・commit 5ff8c9e。マスタ管理 → データ元 → 実績 → 設備の段の『直すこと』の 1 行目の『配った設定』の札。UI の物差し・合格点 80〈rule 2026-10-17 と同じ〉）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/ui-stale（before-*.png は作る前〈主の作業場所 570c56d・画面は dd48159 と同じ〉、after-*.png は作った後。どちらも配った設定の work_log.stale_hours を 'abc' にした開発用サーバー〈ui-tools/stale_server.py〉を Playwright〈ui-tools/shot.mjs・conn.mjs〉で 1728×1152・1536×864・1280×720 で撮った）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-12）。前後とも自分で撮り、画像を開いて見た",
+  "baseline": {
+   "score": {
+    "order": 4,
+    "chunk": 4,
+    "hierarchy": 3,
+    "visual": 2,
+    "steps": 2,
+    "effortless": 1,
+    "intuitive": 3,
+    "form": 5,
+    "place": 4,
+    "layout": 6,
+    "tone": 5
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "before-1728x1152.png・before-1536x864.png・before-1280x720.png の実績の『設備』の段: 設備の表・直すこと・フォルダを探し直すが全部出ず、英語の『could not convert string to float: \\'abc\\''だけ（作業実績の登録の画面に届かない）"
+    }
+   ],
+   "seen": "設備の段を開くと『作業実績の登録を読めませんでした: could not convert string to float: \\'abc\\'』の 1 行だけで、12 台の表・直すこと・探し直すが消える。何を直せばよいか（配った設定の古さの時間）が分からない。GET /api/masters/worklog は 400"
+  },
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 7,
+    "steps": 7,
+    "effortless": 6,
+    "intuitive": 7,
+    "form": 9,
+    "place": 6,
+    "layout": 9,
+    "tone": 8
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "after-1536x864-conn.png の実績の『接続』の段（実績の『変える…』で最初に開く段）: 要約が『古さの警告なし』、古さの警告（時間）の欄の既定が『既定: abc』。設備の段の『既定の 36 時間で見ています』と食い違い、いま効いている時間が見えない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "after-1728x1152.png・after-1280x720.png の『設備』の段の見出しの要約: 札は『HOT 古い』『SL3 見つからない』だけで『配った設定』が無い。段を畳んだまま（接続の段が開く既定）では知らせに気づけない"
+    }
+   ],
+   "seen": "作る前に消えていた設備の表・直すことが戻り、直すことの 1 行目に既にある札の形（m-chip c-warn・『古い』と同じ黄）で『配った設定』と、知らせの字（13px・本文の色 #1b2733・黄の地）が 1 行で出る。3 つの大きさとも 1 行に収まり（1280 で右端まで約 150px 残る）、切れ・重なり・折り返し・横の送りは無い。『直すことが 3 つあります』の数にも入る。弱い所: 札の言葉『配った設定』は何がおかしいのかを言わず、本文に技術の鍵『work_log.stale_hours』が出る。直す手（ボタン・どこで直すか）が無い。同じ項目を変えられる『接続』の段の古さの警告の欄（参照先で数を入れれば直る）へ案内せず、その段の要約は『古さの警告なし』・既定『abc』と食い違う。設備の段の見出しの札にも出ないので、段を開くまで見えない"
+  }
+ },
+ "built": {
+  "name": "作った後（版 3.106.0・commit 5ff8c9e。A2＋D2＋G2＋S と採点の first_fixes 11 件）",
+  "images": "画面に出ない改良なので画像は無い（自分で流した試験と数え直した数・読んだコード・Python で確かめた事で採点した。画面の 1 か所は built_ui）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-12。決まり 2026-11-06 の作った後の 1 回だけの採点）。リポジトリの中で変えたのはこのファイルだけ。読んだ物: git diff cdced49..5ff8c9e（services/body_rules.py の TYPES・check_types・read_inner・gate・routes/common.py の body_gate・conversions.py の NEST_MAX・nest_count・_formula_error・work_log.params の staleWarn・master_repository.py の組の言葉・master.js の「配った設定」の札、desktop/src/body.rs の rule_of・types_of・values・check_types・gate・master_rows.rs の int_minus_zero_at・inner_text・text_split_py・num_plain・access.rs の split_file・doc_revision・doc_rows・master_store.rs の read_json・card_forms・dash_sets・dashboards_write・formats_write・pivot_presets〈quick_key・quick_put〉・preset_rows・layout_clean・sources_write・settings_write・worklog_write・bundle.rs の work の staleWarn・lists.rs の num・conversions_write の nest_count・formula_error、焼いた body_routes.json の types 37 道が全部 ROUTES の need・read に入っていること）と、部品に残った確かめ（equipgroups_write の s_or・eq_list・clean_rules・conversions_write の scalar・j・clean_apply・card_forms の card_plain・pivot_presets の body_obj_plain・quick_rows_plain・bundle.rs の text_split の 4 か所・conversions_write の bundled）、Python の conversions.clean_row／clean_inputs／clean_rows／clean_apply・card_forms.clean_body・dashboard.clean_hide_body・data_sources.read_params・db_mirror.DbMirror・formula.js_regex、formula.rs の段の数え方（or_expr と unary で 1 段ずつ。かっこ 1 つで 2 段）。11 項目の読み替えは前の段と同じ: 順序＝Python 無しへの道筋・チャンク＝量の切り方・階層化＝狙いが 1 つ・視覚化＝突き合わせて測れる・ステップ数＝任せる歩の減り・考えさせない＝落とし穴の少なさ・直感的＝既にある型に沿う・形と色＝部品の使い回し・言葉と置き場＝答えの元が 1 か所・整列＝量の釣り合い・調子＝危うさの低さ",
+  "measured": {
+   "cargo": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked --test body_cases --test cards_parity --test sets_parity --test conversions_write_parity --test worklog_write_parity --test formats_parity --test presets_parity --test dashboards_parity --test equipgroups_write_parity --test sources_write_parity --test settings_write_parity --test bundle_parity --test layout_cases → 13 本とも test result: ok・終了コード 0（記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/score-built/cargo-tests.txt）。cargo test --locked --lib lot::tests → 33 passed・0 failed",
+   "python": "cd program && python -m unittest tests.test_body_types tests.test_body_routes tests.test_isdigit_table tests.test_ui_score → Ran 24 tests・OK",
+   "delegates": "python program/tools/delegate-count.py /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/score2-count --check → 計 209（層 置き場 179・本文 11・OS 6・口 5・束 5・道 3）・『予算と同じです』・終了コード 0・29 秒（記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/score-built/delegate-count.txt）",
+   "ui_eval": "ui-eval-dashsave EXIT 0 48s・ui-eval-cardform EXIT 0 28s・ui-eval-formats EXIT 0 17s・ui-eval-convio EXIT 0 6s・ui-eval-sources EXIT 0 24s・ui-eval-masterpin EXIT 0 31s（どれも終了コード 0。記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/score-built/ui-eval-*.txt）",
+   "python_probe": "Python 3.13.18 で確かめた: compile_formula は入れ子のかっこ 100 で読み 150 で『式の入れ子が深すぎます』・if([x]=\"L-1\",…) を 25 重ねた式は読めて nest_count 50（31 重ねで 62 → 断る）・nest_count('if([note]=\"Not yet\",\"-\",\"--\")') は 6（本当の入れ子は 1）・dashboard.clean_hide_body({keys: 'ab'}) は {keys: []}・make_lot_mirror(('', 60, 'abc')) は ValueError（float）・make_lot_mirror(('', '12.5', 36)) は ValueError（int）"
+  },
+  "cracks": [
+   {
+    "kind": "落とし穴（S の残り・同じ形の割れ）",
+    "what": "lists.rs の num を py_float にして窓は数でない間隔・古さ・件数を既定で読むが、Python は作業実績の stale_hours だけを直した。品質の lot_list.stale_hours・refresh_seconds（make_lot_mirror → DbMirror の float()・int()）、データ元の refresh_seconds が '12.5'・'abc' のときは Python が ValueError で落ち、窓は既定で答える",
+    "path": "配った設定の lot_list.stale_hours を手で 'abc' にする → create_app の make_lot_mirror が ValueError（Python が起きない）。窓の一覧は 36 時間で答える。lot_list.refresh_seconds '12.5' も int('12.5') で同じ",
+    "fix": "work_log.params と同じ読み手（数でなければ既定・知らせ）を lot_list_params・data_sources.read_params にも当て、int() は int(float()) か既定に。事例を突き合わせの場面（lists_parity・bundle_parity）に足す"
+   },
+   {
+    "kind": "落とし穴（知らせが届かない）",
+    "what": "staleWarn は作業実績の登録の答え・束にだけ載り、GET /api/sources の read.stale_hours は 'abc' のまま。データ元の実績の『接続』の段の要約は『古さの警告なし』、欄の既定は『既定: abc』で、知らせ（既定の 36 時間で見ています）と食い違う",
+    "path": "配った設定の work_log.stale_hours を 'abc' にしてマスタ管理 → データ元 → 実績の『変える…』（最初に開く段は接続）。画像 ui-stale/after-1536x864-conn.png",
+    "fix": "data_sources.read_params（窓は sources_list.rs）の結び付いた stale も work_log.params と同じに既定へ替え、接続の段の要約・既定の札に『配った設定の abc は数でないので 36 時間』と出す"
+   },
+   {
+    "kind": "落とし穴（正しい式を断る）",
+    "what": "nest_count は字の中・列の名前の中も数える。『-』は 2 項の引き算・字の 'L-1'・日付の '2024-01-01' も、'not' は [note]・'Not yet' の中も 1 つと数える。窓の段の数（かっこ 1 つで 2 段・単項で 1 段・上限 200）にも Python（かっこ 100〜150 段で断る）にも十分余裕がある式を断る",
+    "path": "変換表の出す値に if([x]=\"L-1\",\"a\", …) を 31 重ねた式（両方とも読める）→ 『式の入れ子が深すぎます』の 400。前の版で書き出した変換表の取り込みも同じ所で断る",
+    "fix": "字（\"…\"）と列の名前（[…]）の外だけを数え、『-』は単項の位置だけ・not は語として数える（Python と窓の同じ字の数え方のまま）。上限は窓の段 200 ÷ 2 に合わせて 90 程度へ。事例を conversions_oracle の場面に足す"
+   },
+   {
+    "kind": "落とし穴（確かめの守りを外した）",
+    "what": "変換表の式の正規表現の誤りは、前は窓が任せていた（言葉だけでなく、読めるかの判定も Python の re と窓の translate で違いうる）。版 3.106.0 から窓は自分の js_regex の判定で 400 を答える。読めるかの一致は formula_cases.json の 48 件（画面の答え）でしか見ていない",
+    "path": "Python の re が読み、窓の translate が読めない（か逆の）正規表現を変換表の式に書く → 片方は 400『… の正規表現として読めません』、片方は 201",
+    "fix": "equip_regex_cases と同じく、仕様と Python の re から作る正規表現の事例の表（読める・読めない）を formula の js_regex にも当て、窓と Python が同じ判定かを試験で止める"
+   },
+   {
+    "kind": "表の網羅（割れではなく任せる歩のまま）",
+    "what": "TYPES に無い欄: 変換表の apply.column・apply.place（並びの place は Python が dict の in で TypeError の 500）、カードの tabs[].id・items[].id、字で送った inputs・rows の中（中身の欄 j ではない）。どれも窓は scalar・label で任せるので割れないが、Python の 500 が残る",
+    "path": "POST /api/masters/conversions に apply: {place: ['x']} → Python 500（TypeError）・窓は任せる",
+    "fix": "apply.column・apply.place を s で表に足す（画面は字しか送らない）。inputs・rows を字で送る形も j にして中を当てる"
+   },
+   {
+    "kind": "覚え（割れではない）",
+    "what": "-0 の読み手は Place・Store・中身の字で inner_text の 1 つになったが、束の行の中身の字（bundle.rs の text_split の 4 か所）・変換表の同梱の表（bundled）・字で送った inputs（j）・すぐに見るの並び（quick_rows_plain）は text_split のままで -0 を任せる。Python と食い違う答えは無い（答えずに任せる）が、同じ字が道によって窓の答え・Python の答えに分かれる",
+    "path": "置き場の行の中身の字に -0 → 書く道は窓が答え、GET /api/lotlist/settings の束は Python に任せる",
+    "fix": "次の版で bundle の 4 か所と bundled・j も text_split_py＋inner_text に替える（読み手を 1 つに）"
+   }
+  ],
+  "result": {
+   "proposal": "組み合わせ A2＋D2＋G2＋S",
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 9,
+    "steps": 8,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 8,
+    "place": 8,
+    "layout": 7,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "desktop/src/lists.rs の num（py_float に替えた）と program/app/__init__.py の make_lot_mirror・db_mirror.DbMirror: lot_list.stale_hours 'abc'・refresh_seconds '12.5' で Python は ValueError（float・int）、窓は既定 36・60 で答える。S は作業実績の stale_hours だけを直し、同じ形の品質・データ元の間隔と古さが残る"
+    }
+   ],
+   "seen": "任せる歩は 313 → 209（−104・33%。予算と同じ）で、置き場の字の -0 8 歩は 0、本文の層は 95 → 11。関わる突き合わせの 13 本・lot::tests 33・Python の 24 試験・画面の評価関数 6 本が通る。D2 の表は app の services/body_rules.py の 1 か所に置き、窓は焼いた body_routes.json（37 道。どれも門の need・read の道）で同じ順に当て、断る言葉も同じ。表に無い欄を見る部品の確かめ（s_or・scalar・card_plain・body_obj_plain）は、表の欄では表が先に断り、表に無い欄（apply.column・apply.place・tabs[].id・items[].id）では任せるだけなので、窓と Python が違う答えを返す所は見つからなかった。重なる鍵（pyjson は Python の dict と同じく後ろ勝ち）・4,300 桁を超える整数・BOM・読めない中身の字（両方とも道に任せる）・代用字（中身の欄は read でも断る）も同じに読む。-0 の読み手 inner_text は字の外の『-0』の後ろが . e E 数字でない所だけを替え、Place（doc_revision・doc_rows・split_file）と Store（read_json）と中身の字の読みが同じ部品を通る。外側に大きな整数があって元の本文をそのまま渡す形でも、部品が inner_text で読み直すので割れない。式の入れ子の上限 60 は、窓の段（or_expr と unary が 1 段ずつ・かっこ 1 つで 2 段）で多くて約 122 段で 200 の内、Python の再帰（かっこ 100 で読める）の内にも収まる。dashboards-hidden の keys の字は Python が 1 字ずつ回す形を写し、Python の clean_hide_body({keys: 'ab'}) は []（窓は同じ回し方を写し、dashboards_parity が通る）。保存済みのファイルは門が見ないので、字の欄に数が入った古い行も直す・書き戻すことができる（門が断るのは並び・表を送った本文だけで、画面は送らない。変換表の取り込みも字の欄の数・真偽・null は str() のまま）。減らした所: S が作業実績の古さだけで、同じ形の品質・データ元の間隔と古さ（Python は ValueError・窓は既定）が残る。nest_count が字・列の名前の中の『-』『not』も数え、両方が読める 31 重ねの if（'L-1' の字）を断る。正規表現の読めるかの判定を窓が自分で答えるようになったが、Python の re と窓の translate の一致を見る事例の表が無い（formula_cases の 48 件だけ）。staleWarn がデータ元の接続の段に届かない（built_ui）。-0 の読み手のうち束の行の中身・変換表の同梱の表・字の inputs は text_split のまま（任せるので割れはしない）"
+  }
  }
 }
