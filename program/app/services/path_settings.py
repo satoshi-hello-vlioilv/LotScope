@@ -153,6 +153,18 @@ def effective(settings, rows):
     return eff, items
 
 
+BLANK = "値を入れてください。"
+
+
+def check_entry(item, value, settings=None, *, empty_exe_finds=False, **kw):
+    """「確かめる」の入口（参照先の POST /api/settings/check と、データ元の接続の設定の conn/check。版 3.100.0）。
+    value は parse して既定を重ねた後の値。値も既定も空なら、種類によらず「値を入れてください。」（前は参照先の URL が空で既定も空のとき
+    「届きません（社外・VPN…）」と言った）。empty_exe_finds: 参照先の exe（ブラウザ）は空で Edge を探す（conn/check は空を断る）"""
+    if (value is None or value == "") and not (empty_exe_finds and item["kind"] == "exe"):
+        return {"ok": False, "message": BLANK}
+    return check(item, value, settings, **kw)
+
+
 def check(item, value, settings=None, *, table=None, role="品質", pattern=None):
     """「確かめる」: その値で本当に読めるか（保存の前に）。settings はいま効いている設定（ほかの項目と組んで確かめるとき）。
     table・role（.sqlite3 の場所。版 3.99.0）… 一覧が読む表（欄の表）と役割（品質だけロット番号の列が要る・古さの警告は services/builder.py の STALE_ROLES）。

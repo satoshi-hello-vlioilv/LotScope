@@ -64,7 +64,7 @@ class Browse(unittest.TestCase):
 
     def test_worklog_counts_files_that_match_the_pattern(self):
         d = fb.browse(str(self.tmp / "実績"), "worklog", "実績_*.sqlite3")
-        self.assertEqual(d["mark"], {"text": "実績のファイル 2 個", "tone": "ok"})
+        self.assertEqual(d["mark"], {"text": "ファイルのある設備 2 台", "tone": "ok"})
         self.assertEqual(d["entries"], [], "フォルダを選ぶ欄にファイルは出さない")
         self.assertEqual(d["others"], 3)
 

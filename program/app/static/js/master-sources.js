@@ -382,7 +382,7 @@ async function moveTo(key, { group, near = null, after = false }, keepFocus = fa
    画面はその違いを見せない（どちらも同じ欄・同じ「保存」） */
 const CONN_PICK = {
   sqlite: { purpose: "sqlite", title: "データ元のファイル（.sqlite3）を選ぶ", note: "共有の .sqlite3 ファイルを選びます。" },
-  folder: { purpose: "worklog", title: "実績のフォルダを選ぶ", note: "設備ごとの .sqlite3 が並ぶフォルダを選びます（印: 実績のファイルがある）。", exclude: ["worklog"] },
+  folder: { purpose: "worklog", title: "実績のフォルダを選ぶ", note: "設備ごとの .sqlite3 が並ぶフォルダを選びます（印: ファイル名の決まりに合う設備の数）。", exclude: ["worklog"] },
 };
 const connText = (v) => (v === null || v === undefined ? "" : String(v));
 const connWide = (f) => ["sqlite", "folder", "url", "text"].includes(f.kind) && f.id !== "client_ip" && f.id !== "table";

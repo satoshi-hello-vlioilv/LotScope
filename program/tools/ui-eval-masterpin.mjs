@@ -10,6 +10,8 @@
 // 全部合えば終了コード 0。
 import { launch, sleep } from "./ui-harness.mjs";
 
+const SHOT = process.argv[2] || "";      // 撮る所（省けば撮らない）
+
 const fails = [];
 const check = (name, ok, got) => { console.log(`${ok ? "OK " : "NG "} ${name}${ok ? "" : `: ${JSON.stringify(got).slice(0, 400)}`}`); if (!ok) fails.push(name); };
 const tab = async (p, key) => { await p.evaluate((k) => document.querySelector(`#masterTabs [data-tab="${k}"]`).click(), key); await sleep(1500); };
@@ -65,6 +67,28 @@ try {
       && pl.lines[0].chips.some((c) => /この PC は別/.test(c)), pl.lines);
     check(`② ${tag} 「置き場を変える」の欄に、配る版の覚えにも書くと書いてある`, /配る版の覚えにも/.test(pl.note), pl.note);
     check(`⑤ ${tag} マスタの置き場の画面が横にはみ出さない`, pl.over === false, pl.over);
+    // ⑥ 版 3.100.0（作った後の採点の割れ 1）: 共有が区切った秒（2 秒）で答えない（reachable null）は「確かめ中」で、保存の手を止めない。
+    //    届かない（false）ときだけ「届かない」で保存を止める（遅いが届く共有〈VPN・眠っていたサーバーの 1 回目〉で保存まで止めない）
+    for (const [reach, stop, label] of [[null, false, "確かめ中"], [false, true, "共有に届きません"]]) {
+      await p.evaluate((r) => {
+        window.__tpaReach = r;
+        if (window.__tpaReachHook) return;
+        window.__tpaReachHook = true;
+        const orig = window.fetch;
+        window.fetch = async (u, o) => {
+          if (!String(u).startsWith("/api/masters/status")) return orig(u, o);
+          const d = await (await orig(u, o)).json();
+          d.reachable = window.__tpaReach;
+          return new Response(JSON.stringify(d), { status: 200, headers: { "Content-Type": "application/json" } });
+        };
+      }, reach);
+      await p.click("#masterCloseBtn"); await sleep(400); await p.click("#masterBtn"); await sleep(900);
+      await tab(p, "equipment");
+      const st = await p.evaluate(() => ({ add: document.querySelector("#masterAddBtn")?.disabled, tag: document.querySelector("#masterPlace .place-tag")?.textContent || "",
+        meta: document.querySelector("#masterPlace .place-meta")?.textContent || "", nav: document.querySelector('#masterTabs [data-tab="place"] .tab-state')?.textContent || "" }));
+      check(`⑥ ${tag} reachable ${reach}: ${stop ? "保存を止める" : "保存の手を止めない"}・帯は「${label}」`, st.add === stop && st.tag === label, st);
+      if (SHOT) await p.screenshot({ path: `${SHOT}/place-reach-${reach}-${view.width}.png` });
+    }
     check(`${tag} 頁の誤りが無い`, !errors.length, errors);
     await p.context().close();
   }

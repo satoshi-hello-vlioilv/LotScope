@@ -285,8 +285,10 @@ fn tab_rules(rows: &[Value]) -> Result<Vec<(String, Vec<&'static str>)>, String>
     Ok(out)
 }
 
-/// アクセス権限の行の「タブの例外」→ [(タブ, 出す|出さない)]（壊れた字は空。字が JSON の物でも表でもないと Python は落ちる: Err）
-pub(crate) fn tab_exceptions(value: Option<&Value>) -> Result<Vec<(String, bool)>, String> {
+/// アクセス権限の行の「タブの例外」→ [(タブ, 出す|出さない)]（壊れた字は空。JSON の表でない字〈並び・数・字〉も空。版 3.100.0: 前は
+/// Python が落ちる形を Err にして任せた。Python も空に直した。事例は program/tests/fixtures/place_cases.json の tabExceptions）。
+/// Result は呼ぶ側の形を変えないため（いまは Err を返さない）
+pub fn tab_exceptions(value: Option<&Value>) -> Result<Vec<(String, bool)>, String> {
     let parsed;
     let d = match value {
         Some(Value::String(s)) if !pyfmt::strip(s).is_empty() => match py_json(s) {
@@ -309,8 +311,7 @@ pub(crate) fn tab_exceptions(value: Option<&Value>) -> Result<Vec<(String, bool)
                 _ => None,
             })
             .collect()),
-        v if !truthy(v) => Ok(vec![]),
-        _ => Err("タブの例外の形が違います".into()),
+        _ => Ok(vec![]),
     }
 }
 

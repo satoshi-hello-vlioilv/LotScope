@@ -1449,6 +1449,83 @@ DevTools での突き合わせを足す）に、採点の指摘（rounds[0].fixe
   （64 件）がどれだけ当たるか・Windows の WebView2 での 10b-B（CI で見る）・exe の確かめ（`find_browser`）は Linux では Python と窓のどちらも見つけないことしか
   突き合わせていない。
 
+### 段 3 の 16 歩目（② の 1 段目）: 置き場と設定 8 本の Python の誤りを直し、独立の答えと事例の表を作る — 版 3.100.0
+
+採点（`tools/ui-proposals/2026-11-port-place.json`。画面に関係のない改良の決まり・1 回）の 1 位 **D**（74.4 点。先に Python の誤りを直し、Python に頼らない
+独立の答えと事例の表を作り、窓へ移すのは次の版）に、採点の指摘（rounds[0].fixes）を入れて作った。この版で窓へ移した道は **0 本**（② の 8 本
+`GET /api/masters/tabaccess`・`GET /api/masters/status`・`GET /api/masters/place`・`POST /api/masters/place/check`・`POST /api/masters/place/move`・
+`POST /api/fs/browse`・`GET /api/fs/places`・`POST /api/settings/check` は今も Python が答える）。この 8 本は今の製品でも Python が答える道なので、
+Python で直せばこの版で利用者に効く。窓が既に持つ同じ部品（配布の置き場の `release_place::check_name`・`normcase`、`access::tab_exceptions`）は同じ表で直した。
+
+- 直した誤り（直す前に落ちることを先に確かめた。記録 `scratchpad`〈作る者の作業の記録〉と `2026-11-port-place.json` の build）。試験は `tests/test_place_cases.py`
+  （直す前の Python で 22 件中 failures 60・errors 9〈subTest ごと〉、root でない利用者で 1 件。直した後は全部通る）と `cargo test --test place_cases`
+  （直す前の窓で names が落ちる）:
+  - 確か 1（最優先。引っ越しが手元の写しから写し、ほかの PC の直前の保存を落とす）: `master_place._move_locked` は錠を取ってから `_sources` で
+    **共有のファイルそのもの**を読み直して写す（`test_a_save_just_before_the_move_is_carried`・`Moves.test_moves_copy_what_the_share_holds_at_the_lock`
+    ＝錠を取った時の前の置き場のバイトと同じ）。共有に届かないときだけ、この PC の写しから写す（確かめの説明で「最近の保存が入らないことがあります」と言う）。
+    作った後の採点の割れ 2（錠の長さを超える）: 利用状況の記録（もともと錠の外で書かれる物）は錠の外で先に写し（`move`）、マスタだけを錠の中で写す。
+    錠の長さ（20 秒）の `LOCK_SHARE`（半分）を過ぎた・写している間に読んだマスタが変わった（ほかの PC が錠を切れたと見て保存した）ときは、切り替えずに
+    止めて前の置き場のまま（何も消えない）。**錠は延ばさない**と決めた（PR #99 の錠の直し 9cf5fb2〈書けなかった錠を残さない〉を取り込んだ後に、
+    データが消えない側で決めた）。理由: ほかの PC（Python・窓の両方）は錠の残りを「錠に書いた期限（持ち主の時計。長さ lock_ttl までに抑える）」と
+    「その錠の印を自分が最初に見てからの経過（自分の時計）」の長い方で測る（`MasterStore._remaining`・`master_store.rs`）。同じ印のまま期限を書き直して
+    延ばしても、読む PC の時計が持ち主より lock_ttl 以上進んでいれば期限の方は効かず、最初に見てから lock_ttl で切れたと見て保存する（時計を信じない作りなので、
+    延ばしたつもりでも延びない PC が残る）。印を替えて延ばすと、切れたと見てどけている途中の PC と錠の置き換えが重なり、2 つの PC が持つ順番を作りうる
+    （2026-10-02 に試験で再現した LockRaces と同じ形）。どちらも Python と窓の錠の決まりを同時に変える要があり、延ばせなかった PC で行が消える。
+    止める形は、どの時計でも切れる前（長さの半分）に切り替えをやめ、読んだマスタが変わっていれば止めるので、行は必ず前の置き場に残る（失うのは
+    引っ越しのやり直しの手間だけ。マスタだけなら 16〜18 ファイル・200 KB 前後で、普通の共有では半分の 10 秒に届かない）。試験 `MoveRaces`（錠 1 秒・読み 0.3 秒・名前の順で最初のマスタを写した後にほかの PC が保存。
+    直す前は印をたどった先にその行が無い）と、独立の答え `place-truth.row_ids`・`followed`、事例の表 `moveRaces`。
+  - 疑い 3 の延長（この PC が共有しないマスタ〈other_master.json など〉を写さない）: 写す物は前の置き場の直下の *.json の全部（「.」で始まる一時ファイル・
+    錠・引っ越しの印を除く）。決まりは `_share_files` の 1 か所（独立の答え `place-truth.copied_names`）。
+  - 確か 2（写す量が 1 割強少ない）: 共有はファイルのまま写すので os.stat の大きさ、手元のみ・写しからは `payload`（字下げ 1・改行。数える字と書く字が同じ）。
+    `check_written`（plan の files・bytes ＝ 書いた後の数と st_size の計）。
+  - 確か 3（読めない新しい場所で 500）: `release_place.unreadable` の言葉「新しい場所を読めません（理由）。…」を、マスタの置き場と配布の置き場の plan で返す
+    （root でない利用者の本物の権限: `test_unreadable_new_place_for_real`。CI の Linux で流れる）。窓の配布の置き場の plan は 3.95.0 のまま Python に任せる形。
+  - 確か 4・5（「参照…」の印）: 作業実績は `folder_browse.equipment_count`（work_log の `equipment_of`・`is_side_file`・ファイルだけ＝scan と同じ決まり）で
+    「ファイルのある設備 n 台」（作った後の採点の割れ 3: 同じ画面のデータ元のカードの「n 台」は登録の台数なので見分ける。`WORKLOG_MARK`）。ファイルを選ぶ欄は数えた拡張子の名前（`ext_counts`。「参照…」に出さない物は数えない）。
+  - 確か 6（共有に Box の注意）: `sync_folder` は \\ と // で始まる道を見ない。
+  - 確か 7（予約名・「.」で始まる名前・「..」の理由）: Python `release_place.check_name` と窓 `release_place::check_name` を事例の表 names（70 例）で直した。
+    予約名は ntpath.isreserved と同じ（¹²³・CONIN$・CONOUT$・拡張子の前の空白を除く）。
+  - 確か 8・9（タブの例外）: `access.tab_exceptions` は表でない JSON を空に（窓も Err をやめて空）。数えるのは `access.tab_exception_counts`（有効・開発者でない行）。
+  - 確か 10（空の URL で「届きません」）: `path_settings.check_entry`（settings/check と conn/check の 1 つの入口。値も既定も空なら「値を入れてください。」。
+    参照先の exe だけは空で Edge を探す）。
+  - 確か 11（「..」が残る）: `folder_browse.tidy`（字の上の normpath。Windows の形は ntpath、記号リンクは解かない）。
+  - 疑い 1（Windows の os.access）: `master_place._can_write` は試しの一時フォルダ（.名前.probe-xxxxxxxx）を作って消す。
+  - 疑い 2（届かない共有で待つ）: `master_place.status`・`using` は共有を見るのをまとめて `SHARE_PROBE_SEC`（2 秒）まで。終わらなければ写しで答え
+    （`MasterStore.status(peek=True)`）、reachable を **null**（確かめ中。fs/places と同じ）。同じ置き場へ尋ねる糸は 1 本まで。画面（`master.js`）は
+    false（届かない）のときだけ保存の手を止め（`shareDown`）、null は帯に「確かめ中」と出して保存の手を止めない（`shareChecking`。保存そのものは、
+    届かなければ MasterStore が断る）。作った後の採点の割れ 1: 最初の形は false にしたので、遅いが届く共有（VPN・眠っていたサーバーの 1 回目）で
+    マスタ管理の保存が全部止まった（`SlowButReachable`・`ui-eval-masterpin.mjs` の ⑥ が直す前に落ちる）。
+    読む道（_maybe_refresh）そのものの待ちは残る（3.101.0 の写しの係で決める）。
+  - 疑い 8（共有の根）: 上のフォルダがサーバーだけ（\\srv）なら、名前とつないだ置き場（\\srv\share）にマスタがあれば切り替えるだけ（`_share_root`）。
+  - 疑い 13（「C:」）: `master_place.drive_root`（plan の上のフォルダ・「参照…」の欄の字）。
+- 主のセッションの決め（指摘 11。1 か所の定数・関数にまとめた。変えるときはここだけ）:
+  - 引っ越しで利用状況の記録（presence_tpa の history・sessions・settings.json）と切断の指示（*.revoke.json）も写す: `master_place.COPY_PRESENCE`・`PRESENCE_TREES`・
+    `RECORDS_NOTE`（確かめの説明「利用状況の記録と切断の指示も写します。」・変えたあとのフォルダの形「いまの置き場のマスタと利用状況の記録を写す」）。
+    心拍（presence_tpa 直下のほかの *.json）は写さない（まだ移っていない PC が新しい置き場で使っているように見えるため）。
+  - 「参照…」の並びは自然な並び: `folder_browse.NATURAL_SORT`・`sort_key`（ASCII の数字の続きを数として・大文字小文字を見ない・同じ所では数字が先。
+    かな・全角の並びはエクスプローラーの言語の並びと違いうる）。
+  - Windows の隠し・システムの属性の物は出さない: `folder_browse.HIDE_ATTRS`（st_file_attributes の HIDDEN か SYSTEM）。
+  - 先頭が「.」の名前は断る: `release_place.DOT_HEAD_PROBLEM`（窓も同じ定数）。
+  - 種まきの係（GET status が共有へ最初の版を書く・写しの取り直し）は**この版では変えない**。3.101.0 で決める。
+- 独立の答えと事例の表（指摘 9）: `program/tools/place-truth.py`（app を import しない。os.walk・os.scandir・os.stat・json・re・ntpath〈isreserved・normpath〉・posixpath だけ）と
+  事例の表 `tests/fixtures/place_cases.json`（names・sort・clean・sync・marks・moves・tabExceptions・tabCounts・blank・hidden）。Python は `tests/test_place_cases.py`
+  が表と独立の答えを読み、`python tools/place-truth.py` で表だけを確かめ直せる。窓は `desktop/tests/place_cases.rs`（3.100.0 は names と tabExceptions）。
+- Windows でだけ分かる所（指摘 12）: 窓の normcase を Python 3.13 の ntpath.normcase と同じ LCMapStringEx（不変のロケール・LCMAP_LOWERCASE）にした
+  （`windows` クレートに Win32_Globalization を足した。型は作業用クレートで `cargo clippy --target x86_64-pc-windows-msvc` を通した）。Windows の CI では
+  `cargo test` の `place_cases::normcase_is_pythons` が全部の BMP の字を Python と突き合わせ、`desktop.yml` の「置き場と設定の事例（Python・Windows）」が
+  `tests.test_place_cases` の WindowsOnly（隠し・システムの属性・ドライブだけの C:）と全部の事例を流す。**分からない**: 書けるかの試し（疑い 1）を本物の ACL で
+  拒んだ形（icacls の場面は作っていない）・本物の共有の根（\\サーバー\共有。CI に共有が無い）・届かない SMB で実際に何秒待つか・エクスプローラーが
+  システムの属性だけの物を出すか（決めに従って出さない）・LCMapStringEx と to_lowercase の違う字（CI で初めて分かる）。
+- 3.101.0 の形（指摘 10。この版で決めて書き残す）: 8 本を 1 版で窓へ（案 A の範囲）に、案 F の寄せ（置き場を変える部品を配布の置き場と 1 つ・確かめるの入口を
+  `builder::conn_check` と 1 つ・unquote の写しを 1 つ）を入れる。写す係（引っ越し）は SERVES に名乗り、Python は move を 409 で断る（配布の置き場と同じ型）。
+  答えの見本は Python の道との突き合わせ（place_parity・fs_parity・settings/check を builder_parity に・GET tabaccess を access_write_parity に）に加え、
+  この版の事例の表の残りの節（sort・clean・sync・marks・moves・tabCounts・blank）を窓も読み、独立の答え（place-truth.py）と比べる。写しの取り直し・種まきの係を
+  窓 1 つにするか（案 C）は主のセッションが決め、決めるまでは GET status の種まきを Python に任せたままにし、2 つのプロセスが同時に空の共有を読む場面を
+  突き合わせに入れる。status の last_sync・error の意味（疑い 10）と、同期フォルダの名前の表をどこまで足すか（疑い 6）は、そのとき決める。
+  窓へ移しても、置き場の状態で共有を見るのは区切った秒までで、終わらなければ reachable は **null**（確かめ中。保存の手は止めない）、false は届かないと
+  分かったときだけ（この版の決まり）。引っ越しは、利用状況を錠の外・マスタだけを錠の中で写し、錠の長さの半分を過ぎるか読んだマスタが変われば
+  切り替えずに止める（錠は延ばさない。理由は上の割れ 2 の所）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

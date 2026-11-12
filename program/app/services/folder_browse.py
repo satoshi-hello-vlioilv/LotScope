@@ -14,8 +14,11 @@
 """
 from __future__ import annotations
 
-import fnmatch
+import ntpath
 import os
+import posixpath
+import re
+import stat
 import string
 import threading
 import time
@@ -24,8 +27,10 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from ..fsio import unquote_path
-from .master_place import is_master_place
+from .db_mirror import is_side_file
+from .master_place import drive_root, is_master_place
 from .release_place import MARKER as RELEASE_MARKER
+from .work_log import equipment_of, split_pattern
 
 LIMIT = 400              # 1 つのフォルダで出す数（多いときは「ほか N 件」）
 MARK_LIMIT = 120         # 印を付けるために中を覗く数（共有では 1 つ覗くたびに往復する）
@@ -41,6 +46,34 @@ PURPOSES = {
     "sqlite": {"kind": "file", "ext": (".sqlite3", ".sqlite", ".db")},
     "exe": {"kind": "file", "ext": (".exe",)},
 }
+
+
+# ---- 利用者の決め（版 3.100.0。主のセッションが変えられるよう、ここ 1 か所）
+NATURAL_SORT = True       # 並びはエクスプローラーと同じ自然な並び（数字の続きは数として比べる: 9 → 10・3.9.0 → 3.10.0）
+WORKLOG_MARK = "ファイルのある設備"   # 作業実績のフォルダの印の頭（同じ画面のデータ元のカードの登録の台数と見分ける）
+HIDE_ATTRS = True         # Windows の隠し・システムの属性の物は出さない（エクスプローラーの既定と同じ。desktop.ini・Thumbs.db など）
+_HIDDEN_BITS = getattr(stat, "FILE_ATTRIBUTE_HIDDEN", 2) | getattr(stat, "FILE_ATTRIBUTE_SYSTEM", 4)
+
+
+def sort_key(name: str):
+    """「参照…」の並び（NATURAL_SORT なら、数字〈0〜9〉の続きは数として・大文字小文字を見ず・同じ所では数字が先。
+    かな・全角の字の順はエクスプローラーの言語の並びと違いうる）。事例は tests/fixtures/place_cases.json の sort"""
+    if not NATURAL_SORT:
+        return name.lower()
+    parts = [p for p in re.split(r"([0-9]+)", name) if p]
+    return [(0, int(p), "") if p.isdigit() and p.isascii() else (1, 0, p.lower()) for p in parts], name.lower(), name
+
+
+def _hidden(entry) -> bool:
+    """出さない物: 名前が「.」「~$」で始まる・ごみ箱と System Volume Information・（Windows）隠し・システムの属性"""
+    if entry.name.startswith((".", "~$")) or entry.name in ("$RECYCLE.BIN", "System Volume Information"):
+        return True
+    if HIDE_ATTRS and os.name == "nt":
+        try:
+            return bool(getattr(entry.stat(follow_symlinks=False), "st_file_attributes", 0) & _HIDDEN_BITS)
+        except OSError:
+            return False
+    return False
 
 
 class Timeout(Exception):
@@ -80,9 +113,20 @@ def clean(text) -> str:
         else:
             s = body
     s = os.path.expandvars(os.path.expanduser(s)) if s else s
-    if not (len(s) <= 3 and len(s) >= 2 and s[1] == ":"):
-        s = s.rstrip("\\/") or s[:1]
-    return s
+    return tidy(s)
+
+
+def tidy(s: str) -> str:
+    """字の上で整えた道（版 3.100.0: 「..」「.」・重ねた区切りを除く。記号リンクは解かない。Windows の形〈ドライブ・\\〉は ntpath、
+    ほかは posixpath の normpath）。ドライブだけ（C:）はその根（C:\）、末尾の区切りは外す（ドライブの根 C:\ と / は残す）"""
+    if not s:
+        return s
+    unc = s.startswith("\\\\") or (os.name == "nt" and s.startswith("//"))     # POSIX の //tmp は POSIX の道
+    if unc or (len(s) >= 2 and s[1] == ":" and s[0].isascii() and s[0].isalpha()):
+        out = ntpath.normpath(drive_root(s))
+        return out if len(out) == 3 and out[1] == ":" else (out.rstrip("\\") or out)
+    out = posixpath.normpath(s) if os.name != "nt" else ntpath.normpath(s)
+    return out.rstrip("\\/") or out[:1]
 
 
 def crumbs(path: str) -> list:
@@ -132,6 +176,29 @@ def _has_versions(folder: Path) -> bool:
     return any(e.is_dir() and (Path(e.path) / RELEASE_MARKER).is_file() for e in os.scandir(folder))
 
 
+def equipment_count(folder: Path, pattern: str):
+    """作業実績のフォルダの印の数: work_log.scan と同じ決まり（equipment_of・書き手の作業用を除く・ファイルだけ。[ ] ? は字のまま）。
+    決まりが読めなければ None（版 3.100.0。前は fnmatch で数え、確かめるの「設備 n 台」と違う数を出した）"""
+    try:
+        split_pattern(pattern)
+    except ValueError:
+        return None
+    return sum(1 for e in os.scandir(folder) if not is_side_file(e.name) and equipment_of(e.name, pattern) and e.is_file())
+
+
+def ext_counts(folder: Path, exts) -> list:
+    """[(拡張子, 数)]（数えた物だけ・exts の順。「参照…」に出さない物は数えない）"""
+    got = dict.fromkeys(exts, 0)
+    for e in os.scandir(folder):
+        if _hidden(e) or not e.is_file():
+            continue
+        low = e.name.lower()
+        hit = next((x for x in exts if low.endswith(x)), None)
+        if hit:
+            got[hit] += 1
+    return [(x, n) for x, n in got.items() if n]
+
+
 def _mark_dir(folder: Path, purpose: str, pattern: str):
     """そのフォルダの印（目的ごと）→ {text, tone} か None。tone: ok（その欄で選ぶ物）・info（参考）"""
     try:
@@ -140,13 +207,13 @@ def _mark_dir(folder: Path, purpose: str, pattern: str):
         if purpose == "release":
             return {"text": "版の置き場", "tone": "ok"} if _has_versions(folder) else None
         if purpose == "worklog":
-            pat = pattern or "*.sqlite3"
-            n = sum(1 for e in os.scandir(folder) if e.is_file() and fnmatch.fnmatch(e.name.lower(), pat.lower()))
-            return {"text": f"実績のファイル {n} 個", "tone": "ok"} if n else None
+            n = equipment_count(folder, pattern or "*.sqlite3")
+            # 参照先の「確かめる」と同じ数。登録の台数（データ元のカードの「n 台」）と見分けて「ファイルのある設備」（版 3.100.0・主のセッションの決め）
+            return {"text": f"{WORKLOG_MARK} {n} 台", "tone": "ok"} if n else None
         ext = PURPOSES.get(purpose, {}).get("ext")
         if ext:
-            n = sum(1 for e in os.scandir(folder) if e.is_file() and e.name.lower().endswith(ext))
-            return {"text": f"{ext[0]} が {n} 個", "tone": "info"} if n else None
+            text = "・".join(f"{x} が {n} 個" for x, n in ext_counts(folder, ext))   # 数えた拡張子の名前（版 3.100.0）
+            return {"text": text, "tone": "info"} if text else None
     except OSError:
         return None
     return None
@@ -158,7 +225,7 @@ def _list(folder: Path, purpose: str, pattern: str) -> dict:
     dirs, files, others = [], [], 0
     with os.scandir(folder) as it:
         for e in it:
-            if e.name.startswith((".", "~$")) or e.name in ("$RECYCLE.BIN", "System Volume Information"):
+            if _hidden(e):
                 continue
             try:
                 is_dir = e.is_dir()
@@ -171,7 +238,7 @@ def _list(folder: Path, purpose: str, pattern: str) -> dict:
                 files.append({"name": e.name, "path": str(folder / e.name), "dir": False, "mtime": _mtime(st), "size": st.st_size})
             else:
                 others += 1
-    key = lambda x: x["name"].lower()  # noqa: E731
+    key = lambda x: sort_key(x["name"])  # noqa: E731
     dirs.sort(key=key)
     files.sort(key=key)
     for d in dirs[:MARK_LIMIT]:
