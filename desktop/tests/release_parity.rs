@@ -262,7 +262,9 @@ fn release_place_matches_python() {
     eprintln!(
         "歩 {steps}・写し終えるまで見た歩 {copied}・Python に任せた歩 {delegated}・権限の答え（Permission denied）を比べた歩 {denied}"
     );
-    assert!(steps >= 70 && delegated >= 10 && copied >= 2, "歩が少ない: {steps}・{delegated}・{copied}");
+    // 任せた歩には下限を置かない（版 3.104.0。段 ① から 0 へ減らしていく数で、Windows では 9 になり落ちた）。任せるはずの歩を窓が
+    // 答えないことは上の歩ごとに、任せる歩の上限は予算（common::check_budget）が見る
+    assert!(steps >= 70 && copied >= 2, "歩が少ない: {steps}・{copied}");
     if cfg!(unix) && oracle["root"] == false {
         assert!(denied >= 3, "root でないのに権限の答え（Permission denied）を比べた歩が少ない: {denied}");
     }
