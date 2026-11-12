@@ -390,61 +390,317 @@
   "本文の片割れの代用字を断るか U+FFFD に替えるか（A。LotDsp は替える）",
   "種まきを窓も行うか（F。3.101.0 の「⑤ まで Python のまま」の決めは、変換表・設備グループで既に一部替わっている）"
  ],
- "evaluator": "",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-12。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で流して数えた数と、読んだコードで採点した。流した物: python program/tools/delegate-count.py score-count/work --json mine.json（19 の答えの元を流し直して 29 秒・計 507・層と形の数は案の係の json と全部同じ）。流した答えを 1 歩ずつ（元・場面・道・本文・Python の状態と答え）に書き出し、形ごとに目で見た（score-count/rows.json）。python3 3.13.18 で int()・float() を全部の isspace の字に当て、json.loads('1e400', parse_constant=…)・json.loads('-0') を試した。読んだ物: CLAUDE.md の改良の節・ui_score.py の冒頭・前の記録の 11 項目の読み替え（2026-11-port-worklog.json・port-next2.json）、desktop/src の pyfmt.rs（SPACES・is_space・strip・py_int〈i64 へ丸める〉・py_float）・int() の写し 14 か所の定義（worksum・master_rows×3・card_forms・calc×2・cm3・pyfmt・pivot・bundle×2・layout_clean×2）・pyjson.rs（J: NaN・Big・-0→Int(0)・送った順・MAX_DEPTH 900）・jsontree.rs（もう 1 つの順を保つ木。NaN・-0・大きな整数を持てない）・lotdsp.rs の rules::read_body（空・null は {}・MAX_DEPTH 64・NaN は読んで通す）・master_store.rs の pull・seed（922〜970 行）・lot.rs 340〜360・share_absent の呼び元 7 か所・Cargo.toml（float_roundtrip だけ。preserve_order なし）、program/app の routes の get_json（本文の読み 48 か所: silent 24・silent 無し 24、ほかに答えの読み 2）・routes/common.base_rev（読めない base_rev は None＝版を確かめずに書く）・services/lotdsp_rules.read_body と _clean・repositories/master_repository.bad_rows。11 項目の読み替えは前の記録と同じ: 順序＝Python 無し（段 ④）への道筋／チャンク＝1 版のまとまりの切り方／階層化＝狙いが 1 つか／視覚化＝突き合わせて数で見せられるか／ステップ数＝任せる歩が減る量／考えさせない＝落とし穴を案の文で潰しているか／直感的＝既にある型（前例）に沿うか／形と色＝共通の部品 1 つか／言葉と置き場＝決まりが 1 か所（Python と窓が同じ表）か／整列＝量の釣り合い／調子＝Python と食い違う・利用者に見える答えが変わる危うさの低さ。依頼に従い、ステップ数・調子・形と色・考えさせない／言葉と置き場を重く見た。減点は、案の文のままだと起きる割れにだけ付けた（E のファイルごと読めない）。組み合わせ 4 つ（md の 4 節）も 1 案として採点した。",
  "rounds": [
   {
    "name": "1 回目",
    "self_check": "案を作った者が自分で確かめたこと: delegate-count.py を前の分け方と新しい分け方で流し、どちらも計 507・元ごとの数が予算と同じ。新しい分け方の形ごとに歩の本文と場面を 1 つずつ目で見て取り違えを直した（置き場の場面の GET を本文に数える・「前の版の条件」を版に数える・\"4\\x1c\" を数えない・u64 の数を大きな数に数える）。Python 3.13.18 で int()・float() の制御字と Unicode の空白・json.loads('-0')・str(['x'])・str({'b':1,'a':2})・str(1059438285926254.2)・str(10**20) の答えを確かめた。案ごとの減る見込みは形の数の足し算で、重なり（B と E の版の行 55・G と H の大きな整数）を除いて組み合わせの数を出した。直した道具は ruff 0.15.20（CI と同じ版）と compileall を通した。窓は組んでいないので、G の「既にある部品で同じ字が出せる」はコードを読んだ見込みで、流して確かめていない",
    "proposals": {
     "A 本文の門を 1 つに（LotDsp の read_body を全部の書く道へ・Python も同じ言葉で断る）": {
-     "score": {},
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 9,
+      "form": 9,
+      "place": 9,
+      "layout": 8,
+      "tone": 7
+     },
      "minus": [],
-     "seen": "減る見込み 112: 本文の表でない 39（Python 4xx 11・5xx 28）・読めない JSON・空 37（4xx 37）・NaN・Infinity・1e400・代用字 30（2xx 9・4xx 21）・入れ子 6。Python の get_json は 50 か所で silent 25・非 silent 24 と道ごとに違い、表でない本文は AttributeError（400）か base_rev の TypeError（500）。前例は LotDsp の read_body（任せる歩 0）",
-     "text": "方向: 断る形にそろえる。変える所: Python は lotdsp_rules.read_body を共通の部品へ出し、routes の get_json 50 か所と common.base_rev の本文の読みを替える（空・null は {}、UTF-8 でない・JSON でない・NaN／Infinity〈parse_constant〉・入れ子・表でない は 400 {error, kind: body}）。中身を字で送る欄の json.loads も同じ部品。窓は lotdsp::rules::read_body を共通の部品へ出し、router で書く道の前に 1 回当て、master_rows::unreadable と各部品の「表でなければ None」を外す。落とし穴: silent の 25 か所は読めない本文を {} として受けていた → 400 に替わる（画面が空で送る /scan・/preset は {} のまま。画面の本文を全部の ui-eval で通す要）。-0 と大きな整数は画面から来うるので門で断らない（B・H）。代用字は LotDsp では U+FFFD に替える → 書く道で断るか替えるかの決めが要る。確かめ方: 仕様から人が書く事例の表 tests/fixtures/body_cases.json を Python（test_body_reading.py）と Rust（cargo test --test body_cases）が読む・独立の答えは app を import しない json.loads（parse_constant）・各 *_parity の 112 歩を steps へ（答えとファイルが変わらないこと）・予算を下げる。手間: Python 約 80 行・Rust 約 150 行・答えの元 15 本の場面の書き換え。1 版"
+     "seen": "数え直した: 表でない 39・読めない JSON と空 37・NaN 等 30 は案のとおり（1 歩ずつ見た）。ただし「本文: 入れ子 128 段以上」6 のうち 4 は conversions の「入れ子の深い式」「not の重ね」3 種で、本文の JSON の深さは 4〜7 段（式の字の中の括弧・not の重ね。Python の式の読みの形）。delegate-count.py が場面の名前（入れ子|重ね）で分けた取り違えで、A の門では減らない → 減る見込みは 112 ではなく 108、全部を組んでも残るのは 21 ではなく 25。前例（LotDsp の read_body）に沿い、Python と窓が同じ表で読む形なので直感的・決まりが 1 か所。割れ: (1) 案は NaN・Infinity を parse_constant で断ると書くが、json.loads('1e400', parse_constant=…) は inf を返す（試した）。1e400 は parse_float か読んだ後の isfinite で断る要。(2) 前例の read_body は空を {} にするが、silent 無しの道（カード・ダッシュボード・組み方・セット・書式・変換表・設備グループ・実績・勤務体系・設備）で空の PUT は今 400。一方 PUT {} は今 200 で、版を確かめずに書く（cards_oracle の PUT /api/card-forms/4 '{}' → 200、base_rev が無ければ確かめない: routes/common.base_rev）。空 → {} を書く道の PUT・DELETE に当てると、今は断る歩が「版を確かめない書き込み」に替わる。(3) 前例の深さの上限は 64（lotdsp.rs 236 行）。窓は今 serde で 127 段まで答えて Python と合っているので、64 を全部の道に当てると、いま合っている 65〜127 段の答えが替わる。(4) 前例の read_body は NaN を読んで通す（pyjson::J は NaN を持てる）。A は断る → 前例と決まりが替わる（前例の側をそろえるかを書く）。(5) Python の本文の読みは 48 か所（silent 24・silent 無し 24）＋答えの読み 2。md の「25・24」は答えの読みを 1 つ数えている（小さな違い）。",
+     "text": "方向: 断る形にそろえる。変える所: Python は lotdsp_rules.read_body を共通の部品へ出し、routes の get_json 50 か所と common.base_rev の本文の読みを替える（空・null は {}、UTF-8 でない・JSON でない・NaN／Infinity〈parse_constant〉・入れ子・表でない は 400 {error, kind: body}）。中身を字で送る欄の json.loads も同じ部品。窓は lotdsp::rules::read_body を共通の部品へ出し、router で書く道の前に 1 回当て、master_rows::unreadable と各部品の「表でなければ None」を外す。落とし穴: silent の 25 か所は読めない本文を {} として受けていた → 400 に替わる（画面が空で送る /scan・/preset は {} のまま。画面の本文を全部の ui-eval で通す要）。-0 と大きな整数は画面から来うるので門で断らない（B・H）。代用字は LotDsp では U+FFFD に替える → 書く道で断るか替えるかの決めが要る。確かめ方: 仕様から人が書く事例の表 tests/fixtures/body_cases.json を Python（test_body_reading.py）と Rust（cargo test --test body_cases）が読む・独立の答えは app を import しない json.loads（parse_constant）・各 *_parity の 112 歩を steps へ（答えとファイルが変わらないこと）・予算を下げる。手間: Python 約 80 行・Rust 約 150 行・答えの元 15 本の場面の書き換え。1 版",
+     "proposer_note": "減る見込み 112: 本文の表でない 39（Python 4xx 11・5xx 28）・読めない JSON・空 37（4xx 37）・NaN・Infinity・1e400・代用字 30（2xx 9・4xx 21）・入れ子 6。Python の get_json は 50 か所で silent 25・非 silent 24 と道ごとに違い、表でない本文は AttributeError（400）か base_rev の TypeError（500）。前例は LotDsp の read_body（任せる歩 0）",
+     "fixes": [
+      "1e400 は parse_constant では捕まらない（inf になる）。Python は parse_float か読んだ後に math.isfinite で、窓は J::Float の is_finite で断る。事例の表に 1e400・-1e400・1e308・1.8e308 を入れる",
+      "空の本文は、書く道の PUT・DELETE（版を確かめる道）では 400 のまま（「本文がありません」）にし、{} にするのは画面が空で送る道（/scan・/preset など。ui-eval で集めて表に書く）だけにする。PUT {} が版を確かめずに書く今の形も表に入れて止める",
+      "深さの上限は、窓が今 serde で答えている 127 段と合う所（128 段から断る）にするか、画面の本文の最も深い段を ui-eval で測ってから決める。事例の表に 64・65・127・128・129 段を入れる",
+      "門は本文を pyjson::J で読み、表を返す（-0 は Int(0)、i64 に入らない整数は Big のまま）。部品に渡すときに J → Value へ写し、写せない Big だけを任せる。こうすると本文の -0 15 歩は B の int() ではなく門で消える",
+      "delegate-count.py の本文の入れ子は、名前ではなく depth() で分け、式の入れ子 4 歩は「本文: 式の入れ子（Python の式の読み）」に分ける。残る 25 と書き直す",
+      "LotDsp の read_body（NaN を通す・深さ 64）と全部の書く道の門（NaN を断る・深さ 128）の違いを 1 つの部品の引数にし、どちらの決まりかを事例の表の列に書く"
+     ]
     },
     "B int() の部品を 1 つに（窓の 14 の写しを 1 つへ・Python の誤りの言葉ごと）": {
-     "score": {},
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 9,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 9,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
      "minus": [],
-     "seen": "減る見込み 109（版の行 55 を E に回すと 54）: 置き場の行の版 55（2xx 35・4xx 20）・本文の -0 15・道の id の字 10・base_rev／?rev= の字 10（2xx 9）・数の欄の字 8・置き場の -0 8・道の id が i64 に入らない 3。窓に int() の写しが 14 あり、読める字の範囲がそれぞれ違う。測った割れ: pyfmt::SPACES は 0x1C〜0x1F を空白にするが Python の int('4\\x1c') は ValueError",
-     "text": "方向: 共通の部品 1 つで Python の読み方を写す（Python は変えない）。変える所: py_int(&str) -> Result<Int, PyErr>（Int は i64 か桁の字。誤りは Python と同じ字）と値の版（真偽・小数の trunc）。14 か所を替え、route_of の ASCII だけの id・int_plain・row_readable・revision_split を外す。整数の -0 は読む前に 0（小数の -0.0 はそのまま）。落とし穴: 0x1C〜0x1F の割れを先に直す。版の読めない行は Python が GET は 200・書くと英語の ValueError（400）→ 写すと誤りの言葉まで写す（E と組むか決めが要る）。桁の大きい版を i64 に丸めると比べ方が割れる。確かめ方: pynum_cases.json を全部の Unicode の空白・制御字・Nd の数字・4300 桁の境・「_」・「²」に広げて焼き直し（tools/pynum-cases.py）、cargo test --test pynum_cases で 1 つの部品を突き合わせる・各 *_parity の歩を steps へ。手間: Rust 約 250 行・表の道具 50 行。1 版"
+     "seen": "pyfmt::SPACES の割れは本当: Python 3.13.18 で isspace の字 29 のうち int()・float() が読まないのは 0x1C〜0x1F の 4 つだけ（int('4\\x1c') は ValueError。re の \\s と str.strip() は 0x1C を空白に読む）。pyfmt::is_space は strip と py_int・py_float の両方に使われていて（pyfmt.rs 94・106・277・292 行）、py_int・py_float の呼び元は窓に 50 か所ほど（worksum・dashboard・aggregate・operation・bundle・calc・settings_write・sources_write ほか）。pynum_cases.json に 0x1C〜0x1F は 0 件（数えた）。int() の写しが 14 あるのも定義を数えて確かめた。部品を 1 つにする方向は段 ④ に要る（形と色）。ただし数え方に 3 つの割れ: (1) 版の行 55 は int() だけの話ではない。Python は読めない版のファイルを GET では items [] で答え（sets の revision 'abc'）、PUT は「セット id=4 が見つかりません」、DELETE は 200、equip_rows の GET は rev 'x' の行をそのまま出す、書くと英語の invalid literal…（400）。これを窓で写すのは Python の流れごと写すことで、部品 1 つでは消えない（md も「E に回すと 54」と書く）→ B だけの見込みは約 54。(2) 整数の -0（本文 15・置き場 8）は int() ではなく JSON の読み（serde が -0 を -0.0 にする）の話で、A の門と置き場の読みを J にすれば消える。(3) 「本文: 数の欄の字」8 のうち 2 は /api/pivot-quick の keys（'\\u3000５' → '５'、'²'）で str.strip の話。さらに pyfmt::py_int は i64 に入らない数を黙って i64 の端に丸める（pyfmt.rs 285 行。Python は大きな int のまま）。calc.rs 82 行は端の値を外して避けている。1 つの部品にするなら Big を返す形にする要。",
+     "text": "方向: 共通の部品 1 つで Python の読み方を写す（Python は変えない）。変える所: py_int(&str) -> Result<Int, PyErr>（Int は i64 か桁の字。誤りは Python と同じ字）と値の版（真偽・小数の trunc）。14 か所を替え、route_of の ASCII だけの id・int_plain・row_readable・revision_split を外す。整数の -0 は読む前に 0（小数の -0.0 はそのまま）。落とし穴: 0x1C〜0x1F の割れを先に直す。版の読めない行は Python が GET は 200・書くと英語の ValueError（400）→ 写すと誤りの言葉まで写す（E と組むか決めが要る）。桁の大きい版を i64 に丸めると比べ方が割れる。確かめ方: pynum_cases.json を全部の Unicode の空白・制御字・Nd の数字・4300 桁の境・「_」・「²」に広げて焼き直し（tools/pynum-cases.py）、cargo test --test pynum_cases で 1 つの部品を突き合わせる・各 *_parity の歩を steps へ。手間: Rust 約 250 行・表の道具 50 行。1 版",
+     "proposer_note": "減る見込み 109（版の行 55 を E に回すと 54）: 置き場の行の版 55（2xx 35・4xx 20）・本文の -0 15・道の id の字 10・base_rev／?rev= の字 10（2xx 9）・数の欄の字 8・置き場の -0 8・道の id が i64 に入らない 3。窓に int() の写しが 14 あり、読める字の範囲がそれぞれ違う。測った割れ: pyfmt::SPACES は 0x1C〜0x1F を空白にするが Python の int('4\\x1c') は ValueError",
+     "fixes": [
+      "先に pyfmt の int()・float() の空白を直す: Python の int()・float() は Unicode の isspace のうち U+001C〜U+001F だけを読まない（_PyUnicode_TransformDecimalAndSpaceToASCII の後の Py_ISSPACE が ASCII だけのため）。strip()・\\s は今の SPACES のまま、int()・float() の前後の空白には別の表（SPACES から 0x1C〜0x1F を除く）を使う。pynum_cases.json に isspace の全部の字 × int()・float() を入れて焼き直す",
+      "1 つの部品は i64 に丸めない（Python は大きな int）。Int(i64) か Big(桁の字) を返し、比べ方・+1 は桁で行う。calc.rs 82 行の端の値を外す回り道を消す",
+      "版の行 55 は B では写さない（Python の英語の誤り・『見つかりません』・items [] まで写すことになる）。E（決め 2）に回し、B の見込みは約 54 と書き直す",
+      "整数の -0 は B ではなく A の門（本文）と置き場の読み（J）で 0 にする",
+      "道の id は Flask の道の読み（<item_id> を int() に渡す）と同じく、全角・アラビアの数字を読む（PUT /api/card-forms/４ は Python が 403、DELETE /api/formats/١ は 200 だった）。百分率符号の 2 歩は別（道の読み）"
+     ]
     },
     "C str()・repr() と型の誤りを pyjson::J で写す（書く道の本文を J で受ける）": {
-     "score": {},
+     "score": {
+      "order": 3,
+      "chunk": 4,
+      "hierarchy": 5,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 3,
+      "intuitive": 4,
+      "form": 6,
+      "place": 4,
+      "layout": 3,
+      "tone": 4
+     },
      "minus": [],
-     "seen": "減る見込み 118: 本文の字・数の欄に並び・表 58（2xx 35・4xx 23）・並び・字の欄に数・真偽 4・置き場の行の項目の型 56（2xx 43・4xx 5・5xx 8）。str() の写しが 9 か所以上・serde の Map は鍵を並べ直すので表の repr を同じ字にできない。pyjson::J は送った順・py_str・repr を持つ（LotDsp で使用）",
-     "text": "方向: 元ごとに直す（書く道 12 部品の値を Value → J）。変える所: preset_rows・card_forms・pivot_presets・dash_sets・dashboards_write・formats_write・conversions_write・equipgroups_write・sources_write・worklog_write・master_rows・settings_write の本文を J で受け、欄の字は J::py_str、unhashable・'<' not supported の TypeError の字も同じに作る。置き場の行の型の違いも Python の落ち方（500）まで写す。落とし穴: Python の誤り（repr の字で保存・一覧が 500。前の決め 2）まで写す。部品の型の替えが大きい。TypeError の言葉は Python の版で変わる。確かめ方: 事例の表 pyrepr_cases.json（Python 3.13 の str()・repr() を入れ子・鍵の順・小数・大きな整数・引用符で焼く）を窓が読む・各 *_parity の歩を steps へ。手間: Rust 1,200〜1,800 行・2〜3 版"
+     "seen": "形の数（字・数の欄に並び・表 58、並び・字の欄に数・真偽 4、置き場の行の型 56）は数え直して同じ。ただし C は Python の誤り（名前の並びを repr の字 \"['x']\" で保存・名前が数の行で一覧が 500 '<' not supported を、cards・dashboards・formats・presets・sets の GET で確かめた）まで窓へ写す。段 ④ で Python を外すとき、写した誤りは窓の決まりとして残り、直すときに 2 度手間になる。TypeError の言葉は Python の版で替わり、焼いた表で止め続ける保守が要る。部品の型の替え（12 部品）が 1,200〜1,800 行と大きく、1 版に収まらない。J を全部の部品に通す方向そのもの（値の木を 1 つにする）は良いが、誤りまで写す点で目的に逆らう。",
+     "text": "方向: 元ごとに直す（書く道 12 部品の値を Value → J）。変える所: preset_rows・card_forms・pivot_presets・dash_sets・dashboards_write・formats_write・conversions_write・equipgroups_write・sources_write・worklog_write・master_rows・settings_write の本文を J で受け、欄の字は J::py_str、unhashable・'<' not supported の TypeError の字も同じに作る。置き場の行の型の違いも Python の落ち方（500）まで写す。落とし穴: Python の誤り（repr の字で保存・一覧が 500。前の決め 2）まで写す。部品の型の替えが大きい。TypeError の言葉は Python の版で変わる。確かめ方: 事例の表 pyrepr_cases.json（Python 3.13 の str()・repr() を入れ子・鍵の順・小数・大きな整数・引用符で焼く）を窓が読む・各 *_parity の歩を steps へ。手間: Rust 1,200〜1,800 行・2〜3 版",
+     "proposer_note": "減る見込み 118: 本文の字・数の欄に並び・表 58（2xx 35・4xx 23）・並び・字の欄に数・真偽 4・置き場の行の項目の型 56（2xx 43・4xx 5・5xx 8）。str() の写しが 9 か所以上・serde の Map は鍵を並べ直すので表の repr を同じ字にできない。pyjson::J は送った順・py_str・repr を持つ（LotDsp で使用）"
     },
     "D 欄の型の表で断る（Python が repr の字で置いていた形を Python も窓も 400 で断る）": {
-     "score": {},
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 8,
+      "layout": 7,
+      "tone": 5
+     },
      "minus": [],
-     "seen": "減る見込み 62: 本文の字・数の欄に並び・表 58（Python は 2xx 35 で repr の字を保存: conversions の名前 [\"名前が並び\"] 201・sets の名前 [\"x\"] 201・設備の 同一工程 [\"A\",\"B\"] 201。4xx 23 は unhashable など英語の TypeError）・並び・字の欄に数・真偽 4。画面（JSON.stringify）は字の欄に並びを送らない",
-     "text": "方向: Python の誤りを直して窓に合わせる（本文）＋型の表。変える所: 道 → 欄 → 型の表 tests/fixtures/body_spec.json を Python（clean_row 群の str(v) の前）と窓が読み、違えば 400 {error: 「名前」は字で送ってください。, kind: body}。断るのは並び・表だけ（数・真偽・小数は今どおり str()）。落とし穴: 表を書き間違えると画面の正しい本文を断る（ui-eval の全部で通す要）。前の版で保存された repr の字の行は残る。確かめ方: body_spec.json と事例の表 body_cases.json（欄の型 × 値 → 断る言葉）を Python と Rust が読む・独立の答えは表から作る確かめ（app を import しない）・*_parity の歩を「窓も Python も断り、ファイルが変わらない」へ。手間: Python 約 150 行＋表・Rust 約 200 行。1 版"
+     "seen": "58＋4 の歩は 1 歩ずつ見た。Python が 2xx で repr の字を置く歩（35）を 400 に替える。段 ④ の後の窓の決まりとしては正しい（誤った形を置かない）。ただし (1) 画面が字の欄に数・真偽・並びを送るかを確かめていない（md 6 節）。例: equipment の「同一工程」に [\"A\",\"B\"]、equipgroups の rules の value に並び、sources の「結合」の cols、settings_write の lot_list.table に並び・表（今は 200 で置く）。表を書き間違えると画面の正しい本文を断る。(2) 道 → 欄 → 型の表（body_spec.json）は新しい置き場で、各部品の clean_row が持つ型の知識と 2 か所になる（保守）。(3) 前の版で保存した repr の字の行は残り、読むときは E に頼る。画面の本文を ui-eval の全部で集めてからなら良い案。いまは決めが早い。",
+     "text": "方向: Python の誤りを直して窓に合わせる（本文）＋型の表。変える所: 道 → 欄 → 型の表 tests/fixtures/body_spec.json を Python（clean_row 群の str(v) の前）と窓が読み、違えば 400 {error: 「名前」は字で送ってください。, kind: body}。断るのは並び・表だけ（数・真偽・小数は今どおり str()）。落とし穴: 表を書き間違えると画面の正しい本文を断る（ui-eval の全部で通す要）。前の版で保存された repr の字の行は残る。確かめ方: body_spec.json と事例の表 body_cases.json（欄の型 × 値 → 断る言葉）を Python と Rust が読む・独立の答えは表から作る確かめ（app を import しない）・*_parity の歩を「窓も Python も断り、ファイルが変わらない」へ。手間: Python 約 150 行＋表・Rust 約 200 行。1 版",
+     "proposer_note": "減る見込み 62: 本文の字・数の欄に並び・表 58（Python は 2xx 35 で repr の字を保存: conversions の名前 [\"名前が並び\"] 201・sets の名前 [\"x\"] 201・設備の 同一工程 [\"A\",\"B\"] 201。4xx 23 は unhashable など英語の TypeError）・並び・字の欄に数・真偽 4。画面（JSON.stringify）は字の欄に並びを送らない"
     },
     "E 置き場の読めない行・ファイルを名指しで隔てる（3.102.0 の badRows の続き）": {
-     "score": {},
-     "minus": [],
-     "seen": "減る見込み 159: 置き場の行の項目の型 56・版 55・置き場の字の NaN 29（2xx 27）・表でない行・null 7（5xx 4）・入れ子 6・配った設定の古さが数でない 6。置き場の場面では 1 行が読めないだけで、その道の歩が本文によらず全部任される（cards の「行の中身が NaN」は GET と POST の 2 歩とも: card_forms::answer 361〜371 行）。Python の壊れ方はまちまち（名前が数で一覧が 500・null の条件で 500・版が字なら書くと英語の 400）",
-     "text": "方向: Python の誤りを直して窓に合わせる（置き場）。変える所: Python の MasterRepository の読みで、版が int() で読めない・名前が字でない・中身が読めない（NaN・入れ子・表でない）行は飛ばして badRows（{行, 理由}）に数え、書くときはその行を名指しで断る（503 master_unreadable）。ファイルの字に NaN・Infinity・入れ子 128 段以上があれば理由つきで読めない。一覧の並べ替えは名前を字で比べる。窓は Place・Store の読みで同じ決まり。落とし穴: Python の答えが替わる（今は 200 で全部の行）→ 画面で行が消えて見えるので帯で知らせる（画面の改良の決まりで別に）。-0 と大きな整数は正しい JSON なので読む（B・H）。ファイルは消さない・書き換えない。確かめ方: tests/test_broken_masters.py に版・型・NaN の行を足す（独立の答えは app を使わない json.loads と行ごとの確かめ）・bundle_cases.json に行の形・*_parity の置き場の場面を steps へ。手間: Python 約 200 行・Rust 約 250 行。1〜2 版"
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 8,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "案の文「ファイルの字に NaN・Infinity・入れ子 128 段以上があればファイルを理由つきで『読めない』」: sets_oracle の『共有のファイルの字に NaN／Infinity／1e400』の GET は今 Python が 200 で全部の行を出す。1 字でその置き場の全部の行（全員のダッシュボード・セット）が届かなくなる"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の文「画面で行が消えて見えるので帯で知らせる（帯は画面の改良の決まりで別に）」: この版ではダッシュボード・組み方・セット・書式の一覧に飛ばした行の知らせが無い（master.js 281 行の badRows はマスタ管理の画面だけ）"
+      }
+     ],
+     "seen": "減る見込み 159（版 55・型 56・NaN 29・表でない行 7・入れ子 6・古さ 6）を見た。3.102.0 の badRows（master_repository.bad_rows・master.js 281 行の知らせ）の続きで、段 ④ の後の窓の決まりを先に決める点が良い。割れ: (1) 案はファイルの字に NaN・Infinity・入れ子 128 段以上があれば『ファイルを理由つきで読めない』にする。今の Python は NaN・Infinity・1e400 を json.loads で読み、全部の行を 200 で出す（sets・formats・cards の GET が 2xx 27）。1 字の NaN で、その置き場の全員のダッシュボード・組み方・書式が読めなくなる（共有のファイルは 1 つ）。窓は pyjson::J で NaN を持てるので、ファイルごと断らずに J で読めば済む。(2) 「古さが数でない 6」は worklog の配った設定の値（Python は float('abc') の ValueError を 400／500 の英語で答える）で、マスタの行ではない。行を飛ばす仕組みでは消えない（理由つきで既定に戻すか断るかの別の決めが要る）。(3) H に数えた「置き場の行の id が大きな数・字」12 歩（equip_rows 8・shifts 4）は、中身を見ると id が \"3\"（字）・1e+19（小数）で、大きな整数の話ではなく型の話＝E が受け持つ形。(4) 一覧から行が消えて見える所（ダッシュボード・組み方・セット・書式の一覧）に知らせの帯が無い（帯は別の画面の改良に回すと案に書いてある）。",
+     "text": "方向: Python の誤りを直して窓に合わせる（置き場）。変える所: Python の MasterRepository の読みで、版が int() で読めない・名前が字でない・中身が読めない（NaN・入れ子・表でない）行は飛ばして badRows（{行, 理由}）に数え、書くときはその行を名指しで断る（503 master_unreadable）。ファイルの字に NaN・Infinity・入れ子 128 段以上があれば理由つきで読めない。一覧の並べ替えは名前を字で比べる。窓は Place・Store の読みで同じ決まり。落とし穴: Python の答えが替わる（今は 200 で全部の行）→ 画面で行が消えて見えるので帯で知らせる（画面の改良の決まりで別に）。-0 と大きな整数は正しい JSON なので読む（B・H）。ファイルは消さない・書き換えない。確かめ方: tests/test_broken_masters.py に版・型・NaN の行を足す（独立の答えは app を使わない json.loads と行ごとの確かめ）・bundle_cases.json に行の形・*_parity の置き場の場面を steps へ。手間: Python 約 200 行・Rust 約 250 行。1〜2 版",
+     "proposer_note": "減る見込み 159: 置き場の行の項目の型 56・版 55・置き場の字の NaN 29（2xx 27）・表でない行・null 7（5xx 4）・入れ子 6・配った設定の古さが数でない 6。置き場の場面では 1 行が読めないだけで、その道の歩が本文によらず全部任される（cards の「行の中身が NaN」は GET と POST の 2 歩とも: card_forms::answer 361〜371 行）。Python の壊れ方はまちまち（名前が数で一覧が 500・null の条件で 500・版が字なら書くと英語の 400）"
     },
     "F 種まきの係を窓へ（読む道でも Store::pull が最初の版を置く）": {
-     "score": {},
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 9,
+      "visual": 7,
+      "steps": 3,
+      "effortless": 7,
+      "intuitive": 9,
+      "form": 9,
+      "place": 8,
+      "layout": 9,
+      "tone": 7
+     },
      "minus": [],
-     "seen": "減る見込み 46: 数える材料のマスタが共有に無い 36（設備グループの 6 場面。2xx 30・4xx 6）・読むだけで最初の版 9・束の種まき 1。窓は変換表と設備グループには既に最初の版を置く（conversions_write::seed 538 行。3.93.0・3.94.0）。ほかは share_absent・needs_seed・束の section_broken の seed で任せる",
-     "text": "方向: 係を移す。変える所: share_absent・needs_seed で任せていた所を Store::pull（無ければ錠を取って seed: master_store.rs 922〜970 行）に替える。束の節の seed は窓が置いてから組み直す。落とし穴: 窓と古い Python・窓 2 つが同時に置く競い合い（seed は錠の中で共有のファイルの有無を見直すので 1 回だけのはず）。読む道が共有に書く（錠を待つ）。共有に書けない PC では写しで答える（今の Python と同じかを確かめる）。確かめ方: place_parity の種まきの競い合いに窓と窓・窓と Python を足す・equipgroups_write_parity の「共有に X が無い」6 場面と各一覧の「写しだけで最初に読む」を steps へ・できたファイル（版 1・updated_by）を突き合わせる。手間: Rust 約 150 行・試験の場面の書き換え。1 版"
+     "seen": "種まき 36（equipgroups の『共有に work_log_files／equipment_master／data_sources が無い』× 写しから・写しも data/ も無い × 6 歩）＋9＋束 1 を見た。Store::pull が共有に無ければ seed を呼び、錠の中で共有のファイルの有無を見直す作り（master_store.rs 922〜970 行）は既にあり、変換表・設備グループで窓が既に置いている（前例）。Python の答えを変えず、係を窓へ寄せる段 ④ の方向に合う。減る量は 46（9%）と小さい。落とし穴: 読む道（GET）が共有に書き、錠を待つ（混んだ共有で GET が遅くなる）・版の混ざった PC で窓と Python が同時に種をまく・『写しも data/ も無い』の最初の中身（Doc::empty と Python の master_seeds の中身）が同じか。案の確かめ方（place_parity に窓と窓・窓と Python の競い合い）は足りている。",
+     "text": "方向: 係を移す。変える所: share_absent・needs_seed で任せていた所を Store::pull（無ければ錠を取って seed: master_store.rs 922〜970 行）に替える。束の節の seed は窓が置いてから組み直す。落とし穴: 窓と古い Python・窓 2 つが同時に置く競い合い（seed は錠の中で共有のファイルの有無を見直すので 1 回だけのはず）。読む道が共有に書く（錠を待つ）。共有に書けない PC では写しで答える（今の Python と同じかを確かめる）。確かめ方: place_parity の種まきの競い合いに窓と窓・窓と Python を足す・equipgroups_write_parity の「共有に X が無い」6 場面と各一覧の「写しだけで最初に読む」を steps へ・できたファイル（版 1・updated_by）を突き合わせる。手間: Rust 約 150 行・試験の場面の書き換え。1 版",
+     "proposer_note": "減る見込み 46: 数える材料のマスタが共有に無い 36（設備グループの 6 場面。2xx 30・4xx 6）・読むだけで最初の版 9・束の種まき 1。窓は変換表と設備グループには既に最初の版を置く（conversions_write::seed 538 行。3.93.0・3.94.0）。ほかは share_absent・needs_seed・束の section_broken の seed で任せる"
     },
     "G 既にある部品で同じ字が出せるのに任せている形を、焼いた表で確かめて外す": {
-     "score": {},
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 2,
+      "effortless": 8,
+      "intuitive": 9,
+      "form": 8,
+      "place": 7,
+      "layout": 9,
+      "tone": 8
+     },
      "minus": [],
-     "seen": "減る見込み 12: 本文の字の欄に小数 8（pyfmt::float_repr と pyfloat_cases.json 5,754 件が既にある・serde は float_roundtrip）・u64 に入る大きな整数 4（12345678901234567890 ×3・9223372036854775808。serde は u64 で正確に持つが worksum::py_str は as_i64 だけを見て小数の字にする）。窓を組んで流していないので、コードを読んだ見込み",
-     "text": "方向: 事例の表を焼いて突き合わせ、判定を緩める。変える所: preset_rows::str_plain・formats_write::str_plain・master_rows::value_plain を「有限の小数・u64 の整数は答える」に、py_str は as_u64 も見る。落とし穴: -0.0 の小数（Python の str は '-0.0'）・1e16 以上の小数の字・名前の比べ方（normalize_part）が小数の字でも同じか。確かめ方: pyfloat_cases.json に欄の値としての str() の事例（1.5・0.1・1059438285926254.2・-0.0・1e16・u64 の境）を足す・*_parity の 12 歩を steps へ。手間: Rust 約 40 行（ほかの案の版に入る大きさ）"
+     "seen": "8＋4 歩を見た（名前 1.5・1059438285926254.2・note 0.1・origin 1.5、12345678901234567890 ×3・9223372036854775808）。pyfmt::float_repr と pyfloat_cases.json（5,754 件）、Cargo.toml の float_roundtrip があり、既にある部品で済む。減る量は 12 と小さいが、危うさも小さい。窓を組んで流していない（self_check のとおり見込み）ので、-0.0 の字（Python は '-0.0'）・1e16 以上（'1e+16'）・名前の比べ方（normalize_part）が小数の字でも同じかは流して確かめる要。",
+     "text": "方向: 事例の表を焼いて突き合わせ、判定を緩める。変える所: preset_rows::str_plain・formats_write::str_plain・master_rows::value_plain を「有限の小数・u64 の整数は答える」に、py_str は as_u64 も見る。落とし穴: -0.0 の小数（Python の str は '-0.0'）・1e16 以上の小数の字・名前の比べ方（normalize_part）が小数の字でも同じか。確かめ方: pyfloat_cases.json に欄の値としての str() の事例（1.5・0.1・1059438285926254.2・-0.0・1e16・u64 の境）を足す・*_parity の 12 歩を steps へ。手間: Rust 約 40 行（ほかの案の版に入る大きさ）",
+     "proposer_note": "減る見込み 12: 本文の字の欄に小数 8（pyfmt::float_repr と pyfloat_cases.json 5,754 件が既にある・serde は float_roundtrip）・u64 に入る大きな整数 4（12345678901234567890 ×3・9223372036854775808。serde は u64 で正確に持つが worksum::py_str は as_i64 だけを見て小数の字にする）。窓を組んで流していないので、コードを読んだ見込み"
     },
     "H 大きな整数を Python と同じに持つ（置き場も本文も J::Big）": {
-     "score": {},
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 4,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
      "minus": [],
-     "seen": "減る見込み 41: 置き場の字の i64 に入らない整数・大きな id・大きな表示順 26・本文の i64 に入らない整数（u64 の 4 を除く）11・39 桁を超える並び 4。画面から来うる（表示順に 1e20 → JSON.stringify は 100000000000000000000 → Python は int で持って共有に桁のまま書く → 窓は小数に丸める）。窓は split_number（master_rows.rs 124 行）・wide_int_text（bundle.rs 108 行。i128 まで）で任せる",
-     "text": "方向: 共通の値の木で Python を写す（数の持ち方）。変える所: Store の行・本文の数を J で持つ（または読む前に大きな整数だけを印の字にして serde で持ち、書くときに戻す）。表示順・id・版の比べ方は桁で比べる。落とし穴: next_id（max+1）が桁で同じか。浮動の 1e20 と字の \"1e20\" の違い。serde の arbitrary_precision は tauri を含む crate 全体の Number を替えるので使わない。確かめ方: jsonnum_cases.json を置き場のファイルと表示順・id の計算に広げる・*_parity の歩を steps へ。手間: Rust 400〜600 行・1〜2 版"
+     "seen": "41 のうち、置き場の『id が大きな数・字』12 歩は id が字（\"3\"）・小数（1e+19）の行で、大きな整数の話ではない（E の型の話）→ H の実の見込みは約 29。本文の大きな整数は画面から来うる（表示順に 1e20 は JSON.stringify で 100000000000000000000）ので、断らずに持つ方向は正しい。pyjson::J は既に Big を持ち、jsontree::Tree は持てない（順を保つ木が 2 つある）。J を置き場の読みにも使う形にすれば、H は A の門・置き場の読みと 1 つの部品にまとまる。案の文は『J で持つ（または印の字にして serde で持つ）』と 2 通りで決まっておらず、next_id（max+1）・桁の比べ方・400〜600 行と重い。",
+     "text": "方向: 共通の値の木で Python を写す（数の持ち方）。変える所: Store の行・本文の数を J で持つ（または読む前に大きな整数だけを印の字にして serde で持ち、書くときに戻す）。表示順・id・版の比べ方は桁で比べる。落とし穴: next_id（max+1）が桁で同じか。浮動の 1e20 と字の \"1e20\" の違い。serde の arbitrary_precision は tauri を含む crate 全体の Number を替えるので使わない。確かめ方: jsonnum_cases.json を置き場のファイルと表示順・id の計算に広げる・*_parity の歩を steps へ。手間: Rust 400〜600 行・1〜2 版",
+     "proposer_note": "減る見込み 41: 置き場の字の i64 に入らない整数・大きな id・大きな表示順 26・本文の i64 に入らない整数（u64 の 4 を除く）11・39 桁を超える並び 4。画面から来うる（表示順に 1e20 → JSON.stringify は 100000000000000000000 → Python は int で持って共有に桁のまま書く → 窓は小数に丸める）。窓は split_number（master_rows.rs 124 行）・wide_int_text（bundle.rs 108 行。i128 まで）で任せる"
+    },
+    "組み合わせ A＋F＋G（Python の答えを直さない物は F・G）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 9,
+      "form": 9,
+      "place": 9,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "md の 170 は、A の式の入れ子 4 歩を除くと 166（33%）。どれも前例（LotDsp の read_body・Store::seed・pyfloat_cases）に沿い、版ごとに 1 つずつ作れる。Python の答えが替わるのは A（画面が送らない形）だけ。ただ int() の 14 の写しと 0x1C〜0x1F の割れ（B）が残り、段 ④ に向けた土台としては欠ける。"
+    },
+    "組み合わせ A＋B＋F＋G": {
+     "score": {
+      "order": 9,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 9,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "段 ④ に要る 4 つの共通の部品（本文の門・int() の部品・種まきの係・小数の字）をそろえる組み。どれも Python の答えを直すのは A の『画面が送らない形』だけで、決めが要るのは問い 1（A の分）・3・4。md の見込み 279 は B の版の行 55 を含むが、版の行は Python の流れ（items []・『見つかりません』・英語の誤り）ごと写さないと消えず、E に回すべき形 → 実の見込みは約 220（A 108＋B 54＋F 46＋G 12。43%）。B で 0x1C〜0x1F の割れ（窓の今の答えの誤り）も直る。割れの数は A と B の分を足した物（1e400・空の PUT・深さ 64・-0 は門で・i64 へ丸める・版の行は E へ）。いちばん筋が良いが、1 版には収まらず A → B → G → F の順に 3〜4 版。",
+     "fixes": [
+      "A の割れ 6 つ（1e400 は parse_constant で捕まらない・空の PUT は 400 のまま・深さは 128 段から・門は J で読み -0 を 0 に・式の入れ子 4 歩の分け直し・LotDsp の門との決まりの違いを引数に）",
+      "B の割れ 5 つ（0x1C〜0x1F を int()・float() の空白から外し pynum_cases に isspace の全部の字・i64 に丸めず Big を返す・版の行 55 は E へ・-0 は A の門・道の id の全角とアラビアの数字）",
+      "F: 読む道の種まきの競い合い（窓と窓・窓と Python）を place_parity に足し、『写しも data/ も無い』の最初の中身を Python の master_seeds と突き合わせる。共有に書けない PC では今の Python と同じく写しで答える",
+      "G: 窓を組んで流し、-0.0・1e16・u64 の境（18446744073709551615・18446744073709551616）を pyfloat_cases に足す。worksum::py_str は as_u64 も見る",
+      "delegate-count.py の分け方の取り違え 4 つを直す（式の入れ子 4・id が字／小数 12 は H でなく E・古さ 6 は行でなく配った設定・pivot-quick の 2 は strip）。予算（delegates_budget.json）は版ごとに下げる",
+      "順は A（門。決め 1・3）→ B（部品。先に 0x1C の誤りを直す版を分けてもよい）→ G → F（決め 4）。E は決め 2 を行ごとに隔てる形で決めてから次の段に"
+     ]
+    },
+    "組み合わせ A＋B＋D＋E＋F＋G": {
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 6,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "E の案の文（ファイルの字に NaN があればファイルごと読めない）をそのまま含む: sets_oracle の『共有のファイルの字に NaN』の GET は今 200 で全部の行を出す"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "E の案の文: ダッシュボード・組み方・セット・書式の一覧で飛ばした行の知らせが無い"
+      }
+     ],
+     "seen": "md の 445 は、式の入れ子 4 と配った設定の古さ 6 を除くと約 435（86%）。量は大きいが、Python の答えを替える案が 3 つ（A・D・E）入り、D は画面の本文を集める前の表、E はファイルごと読めない形を含む（E の減点がそのまま乗る）。決めが要る問いが全部（1〜4）そろうまで作れない。"
+    },
+    "組み合わせ A＋B＋D＋E＋F＋G＋H": {
+     "score": {
+      "order": 8,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 10,
+      "effortless": 5,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 5,
+      "tone": 5
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "E の案の文（ファイルの字に NaN があればファイルごと読めない）をそのまま含む: sets_oracle の『共有のファイルの字に NaN』の GET は今 200 で全部の行を出す"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "E の案の文: ダッシュボード・組み方・セット・書式の一覧で飛ばした行の知らせが無い"
+      }
+     ],
+     "seen": "md の 486 は、式の入れ子 4・古さ 6 を除くと約 476（94%）、残るのは約 31（md の 21＋式の入れ子 4＋配った設定の古さ 6）。H の 12 歩は E の型の話なので、E が入っている組みでは数は動かない。減らす量はいちばん大きいが、H（400〜600 行）・D（新しい表）・E（ファイルごと読めない）の重さと危うさを全部持つ。値の木を J の 1 つにまとめる（A の門と置き場の読み）形にすれば H は軽くなるが、案の文はそうなっていない。"
     }
    }
   }
- ]
+ ],
+ "evaluation": {
+  "counted": "採点者が流し直した数: 計 507（delegates_budget.json と同じ）・層 本文 231・置き場 197・種まき 45・道 15・OS 8・束 6・口 5。形ごとの数と Python の答えの状態も案の係の json と全部同じ（score-count/mine.json）。",
+  "misclassified": [
+   "本文: 入れ子 128 段以上 6 のうち 4 は conversions の式の入れ子（JSON の深さ 4〜7）。A の門では減らない（場面の名前の入れ子|重ねで分けていた）",
+   "置き場の字: i64 に入らない整数 26 のうち 12（equip_rows 8・shifts 4『id が大きな数・字』）は id が字 \"3\"・小数 1e+19 の行。大きな整数ではなく型の話（E）",
+   "置き場・配った設定: 古さが数でない 6 は worklog の配った設定の値（float('abc') の ValueError）。マスタの行ではなく、E の行を飛ばす仕組みでは減らない",
+   "本文: 数の欄の字 8 のうち 2 は /api/pivot-quick の keys の str.strip（'\\u3000５'・'²'）。int() ではない",
+   "整数の -0（本文 15・置き場 8）は int() ではなく JSON の読み（serde の -0.0）。B ではなく A の門・置き場の読みで消える"
+  ],
+  "real_reduction": {
+   "A": 108,
+   "B（E なし）": 54,
+   "D": 62,
+   "E": "153（版 55 を含む・古さ 6 を除く・id の型 12 は H から移る）",
+   "F": 46,
+   "G": 12,
+   "H": 29,
+   "A＋B＋F＋G": "約 220（版の行を B で写すなら 275）",
+   "A＋B＋D＋E＋F＋G": "約 435",
+   "A＋B＋D＋E＋F＋G＋H": "約 476（残り約 31）"
+  },
+  "verified_found_error": "pyfmt::SPACES の割れは本当（Python 3.13.18 で isspace の 29 字のうち int()・float() が読まないのは U+001C〜U+001F の 4 字だけ。re の \\s・strip は読む）。pyfmt::strip・is_space は \\s・strip には正しく、py_int・py_float の前後の空白にだけ誤り。pynum_cases.json に 0x1C〜0x1F・0x85 は 0 件",
+  "missing": [
+   "値の木が 2 つある（pyjson::J は NaN・Big・-0→0・送った順・深さ 900 を持つ。jsontree::Tree は持てない）。A の門と置き場（Store・Place）の読みを J の 1 つにすれば、-0（23）・NaN の置き場（29）・大きな整数（H の 29）・入れ子が 1 つの部品で片付く。どの案もこれを書いていない",
+   "pyfmt::py_int が i64 に黙って丸める（Python は大きな int）",
+   "A の 1e400（parse_constant で捕まらない）と、空の PUT を {} にすると版を確かめずに書く形"
+  ],
+  "answers": [
+   "1（A・D）: A は替えてよい。画面（JSON.stringify）は NaN・Infinity・1e400 を送れず（null になる）、表でない本文・読めない JSON も送らないので、利用者に見える答えが替わるのは画面の外から送った時だけ。断る言葉は日本語の {error, kind: \"body\"} にそろえる。ただし空の PUT・DELETE は 400 のまま（{} にすると版を確かめずに書く）。D はまだ替えない: 画面が字の欄に数・真偽・並びを送るか（同一工程・rules の value・結合の cols・lot_list.table など）を ui-eval の全部で集めてから表を決める",
+   "2（E）: 替えてよいが、行ごとに隔てる形だけ。ファイルの字の NaN・Infinity・1e400 は J で読めるので、ファイルごと『読めない』にはしない（今は全部の行が読める）。版・型の読めない行は飛ばして badRows で知らせ、書くときはその行を名指しで断る（3.102.0 と同じ）。知らせの帯は飛ばす版と同じ版で、一覧のある画面すべてに出す",
+   "3（代用字）: 書く道では断る（400『対の無い代用字があります』）。今の Python も 3 歩（equip_rows・formats・ui_defaults）は utf-8 の encode で断っていて、保存されない結果は同じまま言葉だけ直る。U+FFFD に替えると、利用者の字を黙って替えて置くことになる。LotDsp の読む道（画面の表を読むだけ）は今の替える形のままでよく、1 つの部品の引数で分ける",
+   "4（F）: 窓も種をまいてよい。Python は今も読むだけで最初の版を置き、窓も変換表・設備グループで既に置いている（3.93.0・3.94.0）。Store::seed は錠の中で共有のファイルを見直すので 1 回だけ置かれる。段 ④ では窓だけが置くので、係を先に寄せる方が筋。条件は place_parity に窓と窓・窓と Python の種まきの競い合いを足すこと"
+  ]
+ }
 }
