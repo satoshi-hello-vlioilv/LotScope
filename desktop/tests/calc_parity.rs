@@ -22,7 +22,12 @@ fn calc_matches_python() {
         let calc = if sc["calculation"].is_null() { json!({}) } else { sc["calculation"].clone() };
         for c in sc["cases"].as_array().unwrap() {
             let case = format!("{name} / {}", c["name"].as_str().unwrap());
-            match handle(c["path"].as_str().unwrap(), c["body"].as_str().unwrap().as_bytes(), &calc, &masters) {
+            // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
+            let r = match common::gate("POST", c["path"].as_str().unwrap(), c["body"].as_str().unwrap().as_bytes()) {
+                Err(a) => Some(a),
+                Ok(b) => handle(c["path"].as_str().unwrap(), &b, &calc, &masters),
+            };
+            match r {
                 None => {
                     handed += 1;
                     if c["must"] == true {

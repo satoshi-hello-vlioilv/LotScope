@@ -30,6 +30,7 @@ os.environ.pop("TPA_SHELL_SERVES", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import SHARED_ALWAYS, MasterStore  # noqa: E402
 from app.services import identity, presence  # noqa: E402
+import oracle_gate  # noqa: E402
 
 BOSS, MAINT, VIEW, CUT = ("boss", "PC-1"), ("m1", "PC-2"), ("v1", "PC-3"), ("c1", "PC-4")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -338,7 +339,7 @@ def main():
                     _app_var.reset(t1)
                 confs[k]["configured"] = str(st.configured_dir or "")
             steps, dele = [], []
-            for st in list(sc["steps"]) + [dict(x, delegate=True) for x in sc.get("delegates", [])]:
+            for st in oracle_gate.seq(sc["steps"], sc.get("delegates", [])):
                 k = "pd" if st.get("delegate") else "py"
                 root, app = roots[k], apps[k]
                 if "do" in st:

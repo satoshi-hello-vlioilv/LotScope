@@ -24,6 +24,10 @@ class Table(unittest.TestCase):
         self.assertEqual(cases["᠑:30"]["hm"], 90, "モンゴルの数字の時刻も Python は読む")
         self.assertEqual((cases["²"]["int"], cases["--5"]["int"], cases["1_0"]["int"]), (None, None, 10))
         self.assertEqual((cases["1e400"]["float"], cases["nan"]["float"]), ("inf", "nan"))
+        # 版 3.104.0: int()・float() は U+001C〜U+001F を空白に読まない（str.strip は読む）。i64 に入らない数は桁の字・4,300 桁の上限
+        self.assertEqual((cases["4\x1c"]["int"], cases["4\x1c"]["float"], cases["4\x85"]["int"]), (None, None, 4))
+        self.assertEqual(cases["99999999999999999999"]["int"], "99999999999999999999")
+        self.assertTrue(cases["1" * 4301]["int_err"].startswith("Exceeds the limit (4300 digits)"))
 
 
 if __name__ == "__main__":

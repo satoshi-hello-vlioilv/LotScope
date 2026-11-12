@@ -100,7 +100,11 @@ fn answer(conf: &Value, st: &Value, root: &str, mover: &Mover) -> Option<(u16, V
     if st["hold"] == true {
         mover.hold(true);
     }
-    let r = handle(route, st["query"].as_str().unwrap_or(""), body.as_bytes(), &me, mover, &common::program());
+    // 書く道の本文の門（版 3.104.0。本物の道 Lot::handle_body と同じく部品より先）
+    let r = match common::gate(method, path, body.as_bytes()) {
+        Err(a) => Some(a),
+        Ok(b) => handle(route, st["query"].as_str().unwrap_or(""), &b, &me, mover, &common::program()),
+    };
     if st["hold"] == true {
         mover.hold(false);
     }

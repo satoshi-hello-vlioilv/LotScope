@@ -140,7 +140,7 @@ fn conversion_tables_match_python() {
         }
     }
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
-    assert!(steps >= 220 && delegated >= 48, "歩が少ない: {steps}・{delegated}");
+    assert!(steps >= 243 && delegated >= 29, "歩が少ない: {steps}・{delegated}"); // 版 3.104.0: 本文の門と int() の部品で、任せていた歩を窓が答える
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

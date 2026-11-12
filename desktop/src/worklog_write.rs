@@ -18,7 +18,7 @@
 //! 古さの警告の時間が数で読めない・百分率符号の道。
 
 use crate::lists::{same_fid, Found};
-use crate::master_rows::{base_rev, normalize_all, py_int, stamped, Rev, Spec};
+use crate::master_rows::{base_rev, normalize_all, py_int, stamped, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::pyfmt;
 use crate::worksum::{py_str, truthy};
@@ -41,14 +41,7 @@ pub enum Route {
 /// Python の int(字)（\d+ の道の id。Unicode の数字も・先頭の 0 も）。i64 に入らなければ None（Python に任せる）。
 /// 版 3.93.0 から変換表の道（src/conversions_write.rs）も使う
 pub(crate) fn id_of(s: &str) -> Option<i64> {
-    if s.is_empty() || !s.chars().all(|c| pyfmt::digit(c).is_some()) {
-        return None;
-    }
-    let mut n: i64 = 0;
-    for c in s.chars() {
-        n = n.checked_mul(10)?.checked_add(pyfmt::digit(c)? as i64)?;
-    }
-    Some(n)
+    pyfmt::path_int(s)
 }
 
 /// 窓が受ける道か
@@ -425,9 +418,6 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
             // base_rev() は本文を silent で読む（読めなければ確かめない）。続いて本文を get_json(force=True) で読む
             let parsed = crate::master_rows::py_body(body)?;
             let base = base_rev(&parsed, query);
-            if base == Some(Rev::Unknown) {
-                return None;
-            }
             let mut data = strict_body(body).ok()?;
             data.remove("base_rev");
             if let Some(name) = data.get("ファイル名").cloned() {
@@ -475,9 +465,6 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
         Route::Delete(id) => {
             let parsed = crate::master_rows::py_body(body)?;
             let base = base_rev(&parsed, query);
-            if base == Some(Rev::Unknown) {
-                return None;
-            }
             match crate::master_rows::delete(store, &SPEC, id, base) {
                 Ok(()) => Some((200, json!({"status": "deleted", "id": id}))),
                 Err(e) => Some(of_master(e)),

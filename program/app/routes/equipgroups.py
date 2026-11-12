@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """設備グループ（版 3.39.0。services/equip_groups.py）。ダッシュボードのパネルで、いくつかの設備を合算して出す組。
 読むのは誰でも。書くのは現場のマスタと同じ（部分的編集可から。門番 routes/access.py が確かめる）。"""
-from ..web import jsonify, request
+from ..web import jsonify
 
 from ..services import equip_groups
 from ..services.identity import normalize_part
-from .common import base_rev, bp, can_write, find_row, master_call, master_repo
+from .common import base_rev, bp, can_write, find_row, master_call, master_repo, req_body
 from .dashboard import equipment_seen
 
 
@@ -42,7 +42,7 @@ def equipgroups_list():
 @bp.post("/api/masters/equipgroups")
 def equipgroups_create():
     """{name, set, equipment, rules, except, note} を新しいグループとして置く。→ 一覧（足した行の id は created）。"""
-    body = request.get_json(force=True) or {}
+    body = req_body()
 
     def run():
         row = master_repo().equip_group_create(equip_groups.clean_row(body))
@@ -54,7 +54,7 @@ def equipgroups_create():
 def equipgroups_update(item_id):
     """名称・まとめ方・設備・表示順・備考を直す。base_rev が今の版と違えば 409（ほかの PC が先に直した）。"""
     base = base_rev()
-    body = dict(request.get_json(force=True) or {})
+    body = dict(req_body())
     body.pop("base_rev", None)
 
     def run():

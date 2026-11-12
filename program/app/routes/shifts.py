@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """勤務体系（直の時間帯。services/shifts.py）。作業実績を日＋直でまとめるときの直の決まり。
 読むのは誰でも。書くのは現場のマスタと同じ（部分的編集可から。門番 routes/access.py が確かめる）。"""
-from ..web import jsonify, request
+from ..web import jsonify
 
 from ..services import shifts
 from ..services.identity import normalize_part
-from .common import base_rev, bp, can_write, master_call, master_repo
+from .common import base_rev, bp, can_write, master_call, master_repo, req_body
 
 
 def _equipments(items):
@@ -38,7 +38,7 @@ def shifts_list():
 @bp.post("/api/masters/shifts")
 def shifts_create():
     """{name, equipment, segments, note} を新しい勤務体系として置く。→ 一覧（足した行の id は created）。"""
-    body = request.get_json(force=True) or {}
+    body = req_body()
 
     def run():
         row = master_repo().shift_create(shifts.clean_row(body))
@@ -50,7 +50,7 @@ def shifts_create():
 def shifts_update(item_id):
     """名称・適用設備・区分・表示順・備考を直す。base_rev が今の版と違えば 409（ほかの PC が先に直した）。"""
     base = base_rev()
-    body = dict(request.get_json(force=True) or {})
+    body = dict(req_body())
     body.pop("base_rev", None)
     return master_call(lambda: master_repo().shift_update(item_id, shifts.clean_row(body, partial=True), base) and _listing())
 

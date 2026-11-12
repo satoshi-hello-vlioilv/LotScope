@@ -27,6 +27,8 @@ os.environ.pop("TPA_SHELL_SERVES", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity, work_log  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 LOGIN = identity.current_login_id()
 NOW = 1_800_000_000.0
@@ -130,12 +132,12 @@ SCENARIOS = [
         S("PUT", f"{M}/1", "[1]"),
         S("PUT", f"{M}/1", "壊れた本文"),
         S("PUT", f"{M}/1", ""),
-        S("PUT", f"{M}/1", {"設備名": "x", "base_rev": "²"}),
+        W(S("PUT", f"{M}/1", {"設備名": "x", "base_rev": "²"})),
         S("PUT", f"{M}/1", {"備考": [1, 2]}),
         S("PUT", f"{M}/1", {"ファイル名": ["実績_新.sqlite3"]}),
         S("PUT", f"{M}/99999999999999999999", {"設備名": "x"}),
         S("DELETE", f"{M}/1", "[1]"),
-        S("DELETE", f"{M}/1", query="rev=²"),
+        W(S("DELETE", f"{M}/1", query="rev=²")),
     ]},
     {"name": "フォルダに届かない", "mode": "shared", "folder": "無いフォルダ", "steps": READS + [
         S("POST", f"{M}/scan"),
@@ -280,8 +282,9 @@ def main():
         py, rs, pd = (base / f"s{i}" / x for x in ("py", "rs", "pd"))
         for r in (py, rs, pd):
             place(r, sc, folder, fid)
-        steps = run(py, sc["steps"])
-        dele = run(pd, sc.get("delegates", []))
+        mine, theirs = oracle_gate.split(sc["steps"], sc.get("delegates", []))
+        steps = run(py, mine)
+        dele = run(pd, theirs)
         out.append({"name": sc["name"], "py": str(py), "rs": str(rs), "steps": steps, "delegates": dele,
                     "env": {"base": str(rs / "base"), "program": str(PROGRAM), "local": str(rs / "local"), "config": str(rs / "config.json")}})
     sys.stdout.write(json.dumps({"now": NOW, "fids": {v: k for k, v in fid.items() if v}, "scenarios": out}, ensure_ascii=False))

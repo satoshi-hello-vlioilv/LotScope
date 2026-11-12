@@ -28,6 +28,8 @@ os.environ.pop("TPA_SHELL_SERVES", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 LOGIN = identity.current_login_id()
 
@@ -167,7 +169,7 @@ SCENARIOS = [
         S("POST", E, G("順が 20 桁", order="1" + "0" * 20)), S("POST", E, G("順が 30 桁", order="1" + "0" * 30)),
         S("POST", E, G("備考が並び", note=[1])),
         S("POST", E, '{"name": "大きな整数", "equipment": [99999999999999999999]}'),
-        S("POST", E, '{"name": "x", "equipment": ["A"], "order": -0}'),
+        W(S("POST", E, '{"name": "x", "equipment": ["A"], "order": -0}')),
     ]},
     {"name": "足すの本文の形", "mode": "shared", "steps": [
         S("POST", E, "[1]"), S("POST", E, '"abc"'), S("POST", E, "5"), S("POST", E, "1.5"), S("POST", E, "true"),
@@ -205,8 +207,8 @@ SCENARIOS = [
         S("GET", E),
     ], "delegates": [
         S("PUT", f"{E}/1", "[1]"), S("PUT", f"{E}/1", ""), S("PUT", f"{E}/1", "壊れた本文"),
-        S("PUT", f"{E}/1", {"name": "x", "base_rev": "²"}), S("PUT", f"{E}/99999999999999999999", {"name": "x"}),
-        S("PUT", f"{E}/1", {"name": {"a": 1}}), S("PUT", f"{E}/1", '{"name": "x", "base_rev": -0}'),
+        W(S("PUT", f"{E}/1", {"name": "x", "base_rev": "²"})), S("PUT", f"{E}/99999999999999999999", {"name": "x"}),
+        S("PUT", f"{E}/1", {"name": {"a": 1}}), W(S("PUT", f"{E}/1", '{"name": "x", "base_rev": -0}')),
     ]},
     {"name": "まとめ方が空の行と同じ名前", "mode": "shared", "extra_rows": [{"id": 5, "名称": "全部", "まとめ方": "グループ", "設備": "A", "rev": 1}],
      "steps": [S("GET", E), S("PUT", f"{E}/3", {"name": "全部 "}), S("PUT", f"{E}/3", {"set": " "}), S("POST", E, G("全部", set="")),
@@ -224,7 +226,7 @@ SCENARIOS = [
         S("DELETE", f"{E}/2", query="rev=x"),
         S("GET", E),
     ], "delegates": [
-        S("DELETE", f"{E}/5", "[1]"), S("DELETE", f"{E}/5", query="rev=²"), S("DELETE", f"{E}/5", '{"base_rev": NaN}'),
+        S("DELETE", f"{E}/5", "[1]"), W(S("DELETE", f"{E}/5", query="rev=²")), S("DELETE", f"{E}/5", '{"base_rev": NaN}'),
     ]},
     {"name": "書ける段と門番（閲覧のみ）", "mode": "shared", "perm": perm("一般ユーザー", "閲覧のみ"), "steps": [
         S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"name": "x"}), S("DELETE", f"{E}/1"),
@@ -405,10 +407,11 @@ def main():
         py, rs, pd = (base / f"s{i}" / x for x in ("py", "rs", "pd"))
         for r in (py, rs, pd):
             place(r, sc)
-        steps = run(py, sc["steps"])
+        mine, theirs = oracle_gate.split(sc["steps"], sc.get("delegates", []))
+        steps = run(py, mine)
         # 任せる歩は答えの本文を比べない（NaN の答えもある）。状態と、Python が置いたマスタのファイルの名前（共有・data/）は残す
         dele = [{**x, "json": None, "from": sorted({f for e in (x["json"] or {}).get("seen") or [] for f in e.get("from") or []})}
-                for x in run(pd, sc.get("delegates", []))]
+                for x in run(pd, theirs)]
         out.append({"name": sc["name"], "py": str(py), "rs": str(rs), "steps": steps, "delegates": dele,
                     "absent": sc.get("absent"),
                     "cm3": sc.get("cm3"),

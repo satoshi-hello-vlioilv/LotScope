@@ -14,7 +14,7 @@
 //! 大きな整数、scope が並び・表（preset_rows::plain_input）・中身を字で送り、その字を窓が読めない（NaN・-0 など）・置き場の行の形が違う
 //! （preset_rows::rows_plain）・道の id が ASCII の数字でない。
 
-use crate::master_rows::{self, base_rev, Rev};
+use crate::master_rows::{self, base_rev};
 use crate::master_store::Store;
 use crate::preset_rows::{self as pr, Answer, Who, DASHBOARDS};
 use serde_json::{json, Map, Value};
@@ -38,10 +38,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -156,10 +154,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         if crate::worksum::truthy(&parsed) && !parsed.is_object() {
             return None;
         }
-        let base = match base_rev(&parsed, query) {
-            Some(Rev::Unknown) => return None,
-            b => b,
-        };
+        let base = base_rev(&parsed, query);
         let Some(old) = find(id).filter(|r| r.get("元").and_then(Value::as_str) == Some(SOURCE)) else {
             return Some((200, json!({"ok": true})));
         };
@@ -201,10 +196,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             (row, None, None)
         }
         Route::Update(id) => {
-            let base = match base_rev(&parsed, query) {
-                Some(Rev::Unknown) => return None,
-                b => b,
-            };
+            let base = base_rev(&parsed, query);
             let Some(old) = find(id).filter(|r| r.get("元").and_then(Value::as_str) == Some(SOURCE)) else {
                 return Some(layout_error(format!("セット id={id} が見つかりません（ほかの PC が消した可能性があります）。")));
             };

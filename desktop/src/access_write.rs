@@ -28,7 +28,7 @@ use crate::access::{
     flags, has_admin_row, normalize_master_edit, normalize_part, normalize_role, role_can, tab_exceptions, text, MASTER_EDIT_LEVELS,
     ROLE_USER, TAB_HIDE, TAB_ROLES, TAB_SHOW,
 };
-use crate::master_rows::{base_rev, clean, normalize_all, py_int, same_id, stamped, Rev, Spec};
+use crate::master_rows::{base_rev, clean, normalize_all, py_int, same_id, stamped, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::worksum::py_str;
 use serde_json::{json, Map, Value};
@@ -47,10 +47,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), p) => {
             let id = p.strip_prefix("/api/masters/access/")?;
             // Python の <int:item_id>（数字だけ）
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let id: i64 = id.parse().ok()?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
+            let id: i64 = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -424,9 +422,6 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         // routes/common.base_rev は master_call の外で本文を読む: 表でない本文（並び・字・数）は Python では 500（行は書かない）
         if !parsed.is_object() {
             return Some(err(500, "error", "本文の形が違います"));
-        }
-        if base_rev(&parsed, query) == Some(Rev::Unknown) {
-            return None;
         }
     }
     Some(answer(store, me, &rows_of(me), route, query, body, &parsed))

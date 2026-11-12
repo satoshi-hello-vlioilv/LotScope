@@ -7,7 +7,7 @@ from ..web import jsonify, request
 from ..services import access
 from ..services import pivot_presets as pp
 from ..services.data_sources import is_screen_source
-from .common import Forbidden, base_rev, bp, can_write, error, find_row, master_call, master_repo, me
+from .common import Forbidden, base_rev, bp, can_write, error, find_row, master_call, master_repo, me, req_body
 
 SCOPE_ORDER = {"me": 0, "all": 1, "default": 2}
 
@@ -58,7 +58,7 @@ def quick_put():
     login, _, _, revoked = _who()
 
     def go():
-        d = request.get_json(force=True) or {}
+        d = req_body()
         src = d.get("source")
         if not is_screen_source(src):
             raise pp.PresetError("元（lot・work・src:<キー>）が違います。")
@@ -78,7 +78,7 @@ def presets_create():
     login, common_ok, default_ok, revoked = _who()
 
     def go():
-        row = pp.clean_row(request.get_json(force=True) or {}, login)
+        row = pp.clean_row(req_body(), login)
         _gate(row, login, common_ok, default_ok, revoked)
         return pp.view(master_repo().preset_create(row), login, common_ok, default_ok)
     return _call(go, 201)
@@ -95,7 +95,7 @@ def presets_update(item_id):
         if old is None:
             raise pp.PresetError(f"id={item_id} が見つかりません。")
         _gate(old, login, common_ok, default_ok, revoked)
-        row = master_repo().preset_update(item_id, pp.clean_row(request.get_json(force=True) or {}, login, partial=True), base)
+        row = master_repo().preset_update(item_id, pp.clean_row(req_body(), login, partial=True), base)
         return pp.view(row, login, common_ok, default_ok)
     return _call(go)
 

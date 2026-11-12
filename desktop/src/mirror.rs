@@ -270,8 +270,8 @@ impl DbMirror {
         write_json_atomic(&self.ledger_path(), &Value::Object(data))
     }
 
-    fn generation_path(&self, gen: i64) -> PathBuf {
-        self.cache_dir.join(format!("{}.g{gen}.sqlite3", self.key))
+    fn generation_path(&self, gen: &crate::pyfmt::PyInt) -> PathBuf {
+        self.cache_dir.join(format!("{}.g{}.sqlite3", self.key, gen.text()))
     }
 
     /// `<キー>.g<n>.sqlite3` の名前を並べる。
@@ -286,7 +286,9 @@ impl DbMirror {
             .collect()
     }
 
-    fn next_generation(&self) -> i64 {
+    /// db_mirror._next_generation: いちばん大きい世代 ＋ 1（Python の int と同じく桁のまま。版 3.104.0 の作った後の採点: 前は i64 の端へ丸めて
+    /// 1 を足し、`.g99999999999999999999.sqlite3` のような名前であふれた）
+    fn next_generation(&self) -> crate::pyfmt::PyInt {
         let prefix = format!("{}.g", self.key);
         let top = self
             .generations()
@@ -295,8 +297,8 @@ impl DbMirror {
                 let n = p.file_name()?.to_str()?;
                 crate::pyfmt::py_int(&n[prefix.len()..n.len() - ".sqlite3".len()]).ok()
             })
-            .fold(0, i64::max);
-        top + 1
+            .fold(crate::pyfmt::PyInt::Small(0), std::cmp::max);
+        top.succ()
     }
 
     pub fn mirror_path(&self) -> Option<PathBuf> {
@@ -428,7 +430,7 @@ impl DbMirror {
             return self.record(res);
         }
         let _ = std::fs::create_dir_all(&self.cache_dir);
-        let target = self.generation_path(self.next_generation());
+        let target = self.generation_path(&self.next_generation());
         let tmp = target.with_extension("sqlite3.tmp");
         let _ = std::fs::remove_file(&tmp);
         let size = sig.get("size").and_then(Value::as_u64).unwrap_or(0);

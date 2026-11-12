@@ -636,10 +636,7 @@ pub(crate) fn strict(body: &[u8], other_500: bool) -> Option<Result<Tree, Answer
 /// 開いたときの行の版（routes/common.base_rev: 本文を silent で読む・表でない真の本文は道の外で 500）。読めない版の字は None（任せる）
 pub(crate) fn rev_of(body: &[u8], query: &str) -> Option<Option<Rev>> {
     let parsed = master_rows::py_body(body)?;
-    match base_rev(&parsed, query) {
-        Some(Rev::Unknown) => None,
-        b => Some(b),
-    }
+    Some(base_rev(&parsed, query))
 }
 
 // ------------------------------------------------------------------ 書く

@@ -166,3 +166,11 @@ impl Drop for Live {
         let _ = self.child.wait();
     }
 }
+
+/// 書く道の本文の門（版 3.104.0。src/body.rs）。本物の道（Lot::handle_body）と同じく、部品より先に当てる。Err は窓が断る答え
+pub fn gate(method: &str, path: &str, body: &[u8]) -> Result<Vec<u8>, (u16, serde_json::Value)> {
+    match da_core::body::gate(method, path, body) {
+        da_core::body::Gate::Pass(b) => Ok(b.into_owned()),
+        da_core::body::Gate::Refuse(status, v) => Err((status, v)),
+    }
+}

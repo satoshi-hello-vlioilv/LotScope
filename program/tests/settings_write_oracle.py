@@ -22,6 +22,8 @@ os.environ.pop("TPA_SHELL", None)
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity  # noqa: E402
+import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 BOSS, PART, VIEW = ("boss", "PC-1"), ("p1", "PC-2"), ("v1", "PC-3")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -138,8 +140,8 @@ SCENARIOS = [
         S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": NaN}'),
         S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": 1e400}'),
         S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": 99999999999999999999}'),
-        S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": -0}'),
-        S(BOSS, "PUT", P + "lot_list.table", V("y", base_rev="²")),
+        W(S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": -0}')),
+        W(S(BOSS, "PUT", P + "lot_list.table", V("y", base_rev="²"))),
         S(BOSS, "PUT", P + "lot%5Flist.table", V("y")),
     ]},
     {"name": "置き場の行の版・値が読めない（窓は答えず Python に任せる）", "mode": "shared",
@@ -225,7 +227,7 @@ def main():
             place(pd, sc)
             clients = {False: client, True: create_app({"TESTING": True, "MASTER_STORE": store_of(pd, sc)}).test_client()}
             steps, dele = [], []
-            for st in sc["steps"] + [dict(x, delegate=True) for x in sc.get("delegates", [])]:
+            for st in oracle_gate.seq(sc["steps"], sc.get("delegates", [])):
                 who.update(login=st["who"][0], pc=st["who"][1])
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 forget_tab_cache()

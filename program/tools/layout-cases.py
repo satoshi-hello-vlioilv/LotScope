@@ -58,8 +58,8 @@ add(*lay(L(P("p6"), P("a", x=4), P("a", x=8))))     # 付け直す先 p6 がも�
 add(*lay(L(P("p5"), P("p6", x=4), P("a", x=8), P("a", y=2))))
 add(*lay(L(P("a", w=4.9, h=True, x="1_0"), rows=" 6 ")))
 add(*lay(L(P("a", w="9" * 5000), rows=4)))
-add(*lay(L(P("a", w="5\x1c"))), py=True)
-add(*lay(L(P("a", w="４"))), py=True)
+add(*lay(L(P("a", w="5\x1c"))))     # 版 3.104.0 から窓も Python の int() と同じに読む（pyfmt::py_int_of。前は Python に任せた）
+add(*lay(L(P("a", w="４"))))
 add(*lay(L(P("a", x=0, w=6), P("b", x=3, w=6, title="二"))))
 add(*lay(L(P("bad id!", w=20, h=40, x=-3, y=99), rows=100)))
 add(*lay(L(*[P(f"q{k}", x=(k % 3) * 4, y=k // 3, h=1) for k in range(25)], rows=16)))
@@ -117,8 +117,9 @@ add(*lay(L(P(source="bad"))))
 add(*lay(L(P(source="src:ABC"))))
 add(*lay(L(P(visual="bar", body={"rows": []}))))
 add(*lay(L(P(visual="kpi", body={}), P("b", x=4, visual="slicer", body={"rows": [{"column": "工程"}]}))))
-add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": {"k": "\x01"}}]))), py=True)
-add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": ["\u3040"]}]))), py=True)   # 割り当ての無い字（Python は \\u で逃がす）
+# 版 3.104.0 の作った後の採点から、窓も Python の isprintable の表（src/printable_table.rs）で repr を逃がす（前は Python に任せた）
+add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": {"k": "\x01"}}]))))
+add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": ["\u3040"]}]))))   # 割り当ての無い字（Python は \\u で逃がす）
 add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": ["あ", "ア", "漢", "Ａ", "、"]}]))))
 # ---- 基準の数（版 3.103.0。services/capacity.py）: 作った数の並び（パネルとダッシュボード）・値の割る数 per・基準の数の値 base・式の ［名前］
 OWNX = [{"name": " 換算稼働日 ", "expr": "[稼働直]÷[1日の直数]", "each": True, "unit": "日"}, {"name": "稼働率", "expr": "[稼働直]÷[期間の直数]×100", "unit": " % "},

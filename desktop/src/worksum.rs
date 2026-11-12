@@ -136,12 +136,8 @@ pub fn crosses_midnight(start: &str, end: &str) -> bool {
 
 /// Python の int(値)（JSON の値。読めなければ None）
 pub fn py_int_of(v: &Value) -> Option<i64> {
-    match v {
-        Value::Bool(b) => Some(*b as i64),
-        Value::Number(n) => n.as_i64().or_else(|| n.as_f64().filter(|f| f.is_finite()).map(|f| f.trunc() as i64)),
-        Value::String(s) => pyfmt::py_int(s).ok(),
-        _ => None,
-    }
+    // 版 3.104.0 から pyfmt::py_int_of の 1 つ（i64 に入らない数は端へ。前と同じ）
+    pyfmt::py_int_of(v.into()).ok().map(|n| n.saturating())
 }
 
 /// この区分の「跨いだ後の時間帯」に当てる日付補正。跨がない区分は必ず 0。未設定は -1
@@ -423,7 +419,7 @@ impl Grouping {
             return None;
         }
         let shift = match arg("shift") {
-            Some(s) if !s.is_empty() => pyfmt::py_int(s).ok(),
+            Some(s) if !s.is_empty() => pyfmt::py_int(s).ok().map(|n| n.saturating()),
             _ => None,
         };
         let day = arg("day").unwrap_or("");

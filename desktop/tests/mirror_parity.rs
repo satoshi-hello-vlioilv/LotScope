@@ -101,6 +101,12 @@ fn rust_mirrors_like_python() {
                 }
                 Value::Null
             }
+            // 写しの置き場に世代の名前のファイルを置く（版 3.104.0 の作った後の採点: i64 に入らない世代の次）
+            "plant" => {
+                std::fs::create_dir_all(&cache).unwrap();
+                std::fs::write(cache.join(s("name")), b"x").unwrap();
+                Value::Null
+            }
             "refresh" => m.as_ref().unwrap().refresh(),
             "read_path" => m.as_ref().unwrap().read_path().map(|p| json!(p.display().to_string())).unwrap_or(Value::Null),
             "source_info" => m.as_ref().unwrap().source_info(),

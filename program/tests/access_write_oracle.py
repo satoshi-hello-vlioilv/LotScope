@@ -23,6 +23,7 @@ os.environ.pop("TPA_SHELL", None)            # Python が自分で決める道�
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity  # noqa: E402
+import oracle_gate  # noqa: E402
 
 BOSS, M1, U = ("boss", "PC-1"), ("m2", "PC-2"), ("u1", "PC-9")
 
@@ -211,7 +212,7 @@ def main():
             place(pd, sc)
             clients = {False: client, True: create_app({"TESTING": True, "MASTER_STORE": store_of(pd, sc)}).test_client()}
             steps, dele = [], []
-            for st in sc["steps"] + [dict(x, delegate=True) for x in sc.get("delegates", [])]:
+            for st in oracle_gate.seq(sc["steps"], sc.get("delegates", [])):
                 who.update(login=st["who"][0], pc=st["who"][1])
                 routes._REVOKE_CACHE.update(at=0.0, key="")
                 from app.routes.common import forget_tab_cache

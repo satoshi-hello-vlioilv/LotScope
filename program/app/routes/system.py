@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """画面・版・画面の設定・心拍（利用状況）。"""
 from ..repositories.master_store import MasterError
-from ..web import current_app, jsonify, render_template, request
+from ..web import current_app, jsonify, render_template
 
 from .. import effective_settings
 from ..brand import BRAND
 from ..models import DEFAULT_UNWIND
 from ..services import access, conversions, lotdsp_api, lotdsp_direct, presence, ui_defaults, ui_state
 from ..version import APP_VERSION, CHANGELOG
-from .common import api_map, api_settings, bp, error, master_repo, me, roles_from
+from .common import api_map, api_settings, bp, error, master_repo, me, req_body, req_body_value, roles_from
 
 
 def ui_profile():
@@ -47,7 +47,7 @@ def ui_state_get():
 @bp.post("/api/ui-state")
 def ui_state_put():
     """画面の設定の控えに、変わった名前を重ねる（閉じる瞬間は sendBeacon で来るので、種類を問わず JSON として読む）。"""
-    body = request.get_json(silent=True, force=True) or {}
+    body = req_body()
     try:
         return jsonify(ui_state.merge(body.get("changed"), body.get("removed") or []))
     except ValueError as e:
@@ -127,7 +127,7 @@ def ui_defaults_put():
         return error("この PC は一時的に切断されています。初期設定を置けません。", 403, "revoked")
     # 本文と keys は表だけ（版 3.78.0。前は読めない本文・表でない本文・keys の無い本文を {} と読み、全員の初期設定を消した。
     # 外すときは画面が {keys: {}} を送る）
-    body = request.get_json(force=True, silent=True)
+    body = req_body_value()
     if not isinstance(body, dict):
         return error("本文の形が違います（{keys: {名前: 字}}）。", 400)
     try:

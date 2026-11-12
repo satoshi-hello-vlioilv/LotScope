@@ -107,6 +107,16 @@ pub fn strip(s: &str) -> &str {
     s.trim_matches(is_space)
 }
 
+/// Python の int()・float() が前後から除く空白（版 3.104.0）。str.isspace のうち U+001C〜U+001F の 4 字だけは除かない
+/// （Python 3.13 の int('4\x1c')・float('4\x1c') は ValueError。str.strip() と正規表現の \s は除くので is_space・strip は今のまま）
+pub fn is_int_space(c: char) -> bool {
+    is_space(c) && !('\u{1c}'..='\u{1f}').contains(&c)
+}
+
+fn int_strip(s: &str) -> &str {
+    s.trim_matches(is_int_space)
+}
+
 /// SQLite の値（Python の sqlite3 が渡す形と同じ種類）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Py<'a> {
@@ -231,7 +241,24 @@ pub fn bytes_repr(b: &[u8]) -> String {
     out
 }
 
-/// Python の repr(str)（誤りの文に使う。引用符の選び方と、よく出る逃がしだけ）。
+/// Python の str.isprintable()（1 字。表は Python から焼いた src/printable_table.rs。版 3.104.0）
+pub fn is_printable(c: char) -> bool {
+    let n = c as u32;
+    crate::printable_table::NOT_PRINTABLE
+        .binary_search_by(|&(a, b)| {
+            if b < n {
+                std::cmp::Ordering::Less
+            } else if a > n {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_err()
+}
+
+/// Python の repr(str)（引用符の選び方・\\ \n \r \t・印字できない字は \xhh・\uhhhh・\Uhhhhhhhh。版 3.104.0 の作った後の採点: 前は印字できない字を
+/// そのまま書き、int()・float() の誤りの文が Python と割れた）。layout_clean・cm3 の repr もこれ 1 つ
 pub fn str_repr(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
     let mut out = String::from(quote);
@@ -244,6 +271,16 @@ pub fn str_repr(s: &str) -> String {
             _ if c == quote => {
                 out.push('\\');
                 out.push(c)
+            }
+            _ if !is_printable(c) => {
+                let n = c as u32;
+                out.push_str(&if n < 0x100 {
+                    format!("\\x{n:02x}")
+                } else if n < 0x10000 {
+                    format!("\\u{n:04x}")
+                } else {
+                    format!("\\U{n:08x}")
+                });
             }
             _ => out.push(c),
         }
@@ -270,25 +307,259 @@ fn ascii_digits(s: &str, underscores: bool) -> Option<String> {
     (!out.is_empty()).then_some(out)
 }
 
-/// Python の int(文字)（10 進）。読めなければ Python と同じ文の誤り。
-pub fn py_int(s: &str) -> Result<i64, String> {
-    let bad = || format!("invalid literal for int() with base 10: {}", str_repr(s));
-    let t = strip(s);
+/// Python の int() の答え（版 3.104.0）。i64 に入らない数は桁の字（符号と、先頭に 0 の無い 10 進の数字）で持つ（前は i64 の端へ黙って丸めた）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PyInt {
+    Small(i64),
+    Big(String),
+}
+
+impl PyInt {
+    /// 10 進の字（符号つきの数字）から。i64 に入れば Small
+    fn of_digits(neg: bool, digits: &str) -> PyInt {
+        let d = digits.trim_start_matches('0');
+        if d.is_empty() {
+            return PyInt::Small(0);
+        }
+        let text = if neg { format!("-{d}") } else { d.to_string() };
+        match text.parse::<i64>() {
+            Ok(i) => PyInt::Small(i),
+            Err(_) => PyInt::Big(text),
+        }
+    }
+
+    /// i64 に入るときだけ
+    pub fn small(&self) -> Option<i64> {
+        match self {
+            PyInt::Small(i) => Some(*i),
+            PyInt::Big(_) => None,
+        }
+    }
+
+    /// i64 の端へ丸めた値（呼ぶ側が丸めてよいと決めた所だけで使う）
+    pub fn saturating(&self) -> i64 {
+        match self {
+            PyInt::Small(i) => *i,
+            PyInt::Big(s) if s.starts_with('-') => i64::MIN,
+            PyInt::Big(_) => i64::MAX,
+        }
+    }
+
+    /// i128 の端へ丸めた値（大きな並びの番号を比べる所）
+    pub fn wide_saturating(&self) -> i128 {
+        match self {
+            PyInt::Small(i) => *i as i128,
+            PyInt::Big(s) => s.parse::<i128>().unwrap_or(if s.starts_with('-') { i128::MIN } else { i128::MAX }),
+        }
+    }
+
+    /// Python の str(int)
+    pub fn text(&self) -> String {
+        match self {
+            PyInt::Small(i) => i.to_string(),
+            PyInt::Big(s) => s.clone(),
+        }
+    }
+
+    /// 符号（負なら真）と、先頭に 0 の無い 10 進の数字
+    fn sign_digits(&self) -> (bool, String) {
+        let t = self.text();
+        match t.strip_prefix('-') {
+            Some(d) => (true, d.to_string()),
+            None => (false, t),
+        }
+    }
+
+    /// Python の n + 1（版 3.104.0 の作った後の採点: 前は i64 の端へ丸めた値に 1 を足してあふれた）
+    pub fn succ(&self) -> PyInt {
+        if let PyInt::Small(i) = self {
+            if let Some(n) = i.checked_add(1) {
+                return PyInt::Small(n);
+            }
+        }
+        let (neg, d) = self.sign_digits();
+        // 10 進の字の 1 を足す・引く（負の数は大きさから 1 を引く）
+        let mut ds: Vec<u8> = d.bytes().map(|b| b - b'0').collect();
+        if !neg {
+            let mut i = ds.len();
+            loop {
+                if i == 0 {
+                    ds.insert(0, 1);
+                    break;
+                }
+                i -= 1;
+                if ds[i] == 9 {
+                    ds[i] = 0;
+                } else {
+                    ds[i] += 1;
+                    break;
+                }
+            }
+        } else {
+            let mut i = ds.len();
+            while i > 0 {
+                i -= 1;
+                if ds[i] == 0 {
+                    ds[i] = 9;
+                } else {
+                    ds[i] -= 1;
+                    break;
+                }
+            }
+        }
+        let text: String = ds.iter().map(|b| (b + b'0') as char).collect();
+        PyInt::of_digits(neg, &text)
+    }
+}
+
+/// 数の大きさで比べる（Python の int の比べ方。Big も桁で比べる）
+impl Ord for PyInt {
+    fn cmp(&self, other: &PyInt) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        if let (PyInt::Small(a), PyInt::Small(b)) = (self, other) {
+            return a.cmp(b);
+        }
+        let ((na, da), (nb, db)) = (self.sign_digits(), other.sign_digits());
+        let za = da == "0";
+        let zb = db == "0";
+        let (na, nb) = (na && !za, nb && !zb);
+        if na != nb {
+            return if na { Ordering::Less } else { Ordering::Greater };
+        }
+        let mag = da.len().cmp(&db.len()).then_with(|| da.cmp(&db));
+        if na {
+            mag.reverse()
+        } else {
+            mag
+        }
+    }
+}
+
+impl PartialOrd for PyInt {
+    fn partial_cmp(&self, other: &PyInt) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// int() の桁の上限（Python の sys.get_int_max_str_digits() の既定）
+pub const INT_MAX_DIGITS: usize = 4300;
+
+/// Python の int(文字)（10 進）。読めなければ Python と同じ文の誤り（版 3.104.0: 前後の空白は int() の空白・4,300 桁の上限・i64 に入らない数は Big）
+pub fn py_int(s: &str) -> Result<PyInt, String> {
+    // 誤りの文の字は repr の先頭 200 字まで（CPython の %.200R）
+    let bad = || format!("invalid literal for int() with base 10: {}", str_repr(s).chars().take(200).collect::<String>());
+    let t = int_strip(s);
     let (neg, rest) = match t.chars().next() {
         Some('-') => (true, &t[1..]),
         Some('+') => (false, &t[1..]),
         _ => (false, t),
     };
     let d = ascii_digits(rest, true).ok_or_else(bad)?;
-    let v: i128 = d.parse::<i128>().unwrap_or(i128::MAX);
-    let v = if neg { -v } else { v };
-    Ok(v.clamp(i64::MIN as i128, i64::MAX as i128) as i64)
+    if d.len() > INT_MAX_DIGITS {
+        return Err(format!(
+            "Exceeds the limit ({INT_MAX_DIGITS} digits) for integer string conversion: value has {} digits; use sys.set_int_max_str_digits() to increase the limit",
+            d.len()
+        ));
+    }
+    Ok(PyInt::of_digits(neg, &d))
+}
+
+/// 小数の整数の部分を 10 進の字にする（Python の int(float) は切り捨てた値を桁のまま持つ）
+fn float_int(f: f64) -> PyInt {
+    let t = f.trunc();
+    if t.abs() < 9.0e18 {
+        return PyInt::Small(t as i64);
+    }
+    // t = m × 2^e（m は 53 ビットまで・e は 0 以上）を 10 進に（10^9 ごとの桁の並びで 2 倍を重ねる）
+    let bits = t.abs().to_bits();
+    let exp = ((bits >> 52) & 0x7ff) as i64 - 1075;
+    let mant = (bits & ((1u64 << 52) - 1)) | (1u64 << 52);
+    let mut limbs: Vec<u64> = vec![mant % 1_000_000_000, (mant / 1_000_000_000) % 1_000_000_000, mant / 1_000_000_000_000_000_000];
+    for _ in 0..exp.max(0) {
+        let mut carry = 0;
+        for l in limbs.iter_mut() {
+            let v = *l * 2 + carry;
+            *l = v % 1_000_000_000;
+            carry = v / 1_000_000_000;
+        }
+        if carry > 0 {
+            limbs.push(carry);
+        }
+    }
+    while limbs.len() > 1 && *limbs.last().unwrap() == 0 {
+        limbs.pop();
+    }
+    let mut s = limbs.last().unwrap().to_string();
+    for l in limbs.iter().rev().skip(1) {
+        s.push_str(&format!("{l:09}"));
+    }
+    PyInt::of_digits(t < 0.0, &s)
+}
+
+/// int() に渡す値（JSON の値・JSON の木の値をこの形にして渡す）
+#[derive(Debug, Clone, Copy)]
+pub enum IntArg<'a> {
+    None,
+    Bool(bool),
+    Num(&'a serde_json::Number),
+    Str(&'a str),
+    /// 並び・表（Python の型の名前）
+    Other(&'static str),
+}
+
+impl<'a> From<&'a serde_json::Value> for IntArg<'a> {
+    fn from(v: &'a serde_json::Value) -> IntArg<'a> {
+        use serde_json::Value;
+        match v {
+            Value::Null => IntArg::None,
+            Value::Bool(b) => IntArg::Bool(*b),
+            Value::Number(n) => IntArg::Num(n),
+            Value::String(s) => IntArg::Str(s),
+            Value::Array(_) => IntArg::Other("list"),
+            Value::Object(_) => IntArg::Other("dict"),
+        }
+    }
+}
+
+/// Python の int(x)（x は JSON の値: 真偽は 0・1、整数はそのまま、小数は 0 の向きへ切る、字は int(字)）。版 3.104.0 から窓の int() の
+/// 写しはみなこれを呼ぶ（前は 14 の写しが読める字の範囲をそれぞれに持っていた）。誤りは Python と同じ文（ValueError・TypeError）
+pub fn py_int_of(x: IntArg) -> Result<PyInt, String> {
+    match x {
+        IntArg::Bool(b) => Ok(PyInt::Small(b as i64)),
+        IntArg::Num(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(PyInt::Small(i))
+            } else if let Some(u) = n.as_u64() {
+                Ok(PyInt::Big(u.to_string()))
+            } else {
+                let f = n.as_f64().unwrap_or(f64::NAN);
+                if f.is_nan() {
+                    Err("cannot convert float NaN to integer".into())
+                } else if f.is_infinite() {
+                    Err("cannot convert float infinity to integer".into())
+                } else {
+                    Ok(float_int(f))
+                }
+            }
+        }
+        IntArg::Str(s) => py_int(s),
+        IntArg::None => Err("int() argument must be a string, a bytes-like object or a real number, not 'NoneType'".into()),
+        IntArg::Other(t) => Err(format!("int() argument must be a string, a bytes-like object or a real number, not '{t}'")),
+    }
+}
+
+/// 道の id（Python の <int:…> は \d+〈Unicode の 10 進数字〉に当たった字の int()）。i64 に入らなければ None（その道は Python に任せる）
+pub fn path_int(s: &str) -> Option<i64> {
+    if s.is_empty() || !s.chars().all(|c| digit(c).is_some()) {
+        return None;
+    }
+    py_int(s).ok()?.small()
 }
 
 /// Python の float(文字)。読めなければ Python と同じ文の誤り。
 pub fn py_float(s: &str) -> Result<f64, String> {
     let bad = || format!("could not convert string to float: {}", str_repr(s));
-    let t = strip(s);
+    let t = int_strip(s);
     let (neg, rest) = match t.chars().next() {
         Some('-') => (true, &t[1..]),
         Some('+') => (false, &t[1..]),
@@ -748,11 +1019,43 @@ mod tests {
 
     #[test]
     fn int_and_float_like_python() {
-        assert_eq!(py_int(" 3 "), Ok(3));
-        assert_eq!(py_int("1_0"), Ok(10));
-        assert_eq!(py_int("３"), Ok(3));
+        assert_eq!(py_int(" 3 "), Ok(PyInt::Small(3)));
+        assert_eq!(py_int("1_0"), Ok(PyInt::Small(10)));
+        assert_eq!(py_int("３"), Ok(PyInt::Small(3)));
         assert_eq!(py_int("abc"), Err("invalid literal for int() with base 10: 'abc'".into()));
         assert!(py_int("2.0").is_err());
+        assert!(py_int("4\u{1c}").is_err(), "int() は U+001C を空白に読まない（str.strip は読む）");
+        assert_eq!(py_int("\u{3000}4\u{85}"), Ok(PyInt::Small(4)));
+        assert_eq!(py_int("-0"), Ok(PyInt::Small(0)));
+        assert_eq!(py_int("99999999999999999999"), Ok(PyInt::Big("99999999999999999999".into())), "i64 の端へ丸めない");
+        assert_eq!(py_int("-0009223372036854775808"), Ok(PyInt::Small(i64::MIN)));
+        assert!(py_int(&"1".repeat(4301)).unwrap_err().starts_with("Exceeds the limit (4300 digits)"));
+        assert!(py_int(&"1".repeat(4300)).is_ok());
+        let f = |x: f64| py_int_of(IntArg::Num(&serde_json::Number::from_f64(x).unwrap()));
+        assert_eq!(f(1e20), Ok(PyInt::Big("100000000000000000000".into())));
+        assert_eq!(f(-2.9), Ok(PyInt::Small(-2)));
+        assert_eq!(f(1e300).unwrap().text().len(), 301);
+        assert_eq!(
+            py_int_of(IntArg::None).unwrap_err(),
+            "int() argument must be a string, a bytes-like object or a real number, not 'NoneType'"
+        );
+        assert_eq!(path_int("１２"), Some(12));
+        assert_eq!(path_int("١"), Some(1));
+        assert_eq!(path_int("99999999999999999999"), None);
+        assert_eq!(path_int("1_0"), None, "道の id は数字だけ");
+        // 版 3.104.0 の作った後の採点: 大きな数の 1 を足す・比べる（Python の int と同じ）
+        let big = |s: &str| py_int(s).unwrap();
+        assert_eq!(PyInt::Small(i64::MAX).succ(), PyInt::Big("9223372036854775808".into()));
+        assert_eq!(big("99999999999999999999").succ(), PyInt::Big("100000000000000000000".into()));
+        assert_eq!(big("-9223372036854775809").succ(), PyInt::Small(i64::MIN));
+        assert_eq!(big("-100000000000000000000").succ(), PyInt::Big("-99999999999999999999".into()));
+        let mut xs =
+            [big("1"), big("-99999999999999999999"), big("100000000000000000000"), big("99999999999999999999"), big("-3"), big("0")];
+        xs.sort();
+        assert_eq!(
+            xs.iter().map(PyInt::text).collect::<Vec<_>>(),
+            ["-99999999999999999999", "-3", "0", "1", "99999999999999999999", "100000000000000000000"]
+        );
         assert_eq!(py_float(" 1e3 "), Ok(1000.0));
         assert_eq!(py_float(".5"), Ok(0.5));
         assert_eq!(py_float("5."), Ok(5.0));
