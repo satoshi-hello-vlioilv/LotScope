@@ -263,7 +263,9 @@ fn master_place_matches_python() {
     }
     eprintln!("歩 {steps}・写して切り替えた歩 {moved}・Python に任せた歩 {delegated}");
     // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
-    assert!(steps >= 61 && moved >= 4, "歩が少ない: {steps}・{delegated}・{moved}");
+    // 歩の下限は環境で違う（place_oracle.py の「空白だけ・ドライブだけ・共有の根」の 3 歩は POSIX だけ。Windows は 58。PR #105 の CI）
+    let min_steps = if cfg!(windows) { 58 } else { 61 };
+    assert!(steps >= min_steps && moved >= 4, "歩が少ない: {steps}・{delegated}・{moved}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
