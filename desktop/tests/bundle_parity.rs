@@ -35,23 +35,15 @@ fn bundle_is_built_like_python() {
             config: p("config"),
             now: e["now"].as_str().map(String::from),
         });
-        let mut got = b.build();
-        // 版 3.105.0: 共有にまだ無いマスタ（種まき）。窓の束は種まきの要る節を言い、窓が Python と同じ最初の版を置いてから組み直すと
-        // Python と同じ束（Lot::settings と同じ順: Inputs::absent に Store::seed_absent。名乗りの環境が効く間に）。置いたファイルも同じ中身
+        let got = b.build();
+        // 版 3.105.0: 共有にまだ無いマスタ（種まき）。窓は束を組むとき（Builder::inputs が置き場の書く係を覚えさせ、節の確かめが Place::seed で
+        // 置く）に Python と同じ最初の版を置くので、束は種まきの要る節を言わずに Python と同じ。置いたファイルも同じ中身。窓だけが置いてよいのは、
+        // どの問い合わせでも読む門番の権限 2 つ（bundle::EVERY_READ。Python の束の道は門番を通らない）
         let seed_why = (sc["expect"] == "seed").then(|| {
             let mut why = vec![];
-            let seed = got.as_ref().is_ok_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
-            if !seed {
-                why.push(format!("{name}: 種まきの要る節を言わない"));
+            if got.as_ref().is_ok_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true))) {
+                why.push(format!("{name}: 窓が種をまかずに種まきの要る節を言った"));
             }
-            let inp = b.inputs().expect("束の材料");
-            let store =
-                da_core::master_store::Store::from_access(&serde_json::json!({"who": inp.who, "place": inp.place}), "rs").expect("置き場");
-            let absent = inp.absent();
-            if !store.seed_absent(&absent) || absent.is_empty() {
-                why.push(format!("{name}: 窓が種をまけない（{absent:?}）"));
-            }
-            got = b.build();
             let share = p("base").parent().unwrap().join("share");
             let strip = |v: &Value| {
                 let mut v = v.clone();
@@ -68,7 +60,8 @@ fn bundle_is_built_like_python() {
             }
             for e in std::fs::read_dir(&share).unwrap().flatten() {
                 let f = e.file_name().to_string_lossy().into_owned();
-                if !sc["shareAfter"].as_object().unwrap().contains_key(&f) {
+                let every = da_core::bundle::EVERY_READ.iter().any(|n| f == format!("{n}.json"));
+                if !sc["shareAfter"].as_object().unwrap().contains_key(&f) && !every {
                     why.push(format!("{name}: 窓だけが置いた {f}"));
                 }
             }

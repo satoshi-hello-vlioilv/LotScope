@@ -238,7 +238,9 @@ def _access_place():
     return {"who": {**who, "key": presence.terminal_key(who["login"], who["pc"])},
             "place": {"shareDir": str(st.share_dir) if st.share_dir is not None else "", "shared": sorted(st.shared_names),
                       "data": str(st.base / "data"), "defaults": str(DEFAULTS_DIR), "cache": str(st.cache_dir),
-                      "presence": str(pdir) if pdir is not None else "", "lockTtl": st.lock_ttl}}
+                      "presence": str(pdir) if pdir is not None else "", "lockTtl": st.lock_ttl,
+                      # 共有を見直す間（版 3.105.0。窓の種まきが、置けなかった名前をこの間まき直さない: Python の _maybe_refresh の間引きと同じ）
+                      "refreshSeconds": st.refresh_sec}}
 
 
 def _conversions():

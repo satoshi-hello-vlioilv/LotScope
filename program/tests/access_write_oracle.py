@@ -152,7 +152,10 @@ SCENARIOS = [
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"wip": ["設備作業者"]}, "base_rev": 7}),
         S(BOSS, "GET", "/api/masters/tabaccess"),
     ]},
+    {"name": "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる）", "mode": "mirror", "perm": ADMIN_ROWS, "tabs": TAB_ROWS, "steps": [S(BOSS, "GET", "/api/masters/tabaccess")]},
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "perm": ADMIN_ROWS, "tabs": TAB_ROWS, "steps": [
+        # 版 3.105.0（作った後の採点の割れ）: 共有にまだ無いマスタを最初に読む歩。Python も窓も読むときに最初の版を置く（置いたファイルも比べる）
+        S(BOSS, "GET", "/api/masters/tabaccess"),
         S(BOSS, "POST", "/api/masters/access", {"ログインID": "s1"}),
         S(BOSS, "GET", "/api/masters/tabaccess"),
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"calc": ["一般ユーザー"]}}),

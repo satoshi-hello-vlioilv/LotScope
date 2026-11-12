@@ -1537,26 +1537,12 @@ pub struct Inputs {
 }
 
 impl Inputs {
-    /// 束の節が使うマスタのうち、共有に届くのにまだ無い物（SECTIONS の順・同じ名前は 1 つ）。窓が種をまく（Lot::settings・
-    /// seed_absent。版 3.105.0。前は束を Python に尋ね、Python が読むときに最初の版を置いた）
-    pub fn absent(&self) -> Vec<&'static str> {
-        let mut out: Vec<&'static str> = vec![];
-        for (_, files) in SECTIONS {
-            for f in files.iter() {
-                if self.p.share_absent(f) && !out.contains(f) {
-                    out.push(f);
-                }
-            }
-        }
-        out
-    }
-
     /// 窓が Python と同じに読めないマスタ（読めない字・共有にまだ無い）は組まない
     pub fn check(&self, name: &str) -> R<()> {
         if self.p.split_file(name) {
             return Err(Py("マスタのファイルが窓の読めない字"));
         }
-        if self.p.share_absent(name) {
+        if !self.p.seed(name) {
             return Err(Py("共有にまだ無いマスタ（Python が写しから最初の版を作る）"));
         }
         Ok(())
@@ -2050,8 +2036,14 @@ impl Builder {
         };
         let place = json!({"shareDir": st.share.clone().unwrap_or_default(), "shared": st.shared, "data": join(&base, "data"),
                            "defaults": join(&join(&program, "app"), "master_defaults"), "cache": cache, "presence": presence,
-                           "lockTtl": st.lock_ttl});
+                           "lockTtl": st.lock_ttl, "refreshSeconds": st.refresh});
         let p = Place::from_json(&place);
+        // 置き場の書く係（種をまく係）を作って覚えさせ（版 3.105.0）、どの問い合わせでも読むマスタ（参照先・門番の権限 2 つ）の種をまく
+        // （Python はどの道でも参照先〈effective_settings〉を、門番のある道は権限を読み、共有にまだ無ければ最初の版を置く）
+        let _ = crate::master_store::shared_store(&json!({"who": who, "place": place}));
+        for n in EVERY_READ {
+            p.seed(n);
+        }
         let mut inp = Inputs { settings, eff: Value::Null, who, place, p };
         // 参照先が読めなくても配った設定で動く（effective_settings と同じ）
         inp.eff = effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems"])?;
@@ -2142,6 +2134,10 @@ impl Builder {
     }
 }
 
+/// 窓がどの問い合わせでも読むマスタ（版 3.105.0。束の材料の参照先と、門番の権限 2 つ）。束の材料を読むときに種をまく。
+/// 窓が Python のその道より多く置いてよいのは、これと束の節のマスタ（SECTIONS）だけ（tests/seed_reads_parity.rs が確かめる）
+pub const EVERY_READ: [&str; 3] = ["path_settings", "access_permissions", "tab_access"];
+
 /// 束の節（版 3.102.0）と、節が使うマスタ（Python の routes/lotlist.SECTIONS と同じ。tests/fixtures/bundle_cases.json）
 pub const SECTIONS: [(&str, &[&str]); 6] = [
     ("lot_list", &["path_settings"]),
@@ -2159,8 +2155,8 @@ pub fn bad_rows_text(name: &str, bad: &[usize]) -> String {
 }
 
 /// 節が使うマスタが組めるか → 組めなければ {why, file, seed?, window?}・表でない行だけなら {why, file, warn: true}（Python の section_broken と同じ順で見る）。
-/// seed: 共有にまだ無いマスタ（Python が読むと最初の版を置く。版 3.105.0 から窓も置く: Lot::settings が Inputs::absent に種をまいて組み直し、
-/// 置けなかったときだけ束を Python に尋ねる）・
+/// seed: 共有にまだ無く、窓が置けなかったマスタ（版 3.105.0 から窓も読むときに Place::seed で置く。置けなかった〈錠・書けない〉ときだけ
+/// Lot::settings が束を Python に尋ねる）・
 /// window: 窓が Python と同じに読めない字（Python は組めることがある）
 fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
     let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);
@@ -2168,7 +2164,8 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
     let mut warn: Option<Value> = None;
     for f in files {
         let file = format!("{f}.json");
-        if inp.p.share_absent(f) {
+        // 共有にまだ無ければ最初の版を置いてから読む（版 3.105.0。置けなければ種まきの要る節）
+        if !inp.p.seed(f) {
             return Some(
                 json!({"why": format!("共有にまだ {file} がありません（最初の版を置くまで待っています）"), "file": file, "seed": true}),
             );

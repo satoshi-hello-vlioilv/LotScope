@@ -477,8 +477,25 @@ impl Place {
             .is_some_and(|d| self.shared.iter().any(|n| n == name) && d.is_dir() && !d.join(format!("{name}.json")).exists())
     }
 
+    /// 共有にまだ無いマスタなら、この置き場の種をまく係（master_store::remember_seeder。窓の Lot::store_for が覚えさせる）に
+    /// 最初の版を置かせる（版 3.105.0。窓の読みはみなここを通るので、Python の MasterStore.read と同じく読むときに置く）。
+    /// → 共有にあるか（共有しない・届かない名前は true。係が無い・置けなければ false）
+    pub fn seed(&self, name: &str) -> bool {
+        if !self.share_absent(name) {
+            return true;
+        }
+        let share = self.share_dir.as_deref().unwrap_or(std::path::Path::new(""));
+        crate::master_store::seed_through(share, name).unwrap_or(false)
+    }
+
     pub fn rows(&self, name: &str) -> Result<Vec<Value>, String> {
         self.doc(name).map(|(rows, _)| rows)
+    }
+
+    /// 種をまかずに読む（版 3.105.0）。Python がその道で読まないマスタを、窓が確かめのために読む所（変換表・設備グループの道は、
+    /// Python が読む歩でだけ conversions_write::seed で置く）
+    pub fn rows_peek(&self, name: &str) -> Result<Vec<Value>, String> {
+        self.read_doc(name).map(|(rows, _)| rows)
     }
 
     /// 読めないマスタのファイルの理由の言葉（Python の MasterUnreadable と同じ。版 3.102.0）。読めれば None。
@@ -515,6 +532,11 @@ impl Place {
 
     /// 読むファイル（共有 → 写し → 同梱の data/ → 最初の中身）の行と版の番号
     fn doc(&self, name: &str) -> Result<(Vec<Value>, i64), String> {
+        self.seed(name);
+        self.read_doc(name)
+    }
+
+    fn read_doc(&self, name: &str) -> Result<(Vec<Value>, i64), String> {
         let file = format!("{name}.json");
         let mut tries: Vec<PathBuf> = vec![];
         if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {

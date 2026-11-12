@@ -120,6 +120,33 @@ class UiScore(unittest.TestCase):
         self.assertIn("割れ 2 つを直し", out.getvalue())
         self.assertNotIn("採点し直す", out.getvalue(), "採点し直さない")
 
+    def test_versioned_built_stages_are_read_and_the_latest_decides(self):
+        """版ごとの作った後（"built_3105" のような節。版 3.105.0）: 節を全部並べ、いちばん新しい節で判定する。直した事はその節の "fixed"
+        （か "built_3105_fixed"）。前の版の "built" と "built_fixed" は前の版の判定のまま"""
+        import contextlib
+        import io
+        one = round_("1 回目", entry(7), entry(6), entry(5), entry(4), entry(3))
+        d = {**data(one, rule="2026-11-06"), "built": {"name": "前の版", "images": "—", "result": entry(7)},
+             "built_fixed": "前の版の割れを直した", "built_3105": {"name": "次の版", "images": "—", "result": entry(7)}}
+        self.assertEqual(ui.latest_built(d)["name"], "次の版")
+        self.assertEqual([k for k, _, _ in ui.built_stages(d)], ["built", "built_3105"], "直した事の節は作った後の節に数えない")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ui.report(d)
+        text = out.getvalue()
+        self.assertIn("前の版の割れを直した", text, "前の版は前の版の直した事で判定")
+        self.assertIn('"built_3105" の "fixed"', text, "新しい版の直した事が無ければ、その節に書くように言う")
+        d["built_3105"]["fixed"] = {"summary": "割れ 1 つを直した"}
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ui.report(d)
+        self.assertNotIn('"built_3105" の "fixed" に書く', out.getvalue())
+        self.assertIn("割れ 1 つを直した", out.getvalue())
+        d2 = {k: v for k, v in d.items() if k != "built_3105"}
+        d2["built_3105_fixed"] = "別の鍵に書いた"
+        d2["built_3105"] = {"name": "次の版", "result": entry(7)}
+        self.assertEqual(ui.built_stages(d2)[-1][2], "別の鍵に書いた", "\"built_3105_fixed\" も読む")
+
     def test_ties_go_to_the_heavier_group(self):
         # どちらも 98 点: A は統一感を、B は使いやすさを 2 点落とす（使いやすさの方が重い分類）
         a = entry(10, form=8)

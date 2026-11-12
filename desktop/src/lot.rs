@@ -132,8 +132,6 @@ pub struct Lot {
     progress: Arc<crate::progress::Progress>,
     /// 権限の判定と書き込みの門番（版 3.65.0。src/access.rs）。マスタを書いた後（after_python）に覚えを捨てる
     gate: Gate,
-    /// マスタの書く係（版 3.68.0。src/master_store.rs）。置き場と名乗りごとに 1 つ作って長く持つ（錠の残り秒を最初に見てからの経過で測るため）
-    store: Mutex<Option<(String, Arc<Store>)>>,
     /// 利用状況・使用の履歴・心拍（版 3.71.0。src/presence.rs。書き手は窓の 1 つ）
     presence: Arc<Presence>,
     /// この PC の作業場所（画面の設定の控え ui_state.json・配る版の覚え want.json の置き場）
@@ -185,7 +183,6 @@ impl Lot {
             dash: Mutex::default(),
             progress: Arc::default(),
             gate: Gate::default(),
-            store: Mutex::default(),
             bundle: Mutex::default(),
             page: crate::page::Page::default(),
             new_key: Mutex::default(),
@@ -386,6 +383,7 @@ impl Lot {
             Ok(i) => i,
             Err(e) => return why(format!("束の材料: {}", e.0)),
         };
+        // 初期設定・変換表が共有にまだ無ければ、Python の画面と同じく読むときに最初の版を置く（版 3.105.0。inp.check が Place::seed で置く）
         let profile: Vec<String> = crate::bundle::tables()["uiProfileKeys"]
             .as_array()
             .into_iter()
@@ -471,16 +469,9 @@ impl Lot {
 
     /// 置き場の答え（一覧の設定の access）に合わせた書く係（置き場か名乗りが変われば作り直す）
     fn store_for(&self, conf: &Value) -> Option<Arc<Store>> {
-        let key = format!("{}|{}", conf["place"], conf["who"]);
-        let mut cur = self.store.lock().unwrap();
-        if let Some((k, s)) = cur.as_ref() {
-            if *k == key {
-                return Some(s.clone());
-            }
-        }
-        let s = Arc::new(Store::from_access(conf, "rs")?);
-        *cur = Some((key, s.clone()));
-        Some(s)
+        // 置き場と名乗りごとに 1 つの書く係（版 3.105.0 から master_store::shared_store。窓の読み〈access::Place〉が共有にまだ無いマスタを
+        // 読むときに、同じ係が種をまく）
+        crate::master_store::shared_store(conf)
     }
 
     /// 権限のマスタを書く 4 本（版 3.68.0。src/access_write.rs）を窓が受ける。権限を読み直して門番に通し、窓の書く係で書く。
@@ -1110,22 +1101,12 @@ impl Lot {
         }
         // 窓が組めれば窓の束（Python が起きていなくても答えられる）。組めない形（bundle.rs の Py）だけ Python に尋ねる
         let b = self.bundle.lock().unwrap().clone();
-        let mut own = b.as_ref().and_then(|b| b.build().ok());
-        let seeds =
-            |v: &Option<Value>| v.as_ref().is_some_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
-        // 共有にまだ無いマスタ（種まき）の節があれば、Python の束の読みと同じく窓が最初の版を置いて組み直す（版 3.105.0。前は束を
-        // Python に尋ね、Python が読むときに置いた）。置くのは錠の中で共有を見直してから（Store::seed）なので、Python と同時でも 1 回だけ
-        if seeds(&own) {
-            if let Some(inp) = b.as_ref().and_then(|b| b.inputs().ok()) {
-                if let Some(store) = self.store_for(&json!({"who": inp.who, "place": inp.place})) {
-                    store.seed_absent(&inp.absent());
-                    own = b.as_ref().and_then(|b| b.build().ok());
-                }
-            }
-        }
-        // 置けなかった（錠・書けない）ときだけ、束を Python に尋ねる（Python は写しで答える）。Python が答えなければ自分の束のまま
-        // （その節を使う道は理由つきで断る）
-        let seed = seeds(&own);
+        let own = b.as_ref().and_then(|b| b.build().ok());
+        // 共有にまだ無いマスタ（種まき）は、束を組むとき（Builder::inputs が置き場の書く係を覚えさせ、節の確かめが Place::seed で置く）に
+        // Python の束の読みと同じく窓が最初の版を置く（版 3.105.0。前は束を Python に尋ね、Python が読むときに置いた）。置くのは錠の中で
+        // 共有を見直してから（Store::seed）なので、Python と同時でも 1 回だけ。置けなかった（錠・書けない）ときだけ、束を Python に尋ねる
+        // （Python は写しで答える）。Python が答えなければ自分の束のまま（その節を使う道は理由つきで断る）
+        let seed = own.as_ref().is_some_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
         let (mine, mut v) = match own {
             Some(v) if seed => match ask() {
                 Ok(p) => {
@@ -2216,12 +2197,28 @@ mod tests {
         }
         let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
         let cfg = work.join("config.json");
-        std::fs::write(&cfg, json!({"master_share": {"dir": share}, "presence": {"heartbeat_interval_seconds": 5}}).to_string()).unwrap();
+        // refresh_seconds 0: 置けなかった名前を間引かない（下で錠を外した後、すぐまき直す）
+        std::fs::write(
+            &cfg,
+            json!({"master_share": {"dir": share, "refresh_seconds": 0}, "presence": {"heartbeat_interval_seconds": 5}}).to_string(),
+        )
+        .unwrap();
         let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
         let lot = Lot::new(work.join("local").join("db_cache"));
         lot.set_bundle(crate::bundle::Builder::new(env));
         let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
-        // 共有にまだ初期設定・変換表が無い（Python が写しから最初の版を作る形）: Python が生きていれば Python に任せる
+        // 共有にまだ初期設定・変換表が無く、ほかの PC が長く保存していて窓も最初の版を置けない形: Python が生きていれば Python に任せる
+        // （版 3.105.0 から、置ければ窓が置いて描く: 下）
+        let lock = share.join("master.lock.json");
+        let at = chrono::Local::now();
+        std::fs::write(
+            &lock,
+            json!({"token": "t", "holder_pc": "PC-9", "holder_login": "u9", "holder_instance": "other:py",
+                   "acquired_at": at.format("%Y-%m-%dT%H:%M:%S").to_string(),
+                   "expires_at": (at + chrono::Duration::seconds(600)).format("%Y-%m-%dT%H:%M:%S").to_string()})
+            .to_string(),
+        )
+        .unwrap();
         assert!(lot.page(false, &|| true).is_none(), "Python が生きていれば、窓が同じに描けない形は Python");
         // Python が答えないときは既定の形に落として窓が描く（画面は開く）
         let h = lot.page(false, &|| false).expect("Python が答えなくても画面は窓が描く");
@@ -2250,6 +2247,11 @@ mod tests {
         let (_, d) = lot.handle_body("GET", "/api/dashboard/sources", "", b"", &down).expect("データの並びは窓");
         assert_eq!(d["items"][0]["key"], "lot");
         assert!(d["periods"]["today"].is_string());
+        // 版 3.105.0: 錠が外れれば、共有にまだ無い初期設定は窓が最初の版を置いて描く（Python が生きていても）
+        std::fs::remove_file(&lock).unwrap();
+        std::fs::remove_file(share.join("ui_defaults.json")).unwrap();
+        assert!(lot.page(false, &|| true).is_some(), "窓が置いて描く");
+        assert!(share.join("ui_defaults.json").exists(), "初期設定の最初の版を置いた");
         let _ = std::fs::remove_dir_all(&work);
     }
 
@@ -3004,18 +3006,15 @@ mod tests {
             v["items"][2]
         );
         assert!(lot.sources_list("engine=python").is_none(), "?engine=python は Python");
-        // 束全体は組めない（共有にまだ設備マスタ・設備グループの最初の版が無い）PC でも、データ元の並びは窓が答える（自己診断の共有の exe の形）
+        // 共有にまだ設備マスタ・設備グループの最初の版が無い PC（自己診断の共有の exe の形）: 版 3.105.0 から窓が束を組むときに最初の版を置く
+        // （前は種まきを待って、その節だけ組めなかった）。データ元の並びは窓が答える
         for n in ["equipment_master", "equipment_groups"] {
             std::fs::remove_file(share.join(format!("{n}.json"))).unwrap();
         }
         lot.invalidate();
         let own = lot.own_bundle().unwrap().unwrap();
-        assert_eq!(
-            own["broken"]["dash"]["seed"],
-            json!(true),
-            "設備マスタ・設備グループを使う節だけ組めない（種まきを待つ）: {}",
-            own["broken"]
-        );
+        assert!(own["broken"]["dash"].is_null(), "設備マスタ・設備グループも置いて組む: {}", own["broken"]);
+        assert!(share.join("equipment_master.json").exists() && share.join("equipment_groups.json").exists());
         assert_eq!(lot.sources_list("").map(|(st, _)| st), Some(200), "データ元の並びは答える");
         let _ = std::fs::remove_dir_all(&work);
     }

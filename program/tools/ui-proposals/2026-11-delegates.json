@@ -816,6 +816,48 @@
     "4（言葉）: CLAUDE.md の置き場と設定 8 本の行に『種まきの競い合い〈Python が種をまく間、窓は答えない〉』が残り、版 3.105.0 の行（窓も種をまく）と食い違う。直し方: 前の行の括弧を新しい試験の名前と中身に書き替える",
     "5（数え方）: 突き合わせの試験の『任せた歩の下限』を外したので、答えの元が任せる歩を作らなくなっても試験は気づかない。上限（予算）と歩ごとの確かめで足りるが、減らした版で delegates_budget.json を下げ忘れても通る（上限なので）。直し方: delegate-count.py --budget との差を check-all の summary に出す"
    ]
+  },
+  "fixed": {
+   "date": "2026-11-12",
+   "summary": "作った後の採点（74.1 点・1 回だけ）の割れ 1 つと落とし穴 5 つとついでの 1 つを全部直し、突き合わせの試験か事例の試験に足した。足した試験は、直す前の形（窓の読みが種をまかない・初期値の係が錠で止める・Python の種まきが錠の理由を覚える）で落ちることを確かめた。任せる歩は 313 のまま（delegate-count.py --check で予算と同じ）",
+   "items": [
+    {
+     "crack": "割れ: 共有にまだ無いマスタを読む道の一部（ロール・画面の初期設定・権限の読む道・GET / の部品）が種をまかなかった",
+     "fixed": "窓の読みはみな access::Place を通るので、Place の読み（doc）が共有にまだ無いマスタを読む前に master_store::seed_through で置く 1 か所にした。置く係は置き場と名乗りごとに 1 つ（master_store::shared_store。束の材料を読む Builder::inputs と Lot::store_for が作って覚えさせる）。束の節の確かめ・Inputs::check も Place::seed。変換表・設備グループは Python が読む歩でだけ置く（確かめの読みは Place::rows_peek）。Lot::settings の種まきの段は外した（束が組むときに置く）",
+     "test": "新しい突き合わせ desktop/tests/seed_reads_parity.rs ← program/tests/seed_reads_oracle.py（読む道 25 本。共有が空で写しだけの置き場に GET: Python が置く物は窓も置く・中身が同じ・窓だけが置いてよいのは bundle::EVERY_READ〈参照先・権限 2 つ〉と SECTIONS の 7 つ）。窓の読みが種をまかない形では窓が答えた道が 23 → 14 で落ちた。equip_rows・ui_defaults・shifts・access_write の答えの元に「共有にまだ無い・読むだけ」の場面と、「写しから最初の版」の場面の先頭の GET を足した（種をまかない窓では equip_rows・ui_defaults・access_write が落ちた。shifts は前から書く係で置いていた）。page_parity の「初期設定が共有にまだ無い」の画面は窓が答える形へ。bundle_parity の seed の 2 場面は束を組むだけで Python と同じ。master_store::tests::a_remembered_seeder_seeds_what_a_place_reads"
+    },
+    {
+     "crack": "落とし穴 1: 起動の同じ瞬間に、窓の種まきが共有の錠を持つと master_seeds.run が MasterLocked で止め、初期値が起動 1 回ぶん遅れる",
+     "fixed": "master_seeds.run の store.write を、錠に当たったら 1 秒おきに 5 回まで やり直す形に（LOCKED_TRIES・LOCKED_WAIT_SEC）。窓の側で待たないのは、窓は画面の問い合わせの途中で種をまく（待つと答えが遅れる）が、初期値は起動の裏で一度だけ動く係だから",
+     "test": "tests/test_master_seeds.py の test_waits_for_a_short_lock_of_the_window_on_the_same_pc（同じ PC の窓の錠 1.5 秒の後に 3 つ当てる。直す前は 0 != 3 で落ちた）と test_gives_up_after_the_tries_when_another_pc_holds_the_lock"
+    },
+    {
+     "crack": "落とし穴 2: 種まきで錠に当たった名前の理由が、その回の状態の帯に出る",
+     "fixed": "種まきで錠に当たったら理由に入れず、写しで答えて次に読むときに置く（窓 Store::pull・Python _pull の同じ形）。はじめは 1 秒待つ形で作ったが、錠の場面で読むたびに待ちが積み重なり、錠の「あと約 n 秒」が Python と 2 秒より大きくずれた（cards・conversions・dashboards・formats・equipgroups の錠の場面）ので替えた",
+     "test": "master_store::tests::a_seed_that_meets_a_lock_leaves_no_error・tests/test_master_share.py の SeedLock（直す前の Python は _last_error に「保存中」が残って落ちた）"
+    },
+    {
+     "crack": "落とし穴 3: 窓の Store::refresh に Python の refresh_seconds の間引きが無い",
+     "fixed": "Store::seed_absent が置けなかった名前と時刻を覚え、refresh の間はまき直さない。秒は Python の refresh_sec を一覧の設定の place.refreshSeconds で受ける（Python の _access_place と窓の束の place の両方に足した。bundle_parity で同じ）",
+     "test": "master_store::tests::a_name_that_could_not_be_seeded_waits_for_the_refresh_interval"
+    },
+    {
+     "crack": "落とし穴 4: CLAUDE.md の置き場と設定 8 本の行の「Python が種をまく間、窓は答えない」",
+     "fixed": "新しい試験の名前と中身（窓 2 つと Python が一斉に読んでも 1 回だけ）に書き替えた。版 3.105.0 の評価関数の行も seed_reads_parity などに書き直した",
+     "test": "—（言葉）"
+    },
+    {
+     "crack": "落とし穴 5: 任せた歩の下限を外したので、予算を下げ忘れても試験が通る",
+     "fixed": "delegate-count.py --check（予算を超えた・予算より減ったで終了コード 1。環境で増える幅 envExtra・減る幅 envLess〈Windows の release_place 2〉は外す）。予算のファイルに envLess と envLessWhy を足した（--budget で書き直しても残す）",
+     "test": "tests/test_delegates_budget.py（19 の答えの元を流して予算と同じか・check の決まりの事例）。Linux の CI と check-all の Python の試験の段で流れる"
+    },
+    {
+     "crack": "ついで: ui_score.py が判定に built だけを読む",
+     "fixed": "built_stages・latest_built: built と版ごとの built_<版> を全部並べ、いちばん新しい節で判定する。直した事はその節の fixed か built_<版>_fixed",
+     "test": "tests/test_ui_score.py の test_versioned_built_stages_are_read_and_the_latest_decides"
+    }
+   ],
+   "check_all": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3105/check5/summary.txt"
   }
  }
 }

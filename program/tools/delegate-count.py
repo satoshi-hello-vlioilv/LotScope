@@ -3,6 +3,8 @@
     python tools/delegate-count.py 作業フォルダ                 … 突き合わせの答えの元（*_oracle.py）を流して、元ごと・形ごとに数える
     python tools/delegate-count.py 作業フォルダ --budget        … 元ごとの数を tests/fixtures/delegates_budget.json に書く（予算を下げる版で）
     python tools/delegate-count.py 作業フォルダ --json 出力.json … 層・形・元ごとの数と、Python の答えの状態の数を JSON に書く
+    python tools/delegate-count.py 作業フォルダ --check         … 元ごとの数が予算と合うか（版 3.105.0）。予算を超えた・予算より減った
+                                                                 （予算を下げ忘れた）なら終了コード 1。環境で増える幅 envExtra・減る幅 envLess は外す
     python tools/delegate-count.py --files 答え.json …          … 流してある答えの JSON を数える
 
 数え方（窓の試験 desktop/tests/common.rs の delegate_count と同じ）: 答えの中の "delegates" の並びの中身・"delegate": true の歩・
@@ -325,10 +327,29 @@ def count(answers):
     return {"per": per, "layers": layers, "kinds": kinds, "status": status, "others": others}
 
 
+def check(per, budget=None):
+    """元ごとの数（per: 元 → 形 → 数）を予算と比べる（版 3.105.0。突き合わせの試験の「任せた歩の下限」は外したので、予算を下げ忘れたことは
+    ここで見る）。→ 食い違いの言葉の並び（空なら同じ）。環境で増える幅 envExtra・減る幅 envLess の中は同じとみなす"""
+    budget = budget or json.loads(BUDGET.read_text(encoding="utf-8"))
+    bad = []
+    for name in sorted(set(budget["per"]) | set(per)):
+        n = sum(per.get(name, {}).values())
+        want = budget["per"].get(name)
+        if want is None:
+            bad.append(f"{name}: 予算に無い元（{n} 歩）。--budget で書き直す")
+            continue
+        hi, lo = want + budget.get("envExtra", {}).get(name, 0), want - budget.get("envLess", {}).get(name, 0)
+        if n > hi:
+            bad.append(f"{name}: 任せる歩が {n}（予算 {want}）。新しく任せる歩を足すときは理由を書いて予算を上げる")
+        elif n < lo:
+            bad.append(f"{name}: 任せる歩が {n} に減った（予算 {want}）。python tools/delegate-count.py 作業フォルダ --budget で予算を下げる")
+    return bad
+
+
 def main():
     args = sys.argv[1:]
     # 作業フォルダが無い・知らない「--」の引数は、作業フォルダと読まずに使い方を出す（前は --help を作業フォルダと読み、program/--help に答えの元を流した）
-    known = ("--budget", "--json")
+    known = ("--budget", "--json", "--check")
     flags = [a for i, a in enumerate(args[1:], 1) if a.startswith("-") and args[i - 1] != "--json"]
     if not args or (args[0] != "--files" and (args[0].startswith("-") or any(a not in known for a in flags))):
         sys.exit(__doc__)
@@ -357,10 +378,18 @@ def main():
             "per": {k: dict(v.most_common()) for k, v in sorted(got["per"].items())}, "others": got["others"]},
             ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
         print(f"{out_json} に書きました")
+    if "--check" in args:
+        bad = check(got["per"])
+        for line in bad:
+            print("   予算:", line)
+        if bad:
+            sys.exit(1)
+        print("予算と同じです")
     if "--budget" in args:
-        # 環境で増える歩（envExtra と理由の envWhy）は手で書く物なので、書き直しても残す（窓の試験は per＋envExtra を上限にする）
+        # 環境で増える・減る歩（envExtra・envLess と理由の envWhy・envLessWhy）は手で書く物なので、書き直しても残す
+        # （窓の試験は per＋envExtra を上限にする。check は per−envLess より少なければ予算を下げる）
         old = json.loads(BUDGET.read_text(encoding="utf-8")) if BUDGET.exists() else {}
-        keep = {k: old[k] for k in ("envExtra", "envWhy") if k in old}
+        keep = {k: old[k] for k in ("envExtra", "envWhy", "envLess", "envLessWhy") if k in old}
         BUDGET.write_text(json.dumps({"about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
                                       "total": total, "per": {k: sum(v.values()) for k, v in sorted(got["per"].items())}, **keep},
                                      ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")

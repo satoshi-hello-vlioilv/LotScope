@@ -262,7 +262,8 @@ fn read(place: &Place) -> Option<Vec<Value>> {
     if place.split_file(NAME) {
         return None;
     }
-    let mut rows = place.rows(NAME).ok()?;
+    // 種はまかずに読む（Python が読む歩でだけ道ごとの seed で置く。版 3.105.0 から Place::rows は読むときに置くので rows_peek）
+    let mut rows = place.rows_peek(NAME).ok()?;
     if !master_rows::rows_plain(&rows, &FIELDS) {
         return None;
     }

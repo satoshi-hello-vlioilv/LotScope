@@ -100,7 +100,9 @@ fn equipment_and_roll_masters_match_python() {
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
-        let store = store_of(&sc["conf"], &sc["storeWho"]);
+        // 窓の読み（access::Place）が共有にまだ無いマスタを読むときに種をまく係として覚えさせる（版 3.105.0。本物の窓は Lot::store_for）
+        let store = std::sync::Arc::new(store_of(&sc["conf"], &sc["storeWho"]));
+        da_core::master_store::remember_seeder(&store);
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             steps += 1;
             let Some((status, got)) = answer(&store, &sc["conf"], st) else {

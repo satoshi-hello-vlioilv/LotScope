@@ -1712,10 +1712,10 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   作った所 1.5・備考と並べ替えの 12345678901234567890・ライン方向 9223372036854775808）を窓が答える歩へ移し、u64 を置く歩（中身の並べ替え・
   備考・作った所・設備名・同一工程）と版が u64 の歩も足した。
 - F（種まきの係を窓へ。−46）: `Store::seed_absent`（共有に届くのにまだ無いマスタを、Python の読み〈_maybe_refresh → _pull → _seed〉と同じく
-  取り直して最初の版を置く。置くのは錠の中で共有を見直してから〈`Store::seed`・Python の `_seed` は同じ形〉。置けなければ投げずに理由を
-  覚える）を、前は種まきの要る間 Python に任せていた所に当てた: マスタの置き場の状態（`needs_seed` を外した）・共有の書式・ダッシュボード
-  （前の版の条件も）・組み方（すぐに見るも）・カードの設計・セットの一覧・一覧の設定の束（`Lot::settings`: 束に種まきの要る節があれば
-  `Inputs::absent` に種をまいて組み直す。置けなかったときだけ前どおり Python に尋ねる）。設備グループの選べる設備は束から数えるので、
+  取り直して最初の版を置く。置くのは錠の中で共有を見直してから〈`Store::seed`・Python の `_seed` は同じ形〉）を、前は種まきの要る間
+  Python に任せていた所に当てた: マスタの置き場の状態（`needs_seed` を外した）・共有の書式・ダッシュボード（前の版の条件も）・組み方
+  （すぐに見るも）・カードの設計・セットの一覧・一覧の設定の束（束の節の確かめが `Place::seed` で置く。置けなかったときだけ前どおり
+  Python に尋ねる）。作った後の採点の割れ（下）を直して、読む所は `access::Place` の読みの 1 か所にまとめた。設備グループの選べる設備は束から数えるので、
   数える材料（作業実績・設備マスタ・データ元）が共有に無い 6 場面 36 歩も窓が答える。置く中身は Python と同じ順（写し → 同梱の data/ →
   最初の中身 `program/app/master_defaults` → 空の版 1）。Python の `services/master_seeds.py`（起動したときに一度だけ当てる初期値。app_seeds）は
   読みの種まきとは別の係で、窓へは移していない（server.py が起動のときに裏で呼ぶ）。
@@ -1737,6 +1737,32 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   （主の係の決め。任せる歩は 0 へ減らしていく数で、減らすたびに落ちる〈版 3.104.0 の後、Windows の release_parity が 9 で落ちた。release_parity の
   1 本は主の係が PR #104 で外した〉）。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る。
   歩の総数などの下限は残す。
+- 作った後の採点（別の係・1 回・74.1 点。`2026-11-delegates.json` の built_3105）の割れ 1 つと落とし穴 5 つを直した（採点し直さない。
+  直した形は built_3105 の fixed）:
+  - 割れ: 種をまくのが束の 7 つの節と 6 つの一覧の入口だけで、ほかの読む道（ロール・画面の初期設定・権限・GET / の部品）は写しで答えて
+    共有に置かなかった → 窓の読みはみな `access::Place` を通るので、`Place` の読み（`doc`）が共有にまだ無いマスタを読む前に
+    `master_store::seed_through` で置く 1 か所にした。置く係は置き場と名乗りごとに 1 つ（`master_store::shared_store`。束の材料を読む
+    `Builder::inputs` と `Lot::store_for` が作って覚えさせる）。変換表と設備グループの道は Python が読む歩でだけ置く（確かめの読みは
+    `Place::rows_peek`）。Python が読むときに置くマスタと窓が置くマスタは、新しい突き合わせ `seed_reads_parity`（← `seed_reads_oracle.py`。
+    読む道 25 本・共有が空で写しだけ）で比べる: Python が置く物は窓も必ず置く・中身が同じ・窓が多く置いてよいのは、窓がどの道でも読む
+    参照先と門番の権限 2 つ（`bundle::EVERY_READ`）と束の 7 つ（`bundle::SECTIONS`）だけ（前は束を Python に尋ね、Python が束を答えるときに
+    7 つを置いた。どれも Python が読めば同じ中身で置くので、置かれる時が早まるだけ）。equip_rows・ui_defaults・shifts・access_write に
+    「共有にまだ無い・読むだけ」の場面を足した（窓が読むときに置かなければ、equip_rows・ui_defaults・access_write の 3 本が落ちることを見た。
+    shifts は勤務体系の一覧が書く係を通るので前から置いていた）
+  - 落とし穴 1（起動の錠）: Python の `master_seeds.run`（起動で一度だけ当てる初期値）が錠に当たったら 1 秒おきに 5 回まで待つ
+    （`LOCKED_TRIES`・`LOCKED_WAIT_SEC`）。窓の種まきの側で待つ形にしなかったのは、窓は画面の問い合わせの途中で種をまく（待つと答えが遅れる）が、
+    初期値は起動の裏で一度だけ動く係だから。試験 `tests/test_master_seeds.py`（同じ PC の窓の錠 1.5 秒を待って 3 つ当てる・外れない錠は次の起動へ）
+  - 落とし穴 2（帯の理由）: 種まきで錠に当たったら理由に入れず、写しで答えて次に読むときに置く（窓 `Store::pull`・Python `_pull` の同じ形）。
+    はじめは 1 秒待つ形で作ったが、錠の場面で読むたびに待ちが積み重なり、錠の「あと約 n 秒」が Python と 2 秒より大きくずれたので替えた。
+    試験 `master_store::tests::a_seed_that_meets_a_lock_leaves_no_error`・`tests/test_master_share.py` の SeedLock
+  - 落とし穴 3（間引き）: 置けなかった名前と時刻を覚え、refresh の間はまき直さない（`Store::seed_absent`。秒は Python の refresh_sec を
+    一覧の設定の place.refreshSeconds で受ける。窓の束の place にも同じ値）。試験 `a_name_that_could_not_be_seeded_waits_for_the_refresh_interval`
+  - 落とし穴 4: CLAUDE.md の置き場と設定 8 本の行の「Python が種をまく間、窓は答えない」を、新しい試験の中身に書き替えた
+  - 落とし穴 5（下限を外した穴）: `delegate-count.py --check` が予算と比べ、予算を超えた・予算より減った（下げ忘れ）で終了コード 1。
+    環境で増える幅 envExtra・減る幅 envLess（Windows の release_place で 2）は外す。`tests/test_delegates_budget.py` が 19 の答えの元を流して確かめる
+    （Linux の CI と check-all の Python の試験の段）
+  - ついで: `tools/ui_score.py` は版ごとの作った後の節（"built_3105" など。直した事はその節の "fixed"）も読み、いちばん新しい節で判定する
+    （`tests/test_ui_score.py`）
 - テストの元の直し: `settings_oracle.py` の `masters(data=…)` が、共有と一緒のときに最後の 1 つだけを data/ に書き、手元だけの場面の data/ は
   空だった（版 3.84.0 から）。7 つとも書くように直した。
 

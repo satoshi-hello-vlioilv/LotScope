@@ -195,7 +195,12 @@ SCENARIOS = [
         S(BOSS, "PUT", f"{E}/2", {"巻取方向": "直した", "base_rev": 3}),
         S(BOSS, "DELETE", f"{R}/1"),
     ], "delegates": []},
+    {"name": "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる）", "mode": "mirror", "rows": {"equipment_master": EQ[:1], "roll_master": [{"id": 1, "設備": "CR1", "ロール名": "写しの行", "rev": 2}]},
+     "steps": [S(BOSS, "GET", R), S(BOSS, "GET", E)], "delegates": []},
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": {"equipment_master": EQ[:1], "roll_master": []}, "steps": [
+        # 版 3.105.0（作った後の採点の割れ）: 共有にまだ無いマスタを最初に読む歩。Python も窓も読むときに最初の版を置く（置いたファイルも比べる）
+        S(BOSS, "GET", R),
+        S(BOSS, "GET", E),
         S(BOSS, "POST", E, {"設備名": "写しから"}),
         S(BOSS, "POST", R, {"設備": "写しから"}),
         S(BOSS, "GET", E),

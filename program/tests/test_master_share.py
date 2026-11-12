@@ -586,6 +586,21 @@ class Lock(Base):
         self.assertEqual(json.loads(lock.read_text(encoding="utf-8"))["holder_pc"], "PC-B", "ほかの PC の錠は消さない")
 
 
+class SeedLock(Base):
+    """版 3.105.0（作った後の採点の落とし穴 2）: 共有にまだ無いマスタを読むとき、ほかの係（同じ時に読んだ窓・別の PC）の錠に当たったら、
+    理由を _errors に入れずに写しで答え、次に読むときに置く（前は当たった名前の理由が、その回の状態の帯に「…保存中です」と出た。窓も同じ）"""
+
+    def test_a_lock_on_seeding_is_not_reported_and_the_next_read_seeds(self):
+        st = self.env.store("PC-1")
+        self.env.put_lock("PC-2", seconds=20, instance="other:rs")
+        self.assertEqual(st.read("roll_master"), self.bundled, "同梱の data/ を読んで答える")
+        self.assertFalse((self.env.share / "roll_master.json").exists(), "錠の間は置かない")
+        self.assertEqual(st._last_error, "", "種まきの錠は理由に入れない")
+        (self.env.share / "master.lock.json").unlink()
+        st.read("roll_master")
+        self.assertTrue((self.env.share / "roll_master.json").exists(), "錠が外れた後に読むと置く")
+
+
 class Unreachable(Base):
     def test_read_continues_write_refused(self):
         a = self.env.repo("PC-A")
@@ -781,8 +796,7 @@ class SameProcess(Base):
         def mutate(rows, stamp):
             def seed():
                 try:
-                    b._pull("conversions")
-                    box["b"] = "seeded"
+                    box["b"] = "seeded" if b._pull("conversions") else "not seeded"
                 except MasterLocked:
                     box["b"] = "locked"
             th = threading.Thread(target=seed)
@@ -790,7 +804,8 @@ class SameProcess(Base):
             th.join(10)
             rows.append({"id": 1})
         a.write("equipment_groups", mutate)               # 前は b が錠をどけ、ここで MasterLocked（保存が途中で断られた）
-        self.assertEqual(box["b"], "locked", "生きた錠はどけない")
+        # 生きた錠はどけない。版 3.105.0 から種まきの錠は理由に入れず（投げず）、写しで答えて次に読むときに置く
+        self.assertEqual(box["b"], "not seeded", "生きた錠はどけない")
         self.assertFalse((self.env.share / "master.lock.json").exists(), "錠は残らない")
         b._pull("conversions")
         self.assertTrue((self.env.share / "conversions.json").exists(), "錠が外れたら最初の版を置ける")
