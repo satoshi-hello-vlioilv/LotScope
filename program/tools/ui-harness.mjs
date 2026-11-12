@@ -543,8 +543,9 @@ export const STATES = [
     const b = await p.$('#dashGrid .db-p[data-id="cap"] [data-db-edit]');
     if (b) await b.click(); else { await p.focus('#dashGrid .db-p[data-id="cap"]'); await p.keyboard.press("Enter"); }
     await p.waitForSelector("#deFields .pv-f"); await waitDash(p); await sleep(600);
-    await p.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deSent .cp-ex") || document.querySelector("#deSent");
-      if (m && f) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 48); window.scrollTo(0, 0); });
+    await p.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deSent .cp-ex") || document.querySelector("#deSent"), t = document.querySelector("#dePtabs");
+      // 見本の頭が固定のタブの下に潜らない所まで送る（作った後の採点 3 回目: 1536 で見本の札の名前が半分切れた）
+      if (m && f) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - (t ? t.offsetHeight : 40) - 10); window.scrollTo(0, 0); });
     await sleep(300);
     await p.click('#deSent [data-de-per="0"]'); await p.waitForSelector("#dePerPop .cp-it"); await sleep(1200);
   }, "[data-next], [data-de-apply], #dePerPop [data-cp-pick]"],

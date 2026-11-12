@@ -16,8 +16,9 @@
 //   作った後の採点（2026-11-12）で足した形: 値の計算の行の段が作る前を超えない（ロット数 2 段・重量の合計 3 段）・Esc で閉じて札へ焦点を戻す
 //   （札に焦点が残っていても）・前→後の前の数は前の数の桁（322本。後の桁を当てない）・割った列の見出しは「重量（t/直）」・
 //   足す面の「値にあります」・面が組むパネルの変わる列（稼働率・稼働直）と組む所の右の縁を越えない
-//   作った後の採点 2 回目で足した形: 面の項目が全部、面の中を送らずに見える（二重の送りにしない）・面を開いても値の計算の 1 行目がタブの下に潜らない・
-//   閉じたら組む所の送り位置が開く前に戻る・↑↓・Home・End で項目を移る（押せない項目は飛ばす）
+//   作った後の採点 2・3 回目で足した形（面は組む所の右の欄の「引き出し」1 つの置き方）: 面が右の欄（上のタブの下から組む所の下の端まで）に収まる・
+//   割る数の面と足す面の左右上の端が同じ・開いても閉じても組む所と右の欄の送り位置が変わらない・面の中の送りが無い・項目の字が語の途中で折れない
+//   （名前と決め方が 1 行・切れない）・組むパネル・当てる・やめる・題の欄・カラムの欄と重ならない・↑↓・Home・End（押せない項目は飛ばす）
 // 終了コード 0 で OK。
 import fs from "node:fs";
 import os from "node:os";
@@ -133,24 +134,10 @@ try {
         grand: document.querySelector('#dashGrid .db-p[data-id="cap"] tr.is-grand td')?.textContent.trim() || "" };
     });
     check(!!geo.pop, `${tag}: 割る数の面が開かない`);
-    // 面が組むパネルの変わる列（稼働率・稼働直。見出しから表の下まで）と組む所の右の縁を越えない
-    const cover = await page.evaluate(() => {
-      const pop = document.querySelector("#dePerPop"), tb = document.querySelector('#dashGrid .db-p[data-id="cap"] table'), ed = document.querySelector("#dbEditor");
-      if (!pop || !tb) return null;
-      const p = pop.getBoundingClientRect(), t = tb.getBoundingClientRect();
-      const cols = [...tb.querySelectorAll("thead th")].filter((x) => /稼働率|稼働直/.test(x.textContent)).map((x) => { const r = x.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: t.bottom }; });
-      return { pop: { l: p.left, r: p.right, t: p.top, b: p.bottom }, cols, edR: ed.getBoundingClientRect().right, focus: !!(document.activeElement && pop.contains(document.activeElement)) };
-    });
-    if (cover) {
-      check(cover.cols.length === 2 && !cover.cols.some((c) => hit(cover.pop, c)), `${tag}: 面が組むパネルの変わる列を覆う`);
-      check(cover.pop.r <= cover.edR + 0.5, `${tag}: 面が組む所の右の縁を越える（${cover.pop.r} > ${cover.edR}）`);
-      check(cover.focus, `${tag}: 開いた面に焦点が移らない`);
-    }
+    const focusIn = await page.evaluate(() => { const pop = document.querySelector("#dePerPop"); return !!(pop && document.activeElement && pop.contains(document.activeElement)); });
+    check(focusIn, `${tag}: 開いた面に焦点が移らない`);
     if (geo.pop) {
       const P = rect(geo.pop);
-      check(!hit(P, rect(geo.apply)), `${tag}: 面が「当てる」を覆う`);
-      check(!hit(P, rect(geo.title)), `${tag}: 面が題の欄を覆う`);
-      check(!geo.chips.some((c) => hit(P, rect(c))), `${tag}: 面が値の札を覆う`);
       check(P.l >= 0 && P.t >= 0 && P.r <= geo.vw && P.b <= geo.vh, `${tag}: 面が窓からはみ出す ${JSON.stringify(P)}`);
       check(["稼働直", "稼働日", "1日の直数", "期間の日数", "期間の直数", "換算稼働日", "稼働率"].every((x) => geo.items.includes(x)), `${tag}: 面の基準の数の名前 ${geo.items.join("・")}`);
       const g = globalThis.TRUTH && globalThis.TRUTH.views.eq14.cells.find((c) => !c.r.length);
@@ -161,21 +148,33 @@ try {
     check(/→/.test(geo.prev) && geo.prev.split("→")[1].trim() === geo.grand, `${tag}: 値の計算の前→後「${geo.prev}」の後が表の総計「${geo.grand}」と違う`);
     check(/÷\s*稼働直/.test(geo.per), `${tag}: 割る数の札「${geo.per}」`);
     // 6. ② の見出しから見本・値の札までが組む所の中に一度に見える
-    // 面の項目が全部見える・値の計算の 1 行目がタブの下に潜らない・↑↓・閉じたら送り位置が戻る（割る数の面と足す面）
+    // 引き出しの決まり（割る数の面と足す面）: 右の欄に収まる・送り位置が変わらない・面の中の送りが無い・字が折れない・覆わない物・↑↓
     const popCheck = async (sel, what) => {
-      await page.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deSent .cp-ex"); if (m && f) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 48); });
+      await page.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deSent .cp-ex"), t = document.querySelector("#dePtabs");
+        if (m && f) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - t.offsetHeight - 10); });
       await sleep(200);
-      const s0 = await page.evaluate(() => document.querySelector("#dbEditor .de-main").scrollTop);
+      const sc = () => page.evaluate(() => [document.querySelector("#dbEditor .de-main").scrollTop, document.querySelector("#dbEditor").scrollTop, document.scrollingElement.scrollTop].join(","));
+      const s0 = await sc();
       await page.click(sel); await page.waitForSelector("#dePerPop .cp-it"); await sleep(1200);
-      const g = await page.evaluate((s) => {
-        const pop = document.querySelector("#dePerPop"), p = pop.getBoundingClientRect(), its = [...pop.querySelectorAll(".cp-it")], last = its[its.length - 1].getBoundingClientRect();
-        const tabs = document.querySelector("#dePtabs").getBoundingClientRect(), it = document.querySelector(s).closest(".pc-item") || document.querySelector(s);
-        return { scroll: pop.scrollHeight - pop.clientHeight, last: last.bottom, popB: p.bottom, vh: innerHeight, row: it.getBoundingClientRect().top, tabs: tabs.bottom,
-          focus: document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.cpPick ?? null : null,
-          picks: its.map((x) => [x.dataset.cpPick, x.disabled]) };
-      }, sel);
-      check(g.scroll <= 1 && g.last <= g.popB + 0.5 && g.popB <= g.vh, `${tag}: ${what}の項目が面の中を送らないと見えない（送り ${g.scroll}px・最後の項目 ${g.last} / 面 ${g.popB} / 窓 ${g.vh}）`);
-      check(g.row >= g.tabs - 0.5, `${tag}: ${what}を開くと値の行の頭がタブの下に潜る（${g.row} < ${g.tabs}）`);
+      const s1 = await sc();
+      const g = await page.evaluate(() => {
+        const R = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+        const pop = document.querySelector("#dePerPop"), main = document.querySelector("#dbEditor .de-main"), tabs = document.querySelector("#dePtabs"), ed = document.querySelector("#dbEditor");
+        const its = [...pop.querySelectorAll(".cp-it")];
+        const one = (e) => { if (!e) return true; const lh = parseFloat(getComputedStyle(e).lineHeight) || 18; return e.getBoundingClientRect().height <= lh * 1.45 && e.scrollWidth <= e.clientWidth + 1; };
+        const badText = its.flatMap((x) => [x.querySelector("b"), x.querySelector("small")]).concat([...pop.querySelectorAll(".cp-head b, .cp-hd span, .cp-sec")]).filter((e) => e && !one(e)).map((e) => e.textContent.trim());
+        return { pop: R(pop), main: R(main), tabsB: tabs.getBoundingClientRect().bottom, edB: ed.getBoundingClientRect().bottom, vh: innerHeight, scroll: pop.scrollHeight - pop.clientHeight,
+          last: its[its.length - 1].getBoundingClientRect().bottom, small: Math.min(...[...pop.querySelectorAll("small, .cp-hd, .cp-sec, b, em")].map((e) => parseFloat(getComputedStyle(e).fontSize))),
+          keep: [R(document.querySelector('#dashGrid .db-p[data-id="cap"]')), R(document.querySelector("[data-de-apply]")), R(document.querySelector("[data-de-cancel]")), R(document.querySelector("#deTitle")), R(document.querySelector("#dbEditor .de-fields"))],
+          badText, picks: its.map((x) => [x.dataset.cpPick, x.disabled]) };
+      });
+      const P = g.pop, M = g.main;
+      check(P.l >= M.l - 0.5 && P.r <= M.r + 0.5 && P.t >= g.tabsB - 0.5 && P.b <= Math.min(M.b, g.edB, g.vh) + 0.5, `${tag}: ${what}が右の欄に収まらない ${JSON.stringify(P)} / 欄 ${JSON.stringify(M)}・タブの下 ${g.tabsB}`);
+      check(s0 === s1, `${tag}: ${what}を開くと組む所・右の欄が送られる（${s0} → ${s1}）`);
+      check(g.scroll <= 1 && g.last <= P.b + 0.5, `${tag}: ${what}の中に送りがある（${g.scroll}px・最後の項目 ${g.last} / 面 ${P.b}）`);
+      check(!g.badText.length, `${tag}: ${what}の字が折れる・切れる: ${g.badText.join(" / ")}`);
+      check(g.small >= 11, `${tag}: ${what}の字が 11px 未満（${g.small}）`);
+      check(!g.keep.some((k) => k && hit(P, k)), `${tag}: ${what}が組むパネル・当てる・やめる・題の欄・カラムの欄に重なる`);
       const ok = g.picks.filter((x) => !x[1]).map((x) => x[0]);
       await page.keyboard.press("Home"); await sleep(80);
       const k0 = await page.evaluate(() => document.activeElement.dataset.cpPick);
@@ -187,13 +186,14 @@ try {
       const k3 = await page.evaluate(() => document.activeElement.dataset.cpPick);
       check(k0 === ok[0] && k1 === ok[1] && k2 === ok[ok.length - 1] && k3 === ok[ok.length - 2], `${tag}: ${what}の ↑↓・Home・End（${[k0, k1, k2, k3].join("→")} / 押せる項目 ${ok.join("・")}）`);
       await page.keyboard.press("Escape"); await sleep(250);
-      const s1 = await page.evaluate(() => document.querySelector("#dbEditor .de-main").scrollTop);
-      check(Math.abs(s1 - s0) <= 1, `${tag}: ${what}を閉じても送り位置が戻らない（${s0} → ${s1}）`);
+      const s2 = await sc();
+      check(s2 === s0, `${tag}: ${what}を閉じた後の送り位置が開く前と違う（${s0} → ${s2}）`);
       return g;
     };
     await page.keyboard.press("Escape"); await sleep(200);
-    await popCheck('#deSent [data-de-per="0"]', "割る数の面");
+    const gp = await popCheck('#deSent [data-de-per="0"]', "割る数の面");
     const ga = await popCheck("#deSent [data-de-addbase]", "足す面");
+    check(["l", "r", "t"].every((k) => Math.abs(gp.pop[k] - ga.pop[k]) <= 0.5), `${tag}: 割る数の面と足す面の端がそろわない（${JSON.stringify(gp.pop)} / ${JSON.stringify(ga.pop)}）`);
     check(ga.picks.filter((x) => x[1]).length === 2, `${tag}: 足す面の押せない項目（値にあります）が 2 つでない`);
     const haveLook = await page.evaluate(async () => { document.querySelector("#deSent [data-de-addbase]").click(); await new Promise((d) => setTimeout(d, 400));
       const x = document.querySelector("#dePerPop .cp-it.is-have"); const st = x && getComputedStyle(x), b = x && getComputedStyle(x.querySelector("b"));

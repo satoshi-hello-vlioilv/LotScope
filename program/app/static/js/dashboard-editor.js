@@ -721,7 +721,7 @@
      ② の頭の見本 4 枚（押すと行・値・割る数・並べ方が入る。あとはふつうに直せる）。作った数（換算稼働日・稼働率など）はダッシュボードで共通（layout.bases）、
      パネルは使う物の写しを body.bases に持つ（ほかのダッシュボードへ貼ってもそのまま数えられる） ---- */
   const BASE_FIXED = [["稼働直", "実績のある直の数（作業日×直）", "直"], ["稼働日", "実績のある作業日の数", "日"], ["1日の直数", "勤務体系の直の数", "直"],
-    ["期間の日数", "パネルの期間の日数（期間なしはセルの最初〜最後の作業日）", "日"], ["期間の直数", "期間の日数×1日の直数", "直"]];
+    ["期間の日数", "期間の日数（期間なしはセルの初日〜末日）", "日"], ["期間の直数", "期間の日数×1日の直数", "直"]];
   const BASE_SHIFT = new Set(["稼働直", "1日の直数", "期間の直数"]);
   const OWN_DEFAULT = [{ name: "換算稼働日", expr: "[稼働直]÷[1日の直数]", each: true, unit: "日" }, { name: "稼働率", expr: "[稼働直]÷[期間の直数]×100", unit: "%" }];
   const ownList = () => { const b = host && host.bases ? host.bases() : null; return Array.isArray(b) ? b : OWN_DEFAULT; };
@@ -787,18 +787,16 @@
         + (b.own ? `<span class="cp-ed" role="button" tabindex="0" data-cp-edit="${esc(n)}" title="「${esc(n)}」の決め方を直す（このダッシュボードで共通）" aria-label="「${esc(n)}」を直す">✎</span>` : "<span></span>") + "</button>"; };
     const title = m ? `「${P.measName({ ...m, expr: undefined, per: undefined })}」を割る数（あたり）` : "基準の数を値に（表の列として足す）";
     const ex = baseNums.ex ? `例 ${baseNums.ex}` : "例";
-    return `<div class="cp-head"><b>${esc(title)}</b><button type="button" class="cp-x" data-cp-close aria-label="閉じる">×</button></div>`
-      // 低い窓（1280 など）で面の中を送らずに全部見えるよう、決まった数と作った数を 2 列に並べられる形（is-wide）
-      + `<div class="cp-cols"><div class="cp-col" role="group" aria-label="基準の数"><div class="cp-sec cp-sec1">決まった数（データから数える）</div><div class="cp-hd"><i></i><span>基準の数（行ごとに数える）</span><span>${esc(ex)}</span><span>総計</span><span></span></div>`
-      + BASE_FIXED.map((x) => item(x[0])).join("") + "</div>"
-      + `<div class="cp-col" role="group" aria-label="作った数"><div class="cp-sec">作った数（このダッシュボードで共通）</div>`
-      + `<div class="cp-hd cp-hd2"><i></i><span></span><span>${esc(ex)}</span><span>総計</span><span></span></div>` + ownList().map((b) => item(b.name)).join("") + "</div></div>"
+    return `<div class="cp-head"><button type="button" class="cp-back" data-cp-close title="閉じて、値の計算の段へ戻る（Esc）">← 戻る</button><b>${esc(title)}</b></div>`
+      + `<div class="cp-hd"><i></i><span>基準の数（行ごとに数える）</span><span>${esc(ex)}</span><span>総計</span><span></span></div>`
+      + BASE_FIXED.map((x) => item(x[0])).join("")
+      + `<div class="cp-sec">作った数（このダッシュボードで共通）</div>` + ownList().map((b) => item(b.name)).join("")
       + (baseNums.busy ? '<p class="cp-note">数を数えています…</p>' : baseNums.err ? `<p class="cp-note">${esc(baseNums.err)}</p>` : "")
       + `<div class="cp-ft">${m ? `<button type="button" data-cp-pick=""${sel ? "" : " disabled"}>なし（割らない）</button>` : "<span></span>"}<button type="button" data-cp-new>＋ 基準の数を作る…</button></div>`;
   }
   function ownFormHtml() {
     const o = ownEdit, ex = o.expr ? N.expr(o.expr, { names: BASE_FIXED.map((x) => x[0]), base: true }) : { error: "" };
-    return `<div class="cp-head"><b>${o.was ? `「${esc(o.was)}」を直す` : "基準の数を作る"}</b><button type="button" class="cp-x" data-cp-close aria-label="閉じる">×</button></div>`
+    return `<div class="cp-head"><button type="button" class="cp-back" data-cp-back title="基準の数の並びへ戻る">← 戻る</button><b>${o.was ? `「${esc(o.was)}」を直す` : "基準の数を作る"}</b></div>`
       + `<div class="cp-form"><label>名前<input data-cp-oname value="${esc(o.name || "")}" maxlength="16" placeholder="例: 換算稼働日" autocomplete="off"></label>`
       + `<label>式<input data-cp-oexpr value="${esc(o.expr || "")}" maxlength="60" placeholder="例: [稼働直]÷[1日の直数]" autocomplete="off" spellcheck="false"></label>`
       + `<span class="cp-ins">${BASE_FIXED.map((x) => `<button type="button" data-cp-ins="${esc(x[0])}" title="${esc(x[1])}">${esc(x[0])}</button>`).join("")}</span>`
@@ -819,54 +817,28 @@
     placePop(el);
   }
   /** 置き場: 札の下（入らなければ、組む所の左〈カラムの欄の上〉に札の高さで）。当てるボタン・題の欄・値の札を覆わない（採点の指摘 8） */
-  /** 面の置き場（作った後の採点 1 回目・2 回目）。項目が全部、面の中を送らずに見えること（二重の送りにしない）・組むパネル・当てる・題の欄を覆わないこと。
-      1. 札の下: 組む所の中を送って入れる。送ってよいのは、その値の行（値の計算の 1 行目の名前）がタブの下に潜らない所まで
-      2. 2 列の形（決まった数と作った数を左右に。組む所の幅まで広げる）で札の下
-      3. 札の上（値の札・値の行を覆うので、下に入らないときだけ）: 1 列・2 列の順
-      4. それでも入らなければ札の下で面の中を送る（窓がとても低いときだけ） */
+  /** 面の置き場（作った後の採点 3 回目で 1 つの決まりに作り直した）: 割る数の面も足す面も、組む所の右の欄（上のタブの下の端から組む所の下の端まで）に
+      幅と高さいっぱいに重ねる「引き出し」。組む所も右の欄も送らない（閉じれば欄は開く前のまま）。組むパネル・当てる・やめる・題の欄・カラムの欄は覆わない。
+      題が押した値を言うので、選ぶ間は右の欄の中身（値の札など）が隠れてよい */
   function placePop(el) {
-    const anchor = () => document.querySelector(perPop.i >= 0 ? `#deSent [data-de-per="${perPop.i}"]` : "#deSent [data-de-addbase]"), ed = $("#dbEditor");
-    let a = anchor();
-    if (!a || !ed) return;
-    const main = ed.querySelector(".de-main"), er = ed.getBoundingClientRect(), mr = main ? main.getBoundingClientRect() : er;
-    const tabs = ed.querySelector(".de-ptabs"), top0 = (tabs ? tabs.getBoundingClientRect().bottom : mr.top) + 6;
-    const box = { l: er.left + 8, r: Math.min(er.right - 8, innerWidth - 8), b: Math.min(er.bottom - 6, innerHeight - 8) };
-    // 送ってもよい上の端: 割る数はその値の行の頭（名前）・足す面は札そのもの
-    const head = () => { const it = a.closest(".pc-item"); return (it || a).getBoundingClientRect().top; };
-    const maxDown = main ? Math.min(main.scrollHeight - main.clientHeight - main.scrollTop, head() - top0) : 0;
-    const maxUp = main ? main.scrollTop : 0;
-    const tryAt = (wide, side) => {
-      el.classList.toggle("is-wide", wide);
-      const w = wide ? Math.min(760, box.r - box.l) : Math.min(440, box.r - box.l, Math.max(360, mr.right - box.l));
-      el.style.width = `${w}px`; el.style.maxHeight = "none"; el.style.overflow = "visible";
-      const h = el.offsetHeight, r = a.getBoundingClientRect();
-      const need = r.bottom + 4 + h - box.b;                        // 札の下に入れるのに送る量
-      if (side === "below") return need <= maxDown ? { w, h, s: Math.max(0, need), side } : null;
-      const up = top0 - (r.top - 4 - h);                            // 札の上に入れるのに戻す量（正なら戻す）
-      return up <= maxUp && r.bottom - Math.max(0, up) <= box.b ? { w, h, s: -Math.max(0, up), side } : null;
-    };
-    const got = tryAt(false, "below") || tryAt(true, "below") || tryAt(false, "above") || tryAt(true, "above") || (() => { const w = Math.min(760, box.r - box.l); el.classList.add("is-wide"); el.style.width = `${w}px`; return { w, h: 0, s: Math.max(0, maxDown), side: "below", scroll: true }; })();
-    if (main && got.s) main.scrollTop += got.s;
-    a = anchor(); const r = a.getBoundingClientRect();
-    el.style.overflow = "";
-    if (got.side === "below") { el.style.top = `${r.bottom + 4}px`; el.style.maxHeight = got.scroll ? `${Math.max(160, box.b - r.bottom - 4)}px` : "none"; }
-    else { el.style.maxHeight = "none"; el.style.top = `${r.top - 4 - el.offsetHeight}px`; }
-    el.style.left = `${Math.max(box.l, Math.min(r.right - got.w, box.r - got.w))}px`;     // 札の右の縁にそろえ、組む所の縁を越えない
-    el.dataset.side = got.side;
+    const ed = $("#dbEditor"), main = ed && ed.querySelector(".de-main"), tabs = ed && ed.querySelector(".de-ptabs");
+    if (!main) return;
+    const mr = main.getBoundingClientRect(), er = ed.getBoundingClientRect(), top = tabs ? tabs.getBoundingClientRect().bottom : mr.top;
+    const bottom = Math.min(mr.bottom, er.bottom, innerHeight);
+    Object.assign(el.style, { left: `${mr.left}px`, top: `${top}px`, width: `${main.clientWidth}px`, height: `${Math.max(120, bottom - top)}px`, maxHeight: "none" });
+    el.dataset.side = "drawer";
   }
   function openPop(i) {
     if (perPop && perPop.i === i) { closePop(); return; }
-    const main = document.querySelector("#dbEditor .de-main");
-    perPop = { i, scroll0: main ? main.scrollTop : 0 }; ownEdit = null; paintPop(); loadBaseNums();     // 閉じたら開く前の送り位置へ戻す
+    perPop = { i }; ownEdit = null; paintPop(); loadBaseNums();
     const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", String(+b.dataset.dePer === i)));
     // 焦点は面の中へ（選んでいる項目・無ければ最初の押せる項目。作った後の採点 2: 札に焦点が残ると Esc が効かなかった）
     const pop = document.getElementById("dePerPop"), first = pop && (pop.querySelector(".cp-it.on:not(:disabled)") || pop.querySelector(".cp-it:not(:disabled)") || pop.querySelector("[data-cp-close]"));
     if (first) first.focus({ preventScroll: true });
   }
   function closePop(back = false) {
-    const i = perPop ? perPop.i : null, s0 = perPop ? perPop.scroll0 : null;
-    perPop = null;
-    const main = document.querySelector("#dbEditor .de-main"); if (main && s0 != null) main.scrollTop = s0; ownEdit = null; paintPop(); const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    const i = perPop ? perPop.i : null;
+    perPop = null; ownEdit = null; paintPop(); const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", "false"));
     if (back && i != null) { const b = document.querySelector(i >= 0 ? `#deSent [data-de-per="${i}"]` : "#deSent [data-de-addbase]"); if (b) b.focus({ preventScroll: true }); }     // Esc は札へ焦点を戻す
   }
   /** 割る数を当てる（単位は「本/直」「t/直」に。見出しには式も割る数も出さない: 採点の指摘 2） */

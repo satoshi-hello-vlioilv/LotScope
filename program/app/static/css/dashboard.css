@@ -1122,8 +1122,6 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .cp-pop{position:fixed;z-index:80;display:flex;flex-direction:column;overflow:auto;padding:6px 0 6px;border:1px solid #c9d3dc;border-radius:10px;background:var(--surface);box-shadow:0 10px 28px rgba(20,35,50,.22);font-size:12.5px;color:var(--ink)}
 .cp-head{display:flex;align-items:center;gap:8px;padding:2px 8px 6px 12px}
 .cp-head b{flex:1;font-size:13px;font-weight:800}
-.cp-x{width:26px;height:26px;border:0;border-radius:6px;background:none;font-size:16px;color:#56616b;cursor:pointer}
-.cp-x:hover{background:#eef2f5}
 .cp-hd,.cp-it{display:grid;grid-template-columns:14px minmax(0,1fr) 52px 58px 22px;gap:0 8px;align-items:center;padding:0 12px}
 .cp-hd{padding-bottom:3px;font-size:11.5px;color:#56616b;border-bottom:1px solid var(--line-soft,#e3e8ee)}
 .cp-hd span:nth-child(3),.cp-hd span:nth-child(4){text-align:right}
@@ -1159,16 +1157,21 @@ body.de-sizing{user-select:none;cursor:col-resize}
 .cp-have{display:inline-block;margin-left:8px;padding:0 6px;border-radius:999px;background:#5c6b78;color:#fff;font-size:11.5px;font-weight:700;line-height:18px;vertical-align:1px}
 .cp-pop > *{flex:none}       /* 面が低いとき、項目を縮めて重ねない（面の中を送る） */
 .cp-ft{position:sticky;bottom:-6px;padding-bottom:6px;background:var(--surface)}     /* 面の中を送っても、なし・作るは下に見えたまま */
-/* 2 列の形（版 3.103.0。作った後の採点 2 回目: 低い窓で面の中を送らずに全部見える）: 左に決まった数・右に作った数 */
-.cp-hd2{display:none}
-.cp-pop.is-wide .cp-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
-.cp-pop.is-wide .cp-col + .cp-col{border-left:1px solid var(--line-soft,#e3e8ee)}
-.cp-pop.is-wide .cp-col .cp-sec{margin-top:0;min-height:0}
-.cp-pop.is-wide .cp-hd2{display:grid}
 /* 値にある基準の数（足す面）: 選んでいる形（● と黄の帯）と分け、灰の字で押せない形に */
 .cp-it.is-have{background:none}
 .cp-it.is-have b,.cp-it.is-have small,.cp-it.is-have em{color:#8a96a2}
 .cp-it.is-have i{border-color:#c3cbd3;background:none}
 .cp-have{background:#e6ebf0;color:#56616b}
-.cp-sec1{display:none}
-.cp-pop.is-wide .cp-sec1{display:block}
+/* 引き出し（版 3.103.0。作った後の採点 3 回目で 1 つの置き方に）: 組む所の右の欄に、上のタブの下から下の端まで重ねる。
+   面の中を送らずに全部入るよう、項目は 2 行（名前・決め方の 1 行）で詰め、決め方は 1 行に収める */
+.cp-pop[data-side="drawer"]{border-radius:0 0 10px 10px;border-top:2px solid var(--h-input,#2b5d8a);box-shadow:-6px 10px 24px rgba(20,35,50,.18);padding:4px 0 8px}
+.cp-head{padding:4px 12px 6px 8px}
+.cp-back{flex:none;height:28px;padding:0 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);font:inherit;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;white-space:nowrap}
+.cp-back:hover{border-color:var(--h-input,#2b5d8a)}
+.cp-head b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-it{min-height:0;padding-top:3px;padding-bottom:3px}
+.cp-it > span{min-width:0}
+.cp-it b,.cp-it small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-hd span:nth-child(2){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-sec{margin-top:6px}
+.cp-ft{margin-top:auto}
