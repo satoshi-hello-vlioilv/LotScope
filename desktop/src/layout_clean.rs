@@ -188,21 +188,6 @@ fn truthy_o(t: Option<&Tree>) -> bool {
     t.is_some_and(truthy)
 }
 
-/// repr できる字（ASCII の印字できる字と、和文の印字できる字。ほかの字の repr の逃がしは窓が Python と同じにできない）
-fn repr_safe(s: &str) -> bool {
-    s.chars().all(|c| {
-        let n = c as u32;
-        // 割り当てのある和文の範囲だけ（Python 3.13〈Unicode 15.1〉で isprintable が真。版 3.81.0 の採点で、U+3040・U+3097 などの割り当ての無い字は
-        // Python が \\u で逃がすと分かった）: 和文の記号・ひらがな・カタカナ・CJK 統合漢字・全角の英数と記号
-        (0x20..0x7f).contains(&n)
-            || (0x3001..=0x303f).contains(&n)
-            || (0x3041..=0x3096).contains(&n)
-            || (0x3099..=0x30ff).contains(&n)
-            || (0x4e00..=0x9fff).contains(&n)
-            || (0xff01..=0xff5e).contains(&n)
-    })
-}
-
 fn num_str(n: &serde_json::Number) -> String {
     match n.as_i64() {
         Some(i) => i.to_string(),
@@ -213,12 +198,8 @@ fn num_str(n: &serde_json::Number) -> String {
 /// Python の repr（並び・表の中の値）
 fn py_repr(t: &Tree) -> R<String> {
     Ok(match t {
-        Tree::Str(s) => {
-            if !repr_safe(s) {
-                return Err(Stop::Py);
-            }
-            pyfmt::str_repr(s)
-        }
+        // 版 3.104.0 から pyfmt::str_repr が Python の isprintable の表で逃がす（前は和文の範囲の外の字を Python に任せた）
+        Tree::Str(s) => pyfmt::str_repr(s),
         other => py_str(other)?,
     })
 }

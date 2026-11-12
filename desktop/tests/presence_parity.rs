@@ -142,10 +142,16 @@ fn presence_matches_python() {
                                 }
                             } else {
                                 let m = me();
-                                Some(
-                                    pres.handle(&m, place.share_dir.is_some(), method, path, st["query"].as_str().unwrap_or(""), body)
-                                        .expect("窓が答える"),
-                                )
+                                let r = pres.handle(&m, place.share_dir.is_some(), method, path, st["query"].as_str().unwrap_or(""), body);
+                                // 窓が答えず Python に任せる歩（Python は例外で 500。版 3.104.0 の作った後の採点: 月の名前の年が datetime の外）
+                                if st["delegate"] == true {
+                                    if let Some((status, got)) = r {
+                                        bad.push(format!("{name}: 窓が答えた（Python に任せるはず） {method} {path}: 窓 {status} {got}"));
+                                    }
+                                    None
+                                } else {
+                                    Some(r.expect("窓が答える"))
+                                }
                             }
                         }
                     }

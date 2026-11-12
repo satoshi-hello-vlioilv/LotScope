@@ -1,5 +1,5 @@
 {
- "about": "本文の読み方の事例（版 3.104.0）。仕様（RFC 8259・services/body_rules.py の決まり）から人が書いた答え。Python（tests/test_body_cases.py）と窓（cargo test --test body_cases）が同じ表を読む。raw は本文の字（UTF-8 で送る）・hex はバイト。want は門の引数ごと（read・need・lotdsp）の答え: ok は読んだ値の json.dumps(ensure_ascii=False)、error は断る言葉",
+ "about": "本文の読み方の事例（版 3.104.0）。仕様（RFC 8259・services/body_rules.py の決まり）から人が書いた答え。Python（tests/test_body_cases.py）と窓（cargo test --test body_cases）が同じ表を読む。raw は本文の字（UTF-8 で送る）・hex はバイト。want は門の引数ごと（read・need・lotdsp）の答え: ok は読んだ値の json.dumps(ensure_ascii=False)、error は断る言葉。版 3.104.0 の作った後の採点から: routes は道ごとの門（need・read・null）、unquote は百分率符号を戻した道（Python の urllib.parse.unquote）",
  "cases": [
   {
    "name": "空（0 バイト）",
@@ -705,6 +705,136 @@
      "ok": "{\"名前\": \"ａ　ｂ\", \"n\": 1.5}"
     }
    }
+  }
+ ],
+ "routes": [
+  {
+   "method": "POST",
+   "path": "/api/card-forms",
+   "mode": "need"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/card-forms/12",
+   "mode": "need"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/card-forms/４",
+   "mode": "need"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/card-forms/%34",
+   "mode": "need"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/card-forms/١",
+   "mode": "read"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/card-forms/x",
+   "mode": null
+  },
+  {
+   "method": "GET",
+   "path": "/api/card-forms",
+   "mode": null
+  },
+  {
+   "method": "PUT",
+   "path": "/api/settings/lot_list.table",
+   "mode": "read"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/settings/lot%5Flist.table",
+   "mode": "read"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/settings/a%0Ab",
+   "mode": null
+  },
+  {
+   "method": "PUT",
+   "path": "/api/settings/ab%0A",
+   "mode": null
+  },
+  {
+   "method": "PUT",
+   "path": "/api/settings/%0Ab",
+   "mode": "read"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/settings/a%+1",
+   "mode": "read"
+  },
+  {
+   "method": "POST",
+   "path": "/api/sources/order",
+   "mode": "read"
+  },
+  {
+   "method": "POST",
+   "path": "/api/sources/s4/quick",
+   "mode": "read"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/sources/a%0Ab",
+   "mode": "read"
+  },
+  {
+   "method": "POST",
+   "path": "/api/heartbeat",
+   "mode": null
+  },
+  {
+   "method": "POST",
+   "path": "/api/lots/fetch-lotdsp",
+   "mode": null
+  }
+ ],
+ "unquote": [
+  {
+   "in": "/a%2Fb",
+   "out": "/a/b"
+  },
+  {
+   "in": "/a%zz",
+   "out": "/a%zz"
+  },
+  {
+   "in": "/a%+1b",
+   "out": "/a%+1b"
+  },
+  {
+   "in": "/a%-2",
+   "out": "/a%-2"
+  },
+  {
+   "in": "/a%e3%81%82",
+   "out": "/aあ"
+  },
+  {
+   "in": "/a%e3%81",
+   "out": "/a�"
+  },
+  {
+   "in": "/a%2",
+   "out": "/a%2"
+  },
+  {
+   "in": "%0A",
+   "out": "\n"
+  },
+  {
+   "in": "/a%ff%41",
+   "out": "/a�A"
   }
  ]
 }

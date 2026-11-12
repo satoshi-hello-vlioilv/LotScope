@@ -21,7 +21,7 @@
 //! 設定の段が表でない など）・設備グループの正規表現の決まり（Python の re で確かめる）。
 
 use crate::access::Place;
-use crate::pyfmt;
+use crate::pyfmt::{self, PyInt};
 use crate::worksum::{equipment_list, py_str};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
@@ -114,15 +114,21 @@ fn wide_int_str(x: &str) -> Option<i128> {
 }
 
 /// Python の int(値)（JSON の値: 真偽は 0・1、小数は 0 の向きへ切る、字は int(字)）。読めなければ None（Python は落ちる）。
-/// 版 3.104.0 から pyfmt::py_int_of の 1 つ（大きな数は i128 の端へ。並べる順にだけ使う）
-fn wide_int(v: &Value) -> Option<i128> {
-    pyfmt::py_int_of(v.into()).ok().map(|n| n.wide_saturating())
+/// 版 3.104.0 から pyfmt::py_int_of の 1 つ。並べる順は Python の int と同じく大きな数も桁で比べる（PyInt の Ord。作った後の採点:
+/// 前は i128 の端へ丸め、端を超える 2 行の順が Python と変わった）
+fn wide_int(v: &Value) -> Option<PyInt> {
+    pyfmt::py_int_of(v.into()).ok()
+}
+
+/// int(字)（並べる鍵。大きな数も桁で比べる）
+fn int_key(x: &str) -> Option<PyInt> {
+    pyfmt::py_int(x).ok()
 }
 
 /// int(x)（JSON の値。読めなければ Python は落ちる）
-fn int_of(v: Option<&Value>) -> R<i128> {
+fn int_of(v: Option<&Value>) -> R<PyInt> {
     match v {
-        None | Some(Value::Null) => Ok(0),
+        None | Some(Value::Null) => Ok(PyInt::Small(0)),
         Some(x) => wide_int(x).ok_or(Py("int() で読めない値")),
     }
 }
@@ -891,11 +897,11 @@ fn joins_of(v: Option<&Value>) -> R<Value> {
 }
 
 /// 並べる鍵（並びの番号・組み込みが先・id）と元
-type Keyed = ((i128, i128, i128), Map<String, Value>);
+type Keyed = ((PyInt, i128, PyInt), Map<String, Value>);
 
-fn order_of(v: &str) -> i128 {
+fn order_of(v: &str) -> PyInt {
     let x = if v.is_empty() { "1000000" } else { v };
-    wide_int_str(x).unwrap_or(1_000_000)
+    int_key(x).unwrap_or(PyInt::Small(1_000_000))
 }
 
 /// いま効いているデータ元の並び（data_sources.sources）を、束に出す鍵だけにした物
@@ -1054,14 +1060,14 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
         let a = if !order.is_empty() || !builtin {
             order_of(&order)
         } else if d.get("last") == Some(&json!(true)) {
-            10_000_000
+            PyInt::Small(10_000_000)
         } else {
-            0
+            PyInt::Small(0)
         };
-        let id = if truthy(d.get("id")) { int_of(d.get("id"))? } else { 0 };
+        let id = if truthy(d.get("id")) { int_of(d.get("id"))? } else { PyInt::Small(0) };
         keyed.push(((a, if builtin { 0 } else { 1 }, id), d));
     }
-    keyed.sort_by_key(|x| x.0);
+    keyed.sort_by(|a, b| a.0.cmp(&b.0));
     out.extend(keyed.into_iter().map(|(_, d)| d));
     // 結合した表: 場所・表は元の物
     let snapshot = out.clone();
@@ -1248,25 +1254,25 @@ fn eq_list(v: Option<&Value>) -> R<Vec<String>> {
     Ok(equipment_list(v))
 }
 
-fn order_i64(n: i128) -> R<i64> {
-    i64::try_from(n).map_err(|_| Py("表示順が i64 に入らない（JSON で同じに渡せない）"))
+fn order_i64(n: PyInt) -> R<i64> {
+    n.small().ok_or(Py("表示順が i64 に入らない（JSON で同じに渡せない）"))
 }
 
-fn group_order(row: &Map<String, Value>) -> i128 {
+fn group_order(row: &Map<String, Value>) -> PyInt {
     if !truthy(row.get("表示順")) {
-        return 0;
+        return PyInt::Small(0);
     }
-    wide_int(&row["表示順"]).unwrap_or(0)
+    wide_int(&row["表示順"]).unwrap_or(PyInt::Small(0))
 }
 
 pub(crate) fn group_views(rows: &[Value]) -> R<Vec<Value>> {
     let mut keyed = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("設備グループの行が表でない"))?;
-        let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { 0 };
+        let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { PyInt::Small(0) };
         keyed.push(((group_order(o), id), o));
     }
-    keyed.sort_by_key(|x| x.0);
+    keyed.sort_by(|a, b| a.0.cmp(&b.0));
     let set_default = t(&["equipGroups", "setDefault"]).clone();
     let mut out = vec![];
     for (_, o) in keyed {
@@ -1304,10 +1310,10 @@ fn conv_j(v: Option<&Value>, list: bool) -> R<Value> {
     Ok(if x.is_array() == list && (x.is_array() || x.is_object()) { x } else { dflt })
 }
 
-fn conv_order(o: &Map<String, Value>) -> i128 {
+fn conv_order(o: &Map<String, Value>) -> PyInt {
     match o.get("表示順") {
-        None | Some(Value::Null) => 0,
-        Some(x) => wide_int(x).unwrap_or(0),
+        None | Some(Value::Null) => PyInt::Small(0),
+        Some(x) => wide_int(x).unwrap_or(PyInt::Small(0)),
     }
 }
 
@@ -1316,15 +1322,15 @@ pub fn conv_order_index(rows: &[Value]) -> R<Vec<usize>> {
     let mut keyed = vec![];
     for (i, r) in rows.iter().enumerate() {
         let o = r.as_object().ok_or(Py("変換表の行が表でない"))?;
-        let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { 0 };
+        let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { PyInt::Small(0) };
         keyed.push(((conv_order(o), id), i));
     }
-    keyed.sort_by_key(|x| x.0);
+    keyed.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(keyed.into_iter().map(|(_, i)| i).collect())
 }
 
 /// 変換表の行（conversions.view の表示順を除いた形）を ordered（表示順 → id）の順に
-fn conv_rows(rows: &[Value]) -> R<Vec<(i128, Value)>> {
+fn conv_rows(rows: &[Value]) -> R<Vec<(PyInt, Value)>> {
     let mut out = vec![];
     for i in conv_order_index(rows)? {
         let o = rows[i].as_object().ok_or(Py("変換表の行が表でない"))?;
@@ -1357,7 +1363,7 @@ pub fn conv_views(rows: &[Value]) -> R<Vec<Value>> {
     conv_rows(rows)?
         .into_iter()
         .map(|(order, mut v)| {
-            v["order"] = json!(i64::try_from(order).map_err(|_| Py("変換表の表示順が大きすぎる"))?);
+            v["order"] = json!(order.small().ok_or(Py("変換表の表示順が大きすぎる"))?);
             Ok(v)
         })
         .collect()
@@ -1490,10 +1496,10 @@ pub fn lotdsp_status(path: &Path, enabled: bool) -> R<Value> {
 pub fn work_order(rows: Vec<&Value>) -> Option<Vec<&Value>> {
     let mut keyed = vec![];
     for (i, r) in rows.into_iter().enumerate() {
-        let n = wide_int_str(&pstr(r.get("並び")).ok()?);
-        keyed.push(((n.is_none(), n.unwrap_or(0), i), r));
+        let n = int_key(&pstr(r.get("並び")).ok()?);
+        keyed.push(((n.is_none(), n.unwrap_or(PyInt::Small(0)), i), r));
     }
-    keyed.sort_by_key(|x| x.0);
+    keyed.sort_by(|a, b| a.0.cmp(&b.0));
     Some(keyed.into_iter().map(|(_, r)| r).collect())
 }
 
@@ -1502,10 +1508,10 @@ fn work_ordered(rows: &[Value]) -> R<Vec<&Value>> {
     let mut keyed = vec![];
     for (i, r) in rows.iter().enumerate() {
         let raw = pstr(r.get("並び"))?;
-        let n = wide_int_str(&raw);
-        keyed.push(((n.is_none(), n.unwrap_or(0), i), r));
+        let n = int_key(&raw);
+        keyed.push(((n.is_none(), n.unwrap_or(PyInt::Small(0)), i), r));
     }
-    keyed.sort_by_key(|x| x.0);
+    keyed.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(keyed.into_iter().map(|(_, r)| r).collect())
 }
 
@@ -1937,7 +1943,7 @@ impl Builder {
         let (beat, ui) = (section("presence")?, section("ui_defaults")?);
         let max_rows = match ui.get("max_rows") {
             None => 25,
-            Some(v) => i64::try_from(wide_int(v).ok_or(Py("max_rows が int() で読めない"))?).map_err(|_| Py("max_rows が大きすぎる"))?,
+            Some(v) => wide_int(v).ok_or(Py("max_rows が int() で読めない"))?.small().ok_or(Py("max_rows が大きすぎる"))?,
         };
         let interval = match beat.get("heartbeat_interval_seconds") {
             None => 3.0,

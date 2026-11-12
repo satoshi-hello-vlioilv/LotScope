@@ -188,15 +188,43 @@ fn age_sec(m: &Map<String, Value>, now: NaiveDateTime) -> Option<f64> {
     access::parse_at(&at).map(|t| secs(now, t))
 }
 
-/// "2026-09" → その次の月の初め（読めなければ None。presence._month_after）
-fn month_after(month: &str) -> Option<NaiveDateTime> {
+/// "2026-09" → その次の月の初め（presence._month_after）。Ok(None) は読めない名前（int() の ValueError: Python は None）、
+/// Err(()) は datetime にできない年（1〜9999 の外・i64 に入らない数。Python は datetime の ValueError・OverflowError で例外になる。
+/// 版 3.104.0 の作った後の採点: 前は大きな年を i64 の端へ丸めて 1 を足し、あふれた）
+fn month_after(month: &str) -> Result<Option<NaiveDateTime>, ()> {
     let parts: Vec<&str> = month.split('-').collect();
     if parts.len() != 2 {
-        return None;
+        return Ok(None);
     }
-    let (y, m) = (pyfmt::py_int(parts[0]).ok()?.saturating(), pyfmt::py_int(parts[1]).ok()?.saturating());
-    let (y, m) = (y + (m == 12) as i64, m.rem_euclid(12) + 1);
-    NaiveDate::from_ymd_opt(i32::try_from(y).ok().filter(|y| (1..=9999).contains(y))?, m as u32, 1)?.and_hms_opt(0, 0, 0)
+    let (Ok(y), Ok(m)) = (pyfmt::py_int(parts[0]), pyfmt::py_int(parts[1])) else { return Ok(None) };
+    // m % 12 + 1 は Python の剰余（大きな数も 12 で割った余り）
+    let m12 = match &m {
+        pyfmt::PyInt::Small(i) => i.rem_euclid(12),
+        big => big_rem12(big),
+    };
+    let y = if is_twelve(&m) { y.succ() } else { y };
+    let y = y.small().and_then(|v| i32::try_from(v).ok()).filter(|v| (1..=9999).contains(v)).ok_or(())?;
+    Ok(NaiveDate::from_ymd_opt(y, (m12 + 1) as u32, 1).and_then(|d| d.and_hms_opt(0, 0, 0)))
+}
+
+/// Python の m == 12
+fn is_twelve(m: &pyfmt::PyInt) -> bool {
+    *m == pyfmt::PyInt::Small(12)
+}
+
+/// Python の n % 12（大きな数。符号は割る数の 12 に合わせる）
+fn big_rem12(n: &pyfmt::PyInt) -> i64 {
+    let t = n.text();
+    let (neg, d) = match t.strip_prefix('-') {
+        Some(d) => (true, d),
+        None => (false, t.as_str()),
+    };
+    let r = d.bytes().fold(0i64, |acc, b| (acc * 10 + (b - b'0') as i64) % 12);
+    if neg && r != 0 {
+        12 - r
+    } else {
+        r
+    }
 }
 
 /// version.version_key（'1.10.0' > '1.9.3'。読めない部分は 0）
@@ -416,7 +444,9 @@ impl Presence {
         h.insert("versions".into(), Value::Object(vers.split_off(cut).into_iter().map(|(k, v)| (k, json!(v))).collect()));
         let t = self.secs_now();
         let write = fin || new_session || t - st.last_history >= HISTORY_WRITE_SEC;
-        self.log_session(st, key, login, pc, now, new_session, gap, write, &version);
+        // 使用の履歴の月の名前が datetime にできない（年が 1〜9999 の外・大きな数）と、Python は _log_session の中の _prune_own で
+        // 例外になり、利用状況の履歴を書かずに touch を終える（touch_async の糸が例外で終わる）。窓も同じ所で止める
+        self.log_session(st, key, login, pc, now, new_session, gap, write, &version)?;
         if write {
             self.write(&path, &Value::Object(h));
             st.last_history = t;
@@ -437,7 +467,7 @@ impl Presence {
         gap: Option<f64>,
         write: bool,
         version: &str,
-    ) {
+    ) -> Option<()> {
         let now_s = iso(now);
         if new || st.session_start.as_deref().is_none_or(str::is_empty) {
             st.session_start = Some(now_s.clone());
@@ -446,9 +476,9 @@ impl Presence {
             st.session_sec += g.min(TTL_SEC).trunc() as i64;
         }
         if !write {
-            return;
+            return Some(());
         }
-        let Some(dir) = self.dir() else { return };
+        let Some(dir) = self.dir() else { return Some(()) };
         let start = st.session_start.clone().unwrap_or_default();
         let month: String = start.chars().take(7).collect();
         let path = dir.join(SESSIONS_DIR).join(key).join(format!("{month}.json"));
@@ -461,7 +491,7 @@ impl Presence {
             m
         });
         let rows = doc.entry("sessions").or_insert_with(|| json!([]));
-        let Some(rows) = rows.as_array_mut() else { return };
+        let Some(rows) = rows.as_array_mut() else { return Some(()) };
         let at = match rows.iter().rposition(|r| r.get("start") == Some(&json!(start))) {
             Some(i) => i,
             None => {
@@ -469,7 +499,7 @@ impl Presence {
                 rows.len() - 1
             }
         };
-        let Some(row) = rows[at].as_object_mut() else { return };
+        let Some(row) = rows[at].as_object_mut() else { return Some(()) };
         let role = if st.role.is_empty() { row.get("role").cloned().unwrap_or(json!("")) } else { json!(st.role) };
         row.insert("end".into(), json!(now_s));
         row.insert("sec".into(), json!(st.session_sec));
@@ -479,8 +509,9 @@ impl Presence {
         doc.insert("pc".into(), json!(pc));
         self.write(&path, &Value::Object(doc));
         if new {
-            self.prune_own(key, now);
+            self.prune_own(key, now)?;
         }
+        Some(())
     }
 
     fn cutoff(&self, now: NaiveDateTime) -> NaiveDateTime {
@@ -488,13 +519,14 @@ impl Presence {
     }
 
     /// この PC の履歴のうち、残す日数より古いものを消す（presence._prune_own）
-    fn prune_own(&self, key: &str, now: NaiveDateTime) {
-        let Some(dir) = self.dir() else { return };
+    /// None は Python の _prune_own が例外になる形（月の名前の年が datetime の範囲の外。消した物はそのまま、残りは見ない）
+    fn prune_own(&self, key: &str, now: NaiveDateTime) -> Option<()> {
+        let Some(dir) = self.dir() else { return Some(()) };
         let cutoff = self.cutoff(access::parse_at(&iso(now)).unwrap_or(now));
         let (cut_month, cut_iso) = (cutoff.format("%Y-%m").to_string(), iso(cutoff));
         for p in json_files(&dir.join(SESSIONS_DIR).join(key)) {
             let s = stem(&p);
-            let Some(nxt) = month_after(&s) else { continue };
+            let Some(nxt) = month_after(&s).ok()? else { continue };
             if nxt <= cutoff {
                 let _ = std::fs::remove_file(&p);
             } else if s == cut_month {
@@ -514,6 +546,7 @@ impl Presence {
                 }
             }
         }
+        Some(())
     }
 
     fn load_settings(&self) -> Map<String, Value> {
@@ -540,13 +573,19 @@ impl Presence {
     }
 
     /// 管理する人の「古い記録を整理」（presence.prune_all）
-    fn prune_all(&self) -> Value {
+    /// None は Python の prune_all が例外になる形（月の名前の年が datetime の範囲の外。Python は 500）: 窓は何も消さずに Python に任せる
+    fn prune_all(&self) -> Option<Value> {
         let cutoff = self.cutoff(self.now());
         let (mut files, mut rows) = (0, 0);
         if let Some(root) = self.dir().map(|d| d.join(SESSIONS_DIR)) {
-            for d in std::fs::read_dir(&root).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.is_dir()) {
+            let dirs: Vec<PathBuf> =
+                std::fs::read_dir(&root).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+            if dirs.iter().any(|d| json_files(d).iter().any(|p| month_after(&stem(p)).is_err())) {
+                return None;
+            }
+            for d in dirs {
                 for p in json_files(&d) {
-                    if month_after(&stem(&p)).is_some_and(|n| n <= cutoff) {
+                    if month_after(&stem(&p)).ok().flatten().is_some_and(|n| n <= cutoff) {
                         rows += match read(&p) {
                             Doc::Ok(v) => match v.get("sessions") {
                                 Some(Value::Array(a)) => a.len(),
@@ -565,7 +604,7 @@ impl Presence {
                 }
             }
         }
-        json!({"files": files, "sessions": rows, "cutoff": iso(cutoff)})
+        Some(json!({"files": files, "sessions": rows, "cutoff": iso(cutoff)}))
     }
 
     /// 使用の履歴（新しい順。presence.sessions）
@@ -1021,7 +1060,7 @@ impl Presence {
                 if let Some(e) = manager("古い記録を整理できません") {
                     return deny(e);
                 }
-                let mut v = self.prune_all();
+                let mut v = self.prune_all()?;
                 v["ok"] = json!(true);
                 Some((200, v))
             }
@@ -1171,9 +1210,19 @@ mod tests {
         for k in ["", "..", "../x", "a/b", ".x", "a b"] {
             assert!(!safe_key(Some(&json!(k))), "{k}");
         }
-        assert_eq!(month_after("2026-12"), NaiveDate::from_ymd_opt(2027, 1, 1).unwrap().and_hms_opt(0, 0, 0));
-        assert_eq!(month_after("2026-x"), None);
-        assert_eq!(month_after("0-3"), None, "Python は datetime(0, …) で止まる: 数えない");
+        assert_eq!(month_after("2026-12"), Ok(NaiveDate::from_ymd_opt(2027, 1, 1).unwrap().and_hms_opt(0, 0, 0)));
+        assert_eq!(month_after("2026-x"), Ok(None));
+        assert_eq!(month_after("0-3"), Err(()), "Python は datetime(0, …) の ValueError で止まる");
+        // 版 3.104.0 の作った後の採点: 大きな年は i64 の端で 1 を足してあふれていた（Python は datetime の OverflowError）
+        assert_eq!(month_after("99999999999999999999-12"), Err(()));
+        assert_eq!(month_after("9223372036854775807-12"), Err(()));
+        assert_eq!(month_after("9999-12"), Err(()), "10000 年は datetime の外");
+        assert_eq!(
+            month_after("2026-99999999999999999998"),
+            Ok(NaiveDate::from_ymd_opt(2026, 3, 1).unwrap().and_hms_opt(0, 0, 0)),
+            "Python の % 12"
+        );
+        assert_eq!(month_after("2026--1"), Ok(None), "区切りが 2 つ（Python は int('') の ValueError で None）");
         assert!(version_key("1.10.0") > version_key("1.9.3"));
         assert_eq!(version_key("3"), vec![3, 0, 0]);
         assert!(behind(Some("3.70.0"), "3.69.0", false) && !behind(Some("3.69.0"), "3.70.0", false));

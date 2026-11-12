@@ -734,5 +734,47 @@
    ],
    "seen": "良い所: 本文を読む部品が Python・窓とも 1 つ（Rules の引数で門 read・門 need・LotDsp を分ける）で、事例の表 body_cases.json（47 事例 × 3 つの引数）を両方が読む。門を当てる道は Python の道の並びのまま焼いた表（80 道。tests/test_body_routes.py が古い表と表に無い書く道を止める）で、窓の当たり方は dispatch と同じ（形と方法が合う最初の道・<int:…> は Unicode の数字）。Python の get_json は門を当てた道で門の値を返すので、読み方が 2 つにならない。窓は Python に任せるとき元の本文を送る（main.rs）ので、Python の門が同じ答えを出す。B は 14 の int() の写しが pyfmt::py_int_of の 1 つになり、U+001C〜U+001F・4,300 桁の上限（先頭の 0 も数える・_ は数えない）・%.200R の 200 字・int(float) の大きな数（float_int）が Python 3.13.18 と同じ（int('1'*4301+'x') など自分で試した）。自分で流した: python -m unittest tests.test_body_cases tests.test_body_routes tests.test_pynum_cases tests.test_body_reading → Ran 15・OK（終了コード 0）。cargo test --test body_cases・pynum_cases・cards_parity（18.9 秒）・conversions_write_parity（9.5 秒）・settings_write_parity・presence_parity・sources_write_parity → どれも test result: ok（終了コード 0）・cargo test --lib -- body:: pyfmt:: → 7 passed。delegate-count.py → 計 371（delegates_budget.json の total と同じ。表は 1 字も替わらない）。画面の評価関数（本物の画面が Python の門を通る）: ui-eval-dashsave OK 23・cardform OK 24・formats OK 8・convio OK 9・unsaved OK 22・sources OK 18・tabs OK 12・masterpin OK 26（どれも NG 0・終了コード 0。記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/ui-eval-*.log）。画面の送り方を grep した: 書く道はみな TPA.json（JSON.stringify。NaN・Infinity は null になる）か本文の無い DELETE で、本文が要る道（need）に本文の無い呼び方は無い。sendBeacon も JSON の字。画面が本文に対の無い代用字を入れうる所は、データ元のグループの名前（master-sources.js 316 行の slice(0, 24) と maxlength=24。UTF-16 で数える）だけ見つけた。前の Python も utf-8 で書けず 500 だったので、断る言葉が日本語の 400 になったのは良くなった形。悪い所: 下の減点 2 つ（どちらも Python と窓の答えが割れる。現の画面からは起きないが、門と int() は『どの形も Python と同じ』が狙いの部品）。落とし穴（減点にしない。前の版から同じ答えで、この版が作った割れではない）: (1) .saturating() の呼び元のうち、presence.rs の month_after は年が i64 に入らない名前のファイル（共有の利用状況の 99999999999999999999-12.json）で y + 1 があふれる（試験の組み〈debug〉では panic、release では回り込んで None。Python は datetime() の OverflowError を捕まえずに落ちる）。mirror.rs の next_generation も 99999999999999999999 の世代のファイルがあると top + 1 があふれる。直し方: checked_add で None／Python に任せる。(2) lotlist の page は Big を i64::MAX に丸めて 200 で空のページ・page に i64::MAX を返すが、Python は OFFSET の字が大きすぎて 503（page が 10**20 でなくても、(page-1)*size が i64 を超えると同じ）。直し方: page が Big か start があふれるときは Python と同じ失敗に。(3) dashboard.rs 356 行の作業実績の並び（i64 の端）と bundle.rs の表示順（i128 の端）は、端を超える 2 行が同じ順になり Python の大きな int の順と違う（worklog_write の order_num は 39 桁で任せるが、ダッシュボードの設備の並びは任せない）。(4) body.rs の unquote は u8::from_str_radix が + を読むので %+1 を \\x01 にする（Python の unquote は字のまま）。道の当たり方には効かない（16 未満の字は / にも数字にもならない）が、直すなら 2 字とも 16 進の字かを先に見る。(5) 門は通した本文に -0 があると J::dumps で書き直して部品へ渡す。字の中の -0（中身を字で送る欄）は書き直さず、delegate-count の『整数の -0（中身を字で送る欄の中）』4 歩が残る（案どおり）。1 版が大きい（110 ファイル・3,836 行）が、試験の書き換えの多くは『Python に任せる → 門が断る』の言い直し"
   }
+ },
+ "built_fixed": {
+  "date": "2026-11-12",
+  "summary": "作った後の採点（72.0 点・1 回だけ）で見つかった割れ 2 と落とし穴 4 と unquote を全部直し、どれも突き合わせの試験か事例の表に足した。足した試験は、直す前の窓の src（55d3721）で流して落ちることを確かめた（body_cases・pynum_cases・lotlist_parity・mirror_parity・presence_parity・bundle_parity・dash_parity の 7 本が落ち、直した後は通る）。任せる歩は 371 のまま（数え方の元は変わらない）。presence_oracle に Python が例外で落ちる 2 歩（delegate）を足した（予算の元ではない）。check-all は全部の段が終了コード 0",
+  "items": [
+   {
+    "crack": "1. <path:…> の道が改行にも当たる（body.rs の matches の Tok::Path）",
+    "fixed": "Tok::Path は 1 字目が / 以外（改行も当たる）、2 字目から先は改行以外（Python の [^/].*?\\Z の . ）",
+    "test": "事例の表 tests/fixtures/body_cases.json に routes（道ごとの門 18 件。PUT /api/settings/a%0Ab・ab%0A は門なし、%0Ab は read）を足し、Python（tests/test_body_cases.py の test_routes_and_unquote: app.rule_for と mode_of）と窓（cargo test --test body_cases の routes_and_unquote_like_the_table）が読む。body::tests::routes_match_like_python にも改行の道"
+   },
+   {
+    "crack": "2. str_repr が印字できない字を Python の repr のように逃がさない",
+    "fixed": "Python の str.isprintable() が偽の字の表を焼いた desktop/src/printable_table.rs（714 の範囲。焼くのは python program/tools/printable-table.py）で pyfmt::is_printable を作り、str_repr は \\xhh・\\uhhhh・\\Uhhhhhhhh に逃がす。layout_clean の repr_safe・cm3 の plainly_printable・release_place の py_repr の 3 つの守り・写しを、この 1 つにまとめた（前に任せていた和文の外の字の repr も窓が答える）。py_float（lotdsp の py_float_of）の誤りの文も同じ部品",
+    "test": "pynum_cases.json に印字できない字の事例（\\x1c・\\u3000x・a\\x85・\\u200b1・\\x7f・\\U000e0001・\\u2028・私用の字・BOM・未割り当て・引用符・300 字・NUL×80）と float_err を足し、int_err・float_err を全部の事例で 1 字まで突き合わせる（cargo test --test pynum_cases）。焼いた表が古くないかは tests/test_printable_table.py。lotlist_fixture.CASES に page=\\x1c・\\u3000x（lotlist_parity）。layout_cases の \\x01・\\u3040 の 2 件は窓が答える形へ"
+   },
+   {
+    "crack": "3. presence.rs の month_after の y + 1 があふれる",
+    "fixed": "month_after を Result<Option<日時>, ()> にし、年は PyInt で 1 を足す（succ）。datetime にできない年（1〜9999 の外・大きな数）は Err＝Python の例外: 心拍の _prune_own は touch の糸を例外で終える形（log_session・record が None。利用状況の履歴を書かない）、prune_all は何も消さずに Python に任せる（Python は 500）",
+    "test": "presence_oracle に場面「月の名前の年が datetime の外（Python は例外）」（99999999999999999999-12.json・9999-12.json で心拍と prune。prune は delegate の歩）を足し、presence_parity は delegate の歩で窓が答えないことを見る。presence::tests に month_after の事例（大きな年・i64 の端・10000 年・% 12）"
+   },
+   {
+    "crack": "4. mirror.rs の next_generation の top + 1 があふれる",
+    "fixed": "世代の番号を PyInt で比べて succ（Python の int と同じく桁のまま。.g100000000000000000000.sqlite3）",
+    "test": "mirror_oracle の筋書きに plant（写しの置き場に lot_list.g99999999999999999999.sqlite3 を置く）を足し、mirror_parity が files と台帳の名前を突き合わせる"
+   },
+   {
+    "crack": "5. lotlist の page が Big・(page-1)*size が i64 を超えると 200 の空の頁",
+    "fixed": "page は PyInt で読み（負の Big は 1）、まとめない問い合わせは start を checked_mul して超えたら「datatype mismatch」、まとめる問い合わせは頁が Big なら 「Python int too large to convert to SQLite INTEGER」（どちらも Python と同じ 503 の文）",
+    "test": "lotlist_fixture.CASES に page=99999999999999999999・9223372036854775807・-99999999999999999999・page_size が Big・group で page が Big と i64 の端（lotlist_parity）"
+   },
+   {
+    "crack": "6. 端を超える並びの順（dashboard.rs の作業実績の並び・bundle の表示順と並び）",
+    "fixed": "PyInt に Ord（大きな数も桁で比べる）を足し、dashboard.rs の作業実績の並びと bundle の order_of・group_order・conv_order・work_order・work_ordered・int_of を PyInt の鍵で並べる（表示順を i64 で答える所は small() で今までどおり断る）",
+    "test": "dashboard_oracle の作業実績の並びを i64 の端を超える 2 つ（TLV 9223372036854775808・CAL 9223372036854775809）に（dash_parity）、settings_oracle の「大きな数・全角の並べ替え」に i128 の端を超える 2 つの並び（作業実績・データ元）を足した（bundle_parity）。pyfmt::tests に succ と並べ替え"
+   },
+   {
+    "crack": "ついで: body.rs の unquote が「%+1」を \\x01 と読む",
+    "fixed": "「%」の後ろが 16 進の 2 字のときだけ戻す（Python の urllib.parse.unquote）",
+    "test": "body_cases.json に unquote の事例 9 件（Python は urllib.parse.unquote、窓は body::unquote）。body::tests にも"
+   }
+  ],
+  "check_all": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3104/check5/summary.txt"
  }
 }

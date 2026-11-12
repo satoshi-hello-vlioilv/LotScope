@@ -1192,11 +1192,16 @@ pub fn query(
 ) -> Result<Value, String> {
     let default_page_size = o.page_size;
     let t0 = Instant::now();
-    let page = match a.page.as_deref() {
-        None | Some("") => 1,
-        Some(p) => pyfmt::py_int(p)?.saturating(),
-    }
-    .max(1);
+    // page は Python の max(1, int(page))。i64 に入らない頁（Big）は Python では桁のまま持ち、問い合わせで落ちる（下の start・p.push）。
+    // 版 3.104.0 の作った後の採点: 前は i64 の端へ丸めて 200 の空の頁を答えた（Python は 503）
+    let page: Option<i64> = match a.page.as_deref() {
+        None | Some("") => Some(1),
+        Some(p) => match pyfmt::py_int(p)? {
+            pyfmt::PyInt::Small(n) => Some(n.max(1)),
+            pyfmt::PyInt::Big(s) if s.starts_with('-') => Some(1),
+            pyfmt::PyInt::Big(_) => None,
+        },
+    };
     let size = match a.page_size.as_deref() {
         None => {
             if default_page_size == 0 {
@@ -1250,7 +1255,8 @@ pub fn query(
     let order = if order_parts.is_empty() { String::new() } else { format!(" ORDER BY {}", order_sql(&order_parts, &lot, &exprs)) };
     let qt = qi(&t);
     let total = count(&c, &format!("SELECT COUNT(*) FROM {qt}{wh}"), &params)?;
-    let start = (page - 1).saturating_mul(size);
+    // start = (page - 1) * size。i64 を超えると Python の SQL の OFFSET の字が小数に読まれて「datatype mismatch」（503）
+    let start = page.and_then(|p| (p - 1).checked_mul(size));
     let mut out = Map::new();
     let (rows, first, last) = if plan.is_some() || (a.group && !lot.is_empty()) {
         let (key, lead) = match &plan {
@@ -1259,7 +1265,8 @@ pub fn query(
         };
         let sql = grouped_sql_by(&t, &raw_cs, &key, &lead, &lot, &wh, &order_parts, size, rowid_name(&c, &t, &raw_cs), &exprs);
         let mut p = params.clone();
-        p.push(SqlValue::Integer(page));
+        // 頁は SQL の引数（Python の sqlite3 は i64 に入らない int を OverflowError で断る）
+        p.push(SqlValue::Integer(page.ok_or("Python int too large to convert to SQLite INTEGER")?));
         let (rows, extra) = read_rows(&c, &sql, &p, raw_cs.len())?;
         let groups: Vec<Value> = extra.iter().map(|x| json!([x[0], x[1]])).collect();
         let (first, last) = (extra.first().map(|x| x[2]).unwrap_or(0), extra.last().map(|x| x[2]).unwrap_or(0));
@@ -1272,6 +1279,7 @@ pub fn query(
         out.insert("groupCount".into(), json!(gc));
         (rows, first, last)
     } else {
+        let start = start.ok_or("datatype mismatch")?;
         let (rows, _) = read_rows(&c, &format!("SELECT * FROM {qt}{wh}{order} LIMIT {size} OFFSET {start}"), &params, raw_cs.len())?;
         let fl = if rows.is_empty() { (0, 0) } else { (start + 1, start + rows.len() as i64) };
         (rows, fl.0, fl.1)

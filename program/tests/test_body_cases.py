@@ -26,6 +26,29 @@ class BodyCases(unittest.TestCase):
                     bad.append(f"{c['name']} [{mode}]: 表 {want} / Python {got}")
         self.assertEqual(bad, [])
 
+    def test_routes_and_unquote(self):
+        """道ごとの門（Python の dispatch と同じ当て方: 百分率符号を戻し、<path:…> は 2 字目から先の改行に当たらない）と unquote"""
+        import logging
+        from urllib.parse import unquote
+        from app import create_app
+        level = logging.root.manager.disable
+        logging.disable(logging.CRITICAL)
+        try:
+            app = create_app({"TESTING": True})
+        finally:
+            logging.disable(level)
+        t = json.loads(TABLE.read_text(encoding="utf-8"))
+        bad = []
+        for c in t["routes"]:
+            rule = app.rule_for(c["method"], unquote(c["path"]))
+            got = body_rules.mode_of(c["method"], rule.pattern) if rule else None
+            if got != c["mode"]:
+                bad.append(f"{c['method']} {c['path']}: 表 {c['mode']} / Python {got}")
+        for c in t["unquote"]:
+            if unquote(c["in"]) != c["out"]:
+                bad.append(f"unquote {c['in']!r}: 表 {c['out']!r} / Python {unquote(c['in'])!r}")
+        self.assertEqual(bad, [])
+
     def test_every_case_names_all_three_rules(self):
         for c in json.loads(TABLE.read_text(encoding="utf-8"))["cases"]:
             self.assertEqual(set(c["want"]), {"read", "need", "lotdsp"}, c["name"])

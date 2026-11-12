@@ -58,6 +58,14 @@ def _int_err(s):
     return None
 
 
+def _float_err(s):
+    try:
+        float(s)
+    except (ValueError, OverflowError) as e:
+        return str(e)
+    return None
+
+
 def spaces():
     """str.isspace の字（Python の int()・float()・strip が見る空白の候補）"""
     return [chr(n) for n in range(sys.maxunicode + 1) if chr(n).isspace()]
@@ -91,12 +99,16 @@ def samples(ranges):
         xs += ["4" + ch, ch + "4" + ch, ch + "1.5"]
     xs += ["1" * 4300, "1" * 4301, "-" + "1" * 4301, "0" * 4301, "1" * 4301 + "x", "1_" * 2150 + "1", "99999999999999999999",
            "-9223372036854775809", "9223372036854775807", "-0009223372036854775808", "+00"]
+    # 版 3.104.0 の作った後の採点: 誤りの文の repr の逃がし（印字できない字は \\xhh・\\uhhhh・\\Uhhhhhhhh。int() の文は repr の先頭 200 字）
+    xs += ["\x1c", "\u3000x", "a\x85", "\u200b1", "\x7f", "\U000e0001", "x\u2028", "\ue000", "\ufeff9", "\u0378", "'\"",
+           "it's", "\\", "x" * 300, "\x00" * 80]
     return list(dict.fromkeys(xs))
 
 
 def build():
     ranges = digit_ranges()
     cases = [{"s": s, "int": _int(s), **({"int_err": _int_err(s)} if _int(s) is None else {}), "float": _float(s),
+              **({"float_err": _float_err(s)} if _float(s) is None else {}),
               "d": bool(re.fullmatch(r"\d+", s)), "hm": shifts.hm(s)} for s in samples(ranges)]
     return {"python": sys.version.split()[0], "unicode": unicodedata.unidata_version, "digits": ranges, "cases": cases}
 

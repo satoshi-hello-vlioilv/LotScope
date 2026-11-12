@@ -187,28 +187,14 @@ pub fn py_str(v: &Tree) -> R<String> {
     }
 }
 
-/// repr で逃がさずに書く字か（Python の str.isprintable の確かな所だけ。ほかは Python に任せる）
-fn plainly_printable(c: char) -> bool {
-    let n = c as u32;
-    (0x20..0x7F).contains(&n)
-        || (0xA1..=0x2FF).contains(&n) && n != 0xAD
-        || (0x3001..=0x30FF).contains(&n)
-        || (0x3400..=0x9FFF).contains(&n)
-        || (0xFF01..=0xFFEF).contains(&n)
-}
-
 /// Python の repr(値)
 pub fn py_repr(v: &Tree) -> R<String> {
     Ok(match v {
         Tree::Null => "None".into(),
         Tree::Bool(b) => (if *b { "True" } else { "False" }).into(),
         Tree::Num(n) => num_text(n),
-        Tree::Str(s) => {
-            if !s.chars().all(|c| plainly_printable(c) || matches!(c, '\n' | '\r' | '\t')) {
-                return py("repr に印字できるか分からない字");
-            }
-            crate::pyfmt::str_repr(s)
-        }
+        // 版 3.104.0 から pyfmt::str_repr が Python の isprintable の表で逃がす（前は確かな範囲の外の字を Python に任せた）
+        Tree::Str(s) => crate::pyfmt::str_repr(s),
         Tree::Arr(a) => format!("[{}]", a.iter().map(py_repr).collect::<R<Vec<_>>>()?.join(", ")),
         Tree::Obj(m) => {
             let items =

@@ -135,7 +135,7 @@ enum Tok {
     Int,
     /// <…>・<string:…>（[^/]+）
     Seg,
-    /// <path:…>（[^/].*?）
+    /// <path:…>（[^/].*?。1 字目は / 以外〈改行も当たる〉、2 字目から先は改行以外〈Python の re の . 〉）
     Path,
 }
 
@@ -182,7 +182,10 @@ fn matches(toks: &[Tok], s: &[char]) -> bool {
         Tok::Lit(l) => s.starts_with(l) && matches(rest, &s[l.len()..]),
         Tok::Int => (1..=s.len()).take_while(|k| crate::pyfmt::digit(s[k - 1]).is_some()).any(|k| matches(rest, &s[k..])),
         Tok::Seg => (1..=s.len()).take_while(|k| s[k - 1] != '/').any(|k| matches(rest, &s[k..])),
-        Tok::Path => !s.is_empty() && s[0] != '/' && (1..=s.len()).any(|k| matches(rest, &s[k..])),
+        // 版 3.104.0 の作った後の採点: 前は 2 字目から先の改行にも当てていた（Python は門を当てず門番が 403、窓は門が 400）
+        Tok::Path => {
+            !s.is_empty() && s[0] != '/' && (1..=s.len()).take_while(|k| *k == 1 || s[k - 1] != '\n').any(|k| matches(rest, &s[k..]))
+        }
     }
 }
 
@@ -213,7 +216,8 @@ pub fn unquote(path: &str) -> String {
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
+        // 「%」の後ろの 16 進の 2 字だけを戻す（Python の unquote。前は u8::from_str_radix が「+1」を 1 と読んだ）
+        if b[i] == b'%' && i + 2 < b.len() && b[i + 1].is_ascii_hexdigit() && b[i + 2].is_ascii_hexdigit() {
             let h = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|x| u8::from_str_radix(x, 16).ok());
             if let Some(x) = h {
                 out.push(x);
@@ -309,6 +313,11 @@ mod tests {
         assert_eq!(mode_of("POST", "/api/heartbeat"), None, "本文を読まない道");
         assert_eq!(mode_of("POST", "/api/lots/fetch-lotdsp"), None, "LotDsp は自分の読み方");
         assert_eq!(unquote("/a%2Fb%zz%e3%81%82"), "/a/b%zzあ");
+        // 版 3.104.0 の作った後の採点で見つかった割れ
+        assert_eq!(unquote("/a%+1b%-2"), "/a%+1b%-2", "16 進の 2 字だけ（Python の unquote）");
+        assert_eq!(mode_of("PUT", "/api/settings/a%0Ab"), None, "<path:…> の 2 字目から先の改行には当たらない（Python は門番へ）");
+        assert_eq!(mode_of("PUT", "/api/settings/%0Ab"), Some("read"), "1 字目の改行は [^/] に当たる");
+        assert_eq!(mode_of("PUT", "/api/settings/ab%0A"), None, "\\Z の前の改行にも当たらない");
     }
 
     #[test]

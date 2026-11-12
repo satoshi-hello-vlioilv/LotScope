@@ -1691,6 +1691,10 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
   引数・routes の読み口を 1 つ・int() の空白の表・i64 へ丸めない・版の行は E・道の id・14 の写しを 1 つ・分け方の取り違え 5 つ（delegate-count.py: 変換表の式の入れ子・
   id の型・配った設定の古さ・keys の strip・-0 は門）。
 - 評価関数: `body_cases`（Python `test_body_cases.py`）・`test_body_routes.py`・`body::tests`・本文の門を当てた道の *_parity（`tests/oracle_gate.py`）・`pynum_cases`。
+- 作った後の採点（別のエージェント・1 回・72.0 点。`2026-11-delegates.json` の built）の割れを直した（採点し直さない。直した形は built_fixed）:
+  `<path:…>` の 2 字目から先の改行に当てない・`str_repr` を Python の isprintable の表（焼いた `desktop/src/printable_table.rs`）で逃がす（layout_clean・cm3・
+  release_place の写しも 1 つに）・使用の履歴の月の年が datetime の外（Python は例外。prune は任せる）・写しの世代の番号と並び・表示順は `PyInt` の 1 足しと比べ方
+  （i64・i128 の端で丸めない）・一覧の頁が i64 を超えると Python と同じ 503・unquote は 16 進の 2 字だけ。どれも事例の表か突き合わせの場面に足し、直す前の src で落ちることを見た。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

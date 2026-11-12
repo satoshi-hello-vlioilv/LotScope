@@ -241,7 +241,24 @@ pub fn bytes_repr(b: &[u8]) -> String {
     out
 }
 
-/// Python の repr(str)（誤りの文に使う。引用符の選び方と、よく出る逃がしだけ）。
+/// Python の str.isprintable()（1 字。表は Python から焼いた src/printable_table.rs。版 3.104.0）
+pub fn is_printable(c: char) -> bool {
+    let n = c as u32;
+    crate::printable_table::NOT_PRINTABLE
+        .binary_search_by(|&(a, b)| {
+            if b < n {
+                std::cmp::Ordering::Less
+            } else if a > n {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_err()
+}
+
+/// Python の repr(str)（引用符の選び方・\\ \n \r \t・印字できない字は \xhh・\uhhhh・\Uhhhhhhhh。版 3.104.0 の作った後の採点: 前は印字できない字を
+/// そのまま書き、int()・float() の誤りの文が Python と割れた）。layout_clean・cm3 の repr もこれ 1 つ
 pub fn str_repr(s: &str) -> String {
     let quote = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
     let mut out = String::from(quote);
@@ -254,6 +271,16 @@ pub fn str_repr(s: &str) -> String {
             _ if c == quote => {
                 out.push('\\');
                 out.push(c)
+            }
+            _ if !is_printable(c) => {
+                let n = c as u32;
+                out.push_str(&if n < 0x100 {
+                    format!("\\x{n:02x}")
+                } else if n < 0x10000 {
+                    format!("\\u{n:04x}")
+                } else {
+                    format!("\\U{n:08x}")
+                });
             }
             _ => out.push(c),
         }
@@ -332,6 +359,85 @@ impl PyInt {
             PyInt::Small(i) => i.to_string(),
             PyInt::Big(s) => s.clone(),
         }
+    }
+
+    /// 符号（負なら真）と、先頭に 0 の無い 10 進の数字
+    fn sign_digits(&self) -> (bool, String) {
+        let t = self.text();
+        match t.strip_prefix('-') {
+            Some(d) => (true, d.to_string()),
+            None => (false, t),
+        }
+    }
+
+    /// Python の n + 1（版 3.104.0 の作った後の採点: 前は i64 の端へ丸めた値に 1 を足してあふれた）
+    pub fn succ(&self) -> PyInt {
+        if let PyInt::Small(i) = self {
+            if let Some(n) = i.checked_add(1) {
+                return PyInt::Small(n);
+            }
+        }
+        let (neg, d) = self.sign_digits();
+        // 10 進の字の 1 を足す・引く（負の数は大きさから 1 を引く）
+        let mut ds: Vec<u8> = d.bytes().map(|b| b - b'0').collect();
+        if !neg {
+            let mut i = ds.len();
+            loop {
+                if i == 0 {
+                    ds.insert(0, 1);
+                    break;
+                }
+                i -= 1;
+                if ds[i] == 9 {
+                    ds[i] = 0;
+                } else {
+                    ds[i] += 1;
+                    break;
+                }
+            }
+        } else {
+            let mut i = ds.len();
+            while i > 0 {
+                i -= 1;
+                if ds[i] == 0 {
+                    ds[i] = 9;
+                } else {
+                    ds[i] -= 1;
+                    break;
+                }
+            }
+        }
+        let text: String = ds.iter().map(|b| (b + b'0') as char).collect();
+        PyInt::of_digits(neg, &text)
+    }
+}
+
+/// 数の大きさで比べる（Python の int の比べ方。Big も桁で比べる）
+impl Ord for PyInt {
+    fn cmp(&self, other: &PyInt) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        if let (PyInt::Small(a), PyInt::Small(b)) = (self, other) {
+            return a.cmp(b);
+        }
+        let ((na, da), (nb, db)) = (self.sign_digits(), other.sign_digits());
+        let za = da == "0";
+        let zb = db == "0";
+        let (na, nb) = (na && !za, nb && !zb);
+        if na != nb {
+            return if na { Ordering::Less } else { Ordering::Greater };
+        }
+        let mag = da.len().cmp(&db.len()).then_with(|| da.cmp(&db));
+        if na {
+            mag.reverse()
+        } else {
+            mag
+        }
+    }
+}
+
+impl PartialOrd for PyInt {
+    fn partial_cmp(&self, other: &PyInt) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -937,6 +1043,19 @@ mod tests {
         assert_eq!(path_int("١"), Some(1));
         assert_eq!(path_int("99999999999999999999"), None);
         assert_eq!(path_int("1_0"), None, "道の id は数字だけ");
+        // 版 3.104.0 の作った後の採点: 大きな数の 1 を足す・比べる（Python の int と同じ）
+        let big = |s: &str| py_int(s).unwrap();
+        assert_eq!(PyInt::Small(i64::MAX).succ(), PyInt::Big("9223372036854775808".into()));
+        assert_eq!(big("99999999999999999999").succ(), PyInt::Big("100000000000000000000".into()));
+        assert_eq!(big("-9223372036854775809").succ(), PyInt::Small(i64::MIN));
+        assert_eq!(big("-100000000000000000000").succ(), PyInt::Big("-99999999999999999999".into()));
+        let mut xs =
+            [big("1"), big("-99999999999999999999"), big("100000000000000000000"), big("99999999999999999999"), big("-3"), big("0")];
+        xs.sort();
+        assert_eq!(
+            xs.iter().map(PyInt::text).collect::<Vec<_>>(),
+            ["-99999999999999999999", "-3", "0", "1", "99999999999999999999", "100000000000000000000"]
+        );
         assert_eq!(py_float(" 1e3 "), Ok(1000.0));
         assert_eq!(py_float(".5"), Ok(0.5));
         assert_eq!(py_float("5."), Ok(5.0));

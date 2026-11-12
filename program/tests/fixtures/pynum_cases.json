@@ -293,6 +293,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '7:30'",
    "float": null,
+   "float_err": "could not convert string to float: '7:30'",
    "d": false,
    "hm": 450
   },
@@ -301,6 +302,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '12:45'",
    "float": null,
+   "float_err": "could not convert string to float: '12:45'",
    "d": false,
    "hm": 765
   },
@@ -337,6 +339,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '٧:3٠'",
    "float": null,
+   "float_err": "could not convert string to float: '٧:3٠'",
    "d": false,
    "hm": 450
   },
@@ -345,6 +348,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1٢:٤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1٢:٤5'",
    "d": false,
    "hm": null
   },
@@ -381,6 +385,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '۷:3۰'",
    "float": null,
+   "float_err": "could not convert string to float: '۷:3۰'",
    "d": false,
    "hm": 450
   },
@@ -389,6 +394,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1۲:۴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1۲:۴5'",
    "d": false,
    "hm": null
   },
@@ -425,6 +431,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '߇:3߀'",
    "float": null,
+   "float_err": "could not convert string to float: '߇:3߀'",
    "d": false,
    "hm": 450
   },
@@ -433,6 +440,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1߂:߄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1߂:߄5'",
    "d": false,
    "hm": null
   },
@@ -469,6 +477,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '७:3०'",
    "float": null,
+   "float_err": "could not convert string to float: '७:3०'",
    "d": false,
    "hm": 450
   },
@@ -477,6 +486,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1२:४5'",
    "float": null,
+   "float_err": "could not convert string to float: '1२:४5'",
    "d": false,
    "hm": null
   },
@@ -513,6 +523,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '৭:3০'",
    "float": null,
+   "float_err": "could not convert string to float: '৭:3০'",
    "d": false,
    "hm": 450
   },
@@ -521,6 +532,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1২:৪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1২:৪5'",
    "d": false,
    "hm": null
   },
@@ -557,6 +569,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '੭:3੦'",
    "float": null,
+   "float_err": "could not convert string to float: '੭:3੦'",
    "d": false,
    "hm": 450
   },
@@ -565,6 +578,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1੨:੪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1੨:੪5'",
    "d": false,
    "hm": null
   },
@@ -601,6 +615,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '૭:3૦'",
    "float": null,
+   "float_err": "could not convert string to float: '૭:3૦'",
    "d": false,
    "hm": 450
   },
@@ -609,6 +624,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1૨:૪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1૨:૪5'",
    "d": false,
    "hm": null
   },
@@ -645,6 +661,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '୭:3୦'",
    "float": null,
+   "float_err": "could not convert string to float: '୭:3୦'",
    "d": false,
    "hm": 450
   },
@@ -653,6 +670,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1୨:୪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1୨:୪5'",
    "d": false,
    "hm": null
   },
@@ -689,6 +707,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '௭:3௦'",
    "float": null,
+   "float_err": "could not convert string to float: '௭:3௦'",
    "d": false,
    "hm": 450
   },
@@ -697,6 +716,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1௨:௪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1௨:௪5'",
    "d": false,
    "hm": null
   },
@@ -733,6 +753,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '౭:3౦'",
    "float": null,
+   "float_err": "could not convert string to float: '౭:3౦'",
    "d": false,
    "hm": 450
   },
@@ -741,6 +762,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1౨:౪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1౨:౪5'",
    "d": false,
    "hm": null
   },
@@ -777,6 +799,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '೭:3೦'",
    "float": null,
+   "float_err": "could not convert string to float: '೭:3೦'",
    "d": false,
    "hm": 450
   },
@@ -785,6 +808,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1೨:೪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1೨:೪5'",
    "d": false,
    "hm": null
   },
@@ -821,6 +845,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '൭:3൦'",
    "float": null,
+   "float_err": "could not convert string to float: '൭:3൦'",
    "d": false,
    "hm": 450
   },
@@ -829,6 +854,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1൨:൪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1൨:൪5'",
    "d": false,
    "hm": null
   },
@@ -865,6 +891,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '෭:3෦'",
    "float": null,
+   "float_err": "could not convert string to float: '෭:3෦'",
    "d": false,
    "hm": 450
   },
@@ -873,6 +900,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1෨:෪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1෨:෪5'",
    "d": false,
    "hm": null
   },
@@ -909,6 +937,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '๗:3๐'",
    "float": null,
+   "float_err": "could not convert string to float: '๗:3๐'",
    "d": false,
    "hm": 450
   },
@@ -917,6 +946,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1๒:๔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1๒:๔5'",
    "d": false,
    "hm": null
   },
@@ -953,6 +983,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '໗:3໐'",
    "float": null,
+   "float_err": "could not convert string to float: '໗:3໐'",
    "d": false,
    "hm": 450
   },
@@ -961,6 +992,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1໒:໔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1໒:໔5'",
    "d": false,
    "hm": null
   },
@@ -997,6 +1029,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '༧:3༠'",
    "float": null,
+   "float_err": "could not convert string to float: '༧:3༠'",
    "d": false,
    "hm": 450
   },
@@ -1005,6 +1038,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1༢:༤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1༢:༤5'",
    "d": false,
    "hm": null
   },
@@ -1041,6 +1075,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '၇:3၀'",
    "float": null,
+   "float_err": "could not convert string to float: '၇:3၀'",
    "d": false,
    "hm": 450
   },
@@ -1049,6 +1084,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1၂:၄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1၂:၄5'",
    "d": false,
    "hm": null
   },
@@ -1085,6 +1121,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '႗:3႐'",
    "float": null,
+   "float_err": "could not convert string to float: '႗:3႐'",
    "d": false,
    "hm": 450
   },
@@ -1093,6 +1130,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1႒:႔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1႒:႔5'",
    "d": false,
    "hm": null
   },
@@ -1129,6 +1167,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '៧:3០'",
    "float": null,
+   "float_err": "could not convert string to float: '៧:3០'",
    "d": false,
    "hm": 450
   },
@@ -1137,6 +1176,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1២:៤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1២:៤5'",
    "d": false,
    "hm": null
   },
@@ -1173,6 +1213,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᠗:3᠐'",
    "float": null,
+   "float_err": "could not convert string to float: '᠗:3᠐'",
    "d": false,
    "hm": 450
   },
@@ -1181,6 +1222,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᠒:᠔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᠒:᠔5'",
    "d": false,
    "hm": null
   },
@@ -1217,6 +1259,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᥍:3᥆'",
    "float": null,
+   "float_err": "could not convert string to float: '᥍:3᥆'",
    "d": false,
    "hm": 450
   },
@@ -1225,6 +1268,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᥈:᥊5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᥈:᥊5'",
    "d": false,
    "hm": null
   },
@@ -1261,6 +1305,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᧗:3᧐'",
    "float": null,
+   "float_err": "could not convert string to float: '᧗:3᧐'",
    "d": false,
    "hm": 450
   },
@@ -1269,6 +1314,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᧒:᧔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᧒:᧔5'",
    "d": false,
    "hm": null
   },
@@ -1305,6 +1351,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᪇:3᪀'",
    "float": null,
+   "float_err": "could not convert string to float: '᪇:3᪀'",
    "d": false,
    "hm": 450
   },
@@ -1313,6 +1360,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᪂:᪄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᪂:᪄5'",
    "d": false,
    "hm": null
   },
@@ -1349,6 +1397,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᪗:3᪐'",
    "float": null,
+   "float_err": "could not convert string to float: '᪗:3᪐'",
    "d": false,
    "hm": 450
   },
@@ -1357,6 +1406,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᪒:᪔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᪒:᪔5'",
    "d": false,
    "hm": null
   },
@@ -1393,6 +1443,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᭗:3᭐'",
    "float": null,
+   "float_err": "could not convert string to float: '᭗:3᭐'",
    "d": false,
    "hm": 450
   },
@@ -1401,6 +1452,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᭒:᭔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᭒:᭔5'",
    "d": false,
    "hm": null
   },
@@ -1437,6 +1489,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᮷:3᮰'",
    "float": null,
+   "float_err": "could not convert string to float: '᮷:3᮰'",
    "d": false,
    "hm": 450
   },
@@ -1445,6 +1498,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᮲:᮴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᮲:᮴5'",
    "d": false,
    "hm": null
   },
@@ -1481,6 +1535,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᱇:3᱀'",
    "float": null,
+   "float_err": "could not convert string to float: '᱇:3᱀'",
    "d": false,
    "hm": 450
   },
@@ -1489,6 +1544,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᱂:᱄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᱂:᱄5'",
    "d": false,
    "hm": null
   },
@@ -1525,6 +1581,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᱗:3᱐'",
    "float": null,
+   "float_err": "could not convert string to float: '᱗:3᱐'",
    "d": false,
    "hm": 450
   },
@@ -1533,6 +1590,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1᱒:᱔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1᱒:᱔5'",
    "d": false,
    "hm": null
   },
@@ -1569,6 +1627,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '꘧:3꘠'",
    "float": null,
+   "float_err": "could not convert string to float: '꘧:3꘠'",
    "d": false,
    "hm": 450
   },
@@ -1577,6 +1636,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1꘢:꘤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1꘢:꘤5'",
    "d": false,
    "hm": null
   },
@@ -1613,6 +1673,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '꣗:3꣐'",
    "float": null,
+   "float_err": "could not convert string to float: '꣗:3꣐'",
    "d": false,
    "hm": 450
   },
@@ -1621,6 +1682,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1꣒:꣔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1꣒:꣔5'",
    "d": false,
    "hm": null
   },
@@ -1657,6 +1719,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '꤇:3꤀'",
    "float": null,
+   "float_err": "could not convert string to float: '꤇:3꤀'",
    "d": false,
    "hm": 450
   },
@@ -1665,6 +1728,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1꤂:꤄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1꤂:꤄5'",
    "d": false,
    "hm": null
   },
@@ -1701,6 +1765,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '꧗:3꧐'",
    "float": null,
+   "float_err": "could not convert string to float: '꧗:3꧐'",
    "d": false,
    "hm": 450
   },
@@ -1709,6 +1774,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1꧒:꧔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1꧒:꧔5'",
    "d": false,
    "hm": null
   },
@@ -1745,6 +1811,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '꧷:3꧰'",
    "float": null,
+   "float_err": "could not convert string to float: '꧷:3꧰'",
    "d": false,
    "hm": 450
   },
@@ -1753,6 +1820,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1꧲:꧴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1꧲:꧴5'",
    "d": false,
    "hm": null
   },
@@ -1789,6 +1857,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '꩗:3꩐'",
    "float": null,
+   "float_err": "could not convert string to float: '꩗:3꩐'",
    "d": false,
    "hm": 450
   },
@@ -1797,6 +1866,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1꩒:꩔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1꩒:꩔5'",
    "d": false,
    "hm": null
   },
@@ -1833,6 +1903,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '꯷:3꯰'",
    "float": null,
+   "float_err": "could not convert string to float: '꯷:3꯰'",
    "d": false,
    "hm": 450
   },
@@ -1841,6 +1912,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1꯲:꯴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1꯲:꯴5'",
    "d": false,
    "hm": null
   },
@@ -1877,6 +1949,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '７:3０'",
    "float": null,
+   "float_err": "could not convert string to float: '７:3０'",
    "d": false,
    "hm": 450
   },
@@ -1885,6 +1958,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1２:４5'",
    "float": null,
+   "float_err": "could not convert string to float: '1２:４5'",
    "d": false,
    "hm": null
   },
@@ -1921,6 +1995,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𐒧:3𐒠'",
    "float": null,
+   "float_err": "could not convert string to float: '𐒧:3𐒠'",
    "d": false,
    "hm": 450
   },
@@ -1929,6 +2004,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𐒢:𐒤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𐒢:𐒤5'",
    "d": false,
    "hm": null
   },
@@ -1965,6 +2041,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𐴷:3𐴰'",
    "float": null,
+   "float_err": "could not convert string to float: '𐴷:3𐴰'",
    "d": false,
    "hm": 450
   },
@@ -1973,6 +2050,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𐴲:𐴴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𐴲:𐴴5'",
    "d": false,
    "hm": null
   },
@@ -2009,6 +2087,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑁭:3𑁦'",
    "float": null,
+   "float_err": "could not convert string to float: '𑁭:3𑁦'",
    "d": false,
    "hm": 450
   },
@@ -2017,6 +2096,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑁨:𑁪5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑁨:𑁪5'",
    "d": false,
    "hm": null
   },
@@ -2053,6 +2133,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑃷:3𑃰'",
    "float": null,
+   "float_err": "could not convert string to float: '𑃷:3𑃰'",
    "d": false,
    "hm": 450
   },
@@ -2061,6 +2142,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑃲:𑃴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑃲:𑃴5'",
    "d": false,
    "hm": null
   },
@@ -2097,6 +2179,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑄽:3𑄶'",
    "float": null,
+   "float_err": "could not convert string to float: '𑄽:3𑄶'",
    "d": false,
    "hm": 450
   },
@@ -2105,6 +2188,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑄸:𑄺5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑄸:𑄺5'",
    "d": false,
    "hm": null
   },
@@ -2141,6 +2225,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑇗:3𑇐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑇗:3𑇐'",
    "d": false,
    "hm": 450
   },
@@ -2149,6 +2234,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑇒:𑇔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑇒:𑇔5'",
    "d": false,
    "hm": null
   },
@@ -2185,6 +2271,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑋷:3𑋰'",
    "float": null,
+   "float_err": "could not convert string to float: '𑋷:3𑋰'",
    "d": false,
    "hm": 450
   },
@@ -2193,6 +2280,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑋲:𑋴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑋲:𑋴5'",
    "d": false,
    "hm": null
   },
@@ -2229,6 +2317,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑑗:3𑑐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑑗:3𑑐'",
    "d": false,
    "hm": 450
   },
@@ -2237,6 +2326,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑑒:𑑔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑑒:𑑔5'",
    "d": false,
    "hm": null
   },
@@ -2273,6 +2363,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑓗:3𑓐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑓗:3𑓐'",
    "d": false,
    "hm": 450
   },
@@ -2281,6 +2372,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑓒:𑓔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑓒:𑓔5'",
    "d": false,
    "hm": null
   },
@@ -2317,6 +2409,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑙗:3𑙐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑙗:3𑙐'",
    "d": false,
    "hm": 450
   },
@@ -2325,6 +2418,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑙒:𑙔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑙒:𑙔5'",
    "d": false,
    "hm": null
   },
@@ -2361,6 +2455,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑛇:3𑛀'",
    "float": null,
+   "float_err": "could not convert string to float: '𑛇:3𑛀'",
    "d": false,
    "hm": 450
   },
@@ -2369,6 +2464,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑛂:𑛄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑛂:𑛄5'",
    "d": false,
    "hm": null
   },
@@ -2405,6 +2501,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑜷:3𑜰'",
    "float": null,
+   "float_err": "could not convert string to float: '𑜷:3𑜰'",
    "d": false,
    "hm": 450
   },
@@ -2413,6 +2510,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑜲:𑜴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑜲:𑜴5'",
    "d": false,
    "hm": null
   },
@@ -2449,6 +2547,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑣧:3𑣠'",
    "float": null,
+   "float_err": "could not convert string to float: '𑣧:3𑣠'",
    "d": false,
    "hm": 450
   },
@@ -2457,6 +2556,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑣢:𑣤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑣢:𑣤5'",
    "d": false,
    "hm": null
   },
@@ -2493,6 +2593,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑥗:3𑥐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑥗:3𑥐'",
    "d": false,
    "hm": 450
   },
@@ -2501,6 +2602,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑥒:𑥔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑥒:𑥔5'",
    "d": false,
    "hm": null
   },
@@ -2537,6 +2639,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑱗:3𑱐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑱗:3𑱐'",
    "d": false,
    "hm": 450
   },
@@ -2545,6 +2648,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑱒:𑱔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑱒:𑱔5'",
    "d": false,
    "hm": null
   },
@@ -2581,6 +2685,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑵗:3𑵐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑵗:3𑵐'",
    "d": false,
    "hm": 450
   },
@@ -2589,6 +2694,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑵒:𑵔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑵒:𑵔5'",
    "d": false,
    "hm": null
   },
@@ -2625,6 +2731,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑶧:3𑶠'",
    "float": null,
+   "float_err": "could not convert string to float: '𑶧:3𑶠'",
    "d": false,
    "hm": 450
   },
@@ -2633,6 +2740,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑶢:𑶤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑶢:𑶤5'",
    "d": false,
    "hm": null
   },
@@ -2669,6 +2777,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑽗:3𑽐'",
    "float": null,
+   "float_err": "could not convert string to float: '𑽗:3𑽐'",
    "d": false,
    "hm": 450
   },
@@ -2677,6 +2786,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𑽒:𑽔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𑽒:𑽔5'",
    "d": false,
    "hm": null
   },
@@ -2713,6 +2823,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𖩧:3𖩠'",
    "float": null,
+   "float_err": "could not convert string to float: '𖩧:3𖩠'",
    "d": false,
    "hm": 450
   },
@@ -2721,6 +2832,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𖩢:𖩤5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𖩢:𖩤5'",
    "d": false,
    "hm": null
   },
@@ -2757,6 +2869,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𖫇:3𖫀'",
    "float": null,
+   "float_err": "could not convert string to float: '𖫇:3𖫀'",
    "d": false,
    "hm": 450
   },
@@ -2765,6 +2878,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𖫂:𖫄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𖫂:𖫄5'",
    "d": false,
    "hm": null
   },
@@ -2801,6 +2915,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𖭗:3𖭐'",
    "float": null,
+   "float_err": "could not convert string to float: '𖭗:3𖭐'",
    "d": false,
    "hm": 450
   },
@@ -2809,6 +2924,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𖭒:𖭔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𖭒:𖭔5'",
    "d": false,
    "hm": null
   },
@@ -2845,6 +2961,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𝟕:3𝟎'",
    "float": null,
+   "float_err": "could not convert string to float: '𝟕:3𝟎'",
    "d": false,
    "hm": 450
   },
@@ -2853,6 +2970,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𝟐:𝟒5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𝟐:𝟒5'",
    "d": false,
    "hm": null
   },
@@ -2889,6 +3007,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𝟟:3𝟘'",
    "float": null,
+   "float_err": "could not convert string to float: '𝟟:3𝟘'",
    "d": false,
    "hm": 450
   },
@@ -2897,6 +3016,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𝟚:𝟜5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𝟚:𝟜5'",
    "d": false,
    "hm": null
   },
@@ -2933,6 +3053,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𝟩:3𝟢'",
    "float": null,
+   "float_err": "could not convert string to float: '𝟩:3𝟢'",
    "d": false,
    "hm": 450
   },
@@ -2941,6 +3062,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𝟤:𝟦5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𝟤:𝟦5'",
    "d": false,
    "hm": null
   },
@@ -2977,6 +3099,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𝟳:3𝟬'",
    "float": null,
+   "float_err": "could not convert string to float: '𝟳:3𝟬'",
    "d": false,
    "hm": 450
   },
@@ -2985,6 +3108,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𝟮:𝟰5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𝟮:𝟰5'",
    "d": false,
    "hm": null
   },
@@ -3021,6 +3145,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𝟽:3𝟶'",
    "float": null,
+   "float_err": "could not convert string to float: '𝟽:3𝟶'",
    "d": false,
    "hm": 450
   },
@@ -3029,6 +3154,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𝟸:𝟺5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𝟸:𝟺5'",
    "d": false,
    "hm": null
   },
@@ -3065,6 +3191,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𞅇:3𞅀'",
    "float": null,
+   "float_err": "could not convert string to float: '𞅇:3𞅀'",
    "d": false,
    "hm": 450
   },
@@ -3073,6 +3200,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𞅂:𞅄5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𞅂:𞅄5'",
    "d": false,
    "hm": null
   },
@@ -3109,6 +3237,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𞋷:3𞋰'",
    "float": null,
+   "float_err": "could not convert string to float: '𞋷:3𞋰'",
    "d": false,
    "hm": 450
   },
@@ -3117,6 +3246,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𞋲:𞋴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𞋲:𞋴5'",
    "d": false,
    "hm": null
   },
@@ -3153,6 +3283,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𞓷:3𞓰'",
    "float": null,
+   "float_err": "could not convert string to float: '𞓷:3𞓰'",
    "d": false,
    "hm": 450
   },
@@ -3161,6 +3292,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𞓲:𞓴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𞓲:𞓴5'",
    "d": false,
    "hm": null
   },
@@ -3197,6 +3329,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𞥗:3𞥐'",
    "float": null,
+   "float_err": "could not convert string to float: '𞥗:3𞥐'",
    "d": false,
    "hm": 450
   },
@@ -3205,6 +3338,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1𞥒:𞥔5'",
    "float": null,
+   "float_err": "could not convert string to float: '1𞥒:𞥔5'",
    "d": false,
    "hm": null
   },
@@ -3241,6 +3375,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '🯷:3🯰'",
    "float": null,
+   "float_err": "could not convert string to float: '🯷:3🯰'",
    "d": false,
    "hm": 450
   },
@@ -3249,6 +3384,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1🯲:🯴5'",
    "float": null,
+   "float_err": "could not convert string to float: '1🯲:🯴5'",
    "d": false,
    "hm": null
   },
@@ -3257,6 +3393,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: ''",
    "float": null,
+   "float_err": "could not convert string to float: ''",
    "d": false,
    "hm": null
   },
@@ -3265,6 +3402,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: ' '",
    "float": null,
+   "float_err": "could not convert string to float: ' '",
    "d": false,
    "hm": null
   },
@@ -3273,6 +3411,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\u3000'",
    "float": null,
+   "float_err": "could not convert string to float: '\\u3000'",
    "d": false,
    "hm": null
   },
@@ -3316,6 +3455,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '－5'",
    "float": null,
+   "float_err": "could not convert string to float: '－5'",
    "d": false,
    "hm": null
   },
@@ -3331,6 +3471,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1__0'",
    "float": null,
+   "float_err": "could not convert string to float: '1__0'",
    "d": false,
    "hm": null
   },
@@ -3339,6 +3480,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '_1'",
    "float": null,
+   "float_err": "could not convert string to float: '_1'",
    "d": false,
    "hm": null
   },
@@ -3347,6 +3489,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1_'",
    "float": null,
+   "float_err": "could not convert string to float: '1_'",
    "d": false,
    "hm": null
   },
@@ -3403,6 +3546,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '.'",
    "float": null,
+   "float_err": "could not convert string to float: '.'",
    "d": false,
    "hm": null
   },
@@ -3419,6 +3563,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '１．５'",
    "float": null,
+   "float_err": "could not convert string to float: '１．５'",
    "d": false,
    "hm": null
   },
@@ -3427,6 +3572,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '١٫٥'",
    "float": null,
+   "float_err": "could not convert string to float: '١٫٥'",
    "d": false,
    "hm": null
   },
@@ -3435,6 +3581,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '0x10'",
    "float": null,
+   "float_err": "could not convert string to float: '0x10'",
    "d": false,
    "hm": null
   },
@@ -3443,6 +3590,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '12a'",
    "float": null,
+   "float_err": "could not convert string to float: '12a'",
    "d": false,
    "hm": null
   },
@@ -3507,6 +3655,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '²'",
    "float": null,
+   "float_err": "could not convert string to float: '²'",
    "d": false,
    "hm": null
   },
@@ -3515,6 +3664,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '³'",
    "float": null,
+   "float_err": "could not convert string to float: '³'",
    "d": false,
    "hm": null
   },
@@ -3523,6 +3673,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '½'",
    "float": null,
+   "float_err": "could not convert string to float: '½'",
    "d": false,
    "hm": null
   },
@@ -3531,6 +3682,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: 'Ⅻ'",
    "float": null,
+   "float_err": "could not convert string to float: 'Ⅻ'",
    "d": false,
    "hm": null
   },
@@ -3539,6 +3691,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '①'",
    "float": null,
+   "float_err": "could not convert string to float: '①'",
    "d": false,
    "hm": null
   },
@@ -3547,6 +3700,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '--5'",
    "float": null,
+   "float_err": "could not convert string to float: '--5'",
    "d": false,
    "hm": null
   },
@@ -3555,6 +3709,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '+-5'",
    "float": null,
+   "float_err": "could not convert string to float: '+-5'",
    "d": false,
    "hm": null
   },
@@ -3563,6 +3718,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '- 5'",
    "float": null,
+   "float_err": "could not convert string to float: '- 5'",
    "d": false,
    "hm": null
   },
@@ -3599,6 +3755,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1 2'",
    "float": null,
+   "float_err": "could not convert string to float: '1 2'",
    "d": false,
    "hm": null
   },
@@ -3642,6 +3799,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1e'",
    "float": null,
+   "float_err": "could not convert string to float: '1e'",
    "d": false,
    "hm": null
   },
@@ -3650,6 +3808,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: 'e5'",
    "float": null,
+   "float_err": "could not convert string to float: 'e5'",
    "d": false,
    "hm": null
   },
@@ -3658,6 +3817,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1.2.3'",
    "float": null,
+   "float_err": "could not convert string to float: '1.2.3'",
    "d": false,
    "hm": null
   },
@@ -3666,6 +3826,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '08:15'",
    "float": null,
+   "float_err": "could not convert string to float: '08:15'",
    "d": false,
    "hm": 495
   },
@@ -3674,6 +3835,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '8:15'",
    "float": null,
+   "float_err": "could not convert string to float: '8:15'",
    "d": false,
    "hm": 495
   },
@@ -3682,6 +3844,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '24:00'",
    "float": null,
+   "float_err": "could not convert string to float: '24:00'",
    "d": false,
    "hm": null
   },
@@ -3690,6 +3853,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '23:59'",
    "float": null,
+   "float_err": "could not convert string to float: '23:59'",
    "d": false,
    "hm": 1439
   },
@@ -3698,6 +3862,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '7:60'",
    "float": null,
+   "float_err": "could not convert string to float: '7:60'",
    "d": false,
    "hm": null
   },
@@ -3706,6 +3871,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '07:5'",
    "float": null,
+   "float_err": "could not convert string to float: '07:5'",
    "d": false,
    "hm": null
   },
@@ -3714,6 +3880,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '２３:５９'",
    "float": null,
+   "float_err": "could not convert string to float: '２３:５９'",
    "d": false,
    "hm": null
   },
@@ -3722,6 +3889,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '2３:00'",
    "float": null,
+   "float_err": "could not convert string to float: '2３:00'",
    "d": false,
    "hm": null
   },
@@ -3730,6 +3898,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '᠑:30'",
    "float": null,
+   "float_err": "could not convert string to float: '᠑:30'",
    "d": false,
    "hm": 90
   },
@@ -3738,6 +3907,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𑽙:30'",
    "float": null,
+   "float_err": "could not convert string to float: '𑽙:30'",
    "d": false,
    "hm": 570
   },
@@ -3746,6 +3916,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '𞓹:45'",
    "float": null,
+   "float_err": "could not convert string to float: '𞓹:45'",
    "d": false,
    "hm": 585
   },
@@ -3754,6 +3925,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '12:3４'",
    "float": null,
+   "float_err": "could not convert string to float: '12:3４'",
    "d": false,
    "hm": 754
   },
@@ -3762,6 +3934,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1:2:3'",
    "float": null,
+   "float_err": "could not convert string to float: '1:2:3'",
    "d": false,
    "hm": null
   },
@@ -3770,6 +3943,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: ':30'",
    "float": null,
+   "float_err": "could not convert string to float: ':30'",
    "d": false,
    "hm": null
   },
@@ -3778,6 +3952,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '8:'",
    "float": null,
+   "float_err": "could not convert string to float: '8:'",
    "d": false,
    "hm": null
   },
@@ -3786,6 +3961,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '008:15'",
    "float": null,
+   "float_err": "could not convert string to float: '008:15'",
    "d": false,
    "hm": null
   },
@@ -3904,6 +4080,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '4\\x1c'",
    "float": null,
+   "float_err": "could not convert string to float: '4\\x1c'",
    "d": false,
    "hm": null
   },
@@ -3912,6 +4089,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1c4\\x1c'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1c4\\x1c'",
    "d": false,
    "hm": null
   },
@@ -3920,6 +4098,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1c1.5'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1c1.5'",
    "d": false,
    "hm": null
   },
@@ -3928,6 +4107,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '4\\x1d'",
    "float": null,
+   "float_err": "could not convert string to float: '4\\x1d'",
    "d": false,
    "hm": null
   },
@@ -3936,6 +4116,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1d4\\x1d'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1d4\\x1d'",
    "d": false,
    "hm": null
   },
@@ -3944,6 +4125,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1d1.5'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1d1.5'",
    "d": false,
    "hm": null
   },
@@ -3952,6 +4134,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '4\\x1e'",
    "float": null,
+   "float_err": "could not convert string to float: '4\\x1e'",
    "d": false,
    "hm": null
   },
@@ -3960,6 +4143,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1e4\\x1e'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1e4\\x1e'",
    "d": false,
    "hm": null
   },
@@ -3968,6 +4152,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1e1.5'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1e1.5'",
    "d": false,
    "hm": null
   },
@@ -3976,6 +4161,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '4\\x1f'",
    "float": null,
+   "float_err": "could not convert string to float: '4\\x1f'",
    "d": false,
    "hm": null
   },
@@ -3984,6 +4170,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1f4\\x1f'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1f4\\x1f'",
    "d": false,
    "hm": null
   },
@@ -3992,6 +4179,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '\\x1f1.5'",
    "float": null,
+   "float_err": "could not convert string to float: '\\x1f1.5'",
    "d": false,
    "hm": null
   },
@@ -4471,6 +4659,7 @@
    "int": null,
    "int_err": "invalid literal for int() with base 10: '1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
    "float": null,
+   "float_err": "could not convert string to float: '11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111x'",
    "d": false,
    "hm": null
   },
@@ -4506,6 +4695,141 @@
    "s": "+00",
    "int": 0,
    "float": 0.0,
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u001c",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x1c'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\x1c'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "　x",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u3000x'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\u3000x'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "a",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: 'a\\x85'",
+   "float": null,
+   "float_err": "could not convert string to float: 'a\\x85'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "​1",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u200b1'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\u200b1'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x7f'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\x7f'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "󠀁",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\U000e0001'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\U000e0001'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "x ",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: 'x\\u2028'",
+   "float": null,
+   "float_err": "could not convert string to float: 'x\\u2028'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\ue000'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\ue000'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "﻿9",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\ufeff9'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\ufeff9'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "͸",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\u0378'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\u0378'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "'\"",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\'\"'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\'\"'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "it's",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: \"it's\"",
+   "float": null,
+   "float_err": "could not convert string to float: \"it's\"",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\\",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\\\'",
+   "float": null,
+   "float_err": "could not convert string to float: '\\\\'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "float": null,
+   "float_err": "could not convert string to float: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+   "d": false,
+   "hm": null
+  },
+  {
+   "s": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+   "int": null,
+   "int_err": "invalid literal for int() with base 10: '\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0",
+   "float": null,
+   "float_err": "could not convert string to float: '\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'",
    "d": false,
    "hm": null
   }

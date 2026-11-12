@@ -353,9 +353,10 @@ impl Ctx<'_> {
             let pick: Vec<String> = equips.iter().map(|x| normalize_part(x)).collect();
             let wl = conf.work();
             let mut all: Vec<&Value> = arr(wl.get("rows")).iter().collect();
-            let num = |r: &Value| pyfmt::py_int(&strip(&s_or(r.get("並び")))).ok().map(|n| n.saturating());
+            // 並びは Python の int と同じく大きな数も桁で比べる（版 3.104.0 の作った後の採点: 前は i64 の端へ丸め、端を超える 2 行の順が変わった）
+            let num = |r: &Value| pyfmt::py_int(&strip(&s_or(r.get("並び")))).ok();
             let mut idx: Vec<usize> = (0..all.len()).collect();
-            idx.sort_by_key(|&i| (num(all[i]).is_none(), num(all[i]).unwrap_or(0), i));
+            idx.sort_by_cached_key(|&i| (num(all[i]).is_none(), num(all[i]).unwrap_or(pyfmt::PyInt::Small(0)), i));
             all = idx.into_iter().map(|i| all[i]).collect();
             let rows: Vec<&Value> = all
                 .into_iter()

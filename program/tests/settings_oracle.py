@@ -226,6 +226,11 @@ def scenarios(work):
         write(r / "share" / "data_sources.json", ds)
         wl = json.loads((r / "share" / "work_log_files.json").read_text(encoding="utf-8"))
         wl["rows"] += [{"id": 9, "キー": "w9", "設備名": "BIG", "並び": "99999999999999999999"}, {"id": 10, "キー": "w10", "設備名": "全角", "並び": "３"}]
+        # 版 3.104.0 の作った後の採点: i128 の端を超える 2 つの並び（前の窓は端へ丸めて同じ番号にし、登録の順に並べた）
+        wl["rows"] += [{"id": 11, "キー": "w11", "設備名": "端の上", "並び": "2" + "0" * 41}, {"id": 12, "キー": "w12", "設備名": "端の下", "並び": "1" + "0" * 41}]
+        ds["rows"] += [{"id": 33, "キー": "b4", "表示名": "端の上", "場所": "/b4", "並び": "2" + "0" * 41},
+                       {"id": 34, "キー": "b5", "表示名": "端の下", "場所": "/b5", "並び": "1" + "0" * 41}]
+        write(r / "share" / "data_sources.json", ds)
         write(r / "share" / "work_log_files.json", wl)
         return config(r)
     sc("大きな数・全角の並べ替え", big_orders)
