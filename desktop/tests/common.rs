@@ -27,7 +27,46 @@ pub fn python_json(script: &str, args: &[&str]) -> serde_json::Value {
         .output()
         .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
     assert!(out.status.success(), "{script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
-    serde_json::from_slice(&out.stdout).expect("Python の答えが JSON ではありません")
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("Python の答えが JSON ではありません");
+    check_budget(script, args, &v);
+    v
+}
+
+/// 窓が答えず Python に任せる歩の数（版 3.102.0。program/tools/delegate-count.py と同じ数え方: "delegates" の並びの中身・
+/// "delegate": true の歩・"expect": "delegate" の場面）
+pub fn delegate_count(v: &serde_json::Value) -> usize {
+    use serde_json::Value;
+    match v {
+        Value::Object(o) => {
+            let me =
+                usize::from(o.get("expect").and_then(Value::as_str) == Some("delegate") || o.get("delegate") == Some(&Value::Bool(true)));
+            me + o
+                .iter()
+                .map(|(k, x)| match (k.as_str(), x) {
+                    ("delegates", Value::Array(a)) => a.len(),
+                    (_, Value::Object(_) | Value::Array(_)) => delegate_count(x),
+                    _ => 0,
+                })
+                .sum::<usize>()
+        }
+        Value::Array(a) => a.iter().map(delegate_count).sum(),
+        _ => 0,
+    }
+}
+
+/// 任せる歩の予算（program/tests/fixtures/delegates_budget.json。答えの元ごとの上限）を超えていないか。作業フォルダを 1 つ渡す形だけ見る
+fn check_budget(script: &str, args: &[&str], v: &serde_json::Value) {
+    let budget: serde_json::Value = serde_json::from_str(include_str!("../../program/tests/fixtures/delegates_budget.json")).unwrap();
+    let name = script.trim_end_matches(".py");
+    let Some(max) = budget["per"][name].as_u64() else { return };
+    if args.len() != 1 || args[0].starts_with("--") {
+        return;
+    }
+    let n = delegate_count(v) as u64;
+    assert!(
+        n <= max,
+        "{script}: Python に任せる歩が {n}（予算 {max}）。新しく任せる歩を足すときは理由を書いて tests/fixtures/delegates_budget.json を上げる（数えるのは python tools/delegate-count.py）"
+    );
 }
 
 /// 2つの JSON の違い（最初の 1 か所の道筋）。数は値で比べる（1.0 と 1 は別・整数と小数の書き分けも見る）。

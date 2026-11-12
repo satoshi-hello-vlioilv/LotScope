@@ -42,5 +42,7 @@ def config_path(base: Path = BASE) -> Path:
 
 
 def load_settings(base: Path = BASE) -> dict:
-    return json.loads(config_path(base).read_text(encoding="utf-8"))
+    """配った設定を読む。BOM 付きの UTF-8（メモ帳の「UTF-8 (BOM 付き)」）も読む（RFC 8259 §8.1。版 3.102.0。前は起動できなかった。
+    窓の desktop/src/bundle.rs の inputs も同じく BOM を外して読む）"""
+    return json.loads(config_path(base).read_text(encoding="utf-8-sig"))
 

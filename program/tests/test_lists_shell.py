@@ -56,10 +56,14 @@ class OldAndNewWindow(Env):
         self.assertIsNone(dash["now"], "製品（DASHBOARD_NOW が無い）は null（窓は自分の時計）")
 
 
-    def test_unreadable_materials_leave_the_lists_to_python(self):
-        with mock.patch.dict(os.environ, LISTS), mock.patch("app.routes.lotlist.lists_settings", side_effect=OSError("届きません")):
+    def test_unreadable_materials_break_only_their_section(self):
+        """段取りの材料を読めない節は理由つきで null（窓はその節を使う道だけを断る）。前は engine を黙って python・lists を null にした（版 3.102.0）"""
+        with mock.patch.dict(os.environ, LISTS), mock.patch("app.routes.sources.all_sources", side_effect=OSError("届きません")):
             s = self.c.get("/api/lotlist/settings").get_json()
-        self.assertEqual((s["engine"], s["lists"]), ("python", None), "段取りの材料を読めなければ、窓は答えない（結合を知らずに答えない）")
+        self.assertEqual(s["engine"], "rust", "黙って Python に回さない")
+        self.assertIsNone(s["lists"]["sources"])
+        self.assertIn("届きません", s["broken"]["sources"]["why"])
+        self.assertIsNotNone(s["lists"]["shifts"], "ほかの節は組む")
 
 
 class PassiveMirrors(Env):

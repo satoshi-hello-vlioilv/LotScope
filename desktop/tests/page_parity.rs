@@ -16,7 +16,7 @@ const READS: [&str; 7] =
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 // 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
-const MUST_DELEGATE: [(&str, &str); 13] = [
+const MUST_DELEGATE: [(&str, &str); 14] = [
     // 版 3.89.0（作った後の採点）: 参照先の値を重ねる配った設定の段が表でない（Python の _set が落ちる）
     ("更新の段が null で参照先に更新の置き場", "/api/settings"),
     // 作った後の採点（版 3.85.0）の割れ
@@ -32,6 +32,8 @@ const MUST_DELEGATE: [(&str, &str); 13] = [
     ("LotDsp の待つ秒が読めない", "/api/config"),
     ("LotDsp の学びの形が違う", "/api/config"),
     ("初期設定が共有にまだ無い", "/"),
+    // 版 3.102.0: データ元の並びは作業実績の登録の表でない行を Python と同じに読めない（Python は飛ばして読む）。束の節（work・dash）は理由つきで断る
+    ("作業実績の登録に表でない行（実績と設備の名前の節）", "/api/sources"),
 ];
 
 fn short(v: &Value) -> String {
@@ -43,7 +45,7 @@ fn page_and_first_reads_are_like_python() {
     let work = common::work("page");
     let o = common::python_json("settings_oracle.py", &[work.to_str().unwrap()]);
     let mut bad = vec![];
-    let (mut same, mut delegated) = (std::collections::BTreeMap::<&str, usize>::new(), 0);
+    let (mut same, mut delegated, mut refused) = (std::collections::BTreeMap::<&str, usize>::new(), 0, 0);
     for sc in o["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         // 配った設定のファイル（GET /api/settings の config_file）: 場面の Python と同じく TRANSFER_APP_CONFIG で指す（版 3.89.0）
@@ -83,7 +85,7 @@ fn page_and_first_reads_are_like_python() {
                 })
             } else if path == "/api/sources" {
                 // スケジュールのカードは Python が起きていない形（起こした直後と同じ。場面の Python も CM3 を見に行っていない）
-                lot.sources_list("", &ask, &|| None).map(|(st, v)| (st, String::new(), v))
+                lot.sources_list("").map(|(st, v)| (st, String::new(), v))
             } else {
                 lot.handle_body("GET", path, "", b"", &ask).map(|(st, v)| (st, String::new(), v))
             };
@@ -96,6 +98,20 @@ fn page_and_first_reads_are_like_python() {
                 }
                 continue;
             };
+            // 版 3.102.0: 束の組めない節を使う道は、窓が理由（どのファイル・どの行）を添えて 503 kind settings で断る（ほかの道は答え続ける）。
+            // Python は表でない行を飛ばす・窓の読めない字を読むので 200 のことがある。断るのは窓の束に組めない節があるときだけ
+            if status == 503 && v["kind"] == "settings" {
+                let own = lot.own_bundle().and_then(Result::ok).unwrap_or_default();
+                let broken = own["broken"].as_object().cloned().unwrap_or_default();
+                let named = v["broken"]
+                    .as_array()
+                    .is_some_and(|a| !a.is_empty() && a.iter().all(|k| broken.contains_key(k.as_str().unwrap_or(""))));
+                if !named || !v["error"].as_str().is_some_and(|e| e.contains("設定を組めません")) {
+                    bad.push(format!("{name} {path}: 窓が断ったが束の組めない節と合わない: {} / {}", short(&v), own["broken"]));
+                }
+                refused += 1;
+                continue;
+            }
             if must_delegate {
                 bad.push(format!("{name} {path}: 窓が答えた（Python に任せるはず）"));
                 continue;
@@ -155,7 +171,7 @@ fn page_and_first_reads_are_like_python() {
             }
         }
     }
-    eprintln!("窓が同じに答えた数: {same:?}・Python に任せた数: {delegated}");
+    eprintln!("窓が同じに答えた数: {same:?}・Python に任せた数: {delegated}・組めない節で断った数: {refused}");
     for (path, n) in [
         ("/", 15),
         ("/api/config", 15),

@@ -194,10 +194,21 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             Some(json_reply(&json!({"ok": true})))
         }
         // 版と更新履歴（版 3.88.0。src/small_reads.rs）: Python の準備を待たずに答える。?engine=python・焼いた更新履歴の版が中身と
-        // 違う・無いときは Python に任せる。/api/health は Python のまま（Python が答えているかの印）
+        // 違う・無いときは Python に任せる
         (method @ ("GET" | "HEAD"), path @ ("/api/build" | "/api/changelog")) => {
             let program = std::path::PathBuf::from(info["program"].as_str().unwrap_or(""));
             da_core::small_reads::reply(method, path, req.query, &program).map(|(headers, body)| Reply { status: 200, headers, body })
+        }
+        // 生きているか（版 3.102.0。主のセッションの決め 5）: 窓が答え、Python の様子を添える（?engine=python は Python の道＝Python が答えているかの印）
+        ("GET", "/api/health") if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") => {
+            let python = if backend.ready_now() {
+                "ready"
+            } else if backend.alive() {
+                "starting"
+            } else {
+                "stopped"
+            };
+            Some(json_reply(&da_core::small_reads::health(python)))
         }
         ("GET", "/__desktop/info") => {
             let mut v = info.clone();
@@ -322,6 +333,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             let r = lot.page(method == "HEAD", &|| backend.ready_now()).map(|h| Reply { status: 200, headers: h.headers, body: h.body });
             if r.is_none() {
                 log(&format!("PAGE python {}", lot.page_why())); // 窓が画面を描けなかった理由（Python が描く）
+                da_core::delegate::note("page");
             }
             r
         }
@@ -338,9 +350,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             .map(|(status, v)| Reply { status, ..json_reply(&v) }),
         // データ元の並び（版 3.87.0。src/sources_list.rs）: 見出しのタブを Python の準備を待たずに描く。スケジュールのカードは
         // Python の覚え（プロセスのメモリ）なので、中身が起きているときだけ尋ねる（起きていなければ起こした直後と同じ形）
-        ("GET", "/api/sources") => lot
-            .sources_list(req.query, &|| lot_settings(backend), &|| schedule_card(backend))
-            .map(|(status, v)| Reply { status, ..json_reply(&v) }),
+        ("GET", "/api/sources") => lot.sources_list(req.query).map(|(status, v)| Reply { status, ..json_reply(&v) }),
         (method, path) => lot.handle_body(method, path, req.query, req.body, &|| lot_settings(backend)).map(|(status, v)| {
             // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
             if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
@@ -360,21 +370,15 @@ fn lot_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
     serde_json::from_slice(&r.body).map_err(|e| e.to_string())
 }
 
-/// スケジュールのカード（routes/schedule.py の schedule_card）を中身（Python）に尋ねる。起きていなければ待たずに None
-fn schedule_card(backend: &dyn Backend) -> Option<serde_json::Value> {
-    if !backend.ready_now() {
-        return None;
-    }
-    let r = backend.ask(&Ask { method: "GET", path: "/api/schedule/card", query: "", headers: vec![], body: &[] });
-    (r.status == 200).then(|| serde_json::from_slice(&r.body).ok()).flatten()
-}
-
 /// 更新の置き場の設定（置き場・だれが・マスタの置き場）。版 3.95.0 から窓が読む（src/release_place.rs・Lot::update_settings。
 /// Python が起きていなくても更新を確かめ、配布の操作が 503 にならない）。窓が同じ字にできない形だけ中身（Python）に尋ねる
 fn update_settings(lot: &Lot, backend: &dyn Backend) -> Result<serde_json::Value, String> {
     match lot.update_settings() {
         Some(v) => Ok(v),
-        None => ask_update_settings(backend),
+        None => {
+            da_core::delegate::note("update_settings"); // 窓が同じ字にできない更新の置き場（版 3.102.0。形の名前と回数だけ数える）
+            ask_update_settings(backend)
+        }
     }
 }
 
@@ -678,6 +682,8 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     let static_dir = program.join("app").join("static");
     // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
     let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
+    // 窓が Python に任せた・断った回数（形の名前と回数だけ。版 3.102.0。src/delegate.rs）
+    da_core::delegate::set_dir(locate::local_root().join("logs"));
     lot.set_program(program.clone()); // 利用状況に書く版（中身の版。更新で入れ替わる）
                                       // 設定の束は窓が組む（版 3.84.0。src/bundle.rs）。組めない形だけ中身（Python）に尋ねる
     lot.set_bundle(da_core::bundle::Builder::new(da_core::bundle::Env::production(&program, &locate::local_root())));
@@ -699,7 +705,10 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     upd.run(
         move || match upd_lot.update_settings() {
             Some(v) => Ok(v),
-            None => ask_slot.get().ok_or("起動中です".to_string()).and_then(|r| ask_update_settings(&r.backend)),
+            None => {
+                da_core::delegate::note("update_settings");
+                ask_slot.get().ok_or("起動中です".to_string()).and_then(|r| ask_update_settings(&r.backend))
+            }
         },
         log,
     );

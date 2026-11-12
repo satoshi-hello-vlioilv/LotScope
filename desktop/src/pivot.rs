@@ -474,6 +474,9 @@ pub(crate) fn compile_rules(rules: Option<&Value>) -> Vec<Rule> {
             if formula::regex_risk(&units).is_some() {
                 continue;
             }
+            if crate::equip_regex::check(&v).0 != crate::equip_regex::Verdict::Ok {
+                continue; // Python と意味の違う・読めない書き方は当てない（版 3.102.0。src/equip_regex.rs。Python の compile_rules と同じ）
+            }
             if let Ok(rx) = fancy_regex::Regex::new(&format!("(?i){v}")) {
                 out.push(Rule::Regex(rx));
             }
@@ -488,6 +491,11 @@ pub(crate) fn compile_rules(rules: Option<&Value>) -> Vec<Rule> {
         });
     }
     out
+}
+
+/// 設備グループの決まり（[{op, value}]）が設備名に当たるか（名前は normalize_part して比べる。試験と自己診断の口。版 3.102.0）
+pub fn rules_match(rules: &Value, name: &str) -> bool {
+    rules_hit(&compile_rules(Some(rules)), &normalize_part(name))
 }
 
 pub(crate) fn rules_hit(rules: &[Rule], k: &str) -> bool {

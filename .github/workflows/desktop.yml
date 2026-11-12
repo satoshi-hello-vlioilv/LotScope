@@ -54,6 +54,11 @@ jobs:
       - name: 置き場と設定の事例（Python・Windows）
         working-directory: program
         run: python -m unittest tests.test_place_cases -v
+      # 壊れた設定・マスタと設備グループの正規表現（版 3.102.0）を Windows の本物で: BOM 付きの配った設定・途中で切れたマスタ・表でない行・
+      # 正規表現の事例の表（Python の re。窓の fancy-regex は上の cargo test の equip_regex_cases・束の節は bundle_cases）
+      - name: 壊れた設定・マスタと正規表現の事例（Python・Windows）
+        working-directory: program
+        run: python -m unittest tests.test_broken_masters tests.test_equip_regex tests.test_bundle_sections -v
       - name: exe を作る
         working-directory: desktop
         run: cargo build --release --locked

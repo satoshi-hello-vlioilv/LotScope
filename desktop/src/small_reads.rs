@@ -4,7 +4,8 @@
 //! - GET /api/changelog … app/changelog.json（`python app_build.py --release` が app/version.py の CHANGELOG を、jsonify と 1 バイトも
 //!   違わない形で焼く）を字のまま返す。焼いた版が中身（program）の版と同じで、字が jsonify の形（LF の改行で終わる。Windows の
 //!   checkout で CRLF にされていない。.gitattributes の -text）のときだけ。無い・読めない・版が違う（前の版へ戻した形など）は Python に任せる
-//! - GET /api/health は窓が答えない（Python が答えているかを確かめる印のまま。窓が ok を返すと、Python が止まっても ok になる）
+//! - GET /api/health は版 3.102.0 から窓が答え（main.rs）、Python の様子を python に添える（health。主のセッションの決め 5。
+//!   窓が ok と言っても Python が止まっていれば python が "stopped"。?engine=python は Python の道＝Python が答えているかの印のまま）
 //! - ?engine=python は Python。HEAD は本文なしで Content-Length（Python と同じ）
 //!
 //! app/version.py（約 200 KB）と changelog.json は、ファイルの更新時刻と大きさで覚える。書いた直後（RACY 秒以内）の覚えは使わない
@@ -107,6 +108,11 @@ pub fn reply(method: &str, path: &str, query: &str, program: &Path) -> Option<An
     let headers =
         vec![("Content-Type".to_string(), "application/json".to_string()), ("Content-Length".to_string(), body.len().to_string())];
     Some((headers, if method == "HEAD" { vec![] } else { body }))
+}
+
+/// GET /api/health の窓の答え（版 3.102.0）。python は "ready"（答えられる）・"starting"（起こしている）・"stopped"（止まっている）
+pub fn health(python: &str) -> serde_json::Value {
+    serde_json::json!({"status": "ok", "by": "window", "python": python})
 }
 
 #[cfg(test)]

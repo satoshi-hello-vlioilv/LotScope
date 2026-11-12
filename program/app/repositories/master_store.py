@@ -130,6 +130,30 @@ class ShareUnavailable(MasterError):
     kind, status = "unavailable", 503
 
 
+class MasterUnreadable(MasterError, ValueError):
+    """マスタのファイルが読めない（途中で切れた・壊れた JSON・形が違う・表でない行。版 3.102.0）。どのファイルかを言う
+    （前は JSON の英語の誤りか HTML の 500 で、どのファイルを直せばよいかを言わなかった）。直すのは人なので、ファイルは消さない。
+    窓の desktop/src/master_store.rs の unreadable と同じ言葉"""
+    kind, status = "master_unreadable", 503
+
+
+def unreadable_text(where, path, raw, err):
+    """読めないファイルの理由の言葉（窓と同じ）。where は「共有の」「この PC の写しの」「手元の」。途中で切れた形（JSON の終わりで止まった）は
+    大きさを、ほかは読めなくなった行を言う"""
+    name = Path(path).name
+    if isinstance(err, json.JSONDecodeError):
+        text = err.doc
+        eof = err.msg.startswith("Unterminated string") or err.pos >= len(text.rstrip())
+        why = f"途中で切れています（{len(raw)} バイト）" if eof else f"JSON として読めません（{err.lineno} 行目）"
+    elif isinstance(err, UnicodeDecodeError) and err.reason == "unexpected end of data":
+        why = f"途中で切れています（{len(raw)} バイト）"     # 字の途中で切れた（書きかけ）
+    elif isinstance(err, UnicodeDecodeError):
+        why = "UTF-8 の字として読めません"
+    else:
+        why = "マスタの形（rows の並び）が読めません"
+    return f"{where} {name} が読めません（{why}）"
+
+
 # ------------------------------------------------------------------ 端末の名乗り
 def identity():
     """この PC とログインの名前。**名乗れないときは空**（空どうしを「同じ人」とは見なさない）。
@@ -163,6 +187,19 @@ def _read_json(path):
     （普通の open() だと、だれかが読んでいる瞬間の保存が「使用中」で断られる）。"""
     with open_shared_read(path) as f:
         return json.loads(f.read().decode("utf-8-sig"))
+
+
+def _read_master(path, where):
+    """マスタのファイルを読む → doc。読めなければ MasterUnreadable（どのファイルか・途中で切れたか。版 3.102.0）"""
+    with open_shared_read(path) as f:
+        raw = f.read()
+    try:
+        data = json.loads(raw.decode("utf-8-sig"))
+    except (ValueError, UnicodeDecodeError) as e:      # UnicodeDecodeError も ValueError の仲間
+        raise MasterUnreadable(unreadable_text(where, path, raw, e)) from None
+    if not (isinstance(data, list) or (isinstance(data, dict) and isinstance(data.get("rows"), list))):
+        raise MasterUnreadable(unreadable_text(where, path, raw, None))
+    return _as_doc(data)
 
 
 def _instance_id(root):
@@ -269,7 +306,8 @@ class MasterStore:
         self._checked = {}      # name -> 最後に共有を見た時刻（monotonic）
         self._share_sig = {}    # name -> 最後に取り込んだ共有の (mtime, size)
         self._mem = {}          # name -> (写しの sig, doc)
-        self._last_error = ""
+        self._errors = {}       # name -> 最後に共有から取り直せなかった理由（取り直せた名前だけ消す。版 3.102.0。前は 1 つの字で、
+        #                         ほかのマスタを取り直せると消え、読めないマスタを言わなくなった）
         self._last_sync = ""
 
     # ---------------------------------------------------------- 置き場の答え
@@ -355,13 +393,24 @@ class MasterStore:
         path = self._mirror(name) if self.is_shared(name) and self._mirror(name).exists() else self._initial(name)
         return self._cached(path) if path.exists() else _doc([])
 
+    def _where_of(self, path):
+        """読むファイルの置き場の言葉（理由の言葉に使う。窓と同じ）"""
+        p = Path(path)
+        if p.parent == self.cache_dir:
+            return "この PC の写しの"
+        if self.share_dir is not None and p.parent == self.share_dir:
+            return "共有の"
+        if p.parent == DEFAULTS_DIR:
+            return "同梱の最初の中身の"
+        return "手元の"
+
     def _cached(self, path):
         sig = _stat_sig(path)
         key = str(path)
         hit = self._mem.get(key)
         if hit and hit[0] == sig and sig is not None:
             return hit[1]
-        doc = _as_doc(_read_json(path))
+        doc = _read_master(path, self._where_of(path))
         self._mem[key] = (sig, doc)
         return doc
 
@@ -381,7 +430,7 @@ class MasterStore:
                 self._checked.clear()
                 self._share_sig.clear()
                 self._mem.clear()
-                self._last_error = ""
+                self._errors.clear()
         log.info("MASTER_RETARGET dir=%s", new_dir)
         if self.on_moved:
             self.on_moved(Path(new_dir))
@@ -508,9 +557,15 @@ class MasterStore:
         try:
             return self._pull(name, force=force)
         except Exception as e:  # 読みは写しで続ける
-            self._last_error = f"共有マスタを取り込めませんでした（写しで続けます）: {e}"
-            log.warning(self._last_error)
+            self._errors[name] = str(e)
+            log.warning("共有マスタを取り込めませんでした（写しで続けます）: %s", e)
             return False
+
+    @property
+    def _last_error(self):
+        """状態（status の error）に出す理由: 取り直せていないマスタの理由（名前の順・同じ言葉は 1 つ）"""
+        msgs = list(dict.fromkeys(self._errors[n] for n in sorted(self._errors)))
+        return f"共有マスタを取り込めませんでした（写しで続けます）: {' ／ '.join(msgs)}" if msgs else ""
 
     def _pull(self, name, force=False, have_lock=False):
         src = self._share_file(name)
@@ -524,10 +579,10 @@ class MasterStore:
                 return False
         if not force and self._share_sig.get(name) == sig and self._mirror(name).exists():
             return False
-        doc = _as_doc(_read_json(src))
+        doc = _read_master(src, "共有の")
         _write_json_atomic(self._mirror(name), doc, retry=MIRROR_RETRY_SEC)   # 書けなければ投げる（_maybe_refresh が理由を覚えて status の error に出す）
         self._share_sig[name] = sig
-        self._last_error = ""
+        self._errors.pop(name, None)
         self._last_sync = _iso(_now())
         return True
 
@@ -543,7 +598,7 @@ class MasterStore:
                 if _stat_sig(src) is not None:
                     return
                 seed = self._mirror(name) if self._mirror(name).exists() else self._initial(name)
-                doc = _as_doc(_read_json(seed)) if seed.exists() else _doc([])
+                doc = _read_master(seed, self._where_of(seed)) if seed.exists() else _doc([])
                 doc.update(revision=max(1, doc["revision"]), updated_at=_iso(_now()), updated_by=dict(self.who))
                 _write_json_atomic(src, doc)
                 log.info("MASTER_SEED name=%s from=%s rows=%d", name, seed, len(doc["rows"]))
@@ -778,7 +833,7 @@ class MasterStore:
             try:
                 first = self._initial(name)   # **錠を取ってから**決めて読む（初めての保存が重なっても、先の保存の上で当てる）
                 pulled = _stat_sig(path)
-                doc = _as_doc(_read_json(first)) if first.exists() else _doc([])
+                doc = _read_master(first, self._where_of(first)) if first.exists() else _doc([])
                 result = mutate(doc["rows"], stamp)
                 cur = self._read_lock() or {}
                 if cur.get("token") != token or _stat_sig(path) != pulled:
@@ -839,9 +894,16 @@ class MasterStore:
             out["last_sync"] = self._last_sync
             out["error"] = self._last_error
         for n in names:
-            doc = self._peek_doc(n) if peek else self._read_doc(n)
-            src = ("shared" if self.is_shared(n) and self._mirror(n).exists()
+            # source（版 3.102.0）: shared は共有から取り直した写し・cache は共有が読めず前の写しで答えている（理由は error）・
+            # bundled-fallback は写しが無く同梱の物・local は手元だけ
+            src = ("cache" if self.is_shared(n) and self._mirror(n).exists() and n in self._errors
+                   else "shared" if self.is_shared(n) and self._mirror(n).exists()
                    else "bundled-fallback" if self.is_shared(n) else "local")
+            try:
+                doc = self._peek_doc(n) if peek else self._read_doc(n)
+            except MasterUnreadable as e:   # 読めないマスタは理由を添えて並べる（前は状態全体が HTML の 500）
+                out["masters"][n] = {"revision": None, "rows": None, "updated_at": "", "updated_by": {}, "source": src, "error": str(e)}
+                continue
             out["masters"][n] = {"revision": doc["revision"], "rows": len(doc["rows"]),
                                  "updated_at": doc.get("updated_at", ""), "updated_by": doc.get("updated_by") or {},
                                  "source": src}

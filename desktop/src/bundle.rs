@@ -555,6 +555,13 @@ fn norm(p: &str) -> String {
     p.replace('/', "\\").trim_end_matches('\\').to_lowercase()
 }
 
+/// 配った設定の字（BOM 付きの UTF-8〈メモ帳の「UTF-8 (BOM 付き)」〉も読む。RFC 8259 §8.1。版 3.102.0: 前は serde が
+/// 「expected value」で読めず、束を組めなかった。Python の app_env.load_settings も utf-8-sig で読む）
+pub fn read_config(p: &Path) -> Option<String> {
+    let t = std::fs::read_to_string(p).ok()?;
+    Some(t.strip_prefix('\u{feff}').map(str::to_string).unwrap_or(t))
+}
+
 fn read_json(p: &Path) -> Option<Value> {
     let b = std::fs::read(p).ok()?;
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
@@ -640,7 +647,7 @@ impl Builder {
 
     /// 設定ファイルの master_share.dir（Python の MasterStore.configured_dir: Path(os.path.expandvars(dir))。無ければ ""）。版 3.101.0
     pub fn configured_dir(&self) -> R<String> {
-        let text = std::fs::read_to_string(&self.env.config).map_err(|_| Py("配った設定が読めない"))?;
+        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
         let v = lenient_json(&text).filter(Value::is_object).ok_or(Py("配った設定が表でない"))?;
         let cfg = dict_or_empty(v.get("master_share"))?;
         let raw = match cfg.get("dir") {
@@ -1186,7 +1193,10 @@ fn groups_and_uses(out: &mut [Map<String, Value>]) {
 }
 
 // ------------------------------------------------------------------ 設備グループ（services/equip_groups.py の view・ordered）
-pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
+/// 設備グループの行のルール（equip_groups.rules_of）→ (当てる決まり, 除く設備, 当てていない決まり〈{op, value, why}〉)。
+/// 読めない・重い・窓で写せない正規表現の決まりは、その決まりだけを当てずに理由を添えて残し、ほかは残す（版 3.102.0。Python と同じ。
+/// 前は Python が 1 つでも断る決まりがあると全部を消し、窓は正規表現があると束を Python に尋ねた）
+pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value, Vec<Value>)> {
     let text = if truthy(row.get("ルール")) { row.get("ルール").cloned().unwrap() } else { json!("{}") };
     let d: Value = match &text {
         Value::String(x) => {
@@ -1201,6 +1211,7 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
     let ops = t(&["equipGroups", "ruleOps"]).as_array().cloned().unwrap_or_default();
     let max = t(&["equipGroups", "maxRules"]).as_u64().unwrap_or(12) as usize;
     let mut rules: Vec<Value> = vec![];
+    let mut unapplied: Vec<Value> = vec![];
     if let Some(Value::Array(a)) = d.get("rules") {
         for r in a.iter().take(max) {
             let Some(o) = r.as_object() else { continue };
@@ -1208,13 +1219,28 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
                 return Err(Py("設備グループのルールの op が並び・表（Python は in で落ちる）"));
             }
             let Some(op) = o.get("op").filter(|op| ops.contains(op)) else { continue };
-            if op == "regex" {
-                return Err(Py("設備グループの正規表現（Python の re で確かめる）"));
-            }
             let raw = if truthy(o.get("value")) { s(o.get("value"))? } else { String::new() };
             let val: String = pyfmt::strip(&raw).chars().take(80).collect();
             if val.is_empty() {
                 continue;
+            }
+            if op == "regex" {
+                // equip_groups.clean_rules と同じ順: 書き方（equip_regex）→ 読めるか → 重さ（formula.regex_risk）
+                let why = crate::equip_regex::why_of(&val);
+                let units: Vec<u16> = val.encode_utf16().collect();
+                let why = if !why.is_empty() {
+                    format!("正規表現「{val}」は{why}。")
+                } else if fancy_regex::Regex::new(&val).is_err() {
+                    return Err(Py("設備グループの正規表現を窓が読めない（Python の re の言葉で断る）"));
+                } else if let Some(risk) = crate::formula::regex_risk(&units) {
+                    format!("正規表現「{val}」: {risk}")
+                } else {
+                    String::new()
+                };
+                if !why.is_empty() {
+                    unapplied.push(json!({"op": op, "value": val, "why": why}));
+                    continue;
+                }
             }
             let x = json!({"op": op, "value": val});
             if !rules.contains(&x) {
@@ -1222,8 +1248,8 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value)> {
             }
         }
     }
-    let ex = if rules.is_empty() { vec![] } else { eq_list(d.get("except"))? };
-    Ok((json!(rules), json!(ex)))
+    let ex = if rules.is_empty() && unapplied.is_empty() { vec![] } else { eq_list(d.get("except"))? };
+    Ok((json!(rules), json!(ex), unapplied))
 }
 
 /// 設備の並び（shifts.equipment_list）。並びの中の並び・表は Python の repr の字になるので組まない
@@ -1261,12 +1287,16 @@ pub(crate) fn group_views(rows: &[Value]) -> R<Vec<Value>> {
     let set_default = t(&["equipGroups", "setDefault"]).clone();
     let mut out = vec![];
     for (_, o) in keyed {
-        let (rules, ex) = group_rules(o)?;
+        let (rules, ex, unapplied) = group_rules(o)?;
         let pick = |k: &str, d: Value| o.get(k).filter(|v| truthy(Some(v))).cloned().unwrap_or(d);
-        out.push(json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pick("名称", json!("")), "set": pick("まとめ方", set_default.clone()),
+        let mut v = json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pick("名称", json!("")), "set": pick("まとめ方", set_default.clone()),
                         "equipment": eq_list(o.get("設備"))?, "rules": rules, "except": ex, "order": order_i64(group_order(o))?,
                         "note": pick("備考", json!("")), "rev": o.get("rev").cloned().unwrap_or(json!(1)),
-                        "updated_at": o.get("updated_at").cloned().unwrap_or(json!("")), "updated_by": pick("updated_by", json!({}))}));
+                        "updated_at": o.get("updated_at").cloned().unwrap_or(json!("")), "updated_by": pick("updated_by", json!({}))});
+        if !unapplied.is_empty() {
+            v["unapplied"] = json!(unapplied); // 当てていない決まりと理由（無ければ鍵を出さない。Python の rules_of と同じ）
+        }
+        out.push(v);
     }
     Ok(out)
 }
@@ -1473,10 +1503,6 @@ pub fn lotdsp_status(path: &Path, enabled: bool) -> R<Value> {
 }
 
 // ------------------------------------------------------------------ 束を組む
-/// 束に使うマスタ（MasterStore の写しの名前）
-const MASTERS: [&str; 7] =
-    ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "conversions", "shift_patterns"];
-
 /// work_log.ordered を、選んだ行（ダッシュボードの表示する設備など）に。並びが字にできなければ None
 pub fn work_order(rows: Vec<&Value>) -> Option<Vec<&Value>> {
     let mut keyed = vec![];
@@ -1988,7 +2014,7 @@ impl Builder {
 
     /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）
     pub fn inputs(&self) -> R<Inputs> {
-        let text = std::fs::read_to_string(&self.env.config).map_err(|_| Py("配った設定が読めない"))?;
+        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
         // 引っ越しの印をたどる係は窓の 1 つ（Python は窓が名乗るとたどらない）なので、束を組めない設定（NaN など）でも、
         // Python と同じに読める置き場の段（master_share）と名乗りから先にたどる
         let loose = lenient_json(&text).filter(Value::is_object);
@@ -2032,63 +2058,135 @@ impl Builder {
 
     fn build_inner(&self) -> R<Value> {
         let inp = self.inputs()?;
-        for name in MASTERS {
-            inp.check(name)?;
-        }
         let (settings, eff, who, place) = (&inp.settings, &inp.eff, inp.who.clone(), inp.place.clone());
-        let rows = |name: &str| inp.rows(name);
-        let ll = dict_or_empty(eff.get("lot_list"))?;
-        let get = |k: &str, d: Value| ll.get(k).cloned().unwrap_or(d);
-        let wl_rows = rows("work_log_files")?;
-        if !wl_rows.iter().all(Value::is_object) {
-            return Err(Py("作業実績の登録の行が表でない"));
-        }
-        // 作業実績の決まり（work_log.params）
-        let mut wl = t(&["workDefaults"]).as_object().cloned().unwrap_or_default();
-        for (k, v) in dict_or_empty(eff.get("work_log"))? {
-            if present(Some(&v)) {
-                wl.insert(k, v);
-            }
-        }
-        let folder = match wl.get("folder") {
-            x if !truthy(x) => String::new(),
-            x => unquote(&s(x)?),
-        };
-        wl.insert("folder".into(), json!(folder));
-        let work = json!({"folder": wl["folder"], "pattern": wl["pattern"], "table": wl["table"], "refresh_seconds": wl["refresh_seconds"],
-                          "stale_hours": wl["stale_hours"], "page_size": wl["page_size"],
-                          "rows": wl_rows.iter().map(|r| Value::Object(["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び"].iter()
-                              .map(|k| (k.to_string(), r.get(*k).cloned().unwrap_or(Value::Null))).collect())).collect::<Vec<_>>(),
-                          "canEditShifts": null});
-        // 設備の名前（作業実績の設備 → 設備マスタ）
-        let eq_rows = rows("equipment_master")?;
-        let mut names: Vec<String> = vec![];
-        for r in work_ordered(&wl_rows)?.into_iter().chain(eq_rows.iter()) {
-            let n = name_of(r, "設備名")?;
-            if !pyfmt::strip(&n).is_empty() && !names.contains(&n) {
-                names.push(n);
-            }
-        }
-        let groups = group_views(&rows("equipment_groups")?)?;
-        let srcs = sources(eff, &rows("data_sources")?)?;
-        let tables = conv_tables(&rows("conversions")?)?;
-        let conv_rev = format!("rs:{}", &sha1_hex(tables.to_string().as_bytes())[..16]);
-        let shifts = rows("shift_patterns")?;
-        let lists = json!({"hidden": null,
-                           "dash": {"equipNames": names, "equipGroups": groups, "now": self.env.now},
-                           "sources": srcs, "work": work, "shifts": shifts});
         let engine = match settings.get("desktop") {
             Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
             x if !truthy(x) => json!("rust"),
             _ => return Err(Py("desktop が表でない")),
         };
+        // 節ごとに組む（版 3.102.0）。組めない節は値を null にし、理由（どのファイル・どの行）を broken に書く。黙って空や既定に替えない
+        let mut broken = Map::new();
+        let mut section = |name: &str, f: &dyn Fn() -> R<Value>| -> Value {
+            if let Some(why) = section_broken(&inp, name) {
+                broken.insert(name.into(), why);
+                return Value::Null;
+            }
+            match f() {
+                Ok(v) => v,
+                Err(e) => {
+                    broken.insert(name.into(), json!({"why": e.0, "file": "", "window": true}));
+                    Value::Null
+                }
+            }
+        };
+        let rows = |name: &str| inp.rows(name);
+        let ll = section("lot_list", &|| Ok(Value::Object(dict_or_empty(eff.get("lot_list"))?)));
+        let get = |k: &str, d: Value| if ll.is_null() { Value::Null } else { ll.get(k).cloned().unwrap_or(d) };
+        let wl_rows = || -> R<Vec<Value>> {
+            let r = rows("work_log_files")?;
+            if !r.iter().all(Value::is_object) {
+                return Err(Py("作業実績の登録の行が表でない"));
+            }
+            Ok(r)
+        };
+        let work = section("work", &|| {
+            let wl_rows = wl_rows()?;
+            // 作業実績の決まり（work_log.params）
+            let mut wl = t(&["workDefaults"]).as_object().cloned().unwrap_or_default();
+            for (k, v) in dict_or_empty(eff.get("work_log"))? {
+                if present(Some(&v)) {
+                    wl.insert(k, v);
+                }
+            }
+            let folder = match wl.get("folder") {
+                x if !truthy(x) => String::new(),
+                x => unquote(&s(x)?),
+            };
+            wl.insert("folder".into(), json!(folder));
+            Ok(json!({"folder": wl["folder"], "pattern": wl["pattern"], "table": wl["table"], "refresh_seconds": wl["refresh_seconds"],
+                      "stale_hours": wl["stale_hours"], "page_size": wl["page_size"],
+                      "rows": wl_rows.iter().map(|r| Value::Object(["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び"].iter()
+                          .map(|k| (k.to_string(), r.get(*k).cloned().unwrap_or(Value::Null))).collect())).collect::<Vec<_>>(),
+                      "canEditShifts": null}))
+        });
+        let dash = section("dash", &|| {
+            // 設備の名前（作業実績の設備 → 設備マスタ）
+            let wl_rows = wl_rows()?;
+            let eq_rows = rows("equipment_master")?;
+            let mut names: Vec<String> = vec![];
+            for r in work_ordered(&wl_rows)?.into_iter().chain(eq_rows.iter()) {
+                let n = name_of(r, "設備名")?;
+                if !pyfmt::strip(&n).is_empty() && !names.contains(&n) {
+                    names.push(n);
+                }
+            }
+            let groups = group_views(&rows("equipment_groups")?)?;
+            Ok(json!({"equipNames": names, "equipGroups": groups, "now": self.env.now}))
+        });
+        let srcs = section("sources", &|| Ok(json!(sources(eff, &rows("data_sources")?)?)));
+        let conversions = section("conversions", &|| {
+            let tables = conv_tables(&rows("conversions")?)?;
+            let conv_rev = format!("rs:{}", &sha1_hex(tables.to_string().as_bytes())[..16]);
+            Ok(json!({"rev": conv_rev, "tables": tables}))
+        });
+        let conversions = if conversions.is_null() { json!({"rev": null, "tables": {}}) } else { conversions };
+        let shifts = section("shifts", &|| Ok(json!(rows("shift_patterns")?)));
+        let lists = json!({"hidden": null, "dash": dash, "sources": srcs, "work": work, "shifts": shifts});
         Ok(json!({"source": get("source", json!("")), "refresh_seconds": get("refresh_seconds", json!(60)),
                   "stale_hours": get("stale_hours", json!(36)), "table": get("table", json!("")), "page_size": get("page_size", json!(500)),
-                  "engine": engine, "conversions": {"rev": conv_rev, "tables": tables}, "lists": lists,
+                  "engine": engine, "conversions": conversions, "lists": lists,
                   "access": {"who": who, "place": place},
                   "calculation": settings.get("calculation").cloned().unwrap_or(json!({})),
-                  "uiProfileKeys": t(&["uiProfileKeys"])}))
+                  "uiProfileKeys": t(&["uiProfileKeys"]), "broken": broken}))
     }
+}
+
+/// 束の節（版 3.102.0）と、節が使うマスタ（Python の routes/lotlist.SECTIONS と同じ。tests/fixtures/bundle_cases.json）
+pub const SECTIONS: [(&str, &[&str]); 6] = [
+    ("lot_list", &["path_settings"]),
+    ("sources", &["data_sources", "path_settings"]),
+    ("work", &["work_log_files", "path_settings"]),
+    ("dash", &["work_log_files", "equipment_master", "equipment_groups"]),
+    ("shifts", &["shift_patterns"]),
+    ("conversions", &["conversions"]),
+];
+
+/// 表でない行の理由の言葉（Python の master_repository.bad_rows_text と同じ）
+pub fn bad_rows_text(name: &str, bad: &[usize]) -> String {
+    let shown: Vec<String> = bad.iter().take(5).map(|n| n.to_string()).collect();
+    format!("{name}.json の {}{} 行目が読めません（表でない行）", shown.join("・"), if bad.len() > 5 { " ほか" } else { "" })
+}
+
+/// 節が使うマスタが組めるか → 組めなければ {why, file, seed?, window?}（Python の section_broken と同じ順で見る）。
+/// seed: 共有にまだ無いマスタ（Python が読むと最初の版を置く。窓はまだ置かないので、束を Python に尋ねる。版 3.103.0 で窓へ移す）・
+/// window: 窓が Python と同じに読めない字（Python は組めることがある）
+fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
+    let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);
+    for f in files {
+        let file = format!("{f}.json");
+        if inp.p.share_absent(f) {
+            return Some(
+                json!({"why": format!("共有にまだ {file} がありません（最初の版を置くまで待っています）"), "file": file, "seed": true}),
+            );
+        }
+        if let Some(why) = inp.p.unreadable(f) {
+            return Some(json!({"why": why, "file": file}));
+        }
+        if inp.p.split_file(f) {
+            return Some(json!({"why": format!("{file} に窓の読めない字（NaN・Infinity・大きな数・深い入れ子・読めない版）があります"),
+                               "file": file, "window": true}));
+        }
+        match inp.p.rows(f) {
+            Err(e) => return Some(json!({"why": format!("{file}: {e}"), "file": file, "window": true})),
+            Ok(rows) => {
+                let bad: Vec<usize> = rows.iter().enumerate().filter(|(_, r)| !r.is_object()).map(|(i, _)| i + 1).collect();
+                if !bad.is_empty() {
+                    return Some(json!({"why": bad_rows_text(f, &bad), "file": file}));
+                }
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]

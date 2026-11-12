@@ -135,7 +135,18 @@ fn clean_rules(v: Option<&Value>) -> C<Vec<Rule>> {
             continue;
         }
         if op == "regex" {
-            return Err(Bad::Delegate);
+            // 書き方（src/equip_regex.rs）→ 読めるか → 重さ（版 3.102.0。前は正規表現を全部 Python に任せた）。Python の re が読めて
+            // 窓が読めない形は Python の言葉で断るので任せる
+            let why = crate::equip_regex::why_of(&val);
+            if !why.is_empty() {
+                return group(format!("正規表現「{val}」は{why}。"));
+            }
+            if fancy_regex::Regex::new(&val).is_err() {
+                return Err(Bad::Delegate);
+            }
+            if let Some(risk) = crate::formula::regex_risk(&val.encode_utf16().collect::<Vec<u16>>()) {
+                return group(format!("正規表現「{val}」: {risk}"));
+            }
         }
         let x = (op, val);
         if !out.contains(&x) {
@@ -145,10 +156,11 @@ fn clean_rules(v: Option<&Value>) -> C<Vec<Rule>> {
     Ok(out)
 }
 
-/// 置き場の行のルール（equip_groups.rules_of。束の読み方と同じ bundle::group_rules）→ (ルール, 除く設備)。正規表現・読めない字は任せる
+/// 置き場の行のルール（equip_groups.rules_of。束の読み方と同じ bundle::group_rules）→ (ルール, 除く設備)。読めない字は任せる。
+/// 当てていない決まり（読めない・重い・窓で写せない正規表現）も、直すときに黙って消さないよう後ろに残す（版 3.102.0。Python の kept と同じ）
 fn rules_of(row: &Map<String, Value>) -> C<(Vec<Rule>, Vec<String>)> {
-    let (rules, ex) = crate::bundle::group_rules(row).map_err(|_| Bad::Delegate)?;
-    let rules = rules.as_array().into_iter().flatten().map(|r| (py_str(&r["op"]), py_str(&r["value"]))).collect();
+    let (rules, ex, unapplied) = crate::bundle::group_rules(row).map_err(|_| Bad::Delegate)?;
+    let rules = rules.as_array().into_iter().flatten().chain(unapplied.iter()).map(|r| (py_str(&r["op"]), py_str(&r["value"]))).collect();
     let ex = ex.as_array().into_iter().flatten().map(py_str).collect();
     Ok((rules, ex))
 }
@@ -453,7 +465,10 @@ mod tests {
             row(r#"{"name": "x", "rules": [], "equipment": []}"#, false, None),
             "グループに入れる設備を 1 つ以上選ぶか、設備の名前の決まり（ルール）を 1 つ以上入れてください。"
         );
-        assert_eq!(row(r#"{"name": "x", "rules": [{"op": "regex", "value": "^A"}]}"#, false, None), "任せる", "正規表現は Python");
+        // 正規表現（版 3.102.0 から窓が書く。Python と同じ意味の書き方だけ。違う書き方・重い形は理由を添えて断る）
+        assert!(row(r#"{"name": "x", "rules": [{"op": "regex", "value": "^A"}]}"#, false, None).contains(r#"\"regex\", \"value\": \"^A\""#));
+        assert!(row(r#"{"name": "x", "rules": [{"op": "regex", "value": "\\p{Han}"}]}"#, false, None).contains("窓で写せない書き方"));
+        assert!(row(r#"{"name": "x", "rules": [{"op": "regex", "value": "(a+)+"}]}"#, false, None).contains("とても重く"));
         assert_eq!(row(r#"{"name": "x", "rules": [{"op": ["prefix"], "value": "A"}]}"#, false, None), "任せる", "unhashable は Python");
         assert_eq!(row(r#"{"name": ["x"], "equipment": "A"}"#, false, None), "任せる");
         assert_eq!(row(r#"{"name": "x", "equipment": [["A"]]}"#, false, None), "任せる");

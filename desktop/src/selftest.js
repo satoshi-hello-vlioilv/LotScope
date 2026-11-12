@@ -473,6 +473,19 @@
       ok("組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）", allOk, rows.join("・"));
     }
 
+    // 10b-H) 生きているか（版 3.102.0。主のセッションの決め 5）: GET /api/health は窓が答え、Python の様子を python に添える
+    //          （ready・starting・stopped）。?engine=python は Python の道（Python が答えているかの印。{status: ok}）
+    {
+      const rs = await get("/api/health");
+      const py = await get("/api/health?engine=python");
+      let rv = null, pv = null;
+      try { rv = JSON.parse(rs.text); pv = JSON.parse(py.text); } catch (_) { rv = rv || null; }
+      const good = rs.by === "shell" && rs.r.status === 200 && rv && rv.status === "ok" && rv.by === "window"
+        && ["ready", "starting", "stopped"].includes(rv.python) && py.by === "python" && py.r.status === 200 && pv && pv.status === "ok";
+      ok("生きているかは窓が答え、Python の様子を添える（?engine=python は Python の印）", good,
+        `${good ? "" : "食い違い・"}窓 ${rs.r.status} ${rs.by} ${rs.text.slice(0, 80)} / Python ${py.r.status} ${py.by} ${py.text.slice(0, 40)}`);
+    }
+
     // 10b-P) 置き場と設定の 8 本（版 3.101.0 から窓が答える: master_place.rs・folder_browse.rs・builder.rs の check_entry・
     //          access_write.rs の tabs_answer）。本物の WebView2 の窓で、窓の答え（shell）と Python の答え（engine=python）が同じか
     //          （このプロセスの覚え〈last_sync・error〉と錠の残り秒は比べない）。CI は一般ユーザーで動くので、門番が断る形は両方が同じ 403 で同じ言葉なら
