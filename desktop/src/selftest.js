@@ -435,21 +435,41 @@
         ["POST", "/api/sources/lot/conn/check", { field: "refresh", value: "5" }],
         ["POST", "/api/sources/join/preview", { key: "lot", joins: [] }],
       ];
+      // 最初に違った所（キーの道と両方の値）。前は答えの頭 60 字を書き、300 字で切れて違いが見えなかった（版 3.101.0 の Windows の CI）
+      const firstDiff = (a, b, at = "") => {
+        if (JSON.stringify(a) === JSON.stringify(b)) return "";
+        if (a && b && typeof a === "object" && typeof b === "object" && Array.isArray(a) === Array.isArray(b)) {
+          for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])]) {
+            const d = firstDiff(a[k], b[k], `${at}.${k}`);
+            if (d) return d;
+          }
+        }
+        return `${at || "."}: ${JSON.stringify(a)?.slice(0, 50)} / ${JSON.stringify(b)?.slice(0, 50)}`;
+      };
+      const parse = (t) => { try { return dropB(JSON.parse(t)); } catch (_) { return t.slice(0, 50); } };
       const rows = [];
       let allOk = true;
       for (const [m, p, body] of want) {
         const opt = m === "GET" ? undefined : { method: m, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
-        const rs = await get(p, opt);
-        const py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
-        // 「試す」は答えのファイルを作るので門番を通る（Python のときから同じ決まり）。書けない人（CI の一般ユーザー）は、窓の道も
-        // engine=python の道も門番（窓）が同じ言葉で断る。そのときは両方が門番の 403 で、同じ答えなら同じとみなす
-        const gate = rs.r.status === 403 && py.r.status === 403 && py.by === "shell";
-        const good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
+        // 列の値の見本は写しの中身から出すので、写しが入れ替わる途中（更新の通しの、版を入れ替えた直後の起動）に窓と Python が
+        // 違う時点を読むことがある。同じ時点の答えになるまで 30 秒まで読み直す（スケジュール・画面の比べと同じ。コードの違いは残る）
+        let rs, py, good, tries = 0;
+        for (const until = Date.now() + 30000; ;) {
+          tries += 1;
+          rs = await get(p, opt);
+          py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
+          // 「試す」は答えのファイルを作るので門番を通る（Python のときから同じ決まり）。書けない人（CI の一般ユーザー）は、窓の道も
+          // engine=python の道も門番（窓）が同じ言葉で断る。そのときは両方が門番の 403 で、同じ答えなら同じとみなす
+          const gate = rs.r.status === 403 && py.r.status === 403 && py.by === "shell";
+          good = rs.by === "shell" && (py.by === "python" || gate) && rs.r.status === py.r.status && canonB(rs.text) === canonB(py.text);
+          if (good || Date.now() > until) break;
+          await sleep(1000);
+        }
         allOk = allOk && good;
-        rows.push(`${m} ${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${good ? "" : "・" + rs.text.slice(0, 60) + " / " + py.text.slice(0, 60)}`);
+        rows.push(`${m} ${p.split("?")[0]} 窓 ${rs.r.status} ${rs.by} / Python ${py.r.status} ${py.by}${tries > 1 ? `×${tries}` : ""}${good ? "" : "・違い " + firstDiff(parse(rs.text), parse(py.text))}`);
       }
       // 食い違った道を先に書く（記録は 300 字で切る。版 3.99.0 の CI で 6 本目の食い違いが切れて見えなかった）
-      rows.sort((a, b) => (b.includes("・{") || b.includes(" / {")) - (a.includes("・{") || a.includes(" / {")));
+      rows.sort((a, b) => b.includes("・違い ") - a.includes("・違い "));
       ok("組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）", allOk, rows.join("・"));
     }
 
