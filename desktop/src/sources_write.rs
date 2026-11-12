@@ -321,7 +321,7 @@ fn clean_row(data: &Map<String, Value>, key: Option<&str>, known: &[(String, Str
     let screen = if get(&row, "画面") == "無" { "無" } else { "有" };
     row.insert("画面".into(), screen.into());
     let place = get(&row, "場所");
-    row.insert("場所".into(), if place.is_empty() { String::new() } else { pyfmt::strip(&place).trim_matches('"').to_string() });
+    row.insert("場所".into(), if place.is_empty() { String::new() } else { crate::lists::unquote_path(&place) });
     let gmax = t(&["sourcesList", "groupMax"]).as_u64().unwrap_or(24) as usize;
     row.insert("グループ".into(), cut(&squash(&get(&row, "グループ")), gmax));
     row.insert("ロット番号の列".into(), cut(&get(&row, "ロット番号の列"), LOT_COL_MAX));

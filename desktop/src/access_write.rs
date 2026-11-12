@@ -377,6 +377,30 @@ fn ordered_rules(body: &[u8]) -> Option<Ordered> {
 
 /// 窓では読めない本文か（空でない本文を serde_json が読めない: NaN・Infinity・1e400・片割れの代用字など）。そのときは窓は答えず
 /// Python に任せる（Python は読める物は読み、読めない物は {} と読む。窓が {} と読むと、だれにでも当たる行を作ってしまう）
+/// GET /api/masters/tabaccess（版 3.101.0。Python の tabaccess_get）: 区分ごとの決まり・タブの並び（決まった画面 → データ元の並び）・
+/// 人ごとの例外の数（効く行だけ）・書けるか・版・共有か。tabs はタブの権限の行、sources はいま効いているデータ元の並び（GET /api/sources と同じ）。
+/// 行の形が違う（Python が落ちる）なら None
+pub fn tabs_answer(store: &Store, me: &Value, tabs: &[Value], sources: &[Map<String, Value>]) -> Option<Answer> {
+    let rules: Map<String, Value> = crate::access::tab_rules(tabs).ok()?.into_iter().map(|(t, roles)| (t, json!(roles))).collect();
+    let mut list: Vec<Value> =
+        crate::access::TAB_FIXED.iter().map(|(k, n)| json!({"key": k, "name": n, "kind": "screen", "group": "", "listed": true})).collect();
+    for s in sources {
+        let g = |k: &str| s.get(k).cloned().unwrap_or(Value::Null);
+        let group = match s.get("group") {
+            Some(v) if crate::worksum::truthy(v) => v.clone(),
+            _ => json!(""),
+        };
+        list.push(json!({"key": g("key"), "name": g("name"), "kind": g("kind"), "group": group,
+                         "listed": s.get("listed").is_some_and(crate::worksum::truthy), "role": g("role")}));
+    }
+    let exc = crate::access::tab_exception_counts(&rows_of(me));
+    Some((
+        200,
+        json!({"rules": rules, "tabs": list, "roles": TAB_ROLES, "exceptions": exc,
+               "canEdit": crate::access::can_write(me, TABS), "revision": store.revision(TABS), "shared": store.is_shared(TABS)}),
+    ))
+}
+
 pub fn needs_python(body: &[u8]) -> bool {
     crate::master_rows::unreadable(body)
 }

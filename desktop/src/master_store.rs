@@ -159,7 +159,7 @@ pub fn stat_sig(path: &Path) -> Option<(u128, u64)> {
 }
 
 /// 32 字の印（錠の token・一時ファイルの名前。重ならなければよい）
-fn hex_id() -> String {
+pub fn hex_id() -> String {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -178,12 +178,12 @@ fn hex_id() -> String {
     out
 }
 
-fn now_local() -> chrono::NaiveDateTime {
+pub fn now_local() -> chrono::NaiveDateTime {
     chrono::Local::now().naive_local()
 }
 
 /// Python の datetime.isoformat(timespec="seconds")
-fn iso(t: chrono::NaiveDateTime) -> String {
+pub fn iso(t: chrono::NaiveDateTime) -> String {
     t.format("%Y-%m-%dT%H:%M:%S").to_string()
 }
 
@@ -301,15 +301,20 @@ fn revision_of(v: &Value) -> Option<i64> {
 
 /// マスタ・錠はディスクへ書き切ってから置き換える（停電・切断でも書きかけを残さない。Python の write_json_atomic(durable=True)）
 pub fn write_json_atomic(path: &Path, data: &Value) -> std::io::Result<()> {
+    let mut body = serde_json::to_vec_pretty(data).map_err(std::io::Error::other)?;
+    body.push(b'\n');
+    write_bytes_atomic(path, &body)
+}
+
+/// 字を書き切ってから置き換える（write_json_atomic の中身。Python の json.dumps の字〈鍵の順・字下げ〉を書くとき: 版 3.101.0）
+pub fn write_bytes_atomic(path: &Path, body: &[u8]) -> std::io::Result<()> {
     let dir = path.parent().unwrap_or(Path::new("."));
     std::fs::create_dir_all(dir)?;
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let tmp = dir.join(format!(".{name}.{}.tmp", hex_id()));
     let res = (|| {
         let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
-        let mut body = serde_json::to_vec_pretty(data).map_err(std::io::Error::other)?;
-        body.push(b'\n');
-        f.write_all(&body)?;
+        f.write_all(body)?;
         f.sync_all()?;
         drop(f);
         std::fs::rename(&tmp, path)
@@ -403,7 +408,7 @@ pub struct Doc {
 }
 
 impl Doc {
-    fn empty() -> Doc {
+    pub fn empty() -> Doc {
         Doc { revision: 0, updated_at: json!(""), updated_by: json!({}), rows: vec![] }
     }
 
@@ -433,7 +438,7 @@ impl Doc {
         }
     }
 
-    fn read(path: &Path) -> R<Doc> {
+    pub fn read(path: &Path) -> R<Doc> {
         Doc::from_value(read_json(path).map_err(io_err)?)
     }
 
@@ -514,6 +519,10 @@ pub struct Store {
     write_lock: Mutex<()>,
     lock_seen: Mutex<HashMap<String, Instant>>,
     share_sig: Mutex<HashMap<String, (u128, u64)>>,
+    /// 最後に共有から写しを取り直した時刻・最後に取り直せなかった理由（Python の _last_sync・_last_error と同じ意味。
+    /// このプロセスの覚え。GET /api/masters/status の last_sync・error。版 3.101.0）
+    last_sync: Mutex<String>,
+    last_error: Mutex<String>,
 }
 
 impl Store {
@@ -531,7 +540,28 @@ impl Store {
             write_lock: Mutex::new(()),
             lock_seen: Mutex::new(HashMap::new()),
             share_sig: Mutex::new(HashMap::new()),
+            last_sync: Mutex::new(String::new()),
+            last_error: Mutex::new(String::new()),
         }
+    }
+
+    /// 一覧の設定の access（{who, place}）から作る（Lot::store_for・試験）。置き場の材料が無ければ None
+    pub fn from_access(conf: &Value, role: &str) -> Option<Store> {
+        let p = &conf["place"];
+        let path = |k: &str| p[k].as_str().filter(|s| !s.is_empty()).map(PathBuf::from);
+        let cache = path("cache")?;
+        Some(Store::new(Config {
+            data: path("data")?,
+            defaults: path("defaults")?,
+            share_dir: path("shareDir"),
+            shared: p["shared"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default(),
+            local_root: cache.parent()?.to_path_buf(),
+            cache,
+            pc: conf["who"]["pc"].as_str().unwrap_or("").into(),
+            login: conf["who"]["login"].as_str().unwrap_or("").into(),
+            role: role.into(),
+            lock_ttl: p["lockTtl"].as_f64().unwrap_or(LOCK_TTL_DEFAULT),
+        }))
     }
 
     pub fn is_shared(&self, name: &str) -> bool {
@@ -828,6 +858,8 @@ impl Store {
         let doc = Doc::read(&src)?;
         write_json_atomic(&mirror, &doc.to_value()).map_err(io_err)?;
         self.share_sig.lock().unwrap_or_else(|e| e.into_inner()).insert(name.to_string(), sig.unwrap_or_default());
+        *self.last_error.lock().unwrap_or_else(|e| e.into_inner()) = String::new();
+        *self.last_sync.lock().unwrap_or_else(|e| e.into_inner()) = iso(now_local());
         Ok(true)
     }
 
@@ -858,7 +890,7 @@ impl Store {
     /// マスタの版の番号（Python の MasterStore.revision: 共有するマスタは共有から取り直した写し、手元だけは data/〈行の配列なら 0〉→ 最初の中身）
     pub fn revision(&self, name: &str) -> i64 {
         if self.is_shared(name) {
-            let _ = self.pull(name, false, false); // 読みは届かなくても写しで続ける
+            self.refresh(name); // 読みは届かなくても写しで続ける
             let m = self.mirror(name);
             if m.exists() {
                 return Doc::read(&m).map(|d| d.revision).unwrap_or(0);
@@ -872,8 +904,94 @@ impl Store {
         }
     }
 
-    fn who(&self) -> Value {
+    pub fn who(&self) -> Value {
         json!({"pc": self.cfg.pc, "login": self.cfg.login})
+    }
+
+    // ---------------------------------------------------------- 置き場の状態（版 3.101.0。src/master_place.rs）
+
+    /// 共有から取り直す（読む道の _maybe_refresh と同じ: 失敗は投げずに覚える）
+    pub fn refresh(&self, name: &str) {
+        if let Err(e) = self.pull(name, false, false) {
+            *self.last_error.lock().unwrap_or_else(|e| e.into_inner()) =
+                format!("共有マスタを取り込めませんでした（写しで続けます）: {}", e.message());
+        }
+    }
+
+    /// (最後に取り直した時刻, 最後の失敗の理由)
+    pub fn sync_state(&self) -> (String, String) {
+        (
+            self.last_sync.lock().unwrap_or_else(|e| e.into_inner()).clone(),
+            self.last_error.lock().unwrap_or_else(|e| e.into_inner()).clone(),
+        )
+    }
+
+    pub fn share_dir(&self) -> Option<&Path> {
+        self.cfg.share_dir.as_deref()
+    }
+
+    pub fn lock_ttl(&self) -> f64 {
+        self.cfg.lock_ttl
+    }
+
+    pub fn data_dir(&self) -> &Path {
+        &self.cfg.data
+    }
+
+    /// 共有するマスタの名前（名前の順）
+    pub fn shared_names(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.shared.iter().cloned().collect();
+        v.sort();
+        v
+    }
+
+    /// 同梱の data/ のファイル
+    pub fn bundled_file(&self, name: &str) -> PathBuf {
+        self.bundled(name)
+    }
+
+    /// 共有・写しが無いときに読むファイル（同梱の data/ → 最初の中身）
+    pub fn initial_file(&self, name: &str) -> PathBuf {
+        self.initial(name)
+    }
+
+    /// この PC の作業場所（master_share.json・want.json・instance_id の置き場）
+    pub fn local_root(&self) -> &Path {
+        &self.cfg.local_root
+    }
+
+    /// 共有に届くのに、まだ無いマスタがあるか（取り直すと最初の版を置く＝種まき。窓は Python に任せる。版 3.101.0 の主のセッションの決め）
+    pub fn needs_seed(&self, names: &[&str]) -> bool {
+        self.share_reachable() && names.iter().any(|n| self.is_shared(n) && self.share_file(n).is_some_and(|p| stat_sig(&p).is_none()))
+    }
+
+    /// いま読むマスタ（Python の _read_doc。peek は共有を見ない _peek_doc）→ (中身, 読んだ元〈shared・bundled-fallback・local〉)。
+    /// 読めない中身（壊れた JSON・版が数でない）は Err（Python は 500）
+    pub fn read_doc(&self, name: &str, peek: bool) -> R<(Doc, &'static str)> {
+        if self.is_shared(name) && !peek {
+            self.refresh(name);
+        }
+        let mirror = self.mirror(name);
+        let path = if self.is_shared(name) && mirror.exists() { mirror.clone() } else { self.initial(name) };
+        let doc = if path.exists() { Doc::read(&path)? } else { Doc::empty() };
+        let src = if self.is_shared(name) && mirror.exists() {
+            "shared"
+        } else if self.is_shared(name) {
+            "bundled-fallback"
+        } else {
+            "local"
+        };
+        Ok((doc, src))
+    }
+
+    /// 錠の様子（Python の lock_status。共有でなければ None）
+    pub fn lock_status(&self) -> Option<Value> {
+        self.cfg.share_dir.as_ref()?;
+        let cur = self.read_lock();
+        let Some(cur) = cur.filter(|c| !c.is_empty() && self.remaining(c) > 0.0) else { return Some(json!({"locked": false})) };
+        let g = |k: &str| cur.get(k).cloned().unwrap_or(json!(""));
+        Some(json!({"locked": true, "holder_pc": g("holder_pc"), "holder_login": g("holder_login"), "remaining": self.wait(&cur),
+                    "mine": self.is_mine(&cur)}))
     }
 
     // ---------------------------------------------------------- 書く

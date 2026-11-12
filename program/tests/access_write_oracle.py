@@ -110,6 +110,7 @@ SCENARIOS = [
         S(U, "PUT", "/api/masters/access/4", {"ログインID": "u1"}),
         S(U, "DELETE", "/api/masters/access/1"),
         S(U, "PUT", "/api/masters/tabaccess", {"rules": {"wip": ["一般ユーザー"]}}),
+        S(U, "GET", "/api/masters/tabaccess"),     # 読むのは止めない（canEdit が偽）
         S(("nobody", "PC-0"), "POST", "/api/masters/access", {"ログインID": "y"}),
     ]},
     {"name": "本文の形: 数・真偽・空白・止めた行・タブの例外の字・読めない本文", "mode": "shared", "perm": ADMIN_ROWS, "tabs": [], "steps": [
@@ -123,8 +124,10 @@ SCENARIOS = [
         S(BOSS, "POST", "/api/masters/access", "[1, 2]"),
         S(BOSS, "POST", "/api/masters/access", {"ログインID": "t6", "PC名": "ｐｃ－１", "権限区分": "一般ユーザー"}),
         S(BOSS, "POST", "/api/masters/access", {"ログインID": "T6", "PC名": "PC-1"}),
+        S(BOSS, "GET", "/api/masters/tabaccess"),      # 例外の数は効く行だけ（止めた行・開発者の行は数えない）
     ]},
     {"name": "タブの権限: 足す・直す・同じ・外す・版・断る", "mode": "shared", "perm": ADMIN_ROWS, "tabs": TAB_ROWS, "steps": [
+        S(BOSS, "GET", "/api/masters/tabaccess"),   # 読む（版 3.101.0。決まり・タブの並び・例外の数・版）
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"wip": ["一般ユーザー"], "sch": ["設備作業者", "メンテナンス者"], "aa": ["一般ユーザー"],
                                                           "work": ["一般ユーザー", "設備作業者"]}, "base_rev": "3"}),
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"wip": ["一般ユーザー"]}, "base_rev": 3}),
@@ -137,6 +140,8 @@ SCENARIOS = [
         S(BOSS, "PUT", "/api/masters/tabaccess", {}),
         S(BOSS, "PUT", "/api/masters/tabaccess", '{"rules": {"wip": ["一般ユーザー"]}, "rules": {"sch": ["設備作業者"], "aa": []}}'),
         S(BOSS, "PUT", "/api/masters/tabaccess", '{"rules": {"wip": []}, "rules": 5}'),
+        S(BOSS, "GET", "/api/masters/tabaccess"),
+        S(BOSS, "GET", "/api/masters/tabaccess", query="x=1"),
     ]},
     {"name": "手元だけ（共有しない PC）", "mode": "local", "perm": ADMIN_ROWS, "tabs": TAB_ROWS, "steps": [
         S(BOSS, "POST", "/api/masters/access", {"ログインID": "n1", "権限区分": "一般ユーザー"}),
@@ -144,9 +149,11 @@ SCENARIOS = [
         S(BOSS, "DELETE", "/api/masters/access/3", query="rev=1"),
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"wip": ["一般ユーザー"]}, "base_rev": 0}),
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"wip": ["設備作業者"]}, "base_rev": 7}),
+        S(BOSS, "GET", "/api/masters/tabaccess"),
     ]},
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "perm": ADMIN_ROWS, "tabs": TAB_ROWS, "steps": [
         S(BOSS, "POST", "/api/masters/access", {"ログインID": "s1"}),
+        S(BOSS, "GET", "/api/masters/tabaccess"),
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"calc": ["一般ユーザー"]}}),
     ]},
 ]
@@ -216,7 +223,16 @@ def main():
                     body = r.get_json()
                 except Exception:
                     body = None
-                (dele if st.get("delegate") else steps).append({**st, "status": r.status_code, "json": body})
+                rec = {**st, "status": r.status_code, "json": body}
+                if st["method"] == "GET":       # タブの並びに使うデータ元の並び（GET /api/sources と同じ。窓の並びは page_parity が突き合わせる）
+                    from app.routes.sources import _all
+                    t1, t2 = _app_var.set(rs_app), _request_var.set(Request("GET", "/api/sources"))
+                    try:
+                        rec["sources"] = _all()
+                    finally:
+                        _request_var.reset(t2)
+                        _app_var.reset(t1)
+                (dele if st.get("delegate") else steps).append(rec)
             # 書く係の名乗り（保存した人の印 updated_by。本番ではどちらの係もこの PC の名乗り）
             out.append({"name": sc["name"], "py": str(py), "rs": str(rs), "conf": conf, "storeWho": app.config["MASTER_STORE"].who,
                         "steps": steps, "delegates": dele})

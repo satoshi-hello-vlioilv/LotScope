@@ -99,7 +99,7 @@ pub(crate) fn equipment_of(name: &str, head: &str, tail: &str) -> Option<String>
 }
 
 /// 書き手の作業用のファイルか（隠し・.pending_・-journal・-wal・-shm・.incoming。Python の db_mirror.is_side_file）
-fn is_side_file(name: &str) -> bool {
+pub(crate) fn is_side_file(name: &str) -> bool {
     let low = name.to_lowercase();
     low.starts_with('.') || low.contains(".pending_") || [".incoming", "-journal", "-wal", "-shm"].iter().any(|x| low.ends_with(x))
 }

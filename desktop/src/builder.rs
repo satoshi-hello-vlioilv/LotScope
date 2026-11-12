@@ -528,7 +528,7 @@ fn check_candidates(_role: &str) -> &'static [&'static str] {
 /// OS の言葉（Python の OSError の strerror: 「(os error n)」を除く）
 /// Python の OSError.strerror（Windows は CPython と同じ FormatMessage の文から末尾の空白と「.」を切った形。Rust の io::Error の文は
 /// 言語も切り方も違う〈版 3.96.0 の cm3_http::win_message〉。Windows の CI で「…specified」と「…specified.」が食い違った）
-fn strerror(e: &std::io::Error) -> String {
+pub(crate) fn strerror(e: &std::io::Error) -> String {
     #[cfg(windows)]
     if let Some(n) = e.raw_os_error() {
         return crate::cm3_http::win_message(n);
@@ -666,40 +666,70 @@ pub fn conn_check(inp: &ConnInputs, key: &str, body: &[u8]) -> Option<Answer> {
     };
     let value = match parsed {
         Ok(Some(v)) => v,
-        Ok(None) => return Some(ok_msg(false, "値を入れてください。")),
+        // 「値を入れてください。」（参照先の settings/check と同じ入口。版 3.100.0）
+        Ok(None) => return Some((200, check_entry(&item, None, false, &Picks::default()))),
         Err(crate::settings_write::Bad::Invalid(m)) => return Some(ok_msg(false, m)),
         Err(crate::settings_write::Bad::Python) => return None,
     };
+    let g = |k: &str| match s.get(k) {
+        Some(v) if crate::lotlist::json_truthy(v) => py_str(v),
+        _ => String::new(),
+    };
+    let mut picks = Picks { table: g("table"), role: g("role"), pattern: inp.pattern.clone() };
+    if item["kind"] == "folder" {
+        let pat = text_or_num(t.get("pattern"))?;
+        if !pyfmt::strip(&pat).is_empty() {
+            let it = crate::settings_write::item_of("work_log.pattern")?;
+            match crate::settings_write::parse_value(it, Some(&json!(pat))) {
+                Ok(Some(p)) => picks.pattern = py_str(&p),
+                Ok(None) => {}
+                Err(crate::settings_write::Bad::Invalid(m)) => return Some(ok_msg(false, m)),
+                Err(crate::settings_write::Bad::Python) => return None,
+            }
+        }
+    }
+    Some((200, check_value(&item, &value, &picks)))
+}
+
+/// 確かめるときに組む値（.sqlite3 の場所の表と役割・作業実績のファイル名の決まり）
+#[derive(Debug, Clone, Default)]
+pub struct Picks {
+    pub table: String,
+    pub role: String,
+    pub pattern: String,
+}
+
+/// 「確かめる」の入口（Python の path_settings.check_entry。参照先の POST /api/settings/check と、データ元の接続の設定の conn/check の 1 つ。
+/// 版 3.101.0 で窓も 1 つにした）。value は読んで既定を重ねた後の値（None・"" は空）。値も既定も空なら、種類によらず「値を入れてください。」。
+/// empty_exe_finds: 参照先の exe（ブラウザ）は空で Edge を探す（conn/check は空を断る）
+pub fn check_entry(item: &Value, value: Option<&Value>, empty_exe_finds: bool, picks: &Picks) -> Value {
+    let blank = match value {
+        None | Some(Value::Null) => true,
+        Some(Value::String(x)) => x.is_empty(),
+        _ => false,
+    };
+    if blank && !(empty_exe_finds && item["kind"] == "exe") {
+        return json!({"ok": false, "message": "値を入れてください。"});
+    }
+    check_value(item, value.unwrap_or(&json!("")), picks)
+}
+
+/// 「確かめる」（Python の path_settings.check）: その値で本当に読めるか
+pub fn check_value(item: &Value, value: &Value, picks: &Picks) -> Value {
     let kind = item["kind"].as_str().unwrap_or("");
-    let vtext = py_str(&value);
-    Some(match kind {
-        "sqlite" => {
-            let g = |k: &str| match s.get(k) {
-                Some(v) if crate::lotlist::json_truthy(v) => py_str(v),
-                _ => String::new(),
-            };
-            (200, check_sqlite(&vtext, &g("table"), &g("role"), ""))
-        }
-        "folder" => {
-            let pat = text_or_num(t.get("pattern"))?;
-            let pattern = if pyfmt::strip(&pat).is_empty() {
-                inp.pattern.clone()
-            } else {
-                let it = crate::settings_write::item_of("work_log.pattern")?;
-                match crate::settings_write::parse_value(it, Some(&json!(pat))) {
-                    Ok(Some(p)) => py_str(&p),
-                    Ok(None) => inp.pattern.clone(),
-                    Err(crate::settings_write::Bad::Invalid(m)) => return Some(ok_msg(false, m)),
-                    Err(crate::settings_write::Bad::Python) => return None,
-                }
-            };
-            (200, folder_check(&vtext, &pattern))
-        }
+    let vtext = match value {
+        Value::Null => String::new(),
+        v => py_str(v),
+    };
+    let msg = |ok: bool, m: &str| json!({"ok": ok, "message": m});
+    match kind {
+        "sqlite" => check_sqlite(&vtext, &picks.table, &picks.role, ""),
+        "folder" => folder_check(&vtext, &picks.pattern),
         "url" => {
             let k = item["key"].as_str().unwrap_or("");
             if k == "lotdsp_import.url" {
                 let ok = crate::lotdsp_direct::reachable(&crate::lotdsp::rules::site_base(&vtext), 4.0);
-                ok_msg(
+                msg(
                     ok,
                     if ok {
                         "LotDsp に届きました（ログインが要るかは「検索」で分かります）。"
@@ -708,21 +738,20 @@ pub fn conn_check(inp: &ConnInputs, key: &str, body: &[u8]) -> Option<Answer> {
                     },
                 )
             } else if k == "schedule.cm3_base_url" {
-                cm3_reach(&vtext)
+                cm3_reach(&vtext).1
             } else {
-                ok_msg(true, "URL の形は正しいです。")
+                msg(true, "URL の形は正しいです。")
             }
         }
         "exe" => {
             let why = if vtext.is_empty() { String::new() } else { crate::lotdsp_direct::trusted_browser(&vtext) };
             if !why.is_empty() {
-                ok_msg(false, why)
+                msg(false, &why)
             } else {
                 match crate::lotdsp_direct::find_browser(&vtext) {
-                    Some(found) => {
-                        ok_msg(true, format!("使えます: {found}{}", if vtext.is_empty() { "（自動で見つけた場所）" } else { "" }))
-                    }
-                    None => ok_msg(
+                    Some(found) => json!({"ok": true,
+                        "message": format!("使えます: {found}{}", if vtext.is_empty() { "（自動で見つけた場所）" } else { "" })}),
+                    None => msg(
                         false,
                         if vtext.is_empty() {
                             "Edge が見つかりません。msedge.exe の場所を入れてください。"
@@ -734,11 +763,53 @@ pub fn conn_check(inp: &ConnInputs, key: &str, body: &[u8]) -> Option<Answer> {
             }
         }
         "pattern" => match crate::lists::split_pattern(&vtext) {
-            Ok((head, tail)) => ok_msg(true, format!("「{head}設備名{tail}」の形のファイルを探します。")),
-            Err(e) => ok_msg(false, e),
+            Ok((head, tail)) => json!({"ok": true, "message": format!("「{head}設備名{tail}」の形のファイルを探します。")}),
+            Err(e) => msg(false, &e),
         },
-        _ => ok_msg(true, "値の形は正しいです。"),
-    })
+        _ => msg(true, "値の形は正しいです。"),
+    }
+}
+
+/// POST /api/settings/check（Python の settings_check）。eff は参照先を重ねた設定（lot_list.table）・settings は配った設定（既定）・
+/// pattern はいま効いている作業実績のファイル名の決まり。None は Python に任せる（窓が同じに読めない本文・値）
+pub fn settings_check(body: &[u8], settings: &Value, eff: &Value, pattern: &str) -> Option<Answer> {
+    let t = body_of(body)?;
+    let key = text_or_num(t.get("key"))?;
+    // Python の error(…, 400) は kind を付けない
+    let Some(item) = crate::settings_write::item_of(&key) else { return Some((400, json!({"error": "知らない項目です。"}))) };
+    let raw = t.get("value").map(|x| x.to_value());
+    let value = match crate::settings_write::parse_value(item, raw.as_ref()) {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            // 既定（配った設定の値。_get）
+            let mut cur = settings;
+            for part in key.split('.') {
+                match cur.as_object().and_then(|o| o.get(part)) {
+                    Some(x) => cur = x,
+                    None => {
+                        cur = &Value::Null;
+                        break;
+                    }
+                }
+            }
+            if cur.is_array() || cur.is_object() {
+                return None; // 既定が並び・表（Python は str() の字で確かめる）
+            }
+            cur.clone()
+        }
+        Err(crate::settings_write::Bad::Invalid(m)) => return Some(ok_msg(false, m)),
+        Err(crate::settings_write::Bad::Python) => return None,
+    };
+    let table = if key == "lot_list.source" {
+        match eff.get("lot_list").and_then(|l| l.get("table")) {
+            Some(v) if crate::lotlist::json_truthy(v) => py_str(v),
+            _ => String::new(),
+        }
+    } else {
+        String::new()
+    };
+    let picks = Picks { table, role: "品質".into(), pattern: pattern.to_string() };
+    Some((200, check_entry(item, Some(&value), true, &picks)))
 }
 
 /// CM3 に届くか（決め 6。Python の builder.cm3_reach）

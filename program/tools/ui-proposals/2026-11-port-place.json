@@ -584,5 +584,43 @@
    ],
    "self_check": "作る者が開いて見た: 1280 の帯は 1 行で切れない。最初の形はナビの札「確かめ中」が 1280 で 2 段に折れたので、ナビは「共有」のままにして撮り直した（「届かない」の札が 1280 で折れるのは前の版からの形で、この版では変えていない）。「参照…」の印「このフォルダ: ファイルのある設備 11 台」は 1 行に収まる"
   }
+ },
+ "v3101": {
+  "version": "3.101.0",
+  "by": "作る者（worktree port-place-3101・ブランチ port-place-3101）",
+  "build": {
+   "made": [
+    "8 本を 1 版で窓へ（案 A の範囲）: desktop/src/master_place.rs（GET /api/masters/status・place・POST place/check・move）・desktop/src/folder_browse.rs（POST /api/fs/browse・GET /api/fs/places）・builder::check_entry（POST /api/settings/check。conn/check と 1 つの入口）・access_write::tabs_answer（GET /api/masters/tabaccess）。道は Lot::place_route・fs_route・settings_check_route・tabaccess_route",
+    "案 F の寄せ: 置き場を変える部品は release_place.rs と 1 つ（check_name・join_for・same・inside・py_stat）・確かめるの入口は builder::check_entry と 1 つ・unquote_path の写し 5 つを lists::unquote_path の 1 つ・書く係は Store::from_access の 1 か所",
+    "写す係（引っ越し）は SERVES の place。Python は move を 409（busy）で断る",
+    "status の共有を見るのは 2 秒まで（reachable null。同じ置き場へ尋ねる糸は 1 本）。引っ越しは利用状況を錠の外・マスタだけを錠の中・錠の長さの半分か読んだマスタが変われば止める（錠は延ばさない）",
+    "主のセッションの決め: 種まきは Python のまま（窓の status は種まきの要る形を任せる）・last_sync と error は同じ意味・同期フォルダの名前の表は今のまま",
+    "Python だけが答える道は 2 本（GET /api/lotlist/settings・GET /api/health）"
+   ],
+   "failed_before_fix": [
+    "Python の move がほかの PC の錠・届かない共有で 500（MasterLocked が道の外へ）→ 409 locked／503。試験 tests/test_place_cases.py MoveRoute.test_a_held_lock_is_answered_not_a_500（直す前は ERROR: MasterLocked）",
+    "services/folder_browse.py の説明の「C:\\」が SyntaxWarning（無効な逃がし字）。試験 Sources.test_the_modules_compile_without_warnings（直す前は folder_browse で SyntaxError〈警告を誤りにして〉）",
+    "窓の作りの途中で見つけて直した（Python と割れた所）: 区切り（crumbs）のドライブだけの道 C:.. のつなぎ方（fs_parity の事例で落ちた）"
+   ],
+   "tests": [
+    "place_parity（5 場面 52 歩・任せる 5・種まきの競い合い）",
+    "fs_parity（40 歩・任せる 5・tidy と crumbs の事例 46）",
+    "builder_parity（settings/check 24 歩・任せる 3）",
+    "access_write_parity（GET tabaccess 7 歩）",
+    "place_cases（全部の節。引っ越しは place-truth.py と比べる）",
+    "lot::tests::the_window_answers_the_place_and_settings_reads",
+    "master_place::tests::a_slow_share_is_checking_not_down",
+    "自己診断 10b-P（手元の xvfb で 59 件 PASS）"
+   ],
+   "windows": "Windows だけのコード（folder_browse::hidden の file_attributes・place_cases の hidden の試験）は作業用クレート scratchpad/wincheck3101 で cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings を通した",
+   "unknown": [
+    "本物の SMB の共有で 2 秒の区切りが効くか",
+    "本物の共有の根への切り替え",
+    "Windows の本物の ACL で書けないフォルダ",
+    "Windows の CI での fs_parity・place_parity（POSIX だけの歩を除いた形。CI で初めて分かる）"
+   ]
+  },
+  "built": "未（作る者の道具に Agent が無いので、作った後の採点〈別のエージェント・1 回〉は主のセッションが頼む）",
+  "built_fixed": null
  }
 }

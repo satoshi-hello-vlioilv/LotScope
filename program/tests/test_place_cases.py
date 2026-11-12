@@ -330,6 +330,61 @@ class MoveRaces(MoveBase):
                 self.assertFalse([p for p in (self.tmp / "nas").iterdir() if ".tmp-" in p.name], "写しかけを残さない")
 
 
+class MoveRoute(MoveBase):
+    """POST /api/masters/place/move の道（版 3.101.0）"""
+
+    def client(self, share):
+        st = self.store("pcR", share)
+        perm = {"schema": 1, "revision": 1, "updated_at": "", "updated_by": {},
+                "rows": [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1}]}
+        (share / "access_permissions.json").write_text(json.dumps(perm, ensure_ascii=False), encoding="utf-8")
+        pats = [mock.patch.object(identity, "current_login_id", lambda: "boss"),
+                mock.patch.object(identity, "resolve_pc_name", lambda override="", force=False: {"name": "PC-1", "source": "試験", "tried": []})]
+        for p in pats:
+            p.start()
+            self.addCleanup(p.stop)
+        return create_app({"TESTING": True, "MASTER_STORE": st}).test_client()
+
+    def test_a_held_lock_is_answered_not_a_500(self):
+        """ほかの PC が保存中（錠）のときの引っ越しは、保存の道と同じく 409 と「保存中です」で答える（前は MasterLocked が道の外へ出て 500）"""
+        share = self.tmp / "nas" / "Masters"
+        master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+        c = self.client(share)
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        (share / "master.lock.json").write_text(json.dumps({
+            "token": "x", "holder_pc": "PC-9", "holder_login": "o", "holder_instance": "z:py", "acquired_at": now.isoformat(timespec="seconds"),
+            "expires_at": (now + timedelta(seconds=20)).isoformat(timespec="seconds")}), encoding="utf-8")
+        r = c.post("/api/masters/place/move", data=json.dumps({"parent": str(self.tmp / "nas"), "name": "New"}), content_type="application/json")
+        self.assertEqual(r.status_code, 409, r.get_json())
+        self.assertEqual(r.get_json()["kind"], "locked")
+        self.assertIn("保存中", r.get_json()["error"])
+        self.assertFalse([p for p in (self.tmp / "nas").iterdir() if ".tmp-" in p.name], "写しかけを残さない")
+
+    def test_the_window_is_the_one_mover(self):
+        """窓が place を名乗ったら、Python は写さずに 409（写す係は窓の 1 つ。配布の置き場と同じ型）"""
+        share = self.tmp / "nas" / "Masters"
+        master_place.move(self.store("pcS"), self.tmp / "nas", "Masters")
+        c = self.client(share)
+        with mock.patch.dict(os.environ, {"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "place"}):
+            r = c.post("/api/masters/place/move", data=json.dumps({"parent": str(self.tmp / "nas"), "name": "New"}),
+                       content_type="application/json")
+        self.assertEqual((r.status_code, r.get_json()["kind"]), (409, "busy"))
+        self.assertFalse((self.tmp / "nas" / "New").exists())
+
+
+class Sources(unittest.TestCase):
+    def test_the_modules_compile_without_warnings(self):
+        """置き場と設定の部品の字が、警告なしに読める（版 3.101.0: folder_browse の説明の「C:\」が無効な逃がし字の SyntaxWarning だった。
+        Python の次の版では誤りになる）"""
+        import warnings
+        for name in ("folder_browse", "master_place", "release_place", "path_settings", "access"):
+            src = (PROGRAM / "app" / "services" / f"{name}.py").read_text(encoding="utf-8")
+            with self.subTest(name), warnings.catch_warnings():
+                warnings.simplefilter("error")
+                compile(src, f"{name}.py", "exec")
+
+
 class PlanProblems(MoveBase):
     def test_unreadable_new_place_is_a_problem_not_a_500(self):
         (self.tmp / "nas" / "M").mkdir()
