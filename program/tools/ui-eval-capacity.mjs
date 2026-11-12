@@ -9,6 +9,7 @@
 //   4. 組む所: 見本「設備の実力」を押すと、行＝設備・値＝重量の合計（÷1000 ÷稼働直）・稼働率・稼働直・大きい順が入る（✓ が付く）。
 //      値の計算の前→後（1,620.2t → 7.7t/直）の後の数が表の総計の字と同じ
 //   5. 「÷ 稼働直 ▾」の面: 基準の数の名前・決め方・例・総計。当てるボタン・題の欄・値の札を覆わない。窓に収まる。総計が独立の答えと同じ
+//   5'. 面の外を押すと閉じる
 //   6. ② の見出し・見本・値の札が、組む所の中で一度に見える（固定のタブの下へ送られない）。見本は畳める
 //   7. ＋ 基準の数を作る（稼働直÷稼働日）→ ＋ 基準の数を値に → 表の列の数が独立の答えと同じ（作った数はダッシュボードで共通）
 //   8. 作業日・直の無いデータ（品質）で稼働直を使うと断る（黙って 0 にしない）
@@ -141,7 +142,9 @@ try {
     check(/→/.test(geo.prev) && geo.prev.split("→")[1].trim() === geo.grand, `${tag}: 値の計算の前→後「${geo.prev}」の後が表の総計「${geo.grand}」と違う`);
     check(/÷\s*稼働直/.test(geo.per), `${tag}: 割る数の札「${geo.per}」`);
     // 6. ② の見出しから見本・値の札までが組む所の中に一度に見える
-    await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector("#dePerPop [data-cp-close]")?.click()); await sleep(200);
+    // 面の外（組む所の題の欄）を押すと閉じる
+    await page.mouse.click(...(await page.evaluate(() => { const r = document.querySelector("#deTitle").getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2]; }))); await sleep(200);
+    check(!(await page.$("#dePerPop")), `${tag}: 面の外を押しても閉じない`);
     const fit = await page.evaluate(() => {
       const main = document.querySelector("#dbEditor .de-main"), st = [...document.querySelectorAll("#dbEditor .de-step")][1], tabs = document.querySelector("#dePtabs");
       main.scrollTop = Math.max(0, st.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - tabs.getBoundingClientRect().height - 4);

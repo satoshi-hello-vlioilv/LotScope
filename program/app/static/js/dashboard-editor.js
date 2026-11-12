@@ -884,6 +884,12 @@
       if (x.matches("[data-cp-oexpr]")) { const r = N.expr(x.value, { names: BASE_FIXED.map((y) => y[0]), base: true }), msg = el.querySelector("[data-cp-omsg]"); if (msg) { msg.classList.toggle("is-bad", !!(x.value.trim() && r.error)); msg.textContent = x.value.trim() && r.error ? r.error : "式は決まった数（［稼働直］など）と ＋ − × ÷ で書きます"; } }
     });
     el.addEventListener("change", (e) => { if (ownEdit && e.target.matches("[data-cp-oeach]")) ownEdit.each = e.target.checked; });
+    // 面の外を押したら閉じる（割る数の札・足す札を押したときは、その札が開け閉めする）
+    if (!bindPop.outside) {         // 面は閉じると作り直すので、見張りは 1 つだけ（いまの面で見る）
+      bindPop.outside = true;
+      document.addEventListener("mousedown", (e) => { const cur = document.getElementById("dePerPop");
+        if (perPop && cur && !cur.contains(e.target) && !e.target.closest("[data-de-per],[data-de-addbase]")) closePop(); }, true);
+    }
     el.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closePop(); } else if (e.key === "Enter" && ownEdit && !TPA.composing(e) && e.target.matches("input:not([type=checkbox])")) { e.preventDefault(); saveOwn(); } });
   }
   /** 名前を変えた作った数に、値（割る数・基準の数の値・式の［名前］）を付いていかせる */
