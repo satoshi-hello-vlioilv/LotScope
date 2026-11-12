@@ -6,6 +6,7 @@ pub mod aggregate;
 pub mod builder;
 pub mod bundle;
 pub mod calc;
+pub mod capacity;
 pub mod card_forms;
 pub mod cm3;
 pub mod cm3_http;

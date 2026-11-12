@@ -39,6 +39,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 
 from . import aggregate
+from . import capacity
 from . import dash_progress
 from . import equip_regex
 from . import formula
@@ -120,11 +121,11 @@ def clean_dims(text, cs, work_ok, equip_ok=False):
     return out
 
 
-def clean_measures(text, cs):
+def clean_measures(text, cs, names=None):
     out = []
     for m in _parse_list(text, MAX_MEASURES, "値"):
         try:
-            out.append(aggregate.clean(m, lambda c: c in cs))
+            out.append(aggregate.clean(m, lambda c: c in cs, names))
         except ValueError as e:
             raise PivotError(str(e)) from None
     return out or [{"agg": "count", "column": ""}]
@@ -540,7 +541,7 @@ def _part_span(part, period, now):
     return period_range(period["kind"], period["n"], day, period.get("from", ""), period.get("to", ""))
 
 
-def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None, need_equip=False, span=None):
+def _open_part(part, *, search, filters, rows, cols, measures, today, box, period, calc=None, need_equip=False, span=None, own=None):
     """1 つのファイルを読む: 表と列を決め、段・値を確かめ、絞り込みに当たる行の要る列だけを読む → 状態の dict。
     span … 期間の日の範囲（period_prefilter で先に絞る。期間の列が計算列なら絞らない）"""
     work = part.work
@@ -562,7 +563,8 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         if equip and equip.get("column") and equip["column"] not in cs:
             equip = None                              # 設備の列が無い表では、設備の段は使えない（下で断る）
         rd, cd = clean_dims(rows, cs, bool(start), bool(equip)), clean_dims(cols, cs, bool(start), bool(equip))
-        ms = clean_measures(measures, cs)
+        ms = clean_measures(measures, cs, capacity.names_of(own))
+        fixed, _mine = capacity.uses(ms, own)
         if box and box not in cs:
             raise PivotError(f"箱ひげの列「{box}」がありません。")
         if period and period["column"] != "@workday" and period["column"] not in cs:
@@ -600,13 +602,29 @@ def _open_part(part, *, search, filters, rows, cols, measures, today, box, perio
         lots_by = "work" if start else "lot" if lot else ""
         kpos = (use(start), use(tcol)) if lots_by == "work" else (use(lot), -1) if lots_by == "lot" else (-1, -1)
         ppos = ((use(start), use(tcol)) if period["column"] == "@workday" else (use(period["column"]), -1)) if period else (-1, -1)
+        # 基準の数（版 3.103.0）: 作業実績は作業開始と時刻（作業日・直）。データ元は日付の列（期間の列か、日付の段の列）と設備の列
+        cpos, upos, day_col = (-1, -1), -1, ""
+        if fixed:
+            if start:
+                cpos = (use(start), use(tcol))
+            else:
+                lack = [x for x in capacity.NEED_SHIFT if x in fixed]
+                if lack:
+                    raise PivotError(f"基準の数「{'」「'.join(lack)}」は、作業日と直のある作業実績だけで使えます（このデータは直が分かりません）。")
+                day_col = period["column"] if period and period["column"] != "@workday" else next(
+                    (d["column"] for d in rd + cd if d["column"] in cs and d["part"] in DATE_PARTS), "")
+                if not day_col:
+                    raise PivotError("稼働日を数える日付の列がありません（期間で絞るか、日付の列を年月日・年月などで段に置いてください）。")
+                cpos = (use(day_col), -1)
+            if equip and equip.get("column"):
+                upos = use(equip["column"])
         total = int(c.execute(f"SELECT COUNT(*) FROM {qi(t)}{where}", params).fetchone()[0])
         if total > MAX_ROWS:
             raise PivotError(f"当たる行が多すぎます（{total:,} 行。{MAX_ROWS:,} 行まで）。条件で絞ってから集計してください。")
         data = c.execute(f"SELECT {', '.join(exprs.get(x) or qi(x) for x in need) or '1'} FROM {qi(t)}{where}", params).fetchall() if need else [()] * total
     return {"name": part.name, "table": t, "cs": cs, "rd": rd, "cd": cd, "ms": ms, "pos": pos, "mpos": mpos, "bpos": bpos, "lots_by": lots_by,
             "kpos": kpos, "ppos": ppos, "start": start, "data": data, "clock": (work or {}).get("clock"), "basis": (work or {}).get("basis", "work"),
-            "equip": equip, "epos": epos, "ignored": ignored, "places": {}}
+            "equip": equip, "epos": epos, "ignored": ignored, "places": {}, "fixed": fixed, "cpos": cpos, "upos": upos}
 
 
 def _filter_items(filters):
@@ -618,7 +636,7 @@ def _filter_items(filters):
 
 
 def query_many(parts, *, search="", filters="", rows="", cols="", measures="", today=None, month="", box="", period=None, now=None, calc=None,
-               equips=None, egroups=None, sets=None):
+               equips=None, egroups=None, sets=None, bases=None):
     """いくつかのファイル（Part の並び）を 1 つの集計にまとめる（版 3.37.0。ダッシュボードの「作業実績 すべての設備」など）。
     段・値の決め方・答えの形は 1 ファイルのときと同じ。ロット数はファイルごとに見分ける（別の設備の同じ作業開始は別の作業）。
     ファイルが 2 つ以上なら、読めない・列が無いファイルは飛ばして skipped に出す（1 つなら断る）。直の段は名前で揃える（設備で勤務体系が違うため）。
@@ -627,7 +645,8 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     equips（版 3.39.0）… 数える設備の名前の並び（空・None はすべて）。設備を見分けられない元では効かない（答えの equipIgnored）
     egroups（版 3.39.0）… 設備のまとめ {groups: [{name, members}], rest}（EquipGroups）。設備の段がまとまりの名前になる
     sets（版 3.40.0）… 設備グループの段（@egroup）のまとめ方の名前 → [{name, members, rules, except}]。設備の段（まとめる前の 1 台）と
-        並べて置けば、グループごとの小計が出る（小計は行・列の段の頭の組を数える、いつもの決め方）"""
+        並べて置けば、グループごとの小計が出る（小計は行・列の段の頭の組を数える、いつもの決め方）
+    bases（版 3.103.0）… 作った基準の数 [{name, expr, each?, unit?}]（services/capacity.py）。値の per・base・式の ［名前］ が使う"""
     t0 = time.perf_counter()
     period = clean_period(period)
     box = str(box or "")
@@ -636,13 +655,14 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
     pick = {normalize_part(x) for x in (equips or []) if str(x).strip()}
     groups = EquipGroups(egroups.get("groups"), egroups.get("rest"), egroups.get("other")) if egroups else None
     gsets = {k: EquipGroups(v) for k, v in (sets or {}).items()}
+    own = capacity.clean_own(bases) or []
     need_equip = bool(pick) or bool(groups and groups.rest == "hide")
     states, skipped = [], []
     for i, part in enumerate(parts):
         dash_progress.step("read", i, len(parts))     # 読み終えたファイル i / 数（版 3.97.0）
         try:
             states.append(_open_part(part, search=search, filters=filters, rows=rows, cols=cols, measures=measures, today=today, box=box, period=period,
-                                     calc=calc, need_equip=need_equip, span=_part_span(part, period, now)))
+                                     calc=calc, need_equip=need_equip, span=_part_span(part, period, now), own=own))
         except PivotError as e:
             if not multi:
                 raise
@@ -677,6 +697,7 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         for s in states:
             today_day = (s["clock"].place(stamp, s["basis"])[0] if period["column"] == "@workday" and s["clock"] else "") or now.date().isoformat()
             lo, hi = period_range(period["kind"], period["n"], today_day, period.get("from", ""), period.get("to", ""))
+            s["range"] = (lo, hi)
             pk, (a, b) = _Keyer(pdim, s["clock"], s["basis"], places=s["places"]), s["ppos"]
             s["data"] = [r for r in s["data"] if lo <= (pk.key(r[a] if a >= 0 else None, r[b] if b >= 0 else None)[0] or "~") <= hi]
             if (lo, hi) not in ranges:
@@ -711,6 +732,11 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         stats[d["column"]] = describe(vals)
     nr, nc = len(rd), len(cd)
     lots_on = any(m["agg"] == "lots" for m in ms)
+    fixed, mine = capacity.uses(ms, own)
+    base = capacity.Cells(fixed, mine, own, dims, nr, period["column"] if period else "", multi) if fixed else None
+    if base:
+        _base_units(base, states, pick, groups, gsets, multi)
+    outside = 0                        # 作業日はあるが直の分からない行（直の外・時刻なし。稼働直に入らない）
     # 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
     cells = {}
     box_vals = {}                      # 箱ひげ: 行の葉 → 数の並び
@@ -722,6 +748,10 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
                   for d in s["rd"] + s["cd"]]
         pos, mpos, bpos, lots_by, kpos = s["pos"], s["mpos"], s["bpos"], s["lots_by"], s["kpos"]
         count += len(s["data"])
+        if base:
+            ca, cb = s["cpos"]
+            ukey = _Keyer({"column": EQUIP_DIM, "part": ""}, equip=s["equip"]) if s["upos"] >= 0 else None
+            segs = s["clock"].segments if s["clock"] else None
         for row in s["data"]:
             ks = []
             for i, kr in enumerate(keyers):
@@ -748,6 +778,17 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
                 f = num(row[bpos])
                 if f is not None:
                     box_vals.setdefault(tuple(rk), []).append(f)
+            if base:
+                if s["start"]:
+                    day, idx = s["places"].get((row[ca], row[cb] if cb >= 0 else None)) or s["clock"].place(
+                        to_datetime(row[ca], row[cb] if cb >= 0 else None), s["basis"])
+                else:
+                    st = to_datetime(row[ca])
+                    day, idx = (st[:10] if st else ""), -2
+                u = base.unit(pi, ukey.equip_name(row[s["upos"]]) if ukey else s["name"], segs, s.get("range"))
+                if s["start"] and day and idx < 0:
+                    outside += 1
+                base.add([(tuple(rk[:a]), tuple(ck[:b])) for a in range(nr + 1) for b in range(nc + 1)], u, day, idx)
             for a in range(nr + 1):
                 for b in range(nc + 1):
                     key = (tuple(rk[:a]), tuple(ck[:b]))
@@ -776,7 +817,17 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
             ix = 0 if axis == "rows" else 1
             cells = {k: v for k, v in cells.items() if len(k[ix]) < n or k[ix] in keep}
 
-    def value(acc, j, m):
+    envs = {}
+
+    def env_of(k):
+        e = envs.get(k)
+        if e is None:
+            e = envs[k] = base.env(k) if base else {}
+        return e
+
+    def value(acc, j, m, k):
+        if m["agg"] == "base":
+            return env_of(k).get(m["base"])
         if m["agg"] == "count":
             return acc[0]
         if m["agg"] == "lots":
@@ -785,8 +836,10 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
 
     def clean(x):          # 足し算の誤差（1248967.0999999992）を丸める
         return round(x, 6) if isinstance(x, float) else x
-    out_cells = [{"r": list(k[0]), "c": list(k[1]), "v": [clean(value(acc, j, m)) for j, m in enumerate(ms)]} for k, acc in cells.items()]
-    aggregate.apply_expr(out_cells, ms)
+    out_cells = [{"r": list(k[0]), "c": list(k[1]), "v": [clean(value(acc, j, m, k)) for j, m in enumerate(ms)]} for k, acc in cells.items()]
+    # 割る数のある値の、計算の前の総計（画面の「計算の前 → 割った後」。版 3.103.0）
+    pre = next((list(x["v"]) for x in out_cells if not x["r"] and not x["c"]), None) if any(m.get("per") for m in ms) else None
+    aggregate.apply_expr(out_cells, ms, (lambda x: env_of((tuple(x["r"]), tuple(x["c"])))) if base else None, capacity.names_of(own))
     aggregate.apply_show(out_cells, ms, nr, nc, orders)
     for x in out_cells:
         x["v"] = [clean(v) for v in x["v"]]
@@ -803,6 +856,12 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
         "months": sorted(months), "month": month, "ignoredFilters": ignored, "equipIgnored": equip_ignored,
         "timing": {"server": round((time.perf_counter() - t0) * 1000)},
     }
+    if base:
+        out["bases"] = _bases_info(base, own, dims, nr, period, states, now)
+        if outside and set(base.fixed) & set(capacity.NEED_SHIFT):
+            out["bases"]["outside"] = outside
+    if pre is not None:
+        out["pre"] = pre
     if period:
         name = PERIODS[period["kind"]] if period["kind"] != "month" or not ranges else f"{int(ranges[0][0][:4])}年{int(ranges[0][0][5:7])}月"
         out["period"] = {**period, "name": name, "ranges": [{"from": a, "to": b} for a, b in ranges]}
@@ -814,6 +873,62 @@ def query_many(parts, *, search="", filters="", rows="", cols="", measures="", t
                          "shifts": [seg["name"] for seg in s["clock"].segments] if s["clock"] else []} for s in states]
         out["skipped"] = skipped
     return out
+
+
+def _base_units(base, states, pick, groups, gsets, multi):
+    """足す設備（capacity.Unit）を先に並べる: 作業実績はファイルごとに 1 つ（期間に実績が無くても入る）。設備の段の鍵も決める"""
+    for pi, s in enumerate(states):
+        segs = s["clock"].segments if s["clock"] else None
+        if s["start"] or s["upos"] < 0:
+            base.unit(pi, s["name"], segs, s.get("range"))
+        else:
+            ek = _Keyer({"column": EQUIP_DIM, "part": ""}, equip=s["equip"])
+            for row in s["data"]:
+                base.unit(pi, ek.equip_name(row[s["upos"]]), segs, s.get("range"))
+    for u in base.units:
+        s = states[u.pi]
+        named = {"name": u.name}
+        for i in base.equip_dims:
+            k = _Keyer(base.dims[i], equip=named, order=u.pi, by_name=multi, groups=groups if base.dims[i]["column"] == EQUIP_DIM else None,
+                       sets=gsets)
+            u.ekeys.append(k.key(u.name)[0])
+    base.hidden = {j for j, u in enumerate(base.units) if (pick and normalize_part(u.name) not in pick) or (groups and not groups.keeps(u.name))}
+
+
+def _bases_info(base, own, dims, nr, period, states, now):
+    """答えの基準の数の手がかり: 使った数・作った数の決め方・勤務体系の無い設備・途中の月（月の段の鍵 → 実績の最初と最後の日）"""
+    no_shift = [u.name for u in base.units if u.spd == 0]
+    info = {"fixed": [x for x in capacity.FIXED if x in base.fixed], "own": [b for b in own if b in base.own]}
+    if no_shift and set(base.fixed) & set(capacity.NEED_SHIFT):
+        info["noShift"] = no_shift
+    # 途中の月（版 3.103.0。採点の指摘 7）: 月の段（作業日の年月・日付の列の年月）の鍵のうち、終わりまで数えていない月
+    # （期間の終わりか今日がその月の終わりより前・期間のはじめがその月のはじめより後）→ その月の実績の最初と最後の日
+    stamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    ends = [s["range"][1] for s in states if s.get("range")]
+    stop = max(ends) if ends else max((s["clock"].place(stamp, s["basis"])[0] if s["clock"] else "") or now.date().isoformat() for s in states)
+    starts = [s["range"][0] for s in states if s.get("range")]
+    begin = min(starts) if starts else ""
+    partial = {}
+    for i, d in enumerate(dims):
+        if d["part"] != "ym":
+            continue
+        got = {}
+        for (rk, ck), sp in base.span.items():
+            k = (rk[i] if i < len(rk) else None) if i < nr else (ck[i - nr] if i - nr < len(ck) else None)
+            if not k:
+                continue
+            g = got.get(k)
+            got[k] = [min(g[0], sp[0]), max(g[1], sp[1])] if g else list(sp)
+        keep = {}
+        for k in sorted(got):
+            ms = capacity.key_span("ym", k)
+            if ms and ((ms[0] <= stop < ms[1]) or (begin and ms[0] < begin <= ms[1])):
+                keep[k] = got[k]
+        if keep:
+            partial[str(i)] = keep
+    if partial:
+        info["partial"] = partial
+    return info
 
 
 # 札の種類を数える上限（1,000 を超えたら「1,000 種類以上」）。窓は desktop/src/pivot.rs の KINDS_MAX

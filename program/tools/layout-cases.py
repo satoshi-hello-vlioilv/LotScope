@@ -120,6 +120,24 @@ add(*lay(L(P(visual="kpi", body={}), P("b", x=4, visual="slicer", body={"rows": 
 add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": {"k": "\x01"}}]))), py=True)
 add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": ["\u3040"]}]))), py=True)   # 割り当ての無い字（Python は \\u で逃がす）
 add(*lay(L(P(filters=[{"column": "x", "op": "=", "value": ["あ", "ア", "漢", "Ａ", "、"]}]))))
+# ---- 基準の数（版 3.103.0。services/capacity.py）: 作った数の並び（パネルとダッシュボード）・値の割る数 per・基準の数の値 base・式の ［名前］
+OWNX = [{"name": " 換算稼働日 ", "expr": "[稼働直]÷[1日の直数]", "each": True, "unit": "日"}, {"name": "稼働率", "expr": "[稼働直]÷[期間の直数]×100", "unit": " % "},
+        {"name": "稼働直", "expr": "[稼働日]"}, {"name": "x", "expr": "x×2"}, {"name": "換算稼働日", "expr": "[稼働日]"}, {"name": "a]b", "expr": "[稼働日]"},
+        {"name": "", "expr": "[稼働日]"}, {"name": "長" * 20, "expr": "［稼働日］×２", "each": "true", "unit": 5}, {"name": 5, "expr": "[稼働日]+[期間の日数]"},
+        {"name": "空", "expr": ""}, {"name": "使えない", "expr": "[無い]"}, "x", None, {"name": "単位", "expr": "[稼働日]", "unit": "あいうえおかきく"}]
+add(*lay(L(P(visual="none", body={"rows": [{"column": "@equip"}], "bases": OWNX, "measures": [
+    {"agg": "sum", "column": "重量", "expr": "÷1000", "per": "稼働直", "utext": "t/直", "hideExpr": True}, {"agg": "lots", "per": " 稼働率 "},
+    {"agg": "base", "base": "稼働率"}, {"agg": "base", "base": "無い"}, {"agg": "base", "base": " 期間の直数 ", "column": "x"},
+    {"agg": "sum", "column": "重量", "per": "無い"}, {"agg": "sum", "column": "重量", "expr": "÷[換算稼働日]", "per": 5}]}),
+           P("b", x=4, body={"rows": [{"column": "@workday"}], "bases": "x", "measures": [{"agg": "lots", "per": "換算稼働日"}, {"agg": "lots", "per": ""},
+                                                                                      {"agg": "lots", "per": "1日の直数", "expr": "÷[稼働率]"}]}),
+           P("c", x=8, body={"rows": [{"column": "@workday"}], "bases": [], "measures": [{"agg": "base"}, {"agg": "base", "base": 5}, {"agg": "base", "base": "稼働日", "show": "cum"}]}),
+           bases=OWNX)))
+add(*lay(L(bases=[])))
+add(*lay(L(bases="x")))
+add(*lay(L(bases=[{"name": "a", "expr": "[稼働日]"}] * 3 + [{"name": f"b{k}", "expr": "[稼働日]"} for k in range(14)])))
+add(*lay(L(P(visual="board", groups=[{"source": "work", "measure": {"agg": "sum", "column": "重量", "per": "稼働直"}},
+                                     {"source": "work", "measure": {"agg": "base", "base": "換算稼働日"}}]))))
 # ---- 稼働・ABC
 add(*lay(L(P(visual="gantt", ops={"start": " 開始 ", "end": "終了", "label": "", "color": "色", "span": "lead", "refPeriod": {"kind": "months", "n": 3, "column": "x"},
                                   "hide": ["chart", "x", "share"], "cls": [" 合金 ", "調質", "合金", "", "a", "b", "c"], "qty": "", "base": "  ",

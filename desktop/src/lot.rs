@@ -1639,6 +1639,7 @@ impl Lot {
                 equips: &[],
                 egroups: None,
                 sets: None,
+                bases: None,
             };
             pivot::query(part, &ask).map(|mut v| {
                 if let Some(p) = &pattern {

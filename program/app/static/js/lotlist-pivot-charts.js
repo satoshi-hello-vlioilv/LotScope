@@ -1235,13 +1235,16 @@
       サーバーの aggregate.name と同じ字（系列の色・書式の鍵にもなる） */
   function measLabel(m, label = (c) => c) {
     const show = m.show ? `（${(SHOWS.find((x) => x[0] === m.show) || ["", ""])[1]}）` : "";
-    const ex = m.expr ? `［${exprText(m.expr)}］` : "";
+    // 割る数（版 3.103.0。基準の数 per）は計算の後ろに「÷稼働直」（サーバーの aggregate.name と同じ字）
+    const calc = (m.expr ? exprText(m.expr) : m.per ? "値" : "") + (m.per ? `÷${m.per}` : "");
+    const ex = calc ? `［${calc}］` : "";
+    if (m.agg === "base") return (m.base || "") + show + ex;          // 基準の数そのもの（稼働直・稼働率 など）
     if (m.agg === "count" || m.agg === "lots") return (m.agg === "count" ? "件数" : "ロット数") + show + ex;
     const a = aggOf(m.agg) || AGGS[0];
     return `${label(m.column)}の${m.agg === "pct" ? `${m.p || 90}%点` : a.n}${show}${ex}`;
   }
   /** 計算の見せ方（÷1000 → 値÷1000。読めない式は書いたまま） */
-  const exprText = (src) => (window.NumFormat && NumFormat.expr(src).text) || String(src);
+  const exprText = (src) => (window.NumFormat && (NumFormat.showText ? NumFormat.showText(src) : NumFormat.expr(src).text)) || String(src);
   const byKey = new Map(DEFS.map((x) => [x.k, x]));
   const iconSvg = (k, size = 18) => { const x = byKey.get(k); return x ? `<svg class="pv-ico" viewBox="0 0 20 20" width="${size}" height="${size}" aria-hidden="true"><path d="${x.icon}"/></svg>` : ""; };
   /** 描く（形が分からなければ縦棒）。高さ: 横棒は行の数で伸ばす・ほかは 300 */
@@ -1276,7 +1279,15 @@
     return { ...rest, digits: m.dec ?? f0.digits, unit: f0.unit && f0.unit !== "auto" ? f0.unit : "none", suffix: m.utext };
   }
   /** 列の見出しに出す値の名前（版 3.92.0）: 計算の式を出さない値（m.hideExpr）は式を外す。系列の色・書式の鍵は measLabel のまま */
-  const measHead = (m, label) => measLabel(m && m.hideExpr ? { ...m, expr: undefined } : m, label);
+  const measHead = (m, label) => (m && m.hideExpr && m.per ? perHead(m, label) : measLabel(m && m.hideExpr ? { ...m, expr: undefined } : m, label));
+  /** 割った値の見出し（版 3.103.0。式は出さず、合計でないと分かる言葉: 重量（t/直）・ロット数（本/直）・重量の平均（÷稼働直））。
+      主語は列（合計）か値の名前・括弧の中は値の単位（無ければ ÷割る数）。札・面・列の言葉はこの 1 か所で決める */
+  function perHead(m, label = (c) => c) {
+    const subj = m.agg === "sum" ? label(m.column) : measLabel({ ...m, expr: undefined, per: undefined, show: undefined }, label);
+    const show = m.show ? `（${(SHOWS.find((x) => x[0] === m.show) || ["", ""])[1]}）` : "";
+    const u = m.utext != null && String(m.utext).includes("/") ? String(m.utext) : `÷${m.per}`;
+    return `${subj}（${u}）${show}`;
+  }
   /** ctx.fmt（版 3.39.0）があれば、描く間だけ書式を当てる（数値ラベル・日付の形・桁・単位・縦軸・基準線・名前ごとの色） */
   function draw(kind, ctx) {
     const def = byKey.get(kind) || byKey.get("column");
@@ -1293,5 +1304,5 @@
     LBL.top = lb === "top" || lb === "both"; LBL.inside = lb === "inside" || lb === "both";
     try { const out = def.draw({ ...ctx, H }); return { ...out, used: [...USED], ser: [...SER] }; } finally { [COLORS, F, LBL.top, LBL.inside, USED, SER, SDEC, LDEC] = keep; }
   }
-  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, measHead, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
+  window.LotListPivotCharts = { DEFS, GROUPS, get: (k) => byKey.get(k), draw, iconSvg, fmt, short, numText, numHtml, textW, fitW, AGGS, SHOWS, aggOf, measLabel, measHead, perHead, exprText, measFmt, dayAt, isDay, isTimeDim, ADDITIVE, COLORS, buildModel, tableHtml };
 })();

@@ -319,6 +319,44 @@ def main():
                       {"agg": "lots", "utext": "", "hideExpr": "true"}, {"agg": "count", "utext": 3, "hideExpr": 1},
                       {"agg": "avg", "column": "重量", "utext": "あいうえおかきくけこさしすせそ"}]),
     ]
+    # 基準の数（版 3.103.0。services/capacity.py）: 稼働直・稼働日・1日の直数・期間の日数・期間の直数・作った数（設備ごとに足す／セルの数で）・割る数
+    own = [{"name": "換算稼働日", "expr": "[稼働直]÷[1日の直数]", "each": True, "unit": "日"}, {"name": "稼働率", "expr": "[稼働直]÷[期間の直数]×100", "unit": "%"},
+           {"name": "1日あたり直", "expr": "[稼働直]÷[稼働日]"}]
+    B = lambda k, **kw: {"agg": "base", "base": k, **kw}  # noqa: E731
+    d14 = {"column": "@workday", "kind": "days", "n": 14}
+    two_eq = [wp[i] for i, p in enumerate(wp) if p["name"] in ("CR2", "CAL")]
+    cases += [
+        run("基準の数 設備（直近 14 日）", wp, rows=[{"column": "@equip"}], period=d14, bases=own,
+            measures=[B("稼働直"), B("稼働日"), B("1日の直数"), B("期間の日数"), B("期間の直数"), {"agg": "sum", "column": "重量", "per": "稼働直", "expr": "÷1000"}]),
+        run("基準の数 作った数（直近 14 日）", wp, rows=[{"column": "@equip"}], period=d14, bases=own,
+            measures=[B("換算稼働日"), B("稼働率"), B("1日あたり直"), {"agg": "lots", "per": "換算稼働日"}, {"agg": "sum", "column": "重量", "expr": "÷[稼働率]"}]),
+        run("基準の数 設備×作業月（期間なし）", wp, rows=[{"column": "@equip"}], cols=[{"column": "@workday", "part": "ym"}], bases=own,
+            measures=[B("換算稼働日"), B("稼働率"), B("期間の日数"), B("稼働日")]),
+        run("基準の数 作業月×設備（期間 45 日で月を切る）", wp, rows=[{"column": "@workday", "part": "ym"}, {"column": "@equip"}], bases=own,
+            period={"column": "@workday", "kind": "days", "n": 45}, measures=[B("期間の日数"), B("期間の直数"), B("稼働率")]),
+        run("基準の数 作業日（休んだ設備も分母）", wp, rows=[{"column": "@workday"}], period={"column": "@workday", "kind": "days", "n": 7}, bases=own,
+            measures=[B("稼働直"), B("期間の直数"), B("稼働率")]),
+        run("基準の数 直の段（2 直の設備）", two_eq, rows=[{"column": "@equip"}], cols=[{"column": "@shift"}], period=d14, bases=own,
+            measures=[B("稼働直"), B("1日の直数"), B("期間の直数")]),
+        run("基準の数 設備のまとめ（合算・その他）", wp, rows=[{"column": "@equip"}], period=d14, bases=own,
+            egroups={"groups": [{"name": "CR ライン", "members": ["CR1", "CR2"]}], "rest": "other", "other": ""}, measures=[B("換算稼働日"), B("稼働率"), B("1日の直数")]),
+        run("基準の数 設備のまとめ（数えない）", wp, rows=[{"column": "作業区分"}], period=d14, bases=own,
+            egroups={"groups": [{"name": "CR ライン", "members": ["CR1", "CR2"]}], "rest": "hide"}, measures=[B("期間の直数"), B("稼働率")]),
+        run("基準の数 設備グループの段", wp, rows=[{"column": "@egroup", "part": "ライン別"}, {"column": "@equip"}], period=d14, bases=own,
+            sets={"ライン別": [{"name": "CR", "members": ["CR1", "CR2"]}, {"name": "L", "rules": [{"op": "prefix", "value": "l-"}]}]},
+            measures=[B("稼働直"), B("期間の直数"), B("稼働率")]),
+        run("基準の数 設備を選ぶ", wp, rows=[{"column": "作業区分"}], period=d14, bases=own, equips=["CAL", "ｃｒ２"], measures=[B("期間の直数"), B("換算稼働日")]),
+        run("基準の数 時刻が別の列（直の外・時刻なし）", [tw], rows=[{"column": "@workday"}], bases=own, measures=[B("稼働直"), B("稼働日"), B("期間の日数"), B("稼働率")]),
+        run("基準の数 品質（期間の列の日）", [lot], rows=[{"column": "合金"}], period={"column": "発生日", "kind": "days", "n": 20}, bases=own,
+            measures=[B("稼働日"), B("期間の日数"), {"agg": "count", "per": "稼働日"}]),
+        run("基準の数 品質（段の日付の列）", [lot], rows=[{"column": "発生日", "part": "ym"}], measures=[B("稼働日"), B("期間の日数")]),
+        run("基準の数 品質の設備の列", [lot_same], rows=[{"column": "@equip"}], measures=[B("稼働日")], period={"column": "発生日", "kind": "days", "n": 20}),
+        run("基準の数 品質で稼働直", [lot], rows=[{"column": "合金"}], measures=[B("稼働直")]),
+        run("基準の数 品質で日付が無い", [lot], rows=[{"column": "合金"}], measures=[B("稼働日")]),
+        run("基準の数 無い名前で割る", wp, rows=[{"column": "@equip"}], measures=[{"agg": "lots", "per": "無い"}]),
+        run("基準の数 無い基準の数", wp, rows=[{"column": "@equip"}], measures=[B("稼働率")]),
+        run("基準の数 読めない作った数は外す", wp, rows=[{"column": "@equip"}], measures=[B("稼働直")], bases=[{"name": "x", "expr": "x×2"}, "y"]),
+    ]
     # カラムの札（計算列も: 式が読む列 deps・読めない式・日付と読める計算列）
     calc = {"formulas": {"区分2": "[作業区分] + '!'", "倍重量": "[重量] * 2", "壊れ": "[重量] +", "日": "left([BOX実績_作業開始_日付], 10)",
                        "数日": "20261002 + [入側板厚] * 0"}, "names": {}}

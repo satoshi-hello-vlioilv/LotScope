@@ -1157,6 +1157,15 @@
     focusFrame(id);
     paint();
     E.open({ panel: p, sources: S.sources, toast: say, answer: () => (S.answers.get(id) || {}).d, egroupSets: () => S.egroupSets || [],
+      // 作った基準の数（版 3.103.0。ダッシュボードで共通。無ければ既定の 2 つ）。直したら、ほかのパネルの写しと値も付いていく
+      bases: () => (S.layout && Array.isArray(S.layout.bases) ? S.layout.bases : null),
+      setBases: (list, ren) => {
+        if (!S.layout) return;
+        const added = list.length > (Array.isArray(S.layout.bases) ? S.layout.bases : E.OWN_DEFAULT).length;
+        S.layout.bases = TPA.clone(list);
+        S.layout.panels.forEach((q) => { if (q.id !== id) { E.syncBases(q, list, ren); if (S.answers.has(q.id)) queryPanel(q); } });
+        say(`作った数を${added ? "置きました" : "直しました"}（このダッシュボードで共通。保存するまでは、この PC の画面だけです）`);
+      },
       onChange: (np) => { replacePanel(panelOf(id), np); place(document.querySelector(`#dashGrid .db-p[data-id="${CSS.escape(id)}"]`), panelOf(id)); paintPanel(id); clearTimeout(openEditor.t); openEditor.t = setTimeout(() => { const q = panelOf(id), a = S.answers.get(id); if (q && (!a || a.key !== qkey(q))) queryPanel(q); }, 250); },   // 題・見せ方・書式だけなら引き直さない（版 3.43.0）
       onApply: (np) => {
         const cur = panelOf(id), base = editBase; closeEditor();
@@ -1426,6 +1435,7 @@
     /** 案を撮る道具から: スライサーの字（compact で詰めた形）。置き場を替える案が、道具の行の外に描くため */
     _slicerHtml: (compact = false) => (compact ? D.compactHtml : D.barHtml)(sliceState(), sliceInfo()),
     _setLayout(l) { S.layout = TPA.clone(l); S.saved = JSON.stringify(S.layout); S.answers.clear(); paint(); refresh(true); },
+    _layout: () => TPA.clone(S.layout),        // 評価関数の見る口（版 3.103.0。tools/ui-eval-capacity.mjs）
     _state: () => ({ id: S.id, edit: S.edit, layout: TPA.clone(S.layout), answers: Object.fromEntries([...S.answers].map(([k, v]) => [k, v.d || { error: v.err }])) }),
   };
 })();

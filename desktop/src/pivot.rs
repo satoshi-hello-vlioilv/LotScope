@@ -9,6 +9,7 @@
 //! 計算列・箱ひげ。← program/tests/pivot_oracle.py）が Python の答えと突き合わせて確かめる。
 
 use crate::aggregate::{self, Acc, OutCell, N};
+use crate::capacity::{self, Cells, OwnBase};
 use crate::formula::{self, Calc, CalcColumns, Tables};
 use crate::lotlist::{self, connect_ro, json_str, json_truthy, qi, sql_err, Exprs};
 use crate::pyfmt::{self, Py};
@@ -281,10 +282,10 @@ fn clean_dims(text: &str, cs: &[String], work_ok: bool, equip_ok: bool) -> R<Vec
     Ok(out)
 }
 
-fn clean_measures(text: &str, cs: &[String]) -> R<Vec<Map<String, Value>>> {
+fn clean_measures(text: &str, cs: &[String], names: &[String]) -> R<Vec<Map<String, Value>>> {
     let mut out = vec![];
     for m in parse_list(text, MAX_MEASURES, "値")? {
-        out.push(aggregate::clean(&m, &|c| cs.iter().any(|x| x == c)).map_err(Fail::Invalid)?);
+        out.push(aggregate::clean_with(&m, &|c| cs.iter().any(|x| x == c), names).map_err(Fail::Invalid)?);
     }
     if out.is_empty() {
         out.push(Map::from_iter([("agg".into(), json!("count")), ("column".into(), json!(""))]));
@@ -1000,6 +1001,8 @@ pub struct Ask<'a> {
     pub equips: &'a [String],
     pub egroups: Option<&'a Value>,
     pub sets: Option<&'a Value>,
+    /// 作った基準の数（版 3.103.0。Python の bases）
+    pub bases: Option<&'a Value>,
 }
 
 struct State {
@@ -1022,6 +1025,10 @@ struct State {
     epos: i64,
     ignored: Vec<String>,
     places: HashMap<(Mk, Mk), (String, i64)>,
+    /// 基準の数（版 3.103.0）: 作業日・直の列（作業実績は作業開始と時刻・データ元は日付の列）と設備の列・期間の範囲
+    cpos: (i64, i64),
+    upos: i64,
+    range: Option<(String, String)>,
 }
 
 /// 計算列の名前 → SQL の式・計算列の並び（読めない物も）・読めない計算列・係
@@ -1037,7 +1044,14 @@ fn calc_exprs(c: &rusqlite::Connection, calc: Option<&Calc>, cs: &[String], conv
     Ok((exprs, order, broken, Some(cc)))
 }
 
-fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, span: Option<&(String, String)>) -> R<State> {
+fn open_part(
+    part: &Part,
+    a: &Ask,
+    period: Option<&Period>,
+    need_equip: bool,
+    span: Option<&(String, String)>,
+    own: &[OwnBase],
+) -> R<State> {
     let work = part.work.as_ref();
     let c = connect_ro(&part.path).map_err(down)?;
     let names = lotlist::tables(&c).map_err(down)?;
@@ -1070,7 +1084,8 @@ fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, sp
     let equip = part.equip.clone().filter(|e| e.column().is_empty() || cs.iter().any(|x| x == e.column()));
     let rd = clean_dims(a.rows, &cs, !start.is_empty(), equip.is_some())?;
     let cd = clean_dims(a.cols, &cs, !start.is_empty(), equip.is_some())?;
-    let ms = clean_measures(a.measures, &cs)?;
+    let ms = clean_measures(a.measures, &cs, &capacity::names_of(own))?;
+    let (fixed, _) = capacity::uses(&ms, own);
     if !a.box_col.is_empty() && !cs.iter().any(|x| x == a.box_col) {
         return invalid(format!("箱ひげの列「{}」がありません。", a.box_col));
     }
@@ -1144,6 +1159,38 @@ fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, sp
         Some(p) => (use_col(&p.column), -1),
         None => (-1, -1),
     };
+    // 基準の数（版 3.103.0。Python の _open_part と同じ順で確かめる）
+    let (mut cpos, mut upos) = ((-1, -1), -1);
+    if !fixed.is_empty() {
+        if !start.is_empty() {
+            cpos = (use_col(&start), use_col(&tcol));
+        } else {
+            let lack: Vec<&str> = capacity::NEED_SHIFT.iter().copied().filter(|x| fixed.contains(*x)).collect();
+            if !lack.is_empty() {
+                return invalid(format!(
+                    "基準の数「{}」は、作業日と直のある作業実績だけで使えます（このデータは直が分かりません）。",
+                    lack.join("」「")
+                ));
+            }
+            let day_col = match period {
+                Some(p) if p.column != "@workday" => p.column.clone(),
+                _ => dims
+                    .iter()
+                    .find(|d| cs.contains(&d.column) && DATE_PARTS.contains(&d.part.as_str()))
+                    .map(|d| d.column.clone())
+                    .unwrap_or_default(),
+            };
+            if day_col.is_empty() {
+                return invalid("稼働日を数える日付の列がありません（期間で絞るか、日付の列を年月日・年月などで段に置いてください）。");
+            }
+            cpos = (use_col(&day_col), -1);
+        }
+        if let Some(e) = &equip {
+            if !e.column().is_empty() {
+                upos = use_col(e.column());
+            }
+        }
+    }
     let total: i64 = c
         .query_row(&format!("SELECT COUNT(*) FROM {}{wh}", qi(&t)), rusqlite::params_from_iter(params.iter()), |r| r.get(0))
         .map_err(|e| down(sql_err(e)))?;
@@ -1186,6 +1233,9 @@ fn open_part(part: &Part, a: &Ask, period: Option<&Period>, need_equip: bool, sp
         epos,
         ignored,
         places: HashMap::new(),
+        cpos,
+        upos,
+        range: None,
     })
 }
 
@@ -1253,6 +1303,7 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         .map(|m| m.iter().map(|(k, v)| (k.clone(), EquipGroups::new(Some(v), "keep", ""))).collect())
         .unwrap_or_default();
     let need_equip = !pick.is_empty() || groups.as_ref().is_some_and(|g| g.on() && g.rest == "hide");
+    let own = capacity::clean_own(a.bases).unwrap_or_default();
     let mut states: Vec<State> = vec![];
     let mut skipped: Vec<Value> = vec![];
     let total = parts.len();
@@ -1271,7 +1322,7 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
                 )?),
                 None => None,
             };
-            open_part(part, a, period.as_ref(), need_equip, span.as_ref())
+            open_part(part, a, period.as_ref(), need_equip, span.as_ref(), &own)
         })();
         match got {
             Ok(s) => states.push(s),
@@ -1333,6 +1384,7 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
                 });
             }
             st.places = places;
+            st.range = Some((lo.clone(), hi.clone()));
             if !ranges.contains(&(lo.clone(), hi.clone())) {
                 ranges.push((lo, hi));
             }
@@ -1398,7 +1450,19 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         stats.insert(d.column.clone(), describe(&vals).unwrap_or(Value::Null));
     }
     let lots_on = ms.iter().any(|m| m["agg"] == "lots");
-    // 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
+    // 基準の数（版 3.103.0）: 使う値があれば、セルごと・設備ごとに（作業日, 直）と作業日をためる
+    let (fixed, mine) = capacity::uses(&ms, &own);
+    let mut base = if fixed.is_empty() {
+        None
+    } else {
+        let ds = dims.iter().map(|d| (d.column.clone(), d.part.clone())).collect();
+        let pc = period.as_ref().map(|p| p.column.as_str()).unwrap_or("");
+        let mut b = Cells::new(fixed, &mine, &own, ds, nr, pc, multi);
+        base_units(&mut b, &states, &dims, &pick, groups_on, &gsets, multi);
+        Some(b)
+    };
+    let mut outside = 0usize; // 作業日はあるが直の分からない行（直の外・時刻なし。稼働直に入らない）
+                              // 1 行ずつ鍵を作り、行・列の段の頭の組（小計・総計）ごとに数える
     let mut ids: Vec<Ids> = (0..dims.len()).map(|_| Ids::default()).collect();
     let mut cells: HashMap<Vec<u32>, usize> = HashMap::new();
     let mut accs: Vec<(Vec<u32>, Acc3)> = vec![];
@@ -1414,10 +1478,39 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
                 dims.iter().map(|d| Keyer::new(d, st.clock.as_ref(), &st.basis, st.equip.as_ref(), pi, multi, groups_on, &gsets)).collect();
             count += st.data.len();
             let mut ks = vec![0u32; dims.len()];
+            let uk_dim = Dim::plain(EQUIP_DIM, "");
+            let none_sets = HashMap::new();
+            let ukey = (st.upos >= 0).then(|| Keyer::new(&uk_dim, None, "work", st.equip.as_ref(), 0, false, None, &none_sets));
+            let segs: Option<Vec<String>> = st.clock.as_ref().map(|c| c.segments.iter().map(|g| g.name.clone()).collect());
             for row in &st.data {
                 for (i, kr) in keyers.iter_mut().enumerate() {
                     let (x, y) = st.pos[i];
                     ks[i] = kr.key(get(row, x), get(row, y), &mut ids[i], &mut places) as u32;
+                }
+                // 基準の数: その行の作業日と直・設備
+                let bu = base.as_mut().map(|b| {
+                    let (x, y) = st.cpos;
+                    let (day, idx) = if !st.start.is_empty() {
+                        let pk = (mk(get(row, x)), mk(get(row, y)));
+                        match places.get(&pk) {
+                            Some(g) => g.clone(),
+                            None => {
+                                let stamp = pyfmt::to_datetime(&get(row, x).py(), &get(row, y).py()).unwrap_or_default();
+                                st.clock.as_ref().map(|c| c.place(&stamp, &st.basis)).unwrap_or((String::new(), worksum::NO_TIME))
+                            }
+                        }
+                    } else {
+                        let d = pyfmt::to_datetime(&get(row, x).py(), &Py::None).map(|t| t[..10].to_string()).unwrap_or_default();
+                        (d, -2)
+                    };
+                    let name = match &ukey {
+                        Some(k) => k.equip_name(get(row, st.upos)),
+                        None => st.name.clone(),
+                    };
+                    (b.unit(pi, &name, segs.clone(), st.range.clone()), day, idx)
+                });
+                if bu.as_ref().is_some_and(|(_, day, idx)| !st.start.is_empty() && !day.is_empty() && *idx < 0) {
+                    outside += 1;
                 }
                 let lk = if !st.lots_by.is_empty() {
                     let (x, y) = st.kpos;
@@ -1479,6 +1572,9 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
                                 accs.len() - 1
                             }
                         };
+                        if let (Some(b), Some((u, day, idx))) = (base.as_mut(), bu.as_ref()) {
+                            b.add(&accs[at].0, *u, day, *idx);
+                        }
                         let acc = &mut accs[at].1;
                         acc.count += 1;
                         if !st.lots_by.is_empty() && lots_on {
@@ -1543,11 +1639,16 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         }
     }
     let label_of = |dim: usize, id: u32| -> String { ids[dim].keys[id as usize].0.clone() };
+    let envs: Vec<capacity::Env> = match &base {
+        Some(b) => accs.iter().zip(&alive).filter(|(_, ok)| **ok).map(|((k, _), _)| b.env(k, &label_of)).collect(),
+        None => vec![],
+    };
     let mut out_cells: Vec<OutCell> = accs
         .iter()
         .zip(&alive)
         .filter(|(_, ok)| **ok)
-        .map(|((k, acc), _)| {
+        .enumerate()
+        .map(|(ci, ((k, acc), _))| {
             let (ra, cb) = (k[0] as usize, k[1] as usize);
             let r = k[2..2 + ra].iter().enumerate().map(|(i, id)| label_of(i, *id)).collect();
             let c = k[2 + ra..2 + ra + cb].iter().enumerate().map(|(i, id)| label_of(nr + i, *id)).collect();
@@ -1556,6 +1657,7 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
                 .enumerate()
                 .map(|(j, m)| {
                     aggregate::clean_cell(match m["agg"].as_str().unwrap_or("") {
+                        "base" => envs.get(ci).and_then(|e| e.get(m["base"].as_str().unwrap_or("")).copied().flatten()),
                         "count" => Some(N::I(acc.count)),
                         "lots" => Some(N::I(if lots_by.is_empty() { acc.count } else { acc.lots.len() as i64 })),
                         _ => acc.accs[j].value(m),
@@ -1567,7 +1669,13 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         .collect();
     let order_keys: Vec<Vec<String>> =
         orders.iter().enumerate().map(|(i, o)| o.iter().map(|&k| ids[i].keys[k].0.clone()).collect()).collect();
-    aggregate::apply_expr(&mut out_cells, &ms);
+    // 割る数のある値の、計算の前の総計（Python の pre）
+    let pre: Option<Vec<aggregate::Cell>> = if ms.iter().any(|m| m.get("per").and_then(Value::as_str).is_some_and(|s| !s.is_empty())) {
+        out_cells.iter().find(|x| x.r.is_empty() && x.c.is_empty()).map(|x| x.v.clone())
+    } else {
+        None
+    };
+    aggregate::apply_expr_env(&mut out_cells, &ms, &envs, &capacity::names_of(&own));
     aggregate::apply_show(&mut out_cells, &ms, nr, &order_keys);
     for x in out_cells.iter_mut() {
         for v in x.v.iter_mut() {
@@ -1607,6 +1715,15 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         "months": months.into_iter().collect::<Vec<_>>(), "month": month, "ignoredFilters": ignored.into_iter().collect::<Vec<_>>(),
         "equipIgnored": equip_ignored, "timing": {"server": t0.elapsed().as_millis() as u64},
     });
+    if let Some(b) = &base {
+        out["bases"] = bases_info(b, &own, &dims, nr, &states, a.now, &label_of);
+        if outside > 0 && capacity::NEED_SHIFT.iter().any(|x| b.fixed.contains(*x)) {
+            out["bases"]["outside"] = json!(outside);
+        }
+    }
+    if let Some(pre) = pre {
+        out["pre"] = json!(pre.iter().map(|v| v.map(N::json).unwrap_or(Value::Null)).collect::<Vec<_>>());
+    }
     if let Some(p) = &period {
         let name = if p.kind != "month" || ranges.is_empty() {
             PERIODS.iter().find(|(k, _)| *k == p.kind).map(|(_, n)| n.to_string()).unwrap_or_default()
@@ -1637,6 +1754,121 @@ pub fn query_many(parts: Vec<Part>, a: &Ask) -> R<Value> {
         out["skipped"] = json!(skipped);
     }
     Ok(out)
+}
+
+/// 足す設備を先に並べる（Python の _base_units）: 作業実績はファイルごとに 1 つ。設備の段の鍵も決める
+fn base_units(
+    b: &mut Cells,
+    states: &[State],
+    dims: &[Dim],
+    pick: &HashSet<String>,
+    groups: Option<&EquipGroups>,
+    gsets: &HashMap<String, EquipGroups>,
+    multi: bool,
+) {
+    let uk_dim = Dim::plain(EQUIP_DIM, "");
+    let none = HashMap::new();
+    for (pi, st) in states.iter().enumerate() {
+        let segs: Option<Vec<String>> = st.clock.as_ref().map(|c| c.segments.iter().map(|g| g.name.clone()).collect());
+        if !st.start.is_empty() || st.upos < 0 {
+            b.unit(pi, &st.name, segs, st.range.clone());
+        } else {
+            let ek = Keyer::new(&uk_dim, None, "work", st.equip.as_ref(), 0, false, None, &none);
+            for row in &st.data {
+                b.unit(pi, &ek.equip_name(get(row, st.upos)), segs.clone(), st.range.clone());
+            }
+        }
+    }
+    let eds = b.equip_dims.clone();
+    for u in b.units.iter_mut() {
+        let named = Equip::Name(u.name.clone());
+        for &i in &eds {
+            let g = if dims[i].column == EQUIP_DIM { groups } else { None };
+            let k = Keyer::new(&dims[i], None, "work", Some(&named), u.pi, multi, g, gsets);
+            u.ekeys.push(k.make(&Own::Text(u.name.clone()), &Own::None, &mut HashMap::new()).0);
+        }
+    }
+    b.hidden = b
+        .units
+        .iter()
+        .enumerate()
+        .filter(|(_, u)| (!pick.is_empty() && !pick.contains(&normalize_part(&u.name))) || groups.is_some_and(|g| !g.keeps(&u.name)))
+        .map(|(j, _)| j)
+        .collect();
+}
+
+/// 答えの基準の数の手がかり（Python の _bases_info）: 使った数・作った数・勤務体系の無い設備・途中の月
+fn bases_info(
+    b: &Cells,
+    own: &[OwnBase],
+    dims: &[Dim],
+    nr: usize,
+    states: &[State],
+    now: NaiveDateTime,
+    name_of: &dyn Fn(usize, u32) -> String,
+) -> Value {
+    let mut info = json!({
+        "fixed": capacity::FIXED.iter().filter(|x| b.fixed.contains(**x)).collect::<Vec<_>>(),
+        "own": own.iter().filter(|o| b.own.iter().any(|x| x.name == o.name)).map(|o| o.json.clone()).collect::<Vec<_>>(),
+    });
+    let no_shift: Vec<&str> = b.units.iter().filter(|u| u.spd == Some(0)).map(|u| u.name.as_str()).collect();
+    if !no_shift.is_empty() && capacity::NEED_SHIFT.iter().any(|x| b.fixed.contains(*x)) {
+        info["noShift"] = json!(no_shift);
+    }
+    let stamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
+    let ends: Vec<&String> = states.iter().filter_map(|s| s.range.as_ref().map(|r| &r.1)).collect();
+    let stop = if !ends.is_empty() {
+        ends.iter().map(|x| x.as_str()).max().unwrap_or("").to_string()
+    } else {
+        states
+            .iter()
+            .map(|s| {
+                let d = s.clock.as_ref().map(|c| c.place(&stamp, &s.basis).0).unwrap_or_default();
+                if d.is_empty() {
+                    ymd(now.date())
+                } else {
+                    d
+                }
+            })
+            .max()
+            .unwrap_or_default()
+    };
+    let begin = states.iter().filter_map(|s| s.range.as_ref().map(|r| r.0.clone())).min().unwrap_or_default();
+    let spans = b.spans();
+    let mut partial = Map::new();
+    for (i, d) in dims.iter().enumerate() {
+        if d.part != "ym" {
+            continue;
+        }
+        let mut got: std::collections::BTreeMap<String, (String, String)> = std::collections::BTreeMap::new();
+        for (k, (lo, hi)) in &spans {
+            let (ra, cb) = (k[0] as usize, k[1] as usize);
+            let key = if i < nr { (i < ra).then(|| name_of(i, k[2 + i])) } else { (i - nr < cb).then(|| name_of(i, k[2 + ra + i - nr])) };
+            let Some(key) = key.filter(|x| !x.is_empty()) else { continue };
+            let e = got.entry(key).or_insert_with(|| (lo.clone(), hi.clone()));
+            if *lo < e.0 {
+                e.0 = lo.clone();
+            }
+            if *hi > e.1 {
+                e.1 = hi.clone();
+            }
+        }
+        let mut keep = Map::new();
+        for (k, (lo, hi)) in got {
+            if let Some((a, z)) = capacity::key_span("ym", &k) {
+                if (a <= stop && stop < z) || (!begin.is_empty() && a < begin && begin <= z) {
+                    keep.insert(k, json!([lo, hi]));
+                }
+            }
+        }
+        if !keep.is_empty() {
+            partial.insert(i.to_string(), Value::Object(keep));
+        }
+    }
+    if !partial.is_empty() {
+        info["partial"] = Value::Object(partial);
+    }
+    info
 }
 
 // ------------------------------------------------------------------ カラムの札（版 3.99.0。Python の pivot.field_sets・merge_fields・fields）

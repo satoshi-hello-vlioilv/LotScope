@@ -37,8 +37,12 @@ LOTS, CNT = {"agg": "lots"}, {"agg": "count"}
 
 
 def pv(visual, source, rows=(), cols=(), measures=(LOTS,), **kw):
-    return {"id": "t1", "title": kw.pop("title", ""), "visual": visual, "source": source,
-            "body": {"rows": list(rows), "cols": list(cols), "measures": list(measures)}, **kw}
+    body = {"rows": list(rows), "cols": list(cols), "measures": list(measures)}
+    if "body_bases" in kw:
+        body["bases"] = kw.pop("body_bases")       # 作った基準の数（版 3.103.0）
+    if "body_sub" in kw:
+        body["sub"] = kw.pop("body_sub")
+    return {"id": "t1", "title": kw.pop("title", ""), "visual": visual, "source": source, "body": body, **kw}
 
 
 def side(source, key, measure=LOTS, **kw):
@@ -302,6 +306,40 @@ def cases(eq):
         ("確かめ 合わせた表 5 まとまり", {"visual": "board", "title": "表", "groups": [{"source": "lot"}] * 5}),
         ("確かめ 合わせた表 まとまりの形", {"visual": "board", "groups": [{"source": "lot"}, 3]}),
         ("確かめ 合わせた表 まとまりのデータ", {"visual": "board", "groups": [{"source": "lot", "title": "t"}, {"source": "y"}]}),
+    ]
+    # 基準の数（版 3.103.0。services/capacity.py）: 設備の実力（直あたり・日あたり・稼働率・月の稼働日数）
+    own = [{"name": "換算稼働日", "expr": "[稼働直]÷[1日の直数]", "each": True, "unit": "日"}, {"name": "稼働率", "expr": "[稼働直]÷[期間の直数]×100", "unit": "%"}]
+    cap = [{"agg": "base", "base": "稼働直"}, {"agg": "sum", "column": "重量", "expr": "÷1000", "per": "稼働直", "utext": "t/直", "hideExpr": True},
+           {"agg": "base", "base": "稼働率"}, {"agg": "lots", "per": "換算稼働日"}, {"agg": "base", "base": "期間の直数"}, {"agg": "base", "base": "1日の直数"}]
+    d14 = {"column": "@workday", "kind": "days", "n": 14}
+    out += [
+        ("基準の数 設備の実力（直近 14 日）", pv("none", "work", rows=[D("@equip")], measures=cap, period=d14, body_bases=own)),
+        ("基準の数 月の稼働日数（期間なし）", pv("none", "work", rows=[D("@equip")], cols=[D("@workday", "ym")],
+                                         measures=[{"agg": "base", "base": "換算稼働日", "dec": 1}, {"agg": "base", "base": "稼働率"}], body_bases=own)),
+        ("基準の数 日あたり重量の推移", pv("time", "work", rows=[D("@workday")], measures=[{"agg": "sum", "column": "重量", "expr": "÷1000", "per": "換算稼働日"}],
+                                    period=d14, body_bases=own)),
+        ("基準の数 直の段", pv("none", "work", rows=[D("@equip"), D("@shift")], measures=[{"agg": "base", "base": "稼働直"}, {"agg": "base", "base": "期間の直数"}],
+                             period=d14, body_bases=own)),
+        ("基準の数 設備グループ・小計", pv("none", "work", rows=[D("@egroup", "ライン別"), D("@equip")], measures=cap[:3], period=d14, body_bases=own,
+                                     **{"body_sub": True})),
+        ("基準の数 合算（選んだ設備）", pv("kpi", "work", measures=cap[:3], equips=sel, esplit="sum", period=d14, body_bases=own)),
+        ("基準の数 重ねる（設備ごとの系列）", pv("line", "work", rows=[D("@workday")], measures=[{"agg": "base", "base": "稼働率"}], equips=["CAL", "CR2"],
+                                          period=d14, body_bases=own)),
+        ("基準の数 並べる（設備ごとの表）", pv("bar", "work", rows=[D("@workday")], measures=[{"agg": "lots", "per": "稼働直"}], equips=["CAL", "CR2"],
+                                        esplit="facet", period=d14, body_bases=own)),
+        ("基準の数 式の中の名前と表し方", pv("none", "work", rows=[D("@equip")],
+                                       measures=[{"agg": "sum", "column": "重量", "expr": "÷1000÷[換算稼働日]"}, {"agg": "base", "base": "稼働直", "show": "pct_total"}],
+                                       period=d14, body_bases=own)),
+        ("基準の数 品質（日付の列の稼働日）", pv("none", "lot", rows=[D("合金")], measures=[CNT, {"agg": "base", "base": "稼働日"}, {"agg": "lots", "per": "稼働日"}],
+                                          period={"column": "発生日", "kind": "days", "n": 30})),
+        ("基準の数 品質で稼働直（使えない）", pv("none", "lot", rows=[D("発生日", "ym")], measures=[{"agg": "base", "base": "稼働直"}])),
+        ("基準の数 品質で日付の列が無い", pv("none", "lot", rows=[D("合金")], measures=[{"agg": "base", "base": "稼働日"}])),
+        ("基準の数 品質の設備の列", pv("none", "lot", rows=[D("@equip")], measures=[{"agg": "base", "base": "稼働日"}, {"agg": "base", "base": "期間の日数"}],
+                                  period={"column": "発生日", "kind": "this_month"})),
+        ("基準の数 作った数を値に（期間を作業月で切る）", pv("none", "work", rows=[D("@workday", "ym")],
+                                                 measures=[{"agg": "base", "base": "期間の日数"}, {"agg": "base", "base": "稼働率"}, {"agg": "base", "base": "換算稼働日"}],
+                                                 period={"column": "@workday", "kind": "days", "n": 45}, body_bases=own)),
+        ("基準の数 無い作った数で割る（割らずに残す）", pv("none", "work", rows=[D("@equip")], measures=[{"agg": "lots", "per": "稼働率"}], period=d14)),
     ]
     out += order_cases()
     out += boundaries(eq)

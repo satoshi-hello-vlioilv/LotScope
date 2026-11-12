@@ -17,17 +17,28 @@
   const DECS = [[null, "自動", "数に合わせて書きます"], [0, "整数", "小数を書きません"], [1, "1桁", "小数 1 桁（例 972.4）"], [2, "2桁", "小数 2 桁（例 972.37）"], [3, "3桁", "小数 3 桁（例 972.365）"]];
   const raws = new Map();          // 値の鍵（計算を除いた形）→ 計算の無い総計
   // 値の鍵は中身（集計・列・決める数）だけ。サーバーの答えの値は名前など余分な物を持つので、形をそろえる
-  const keyOf = (m) => [m.agg || "", m.column || "", m.p ?? "", m.lsl ?? "", m.usl ?? ""].join("\u001f");
+  const keyOf = (m) => [m.agg || "", m.column || "", m.p ?? "", m.lsl ?? "", m.usl ?? "", m.base || ""].join("\u001f");
   const grandOf = (d, j) => { const c = d && d.cells && d.cells.find((x) => !x.r.length && !x.c.length); return c && typeof c.v[j] === "number" ? c.v[j] : null; };
   /** 答えを見て、計算の無い値の総計を覚える（表し方〈割合など〉の付いた値は覚えない） */
   function remember(d, measures) {
-    (measures || []).forEach((m, j) => { if (!m.expr && !m.show) { const v = grandOf(d, j); if (v != null) raws.set(keyOf(m), v); } });
+    (measures || []).forEach((m, j) => { if (!m.expr && !m.show && !m.per) { const v = grandOf(d, j); if (v != null) raws.set(keyOf(m), v); } });
   }
   /** 変わり方の字（HTML）。num(v, m) → 数の字（値の桁〈dec〉で書く） */
-  function prevHtml(m, j, d, num) {
-    if (!m.expr) return "";
-    const ex = N() ? N().expr(m.expr) : { fn: null };
-    const raw = m.show ? null : raws.get(keyOf(m));
+  function prevHtml(m, j, d, num, names) {
+    if (!m.expr && !m.per) return "";
+    const ex = m.expr && N() ? N().expr(m.expr, { names }) : { fn: (x) => x };
+    if (m.per) {
+      // 割る数（版 3.103.0）: 計算の前 → 割った後（表の総計と同じ数と単位。例 1,620.2t → 7.4t/直）。前の単位は「/直」を外した字
+      // 計算の前の総計はサーバーの答えの pre（割る前・計算の前の総計。無ければ覚えた総計）
+      const pre = d && Array.isArray(d.pre) && typeof d.pre[j] === "number" ? d.pre[j] : null;
+      const raw0 = m.show ? null : pre ?? raws.get(keyOf(m)), before = raw0 != null && ex.fn ? ex.fn(raw0, {}) : null, after = grandOf(d, j);
+      // 前の数は前の数の自然な桁（後の桁〈本/直の 2 桁〉を当てない。作った後の採点: 322.00本）・単位は「/直」を外した字
+      const bare = { ...m, dec: undefined, utext: m.utext == null ? undefined : String(m.utext).replace(/\/.*$/, "") };
+      if (after == null) return "";
+      return before != null ? `<span class="pc-prev" title="総計: 計算の前 → 割った後">${esc(num(before, bare))}<i aria-hidden="true">→</i>${esc(num(after, m))}</span>`
+        : `<span class="pc-prev" title="割った後の総計">計 ${esc(num(after, m))}</span>`;
+    }
+    const raw = m.show || /[[［]/.test(m.expr) ? null : raws.get(keyOf(m));     // 基準の数を読む式（［稼働直］）はセルごとに違うので、後の総計だけ
     if (raw != null && ex.fn) { const to = ex.fn(raw); return `<span class="pc-prev" title="総計: 計算の前 → 後">${esc(num(raw, { ...m, dec: undefined }))}<i aria-hidden="true">→</i>${to == null ? "–" : esc(num(to, m))}</span>`; }
     const after = grandOf(d, j);
     return after != null ? `<span class="pc-prev" title="計算した後の総計">計 ${esc(num(after, m))}</span>` : "";
@@ -37,10 +48,10 @@
     const ms = measures || [];
     if (!ms.length) return "";
     const one = (m, j) => {
-      const ex = m.expr && N() ? N().expr(m.expr) : { error: "" };
+      const ex = m.expr && N() ? N().expr(m.expr, { names: opt.names }) : { error: "" };
       return `<span class="pc-item" data-pc-i="${j}"><span class="pc-name">${esc(opt.name(m))}</span>`
         + `<input class="pc-in${ex.error ? " is-bad" : ""}" data-pc-in="${j}" value="${esc(m.expr || "")}" maxlength="60" spellcheck="false" autocomplete="off" placeholder="例: ÷1000" aria-label="「${esc(opt.name(m))}」の計算（四則演算）">`
-        + `<span class="pc-out" data-pc-out="${j}">${ex.error ? `<em class="pc-bad">${esc(ex.error)}</em>` : prevHtml(m, j, opt.answer, opt.num)}</span>`
+        + `<span class="pc-out" data-pc-out="${j}">${ex.error ? `<em class="pc-bad">${esc(ex.error)}</em>` : prevHtml(m, j, opt.answer, opt.num, opt.names)}</span>`
         + `<span class="pc-qs">${QUICK.map((q) => `<button type="button" class="pc-q${cur(m) === q ? " on" : ""}" data-pc-q="${esc(q)}" data-pc-qi="${j}" title="「${esc(opt.name(m))}」を ${q} にする（もう一度押すと外す）">${q}</button>`).join("")}</span>`
         // 狭い所の畳んだ形（CSS の @container で、札の代わりに出す）。当てている計算は選んだ字で見える
         + `<select class="pc-more" data-pc-qsel="${j}" aria-label="「${esc(opt.name(m))}」のよく使う計算" title="よく使う計算">`
@@ -48,6 +59,8 @@
         + `<span class="pc-dg"><span class="pc-div" aria-hidden="true"></span><span class="pc-l">小数</span>`
         + `<span class="pc-dec" role="radiogroup" aria-label="「${esc(opt.name(m))}」の小数の桁">${DECS.map(([k, t, tip]) => { const on = (m.dec ?? null) === k;
           return `<button type="button" role="radio" aria-checked="${on}" class="${on ? "on" : ""}" data-pc-dec="${k ?? ""}" data-pc-di="${j}" title="${tip}">${t}</button>`; }).join("")}</span></span>`
+        // 割る数の札（版 3.103.0。ダッシュボードの組む所）: 小数の札の後ろ・単位の前（割る数 → 単位の順。作った後の採点: 前→後の後ろに置くと値の行が 1 段増えた）
+        + (opt.per ? opt.per(m, j) : "")
         + (opt.units ? unitHtml(m, j, opt) : "") + "</span>";
     };
     const exprs = ms.filter((m) => m.expr).length;

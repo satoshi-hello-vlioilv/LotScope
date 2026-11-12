@@ -8,6 +8,7 @@
 //!     種類     … distinct（種類の数。空欄は数えない）
 //! 表し方（show）: pct_total・pct_row・pct_col・cum・diff・rank（数え終えたセルの値から決める apply_show）。
 //! 計算（expr）: 数え終えたセルの値に四則演算を当てる（src/num_expr.rs）。表し方は計算した後の値から決める。
+//! 基準の数（版 3.103.0。src/capacity.rs）: agg "base"（その基準の数を値に）・per（計算の後に セルの値 ÷ セルの基準の数）・式の ［名前］。
 //! 数は Python と同じく整数（件数・ロット数・個数・種類の数・順位）と小数を分けて持つ（JSON の 1 と 1.0 も同じに書く）。
 
 use crate::num_expr;
@@ -25,7 +26,12 @@ const DEC_MAX: f64 = 6.0;
 const UTEXT_MAX: usize = 12;
 
 pub fn is_agg(a: &str) -> bool {
-    [COUNTS, SIMPLE, SPREAD, ORDERED, KINDS].iter().any(|g| g.contains(&a))
+    [COUNTS, SIMPLE, SPREAD, ORDERED, KINDS, &["base"]].iter().any(|g| g.contains(&a))
+}
+
+/// 列の要らない値（Python の NOCOL）
+fn nocol(a: &str) -> bool {
+    COUNTS.contains(&a) || a == "base"
 }
 
 fn label(agg: &str) -> &'static str {
@@ -167,6 +173,11 @@ fn num_of(v: Option<&Value>) -> Option<f64> {
 
 /// 画面から来た値 → 確かめた値（Python の aggregate.clean と同じ。合わなければ理由の字）。has_column(列) → その列があるか
 pub fn clean(m: &Map<String, Value>, has_column: &dyn Fn(&str) -> bool) -> Result<Map<String, Value>, String> {
+    clean_with(m, has_column, &crate::capacity::names_of(&[]))
+}
+
+/// names … 使える基準の数の名前（版 3.103.0。決まった数＋そのパネルの作った数）
+pub fn clean_with(m: &Map<String, Value>, has_column: &dyn Fn(&str) -> bool, names: &[String]) -> Result<Map<String, Value>, String> {
     let s = |k: &str| match m.get(k) {
         Some(Value::Null) | None => String::new(),
         Some(v) if !crate::lotlist::json_truthy(v) => String::new(),
@@ -180,13 +191,20 @@ pub fn clean(m: &Map<String, Value>, has_column: &dyn Fn(&str) -> bool) -> Resul
     if !is_agg(&agg) {
         agg = "count".into();
     }
-    let col = if COUNTS.contains(&agg.as_str()) { String::new() } else { s("column") };
-    if !COUNTS.contains(&agg.as_str()) && !has_column(&col) {
+    let col = if nocol(&agg) { String::new() } else { s("column") };
+    if !nocol(&agg) && !has_column(&col) {
         return Err(format!("値の列「{col}」がありません。"));
     }
     let mut out = Map::new();
     out.insert("agg".into(), json!(agg));
     out.insert("column".into(), json!(col));
+    if agg == "base" {
+        let b = crate::pyfmt::strip(&s("base")).to_string();
+        if !names.contains(&b) {
+            return Err(format!("基準の数「{b}」がありません。"));
+        }
+        out.insert("base".into(), json!(b));
+    }
     if agg == "pct" {
         let p = num_of(m.get("p"));
         out.insert("p".into(), json!(p.map(|p| (p.round_ties_even() as i64).clamp(1, 99)).unwrap_or(90)));
@@ -213,10 +231,19 @@ pub fn clean(m: &Map<String, Value>, has_column: &dyn Fn(&str) -> bool) -> Resul
     }
     let expr: String = crate::pyfmt::strip(&s("expr")).chars().take(EXPR_MAX).collect();
     if !expr.is_empty() {
-        if let Err(e) = num_expr::compile(&expr) {
+        if let Err(e) = num_expr::compile_with(&expr, Some(names), true) {
             return Err(format!("「{}」の計算「{expr}」が読めません（{e}）。", name(&out)));
         }
         out.insert("expr".into(), json!(expr));
+    }
+    if let Some(Value::String(per)) = m.get("per") {
+        let per = crate::pyfmt::strip(per);
+        if !per.is_empty() {
+            if !names.iter().any(|n| n == per) {
+                return Err(format!("「{}」を割る基準の数「{per}」がありません。", name(&out)));
+            }
+            out.insert("per".into(), json!(per));
+        }
     }
     if let Some(d) = num_of(m.get("dec")) {
         out.insert("dec".into(), json!(d.round_ties_even().clamp(0.0, DEC_MAX) as i64));
@@ -235,18 +262,22 @@ fn ms(m: &Map<String, Value>, k: &str) -> String {
     m.get(k).and_then(Value::as_str).unwrap_or("").to_string()
 }
 
-/// 計算の見せ方（÷1000 → 値÷1000）
+/// 計算の見せ方（÷1000 → 値÷1000・÷[稼働直] → 値÷[稼働直]。Python の expr_text）
 pub fn expr_text(expr: &str) -> String {
-    match num_expr::compile(expr) {
-        Ok(Some(e)) if !e.text.is_empty() => e.text,
-        _ => expr.to_string(),
+    let t = num_expr::show_text(expr);
+    if t.is_empty() {
+        expr.to_string()
+    } else {
+        t
     }
 }
 
 /// 値の見せる名前（件数・ロット数・〇〇の平均・〇〇の90%点・〇〇の平均（累計））
 pub fn name(m: &Map<String, Value>) -> String {
     let agg = ms(m, "agg");
-    let base = if COUNTS.contains(&agg.as_str()) {
+    let base = if agg == "base" {
+        ms(m, "base")
+    } else if COUNTS.contains(&agg.as_str()) {
         label(&agg).to_string()
     } else {
         let p = if agg == "pct" { m.get("p").map(|p| p.to_string()).unwrap_or_default() } else { String::new() };
@@ -254,10 +285,22 @@ pub fn name(m: &Map<String, Value>) -> String {
     };
     let show = ms(m, "show");
     let expr = ms(m, "expr");
+    let per = ms(m, "per");
+    let calc = format!(
+        "{}{}",
+        if !expr.is_empty() {
+            expr_text(&expr)
+        } else if !per.is_empty() {
+            "値".into()
+        } else {
+            String::new()
+        },
+        if per.is_empty() { String::new() } else { format!("÷{per}") }
+    );
     format!(
         "{base}{}{}",
         if show.is_empty() { String::new() } else { format!("（{}）", show_label(&show)) },
-        if expr.is_empty() { String::new() } else { format!("［{}］", expr_text(&expr)) }
+        if calc.is_empty() { String::new() } else { format!("［{calc}］") }
     )
 }
 
@@ -423,18 +466,45 @@ pub struct OutCell {
 
 /// 計算（expr）を当てる。数でない値はそのまま
 pub fn apply_expr(cells: &mut [OutCell], measures: &[Map<String, Value>]) {
-    let fns: Vec<(usize, num_expr::Expr)> = measures
+    apply_expr_env(cells, measures, &[], &crate::capacity::names_of(&[]));
+}
+
+/// 計算と割る数（版 3.103.0。Python の apply_expr の env_of）。envs … セルごとの基準の数（cells と同じ並び。空なら基準の数なし）
+pub fn apply_expr_env(cells: &mut [OutCell], measures: &[Map<String, Value>], envs: &[crate::capacity::Env], names: &[String]) {
+    let fns: Vec<(usize, Option<num_expr::Expr>, String)> = measures
         .iter()
         .enumerate()
-        .filter_map(|(j, m)| m.get("expr").and_then(Value::as_str).and_then(|e| num_expr::compile(e).ok().flatten()).map(|e| (j, e)))
+        .map(|(j, m)| {
+            let f = m.get("expr").and_then(Value::as_str).and_then(|e| num_expr::compile_with(e, Some(names), true).ok().flatten());
+            (j, f, m.get("per").and_then(Value::as_str).unwrap_or("").to_string())
+        })
+        .filter(|(_, f, per)| f.is_some() || !per.is_empty())
         .collect();
     if fns.is_empty() {
         return;
     }
-    for x in cells.iter_mut() {
-        for (j, f) in &fns {
-            if let Some(v) = x.v[*j] {
-                x.v[*j] = f.apply(v.f()).map(N::F);
+    let none = crate::capacity::Env::new();
+    for (i, x) in cells.iter_mut().enumerate() {
+        let env = envs.get(i).unwrap_or(&none);
+        let look = |k: &str| env.get(k).copied().flatten().map(N::f);
+        for (j, f, per) in &fns {
+            let Some(mut v) = x.v[*j] else { continue };
+            if let Some(f) = f {
+                match f.apply_env(v.f(), &look) {
+                    Some(r) => v = N::F(r),
+                    None => {
+                        x.v[*j] = None;
+                        continue;
+                    }
+                }
+            }
+            if !per.is_empty() {
+                x.v[*j] = match env.get(per.as_str()).copied().flatten() {
+                    Some(d) if d.f() != 0.0 => Some(N::F(v.f() / d.f())),
+                    _ => None,
+                };
+            } else {
+                x.v[*j] = Some(v);
             }
         }
     }

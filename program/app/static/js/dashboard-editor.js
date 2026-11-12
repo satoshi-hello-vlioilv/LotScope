@@ -273,7 +273,7 @@
 
   /* ---- 変える（変えるたびに host.onChange でグリッドのパネルを描き直す） ---- */
   function changed(repaintFields = true) {
-    syncCalc(); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
+    syncCalc(); if (p && !parts()) syncBases(p); pushGroup(); host.onChange(TPA.clone(p)); paint(repaintFields);
     const sm = $("#deNumSample"); if (sm) sm.innerHTML = numSample(p.fmt || {});   // 打っている欄があって書式の欄を描き直さないときも、見本は今の書式で
     syncUnit();
     const sum = $("#dbEditor .de-fmthead small"); if (sum) sum.innerHTML = fmtSummary(p.fmt || {});   // 見出しの要約も（作った後の採点: 後ろに「本」を入れても要約が変わらなかった）
@@ -623,6 +623,10 @@
   }
   /** 値の札: 名前・集計のしかた（よく使う／統計／種類。数でない列は種類の数だけ）・決める数（p%点の p・Cpk の規格）・表し方（割合・累計など） */
   function measChip(m, i) {
+    if (m.agg === "base") {      // 基準の数を値にした物（灰の札。版 3.103.0）
+      const b = baseOf(m.base) || { how: "" }, show = `<select class="de-show" data-de-show="${i}" aria-label="表し方" title="表し方（割合・累計・前との差・順位）">${C.SHOWS.map(([k, n]) => `<option value="${k}"${(m.show || "") === k ? " selected" : ""}>${k ? n : "表し方"}</option>`).join("")}</select>`;
+      return `<span class="pv-chip v is-base"${DND.chipAttrs("vals", i, !inGroup())} title="基準の数: ${esc(b.how)}"><b>${esc(m.base)}</b>${show}${inGroup() ? "" : `<button type="button" data-de-mx="${i}" aria-label="「${esc(m.base)}」を外す">×</button>`}</span>`;
+    }
     const num = m.column && isNum(m.column), grp = { basic: "よく使う", stat: "統計", kind: "種類" };
     const opts = (g) => C.AGGS.filter((a) => a.g === g && (num || a.any)).map((a) => `<option value="${a.k}"${m.agg === a.k ? " selected" : ""} title="${esc(a.tip || "")}">${a.n}</option>`).join("");
     const sel = m.agg === "count" || m.agg === "lots" ? "" : `<select data-de-agg="${i}" aria-label="集計のしかた">${Object.entries(grp).map(([g, n]) => { const o = opts(g); return o ? `<optgroup label="${n}">${o}</optgroup>` : ""; }).join("")}</select>`;
@@ -712,14 +716,260 @@
   }
   /** 行と列を入れ替える札（版 3.50.0。一覧の集計表と同じ。合わせた表のまとまり・合わせるデータ・数字には無い） */
   const swapBtn = () => (inGroup() ? "" : `<button type="button" class="pv-swap" aria-label="行と列を入れ替える" data-de-swap${t.body.cols.length ? "" : " disabled"} title="${t.body.cols.length ? "行の段と列の段を入れ替えます" : "列に段を入れると、行と入れ替えられます"}"><i aria-hidden="true">⇄</i><span class="pv-swl">入れ替え</span></button>`);
+  /* ---- 基準の数（版 3.103.0。利用者の要望 2026-11-12: 直単位・日単位の実績など設備の実力を見る計算。2026-11-capacity の 2 回目で決めた I＋H）。
+     決め方はサーバーの services/capacity.py（窓は capacity.rs）。画面は打たずに選ぶ: 値ごとの「÷ 基準 ▾」（割る数）・値の段の「＋ 基準の数を値に ▾」・
+     ② の頭の見本 4 枚（押すと行・値・割る数・並べ方が入る。あとはふつうに直せる）。作った数（換算稼働日・稼働率など）はダッシュボードで共通（layout.bases）、
+     パネルは使う物の写しを body.bases に持つ（ほかのダッシュボードへ貼ってもそのまま数えられる） ---- */
+  const BASE_FIXED = [["稼働直", "実績のある直の数（作業日×直）", "直"], ["稼働日", "実績のある作業日の数", "日"], ["1日の直数", "勤務体系の直の数", "直"],
+    ["期間の日数", "期間の日数（期間なしはセルの初日〜末日）", "日"], ["期間の直数", "期間の日数×1日の直数", "直"]];
+  const BASE_SHIFT = new Set(["稼働直", "1日の直数", "期間の直数"]);
+  const OWN_DEFAULT = [{ name: "換算稼働日", expr: "[稼働直]÷[1日の直数]", each: true, unit: "日" }, { name: "稼働率", expr: "[稼働直]÷[期間の直数]×100", unit: "%" }];
+  const ownList = () => { const b = host && host.bases ? host.bases() : null; return Array.isArray(b) ? b : OWN_DEFAULT; };
+  const baseNames = () => BASE_FIXED.map((x) => x[0]).concat(ownList().map((b) => b.name));
+  const baseOf = (name) => { const f = BASE_FIXED.find((x) => x[0] === name); if (f) return { name, how: f[1], unit: f[2], fixed: true };
+    const o = ownList().find((b) => b.name === name); return o ? { name, how: (N.showText ? N.showText(o.expr) : o.expr).replace(/\[|\]/g, "") + (o.each ? "（設備ごとに足す）" : ""), unit: o.unit || "", own: o } : null; };
+  const varsOf = (src) => [...String(src || "").replace(/［/g, "[").replace(/］/g, "]").matchAll(/\[([^[\]]*)\]/g)].map((x) => x[1].trim());
+  /** 値が使う作った数の名前（割る数・基準の数の値・式の［名前］） */
+  const ownUsed = (ms) => { const own = new Set(ownList().map((b) => b.name)), out = new Set();
+    (ms || []).forEach((m) => [m.per, m.agg === "base" ? m.base : "", ...varsOf(m.expr)].forEach((n) => { if (n && own.has(n)) out.add(n); })); return out; };
+  /** パネルの body.bases を、使う作った数の写しにそろえる（使わなければ持たない） */
+  function syncBases(x, list) {
+    const b = x && x.body; if (!b || x.visual === "board" || x.link) return;
+    const used = ownUsed(b.measures), own = (list || ownList()).filter((o) => used.has(o.name)).map((o) => ({ ...o }));
+    if (own.length) b.bases = own; else delete b.bases;
+  }
+  const baseOk = () => !inGroup() && !inSide() && !isOps(p) && !isBoard() && !isLink();
+  /** 割る数の札（値の計算の段の前→後の後ろ）。基準の数の値（灰の札）には出さない */
+  function perHtml(m, j) {
+    if (!baseOk() || m.agg === "base") return "";
+    const on = m.per || "";
+    return `<button type="button" class="pc-per${on ? " on" : ""}" data-de-per="${j}" aria-haspopup="listbox" aria-expanded="${perPop && perPop.i === j}" title="この値を割る数（あたり）。押すと基準の数から選べます">`
+      + `<span aria-hidden="true">÷</span><b>${esc(on || "基準")}</b><span aria-hidden="true">▾</span></button>`;
+  }
+  // 割る数の面・基準の数を値にする面（頁の上に出す。組む所の縁で切れない）。i … 値の番号（-1 は値として足す）
+  let perPop = null, baseNums = { key: "", rows: null, ex: "", busy: false }, ownEdit = null;
+  const numKey = () => JSON.stringify([p && p.source, p && p.equips, p && p.filters, p && p.search, p && p.period, p && p.basis, ownList()]);
+  /** 基準の数ごとの「例（いちばん上の設備）」と総計（同じデータ・期間・条件で、行＝設備） */
+  async function loadBaseNums() {
+    const key = numKey(); if (baseNums.key === key && (baseNums.rows || baseNums.busy)) return;
+    baseNums = { key, rows: null, ex: "", busy: true, err: "" };
+    const names = baseNames().filter((n) => isWork() || !BASE_SHIFT.has(n) && !(baseOf(n).own && varsOf(baseOf(n).own.expr).some((v) => BASE_SHIFT.has(v))));
+    const rows = {}; let ex = "";
+    try {
+      for (let k = 0; k < names.length; k += 6) {
+        const part = names.slice(k, k + 6);
+        const q = { ...TPA.clone(p), id: "capnums", visual: "none", body: { rows: isWork() ? [{ column: "@equip", part: "" }] : [], cols: [], grand: true,
+          measures: part.map((n) => ({ agg: "base", base: n })), bases: ownList() } };
+        delete q.link; delete q.groups; delete q.esplit;
+        const d = await (await fetch("/api/dashboard/query", TPA.json("POST", { panel: q }))).json();
+        if (!d.cells) { baseNums.err = d.error || ""; break; }
+        const first = (d.orders && d.orders[0] || [])[0];
+        if (first != null) ex = (d.labels && d.labels[0] && d.labels[0][first]) || first;
+        const tot = d.cells.find((c) => !c.r.length && !c.c.length), one = first != null ? d.cells.find((c) => c.r.length === 1 && c.r[0] === first && !c.c.length) : null;
+        part.forEach((n, i) => { rows[n] = [one ? one.v[i] : null, tot ? tot.v[i] : null]; });
+      }
+    } catch (_) { /* 数が無くても面は使える */ }
+    if (baseNums.key !== key) return;
+    baseNums = { ...baseNums, rows, ex, busy: false };
+    paintPop();
+  }
+  const fmtBase = (v, name) => (v == null ? "–" : v.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) + ((baseOf(name) || {}).unit === "%" ? "%" : ""));
+  function popHtml() {
+    if (!perPop) return "";
+    const i = perPop.i, m = i >= 0 ? t.body.measures[i] : null;
+    if (ownEdit) return ownFormHtml();
+    const sel = m ? m.per || "" : "", rows = baseNums.rows || {}, work = isWork();
+    const have = new Set(m ? [] : t.body.measures.filter((x) => x.agg === "base").map((x) => x.base));     // 値にある基準の数（足す面だけ。押せない）
+    const item = (n) => { const b = baseOf(n), off = !work && (BASE_SHIFT.has(n) || (b.own && varsOf(b.own.expr).some((v) => BASE_SHIFT.has(v)))), r = rows[n] || [], had = have.has(n);
+      return `<button type="button" class="cp-it${n === sel ? " on" : ""}${had ? " is-have" : ""}" role="option" aria-selected="${n === sel}" aria-disabled="${!!(off || had)}" data-cp-pick="${esc(n)}"`
+        + `${off ? ' disabled title="このデータは作業日・直が分からないので使えません（作業実績で使えます）"' : had ? ' disabled title="もう値にあります（外すときは値の札の ×）"' : ""}>`
+        + `<i aria-hidden="true"></i><span><b>${esc(n)}${had ? '<span class="cp-have">値にあります</span>' : ""}</b><small>${esc(b.how)}</small></span><em>${off ? "–" : esc(fmtBase(r[0], n))}</em><em>${off ? "–" : esc(fmtBase(r[1], n))}</em>`
+        + (b.own ? `<span class="cp-ed" role="button" tabindex="0" data-cp-edit="${esc(n)}" title="「${esc(n)}」の決め方を直す（このダッシュボードで共通）" aria-label="「${esc(n)}」を直す">✎</span>` : "<span></span>") + "</button>"; };
+    const title = m ? `「${P.measName({ ...m, expr: undefined, per: undefined })}」を割る数（あたり）` : "基準の数を値に（表の列として足す）";
+    const ex = baseNums.ex ? `例 ${baseNums.ex}` : "例";
+    return `<div class="cp-head"><button type="button" class="cp-back" data-cp-close title="閉じて、値の計算の段へ戻る（Esc）">← 戻る</button><b>${esc(title)}</b></div>`
+      + `<div class="cp-hd"><i></i><span>基準の数（行ごとに数える）</span><span>${esc(ex)}</span><span>総計</span><span></span></div>`
+      + BASE_FIXED.map((x) => item(x[0])).join("")
+      + `<div class="cp-sec">作った数（このダッシュボードで共通）</div>` + ownList().map((b) => item(b.name)).join("")
+      + (baseNums.busy ? '<p class="cp-note">数を数えています…</p>' : baseNums.err ? `<p class="cp-note">${esc(baseNums.err)}</p>` : "")
+      + `<div class="cp-ft">${m ? `<button type="button" data-cp-pick=""${sel ? "" : " disabled"}>なし（割らない）</button>` : "<span></span>"}<button type="button" data-cp-new>＋ 基準の数を作る…</button></div>`;
+  }
+  function ownFormHtml() {
+    const o = ownEdit, ex = o.expr ? N.expr(o.expr, { names: BASE_FIXED.map((x) => x[0]), base: true }) : { error: "" };
+    return `<div class="cp-head"><button type="button" class="cp-back" data-cp-back title="基準の数の並びへ戻る">← 戻る</button><b>${o.was ? `「${esc(o.was)}」を直す` : "基準の数を作る"}</b></div>`
+      + `<div class="cp-form"><label>名前<input data-cp-oname value="${esc(o.name || "")}" maxlength="16" placeholder="例: 換算稼働日" autocomplete="off"></label>`
+      + `<label>式<input data-cp-oexpr value="${esc(o.expr || "")}" maxlength="60" placeholder="例: [稼働直]÷[1日の直数]" autocomplete="off" spellcheck="false"></label>`
+      + `<span class="cp-ins">${BASE_FIXED.map((x) => `<button type="button" data-cp-ins="${esc(x[0])}" title="${esc(x[1])}">${esc(x[0])}</button>`).join("")}</span>`
+      + `<label class="cp-ck"><input type="checkbox" data-cp-oeach${o.each ? " checked" : ""}>設備ごとに計算して足す（総計・設備グループ）</label>`
+      + `<label>単位<input data-cp-ounit value="${esc(o.unit || "")}" maxlength="6" placeholder="例: 日・%" autocomplete="off"></label>`
+      + `<p class="cp-note${ex.error ? " is-bad" : ""}" data-cp-omsg>${esc(ex.error || "式は決まった数（［稼働直］など）と ＋ − × ÷ で書きます。設備ごとに足さない式は、セルの数（総計は全設備の和）で計算します")}</p></div>`
+      + `<div class="cp-ft"><button type="button" data-cp-back>戻る</button><button type="button" class="btn-primary" data-cp-osave>${o.was ? "直す" : "作る"}</button></div>`;
+  }
+  function paintPop() {
+    let el = document.getElementById("dePerPop");
+    if (!perPop) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement("div"); el.id = "dePerPop"; el.className = "cp-pop"; el.setAttribute("role", "dialog"); document.body.append(el); bindPop(el); }
+    const keep = document.activeElement && el.contains(document.activeElement) && document.activeElement.matches("input") ? [document.activeElement.dataset, document.activeElement.selectionStart] : null;
+    const ae = document.activeElement, pick = ae && el.contains(ae) && ae.dataset && ae.dataset.cpPick != null ? ae.dataset.cpPick : null;    // 数が届いて描き直しても、焦点の項目を保つ
+    el.innerHTML = popHtml();
+    if (pick != null) { const b = [...el.querySelectorAll("[data-cp-pick]")].find((x) => x.dataset.cpPick === pick); if (b) b.focus({ preventScroll: true }); }
+    if (keep) { const a = el.querySelector(Object.keys(keep[0]).map((k) => `[data-${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}]`).join("")); if (a) { a.focus(); try { a.setSelectionRange(keep[1], keep[1]); } catch (_) { /* 選べない欄 */ } } }
+    placePop(el);
+  }
+  /** 置き場: 札の下（入らなければ、組む所の左〈カラムの欄の上〉に札の高さで）。当てるボタン・題の欄・値の札を覆わない（採点の指摘 8） */
+  /** 面の置き場（作った後の採点 3 回目で 1 つの決まりに作り直した）: 割る数の面も足す面も、組む所の右の欄（上のタブの下の端から組む所の下の端まで）に
+      幅と高さいっぱいに重ねる「引き出し」。組む所も右の欄も送らない（閉じれば欄は開く前のまま）。組むパネル・当てる・やめる・題の欄・カラムの欄は覆わない。
+      題が押した値を言うので、選ぶ間は右の欄の中身（値の札など）が隠れてよい */
+  function placePop(el) {
+    const ed = $("#dbEditor"), main = ed && ed.querySelector(".de-main"), tabs = ed && ed.querySelector(".de-ptabs");
+    if (!main) return;
+    const mr = main.getBoundingClientRect(), er = ed.getBoundingClientRect(), top = tabs ? tabs.getBoundingClientRect().bottom : mr.top;
+    const bottom = Math.min(mr.bottom, er.bottom, innerHeight);
+    Object.assign(el.style, { left: `${mr.left}px`, top: `${top}px`, width: `${main.clientWidth}px`, height: `${Math.max(120, bottom - top)}px`, maxHeight: "none" });
+    el.dataset.side = "drawer";
+  }
+  function openPop(i) {
+    if (perPop && perPop.i === i) { closePop(); return; }
+    perPop = { i }; ownEdit = null; paintPop(); loadBaseNums();
+    const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", String(+b.dataset.dePer === i)));
+    // 焦点は面の中へ（選んでいる項目・無ければ最初の押せる項目。作った後の採点 2: 札に焦点が残ると Esc が効かなかった）
+    const pop = document.getElementById("dePerPop"), first = pop && (pop.querySelector(".cp-it.on:not(:disabled)") || pop.querySelector(".cp-it:not(:disabled)") || pop.querySelector("[data-cp-close]"));
+    if (first) first.focus({ preventScroll: true });
+  }
+  function closePop(back = false) {
+    const i = perPop ? perPop.i : null;
+    perPop = null; ownEdit = null; paintPop(); const se = $("#deSent"); se && se.querySelectorAll("[data-de-per]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    if (back && i != null) { const b = document.querySelector(i >= 0 ? `#deSent [data-de-per="${i}"]` : "#deSent [data-de-addbase]"); if (b) b.focus({ preventScroll: true }); }     // Esc は札へ焦点を戻す
+  }
+  /** 割る数を当てる（単位は「本/直」「t/直」に。見出しには式も割る数も出さない: 採点の指摘 2） */
+  function setPer(i, name) {
+    const m = t.body.measures[i]; if (!m) return;
+    const bareU = m.utext != null ? String(m.utext).replace(/\/.*$/, "") : ((p.fmt || {}).utext ?? (m.agg === "lots" ? (p.source === "work" ? "本" : "ロット") : m.agg === "count" ? "件" : ""));
+    if (!name) { delete m.per; if (m.utext != null) m.utext = bareU; if (!m.expr) delete m.hideExpr; }
+    else {
+      const b = baseOf(name), u = b ? b.unit : "";
+      m.per = name; m.utext = `${bareU}/${u && u !== "%" ? u : name}`; m.hideExpr = true;
+      if (m.dec == null) m.dec = m.agg === "lots" || m.agg === "count" ? 2 : 1;
+    }
+    changed(false);
+  }
+  function addBase(name) {
+    const b = baseOf(name); if (!b) return;
+    const ms = t.body.measures;
+    if (ms.some((m) => m.agg === "base" && m.base === name)) { host.toast(`「${name}」はもう値にあります`); return; }
+    if (ms.length >= MAX_MEASURES) { host.toast(`値は ${MAX_MEASURES} つまでです`); return; }
+    t.body.measures = ms.concat([{ agg: "base", base: name, utext: b.unit, dec: b.fixed ? 0 : b.unit === "%" ? 0 : 1 }]);
+    changed();
+  }
+  /** 作った数を作る・直す（ダッシュボードで共通。名前を変えたら、このパネルとほかのパネルの値も付いていく） */
+  function saveOwn() {
+    const o = ownEdit, name = String(o.name || "").trim().slice(0, 16), expr = String(o.expr || "").trim().slice(0, 60), msg = (x) => { const e = document.querySelector("[data-cp-omsg]"); if (e) { e.textContent = x; e.classList.add("is-bad"); } };
+    if (!name || /[[\]]/.test(name)) return msg("名前を入れてください（［］は使えません）");
+    if (BASE_FIXED.some((x) => x[0] === name) || ownList().some((b) => b.name === name && b.name !== o.was)) return msg(`「${name}」はもうあります。ほかの名前にしてください`);
+    const ex = N.expr(expr, { names: BASE_FIXED.map((x) => x[0]), base: true });
+    if (!ex.fn) return msg(ex.error || "式を入れてください");
+    const item = { name, expr, ...(o.each ? { each: true } : {}), ...(o.unit ? { unit: String(o.unit).trim().slice(0, 6) } : {}) };
+    const list = o.was ? ownList().map((b) => (b.name === o.was ? item : b)) : ownList().concat([item]);
+    const ren = o.was && o.was !== name ? { from: o.was, to: name } : null;
+    if (ren) renameBase(p, ren);
+    if (host.setBases) host.setBases(list, ren); else host.toast("このダッシュボードには作った数を置けません");
+    ownEdit = null; baseNums.key = ""; changed(false); loadBaseNums(); paintPop();
+  }
+  function bindPop(el) {
+    el.addEventListener("click", (e) => {
+      const ed = e.target.closest("[data-cp-edit]");
+      if (ed) { e.stopPropagation(); const b = ownList().find((x) => x.name === ed.dataset.cpEdit); if (b) { ownEdit = { ...b, was: b.name }; paintPop(); } return; }
+      const b = e.target.closest("button"); if (!b) return;
+      if (b.hasAttribute("data-cp-close")) { closePop(); return; }
+      if (b.hasAttribute("data-cp-new")) { ownEdit = { name: "", expr: "", each: false, unit: "" }; paintPop(); el.querySelector("[data-cp-oname]")?.focus(); return; }
+      if (b.hasAttribute("data-cp-back")) { ownEdit = null; paintPop(); return; }
+      if (b.hasAttribute("data-cp-osave")) { saveOwn(); return; }
+      if (b.dataset.cpIns != null) { const inp = el.querySelector("[data-cp-oexpr]"); if (inp) { const at = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, at) + `[${b.dataset.cpIns}]` + inp.value.slice(at); ownEdit.expr = inp.value; inp.focus(); } return; }
+      if (b.dataset.cpPick != null) { const i = perPop.i, n = b.dataset.cpPick; closePop(); if (i >= 0) setPer(i, n); else addBase(n); const x = document.querySelector(i >= 0 ? `#deSent [data-de-per="${i}"]` : "#deSent [data-de-addbase]"); if (x) x.focus({ preventScroll: true }); }
+    });
+    el.addEventListener("input", (e) => {
+      const x = e.target; if (!ownEdit) return;
+      if (x.matches("[data-cp-oname]")) ownEdit.name = x.value; else if (x.matches("[data-cp-oexpr]")) ownEdit.expr = x.value; else if (x.matches("[data-cp-ounit]")) ownEdit.unit = x.value;
+      else if (x.matches("[data-cp-oeach]")) ownEdit.each = x.checked;
+      if (x.matches("[data-cp-oexpr]")) { const r = N.expr(x.value, { names: BASE_FIXED.map((y) => y[0]), base: true }), msg = el.querySelector("[data-cp-omsg]"); if (msg) { msg.classList.toggle("is-bad", !!(x.value.trim() && r.error)); msg.textContent = x.value.trim() && r.error ? r.error : "式は決まった数（［稼働直］など）と ＋ − × ÷ で書きます"; } }
+    });
+    el.addEventListener("change", (e) => { if (ownEdit && e.target.matches("[data-cp-oeach]")) ownEdit.each = e.target.checked; });
+    // 面の外を押したら閉じる（割る数の札・足す札を押したときは、その札が開け閉めする）
+    if (!bindPop.outside) {         // 面は閉じると作り直すので、見張りは 1 つだけ（いまの面で見る）
+      bindPop.outside = true;
+      document.addEventListener("mousedown", (e) => { const cur = document.getElementById("dePerPop");
+        if (perPop && cur && !cur.contains(e.target) && !e.target.closest("[data-de-per],[data-de-addbase]")) closePop(); }, true);
+      // Esc は焦点がどこにあっても閉じる（札に焦点が残っていても。組む所の Esc〈やめる〉より先に受け、札へ焦点を戻す）
+      document.addEventListener("keydown", (e) => { if (perPop && e.key === "Escape" && !TPA.composing(e)) { e.preventDefault(); e.stopPropagation(); closePop(true); } }, true);
+    }
+    el.addEventListener("keydown", (e) => {
+      // ↑↓・Home・End で項目を移る（listbox の慣れた形。押せない項目〈値にあります・使えない〉は飛ばす）
+      if (!ownEdit && ["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+        const xs = [...el.querySelectorAll(".cp-it:not(:disabled)")]; if (!xs.length) return;
+        const at = xs.indexOf(document.activeElement);
+        const to = e.key === "Home" ? 0 : e.key === "End" ? xs.length - 1 : e.key === "ArrowDown" ? (at < 0 ? 0 : Math.min(xs.length - 1, at + 1)) : (at < 0 ? xs.length - 1 : Math.max(0, at - 1));
+        e.preventDefault(); xs[to].focus({ preventScroll: true }); return;
+      }
+      if (e.key === "Escape") { e.preventDefault(); closePop(true); } else if (e.key === "Enter" && ownEdit && !TPA.composing(e) && e.target.matches("input:not([type=checkbox])")) { e.preventDefault(); saveOwn(); } });
+  }
+  /** 名前を変えた作った数に、値（割る数・基準の数の値・式の［名前］）を付いていかせる */
+  function renameBase(x, ren) {
+    const b = x && x.body; if (!b || !ren) return;
+    (b.measures || []).forEach((m) => {
+      if (m.per === ren.from) m.per = ren.to;
+      if (m.agg === "base" && m.base === ren.from) m.base = ren.to;
+      if (m.expr) m.expr = String(m.expr).replace(/[[［]\s*([^[\]［］]*?)\s*[\]］]/g, (s, n) => (n === ren.from ? `[${ren.to}]` : s));
+    });
+  }
+  // 見本（② の頭。押すと行・値・割る数・並べ方が入る。あとはふつうに直せる）。畳める（採点の指摘 6: 1536・1280 で ② の見出しを送らない）
+  const EX_KEY = "tpa.dash.capExamples";
+  let exOpen = (() => { try { return localStorage.getItem(EX_KEY) !== "0"; } catch (_) { return true; } })();
+  function exWeight() { const fs = (fields && fields.fields) || []; return (fs.find((f) => f.column === "重量" && f.numeric) || fs.find((f) => f.numeric && /重量|重さ|kg/i.test(f.column)) || fs.find((f) => f.numeric) || {}).column || ""; }
+  function examples() {
+    const w = exWeight(), per = (pr, base) => ({ agg: "sum", column: w, expr: "÷1000", per: pr, utext: `t/${base}`, hideExpr: true, dec: 1 });
+    const d14 = { column: "@workday", kind: "days", n: 14 }, EQ = [{ column: "@equip", part: "" }];
+    return [
+      { k: "power", n: "設備の実力", d: "重量÷稼働直・稼働率・稼働直", title: "設備の実力（直あたり重量）", visual: "none", sort: "desc", period: d14,
+        body: { rows: EQ, cols: [], grand: true, measures: [per("稼働直", "直"), { agg: "base", base: "稼働率", utext: "%", dec: 0 }, { agg: "base", base: "稼働直", utext: "直", dec: 0 }] } },
+      { k: "month", n: "月の稼働日数", d: "設備×作業月の換算稼働日", title: "月ごとの稼働日数（換算稼働日）", visual: "none", sort: "", period: null,
+        body: { rows: EQ, cols: [{ column: "@workday", part: "ym" }], grand: true, measures: [{ agg: "base", base: "換算稼働日", utext: "日", dec: 1 }] } },
+      { k: "daily", n: "日あたり重量の推移", d: "作業日ごとの 重量÷換算稼働日", title: "日あたり重量の推移", visual: "time", sort: "", period: { column: "@workday", kind: "days", n: 30 },
+        body: { rows: [{ column: "@workday", part: "" }], cols: [], grand: false, measures: [{ ...per("換算稼働日", "日") }] } },
+      { k: "lots", n: "直あたりロット数", d: "設備ごとの ロット数÷稼働直", title: "設備ごとの直あたりロット数", visual: "column", sort: "desc", period: d14,
+        body: { rows: EQ, cols: [], grand: false, measures: [{ agg: "lots", per: "稼働直", utext: "本/直", hideExpr: true, dec: 2 }] } },
+    ];
+  }
+  const sameEx = (x) => !!p && p.visual === x.visual && JSON.stringify([p.body.rows, p.body.cols, p.body.measures.map((m) => ({ ...m, utext: undefined, dec: undefined, hideExpr: undefined }))])
+    === JSON.stringify([x.body.rows, x.body.cols, x.body.measures.map((m) => ({ ...m, utext: undefined, dec: undefined, hideExpr: undefined }))]);
+  function examplesHtml() {
+    if (!baseOk() || !p || p.visual === "slicer") return "";
+    const xs = examples();
+    return `<div class="cp-ex" role="group" aria-label="見本から組む" data-open="${exOpen}"><div class="cp-exh"><b>見本から組む</b><small>設備の実力（直あたり・日あたり・稼働率）。押すと行・値・割る数・並べ方が入ります（あとで自由に直せます）</small>`
+      + `<button type="button" class="de-link" data-de-extoggle aria-expanded="${exOpen}">${exOpen ? "畳む ▴" : "開く ▾"}</button></div>`
+      + (exOpen ? `<div class="cp-exl">${xs.map((x) => { const on = sameEx(x); return `<button type="button" class="cp-exb${on ? " on" : ""}" data-de-ex="${x.k}" aria-pressed="${on}" title="${esc(x.d)}"><b>${on ? "✓ " : ""}${esc(x.n)}</b><small>${esc(x.d)}</small></button>`; }).join("")}</div>` : "")
+      + "</div>";
+  }
+  function useExample(k) {
+    const x = examples().find((y) => y.k === k); if (!x) return;
+    if (!exWeight() && x.body.measures.some((m) => m.column === "")) { host.toast("数の列（重量など）が無いので、この見本は組めません"); return; }
+    if (p.source !== "work") { p.source = "work"; delete p.equip; delete p.calc; p.filters = []; p.search = ""; host.toast("基準の数（稼働直など）は作業実績から数えるので、データを作業実績にしました"); }
+    p.visual = x.visual; p.sort = x.sort; p.top = 0; p.period = x.period ? { ...x.period } : null;
+    p.body = { ...p.body, ...TPA.clone(x.body), sub: false };
+    if (!String(p.title || "").trim() || examples().some((y) => y.title === p.title) || p.title === autoTitle(p)) p.title = x.title;
+    const ti = $("#deTitle"); if (ti) ti.value = p.title;
+    changed();
+  }
   /** 値の計算の段（版 3.50.0。要望 2。pivot-calc.js。一覧の集計表と同じ部品）: 文のすぐ下。値ごとの四則演算（合わせた表のまとまり・合わせるデータでも） */
   function calcBand() {
     if (isOps(p) && !inGroup()) return "";
     const a = host && host.answer ? host.answer() : null;
     if (a && a.cells) window.PivotCalc.remember(a, a.measures);
-    return window.PivotCalc.html(t.body.measures, { name: (m) => P.measName({ ...m, expr: undefined }), answer: a && a.cells && !inGroup() && !inSide() ? a : null, num: (v, m) => C.numText(v, C.measFmt(p.fmt || {}, m)),
+    const note = baseOk() && t.body.measures.some((m) => m.agg === "base")
+      ? '<small class="cp-bnote">灰の札（基準の数を値にした物）は、その数をそのまま出します（割る数は選べません）</small>' : "";
+    return window.PivotCalc.html(t.body.measures, { name: (m) => P.measName({ ...m, expr: undefined, per: undefined }), answer: a && a.cells && !inGroup() && !inSide() ? a : null, num: (v, m) => C.numText(v, C.measFmt(p.fmt || {}, m)),
+      names: baseNames(), per: perHtml,
       // 値ごとの単位と見出しの式（版 3.92.0）。単位の欄の薄い字は、いま付いている単位（パネルの書式の字・数字の自動の単位）
-      units: true, unitHint: (m) => { const lit = (p.fmt || {}).num && N.bare ? String(p.fmt.num).replace(N.bare(p.fmt.num), "") : ""; return (p.fmt || {}).utext ?? (lit.replace(/["\\]/g, "").trim() || P.autoUnit({ ...p, fmt: {} }, m)); } });
+      units: true, unitHint: (m) => { const lit = (p.fmt || {}).num && N.bare ? String(p.fmt.num).replace(N.bare(p.fmt.num), "") : ""; return (p.fmt || {}).utext ?? (lit.replace(/["\\]/g, "").trim() || P.autoUnit({ ...p, fmt: {} }, m)); } }).replace(/<\/div>$/, `${note}</div>`);
   }
   /** 答えが届いたら、段の変わり方（総計）だけを描き直す（打っている欄はそのまま） */
   function paintCalc0() {
@@ -746,7 +996,7 @@
       ? `<div class="de-subrow"><label class="pv-ck" title="行の段の上の段ごとに小計の行を出します"><input type="checkbox" data-de-sub${b.sub ? " checked" : ""}>${esc(dimLabel(b.rows[0]))}ごとの小計を出す</label></div>` : "";
     return `<div class="pv-sent de-sent">${kpi ? '<span class="pv-w">全体の</span>' : `${slot("rows", b.rows.map((d, i) => dimChip(d, "rows", i)).join(""), "左の札の［行］")}<span class="pv-w">ごとに、</span>`
       + `${swapBtn()}${slot("cols", b.cols.map((d, i) => dimChip(d, "cols", i)).join(""), "＋ 列")}<span class="pv-w">別の</span>`}`
-      + `${slot("vals", b.measures.map(measChip).join(""), "ロット数")}<span class="pv-w">を出す</span></div>${sub}`;
+      + `${slot("vals", b.measures.map(measChip).join("") + (baseOk() ? `<button type="button" class="pv-btn cp-addb" data-de-addbase aria-haspopup="listbox" title="稼働直・稼働率などの基準の数を、値の列として表に足します">＋ 基準の数を値に ▾</button>` : ""), "ロット数")}<span class="pv-w">を出す</span></div>${sub}`;
   }
   /** 形の札（版 3.39.0 で 25。目的の行に並べる: 数と表・推移を見る・比べる・内訳・ばらつき・関係。集計表のグラフの形の面と同じまとまり）。
       合わせた表は、表全体の札で「選んだ形の札 1 枚＋形を変える…」に畳む（押すと全部の札が開く。2026-10-board の 3 回目で決めた CF） */
@@ -1425,7 +1675,8 @@
     if (!whole) {
       if (repaintFields) $("#deFields").innerHTML = fieldsHtml();
       $("#deData").innerHTML = dataHtml();
-      const se = $("#deSent"); window.PivotCalc.keepFocus(se, () => { se.innerHTML = sentenceHtml() + calcBand(); });
+      const se = $("#deSent"); window.PivotCalc.keepFocus(se, () => { se.innerHTML = examplesHtml() + sentenceHtml() + calcBand(); });
+      if (perPop) { if (!baseOk() || (perPop.i >= 0 && !t.body.measures[perPop.i])) closePop(); else paintPop(); }
       if (!typingIn("#deCond")) $("#deCond").innerHTML = condHtml();
       $("#deSort").innerHTML = sortHtml();
     }
@@ -1461,7 +1712,7 @@
     });
     window.PivotCalc.bind(el, (i, v) => {
       const m = t && t.body.measures[i]; if (!m) return "";
-      const txt = String(v || "").trim(), ex = N.expr(txt);
+      const txt = String(v || "").trim(), ex = N.expr(txt, { names: baseNames() });
       if (txt && ex.error) return ex.error;
       if ((m.expr || "") === txt) return "";
       if (txt) m.expr = txt; else delete m.expr;
@@ -1487,6 +1738,10 @@
     el.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b || !p) return;
       if (b.hasAttribute("data-de-klay")) { setFmt(b.dataset.deKlay, b.dataset.v); return; }     // ④ 置き方の見本（版 3.92.0）
+      if (b.dataset.dePer != null) { openPop(+b.dataset.dePer); return; }                    // 割る数の面（版 3.103.0）
+      if (b.hasAttribute("data-de-addbase")) { if (perPop && perPop.i === -1) closePop(); else openPop(-1); return; }
+      if (b.dataset.deEx) { useExample(b.dataset.deEx); return; }
+      if (b.hasAttribute("data-de-extoggle")) { exOpen = !exOpen; try { localStorage.setItem(EX_KEY, exOpen ? "1" : "0"); } catch (_) { /* 覚えられない PC */ } paint(false); return; }
       if (b.hasAttribute("data-de-cancel")) { host.onCancel(); return; }
       if (b.hasAttribute("data-de-apply")) { host.onApply(TPA.clone(p)); return; }
       if (b.dataset.deTab != null) { select(+b.dataset.deTab); return; }
@@ -1932,7 +2187,7 @@
       const ti = $("#deTitle");
       if (ti) { ti.focus({ preventScroll: true }); ti.setSelectionRange(0, 0); ti.scrollLeft = 0; }   // 字の頭から見せる（欄が狭いと末尾へ送られて頭が欠ける）
     },
-    close() { const el = $("#dbEditor"); if (el) { el.hidden = true; el.innerHTML = ""; } host = null; p = null; t = null; },
+    close() { perPop = null; ownEdit = null; paintPop(); const el = $("#dbEditor"); if (el) { el.hidden = true; el.innerHTML = ""; } host = null; p = null; t = null; },
     isOpen: () => !!p,
     /** 組む所の幅（窓に収まる幅。グリッドの組むパネルを左の空きに置くため） */
     width: () => fit(sizes()).w,
@@ -1940,10 +2195,14 @@
     /** 答えが変わった（合わせた表の行の札を、数えた行で並べ直す） */
     answered() {
       if (isBoard() && gi < 0) paint(false);
-      else if (!typingIn("#deFmt") && $("#deFmt")) $("#deFmt").innerHTML = fmtHtml();   // 系列の名前と描いた色（描き終えてから分かる）
+      else if (!typingIn("#deFmt") && $("#deFmt")) { $("#deFmt").innerHTML = fmtHtml(); paintCalc0(); }   // 系列の名前と描いた色（描き終えてから分かる）・値の計算の変わり方（版 3.103.0: 割った後の総計も今の答えで）
       else paintCalc0();                                                                   // 値の計算の変わり方（総計）は今の答えで
+      if (perPop) { baseNums.key === numKey() ? paintPop() : loadBaseNums(); }
     },
     message, autoTitle, kfit,
+    /** 作った基準の数を、ほかのパネルの写し（body.bases）と値にも当てる（版 3.103.0。dashboard.js がダッシュボードの全パネルに） */
+    syncBases(x, list, ren) { if (ren) renameBase(x, ren); syncBases(x, list); },
+    OWN_DEFAULT,
     setSources(list) { sources = list || []; },
   };
 })();
