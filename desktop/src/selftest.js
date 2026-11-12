@@ -53,6 +53,12 @@
     ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
     const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
     const norm = (x) => x.text.split(nonceOf(x)).join("@NONCE@");
+    // 起動の直後は Python がマスタの最初の版を置いている最中のことがあり、2 回の読みの間に置かれると埋め込んだマスタの revision だけが
+    // 食い違う（版 3.99.0 の CI: 窓の起動が 0.2 秒で、Python の種まきと重なった）。同じ時点の形になるまで 15 秒まで読み直す（比べる中身は同じ）
+    for (const until = Date.now() + 15000; page.by === "shell" && pyPage.by === "python" && norm(page) !== norm(pyPage) && Date.now() < until;) {
+      await new Promise((r) => setTimeout(r, 1000));
+      pyPage = await get("/?engine=python"); page = await get("/");
+    }
     const at = [...norm(page)].findIndex((c, i) => c !== norm(pyPage)[i]);
     ok("窓の画面と Python の画面が同じ（印を揃えて）", pyPage.by === "python" && norm(page) === norm(pyPage), at < 0 ? pyPage.by : `${at} 字目: ${norm(page).slice(Math.max(0, at - 30), at + 40)}`);
     const escape = await get("/static/%2e%2e/templates/index.html");
