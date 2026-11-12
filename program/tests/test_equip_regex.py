@@ -9,6 +9,7 @@ app を使うのは理由の言葉だけ）。
   ④ 表が古くない（作り直した物と同じ）
 """
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -41,7 +42,9 @@ class EquipRegex(unittest.TestCase):
                     equip_groups.clean_rules([{"op": "regex", "value": p}])
 
     def test_table_is_fresh(self):
-        r = subprocess.run([sys.executable, str(PROGRAM / "tools" / "equip-regex-cases.py"), "--check"], capture_output=True, text=True)
+        # 道具は日本語を出す。Windows の既定（cp1252）で読むと読み取りの糸が落ちて stdout が None になるので、子に UTF-8 で書かせ UTF-8 で読む
+        r = subprocess.run([sys.executable, str(PROGRAM / "tools" / "equip-regex-cases.py"), "--check"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", env={**os.environ, "PYTHONIOENCODING": "utf-8"})
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
