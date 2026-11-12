@@ -48,7 +48,8 @@ def clean_row(data, partial=False, old=None):
             return not partial or k in data
         before = rules_of(old or {}) if partial and not (came("rules") and came("except")) else {"rules": [], "except": []}
         # 当てていない決まり（版 3.102.0）も前の行のまま残す（直すときに黙って消さない）
-        kept = before["rules"] + [{"op": u["op"], "value": u["value"]} for u in before.get("unapplied", [])]
+        # （読めない決まり〈表でない・op が無い・知らない op〉は残さない: 直す画面で見せた上で、組を保存すると外れる）
+        kept = before["rules"] + [{"op": u["op"], "value": u["value"]} for u in before.get("unapplied", []) if u["op"] in RULE_OPS]
         eq = equipment_list(data.get("equipment") if came("equipment") else (old or {}).get("設備"))
         rules = clean_rules(data.get("rules")) if came("rules") else kept
         if not eq and not rules:
@@ -104,6 +105,16 @@ def rules_of(row):
     d = d if isinstance(d, dict) else {}
     rules, unapplied = [], []
     for r in (d.get("rules") if isinstance(d.get("rules"), list) else [])[:MAX_RULES]:
+        # 読めない決まりも黙って外さず、理由を添えて残す（版 3.102.0 の作った後の採点の割れ 4）
+        if not isinstance(r, dict):
+            unapplied.append({"op": None, "value": "", "why": "読めない決まりです（表でない）。"})
+            continue
+        if r.get("op") is None or r.get("op") == "":
+            unapplied.append({"op": None, "value": str(r.get("value") or "").strip()[:80], "why": "読めない決まりです（比べ方〈op〉がありません）。"})
+            continue
+        if r["op"] not in RULE_OPS:
+            unapplied.append({"op": r["op"], "value": str(r.get("value") or "").strip()[:80], "why": f"読めない決まりです（知らない比べ方「{r['op']}」）。"})
+            continue
         try:
             got = clean_rules([r])
         except GroupError as e:

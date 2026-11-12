@@ -160,7 +160,13 @@ fn clean_rules(v: Option<&Value>) -> C<Vec<Rule>> {
 /// 当てていない決まり（読めない・重い・窓で写せない正規表現）も、直すときに黙って消さないよう後ろに残す（版 3.102.0。Python の kept と同じ）
 fn rules_of(row: &Map<String, Value>) -> C<(Vec<Rule>, Vec<String>)> {
     let (rules, ex, unapplied) = crate::bundle::group_rules(row).map_err(|_| Bad::Delegate)?;
-    let rules = rules.as_array().into_iter().flatten().chain(unapplied.iter()).map(|r| (py_str(&r["op"]), py_str(&r["value"]))).collect();
+    let rules = rules
+        .as_array()
+        .into_iter()
+        .flatten()
+        .chain(unapplied.iter().filter(|u| u["op"].as_str().is_some_and(|op| rule_ops().iter().any(|x| x == op))))
+        .map(|r| (py_str(&r["op"]), py_str(&r["value"])))
+        .collect();
     let ex = ex.as_array().into_iter().flatten().map(py_str).collect();
     Ok((rules, ex))
 }

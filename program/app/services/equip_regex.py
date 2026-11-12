@@ -18,6 +18,10 @@ PUNCT = set("\\.^$*+?{}[]()|-/#&~%@!'\"`,;:=_ ")
 CTRL = set("tnrfva")             # \\t \\n \\r \\f \\v \\a
 CLASS = set("dDwWsS")            # \\d \\w \\s とその逆
 MAX_REPEAT = 1000
+FLAGS = set("imsx")              # 両方で同じ意味の旗（(?ims) の最初の旗・(?i-s:…) の旗）。a・u・L は Python だけ
+VERBOSE_WS = set(" \t\n\r\v\f")    # (?x) で飛ばす空白（Python の verbose。窓の x も同じ）
+# (?x) で Python は字そのもの、窓（Unicode の空白）は飛ばす字。この字が (?x) の中にあれば写せない
+WIDE_WS = set("\x1c\x1d\x1e\x1f\x85\xa0\u1680\u2028\u2029\u202f\u205f\u3000") | {chr(c) for c in range(0x2000, 0x200B)}
 SPECIAL = {  # 前の採点で見つけた 4 形（同じ理由の言葉を窓も持つ）
     "Z": "\\Z は Python と窓で意味が違います（終わりは $ で書いてください）",
     "N": "\\N{…}（字の名前）は窓で読めません",
@@ -58,6 +62,7 @@ class _Parser:
         self.opened = 0          # 開いた組の数（組の番号は開いた順）
         self.closed = set()      # 閉じた組の番号（\\1 は閉じた組だけ指せる）
         self.names = {}          # 名前 → 閉じたか
+        self.verbose = False     # (?x) の中（空白と # の注を飛ばす）
 
     def bad(self, why):
         raise _Stop("invalid", why)
@@ -69,9 +74,42 @@ class _Parser:
         j = self.i + k
         return self.s[j] if j < len(self.s) else ""
 
+    def skip(self):
+        """(?x) の中: 空白と # から行の終わりまでを飛ばす（[ ] の外だけ）"""
+        while self.verbose and self.i < len(self.s):
+            c = self.s[self.i]
+            if c in WIDE_WS:
+                self.unsup("(?x) の中の全角などの空白（Python は字、窓は空白として飛ばす）")
+            if c in VERBOSE_WS:
+                self.i += 1
+            elif c == "#":
+                j = self.s.find("\n", self.i)
+                self.i = len(self.s) if j < 0 else j + 1
+            else:
+                return
+
+    def flags_at(self, j):
+        """j から旗の字（a・i・L・m・s・u・x・-）を読む → (旗の字, 終わりの位置)"""
+        k = j
+        while k < len(self.s) and self.s[k] in "aiLmsux-":
+            k += 1
+        return self.s[j:k], k
+
+    def check_on(self, on):
+        if set(on) - FLAGS:
+            self.unsup("(?a) (?u) (?L) の旗は Python だけの書き方です")
+
     def run(self):
-        if self.s.startswith("(?i)"):
-            self.i = 4
+        # 最初の旗（(?i)・(?ims)・(?x) など。いくつ続いてもよい。Python は最初にだけ書ける）
+        while self.s.startswith("(?", self.i):
+            f, k = self.flags_at(self.i + 2)
+            if not f or k >= len(self.s) or self.s[k] != ")":
+                break
+            if "-" in f:
+                self.bad("(?-i) は (?-i:…) の形で書いてください")
+            self.check_on(f)
+            self.verbose = self.verbose or "x" in f
+            self.i = k + 1
         self.alt(top=True)
         if self.i < len(self.s):
             self.bad("かっこ ( ) の数が合いません")
@@ -88,8 +126,12 @@ class _Parser:
 
     def seq(self):
         total = 0
-        while self.i < len(self.s) and self.peek() not in "|)":
+        while True:
+            self.skip()
+            if not (self.i < len(self.s) and self.peek() not in "|)"):
+                break
             w, repeatable = self.atom()
+            self.skip()
             if self.peek() in ("*", "+", "?", "{") and (self.peek() != "{" or self.is_quant()):
                 if repeatable == "look":
                     self.unsup("先読み・後読みの繰り返し")
@@ -137,6 +179,11 @@ class _Parser:
             self.i += 1
         if self.peek() == "+":
             self.unsup("後ろの + （取り戻さない繰り返し）")
+        if self.verbose:
+            at = self.i
+            self.skip()
+            if self.i != at and (self.peek() in ("*", "+", "?") or (self.peek() == "{" and self.is_quant())):
+                self.unsup("(?x) の繰り返しの後ろの空白と繰り返し")
         if self.peek() in ("*", "+", "?") or (self.peek() == "{" and self.is_quant()):
             self.bad("繰り返し（* + ? {}）が 2 つ続いています")
         return fixed
@@ -255,7 +302,28 @@ class _Parser:
                 self.bad(f"(?P={name}) が指す組がまだありません（閉じた組だけ指せます）")
             self.i = j + 1
             return None, True
-        self.unsup("(? の書き方（(?: ) (?= ) (?! ) (?<= ) (?<! ) (?P<名前> ) (?P=名前) (?# ) と最初の (?i) のほか）")
+        f, k = self.flags_at(self.i)
+        if f and k < len(self.s) and self.s[k] in "):":
+            on, _, off = f.partition("-")
+            if self.s[k] == ")":
+                if self.verbose:
+                    self.unsup("(?x) の中の途中の旗")
+                self.bad("(?-i) は (?-i:…) の形で書いてください" if "-" in f else "(?i) などの旗は正規表現の最初にだけ書けます")
+            self.check_on(on)
+            if "-" in f and (not off or "-" in off):
+                self.bad("(?…-…:) の - の後ろに旗がありません")
+            if set(off) - (FLAGS - {"x"}):
+                self.unsup("(?-x:…) などの旗は窓と読み方が違います")
+            if set(on) & set(off):
+                self.bad("同じ旗を付けて外しています")
+            self.i = k + 1
+            before = self.verbose
+            self.verbose = before or "x" in on
+            w = self.alt()
+            self.verbose = before
+            self.i += 1
+            return w, True
+        self.unsup("(? の書き方（(?: ) (?= ) (?! ) (?<= ) (?<! ) (?P<名前> ) (?P=名前) (?# ) と旗 (?i) (?ims:…) のほか）")
 
     def klass(self):
         self.i += 1

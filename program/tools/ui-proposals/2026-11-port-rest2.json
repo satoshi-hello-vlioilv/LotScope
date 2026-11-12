@@ -405,5 +405,50 @@
     "11 Windows: desktop.yml に test_broken_masters・test_equip_regex・test_bundle_sections を足した（cargo test は equip_regex_cases・bundle_cases も流れる）。Windows だけのコードは足していない"
    ]
   }
- ]
+ ],
+ "built": {
+  "name": "作った後（版 3.102.0・commit 2483122）",
+  "evaluator": "案を作っていない、作った者でもない採点者（別のエージェント・2026-11-12。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、worktree port-rest-3102 の commit 2483122 のコードを読み、動かして測った事実で採点した。worktree のファイルは変えていない（この記録に built を足しただけ）。道具と記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/rest-score/b3102（案の採点の台本を worktree へ向けた物・broken.py・badkeys.py）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/rest-score/b3102_cargo.txt。check-all --verify は流していない（組んだ係が流した）。Windows の CI と窓の本物の道での 503 の画面は確かめていない（窓の答えは lot.rs の sections_for と refuse をコードで読んだ）。",
+  "seen": "良い所: 確か 1〜4 と N1 が直った。案の採点で使った再現の台本を worktree の Python に向け直して流した: 共有の設備マスタを切ると、ほかの PC がロールのマスタを保存した後も status の error は『共有の equipment_master.json が読めません（途中で切れています（1107 バイト））』のまま・source=cache（確か 1）／rules_of は重い正規表現と \\Z だけを unapplied に理由つきで残し、prefix と除く設備を残す（確か 2）／勤務体系・設備グループに字の行で束は engine=rust・lists あり、broken に『shift_patterns.json の 1 行目が読めません（表でない行）』、HTML の 500 は無い。手元の設備マスタを切ると設備マスタ・設備グループは JSON の 503『手元の equipment_master.json が読めません（途中で切れています（927 バイト））』（確か 3）／配った設定は Python（app_env.load_settings の utf-8-sig）も窓（bundle.rs の read_config 2 か所）も BOM を外して読む（確か 4）。N1: GET /api/sources のスケジュールのカードは窓が組み、組めなければ cardWhy に理由。/api/health は窓が {status, by: window, python}（決め 5）。任せた回数は形の名前と日ごとの回数だけを logs/delegations.json に（決め 4）。cargo test bundle_parity・bundle_cases・equip_regex_cases・page_parity・equipgroups_write_parity が ok。Python の 9 ファイル 88 件 OK。空の共有で Python に束を尋ねると今も 8 個のマスタを置く（種まきの要る節だけ Python に尋ねる作り）。悪い所: 下の減点（マスタの画面は壊れた行を黙って飛ばす）。束の節を『壊れた行が 1 つでもあれば丸ごと null』にしたので、勤務体系の 1 行で作業実績とダッシュボードの道（sections_for: /api/worklog は work・shifts・sources、/api/dashboard/ は shifts と dash も）がすべて 503、設備グループの 1 行でダッシュボードの道がすべて 503 になる。前は Python が答えて動いていた所で、読める行で答えて壊れた行を知らせる（マスタの画面は既にそうしている）方が案の『読める所は答える』に合う。設備グループの正規表現は、違う 4 形のほかに、Python と窓で同じ答えになる (?x)・(?s)・(?m)・(?i:…) も『窓で写せない書き方』として断り、前に保存した決まりが当てられなくなる（主のセッションの決め 1 より広い）。束を丸ごと組めない形（bundle.rs の Py）は 79 か所のままで、節ごとに断るのは壊れたマスタと種まきの分だけ。任せた回数を数えるのは束・ページ・更新の置き場の 5 種で、ほかの道が Python に任せた回数（予算の 507 歩の形）は数えていない。1 版が大きい（7,313 行）。",
+  "result": {
+   "proposal": "B ③＋④ のうち現場で起きる 3 形を 1 版で（種まき・設備グループの正規表現・壊れたマスタ）",
+   "score": {
+    "order": 9,
+    "chunk": 7,
+    "hierarchy": 8,
+    "visual": 9,
+    "steps": 8,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 8,
+    "place": 7,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "マスタ管理の勤務体系・ロールマスタの道（GET /api/masters/shifts・/api/masters/rolls）: 表でない行を黙って飛ばし、読めない行があることを答えに載せない（ロールは 377 行だけ・勤務体系は items []）。同じ行のために束の節は null になり、作業実績・ダッシュボードは 503『shift_patterns.json の 1 行目が読めません』と言うのに、直すはずのマスタの画面では壊れた行が見えない"
+    }
+   ],
+   "seen": "良い所: 確か 1〜4 と N1 が直った。案の採点で使った再現の台本を worktree の Python に向け直して流した: 共有の設備マスタを切ると、ほかの PC がロールのマスタを保存した後も status の error は『共有の equipment_master.json が読めません（途中で切れています（1107 バイト））』のまま・source=cache（確か 1）／rules_of は重い正規表現と \\Z だけを unapplied に理由つきで残し、prefix と除く設備を残す（確か 2）／勤務体系・設備グループに字の行で束は engine=rust・lists あり、broken に『shift_patterns.json の 1 行目が読めません（表でない行）』、HTML の 500 は無い。手元の設備マスタを切ると設備マスタ・設備グループは JSON の 503『手元の equipment_master.json が読めません（途中で切れています（927 バイト））』（確か 3）／配った設定は Python（app_env.load_settings の utf-8-sig）も窓（bundle.rs の read_config 2 か所）も BOM を外して読む（確か 4）。N1: GET /api/sources のスケジュールのカードは窓が組み、組めなければ cardWhy に理由。/api/health は窓が {status, by: window, python}（決め 5）。任せた回数は形の名前と日ごとの回数だけを logs/delegations.json に（決め 4）。cargo test bundle_parity・bundle_cases・equip_regex_cases・page_parity・equipgroups_write_parity が ok。Python の 9 ファイル 88 件 OK。空の共有で Python に束を尋ねると今も 8 個のマスタを置く（種まきの要る節だけ Python に尋ねる作り）。悪い所: 下の減点（マスタの画面は壊れた行を黙って飛ばす）。束の節を『壊れた行が 1 つでもあれば丸ごと null』にしたので、勤務体系の 1 行で作業実績とダッシュボードの道（sections_for: /api/worklog は work・shifts・sources、/api/dashboard/ は shifts と dash も）がすべて 503、設備グループの 1 行でダッシュボードの道がすべて 503 になる。前は Python が答えて動いていた所で、読める行で答えて壊れた行を知らせる（マスタの画面は既にそうしている）方が案の『読める所は答える』に合う。設備グループの正規表現は、違う 4 形のほかに、Python と窓で同じ答えになる (?x)・(?s)・(?m)・(?i:…) も『窓で写せない書き方』として断り、前に保存した決まりが当てられなくなる（主のセッションの決め 1 より広い）。束を丸ごと組めない形（bundle.rs の Py）は 79 か所のままで、節ごとに断るのは壊れたマスタと種まきの分だけ。任せた回数を数えるのは束・ページ・更新の置き場の 5 種で、ほかの道が Python に任せた回数（予算の 507 歩の形）は数えていない。1 版が大きい（7,313 行）。"
+  },
+  "found": [
+   "割れ 1（減点・表示）マスタの画面が壊れた行を黙って飛ばす。再現: shift_patterns.json（または roll_master.json）の rows に字の行を足す → GET /api/masters/shifts は 200・items に出ず、知らせも無い。直し方: 読めない行の数と位置（n 行目）を答えに badRows で添え、画面の上に『n 行目が読めません（ファイルを直してください）』と出す。足す試験: tests/test_broken_masters.py に『マスタの画面の答えに読めない行が載る』、shifts_parity・equip_rows_parity に同じ場面（窓は今 Python に任せる形）",
+   "割れ 2（使える範囲が狭くなる）壊れた行が 1 つでもあると束の節が丸ごと null になり、勤務体系の 1 行で作業実績とダッシュボードの道が全部 503、設備グループの 1 行でダッシュボードの道が全部 503。直し方: 表でない行は飛ばし（マスタの画面と同じ読み方）、節は読める行で組み、broken に『n 行目を飛ばした』を warn として載せる（節を null にするのは、ファイルそのものが読めないときだけ）。足す試験: bundle_cases.json に『壊れた行 1 つ・読める行あり』の場面（節は組まれ、警告が載る）、lot::tests::a_broken_section_refuses_only_its_routes に『壊れた行だけなら作業実績・ダッシュボードは答える』",
+   "割れ 3（決め 1 より広い断り）equip_regex.why_of と窓の equip_regex.rs が、Python と窓で同じ答えになるインラインの書き方 (?x)・(?s)・(?m)・(?i:…) も断る（前に保存した決まりは unapplied になり当たらなくなる）。再現: python -c で equip_regex.why_of('(?x) ^ L - \\\\d') など。直し方: 4 形（\\Z・[[:…:]]・\\p{…}・\\N{…}）のほかは、Python の re と fancy-regex で同じ答えか事例で確かめた書き方を通す。足す試験: equip_regex_cases.json に (?x)・(?s)・(?m)・(?i:…)・(?-i) の当たりを Python の re と窓の両方で比べる事例（答えが同じなら通す）",
+   "割れ 4（小・決め 1）知らない op・op の無い決まり・表でない決まりは unapplied に載らず黙って外れる（rules_of）。直し方: これらも unapplied に『読めない決まり』として残す。足す試験: test_equip_regex か test_broken_masters に 3 形",
+   "足りない所（指摘 2・9 の残り）: 束を丸ごと組めない形（bundle.rs の Py）は 79 か所のまま。任せた回数を数える所は 5 種だけで、窓の道が None を返して Python に回した回数（予算の 507 歩の形）は数えていない。router の Python へ回す 1 か所で道の型ごとに数えると、現場の回数で次の順を決められる"
+  ]
+ },
+ "built_fixed": {
+  "by": "組んだ係（作った後の採点の割れを直した。決まり 2026-11-06 のとおり採点し直さない）",
+  "fixes": [
+   "割れ 1（減点）: マスタの置き場の状態（GET /api/masters/status）の各マスタに badRows（表でない行の番号）を、勤務体系の一覧（GET /api/masters/shifts）にも badRows を添える（無ければ鍵を出さない）。画面は置き場の帯の注意の札（既存の place-caution）に「〈名〉.json の n 行目が読めません（ファイルを直してください。一覧では飛ばしています）」を出す。窓も勤務体系・設備・ロールの道で表でない行を Python と同じに扱う（一覧は読める行・書く道は「n 行目が読めません。ファイルを直すまで保存しません」の 503。前は Python に任せた）。試験: tests/test_broken_masters.py の MasterScreens（直す前は ERROR）・shifts_oracle と equip_rows_oracle の「置き場に表でない行」の場面（shifts_parity・equip_rows_parity で窓が同じ答え）・master_place の status の badRows も place_parity の答えと同じ",
+   "割れ 2: 表でない行だけなら節は読める行で組み、broken に {why:『n 行目が読めません（表でない行）。その行を飛ばして読みました』, warn: true} を載せる。節を null にするのはファイルそのものが読めないとき・窓の読めない字・種まきだけ。窓の refuse と with_dash は warn を断らない。Inputs::rows も Python の _list と同じく表でない行を飛ばす（権限の 2 つは access.rs が今までどおり断る）。試験: bundle_cases.json の cases 4 形（壊れた行 1 つ・読める行なし・設備グループ・途中で切れたファイル）を Python（test_bundle_sections）と窓（bundle_cases）で読む・lot::tests::a_broken_section_refuses_only_its_routes（壊れた行だけなら作業実績は答え、切れたファイルなら勤務体系を使う道だけ断る）・test_broken_masters の BrokenRows（直す前は FAIL）。LotDsp の道も表でない行は飛ばして読む（Python と同じ。lot::tests の LotDsp の場面から rows [1, 2] の断りを外した）",
+   "割れ 3: 旗を通す。最初の (?imsx)（いくつ続いてもよい）・(?ims-ims:…)・(?x:…) は Python の re と fancy-regex で同じ答えなので当てる。(?x) の中は空白と # の注を飛ばして確かめ、全角などの空白（Python は字・窓は空白）と繰り返しの後ろの空白と繰り返しだけ断る。(?-i)・途中の (?s) は Python が読めない（invalid）。(?a)(?u)(?L)・(?-x:…) は写せない。事例の表 206 形（ok 129）に旗の 32 形と改行を含む名前 3 つを足し、ok の形は窓と同じ版の fancy-regex で当たりが同じことを確かめた（tools/equip-regex-cases.py --rust）。試験: test_equip_regex（直す前は (?x)・(?s)・(?m)・(?i:…) で FAIL）・equip_regex_cases",
+   "割れ 4: 表でない決まり・op の無い決まり・知らない op も unapplied に『読めない決まりです（…）』で残す（Python の rules_of・窓の group_rules）。直すときに残すのは op の分かる当てていない決まり（正規表現）だけ。試験: test_broken_masters の UnreadableRules（直す前は ERROR）・束（settings_oracle の GROUPS の知らない op）と設備グループの道の突き合わせ",
+   "足りない所: 窓が Python へ回した回数を router の 1 か所で道の型ごとに数える（src/router.rs の delegate_form: 『python PUT /api/masters/shifts/{n}』。数・データ元のキー・ASCII でない段は {n}・{key}・{s} に替え、引数・本文・PC 名・ログイン ID は書かない。?engine=python は engine_python）。bundle.rs の束を丸ごと組めない形（Py）は 3.103.0 以降の仕事として RUST_PORT_PLAN.md に残した"
+  ]
+ }
 }

@@ -509,3 +509,16 @@ pub(crate) fn error_answer(m: &str) -> (u16, Value) {
     };
     (400, json!({"error": m, "kind": "error", "type": kind}))
 }
+
+/// 表でない行の番号（1 から。版 3.102.0 の作った後の採点の割れ 1。Python の master_repository.bad_rows と同じ）
+pub fn bad_rows(rows: &[Value]) -> Vec<usize> {
+    rows.iter().enumerate().filter(|(_, r)| !r.is_object()).map(|(i, _)| i + 1).collect()
+}
+
+/// 表でない行のあるマスタは書かない（行もファイルも消さない）。Python の _normalize_all の MasterUnreadable と同じ言葉・503
+pub fn refuse_bad_rows(name: &str, bad: &[usize]) -> Result<(), MasterError> {
+    if bad.is_empty() {
+        return Ok(());
+    }
+    Err(MasterError::Unreadable(format!("{}。ファイルを直すまで保存しません。", crate::bundle::bad_rows_text(name, bad))))
+}

@@ -907,4 +907,8 @@ class MasterStore:
             out["masters"][n] = {"revision": doc["revision"], "rows": len(doc["rows"]),
                                  "updated_at": doc.get("updated_at", ""), "updated_by": doc.get("updated_by") or {},
                                  "source": src}
+            # 表でない行（読むときは飛ばす行）の番号（1 から。版 3.102.0 の作った後の採点の割れ 1: マスタの画面が知らせる）
+            bad = [i + 1 for i, r in enumerate(doc["rows"]) if not isinstance(r, dict)]
+            if bad:
+                out["masters"][n]["badRows"] = bad
         return out

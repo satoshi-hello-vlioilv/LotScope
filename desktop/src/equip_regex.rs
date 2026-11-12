@@ -27,6 +27,16 @@ const PUNCT: &str = "\\.^$*+?{}[]()|-/#&~%@!'\"`,;:=_ ";
 const CTRL: &str = "tnrfva";
 const CLASS: &str = "dDwWsS";
 const MAX_REPEAT: u64 = 1000;
+/// 両方で同じ意味の旗（(?ims) の最初の旗・(?i-s:…) の旗）。a・u・L は Python だけ
+const FLAGS: &str = "imsx";
+/// (?x) で飛ばす空白（Python の verbose。窓の x も同じ）
+const VERBOSE_WS: &str = " \t\n\r\u{b}\u{c}";
+
+/// (?x) で Python は字そのもの、窓（Unicode の空白）は飛ばす字（Python の WIDE_WS と同じ）
+fn wide_ws(c: char) -> bool {
+    matches!(c, '\u{1c}'..='\u{1f}' | '\u{85}' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}')
+}
+
 const POSIX: &str = "[[:…:]] は Python では [ と : の字の組になり、窓とは意味が違います";
 
 fn special(c: char) -> Option<&'static str> {
@@ -41,7 +51,7 @@ fn special(c: char) -> Option<&'static str> {
 
 /// 正規表現の字 → (判定, 理由)。理由は Ok のとき ""
 pub fn check(src: &str) -> (Verdict, String) {
-    let mut p = Parser { s: src.chars().collect(), i: 0, opened: 0, closed: vec![], names: vec![] };
+    let mut p = Parser { s: src.chars().collect(), i: 0, opened: 0, closed: vec![], names: vec![], verbose: false };
     match p.run() {
         Ok(()) => (Verdict::Ok, String::new()),
         Err((v, why)) => (v, why),
@@ -75,6 +85,8 @@ struct Parser {
     closed: Vec<usize>,
     /// (名前, 閉じたか)
     names: Vec<(String, bool)>,
+    /// (?x) の中（空白と # の注を飛ばす）
+    verbose: bool,
 }
 
 fn bad<T>(why: impl Into<String>) -> P<T> {
@@ -115,9 +127,53 @@ impl Parser {
         self.s[a.min(self.s.len())..b.min(self.s.len())].iter().collect()
     }
 
+    /// (?x) の中: 空白と # から行の終わりまでを飛ばす（[ ] の外だけ）
+    fn skip(&mut self) -> P<()> {
+        while self.verbose && self.i < self.s.len() {
+            let c = self.s[self.i];
+            if wide_ws(c) {
+                return unsup("(?x) の中の全角などの空白（Python は字、窓は空白として飛ばす）");
+            }
+            if VERBOSE_WS.contains(c) {
+                self.i += 1;
+            } else if c == '#' {
+                self.i = self.find(self.i, '\n').map(|j| j + 1).unwrap_or(self.s.len());
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    /// j から旗の字（a・i・L・m・s・u・x・-）を読む → (旗の字, 終わりの位置)
+    fn flags_at(&self, j: usize) -> (String, usize) {
+        let mut k = j;
+        while k < self.s.len() && "aiLmsux-".contains(self.s[k]) {
+            k += 1;
+        }
+        (self.text(j, k), k)
+    }
+
+    fn check_on(&self, on: &str) -> P<()> {
+        if on.chars().any(|c| !FLAGS.contains(c)) {
+            return unsup("(?a) (?u) (?L) の旗は Python だけの書き方です");
+        }
+        Ok(())
+    }
+
     fn run(&mut self) -> P<()> {
-        if self.s.starts_with(&['(', '?', 'i', ')']) {
-            self.i = 4;
+        // 最初の旗（(?i)・(?ims)・(?x) など。いくつ続いてもよい。Python は最初にだけ書ける）
+        while self.at(0, '(') && self.at(1, '?') {
+            let (f, k) = self.flags_at(self.i + 2);
+            if f.is_empty() || self.s.get(k) != Some(&')') {
+                break;
+            }
+            if f.contains('-') {
+                return bad("(?-i) は (?-i:…) の形で書いてください");
+            }
+            self.check_on(&f)?;
+            self.verbose = self.verbose || f.contains('x');
+            self.i = k + 1;
         }
         self.alt(true)?;
         if self.i < self.s.len() {
@@ -141,11 +197,14 @@ impl Parser {
 
     fn seq(&mut self) -> P<Option<u64>> {
         let mut total = Some(0u64);
-        while let Some(c) = self.peek(0) {
+        loop {
+            self.skip()?;
+            let Some(c) = self.peek(0) else { break };
             if c == '|' || c == ')' {
                 break;
             }
             let (mut w, rep) = self.atom()?;
+            self.skip()?;
             let q = self.peek(0);
             if matches!(q, Some('*' | '+' | '?')) || (q == Some('{') && self.is_quant()) {
                 if rep == Rep::Look {
@@ -222,6 +281,13 @@ impl Parser {
         }
         if self.at(0, '+') {
             return unsup("後ろの + （取り戻さない繰り返し）");
+        }
+        if self.verbose {
+            let at = self.i;
+            self.skip()?;
+            if self.i != at && (matches!(self.peek(0), Some('*' | '+' | '?')) || (self.at(0, '{') && self.is_quant())) {
+                return unsup("(?x) の繰り返しの後ろの空白と繰り返し");
+            }
         }
         if matches!(self.peek(0), Some('*' | '+' | '?')) || (self.at(0, '{') && self.is_quant()) {
             return bad("繰り返し（* + ? {}）が 2 つ続いています");
@@ -387,7 +453,46 @@ impl Parser {
                 self.i = j + 1;
                 Ok((None, Rep::Yes))
             }
-            _ => unsup("(? の書き方（(?: ) (?= ) (?! ) (?<= ) (?<! ) (?P<名前> ) (?P=名前) (?# ) と最初の (?i) のほか）"),
+            _ => {
+                let (f, k) = self.flags_at(self.i);
+                let end = self.s.get(k).copied();
+                if f.is_empty() || !matches!(end, Some(')' | ':')) {
+                    return unsup("(? の書き方（(?: ) (?= ) (?! ) (?<= ) (?<! ) (?P<名前> ) (?P=名前) (?# ) と旗 (?i) (?ims:…) のほか）");
+                }
+                let (on, off) = match f.split_once('-') {
+                    Some((a, b)) => (a.to_string(), Some(b.to_string())),
+                    None => (f.clone(), None),
+                };
+                if end == Some(')') {
+                    if self.verbose {
+                        return unsup("(?x) の中の途中の旗");
+                    }
+                    return bad(if f.contains('-') {
+                        "(?-i) は (?-i:…) の形で書いてください"
+                    } else {
+                        "(?i) などの旗は正規表現の最初にだけ書けます"
+                    });
+                }
+                self.check_on(&on)?;
+                if let Some(off) = &off {
+                    if off.is_empty() || off.contains('-') {
+                        return bad("(?…-…:) の - の後ろに旗がありません");
+                    }
+                    if off.chars().any(|c| !"ims".contains(c)) {
+                        return unsup("(?-x:…) などの旗は窓と読み方が違います");
+                    }
+                    if on.chars().any(|c| off.contains(c)) {
+                        return bad("同じ旗を付けて外しています");
+                    }
+                }
+                self.i = k + 1;
+                let before = self.verbose;
+                self.verbose = before || on.contains('x');
+                let w = self.alt(false)?;
+                self.verbose = before;
+                self.close();
+                Ok((w, Rep::Yes))
+            }
         }
     }
 

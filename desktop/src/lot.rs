@@ -75,7 +75,8 @@ impl Settings {
     /// 前は 1 つのマスタが読めないと束全部を Python に尋ね、Python も黙って engine を python にしていた
     pub fn refuse(&self, need: &[&str]) -> Option<(u16, Value)> {
         let b = self.broken.as_object()?;
-        let hit: Vec<(&str, &Value)> = need.iter().filter_map(|n| b.get(*n).map(|w| (*n, w))).collect();
+        // 警告（表でない行を飛ばして組んだ節）は断らない（版 3.102.0 の作った後の採点の割れ 2）
+        let hit: Vec<(&str, &Value)> = need.iter().filter_map(|n| b.get(*n).filter(|w| w["warn"] != true).map(|w| (*n, w))).collect();
         if hit.is_empty() {
             return None;
         }
@@ -447,7 +448,10 @@ impl Lot {
             return None; // ダッシュボードの材料を答えない中身（前の版の Python）は、Python が答える
         }
         // 数える材料の節を組めない（版 3.102.0）: 欠けた材料で数えない（道は呼ぶ側が 503 で断る。設備グループの選べる設備は Python に任せる）
-        if s.broken.as_object().is_some_and(|b| sections_for("/api/dashboard/query", false).iter().any(|n| b.contains_key(*n))) {
+        if s.broken
+            .as_object()
+            .is_some_and(|b| sections_for("/api/dashboard/query", false).iter().any(|n| b.get(*n).is_some_and(|w| w["warn"] != true)))
+        {
             return None;
         }
         let m = self.mirror(&s);
@@ -2113,8 +2117,9 @@ mod tests {
 
     #[test]
     fn a_broken_section_refuses_only_its_routes() {
-        // 版 3.102.0: 束を節ごとに組む。勤務体系に表でない行があると、勤務体系を使う道（作業実績・ダッシュボード）だけが
-        // 503 kind settings で「どのファイルの何行目」を言い、品質の一覧・データ元の並びは答え続ける。Python には尋ねない（前は束全部を尋ねた）
+        // 版 3.102.0: 束を節ごとに組む。勤務体系が読めない（途中で切れた）と、勤務体系を使う道（作業実績・ダッシュボード）だけが
+        // 503 kind settings でどのファイルかを言い、品質の一覧・データ元の並びは答え続ける。表でない行だけなら飛ばして答える。
+        // Python には尋ねない（前は束全部を尋ねた）
         let work = std::env::temp_dir().join(format!("da-lot-broken-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&work);
         let data = work.join("base").join("data");
@@ -2137,10 +2142,22 @@ mod tests {
         let s = lot.settings(&down).expect("束は組める");
         assert_eq!(asked.get(), 0, "Python に尋ねない");
         assert_eq!(s.source, "/無い/q.sqlite3", "BOM 付きの配った設定を読む");
-        assert_eq!(s.broken["shifts"]["why"], json!("shift_patterns.json の 1 行目が読めません（表でない行）"), "{}", s.broken);
+        // 表でない行だけなら節は読める行で組み、飛ばした行を警告に載せる（版 3.102.0 の作った後の採点の割れ 2）。作業実績も答える
+        assert_eq!(
+            (s.broken["shifts"]["why"].clone(), s.broken["shifts"]["warn"].clone()),
+            (json!("shift_patterns.json の 1 行目が読めません（表でない行）。その行を飛ばして読みました"), json!(true)),
+            "{}",
+            s.broken
+        );
+        assert_eq!(s.lists["shifts"].as_array().map(Vec::len), Some(1), "読める行で組む: {}", s.lists["shifts"]);
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=CAL", &down).unwrap();
+        assert_ne!(v["kind"], json!("settings"), "壊れた行だけなら作業実績は断らない: {st} {v}");
+        // ファイルそのものが読めない（途中で切れた）ときは、勤務体系を使う道だけを断る
+        std::fs::write(data.join("shift_patterns.json"), r#"[{"id": 1, "名称": "a"}, {"id": 2, "名"#).unwrap();
+        lot.invalidate();
         let (st, v) = lot.handle("GET", "/api/worklog", "equip=CAL", &down).unwrap();
         assert_eq!((st, v["kind"].clone(), v["broken"].clone()), (503, json!("settings"), json!(["shifts"])), "{v}");
-        assert!(v["error"].as_str().unwrap().contains("shift_patterns.json の 1 行目"), "{v}");
+        assert!(v["error"].as_str().unwrap().contains("手元の shift_patterns.json が読めません（途中で切れています"), "{v}");
         let (st, v) = lot.handle("GET", "/api/lotlist", "", &down).unwrap();
         assert_ne!(v["kind"], json!("settings"), "品質の一覧は勤務体系を使わない: {st} {v}");
         assert_eq!(lot.sources_list("").map(|(st, _)| st), Some(200), "データ元の並びは答える");
@@ -2601,8 +2618,8 @@ mod tests {
         std::fs::write(&cfg3, json!({"lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"enabled": false}}}).to_string())
             .unwrap();
         for (name, bad, why) in [
+            // 表でない行だけのマスタは、版 3.102.0 から Python と同じく行を飛ばして読む（マスタの画面が badRows で知らせる）ので断らない
             ("equipment_master.json", "{bad", "設備マスタ"),
-            ("equipment_master.json", r#"{"schema": 1, "revision": 1, "rows": [1, 2]}"#, "設備マスタ"),
             ("path_settings.json", "{bad", "参照先"),
         ] {
             let keep = std::fs::read(data.join(name)).unwrap();

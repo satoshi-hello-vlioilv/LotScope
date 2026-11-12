@@ -116,20 +116,23 @@ SECTIONS = {"lot_list": ("path_settings",), "sources": ("data_sources", "path_se
 
 
 def section_broken(name, e=None):
-    """節を組めない理由 → {why, file}。e が無ければ、節が使うマスタに表でない行・読めないファイルがあるかを見る（無ければ None）"""
+    """節を組めない理由 → {why, file}。e が無ければ、節が使うマスタに読めないファイル・表でない行があるかを見る（無ければ None）。
+    表でない行だけなら節は読める行で組み、{why, file, warn: True}（飛ばした行を言う警告。版 3.102.0 の作った後の採点の割れ 2）。
+    読めないファイル（途中で切れた JSON など）だけが節を組めない形"""
     from ..repositories.master_repository import bad_rows_text
     from ..repositories.master_store import MasterUnreadable
     from .common import master_repo
     if e is None:
         repo = master_repo()
+        warn = None
         for m in SECTIONS[name]:
             try:
                 bad = repo.bad_rows(m)
             except MasterUnreadable as x:
                 return {"why": str(x), "file": f"{m}.json"}
-            if bad:
-                return {"why": bad_rows_text(m, bad), "file": f"{m}.json"}
-        return None
+            if bad and warn is None:
+                warn = {"why": f"{bad_rows_text(m, bad)}。その行を飛ばして読みました", "file": f"{m}.json", "warn": True}
+        return warn
     return {"why": str(e) if isinstance(e, MasterUnreadable) else f"{type(e).__name__}: {e}", "file": ""}
 
 
@@ -146,7 +149,8 @@ def lotlist_settings():
         why = section_broken(name)
         if why:
             broken[name] = why
-            return None
+            if not why.get("warn"):
+                return None
         try:
             return fn()
         except Exception as e:

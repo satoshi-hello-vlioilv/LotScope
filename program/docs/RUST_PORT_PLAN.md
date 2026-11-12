@@ -1650,6 +1650,17 @@ Python で直せばこの版で利用者に効く。窓が既に持つ同じ部�
 - 評価関数: `bundle_parity`（"broken:節" の場面を足した）・`bundle_cases`・`equip_regex_cases`・`equipgroups_write_parity`（正規表現の歩を任せる歩から答える歩へ・
   当てない決まりの場面）・`page_parity`・`tests/test_broken_masters.py`・`tests/test_equip_regex.py`・`tests/test_bundle_sections.py`・
   `lot::tests::the_window_answers_the_sources_list`・自己診断の 10b-H。Windows の CI では cargo test の全部と、Python の 3 つの試験を流す（desktop.yml）。
+- 作った後の採点（別のエージェント・1 回・72.1 点。`tools/ui-proposals/2026-11-port-rest2.json` の built）の割れを直した（採点し直さない。決まり 2026-11-06。
+  直した形は built_fixed）:
+  - 割れ 1: マスタの画面が表でない行を黙って飛ばしていた → 置き場の状態の各マスタと勤務体系の一覧に `badRows`。画面は置き場の帯の注意の札で
+    「〈名〉.json の n 行目が読めません（ファイルを直してください）」。窓も勤務体系・設備・ロールの道で同じに答える（書く道は 503 で断る。前は Python に任せた）
+  - 割れ 2: 壊れた行 1 つで束の節が丸ごと null（勤務体系の 1 行で作業実績・ダッシュボードが全部 503）→ 表でない行は飛ばし、節は読める行で組み、
+    broken に警告（warn）で「その行を飛ばして読みました」。節を null にするのはファイルが読めないときだけ（`bundle_cases.json` の cases）
+  - 割れ 3: 設備グループの正規表現の旗 (?x)・(?s)・(?m)・(?i:…) などを、Python と窓で同じ答えと事例で確かめて通す（表 206 形）
+  - 割れ 4: 表でない決まり・op の無い決まり・知らない op も unapplied に「読めない決まり」で残す
+  - 足りない所: 窓が Python へ回した回数を `router.rs` の 1 か所で道の型ごとに数える（`delegate_form`。数・キー・ASCII でない段は伏せる）
+- **3.103.0 以降に残す仕事**: 束を丸ごと組めない形（`bundle.rs` の `Py`。約 79 か所。配った設定が窓の読めない字・束に出ない段・設定の段が表でない など）は、
+  節ごとの理由に分けるか窓が同じに読む形にする。種まきの係を窓へ・本文の端（確か 5・6）も 3.103.0。
 - **残る Python だけの道**: `GET /api/lotlist/settings`（内側の口。窓が束の材料を組めない形と種まきの節だけ尋ねる）。`GET /api/health` は ?engine=python のときだけ。
 - **分からない**（確かめていない）: 本物の SMB で書きかけのファイルがどのくらい起きるか・現場の設備グループに正規表現の決まりがあるか（あれば (?x) なども
   当てなくなる）・現場で任せる形が何回起きているか（この版から数える）。

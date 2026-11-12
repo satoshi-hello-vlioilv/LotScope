@@ -102,6 +102,15 @@ class Rules(unittest.TestCase):
                 self.assertEqual(got["unapplied"][0]["value"], v)
 
 
+class UnreadableRules(unittest.TestCase):
+    def test_rules_that_cannot_be_read_are_listed(self):
+        """作った後の採点の割れ 4: 表でない決まり・op の無い決まり・知らない op も黙って外さず、unapplied に理由を添えて残す"""
+        got = equip_groups.rules_of({"ルール": json.dumps({"rules": [5, {"value": "x"}, {"op": "zz", "value": "L"}, {"op": "prefix", "value": "L-"}]})})
+        self.assertEqual(got["rules"], [{"op": "prefix", "value": "L-"}])
+        self.assertEqual([(u["op"], u["value"]) for u in got["unapplied"]], [(None, ""), (None, "x"), ("zz", "L")])
+        self.assertTrue(all("読めない決まり" in u["why"] for u in got["unapplied"]))
+
+
 class BrokenRows(unittest.TestCase):
     def setUp(self):
         self.e = Env()
@@ -122,6 +131,9 @@ class BrokenRows(unittest.TestCase):
         self.assertIn("shift_patterns.json", b["broken"]["shifts"]["why"])
         self.assertIn("1 行目", b["broken"]["shifts"]["why"])
         self.assertIsNotNone(b["lists"]["sources"], "ほかの節は組む")
+        # 作った後の採点の割れ 2: 表でない行だけなら節は読める行で組み、飛ばした行を警告（warn）で言う（勤務体系の 1 行で作業実績を全部止めない）
+        self.assertTrue(b["broken"]["shifts"].get("warn"))
+        self.assertEqual([r["名称"] for r in b["lists"]["shifts"]], ["交替"])
         put = self.e.c.post("/api/masters/shifts", json={"name": "x", "equipment": "", "shifts": []})
         self.assertTrue(put.is_json)
         self.assertGreaterEqual(put.status_code, 400, "読めない行のあるマスタは書かない（消さない）")
@@ -143,6 +155,31 @@ class BrokenRows(unittest.TestCase):
         self.assertIn("equipment_master.json", st["masters"]["equipment_master"]["error"])
         self.assertIn("途中で切れて", st["masters"]["equipment_master"]["error"])
         self.assertNotIn("error", st["masters"]["roll_master"], "ほかのマスタは並べる")
+
+
+class MasterScreens(unittest.TestCase):
+    """作った後の採点の割れ 1: マスタの画面が、読めない行（一覧では飛ばした行）を答えに載せる（直すはずの画面で見えないままにしない）"""
+
+    def setUp(self):
+        self.e = Env()
+
+    def tearDown(self):
+        self.e.close()
+
+    def test_the_answers_say_which_rows_are_unreadable(self):
+        self.e.data("shift_patterns").write_text(json.dumps(["壊れた行", {"id": 1, "名称": "交替", "適用設備": "", "区分": "[]"}], ensure_ascii=False),
+                                                 encoding="utf-8")
+        p = self.e.data("roll_master")
+        rows = json.loads(p.read_text(encoding="utf-8"))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        n = len(rows)
+        p.write_text(json.dumps(rows[:2] + [7] + rows[2:], ensure_ascii=False), encoding="utf-8")
+        sh = self.e.c.get("/api/masters/shifts").get_json()
+        self.assertEqual((sh["badRows"], [x["name"] for x in sh["items"]]), ([1], ["交替"]))
+        st = self.e.c.get("/api/masters/status").get_json()["masters"]
+        self.assertEqual((st["shift_patterns"]["badRows"], st["roll_master"]["badRows"]), ([1], [3]))
+        self.assertNotIn("badRows", st["equipment_master"], "読めない行の無いマスタには載せない")
+        self.assertEqual(len(self.e.c.get("/api/masters/rolls").get_json()), n, "一覧は読める行だけ")
 
 
 class BrokenShare(unittest.TestCase):

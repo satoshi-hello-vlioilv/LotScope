@@ -1214,13 +1214,29 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value, Vec<Valu
     let mut unapplied: Vec<Value> = vec![];
     if let Some(Value::Array(a)) = d.get("rules") {
         for r in a.iter().take(max) {
-            let Some(o) = r.as_object() else { continue };
+            // 読めない決まりも黙って外さず、理由を添えて残す（版 3.102.0 の作った後の採点の割れ 4。Python の rules_of と同じ）
+            let Some(o) = r.as_object() else {
+                unapplied.push(json!({"op": null, "value": "", "why": "読めない決まりです（表でない）。"}));
+                continue;
+            };
             if matches!(o.get("op"), Some(Value::Array(_) | Value::Object(_))) {
                 return Err(Py("設備グループのルールの op が並び・表（Python は in で落ちる）"));
             }
-            let Some(op) = o.get("op").filter(|op| ops.contains(op)) else { continue };
             let raw = if truthy(o.get("value")) { s(o.get("value"))? } else { String::new() };
             let val: String = pyfmt::strip(&raw).chars().take(80).collect();
+            let op = match o.get("op") {
+                None | Some(Value::Null) => None,
+                Some(Value::String(x)) if x.is_empty() => None,
+                Some(x) => Some(x),
+            };
+            let Some(op) = op else {
+                unapplied.push(json!({"op": null, "value": val, "why": "読めない決まりです（比べ方〈op〉がありません）。"}));
+                continue;
+            };
+            if !ops.contains(op) {
+                unapplied.push(json!({"op": op, "value": val, "why": format!("読めない決まりです（知らない比べ方「{}」）。", py_str(op))}));
+                continue;
+            }
             if val.is_empty() {
                 continue;
             }
@@ -1559,12 +1575,11 @@ impl Inputs {
         Ok(())
     }
 
-    /// マスタの行（MasterRepository の読み方: 前の名前の列を今の名前へ・版の無い行は 1）。行が表でなければ Err
+    /// マスタの行（MasterRepository の読み方: 前の名前の列を今の名前へ・版の無い行は 1）。表でない行は飛ばす
+    /// （版 3.102.0。Python の MasterRepository._list と同じ。飛ばした行は束の節の broken の警告〈warn〉が言う）
     pub fn rows(&self, name: &str) -> R<Vec<Value>> {
         let mut rows = self.p.rows(name).map_err(|_| Py("マスタが読めない"))?;
-        if !rows.iter().all(Value::is_object) {
-            return Err(Py("マスタの行が表でない（Python の _normalize が落ちる）"));
-        }
+        rows.retain(Value::is_object);
         let renamed = t(&["renamed", name]).as_object().cloned().unwrap_or_default();
         for r in rows.iter_mut() {
             let Some(o) = r.as_object_mut() else { continue };
@@ -2067,10 +2082,15 @@ impl Builder {
         // 節ごとに組む（版 3.102.0）。組めない節は値を null にし、理由（どのファイル・どの行）を broken に書く。黙って空や既定に替えない
         let mut broken = Map::new();
         let mut section = |name: &str, f: &dyn Fn() -> R<Value>| -> Value {
-            if let Some(why) = section_broken(&inp, name) {
-                broken.insert(name.into(), why);
-                return Value::Null;
+            let why = section_broken(&inp, name);
+            let warn = why.as_ref().is_some_and(|w| w["warn"] == true);
+            if let Some(w) = why {
+                broken.insert(name.into(), w);
+                if !warn {
+                    return Value::Null;
+                }
             }
+            // 表でない行だけ（警告）なら、節は読める行で組む（版 3.102.0 の作った後の採点の割れ 2）
             match f() {
                 Ok(v) => v,
                 Err(e) => {
@@ -2082,13 +2102,7 @@ impl Builder {
         let rows = |name: &str| inp.rows(name);
         let ll = section("lot_list", &|| Ok(Value::Object(dict_or_empty(eff.get("lot_list"))?)));
         let get = |k: &str, d: Value| if ll.is_null() { Value::Null } else { ll.get(k).cloned().unwrap_or(d) };
-        let wl_rows = || -> R<Vec<Value>> {
-            let r = rows("work_log_files")?;
-            if !r.iter().all(Value::is_object) {
-                return Err(Py("作業実績の登録の行が表でない"));
-            }
-            Ok(r)
-        };
+        let wl_rows = || rows("work_log_files");
         let work = section("work", &|| {
             let wl_rows = wl_rows()?;
             // 作業実績の決まり（work_log.params）
@@ -2157,11 +2171,13 @@ pub fn bad_rows_text(name: &str, bad: &[usize]) -> String {
     format!("{name}.json の {}{} 行目が読めません（表でない行）", shown.join("・"), if bad.len() > 5 { " ほか" } else { "" })
 }
 
-/// 節が使うマスタが組めるか → 組めなければ {why, file, seed?, window?}（Python の section_broken と同じ順で見る）。
+/// 節が使うマスタが組めるか → 組めなければ {why, file, seed?, window?}・表でない行だけなら {why, file, warn: true}（Python の section_broken と同じ順で見る）。
 /// seed: 共有にまだ無いマスタ（Python が読むと最初の版を置く。窓はまだ置かないので、束を Python に尋ねる。版 3.103.0 で窓へ移す）・
 /// window: 窓が Python と同じに読めない字（Python は組めることがある）
 fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
     let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);
+    // 表でない行だけなら警告（warn。節は読める行で組む）。読めないファイル・窓の読めない字・種まきは組めない（見つけたらすぐ返す）
+    let mut warn: Option<Value> = None;
     for f in files {
         let file = format!("{f}.json");
         if inp.p.share_absent(f) {
@@ -2180,13 +2196,14 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
             Err(e) => return Some(json!({"why": format!("{file}: {e}"), "file": file, "window": true})),
             Ok(rows) => {
                 let bad: Vec<usize> = rows.iter().enumerate().filter(|(_, r)| !r.is_object()).map(|(i, _)| i + 1).collect();
-                if !bad.is_empty() {
-                    return Some(json!({"why": bad_rows_text(f, &bad), "file": file}));
+                if !bad.is_empty() && warn.is_none() {
+                    warn =
+                        Some(json!({"why": format!("{}。その行を飛ばして読みました", bad_rows_text(f, &bad)), "file": file, "warn": true}));
                 }
             }
         }
     }
-    None
+    warn
 }
 
 #[cfg(test)]

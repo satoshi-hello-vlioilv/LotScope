@@ -832,6 +832,11 @@ fn status_of(store: &Store, local: &Local, peek: bool) -> Option<Value> {
             Ok((doc, src)) => {
                 out["masters"][n] = json!({"revision": doc.revision, "rows": doc.rows.len(), "updated_at": doc.updated_at,
                                            "updated_by": doc.updated_by, "source": cached(src)});
+                // 表でない行の番号（版 3.102.0 の作った後の採点の割れ 1: マスタの画面が知らせる。Python の status と同じ）
+                let bad = crate::master_rows::bad_rows(&doc.rows);
+                if !bad.is_empty() {
+                    out["masters"][n]["badRows"] = json!(bad);
+                }
             }
             Err(crate::master_store::MasterError::Unreadable(why)) => {
                 out["masters"][n] = json!({"revision": null, "rows": null, "updated_at": "", "updated_by": {},

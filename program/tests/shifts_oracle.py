@@ -122,6 +122,16 @@ SCENARIOS = [
     {"name": "置き場の行の名称が並び（窓は答えず Python に任せる）", "mode": "shared",
      "shifts": [{"id": 1, "名称": ["x"], "区分": "[]"}, {"id": 2, "名称": "y", "備考": {"a": 1}, "区分": "[]"}], "steps": [],
      "delegates": [S(BOSS, "POST", P, {"name": "['x']", "segments": THREE}), S(BOSS, "GET", P)]},
+    # 版 3.102.0 の作った後の採点の割れ 1: 表でない行は、一覧では飛ばして badRows で言い、書く道は断る（行もファイルも消さない）。前は窓が Python に任せた
+    {"name": "置き場に表でない行（一覧は読める行と badRows・書く道は断る）", "mode": "shared",
+     "shifts": ["壊れた行", {"id": 7, "名称": "読める行", "区分": "[]", "rev": 1}, 5], "steps": [
+        S(BOSS, "GET", P),
+        S(BOSS, "POST", P, {"name": "新", "segments": THREE}),
+        S(BOSS, "POST", P, {"name": "", "segments": THREE}),
+        S(BOSS, "PUT", f"{P}/7", {"note": "x"}),
+        S(BOSS, "DELETE", f"{P}/7", query="rev=1"),
+        S(BOSS, "GET", P),
+    ]},
     {"name": "書ける段と門番", "mode": "shared", "shifts": OLD[:2], "steps": [
         S(PART, "GET", P),
         S(PART, "POST", P, {"name": "部分的編集可でも書ける", "segments": THREE}),
