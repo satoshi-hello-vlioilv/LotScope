@@ -31,6 +31,41 @@ fn norm(v: &Value, root: &str) -> Value {
     }
 }
 
+/// 錠の「あと何秒」（remaining と「あと約 n 秒」）。錠を最初に見てからの経過で数えるので、Python と窓で歩の間の時間が
+/// 違えば 1 秒ほどずれる（Windows の CI で 20 / 19）。両方の秒を取り出して返し、答えからは伏せる
+fn lock_secs(v: &Value, out: &mut Vec<i64>) -> Value {
+    let re = regex::Regex::new(r"あと約(\d+)秒").unwrap();
+    match v {
+        Value::String(s) => {
+            out.extend(re.captures_iter(s).filter_map(|c| c[1].parse::<i64>().ok()));
+            json!(re.replace_all(s, "あと約<秒>秒").into_owned())
+        }
+        Value::Object(o) => Value::Object(
+            o.iter()
+                .map(|(k, x)| match (k.as_str(), x.as_i64()) {
+                    ("remaining", Some(n)) => {
+                        out.push(n);
+                        (k.clone(), json!("<秒>"))
+                    }
+                    _ => (k.clone(), lock_secs(x, out)),
+                })
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.iter().map(|x| lock_secs(x, out)).collect()),
+        _ => v.clone(),
+    }
+}
+
+/// 両方の秒が同じ数だけあり、どれも錠の長さ（20 秒）の内で、差が 2 秒以内なら伏せた形を返す（揺れ以外の食い違いは前どおり拾う）
+fn same_lock_wait(want: &Value, got: &Value) -> Option<(Value, Value)> {
+    let (mut ws, mut gs) = (vec![], vec![]);
+    let (w, g) = (lock_secs(want, &mut ws), lock_secs(got, &mut gs));
+    let ok = !ws.is_empty()
+        && ws.len() == gs.len()
+        && ws.iter().zip(&gs).all(|(a, b)| (1..=21).contains(a) && (1..=21).contains(b) && (a - b).abs() <= 2);
+    ok.then_some((w, g))
+}
+
 fn sub(x: &str, root: &str) -> String {
     x.replace("@ROOT", root)
 }
@@ -166,6 +201,7 @@ fn master_place_matches_python() {
                 continue;
             };
             let (want, gotn) = (norm(&st["json"], py), norm(&got, rs));
+            let (want, gotn) = same_lock_wait(&want, &gotn).unwrap_or((want, gotn));
             if status as i64 != st["status"].as_i64().unwrap_or(0) || common::diff(&want, &gotn, "").is_some() {
                 bad.push(format!(
                     "{name} [{i}] {} {} {}: {}\n  Python {} {want}\n  窓     {status} {gotn}",
@@ -272,4 +308,19 @@ fn an_empty_share_is_seeded_once_by_python() {
     assert!(!Path::new(&rs).join("share/master.lock.json").exists(), "錠が残らない");
     eprintln!("Python が種をまく間に窓が答えた回数 {answered}");
     let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn only_the_lock_wait_jitter_is_forgiven() {
+    let a = json!({"error": "PC-9／o がマスタを保存中です（あと約20秒）。", "remaining": 20, "kind": "locked"});
+    let b = json!({"error": "PC-9／o がマスタを保存中です（あと約19秒）。", "remaining": 19, "kind": "locked"});
+    let (w, g) = same_lock_wait(&a, &b).expect("1 秒の揺れは同じとみなす");
+    assert_eq!(w, g);
+    let far = json!({"error": "PC-9／o がマスタを保存中です（あと約5秒）。", "remaining": 5, "kind": "locked"});
+    assert!(same_lock_wait(&a, &far).is_none(), "2 秒を超える差は食い違いのまま");
+    let other = json!({"error": "PC-8／o がマスタを保存中です（あと約19秒）。", "remaining": 19, "kind": "locked"});
+    let (w, g) = same_lock_wait(&a, &other).unwrap();
+    assert_ne!(w, g, "秒のほかの違い（名乗り）は残る");
+    assert!(same_lock_wait(&a, &json!({"remaining": 20})).is_none(), "秒の数が違えば伏せない");
+    assert!(same_lock_wait(&json!({"ok": true}), &json!({"ok": true})).is_none(), "秒の無い答えは触らない");
 }
