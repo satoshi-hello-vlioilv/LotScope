@@ -126,18 +126,35 @@ class SiteServer(unittest.TestCase):
         cls.srv.shutdown()
 
     def client(self, query=""):
+        return self.make_client(self.url, query)
+
+    @staticmethod
+    def make_client(url, query, start_timeout=40):
         app = create_app({"TESTING": True, "MASTER_STORE": MasterStore(ROOT, local_root=Path(tempfile.mkdtemp()), settings={})})
         app.config["APP_SETTINGS"]["lotdsp_import"] = {
-            "url": self.url, "only_master_equipment": True,
+            "url": url, "only_master_equipment": True,
             # 起動を待つ長さは、遅い機械（CI の起こしたての Linux）で新しいプロファイルの起動が 15 秒前後かかるので延ばす
-            "direct": {"browser": CHROMIUM, "extra_args": EXTRA, "timeout_seconds": 40, "start_timeout_seconds": 40,
-                       "search_url": self.url + query + "#/lotdsp"}}
+            "direct": {"browser": CHROMIUM, "extra_args": EXTRA, "timeout_seconds": 40, "start_timeout_seconds": start_timeout,
+                       "search_url": url + query + "#/lotdsp"}}
         return app.test_client()
 
 
 @unittest.skipUnless(CHROMIUM, "Chromium／Edge が無い環境では飛ばす")
 class RealBrowser(SiteServer):
     """本物のブラウザを画面に出さずに動かして読む。"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # 暖機: 起こしたての機械（CI）では、その job で初めてブラウザを起こすときだけフォントの控えを作るなどで 40 秒を超えることがあり、
+        # 組の最初に流れる試験だけが「DevTools が開きませんでした」で落ちた（PR #101・#102 で 2 回）。アプリと同じ起こし方で、待つ長さだけを
+        # 延ばして 1 回起こして閉じ、最初の 1 回の重さを測る所の外へ出す。試験の待つ長さ（40 秒）は変えない。かかった秒は記録に残す
+        D.shutdown()
+        t = time.time()
+        c = cls.make_client(cls.url, "", start_timeout=180)
+        r = c.post("/api/lots/fetch-lotdsp", json={"lot_no": "L7150C0"})
+        D.shutdown()
+        print(f"\n  ブラウザの暖機 {time.time() - t:.1f} 秒（{r.status_code}）", flush=True)
 
     def test_reads_and_imports_without_the_extension(self):
         r = self.client().post("/api/lots/fetch-lotdsp", json={"lot_no": "l7150c0"})
