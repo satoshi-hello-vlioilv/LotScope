@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """ロット一覧（品質データ SQLite の写し）。"""
+import logging
+
 from ..web import current_app, jsonify, request
 
 from .. import effective_settings, lot_engine, lot_list_params, shell_serves
 from ..repositories.master_repository import MasterRepository
 from ..services import conversions, lot_list, pivot
 from .common import bp, error, tab_denied
+
+log = logging.getLogger(__name__)
 
 
 def lot_mirror():
@@ -106,24 +110,62 @@ def lotlist_pivot():
     return jsonify(out)
 
 
+# 束の節（版 3.102.0）と、節が使うマスタ。窓の desktop/src/bundle.rs の SECTIONS と同じ（tests/fixtures/bundle_cases.json）
+SECTIONS = {"lot_list": ("path_settings",), "sources": ("data_sources", "path_settings"), "work": ("work_log_files", "path_settings"),
+            "dash": ("work_log_files", "equipment_master", "equipment_groups"), "shifts": ("shift_patterns",), "conversions": ("conversions",)}
+
+
+def section_broken(name, e=None):
+    """節を組めない理由 → {why, file}。e が無ければ、節が使うマスタに読めないファイル・表でない行があるかを見る（無ければ None）。
+    表でない行だけなら節は読める行で組み、{why, file, warn: True}（飛ばした行を言う警告。版 3.102.0 の作った後の採点の割れ 2）。
+    読めないファイル（途中で切れた JSON など）だけが節を組めない形"""
+    from ..repositories.master_repository import bad_rows_text
+    from ..repositories.master_store import MasterUnreadable
+    from .common import master_repo
+    if e is None:
+        repo = master_repo()
+        warn = None
+        for m in SECTIONS[name]:
+            try:
+                bad = repo.bad_rows(m)
+            except MasterUnreadable as x:
+                return {"why": str(x), "file": f"{m}.json"}
+            if bad and warn is None:
+                warn = {"why": f"{bad_rows_text(m, bad)}。その行を飛ばして読みました", "file": f"{m}.json", "warn": True}
+        return warn
+    return {"why": str(e) if isinstance(e, MasterUnreadable) else f"{type(e).__name__}: {e}", "file": ""}
+
+
 @bp.get("/api/lotlist/settings")
 def lotlist_settings():
     """デスクトップ版の Rust が尋ねる、いまの一覧の設定（参照先マスタで変えた値を重ねたもの）。写しと問い合わせは Rust が受け持つ。
     engine: "rust"（既定）か "python"（設定 desktop.lotlist_engine。食い違いに気づいたら Python に戻す）。
-    conversions: 計算列の式の conv が引く変換表と版（版 3.59.0。計算列で並べ替える一覧も Rust が答える）。"""
+    conversions: 計算列の式の conv が引く変換表と版（版 3.59.0。計算列で並べ替える一覧も Rust が答える）。
+    broken（版 3.102.0）: 組めない節 → {why（どのファイル・どの行）, file}。その節の値は null。窓はその節を使う道だけを 503 kind settings で断り、
+    ほかの道は答え続ける（前は 1 つでも読めないと engine を黙って python にし lists を null にした）"""
+    broken = {}
+
+    def section(name, fn):
+        why = section_broken(name)
+        if why:
+            broken[name] = why
+            if not why.get("warn"):
+                return None
+        try:
+            return fn()
+        except Exception as e:
+            log.warning("LOTLIST_SETTINGS section=%s broken: %s", name, e)
+            broken[name] = section_broken(name, e)
+            return None
+
     settings = effective_settings(current_app)
-    source, refresh_seconds, stale_hours = lot_list_params(settings)
-    ll = settings.get("lot_list") or {}
+    ll = section("lot_list", lambda: (lot_list_params(settings), settings.get("lot_list") or {}))
+    (source, refresh_seconds, stale_hours), ll = ll if ll else ((None, None, None), None)
     engine = lot_engine(current_app.config["APP_SETTINGS"])
     if "lists" not in shell_serves() and (tab_denied("lot") or _lot_col()):
         # 段取りを知らない前の窓（版 3.59.0 まで）: 品質のタブを出さない人・ロット番号の列を決めてある元は Python に任せる
         engine = "python"
-    try:
-        lists = lists_settings()
-    except Exception:
-        # 段取りの材料（データ元・作業実績の登録など）が読めない（マスタに届かない など）: 窓は品質の結合・ロット番号の列・タブの権限を
-        # 知らずに答えることになるので、Python に任せる（Python は同じ理由の失敗を答える）
-        lists, engine = None, "python"
+    lists = lists_settings(section)
     try:
         # 権限の判定の材料（版 3.65.0。desktop/src/access.rs）: 名乗り（決めるのはまだ Python）と、マスタ・利用状況の置き場。
         # 窓はこの置き場から権限のマスタと切断の指示を自分で読み、me を決めて Python へ渡す（判定は窓の 1 か所）
@@ -133,9 +175,10 @@ def lotlist_settings():
     # calculation: 転写距離・ピッチ計算の設定（版 3.72.0。窓の desktop/src/calc.rs が POST /api/calculate に答える）。
     # 配った設定（APP_SETTINGS）の値そのもの（参照先マスタでは変えない。Python の calculator と同じ物）
     calculation = current_app.config["APP_SETTINGS"].get("calculation", {})
-    return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", ""),
-                   page_size=ll.get("page_size", 500), engine=engine, conversions=_conversions(), lists=lists, access=place,
-                   calculation=calculation, uiProfileKeys=_ui_profile_keys())
+    conv = section("conversions", _conversions) or {"rev": None, "tables": {}}
+    return jsonify(source=source, refresh_seconds=refresh_seconds, stale_hours=stale_hours, table=ll.get("table", "") if ll is not None else None,
+                   page_size=ll.get("page_size", 500) if ll is not None else None, engine=engine, conversions=conv, lists=lists, access=place,
+                   calculation=calculation, uiProfileKeys=_ui_profile_keys(), broken=broken)
 
 
 def _ui_profile_keys():
@@ -144,14 +187,16 @@ def _ui_profile_keys():
     return list(ui_defaults.PROFILE_KEYS)
 
 
-def lists_settings():
+def lists_settings(section=None):
     """一覧の段取りに要る物（版 3.60.0。デスクトップ版の Rust が品質・作業実績・データ元の一覧とスライサーを受け持つ: desktop/src/lists.rs）。
     hidden: この PC・このログインに出さないタブ（タブの権限）・sources: データ元の定義（場所・表・件数・ロット番号の列・結合・元）・
-    work: 作業実績のフォルダ・決まり・設備の登録・shifts: 勤務体系（設備ごとの直）。マスタの中身を Python が読み、決めるのは Rust"""
+    work: 作業実績のフォルダ・決まり・設備の登録・shifts: 勤務体系（設備ごとの直）。マスタの中身を Python が読み、決めるのは Rust。
+    section（版 3.102.0）: 節ごとに組む係（lotlist_settings の section。組めない節は null。無ければ組めないと落ちる）"""
     from .. import shell_serves
     from ..services import shifts, work_log
     from .common import can_write, master_repo, me
     from .sources import all_sources
+    section = section or (lambda _name, fn: fn())
     # 窓が権限を受け持つとき（版 3.65.1）: 出さないタブ・勤務体系を直せるかは窓が自分の me から決める（判定の元を 1 つに）。ここでは決めない（null）。
     # 窓が me を決められないときは、窓はその問い合わせを Python に任せ、Python が自分の me で答える（null を「出さないタブ無し」と読ませない）
     shell_decides = "access" in shell_serves()
@@ -163,21 +208,24 @@ def lists_settings():
         except Exception:
             hidden = []
     repo = master_repo()
-    wl = work_log.params(effective_settings(current_app))
     keep = ("key", "kind", "name", "role", "place", "table", "base", "broken", "api", "lotSet", "joins", "read", "equipColumn", "equipMode")
     from ..services import equip_groups
     from .dashboard import _equipment_names, _now_override
+
+    def work():
+        wl = work_log.params(effective_settings(current_app))
+        return {**{k: wl[k] for k in ("folder", "pattern", "table", "refresh_seconds", "stale_hours", "page_size")},
+                "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び")} for r in repo.work_logs()],
+                "canEditShifts": None if shell_decides else can_write(shifts.NAME)}
     return {"hidden": hidden,
             # ダッシュボードの段取りの材料（版 3.62.0。desktop/src/dashboard.rs）: 設備の名前（データ元の設備の列の見分け・合わせた表の並び）・
             # 設備グループ（表示順の並びの view）・試験の「いま」（DASHBOARD_NOW。製品では null＝窓の時計）
-            "dash": {"equipNames": _equipment_names(repo, repo.work_logs()),
-                     "equipGroups": [equip_groups.view(r) for r in equip_groups.ordered(repo.equip_groups())],
-                     "now": _now_override()},
-            "sources": [{k: s.get(k) for k in keep} for s in all_sources()],
-            "work": {**{k: wl[k] for k in ("folder", "pattern", "table", "refresh_seconds", "stale_hours", "page_size")},
-                     "rows": [{k: r.get(k) for k in ("キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び")} for r in repo.work_logs()],
-                     "canEditShifts": None if shell_decides else can_write(shifts.NAME)},
-            "shifts": repo.shift_patterns()}
+            "dash": section("dash", lambda: {"equipNames": _equipment_names(repo, repo.work_logs()),
+                                             "equipGroups": [equip_groups.view(r) for r in equip_groups.ordered(repo.equip_groups())],
+                                             "now": _now_override()}),
+            "sources": section("sources", lambda: [{k: s.get(k) for k in keep} for s in all_sources()]),
+            "work": section("work", work),
+            "shifts": section("shifts", repo.shift_patterns)}
 
 
 def _access_place():
@@ -194,12 +242,10 @@ def _access_place():
 
 
 def _conversions():
-    """計算列の式の conv が引く変換表と、その版（版 3.59.0。Rust も式を持ち、計算列で並べ替える一覧に答える。版が同じなら Rust は読み直さない）"""
+    """計算列の式の conv が引く変換表と、その版（版 3.59.0。Rust も式を持ち、計算列で並べ替える一覧に答える。版が同じなら Rust は読み直さない）。
+    読めなければ投げる（版 3.102.0: 束の節 conversions を「読めない」とする。前は黙って空の表にした）"""
     st = current_app.config["MASTER_STORE"]
-    try:
-        return {"rev": st.stamp(conversions.NAME), "tables": conversions.tables(MasterRepository(st).conversions())}
-    except Exception:                    # マスタを読めない: 表なし（conv は空。一覧そのものは答える）
-        return {"rev": None, "tables": {}}
+    return {"rev": st.stamp(conversions.NAME), "tables": conversions.tables(MasterRepository(st).conversions())}
 
 
 @bp.get("/api/lotlist/source")

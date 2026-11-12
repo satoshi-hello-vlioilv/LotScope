@@ -481,6 +481,33 @@ impl Place {
         self.doc(name).map(|(rows, _)| rows)
     }
 
+    /// 読めないマスタのファイルの理由の言葉（Python の MasterUnreadable と同じ。版 3.102.0）。読めれば None。
+    /// 読む順は doc と同じ（共有が壊れていれば写しで続けるので、言うのは実際に読めなかった写し・同梱の data/・最初の中身）
+    pub fn unreadable(&self, name: &str) -> Option<String> {
+        let file = format!("{name}.json");
+        let mut tries: Vec<(PathBuf, &str)> = vec![];
+        if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {
+            tries.push((share.join(&file), "共有の"));
+            tries.push((self.cache.join(&file), "この PC の写しの"));
+        }
+        tries.push((self.data.join(&file), "手元の"));
+        tries.push((self.defaults.join(&file), "同梱の最初の中身の"));
+        let n = tries.len();
+        for (i, (path, where_)) in tries.iter().enumerate() {
+            let Ok(b) = std::fs::read(path) else { continue };
+            if doc_rows(&b).is_ok() {
+                return None;
+            }
+            if i == 0 && n > 3 {
+                continue; // 共有の書きかけ・壊れた物は写しで続ける
+            }
+            let body = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
+            let err = serde_json::from_slice::<Value>(body).err();
+            return Some(crate::master_store::unreadable_text(where_, path, &b, err.as_ref()));
+        }
+        None
+    }
+
     /// マスタの版の番号（MasterStore.revision: {revision} の int。行の配列〈同梱の data/ の昔の形〉・無いファイルは 0）
     pub fn revision(&self, name: &str) -> Result<i64, String> {
         self.doc(name).map(|(_, rev)| rev)

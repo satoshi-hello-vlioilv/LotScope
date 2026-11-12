@@ -7,8 +7,10 @@
 窓と同じ名乗り（TPA_SHELL=desktop・TPA_SHELL_SERVES に bundle）で Python の道に束を尋ねる。答えを取ったら、場面のフォルダを
 尋ねる前の形に戻す（Python が写しを作る・この PC の覚えを書き直す前の形）。窓の試験は同じフォルダから自分で束を組み、答えを突き合わせる。
 
-"expect": "same" は窓が同じ束を組む場面（conversions.rev は窓と Python で別の字なので比べない）・"delegate" は窓が組まずに Python に
-尋ねる場面（窓の読めない字・Python が束を作れずに落ちる形・共有にまだ無いマスタ・設備グループの正規表現）。
+"expect": "same" は窓が同じ束を組む場面（conversions.rev は窓と Python で別の字なので比べない。組めない節〈broken〉も同じ理由で同じ）・
+"delegate" は窓が束を組まずに Python に尋ねる場面（配った設定が窓の読めない字・共有にまだ無いマスタ〈種まき。版 3.103.0 で窓へ〉）・
+"broken:節,…" は窓がその節だけを組まずに理由を言い、ほかの節は Python と同じに組む場面（版 3.102.0。前は束全部を Python に尋ねた。
+窓の読めない字・窓が Python と同じに組めない形）。broken の場面の Python の答えは JSON で渡せるとき（NaN が無いとき）だけ渡す。
 "pyFollows" の場面は Python に引っ越しの印をたどらせて（bundle を名乗らない）答えを取り、窓が同じ置き場へたどるか・この PC の覚えに
 同じ置き場を書くかを見る（製品では、印をたどる係は窓の 1 つ）。
 
@@ -241,13 +243,13 @@ def scenarios(work):
         masters(share=r / "share")
         write(r / "share" / "shift_patterns.json", doc(["x", {"id": 1, "名称": "a"}]))
         return config(r)
-    sc("勤務体系に表でない行", bad_rows, expect="delegate")
+    sc("勤務体系に表でない行", bad_rows)
 
     def op_list(r):
         masters(share=r / "share")
         write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "ルール": json.dumps({"rules": [{"op": ["prefix"], "value": "L"}]})}]))
         return config(r)
-    sc("設備グループのルールの op が並び", op_list, expect="delegate")
+    sc("設備グループのルールの op が並び", op_list, expect="broken:dash")
 
     def update_str(r):
         masters(share=r / "share")
@@ -261,10 +263,10 @@ def scenarios(work):
         masters(share=r / "share")
         write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": [["a"], "b"]}]))
         return config(r)
-    sc("設備の並びの中に並び", nested, expect="delegate")
+    sc("設備の並びの中に並び", nested, expect="broken:dash")
     sc("表示順が i64 に入らない設備グループ", lambda r: (masters(share=r / "share"),
                                                  write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": "a", "表示順": "99999999999999999999"}])),
-                                                 config(r))[2], expect="delegate")
+                                                 config(r))[2], expect="broken:dash")
 
     # 窓は組まず Python に尋ねる形
     sc("配った設定に NaN", lambda r: (masters(share=r / "share"),
@@ -276,13 +278,45 @@ def scenarios(work):
         rows["rows"].append({"id": 20, "キー": "s9", "表示名": "x", "場所": "/x", "確かめる間隔": "inf"})
         write(r / "share" / "data_sources.json", rows)
         return config(r)
-    sc("データ元の行の間隔が inf", inf, expect="delegate")
+    sc("データ元の行の間隔が inf", inf, expect="broken:sources")
 
     def regex(r):
         masters(share=r / "share")
         write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "ルール": json.dumps({"rules": [{"op": "regex", "value": "^L"}]})}]))
         return config(r)
-    sc("設備グループの正規表現", regex, expect="delegate")
+    sc("設備グループの正規表現", regex)
+
+    # 版 3.102.0: 正規表現の決まりのうち、重い・窓で写せない決まりだけを当てず（理由つき）、ほかの決まりと除く設備は残す（確か 2）
+    def regex_mixed(r):
+        masters(share=r / "share")
+        rules = [{"op": "prefix", "value": "L-"}, {"op": "regex", "value": "(a+)+"}, {"op": "regex", "value": "^L-[0-9]\\Z"},
+                 {"op": "regex", "value": "^CR\\d$"}, {"op": "regex", "value": "("}]
+        write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "ルール": json.dumps({"rules": rules, "except": ["L-9"]})}]))
+        return config(r)
+    sc("設備グループの正規表現の一部だけ当てない", regex_mixed)
+
+    # 版 3.102.0: 配った設定が BOM 付きの UTF-8（メモ帳の「UTF-8 (BOM 付き)」。確か 4）
+    def bom(r):
+        masters(share=r / "share")
+        return "\ufeff" + json.dumps(config(r), ensure_ascii=False)
+    sc("配った設定が BOM 付き", bom)
+
+    # 版 3.102.0: 手元だけのマスタが途中で切れた・表でない行（確か 3）。その節だけ組まず、ほかは組む（理由の言葉も Python と同じ）
+    def cut_local(r):
+        masters(share=r / "使わない共有", data=r / "base" / "data")
+        p = r / "base" / "data" / "shift_patterns.json"
+        b = p.read_bytes()
+        p.write_bytes(b[: len(b) // 2])
+        return config(r, master_share={})
+    sc("手元の勤務体系が途中で切れた", cut_local)
+
+    def bad_work_row(r):
+        masters(share=r / "share")
+        wl = json.loads((r / "share" / "work_log_files.json").read_text(encoding="utf-8"))
+        wl["rows"] += [7, "x"]
+        write(r / "share" / "work_log_files.json", wl)
+        return config(r)
+    sc("作業実績の登録に表でない行（実績と設備の名前の節）", bad_work_row)
     sc("共有にまだ無いマスタ", lambda r: ((r / "share").mkdir(), config(r))[1], expect="delegate")
     sc("lot_list が表でない", lambda r: (masters(share=r / "share"), config(r, lot_list="x"))[1], expect="delegate")
 
@@ -434,7 +468,7 @@ def ask(s, follows):
     for k, v in s["env"].items():
         os.environ[k] = str(root) if v == "@root" else v
     try:
-        cfg = json.loads((root / "config.json").read_text(encoding="utf-8"))
+        cfg = json.loads((root / "config.json").read_text(encoding="utf-8-sig"))
     except ValueError:
         cfg = {}
     tc = {"MASTER_STORE": MasterStore(root / "base", local_root=root / "local",
@@ -502,6 +536,15 @@ def page_reads(c, bundle, tree, mirrors):
     return out
 
 
+def finite(v):
+    """JSON で渡せるか（NaN・Infinity が無い）"""
+    try:
+        json.dumps(v, allow_nan=False)
+        return True
+    except ValueError:
+        return False
+
+
 def main():
     logging.disable(logging.CRITICAL)
     work = Path(sys.argv[1])
@@ -515,9 +558,9 @@ def main():
         shutil.rmtree(s["root"])
         shutil.move(str(keep), s["root"])          # 尋ねる前の形へ戻す（窓は同じフォルダから組む）
         root = s["root"]
-        # 窓が Python に尋ねる場面の答えは比べない（NaN を含むと JSON で渡せない）
+        # 窓が Python に尋ねる場面の答えは比べない（NaN を含むと JSON で渡せない）。broken の場面は渡せるときだけ
         out.append({"name": s["name"], "expect": s["expect"], "pyFollows": s["pyFollows"],
-                    "answer": answer if s["expect"] == "same" else None, "override": after, "reads": reads,
+                    "answer": answer if s["expect"] == "same" or (s["expect"].startswith("broken:") and finite(answer)) else None, "override": after, "reads": reads,
                     "expectOverride": str(root / s["expectOverride"]) if s["expectOverride"] else None,
                     "env": {"base": str(root / "base"), "program": s["program"] or str(PROGRAM), "local": str(root / "local"),
                             "config": str(root / "config.json"),

@@ -169,6 +169,14 @@ SCENARIOS = [
      "rows": {"equipment_master": [{"id": 1, "設備名": 10000000000000000000}], "roll_master": [{"id": 1, "設備": "A", "本数": 18446744073709551616}]},
      "steps": [], "delegates": [S(BOSS, "POST", E, {"設備名": "Q", "同一工程": "10000000000000000000"}), S(BOSS, "GET", E), S(BOSS, "GET", R),
                                 S(BOSS, "POST", R, {"設備": "B"})]},
+    # 版 3.102.0 の作った後の採点の割れ 1: 表でない行は一覧では飛ばし（読めない行はマスタの置き場の状態の badRows が言う）、書く道は断る。前は窓が Python に任せた
+    {"name": "置き場に表でない行（一覧は読める行・書く道は断る）", "mode": "shared",
+     "rows": {"equipment_master": [EQ[0], "壊れた行"], "roll_master": [7, {"id": 1, "設備": "CR1", "rev": 1}]}, "steps": [
+        S(BOSS, "GET", "/api/masters/equipment"), S(BOSS, "GET", "/api/masters/rolls"),
+        S(BOSS, "POST", "/api/masters/equipment", {"設備名": "新"}), S(BOSS, "POST", "/api/masters/equipment", {"設備名": ""}),
+        S(BOSS, "PUT", "/api/masters/rolls/1", {"設備": "CR2"}), S(BOSS, "DELETE", "/api/masters/rolls/1"),
+        S(BOSS, "GET", "/api/masters/rolls"),
+    ], "delegates": []},
     {"name": "書ける段と門番", "mode": "shared", "rows": {"equipment_master": EQ[:2], "roll_master": ROLLS}, "steps": [
         S(PART, "GET", E),
         S(PART, "POST", E, {"設備名": "部分的編集可でも書ける"}),

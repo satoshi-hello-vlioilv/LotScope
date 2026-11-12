@@ -68,6 +68,8 @@ pub enum MasterError {
     Invalid(String),
     /// そのほか（読めない・書けない）。Python では例外のまま 500
     Error(String),
+    /// マスタのファイルが読めない（途中で切れた・壊れた JSON・形が違う。版 3.102.0。Python の MasterUnreadable と同じ 503・言葉）
+    Unreadable(String),
 }
 
 impl MasterError {
@@ -80,6 +82,7 @@ impl MasterError {
             MasterError::Unavailable(_) => "unavailable",
             MasterError::Invalid(_) => "invalid",
             MasterError::Error(_) => "error",
+            MasterError::Unreadable(_) => "master_unreadable",
         }
     }
 
@@ -87,7 +90,7 @@ impl MasterError {
         match self {
             MasterError::Locked { .. } | MasterError::Conflict(_) | MasterError::Duplicate(_) => 409,
             MasterError::NotFound(_) => 404,
-            MasterError::Unavailable(_) => 503,
+            MasterError::Unavailable(_) | MasterError::Unreadable(_) => 503,
             MasterError::Invalid(_) => 400,
             MasterError::Error(_) => 500,
         }
@@ -123,7 +126,8 @@ impl MasterError {
             | MasterError::NotFound(m)
             | MasterError::Unavailable(m)
             | MasterError::Invalid(m)
-            | MasterError::Error(m) => m.clone(),
+            | MasterError::Error(m)
+            | MasterError::Unreadable(m) => m.clone(),
         }
     }
 
@@ -188,6 +192,30 @@ pub fn iso(t: chrono::NaiveDateTime) -> String {
 }
 
 /// 読む（BOM を外す）。Windows の std::fs は読んでいる間もほかが置き換えられる開き方（FILE_SHARE_DELETE）で開く
+/// 読めないファイルの理由の言葉（Python の master_store.unreadable_text と同じ。版 3.102.0）。where は「共有の」「この PC の写しの」「手元の」。
+/// 途中で切れた形（JSON の終わりで止まった）は大きさを、ほかは読めなくなった行を言う。e が None はマスタの形（rows の並び・版）が違う
+pub fn unreadable_text(where_: &str, path: &Path, raw: &[u8], e: Option<&serde_json::Error>) -> String {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let body = raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(raw);
+    let why = if let Err(u) = std::str::from_utf8(body) {
+        if u.error_len().is_none() {
+            format!("途中で切れています（{} バイト）", raw.len()) // 字の途中で切れた（書きかけ。Python の unexpected end of data）
+        } else {
+            "UTF-8 の字として読めません".to_string()
+        }
+    } else {
+        match e {
+            Some(e) if e.classify() == serde_json::error::Category::Eof => format!("途中で切れています（{} バイト）", raw.len()),
+            Some(e) => format!("JSON として読めません（{} 行目）", e.line()),
+            None => "マスタの形（rows の並び）が読めません".to_string(),
+        }
+    };
+    format!("{where_} {name} が読めません（{why}）")
+}
+
+/// 読めない JSON（窓の読めない字でない、本当に壊れた物）の印。read_json の誤りの言葉の頭に付け、Doc::read が理由の言葉に替える
+const BROKEN: &str = "\u{1}broken";
+
 fn read_json(path: &Path) -> std::io::Result<Value> {
     let b = std::fs::read(path)?;
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
@@ -207,6 +235,11 @@ fn read_json(path: &Path) -> std::io::Result<Value> {
             let text = String::from_utf8_lossy(b);
             if ["NaN", "Infinity"].iter().any(|w| text.contains(w)) || text.contains("E400") || text.contains("e400") {
                 return Err(bad(format!("{}: 窓では読めない数（NaN・Infinity・大きすぎる数）があります（{e}）", path.display())));
+            }
+            if std::str::from_utf8(b).is_err()
+                || matches!(e.classify(), serde_json::error::Category::Eof | serde_json::error::Category::Syntax)
+            {
+                return Err(bad(format!("{BROKEN}{}", e.line()))); // 本当に壊れた物（Doc::read が置き場の言葉を付ける）
             }
             Err(bad(format!("{}: {e}", path.display())))
         }
@@ -456,8 +489,24 @@ impl Doc {
         }
     }
 
-    pub fn read(path: &Path) -> R<Doc> {
-        Doc::from_value(read_json(path).map_err(io_err)?)
+    /// where は理由の言葉の置き場（「共有の」「この PC の写しの」「手元の」。Store::where_of）。壊れた JSON・形の違う中身は Unreadable
+    pub fn read(path: &Path, where_: &str) -> R<Doc> {
+        let v = match read_json(path) {
+            Ok(v) => v,
+            Err(e) if e.to_string().starts_with(BROKEN) => {
+                let raw = std::fs::read(path).unwrap_or_default();
+                let body = raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&raw);
+                let err = serde_json::from_slice::<Value>(body).err();
+                return Err(MasterError::Unreadable(unreadable_text(where_, path, &raw, err.as_ref())));
+            }
+            Err(e) => return Err(io_err(e)),
+        };
+        Doc::from_value(v).map_err(|e| match e {
+            MasterError::Error(m) if m == "マスタの形が読めません" => {
+                MasterError::Unreadable(unreadable_text(where_, path, &std::fs::read(path).unwrap_or_default(), None))
+            }
+            e => e,
+        })
     }
 
     fn to_value(&self) -> Value {
@@ -540,7 +589,9 @@ pub struct Store {
     /// 最後に共有から写しを取り直した時刻・最後に取り直せなかった理由（Python の _last_sync・_last_error と同じ意味。
     /// このプロセスの覚え。GET /api/masters/status の last_sync・error。版 3.101.0）
     last_sync: Mutex<String>,
-    last_error: Mutex<String>,
+    /// 名前 → 最後に共有から取り直せなかった理由（取り直せた名前だけ消す。版 3.102.0: Python の _errors と同じ。前は 1 つの字で、
+    /// ほかのマスタを取り直せると消え、読めないマスタを言わなくなった）
+    errors: Mutex<std::collections::BTreeMap<String, String>>,
 }
 
 impl Store {
@@ -559,8 +610,26 @@ impl Store {
             lock_seen: Mutex::new(HashMap::new()),
             share_sig: Mutex::new(HashMap::new()),
             last_sync: Mutex::new(String::new()),
-            last_error: Mutex::new(String::new()),
+            errors: Mutex::new(Default::default()),
         }
+    }
+
+    /// 読むファイルの置き場の言葉（理由の言葉。Python の _where_of と同じ順）
+    fn where_of(&self, path: &Path) -> &'static str {
+        let parent = path.parent();
+        if parent == Some(self.cfg.cache.as_path()) {
+            "この PC の写しの"
+        } else if self.cfg.share_dir.is_some() && parent == self.cfg.share_dir.as_deref() {
+            "共有の"
+        } else if parent == Some(self.cfg.defaults.as_path()) {
+            "同梱の最初の中身の"
+        } else {
+            "手元の"
+        }
+    }
+
+    fn read(&self, path: &Path) -> R<Doc> {
+        Doc::read(path, self.where_of(path))
     }
 
     /// 一覧の設定の access（{who, place}）から作る（Lot::store_for・試験）。置き場の材料が無ければ None
@@ -873,10 +942,10 @@ impl Store {
                 return Ok(false);
             }
         }
-        let doc = Doc::read(&src)?;
+        let doc = self.read(&src)?;
         write_mirror(&mirror, &doc.to_value()).map_err(io_err)?;
         self.share_sig.lock().unwrap_or_else(|e| e.into_inner()).insert(name.to_string(), sig.unwrap_or_default());
-        *self.last_error.lock().unwrap_or_else(|e| e.into_inner()) = String::new();
+        self.errors.lock().unwrap_or_else(|e| e.into_inner()).remove(name);
         *self.last_sync.lock().unwrap_or_else(|e| e.into_inner()) = iso(now_local());
         Ok(true)
     }
@@ -891,7 +960,7 @@ impl Store {
             }
             let mirror = self.mirror(name);
             let seed = if mirror.exists() { mirror } else { self.initial(name) };
-            let mut doc = if seed.exists() { Doc::read(&seed)? } else { Doc::empty() };
+            let mut doc = if seed.exists() { self.read(&seed)? } else { Doc::empty() };
             doc.revision = doc.revision.max(1);
             doc.updated_at = json!(iso(now_local()));
             doc.updated_by = self.who();
@@ -911,12 +980,12 @@ impl Store {
             self.refresh(name); // 読みは届かなくても写しで続ける
             let m = self.mirror(name);
             if m.exists() {
-                return Doc::read(&m).map(|d| d.revision).unwrap_or(0);
+                return self.read(&m).map(|d| d.revision).unwrap_or(0);
             }
         }
         let p = self.initial(name);
         if p.exists() {
-            Doc::read(&p).map(|d| d.revision).unwrap_or(0)
+            self.read(&p).map(|d| d.revision).unwrap_or(0)
         } else {
             0
         }
@@ -931,17 +1000,33 @@ impl Store {
     /// 共有から取り直す（読む道の _maybe_refresh と同じ: 失敗は投げずに覚える）
     pub fn refresh(&self, name: &str) {
         if let Err(e) = self.pull(name, false, false) {
-            *self.last_error.lock().unwrap_or_else(|e| e.into_inner()) =
-                format!("共有マスタを取り込めませんでした（写しで続けます）: {}", e.message());
+            self.errors.lock().unwrap_or_else(|e| e.into_inner()).insert(name.to_string(), e.message());
         }
     }
 
-    /// (最後に取り直した時刻, 最後の失敗の理由)
+    /// (最後に取り直した時刻, 取り直せていないマスタの理由〈名前の順・同じ言葉は 1 つ。Python の _last_error と同じ〉)
     pub fn sync_state(&self) -> (String, String) {
-        (
-            self.last_sync.lock().unwrap_or_else(|e| e.into_inner()).clone(),
-            self.last_error.lock().unwrap_or_else(|e| e.into_inner()).clone(),
-        )
+        let errors = self.errors.lock().unwrap_or_else(|e| e.into_inner());
+        let mut msgs: Vec<&String> = vec![];
+        for m in errors.values() {
+            if !msgs.contains(&m) {
+                msgs.push(m);
+            }
+        }
+        let error = if msgs.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "共有マスタを取り込めませんでした（写しで続けます）: {}",
+                msgs.iter().map(|m| m.as_str()).collect::<Vec<_>>().join(" ／ ")
+            )
+        };
+        (self.last_sync.lock().unwrap_or_else(|e| e.into_inner()).clone(), error)
+    }
+
+    /// 共有から取り直せていないマスタか（状態の source の cache。版 3.102.0）
+    pub fn unsynced(&self, name: &str) -> bool {
+        self.errors.lock().unwrap_or_else(|e| e.into_inner()).contains_key(name)
     }
 
     pub fn share_dir(&self) -> Option<&Path> {
@@ -991,7 +1076,7 @@ impl Store {
         }
         let mirror = self.mirror(name);
         let path = if self.is_shared(name) && mirror.exists() { mirror.clone() } else { self.initial(name) };
-        let doc = if path.exists() { Doc::read(&path)? } else { Doc::empty() };
+        let doc = if path.exists() { self.read(&path)? } else { Doc::empty() };
         let src = if self.is_shared(name) && mirror.exists() {
             "shared"
         } else if self.is_shared(name) {
@@ -1000,6 +1085,17 @@ impl Store {
             "local"
         };
         Ok((doc, src))
+    }
+
+    /// いま読むマスタの元（read_doc の 2 つ目。中身は読まない）
+    pub fn read_source(&self, name: &str) -> &'static str {
+        if self.is_shared(name) && self.mirror(name).exists() {
+            "shared"
+        } else if self.is_shared(name) {
+            "bundled-fallback"
+        } else {
+            "local"
+        }
     }
 
     /// 錠の様子（Python の lock_status。共有でなければ None）
@@ -1025,7 +1121,7 @@ impl Store {
             self.with_lock(|token| {
                 self.pull(name, true, true)?; // 当てる前に共有から取り直す
                 let pulled = stat_sig(&share);
-                let mut doc = Doc::read(&self.mirror(name))?;
+                let mut doc = self.read(&self.mirror(name))?;
                 let result = mutate(&mut doc.rows, &stamp)?;
                 // 版が端（i64 の最大）なら足せない。Python は大きな整数で続けるが、窓は書かずに断る（黙って負へ回さない）
                 doc.revision = doc.revision.checked_add(1).ok_or_else(|| io_err("マスタの版の番号が大きすぎて、窓では保存できません"))?;
@@ -1049,7 +1145,7 @@ impl Store {
         self.with_lock(|token| {
             let first = self.initial(name); // 錠を取ってから決めて読む
             let pulled = stat_sig(&path);
-            let mut doc = if first.exists() { Doc::read(&first)? } else { Doc::empty() };
+            let mut doc = if first.exists() { self.read(&first)? } else { Doc::empty() };
             let result = mutate(&mut doc.rows, stamp)?;
             let cur = self.read_lock();
             if cur.as_ref().and_then(|c| c.get("token")) != Some(&json!(token)) || stat_sig(&path) != pulled {

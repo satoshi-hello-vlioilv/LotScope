@@ -14,7 +14,7 @@ from pathlib import Path
 from ..services import conversions, dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from ..services.row_order import next_order
-from .master_store import DuplicateKey, MasterError, MasterStore, NotFound, RowConflict, next_id
+from .master_store import DuplicateKey, MasterError, MasterStore, MasterUnreadable, NotFound, RowConflict, next_id
 
 
 class InvalidRow(MasterError):
@@ -88,7 +88,25 @@ def _normalize(row, spec):
     return row
 
 
+STRICT_ROWS = frozenset({"access_permissions", "tab_access"})
+
+
+def bad_rows(rows):
+    """表でない行の番号（1 から。版 3.102.0）"""
+    return [i + 1 for i, r in enumerate(rows) if not isinstance(r, dict)]
+
+
+def bad_rows_text(name, bad):
+    """表でない行の理由の言葉（窓の desktop/src/bundle.rs の bad_rows_text と同じ）"""
+    return f"{name}.json の {'・'.join(map(str, bad[:5]))}{' ほか' if len(bad) > 5 else ''} 行目が読めません（表でない行）"
+
+
 def _normalize_all(rows, spec):
+    """書く前に形をそろえる。表でない行があれば書かない（その行を消さない。版 3.102.0。前は AttributeError で HTML の 500）"""
+    bad = bad_rows(rows)
+    if bad:
+        name = next((k for k, v in SPECS.items() if v is spec), "マスタ")
+        raise MasterUnreadable(f"{bad_rows_text(name, bad)}。ファイルを直すまで保存しません。")
     for r in rows:
         _normalize(r, spec)
 
@@ -101,7 +119,18 @@ class MasterRepository:
     # -------------------------------------------------- 汎用
     def _list(self, name):
         spec = SPECS[name]
-        return [_normalize(r, spec) for r in self.store.read(name)]
+        # 表でない行は飛ばして読む（版 3.102.0。前は AttributeError で HTML の 500。束は bad_rows でその節を「読めない」と言う）。
+        # 権限の 2 つは飛ばさずに断る（壊れた行を黙って飛ばすと、その人の権限が黙って変わる。門番は前と同じく 503。窓の access.rs も断る）
+        rows = self.store.read(name)
+        if name in STRICT_ROWS:
+            bad = bad_rows(rows)
+            if bad:
+                raise MasterUnreadable(bad_rows_text(name, bad))
+        return [_normalize(r, spec) for r in rows if isinstance(r, dict)]
+
+    def bad_rows(self, name):
+        """表でない行の番号（束が節を組めるかを見る）"""
+        return bad_rows(self.store.read(name))
 
     @staticmethod
     def _find(rows, item_id):

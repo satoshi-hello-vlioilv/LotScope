@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import formula
+from . import equip_regex, formula
 from .identity import normalize_part
 from .pivot import RULE_OPS, compile_rules
 from .shifts import equipment_list
@@ -47,8 +47,11 @@ def clean_row(data, partial=False, old=None):
         def came(k):
             return not partial or k in data
         before = rules_of(old or {}) if partial and not (came("rules") and came("except")) else {"rules": [], "except": []}
+        # 当てていない決まり（版 3.102.0）も前の行のまま残す（直すときに黙って消さない）
+        # （読めない決まり〈表でない・op が無い・知らない op〉は残さない: 直す画面で見せた上で、組を保存すると外れる）
+        kept = before["rules"] + [{"op": u["op"], "value": u["value"]} for u in before.get("unapplied", []) if u["op"] in RULE_OPS]
         eq = equipment_list(data.get("equipment") if came("equipment") else (old or {}).get("設備"))
-        rules = clean_rules(data.get("rules")) if came("rules") else before["rules"]
+        rules = clean_rules(data.get("rules")) if came("rules") else kept
         if not eq and not rules:
             raise GroupError("グループに入れる設備を 1 つ以上選ぶか、設備の名前の決まり（ルール）を 1 つ以上入れてください。")
         out["設備"] = ",".join(eq)
@@ -74,6 +77,10 @@ def clean_rules(v):
         if not val:
             continue
         if r["op"] == "regex":
+            # 窓（fancy-regex）と同じ意味になる書き方だけ（版 3.102.0。services/equip_regex.py。窓の desktop/src/equip_regex.rs と同じ決まり）
+            why = equip_regex.why_of(val)
+            if why:
+                raise GroupError(f"正規表現「{val}」は{why}。")
             try:
                 re.compile(val)
             except re.error as e:
@@ -88,17 +95,38 @@ def clean_rules(v):
 
 
 def rules_of(row):
-    """マスタの行 → ({rules, except})（無い・壊れていれば空）"""
+    """マスタの行 → ({rules, except, unapplied?})（無い・壊れていれば空）。
+    読めない・重い・窓で写せない決まりは、その決まりだけを当てず unapplied（{op, value, why}）に理由を添えて残す。ほかの決まりと除く設備は残す
+    （版 3.102.0。前は 1 つでも断る決まりがあるとグループの決まりと除く設備が全部黙って消えた。pivot.compile_rules と同じく決まりごと）"""
     try:
         d = json.loads(row.get("ルール") or "{}")
     except (TypeError, ValueError):
         d = {}
     d = d if isinstance(d, dict) else {}
-    try:
-        rules = clean_rules(d.get("rules"))
-    except GroupError:
-        rules = []
-    return {"rules": rules, "except": equipment_list(d.get("except")) if rules else []}
+    rules, unapplied = [], []
+    for r in (d.get("rules") if isinstance(d.get("rules"), list) else [])[:MAX_RULES]:
+        # 読めない決まりも黙って外さず、理由を添えて残す（版 3.102.0 の作った後の採点の割れ 4）
+        if not isinstance(r, dict):
+            unapplied.append({"op": None, "value": "", "why": "読めない決まりです（表でない）。"})
+            continue
+        if r.get("op") is None or r.get("op") == "":
+            unapplied.append({"op": None, "value": str(r.get("value") or "").strip()[:80], "why": "読めない決まりです（比べ方〈op〉がありません）。"})
+            continue
+        if r["op"] not in RULE_OPS:
+            unapplied.append({"op": r["op"], "value": str(r.get("value") or "").strip()[:80], "why": f"読めない決まりです（知らない比べ方「{r['op']}」）。"})
+            continue
+        try:
+            got = clean_rules([r])
+        except GroupError as e:
+            unapplied.append({"op": r["op"], "value": str(r.get("value") or "").strip()[:80], "why": str(e)})
+            continue
+        for x in got:
+            if x not in rules:
+                rules.append(x)
+    out = {"rules": rules, "except": equipment_list(d.get("except")) if rules or unapplied else []}
+    if unapplied:
+        out["unapplied"] = unapplied
+    return out
 
 
 def members_in(group, names):

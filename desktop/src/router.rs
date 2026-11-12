@@ -141,6 +141,9 @@ impl<B: Backend> Router<B> {
                 Err(no) => (no, "shell"),
                 Ok(me) => {
                     headers.extend(me.map(|m| (ME_HEADER.to_string(), m)));
+                    // 窓が答えず Python へ回した回数を、道の型ごとに数える（版 3.102.0 の作った後の採点の足りない所。src/delegate.rs。
+                    // 形の名前は道の型だけ〈数・キー・字の段は {n}・{key}・{s}〉で、引数・本文・PC 名・ログイン ID は書かない）
+                    da_core::delegate::note(&delegate_form(method, &decoded, query));
                     let r = self.backend.ask(&Ask { method, path, query, headers, body: req.body() });
                     (self.after)(method, &decoded, r.status);
                     (r, "python")
@@ -149,6 +152,29 @@ impl<B: Backend> Router<B> {
         };
         to_response(reply, by)
     }
+}
+
+/// Python へ回した問い合わせの形の名前（"python GET /api/masters/shifts/{n}" など。?engine=python は自己診断・突き合わせの口なので別の名前）
+pub fn delegate_form(method: &str, path: &str, query: &str) -> String {
+    if da_core::lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
+        return format!("engine_python {method}");
+    }
+    let mut out: Vec<String> = vec![];
+    let mut after_src = false;
+    for seg in path.split('/') {
+        let t = if after_src && !seg.is_empty() {
+            "{key}".to_string()
+        } else if !seg.is_empty() && seg.chars().all(|c| c.is_ascii_digit()) {
+            "{n}".to_string()
+        } else if seg.len() > 32 || !seg.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')) {
+            "{s}".to_string()
+        } else {
+            seg.to_string()
+        };
+        after_src = seg == "src" && out.last().is_some_and(|x| x == "api");
+        out.push(t);
+    }
+    format!("python {method} {}", out.join("/"))
 }
 
 pub fn to_response(r: Reply, by: &str) -> Response<Vec<u8>> {
@@ -222,6 +248,19 @@ fn percent_decode(s: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+#[cfg(test)]
+mod delegate_form_tests {
+    use super::delegate_form;
+
+    #[test]
+    fn forms_name_only_the_route() {
+        assert_eq!(delegate_form("PUT", "/api/masters/shifts/12", ""), "python PUT /api/masters/shifts/{n}");
+        assert_eq!(delegate_form("GET", "/api/src/仕掛/slicer", "column=a"), "python GET /api/src/{key}/slicer");
+        assert_eq!(delegate_form("GET", "/api/sources/秘密の名前/columns", ""), "python GET /api/sources/{s}/columns");
+        assert_eq!(delegate_form("GET", "/api/lotlist", "engine=python&page=2"), "engine_python GET");
+    }
 }
 
 #[cfg(test)]

@@ -275,6 +275,14 @@ function paintPlace(news) {
       ${cur.revision != null ? `<span class="place-meta">版 ${cur.revision}${by}</span>` : ""}
       ${p.caution ? `<span class="place-caution" title="${escapeHtml(p.caution)}">⚠ 同期フォルダ（同時の保存で片方が消えることがあります）</span>` : ""}`;
   }
+  // 読めない行・読めないファイル（版 3.102.0）: 一覧では飛ばした行を、置き場の帯の注意の札で知らせる（直すのは人。ファイルは消さない）
+  if (cur.error) {
+    html += `<span class="place-caution" title="${escapeHtml(cur.error)}">⚠ ${escapeHtml(cur.error)}</span>`;
+  } else if (cur.badRows && cur.badRows.length) {
+    const rows = cur.badRows.slice(0, 5).join("・") + (cur.badRows.length > 5 ? " ほか" : "");
+    const why = `${MASTER_DEFS[mstate.tab].name}.json の ${rows} 行目が読めません（ファイルを直してください。一覧では飛ばしています）`;
+    html += `<span class="place-caution" title="${escapeHtml(why)}">⚠ ${escapeHtml(why)}</span>`;
+  }
   html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える。全員の PC がそろっているかも出ます">マスタの置き場 ›</button>';
   if (news && news.length) html += `<span class="place-news">${news.map(escapeHtml).join(" ／ ")}</span>`;
   el.innerHTML = html;

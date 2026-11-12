@@ -141,6 +141,11 @@ fn blank(v: Option<&Value>) -> bool {
 pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Value]) -> Option<Answer> {
     let kind = route.kind();
     let spec = kind.spec();
+    // 表でない行（版 3.102.0 の作った後の採点の割れ 1）: 一覧は読める行だけで答え（Python と同じ。読めない行はマスタの置き場の状態の badRows が言う）、
+    // 書く道は断る（前は Python に任せた）
+    let bad = master_rows::bad_rows(rows);
+    let good: Vec<Value> = rows.iter().filter(|r| r.is_object()).cloned().collect();
+    let rows = good.as_slice();
     if !readable(rows, spec) {
         return None;
     }
@@ -168,7 +173,11 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
         },
         _ => None,
     };
+    let name = spec.name;
     if let Route::Delete(_, id) = route {
+        if let Err(e) = master_rows::refuse_bad_rows(name, &bad) {
+            return Some(of_master(e));
+        }
         return Some(match master_rows::delete(store, spec, id, base) {
             Ok(()) => (200, json!({"status": "deleted", "id": id})),
             Err(e) => of_master(e),
@@ -193,6 +202,9 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
             Kind::Rolls => Ok(()),
         }
     };
+    if let Err(e) = master_rows::refuse_bad_rows(name, &bad) {
+        return Some(of_master(e));
+    }
     let done = match route {
         Route::Create(_) => master_rows::create(store, spec, &data, &check).map(|v| (201, v)),
         Route::Update(_, id) => master_rows::update(store, spec, id, &data, base, &check).map(|v| (200, v)),

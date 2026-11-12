@@ -144,11 +144,19 @@ SCENARIOS = [
         S("POST", E, G("備考が数", note=3.25)),
         S("POST", E, G("知らない鍵", 知らない=1)),
         S("POST", E, '{"name": "同じ鍵", "equipment": ["A"], "name": "同じ鍵（後ろ）"}'),
+        # 正規表現（版 3.102.0 から窓が答える。Python の re と同じ意味の書き方だけ。src/equip_regex.rs）
+        S("POST", E, G("正規表現", rules=[{"op": "regex", "value": "^CR"}])),
+        S("POST", E, G("読めない正規表現", rules=[{"op": "regex", "value": "(a"}])),
+        S("POST", E, G("窓で写せない \\Z", rules=[{"op": "regex", "value": "^L-\\d\\Z"}])),
+        S("POST", E, G("窓で写せない [[:alpha:]]", rules=[{"op": "regex", "value": "[[:alpha:]]"}])),
+        S("POST", E, G("窓で写せない \\p", rules=[{"op": "regex", "value": "\\p{Han}"}])),
+        S("POST", E, G("窓で写せない \\N", rules=[{"op": "regex", "value": "\\N{DIGIT ONE}"}])),
+        S("POST", E, G("長さの違う後読み", rules=[{"op": "regex", "value": "(?<=L|CR)\\d"}])),
+        S("POST", E, G("重い正規表現", rules=[{"op": "regex", "value": "(a+)+"}])),
+        S("POST", E, G("正規表現と名前の決まり", equipment=[], rules=[{"op": "prefix", "value": "L-"}, {"op": "regex", "value": "^CR\\d$"}])),
         S("GET", E),
     ], "delegates": [
         S("POST", E, ""), S("POST", E, "壊れた本文"), S("POST", E, '{"name": NaN}'),
-        S("POST", E, G("正規表現", rules=[{"op": "regex", "value": "^CR"}])),
-        S("POST", E, G("読めない正規表現", rules=[{"op": "regex", "value": "(a"}])),
         S("POST", E, G("op が並び", rules=[{"op": ["prefix"], "value": "a"}])),
         S("POST", E, G("op が表", rules=[{"op": {}, "value": "a"}])),
         S("POST", E, G(["名前が並び"])), S("POST", E, G({"a": 1})),
@@ -193,12 +201,12 @@ SCENARIOS = [
         S("PUT", f"{E}/999", {"rules": P}),
         S("PUT", f"{E}/999", {"equipment": []}),
         S("PUT", f"{E}/０4", {"name": "全角の id", "知らない鍵": 1}),
+        S("PUT", f"{E}/1", {"rules": [{"op": "regex", "value": "^C"}]}),
         S("GET", E),
     ], "delegates": [
         S("PUT", f"{E}/1", "[1]"), S("PUT", f"{E}/1", ""), S("PUT", f"{E}/1", "壊れた本文"),
         S("PUT", f"{E}/1", {"name": "x", "base_rev": "²"}), S("PUT", f"{E}/99999999999999999999", {"name": "x"}),
         S("PUT", f"{E}/1", {"name": {"a": 1}}), S("PUT", f"{E}/1", '{"name": "x", "base_rev": -0}'),
-        S("PUT", f"{E}/1", {"rules": [{"op": "regex", "value": "^C"}]}),
     ]},
     {"name": "まとめ方が空の行と同じ名前", "mode": "shared", "extra_rows": [{"id": 5, "名称": "全部", "まとめ方": "グループ", "設備": "A", "rev": 1}],
      "steps": [S("GET", E), S("PUT", f"{E}/3", {"name": "全部 "}), S("PUT", f"{E}/3", {"set": " "}), S("POST", E, G("全部", set="")),
@@ -249,8 +257,16 @@ SCENARIOS = [
     {"name": "データ元が無い（作業実績と設備マスタだけ）", "mode": "shared", "no_sources": True, "steps": [S("GET", E), S("POST", E, G("x"))]},
     {"name": "置き場に正規表現のルール", "mode": "shared", "extra_rows": [
         {"id": 7, "名称": "正規表現", "まとめ方": "ライン別", "ルール": rules(("regex", "^CR")), "rev": 1}], "steps": [
-        S("POST", E, G("")), S("POST", E, "[1]")], "delegates": [
+        S("POST", E, G("")), S("POST", E, "[1]"),
         S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"name": "x"}), S("PUT", f"{E}/7", {"equipment": "A"}), S("DELETE", f"{E}/7")]},
+    # 版 3.102.0: 置き場の決まりに重い・窓で写せない・読めない正規表現があっても、その決まりだけを当てず（理由を添えて）、ほかは残す。
+    # 一部だけを直しても、当てていない決まりを黙って消さない（確か 2）
+    {"name": "置き場に当てられない正規表現の決まり", "mode": "shared", "extra_rows": [
+        {"id": 7, "名称": "混ざった決まり", "まとめ方": "ライン別",
+         "ルール": json.dumps({"rules": [{"op": "prefix", "value": "L-"}, {"op": "regex", "value": "(a+)+"}, {"op": "regex", "value": "^CR\\d\\Z"},
+                                        {"op": "regex", "value": "("}], "except": ["L-9"]}, ensure_ascii=False), "rev": 1}], "steps": [
+        S("GET", E), S("PUT", f"{E}/7", {"equipment": "A"}), S("PUT", f"{E}/7", {"except": ["L-8"]}), S("GET", E),
+        S("PUT", f"{E}/7", {"rules": [{"op": "prefix", "value": "L-"}]}), S("GET", E)]},
     {"name": "置き場の表示順が大きい", "mode": "shared", "extra_rows": [{"id": 8, "名称": "大きな表示順", "設備": "A", "表示順": "1" + "0" * 20, "rev": 1}],
      "steps": [], "delegates": [S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"name": "x"}), S("DELETE", f"{E}/1")]},
     {"name": "置き場のまとめ方が数", "mode": "shared", "extra_rows": [{"id": 9, "名称": "数のまとめ方", "まとめ方": 5, "設備": "A", "rev": 1}],

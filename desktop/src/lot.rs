@@ -44,6 +44,8 @@ pub struct Settings {
     pub calculation: Option<Value>,
     /// 一覧の表示の設定の範囲（版 3.78.0。services/ui_defaults.PROFILE_KEYS。src/ui_defaults.rs）。答えに無い（前の版の Python）ときは None
     pub ui_profile_keys: Option<Vec<String>>,
+    /// 組めない節 → {why, file, seed?, window?}（版 3.102.0。bundle::SECTIONS。その節を使う道だけ 503 kind settings で断る）
+    pub broken: Value,
 }
 
 impl Settings {
@@ -65,8 +67,54 @@ impl Settings {
                 .get("uiProfileKeys")
                 .and_then(Value::as_array)
                 .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()),
+            broken: v.get("broken").filter(|b| b.is_object()).cloned().unwrap_or_else(|| json!({})),
         }
     }
+
+    /// 道が使う節のうち組めない物があれば、その道の答え（503 kind settings。どのファイル・どの行を言う。版 3.102.0）。
+    /// 前は 1 つのマスタが読めないと束全部を Python に尋ね、Python も黙って engine を python にしていた
+    pub fn refuse(&self, need: &[&str]) -> Option<(u16, Value)> {
+        let b = self.broken.as_object()?;
+        // 警告（表でない行を飛ばして組んだ節）は断らない（版 3.102.0 の作った後の採点の割れ 2）
+        let hit: Vec<(&str, &Value)> = need.iter().filter_map(|n| b.get(*n).filter(|w| w["warn"] != true).map(|w| (*n, w))).collect();
+        if hit.is_empty() {
+            return None;
+        }
+        let whys: Vec<String> = hit.iter().map(|(_, w)| w["why"].as_str().unwrap_or("").to_string()).collect();
+        crate::delegate::note("settings_refused");
+        Some((
+            503,
+            json!({"error": format!("設定を組めません: {}。ファイルを直すと、この画面も読めるようになります。", whys.join(" ／ ")),
+                   "kind": "settings", "broken": hit.iter().map(|(n, _)| *n).collect::<Vec<_>>()}),
+        ))
+    }
+}
+
+/// 道が使う束の節（版 3.102.0。tests/fixtures/bundle_cases.json の routes と同じ）。conv は計算列の式が変換表を引くか
+pub fn sections_for(path: &str, conv: bool) -> Vec<&'static str> {
+    let mut v: Vec<&'static str> = if path.starts_with("/api/lotlist") {
+        vec!["lot_list", "sources"]
+    } else if path.starts_with("/api/worklog") {
+        vec!["work", "shifts", "sources"]
+    } else if path.starts_with("/api/src/") {
+        vec!["sources", "lot_list"]
+    } else if path == "/api/dashboard/sources" {
+        vec!["dash", "sources", "work"]
+    } else if path.starts_with("/api/dashboard/") {
+        vec!["lot_list", "dash", "sources", "work", "shifts"]
+    } else {
+        vec![]
+    };
+    if conv && !v.is_empty() {
+        v.push("conversions");
+    }
+    v
+}
+
+/// 問い合わせ（引数・本文）が計算列の式で変換表（conv）を引くか
+fn uses_conv(query: &str, body: &[u8]) -> bool {
+    let q = lotlist::parse_query(query).into_iter().any(|(_, v)| v.contains("conv("));
+    q || String::from_utf8_lossy(body).contains("conv(")
 }
 
 /// 設定を尋ねる手段（窓では Python への問い合わせ。試験では作り物）。
@@ -399,6 +447,13 @@ impl Lot {
         if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
             return None; // ダッシュボードの材料を答えない中身（前の版の Python）は、Python が答える
         }
+        // 数える材料の節を組めない（版 3.102.0）: 欠けた材料で数えない（道は呼ぶ側が 503 で断る。設備グループの選べる設備は Python に任せる）
+        if s.broken
+            .as_object()
+            .is_some_and(|b| sections_for("/api/dashboard/query", false).iter().any(|n| b.get(*n).is_some_and(|w| w["warn"] != true)))
+        {
+            return None;
+        }
         let m = self.mirror(&s);
         let lists = self.lists_of(&s)?; // 窓が権限を決められない: Python に任せる
         let conf = Conf { v: &lists };
@@ -649,10 +704,11 @@ impl Lot {
     }
 
     /// データ元の並び（版 3.87.0。GET /api/sources: src/sources_list.rs）。窓の束を組めない・権限や置き場を決められない・
-    /// Python と同じに組めない形は Python が答える。card はスケジュールのカード（中身が起きていれば Python の答え）
+    /// Python と同じに組めない形は Python が答える。スケジュールのカードは窓の係の状態から（版 3.102.0: 前は設定を組めないとき中身の
+    /// Python に尋ね、Python が起きていなければ写しの様子が黙って消えた。いまは組めない理由を cardWhy に添える）
     /// 名乗り・置き場・設定は、この道が読む材料（Builder::inputs）から取る（束全体を組めない PC〈共有にまだ設備マスタなどの最初の版が
     /// 無い〉でも答える。束を Python に尋ねた答えと、この道で読んだ並びの 2 つの時点を混ぜない）
-    pub fn sources_list(&self, query: &str, _ask: AskSettings, card: &dyn Fn() -> Option<Value>) -> Option<(u16, Value)> {
+    pub fn sources_list(&self, query: &str) -> Option<(u16, Value)> {
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
         }
@@ -671,8 +727,13 @@ impl Lot {
         let me = self.gate.me(&access).ok()?;
         let store = self.store_for(&access)?;
         // スケジュールのカード（版 3.96.0）: 窓の係の状態のファイルから（受け身の Python の答えと同じ所を読む）。設定を組めなければ中身に尋ねる
-        let cfg = crate::schedule::Cfg::from_section(inp.eff.get("schedule")).ok();
-        let own = || cfg.as_ref().map(|c| self.lists.sched.card(c)).or_else(card);
+        let cfg = crate::schedule::Cfg::from_section(inp.eff.get("schedule"));
+        let own = || {
+            Some(match &cfg {
+                Ok(c) => self.lists.sched.card(c),
+                Err(why) => json!({"mirror": null, "cardWhy": format!("スケジュールの設定を組めません（{why}）")}),
+            })
+        };
         let live = crate::sources_list::Live {
             lot: self.mirror.lock().unwrap().clone(),
             cache: self.cache_dir.clone(),
@@ -1050,10 +1111,22 @@ impl Lot {
         // 窓が組めれば窓の束（Python が起きていなくても答えられる）。組めない形（bundle.rs の Py）だけ Python に尋ねる
         let b = self.bundle.lock().unwrap().clone();
         let own = b.as_ref().and_then(|b| b.build().ok());
-        let mine = own.is_some();
-        let mut v = match own {
-            Some(v) => v,
-            None => ask()?,
+        // 共有にまだ無いマスタ（種まき）の節があれば、束を Python に尋ねる（Python は読むと最初の版を置く。版 3.103.0 で窓へ移す）。
+        // Python が答えなければ自分の束のまま（その節を使う道は理由つきで断る）
+        let seed = own.as_ref().is_some_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
+        let (mine, mut v) = match own {
+            Some(v) if seed => match ask() {
+                Ok(p) => {
+                    crate::delegate::note("bundle_seed");
+                    (false, p)
+                }
+                Err(_) => (true, v),
+            },
+            Some(v) => (true, v),
+            None => {
+                crate::delegate::note("bundle_inputs");
+                (false, ask()?)
+            }
         };
         // スケジュールの設定（版 3.96.0）: 窓の束の材料の schedule の段（effective_settings と同じ重ね方）。Python に尋ねた設定には
         // 入れない（窓は設定を組めないので、スケジュールの道は Python が答え、知らせに設定を載せて窓に取らせる）
@@ -1152,6 +1225,7 @@ impl Lot {
     /// 使い終わり（終了ボタン。main.rs）: いま使っているの印を消し、記録を最後まで書く
     pub fn leave(&self) {
         self.presence.leave();
+        crate::delegate::flush();
     }
 
     /// 心拍（POST /api/heartbeat。版 3.71.0）。先に me を決め（設定を尋ねる＝止まった中身を起こし直しうる）、次に中身が生きているかを見る。
@@ -1297,13 +1371,21 @@ impl Lot {
             ("GET", "/api/config") => return self.config_route(),
             ("GET", "/api/dashboard/sources") => {
                 let s = self.settings(ask).ok()?;
+                if let Some(r) = (s.engine == "rust").then(|| s.refuse(&sections_for(path, false))).flatten() {
+                    return Some(r);
+                }
                 if s.engine != "rust" || s.lists.get("dash").is_none_or(Value::is_null) {
                     return None;
                 }
                 let lists = self.lists_of(&s)?;
                 return dashboard::sources_answer(&Conf { v: &lists }, &crate::bundle::tables()["periods"]).map(|v| (200, v));
             }
-            ("GET", "/api/dashboard/equip-tree") => return self.with_dash(ask, dashboard::equip_tree_answer).map(|v| (200, v)),
+            ("GET", "/api/dashboard/equip-tree") => {
+                if let Some(r) = self.settings(ask).ok().filter(|s| s.engine == "rust").and_then(|s| s.refuse(&sections_for(path, false))) {
+                    return Some(r);
+                }
+                return self.with_dash(ask, dashboard::equip_tree_answer).map(|v| (200, v));
+            }
             // スケジュールの設備のタブと設定・データ元の一覧の行の様子（版 3.96.0。Python の schedule_meta・schedule_card）
             ("GET", "/api/schedule" | "/api/schedule/card") => {
                 if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
@@ -1334,6 +1416,11 @@ impl Lot {
             }
             return None;
         }
+        if let Some(r) =
+            self.settings(ask).ok().filter(|s| s.engine == "rust").and_then(|s| s.refuse(&sections_for(path, uses_conv("", body))))
+        {
+            return Some(r);
+        }
         let r = self.with_dash(ask, |cx| dashboard::query(cx, body));
         if r.is_none() {
             if let Some(g) = guard {
@@ -1359,6 +1446,10 @@ impl Lot {
         // 段取りの材料（lists）を答えない中身（前の版の Python）とは、品質だけを今までどおり受け持つ
         if s.engine != "rust" || (s.lists.is_null() && !matches!(route, Route::Lot(_))) {
             return None;
+        }
+        // 道が使う節を組めない（版 3.102.0）: 理由つきで断る（ほかの節の道は答え続ける）
+        if let Some(r) = s.refuse(&sections_for(path, uses_conv(query, &[]))) {
+            return Some(r);
         }
         let m = self.mirror(&s);
         let qs = lotlist::parse_query(query);
@@ -2025,6 +2116,55 @@ mod tests {
     }
 
     #[test]
+    fn a_broken_section_refuses_only_its_routes() {
+        // 版 3.102.0: 束を節ごとに組む。勤務体系が読めない（途中で切れた）と、勤務体系を使う道（作業実績・ダッシュボード）だけが
+        // 503 kind settings でどのファイルかを言い、品質の一覧・データ元の並びは答え続ける。表でない行だけなら飛ばして答える。
+        // Python には尋ねない（前は束全部を尋ねた）
+        let work = std::env::temp_dir().join(format!("da-lot-broken-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let data = work.join("base").join("data");
+        for d in [work.join("local"), data.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        // BOM 付きの UTF-8（メモ帳の「UTF-8 (BOM 付き)」）でも読む（確か 4）
+        std::fs::write(&cfg, format!("\u{feff}{}", json!({"lot_list": {"source": "/無い/q.sqlite3"}, "master_share": {}}))).unwrap();
+        std::fs::write(data.join("shift_patterns.json"), r#"["壊れた行", {"id": 1, "名称": "a"}]"#).unwrap();
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let asked = std::cell::Cell::new(0);
+        let down = || -> Result<Value, String> {
+            asked.set(asked.get() + 1);
+            Err("中身（Python）が答えません".into())
+        };
+        let s = lot.settings(&down).expect("束は組める");
+        assert_eq!(asked.get(), 0, "Python に尋ねない");
+        assert_eq!(s.source, "/無い/q.sqlite3", "BOM 付きの配った設定を読む");
+        // 表でない行だけなら節は読める行で組み、飛ばした行を警告に載せる（版 3.102.0 の作った後の採点の割れ 2）。作業実績も答える
+        assert_eq!(
+            (s.broken["shifts"]["why"].clone(), s.broken["shifts"]["warn"].clone()),
+            (json!("shift_patterns.json の 1 行目が読めません（表でない行）。その行を飛ばして読みました"), json!(true)),
+            "{}",
+            s.broken
+        );
+        assert_eq!(s.lists["shifts"].as_array().map(Vec::len), Some(1), "読める行で組む: {}", s.lists["shifts"]);
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=CAL", &down).unwrap();
+        assert_ne!(v["kind"], json!("settings"), "壊れた行だけなら作業実績は断らない: {st} {v}");
+        // ファイルそのものが読めない（途中で切れた）ときは、勤務体系を使う道だけを断る
+        std::fs::write(data.join("shift_patterns.json"), r#"[{"id": 1, "名称": "a"}, {"id": 2, "名"#).unwrap();
+        lot.invalidate();
+        let (st, v) = lot.handle("GET", "/api/worklog", "equip=CAL", &down).unwrap();
+        assert_eq!((st, v["kind"].clone(), v["broken"].clone()), (503, json!("settings"), json!(["shifts"])), "{v}");
+        assert!(v["error"].as_str().unwrap().contains("手元の shift_patterns.json が読めません（途中で切れています"), "{v}");
+        let (st, v) = lot.handle("GET", "/api/lotlist", "", &down).unwrap();
+        assert_ne!(v["kind"], json!("settings"), "品質の一覧は勤務体系を使わない: {st} {v}");
+        assert_eq!(lot.sources_list("").map(|(st, _)| st), Some(200), "データ元の並びは答える");
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
     fn the_window_draws_the_page_without_python() {
         // 版 3.85.0: 画面と最初の画面の読む道は、中身（Python）が答えなくても窓が答える（本物の道: Lot::page・handle_body）
         let work = std::env::temp_dir().join(format!("da-lot-page-{}", std::process::id()));
@@ -2264,9 +2404,13 @@ mod tests {
             .handle_body("POST", e, "", json!({"name": "L ライン", "set": "ﾗｲﾝ別", "equipment": "A"}).to_string().as_bytes(), &down)
             .unwrap();
         assert_eq!((st, v["error"].as_str().unwrap_or("")), (409, "まとめ方「ﾗｲﾝ別」には、グループ「L ライン」がもうあります。"));
-        // Python に任せる形
+        // 正規表現（版 3.102.0 から窓が答える。Python の re と同じ意味の書き方だけ: src/equip_regex.rs）
         let regex = json!({"name": "R", "rules": [{"op": "regex", "value": "^C"}]}).to_string();
-        assert!(lot.handle_body("POST", e, "", regex.as_bytes(), &down).is_none(), "正規表現は Python（re の言葉と重さの決まり）");
+        assert_eq!(lot.handle_body("POST", e, "", regex.as_bytes(), &down).map(|(st, _)| st), Some(201), "正規表現は窓が書く");
+        let z = json!({"name": "Z", "rules": [{"op": "regex", "value": "^C\\Z"}]}).to_string();
+        let (st, v) = lot.handle_body("POST", e, "", z.as_bytes(), &down).unwrap();
+        assert!(st == 400 && v["error"].as_str().is_some_and(|m| m.contains("窓で写せない書き方")), "{st} {v}");
+        // Python に任せる形
         assert!(lot.handle_body("GET", e, "engine=python", b"", &down).is_none());
         assert!(lot.handle_body("POST", e, "", b"", &down).is_none(), "空の本文は Python（400 の HTML）");
         assert!(lot.handle_body("PUT", &format!("{e}/1"), "", b"[1]", &down).is_none(), "表でない真の本文は Python（500）");
@@ -2306,7 +2450,11 @@ mod tests {
         let (st, v) = lot.handle_body("DELETE", &format!("{e}/1"), "", b"", &down).unwrap();
         assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
         let (st, v) = lot.handle_body("GET", e, "", b"", &down).unwrap();
-        assert_eq!((st, v["canEdit"].clone(), v["items"].as_array().unwrap().len()), (200, json!(false), 1));
+        assert_eq!(
+            (st, v["canEdit"].clone(), v["items"].as_array().unwrap().len()),
+            (200, json!(false), 2),
+            "正規表現で足したグループも並ぶ"
+        );
         let _ = std::fs::remove_dir_all(&work);
     }
 
@@ -2470,8 +2618,8 @@ mod tests {
         std::fs::write(&cfg3, json!({"lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"enabled": false}}}).to_string())
             .unwrap();
         for (name, bad, why) in [
+            // 表でない行だけのマスタは、版 3.102.0 から Python と同じく行を飛ばして読む（マスタの画面が badRows で知らせる）ので断らない
             ("equipment_master.json", "{bad", "設備マスタ"),
-            ("equipment_master.json", r#"{"schema": 1, "revision": 1, "rows": [1, 2]}"#, "設備マスタ"),
             ("path_settings.json", "{bad", "参照先"),
         ] {
             let keep = std::fs::read(data.join(name)).unwrap();
@@ -2520,7 +2668,18 @@ mod tests {
         lot.set_bundle(crate::bundle::Builder::new(env));
         let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
         let ask = |m: &str, p: &str, q: &str, b: &str| lot.handle_body(m, p, q, b.as_bytes(), &down);
-        let (st, v) = ask("GET", "/api/masters/status", "", "").expect("Python が起きていなくても窓が答える");
+        // 共有を見るのは 2 秒まで（master_place::SHARE_PROBE_SEC）。新しい置き場の最初の確かめ（全部のマスタを読んで写す）は、並んで流れる
+        // 試験で混んだ CI の機械では 2 秒を超え、そのあいだは「確かめ中」（reachable null・写しで答える）が正しい答え（PR #102 の CI）。
+        // 確かめ中は false（届かない）にならないことを見て、終わるまで 15 秒まで尋ね直す
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let (st, v) = loop {
+            let (st, v) = ask("GET", "/api/masters/status", "", "").expect("Python が起きていなくても窓が答える");
+            if !v["reachable"].is_null() || std::time::Instant::now() > end {
+                break (st, v);
+            }
+            assert_eq!(st, 200, "確かめ中も写しで答える: {v}");
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        };
         assert_eq!(
             (st, v["mode"].clone(), v["reachable"].clone(), v["masters"]["tab_access"]["revision"].clone()),
             (200, json!("shared"), json!(true), json!(4)),
@@ -2691,7 +2850,7 @@ mod tests {
         lot.set_bundle(crate::bundle::Builder::new(env));
         let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
         let listed = |lot: &Lot| {
-            let (_, v) = lot.sources_list("", &down, &|| None).unwrap();
+            let (_, v) = lot.sources_list("").unwrap();
             v["items"].as_array().unwrap().iter().find(|d| d["key"] == "wip").unwrap()["listed"].clone()
         };
         assert_eq!(listed(&lot), json!(true));
@@ -2754,7 +2913,7 @@ mod tests {
         )
         .unwrap();
         let t0 = Instant::now();
-        let (st, v) = lot.sources_list("", &down, &|| None).expect("Python が起きていなくても窓が答える");
+        let (st, v) = lot.sources_list("").expect("Python が起きていなくても窓が答える");
         assert!(t0.elapsed() < Duration::from_secs(2), "待たない: {:?}", t0.elapsed());
         let keys: Vec<&str> = v["items"].as_array().unwrap().iter().filter_map(|d| d["key"].as_str()).collect();
         assert_eq!((st, keys), (200, vec!["lot", "work", "wip", "sch"]));
@@ -2776,37 +2935,47 @@ mod tests {
         let conf = |engine: &str| json!({"master_share": {"dir": share}, "sources": {"wip": {"source": wip}}, "desktop": {"lotlist_engine": engine}});
         std::fs::write(work.join("config.json"), conf("python").to_string()).unwrap();
         lot.invalidate();
-        assert!(lot.sources_list("", &down, &|| None).is_none(), "engine = python");
+        assert!(lot.sources_list("").is_none(), "engine = python");
         std::fs::write(work.join("config.json"), conf("rust").to_string()).unwrap();
         lot.invalidate();
         // 品質の写しの係が最初の周回の途中でも待たない（届かない共有を指す係を動かしてから尋ねる）
         lot.warm(&down);
         let t1 = Instant::now();
-        assert!(lot.sources_list("", &down, &|| None).is_some());
+        assert!(lot.sources_list("").is_some());
         assert!(t1.elapsed() < Duration::from_secs(2), "周回の途中でも待たない: {:?}", t1.elapsed());
         assert!(v["roles"].is_array() && v["newConn"].as_array().is_some_and(|a| a.len() == 5) && v["revision"] == json!(4), "{v}");
-        // スケジュールのカードは窓の係の状態から（版 3.96.0。前は中身が起きていれば Python の覚え）。中身に尋ねる係は使わない
-        let card = || Some(json!({"mirror": {"kind": "cm3", "mirrored": true}, "equipCount": 5}));
-        let (_, v) = lot.sources_list("", &down, &card).unwrap();
-        assert_eq!((v["items"][3]["mirror"].clone(), v["items"][3]["equipCount"].clone()), (Value::Null, json!(3)), "{}", v["items"][3]);
+        // スケジュールのカードは窓の係の状態から（版 3.96.0）。版 3.102.0 から中身に尋ねる口も無い（main.rs の schedule_card を外した）:
+        // スケジュールの設定を組めない形でも Python に尋ねず、組めない理由を添える（前は Python が起きていなければ写しの様子が黙って消えた）
+        let bad_sched = json!({"master_share": {"dir": share}, "sources": {"wip": {"source": wip}}, "schedule": {"auto_refresh_sec": "x"}});
+        std::fs::write(work.join("config.json"), bad_sched.to_string()).unwrap();
+        let (_, v) = lot.sources_list("").unwrap();
+        let sch = v["items"].as_array().unwrap().iter().find(|d| d["key"] == "sch").cloned().unwrap_or_default();
+        assert!(sch["cardWhy"].as_str().is_some_and(|w| w.contains("取り直しの秒が数でない")), "{sch}");
+        std::fs::write(work.join("config.json"), conf("rust").to_string()).unwrap();
         // 窓が写した元は行の数も言う
         let _ = lot.handle("GET", "/api/src/wip", "", &down);
         lot.lists.src.wait_first(&["wip".to_string()], Duration::from_secs(10));
-        let (_, v) = lot.sources_list("", &down, &|| None).unwrap();
+        let (_, v) = lot.sources_list("").unwrap();
         assert_eq!(
             (v["items"][2]["mirror"]["mirrored"].clone(), v["items"][2]["rows"].clone()),
             (json!(true), json!(3)),
             "{}",
             v["items"][2]
         );
-        assert!(lot.sources_list("engine=python", &down, &|| None).is_none(), "?engine=python は Python");
+        assert!(lot.sources_list("engine=python").is_none(), "?engine=python は Python");
         // 束全体は組めない（共有にまだ設備マスタ・設備グループの最初の版が無い）PC でも、データ元の並びは窓が答える（自己診断の共有の exe の形）
         for n in ["equipment_master", "equipment_groups"] {
             std::fs::remove_file(share.join(format!("{n}.json"))).unwrap();
         }
         lot.invalidate();
-        assert!(lot.own_bundle().unwrap().is_err(), "束は組めない");
-        assert_eq!(lot.sources_list("", &down, &|| None).map(|(st, _)| st), Some(200), "データ元の並びは答える");
+        let own = lot.own_bundle().unwrap().unwrap();
+        assert_eq!(
+            own["broken"]["dash"]["seed"],
+            json!(true),
+            "設備マスタ・設備グループを使う節だけ組めない（種まきを待つ）: {}",
+            own["broken"]
+        );
+        assert_eq!(lot.sources_list("").map(|(st, _)| st), Some(200), "データ元の並びは答える");
         let _ = std::fs::remove_dir_all(&work);
     }
 

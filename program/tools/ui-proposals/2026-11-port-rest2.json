@@ -1,0 +1,454 @@
+{
+ "title": "Rust 化の次の段（版 3.102.0 から）: ③ 残り 2 本と ④ Python に任せる形をなくす範囲と作り方（2026-11-12）",
+ "rule": "2026-11-06",
+ "measured": "棚卸し（2026-11-12・主の作業ツリー /home/user/LotScope・ブランチ claude/friendly-hamilton-8g6s3p・commit 47692ec＝版 3.101.0。Linux の開発機・Python 3.13.18・4 コア。窓の本体は組んでいない〈主のセッションが CI を見ているため〉。リポジトリのファイルは変えていない。作業は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest に置き、作業フォルダは消した）。\n【道の数】前の道具 port-place/routes_inv3.py で bp.rules を数え直した: Python の道 137（メソッド×型。HEAD を除く）・窓 135・Python だけ 2（GET /api/lotlist/settings・GET /api/health）。どちらも画面（program/app/static/js）・自己診断（desktop/src/selftest.js）・窓の通し（desktop/bundle）からは使われていない（grep で 0 件）。/api/lotlist/settings を尋ねるのは窓の main.rs の lot_settings（束を組めないときだけ）と、試験の答えの元 18 の *_oracle.py（dashboard・ops・routes の oracle は答えを『settings』として窓の試験の材料に渡す）。/api/health を尋ねるのは tests/test_sidecar.py（4 か所）と tools/rust-port-bench.py（枠 1 往復の時間）だけ。\n【任せる形の数】(1) 窓の源（試験を除く）の『return None』の行 351（lot.rs 46・dashboards_write 17・pyfmt 15・pivot_presets 15・formula 15・access 15・lotdsp 14 ほか。どれも Python へ任せる所とは限らない: 部品の中の Option も含む）。『?』で抜ける行 1,457（Option と Result が混ざる。lot.rs の道の関数の中は 140）。(2) engine=python の分かれは窓の本体 34 行（lot.rs 22・main.rs 3・small_reads 2・release_place 2・master_place 2・folder_browse 2・builder 1）・窓の試験 26・selftest.js 46 か所。lot.rs の s.engine != \"rust\"（配った設定 desktop.lotlist_engine を python にすると窓が全部を Python に回す口）5 か所。(3) 束（bundle.rs）が組まずに Python に尋ねる理由 Py(\"…\") は 79 か所・約 66 種。1 つでも当たると束全部を Python に尋ねる（全部か無しか）。(4) 突き合わせの答えの元が記録している『Python に任せる歩』: 19 の *_oracle.py を作業フォルダで流し（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest/or/。builder は標準入力を待つので 1 行目だけ）、/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest/count_delegates.py で数えた 535 歩（83 の道の型）。ほかに calc_parity の任せる 45 件（3.72.0 の記録）・schedule_oracle の任せる 6 歩・page_parity の MUST_DELEGATE 13（道の読み）。535 歩のうち Python の答えは 2xx 283・4xx 181・5xx 45・記録なし 26（Python が受けて書いた形が半分を超える）。\n【速さ】Python の束 1.3〜1.5 ms（test_client・手元と共有・20 KB）・/api/health 0.03 ms（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest の probe）。窓の束は 3.84.0 の記録で 3.7 ms（最適化なし）。どちらも利用者の時間には効かない（束は 10 秒覚える）。\n【独立の答え】Python の app に頼らずに確かめた: JSON の BOM は RFC 8259 §8.1（読む側は無視してよい）と json.loads(encoding utf-8-sig)・serde_json の答え／共有のマスタの読めない物は app を使わない json.loads／正規表現は Python の re と、窓と同じ版の fancy-regex 0.14.0（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest/rxcmp。窓の pivot.rs の compile_rules と同じ (?i) と is_match）を同じ名前の並びに当てて比べた。Windows の道の形・SMB・本物の CM3 はこの容器で流せないので、確かめた事と分からない事を分けた。",
+ "inventory": [
+  {
+   "route": "GET /api/lotlist/settings（設定の束）",
+   "python": "routes/lotlist.py lotlist_settings（約 30 行）＋lists_settings（約 35 行）・_access_place・_conversions・_ui_profile_keys・lot_engine",
+   "input": "なし（配った設定 TRANSFER_APP_CONFIG→config/appsettings.json→見本・参照先マスタ・データ元・作業実績の登録・設備・設備グループ・変換表・勤務体系・名乗り・置き場）",
+   "answer": "{source, refresh_seconds, stale_hours, table, page_size, engine, conversions{rev,tables}, lists{hidden,dash,sources,work,shifts}, access{who,place}, calculation, uiProfileKeys}",
+   "side_effects": "MasterStore の読みが写しを取り直し（5 秒に 1 回）、共有にまだ無いマスタを最初の版で置く（種まき）。窓が束を組めずに Python に尋ねると、その副作用で次の 10 秒後には窓が組めるようになる形がある（種まき）。lists_settings が落ちると engine を黙って python にし lists を null にする（理由は答えに無い）",
+   "why_python": "窓は bundle.rs で同じ束を組む（3.84.0）。残っているのは束を組めない約 66 種の形（Py）で、そのとき窓は Python に尋ねる。道そのものは窓と Python の間の内側の口で、画面は使わない。窓が道を答えても意味は小さく、本当の仕事は『窓が Python の束を要らなくする』＝ ④ の束の形をなくすこと",
+   "tests": "bundle_parity（51 場面: 同じ 39・任せる 12）・page_parity（同じ場面の読む道。任せる 13）・tests/test_shell_follows.py・tests/test_bundle_tables.py・lot::tests::the_window_builds_the_settings_bundle_itself。試験の答えの元 18 本が Python の束を材料に使う（⑦）",
+   "speed_ms": "Python 1.3〜1.5・窓 3.7（3.84.0・最適化なし）",
+   "window_parts": "bundle.rs の Builder（build・inputs・last_skip〈組めなかった理由〉・config・sources_parts・lotdsp_inputs）・bundle_tables.json・access::Place（split_file・share_absent・rows）・master_store::Store（seed・pull・needs_seed）・lot.rs の settings（10 秒覚える・組めなければ ask）・main.rs の lot_settings"
+  },
+  {
+   "route": "GET /api/health",
+   "python": "routes/system.py health（2 行。{\"status\": \"ok\"}）",
+   "input": "なし",
+   "answer": "{status: ok}",
+   "side_effects": "なし",
+   "why_python": "small_reads.rs の決め: 『Python が答えているかの印』なので窓は答えない（窓が ok を返すと Python が止まっても ok になる）。中身の準備は窓の /__desktop/info の backend（ready・starting・null）が別に言う",
+   "tests": "tests/test_sidecar.py の 4 か所（枠の往復・壊れた枠の後も答える）・small_reads の単体試験（窓は答えない）・rust-port-bench.py",
+   "speed_ms": 0.03,
+   "window_parts": "small_reads.rs（版と更新履歴を答える小さな読む道）・router の Backend::ready()・ready_now()"
+  }
+ ],
+ "delegate_forms": [
+  {
+   "form": "本文の端（画面は送らない形）: 表でない本文・空・壊れた JSON・欄の型違い・NaN・大きな数・値が並び／表・版や id の字（²・全角）・入れ子 128 段以上・百分率符号の道",
+   "steps": "約 383 歩（表でない本文 102・欄の型 94・NaN 62・大きな数 61・並び／表 40・版や id の字 13・入れ子 7・百分率符号 4）＋計算 45 件",
+   "routes": "約 60 の道の型（書く道のほぼ全部と、組む所の読み・計算・配布の置き場）",
+   "python_answer": "2xx 157・4xx 144・5xx 33（受けて repr の字で保存する形がある: 名前 [\"x\"] → \"['x']\"・本数 [1, 2.5] → \"[1, 2.5]\"）",
+   "likely": "低い。画面（JSON.stringify）は NaN・表でない本文を作らない。大きな数は利用者が桁の多い数を打つと起きうる（1e20 以上の表示順など）。人の手の問い合わせ・壊れた拡張・試験だけ",
+   "replace": "『理由を添えて断る』で置き換えられる（400 kind body。どの欄が何であるべきか）。Python と同じ答え（repr の字で保存）は仕様として誤りなので写さない",
+   "after_removal": "いまの形のままなら、その道は 503（Python を起こせません）。画面からは来ないので利用者の目にはほぼ触れない"
+  },
+  {
+   "form": "置き場の形: 読めない置き場の行・版が読めない・壊れた JSON・同じ名前の行・表でない行・段が字（配った設定の段が表でない・古さが abc）",
+   "steps": "約 83 歩＋束 6 場面＋page_parity 13",
+   "routes": "約 40 の道の型と束（束に効く 7 つのマスタ: path_settings・data_sources・work_log_files・equipment_master・equipment_groups・conversions・shift_patterns）",
+   "python_answer": "2xx 44・4xx 24・5xx 11（壊れた 1 行で HTML の 500。直す画面も 500）",
+   "likely": "中〜低。書きかけで止まった共有のファイル（SMB の切れ）・手で直した JSON・前の版の Python が書いた NaN・人がメモ帳で直した設定。起きると影響が大きい（束に効くマスタなら全部の道）",
+   "replace": "壊れた所を名指しで『理由を添えて断る』（そのマスタ・その節の道だけ）＋ほかは答え続ける。読める所は Python と同じ値で答える（pyjson::J は NaN・大きな整数を持てる）。黙って空や写しにしない・ファイルを消さない",
+   "after_removal": "束に効くマスタなら、一覧・集計・ダッシュボード・マスタ管理のほぼ全部が 503（アプリが使えない）。それ以外のマスタならその画面だけ 503"
+  },
+  {
+   "form": "種まき（共有にまだ無いマスタ・写しだけで最初に読む・数える材料のマスタが共有に無い・空の共有の状態）",
+   "steps": "約 47 歩（設備グループの材料が無い 36・写しだけ 5・まだ無い 5・束 1）",
+   "routes": "約 12 の道の型と束",
+   "python_answer": "2xx 40・4xx 6（読むだけで共有に最初の版を置いて答える）",
+   "likely": "高い。新しい共有のフォルダを設定したとき・新しい種類のマスタを足した版を配った最初の起動。いまは Python がどの読みでも種をまくので目立たない",
+   "replace": "『同じ答え』にできる（窓の Store には seed・pull がもうある。窓の書く道は種をまいている）。係を窓 1 つにする決めが要る（⑤ の 3 の前倒し）",
+   "after_removal": "束が組めないまま（Python が居ないのでまく者がいない）→ 一覧・集計・ダッシュボードの全部が 503 のまま戻らない。③ で窓が束を Python に尋ねなくすると、Python が居ても種がまかれなくなる"
+  },
+  {
+   "form": "設備グループの正規表現（束・設備グループの書く道・置き場に正規表現のルールがある形）",
+   "steps": "10 歩＋束 1 場面",
+   "routes": "設備グループの 4 本と束（束が組めないと全部の道が Python 頼み）",
+   "python_answer": "2xx 5・4xx 3",
+   "likely": "高い。マスタ管理の設備グループの画面が『に当たる（正規表現）』を出している（master.js の EG_OPS）。1 つでも正規表現のルールを保存すると、窓は束を組めず全部を Python の束で動く",
+   "replace": "『同じ答え』にできる見込みが高い（窓は pivot.rs で既に fancy-regex で当てている）。Python の re と比べた 40 形のうち違うのは 4 形（\\Z・\\N{…}・[[:alpha:]]・\\p{Han}）。違う書き方は保存のときに理由を添えて断り、読むときはそのルールだけを外して知らせる",
+   "after_removal": "正規表現のルールを 1 つでも持つ現場では、アプリのほぼ全部が 503"
+  },
+  {
+   "form": "?engine=python（自己診断・突き合わせの口）",
+   "steps": "7 歩（oracle）・窓の本体 34 行・selftest.js 46 か所",
+   "routes": "約 25 の道",
+   "python_answer": "Python の道の答え",
+   "likely": "製品では自己診断（CI の一般ユーザー）だけ",
+   "replace": "⑥ まで残し、Python が居ないときは 503 kind python_absent（理由つき）で断る。⑥ で自己診断を焼いた表・独立の答えとの比べに替えてから外す",
+   "after_removal": "自己診断の 10b-* が全部落ちる（製品の利用者には見えない）"
+  },
+  {
+   "form": "設定の口 desktop.lotlist_engine=\"python\"・前の版の Python（lists が null・dash が無い）",
+   "steps": "lot.rs 5 か所＋Python の lists_settings が落ちたとき engine を python にする形",
+   "routes": "一覧・スライサー・集計・ダッシュボード・データ元の読む道",
+   "python_answer": "Python が全部を答える",
+   "likely": "低い（配った設定は rust）。ただし Python の lists_settings が落ちる形（壊れたマスタ）で黙って起きる",
+   "replace": "口を外す（Python を戻す先が無くなる）。落ちる形は上の『置き場の形』として理由つきで断る",
+   "after_removal": "全部の道が 503"
+  },
+  {
+   "form": "Windows・OS の不確か（段の末尾の空白と点・解けない道〈resolve の権限〉・~ユーザー名・file: の URL の [ ]・ASCII でないサーバー名・\\\\?\\ と \\\\.\\・NUL）",
+   "steps": "Linux の oracle で 5 歩（fs 2・配布の置き場 NUL 3）。Windows だけの形は Linux で数えられない（分からない）",
+   "routes": "「参照…」の 2 本・マスタと配布の置き場の確かめと写す",
+   "python_answer": "Python の pathlib・ntpath の答え",
+   "likely": "低い（現場のフォルダ名に末尾の空白・\\\\?\\ はまれ）。ASCII でないサーバー名は会社の命名しだい（分からない）",
+   "replace": "Microsoft の決まり（ntpath・Win32 の道の決まり）を独立の答えにして窓が答えるか、『この道は使えません（理由）』で断る。Windows の CI だけで確かめられる",
+   "after_removal": "その道を選ぶと 503"
+  },
+  {
+   "form": "外の相手（CM3）: 窓の持たない charset・NaN の答え・https・システムのプロキシ・数でない timeout",
+   "steps": "6 歩",
+   "routes": "スケジュールの道（係を降りる）",
+   "python_answer": "Python が取りに行って答える",
+   "likely": "配った設定は http・プロキシ無し・数の timeout なので低い。会社が CM3 を https にするとすぐ起きる",
+   "replace": "https とプロキシは窓が持つ（rustls・Windows のプロキシ設定の読み）か、理由を添えて断る。charset は焼いた表を足す",
+   "after_removal": "スケジュールのタブが『係を降りた』のまま空になる"
+  },
+  {
+   "form": "材料を組めない・me を決められない（束の inputs が Err・gate.me が Err・store_for が None・Python も止まっている）",
+   "steps": "場面としては access_parity・各 *_parity の門番の場面。数は上の形に含まれる",
+   "routes": "窓の道のほぼ全部（入口の ok()?）",
+   "python_answer": "Python が自分の me で答える",
+   "likely": "上の『置き場の形』『種まき』が起きたときの結果としてだけ",
+   "replace": "理由を Option でなく Result で運び、503 kind settings に理由（どのファイルが読めないか）を載せて断る",
+   "after_removal": "道ごとに 503（理由なし）"
+  }
+ ],
+ "remaining": {
+  "道（Python だけが答える）": "2 本。GET /api/lotlist/settings（窓と Python の間の内側の口。画面は使わない。窓は組めない形だけ Python に尋ねる）・GET /api/health（Python が答えているかの印。使うのは test_sidecar.py と rust-port-bench.py だけ）",
+  "③ と ④ のつながり（棚卸しで分かったこと）": "/api/lotlist/settings を窓が答えるようにしても、窓が束を組めない形（Py 約 66 種）が残る間は、窓は Python に束を尋ね続ける。③ の中身は ④ のうちの『束の形』をなくすことと同じ。しかも Python に束を尋ねることは、種まき（共有にまだ無いマスタを置く）の副作用を持つので、尋ねるのを止める前に窓が種をまく（⑤ の 3 の前倒し）が要る",
+  "任せる形の分け": [
+   "本文の端（画面は送らない形）: 表でない本文・空・壊れた JSON・欄の型違い・NaN・大きな数・値が並び／表・版や id の字（²・全角）・入れ子 128 段以上・百分率符号の道 — 約 383 歩（表でない本文 102・欄の型 94・NaN 62・大きな数 61・並び／表 40・版や id の字 13・入れ子 7・百分率符号 4）＋計算 45 件",
+   "置き場の形: 読めない置き場の行・版が読めない・壊れた JSON・同じ名前の行・表でない行・段が字（配った設定の段が表でない・古さが abc） — 約 83 歩＋束 6 場面＋page_parity 13",
+   "種まき（共有にまだ無いマスタ・写しだけで最初に読む・数える材料のマスタが共有に無い・空の共有の状態） — 約 47 歩（設備グループの材料が無い 36・写しだけ 5・まだ無い 5・束 1）",
+   "設備グループの正規表現（束・設備グループの書く道・置き場に正規表現のルールがある形） — 10 歩＋束 1 場面",
+   "?engine=python（自己診断・突き合わせの口） — 7 歩（oracle）・窓の本体 34 行・selftest.js 46 か所",
+   "設定の口 desktop.lotlist_engine=\"python\"・前の版の Python（lists が null・dash が無い） — lot.rs 5 か所＋Python の lists_settings が落ちたとき engine を python にする形",
+   "Windows・OS の不確か（段の末尾の空白と点・解けない道〈resolve の権限〉・~ユーザー名・file: の URL の [ ]・ASCII でないサーバー名・\\\\?\\ と \\\\.\\・NUL） — Linux の oracle で 5 歩（fs 2・配布の置き場 NUL 3）。Windows だけの形は Linux で数えられない（分からない）",
+   "外の相手（CM3）: 窓の持たない charset・NaN の答え・https・システムのプロキシ・数でない timeout — 6 歩",
+   "材料を組めない・me を決められない（束の inputs が Err・gate.me が Err・store_for が None・Python も止まっている） — 場面としては access_parity・各 *_parity の門番の場面。数は上の形に含まれる"
+  ],
+  "全部か無しか": "束は 7 つのマスタと配った設定の 1 か所でも窓が読めないと全部を Python に尋ねる。Python も lists_settings が落ちると engine を python・lists を null にして返すので、窓の一覧・集計・ダッシュボードが全部 Python に回る（probe_bad_row.py で再現）。Python を外した後はアプリのほぼ全部が 503 になる",
+  "いま Python の無い PC": "⑥ の前でも、利用者の PC に Python が入っていない・起こせないときは、上の任せる形がすでに 503 になっている（窓は答えず、中身は起きない）"
+ },
+ "found_errors": {
+  "確か": [
+   {
+    "name": "1. 共有の 1 つのマスタが読めない（書きかけで切れた JSON）間、ほかのマスタが変わると、マスタの置き場の状態（GET /api/masters/status）の error が空になり、そのマスタの source は shared のまま（黙って写しで答える）",
+    "再現": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest/probe/probe_status_err.py: 共有の equipment_master.json を半分に切る → status の error は『共有マスタを取り込めませんでした（写しで続けます）: …』・設備マスタは写しの 17 行で 200 → ほかの PC が roll_master.json を保存（版 +1）→ 次の status の error は ''・equipment_master.source は 'shared'。独立の答え（app を使わない json.loads）では共有の equipment_master.json はまだ読めない。",
+    "正しい答え": "まだ読めないマスタがある間は、そのマスタの名前と理由を status に出し続ける。source は『共有が読めないので写し』（shared でない）",
+    "直し方": "取り直せなかった理由をマスタごとに覚える（Python の MasterStore._last_error・窓の master_store.rs の last_error を名前 → 理由の表に。_pull が成功したら、その名前の理由だけ消す）。status の source に 'cache'（共有が読めない・写しで答えている）を足す。Python と窓は同じ型なので両方を直す（3.101.0 で窓は Python と同じ意味の sync_state を写した）",
+    "who": "Python と窓（同じ誤り。突き合わせでは見つからない）"
+   },
+   {
+    "name": "2. 設備グループの決まりのうち 1 つが読めない・重い正規表現だと、そのグループの全部の決まり（と除く設備）が黙って消える",
+    "再現": "services/equip_groups.rules_of({'ルール': '{\"rules\":[{\"op\":\"prefix\",\"value\":\"L-\"},{\"op\":\"regex\",\"value\":\"(a+)+\"}]}'}) → {'rules': [], 'except': []}。同じ決まりを pivot.compile_rules に渡すと 'L-1' に当たる（重い 1 つだけを外す）。窓は束に正規表現があると Python の束（view）を使うので同じ答え",
+    "正しい答え": "読めない・重い 1 つの決まりだけを外し、ほかの決まりと除く設備は残す（pivot.compile_rules と同じ）。外したことを設備グループの画面に知らせる",
+    "直し方": "rules_of で clean_rules の GroupError を行ごとでなく決まりごとに受ける（読むときは外して知らせ、書くときは今どおり断る）。窓の束の写し（bundle.rs の設備グループの決まり）も同じに。重さの決まり（3.52.1 の regex_risk）より前に保存した正規表現で起きうる",
+    "who": "Python（窓は束を Python に尋ねるので同じ答え）"
+   },
+   {
+    "name": "3. 束に効くマスタの 1 行が表でない・ファイルが途中で切れると、Python の束は engine=python・lists=null になり（理由は答えに無い）、窓の一覧・集計・ダッシュボードが全部 Python に回る。そのマスタの画面とマスタの置き場の状態は HTML の 500 で理由を言わない",
+    "再現": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest/probe/probe_bad_row.py（勤務体系に文字の行 → 束 engine=python lists=null・/api/masters/shifts 500 HTML。設備グループに文字の行 → /api/masters/equipgroups と /api/dashboard/sources が 500）・probe_trunc.py（手元の設備マスタを半分に切る → 束 engine=python・/api/masters/equipment 400『Unterminated string…』・/api/masters/equipgroups 500・/api/masters/status 500）",
+    "正しい答え": "壊れたマスタの道だけが『このファイルのこの行（またはこの位置）が読めません』と JSON で断り、ほかの道は答え続ける。マスタの置き場の状態は壊れたマスタを『読めない』と言い、ほかのマスタを並べる。壊れた行・ファイルは消さない",
+    "直し方": "束を節ごとに組み（③）、組めない節は理由を持つ。Python の MasterRepository._normalize は表でない行で落ちずに『読めない行』として飛ばして数える（書くときは触らない）。status は doc を読めない名前を error 付きで返す",
+    "who": "Python（窓は Python に任せて同じ答え）"
+   },
+   {
+    "name": "4. 配った設定（config/appsettings.json）が BOM 付きの UTF-8 だと、Python が起動できず（json.loads が Unexpected UTF-8 BOM）、窓も束を組めない（serde_json が expected value）。アプリが開かない",
+    "再現": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest/probe/bom.json（今の appsettings.json の頭に EF BB BF）: TRANSFER_APP_CONFIG で app_env.load_settings → JSONDecodeError。窓は rxcmp の examples/bom.rs で serde_json::from_str が『expected value at line 1 column 1』（bundle.rs の inputs は read_to_string → serde／lenient_json）",
+    "正しい答え": "RFC 8259 §8.1 のとおり BOM を無視して読む（マスタは既に utf-8-sig で読んでいる: master_store.py 165 行・access.rs の doc_rows）",
+    "直し方": "app_env.load_settings を encoding='utf-8-sig' に、窓の bundle.rs の inputs と config_file を BOM を外して読む。メモ帳の『UTF-8 (BOM 付き)』で保存した形を事例の表に足す",
+    "who": "Python と窓"
+   },
+   {
+    "name": "5. 字の欄に並び・表・数を送ると、Python は repr の字で保存する（名前 [\"x\"] → \"['x']\"・本数 [1, 2.5] → \"[1, 2.5]\"）。窓はその形を Python に任せている",
+    "再現": "or/dashboards.json の POST /api/dashboards {\"name\": [\"x\"]} → 201 name \"['x']\"・or/equip_rows.json の POST /api/masters/rolls {\"本数\": [1, 2.5]} → 201 本数 \"[1, 2.5]\"（Python に任せる歩の 2xx は 283 歩）",
+    "正しい答え": "字の欄に字でない値が来たら『〈欄〉は字で送ってください』で断る（書かない）",
+    "直し方": "④ の本文の端は窓が理由を添えて断る（案 C）。Python も同じ確かめを足す（⑦ まで答え合わせの相手なので）か、Python に任せる歩の比べを『どちらも書かない』に変える",
+    "who": "Python（画面は送らないので、利用者の目に触れる見込みは低い）"
+   },
+   {
+    "name": "6. 計算（POST /api/calculate）で Python が落ちる形は、Python の例外の英語がそのまま答えに出る（工程の番号の順が入れ替わる・発見設備が工程に無い → 'list index out of range'・発見設備の書き方 '8.0' → \"invalid literal for int() with base 10: '8.0'\"）",
+    "再現": "or/calc.json（calc_oracle の must=False の 48 件: 400 が 36・200 が 9・NaN の答え 3）",
+    "正しい答え": "『工程 n の番号が前の工程より小さい』『発見設備 42 が工程にありません』のように、何を直せばよいかを日本語で言う",
+    "直し方": "窓の calc.rs が理由を添えて答える（Python に任せない）。番号の並びは仕様（工程の番号の順に遡る）から独立の答えを作る。どの形が LotDsp の本物の答えで起きるかは分からない（下）",
+    "who": "Python（窓は任せている）"
+   }
+  ],
+  "疑い": [
+   {
+    "name": "7. 設備グループの正規表現の書き方が 2 つある（設備グループは Python の re、計算列は JavaScript の RegExp）。画面はどちらも『正規表現』と言う",
+    "根拠": "rxcmp/cmp.py: 40 形のうち Python と窓（fancy-regex）で違うのは 4 形（\\Z は Python だけ・\\N{DIGIT ONE} は Python だけ・[[:alpha:]] は窓では文字の組・Python では入れ子の警告つきの別の意味・\\p{Han} は窓だけ）。計算列（formula.rs）は JavaScript の書き方を写している",
+    "確かめ方": "現場の設備グループに保存されている正規表現を数える（分からない）。決めるのは利用者: 設備グループの書き方を JavaScript にそろえる（計算列と 1 つ）か、Python の書き方のまま窓が写すか"
+   },
+   {
+    "name": "8. 共有のマスタのファイルが壊れている間、読みは写しで黙って答え（確か 1）、書きは JSON の英語の誤り（'Expecting …'）で断る。読みと書きで言うことが違い、どのファイルを直せばよいかを言わない",
+    "根拠": "コードを読んだ: 窓の master_store.rs の write は錠の中で pull(force) → Doc::read(共有) が Err で書かない（上書きはしない）。Python の write も _pull(force=True) の _read_json の例外を master_call が 400 で返す。probe_trunc.py の手元の形では GET /api/masters/equipment が 400『Unterminated string starting at …』。共有の形の書きは流していない",
+    "確かめ方": "壊れた共有で PUT を当てる場面を masters_parity・各 *_parity に足し、答えに『共有の 〈名前〉.json が読めません（位置）。写しで表示しています』を出す。直すのは人なので、窓は壊れたファイルを消さない"
+   },
+   {
+    "name": "9. /api/lotlist/settings の engine を Python が黙って python にするとき、窓のログにも理由が出ない",
+    "根拠": "lotlist_settings の except Exception: lists, engine = None, 'python'。窓の last_skip は窓が組めなかった理由だけで、Python が落とした理由は届かない",
+    "確かめ方": "③ で節ごとの理由を持つ形にすれば消える"
+   },
+   {
+    "name": "10. 種まきを Python の読みに任せている間、③ で窓が Python に束を尋ねなくすると、新しい共有・新しいマスタに種がまかれない",
+    "根拠": "settings_oracle の『共有にまだ無いマスタ』は Python の答えの後に場面を戻している（Python が置くため）。窓の Store には seed があり、書く道ではまいているが、束の読みでは share_absent で Python に任せる",
+    "確かめ方": "③ の版で、空の共有の場面（place_parity の an_empty_share_is_seeded_once_by_python と同じ形）を『Python が居ない』で流す"
+   }
+  ],
+  "分からない": [
+   "現場でどの任せる形が実際に何回起きているか（数える仕組みが無い。案 F が数える）",
+   "現場の設備グループに正規表現のルールがあるか（共有のマスタを読めない）",
+   "Windows だけの道の形（段の末尾の空白・\\\\?\\・ASCII でないサーバー名）の歩の数（Linux の oracle には出ない）",
+   "本物の SMB で書きかけのファイルがどのくらい起きるか",
+   "LotDsp の本物の答えで工程の番号の順が入れ替わる・設備名が null になる形があるか",
+   "会社の CM3 が https・プロキシになる予定があるか",
+   "利用者の PC に Python が入っていない・起こせない形が今どのくらいあるか"
+  ]
+ },
+ "proposals_text": {
+  "A ③ だけを 1 版で閉じる（束を節ごとに組み、/api/health は窓が言う）": "移す物: GET /api/lotlist/settings を窓が答える（束が組めた節で）・窓が Python に束を尋ねる口（main.rs の lot_settings）を、節が組めないときだけに狭める。GET /api/health は窓が {status: ok, by: window, python: ready|starting|stopped|absent} で答える（Python が答えているかは python の欄と /__desktop/info に残す。?engine=python は Python）。直す誤り: 確か 3（節ごとの理由）・4（BOM）・9。作る部品: bundle.rs を節（lot_list・sources・work・shifts・dash・access・conversions・calculation・config）ごとの Result<Value, Py> に分け、lot.rs の Settings は節ごとに持つ。道は使う節が組めないときだけ 503 kind settings（どのファイル・どの行）で断る。評価関数: bundle_parity を節ごとに（Python が組める節は 1 字ずつ同じ）・新しい bundle_sections（1 つの節を壊すと、ほかの節を使う道は答え続け、壊れた節を使う道は理由つきで断る。独立の答えは仕様から書いた事例の表 tests/fixtures/bundle_cases.json）・test_sidecar の health は Python の道のまま・small_reads の単体試験を『窓が答え python の欄が backend と同じ』に。危ない所: 種まきを Python の読みの副作用に頼っている（疑い 10）ので、節が組めない形で Python に尋ねる口を残さないと新しい共有で止まる。正規表現・種まきは任せたまま（④ に回す）なので、Python を外す日は近づかない。見積もり: Rust 500〜800 行・1 版（3.102.0）",
+  "B ③＋④ のうち現場で起きる 3 形を 1 版で（種まき・設備グループの正規表現・壊れたマスタ）": "移す物: A の全部に加え、(1) 種まき: 窓の Store が共有にまだ無いマスタを最初の版で置く（share_absent・needs_seed で Python に任せていた約 47 歩と束。係は窓 1 つ: SERVES に seed を名乗り、Python の _seed は名乗られたらまかずに写しで答える。boot.py の master-seeds は ⑤ のまま）。(2) 設備グループの正規表現: 窓が Python の re の書き方を fancy-regex へ写して確かめ・当てる（40 形のうち違う 4 形は保存のときに理由を添えて断り、読むときはそのルールだけ外して知らせる。確か 2 を直す）。束も組む。(3) 壊れたマスタ: 壊れたファイル・表でない行は、そのマスタを使う道だけが理由つきで断る（確か 1・3）。読める行は答える。消さない。作る部品: master_store.rs の seed の入口を読む道へ（needs_seed の分かれを外す）・equip_regex.rs（Python の re → fancy-regex の書き方の写しと、写せない書き方の理由）・bundle.rs の節・Place::doc の『読めない』の理由（ファイルと位置）。評価関数: place_parity の空の共有を『Python が居ない』でも・2 つのプロセスが同時に空の共有を読む場面を窓 2 つでも・equip_regex_cases（Python の re と仕様から書いた事例の表。Python の答えと窓の答えと『断る』の 3 つ）・bundle_sections・masters の壊れたファイルの場面（独立の答えは app を使わない json.loads）。危ない所: 種まきの係を移すと、窓と古い Python（版が混ざった PC）が同じ共有にまく競い合い（錠は共通なので 1 回だけのはず。place_parity で見る）。版が大きい。見積もり: Rust 1,300〜1,800 行・1 版（3.102.0）、残りの本文の端は次の版",
+  "C 本文の端は全部『理由を添えて断る』に一括（Python の答えを仕様にしない）": "移す物: 本文の端の約 383 歩と計算の 45 件（④ の 6 割強）。窓は Python に任せず、400 kind body（どの欄が何であるべきか）で断る。Python が 2xx で受けて repr の字で保存していた形（確か 5）は書かない。計算の例外は日本語の理由（確か 6）。作る部品: body_spec.rs（道ごとの本文の型の表: 欄 → 字・数・真偽・並び・表・任意・上限。書く道の組 master_rows・preset_rows・card_forms・dash_sets・formats・conversions・equipgroups・sources・worklog・settings・release の本文を 1 か所の表で確かめる）と、None を返していた所をこの確かめに置き換える。評価関数: body_cases（仕様から書いた事例の表 tests/fixtures/body_cases.json。欄ごとに型 × 値〈NaN・大きな数・並び・表・空・²〉）・各 *_parity の任せる歩を『窓は断り、ファイルは変わらない』に変える・Python の答えは『Python も書かなかった or Python は repr の字で書いた（誤り）』の分類にだけ使う。危ない所: Python が受けていた形を断ると、前の版の窓と組んだ Python（版が混ざった PC）との答えが違う（画面からは来ないので利用者の差は小さい）。表を書き間違えると画面の正しい本文を断る（画面の本文を全部の ui-eval で通す要がある）。見積もり: Rust 900〜1,300 行（半分は表）・1〜2 版",
+  "D 任せる形を全部『Python と同じ答え』にする（窓の JSON を Python と同じ値の木 pyjson::J に寄せる）": "移す物: 本文の端・置き場の形・束の全部を、Python と 1 字も違わない答えに（NaN・大きな整数・送った順・repr の字・Python の例外の言葉まで）。窓には pyjson::J（3.98.0。NaN・Big・鍵の順）と jsontree::Tree がすでにあり、serde の Value を道の端でこれに替える。作る部品: 全部の書く道の部品の入出力を J へ・Python の str()／repr() の写し（pyjson にある）・例外の言葉の表。評価関数: 今の *_parity の任せる歩をそのまま『同じ答え』の歩に移す（数は 535 → 0）。危ない所: Python の誤り（確か 5・6・3 の 500）まで写す。利用者の要望『計算・表示の誤りを直す』に反する。量が大きい（部品のほぼ全部の型を替える）。突き合わせしか物差しが無く、⑦ で Python を外すと答えの元が消える。見積もり: Rust 3,000〜5,000 行・4〜6 版",
+  "E 形ごとに版を分け、任せる歩の数を『予算』にして減らす（数で進む）": "移す物: 3.102.0 ③＋種まき（A＋B の (1)）・3.103.0 置き場の形と壊れたマスタ（B の (3)）・3.104.0 本文の端（C の型）と計算・3.105.0 設備グループの正規表現・Windows・CM3（https・プロキシ）。?engine=python は ⑥ まで残し、Python が居なければ 503 kind python_absent。作る部品: tools/delegate-count.py（この調べの count_delegates.py を製品の道具に。全部の oracle の任せる歩を形ごとに数える）と tests/fixtures/delegates_budget.json（形ごとの上限）。試験 test_delegates_budget.py が上限を超える新しい任せる歩を止め、版ごとに上限を下げる。評価関数: 予算の試験・各版の *_parity・独立の答え（版ごとに作る）。危ない所: 4 版かかる。各版の作った後の採点が 1 回ずつ要る。形の分け方（正規表現の分け方）が粗いと予算がずれる（今の数え方は場面の名前と本文の字で分けている: 手で直す所がある）。見積もり: Rust 計 2,500〜3,500 行・4 版",
+  "F 先に『Python 無しの形』を作り、理由を運び、現場で起きる回数を数えてから決める（逆から）": "移す物: 3.102.0 で、窓が None を返していた所を Result<_, Delegate>（理由の名前: body・place・seed・regex・windows・cm3・engine・settings）に替え、Python に任せたときは理由をこの PC の記録（作業場所の delegations.jsonl。1 日にまとめ、共有の利用状況の置き場へ 1 行）に数える。TPA_NO_PYTHON=1（窓が Python を起こさない形）で、任せる所は 503 kind python_absent＋理由で断る。この形で ui-eval・自己診断・窓の通しを流し、画面の流れで本当に止まる所を出す。③ の /api/health と束の道も入れる。作る部品: delegate.rs（理由の型と数える係）・router の no-python・selftest に『Python 無し』の段。評価関数: Python 無しの形で既存の ui-eval（画面の流れ）を流した落ちた数・現場の数（2〜3 週間）。危ない所: 約 350 の None を機械的に替えるので、答えを変えずに替えたかを全部の *_parity で確かめる要。現場の記録は個人の名前を書かない（PC 名・ログイン ID を書かない: 形の名前と回数だけ）。窓の通しの時間（1 段 160 秒）に Python 無しの段を足すと 480 秒の待ちに近づく（cargo test の側で流す）。見積もり: Rust 700〜1,000 行（多くは機械的）・1 版＋数える期間",
+  "G 独立の答えと仕様の事例の表を先に作り、窓をそれに合わせる（⑦ の前倒し）": "移す物: 形ごとに、Python に頼らない答えを先に作る: 束の仕様の表（bundle_cases.json）・本文の型の表（body_cases.json）・正規表現の事例（Python の re と JS の RegExp と期待する当たり）・壊れたマスタの事例・種まきの事例（place-truth.py の続き）・Windows の道（ntpath と Microsoft の決まり）。そのうえで窓を表に合わせ、Python は表と比べて誤り（確か 1〜6）を直す相手にする。作る部品: tools/*-truth.py（app を import しない）・tests/fixtures/*_cases.json と、それを読む Rust の *_cases 試験と Python の test_*_cases.py。評価関数: 表と窓・表と Python の両方（3.99.0 の builder_cases・3.100.0 の place_cases の型）。危ない所: 表を書く量が大きく、移すのは後になる（③ が遅れる）。表の書き手が Python を写すと同じ誤りを焼く（仕様から書く）。見積もり: Python・表 1,500 行＋Rust 形ごとに 200〜400 行・2〜3 版"
+ },
+ "decide_by_user": [
+  "設備グループの正規表現の書き方を、計算列と同じ JavaScript の書き方にそろえるか、Python の書き方のまま窓が写すか（疑い 7）",
+  "本文の端（画面は送らない形）で、Python が受けて repr の字で保存していた形を『断る』に変えてよいか（確か 5。前の版との答えの違い）",
+  "?engine=python と desktop.lotlist_engine の口をいつ外すか（⑥ の前に外すと、自己診断の 10b-* が答え合わせの相手を失う）",
+  "現場で任せる形の回数を数えて記録してよいか（案 F。形の名前と回数だけ。PC 名・ログイン ID は書かない）",
+  "GET /api/health の意味を『窓が答えている』に替えるか、Python の印のまま ⑥ で消すか"
+ ],
+ "recommend_by_maker": "案を作った者の推し（採点ではない）: B を土台に、F の『理由を運ぶ・Python 無しの形』と、C の本文の型の表を次の版に、E の予算の試験を最初の版から入れる形。理由: (1) ③ の 2 本は画面が使わない内側の口で、本当の仕事は『束を Python に尋ねなくする』こと。それには束の全部か無しかをやめ（確か 3）、現場で起きる 2 形（種まき・設備グループの正規表現）を窓がこなす要がある。A だけでは種まきを Python の読みの副作用に頼ったまま（疑い 10）で、Python を外す日は近づかない。(2) 起きる見込みで並べると、種まき（新しい共有・新しいマスタの最初の起動）と正規表現（画面が出している）が高く、本文の端の 383 歩は画面から来ないので後でよい（C の型で一括に断れる）。(3) 見つけた確か 1〜4 はどれも Python と窓が同じ決まりで誤る形か、窓が Python に任せて同じ答えになる形で、突き合わせでは見つからない。直すのは独立の答え（app を使わない json.loads・RFC 8259・pivot.compile_rules の決まり）を物差しにする。(4) F の理由の型は、Python を外した後に 503 の理由を言うためにどのみち要り、現場の回数で残りの順を決められる。(5) D は Python の誤りまで写し、要望に反する。危ない所は B の版の大きさ（1,300〜1,800 行）と、種まきの係を移すときの版が混ざった PC の競い合い（place_parity の 2 プロセスの場面で見る）。",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-12。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりにコードを読み、動かして測った事実で採点した。cargo は流していない（主の作業ツリーで check-all が流れているため）。読んだ物（主の作業ツリー・版 3.101.0。ファイルは変えていない）: desktop/src/main.rs の lot_settings・schedule_card・update_settings（窓が Python に尋ねる内側の口）・bundle.rs（Py の理由 79 か所・inputs と config_file は read_to_string → serde）・lot.rs の sources_list（カードを Python に尋ねる）・sources_list.rs（Python が答えなければ mirror null の既定）、program/app_env.load_settings（encoding utf-8）・services/equip_groups.rules_of・pivot.compile_rules。流した物（置き場は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/rest-score。一時フォルダは TMPDIR をここへ向けて /tmp に残さなかった）: 作者の probe（probe_status_err・probe_bad_row・probe_trunc）を主の作業ツリーの Python で流した: 共有の設備マスタを半分に切ると status の error が出るが、ほかの PC がロールのマスタを保存すると error が '' に戻り source は shared のまま（独立の答え: json.loads で共有の equipment_master.json はまだ読めない）／勤務体系に字の行で束が engine=python・lists=null・/api/masters/shifts が HTML の 500、設備グループに字の行で /api/masters/equipgroups と /api/dashboard/sources が HTML の 500。作者の probe_trunc には共有の形しか残っていなかったので、手元の設備マスタを半分に切る形を自分で書いて流した（trunc_local.py）: 束 engine=python・lists null、/api/masters/equipment 400『Unterminated string …』、equipgroups と status が HTML の 500。BOM 付きの appsettings.json（作者の bom.json。頭が EF BB BF）で app_env.load_settings が JSONDecodeError『Unexpected UTF-8 BOM』。equip_groups.rules_of（prefix L- と重い (a+)+ と除く設備 L-9）が {rules: [], except: []}、同じ決まりの pivot.compile_rules は L-1 に当たる。答えの元の記録（or/*.json）で、名前 \"['x']\"・本数 \"[1, 2.5]\" の保存と、計算の答えの英語の例外（list index out of range 9・invalid literal for int() 9）を見た。count_delegates.py の写しで 20 の答えの元を数え直し 535 歩（calc は 0 で、計算の 45 件は別）。seed.py: 空の共有（path_settings だけ）で Python に束を尋ねると、共有のマスタが 1 → 9 ファイル（access_permissions・conversions・data_sources・equipment_groups・equipment_master・shift_patterns・tab_access・work_log_files を置いた）。rxcmp の組み済みの実行ファイル（fancy-regex 0.14.0。窓の Cargo.lock と同じ版）で正規表現 40 形を比べ、違う 4 形（\\Z・[[:alpha:]]・\\p{Han}・\\N{DIGIT ONE}）を見た（その後 target は消した）。Windows・SMB・本物の CM3 は流していない。採点の物差し（前例の読み替え）: わかりやすさ＝狙いの順・まとまり・主の狙いが 1 つか・独立の答えで数が見えるか、使いやすさ＝この段の狙い（③ の 2 本を閉じ、④ の任せる形を減らし、確かな誤りを直す）への手の少なさ・落とし穴の少なさ・今の型に沿うか、統一感＝今の作り（SERVES・事例の表・独立の答え）と同じか・主のセッションの決め 1〜5 と同じ答えか、美しさ＝1 版の量と危うさの釣り合い。主のセッションの方針で、データや表示の誤り（確か 1〜4）をこの版で直す案を言葉と置き場で上げた。",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "self_check": "案を作った者が、採点に渡す前に棚卸しの数と誤りを動かして確かめた（画面に出ない改良なので、画像の代わりに動かして測った数で見た）: (1) 道の数は routes_inv3.py で 137・窓 135・Python だけ 2。2 本を尋ねる所を grep で全部見た（画面・自己診断・窓の通しは 0 件）。(2) 任せる歩は 19 の oracle を作業フォルダで流して数えた（count_delegates.py。builder は標準入力を待つので止めて 1 行目を読んだ）。形の分けは場面の名前・本文・道の字の決まりで行い、『そのほか』に残った物を手で見て決まりを足した（残り 6 歩）。分け方は粗いので、数は目安（±1 割）。(3) 確か 1〜6 は再現した（probe_status_err.py・probe_bad_row.py・probe_trunc.py・bom.json と examples/bom.rs・rules_of の 1 行・oracle の答え）。正規表現は窓と同じ版の fancy-regex を別の小さなクレートで組んで比べた（rxcmp。窓の本体は組んでいない）。(4) 窓の部品は関数の名前と中身を読んで確かめた（bundle.rs の build_inner と MASTERS・Inputs::check・access.rs の split_file・share_absent・doc・master_store.rs の pull・seed・sync_state・lot.rs の settings・with_dash・handle_body・router の ask）。(5) 案は 7 つ: 範囲の切り方（A・B・E）・断るか同じ答えか（C・D）・段取りと計り方（E・F）・独立の答えの作り方（G）に散らした。作業のファイルは /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/port-rest/ に置き、作業フォルダ（or/w-*・probe/pr-*）は消した。",
+   "proposals": {
+    "A ③ だけを 1 版で閉じる（束を節ごとに組み、/api/health は窓が言う）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 7,
+      "place": 6,
+      "layout": 8,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 束を節ごとに組み（確か 3）、BOM を読み（確か 4）、/api/health を窓が Python の様子を添えて答える（決め 5 どおり）。範囲が小さく（Rust 500〜800 行。釣り合い 8）、3.84.0 の束の型の続き（直感的 8）。悪い所: 確か 1（壊れた共有マスタを言わない）・確か 2（設備グループの決まりが全部消える）を直さない（言葉と置き場 6）。種まきは Python の読みの副作用に頼ったまま（自分で確かめた: 束を Python に尋ねると空の共有へ 8 個のマスタを置く）なので、節が組めない形で Python に尋ねる口を残すしかない（考えさせない 5）。正規表現のルールが 1 つでもあると束を組めない形も残る。内側の口は lot_settings だけを数え、main.rs の schedule_card（窓が係のスケジュールのカードを Python に尋ねる）に触れない。",
+     "text": "移す物: GET /api/lotlist/settings を窓が答える（束が組めた節で）・窓が Python に束を尋ねる口（main.rs の lot_settings）を、節が組めないときだけに狭める。GET /api/health は窓が {status: ok, by: window, python: ready|starting|stopped|absent} で答える（Python が答えているかは python の欄と /__desktop/info に残す。?engine=python は Python）。直す誤り: 確か 3（節ごとの理由）・4（BOM）・9。作る部品: bundle.rs を節（lot_list・sources・work・shifts・dash・access・conversions・calculation・config）ごとの Result<Value, Py> に分け、lot.rs の Settings は節ごとに持つ。道は使う節が組めないときだけ 503 kind settings（どのファイル・どの行）で断る。評価関数: bundle_parity を節ごとに（Python が組める節は 1 字ずつ同じ）・新しい bundle_sections（1 つの節を壊すと、ほかの節を使う道は答え続け、壊れた節を使う道は理由つきで断る。独立の答えは仕様から書いた事例の表 tests/fixtures/bundle_cases.json）・test_sidecar の health は Python の道のまま・small_reads の単体試験を『窓が答え python の欄が backend と同じ』に。危ない所: 種まきを Python の読みの副作用に頼っている（疑い 10）ので、節が組めない形で Python に尋ねる口を残さないと新しい共有で止まる。正規表現・種まきは任せたまま（④ に回す）なので、Python を外す日は近づかない。見積もり: Rust 500〜800 行・1 版（3.102.0）"
+    },
+    "B ③＋④ のうち現場で起きる 3 形を 1 版で（種まき・設備グループの正規表現・壊れたマスタ）": {
+     "score": {
+      "order": 9,
+      "chunk": 6,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 8,
+      "place": 8,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: A の全部に、現場で起きる 3 形（種まき・設備グループの正規表現・壊れたマスタ）を足し、確か 1〜4 をこの版で直す（言葉と置き場 8）。正規表現は Python の re の書き方を写し、違う 4 形（自分で再現した \\Z・[[:alpha:]]・\\p{Han}・\\N{…}）は保存のときに理由を添えて断る（決め 1 どおり）。equip_regex_cases（Python の re と仕様の事例）・bundle_sections・壊れたファイルの場面（独立の答えは app を使わない json.loads）で、Python と窓が同じ誤りを持つ形も見える（視覚化 8）。悪い所: 種まきの係を窓に移すのは、版 3.101.0 で主のセッションが『⑤ まで Python のまま』と決めた事の前倒しで、決め直しが要る（直感的 7）。1 版が大きい（Rust 1,300〜1,800 行。チャンク 6・釣り合い 5）。本文の端（確か 5・6）は次の版。schedule_card の口に触れない。",
+     "text": "移す物: A の全部に加え、(1) 種まき: 窓の Store が共有にまだ無いマスタを最初の版で置く（share_absent・needs_seed で Python に任せていた約 47 歩と束。係は窓 1 つ: SERVES に seed を名乗り、Python の _seed は名乗られたらまかずに写しで答える。boot.py の master-seeds は ⑤ のまま）。(2) 設備グループの正規表現: 窓が Python の re の書き方を fancy-regex へ写して確かめ・当てる（40 形のうち違う 4 形は保存のときに理由を添えて断り、読むときはそのルールだけ外して知らせる。確か 2 を直す）。束も組む。(3) 壊れたマスタ: 壊れたファイル・表でない行は、そのマスタを使う道だけが理由つきで断る（確か 1・3）。読める行は答える。消さない。作る部品: master_store.rs の seed の入口を読む道へ（needs_seed の分かれを外す）・equip_regex.rs（Python の re → fancy-regex の書き方の写しと、写せない書き方の理由）・bundle.rs の節・Place::doc の『読めない』の理由（ファイルと位置）。評価関数: place_parity の空の共有を『Python が居ない』でも・2 つのプロセスが同時に空の共有を読む場面を窓 2 つでも・equip_regex_cases（Python の re と仕様から書いた事例の表。Python の答えと窓の答えと『断る』の 3 つ）・bundle_sections・masters の壊れたファイルの場面（独立の答えは app を使わない json.loads）。危ない所: 種まきの係を移すと、窓と古い Python（版が混ざった PC）が同じ共有にまく競い合い（錠は共通なので 1 回だけのはず。place_parity で見る）。版が大きい。見積もり: Rust 1,300〜1,800 行・1 版（3.102.0）、残りの本文の端は次の版"
+    },
+    "C 本文の端は全部『理由を添えて断る』に一括（Python の答えを仕様にしない）": {
+     "score": {
+      "order": 6,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 8,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 本文の端の約 383 歩と計算の 45 件を、1 つの本文の型の表（body_spec）で『理由を添えて断る』にする。Python が repr の字で保存していた形（確か 5。答えの元の記録で見た）と、計算の英語の例外（確か 6）を直す（決め 2 どおり）。仕様の表 body_cases は独立の答え（視覚化 8・形と色 8）。悪い所: ③ の 2 本と、データや表示の誤り（確か 1〜4）に触れない（順序 6・言葉と置き場 6）。画面から来ない形が中心なので、利用者に効く所が小さい。表を書き間違えると画面の正しい本文を断る。",
+     "text": "移す物: 本文の端の約 383 歩と計算の 45 件（④ の 6 割強）。窓は Python に任せず、400 kind body（どの欄が何であるべきか）で断る。Python が 2xx で受けて repr の字で保存していた形（確か 5）は書かない。計算の例外は日本語の理由（確か 6）。作る部品: body_spec.rs（道ごとの本文の型の表: 欄 → 字・数・真偽・並び・表・任意・上限。書く道の組 master_rows・preset_rows・card_forms・dash_sets・formats・conversions・equipgroups・sources・worklog・settings・release の本文を 1 か所の表で確かめる）と、None を返していた所をこの確かめに置き換える。評価関数: body_cases（仕様から書いた事例の表 tests/fixtures/body_cases.json。欄ごとに型 × 値〈NaN・大きな数・並び・表・空・²〉）・各 *_parity の任せる歩を『窓は断り、ファイルは変わらない』に変える・Python の答えは『Python も書かなかった or Python は repr の字で書いた（誤り）』の分類にだけ使う。危ない所: Python が受けていた形を断ると、前の版の窓と組んだ Python（版が混ざった PC）との答えが違う（画面からは来ないので利用者の差は小さい）。表を書き間違えると画面の正しい本文を断る（画面の本文を全部の ui-eval で通す要がある）。見積もり: Rust 900〜1,300 行（半分は表）・1〜2 版"
+    },
+    "D 任せる形を全部『Python と同じ答え』にする（窓の JSON を Python と同じ値の木 pyjson::J に寄せる）": {
+     "score": {
+      "order": 5,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 5,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 5,
+      "form": 6,
+      "place": 2,
+      "layout": 2,
+      "tone": 4
+     },
+     "minus": [],
+     "seen": "良い所: 任せる歩を全部『Python と同じ答え』にでき、535 → 0 になる。pyjson::J と jsontree が既にある。悪い所: Python の誤り（確か 3 の HTML の 500・確か 5 の repr の字の保存・確か 6 の英語の例外）まで写し、利用者の要望『計算・表示の誤りをしっかり直す』と主のセッションの決め 2 に反する（言葉と置き場 2）。量が大きく（Rust 3,000〜5,000 行・4〜6 版。釣り合い 2）、⑦ で Python を外すと答えの元が消える（考えさせない 3）。",
+     "text": "移す物: 本文の端・置き場の形・束の全部を、Python と 1 字も違わない答えに（NaN・大きな整数・送った順・repr の字・Python の例外の言葉まで）。窓には pyjson::J（3.98.0。NaN・Big・鍵の順）と jsontree::Tree がすでにあり、serde の Value を道の端でこれに替える。作る部品: 全部の書く道の部品の入出力を J へ・Python の str()／repr() の写し（pyjson にある）・例外の言葉の表。評価関数: 今の *_parity の任せる歩をそのまま『同じ答え』の歩に移す（数は 535 → 0）。危ない所: Python の誤り（確か 5・6・3 の 500）まで写す。利用者の要望『計算・表示の誤りを直す』に反する。量が大きい（部品のほぼ全部の型を替える）。突き合わせしか物差しが無く、⑦ で Python を外すと答えの元が消える。見積もり: Rust 3,000〜5,000 行・4〜6 版"
+    },
+    "E 形ごとに版を分け、任せる歩の数を『予算』にして減らす（数で進む）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: 形ごとに版を分け、任せる歩の数を予算の試験（delegates_budget.json）にして版ごとに下げる。数え方（count_delegates.py）を製品の道具にするので、残りが数で見える（視覚化 8・チャンク 8）。悪い所: 4 版かかり（ステップ 5）、確か 1・3（壊れたマスタ）は 3.103.0、確か 2（設備グループの正規表現）は 3.105.0 まで残る（言葉と置き場 6）。形の分け方は場面の名前と本文の字の正規表現で、手で直す所がある（数え直すと 535 は同じだった）。",
+     "text": "移す物: 3.102.0 ③＋種まき（A＋B の (1)）・3.103.0 置き場の形と壊れたマスタ（B の (3)）・3.104.0 本文の端（C の型）と計算・3.105.0 設備グループの正規表現・Windows・CM3（https・プロキシ）。?engine=python は ⑥ まで残し、Python が居なければ 503 kind python_absent。作る部品: tools/delegate-count.py（この調べの count_delegates.py を製品の道具に。全部の oracle の任せる歩を形ごとに数える）と tests/fixtures/delegates_budget.json（形ごとの上限）。試験 test_delegates_budget.py が上限を超える新しい任せる歩を止め、版ごとに上限を下げる。評価関数: 予算の試験・各版の *_parity・独立の答え（版ごとに作る）。危ない所: 4 版かかる。各版の作った後の採点が 1 回ずつ要る。形の分け方（正規表現の分け方）が粗いと予算がずれる（今の数え方は場面の名前と本文の字で分けている: 手で直す所がある）。見積もり: Rust 計 2,500〜3,500 行・4 版"
+    },
+    "F 先に『Python 無しの形』を作り、理由を運び、現場で起きる回数を数えてから決める（逆から）": {
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 8,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "良い所: None を Result<_, Delegate>（理由の名前）に替え、Python に任せた理由と回数をこの PC の記録に数える（決め 4 どおり。形の名前と回数だけ）。TPA_NO_PYTHON=1 で画面の流れを流すと、棚卸しが拾っていない内側の口（自分で見つけた main.rs の schedule_card: Python が答えないとカードの写しの様子が mirror null に黙って替わる）も出る（視覚化 8）。悪い所: 約 350 の None を機械的に替えるので、答えを変えていないかを全部の *_parity で確かめる要がある（直感的 6）。確か 1〜4 の直しの作りは書かれていない（言葉と置き場 6）。現場で数える期間（2〜3 週間）を待つと残りの決めが遅れる。",
+     "text": "移す物: 3.102.0 で、窓が None を返していた所を Result<_, Delegate>（理由の名前: body・place・seed・regex・windows・cm3・engine・settings）に替え、Python に任せたときは理由をこの PC の記録（作業場所の delegations.jsonl。1 日にまとめ、共有の利用状況の置き場へ 1 行）に数える。TPA_NO_PYTHON=1（窓が Python を起こさない形）で、任せる所は 503 kind python_absent＋理由で断る。この形で ui-eval・自己診断・窓の通しを流し、画面の流れで本当に止まる所を出す。③ の /api/health と束の道も入れる。作る部品: delegate.rs（理由の型と数える係）・router の no-python・selftest に『Python 無し』の段。評価関数: Python 無しの形で既存の ui-eval（画面の流れ）を流した落ちた数・現場の数（2〜3 週間）。危ない所: 約 350 の None を機械的に替えるので、答えを変えずに替えたかを全部の *_parity で確かめる要。現場の記録は個人の名前を書かない（PC 名・ログイン ID を書かない: 形の名前と回数だけ）。窓の通しの時間（1 段 160 秒）に Python 無しの段を足すと 480 秒の待ちに近づく（cargo test の側で流す）。見積もり: Rust 700〜1,000 行（多くは機械的）・1 版＋数える期間"
+    },
+    "G 独立の答えと仕様の事例の表を先に作り、窓をそれに合わせる（⑦ の前倒し）": {
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 9,
+      "steps": 5,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 7,
+      "place": 8,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "良い所: 形ごとに Python に頼らない答え（束の仕様・本文の型・正規表現・壊れたマスタ・種まき・Windows の道）を先に作り、Python の確か 1〜6 を表と比べて直す。3.99.0 の builder-truth・3.100.0 の place-truth の型の続き（視覚化 9・言葉と置き場 8）。悪い所: ③ の 2 本を移すのが後になる（順序 6・ステップ 5）。表を書く量が大きい（Python・表 1,500 行）。表の書き手が Python を写すと同じ誤りを焼く。",
+     "text": "移す物: 形ごとに、Python に頼らない答えを先に作る: 束の仕様の表（bundle_cases.json）・本文の型の表（body_cases.json）・正規表現の事例（Python の re と JS の RegExp と期待する当たり）・壊れたマスタの事例・種まきの事例（place-truth.py の続き）・Windows の道（ntpath と Microsoft の決まり）。そのうえで窓を表に合わせ、Python は表と比べて誤り（確か 1〜6）を直す相手にする。作る部品: tools/*-truth.py（app を import しない）・tests/fixtures/*_cases.json と、それを読む Rust の *_cases 試験と Python の test_*_cases.py。評価関数: 表と窓・表と Python の両方（3.99.0 の builder_cases・3.100.0 の place_cases の型）。危ない所: 表を書く量が大きく、移すのは後になる（③ が遅れる）。表の書き手が Python を写すと同じ誤りを焼く（仕様から書く）。見積もり: Python・表 1,500 行＋Rust 形ごとに 200〜400 行・2〜3 版"
+    }
+   },
+   "checked_errors": {
+    "確か（自分で動かして再現）": [
+     "1 壊れた共有マスタ: 共有の設備マスタを半分に切ると status の error が出るが、ほかの PC がロールのマスタを保存すると error が '' に戻り、source は shared のまま（独立の答え: json.loads で共有の equipment_master.json はまだ読めない）",
+     "2 設備グループの決まり: rules_of が prefix・重い正規表現・除く設備の組で {rules: [], except: []}（全部消える）。pivot.compile_rules は L-1 に当たる",
+     "3 壊れた 1 行・切れたファイル: 勤務体系の字の行で束 engine=python・lists=null・shifts が HTML の 500。設備グループの字の行で equipgroups・dashboard/sources が HTML の 500。手元の設備マスタを半分に切ると（作者の台本には残っていなかったので自分で書いた）束 engine=python、equipment 400 の英語、equipgroups と status が HTML の 500",
+     "4 BOM 付きの appsettings.json: Python の load_settings が JSONDecodeError（窓も read_to_string → serde で同じ読み方。窓は動かしていない）",
+     "5 repr の字で保存: 答えの元の記録に 名前 \"['x']\"・本数 \"[1, 2.5]\"",
+     "6 計算の英語の例外: 答えの元の記録に list index out of range 9 件・invalid literal for int() 9 件",
+     "疑い 10 → 確か: 空の共有で Python に束を尋ねると、共有のマスタが 1 → 9 ファイル（種まき）"
+    ],
+    "確か（数え直し）": [
+     "任せる歩 535（count_delegates.py の写しで 20 の答えの元を数え直した。calc は 0 で、計算の 45 件は別）・束の Py の理由 79 か所",
+     "正規表現 40 形のうち違う 4 形（\\Z・[[:alpha:]]・\\p{Han}・\\N{DIGIT ONE}）。窓は fancy-regex 0.14.0 で同じ版"
+    ],
+    "新しく見つけた": [
+     "N1 窓が Python に尋ねる内側の口が、棚卸しの lot_settings のほかに 2 つある: main.rs の schedule_card（GET /api/schedule/card。窓は 3.96.0 からスケジュールの係で、lot.rs の道も /api/schedule/card を答えるのに、GET /api/sources のカードだけ Python に尋ねる。Python が起きていなければ sources_list.rs が {mirror: null, equipCount} に黙って替える）と update_settings の Python への戻り（窓が組めない形だけ）。Python を外すと、データ元の画面のスケジュールのカードの写しの様子が黙って消える"
+    ],
+    "コードで確か（動かしていない）": [
+     "疑い 8（壊れた共有で書くと英語の誤りで断る）・疑い 9（Python が engine を黙って python にし理由が届かない: lotlist_settings の except）"
+    ],
+    "分からない": [
+     "疑い 7 は好みの決め（主のセッションの決め 1 で Python の re のまま）",
+     "現場の正規表現のルールの数・書きかけのファイルの起きる回数・Windows だけの道の形"
+    ]
+   },
+   "fixes": [
+    "（B に入れる・版の切り方）B は 1 版が大きい（1,300〜1,800 行）。3.102.0 は ③（束を節ごと・health・BOM）と確か 1〜4 と設備グループの正規表現、3.103.0 は種まきの係と本文の端（C の型・確か 5・6）に分けるのを推す。種まきの係を窓へ移すのは版 3.101.0 の主のセッションの決め（⑤ まで Python）の前倒しなので、主のセッションが決め直すまでは、種まきの要る節は Python に尋ねる口を残す（尋ねる口を止める前に窓が種をまく）",
+    "（B・束の節）節（lot_list・sources・work・shifts・dash・access・conversions・calculation・config）と、各節を使う道の表を 1 つ作る（bundle_cases.json）。組めない節は 503 kind settings で『どのファイル・どの行（位置）』を言い、ほかの節の道は答え続ける。黙って空や既定に替えない（3.98.0 の作った後の割れ: 材料を読めないと設備マスタを空にした形）。Python の lotlist_settings も engine を黙って python にせず、節ごとの理由を返す（疑い 9）",
+    "（B・確か 1）取り直せなかった理由をマスタごとに覚える（Python の _last_error と窓の last_error を名前 → 理由の表に。取り直せた名前の理由だけ消す）。status の source に cache（共有が読めず写しで答えている）を足し、読めないマスタの名前と位置を出し続ける。書くときの英語の誤り（疑い 8）も『共有の 〈名前〉.json が読めません（位置）』に",
+    "（B・確か 2・決め 1）rules_of は決まりごとに受け、読めない・重い・窓で写せない 4 形の決まりだけを『当てていない（理由）』として残し、ほかの決まりと除く設備は残す。保存のときは 4 形と重い形を理由を添えて断る。窓の束と設備グループの道も同じ。独立の答えは Python の re（app を import しない）と仕様の事例（rxcmp の 40 形を事例の表に）",
+    "（B・確か 3）MasterRepository._normalize は表でない行を飛ばして『読めない行 n』を数え、道は JSON で『〈マスタ〉の n 行目が読めません』と答える（HTML の 500 にしない）。status は読めないマスタを error 付きで並べ、500 にしない。壊れた行・ファイルは消さない",
+    "（B・確か 4）Python の app_env.load_settings を utf-8-sig に、窓の bundle.rs の inputs・config_file（と lenient_json）を BOM を外して読む。配った設定を読むほかの所（desktop/bundle の verify・install の読み）も grep で揃える。メモ帳の『UTF-8（BOM 付き）』を事例の表に",
+    "（B・N1 内側の口）main.rs の schedule_card を窓の lot.rs の /api/schedule/card の答えに替える（窓が係なので Python に尋ねない）。update_settings の Python への戻りも、組めない理由を言って断る形を ③ の棚卸しに入れる。Python を起こさない形（F の TPA_NO_PYTHON）で GET /api/sources を流し、カードの mirror が null にならないことを試験に",
+    "（B・決め 5）/api/health は窓が {status: ok, by: window, python: ready|starting|stopped|absent} で答え、test_sidecar.py の 4 か所は ?engine=python で Python の道を見る形に（決め 3 のとおり ⑥ まで）",
+    "（B・決め 4。F の良い所）この版で触る任せる所（束の節・種まき・正規表現・壊れたマスタ）には理由の名前を付け、Python に任せた回数を形の名前と回数だけこの PC の logs に残す（PC 名・ログイン ID は書かない）。E の予算の試験（count_delegates.py を製品の道具にし、形ごとの上限）も最初の版から入れ、535 から減った数を版の記録に書く",
+    "（B・種まき）主のセッションが種まきの係を窓に決めたら、窓と前の版の Python が同じ空の共有を同時に読む場面・窓 2 つの場面を place_parity に。Windows では置き換えの失敗（相手が開いている）をやり直す形も事例に",
+    "（B・Windows）BOM・切れたファイル（SMB の書きかけ）・正規表現の当たりは Windows の CI でも事例の表を流す（Python の re と fancy-regex の答えは OS で変わらない見込みだが、ファイルの読みは確かめる）"
+   ],
+   "applied": [
+    "1 版の切り方: 主のセッションの決めどおり。3.102.0 は ③（束を節ごと・health・BOM）・確か 1〜4・設備グループの正規表現・N1・任せる形の数え方。種まきの係・本文の端（確か 5・6）は 3.103.0。種まきの要る節（seed）があれば束を Python に尋ねる口を残した（lot.rs の settings）",
+    "2 束の節: lot_list・sources・work・dash・shifts・conversions（tests/fixtures/bundle_cases.json に節が使うマスタと道が使う節の表）。組めない節は 503 kind settings（どのファイル・どの行）。Python の束も engine を黙って python にせず broken を返す（疑い 9）",
+    "3 確か 1: Python の _errors・窓の Store::errors（名前 → 理由。取り直せた名前だけ消す）。status の source に cache。書くときは「共有の 〈名〉.json が読めません（途中で切れています（n バイト）／JSON として読めません（n 行目））」",
+    "4 確か 2・決め 1: rules_of を決まりごとに。当てない決まりは unapplied（理由つき）に残し、一部の直しでも消さない。保存は理由を添えて断る。答えが違う書き方は 4 形のほかにも見つかったので、両方で同じ意味の書き方だけを当てる確かめ（equip_regex）にした。事例の表 174 形",
+    "5 確か 3: 表でない行は飛ばして読み（権限の 2 つは断る）、書くときは行番号を言って断る。読めないファイルは MasterUnreadable（503・JSON）。web.py は理由つきの失敗を JSON で答える。status は読めないマスタを error 付きで並べる",
+    "6 確か 4: app_env.load_settings を utf-8-sig・窓は bundle::read_config。配った設定を読む所はこの 2 か所だけだった（grep）",
+    "7 N1: main.rs の schedule_card を外した（カードは窓の係の状態から。組めない設定は cardWhy）。update_settings の戻りは残し、回数を数える（update_settings）",
+    "8 決め 5: /api/health は窓が {status, by: window, python: ready|starting|stopped}。?engine=python は Python。test_sidecar は Python の枠を直接見るので変えない",
+    "9 決め 4: src/delegate.rs（形の名前と日ごとの回数だけ。logs/delegations.json）。予算 tests/fixtures/delegates_budget.json と tools/delegate-count.py。窓の試験 common.rs が答えの元を呼ぶたびに上限を確かめる。521 → 507 歩",
+    "10 種まきの係: この版は Python のまま（主のセッションの決め）。2 プロセスの場面は 3.103.0 で",
+    "11 Windows: desktop.yml に test_broken_masters・test_equip_regex・test_bundle_sections を足した（cargo test は equip_regex_cases・bundle_cases も流れる）。Windows だけのコードは足していない"
+   ]
+  }
+ ],
+ "built": {
+  "name": "作った後（版 3.102.0・commit 2483122）",
+  "evaluator": "案を作っていない、作った者でもない採点者（別のエージェント・2026-11-12。決まり 2026-11-06 の作った後の 1 回だけの採点）。画面に出ない改良なので、worktree port-rest-3102 の commit 2483122 のコードを読み、動かして測った事実で採点した。worktree のファイルは変えていない（この記録に built を足しただけ）。道具と記録は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/rest-score/b3102（案の採点の台本を worktree へ向けた物・broken.py・badkeys.py）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/rest-score/b3102_cargo.txt。check-all --verify は流していない（組んだ係が流した）。Windows の CI と窓の本物の道での 503 の画面は確かめていない（窓の答えは lot.rs の sections_for と refuse をコードで読んだ）。",
+  "seen": "良い所: 確か 1〜4 と N1 が直った。案の採点で使った再現の台本を worktree の Python に向け直して流した: 共有の設備マスタを切ると、ほかの PC がロールのマスタを保存した後も status の error は『共有の equipment_master.json が読めません（途中で切れています（1107 バイト））』のまま・source=cache（確か 1）／rules_of は重い正規表現と \\Z だけを unapplied に理由つきで残し、prefix と除く設備を残す（確か 2）／勤務体系・設備グループに字の行で束は engine=rust・lists あり、broken に『shift_patterns.json の 1 行目が読めません（表でない行）』、HTML の 500 は無い。手元の設備マスタを切ると設備マスタ・設備グループは JSON の 503『手元の equipment_master.json が読めません（途中で切れています（927 バイト））』（確か 3）／配った設定は Python（app_env.load_settings の utf-8-sig）も窓（bundle.rs の read_config 2 か所）も BOM を外して読む（確か 4）。N1: GET /api/sources のスケジュールのカードは窓が組み、組めなければ cardWhy に理由。/api/health は窓が {status, by: window, python}（決め 5）。任せた回数は形の名前と日ごとの回数だけを logs/delegations.json に（決め 4）。cargo test bundle_parity・bundle_cases・equip_regex_cases・page_parity・equipgroups_write_parity が ok。Python の 9 ファイル 88 件 OK。空の共有で Python に束を尋ねると今も 8 個のマスタを置く（種まきの要る節だけ Python に尋ねる作り）。悪い所: 下の減点（マスタの画面は壊れた行を黙って飛ばす）。束の節を『壊れた行が 1 つでもあれば丸ごと null』にしたので、勤務体系の 1 行で作業実績とダッシュボードの道（sections_for: /api/worklog は work・shifts・sources、/api/dashboard/ は shifts と dash も）がすべて 503、設備グループの 1 行でダッシュボードの道がすべて 503 になる。前は Python が答えて動いていた所で、読める行で答えて壊れた行を知らせる（マスタの画面は既にそうしている）方が案の『読める所は答える』に合う。設備グループの正規表現は、違う 4 形のほかに、Python と窓で同じ答えになる (?x)・(?s)・(?m)・(?i:…) も『窓で写せない書き方』として断り、前に保存した決まりが当てられなくなる（主のセッションの決め 1 より広い）。束を丸ごと組めない形（bundle.rs の Py）は 79 か所のままで、節ごとに断るのは壊れたマスタと種まきの分だけ。任せた回数を数えるのは束・ページ・更新の置き場の 5 種で、ほかの道が Python に任せた回数（予算の 507 歩の形）は数えていない。1 版が大きい（7,313 行）。",
+  "result": {
+   "proposal": "B ③＋④ のうち現場で起きる 3 形を 1 版で（種まき・設備グループの正規表現・壊れたマスタ）",
+   "score": {
+    "order": 9,
+    "chunk": 7,
+    "hierarchy": 8,
+    "visual": 9,
+    "steps": 8,
+    "effortless": 6,
+    "intuitive": 8,
+    "form": 8,
+    "place": 7,
+    "layout": 6,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "マスタ管理の勤務体系・ロールマスタの道（GET /api/masters/shifts・/api/masters/rolls）: 表でない行を黙って飛ばし、読めない行があることを答えに載せない（ロールは 377 行だけ・勤務体系は items []）。同じ行のために束の節は null になり、作業実績・ダッシュボードは 503『shift_patterns.json の 1 行目が読めません』と言うのに、直すはずのマスタの画面では壊れた行が見えない"
+    }
+   ],
+   "seen": "良い所: 確か 1〜4 と N1 が直った。案の採点で使った再現の台本を worktree の Python に向け直して流した: 共有の設備マスタを切ると、ほかの PC がロールのマスタを保存した後も status の error は『共有の equipment_master.json が読めません（途中で切れています（1107 バイト））』のまま・source=cache（確か 1）／rules_of は重い正規表現と \\Z だけを unapplied に理由つきで残し、prefix と除く設備を残す（確か 2）／勤務体系・設備グループに字の行で束は engine=rust・lists あり、broken に『shift_patterns.json の 1 行目が読めません（表でない行）』、HTML の 500 は無い。手元の設備マスタを切ると設備マスタ・設備グループは JSON の 503『手元の equipment_master.json が読めません（途中で切れています（927 バイト））』（確か 3）／配った設定は Python（app_env.load_settings の utf-8-sig）も窓（bundle.rs の read_config 2 か所）も BOM を外して読む（確か 4）。N1: GET /api/sources のスケジュールのカードは窓が組み、組めなければ cardWhy に理由。/api/health は窓が {status, by: window, python}（決め 5）。任せた回数は形の名前と日ごとの回数だけを logs/delegations.json に（決め 4）。cargo test bundle_parity・bundle_cases・equip_regex_cases・page_parity・equipgroups_write_parity が ok。Python の 9 ファイル 88 件 OK。空の共有で Python に束を尋ねると今も 8 個のマスタを置く（種まきの要る節だけ Python に尋ねる作り）。悪い所: 下の減点（マスタの画面は壊れた行を黙って飛ばす）。束の節を『壊れた行が 1 つでもあれば丸ごと null』にしたので、勤務体系の 1 行で作業実績とダッシュボードの道（sections_for: /api/worklog は work・shifts・sources、/api/dashboard/ は shifts と dash も）がすべて 503、設備グループの 1 行でダッシュボードの道がすべて 503 になる。前は Python が答えて動いていた所で、読める行で答えて壊れた行を知らせる（マスタの画面は既にそうしている）方が案の『読める所は答える』に合う。設備グループの正規表現は、違う 4 形のほかに、Python と窓で同じ答えになる (?x)・(?s)・(?m)・(?i:…) も『窓で写せない書き方』として断り、前に保存した決まりが当てられなくなる（主のセッションの決め 1 より広い）。束を丸ごと組めない形（bundle.rs の Py）は 79 か所のままで、節ごとに断るのは壊れたマスタと種まきの分だけ。任せた回数を数えるのは束・ページ・更新の置き場の 5 種で、ほかの道が Python に任せた回数（予算の 507 歩の形）は数えていない。1 版が大きい（7,313 行）。"
+  },
+  "found": [
+   "割れ 1（減点・表示）マスタの画面が壊れた行を黙って飛ばす。再現: shift_patterns.json（または roll_master.json）の rows に字の行を足す → GET /api/masters/shifts は 200・items に出ず、知らせも無い。直し方: 読めない行の数と位置（n 行目）を答えに badRows で添え、画面の上に『n 行目が読めません（ファイルを直してください）』と出す。足す試験: tests/test_broken_masters.py に『マスタの画面の答えに読めない行が載る』、shifts_parity・equip_rows_parity に同じ場面（窓は今 Python に任せる形）",
+   "割れ 2（使える範囲が狭くなる）壊れた行が 1 つでもあると束の節が丸ごと null になり、勤務体系の 1 行で作業実績とダッシュボードの道が全部 503、設備グループの 1 行でダッシュボードの道が全部 503。直し方: 表でない行は飛ばし（マスタの画面と同じ読み方）、節は読める行で組み、broken に『n 行目を飛ばした』を warn として載せる（節を null にするのは、ファイルそのものが読めないときだけ）。足す試験: bundle_cases.json に『壊れた行 1 つ・読める行あり』の場面（節は組まれ、警告が載る）、lot::tests::a_broken_section_refuses_only_its_routes に『壊れた行だけなら作業実績・ダッシュボードは答える』",
+   "割れ 3（決め 1 より広い断り）equip_regex.why_of と窓の equip_regex.rs が、Python と窓で同じ答えになるインラインの書き方 (?x)・(?s)・(?m)・(?i:…) も断る（前に保存した決まりは unapplied になり当たらなくなる）。再現: python -c で equip_regex.why_of('(?x) ^ L - \\\\d') など。直し方: 4 形（\\Z・[[:…:]]・\\p{…}・\\N{…}）のほかは、Python の re と fancy-regex で同じ答えか事例で確かめた書き方を通す。足す試験: equip_regex_cases.json に (?x)・(?s)・(?m)・(?i:…)・(?-i) の当たりを Python の re と窓の両方で比べる事例（答えが同じなら通す）",
+   "割れ 4（小・決め 1）知らない op・op の無い決まり・表でない決まりは unapplied に載らず黙って外れる（rules_of）。直し方: これらも unapplied に『読めない決まり』として残す。足す試験: test_equip_regex か test_broken_masters に 3 形",
+   "足りない所（指摘 2・9 の残り）: 束を丸ごと組めない形（bundle.rs の Py）は 79 か所のまま。任せた回数を数える所は 5 種だけで、窓の道が None を返して Python に回した回数（予算の 507 歩の形）は数えていない。router の Python へ回す 1 か所で道の型ごとに数えると、現場の回数で次の順を決められる"
+  ]
+ },
+ "built_fixed": {
+  "by": "組んだ係（作った後の採点の割れを直した。決まり 2026-11-06 のとおり採点し直さない）",
+  "fixes": [
+   "割れ 1（減点）: マスタの置き場の状態（GET /api/masters/status）の各マスタに badRows（表でない行の番号）を、勤務体系の一覧（GET /api/masters/shifts）にも badRows を添える（無ければ鍵を出さない）。画面は置き場の帯の注意の札（既存の place-caution）に「〈名〉.json の n 行目が読めません（ファイルを直してください。一覧では飛ばしています）」を出す。窓も勤務体系・設備・ロールの道で表でない行を Python と同じに扱う（一覧は読める行・書く道は「n 行目が読めません。ファイルを直すまで保存しません」の 503。前は Python に任せた）。試験: tests/test_broken_masters.py の MasterScreens（直す前は ERROR）・shifts_oracle と equip_rows_oracle の「置き場に表でない行」の場面（shifts_parity・equip_rows_parity で窓が同じ答え）・master_place の status の badRows も place_parity の答えと同じ",
+   "割れ 2: 表でない行だけなら節は読める行で組み、broken に {why:『n 行目が読めません（表でない行）。その行を飛ばして読みました』, warn: true} を載せる。節を null にするのはファイルそのものが読めないとき・窓の読めない字・種まきだけ。窓の refuse と with_dash は warn を断らない。Inputs::rows も Python の _list と同じく表でない行を飛ばす（権限の 2 つは access.rs が今までどおり断る）。試験: bundle_cases.json の cases 4 形（壊れた行 1 つ・読める行なし・設備グループ・途中で切れたファイル）を Python（test_bundle_sections）と窓（bundle_cases）で読む・lot::tests::a_broken_section_refuses_only_its_routes（壊れた行だけなら作業実績は答え、切れたファイルなら勤務体系を使う道だけ断る）・test_broken_masters の BrokenRows（直す前は FAIL）。LotDsp の道も表でない行は飛ばして読む（Python と同じ。lot::tests の LotDsp の場面から rows [1, 2] の断りを外した）",
+   "割れ 3: 旗を通す。最初の (?imsx)（いくつ続いてもよい）・(?ims-ims:…)・(?x:…) は Python の re と fancy-regex で同じ答えなので当てる。(?x) の中は空白と # の注を飛ばして確かめ、全角などの空白（Python は字・窓は空白）と繰り返しの後ろの空白と繰り返しだけ断る。(?-i)・途中の (?s) は Python が読めない（invalid）。(?a)(?u)(?L)・(?-x:…) は写せない。事例の表 206 形（ok 129）に旗の 32 形と改行を含む名前 3 つを足し、ok の形は窓と同じ版の fancy-regex で当たりが同じことを確かめた（tools/equip-regex-cases.py --rust）。試験: test_equip_regex（直す前は (?x)・(?s)・(?m)・(?i:…) で FAIL）・equip_regex_cases",
+   "割れ 4: 表でない決まり・op の無い決まり・知らない op も unapplied に『読めない決まりです（…）』で残す（Python の rules_of・窓の group_rules）。直すときに残すのは op の分かる当てていない決まり（正規表現）だけ。試験: test_broken_masters の UnreadableRules（直す前は ERROR）・束（settings_oracle の GROUPS の知らない op）と設備グループの道の突き合わせ",
+   "足りない所: 窓が Python へ回した回数を router の 1 か所で道の型ごとに数える（src/router.rs の delegate_form: 『python PUT /api/masters/shifts/{n}』。数・データ元のキー・ASCII でない段は {n}・{key}・{s} に替え、引数・本文・PC 名・ログイン ID は書かない。?engine=python は engine_python）。bundle.rs の束を丸ごと組めない形（Py）は 3.103.0 以降の仕事として RUST_PORT_PLAN.md に残した"
+  ]
+ }
+}

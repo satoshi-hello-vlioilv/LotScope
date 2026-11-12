@@ -1,7 +1,9 @@
 //! 設定の束（版 3.84.0）: 窓（src/bundle.rs）が自分で組んだ束が、Python の道（routes/lotlist.py の GET /api/lotlist/settings）の答えと
 //! 同じか。program/tests/settings_oracle.py が場面ごとのフォルダ（配った設定・共有・作業場所・同梱の data/）を作って Python に尋ね、
 //! 尋ねる前の形に戻す。窓は同じフォルダから束を組み、答えを 1 字ずつ突き合わせる（conversions.rev は窓と Python で別の字なので比べない）。
-//! "delegate" の場面は窓が組まずに Python に尋ねること、"pyFollows" の場面は窓が同じ置き場へ引っ越しの印をたどり、この PC の覚えに書くことを見る。
+//! "delegate" の場面は窓が組まずに Python に尋ねること（束の材料を組めない・種まきの要る節がある）、"broken:節,…" の場面は窓がその節だけを
+//! 理由つきで組まず、ほかの節は Python と同じに組むこと（版 3.102.0）、"pyFollows" の場面は窓が同じ置き場へ引っ越しの印をたどり、
+//! この PC の覚えに書くことを見る。
 
 mod common;
 
@@ -14,7 +16,7 @@ fn bundle_is_built_like_python() {
     let work = common::work("bundle");
     let o = common::python_json("settings_oracle.py", &[work.to_str().unwrap()]);
     let mut bad = vec![];
-    let (mut same, mut delegated) = (0, 0);
+    let (mut same, mut delegated, mut broken_n) = (0, 0, 0);
     for sc in o["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         let saved: Vec<(String, Option<String>)> =
@@ -49,8 +51,51 @@ fn bundle_is_built_like_python() {
         }
         if sc["expect"] == "delegate" {
             delegated += 1;
-            if let Ok(v) = got {
+            // 窓が束を Python に尋ねる形: 材料を組めない（Err）か、種まきの要る節がある（Lot::settings が Python に尋ねる）
+            let seed = got.as_ref().is_ok_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
+            if let (Ok(v), false) = (&got, seed) {
                 bad.push(format!("{name}: 窓が組んだ（Python に尋ねるはず）: {}", v.to_string().chars().take(200).collect::<String>()));
+            }
+            continue;
+        }
+        if let Some(want_broken) = sc["expect"].as_str().and_then(|e| e.strip_prefix("broken:")) {
+            broken_n += 1;
+            let Ok(mut got) = got else {
+                bad.push(format!("{name}: 窓が束を組めない（{} の節だけ組まないはず）", want_broken));
+                continue;
+            };
+            let keys: Vec<String> = got["broken"].as_object().map(|m| m.keys().cloned().collect()).unwrap_or_default();
+            let mut want_keys: Vec<String> = want_broken.split(',').map(String::from).collect();
+            want_keys.sort();
+            if keys != want_keys {
+                bad.push(format!("{name}: 組まない節 {keys:?} / 仕様 {want_keys:?}（{}）", got["broken"]));
+            }
+            for (k, w) in got["broken"].as_object().into_iter().flatten() {
+                if w["why"].as_str().is_none_or(str::is_empty) || w["seed"] == true {
+                    bad.push(format!("{name}: 節 {k} の理由が無い・種まきになった: {w}"));
+                }
+            }
+            // ほかの節は Python と同じ（Python の答えが JSON で渡せたとき）
+            let mut want = sc["answer"].clone();
+            if !want.is_null() {
+                for v in [&mut want, &mut got] {
+                    v["conversions"]["rev"] = Value::Null;
+                    v["broken"] = Value::Null;
+                    for k in &want_keys {
+                        match k.as_str() {
+                            "lot_list" => {
+                                for f in ["source", "refresh_seconds", "stale_hours", "table", "page_size"] {
+                                    v[f] = Value::Null;
+                                }
+                            }
+                            "conversions" => v["conversions"]["tables"] = Value::Null,
+                            k => v["lists"][k] = Value::Null,
+                        }
+                    }
+                }
+                if let Some(d) = common::diff(&want, &got, "") {
+                    bad.push(format!("{name}（組めた節）: {d}"));
+                }
             }
             continue;
         }
@@ -102,6 +147,6 @@ fn bundle_is_built_like_python() {
         .collect();
     ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
     eprintln!("窓が束を組む時間（中央値）: {:.2} ms", ms[10]);
-    assert!(same >= 19 && delegated >= 11, "場面が足りません: 同じ {same}・任せる {delegated}");
+    assert!(same >= 24 && delegated >= 6 && broken_n >= 4, "場面が足りません: 同じ {same}・任せる {delegated}・節だけ組まない {broken_n}");
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));
 }

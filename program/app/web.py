@@ -556,11 +556,17 @@ class App:
                 resp = self.dispatch(req)
             except HTTPError as e:
                 resp = e.response()
-            except Exception:
-                if self.config.get("TESTING"):
+            except Exception as e:
+                payload, status = getattr(e, "payload", None), getattr(e, "status", None)
+                if callable(payload) and isinstance(status, int):
+                    # 理由を言える失敗（マスタの読めないファイル・錠など。版 3.102.0）は JSON で答える（前は HTML の 500 で理由を言わなかった）
+                    log.warning("%s on %s [%s]: %s", type(e).__name__, req.path, req.method, e)
+                    resp = Response(dumps(payload(), separators=(",", ":")) + "\n", status, mimetype="application/json")
+                elif self.config.get("TESTING"):
                     raise
-                log.exception("Exception on %s [%s]", req.path, req.method)
-                resp = HTTPError().response()
+                else:
+                    log.exception("Exception on %s [%s]", req.path, req.method)
+                    resp = HTTPError().response()
         finally:
             _request_var.reset(t_req)
             _app_var.reset(t_app)

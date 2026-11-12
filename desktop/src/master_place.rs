@@ -826,9 +826,24 @@ fn status_of(store: &Store, local: &Local, peek: bool) -> Option<Value> {
         out["error"] = json!(error);
     }
     for n in STATUS_NAMES {
-        let (doc, src) = store.read_doc(n, true).ok()?;
-        out["masters"][n] = json!({"revision": doc.revision, "rows": doc.rows.len(), "updated_at": doc.updated_at,
-                                   "updated_by": doc.updated_by, "source": src});
+        // source（版 3.102.0）: cache は共有が読めず前の写しで答えている（理由は error。Python の status と同じ）。読めないマスタは理由を添えて並べる
+        let cached = |src: &'static str| if src == "shared" && store.unsynced(n) { "cache" } else { src };
+        match store.read_doc(n, true) {
+            Ok((doc, src)) => {
+                out["masters"][n] = json!({"revision": doc.revision, "rows": doc.rows.len(), "updated_at": doc.updated_at,
+                                           "updated_by": doc.updated_by, "source": cached(src)});
+                // 表でない行の番号（版 3.102.0 の作った後の採点の割れ 1: マスタの画面が知らせる。Python の status と同じ）
+                let bad = crate::master_rows::bad_rows(&doc.rows);
+                if !bad.is_empty() {
+                    out["masters"][n]["badRows"] = json!(bad);
+                }
+            }
+            Err(crate::master_store::MasterError::Unreadable(why)) => {
+                out["masters"][n] = json!({"revision": null, "rows": null, "updated_at": "", "updated_by": {},
+                                           "source": cached(store.read_source(n)), "error": why});
+            }
+            Err(_) => return None,
+        }
     }
     Some(out)
 }

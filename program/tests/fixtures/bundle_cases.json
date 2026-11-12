@@ -1,0 +1,179 @@
+{
+ "about": "設定の束の節（版 3.102.0）: 節が使うマスタ（Python の routes/lotlist.SECTIONS・窓の desktop/src/bundle.rs の SECTIONS）と、道が使う節（窓の desktop/src/lot.rs の sections_for）。組めない節を使う道だけを 503 kind settings で断り、ほかの道は答え続ける。conv は計算列の式が変換表を引く問い合わせ。cases（版 3.102.0 の作った後の採点の割れ 2）: 手元のマスタ（data/）の中身ごとに、節を組むか（built）・警告か（warn）・理由の言葉（why）",
+ "sections": {
+  "lot_list": [
+   "path_settings"
+  ],
+  "sources": [
+   "data_sources",
+   "path_settings"
+  ],
+  "work": [
+   "work_log_files",
+   "path_settings"
+  ],
+  "dash": [
+   "work_log_files",
+   "equipment_master",
+   "equipment_groups"
+  ],
+  "shifts": [
+   "shift_patterns"
+  ],
+  "conversions": [
+   "conversions"
+  ]
+ },
+ "routes": [
+  {
+   "path": "/api/lotlist",
+   "conv": false,
+   "need": [
+    "lot_list",
+    "sources"
+   ]
+  },
+  {
+   "path": "/api/lotlist/pivot",
+   "conv": true,
+   "need": [
+    "lot_list",
+    "sources",
+    "conversions"
+   ]
+  },
+  {
+   "path": "/api/lotlist/source",
+   "conv": false,
+   "need": [
+    "lot_list",
+    "sources"
+   ]
+  },
+  {
+   "path": "/api/worklog",
+   "conv": false,
+   "need": [
+    "work",
+    "shifts",
+    "sources"
+   ]
+  },
+  {
+   "path": "/api/worklog/slicer",
+   "conv": true,
+   "need": [
+    "work",
+    "shifts",
+    "sources",
+    "conversions"
+   ]
+  },
+  {
+   "path": "/api/src/wip",
+   "conv": false,
+   "need": [
+    "sources",
+    "lot_list"
+   ]
+  },
+  {
+   "path": "/api/dashboard/sources",
+   "conv": false,
+   "need": [
+    "dash",
+    "sources",
+    "work"
+   ]
+  },
+  {
+   "path": "/api/dashboard/query",
+   "conv": false,
+   "need": [
+    "lot_list",
+    "dash",
+    "sources",
+    "work",
+    "shifts"
+   ]
+  },
+  {
+   "path": "/api/dashboard/query",
+   "conv": true,
+   "need": [
+    "lot_list",
+    "dash",
+    "sources",
+    "work",
+    "shifts",
+    "conversions"
+   ]
+  },
+  {
+   "path": "/api/dashboard/equip-tree",
+   "conv": false,
+   "need": [
+    "lot_list",
+    "dash",
+    "sources",
+    "work",
+    "shifts"
+   ]
+  },
+  {
+   "path": "/api/masters/shifts",
+   "conv": false,
+   "need": []
+  },
+  {
+   "path": "/api/heartbeat",
+   "conv": false,
+   "need": []
+  },
+  {
+   "path": "/api/sources",
+   "conv": false,
+   "need": []
+  }
+ ],
+ "cases": [
+  {
+   "name": "壊れた行 1 つ・読める行あり（勤務体系）",
+   "master": "shift_patterns",
+   "text": "[\"x\", {\"id\": 1, \"名称\": \"a\", \"適用設備\": \"\", \"区分\": \"[]\"}]",
+   "section": "shifts",
+   "built": true,
+   "warn": true,
+   "rows": 1,
+   "why": "shift_patterns.json の 1 行目が読めません（表でない行）。その行を飛ばして読みました"
+  },
+  {
+   "name": "読める行が無い（勤務体系）",
+   "master": "shift_patterns",
+   "text": "[\"x\", 5]",
+   "section": "shifts",
+   "built": true,
+   "warn": true,
+   "rows": 0,
+   "why": "shift_patterns.json の 1・2 行目が読めません（表でない行）。その行を飛ばして読みました"
+  },
+  {
+   "name": "壊れた行 1 つ（設備グループ）",
+   "master": "equipment_groups",
+   "text": "[\"x\", {\"id\": 1, \"名称\": \"g\", \"設備\": \"A\"}]",
+   "section": "dash",
+   "built": true,
+   "warn": true,
+   "why": "equipment_groups.json の 1 行目が読めません（表でない行）。その行を飛ばして読みました"
+  },
+  {
+   "name": "途中で切れたファイル（勤務体系）",
+   "master": "shift_patterns",
+   "text": "[{\"id\": 1, \"名称\": \"a\"}, {\"id\": 2, \"名",
+   "section": "shifts",
+   "built": false,
+   "warn": false,
+   "why": "手元の shift_patterns.json が読めません（途中で切れています（41 バイト））"
+  }
+ ]
+}

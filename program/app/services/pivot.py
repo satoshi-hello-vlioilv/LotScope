@@ -40,6 +40,7 @@ from functools import lru_cache
 
 from . import aggregate
 from . import dash_progress
+from . import equip_regex
 from . import formula
 from .formula import calc_for, register as register_calc
 from .identity import normalize_part
@@ -404,6 +405,8 @@ def compile_rules(rules):
             continue
         if op == "regex":
             if formula.regex_risk(v):           # 重すぎる形は当てない（版 3.52.1。共有のマスタを直接書かれても止まらない）
+                continue
+            if equip_regex.check(v)[0] != "ok":  # 窓と意味の違う・読めない書き方は当てない（版 3.102.0。services/equip_regex.py）
                 continue
             try:
                 rx = re.compile(v, re.IGNORECASE)

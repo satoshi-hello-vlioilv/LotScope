@@ -322,11 +322,19 @@ pub fn handle(
     read: &Read,
     reread: &dyn Fn() -> Option<Read>,
 ) -> Option<Answer> {
+    // 表でない行（版 3.102.0 の作った後の採点の割れ 1）: 一覧は読める行で答えて badRows で言い、書く道は断る（Python と同じ。前は Python に任せた）
+    let bad = crate::master_rows::bad_rows(&read.shifts);
+    let good = Read { shifts: read.shifts.iter().filter(|r| r.is_object()).cloned().collect(), work_logs: read.work_logs.clone() };
+    let read = &good;
     if !readable(&read.shifts) {
         return None;
     }
     if route == Route::List {
-        return Some((200, listing(store, me, read)));
+        let mut v = listing(store, me, read);
+        if !bad.is_empty() {
+            v["badRows"] = json!(bad);
+        }
+        return Some((200, v));
     }
     // 直す・消す道は先に routes/common.base_rev が本文を silent で読む: 窓が読めない本文（NaN・1e400 など）は Python に任せ、
     // 表でない本文（並び・字・数）は Python が body.get で落ちて 500 になり書かない（作った後の採点で見つけた。access_write と同じ）
@@ -371,6 +379,9 @@ pub fn handle(
                 // 表示順の決まりは master_rows の 1 つ（変換表と同じ。版 3.93.0）
                 row.insert("表示順".into(), json!(crate::master_rows::next_order(&read.shifts)?));
             }
+            if let Err(e) = crate::master_rows::refuse_bad_rows(NAME, &bad) {
+                return Some(of_master(e));
+            }
             match crate::master_rows::create(store, &SPEC, &row, &no_check) {
                 Ok(r) => done(201, Some(r.get("id").cloned().unwrap_or(Value::Null))),
                 Err(e) => Some(of_master(e)),
@@ -383,11 +394,15 @@ pub fn handle(
                 Ok(r) => r,
                 Err(e) => return Some(shift_error(e)),
             };
+            if let Err(e) = crate::master_rows::refuse_bad_rows(NAME, &bad) {
+                return Some(of_master(e));
+            }
             match crate::master_rows::update(store, &SPEC, id, &row, base, &no_check) {
                 Ok(_) => done(200, None),
                 Err(e) => Some(of_master(e)),
             }
         }
+        Route::Delete(_) if !bad.is_empty() => Some(of_master(crate::master_rows::refuse_bad_rows(NAME, &bad).unwrap_err())),
         Route::Delete(id) => match crate::master_rows::delete(store, &SPEC, id, base) {
             Ok(()) => done(200, None),
             Err(e) => Some(of_master(e)),
