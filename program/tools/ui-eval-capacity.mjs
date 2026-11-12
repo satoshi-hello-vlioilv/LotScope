@@ -16,6 +16,8 @@
 //   作った後の採点（2026-11-12）で足した形: 値の計算の行の段が作る前を超えない（ロット数 2 段・重量の合計 3 段）・Esc で閉じて札へ焦点を戻す
 //   （札に焦点が残っていても）・前→後の前の数は前の数の桁（322本。後の桁を当てない）・割った列の見出しは「重量（t/直）」・
 //   足す面の「値にあります」・面が組むパネルの変わる列（稼働率・稼働直）と組む所の右の縁を越えない
+//   作った後の採点 2 回目で足した形: 面の項目が全部、面の中を送らずに見える（二重の送りにしない）・面を開いても値の計算の 1 行目がタブの下に潜らない・
+//   閉じたら組む所の送り位置が開く前に戻る・↑↓・Home・End で項目を移る（押せない項目は飛ばす）
 // 終了コード 0 で OK。
 import fs from "node:fs";
 import os from "node:os";
@@ -159,6 +161,46 @@ try {
     check(/→/.test(geo.prev) && geo.prev.split("→")[1].trim() === geo.grand, `${tag}: 値の計算の前→後「${geo.prev}」の後が表の総計「${geo.grand}」と違う`);
     check(/÷\s*稼働直/.test(geo.per), `${tag}: 割る数の札「${geo.per}」`);
     // 6. ② の見出しから見本・値の札までが組む所の中に一度に見える
+    // 面の項目が全部見える・値の計算の 1 行目がタブの下に潜らない・↑↓・閉じたら送り位置が戻る（割る数の面と足す面）
+    const popCheck = async (sel, what) => {
+      await page.evaluate(() => { const m = document.querySelector("#dbEditor .de-main"), f = document.querySelector("#deSent .cp-ex"); if (m && f) m.scrollTop = Math.max(0, f.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - 48); });
+      await sleep(200);
+      const s0 = await page.evaluate(() => document.querySelector("#dbEditor .de-main").scrollTop);
+      await page.click(sel); await page.waitForSelector("#dePerPop .cp-it"); await sleep(1200);
+      const g = await page.evaluate((s) => {
+        const pop = document.querySelector("#dePerPop"), p = pop.getBoundingClientRect(), its = [...pop.querySelectorAll(".cp-it")], last = its[its.length - 1].getBoundingClientRect();
+        const tabs = document.querySelector("#dePtabs").getBoundingClientRect(), it = document.querySelector(s).closest(".pc-item") || document.querySelector(s);
+        return { scroll: pop.scrollHeight - pop.clientHeight, last: last.bottom, popB: p.bottom, vh: innerHeight, row: it.getBoundingClientRect().top, tabs: tabs.bottom,
+          focus: document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.cpPick ?? null : null,
+          picks: its.map((x) => [x.dataset.cpPick, x.disabled]) };
+      }, sel);
+      check(g.scroll <= 1 && g.last <= g.popB + 0.5 && g.popB <= g.vh, `${tag}: ${what}の項目が面の中を送らないと見えない（送り ${g.scroll}px・最後の項目 ${g.last} / 面 ${g.popB} / 窓 ${g.vh}）`);
+      check(g.row >= g.tabs - 0.5, `${tag}: ${what}を開くと値の行の頭がタブの下に潜る（${g.row} < ${g.tabs}）`);
+      const ok = g.picks.filter((x) => !x[1]).map((x) => x[0]);
+      await page.keyboard.press("Home"); await sleep(80);
+      const k0 = await page.evaluate(() => document.activeElement.dataset.cpPick);
+      await page.keyboard.press("ArrowDown"); await sleep(80);
+      const k1 = await page.evaluate(() => document.activeElement.dataset.cpPick);
+      await page.keyboard.press("End"); await sleep(80);
+      const k2 = await page.evaluate(() => document.activeElement.dataset.cpPick);
+      await page.keyboard.press("ArrowUp"); await sleep(80);
+      const k3 = await page.evaluate(() => document.activeElement.dataset.cpPick);
+      check(k0 === ok[0] && k1 === ok[1] && k2 === ok[ok.length - 1] && k3 === ok[ok.length - 2], `${tag}: ${what}の ↑↓・Home・End（${[k0, k1, k2, k3].join("→")} / 押せる項目 ${ok.join("・")}）`);
+      await page.keyboard.press("Escape"); await sleep(250);
+      const s1 = await page.evaluate(() => document.querySelector("#dbEditor .de-main").scrollTop);
+      check(Math.abs(s1 - s0) <= 1, `${tag}: ${what}を閉じても送り位置が戻らない（${s0} → ${s1}）`);
+      return g;
+    };
+    await page.keyboard.press("Escape"); await sleep(200);
+    await popCheck('#deSent [data-de-per="0"]', "割る数の面");
+    const ga = await popCheck("#deSent [data-de-addbase]", "足す面");
+    check(ga.picks.filter((x) => x[1]).length === 2, `${tag}: 足す面の押せない項目（値にあります）が 2 つでない`);
+    const haveLook = await page.evaluate(async () => { document.querySelector("#deSent [data-de-addbase]").click(); await new Promise((d) => setTimeout(d, 400));
+      const x = document.querySelector("#dePerPop .cp-it.is-have"); const st = x && getComputedStyle(x), b = x && getComputedStyle(x.querySelector("b"));
+      const out = x ? { on: x.classList.contains("on"), bg: st.backgroundColor, color: b.color } : null; document.querySelector("#dePerPop [data-cp-close]")?.click(); return out; });
+    check(haveLook && !haveLook.on && /rgba?\(0, 0, 0, 0\)|transparent/.test(haveLook.bg) && haveLook.color === "rgb(138, 150, 162)", `${tag}: 値にある行の見た目 ${JSON.stringify(haveLook)}`);
+    await sleep(200);
+    await page.click('#deSent [data-de-per="0"]'); await page.waitForSelector("#dePerPop .cp-it"); await sleep(300);
     // Esc: 札に焦点が残っていても閉じ、札へ焦点を戻す
     await page.focus('#deSent [data-de-per="0"]'); await page.keyboard.press("Escape"); await sleep(200);
     check(!(await page.$("#dePerPop")) && await page.evaluate(() => document.activeElement && document.activeElement.matches('[data-de-per="0"]')), `${tag}: 札に焦点がある Esc で閉じない・焦点が札に戻らない`);
