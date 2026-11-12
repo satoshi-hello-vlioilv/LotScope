@@ -1,7 +1,8 @@
 //! 設定の束（版 3.84.0）: 窓（src/bundle.rs）が自分で組んだ束が、Python の道（routes/lotlist.py の GET /api/lotlist/settings）の答えと
 //! 同じか。program/tests/settings_oracle.py が場面ごとのフォルダ（配った設定・共有・作業場所・同梱の data/）を作って Python に尋ね、
 //! 尋ねる前の形に戻す。窓は同じフォルダから束を組み、答えを 1 字ずつ突き合わせる（conversions.rev は窓と Python で別の字なので比べない）。
-//! "delegate" の場面は窓が組まずに Python に尋ねること（束の材料を組めない・種まきの要る節がある）、"broken:節,…" の場面は窓がその節だけを
+//! "delegate" の場面は窓が組まずに Python に尋ねること（束の材料を組めない）、"seed" の場面（版 3.105.0）は共有にまだ無いマスタに窓も
+//! Python と同じ最初の版を置いてから組み、束も置いた中身も Python と同じこと、"broken:節,…" の場面は窓がその節だけを
 //! 理由つきで組まず、ほかの節は Python と同じに組むこと（版 3.102.0）、"pyFollows" の場面は窓が同じ置き場へ引っ越しの印をたどり、
 //! この PC の覚えに書くことを見る。
 
@@ -16,7 +17,7 @@ fn bundle_is_built_like_python() {
     let work = common::work("bundle");
     let o = common::python_json("settings_oracle.py", &[work.to_str().unwrap()]);
     let mut bad = vec![];
-    let (mut same, mut delegated, mut broken_n) = (0, 0, 0);
+    let (mut same, mut delegated, mut broken_n, mut seeded) = (0, 0, 0, 0);
     for sc in o["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
         let saved: Vec<(String, Option<String>)> =
@@ -35,6 +36,37 @@ fn bundle_is_built_like_python() {
             now: e["now"].as_str().map(String::from),
         });
         let got = b.build();
+        // 版 3.105.0: 共有にまだ無いマスタ（種まき）。窓は束を組むとき（Builder::inputs が置き場の書く係を覚えさせ、節の確かめが Place::seed で
+        // 置く）に Python と同じ最初の版を置くので、束は種まきの要る節を言わずに Python と同じ。置いたファイルも同じ中身。窓だけが置いてよいのは、
+        // どの問い合わせでも読む門番の権限 2 つ（bundle::EVERY_READ。Python の束の道は門番を通らない）
+        let seed_why = (sc["expect"] == "seed").then(|| {
+            let mut why = vec![];
+            if got.as_ref().is_ok_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true))) {
+                why.push(format!("{name}: 窓が種をまかずに種まきの要る節を言った"));
+            }
+            let share = p("base").parent().unwrap().join("share");
+            let strip = |v: &Value| {
+                let mut v = v.clone();
+                if let Some(o) = v.as_object_mut() {
+                    o.remove("updated_at");
+                }
+                v
+            };
+            for (f, want) in sc["shareAfter"].as_object().expect("Python が置いた物") {
+                let mine = std::fs::read(share.join(f)).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or(Value::Null);
+                if let Some(d) = common::diff(&strip(want), &strip(&mine), f) {
+                    why.push(format!("{name}: 置いた最初の版 {d}"));
+                }
+            }
+            for e in std::fs::read_dir(&share).unwrap().flatten() {
+                let f = e.file_name().to_string_lossy().into_owned();
+                let every = da_core::bundle::EVERY_READ.iter().any(|n| f == format!("{n}.json"));
+                if !sc["shareAfter"].as_object().unwrap().contains_key(&f) && !every {
+                    why.push(format!("{name}: 窓だけが置いた {f}"));
+                }
+            }
+            why
+        });
         for (k, v) in &saved {
             // 場面の前の値へ戻す（名乗りの環境はほかの場面にも効く）
             match v {
@@ -48,6 +80,10 @@ fn bundle_is_built_like_python() {
             if over["dir"].as_str() != Some(want) {
                 bad.push(format!("{name}: 窓が束を組めなくても引っ越しの印をたどるはず（覚えの置き場 {}）", over["dir"]));
             }
+        }
+        if let Some(why) = seed_why {
+            seeded += 1;
+            bad.extend(why);
         }
         if sc["expect"] == "delegate" {
             delegated += 1;
@@ -147,6 +183,10 @@ fn bundle_is_built_like_python() {
         .collect();
     ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
     eprintln!("窓が束を組む時間（中央値）: {:.2} ms", ms[10]);
-    assert!(same >= 24 && delegated >= 6 && broken_n >= 4, "場面が足りません: 同じ {same}・任せる {delegated}・節だけ組まない {broken_n}");
+    assert!(
+        // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
+        same >= 26 && broken_n >= 4 && seeded >= 2,
+        "場面が足りません: 同じ {same}・任せる {delegated}・節だけ組まない {broken_n}・種まき {seeded}"
+    );
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));
 }

@@ -1,21 +1,21 @@
 {
  "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
- "total": 371,
+ "total": 313,
  "per": {
   "access_write_oracle": 8,
   "calc_oracle": 0,
-  "cards_oracle": 21,
+  "cards_oracle": 19,
   "conversions_oracle": 29,
-  "dashboards_oracle": 19,
-  "equip_rows_oracle": 33,
-  "equipgroups_oracle": 65,
-  "formats_oracle": 34,
+  "dashboards_oracle": 16,
+  "equip_rows_oracle": 32,
+  "equipgroups_oracle": 29,
+  "formats_oracle": 29,
   "fs_oracle": 4,
-  "place_oracle": 4,
-  "presets_oracle": 30,
+  "place_oracle": 2,
+  "presets_oracle": 27,
   "release_place_oracle": 11,
-  "sets_oracle": 64,
-  "settings_oracle": 6,
+  "sets_oracle": 59,
+  "settings_oracle": 5,
   "settings_write_oracle": 6,
   "shifts_oracle": 10,
   "sources_write_oracle": 11,
@@ -27,5 +27,11 @@
  },
  "envWhy": {
   "release_place_oracle": "権限の場面の「中を読めない置き場」（noread）は、root では窓が答え（root は権限を見ずに読める）、root でない利用者（CI の Linux）では Python に任せる。Windows は権限の場面が無く、ドライブだけの上のフォルダ（C:）を任せる。手元の root で数えた数に 1 を足した数が、どの環境でも超えない上限"
+ },
+ "envLess": {
+  "release_place_oracle": 2
+ },
+ "envLessWhy": {
+  "release_place_oracle": "Windows では権限の場面（読めない置き場・root）が無く、手元の Linux（root）で数えた 11 より 2 少ない 9（PR #104 の Windows CI）。delegate-count.py --check はこの幅を同じとみなす"
  }
 }

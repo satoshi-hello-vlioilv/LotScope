@@ -16,7 +16,7 @@ const READS: [&str; 7] =
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 // 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
-const MUST_DELEGATE: [(&str, &str); 13] = [
+const MUST_DELEGATE: [(&str, &str); 12] = [
     // 版 3.89.0（作った後の採点）: 参照先の値を重ねる配った設定の段が表でない（Python の _set が落ちる）
     ("更新の段が null で参照先に更新の置き場", "/api/settings"),
     // 作った後の採点（版 3.85.0）の割れ
@@ -31,7 +31,7 @@ const MUST_DELEGATE: [(&str, &str); 13] = [
     ("max_rows が int() で読めない", "/api/config"),
     ("LotDsp の待つ秒が読めない", "/api/config"),
     ("LotDsp の学びの形が違う", "/api/config"),
-    ("初期設定が共有にまだ無い", "/"),
+    // 版 3.105.0: 「初期設定が共有にまだ無い」の画面は、窓も読むときに最初の版を置いて答える（前は任せた）
 ];
 
 fn short(v: &Value) -> String {

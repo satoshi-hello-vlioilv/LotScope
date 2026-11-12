@@ -573,7 +573,13 @@ class MasterStore:
         if sig is None:
             if not self.share_reachable():
                 raise ShareUnavailable(f"共有フォルダに届きません: {self.share_dir}")
-            self._seed(name, have_lock)      # 共有にまだ無い（初めて共有にする）
+            try:
+                self._seed(name, have_lock)      # 共有にまだ無い（初めて共有にする）
+            except MasterLocked:
+                # 版 3.105.0: 種まきで錠に当たった（同じ時に読んだほかの係〈窓・別の PC〉が種をまいている・保存している）は理由に入れない。
+                # 写しで答え、次に読むときにまた置く（窓の Store::pull と同じ。前は当たった名前の理由が _errors に入り、その回の状態の帯に
+                # 「共有マスタを取り込めませんでした（写しで続けます）: …保存中です」と出た）
+                return False
             sig = _stat_sig(src)
             if sig is None:
                 return False

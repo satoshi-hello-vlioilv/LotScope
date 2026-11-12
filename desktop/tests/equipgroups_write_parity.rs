@@ -5,7 +5,8 @@
 //! 設備グループ）を突き合わせる。窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
 //! ファイルの比べは共有（share）と同梱の data/ だけで、この PC の写し（local/master_cache）は比べない（窓は数えるために読んだマスタの写しを置かず、
 //! 直すの誤りや錠では設備グループの写しも置かない。これまでの窓の道と同じ扱い）。共有・data/ のマスタのファイルの名前は全部の場面で比べ、
-//! 任せる歩では窓が何も置かないこと（Python が任された歩で最初の版を置くマスタも、窓は置かない）を見る。
+//! 任せる歩では窓が何も置かないことを見る。共有にまだ無い数える材料（作業実績・設備マスタ・データ元）は、版 3.105.0 から窓も Python と
+//! 同じ最初の版を置く（種まき。置いた中身も突き合わせる）。
 
 mod common;
 
@@ -143,14 +144,22 @@ fn equipment_groups_match_python() {
             let only = |a: &[String], b: &[String]| a.iter().filter(|x| !b.contains(x)).cloned().collect::<Vec<_>>();
             bad.push(format!("{name}: 置かれたファイル Python だけ {:?} / 窓だけ {:?}", only(&np, &nr), only(&nr, &np)));
         }
-        // 共有にまだ無いマスタ（数える材料）の場面: 任された Python はその最初の版を置き、窓は置かずに任せた
+        // 共有にまだ無いマスタ（数える材料）の場面（版 3.105.0）: 窓も Python と同じ最初の版を置く（種まき）。中身（版・行・置いた人）も同じ
+        // （写しがあれば写し、写しも data/ も無ければ最初の中身〈program/app/master_defaults〉か空の版 1。時刻は伏せる）
         if let Some(absent) = sc["absent"].as_str() {
             let f = format!("share/{absent}.json");
-            let python_placed = sc["delegatedFiles"].as_array().unwrap().iter().any(|x| x.as_str() == Some(f.as_str()));
-            if python_placed && !nr.contains(&f) {
-                placed_by_python += 1;
-            } else {
-                bad.push(format!("{name}: {f} を Python が置いた {python_placed}・窓が置いた {}", nr.contains(&f)));
+            // 中身の場面のフォルダ（データ元の場所など）は Python の側の名前にそろえる
+            let mine = std::fs::read(rs.join(&f))
+                .ok()
+                .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+                .and_then(|v| serde_json::from_str::<Value>(&v.to_string().replace(&esc("rs"), &esc("py"))).ok());
+            match (&sc["absentPlaced"], mine) {
+                (Value::Null, _) => bad.push(format!("{name}: {f} を Python が置かない")),
+                (_, None) => bad.push(format!("{name}: {f} を窓が置かない")),
+                (want, Some(got)) => match common::diff(&norm(want), &norm(&got), &f) {
+                    Some(d) => bad.push(format!("{name}: 置いた最初の版 {d}")),
+                    None => placed_by_python += 1,
+                },
             }
         }
         // スケジュールの元がある場面（版 3.94.0。CI の自己診断で見つけた）: 選べる設備は CM3 に届くかで変わる（届けばスケジュールの設備も数える）。
@@ -188,10 +197,11 @@ fn equipment_groups_match_python() {
     unsafe { std::env::remove_var("TRANSFER_APP_CONFIG") };
     drop(live);
     eprintln!(
-        "答えた歩 {steps}・任せた歩 {delegated}・データ元の設備を数えた答え {seen}・共有に無い数える材料を任せた場面 {placed_by_python}"
+        "答えた歩 {steps}・任せた歩 {delegated}・データ元の設備を数えた答え {seen}・共有に無い数える材料を窓も同じに置いた場面 {placed_by_python}"
     );
-    assert!(steps >= 252 && delegated >= 65, "歩が少ない: {steps}・{delegated}"); // 版 3.104.0: 本文の門と int() の部品で、任せていた歩を窓が答える
-    assert!(placed_by_python >= 6, "共有にまだ無いマスタを任せる場面が空振り: {placed_by_python}");
+    // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
+    assert!(steps >= 288, "歩が少ない: {steps}・{delegated}");
+    assert!(placed_by_python >= 6, "共有にまだ無いマスタを窓と Python が同じに置く場面が空振り: {placed_by_python}");
     assert!(cm3_cases >= 2, "スケジュールの元の場面が空振り: {cm3_cases}");
     assert!(seen >= 40, "データ元の設備の列から数えた答えが少ない: {seen}");
     let _ = std::fs::remove_dir_all(&base);

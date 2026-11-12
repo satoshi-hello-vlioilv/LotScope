@@ -86,7 +86,7 @@ SCENARIOS = [
         S(BOSS, "POST", E, {"設備名": "表", "巻取方向": {"b": 1, "a": 2}}),
         W(S(BOSS, "POST", E, '{"設備名": "負の零", "ライン方向": -0}')),
         S(BOSS, "POST", E, '{"設備名": "大きな整数", "ライン方向": 100000000000000000000}'),
-        S(BOSS, "POST", E, '{"設備名": "i64 の外", "ライン方向": 9223372036854775808}'),
+        W(S(BOSS, "POST", E, '{"設備名": "i64 の外", "ライン方向": 9223372036854775808}')),
         S(BOSS, "POST", E, '{"設備名": "NaN", "ライン方向": NaN}'),
         S(BOSS, "POST", E, '{"設備名": "1e400", "ライン方向": 1e400}'),
         S(BOSS, "POST", E, '{"設備名": "片割れ", "ライン方向": "\\ud800"}'),
@@ -94,6 +94,9 @@ SCENARIOS = [
         S(BOSS, "POST", E, "[1]"),
         W(S(BOSS, "PUT", f"{E}/1", '{"base_rev": -0}')),
         W(S(BOSS, "PUT", f"{E}/1", {"巻取方向": "x", "base_rev": "²"})),
+        # 版 3.105.0（G）: u64 の整数の欄（str() は桁のまま）と版
+        W(S(BOSS, "POST", E, '{"設備名": 18446744073709551615, "同一工程": 12345678901234567890, "検査計": -0.0}')),
+        W(S(BOSS, "PUT", f"{E}/1", '{"巻取方向": 1e16, "base_rev": 12345678901234567890}')),
     ]},
     {"name": "設備: 直す・消す・行の版・旧い列名", "mode": "shared", "rows": {"equipment_master": EQ, "roll_master": ROLLS}, "steps": [
         S(BOSS, "PUT", f"{E}/2", {"巻取方向": "上", "base_rev": 3}),
@@ -192,7 +195,12 @@ SCENARIOS = [
         S(BOSS, "PUT", f"{E}/2", {"巻取方向": "直した", "base_rev": 3}),
         S(BOSS, "DELETE", f"{R}/1"),
     ], "delegates": []},
+    {"name": "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる）", "mode": "mirror", "rows": {"equipment_master": EQ[:1], "roll_master": [{"id": 1, "設備": "CR1", "ロール名": "写しの行", "rev": 2}]},
+     "steps": [S(BOSS, "GET", R), S(BOSS, "GET", E)], "delegates": []},
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": {"equipment_master": EQ[:1], "roll_master": []}, "steps": [
+        # 版 3.105.0（作った後の採点の割れ）: 共有にまだ無いマスタを最初に読む歩。Python も窓も読むときに最初の版を置く（置いたファイルも比べる）
+        S(BOSS, "GET", R),
+        S(BOSS, "GET", E),
         S(BOSS, "POST", E, {"設備名": "写しから"}),
         S(BOSS, "POST", R, {"設備": "写しから"}),
         S(BOSS, "GET", E),

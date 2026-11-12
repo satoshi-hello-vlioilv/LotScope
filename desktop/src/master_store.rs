@@ -18,13 +18,15 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::time::{Duration, Instant};
 
 pub const LOCK_FILENAME: &str = "master.lock.json";
 const LOCK_TRIES: usize = 5;
 const LOCK_MOVE_BUDGET: Duration = Duration::from_millis(500);
 pub const LOCK_TTL_DEFAULT: f64 = 20.0;
+/// 共有を見直す間（Python の REFRESH_DEFAULT。置き場の設定 master_share.refresh_seconds。窓へは一覧の設定の place.refreshSeconds で来る）
+pub const REFRESH_DEFAULT: f64 = 5.0;
 const SCHEMA: i64 = 1;
 const INSTANCE_FILENAME: &str = "instance_id";
 /// 共有フォルダがあればいつも共有するマスタ（Python の SHARED_ALWAYS と同じ）
@@ -592,6 +594,58 @@ pub struct Store {
     /// 名前 → 最後に共有から取り直せなかった理由（取り直せた名前だけ消す。版 3.102.0: Python の _errors と同じ。前は 1 つの字で、
     /// ほかのマスタを取り直せると消え、読めないマスタを言わなくなった）
     errors: Mutex<std::collections::BTreeMap<String, String>>,
+    /// この Store が種をまいたマスタの名前（版 3.105.0。seeded）
+    seeded: Mutex<Vec<String>>,
+    /// 種をまこうとして置けなかった名前 → 時刻（版 3.105.0。refresh の間はまき直さない: Python の _maybe_refresh の間引きと同じ）
+    seed_failed: Mutex<HashMap<String, Instant>>,
+    /// 共有を見直す間（秒。Python の refresh_sec。Store::new は 0＝間引かない、from_access は place.refreshSeconds）
+    refresh: f64,
+}
+
+/// 共有の置き場 → その置き場の窓の書く係（版 3.105.0。種をまく係も兼ねる）。窓の読みはみな access::Place を通り、Place は共有にまだ無い
+/// マスタを読む前に、ここで見つけた係に種をまかせる（Python の MasterStore.read → _maybe_refresh → _seed と同じく、読むときに置く）。
+/// 係を作って覚えさせるのは、束の材料（名乗り・置き場）を読む bundle::Builder::inputs と Lot::store_for（どちらも shared_store）。
+/// 係が無い置き場（試験が直に作った Place など）では、前どおり置かずに写し・同梱の data/・最初の中身を読む
+static SEEDERS: LazyLock<Mutex<Vec<Seeder>>> = LazyLock::new(Default::default);
+/// 覚えた係（置き場と名乗りの鍵・共有の置き場・係）
+type Seeder = (String, PathBuf, Weak<Store>);
+/// 作った係を、この窓（プロセス）が終わるまで持つ（Weak だけでは、Lot が持たない間に消えて覚え直しになる）。置き場と名乗りが変われば替わる
+static HELD: LazyLock<Mutex<Vec<Held>>> = LazyLock::new(Default::default);
+type Held = (String, Arc<Store>);
+
+/// 一覧の設定の access（{who, place}）の書く係（版 3.105.0）: 同じ置き場と名乗りなら同じ係を返し、無ければ作って、その共有の置き場に種を
+/// まく係として覚える（同じ置き場の前の係と替える）。置き場の材料が無ければ None
+pub fn shared_store(conf: &Value) -> Option<Arc<Store>> {
+    let key = format!("{}|{}", conf["place"], conf["who"]);
+    let mut held = HELD.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((_, s)) = held.iter().find(|(k, _)| *k == key) {
+        return Some(s.clone());
+    }
+    let st = Arc::new(Store::from_access(conf, "rs")?);
+    if let Some(dir) = st.share_dir().map(Path::to_path_buf) {
+        let mut all = SEEDERS.lock().unwrap_or_else(|e| e.into_inner());
+        all.retain(|(k, d, w)| *d != dir && *k != key && w.strong_count() > 0);
+        all.push((key.clone(), dir.clone(), Arc::downgrade(&st)));
+        // 同じ共有の置き場の前の係（名乗りの違う物）は手放す（試験が場面ごとに作る置き場も、置き場ごとに 1 つ）
+        held.retain(|(_, s)| s.share_dir() != Some(dir.as_path()));
+    }
+    held.push((key, st.clone()));
+    Some(st)
+}
+
+/// 試験だけ: 書く係を種をまく係として覚えさせる（Store::new で直に作った係）
+#[doc(hidden)]
+pub fn remember_seeder(store: &Arc<Store>) {
+    let Some(dir) = store.share_dir().map(Path::to_path_buf) else { return };
+    let mut all = SEEDERS.lock().unwrap_or_else(|e| e.into_inner());
+    all.retain(|(_, d, w)| *d != dir && w.strong_count() > 0);
+    all.push((String::new(), dir, Arc::downgrade(store)));
+}
+
+/// 共有の置き場 share にまだ無いマスタ name に、覚えた係が種をまく（係が無ければ何もしない）。→ 共有にあるか（係が無ければ None）
+pub fn seed_through(share: &Path, name: &str) -> Option<bool> {
+    let st = SEEDERS.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|(_, d, _)| d == share).and_then(|(_, _, w)| w.upgrade())?;
+    Some(st.seed_absent(&[name]))
 }
 
 impl Store {
@@ -611,6 +665,9 @@ impl Store {
             share_sig: Mutex::new(HashMap::new()),
             last_sync: Mutex::new(String::new()),
             errors: Mutex::new(Default::default()),
+            seeded: Mutex::new(vec![]),
+            seed_failed: Mutex::new(HashMap::new()),
+            refresh: 0.0,
         }
     }
 
@@ -637,18 +694,28 @@ impl Store {
         let p = &conf["place"];
         let path = |k: &str| p[k].as_str().filter(|s| !s.is_empty()).map(PathBuf::from);
         let cache = path("cache")?;
-        Some(Store::new(Config {
-            data: path("data")?,
-            defaults: path("defaults")?,
-            share_dir: path("shareDir"),
-            shared: p["shared"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default(),
-            local_root: cache.parent()?.to_path_buf(),
-            cache,
-            pc: conf["who"]["pc"].as_str().unwrap_or("").into(),
-            login: conf["who"]["login"].as_str().unwrap_or("").into(),
-            role: role.into(),
-            lock_ttl: p["lockTtl"].as_f64().unwrap_or(LOCK_TTL_DEFAULT),
-        }))
+        let refresh = p["refreshSeconds"].as_f64().unwrap_or(REFRESH_DEFAULT);
+        Some(
+            Store::new(Config {
+                data: path("data")?,
+                defaults: path("defaults")?,
+                share_dir: path("shareDir"),
+                shared: p["shared"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default(),
+                local_root: cache.parent()?.to_path_buf(),
+                cache,
+                pc: conf["who"]["pc"].as_str().unwrap_or("").into(),
+                login: conf["who"]["login"].as_str().unwrap_or("").into(),
+                role: role.into(),
+                lock_ttl: p["lockTtl"].as_f64().unwrap_or(LOCK_TTL_DEFAULT),
+            })
+            .with_refresh(refresh),
+        )
+    }
+
+    /// 共有を見直す間を決める（秒。種をまけなかった名前は、この間まき直さない）
+    pub fn with_refresh(mut self, sec: f64) -> Store {
+        self.refresh = if sec.is_finite() { sec.max(0.0) } else { 0.0 };
+        self
     }
 
     pub fn is_shared(&self, name: &str) -> bool {
@@ -929,7 +996,13 @@ impl Store {
                     self.cfg.share_dir.as_ref().map(|d| d.display().to_string()).unwrap_or_default()
                 )));
             }
-            self.seed(name, have_lock)?;
+            match self.seed(name, have_lock) {
+                // 版 3.105.0: 種まきで錠に当たった（同じ時に読んだほかの係〈Python・別の PC〉が種をまいている・保存している）は理由に入れない。
+                // 写しで答え、次に読むときにまた置く（Python の _pull と同じ。前は当たった名前の理由が errors に入り、その回の状態の帯に
+                // 「共有マスタを取り込めませんでした（写しで続けます）: …保存中です」と出た）
+                Err(MasterError::Locked { .. }) => return Ok(false),
+                r => r?,
+            }
             sig = stat_sig(&src);
             if sig.is_none() {
                 return Ok(false);
@@ -964,7 +1037,9 @@ impl Store {
             doc.revision = doc.revision.max(1);
             doc.updated_at = json!(iso(now_local()));
             doc.updated_by = self.who();
-            write_json_atomic(&src, &doc.to_value()).map_err(io_err)
+            write_json_atomic(&src, &doc.to_value()).map_err(io_err)?;
+            self.seeded.lock().unwrap_or_else(|e| e.into_inner()).push(name.to_string());
+            Ok(())
         };
         if have {
             go("")
@@ -1063,9 +1138,46 @@ impl Store {
         &self.cfg.local_root
     }
 
-    /// 共有に届くのに、まだ無いマスタがあるか（取り直すと最初の版を置く＝種まき。窓は Python に任せる。版 3.101.0 の主のセッションの決め）
-    pub fn needs_seed(&self, names: &[&str]) -> bool {
-        self.share_reachable() && names.iter().any(|n| self.is_shared(n) && self.share_file(n).is_some_and(|p| stat_sig(&p).is_none()))
+    /// 共有に届くのに、まだ無いマスタか（取り直すと最初の版を置く＝種まき）
+    pub fn share_absent(&self, name: &str) -> bool {
+        self.share_reachable() && self.is_shared(name) && self.share_file(name).is_some_and(|p| stat_sig(&p).is_none())
+    }
+
+    /// 種まき（版 3.105.0。前は Python だけの係で、要る間は窓が Python に任せた）: 共有に届くのにまだ無いマスタを、Python の読み
+    /// （MasterStore._maybe_refresh → _pull → _seed）と同じく取り直して最初の版を置く（手元の写し → 同梱の data/ → 最初の中身）。
+    /// 置くのは錠の中で共有を見直してから（seed）なので、窓と窓・窓と Python が同時にまいても 1 回だけ置かれる。置けない（錠・書けない）
+    /// ときは投げずに理由を覚える（refresh。Python の _errors と同じ）。→ 渡した名前がどれも共有にあるか（置けずに無いままなら false）
+    pub fn seed_absent(&self, names: &[&str]) -> bool {
+        let mut all = true;
+        for n in names {
+            if !self.share_absent(n) {
+                continue;
+            }
+            // 置けなかった名前は refresh の間まき直さない（共有に書けない PC が、読むたびに錠を試さない。Python の間引きと同じ）
+            let recent = self
+                .seed_failed
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(*n)
+                .is_some_and(|t| t.elapsed().as_secs_f64() < self.refresh);
+            if !recent {
+                self.refresh(n);
+            }
+            if self.share_absent(n) {
+                all = false;
+                if !recent {
+                    self.seed_failed.lock().unwrap_or_else(|e| e.into_inner()).insert(n.to_string(), Instant::now());
+                }
+            } else {
+                self.seed_failed.lock().unwrap_or_else(|e| e.into_inner()).remove(*n);
+            }
+        }
+        all
+    }
+
+    /// この Store が種をまいた（共有に最初の版を置いた）マスタの名前（置いた順。試験が 1 回だけ置かれたかを数える）
+    pub fn seeded(&self) -> Vec<String> {
+        self.seeded.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// いま読むマスタ（Python の _read_doc。peek は共有を見ない _peek_doc）→ (中身, 読んだ元〈shared・bundled-fallback・local〉)。
@@ -1246,6 +1358,63 @@ mod tests {
         }
     }
 
+    /// ほかの PC の生きた錠を置く
+    fn other_lock(env: &Env, secs: i64) {
+        let now = now_local();
+        let lock = json!({"token": "other", "holder_pc": "PC-9", "holder_login": "u9", "holder_instance": "other:py",
+                          "acquired_at": iso(now), "expires_at": iso(now + chrono::Duration::seconds(secs))});
+        std::fs::write(env.lock(), lock.to_string()).unwrap();
+    }
+
+    #[test]
+    fn a_seed_that_meets_a_lock_leaves_no_error() {
+        // 版 3.105.0（作った後の採点の落とし穴 2）: 種まきで錠に当たったら理由を覚えない（その回の状態の帯に「…保存中です」と出さない）。
+        // 写しで答え、錠が外れた後に読むと置く
+        let env = Env::new("seedlock");
+        let st = env.store("rs");
+        other_lock(&env, 20);
+        assert!(!st.seed_absent(&["shift_patterns"]), "錠の間は置けない");
+        assert!(!st.unsynced("shift_patterns") && st.sync_state().1.is_empty(), "理由は覚えない: {:?}", st.sync_state());
+        std::fs::remove_file(env.lock()).unwrap();
+        assert!(st.seed_absent(&["shift_patterns"]) && env.shared("shift_patterns"), "錠が外れた後に読むと置く");
+        assert_eq!(st.seeded(), vec!["shift_patterns".to_string()]);
+    }
+
+    #[test]
+    fn a_name_that_could_not_be_seeded_waits_for_the_refresh_interval() {
+        // 版 3.105.0（落とし穴 3）: 置けなかった名前は refresh の間まき直さない（共有に書けない PC が読むたびに錠を試さない。Python の間引きと同じ）
+        let env = Env::new("seedthrottle");
+        let st = env.store("rs").with_refresh(30.0);
+        other_lock(&env, 60);
+        assert!(!st.seed_absent(&["shift_patterns"]), "ほかの PC が長く保存している間は置けない");
+        std::fs::remove_file(env.lock()).unwrap();
+        assert!(!st.seed_absent(&["shift_patterns"]) && !env.shared("shift_patterns"), "間引きの間はまき直さない");
+        let quick = env.store("rs"); // 間引かない係（refresh 0）なら、錠が外れた後はすぐ置く
+        assert!(quick.seed_absent(&["shift_patterns"]) && env.shared("shift_patterns"));
+    }
+
+    #[test]
+    fn a_remembered_seeder_seeds_what_a_place_reads() {
+        // 版 3.105.0（作った後の採点の割れ）: 窓の読み（access::Place）は、覚えた係があれば共有にまだ無いマスタを読む前に置かせる
+        let env = Env::new("seeder");
+        std::fs::write(
+            env.root.join("local/master_cache/shift_patterns.json"),
+            json!({"schema": 1, "revision": 3, "rows": [{"id": 1}]}).to_string(),
+        )
+        .unwrap();
+        let place = crate::access::Place::from_json(&json!({"shareDir": env.root.join("share"), "shared": SHARED_ALWAYS,
+            "data": env.root.join("data"), "defaults": env.root.join("defaults"), "cache": env.root.join("local/master_cache")}));
+        assert_eq!(place.rows("shift_patterns").unwrap(), vec![json!({"id": 1})], "係が無ければ写しを読み、置かない");
+        assert!(!env.shared("shift_patterns"));
+        let st = Arc::new(env.store("rs"));
+        remember_seeder(&st);
+        assert_eq!(place.rows("shift_patterns").unwrap(), vec![json!({"id": 1})]);
+        let d: Value = serde_json::from_slice(&std::fs::read(env.root.join("share/shift_patterns.json")).unwrap()).unwrap();
+        assert_eq!((d["revision"].clone(), d["rows"].clone()), (json!(3), json!([{"id": 1}])), "写しを最初の版として置いた: {d}");
+        drop(st);
+        assert!(seed_through(&env.root.join("share"), "x").is_none(), "係が居なくなったら覚えない");
+    }
+
     #[test]
     fn a_live_lock_of_the_same_role_in_this_process_is_not_taken_over() {
         // 版 3.94.0 の CI: 起動の直後に画面が並べて問い合わせる道（変換表・設備グループ…）が、それぞれ共有にまだ無いマスタの最初の版を置く。
@@ -1261,7 +1430,8 @@ mod tests {
             Ok(())
         });
         assert!(out.is_ok(), "持っている方の保存は通る: {out:?}");
-        assert!(matches!(seeded, Some(Err(MasterError::Locked { .. }))), "生きた錠はどけない: {seeded:?}");
+        // 生きた錠はどけない。版 3.105.0 から種まきの錠は理由に入れず（投げず）、写しで答えて次に読むときに置く
+        assert!(matches!(seeded, Some(Ok(false))), "生きた錠はどけない: {seeded:?}");
         assert!(!env.lock().exists(), "錠は残らない");
         assert!(b.pull("conversions", false, false).unwrap(), "錠が外れたら最初の版を置ける");
         assert!(env.shared("conversions"));

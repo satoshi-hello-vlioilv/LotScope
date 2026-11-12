@@ -54,6 +54,7 @@ fn layout_checks_answer_like_python() {
             }
         }
     }
-    assert!(answered >= 65 && delegated >= 10, "答えた {answered}・任せた {delegated}");
+    // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
+    assert!(answered >= 65, "答えた {answered}・任せた {delegated}");
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }

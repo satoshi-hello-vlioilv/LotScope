@@ -46,6 +46,35 @@ class Seeds(unittest.TestCase):
         self.assertEqual(master_seeds.run(self.store), [], "2回目は当てない")
         self.assertNotIn("TLV", self.meters())
 
+    def test_waits_for_a_short_lock_of_the_window_on_the_same_pc(self):
+        """版 3.105.0（作った後の採点の落とし穴 1）: 起動の同じ瞬間に同じ PC の窓（係 rs）が種まきで共有の錠を持っていても、
+        錠が外れるのを待って当てる（前は MasterLocked で止め、次の起動へ回した）"""
+        import threading
+        import time
+        from datetime import datetime, timedelta
+        lock = self.share / "master.lock.json"
+        now = datetime.now()
+        lock.write_text(json.dumps({"token": "t", "holder_pc": "PC", "holder_login": "u", "holder_instance": f"{self.store.instance}:rs",
+                                    "acquired_at": now.isoformat(timespec="seconds"),
+                                    "expires_at": (now + timedelta(seconds=20)).isoformat(timespec="seconds")}), encoding="utf-8")
+        threading.Timer(1.5, lock.unlink).start()
+        t0 = time.monotonic()
+        self.assertEqual(len(master_seeds.run(self.store)), 3, "錠が外れるのを待って 3 つとも当てる")
+        self.assertGreaterEqual(time.monotonic() - t0, 1.0, "錠が外れるまで待った")
+        self.assertEqual(self.meters(), ["DL2", "LS3", "LS4", "NS1", "TLV"])
+
+    def test_gives_up_after_the_tries_when_another_pc_holds_the_lock(self):
+        """ほかの PC が長く保存している（錠が外れない）ときは、決めた回数で次の起動へ回す（止まり続けない）"""
+        from datetime import datetime, timedelta
+        from unittest import mock
+        now = datetime.now()
+        (self.share / "master.lock.json").write_text(json.dumps({
+            "token": "t", "holder_pc": "PC-9", "holder_login": "u9", "holder_instance": "other:py",
+            "acquired_at": now.isoformat(timespec="seconds"), "expires_at": (now + timedelta(seconds=60)).isoformat(timespec="seconds")}),
+            encoding="utf-8")
+        with mock.patch.object(master_seeds, "LOCKED_WAIT_SEC", 0.01):
+            self.assertEqual(master_seeds.run(self.store), [], "錠が外れなければ当てない（次の起動で）")
+
     def test_kama_table_reaches_an_existing_conversions_master_once(self):
         """変換表「釜番日付」（版 3.51.2）: 共有にもう前の版の変換表があっても一度だけ足す。人が消したら戻さない。同じ名前の表があれば触らない"""
         old = [r for r in json.loads((ROOT / "app" / "master_defaults" / "conversions.json").read_text(encoding="utf-8")) if r["名前"] != "釜番日付"]

@@ -13,8 +13,8 @@
 //! （理由は docs/RUST_PORT_PLAN.md の版 3.100.0 の割れ 2）。錠の長さの半分を過ぎたら・読んだマスタが変わったら、切り替えずに止める。
 //!
 //! 主のセッションの決め（版 3.101.0）:
-//!   - 種まき（共有にまだ無いマスタの最初の版を置く・写しの取り直しの係）は Python に任せたまま。窓の status は、種まきの要る形
-//!     （共有に届くのにまだ無いマスタがある）を Python に任せる（None）。窓へ移すのは Python を外す段の「⑤ 裏の係」
+//!   - 種まき（共有にまだ無いマスタの最初の版を置く）は Python に任せたまま（窓の status は種まきの要る形を Python に任せた）。
+//!     版 3.105.0 から窓も種をまく（status は Python と同じく取り直す中で置く。Store::seed_absent・Rust 化の段 ① の F）
 //!   - status の last_sync・error は Python と同じ意味（このプロセスが最後に共有から写しを取り直した時刻・最後に取り直せなかった理由）
 //!   - 同期フォルダの名前の表は今の表のまま（足さない）
 //!
@@ -797,7 +797,7 @@ impl Local {
 #[doc(hidden)]
 pub static TEST_SLOW: Mutex<Option<(PathBuf, u64)>> = Mutex::new(None);
 
-/// MasterStore.status（peek は共有を見ない）。種まきの要る形・読めないマスタは None（Python に任せる）
+/// MasterStore.status（peek は共有を見ない）。種まき（共有にまだ無いマスタ）は取り直す中で置く（版 3.105.0）。読めないマスタは理由を添えて並べる
 fn status_of(store: &Store, local: &Local, peek: bool) -> Option<Value> {
     let shared = store.share_dir().is_some();
     let mut out = json!({"mode": if shared { "shared" } else { "local" },
@@ -810,9 +810,8 @@ fn status_of(store: &Store, local: &Local, peek: bool) -> Option<Value> {
             let _ = dir;
             std::thread::sleep(Duration::from_millis(ms)); // 試験だけ: 遅い共有の形（その置き場だけ）
         }
-        if store.needs_seed(&STATUS_NAMES) {
-            return None; // 種まき（共有へ最初の版を書く）は Python の係（版 3.101.0 の主のセッションの決め）
-        }
+        // 種まき（共有にまだ無いマスタに最初の版を置く）は、Python の status と同じく取り直す中で行う（版 3.105.0 から窓も。
+        // 前は「種まきは Python の係」で、要る間は窓が答えずに任せた。置くのは錠の中で共有を見直してからなので 1 回だけ）
         for n in STATUS_NAMES.iter().filter(|n| store.is_shared(n)) {
             store.refresh(n);
         }

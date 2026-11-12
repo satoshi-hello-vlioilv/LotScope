@@ -13,7 +13,7 @@
 //! - 設備の確かめ（equipment_names.check_row の 3 つの言葉）は計算の読み替えと同じ部品（calc::equipment_check）
 //! - 本文も版も Content-Type によらず読む（Python も版 3.77.0 から同じ。routes/common.base_rev）
 //!
-//! 窓が答えず Python に任せる形: 窓が読めない・読みが割れる数のある本文（master_rows::unreadable）・空の本文・足す道の表でない本文・
+//! 窓が答えず Python に任せる形: 窓が読めない・読みが割れる数のある本文（master_rows::unreadable_u64_ok。版 3.105.0 から u64 に入る整数は答える）・空の本文・足す道の表でない本文・
 //! 項目の値が並び・表のとき（Python の str() の書き方〈[1, 2]〉）・置き場の行の項目が並び・表のとき・版の番号に 10 進でない数の字があるとき。
 
 use crate::master_rows::{self, base_rev, Spec};
@@ -153,7 +153,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
         return Some((200, Value::Array(out)));
     }
     let blank_body = body.iter().all(|b| b.is_ascii_whitespace());
-    if master_rows::unreadable(body) {
+    if master_rows::unreadable_u64_ok(body) {
         return None;
     }
     let parsed: Value = if blank_body { Value::Null } else { serde_json::from_slice(body).ok()? };

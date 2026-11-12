@@ -215,7 +215,8 @@ fn schedule_matches_python() {
         }
     }
     eprintln!("答えた歩 {steps}・任せた歩 {delegated}・比べたファイル {file_cmp}・比べた要求 {req_cmp}・答えた一覧 {ok_lists}");
-    assert!(steps >= 80 && delegated >= 5 && file_cmp >= 40 && req_cmp >= 40 && ok_lists >= 20, "歩が少ない");
+    // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
+    assert!(steps >= 80 && file_cmp >= 40 && req_cmp >= 40 && ok_lists >= 20, "歩が少ない");
 
     // 錠を待つ問い合わせは、先に済んだ結果を使う（黙る CM3〈timeout 1 秒〉に同じ設備を 4 本同時。前は 1・2・3・4 秒と積み重なった）
     let silent = scenarios.iter().find(|s| s["scene"] == "silent").unwrap();

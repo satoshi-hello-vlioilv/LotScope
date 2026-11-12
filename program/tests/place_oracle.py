@@ -3,15 +3,17 @@
 「正しい答え」を出す係（版 3.101.0。desktop/tests/place_parity.rs が呼ぶ）。
 
     python tests/place_oracle.py 作業フォルダ
-    python tests/place_oracle.py --status 場面のフォルダ      … その置き場で MasterStore.status を 1 回（種まきの競い合いの場面）
+    python tests/place_oracle.py --status 場面のフォルダ [--ready 印 --go 印]
+        … その置き場で MasterStore.status を 1 回（種まきの競い合いの場面）。答えの seededByPython は、この Python が共有に
+          最初の版を置いたマスタの名前。--ready の印を書いてから --go の印ができるまで待って尋ねる（窓と同時に始めるため）
 
 場面ごとに同じ中身のフォルダを 2 つ（py・rs）作り、py に Python の道（routes/masters.py・settings.py。門番 _release_place_gate を含む）で
 問い合わせの並びを当てる。道・本文の字の中の「@ROOT」は場面のフォルダ。窓の試験は rs に同じ並びを窓の道（src/master_place.rs の handle。
 Lot と同じ順）で当て、答え（状態・本文。断る言葉も 1 字まで）と、終わった後のフォルダの中身（引っ越し先・前の置き場の印・この PC の覚え・写し）を
 突き合わせる。歩の形: do（その場でフォルダを変える: rename・write・remove・chmod。窓の試験も同じ順で同じことをする）・delegate（窓は答えず
 Python に任せる歩。Python の答えは比べない）。
-共有のマスタは場面ごとに決まった中身で置く（種まきの時刻が場面ごとに違わないように）。種まき（共有にまだ無いマスタ）の要る status は
-窓が Python に任せる（版 3.101.0 の主のセッションの決め）。
+共有のマスタは場面ごとに決まった中身で置く（種まきの時刻が場面ごとに違わないように）。種まき（共有にまだ無いマスタ）の要る status は、
+版 3.105.0 から窓も答える（窓も取り直す中で最初の版を置く。前は Python に任せた）。
 """
 import json
 import logging
@@ -211,8 +213,9 @@ def scenarios():
             S(BOSS, "GET", PL),
             S(BOSS, "POST", CK, A("@ROOT/nas", "FromMirror")),
             S(BOSS, "POST", MV, A("@ROOT/nas", "FromMirror")),
-            # 写しから写した置き場には空のマスタが無い（_docs は行のある物・同梱の物だけ写す）。次の status は種まき＝Python の係なので、
-            # 窓は答えない（an_empty_share_is_seeded_once_by_python と同じ形。ここでは歩に入れない）
+            # 写しから写した置き場には空のマスタが無い（_docs は行のある物・同梱の物だけ写す）。次の status は種まき（版 3.105.0 から
+            # 窓も置く。置いたファイルもフォルダの中身で突き合わせる）
+            S(BOSS, "GET", ST),
         ]},
         {"name": "ほかの PC が保存中（錠）: 状態の錠・引っ越しは 409", "setup": setup_lock, "shared": True, "steps": [
             S(BOSS, "GET", ST),
@@ -232,9 +235,9 @@ def scenarios():
             S(BOSS, "POST", MV, A("@ROOT/nas", "New")),
             S(BOSS, "GET", ST),
         ]},
-        {"name": "空の共有（種まきは Python）", "setup": setup_empty, "shared": True, "steps": [], "delegates": [
-            S(BOSS, "GET", ST),
-            S(BOSS, "GET", PL),
+        {"name": "空の共有（版 3.105.0 から種まきは窓も）", "setup": setup_empty, "shared": True, "steps": [], "delegates": [
+            oracle_gate.W(S(BOSS, "GET", ST)),
+            oracle_gate.W(S(BOSS, "GET", PL)),
         ]},
     ]
 
@@ -293,18 +296,35 @@ def do(st, root):
         Path(sub(st["path"], root)).write_bytes(st["text"].encode("utf-8"))
 
 
-def one_status(folder):
-    """--status: その場面のフォルダの置き場で MasterStore.status（種まきを含む）"""
+def one_status(folder, ready=None, go=None):
+    """--status: その場面のフォルダの置き場で MasterStore.status（種まきを含む）。seededByPython は共有に最初の版を置いた名前（版 3.105.0）"""
+    import time
+    from app.repositories import master_store
     from app.services import master_place
     root = Path(folder)
     st = store_of(root, True)
-    sys.stdout.write(json.dumps(master_place.status(st), ensure_ascii=False))
+    seeded, write = [], master_store._write_json_atomic
+
+    def noted(path, doc, *a, **kw):      # 種まき（_seed）は共有のマスタのファイルを _write_json_atomic で置く
+        out = write(path, doc, *a, **kw)
+        if Path(path).parent == st.share_dir and Path(path).suffix == ".json":
+            seeded.append(Path(path).stem)
+        return out
+    master_store._write_json_atomic = noted
+    if ready:
+        Path(ready).write_text("1", encoding="utf-8")
+    while go and not Path(go).exists():
+        time.sleep(0.0005)
+    out = master_place.status(st)
+    out["seededByPython"] = seeded
+    sys.stdout.write(json.dumps(out, ensure_ascii=False))
 
 
 def main():
     logging.disable(logging.WARNING)
     if sys.argv[1] == "--status":
-        one_status(sys.argv[2])
+        opt = {k: sys.argv[i + 1] for i, k in enumerate(sys.argv) if k in ("--ready", "--go") and i + 1 < len(sys.argv)}
+        one_status(sys.argv[2], opt.get("--ready"), opt.get("--go"))
         return
     base = Path(sys.argv[1])
     if base.exists():

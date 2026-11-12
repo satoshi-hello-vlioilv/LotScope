@@ -9,13 +9,20 @@
 server.py が起動のときに裏で呼ぶ（画面を待たせない）。試験・評価のアプリ（create_app）では呼ばない。
 """
 import logging
+import time
 
+from ..repositories.master_store import MasterLocked
 from ..repositories.master_store import next_id as _next_id
 from .identity import normalize_part
 from .row_order import next_order
 
 log = logging.getLogger(__name__)
 SEEDS_MASTER = "app_seeds"
+# 錠に当たったときのやり直し（版 3.105.0）: 起動の同じ瞬間に、同じ PC の窓（係 rs）が最初の問い合わせで共有に種をまいて錠を持つと、
+# 前は MasterLocked で止めて次の起動へ回した（初期値が起動 1 回ぶん遅れた）。種まきの錠はすぐ外れるので、1 秒おきに 5 回まで待つ。
+# 窓の種まきの側で待つ形にしなかったのは、窓は画面の問い合わせの途中で種をまく（待つと答えが遅れる）が、ここは起動の裏で一度だけ動く係だから
+LOCKED_TRIES = 5
+LOCKED_WAIT_SEC = 1.0
 
 
 def _inspection_meter(rows, stamp):
@@ -63,6 +70,17 @@ SEEDS = [
 ]
 
 
+def _write(store, name, fn):
+    """store.write。錠（MasterLocked）に当たったら LOCKED_WAIT_SEC おきに LOCKED_TRIES 回まで やり直す"""
+    for i in range(LOCKED_TRIES):
+        try:
+            return store.write(name, fn)
+        except MasterLocked:
+            if i == LOCKED_TRIES - 1:
+                raise
+            time.sleep(LOCKED_WAIT_SEC)
+
+
 def run(store):
     """まだ当てていない初期値を当てる。→ 当てた id の一覧。共有に届かない・錠が取れないときは投げずに次の起動へ回す。"""
     applied = []
@@ -75,8 +93,8 @@ def run(store):
         if sid in done:
             continue
         try:
-            store.write(name, lambda rows, stamp, fn=fn: fn(rows, stamp))
-            store.write(SEEDS_MASTER, lambda rows, stamp, sid=sid: rows.append({"id": _next_id(rows), "seed": sid, **stamp}))
+            _write(store, name, lambda rows, stamp, fn=fn: fn(rows, stamp))
+            _write(store, SEEDS_MASTER, lambda rows, stamp, sid=sid: rows.append({"id": _next_id(rows), "seed": sid, **stamp}))
             applied.append(sid)
             log.info("MASTER_SEED_APPLIED id=%s master=%s", sid, name)
         except Exception as e:

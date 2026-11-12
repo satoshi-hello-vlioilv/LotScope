@@ -536,7 +536,7 @@ fn bundled(place: &Place) -> Option<Vec<Value>> {
 /// 置くのは、Python のその道がそのマスタを読む所だけ（作った後の採点: 前はどの道でも 2 つとも置き、書き出し・断る道で Python と割れた）
 pub(crate) fn seed(store: &Store, place: &Place, name: &str) {
     if place.share_absent(name) {
-        let _ = store.pull(name, false, false);
+        store.seed_absent(&[name]);
     }
 }
 
@@ -548,8 +548,9 @@ fn read(place: &Place) -> Option<Read> {
             return None;
         }
     }
-    let mut rows = place.rows(NAME).ok()?;
-    let mut own = place.rows(DEFAULTS).ok()?;
+    // 種はまかずに読む（Python が読む歩でだけ道ごとの seed で置く。版 3.105.0 から Place::rows は読むときに置くので rows_peek）
+    let mut rows = place.rows_peek(NAME).ok()?;
+    let mut own = place.rows_peek(DEFAULTS).ok()?;
     if !master_rows::rows_plain(&rows, &FIELDS) || !master_rows::rows_plain(&own, &FIELDS) {
         return None;
     }

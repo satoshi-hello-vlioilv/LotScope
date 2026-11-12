@@ -76,7 +76,10 @@ SCENARIOS = [
     {"name": "手元だけ（共有しない PC）", "mode": "local", "rows": [], "steps": [
         S(BOSS, "GET"), S(BOSS, "PUT", {"keys": {P: "20"}}), S(BOSS, "GET"),
     ], "delegates": []},
+    {"name": "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる）", "mode": "mirror", "rows": OLD, "steps": [S(BOSS, "GET")], "delegates": []},
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "rows": OLD, "steps": [
+        # 版 3.105.0（作った後の採点の割れ）: 共有にまだ無いマスタを最初に読む歩。Python も窓も読むときに最初の版を置く（置いたファイルも比べる）
+        S(BOSS, "GET"),
         S(BOSS, "PUT", {"keys": {P: "30"}}), S(BOSS, "GET"),
     ], "delegates": []},
     {"name": "同じ名前の行が 2 つ・後ろの行に値が無い（後ろが勝って字でなければ落ちる）", "mode": "shared",

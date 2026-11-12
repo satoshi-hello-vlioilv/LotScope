@@ -146,7 +146,10 @@ SCENARIOS = [
         S(BOSS, "PUT", f"{P}/10", {"note": "直した", "base_rev": 2}),
         S(BOSS, "DELETE", f"{P}/7"),
     ]},
+    {"name": "共有にまだ無い・読むだけ（版 3.105.0: 窓も Python も読むときに最初の版を置く。終わった後の共有のファイルを比べる）", "mode": "mirror", "shifts": OLD[:1], "steps": [S(BOSS, "GET", P)]},
     {"name": "共有にまだ無い（写しから最初の版）", "mode": "mirror", "shifts": OLD[:1], "steps": [
+        # 版 3.105.0（作った後の採点の割れ）: 共有にまだ無いマスタを最初に読む歩。Python も窓も読むときに最初の版を置く（置いたファイルも比べる）
+        S(BOSS, "GET", P),
         S(BOSS, "POST", P, {"name": "写しから", "segments": THREE}),
         S(BOSS, "GET", P),
     ]},

@@ -5,8 +5,9 @@
 //! 1 歩ごとの答え（状態・本文。断る言葉も 1 字まで）と、終わった後のフォルダの中身（引っ越し先のマスタ・利用状況の記録・前の置き場の印・
 //! この PC の覚え・写し）を突き合わせる。窓が答えず Python に任せる歩（delegates）は、窓が答えないことを見る。
 //! 比べない所: 場面のフォルダの道（@ROOT にそろえる）・時刻（<時刻>）・一時フォルダの名前の印。
-//! 種まきの競い合い（2 つのプロセスが同時に空の共有を読む）: 空の共有で、Python の status（種をまく）を別のプロセスで動かしながら窓の status を
-//! 繰り返し、窓は種まきの要る間は答えず（Python に任せる）、まき終えた後は Python と同じ答え・共有のマスタは壊れず版 1 のまま。
+//! 種まきの競い合い（版 3.105.0 から窓も種をまく）: 空の共有を、窓 2 つ（別の PC）と Python（別のプロセス）が合図で一斉に読み、
+//! どのマスタも置かれるのは 1 回だけ（錠の中で共有を見直す Store::seed・Python の _seed）・中身は置いた者の写しで壊れない・
+//! 錠も一時ファイルも残らない・まき終えた後の 3 つの答えは同じ。
 
 mod common;
 
@@ -261,56 +262,151 @@ fn master_place_matches_python() {
         }
     }
     eprintln!("歩 {steps}・写して切り替えた歩 {moved}・Python に任せた歩 {delegated}");
-    assert!(steps >= 45 && delegated >= 4 && moved >= 4, "歩が少ない: {steps}・{delegated}・{moved}");
+    // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
+    // 歩の下限は環境で違う（place_oracle.py の「空白だけ・ドライブだけ・共有の根」の 3 歩は POSIX だけ。Windows は 58。PR #105 の CI）
+    let min_steps = if cfg!(windows) { 58 } else { 61 };
+    assert!(steps >= min_steps && moved >= 4, "歩が少ない: {steps}・{delegated}・{moved}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// 2 つのプロセス（窓と Python）が同時に空の共有を読む: 種まきは Python の 1 か所。窓は種まきの要る間は答えない
+/// 窓と Python が置き場の状態に答える（Python は別のプロセス。seededByPython はこの Python が共有に最初の版を置いた名前）
+fn python_status(root: &str, ready_go: Option<(&Path, &Path)>) -> Value {
+    let mut args = vec!["--status".to_string(), root.to_string()];
+    if let Some((ready, go)) = ready_go {
+        args.extend(["--ready".into(), ready.to_string_lossy().into_owned(), "--go".into(), go.to_string_lossy().into_owned()]);
+    }
+    let a: Vec<&str> = args.iter().map(String::as_str).collect();
+    common::python_json("place_oracle.py", &a)
+}
+
+/// 種まきの競い合い（版 3.105.0。前は「種まきは Python の 1 か所」で、要る間は窓が答えなかった）: 空の共有を、窓 2 つ（別の PC:
+/// 作業場所と写しが別。A は Python と同じ PC）と Python（別のプロセス）が同時に読む（Python が支度を終えた印を見てから、合図で一斉に）。
+/// 見ること（5 回くり返す）: どのマスタも共有に置かれるのは 1 回だけ（窓の Store::seeded と Python が置いた名前の和）・置かれた中身は
+/// 置いた者の写し（A・Python は版 4 の「写しA」、B は版 7 の「写しB」）か最初の中身で壊れていない・錠も一時ファイルも残らない・
+/// まき終えた後の窓 2 つと Python の答えが同じ（置いた人・時刻・錠・名乗りは比べない）
 #[test]
-fn an_empty_share_is_seeded_once_by_python() {
+fn an_empty_share_is_seeded_once_by_whoever_comes_first() {
     let base = common::work("place-seed");
-    let oracle = common::python_json("place_oracle.py", &[base.to_str().unwrap()]);
+    let oracle = common::python_json("place_oracle.py", &[base.join("oracle").to_str().unwrap()]);
     let sc = oracle["scenarios"].as_array().unwrap().iter().find(|s| s["name"].as_str().unwrap().contains("空の共有")).unwrap();
     let rs = sc["roots"]["rs"].as_str().unwrap().to_string();
-    let conf = sc["conf"].clone();
-    let store = store_of(&conf);
-    let local = Local { configured: conf["configured"].as_str().unwrap_or("").into(), root: store.local_root().to_path_buf() };
-    let c = conf.clone();
-    let me = move || Gate::default().me(&c);
     let route = route_of("GET", "/api/masters/status").unwrap();
-    assert!(handle(route, "", b"", &store, &local, &me, &common::program()).is_none(), "空の共有: 窓は種をまかずに Python に任せる");
-    // Python の status（種をまく）を別のプロセスで動かす間、窓も尋ね続ける
-    let py = std::thread::spawn({
-        let rs = rs.clone();
-        move || common::python_json("place_oracle.py", &["--status", &rs])
-    });
-    let mut answered = 0;
-    while !py.is_finished() {
-        if handle(route, "", b"", &store, &local, &me, &common::program()).is_some() {
-            answered += 1;
+    let mut seeders = std::collections::BTreeMap::<&str, usize>::new();
+    for round in 0..5 {
+        // 場面の窓のフォルダ（Python がまだ触っていない形）を写して使う
+        let root = base.join(format!("r{round}"));
+        let copy = |from: &Path, to: &Path| {
+            fn walk(a: &Path, b: &Path) {
+                std::fs::create_dir_all(b).unwrap();
+                for e in std::fs::read_dir(a).unwrap().flatten() {
+                    let (x, y) = (e.path(), b.join(e.file_name()));
+                    if x.is_dir() {
+                        walk(&x, &y);
+                    } else {
+                        std::fs::copy(&x, &y).unwrap();
+                    }
+                }
+            }
+            walk(from, to);
+        };
+        copy(Path::new(&rs), &root);
+        let r = root.to_string_lossy().into_owned();
+        let conf_a: Value = serde_json::from_str(&sub_json(&sc["conf"].to_string().replace(&sub_json("@ROOT", &rs), "@ROOT"), &r)).unwrap();
+        // B は別の PC（作業場所・写し・名乗りが別）
+        let local_b = root.join("localB");
+        std::fs::create_dir_all(local_b.join("master_cache")).unwrap();
+        std::fs::write(local_b.join("instance_id"), "instB").unwrap();
+        let mut conf_b = conf_a.clone();
+        conf_b["place"]["cache"] = json!(local_b.join("master_cache").to_string_lossy());
+        conf_b["who"]["pc"] = json!("PC-B");
+        let doc = |who: &str, rev: i64| json!({"schema": 1, "revision": rev, "updated_at": "", "updated_by": {}, "rows": [{"id": 1, "設備名": who}]});
+        let cache_a = Path::new(conf_a["place"]["cache"].as_str().unwrap()).to_path_buf();
+        std::fs::create_dir_all(&cache_a).unwrap();
+        std::fs::write(cache_a.join("equipment_master.json"), doc("写しA", 4).to_string()).unwrap();
+        std::fs::write(local_b.join("master_cache/equipment_master.json"), doc("写しB", 7).to_string()).unwrap();
+        let share = root.join("share");
+        let absent: Vec<&str> = da_core::master_place::STATUS_NAMES
+            .iter()
+            .copied()
+            .filter(|n| conf_a["place"]["shared"].as_array().unwrap().contains(&json!(n)) && !share.join(format!("{n}.json")).exists())
+            .collect();
+        assert!(absent.len() >= 10 && absent.contains(&"equipment_master"), "空の共有に無いマスタ: {absent:?}");
+        let (sa, sb) = (store_of(&conf_a), store_of(&conf_b));
+        let ask = |store: &Arc<Store>, conf: &Value| {
+            let local = Local { configured: conf["configured"].as_str().unwrap_or("").into(), root: store.local_root().to_path_buf() };
+            let c = conf.clone();
+            let me = move || Gate::default().me(&c);
+            handle(route, "", b"", store, &local, &me, &common::program()).expect("窓が答える（版 3.105.0 から種まきも）").1
+        };
+        // Python が支度を終えてから、合図で 3 つが一斉に尋ねる
+        let (ready, go) = (root.join("ready"), root.join("go"));
+        let py = std::thread::spawn({
+            let (r, ready, go) = (r.clone(), ready.clone(), go.clone());
+            move || python_status(&r, Some((&ready, &go)))
+        });
+        while !ready.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
+        let start = std::sync::Barrier::new(3);
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                start.wait();
+                ask(&sa, &conf_a)
+            });
+            s.spawn(|| {
+                start.wait();
+                ask(&sb, &conf_b)
+            });
+            start.wait();
+            std::fs::write(&go, "1").unwrap();
+        });
+        let in_race = py.join().unwrap();
+        // まき終えた後: Python・窓 A・窓 B の順に尋ね直す（競い合いで錠に当たって置けなかった名前があれば、ここで置かれる）
+        let after = python_status(&r, None);
+        let (ga, gb) = (ask(&sa, &conf_a), ask(&sb, &conf_b));
+        let names = |v: &Value| -> Vec<String> {
+            v["seededByPython"].as_array().unwrap().iter().filter_map(|x| x.as_str().map(String::from)).collect()
+        };
+        let (pa, pb, p1, p2) = (sa.seeded(), sb.seeded(), names(&in_race), names(&after));
+        for n in &absent {
+            let who: Vec<&str> = [("窓A", &pa), ("窓B", &pb), ("Python", &p1), ("Python（後）", &p2)]
+                .iter()
+                .flat_map(|(w, v)| v.iter().filter(|x| x == n).map(move |_| *w))
+                .collect();
+            assert_eq!(who.len(), 1, "回 {round}: {n} を置いたのは 1 回だけのはず: {who:?}");
+            *seeders.entry(who[0]).or_default() += 1;
+            let d: Value = serde_json::from_slice(&std::fs::read(share.join(format!("{n}.json"))).unwrap()).expect("置いた中身が JSON");
+            assert!(d["rows"].is_array() && d["schema"] == 1, "回 {round}: {n}: {d}");
+            if *n == "equipment_master" {
+                let (name, rev) = if who[0] == "窓B" { ("写しB", 7) } else { ("写しA", 4) };
+                assert_eq!(
+                    (d["rows"][0]["設備名"].as_str(), d["revision"].as_i64()),
+                    (Some(name), Some(rev)),
+                    "回 {round}: 置いた者 {who:?} の写し: {d}"
+                );
+            } else {
+                assert!(d["revision"].as_i64().unwrap() >= 1, "回 {round}: {n}: {d}");
+            }
+        }
+        for e in std::fs::read_dir(&share).unwrap().flatten() {
+            let f = e.file_name().to_string_lossy().into_owned();
+            assert!(!f.ends_with("master.lock.json") && !f.contains(".tmp"), "回 {round}: 残った {f}");
+        }
+        let strip = |v: &Value| {
+            let mut v = norm(v, &r);
+            for m in v["masters"].as_object_mut().unwrap().values_mut() {
+                m.as_object_mut().unwrap().remove("updated_by");
+            }
+            for k in ["last_sync", "error", "lock", "who", "seededByPython"] {
+                v.as_object_mut().unwrap().remove(k);
+            }
+            v
+        };
+        assert_eq!(common::diff(&strip(&after), &strip(&ga), ""), None, "回 {round}: 窓A {ga}\nPython {after}");
+        assert_eq!(common::diff(&strip(&after), &strip(&gb), ""), None, "回 {round}: 窓B {gb}\nPython {after}");
     }
-    let want = py.join().unwrap();
-    let got = handle(route, "", b"", &store, &local, &me, &common::program()).expect("まき終えた後は窓が答える").1;
-    let strip = |v: &Value| {
-        let mut v = norm(v, &rs);
-        // 更新した人（種をまいた Python のプロセスの名乗り〈試験では本物の名乗り〉）は比べない
-        for m in v["masters"].as_object_mut().unwrap().values_mut() {
-            m.as_object_mut().unwrap().remove("updated_by");
-        }
-        for k in ["last_sync", "error", "lock", "who"] {
-            v.as_object_mut().unwrap().remove(k);
-        }
-        v
-    };
-    assert_eq!(common::diff(&strip(&want), &strip(&got), ""), None, "窓 {got}\nPython {want}");
-    for n in da_core::master_place::STATUS_NAMES {
-        let d: Value = serde_json::from_slice(&std::fs::read(Path::new(&rs).join("share").join(format!("{n}.json"))).unwrap()).unwrap();
-        assert!(d["revision"].as_i64().unwrap() >= 1 && d["rows"].is_array(), "{n}: {d}");
-    }
-    assert!(!Path::new(&rs).join("share/master.lock.json").exists(), "錠が残らない");
-    eprintln!("Python が種をまく間に窓が答えた回数 {answered}");
+    eprintln!("置いた者（マスタ × 回）: {seeders:?}");
     let _ = std::fs::remove_dir_all(&base);
 }
 

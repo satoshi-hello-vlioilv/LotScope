@@ -8,6 +8,10 @@
 - cases … [ビット（16 進）, repr, json.dumps]。値は、いちばん短い字が 2 つ並ぶ丁度まん中の値（2^48〜2^57 に .125〜.875 を足した値。
           Rust の {:e} は上へ、Python は偶数へ丸める）・字の書き方が変わる境（1e-05〜0.0001・1e16）・10 の累乗・決まった乱数のビット・
           -0.0・いちばん小さい数（5e-324）・いちばん大きい数
+- fields（版 3.105.0）… [本文の欄の JSON の字, str(値), str(値 or "")]。書く道が名前・備考などの欄の値に当てる Python の str() と
+          str(v or "")（偽の値は空の字）を、小数（-0.0・1e16 の境・丁度まん中の値）・i64 と u64 の境の整数（serde は u64 まで正確に持ち、
+          それを超えると小数に読む）・真偽・null で焼く。窓（worksum::py_str・str_plain と master_rows::unreadable_u64_ok）は、答える欄の値は
+          同じ字を書き、有限の小数と u64 までの整数は必ず答えることを確かめる
 """
 import json
 import random
@@ -51,18 +55,30 @@ def values():
     return out
 
 
+# 欄の値の JSON の字（版 3.105.0。作る前の採点の指摘: -0.0・1e16 以上の小数・u64 の境）
+FIELDS = ["1.5", "0.1", "-2.25", "1059438285926254.2", "1059438285926254.25", "-0.0", "0.0", "-0e0", "1e16", "1E+16", "1e15", "9999999999999998.0",
+          "1e17", "1e-05", "0.0001", "1e-07", "5e-324", "1.7976931348623157e308", "1e19", "1.8446744073709552e19", "9.2e18",
+          "0", "1", "-1", "9007199254740993", "9223372036854775807", "-9223372036854775808", "9223372036854775808", "12345678901234567890",
+          "18446744073709551615", "18446744073709551616", "-9223372036854775809", "100000000000000000000", "true", "false", "null", '"字"', '""']
+
+
+def field(s):
+    v = json.loads(s)
+    return [s, str(v), str(v or "")]
+
+
 def build():
     cases = [[struct.pack(">d", f).hex(), repr(f), json.dumps(f)] for f in values()]
-    return {"python": sys.version.split()[0], "cases": cases}
+    return {"python": sys.version.split()[0], "cases": cases, "fields": [field(s) for s in FIELDS]}
 
 
 def main():
     new = build()
     if "--check" in sys.argv:
         have = json.loads(OUT.read_text(encoding="utf-8"))
-        sys.exit(0 if have["cases"] == new["cases"] else 1)
+        sys.exit(0 if have["cases"] == new["cases"] and have.get("fields") == new["fields"] else 1)
     OUT.write_text(json.dumps(new, ensure_ascii=False, indent=0) + "\n", encoding="utf-8")
-    print(f"{OUT}: {len(new['cases'])} 件")
+    print(f"{OUT}: {len(new['cases'])} 件・欄の値 {len(new['fields'])} 件")
 
 
 if __name__ == "__main__":

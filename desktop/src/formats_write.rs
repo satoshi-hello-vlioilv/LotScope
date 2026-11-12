@@ -11,8 +11,8 @@
 //! 現場のマスタと同じ（門番 access::guard。呼ぶ側が通す）。中身は送った順のまま json.dumps(separators=(',', ':')) の字で置く
 //! （送った順を保つ木 src/jsontree.rs）。名前は元ごとに 1 つ（名前の比べ方は access::py_key）。
 //!
-//! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable）・空の本文・表でない真の本文・本文の name・table・origin・note が
-//! 小数・並び・表・大きな整数（Python の str() の字）・中身を字で送り、その字を窓が Python と同じに読めない（text_split）・置き場の行の形が違う
+//! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
+//! 本文の name・table・origin・note が並び・表（Python の str() の repr の字。小数と u64 の整数は版 3.105.0 から窓が答える）・中身を字で送り、その字を窓が Python と同じに読めない（text_split）・置き場の行の形が違う
 //! （中身の部品の形・字でない項目）・道の id が ASCII の数字でない。
 
 use crate::jsontree::Tree;
@@ -147,15 +147,6 @@ fn rows_plain(rows: &[Value]) -> bool {
     })
 }
 
-/// 本文の項目の値を Python の str() と同じ字にできるか（字・i64 の整数・真偽・null）
-fn str_plain(v: &Value) -> bool {
-    match v {
-        Value::Number(n) => n.as_i64().is_some(),
-        Value::Array(_) | Value::Object(_) => false,
-        _ => true,
-    }
-}
-
 fn str_or_empty(v: Option<&Value>) -> String {
     match v {
         Some(x) if truthy(x) => py_str(x),
@@ -244,7 +235,8 @@ fn check(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Res
 
 /// 置き場から行を読んで答える（Lot::formats_route と試験 tests/formats_parity.rs の入口。門番は呼ぶ側）。窓が答えない形は None
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
-    if place.split_file(NAME) || (route == Route::List && place.share_absent(NAME)) {
+    // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）
+    if place.split_file(NAME) || (route == Route::List && !store.seed_absent(&[NAME])) {
         return None;
     }
     let rows = place.rows(NAME).ok()?;
@@ -269,7 +261,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             json!({"items": items, "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)}),
         ));
     }
-    if master_rows::unreadable(body) {
+    if master_rows::unreadable_u64_ok(body) {
         return None;
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
@@ -290,7 +282,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     }
     let empty = Map::new();
     let d = parsed.as_object().unwrap_or(&empty);
-    if !["name", "table", "origin", "note"].iter().all(|k| d.get(*k).is_none_or(str_plain)) {
+    if !["name", "table", "origin", "note"].iter().all(|k| d.get(*k).is_none_or(crate::worksum::str_plain)) {
         return None;
     }
     let tree = if parsed.is_object() { tree } else { Tree::Obj(vec![]) };

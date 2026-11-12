@@ -25,6 +25,8 @@
     "accepted_by_user": {"date": "…", "note": "…"} … 作った後を直して採点し直しても合格点に届かず、利用者がその形で決めたとき（版 3.63.0）。
     "rule": "2026-11-06" … 画面に関係のない改良（Rust 化・作り・速さなど）。案の採点は 1 回だけで、届かなくても 1 位に指摘を直して入れた形で作る。
     作った後の採点も 1 回だけで、"built_fixed" に、見つかった割れを直した事と、足した突き合わせの試験を書く（採点し直さない）。
+    1 つの比較で版を分けて作ったときは、版ごとの作った後を "built_3105" のような節に書き（形は "built" と同じ）、直した事はその節の
+    "fixed"（か "built_3105_fixed"）に書く（形は "built_fixed" と同じ）。判定は節を全部並べ、いちばん新しい節（ファイルの後ろの節）で決める（版 3.105.0）。
     判定は「利用者が受け入れた」（届いていれば、ほかと同じく「当てた」）。足りない点と理由は note と採点の記録に残す。
     案の値が 7 つの数の並び（list）のファイルは、旧い決まり（7 基準・80 点・7 案）の記録として読む（判定はしない）。
 
@@ -169,10 +171,27 @@ def applied_kind(data, t):
     return "利用者が受け入れた" if accepted else "直す"
 
 
+def built_stages(data):
+    """作った後の節の並び（ファイルの順）→ [(鍵, 節, 直した事)]。"built" と版ごとの "built_<版>"（"built_fixed"・"…_fixed" は直した事なので除く）"""
+    out = []
+    for k, v in data.items():
+        if not isinstance(v, dict) or not (k == "built" or (k.startswith("built_") and not k.endswith("_fixed") and k != "built_fixed")):
+            continue
+        fixed = data.get("built_fixed") if k == "built" else (v.get("fixed") or data.get(f"{k}_fixed"))
+        out.append((k, v, fixed))
+    return out
+
+
+def latest_built(data):
+    """いちばん新しい作った後の節（無ければ {}）"""
+    st = built_stages(data)
+    return st[-1][1] if st else {}
+
+
 def decide(data):
     """回を順に判定する。返り値: ("選ぶ" | "届かずに選ぶ" | "出し直す" | "記録", 名前, 順位)"""
     if data.get("applies"):           # ほかの比較で決めた形を当てた記録: 作った後が合格点以上か
-        built = data.get("built") or {}
+        built = latest_built(data)
         t = total(built["result"]) if built.get("result") else 0
         return applied_kind(data, t), data["applies"], [(t, built.get("name", ""), built.get("result"))]
     chosen = data.get("chosen_by_user")
@@ -180,7 +199,7 @@ def decide(data):
         names = [n for rnd in data["rounds"] for n in rnd["proposals"]]
         if chosen.get("proposal") not in names:
             raise ValueError(f"利用者が選んだ案（{chosen.get('proposal')}）が回の案に無い")
-        built = data.get("built") or {}
+        built = latest_built(data)
         if built.get("result") and not data.get("evaluator"):
             raise ValueError("作った後の採点した者（evaluator）が無い")
         rows = [(total(built["result"]), built.get("name", ""), built["result"])] if built.get("result") else []
@@ -273,17 +292,21 @@ def report(data):
     else:
         print(f"→ まだ選ばない（1 位 {rows[0][0]:.1f} 点 < この回の合格点 {mark} 点。次の回は {pass_mark(len(data['rounds']), rule)} 点）。低い項目と減点を見直し、案出しからやり直す"
               f"（{MIN_PROPOSALS} 案以上・新しい案 {MIN_NEW} 案以上）。採点はまた別のエージェントが、撮り直した画像で付ける")
-    built = data.get("built")
-    if built:
+    stages = built_stages(data)
+    for i, (key, built, fixed) in enumerate(stages):
+        if not built.get("result"):
+            continue
         t = total(built["result"])
-        print(f"== {built['name']}（作った後の本物の画面）  {t:.1f} 点  {describe(built['result'])}\n      見えたこと: {built['result'].get('seen', '')}")
+        last = i == len(stages) - 1
+        print(f"== {built.get('name', key)}（作った後の本物の画面{'' if last else '。前の版'}）  {t:.1f} 点  {describe(built['result'])}\n"
+              f"      見えたこと: {built['result'].get('seen', '')}")
         accepted = data.get("accepted_by_user")
-        fixed = data.get("built_fixed")
         if t < mark and rule.get("built_once"):
             if fixed:
                 print(f"→ 作った後の採点は 1 回（画面に関係のない改良）。{mark} 点に届かないが、見つかった割れを直して突き合わせの試験に足した: {fixed}")
             else:
-                print("→ 作った後の採点は 1 回（画面に関係のない改良）。見つかった割れをすべて直し、その形を突き合わせの試験に足して、直した事を \"built_fixed\" に書く")
+                where = "\"built_fixed\"" if key == "built" else f"\"{key}\" の \"fixed\""
+                print(f"→ 作った後の採点は 1 回（画面に関係のない改良）。見つかった割れをすべて直し、その形を突き合わせの試験に足して、直した事を {where} に書く")
         elif t < mark and accepted:
             print(f"→ 作った後は {mark} 点（決めた回の合格点）に届かないが、利用者がこの形で決めた（{accepted.get('date', '')}）。{accepted.get('note', '')}")
         else:
@@ -305,7 +328,7 @@ def report_applied(data):
     mark = rule_of(data)["pass"][-1]
     for name, e in data.get("baseline", {}).items():
         print(f"  （{name}）\n      {total(e):5.1f} 点  {describe(e)}\n      見えたこと: {e.get('seen', '')}")
-    built = data.get("built")
+    built = latest_built(data)
     if not built:
         raise ValueError("作った後（built）が無い")
     t = total(built["result"])

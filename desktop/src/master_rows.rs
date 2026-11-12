@@ -70,6 +70,12 @@ pub(crate) fn normalize_all(rows: &mut [Value], spec: &Spec) {
 /// 整数の -0（Python は int の 0、serde は小数の -0.0）・i64 に入らない整数（Python の int は桁のまま、serde は u64 か小数）。
 /// 事例の表 tests/fixtures/jsonnum_cases.json（Python 3.13 の json.loads と str()）で突き合わせる
 pub(crate) fn split_number(body: &[u8]) -> bool {
+    split_number_in(body, false)
+}
+
+/// split_number の決まりで、wide なら i64 を超えて u64 に入る整数は割れない物として見る（serde は u64 で正確に持ち、
+/// worksum::py_str は桁のまま書く。版 3.105.0）。u64 を超える整数（serde は小数に読む）と整数の -0 は wide でも割れる
+fn split_number_in(body: &[u8], wide: bool) -> bool {
     let (mut i, mut in_str) = (0usize, false);
     while i < body.len() {
         let b = body[i];
@@ -93,7 +99,7 @@ pub(crate) fn split_number(body: &[u8]) -> bool {
                 i += 1;
             }
             let tok = std::str::from_utf8(&body[start..i]).unwrap_or("");
-            if !tok.contains(['.', 'e', 'E']) && (tok == "-0" || tok.parse::<i64>().is_err()) {
+            if !tok.contains(['.', 'e', 'E']) && (tok == "-0" || (tok.parse::<i64>().is_err() && !(wide && tok.parse::<u64>().is_ok()))) {
                 return true;
             }
             continue;
@@ -154,6 +160,14 @@ pub fn text_split(t: &str) -> bool {
 /// 読みが割れる数がある）。そのときは窓は答えず Python に任せる。書く道の組（権限・勤務体系・設備・ロール）はみなこれを使う
 pub fn unreadable(body: &[u8]) -> bool {
     !body.iter().all(|b| b.is_ascii_whitespace()) && (serde_json::from_slice::<Value>(body).is_err() || split_number(body))
+}
+
+/// unreadable と同じだが、i64 を超えて u64 に入る整数は窓が答える（版 3.105.0。焼いた表で確かめて外す G）。使うのは、本文の数を
+/// str() の字か、版（int() の Big）か、送った順の木（jsontree::Tree。u64 は桁のまま書く）にしか使わない道だけ:
+/// 共有の書式（formats_write）・ダッシュボードのセット（dash_sets）・設備とロール（equip_write）。事例は jsonnum_cases.json と
+/// pyfloat_cases.json の fields（cargo test --test jsonnum_cases・pyfloat_cases）
+pub fn unreadable_u64_ok(body: &[u8]) -> bool {
+    !body.iter().all(|b| b.is_ascii_whitespace()) && (serde_json::from_slice::<Value>(body).is_err() || split_number_in(body, true))
 }
 
 pub(crate) fn same_id(r: &Value, id: i64) -> bool {

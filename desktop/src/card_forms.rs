@@ -311,7 +311,8 @@ fn is_card(r: &Map<String, Value>) -> bool {
 
 /// 置き場から行を読んで答える（Lot::cards_route と試験 tests/cards_parity.rs の入口）。窓が答えない形は None
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
-    if place.split_file(DASHBOARDS.name) || (route == Route::List && place.share_absent(DASHBOARDS.name)) {
+    // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）
+    if place.split_file(DASHBOARDS.name) || (route == Route::List && !store.seed_absent(&[DASHBOARDS.name])) {
         return None;
     }
     let rows = place.rows(DASHBOARDS.name).ok()?;

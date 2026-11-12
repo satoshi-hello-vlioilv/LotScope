@@ -100,7 +100,9 @@ fn shift_masters_match_python() {
     let (mut steps, mut delegated) = (0, 0);
     for sc in oracle["scenarios"].as_array().unwrap() {
         let name = sc["name"].as_str().unwrap();
-        let store = store_of(&sc["conf"], &sc["storeWho"]);
+        // 窓の読み（access::Place）が共有にまだ無いマスタを読むときに種をまく係として覚えさせる（版 3.105.0。本物の窓は Lot::store_for）
+        let store = std::sync::Arc::new(store_of(&sc["conf"], &sc["storeWho"]));
+        da_core::master_store::remember_seeder(&store);
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             steps += 1;
             let Some((status, got)) = answer(&store, &sc["conf"], st) else {
@@ -152,7 +154,8 @@ fn shift_masters_match_python() {
             }
         }
     }
-    assert!(steps >= 45 && delegated >= 6, "歩が少ない: {steps}・{delegated}");
+    // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
+    assert!(steps >= 45, "歩が少ない: {steps}・{delegated}");
     let _ = std::fs::remove_dir_all(&base);
     assert!(bad.is_empty(), "{} 件の食い違い:\n{}", bad.len(), bad.join("\n"));
 }
