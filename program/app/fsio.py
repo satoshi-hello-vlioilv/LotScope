@@ -49,7 +49,9 @@ def write_json_atomic(path, data, *, indent: int = 2, durable: bool = False, ret
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        with open(tmp, "w", encoding="utf-8") as f:
+        # 改行は OS によらず "\n"（窓〈Rust〉と同じ字。版 3.101.0: Windows では文字のモードが "\r\n" に替え、Python と窓が書いた同じマスタの
+        # バイトが違って、引っ越しの写す量が Windows の CI だけ食い違った。読む側はどちらも読めるが、書く形は 1 つにする）
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
             json.dump(data, f, ensure_ascii=False, indent=indent)
             f.write("\n")
             if durable:
