@@ -346,8 +346,8 @@
    }
   }
  ],
- "built_ui": {
-  "name": "作った後の画面の知らせ（版 3.107.0・commit 8b8b828。一覧の答えの skipped・unreadable を TPA.skipNote が『⚠ 読めない行 n』の札にした。ダッシュボードの道具の行・カードのデザインの選びの横・組み方の面の見出し・共有の書式の面の見出し・マスタ管理の置き場の帯。UI の物差し・合格点 80〈rule 2026-10-17 と同じ〉）",
+ "built_ui_round1": {
+  "name": "作った後の画面の知らせ・1 回目（版 3.107.0・commit 8b8b828。一覧の答えの skipped・unreadable を TPA.skipNote が『⚠ 読めない行 n』の札にした。ダッシュボードの道具の行・カードのデザインの選びの横・組み方の面の見出し・共有の書式の面の見出し・マスタ管理の置き場の帯。UI の物差し・合格点 80〈rule 2026-10-17 と同じ〉）",
   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3107/score-ui/after（作った後。ui-eval-skiprows.mjs を TPA_UI_BAD_ROWS で自分で流して撮った skip-<所>-<大きさ>.png の 15 枚。1728×1152・1536×864・1280×720）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3107/score-ui/before-shots（作る前。485ce66 の program を取り出し、開発用サーバーに同じ壊れた行を足す所〈ui_server.py の TPA_UI_BAD_ROWS〉だけを当てて同じ道具で撮った 15 枚）",
   "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）。作った係の画像（shots-after・shots-before）は使わず、自分で撮った 30 枚を開いて見た。評価関数 ui-eval-skiprows は作った後 31 項目すべて OK・終了コード 0（作る前は 12 OK・19 NG。札が無い）",
   "baseline": {
@@ -402,6 +402,67 @@
    "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3107/shots-after2（ui-eval-skiprows.mjs を TPA_UI_BAD_ROWS で流して撮った。skip-<所>-<大きさ>.png・面を開いた所 skip-dash-open-*・一般ユーザー skip-dash-user-*・マスタ管理 skip-master-open-*。1728×1152・1536×864・1280×720）",
    "self_check": "1280×720 の全部と 1536 の面を開いて見た: 道具の行の札は 1 段で操作と重ならない・面は画面に収まり、項目の名前は長いと … で切れるが理由は下の小さな字で読める・一般ユーザーは行が押せない灰で『管理者に知らせてください』・マスタ管理の帯を押すと面がリストの上に開き id 902 の行は × で消せる（消した後は帯の読めない行が 1 つに）・書式の面の札は黄の丸い札のまま",
    "eval": "node program/tools/ui-eval-skiprows.mjs → OK すべて（押せる札・Enter で面・何行目と要約と理由・一般ユーザーの言葉・数が今の面と合う・名前が数の行が一覧に出て PUT 200・面から消すと減る）"
+  }
+ },
+ "built_ui": {
+  "name": "作った後の画面の知らせ・2 回目（版 3.107.0・commit 128be81。札は押せるボタンになり、押すと理由の面〈何行目・要約・何の行か・理由〉。直せる人には × の行とマスタ管理で見る、ほかの人には管理者に知らせる。数は今の面の元の行だけ。マスタ管理の帯も押せる。UI の物差し・合格点 80〈rule 2026-10-17 と同じ〉）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3107/score-ui2/shots（作った後。ui-eval-skiprows.mjs を TPA_UI_BAD_ROWS で自分で流して撮った 24 枚〈skip-dash・skip-dash-open・skip-dash-user・skip-formats・skip-card・skip-presets・skip-master・skip-master-open × 1728×1152・1536×864・1280×720〉と、自分の測りの道具 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3107/score-ui2/tools/measure.mjs で撮った my-dash-user-*・my-formats-more-*。測った数は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3107/score-ui2/measure.json）。作る前は 1 回目と同じ /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3107/score-ui/before-shots",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）。作った係の画像（shots-after2）は使わず、自分で撮った 26 枚を 1 枚ずつ開いて見て、面の字のコントラスト・切れ・帯の段・焦点を自分で測った。ui-eval-skiprows は 39 項目すべて OK・終了コード 0。コードは直していない・cargo は使っていない",
+  "baseline": {
+   "score": {
+    "order": 5,
+    "chunk": 6,
+    "hierarchy": 5,
+    "visual": 2,
+    "steps": 4,
+    "effortless": 3,
+    "intuitive": 5,
+    "form": 6,
+    "place": 5,
+    "layout": 7,
+    "tone": 6
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "before-shots/skip-dash-*.png の道具の行・skip-presets-*.png の組み方の見出し・skip-card-*.png のデザインの選び: dashboards.json・pivot_presets.json に読めない行があっても何も出ない（壊れた組み方・カードの設計・セットは黙って無いか、名前が数のまま並ぶ）"
+    }
+   ],
+   "seen": "作る前は、読めない行があることがどこにも出ない。共有の書式の面（skip-formats-1280x720.png）には名前が数の行が『5』『中身なし』の普通の書式として並び、当てる・… で直す・消すことはできる（Python の PUT・DELETE が 200）。ダッシュボード（skip-dash-1280x720.png）は名前が数の行も含めて普通に開き、壊れた行に気づく手がかりが無い。マスタ管理の置き場の帯は表でない行だけを言い、id が字の行（skip-master-*.png）は帯に何も出ない"
+  },
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 8,
+    "steps": 8,
+    "effortless": 7,
+    "intuitive": 8,
+    "form": 8,
+    "place": 9,
+    "layout": 8,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "cut",
+     "where": "skip-dash-user-1728x1152.png・skip-dash-user-1280x720.png（一般ユーザーの面のいちばん下）: 直し方の言葉『管理者（マスタを直せる人）に知らせてくだ…』が … で切れる（測った数: 字の幅 290px > 欄 286px。1728 でも 1280 でも）。一般ユーザーが読むいちばん大事な 1 行"
+    },
+    {
+     "kind": "cut",
+     "where": "skip-dash-open-1280x720.png・skip-dash-user-*.png の面の 1 行目: 『2 行目 id 903・名前 \\'版の読めないダッシュボ…』と行の名前が切れる（303px > 286px。title にも出ないので、どの行かを最後まで読めない）"
+    },
+    {
+     "kind": "unreadable",
+     "where": "skip-dash-user-*.png の 3 行と『管理者に知らせてください』・skip-master-open-*.png の『18 行目 id \\'x\\'…』・skip-dash-open-*.png の『消すか、ファイルを直してください』: 押せない項目の 13px の字が灰でコントラスト 2.57（白の上。4.5 未満）。押せない操作の灰を、読ませたい知らせ・直し方に使っている（理由の小さな字は 4.58）"
+    },
+    {
+     "kind": "wrap",
+     "where": "skip-master-1280x720.png・skip-master-open-1280x720.png: マスタ管理の置き場の帯で、読めない行が 2 つの知らせが長く、『マスタの置き場 ›』が 2 段目へ落ちる（測った数: 知らせの上 108px・ボタンの上 132px。1728・1536 は 1 段。1 回目の 1 行の知らせでは 1280 も 1 段だった）"
+    }
+   ],
+   "seen": "1 回目の弱い所 1〜4 は直った。(1) 札は焦点が当たるボタンで（Tab の焦点を確かめた）、Enter・クリックで理由の面が札の真下に開く（skip-dash-open-*.png）。面は右クリックのメニューと同じ形で、頭『dashboards.json の読めない行』・まとまり『保存したダッシュボード・ダッシュボードのセットの読めない行（一覧では飛ばしています）』『ほかの画面の行』・行ごとに『2 行目 id 903・名前 …』と小さな字の理由（『保存したダッシュボード・版（rev）が読めません（\\'二\\'）。押すと消します』）。(2) 直す道: マスタを直せる人には × の行（押すと確かめの面で消す）と、タブのあるマスタは『› マスタ管理で見る』（skip-master-open-1280x720.png）。一般ユーザーには行が押せない ⚠ になり、いちばん下に『管理者（マスタを直せる人）に知らせてください』と『dashboards.json の何行目かを伝えると…』（skip-dash-user-*.png）。(3) 数は今の面の元だけ: 書式の面は『⚠ 共有の書式の読めない行 1』（品質の 1 行。作業実績の行は面の『ほかの画面の行』）、カードの窓は当たる行が無いので札が出ない（skip-card-1280x720.png）。(4) 札が何の行かを言う: 『⚠ 保存したダッシュボード・ダッシュボードのセットの読めない行 2』『⚠ 組み方の読めない行 1』。札は 3 つの大きさとも 1 段で、道具の行の操作と重ならない（skip-dash-1280x720.png）。機能が戻ったことも画面で見た: 名前が数の書式『5』が書式の面に普通に並び、… を押すと『いまの表示（仕掛）で上書き』『共有から削除』が出る（my-formats-more-1280x720.png）。評価関数でも名前が数の書式の PUT が 200・名前が数のダッシュボードが一覧に出る・マスタ管理の面から id 902 の行を消すと帯の読めない行が 1 つ減る。残る所（減点の 4 つ）: 一般ユーザーの直し方の 1 行と行の名前が … で切れる・押せない項目の灰の字がコントラスト 2.57・1280 のマスタ管理の帯でボタンが 2 段目へ落ちる。ほかに弱い所（減点にはしない）: ダッシュボードの道具の行の札『保存したダッシュボード・ダッシュボードのセットの読めない行 2』は 1280 で 470px ほどあり、主の『標準 ▾』より目を引く（階層化）。マスタ管理の帯の知らせは点線の下線の字のボタンで、ほかの 4 か所の黄の丸い札と形が違う（帯の .place-caution に合わせた）"
   }
  },
  "built": {
