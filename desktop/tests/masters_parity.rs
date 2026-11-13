@@ -366,8 +366,8 @@ fn append(st: &Store, name: &str) -> Result<i64, MasterError> {
     })
 }
 
-/// 窓が値を変えずに書き戻せない数（i64・u64 に入らない整数・NaN・Infinity）は、書かずに理由を付けて断り、ファイルを変えない。
-/// 版が端（i64 の最大）でも断り、錠を残さない。版の字（真偽・"1_0"）は Python の int() と同じに読む
+/// 版が端（i64 の最大）なら書かずに理由を付けて断り、ファイルを変えず、錠を残さない（大きな整数・NaN・Infinity は版 3.107.0・3.108.0 から
+/// 持ったまま書き戻す）。版の字（真偽・"1_0"）は Python の int() と同じに読む
 #[test]
 fn numbers_the_window_cannot_keep_are_refused() {
     let work = common::work("masters-numbers");
@@ -375,16 +375,23 @@ fn numbers_the_window_cannot_keep_are_refused() {
     let st = plain_store(&work, true, 20.0);
     let share = work.join("share/equipment_master.json");
     // 版 3.107.0: NaN・Infinity・1E400 は src/held.rs が J のまま持ち、Python の json.dumps と同じ字（NaN・Infinity）で書き戻す（下で確かめる）
-    for (body, why) in [
-        (r#"{"schema": 1, "revision": 1, "rows": [{"id": 1, "big": 123456789012345678901234}]}"#, "大きな整数"),
-        (r#"{"schema": 1, "revision": 9223372036854775807, "rows": []}"#, "版の端"),
-    ] {
+    // 版 3.108.0（H2）: i64・u64 に入らない整数も J のまま持ち、桁のまま書き戻す（前は断った。下で確かめる）
+    {
+        let (body, why) = (r#"{"schema": 1, "revision": 9223372036854775807, "rows": []}"#, "版の端");
         std::fs::write(&share, body).unwrap();
         let e = append(&st, "equipment_master").expect_err(why);
         assert_eq!(e.kind(), "error", "{why}: {e:?}");
         assert_eq!(std::fs::read_to_string(&share).unwrap(), body, "{why}: ファイルを変えない");
         assert!(!work.join("share").join(LOCK_FILENAME).exists(), "{why}: 錠を残さない");
     }
+    // 大きな整数の行は桁のまま書き戻し、次の id も桁で数える（Python の int と同じ。版 3.108.0）
+    std::fs::write(&share, r#"{"schema": 1, "revision": 1, "rows": [{"id": 100000000000000000000, "big": -123456789012345678901234}]}"#)
+        .unwrap();
+    let t = {
+        append(&st, "equipment_master").expect("大きな整数");
+        std::fs::read_to_string(&share).unwrap()
+    };
+    assert!(t.contains(r#""big": -123456789012345678901234"#) && t.contains(r#""id": 100000000000000000001"#), "{t}");
     // NaN・1E400 の行は持ったまま書き戻す（Python の json.dumps と同じ NaN・Infinity の字。版 3.107.0）
     std::fs::write(&share, r#"{"schema": 1, "revision": 1, "rows": [{"id": 1, "x": NaN, "y": [1E400, -Infinity]}]}"#).unwrap();
     assert_eq!(append(&st, "equipment_master").unwrap(), 2);

@@ -190,14 +190,20 @@ SCENARIOS = [
                         ("中身の入れ子が 200 段", R(2, "深い中身", "dashset", "共通", body=DEEP)),
                         ("ほかの元の行の値の入れ子が 130 段", dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130)))]],
     # 版 3.107.0（E4）: 読まない値（ほかの元の行の知らない鍵）の NaN・Infinity・1e400 は持ったまま書き戻す。対の無い代用字はファイルごと読めない
-    # （写しで続けて帯・書く道は断る）。i64 に入らない整数はまだ任せる（H2）
-    *[{"name": f"共有のファイルの字に {what}（{'窓は答えず Python に任せる' if raw.startswith('1' + '0' * 5) else '窓も答える'}）", "mode": "shared",
+    # （写しで続けて帯・書く道は断る）。版 3.108.0（H2）から i64 に入らない整数も桁のまま持って書き戻す
+    *[{"name": f"共有のファイルの字に {what}（窓も答える）", "mode": "shared",
        "rows": [R(1, "良い行", "dashset", "共通"), dict(R(2, "生の値", "dash", "共通", note=note), x="@RAW@")], "raw": raw,
-       "steps": [], "delegates": [(W if not raw.startswith("1" + "0" * 5) else (lambda x: x))(x) for x in [
+       "steps": [], "delegates": [W(x) for x in [
            S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}), S(PART, "PUT", 1, {"name": "b"})]]}
       # 版 3.106.0: 整数の -0 は窓も Python と同じ 0 と読み、0 と書き戻す（master_rows::inner_text）
       for what, note, raw in [("NaN", "", "NaN"), ("Infinity", "", "Infinity"), ("1e400", "", "1e400"), ("整数の -0", "", "-0"),
                               ("i64 に入らない整数", "", "1" + "0" * 30), ("対の無い代用字", "@SUR@", '"x"')]],
+    # 版 3.108.0（H2）: 行の id が i64・u64 に入らない整数（一覧の id は桁のまま・道の大きな id で直す・消す・次の id は桁で数える）
+    {"name": "置き場の行の id が i64・u64 に入らない整数", "mode": "shared",
+     "rows": [R(1, "良い行", "dashset", "共通"), R(10 ** 20, "大きな id", "dashset", "共通")], "steps": [],
+     "delegates": [W(x) for x in [S(PART, "GET"), S(PART, "POST", body={"name": "足す", "scope": "me", "body": {"items": ["1"]}}),
+                                  S(PART, "PUT", 10 ** 20, {"name": "直す", "base_rev": 1}), S(PART, "GET"), S(PART, "DELETE", 10 ** 20),
+                                  S(PART, "GET")]]},
     # 版 3.107.0（E3）: 版の読めないファイルは読めないファイルとして写しで続け（一覧に unreadable の帯）、書く道は断る
     *[{"name": f"共有のファイルの版 revision が {what}（Python の int() が読めない。写しで続け、書く道は断る）", "mode": "shared",
        "rows": [R(1, "良い行", "dashset", "共通"), R(4, "私の", "dashset", "ID", login="p1")], "rev": rev, "steps": [],

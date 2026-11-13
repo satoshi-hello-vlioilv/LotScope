@@ -70,6 +70,10 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     if let Some((status, kind, msg)) = access::guard(method, path, &me) {
         return Some((status, json!({"error": msg, "kind": kind})));
     }
+    // 読めない行を何行目かで消す道（版 3.108.0。門番は道のマスタの名前で見る。本物の道は Lot::rows_route）
+    if let Some((_, name, row)) = da_core::master_rows::rows_route_of(method, path) {
+        return da_core::master_rows::rows_delete(store, &name, &row, step["query"].as_str().unwrap_or(""));
+    }
     let route = route_of(method, path).expect("窓が受ける道");
     let rows = access::Place::from_json(&c["place"]).rows(route.kind().name()).unwrap();
     handle(store, route, step["query"].as_str().unwrap_or(""), &gated, &rows)

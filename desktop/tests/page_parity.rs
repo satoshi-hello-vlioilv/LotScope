@@ -16,7 +16,7 @@ const READS: [&str; 7] =
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 // 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
-const MUST_DELEGATE: [(&str, &str); 12] = [
+const MUST_DELEGATE: [(&str, &str); 11] = [
     // 版 3.89.0（作った後の採点）: 参照先の値を重ねる配った設定の段が表でない（Python の _set が落ちる）
     ("更新の段が null で参照先に更新の置き場", "/api/settings"),
     // 作った後の採点（版 3.85.0）の割れ
@@ -26,7 +26,7 @@ const MUST_DELEGATE: [(&str, &str); 12] = [
     ("画面の控えに入れ子 130 段", "/"),
     ("LotDsp の学びの cols が null", "/api/config"),
     ("LotDsp の学びの cols が並び", "/api/config"),
-    ("大きな数・全角の並べ替え", "/"), // 変換表の表示順が i64 に入らない（窓の JSON の数では書けない）
+    // 版 3.108.0（H2）: 「大きな数・全角の並べ替え」の画面は窓も桁のまま書く（前は変換表の表示順が i64 に入らないので任せた）
     ("心拍の段が null（Python は /api/config で落ちる）", "/api/config"),
     ("max_rows が int() で読めない", "/api/config"),
     ("LotDsp の待つ秒が読めない", "/api/config"),
@@ -137,7 +137,8 @@ fn page_and_first_reads_are_like_python() {
                 }
                 continue;
             }
-            match serde_json::from_str::<Value>(text) {
+            // 大きな整数は窓と同じく桁のまま読む（版 3.108.0。common::json_keep）
+            match common::json_keep(text.as_bytes()).ok_or(()) {
                 Ok(mut want) => {
                     let mut v = v;
                     if path == "/api/sources" {

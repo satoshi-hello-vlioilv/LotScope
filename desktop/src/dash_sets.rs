@@ -17,18 +17,19 @@
 use crate::master_rows::{self, base_rev};
 use crate::master_store::Store;
 use crate::preset_rows::{self as pr, Answer, Who, DASHBOARDS};
+use crate::pyfmt::PyInt;
 use serde_json::{json, Map, Value};
 
 pub const SOURCE: &str = "dashset";
 pub const MAX_ITEMS: usize = 12;
 const WHAT: &str = "ダッシュボードのセット";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
     List,
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
 }
 
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
@@ -39,7 +40,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
             // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -116,11 +117,11 @@ fn sets<'a>(rows: &'a [Value], login: &str) -> Vec<&'a Map<String, Value>> {
         .collect()
 }
 
-/// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場のファイルを窓が Python と同じに
-/// 読めない（Place::split_file: 深い入れ子・NaN・-0・大きな整数・対の無い代用字など）・置き場を読めないときは None（Python に任せる）
+/// 置き場から行を読んで答える（Lot::dash_sets_route と試験 tests/sets_parity.rs の入口）。置き場を読めないときは None（Python に任せる）。
+/// i64・u64 に入らない整数のファイルも版 3.108.0 から読む（src/held.rs が桁のまま持ち、書き戻す。前は Place::split_file で任せた）
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
     // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）
-    if place.split_file(DASHBOARDS.name) || (route == Route::List && !store.seed_absent(&[DASHBOARDS.name])) {
+    if route == Route::List && !store.seed_absent(&[DASHBOARDS.name]) {
         return None;
     }
     let rows = place.rows_all(DASHBOARDS.name).ok()?;
@@ -158,8 +159,8 @@ pub fn handle(
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
     // routes/common の repo.find: id の合う最初の行（元は見ない。隔てた行なら書かない）。その行がセットでなければ「無い」
-    let find = |id: i64, delete: bool| pr::find_row(DASHBOARDS.name, &all, &iso, id, delete);
-    if let Route::Delete(id) = route {
+    let find = |id: &PyInt, delete: bool| pr::find_row(DASHBOARDS.name, &all, &iso, id, delete);
+    if let Route::Delete(id) = &route {
         // 消す道は先に base_rev が本文を読む（表でない真の本文は Python では道の外の例外。窓は答えない）
         if crate::worksum::truthy(&parsed) && !parsed.is_object() {
             return None;
@@ -209,7 +210,7 @@ pub fn handle(
         }
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
-            let found = match find(id, false) {
+            let found = match find(&id, false) {
                 Ok(f) => f,
                 Err(a) => return Some(a),
             };
@@ -228,7 +229,7 @@ pub fn handle(
         }
         _ => return None,
     };
-    Some(match pr::write(store, &DASHBOARDS, id, &row, base, "セット") {
+    Some(match pr::write(store, &DASHBOARDS, id.as_ref(), &row, base, "セット") {
         Ok(Value::Object(done)) => (if id.is_none() { 201 } else { 200 }, who.view(&done, view_body(&done))),
         Ok(_) => (500, json!({"error": "セットを書けませんでした。", "kind": "error"})),
         Err(e) => (e.status(), e.payload()),

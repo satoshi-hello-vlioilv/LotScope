@@ -15,6 +15,7 @@ import shutil
 import sys
 from pathlib import Path
 from unittest import mock
+from urllib.parse import quote
 
 PROGRAM = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROGRAM))
@@ -22,7 +23,8 @@ os.environ.pop("TPA_SHELL", None)
 
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
-from app.services import identity  # noqa: E402
+from app.repositories.master_repository import row_key  # noqa: E402
+from app.services import identity, row_check  # noqa: E402
 import oracle_gate  # noqa: E402
 from oracle_gate import W  # noqa: E402
 
@@ -58,6 +60,16 @@ def S(who, method, path, body=None, query="", ctype="application/json"):
 
 
 E, R = "/api/masters/equipment", "/api/masters/rolls"
+# 版 3.108.0: 読めない行を何行目かで消す道の場面の行（目印は master_repository.row_key。窓は row_check::row_key で同じ字を作る）
+_XROW = {"id": "x", "設備名": "字の id"}
+_XROW2 = {"id": "x", "設備名": "字の id", "同一工程": "別の中身"}
+_NANROW = {"id": 6, "設備名": "数でない", "x": float("nan")}
+_REVROW = {"id": 2, "設備": "版が字", "rev": "二"}
+
+
+def _rq(name, r):
+    """消す道の問い（要約と目印）"""
+    return "summary=" + quote(row_check.summary(name, r)) + "&key=" + row_key(name, r)
 SCENARIOS = [
     {"name": "設備: 足す・必須・一意・同一工程の確かめ", "mode": "shared", "rows": {"equipment_master": EQ, "roll_master": ROLLS}, "steps": [
         S(BOSS, "GET", E),
@@ -85,7 +97,9 @@ SCENARIOS = [
         S(BOSS, "POST", E, {"設備名": "並び", "同一工程": ["A", "B"]}),
         S(BOSS, "POST", E, {"設備名": "表", "巻取方向": {"b": 1, "a": 2}}),
         W(S(BOSS, "POST", E, '{"設備名": "負の零", "ライン方向": -0}')),
-        S(BOSS, "POST", E, '{"設備名": "大きな整数", "ライン方向": 100000000000000000000}'),
+        W(S(BOSS, "POST", E, '{"設備名": "大きな整数", "ライン方向": 100000000000000000000}')),      # 版 3.108.0（H2）
+        W(S(BOSS, "POST", E, '{"設備名": "負の大きな整数", "ライン方向": -100000000000000000000, "同一工程": 123456789012345678901234567890}')),
+        W(S(BOSS, "PUT", f"{E}/99999999999999999999", {"巻取方向": "上"})), W(S(BOSS, "DELETE", f"{E}/99999999999999999999")),
         W(S(BOSS, "POST", E, '{"設備名": "i64 の外", "ライン方向": 9223372036854775808}')),
         S(BOSS, "POST", E, '{"設備名": "NaN", "ライン方向": NaN}'),
         S(BOSS, "POST", E, '{"設備名": "1e400", "ライン方向": 1e400}'),
@@ -167,8 +181,45 @@ SCENARIOS = [
     # 版 3.107.0: 設備名が数の行は隔てる（窓も答える）。ロールの本数の u64 に入らない整数はまだ任せる（H2）
     {"name": "置き場の行の値が i64 に入らない整数（ロールは窓は答えず Python に任せる）", "mode": "shared",
      "rows": {"equipment_master": [{"id": 1, "設備名": 10000000000000000000}], "roll_master": [{"id": 1, "設備": "A", "本数": 18446744073709551616}]},
-     "steps": [], "delegates": [W(S(BOSS, "POST", E, {"設備名": "Q", "同一工程": "10000000000000000000"})), W(S(BOSS, "GET", E)), S(BOSS, "GET", R),
-                                S(BOSS, "POST", R, {"設備": "B"})]},
+     # 版 3.108.0（H2）: ロールの本数の u64 に入らない整数も窓が桁のまま持ち、そのまま書き戻す
+     "steps": [], "delegates": [W(S(BOSS, "POST", E, {"設備名": "Q", "同一工程": "10000000000000000000"})), W(S(BOSS, "GET", E)), W(S(BOSS, "GET", R)),
+                                W(S(BOSS, "POST", R, {"設備": "B"})), W(S(BOSS, "PUT", f"{R}/1", {"備考": "直す"})), W(S(BOSS, "GET", R))]},
+    # 版 3.108.0: 読めない行（id が字・表でない行・数でない値）を何行目と要約で消す道（知らせの面の ×）。要約が違う・もう読めない行でない・
+    # 行が無い・消せないマスタ（権限）は消さずに 404、書けない人は門番が 403。消した後は一覧に戻る・ほかの行はそのまま
+    {"name": "読めない行を何行目かで消す", "mode": "shared",
+     "rows": {"equipment_master": [EQ[0], _XROW, "壊れた行", _NANROW], "roll_master": [ROLLS[0], _REVROW]}, "steps": [
+        S(VIEW, "DELETE", "/api/masters/rows/equipment_master/2", query=_rq("equipment_master", _XROW)),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/2", query="summary=" + quote("id 'x'・設備名 'ちがう'") + "&key=" + row_key("equipment_master", _XROW)),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/2", query="summary=" + quote("id 'x'・設備名 '字の id'") + "&key=0000000000000000"),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/2", query="summary=" + quote("id 'x'・設備名 '字の id'")),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/1", query=_rq("equipment_master", EQ[0])),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/99", query="summary=x&key=x"),
+        S(BOSS, "DELETE", "/api/masters/rows/access_permissions/1", query="summary=x"),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/2", query=_rq("equipment_master", _XROW)),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/２", query=_rq("equipment_master", "壊れた行")),
+        S(PART, "DELETE", "/api/masters/rows/equipment_master/2", query=_rq("equipment_master", _NANROW)),
+        S(PART, "DELETE", "/api/masters/rows/data_sources/1", query="summary=x"),
+        S(BOSS, "DELETE", "/api/masters/rows/roll%5Fmaster/2", query=_rq("roll_master", _REVROW)),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/99999999999999999999", query="summary=x"),
+        S(BOSS, "GET", E), S(BOSS, "GET", R),
+    ], "delegates": []},
+    # 版 3.108.0 の作った後の採点の割れ 1: 窓の持っている値の印（NUL・J・:）と同じ頭で始まる利用者の字は、大きな整数・NaN と取り違えず字のまま
+    # （本文の設備名・置き場の知らない欄。前は窓が 201 で桁の数に書き替えた）
+    {"name": "印の字と同じ頭の字", "mode": "shared",
+     "rows": {"equipment_master": EQ[:1], "roll_master": [dict(ROLLS[0], 備考="\x00J:NaN", x="\x00J:" + "9" * 30)]}, "steps": [
+        S(BOSS, "POST", E, {"設備名": "\x00J:" + "1234567890" * 3}), S(BOSS, "POST", E, {"設備名": "\x00J:5", "ライン方向": "\x00J:-Infinity"}),
+        S(BOSS, "GET", E), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "B"}), S(BOSS, "PUT", f"{R}/1", {"本数": "\x00J:abc"}), S(BOSS, "GET", R),
+    ], "delegates": []},
+    # 版 3.108.0 の作った後の採点の割れ 4: 要約が同じ 2 つの読めない行。ほかの PC が前の行を消して位置がずれても、目印（行の全部の字の sha1）が
+    # 違えば別の行を消さない（前は要約だけで確かめ、同じ要約の別の行を消しえた）
+    {"name": "読めない行を何行目かで消す（位置がずれた）", "mode": "shared",
+     "rows": {"equipment_master": [EQ[0], _XROW, _XROW2], "roll_master": ROLLS}, "steps": [
+        S(BOSS, "DELETE", f"{E}/1"),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/2", query=_rq("equipment_master", _XROW)),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/1", query=_rq("equipment_master", _XROW)),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/1", query=_rq("equipment_master", _XROW2)),
+        S(BOSS, "GET", E),
+    ], "delegates": []},
     # 版 3.102.0 の作った後の採点の割れ 1: 表でない行は一覧では飛ばし（読めない行はマスタの置き場の状態の badRows が言う）、書く道は断る。前は窓が Python に任せた
     {"name": "置き場に表でない行（一覧は読める行・書く道は断る）", "mode": "shared",
      "rows": {"equipment_master": [EQ[0], "壊れた行"], "roll_master": [7, {"id": 1, "設備": "CR1", "rev": 1}]}, "steps": [

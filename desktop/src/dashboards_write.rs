@@ -24,6 +24,7 @@ use crate::layout_clean::{self as lc, Stop};
 use crate::master_rows::{self, base_rev};
 use crate::master_store::Store;
 use crate::preset_rows::{self as pr, Answer, Who, DASHBOARDS};
+use crate::pyfmt::PyInt;
 use crate::worksum::truthy;
 use serde_json::{json, Map, Value};
 use std::cell::Cell;
@@ -35,13 +36,13 @@ const HIDE_NAME: &str = "外した組み込み";
 const SETTINGS: &str = "dashboard_settings";
 const WHAT: &str = "ダッシュボード";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
     List,
     Hidden,
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
 }
 
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
@@ -55,7 +56,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
             // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -219,8 +220,8 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
     let tree: Tree = if blank { Tree::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64, delete: bool| pr::find_row(name, &all, &iso, id, delete);
-    if let Route::Delete(id) = route {
+    let find = |id: &PyInt, delete: bool| pr::find_row(name, &all, &iso, id, delete);
+    if let Route::Delete(id) = &route {
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
@@ -281,7 +282,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
             // routes/dashboard.dashboards_update: id の行が無いかダッシュボードでなければ「見つかりません」
-            let found = match find(id, false) {
+            let found = match find(&id, false) {
                 Ok(f) => f,
                 Err(a) => return Some(a),
             };
@@ -306,7 +307,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         _ => return None,
     };
-    Some(match pr::write(store, &DASHBOARDS, id, &row, base, WHAT) {
+    Some(match pr::write(store, &DASHBOARDS, id.as_ref(), &row, base, WHAT) {
         Ok(Value::Object(done)) => match view_body(&done) {
             Ok(b) => (if id.is_none() { 201 } else { 200 }, who.view(&done, b)),
             Err(()) => return None,
@@ -394,8 +395,8 @@ fn hidden(store: &Store, who: &Who, d: &Map<String, Value>, tree: &Tree, rows: &
     let keys = v["keys"].clone();
     if keys.as_array().is_none_or(Vec::is_empty) {
         if let Some(o) = old {
-            let id = o.get("id").and_then(Value::as_i64)?;
-            if let Err(e) = master_rows::delete(store, &DASHBOARDS, id, None) {
+            let id = PyInt::Small(o.get("id").and_then(Value::as_i64)?);
+            if let Err(e) = master_rows::delete(store, &DASHBOARDS, &id, None) {
                 return Some((e.status(), e.payload()));
             }
         }
@@ -403,10 +404,10 @@ fn hidden(store: &Store, who: &Who, d: &Map<String, Value>, tree: &Tree, rows: &
     }
     let done = match old {
         Some(o) => {
-            let id = o.get("id").and_then(Value::as_i64)?;
+            let id = PyInt::Small(o.get("id").and_then(Value::as_i64)?);
             let mut data = Map::new();
             data.insert("中身".into(), json!(text));
-            pr::write(store, &DASHBOARDS, Some(id), &data, None, WHAT)
+            pr::write(store, &DASHBOARDS, Some(&id), &data, None, WHAT)
         }
         None => {
             let input = json!({"name": HIDE_NAME, "scope": scope});

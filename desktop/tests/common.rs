@@ -27,7 +27,7 @@ pub fn python_json(script: &str, args: &[&str]) -> serde_json::Value {
         .output()
         .unwrap_or_else(|e| panic!("{py} を起こせません: {e}"));
     assert!(out.status.success(), "{script} が失敗しました:\n{}", String::from_utf8_lossy(&out.stderr));
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("Python の答えが JSON ではありません");
+    let v: serde_json::Value = json_keep(&out.stdout).expect("Python の答えが JSON ではありません");
     check_budget(script, args, &v);
     v
 }
@@ -133,7 +133,7 @@ impl Live {
         let mut line = String::new();
         out.read_line(&mut line).unwrap();
         assert!(!line.is_empty(), "{script} が答えずに終わりました");
-        let v = serde_json::from_str(&line).expect("Python の答えが JSON ではありません");
+        let v = json_keep(line.as_bytes()).expect("Python の答えが JSON ではありません");
         (Live { child, stdin, out }, v)
     }
 
@@ -150,7 +150,7 @@ impl Live {
         use std::io::BufRead;
         let mut line = String::new();
         self.out.read_line(&mut line).unwrap();
-        serde_json::from_str(&line).unwrap_or(serde_json::Value::Null)
+        json_keep(line.as_bytes()).unwrap_or(serde_json::Value::Null)
     }
 
     /// 1 行を送って 1 行を読む
@@ -179,7 +179,16 @@ pub fn gate(method: &str, path: &str, body: &[u8]) -> Result<Vec<u8>, (u16, serd
 /// 前は "<読めない>" で、NaN を持ったまま書き戻したファイルを Python と突き合わせられなかった）
 pub fn file_value(b: &[u8]) -> serde_json::Value {
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
-    serde_json::from_slice::<serde_json::Value>(b).unwrap_or_else(|_| {
+    json_keep(b).unwrap_or_else(|| {
         std::str::from_utf8(b).ok().and_then(|t| da_core::held::parse(t).ok()).unwrap_or_else(|| serde_json::json!("<読めない>"))
     })
+}
+
+/// JSON の字（Python の答え・置き場のファイル）を読む。i64・u64 に入らない整数があれば、窓と同じく src/held.rs の印の字で桁のまま持つ
+/// （版 3.108.0。前は serde が小数に丸め、桁の違う 2 つの大きな数を同じと見ていた）
+pub fn json_keep(b: &[u8]) -> Option<serde_json::Value> {
+    if da_core::master_store::has_wide_int(b) {
+        return da_core::held::parse(std::str::from_utf8(b).ok()?.trim_end()).ok();
+    }
+    serde_json::from_slice(b).ok()
 }

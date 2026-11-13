@@ -278,7 +278,18 @@ def scenarios(work):
     sc("設備の並びの中に並び", nested, expect="broken:dash")
     sc("表示順が i64 に入らない設備グループ", lambda r: (masters(share=r / "share"),
                                                  write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": "a", "表示順": "99999999999999999999"}])),
-                                                 config(r))[2], expect="broken:dash")
+                                                 config(r))[2])       # 版 3.108.0（H2）: 窓も桁のまま組む（前は dash の節を組まなかった）
+
+    def wide_ints(r):
+        masters(share=r / "share")
+        write(r / "share" / "equipment_groups.json", doc([{"id": 10 ** 20, "名称": "g", "設備": "a", "表示順": 10 ** 25},
+                                                           {"id": 2, "名称": "h", "設備": "b", "表示順": -(10 ** 30)}]))
+        cv = json.loads((r / "share" / "conversions.json").read_text(encoding="utf-8"))
+        cv["rows"] += [{"id": 10 ** 21, "名前": "大きな id", "入力": "[]", "その他": "1", "表示順": 10 ** 22}]
+        write(r / "share" / "conversions.json", cv)
+        return config(r)
+    # 版 3.108.0（H2）: 設備グループ・変換表のファイルの JSON の数が i64・u64 に入らない整数（束は桁のまま組む。前は節を組まなかった）
+    sc("設備グループと変換表の id・表示順が u64 に入らない整数", wide_ints)
 
     # 窓は組まず Python に尋ねる形
     sc("配った設定に NaN", lambda r: (masters(share=r / "share"),

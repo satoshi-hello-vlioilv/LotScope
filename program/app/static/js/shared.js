@@ -257,9 +257,14 @@
   let SKIP_SEQ = 0;
   const SKIP_WHAT = { pivot_presets: "組み方", pivot_quick: "すぐに見るの選び", display_formats: "共有の書式", equipment_master: "設備マスタ",
     roll_master: "ロールマスタ", shift_patterns: "勤務体系", equipment_groups: "設備グループ", conversions: "変換表", dashboard_settings: "前の版の条件",
-    access_permissions: "アクセス権限", tab_access: "タブの権限", path_settings: "参照先" };
+    access_permissions: "アクセス権限", tab_access: "タブの権限", path_settings: "参照先",
+    // 版 3.108.0 からデータ元・作業実績の登録・変換表の標準も行を隔てる（言葉はマスタ管理のタブの名前と同じ）
+    data_sources: "データ元", work_log_files: "実績の設備", conversion_defaults: "変換表の標準" };
   const SKIP_TAB = { equipment_master: "equipment", roll_master: "rolls", shift_patterns: "shifts", equipment_groups: "egroups", conversions: "conv",
-    access_permissions: "access" };
+    access_permissions: "access", data_sources: "sources", work_log_files: "worklog", conversion_defaults: "conv" };
+  // 何行目かで消せるマスタ（版 3.108.0。id で引けない行〈id が字〉・表でない行も消す道 /api/masters/rows/…。サーバーの master_repository.ROW_DELETE と同じ）
+  const SKIP_ROWS = new Set(["equipment_master", "roll_master", "shift_patterns", "equipment_groups", "conversions", "display_formats", "path_settings",
+    "data_sources", "work_log_files", "conversion_defaults"]);
   const SKIP_DEL = { equipment_master: "/api/masters/equipment", roll_master: "/api/masters/rolls", shift_patterns: "/api/masters/shifts",
     equipment_groups: "/api/masters/equipgroups", conversions: "/api/masters/conversions", display_formats: "/api/masters/formats",
     pivot_presets: "/api/pivot-presets" };
@@ -305,8 +310,9 @@
       const can = !me.revoked && (admin ? !!me.canEditAdminMaster : me.canEditFieldMaster !== false);
       const tab = SKIP_TAB[it.file];
       const sk = it.d.skipped || [], mine = sk.filter(it.hit), others = sk.filter((s) => !it.hit(s));
+      const route = (s) => TPA.skipRoute(it.file, s.source || "", s.id, s);
       const row = (s) => {
-        const del = can && s.id != null && TPA.skipRoute(it.file, s.source || "", s.id);
+        const del = can && route(s);
         const why = `${TPA.skipWhat(it.file, s.source || "")}・${s.why}`;
         return { icon: del ? "×" : "⚠", label: `${s.row} 行目 ${s.summary || ""}`.trim(), why: del ? `${why}。押すとこの行を消します（元に戻せません）` : why,
                  note: del ? `${why}。押すと消します` : "", disabled: !del, run: () => TPA.skipDelete(it, s, del) };
@@ -316,20 +322,28 @@
       if (mine.length) items.push({ group: "この画面の行（一覧では飛ばしています）" }, ...mine.map(row));   // 何の行かは面の頭で言う
       if (others.length) items.push({ group: "ほかの画面の行" }, ...others.map(row));
       items.push({ sep: true });
-      if (!can) items.push({ icon: "ⓘ", label: "管理者（マスタを直せる人）に知らせてください", why: `${it.file}.json の何行目かを伝えると、マスタ管理か共有のフォルダのファイルで直せます`, disabled: true });
-      else if (tab && window.openMasterAt && document.querySelector("#masterOverlay.hidden")) items.push({ icon: "›", label: "マスタ管理で見る", run: () => window.openMasterAt(tab) });
-      else if (tab) items.push({ icon: "ⓘ", label: "× の行は押すと消せます", why: `ほかは共有のフォルダの ${it.file}.json を直します`, disabled: true });   // マスタ管理の中では「見る」を出さない
-      else items.push({ icon: "ⓘ", label: "消すか、ファイルを直してください", why: `× の行は押すと消せます。そのほかは共有のフォルダの ${it.file}.json を直します`, disabled: true });
+      // マスタ管理の中か（中では「マスタ管理で見る」「マスタ管理で直せます」と言わない。版 3.108.0: 一般ユーザーの言葉も）
+      const inMaster = !!document.querySelector("#masterOverlay") && !document.querySelector("#masterOverlay.hidden");
+      const rest = sk.some((s) => !route(s)) ? `ほかは共有のフォルダの ${it.file}.json を直します` : `消さずに直すときは、共有のフォルダの ${it.file}.json を直します`;
+      if (!can) items.push({ icon: "ⓘ", label: "管理者（マスタを直せる人）に知らせてください", disabled: true,
+        why: inMaster ? `${it.file}.json の何行目かを伝えると、管理者がこの画面で消すか、共有のフォルダのファイルを直します` : `${it.file}.json の何行目かを伝えると、マスタ管理か共有のフォルダのファイルで直せます` });
+      else if (tab && window.openMasterAt && !inMaster) items.push({ icon: "›", label: "マスタ管理で見る", run: () => window.openMasterAt(tab) });
+      else if (tab) items.push({ icon: "ⓘ", label: "× の行は押すと消せます", why: rest, disabled: true });   // マスタ管理の中では「見る」を出さない
+      else items.push({ icon: "ⓘ", label: "消すか、ファイルを直してください", why: `× の行は押すと消せます。${rest}`, disabled: true });
       const r = btn.getBoundingClientRect();
       // 面は字を切らずに折り返し、知らせ・直し方は本文の色で出す（.tpa-skipmenu。2 回目の採点の減点 1〜3）
       TPA.menu({ x: r.left, y: r.bottom + 4, head: `${it.what}の読めない行（${it.file}.json）`, items, cls: "tpa-skipmenu" });
     },
-    /** 読めない行を消す道（マスタ・元 → DELETE の道。id で引けない行は null） */
-    skipRoute(file, source, id) {
+    /** 読めない行を消す道（マスタ・元 → DELETE の道）。id で引ける行はそのマスタの道、引けない行（id が字・表でない行）は何行目かで消す道
+        （版 3.108.0。s は知らせの行 {row, summary}。要約が違えば消さない）。どちらも無ければ null */
+    skipRoute(file, source, id, s) {
       const base = file === "dashboards"
         ? (source.startsWith("card:") ? "/api/card-forms" : source === "dashset" ? "/api/dashboard-sets" : source === "dash" ? "/api/dashboards" : "")
         : SKIP_DEL[file] || "";
-      return base ? `${base}/${id}` : null;
+      if (id != null && base) return `${base}/${id}`;
+      if (s && s.row && s.summary != null && s.key && SKIP_ROWS.has(file))
+        return `/api/masters/rows/${file}/${s.row}?summary=${encodeURIComponent(s.summary)}&key=${encodeURIComponent(s.key)}`;
+      return null;
     },
     async skipDelete(it, s, url) {
       let yes = false;      // 押した項目は閉じた後に走るので、閉じたときに答える（Esc・外側は「やめる」）

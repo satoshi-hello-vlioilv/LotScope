@@ -1,0 +1,126 @@
+{
+ "title": "Rust 化の段 ① の 5 歩目: 大きな整数を桁のまま持つ（H2）・データ元・作業実績の登録・変換表の標準の行も隔てる・読めない行を何行目かで消す道。版 3.108.0 の作った後の採点（2026-11-13）",
+ "rule": "2026-11-06",
+ "applies": "2026-11-delegates-3107.json",
+ "applies_note": "版 3.108.0 は 2026-11-delegates-3107.json の回で出た H2 と、3.107.0 の作った後の採点で残した 9c（データ元・作業実績の登録・変換表の標準を隔てるのは H2 と一緒に）を作った物。新しい案出しは無いので rounds は空にし、判定は 3107 の『届かずに選ぶ』を引いて、作った後（built）だけを決まり 2026-11-06 の物差しで 1 回採点する。画面の知らせの直しは別の採点 2026-11-delegates-3108.json（UI の物差し・85.8 点）",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff f683ad7 96c2ef0 を読み、自分で試験を流し、一時の試験（desktop/tests/zz_grader_tmp.rs。採点の後に消した）と Python の 1 行で割れを再現した",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.108.0・commit 96c2ef0。H2 大きな整数を桁のまま・データ元／作業実績の登録／変換表の標準も隔てる・DELETE /api/masters/rows/<名前>/<n>?summary=・Python の誤り 2 つ・chartAt の u64・任せる歩 59 → 17）",
+  "images": "画面に出ない改良なので画像は無い（自分で流した試験・数え直した任せる歩・一時の試験で再現した割れ・読んだコードで採点した）。画面の知らせは ui-eval-skiprows を自分で流して撮った /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3108/skip（28 枚。skip-master-open-1280x720.png・skip-master-user-1280x720.png を開いて見た）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）",
+  "measured": {
+   "cargo": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked --test 〈bigint_cases・row_cases・equip_rows_parity・sources_write_parity・worklog_write_parity・conversions_write_parity・masters_parity・bundle_parity・page_parity〉 → 9 本とも test result: ok・終了コード 0（記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3108/cargo-*.log）",
+   "python": "cd program && python -m unittest tests.test_bigint_cases tests.test_row_cases tests.test_body_routes tests.test_broken_masters tests.test_delegates_budget tests.test_ui_score → Ran 35 tests・OK・終了コード 0。python tools/bigint-cases.py --check → 0（表は古くない）",
+   "delegates": "python program/tools/delegate-count.py /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3108/count --check → 計 17（層 OS 6・口 5・束 5・本文 1）・『予算と同じです』・終了コード 0",
+   "ui_eval": "node program/tools/ui-eval-skiprows.mjs → 62 項目 OK・『OK すべて』・終了コード 0（id が字の行を面から消すと読めない行が 0 になり帯の札が消える所も）",
+   "repro": "一時の試験（cargo test --test zz_grader_tmp -- --nocapture）: (a) held::body_value(\"{\\\"a\\\":\\\"\\\\u0000J:123456789012345678901234567890\\\",\\\"b\\\":\\\"\\\\u0000J:abc\\\",\\\"c\\\":\\\"\\\\u0000J:NaN\\\",\\\"d\\\":\\\"\\\\u0000J:5\\\"}\") → to_pretty が a を数 123456789012345678901234567890・c を NaN・d を 5 と書く。py_str(b) = \"'\\\\x00J:abc'\"（引用符つきの repr）。int(d) = Ok(5)。(b) equip_write::handle の足す道に {\"設備名\": \"\\u0000J:123456789012345678901234567890\"} → 201 で設備名 \"123456789012345678901234567890\" を書く（Python は str() のまま \"\\x00J:123…\"）。(c) row_check::check(\"equipment_groups\", [{まとめ方: 100000000000000000000}, {まとめ方: 5}]) → 窓は 2 行目だけ隔てる。Python の master_repository.isolated は 2 行とも隔てる（「まとめ方」が字ではありません（100000000000000000000））"
+  },
+  "cracks": [
+   {
+    "name": "1. 印の字（MARK = \\u0000J:）と同じ形の字が、持っている値（大きな整数・NaN）に読まれ、黙って替わる",
+    "where": "desktop/src/held.rs:20（MARK）・46-57（to_value は J::Str をそのまま字にする）・156-164（body_value の serde の道も同じ）・desktop/src/worksum.rs:176（py_str）・desktop/src/pyfmt.rs:548-554（IntArg の From）・desktop/src/jsontree.rs:176（Tree の IntArg）・desktop/src/row_check.rs:214・242（strict・coerce）・desktop/src/pivot_presets.rs の chart_at・desktop/src/release_place.rs の py_body_held 後の py_str",
+    "path": "本文か置き場のファイルの字の値が「\\u0000J:」で始まる（JSON では NUL は \\u0000 と書くので送れる）→ serde でも J でも Value::String(\"\\0J:…\") になり is_held が真 → (i) 書くとき to_pretty が to_j で J に戻し、\"\\u0000J:123…\" を数 123…・\"\\u0000J:NaN\" を NaN として書く（Python は字のまま）。(ii) str() にする所（clean・名前・設備名）で py_str が桁の字「123…」に、読めない形「\\0J:abc」は repr「'\\x00J:abc'」にする。(iii) int() が「\\0J:5」を 5 と読む（Python は ValueError）。(iv) id の当たり（same_id・as_int）も印の字を数と見る。再現: measured.repro (a)(b)。NaN の形は 3.107.0 から、大きな整数・int()・本文の道は 3.108.0 で広がった",
+    "fix": "読む所で、MARK で始まる字そのものも『持っている値』にする: held::to_value の J::Str(s) で s が MARK で始まれば MARK＋json.dumps(s) の字にし（held() が J::Str を返す）、本文・ファイルに「\\u0000J:」（JSON の逃がしは 16 進の大文字小文字があるので \\u0000 の形を見る）があるときは serde の速い道を通らず J で読む（has_wide_int と同じ所）。py_str・repr・IntArg は held() の J::Str をふつうの字として扱う。bigint_cases か row_cases に「\\u0000J:5」「\\u0000J:NaN」「\\u0000J:abc」「\\u0000J:1」＋大きな桁の事例を足し、Python の str()・int() と突き合わせる",
+    "reproduced": true
+   },
+   {
+    "name": "2. 設備グループの「まとめ方」が大きな整数の行を、窓は隔てず Python は隔てる",
+    "where": "desktop/src/equipgroups_write.rs:282-285（row_problem の !v.is_string()）",
+    "path": "equipment_groups.json に {\"まとめ方\": 100000000000000000000} の行 → 3.108.0 から Store・Place が読む（前は Wide で断り任せた）→ 値は印の字（Value::String）なので is_string が真で row_problem が None → 窓の一覧・束（HELD_OK に equipment_groups が入った）・ダッシュボードの設備グループに、そのグループが出る。Python の equip_groups.row_problem は isinstance(v, str) が偽なので隔て、一覧から除き skipped で言う。答えが割れ、窓の画面では読めない行と言われた行が使われる。再現: measured.repro (c)",
+    "fix": "!crate::held::is_text(v) にする（isinstance(v, str) の写しは is_text の 1 つに）。ほかの isinstance(str) の写し（formats_write::row_problem・pivot_presets::row_problem の as_str、dashboards_extra の 元）も is_text で見直す。row_cases.json に設備グループのまとめ方が 10**20 の事例を足す（Python は held を知らないので、表は Python の答えのまま窓が合わせる）",
+    "reproduced": true
+   },
+   {
+    "name": "3. ID_FREE の決めが窓の 1 か所でない: 変換表の標準の id が字（版は読める）の行で、変換表の道が全部 Python に任せる（数に出ない）",
+    "where": "desktop/src/conversions_write.rs:589（master_rows::rows_plain(&own, …)）→ desktop/src/master_rows.rs:279-288（row_readable の id の型）。データ元は sources_write.rs:571-575 で自前の plain に替えて id を見なくした",
+    "path": "conversion_defaults.json に {\"id\": \"x\", \"rev\": 1, \"名前\": …} → row_check の ID_FREE で隔てない → read() の rows_plain が row_readable で id \"x\" を読めないとして偽 → read が None → GET・書き出し・足す・直す… の変換表の道が全部 Python に任せる。答えの元の「標準に読めない行」の場面は id 'x' の行の版も 'abc' で隔てられるので、この形は delegate-count の 17 にも突き合わせにも出ない（コードを読んで確かめた。一時の試験は書いていない）",
+    "fix": "row_readable（rows_plain）に名前を渡し、ID_FREE の組では id の型を見ない（sources_write の自前の plain もこれに寄せる）。conversions_oracle に「標準の id が字・版は読める」の場面を足す",
+    "reproduced": false
+   },
+   {
+    "name": "4. 何行目かで消す道の確かめが要約だけ: 同じ要約の別の読めない行を消しうる",
+    "where": "desktop/src/master_rows.rs:640-655（delete_unreadable_row）・program/app/repositories/master_repository.py:277-294・row_check.summary（id と名前の列だけ・値ごとに 30 字で切る）",
+    "path": "要約は「id 〈repr〉・名前の列 〈repr〉」で、id も名前の列も無い行（例 {\"rev\": \"abc\", …}）は空の字、表でない行は repr の 30 字。画面は s.summary != null なら空の字でも道を作る（shared.js skipRoute）。PC A が 3 行目と 5 行目の読めない行（どちらも要約が空・または名前の頭 28 字が同じ）を見ている間に PC B が 3 行目を消すと、A が押した『5 行目』は前の 6 行目に当たり、それも同じ要約の読めない行なら消える（読める行なら断るので、取り違えは読めない行どうしに限る）。錠（store.write）の中で確かめて消すので、確かめと消すの間の競い合いは無い。門番は抜けない（下の not_cracks）",
+    "fix": "?summary= に加えて、開いた時のファイルの版（masters/status の revision）か、行の生の値の全部のハッシュ（json.dumps(sort_keys)・窓は held::to_j の dumps）を送り、違えば NotFound。要約が空の行は道を出さないのも手",
+    "reproduced": false
+   },
+   {
+    "name": "5. 何行目かで消した後に、一覧の設定・フォルダの覚え・品質の写しの切り替えが走らない形がある",
+    "where": "desktop/src/lot.rs:1082-1096（changes_settings に /api/masters/rows が無い）・lot.rs:566-583（rows_route は invalidate だけで lists.forget_listing を呼ばない）・program/app/routes/masters.py:75-83（put_setting の lot_mirror・WORK_LISTING の forget を呼ばない）",
+    "path": "参照先（path_settings）は FILTERED の外なので、隔てた行も束に効く。その行を何行目かで消すと設定が替わるが、窓が答えたときはフォルダの覚えを捨てず、Python が答えたとき（窓が me を決められない形）は窓の束の覚え（10 秒）も捨てない。lot_list.* の行なら Python の品質の写しの切り替え（lot_mirror）も呼ばれない（コードを読んだだけ。どれだけ遅れるかは測っていない）",
+    "fix": "changes_settings の LIST_MASTERS に /api/masters/rows を足す。rows_route で名前が path_settings・data_sources なら forget_listing も。Python の masters_row_delete は名前が path_settings なら put_setting の後始末（lot_mirror・WORK_LISTING）を呼ぶ",
+    "reproduced": false
+   },
+   {
+    "name": "6. 探し直しで、隔てた行のファイルを足さない決めがファイル名だけで、名前を変えたファイル（ファイルID で当たる物）は新しい設備として足す",
+    "where": "program/app/repositories/master_repository.py:625-629・desktop/src/worklog_write.rs:326-336",
+    "path": "隔てた行（版が字など）のファイルの名前を替える → match の 2 段目（同じファイルID）は隔てた行を見ないので、そのファイルは new → 新しいキーで設備が足され、隔てた行と同じ設備が 2 つになる（隔てた行を消すと、表示・並び・備考を持たない新しい行だけが残る）",
+    "fix": "held に隔てた行のファイルID も入れ、same_fid で当たる見つけたファイルも new から外す（Python・窓とも）。worklog_write_oracle の『置き場の読めない行』に名前を替えたファイルの歩を足す",
+    "reproduced": false
+   },
+   {
+    "name": "7. 古い説明が残る（美しさ）",
+    "where": "desktop/src/row_check.rs:413（wide_content の『H2 で桁のまま持つまで…任せる』）・desktop/src/conversions_write.rs:581（『標準の読めない行はまだ任せる』。すぐ上で隔てている）",
+    "path": "読む人が今の決まり（標準の行も隔てる・大きな整数は持つ）を取り違える",
+    "fix": "説明を今の形に直す（wide_content がまだ要る所を書く）",
+    "reproduced": true
+   }
+  ],
+  "pitfalls": [
+   "データ元・作業実績の登録は 1 行が 1 つのタブ・1 台の設備なので、版が字・確かめる間隔に NaN などの行を隔てると、そのタブ・設備がまるごと消える（前の版は一覧と束に出て、読むことはできた。直す道は英語の 400）。3.107.0 で決めた『読めない行は隔てる』の決まりどおりで、帯の札と面から消せるので減点はしないが、参照先と同じ『読むのは使い、触れる書きを断る』形（STATUS に入れ FILTERED に入れない）も、版だけが読めない行には考えられる",
+   "事例の表 bigint_cases.json の next_id・next_order の答えは app の next_id・row_order.next_order を呼んで焼いている（独立の答えではなく Python の写し）。int の比べ方・+1・+10・int(小数)・json.dumps は Python 3 の int で独立"
+  ],
+  "not_cracks": [
+   "ID_FREE（data_sources・conversion_defaults の id の型を見ない）: データ元はキーで引き、変換表の標準は丸ごと置き換えるので、id が字でも読み書きに使わない。隔てると前に使えた元が消えるので、決めは妥当（窓の 1 か所でない所は割れ 3）",
+   "Python の並べ替えの直し（data_sources.sources の int(id) → row_check.as_int(id or 0) or 0）: as_int は真偽を 1・0、小数を切り捨て、NaN・inf・字を None にし、窓の bundle::sources_all の wide_int(…).unwrap_or(0) と同じ鍵。前の ValueError の 500 が直る",
+   "探し直しで隔てた行のファイルを足さない: 足すと同じファイルの設備が 2 つになり、隔てた行を直したときに重なる。match と同じ小文字の名前で比べる（Python の str.lower と Rust の to_lowercase は終わりのシグマも同じ）。名前を替えた形だけ漏れる（割れ 6）",
+   "何行目かで消す道の門番: Python は _row_master、窓は access::guard の row_name で、どちらも百分率符号を戻した道のマスタの名前で見る（equip_rows_oracle の roll%5Fmaster・PART の data_sources 403・切断）。ROW_DELETE の外（権限の 2 つなど）は門番を通った後 404。名前に / を入れても道に当たらない。store.write の錠の中で確かめて消すので、確かめと消すの間に他の PC が書くことは無い。対象のマスタの範囲（権限の 2 つ・行ごとの持ち主で書ける人が決まる組み方・ダッシュボード・すぐに見るを除く）も妥当",
+   "答えの字: main.rs の答えは全部 json_reply → held::reply_bytes を通り、持っている大きな整数は桁のまま・NaN は null（Flask の jsonify と同じ）",
+   "same_id の比べ方: 小数の id は int(f) と道の id を比べ、Python の 1e19 == 10**19・1e23 != 10**23 と同じ（1e23 は 99999999999999991611392 に当たる）",
+   "chartAt の u64 の直し（前は 0）と 4,300 桁を超える字の 0 は presets_oracle の W の歩で突き合わせてある"
+  ],
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 6,
+    "hierarchy": 7,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 5,
+    "intuitive": 7,
+    "form": 6,
+    "place": 7,
+    "layout": 6,
+    "tone": 5
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "割れ 1（measured.repro (a)(b)）: 「\\u0000J:」で始まる字を送ると、窓は数・NaN・桁の字・repr に替えて書き、利用者にも Python とも違う値が黙って残る（equip_write の足す道で設備名『\\u0000J:123…』が『123…』になった）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 2（measured.repro (c)）: まとめ方が 10**20 の設備グループの行を、Python は読めない行として隔てて知らせ、窓は隔てずに一覧・束・ダッシュボードで使う（同じファイルで答えが割れ、どちらが効いているか見えない）"
+    }
+   ],
+   "seen": "狙い（任せる歩を 59 → 17）は果たした: delegate-count.py --check を自分で流して計 17（OS 6・口 5・束 5・本文 1）・予算と同じ。cargo の突き合わせ 9 本・Python 35 試験・ui-eval-skiprows 62 項目がすべて通る。大きな整数は pyfmt::PyInt の 1 つで比べ・並べ・+1・+10 し（next_id・next_order・same_id・isolated_hit・道の id）、事例の表 bigint_cases.json を Python と窓が同じに読む。置き場は held.rs の印の字で持ち、to_pretty・reply_bytes・Tree・py_dumps が桁のまま書くので、前のように大きな整数のファイルで道ごと任せない。データ元・作業実績の登録・変換表の標準の読めない行は FILTERED・STATUS に入り、書く係（キー・並べ替え・探し直し）が隔てた行を避ける。何行目かで消す道は Python・窓・門番が同じ言葉で答え（equip_rows_oracle の 11 歩）、画面の面から id が字の行も消せる（画像で見た）。Python の誤り 2 つ（データ元の字の id で一覧が 500・版が読めない行で英語の 400）は直っている。弱い所: 印の字は利用者の字と見分けられない（割れ 1。NaN の形は 3.107.0 から、大きな整数と int() で広がった）。isinstance(str) の写しが is_string と is_text に分かれ、まとめ方で割れた（割れ 2）。ID_FREE が窓の 1 か所でなく、変換表の標準で数に出ない任せる歩が残る（割れ 3）。何行目かで消す確かめが要約だけ（割れ 4）。消した後の覚えの捨て方の抜け（割れ 5）、名前を替えたファイルの重なり（割れ 6）、古い説明（割れ 7）。1 版が大きい（66 ファイル・+1,543 行）"
+  }
+ },
+ "built_fixed": {
+  "name": "作った後の採点（built）の割れを直した形（決まり 2026-11-06: 採点し直さず、割れを全部直して試験に足し、通ったら終わり）",
+  "fixes": [
+   "1 印の字の取り違え: 印（src/held.rs の mark()）を起動ごとの乱数（16 進 16 字）を挟んだ字に替えた。外から来る字（本文・ファイル・SQLite の値）は印を名乗れないので、どこで印の字を作っても取り違えない。to_value・body_value・py_str・IntArg・Tree・row_check・chart_at・release_place の py_str はそのまま正しくなる",
+   "2 isinstance(str) の写し: 設備グループのまとめ方（row_problem）・変換表の標準の名前・ダッシュボードの元の役割を held::is_text に。すぐに見るの id（quick_key）は持っている大きな整数を桁の字で読む",
+   "3 ID_FREE の 1 か所: master_rows::row_readable(name, r) が名前で row_check::ID_FREE を見る（rows_plain も名前を取る。データ元の確かめも同じ部品）。変換表の読みは標準を並べない道で conv_views(標準) を確かめない（書き出しは export_items が確かめる）。Python の conversions.ordered と窓の conv_order_index は int() で読めない id を 0 に（前は書き出しが ValueError の 500）",
+   "4 何行目かで消す道: 要約に加えて行の目印（形をそろえた行の json.dumps(ensure_ascii=True, sort_keys=True) の sha1 の頭 16 字。Python master_repository.row_key・窓 row_check::row_key）を skipped の key に出し、画面は &key= で送り、Python・窓とも違えば 404",
+   "5 消した後の覚え: 窓は changes_settings に /api/masters/rows/ を足し、rows_route が参照先・実績の設備で forget_listing（参照先は warm も）。Python の masters_row_delete も参照先で lot_mirror、参照先・実績の設備で WORK_LISTING.forget",
+   "6 探し直しの隔てた行のファイル: 名前に加えてファイルID（same_fid）でも足さない（Python・窓）",
+   "7 古い説明（row_check の wide_content・変換表の読み・権限の書く道）を今の形に",
+   "落とし穴（決めた）: データ元・実績の設備は参照先と同じく読みでは隔てない（row_check::FILTERED から外し、STATUS で知らせる）。Python は読みで使い、キー・id の当たる直す・並べ替え・探し直しの書きだけを断る。窓はその値を同じに読めると限らないので、読めない行があればその道と束の節を Python に任せる（変換表の標準は丸ごと置き換える表なので隔てたまま）",
+   "落とし穴（決めた）: bigint_cases の next_id・next_order は app を使わない独立の答え（Python の int で仕様どおり数える）で焼き直し、app の部品が同じ答えかは tests/test_bigint_cases.py で見る"
+  ],
+  "tests": "bigint_cases の marks（印と同じ頭の利用者の字 6 形: 字のまま読み・書き戻し・str()・int() の誤り。前の決まった印で落ちることを見た）・equip_rows_parity の「印の字と同じ頭の字」「読めない行を何行目かで消す（位置がずれた）」と目印つきの場面・row_cases の事例 5 件（まとめ方が大きな整数・目印 4 件。Python と窓が同じ表）・conversions_write_parity の「標準の行の id が字」・tests/test_row_delete.py（消した後の後始末・位置のずれ・データ元と実績の設備の書きの守り・名前を変えたファイル）・lot::tests の消した直後の読みとデータ元の読めない行で任せる形・tests/test_ui_score.py",
+  "next_version": "画面の採点の提案 3 つ（消す確かめの面に行の中身を添える・消した後の一言・× の色）と、データ元・実績の設備の知らせの面の「一覧では飛ばしています」の言葉（読みでは隔てなくなった）は、合格した画面を変えないため次の版に回す（RUST_PORT_PLAN.md）"
+ }
+}

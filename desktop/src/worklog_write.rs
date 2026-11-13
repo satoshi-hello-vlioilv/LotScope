@@ -21,6 +21,7 @@ use crate::lists::{same_fid, Found};
 use crate::master_rows::{base_rev, normalize_all, py_int, stamped, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::pyfmt;
+use crate::pyfmt::PyInt;
 use crate::worksum::{py_str, truthy};
 use serde_json::{json, Map, Value};
 
@@ -28,19 +29,19 @@ pub const NAME: &str = "work_log_files";
 const FIELDS: [&str; 8] = ["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "備考", "並び"];
 const SPEC: Spec = Spec { name: NAME, fields: &FIELDS, unique: Some("キー"), renamed: &[] };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Route {
     Get,
     Scan,
     Order,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
     Files,
 }
 
 /// Python の int(字)（\d+ の道の id。Unicode の数字も・先頭の 0 も）。i64 に入らなければ None（Python に任せる）。
 /// 版 3.93.0 から変換表の道（src/conversions_write.rs）も使う
-pub(crate) fn id_of(s: &str) -> Option<i64> {
+pub(crate) fn id_of(s: &str) -> Option<PyInt> {
     pyfmt::path_int(s)
 }
 
@@ -80,19 +81,15 @@ fn or_empty(r: &Value, k: &str) -> Value {
 }
 
 // ------------------------------------------------------------------ 並び（work_log.ordered・order_numbers）
-/// 並びの番号（int(str(並び or "").strip())。読めなければ None）
-fn order_num(r: &Value) -> D<Option<i128>> {
+/// 並びの番号（int(str(並び or "").strip())。読めなければ None）。版 3.108.0 から Python の int と同じく桁のまま比べる（PyInt。
+/// 前は 39 桁から Python に任せた）
+fn order_num(r: &Value) -> D<Option<PyInt>> {
     let t = s_or(r.get("並び"))?;
     let t = pyfmt::strip(&t);
     if t.is_empty() {
         return Ok(None);
     }
-    // i128 に入らない桁の数（39 桁から。Python の int は桁のまま並べる）は Python に任せる。wide_int_text は桁があふれると
-    // i128 の端に潰すので、先に桁を数える（版 3.91.0 の作った後の採点: 40 桁の並びが 2 行あると順が Python と違った）
-    if t.chars().filter(|c| pyfmt::digit(*c).is_some()).count() > 38 {
-        return Err(Delegate);
-    }
-    Ok(crate::bundle::wide_int_text(t))
+    Ok(pyfmt::py_int(t).ok())
 }
 
 /// ordered: 並びの番号 → 番号の無い行は登録の順で後ろ（行の位置の並び）
@@ -100,7 +97,7 @@ fn ordered(rows: &[Value]) -> D<Vec<usize>> {
     let mut keyed = vec![];
     for (i, r) in rows.iter().enumerate() {
         let n = order_num(r)?;
-        keyed.push((n.is_none(), n.unwrap_or(0), i));
+        keyed.push((n.is_none(), n.unwrap_or(PyInt::Small(0)), i));
     }
     keyed.sort();
     Ok(keyed.into_iter().map(|(_, _, i)| i).collect())
@@ -289,7 +286,9 @@ fn normalized(rows: &[Value]) -> Vec<Value> {
 
 /// 窓が受ける 6 本を答える（門番は呼ぶ側が通した）。窓が答えない形は None
 pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -> Option<Answer> {
-    if !crate::master_rows::rows_plain(cx.rows, &FIELDS) {
+    // 読めない行（row_check）は、Python が読みでは使い、触れる書きだけを断る（版 3.108.0。参照先と同じ。隔てると設備が消える）。
+    // 窓は読めない行（字の id・字の版）を Python と同じに読めると限らないので、読めない行があればこの道は Python に任せる
+    if !crate::master_rows::isolated_of(NAME, cx.rows).is_empty() || !crate::master_rows::rows_plain(NAME, cx.rows, &FIELDS) {
         return None;
     }
     let q = crate::lotlist::parse_query(query);
@@ -326,8 +325,17 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
                 Err(e) => return Some((503, json!({"error": e, "kind": "unreachable"}))),
             };
             let r = store.write(NAME, |have, stamp| {
-                normalize_all(have, &SPEC);
-                let m = match_rows(have, &(0..have.len()).collect::<Vec<_>>(), &found).map_err(|_| MasterError::Error("行の形が変わりました".into()))?;
+                // 表でない行は書かない・読めない行は隔てる（版 3.108.0。Python の _normalize_all と同じ）。隔てた行には結ばず、
+                // その行のファイルも新しい設備として足さない（行はそのまま書き戻す）
+                let iso = crate::master_rows::prepare(have, &SPEC)?;
+                // 名前でも、ファイルID でも（名前を変えたファイル）当たれば足さない（版 3.108.0 の作った後の採点の割れ 6）
+                let bad: Vec<&Map<String, Value>> = iso.iter().filter_map(|(i, _, _)| have[*i].as_object()).collect();
+                let held: Vec<String> =
+                    bad.iter().map(|o| o.get("ファイル名").filter(|v| truthy(v)).map(py_str).unwrap_or_default().to_lowercase()).collect();
+                let fids: Vec<String> = bad.iter().filter_map(|o| o.get("ファイルID").filter(|v| truthy(v)).map(py_str)).collect();
+                let good: Vec<usize> = (0..have.len()).filter(|i| !crate::row_check::is_isolated(&iso, *i)).collect();
+                let mut m = match_rows(have, &good, &found).map_err(|_| MasterError::Error("行の形が変わりました".into()))?;
+                m.new.retain(|&fi| !held.contains(&found[fi].file.to_lowercase()) && !fids.iter().any(|x| same_fid(&found[fi].fid, x)));
                 let key = || (cx.new_key)().ok_or_else(|| MasterError::Error("新しいキーを作れません（乱数を取れない）".into()));
                 let missing: Vec<Value> = m.missing.iter().map(|&i| have[i].get("設備名").cloned().unwrap_or(Value::Null)).collect();
                 let mut renamed = vec![];
@@ -372,7 +380,9 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
                     added.push(row.get("設備名").cloned().unwrap_or(Value::Null));
                     have.push(Value::Object(row));
                 }
-                Ok((added, renamed, missing, have.clone()))
+                // 書いた後の一覧（_master_view は repo.work_logs()〈隔てた行を除く〉で組む）
+                let now: Vec<Value> = have.iter().enumerate().filter(|(i, _)| !crate::row_check::is_isolated(&iso, *i)).map(|(_, r)| r.clone()).collect();
+                Ok((added, renamed, missing, now))
             });
             match r {
                 Err(e) => Some(of_master(e)),
@@ -398,9 +408,13 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
             }
             order_numbers(&rows, &ks).ok()?; // 窓が読めない並びの番号は書く前に Python へ
             let r = store.write(NAME, |have, stamp| {
-                normalize_all(have, &SPEC);
-                let plan = order_numbers(have, &ks).map_err(|_| MasterError::Error("行の形が変わりました".into()))?;
-                for (i, n) in plan {
+                // 隔てた行は並べず、そのまま書き戻す（版 3.108.0。Python の work_log_order と同じ）
+                let iso = crate::master_rows::prepare(have, &SPEC)?;
+                let good: Vec<usize> = (0..have.len()).filter(|i| !crate::row_check::is_isolated(&iso, *i)).collect();
+                let sub: Vec<Value> = good.iter().map(|&i| have[i].clone()).collect();
+                let plan = order_numbers(&sub, &ks).map_err(|_| MasterError::Error("行の形が変わりました".into()))?;
+                for (j, n) in plan {
+                    let i = good[j];
                     let cur = s_or(have[i].get("並び")).map_err(|_| MasterError::Error("並びが読めません".into()))?;
                     if cur != n {
                         let r = have[i].as_object_mut().ok_or_else(|| MasterError::Error("行の形が違います".into()))?;
@@ -414,7 +428,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
                         stamped(r, stamp);
                     }
                 }
-                Ok(have.clone())
+                Ok(good.iter().map(|&i| have[i].clone()).collect::<Vec<_>>())
             });
             match r {
                 Err(e) => Some(of_master(e)),
@@ -465,7 +479,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
             if d.contains_key("設備名") && crate::master_rows::clean(d.get("設備名")).is_empty() {
                 return Some(of_master(MasterError::Invalid("設備名を入れてください。".into())));
             }
-            match crate::master_rows::update(store, &SPEC, id, &d, base, &crate::master_rows::no_check) {
+            match crate::master_rows::update(store, &SPEC, &id, &d, base, &crate::master_rows::no_check) {
                 Ok(row) => Some((200, row)),
                 Err(e) => Some(of_master(e)),
             }
@@ -473,8 +487,8 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
         Route::Delete(id) => {
             let parsed = crate::master_rows::py_body(body)?;
             let base = base_rev(&parsed, query);
-            match crate::master_rows::delete(store, &SPEC, id, base) {
-                Ok(()) => Some((200, json!({"status": "deleted", "id": id}))),
+            match crate::master_rows::delete(store, &SPEC, &id, base) {
+                Ok(()) => Some((200, json!({"status": "deleted", "id": crate::held::int_value(&id)}))),
                 Err(e) => Some(of_master(e)),
             }
         }
@@ -494,11 +508,15 @@ mod tests {
 
     #[test]
     fn routes_and_ids_are_like_python() {
-        assert_eq!(route_of("PUT", "/api/masters/worklog/１"), Some(Route::Update(1)));
-        assert_eq!(route_of("DELETE", "/api/masters/worklog/0001"), Some(Route::Delete(1)));
+        assert_eq!(route_of("PUT", "/api/masters/worklog/１"), Some(Route::Update(PyInt::Small(1))));
+        assert_eq!(route_of("DELETE", "/api/masters/worklog/0001"), Some(Route::Delete(PyInt::Small(1))));
         assert_eq!(route_of("PUT", "/api/masters/worklog/order"), Some(Route::Order));
         assert_eq!(route_of("PUT", "/api/masters/worklog/-1"), None);
-        assert_eq!(route_of("PUT", "/api/masters/worklog/99999999999999999999"), None, "i64 に入らない id は Python");
+        assert_eq!(
+            route_of("PUT", "/api/masters/worklog/99999999999999999999"),
+            Some(Route::Update(PyInt::Big("99999999999999999999".into()))),
+            "i64 に入らない id も桁のまま（版 3.108.0）"
+        );
         assert_eq!(route_of("DELETE", "/api/masters/worklog/order"), None);
         assert_eq!(route_of("GET", "/api/worklog/files"), Some(Route::Files));
     }

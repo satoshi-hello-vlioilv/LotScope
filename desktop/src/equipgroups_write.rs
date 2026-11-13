@@ -26,6 +26,7 @@ use crate::jsontree::Tree;
 use crate::master_rows::{self, Spec};
 use crate::master_store::{MasterError, Store};
 use crate::pyfmt::strip;
+use crate::pyfmt::PyInt;
 use crate::worksum::{equipment_list, py_str, truthy};
 use serde_json::{json, Map, Value};
 
@@ -36,12 +37,12 @@ const NAME_MAX: usize = 40;
 const MAX_RULES: usize = 12;
 const SET_DEFAULT: &str = "グループ";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
     List,
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
 }
 
 /// 窓が受ける道か（<int:item_id> は \d+ と int()。Unicode の数字・先頭の 0 も。i64 に入らない id は Python）
@@ -171,13 +172,9 @@ fn rules_of(row: &Map<String, Value>) -> C<(Vec<Rule>, Vec<String>)> {
     Ok((rules, ex))
 }
 
-/// 表示順（str(int(order))。読めなければ ""）。一覧の表示順は i64 で渡すので、入らない数は任せる
+/// 表示順（str(int(order))。読めなければ ""）。版 3.108.0 から大きな数も桁のまま（一覧の表示順も held::int_value で桁のまま渡す）
 fn order_text(v: Option<&Value>) -> C<String> {
-    let t = master_rows::py_int_text(v).ok_or(Bad::Delegate)?;
-    if !t.is_empty() && t.parse::<i64>().is_err() {
-        return Err(Bad::Delegate);
-    }
-    Ok(t)
+    master_rows::py_int_text(v).ok_or(Bad::Delegate)
 }
 
 /// clean_row: 画面から来た値（name・set・equipment・rules・except・order・note）→ マスタの行。partial は直すとき（来た物だけ）。
@@ -238,7 +235,7 @@ fn clean_row(data: &Map<String, Value>, partial: bool, old: Option<&Map<String, 
 }
 
 /// 同じまとめ方の中で同じ名称を 2 つ持たない（equip_groups.check_unique。直すときは直した後の行で比べ、言葉はその行の字のまま）
-fn check_unique(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
+fn check_unique(rows: &[Value], data: &Map<String, Value>, self_id: Option<&PyInt>) -> Result<(), MasterError> {
     let key = (normalize_part(data.get("まとめ方")), normalize_part(data.get("名称")));
     let dflt = json!(SET_DEFAULT);
     for r in rows {
@@ -259,13 +256,11 @@ fn check_unique(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>)
 /// 置き場の行（窓が Python と同じに読める物だけ）: id・版・値の形（rows_plain）・一覧の形（bundle::group_views。正規表現のルール・
 /// 読めない JSON の字・i64 に入らない表示順は任せる）・まとめ方は字（Python は字でないまとめ方を値のまま組に分ける）
 fn read(place: &Place) -> Option<Read> {
-    if place.split_file(NAME) {
-        return None;
-    }
+    // i64・u64 に入らない整数のファイルも版 3.108.0 から読む（src/held.rs が桁のまま持つ。前は Place::split_file で任せた）
     // 種はまかずに読む（Python が読む歩でだけ道ごとの seed で置く。版 3.105.0 から Place::rows は読むときに置くので rows_peek）
     let mut rows = place.rows_peek(NAME).ok()?;
     master_rows::normalize_all(&mut rows, &SPEC);
-    // 読めない行（id・版・名称の型・ルールの NaN・数のまとめ方）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値はまだ任せる（H2）
+    // 読めない行（id・版・名称の型・ルールの NaN・数のまとめ方）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値は版 3.108.0 から桁のまま
     let iso = crate::row_check::check(NAME, &rows, &FIELDS);
     let good: Vec<Value> = crate::row_check::good(NAME, &rows, &iso);
     if !good.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain)))) {
@@ -285,7 +280,8 @@ struct Read {
 
 /// まとめ方が字でない行の理由（版 3.107.0。隔てる。Python の equip_groups.row_problem と同じ。前は Python が値のまま組に分けていた）
 pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
-    let v = row.get("まとめ方").filter(|v| truthy(v) && !v.is_string())?;
+    // isinstance(v, str) の写し: 持っている大きな整数は字の形でも int（held::is_text。版 3.108.0 の作った後の採点の割れ 2）
+    let v = row.get("まとめ方").filter(|v| truthy(v) && !crate::held::is_text(v))?;
     Some(format!("「まとめ方」が字ではありません（{}）", crate::row_check::short(v)))
 }
 
@@ -356,7 +352,7 @@ pub fn handle(
     // 名称・まとめ方が来たときだけ確かめる（master_repository._check_row の equipment_groups）
     let checker = |row: &Map<String, Value>| {
         let named = row.contains_key("名称") || row.contains_key("まとめ方");
-        move |rows: &[Value], d: &Map<String, Value>, self_id: Option<i64>| if named { check_unique(rows, d, self_id) } else { Ok(()) }
+        move |rows: &[Value], d: &Map<String, Value>, self_id: Option<&PyInt>| if named { check_unique(rows, d, self_id) } else { Ok(()) }
     };
     // 選べる設備を数える（Some(Some)）。書く係が断ると読んだ行から分かる歩（無い行・版の食い違い・名前の重なり）は、Python も一覧を組まずに
     // 断る（選べる設備を数えない）ので、数えずに書く係へ渡す（Some(None)。版 3.94.0: スケジュールの元があって数えられない PC でも、無い行を
@@ -390,7 +386,6 @@ pub fn handle(
             let seen = count(check_unique(&rows, &row, None).is_err())?;
             if strip(&py_str(row.get("表示順").unwrap_or(&json!("")))).is_empty() {
                 let order = master_rows::next_order(&rows)?;
-                order.parse::<i64>().ok()?;
                 row.insert("表示順".into(), json!(order));
             }
             let check = checker(&row);
@@ -407,27 +402,27 @@ pub fn handle(
             seed(store, place, NAME); // 今の行を読む（設備・ルールの一部だけが来たときの残り）
             let read = read(place)?;
             // routes/equipgroups の repo.find: 隔てた行なら書かない（503）
-            if let Err(e) = crate::row_check::guard(NAME, &read.all, &read.iso, id) {
+            if let Err(e) = crate::row_check::guard(NAME, &read.all, &read.iso, &id) {
                 return Some(of_master(e));
             }
-            let old = read.good.iter().find(|r| master_rows::same_id(r, id)).and_then(Value::as_object);
+            let old = read.good.iter().find(|r| master_rows::same_id(r, &id)).and_then(Value::as_object);
             let rows = read.all.clone();
             let row = match clean(&data, true, old) {
                 Ok(row) => row,
                 Err(a) => return a,
             };
             let named = row.contains_key("名称") || row.contains_key("まとめ方");
-            let refused = match rows.iter().find(|r| master_rows::same_id(r, id)) {
+            let refused = match rows.iter().find(|r| master_rows::same_id(r, &id)) {
                 None => true, // 無い行は 404（版を添えたなら 409）
                 Some(r) => {
                     let mut merged = r.as_object().cloned().unwrap_or_default();
                     merged.extend(row.clone());
-                    master_rows::check_rev(r, base).is_err() || named && check_unique(&rows, &merged, Some(id)).is_err()
+                    master_rows::check_rev(r, base).is_err() || named && check_unique(&rows, &merged, Some(&id)).is_err()
                 }
             };
             let seen = count(refused)?;
             let check = checker(&row);
-            match master_rows::update(store, &SPEC, id, &row, base, &check) {
+            match master_rows::update(store, &SPEC, &id, &row, base, &check) {
                 Ok(_) => done(200, json!({}), seen),
                 Err(e) => Some(of_master(e)),
             }
@@ -437,20 +432,20 @@ pub fn handle(
             seed(store, place, NAME); // 消す係は書く前に共有から取り直す（無ければ最初の版を置く）
             let read = read(place)?;
             // 隔てた行は値を読まずに消せる（版 3.107.0 の割れ 1。master_rows::delete）
-            if crate::row_check::isolated_hit(&read.all, &read.iso, id).is_some() {
+            if crate::row_check::isolated_hit(&read.all, &read.iso, &id).is_some() {
                 let seen = count(false)?;
-                return match master_rows::delete(store, &SPEC, id, base) {
+                return match master_rows::delete(store, &SPEC, &id, base) {
                     Ok(()) => done(200, json!({}), seen),
                     Err(e) => Some(of_master(e)),
                 };
             }
             let rows = read.all;
-            let refused = match rows.iter().find(|r| master_rows::same_id(r, id)) {
+            let refused = match rows.iter().find(|r| master_rows::same_id(r, &id)) {
                 None => base.is_none(), // 無い行は 404（版を添えたなら、もう消えている＝望みどおりで一覧）
                 Some(r) => master_rows::check_rev(r, base).is_err(),
             };
             let seen = count(refused)?;
-            match master_rows::delete(store, &SPEC, id, base) {
+            match master_rows::delete(store, &SPEC, &id, base) {
                 Ok(()) => done(200, json!({}), seen),
                 Err(e) => Some(of_master(e)),
             }
@@ -466,12 +461,16 @@ mod tests {
     fn routes_and_ids_are_like_python() {
         assert_eq!(route_of("GET", "/api/masters/equipgroups"), Some(Route::List));
         assert_eq!(route_of("POST", "/api/masters/equipgroups"), Some(Route::Create));
-        assert_eq!(route_of("PUT", "/api/masters/equipgroups/０7"), Some(Route::Update(7)));
-        assert_eq!(route_of("DELETE", "/api/masters/equipgroups/12"), Some(Route::Delete(12)));
+        assert_eq!(route_of("PUT", "/api/masters/equipgroups/０7"), Some(Route::Update(PyInt::Small(7))));
+        assert_eq!(route_of("DELETE", "/api/masters/equipgroups/12"), Some(Route::Delete(PyInt::Small(12))));
         assert_eq!(route_of("GET", "/api/masters/equipgroups/3"), None);
         assert_eq!(route_of("POST", "/api/masters/equipgroups/3"), None);
         assert_eq!(route_of("PUT", "/api/masters/equipgroupsx"), None);
-        assert_eq!(route_of("PUT", "/api/masters/equipgroups/99999999999999999999"), None, "i64 に入らない id は Python");
+        assert_eq!(
+            route_of("PUT", "/api/masters/equipgroups/99999999999999999999"),
+            Some(Route::Update(PyInt::Big("99999999999999999999".into()))),
+            "i64 に入らない id も桁のまま（版 3.108.0）"
+        );
     }
 
     fn row(body: &str, partial: bool, old: Option<Value>) -> String {
@@ -510,8 +509,10 @@ mod tests {
         assert_eq!(row(r#"{"name": "x", "rules": [{"op": ["prefix"], "value": "A"}]}"#, false, None), "任せる", "unhashable は Python");
         assert_eq!(row(r#"{"name": ["x"], "equipment": "A"}"#, false, None), "任せる");
         assert_eq!(row(r#"{"name": "x", "equipment": [["A"]]}"#, false, None), "任せる");
-        assert_eq!(row(r#"{"name": "x", "equipment": "A", "order": 1e20}"#, false, None), "任せる");
-        assert_eq!(row(r#"{"name": "x", "equipment": "A", "order": "1000000000000000000000"}"#, false, None), "任せる");
+        // 大きな表示順も Python の str(int()) と同じく桁のまま（版 3.108.0。前は任せた）
+        assert!(row(r#"{"name": "x", "equipment": "A", "order": 1e20}"#, false, None).contains(r#""表示順":"100000000000000000000""#));
+        assert!(row(r#"{"name": "x", "equipment": "A", "order": "1000000000000000000000"}"#, false, None)
+            .contains(r#""表示順":"1000000000000000000000""#));
         // 一部だけの直し: 残りは今の行の値（版 3.94.0 で Python を直した形）
         let old = json!({"設備": "CR1, CR2", "ルール": r#"{"rules": [{"op": "prefix", "value": "L-"}], "except": ["L-9"]}"#});
         assert_eq!(

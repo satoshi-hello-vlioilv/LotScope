@@ -124,7 +124,15 @@ SCENARIOS = [
         S(PART, "POST", body="[1]"), S(PART, "POST", body=""), S(PART, "POST", body="{"),
         W(S(PART, "POST", body=P(1.5, B(D("a"))))), S(PART, "POST", body=P(["x"], B(D("a")))),
         S(PART, "POST", body=P("a", B(D("a", part=["x"])))), S(PART, "POST", body=P("a", B(D("a"), measures=[{"agg": "sum", "column": {"a": 1}}]))),
-        S(PART, "POST", body=P("a", B(D("a"), measures=[{"agg": "sum", "expr": [1]}]))), S(PART, "POST", body=P("a", B(D("a"), chartAt="1" * 19))),
+        S(PART, "POST", body=P("a", B(D("a"), measures=[{"agg": "sum", "expr": [1]}]))), W(S(PART, "POST", body=P("a", B(D("a"), chartAt="1" * 19)))),
+        # 版 3.108.0（H2）: chartAt・幅・桁の大きな整数も窓が Python の int と同じく桁のまま（4,300 桁を超える字は int() が読めず 0）
+        W(S(PART, "POST", body=P("長い chartAt 30 桁", B(D("a"), chartAt="9" * 30)))), W(S(PART, "POST", body=P("chartAt -30 桁", B(D("a"), chartAt="-" + "9" * 30)))),
+        W(S(PART, "POST", body=P("chartAt 4301 桁", B(D("a"), chartAt="9" * 4301)))),
+        W(S(PART, "POST", body='{"name": "大きな整数の chartAt", "scope": "me", "source": "lot", "body": {"rows": [{"column": "a", "width": 100000000000000000000}], '
+                               '"measures": [{"agg": "sum", "column": "w", "dec": 100000000000000000000}], "chartAt": 123456789012345678901234567890}}')),
+        W(S(PART, "POST", body='{"name": "大きな整数の列", "scope": "me", "source": "lot", "body": {"rows": [{"column": 100000000000000000000}, {"column": "b"}]}}')),
+        W(S(PART, "POST", body=P("字の中身の大きな整数", '{"rows": [{"column": "a", "origin": -100000000000000000000}], "chartAt": 18446744073709551616}'))),
+        W(S(PART, "GET")),
         S(PART, "POST", body='{"name": "a", "scope": "me", "source": "lot", "body": {"rows": [{"column": "a"}]}, "x": NaN}'),
         S(PART, "POST", body=P("a", '{"rows": [{"column": "a", "width": NaN}]}')), W(S(PART, "POST", body=P("a", '{"rows": [{"column": "a", "width": -0}]}'))),
         S(PART, "PUT", 3, "[1]"), S(PART, "PUT", 3, ""), S(PART, "DELETE", 3, '"x"'),
@@ -194,10 +202,10 @@ SCENARIOS = [
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "quick": QUICK_ROWS, "lock": True,
      "steps": [S(PART, "POST", body=P("錠", B(D("a")))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), Q(PART, {"source": "lot", "keys": []}),
                S(PART, "GET")], "delegates": []},
-    # 版 3.107.0: 読めない行は隔てて答える（長い chartAt の字は大きな整数なのでまだ任せる。H2）
-    *[{"name": f"置き場の組み方の行の中身が {what}（{'窓は答えず Python に任せる' if what == '長い chartAt' else '行を隔てて答える'}）", "mode": "shared",
+    # 版 3.107.0: 読めない行は隔てて答える（長い chartAt の字の大きな整数は版 3.108.0〈H2〉から窓も桁のまま読む）
+    *[{"name": f"置き場の組み方の行の中身が {what}（{'窓も桁のまま読む' if what == '長い chartAt' else '行を隔てて答える'}）", "mode": "shared",
        "rows": [R(1, "良い行", "lot", "共通", body=GOOD), bad],
-       "quick": [], "steps": [], "delegates": [(W if what != "長い chartAt" else (lambda x: x))(x) for x in [
+       "quick": [], "steps": [], "delegates": [W(x) for x in [
            S(PART, "GET"), S(PART, "POST", body=P("a", B(D("a")))), S(PART, "PUT", 2, {"name": "直す"}), S(PART, "DELETE", 2), S(PART, "GET")]]}
       for what, bad in [("並びの part", R(2, "x", "lot", "共通", body=j(B(D("a", part=["x"]))))),
                         ("長い chartAt", R(2, "x", "lot", "共通", body=j(B(D("a"), chartAt="9" * 30)))),
