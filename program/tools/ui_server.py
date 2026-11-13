@@ -102,7 +102,14 @@ def build(quality=1500, work_rows=400, wip=1200):
     settings["schedule"] = {**settings.get("schedule", {}), "cm3_base_url": cm3_url}
     settings["sources"] = {**settings.get("sources", {}), "wip": {**settings.get("sources", {}).get("wip", {}),
                                                                   "source": str(shared / "台帳" / "LOTNOW.sqlite3")}}
-    app = create_app({"MASTER_STORE": MasterStore(WORK / "base", local_root=WORK / "masters", settings={}),
+    # マスタの置き場（版 3.110.0。読めない行の面・確かめの窓の言葉を置き場ごとに撮る）: 既定は手元のみ。TPA_UI_SHARE=shared は共有の
+    # フォルダ、down は共有に届かない形（支度を共有で済ませた後に共有のフォルダの名前を替える）
+    share_mode = os.environ.get("TPA_UI_SHARE", "")
+    master_share = WORK / "マスタ共有"
+    if share_mode in ("shared", "down"):
+        master_share.mkdir()
+    app = create_app({"MASTER_STORE": MasterStore(WORK / "base", local_root=WORK / "masters",
+                                                  settings={"dir": str(master_share)} if share_mode in ("shared", "down") else {}),
                       "LOT_MIRROR": DbMirror("lot_list", share, WORK / "cache"), "APP_SETTINGS": settings,
                       "WORK_MIRRORS": work_log.Mirrors(WORK / "cache" / "work_log"),
                       "SRC_MIRRORS": work_log.Mirrors(WORK / "cache" / "sources", prefix="src"),
@@ -150,6 +157,8 @@ def build(quality=1500, work_rows=400, wip=1200):
             have = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
             have = have["rows"] if isinstance(have, dict) else have
             f.write_text(json.dumps(have + rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    if share_mode == "down":
+        master_share.rename(master_share.with_name("マスタ共有_届かない"))
     (folder / "実績_SL3.sqlite3").unlink()
     old = time.time() - 80 * 3600                    # 1 台（HOT）は更新が止まった形（80 時間前）
     os.utime(folder / "実績_HOT.sqlite3", (old, old))

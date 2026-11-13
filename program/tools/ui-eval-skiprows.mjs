@@ -17,6 +17,11 @@
 //    面の × と「× の行は…」の × は確かめの「× 消す」と同じ赤。消した後は一言（中身・「残り n」が帯の札の数と同じ・role=status）を、
 //    マスタ管理の中では表の枠の中の下に出す（右の直す欄にまたがらない）。数秒で消え、マウスが乗っている間は消さない。
 //    データ元の面は見出しが 1 段の「この画面の行（一覧・読みでは使っています）」、止めている事は面の下の小さな字（太字でない）
+// ⑨ 版 3.110.0（2026-11-stage2-ui.json で決めた D）: やめると開いた順の逆に 1 段ずつ戻る（確かめの窓を Esc・「やめる」→ 面を開き直して押した行に
+//    焦点 → もう一度 Esc で面を閉じて帯の札に焦点〈:focus-visible の輪〉→ 3 度目でマスタ管理を閉じる。窓の外を押したら全部やめて札へ）。帯を描き直しても
+//    焦点は同じマスタの新しい札。ダッシュボード・共有の書式の面でも同じ。直すファイルの言葉はサーバーの置き場の状態から（手元のみ「この PC のアプリの
+//    data/ の …json」〈帯と同じ言葉〉・共有「共有のフォルダの …json」・届かない「共有のフォルダ（いまは届きません）の …json」。開発用サーバーの
+//    TPA_UI_SHARE で撮る）。消した後の一言は中身つきのまま、タブを替えたとき（押す・キー・goTab）とマスタ管理を閉じたときに消える
 // 撮る出力フォルダを渡すと、各所の画像（skip-<所>-<大きさ>.png。面を開いた所は skip-<所>-open-<大きさ>.png）を置く。全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 import fs from "node:fs";
@@ -80,6 +85,14 @@ const openConfirm = async (p, re) => {
   return confirmInfo(p);
 };
 const RED = "rgb(180, 35, 24)";
+/** やめた後の焦点の様子（版 3.110.0。⑨）: 面が開いているか・焦点の字・帯の札か・:focus-visible の輪が見えるか・マスタ管理が開いているか */
+const backState = (p) => p.evaluate(() => {
+  const a = document.activeElement, m = document.querySelector(".tpa-skipmenu"), k = a && a !== document.body ? getComputedStyle(a) : null;
+  return { menu: !!m, focusText: (a?.textContent || "").slice(0, 80), onBadge: !!a?.matches?.(".tpa-skip"), body: a === document.body,
+           visible: !!k && a.matches(":focus-visible") && ((parseFloat(k.outlineWidth) > 0 && k.outlineStyle !== "none") || k.backgroundColor !== "rgba(0, 0, 0, 0)"),
+           ring: k ? `${k.outlineStyle} ${k.outlineWidth} ${k.outlineColor}` : "", master: !!document.querySelector("#masterOverlay:not(.hidden)") };
+});
+const WHERE_LOCAL = "この PC のアプリの data/ の";
 /** 一言の置き場（マスタ管理の表の枠の中か・右の直す欄に重ならないか・1 段か） */
 const toastPlace = (p) => p.evaluate(() => {
   const t = document.querySelector(".tpa-toast"); if (!t) return null;
@@ -133,9 +146,17 @@ try {
       && c1.title === "保存したダッシュボードの読めない行を消しますか" && c1.dt.join("・") === "ファイル・中身・理由" && /dashboards\.json の \d+ 行目/.test(c1.dd[0])
       && /id 903・名前 '版の読めないダッシュボード'/.test(c1.dd[1]) && /版（rev）が読めません/.test(c1.dd[2]) && c1.focus === "no" && c1.inView && c1.okVisible, c1);
     await shot(p, `skip-dash-confirm-${tag}`, c1 && c1.clip);
-    await p.keyboard.press("Escape"); await sleep(200);
+    check(`⑨ ${tag} ダッシュボード（手元のみ）の確かめの言葉は「この PC のアプリの data/ の dashboards.json」`,
+      c1 && c1.note === `消すと元に戻せません。消さずに直すときは、${WHERE_LOCAL} dashboards.json を直します。`, c1 && c1.note);
+    await p.keyboard.press("Escape"); await sleep(300);
     check(`⑧ ${tag} Esc でやめる（窓が閉じる）`, !(await p.$(".tpa-confirm")), "");
-    await closeMenu(p);
+    const db1 = await backState(p);
+    check(`⑨ ${tag} ダッシュボード: やめると面へ 1 段戻り、押した行（id 903）に焦点（:focus-visible）`, db1.menu && /id 903/.test(db1.focusText) && db1.visible, db1);
+    await shot(p, `skip-back-dash-esc-${tag}`);
+    await p.keyboard.press("Escape"); await sleep(300);
+    const db2 = await backState(p);
+    check(`⑨ ${tag} ダッシュボード: もう一度 Esc で面を閉じて札へ（:focus-visible の輪）`, !db2.menu && db2.onBadge && db2.visible, db2);
+    await shot(p, `skip-back-dash-esc2-${tag}`, bar && bar.clip);
     if (tag === "1280x720") {
       // 版 3.109.0 の作った後の採点の割れ 4: ほかの画面の行（カードの設計）を消しても、帯の札の数（今の面の行）は減らない。一言の「残り n」も同じ数
       await openMenu(p, "#dashBar");
@@ -172,8 +193,94 @@ try {
 } finally {
   await app.close();
 }
+await placeWords();
 console.log(fails.length ? `NG ${fails.length} 件` : "OK すべて");
 process.exit(fails.length ? 1 : 0);
+
+/** ⑨ マスタ管理の帯から: 言葉（手元のみ）・Esc で 1 段ずつ戻る・帯の描き直し・マウスの「やめる」と窓の外・一言を消す所 */
+async function backPart(p, tag) {
+  await p.click(".master-place .tpa-skip"); await sleep(300);
+  const words = await p.evaluate(() => document.querySelector(".tpa-skipmenu")?.textContent || "");
+  check(`⑨ ${tag} マスタ管理（手元のみ）の面の言葉は帯と同じ「この PC のアプリの data/ の equipment_master.json」・「共有のフォルダ」と言わない`,
+    words.includes(`消さずに直すときは、${WHERE_LOCAL} equipment_master.json を直します`) && !/共有のフォルダ/.test(words), words);
+  await shot(p, `skip-back-menu-${tag}`);
+  const c = await openConfirm(p, /id 'x'/);
+  check(`⑨ ${tag} 確かめの窓の言葉も「この PC のアプリの data/ の equipment_master.json」`,
+    c && c.note === `消すと元に戻せません。消さずに直すときは、${WHERE_LOCAL} equipment_master.json を直します。`, c && c.note);
+  await shot(p, `skip-back-confirm-${tag}`, c && c.clip);
+  await p.keyboard.press("Escape"); await sleep(300);
+  const b1 = await backState(p);
+  check(`⑨ ${tag} Esc でやめると面へ 1 段戻り、押した行（18 行目 id 'x'）に焦点（:focus-visible）`, b1.menu && /18 行目 id 'x'/.test(b1.focusText) && b1.visible && b1.master, b1);
+  await shot(p, `skip-back-esc-${tag}`);
+  await p.keyboard.press("Escape"); await sleep(300);
+  const b2 = await backState(p);
+  check(`⑨ ${tag} もう一度 Esc で面を閉じて帯の札へ（:focus-visible の輪・マスタ管理は開いたまま）`, !b2.menu && b2.onBadge && b2.visible && b2.master, b2);
+  // 帯を描き直しても（置き場の見張りの読み直し。5 秒ごと）、焦点は同じマスタの新しい札（前は描き直しで body に落ち、1280 で輪が消えた）
+  const before = await p.evaluate(() => { const b = document.querySelector(".master-place .tpa-skip"); b.dataset.old = "1"; return b.dataset.skip; });
+  await sleep(5800);
+  const repainted = await p.evaluate(() => !document.querySelector(".master-place .tpa-skip[data-old]"));
+  check(`⑨ ${tag} 帯は見張りで描き直される（札の要素が替わる）`, repainted, before);
+  const b3 = await backState(p);
+  check(`⑨ ${tag} 帯を描き直しても焦点は新しい札（:focus-visible の輪）`, b3.onBadge && b3.visible && b3.master, b3);
+  await shot(p, `skip-back-esc2-${tag}`);
+  // マウスで「やめる」も面へ 1 段戻る。窓の外を押したら全部やめて札へ
+  await p.click(".master-place .tpa-skip"); await sleep(300); await openConfirm(p, /id 902/);
+  await p.click('.tpa-confirm [data-act="no"]'); await sleep(300);
+  const b4 = await backState(p);
+  check(`⑨ ${tag} マウスで「やめる」を押しても面へ 1 段戻る（押した行 id 902 に焦点）`, b4.menu && /id 902/.test(b4.focusText), b4);
+  await openConfirm(p, /id 902/);
+  await p.mouse.click(5, 5); await sleep(300);
+  const b5 = await backState(p);
+  check(`⑨ ${tag} 窓の外を押すと全部やめて札へ（面は開き直さない）`, !b5.menu && b5.onBadge && b5.master && !(await p.$(".tpa-confirm")), b5);
+  // 札で Esc ＝ 3 度目: マスタ管理を閉じ、一言も消える
+  await p.evaluate(() => TPA.toast("✓ 設備マスタの 18 行目（id 'x'・設備名 '壊れた設備'）を消しました。", { rest: "読めない行は残り 1" }));
+  await p.focus(".master-place .tpa-skip"); await p.keyboard.press("Escape"); await sleep(400);
+  const closed = await p.evaluate(() => ({ master: !!document.querySelector("#masterOverlay:not(.hidden)"), toast: !!document.querySelector(".tpa-toast") }));
+  check(`⑨ ${tag} 札で Esc を押すとマスタ管理を閉じ、一言も消える`, !closed.master && !closed.toast, closed);
+  await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)"); await sleep(600);
+  await p.evaluate(() => document.querySelector('#masterTabs [data-tab="equipment"]')?.click()); await sleep(900);
+  // 一言は中身（id・設備名）つきのまま、タブをキーで替えると消える・goTab で移っても消える
+  await p.evaluate(() => TPA.toast("✓ 設備マスタの 18 行目（id 'x'・設備名 '壊れた設備'）を消しました。", { rest: "読めない行は残り 1" }));
+  const kept = await p.evaluate(() => document.querySelector(".tpa-toast")?.textContent || "");
+  await p.focus('#masterTabs [data-tab="rolls"]'); await p.keyboard.press("Enter"); await sleep(700);
+  const t1 = await p.evaluate(() => ({ toast: !!document.querySelector(".tpa-toast"), tab: document.querySelector("#masterTabs .tab.active")?.dataset.tab }));
+  check(`⑨ ${tag} 一言は中身（id・設備名）つきのまま、タブをキーで替えると消える`, /id 'x'・設備名 '壊れた設備'/.test(kept) && !t1.toast && t1.tab === "rolls", { kept, t1 });
+  await shot(p, `skip-back-tab-${tag}`);
+  await p.evaluate(() => TPA.toast("✓ 設備マスタの 18 行目を消しました。", {})); await p.evaluate(() => window.openMasterAt("equipment")); await sleep(900);
+  const t2 = await p.evaluate(() => ({ toast: !!document.querySelector(".tpa-toast"), tab: document.querySelector("#masterTabs .tab.active")?.dataset.tab }));
+  check(`⑨ ${tag} ほかの画面から移った（openMasterAt）ときも一言を消す`, !t2.toast && t2.tab === "equipment", t2);
+}
+
+/** ⑨ 置き場が共有・共有に届かないときの言葉（開発用サーバーを TPA_UI_SHARE で起こし直す） */
+async function placeWords() {
+  for (const [mode, want] of [["shared", "共有のフォルダの equipment_master.json"], ["down", "共有のフォルダ（いまは届きません）の equipment_master.json"]]) {
+    process.env.TPA_UI_SHARE = mode;
+    const app2 = await launch();
+    try {
+      for (const view of [parseView("1728x1152"), parseView("1536x864"), parseView("1280x720")]) {
+        const tag = `${view.width}x${view.height}`;
+        const p = await app2.newPage("light", view);
+        await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)"); await sleep(600);
+        await p.evaluate(() => document.querySelector('#masterTabs [data-tab="equipment"]')?.click()); await sleep(1200);
+        const band = await p.evaluate(() => document.querySelector("#masterPlace")?.textContent || "");
+        const has = !!(await p.$(".master-place .tpa-skip"));
+        check(`⑨ ${tag} ${mode}: 帯に置き場（${mode === "shared" ? "共有" : "共有に届きません"}）と読めない行の札`, has && (mode === "shared" ? /共有/.test(band) : /共有に届きません/.test(band)), band);
+        if (!has) { await p.context().close(); continue; }
+        await p.click(".master-place .tpa-skip"); await sleep(400);
+        const words = await p.evaluate(() => document.querySelector(".tpa-skipmenu")?.textContent || "");
+        check(`⑨ ${tag} ${mode}: 面の言葉は「${want}」`, words.includes(`消さずに直すときは、${want} を直します`) && !/この PC のアプリの data/.test(words), words);
+        await shot(p, `skip-place-${mode}-menu-${tag}`);
+        const c = await openConfirm(p, /id 'x'/);
+        check(`⑨ ${tag} ${mode}: 確かめの窓の言葉は「${want}」`, c && c.note === `消すと元に戻せません。消さずに直すときは、${want} を直します。` && c.inView, c && c.note);
+        await shot(p, `skip-place-${mode}-confirm-${tag}`);
+        await p.context().close();
+      }
+    } finally {
+      await app2.close();
+      delete process.env.TPA_UI_SHARE;
+    }
+  }
+}
 
 async function formatsPart(p, tag) {
   await p.click("#llFormatBtn"); await p.waitForSelector("#llFormatPanel .fm-head"); await sleep(400);
@@ -188,9 +295,18 @@ async function formatsPart(p, tag) {
   check(`⑧ ${tag} 共有の書式の面から消す確かめも同じ窓・同じ言葉（共有の書式の読めない行を消しますか）`, c && c.title === "共有の書式の読めない行を消しますか"
     && c.dt.join("・") === "ファイル・中身・理由" && /display_formats\.json の \d+ 行目/.test(c.dd[0]) && c.focus === "no" && c.inView && c.okBg === RED, c);
   await shot(p, `skip-formats-confirm-${tag}`, c && c.clip);
-  // 後ろを押してもやめる
-  await p.mouse.click(5, 5); await sleep(200);
+  check(`⑨ ${tag} 共有の書式（手元のみ）の確かめの言葉は「この PC のアプリの data/ の display_formats.json」`,
+    c && c.note === `消すと元に戻せません。消さずに直すときは、${WHERE_LOCAL} display_formats.json を直します。`, c && c.note);
+  // Esc は面へ 1 段戻る（押した行に焦点）
+  await p.keyboard.press("Escape"); await sleep(300);
+  const f1 = await backState(p);
+  check(`⑨ ${tag} 共有の書式: Esc でやめると面へ 1 段戻り、押した行（版の読めない書式）に焦点（:focus-visible）`, f1.menu && /版の読めない書式/.test(f1.focusText) && f1.visible, f1);
+  // 後ろを押してもやめる（全部やめて札へ。面は開き直さない）
+  await openConfirm(p, /版の読めない書式/);
+  await p.mouse.click(5, 5); await sleep(300);
   check(`⑧ ${tag} 後ろを押すとやめる（窓が閉じる）`, !(await p.$(".tpa-confirm")), "");
+  const f2 = await backState(p);
+  check(`⑨ ${tag} 共有の書式: 窓の外を押すと全部やめて札へ（面は開き直さない）`, !f2.menu && f2.onBadge, f2);
   await closeMenu(p);
 }
 
@@ -233,6 +349,7 @@ async function masterPart(p, tag) {
     const r = c.getBoundingClientRect(), b = h.getBoundingClientRect(); return { chipH: Math.round(r.height), bandH: Math.round(b.height), inside: r.right <= b.right + 1, pageX: document.documentElement.scrollWidth <= innerWidth + 1 }; });
   check(`⑦ ${tag} 帯の札が 1 段（高さ 24px 以下・帯からはみ出さない・横に送らない）`, bandLine && bandLine.chipH <= 24 && bandLine.inside && bandLine.pageX, bandLine);
   SHAPES.add(await chipShape(p, ".master-place"));
+  await backPart(p, tag);
   await shot(p, `skip-master-${tag}`, await p.evaluate(() => { const r = (document.querySelector(".master-place") || document.body).getBoundingClientRect(); return { x: 0, y: Math.max(0, r.top - 60), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 60), r.height + 260) }; }));
   await p.click(".master-place .tpa-skip"); await sleep(300);
   const t3 = await menuText(p);
@@ -266,7 +383,8 @@ async function masterPart(p, tag) {
     await shot(p, `skip-master-toast-${tag}`);
     await p.evaluate(() => document.querySelector(".tpa-toast")?.remove());
   }
-  // 面は確かめの窓を開いたときに閉じている（Esc を押すとマスタ管理まで閉じる）
+  // やめると面へ 1 段戻る（版 3.110.0。⑨）。次の段のために面を閉じる
+  if (await p.$(".tpa-menu")) await closeMenu(p);
   // ⑦ マスタ管理の中で開いた一般ユーザーの面（もうマスタ管理の中にいるので「マスタ管理か…」と言わない）
   await p.evaluate(() => { window.__me = TPA.me; TPA.me = { ...(TPA.me || {}), canEditFieldMaster: false }; });
   await p.click(".master-place .tpa-skip"); await sleep(300);
@@ -315,7 +433,14 @@ async function masterPart(p, tag) {
   }
   // ⑧ データ元の面: 見出しは 1 段の「この画面の行（一覧・読みでは使っています）」、止めている事は面の下の小さな字（太字でない）
   if (await p.$(".tpa-menu")) await closeMenu(p);
-  await p.evaluate(() => document.querySelector('#masterTabs [data-tab="sources"]')?.click()); await sleep(1200);
+  await p.evaluate(() => document.querySelector('#masterTabs [data-tab="sources"]')?.click());
+  // 帯の札が移った先（データ元）の札に替わるまで待ってから押す（版 3.110.0 の作った後の採点の割れ 4。前は 1.2 秒で押し、帯が 5 秒ごとの
+  // 見直しまで設備マスタの札のままだと設備マスタの面が開いた）
+  const bandSrc = await p.waitForFunction(() => /^⚠ データ元の読めない行/.test(document.querySelector(".master-place .tpa-skip")?.textContent || ""), null, { timeout: 2000 })
+    .then(() => true, () => false);
+  check(`⑧ ${tag} データ元のタブへ移ると、帯の札はすぐ（2 秒以内）データ元の札に替わる`, bandSrc,
+    await p.evaluate(() => document.querySelector(".master-place .tpa-skip")?.textContent || ""));
+  await sleep(300);
   await p.click(".master-place .tpa-skip"); await sleep(300);
   const ds = await p.evaluate(() => {
     const m = document.querySelector(".tpa-menu"); if (!m) return null;

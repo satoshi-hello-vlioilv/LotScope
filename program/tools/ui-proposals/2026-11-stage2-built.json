@@ -1,0 +1,110 @@
+{
+ "title": "Rust 化の段 ② の 1 歩目: 起動の初期値を窓へ（seeds）・重複を塞ぐ（Store::write_changed）・Esc と外側の押下はいちばん上の物だけ。版 3.110.0 の作った後の採点（2026-11-13）",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage2.json",
+ "applies_note": "版 3.110.0 は 2026-11-stage2.json の回の 1 位 A（73.8 点・80 に届かず）に、採点の指摘 first_fixes の 8 つを入れて作った物。新しい案出しは無いので rounds は空にし、判定は 2026-11-stage2.json の『届かずに選ぶ』を引いて、作った後（built）だけを決まり 2026-11-06 の物差しで 1 回採点する。画面の見た目（読めない行の面・確かめの窓・言葉）は別の係が 2026-11-stage2-ui.json で採点する。ここで見た画面の JS（shared.js の Esc・外側の押下）は振る舞いの正しさだけ",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff 61745f8 51f595b を読み、自分で試験を流し、一時の試験（desktop/tests/zz_grader_seeds.rs。採点の後に消した）と、同じバイトの共有に Python の master_seeds.run と窓の seeds::run を当てて終わった後のファイルを比べる差分の台本（scratchpad の g3110/diff_seeds.py）で割れを探した",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.110.0・commit 51f595b。src/seeds.rs・Lot::run_seeds・SERVES の seeds・Store::write_changed・master_seeds の _Same と _record・事例の表 seeds_cases.json・seeds_parity・shared.js の escStack）",
+  "images": "画面に出ない改良なので画像は無い（自分で流した試験・差分の台本・一時の試験で再現した割れ・読んだコードで採点した）。画面の見た目は別の係（2026-11-stage2-ui.json）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）",
+  "measured": {
+   "cargo": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked --test seeds_cases --test seeds_parity → 2＋4 passed（each_rule_like_the_table・each_run_like_the_table・the_window_leaves_the_same_files_as_python・two_windows_reading_the_record_together_apply_once・the_window_and_python_reading_the_record_together_apply_once・the_window_never_adds_a_second_record_even_beside_the_old_python）・終了コード 0。cargo test --lib -- lot::tests::the_window_applies_the_seeds master_store::tests → 8 passed。Store の書く道に触れたので masters_parity・place_parity・equip_rows_parity・access_write_parity・bundle_parity も流した → 5 本とも test result: ok",
+   "python": "cd program && python -m unittest tests.test_seeds_cases tests.test_master_seeds tests.test_master_share tests.test_delegates_budget → Ran 57 tests・OK・終了コード 0",
+   "delegates": "python program/tools/delegate-count.py 作業フォルダ --check → 計 19（束 7〈配った設定・束の材料の形 4・窓がまだ組めない節 2・引っ越しの印 1〉・OS 6・口 5・本文 1）・『予算と同じです』・終了コード 0（33 秒）",
+   "differential": "差分の台本（app を使わない別の置き場の作り方。同じバイトの共有を py と rs の 2 つに置き、Python は MasterStore＋master_seeds.run、窓は一時の試験で common::seeds_store_at＋seeds::run。終わった後のファイルを updated_at・updated_by を伏せて比べる）で 107 場面: rev 30 形（1e400・NaN・-1e400・Infinity・1e20・1.5e300・全角・4_0・アラビアの数字・[1]・{}・-0.0・空白だけ・-5・1.9999999999999999・0x10・\" +7 \"・1e3・i64 の端・i64 より小さい・23 桁の字・\\u001c つき・\\u0085 つき・0.0・false・null・\"0\"・1e-400・0.25）・検査計 15 形（NaN・{}・0.0・-0.0・\\u001c・ゼロ幅空白・\\u0085・1e400・[0]・NBSP・\\u2028・BOM の字・Infinity など）・設備名 11 形・id 12 形・表示順 13 形・ログインID 7 形・記録の seed 5 形・一致の後ろに表でない行 3 形・ファイルの形 7 形（壊れた JSON・行の並びの昔の形・rows が表・版が字・版が i64 の端・記録が壊れた・BOM）・中身の NaN・空の共有・ほかの PC の生きた錠・切れた錠 → 106 場面で当てた初期値と終わった後のファイルが同じ。違うのは『設備マスタの版が i64 の端（9223372036854775807）』の 1 場面だけ（Python は 9223372036854775808 へ上げて当て、窓は master_store の『版の番号が大きすぎて、窓では保存できません』で止める。版 3.67.0 からの Store の決まり。下の not_cracks）",
+   "race_check": "seeds_parity の 2 つのプロセスの場面を読んだ: 窓は run_with の after_read（app_seeds を読んだ直後）で ready-rs を置いて go を待ち、Python は seeds_oracle.py race の Waiting.read（MasterStore.read を継いで app_seeds の読みの直後に ready-py を置き go を待つ）。試験の糸が ready-py と ready-rs の両方を見てから go を置くので、どちらも記録を読み終えてから当て始める（待ち合わせの印は効いている）。窓と窓は Barrier。前の版の Python は old_run（中身は fn() or True で変えなくても書く・記録は見直さずに足す）",
+   "repro": "一時の試験（desktop/tests/zz_grader_seeds.rs。採点の後に消した）: (a) 引っ越しの印: 前の置き場 old に _MOVED.json（to new）・配った設定の master_share.dir は old。Lot に Builder を入れ、Barrier で 2 つの糸を同時に起こし、片方は lot.own_bundle()（束を組む＝ main.rs の更新の係 upd.run の update_settings・warm・最初の画面の道と同じ Builder::inputs）、片方は lot.run_seeds → 300 回のうち 122 回、100 回のうち 35 回、初期値が前の置き場 old に当たった（old に app_seeds.json と 5 行の equipment_master.json・access_permissions・path_settings・tab_access。new には app_seeds が無い。両方に当たった回は 0）。(b) 束の材料を組めない配った設定: 配った設定に NaN・Infinity・10^20 のどれかを足すと run_seeds は Err『束の材料を組めません（配った設定が窓の読めない JSON）』で何も当てない（Python は SERVES の seeds で当てない）。desktop が並び・普通・手元のみ（data/ に app_seeds・equipment_master・access_permissions）・届かない（stopped・共有を作らない）は表どおり",
+   "ui": "評価関数を自分で流した（node program/tools/ui-eval-*.mjs。開発用サーバーを自分で起こす形）: popovers 17 OK・colmenu 17 OK・dashmenu 16 OK・unsaved 23 OK・colfilter 21 OK・pathpick 17 OK・cardform 24 OK（7 本とも終了コード 0）。ui-eval-skiprows.mjs は 168 OK・2 NG（⑧ 1728・1536 の『データ元の面』: データ元のタブへ移って 1.2 秒後も帯の札が設備マスタのまま。2 回とも同じ）。作る前の commit 61745f8 を一時の worktree に出して版 3.109.0 の ui-eval-skiprows.mjs を流しても同じ 2 つが NG（99 OK・2 NG）なので、版 3.110.0 の変更で起きた物ではない（下の cracks 4）"
+  },
+  "cracks": [
+   {
+    "name": "1. 引っ越しの印の後、起動の同じ瞬間に束を組むほかの糸があると、初期値が前の置き場（印の残った古い共有）へ当たる（指摘 4 が半分）",
+    "where": "desktop/src/lot.rs:378-384（run_seeds が b.inputs() の place をそのまま使う）・desktop/src/bundle.rs:696-703（follow_moved は moved_checked を立ててから印を歩くので、その間に来たほかの糸は refresh 秒のあいだ None）・bundle.rs:2099-2108・613-647（store() はこの PC の覚え master_share.json をたどる前に読む）・desktop/src/main.rs:694（seeds の糸）と 713（upd.run の糸が update_settings → inputs）・724（warm）・739（最初の画面の道）が同じ瞬間に始まる",
+    "path": "1 つ目の糸（例: 更新の係）が follow_moved に入って moved_checked を立て、印を読み retarget で覚えを書くまでの間に、seeds の糸が store() で覚え（まだ前の置き場）を読み、follow_moved は『見たばかり』で None を返す → inputs の place は前の置き場 → shared_store がその置き場の書く係を作り、seeds::run が前の置き場に app_seeds・設備マスタの検査計・最初の管理者を書く（EVERY_READ の種まきも前の置き場）。新しい置き場には当たらず、その起動では記録も残らない（次の起動で新しい置き場に当たる）。引っ越した後の最初の起動はほぼ必ず更新の係・warm・画面の道と同時なので、起きやすい（一時の試験で 35〜41%）。前の版は Python の master_seeds が 0.65 秒ほど後に起き、窓が覚えを書いた後の置き場を読んでいた",
+    "fix": "初期値の糸は置き場が落ち着いてから当てる: follow_moved の moved_checked の錠を印を歩いて retarget で覚えを書き終えるまで持つ（ほかの糸は待ってから覚えを読み直す）か、run_seeds が inputs の後に place.shareDir の _MOVED.json を見て、あれば覚えを読み直して inputs を組み直す（またはその起動は当てずに次へ）。lot::tests に Barrier で束を組む糸と run_seeds を同時に起こす場面（数百回）を足し、前の置き場に何も書かれないことを確かめる",
+    "reproduced": true
+   },
+   {
+    "name": "2. 束の材料を組めない配った設定（NaN・Infinity・i64 を超える整数）では、窓も Python も初期値を当てない（黙ったまま直るまで）",
+    "where": "desktop/src/lot.rs:380（inputs().map_err で Err を返し、main.rs:695-698 は記録に 1 行書くだけ）・desktop/src/bundle.rs:2110-2113（text_split・from_str で Err。2099-2108 で寛い読みから置き場 st は組めている）・program/app/boot.py:36-38（seeds を名乗られると master_seeds を走らせない）",
+    "path": "配った設定が窓の読めない JSON（任せる歩の『束: 配った設定・束の材料の形』の 4 形）のとき、束は Python に尋ねて動き続けるが、run_seeds は Err で当てず、Python は SERVES に seeds があるので当てない。前の版は Python の master_seeds が当てていた。画面には出ず、窓の記録の『SEEDS 当てずに次の起動へ』だけ（状態が見えない）",
+    "fix": "run_seeds は束を組めるかによらず置き場だけを読む（inputs の前半の寛い読み lenient_json＋who＋store＋follow_moved を『置き場の材料』として分け、束の Err と切り離す）。lot::tests と seeds_parity に、配った設定に NaN・Infinity・大きな整数がある形を足し、当たることを確かめる",
+    "reproduced": true
+   },
+   {
+    "name": "3. 指摘 4・6 の試験が一部足りない（錠の取り合いの相手と錠の場面・表の漏れ）",
+    "where": "desktop/tests/seeds_parity.rs・program/tests/seeds_oracle.py（EXTRA の 3 場面）・program/tests/fixtures/seeds_cases.json（runs の 8 形）",
+    "path": "指摘 4 は『窓の warm・束の種まき・Python の create_app の path_settings の種まきと同じ錠を取り合う場面を試験に入れる』、指摘 6 は oracle の場面に『錠』を挙げたが、取り合いは窓と窓・窓と Python の seeds どうしだけで、warm・束の種まき・create_app と取り合う場面も、ほかの PC の生きた錠に 5 回当たって止まる場面も無い（each_run は waited==0 しか見ない）。事例の表には rev の 1e400・NaN・Infinity（OverflowError・ValueError）・並び（TypeError）、検査計の NaN（真で『nan』）・\\u001c（strip で空）・\\u200b（空でない）が無い。採点者の差分の台本（107 場面）では、どれも Python と窓が同じに当てるので、今の割れではない",
+    "fix": "seeds_cases.json の cases に上の rev と検査計の形を足し、runs に『ほかの PC の生きた錠（5 回待って止まる・記録しない）』を足す。seeds_parity に、窓の束の種まき（Builder::inputs）と Python の create_app を同じ共有で同時に起こし、初期値が 5 回の待ちの中で当たる場面を足す",
+    "reproduced": false
+   },
+   {
+    "name": "4. ui-eval-skiprows.mjs の ⑧『データ元の面』が 1728・1536 で通らない（版 3.109.0 からの割れ。3.110.0 の変更ではない）",
+    "where": "program/app/static/js/master.js:326-335（goTab は帯 paintPlace を描き直さない。帯はポーリング MASTER_POLL_MS 5 秒か renderMasterTable で描き直す）・program/tools/ui-eval-skiprows.mjs:436-437（タブを移って 1.2 秒で帯の札を押す）",
+    "path": "データ元のタブへ移っても 1.2 秒後の帯の札は『⚠ 設備マスタの読めない行 2』のまま（調べる台本で帯の字を見た）で、押すと設備マスタの面が開く。作る前の commit 61745f8 の評価関数を作る前のコードで流しても同じ 2 つが NG。CLAUDE.md・RUST_PORT_PLAN.md は skiprows を通る評価関数として挙げているが、この環境では通らない。利用者の目で見ても、タブを移った直後の数秒は前のタブの札が残り、押すと前のマスタの面が開く",
+    "fix": "goTab（と openMasterAt）でタブを移ったら、すぐ paintPlace() で帯を新しいタブのマスタで描き直す（データ元など render の頁でも）。評価関数は帯の札が移った先のマスタの札に替わるまで待ってから押す",
+    "reproduced": true
+   }
+  ],
+  "not_cracks": [
+   "指摘 1（重複を塞ぐ）は入っている: Store::write_changed は mutate の（値, 変えたか）を見て、変えなければ共有も写しも書かず版も上げない（共有の道・手元の write_local とも）。write は write_changed(..., true) に置き換えただけで中身は前と同じ（他の呼び手は write_changed を使わない。rg で確かめた）。seeds は中身と app_seeds の 2 段で、どちらも錠の中で読み直した行で決める（record は str() で同じ seed を見る）。Python も _Same（store.write の中で投げて書かずに抜ける。MasterStore.write は try/finally で錠を外す）と _record。窓と窓・窓と今の版の Python の競い合いで記録 3 行・equipment_master と access_permissions の版 2・conversions 1・app_seeds 4、前の版の Python とでは中身 1 つずつ・窓の記録は先頭だけ",
+   "指摘 2（事例の表）: 34 件と走らせる形 8 は、空の形・normalize_part（前後の空白・小文字・全角・タブ・数）・同じ名前は後の行・rev の int()（abc・\"1.5\"・漢数字・1.5・true・\"7\"・0・空白つき・大きな整数）・id（字・数の字・小数）・表示順（² と abc を数えない）・釜番日付の完全一致と同梱の欠けた欄・同梱が無い／読めない／表・表でない行・隔てる行・記録の str()・当てる順と break を持つ。期待値は app を呼ばずに書いた形（生成の道具は無く、値は仕様から人が数えられる）。漏れは割れ 3 に書いたが、差分の台本 107 場面で Python と窓は同じ",
+   "指摘 3・5: 書く係は master_store::shared_store（束の種まきと同じ Arc。serialized で窓の書きと 1 本）。手元のみは write_local で data/ に行の並び。届かなければ共有を作らず stopped（記録しない）。SERVES に seeds、boot.start は shell_serves() に seeds があれば master_seeds を起こさない（engine の設定によらない。SeedsNamed の試験）。名乗りは sidecar.rs が起こすときの環境変数なので、窓が名乗る前に Python が起きる形は無い（開発用サーバー・前の版の窓は名乗らず今のまま）",
+   "指摘 4 の『錠を 1 秒おきに 5 回まで待つのは裏の糸だけ』: run_seeds を呼ぶのは main.rs の seeds の糸と lot::tests だけ。write_retry は Locked のときだけ待ち、5 回目は Err で止める（Python の _write と同じ）",
+   "指摘 7・8: stage2_list は S6〜S8 を段 ③・lot_settings を呼ぶ所 5・S9 を ③ の最後・S12 から起動の指紋を外し・S12b を足した。stage2_order と RUST_PORT_PLAN.md に段 ② の残りの順。任せる歩は 19 のまま（delegate-count.py --check）",
+   "Python が居ない形（段 ④ の後）: run_seeds は Builder::inputs（Python に尋ねない）・shared_store・seeds::run・同梱の program/app/master_defaults/conversions.json だけで当たり、Python に尋ねる所は無い（lot::tests::the_window_applies_the_seeds_without_python は Supervisor を起こさない）。段 ④ で program/app を消すときは master_defaults の置き場を窓に移す要がある（束も同じ置き場を読むので seeds だけの話ではない）",
+   "設備マスタの版が i64 の端のとき窓だけ止まる（差分の台本の 1 場面）: 版 3.67.0 から master_store の write の決まり（黙って負へ回さず断る）で、作った者の変更ではない。人が手で書かない限り起きない",
+   "書いたファイルの鍵の順（窓は字の順、Python は足した順）は版 3.67.0 からの窓の書く係の形で、中身は同じ（突き合わせは順を見ない）。seeds で新しく生まれた違いではない",
+   "初期値を当てた直後の権限・束の覚え: 窓は run_seeds の後に invalidate しないが、me は 2 秒・束は 10 秒で読み直す（Python の写しの取り直し 5 秒と同じ程度）",
+   "Esc と外側の押下をいちばん上の物だけにした形（shared.js の escStack）: dismissable と confirmBox が積み、Esc・外側はいちばん上（頁から外れた要素は数えない）だけが受ける。7 つの評価関数（popovers・colmenu・dashmenu・unsaved・colfilter・pathpick・cardform）は全部 OK。読めない行の面（TPA.menu・mousedown で見る）と共有の書式の面（click で見る）が重なった形では、面の外の押下は mousedown で面、続く click で書式の面が閉じるので、外を 1 回押せば両方閉じる。確かめの窓の後ろは click で閉じるので下の面を閉じない（意図どおり）。lotlist-formats.js:129 は dismissable の外す関数を捨てていて、ボタンや refresh() で閉じると見張りが残る（前からの形。残った見張りはいちばん上のときに次の外側の押下か Esc を 1 回受けて外れる。新しい積み方で下の開いた物が閉じられなくなる手順は作れなかった）。TPA.menu の onClose は byEsc を渡すようになったが、ほかの呼び手（dashboard.js:1269）は引数を使わない"
+  ],
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 8,
+    "hierarchy": 7,
+    "visual": 7,
+    "steps": 9,
+    "effortless": 6,
+    "intuitive": 7,
+    "form": 8,
+    "place": 7,
+    "layout": 8,
+    "tone": 7
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "割れ 1（measured.repro (a)）: 引っ越した後の最初の起動で、初期値が前の置き場（_MOVED.json の残った古い共有）に当たり、新しい置き場には当たらない（一時の試験で 300 回中 122 回・100 回中 35 回）。画面にも記録にも置き場の食い違いは出ない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 2（measured.repro (b)）: 配った設定に NaN・Infinity・大きな整数があると、窓は『束の材料を組めません』で当てず、Python は seeds を名乗られて当てない。窓の記録の 1 行だけで、直るまで黙って当たらない"
+    }
+   ],
+   "seen": "狙い（起動の初期値の係を窓の 1 つにし、2 つの係の重複〈記録が 2 行・中身の版が空の書き込みで上がる〉を塞ぐ）は果たした: seeds_cases・seeds_parity・lot の試験・Python 57 試験・Store に触れる 5 本の突き合わせが通り、採点者の差分の台本 107 場面のうち 106 場面で窓と Python の終わった後のファイルが同じ（残る 1 つは前からの Store の決まり）。2 つのプロセスの待ち合わせは記録を読んだ直後で効いている。任せる歩は 19 で予算と同じ。指摘 8 つのうち 1・2・3・5・7・8 は入っている。弱い所: 指摘 4 の『置き場が決まってから 1 回だけ』は、束の材料を組む糸が同じ瞬間に複数あると引っ越しの印をたどる前の置き場を掴み、初期値を古い共有に書く（割れ 1。起きやすい）。束の材料を組めない配った設定では、Python を黙らせたまま窓も当てない（割れ 2）。指摘 4・6 の錠の取り合いの相手と錠の場面、表の rev・検査計の端の形が足りない（割れ 3。今の振る舞いは同じ）。画面の Esc の積み方は 7 つの評価関数で割れが無いが、ui-eval-skiprows.mjs の ⑧ データ元の面は版 3.109.0 から通らない（割れ 4。帯がタブの移りで描き直されない）"
+  }
+ },
+ "built_fixed": {
+  "name": "作った後の採点（67.7 点）の割れ 4 つを直した（決まり 2026-11-06: 採点し直さない）。版は 3.110.0 のまま（app_build.py --release --amend）",
+  "fixes": [
+   "割れ 1（引っ越した後の最初の起動で、初期値が前の置き場へ当たる）: 根から直した。bundle::Builder::place_of が、この PC の覚え（master_share.json）を読む所から、引っ越しの印をたどって覚えを書き終えるまでを moved_checked の錠の中の 1 本にした（前は覚えを読む → 錠を取って時刻を立てて外す → 印をたどる、で、その間に来たほかの糸が古い覚えを読み『見たばかり』でたどらなかった）。束の材料（inputs。束の種まき EVERY_READ・Lot::store_for・access::Place の seed_through も同じ place を使う）と起動の初期値（place_inputs）の両方がこの 1 本を通るので、種まきなどほかの書く係の同じ穴も塞がる。念のため Lot::run_seeds は、置き場に引っ越しの印が残り、引っ越し先のフォルダがあるのにまだ前の置き場なら当てずに次の起動へ（届かない引っ越し先の印は窓も Python もたどらないので、そのまま当てる）。Python は覚えを refresh 秒ごとに読み直すだけで、引っ越した直後の数秒は古い覚えで読む（書くのは任せる歩だけ。前からの形）",
+   "割れ 2（配った設定に NaN・Infinity・i64 を超える整数があると、窓も Python も初期値を当てない）: 置き場の材料（寛い読み・名乗り・置き場・印をたどる所）を束の厳しい読みから切り離し（Builder::place_inputs・place_json）、Lot::run_seeds はそれだけを使う。束を組めない形でも当たる（束は今どおり Python に尋ねる）",
+   "割れ 3（試験が足りない）: 事例の表 seeds_cases.json に rev の 1e400・NaN・Infinity・並び [1]（次の起動へ）・空の並び []（1 として 2）、検査計の NaN（空でない）・\\u001c（Python の strip が外すので空）・ゼロ幅空白 \\u200b（空でない）を足した（42 件）。走らせる形に『ほかの PC の生きた錠に 5 回当たれば止め、記録しない』（待つのは 4 回。Python も窓も同じ）を足した（9 形。答えの元の場面にも入る）。表は NaN・1e400 を含むので、窓は common::file_value（J の読み）で読む",
+   "割れ 4（ui-eval-skiprows.mjs の ⑧ データ元の面が 1728・1536 で通らない。版 3.109.0 から）: master.js の goTab・openMasterAt で、タブを移ったらすぐ paintPlace() で帯を描き直す（前は 5 秒ごとの見直しまで前のタブの札が残り、押すと前のマスタの面が開いた）。評価関数は、帯の札がデータ元の札に替わるまで待ち（2 秒以内に替わることも確かめる）、それから押す。見た目は変わらない"
+  ],
+  "tests": [
+   "lot::tests::the_seeds_never_land_in_the_old_place_while_another_thread_follows_the_move（前の置き場に印・配った設定は前の置き場。Barrier で束を組む糸〈own_bundle〉と run_seeds を同時に起こして 300 回: 前の置き場には印の外に何も書かれず、毎回引っ越し先に 3 つ当たる。直す前の形〈覚えを錠の外で読む・印の確かめを外す〉に戻す変異では 1 回目で落ちた）",
+   "lot::tests::the_seeds_are_applied_even_when_the_distributed_settings_cannot_be_bundled（配った設定に NaN・Infinity・10^20 の 3 形・引っ越しの印つき: 3 つとも引っ越し先に当たる）",
+   "seeds_parity::settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python（同じ 3 形で束は組めないまま、窓が当てた共有の 4 つのマスタが、Python が空の共有に当てた答えの元の場面と同じ）",
+   "seeds_parity::the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app（空の共有で、窓の束の種まき〈Builder::inputs。warm・最初の画面・更新の係の道〉・初期値・Python の create_app〈参照先の種まき〉を同時に 3 回: 初期値は 5 回の待ちの中で当たり、中身は 1 つずつ・記録 3 行・錠は残らない）",
+   "seeds_cases（42 件・9 形）・tests/test_seeds_cases.py（同じ表。錠を待った回数も Python の time.sleep で数える）・seeds_parity::the_window_leaves_the_same_files_as_python（錠の場面を含む 12 場面）",
+   "node program/tools/ui-eval-skiprows.mjs（⑧ に『データ元のタブへ移ると帯の札がすぐ替わる』を足した。3 つの大きさで全部 OK）"
+  ],
+  "next_version": [
+   "画面の採点（2026-11-stage2-ui.json の built。85.0 点で合格・減点なし）の提案 2 つ（見た目は今の版で変えない）: 面の行の焦点に輪か線を足す・共有に届かない形の 1280 で帯とナビを 1 段に収める"
+  ]
+ }
+}
