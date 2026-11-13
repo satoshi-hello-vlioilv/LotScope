@@ -869,7 +869,7 @@
    "eval": "node program/tools/ui-eval-numwarn.mjs（3 つの大きさで 24 項目すべて合う）"
   }
  },
- "built_ui": {
+ "built_ui_round2": {
   "name": "作った後の画面の 1 か所・2 回目（版 3.106.0・commit 126aaf5。配った設定の古さの時間が数でない知らせ: 接続の段の要約と欄・設備の段の見出しの札・直すことの 1 行目と『接続の欄で直す』。UI の物差し・合格点 80〈rule 2026-10-17 と同じ〉）",
   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/ui-stale3（作った後。開発用サーバー〈TPA_UI_WORK_STALE=abc python tools/ui_server.py〉を Playwright〈ui-tools/shot3.mjs〉で 1728×1152・1536×864・1280×720 で撮った: 1-conn＝実績の『変える…』で開いた所〈接続の段〉・2-equip＝設備の段を開いた所・3-todo＝直すことの行・4-after-fix＝『接続の欄で直す』を押した後。測った数は metrics.json。作る前は 1 回目の /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/ui-stale/before-*.png）",
   "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）。作った係の画像（ui-stale2）は使わず、自分で撮った 12 枚を 1 枚ずつ開いて見た",
@@ -938,6 +938,50 @@
     "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/ui-stale4/（採点の係の台本 ui-tools/shot3.mjs で 3 つの大きさ。1-conn-1280x720 で【New】実績が見え、札が要約の中に収まることを自分で開いて確かめた）",
     "eval": "node program/tools/ui-eval-numwarn.mjs に ① 1280 でも要約の場所の最後のフォルダの名前が切れない・⑥ 言葉が 1 か所の決まり（GET /api/sources の欄の名前）と同じ（欄の名前・見出しの札・直すことの札・知らせの頭）を足した。すべて合う"
    }
+  }
+ },
+ "built_ui": {
+  "name": "作った後の画面の 1 か所・3 回目（版 3.106.0・commit 65af383。古さの警告（時間）が数でない知らせ: 接続の段の要約と欄・設備の段の見出しの札・直すことの 1 行目と『接続の欄で直す』。UI の物差し・合格点 80〈rule 2026-10-17 と同じ〉）",
+  "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/ui-stale5（作った後。開発用サーバー〈TPA_UI_WORK_STALE=abc python tools/ui_server.py〉を Playwright〈ui-tools/shot5.mjs。shot3 に要約のフォルダの字と札の title の測りを足した物〉で 1728×1152・1536×864・1280×720 で撮った: 1-conn・2-equip・3-todo・4-after-fix。測った数は metrics.json。作る前は 1 回目の /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/ui-stale/before-*.png）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）。作った係の画像（ui-stale4）は使わず、自分で撮った 12 枚を開いて見て、測った数（切れ・字の大きさ・コントラスト・焦点・札の title）と合わせた",
+  "baseline": {
+   "score": {
+    "order": 4,
+    "chunk": 4,
+    "hierarchy": 3,
+    "visual": 2,
+    "steps": 2,
+    "effortless": 1,
+    "intuitive": 3,
+    "form": 5,
+    "place": 4,
+    "layout": 6,
+    "tone": 5
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "before-1728x1152.png・before-1536x864.png・before-1280x720.png の実績の『設備』の段: 設備の表・直すこと・フォルダを探し直すが全部出ず、英語の『could not convert string to float: \\'abc\\''だけ（作業実績の登録の画面に届かない）"
+    }
+   ],
+   "seen": "設備の段を開くと『作業実績の登録を読めませんでした: could not convert string to float: \\'abc\\'』の 1 行だけで、12 台の表・直すこと・探し直すが消える。何を直せばよいか（配った設定の古さの時間）が分からない。GET /api/masters/worklog は 400"
+  },
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 8,
+    "steps": 9,
+    "effortless": 8,
+    "intuitive": 8,
+    "form": 9,
+    "place": 8,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "2 回目の減点（1280 で要約のフォルダが切れる）は消えた。接続の段の要約は 3 つの大きさとも『…/tpa-ui-8it6bb6s/【New】実績・実績_*.sqlite3・60 秒ごと・36 時間で警告』と黄の札『古さの警告（時間）が数でない』が 1 行に収まり、最後のフォルダの名前が見える（1-conn-1280x720.png。測った数でも 12 枚の全部で字の切れ・横の送り無し）。札の言葉は欄の名前『古さの警告（時間）』＋『が数でない』で、接続の段の要約・設備の段の見出し・直すことの札の 3 か所で同じ字・同じ黄（3-todo-1280x720.png）。効いている時間は要約の『36 時間で警告』と札の title に 1 回ずつで、繰り返しが無くなった。欄の下の茶の太字（11.5px・コントラスト 7.5）は『古さの警告（時間）の既定の値「abc」が数ではないので、36 時間で見ています。この欄に数を入れて保存すると直ります。』で、直し方も言う。『接続の欄で直す』を押すと接続の段が開き、古さの警告の欄に焦点が移って橙の枠で見える（4-after-fix の 3 つの大きさ）。重なり・想定外の折り返し・11px 未満の字・コントラスト 4.5 未満は無い（1280 の欄の下の知らせは狭い欄の幅で 4 行になるが、欄の補足の段の中で収まる）。まだ弱い所（減点ではない）: 欄の空の字は『既定: 36』、知らせは『既定の値「abc」』で、同じ『既定』が 2 つの違う物（配った設定の値と、いま効いている 36）を指し、読み手が一瞬迷う。知らせは『配った設定ファイル（appsettings）の値「abc」』のように出どころを言うと、既定の 36 と分かれる"
   }
  },
  "built": {
