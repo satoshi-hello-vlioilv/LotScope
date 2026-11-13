@@ -217,7 +217,8 @@ def scenarios():
             S(BOSS, "POST", C, {"from": SRC, "parent": "@ROOT/new", "name": ["a"]}),
             S(BOSS, "POST", C, {"from": SRC, "parent": {"a": 1}, "name": "x"}),
             S(BOSS, "POST", C, '{"name": NaN, "parent": "x"}'),
-            S(BOSS, "POST", C, '{"name": 99999999999999999999, "parent": "x"}'),
+            oracle_gate.W(S(BOSS, "POST", C, '{"name": 99999999999999999999, "parent": "x"}')),     # 版 3.108.0（H2）: 窓も桁のまま読む
+            oracle_gate.W(S(BOSS, "POST", C, '{"from": "@ROOT/rel/LotScope", "parent": "@ROOT/new", "name": 10000000000000000000}')),
             S(BOSS, "POST", C, A("@ROOT/new", "fresh"), query="engine=python"),
             S(BOSS, "GET", P, query="engine=python"),
         ]},

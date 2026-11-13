@@ -22,7 +22,7 @@
 //! 道に百分率符号・置き場の行を窓が Python と同じに読めない・版の番号に 10 進でない数の字・書く係の思いがけない失敗。
 
 use crate::bundle::tables;
-use crate::master_rows::{base_rev, check_rev, check_unique, normalize_all, py_int, stamped, Rev, Spec};
+use crate::master_rows::{base_rev, check_rev, check_unique, py_int, stamped, Rev, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::pyfmt;
 use crate::worksum::{py_str, truthy};
@@ -387,8 +387,12 @@ fn same_key(r: &Value, key: &str) -> bool {
 fn data_source_put(store: &Store, key: &str, data: &Row, base: Option<Rev>) -> Result<Value, MasterError> {
     let fields = strs(t(&["sourcesList", "fields"]));
     store.write(NAME, |rows, stamp| {
-        normalize_all(rows, &SPEC);
-        let mut pos = rows.iter().position(|r| same_key(r, key));
+        // 表でない行は書かない・読めない行は隔てる（版 3.108.0。キーの当たる隔てた行は書かない。Python の data_source_put と同じ）
+        let iso = crate::master_rows::prepare(rows, &SPEC)?;
+        let mut pos = rows.iter().enumerate().position(|(i, r)| !crate::row_check::is_isolated(&iso, i) && same_key(r, key));
+        if pos.is_none() {
+            crate::row_check::key_guard(NAME, rows, &iso, "キー", key)?;
+        }
         if let Some(b) = base {
             let have = match pos {
                 Some(i) => py_int(rows[i].get("rev").unwrap_or(&json!(1))),
@@ -401,7 +405,7 @@ fn data_source_put(store: &Store, key: &str, data: &Row, base: Option<Rev>) -> R
         if pos.is_none() {
             let mut probe = Map::new();
             probe.insert("キー".into(), json!(key));
-            check_unique(rows, &SPEC, &probe, None)?;
+            crate::row_check::dup_checked(NAME, rows, &iso, &|rs| check_unique(rs, &SPEC, &probe, None))?;
             rows.push(json!({"id": next_id(rows), "rev": 0}));
             pos = Some(rows.len() - 1);
         }
@@ -442,10 +446,24 @@ fn data_source_order(store: &Store, rows_in: &[(String, Map<String, Value>)], on
         prepared.push((key.clone(), full, part));
     }
     Ok(store.write(NAME, |have, stamp| {
-        normalize_all(have, &SPEC);
+        // 隔てた行は並べない（版 3.108.0。キーが隔てた行だけに当たれば書かない。Python の data_source_order と同じ）
+        let iso = crate::master_rows::prepare(have, &SPEC)?;
+        let good = |have: &[Value], key: &str| {
+            have.iter()
+                .enumerate()
+                .filter(|(i, r)| !crate::row_check::is_isolated(&iso, *i) && same_key(r, key))
+                .map(|(i, _)| i)
+                .next_back()
+        };
+        for (key, _, _) in &prepared {
+            if good(have, key).is_none() {
+                crate::row_check::key_guard(NAME, have, &iso, "キー", key)?;
+            }
+        }
+        let n0 = have.len();
         for (key, full, part) in &prepared {
             // by = {r.get("キー"): r for r in have}（同じキーは後ろの行。足した行は by に入らない）
-            let idx = have.iter().rposition(|r| same_key(r, key));
+            let idx = good(&have[..n0], key);
             let i = match idx {
                 None => {
                     let mut row = Map::new();
@@ -486,9 +504,12 @@ fn data_source_order(store: &Store, rows_in: &[(String, Map<String, Value>)], on
 /// data_source_delete: キーの最初の行を消す（無ければ何もしない。行の版）
 fn data_source_delete(store: &Store, key: &str, base: Option<Rev>) -> Result<(), MasterError> {
     store.write(NAME, |rows, _| {
-        normalize_all(rows, &SPEC);
+        let iso = crate::master_rows::prepare(rows, &SPEC)?;
         let Some(i) = rows.iter().position(|r| same_key(r, key)) else { return Ok(()) };
-        check_rev(&rows[i], base)?;
+        // 隔てた行は値を読まずに消す（版 3.108.0。_delete と同じ）
+        if !crate::row_check::is_isolated(&iso, i) {
+            check_rev(&rows[i], base)?;
+        }
         rows.remove(i);
         Ok(())
     })
@@ -544,9 +565,15 @@ const GONE: &str = "そのデータ元はありません（ほかの PC が消�
 
 /// 窓が受ける 7 本を答える（門番は呼ぶ側が通した）。窓が答えない形は None
 pub fn handle(store: &Store, route: &Route, query: &str, body: &[u8], cx: &Ctx) -> Option<Done> {
-    // 置き場の行の id・版・列の値を窓が Python と同じに読めない形は任せる
+    // 置き場の行の版・列の値を窓が Python と同じに読めない形は任せる（読めない行は版 3.108.0 から隔ててある〈cx.rows は Place::rows〉。
+    // id はキーで引くので見ない〈row_check::ID_FREE〉: 字の id も next_id が int() で読めれば数える）
     let fields = strs(t(&["sourcesList", "fields"]));
-    if !crate::master_rows::rows_plain(cx.rows, &fields.iter().map(String::as_str).collect::<Vec<_>>()) {
+    let plain = |o: &Map<String, Value>| {
+        crate::master_rows::row_readable(NAME, o) && fields.iter().all(|k| o.get(k.as_str()).is_none_or(crate::master_rows::value_plain))
+    };
+    // 読めない行（row_check）は、Python が読みでは使い、触れる書きだけを断る（版 3.108.0。参照先と同じ。隔てると見出しのタブが消える）。
+    // 窓は読めない行の値（NaN・字の版）を Python と同じに読めると限らないので、読めない行があればこの道は Python に任せる
+    if !crate::master_rows::isolated_of(NAME, cx.rows).is_empty() || !cx.rows.iter().all(|r| r.as_object().is_some_and(plain)) {
         return None;
     }
     let parsed = crate::master_rows::py_body(body)?;

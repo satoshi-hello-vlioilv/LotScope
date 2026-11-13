@@ -1868,6 +1868,71 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   名前の重なりで読めない行を言う・隔てた★を外す・隔てた行の答えと読んだファイルを覚える（速さ）・札の数を今の面の元に・ダッシュボードの 2 形を許す・代用字を行ごとに。
   任せる歩 63 → 59。データ元・作業実績の登録・変換表の標準はまだ隔てない（3.108.0 で束の行の J と一緒に）。
 
+### 段 ① の 5 歩目: 大きな整数を桁のまま持つ（H2）・データ元などの行も隔てる・読めない行を何行目かで消す — 版 3.108.0（任せる歩 59 → 17）
+
+3.106.0 の採点で決めた H2 と、3.107.0 の built_fixed・built_ui で次の版に回した物（2026-11-delegates-3106.json・2026-11-delegates-3107.json）。
+決まり 2026-11-06（画面に出ない部分）と、画面の知らせは画面の改良の手順（作った後に別の係が前後を撮って採点）。
+
+- 大きな整数の持ち方（新しい型を増やさない）: 値は `pyfmt::PyInt`（Big は桁の字）、JSON の木の中では src/held.rs の印の字（MARK ＋桁。
+  `held::int_value` は i64・u64 に入れば数、入らなければ印の字）。読み手は 1 つ: 置き場のファイルは `master_store::parse_master`（Store と
+  `access::Place` の読み。前は `ReadErr::Wide` で断った。`ReadErr::Wide` は外した）、書く道の本文は `held::body_value`（`master_rows::unreadable_held`・
+  `py_body_held`）、送った順の木は `jsontree::Tree::parse`（J で読み Tree::Str の印の字）。書き手: `held::to_pretty`（ファイル）・`held::reply_bytes`
+  （画面へ返す答え。main.rs の json_reply。NaN は null）・`Tree::write`・`join::py_dumps`（中身の字・画面の字）が桁のまま書く。int() は
+  `IntArg::Big`（`pyfmt::py_int_of`）、str() は `worksum::py_str`（held::repr）。比べ方・並べ方は PyInt の Ord、+1 は succ、+10 は `master_rows::add_small`。
+- 道の id: どの書く道の Route も `PyInt` で持つ（`pyfmt::path_int` が桁のまま。`master_rows::same_id`・`update`・`delete`・`row_check::guard`・
+  `isolated_hit`・`preset_rows::find_row` も PyInt。「id=… が見つかりません。」も桁の字）。次の id（`master_store::next_id`）も桁で数える。
+- 部品ごと: 設備グループの表示順（`order_text`・`bundle::group_views` の order・`next_order`）・変換表の表示順と範囲の端（`num_or_blank` は
+  int(float) を桁のまま。画面の形 `conv_views` は中身の字の大きな整数も held で読む〈式が引く `conv_tables` は今どおり Python〉）・作業実績の並び
+  （`order_num` は PyInt。39 桁の上限を外した）・設備とロール（本文と置き場）・書式とセット（置き場の知らない欄）・組み方の chartAt
+  （`chart_at` は max(0, int(str(v).strip())) を桁のまま・字の中身の大きな整数・`default_quick` の id の並べ方）・参照先の値・配布の名前。
+  束は `bundle::HELD_OK`（設備グループ・変換表）だけ大きな整数のファイルを組む（ほかは今どおり Place::split_file で Python に尋ねる）。
+  設備マスタの並びの名前は束も Python の str()（['X']）で読む（`name_of`。選べる設備も）。
+- 3.107.0 で回した物: データ元・作業実績の登録・変換表の標準も row_check::FILTERED・STATUS に入れて隔てる（Python `services/row_check.py`・窓
+  `desktop/src/row_check.rs`）。id で引かないマスタ（データ元・変換表の標準。`row_check::ID_FREE`）は id の型を見ない（機能を減らさない）。
+  書く係: キーの当たる隔てた行は書かない（`key_guard`）・並べ替えと探し直しは隔てた行を並べない・結ばない（その行のファイルも足さない）・
+  消すは値を読まずに通す（Python `master_repository` の data_source_*・work_log_order・work_log_sync、窓 `sources_write.rs`・`worklog_write.rs`）。
+- 読めない行を何行目かで消す道（`DELETE /api/masters/rows/<名前>/<n>?summary=<要約>`。Python `routes/masters.masters_row_delete`・
+  `MasterRepository.delete_unreadable_row`、窓 `master_rows::rows_route_of`・`rows_delete`・`delete_unreadable_row`。消せるマスタは `ROW_DELETE`〈権限の 2 つ・
+  持ち主のある行は入れない〉。門番は道のマスタの名前で見る〈routes/access._row_master・access::guard〉。行がもう読めない行でない・要約が違えば
+  消さずに 404「… n 行目は、開いたあとに変わりました…」）。画面は id で引けない行をこの道で消す（shared.js の skipRoute・SKIP_ROWS）。
+- 画面: マスタ管理の帯の札も「⚠ 設備マスタの読めない行 2」（skipNote の既定の言葉。TPA.skipWhat の 1 か所。データ元・実績の設備・変換表の標準の言葉を足した）・
+  マスタ管理の中で開いた一般ユーザーの面は「管理者がこの画面で消すか、共有のフォルダのファイルを直します」。
+- 直した Python の誤り: データ元の行の id が数でない字だとデータ元の一覧（data_sources.sources の並べ替えの int()）が 500／データ元・作業実績の登録の
+  版の読めない行で、直す・並べ替え・探し直しが英語の 400。窓の誤り: chartAt が u64 の整数だと 0（Python は桁のまま）。
+- 減った歩（delegate-count.py。59 → 17、−42）: equipgroups 12・conversions 8・presets 6・worklog_write 5・equip_rows 3・formats 3・sets 3・
+  settings_write 1・release_place 1。形ごと: 置き場の i64 に入らない整数・大きな表示順 12・本文の i64 に入らない整数 11・置き場の項目の型
+  （大きな表示順の字・長い chartAt・設備マスタの並びの名前）12・39 桁を超える並び 4・道の大きな id 3。
+- 評価関数: `cargo test --test bigint_cases`・`tests/test_bigint_cases.py`（← `tests/fixtures/bigint_cases.json`。Python の int から焼いた比べ方・並べ方・
+  +1・+10・int(小数)・next_id・next_order・書き戻す字。焼くのは `python program/tools/bigint-cases.py`）・各 *_parity（H2 の歩を W で窓が答える歩へ。
+  置き場の id・表示順が u64 に入らない整数の場面を設備グループ・変換表・書式・セット・束に足した。突き合わせは `common::json_keep` で Python の答えも
+  桁のまま読む）・`row_cases`（データ元・作業実績の登録・変換表の標準の事例 9 件）・`equip_rows_parity` の「読めない行を何行目かで消す」・
+  sources_write・worklog_write・conversions の「読めない行（隔てて答える）」の場面・`node program/tools/ui-eval-skiprows.mjs`（⑦）。
+
+- 作った後の採点（画面 85.8 点で合格・画面に出ない部分 61.1 点。2026-11-delegates-3108.json・2026-11-delegates-3108-built.json）の割れを直した
+  （built_fixed）: 印の字は起動ごとの乱数を挟んだ字（`held::mark()`。外から来る字が印を名乗れない）・isinstance(str) の写しは `held::is_text`
+  （設備グループのまとめ方など）・`master_rows::row_readable(name, r)` が ID_FREE を見る 1 か所・変換表の並べ方は int() で読めない id を 0（Python の
+  書き出しの 500 も直した）・何行目かで消す道は行の目印（`row_key`。json.dumps(ensure_ascii, sort_keys) の sha1 の頭 16 字）も確かめる・消した後に
+  覚えを捨てる（窓 changes_settings・forget_listing・warm、Python lot_mirror・WORK_LISTING.forget）・探し直しはファイルID でも隔てた行のファイルを足さない。
+  決めた落とし穴: データ元・実績の設備は参照先と同じく読みでは隔てない（FILTERED から外し STATUS で知らせる。Python は読みで使い触れる書きだけ断る。
+  窓は読めない行があればその道と束の節を Python に任せる）。bigint_cases の next_id・next_order は独立の答えで焼き直した。
+- 次の版に回した物（画面は合格したので変えない）: 消す確かめの面に行の中身を添える・消した後の一言・× の色（画面の採点の提案）。データ元・実績の設備の
+  知らせの面の「この画面の行（一覧では飛ばしています）」の言葉（読みでは隔てなくなった。参照先と同じ言葉にする）。
+
+#### 段 ① の後に残る任せる歩（17）と、消える段
+
+| 形 | 数 | 元 | 消える段 | 理由 |
+|---|---|---|---|---|
+| engine=python（自己診断・突き合わせの口） | 5 | fs 1・place 1・release_place 3 | ④ | Python と比べるための口そのもの。Python を外すと口も外す |
+| OS の道（~ユーザー・file:// の [ ]・NUL・255 バイトを超える名前） | 6 | fs 2・release_place 4 | ③ | Python の答えは落ち方（Path.exists の ENAMETOOLONG の 500・NUL の ValueError）か OS の決まりで、正しい答えの元にならない。OS によらない事例の表（独立の答え）にしてから窓が答える |
+| 束: 配った設定に NaN・段が字・表でない・更新の段が null | 4 | settings | ③ | 配った設定を J で読み、Python が落ちる・読む形を事例の表に決めてから窓が組む（前の版の束の節の broken と同じ形） |
+| 束: 引っ越しの印（束を組めない設定でたどる） | 1 | settings | ③ | 上と同じ（印をたどる係は窓。束の材料が読めない形だけ尋ねる） |
+| 本文: 正規表現（長さの決まらない後読み） | 1 | conversions | ③ | Python の re が読めず窓の fancy-regex は読む。re の文法の決まりを事例の表（formula_regex_cases）に足して窓が同じ言葉で断る |
+
+数えていない残り（突き合わせの場面が無い。次に足す）: Place::split_file で今も Python に尋ねる大きな整数のファイル（束の作業実績の登録・データ元・
+参照先・設備マスタ・勤務体系、カードの設計・ダッシュボードの道〈dashboards.json〉・すぐに見る）と、中身の字の大きな整数（row_check::wide_content:
+ダッシュボード・カード・セット・すぐに見るの中身）。どれも held の読み手で読めるので、段 ① の続き（部品ごとに W の場面を足して外す）で消える。
+段 ②（裏の係を窓へ）で消える形は、この 17 には無い（写しの係・スケジュールの係・種まきは版 3.96.0〜3.105.0 で窓へ移した）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

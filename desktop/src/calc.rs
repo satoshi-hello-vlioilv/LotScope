@@ -167,7 +167,7 @@ fn wild_match(p: &[char], s: &[char]) -> bool {
 
 /// 設備マスタを保存する前の確かめ（equipment_names.check_row。版 3.77.0。書く道 src/equip_write.rs が使う）。問題があれば利用者に見せる文。
 /// 値はそろえる前の生の値で読む（str(v or "")。0・False は空）。比べる相手は id が self_id でない行（足すときは id の無い行も除く）
-pub(crate) fn equipment_check(rows: &[Value], data: &Row, self_id: Option<i64>) -> Option<String> {
+pub(crate) fn equipment_check(rows: &[Value], data: &Row, self_id: Option<&crate::pyfmt::PyInt>) -> Option<String> {
     let name = pyfmt::strip(&text(data.get("設備名"))).to_string();
     let pats = parse_patterns(data.get(FIELD));
     let others: Vec<&Row> =

@@ -56,8 +56,10 @@ pub const CONTENT_COLS: [(&str, &[&str]); 10] = [
 /// 行を丸ごと答える（一覧が行をそのまま返す）マスタ: 知らない鍵の数でない値も答えに出るので隔てる
 pub const RAW: [&str; 2] = ["equipment_master", "roll_master"];
 pub const STRICT: [&str; 2] = ["access_permissions", "tab_access"];
-/// 一覧と同じく、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも隔てた行を使わないマスタ（access::Place::rows。Python の row_check.FILTERED）
-pub const FILTERED: [&str; 10] = [
+/// 一覧と同じく、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも隔てた行を使わないマスタ（access::Place::rows。Python の row_check.FILTERED）。
+/// 版 3.108.0 から変換表の標準も。データ元・作業実績の登録は参照先と同じく入れない（隔てると見出しのタブ・設備がまるごと消えるので、
+/// 読むのは今どおり使い、触れる書きだけを断る。STATUS には入れて知らせる）
+pub const FILTERED: [&str; 11] = [
     "equipment_master",
     "roll_master",
     "shift_patterns",
@@ -68,9 +70,10 @@ pub const FILTERED: [&str; 10] = [
     "pivot_quick",
     "dashboards",
     "dashboard_settings",
+    "conversion_defaults",
 ];
 /// マスタの置き場の状態で隔てた行を知らせるマスタ（Python の row_check.STATUS）
-pub const STATUS: [&str; 13] = [
+pub const STATUS: [&str; 16] = [
     "equipment_master",
     "roll_master",
     "shift_patterns",
@@ -81,10 +84,15 @@ pub const STATUS: [&str; 13] = [
     "pivot_quick",
     "dashboards",
     "dashboard_settings",
+    "data_sources",
+    "work_log_files",
+    "conversion_defaults",
     "path_settings",
     "access_permissions",
     "tab_access",
 ];
+/// 行を id で引かないマスタ（データ元はキーで引く・変換表の標準は丸ごと置き換える）: id の型は見ない（版 3.108.0。Python の row_check.ID_FREE）
+pub const ID_FREE: [&str; 2] = ["data_sources", "conversion_defaults"];
 pub const DEEP: usize = 128;
 const SHORT: usize = 30;
 
@@ -177,7 +185,7 @@ fn nonfinite(j: &crate::pyjson::J) -> bool {
 /// 字の列が並び）は隔てず、一覧では str() で読む（coerce）
 pub fn problem(name: &str, r: &Value, fields: &[&str]) -> Option<String> {
     let Some(o) = r.as_object() else { return Some("表でない行".into()) };
-    if let Some(v) = o.get("id") {
+    if let Some(v) = o.get("id").filter(|_| !ID_FREE.contains(&name)) {
         if !is_int(v) {
             return Some(format!("id が数ではありません（{}）", short(v)));
         }
@@ -276,7 +284,7 @@ pub fn skipped_with(name: &str, rows: &[Value], iso: &[(usize, usize, String)]) 
     Value::Array(
         iso.iter()
             .map(|(i, n, why)| {
-                let mut x = json!({"row": n, "why": why, "summary": summary(name, &rows[*i])});
+                let mut x = json!({"row": n, "why": why, "summary": summary(name, &rows[*i]), "key": row_key(name, &rows[*i])});
                 if let Some(s) = rows[*i].get("元").filter(|v| v.is_string() && !held::is_held(v)) {
                     x["source"] = s.clone();
                 }
@@ -290,11 +298,36 @@ pub fn skipped_with(name: &str, rows: &[Value], iso: &[(usize, usize, String)]) 
     )
 }
 
+/// 読めない行の目印（版 3.108.0 の作った後の採点の割れ 4。Python の master_repository.row_key と同じ字）: 形をそろえた行の
+/// json.dumps(ensure_ascii=True, sort_keys=True) の sha1 の頭 16 字。対の無い代用字は \udXXX の字（Python と同じ）
+pub fn row_key(name: &str, r: &Value) -> String {
+    let mut norm = vec![r.clone()];
+    if fields_of(name).is_empty() {
+        // SPECS に無い名前は形をそろえない（Python と同じ）
+    } else {
+        normalize_like_specs(name, &mut norm);
+    }
+    let text = crate::join::py_dumps(&norm[0]);
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        let n = c as u32;
+        if n < 0x80 {
+            out.push(c);
+        } else if (crate::pyjson::LONE_BASE..=crate::pyjson::LONE_BASE + 0x7FF).contains(&n) {
+            out.push_str(&format!("\\u{:04x}", n - crate::pyjson::LONE_BASE + 0xD800));
+        } else {
+            let mut buf = [0u16; 2];
+            for u in c.encode_utf16(&mut buf) {
+                out.push_str(&format!("\\u{:04x}", u));
+            }
+        }
+    }
+    crate::bundle::sha1_hex(out.as_bytes())[..16].to_string()
+}
+
 /// 道の id が int() で当たる隔てた行の位置（Python の isolated_hit）
-pub fn isolated_hit(rows: &[Value], iso: &[(usize, usize, String)], item_id: i64) -> Option<usize> {
-    iso.iter()
-        .map(|(i, _, _)| *i)
-        .find(|i| rows[*i].as_object().and_then(|o| o.get("id")).and_then(as_int).is_some_and(|x| x.small() == Some(item_id)))
+pub fn isolated_hit(rows: &[Value], iso: &[(usize, usize, String)], item_id: &crate::pyfmt::PyInt) -> Option<usize> {
+    iso.iter().map(|(i, _, _)| *i).find(|i| rows[*i].as_object().and_then(|o| o.get("id")).and_then(as_int).as_ref() == Some(item_id))
 }
 
 /// 名前の重なり・行の確かめ（check(行の並び) が断る）を、読める行で当ててから隔てた行と 1 つずつ当てる（Python の dup_checked）
@@ -332,9 +365,22 @@ pub fn is_isolated(iso: &[(usize, usize, String)], i: usize) -> bool {
 }
 
 /// 直す行が隔てた行なら書かない（Python の master_repository.guard。消すのは通す: isolated_hit で値を読まずに除く）
-pub fn guard(name: &str, rows: &[Value], iso: &[(usize, usize, String)], item_id: i64) -> Result<(), MasterError> {
+pub fn guard(name: &str, rows: &[Value], iso: &[(usize, usize, String)], item_id: &crate::pyfmt::PyInt) -> Result<(), MasterError> {
     if let Some(i) = isolated_hit(rows, iso, item_id) {
         let (_, n, why) = iso.iter().find(|(j, _, _)| *j == i).unwrap();
+        return Err(MasterError::Unreadable(format!(
+            "{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。"
+        )));
+    }
+    Ok(())
+}
+
+/// キーで引く行（データ元のキー）が隔てた行なら書かない（版 3.108.0。Python の master_repository.key_guard と同じ言葉）
+pub fn key_guard(name: &str, rows: &[Value], iso: &[(usize, usize, String)], col: &str, key: &str) -> Result<(), MasterError> {
+    let hit = iso
+        .iter()
+        .find(|(i, _, _)| rows[*i].as_object().and_then(|o| o.get(col)).is_some_and(|v| held::is_text(v) && v.as_str() == Some(key)));
+    if let Some((_, n, why)) = hit {
         return Err(MasterError::Unreadable(format!(
             "{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。"
         )));
@@ -390,7 +436,8 @@ pub fn check(name: &str, rows: &[Value], fields: &[&str]) -> Vec<(usize, usize, 
     isolated(name, rows, fields, extra.as_ref().map(|f| f as &dyn Fn(&Map<String, Value>) -> Option<String>))
 }
 
-/// 読む欄（中身の列）の字に i64 に入らない整数があるか（窓は値を変えずに扱えない。H2 で桁のまま持つまで、その道は Python に任せる）
+/// 読む欄（中身の列）の字に i64 に入らない整数があるか。版 3.108.0 から組み方の中身（pivot_presets::body_json）と変換表の画面の形
+/// （bundle::conv_views）は src/held.rs で桁のまま読む。まだ中身を serde で読むダッシュボード・カード・セット・すぐに見るの道は、これで Python に任せる
 pub fn wide_content(name: &str, rows: &[Value]) -> bool {
     let cols = find(&CONTENT_COLS, name).unwrap_or(&[]);
     rows.iter().filter_map(Value::as_object).any(|o| {

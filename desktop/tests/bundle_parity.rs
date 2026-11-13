@@ -185,7 +185,8 @@ fn bundle_is_built_like_python() {
     eprintln!("窓が束を組む時間（中央値）: {:.2} ms", ms[10]);
     assert!(
         // 版 3.105.0: 任せた歩の下限は置かない（任せる歩は 0 へ減らしていく数で、減らすたびに落ちる。任せるはずの歩を窓が答えないことは歩ごとの確かめが、上限は予算〈common::check_budget〉が見る）
-        same >= 26 && broken_n >= 4 && seeded >= 2,
+        // 版 3.108.0（H2）: 「表示順が i64 に入らない設備グループ」は窓も組む（節だけ組まない場面が 1 つ減って 3）
+        same >= 26 && broken_n >= 3 && seeded >= 2,
         "場面が足りません: 同じ {same}・任せる {delegated}・節だけ組まない {broken_n}・種まき {seeded}"
     );
     assert!(bad.is_empty(), "{} か所違います:\n{}", bad.len(), bad.join("\n"));

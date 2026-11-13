@@ -429,6 +429,16 @@ impl PyInt {
     }
 }
 
+/// Python の str(int)（道の id の言葉「id=… が見つかりません。」など。版 3.108.0）
+impl std::fmt::Display for PyInt {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            PyInt::Small(i) => write!(f, "{i}"),
+            PyInt::Big(s) => f.write_str(s),
+        }
+    }
+}
+
 /// 数の大きさで比べる（Python の int の比べ方。Big も桁で比べる）
 impl Ord for PyInt {
     fn cmp(&self, other: &PyInt) -> std::cmp::Ordering {
@@ -520,6 +530,10 @@ pub enum IntArg<'a> {
     Bool(bool),
     Num(&'a serde_json::Number),
     Str(&'a str),
+    /// u64 に入らない整数の桁の字（src/held.rs の持っている値。版 3.108.0）
+    Big(&'a str),
+    /// 数でない小数（持っている NaN・Infinity）
+    NonFinite(f64),
     /// 並び・表（Python の型の名前）
     Other(&'static str),
 }
@@ -531,6 +545,13 @@ impl<'a> From<&'a serde_json::Value> for IntArg<'a> {
             Value::Null => IntArg::None,
             Value::Bool(b) => IntArg::Bool(*b),
             Value::Number(n) => IntArg::Num(n),
+            Value::String(_) if crate::held::is_held(v) => match crate::held::big_digits(v) {
+                Some(d) => IntArg::Big(d),
+                None => match crate::held::held(v) {
+                    Some(crate::pyjson::J::Float(f)) => IntArg::NonFinite(f),
+                    _ => IntArg::Other("str"),
+                },
+            },
             Value::String(s) => IntArg::Str(s),
             Value::Array(_) => IntArg::Other("list"),
             Value::Object(_) => IntArg::Other("dict"),
@@ -560,17 +581,21 @@ pub fn py_int_of(x: IntArg) -> Result<PyInt, String> {
             }
         }
         IntArg::Str(s) => py_int(s),
+        IntArg::Big(d) => Ok(PyInt::of_digits(d.starts_with('-'), d.trim_start_matches('-'))),
+        IntArg::NonFinite(f) if f.is_nan() => Err("cannot convert float NaN to integer".into()),
+        IntArg::NonFinite(_) => Err("cannot convert float infinity to integer".into()),
         IntArg::None => Err("int() argument must be a string, a bytes-like object or a real number, not 'NoneType'".into()),
         IntArg::Other(t) => Err(format!("int() argument must be a string, a bytes-like object or a real number, not '{t}'")),
     }
 }
 
-/// 道の id（Python の <int:…> は \d+〈Unicode の 10 進数字〉に当たった字の int()）。i64 に入らなければ None（その道は Python に任せる）
-pub fn path_int(s: &str) -> Option<i64> {
+/// 道の id（Python の <int:…> は \d+〈Unicode の 10 進数字〉に当たった字の int()）。版 3.108.0 から i64 に入らない id も桁のまま
+/// （前は None で、その道を Python に任せた）。4,300 桁を超える字は int() が読めないので None
+pub fn path_int(s: &str) -> Option<PyInt> {
     if s.is_empty() || !s.chars().all(|c| digit(c).is_some()) {
         return None;
     }
-    py_int(s).ok()?.small()
+    py_int(s).ok()
 }
 
 /// Python の float(文字)。読めなければ Python と同じ文の誤り。
@@ -1056,9 +1081,9 @@ mod tests {
             py_int_of(IntArg::None).unwrap_err(),
             "int() argument must be a string, a bytes-like object or a real number, not 'NoneType'"
         );
-        assert_eq!(path_int("１２"), Some(12));
-        assert_eq!(path_int("١"), Some(1));
-        assert_eq!(path_int("99999999999999999999"), None);
+        assert_eq!(path_int("１２"), Some(PyInt::Small(12)));
+        assert_eq!(path_int("١"), Some(PyInt::Small(1)));
+        assert_eq!(path_int("99999999999999999999"), Some(PyInt::Big("99999999999999999999".into())), "Python の int と同じく桁のまま");
         assert_eq!(path_int("1_0"), None, "道の id は数字だけ");
         // 版 3.104.0 の作った後の採点: 大きな数の 1 を足す・比べる（Python の int と同じ）
         let big = |s: &str| py_int(s).unwrap();

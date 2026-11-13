@@ -18,6 +18,7 @@
 use crate::jsontree::Tree;
 use crate::master_rows::{self, base_rev, Spec};
 use crate::master_store::{MasterError, Store};
+use crate::pyfmt::PyInt;
 use crate::worksum::{py_str, truthy};
 use serde_json::{json, Map, Value};
 
@@ -40,12 +41,12 @@ const PARTS: [(&str, bool, &str); 10] = [
     ("adhoc", false, "列で絞り込む"),
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
     List,
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
 }
 
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
@@ -56,7 +57,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
             // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -211,7 +212,7 @@ fn clean_row(d: &Map<String, Value>, tree: &Tree, partial: bool) -> Result<Optio
 }
 
 /// 名前は元ごとに 1 つ（master_repository._check_row の display_formats。比べ方は access::py_key・言葉は送った名前）
-fn check(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
+fn check(rows: &[Value], data: &Map<String, Value>, self_id: Option<&PyInt>) -> Result<(), MasterError> {
     let key = (crate::access::normalize_part(data.get("名前")), data.get("元").cloned());
     for r in rows {
         let Some(o) = r.as_object() else { continue };
@@ -228,10 +229,11 @@ fn check(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Res
 /// 置き場から行を読んで答える（Lot::formats_route と試験 tests/formats_parity.rs の入口。門番は呼ぶ側）。窓が答えない形は None
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
     // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）
-    if place.split_file(NAME) || (route == Route::List && !store.seed_absent(&[NAME])) {
+    // i64・u64 に入らない整数のファイルも版 3.108.0 から読む（src/held.rs が桁のまま持ち、書き戻す。前は Place::split_file で任せた）
+    if route == Route::List && !store.seed_absent(&[NAME]) {
         return None;
     }
-    // 置き場の読めない行は隔てる（版 3.107.0。中身の部品の形は row_problem で。前は任せた）。中身の字に i64 に入らない整数（H2）はまだ任せる
+    // 置き場の読めない行は隔てる（版 3.107.0。中身の部品の形は row_problem で。前は任せた）。中身の字に i64 に入らない整数はまだ任せる
     let mut all = place.rows_all(NAME).ok()?;
     master_rows::normalize_all(&mut all, &SPEC);
     if crate::row_check::wide_content(NAME, &all) {
@@ -268,7 +270,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if truthy(&parsed) && !parsed.is_object() {
         return None; // 表でない真の本文は Python の例外（窓は答えない）
     }
-    if let Route::Delete(id) = route {
+    if let Route::Delete(id) = &route {
         let base = base_rev(&parsed, query);
         return Some(match master_rows::delete(store, &SPEC, id, base) {
             Ok(()) => (200, json!({"ok": true})),
@@ -296,7 +298,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
                 Err(m) => return Some(format_error(m)),
             };
             row.retain(|k, _| ["名前", "中身", "備考"].contains(&k.as_str()));
-            master_rows::update(store, &SPEC, id, &row, base, &check).map(|v| (200, v))
+            master_rows::update(store, &SPEC, &id, &row, base, &check).map(|v| (200, v))
         }
         _ => return None,
     };

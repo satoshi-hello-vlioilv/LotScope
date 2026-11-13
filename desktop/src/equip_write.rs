@@ -18,6 +18,7 @@
 
 use crate::master_rows::{self, base_rev, Spec};
 use crate::master_store::{MasterError, Store};
+use crate::pyfmt::PyInt;
 use crate::worksum::truthy;
 use serde_json::{json, Map, Value};
 
@@ -70,18 +71,18 @@ impl Kind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Route {
     List(Kind),
     Create(Kind),
-    Update(Kind, i64),
-    Delete(Kind, i64),
+    Update(Kind, PyInt),
+    Delete(Kind, PyInt),
 }
 
 impl Route {
-    pub fn kind(self) -> Kind {
+    pub fn kind(&self) -> Kind {
         match self {
-            Route::List(k) | Route::Create(k) | Route::Update(k, _) | Route::Delete(k, _) => k,
+            Route::List(k) | Route::Create(k) | Route::Update(k, _) | Route::Delete(k, _) => *k,
         }
     }
 }
@@ -97,8 +98,8 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         ("POST", "") => Some(Route::Create(kind)),
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
-            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。版 3.108.0 から i64 に入らない id も桁のまま（PyInt）
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(kind, id) } else { Route::Delete(kind, id) })
         }
         _ => None,
@@ -121,8 +122,8 @@ fn awkward(v: &Value) -> bool {
     v.is_array() || v.is_object()
 }
 
-/// 置き場の行（隔てた行を除く）の項目〈旧い列名も〉の値を窓が Python の str() と同じ字に書けるか（i64 に入らない整数は H2 まで任せる。
-/// id・版・並び・表は版 3.107.0 から row_check が隔てる）
+/// 置き場の行（隔てた行を除く）の項目〈旧い列名も〉の値を窓が Python の str() と同じ字に書けるか（i64・u64 に入らない整数は版 3.108.0 から
+/// src/held.rs が桁のまま持つ。残るのは serde が小数に丸めた形だけ。id・版・並び・表は版 3.107.0 から row_check が隔てる）
 fn readable(rows: &[Value], spec: &Spec) -> bool {
     let fields: Vec<&str> = spec.fields.iter().copied().chain(spec.renamed.iter().map(|(old, _)| *old)).collect();
     rows.iter().all(|r| r.as_object().is_some_and(|o| fields.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain_or_container))))
@@ -150,7 +151,6 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
     let iso = crate::row_check::check(spec.name, &all, spec.fields);
     let good: Vec<Value> = crate::row_check::good(spec.name, &all, &iso);
     let rows = good.as_slice();
-    // i64 に入らない整数の値（u64 の数・大きな整数の形の小数）はまだ任せる（H2。Python の str() は桁のまま）
     if !readable(rows, spec) {
         return None;
     }
@@ -158,10 +158,11 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
         return Some((200, Value::Array(good)));
     }
     let blank_body = body.iter().all(|b| b.is_ascii_whitespace());
-    if master_rows::unreadable_u64_ok(body) {
+    // i64・u64 に入らない整数は版 3.108.0 から桁のまま読む（src/held.rs。値は str() の字〈master_rows::clean〉にしか使わない）
+    if master_rows::unreadable_held(body) {
         return None;
     }
-    let parsed: Value = if blank_body { Value::Null } else { serde_json::from_slice(body).ok()? };
+    let parsed: Value = if blank_body { Value::Null } else { crate::held::body_value(body)? };
     // 直す・消す道は先に routes/common.base_rev が本文を読む: 表でない本文（並び・字・数）は 500（行は書かない。Python も版 3.77.0 から同じ）。
     // 答えの本文は窓では {error, kind}、Python では道の外の例外なので枠の 500 の頁（画面は表でない本文を送らないので画面には出ない）
     if matches!(route, Route::Update(..) | Route::Delete(..)) && truthy(&parsed) && !parsed.is_object() {
@@ -174,12 +175,12 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
         _ => None,
     };
     let name = spec.name;
-    if let Route::Delete(_, id) = route {
+    if let Route::Delete(_, id) = &route {
         if let Err(e) = master_rows::refuse_bad_rows(name, &bad) {
             return Some(of_master(e));
         }
         return Some(match master_rows::delete(store, spec, id, base) {
-            Ok(()) => (200, json!({"status": "deleted", "id": id})),
+            Ok(()) => (200, json!({"status": "deleted", "id": crate::held::int_value(id)})),
             Err(e) => of_master(e),
         });
     }
@@ -196,7 +197,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
     if (data.contains_key(req) || route == Route::Create(kind)) && blank(data.get(req)) {
         return Some(value_error(format!("{req}は必須です。")));
     }
-    let check = |rows: &[Value], d: &Map<String, Value>, self_id: Option<i64>| -> Result<(), MasterError> {
+    let check = |rows: &[Value], d: &Map<String, Value>, self_id: Option<&PyInt>| -> Result<(), MasterError> {
         match kind {
             Kind::Equipment => crate::calc::equipment_check(rows, d, self_id).map_or(Ok(()), |m| Err(MasterError::Invalid(m))),
             Kind::Rolls => Ok(()),
@@ -207,7 +208,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
     }
     let done = match route {
         Route::Create(_) => master_rows::create(store, spec, &data, &check).map(|v| (201, v)),
-        Route::Update(_, id) => master_rows::update(store, spec, id, &data, base, &check).map(|v| (200, v)),
+        Route::Update(_, id) => master_rows::update(store, spec, &id, &data, base, &check).map(|v| (200, v)),
         _ => unreachable!(),
     };
     Some(done.unwrap_or_else(of_master))

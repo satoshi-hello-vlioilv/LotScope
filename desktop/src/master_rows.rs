@@ -5,6 +5,7 @@
 
 use crate::access::normalize_part;
 use crate::master_store::{next_id, MasterError, Store};
+use crate::pyfmt::PyInt;
 use crate::worksum::py_str;
 use serde_json::{json, Map, Value};
 
@@ -180,6 +181,15 @@ pub fn text_split_py(t: &str) -> bool {
     text_split(&inner_text(t))
 }
 
+/// text_split_py と同じだが、i64・u64 に入らない整数は割れない（版 3.108.0。src/held.rs の body_value が桁のまま読む）。
+/// 入れ子 SERDE_DEPTH 段以上・NaN・Infinity・対の無い代用字は今どおり割れる。使うのは、中身を held::body_value で読む所だけ
+pub fn text_split_held(t: &str) -> bool {
+    if split_wide(t.as_bytes()) && json_depth(t.as_bytes()) < SERDE_DEPTH {
+        return crate::held::body_value(inner_text(t).as_bytes()).is_none();
+    }
+    text_split_py(t)
+}
+
 /// JSON の字の、字の外の [ { の入れ子のいちばん深い段（serde_json は 128 段で読むのをやめる。Python の json は読む）
 pub(crate) fn json_depth(t: &[u8]) -> usize {
     let (mut depth, mut deepest, mut in_str, mut esc) = (0usize, 0usize, false, false);
@@ -241,17 +251,24 @@ pub fn unreadable_u64_ok(body: &[u8]) -> bool {
     !body.iter().all(|b| b.is_ascii_whitespace()) && (serde_json::from_slice::<Value>(body).is_err() || split_number_in(body, true))
 }
 
-pub(crate) fn same_id(r: &Value, id: i64) -> bool {
+/// 行の id が道の id と同じか（Python の `r.get("id") == item_id`: int と int・小数と int は値で比べ〈1e19 == 10**19〉、真偽は 0・1、
+/// 字は違う）。版 3.108.0 から道の id は Python の int と同じく桁のまま（PyInt。前は i64 で、入らない id の道は Python に任せた）
+pub(crate) fn same_id(r: &Value, id: &PyInt) -> bool {
     match &r["id"] {
-        Value::Number(n) => n.as_i64() == Some(id) || n.as_f64() == Some(id as f64),
-        Value::Bool(b) => (*b as i64) == id,
+        Value::Number(n) if n.is_f64() => {
+            n.as_f64().is_some_and(|f| f.is_finite() && f.fract() == 0.0)
+                && crate::pyfmt::py_int_of(crate::pyfmt::IntArg::Num(n)).as_ref() == Ok(id)
+        }
+        Value::Number(n) => crate::pyfmt::py_int_of(crate::pyfmt::IntArg::Num(n)).as_ref() == Ok(id),
+        Value::Bool(b) => PyInt::Small(*b as i64) == *id,
+        v @ Value::String(_) => crate::held::big_digits(v).is_some() && crate::pyfmt::py_int_of(v.into()).as_ref() == Ok(id),
         _ => false,
     }
 }
 
 /// 比べる相手から除く自分の行か（Python の `r.get("id") != self_id` の否定: 足すとき〈self_id が None〉は id の無い・null の行が自分）。
 /// 一意の確かめ（_check_unique）と行の確かめ（_check_row）のどれもこれで見分ける（版 3.77.0。前は足すとき id の無い行とも比べた）
-pub(crate) fn is_self(r: &Value, self_id: Option<i64>) -> bool {
+pub(crate) fn is_self(r: &Value, self_id: Option<&PyInt>) -> bool {
     match self_id {
         None => r.get("id").is_none_or(Value::is_null),
         Some(id) => same_id(r, id),
@@ -260,12 +277,17 @@ pub(crate) fn is_self(r: &Value, self_id: Option<i64>) -> bool {
 
 /// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。真偽は 1・0。字や大きな数は Python に任せる）、
 /// 版は無いか Python の int() が読める物（読めなければ Python は master_call の中の例外で 400、窓は答えない）
-pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
-    let id_ok = match r.get("id") {
-        None | Some(Value::Null | Value::Bool(_)) => true,
-        Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.is_finite() && f.abs() < 9.0e15),
-        _ => false,
-    };
+pub(crate) fn row_readable(name: &str, r: &Map<String, Value>) -> bool {
+    // 行を id で引かないマスタ（データ元・変換表の標準）は id の型を見ない（row_check::ID_FREE の 1 か所。版 3.108.0 の作った後の採点の割れ 3:
+    // 前は変換表の道がこの確かめで標準の字の id の行を見て、道を全部 Python に任せていた）
+    let id_ok = crate::row_check::ID_FREE.contains(&name)
+        || match r.get("id") {
+            None | Some(Value::Null | Value::Bool(_)) => true,
+            Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.is_finite() && f.abs() < 9.0e15),
+            // u64 に入らない整数の id（版 3.108.0。src/held.rs が桁のまま持つ。next_id も桁で数える）
+            Some(v @ Value::String(_)) => crate::held::big_digits(v).is_some(),
+            _ => false,
+        };
     id_ok && r.get("rev").is_none_or(|v| py_int(v).is_some())
 }
 
@@ -274,7 +296,8 @@ pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
 pub(crate) fn value_plain(v: &Value) -> bool {
     match v {
         Value::Array(_) | Value::Object(_) => false,
-        Value::Number(n) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| !(f.fract() == 0.0 && f.abs() >= 9.2e18)),
+        // u64 の整数は桁のまま書く（py_str）。u64 に入らない整数は版 3.108.0 から持っている値（字）で、py_str が桁の字にする
+        Value::Number(n) => n.is_i64() || n.is_u64() || n.as_f64().is_some_and(|f| !(f.fract() == 0.0 && f.abs() >= 9.2e18)),
         _ => true,
     }
 }
@@ -293,9 +316,16 @@ pub(crate) fn num_plain(v: &Value) -> bool {
     }
 }
 
+/// 置き場の行（そろえる前）の隔てる行（row_check の決まり。形をそろえた写しで見る）
+pub(crate) fn isolated_of(name: &str, rows: &[Value]) -> Iso {
+    let mut norm = rows.to_vec();
+    crate::row_check::normalize_like_specs(name, &mut norm);
+    crate::row_check::check(name, &norm, crate::row_check::fields_of(name))
+}
+
 /// 置き場の行の id・版が読め（row_readable）、決めた項目の値がどれも value_plain か
-pub(crate) fn rows_plain(rows: &[Value], fields: &[&str]) -> bool {
-    rows.iter().all(|r| r.as_object().is_some_and(|o| row_readable(o) && fields.iter().all(|k| o.get(*k).is_none_or(value_plain))))
+pub(crate) fn rows_plain(name: &str, rows: &[Value], fields: &[&str]) -> bool {
+    rows.iter().all(|r| r.as_object().is_some_and(|o| row_readable(name, o) && fields.iter().all(|k| o.get(*k).is_none_or(value_plain))))
 }
 
 /// 行の版を確かめる（_check_rev）
@@ -338,10 +368,10 @@ pub(crate) struct Spec {
 }
 
 /// 行の確かめ（_check_row の組ごとの決まり。無ければ何もしない）。(並び, 確かめる行, 直す行の id)
-pub(crate) type CheckRow<'a> = &'a dyn Fn(&[Value], &Map<String, Value>, Option<i64>) -> Result<(), MasterError>;
+pub(crate) type CheckRow<'a> = &'a dyn Fn(&[Value], &Map<String, Value>, Option<&PyInt>) -> Result<(), MasterError>;
 
 /// 名前が 1 つずつの列（_check_unique。NFKC・前後の空白を除く・大文字で比べる）
-pub(crate) fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
+pub(crate) fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value>, self_id: Option<&PyInt>) -> Result<(), MasterError> {
     let Some(col) = spec.unique else { return Ok(()) };
     if !data.contains_key(col) {
         return Ok(());
@@ -383,7 +413,7 @@ pub(crate) fn create(store: &Store, spec: &Spec, data: &Map<String, Value>, chec
 pub(crate) fn update(
     store: &Store,
     spec: &Spec,
-    id: i64,
+    id: &PyInt,
     data: &Map<String, Value>,
     base: Option<Rev>,
     check: CheckRow,
@@ -395,7 +425,7 @@ pub(crate) fn update(
             return Err(if base.is_some() {
                 MasterError::Conflict(None)
             } else {
-                MasterError::NotFound(format!("id={id} が見つかりません。"))
+                MasterError::NotFound(format!("id={} が見つかりません。", id.text()))
             });
         };
         check_rev(&rows[i], base)?;
@@ -421,7 +451,7 @@ pub(crate) fn update(
 }
 
 /// 消す（_delete: 無い行は 404〈版を添えたならもう消えている＝望みどおり〉・行の版）
-pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> Result<(), MasterError> {
+pub(crate) fn delete(store: &Store, spec: &Spec, id: &PyInt, base: Option<Rev>) -> Result<(), MasterError> {
     store.write(spec.name, |rows, _stamp| {
         let iso = prepare(rows, spec)?;
         // 隔てた行は値を読まずに消す（版は確かめない。版 3.107.0 の割れ 1: 前に画面で消せた行は今も消せる）
@@ -430,7 +460,11 @@ pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> 
             return Ok(());
         }
         let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
-            return if base.is_some() { Ok(()) } else { Err(MasterError::NotFound(format!("id={id} が見つかりません。"))) };
+            return if base.is_some() {
+                Ok(())
+            } else {
+                Err(MasterError::NotFound(format!("id={} が見つかりません。", id.text())))
+            };
         };
         check_rev(&rows[i], base)?;
         rows.remove(i);
@@ -439,38 +473,40 @@ pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> 
 }
 
 /// 表示順を書かずに足す行の表示順（row_order.next_order: いまの最大 + 10。版 3.93.0 から勤務体系と変換表の 1 つ）。
-/// 各行の str(表示順 or 0).strip() を int() で読み、読めない行（小数の字・「²」・並び）は数えない。Python の int は桁のまま数えるので、
-/// 38 桁を超える表示順の行があれば None（窓は答えず Python に任せる）
-pub(crate) fn next_order(rows: &[Value]) -> Option<String> {
-    let mut best: i128 = 0;
+/// 各行の str(表示順 or 0).strip() を int() で読み、読めない行（小数の字・「²」・並び・4,300 桁を超える字）は数えない。
+/// 版 3.108.0 から Python の int と同じく桁のまま数える（PyInt。前は 38 桁を超える表示順の行があれば Python に任せた）
+pub fn next_order(rows: &[Value]) -> Option<String> {
+    let mut best = PyInt::Small(0);
     for r in rows {
         let n = match r.get("表示順").filter(|v| crate::worksum::truthy(v)) {
-            None => Some(0),
-            Some(Value::Number(n)) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
-            Some(Value::String(s)) => {
-                if s.chars().filter(|c| crate::pyfmt::digit(*c).is_some()).count() > 38 {
-                    return None;
-                }
-                crate::bundle::wide_int_text(s)
-            }
-            Some(_) => None, // 真偽・並び・表の字（True・[1]）は int() が読めない
+            None => Some(PyInt::Small(0)),
+            // str(v).strip() を int()（小数の字・真偽の字・並びの repr は読めない）
+            Some(v) => crate::pyfmt::py_int(crate::pyfmt::strip(&py_str(v))).ok(),
         };
         if let Some(n) = n {
             best = best.max(n);
         }
     }
-    Some((best + 10).to_string())
+    Some(add_small(&best, 10).text())
+}
+
+/// n + k（k は小さな正の数。Python の int の足し算。大きな数は桁で足す）
+pub fn add_small(n: &PyInt, k: u32) -> PyInt {
+    if let PyInt::Small(i) = n {
+        if let Some(x) = i.checked_add(k as i64) {
+            return PyInt::Small(x);
+        }
+    }
+    (0..k).fold(n.clone(), |x, _| x.succ())
 }
 
 /// 表示順の字（Python の `str(int(v))`。読めなければ ""）: 真偽・整数・小数（切り捨て）・字（前後の空白・数字の間の _・Unicode の数字）。
-/// 版 3.94.0 から変換表と設備グループの 1 つ。i64 に入らない数・38 桁を超える字は None（Python の int は桁のまま。窓は答えず任せる）
+/// 版 3.94.0 から変換表と設備グループの 1 つ。版 3.108.0 から大きな数も桁のまま（前は i64 に入らない数・38 桁を超える字で Python に任せた）
 pub(crate) fn py_int_text(v: Option<&Value>) -> Option<String> {
     // 版 3.104.0 から pyfmt::py_int_of の 1 つ。並び・表・null・読めない字は ""（前と同じ）
     Some(match v {
         None | Some(Value::Null | Value::Array(_) | Value::Object(_)) => String::new(),
-        Some(Value::Number(n)) if n.as_i64().is_none() && n.as_f64().is_some_and(|f| f.trunc().abs() >= 9.2e18) => return None,
         Some(x) => match crate::pyfmt::py_int_of(x.into()) {
-            Ok(n) if n.text().trim_start_matches('-').len() > 38 => return None,
             Ok(n) => n.text(),
             Err(_) => String::new(),
         },
@@ -478,7 +514,7 @@ pub(crate) fn py_int_text(v: Option<&Value>) -> Option<String> {
 }
 
 /// 行の確かめの無い組
-pub(crate) fn no_check(_: &[Value], _: &Map<String, Value>, _: Option<i64>) -> Result<(), MasterError> {
+pub(crate) fn no_check(_: &[Value], _: &Map<String, Value>, _: Option<&PyInt>) -> Result<(), MasterError> {
     Ok(())
 }
 
@@ -536,6 +572,31 @@ pub(crate) fn put_by_key(
     })
 }
 
+/// unreadable と同じだが、i64・u64 に入らない整数（字の外）は窓が桁のまま読む（版 3.108.0。src/held.rs の body_value。読みが割れないので
+/// 読めない本文ではない）。使うのは、本文の値を py_str・PyInt（IntArg）・送った順の木・held::to_pretty でしか扱わない道だけ
+pub fn unreadable_held(body: &[u8]) -> bool {
+    if body.iter().all(|b| b.is_ascii_whitespace()) {
+        return false;
+    }
+    if crate::master_store::has_wide_int(body) || split_number(body) {
+        return crate::held::body_value(body).is_none();
+    }
+    unreadable(body)
+}
+
+/// py_body と同じだが、i64・u64 に入らない整数は桁のまま読む（unreadable_held と同じ道だけ。版 3.108.0）
+pub(crate) fn py_body_held(body: &[u8]) -> Option<Value> {
+    if !body.iter().all(|b| b.is_ascii_whitespace()) && (crate::master_store::has_wide_int(body) || split_number(body)) {
+        if let Some(v) = crate::held::body_value(body) {
+            if crate::worksum::truthy(&v) && !v.is_object() {
+                return None;
+            }
+            return Some(if v.is_object() { v } else { json!({}) });
+        }
+    }
+    py_body(body)
+}
+
 /// 書く道の本文（routes の request.get_json(force=True, silent=True) or {}）。版 3.90.0 から参照先の項目・データ元の書く道の 1 か所。
 /// 読めない本文は {}（Python と同じ）。Python だけが読む字・読みの割れる数・表でない真の本文（Python は 400 か 500）は None（Python に任せる）
 pub(crate) fn py_body(body: &[u8]) -> Option<Value> {
@@ -565,6 +626,82 @@ pub(crate) fn error_answer(m: &str) -> (u16, Value) {
         "OSError"
     };
     (400, json!({"error": m, "kind": "error", "type": kind}))
+}
+
+/// 何行目かで読めない行を消せるマスタ（版 3.108.0。Python の master_repository.ROW_DELETE と同じ）
+pub const ROW_DELETE: [&str; 10] = [
+    "equipment_master",
+    "roll_master",
+    "shift_patterns",
+    "equipment_groups",
+    "conversions",
+    "display_formats",
+    "path_settings",
+    "data_sources",
+    "work_log_files",
+    "conversion_defaults",
+];
+
+/// 読めない行（隔てた行・表でない行）を、何行目（1 から）と生の値の要約（skipped の summary と同じ字）で消す（版 3.108.0。Python の
+/// MasterRepository.delete_unreadable_row と同じ）。もう読めない行でない・要約が違えば消さずに NotFound。ほかの行はそのまま書き戻す
+pub(crate) fn delete_unreadable_row(store: &Store, name: &str, n: usize, summary: &str, key: &str) -> Result<Value, MasterError> {
+    store.write(name, |rows, _stamp| {
+        let why = (1..=rows.len()).contains(&n).then(|| {
+            let mut norm = vec![rows[n - 1].clone()];
+            crate::row_check::normalize_like_specs(name, &mut norm);
+            crate::row_check::check(name, &norm, crate::row_check::fields_of(name)).into_iter().next().map(|(_, _, why)| why)
+        });
+        match why.flatten() {
+            // 要約と行の目印（row_key: 行の全部の字の sha1）がどちらも同じときだけ（版 3.108.0 の作った後の採点の割れ 4）
+            Some(why) if crate::row_check::summary(name, &rows[n - 1]) == summary && crate::row_check::row_key(name, &rows[n - 1]) == key => {
+                rows.remove(n - 1);
+                Ok(json!({"ok": true, "row": n, "why": why}))
+            }
+            _ => Err(MasterError::NotFound(format!(
+                "{name}.json の {n} 行目は、開いたあとに変わりました（ほかの PC が直した・消した可能性があります）。画面を開き直してください。"
+            ))),
+        }
+    })
+}
+
+/// 読めない行を何行目かで消す道（DELETE /api/masters/rows/<名前>/<n>）か → (百分率符号を戻した道, 名前, 行の字)。Python は戻した道で当てる
+pub fn rows_route_of(method: &str, path: &str) -> Option<(String, String, String)> {
+    if method != "DELETE" {
+        return None;
+    }
+    let decoded = crate::body::unquote(path);
+    let rest = decoded.strip_prefix("/api/masters/rows/")?;
+    let (name, row) = rest.split_once('/')?;
+    if name.is_empty() || row.contains('/') {
+        return None;
+    }
+    let (name, row) = (name.to_string(), row.to_string());
+    Some((decoded, name, row))
+}
+
+/// 読めない行を何行目かで消す道の答え（門番は呼ぶ側が通した。Python の routes/masters.masters_row_delete と同じ）。
+/// 行の字が <int:row> に当たらない（\d+ と int()）なら None（Python も道に当たらない）
+pub fn rows_delete(store: &Store, name: &str, row: &str, query: &str) -> Option<(u16, Value)> {
+    let big = crate::pyfmt::path_int(row)?;
+    if !ROW_DELETE.contains(&name) {
+        return Some((
+            404,
+            json!({"error": format!("{name} の読めない行は、ここからは消せません（ファイルを直してください）。"), "kind": "not_found"}),
+        ));
+    }
+    let q = crate::lotlist::parse_query(query);
+    let arg = |name: &str| q.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone()).unwrap_or_default();
+    let (summary, key) = (arg("summary"), arg("key"));
+    // 行の位置が usize に入らない数は、どの行にも当たらない（Python の NotFound と同じ言葉。数は Python の int の字）
+    let n = big.small().and_then(|i| usize::try_from(i).ok()).unwrap_or(usize::MAX);
+    Some(match delete_unreadable_row(store, name, n, &summary, &key) {
+        Ok(v) => (200, v),
+        Err(MasterError::NotFound(_)) => (
+            404,
+            json!({"error": format!("{name}.json の {big} 行目は、開いたあとに変わりました（ほかの PC が直した・消した可能性があります）。画面を開き直してください。"), "kind": "not_found"}),
+        ),
+        Err(e) => (e.status(), e.payload()),
+    })
 }
 
 /// 表でない行の番号（1 から。版 3.102.0 の作った後の採点の割れ 1。Python の master_repository.bad_rows と同じ）

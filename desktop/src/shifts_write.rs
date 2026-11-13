@@ -18,6 +18,7 @@
 use crate::access::{master_edit_can, master_scope};
 use crate::master_rows::{base_rev, no_check, Spec};
 use crate::master_store::{MasterError, Store};
+use crate::pyfmt::PyInt;
 use crate::pyfmt::{self, strip};
 use crate::worksum::{
     crosses_midnight, equipment_list, hm, normalize_part, order_of, pad_hm, py_int_of, py_str, segments_of, truthy, DAYOFF_LIMIT,
@@ -30,12 +31,12 @@ const SPEC: Spec = Spec { name: NAME, fields: &FIELDS, unique: Some("名称"), r
 const NAME_MAX: usize = 40;
 const SEGMENTS_MAX: usize = 12;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Route {
     List,
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
 }
 
 /// 窓が受ける道か（Python の <int:item_id> は数字だけ）
@@ -46,7 +47,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), p) => {
             let id = p.strip_prefix("/api/masters/shifts/")?;
             // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -401,13 +402,13 @@ pub fn handle(
             if let Err(e) = crate::master_rows::refuse_bad_rows(NAME, &bad) {
                 return Some(of_master(e));
             }
-            match crate::master_rows::update(store, &SPEC, id, &row, base, &no_check) {
+            match crate::master_rows::update(store, &SPEC, &id, &row, base, &no_check) {
                 Ok(_) => done(200, None),
                 Err(e) => Some(of_master(e)),
             }
         }
         Route::Delete(_) if !bad.is_empty() => Some(of_master(crate::master_rows::refuse_bad_rows(NAME, &bad).unwrap_err())),
-        Route::Delete(id) => match crate::master_rows::delete(store, &SPEC, id, base) {
+        Route::Delete(id) => match crate::master_rows::delete(store, &SPEC, &id, base) {
             Ok(()) => done(200, None),
             Err(e) => Some(of_master(e)),
         },

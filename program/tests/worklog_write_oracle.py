@@ -135,7 +135,8 @@ SCENARIOS = [
         W(S("PUT", f"{M}/1", {"設備名": "x", "base_rev": "²"})),
         S("PUT", f"{M}/1", {"備考": [1, 2]}),
         S("PUT", f"{M}/1", {"ファイル名": ["実績_新.sqlite3"]}),
-        S("PUT", f"{M}/99999999999999999999", {"設備名": "x"}),
+        W(S("PUT", f"{M}/99999999999999999999", {"設備名": "x"})),       # 版 3.108.0（H2）: 道の大きな id も桁のまま
+        W(S("DELETE", f"{M}/99999999999999999999")),
         S("DELETE", f"{M}/1", "[1]"),
         W(S("DELETE", f"{M}/1", query="rev=²")),
     ]},
@@ -150,9 +151,9 @@ SCENARIOS = [
     ]},
     {"name": "同じファイル名の行が 2 つ（一覧は並びの順・探し直しは登録の順で結ぶ）", "mode": "shared", "dup": True, "steps": [
         S("GET", M), S("POST", f"{M}/scan"), S("GET", M)]},
-    # 作った後の採点で見つけた割れ（版 3.91.0）: 39 桁を超える並び（窓は書く前・読む前に Python に任せる）
+    # 作った後の採点で見つけた割れ（版 3.91.0）: 39 桁を超える並び。版 3.108.0（H2）から窓も Python の int と同じく桁のまま並べる
     {"name": "39 桁を超える並びが 2 行", "mode": "shared", "big": True, "steps": [S("DELETE", f"{M}/5", query="rev=1")], "delegates": [
-        S("GET", M), S("GET", F), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("POST", f"{M}/scan")]},
+        W(x) for x in [S("GET", M), S("GET", F), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("POST", f"{M}/scan"), S("GET", M)]]},
     # 配った設定の古さの時間が数でない（参照先は数に直すが、配った設定はそのまま束に入る）。版 3.106.0 から Python（work_log.params）も
     # 窓（bundle の work）も既定の 36 時間で続け、settingsWarn で知らせる（前は Python が float() の 400・500、窓は任せていた）
     {"name": "配った設定の古さが abc（フォルダに届く）", "mode": "shared", "cfg_stale": "abc", "steps": [

@@ -157,13 +157,19 @@ SCENARIOS = [
                         ("スライサーの cards が字", R(2, "x", "lot", '{"slicer":{"cards":"abc"}}')),
                         ("版が読めない", R(2, "x", "lot", '{"sorts":[]}', rev="二")),
                         ("id が字", {"id": "4", "名前": "字の id", "元": "lot", "中身": "{}"})]],
-    # 版 3.107.0: 読まない値（知らない鍵）の NaN は持ったまま書き戻す（i64 に入らない整数はまだ任せる。H2）
-    *[{"name": f"共有のファイルの字に {what}（{'窓は答えず Python に任せる' if raw.startswith('1' + '0' * 5) else '窓も答える'}）", "mode": "shared",
+    # 版 3.107.0: 読まない値（知らない鍵）の NaN は持ったまま書き戻す（版 3.108.0〈H2〉から i64 に入らない整数も桁のまま持って書き戻す）
+    *[{"name": f"共有のファイルの字に {what}（窓も答える）", "mode": "shared",
        "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), dict(R(2, "生の値", "work", '{"sorts":[]}'), x="@RAW@")], "raw": raw,
-       "steps": [], "delegates": [(W if not raw.startswith("1" + "0" * 5) else (lambda x: x))(x) for x in [
+       "steps": [], "delegates": [W(x) for x in [
            S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}}), S(PART, "PUT", 1, {"name": "b"})]]}
       # 版 3.106.0: 整数の -0 は窓も Python と同じ 0 と読み、0 と書き戻す（master_rows::inner_text）
       for what, raw in [("NaN", "NaN"), ("整数の -0", "-0"), ("i64 に入らない整数", "1" + "0" * 30)]],
+    # 版 3.108.0（H2）: 行の id・版・備考が i64・u64 に入らない整数（一覧の id は桁のまま・道の大きな id で直す・消す・次の id は桁で数える）
+    {"name": "置き場の行の id・備考が i64・u64 に入らない整数", "mode": "shared",
+     "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), R(10 ** 20, "大きな id", "lot", '{"sorts":[]}', note=10 ** 25)], "steps": [],
+     "delegates": [W(x) for x in [S(PART, "GET"), S(PART, "POST", body={"name": "足す", "source": "lot", "body": {"sorts": []}}),
+                                  S(PART, "PUT", 10 ** 20, {"name": "直す", "base_rev": 1}), S(PART, "GET"), S(PART, "DELETE", 10 ** 20),
+                                  S(PART, "PUT", 10 ** 20, {"name": "もう無い"}), S(PART, "GET")]]},
     {"name": "共有のファイルの版 revision が読めない（Python の int() が読めない。写しで続け、書く道は断る）", "mode": "shared",
      "rows": [R(1, "良い行", "lot", '{"sorts":[]}')], "rev": "abc", "steps": [],
      "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}})), W(S(PART, "DELETE", 1)),
