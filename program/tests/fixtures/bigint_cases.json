@@ -210,5 +210,43 @@
    "text": "[1000000000000000000000000000000000000000000000000000000000000]",
    "want": "[1000000000000000000000000000000000000000000000000000000000000]"
   }
+ ],
+ "marks": [
+  {
+   "text": "{\"a\": \"\\u0000J:123456789012345678901234567890\"}",
+   "want": "{\"a\": \"\\u0000J:123456789012345678901234567890\"}",
+   "str": "\u0000J:123456789012345678901234567890",
+   "int_err": "invalid literal for int() with base 10: '\\x00J:123456789012345678901234567890'"
+  },
+  {
+   "text": "{\"a\": \"\\u0000J:NaN\"}",
+   "want": "{\"a\": \"\\u0000J:NaN\"}",
+   "str": "\u0000J:NaN",
+   "int_err": "invalid literal for int() with base 10: '\\x00J:NaN'"
+  },
+  {
+   "text": "{\"a\": \"\\u0000J:5\"}",
+   "want": "{\"a\": \"\\u0000J:5\"}",
+   "str": "\u0000J:5",
+   "int_err": "invalid literal for int() with base 10: '\\x00J:5'"
+  },
+  {
+   "text": "{\"a\": \"\\u0000J:abc\"}",
+   "want": "{\"a\": \"\\u0000J:abc\"}",
+   "str": "\u0000J:abc",
+   "int_err": "invalid literal for int() with base 10: '\\x00J:abc'"
+  },
+  {
+   "text": "{\"a\": \"\\u0000J:-Infinity\"}",
+   "want": "{\"a\": \"\\u0000J:-Infinity\"}",
+   "str": "\u0000J:-Infinity",
+   "int_err": "invalid literal for int() with base 10: '\\x00J:-Infinity'"
+  },
+  {
+   "text": "{\"a\": \"\\u0000J:\\\"x\\\"\"}",
+   "want": "{\"a\": \"\\u0000J:\\\"x\\\"\"}",
+   "str": "\u0000J:\"x\"",
+   "int_err": "invalid literal for int() with base 10: '\\x00J:\"x\"'"
+  }
  ]
 }

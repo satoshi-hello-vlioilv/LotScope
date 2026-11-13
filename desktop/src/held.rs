@@ -16,8 +16,22 @@
 use crate::pyjson::{self, J};
 use serde_json::Value;
 
-/// 移せない値の印（字の頭。データの字に NUL で始まる物は無い）
-pub const MARK: &str = "\u{0}J:";
+/// 移せない値の印（字の頭）。版 3.108.0 の作った後の採点の割れ 1: 前は決まった字（NUL・J・:）で、利用者の字・データの字が同じ頭で
+/// 始まると、大きな整数・NaN と取り違えて黙って書き替えた（to_pretty・答え・int()・str()）。いまは起動ごとの乱数（16 進 16 字）を挟み、
+/// 外から来る字（本文・ファイル・SQLite の値）が印を名乗れない。印の字はこの窓の中だけで使い、ファイル・答えに出る前に必ず値に戻る
+/// （to_pretty・reply_bytes・Tree・py_dumps・py_str・repr）。同じ窓の中の読み書きは同じ印を使う
+pub fn mark() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| {
+        let mut b = [0u8; 8];
+        if getrandom::fill(&mut b).is_err() {
+            // 乱数を取れなければ時刻とプロセス番号から（外から当てられない）
+            let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+            b = ((t as u64) ^ ((std::process::id() as u64) << 32)).to_le_bytes();
+        }
+        format!("\u{0}J{}:", b.iter().map(|x| format!("{x:02x}")).collect::<String>())
+    })
+}
 
 /// 読めない理由
 #[derive(Debug, PartialEq)]
@@ -50,10 +64,10 @@ pub fn has_lone(v: &Value) -> bool {
 /// J → Value（移せない値は MARK の字）
 pub fn to_value(j: &J) -> Value {
     match j {
-        J::Float(f) if !f.is_finite() => Value::String(format!("{MARK}{}", j.dumps(None))),
+        J::Float(f) if !f.is_finite() => Value::String(format!("{}{}", mark(), j.dumps(None))),
         J::Big(s) => match s.parse::<u64>() {
             Ok(u) => Value::from(u),
-            Err(_) => Value::String(format!("{MARK}{s}")),
+            Err(_) => Value::String(format!("{}{s}", mark())),
         },
         J::Arr(a) => Value::Array(a.iter().map(to_value).collect()),
         J::Obj(m) => Value::Object(m.iter().map(|(k, v)| (k.clone(), to_value(v))).collect()),
@@ -63,12 +77,12 @@ pub fn to_value(j: &J) -> Value {
 
 /// 持っている値（MARK の字）なら、その J
 pub fn held(v: &Value) -> Option<J> {
-    let s = v.as_str()?.strip_prefix(MARK)?;
+    let s = v.as_str()?.strip_prefix(mark())?;
     pyjson::loads(s).ok()
 }
 
 pub fn is_held(v: &Value) -> bool {
-    v.as_str().is_some_and(|s| s.starts_with(MARK))
+    v.as_str().is_some_and(|s| s.starts_with(mark()))
 }
 
 /// 持っている値が数でない値（NaN・Infinity）か
@@ -129,7 +143,7 @@ pub fn int_value(n: &crate::pyfmt::PyInt) -> Value {
         crate::pyfmt::PyInt::Small(i) => Value::from(*i),
         crate::pyfmt::PyInt::Big(s) => match s.parse::<u64>() {
             Ok(u) => Value::from(u),
-            Err(_) => Value::String(format!("{MARK}{s}")),
+            Err(_) => Value::String(format!("{}{s}", mark())),
         },
     }
 }
@@ -141,7 +155,7 @@ pub fn big_digits(v: &Value) -> Option<&str> {
 
 /// big_digits の字の形（jsontree::Tree の字）
 pub fn big_digits_str(s: &str) -> Option<&str> {
-    let s = s.strip_prefix(MARK)?;
+    let s = s.strip_prefix(mark())?;
     let d = s.strip_prefix('-').unwrap_or(s);
     (!d.is_empty() && d.bytes().all(|b| b.is_ascii_digit())).then_some(s)
 }

@@ -569,10 +569,11 @@ pub fn handle(store: &Store, route: &Route, query: &str, body: &[u8], cx: &Ctx) 
     // id はキーで引くので見ない〈row_check::ID_FREE〉: 字の id も next_id が int() で読めれば数える）
     let fields = strs(t(&["sourcesList", "fields"]));
     let plain = |o: &Map<String, Value>| {
-        o.get("rev").is_none_or(|v| py_int(v).is_some())
-            && fields.iter().all(|k| o.get(k.as_str()).is_none_or(crate::master_rows::value_plain))
+        crate::master_rows::row_readable(NAME, o) && fields.iter().all(|k| o.get(k.as_str()).is_none_or(crate::master_rows::value_plain))
     };
-    if !cx.rows.iter().all(|r| r.as_object().is_some_and(plain)) {
+    // 読めない行（row_check）は、Python が読みでは使い、触れる書きだけを断る（版 3.108.0。参照先と同じ。隔てると見出しのタブが消える）。
+    // 窓は読めない行の値（NaN・字の版）を Python と同じに読めると限らないので、読めない行があればこの道は Python に任せる
+    if !crate::master_rows::isolated_of(NAME, cx.rows).is_empty() || !cx.rows.iter().all(|r| r.as_object().is_some_and(plain)) {
         return None;
     }
     let parsed = crate::master_rows::py_body(body)?;

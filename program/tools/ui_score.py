@@ -165,6 +165,9 @@ def applied_kind(data, t):
     """当てた記録の判定: 作った後が合格点以上なら「当てた」。届かなくても、利用者がその形で決めた記録（accepted_by_user）があれば「利用者が受け入れた」"""
     if t >= rule_of(data)["pass"][-1]:
         return "当てた"
+    # 画面に関係のない改良（決まり 2026-11-06）は作った後の採点も 1 回だけ: 割れを直して "built_fixed" に書いたら、採点し直さない記録（版 3.108.0）
+    if rule_of(data).get("built_once") and latest_built_fixed(data):
+        return "記録"
     accepted = data.get("accepted_by_user")
     if accepted and not (isinstance(accepted, dict) and str(accepted.get("date", "")).strip()):
         raise ValueError("利用者が受け入れた記録（accepted_by_user）には日付（date）が要る")
@@ -180,6 +183,12 @@ def built_stages(data):
         fixed = data.get("built_fixed") if k == "built" else (v.get("fixed") or data.get(f"{k}_fixed"))
         out.append((k, v, fixed))
     return out
+
+
+def latest_built_fixed(data):
+    """いちばん新しい作った後の節の直した事（無ければ None）"""
+    stages = built_stages(data)
+    return stages[-1][2] if stages else None
 
 
 def latest_built(data):
@@ -337,6 +346,8 @@ def report_applied(data):
     if kind == "利用者が受け入れた":
         a = data["accepted_by_user"]
         print(f"→ 作った後は {mark} 点に届かないが、利用者がこの形で決めた（{a['date']}）。{a.get('note', '')}")
+    elif kind == "記録":
+        print(f"→ 作った後の採点は 1 回（画面に関係のない改良）。{mark} 点に届かないが、見つかった割れを直して突き合わせの試験に足した（built_fixed）")
     else:
         print("→ 作った後も " + (f"{mark} 点以上" if t >= mark else f"{mark} 点に届かない。減点の所を直して撮り直し、採点し直す"))
     return kind, who

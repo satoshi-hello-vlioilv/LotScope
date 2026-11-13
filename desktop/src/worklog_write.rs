@@ -286,7 +286,9 @@ fn normalized(rows: &[Value]) -> Vec<Value> {
 
 /// 窓が受ける 6 本を答える（門番は呼ぶ側が通した）。窓が答えない形は None
 pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -> Option<Answer> {
-    if !crate::master_rows::rows_plain(cx.rows, &FIELDS) {
+    // 読めない行（row_check）は、Python が読みでは使い、触れる書きだけを断る（版 3.108.0。参照先と同じ。隔てると設備が消える）。
+    // 窓は読めない行（字の id・字の版）を Python と同じに読めると限らないので、読めない行があればこの道は Python に任せる
+    if !crate::master_rows::isolated_of(NAME, cx.rows).is_empty() || !crate::master_rows::rows_plain(NAME, cx.rows, &FIELDS) {
         return None;
     }
     let q = crate::lotlist::parse_query(query);
@@ -326,14 +328,14 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
                 // 表でない行は書かない・読めない行は隔てる（版 3.108.0。Python の _normalize_all と同じ）。隔てた行には結ばず、
                 // その行のファイルも新しい設備として足さない（行はそのまま書き戻す）
                 let iso = crate::master_rows::prepare(have, &SPEC)?;
-                let held: Vec<String> = iso
-                    .iter()
-                    .filter_map(|(i, _, _)| have[*i].as_object())
-                    .map(|o| o.get("ファイル名").filter(|v| truthy(v)).map(py_str).unwrap_or_default().to_lowercase())
-                    .collect();
+                // 名前でも、ファイルID でも（名前を変えたファイル）当たれば足さない（版 3.108.0 の作った後の採点の割れ 6）
+                let bad: Vec<&Map<String, Value>> = iso.iter().filter_map(|(i, _, _)| have[*i].as_object()).collect();
+                let held: Vec<String> =
+                    bad.iter().map(|o| o.get("ファイル名").filter(|v| truthy(v)).map(py_str).unwrap_or_default().to_lowercase()).collect();
+                let fids: Vec<String> = bad.iter().filter_map(|o| o.get("ファイルID").filter(|v| truthy(v)).map(py_str)).collect();
                 let good: Vec<usize> = (0..have.len()).filter(|i| !crate::row_check::is_isolated(&iso, *i)).collect();
                 let mut m = match_rows(have, &good, &found).map_err(|_| MasterError::Error("行の形が変わりました".into()))?;
-                m.new.retain(|&fi| !held.contains(&found[fi].file.to_lowercase()));
+                m.new.retain(|&fi| !held.contains(&found[fi].file.to_lowercase()) && !fids.iter().any(|x| same_fid(&found[fi].fid, x)));
                 let key = || (cx.new_key)().ok_or_else(|| MasterError::Error("新しいキーを作れません（乱数を取れない）".into()));
                 let missing: Vec<Value> = m.missing.iter().map(|&i| have[i].get("設備名").cloned().unwrap_or(Value::Null)).collect();
                 let mut renamed = vec![];

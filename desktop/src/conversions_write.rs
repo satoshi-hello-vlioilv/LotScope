@@ -577,24 +577,24 @@ fn read(place: &Place) -> Option<Read> {
     };
     master_rows::normalize_all(&mut all, &SPEC);
     // 読めない行（id・版・名前の型・判定の NaN・入れ子）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値は版 3.108.0 から桁のまま
-    // （中身の字も bundle::conv_views が src/held.rs で読む）。標準の読めない行はまだ任せる
+    // （中身の字も bundle::conv_views が src/held.rs で読む）。標準の読めない行も隔てる（上の own。row_check::FILTERED）
     let iso = crate::row_check::check(NAME, &all, &FIELDS);
     let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
     let plain = |rows: &[Value]| {
         rows.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain))))
     };
-    if !plain(&rows) || !master_rows::rows_plain(&own, &FIELDS) {
+    if !plain(&rows) || !master_rows::rows_plain(DEFAULTS, &own, &FIELDS) {
         return None;
     }
     master_rows::normalize_all(&mut own, &SPEC_D);
     crate::bundle::conv_views(&rows).ok()?;
-    crate::bundle::conv_views(&own).ok()?;
+    // 標準は名前で引く・名前の集まりにするだけ（Python も並べない）。並べる道（書き出し・標準にする）は export_items が確かめて任せる
+    // （版 3.108.0 の作った後の採点の割れ 3: 前は標準の字の id の行で、並べない道まで全部 Python に任せた）
     let r = Read { rows, all, iso, unreadable: place.share_problem(NAME), own, bundled: bundled(place)? };
     // 標準の名前の集まり（{r["名前"]}・sorted）: 名前の無い・字でない行は Python が落ちる
-    if !r.presets().iter().all(|p| p.get("名前").is_some_and(Value::is_string)) {
+    if !r.presets().iter().all(|p| p.get("名前").is_some_and(crate::held::is_text)) {
         return None;
     }
-    crate::bundle::conv_views(r.presets()).ok()?;
     Some(r)
 }
 

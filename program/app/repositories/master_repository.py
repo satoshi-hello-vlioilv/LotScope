@@ -144,6 +144,15 @@ def isolated(name, rows):
     return out
 
 
+def row_key(name, r):
+    """読めない行の目印（版 3.108.0 の作った後の採点の割れ 4）: 形をそろえた行の全部の字（json.dumps の ensure_ascii・sort_keys）の sha1 の頭 16 字。
+    何行目かで消す道が、要約だけでなく行の中身まで同じかを確かめる（ほかの PC が前の行を消して位置がずれても、別の行を消さない）。
+    窓の row_check::row_key と同じ字"""
+    import hashlib
+    norm = _normalize(dict(r), SPECS[name]) if isinstance(r, dict) and name in SPECS else r
+    return hashlib.sha1(json.dumps(norm, ensure_ascii=True, sort_keys=True).encode("ascii")).hexdigest()[:16]
+
+
 def skipped_of(iso, name=None, rows=None):
     """隔てた行の知らせ（答えの skipped: [{row, why, summary?, source?}]。行の順）。rows を渡すと、生の値の要約（summary: id と名前の列）と、
     元の列が字なら source（今の面の元に当たる行だけを札の数にする。版 3.107.0 の割れ 7）を添える"""
@@ -154,6 +163,7 @@ def skipped_of(iso, name=None, rows=None):
         r = by.get(key)
         if rows is not None:
             x["summary"] = row_check.summary(name, r)
+            x["key"] = row_key(name, r)
             if isinstance(r, dict) and isinstance(r.get("元"), str):
                 x["source"] = r["元"]
             # 道の id（int() が読めて i64 に入れば。知らせの面がその行を消す道に使う）
@@ -274,9 +284,9 @@ class MasterRepository:
         hit = next((r for r in rows if isinstance(r, dict) and id(r) not in iso and r.get("id") == item_id), None)
         return row_check.coerce(name, hit) if hit is not None else None
 
-    def delete_unreadable_row(self, name, n, summary):
-        """読めない行（隔てた行・表でない行）を、何行目（n。1 から）と生の値の要約（summary。知らせの skipped と同じ字）で消す（版 3.108.0）。
-        その行がもう読めない行でない・要約が違う（開いた後にほかの PC が直した・消した・並びが変わった）なら消さずに NotFound。
+    def delete_unreadable_row(self, name, n, summary, key=""):
+        """読めない行（隔てた行・表でない行）を、何行目（n。1 から）と生の値の要約（summary）と行の目印（key。row_key。知らせの skipped と同じ字）
+        で消す（版 3.108.0）。その行がもう読めない行でない・要約か目印が違う（開いた後にほかの PC が直した・消した・並びが変わった）なら消さずに NotFound。
         ほかの行は形をそろえずにそのまま書き戻す。→ {row, why}"""
         spec = SPECS[name]
         extra = EXTRA_CHECKS.get(name)
@@ -287,7 +297,7 @@ class MasterRepository:
             if 1 <= n <= len(rows):
                 norm = _normalize(dict(r), spec) if isinstance(r, dict) else r
                 why = row_check.problem(name, norm, spec["fields"]) or (extra(norm) if extra and isinstance(norm, dict) else None)
-            if not why or row_check.summary(name, r) != summary:
+            if not why or row_check.summary(name, r) != summary or row_key(name, r) != key:
                 raise NotFound(f"{name}.json の {n} 行目は、開いたあとに変わりました（ほかの PC が直した・消した可能性があります）。画面を開き直してください。")
             rows.pop(n - 1)
             return {"row": n, "why": why}
@@ -624,9 +634,12 @@ class MasterRepository:
         def mutate(rows, stamp):
             iso = _normalize_all(rows, spec)
             # 隔てた行には結ばず、その行のファイルも新しい設備として足さない（版 3.108.0。行はそのまま書き戻す）
-            held = {str(r.get("ファイル名") or "").lower() for r in rows if id(r) in iso and isinstance(r, dict)}
+            # 名前でも、ファイルID でも（名前を変えたファイル）当たれば足さない（版 3.108.0 の作った後の採点の割れ 6）
+            bad = [r for r in rows if id(r) in iso and isinstance(r, dict)]
+            held = {str(r.get("ファイル名") or "").lower() for r in bad}
+            fids = [str(r.get("ファイルID") or "") for r in bad if r.get("ファイルID")]
             m = work_log.match([r for r in rows if id(r) not in iso], found)
-            m["new"] = [f for f in m["new"] if f["file"].lower() not in held]
+            m["new"] = [f for f in m["new"] if f["file"].lower() not in held and not any(work_log.same_fid(f["fid"], x) for x in fids)]
             out = {"added": [], "renamed": [], "missing": [dict(r) for r in m["missing"]]}
             for r, f in m["linked"] + m["renamed"]:
                 changed = {}

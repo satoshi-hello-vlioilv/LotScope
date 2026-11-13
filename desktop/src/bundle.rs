@@ -1365,7 +1365,8 @@ pub fn conv_order_index(rows: &[Value]) -> R<Vec<usize>> {
     let mut keyed = vec![];
     for (i, r) in rows.iter().enumerate() {
         let o = r.as_object().ok_or(Py("変換表の行が表でない"))?;
-        let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { PyInt::Small(0) };
+        // int() で読めない id（"y"）は 0（版 3.108.0。Python の conversions.ordered と同じ。前は Python が落ちた）
+        let id = if truthy(o.get("id")) { wide_int(&o["id"]).unwrap_or(PyInt::Small(0)) } else { PyInt::Small(0) };
         keyed.push(((conv_order(o), id), i));
     }
     keyed.sort_by(|a, b| a.0.cmp(&b.0));
@@ -1588,6 +1589,15 @@ impl Inputs {
     pub fn check(&self, name: &str) -> R<()> {
         if self.p.split_file(name) && !HELD_OK.contains(&name) {
             return Err(Py("マスタのファイルが窓の読めない字"));
+        }
+        // データ元・実績の設備の読めない行は Python が読みでは使う（版 3.108.0。隔てない）。窓はその値を同じに読めると限らないので尋ねる
+        if (name == "data_sources" || name == "work_log_files")
+            && self.p.rows_all(name).is_ok_and(|rows| {
+                // 表でない行は今どおり飛ばして読む（版 3.102.0。節の warn が言う）。見るのは表の行の読めない形だけ
+                crate::master_rows::isolated_of(name, &rows).iter().any(|(i, _, _)| rows[*i].is_object())
+            })
+        {
+            return Err(Py("データ元・実績の設備に読めない行（Python が読む）"));
         }
         if !self.p.seed(name) {
             return Err(Py("共有にまだ無いマスタ（Python が写しから最初の版を作る）"));

@@ -1908,6 +1908,16 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   桁のまま読む）・`row_cases`（データ元・作業実績の登録・変換表の標準の事例 9 件）・`equip_rows_parity` の「読めない行を何行目かで消す」・
   sources_write・worklog_write・conversions の「読めない行（隔てて答える）」の場面・`node program/tools/ui-eval-skiprows.mjs`（⑦）。
 
+- 作った後の採点（画面 85.8 点で合格・画面に出ない部分 61.1 点。2026-11-delegates-3108.json・2026-11-delegates-3108-built.json）の割れを直した
+  （built_fixed）: 印の字は起動ごとの乱数を挟んだ字（`held::mark()`。外から来る字が印を名乗れない）・isinstance(str) の写しは `held::is_text`
+  （設備グループのまとめ方など）・`master_rows::row_readable(name, r)` が ID_FREE を見る 1 か所・変換表の並べ方は int() で読めない id を 0（Python の
+  書き出しの 500 も直した）・何行目かで消す道は行の目印（`row_key`。json.dumps(ensure_ascii, sort_keys) の sha1 の頭 16 字）も確かめる・消した後に
+  覚えを捨てる（窓 changes_settings・forget_listing・warm、Python lot_mirror・WORK_LISTING.forget）・探し直しはファイルID でも隔てた行のファイルを足さない。
+  決めた落とし穴: データ元・実績の設備は参照先と同じく読みでは隔てない（FILTERED から外し STATUS で知らせる。Python は読みで使い触れる書きだけ断る。
+  窓は読めない行があればその道と束の節を Python に任せる）。bigint_cases の next_id・next_order は独立の答えで焼き直した。
+- 次の版に回した物（画面は合格したので変えない）: 消す確かめの面に行の中身を添える・消した後の一言・× の色（画面の採点の提案）。データ元・実績の設備の
+  知らせの面の「この画面の行（一覧では飛ばしています）」の言葉（読みでは隔てなくなった。参照先と同じ言葉にする）。
+
 #### 段 ① の後に残る任せる歩（17）と、消える段
 
 | 形 | 数 | 元 | 消える段 | 理由 |

@@ -233,6 +233,8 @@ SCENARIOS = [
         S("POST", f"{C}/2/preset", "[1]"), W(S("POST", f"{C}/2/preset", {"base_rev": "²"})),
         S("POST", f"{C}/2/preset", '{"base_rev": NaN}'),
     ]},
+    {"name": "標準の行の id が字（版は読める。隔てずに答える）", "mode": "shared", "own": True, "own_strid": True, "steps": [
+        S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/1/preset"), S("GET", C)]},
     {"name": "標準に読めない行（隔てて答える）", "mode": "shared", "own": True, "own_bad": True, "steps": [
         S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/1/preset"), S("POST", f"{C}/2/preset"), S("GET", C)]},
     {"name": "標準を差し替えた（取り込んだ標準）", "mode": "shared", "own": True, "steps": [
@@ -395,6 +397,8 @@ def place(root, sc):
     if sc.get("own"):
         own = [{"id": 1, "名前": "地取区分", "入力": j([{"name": "地取", "type": "text", "columns": ["地取区分"]}]),
                 "判定": j([{"when": {}, "out": "標準を差し替えた"}]), "その他": "", "当て方": j({"mode": "replace"}), "表示順": "", "rev": 1}]
+    if sc.get("own_strid"):   # 版 3.108.0 の作った後の採点の割れ 3: 標準の行の id が字（版は読める）。丸ごと置き換える表なので隔てず使う
+        own += [{"id": "y", "名前": "字の id の標準", "入力": "[]", "判定": "[]", "その他": "1", "rev": 1}]
     if sc.get("own_bad"):     # 版 3.108.0: 標準の読めない行（id が字・判定の NaN）は隔てる
         own += [{"id": "x", "名前": "版が字", "入力": "[]", "判定": "[]", "rev": "abc"},
                 {"id": 7, "名前": "工程", "入力": "[]", "判定": '[{"when": {}, "out": NaN}]', "rev": 1}]

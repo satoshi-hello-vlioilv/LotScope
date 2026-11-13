@@ -341,7 +341,8 @@
         ? (source.startsWith("card:") ? "/api/card-forms" : source === "dashset" ? "/api/dashboard-sets" : source === "dash" ? "/api/dashboards" : "")
         : SKIP_DEL[file] || "";
       if (id != null && base) return `${base}/${id}`;
-      if (s && s.row && s.summary != null && SKIP_ROWS.has(file)) return `/api/masters/rows/${file}/${s.row}?summary=${encodeURIComponent(s.summary)}`;
+      if (s && s.row && s.summary != null && s.key && SKIP_ROWS.has(file))
+        return `/api/masters/rows/${file}/${s.row}?summary=${encodeURIComponent(s.summary)}&key=${encodeURIComponent(s.key)}`;
       return null;
     },
     async skipDelete(it, s, url) {

@@ -198,6 +198,14 @@ class UiScore(unittest.TestCase):
         kind, who, rows = ui.decide(d)
         self.assertGreaterEqual(rows[0][0], 80)
 
+    def test_applied_once_record_with_fixes(self):
+        """決まり 2026-11-06 の当てた記録は、作った後が合格点に届かなくても、割れを直して built_fixed に書けば「記録」（採点し直さない。版 3.108.0）"""
+        d = {"rule": "2026-11-06", "applies": "x.json", "evaluator": "別のエージェント",
+             "built": {"name": "作った後", "result": {"score": {k: 6 for k in ui.KEYS}, "minus": []}}}
+        self.assertEqual(ui.decide(d)[0], "直す")
+        d["built_fixed"] = {"fixes": ["割れを直した"]}
+        self.assertEqual(ui.decide(d)[0], "記録")
+
     def test_old_records_still_read(self):
         """旧い決まり（7 基準の数の並び）の記録も読める（判定はしない）"""
         for path in (Path(__file__).resolve().parents[1] / "tools" / "ui-proposals").glob("*.json"):

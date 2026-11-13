@@ -154,13 +154,6 @@ SCENARIOS = [
     # 作った後の採点で見つけた割れ（版 3.91.0）: 39 桁を超える並び。版 3.108.0（H2）から窓も Python の int と同じく桁のまま並べる
     {"name": "39 桁を超える並びが 2 行", "mode": "shared", "big": True, "steps": [S("DELETE", f"{M}/5", query="rev=1")], "delegates": [
         W(x) for x in [S("GET", M), S("GET", F), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("POST", f"{M}/scan"), S("GET", M)]]},
-    # 版 3.108.0: 作業実績の登録の読めない行は隔てる（一覧・作業実績のタブ・束は使わない。探し直しはその行に結ばず、その行のファイルも足さない。
-    # 並べ替えはその行を並べない。触れる直すは断り、消すは通す）。表でない行は書く道を断る（前は Python の英語の 400 か、窓が任せた）
-    {"name": "置き場の読めない行（隔てて答える）", "mode": "shared", "bad": True, "steps": READS + [
-        S("POST", f"{M}/scan"), S("PUT", f"{M}/order", {"keys": ["c3", "z1", "a1"]}), S("PUT", f"{M}/11", {"設備名": "直す"}),
-        S("PUT", f"{M}/1", {"備考": "直せる"}), S("DELETE", f"{M}/11"), S("GET", M), S("GET", F, query="all=1")]},
-    {"name": "置き場に表でない行（書く道は断る）", "mode": "shared", "broken": True, "steps": READS + [
-        S("POST", f"{M}/scan"), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("PUT", f"{M}/1", {"備考": "直せない"}), S("DELETE", f"{M}/5")]},
     # 配った設定の古さの時間が数でない（参照先は数に直すが、配った設定はそのまま束に入る）。版 3.106.0 から Python（work_log.params）も
     # 窓（bundle の work）も既定の 36 時間で続け、settingsWarn で知らせる（前は Python が float() の 400・500、窓は任せていた）
     {"name": "配った設定の古さが abc（フォルダに届く）", "mode": "shared", "cfg_stale": "abc", "steps": [
@@ -218,11 +211,6 @@ def place(root, sc, folder, fid):
     wl = [] if sc["mode"] == "empty" else rows_of(fid)
     if sc.get("big"):
         wl[0]["並び"], wl[1]["並び"] = "2" + "0" * 40, "1" + "0" * 40
-    if sc.get("bad"):           # 版 3.108.0: 読めない行（id が字・版が字）と表でない行
-        wl += [{"id": "x", "キー": "z1", "設備名": "字の id", "ファイル名": "実績_CR2.sqlite3", "並び": "0"},
-               {"id": 11, "キー": "z2", "設備名": "版が字", "ファイル名": "実績_字.sqlite3", "並び": "9", "rev": "abc"}]
-    if sc.get("broken"):
-        wl.append("壊れた行")
     if sc.get("dup"):
         wl.append({"id": 9, "キー": "e9", "設備名": "CR1 の 2 つ目", "ファイル名": "実績_cr1.sqlite3", "並び": "0", "rev": 1})
     masters = {"access_permissions": sc.get("perm") or perm(), "work_log_files": wl,

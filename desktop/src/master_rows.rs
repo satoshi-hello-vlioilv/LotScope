@@ -277,14 +277,17 @@ pub(crate) fn is_self(r: &Value, self_id: Option<&PyInt>) -> bool {
 
 /// 置き場の行を窓が Python と同じに読めるか（版 3.77.0）: id は無い・null・真偽・i64 に入る数（next_id の int()。真偽は 1・0。字や大きな数は Python に任せる）、
 /// 版は無いか Python の int() が読める物（読めなければ Python は master_call の中の例外で 400、窓は答えない）
-pub(crate) fn row_readable(r: &Map<String, Value>) -> bool {
-    let id_ok = match r.get("id") {
-        None | Some(Value::Null | Value::Bool(_)) => true,
-        Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.is_finite() && f.abs() < 9.0e15),
-        // u64 に入らない整数の id（版 3.108.0。src/held.rs が桁のまま持つ。next_id も桁で数える）
-        Some(v @ Value::String(_)) => crate::held::big_digits(v).is_some(),
-        _ => false,
-    };
+pub(crate) fn row_readable(name: &str, r: &Map<String, Value>) -> bool {
+    // 行を id で引かないマスタ（データ元・変換表の標準）は id の型を見ない（row_check::ID_FREE の 1 か所。版 3.108.0 の作った後の採点の割れ 3:
+    // 前は変換表の道がこの確かめで標準の字の id の行を見て、道を全部 Python に任せていた）
+    let id_ok = crate::row_check::ID_FREE.contains(&name)
+        || match r.get("id") {
+            None | Some(Value::Null | Value::Bool(_)) => true,
+            Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.is_finite() && f.abs() < 9.0e15),
+            // u64 に入らない整数の id（版 3.108.0。src/held.rs が桁のまま持つ。next_id も桁で数える）
+            Some(v @ Value::String(_)) => crate::held::big_digits(v).is_some(),
+            _ => false,
+        };
     id_ok && r.get("rev").is_none_or(|v| py_int(v).is_some())
 }
 
@@ -313,9 +316,16 @@ pub(crate) fn num_plain(v: &Value) -> bool {
     }
 }
 
+/// 置き場の行（そろえる前）の隔てる行（row_check の決まり。形をそろえた写しで見る）
+pub(crate) fn isolated_of(name: &str, rows: &[Value]) -> Iso {
+    let mut norm = rows.to_vec();
+    crate::row_check::normalize_like_specs(name, &mut norm);
+    crate::row_check::check(name, &norm, crate::row_check::fields_of(name))
+}
+
 /// 置き場の行の id・版が読め（row_readable）、決めた項目の値がどれも value_plain か
-pub(crate) fn rows_plain(rows: &[Value], fields: &[&str]) -> bool {
-    rows.iter().all(|r| r.as_object().is_some_and(|o| row_readable(o) && fields.iter().all(|k| o.get(*k).is_none_or(value_plain))))
+pub(crate) fn rows_plain(name: &str, rows: &[Value], fields: &[&str]) -> bool {
+    rows.iter().all(|r| r.as_object().is_some_and(|o| row_readable(name, o) && fields.iter().all(|k| o.get(*k).is_none_or(value_plain))))
 }
 
 /// 行の版を確かめる（_check_rev）
@@ -634,7 +644,7 @@ pub const ROW_DELETE: [&str; 10] = [
 
 /// 読めない行（隔てた行・表でない行）を、何行目（1 から）と生の値の要約（skipped の summary と同じ字）で消す（版 3.108.0。Python の
 /// MasterRepository.delete_unreadable_row と同じ）。もう読めない行でない・要約が違えば消さずに NotFound。ほかの行はそのまま書き戻す
-pub(crate) fn delete_unreadable_row(store: &Store, name: &str, n: usize, summary: &str) -> Result<Value, MasterError> {
+pub(crate) fn delete_unreadable_row(store: &Store, name: &str, n: usize, summary: &str, key: &str) -> Result<Value, MasterError> {
     store.write(name, |rows, _stamp| {
         let why = (1..=rows.len()).contains(&n).then(|| {
             let mut norm = vec![rows[n - 1].clone()];
@@ -642,7 +652,8 @@ pub(crate) fn delete_unreadable_row(store: &Store, name: &str, n: usize, summary
             crate::row_check::check(name, &norm, crate::row_check::fields_of(name)).into_iter().next().map(|(_, _, why)| why)
         });
         match why.flatten() {
-            Some(why) if crate::row_check::summary(name, &rows[n - 1]) == summary => {
+            // 要約と行の目印（row_key: 行の全部の字の sha1）がどちらも同じときだけ（版 3.108.0 の作った後の採点の割れ 4）
+            Some(why) if crate::row_check::summary(name, &rows[n - 1]) == summary && crate::row_check::row_key(name, &rows[n - 1]) == key => {
                 rows.remove(n - 1);
                 Ok(json!({"ok": true, "row": n, "why": why}))
             }
@@ -678,10 +689,12 @@ pub fn rows_delete(store: &Store, name: &str, row: &str, query: &str) -> Option<
             json!({"error": format!("{name} の読めない行は、ここからは消せません（ファイルを直してください）。"), "kind": "not_found"}),
         ));
     }
-    let summary = crate::lotlist::parse_query(query).into_iter().find(|(k, _)| k == "summary").map(|(_, v)| v).unwrap_or_default();
+    let q = crate::lotlist::parse_query(query);
+    let arg = |name: &str| q.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone()).unwrap_or_default();
+    let (summary, key) = (arg("summary"), arg("key"));
     // 行の位置が usize に入らない数は、どの行にも当たらない（Python の NotFound と同じ言葉。数は Python の int の字）
     let n = big.small().and_then(|i| usize::try_from(i).ok()).unwrap_or(usize::MAX);
-    Some(match delete_unreadable_row(store, name, n, &summary) {
+    Some(match delete_unreadable_row(store, name, n, &summary, &key) {
         Ok(v) => (200, v),
         Err(MasterError::NotFound(_)) => (
             404,

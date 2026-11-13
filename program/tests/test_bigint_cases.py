@@ -21,6 +21,18 @@ class Table(unittest.TestCase):
         self.assertTrue(any(len(s.lstrip("-")) > 4000 for s in t["ints"]), "4,300 桁の近く")
         self.assertEqual(t["next_id"][0]["want"], "100000000000000000001")
         self.assertEqual(t["next_order"][-3]["want"], "17", "4,300 桁を超える表示順は int() が読めず数えない")
+        # 印の字と同じ頭の利用者の字（版 3.108.0 の作った後の採点の割れ 1）
+        self.assertTrue(all(m["str"].startswith("\x00J:") and m["int_err"] for m in t["marks"]))
+
+    def test_app_agrees_with_the_independent_answers(self):
+        """next_id・next_order は独立の答え（Python の int）で焼いた。app の部品も同じ答え"""
+        from app.repositories.master_store import next_id
+        from app.services.row_order import next_order
+        t = json.loads(tool.OUT.read_text(encoding="utf-8"))
+        for c in t["next_id"]:
+            self.assertEqual(json.dumps(next_id(json.loads(c["rows"]))), c["want"], c["rows"])
+        for c in t["next_order"]:
+            self.assertEqual(next_order(json.loads(c["rows"])), c["want"], c["rows"][:60])
 
 
 if __name__ == "__main__":

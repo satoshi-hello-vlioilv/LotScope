@@ -39,12 +39,14 @@ CONTENT_COLS = {"dashboards": ("中身",), "pivot_presets": ("中身",), "displa
 RAW = frozenset({"equipment_master", "roll_master"})
 STRICT = frozenset({"access_permissions", "tab_access"})
 # 一覧と同じく、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも隔てた行を使わないマスタ（master_repository._list。
-# 窓の access::Place::rows と同じ。版 3.107.0 の割れ 2）。版 3.108.0 からデータ元・作業実績の登録・変換表の標準も（束の行の読みを
-# 窓の src/held.rs と同じにそろえた版。前は一覧が行をそのまま返し、窓の束・写しの係が読んでいた）。権限・参照先は入れない（参照先は触れる書きだけを断る）
+# 窓の access::Place::rows と同じ。版 3.107.0 の割れ 2）。版 3.108.0 から変換表の標準も。権限・参照先は入れない（参照先は触れる書きだけを断る）。
+# データ元・作業実績の登録（実績の設備）も参照先と同じく入れない（版 3.108.0 の作った後の採点: 隔てると見出しのタブ・設備がまるごと消える。
+# 読むのは今どおり使い、キー・id の当たる直す・並べ替え・探し直しの書きだけを断る〈master_repository の key_guard・work_log_order・work_log_sync〉）
 FILTERED = frozenset({"equipment_master", "roll_master", "shift_patterns", "equipment_groups", "conversions", "display_formats", "pivot_presets",
-                      "pivot_quick", "dashboards", "dashboard_settings", "data_sources", "work_log_files", "conversion_defaults"})
-# マスタの置き場の状態（status）で隔てた行を知らせるマスタ: 一覧が隔てる物・権限の 2 つ・参照先（触れる書きを断る）（窓の row_check::STATUS と同じ）
-STATUS = FILTERED | {"path_settings"} | STRICT
+                      "pivot_quick", "dashboards", "dashboard_settings", "conversion_defaults"})
+# マスタの置き場の状態（status）で隔てた行を知らせるマスタ: 一覧が隔てる物・権限の 2 つ・参照先とデータ元・実績の設備（触れる書きを断る）
+# （窓の row_check::STATUS と同じ）
+STATUS = FILTERED | {"path_settings", "data_sources", "work_log_files"} | STRICT
 # 行を id で引かないマスタ（データ元はキーで引く・変換表の標準は丸ごと置き換える）: id の型は見ない（版 3.108.0。読めない値ではないので
 # 隔てると、前に使えた元が消える。窓の row_check::ID_FREE と同じ）
 ID_FREE = frozenset({"data_sources", "conversion_defaults"})

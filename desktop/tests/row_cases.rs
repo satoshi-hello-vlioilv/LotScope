@@ -17,6 +17,13 @@ fn rows_are_isolated_like_the_table() {
         if got != c["why"] {
             bad.push(format!("{}: 窓 {got}（表 {}）", c["name"], c["why"]));
         }
+        // 行の目印（何行目かで消す道の確かめ。版 3.108.0 の作った後の採点の割れ 4。形をそろえる前の行から）
+        if let Some(want) = c.get("key").and_then(Value::as_str) {
+            let raw = da_core::held::parse(c["raw"].as_str().unwrap()).unwrap();
+            if row_check::row_key(master, &raw) != want {
+                bad.push(format!("{}: 目印は窓 {}（表 {want}）", c["name"], row_check::row_key(master, &raw)));
+            }
+        }
         // 隔てない行の、名前の列・字だけの列の字でない値は str() で読む（Python の row_check.coerce と同じ）
         if let Some(want) = c.get("coerced").and_then(Value::as_object) {
             let got = row_check::coerce(master, &rows[0]);

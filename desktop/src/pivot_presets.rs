@@ -297,6 +297,8 @@ fn builtins(source: &str) -> Vec<Value> {
 /// 並び・表・小数・真偽・null の str() は数字にも b:鍵 にもならないので、どれでも同じに捨てる
 fn quick_key(k: &Value) -> Option<Option<String>> {
     let t = match k {
+        // 持っている大きな整数は int の str()（桁の字。版 3.108.0）
+        v @ Value::String(_) if crate::held::big_digits(v).is_some() => take(crate::held::big_digits(v).unwrap_or(""), 40),
         Value::String(s) => take(crate::pyfmt::strip(s), 40),
         Value::Number(n) if n.as_i64().is_some() || n.as_u64().is_some() => n.to_string(),
         _ => return Some(None),
@@ -579,7 +581,7 @@ mod tests {
             (json!(3), json!(0), json!(0), json!(0), json!(0), json!(10))
         );
         // 大きな数も Python の int と同じく桁のまま（版 3.108.0。前は 18 字を超える字を任せ、u64 の整数は 0）
-        assert_eq!(at(json!("9".repeat(30))), json!(format!("{}{}", crate::held::MARK, "9".repeat(30))));
+        assert_eq!(at(json!("9".repeat(30))), json!(format!("{}{}", crate::held::mark(), "9".repeat(30))));
         assert_eq!(at(json!(10000000000000000000u64)), json!(10000000000000000000u64));
         assert_eq!(at(json!("9".repeat(4301))), json!(0), "4,300 桁を超える字は int() が読めない");
     }

@@ -280,7 +280,8 @@ struct Read {
 
 /// まとめ方が字でない行の理由（版 3.107.0。隔てる。Python の equip_groups.row_problem と同じ。前は Python が値のまま組に分けていた）
 pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
-    let v = row.get("まとめ方").filter(|v| truthy(v) && !v.is_string())?;
+    // isinstance(v, str) の写し: 持っている大きな整数は字の形でも int（held::is_text。版 3.108.0 の作った後の採点の割れ 2）
+    let v = row.get("まとめ方").filter(|v| truthy(v) && !crate::held::is_text(v))?;
     Some(format!("「まとめ方」が字ではありません（{}）", crate::row_check::short(v)))
 }
 

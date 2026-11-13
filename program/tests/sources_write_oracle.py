@@ -175,23 +175,6 @@ SCENARIOS = [
         S("PUT", f"{P}/s9", {"元": "wip", "base_rev": 2}),
         S("POST", f"{P}/s9/quick", {"画面": "無"}),
     ]},
-    # 版 3.108.0: データ元の読めない行（結合の字の NaN・数でない間隔・版が字・表でない行）は隔てる（id の字は隔てない: キーで引く）（一覧・束は使わない。キーの当たる直す・その場で変える・
-    # 並べ替えは書かない。消すは値を読まずに通す。足すは通し、名前の重なりは隔てた行とも見る）。前は行を隔てず、版の読めない行で英語の 400
-    {"name": "置き場の読めない行（隔てて答える）", "mode": "shared",
-     "rows": ROWS + [{"id": 14, "キー": "bad", "表示名": "結合の NaN", "場所": "/b.sqlite3", "並び": "6", "結合": '[{"with": "wip", "on": [["a", NaN]]}]'},
-                     {"id": "x", "キー": "sx", "表示名": "字の id（キーで引くので隔てない）", "場所": "/x.sqlite3", "並び": "7"},
-                     {"id": 12, "キー": "nan", "表示名": "数でない間隔", "場所": "/n.sqlite3", "確かめる間隔": float("nan"), "rev": 1},
-                     {"id": 13, "キー": "rv", "表示名": "版が字", "場所": "/r.sqlite3", "rev": "abc"}], "steps": [
-        S("PUT", f"{P}/bad", {"表示名": "直す"}), S("PUT", f"{P}/rv", {"表示名": "直す", "base_rev": 1}), S("POST", f"{P}/nan/quick", {"画面": "無"}),
-        S("POST", f"{P}/order", {"keys": ["s4", "bad", "s3"]}), S("POST", f"{P}/order", {"keys": ["s4", "s3"]}),
-        S("PUT", f"{P}/s3", {"備考": "直せる", "base_rev": 5}), S("POST", P, {"表示名": "足す", "場所": "/a.sqlite3"}),
-        S("PUT", f"{P}/s3/conn", {"field": "refresh", "value": "60"}), S("POST", f"{P}/groups", {"from": "工程", "to": "工程 2"}),
-        S("DELETE", f"{P}/nan"), S("DELETE", f"{P}/rv", query="rev=9"), S("PUT", f"{P}/bad", {"表示名": "まだ読めない"}),
-    ]},
-    {"name": "置き場に表でない行（書く道は断る）", "mode": "shared", "rows": ROWS + ["壊れた行"], "steps": [
-        S("PUT", f"{P}/s3", {"備考": "直せない"}), S("POST", f"{P}/order", {"keys": ["s4", "s3"]}), S("DELETE", f"{P}/s4"),
-        S("POST", P, {"表示名": "足せない", "場所": "/a.sqlite3"}),
-    ]},
     {"name": "共有に届かない（写しから）", "mode": "unreachable", "rows": ROWS, "steps": [
         S("POST", P, {"表示名": "届かない", "場所": "/u.sqlite3"}),
         S("PUT", f"{P}/s3", {"備考": "x", "base_rev": 5}),

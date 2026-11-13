@@ -11,16 +11,15 @@
 - next_id   … 行の id の並び（JSON の字）→ master_store.next_id の答え（JSON の字）
 - next_order… 行の表示順の並び（JSON の字）→ row_order.next_order の答え
 - json      … JSON の字 → json.dumps(json.loads(字), ensure_ascii=False)（桁のまま書き戻す。画面へ返す答え〈held::reply_bytes〉と同じ字）
+- marks     … 印の字と同じ頭（NUL・J・:）で始まる利用者の字。字のまま書き戻し・str() も字・int() の誤りの文
+next_id・next_order は app を使わない独立の答え（Python の int で仕様どおりに数える）
 """
 import json
 import sys
 from pathlib import Path
 
 PROGRAM = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROGRAM))
 
-from app.repositories.master_store import next_id  # noqa: E402
-from app.services.row_order import next_order  # noqa: E402
 
 OUT = PROGRAM / "tests" / "fixtures" / "bigint_cases.json"
 INTS = ["0", "-1", "9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809",
@@ -38,6 +37,37 @@ JSON = ['{"a": 100000000000000000000, "b": [-123456789012345678901234567890, 184
         '{"x": 9223372036854775808, "y": 1e20, "z": -0}', '[' + "1" + "0" * 60 + ']']
 
 
+def _int(v):
+    """Python の int(v)。読めなければ None（app を使わない独立の答え。版 3.108.0 の作った後の採点）"""
+    try:
+        return int(v)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def next_id(rows):
+    """次の id の仕様: 表の行の int(id or 0) の読める物の最大 + 1（無ければ 1）"""
+    ns = [n for r in rows if isinstance(r, dict) for n in [_int(r.get("id") or 0)] if n is not None]
+    return max(ns, default=0) + 1
+
+
+def next_order(rows):
+    """次の表示順の仕様: 0 と、各行の int(str(表示順 or 0).strip()) の読める物の最大 + 10（字）"""
+    ns = [n for r in rows for n in [_int(str(r.get("表示順") or 0).strip())] if n is not None]
+    return str(max([0] + ns) + 10)
+
+
+MARKS = ["\u0000J:" + "1234567890" * 3, "\u0000J:NaN", "\u0000J:5", "\u0000J:abc", "\u0000J:-Infinity", "\u0000J:\"x\""]
+
+
+def _int_err(s):
+    try:
+        int(s)
+        return None
+    except ValueError as e:
+        return str(e)
+
+
 def build():
     ints = [int(s) for s in INTS]
     return {
@@ -49,6 +79,9 @@ def build():
         "next_id": [{"rows": t, "want": json.dumps(next_id(json.loads(t)))} for t in NEXT_ID],
         "next_order": [{"rows": t, "want": next_order(json.loads(t))} for t in NEXT_ORDER],
         "json": [{"text": t, "want": json.dumps(json.loads(t), ensure_ascii=False)} for t in JSON],
+        # 印の字（窓の src/held.rs の持っている値の頭）と同じ頭で始まる利用者の字（版 3.108.0 の作った後の採点の割れ 1）: 字のまま読み・書き戻し、
+        # int() は読めず、str() は字のまま
+        "marks": [{"text": json.dumps({"a": m}), "want": json.dumps({"a": m}, ensure_ascii=False), "str": m, "int_err": _int_err(m)} for m in MARKS],
     }
 
 

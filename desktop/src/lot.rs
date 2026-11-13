@@ -578,6 +578,14 @@ impl Lot {
         if answer.0 == 200 {
             self.invalidate(); // 一覧の設定（束の材料）を次の問い合わせで組み直す
             self.gate.forget();
+            // 参照先・実績の設備の行を消した: 品質の写しの当て直しと実績のフォルダの覚えを捨てる（Python の put_setting の後始末と同じ。
+            // 版 3.108.0 の作った後の採点の割れ 5: 前は覚えを捨てず、消した直後の読みが古かった）
+            if name == "path_settings" || name == "work_log_files" {
+                self.lists.forget_listing();
+            }
+            if name == "path_settings" {
+                self.warm(ask);
+            }
         }
         Some(answer)
     }
@@ -1091,6 +1099,7 @@ impl Lot {
             "/api/masters/place",
             "/api/masters/equipment",
             "/api/masters/equipgroups",
+            "/api/masters/rows/", // 読めない行を何行目かで消す（版 3.108.0。Python が答えたときも一覧の設定を組み直す）
         ];
         method != "GET" && method != "HEAD" && (200..300).contains(&status) && LIST_MASTERS.iter().any(|p| path.starts_with(p))
     }
@@ -2943,6 +2952,21 @@ mod tests {
         let key = v["row"]["キー"].as_str().unwrap().to_string();
         assert!(key.len() == 9 && key.starts_with('s'), "{key}");
         assert!(lot.handle_body("POST", "/api/sources", "engine=python", b"{}", &down).is_none(), "?engine=python は Python");
+        // 版 3.108.0: データ元に読めない行（版が字）があると、Python は読みでは使い触れる書きだけを断る。窓はその値を同じに読めると限らないので
+        // この道と束の節を Python に任せる（隔てて見出しのタブを消さない。作った後の採点の落とし穴）。行を直せば窓がまた答える
+        let ds = share.join("data_sources.json");
+        let before = std::fs::read_to_string(&ds).unwrap();
+        let mut d: Value = serde_json::from_str(&before).unwrap();
+        d["rows"].as_array_mut().unwrap().push(json!({"id": 30, "キー": "rv", "表示名": "版が字", "場所": "/r.sqlite3", "rev": "abc"}));
+        std::fs::write(&ds, d.to_string()).unwrap();
+        lot.invalidate();
+        assert!(lot.handle_body("POST", "/api/sources", "", r#"{"表示名": "x"}"#.as_bytes(), &down).is_none(), "読めない行があれば Python");
+        std::fs::write(&ds, &before).unwrap();
+        lot.invalidate();
+        assert!(
+            lot.handle_body("PUT", &format!("/api/sources/{key}"), "", r#"{"備考": "直る"}"#.as_bytes(), &down).is_some(),
+            "直せば窓が答える"
+        );
         // 門番: 閲覧の人は書けない
         std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 2, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]}).to_string()).unwrap();
         let (st, v) = lot.handle_body("DELETE", &format!("/api/sources/{key}"), "", b"", &down).unwrap();
@@ -3174,6 +3198,25 @@ mod tests {
         assert_eq!((st, v), (200, json!([{"id": 9, "rev": 1, "設備": "['L-1']"}])));
         let (st, v) = lot.handle_body("DELETE", "/api/masters/rolls/9", "", b"", &ask_boss).expect("窓が消す");
         assert_eq!((st, v["status"].as_str()), (200, Some("deleted")), "{v}");
+        // ⑦ 版 3.108.0: id が字の読めない行を何行目かで消す道（要約と目印）。消した直後の一覧は新しく、一覧の設定も尋ね直す（割れ 5）
+        let bad = json!({"id": "x", "設備名": "字の id"});
+        std::fs::write(share.join("roll_master.json"), doc(json!([{"id": 1, "設備": "L-1", "rev": 1}, bad.clone()]))).unwrap();
+        let (_, v) = lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).unwrap();
+        assert_eq!(v.as_array().map(Vec::len), Some(1), "読めない行は一覧に出さない: {v}");
+        let q = format!(
+            "summary={}&key={}",
+            crate::row_check::summary("roll_master", &bad).replace(' ', "%20").replace('\'', "%27"),
+            crate::row_check::row_key("roll_master", &bad)
+        );
+        let before = asked.get();
+        let (st, v) = lot.handle_body("DELETE", "/api/masters/rows/roll_master/2", &q, b"", &ask_boss).expect("窓が消す");
+        assert_eq!((st, v["why"].as_str()), (200, Some("id が数ではありません（'x'）")), "{v}");
+        let (_, v) = lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).unwrap();
+        assert_eq!(v.as_array().map(Vec::len), Some(1), "{v}");
+        assert!(!std::fs::read_to_string(share.join("roll_master.json")).unwrap().contains("字の id"), "ファイルからも消えた");
+        assert_eq!(asked.get(), before + 1, "消したら一覧の設定を尋ね直す");
+        let (st, _) = lot.handle_body("DELETE", "/api/masters/rows/roll_master/2", &q, b"", &ask_boss).unwrap();
+        assert_eq!(st, 404, "もう無い行は消さない");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3269,7 +3312,9 @@ mod tests {
         ] {
             std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
             let (st, v) = lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).expect("窓が隔てて答える");
-            let mut want = json!({"row": 1, "why": why, "summary": summary});
+            // 行の目印（版 3.108.0。何行目かで消す道の確かめ。row_cases が Python と同じ字を見る）
+            let key = crate::row_check::row_key("shift_patterns", &crate::held::parse(&bad.to_string()).unwrap());
+            let mut want = json!({"row": 1, "why": why, "summary": summary, "key": key});
             if let Some(id) = bad["id"].as_i64() {
                 want["id"] = json!(id);
             }

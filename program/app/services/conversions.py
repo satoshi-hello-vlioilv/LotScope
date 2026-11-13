@@ -26,6 +26,7 @@ import re
 import time
 import unicodedata
 
+from . import row_check
 from .formula import FormulaError, compile_formula
 
 NAME = "conversions"
@@ -290,7 +291,9 @@ def view(r):
 
 
 def ordered(rows):
-    return sorted(rows, key=lambda r: (view(r)["order"], int(r.get("id") or 0)))
+    # int() で読めない id（"y"）は 0（版 3.108.0 の作った後の採点の割れ 3: 変換表の標準は id で引かないので字の id も隔てず、
+    # 前は書き出しが ValueError の 500。データ元の並べ方と同じ。窓の bundle::conv_order_index と同じ）
+    return sorted(rows, key=lambda r: (view(r)["order"], row_check.as_int(r.get("id") or 0) or 0))
 
 
 def tables(rows):

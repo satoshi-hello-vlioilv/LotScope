@@ -27,6 +27,13 @@ class RowCases(unittest.TestCase):
         bad = [f"{c['name']}: Python {why_of(c)!r}（表 {c['why']!r}）" for c in CASES if why_of(c) != c["why"]]
         self.assertEqual(bad, [])
 
+    def test_row_keys(self):
+        """読めない行の目印（何行目かで消す道の確かめ。版 3.108.0 の作った後の採点の割れ 4）: 表の key と同じ字"""
+        bad = [f"{c['name']}: {mr.row_key(c['master'], json.loads(c['raw']))}（表 {c['key']}）" for c in CASES
+               if "key" in c and mr.row_key(c["master"], json.loads(c["raw"])) != c["key"]]
+        self.assertEqual(bad, [])
+        self.assertGreaterEqual(sum("key" in c for c in CASES), 4)
+
     def test_coerced_values(self):
         """隔てない行の、名前の列・字だけの列の字でない値は str() で読む（一覧に出す行。割れ 1）"""
         bad = []

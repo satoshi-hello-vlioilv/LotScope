@@ -173,7 +173,7 @@ impl<'a> From<&'a Tree> for crate::pyfmt::IntArg<'a> {
             Tree::Null => IntArg::None,
             Tree::Bool(b) => IntArg::Bool(*b),
             Tree::Num(n) => IntArg::Num(n),
-            Tree::Str(s) if s.starts_with(crate::held::MARK) => {
+            Tree::Str(s) if s.starts_with(crate::held::mark()) => {
                 // 持っている値（版 3.108.0）は Value の読み方と同じ
                 match crate::held::big_digits_str(s) {
                     Some(d) => IntArg::Big(d),

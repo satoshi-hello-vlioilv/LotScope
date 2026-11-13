@@ -65,3 +65,30 @@ fn next_id_next_order_and_written_text_are_like_python() {
         assert_eq!(da_core::held::parse(&reply).unwrap(), da_core::held::parse(want).unwrap(), "{reply}");
     }
 }
+
+/// 印の字（src/held.rs の持っている値の頭）と同じ頭（NUL・J・:）で始まる利用者の字（版 3.108.0 の作った後の採点の割れ 1）: 大きな整数・NaN と
+/// 取り違えず、字のまま読み・書き戻し（ファイル・答え）、str() は字のまま、int() は Python と同じ誤り
+#[test]
+fn user_text_that_looks_like_a_held_value_stays_text() {
+    let t = table();
+    for c in t["marks"].as_array().unwrap() {
+        let text = c["text"].as_str().unwrap();
+        let v = da_core::held::parse(text).unwrap();
+        let a = &v["a"];
+        assert!(!da_core::held::is_held(a) && da_core::held::is_text(a), "字のまま: {text}");
+        assert_eq!(a.as_str(), c["str"].as_str(), "{text}");
+        assert_eq!(da_core::worksum::py_str(a), c["str"].as_str().unwrap(), "str(): {text}");
+        let err = py_int_of(a.into()).err();
+        assert_eq!(err.as_deref(), c["int_err"].as_str(), "int(): {text}");
+        let want = c["want"].as_str().unwrap();
+        assert_eq!(da_core::held::to_j(&v).dumps(None), want, "書き戻す字: {text}");
+        let pretty = String::from_utf8(da_core::held::to_pretty(&v).unwrap()).unwrap();
+        assert_eq!(da_core::held::parse(&pretty).unwrap(), v, "ファイルの字: {pretty}");
+        let reply = String::from_utf8(da_core::held::reply_bytes(&v)).unwrap();
+        assert_eq!(da_core::held::parse(&reply).unwrap(), v, "答えの字: {reply}");
+        // serde で読んだ字（大きな整数の無いファイル・本文の速い道）も同じ
+        let fast: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(String::from_utf8(da_core::held::to_pretty(&fast).unwrap()).unwrap(), pretty, "{text}");
+        assert_eq!(da_core::worksum::py_str(&fast["a"]), c["str"].as_str().unwrap());
+    }
+}

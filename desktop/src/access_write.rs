@@ -410,7 +410,7 @@ pub fn needs_python(body: &[u8]) -> bool {
 /// tabs はタブの権限の置き場の行（タブの権限を書く道の確かめに使う）
 pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], tabs: &[Value]) -> Option<Answer> {
     // 置き場の行の id・版・型が読めない行は、版 3.107.0 から書く道を断る（row_check::refuse_strict。master_rows::prepare が書く前に）。
-    // 項目の値が i64 に入らない整数の行はまだ任せる（H2。Python の str() は桁のまま）
+    // 項目の値が i64 に入らない整数は版 3.108.0 から src/held.rs が桁のまま持つ（str() は桁の字。worksum::py_str）
     let perm: Vec<Value> = rows_of(me).into_iter().map(Value::Object).collect();
     let plain = |rows: &[Value], fields: &[&str]| {
         rows.iter().all(|r| {

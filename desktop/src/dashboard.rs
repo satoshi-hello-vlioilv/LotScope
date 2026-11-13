@@ -1137,7 +1137,7 @@ pub fn sources_answer(conf: &Conf, periods: &Value) -> Option<Value> {
     for d in arr(conf.v.get("sources")) {
         let key = d["key"].as_str()?;
         let k = if key == "lot" || key == "work" { key.to_string() } else { format!("src:{key}") };
-        let mut x = json!({"key": k, "name": d["name"], "role": d.get("role").filter(|r| r.is_string())?.clone(),
+        let mut x = json!({"key": k, "name": d["name"], "role": d.get("role").filter(|r| crate::held::is_text(r))?.clone(),
                            "equip": json_truthy(&d["equipColumn"]) || key == "work", "place": json_truthy(&d["place"])});
         if key == "work" {
             x["equips"] = Value::Array(

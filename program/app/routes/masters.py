@@ -79,8 +79,19 @@ def masters_row_delete(name, row):
     from ..repositories.master_repository import ROW_DELETE
     if name not in ROW_DELETE:
         return jsonify({"error": f"{name} の読めない行は、ここからは消せません（ファイルを直してください）。", "kind": "not_found"}), 404
-    summary = request.args.get("summary", "")
-    return master_call(lambda: {"ok": True, **master_repo().delete_unreadable_row(name, row, summary)})
+    summary, key = request.args.get("summary", ""), request.args.get("key", "")
+
+    def run():
+        out = {"ok": True, **master_repo().delete_unreadable_row(name, row, summary, key)}
+        # 参照先・実績の設備の行を消した: 品質の写しの当て直しと実績のフォルダの覚えを捨てる（put_setting の後始末と同じ。
+        # 版 3.108.0 の作った後の採点の割れ 5: 前は消した直後の読みが古かった）
+        if name == "path_settings":
+            from .lotlist import lot_mirror
+            lot_mirror()
+        if name in ("path_settings", "work_log_files") and current_app.config.get("WORK_LISTING"):
+            current_app.config["WORK_LISTING"].forget()
+        return out
+    return master_call(run)
 
 
 @bp.get("/api/masters/status")
