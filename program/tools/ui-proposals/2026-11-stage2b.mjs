@@ -22,6 +22,8 @@
 // D 減らす（1 つの印・出し入れの一言だけ）／E 流れを変える（札を押すと接続の様子の面）／F 位置で見せる（右下の小さな札・左の線）
 
 const PHASE = process.env.TPA_PHASE || "esc";
+// 回（2026-11-13 の 1 回目は 77.1 点で 80 に届かず、手順 6 で 2 回目を出した）。既定は 2 回目。TPA_ROUND=1 で 1 回目の 6 案を撮り直せる
+const ROUND = process.env.TPA_ROUND || "2";
 
 /** 頁の中で動く文（案の設定 V と段 PHASE） */
 function run(V, PHASE) {
@@ -214,5 +216,243 @@ const DEFS = [
             .tpa-skipmenu button.v-was{box-shadow:inset 4px 0 0 #8a97a3;background:#f3f5f7}` } },
 ];
 
-export const PROPOSALS = DEFS.map(({ key, name, V }) => ({ key, name, css: BASE, ops: [["script", `(${run})(${JSON.stringify({ key, ...V })}, ${JSON.stringify(PHASE)})`]] }));
-PROPOSALS.unshift({ key: "now", name: "今（3.110.0）", css: "", ops: [["script", `(${run})(${JSON.stringify({ key: "now" })}, ${JSON.stringify(PHASE)})`]] });
+const ROUND1 = DEFS.map(({ key, name, V }) => ({ key, name, css: BASE, ops: [["script", `(${run})(${JSON.stringify({ key, ...V })}, ${JSON.stringify(PHASE)})`]] }));
+ROUND1.unshift({ key: "now", name: "今（3.110.0）", css: "", ops: [["script", `(${run})(${JSON.stringify({ key: "now" })}, ${JSON.stringify(PHASE)})`]] });
+
+
+// ======================================================================================================
+// 2 回目（2026-11-13。1 回目の採点の result_note の直し方 1〜4 を全案に入れ、Python の見せ方で方向を分けた）
+//   (1) 焦点: キーボードは本物の :focus-visible に 2px の藍の輪（A・D・E の輪）。マウスで「やめる」を押して面が開き直ったときは、同じ輪＋右端の札「やめた行」
+//       （B の札。形と字で分かる。色だけにしない）。札は 4 秒か、別の行へ焦点が移るか、キーを押すと消える（輪は焦点がある間）
+//   (2) 帯: 「共有に届きません」・道は末尾だけ「…/Masters」（全部は title）・「写しを表示中・保存できません」（A）・「もう一度つなぐ」・札・「マスタの置き場 ›」。
+//       ナビは名前の下の段に「届かない」（E。帯と同じ言葉）
+//   (3) Python: 見出しに字の札「中身 停止」（A）を出し、押すと「接続の様子」の面（E）。起こし直しは今（帯のボタン 1 手）より手を増やさない。
+//       ふだん（動いている）の見出しは 1 px も増やさない。下の帯を残す案は固定で覆わず、画面の高さを縮める。✕・畳むで閉じても札は残る
+//   段（TPA_PHASE）: esc・cancel・down・pydown・pyok は 1 回目と同じ撮り方（ui-variants.mjs）。manual・manual-down は何も進めず、案の部品だけを当てる
+//   （本物のキーとマウスで撮る台本 scratchpad/deleg-3111/round2/shoot-real.mjs が使う: 本物の :focus-visible・やめた行の札が消える秒・
+//   「もう一度起こす」を押した後・閉じた後）
+// 案の方向: G 1 回目の上位 2 案を合わせる（A の札＋E の面。最初に止まったとき面を 1 度だけ開く）／H 札の中で起こす（↻ を札の隣に置き、いつも 1 手）／
+// I 置き場を上へ（見出しの下に、切断の帯〈#revokedBar〉と同じ置き場・形の知らせの段。画面を縮める）／J 置き換えて幅を変えない（「接続 ●」の札が
+// 「中身 停止 ↻」に替わる）／K 今の置き場のまま縮める（下の帯を画面の流れに入れ、表に重ねない）
+function run2(V, PHASE) {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f, ms = 4000) => { for (let t = 0; t < ms; t += 25) { const x = f(); if (x) return x; await wait(25); } return null; };
+  const now = V.key === "now";
+  const css = document.createElement("style");
+  css.textContent = now
+    ? `.tpa-menu button.v-kbd{background:var(--ll-pale);outline:none}`   // 今の :focus-visible（淡い緑の地だけ）
+    : `.tpa-skipmenu button[role=menuitem]:focus-visible,.tpa-skipmenu button.v-kbd,.tpa-skipmenu button.v-was{background:var(--ll-pale);outline:none;box-shadow:inset 0 0 0 2px #2f5f9f}
+       .tpa-skipmenu button.v-was::after{content:"やめた行";flex:none;align-self:center;font-size:11.5px;font-weight:700;color:#2f4a6b;background:#fff;border:1px solid #9fb3c8;border-radius:9px;padding:0 7px;margin-left:6px;line-height:18px}
+       .master-tabs .tab[data-tab="place"]{flex-wrap:wrap}
+       .master-tabs .tab .tab-state.v-below{margin-left:0;flex-basis:100%;width:max-content;max-width:max-content}
+       .hstat .pill.v-pyoff{background:#7a4b00;color:#ffe2a8;font-weight:800;cursor:pointer;font:inherit;font-size:var(--fs-sm);border-left:1px solid rgba(255,255,255,.18)}
+       .hstat .pill.v-pyoff:hover{background:#8f5900}
+       .hstat .pill.v-pyoff.is-wait{background:rgba(255,255,255,.12);color:#dfe9f2;font-weight:700}
+       .hstat .v-rs{border:0;border-left:1px solid rgba(255,255,255,.18);background:#7a4b00;color:#ffe2a8;font:inherit;font-size:var(--fs-sm);font-weight:800;padding:3px 10px;cursor:pointer}
+       .hstat .v-rs:last-child{border-radius:0 999px 999px 0}
+       .hstat .v-rs:hover{background:#8f5900}
+       .v-connpop{position:fixed;z-index:200;width:360px;background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.22);padding:10px 12px;font-size:13px;color:var(--ink)}
+       .v-connpop .v-ch{display:flex;align-items:center;font-weight:800;margin-bottom:6px}.v-connpop .v-ch span{flex:1}
+       .v-connpop .v-ch button{border:0;background:none;font-size:15px;color:var(--muted);cursor:pointer;padding:0 4px}
+       .v-connpop .v-cr{display:grid;grid-template-columns:14px 130px 1fr;align-items:center;gap:6px;padding:4px 0;border-top:1px solid var(--line-soft)}
+       .v-connpop .v-cr i{width:9px;height:9px;border-radius:50%;background:#1f8a55}
+       .v-connpop .v-cr.off i{background:transparent;border:2px solid #c07a00}.v-connpop .v-cr.off span{color:#8a5a00;font-weight:700}
+       .v-connpop p{margin:8px 0 6px;color:var(--muted);font-size:12.5px;line-height:1.5}
+       .v-connpop .v-ca{display:flex;justify-content:flex-end}
+       .v-pybar{display:flex;align-items:center;gap:12px;padding:0 18px;height:38px;box-sizing:border-box;background:#fff3d6;color:#4a3700;font-size:var(--fs-sm)}
+       .v-pybar.top{position:relative;z-index:40;border-bottom:1px solid #e9c46a}
+       .v-pybar.bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:2px solid #e0a020}
+       .v-pybar b{font-weight:800;white-space:nowrap}.v-pybar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+       .v-pybar button{height:26px;padding:0 10px;border-radius:6px;border:1px solid #c9a24a;background:#fff;color:#4a3700;font:inherit;font-weight:700;white-space:nowrap;cursor:pointer}
+       .v-pybar button.v-restart{background:#7a4b00;border-color:#7a4b00;color:#fff}
+       body.v-bar-on [id$="Screen"]{height:calc(100vh - var(--header-h) - 38px) !important}
+       .tpa-toast.v-ok{background:#1e6b3a}
+       .hstat #status.v-idle-hide{display:none}`;
+  document.head.append(css);
+  const PY_WHY = "アプリの中身（Python）がすぐに終わりました。ModuleNotFoundError: No module named 'flask'";
+  const down0 = PHASE === "pydown" || PHASE === "manual-down";
+  const fit = () => { try { if (typeof fitTabs === "function") fitTabs(); } catch (_) { /* 撮るだけ */ } };
+
+  // ---------------- (3) Python ----------------
+  let py = down0 ? "stopped" : "ready", opened = false;
+  const conn = () => document.querySelector("#conn");
+  const hstat = () => document.querySelector(".hstat");
+  function closePop() { document.querySelector(".v-connpop")?.remove(); }
+  function openPop(anchor) {
+    closePop();
+    const r = (anchor || conn()).getBoundingClientRect();
+    document.body.insertAdjacentHTML("beforeend", `<div class="v-connpop" role="dialog" aria-label="接続の様子" style="top:${r.bottom + 8}px;left:${Math.max(8, Math.min(innerWidth - 368, r.right - 300))}px">
+      <div class="v-ch"><span>接続の様子</span><button type="button" class="v-close" aria-label="閉じる">✕</button></div>
+      <div class="v-cr"><i></i><b>画面と窓</b><span>つながっています</span></div>
+      <div class="v-cr off"><i></i><b>中身（Python）</b><span>止まっています</span></div>
+      <p>${TPA.esc(PY_WHY)}<br>画面・ダッシュボード・一覧・マスタ管理は使えます。窓が読めない一部の形（例: https のスケジュール）だけ使えません。</p>
+      <div class="v-ca"><button type="button" class="btn-primary v-restart">もう一度起こす</button></div></div>`);
+    const pop = document.querySelector(".v-connpop");
+    // 下に入らなければ上に開く（K の下の帯の「詳しく」から開くと、窓の外へ出て見えなかった。自分で画像を見て直した）
+    if (r.bottom + 8 + pop.offsetHeight > innerHeight - 8) pop.style.top = `${Math.max(8, r.top - pop.offsetHeight - 8)}px`;
+    pop.querySelector(".v-close").onclick = closePop;
+    pop.querySelector(".v-restart").onclick = restart;
+    const off = (e) => { if (!pop.isConnected) { document.removeEventListener("mousedown", off, true); return; } if (!pop.contains(e.target) && !e.target.closest(".v-pyoff")) { closePop(); document.removeEventListener("mousedown", off, true); } };
+    document.addEventListener("mousedown", off, true);
+    const esc = (e) => { if (e.key === "Escape" && pop.isConnected) { closePop(); (anchor || conn())?.focus?.(); document.removeEventListener("keydown", esc, true); } };
+    document.addEventListener("keydown", esc, true);
+  }
+  function restart() {
+    py = "starting"; closePop(); paint();
+    // 起きたら札「中身 起動中…」が消えて「接続 ●」だけに戻る。一言（TPA.toast）は一覧の表の行に浮いて重なったので出さない（自分で画像を見て外した）
+    setTimeout(() => { py = "ready"; paint(); }, 1500);
+  }
+  function bar(where) {   // I・K: 流れの中の知らせの段（画面を 38px 縮める）
+    document.querySelector(".v-pybar")?.remove();
+    document.body.classList.toggle("v-bar-on", py !== "ready" && !closedBar);
+    if (py === "ready" || closedBar) return;
+    const html = `<div class="v-pybar ${where}" role="status"><b>⚠ 中身（Python）が${py === "starting" ? "起きるのを待っています…" : "止まっています"}</b>
+      <span>画面・ダッシュボード・一覧・マスタ管理は使えます（窓が読めない一部の形だけ使えません）</span>
+      ${py === "stopped" ? `<button type="button" class="v-restart">もう一度起こす</button><button type="button" class="v-more">詳しく</button><button type="button" class="v-close" title="畳みます（見出しの「中身 停止」の札は残ります）">畳む</button>` : ""}</div>`;
+    if (where === "top") document.querySelector("#revokedBar").insertAdjacentHTML("beforebegin", html);
+    else document.body.insertAdjacentHTML("beforeend", html);
+    const b = document.querySelector(".v-pybar");
+    b.querySelector(".v-restart") && (b.querySelector(".v-restart").onclick = restart);
+    b.querySelector(".v-more") && (b.querySelector(".v-more").onclick = (e) => openPop(e.currentTarget));
+    b.querySelector(".v-close") && (b.querySelector(".v-close").onclick = () => { closedBar = true; paint(); });
+  }
+  let closedBar = false;
+  function paint() {
+    const c = conn(), h = hstat();
+    // 見出しは幅の際にあり、止まった印を足すと 1728 でタブの絵が消え、1280 では「スケジュール」が「ほか 1 ▾」に入った（H は 2 つ）（自分で画像を見て確かめた）。
+    // 止まっている間は、暇なときの「待機中」の札を隠して幅を返す（計算中・エラーなど、暇でないときの札は出す）。5 案とも。これで 1280 は G・I・J・K が
+    // タブを全部残し（H は「ほか 1」）、1728 は J だけが絵を残す（G・H・I・K は「接続 ●」と「中身 停止」が並ぶぶん、止まっている間だけ絵が消える）
+    const st = document.querySelector("#status");
+    if (st) st.classList.toggle("v-idle-hide", py !== "ready" && st.textContent.trim() === "待機中");
+    h.querySelectorAll(".v-pyoff:not(#conn),.v-rs").forEach((x) => x.remove());   // J は #conn そのものに v-pyoff を付けるので消さない（押した後に札ごと消えていた）
+    if (V.py === "j") {   // J: 「接続 ●」の札そのものが替わる（窓とのつながりが切れたら、今と同じ「未接続 ○」が先）
+      c.dataset.v = "1";
+      // 見出しは 1728 でも幅の際にあり、「中身 停止」と ↻ だけでもタブが詰め直された（自分で画像を見て直した）。止まっている間は、暇なときの
+      // 「待機中」の札だけを隠して幅をそろえる（計算中・エラーなど、暇でないときの札は出す）
+
+      if (py === "ready") { c.className = "pill conn-ok"; c.textContent = "接続 ●"; c.title = "画面とアプリ（窓）がつながっています"; }
+      else {
+        c.className = "pill v-pyoff" + (py === "starting" ? " is-wait" : ""); c.textContent = py === "starting" ? "中身 起動中…" : "中身 停止";
+        c.title = py === "starting" ? "中身（Python）を起こしています" : `窓とはつながっています。${PY_WHY}（押すと接続の様子）`;
+        c.setAttribute("role", "button"); c.tabIndex = 0; c.onclick = () => py === "stopped" && openPop(c);
+        // 幅を変えないため、起こすボタンは字なしの ↻（title・aria-label で言う）。1 回目の撮影で「↻ 起こす」の字のぶん 1728 でもタブが詰め直された
+        if (py === "stopped") c.insertAdjacentHTML("afterend", `<button type="button" class="v-rs v-restart" title="中身（Python）をもう一度起こします" aria-label="中身をもう一度起こす">↻</button>`);
+      }
+    } else if (py !== "ready") {   // G・H・I・K: 「接続 ●」はそのまま（窓）。隣に字の札「中身 停止」
+      c.insertAdjacentHTML("afterend", `<button type="button" class="pill v-pyoff${py === "starting" ? " is-wait" : ""}" title="${py === "starting" ? "中身（Python）を起こしています" : TPA.esc(PY_WHY) + "（押すと接続の様子）"}">${py === "starting" ? "中身 起動中…" : "中身 停止"}</button>`);
+      const pill = h.querySelector(".v-pyoff");
+      pill.onclick = () => { if (py !== "stopped") return; if (V.py === "i" || V.py === "k") { if (closedBar) { closedBar = false; paint(); } else openPop(pill); } else openPop(pill); };
+      if (V.py === "h" && py === "stopped") pill.insertAdjacentHTML("afterend", `<button type="button" class="v-rs v-restart" title="中身（Python）をもう一度起こします">↻ 起こす</button>`);
+    }
+    h.querySelector(".v-rs")?.addEventListener("click", restart);
+    if (V.py === "i") bar("top");
+    if (V.py === "k") bar("bottom");
+    if (V.py === "g" && py === "stopped" && !opened) { opened = true; openPop(h.querySelector(".v-pyoff")); }   // 最初に止まったときだけ面を 1 度開く
+    fit();
+  }
+  function pyInstall() {
+    if (PHASE !== "pydown" && PHASE !== "pyok" && PHASE !== "manual-down" && PHASE !== "manual-ok") return;
+    if (now) {
+      if (!down0) return;
+      let stopped = true;   // 今の窓: 止まっている間は心拍・権限の読みが 503。「もう一度起こす」で起きたら 200
+      const of0 = window.fetch;
+      window.fetch = (u, o) => stopped && /\/api\/(heartbeat|access\/me)/.test(String(u))
+        ? Promise.resolve(new Response(JSON.stringify({ error: "アプリの中身（Python）が答えません。", kind: "backend_unavailable" }), { status: 503, headers: { "Content-Type": "application/json" } }))
+        : of0(u, o);
+      // 今の窓（実物で測った形）。「もう一度起こす」を押すと帯を消し、起きたら「接続 ●」に戻る（権限の札は頁を読み直すまで空のまま。今の app.js は
+      // 起きた後に権限を読み直さない）
+      setConn(false);
+      const chip = document.querySelector("#meChip"); chip.textContent = ""; chip.className = "pill me-chip role-";
+      document.querySelector("#masterBtn").classList.add("hidden");
+      const d = document.createElement("div"); d.id = "tpa-backend-fail"; d.setAttribute("role", "alert");
+      d.style.cssText = "position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#9b1c1c;color:#fff;padding:8px 16px;font:14px/1.6 sans-serif;display:flex;gap:12px;align-items:flex-start";
+      const t = document.createElement("div"); t.style.cssText = "flex:1;white-space:pre-wrap";
+      t.textContent = "アプリの中身（Python）が起動できません。画面・ダッシュボード・一覧は使えます。\n" + PY_WHY;
+      const b = (label, cls, f) => { const x = document.createElement("button"); x.type = "button"; x.className = cls; x.textContent = label; x.style.cssText = "font:inherit;padding:2px 10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:4px"; x.onclick = f; return x; };
+      d.append(t, b("もう一度起こす", "v-restart", () => { d.remove(); setTimeout(() => { stopped = false; setConn(true); }, 1500); }), b("✕", "v-close", () => d.remove()));
+      document.body.append(d);
+      return;
+    }
+    // 心拍は窓の答え（200）。止まっている間も「接続 ●」と権限の札・「マスタ管理」は窓の me のまま
+    const of = window.fetch;
+    window.fetch = (u, o) => String(u).includes("/api/heartbeat")
+      ? of(u, o).then(async (r) => { const j = await r.json().catch(() => ({})); return new Response(JSON.stringify({ ...j, python: py, pythonWhy: py === "ready" ? "" : PY_WHY }), { status: 200, headers: { "Content-Type": "application/json" } }); })
+      : of(u, o);
+    // 心拍のたびに app.js の setConn が #conn を書き直す（J の置き換えが消える）ので包む
+    const sc = window.setConn;
+    window.setConn = (ok) => { sc(ok); if (ok && V.py === "j" && py !== "ready") paint(); };
+    paint();
+  }
+
+  // ---------------- (1) 焦点・(2) 帯とナビ ----------------
+  const LONG = "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Masters";
+  function fixBand() {
+    const el = document.querySelector("#masterPlace");
+    const d0 = el?.querySelector(".place-dir");
+    if (d0 && !d0.dataset.long) { d0.dataset.long = "1"; d0.textContent = LONG; }
+    if (now) return;
+    const off = el?.querySelector(".place-tag.off");
+    if (off && !off.dataset.v) {
+      off.dataset.v = "1";
+      const dir = el.querySelector(".place-dir"), meta = el.querySelector(".place-meta");
+      off.title = `${LONG} に届きません。前に取り込んだ写しを表示中で、届くまで保存できません`;
+      if (dir) { dir.title = dir.textContent; dir.textContent = "…/" + dir.textContent.split(/[\\/]/).filter(Boolean).pop(); }
+      if (meta) meta.textContent = "写しを表示中・保存できません";
+    }
+    const st = document.querySelector('#masterTabs [data-tab="place"] .tab-state.off');
+    if (st && !st.dataset.v) { st.dataset.v = "1"; st.classList.add("v-below"); st.title = "共有の置き場に届きません"; }
+  }
+  let lastHow = "", howAt = 0;
+  function focusInstall() {
+    if (now || !window.TPA || TPA.__v2) return;
+    TPA.__v2 = true;
+    const orig = TPA.confirmBox.bind(TPA);
+    TPA.confirmBox = (o) => orig({ ...o, onClose: (h) => { lastHow = h; howAt = Date.now(); o.onClose?.(h); } });
+    // マウスで「やめる」を押した後に面が開き直り、押した行に焦点が来たら: 同じ輪＋札「やめた行」。4 秒か、別の行・キーで消す
+    let timer = 0;
+    const clear = () => { document.querySelectorAll(".v-was").forEach((x) => x.classList.remove("v-was")); clearTimeout(timer); };
+    document.addEventListener("focusin", (e) => {
+      const b = e.target.closest?.(".tpa-skipmenu button[role=menuitem]");
+      if (!b) return;
+      if (lastHow === "cancel" && Date.now() - howAt < 1500) {
+        lastHow = ""; clear(); b.classList.add("v-was"); timer = setTimeout(clear, 4000);
+        b.addEventListener("focusout", clear, { once: true });
+      }
+    }, true);
+    document.addEventListener("keydown", (e) => { if (e.key !== "Escape") clear(); }, true);
+  }
+  const badge = () => document.querySelector("#masterOverlay:not(.hidden) .master-place .tpa-skip");
+  async function master() {
+    await until(() => window.TPA && TPA.openSkip, 8000);
+    focusInstall();
+    new MutationObserver(fixBand).observe(document.body, { childList: true, subtree: true });
+    fixBand();
+    if (PHASE === "manual" || PHASE === "down") return;
+    const chip = await until(badge, 15000);
+    if (!chip) return;
+    chip.click();
+    const row = await until(() => document.querySelector(".tpa-skipmenu button[role=menuitem]:not(:disabled)"), 3000);
+    const label = row?.textContent;
+    row?.click();
+    const box = await until(() => document.querySelector(".tpa-confirm"), 3000);
+    if (!box) return;
+    if (PHASE === "esc") (document.activeElement || document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    else box.querySelector('[data-act="no"]').click();
+    const again = await until(() => [...document.querySelectorAll(".tpa-skipmenu button[role=menuitem]")].find((b) => b.textContent === label), 3000);
+    await wait(120);
+    if (again && PHASE === "esc") again.classList.add("v-kbd");   // 合図の Esc は :focus-visible を起こさないので描く（本物のキーは shoot-real.mjs）
+  }
+  if (PHASE.startsWith("py") || PHASE.startsWith("manual-")) pyInstall(); else master();
+}
+
+const DEFS2 = [
+  { key: "G", name: "1 回目の上位を合わせる（札「中身 停止」→ 接続の様子の面。最初に止まったときだけ面を 1 度開く）", V: { py: "g" } },
+  { key: "H", name: "札の中で起こす（「中身 停止」の隣に「↻ 起こす」。いつも 1 手・面は札を押して）", V: { py: "h" } },
+  { key: "I", name: "置き場を上へ（見出しの下に切断の帯と同じ置き場の知らせの段・画面を縮める・畳んでも札は残る）", V: { py: "i" } },
+  { key: "J", name: "置き換えて幅を変えない（「接続 ●」の札が「中身 停止」と字なしの「↻」に替わり、止まっている間は暇なときの「待機中」を隠す）", V: { py: "j" } },
+  { key: "K", name: "今の置き場のまま縮める（下の帯を画面の流れに入れて表に重ねない・畳んでも札は残る）", V: { py: "k" } },
+];
+const ROUND2 = DEFS2.map(({ key, name, V }) => ({ key, name, css: "", ops: [["script", `(${run2})(${JSON.stringify({ key, ...V })}, ${JSON.stringify(PHASE)})`]] }));
+ROUND2.unshift({ key: "now", name: "今（3.110.0）", css: "", ops: [["script", `(${run2})(${JSON.stringify({ key: "now" })}, ${JSON.stringify(PHASE)})`]] });
+
+export const PROPOSALS = ROUND === "1" ? ROUND1 : ROUND2;
