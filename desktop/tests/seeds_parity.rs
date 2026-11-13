@@ -106,7 +106,8 @@ fn two_windows_reading_the_record_together_apply_once() {
             common::seeds_store_at(&root.join("B"), Some(share.clone()), "B"),
         );
         let both = std::sync::Barrier::new(2);
-        let wait = |_: Duration| std::thread::sleep(Duration::from_millis(100));
+        // 本物と同じ 1 秒×5 回で待つ（版 3.110.0。100ms に縮めると、書き込みの遅い Windows の CI で相手の錠が 0.4 秒を超えて落ちた）
+        let wait = |d: Duration| std::thread::sleep(d);
         let (oa, ob) = std::thread::scope(|s| {
             let ha = s.spawn(|| {
                 seeds::run_with(&a, &wait, &|| {
@@ -136,7 +137,8 @@ fn with_python(old: bool, tag: &str) -> Vec<PathBuf> {
         std::fs::create_dir_all(&share).unwrap();
         let (ready_py, ready_rs, go) = (root.join("ready-py"), root.join("ready-rs"), root.join("go"));
         let rs = common::seeds_store_at(&root.join("rs"), Some(share.clone()), "rs");
-        let wait = |_: Duration| std::thread::sleep(Duration::from_millis(100));
+        // 本物と同じ 1 秒×5 回で待つ（版 3.110.0。100ms に縮めると、書き込みの遅い Windows の CI で相手の錠が 0.4 秒を超えて落ちた）
+        let wait = |d: Duration| std::thread::sleep(d);
         let (py, o) = std::thread::scope(|s| {
             let args: Vec<String> =
                 ["race", share.to_str().unwrap(), root.join("py").to_str().unwrap(), ready_py.to_str().unwrap(), go.to_str().unwrap()]

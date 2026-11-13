@@ -122,7 +122,7 @@ def race(share, local, ready, go, old):
             return rows
 
     store = Waiting(base, local_root=local, settings={"dir": share}, who={"pc": "PC-py", "login": "py"})
-    master_seeds.LOCKED_WAIT_SEC = 0.05
+    # 錠の待ちは本物と同じ 1 秒×5 回（版 3.110.0。0.05 秒に縮めると、書き込みの遅い Windows で相手の錠を待ちきれなかった）
     applied = old_run(store) if old else master_seeds.run(store)
     return {"applied": applied}
 
