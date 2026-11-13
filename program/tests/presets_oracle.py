@@ -214,6 +214,15 @@ SCENARIOS = [
     {"name": "共有のファイルの版 revision が読めない（写しで続け、書く道は断る）", "mode": "shared", "rows": ROWS, "quick": [], "rev": "abc", "steps": [],
      "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body=P("a", B(D("a"))))), W(S(PART, "PUT", 3, {"name": "x"})), W(S(PART, "DELETE", 3))]},
 ]
+# 版 3.109.0（H3）: 大きな整数のファイル・中身の字も窓が桁のまま読んで答える（前は Place::split_file・row_check::wide_content で任せた。カード・ダッシュボードとセットの食い違いも消えた）
+SCENARIOS += [
+    {"name": f"置き場の{what}が i64 に入らない整数（窓も桁のまま読む）", "mode": "shared", "rows": ROWS, "quick": quick, "steps": [],
+      # すぐに見るは一覧の道とすぐに見るの道だけが読む（測って分かった: 組み方の書く道は窓が答える）
+      "delegates": [W(x) for x in (S(PART, "GET"), Q(PART, {"source": "lot", "keys": ["1"]}), S(PART, "POST", body=P("a", B(D("a")))), S(PART, "PUT", 3, {"name": "x"}),
+                                  S(PART, "GET"))]}
+    for what, quick in [("すぐに見るのファイルの知らない鍵", [dict(QR(1, "p1", "lot", ["3"]), x=10 ** 20)]),
+                        ("すぐに見るの並びの字", [QR(1, "p1", "lot", "[100000000000000000000]")]),
+                        ("すぐに見るの並びの字の境の数", [QR(1, "p1", "lot", "[9223372036854775807, 9223372036854775808, 18446744073709551615, \"3\"]")])]]
 FILE_NAME = "pivot_presets"
 QUICK = "pivot_quick"
 

@@ -684,5 +684,25 @@ button.db-warnb.tpa-skip:focus-visible{outline:2px solid var(--amber-ink);outlin
 .tpa-skipmenu .tm-head,.tpa-skipmenu button > span{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 .tpa-skipmenu button:disabled{color:var(--ink);cursor:default}
 .tpa-skipmenu button:disabled .tm-ico{color:var(--muted)}
+/* 版 3.109.0: 消せる行の × と「× の行は…」の × は、確かめの窓の「× 消す」と同じ赤。面の下の小さな説明（太字でない） */
+.tpa-menu .tm-ico.is-del,.tpa-menu .tm-lead{color:#b42318;font-weight:800}
+.tpa-menu .tm-foot{margin:4px 10px 4px 32px;font-size:11.5px;line-height:1.45;color:#56616b;font-weight:400;white-space:normal;overflow-wrap:anywhere}
+/* 真ん中の確かめの窓（TPA.confirmBox。版 3.109.0。読めない行を消す） */
+.tpa-confirm-back{position:fixed;inset:0;z-index:300;background:rgba(15,23,32,.38);display:flex;align-items:center;justify-content:center;padding:16px}
+.tpa-confirm{width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);color:var(--ink);border-radius:12px;
+  box-shadow:0 16px 40px rgba(0,0,0,.3);padding:18px 20px 16px}
+.tpa-confirm h3{margin:0 0 12px;font-size:16px;font-weight:800;line-height:1.4}
+.tpa-confirm dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0 0 12px;font-size:13px}
+.tpa-confirm dt{color:#56616b;font-weight:700}.tpa-confirm dd{margin:0;overflow-wrap:anywhere}
+.tpa-confirm p{margin:0 0 14px;font-size:12px;color:#4f5b66;line-height:1.5}
+.tpa-confirm-btns{display:flex;justify-content:flex-end;gap:10px}
+.tpa-confirm-btns button{min-width:96px;height:32px;padding:0 14px;font-size:13px;font-weight:700}
+.tpa-confirm-ok{border:1px solid #b42318;background:#b42318;color:#fff;border-radius:8px;cursor:pointer}
+.tpa-confirm-ok:hover,.tpa-confirm-ok:focus-visible{background:#912018;border-color:#912018}
+.tpa-confirm-btns button:focus{outline:2px solid var(--h-input);outline-offset:2px}   /* 焦点（開いたときは「やめる」）が見える */
+/* 短い知らせ（TPA.toast。版 3.109.0）。マスタ管理の中では表の枠の中の下（left・bottom・max-width は画面が入れる） */
+.tpa-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:310;width:max-content;max-width:calc(100vw - 32px);padding:9px 16px;
+  border-radius:8px;background:#1b2733;color:#fff;font-size:13px;font-weight:700;line-height:1.45;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.tpa-toast-rest{display:inline-block;white-space:nowrap;color:#cfe3f5}
 .tpa-skipmenu .tm-why{color:#4f5b66}
 .tpa-skipmenu .tm-group{color:#4f5b66}

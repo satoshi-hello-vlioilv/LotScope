@@ -235,7 +235,8 @@ impl Segment {
 pub fn segments_of(row: &Value) -> Vec<Segment> {
     // 字だけを読む（Python の json.loads は字でない値〈並び・数〉で TypeError → 区分なし。作った後の採点〈版 3.75.0〉で見つけた）
     let raw = row.get("区分").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or("[]").to_string();
-    let parsed: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+    // 大きな整数も桁のまま読む（版 3.109.0 の作った後の採点の割れ 3。src/held.rs の印の字。名前の str() は桁の字。前は serde で 1e20 の小数にした）
+    let parsed: Value = crate::held::text_value(&raw).unwrap_or(Value::Null);
     let mut out = vec![];
     for seg in parsed.as_array().into_iter().flatten() {
         let (Some(s), Some(e)) = (seg.get("start"), seg.get("end")) else { continue };
@@ -258,6 +259,16 @@ pub fn segments_of(row: &Value) -> Vec<Segment> {
 
 pub fn order_of(row: &Value) -> i64 {
     row.get("表示順").filter(|v| truthy(v)).and_then(py_int_of).unwrap_or(0)
+}
+
+/// 表示順（Python の shifts._order: int(表示順 or 0)。読めなければ 0）を桁のまま（版 3.109.0。i64 に入らない表示順も Python と同じに並べる）
+pub fn order_int(row: &Value) -> pyfmt::PyInt {
+    row.get("表示順").filter(|v| truthy(v)).and_then(crate::row_check::as_int).unwrap_or(pyfmt::PyInt::Small(0))
+}
+
+/// id の並べる鍵（int(id or 0)。読めなければ 0）
+fn id_int(row: &Value) -> pyfmt::PyInt {
+    row.get("id").filter(|v| truthy(v)).and_then(crate::row_check::as_int).unwrap_or(pyfmt::PyInt::Small(0))
 }
 
 /// その設備で使う勤務体系（設備名を書いた体系が先、無ければ全設備共通。同じ段に複数あれば表示順で最初）
@@ -288,7 +299,7 @@ fn view(row: &Value) -> Pattern {
 
 pub fn pattern_for(rows: &[Value], equipment: &str) -> Option<Pattern> {
     let mut ordered: Vec<&Value> = rows.iter().collect();
-    ordered.sort_by_key(|r| (order_of(r), r.get("id").filter(|v| truthy(v)).and_then(py_int_of).unwrap_or(0)));
+    ordered.sort_by_key(|r| (order_int(r), id_int(r)));
     let key = normalize_part(equipment);
     if !key.is_empty() {
         for r in &ordered {

@@ -436,19 +436,6 @@ pub fn check(name: &str, rows: &[Value], fields: &[&str]) -> Vec<(usize, usize, 
     isolated(name, rows, fields, extra.as_ref().map(|f| f as &dyn Fn(&Map<String, Value>) -> Option<String>))
 }
 
-/// 読む欄（中身の列）の字に i64 に入らない整数があるか。版 3.108.0 から組み方の中身（pivot_presets::body_json）と変換表の画面の形
-/// （bundle::conv_views）は src/held.rs で桁のまま読む。まだ中身を serde で読むダッシュボード・カード・セット・すぐに見るの道は、これで Python に任せる
-pub fn wide_content(name: &str, rows: &[Value]) -> bool {
-    let cols = find(&CONTENT_COLS, name).unwrap_or(&[]);
-    rows.iter().filter_map(Value::as_object).any(|o| {
-        cols.iter().any(|k| {
-            o.get(*k)
-                .and_then(Value::as_str)
-                .is_some_and(|t| crate::pyjson::loads(t).is_ok() && crate::master_rows::split_wide(t.as_bytes()))
-        })
-    })
-}
-
 /// dashboards の組ごとの確かめ: カードの設計の行（元 card:…）だけ（Python の master_repository._dashboards_extra）
 fn dashboards_extra(r: &Map<String, Value>) -> Option<String> {
     let card = r.get("元").and_then(Value::as_str).is_some_and(|s| s.starts_with("card:"));

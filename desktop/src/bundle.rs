@@ -43,17 +43,48 @@ fn t(path: &[&str]) -> &'static Value {
     v
 }
 
-/// 束を組めない（Python に尋ねる）
+/// 束を組めない（Python に尋ねる）。版 3.109.0 の作った後の採点の割れ 1: 組めない理由を作った所で、原因のマスタの行（file・row）と、
+/// Python も同じ形で組めないか（python_too）を持つ（前は理由の字だけで、window_why が節のファイルの隔てた行を当て推量で原因と言った）
 #[derive(Debug, Clone, PartialEq)]
-pub struct Py(pub &'static str);
+pub struct Py {
+    pub why: &'static str,
+    /// 原因のマスタの名前（.json の前）と、その行（Inputs::row_no が何行目かを探す）
+    pub file: Option<&'static str>,
+    pub row: Option<Value>,
+    /// Python も同じ所で落ちて節を組めない（窓が Python に尋ねても同じ。window にしない）
+    pub python_too: bool,
+}
+
+/// Py の作り（理由の字だけ。原因の行は at で添える）
+#[allow(non_snake_case)]
+pub fn Py(why: &'static str) -> Py {
+    Py { why, file: None, row: None, python_too: false }
+}
+
+impl Py {
+    /// 原因のマスタの行を添える（先に添えた物があればそのまま）
+    pub fn at(mut self, file: &'static str, row: &Value) -> Py {
+        if self.file.is_none() {
+            self.file = Some(file);
+            self.row = Some(row.clone());
+        }
+        self
+    }
+
+    /// Python も同じ形で落ちる（節は Python でも組めない）
+    pub fn python_too(mut self) -> Py {
+        self.python_too = true;
+        self
+    }
+}
 type R<T> = Result<T, Py>;
 
 // ------------------------------------------------------------------ Python の字の扱い
-/// Python の str(v).strip()（None は ""。表・並びは Python の repr と字が違うので組まない）
+/// Python の str(v).strip()（None は ""。表・並びは Python の repr の字〈['x']〉。版 3.109.0: 前は組まずに節を broken にした）。
+/// 持っている大きな整数（src/held.rs の印の字）は桁の字（worksum::py_str）
 fn s(v: Option<&Value>) -> R<String> {
     match v {
         None | Some(Value::Null) => Ok(String::new()),
-        Some(Value::Array(_) | Value::Object(_)) => Err(Py("字にする表・並び")),
         Some(x) => Ok(pyfmt::strip(&py_str(x)).to_string()),
     }
 }
@@ -133,11 +164,10 @@ fn int_of(v: Option<&Value>) -> R<PyInt> {
     }
 }
 
-/// Python の str(v or "")（空白は落とさない。表・並びは Python の repr と字が違うので組まない）
+/// Python の str(v or "")（空白は落とさない。表・並びは Python の repr の字。版 3.109.0: 前は組まなかった）
 fn pstr(v: Option<&Value>) -> R<String> {
     match v {
         x if !truthy(x) => Ok(String::new()),
-        Some(Value::Array(_) | Value::Object(_)) => Err(Py("字にする表・並び")),
         Some(x) => Ok(py_str(x)),
         None => Ok(String::new()),
     }
@@ -753,7 +783,7 @@ fn effective(settings: &Value, rows: &[Value], items: &[&str]) -> R<Value> {
     let mut by: Vec<(String, &Value)> = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("参照先の行が表でない"))?;
-        let k = if truthy(o.get("項目")) { s(o.get("項目"))? } else { String::new() };
+        let k = if truthy(o.get("項目")) { s(o.get("項目")).map_err(|e| e.at("path_settings", r))? } else { String::new() };
         // str(r.get("項目") or "")。strip しない（Python の by_key と同じ）
         let k = if truthy(o.get("項目")) { o.get("項目").map(py_str).unwrap_or(k) } else { k };
         match by.iter_mut().find(|(n, _)| *n == k) {
@@ -798,18 +828,17 @@ fn num_of(v: Option<&Value>, dflt: &Value) -> R<Value> {
     let x = s(v)?;
     let Ok(n) = pyfmt::py_float(&x) else { return Ok(dflt.clone()) };
     if !n.is_finite() {
-        return Err(Py("データ元の行の間隔が inf・nan（Python は int() で落ちる）"));
+        // Python も int(inf) で落ちて節を組めない（window にしない）
+        return Err(Py("データ元の行の間隔が inf・nan（Python は int() で落ちる）").python_too());
     }
-    // int(n) if n == int(n) else n（Python の int は桁に限りが無い。i64・u64 に入らない整数は JSON で同じに渡せないので組まない）
+    // int(n) if n == int(n) else n。i64・u64 に入らない整数も Python の int(float) の桁のまま（版 3.109.0。src/held.rs の印の字。
+    // 前は組まずに節を window にした。写しの係へは lists::num が飽和の秒で渡す）
     if n.fract() != 0.0 {
         return Ok(json!(n));
     }
-    if n.abs() < 9.223_372_036_854_775e18 {
-        Ok(json!(n as i64))
-    } else if (0.0..1.844_674_407_370_955_2e19).contains(&n) {
-        Ok(json!(n as u64))
-    } else {
-        Err(Py("データ元の行の間隔が u64 に入らない整数"))
+    match serde_json::Number::from_f64(n).map(|f| pyfmt::py_int_of(pyfmt::IntArg::Num(&f))) {
+        Some(Ok(i)) => Ok(crate::held::int_value(&i)),
+        _ => Ok(json!(n)),
     }
 }
 
@@ -820,6 +849,8 @@ pub(crate) fn num_setting(v: &Value, dflt: &Value) -> R<(Value, bool)> {
     match v {
         Value::Null => Ok((dflt.clone(), true)),
         Value::String(x) if x.is_empty() => Ok((dflt.clone(), true)),
+        // 持っている大きな整数（src/held.rs の印の字。版 3.109.0）は数（float() で読める）
+        Value::String(_) if crate::held::big_digits(v).is_some() => Ok((v.clone(), true)),
         Value::String(x) => Ok(if pyfmt::py_float(x).is_ok() { (v.clone(), true) } else { (dflt.clone(), false) }),
         Value::Array(_) | Value::Object(_) => Err(Py("数の設定が並び・表")),
         _ => Ok((v.clone(), true)),
@@ -890,11 +921,12 @@ fn joins_of(v: Option<&Value>) -> R<Value> {
         Some(Value::Array(a)) => a.clone(),
         Some(Value::String(x)) if !pyfmt::strip(x).is_empty() => {
             // 整数の -0 は Python と同じ 0 と読む（版 3.107.0。読み手は master_rows::inner_text の 1 つ）
-            if crate::master_rows::text_split_py(x) {
-                return Err(Py("結合の字が窓の読めない JSON"));
+            // 大きな整数も印の字で読む（版 3.109.0。src/held.rs。前は text_split_py で節を window にした）。NaN・深い入れ子は今どおり window
+            if crate::master_rows::text_split_held(x) {
+                return Err(Py("結合の字が窓の読めない JSON（NaN・深い入れ子）"));
             }
-            match serde_json::from_str(&crate::master_rows::inner_text(x)) {
-                Ok(Value::Array(a)) => a,
+            match crate::held::text_value(x) {
+                Some(Value::Array(a)) => a,
                 _ => vec![],
             }
         }
@@ -961,7 +993,7 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
     let mut by: Vec<(String, Map<String, Value>)> = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("データ元の行が表でない"))?;
-        let k = s(o.get("キー"))?;
+        let k = s(o.get("キー")).map_err(|e| e.at("data_sources", r))?;
         match by.iter_mut().find(|(n, _)| *n == k) {
             Some(slot) => slot.1 = o.clone(),
             None => by.push((k, o.clone())),
@@ -972,120 +1004,129 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
     for b in &builtins {
         let bk = b["key"].as_str().unwrap_or("");
         let row = by.iter().find(|(n, _)| n == bk).map(|(_, r)| r.clone()).unwrap_or_default();
-        let mut d = b.as_object().cloned().unwrap_or_default();
-        d.insert("builtin".into(), json!(true));
-        if full {
-            d.insert("id".into(), row.get("id").cloned().unwrap_or(Value::Null));
-            d.insert("rev".into(), row.get("rev").cloned().unwrap_or(Value::Null));
-            d.insert("note".into(), json!(s(row.get("備考"))?));
-            d.insert("storage".into(), json!(if b["settings"].is_object() { "settings" } else { "master" }));
-            d.insert("pattern".into(), json!(""));
-        }
-        let dflt: Map<String, Value>;
-        if b["kind"] == "cm3" {
-            let place = s(b["settings"]["place"].as_str().and_then(|k| dotted(settings, k)))?;
-            d.insert("place".into(), json!(place));
-            d.insert("table".into(), json!(""));
-            dflt = json!({"equip_column": b["equipColumn"], "equip_mode": b["equipMode"]}).as_object().cloned().unwrap();
-        } else if b["settings"].is_object() {
-            let keys = &b["settings"];
-            let get = |k: &str| keys[k].as_str().and_then(|k| dotted(settings, k));
-            d.insert("place".into(), json!(unquote(&s(get("place"))?)));
-            d.insert("table".into(), json!(s(get("table"))?));
-            if full && keys.get("pattern").is_some_and(|p| truthy(Some(p))) {
-                d.insert("pattern".into(), json!(s(get("pattern"))?));
-            }
-            dflt = json!({"equip_column": b["equipColumn"], "equip_mode": b["equipMode"]}).as_object().cloned().unwrap();
-        } else {
-            let mut m = t(&["sources", "wipDefault"]).as_object().cloned().unwrap_or_default();
-            let src = dict_or_empty(settings.get("sources"))?;
-            m.extend(dict_or_empty(src.get(bk))?);
-            let place = {
-                let p = s(row.get("場所"))?;
-                if p.is_empty() {
-                    s(m.get("source"))?
-                } else {
-                    p
-                }
-            };
-            let table = {
-                let p = s(row.get("表"))?;
-                if p.is_empty() {
-                    s(m.get("table"))?
-                } else {
-                    p
-                }
-            };
-            d.insert("place".into(), json!(unquote(&place)));
-            d.insert("table".into(), json!(table));
+        // 行から作る所の誤りは、その行を原因に添える（版 3.109.0 の作った後の採点の割れ 1。行の無い組み込みは添えない）
+        let one = || -> R<Map<String, Value>> {
+            let mut d = b.as_object().cloned().unwrap_or_default();
+            d.insert("builtin".into(), json!(true));
             if full {
-                d.insert("placeDefault".into(), json!(unquote(&s(m.get("source"))?)));
+                d.insert("id".into(), row.get("id").cloned().unwrap_or(Value::Null));
+                d.insert("rev".into(), row.get("rev").cloned().unwrap_or(Value::Null));
+                d.insert("note".into(), json!(s(row.get("備考"))?));
+                d.insert("storage".into(), json!(if b["settings"].is_object() { "settings" } else { "master" }));
+                d.insert("pattern".into(), json!(""));
             }
-            dflt = m;
-        }
-        let has_row = !row.is_empty();
-        let ec = if has_row { s(row.get("設備の列"))? } else { s(dflt.get("equip_column"))? };
-        d.insert("equipColumn".into(), json!(ec));
-        let mut em = if has_row { s(row.get("設備の取り出し方"))? } else { String::new() };
-        if em.is_empty() {
-            em = s(dflt.get("equip_mode"))?;
-        }
-        if em.is_empty() {
-            em = "そのまま".into();
-        }
-        d.insert("equipMode".into(), json!(em));
-        let name = s(row.get("表示名"))?;
-        d.insert("name".into(), if name.is_empty() { b["name"].clone() } else { json!(name) });
-        d.insert("read".into(), read_params(settings, bk, &row)?);
-        d.insert("lotSet".into(), json!(s(row.get("ロット番号の列"))?));
-        let joins = if b["kind"] == "cm3" && !has_row {
-            joins_of(Some(&Value::Array(vec![t(&["sources", "scheduleJoin"]).clone()])))?
-        } else {
-            joins_of(row.get("結合"))?
+            let dflt: Map<String, Value>;
+            if b["kind"] == "cm3" {
+                let place = s(b["settings"]["place"].as_str().and_then(|k| dotted(settings, k)))?;
+                d.insert("place".into(), json!(place));
+                d.insert("table".into(), json!(""));
+                dflt = json!({"equip_column": b["equipColumn"], "equip_mode": b["equipMode"]}).as_object().cloned().unwrap();
+            } else if b["settings"].is_object() {
+                let keys = &b["settings"];
+                let get = |k: &str| keys[k].as_str().and_then(|k| dotted(settings, k));
+                d.insert("place".into(), json!(unquote(&s(get("place"))?)));
+                d.insert("table".into(), json!(s(get("table"))?));
+                if full && keys.get("pattern").is_some_and(|p| truthy(Some(p))) {
+                    d.insert("pattern".into(), json!(s(get("pattern"))?));
+                }
+                dflt = json!({"equip_column": b["equipColumn"], "equip_mode": b["equipMode"]}).as_object().cloned().unwrap();
+            } else {
+                let mut m = t(&["sources", "wipDefault"]).as_object().cloned().unwrap_or_default();
+                let src = dict_or_empty(settings.get("sources"))?;
+                m.extend(dict_or_empty(src.get(bk))?);
+                let place = {
+                    let p = s(row.get("場所"))?;
+                    if p.is_empty() {
+                        s(m.get("source"))?
+                    } else {
+                        p
+                    }
+                };
+                let table = {
+                    let p = s(row.get("表"))?;
+                    if p.is_empty() {
+                        s(m.get("table"))?
+                    } else {
+                        p
+                    }
+                };
+                d.insert("place".into(), json!(unquote(&place)));
+                d.insert("table".into(), json!(table));
+                if full {
+                    d.insert("placeDefault".into(), json!(unquote(&s(m.get("source"))?)));
+                }
+                dflt = m;
+            }
+            let has_row = !row.is_empty();
+            let ec = if has_row { s(row.get("設備の列"))? } else { s(dflt.get("equip_column"))? };
+            d.insert("equipColumn".into(), json!(ec));
+            let mut em = if has_row { s(row.get("設備の取り出し方"))? } else { String::new() };
+            if em.is_empty() {
+                em = s(dflt.get("equip_mode"))?;
+            }
+            if em.is_empty() {
+                em = "そのまま".into();
+            }
+            d.insert("equipMode".into(), json!(em));
+            let name = s(row.get("表示名"))?;
+            d.insert("name".into(), if name.is_empty() { b["name"].clone() } else { json!(name) });
+            d.insert("read".into(), read_params(settings, bk, &row)?);
+            d.insert("lotSet".into(), json!(s(row.get("ロット番号の列"))?));
+            let joins = if b["kind"] == "cm3" && !has_row {
+                joins_of(Some(&Value::Array(vec![t(&["sources", "scheduleJoin"]).clone()])))?
+            } else {
+                joins_of(row.get("結合"))?
+            };
+            d.insert("joins".into(), joins);
+            d.insert("order".into(), json!(s(row.get("並び"))?));
+            d.insert("id".into(), row.get("id").cloned().unwrap_or(Value::Null));
+            if full {
+                if b["kind"] == "cm3" && !has_row {
+                    d.insert("joinsDefault".into(), json!(true));
+                }
+                d.insert("listed".into(), json!(matches!(bk, "lot" | "work") || s(row.get("画面"))? != "無"));
+                d.insert("rowRead".into(), row_read(&row)?);
+                let groupable = t(&["sources", "groupable"]).as_array().is_some_and(|g| g.iter().any(|x| x.as_str() == Some(bk)));
+                d.insert("groupSet".into(), json!(if groupable { s(row.get("グループ"))? } else { String::new() }));
+            }
+            Ok(d)
         };
-        d.insert("joins".into(), joins);
-        d.insert("order".into(), json!(s(row.get("並び"))?));
-        d.insert("id".into(), row.get("id").cloned().unwrap_or(Value::Null));
-        if full {
-            if b["kind"] == "cm3" && !has_row {
-                d.insert("joinsDefault".into(), json!(true));
-            }
-            d.insert("listed".into(), json!(matches!(bk, "lot" | "work") || s(row.get("画面"))? != "無"));
-            d.insert("rowRead".into(), row_read(&row)?);
-            let groupable = t(&["sources", "groupable"]).as_array().is_some_and(|g| g.iter().any(|x| x.as_str() == Some(bk)));
-            d.insert("groupSet".into(), json!(if groupable { s(row.get("グループ"))? } else { String::new() }));
-        }
+        let d = one().map_err(|e| if row.is_empty() { e } else { e.at("data_sources", &Value::Object(row.clone())) })?;
         out.push(d);
     }
     // 足した元は行の順（同じキーの行が 2 つあれば 2 つとも。Python の added は rows を回す）
-    for r in rows {
-        let r = r.as_object().ok_or(Py("データ元の行が表でない"))?;
-        let k = &s(r.get("キー"))?;
+    for row in rows {
+        let r = row.as_object().ok_or(Py("データ元の行が表でない"))?;
+        let k = &s(r.get("キー")).map_err(|e| e.at("data_sources", row))?;
         if k.is_empty() || builtins.iter().any(|b| b["key"].as_str() == Some(k)) {
             continue;
         }
-        let name = s(r.get("表示名"))?;
-        let mode = s(r.get("設備の取り出し方"))?;
-        let role = s(r.get("役割"))?;
-        let mut d = json!({"key": k, "name": if name.is_empty() { k.clone() } else { name }, "kind": "file",
+        let one = || -> R<Value> {
+            let name = s(r.get("表示名"))?;
+            let mode = s(r.get("設備の取り出し方"))?;
+            let role = s(r.get("役割"))?;
+            let mut d = json!({"key": k, "name": if name.is_empty() { k.clone() } else { name }, "kind": "file",
                        "role": if role.is_empty() { "その他".to_string() } else { role },
                        "place": unquote(&s(r.get("場所"))?), "table": s(r.get("表"))?, "equipColumn": s(r.get("設備の列"))?,
                        "equipMode": if mode.is_empty() { "そのまま".to_string() } else { mode }, "builtin": false,
                        "api": format!("/api/src/{k}"), "id": r.get("id").cloned().unwrap_or(Value::Null),
                        "read": read_params(settings, k, r)?, "lotSet": s(r.get("ロット番号の列"))?, "joins": joins_of(r.get("結合"))?,
                        "order": s(r.get("並び"))?, "base": s(r.get("元"))?});
-        if full {
-            let o = d.as_object_mut().unwrap();
-            o.insert("pattern".into(), json!(""));
-            o.insert("screen".into(), json!(format!("src:{k}")));
-            o.insert("listed".into(), json!(s(r.get("画面"))? != "無"));
-            o.insert("storage".into(), json!("master"));
-            o.insert("settings".into(), Value::Null);
-            o.insert("rev".into(), r.get("rev").cloned().unwrap_or(Value::Null));
-            o.insert("note".into(), json!(s(r.get("備考"))?));
-            o.insert("rowRead".into(), row_read(r)?);
-            o.insert("groupSet".into(), json!(s(r.get("グループ"))?));
-        }
+            if full {
+                let o = d.as_object_mut().unwrap();
+                o.insert("pattern".into(), json!(""));
+                o.insert("screen".into(), json!(format!("src:{k}")));
+                o.insert("listed".into(), json!(s(r.get("画面"))? != "無"));
+                o.insert("storage".into(), json!("master"));
+                o.insert("settings".into(), Value::Null);
+                o.insert("rev".into(), r.get("rev").cloned().unwrap_or(Value::Null));
+                o.insert("note".into(), json!(s(r.get("備考"))?));
+                o.insert("rowRead".into(), row_read(r)?);
+                o.insert("groupSet".into(), json!(s(r.get("グループ"))?));
+            }
+            Ok(d)
+        };
+        let d = one().map_err(|e| e.at("data_sources", row))?;
         out.push(d.as_object().cloned().unwrap());
     }
     let rest = out.split_off(2.min(out.len()));
@@ -1210,10 +1251,11 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value, Vec<Valu
     let text = if truthy(row.get("ルール")) { row.get("ルール").cloned().unwrap() } else { json!("{}") };
     let d: Value = match &text {
         Value::String(x) => {
-            if crate::master_rows::text_split_py(x) {
-                return Err(Py("設備グループのルールが窓の読めない JSON"));
+            // 大きな整数も印の字で読む（版 3.109.0。比べ方〈op〉・値は str() で桁の字）
+            if crate::master_rows::text_split_held(x) {
+                return Err(Py("設備グループのルールが窓の読めない JSON（NaN・深い入れ子）"));
             }
-            serde_json::from_str(&crate::master_rows::inner_text(x)).unwrap_or(json!({}))
+            crate::held::text_value(x).unwrap_or(json!({}))
         }
         _ => json!({}), // json.loads(数・表) は TypeError → {}
     };
@@ -1230,7 +1272,7 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value, Vec<Valu
                 continue;
             };
             if matches!(o.get("op"), Some(Value::Array(_) | Value::Object(_))) {
-                return Err(Py("設備グループのルールの op が並び・表（Python は in で落ちる）"));
+                return Err(Py("設備グループのルールの op が並び・表（Python は in で落ちる）").python_too());
             }
             let raw = if truthy(o.get("value")) { s(o.get("value"))? } else { String::new() };
             let val: String = pyfmt::strip(&raw).chars().take(80).collect();
@@ -1278,16 +1320,9 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value, Vec<Valu
     Ok((json!(rules), json!(ex), unapplied))
 }
 
-/// 設備の並び（shifts.equipment_list）。並びの中の並び・表は Python の repr の字になるので組まない
+/// 設備の並び（shifts.equipment_list）。並びの中の並び・表も Python の str()（repr）の字（版 3.109.0。worksum::equipment_list が py_str で
+/// 字にする。前は組まずに節を window にした）
 fn eq_list(v: Option<&Value>) -> R<Vec<String>> {
-    if let Some(Value::Array(a)) = v {
-        if a.iter().any(|x| x.is_array() || x.is_object()) {
-            return Err(Py("設備の並びの中に並び・表"));
-        }
-    }
-    if matches!(v, Some(Value::Object(o)) if !o.is_empty()) {
-        return Err(Py("設備の並びが表"));
-    }
     Ok(equipment_list(v))
 }
 
@@ -1302,17 +1337,18 @@ pub(crate) fn group_views(rows: &[Value]) -> R<Vec<Value>> {
     let mut keyed = vec![];
     for r in rows {
         let o = r.as_object().ok_or(Py("設備グループの行が表でない"))?;
-        let id = if truthy(o.get("id")) { int_of(o.get("id"))? } else { PyInt::Small(0) };
+        let id = if truthy(o.get("id")) { int_of(o.get("id")).map_err(|e| e.at("equipment_groups", r))? } else { PyInt::Small(0) };
         keyed.push(((group_order(o), id), o));
     }
     keyed.sort_by(|a, b| a.0.cmp(&b.0));
     let set_default = t(&["equipGroups", "setDefault"]).clone();
     let mut out = vec![];
     for (_, o) in keyed {
-        let (rules, ex, unapplied) = group_rules(o)?;
+        let row = Value::Object(o.clone());
+        let (rules, ex, unapplied) = group_rules(o).map_err(|e| e.at("equipment_groups", &row))?;
         let pick = |k: &str, d: Value| o.get(k).filter(|v| truthy(Some(v))).cloned().unwrap_or(d);
         let mut v = json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pick("名称", json!("")), "set": pick("まとめ方", set_default.clone()),
-                        "equipment": eq_list(o.get("設備"))?, "rules": rules, "except": ex, "order": crate::held::int_value(&group_order(o)),
+                        "equipment": eq_list(o.get("設備")).map_err(|e| e.at("equipment_groups", &row))?, "rules": rules, "except": ex, "order": crate::held::int_value(&group_order(o)),
                         "note": pick("備考", json!("")), "rev": o.get("rev").cloned().unwrap_or(json!(1)),
                         "updated_at": o.get("updated_at").cloned().unwrap_or(json!("")), "updated_by": pick("updated_by", json!({}))});
         if !unapplied.is_empty() {
@@ -1378,8 +1414,9 @@ fn conv_rows(rows: &[Value], keep_big: bool) -> R<Vec<(PyInt, Value)>> {
     let mut out = vec![];
     for i in conv_order_index(rows)? {
         let o = rows[i].as_object().ok_or(Py("変換表の行が表でない"))?;
-        let order = conv_order(o);
-        let rows = match conv_j(o.get("判定"), true, keep_big)? {
+        let one = || -> R<(PyInt, Value)> {
+            let order = conv_order(o);
+            let rows = match conv_j(o.get("判定"), true, keep_big)? {
             Value::Array(a) => a
                 .into_iter()
                 .filter_map(|x| x.as_object().cloned())
@@ -1387,17 +1424,19 @@ fn conv_rows(rows: &[Value], keep_big: bool) -> R<Vec<(PyInt, Value)>> {
                 .collect(),
             _ => vec![],
         };
-        let other = match o.get("その他") {
-            x if !truthy(x) => String::new(),
-            Some(Value::Array(_) | Value::Object(_)) => return Err(Py("変換表のその他が表・並び")),
-            Some(x) => py_str(x),
-            None => String::new(),
-        };
-        out.push((
-            order,
-            json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pstr(o.get("名前"))?, "inputs": conv_j(o.get("入力"), true, keep_big)?,
+            let other = match o.get("その他") {
+                x if !truthy(x) => String::new(),
+                Some(Value::Array(_) | Value::Object(_)) => return Err(Py("変換表のその他が表・並び")),
+                Some(x) => py_str(x),
+                None => String::new(),
+            };
+            Ok((
+                order,
+                json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pstr(o.get("名前"))?, "inputs": conv_j(o.get("入力"), true, keep_big)?,
                                 "rows": rows, "other": other, "apply": conv_j(o.get("当て方"), false, keep_big)?}),
-        ));
+            ))
+        };
+        out.push(one().map_err(|e| e.at("conversions", &rows[i]))?);
     }
     Ok(out)
 }
@@ -1453,6 +1492,10 @@ fn km_key(data: &Map<String, Value>, name: &str, col: &str) -> R<bool> {
         None => 0.0,
         Some(Value::Number(n)) => n.as_f64().ok_or(Py("数"))?,
         Some(Value::Bool(b)) => *b as i64 as f64,
+        // 持っている大きな整数（版 3.109.0）は float(int) で比べる（309 桁を超えれば Python も比べられるが窓は inf。ここは大小だけ）
+        Some(x) if crate::held::big_digits(x).is_some() => {
+            crate::held::big_digits(x).and_then(|d| d.parse::<f64>().ok()).ok_or(Py("数"))?
+        }
         _ => return Err(Py("seen が数でない")),
     };
     let tie = t(&["lotdsp", "tieSeen"]).as_f64().unwrap_or(3.0);
@@ -1469,11 +1512,12 @@ pub fn lotdsp_status(path: &Path, enabled: bool) -> R<Value> {
     let data = match std::fs::read_to_string(path) {
         Err(_) => Map::new(),
         Ok(text) => {
-            if crate::master_rows::text_split_py(&text) {
-                return Err(Py("学びのファイルが窓の読めない JSON"));
+            // 大きな整数も印の字で読む（版 3.109.0。NaN・深い入れ子は今どおり Python に尋ねる）
+            if crate::master_rows::text_split_held(&text) {
+                return Err(Py("学びのファイルが窓の読めない JSON（NaN・深い入れ子）"));
             }
-            match serde_json::from_str::<Value>(&crate::master_rows::inner_text(&text)) {
-                Ok(Value::Object(o)) => o,
+            match crate::held::text_value(&text) {
+                Some(Value::Object(o)) => o,
                 _ => Map::new(),
             }
         }
@@ -1568,10 +1612,6 @@ fn name_of(r: &Value, k: &str) -> R<String> {
     }
 }
 
-/// i64・u64 に入らない整数のファイルも束が読むマスタ（版 3.108.0。src/held.rs が桁のまま持ち、束の読み〈group_views・conv_views の
-/// 表示順と id は held::int_value、名前・設備は py_str〉が Python の int と同じに扱う）。ほかのマスタは今どおり Python に尋ねる
-const HELD_OK: [&str; 2] = ["equipment_groups", "conversions"];
-
 /// 束・画面・/api/config の材料（Builder::inputs）
 pub struct Inputs {
     /// 配った設定（APP_SETTINGS）
@@ -1585,20 +1625,10 @@ pub struct Inputs {
 }
 
 impl Inputs {
-    /// 窓が Python と同じに読めないマスタ（読めない字・共有にまだ無い）は組まない
+    /// 窓が Python と同じに読めないマスタ（共有にまだ無い）は組まない。版 3.109.0（H3）: i64・u64 に入らない整数のファイルも
+    /// src/held.rs の印の字で読み（前は Place::split_file で Python に尋ねた）、データ元・実績の設備の読めない行（値が並び・表）も
+    /// Python の str()（repr）で読む（前は Python に尋ねた）
     pub fn check(&self, name: &str) -> R<()> {
-        if self.p.split_file(name) && !HELD_OK.contains(&name) {
-            return Err(Py("マスタのファイルが窓の読めない字"));
-        }
-        // データ元・実績の設備の読めない行は Python が読みでは使う（版 3.108.0。隔てない）。窓はその値を同じに読めると限らないので尋ねる
-        if (name == "data_sources" || name == "work_log_files")
-            && self.p.rows_all(name).is_ok_and(|rows| {
-                // 表でない行は今どおり飛ばして読む（版 3.102.0。節の warn が言う）。見るのは表の行の読めない形だけ
-                crate::master_rows::isolated_of(name, &rows).iter().any(|(i, _, _)| rows[*i].is_object())
-            })
-        {
-            return Err(Py("データ元・実績の設備に読めない行（Python が読む）"));
-        }
         if !self.p.seed(name) {
             return Err(Py("共有にまだ無いマスタ（Python が写しから最初の版を作る）"));
         }
@@ -1608,20 +1638,14 @@ impl Inputs {
     /// マスタの行（MasterRepository の読み方: 前の名前の列を今の名前へ・版の無い行は 1）。表でない行は飛ばす
     /// （版 3.102.0。Python の MasterRepository._list と同じ。飛ばした行は束の節の broken の警告〈warn〉が言う）
     pub fn rows(&self, name: &str) -> R<Vec<Value>> {
-        let mut rows = self.p.rows(name).map_err(|_| Py("マスタが読めない"))?;
-        rows.retain(Value::is_object);
-        let renamed = t(&["renamed", name]).as_object().cloned().unwrap_or_default();
-        for r in rows.iter_mut() {
-            let Some(o) = r.as_object_mut() else { continue };
-            for (old, new) in &renamed {
-                if let Some(v) = o.remove(old) {
-                    let new = new.as_str().unwrap_or("").to_string();
-                    o.entry(new).or_insert(v);
-                }
-            }
-            o.entry("rev").or_insert(json!(1));
-        }
-        Ok(rows)
+        let rows = self.p.rows(name).map_err(|_| Py("マスタが読めない"))?;
+        Ok(rows.iter().filter_map(|r| norm_row(name, r)).collect())
+    }
+
+    /// 行が置き場のファイルの何行目か（版 3.109.0。rows と同じ形にそろえてから、最初に同じ行。表でない行・隔てた行も数える）
+    pub fn row_no(&self, name: &str, row: &Value) -> Option<usize> {
+        let all = self.p.rows_all(name).ok()?;
+        all.iter().position(|r| norm_row(name, r).as_ref() == Some(row)).map(|i| i + 1)
     }
 
     /// マスタの版の番号（MasterStore.revision。読めなければ Err）
@@ -2033,7 +2057,7 @@ impl Builder {
     /// 束（Python の GET /api/lotlist/settings と同じ形）。組めなければ Err（窓は Python に尋ねる）
     pub fn build(&self) -> R<Value> {
         let r = self.build_inner();
-        *self.last_skip.lock().unwrap() = r.as_ref().err().map(|e| e.0);
+        *self.last_skip.lock().unwrap() = r.as_ref().err().map(|e| e.why);
         r
     }
 
@@ -2058,13 +2082,8 @@ impl Builder {
     /// 作った後の採点の割れ 4: 前は黙って空の設備マスタ・配った設定に戻り、誤った理由で断った）
     pub fn lotdsp_inputs(&self) -> Result<(Value, Value, Vec<Value>), &'static str> {
         let inp = self.inputs().map_err(|_| "設定の束")?;
-        if inp.p.split_file("path_settings") {
-            return Err("参照先");
-        }
+        // 版 3.109.0（H3）: 大きな整数のファイルも読む（前は split_file で 503「参照先」「設備マスタ」。Python は答えた）
         let rows = inp.rows("path_settings").map_err(|_| "参照先")?;
-        if inp.p.split_file("equipment_master") {
-            return Err("設備マスタ");
-        }
         let equipment = inp.rows("equipment_master").map_err(|_| "設備マスタ")?;
         let eff = effective(&inp.settings, &rows, &["pathItems", "configItems"]).map_err(|_| "参照先")?;
         let app = inp.settings.get("lotdsp_import").cloned().unwrap_or(Value::Null);
@@ -2145,7 +2164,7 @@ impl Builder {
             match f() {
                 Ok(v) => v,
                 Err(e) => {
-                    broken.insert(name.into(), json!({"why": e.0, "file": "", "window": true}));
+                    broken.insert(name.into(), window_why(&inp, name, &e));
                     Value::Null
                 }
             }
@@ -2241,6 +2260,44 @@ pub const SECTIONS: [(&str, &[&str]); 6] = [
     ("conversions", &["conversions"]),
 ];
 
+/// マスタの行の形をそろえる（MasterRepository の読み方: 前の名前の列を今の名前へ・版の無い行は 1。表でない行は None）
+fn norm_row(name: &str, r: &Value) -> Option<Value> {
+    let mut o = r.as_object()?.clone();
+    if let Some(renamed) = t(&["renamed", name]).as_object() {
+        for (old, new) in renamed {
+            if let Some(v) = o.remove(old) {
+                o.entry(new.as_str().unwrap_or("").to_string()).or_insert(v);
+            }
+        }
+    }
+    o.entry("rev").or_insert(json!(1));
+    Some(Value::Object(o))
+}
+
+/// 窓が節を組めなかった理由（版 3.109.0）。原因は組めない理由を作った所が Py に添えたマスタの行（file・row）で、何行目かは
+/// Inputs::row_no が探す（作った後の採点の割れ 1: 前は節のファイルの隔てた行を当て推量で原因と言い、無ければ節の全部のファイルを並べた）。
+/// Python も同じ所で落ちる形（python_too）は window にしない（Python に尋ねても組めない）。ほかは window: true（Lot::settings は束を
+/// Python に尋ね、Python も答えないときだけ道を断る）
+fn window_why(inp: &Inputs, name: &str, e: &Py) -> Value {
+    let mut out = match (e.file, e.row.as_ref()) {
+        (Some(f), Some(row)) => {
+            let at = inp.row_no(f, row).map(|n| format!(" の {n} 行目")).unwrap_or_default();
+            json!({"why": format!("{f}.json{at}を{}組めません（{}）", if e.python_too { "" } else { "窓が Python と同じに" }, e.why),
+                   "file": format!("{f}.json")})
+        }
+        // 行に結べない理由（配った設定・参照先を重ねた設定）。節の材料のファイルの名前で言う（行は言わない）
+        _ => {
+            let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);
+            let f = files.first().map(|f| format!("{f}.json")).unwrap_or_default();
+            json!({"why": format!("{name} の節を{}組めません（{}）", if e.python_too { "" } else { "窓が Python と同じに" }, e.why), "file": f})
+        }
+    };
+    if !e.python_too {
+        out["window"] = json!(true);
+    }
+    out
+}
+
 /// 表でない行の理由の言葉（Python の master_repository.bad_rows_text と同じ）
 pub fn bad_rows_text(name: &str, bad: &[usize]) -> String {
     let shown: Vec<String> = bad.iter().take(5).map(|n| n.to_string()).collect();
@@ -2265,10 +2322,6 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
         }
         if let Some(why) = inp.p.unreadable(f) {
             return Some(json!({"why": why, "file": file}));
-        }
-        if inp.p.split_file(f) && !HELD_OK.contains(f) {
-            return Some(json!({"why": format!("{file} に窓の読めない字（NaN・Infinity・大きな数・深い入れ子・読めない版）があります"),
-                               "file": file, "window": true}));
         }
         match inp.p.rows_all(f) {
             Err(e) => return Some(json!({"why": format!("{file}: {e}"), "file": file, "window": true})),

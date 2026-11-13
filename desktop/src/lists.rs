@@ -311,6 +311,10 @@ impl Conf<'_> {
 /// 数の設定（写し直す間隔・古さの時間）。字は Python の float() と同じに読み（pyfmt::py_float。版 3.106.0。前は str::parse で、
 /// 「１２」・「1_000」を読めず既定にしていた）、読めなければ既定（Python の work_log.params・data_sources._num も既定で続ける）
 pub(crate) fn num(v: &Value, d: f64) -> f64 {
+    // 持っている大きな整数（src/held.rs の印の字。版 3.109.0）は桁の数（呼ぶ側の as i64 が飽和の秒にする）
+    if let Some(b) = crate::held::big_digits(v) {
+        return b.parse::<f64>().unwrap_or(d);
+    }
     v.as_f64().or_else(|| v.as_str().and_then(|s| crate::pyfmt::py_float(s).ok())).unwrap_or(d)
 }
 

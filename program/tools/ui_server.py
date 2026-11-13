@@ -142,7 +142,9 @@ def build(quality=1500, work_rows=400, wip=1200):
                "pivot_presets": [{"id": 900, "名前": "壊れた組み方", "元": "lot", "範囲": "共通", "中身": "{\"rows\": [{\"column\": \"合金\", \"part\": [1]}]}"}],
                "display_formats": [{"id": 900, "名前": 5, "元": "lot", "中身": "{}"}, {"id": 901, "名前": "版の読めない書式", "元": "lot", "中身": "{}", "rev": "x"},
                                    {"id": 902, "名前": "作業実績の壊れた書式", "元": "work", "中身": "{\"sorts\": [NaN]}"}],
-               "equipment_master": [{"id": "x", "設備名": "壊れた設備"}, {"id": 902, "設備名": "数でない値の設備", "x": float("nan")}]}
+               "equipment_master": [{"id": "x", "設備名": "壊れた設備"}, {"id": 902, "設備名": "数でない値の設備", "x": float("nan")}],
+               # 版 3.109.0: データ元の読めない行（確かめる間隔が並び）。読みでは隔てず使い、面の言葉が「一覧・読みでは使っています」
+               "data_sources": [{"id": 990, "キー": "bad1", "表示名": "壊れたデータ元", "場所": "/無い/壊れた.sqlite3", "確かめる間隔": ["x"], "rev": "二"}]}
         for name, rows in bad.items():
             f = data / f"{name}.json"
             have = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []

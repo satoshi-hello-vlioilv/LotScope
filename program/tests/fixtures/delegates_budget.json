@@ -1,6 +1,6 @@
 {
  "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
- "total": 17,
+ "total": 19,
  "per": {
   "access_write_oracle": 0,
   "calc_oracle": 0,
@@ -15,7 +15,7 @@
   "presets_oracle": 0,
   "release_place_oracle": 7,
   "sets_oracle": 0,
-  "settings_oracle": 5,
+  "settings_oracle": 7,
   "settings_write_oracle": 0,
   "shifts_oracle": 0,
   "sources_write_oracle": 0,
@@ -33,5 +33,8 @@
  },
  "envLessWhy": {
   "release_place_oracle": "Windows では権限の場面（読めない置き場・root）が無く、手元の Linux（root）で数えた数より 2 少ない（版 3.105.0 は 11 と 9。PR #104 の Windows CI。版 3.106.0 は 8 と 6: 配布の置き場の名前が並びの 2 歩は本文の門が断る）。delegate-count.py --check はこの幅を同じとみなす"
+ },
+ "raisedWhy": {
+  "settings_oracle": "版 3.109.0（17 → 19）: 窓がまだ組めない束の節（変換表の判定の字の大きな整数〈式が引く形は数で比べる〉・データ元の結合の字の NaN）を、作った後の採点の指摘 2 で場面にして数えた（前から Python に尋ねていたが数に出ていなかった。印 bundle_window）"
  }
 }

@@ -598,6 +598,15 @@ pub fn path_int(s: &str) -> Option<PyInt> {
     py_int(s).ok()
 }
 
+/// Python の float(int)（版 3.109.0 の作った後の採点の割れ 6）: 桁の字（符号つき）→ いちばん近い小数（丸めは偶数へ。Rust の parse も同じ）。
+/// f64 に入らない大きさ（約 1.8e308 以上）は Python と同じく OverflowError の文で断る（前は inf にした）
+pub fn py_float_of_int(digits: &str) -> Result<f64, String> {
+    match digits.parse::<f64>() {
+        Ok(f) if f.is_finite() => Ok(f),
+        _ => Err("int too large to convert to float".to_string()),
+    }
+}
+
 /// Python の float(文字)。読めなければ Python と同じ文の誤り。
 pub fn py_float(s: &str) -> Result<f64, String> {
     let bad = || format!("could not convert string to float: {}", str_repr(s));

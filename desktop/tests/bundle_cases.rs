@@ -37,7 +37,7 @@ fn broken_rows_are_skipped_and_broken_files_refused_like_the_table() {
             config: work.join("config.json"),
             now: None,
         });
-        let v = b.build().unwrap_or_else(|e| panic!("{}: 束を組めない {}", c["name"], e.0));
+        let v = b.build().unwrap_or_else(|e| panic!("{}: 束を組めない {}", c["name"], e.why));
         let sec = c["section"].as_str().unwrap();
         let w = &v["broken"][sec];
         assert_eq!((&w["why"], w["warn"] == true), (&c["why"], c["warn"] == true), "{}: {}", c["name"], v["broken"]);

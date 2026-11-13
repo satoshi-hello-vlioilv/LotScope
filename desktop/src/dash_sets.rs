@@ -64,15 +64,14 @@ fn item_ok(t: &str) -> bool {
 
 /// セットの中身 → (中身, 置く字)（clean_set_body。字で来たら JSON として読む。読めない字・1 つも無い・多すぎるは誤り）。
 /// 字の中身を窓が Python と同じに読めないとき（NaN・-0 など）は Ok(None)＝Python に任せる
-fn clean_body(body: Option<&Value>) -> Result<Option<(Value, String)>, String> {
+pub(crate) fn clean_body(body: Option<&Value>) -> Result<Option<(Value, String)>, String> {
     let parsed;
     let body = match body {
         Some(Value::String(t)) => {
-            if crate::master_rows::text_split_py(t) {
+            if crate::master_rows::text_split_held(t) {
                 return Ok(None); // Python だけが読む字（NaN など）・読みが割れる数（整数の -0 は 0 と読む。版 3.106.0）
             }
-            parsed = serde_json::from_str::<Value>(&crate::master_rows::inner_text(t))
-                .map_err(|_| "セットの中身の形が違います。".to_string())?;
+            parsed = crate::held::text_value(t).ok_or_else(|| "セットの中身の形が違います。".to_string())?;
             Some(&parsed)
         }
         b => b,
@@ -80,12 +79,9 @@ fn clean_body(body: Option<&Value>) -> Result<Option<(Value, String)>, String> {
     let raw = body.and_then(|b| b.get("items")).and_then(Value::as_array);
     let mut items: Vec<String> = vec![];
     for x in raw.into_iter().flatten() {
-        // str(x): 字はそのまま・i64 の整数は桁。小数・真偽・null・並び・表・大きな整数の str() は \d{1,9} にも b:鍵 にも当たらない
-        let t = match x {
-            Value::String(t) => t.clone(),
-            Value::Number(n) if n.as_i64().is_some() => n.to_string(),
-            _ => continue,
-        };
+        // str(x)（worksum::py_str。持っている大きな整数は桁の字。版 3.109.0）。小数・真偽・null・並び・表・大きな整数の str() は
+        // \d{1,9} にも b:鍵 にも当たらない
+        let t = crate::worksum::py_str(x);
         if item_ok(&t) && !items.contains(&t) {
             items.push(t);
         }
@@ -190,7 +186,7 @@ pub fn handle(
     // 名前・備考・範囲の型は本文の門が断る（body_rules.TYPES。版 3.106.0。前は plain_input で任せていた）
     // 中身を字で送り、窓が読めない字なら Python に任せる（clean_body の Ok(None)）
     if let Some(Value::String(t)) = d.get("body") {
-        if crate::master_rows::text_split_py(t) {
+        if crate::master_rows::text_split_held(t) {
             return None;
         }
     }

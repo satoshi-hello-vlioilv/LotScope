@@ -92,3 +92,18 @@ fn user_text_that_looks_like_a_held_value_stays_text() {
         assert_eq!(da_core::worksum::py_str(&fast["a"]), c["str"].as_str().unwrap());
     }
 }
+
+/// float(int)（版 3.109.0 の作った後の採点の割れ 6）: 丸めは Python の float(int) と同じ・f64 に入らない桁は同じ OverflowError の文
+#[test]
+fn float_of_int_is_like_python() {
+    let t = table();
+    for c in t["float_of_int"].as_array().unwrap() {
+        let d = c["int"].as_str().unwrap();
+        let got = da_core::pyfmt::py_float_of_int(d);
+        match (c["float"].as_str(), c["error"].as_str()) {
+            (Some(f), _) => assert_eq!(got.map(da_core::pyfmt::float_repr), Ok(f.to_string()), "float({d})"),
+            (_, Some(e)) => assert_eq!(got, Err(e.to_string()), "float({d})"),
+            _ => panic!("表の形"),
+        }
+    }
+}

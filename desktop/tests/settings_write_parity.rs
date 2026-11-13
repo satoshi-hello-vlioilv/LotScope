@@ -71,8 +71,8 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
         return Some((status, json!({"error": msg, "kind": kind})));
     }
     let place = access::Place::from_json(&c["place"]);
-    // 共有にまだ無い・窓の読めない字のマスタは Python に任せる（Lot::settings_route の Inputs::check と同じ）
-    if place.share_absent(NAME) || place.split_file(NAME) {
+    // 共有にまだ無いマスタは Python に任せる（Lot::settings_route の Inputs::check と同じ。i64 に入らない整数のファイルも版 3.109.0 から読む）
+    if place.share_absent(NAME) {
         return None;
     }
     let rows = place.rows(NAME).ok()?;

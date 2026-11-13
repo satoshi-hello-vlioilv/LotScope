@@ -159,7 +159,7 @@ fn builtin_skip(rows: &[Value], login: &str) -> Result<(Off, Vec<String>), Stop>
     let mut swapped = vec![];
     for r in rows.iter().filter_map(Value::as_object).filter(|r| is_dash(r) && pr::visible(r, login)) {
         let text = s(r, "中身").filter(|t| !t.is_empty()).unwrap_or("{}");
-        let rep = serde_json::from_str::<Value>(&crate::master_rows::inner_text(text)).ok().and_then(|v| v.get("replaces").cloned());
+        let rep = crate::held::text_value(text).and_then(|v| v.get("replaces").cloned());
         let k = match rep.as_ref().and_then(Value::as_str) {
             Some(k) if lc::BUILTIN_KEYS.contains(&k) => Some(k.to_string()),
             _ => builtin_named(r),
@@ -189,8 +189,9 @@ fn with_legacy_conditions(body: &mut Value, conds: &Option<Value>) {
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
     let name = DASHBOARDS.name;
     // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（ダッシュボードと前の版の条件。版 3.105.0。
-    // 置けなければ前どおり任せる）
-    if place.split_file(name) || (route == Route::List && (place.split_file(SETTINGS) || !store.seed_absent(&[name, SETTINGS]))) {
+    // 置けなければ前どおり任せる）。i64・u64 に入らない整数のファイル・中身の字も版 3.109.0 から読む（src/held.rs。前は Place::split_file・
+    // wide_content で任せ、同じファイルを読むセットだけが答えていた）
+    if route == Route::List && !store.seed_absent(&[name, SETTINGS]) {
         return None;
     }
     // 置き場の読めない行は隔てる（版 3.107.0。前は任せた）。組ごとの中身の確かめ（組み込みと同じ名前の行・外した組み込み・前の版の条件）は
@@ -205,9 +206,6 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             &mut settings,
             &master_rows::Spec { name: SETTINGS, fields: &["キー", "条件", "備考"], unique: Some("キー"), renamed: &[] },
         );
-        if crate::row_check::wide_content(SETTINGS, &settings) {
-            return None;
-        }
         let siso = crate::row_check::check(SETTINGS, &settings, &["キー", "条件", "備考"]);
         let settings = pr::good_rows(SETTINGS, &settings, &siso);
         let mut out = list(&rows, &settings, &who)?;
@@ -218,8 +216,9 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         return None;
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
-    let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
-    let tree: Tree = if blank { Tree::Null } else { serde_json::from_slice(body).ok()? };
+    // 本文は src/held.rs・jsontree の J の読み（版 3.109.0。serde から直に読むと u64 を超える整数を小数に丸める）
+    let parsed: Value = if blank { Value::Null } else { crate::held::body_value(body)? };
+    let tree: Tree = if blank { Tree::Null } else { Tree::parse_bytes(body)? };
     let find = |id: &PyInt, delete: bool| pr::find_row(name, &all, &iso, id, delete);
     if let Route::Delete(id) = &route {
         if truthy(&parsed) && !parsed.is_object() {

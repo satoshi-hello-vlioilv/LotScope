@@ -220,6 +220,15 @@ SCENARIOS = [
      "mirror_rows": [R(1, "前", "dashset", "共通")], "steps": [],
      "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}))]},
 ]
+# 版 3.109.0（H3）: 大きな整数のファイル・中身の字も窓が桁のまま読んで答える（前は Place::split_file・row_check::wide_content で任せた。カード・ダッシュボードとセットの食い違いも消えた）
+SCENARIOS += [
+    {"name": f"置き場の{what}が i64 に入らない整数（窓も桁のまま読む）", "mode": "shared",
+      "rows": [R(1, "良い行", "dashset", "共通"), R(4, "私の", "dashset", "ID", login="p1"), bad], "steps": [],
+      "delegates": [W(x) for x in (S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}), S(PART, "PUT", 4, {"name": "b"}),
+                                  S(PART, "DELETE", 4), S(PART, "GET"))]}
+    for what, bad in [("セットの行の中身の字", R(2, "x", "dashset", "共通", body='{"items": ["1"], "n": 100000000000000000000}')),
+                      ("ダッシュボードの行の中身の字", R(2, "x", "dash", "共通", body='{"rows": 8, "panels": [], "n": 100000000000000000000}')),
+                      ("セットの行の並びの字", R(2, "x", "dashset", "共通", body='{"items": [18446744073709551616, "1", -9223372036854775809]}'))]]
 FILE_NAME = "dashboards"
 
 
