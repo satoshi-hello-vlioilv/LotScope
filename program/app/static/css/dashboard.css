@@ -1,7 +1,7 @@
 /* ダッシュボード（版 3.37.0。dashboard.js・dashboard-panels.js・dashboard-editor.js）
    画面は窓の高さに収める（スクロールしない）: 道具の行 1 段＋グリッド（段の高さ＝残りの高さ ÷ 段の数）。
    パネルの色は 1 つ（白い面・淡い影）。主の数（数字の形）だけを大きく、見出しは 1 行。編集のときだけ、マスの印・取っ手・影を出す */
-.db-screen{height:calc(100vh - var(--header-h));padding:10px var(--gap) var(--gap);display:flex;flex-direction:column;gap:8px;min-height:0;box-sizing:border-box}
+.db-screen{height:calc(100vh - var(--header-h) - var(--pyband-h));padding:10px var(--gap) var(--gap);display:flex;flex-direction:column;gap:8px;min-height:0;box-sizing:border-box}
 .db-screen.hidden{display:none}
 .db-sp{flex:1}
 
@@ -149,9 +149,9 @@ body.db-dragging{cursor:grabbing;user-select:none}
 
 /* ---- パネルを組む所（dashboard-editor.js）: 焦点（2026-10-grid の 1 回目で 1 位の D）。組む所は右に重ね、組むパネルは左に大きく、ほかは淡い幕の下。
    グリッドは縮めない（ほかのパネルの字が切れない） ---- */
-.db-editor-pane{position:fixed;right:12px;top:calc(var(--header-h) + 54px);bottom:12px;width:720px;max-width:calc(100vw - 260px);z-index:21;display:flex;flex-direction:column;
+.db-editor-pane{position:fixed;right:12px;top:calc(var(--header-h) + 54px + var(--pyband-h));bottom:12px;width:720px;max-width:calc(100vw - 260px);z-index:21;display:flex;flex-direction:column;
   background:var(--surface);border:1px solid var(--pop-line);border-radius:var(--radius);box-shadow:0 10px 30px var(--pop-shadow);overflow:hidden;overflow:clip}
-.db-scrim{position:fixed;left:0;right:0;top:calc(var(--header-h) + 54px);bottom:0;z-index:19;background:rgba(238,242,245,.9)}
+.db-scrim{position:fixed;left:0;right:0;top:calc(var(--header-h) + 54px + var(--pyband-h));bottom:0;z-index:19;background:rgba(238,242,245,.9)}
 .db-p.is-focus{z-index:20;box-shadow:0 12px 36px rgba(12,34,48,.22)!important}
 .db-ftag{position:fixed;z-index:20;margin:0;padding:2px 9px;font-size:12px;color:#6a4b10;background:#fff8ea;border:1px solid #e8cf98;border-radius:5px;white-space:nowrap}
 .db-editor-pane[hidden]{display:none}

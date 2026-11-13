@@ -143,22 +143,15 @@ impl Splash {
     }
 }
 
-/// 画面を開いたあとに中身（Python）を起こせなかったとき、画面の下に出す帯（版 3.86.0。見出しのタブ・「終了」を覆わない）。
-/// ✕ で閉じる・「もう一度起こす」は /__desktop/backend/retry。中身が起きたら band(None) で消す
-const FAIL_BAND_JS: &str = "(title, detail) => { const old = document.getElementById('tpa-backend-fail'); if (old) old.remove(); if (title === null) return; \
-const d = document.createElement('div'); d.setAttribute('role', 'alert'); d.id = 'tpa-backend-fail'; \
-d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#9b1c1c;color:#fff;padding:8px 16px;font:14px/1.6 sans-serif;display:flex;gap:12px;align-items:flex-start'; \
-const t = document.createElement('div'); t.style.cssText = 'flex:1;white-space:pre-wrap'; t.textContent = title + '\\n' + detail; \
-const b = (label, f) => { const x = document.createElement('button'); x.type = 'button'; x.textContent = label; x.style.cssText = 'font:inherit;padding:2px 10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:4px;cursor:pointer'; x.onclick = f; return x; }; \
-d.append(t, b('もう一度起こす', () => { d.remove(); fetch('/__desktop/backend/retry', { method: 'POST' }); }), b('✕', () => d.remove())); document.body.appendChild(d); }";
-
-/// 画面（アプリの頁）に、中身を起こせなかった帯を出す（reason が None なら消す）
+/// 中身（Python）を起こした結果を画面へ知らせる（版 3.111.0。2026-11-stage2b-ui.json で決めた I）。画面（app.js の setPython）が見出しのすぐ下の
+/// 知らせの段・見出しの札「中身 停止」を描く（前は窓が画面の下に赤い 2 段の帯を差し込み、表の下の行を覆った）。心拍を待たずに知らせ、
+/// 読み込み前の頁のためには window.__tpaPython にも置く。reason が None なら起きた
 fn band(w: &WebviewWindow, reason: Option<&str>) {
-    let args = match reason {
-        Some(e) => json!(["アプリの中身（Python）が起動できません。画面・ダッシュボード・一覧は使えます。", e]),
-        None => json!([null, null]),
+    let detail = match reason {
+        Some(e) => json!({"state": "stopped", "why": e}),
+        None => json!({"state": "ready", "why": ""}),
     };
-    let _ = w.eval(format!("({})(...{})", FAIL_BAND_JS, args));
+    let _ = w.eval(format!("window.__tpaPython={detail};window.dispatchEvent(new CustomEvent('tpa:python',{{detail:{detail}}}))"));
 }
 
 /// 中身の起こし直しの係（画面を読み直したときに帯を出し直す。版 3.86.0）
@@ -514,7 +507,7 @@ fn window(app: &AppHandle, label: &str, url: WebviewUrl, splash: Arc<Splash>) ->
             if is_splash(p.url()) {
                 splash.flush(&w);
             } else if is_app_url(p.url()) && p.url().path() == "/" {
-                // 中身を起こせなかったままなら、読み直した画面にも帯を出す
+                // 中身を起こせなかったままなら、読み直した画面にも知らせる（知らせの段）
                 if let Some(e) = SUP.get().and_then(|s| s.down_reason()) {
                     band(&w, Some(&e));
                 }

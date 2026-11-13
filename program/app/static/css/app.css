@@ -59,6 +59,8 @@
   --fs-xs:11.5px; --fs-sm:12.5px; --fs-md:14px; --fs-lg:15px; --fs-xl:18px;
 
   --header-h:52px; --gap:12px; --left-w:312px; --radius:10px;
+  /* 見出しの下の知らせの段（版 3.111.0。中身〈Python〉が止まったとき・#pyBar）の高さ。出ている間だけ 38px（画面をその分縮め、表に重ねない） */
+  --pyband-h:0px;
   /* 表の行の高さ: 表示域から逆算。見出し帯・ツールバー・表見出し・余白 ≒ 175px、行の罫線 25px、25 行。
      縦は 5% 残す（取込メッセージ等が出ても窮屈にならない余裕） */
   --row:clamp(24px, calc((95vh - 200px) / 25), 34px);
@@ -122,7 +124,7 @@ header{height:var(--header-h);padding:0 18px;
 
 /* ---------- layout(1画面に収める基準) ---------- */
 .layout{display:grid;grid-template-columns:var(--left-w) minmax(0,1fr);gap:var(--gap);padding:var(--gap);
-  height:calc(100vh - var(--header-h));min-height:0}
+  height:calc(100vh - var(--header-h) - var(--pyband-h));min-height:0}
 @media(max-width:1024px){
   html,body{overflow:auto}
   .layout{grid-template-columns:1fr;height:auto}
@@ -537,6 +539,39 @@ td.edit select.auto{appearance:none;-webkit-appearance:none;padding-right:24px}
 .me-pop dd{margin:0;font-weight:700;word-break:break-all}
 .me-pop dd small{font-weight:400;color:var(--muted)}
 .me-pop .me-note{margin-top:10px;color:var(--muted);font-size:var(--fs-xs);line-height:1.5}
+/* 中身（Python）の様子（版 3.111.0。2026-11-stage2b-ui.json の 2 回目で決めた I）: 見出しのすぐ下（切断の帯と同じ置き場）の 1 段の知らせ・
+   見出しの字の札「中身 停止」・接続の様子の面。止まっても「接続 ●」・権限の札・「マスタ管理」は窓の答えのまま */
+body.py-band-on{--pyband-h:38px}
+.py-bar{display:flex;align-items:center;gap:12px;padding:0 18px;height:38px;box-sizing:border-box;position:relative;z-index:40;
+  background:#fff3d6;color:#4a3700;border-bottom:1px solid #e9c46a;font-size:var(--fs-sm)}
+.py-bar[hidden]{display:none}
+.py-bar:focus{outline:none}.py-bar:focus-visible{outline:2px solid #2f5f9f;outline-offset:-2px}
+.py-bar b{font-weight:800;white-space:nowrap}
+.py-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.py-bar.is-ok{background:#e3f4ea;color:#1e5a36;border-bottom-color:#9fd3b2}
+.py-bar button,.conn-pop .py-restart{height:26px;padding:0 10px;border-radius:6px;border:1px solid #c9a24a;background:#fff;color:#4a3700;font:inherit;font-weight:700;white-space:nowrap;cursor:pointer}
+.py-bar button:hover{background:#fff8e8}
+/* もう一度起こす（主の操作）は段と面で同じ茶（採点の作るときの指摘 a） */
+.py-bar button.py-restart,.conn-pop .py-restart{background:#7a4b00;border-color:#7a4b00;color:#fff}
+.py-bar button.py-restart:hover,.conn-pop .py-restart:hover{background:#8f5900}
+.py-bar button:focus-visible,.conn-pop button:focus-visible{outline:2px solid #2f5f9f;outline-offset:1px}
+.hstat .pill.py-pill{border-left:1px solid rgba(255,255,255,.18);border-radius:0;background:#7a4b00;color:#ffe2a8;font:inherit;font-size:var(--fs-sm);font-weight:800;cursor:pointer}
+.hstat .pill.py-pill[hidden]{display:none}
+.hstat .pill.py-pill:hover{background:#8f5900}
+.hstat .pill.py-pill.is-wait{background:rgba(255,255,255,.12);color:#dfe9f2;font-weight:700;cursor:default}
+.hstat .pill.py-pill:focus-visible{outline:2px solid #ffe2a8;outline-offset:-2px}
+.hstat.py-last .pill.py-pill{border-radius:0 999px 999px 0}
+/* 止まっている間は、暇なときの「待機中」の札だけを隠して幅を返す（計算中・エラーの札は出す。採点の作るときの指摘 c） */
+.hstat #status.idle-hide{display:none}
+.conn-pop{position:fixed;z-index:200;width:360px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--surface);border:1px solid var(--pop-line);border-radius:10px;
+  box-shadow:0 12px 32px rgba(0,0,0,.22);padding:10px 12px;font-size:13px;color:var(--ink)}
+.conn-pop .cp-h{display:flex;align-items:center;font-weight:800;margin-bottom:6px}.conn-pop .cp-h span{flex:1}
+.conn-pop .cp-h button{border:0;background:none;font-size:15px;color:var(--muted);cursor:pointer;padding:0 4px}
+.conn-pop .cp-r{display:grid;grid-template-columns:14px 130px 1fr;align-items:center;gap:6px;padding:4px 0;border-top:1px solid var(--line-soft)}
+.conn-pop .cp-r i{width:9px;height:9px;border-radius:50%;background:#1f8a55}
+.conn-pop .cp-r.off i{background:transparent;border:2px solid #c07a00;box-sizing:border-box}.conn-pop .cp-r.off span{color:#8a5a00;font-weight:700}
+.conn-pop p{margin:8px 0 6px;color:var(--muted);font-size:12.5px;line-height:1.5;overflow-wrap:anywhere;white-space:pre-line}
+.conn-pop .cp-a{display:flex;justify-content:flex-end}
 .revoked-bar{position:sticky;top:0;z-index:40;padding:8px 18px;background:var(--danger-bg);color:#8f2a1d;border-bottom:1px solid var(--danger-line);font-size:var(--fs-sm);font-weight:700}
 .cl-card{width:min(640px,94vw)}
 .cl-sub{padding:10px 18px 0;color:var(--muted);font-size:var(--fs-sm);line-height:1.6}
@@ -685,6 +720,11 @@ button.db-warnb.tpa-skip:focus-visible{outline:2px solid var(--amber-ink);outlin
 .tpa-menu.tpa-skipmenu{max-width:min(480px,calc(100vw - 16px))}
 .tpa-skipmenu .tm-head,.tpa-skipmenu button > span{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 .tpa-skipmenu button:disabled{color:var(--ink);cursor:default}
+/* 面の行の焦点（版 3.111.0。共通の決め 1）: キーボードは 2px の藍の内側の輪と淡い緑の地。マウスで確かめの窓の「やめる」を押して面が開き直ったときは、
+   押した行に同じ輪と右端の札「やめた行」（形と字で分かる。4 秒か、別の行へ焦点が移るか、キーを押すと消える。shared.js の openSkip） */
+.tpa-skipmenu button[role=menuitem]:focus-visible,.tpa-skipmenu button[role=menuitem].was{background:var(--ll-pale);outline:none;box-shadow:inset 0 0 0 2px #2f5f9f}
+.tpa-skipmenu button.was::after{content:"やめた行";flex:none;align-self:center;font-size:11.5px;font-weight:700;color:#2f4a6b;background:#fff;border:1px solid #9fb3c8;
+  border-radius:9px;padding:0 7px;margin-left:6px;line-height:18px}
 .tpa-skipmenu button:disabled .tm-ico{color:var(--muted)}
 /* 版 3.109.0: 消せる行の × と「× の行は…」の × は、確かめの窓の「× 消す」と同じ赤。面の下の小さな説明（太字でない） */
 .tpa-menu .tm-ico.is-del,.tpa-menu .tm-lead{color:#b42318;font-weight:800}

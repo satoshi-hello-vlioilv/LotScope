@@ -176,6 +176,19 @@ async function closeAll(page) {
 }
 
 // 状態: [名前, そこへ行く操作, 次に押すべきもの（新しい画面の data-next → 前の画面の部品 の順に探す）]
+/** 中身（Python）が止まった形の 2 つ（版 3.111.0）。STATES の最後と ui-eval-narrow.mjs が使う */
+export const PY_WHY = "アプリの中身（Python）がすぐに終わりました。ModuleNotFoundError: No module named 'flask'";
+export function PYDOWN_STEPS() {
+  return [
+    ["pydown", async (p) => {
+      await p.keyboard.press("Escape").catch(() => {});
+      await p.evaluate((why) => window.dispatchEvent(new CustomEvent("tpa:python", { detail: { state: "stopped", why } })), PY_WHY);
+      await sleep(400);
+    }, "[data-next], #pyBar [data-py]"],
+    ["pydown-fold", async (p) => { await p.click('#pyBar [data-py="fold"]'); await sleep(300); }, "[data-next], #pyPill"],
+  ];
+}
+
 export const STATES = [
   ["list", async () => {}, "[data-next], #llBody .ll-lot"],
   // 版 3.45.0: 見出しの下の値で絞る段の ▾ で開く「値で絞る」（設備。CR1・DL2・L-1 を選び、条件で絞るを開いた所）
@@ -816,6 +829,9 @@ export const STATES = [
     await p.click('#llEquipBar [data-equip="__HOT__"]');
     await p.waitForSelector("#llSched[data-mode=hot] .sd-tl", { timeout: 20000 }); await sleep(900);
   }, "[data-next], #llSched [data-sd-pick], #llSched [data-sd-kama]"],
+  // 版 3.111.0: 中身（Python）が止まった形（窓が知らせる tpa:python。見出しの下の知らせの段）と、段を畳んで見出しの札「中身 停止」だけの形。
+  // 最後に置く（前の状態の見た目を変えない）。ui-eval-narrow.mjs は一覧から直にこの 2 つを当てる（PYDOWN_STATES）
+  ...PYDOWN_STEPS(),
 ];
 
 // 起動画面の状態（窓が伝える事実の作り物。main.rs の start と同じ順・同じ文）: 中身を起こしている途中と、Python が無くて止まったところ

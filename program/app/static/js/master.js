@@ -269,8 +269,10 @@ function paintPlace(news) {
     html = `<span class="place-tag shared">確かめ中</span><span class="place-dir">${escapeHtml(p.dir)}</span>
       <span class="place-meta">共有の答えが遅く、届くかを確かめています（前に取り込んだ写しを表示中・保存はできます）</span>`;
   } else if (p.reachable === false) {
-    html = `<span class="place-tag off">共有に届きません</span><span class="place-dir">${escapeHtml(p.dir)}</span>
-      <span class="place-meta">前に取り込んだ写しを表示中・届くまで保存できません</span>
+    // 帯は 3 つの大きさで 1 段（版 3.111.0。共通の決め 2）: 道は末尾だけ「…/Masters」（全部は札と道の title）・説明は短く
+    const tail = String(p.dir || "").split(/[\\/]/).filter(Boolean).pop() || p.dir;
+    html = `<span class="place-tag off" title="${escapeHtml(`${p.dir} に届きません。前に取り込んだ写しを表示中で、届くまで保存できません`)}">共有に届きません</span><span class="place-dir is-tail" title="${escapeHtml(p.dir)}">…/${escapeHtml(tail)}</span>
+      <span class="place-meta">写しを表示中・保存できません</span>
       <button type="button" class="place-btn" id="masterPlaceRetry">もう一度つなぐ</button>`;
   } else {
     const by = cur.updated_by && (cur.updated_by.pc || cur.updated_by.login)
@@ -350,7 +352,8 @@ function paintPlaceNav() {
   const el = document.querySelector('#masterTabs [data-tab="place"] .tab-state');
   if (!el || !mstate.place) return;
   const [t, cls] = placeState(mstate.place);
-  el.className = `tab-state ${cls}`;
+  el.className = `tab-state ${cls}${cls === "off" ? " below" : ""}`;   // 届かないは名前の下の段（語の途中で折らない。版 3.111.0）
+  el.title = cls === "off" ? "共有の置き場に届きません" : "";
   // 確かめ中（版 3.100.0）は、ナビでは「共有」のまま（狭い窓〈1280〉で 3 字以上の札は折れる。帯と置き場の頁が「確かめ中」と言う）
   el.textContent = t === "手元のみ" ? "手元" : t === "確かめ中" ? "共有" : t;
 }
@@ -1272,7 +1275,7 @@ function paintRelease(d, freshness) {
   paintNoPython();
 }
 /* 中身（Python）の起きない PC（版 3.111.0。利用状況のいま使っている PC の印に窓が書く python。Python だけ壊れた版は戻さないので、
-   配る人がここで見て、配る版を前へ戻せる）。仮の形（1 行の字）。見せ方は画面の案で決める */
+   配る人がここで見て、配る版を前へ戻せる）。1 行の字で、色は見出しの下の知らせの段と同じ（.dz-nopy） */
 async function paintNoPython() {
   const r = await masterRequest("/api/presence");
   const el = $("#dzNoPy");
@@ -1281,7 +1284,7 @@ async function paintNoPython() {
   el.hidden = !n;
   if (!n) return;
   const who = (fl.items || []).filter((x) => x.online && x.python && x.python.state === "stopped");
-  el.textContent = `中身（Python）の起きない PC ${n} 台（版 ${[...new Set(who.map((x) => x.version))].join("・")}）`;
+  el.textContent = `⚠ 中身（Python）の起きない PC ${n} 台（版 ${[...new Set(who.map((x) => x.version))].join("・")}）`;
   el.title = who.map((x) => `${x.pc || "-"}／${x.login || "-"}: ${(x.python && x.python.why) || "理由不明"}`).join("\n");
 }
 /* ---------------- 配布の置き場を変える（場所・フォルダの名前） ----------------

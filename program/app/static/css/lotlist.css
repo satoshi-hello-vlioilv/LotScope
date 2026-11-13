@@ -7,7 +7,7 @@
    - ロット番号はボタンの顔（下線＋藍）にして「押すと検索する」ことを形で示す（アフォーダンス）。
    ========================================================================= */
 .ll-screen{--ll-h:30px;--ll-fs:13.5px;
-  height:calc(100vh - var(--header-h));padding:var(--gap);display:flex;min-height:0}
+  height:calc(100vh - var(--header-h) - var(--pyband-h));padding:var(--gap);display:flex;min-height:0}
 .ll-panel{position:relative;flex:1;min-width:0;background:var(--surface);border-radius:var(--radius);display:flex;flex-direction:column;
   box-shadow:var(--shadow-sm);overflow:hidden}
 /* 頁の頭は置かない（題はタブ）。何の表か・元データの時刻・ロット番号を押すと何が起きるかは、件数の行に（.ll-status） */

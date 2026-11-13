@@ -361,7 +361,7 @@
     /** 札を押したときの理由の面（押した札の下に開く。外側・Esc で閉じる）。版 3.110.0: 開く前に置き場の状態を新しくし（言葉）、
         押した札をマスタの名前で覚える（Esc で面を閉じたら札へ焦点を戻す。札が描き直されていれば同じマスタの新しい札へ）。
         focusRow は面を開き直したときに焦点を置く行の番号（確かめの窓をやめた後。開いた順の逆に 1 段ずつ戻る） */
-    async openSkip(btn, { focusRow = null } = {}) {
+    async openSkip(btn, { focusRow = null, was = false } = {}) {
       const it = SKIPS.get(btn.dataset.skip); if (!it) return;
       skipOrigin = { file: it.file, home: btn.closest("[id]")?.id || "", focused: null };
       await placeFresh();
@@ -404,7 +404,17 @@
       if (focusRow != null) {   // 確かめの窓をやめた後: 押した行に焦点（menu が 1 つ目の行へ置く焦点の後に）
         requestAnimationFrame(() => requestAnimationFrame(() => {
           const rowsOf = [...document.querySelectorAll(".tpa-skipmenu button[role=menuitem]")].filter((b) => !b.disabled && b.querySelector(".tm-ico.is-del"));
-          (rowsOf[focusRow] || rowsOf[0])?.focus({ preventScroll: true });
+          const b = rowsOf[focusRow] || rowsOf[0];
+          b?.focus({ preventScroll: true });
+          // マウスで「やめる」を押したとき（版 3.111.0。共通の決め 1）: マウスの後は :focus-visible が出ないので、押した行に輪と札「やめた行」を付ける。
+          // 4 秒か、別の行へ焦点が移るか、キーを押すと消す（焦点はその行のまま）
+          if (b && was) {
+            b.classList.add("was");
+            const clear = () => { b.classList.remove("was"); clearTimeout(t); b.removeEventListener("blur", clear); document.removeEventListener("keydown", clear, true); };
+            const t = setTimeout(clear, 4000);
+            b.addEventListener("blur", clear);
+            document.addEventListener("keydown", clear, true);
+          }
         }));
       }
     },
@@ -437,7 +447,7 @@
         if (badge && how !== "back") {
           const sk = it.d.skipped || [];   // 面の行の並び（この画面の行 → ほかの画面の行）のうち、消せる行の中の何番目か
           const n = [...sk.filter(it.hit), ...sk.filter((x) => !it.hit(x))].filter((x) => TPA.skipRoute(it.file, x.source || "", x.id, x)).indexOf(s);
-          TPA.openSkip(badge, { focusRow: n >= 0 ? n : 0 });
+          TPA.openSkip(badge, { focusRow: n >= 0 ? n : 0, was: how === "cancel" });
         } else badge?.focus({ preventScroll: true });
         return;
       }

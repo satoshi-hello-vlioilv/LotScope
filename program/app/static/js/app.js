@@ -195,7 +195,7 @@ function viewCols() {
 }
 
 /* ---------------- 状態表示 ---------------- */
-function setStatus(t, cls = "") { const s = $("#status"); s.textContent = t; s.className = "pill " + cls; }
+function setStatus(t, cls = "") { const s = $("#status"); s.textContent = t; s.className = "pill " + cls; paintIdle(); }
 function fail(m) { const e = $("#error"); e.textContent = m; e.classList.remove("hidden"); setStatus("エラー", "err"); }
 function clearError() { $("#error").classList.add("hidden"); }
 
@@ -294,10 +294,7 @@ function paintRevoked(r) {
     + "そのあいだマスタは読むだけです。" + (r.reason ? ` 理由: ${r.reason}` : "");
 }
 function paintBeat(d) {
-  // 中身（Python）の様子（版 3.111.0。心拍は中身が止まっていても窓が 200 で答える）。仮の形: 札の説明だけ替える（見せ方は画面の案で決める）
-  const py = d && d.python, conn = $("#conn");
-  if (py && conn) conn.title = py.state === "stopped" ? `窓とは接続中。アプリの中身（Python）は止まっています${py.why ? `: ${py.why}` : ""}`
-    : py.state === "starting" ? "窓とは接続中。アプリの中身（Python）を起こしています" : "アプリの中身（Python）と接続中";
+  if (d && d.python && typeof d.python === "object") setPython(d.python);   // 中身（Python）の様子（版 3.111.0。心拍は止まっていても窓が 200）
   state.versionNotice = (d && d.version) || null;
   paintVersionNotice();
   if (d && "revoked" in d) paintRevoked(d.revoked);
@@ -584,6 +581,117 @@ document.addEventListener("tpa:error", (e) => fail(e.detail));
 document.addEventListener("tpa:masters-changed", () => {          // マスタが変わった → 表に工程があれば計算し直す
   if (state.rows.some((r) => (r.equipment || "").trim())) recalc();
 });
+
+/* ---------------- 中身（Python）の様子（版 3.111.0。2026-11-stage2b-ui.json の 2 回目で決めた I） ----------------
+   心拍は窓が答えるので、中身（Python）が止まっても「接続 ●」・権限の札・「マスタ管理」は窓の答えのまま。止まった・起こしている間は、見出しのすぐ下
+   （切断の帯と同じ置き場）に 1 段の知らせの段（#pyBar。［もう一度起こす］［詳しく］［畳む］）を出し、画面を 38px 縮める（表に重ねない）。
+   畳むと段は消え、見出しの字の札「中身 停止」（#pyPill。button）が残り、押すと段が戻る。段が出ている間は札を出さない（同じことを 2 か所で言わず、
+   1728 で見出しのタブの絵を残す。採点の作るときの指摘 b）。起きたら段に「✓ 中身（Python）が動きました」を 2.5 秒出してから畳み、権限を読み直す（指摘 d・f）。
+   様子の元は心拍の答えの python と、窓が起こした結果を知らせる tpa:python（main.rs の band）。暇なときの「待機中」の札は止まっている間だけ隠す（指摘 c） */
+state.py = { state: "ready", why: "" };
+state.pyBarClosed = false;
+let pyOkTimer = 0, connPopOff = null;
+const PY_USE = "画面・ダッシュボード・一覧・マスタ管理は使えます（窓が読めない一部の形だけ使えません）";
+function setPython(p) {
+  const next = { state: ["ready", "starting", "stopped"].includes(p && p.state) ? p.state : "ready", why: String((p && p.why) || "") };
+  const was = state.py.state;
+  if (next.state === was && next.why === state.py.why) return;
+  state.py = next;
+  if (was === "ready" && next.state !== "ready") state.pyBarClosed = false;   // 新しく止まったら段を出す
+  if (next.state === "ready" && was !== "ready") {
+    loadMe();                                  // 起きた後も窓の名乗りで読み直す（前は起きた後に権限を読み直さず、札が空のままだった）
+    closeConnPop();
+    if (!state.pyBarClosed && !$("#pyBar").hidden) { flashPyOk(); return; }
+  }
+  paintPython();
+}
+/** 段の出し入れで表が 38px 動いても、送り位置（scrollTop）を保つ（選んだ行は描き直さない） */
+function keepScroll(f) {
+  const scr = [...document.querySelectorAll('[id$="Screen"]:not(.hidden) *')].filter((el) => el.scrollTop > 0).map((el) => [el, el.scrollTop]);
+  f();
+  for (const [el, top] of scr) el.scrollTop = top;
+  requestAnimationFrame(() => { for (const [el, top] of scr) if (el.isConnected && el.scrollTop !== top) el.scrollTop = top; });
+}
+function flashPyOk() {
+  const bar = $("#pyBar");
+  clearTimeout(pyOkTimer);
+  bar.className = "py-bar is-ok"; bar.dataset.key = "ok";
+  bar.innerHTML = "<b>✓ 中身（Python）が動きました</b><span>中身の要る形も、もう使えます</span>";
+  paintPill();
+  pyOkTimer = setTimeout(() => { pyOkTimer = 0; paintPython(); }, 2500);
+}
+function paintPill() {
+  const p = state.py, pill = $("#pyPill"), conn = $("#conn"), down = p.state !== "ready";
+  pill.hidden = !(down && state.pyBarClosed);
+  pill.textContent = p.state === "starting" ? "中身 起動中…" : "中身 停止";
+  pill.classList.toggle("is-wait", p.state === "starting");
+  pill.title = p.state === "starting" ? "中身（Python）を起こしています" : `窓とはつながっています。中身（Python）が止まっています${p.why ? `: ${p.why}` : ""}（押すと知らせの段を出します）`;
+  if (conn && conn.classList.contains("conn-ok")) conn.title = down ? "画面とアプリ（窓）はつながっています（中身〈Python〉の様子は右の札・見出しの下の段）" : "アプリ（窓）と中身（Python）に接続中";
+  paintIdle();
+}
+/** 止まっている間だけ、暇なときの「待機中」の札を隠して幅を返す（計算中・エラーの札は出す） */
+function paintIdle() {
+  const st = $("#status"); if (!st || !state.py) return;
+  const hide = state.py.state !== "ready" && st.textContent.trim() === "待機中";
+  st.classList.toggle("idle-hide", hide);
+  $(".hstat").classList.toggle("py-last", hide && !$("#pyPill").hidden);
+}
+function paintPython() {
+  if (pyOkTimer) return;                       // 「動きました」を出している間は描き直さない
+  const p = state.py, bar = $("#pyBar"), down = p.state !== "ready", show = down && !state.pyBarClosed;
+  const key = show ? `${p.state}|${p.why}` : "";
+  const had = bar.contains(document.activeElement) ? (document.activeElement.dataset.py || "bar") : "";
+  if (bar.dataset.key !== key || bar.hidden === show) {
+    keepScroll(() => {
+      bar.className = "py-bar"; bar.dataset.key = key;
+      bar.hidden = !show;
+      document.body.classList.toggle("py-band-on", show);
+      bar.innerHTML = !show ? "" : `<b>⚠ 中身（Python）が${p.state === "starting" ? "起きるのを待っています…" : "止まっています"}</b><span title="${esc(p.why)}">${PY_USE}</span>`
+        + (p.state === "stopped" ? '<button type="button" class="py-restart" data-py="restart" title="中身（Python）をもう一度起こします">もう一度起こす</button>'
+          + '<button type="button" data-py="more" aria-haspopup="dialog" title="画面と窓・中身のつながりと、止まった理由">詳しく</button>'
+          + '<button type="button" data-py="fold" title="畳みます（見出しの「中身 停止」の札は残ります）">畳む</button>' : "");
+    });
+    bar.tabIndex = -1;
+    const b = (k) => bar.querySelector(`[data-py="${k}"]`);
+    if (b("restart")) b("restart").onclick = pyRetry;
+    if (b("more")) b("more").onclick = (e) => openConnPop(e.currentTarget);
+    if (b("fold")) b("fold").onclick = () => { state.pyBarClosed = true; paintPython(); $("#pyPill").focus(); };
+    if (had && show) (b(had) || bar).focus({ preventScroll: true });   // 描き直しても焦点を段の中に残す
+  }
+  paintPill();
+  if (typeof fitTabs === "function") fitTabs();
+}
+async function pyRetry() {
+  closeConnPop();
+  setPython({ state: "starting", why: "" });
+  try { await fetch("/__desktop/backend/retry", { method: "POST" }); } catch (_) { /* 窓の外（開発のサーバー）では起こし直しの口が無い */ }
+}
+function closeConnPop() { const pop = $("#connPop"); if (pop) pop.remove(); if (connPopOff) connPopOff(); connPopOff = null; }
+/** 接続の様子の面（段の「詳しく」から。押した物の下、入らなければ上に開く） */
+function openConnPop(anchor) {
+  closeConnPop();
+  const p = state.py, r = anchor.getBoundingClientRect();
+  document.body.insertAdjacentHTML("beforeend", `<div id="connPop" class="conn-pop" role="dialog" aria-label="接続の様子">
+    <div class="cp-h"><span>接続の様子</span><button type="button" data-cp="close" aria-label="閉じる">✕</button></div>
+    <div class="cp-r"><i></i><b>画面と窓</b><span>つながっています</span></div>
+    <div class="cp-r${p.state === "ready" ? "" : " off"}"><i></i><b>中身（Python）</b><span>${p.state === "ready" ? "動いています" : p.state === "starting" ? "起こしています" : "止まっています"}</span></div>
+    <p>${esc(p.why)}${p.why ? "\n" : ""}画面・ダッシュボード・一覧・マスタ管理は使えます。窓が読めない一部の形（例: https のスケジュール）だけ使えません。</p>
+    ${p.state === "stopped" ? '<div class="cp-a"><button type="button" class="py-restart" data-cp="restart">もう一度起こす</button></div>' : ""}</div>`);
+  const pop = $("#connPop");
+  pop.style.left = `${Math.max(8, Math.min(innerWidth - pop.offsetWidth - 8, r.right - pop.offsetWidth))}px`;
+  pop.style.top = `${r.bottom + 8 + pop.offsetHeight > innerHeight - 8 ? Math.max(8, r.top - pop.offsetHeight - 8) : r.bottom + 8}px`;
+  const back = () => { closeConnPop(); if (anchor.isConnected) anchor.focus({ preventScroll: true }); };
+  pop.querySelector('[data-cp="close"]').onclick = back;
+  const rs = pop.querySelector('[data-cp="restart"]'); if (rs) rs.onclick = pyRetry;
+  connPopOff = TPA.dismissable(pop, (byEsc) => { connPopOff = null; pop.remove(); if (byEsc && anchor.isConnected) anchor.focus({ preventScroll: true }); }, { keep: anchor });
+  (rs || pop.querySelector('[data-cp="close"]')).focus({ preventScroll: true });
+}
+$("#pyPill").onclick = () => {                 // 畳んだ段を戻す（焦点は段へ移す: 札は段が出ている間は出さない）
+  state.pyBarClosed = false; paintPython();
+  const bar = $("#pyBar"); (bar.querySelector('[data-py="restart"]') || bar).focus({ preventScroll: true });
+};
+window.addEventListener("tpa:python", (e) => setPython(e.detail));   // 窓が起こした結果（main.rs の band。心拍を待たずに）
+if (window.__tpaPython) setPython(window.__tpaPython);
 
 /* ---------------- 心拍（利用状況・接続） ----------------
    数秒ごとに /api/heartbeat へ送る。答えで「接続 ●」と、見出しの版の札（新しい版あり・切断）を決める。
