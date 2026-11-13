@@ -130,6 +130,21 @@ def build(quality=1500, work_rows=400, wip=1200):
     (WORK / "masters" / "want.json").write_text(json.dumps({"schema": 1, "version": "3.12.0", "masters": {
         "dir": "\\\\nlmsrvngy03\\工場内共有\\検査データ\\Masters", "setAt": "2026-10-15T14:30:00", "setBy": "user", "setPc": "PC-01"}},
         ensure_ascii=False), encoding="utf-8")
+    # 置き場の読めない行（版 3.107.0。ui-eval-skiprows.mjs が一覧の知らせの札を撮る・確かめる）: 手で直して壊した行を、手元のマスタの
+    # ファイル（base/data。行の配列）へ足す。名前が数・版が読めない・中身に NaN・id が字の行
+    if os.environ.get("TPA_UI_BAD_ROWS"):
+        data = WORK / "base" / "data"
+        bad = {"dashboards": [{"id": 900, "名前": 5, "元": "dash", "範囲": "共通", "中身": "{}", "rev": 1},
+                              {"id": 901, "名前": "壊れたカード", "元": "card:lot", "範囲": "共通", "中身": "{\"items\": [{\"w\": NaN}]}", "rev": 1},
+                              {"id": 902, "名前": "壊れたセット", "元": "dashset", "範囲": "共通", "中身": "{\"items\": [\"1\"]}", "rev": "二"}],
+               "pivot_presets": [{"id": 900, "名前": "壊れた組み方", "元": "lot", "範囲": "共通", "中身": "{\"rows\": [{\"column\": \"合金\", \"part\": [1]}]}"}],
+               "display_formats": [{"id": 900, "名前": 5, "元": "lot", "中身": "{}"}, {"id": 901, "名前": 6, "元": "work", "中身": "{}"}],
+               "equipment_master": [{"id": "x", "設備名": "壊れた設備"}]}
+        for name, rows in bad.items():
+            f = data / f"{name}.json"
+            have = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
+            have = have["rows"] if isinstance(have, dict) else have
+            f.write_text(json.dumps(have + rows, ensure_ascii=False, indent=2), encoding="utf-8")
     (folder / "実績_SL3.sqlite3").unlink()
     old = time.time() - 80 * 3600                    # 1 台（HOT）は更新が止まった形（80 時間前）
     os.utime(folder / "実績_HOT.sqlite3", (old, old))

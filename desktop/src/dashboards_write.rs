@@ -184,17 +184,26 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if place.split_file(name) || (route == Route::List && (place.split_file(SETTINGS) || !store.seed_absent(&[name, SETTINGS]))) {
         return None;
     }
-    let rows = place.rows(name).ok()?;
-    if !pr::rows_plain(&rows) {
-        return None;
-    }
+    // 置き場の読めない行は隔てる（版 3.107.0。前は任せた）。組ごとの中身の確かめ（組み込みと同じ名前の行・外した組み込み・前の版の条件）は
+    // まだ任せる（Python は LayoutError の 500・AttributeError で落ちる。row_check で隔てる形にしていない）
+    let (all, iso) = pr::read_rows(&place.rows(name).ok()?, name)?;
+    let rows = pr::good_rows(&all, &iso);
     let who = Who::of(me, name);
     if route == Route::List {
-        let settings = place.rows(SETTINGS).ok()?;
-        if !settings.iter().all(Value::is_object) {
-            return None; // Python の _list は表でない行で落ちる
+        // 前の版の条件のマスタの読めない行（表でない・条件が表でない）は隔てて読む（版 3.107.0。前は Python が落ちた）
+        let mut settings = place.rows(SETTINGS).ok()?;
+        crate::master_rows::normalize_all(
+            &mut settings,
+            &master_rows::Spec { name: SETTINGS, fields: &["キー", "条件", "備考"], unique: Some("キー"), renamed: &[] },
+        );
+        if crate::row_check::wide_content(SETTINGS, &settings) {
+            return None;
         }
-        return list(&rows, &settings, &who);
+        let siso = crate::row_check::check(SETTINGS, &settings, &["キー", "条件", "備考"]);
+        let settings = pr::good_rows(&settings, &siso);
+        let mut out = list(&rows, &settings, &who)?;
+        crate::row_check::notes(out.1.as_object_mut().unwrap(), &iso, place.share_problem(name));
+        return Some(out);
     }
     if master_rows::unreadable(body) {
         return None;
@@ -202,13 +211,17 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
     let tree: Tree = if blank { Tree::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64| rows.iter().find(|r| master_rows::same_id(r, id)).and_then(Value::as_object);
+    let find = |id: i64| pr::find_row(name, &all, &iso, id);
     if let Route::Delete(id) = route {
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
         let base = base_rev(&parsed, query);
-        let Some(old) = find(id).filter(|r| is_dash(r)) else { return Some((200, json!({"ok": true}))) };
+        let found = match find(id) {
+            Ok(f) => f,
+            Err(a) => return Some(a),
+        };
+        let Some(old) = found.filter(|r| is_dash(r)) else { return Some((200, json!({"ok": true}))) };
         if let Err(a) = who.gate(old, WHAT) {
             return Some(a);
         }
@@ -260,7 +273,11 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
             // routes/dashboard.dashboards_update: id の行が無いかダッシュボードでなければ「見つかりません」
-            let Some(old) = find(id).filter(|r| is_dash(r)) else {
+            let found = match find(id) {
+                Ok(f) => f,
+                Err(a) => return Some(a),
+            };
+            let Some(old) = found.filter(|r| is_dash(r)) else {
                 return Some(layout_error(format!("id={id} が見つかりません（ほかの PC が消した可能性があります）。")));
             };
             if let Err(a) = who.gate(old, WHAT) {

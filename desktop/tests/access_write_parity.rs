@@ -90,7 +90,7 @@ fn files(root: &Path) -> Map<String, Value> {
         names.sort();
         for n in names {
             let b = std::fs::read(root.join(d).join(&n)).unwrap();
-            let v = serde_json::from_slice::<Value>(&b).unwrap_or_else(|_| json!("<読めない>"));
+            let v = common::file_value(&b);
             out.insert(format!("{d}/{n}"), norm(&v));
         }
     }

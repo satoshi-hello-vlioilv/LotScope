@@ -336,11 +336,14 @@ SCENARIOS = [
         {"id": 15, "名前": "大きな表示順", "入力": "[]", "判定": "[]", "表示順": "1" + "0" * 20, "rev": 1}], "steps": [], "delegates": [
         S("GET", C), S("GET", f"{C}/export"), S("POST", C, T("x")), S("PUT", f"{C}/1", {"name": "x"}),
         S("POST", f"{C}/import", {"items": [T("x")]})]},
-    {"name": "置き場の行の版が読めない", "mode": "shared", "extra_rows": [{"id": 16, "名前": "版が字", "rev": "abc"}], "steps": [],
-     "delegates": [S("GET", C), S("POST", C, T("x")), S("DELETE", f"{C}/16")]},
-    {"name": "置き場の判定の字が NaN", "mode": "shared", "extra_rows": [{"id": 17, "名前": "NaN の判定", "判定": '[{"when": {}, "out": NaN}]',
+    # 版 3.107.0（E3・E4）: 読めない行は隔てて答える（一覧は skipped・触れる直す・消す・標準に戻す・同じ名前の取り込みは断る・足すは通す）
+    {"name": "置き場の行の版が読めない（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 16, "名前": "版が字", "rev": "abc"}], "steps": [],
+     "delegates": [W(x) for x in [S("GET", C), S("POST", C, T("x")), S("DELETE", f"{C}/16"), S("POST", f"{C}/16/preset"),
+                                  S("POST", f"{C}/import", {"items": [T("版が字")]}), S("GET", f"{C}/export")]]},
+    {"name": "置き場の判定の字が NaN（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 17, "名前": "NaN の判定", "判定": '[{"when": {}, "out": NaN}]',
                                                                        "rev": 1}], "steps": [],
-     "delegates": [S("GET", C), S("PUT", f"{C}/1", {"name": "x"})]},
+     "delegates": [W(x) for x in [S("GET", C), S("PUT", f"{C}/1", {"name": "x"}), S("PUT", f"{C}/17", {"name": "y"}),
+                                  S("POST", f"{C}/defaults", {"from": "current"})]]},
 ]
 # 作った後の採点で見つけた割れ: 共有にまだ無いとき、Python はその道が読むマスタだけに最初の版を置く（道ごとに 1 場面で、置かれるファイルを突き合わせる）
 SEED_STEPS = [

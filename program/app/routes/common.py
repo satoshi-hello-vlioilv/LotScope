@@ -110,6 +110,18 @@ def find_row(rows, item_id):
     return next((r for r in rows if r.get("id") == item_id), None)
 
 
+def row_notes(repo, name, skipped):
+    """一覧の答えに添える知らせ（版 3.107.0。無ければ足さない）: 隔てた行（skipped: [{row, why}]。repo.view）と、共有のファイルが
+    読めない理由（unreadable。読みは写しで続ける）。窓の desktop/src/row_check.rs の notes と同じ"""
+    out = {}
+    if skipped:
+        out["skipped"] = skipped
+    why = repo.share_problem(name)
+    if why:
+        out["unreadable"] = why
+    return out
+
+
 # ---------------- この PC の名乗りと権限（services/access.py が答える。ここは渡すだけ） ----------------
 _REVOKE_CACHE = {"at": 0.0, "key": "", "value": None}
 

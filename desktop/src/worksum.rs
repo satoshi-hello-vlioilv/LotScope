@@ -172,6 +172,8 @@ pub fn py_str(v: &Value) -> String {
     match v {
         Value::Null => "None".into(),
         Value::Bool(b) => if *b { "True" } else { "False" }.into(),
+        // 置き場の持っている値（NaN・Infinity。src/held.rs）は元の値の str()（nan・inf）。版 3.107.0
+        Value::String(_) if crate::held::is_held(v) => crate::held::repr(v),
         Value::String(s) => s.clone(),
         Value::Number(n) => {
             if let Some(i) = n.as_i64() {
@@ -182,7 +184,8 @@ pub fn py_str(v: &Value) -> String {
                 pyfmt::float_repr(n.as_f64().unwrap_or(0.0))
             }
         }
-        x => x.to_string(),
+        // 並び・表は Python の repr の字（['x']・{'a': 1}。版 3.107.0: 隔てた行の名前の重なりも Python の _key(str(v)) と同じに比べる。前は JSON の字）
+        x => crate::held::repr(x),
     }
 }
 

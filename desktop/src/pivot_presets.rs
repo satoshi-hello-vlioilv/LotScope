@@ -117,6 +117,28 @@ fn container(v: Option<&Value>) -> bool {
     matches!(v, Some(Value::Array(_) | Value::Object(_)))
 }
 
+/// 置き場の行の中身の形が窓と同じに扱えない理由（版 3.107.0。隔てる。Python の pivot_presets.row_problem と同じ）:
+/// 段（rows・cols の先頭 3 つ）の part・値（measures の先頭 4 つ）の column・expr が並び・表
+pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
+    let t = row.get("中身")?.as_str()?;
+    let t = if t.is_empty() { "{}" } else { t };
+    let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return None };
+    for k in ["rows", "cols"] {
+        let bad = b
+            .get(k)
+            .and_then(Value::as_array)
+            .is_some_and(|ds| ds.iter().take(3).filter_map(Value::as_object).any(|d| container(d.get("part"))));
+        if bad {
+            return Some(format!("中身の段（{k}）の part が並び・表です"));
+        }
+    }
+    let bad = b
+        .get("measures")
+        .and_then(Value::as_array)
+        .is_some_and(|ms| ms.iter().take(4).filter_map(Value::as_object).any(|m| container(m.get("column")) || container(m.get("expr"))));
+    bad.then(|| "中身の値（measures）の column・expr が並び・表です".to_string())
+}
+
 /// 中身（表）を窓が Python と同じに扱えるか（上の「任せる形」）
 fn body_obj_plain(b: &Value) -> bool {
     let Some(b) = b.as_object() else { return true };
@@ -307,21 +329,21 @@ fn quick_for(rows: &[Value], source: &str, login: &str) -> Result<Option<Vec<Str
 /// default_quick: 共通デフォルトのうち開発者が置いた物（id の順）→ 組み込みの quick の物
 fn default_quick(items: &[Value]) -> Vec<String> {
     let mut placed: Vec<&Value> = items.iter().filter(|x| x["scope"] == "default" && x["builtin"] != true).collect();
-    placed.sort_by_key(|x| x["id"].as_i64().unwrap_or(0));
+    placed.sort_by_key(|x| x["id"].as_i64().or_else(|| x["id"].as_bool().map(i64::from)).unwrap_or(0)); // 真は 1・偽は 0（Python の int）
     let mut out: Vec<String> = placed.iter().map(|x| py_str(&x["id"])).collect();
     out.extend(items.iter().filter(|x| x["builtin"] == true && x.get("quick").is_some_and(truthy)).map(|x| py_str(&x["id"])));
     out
 }
 
-/// すぐに見るの置き場の行を窓が Python と同じに読めるか（置く項目は字か無い・並びの字は serde が Python と同じに読める）
-fn quick_rows_plain(rows: &[Value]) -> bool {
-    rows.iter().all(|r| {
-        r.as_object().is_some_and(|o| {
-            master_rows::row_readable(o)
-                && QUICK_FIELDS.iter().all(|k| o.get(*k).is_none_or(Value::is_string))
-                && o.get("並び").and_then(Value::as_str).is_none_or(|t| !master_rows::text_split(t))
-        })
-    })
+/// すぐに見るの置き場の行（版 3.107.0）: 形をそろえ、隔てた行を分ける → (隔てた行を除いた行, 隔てた行)。並びの字に i64 に入らない整数があれば None（H2）
+fn quick_read(rows: &[Value]) -> Option<(Vec<Value>, master_rows::Iso)> {
+    let mut rows = rows.to_vec();
+    master_rows::normalize_all(&mut rows, &QUICK_SPEC);
+    if crate::row_check::wide_content(QUICK_NAME, &rows) {
+        return None;
+    }
+    let iso = crate::row_check::check(QUICK_NAME, &rows, &QUICK_FIELDS);
+    Some((pr::good_rows(&rows, &iso), iso))
 }
 
 /// 置き場から行を読んで答える（Lot::presets_route と試験 tests/presets_parity.rs の入口）。窓が答えない形は None
@@ -335,16 +357,15 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if names.iter().any(|n| place.split_file(n)) || (route == Route::List && !store.seed_absent(names)) {
         return None;
     }
-    let rows = place.rows(NAME).ok()?;
-    if !pr::rows_plain(&rows) || !rows.iter().filter_map(Value::as_object).all(|r| body_plain(r.get("中身"))) {
+    // 置き場の読めない行は隔てる（版 3.107.0。中身の段・値の形は row_problem で。前は任せた）。長い chartAt の字（大きな整数。H2）はまだ任せる
+    let (all, iso) = pr::read_rows(&place.rows(NAME).ok()?, NAME)?;
+    let rows = pr::good_rows(&all, &iso);
+    if !rows.iter().filter_map(Value::as_object).all(|r| body_plain(r.get("中身"))) {
         return None;
     }
     let who = Who::of(me, NAME);
     if route == Route::List {
-        let quick_rows = place.rows(QUICK_NAME).ok()?;
-        if !quick_rows_plain(&quick_rows) {
-            return None;
-        }
+        let (quick_rows, quick_iso) = quick_read(&place.rows(QUICK_NAME).ok()?)?;
         let q = crate::lotlist::parse_query(query);
         let src = q.iter().find(|(k, _)| k == "source").map(|(_, v)| v.clone()).unwrap_or_default();
         if !crate::dashboard::is_screen_source(&src) {
@@ -361,9 +382,10 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         items.extend(builtins(&src));
         let chosen = quick_for(&quick_rows, &src, &who.login).ok()?;
         let known: Vec<String> = items.iter().map(|x| py_str(&x["id"])).collect();
-        // 既定のすぐに見るは共通デフォルトの行を id で並べる（Python の sorted。真偽・小数・null の id は比べ方が違う・null は TypeError）
+        // 既定のすぐに見るは共通デフォルトの行を id で並べる（Python の sorted。小数・null・字の id の行は版 3.107.0 から隔てる。
+        // u64 の id〈i64 に入らない〉は比べ方が違うので任せる）
         let placed: Vec<&Value> = items.iter().filter(|x| x["scope"] == "default" && x["builtin"] != true).collect();
-        if placed.len() >= 2 && placed.iter().any(|x| x["id"].as_i64().is_none()) {
+        if placed.len() >= 2 && placed.iter().any(|x| x["id"].as_i64().is_none() && !x["id"].is_boolean()) {
             return None;
         }
         let dflt = default_quick(&items);
@@ -371,25 +393,32 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             Some(c) => c.iter().filter(|k| known.contains(k)).cloned().collect(),
             None => dflt.clone(),
         };
-        return Some((
-            200,
-            json!({"items": items, "login": who.login, "canEditCommon": who.common_ok, "canEditDefault": who.default_ok,
-                   "standardId": std.and_then(|r| r.get("id")).cloned().unwrap_or(Value::Null),
-                   "quick": quick, "quickCustom": chosen.is_some(), "quickDefault": dflt}),
-        ));
+        let mut out = json!({"items": items, "login": who.login, "canEditCommon": who.common_ok, "canEditDefault": who.default_ok,
+                             "standardId": std.and_then(|r| r.get("id")).cloned().unwrap_or(Value::Null),
+                             "quick": quick, "quickCustom": chosen.is_some(), "quickDefault": dflt});
+        let o = out.as_object_mut().unwrap();
+        crate::row_check::notes(o, &iso, place.share_problem(NAME));
+        if !quick_iso.is_empty() {
+            o.insert("quickSkipped".into(), crate::row_check::skipped_of(&quick_iso));
+        }
+        return Some((200, out));
     }
     if master_rows::unreadable(body) {
         return None;
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64| rows.iter().find(|r| master_rows::same_id(r, id)).and_then(Value::as_object);
+    let find = |id: i64| pr::find_row(NAME, &all, &iso, id);
     if let Route::Delete(id) = route {
         if truthy(&parsed) && !parsed.is_object() {
             return None; // 消す道は先に base_rev が本文を読む（表でない真の本文は Python では道の外の例外）
         }
         let base = base_rev(&parsed, query);
-        let Some(old) = find(id) else { return Some((200, json!({"ok": true}))) };
+        let found = match find(id) {
+            Ok(f) => f,
+            Err(a) => return Some(a),
+        };
+        let Some(old) = found else { return Some((200, json!({"ok": true}))) };
         if let Err(a) = who.gate(old, WHAT) {
             return Some(a);
         }
@@ -407,10 +436,8 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if route == Route::Quick {
         // すぐに見るの置き場の行も、窓が Python と同じに読めること（表でない行は Python が落ちて書かない）。
         // 自分の行が中身まで同じ物を 2 つ持つ形は、quick_put が Python の rows.remove(r)（== で先の行を消す）を写す（版 3.106.0）
-        let quick_rows = place.rows(QUICK_NAME).ok()?;
-        if !quick_rows_plain(&quick_rows) {
-            return None;
-        }
+        // すぐに見るの置き場の表でない行は書かない（版 3.102.0。quick_set の _normalize_all）・読めない行は隔てて書き戻す（版 3.107.0）
+        quick_read(&place.rows(QUICK_NAME).ok()?)?;
         return quick_put(store, &who, d);
     }
     // 本文の欄の型（名前・備考・範囲・段の part・値の column・expr が並び・表）は本文の門が断る（body_rules.TYPES。版 3.106.0。前は
@@ -433,8 +460,12 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
-            // routes/common.find_row: id の合う最初の行（元は見ない）
-            let Some(old) = find(id) else { return Some(preset_error(format!("id={id} が見つかりません。"))) };
+            // routes/common の repo.find: id の合う最初の行（元は見ない。隔てた行なら書かない）
+            let found = match find(id) {
+                Ok(f) => f,
+                Err(a) => return Some(a),
+            };
+            let Some(old) = found else { return Some(preset_error(format!("id={id} が見つかりません。"))) };
             if let Err(a) = who.gate(old, WHAT) {
                 return Some(a);
             }
@@ -474,13 +505,15 @@ fn quick_put(store: &Store, who: &Who, d: &Map<String, Value>) -> Option<Answer>
     };
     let login = who.login.clone();
     let done = store.write(QUICK_NAME, |rows, stamp| {
-        master_rows::normalize_all(rows, &QUICK_SPEC);
+        let iso = master_rows::prepare(rows, &QUICK_SPEC)?;
         // Python の quick_set を写す: mine = 自分の行（id は Python の物の同一）。mine[1:]（既定に戻すときは mine[:1] も）を
         // rows.remove(r) で消す。remove は == で「先に並ぶ同じ中身の行」を消すので、中身まで同じ行が 2 つあると mine[0] の方が消え、
         // その後で書き換える mine[0] は並びに残らない（書いた答えを返すが、ファイルには前の行が残る。版 3.106.0）
         let mut slots: Vec<(usize, Value)> = std::mem::take(rows).into_iter().enumerate().collect();
         let is_mine = |r: &Value| r["ログインID"].as_str() == Some(login.as_str()) && r["元"].as_str() == Some(src);
-        let mine: Vec<(usize, Value)> = slots.iter().filter(|(_, r)| is_mine(r)).cloned().collect();
+        // 隔てた行は自分の行に数えない（そのまま書き戻す。版 3.107.0）
+        let mine: Vec<(usize, Value)> =
+            slots.iter().filter(|(i, r)| !crate::row_check::is_isolated(&iso, *i) && is_mine(r)).cloned().collect();
         let mut gone: Vec<&Value> = mine.iter().skip(1).map(|(_, r)| r).collect();
         if keys.is_none() {
             gone.extend(mine.iter().take(1).map(|(_, r)| r));

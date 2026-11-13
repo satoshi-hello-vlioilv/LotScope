@@ -151,10 +151,11 @@ fn j(v: Option<&Tree>, list: bool) -> C<Tree> {
     match v {
         Some(x @ (Tree::Arr(_) | Tree::Obj(_))) => Ok(x.clone()),
         Some(Tree::Str(s)) if !strip(s).is_empty() => {
-            if master_rows::text_split(s) {
+            // 整数の -0 は Python と同じ 0 と読む（版 3.107.0。読み手は master_rows::inner_text の 1 つ）
+            if master_rows::text_split_py(s) {
                 return Err(Bad::Delegate);
             }
-            Ok(match Tree::parse(s) {
+            Ok(match Tree::parse(&master_rows::inner_text(s)) {
                 Some(x @ Tree::Arr(_)) if list => x,
                 Some(x @ Tree::Obj(_)) if !list => x,
                 _ => dflt,
@@ -512,7 +513,12 @@ fn check(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Res
 // ------------------------------------------------------------------ 読む
 /// 読む物（置き場から。書く前に、窓が Python と同じに読めるかを確かめた物）
 struct Read {
+    /// 隔てた行を除いた行（版 3.107.0。一覧・書き出し・標準にする今の表）
     rows: Vec<Value>,
+    /// 形をそろえた全部の行（表示順を数える・名前の重なり）と隔てた行
+    all: Vec<Value>,
+    iso: master_rows::Iso,
+    unreadable: Option<String>,
     own: Vec<Value>,
     bundled: Vec<Value>,
 }
@@ -536,10 +542,10 @@ fn bundled(place: &Place) -> Option<Vec<Value>> {
     if t.starts_with('\u{FEFF}') {
         return Some(vec![]);
     }
-    if master_rows::text_split(t) {
+    if master_rows::text_split_py(t) {
         return None;
     }
-    let Ok(v) = serde_json::from_str::<Value>(t) else { return Some(vec![]) };
+    let Ok(v) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return Some(vec![]) };
     let Value::Array(mut rows) = v else { return None }; // 表は鍵を _normalize して落ちる（Python の例外）
     if !rows.iter().all(Value::is_object) {
         return None;
@@ -565,16 +571,22 @@ fn read(place: &Place) -> Option<Read> {
         }
     }
     // 種はまかずに読む（Python が読む歩でだけ道ごとの seed で置く。版 3.105.0 から Place::rows は読むときに置くので rows_peek）
-    let mut rows = place.rows_peek(NAME).ok()?;
+    let mut all = place.rows_peek(NAME).ok()?;
     let mut own = place.rows_peek(DEFAULTS).ok()?;
-    if !master_rows::rows_plain(&rows, &FIELDS) || !master_rows::rows_plain(&own, &FIELDS) {
+    master_rows::normalize_all(&mut all, &SPEC);
+    // 読めない行（id・版・名前の型・判定の NaN・入れ子）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値・標準の読めない行はまだ任せる
+    let iso = crate::row_check::check(NAME, &all, &FIELDS);
+    let rows: Vec<Value> = crate::row_check::good(&all, &iso).into_iter().cloned().collect();
+    let plain = |rows: &[Value]| {
+        rows.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain))))
+    };
+    if !plain(&rows) || !master_rows::rows_plain(&own, &FIELDS) || crate::row_check::wide_content(NAME, &rows) {
         return None;
     }
-    master_rows::normalize_all(&mut rows, &SPEC);
     master_rows::normalize_all(&mut own, &SPEC_D);
     crate::bundle::conv_views(&rows).ok()?;
     crate::bundle::conv_views(&own).ok()?;
-    let r = Read { rows, own, bundled: bundled(place)? };
+    let r = Read { rows, all, iso, unreadable: place.share_problem(NAME), own, bundled: bundled(place)? };
     // 標準の名前の集まり（{r["名前"]}・sorted）: 名前の無い・字でない行は Python が落ちる
     if !r.presets().iter().all(|p| p.get("名前").is_some_and(Value::is_string)) {
         return None;
@@ -601,9 +613,11 @@ fn listing(store: &Store, me: &Value, place: &Place, r: &Read) -> Option<Value> 
         })
         .collect();
     let map = |t: &[(&str, &str)]| Value::Object(t.iter().map(|(k, v)| (k.to_string(), json!(v))).collect());
-    Some(json!({"items": items, "ops": map(&OPS), "modes": map(&MODES), "places": map(&PLACES),
-                "presets": presets.into_iter().collect::<Vec<_>>(), "customDefaults": !r.own.is_empty(),
-                "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)}))
+    let mut out = json!({"items": items, "ops": map(&OPS), "modes": map(&MODES), "places": map(&PLACES),
+                         "presets": presets.into_iter().collect::<Vec<_>>(), "customDefaults": !r.own.is_empty(),
+                         "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)});
+    crate::row_check::notes(out.as_object_mut().unwrap(), &r.iso, r.unreadable.clone());
+    Some(out)
 }
 
 /// export_items（view から id と order を除いた物を ordered の順に）
@@ -687,11 +701,22 @@ fn defaults_set(store: &Store, rows: &[Map<String, Value>]) -> Result<usize, Mas
 /// conversion_import: 同じ名前の表は中身を置き換え（表示順と位置は残し、版を 1 つ上げる）、無い名前は後ろに足す。1 回の書き込みで行う
 fn import_rows(store: &Store, rows: &[Map<String, Value>]) -> Result<(usize, usize), MasterError> {
     store.write(NAME, |cur, stamp| {
-        master_rows::normalize_all(cur, &SPEC);
-        // {str(名前 or ""): 行}: ファイルの後ろの行が勝つ
+        let iso = master_rows::prepare(cur, &SPEC)?;
+        // {str(名前 or ""): 行}: ファイルの後ろの行が勝つ。隔てた行と同じ名前の表は取り込まない（触れる書き。版 3.107.0）
         let mut by: HashMap<String, usize> = HashMap::new();
+        let mut blocked: HashMap<String, (usize, String)> = HashMap::new();
         for (i, r) in cur.iter().enumerate() {
-            by.insert(s_or(r.get("名前")), i);
+            match iso.iter().find(|(j, _, _)| *j == i) {
+                Some((_, n, why)) => {
+                    blocked.insert(s_or(r.get("名前")), (*n, why.clone()));
+                }
+                None => {
+                    by.insert(s_or(r.get("名前")), i);
+                }
+            }
+        }
+        if let Some((n, why)) = rows.iter().find_map(|d| blocked.get(&s_or(d.get("名前")))) {
+            return Err(crate::row_check::refuse_row(NAME, *n, why));
         }
         let bad = |m: &str| MasterError::Error(m.to_string());
         let mut top: i128 =
@@ -767,7 +792,7 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 Err(Bad::Conv(m)) => return Some(conv_error(m)),
             };
             if strip(&s_or(row.get("表示順"))).is_empty() {
-                let order = master_rows::next_order(&r.rows)?;
+                let order = master_rows::next_order(&r.all)?; // 隔てた行の表示順も数える（Python の next_order(self.conversions())）
                 seed(store, place, NAME); // conversion_create は表示順を数えるために変換表を読む
                 row.insert("表示順".into(), json!(order));
             }
@@ -795,7 +820,10 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
         }
         Route::Preset(id) => {
             let base = rev_of(body, query)?;
-            seed(store, place, NAME); // 行を探す（repo.conversions()）
+            seed(store, place, NAME); // 行を探す（repo.find: 隔てた行なら書かない）
+            if let Err(e) = crate::row_check::guard(NAME, &r.all, &r.iso, id) {
+                return Some(of_master(e));
+            }
             let Some(row) = r.rows.iter().find(|x| master_rows::same_id(x, id)) else {
                 return Some((
                     404,
@@ -844,7 +872,7 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 Err(Bad::Delegate) => return None,
                 Err(Bad::Conv(m)) => return Some(conv_error(m)),
             };
-            master_rows::next_order(&r.rows)?; // 書く前に、窓が表示順を Python と同じに数えられるか
+            master_rows::next_order(&r.all)?; // 書く前に、窓が表示順を Python と同じに数えられるか
             let (added, replaced) = match import_rows(store, &rows) {
                 Ok(x) => x,
                 Err(e) => return Some(of_master(e)),

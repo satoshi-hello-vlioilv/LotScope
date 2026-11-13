@@ -121,10 +121,11 @@ fn awkward(v: &Value) -> bool {
     v.is_array() || v.is_object()
 }
 
-/// 置き場の行を窓が Python と同じに読めるか（master_rows::rows_plain: id・版と、項目〈旧い列名も〉の値の形）
+/// 置き場の行（隔てた行を除く）の項目〈旧い列名も〉の値を窓が Python の str() と同じ字に書けるか（i64 に入らない整数は H2 まで任せる。
+/// id・版・並び・表は版 3.107.0 から row_check が隔てる）
 fn readable(rows: &[Value], spec: &Spec) -> bool {
     let fields: Vec<&str> = spec.fields.iter().copied().chain(spec.renamed.iter().map(|(old, _)| *old)).collect();
-    master_rows::rows_plain(rows, &fields)
+    rows.iter().all(|r| r.as_object().is_some_and(|o| fields.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain))))
 }
 
 /// 必須の列が空か（routes/masters._blank: null も空。0・False は空でない）
@@ -142,15 +143,19 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
     // 表でない行（版 3.102.0 の作った後の採点の割れ 1）: 一覧は読める行だけで答え（Python と同じ。読めない行はマスタの置き場の状態の badRows が言う）、
     // 書く道は断る（前は Python に任せた）
     let bad = master_rows::bad_rows(rows);
-    let good: Vec<Value> = rows.iter().filter(|r| r.is_object()).cloned().collect();
+    // 読めない行（id・版・項目の型・数でない値）は隔てる（版 3.107.0。前は任せた）。一覧は隔てた行を除いて答え（行の並びのまま。
+    // 隔てた行はマスタの置き場の状態の skipped が言う）、書く道は隔てた行に触れる直す・消すだけを断る（master_rows::prepare）
+    let mut all = rows.to_vec();
+    master_rows::normalize_all(&mut all, spec);
+    let iso = crate::row_check::check(spec.name, &all, spec.fields);
+    let good: Vec<Value> = crate::row_check::good(&all, &iso).into_iter().cloned().collect();
     let rows = good.as_slice();
+    // i64 に入らない整数の値（u64 の数・大きな整数の形の小数）はまだ任せる（H2。Python の str() は桁のまま）
     if !readable(rows, spec) {
         return None;
     }
     if let Route::List(_) = route {
-        let mut out = rows.to_vec();
-        master_rows::normalize_all(&mut out, spec);
-        return Some((200, Value::Array(out)));
+        return Some((200, Value::Array(good)));
     }
     let blank_body = body.iter().all(|b| b.is_ascii_whitespace());
     if master_rows::unreadable_u64_ok(body) {

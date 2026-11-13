@@ -374,10 +374,9 @@ fn numbers_the_window_cannot_keep_are_refused() {
     setup(&work, &json!({"shared": true, "files": {}}));
     let st = plain_store(&work, true, 20.0);
     let share = work.join("share/equipment_master.json");
+    // 版 3.107.0: NaN・Infinity・1E400 は src/held.rs が J のまま持ち、Python の json.dumps と同じ字（NaN・Infinity）で書き戻す（下で確かめる）
     for (body, why) in [
         (r#"{"schema": 1, "revision": 1, "rows": [{"id": 1, "big": 123456789012345678901234}]}"#, "大きな整数"),
-        (r#"{"schema": 1, "revision": 1, "rows": [{"id": 1, "x": NaN}]}"#, "NaN"),
-        (r#"{"schema": 1, "revision": 1, "rows": [{"id": 1, "x": 1E400}]}"#, "1E400"),
         (r#"{"schema": 1, "revision": 9223372036854775807, "rows": []}"#, "版の端"),
     ] {
         std::fs::write(&share, body).unwrap();
@@ -386,6 +385,13 @@ fn numbers_the_window_cannot_keep_are_refused() {
         assert_eq!(std::fs::read_to_string(&share).unwrap(), body, "{why}: ファイルを変えない");
         assert!(!work.join("share").join(LOCK_FILENAME).exists(), "{why}: 錠を残さない");
     }
+    // NaN・1E400 の行は持ったまま書き戻す（Python の json.dumps と同じ NaN・Infinity の字。版 3.107.0）
+    std::fs::write(&share, r#"{"schema": 1, "revision": 1, "rows": [{"id": 1, "x": NaN, "y": [1E400, -Infinity]}]}"#).unwrap();
+    assert_eq!(append(&st, "equipment_master").unwrap(), 2);
+    let t = std::fs::read_to_string(&share).unwrap();
+    assert!(t.contains(r#""x": NaN"#) && t.contains("Infinity,") && t.contains("-Infinity"), "{t}");
+    let v = common::file_value(t.as_bytes());
+    assert_eq!((v["rows"][1]["id"].clone(), v["revision"].clone()), (json!(2), json!(2)), "{v}");
     // 字の中の大きな数・u64 に入る数は書ける
     std::fs::write(
         &share,

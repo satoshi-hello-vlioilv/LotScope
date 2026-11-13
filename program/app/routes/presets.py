@@ -7,7 +7,7 @@ from ..web import jsonify, request
 from ..services import access
 from ..services import pivot_presets as pp
 from ..services.data_sources import is_screen_source
-from .common import Forbidden, base_rev, bp, can_write, error, find_row, master_call, master_repo, me, req_body
+from .common import Forbidden, base_rev, bp, can_write, error, master_call, master_repo, me, req_body, row_notes
 
 SCOPE_ORDER = {"me": 0, "all": 1, "default": 2}
 
@@ -41,15 +41,18 @@ def presets_list():
         return error("source は lot・work・src:<キー> のどれかです。", 400)
     login, common_ok, default_ok, _ = _who()
     repo = master_repo()
-    rows = [r for r in repo.pivot_presets() if r.get("元") == src and pp.visible(r, login)]
+    every, skipped = repo.view(pp.NAME)      # 読めない行は隔てて知らせる（版 3.107.0）
+    quick_rows, quick_skipped = repo.view("pivot_quick")
+    rows = [r for r in every if r.get("元") == src and pp.visible(r, login)]
     std = pp.standard_for(rows, src, login)
     items = sorted((pp.view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
     items += pp.builtin_views(src)
-    chosen = pp.quick_for(repo.pivot_quick(), src, login)
+    chosen = pp.quick_for(quick_rows, src, login)
     known = {str(x["id"]) for x in items}
     quick = [k for k in chosen if k in known] if chosen is not None else pp.default_quick(items)
     return jsonify(items=items, login=login, canEditCommon=common_ok, canEditDefault=default_ok, standardId=std.get("id") if std else None,
-                   quick=quick, quickCustom=chosen is not None, quickDefault=pp.default_quick(items))
+                   quick=quick, quickCustom=chosen is not None, quickDefault=pp.default_quick(items),
+                   **row_notes(repo, pp.NAME, skipped), **({"quickSkipped": quick_skipped} if quick_skipped else {}))
 
 
 @bp.put("/api/pivot-quick")
@@ -91,7 +94,7 @@ def presets_update(item_id):
     base = base_rev()
 
     def go():
-        old = find_row(master_repo().pivot_presets(), item_id)
+        old = master_repo().find(pp.NAME, item_id)
         if old is None:
             raise pp.PresetError(f"id={item_id} が見つかりません。")
         _gate(old, login, common_ok, default_ok, revoked)
@@ -106,7 +109,7 @@ def presets_delete(item_id):
     base = base_rev()
 
     def go():
-        old = find_row(master_repo().pivot_presets(), item_id)
+        old = master_repo().find(pp.NAME, item_id)
         if old is not None:
             _gate(old, login, common_ok, default_ok, revoked)
             master_repo().preset_delete(item_id, base)

@@ -11,7 +11,7 @@
 import json
 from pathlib import Path
 
-from ..services import conversions, dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, shifts, work_log
+from ..services import conversions, dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, row_check, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from ..services.row_order import next_order
 from .master_store import DuplicateKey, MasterError, MasterStore, MasterUnreadable, NotFound, RowConflict, next_id
@@ -101,14 +101,60 @@ def bad_rows_text(name, bad):
     return f"{name}.json の {'・'.join(map(str, bad[:5]))}{' ほか' if len(bad) > 5 else ''} 行目が読めません（表でない行）"
 
 
+def _name_of(spec):
+    return next((k for k, v in SPECS.items() if v is spec), "マスタ")
+
+
 def _normalize_all(rows, spec):
-    """書く前に形をそろえる。表でない行があれば書かない（その行を消さない。版 3.102.0。前は AttributeError で HTML の 500）"""
+    """書く前に形をそろえる。表でない行があれば書かない（その行を消さない。版 3.102.0。前は AttributeError で HTML の 500）。
+    → 隔てた行（版 3.107.0。row_check.problem）: id(行) → (何行目, 理由)。権限の 2 つは隔てる形の行があれば書かない"""
+    name = _name_of(spec)
     bad = bad_rows(rows)
     if bad:
-        name = next((k for k, v in SPECS.items() if v is spec), "マスタ")
         raise MasterUnreadable(f"{bad_rows_text(name, bad)}。ファイルを直すまで保存しません。")
     for r in rows:
         _normalize(r, spec)
+    iso = isolated(name, rows)
+    if iso and name in STRICT_ROWS:
+        raise MasterUnreadable(f"{row_check.skipped_text(name, skipped_of(iso))}。ファイルを直すまで保存しません。")
+    return iso
+
+
+# 組ごとの中身の確かめ（版 3.107.0。窓が同じに扱えない中身の形。隔てる）。dashboards はカードの設計の行だけ（元 card:…）
+
+
+def _dashboards_extra(r):
+    from ..services import card_forms
+    return card_forms.row_problem(r) if str(r.get("元") or "").startswith(card_forms.SOURCE_PREFIX) else None
+
+
+EXTRA_CHECKS = {"display_formats": display_formats.row_problem, "pivot_presets": pivot_presets.row_problem, "dashboards": _dashboards_extra,
+                "dashboard_settings": dashboard.settings_problem, "equipment_groups": equip_groups.row_problem}
+
+
+def isolated(name, rows):
+    """隔てた行（表でない行も）: id(行) → (何行目, 理由)"""
+    fields = SPECS[name]["fields"] if name in SPECS else ()
+    extra = EXTRA_CHECKS.get(name)
+    out = {}
+    for i, r in enumerate(rows):
+        why = row_check.problem(name, r, fields) or (extra(r) if extra else None)
+        if why:
+            out[id(r)] = (i + 1, why)
+    return out
+
+
+def skipped_of(iso):
+    """隔てた行の知らせ（答えの skipped: [{row, why}]。行の順）"""
+    return [{"row": n, "why": why} for n, why in sorted(iso.values())]
+
+
+def guard(name, rows, iso, item_id):
+    """直す・消す行が隔てた行なら書かない（版 3.107.0。前は版の読めない行で英語の 400・id が字の行で「見つかりません」）"""
+    for r in rows:
+        if id(r) in iso and isinstance(r, dict) and row_check.as_int(r.get("id")) == item_id:
+            n, why = iso[id(r)]
+            raise MasterUnreadable(f"{name}.json の {n} 行目が読めません（{why}）。ファイルを直すまで保存しません。")
 
 
 class MasterRepository:
@@ -131,6 +177,26 @@ class MasterRepository:
     def bad_rows(self, name):
         """表でない行の番号（束が節を組めるかを見る）"""
         return bad_rows(self.store.read(name))
+
+    def _viewed(self, name):
+        spec = SPECS[name]
+        rows = [_normalize(r, spec) if isinstance(r, dict) else r for r in self.store.read(name)]
+        return rows, isolated(name, rows)
+
+    def view(self, name):
+        """一覧に出す行と、隔てた行の知らせ（版 3.107.0）→ (行, skipped: [{row, why}])"""
+        rows, iso = self._viewed(name)
+        return [r for r in rows if isinstance(r, dict) and id(r) not in iso], skipped_of(iso)
+
+    def find(self, name, item_id):
+        """道の id の行（隔てた行なら MasterUnreadable で書かない）。無ければ None"""
+        rows, iso = self._viewed(name)
+        guard(name, rows, iso, item_id)
+        return next((r for r in rows if isinstance(r, dict) and id(r) not in iso and r.get("id") == item_id), None)
+
+    def share_problem(self, name):
+        """共有のファイルが読めない理由（読めれば・共有しなければ None。一覧の帯）"""
+        return self.store.share_problem(name)
 
     @staticmethod
     def _find(rows, item_id):
@@ -207,7 +273,7 @@ class MasterRepository:
         spec = SPECS[name]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            guard(name, rows, _normalize_all(rows, spec), item_id)
             _, row = self._find(rows, item_id)
             if row is None:
                 if base_rev is not None:
@@ -227,7 +293,7 @@ class MasterRepository:
         spec = SPECS[name]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            guard(name, rows, _normalize_all(rows, spec), item_id)
             i, row = self._find(rows, item_id)
             if row is None:
                 if base_rev is not None:
@@ -325,9 +391,12 @@ class MasterRepository:
         spec = SPECS["path_settings"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            iso = _normalize_all(rows, spec)
             i = next((k for k, r in enumerate(rows) if r.get("項目") == key), -1)
             row = rows[i] if i >= 0 else None
+            if row is not None and id(row) in iso:      # 隔てた行は直さない・消さない（版 3.107.0。前は版の読めない行で英語の 400）
+                n, why = iso[id(row)]
+                raise MasterUnreadable(f"path_settings.json の {n} 行目が読めません（{why}）。ファイルを直すまで保存しません。")
             if base_rev is not None:
                 have = int(row.get("rev", 1)) if row else 0
                 if have != int(base_rev):
@@ -489,7 +558,8 @@ class MasterRepository:
         spec = SPECS[name]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            iso = _normalize_all(rows, spec)
+            guard(name, rows, iso, item_id)
             if item_id is None:
                 row = {"id": next_id(rows), **{k: "" for k in spec["fields"]}}
                 self._check_row(name, rows, data)
@@ -510,7 +580,8 @@ class MasterRepository:
             if row.get("標準") == "1":
                 g = pivot_presets.group_of(row)
                 for r in rows:
-                    if r is not row and r.get("標準") == "1" and pivot_presets.group_of(r) == g:
+                    # 隔てた行はそのまま書き戻す（★も外さない。版 3.107.0）
+                    if r is not row and id(r) not in iso and r.get("標準") == "1" and pivot_presets.group_of(r) == g:
                         r.update(標準="", rev=int(r.get("rev", 1)) + 1, **stamp)
             return dict(row)
         return self.store.write(name, mutate)
@@ -546,8 +617,8 @@ class MasterRepository:
         spec = SPECS["pivot_quick"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
-            mine = [r for r in rows if r.get("ログインID") == login and r.get("元") == source]
+            iso = _normalize_all(rows, spec)
+            mine = [r for r in rows if id(r) not in iso and r.get("ログインID") == login and r.get("元") == source]
             for r in mine[1:] + (mine[:1] if keys is None else []):
                 rows.remove(r)
             if keys is None:
@@ -640,8 +711,13 @@ class MasterRepository:
         spec = SPECS["conversions"]
 
         def mutate(cur, stamp):
-            _normalize_all(cur, spec)
-            by = {str(r.get("名前") or ""): r for r in cur}
+            iso = _normalize_all(cur, spec)
+            # 隔てた行と同じ名前の表は取り込まない（触れる書き。版 3.107.0。窓の import_rows と同じ）
+            by = {str(r.get("名前") or ""): r for r in cur if id(r) not in iso}
+            blocked = {str(r.get("名前") or ""): iso[id(r)] for r in cur if id(r) in iso}
+            hit = next((blocked[k] for k in (str(d.get("名前") or "") for d in rows) if k in blocked), None)
+            if hit:
+                raise MasterUnreadable(f"conversions.json の {hit[0]} 行目が読めません（{hit[1]}）。ファイルを直すまで保存しません。")
             top = int(next_order(cur)) - 10
             added = replaced = 0
             for data in rows:

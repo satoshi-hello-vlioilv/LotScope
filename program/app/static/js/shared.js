@@ -257,6 +257,17 @@
     FILTER_OPS, REL_UNIT, opLabel, opShort, noValueOp, relText, condLabel, inText, opOptions, wild, TEXT_OPS,
     /** HTML に差し込む文字を無害にする（& < > " ' ）。 */
     esc: (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ESC[c]),
+    /** 一覧の答えの読めない行・読めないファイルの知らせ（版 3.107.0。サーバーの skipped・unreadable）→ 知らせの札の HTML（無ければ ""）。
+        札の形はダッシュボードのパネルの知らせ（.db-warnb）をそのまま使う。file はマスタのファイルの名前（dashboards など） */
+    skipNote(d, file) {
+      const sk = (d && d.skipped) || [], un = d && d.unreadable;
+      if (!sk.length && !un) return "";
+      const rows = sk.slice(0, 5).map((s) => `${s.row} 行目（${s.why}）`).join("・") + (sk.length > 5 ? ` ほか ${sk.length - 5} 行` : "");
+      const lines = [un ? `${un}。前に取り込んだ写しで表示しています（ファイルを直すまで保存できません）` : "",
+        sk.length ? `${file}.json の ${rows}が読めません（ファイルを直してください。一覧では飛ばしています）` : ""].filter(Boolean);
+      const label = un ? "⚠ ファイルが読めません" : `⚠ 読めない行 ${sk.length}`;
+      return `<span class="db-warnb tpa-skip" role="note" title="${TPA.esc(lines.join("\n"))}" aria-label="${TPA.esc(lines.join("。"))}">${label}</span>`;
+    },
     $: (s, r = document) => r.querySelector(s),
     $$: (s, r = document) => [...r.querySelectorAll(s)],
     local: store(() => window.localStorage, uiState.touched),

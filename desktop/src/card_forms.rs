@@ -119,30 +119,21 @@ fn scalar(v: Option<&Value>) -> bool {
     !matches!(v, Some(Value::Array(_) | Value::Object(_)))
 }
 
-/// 置き場の行の中身（表）を窓が Python と同じに扱えるか（上の「任せる形」。本文は門が型を断るので、版 3.106.0 から置き場の行だけに使う。
-/// 置き場の行の型は版 3.107.0 の E3 で隔てる）
-fn card_plain(body: &Value) -> bool {
-    let Some(b) = body.as_object() else { return true };
-    let tabs_ok =
-        b.get("tabs").and_then(Value::as_array).is_none_or(|ts| ts.iter().filter_map(Value::as_object).all(|t| scalar(t.get("name"))));
-    let items_ok = b.get("items").and_then(Value::as_array).is_none_or(|is| {
-        is.iter().filter_map(Value::as_object).all(|it| {
-            ["label", "col", "expr", "text", "tab"].iter().all(|k| scalar(it.get(*k)))
-                && it.get("cols").and_then(Value::as_array).is_none_or(|cs| cs.iter().all(|c| scalar(Some(c))))
+/// 置き場のカードの行の中身の形が窓と同じに扱えない理由（版 3.107.0。隔てる。Python の card_forms.row_problem と同じ）
+pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
+    let t = row.get("中身")?.as_str()?;
+    let t = if t.is_empty() { "{}" } else { t };
+    let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return None };
+    if b.get("tabs").and_then(Value::as_array).is_some_and(|ts| ts.iter().filter_map(Value::as_object).any(|t| !scalar(t.get("name")))) {
+        return Some("中身のタブの名前が並び・表です".into());
+    }
+    let bad = b.get("items").and_then(Value::as_array).is_some_and(|is| {
+        is.iter().filter_map(Value::as_object).any(|it| {
+            ["label", "col", "expr", "text", "tab"].iter().any(|k| !scalar(it.get(*k)))
+                || it.get("cols").and_then(Value::as_array).is_some_and(|cs| cs.iter().any(|c| !scalar(Some(c))))
         })
     });
-    tabs_ok && items_ok
-}
-
-/// 中身の字・表 → 窓が答えてよいか（字は text_split も見る）
-fn body_plain(b: Option<&Value>) -> bool {
-    match b {
-        Some(Value::String(t)) => {
-            !master_rows::text_split_py(t) && serde_json::from_str::<Value>(&master_rows::inner_text(t)).map_or(true, |v| card_plain(&v))
-        }
-        Some(v) => card_plain(v),
-        None => true,
-    }
+    bad.then(|| "中身の項目の字の欄が並び・表です".to_string())
 }
 
 fn overlaps(a: &Map<String, Value>, b: &Map<String, Value>) -> bool {
@@ -318,14 +309,9 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if place.split_file(DASHBOARDS.name) || (route == Route::List && !store.seed_absent(&[DASHBOARDS.name])) {
         return None;
     }
-    let rows = place.rows(DASHBOARDS.name).ok()?;
-    if !pr::rows_plain(&rows) {
-        return None;
-    }
-    // 置き場のカードの行の中身も、窓が Python と同じに読み直せること（画面の形は中身を確かめ直して作る）
-    if !rows.iter().filter_map(Value::as_object).filter(|r| is_card(r)).all(|r| body_plain(r.get("中身"))) {
-        return None;
-    }
+    // 置き場の読めない行は隔てる（版 3.107.0。カードの行の中身の形も row_problem で。前は任せた）
+    let (all, iso) = pr::read_rows(&place.rows(DASHBOARDS.name).ok()?, DASHBOARDS.name)?;
+    let rows = pr::good_rows(&all, &iso);
     let who = Who::of(me, DASHBOARDS.name);
     if route == Route::List {
         let q = crate::lotlist::parse_query(query);
@@ -341,25 +327,28 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         let std = pr::standard_for(&mine, &src, &who.login);
         let mut items: Vec<Value> = mine.iter().map(|r| who.view(r, view_body(r))).collect();
         pr::sort_views(&mut items);
-        return Some((
-            200,
-            json!({"items": items, "standardId": std.and_then(|r| r.get("id")).cloned().unwrap_or(Value::Null), "login": who.login,
-                   "canEditCommon": who.common_ok, "canEditDefault": who.default_ok, "cols": [COLS.0, COLS.1, COLS.2],
-                   "row": [ROW.0, ROW.1, ROW.2], "colors": COLORS, "bgs": BGS}),
-        ));
+        let mut out = json!({"items": items, "standardId": std.and_then(|r| r.get("id")).cloned().unwrap_or(Value::Null), "login": who.login,
+                             "canEditCommon": who.common_ok, "canEditDefault": who.default_ok, "cols": [COLS.0, COLS.1, COLS.2],
+                             "row": [ROW.0, ROW.1, ROW.2], "colors": COLORS, "bgs": BGS});
+        crate::row_check::notes(out.as_object_mut().unwrap(), &iso, place.share_problem(DASHBOARDS.name));
+        return Some((200, out));
     }
     if master_rows::unreadable(body) {
         return None;
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64| rows.iter().find(|r| master_rows::same_id(r, id)).and_then(Value::as_object);
+    let find = |id: i64| pr::find_row(DASHBOARDS.name, &all, &iso, id);
     if let Route::Delete(id) = route {
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
         let base = base_rev(&parsed, query);
-        let Some(old) = find(id).filter(|r| is_card(r)) else { return Some((200, json!({"ok": true}))) };
+        let found = match find(id) {
+            Ok(f) => f,
+            Err(a) => return Some(a),
+        };
+        let Some(old) = found.filter(|r| is_card(r)) else { return Some((200, json!({"ok": true}))) };
         if let Err(a) = who.gate(old, WHAT) {
             return Some(a);
         }
@@ -393,7 +382,11 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
-            let Some(old) = find(id).filter(|r| is_card(r)) else {
+            let found = match find(id) {
+                Ok(f) => f,
+                Err(a) => return Some(a),
+            };
+            let Some(old) = found.filter(|r| is_card(r)) else {
                 return Some(card_error(format!("カードの設計 id={id} が見つかりません（ほかの PC が消した可能性があります）。")));
             };
             if let Err(a) = who.gate(old, WHAT) {

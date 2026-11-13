@@ -552,6 +552,7 @@ impl Lot {
             Some(crate::shifts_write::Read {
                 shifts: place.rows(crate::shifts_write::NAME).ok()?,
                 work_logs: place.rows("work_log_files").ok()?,
+                unreadable: place.share_problem(crate::shifts_write::NAME),
             })
         };
         let store = self.store_for(&s.access)?;
@@ -3145,9 +3146,12 @@ mod tests {
         let ask_none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
         assert!(Lot::new(dir.join("c3")).handle_body("GET", "/api/masters/equipment", "", b"", &ask_none).is_none());
         assert!(lot.handle_body("GET", "/api/masters/%65quipment", "", b"", &ask_boss).is_none());
-        // ⑥ 置き場の行の項目が並び（Python の str() の書き方）なら、一覧も書く道も Python に任せる
+        // ⑥ 置き場の行の項目が並びなら、版 3.107.0 から窓もその行を隔てて答える（一覧に出さず、触れる直す・消すは断る。前は Python に任せた）
         std::fs::write(share.join("roll_master.json"), doc(json!([{"id": 9, "設備": ["L-1"]}]))).unwrap();
-        assert!(lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).is_none());
+        let (st, v) = lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).expect("窓が隔てて答える");
+        assert_eq!((st, v), (200, json!([])));
+        let (st, v) = lot.handle_body("DELETE", "/api/masters/rolls/9", "", b"", &ask_boss).expect("窓が断る");
+        assert_eq!((st, v["kind"].as_str()), (503, Some("master_unreadable")), "{v}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3167,8 +3171,8 @@ mod tests {
         let doc = |rows: Value| json!({"schema": 1, "revision": 1, "rows": rows}).to_string();
         std::fs::write(share.join("access_permissions.json"), doc(perm)).unwrap();
         std::fs::write(share.join("work_log_files.json"), doc(json!([{"id": 1, "キー": "a", "設備名": "CR1"}]))).unwrap();
-        std::fs::write(share.join("shift_patterns.json"), doc(json!([{"id": 1, "名称": "古い", "区分": [{"name": "x"}], "rev": 1}])))
-            .unwrap();
+        // 区分が字でない行（数）は区分なし（並び・表の区分の行は版 3.107.0 から隔てる）
+        std::fs::write(share.join("shift_patterns.json"), doc(json!([{"id": 1, "名称": "古い", "区分": 5, "rev": 1}]))).unwrap();
         let conf = |login: &str| {
             json!({"who": {"login": login, "pc": "PC-1", "pcSource": "", "key": format!("PC-1@{login}")},
                    "place": {"shareDir": share, "shared": ["access_permissions", "tab_access", "shift_patterns", "work_log_files"],
@@ -3225,14 +3229,24 @@ mod tests {
             body_refused(lot.handle_body("DELETE", "/api/masters/shifts/2", "rev=1", b"[1]", &ask_boss)),
             "表でない本文は門が断る（前は 500）"
         );
+        // 大きすぎる表示順は Python に任せる（H2）。字の id・NaN の区分の行は版 3.107.0 から窓も隔てて答える（skipped で知らせる）
         for bad in [
-            json!({"id": "x", "名称": "字の id"}),
             json!({"id": 9, "名称": "大", "表示順": "99999999999999999999"}),
             json!({"id": 9, "名称": "数の大", "表示順": 99999999999999999999.0_f64}),
-            json!({"id": 9, "名称": "NaN", "区分": "[{\"name\":\"a\",\"start\":\"23:00\",\"end\":\"7:00\",\"dayOffset\":NaN}]"}),
         ] {
             std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
             assert!(lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).is_none(), "{bad}");
+        }
+        for (bad, why) in [
+            (json!({"id": "x", "名称": "字の id"}), "id が数ではありません（'x'）"),
+            (
+                json!({"id": 9, "名称": "NaN", "区分": "[{\"name\":\"a\",\"start\":\"23:00\",\"end\":\"7:00\",\"dayOffset\":NaN}]"}),
+                "「区分」に数でない値（NaN・Infinity）があります",
+            ),
+        ] {
+            std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
+            let (st, v) = lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).expect("窓が隔てて答える");
+            assert_eq!((st, v["items"].clone(), v["skipped"].clone()), (200, json!([]), json!([{"row": 1, "why": why}])), "{bad}");
         }
         assert!(lot.handle_body("GET", "/api/masters/%73hifts", "", b"", &ask_boss).is_none(), "百分率符号で書いた道は Python");
         let _ = std::fs::remove_dir_all(&dir);
@@ -3349,7 +3363,7 @@ mod tests {
             body_refused(lot.handle_body("DELETE", "/api/masters/access/1", "rev=1", b"[1]", &ask_boss)),
             "表でない本文は門が断る（前は 500）"
         );
-        // 版 3.77.0: タブの権限の行を窓が読めない（版が字）なら、タブの権限を書く道は Python に任せる（窓はタブの権限の行を置き場から読む）
+        // 版 3.107.0: タブの権限の行の版が読めない（字）なら、窓もタブの権限を書く道を断る（503。前は Python に任せた）
         let tabs_before = std::fs::read(share.join("tab_access.json")).ok();
         std::fs::write(
             share.join("tab_access.json"),
@@ -3357,10 +3371,8 @@ mod tests {
         )
         .unwrap();
         let body = serde_json::to_vec(&json!({"rules": {"dash": ["一般ユーザー"]}})).unwrap();
-        assert!(
-            Lot::new(dir.join("cache-t")).handle_body("PUT", "/api/masters/tabaccess", "", &body, &ask_boss).is_none(),
-            "読めない版のタブの権限の行"
-        );
+        let (st, v) = Lot::new(dir.join("cache-t")).handle_body("PUT", "/api/masters/tabaccess", "", &body, &ask_boss).expect("窓が断る");
+        assert_eq!((st, v["kind"].as_str()), (503, Some("master_unreadable")), "読めない版のタブの権限の行: {v}");
         match tabs_before {
             Some(b) => std::fs::write(share.join("tab_access.json"), b).unwrap(),
             None => std::fs::remove_file(share.join("tab_access.json")).unwrap(),

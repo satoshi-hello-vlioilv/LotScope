@@ -838,7 +838,8 @@ pub(crate) fn num_label(key: &str) -> (&'static str, &'static str, &'static str)
 /// 読めなかった数の設定の知らせ（num_setting.warn と同じ言葉。key は設定の項目の名前か接続の欄の id）
 pub(crate) fn num_warn(key: &str, v: &Value, dflt: &Value) -> String {
     let (_, label, unit) = num_label(key);
-    format!("{label}の既定の値「{}」が数ではないので、{} {unit}で見ています。", py_str(v), py_str(dflt))
+    // 出どころを言う（版 3.107.0。num_setting.SOURCE と同じ。前は「既定の値」と言い、欄の空の字「既定: 36」と同じ言葉だった）
+    format!("全員の設定ファイルの{label}の値「{}」が数ではないので、{} {unit}で見ています。", py_str(v), py_str(dflt))
 }
 
 /// 写し直す間隔・古いとみなす時間・1 頁の件数（data_sources.read_params）
@@ -888,10 +889,11 @@ fn joins_of(v: Option<&Value>) -> R<Value> {
     let items: Vec<Value> = match v {
         Some(Value::Array(a)) => a.clone(),
         Some(Value::String(x)) if !pyfmt::strip(x).is_empty() => {
-            if crate::master_rows::text_split(x) {
+            // 整数の -0 は Python と同じ 0 と読む（版 3.107.0。読み手は master_rows::inner_text の 1 つ）
+            if crate::master_rows::text_split_py(x) {
                 return Err(Py("結合の字が窓の読めない JSON"));
             }
-            match serde_json::from_str(x) {
+            match serde_json::from_str(&crate::master_rows::inner_text(x)) {
                 Ok(Value::Array(a)) => a,
                 _ => vec![],
             }
@@ -1207,10 +1209,10 @@ pub(crate) fn group_rules(row: &Map<String, Value>) -> R<(Value, Value, Vec<Valu
     let text = if truthy(row.get("ルール")) { row.get("ルール").cloned().unwrap() } else { json!("{}") };
     let d: Value = match &text {
         Value::String(x) => {
-            if crate::master_rows::text_split(x) {
+            if crate::master_rows::text_split_py(x) {
                 return Err(Py("設備グループのルールが窓の読めない JSON"));
             }
-            serde_json::from_str(x).unwrap_or(json!({}))
+            serde_json::from_str(&crate::master_rows::inner_text(x)).unwrap_or(json!({}))
         }
         _ => json!({}), // json.loads(数・表) は TypeError → {}
     };
@@ -1331,10 +1333,10 @@ fn conv_j(v: Option<&Value>, list: bool) -> R<Value> {
     let x = match v {
         Some(x @ (Value::Array(_) | Value::Object(_))) => return Ok(x.clone()),
         Some(Value::String(t)) if !pyfmt::strip(t).is_empty() => {
-            if crate::master_rows::text_split(t) {
+            if crate::master_rows::text_split_py(t) {
                 return Err(Py("変換表の字が窓の読めない JSON"));
             }
-            match serde_json::from_str::<Value>(t) {
+            match serde_json::from_str::<Value>(&crate::master_rows::inner_text(t)) {
                 Ok(x) => x,
                 Err(_) => return Ok(dflt),
             }
@@ -1459,10 +1461,10 @@ pub fn lotdsp_status(path: &Path, enabled: bool) -> R<Value> {
     let data = match std::fs::read_to_string(path) {
         Err(_) => Map::new(),
         Ok(text) => {
-            if crate::master_rows::text_split(&text) {
+            if crate::master_rows::text_split_py(&text) {
                 return Err(Py("学びのファイルが窓の読めない JSON"));
             }
-            match serde_json::from_str::<Value>(&text) {
+            match serde_json::from_str::<Value>(&crate::master_rows::inner_text(&text)) {
                 Ok(Value::Object(o)) => o,
                 _ => Map::new(),
             }

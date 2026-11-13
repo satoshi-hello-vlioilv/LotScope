@@ -271,15 +271,17 @@ SCENARIOS = [
         S("PUT", f"{E}/7", {"rules": [{"op": "prefix", "value": "L-"}]}), S("GET", E)]},
     {"name": "置き場の表示順が大きい", "mode": "shared", "extra_rows": [{"id": 8, "名称": "大きな表示順", "設備": "A", "表示順": "1" + "0" * 20, "rev": 1}],
      "steps": [], "delegates": [S("GET", E), S("POST", E, G("x")), S("PUT", f"{E}/1", {"name": "x"}), S("DELETE", f"{E}/1")]},
-    {"name": "置き場のまとめ方が数", "mode": "shared", "extra_rows": [{"id": 9, "名称": "数のまとめ方", "まとめ方": 5, "設備": "A", "rev": 1}],
-     "steps": [], "delegates": [S("GET", E), S("POST", E, G("x"))]},
-    {"name": "置き場の版が読めない", "mode": "shared", "extra_rows": [{"id": 10, "名称": "版が字", "設備": "A", "rev": "abc"}], "steps": [],
-     "delegates": [S("GET", E), S("POST", E, G("x")), S("DELETE", f"{E}/10")]},
-    {"name": "置き場のルールの字が NaN", "mode": "shared", "extra_rows": [{"id": 11, "名称": "NaN", "ルール": '{"rules": [{"op": "prefix", "value": NaN}]}',
+    # 版 3.107.0（E3・E4）: 読めない行（数のまとめ方・読めない版・ルールの NaN）は隔てて答える（一覧は skipped・触れる直す・消すは断る）
+    {"name": "置き場のまとめ方が数（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 9, "名称": "数のまとめ方", "まとめ方": 5, "設備": "A", "rev": 1}],
+     "steps": [], "delegates": [W(S("GET", E)), W(S("POST", E, G("x"))), W(S("PUT", f"{E}/9", {"name": "y"}))]},
+    {"name": "置き場の版が読めない（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 10, "名称": "版が字", "設備": "A", "rev": "abc"}], "steps": [],
+     "delegates": [W(S("GET", E)), W(S("POST", E, G("x"))), W(S("DELETE", f"{E}/10"))]},
+    {"name": "置き場のルールの字が NaN（触れる直すは断る）", "mode": "shared", "extra_rows": [{"id": 11, "名称": "NaN", "ルール": '{"rules": [{"op": "prefix", "value": NaN}]}',
                                                                         "rev": 1}], "steps": [],
-     "delegates": [S("GET", E), S("PUT", f"{E}/1", {"name": "x"})]},
-    {"name": "置き場の設備名が並び", "mode": "shared", "equip_extra": [{"id": 9, "設備名": ["X"]}], "steps": [],
-     "delegates": [S("GET", E), S("POST", E, G("x"))]},
+     # 選べる設備を数える束（設備グループのルールを読む）がまだ NaN の字を読めないので任せる（束の行は次の版）
+     "delegates": [S("GET", E), S("PUT", f"{E}/1", {"name": "x"}), W(S("PUT", f"{E}/11", {"name": "y"}))]},
+    {"name": "置き場の設備名が並び（選べる設備を数える束が設備マスタの並びの名前を読めないので任せる）", "mode": "shared",
+     "equip_extra": [{"id": 9, "設備名": ["X"]}], "steps": [], "delegates": [S("GET", E), S("POST", E, G("x"))]},
 ]
 # 作った後の採点の提案: 選べる設備を数えるマスタ（作業実績・設備マスタ・データ元）のどれかが共有にまだ無い形。前は窓が束を組めず数えられないので
 # 書く前に Python に任せた（Python は読むときにそのマスタの最初の版を置く）。版 3.105.0 から窓も束を組むときに同じ最初の版を置き（種まき）、

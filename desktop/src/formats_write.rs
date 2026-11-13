@@ -122,29 +122,21 @@ fn view(row: &Map<String, Value>) -> Value {
            "parts": parts_of(&body), "body": body})
 }
 
-/// 置き場の行を窓が Python と同じに読めるか: id・版が読め、置く項目は字か無い、中身の字は窓が同じに読める（text_split）、
-/// 中身の部品の形が parts_of で Python と同じに扱える（部品が決めた形・スライサーの cards は並びか偽・条件と並べ替えは並び）
-fn rows_plain(rows: &[Value]) -> bool {
-    rows.iter().all(|r| {
-        let Some(o) = r.as_object() else { return false };
-        if !master_rows::row_readable(o) || !FIELDS.iter().all(|k| o.get(*k).is_none_or(Value::is_string)) {
-            return false;
+/// 置き場の行の中身の部品の形が違う理由（版 3.107.0。隔てる。Python の display_formats.row_problem と同じ）: 真の部品が決めた形
+/// （並びか表）でない・スライサーの cards が並びでない・列で絞り込むの値が並び・表
+pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
+    let t = row.get("中身").and_then(Value::as_str).filter(|t| !t.is_empty()).unwrap_or("{}");
+    let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return None };
+    for (k, list, label) in PARTS {
+        let Some(v) = b.get(k).filter(|v| truthy(v)) else { continue };
+        let bad = !part_ok(v, list)
+            || (k == "slicer" && v.get("cards").is_some_and(|c| truthy(c) && !c.is_array()))
+            || (k == "adhoc" && v.get("value").is_some_and(|x| x.is_array() || x.is_object()));
+        if bad {
+            return Some(format!("中身の「{label}」の形が違います"));
         }
-        let Some(t) = o.get("中身").and_then(Value::as_str).filter(|t| !t.is_empty()) else { return true };
-        if crate::master_rows::text_split_py(t) {
-            return false;
-        }
-        let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return true }; // 読めない・表でない中身は Python も {}
-        PARTS.iter().all(|(k, list, _)| match b.get(*k) {
-            None => true,
-            Some(v) if !truthy(v) => true,
-            Some(v) => {
-                part_ok(v, *list)
-                    && (*k != "slicer" || v.get("cards").is_none_or(|c| !truthy(c) || c.is_array()))
-                    && (*k != "adhoc" || v.get("value").is_none_or(master_rows::value_plain))
-            }
-        })
-    })
+    }
+    None
 }
 
 fn str_or_empty(v: Option<&Value>) -> String {
@@ -239,10 +231,14 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if place.split_file(NAME) || (route == Route::List && !store.seed_absent(&[NAME])) {
         return None;
     }
-    let rows = place.rows(NAME).ok()?;
-    if !rows_plain(&rows) {
+    // 置き場の読めない行は隔てる（版 3.107.0。中身の部品の形は row_problem で。前は任せた）。中身の字に i64 に入らない整数（H2）はまだ任せる
+    let mut rows = place.rows(NAME).ok()?;
+    master_rows::normalize_all(&mut rows, &SPEC);
+    if crate::row_check::wide_content(NAME, &rows) {
         return None;
     }
+    let iso = crate::row_check::check(NAME, &rows, &FIELDS);
+    let rows: Vec<Value> = crate::row_check::good(&rows, &iso).into_iter().cloned().collect();
     if route == Route::List {
         let q = crate::lotlist::parse_query(query);
         let src = q.iter().find(|(k, _)| k == "source").map(|(_, v)| v.clone()).unwrap_or_default();
@@ -256,10 +252,9 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             .map(view)
             .collect();
         items.sort_by(|a, b| a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or("")));
-        return Some((
-            200,
-            json!({"items": items, "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)}),
-        ));
+        let mut out = json!({"items": items, "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)});
+        crate::row_check::notes(out.as_object_mut().unwrap(), &iso, place.share_problem(NAME));
+        return Some((200, out));
     }
     if master_rows::unreadable_u64_ok(body) {
         return None;

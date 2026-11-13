@@ -24,6 +24,18 @@ MAX_FILTERS = 20
 PERIODS_KEYS = tuple(PERIODS)
 
 
+def settings_problem(row):
+    """前の版の条件のマスタの行の条件が表でない理由（版 3.107.0。隔てる。窓の layout_clean::settings_problem と同じ）"""
+    t = row.get("条件")
+    if not isinstance(t, str) or not t:
+        return None
+    try:
+        d = json.loads(t)
+    except (ValueError, RecursionError):
+        return None
+    return None if isinstance(d, dict) else "「条件」が表ではありません"
+
+
 def condition_of(rows, key):
     """マスタの行から、版 3.36.0 の 1 枚の表の条件 {filters, search}（キーは wip / work。行が無い・壊れていれば条件なし）"""
     row = next((r for r in rows or [] if str(r.get("キー") or "") == key), None)

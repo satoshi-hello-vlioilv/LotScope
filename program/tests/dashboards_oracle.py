@@ -138,8 +138,9 @@ SCENARIOS = [
     ], "delegates": [H(PART, ""), H(PART, "{bad"), H(PART, "[1]"), H(PART, {"scope": "me", "keys": 5}), H(PART, {"scope": "me", "keys": True})]},
     {"name": "前の版の条件（合わせた表の legacy へ入れる）", "mode": "shared", "rows": ROWS, "settings": CONDS,
      "steps": [S(PART, "GET"), S(BOSS, "GET")], "delegates": []},
-    *[{"name": f"前の版の条件のマスタが {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": ROWS, "settings": rows,
-       "steps": [S(PART, "POST", body=P("書くのは窓", L(Pn())))], "delegates": [S(PART, "GET")]}
+    # 版 3.107.0: 前の版の条件のマスタの読めない行（表でない・条件が表でない）は隔てて読む（前は Python が落ちて 500）
+    *[{"name": f"前の版の条件のマスタが {what}（行を隔てて読む）", "mode": "shared", "rows": ROWS, "settings": rows,
+       "steps": [S(PART, "POST", body=P("書くのは窓", L(Pn())))], "delegates": [W(S(PART, "GET"))]}
       for what, rows in [("並びの条件", [{"id": 1, "キー": "wip", "条件": "[1]"}]), ("表でない行", ["x"]), ("2 つの条件の後ろに表でない行", [{"id": 1, "キー": "wip", "条件": "{}"}, {"id": 2, "キー": "work", "条件": "{}"}, "x"]), ("null の条件", [{"id": 1, "キー": "wip", "条件": "null"}])]],
     {"name": "前の版の条件のマスタがまだ無い（版 3.105.0 から窓も Python も読むだけで最初の版を作る）", "mode": "shared", "rows": ROWS,
      "steps": [S(PART, "DELETE", 3)], "delegates": [W(S(PART, "GET"))]},
@@ -165,11 +166,12 @@ SCENARIOS = [
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "settings": [], "lock": True,
      "steps": [S(PART, "POST", body=P("錠", L(Pn()))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), H(PART, {"scope": "me", "keys": ["standard"]}),
                S(PART, "GET")], "delegates": []},
-    *[{"name": f"置き場の行の中身が {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", "dash", "共通", body=GOOD), bad],
-       "settings": [], "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body=P("a", L(Pn())))]}
+    *[{"name": f"置き場の行の中身が {what}（行を隔てて答える）", "mode": "shared", "rows": [R(1, "良い行", "dash", "共通", body=GOOD), bad],
+       "settings": [], "steps": [], "delegates": [W(x) for x in [S(PART, "GET"), S(PART, "POST", body=P("a", L(Pn()))), S(PART, "PUT", 2, {"name": "直す"}),
+                                                                S(PART, "DELETE", 2), S(PART, "GET")]]}
       for what, bad in [("NaN", R(2, "x", "dash", "共通", body='{"rows": NaN}')), ("名前が数", R(2, 5, "dash", "共通", body=GOOD))]],
-    {"name": "共有のファイルの版 revision が読めない（窓は答えず Python に任せる）", "mode": "shared", "rows": ROWS, "settings": [], "rev": "abc", "steps": [],
-     "delegates": [S(PART, "GET"), S(PART, "POST", body=P("a", L(Pn())))]},
+    {"name": "共有のファイルの版 revision が読めない（写しで続け、書く道は断る）", "mode": "shared", "rows": ROWS, "settings": [], "rev": "abc", "steps": [],
+     "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body=P("a", L(Pn())))), W(S(PART, "PUT", 3, {"name": "x"})), W(S(PART, "DELETE", 3))]},
 ]
 FILE_NAME = "dashboards"
 SETTINGS = "dashboard_settings"

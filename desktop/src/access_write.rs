@@ -28,7 +28,7 @@ use crate::access::{
     flags, has_admin_row, normalize_master_edit, normalize_part, normalize_role, role_can, tab_exceptions, text, MASTER_EDIT_LEVELS,
     ROLE_USER, TAB_HIDE, TAB_ROLES, TAB_SHOW,
 };
-use crate::master_rows::{base_rev, clean, normalize_all, py_int, same_id, stamped, Spec};
+use crate::master_rows::{base_rev, clean, py_int, same_id, stamped, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::worksum::py_str;
 use serde_json::{json, Map, Value};
@@ -275,7 +275,8 @@ fn clean_tab_rules(raw: Option<&Ordered>) -> Result<Vec<(String, Vec<&'static st
 /// タブの権限を 1 回の錠の中で置き換える（master_repository.tab_access_put。空の並びのタブは行を消す・書いていないタブはそのまま）
 fn tab_access_put(store: &Store, rules: &[(String, Vec<&'static str>)]) -> Result<(), MasterError> {
     store.write(TABS, |rows, stamp| {
-        normalize_all(rows, &Spec { name: TABS, fields: &[], unique: None, renamed: &[] }); // 版の無い行は 1（旧い列名は無い）
+        // 版の無い行は 1（旧い列名は無い）。表でない行・隔てる形の行（版・型）があれば書かない（版 3.107.0。権限は黙って変えない）
+        crate::master_rows::prepare(rows, &Spec { name: TABS, fields: &["タブ", "出さない区分"], unique: Some("タブ"), renamed: &[] })?;
         for (tab, roles) in rules {
             let text_now = roles.join("・");
             // by = {r.get("タブ"): r}（同じタブの行が 2 つあれば後の行）
@@ -407,13 +408,16 @@ pub fn needs_python(body: &[u8]) -> bool {
 /// 窓が答えない（Python に任せる）なら None: 版の番号に窓の表に無い系統の数字がある
 /// tabs はタブの権限の置き場の行（タブの権限を書く道の確かめに使う）
 pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], tabs: &[Value]) -> Option<Answer> {
-    // 置き場の行の id・版を窓が Python と同じに読めないなら Python に任せる（版 3.77.0。権限の行と、タブの権限を書くときはタブの権限の行）
-    // 項目の値が並び・表・i64 に入らない整数の行も（Python の str() と字が違う。master_rows::rows_plain）
+    // 置き場の行の id・版・型が読めない行は、版 3.107.0 から書く道を断る（row_check::refuse_strict。master_rows::prepare が書く前に）。
+    // 項目の値が i64 に入らない整数の行はまだ任せる（H2。Python の str() は桁のまま）
     let perm: Vec<Value> = rows_of(me).into_iter().map(Value::Object).collect();
+    let plain = |rows: &[Value], fields: &[&str]| {
+        rows.iter().all(|r| {
+            r.as_object().is_none_or(|o| fields.iter().all(|k| o.get(*k).is_none_or(crate::master_rows::value_plain_or_container)))
+        })
+    };
     // タブの例外は JSON の字で置く項目で、読み方は access::tab_exceptions（並び・表も読む）なので見ない
-    if !crate::master_rows::rows_plain(&perm, &PERM_FIELDS[..6])
-        || (route == Route::Tabs && !crate::master_rows::rows_plain(tabs, &["タブ", "出さない区分"]))
-    {
+    if !plain(&perm, &PERM_FIELDS[..6]) || (route == Route::Tabs && !plain(tabs, &["タブ", "出さない区分"])) {
         return None;
     }
     // request.get_json(silent=True) or {}: 読めない・空・偽の値は {}

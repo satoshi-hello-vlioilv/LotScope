@@ -146,23 +146,28 @@ SCENARIOS = [
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "lock": True,
      "steps": [S(PART, "POST", body={"name": "錠", "source": "lot", "body": {"sorts": []}}), S(PART, "PUT", 1, {"name": "x"}),
                S(PART, "DELETE", 1), S(PART, "GET")], "delegates": []},
-    *[{"name": f"置き場の行の形が違う: {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), bad],
-       "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}})]}
+    # 版 3.107.0: 読めない行は行を隔てて答える（一覧は skipped で知らせ、触れる直す・消すだけを断る。前は名前が数で 500・NaN で答えが JSON でなかった）
+    *[{"name": f"置き場の行の形が違う: {what}（行を隔てて答える）", "mode": "shared", "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), bad],
+       "steps": [], "delegates": [W(x) for x in [S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}}),
+                                                 S(PART, "PUT", int(bad["id"]), {"name": "直す"}), S(PART, "DELETE", int(bad["id"])),
+                                                 S(PART, "PUT", 1, {"name": "良い行 2"}), S(PART, "GET")]]}
       for what, bad in [("名前が数", R(2, 5, "lot", '{"sorts":[]}')),
                         ("中身に NaN", R(2, "NaN の中身", "lot", '{"sorts":[NaN]}')),
                         ("並べ替えが並びでない", R(2, "x", "lot", '{"sorts":{"a":1}}')),
                         ("スライサーの cards が字", R(2, "x", "lot", '{"slicer":{"cards":"abc"}}')),
                         ("版が読めない", R(2, "x", "lot", '{"sorts":[]}', rev="二")),
                         ("id が字", {"id": "4", "名前": "字の id", "元": "lot", "中身": "{}"})]],
-    *[{"name": f"共有のファイルの字に {what}（窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0: 読まない値（知らない鍵）の NaN は持ったまま書き戻す（i64 に入らない整数はまだ任せる。H2）
+    *[{"name": f"共有のファイルの字に {what}（{'窓は答えず Python に任せる' if raw.startswith('1' + '0' * 5) else '窓も答える'}）", "mode": "shared",
        "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), dict(R(2, "生の値", "work", '{"sorts":[]}'), x="@RAW@")], "raw": raw,
-       "steps": [], "delegates": [(W if raw == "-0" else (lambda x: x))(x) for x in [
+       "steps": [], "delegates": [(W if not raw.startswith("1" + "0" * 5) else (lambda x: x))(x) for x in [
            S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}}), S(PART, "PUT", 1, {"name": "b"})]]}
       # 版 3.106.0: 整数の -0 は窓も Python と同じ 0 と読み、0 と書き戻す（master_rows::inner_text）
       for what, raw in [("NaN", "NaN"), ("整数の -0", "-0"), ("i64 に入らない整数", "1" + "0" * 30)]],
-    {"name": "共有のファイルの版 revision が読めない（Python の int() が読めない。窓は答えず Python に任せる）", "mode": "shared",
+    {"name": "共有のファイルの版 revision が読めない（Python の int() が読めない。写しで続け、書く道は断る）", "mode": "shared",
      "rows": [R(1, "良い行", "lot", '{"sorts":[]}')], "rev": "abc", "steps": [],
-     "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}}), S(PART, "DELETE", 1)]},
+     "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}})), W(S(PART, "DELETE", 1)),
+                   W(S(PART, "PUT", 1, {"name": "b"}))]},
 ]
 FILE_NAME = "display_formats"
 

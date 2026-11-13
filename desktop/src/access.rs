@@ -453,6 +453,8 @@ impl Place {
     /// 対の無い代用字の \u）か、UTF-8 でない。あれば窓は読む物・書き戻す物が Python と割れる（共有を読めずに写しへ流れる・
     /// NaN を読めずに書けない・-0 を -0.0 と書き戻す・代用字を U+FFFD に読み替える）ので、そのマスタを使う道は Python に任せる
     pub fn split_file(&self, name: &str) -> bool {
+        // 版 3.107.0: NaN・Infinity・1e400・入れ子・-0・読めない版・対の無い代用字は、読む所（parse_master と src/held.rs・src/row_check.rs）が
+        // Python と同じに扱う（行を隔てる・持ったまま書き戻す・ファイルを読めないとして写しで続ける）。残るのは i64 に入らない整数（H2）だけ
         let file = format!("{name}.json");
         let mut dirs: Vec<&PathBuf> = vec![];
         if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {
@@ -464,10 +466,20 @@ impl Place {
         dirs.iter().any(|d| {
             std::fs::read(d.join(&file)).is_ok_and(|b| {
                 let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
-                // 整数の -0 は Python と同じ 0 と読む（版 3.106.0。read_doc・Store の読みも master_rows::inner_text を通す）
-                std::str::from_utf8(b).map_or(true, |t| crate::master_rows::text_split_py(t) || revision_split(t))
+                std::str::from_utf8(b).is_err() || crate::master_rows::split_wide(b)
             })
         })
+    }
+
+    /// 共有のファイルが読めない理由（版 3.107.0。Python の MasterStore.share_problem と同じ。読みは写しで続けるので、一覧の帯で知らせる）
+    pub fn share_problem(&self, name: &str) -> Option<String> {
+        let share = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name))?;
+        let path = share.join(format!("{name}.json"));
+        let raw = std::fs::read(&path).ok()?;
+        match crate::master_store::parse_master(&raw, &path) {
+            Ok(_) | Err(crate::master_store::ReadErr::Wide(_)) => None,
+            Err(e) => Some(crate::master_store::read_reason("共有の", &path, &raw, &e)),
+        }
     }
 
     /// 共有に置くマスタで、共有のフォルダはあるのにそのファイルがまだ無いか（版 3.79.0）。Python は読むだけで写しから共有に最初の版を
@@ -513,15 +525,16 @@ impl Place {
         let n = tries.len();
         for (i, (path, where_)) in tries.iter().enumerate() {
             let Ok(b) = std::fs::read(path) else { continue };
-            if doc_rows(&b).is_ok() {
-                return None;
-            }
+            let err = match crate::master_store::parse_master(&b, path) {
+                Ok(v) if v.is_array() || v.get("rows").is_some_and(Value::is_array) => return None,
+                Ok(_) => crate::master_store::ReadErr::Shape,
+                Err(crate::master_store::ReadErr::Wide(_)) => return None,
+                Err(e) => e,
+            };
             if i == 0 && n > 3 {
                 continue; // 共有の書きかけ・壊れた物は写しで続ける
             }
-            let body = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
-            let err = serde_json::from_slice::<Value>(body).err();
-            return Some(crate::master_store::unreadable_text(where_, path, &b, err.as_ref()));
+            return Some(crate::master_store::read_reason(where_, path, &b, &err));
         }
         None
     }
@@ -549,8 +562,8 @@ impl Place {
         let last = tries.len() - 1;
         for (i, path) in tries.iter().enumerate() {
             match std::fs::read(path) {
-                Ok(b) => match doc_rows(&b) {
-                    Ok(rows) => return Ok((rows, doc_revision(&b)?)),
+                Ok(b) => match doc_of(&b) {
+                    Ok(doc) => return Ok(doc),
                     // 共有のファイルが書きかけ・壊れている: 写しで続ける（Python の _maybe_refresh も写しで続ける）
                     Err(_) if i == 0 && tries.len() > 3 => continue,
                     Err(e) => return Err(format!("{}: {e}", path.display())),
@@ -563,38 +576,37 @@ impl Place {
     }
 }
 
-/// {revision} の int（_as_doc の int(revision)。無ければ 0。読めない形は Err）
-fn doc_revision(b: &[u8]) -> Result<i64, String> {
-    let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
-    match py_json(&crate::master_rows::inner_text(std::str::from_utf8(b).map_err(|e| e.to_string())?)) {
-        Some(Value::Object(o)) => match o.get("revision") {
-            None => Ok(0),
-            Some(v) => crate::master_rows::py_int(v).ok_or_else(|| "版の番号が読めません".to_string()),
-        },
-        _ => Ok(0),
-    }
-}
-
-/// マスタのファイルの revision を、Python（MasterStore._as_doc の int(revision)）が読めない形か（null・表・"3.5"・"abc" など）。
-/// 読めなければ Python は写しで答える・書けない（400）が、窓は rows だけを読むので割れる（版 3.79.0）
-fn revision_split(t: &str) -> bool {
-    match serde_json::from_str::<Value>(t) {
-        Ok(Value::Object(o)) => o.get("revision").is_some_and(|v| crate::master_rows::py_int(v).is_none()),
-        _ => false,
-    }
-}
-
-/// {schema, revision, rows} か行の配列（同梱の data/ の昔の形）
-fn doc_rows(b: &[u8]) -> Result<Vec<Value>, String> {
-    let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
-    let v = py_json(&crate::master_rows::inner_text(std::str::from_utf8(b).map_err(|e| e.to_string())?)).ok_or("JSON として読めません")?;
-    match v {
-        Value::Array(a) => Ok(a),
-        Value::Object(mut o) => match o.remove("rows") {
-            Some(Value::Array(a)) => Ok(a),
-            _ => Err("マスタの形が読めません".into()),
-        },
-        _ => Err("マスタの形が読めません".into()),
+/// {schema, revision, rows} か行の配列（同梱の data/ の昔の形）→ (行, 版の番号)。読みは Store と同じ parse_master（版 3.107.0。
+/// 読めない版・対の無い代用字も読めないファイル。NaN・Infinity は src/held.rs が持つ）
+fn doc_of(b: &[u8]) -> Result<(Vec<Value>, i64), String> {
+    match crate::master_store::parse_master(b, std::path::Path::new("")) {
+        Ok(Value::Array(a)) => Ok((a, 0)),
+        Ok(Value::Object(mut o)) => {
+            let rev = o.get("revision").and_then(crate::row_check::as_int).and_then(|n| n.small()).unwrap_or(0);
+            match o.remove("rows") {
+                Some(Value::Array(a)) => Ok((a, rev)),
+                _ => Err("マスタの形が読めません".into()),
+            }
+        }
+        Ok(_) => Err("マスタの形が読めません".into()),
+        // i64・u64 に入らない整数は前と同じく serde で読む（道は split_file で Python に任せる。H2 で桁のまま持つまで）
+        Err(crate::master_store::ReadErr::Wide(_)) => {
+            let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
+            let v = py_json(&crate::master_rows::inner_text(std::str::from_utf8(b).map_err(|e| e.to_string())?))
+                .ok_or("JSON として読めません")?;
+            match v {
+                Value::Array(a) => Ok((a, 0)),
+                Value::Object(mut o) => {
+                    let rev = o.get("revision").and_then(crate::row_check::as_int).and_then(|n| n.small()).unwrap_or(0);
+                    match o.remove("rows") {
+                        Some(Value::Array(a)) => Ok((a, rev)),
+                        _ => Err("マスタの形が読めません".into()),
+                    }
+                }
+                _ => Err("マスタの形が読めません".into()),
+            }
+        }
+        Err(e) => Err(format!("{e:?}")),
     }
 }
 

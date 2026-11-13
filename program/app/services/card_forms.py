@@ -165,6 +165,32 @@ def clean_row(data, login, partial=False):
         raise CardFormError(str(e)) from None
 
 
+def row_problem(row):
+    """置き場のカードの行の中身の形が窓と同じに扱えない理由（版 3.107.0。隔てる。窓の card_forms::row_problem と同じ）:
+    タブの名前・項目の字の欄（label・col・expr・text・tab・cols の中）が並び・表"""
+    text = row.get("中身")
+    if not isinstance(text, str):
+        return None
+    try:
+        b = json.loads(text or "{}")
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(b, dict):
+        return None
+    tabs = b.get("tabs")
+    if isinstance(tabs, list) and any(isinstance(t, dict) and isinstance(t.get("name"), (list, dict)) for t in tabs):
+        return "中身のタブの名前が並び・表です"
+    items = b.get("items")
+    for it in items if isinstance(items, list) else []:
+        if not isinstance(it, dict):
+            continue
+        cols = it.get("cols")
+        if (any(isinstance(it.get(k), (list, dict)) for k in ("label", "col", "expr", "text", "tab"))
+                or (isinstance(cols, list) and any(isinstance(c, (list, dict)) for c in cols))):
+            return "中身の項目の字の欄が並び・表です"
+    return None
+
+
 def view(row, login="", common_ok=False, default_ok=False):
     v = pivot_presets.view(row, login, common_ok, default_ok, body_of=lambda t: clean_body(t)[0])
     return v if v["body"] else {**v, "body": {"cols": COLS[2], "row": ROW[2], "theme": {}, "items": []}}

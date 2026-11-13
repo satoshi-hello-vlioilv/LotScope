@@ -47,10 +47,7 @@ fn files(root: &Path, fids: &Map<String, Value>) -> Map<String, Value> {
     for d in ["share", "base/data"] {
         let p = root.join(d).join("work_log_files.json");
         if let Ok(b) = std::fs::read(&p) {
-            out.insert(
-                format!("{d}/work_log_files.json"),
-                norm(&serde_json::from_slice::<Value>(&b).unwrap_or_else(|_| json!("<読めない>")), fids),
-            );
+            out.insert(format!("{d}/work_log_files.json"), norm(&common::file_value(&b), fids));
         }
     }
     out

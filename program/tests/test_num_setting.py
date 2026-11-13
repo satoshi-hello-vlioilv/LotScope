@@ -28,7 +28,7 @@ class NumSetting(unittest.TestCase):
         wl = work_log.params(s)
         self.assertEqual((wl["stale_hours"], wl["refresh_seconds"]), (36, 60))
         self.assertEqual([(w["field"], w["label"]) for w in wl["settingsWarn"]], [("stale", "古さの警告（時間）"), ("refresh", "確かめる間隔（秒）")])
-        self.assertIn("古さの警告（時間）の既定の値「abc」", wl["settingsWarn"][0]["text"])
+        self.assertIn("全員の設定ファイルの古さの警告（時間）の値「abc」", wl["settingsWarn"][0]["text"])
         self.assertNotIn("work_log.", wl["settingsWarn"][0]["text"], "技術の鍵は知らせに書かない")
         # 言葉は 1 か所の決まり（num_setting.LABELS）: 接続の段の欄の名前も同じ
         self.assertEqual(data_sources.conn_spec("stale")["label"], num_setting.LABELS["stale"][0])

@@ -215,13 +215,37 @@ pub fn unreadable_text(where_: &str, path: &Path, raw: &[u8], e: Option<&serde_j
     format!("{where_} {name} が読めません（{why}）")
 }
 
-/// 読めない JSON（窓の読めない字でない、本当に壊れた物）の印。read_json の誤りの言葉の頭に付け、Doc::read が理由の言葉に替える
-const BROKEN: &str = "\u{1}broken";
+/// 置き場のファイルを読めない理由（版 3.107.0。Store と access::Place の読みの 1 か所 parse_master）
+#[derive(Debug)]
+pub enum ReadErr {
+    /// JSON として読めない・UTF-8 でない（serde の誤り。理由の言葉に行を出す）
+    Broken(Option<serde_json::Error>),
+    /// マスタの形（rows の並び）でない
+    Shape,
+    /// 版の番号（revision）を int() で読めない（Python も読めないファイルとして写しで続ける）
+    Rev(String),
+    /// 対の無い代用字がある（窓の字が持てない。Python も写しに書けない）
+    Lone,
+    /// i64・u64 に入らない整数（窓は値を変えずに書けない。H2 で桁のまま持つまで、道は Python に任せる）
+    Wide(String),
+}
 
-fn read_json(path: &Path) -> std::io::Result<Value> {
-    let b = std::fs::read(path)?;
-    let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
-    let bad = |m: String| std::io::Error::new(std::io::ErrorKind::InvalidData, m);
+/// 読めない理由の言葉（Python の master_store._read_master の MasterUnreadable と同じ）
+pub fn read_reason(where_: &str, path: &Path, raw: &[u8], e: &ReadErr) -> String {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    match e {
+        ReadErr::Broken(err) => unreadable_text(where_, path, raw, err.as_ref()),
+        ReadErr::Shape => unreadable_text(where_, path, raw, None),
+        ReadErr::Rev(v) => format!("{where_} {name} が読めません（版の番号 revision が読めません: {v}）"),
+        ReadErr::Lone => format!("{where_} {name} が読めません（対の無い代用字があります）"),
+        ReadErr::Wide(m) => m.clone(),
+    }
+}
+
+/// マスタのファイルの字 → 値（BOM を外す・整数の -0 は 0・NaN・Infinity・1e400・入れ子 128 段以上は J で読む〈src/held.rs〉）。
+/// 形（{rows} か行の配列）と版の番号も確かめる
+pub fn parse_master(raw: &[u8], path: &Path) -> Result<Value, ReadErr> {
+    let b = raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(raw);
     // 字の外の整数の -0 は Python の json.loads と同じ 0 に読む（版 3.106.0。書き戻す字も Python と同じ 0。Place の読みも同じ部品）
     let fixed;
     let b = match std::str::from_utf8(b) {
@@ -231,29 +255,39 @@ fn read_json(path: &Path) -> std::io::Result<Value> {
         }
         _ => b,
     };
-    match serde_json::from_slice(b) {
+    let v = match serde_json::from_slice::<Value>(b) {
         Ok(v) => {
             // serde_json は i64・u64 に入らない整数を小数に変えて読む。書き戻すと値が黙って変わるので、窓は書かずに断る
             if has_wide_int(b) {
-                return Err(bad(format!(
+                return Err(ReadErr::Wide(format!(
                     "{}: 窓では値を変えずに書けない大きな整数があります（Python の書く係で保存してください）",
                     path.display()
                 )));
             }
-            Ok(v)
+            v
         }
         Err(e) => {
-            let text = String::from_utf8_lossy(b);
-            if ["NaN", "Infinity"].iter().any(|w| text.contains(w)) || text.contains("E400") || text.contains("e400") {
-                return Err(bad(format!("{}: 窓では読めない数（NaN・Infinity・大きすぎる数）があります（{e}）", path.display())));
+            let Ok(text) = std::str::from_utf8(b) else { return Err(ReadErr::Broken(Some(e))) };
+            if has_wide_int(b) {
+                return Err(ReadErr::Wide(format!(
+                    "{}: 窓では値を変えずに書けない大きな整数があります（Python の書く係で保存してください）",
+                    path.display()
+                )));
             }
-            if std::str::from_utf8(b).is_err()
-                || matches!(e.classify(), serde_json::error::Category::Eof | serde_json::error::Category::Syntax)
-            {
-                return Err(bad(format!("{BROKEN}{}", e.line()))); // 本当に壊れた物（Doc::read が置き場の言葉を付ける）
+            match crate::held::parse(text) {
+                Ok(v) => v,
+                Err(crate::held::Bad::Lone) => return Err(ReadErr::Lone),
+                Err(crate::held::Bad::Broken(_)) => return Err(ReadErr::Broken(Some(e))),
             }
-            Err(bad(format!("{}: {e}", path.display())))
         }
+    };
+    match &v {
+        Value::Array(_) => Ok(v),
+        Value::Object(o) if matches!(o.get("rows"), Some(Value::Array(_))) => match o.get("revision") {
+            Some(r) if crate::row_check::as_int(r).and_then(|n| n.small()).is_none() => Err(ReadErr::Rev(crate::row_check::short(r))),
+            _ => Ok(v),
+        },
+        _ => Err(ReadErr::Shape),
     }
 }
 
@@ -285,7 +319,9 @@ pub(crate) fn has_wide_int(b: &[u8]) -> bool {
                 i += 1;
             }
             let tok = std::str::from_utf8(&b[s..i]).unwrap_or("");
-            if !tok.contains(['.', 'e', 'E']) && tok.parse::<i64>().is_err() && tok.parse::<u64>().is_err() {
+            // 数字の無い字（-Infinity の「-」）は数ではない（版 3.107.0: NaN・Infinity は src/held.rs が持つ）
+            let digits = tok.bytes().any(|c| c.is_ascii_digit());
+            if digits && !tok.contains(['.', 'e', 'E']) && tok.parse::<i64>().is_err() && tok.parse::<u64>().is_err() {
                 return true;
             }
             continue;
@@ -320,32 +356,10 @@ fn token_of(v: Option<&Value>) -> Option<Value> {
     v.filter(|x| !x.is_null()).cloned()
 }
 
-/// 版の番号（Python の int(revision): 数・小数〈切り捨て〉・真偽〈1・0〉・字〈前後の空白と数字の間の _ を許す〉）
-fn revision_of(v: &Value) -> Option<i64> {
-    match v {
-        Value::Bool(b) => Some(*b as i64),
-        Value::Number(n) => n.as_i64().or_else(|| n.as_f64().filter(|f| f.is_finite() && f.abs() < 9.2e18).map(|f| f.trunc() as i64)),
-        Value::String(s) => {
-            let t = s.trim();
-            let body = t.strip_prefix(['+', '-']).unwrap_or(t);
-            let ok = !body.is_empty()
-                && !body.starts_with('_')
-                && !body.ends_with('_')
-                && !body.contains("__")
-                && body.chars().all(|c| c.is_ascii_digit() || c == '_');
-            if ok {
-                t.replace('_', "").parse().ok()
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
 /// マスタ・錠はディスクへ書き切ってから置き換える（停電・切断でも書きかけを残さない。Python の write_json_atomic(durable=True)）
 pub fn write_json_atomic(path: &Path, data: &Value) -> std::io::Result<()> {
-    let mut body = serde_json::to_vec_pretty(data).map_err(std::io::Error::other)?;
+    // 持っている値（NaN・Infinity。src/held.rs）があれば Python の json.dumps(indent=2) と同じ字で書き戻す
+    let mut body = crate::held::to_pretty(data)?;
     body.push(b'\n');
     write_bytes_atomic(path, &body)
 }
@@ -474,19 +488,16 @@ impl Doc {
         Doc { revision: 0, updated_at: json!(""), updated_by: json!({}), rows: vec![] }
     }
 
-    /// 共有・写しは {schema, revision, rows…}、同梱の data/ は行の配列（昔の形）。どちらも読む（Python の _as_doc）
-    fn from_value(v: Value) -> R<Doc> {
+    /// 共有・写しは {schema, revision, rows…}、同梱の data/ は行の配列（昔の形）。どちらも読む（Python の _as_doc）。parse_master が形と版を確かめた物
+    fn from_value(v: Value) -> Doc {
         match v {
-            Value::Array(rows) => Ok(Doc { rows, ..Doc::empty() }),
-            Value::Object(mut o) if matches!(o.get("rows"), Some(Value::Array(_))) => {
+            Value::Array(rows) => Doc { rows, ..Doc::empty() },
+            Value::Object(mut o) => {
                 let rows = match o.remove("rows") {
                     Some(Value::Array(a)) => a,
                     _ => vec![],
                 };
-                let revision = match o.get("revision") {
-                    None => 0,
-                    Some(v) => revision_of(v).ok_or_else(|| io_err("マスタの版が読めません"))?,
-                };
+                let revision = o.get("revision").and_then(crate::row_check::as_int).and_then(|n| n.small()).unwrap_or(0);
                 let by = match o.remove("updated_by") {
                     None | Some(Value::Null) => json!({}),
                     Some(v) if v.as_object().is_some_and(|m| m.is_empty()) || v == json!("") || v == json!(false) || v == json!(0) => {
@@ -494,30 +505,21 @@ impl Doc {
                     }
                     Some(v) => v,
                 };
-                Ok(Doc { revision, updated_at: o.remove("updated_at").unwrap_or(json!("")), updated_by: by, rows })
+                Doc { revision, updated_at: o.remove("updated_at").unwrap_or(json!("")), updated_by: by, rows }
             }
-            _ => Err(io_err("マスタの形が読めません")),
+            _ => Doc::empty(),
         }
     }
 
-    /// where は理由の言葉の置き場（「共有の」「この PC の写しの」「手元の」。Store::where_of）。壊れた JSON・形の違う中身は Unreadable
+    /// where は理由の言葉の置き場（「共有の」「この PC の写しの」「手元の」。Store::where_of）。壊れた JSON・形の違う中身・読めない版・
+    /// 対の無い代用字は Unreadable（版 3.107.0 から版と代用字も。Python の _read_master と同じ言葉）
     pub fn read(path: &Path, where_: &str) -> R<Doc> {
-        let v = match read_json(path) {
-            Ok(v) => v,
-            Err(e) if e.to_string().starts_with(BROKEN) => {
-                let raw = std::fs::read(path).unwrap_or_default();
-                let body = raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&raw);
-                let err = serde_json::from_slice::<Value>(body).err();
-                return Err(MasterError::Unreadable(unreadable_text(where_, path, &raw, err.as_ref())));
-            }
-            Err(e) => return Err(io_err(e)),
-        };
-        Doc::from_value(v).map_err(|e| match e {
-            MasterError::Error(m) if m == "マスタの形が読めません" => {
-                MasterError::Unreadable(unreadable_text(where_, path, &std::fs::read(path).unwrap_or_default(), None))
-            }
-            e => e,
-        })
+        let raw = std::fs::read(path).map_err(io_err)?;
+        match parse_master(&raw, path) {
+            Ok(v) => Ok(Doc::from_value(v)),
+            Err(ReadErr::Wide(m)) => Err(io_err(m)),
+            Err(e) => Err(MasterError::Unreadable(read_reason(where_, path, &raw, &e))),
+        }
     }
 
     fn to_value(&self) -> Value {
@@ -1299,22 +1301,32 @@ impl Store {
     }
 }
 
-/// 新しい行の id（いまの最大 + 1。Python の next_id）
-pub fn next_id(rows: &[Value]) -> i64 {
-    rows.iter()
-        .map(|r| {
+/// 新しい行の id（いまの最大 + 1。Python の next_id: int(r.get("id") or 0) の読める行だけ。版 3.107.0 から隔てた行の字の "4"・小数の 1e19 も数え、
+/// 読めない id〈"abc"・並び〉は数えない〈前は Python が ValueError〉）。i64 に入らなければ u64 の数（1e19 の行の次は 10000000000000000001）
+pub fn next_id(rows: &[Value]) -> Value {
+    let top = rows
+        .iter()
+        .filter(|r| r.is_object())
+        .filter_map(|r| {
             let v = &r["id"];
-            // Python の int(r.get("id") or 0): 真偽は 1・0（版 3.77.0。前は真偽を 0 と読み、Python と違う id を付けた）
-            v.as_bool()
-                .map(i64::from)
-                .or_else(|| v.as_i64())
-                .or_else(|| v.as_f64().map(|f| f as i64))
-                .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
-                .unwrap_or(0)
+            if !crate::worksum::truthy(v) {
+                return Some(0i128);
+            }
+            match crate::row_check::as_int(v)? {
+                crate::pyfmt::PyInt::Small(i) => Some(i as i128),
+                crate::pyfmt::PyInt::Big(s) => s.parse::<i128>().ok(),
+            }
         })
         .max()
         .unwrap_or(0)
-        + 1
+        + 1;
+    if let Ok(i) = i64::try_from(top) {
+        json!(i)
+    } else if let Ok(u) = u64::try_from(top) {
+        json!(u)
+    } else {
+        json!(top as f64)
+    }
 }
 
 #[cfg(test)]

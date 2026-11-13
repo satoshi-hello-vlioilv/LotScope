@@ -130,16 +130,32 @@ pub fn sort_views(items: &mut [Value]) {
 /// 字の JSON を Python と窓で読みが割れるか（master_rows::text_split。ここでも同じ名前で使う）
 pub use crate::master_rows::text_split;
 
-/// 置き場の行を窓が Python と同じに読めるか: id・版が読め（master_rows::row_readable）、置く項目は字か無い（Python の並べ替え・比べ方が
-/// 字のときと同じになる）、中身の字は窓の serde が Python の json.loads と同じに読める（text_split）
-pub fn rows_plain(rows: &[Value]) -> bool {
-    rows.iter().all(|r| {
-        r.as_object().is_some_and(|o| {
-            master_rows::row_readable(o)
-                && FIELDS.iter().all(|k| o.get(*k).is_none_or(Value::is_string))
-                && s(o, "中身").is_none_or(|t| !master_rows::text_split_py(t))
-        })
-    })
+/// 置き場の行を読む（版 3.107.0）: 形をそろえ（版の無い行は 1）、隔てた行を分ける。中身の字に i64 に入らない整数があれば None（H2。Python に任せる）
+pub fn read_rows(rows: &[Value], name: &str) -> Option<(Vec<Value>, master_rows::Iso)> {
+    let spec =
+        Spec { name: if name == "pivot_presets" { "pivot_presets" } else { "dashboards" }, fields: &FIELDS, unique: None, renamed: &[] };
+    let mut rows = rows.to_vec();
+    master_rows::normalize_all(&mut rows, &spec);
+    if crate::row_check::wide_content(spec.name, &rows) {
+        return None;
+    }
+    let iso = crate::row_check::check(spec.name, &rows, &FIELDS);
+    Some((rows, iso))
+}
+
+/// 隔てた行を除いた行
+pub fn good_rows(rows: &[Value], iso: &master_rows::Iso) -> Vec<Value> {
+    crate::row_check::good(rows, iso).into_iter().cloned().collect()
+}
+
+/// 道の id の行（routes/common の repo.find: 隔てた行なら書かない＝MasterUnreadable の答え）
+pub fn find_row<'a>(name: &str, rows: &'a [Value], iso: &master_rows::Iso, id: i64) -> Result<Option<&'a Map<String, Value>>, Answer> {
+    crate::row_check::guard(name, rows, iso, id).map_err(|e| (e.status(), e.payload()))?;
+    Ok(rows
+        .iter()
+        .enumerate()
+        .find(|(i, r)| !crate::row_check::is_isolated(iso, *i) && master_rows::same_id(r, id))
+        .and_then(|(_, r)| r.as_object()))
 }
 
 /// Python の str(v or "")（真でない値は空の字）
@@ -221,7 +237,10 @@ pub(crate) fn write(
     what: &str,
 ) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        master_rows::normalize_all(rows, spec);
+        let iso = master_rows::prepare(rows, spec)?;
+        if let Some(id) = item_id {
+            crate::row_check::guard(spec.name, rows, &iso, id)?;
+        }
         let i = match item_id {
             None => {
                 let mut row = Map::new();
@@ -265,7 +284,8 @@ pub(crate) fn write(
             let g = group_of(&done);
             for (j, r) in rows.iter_mut().enumerate() {
                 let Some(o) = r.as_object_mut() else { continue };
-                if j != i && s(o, "標準") == Some("1") && group_of(o) == g {
+                // 隔てた行はそのまま書き戻す（★も外さない。版 3.107.0）
+                if j != i && !crate::row_check::is_isolated(&iso, j) && s(o, "標準") == Some("1") && group_of(o) == g {
                     let rev = o.get("rev").and_then(master_rows::py_int).unwrap_or(1);
                     o.insert("標準".into(), json!(""));
                     o.insert("rev".into(), json!(rev + 1));

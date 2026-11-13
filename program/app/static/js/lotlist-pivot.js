@@ -136,7 +136,9 @@
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "組み方を読めませんでした");
     Object.assign(presets, { source: src, items: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, canEditDefault: !!d.canEditDefault,
-      standardId: d.standardId ?? null, quick: (d.quick || []).map(String), quickCustom: !!d.quickCustom, quickDefault: (d.quickDefault || []).map(String), loaded: true, version: presets.version + 1 });
+      standardId: d.standardId ?? null, quick: (d.quick || []).map(String), quickCustom: !!d.quickCustom, quickDefault: (d.quickDefault || []).map(String), loaded: true, version: presets.version + 1,
+      // 読めない行・読めないファイルの知らせ（版 3.107.0。組み方とすぐに見るのマスタ）
+      skip: TPA.skipNote(d, "pivot_presets") + TPA.skipNote({ skipped: d.quickSkipped }, "pivot_quick") });
     return presets;
   }
   /** いまの組み方に当たるプリセット（同じ中身）か、最後に当てたプリセット（変えたあと） */
@@ -483,7 +485,7 @@
     const sec = (k, list, empty) => `<p class="pv-psec">${TPA.scope.head(k, k === "me" && presets.login ? `（${esc(presets.login)}）` : "")}</p>` + (list.length ? list.map(row).join("") : `<p class="pv-pnote">${empty}</p>`);
     const order = quick.map(itemOf).filter(Boolean);
     const std = itemOf(presets.standardId);
-    el.innerHTML = `<div class="pv-phead"><b>組み方</b><small>名前を押すと当てます（この表に無いカラムは外します）。☑＝グラフの形の行の「すぐに見る」に出す（${presets.login ? `${esc(presets.login)} の分。ほかの PC でも同じ` : "ログイン ID が分からないので選べません"}）。`
+    el.innerHTML = `<div class="pv-phead"><b>組み方</b>${presets.skip || ""}<small>名前を押すと当てます（この表に無いカラムは外します）。☑＝グラフの形の行の「すぐに見る」に出す（${presets.login ? `${esc(presets.login)} の分。ほかの PC でも同じ` : "ログイン ID が分からないので選べません"}）。`
       + `★＝最初に当てる: 組み方が空のまま集計表を開くと当てます${std ? `（いまは「${esc(std.name)}」）` : ""}。${TPA.scope.RULE}</small></div>`
       + `<div class="pv-qorder"><p class="pv-psec">すぐに見るの並び${presets.quickCustom ? "" : "（全員の既定のまま）"}</p>`
       + (order.length ? order.map((p, i) => `<span class="pv-qo">${C.iconSvg((p.body || {}).chart, 14)}<span>${esc(p.name)}</span><button type="button" data-pv-qmove="${i}" data-d="-1" aria-label="「${esc(p.name)}」を前へ"${i ? "" : " disabled"}>◀</button><button type="button" data-pv-qmove="${i}" data-d="1" aria-label="「${esc(p.name)}」を後ろへ"${i < order.length - 1 ? "" : " disabled"}>▶</button></span>`).join("") : '<span class="pv-pnote">何も出していません。下の ☑ で選びます</span>')
