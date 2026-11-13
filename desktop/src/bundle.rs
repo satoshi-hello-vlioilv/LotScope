@@ -826,10 +826,19 @@ pub(crate) fn num_setting(v: &Value, dflt: &Value) -> R<(Value, bool)> {
     }
 }
 
+/// 数の設定の欄の名前と単位（num_setting.LABELS と同じ。接続の段の欄の名前〈bundle_tables.json の connSpecs〉と同じ言葉）
+pub(crate) fn num_label(key: &str) -> (&'static str, &'static str, &'static str) {
+    if key.starts_with("stale") {
+        ("stale", "古さの警告（時間）", "時間")
+    } else {
+        ("refresh", "確かめる間隔（秒）", "秒")
+    }
+}
+
 /// 読めなかった数の設定の知らせ（num_setting.warn と同じ言葉。key は設定の項目の名前か接続の欄の id）
 pub(crate) fn num_warn(key: &str, v: &Value, dflt: &Value) -> String {
-    let (label, unit) = if key.starts_with("stale") { ("古さの警告の時間", "時間") } else { ("確かめる間隔", "秒") };
-    format!("配った設定の{label}「{}」が数ではないので、既定の {} {unit}で見ています。", py_str(v), py_str(dflt))
+    let (_, label, unit) = num_label(key);
+    format!("{label}の既定の値「{}」が数ではないので、{} {unit}で見ています。", py_str(v), py_str(dflt))
 }
 
 /// 写し直す間隔・古いとみなす時間・1 頁の件数（data_sources.read_params）
@@ -2137,13 +2146,14 @@ impl Builder {
             };
             wl.insert("folder".into(), json!(folder));
             // 古さの警告の時間・確かめる間隔（版 3.106.0。work_log.params）: num_setting で読み、読めなければ既定で続けて settingsWarn で知らせる
-            let mut warn = String::new();
+            let mut warn: Vec<Value> = vec![];
             for k in ["stale_hours", "refresh_seconds"] {
                 let d = t(&["workDefaults", k]);
                 let v = wl.get(k).cloned().unwrap_or(Value::Null);
                 let (got, ok) = num_setting(&v, d)?;
                 if !ok {
-                    warn.push_str(&num_warn(k, &v, d));
+                    let (f, label, _) = num_label(k);
+                    warn.push(json!({"field": f, "label": label, "text": num_warn(k, &v, d)}));
                 }
                 wl.insert(k.into(), got);
             }
@@ -2259,9 +2269,9 @@ mod tests {
     /// num_warn と一覧の lists::num（写しの係へ渡す数）が同じに読むか
     #[test]
     fn num_setting_like_the_table() {
-        let t: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/num_setting_cases.json")).unwrap();
+        let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/num_setting_cases.json")).unwrap();
         let mut bad = vec![];
-        for c in t["cases"].as_array().unwrap() {
+        for c in table["cases"].as_array().unwrap() {
             let (v, d) = (&c["value"], &c["default"]);
             let (got, ok) = num_setting(v, d).unwrap();
             let w = if ok { String::new() } else { num_warn(c["key"].as_str().unwrap(), v, d) };
@@ -2277,6 +2287,10 @@ mod tests {
         }
         assert!(bad.is_empty(), "{}", bad.join("\n"));
         assert!(num_setting(&json!([1]), &json!(36)).is_err(), "並びは束を組まない（Python の知らせの字が repr）");
+        // 言葉は 1 か所の決まり: 接続の段の欄の名前（Python から焼いた connSpecs）と同じ
+        for k in ["stale", "refresh"] {
+            assert_eq!(t(&["sourcesList", "connSpecs", k, "label"]).as_str(), Some(num_label(k).1), "{k}");
+        }
     }
 
     #[test]

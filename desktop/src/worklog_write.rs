@@ -237,7 +237,7 @@ fn of_master(e: MasterError) -> Answer {
 
 /// 配った設定の古さの時間が数でないときの知らせ（版 3.106.0。束の work の settingsWarn。読めない時間は束が既定に替えてある）
 fn settings_warn(work: &Value) -> Value {
-    work.get("settingsWarn").cloned().unwrap_or(json!(""))
+    work.get("settingsWarn").cloned().unwrap_or(json!([]))
 }
 
 /// 古さの警告の時間（float(stale_hours or 0)）。読めなければ Python に任せる

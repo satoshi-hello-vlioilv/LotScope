@@ -758,8 +758,8 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
   const miss = d.items.filter((x) => x.state === "missing"), old = d.items.filter((x) => x.stale), moved = d.items.filter((x) => x.state === "renamed");
   /* 直すこと（次の手つき）。無ければ出さない */
   /* 配った設定の数の設定が数でない（版 3.106.0）: 既定で続けていることを、直すことの 1 行目で言い、直す欄（データ元の「接続」の段）へ案内する */
-  const todo = [...(d.settingsWarn ? [`<div><span class="m-chip c-warn">設定が数でない</span><span>${escapeHtml(d.settingsWarn)}</span>`
-    + (embed ? '<button type="button" class="pz-btn" data-wl-conn>接続の欄で直す</button>' : "") + "</div>"] : []), ...(d.error ? [] : [
+  const todo = [...(d.settingsWarn || []).map((w) => `<div><span class="m-chip c-warn">${escapeHtml(TPA.numWarnTag(w.label))}</span><span>${escapeHtml(w.text)}</span>`
+    + (embed ? `<button type="button" class="pz-btn" data-wl-conn="${escapeHtml(w.field)}">接続の欄で直す</button>` : "") + "</div>"), ...(d.error ? [] : [
     ...miss.map((x) => `<div><span class="m-chip c-off">見つからない</span><span><b>${escapeHtml(x.name)}</b>: ${escapeHtml(x.file)} がフォルダにありません</span>`
       + (can && loose.length ? `<button type="button" class="pz-btn" data-wl-go="${x.id}">結ぶファイルを選ぶ</button>` : "<small>名前が変わったか、消されました</small>") + "</div>"),
     ...old.map((x) => `<div><span class="m-chip c-warn">古い</span><span><b>${escapeHtml(x.name)}</b>: ${Math.round(x.ageHours)} 時間、更新されていません（ファイルを書く元のアプリ・仕組みが止まっていないか確かめてください）</span></div>`),
@@ -829,7 +829,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
   box.querySelectorAll("[data-wl-conn]").forEach((b) => b.addEventListener("click", () => {
     const card = box.closest(".sr-card");
     card?.querySelector('[data-sr-sec="conn"]')?.click();
-    const el = card?.querySelector("[data-conn-warn]")?.closest("label")?.querySelector("input, select");
+    const el = card?.querySelector(`[data-sr-conn="${b.dataset.wlConn}"]`);
     if (el) { el.scrollIntoView({ block: "center" }); el.focus(); }
   }));
   box.querySelectorAll("[data-wl-go]").forEach((b) => b.addEventListener("click", () => {

@@ -266,6 +266,8 @@
     /** JSON を送る fetch の2つめの引数。例: fetch(url, TPA.json("POST", {names})) */
     json: (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
     pad2: (n) => String(n).padStart(2, "0"),
+    /** 既定の数の設定が数でないときの札（版 3.106.0）: 欄の名前（サーバーの services/num_setting.LABELS）＋「が数でない」。見出し・「直すこと」で同じ言葉 */
+    numWarnTag: (label) => `${label}が数でない`,
     /** 文字の幅（px）を測る（列の幅を中身に合わせるため）。font は CSS の font と同じ書き方。 */
     textWidth(text, font) {
       if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");

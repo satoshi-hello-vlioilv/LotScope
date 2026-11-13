@@ -56,13 +56,14 @@ def params(settings):
     wl.update({k: v for k, v in ((settings or {}).get("work_log") or {}).items() if v not in (None, "")})
     wl["folder"] = unquote_path(wl["folder"])
     # 数の設定は 1 つの部品で読む（services/num_setting。品質・データ元も同じ。窓は bundle.rs の num_setting）。
-    # 知らせ（settingsWarn）は読めなかった設定ごとの言葉を並べた字（古さの警告の時間 → 確かめる間隔の順）
+    # 知らせ（settingsWarn）は読めなかった設定ごとの {field, label, text} の並び（古さの警告 → 確かめる間隔の順）
     warns = []
     for k in ("stale_hours", "refresh_seconds"):
-        wl[k], w = num_setting.read_warn(wl[k], DEFAULTS[k], k)
-        if w:
-            warns.append(w)
-    wl["settingsWarn"] = "".join(warns)
+        v, ok = num_setting.read(wl[k], DEFAULTS[k])
+        if not ok:
+            warns.append(num_setting.warn_item(k, wl[k], DEFAULTS[k]))
+        wl[k] = v
+    wl["settingsWarn"] = warns
     return wl
 
 

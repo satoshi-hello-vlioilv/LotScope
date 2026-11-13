@@ -773,6 +773,9 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-sum > i{font-style:normal;color:#b5c0cc}
 .sr-sum b{color:var(--ink)}
 .sr-sum-p{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* 版 3.106.0: 要約に札がある段は、場所（後ろの 2 つ）を縮めず、札の方を「…」で縮める（いちばん大事な最後のフォルダの名前を切らない。札の言葉は title にも） */
+.sr-sum:has(.sr-tag[data-warn-tag]) .sr-sum-p{flex:none}
+.sr-sum .sr-tag[data-warn-tag]{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sr-sum-bad{color:#9b1c1c}
 .sr-tag{flex:none;display:inline-block;width:auto;border-radius:999px;padding:1px 8px;font-size:12px}
 .sr-tag.is-warn{color:#7a4a00;background:#fff1cc}.sr-tag.is-bad{color:#9b1c1c;background:#fde2e2}

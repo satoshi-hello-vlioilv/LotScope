@@ -90,8 +90,8 @@ CONN_SPECS = {
     "client_ip": {"label": "CM3 に名乗る端末の IP", "kind": "text"},
     "equipments": {"label": "設備（「、」区切り。端末区分が違う設備は L-9:2）", "kind": "text"},
     "inspect": {"label": "点検の行の言葉（「、」区切り）", "kind": "text"},
-    "refresh": {"label": "確かめる間隔（秒）", "kind": "int", "min": 10, "max": 3600},
-    "stale": {"label": "古さの警告（時間）", "kind": "number", "min": 0, "max": 24 * 60},   # 0 は知らせない（手がかりに書く）
+    "refresh": {"label": num_setting.LABELS["refresh"][0], "kind": "int", "min": 10, "max": 3600},     # 欄の名前は num_setting の決まりから
+    "stale": {"label": num_setting.LABELS["stale"][0], "kind": "number", "min": 0, "max": 24 * 60},   # 0 は知らせない（手がかりに書く）
     "lot": {"label": "ロット番号の列", "kind": "lotcol",
             "hint": "押すとロットを計算へ取り込む・虫眼鏡・ロットでまとめる列。自動は名前（ロット番号・ﾛｯﾄ番号・ロット№・LTNO → 名前に「ロット」を含む最初の列）で探します。"
                     "ロット番号ではない列が選ばれたときは「なし」か正しい列にしてください。"},
