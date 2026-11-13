@@ -150,7 +150,7 @@ fn builtin_skip(rows: &[Value], login: &str) -> Result<(Off, Vec<String>), Stop>
     let mut swapped = vec![];
     for r in rows.iter().filter_map(Value::as_object).filter(|r| is_dash(r) && pr::visible(r, login)) {
         let text = s(r, "中身").filter(|t| !t.is_empty()).unwrap_or("{}");
-        let rep = serde_json::from_str::<Value>(text).ok().and_then(|v| v.get("replaces").cloned());
+        let rep = serde_json::from_str::<Value>(&crate::master_rows::inner_text(text)).ok().and_then(|v| v.get("replaces").cloned());
         let k = match rep.as_ref().and_then(Value::as_str) {
             Some(k) if lc::BUILTIN_KEYS.contains(&k) => Some(k.to_string()),
             _ => builtin_named(r),
@@ -226,9 +226,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if route == Route::Hidden {
         return hidden(store, &who, d, &tree, &rows);
     }
-    if !pr::plain_input(d) {
-        return None;
-    }
+    // 名前・備考・範囲の型は本文の門が断る（body_rules.TYPES。版 3.106.0。前は plain_input で任せていた）
     // 中身は送った順の木で確かめる（clean_row は serde の値を渡すので、その値は使わず木の body を見る）
     let py = Cell::new(false);
     let tree_body = tree.get("body").cloned().unwrap_or(Tree::Null);

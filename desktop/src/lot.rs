@@ -2004,12 +2004,17 @@ mod tests {
         assert_eq!(st, 409, "開いてから変わった行は直さない");
         assert_eq!(lot.handle_body("PUT", "/api/dashboard-sets/1", "", br#"{"name": "x"}"#, &ask).unwrap().0, 400, "セットでない行");
         assert_eq!(lot.handle_body("DELETE", "/api/dashboard-sets/2", "rev=1", b"", &ask).unwrap(), (200, json!({"ok": true})));
-        // Python に任せる: 判定の材料が無い・書けない本文（名前が並び）。版 3.105.0 から名前の小数は窓が str() の字で答える
+        // Python に任せる: 判定の材料が無い。版 3.105.0 から名前の小数は窓が str() の字で答える。版 3.106.0 から名前が並びの本文は
+        // 本文の門が欄の型で断る（Python も同じ言葉）
         let none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
         assert!(Lot::new(dir.join("c2")).handle_body("GET", "/api/dashboard-sets", "", b"", &none).is_none());
-        assert!(lot
-            .handle_body("POST", "/api/dashboard-sets", "", br#"{"name": ["x"], "scope": "me", "body": {"items": ["1"]}}"#, &ask)
-            .is_none());
+        assert!(body_refused(lot.handle_body(
+            "POST",
+            "/api/dashboard-sets",
+            "",
+            br#"{"name": ["x"], "scope": "me", "body": {"items": ["1"]}}"#,
+            &ask
+        )));
         let (st, v) = lot
             .handle_body("POST", "/api/dashboard-sets", "", br#"{"name": 1.5, "scope": "me", "body": {"items": ["1"]}}"#, &ask)
             .expect("名前の小数は窓が答える");
@@ -2103,7 +2108,9 @@ mod tests {
         let (_, v) = lot.handle_body("GET", "/api/pivot-presets", "source=lot", b"", &ask).unwrap();
         assert_eq!((v["quick"].clone(), v["standardId"].clone()), (json!(["1", "b:hist"]), json!(1)), "{v}");
         let q = "{\"source\": \"lot\", \"keys\": [\"\u{b2}\"]}";
-        assert!(lot.handle_body("PUT", "/api/pivot-quick", "", q.as_bytes(), &ask).is_none(), "「²」は Python の isdigit");
+        // 版 3.106.0: 「²」は Python の isdigit が真（窓も焼いた表 isdigit_table で同じに読む）
+        let (st, v) = lot.handle_body("PUT", "/api/pivot-quick", "", q.as_bytes(), &ask).unwrap();
+        assert_eq!((st, v["quick"].clone()), (200, json!(["\u{b2}"])), "{v}");
         assert!(body_refused(lot.handle_body("POST", "/api/pivot-presets", "", br#"{"name": "a", "x": NaN}"#, &ask)));
         assert!(lot.handle_body("DELETE", "/api/pivot-presets/\u{ff11}", "", b"", &ask).is_some());
         assert_eq!(lot.handle_body("DELETE", "/api/pivot-presets/1", "rev=1", b"", &ask).unwrap(), (200, json!({"ok": true})));
@@ -2839,7 +2846,8 @@ mod tests {
         ] {
             assert!(lot.handle_body(m, p, "engine=python", body.as_bytes(), &down).is_none(), "{p}");
         }
-        assert!(lot.handle_body("POST", "/api/release/place/check", "", br#"{"name": ["a"], "parent": "x"}"#, &down).is_none());
+        // 版 3.106.0: 名前が並びの本文は本文の門が欄の型で断る（Python も同じ言葉）
+        assert!(body_refused(lot.handle_body("POST", "/api/release/place/check", "", br#"{"name": ["a"], "parent": "x"}"#, &down)));
         // 門番: 版を置けない人は move を断る（確かめるは門番なし）。だれが（who）も canRelease が偽
         std::fs::write(share.join("access_permissions.json"), perm("一般ユーザー")).unwrap();
         let (st, v) = lot.handle_body("POST", "/api/release/place/move", "", body.as_bytes(), &down).unwrap();
@@ -3132,7 +3140,8 @@ mod tests {
         let (st, v) =
             lot.handle_body("POST", "/api/masters/equipment", "", r#"{"設備名": "z", "検査計": -0}"#.as_bytes(), &ask_boss).unwrap();
         assert_eq!((st, v["検査計"].as_str()), (201, Some("0")), "{v}");
-        assert!(lot.handle_body("POST", "/api/masters/rolls", "", r#"{"設備": "z", "本数": [1]}"#.as_bytes(), &ask_boss).is_none());
+        // 版 3.106.0: 並びの本数は本文の門が欄の型で断る
+        assert!(body_refused(lot.handle_body("POST", "/api/masters/rolls", "", r#"{"設備": "z", "本数": [1]}"#.as_bytes(), &ask_boss)));
         let ask_none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
         assert!(Lot::new(dir.join("c3")).handle_body("GET", "/api/masters/equipment", "", b"", &ask_none).is_none());
         assert!(lot.handle_body("GET", "/api/masters/%65quipment", "", b"", &ask_boss).is_none());
@@ -3193,9 +3202,9 @@ mod tests {
         assert_eq!((st, v["canEdit"].clone()), (200, json!(false)));
         let (st, _) = lot_v1.handle_body("DELETE", "/api/masters/shifts/2", "", b"", &ask_v1).unwrap();
         assert_eq!(st, 403);
-        // ④ 窓が Python と同じに読めない形は Python に任せる
+        // ④ 窓が Python と同じに読めない形は Python に任せる（表の適用設備は版 3.106.0 から本文の門が欄の型で断る）
         assert!(
-            lot.handle_body("POST", "/api/masters/shifts", "", br#"{"name": "a", "equipment": {"a": 1}}"#, &ask_boss).is_none(),
+            body_refused(lot.handle_body("POST", "/api/masters/shifts", "", br#"{"name": "a", "equipment": {"a": 1}}"#, &ask_boss)),
             "表の適用設備"
         );
         assert!(
@@ -3205,10 +3214,13 @@ mod tests {
         // 2 回目の採点で見つけた形: 区分の字の中の NaN（Python は 400 で断る）・適用設備の大きな整数（Python は桁のまま置く）
         let nan = br#"{"name": "s1", "segments": "[{\"name\":\"b\",\"start\":\"23:00\",\"end\":\"7:00\",\"dayOffset\":NaN}]"}"#;
         assert!(lot.handle_body("POST", "/api/masters/shifts", "", nan, &ask_boss).is_none(), "区分の字の NaN");
-        for eq in [r#"99999999999999999999"#, r#"[12345678901234567890]"#, r#"["CR1", 9223372036854775808]"#] {
-            let b = format!(r#"{{"name": "大", "equipment": {eq}, "segments": [{{"name": "a", "start": "7:00", "end": "8:00"}}]}}"#);
-            assert!(lot.handle_body("POST", "/api/masters/shifts", "", b.as_bytes(), &ask_boss).is_none(), "{eq}");
+        let shift =
+            |eq: &str| format!(r#"{{"name": "大", "equipment": {eq}, "segments": [{{"name": "a", "start": "7:00", "end": "8:00"}}]}}"#);
+        for eq in [r#"[12345678901234567890]"#, r#"["CR1", 9223372036854775808]"#] {
+            assert!(lot.handle_body("POST", "/api/masters/shifts", "", shift(eq).as_bytes(), &ask_boss).is_none(), "{eq}");
         }
+        // 版 3.106.0: 適用設備（並びの欄）に数は本文の門が欄の型で断る（Python も同じ言葉）
+        assert!(body_refused(lot.handle_body("POST", "/api/masters/shifts", "", shift("99999999999999999999").as_bytes(), &ask_boss)));
         assert!(
             body_refused(lot.handle_body("DELETE", "/api/masters/shifts/2", "rev=1", b"[1]", &ask_boss)),
             "表でない本文は門が断る（前は 500）"

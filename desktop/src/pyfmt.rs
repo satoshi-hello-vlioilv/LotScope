@@ -241,6 +241,23 @@ pub fn bytes_repr(b: &[u8]) -> String {
     out
 }
 
+/// Python の str.isdigit()（1 字。表は Python から焼いた src/isdigit_table.rs。版 3.106.0: すぐに見るの id の字。
+/// 全角の数字・「²」・丸数字も真。int() が読む数字〈digit〉とは違う）
+pub fn is_digit(c: char) -> bool {
+    let n = c as u32;
+    crate::isdigit_table::IS_DIGIT
+        .binary_search_by(|&(a, b)| {
+            if b < n {
+                std::cmp::Ordering::Less
+            } else if a > n {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+}
+
 /// Python の str.isprintable()（1 字。表は Python から焼いた src/printable_table.rs。版 3.104.0）
 pub fn is_printable(c: char) -> bool {
     let n = c as u32;

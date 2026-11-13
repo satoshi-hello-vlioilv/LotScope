@@ -22,9 +22,13 @@ def effective_settings(app):
 
 
 def lot_list_params(settings):
-    """ロット一覧の元の設定 → (元ファイル, 写し直す間隔 秒, 古いとみなす時間)。起動時とロット一覧の問い合わせで同じ読み方をする。"""
+    """ロット一覧の元の設定 → (元ファイル, 写し直す間隔 秒, 古いとみなす時間)。起動時とロット一覧の問い合わせで同じ読み方をする。
+    数の設定は services/num_setting で読む（版 3.106.0: 数でない「abc」は既定に替える。前は DbMirror の float()・int() で起動できなかった）"""
+    from .services import num_setting
     ll = settings.get("lot_list") or {}
-    return (ll.get("source", ""), ll.get("refresh_seconds", 60), ll.get("stale_hours", 36))
+    refresh, _ = num_setting.read(ll.get("refresh_seconds", 60), 60)
+    stale, _ = num_setting.read(ll.get("stale_hours", 36), 36)
+    return (ll.get("source", ""), refresh, stale)
 
 
 def lot_engine(settings):

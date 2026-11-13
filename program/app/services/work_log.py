@@ -36,6 +36,7 @@ import uuid
 from pathlib import Path
 
 from ..fsio import unquote_path
+from . import num_setting
 from .db_mirror import DbMirror, is_side_file, same_place
 
 NAME = "work_log_files"
@@ -48,10 +49,21 @@ LIST_TTL_SEC = 10.0          # フォルダの中身を覚える長さ（タブ�
 
 
 def params(settings):
-    """設定（参照先で変えた値を重ねた物）から、作業実績の設定（足りない項目は既定）。"""
+    """設定（参照先で変えた値を重ねた物）から、作業実績の設定（足りない項目は既定）。
+    古さの警告の時間（stale_hours）・確かめる間隔（refresh_seconds）が数として読めなければ（配った設定を手で直した「abc」など）、既定で続け、settingsWarn で知らせる
+    （版 3.106.0。前は float() の ValueError で登録の画面が 400・作業実績のタブが 500。窓の worklog_write・lists.rs も同じ）"""
     wl = dict(DEFAULTS)
     wl.update({k: v for k, v in ((settings or {}).get("work_log") or {}).items() if v not in (None, "")})
     wl["folder"] = unquote_path(wl["folder"])
+    # 数の設定は 1 つの部品で読む（services/num_setting。品質・データ元も同じ。窓は bundle.rs の num_setting）。
+    # 知らせ（settingsWarn）は読めなかった設定ごとの {field, label, text} の並び（古さの警告 → 確かめる間隔の順）
+    warns = []
+    for k in ("stale_hours", "refresh_seconds"):
+        v, ok = num_setting.read(wl[k], DEFAULTS[k])
+        if not ok:
+            warns.append(num_setting.warn_item(k, wl[k], DEFAULTS[k]))
+        wl[k] = v
+    wl["settingsWarn"] = warns
     return wl
 
 

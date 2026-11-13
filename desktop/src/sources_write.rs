@@ -46,13 +46,15 @@ pub enum Route {
     Conn(String),
 }
 
-/// Flask の <key>（/ を含まない空でない字）。百分率符号は Python が戻してから探すので任せる
+/// Flask の <key>（/ を含まない空でない字）。戻した字に「%」が残るキーは任せる
 fn key_of(s: &str) -> Option<String> {
     (!s.is_empty() && !s.contains('/') && !s.contains('%')).then(|| s.to_string())
 }
 
-/// 窓が受ける道か（routes/sources.py の 7 本だけ。確かめる道〈/check・/conn/check・/join/preview〉と /columns は Python）
+/// 窓が受ける道か（routes/sources.py の 7 本だけ。確かめる道〈/check・/conn/check・/join/preview〉と /columns は Python）。
+/// 百分率符号は Python と同じく道を戻してから合わせる（body::unquote。版 3.106.0。前は任せていた）
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
+    let path = crate::body::unquote(path);
     let rest = path.strip_prefix("/api/sources");
     match (method, rest?) {
         ("POST", "") => Some(Route::Add),
@@ -136,10 +138,10 @@ fn parse_joins(text: Option<&Value>) -> D<Vec<Join>> {
             if pyfmt::strip(s).is_empty() {
                 return Ok(vec![]);
             }
-            if crate::master_rows::text_split(s) {
-                return Err(Delegate); // Python の json.loads だけが読む字（NaN・1e400）・読みの割れる数
+            if crate::master_rows::text_split_py(s) {
+                return Err(Delegate); // Python の json.loads だけが読む字（NaN・1e400）・読みの割れる数（整数の -0 は 0 と読む）
             }
-            match serde_json::from_str::<Value>(s) {
+            match serde_json::from_str::<Value>(&crate::master_rows::inner_text(s)) {
                 Ok(v) => {
                     parsed = v;
                     &parsed
@@ -695,12 +697,15 @@ mod tests {
         assert_eq!(route_of("PUT", "/api/sources/wip/conn"), Some(Route::Conn("wip".into())));
         assert_eq!(route_of("POST", "/api/sources/order"), Some(Route::Order));
         assert_eq!(route_of("POST", "/api/sources/groups"), Some(Route::Groups));
+        assert_eq!(route_of("PUT", "/api/sources/w%69p"), Some(Route::Put("wip".into())), "百分率符号は戻して合わせる（版 3.106.0）");
+        assert_eq!(route_of("POST", "/api/sources/%6Frder"), Some(Route::Order));
         for (m, p) in [
             ("POST", "/api/sources/check"),
             ("POST", "/api/sources/wip/conn/check"),
             ("POST", "/api/sources/join/preview"),
             ("GET", "/api/sources/wip/columns"),
-            ("PUT", "/api/sources/w%69p"),
+            ("PUT", "/api/sources/w%2569p"),
+            ("PUT", "/api/sources/a%2Fb"),
             ("DELETE", "/api/sources/a/b"),
             ("GET", "/api/sources"),
             ("PUT", "/api/sources/"),

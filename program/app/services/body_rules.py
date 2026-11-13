@@ -237,6 +237,175 @@ SKIP = {
 }
 
 
+# ------------------------------------------------------------------ 欄の型（版 3.106.0。Rust 化の段 ① の D2・A2）
+# 道ごとに、本文の欄の道 → 許す型（並びで書く。見る順もこの並び）。窓は tools/body-routes.py が焼いた desktop/src/body_routes.json の
+# "types" で同じ順に当てる（tests/test_body_routes.py が古い表を止める）。表に無い欄は見ない。欄の道の書き方:
+#   "name"（表の鍵）・"rules[]"（並びの各値）・"rows[].when.*[].op"（「*」は表の全部の値）。
+# 型（どれも「断る物」で決める。前の版で窓が答えていた数・真偽・null は、字の欄でも今どおり str() で受ける）:
+#   s  字の欄: 並び・表を断る（Python は str() で repr の字〈['x']〉を置いていた。窓は答えずに任せていた）
+#   l  並びの欄: 数・真偽・表を断る（字・null は今どおり道が読む）
+#   o  表の欄: 並びを断る
+#   j  中身の欄（表か JSON の字）: 字なら門と同じ決まり（入れ子・NaN・Infinity・1e400・対の無い代用字）で中身を読み、
+#      読めた中身にこの後ろの欄の道を当てる（JSON として読めない字は、今どおり道が自分の言葉で断る）
+# 画面が字の欄に字でない物を送る所（タブの例外〈表〉・データ元の結合〈並び〉・presence の days〈字〉・勤務体系の dayOffset・
+# 設備グループの rules[] の知らない鍵）は表に入れない（2026-11-delegates-3106.md の 2 節。ui-eval の全部を記録だけの形で流して確かめる）。
+S, L, OBJ, J = "s", "l", "o", "j"
+TYPE_NAMES = {S: "字", L: "並び", OBJ: "表", J: "中身"}
+_PRESET = [("name", S), ("note", S), ("scope", S), ("source", S)]
+_CARD = [("body", J), ("body.tabs[].id", S), ("body.tabs[].name", S),
+         *[(f"body.items[].{k}", S) for k in ("id", "label", "col", "expr", "text", "tab")], ("body.items[].cols[]", S)]
+_PIVOT = [("body", J), ("body.rows[].part", S), ("body.cols[].part", S), ("body.measures[].column", S), ("body.measures[].expr", S)]
+# 版 3.106.0 の作った後の採点の割れ 5: 字で送る inputs・rows・apply は中身の欄（j）で中まで見る。apply.column・apply.place も字の欄
+# （前は apply.place に並びで Python が TypeError の 500）
+_CONV = [("name", S), ("other", S), ("inputs", J), ("inputs", L), ("inputs[].name", S), ("inputs[].type", S), ("inputs[].columns[]", S),
+         ("rows", J), ("rows", L), ("rows[].out", S), ("rows[].when.*[].op", S), ("rows[].when.*[].v[]", S), ("rows[].when.*[].min", S),
+         ("rows[].when.*[].max", S), ("apply", J), ("apply", OBJ), ("apply.mode", S), ("apply.column", S), ("apply.place", S)]
+_EGROUP = [("name", S), ("set", S), ("note", S), ("equipment", L), ("equipment[]", S), ("except", L), ("except[]", S),
+           ("rules", L), ("rules[].op", S), ("rules[].value", S)]
+_EQUIP = [("設備名", S), ("巻取方向", S), ("ライン方向", S), ("同一工程", S), ("検査計", S)]
+_ROLL = [(k, S) for k in ("設備", "入出位置", "接触面", "ロール径MAX", "ロール径MIN", "ロール面長", "材質", "硬度", "本数", "ロール名",
+                          "ロール使用条件", "駆動方式", "基準番号", "備考")]
+_SHIFT = [("name", S), ("note", S), ("equipment", L), ("equipment[]", S), ("segments", L), ("segments[].name", S),
+          ("segments[].start", S), ("segments[].end", S)]
+_SOURCE = [(k, S) for k in ("キー", "表示名", "役割", "場所", "表", "設備の列", "設備の取り出し方", "画面", "並び", "備考", "グループ", "元",
+                            "確かめる間隔", "古さの警告", "ロット番号の列")] + [
+    ("結合", J), ("結合[].with", S), ("結合[].how", S), ("結合[].on", L), ("結合[].cols", L), ("結合[].cols[]", S)]
+_PLACE = [("parent", S), ("name", S)]
+TYPES = {
+    ("POST", "/api/card-forms"): _PRESET + _CARD,
+    ("PUT", "/api/card-forms/<int:item_id>"): _PRESET + _CARD,
+    ("POST", "/api/pivot-presets"): _PRESET + _PIVOT,
+    ("PUT", "/api/pivot-presets/<int:item_id>"): _PRESET + _PIVOT,
+    ("POST", "/api/dashboards"): _PRESET + [("body", J)],
+    ("PUT", "/api/dashboards/<int:item_id>"): _PRESET + [("body", J)],
+    ("PUT", "/api/dashboards-hidden"): [("scope", S), ("keys", L), ("keys[]", S)],
+    ("POST", "/api/dashboard-sets"): _PRESET + [("body", J)],
+    ("PUT", "/api/dashboard-sets/<int:item_id>"): _PRESET + [("body", J)],
+    ("PUT", "/api/pivot-quick"): [("source", S), ("keys", L), ("keys[]", S)],
+    ("POST", "/api/masters/formats"): [("name", S), ("note", S), ("source", S), ("table", S), ("origin", S), ("body", J)],
+    ("PUT", "/api/masters/formats/<int:item_id>"): [("name", S), ("note", S), ("source", S), ("table", S), ("origin", S), ("body", J)],
+    ("POST", "/api/masters/conversions"): _CONV,
+    ("PUT", "/api/masters/conversions/<int:item_id>"): _CONV,
+    # 取り込み（利用者の前の版のファイル）: 字の欄の数・真偽・null は今どおり str() で受け、並び・表だけを断る（s の決まりのまま）
+    # 取り込みの中の字の欄（inputs・rows・apply を字で書いた物）は中まで見ない（中身の欄 j は表の上の段だけ。道が今どおり読む）
+    ("POST", "/api/masters/conversions/import"): [("items", L)] + [(f"items[].{p}", t) for p, t in _CONV if t != J],
+    ("POST", "/api/masters/equipgroups"): _EGROUP,
+    ("PUT", "/api/masters/equipgroups/<int:item_id>"): _EGROUP,
+    ("POST", "/api/masters/equipment"): _EQUIP,
+    ("PUT", "/api/masters/equipment/<int:item_id>"): _EQUIP,
+    ("POST", "/api/masters/rolls"): _ROLL,
+    ("PUT", "/api/masters/rolls/<int:item_id>"): _ROLL,
+    ("POST", "/api/masters/shifts"): _SHIFT,
+    ("PUT", "/api/masters/shifts/<int:item_id>"): _SHIFT,
+    ("PUT", "/api/masters/worklog/order"): [("keys", L), ("keys[]", S)],
+    ("PUT", "/api/masters/worklog/<int:item_id>"): [(k, S) for k in ("設備名", "ファイル名", "ファイルID", "表示", "表", "備考", "並び")],
+    ("POST", "/api/sources"): _SOURCE,
+    ("PUT", "/api/sources/<key>"): _SOURCE,
+    ("POST", "/api/sources/<key>/quick"): [("表示名", S), ("画面", S), ("グループ", S)],
+    ("PUT", "/api/sources/<key>/conn"): [("field", S), ("value", S)],
+    ("POST", "/api/sources/order"): [("keys", L), ("keys[]", S)],
+    ("POST", "/api/sources/groups"): [("from", S), ("to", S)],
+    ("PUT", "/api/settings/<path:key>"): [("value", S)],
+    ("POST", "/api/fs/browse"): [("path", S), ("purpose", S), ("pattern", S)],
+    ("POST", "/api/masters/place/check"): _PLACE,
+    ("POST", "/api/masters/place/move"): _PLACE,
+    ("POST", "/api/release/place/check"): [("from", S)] + _PLACE,
+    ("POST", "/api/release/place/move"): [("from", S)] + _PLACE,
+}
+# 記録だけの形（開発用。版 3.106.0 の入れ方: 断る前に画面の評価関数を全部流し、表に無い型が 0 件かを見る）。この環境変数にファイルの道を
+# 置くと、欄の型の違いを断らずに 1 行ずつ書く（中身の欄 j の門は今どおり断る）。窓は記録の形を持たない（いつも断る）
+TYPES_LOG_ENV = "TPA_BODY_TYPES_LOG"
+
+
+def type_message(path, kind):
+    if kind == S:
+        return f"本文の「{path}」は字で送ってください（並び・表は送れません）。"
+    if kind == L:
+        return f"本文の「{path}」は並びで送ってください。"
+    return f"本文の「{path}」は表で送ってください（並びは送れません）。"
+
+
+def _type_bad(v, kind):
+    if kind == S:
+        return isinstance(v, (list, dict))
+    if kind == L:
+        return isinstance(v, (bool, int, float, dict))
+    if kind == OBJ:
+        return isinstance(v, list)
+    return False
+
+
+def _values(root, path):
+    """欄の道に当たる値（文書の順）"""
+    cur = [root]
+    for seg in path.split("."):
+        arr = seg.endswith("[]")
+        name = seg[:-2] if arr else seg
+        nxt = []
+        for c in cur:
+            if not isinstance(c, dict):
+                continue
+            vals = list(c.values()) if name == "*" else ([c[name]] if name in c else [])
+            for v in vals:
+                if arr:
+                    if isinstance(v, list):
+                        nxt.extend(v)
+                else:
+                    nxt.append(v)
+        cur = nxt
+    return cur
+
+
+def read_inner(text):
+    """中身の欄の JSON の字 → 値（JSON として読めなければ None＝道に任せる）。門と同じ決まりで断る（BodyError）。
+    整数の -0 は Python の json.loads が int の 0 に読む（窓は字の中の -0 を 0 に書き直してから部品へ渡す）"""
+    if not _depth_ok(text, GATE_DEPTH):
+        raise BodyError(E_DEPTH)
+    try:
+        v = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    if any(isinstance(x, float) and not math.isfinite(x) for x in _walk(v)):
+        raise BodyError(E_NONFINITE)
+    if any(isinstance(x, str) and _SURR.search(x) for x in _walk(v)):
+        raise BodyError(E_SURROGATE)
+    return v
+
+
+def check_types(method, pattern, body, log=None):
+    """欄の型（TYPES）と中身の欄の門を当てる。違えば BodyError（log があれば型の違いは断らずに log へ渡す）"""
+    spec = TYPES.get((method, pattern))
+    if not spec or not isinstance(body, dict):
+        return
+    view = dict(body)
+    for path, kind in spec:
+        if kind == J:
+            if "." not in path and "[" not in path and isinstance(view.get(path), str):
+                inner = read_inner(view[path])
+                if inner is not None:
+                    view[path] = inner
+            continue
+        for v in _values(view, path):
+            if _type_bad(v, kind):
+                if log is not None:
+                    log({"method": method, "rule": pattern, "path": path, "type": kind, "got": type(v).__name__})
+                    break
+                raise BodyError(type_message(path, kind))
+
+
+def types_log():
+    """記録だけの形の書き手（環境変数が無ければ None）"""
+    import os
+    dest = os.environ.get(TYPES_LOG_ENV)
+    if not dest:
+        return None
+
+    def write(entry):
+        with open(dest, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return write
+
+
 def mode_of(method, pattern):
     """道の型の門（NEED・READ・None）"""
     return ROUTES.get((method, pattern))
@@ -244,3 +413,14 @@ def mode_of(method, pattern):
 
 def rules_of(mode):
     return GATE_NEED if mode == NEED else GATE_READ
+
+
+def gate(method, pattern, raw, log=None):
+    """書く道の門の全部（本文を読む → 欄の型と中身の欄）。門を当てない道は (False, None)。読めなければ BodyError。
+    Python の routes/common.body_gate と突き合わせの答えの元（tests/oracle_gate.py）が使う。窓は src/body.rs の gate"""
+    mode = mode_of(method, pattern)
+    if mode is None:
+        return False, None
+    value = read_body(raw, rules_of(mode))
+    check_types(method, pattern, value, log)
+    return True, value

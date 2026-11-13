@@ -25,6 +25,7 @@ pub mod formats_write;
 pub mod formula;
 pub mod home;
 pub mod install;
+pub mod isdigit_table;
 pub mod join;
 pub mod jsontree;
 pub mod key_split_table;

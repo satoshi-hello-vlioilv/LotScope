@@ -403,7 +403,8 @@ function connField(f, can, at = "") {
   return `<label class="sr-conn${connWide(f) ? " sr-w" : ""}" data-conn-f="${f.id}"${tip}><span>${escapeHtml(f.label)}</span>
     <span class="sr-row"><input class="ps-input" data-sr-conn="${f.id}" data-saved="${escapeHtml(v)}" id="${id}" value="${escapeHtml(v)}" spellcheck="false"${num ? ' inputmode="decimal"' : ""}
       placeholder="${escapeHtml(dflt ? `既定: ${dflt}` : num ? range : "")}"${dis}></span>
-    ${f.id === "stale" ? '<small class="sr-conn-h">最後の更新からこの時間を過ぎたら知らせる（0 は知らせない）</small>' : range ? `<small class="sr-conn-h">${range}${f.kind === "int" && /秒/.test(f.label) ? " 秒" : ""}・空なら既定</small>` : ""}</label>`;
+    ${f.id === "stale" ? '<small class="sr-conn-h">最後の更新からこの時間を過ぎたら知らせる（0 は知らせない）</small>' : range ? `<small class="sr-conn-h">${range}${f.kind === "int" && /秒/.test(f.label) ? " 秒" : ""}・空なら既定</small>` : ""}
+    ${f.warn ? `<small class="sr-conn-h is-warn" data-conn-warn>${escapeHtml(f.warn)}${NUM_FIX}</small>` : ""}</label>`;
 }
 /* 欄の補助（参照… の窓）と、ロット番号の列の選びを付ける */
 function bindConn(card, s, can) {
@@ -466,6 +467,12 @@ const tailOf = (p) => { const parts = String(p || "").split(/[\\/]/).filter(Bool
 const fixedTab = (s) => s && !canHide(s);
 const groupable = (s) => !s || (s.key !== "lot" && s.key !== "work");
 const connOf = (s) => (s ? s.conn || [] : mstate.data.sources.newConn || []);
+/** 既定の数の設定が数でない（版 3.106.0）: 段の見出しに出す札。言葉は欄の名前（サーバーの services/num_setting.LABELS の 1 か所）に
+    「が数でない」を足した物で、接続・設備の段の見出しと「直すこと」で同じ（TPA.numWarnTag）。細かい言葉（いま効いている値）は title に */
+const NUM_FIX = " この欄に数を入れて保存すると直ります。";
+function warnTags(list) {
+  return list.filter((f) => f.warn).map((f) => `<span class="sr-tag is-warn" data-warn-tag="${f.id}" title="${escapeHtml(f.warn)}">${escapeHtml(TPA.numWarnTag(f.label))}</span>`).join("");
+}
 /** 接続の段の要約: 場所（後ろの 2 つ。全部は題に）・決まり・間隔・警告 */
 function connSummary(list) {
   const f = (id) => list.find((x) => x.id === id), eff = (id) => connText((f(id) || {}).effective ?? (f(id) || {}).value);
@@ -476,7 +483,7 @@ function connSummary(list) {
   if (eff("equipments")) bits.push(`設備 ${escapeHtml(eff("equipments"))}`);
   if (eff("refresh")) bits.push(`${escapeHtml(eff("refresh"))} 秒ごと`);
   if (f("stale")) bits.push(+eff("stale") ? `${escapeHtml(eff("stale"))} 時間で警告` : "古さの警告なし");
-  return bits.join("<i>・</i>");
+  return bits.join("<i>・</i>") + warnTags(list);
 }
 function lotSummary(s) {
   const v = connText(((connOf(s).find((x) => x.id === "lot")) || {}).value);
@@ -484,10 +491,10 @@ function lotSummary(s) {
 }
 function equipSummary(s) {
   if (s.kind === "folder") {
-    const wl = mstate.data.worklog;
-    if (!wl) return `${s.equipCount ?? "-"} 台を表示`;
+    const wl = mstate.data.worklog, warn = warnTags(connOf(s));     // 配った設定の札も「古い」などと同じ形・同じ置き場（版 3.106.0）
+    if (!wl) return `${s.equipCount ?? "-"} 台を表示` + warn;
     const bad = wl.items.filter((x) => x.state === "missing" || x.stale);
-    return `<b>${wl.items.length} 台</b>（表示 ${wl.items.filter((x) => x.visible).length}）` + bad.map((x) => `<span class="sr-tag ${x.state === "missing" ? "is-bad" : "is-warn"}">${escapeHtml(x.name)} ${x.state === "missing" ? "見つからない" : "古い"}</span>`).join("");
+    return `<b>${wl.items.length} 台</b>（表示 ${wl.items.filter((x) => x.visible).length}）` + warn + bad.map((x) => `<span class="sr-tag ${x.state === "missing" ? "is-bad" : "is-warn"}">${escapeHtml(x.name)} ${x.state === "missing" ? "見つからない" : "古い"}</span>`).join("");
   }
   return s.equipColumn ? `設備の列 <b>${escapeHtml(s.equipColumn)}</b>（${escapeHtml(s.equipMode)}）` : "設備は見分けない";
 }

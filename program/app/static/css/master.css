@@ -759,6 +759,7 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-form .sr-conn > span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sr-form .sr-conn .sr-row > .ps-input{flex:1;min-width:0}
 .sr-conn-h{font-size:11.5px;color:var(--muted);line-height:1.35}
+.sr-conn-h.is-warn{color:#7a4a00;font-weight:600}
 /* 開いた欄の畳める段（版 3.58.0。2026-10-unify-2 の C3）。見出し 1 つが開く入口・要約は 1 段（全部は題）・札は字の幅 */
 .sr-acc{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
 .sr-sec + .sr-sec{border-top:1px solid var(--line-soft)}
@@ -772,6 +773,9 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 .sr-sum > i{font-style:normal;color:#b5c0cc}
 .sr-sum b{color:var(--ink)}
 .sr-sum-p{font-family:Consolas,"BIZ UDGothic",monospace;font-size:12.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* 版 3.106.0: 要約に札がある段は、場所（後ろの 2 つ）を縮めず、札の方を「…」で縮める（いちばん大事な最後のフォルダの名前を切らない。札の言葉は title にも） */
+.sr-sum:has(.sr-tag[data-warn-tag]) .sr-sum-p{flex:none}
+.sr-sum .sr-tag[data-warn-tag]{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sr-sum-bad{color:#9b1c1c}
 .sr-tag{flex:none;display:inline-block;width:auto;border-radius:999px;padding:1px 8px;font-size:12px}
 .sr-tag.is-warn{color:#7a4a00;background:#fff1cc}.sr-tag.is-bad{color:#9b1c1c;background:#fde2e2}

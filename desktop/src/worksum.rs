@@ -186,7 +186,8 @@ pub fn py_str(v: &Value) -> String {
     }
 }
 
-/// 本文の項目の値を窓が Python の str() と同じ字にできるか（版 3.105.0。前は preset_rows と formats_write に同じ写しがあり、
+/// 値を窓が Python の str() と同じ字にできるか（py_str の範囲。版 3.106.0 から本文の欄の型は本文の門〈body_rules.TYPES〉が断るので、
+/// 部品の任せる確かめには使わない。pyfloat_cases の試験が py_str の範囲として見る。版 3.105.0。前は preset_rows と formats_write に同じ写しがあり、
 /// 字・i64 の整数・真偽・null だけを答え、小数と u64 の整数も Python に任せていた）: 並び・表は Python では repr の字（['x']）なので任せる。
 /// 小数は float_repr（pyfloat_cases.json の 5,754 件と fields）、整数は桁のまま（py_str）。u64 を超える整数の字・-0・NaN は
 /// 呼ぶ側が先に本文の門（body::gate）と master_rows::unreadable で断るか任せる（ここへは来ない）

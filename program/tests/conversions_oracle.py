@@ -160,16 +160,26 @@ SCENARIOS = [
         S("POST", C, T("当て方が並び", apply=[1])),
         S("POST", C, T("入力が表", inputs={"a": 1})),
         S("POST", C, T("大きな範囲", rows=[{"when": {"b": [{"op": "range", "min": "1e19"}]}}])),
-        S("POST", C, T("正規表現", other="=extract([a], '(')")),
+        W(S("POST", C, T("正規表現", other="=extract([a], '(')"))),       # 版 3.106.0: re の言葉（位置）を出さない
+        # 作った後の採点の割れ 4: 長さの決まらない後読みは Python の re が読めず窓の fancy-regex は読む（formula_regex_cases）。窓は任せる
+        S("POST", C, T("長さの決まらない後読みの正規表現", other="=extract([a], '(?<=L|CR)\\d')")),
         S("POST", C, T(["名前が並び"])),
         S("POST", C, T("順が大きい", order="1" + "0" * 40)),
         S("POST", C, T("出す値が並び", other=[1])),
         S("POST", C, T("値が並び", rows=[{"when": {"a": [{"op": "eq", "v": [[1]]}]}}])),
-        S("POST", C, T("入れ子の深い式", other="=" + "(" * 70 + "1" + ")" * 70)),
+        # 版 3.106.0: 式の入れ子は Python も窓も同じ数え方（かっこ・負の符号・! と not の数）の上限 60 で断る（conversions.NEST_MAX）
+        W(S("POST", C, T("入れ子の深い式", other="=" + "(" * 70 + "1" + ")" * 70))),
         # 作った後の採点で見つけた割れ: not の重ね（窓は 200 段で断り、Python は再帰の上限まで読む）
-        S("POST", C, T("not の重ね", other="=" + "not " * 90 + "(" * 60 + "1" + ")" * 60)),
-        S("POST", C, T("not の重ね（出す値）", rows=[{"when": {}, "out": "=" + "not " * 90 + "(" * 60 + "1" + ")" * 60}])),
-        S("POST", C, T("not だけの重ね", other="=" + "not " * 120 + "1")),
+        W(S("POST", C, T("not の重ね", other="=" + "not " * 90 + "(" * 60 + "1" + ")" * 60))),
+        W(S("POST", C, T("not の重ね（出す値）", rows=[{"when": {}, "out": "=" + "not " * 90 + "(" * 60 + "1" + ")" * 60}]))),
+        W(S("POST", C, T("not だけの重ね", other="=" + "not " * 120 + "1"))),
+        W(S("POST", C, T("入れ子の上限ちょうど", other="=" + "not " * 30 + "(" * 30 + "-" * 30 + "1" + ")" * 30))),
+        W(S("POST", C, T("入れ子の上限を 1 つ超える", other="=" + "not " * 30 + "(" * 30 + "-" * 31 + "1" + ")" * 30))),
+        # 作った後の採点の割れ 3: 字と列の名前の中の「-」「not」は数えない（前は if を 31 重ねた式を 62 と数えて断った）
+        W(S("POST", C, T("字の中の L-1 の if を 31 重ねる", other="=" + "".join(f'if([a]="L-{i}",{i},' for i in range(31)) + "0" + ")" * 31))),
+        W(S("POST", C, T("列の名前と字の中の not", other='=if([a]="Not yet - not",  "-not-", "x")'))),
+        W(S("POST", f"{C}/import", {"items": [T("取り込む if の重ね", other="=" + "".join(f'if([a]="L-{i}",{i},' for i in range(31)) + "0" + ")" * 31)]})),
+        W(S("POST", C, T("正規表現の誤り（出す値）", rows=[{"when": {}, "out": "=match([a], '[')"}]))),
     ]},
     {"name": "足す・取り込むの本文の形", "mode": "shared", "steps": [
         S("POST", C, "[1]"), S("POST", C, '"abc"'), S("POST", C, "5"), S("POST", C, "1.5"), S("POST", C, "true"),

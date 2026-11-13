@@ -297,11 +297,23 @@ fn clean_test(t: &Tree) -> C<Tree> {
     Ok(Tree::Obj(vec![("op".into(), s(op)), ("v".into(), Tree::Arr(vs.iter().map(|x| s(x)).collect()))]))
 }
 
-/// 入れ子の深い式（Python は再帰の上限〈RecursionError〉、窓は段の数〈200〉で断る。境が違うので任せる）。
-/// かっこ・負の符号・not の重ねを数える（作った後の採点: not を 90 重ねた式で窓だけが断った）
-fn deep(src: &str) -> bool {
-    let nots = src.to_ascii_lowercase().matches("not").count();
-    src.chars().filter(|c| matches!(c, '(' | '-' | '!')).count() + nots > 60
+/// 式の入れ子の上限（版 3.106.0。Python の conversions.NEST_MAX と同じ）: 字と列の名前の外の「(」・単項の「-」・語の not の数の合計
+/// （formula::nest_count）。Python の再帰の上限と窓の段の数（formula.rs の MAX_DEPTH 200）は境が違うので、どちらも同じ数え方で先に断る。
+/// 90 は、かっこだけを重ねても両方が読める段（Python の道の中で約 120・窓は 99 まで）より手前。同梱の変換表の式はいちばん多くて 5
+pub const NEST_MAX: usize = 90;
+
+/// 式の入れ子の数え方（Python の conversions.nest_count → formula.nest_count）
+pub fn nest_count(src: &str) -> usize {
+    crate::formula::nest_count(src)
+}
+
+/// 式の読めない理由の言葉（Python の conversions._formula_error）: 正規表現の読めない理由は、re の言葉（位置など）を出さない
+fn formula_error(m: &str) -> &str {
+    const CUT: &str = "の正規表現として読めません";
+    match m.find(CUT) {
+        Some(i) => &m[..i + CUT.len()],
+        None => m,
+    }
 }
 
 /// 入れ子の深さで断った言葉か（窓の段の数と Python の再帰の上限は境が違うので、この種類の失敗は Python に任せる）
@@ -316,17 +328,21 @@ fn check_out(o: Option<&Tree>, names: &[String], place: &str) -> C<String> {
         Some(x) => scalar(x)?.chars().take(OUT_MAX).collect(),
     };
     if let Some(src) = t.strip_prefix('=') {
-        if deep(src) {
+        // 式の正規表現の「読めるか」が Python の re と割れうる形（後読み）は任せる（formula::regex_split。版 3.106.0 の作った後の採点の割れ 4）
+        if crate::formula::regex_split(src) {
             return Err(Bad::Delegate);
+        }
+        if nest_count(src) > NEST_MAX {
+            return conv(format!("{place}の式の入れ子が深すぎます（かっこ・負の符号・not は合わせて {NEST_MAX} までです）。"));
         }
         match crate::formula::Formula::compile(src) {
             Err(e) => {
                 let m = e.message();
-                // 正規表現の読めない言葉は Python（re）と窓で後ろが違いうる。片割れの代用字も言葉が割れる
-                if m.contains("の正規表現として読めません") || m.contains('\u{FFFD}') || depth_error(&m) {
+                // 片割れの代用字は言葉が割れる。上限の内で窓の段の数に当たった式（起きないはず）も任せる
+                if m.contains('\u{FFFD}') || depth_error(&m) {
                     return Err(Bad::Delegate);
                 }
-                return conv(format!("{place}の式が読めません: {m}"));
+                return conv(format!("{place}の式が読めません: {}", formula_error(&m)));
             }
             Ok(f) => {
                 let extra: Vec<&str> = f.columns.iter().filter(|c| !names.contains(c)).map(String::as_str).collect();

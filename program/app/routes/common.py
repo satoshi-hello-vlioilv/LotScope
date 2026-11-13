@@ -58,17 +58,21 @@ class Forbidden(MasterError):
 
 def body_gate():
     """本文の門（版 3.104.0。services/body_rules.py）: 門を当てる道（ROUTES）なら、道の前に本文を 1 つの読み方で読む。
-    読めない本文（UTF-8・JSON・入れ子・NaN・対の無い代用字・表でない・本文が要る道の空）は 400 {error, kind: body} で断る。
+    読めない本文（UTF-8・JSON・入れ子・NaN・対の無い代用字・表でない・本文が要る道の空）と、欄の型の違い・中身の欄の読めない字
+    （版 3.106.0。body_rules.TYPES）は 400 {error, kind: body} で断る。
     門番（routes/access._access_guard）より先に見る（窓〈desktop/src/body.rs・Lot::handle_body〉も同じ順）"""
     rule = current_app.rule_for(request.method, request.path)
-    mode = body_rules.mode_of(request.method, rule.pattern) if rule else None
-    if mode is None:
+    if rule is None:
         return None
+    log = body_rules.types_log()
     try:
-        value = body_rules.read_body(request.data, body_rules.rules_of(mode))
+        gated, value = body_rules.gate(request.method, rule.pattern, request.data, log)
     except body_rules.BodyError as e:
         return error(str(e), e.status, e.kind)
-    request.gated, request.gated_body = True, value
+    if gated and log is not None and (request.method, rule.pattern) in body_rules.TYPES:
+        log({"hit": f"{request.method} {rule.pattern}"})        # 記録だけの形: 表を当てた道（評価関数がどの道を通ったか）
+    if gated:
+        request.gated, request.gated_body = True, value
     return None
 
 

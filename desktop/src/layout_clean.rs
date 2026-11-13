@@ -361,10 +361,10 @@ fn clean_calc(t: Option<&Tree>) -> R<Option<Value>> {
             if strip(s).is_empty() {
                 return Ok(None);
             }
-            if crate::master_rows::text_split(s) {
+            if crate::master_rows::text_split_py(s) {
                 return Err(Stop::Py);
             }
-            match Tree::parse(s) {
+            match Tree::parse(&crate::master_rows::inner_text(s)) {
                 Some(x) => {
                     parsed = x;
                     &parsed
@@ -1151,10 +1151,10 @@ pub fn clean_layout(body: &Tree) -> R<(Value, String)> {
     let parsed;
     let body = match body {
         Tree::Str(s) => {
-            if crate::master_rows::text_split(s) {
+            if crate::master_rows::text_split_py(s) {
                 return Err(Stop::Py);
             }
-            match Tree::parse(s) {
+            match Tree::parse(&crate::master_rows::inner_text(s)) {
                 Some(t) => {
                     parsed = t;
                     &parsed
@@ -1220,10 +1220,10 @@ pub fn clean_hide_body(body: &Tree) -> R<(Value, String)> {
     let parsed;
     let body = match body {
         Tree::Str(s) => {
-            if crate::master_rows::text_split(s) {
+            if crate::master_rows::text_split_py(s) {
                 return Err(Stop::Py);
             }
-            parsed = Tree::parse(s).unwrap_or(Tree::Obj(vec![]));
+            parsed = Tree::parse(&crate::master_rows::inner_text(s)).unwrap_or(Tree::Obj(vec![]));
             &parsed
         }
         b => b,
@@ -1270,10 +1270,10 @@ pub fn condition_of(rows: &[Tree], key: &str) -> R<Value> {
     let d = match text {
         Some(t) if truthy(t) => match t {
             Tree::Str(s) => {
-                if crate::master_rows::text_split(s) {
+                if crate::master_rows::text_split_py(s) {
                     return Err(Stop::Py);
                 }
-                Tree::parse(s).unwrap_or(Tree::Obj(vec![]))
+                Tree::parse(&crate::master_rows::inner_text(s)).unwrap_or(Tree::Obj(vec![]))
             }
             _ => Tree::Obj(vec![]), // json.loads が TypeError（数・並び・表）→ {}
         },

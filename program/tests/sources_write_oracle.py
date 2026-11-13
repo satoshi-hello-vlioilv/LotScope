@@ -113,7 +113,7 @@ SCENARIOS = [
     ], "delegates": [
         S("PUT", f"{P}/s4", "[1]"),
         W(S("PUT", f"{P}/s4", {"表示名": "x", "base_rev": "²"})),
-        S("PUT", f"{P}/s%34", {"表示名": "x"}),
+        W(S("PUT", f"{P}/s%34", {"表示名": "x"})),        # 版 3.106.0: 窓も百分率符号を戻して道を合わせる
         S("POST", f"{P}/s4/quick", {"表示名": ["x"]}),
     ]},
     {"name": "並べ替え・グループ", "mode": "empty", "rows": [], "steps": [

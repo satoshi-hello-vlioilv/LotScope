@@ -1,0 +1,812 @@
+{
+ "about": "本文の欄の型と中身の欄の門の事例（版 3.106.0。Rust 化の段 ① の D2・A2）。services/body_rules.py の TYPES と決まり（s: 並び・表を断る、l: 数・真偽・表を断る、o: 並びを断る、j: 字なら中身の字を門と同じ決まりで読み、後ろの欄の道を中身に当てる）から人が書いた答え。Python（tests/test_body_types.py の body_rules.gate）と窓（cargo test --test body_cases の types_like_the_table の body::gate）が同じ表を読む。raw は本文の字。want は ok（通す）か error（400 kind body の言葉）。passed は窓が部品へ渡す本文で書き直した欄（中身の字の整数の -0 を 0 に）",
+ "cases": [
+  {
+   "name": "名前が字",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {}}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "名前が数（今どおり str() で受ける）",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": 1.5, \"body\": {}}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "名前が真偽・null",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": true, \"note\": null}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "名前が並び",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": [\"x\"]}",
+   "want": {
+    "error": "本文の「name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "名前が表",
+   "method": "PUT",
+   "path": "/api/card-forms/3",
+   "raw": "{\"name\": {\"a\": 1}}",
+   "want": {
+    "error": "本文の「name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "全角の id の道にも当てる",
+   "method": "PUT",
+   "path": "/api/card-forms/３",
+   "raw": "{\"name\": [\"x\"]}",
+   "want": {
+    "error": "本文の「name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "先に並ぶ欄の誤りを言う（表の並び: name → note → scope）",
+   "method": "POST",
+   "path": "/api/dashboard-sets",
+   "raw": "{\"scope\": [\"all\"], \"note\": [1], \"name\": [\"x\"]}",
+   "want": {
+    "error": "本文の「name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "範囲が並び",
+   "method": "POST",
+   "path": "/api/dashboard-sets",
+   "raw": "{\"name\": \"a\", \"scope\": [\"all\"]}",
+   "want": {
+    "error": "本文の「scope」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "中身の項目の名前が並び（表で送る）",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"items\": [{\"label\": [\"x\"]}]}}",
+   "want": {
+    "error": "本文の「body.items[].label」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "中身の項目の名前が並び（JSON の字で送る）",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": \"{\\\"items\\\": [{\\\"label\\\": [\\\"x\\\"]}]}\"}",
+   "want": {
+    "error": "本文の「body.items[].label」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "中身の項目の日付の列の中に並び",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"items\": [{\"kind\": \"dates\", \"cols\": [[\"x\"]]}]}}",
+   "want": {
+    "error": "本文の「body.items[].cols[]」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "中身の項目の日付の列の中の数・null は受ける",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"items\": [{\"kind\": \"dates\", \"cols\": [1, null, \"x\"]}]}}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "中身の項目が表でない（並びの中の字）は見ない",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"items\": [\"x\", 3]}}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "中身のタブの名前が表",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"tabs\": [{\"name\": {\"a\": 1}}]}}",
+   "want": {
+    "error": "本文の「body.tabs[].name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "中身の字に NaN",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": \"{\\\"items\\\": [{\\\"w\\\": NaN}]}\"}",
+   "want": {
+    "error": "本文に NaN・Infinity か、大きすぎて読めない数があります（数で送ってください）。"
+   }
+  },
+  {
+   "name": "中身の字に 1e400",
+   "method": "POST",
+   "path": "/api/dashboard-sets",
+   "raw": "{\"name\": \"a\", \"body\": \"{\\\"items\\\": [\\\"1\\\"], \\\"x\\\": 1e400}\"}",
+   "want": {
+    "error": "本文に NaN・Infinity か、大きすぎて読めない数があります（数で送ってください）。"
+   }
+  },
+  {
+   "name": "中身の字に Infinity",
+   "method": "POST",
+   "path": "/api/dashboards",
+   "raw": "{\"name\": \"a\", \"body\": \"{\\\"rows\\\": -Infinity}\"}",
+   "want": {
+    "error": "本文に NaN・Infinity か、大きすぎて読めない数があります（数で送ってください）。"
+   }
+  },
+  {
+   "name": "中身の字に対の無い代用字",
+   "method": "POST",
+   "path": "/api/masters/formats",
+   "raw": "{\"name\": \"a\", \"body\": \"{\\\"sorts\\\": [\\\"\\\\ud800\\\"]}\"}",
+   "want": {
+    "error": "本文の字に対の無い代用字（\\ud800 など）があります。"
+   }
+  },
+  {
+   "name": "中身の字の入れ子が 128 段",
+   "method": "POST",
+   "path": "/api/dashboard-sets",
+   "raw": "{\"name\": \"a\", \"body\": \"[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]\"}",
+   "want": {
+    "error": "本文の入れ子が深すぎます。"
+   }
+  },
+  {
+   "name": "中身の字の入れ子が 127 段は通す",
+   "method": "POST",
+   "path": "/api/dashboard-sets",
+   "raw": "{\"name\": \"a\", \"body\": \"[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]\"}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "中身の字が JSON でない（道が自分の言葉で断る）",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": \"{壊れた\"}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "中身の字の整数の -0（Python は 0 と読む。窓は 0 に書き直して渡す）",
+   "method": "POST",
+   "path": "/api/pivot-presets",
+   "raw": "{\"name\": \"a\", \"body\": \"{\\\"rows\\\": [{\\\"column\\\": \\\"a\\\", \\\"width\\\": -0}]}\"}",
+   "want": {
+    "ok": true
+   },
+   "passed": {
+    "body": "{\"rows\": [{\"column\": \"a\", \"width\": 0}]}"
+   }
+  },
+  {
+   "name": "中身の字の -0.0・字の中の -0 は替えない",
+   "method": "POST",
+   "path": "/api/pivot-presets",
+   "raw": "{\"name\": \"a\", \"body\": \"{\\\"rows\\\": [{\\\"column\\\": \\\"-0\\\", \\\"width\\\": -0.0}]}\"}",
+   "want": {
+    "ok": true
+   },
+   "passed": {
+    "body": "{\"rows\": [{\"column\": \"-0\", \"width\": -0.0}]}"
+   }
+  },
+  {
+   "name": "中身の字の入れ子 NaN は名前の型より後（表の並び）",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": [\"x\"], \"body\": \"{\\\"w\\\": NaN}\"}",
+   "want": {
+    "error": "本文の「name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "名前の型は中身の字の誤りより先",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"body\": \"{\\\"w\\\": NaN}\", \"name\": [\"x\"]}",
+   "want": {
+    "error": "本文の「name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "組み方の段の part が並び",
+   "method": "POST",
+   "path": "/api/pivot-presets",
+   "raw": "{\"name\": \"a\", \"body\": {\"rows\": [{\"column\": \"a\", \"part\": [\"x\"]}]}}",
+   "want": {
+    "error": "本文の「body.rows[].part」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "組み方の 4 つ目の段の part も見る",
+   "method": "POST",
+   "path": "/api/pivot-presets",
+   "raw": "{\"name\": \"a\", \"body\": {\"cols\": [{}, {}, {}, {\"part\": {}}]}}",
+   "want": {
+    "error": "本文の「body.cols[].part」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "組み方の値の expr が並び",
+   "method": "PUT",
+   "path": "/api/pivot-presets/2",
+   "raw": "{\"body\": {\"measures\": [{\"agg\": \"sum\", \"expr\": [1]}]}}",
+   "want": {
+    "error": "本文の「body.measures[].expr」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "組み込みを外す keys が数",
+   "method": "PUT",
+   "path": "/api/dashboards-hidden",
+   "raw": "{\"scope\": \"me\", \"keys\": 5}",
+   "want": {
+    "error": "本文の「keys」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "組み込みを外す keys が真偽",
+   "method": "PUT",
+   "path": "/api/dashboards-hidden",
+   "raw": "{\"scope\": \"me\", \"keys\": true}",
+   "want": {
+    "error": "本文の「keys」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "組み込みを外す keys が字（今どおり道が読む）",
+   "method": "PUT",
+   "path": "/api/dashboards-hidden",
+   "raw": "{\"scope\": \"me\", \"keys\": \"abc\"}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "組み込みを外す keys が null",
+   "method": "PUT",
+   "path": "/api/dashboards-hidden",
+   "raw": "{\"scope\": \"me\", \"keys\": null}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "すぐに見るの keys の中に並び",
+   "method": "PUT",
+   "path": "/api/pivot-quick",
+   "raw": "{\"source\": \"lot\", \"keys\": [[\"7\"]]}",
+   "want": {
+    "error": "本文の「keys[]」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "すぐに見るの keys の中の数・全角は受ける",
+   "method": "PUT",
+   "path": "/api/pivot-quick",
+   "raw": "{\"source\": \"lot\", \"keys\": [7, \"５\", \"²\"]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "変換表の判定の比べ方が並び（* は表の全部の値）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [{\"when\": {\"a\": [{\"op\": [\"eq\"]}]}}]}",
+   "want": {
+    "error": "本文の「rows[].when.*[].op」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の判定の値の中に並び",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [{\"when\": {\"b\": [{\"op\": \"eq\", \"v\": [[\"1\"]]}]}}]}",
+   "want": {
+    "error": "本文の「rows[].when.*[].v[]」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の判定の値の中の数は受ける",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [{\"when\": {\"a\": [{\"op\": \"eq\", \"v\": [1, 2.5, true]}]}}]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "変換表の入力が表",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": {\"a\": 1}}",
+   "want": {
+    "error": "本文の「inputs」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "変換表の当て方が並び",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": [\"replace\"]}",
+   "want": {
+    "error": "本文の「apply」は表で送ってください（並びは送れません）。"
+   }
+  },
+  {
+   "name": "変換表の当て方の mode が表",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": {\"mode\": {}}}",
+   "want": {
+    "error": "本文の「apply.mode」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の当て方が字（今どおり道が読む）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": \"replace\"}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "取り込みの名前が数・真偽・null（前の版のファイル。str() で受ける）",
+   "method": "POST",
+   "path": "/api/masters/conversions/import",
+   "raw": "{\"items\": [{\"name\": 5, \"inputs\": [{\"name\": \"a\"}], \"rows\": []}, {\"name\": true, \"inputs\": [{\"name\": \"a\"}], \"rows\": []}, {\"name\": null, \"inputs\": [{\"name\": \"a\"}], \"rows\": []}]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "取り込みの名前が並び",
+   "method": "POST",
+   "path": "/api/masters/conversions/import",
+   "raw": "{\"items\": [{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": []}, {\"name\": [\"x\"], \"inputs\": [{\"name\": \"a\"}], \"rows\": []}]}",
+   "want": {
+    "error": "本文の「items[].name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "取り込みの items が数",
+   "method": "POST",
+   "path": "/api/masters/conversions/import",
+   "raw": "{\"items\": 3}",
+   "want": {
+    "error": "本文の「items」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "設備グループの設備の中に並び",
+   "method": "POST",
+   "path": "/api/masters/equipgroups",
+   "raw": "{\"name\": \"x\", \"equipment\": [[\"A\"]]}",
+   "want": {
+    "error": "本文の「equipment[]」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "設備グループの設備が表",
+   "method": "POST",
+   "path": "/api/masters/equipgroups",
+   "raw": "{\"name\": \"x\", \"equipment\": {\"a\": 1}}",
+   "want": {
+    "error": "本文の「equipment」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "設備グループの決まりの知らない鍵は見ない（画面は行の鍵をそのまま返す）",
+   "method": "PUT",
+   "path": "/api/masters/equipgroups/1",
+   "raw": "{\"rules\": [{\"op\": \"prefix\", \"value\": \"L-\", \"why\": {\"x\": [1]}}]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "設備グループの決まりの値が並び",
+   "method": "PUT",
+   "path": "/api/masters/equipgroups/1",
+   "raw": "{\"rules\": [{\"op\": \"prefix\", \"value\": [\"L-\"]}]}",
+   "want": {
+    "error": "本文の「rules[].value」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "設備の同一工程が並び",
+   "method": "POST",
+   "path": "/api/masters/equipment",
+   "raw": "{\"設備名\": \"x\", \"同一工程\": [\"A\", \"B\"]}",
+   "want": {
+    "error": "本文の「同一工程」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "ロールの本数が並び",
+   "method": "POST",
+   "path": "/api/masters/rolls",
+   "raw": "{\"設備\": \"x\", \"本数\": [1, 2.5]}",
+   "want": {
+    "error": "本文の「本数」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "ロールの本数が数（今どおり str() で受ける）",
+   "method": "PUT",
+   "path": "/api/masters/rolls/1",
+   "raw": "{\"本数\": 3}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "権限のタブの例外は表で送る（画面: master-tabaccess.js。表に無い欄は見ない）",
+   "method": "PUT",
+   "path": "/api/masters/access/2",
+   "raw": "{\"ログインID\": \"a\", \"タブの例外\": {\"work\": \"出さない\"}}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "presence の days は字で送る（表に無い欄）",
+   "method": "POST",
+   "path": "/api/presence/retention",
+   "raw": "{\"days\": \"30\"}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "勤務体系の区分の dayOffset は数か null（表に無い欄）",
+   "method": "POST",
+   "path": "/api/masters/shifts",
+   "raw": "{\"name\": \"a\", \"segments\": [{\"name\": \"1直\", \"start\": \"7:00\", \"end\": \"15:00\", \"dayOffset\": -1}]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "勤務体系の区分の名前が並び",
+   "method": "POST",
+   "path": "/api/masters/shifts",
+   "raw": "{\"name\": \"a\", \"segments\": [{\"name\": [\"1直\"]}]}",
+   "want": {
+    "error": "本文の「segments[].name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "作業実績の並び替えの keys の中に並び",
+   "method": "PUT",
+   "path": "/api/masters/worklog/order",
+   "raw": "{\"keys\": [[\"a1\"]]}",
+   "want": {
+    "error": "本文の「keys[]」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "作業実績の行の備考が並び",
+   "method": "PUT",
+   "path": "/api/masters/worklog/1",
+   "raw": "{\"備考\": [1, 2]}",
+   "want": {
+    "error": "本文の「備考」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "作業実績の行の並びが表",
+   "method": "PUT",
+   "path": "/api/masters/worklog/1",
+   "raw": "{\"並び\": {\"a\": 1}}",
+   "want": {
+    "error": "本文の「並び」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "データ元の結合は並びで送る（画面: master-join.js）",
+   "method": "POST",
+   "path": "/api/sources",
+   "raw": "{\"表示名\": \"x\", \"結合\": [{\"with\": \"s1\", \"how\": \"left\", \"on\": [[\"a\", \"b\"]], \"cols\": [\"c\"]}]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "データ元の結合の持ってくる列が数",
+   "method": "POST",
+   "path": "/api/sources",
+   "raw": "{\"表示名\": \"x\", \"結合\": [{\"with\": \"s1\", \"on\": [[\"a\", \"b\"]], \"cols\": 5}]}",
+   "want": {
+    "error": "本文の「結合[].cols」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "データ元の結合の持ってくる列が表",
+   "method": "POST",
+   "path": "/api/sources",
+   "raw": "{\"表示名\": \"x\", \"結合\": [{\"with\": \"s1\", \"cols\": {\"a\": 1}}]}",
+   "want": {
+    "error": "本文の「結合[].cols」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "データ元の結合を JSON の字で送り、中の列が表",
+   "method": "POST",
+   "path": "/api/sources",
+   "raw": "{\"表示名\": \"x\", \"結合\": \"[{\\\"with\\\": \\\"s1\\\", \\\"cols\\\": {\\\"a\\\": 1}}]\"}",
+   "want": {
+    "error": "本文の「結合[].cols」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "データ元の結合の字に NaN",
+   "method": "POST",
+   "path": "/api/sources",
+   "raw": "{\"表示名\": \"x\", \"結合\": \"[{\\\"with\\\": \\\"s1\\\", \\\"on\\\": [[\\\"a\\\", NaN]]}]\"}",
+   "want": {
+    "error": "本文に NaN・Infinity か、大きすぎて読めない数があります（数で送ってください）。"
+   }
+  },
+  {
+   "name": "データ元の備考が並び",
+   "method": "PUT",
+   "path": "/api/sources/s4",
+   "raw": "{\"備考\": [1, \"a\"]}",
+   "want": {
+    "error": "本文の「備考」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "百分率符号の道にも当てる",
+   "method": "PUT",
+   "path": "/api/sources/s%34",
+   "raw": "{\"表示名\": [\"x\"]}",
+   "want": {
+    "error": "本文の「表示名」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "データ元のその場で変える表示名が並び",
+   "method": "POST",
+   "path": "/api/sources/s4/quick",
+   "raw": "{\"表示名\": [\"x\"]}",
+   "want": {
+    "error": "本文の「表示名」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "データ元の並べ替えの keys が表",
+   "method": "POST",
+   "path": "/api/sources/order",
+   "raw": "{\"keys\": {\"wip\": 1}}",
+   "want": {
+    "error": "本文の「keys」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "データ元の並べ替えの keys が数",
+   "method": "POST",
+   "path": "/api/sources/order",
+   "raw": "{\"keys\": 5}",
+   "want": {
+    "error": "本文の「keys」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "データ元のグループの from が並び",
+   "method": "POST",
+   "path": "/api/sources/groups",
+   "raw": "{\"from\": [\"工程\"], \"to\": \"x\"}",
+   "want": {
+    "error": "本文の「from」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "データ元の接続の値が並び",
+   "method": "PUT",
+   "path": "/api/sources/s3/conn",
+   "raw": "{\"field\": \"stale\", \"value\": [1]}",
+   "want": {
+    "error": "本文の「value」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "参照先の値が並び",
+   "method": "PUT",
+   "path": "/api/settings/lot_list.table",
+   "raw": "{\"value\": [1, 2]}",
+   "want": {
+    "error": "本文の「value」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "参照先の値が数（今どおり str() で受ける）",
+   "method": "PUT",
+   "path": "/api/settings/lot_list.refresh_seconds",
+   "raw": "{\"value\": 30}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "フォルダの道が並び",
+   "method": "POST",
+   "path": "/api/fs/browse",
+   "raw": "{\"path\": [\"/a\"]}",
+   "want": {
+    "error": "本文の「path」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "マスタの置き場の上のフォルダが並び",
+   "method": "POST",
+   "path": "/api/masters/place/check",
+   "raw": "{\"parent\": [\"/a\"], \"name\": \"M\"}",
+   "want": {
+    "error": "本文の「parent」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "配布の置き場の上のフォルダが表",
+   "method": "POST",
+   "path": "/api/release/place/check",
+   "raw": "{\"from\": \"/r\", \"parent\": {\"a\": 1}, \"name\": \"x\"}",
+   "want": {
+    "error": "本文の「parent」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "配布の置き場の名前が数（今どおり）",
+   "method": "POST",
+   "path": "/api/release/place/check",
+   "raw": "{\"from\": \"/r\", \"parent\": \"/p\", \"name\": 5, \"copy\": true}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "表の無い道（ダッシュボードの問い合わせ）は見ない",
+   "method": "POST",
+   "path": "/api/dashboard/query",
+   "raw": "{\"panel\": {\"name\": [\"x\"]}}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "表の無い方法（GET）は見ない",
+   "method": "GET",
+   "path": "/api/card-forms",
+   "raw": "",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "変換表の当て方の置き場が並び（前は Python が TypeError の 500）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": {\"mode\": \"add\", \"place\": [\"end\"]}}",
+   "want": {
+    "error": "本文の「apply.place」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の当て方の列が表",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": {\"mode\": \"add\", \"column\": {\"a\": 1}}}",
+   "want": {
+    "error": "本文の「apply.column」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の当て方を JSON の字で送り、置き場が並び",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": \"{\\\"mode\\\": \\\"add\\\", \\\"place\\\": [\\\"end\\\"]}\"}",
+   "want": {
+    "error": "本文の「apply.place」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の入力を JSON の字で送り、名前が並び",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": \"[{\\\"name\\\": [\\\"a\\\"]}]\"}",
+   "want": {
+    "error": "本文の「inputs[].name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の入力を JSON の字で送り、中身が表（並びの欄）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": \"{\\\"a\\\": 1}\"}",
+   "want": {
+    "error": "本文の「inputs」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "変換表の判定の行を JSON の字で送り、比べ方が並び",
+   "method": "PUT",
+   "path": "/api/masters/conversions/1",
+   "raw": "{\"rows\": \"[{\\\"when\\\": {\\\"a\\\": [{\\\"op\\\": [\\\"eq\\\"]}]}}]\"}",
+   "want": {
+    "error": "本文の「rows[].when.*[].op」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の判定の行の字に NaN",
+   "method": "PUT",
+   "path": "/api/masters/conversions/1",
+   "raw": "{\"rows\": \"[{\\\"out\\\": NaN}]\"}",
+   "want": {
+    "error": "本文に NaN・Infinity か、大きすぎて読めない数があります（数で送ってください）。"
+   }
+  },
+  {
+   "name": "変換表の入力を JSON の字で送る（正しい形）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": \"[{\\\"name\\\": \\\"a\\\", \\\"columns\\\": [\\\"A\\\"]}]\"}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "取り込みの中の字の入力は中まで見ない（道が今どおり読む）",
+   "method": "POST",
+   "path": "/api/masters/conversions/import",
+   "raw": "{\"items\": [{\"name\": \"x\", \"inputs\": \"[{\\\"name\\\": [\\\"a\\\"]}]\"}]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "カードの項目の id が並び",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"items\": [{\"id\": [\"a\"]}]}}",
+   "want": {
+    "error": "本文の「body.items[].id」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "カードのタブの id が表",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"tabs\": [{\"id\": {\"a\": 1}}]}}",
+   "want": {
+    "error": "本文の「body.tabs[].id」は字で送ってください（並び・表は送れません）。"
+   }
+  }
+ ]
+}

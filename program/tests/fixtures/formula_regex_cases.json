@@ -1,0 +1,1280 @@
+{
+ "about": "式の正規表現の事例（tools/formula-regex-cases.py が Python の formula.js_regex から焼く。版 3.106.0）。窓は cargo test --test formula_regex_cases で同じに読めるかを確かめる。古い表は tests/test_formula_regex_cases.py が止める",
+ "cases": [
+  {
+   "pattern": "^L-",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^L-\\d$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^L-\\d+$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^CR[12]$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "CR",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^(CR|L)-?\\d",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^(?!L)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "L(?=S)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<=L)S",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^.{2}$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^\\w+$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^[A-Z]{2}\\d$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^L-[0-9]\\Z",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^L-[0-9]$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\AL",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^l-",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "炉\\d",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "炉[1-9]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^(?P<a>L)-(?P=a)?",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "^(L)-\\1",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\bCR\\b",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "CR\\s1",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[[:alpha:]]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^L-(1|2)$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^[^C]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^L-\\d{1,2}$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?i)cr",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x) ^ L - \\d",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "^CR(?#注)1",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "\\d$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^.*$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[ァ-ン]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\p{Han}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\u7089]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\N{DIGIT ONE}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^A-1(?:0)?$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^L-.$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{,2}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "x*",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<n>L)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\x{41}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\e",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\z",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\G",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\h",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\K",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\101",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?P<a>L)(?P<a>x)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?<=L|CR)\\d",
+   "ok": false,
+   "why": "look-behind requires fixed-width pattern"
+  },
+  {
+   "pattern": "[[:digit:]]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[a&&b]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[a--b]",
+   "ok": false,
+   "why": "Range out of order in character class"
+  },
+  {
+   "pattern": "(?a)\\w",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "\\<",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\>",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\P{Han}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\Z",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?s).",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?m)^L",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?i:cr)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "a*+",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "(?>CR)1",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?(1)a|b)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "CR(?i)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "\\x41",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\u0041",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\U00000041",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\U00110000",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\x4",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\x41-\\x43]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\0",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\01",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\cA",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\d-z]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[a-\\d]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[z-a]",
+   "ok": false,
+   "why": "Range out of order in character class"
+  },
+  {
+   "pattern": "a{2,1}",
+   "ok": false,
+   "why": "min repeat greater than max repeat at position 2"
+  },
+  {
+   "pattern": "a**",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "*a",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "^*",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "a|*",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "(?=L)*",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<=L)?",
+   "ok": false,
+   "why": "Invalid quantifier"
+  },
+  {
+   "pattern": "\\b+",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "(?P=b)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "\\8",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(a)\\2",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(a\\1)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(a(b)\\2)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\1(a)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<=L+)\\d",
+   "ok": false,
+   "why": "look-behind requires fixed-width pattern"
+  },
+  {
+   "pattern": "(?<=(L)\\1)",
+   "ok": false,
+   "why": "cannot refer to group defined in the same lookbehind subpattern at position 12"
+  },
+  {
+   "pattern": "(?<=L|C)R",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<!C)R",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<=(?:L|C))R",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[]a]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[^]a]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[a-]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[-a]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\]]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\b]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\w\\s]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\[]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[a[]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[a~~b]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[a||b]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\Q.\\E",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "{",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{1",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "x{,}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{1001}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{2}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{2,}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{2}?",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a*?",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a+?",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a??",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\w+",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\s",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\S",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\W",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\D",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\B",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\b炉",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[[]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(",
+   "ok": false,
+   "why": "missing ), unterminated subpattern at position 0"
+  },
+  {
+   "pattern": ")",
+   "ok": false,
+   "why": "Unmatched ')'"
+  },
+  {
+   "pattern": "(?:",
+   "ok": false,
+   "why": "missing ), unterminated subpattern at position 0"
+  },
+  {
+   "pattern": "[a",
+   "ok": false,
+   "why": "Unterminated character class"
+  },
+  {
+   "pattern": "\\",
+   "ok": false,
+   "why": "bad escape (end of pattern) at position 0"
+  },
+  {
+   "pattern": "a|",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "|",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "()",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?P<1a>x)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?P<名>x)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?u)L",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?L)a",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "CR\\ 1",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\-",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\/",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\#",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\&",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\~",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\%",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\@",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\!",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\'",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\\"",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\`",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\,",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\;",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\:",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\=",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\_",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\a",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\f",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\v",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\t",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\n",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\r",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\(旧\\)$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "^\\[CR\\]$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\.",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?x)^L-\\d # 注",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)[ ]",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)CR\\ 1",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)[a b]",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)CR#x",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)L-[#]",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)\\#",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)\\d +",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)L(?#c)1",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)a\\tb",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)L　1",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x)a* *",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?s)A.B",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?s)^.*$",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?m)^B",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?m)L-1$",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?im)^b$",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?ims)^l",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?i)(?s)x",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?s)(?i)A.B",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?i:cr)1",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?-i:cr)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?i-s:a.b)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?s:A.B)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?m:^L)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?x:L - 1)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?-i)cr",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "L(?s)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?i-i:a)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?-:a)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?-x:a)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?u:a)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "ǅ",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?i)Ǆ",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "K",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\d²",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?#c",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?<=a{2})b",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<=a{1,2})b",
+   "ok": false,
+   "why": "look-behind requires fixed-width pattern"
+  },
+  {
+   "pattern": "x{0}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[",
+   "ok": false,
+   "why": "Unterminated character class"
+  },
+  {
+   "pattern": "]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{2",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "+",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "?",
+   "ok": false,
+   "why": "Nothing to repeat"
+  },
+  {
+   "pattern": "a\\",
+   "ok": false,
+   "why": "bad escape (end of pattern) at position 1"
+  },
+  {
+   "pattern": "(?",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?<",
+   "ok": false,
+   "why": "Invalid capture group name"
+  },
+  {
+   "pattern": "(?<n>a)\\k<n>",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<n>a)(?<n>b)",
+   "ok": false,
+   "why": "Duplicate capture group name"
+  },
+  {
+   "pattern": "(?:a|b)+",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\d{1,3}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\p{L}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{,3}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{3,}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[^]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?i)a",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "(?=a)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?!a)b",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<=a)b",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<!a)b",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\1",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[\\w-]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": ".*.*.*",
+   "ok": false,
+   "why": "「.*」「.+」は 2 つまでです（とても重くなるため）"
+  },
+  {
+   "pattern": "(a+)+",
+   "ok": false,
+   "why": "繰り返しを含むかっこを、さらに繰り返す正規表現は使えません（とても重くなるため）"
+  },
+  {
+   "pattern": "(a*)*b",
+   "ok": false,
+   "why": "繰り返しを含むかっこを、さらに繰り返す正規表現は使えません（とても重くなるため）"
+  },
+  {
+   "pattern": "(a|aa)+$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\s+$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "ok": false,
+   "why": "正規表現は200文字までです"
+  },
+  {
+   "pattern": "a/b",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "[.]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\r\\n",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\f\\v",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\$",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\^",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "a{0}",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?<a>x)|(?<b>y)",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?P<a>x)",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "[]]",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\Q",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\E",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\R",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "\\X",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "(?#c)a",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "a(?#",
+   "ok": false,
+   "why": "Invalid group"
+  },
+  {
+   "pattern": "\\ud800",
+   "ok": true,
+   "why": ""
+  },
+  {
+   "pattern": "😀+",
+   "ok": true,
+   "why": ""
+  }
+ ]
+}

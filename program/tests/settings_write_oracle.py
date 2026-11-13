@@ -142,7 +142,7 @@ SCENARIOS = [
         S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": 99999999999999999999}'),
         W(S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": -0}')),
         W(S(BOSS, "PUT", P + "lot_list.table", V("y", base_rev="²"))),
-        S(BOSS, "PUT", P + "lot%5Flist.table", V("y")),
+        W(S(BOSS, "PUT", P + "lot%5Flist.table", V("y"))),       # 版 3.106.0: 窓も百分率符号を戻して項目を探す
     ]},
     {"name": "置き場の行の版・値が読めない（窓は答えず Python に任せる）", "mode": "shared",
      "rows": [{"id": 1, "項目": "lot_list.table", "値": "x", "rev": "x"}, {"id": 2, "項目": "work_log.pattern", "値": ["a"]}], "steps": [],

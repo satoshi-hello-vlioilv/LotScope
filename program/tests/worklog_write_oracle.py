@@ -153,12 +153,14 @@ SCENARIOS = [
     # 作った後の採点で見つけた割れ（版 3.91.0）: 39 桁を超える並び（窓は書く前・読む前に Python に任せる）
     {"name": "39 桁を超える並びが 2 行", "mode": "shared", "big": True, "steps": [S("DELETE", f"{M}/5", query="rev=1")], "delegates": [
         S("GET", M), S("GET", F), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("POST", f"{M}/scan")]},
-    # 配った設定の古さの時間が数でない（参照先は数に直すが、配った設定はそのまま束に入る）: 書く前に Python に任せる（書いた後だと版が 2 つ上がる）
+    # 配った設定の古さの時間が数でない（参照先は数に直すが、配った設定はそのまま束に入る）。版 3.106.0 から Python（work_log.params）も
+    # 窓（bundle の work）も既定の 36 時間で続け、settingsWarn で知らせる（前は Python が float() の 400・500、窓は任せていた）
     {"name": "配った設定の古さが abc（フォルダに届く）", "mode": "shared", "cfg_stale": "abc", "steps": [
         S("PUT", f"{M}/1", {"備考": "直せる"}), S("DELETE", f"{M}/5")], "delegates": [
-        S("GET", M), S("GET", F), S("POST", f"{M}/scan"), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]})]},
+        W(S("GET", M)), W(S("GET", F)), W(S("POST", f"{M}/scan")), W(S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}))]},
     {"name": "配った設定の古さが abc（フォルダに届かない）", "mode": "shared", "cfg_stale": "abc", "folder": "無いフォルダ", "steps": [
-        S("PUT", f"{M}/1", {"備考": "直せる"})], "delegates": [S("POST", f"{M}/scan"), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]})]},
+        S("PUT", f"{M}/1", {"備考": "直せる"})], "delegates": [W(S("POST", f"{M}/scan")), W(S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}))]},
+    {"name": "配った設定の古さが全角の数・表・空（版 3.106.0）", "mode": "shared", "cfg_stale": "１２", "steps": [S("GET", M), S("GET", F, query="all=1")]},
     {"name": "古さの警告の時間（字の 12.5）", "mode": "shared", "stale": "12.5", "steps": [S("GET", F, query="all=1")]},
     {"name": "書ける段と門番", "mode": "shared", "perm": perm("一般ユーザー", "部分的編集可"), "steps": [
         S("GET", M),

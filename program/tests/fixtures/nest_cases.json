@@ -1,0 +1,126 @@
+{
+ "about": "変換表の式の入れ子の数え方の事例（版 3.106.0。作った後の採点の割れ 3）。formula.nest_count の決まり（字と列の名前の外の「(」・単項の「-」〈式の頭・演算子・「(」・「,」・not／and／or の後ろ〉・語の not。読めない式は 0）から人が書いた答え。上限は conversions.NEST_MAX（90）。Python は tests/test_nest_cases.py、窓は cargo test --test nest_cases",
+ "max": 90,
+ "cases": [
+  {
+   "name": "数だけ",
+   "src": "1",
+   "count": 0
+  },
+  {
+   "name": "かっこ 1 つ",
+   "src": "(1)",
+   "count": 1
+  },
+  {
+   "name": "かっこ 2 つ",
+   "src": "((1))",
+   "count": 2
+  },
+  {
+   "name": "頭の負の符号",
+   "src": "-1",
+   "count": 1
+  },
+  {
+   "name": "引き算は数えない",
+   "src": "1-1",
+   "count": 0
+  },
+  {
+   "name": "引き算と負の符号",
+   "src": "1 - -1",
+   "count": 1
+  },
+  {
+   "name": "かっこの中の負の符号",
+   "src": "(-1)",
+   "count": 2
+  },
+  {
+   "name": "関数の引数の負の符号",
+   "src": "abs(-1)",
+   "count": 2
+  },
+  {
+   "name": "「,」の後の負の符号",
+   "src": "max(1, -2)",
+   "count": 2
+  },
+  {
+   "name": "not は語として数える",
+   "src": "not [a]",
+   "count": 1
+  },
+  {
+   "name": "NOT（大文字）",
+   "src": "NOT 1",
+   "count": 1
+  },
+  {
+   "name": "not の後の負の符号",
+   "src": "not -1",
+   "count": 2
+  },
+  {
+   "name": "and の後の負の符号",
+   "src": "[a] and -[b]",
+   "count": 1
+  },
+  {
+   "name": "or の後の負の符号",
+   "src": "[a] or -1",
+   "count": 1
+  },
+  {
+   "name": "列の名前の中の - と not は数えない",
+   "src": "[a-b] + [note] + [NOT]",
+   "count": 0
+  },
+  {
+   "name": "字の中の ( - not は数えない",
+   "src": "if([x]=\"L-(not)\", 'a-b', \"Not yet\")",
+   "count": 1
+  },
+  {
+   "name": "語の一部の not は数えない（notes・knot）",
+   "src": "[notes] + knot",
+   "count": 0
+  },
+  {
+   "name": "列の後ろの - は引き算",
+   "src": "[a]-1",
+   "count": 0
+  },
+  {
+   "name": "閉じたかっこの後ろの - は引き算",
+   "src": "(1)-1",
+   "count": 1
+  },
+  {
+   "name": "読めない式（閉じない [）は 0",
+   "src": "[abc",
+   "count": 0
+  },
+  {
+   "name": "読めない式（使えない字）は 0",
+   "src": "1 & 2",
+   "count": 0
+  },
+  {
+   "name": "if を 31 重ねても 31（字の中の L-1 は数えない）",
+   "src": "if([x]=\"L-0\",0,if([x]=\"L-1\",1,if([x]=\"L-2\",2,if([x]=\"L-3\",3,if([x]=\"L-4\",4,if([x]=\"L-5\",5,if([x]=\"L-6\",6,if([x]=\"L-7\",7,if([x]=\"L-8\",8,if([x]=\"L-9\",9,if([x]=\"L-10\",10,if([x]=\"L-11\",11,if([x]=\"L-12\",12,if([x]=\"L-13\",13,if([x]=\"L-14\",14,if([x]=\"L-15\",15,if([x]=\"L-16\",16,if([x]=\"L-17\",17,if([x]=\"L-18\",18,if([x]=\"L-19\",19,if([x]=\"L-20\",20,if([x]=\"L-21\",21,if([x]=\"L-22\",22,if([x]=\"L-23\",23,if([x]=\"L-24\",24,if([x]=\"L-25\",25,if([x]=\"L-26\",26,if([x]=\"L-27\",27,if([x]=\"L-28\",28,if([x]=\"L-29\",29,if([x]=\"L-30\",30,0)))))))))))))))))))))))))))))))",
+   "count": 31
+  },
+  {
+   "name": "上限ちょうど（not 30・かっこ 30・負の符号 30）",
+   "src": "not not not not not not not not not not not not not not not not not not not not not not not not not not not not not not ((((((((((((((((((((((((((((((------------------------------1))))))))))))))))))))))))))))))",
+   "count": 90
+  },
+  {
+   "name": "上限を 1 つ超える",
+   "src": "not not not not not not not not not not not not not not not not not not not not not not not not not not not not not not ((((((((((((((((((((((((((((((-------------------------------1))))))))))))))))))))))))))))))",
+   "count": 91
+  }
+ ]
+}

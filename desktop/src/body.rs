@@ -143,6 +143,8 @@ struct RouteRule {
     toks: Vec<Tok>,
     /// 方法 → need・read・skip
     modes: Vec<(String, String)>,
+    /// 方法 → 欄の型の並び（[欄の道, 型]。版 3.106.0。Python の body_rules.TYPES を焼いた物）
+    types: Vec<(String, Vec<(String, String)>)>,
 }
 
 fn tokens(pattern: &str) -> Vec<Tok> {
@@ -203,6 +205,21 @@ fn table() -> &'static [RouteRule] {
                             .as_object()
                             .map(|m| m.iter().map(|(k, x)| (k.clone(), x.as_str().unwrap_or("skip").to_string())).collect())
                             .unwrap_or_default(),
+                        types: r["types"]
+                            .as_object()
+                            .map(|m| {
+                                m.iter()
+                                    .map(|(k, x)| {
+                                        let pairs = x
+                                            .as_array()
+                                            .into_iter()
+                                            .flatten()
+                                            .filter_map(|p| Some((p.get(0)?.as_str()?.to_string(), p.get(1)?.as_str()?.to_string())));
+                                        (k.clone(), pairs.collect())
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
                     })
                     .collect()
             })
@@ -231,41 +248,116 @@ pub fn unquote(path: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// この道に当てる門（"need"・"read"。当てない道は None）。道の当たり方は Python の dispatch と同じ（表の並びで、形と方法が合う最初の道）
-pub fn mode_of(method: &str, path: &str) -> Option<&'static str> {
+/// この道に当たる表の行（表の並びで、形と方法が合う最初の道。Python の dispatch と同じ）
+fn rule_of(method: &str, path: &str) -> Option<&'static RouteRule> {
     let s: Vec<char> = unquote(path).chars().collect();
-    for r in table() {
-        let Some((_, m)) = r.modes.iter().find(|(k, _)| k == method) else { continue };
-        if matches(&r.toks, &s) {
-            return match m.as_str() {
-                "need" => Some("need"),
-                "read" => Some("read"),
-                _ => None,
-            };
-        }
-    }
-    None
+    table().iter().find(|r| r.modes.iter().any(|(k, _)| k == method) && matches(&r.toks, &s))
 }
 
-/// 本文の整数の -0 を Python と同じ 0 に書き直す要があるか（字の外の「-0」の後ろが数の続きでない）
-fn has_int_minus_zero(b: &[u8]) -> bool {
-    let (mut i, mut in_str) = (0usize, false);
-    while i < b.len() {
-        let c = b[i];
-        if in_str {
-            match c {
-                b'\\' => i += 1,
-                b'"' => in_str = false,
-                _ => {}
-            }
-        } else if c == b'"' {
-            in_str = true;
-        } else if c == b'-' && b.get(i + 1) == Some(&b'0') && !matches!(b.get(i + 2), Some(b'.' | b'e' | b'E' | b'0'..=b'9')) {
-            return true;
-        }
-        i += 1;
+/// この道に当てる門（"need"・"read"。当てない道は None）。道の当たり方は Python の dispatch と同じ（表の並びで、形と方法が合う最初の道）
+pub fn mode_of(method: &str, path: &str) -> Option<&'static str> {
+    let r = rule_of(method, path)?;
+    match r.modes.iter().find(|(k, _)| k == method)?.1.as_str() {
+        "need" => Some("need"),
+        "read" => Some("read"),
+        _ => None,
     }
-    false
+}
+
+// ------------------------------------------------------------------ 欄の型と中身の欄（版 3.106.0。Python の body_rules.TYPES・check_types）
+
+/// 欄の型の違いの言葉（Python の type_message）
+pub fn type_message(path: &str, kind: &str) -> String {
+    match kind {
+        "s" => format!("本文の「{path}」は字で送ってください（並び・表は送れません）。"),
+        "l" => format!("本文の「{path}」は並びで送ってください。"),
+        _ => format!("本文の「{path}」は表で送ってください（並びは送れません）。"),
+    }
+}
+
+fn type_bad(v: &J, kind: &str) -> bool {
+    match kind {
+        "s" => matches!(v, J::Arr(_) | J::Obj(_)),
+        "l" => matches!(v, J::Bool(_) | J::Int(_) | J::Big(_) | J::Float(_) | J::Obj(_)),
+        "o" => matches!(v, J::Arr(_)),
+        _ => false,
+    }
+}
+
+/// 欄の道に当たる値（文書の順。Python の _values と同じ: 「a」は表の鍵・「a[]」は並びの各値・「*」は表の全部の値）
+fn values<'a>(root: &'a J, path: &str) -> Vec<&'a J> {
+    let mut cur: Vec<&J> = vec![root];
+    for seg in path.split('.') {
+        let (name, arr) = match seg.strip_suffix("[]") {
+            Some(n) => (n, true),
+            None => (seg, false),
+        };
+        let mut next = vec![];
+        for c in cur {
+            let J::Obj(m) = c else { continue };
+            let vals: Vec<&J> = if name == "*" { m.iter().map(|(_, v)| v).collect() } else { c.get(name).into_iter().collect() };
+            for v in vals {
+                if arr {
+                    if let J::Arr(a) = v {
+                        next.extend(a.iter());
+                    }
+                } else {
+                    next.push(v);
+                }
+            }
+        }
+        cur = next;
+    }
+    cur
+}
+
+/// 中身の欄の JSON の字 → 値（Python の read_inner。JSON として読めなければ Ok(None)＝道に任せる）。門と同じ決まりで断る
+pub fn read_inner(text: &str) -> Result<Option<J>, &'static str> {
+    if !depth_ok(text, GATE_DEPTH) {
+        return Err(E_DEPTH);
+    }
+    let Ok((v, lone)) = pyjson::loads_flagged(text) else { return Ok(None) };
+    if nonfinite(&v) {
+        return Err(E_NONFINITE);
+    }
+    if lone {
+        return Err(E_SURROGATE);
+    }
+    Ok(Some(v))
+}
+
+/// 欄の型と中身の欄の門（Python の check_types）。通れば、中身の欄の字に整数の -0 があったか（窓は 0 に書き直して部品へ渡す）
+fn check_types(spec: &[(String, String)], body: &mut J) -> Result<bool, String> {
+    let J::Obj(_) = body else { return Ok(false) };
+    let mut view = body.clone();
+    let mut rewrote = false;
+    for (path, kind) in spec {
+        if kind == "j" {
+            if path.contains('.') || path.contains('[') {
+                continue;
+            }
+            let Some(J::Str(s)) = view.get(path).cloned() else { continue };
+            if let Some(inner) = read_inner(&s).map_err(str::to_string)? {
+                if crate::master_rows::has_int_minus_zero(s.as_bytes()) {
+                    // 中身の字の中の整数の -0（Python の json.loads は int の 0）: 部品へ渡す字を 0 に書き直す（字の中・-0.0 は替えない）
+                    body.set(path, J::Str(crate::master_rows::inner_text(&s).into_owned()));
+                    rewrote = true;
+                }
+                view.set(path, inner);
+            }
+            continue;
+        }
+        if values(&view, path).iter().any(|v| type_bad(v, kind)) {
+            return Err(type_message(path, kind));
+        }
+    }
+    Ok(rewrote)
+}
+
+/// この道・方法の欄の型の並び（表に無ければ None）
+fn types_of(method: &str, path: &str) -> Option<&'static [(String, String)]> {
+    let r = rule_of(method, path)?;
+    r.types.iter().find(|(k, _)| k == method).map(|(_, v)| v.as_slice())
 }
 
 fn has_big(v: &J) -> bool {
@@ -283,8 +375,14 @@ pub fn gate<'a>(method: &str, path: &str, body: &'a [u8]) -> Gate<'a> {
     let rules = if mode == "need" { GATE_NEED } else { GATE_READ };
     match read(body, &rules) {
         Err(msg) => Gate::Refuse(400, json!({"error": msg, "kind": "body"})),
-        Ok(v) => {
-            if has_int_minus_zero(body) && !has_big(&v) {
+        Ok(mut v) => {
+            // 欄の型と中身の欄（版 3.106.0）。窓は記録だけの形（Python の TPA_BODY_TYPES_LOG）を持たない（いつも断る）
+            let inner = match types_of(method, path).map(|spec| check_types(spec, &mut v)) {
+                Some(Err(msg)) => return Gate::Refuse(400, json!({"error": msg, "kind": "body"})),
+                Some(Ok(r)) => r,
+                None => false,
+            };
+            if (inner || crate::master_rows::has_int_minus_zero(body)) && !has_big(&v) {
                 Gate::Pass(Cow::Owned(v.dumps(None).into_bytes()))
             } else {
                 Gate::Pass(Cow::Borrowed(body))

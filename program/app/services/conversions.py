@@ -145,13 +145,35 @@ def clean_test(t):
     return {"op": op, "v": vs}
 
 
+# 式の入れ子の上限（版 3.106.0）: 字と列の名前の外の「(」・単項の「-」・語の not の数の合計（formula.nest_count。窓は formula.rs の nest_count）。
+# Python の再帰の上限と窓の段の数（formula.rs の MAX_DEPTH 200）は境が違うので、どちらも同じ数え方で先に断る。同梱の変換表の式はいちばん
+# 多くて 5。90 は、かっこだけを重ねても両方が読める段（Python の道の中で約 120・窓は 99 まで）より手前（作った後の採点の割れ 3: 前は字と
+# 列の名前の中の「-」「not」まで数え、正しい式を断った）
+NEST_MAX = 90
+
+
+def nest_count(src):
+    """式の入れ子の数え方（formula.nest_count）"""
+    from .formula import nest_count as count
+    return count(src)
+
+
+def _formula_error(e):
+    """式の読めない理由の言葉。正規表現の読めない理由は Python の re の言葉（位置など）を出さない（窓と同じ言葉。版 3.106.0）"""
+    m = str(e)
+    cut = m.find("の正規表現として読めません")
+    return m[:cut + len("の正規表現として読めません")] if cut >= 0 else m
+
+
 def _check_out(o, names, where):
     t = "" if o is None else str(o)[:OUT_MAX]
     if t.startswith("="):
+        if nest_count(t[1:]) > NEST_MAX:
+            raise ConversionError(f"{where}の式の入れ子が深すぎます（かっこ・負の符号・not は合わせて {NEST_MAX} までです）。")
         try:
             f = compile_formula(t[1:])
         except FormulaError as e:
-            raise ConversionError(f"{where}の式が読めません: {e}") from None
+            raise ConversionError(f"{where}の式が読めません: {_formula_error(e)}") from None
         extra = [c for c in f.columns if c not in names]
         if extra:
             raise ConversionError(f"{where}の式は入力の名前だけを [ ] で読めます（{'・'.join(extra)} は入力にありません）。")

@@ -30,13 +30,15 @@ pub enum Route {
     Put(String),
 }
 
-/// 窓が受ける道か（Python の <path:key> は空でない字。百分率符号は Python が戻してから探すので任せる）
+/// 窓が受ける道か（Python の <path:key> は空でない字）。百分率符号は Python と同じく戻してから項目を探す（body::unquote。版 3.106.0。
+/// 前は任せていた）。戻した字に「%」・改行が残る道と、/ で始まる項目は今どおり任せる
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
     match (method, path) {
         ("GET", "/api/settings") => Some(Route::Get),
         ("PUT", p) => {
+            let p = crate::body::unquote(p);
             let key = p.strip_prefix("/api/settings/")?;
-            (!key.is_empty() && !key.contains('%')).then(|| Route::Put(key.to_string()))
+            (!key.is_empty() && !key.contains(['%', '\n']) && !key.starts_with('/')).then(|| Route::Put(key.to_string()))
         }
         _ => None,
     }
@@ -241,7 +243,8 @@ mod tests {
         assert_eq!(route_of("GET", "/api/settings"), Some(Route::Get));
         assert_eq!(route_of("PUT", "/api/settings/lot_list.table"), Some(Route::Put("lot_list.table".into())));
         assert_eq!(route_of("PUT", "/api/settings/"), None);
-        assert_eq!(route_of("PUT", "/api/settings/lot%5Flist.table"), None, "百分率符号は Python が戻す");
+        assert_eq!(route_of("PUT", "/api/settings/lot%5Flist.table"), Some(Route::Put("lot_list.table".into())), "百分率符号は戻して探す");
+        assert_eq!(route_of("PUT", "/api/settings/a%0Ab"), None, "戻した字の改行は任せる");
         assert_eq!(route_of("POST", "/api/settings/check"), None, "確かめるは Python");
         assert_eq!(after_of("update.source"), "update.");
         assert_eq!(after_of("schedule.client_ip"), "");

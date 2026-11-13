@@ -11,7 +11,7 @@
 //! （評価関数: tests/sets_parity.rs ← program/tests/sets_oracle.py）。置き場はマスタ dashboards の行のうち元 dashset だけ。
 //!
 //! 窓が答えず Python に任せる形: 窓が読めない本文（master_rows::unreadable_u64_ok。u64 を超える整数など）・空の本文・表でない真の本文・
-//! 本文の name・note が並び・表（小数と u64 の整数は版 3.105.0 から窓が答える）、scope が並び・表（preset_rows::plain_input）・中身を字で送り、その字を窓が読めない（NaN・-0 など）・置き場の行の形が違う
+//! 本文の name・note が並び・表（小数と u64 の整数は版 3.105.0 から窓が答える）、scope が並び・表（版 3.106.0 から本文の門が断る）・中身を字で送り、その字を窓が読めない（NaN・-0 など）・置き場の行の形が違う
 //! （preset_rows::rows_plain）・道の id が ASCII の数字でない。
 
 use crate::master_rows::{self, base_rev};
@@ -67,10 +67,11 @@ fn clean_body(body: Option<&Value>) -> Result<Option<(Value, String)>, String> {
     let parsed;
     let body = match body {
         Some(Value::String(t)) => {
-            if pr::text_split(t) {
-                return Ok(None); // Python だけが読む字（NaN など）・読みが割れる数
+            if crate::master_rows::text_split_py(t) {
+                return Ok(None); // Python だけが読む字（NaN など）・読みが割れる数（整数の -0 は 0 と読む。版 3.106.0）
             }
-            parsed = serde_json::from_str::<Value>(t).map_err(|_| "セットの中身の形が違います。".to_string())?;
+            parsed = serde_json::from_str::<Value>(&crate::master_rows::inner_text(t))
+                .map_err(|_| "セットの中身の形が違います。".to_string())?;
             Some(&parsed)
         }
         b => b,
@@ -173,12 +174,10 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     }
     let empty = Map::new();
     let d = parsed.as_object().unwrap_or(&empty);
-    if !pr::plain_input(d) {
-        return None;
-    }
+    // 名前・備考・範囲の型は本文の門が断る（body_rules.TYPES。版 3.106.0。前は plain_input で任せていた）
     // 中身を字で送り、窓が読めない字なら Python に任せる（clean_body の Ok(None)）
     if let Some(Value::String(t)) = d.get("body") {
-        if pr::text_split(t) {
+        if crate::master_rows::text_split_py(t) {
             return None;
         }
     }
@@ -213,7 +212,7 @@ pub fn handle(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         _ => return None,
     };
-    Some(match pr::write(store, &DASHBOARDS, id, &row, base, "ダッシュボード") {
+    Some(match pr::write(store, &DASHBOARDS, id, &row, base, "セット") {
         Ok(Value::Object(done)) => (if id.is_none() { 201 } else { 200 }, who.view(&done, view_body(&done))),
         Ok(_) => (500, json!({"error": "セットを書けませんでした。", "kind": "error"})),
         Err(e) => (e.status(), e.payload()),

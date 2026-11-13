@@ -1,26 +1,26 @@
 {
  "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
- "total": 313,
+ "total": 210,
  "per": {
   "access_write_oracle": 8,
   "calc_oracle": 0,
-  "cards_oracle": 19,
-  "conversions_oracle": 29,
-  "dashboards_oracle": 16,
-  "equip_rows_oracle": 32,
-  "equipgroups_oracle": 29,
-  "formats_oracle": 29,
-  "fs_oracle": 4,
-  "place_oracle": 2,
-  "presets_oracle": 27,
-  "release_place_oracle": 11,
-  "sets_oracle": 59,
+  "cards_oracle": 8,
+  "conversions_oracle": 14,
+  "dashboards_oracle": 12,
+  "equip_rows_oracle": 29,
+  "equipgroups_oracle": 19,
+  "formats_oracle": 21,
+  "fs_oracle": 3,
+  "place_oracle": 1,
+  "presets_oracle": 17,
+  "release_place_oracle": 8,
+  "sets_oracle": 45,
   "settings_oracle": 5,
-  "settings_write_oracle": 6,
+  "settings_write_oracle": 3,
   "shifts_oracle": 10,
-  "sources_write_oracle": 11,
+  "sources_write_oracle": 0,
   "ui_defaults_oracle": 2,
-  "worklog_write_oracle": 14
+  "worklog_write_oracle": 5
  },
  "envExtra": {
   "release_place_oracle": 1
@@ -32,6 +32,6 @@
   "release_place_oracle": 2
  },
  "envLessWhy": {
-  "release_place_oracle": "Windows では権限の場面（読めない置き場・root）が無く、手元の Linux（root）で数えた 11 より 2 少ない 9（PR #104 の Windows CI）。delegate-count.py --check はこの幅を同じとみなす"
+  "release_place_oracle": "Windows では権限の場面（読めない置き場・root）が無く、手元の Linux（root）で数えた数より 2 少ない（版 3.105.0 は 11 と 9。PR #104 の Windows CI。版 3.106.0 は 8 と 6: 配布の置き場の名前が並びの 2 歩は本文の門が断る）。delegate-count.py --check はこの幅を同じとみなす"
  }
 }

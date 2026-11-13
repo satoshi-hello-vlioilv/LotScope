@@ -813,6 +813,34 @@ fn num_of(v: Option<&Value>, dflt: &Value) -> R<Value> {
     }
 }
 
+/// 数の設定（写し直す間隔・古さの警告の時間）を読む（版 3.106.0。Python の services/num_setting.read と同じ決まり。作業実績・品質・
+/// データ元の読みと「接続」の段は、どれもこの 1 つの部品）: null・空の字は既定（読めた扱い）、Python の float() で読める値はそのまま、
+/// 読めない字は既定（読めない）。並び・表は Python の知らせの字（repr）を窓が作れないので束を組まない
+pub(crate) fn num_setting(v: &Value, dflt: &Value) -> R<(Value, bool)> {
+    match v {
+        Value::Null => Ok((dflt.clone(), true)),
+        Value::String(x) if x.is_empty() => Ok((dflt.clone(), true)),
+        Value::String(x) => Ok(if pyfmt::py_float(x).is_ok() { (v.clone(), true) } else { (dflt.clone(), false) }),
+        Value::Array(_) | Value::Object(_) => Err(Py("数の設定が並び・表")),
+        _ => Ok((v.clone(), true)),
+    }
+}
+
+/// 数の設定の欄の名前と単位（num_setting.LABELS と同じ。接続の段の欄の名前〈bundle_tables.json の connSpecs〉と同じ言葉）
+pub(crate) fn num_label(key: &str) -> (&'static str, &'static str, &'static str) {
+    if key.starts_with("stale") {
+        ("stale", "古さの警告（時間）", "時間")
+    } else {
+        ("refresh", "確かめる間隔（秒）", "秒")
+    }
+}
+
+/// 読めなかった数の設定の知らせ（num_setting.warn と同じ言葉。key は設定の項目の名前か接続の欄の id）
+pub(crate) fn num_warn(key: &str, v: &Value, dflt: &Value) -> String {
+    let (_, label, unit) = num_label(key);
+    format!("{label}の既定の値「{}」が数ではないので、{} {unit}で見ています。", py_str(v), py_str(dflt))
+}
+
 /// 写し直す間隔・古いとみなす時間・1 頁の件数（data_sources.read_params）
 fn read_params(settings: &Value, key: &str, row: &Map<String, Value>) -> R<Value> {
     let src = dict_or_empty(settings.get("sources"))?;
@@ -834,6 +862,12 @@ fn read_params(settings: &Value, key: &str, row: &Map<String, Value>) -> R<Value
             let d = out[k].clone();
             out.insert(k.into(), num_of(row.get(col), &d)?);
         }
+    }
+    // 数の設定は num_setting で読む（版 3.106.0。読めない字は既定）
+    for k in ["refresh_seconds", "stale_hours"] {
+        let d = t(&["sources", "readDefaults", k]);
+        let v = num_setting(out.get(k).unwrap_or(&Value::Null), d)?.0;
+        out.insert(k.into(), v);
     }
     Ok(Value::Object(out))
 }
@@ -1752,14 +1786,29 @@ fn conn_of(item: &Map<String, Value>, row: Option<&Map<String, Value>>, items: &
             }
             let blank = |k: &str| it.get(k).filter(|x| !x.is_null()).cloned().unwrap_or(json!(""));
             let rev = it.get("rev").filter(|x| truthy(Some(x))).cloned().unwrap_or(json!(0));
+            let (mut dflt, mut eff) = (blank("default"), it.get("effective").cloned().unwrap_or(Value::Null));
+            // 配った設定の数の設定が数でなければ、既定と効いている値を写しの係と同じ既定に替えて知らせる（版 3.106.0。data_sources.conn_of）
+            let mut warns: Vec<String> = vec![];
+            if field == "refresh" || field == "stale" {
+                let code = t(&["sources", "readDefaults", if field == "refresh" { "refresh_seconds" } else { "stale_hours" }]);
+                for x in [&mut eff, &mut dflt] {
+                    if !num_setting(x, code)?.1 {
+                        warns.push(num_warn(&field, x, code));
+                        *x = code.clone();
+                    }
+                }
+            }
             o.extend([
                 ("bind".into(), json!("settings")),
                 ("item".into(), json!(place)),
                 ("value".into(), blank("value")),
-                ("default".into(), blank("default")),
-                ("effective".into(), it.get("effective").cloned().unwrap_or(Value::Null)),
+                ("default".into(), dflt),
+                ("effective".into(), eff),
                 ("rev".into(), rev),
             ]);
+            if let Some(w) = warns.first() {
+                o.insert("warn".into(), json!(w));
+            }
         }
         out.push(Value::Object(o));
     }
@@ -2096,8 +2145,20 @@ impl Builder {
                 x => unquote(&s(x)?),
             };
             wl.insert("folder".into(), json!(folder));
+            // 古さの警告の時間・確かめる間隔（版 3.106.0。work_log.params）: num_setting で読み、読めなければ既定で続けて settingsWarn で知らせる
+            let mut warn: Vec<Value> = vec![];
+            for k in ["stale_hours", "refresh_seconds"] {
+                let d = t(&["workDefaults", k]);
+                let v = wl.get(k).cloned().unwrap_or(Value::Null);
+                let (got, ok) = num_setting(&v, d)?;
+                if !ok {
+                    let (f, label, _) = num_label(k);
+                    warn.push(json!({"field": f, "label": label, "text": num_warn(k, &v, d)}));
+                }
+                wl.insert(k.into(), got);
+            }
             Ok(json!({"folder": wl["folder"], "pattern": wl["pattern"], "table": wl["table"], "refresh_seconds": wl["refresh_seconds"],
-                      "stale_hours": wl["stale_hours"], "page_size": wl["page_size"],
+                      "stale_hours": wl["stale_hours"], "page_size": wl["page_size"], "settingsWarn": warn,
                       "rows": wl_rows.iter().map(|r| Value::Object(["キー", "設備名", "ファイル名", "ファイルID", "表示", "表", "並び"].iter()
                           .map(|k| (k.to_string(), r.get(*k).cloned().unwrap_or(Value::Null))).collect())).collect::<Vec<_>>(),
                       "canEditShifts": null}))
@@ -2125,8 +2186,17 @@ impl Builder {
         let conversions = if conversions.is_null() { json!({"rev": null, "tables": {}}) } else { conversions };
         let shifts = section("shifts", &|| Ok(json!(rows("shift_patterns")?)));
         let lists = json!({"hidden": null, "dash": dash, "sources": srcs, "work": work, "shifts": shifts});
-        Ok(json!({"source": get("source", json!("")), "refresh_seconds": get("refresh_seconds", json!(60)),
-                  "stale_hours": get("stale_hours", json!(36)), "table": get("table", json!("")), "page_size": get("page_size", json!(500)),
+        // 品質の写しの間隔・古さ（lot_list_params。版 3.106.0 から num_setting で読む）
+        let num_get = |k: &str, d: Value| -> R<Value> {
+            if ll.is_null() {
+                Ok(Value::Null)
+            } else {
+                Ok(num_setting(&get(k, d.clone()), &d)?.0)
+            }
+        };
+        let (refresh, stale) = (num_get("refresh_seconds", json!(60))?, num_get("stale_hours", json!(36))?);
+        Ok(json!({"source": get("source", json!("")), "refresh_seconds": refresh,
+                  "stale_hours": stale, "table": get("table", json!("")), "page_size": get("page_size", json!(500)),
                   "engine": engine, "conversions": conversions, "lists": lists,
                   "access": {"who": who, "place": place},
                   "calculation": settings.get("calculation").cloned().unwrap_or(json!({})),
@@ -2194,6 +2264,34 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 数の設定の読み方（版 3.106.0）: program/tests/fixtures/num_setting_cases.json（Python は tests/test_num_setting.py）を、束の num_setting・
+    /// num_warn と一覧の lists::num（写しの係へ渡す数）が同じに読むか
+    #[test]
+    fn num_setting_like_the_table() {
+        let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/num_setting_cases.json")).unwrap();
+        let mut bad = vec![];
+        for c in table["cases"].as_array().unwrap() {
+            let (v, d) = (&c["value"], &c["default"]);
+            let (got, ok) = num_setting(v, d).unwrap();
+            let w = if ok { String::new() } else { num_warn(c["key"].as_str().unwrap(), v, d) };
+            if (got.clone(), ok, w.as_str()) != (c["want"].clone(), c["ok"].as_bool().unwrap(), c["warn"].as_str().unwrap()) {
+                bad.push(format!("{}: 窓 {got} {ok} {w}", c["name"]));
+            }
+            if let Some(n) = c["num"].as_f64() {
+                let read = crate::lists::num(&got, d.as_f64().unwrap());
+                if read != n {
+                    bad.push(format!("{} の lists::num: {read}（表 {n}）", c["name"]));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+        assert!(num_setting(&json!([1]), &json!(36)).is_err(), "並びは束を組まない（Python の知らせの字が repr）");
+        // 言葉は 1 か所の決まり: 接続の段の欄の名前（Python から焼いた connSpecs）と同じ
+        for k in ["stale", "refresh"] {
+            assert_eq!(t(&["sourcesList", "connSpecs", k, "label"]).as_str(), Some(num_label(k).1), "{k}");
+        }
+    }
 
     #[test]
     fn sha1_matches_known_digests() {

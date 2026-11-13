@@ -5,7 +5,7 @@
 //! 使う組: ダッシュボードのセット（src/dash_sets.rs。版 3.79.0）。組み方のプリセット・カードの設計・ダッシュボードも
 //! 同じ行の形（マスタ dashboards・pivot_presets の FIELDS）なので、移すときはこの部品に中身の確かめだけを足す。
 //!
-//! 窓が Python と同じに書けない値は呼ぶ側が先に Python に任せる（plain_input・rows_plain）: 本文の項目が並び・表（Python は str() の
+//! 窓が Python と同じに書けない値は呼ぶ側が先に Python に任せる（rows_plain。本文の項目の型は版 3.106.0 から本文の門〈body_rules.TYPES〉が断る）: 本文の項目が並び・表（Python は str() の
 //! ['x'] の形か TypeError）・u64 に入らない整数（serde は小数に読む。master_rows::unreadable が先に任せる）。
 //! 小数（float_repr。版 3.80.0 から丁度まん中の値も Python の repr と同じ）と u64 の整数は、版 3.105.0 から窓が答える（worksum::str_plain）。
 
@@ -137,16 +137,9 @@ pub fn rows_plain(rows: &[Value]) -> bool {
         r.as_object().is_some_and(|o| {
             master_rows::row_readable(o)
                 && FIELDS.iter().all(|k| o.get(*k).is_none_or(Value::is_string))
-                && s(o, "中身").is_none_or(|t| !text_split(t))
+                && s(o, "中身").is_none_or(|t| !master_rows::text_split_py(t))
         })
     })
-}
-
-/// 本文の行の項目（clean_row が読む物）を窓が Python と同じに扱えるか。name・note は str() の字、scope は辞書の鍵として比べる
-/// （並び・表は Python では TypeError）、standard は真偽だけ（どの形でもよい）
-pub fn plain_input(d: &Map<String, Value>) -> bool {
-    ["name", "note"].iter().all(|k| d.get(*k).is_none_or(crate::worksum::str_plain))
-        && d.get("scope").is_none_or(|v| !v.is_array() && !v.is_object())
 }
 
 /// Python の str(v or "")（真でない値は空の字）
@@ -218,7 +211,7 @@ fn check_name(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>, w
 }
 
 /// 作る（item_id が None）・直す（_preset_write）。標準にしたら、同じ組のほかの標準を外す（1 回の書き込みで）。
-/// what は名前が重なったときの言葉（dashboards は「ダッシュボード」・pivot_presets は「組み方」）
+/// what は名前が重なったときの言葉（dashboards は「ダッシュボード」・pivot_presets は「組み方」・カードの設計は「カードの設計」・セットは「セット」。版 3.106.0）
 pub(crate) fn write(
     store: &Store,
     spec: &Spec,

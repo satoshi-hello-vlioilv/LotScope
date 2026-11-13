@@ -128,7 +128,8 @@ class DbMirror:
         self.key = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in str(key or "db"))
         self.remote = str(remote or "")
         self.cache_dir = Path(cache_dir)
-        self.interval = max(MIN_INTERVAL_SEC, int(interval_sec or DEFAULT_INTERVAL_SEC))
+        # 間隔は float() で読める字（「12.5」）も受ける（版 3.106.0。services/num_setting の決まり。窓の lists.rs の num と同じく切り捨て）
+        self.interval = max(MIN_INTERVAL_SEC, int(float(interval_sec or DEFAULT_INTERVAL_SEC)))
         # 元データは毎日更新される前提。最後の更新からこれより経っていたら「古い」と言う（0 以下なら言わない）
         self.stale_hours = float(stale_hours if stale_hours is not None else DEFAULT_STALE_HOURS)
         self._lock = threading.RLock()
@@ -153,7 +154,7 @@ class DbMirror:
                 self._state = {}
                 changed = True
             if interval_sec is not None:
-                iv = max(MIN_INTERVAL_SEC, int(interval_sec))
+                iv = max(MIN_INTERVAL_SEC, int(float(interval_sec)))
                 if iv != self.interval:
                     self.interval = iv
                     changed = True
