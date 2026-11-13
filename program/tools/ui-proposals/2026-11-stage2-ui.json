@@ -1,0 +1,212 @@
+{
+ "title": "版 3.110.0 の画面の 3 つ（マスタ管理の読めない行: タブを替えたら消した後の一言を消す・置き場が手元のときの言葉・確かめの窓を Esc でやめた後の焦点）の案出し（2026-11-13）",
+ "rule": "2026-10-17",
+ "applies_note": "3.109.0 の画面の作った後の採点（2026-11-delegates-3109-ui.json の built.next_version。86.4 点で合格）が次の版に回した提案 3 つ。版の案は 2026-11-stage2.json（決まり 2026-11-06）。そこで画面を含む案は、ここで決まった案を入れる。採点はまだ（別の係がする）",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3110/shots（段ごと・大きさごとのフォルダ: menu-〈大きさ〉＝帯の札『⚠ 設備マスタの読めない行 2』を押して面を開いた所／confirm-〈大きさ〉＝面の 1 つ目の行〈18 行目 id 'x'〉を押して確かめの窓を開いた所／esc-〈大きさ〉＝確かめの窓を Esc でやめた直後／esc2-〈大きさ〉＝続けてもう一度 Esc／after-〈大きさ〉＝確かめで消した直後〈本当に消す。案ごとに --only で起こし直したサーバー〉／tab-〈大きさ〉＝消した直後にロールマスタのタブへ移った所。大きさは 1728x1152・1536x864・1280x720。各フォルダに master-light-〈案〉.png と全案を並べた sheet-master-light.png。now は今の 3.109.0）。撮り方は 2026-11-stage2.mjs の冒頭（ui-variants.mjs --states master --from master、TPA_UI_BAD_ROWS=1、TPA_PHASE で段）、全部をまとめて撮る台本は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3110/shoot.sh（全 54 回とも終了コード 0）。開発用サーバーのマスタの置き場は『手元のみ』なので、(2) の言葉の食い違いはそのまま撮れる。切り出して並べた確かめの画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3110/shots/crop-*.png・grid-*.png",
+   "self_check": "案を作った者が採点に渡す前に、6 段 × 3 つの大きさ × 7（今と 6 案）の画像を自分で開いて確かめ、崩れを直して撮り直した。(1) E 案: 確かめの窓の説明が『equipment_master.jsonを直します』と字の間が抜けていた（confirm-1728x1152/master-light-E）→『… equipment_master.json を直します（場所は「マスタの置き場 ›」）。』に直した。(2) C 案: 帯に入れた一言が長く（中身の id 'x'・設備名つき）、1280 で帯が 2 段に折れ『マスタ管理』の題が独りの段になった（after-1280x720/master-light-C）→ 札を『✓ 18 行目を消しました（残り 1）』と短くし（全文は title）、3 つの大きさで帯が 1 段に収まるのを見た。(3) A・B 案: 1280 の esc で帯の札の輪が出なかった。帯は置き場の見張り（paintPlace）が innerHTML を作り直すので、焦点を戻した札が描き直しで消えていた → 札に焦点を戻した後 3 秒は、描き直された札に焦点を当て直す形にした（作るときも、札の要素ではなくマスタの名前で探し直す要がある＝採点で見てほしい所）。撮り直して A・B・C・E は 3 つの大きさで札に輪。(4) F 案: 表の行の輪が 1728 で上下の線だけ・1 つ目の升は選んだ行の印の色に負け、1280 では表の描き直しで消えた → 升の内側の影を優先にし、描き直しの後も当て直す形にして 3 つの大きさで行を囲むのを見た。(5) 確かめた所: confirm の窓は 3 つの大きさで切れ・はみ出しなし。言葉は now『共有のフォルダの equipment_master.json』（帯は『手元のみ この PC のアプリの data/ に保存します』と食い違う）、A・B・D『この PC の data/ の』、C は窓に『置き場 手元のみ（この PC の data/）』の行と『置き場（手元のみ）の』、E『マスタの置き場（手元のみ）の … （場所は「マスタの置き場 ›」）』、F『この PC（手元のみ）の data/equipment_master.json』。面の下の小さな字も同じ言葉（menu-*）。E・F は 1280 で面の下の字が 2 段（面の字は折り返す決まり）。esc: now は輪が無く焦点の行き先が見えない、A・B・C・E は帯の札、D は面を開き直して押した 18 行目、F は表の 1 行目。esc2: now・A・B・C・E・F はマスタ管理まで閉じる（重なった窓の決まり。札に焦点があっても TPA.layer が閉じる）、D だけは面を閉じて札に戻りマスタ管理は残る。after: A・D・F は今と同じ下の一言、B は残りの字が『設備マスタの読めない行は残り 1』（1280 で 2 段）、C は帯の中の緑の札、E は一言が無く帯の札が一瞬緑。tab: now と B は一言がロールマスタの上に残る（B は何の行かを言うので食い違いは無いが、ほかのタブの上に残る）、A・C・D・E・F は消える。(6) 撮り方の限り: Esc は頁の中で送る合図なので本物の :focus-visible の輪は出ない（案の輪は .v-focus で描いた。作るときは :focus-visible の輪）。置き場が共有のときの言葉は撮っていない（開発用サーバーは手元のみ。共有のときはどの案も今と同じ『共有のフォルダの …』）。データ元・実績の設備の面は 3.109.0 で決まった形のまま触れていない",
+   "baseline": {
+    "今（3.109.0）": {
+     "text": "確かめの窓（TPA.confirmBox）の説明は置き場によらず『消さずに直すときは、共有のフォルダの equipment_master.json を直します。』（帯は『手元のみ・この PC のアプリの data/ に保存します』）。面の下の小さな字も『共有のフォルダの…』。Esc・やめるで閉じると、焦点は開く前の要素（面の行。面は閉じて消えている）へ戻そうとして body に落ち、もう一度 Esc でマスタ管理まで閉じる。消した後の一言（TPA.toast）はタブを替えても 6 秒残り、ロールマスタの上に『設備マスタの 18 行目 … を消しました。読めない行は残り 1』と出る",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 6,
+      "effortless": 4,
+      "intuitive": 4,
+      "form": 7,
+      "place": 4,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "esc-1728x1152/master-light-now.png・esc-1280x720/master-light-now.png: 確かめの窓を Esc でやめた直後、帯の札にも面にも表にも焦点の輪が無く、焦点の行き先が見えない"
+      }
+     ],
+     "seen": "menu-1728x1152/now: 帯は『● 手元のみ この PC のアプリの data/ に保存します』なのに、面の下は『消さずに直すときは、共有のフォルダの equipment_master.json を直します』と食い違う（confirm-1728/1280 の窓の説明も同じ）。esc: 輪が見えない（body に落ちる）。esc2-1728/1536/1280: 2 度目の Esc でマスタ管理まで閉じて品質の一覧に戻る（直していた『HOT』の欄も閉じる）。after-1728: 表の枠の下に『✓ 設備マスタの 18 行目（id 'x'・設備名 '壊れた設備'）を消しました。読めない行は残り 1』、帯の札は 2→1。tab-1728/1280: ロールマスタに移っても同じ一言が表の行の上に残り、ロールマスタの帯には札が無いのに『読めない行は残り 1』と言う。面・窓・一言の形は 3 つの大きさで切れ・重なり無し"
+    }
+   },
+   "proposals": {
+    "A 3 つをそのまま（タブで一言を消す・手元は「この PC の data/」・Esc で札へ）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 8,
+      "intuitive": 7,
+      "form": 9,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "menu・confirm（1728/1536/1280）: 面の下と窓の説明が『この PC の data/ の equipment_master.json を直します』に替わり、帯の『手元のみ』と食い違わない。ただし帯は『この PC のアプリの data/』で、『アプリの』が抜けて同じ言葉ではない（どの data/ かを推測させる）。面の下は 3 つの大きさとも 1 段、窓の説明は 2 段で崩れなし。esc（1728/1536/1280）: 帯の札『⚠ 設備マスタの読めない行 2』に青い輪が付き、行き先が見える。esc2: 2 度目の Esc でマスタ管理まで閉じて一覧に戻る（今と同じ）。直前の Esc は面へ戻るつもりで押しがちなので、マスタ管理ごと閉じるのは驚きが残る。別の行を消すには札を押し直す 1 手が要る。after: 今と同じ一言（中身の id・設備名つき）で、1280 でも 1 段。tab（1728/1536/1280）: ロールマスタに移ると一言が消え、食い違いが無い。ダッシュボード・書式の面と同じ一言と窓の形のまま"
+    },
+    "B 言葉で解く（一言は残し「設備マスタの読めない行は残り n」・Esc で札へ）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 7,
+      "intuitive": 6,
+      "form": 9,
+      "place": 7,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "言葉（menu・confirm）と esc の輪は A と同じ（帯の札に輪、3 つの大きさで見える）。esc2 はマスタ管理まで閉じる。after-1728: 一言の残りが『設備マスタの読めない行は残り 1』で何の行かは分かる。after-1280・tab-1280: 一言が 2 段になり（残りの字が丸ごと次の段へ。部品の決まりどおり）、表の 2 行を覆う。tab-1728/1536/1280: ロールマスタの表の上に設備マスタの一言が残る。言葉は食い違わないが、いま見ているタブと関係の無い知らせが 6 秒残り、提案 (1) の『ほかのタブの上に残る』は解けていない"
+    },
+    "C 置き場を変える（一言を帯の中・窓に「置き場」の行・Esc で札へ）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 6,
+      "place": 7,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [],
+     "seen": "confirm（1728/1280）: 窓の項目に『置き場 手元のみ（この PC の data/）』の行が足され、説明は『置き場（手元のみ）の equipment_master.json を直します』。置き場の行と説明が同じ事を 2 度言い、帯の『この PC のアプリの data/』とも言葉が違う。menu-1536/1280: 面の下は 1 段に収まる。esc は A と同じく札に輪。esc2 はマスタ管理まで閉じる。after-1728/1536/1280: 帯の札の左に緑の札『✓ 18 行目を消しました（残り 1）』。1280 でも帯は 1 段で、× と重ならない（『マスタの置き場 ›』が右へ約 270px 押され、札の位置が消す前後で動く）。中身（id・設備名）を外したので、消した後に下の行が繰り上がると面の 18 行目は id 902 の行になり、『18 行目を消しました』と面の『18 行目 id 902』を取り違えやすい。緑の札と黄の札が同じ丸い形で並び、知らせと操作の札の区別が形で付かない。ダッシュボード・書式の面には帯が無いので、そこでは下の一言のまま＝消した後の知らせが画面ごとに違う形になる。tab: タブを替えると緑の札は消える"
+    },
+    "D 流れを変える（Esc は開いた順の逆に 1 段ずつ: 窓 → 面 → 札）": {
+     "score": {
+      "order": 9,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 9,
+      "effortless": 8,
+      "intuitive": 9,
+      "form": 9,
+      "place": 8,
+      "layout": 8,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "esc2-1280x720/master-light-D.png: 2 度目の Esc で面を閉じた後、帯の札『⚠ 設備マスタの読めない行 2』に焦点の輪が無い（1728・1536 の同じ段では札に輪がある）。面を閉じたときの戻り先が、帯の描き直しで消えた札のまま"
+      }
+     ],
+     "seen": "言葉（menu・confirm）は A と同じ『この PC の data/ の』（『アプリの』が抜ける点も A と同じ）。esc-1728/1536/1280: 確かめの窓を Esc でやめると、読めない行の面が開き直り、押した 18 行目に青い枠が付く。どこまで戻ったかが一目で分かり、そのまま 19 行目を選ぶ・もう一度押すことができる（別の行を消すのに札を押し直さない）。esc2-1728/1536: 2 度目の Esc で面だけが閉じて帯の札に輪、マスタ管理と右の『HOT』を直す欄は残る（開いた順の逆に 1 段ずつ。メニューの戻り方として慣れた型）。esc2-1280 だけ札に輪が無い（減点）。after・tab は A と同じ（一言は中身つきで 1 段・タブを替えると消える）。ダッシュボード・書式の面でも同じ部品なので、同じ戻り方になる。マスタ管理を閉じるには Esc が 3 回になるが、今の 2 回目で閉じる驚きを直す向きなので手の増加とは数えない"
+    },
+    "E 減らす（一言を出さず帯の札を一瞬緑に・置き場は「マスタの置き場（手元のみ）」の 1 語）": {
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 5,
+      "steps": 8,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "color_only",
+       "where": "after-1728x1152/master-light-E.png・after-1536x864/master-light-E.png: 消せたことを帯の札の地色を緑にするだけで知らせ、札の字は『⚠ 設備マスタの読めない行 1』と ⚠ のまま"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "after-1728x1152/master-light-E.png・after-1280x720/master-light-E.png: どの行（18 行目 id 'x'）を消したかがどこにも出ず、数の 2→1 を覚えていないと消えたかが分からない"
+      },
+      {
+       "kind": "wrap",
+       "where": "menu-1536x864/master-light-E.png・menu-1280x720/master-light-E.png: 面の下の小さな字が『…（手元のみ）の equipment_master.json を／直します』と 2 段目に 4 字だけ落ちる（ほかの案は 1 段）"
+      }
+     ],
+     "seen": "confirm（1728/1536/1280）: 『マスタの置き場（手元のみ）の equipment_master.json を直します（場所は「マスタの置き場 ›」）。』は、左のナビの『マスタの置き場』と帯の札『手元のみ』の言葉にそろい、どこで場所を見るかまで言う。末尾の『›」）。』は記号が重なって読みにくい。esc は A と同じく札に輪、esc2 はマスタ管理まで閉じる。after: 一言が無く、帯の札が一瞬緑（⚠ と緑で意味が逆）。tab: 残る物は無い。3.109.0 で決めた消した後の一言（中身と残り）を外すので、ダッシュボード・書式の面（帯が無い）では消した後に何も出なくなる（案の定義の toast の差し替えは全画面に効く）"
+    },
+    "F 焦点を作業へ（Esc で表の行へ・言葉は道まで「data/equipment_master.json」）": {
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 6,
+      "intuitive": 5,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 8
+     },
+     "minus": [
+      {
+       "kind": "wrap",
+       "where": "menu-1536x864/master-light-F.png・menu-1280x720/master-light-F.png・menu-1728x1152/master-light-F.png: 面の下の字が『… data/equipment_master.json を直／します』と動詞の途中で 2 段に折れる"
+      }
+     ],
+     "seen": "confirm（1728/1280）: 『この PC（手元のみ）の data/equipment_master.json を直します』は道まで言い、置き場の言い分けは最も正確。esc-1728/1536/1280: 焦点は表の 1 行目『HOT』（青い枠）。読めない行は表に無い行なので、やめた後に関係の無い HOT の行へ移り、続けて別の読めない行を選ぶには帯の札まで戻る手が要る。esc2 は HOT の行に焦点があってもマスタ管理まで閉じる。after・tab は A と同じ（一言は 1 段・タブで消える）"
+    }
+   },
+   "scored_images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-ui"
+  }
+ ],
+ "evaluator": "採点の係（案を作っていない別のエージェント。2026-11-13）。2026-11-stage2.mjs の冒頭どおり、TPA_UI_BAD_ROWS=1・TPA_PHASE=menu/confirm/esc/esc2/after/tab で ui-variants.mjs --states master --from master を 1728x1152・1536x864・1280x720 で自分で撮り直し（after・tab は案ごとに --only で起こし直したサーバー。全 54 回とも終了コード 0）、画像は /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-ui/〈段〉-〈大きさ〉/master-light-〈案〉.png。案ごとに同じ所を切り出して縦に並べた画像（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-ui/crop/*.png）と 1 枚ずつの画像を Read で開いて付けた。作った者の画像（deleg-3110/shots）は使っていない",
+ "built_prepared": {
+  "name": "作った後（版 3.110.0。D に採点の指摘の 6 つを入れた形）。採点はまだ（別の係に頼む）",
+  "images_before": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3110/shots（作る前。3.109.0 の今の画面: menu-・confirm-・esc-・esc2-・after-・tab-〈3 つの大きさ〉/master-light-now.png）",
+  "images_after": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3110/ui-after（作った後。node program/tools/ui-eval-skiprows.mjs の画像。⑨ の分は skip-back-menu・skip-back-confirm・skip-back-esc・skip-back-esc2・skip-back-tab・skip-back-dash-esc・skip-back-dash-esc2・skip-place-shared-menu・skip-place-shared-confirm・skip-place-down-menu・skip-place-down-confirm〈各 3 つの大きさ〉）",
+  "fixes_applied": [
+   "1 焦点の戻し先は要素ではなくマスタの名前（と置き場の要素の id）で札を探し直す（shared.js の skipBadge）。確かめの窓をやめたとき（面を開き直して押した行）と面を Esc で閉じたとき（札）の両方。札に焦点があるまま描き直されたら新しい札へ当て直す（MutationObserver。人が外した焦点は戻さない）。紺の帯の中の札の :focus-visible の輪は白（琥珀は沈む）。⑨ は本物のキーで、帯の見張り（5 秒）の描き直しの後も :focus-visible の輪を 3 つの大きさで確かめる",
+   "2 手元かどうかはサーバーの置き場の状態（GET /api/masters/status の mode・reachable・masters[名前].source）から（TPA.skipWhere。マスタ管理は自分の status を TPA.setPlace で渡す。ほかの画面は札を描くときに前もって尋ね、面・確かめの窓を開く前に 15 秒より古ければ尋ね直す〈待つのは 1.5 秒まで〉）。ダッシュボード・共有の書式の面も同じ言葉",
+   "3 言葉は帯と 1 字までそろえた「この PC のアプリの data/ の equipment_master.json」。共有「共有のフォルダの …json」・届かない「共有のフォルダ（いまは届きません）の …json」。開発用サーバーに TPA_UI_SHARE=shared・down を足して撮り、⑨ で確かめた。面の下の小さな字は語の途中で折らず 2 段を釣り合わせる（word-break: keep-all・text-wrap: balance。前の案の E・F の『…を直／します』を避ける）",
+   "4 一言はタブを替えたとき（押す・キー〈Enter〉・goTab）・ほかの画面から openMasterAt で移ったとき・マスタ管理を閉じたときに消す（TPA.toastClear）。一言の中身（id・設備名）は残した",
+   "5 マウスで「やめる」も Esc と同じく面へ 1 段戻る（決めた。どちらも『この 1 つを消すのをやめる』）。窓の外を押したときは全部やめて札へ（面は開き直さない）。ダッシュボード（Esc → 面の id 903 → Esc → 札）・共有の書式（Esc → 面の行・窓の外 → 札）でも ⑨ で確かめた",
+   "6 ui-eval-skiprows.mjs に ⑨（34 の確かめ）。全部 OK"
+  ],
+  "found_while_building": [
+   "共有の書式の窓の上で開いた面・確かめの窓の Esc と外側の押下を、先に開いた書式の窓も受けて一緒に閉じていた（document の捕まえで先に登録された窓が先に動く）。Esc と外側の押下は、いちばん上（最後に開いて、まだ頁にある）の窓・面だけが受けるようにした（TPA.dismissable・confirmBox の escStack）。確かめの窓の後ろの押下は mousedown でなく click で閉じる（続く click を下の窓が外側と見て閉じた）。ほかの画面の評価関数（popovers・colmenu・dashmenu・unsaved・colfilter・pathpick・cardform）も流して確かめる"
+  ],
+  "self_check": "作った者が前後の画像を開いて確かめたこと: (1) skip-back-esc-1280x720: 確かめの窓を Esc でやめると面が開き直り、18 行目 id 'x' の行に焦点（淡い緑の地）。(2) skip-back-esc2-1280x720: もう一度 Esc で面が閉じ、帯の札に白い輪。見張りの描き直し（5.8 秒待った後）でも輪が残る（採点の減点の所）。(3) skip-back-confirm-1280x720: 確かめの窓の説明が『… この PC のアプリの data/ の / equipment_master.json を直します。』と空白の所で 2 段。(4) skip-back-menu-*: 面の下の字が最初『…を直／します』と動詞の途中で折れていた（1280）→ keep-all・balance にして 3 つの大きさで空白の所で 2 段に。(5) skip-place-shared-menu-1728x1152: 帯『● 共有 …/マスタ共有』で面の言葉『共有のフォルダの equipment_master.json』。skip-place-down-confirm-1280x720: 『共有のフォルダ（いまは届きません）の equipment_master.json』。(6) 気づいて残した事: 共有に届かない形の 1280 では、帯（『共有に届きません』・長い道・『もう一度つなぐ』・札・『マスタの置き場 ›』）が 2 段になり、左のナビの『マスタの置き場 届かない』も折れる（skip-place-down-confirm-1280x720。前からの帯の形で、この版では変えていない）"
+ },
+ "built": {
+  "name": "作った後（版 3.110.0・commit 51f595b。D に作るときの指摘を入れた形: 確かめの窓 → 面 → 帯の札 → マスタ管理と 1 段ずつ戻る・札はマスタの名前で探し直す・紺の帯の札の輪は白・置き場の状態から言葉を言い分ける・タブと閉じるで一言を消す・Esc と外側の押下はいちばん上の窓だけ）",
+  "rule": "2026-10-17",
+  "evaluator": "作っていない採点の係（別のエージェント・2026-11-13）。作った後は作業場所 deleg-3110（51f595b）で node program/tools/ui-eval-skiprows.mjs /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/after を流した（170 項目 OK・NG 0・『OK すべて』・終了コード 0。⑨ の 3 つの大きさと TPA_UI_SHARE=shared・down を含む。記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/after.log）。評価関数が撮らない所は自分の台本 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/extra.mjs で撮った（大きさごと・段ごとにサーバーを起こし直し、本物のキーとマウスで: 帯の札を Enter で開く → 18 行目 → 確かめの窓で Esc を 1・2 回 → 6 秒待って帯の見張りの描き直しの後 → 3 回目の Esc／マウスで『やめる』／窓の外を押す／本当に消した直後／タブを Enter で替えた所、ダッシュボードの道具の行の札と共有の書式の面で Esc を 1〜3 回と窓の外、TPA_UI_SHARE=shared・down の帯・面・確かめの窓。焦点の要素・:focus-visible・輪の色・地の色を記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/extra-after.log）。作る前は git worktree add で 61745f8 を /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/before-3110 に置き、案の定義 2026-11-stage2.mjs の now（TPA_UI_BAD_ROWS=1 TPA_PHASE=menu|confirm|esc|esc2|after|tab・ui-variants.mjs --states master --from master --only now・3 つの大きさ。全 18 回 終了コード 0。/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/before/now）と、同じ自分の台本（作る前の作業場所の開発用サーバーにだけ 51f595b の ui_server.py の TPA_UI_SHARE の差分を当てて、前の版の共有・届かない形も撮った。記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/extra-before.log）で撮った。作った者の画像（deleg-3110/shots・ui-after）は使わず、自分で撮った画像を 1 枚ずつ開いて付けた",
+  "images": "作った後: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/after（評価関数の画像。skip-back-*・skip-place-*・skip-master-* ほか）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/after/extra（自分の台本: m-menu・m-confirm・m-esc1・m-esc2・m-esc2-later・m-esc3・m-cancel-mouse・m-outside・m-deleted・m-tabkey・d-confirm・d-esc1〜3・f-confirm・f-esc1〜3・f-outside・s-shared-band/menu/confirm・s-down-band/menu/confirm〈各 -1728x1152・-1536x864・-1280x720〉）。作る前: /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/before/now（menu-・confirm-・esc-・esc2-・after-・tab-〈3 つの大きさ〉/master-light-now.png）と /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/score-3110-built/before/extra（作った後と同じ名前）",
+  "self_check": "作った者の確かめは built_prepared.self_check（採点はそれを使わず、自分で撮り直した）",
+  "result": {
+   "score": {
+    "order": 9,
+    "chunk": 8,
+    "hierarchy": 8,
+    "visual": 7,
+    "steps": 9,
+    "effortless": 9,
+    "intuitive": 9,
+    "form": 9,
+    "place": 9,
+    "layout": 8,
+    "tone": 8
+   },
+   "minus": [],
+   "seen": "【1. 案出しの −3（1280 の esc2 で輪が消える）は消えた】after/extra/m-esc2-1280x720.png・m-esc2-later-1280x720.png: 確かめの窓を Esc → もう一度 Esc で面が閉じ、紺の帯の札『⚠ 設備マスタの読めない行 2』に白い 2px の輪（outline-offset 2px）。6 秒待って帯の見張りが帯を描き直した後も、焦点は新しい札で輪が残る（記録: 札の要素が替わっても focus は BUTTON.tpa-skip・:focus-visible・ring solid 2px rgb(255,255,255)）。1728（m-esc2-1728x1152.png）・1536 も同じ。評価関数 ⑨ の『帯を描き直しても焦点は新しい札』も 3 つの大きさで OK。作る前（before/extra/m-esc1-*・before/now/esc-1536x864）は Esc で焦点が body に落ち、2 回目でマスタ管理ごと閉じて品質の一覧に戻っていた。【2. 作るときの指摘】(1) 札をマスタの名前で探し直す: 上のとおり描き直しの後も輪。(2) 置き場の言葉はサーバーの状態から: 手元は m-confirm-1280x720.png・m-menu-*『消さずに直すときは、この PC のアプリの data/ の equipment_master.json を直します』で、帯の『この PC のアプリの data/ に保存します』と同じ語（案出しの A・D の『アプリの』が抜けた食い違いも直った）。共有は s-shared-menu-*／confirm-*『共有のフォルダの equipment_master.json』、届かない形は s-down-menu-1280x720.png『共有のフォルダ（いまは届きません）の equipment_master.json』。作る前は届かない形でも手元でも『共有のフォルダの』（before/extra/s-down-menu-1280x720.png・before/now/menu-1728x1152）。ダッシュボード（d-esc1-1280x720.png『この PC のアプリの data/ の dashboards.json』）・共有の書式（f-esc1-1280x720.png『… display_formats.json』）の面も同じ言葉。(3) 面の下の字は語の途中で折れない: 手元の言葉は長くなり 3 つの大きさで 2 段になるが、『この PC のアプリの／data/ の equipment_master.json を直します』と空白の所で釣り合って折れる（m-esc1-1536x864.png・m-esc1-1280x720.png）。届かない形も『共有のフォルダ（いまは届きません）／の equipment_master.json を直します』（s-down-menu-1280x720.png）。案出しの E・F の『…を直／します』の形は無い。面の字は折り返す決まりの所なので想定外の折り返しにはしない。(4) 一言はタブを替えると消える: m-deleted-1280x720.png で表の枠の下に『✓ 設備マスタの 19 行目（id 902・設備名 '数でない値の設備'）を消しました。読めない行は残り 1』と札『… 1』が同じ数、ロールマスタのタブを Enter で替えると一言は消える（m-tabkey-1280x720.png。作る前の before/extra/m-tabkey-1280x720.png は同じ一言がロールマスタの表の上に残る）。3 回目の Esc でマスタ管理を閉じると一言も消える（評価関数 ⑨）。(5) マウスの『やめる』と窓の外: m-cancel-mouse-*: 『やめる』を押すと面が開き直る（押した 19 行目に焦点。ただしマウスなので :focus-visible の地は付かない）。m-outside-*: 窓の外を押すと面は開かず全部やめて、焦点は帯の札（マウスなので輪なし）。作る前はどちらも body・面は閉じたまま。【3. 1 段ずつの戻り（ダッシュボード・共有の書式）】d-esc1-1280x720.png: ダッシュボードの確かめを Esc でやめると面が開き直り、押した 2 行目 id 903 に淡い緑の地。d-esc2: 面を閉じて道具の行の札に琥珀の輪。d-esc3: 閉じる物が無いので札のまま。f-esc1-1280x720.png: 共有の書式の窓の上の確かめを Esc でやめると面へ 1 段戻り、書式の窓は残る。f-esc2: 面を閉じて書式の窓の札に琥珀の輪（書式の窓は開いたまま）。f-esc3: 書式の窓を閉じて一覧へ。f-outside: 窓の外で確かめと面だけが閉じ、書式の窓は残る。作る前（before/extra/f-esc1-1280x720.png）は確かめの Esc 1 回で書式の窓まで閉じて一覧に戻っていた（作った者の見つけた割れの直しを画像で見た）。【4. 切れ・重なり・折り返し・字】確かめの窓（m-confirm-*・d-confirm-*・f-confirm-*）は 3 つの大きさで真ん中に収まり、説明は空白の所で 2 段。面・帯の札は切れず重ならない。白い輪は紺の帯（#1b2733 系）の上でよく見え、琥珀の札の地とも重ならない。11px 未満の字・コントラスト不足は評価関数の確かめ（② ⑤ ⑦ の字の切れ・4.5 以上）でも見つからない。【5. 作った者が残した所の判断】(a) 共有に届かない形の 1280 で帯が 2 段になり、左のナビの『マスタの置き場 届かない』が『マスタの置き／場』『届かな／い』と語の途中で折れる（after/extra/s-down-menu-1280x720.png）。作る前の作業場所に同じ開発用サーバーの差分だけを当てて撮った before/extra/s-down-menu-1280x720.png（VER3.109.0）でも帯 2 段・ナビの折れは同じ形で、この版の変更ではないので、この版の減点にせず次の版へ回す（下の next_version）。(b) 面を開き直した後の行の焦点は淡い緑の地（rgb 229,243,241。白の地との差は小さく輪は無い）。作る前も帯の札を Enter で開いた面の最初の行は同じ淡い緑（before/extra/m-menu-1280x720.png）で、TPA.menu の前からの焦点の形。1280・1536・1728 の画像で押した 18 行目がどれかは読み取れるので『状態が見えない』の減点にはせず、加点の視覚化を 7 にした（次の版へ）。【弱い所（減点にしない）】マウスで『やめる』を押して面が開き直ったとき、押した行に印が付かない（m-cancel-mouse-1280x720.png。ブラウザの決まりでマウスでは :focus-visible にならない）。消した直後の焦点は body（m-deleted の記録。作る前と同じ）。作る前（今の 3.109.0。案出しで 58.0 点）から、案出しの D（80.0 点）の 1 つの減点が消え、言葉の食い違いと書式の窓が一緒に閉じる割れも直ったのを画像で見た"
+  },
+  "next_version": [
+   "マスタ管理の帯が共有に届かない形の 1280 で 2 段になり、左のナビの『マスタの置き場 届かない』が『マスタの置き／場』『届かな／い』と語の途中で折れる（after/extra/s-down-menu-1280x720.png。3.109.0 でも同じ）。ナビの札を『届かない』→ 短い札（例『✕』や『未接続』）にするか、札を名前の下の段へ送る・帯の道（/tmp/…/マスタ共有）を省いて title に出すなどで 1 段に収める",
+   "読めない行の面（TPA.menu）でキーボードの焦点が当たった行は淡い緑の地だけで輪が無い（白との差が小さい）。:focus-visible の行に左の太い線か 2px の輪を足し、開き直して押した行に戻ったことをはっきり見せる（前からの部品の形）",
+   "マウスで『やめる』を押して面が開き直ったときも、押した行に一時の印（地の色か左の線）を付ける"
+  ]
+ }
+}

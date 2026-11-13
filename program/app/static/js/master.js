@@ -214,6 +214,7 @@ async function openMaster() {
 async function closeMaster() {
   if (!(await leaveOk("マスタ管理を閉じる"))) return;
   emit("tpa:masters-closed");   // 設備マスタ（検査計など）を直したかもしれない → 画面が引き直す
+  TPA.toastClear();   // 消した後の一言をマスタ管理の外に残さない（版 3.110.0）
   $("#masterOverlay").classList.add("hidden");
   clearInterval(mstate.pollTimer);
   mstate.pollTimer = null;
@@ -257,6 +258,7 @@ async function refreshPlace() {
 function paintPlace(news) {
   const p = mstate.place, el = $("#masterPlace");
   if (!p || !el) return;
+  TPA.setPlace(p);   // 読めない行の面・確かめの窓の言葉（置き場ごと。版 3.110.0）も同じ答えで
   const cur = p.masters[MASTER_DEFS[mstate.tab].name] || {};
   let html;
   if (p.mode !== "shared") {
@@ -324,10 +326,15 @@ function buildMasterTabs() {
 async function goTab(tab) {
   if (tab === mstate.tab || !(await leaveOk(`${(MASTER_DEFS[tab] || {}).label || "ほか"}のタブへ移る`))) return;
   mstate.tab = tab;
+  // 消した後の一言（「設備マスタの … を消しました。読めない行は残り n」）は、移ったタブの上に残さない（版 3.110.0。押す・キー・goTab のどれで移っても）
+  TPA.toastClear();
   mstate.editing = null; mstate.selId = null;   // 行の番号はマスタごとなので、移ったら先頭から
   mstate.search = "";
   $("#masterSearch").value = "";
   buildMasterTabs();
+  // 帯（置き場・読めない行の札）を移った先のマスタで描き直す（版 3.110.0 の作った後の採点の割れ 4。前は 5 秒ごとの見直しまで前のタブの札が残り、
+  // 押すと前のマスタの面が開いた）
+  paintPlace();
   ensureTabLoaded(mstate.tab).then(renderMasterTable);
 }
 /* 置き場の今の状態 → [札の文字, 色の cls, 説明]。見出しの帯・ナビ・置き場の頁で同じ言葉を使う */
@@ -473,7 +480,9 @@ async function openMasterAt(tab, focus = "") {
   if (tab === "paths" || tab === "worklog") { focus = focus || (tab === "worklog" ? "work" : "others"); tab = "sources"; }   // 版 3.58.0: 頁はデータ元にまとめた
   mstate.focus = focus;      // 開いたら、その元（か「そのほかの接続」）を開いて見せる（master-sources.js が読んで消す）
   if (!$("#masterOverlay").classList.contains("hidden") && tab !== mstate.tab && !(await leaveOk(`${(MASTER_DEFS[tab] || {}).label || "ほか"}のタブへ移る`))) return;
+  if (tab !== mstate.tab) TPA.toastClear();   // ほかのタブへ移るときは消した後の一言を残さない（版 3.110.0。goTab と同じ）
   mstate.tab = tab;
+  paintPlace();   // 帯も移った先のマスタで（goTab と同じ。置き場の答えがまだ無ければ何もしない）
   await openMaster();
 }
 window.openMasterAt = openMasterAt;

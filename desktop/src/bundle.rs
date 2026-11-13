@@ -692,15 +692,8 @@ impl Builder {
     }
 
     /// 引っ越しの印をたどる（master_store.follow_moved。窓が名乗ったときの係は窓の 1 つ。Python はこの PC の覚えを読み直すだけ）。
-    /// 数秒（refresh_seconds）に 1 回だけ見る。移ったら新しい置き場を覚えて（master_share.json）、その置き場を返す
+    /// 移ったら新しい置き場を覚えて（master_share.json）、その置き場を返す。数秒（refresh_seconds）に 1 回だけ見るのと錠は呼ぶ側（place_of）
     fn follow_moved(&self, st: &Store, who: &Value) -> Option<String> {
-        {
-            let mut last = self.moved_checked.lock().unwrap();
-            if last.is_some_and(|l| l.elapsed().as_secs_f64() < st.refresh) {
-                return None;
-            }
-            *last = Some(Instant::now());
-        }
         if let Some(pin) = self.pin_target() {
             if st.share.as_ref().is_some_and(|sh| norm(&pin) == norm(sh)) {
                 return None;
@@ -2091,31 +2084,27 @@ impl Builder {
         Ok((app, eff_li, equipment))
     }
 
-    /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）
-    pub fn inputs(&self) -> R<Inputs> {
-        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
-        // 引っ越しの印をたどる係は窓の 1 つ（Python は窓が名乗るとたどらない）なので、束を組めない設定（NaN など）でも、
-        // Python と同じに読める置き場の段（master_share）と名乗りから先にたどる
-        let loose = lenient_json(&text).filter(Value::is_object);
-        let mut st = None;
-        if let Some(l) = &loose {
-            if let (Ok(who), Ok(store)) = (Self::who(l), self.store(l)) {
-                let mut store = store;
-                if let Some(moved) = self.follow_moved(&store, &who) {
-                    store.share = Some(moved);
-                }
-                st = Some(store);
+    /// 置き場の材料（版 3.110.0。作った後の採点の割れ 1・2）: 配った設定の寛い読みから名乗りと置き場を組み、引っ越しの印をたどる。
+    /// 束の材料（厳しい読み）の失敗と切り離す（配った設定に NaN・Infinity・i64 を超える整数があっても置き場は決まる）。
+    /// この PC の覚え（master_share.json）を読む所から、印をたどって覚えを書き終えるまでを moved_checked の錠の中の 1 本にする。
+    /// 前は覚えを読んでから錠を取り、錠は印をたどる前に外したので、同じ瞬間に束を組んだほかの糸（更新の係・warm・最初の画面）が
+    /// たどり終える前の古い覚えを読み、「見たばかり」でたどらずに前の置き場を使った（起動の初期値・種まきが古い共有へ書いた。300 回中 122 回）
+    fn place_of(&self, text: &str) -> Option<(Value, Store)> {
+        let loose = lenient_json(text).filter(Value::is_object)?;
+        let who = Self::who(&loose).ok()?;
+        let mut last = self.moved_checked.lock().unwrap_or_else(|e| e.into_inner());
+        let mut store = self.store(&loose).ok()?;
+        if !last.is_some_and(|l| l.elapsed().as_secs_f64() < store.refresh) {
+            *last = Some(Instant::now());
+            if let Some(moved) = self.follow_moved(&store, &who) {
+                store.share = Some(moved);
             }
         }
-        if crate::master_rows::text_split(&text) {
-            return Err(Py("配った設定が窓の読めない JSON"));
-        }
-        let settings: Value = serde_json::from_str(&text).map_err(|_| Py("配った設定が JSON でない"))?;
-        if !settings.is_object() {
-            return Err(Py("配った設定が表でない"));
-        }
-        let who = Self::who(&settings)?;
-        let st = st.ok_or(Py("置き場の段が読めない"))?;
+        Some((who, store))
+    }
+
+    /// 置き場の材料の place（Lot::store_for・access::Place が読む形）
+    fn place_json(&self, st: &Store) -> Value {
         let base = py_path(&self.env.base.to_string_lossy());
         // 同梱の最初の中身は master_store.DEFAULTS_DIR（Path(__file__).resolve() から決まる。道を解いた形）
         let program = py_path(&resolved(&self.env.program).to_string_lossy());
@@ -2125,9 +2114,34 @@ impl Builder {
             Some(sh) => join(sh, t(&["store", "presenceSubdir"]).as_str().unwrap_or("presence_tpa")),
             None => join(&local, "presence"),
         };
-        let place = json!({"shareDir": st.share.clone().unwrap_or_default(), "shared": st.shared, "data": join(&base, "data"),
-                           "defaults": join(&join(&program, "app"), "master_defaults"), "cache": cache, "presence": presence,
-                           "lockTtl": st.lock_ttl, "refreshSeconds": st.refresh});
+        json!({"shareDir": st.share.clone().unwrap_or_default(), "shared": st.shared, "data": join(&base, "data"),
+               "defaults": join(&join(&program, "app"), "master_defaults"), "cache": cache, "presence": presence,
+               "lockTtl": st.lock_ttl, "refreshSeconds": st.refresh})
+    }
+
+    /// 起動の初期値の材料（版 3.110.0。Lot::run_seeds）: (名乗り, 置き場)。束を組めない配った設定でも、置き場の段と名乗りが読めれば返す
+    pub fn place_inputs(&self) -> R<(Value, Value)> {
+        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
+        let (who, st) = self.place_of(&text).ok_or(Py("置き場の段が読めない"))?;
+        Ok((who, self.place_json(&st)))
+    }
+
+    /// 束・画面・/api/config が使う材料（配った設定・参照先を重ねた設定・名乗り・マスタの置き場）。組めなければ Err（Python に尋ねる）
+    pub fn inputs(&self) -> R<Inputs> {
+        let text = read_config(&self.env.config).ok_or(Py("配った設定が読めない"))?;
+        // 引っ越しの印をたどる係は窓の 1 つ（Python は窓が名乗るとたどらない）なので、束を組めない設定（NaN など）でも、
+        // Python と同じに読める置き場の段（master_share）と名乗りから先にたどる（place_of。起動の初期値も同じ材料: place_inputs）
+        let st = self.place_of(&text).map(|(_, st)| st);
+        if crate::master_rows::text_split(&text) {
+            return Err(Py("配った設定が窓の読めない JSON"));
+        }
+        let settings: Value = serde_json::from_str(&text).map_err(|_| Py("配った設定が JSON でない"))?;
+        if !settings.is_object() {
+            return Err(Py("配った設定が表でない"));
+        }
+        let who = Self::who(&settings)?;
+        let st = st.ok_or(Py("置き場の段が読めない"))?;
+        let place = self.place_json(&st);
         let p = Place::from_json(&place);
         // 置き場の書く係（種をまく係）を作って覚えさせ（版 3.105.0）、どの問い合わせでも読むマスタ（参照先・門番の権限 2 つ）の種をまく
         // （Python はどの道でも参照先〈effective_settings〉を、門番のある道は権限を読み、共有にまだ無ければ最初の版を置く）

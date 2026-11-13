@@ -679,6 +679,8 @@ body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}
 button.db-warnb.tpa-skip,#llFormatPanel .fm-head button.db-warnb.tpa-skip{height:20px;min-height:0;padding:0 7px;border-radius:999px;background:var(--amber-soft);
   border:1px solid var(--amber-line);color:var(--amber-ink);font:inherit;font-size:11.5px;font-weight:800;line-height:1;cursor:pointer;box-shadow:none}
 button.db-warnb.tpa-skip:focus-visible{outline:2px solid var(--amber-ink);outline-offset:1px}
+/* 紺のマスタ管理の帯の中では琥珀の輪が沈むので白（版 3.110.0。確かめの窓・面を Esc で閉じて札に戻ったとき） */
+.master-place button.db-warnb.tpa-skip:focus-visible{outline:2px solid #fff;outline-offset:2px}
 /* 読めない行の面（版 3.107.0 の 2 回目の採点の直し）: 字を切らずに折り返す・知らせと直し方は押せない灰でなく本文の色（押せない項目は印とカーソルで分ける） */
 .tpa-menu.tpa-skipmenu{max-width:min(480px,calc(100vw - 16px))}
 .tpa-skipmenu .tm-head,.tpa-skipmenu button > span{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
@@ -705,4 +707,6 @@ button.db-warnb.tpa-skip:focus-visible{outline:2px solid var(--amber-ink);outlin
   border-radius:8px;background:#1b2733;color:#fff;font-size:13px;font-weight:700;line-height:1.45;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .tpa-toast-rest{display:inline-block;white-space:nowrap;color:#cfe3f5}
 .tpa-skipmenu .tm-why{color:#4f5b66}
+/* 面の下の直し方の字（置き場の道を言う。版 3.110.0）は語の途中で折らず、2 段なら釣り合わせる（1280 で「…を直／します」と動詞の途中で折れた） */
+.tpa-skipmenu .tm-why{word-break:keep-all;text-wrap:balance}
 .tpa-skipmenu .tm-group{color:#4f5b66}

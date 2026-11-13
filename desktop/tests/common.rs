@@ -192,3 +192,70 @@ pub fn json_keep(b: &[u8]) -> Option<serde_json::Value> {
     }
     serde_json::from_slice(b).ok()
 }
+
+/// 起動の初期値の試験の置き場（版 3.110.0。seeds_cases・seeds_parity）: root に base/data・local（作業場所）を作り、共有 share の書く係を作る
+pub fn seeds_store_at(root: &std::path::Path, share: Option<PathBuf>, who: &str) -> da_core::master_store::Store {
+    use da_core::master_store::{Config, Store, SHARED_ALWAYS};
+    let (base, local) = (root.join("base"), root.join("local"));
+    for d in [base.join("data"), local.join("master_cache")] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    std::fs::write(local.join("instance_id"), format!("inst-{who}")).unwrap();
+    let mut shared: Vec<String> = SHARED_ALWAYS.iter().map(|s| s.to_string()).collect();
+    shared.extend(["roll_master".to_string(), "equipment_master".to_string()]);
+    Store::new(Config {
+        data: base.join("data"),
+        defaults: program().join("app").join("master_defaults"),
+        share_dir: share,
+        shared,
+        cache: local.join("master_cache"),
+        local_root: local,
+        pc: format!("PC-{who}"),
+        login: who.into(),
+        role: "rs".into(),
+        lock_ttl: 20.0,
+    })
+}
+
+/// 事例の表の走らせる形（{place: share・local・unreachable, masters}）の置き場を root に作る
+pub fn seeds_store(root: &std::path::Path, run: &serde_json::Value, who: &str) -> da_core::master_store::Store {
+    let share = match run["place"].as_str().unwrap() {
+        "share" => {
+            let s = root.join("share");
+            std::fs::create_dir_all(&s).unwrap();
+            for (name, doc) in run["masters"].as_object().unwrap() {
+                std::fs::write(s.join(format!("{name}.json")), doc.to_string()).unwrap();
+            }
+            if run["lock"].is_object() {
+                // ほかの PC の生きた錠（版 3.110.0 の作った後の採点の割れ 3）
+                std::fs::write(s.join(da_core::master_store::LOCK_FILENAME), run["lock"].to_string()).unwrap();
+            }
+            Some(s)
+        }
+        "unreachable" => Some(root.join("無い共有")),
+        _ => {
+            let data = root.join("base").join("data");
+            std::fs::create_dir_all(&data).unwrap();
+            for (name, doc) in run["masters"].as_object().unwrap() {
+                std::fs::write(data.join(format!("{name}.json")), doc["rows"].to_string()).unwrap();
+            }
+            None
+        }
+    };
+    seeds_store_at(root, share, who)
+}
+
+/// 走らせた後のマスタ（共有なら共有の文書、手元のみなら data/ の行の配列）。名前 → 中身
+pub fn seeds_files(root: &std::path::Path, run: &serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+    let dir = if run["place"] == "share" { root.join("share") } else { root.join("base").join("data") };
+    let mut out = serde_json::Map::new();
+    if let Ok(rd) = std::fs::read_dir(&dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.extension().is_some_and(|x| x == "json") {
+                out.insert(p.file_stem().unwrap().to_string_lossy().into_owned(), file_value(&std::fs::read(&p).unwrap()));
+            }
+        }
+    }
+    out
+}

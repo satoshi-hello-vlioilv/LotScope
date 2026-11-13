@@ -1986,6 +1986,63 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 - 次の版で（画面の採点の減点ではない提案。見た目は今の版で変えない）: マスタ管理のタブを替えたら消した後の一言を消す・置き場が手元のみのときは
   確かめの窓の言葉「共有のフォルダの …json を直します」を「この PC の data/ の …json」と言い分ける・確かめの窓を Esc で閉じた後の焦点を押した札へ戻す
 
+### 段 ② の 1 歩目: 起動の初期値（master_seeds）を窓へ — 版 3.110.0（任せる歩 19 のまま・Python だけの裏の係 1 → 0）
+
+案は `tools/ui-proposals/2026-11-stage2.json`（版の 7 案。決まり 2026-11-06。1 位 A 73.8 点で 80 に届かず、採点の指摘 first_fixes の 8 つを全部入れた形で作った）と
+`2026-11-stage2-ui.json`（画面の 6 案。決まり 2026-10-17。1 位 D 80.0 点で合格。採点の指摘 6 つを入れた）。
+
+- 測った数（案出しの係・採点の係が確かめた）: Python の中身は窓と同じ名乗りでも起動のたびに空の共有へ 5 つのファイルを書いていた（create_app の
+  path_settings の種まき・master_seeds の equipment_master・access_permissions・conversions・app_seeds）。ready の枠まで 0.654 秒・RSS 33 MB。
+  2 つの PC が app_seeds を読んだ直後に当てると、記録が seed ごとに 2 行・中身の版が空の書き込みで上がっていた（全員の PC が写しを取り直す）。
+- 係は窓の 1 つ（`desktop/src/seeds.rs`）: `sidecar.rs` の SERVES に `seeds`、Python の `boot.start` は名乗られると当てない（engine の設定によらない）。
+  窓は束の材料を入れた後、裏の糸 seeds で 1 回だけ `Lot::run_seeds`（`bundle::Builder::inputs` が引っ越しの印をたどった後の置き場・
+  `master_store::shared_store` の書く係＝種まきと同じ係・serialized で窓の書き込みと 1 本・手元のみは write_local）。錠を 1 秒おきに 5 回まで待つのは
+  この糸だけ。共有に届かなければ記録せず次の起動へ。Python に尋ねない（Python が居なくても当たる）。
+- 重複を塞ぐ: `Store::write_changed`（mutate が〈値, 変えたか〉を返し、変えなければ書かない・版を上げない）。中身と app_seeds の 2 つの write は Python と
+  同じ 2 段（with_lock は入れ子にしない）で、app_seeds は錠の中で読み直した記録に同じ seed があれば足さない。Python の master_seeds も同じ見直し
+  （`_Same`・`_record`）。前の版の Python と同時でも、窓は先の記録の後に足さない。
+- 決まり（事例の表 `tests/fixtures/seeds_cases.json` に全部。人が仕様から書いた当て方 34 件・走らせる形 8）: 検査計の空は str(v or "").strip()・設備名と
+  ログインID は `access::normalize_part`・同じ名前は後の行・rev は int(rev or 1)+1（読めない字は次の起動へ・小数は切る・true は 1・大きな整数は PyInt）・
+  釜番日付は名前の完全一致・id は next_id・表示順は `master_rows::next_order`・表でない行は次の起動へ（人が直すまで当てない）・3.107.0 で隔てる行も表なので比べる・
+  順は 検査計 → 管理者 → 釜番日付で止まったら後ろは次の起動へ。
+- 評価関数: `cargo test --test seeds_cases`・`tests/test_seeds_cases.py`（同じ表・名乗りで止まる）・`cargo test --test seeds_parity`（← `program/tests/seeds_oracle.py`。
+  11 場面の終わった後のファイル〈時刻と書いた人は伏せる〉・2 つのプロセスが app_seeds を読んだ直後で待ち合わせる場面を 5 回ずつ: 窓と窓・窓と今の版の Python
+  〈記録は 1 行ずつ・版は空の書き込みで上がらない・錠が残らない〉・窓と前の版の Python〈中身は 1 つずつ・窓は先の記録の後に足さない〉）・
+  `lot::tests::the_window_applies_the_seeds_without_python`。記録の見直しを外す変異で事例の表と競い合いの 3 つが落ちることを確かめた。予算は 19 のまま。
+- 画面（D）: 読めない行の確かめの窓を Esc・「やめる」でやめると面を開き直して押した行に焦点、もう一度 Esc で面を閉じて帯の札へ（:focus-visible の輪。
+  紺の帯の中は白）、3 度目でマスタ管理を閉じる。窓の外を押したら全部やめて札へ。札は要素でなくマスタの名前で探し直す（帯の見張りの描き直しの後も焦点を
+  当て直す）。直すファイルの言葉はサーバーの置き場の状態（`/api/masters/status`）から「この PC のアプリの data/ の …json」・「共有のフォルダの …json」・
+  「共有のフォルダ（いまは届きません）の …json」（`TPA.skipWhere`）。消した後の一言はタブを替えた（押す・キー・goTab・openMasterAt）・マスタ管理を閉じたときに消す。
+  作る途中で見つけた割れ: 共有の書式の窓の上で開いた面・確かめの窓の Esc と外側の押下を、先に開いた書式の窓も受けて一緒に閉じた → Esc と外側の押下は
+  いちばん上の窓・面だけが受ける（`TPA.dismissable`・`confirmBox` の escStack）。`ui-eval-skiprows.mjs` の ⑨。開発用サーバーに `TPA_UI_SHARE`（shared・down）。
+
+- 作った後の採点（画面 85.0 点で合格・減点なし・画面に出ない部分 67.7 点。`2026-11-stage2-ui.json` の built・`2026-11-stage2-built.json`）の割れを直した（built_fixed）:
+  1 引っ越した後の最初の起動で、初期値が前の置き場へ当たった（同じ瞬間に束を組む糸〈更新の係・warm・最初の画面〉が印をたどり終える前に、
+  初期値の糸が古い覚えを読み、「見たばかり」でたどらなかった。300 回中 122 回）→ `bundle::Builder::place_of` が、この PC の覚えを読む所から
+  印をたどって覚えを書き終えるまでを moved_checked の錠の中の 1 本にした（束の種まき・Lot::store_for・access::Place も同じ place なので、ほかの書く係の
+  同じ穴も塞がる）。念のため `Lot::run_seeds` は、引っ越し先のフォルダがあるのに印の残った前の置き場なら当てずに次の起動へ。
+  2 配った設定に NaN・Infinity・i64 を超える整数があると窓も Python も当てなかった → 置き場の材料（寛い読み・名乗り・置き場・印）を束の厳しい読みから
+  切り離した `Builder::place_inputs` を run_seeds が使う。3 事例の表に rev の 1e400・NaN・Infinity・並び・空の並び、検査計の NaN・\u001c・ゼロ幅空白、
+  走らせる形に「ほかの PC の生きた錠に 5 回当たって止まる」を足した（42 件・9 形）。4 `ui-eval-skiprows.mjs` の ⑧ データ元の面（版 3.109.0 から）:
+  master.js の goTab・openMasterAt がタブを移ったらすぐ帯を描き直す。
+  試験: `lot::tests::the_seeds_never_land_in_the_old_place_while_another_thread_follows_the_move`（Barrier で 300 回。直す前に戻す変異で落ちる）・
+  `lot::tests::the_seeds_are_applied_even_when_the_distributed_settings_cannot_be_bundled`・`seeds_parity` の
+  `settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python`（Python と同じ共有）と `the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app`
+  （束の種まき・初期値・Python の create_app〈`seeds_oracle.py create`〉を同じ空の共有で同時に）・`tests/test_seeds_cases.py`（錠を待った回数も）・skiprows の ⑧。
+- 次の版で（画面の採点の減点ではない提案。見た目は今の版で変えない）: 読めない行の面の行の焦点に輪か線を足す（今は淡い緑の地だけ）・
+  共有に届かない形の 1280 で、マスタ管理の帯（「共有に届きません」・道・「もう一度つなぐ」・札・「マスタの置き場 ›」）と左のナビ（「マスタの置き場 届かない」）を 1 段に収める
+
+#### 段 ② の残りの順（版 3.110.0 で決めた。採点の evaluation の d_first・later）
+
+| 項 | 何 | 段 | どうする |
+|---|---|---|---|
+| S1 | 起動の初期値 | ② | 版 3.110.0 で窓へ（上の節） |
+| S6〜S8 | 束を Python に尋ねる口（lot_settings を呼ぶ所 5: heartbeat・access_read・handle_body・guard・warm）・更新の置き場・画面の任せ | ③ の最初 | 束の 7 形を窓が組む（案 D）。bundle_seed は錠を待たずに写しで答える。Python が落ちる 4 形の答えは事例の表で決める |
+| S12b | folder_browse・master_place の裏の糸（「参照…」・置き場の確かめ） | ③ | OS の任せ 6 と一緒に消える |
+| S9 | スケジュールの係を降りる形（https・システムのプロキシ・数でない timeout・窓の持たない charset） | ③ の最後 | https とプロキシは窓が取る（TLS の crate を足すかは利用者と決める。足さないなら理由つきで断る）。charset・timeout は理由つきで断る |
+| S10・S11 | 窓の答えが Python の生死を見る所・Python の起動そのもの | ④ の下ごしらえ | 心拍・access_read の alive を窓の答えにし Python の様子は別に見せる。started() の update::confirm・install::maintain・cleanup_copies・revert を Python の準備から外す。Python を遅れて起こす形は採らない |
+| S2〜S5・S12・S13 | 起動の参照先の読み・写しの取り直し・Python の種まき・印の読み直し・空の係・engine=python | ④ | Python ごと消す（作らない）。3.101.0 の観察 2 は今の 0.5 秒のやり直しで凌ぐ。起動の指紋（app.config["BUILD"]）は Python の画面の ?v= なので S8 と一緒 |
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

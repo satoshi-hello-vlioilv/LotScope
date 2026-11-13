@@ -54,7 +54,10 @@ pub const PROTOCOL: u64 = 1;
 /// 来たら誤りの印〈409 kind shell〉を返す。窓はどの形も自分で答えるので来ない）
 /// place: マスタの置き場の 4 本と「参照…」の 2 本（版 3.101.0。src/master_place.rs・folder_browse.rs）。マスタの置き場を写す係
 /// （引っ越し）はプロセスに 1 つなので、Python は /api/masters/place/move で写さずに 409 で断る（routes/settings.py。配布の置き場と同じ型）
-pub const SERVES: &[&str] = &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule", "lotdsp", "place"];
+/// seeds: 起動の初期値（版 3.110.0。src/seeds.rs。app_seeds に記録して共有のマスタへ一度だけ当てる係は窓の 1 つ。Python の boot.start は
+/// 名乗られると master_seeds を走らせない。engine の設定によらない）
+pub const SERVES: &[&str] =
+    &["lotlist", "lists", "access", "presence", "ui_state", "bundle", "release", "schedule", "lotdsp", "place", "seeds"];
 /// 入力を閉じてから Python が片付け（見えない Edge を閉じる・boot.stop）を終えるのを待つ長さ。終わらなければ止める。
 const STOP_WAIT: Duration = Duration::from_millis(5000);
 /// 止めたあと、本当に終わったと見えるまで待つ長さ（その間に入れ替えを始めない）。
