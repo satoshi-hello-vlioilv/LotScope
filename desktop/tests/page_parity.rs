@@ -73,7 +73,7 @@ fn page_and_first_reads_are_like_python() {
                 continue;
             }
             let got: Option<(u16, String, Value)> = if path == "/" {
-                lot.page(false, &|| true).map(|h| {
+                lot.page(false, &|| "ready").map(|h| {
                     let csp = h.headers.iter().find(|(k, _)| k == "Content-Security-Policy").map(|(_, v)| v.clone()).unwrap_or_default();
                     let nonce = csp.split("nonce-").nth(1).and_then(|x| x.split('\'').next()).unwrap_or("").to_string();
                     let body = String::from_utf8(h.body).unwrap();

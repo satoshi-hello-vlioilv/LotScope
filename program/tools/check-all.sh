@@ -7,7 +7,7 @@
 #   空きが --keep-free（既定 8 GB）より少なければ、確かめを始めずに止める（窓の通しは版を何度も写すので、空きが尽きると
 #   取り込みの段が「No space left on device」で落ち、コードの割れと見分けにくい）。
 # - 段ごとの記録は 記録のフォルダ/NN-名前.log。結果は終了コードと「Ran … / OK / FAILED」「test result」の行で読む（最後の 1 行で読まない）。
-# - --verify は窓の通し（desktop/bundle/verify.py update。起動・更新・配布の流れを変えたとき）も流し、終わったら作業フォルダを消す。
+# - --verify は窓の通し（desktop/bundle/verify.py の update と local〈Python の無い PC。版 3.111.0〉。起動・更新・配布の流れを変えたとき）も流し、終わったら作業フォルダを消す。
 # - どれか 1 つでも落ちれば終了コード 1（push しない）。
 set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -83,10 +83,13 @@ if [ $VERIFY -eq 1 ]; then
   EXE="${CARGO_TARGET_DIR:-desktop/target}/debug/LotScope"
   if command -v xvfb-run >/dev/null 2>&1 && [ "$(uname)" != "MINGW64_NT" ]; then
     step verify xvfb-run -a python desktop/bundle/verify.py update --exe "$EXE" --work "$W"
+    # Python の無い PC（版 3.111.0。作業場所の窓だけ・窓だけの自己診断の項目）
+    step verify-local xvfb-run -a python desktop/bundle/verify.py local --exe "$EXE" --work "$W-local"
+    rm -rf "$W-local"
   else
     step verify python desktop/bundle/verify.py update --exe "$EXE" --work "$W"
   fi
-  grep -E "^FAIL|^  \[" "$OUT"/*-verify.log | head -10 | tee -a "$OUT/summary.txt"
+  grep -E "^FAIL|^  \[" "$OUT"/*-verify*.log | head -10 | tee -a "$OUT/summary.txt"
   rm -rf "$W"
 fi
 

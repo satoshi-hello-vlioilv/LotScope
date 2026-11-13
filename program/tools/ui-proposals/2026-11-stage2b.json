@@ -1,0 +1,228 @@
+{
+ "title": "Rust 化の版 3.111.0 で何をするか（段 ② の残り S10・S11 ＝ ④ の下ごしらえ: 窓の答えが Python の生死を見る所・Python の起動そのもの）の案出し（2026-11-13）",
+ "rule": "2026-11-06",
+ "applies_note": "画面に出ない部分（起動・更新の確かめ・心拍の答え）は決まり 2026-11-06（案の採点は 1 回だけ。届かなくても 1 位に指摘を直して入れた形で作る）。画面の部分（心拍の札と Python の様子・3.110.0 が回した 2 つ）は決まり 2026-10-17 の手順 1〜7 で、案と画像は別の採点のファイル 2026-11-stage2b-ui.json。下の版の案はどれも、そこで決まった画面の案を入れられる。起動・更新・配布の流れ（main.rs・update.rs・install.rs）を変える案は、CLAUDE.md の決まりで desktop/bundle/verify.py の通しを本物の窓で確かめる（場面は各案に書いた）。採点はまだ（別の係がする）",
+ "ui": {
+  "file": "2026-11-stage2b-ui.json",
+  "definitions": "2026-11-stage2b.mjs"
+ },
+ "measured": {
+  "where": "作業場所 /home/user/LotScope/.claude/worktrees/deleg-3111（ブランチ deleg-3111・版 3.110.0 の 0653e09）。Linux の開発コンテナ・Python 3.13.18・窓は作業場所で組み直した debug（CARGO_TARGET_DIR=/home/user/LotScope/desktop/target、38 秒）を xvfb（1728x1152）で起こした。program は形ごとに写しを作り（tests・tools・docs・data を除く）、TPA_PROGRAM_DIR・TRANSFER_APP_CONFIG（selftest_config.py の設定。品質データ 300 行）・TRANSFER_LOCAL_ROOT で起こした。台本は commit していない（/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3111/measure/probe_window.py。形ごとのフォルダに desktop.log・shot-*.png・events.json）。installed（この PC の app）の形と Windows は測っていない",
+  "normal": "いつもの形（2 回）: 画面を開くまで OPEN ms=0〜2（Python の準備を待たない。版 3.86.0 から）・Python の準備 READY spawn_ms=766・769（Python の中の elapsed 0.41 秒）。started()（入れ替えた直後の印の確かめ・ショートカットの手入れ・写しの片付け）はこの 0.7〜0.8 秒の後に走る",
+  "slow": "遅れる形（sidecar.py の頭で 20 秒眠る。Windows の Defender の走査・遅いディスクの見立て）: 画面は 0 ms で開き、READY spawn_ms=20797。見出しは 50 秒の間ずっと『接続 ●』（Backend::alive は起こしている最中を生きている扱い）・権限の札も残る（measure/heads.png の左）。started() の 3 つは 20.8 秒遅れる。入れ替えた直後の起動（fresh）なら、コードではスプラッシュのまま 20.8 秒待つ（Supervisor::get の start_wait 120 秒＋5 秒を超えると Err → revert で前の版へ戻す＝Python が遅いだけで戻りうる。installed では測っていない）",
+  "broken": "起きない形（sidecar.py を raise SystemExit に。verify.py の壊れた版と同じ壊し方）: Python は同じ秒のうちに終わり、BACKEND『すぐに終わりました』・FAIL。2 秒目の見出しは『接続 ●』、4 秒目から『未接続 ○』（心拍 503 が 2 回続くと替わる。間隔 3 秒）。権限の札が空の楕円・『マスタ管理』のボタンが消える（/api/access/me は alive が偽で Python へ回り 503。画面の state.me が誤りの形になる）。下に 2 段の赤い帯（『アプリの中身（Python）が起動できません。画面・ダッシュボード・一覧は使えます。』と理由）。ダッシュボードのパネルは窓が答え続けた（measure/broken/shot-12s.png）。利用状況のファイル（共有の presence_tpa）は 1 つも置かれない（心拍の書き込みは alive の後）。起こし直しは 30 秒おき（RETRY_AFTER）",
+  "kill": "落とす形（15 秒目に Python を SIGKILL。起こし直せる）: 次の心拍で起こし直し、READY spawn_ms=16025（落としてから約 0.9 秒）。見出しは 50 秒の間『接続 ●』のまま・利用状況も書き続けた（15:56:53 まで）",
+  "killbad": "落とす形（15 秒目に sidecar.py を壊してから落とす。起こし直せない）: 約 7 秒後（22 秒目）から『未接続 ○』と赤い帯。権限の札・『マスタ管理』は前に読んだまま残る（頁を読み直すと消える）。BACKEND の失敗は 30 秒おき。利用状況は落とす前（15:57:04）の後、窓が開いていた 50 秒の間書かれなかった（measure/killbad/shot-50s.png）",
+  "selftest": "自己診断（TPA_SELFTEST）: いつもの形は 60 項目すべて通る・133 秒（名前か情報に Python・中身を含む項目 33）。起きない形は 0.4 秒で『アプリの中身（Python）が起動できません』の誤りだけを書いて終わり、項目は 1 つも流れない（splash.fail が selftest_finish を呼ぶ。自己診断の infoReady も中身の版〈/__desktop/info の backend.version〉を 60 秒待つ）＝今の自己診断と verify.py の通しは『Python が居なくても窓が動く』を確かめられない",
+  "delegates": "python program/tools/delegate-count.py /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3111/measure/count --check → 『予算と同じです』・終了コード 0（3.110.0 と同じ 19）。この版の案はどれも任せる歩を動かさない（S10・S11 は任せる歩ではなく生死の見方）",
+  "code_reading": "rg で数えた: main.rs の backend.alive() 2 か所（心拍・権限の読む 2 本）・ready_now() 3 か所（/api/health・画面・OPEN の記録）・SUP/sup の起動の係 9 か所・started() の分かれ 2 つ（Ok: confirm・maintain・cleanup_copies／Err: revert か fail）。画面の JS は tabHidden（出さないタブ）を /api/access/me の hiddenTabs で決める（app.js 250 行）＝Python が止まった形で頁を開くと、出さないはずのタブが出る（窓の門番は書き込みを断るので、データの書き換えには届かない）",
+  "not_measured": "installed（この PC の app・applied.json の残る入れ替えた直後）の形・verify.py の通し（今は 6 回の起動で数分。CI と同じ xvfb で流せる）・Windows（Python の起動は Linux より遅く、Defender の初回の走査で数十秒になりうる。CI の desktop.yml の記録は手元に無い）・網の共有での遅さ"
+ },
+ "inventory": [
+  "W1 main.rs start() の fresh（入れ替えた直後か、applied.json が残る起動）: sup.get() で Python の準備を待ってから started() と画面を開く（スプラッシュのまま）。待つ上限は start_wait 120 秒＋5 秒で、過ぎると Err → revert（Python が遅いだけで前の版へ戻りうる）。利用者から: 入れ替えた直後だけ起動が Python の準備ぶん長い",
+  "W2 main.rs started() の Ok（installed のときだけ）: update::confirm（applied.json を消す）・install::maintain（ショートカットの指す先・作業フォルダ・アイコンを直す）・update::cleanup_copies（古い版ごとの exe の写しを消す）。Python が起きなければ 3 つとも走らない（印は残り、次の起動がまた fresh になる）。遅ければその分遅れる（測った 0.7〜20.8 秒）。利用者から: ショートカットが直らない・写しが溜まる（目に見えにくい）",
+  "W3 main.rs started() の Err: installed で applied.json があれば update::revert（FAILED.json に印・update/old と入れ替え・入口で開き直す）。無ければ splash.fail（記録と、自己診断なら『起動できません』を書いて終える）。利用者から: 入れ替えた直後なら窓が閉じて前の版で開き直る",
+  "W4 中身の係の知らせ: sup.on_changed → band（赤い 2 段の帯。『もう一度起こす』は /__desktop/backend/retry）・on_page_load は down_reason があれば読み直した頁にも帯を出す",
+  "W5 Lot::heartbeat(ask, alive): alive が偽なら 503（画面は 2 回で『未接続 ○』）。利用状況の書き込み（presence.beat_async）・答えの版と切断（paintBeat の版の札・切断の帯）は alive の後なので、止まっている間は書かず・描かれない",
+  "W6 Lot::access_read(…, alive): alive が偽なら None → Python へ回り 503 → 画面の state.me が誤りの形（権限の札が空・『マスタ管理』が隠れる・出さないタブの決まりが効かない・master.js の mstate.me も）",
+  "W7 Lot::page(head, ready_now): Python が答えていないと、窓が同じに読めない埋める物（画面の控え・初期設定・変換表）を既定に落として描く（止まっても画面は出る。依りは中身の形だけ）",
+  "W8 GET /api/health: 窓が答え、python の様子（ready・starting・stopped）を添える（表示だけ）",
+  "W9 GET /__desktop/info の backend（Python の準備の知らせ。中身の版・protocol）: 自己診断の infoReady（60 秒待つ）と verify.py の info.version はこれ。Python が起きないと版が取れない",
+  "W10 splash.fail → selftest_finish: Python が起きないと自己診断は 0 項目で終わる（窓だけの項目も流れない）",
+  "W11 束を Python に尋ねる口（settings の bundle_inputs・bundle_seed・bundle_window。AskSettings を呼ぶ 5 か所: heartbeat・access_read・handle_body・guard・warm）: 段 ③ の S6（この版では動かさない）",
+  "W12 更新の置き場の任せ（update_settings・upd.run の ask_slot『起動中です』）: 段 ③ の S7",
+  "W13 画面の任せ（Lot::page が None のとき）: 段 ③ の S8",
+  "W14 lot.warm（起動の直後に写し始める）: 束を組めない形だけ Python に尋ねる。Python も答えなければ写し始めない（一覧を開いたときに待つ）",
+  "W15 router の passthrough（窓が答えない道: 内側の GET /api/lotlist/settings・?engine=python・任せる 19 形・OS 6）: backend.ask。止まっていれば 503 backend_unavailable、起こしている最中なら最大 125 秒待つ",
+  "W16 sup.on_notice（受け身の Python の『写して』『取って』）: Python が居なければ来ないだけ（窓の係は自分で取る）。スケジュールの係を降りる形（S9: https・システムのプロキシ・数でない timeout・窓の持たない charset）は Python が取るので、止まっていればその設備は取れない",
+  "依りの無い所（確かめた）: launch_update（起動の最初の更新の確かめ）・apply_staged・exe が替わった開き直し・settle_home・run_job（写す・取り込む）・seeds（3.110.0）・RunEvent::Exit の backend.stop（片付け）・upd.run（束の材料で読める形）"
+ ],
+ "visible": [
+  "遅れる（20 秒）: 画面は待たずに開き、札は『接続 ●』のまま・権限も窓。任せる形の問い合わせだけ準備まで待つ。入れ替えた直後の印の確かめ・ショートカットの手入れ・写しの片付けは準備まで遅れる。入れ替えた直後の起動はスプラッシュのまま待ち、125 秒を超えると前の版へ戻る",
+  "起きない: 4 秒目から『未接続 ○』・権限の札が空・『マスタ管理』が消える・出さないタブが出る・赤い 2 段の帯（開き直しても直らない版でも『開き直してください』と言う）・利用状況が書かれない（全員の PC の一覧で、この PC は使っていない扱い）・版の札と切断の帯が出ない・自己診断は 0 項目。入れ替えた直後なら前の版へ戻して開き直す（それ以外は、ショートカットの手入れ・写しの片付けをしない）",
+  "落ちた（起こし直せる）: 次の心拍（3 秒以内）で起こし直し約 0.9 秒。利用者には見えない",
+  "落ちた（起こし直せない）: 約 7 秒後から『未接続 ○』と帯・利用状況の書き込みが止まる。権限の札は頁を読み直すまで残る"
+ ],
+ "window_ready": "『窓の準備』（B〜F で共通に作る判定。boot.rs か update.rs の window_ready）: 新しい program のうち窓が読む物だけで、版の壊れを見る — (a) program/app/version.py の版を読める（update::program_version）、(b) 画面の型と指紋を描ける（page.rs の型 templates/index.html・static の指紋。Lot::page の『画面の型・指紋』の理由）、(c) program の同梱の既定（master_defaults・config の見本）を束の決まりで読める、(d) brand.json の app_id が窓と同じ。共有に届かない・配った設定の誤り・権限の表が読めないなど『環境』の失敗は版の壊れに数えない（数えると、共有が落ちた朝に全員の PC が前の版へ戻る）。どれが版の壊れでどれが環境かは、仕様から人が書く事例の表 tests/fixtures/boot_cases.json で決める",
+ "rounds": [
+  {
+   "name": "1 回目",
+   "images": "画面に出ない部分は画像なし（測った数とコード）。実物の窓の画像は measured の各フォルダ（measure/broken/shot-12s.png ほか）。画面の部分の画像は 2026-11-stage2b-ui.json の images",
+   "self_check": "案を作った者が自分で確かめたこと: (1) 窓を作業場所で組み直し（38 秒）、xvfb の本物の窓で 5 つの形（いつもの・遅れる・起きない・落とす・起こし直せない）を起こして、見出しの右を秒ごとに撮り（measure/heads.png・broken/crop-head.png）、desktop.log の START・OPEN・READY・BACKEND・FAIL の時刻と、共有の presence_tpa のファイルの時刻を見た。遅れる形の最初の台本は sidecar.py の from __future__ より前に眠りを入れて壊れていた（BACKEND『すぐに終わりました』）ので、入れる場所を直して撮り直した。(2) 自己診断をいつもの形と起きない形で流し、項目の数と、起きない形では 0.4 秒で項目なしに終わることを見た。(3) delegate-count.py --check を流し、予算と同じ（終了コード 0）を見た。(4) 洗い出しは main.rs（start・started・native の心拍・権限・画面・/api/health・/__desktop/info・band・on_page_load・Exit）・router.rs（Backend for Supervisor の alive・ready_now・ask）・sidecar.rs（Phases・Supervisor・RETRY_AFTER・start_wait）・lot.rs（heartbeat・access_read・page・warm・settings・sources_list）・update.rs（apply_staged・revert・confirm・cleanup_copies・applied の印）・install.rs（maintain）・updater.rs・lists.rs の notice・schedule.rs の降りる形・selftest.js（infoReady・心拍の項目）・verify.py（update の 6 段）・app.js（loadMe・tabHidden・setConn・paintBeat）を読んで作った。(5) installed の形・verify.py の通し・Windows は流していない（案の量と危うさはコードを読んで見積もった）。(6) 測るための台本は commit していない",
+   "proposals": {
+    "A 最小（S10 と手入れ 2 つだけ。入れ替えた直後の確かめと戻すは Python の準備のまま）": {
+     "text": "方向: 1 つずつ・最小。変える所: (S10) Lot::heartbeat と access_read から alive を外す（窓が me を決められれば 200。利用状況は窓が書き、答えに python: ready|starting|stopped と理由〈down_reason〉を足す。窓が me を決められず Python も答えない形は 503 のまま）。画面は 2026-11-stage2b-ui.json で決まった案で Python の様子を描く。(S11 の一部) started() の Ok から install::maintain と update::cleanup_copies を外し、画面を開いた直後（窓の糸）に回す。update::confirm と revert は今のまま Python の準備で決める（段 ④ で Python を外すときに窓の準備へ替える）。減る Python への依り: 心拍・権限の読む 2 本・利用状況・ショートカットの手入れ・写しの片付け（W2 の 2 つ・W5・W6）。残る: W1・W2 の confirm・W3・W9・W10。危うさ: 表の方針（started() の 4 つを外す）の半分しか満たさず、段 ④ でもう一度起動の流れを変える（二度手間）。入れ替えた直後に壊れた版でショートカットを先に直す形はない（maintain は窓の exe の名前で直すので、戻すときは exe_changed で開き直す。今と同じ）。2 台の PC: 共有に書く物は利用状況だけ（今は Python が止まると書かれない → 窓が書く）。試験: lot::tests に止まった中身でも 200・利用状況のファイルが置かれる・権限の読む 2 本が窓、presence_parity・access_parity に『中身が止まった』の場面（Python の答えは止まる前の答え）、tests/fixtures/heartbeat_cases.json（仕様から人が書く: 生きている・起こしている最中・止まった・起こせない × 束を組める・組めない × me を決められる・決められない → 状態と python の欄）。verify.py: 変えない（confirm と revert は今のまま）。窓の通し（local）に『Python を起こせない PC でも心拍 200・帯は画面の案の形』を足すなら selftest.js の変更が要る（W10。この案ではしない）。Windows の型: 変えるのは cfg(windows) でない所だけ（maintain の呼ぶ時を移すだけ。lnk.rs は触らない）。作る量: Rust 80〜120 行・JS は画面の案・試験 150 行・事例 24 件。1 版",
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 6,
+      "place": 6,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "採点者の測り score-3111/badconffresh と slowfresh（版 3.110.0 の本物の窓・installed＋applied.json の入れ替えた直後）: 配った設定が JSON でないだけ（環境の失敗）で 1 秒のうちに『版 3.111.0 が起動できないので 3.110.0 に戻しました』・FAILED.json に 3.111.0。Python が 140 秒眠るだけ（遅いだけ）でもスプラッシュのまま 120 秒待って同じく戻し FAILED。FAILED は消す所が無い（update.rs の failed() を書くのは mark_failed だけ）ので、その PC はその版を二度と取り込まない。A は confirm と revert を Python の準備のまま残すので、この形がそのまま残る"
+      }
+     ],
+     "seen": "心拍・権限の読む 2 本の alive を外し、maintain と cleanup_copies を画面を開いた後へ移すだけの最小の案。出さないタブの割れ（app.js 250 行の tabHidden が /api/access/me の hiddenTabs に頼り、loadMe は r.ok を見ずに 503 の誤りの本文を state.me にする〈237〜239 行〉）は、窓が me を決められる形では塞がる。しかし計画（RUST_PORT_PLAN.md 2035 行の表: started() の 4 つを Python の準備から外す）の半分で、段 ④ で起動の流れをもう一度変える。採点者が本物の窓で測った 2 つ（配った設定が JSON でない・Python が遅いだけ）で、入れ替えた直後の PC は今その版に FAILED の印を付けて二度と取り込まない（印は消えない）。A はこれを残す（減点 1）。自己診断・verify.py が Python 無しで流れない（W9・W10）も残り、段 ④ の下ごしらえにならない。量の見込み（Rust 80〜120 行）は妥当。注意: 心拍から alive() を外すと、その副作用の kick（止まった Python を次の心拍で起こし直す。案の係の測り kill で 0.9 秒）が消える"
+    },
+    "B 窓の準備に置き換える（started() の 4 つとも。Python の失敗は帯だけで戻さない）": {
+     "text": "方向: 表の方針そのまま。変える所: 『窓の準備』（B〜F で共通に作る判定。boot.rs か update.rs の window_ready）: 新しい program のうち窓が読む物だけで、版の壊れを見る — (a) program/app/version.py の版を読める（update::program_version）、(b) 画面の型と指紋を描ける（page.rs の型 templates/index.html・static の指紋。Lot::page の『画面の型・指紋』の理由）、(c) program の同梱の既定（master_defaults・config の見本）を束の決まりで読める、(d) brand.json の app_id が窓と同じ。共有に届かない・配った設定の誤り・権限の表が読めないなど『環境』の失敗は版の壊れに数えない（数えると、共有が落ちた朝に全員の PC が前の版へ戻る）。どれが版の壊れでどれが環境かは、仕様から人が書く事例の表 tests/fixtures/boot_cases.json で決める。start(): fresh でも Python を待たない。窓の準備を見る（数 ms）→ 通れば started_window()＝update::confirm・install::maintain・update::cleanup_copies、通らなければ revert して開き直す（スプラッシュで見る。画面を開く前なので、使っている途中に窓が閉じない）。Python の準備は Supervisor の on_changed の帯と心拍の python の欄だけ（S10 は A と同じ）。自己診断（W9・W10）: /__desktop/info に窓が読んだ中身の版（program_version）を載せ、selftest.js の infoReady はそれを使う。splash.fail は Python の失敗では自己診断を終えず、Python を通す項目を『中身が起きていない』で数え、窓だけの項目は流す。減る Python への依り: W1・W2・W3・W5・W6・W9・W10（S10・S11 の全部）。危うさ: (1) Python だけが壊れた版（新しい import が PC に無いなど）は戻らず、任せる 19 形・engine=python・スケジュールの降りる形がその版の間使えない（段 ③ で減り、④ で 0）。(2) 環境の失敗を版の壊れと取り違えると全員の PC が戻る → 事例の表で版の壊れだけを数える。(3) 順: apply_staged → applied.json → 窓の準備 → confirm を、画面を開く前に 1 本で（今は Python の準備の後）。exe が替わった版は今と同じく先に開き直してから確かめる。(4) 2 台の PC: 印（applied・FAILED）は PC ごと。共有に書く物は増えない。前の版の窓（Python の準備で確かめる）と新しい版の窓が同じ置き場から取り込んでも、それぞれの PC の印で決まる。試験: 窓の準備の事例の表 tests/fixtures/boot_cases.json（仕様から人が書く 30 件前後: 版が読めない・画面の型が無い・指紋が読めない・同梱の既定が壊れた・app_id が違う＝戻す／共有に届かない・配った設定が壊れた・権限の表が読めない・Python が起きない・Python が遅い＝戻さない）を Rust の試験が読み、Python には頼らない（独立の答えは表そのもの）。update.rs の試験に『Python が起きなくても confirm』『窓の準備の失敗で revert』。verify.py の場面: 4 を『窓が描けない版（templates/index.html を消す）→ 控えへ戻す』に替え、4b『Python だけ壊れた版（sidecar.py を壊す）→ 戻さず、その版のまま開き、自己診断の窓だけの項目が通り、心拍 200・python stopped』、4c『Python が遅い版（sidecar.py の頭で 30 秒眠る）→ 画面は待たずに開き、applied.json は数秒で消え、ショートカットも直る』を足す（1〜3・5・6 は今の確かめのまま通る）。窓の通し local（作業場所の窓だけ）に『TPA_PYTHON を無い道にした PC で自己診断の窓だけの項目が通る』。Windows の型: main.rs・update.rs の変える所は cfg(windows) でないが、install::maintain が使う lnk.rs（cfg(windows)）を呼ぶ時が変わるので、CLAUDE.md の手順で cargo clippy --target x86_64-pc-windows-msvc を通す（組めなければ小さな作業用クレートで型だけ）。作る量: Rust 250〜320 行（window_ready 120・main.rs の組み替え 80・selftest 用の info 20）・selftest.js 40 行・verify.py 60〜80 行・試験 250 行・事例 30 件。1 版",
+     "score": {
+      "order": 8,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 8,
+      "effortless": 7,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "配る人から、中身（Python）の起きない PC が見えない: Python だけ壊れた版は戻らないが、利用状況（presence）に Python の様子を書く案になっていない（案の text の S10 は心拍の答えに python の欄を足すだけ）"
+      }
+     ],
+     "seen": "計画の表の方針（S10・S11 の全部）をそのまま満たす。起動の確かめを『窓の準備』（窓が読む物だけの版の壊れ）に替えるので、採点者が測った『環境の失敗・遅いだけで戻り、FAILED が永く残る』形（badconffresh: 配った設定が JSON でない → 1 秒で戻す・slowfresh: スプラッシュのまま 120 秒 → 戻す）が無くなる。これが 6 案でいちばん大きい利点。段 ④ では on_changed の帯と心拍の python の欄を消すだけで、起動の流れはそのまま使える。足りない所: (1) Python が見つからない PC（locate::python の失敗）は今 splash.fail で画面を開かない（採点者の測り nopython: 20 秒たってもスプラッシュの『Python が見つかりません』のまま）。洗い出し W1〜W16 にも無い。B の verify の local『TPA_PYTHON を無い道にした PC』は、python_candidates が PATH の python3 へ落ちるので Python 無しの形にならない（PATH も外す要）。(2) 心拍から alive を外すとき kick の副作用を残す要。(3) loadMe の fail-open（誤りの本文を me にする）は、窓が me を決められない形（束を組めず Python も止まった）では残る。(4) 窓の準備の (a) 版・(d) app_id は取り込みの validate_dist で既に見ている（update.rs 107〜124 行）。(b)(c) を取り込みの確かめにも当てれば入れ替える前に断れる。(5) validate_dist と revert が program/sidecar.py を『中身がある』の印に使う（112・320 行）。段 ④ の直す所。(6) 窓の準備だけで confirm すると、画面の JS が壊れた版を確かめない。(7) 自己診断は 63 項目中 engine=python の呼びが 49 か所あり、selftest.js 40 行の見込みは少ない（80〜150 行）。(8) Python だけ壊れた版は全員の PC でその版の間、任せる 19 形などが使えない。配る人から見えない（減点）"
+    },
+    "C 2 段の確かめ（入れ替えた直後の最初の起動だけ窓＋Python。画面は待たずに開き、Python の失敗は次の起動の最初に戻す）": {
+     "text": "方向: 新しい版にだけ厳しく、ふだんは窓だけ。変える所: 『窓の準備』（B〜F で共通に作る判定。boot.rs か update.rs の window_ready）: 新しい program のうち窓が読む物だけで、版の壊れを見る — (a) program/app/version.py の版を読める（update::program_version）、(b) 画面の型と指紋を描ける（page.rs の型 templates/index.html・static の指紋。Lot::page の『画面の型・指紋』の理由）、(c) program の同梱の既定（master_defaults・config の見本）を束の決まりで読める、(d) brand.json の app_id が窓と同じ。共有に届かない・配った設定の誤り・権限の表が読めないなど『環境』の失敗は版の壊れに数えない（数えると、共有が落ちた朝に全員の PC が前の版へ戻る）。どれが版の壊れでどれが環境かは、仕様から人が書く事例の表 tests/fixtures/boot_cases.json で決める。入れ替えた直後でない起動は B と同じ（窓の準備で maintain・cleanup。confirm の印は無い）。入れ替えた直後の起動は、窓の準備で maintain・cleanup をし、画面は待たずに開く。applied.json は Python の準備で消す（今と同じ確かめ）。Python が起きなければ applied.json に python_failed と理由を書き、その場では戻さない（使っている途中に窓を閉じない）。次の起動の最初（apply_staged の前）に python_failed の印があれば revert して開き直す。帯は『この版は中身が起きません。次に開いたときに前の版 n に戻します［いま戻す］』。S10 は A と同じ。減る Python への依り: W1（画面を待たせない）・W2 の 2 つ・W5・W6・W9・W10。残る: W2 の confirm と W3 の revert は入れ替えた直後の起動だけ Python で決める（段 ④ で外す）。危うさ: (1) 壊れた版で 1 回は使う（任せる 19 形などが使えない起動が 1 回ある）。(2) 印を 2 つ（window・python）持つので、印の読み書きの順の割れ（前の版の窓は python_failed を知らず、FAILED にもしない → 前の版へ戻した後で、前の版の窓がまた同じ版を取り込まない確かめが要る: FAILED は revert のときに書くので、前の版の窓は FAILED を読む今の決まりで止まる）。(3) Python が遅い PC（Windows の初回）で 120 秒を超えると次の起動で戻る → 上限を『Python が終わった（Down）』だけにし、遅いだけでは印を付けない。2 台の PC: 印は PC ごと。試験: boot_cases.json に『入れ替えた直後・Python が終わった／遅い／起きた』の行と次の起動の決め、update.rs に python_failed の印の往復。verify.py の場面: 4 を『Python だけ壊れた版 → 1 回目は開いて帯、2 回目の起動の最初に控えへ戻す』に替え（開く回数が 1 回増える）、4b『窓が描けない版 → その場で戻す』、4c『Python が遅い版 → 戻さない』。Windows の型: B と同じ（maintain の呼ぶ時）。作る量: Rust 320〜400 行・selftest.js 40 行・verify.py 80〜100 行・試験 300 行・事例 36 件。1 版",
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "採点者の測り score-3111/badconffresh と slowfresh（版 3.110.0 の本物の窓・installed＋applied.json の入れ替えた直後）: 配った設定が JSON でないだけ（環境の失敗）で 1 秒のうちに『版 3.111.0 が起動できないので 3.110.0 に戻しました』・FAILED.json に 3.111.0。Python が 140 秒眠るだけ（遅いだけ）でもスプラッシュのまま 120 秒待って同じく戻し FAILED。FAILED は消す所が無い（update.rs の failed() を書くのは mark_failed だけ）ので、その PC はその版を二度と取り込まない。C は『遅いだけ』は印を付けないが、配った設定が JSON でない形は Python が終わった（Down）なので python_failed になり、次の起動で戻して FAILED"
+      }
+     ],
+     "seen": "画面を待たせず、遅いだけでは戻さない点は A より良い。しかし Python の Down を版の壊れとして次の起動に戻すので、環境の失敗（採点者の測り badconffresh: 配った設定が JSON でない → Python は 1 秒で終わる）を取り違え、戻した版に FAILED が永く残る（減点）。印が 2 つ（applied と python_failed）になり、順の割れの確かめが増える。壊れた版で 1 回は使う。段 ④ では python_failed の道ごと消す（二度手間）。verify.py の開く回数が 1 回増える。量の見込み（Rust 320〜400 行）は妥当"
+    },
+    "D 取り込むときに試す（裏で新しい版を取り込むときに、その版の Python を一度起こして確かめる。起動は窓の準備だけ）": {
+     "text": "方向: 確かめを起動から取り込みへ前に出す（流れを変える）。変える所: updater.rs の stage_release の後（取り込みの確かめの続き）で、stage の program の sidecar.py を窓と同じ名乗りで一度起こし、ready の枠を待って閉じる（上限 180 秒。裏の糸で、使っている間に）。通らなければ stage を消して FAILED（理由『取り込んだ版の中身が起きません』）に書き、取り込まない。起動の最初（launch_update の取り込み）は時間が無いので試さず、その版は次の起動で入れ替えずに裏で試してから。起動は B と同じく窓の準備で confirm・maintain・cleanup・revert（『窓の準備』（B〜F で共通に作る判定。boot.rs か update.rs の window_ready）: 新しい program のうち窓が読む物だけで、版の壊れを見る — (a) program/app/version.py の版を読める（update::program_version）、(b) 画面の型と指紋を描ける（page.rs の型 templates/index.html・static の指紋。Lot::page の『画面の型・指紋』の理由）、(c) program の同梱の既定（master_defaults・config の見本）を束の決まりで読める、(d) brand.json の app_id が窓と同じ。共有に届かない・配った設定の誤り・権限の表が読めないなど『環境』の失敗は版の壊れに数えない（数えると、共有が落ちた朝に全員の PC が前の版へ戻る）。どれが版の壊れでどれが環境かは、仕様から人が書く事例の表 tests/fixtures/boot_cases.json で決める）。S10 は A と同じ。減る Python への依り: 起動の流れからは W1・W2・W3・W9・W10 の全部（Python を待つ・Python で戻すが無くなる）・W5・W6。危うさ: (1) 取り込みのたびに Python をもう 1 つ起こす（RSS 33 MB・0.7 秒。Windows では Defender の走査で長い）・stage の program の Python が共有に触れない形で起こす要（TPA_SHELL_SERVES を全部名乗り、作業場所は一時のフォルダ。3.110.0 で起動の種まきは窓へ移ったが、create_app の path_settings の種まき〈S2〉が共有に書く → 名乗りか一時の設定で止める要）。(2) 起動の最初に取り込んだ版（閉じている間に配られた版）は試していないので、その 1 回は Python の壊れを見逃す → 起動の最初に取り込んだ版は入れ替えを 1 回遅らせる（verify.py の 3 の『1 回の起動で入れ替わる』が崩れる）か、起動の最初でも試す（起動が 1 秒前後延びる）を決める要。(3) 2 台の PC: 試すのは PC ごと（同じ版を全員が 1 回ずつ起こす）。共有に書かないことを試験で見る。試験: updater の試験に作り物の stage（起きる・すぐ終わる・ready を出さない・遅い）・boot_cases.json（B と同じ）・試し起こしが共有のフォルダに 1 つもファイルを置かない（空の共有で起こして確かめる）。verify.py の場面: 4 を『Python だけ壊れた版を置く → 使っている間の取り込みで試して断り、入れ替えない（FAILED に理由）』に替え、3 は起動の最初に取り込んだ版の扱い次第で直す、4b『窓が描けない版 → 起動の最初の窓の準備で戻す』。Windows の型: 試し起こしは sidecar.rs の spawn（cfg(windows) の CREATE_NO_WINDOW・ジョブ）を使うので、cargo clippy --target x86_64-pc-windows-msvc が要る。作る量: Rust 400〜500 行・selftest.js 40 行・verify.py 100 行・試験 350 行・事例 30 件。1〜2 版",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "案の text の危うさ (2): 起動の最初に取り込んだ版（閉じている間に配られた版）は試していないので、入れ替えを 1 回遅らせる形を選ぶと、verify.py の 3『1 回の起動で入れ替わる』（利用者の要望 2026-10）が崩れ、利用者は 2 回開く"
+      }
+     ],
+     "seen": "Python の壊れを一時の設定で試すので、6 案でただ 1 つ『版の壊れ』と『環境の失敗』を Python についても分けられる（取り込みのときに作業場所と共有を切り離して起こせば、配った設定の誤りに左右されない）。ただし: 取り込みのたびに Python をもう 1 つ起こす（Windows の Defender で長い）・create_app の path_settings の種まきが共有に書くのを止める作りが要る・起動の最初に取り込んだ版をどう扱うか決まっていない（減点）・段 ④ では試し起こしごと消えるので、作る量（Rust 400〜500 行・1〜2 版）の多くが捨てる物。計画の『Python を遅れて起こす形は採らない』とは別だが、Python を起こす所を 1 つ増やす向きで、Python を外す段の下ごしらえとは逆"
+    },
+    "E 人が決める（窓の準備の失敗は自動で戻し、Python だけの失敗は戻さずに帯で『前の版に戻す』を出す）": {
+     "text": "方向: 自動で戻すのを『確かに版の壊れ』だけに減らし、迷う形は人に任せる。変える所: 起動は B と同じ（『窓の準備』（B〜F で共通に作る判定。boot.rs か update.rs の window_ready）: 新しい program のうち窓が読む物だけで、版の壊れを見る — (a) program/app/version.py の版を読める（update::program_version）、(b) 画面の型と指紋を描ける（page.rs の型 templates/index.html・static の指紋。Lot::page の『画面の型・指紋』の理由）、(c) program の同梱の既定（master_defaults・config の見本）を束の決まりで読める、(d) brand.json の app_id が窓と同じ。共有に届かない・配った設定の誤り・権限の表が読めないなど『環境』の失敗は版の壊れに数えない（数えると、共有が落ちた朝に全員の PC が前の版へ戻る）。どれが版の壊れでどれが環境かは、仕様から人が書く事例の表 tests/fixtures/boot_cases.json で決める。窓の準備で confirm・maintain・cleanup、通らなければ戻す）。入れ替えた直後の起動で Python が終わった（Down）ときは、update/applied.json の代わりに update/python_failed.json（版と理由）を書き、画面の Python の様子（2026-11-stage2b-ui.json の案）に『前の版 n に戻す』を足す。押すと /__desktop/update/revert（新しい窓の道）で FAILED に印・控えへ戻して開き直す。次の版が配られたら印は消す。S10 は A と同じ。減る Python への依り: B と同じ全部。危うさ: (1) 押さない人の PC は壊れた Python のまま（任せる形が使えない。段 ④ までの間）。(2) 戻す道が画面から押せる（権限: だれでも押せてよいか。今の自動の戻しはだれの PC でも起きるので、押せるのは自分の PC だけ・管理者に限らない）。(3) 画面の部品が増える（画面の決まり 2026-10-17 の採点が要る: ui の案に『前の版に戻す』の置き場を足して撮る）。2 台の PC: 戻すのは押した PC だけ。配る版は変えない（配る版を戻すのは配布の画面の役）。試験: boot_cases.json に Python が終わった形の行（戻さない・印を書く）、/__desktop/update/revert の試験（印が無いと 409・控えが無いと 409・押すと FAILED と入れ替え）。verify.py の場面: 4 を『窓が描けない版 → 控えへ戻す』、4b『Python だけ壊れた版 → 戻さず帯、自己診断が /__desktop/update/revert を押して控えへ戻す』。Windows の型: B と同じ。作る量: Rust 300〜380 行・JS 60 行（画面の案に足す）・verify.py 80 行・試験 280 行・事例 32 件。1 版（画面の採点を含む）",
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 6,
+      "place": 6,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "more_steps",
+       "where": "案の text: Python だけ壊れた入れ替えた直後の版は、今は自動で前の版へ戻るが、E では利用者が画面の『前の版 n に戻す』を押す（1 手増える）"
+      },
+      {
+       "kind": "hidden_state",
+       "where": "案の text の危うさ (1): 押さない人の PC は壊れた Python のまま。配る人からその PC が見えない（利用状況に Python の様子を書かない）"
+      }
+     ],
+     "seen": "自動で戻すのを確かな版の壊れだけにし、迷う形を人に見せる考えは良い。しかし、利用者は帯の Python の失敗が版のせいか環境のせいか分からず、環境の失敗（配った設定の誤り・共有の不調）で押すと FAILED が永く残り、その PC はその版を二度と取り込まない（採点者の測りで FAILED を消す所が無いことを確かめた）。画面の部品が増え 2026-10-17 の採点が要り、段 ④ で消える。/__desktop/update/revert をだれでも押せる道にする危うさもある"
+    },
+    "F 起動の決め表（boot.rs の純粋な決め表と事例の表。振る舞いは B と同じ）": {
+     "text": "方向: 作りを変える。起動の決め（いつ確かめ・直し・片付け・戻すか）を main.rs の分かれと Supervisor の Result から外し、純粋な関数 boot::decide(状態, 出来事) → 行うこと の表にする。状態は〈installed・入れ替えた直後か・exe が替わったか・窓の準備〈『窓の準備』（B〜F で共通に作る判定。boot.rs か update.rs の window_ready）: 新しい program のうち窓が読む物だけで、版の壊れを見る — (a) program/app/version.py の版を読める（update::program_version）、(b) 画面の型と指紋を描ける（page.rs の型 templates/index.html・static の指紋。Lot::page の『画面の型・指紋』の理由）、(c) program の同梱の既定（master_defaults・config の見本）を束の決まりで読める、(d) brand.json の app_id が窓と同じ。共有に届かない・配った設定の誤り・権限の表が読めないなど『環境』の失敗は版の壊れに数えない（数えると、共有が落ちた朝に全員の PC が前の版へ戻る）。どれが版の壊れでどれが環境かは、仕様から人が書く事例の表 tests/fixtures/boot_cases.json で決める〉の結果・Python の様子（起こしている・起きた・終わった・遅い）〉、出来事は〈窓の準備が済んだ・Python が起きた・Python が終わった・頁を読み直した・終える〉、行うことは〈確かめの印を消す・ショートカットを直す・写しを片付ける・戻して開き直す・帯を出す/消す・自己診断を続ける/終える〉。main.rs は出来事を渡して行うことを実行するだけ。S10 の心拍・権限の答えも同じ表の『Python の様子』を読む（Backend::alive を窓の答えから外す）。減る Python への依り: B と同じ全部。B との違い: 判断が 1 か所の表になり、段 ④ で Python を外すときは表の Python の列を消すだけ。危うさ: 今の main.rs の分かれ（fresh・installed・exe_changed・job）を全部表に移すので、写し違いの割れ（例: 入れ替えた直後の印が残った起動を fresh に数える今の決まり）が出やすい → 今の振る舞いを先に表に焼き（3.110.0 の振る舞いの事例 20 件）、表を差し替えてから B の振る舞いに替える 2 段で作る。2 台の PC: B と同じ。試験: tests/fixtures/boot_cases.json（状態 × 出来事 → 行うこと。今の振る舞い 20 件と新しい振る舞い 30 件。仕様から人が書く）を Rust の試験が読む。main.rs の写しを実行する係は作り物の行い手で、表どおりの順に呼ぶかを見る。変異（窓の準備を見ない・Python の終わりで戻す）で落ちるのを確かめる。verify.py の場面: B と同じ 4・4b・4c。Windows の型: B と同じ（maintain の呼ぶ時）。作る量: Rust 350〜450 行（boot.rs 180・main.rs の組み替え 120）・selftest.js 40 行・verify.py 60〜80 行・試験 300 行・事例 50 件。1 版",
+     "score": {
+      "order": 8,
+      "chunk": 9,
+      "hierarchy": 8,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 7,
+      "intuitive": 7,
+      "form": 9,
+      "place": 9,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "配る人から、中身（Python）の起きない PC が見えない: Python だけ壊れた版は戻らないが、利用状況（presence）に Python の様子を書く案になっていない（案の text の S10 は心拍の答えに python の欄を足すだけ）（F の振る舞いは B と同じ）"
+      }
+     ],
+     "seen": "振る舞いは B と同じで、決めを純粋な表 boot::decide にする。段 ④ で『表の Python の列を消すだけ』になり、変異で落ちる確かめもできるので、作りの統一感・置き場は 6 案でいちばん良い。しかし今の main.rs の分かれ（job・fresh・installed・exe_changed・relaunch の失敗・locate の失敗）を全部写す 2 段の作り（今の振る舞い 20 件を先に焼く）は、段 ④ で消す振る舞いをわざわざ焼く分だけ量と写し違いの危うさが増える（Rust 350〜450 行の見込みは下限寄り）。B の足りない所 (1)〜(8) は F にも同じく当てはまる（Python が見つからない PC で画面を開かない・kick・loadMe の fail-open・selftest の量）。純粋な決めは、B の新しい振る舞いだけに入れれば同じ利点の大半が取れる"
+    }
+   }
+  }
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で本物の窓を流して測った数と読んだコードで採点した（画面の部分は 2026-11-stage2b-ui.json の別の採点）。流した物（台本は案の係の probe_window.py を参考に自分で書いた。scratchpad/score-3111/probe.py。窓は作業場所の debug〈desktop/target/debug/LotScope〉を xvfb 1728x1152 で。終わったら消した）: (1) slowfresh … TPA_PROGRAM_DIR を作業場所/app/program にして installed、update/applied.json（3.110.0 → 3.111.0）と update/old/program を置き、sidecar.py の頭で 140 秒眠らせた → 60 秒目もスプラッシュ『アプリの中身を起こす 3/4』（画像 shot-060s）、120 秒目に『Python が 120 秒たっても準備できません』→ 121 秒目に『版 3.111.0 が起動できないので 3.110.0 に戻しました』・FAILED.json に 3.111.0・app は控えの program に入れ替わった（遅いだけで戻る、を installed の形で確かめた。待つ上限は実際は Sidecar::spawn の start_wait 120 秒で、get の 125 秒より先に切れる）。(2) badconffresh … 同じ installed＋applied.json で Python は正しく、TRANSFER_APP_CONFIG を JSON でないファイルに → 1 秒のうちに Python が JSONDecodeError で終わり、戻して FAILED（環境の失敗を版の壊れに数える形が今あることを確かめた）。FAILED を消す所は update.rs に無い（mark_failed だけが書く）。(3) nopython … TPA_PYTHON を無い道・PATH から python3 を外す → 『Python が見つかりません』で 20 秒たっても画面を開かない（画像 shot-020s。洗い出しに無い依り）。コードで確かめた主張: started() の Ok だけで confirm・maintain・cleanup_copies（main.rs 744〜771 行）／Err で revert か splash.fail（772〜790 行）／alive は起こしている最中を真にし、偽のとき kick で起こし直す（router.rs 43〜51 行。心拍から外すと起こし直しの合図も消える）／heartbeat・access_read は alive が偽で 503 と None（lot.rs 1293・542 行）／loadMe は r.ok を見ずに 503 の本文を state.me にし、tabHidden は hiddenTabs が無いと偽（app.js 237〜250 行。出さないタブが出る・札が空・マスタ管理が隠れる、は正しい）／自己診断の infoReady は backend.version を 60 秒待ち、splash.fail は selftest_finish を呼ぶ（selftest.js 14〜22 行・main.rs 136〜141 行。63 項目中 engine=python の呼びが 49）／verify.py の 4 は sidecar.py を壊した版で戻すことを確かめる（277〜283 行。B〜F では場面を替える要）／validate_dist と revert は program/sidecar.py を印に使う（update.rs 112・320 行）。測らなかった物: Windows・verify.py の通し・自己診断（案の係が測った 60 項目・0 項目の数はコードと合う）",
+ "evaluation": {
+  "verified_claims": [
+   "入れ替えた直後の起動は Python の準備を待ち、過ぎると前の版へ戻す: 正しい。installed＋applied.json で sidecar.py を 140 秒眠らせると、スプラッシュのまま 120 秒（Sidecar::spawn の start_wait。get の 125 秒より先）で切れ、121 秒目に戻して FAILED。Python が遅いだけで戻る",
+   "それに加えて、環境の失敗でも戻る（案の係は測っていない）: 配った設定が JSON でないだけで 1 秒のうちに戻して FAILED。FAILED は消えないので、その PC はその版を二度と取り込まない",
+   "started() が Ok のときだけ confirm・maintain・cleanup_copies: 正しい（main.rs 758〜770 行。installed のときだけ）",
+   "Python が止まると未接続・権限の札が空・マスタ管理が隠れる・出さないタブが出る: コードで正しい（alive が偽 → 心拍 503・access_read None → Python 503 → loadMe が誤りの本文を me に）",
+   "自己診断と verify.py は Python が居ないと動かない: 正しい（infoReady が backend.version を待つ・splash.fail が自己診断を終える・49 か所の engine=python）",
+   "洗い出しに無い依り: Python が見つからないと（locate::python の失敗）窓は画面を開かない。採点者の測り nopython で 20 秒たってもスプラッシュのまま",
+   "洗い出しに無い依り: alive() は偽のときに kick で止まった Python を起こし直す。心拍から alive を外すと起こし直しの合図も消える",
+   "洗い出しに無い依り: 取り込みの確かめ validate_dist と revert が program/sidecar.py の有無を版の印に使う（段 ④ で直す所）",
+   "任せる 19 形は動かない（案の係の delegate-count の数を、この案の範囲が任せる歩を変えないことと合わせて読んだ。採点者は流していない）"
+  ],
+  "rank": "1 位 B（73.4）。2 位 F（72.3）・3 位 D（57.7）・4 位 E（55.4）・5 位 C（49.8）・6 位 A（48.7）。どれも合格点 80 に届かないが、決まり 2026-11-06 により案出しをやり直さず、B に下の指摘（F の純粋な決めの良い所を含む）を入れた形で作る。足りない点は、Python が見つからない PC で窓が画面を開かない依りを B が扱っていないこと・Python だけ壊れた版が全員の PC で戻らないのを配る人が見られないこと・自己診断の作り直しの量の見込みが少ないこと",
+  "first_fixes": [
+   "Python が無くても窓を開く: start() の locate::python() の失敗で splash.fail せず、Python の無い Supervisor（起こすと理由を返して Down）で画面を開き、帯と心拍の python: stopped で見せる。verify.py の local の場面は TPA_PYTHON を無い道にするだけでなく PATH の python3 も外す（python_candidates が PATH へ落ちる）",
+   "心拍から alive を外しても、止まった Python の起こし直しの合図（Supervisor::kick）は心拍で呼び続ける（今は alive() の副作用。外すと案の係の測り kill の 0.9 秒の起こし直しが無くなる）",
+   "出さないタブの fail-open を画面でも塞ぐ: app.js の loadMe は r.ok でなければ前の me を保ち、まだ 1 度も読めていなければタブの権限で隠す物を出さない（fail-closed）。窓は me を決められない形（束を組めず Python も止まった）でも 503 のまま。ui-eval か自己診断に『Python を止めても出さないタブが出ない・札とマスタ管理が残る』を足す",
+   "窓の準備の (b) 画面の型と指紋・(c) 同梱の既定を、取り込みの確かめ（updater の stage_release の後、validate_dist の続き）にも当て、入れ替える前に断る（2 台の PC で全員が 1 回ずつ入れ替えて戻すのを防ぐ）。起動の窓の準備は残す。(c) は作業場所・共有・配った設定を読まない形で組む（読むと環境の失敗が混ざる）",
+   "boot_cases.json に必ず入れる『戻さない』形: 配った設定が JSON でない・Python が 120 秒を超える・Python が見つからない・Python がすぐ終わる・共有に届かない・権限の表が読めない。『戻す』形: version.py が読めない・templates/index.html が無い・指紋を作れない・同梱の既定が壊れた・app_id が違う。決めは純粋な関数（F の良い所: installed・applied の有無・窓の準備の結果 → confirm・maintain・cleanup・revert）にし、変異（窓の準備を見ない・Python の Down で戻す）で落ちることを確かめる。今の振る舞いを先に焼く 2 段はしない",
+   "confirm の時を決める: 窓の準備だけで消すと、画面の JS が壊れた版（static の構文の誤り）を確かめない。画面の JS が最初の心拍を送った（頁が起きた）ことを confirm の条件に足し、上限（例 60 秒）で来なければ戻すかを決めて事例の表に書く（Python に依らない合図）",
+   "2 台の PC: Python だけ壊れた版は戻らないので、利用状況（presence）に Python の様子（stopped と短い理由）を書き、配布の画面で『中身の起きない PC n 台』を見せ、配る人が配る版を前へ戻せる（verify.py の 5 の流れ）ようにする。共有に書く物はこの欄だけ増える（前の版の Python の利用状況の読み手が知らない鍵を無視するかを試験で見る）",
+   "既に FAILED に入った版の扱い: 今の決まりで環境の失敗から FAILED に入った版は、3.111.0 の窓でも取り込まれない。理由（FAILED に書いた理由が Python の失敗か）を見て外すか、そのままにするかを決めて事例に書く",
+   "自己診断の量を見直す: selftest.js は 63 項目中 engine=python の呼びが 49 か所あり、40 行では収まらない（80〜150 行）。Python を通す項目を 1 つの包みで『中身が起きていない』と数え、窓だけの項目の名前の一覧を verify.py が持ち、Python 無しの通しで『窓だけの項目は全部通った・飛ばした数 n』を確かめる。infoReady は /__desktop/info の program_version を使い、splash.fail が自己診断を終えるのは窓が画面を開けない失敗だけにする",
+   "段 ④ の印: validate_dist と revert の program/sidecar.py の確かめ（update.rs 112・320 行）を、段 ④ で窓の準備の印に替える所として計画に書く（3.111.0 では変えない）",
+   "verify.py の通しを本物の窓で: 4（窓が描けない版 → 戻す）・4b（Python だけ壊れた版 → 戻さない・心拍 200・python stopped・窓だけの自己診断が通る）・4c（Python が遅い版 → 画面は待たずに開き、applied.json は数秒で消え、ショートカットも直る）と local の Python 無し。install::maintain の呼ぶ時が変わるので、CLAUDE.md の手順で x86_64-pc-windows-msvc の clippy も",
+   "範囲外と書いておく: exe_changed で開き直した新しい窓そのものが起動の途中で落ちる形（Rust の panic）は今も戻らない。3.111.0 でも変えない"
+  ],
+  "estimates": "量の見込み: A（Rust 80〜120 行）・C・D は妥当。B は window_ready 120 行・main.rs 80 行は妥当だが、上の指摘（Python の無い Supervisor・kick・取り込みの確かめ・presence の欄・loadMe）で Rust ＋100〜150 行、selftest.js は 80〜150 行、verify.py 80〜100 行と見る。1 版で収まる。F の 350〜450 行は今の振る舞いを焼く分を入れると下限寄り"
+ }
+}

@@ -15,10 +15,10 @@ use tauri::http::{Request, Response};
 /// 問い合わせを答えに変える係（試験では作り物に差し替える）。
 pub trait Backend: Send + Sync {
     fn ask(&self, ask: &Ask) -> Reply;
-    /// 中身（Python）が生きているか（版 3.71.0。窓が心拍に答えるとき、画面の「接続 ●」を今と同じに保つ）。
-    /// 待たずに今を答える（止まっていれば裏で起こし直しを始める。版 3.86.0）
-    fn alive(&self) -> bool {
-        true
+    /// 中身（Python）のいまの様子（版 3.111.0。心拍の答えの python・利用状況・/api/health）。待たずに今を答え、
+    /// 止まっていれば裏で起こし直しを始める（心拍が呼び続ける。前は alive() の副作用）
+    fn python_now(&self) -> da_core::presence::PythonNow {
+        da_core::presence::PythonNow::ready()
     }
     /// 中身が準備できたときの知らせ（窓の情報に載せる。版 3.86.0。動いていなければ null）
     fn ready(&self) -> serde_json::Value {
@@ -36,16 +36,9 @@ pub trait Backend: Send + Sync {
 const ASK_WAIT: Duration = Duration::from_secs(600);
 
 impl Backend for Supervisor {
-    /// 待たない（版 3.86.0）: いま動いているかだけを見る。止まっていれば裏で起こし直しを始め、今は偽（心拍は「未接続」）。
-    /// 前は起こし直しを錠を持ったまま最大 120 秒待ったので、その間は心拍・権限の読む 2 本・画面も止まっていた
-    /// 起きている・起こしている最中なら真（心拍は「接続 ●」・権限の読む 2 本は窓が答える。版 3.86.0 の作った後の採点: 起こしている最中に
-    /// 503 を 2 回返すと画面が「未接続・開き直してください」を出していた）。止まっていれば裏で起こし直しを始め、今は偽
-    fn alive(&self) -> bool {
-        if self.up().is_some() || self.starting() {
-            return true;
-        }
-        self.kick();
-        self.starting()
+    /// 待たない（版 3.86.0）: 起きている・起こしている最中・止まった（理由）。止まっていれば裏で起こし直しを始める（Supervisor::now）
+    fn python_now(&self) -> da_core::presence::PythonNow {
+        self.now()
     }
     fn ready(&self) -> serde_json::Value {
         Supervisor::ready(self)
@@ -298,8 +291,9 @@ mod tests {
             std::thread::sleep(Duration::from_millis(500));
             error_reply(200, "py", "中身")
         }
-        fn alive(&self) -> bool {
-            true // 起こしている最中（心拍は「接続」のまま）
+        fn python_now(&self) -> da_core::presence::PythonNow {
+            da_core::presence::PythonNow { state: "starting", why: String::new() }
+            // 起こしている最中
         }
         fn ready_now(&self) -> bool {
             false

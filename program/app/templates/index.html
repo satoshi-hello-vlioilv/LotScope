@@ -60,7 +60,9 @@
     <!-- 状態（データ元・接続・待機中）は 1 つの札にまとめ、押せる操作（右）と形で分ける -->
     <div class="hstat" role="group" aria-label="状態">
       <span id="modeBadge" class="pill">データ元: 確認中</span>
-      <span id="conn" class="pill conn-ok" title="バックエンドとの接続状態">接続 ●</span>
+      <span id="conn" class="pill conn-ok" tabindex="-1" title="バックエンドとの接続状態">接続 ●</span>
+      <!-- 中身（Python）が止まった・起こしている印（版 3.111.0。知らせの段を畳んだときだけ出す。押すと段が戻る） -->
+      <button type="button" id="pyPill" class="pill py-pill" hidden>中身 停止</button>
       <span id="status" class="pill">待機中</span>
     </div>
     <i class="hsep" aria-hidden="true"></i>
@@ -73,6 +75,8 @@
   </div>
 </header>
 
+<!-- 中身（Python）が止まったときの知らせの段（版 3.111.0。切断の帯と同じ置き場。出ている間は画面を 38px 縮める: app.js の paintPython） -->
+<div id="pyBar" class="py-bar" role="status" hidden></div>
 <!-- 切断されているとき（管理する人が一時的に止めた。冷却のあいだマスタは読むだけ） -->
 <div id="revokedBar" class="revoked-bar hidden" role="alert"></div>
 <!-- 自分の権限（見出しの札を押すと出る） -->

@@ -474,7 +474,11 @@ pub struct Supervisor {
 }
 
 struct Inner {
-    py: Python,
+    /// 起こす Python（PC に見つからなければ理由。版 3.111.0: 見つからなくても窓は画面を開き、起こすたびにこの理由で Down になる）
+    /// 版 3.111.0 の作った後の採点の割れ 7: 見つからない係は心拍のたびに起こし直さない。「もう一度起こす」（retry）だけが探し直す
+    py: Mutex<Result<Python, String>>,
+    /// 起こそうとした回数（試験が、止まった中身を心拍が起こし直すかを数える）
+    attempts: AtomicU64,
     program: PathBuf,
     log_dir: PathBuf,
     phases: Phases<Sidecar>,
@@ -489,13 +493,19 @@ struct Inner {
 pub type Changed = Arc<dyn Fn(Result<&Value, &str>) + Send + Sync>;
 
 impl Supervisor {
-    pub fn new(py: Python, program: PathBuf, log_dir: PathBuf, progress: Progress) -> Self {
+    pub fn new(py: Result<Python, String>, program: PathBuf, log_dir: PathBuf, progress: Progress) -> Self {
+        Self::with_retry(py, program, log_dir, progress, RETRY_AFTER)
+    }
+
+    /// 起こせなかったあと起こし直すまでの間を決めて作る（試験）
+    pub fn with_retry(py: Result<Python, String>, program: PathBuf, log_dir: PathBuf, progress: Progress, retry: Duration) -> Self {
         Supervisor {
             inner: Arc::new(Inner {
-                py,
+                py: Mutex::new(py),
+                attempts: AtomicU64::new(0),
                 program,
                 log_dir,
-                phases: Phases::new(RETRY_AFTER),
+                phases: Phases::new(retry),
                 progress,
                 notices: Notices::default(),
                 start_wait: Duration::from_secs(120),
@@ -514,7 +524,14 @@ impl Supervisor {
         let i = &self.inner;
         let changed = i.changed.lock().unwrap().clone();
         i.phases.get_then(
-            || Sidecar::spawn(&i.py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
+            || {
+                i.attempts.fetch_add(1, Ordering::SeqCst);
+                let py = i.py.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                match py {
+                    Ok(py) => Sidecar::spawn(&py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
+                    Err(e) => Err(e),
+                }
+            },
             i.start_wait + Duration::from_secs(5),
             |r| {
                 if let Some(f) = changed {
@@ -541,6 +558,10 @@ impl Supervisor {
 
     /// 「もう一度」: 起こせなかった理由を忘れて、裏で起こし直す
     pub fn retry(&self) {
+        // PC に Python が見つからなかった係は、ここでだけ探し直す（入れた後に「もう一度起こす」を押せば起きる）
+        if !self.has_python() {
+            *self.inner.py.lock().unwrap_or_else(|e| e.into_inner()) = crate::locate::python();
+        }
         self.inner.phases.forget_down();
         self.kick();
     }
@@ -559,6 +580,37 @@ impl Supervisor {
         let _ = std::thread::Builder::new().name("sidecar-start".into()).spawn(move || {
             let _ = me.get();
         });
+    }
+
+    /// 起こそうとした回数（試験）
+    #[cfg(test)]
+    pub fn attempts(&self) -> u64 {
+        self.inner.attempts.load(Ordering::SeqCst)
+    }
+
+    /// PC に Python が見つかったか
+    pub fn has_python(&self) -> bool {
+        self.inner.py.lock().unwrap_or_else(|e| e.into_inner()).is_ok()
+    }
+
+    /// いまの様子（待たない。版 3.111.0: 心拍・/api/health）。止まっていれば裏で起こし直しを始める（kick。起こせなかった直後の
+    /// RETRY_AFTER の間は起こさない）。前は Backend::alive() の副作用で、心拍から alive を外すと起こし直しの合図も消えるため、ここに置く
+    pub fn now(&self) -> da_core::presence::PythonNow {
+        use da_core::presence::PythonNow;
+        if self.up().is_some() {
+            return PythonNow::ready();
+        }
+        if self.starting() {
+            return PythonNow { state: "starting", why: String::new() };
+        }
+        // 起こせなかった直後（RETRY_AFTER の内）・止めた・PC に Python が無い（一度起こして理由を持った後）: 起こさずに止まったと答える
+        // （Python が無い係を 30 秒ごとに起こし直すと、心拍の答え・知らせの段・利用状況の印が starting へ揺れた。作った後の採点の割れ 7）
+        if self.inner.phases.busy() || (!self.has_python() && self.down_reason().is_some()) {
+            return PythonNow { state: "stopped", why: self.down_reason().unwrap_or_default() };
+        }
+        // まだ起こしていない・起こし直しの間が過ぎた: 裏で起こし始める（糸が起こし始める前に尋ねられても「起こしている最中」と答える）
+        self.kick();
+        PythonNow { state: "starting", why: String::new() }
     }
 
     /// 準備できたときの知らせ（動いていなければ null。窓の情報 /__desktop/info に載せる）
@@ -708,6 +760,66 @@ mod tests {
             assert!(t.join().unwrap().is_ok());
         }
         assert_eq!(heard.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_missing_python_is_down_and_the_heartbeat_keeps_kicking() {
+        // 版 3.111.0: Python が見つからなくても係は作る（窓は画面を開く）。起こすたびに理由で Down。様子を尋ねる（心拍）たびに、
+        // 起こし直しの間が過ぎていれば裏で起こし直す（前は alive() の副作用。心拍から alive を外しても止まった中身を起こし直す）
+        let progress: Progress = Arc::new(|_| {});
+        let sup = Supervisor::with_retry(
+            Err("Python が見つかりません。".into()),
+            PathBuf::from("."),
+            std::env::temp_dir(),
+            progress,
+            Duration::from_millis(150),
+        );
+        assert!(!sup.has_python());
+        let wait_stopped = |sup: &Supervisor| {
+            let t0 = Instant::now();
+            loop {
+                let n = sup.now();
+                if n.state == "stopped" || t0.elapsed() > Duration::from_secs(5) {
+                    return n;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        let n = wait_stopped(&sup);
+        assert_eq!((n.state, n.why.as_str()), ("stopped", "Python が見つかりません。"));
+        assert_eq!(sup.attempts(), 1);
+        assert!(sup.get().is_err(), "問い合わせは理由で断る");
+        assert_eq!(sup.attempts(), 1, "起こせなかった直後は起こし直さない");
+        // 版 3.111.0 の作った後の採点の割れ 7: Python が見つからない係は、間が過ぎても心拍の問いでは起こし直さない（starting へ揺れない）
+        std::thread::sleep(Duration::from_millis(200));
+        for _ in 0..5 {
+            assert_eq!(sup.now().state, "stopped", "揺れない");
+        }
+        assert_eq!(sup.attempts(), 1, "見つからない係は心拍で起こし直さない");
+    }
+
+    #[test]
+    fn a_stopped_python_is_kicked_by_the_heartbeat_after_the_wait() {
+        // 起こした Python が終わった（PC には Python がある）: 間が過ぎれば、様子を尋ねただけ（心拍）で起こし直す（kick）。
+        // 試験の Python は TPA_PYTHON の無い道の代わりに、すぐ終わる物（false）で起こす
+        let progress: Progress = Arc::new(|_| {});
+        let quit = Python {
+            exe: PathBuf::from(if cfg!(windows) { "cmd" } else { "false" }),
+            args: if cfg!(windows) { vec!["/c".into(), "exit".into(), "1".into()] } else { vec![] },
+        };
+        let sup = Supervisor::with_retry(Ok(quit), PathBuf::from("."), std::env::temp_dir(), progress, Duration::from_millis(150));
+        let stopped = |sup: &Supervisor| {
+            let t0 = Instant::now();
+            while sup.now().state != "stopped" && t0.elapsed() < Duration::from_secs(10) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        stopped(&sup);
+        assert_eq!(sup.attempts(), 1);
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = sup.now();
+        stopped(&sup);
+        assert_eq!(sup.attempts(), 2, "間が過ぎれば、様子を尋ねただけで起こし直す（kick）");
     }
 
     #[test]

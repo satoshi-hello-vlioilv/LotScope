@@ -2040,8 +2040,63 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 | S6〜S8 | 束を Python に尋ねる口（lot_settings を呼ぶ所 5: heartbeat・access_read・handle_body・guard・warm）・更新の置き場・画面の任せ | ③ の最初 | 束の 7 形を窓が組む（案 D）。bundle_seed は錠を待たずに写しで答える。Python が落ちる 4 形の答えは事例の表で決める |
 | S12b | folder_browse・master_place の裏の糸（「参照…」・置き場の確かめ） | ③ | OS の任せ 6 と一緒に消える |
 | S9 | スケジュールの係を降りる形（https・システムのプロキシ・数でない timeout・窓の持たない charset） | ③ の最後 | https とプロキシは窓が取る（TLS の crate を足すかは利用者と決める。足さないなら理由つきで断る）。charset・timeout は理由つきで断る |
-| S10・S11 | 窓の答えが Python の生死を見る所・Python の起動そのもの | ④ の下ごしらえ | 心拍・access_read の alive を窓の答えにし Python の様子は別に見せる。started() の update::confirm・install::maintain・cleanup_copies・revert を Python の準備から外す。Python を遅れて起こす形は採らない |
+| S10・S11 | 窓の答えが Python の生死を見る所・Python の起動そのもの（版 3.111.0 で窓の準備へ。上の節） | ④ の下ごしらえ | 心拍・access_read の alive を窓の答えにし Python の様子は別に見せる。started() の update::confirm・install::maintain・cleanup_copies・revert を Python の準備から外す。Python を遅れて起こす形は採らない |
 | S2〜S5・S12・S13 | 起動の参照先の読み・写しの取り直し・Python の種まき・印の読み直し・空の係・engine=python | ④ | Python ごと消す（作らない）。3.101.0 の観察 2 は今の 0.5 秒のやり直しで凌ぐ。起動の指紋（app.config["BUILD"]）は Python の画面の ?v= なので S8 と一緒 |
+
+### 段 ② の 2 歩目: 起動の確かめを窓の準備に・窓の答えが Python の生死を見ない（S10・S11）— 版 3.111.0
+
+案は `tools/ui-proposals/2026-11-stage2b.json`（版の 6 案。決まり 2026-11-06。1 位 B「窓の準備に置き換える」73.4 点で 80 に届かず、採点の指摘 first_fixes の
+12 を全部入れた形で作った）と `2026-11-stage2b-ui.json`（画面の案。決まり 2026-10-17。焦点の輪・帯とナビ・Python の様子の見せ方は、そこで決まってから足す）。
+
+- 起動の決め（`desktop/src/boot.rs`。B に F の純粋な決めを入れた）: 入れ替えた直後の版（applied.json が残る起動）を、Python の準備ではなく**窓の準備**で確かめる。
+  `window_ready` は (a) version.py の版・(d) brand.json の app_id・(b) 画面の型（templates/index.html を窓が読めて描ける）と型が指す static の部品と指紋・
+  (c) 同梱の既定（app/master_defaults の各 JSON を `parse_master`・config/appsettings.example.json）だけを読む。作業場所・共有・配った設定・権限の表・Python は
+  読まない（環境の失敗で全員の PC が戻らない）。`decide(Facts) → [Act]` は純粋な関数で、Python の様子を理由に戻すことは無い。
+  画面の合図: 画面の JS が最初の心拍を送ったら確かめの印を消し・ショートカットを直し・写しを片付ける。`BEAT_LIMIT`（60 秒）を過ぎても来なければ戻す
+  （Python を起こしている最中は待つ。画面の JS は /api/config の答えの後に心拍を始め、窓が設定を組めない形ではその答えが Python を待つため）。
+  束の材料を組めず Python も止まった形でも、窓は既定の形で画面を描く（`Lot::page`。画面が起きて心拍を送れる）。
+- 戻す・戻さないは人が仕様から書いた事例の表 `tests/fixtures/boot_cases.json`（31 件・印 5 件）。戻さない: 配った設定が JSON でない・Python が 120 秒を超える・
+  見つからない・すぐ終わる・共有に届かない・権限の表が読めない・入れ替えた直後でない起動。戻す: version.py が読めない／無い・画面の型が無い／読めない書き方・
+  指紋を作れない（型が指す部品が無い）・同梱の既定が壊れた・設定の見本が壊れた・app_id が違う・brand.json が無い・画面の JS が 60 秒たっても起きない。
+  `cargo test --test boot_cases`（本物の program の写しを事例ごとに変えて window_ready を当て、decide と人の決めを比べる）。変異 5 つ（窓の準備を見ない・Python の
+  Down／見つからないで戻す・配った設定を読む・画面が起きなくても戻さない・Python を起こしている最中も戻す）で落ちることを確かめた。今の振る舞いを先に焼く 2 段は作らない。
+- 取り込みの確かめ: 窓の準備の (b)(c) を `update::validate_window` にし、取り込み（`stage_release`）と版を置く（`distribute::place`）の validate_dist の続きに当てる
+  （入れ替える前に断る＝2 台の PC が 1 回ずつ入れ替えて戻すのを防ぐ）。起動のときの確かめも残す。
+- 既に FAILED に入った版: そのまま取り込まない（理由の無い印も）。その版（3.110.0 まで）へ戻すと、その版の窓が前の決まり（Python の準備）で確かめ直して同じ失敗で戻し、
+  3.111.0 の窓がまた取り込む、を起動のたびに繰り返すため。3.111.0 からの窓は印に理由（FAILED.json の why。前の窓が読む versions の並びはそのまま）を添える
+  （`boot::failed_blocks`・事例の表の failed）。
+- Python が無くても窓を開く: `locate::python()` が失敗しても splash.fail にせず、Python の無い Supervisor（起こすと理由で Down）で画面を開き、帯と心拍の python で見せる。
+  splash.fail（自己診断を終える）は窓が画面を開けない失敗だけ（中身の置き場が無い・この PC へ写せない など）。
+- 心拍と権限の読む 2 本（S10）: `Lot::heartbeat` は中身の様子で断らず 200 で、python（ready・starting・stopped と理由）を添える。止まった中身の起こし直し（kick）は
+  `Supervisor::now`（Backend::python_now）が心拍のたびに呼ぶ（前は alive() の副作用）。`Lot::access_read` は alive を見ない（窓が me を決められれば答える。
+  決められず Python も止まれば 503 のまま）。画面の `loadMe` は ok でなければ前の me を保ち、1 度も読めていなければ決まりのあるタブを出さない（fail-closed。仮の札「権限 ?」）。
+- 2 台の PC への手当て: 利用状況のいま使っている印に、中身が起きていなければ python {state, why} を書く（起きていれば書かない＝前の版と同じ形。様子が替われば
+  WRITE_INTERVAL を待たずに書き直す）。fleet に python と pythonDown（窓 `presence::python_down`・Python `presence._python_down`。前の版の読み手は知らない鍵を無視する:
+  `tests/test_access.py`）。配布の画面に「中身（Python）の起きない PC n 台」（仮の 1 行。見せ方は画面の案で決める）。
+- 自己診断と verify.py: 自己診断は /api/health で中身の様子を見て（起こしている最中は 130 秒まで待つ）、起きていなければ Python を通す項目（ok）を
+  「中身（Python）を通す項目」の 1 つの包みに数えて飛ばし、窓だけの項目（okw）を流す。infoReady は /__desktop/info の program_version（窓が読んだ版）。
+  Python を通す項目の待ちの輪は中身が起きていなければ回さない。足した窓だけの項目: 出さないタブを出さない・権限の札とマスタ管理の入口は窓の名乗り／
+  利用状況の印に中身の様子。verify.py は窓だけの項目の名前の一覧 WINDOW_ONLY を持ち、`local`（作業場所の窓・TPA_PYTHON を無い道・PATH から Python を外す・
+  一般ユーザーに「計算」を出さない決まり）と update の 4（窓が描けない版 → 戻す。取り込みは断るので、前の版の窓が取り込んだ形を update の stage に直に置く）・
+  4b（Python だけ壊れた版 → 戻さない・窓だけの項目が通る・確かめの印は心拍で消える）・4c（Python が 30 秒遅い版 → 確かめの印は Python の準備より前・ショートカットも直る）。
+- 段 ④ で直す所（3.111.0 では変えない）: `update::validate_dist`・`update::revert`・`update::staged`・`update::dist_root`・`update::plan`・`locate::program_dir`・
+  `locate::find_program_from` が program/sidecar.py の有無を「中身がある」の印に使う。Python を外すときに窓の準備（boot::window_ready）の印に替える。
+- 範囲外（3.111.0 でも変えない）: exe が替わって開き直した新しい窓そのものが、起動の途中（決めに着く前）で落ちる形（Rust の panic。製品の組み方は panic = "abort"）は
+  今も戻らない。確かめの印が残るので、次の起動でも同じ窓が同じ所で落ちる。
+- 画面（`2026-11-stage2b-ui.json` の 2 回目。1 位 I 84.7 点で合格）: 心拍は窓の答えで、止まっても「接続 ●」・権限の札・「マスタ管理」は窓の me のまま。
+  見出しのすぐ下（切断の帯と同じ置き場）に 1 段の知らせの段 #pyBar（［もう一度起こす］［詳しく］［畳む］。画面を 38px 縮める: CSS の --pyband-h）。
+  畳むと見出しの札「中身 停止」（#pyPill。button）が残り、押すと段が戻る。段が出ている間は札を出さない（1728 でタブの絵を残す。指摘 b）。
+  「詳しく」で接続の様子の面（もう一度起こすは段と同じ茶。指摘 a）。止まっている間は暇な「待機中」だけを隠す（指摘 c）。段の出し入れで送り位置を保ち、
+  起きたら「✓ 中身（Python）が動きました」を 2.5 秒出してから畳み、権限を読み直す（指摘 d・f）。窓は赤い帯を差し込まず、起こした結果を tpa:python で
+  画面へ知らせる（main.rs の band）。面の行は :focus-visible に藍の輪・マウスでやめた行に「やめた行」の札（shared.js の openSkip）。共有に届かない帯は道の末尾だけ・
+  ナビは名前の下の段に「届かない」（master.js）。配布の画面の「中身の起きない PC」は段と同じ色の 1 行（.dz-nopy）。評価関数 `ui-eval-pydown.mjs`。
+
+- 作った後の採点（画面に出ない部分 47.3 点・画面 81.6 点で減点 1。`2026-11-stage2b-built.json`・`2026-11-stage2b-ui.json` の built）の割れと減点を直した（built_fixed）:
+  1 読み込みの途中に中身が終わると app.js が落ちた（tabEls の TDZ）→ 中身の様子は boot() の頭から描く。2 60 秒の上限と Python の移り目の競い → `boot::page_of`
+  （答えを待つ間は時計を進めない・答えから 15 秒）。3 取り込み・置く確かめは exe が同じ版だけ（exe が替わる版は新しい窓の起動のときに）。4 束を組めない PC の最初の画面は
+  中身の準備を待って描く（既定の形は止まったときだけ）。5 自己診断の心拍は合図に数えない・verify の 4d・4e。6 権限を読んでいる最中も出さないタブを出さない。
+  7 Python が無い係は心拍で起こし直さない（「もう一度起こす」だけが探し直す）。画面: 数字のパネルの段の高さを保つ・タブの並びを中身の様子で動かさない（札は「待機中」と同じ幅の「中身停止」）・
+  キーで起こした後の焦点・回る印・撮る道具の片付け。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
