@@ -5,7 +5,8 @@
 //! - 移せない値（NaN・Infinity・-Infinity・u64 に入らない整数）は、その値を J の字にして頭に MARK を付けた字で持つ（読まない値。
 //!   知らない鍵・ほかの元の行の値）。書くときに J へ戻し、Python の json.dumps(indent=2) と同じ字で書き戻す（隔てない・Python を変えない）
 //! - 読む欄（中身・名前など）にそういう値があるかは、行の確かめ（src/row_check.rs）が is_held で見て、その行を隔てる
-//! - 対の無い代用字（\ud800 など）は窓の字が持てない（U+FFFD に替わる）ので、ファイルごと読めない（Python も写しに書けないので同じに扱う）
+//! - 対の無い代用字（\ud800 など）は pyjson::LONE_BASE からの字で持ち（行の確かめが is_lone で見て、その行を隔てる）、書くときに
+//!   \udXXX の字へ戻す（Python は書くときに backslashreplace で同じ字にする。版 3.107.0 の採点の割れ 9b: 前はファイルごと読めないにした）
 //!
 //! 次の版（3.108.0）の H2（大きな整数を桁のまま持つ）は、この上に載せる（いまは u64 に入らない整数のファイルを Store が断り、道は任せる）。
 
@@ -18,19 +19,29 @@ pub const MARK: &str = "\u{0}J:";
 /// 読めない理由
 #[derive(Debug, PartialEq)]
 pub enum Bad {
-    /// 対の無い代用字がある（窓の字が持てない）
-    Lone,
     /// JSON として読めない（Python の json.loads も ValueError）
     Broken(String),
 }
 
-/// ファイルの字（BOM を外した物）→ 値。整数の -0 は J が int の 0 と読む（Python と同じ）
+/// ファイルの字（BOM を外した物）→ 値。整数の -0 は J が int の 0 と読む（Python と同じ）。対の無い代用字は LONE_BASE からの字
 pub fn parse(text: &str) -> Result<Value, Bad> {
-    let (j, lone) = pyjson::loads_flagged(text).map_err(Bad::Broken)?;
-    if lone {
-        return Err(Bad::Lone);
-    }
+    let j = pyjson::loads_keep_lone(text).map_err(Bad::Broken)?;
     Ok(to_value(&j))
+}
+
+fn lone_char(c: char) -> bool {
+    (pyjson::LONE_BASE..=pyjson::LONE_BASE + 0x7FF).contains(&(c as u32))
+}
+
+/// 値のどこか（字・鍵）に対の無い代用字があるか
+pub fn has_lone(v: &Value) -> bool {
+    match v {
+        // 持つ字は UTF-8 で 0xF4 から始まる（無ければ字ごとに見ない。速さ）
+        Value::String(s) => s.as_bytes().contains(&0xF4) && s.chars().any(lone_char),
+        Value::Array(a) => a.iter().any(has_lone),
+        Value::Object(m) => m.iter().any(|(k, x)| k.chars().any(lone_char) || has_lone(x)),
+        _ => false,
+    }
 }
 
 /// J → Value（移せない値は MARK の字）
@@ -94,10 +105,14 @@ pub fn to_j(v: &Value) -> J {
 
 /// マスタのファイルに書く字（json.dumps(indent=2)。持っている値が無ければ前と同じ serde の字）
 pub fn to_pretty(v: &Value) -> std::io::Result<Vec<u8>> {
-    if !has_held(v) {
+    if !has_held(v) && !has_lone(v) {
         return serde_json::to_vec_pretty(v).map_err(std::io::Error::other);
     }
-    Ok(to_j(v).dumps(Some(2)).into_bytes())
+    // 対の無い代用字は \udXXX の字に戻す（Python の errors="backslashreplace" と同じ字）
+    let t = to_j(v).dumps(Some(2));
+    let out: String =
+        t.chars().map(|c| if lone_char(c) { format!("\\u{:04x}", c as u32 - pyjson::LONE_BASE + 0xD800) } else { c.to_string() }).collect();
+    Ok(out.into_bytes())
 }
 
 /// Python の repr(値)（持っている値は元の値の repr: nan・inf）
@@ -120,7 +135,9 @@ mod tests {
         assert!(t.contains("\"x\": NaN") && t.contains("Infinity,\n") && t.contains("-Infinity"), "{t}");
         assert_eq!(repr(&row["x"]), "nan");
         assert_eq!(repr(&row["y"]), "[inf, -inf, inf]");
-        assert!(parse(r#"{"a": "\ud800"}"#) == Err(Bad::Lone));
+        let lone = parse(r#"{"a": "x\ud800y"}"#).unwrap();
+        assert!(has_lone(&lone));
+        assert_eq!(String::from_utf8(to_pretty(&lone).unwrap()).unwrap(), "{\n  \"a\": \"x\\ud800y\"\n}");
         assert!(matches!(parse("{"), Err(Bad::Broken(_))));
         let deep = format!("{{\"x\": {}{}}}", "[".repeat(200), "]".repeat(200));
         assert!(parse(&deep).is_ok());

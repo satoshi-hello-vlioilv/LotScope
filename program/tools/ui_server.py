@@ -134,12 +134,15 @@ def build(quality=1500, work_rows=400, wip=1200):
     # ファイル（base/data。行の配列）へ足す。名前が数・版が読めない・中身に NaN・id が字の行
     if os.environ.get("TPA_UI_BAD_ROWS"):
         data = WORK / "base" / "data"
+        # 版 3.107.0 の作った後の直し: 隔てるのは読めない形だけ（版・NaN・id）。名前が数の行は隔てずに一覧に出て直せる
         bad = {"dashboards": [{"id": 900, "名前": 5, "元": "dash", "範囲": "共通", "中身": "{}", "rev": 1},
+                              {"id": 903, "名前": "版の読めないダッシュボード", "元": "dash", "範囲": "共通", "中身": "{}", "rev": "二"},
                               {"id": 901, "名前": "壊れたカード", "元": "card:lot", "範囲": "共通", "中身": "{\"items\": [{\"w\": NaN}]}", "rev": 1},
                               {"id": 902, "名前": "壊れたセット", "元": "dashset", "範囲": "共通", "中身": "{\"items\": [\"1\"]}", "rev": "二"}],
                "pivot_presets": [{"id": 900, "名前": "壊れた組み方", "元": "lot", "範囲": "共通", "中身": "{\"rows\": [{\"column\": \"合金\", \"part\": [1]}]}"}],
-               "display_formats": [{"id": 900, "名前": 5, "元": "lot", "中身": "{}"}, {"id": 901, "名前": 6, "元": "work", "中身": "{}"}],
-               "equipment_master": [{"id": "x", "設備名": "壊れた設備"}]}
+               "display_formats": [{"id": 900, "名前": 5, "元": "lot", "中身": "{}"}, {"id": 901, "名前": "版の読めない書式", "元": "lot", "中身": "{}", "rev": "x"},
+                                   {"id": 902, "名前": "作業実績の壊れた書式", "元": "work", "中身": "{\"sorts\": [NaN]}"}],
+               "equipment_master": [{"id": "x", "設備名": "壊れた設備"}, {"id": 902, "設備名": "数でない値の設備", "x": float("nan")}]}
         for name, rows in bad.items():
             f = data / f"{name}.json"
             have = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []

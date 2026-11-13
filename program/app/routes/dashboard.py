@@ -84,7 +84,7 @@ def dashboards_list():
     every, skipped = repo.view(dashboard.LAYOUT_NAME)     # 読めない行は隔てて知らせる（版 3.107.0）
     rows = [r for r in every if pp_visible(r, login)]
     std = dashboard.pivot_presets.standard_for(rows, dashboard.LAYOUT_SOURCE, login)
-    items = sorted((dashboard.layout_view(dashboard.with_builtin_replace(r), login, common_ok, default_ok) for r in rows),
+    items = sorted((dashboard.layout_view(dashboard.with_builtin_replace_view(r), login, common_ok, default_ok) for r in rows),
                    key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
     # 組み込みは、外した物・入れ替えた物を出さない（版 3.48.0）。入れ替えた物は replaces（"b:鍵"。セットのタブ・覚えた id がそれを開く）
     off, swapped = dashboard.builtin_skip(every, login)
@@ -172,7 +172,7 @@ def dashboards_delete(item_id):
     base = base_rev()
 
     def go():
-        old = master_repo().find(dashboard.LAYOUT_NAME, item_id)
+        old = master_repo().find(dashboard.LAYOUT_NAME, item_id, delete=True)
         if old is not None and old.get("元") == dashboard.LAYOUT_SOURCE:
             _gate(old, login, common_ok, default_ok, revoked, "ダッシュボード")
             master_repo().dashboard_delete(item_id, base)
@@ -237,7 +237,7 @@ def dashboard_sets_delete(item_id):
     base = base_rev()
 
     def go():
-        old = master_repo().find(dashboard.LAYOUT_NAME, item_id)
+        old = master_repo().find(dashboard.LAYOUT_NAME, item_id, delete=True)
         if old is not None and old.get("元") == dashboard.SET_SOURCE:
             _gate(old, login, common_ok, default_ok, revoked, "ダッシュボードのセット")
             master_repo().dashboard_delete(item_id, base)
@@ -308,7 +308,7 @@ def card_forms_delete(item_id):
     base = base_rev()
 
     def go():
-        old = master_repo().find(dashboard.LAYOUT_NAME, item_id)
+        old = master_repo().find(dashboard.LAYOUT_NAME, item_id, delete=True)
         if old is not None and str(old.get("元") or "").startswith(card_forms.SOURCE_PREFIX):
             _gate(old, login, common_ok, default_ok, revoked, "カードの設計")
             master_repo().dashboard_delete(item_id, base)

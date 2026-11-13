@@ -33,7 +33,7 @@
     const r = await fetch(`/api/masters/formats?source=${src}`, { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "共有の書式を読めませんでした");
-    list = { items: d.items || [], canEdit: !!d.canEdit, shared: !!d.shared, skip: TPA.skipNote(d, "display_formats") };   // 読めない行の知らせ（版 3.107.0）
+    list = { items: d.items || [], canEdit: !!d.canEdit, shared: !!d.shared, skip: TPA.skipNote(d, "display_formats", { here: (s) => !s || s === src }) };   // 読めない行の知らせ（版 3.107.0）
     paintButton();
   }
   /** 入口の札（いまの所に当てた書式の名前・共有で上書きされたら印）。件数の行の札は版 3.25.0 で外した（入口の札と同じ物が 2 か所にあった。

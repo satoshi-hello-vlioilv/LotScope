@@ -205,10 +205,11 @@ def _read_master(path, where):
     if not (isinstance(data, list) or (isinstance(data, dict) and isinstance(data.get("rows"), list))):
         raise MasterUnreadable(unreadable_text(where, path, raw, None))
     from ..services import row_check
-    if isinstance(data, dict) and "revision" in data and row_check.as_int(data["revision"]) is None:
+    # 版の番号は i64 に入る整数（窓の parse_master と同じ。2^63 以上は窓が数として持てないので、同じく読めないファイル。割れ 9a）
+    rev = row_check.as_int(data["revision"]) if isinstance(data, dict) and "revision" in data else 0
+    if rev is None or not -2 ** 63 <= rev < 2 ** 63:
         raise MasterUnreadable(f"{where} {Path(path).name} が読めません（版の番号 revision が読めません: {row_check.short(data['revision'])}）")
-    if "\\ud" in text.lower() and row_check.lone(data):
-        raise MasterUnreadable(f"{where} {Path(path).name} が読めません（対の無い代用字があります）")
+    # 対の無い代用字はファイルごとでなく行ごとに隔てる（版 3.107.0 の割れ 9b。row_check.problem。書き戻すときは \\udXXX の字で書く: fsio）
     return _as_doc(data)
 
 
@@ -952,10 +953,10 @@ class MasterStore:
                 out["masters"][n]["badRows"] = bad
             # 隔てた行（版 3.107.0。表でない行も・理由つき。マスタの画面の帯が言う。services/row_check）
             from ..services.row_check import STATUS
-            from .master_repository import SPECS, _normalize, isolated, skipped_of
-            # 一覧と同じく形をそろえてから見る（旧い列名の読み替え。写しの中身は替えない）
+            from .master_repository import SPECS, _normalize, isolated_memo, skipped_of
+            # 一覧と同じく形をそろえてから見る（旧い列名の読み替え。写しの中身は替えない）。答えはファイルの目印で覚える（割れ 5）
             rows = [_normalize(dict(r), SPECS[n]) if isinstance(r, dict) else r for r in doc["rows"]] if n in SPECS else doc["rows"]
-            skipped = skipped_of(isolated(n, rows)) if n in STATUS else []
+            skipped = skipped_of(isolated_memo(self, n, rows), n, rows) if n in STATUS else []
             if skipped:
                 out["masters"][n]["skipped"] = skipped
         return out

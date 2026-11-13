@@ -361,9 +361,12 @@ pub(crate) fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value
 /// 足す（_create: 版の無い行は 1・一意・行の確かめ・次の id・置く項目は字で前後の空白を除く・版 1・書いた人と時刻）
 pub(crate) fn create(store: &Store, spec: &Spec, data: &Map<String, Value>, check: CheckRow) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        prepare(rows, spec)?;
-        check_unique(rows, spec, data, None)?;
-        check(rows, data, None)?;
+        let iso = prepare(rows, spec)?;
+        // 名前の重なり・行の確かめは、読める行で当ててから隔てた行と 1 つずつ（隔てた行と当たれば何行目かを言う。版 3.107.0 の割れ 3）
+        crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| {
+            check_unique(rs, spec, data, None)?;
+            check(rs, data, None)
+        })?;
         let mut row = Map::new();
         row.insert("id".into(), json!(next_id(rows)));
         for k in spec.fields {
@@ -396,12 +399,14 @@ pub(crate) fn update(
             });
         };
         check_rev(&rows[i], base)?;
-        check_unique(rows, spec, data, Some(id))?;
         let mut merged = rows[i].as_object().cloned().unwrap_or_default();
         for (k, v) in data {
             merged.insert(k.clone(), v.clone());
         }
-        check(rows, &merged, Some(id))?;
+        crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| {
+            check_unique(rs, spec, data, Some(id))?;
+            check(rs, &merged, Some(id))
+        })?;
         let row = rows[i].as_object_mut().ok_or_else(|| MasterError::Error("行の形が違います".into()))?;
         for k in spec.fields {
             if data.contains_key(*k) {
@@ -419,7 +424,11 @@ pub(crate) fn update(
 pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> Result<(), MasterError> {
     store.write(spec.name, |rows, _stamp| {
         let iso = prepare(rows, spec)?;
-        crate::row_check::guard(spec.name, rows, &iso, id)?;
+        // 隔てた行は値を読まずに消す（版は確かめない。版 3.107.0 の割れ 1: 前に画面で消せた行は今も消せる）
+        if let Some(i) = crate::row_check::isolated_hit(rows, &iso, id) {
+            rows.remove(i);
+            return Ok(());
+        }
         let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
             return if base.is_some() { Ok(()) } else { Err(MasterError::NotFound(format!("id={id} が見つかりません。"))) };
         };

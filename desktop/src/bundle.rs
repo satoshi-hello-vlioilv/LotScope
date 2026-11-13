@@ -2249,7 +2249,7 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
             return Some(json!({"why": format!("{file} に窓の読めない字（NaN・Infinity・大きな数・深い入れ子・読めない版）があります"),
                                "file": file, "window": true}));
         }
-        match inp.p.rows(f) {
+        match inp.p.rows_all(f) {
             Err(e) => return Some(json!({"why": format!("{file}: {e}"), "file": file, "window": true})),
             Ok(rows) => {
                 let bad: Vec<usize> = rows.iter().enumerate().filter(|(_, r)| !r.is_object()).map(|(i, _)| i + 1).collect();

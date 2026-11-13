@@ -1,14 +1,14 @@
 {
  "about": "窓が答えず Python に任せる歩の上限（答えの元ごと。tools/delegate-count.py が数える。版 3.102.0 から）",
- "total": 63,
+ "total": 59,
  "per": {
   "access_write_oracle": 0,
   "calc_oracle": 0,
   "cards_oracle": 0,
   "conversions_oracle": 9,
-  "dashboards_oracle": 2,
+  "dashboards_oracle": 0,
   "equip_rows_oracle": 3,
-  "equipgroups_oracle": 14,
+  "equipgroups_oracle": 12,
   "formats_oracle": 3,
   "fs_oracle": 3,
   "place_oracle": 1,

@@ -277,13 +277,13 @@ fn isolate(shifts: &[Value]) -> (Vec<Value>, crate::master_rows::Iso) {
 /// 一覧（routes/shifts._listing。読めない行は隔てて skipped で知らせる。表でない行は badRows も）
 fn listing(store: &Store, me: &Value, read: &Read) -> Value {
     let (all, iso) = isolate(&read.shifts);
-    let rows: Vec<Value> = crate::row_check::good(&all, &iso).into_iter().cloned().collect();
+    let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
     let bad = crate::master_rows::bad_rows(&all);
     let mut out = listing_of(store, me, read, &rows);
     if !bad.is_empty() {
         out["badRows"] = json!(bad);
     }
-    crate::row_check::notes(out.as_object_mut().unwrap(), &iso, read.unreadable.clone());
+    crate::row_check::notes(out.as_object_mut().unwrap(), NAME, &all, &iso, read.unreadable.clone());
     out
 }
 
@@ -317,7 +317,7 @@ fn readable(rows: &[Value]) -> bool {
             v => v.filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18),
         };
         // 名称・備考の値の形（i64 に入らない整数は Python。id・版・並びや表の名称・区分の NaN は版 3.107.0 から隔てる）
-        let id_ok = ["名称", "備考"].iter().all(|k| r.get(*k).is_none_or(crate::master_rows::value_plain));
+        let id_ok = ["名称", "備考"].iter().all(|k| r.get(*k).is_none_or(crate::master_rows::value_plain_or_container));
         order_ok && id_ok
     })
 }
@@ -337,7 +337,7 @@ pub fn handle(
     let bad = crate::master_rows::bad_rows(&read.shifts);
     let (all, iso) = isolate(&read.shifts);
     let dicts: Vec<Value> = all.iter().filter(|r| r.is_object()).cloned().collect();
-    if !readable(&crate::row_check::good(&all, &iso).into_iter().cloned().collect::<Vec<_>>()) {
+    if !readable(&crate::row_check::good(NAME, &all, &iso)) {
         return None;
     }
     if route == Route::List {

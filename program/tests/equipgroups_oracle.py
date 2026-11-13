@@ -278,8 +278,8 @@ SCENARIOS = [
      "delegates": [W(S("GET", E)), W(S("POST", E, G("x"))), W(S("DELETE", f"{E}/10"))]},
     {"name": "置き場のルールの字が NaN（触れる直すは断る）", "mode": "shared", "extra_rows": [{"id": 11, "名称": "NaN", "ルール": '{"rules": [{"op": "prefix", "value": NaN}]}',
                                                                         "rev": 1}], "steps": [],
-     # 選べる設備を数える束（設備グループのルールを読む）がまだ NaN の字を読めないので任せる（束の行は次の版）
-     "delegates": [S("GET", E), S("PUT", f"{E}/1", {"name": "x"}), W(S("PUT", f"{E}/11", {"name": "y"}))]},
+     # 版 3.107.0 の割れ 2: 隔てた行は束（選べる設備を数える）でも使わないので、窓も答える
+     "delegates": [W(S("GET", E)), W(S("PUT", f"{E}/1", {"name": "x"})), W(S("PUT", f"{E}/11", {"name": "y"})), W(S("DELETE", f"{E}/11"))]},
     {"name": "置き場の設備名が並び（選べる設備を数える束が設備マスタの並びの名前を読めないので任せる）", "mode": "shared",
      "equip_extra": [{"id": 9, "設備名": ["X"]}], "steps": [], "delegates": [S("GET", E), S("POST", E, G("x"))]},
 ]

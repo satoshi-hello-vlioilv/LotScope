@@ -38,6 +38,11 @@ CONTENT_COLS = {"dashboards": ("中身",), "pivot_presets": ("中身",), "displa
 # 行を丸ごと答える（一覧が行をそのまま返す）マスタ: 知らない鍵の数でない値も答えに出る（答えが JSON でなくなる）ので隔てる
 RAW = frozenset({"equipment_master", "roll_master"})
 STRICT = frozenset({"access_permissions", "tab_access"})
+# 一覧と同じく、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも隔てた行を使わないマスタ（master_repository._list。
+# 窓の access::Place::rows と同じ。版 3.107.0 の割れ 2）。権限・参照先・データ元・作業実績の登録・変換表の標準は入れない（STATUS の外は
+# まだ一覧も隔てない。参照先は触れる書きだけを断る）
+FILTERED = frozenset({"equipment_master", "roll_master", "shift_patterns", "equipment_groups", "conversions", "display_formats", "pivot_presets",
+                      "pivot_quick", "dashboards", "dashboard_settings"})
 # マスタの置き場の状態（status）で隔てた行を知らせるマスタ: 一覧が隔てる物・権限の 2 つ・参照先（触れる書きを断る）。
 # ほかのマスタ（データ元・作業実績の登録・変換表の標準）は、まだ一覧も書く道も行を隔てない（窓の row_check::STATUS と同じ）
 STATUS = frozenset({"equipment_master", "roll_master", "shift_patterns", "equipment_groups", "conversions", "display_formats", "pivot_presets",
@@ -86,7 +91,13 @@ def json_depth(text):
 def lone(v):
     """対の無い代用字があるか（字・鍵・並び・表の中まで）"""
     if isinstance(v, str):
-        return any("\ud800" <= c <= "\udfff" for c in v)
+        if v.isascii():
+            return False
+        try:
+            v.encode("utf-8")       # 対の無い代用字だけが UTF-8 にできない（字ごとに見るより速い）
+            return False
+        except UnicodeEncodeError:
+            return True
     if isinstance(v, list):
         return any(lone(x) for x in v)
     if isinstance(v, dict):
@@ -109,7 +120,7 @@ def content_problem(col, text):
     """中身の列の字の理由（隔てないなら None）。JSON として読めない字は隔てない（道が今どおりに読む・断る）"""
     if not isinstance(text, str) or not text:
         return None
-    if json_depth(text) >= DEEP:
+    if text.count("[") + text.count("{") >= DEEP and json_depth(text) >= DEEP:   # 括弧が 128 に満たなければ数えない（速さ。割れ 5）
         return f"「{col}」の入れ子が深すぎます（{DEEP} 段以上）"
     odd = []
 
@@ -130,7 +141,10 @@ def content_problem(col, text):
 
 
 def problem(name, r, fields):
-    """行の理由（隔てないなら None）。fields はそのマスタの置く項目（master_repository の SPECS）"""
+    """行の理由（隔てないなら None）。fields はそのマスタの置く項目（master_repository の SPECS）。
+    版 3.107.0 の作った後の採点の割れ 1（機能を減らさない）: 隔てるのは、値を読めない・書き戻すと壊れる形だけ（表でない行・数でない id・
+    読めない版・数でない値〈NaN・Infinity〉・中身の字の数でない値・深い入れ子・対の無い代用字）。型だけが違う値（名前が数・字の列が並び）は
+    隔てず、一覧では str() で読む（coerce）。前は名前が数の書式・設備名が数の設備を隔て、画面で直せなくしていた"""
     if not isinstance(r, dict):
         return "表でない行"
     if "id" in r and (isinstance(r["id"], float) or not isinstance(r["id"], int)):
@@ -138,27 +152,47 @@ def problem(name, r, fields):
     if "rev" in r and as_int(r["rev"]) is None:
         return f"版（rev）が読めません（{short(r['rev'])}）"
     name_col = NAME_COLS.get(name)
-    strs = STR_COLS.get(name, ())
     cols = list(fields) + ([name_col] if name_col and name_col not in fields else [])
     for k in cols:
-        if k not in r:
-            continue
-        v = r[k]
-        if isinstance(v, (list, dict)):
-            return f"「{k}」が並び・表です（{short(v)}）"
-        if isinstance(v, float) and not math.isfinite(v):
-            return f"「{k}」が数でない値です（{short(v)}）"
-        if k in strs and not isinstance(v, str):
-            return f"「{k}」が字ではありません（{short(v)}）"
-        if k == name_col and v is not None and not isinstance(v, str):
-            return f"「{k}」が字ではありません（{short(v)}）"
+        if k in r and nonfinite(r[k]):
+            return f"「{k}」に数でない値（NaN・Infinity）があります"
+        # 権限の 2 つは型の違う値も今どおり止める（書く道を断る。読みは今どおり。黙って権限が変わらないように）
+        if name in STRICT and k in r and isinstance(r[k], (list, dict)):
+            return f"「{k}」が並び・表です（{short(r[k])}）"
+        if name in STRICT and k == name_col and r.get(k) is not None and not isinstance(r[k], str):
+            return f"「{k}」が字ではありません（{short(r[k])}）"
     for k in CONTENT_COLS.get(name, ()):
         why = content_problem(k, r.get(k))
         if why:
             return why
+    if lone(r):
+        return "対の無い代用字があります"
     if name in RAW and nonfinite(r):
         return "数でない値（NaN・Infinity）があります"
     return None
+
+
+def coerce(name, r):
+    """一覧に出す行（写し）: 名前の列・字だけの列の、字でない値（数・並び・表・真偽）を Python の str() の字にする（版 3.107.0 の割れ 1。
+    前は名前が数の行で一覧の並べ替えが TypeError の 500。窓の row_check::coerce と同じ）。null はそのまま"""
+    cols = set(STR_COLS.get(name, ())) | ({NAME_COLS[name]} if name in NAME_COLS else set())
+    out = dict(r)
+    for k in cols:
+        v = out.get(k)
+        if v is not None and not isinstance(v, str):
+            out[k] = str(v)
+    return out
+
+
+def summary(name, r):
+    """読めない行の生の値の要約（知らせの面に出す: id と名前の列。鍵の順によらない）"""
+    if not isinstance(r, dict):
+        return short(r)
+    col = NAME_COLS.get(name)
+    parts = [f"id {short(r.get('id'))}"] if "id" in r else []
+    if col and col in r:
+        parts.append(f"{col} {short(r.get(col))}")
+    return "・".join(parts)
 
 
 def skipped_text(name, skipped):

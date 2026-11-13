@@ -267,7 +267,7 @@ fn read(place: &Place) -> Option<Read> {
     master_rows::normalize_all(&mut rows, &SPEC);
     // 読めない行（id・版・名称の型・ルールの NaN・数のまとめ方）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値はまだ任せる（H2）
     let iso = crate::row_check::check(NAME, &rows, &FIELDS);
-    let good: Vec<Value> = crate::row_check::good(&rows, &iso).into_iter().cloned().collect();
+    let good: Vec<Value> = crate::row_check::good(NAME, &rows, &iso);
     if !good.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain)))) {
         return None;
     }
@@ -320,7 +320,7 @@ fn listing(store: &Store, me: &Value, read: &Read, mut seen: Vec<Value>) -> Opti
     let mut out = json!({"items": items, "sets": sets, "equipments": names, "seen": seen,
                          "ruleOps": crate::bundle::tables()["equipGroups"]["ruleOpLabels"],
                          "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)});
-    crate::row_check::notes(out.as_object_mut().unwrap(), &read.iso, read.unreadable.clone());
+    crate::row_check::notes(out.as_object_mut().unwrap(), NAME, &read.all, &read.iso, read.unreadable.clone());
     Some(out)
 }
 
@@ -436,8 +436,13 @@ pub fn handle(
             let base = rev_of(body, query)?;
             seed(store, place, NAME); // 消す係は書く前に共有から取り直す（無ければ最初の版を置く）
             let read = read(place)?;
-            if let Err(e) = crate::row_check::guard(NAME, &read.all, &read.iso, id) {
-                return Some(of_master(e));
+            // 隔てた行は値を読まずに消せる（版 3.107.0 の割れ 1。master_rows::delete）
+            if crate::row_check::isolated_hit(&read.all, &read.iso, id).is_some() {
+                let seen = count(false)?;
+                return match master_rows::delete(store, &SPEC, id, base) {
+                    Ok(()) => done(200, json!({}), seen),
+                    Err(e) => Some(of_master(e)),
+                };
             }
             let rows = read.all;
             let refused = match rows.iter().find(|r| master_rows::same_id(r, id)) {

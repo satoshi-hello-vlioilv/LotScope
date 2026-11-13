@@ -138,7 +138,7 @@
     Object.assign(presets, { source: src, items: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, canEditDefault: !!d.canEditDefault,
       standardId: d.standardId ?? null, quick: (d.quick || []).map(String), quickCustom: !!d.quickCustom, quickDefault: (d.quickDefault || []).map(String), loaded: true, version: presets.version + 1,
       // 読めない行・読めないファイルの知らせ（版 3.107.0。組み方とすぐに見るのマスタ）
-      skip: TPA.skipNote(d, "pivot_presets") + TPA.skipNote({ skipped: d.quickSkipped }, "pivot_quick") });
+      skip: TPA.skipNote(d, "pivot_presets", { here: (s) => !s || s === src }) + TPA.skipNote({ skipped: d.quickSkipped }, "pivot_quick", { here: (s) => !s || s === src }) });
     return presets;
   }
   /** いまの組み方に当たるプリセット（同じ中身）か、最後に当てたプリセット（変えたあと） */

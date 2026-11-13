@@ -232,13 +232,13 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         return None;
     }
     // 置き場の読めない行は隔てる（版 3.107.0。中身の部品の形は row_problem で。前は任せた）。中身の字に i64 に入らない整数（H2）はまだ任せる
-    let mut rows = place.rows(NAME).ok()?;
-    master_rows::normalize_all(&mut rows, &SPEC);
-    if crate::row_check::wide_content(NAME, &rows) {
+    let mut all = place.rows_all(NAME).ok()?;
+    master_rows::normalize_all(&mut all, &SPEC);
+    if crate::row_check::wide_content(NAME, &all) {
         return None;
     }
-    let iso = crate::row_check::check(NAME, &rows, &FIELDS);
-    let rows: Vec<Value> = crate::row_check::good(&rows, &iso).into_iter().cloned().collect();
+    let iso = crate::row_check::check(NAME, &all, &FIELDS);
+    let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
     if route == Route::List {
         let q = crate::lotlist::parse_query(query);
         let src = q.iter().find(|(k, _)| k == "source").map(|(_, v)| v.clone()).unwrap_or_default();
@@ -253,7 +253,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             .collect();
         items.sort_by(|a, b| a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or("")));
         let mut out = json!({"items": items, "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)});
-        crate::row_check::notes(out.as_object_mut().unwrap(), &iso, place.share_problem(NAME));
+        crate::row_check::notes(out.as_object_mut().unwrap(), NAME, &all, &iso, place.share_problem(NAME));
         return Some((200, out));
     }
     if master_rows::unreadable_u64_ok(body) {

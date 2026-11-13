@@ -123,8 +123,10 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     if place.split_file(DASHBOARDS.name) || (route == Route::List && !store.seed_absent(&[DASHBOARDS.name])) {
         return None;
     }
-    let rows = place.rows(DASHBOARDS.name).ok()?;
-    handle(store, me, route, query, body, &rows, place.share_problem(DASHBOARDS.name))
+    let rows = place.rows_all(DASHBOARDS.name).ok()?;
+    // 共有のファイルが読めない理由は一覧のときだけ見る（版 3.107.0 の割れ 6）
+    let unreadable = if route == Route::List { place.share_problem(DASHBOARDS.name) } else { None };
+    handle(store, me, route, query, body, &rows, unreadable)
 }
 
 /// 窓が受ける 4 本を答える。me は窓が決めた me、rows は置き場の dashboards の行、unreadable は共有のファイルが読めない理由。窓が答えない形は None
@@ -138,7 +140,7 @@ pub fn handle(
     unreadable: Option<String>,
 ) -> Option<Answer> {
     let (all, iso) = pr::read_rows(rows, DASHBOARDS.name)?;
-    let rows = &pr::good_rows(&all, &iso)[..];
+    let rows = &pr::good_rows(DASHBOARDS.name, &all, &iso)[..];
     let who = Who::of(me, DASHBOARDS.name);
     if route == Route::List {
         let mine = sets(rows, &who.login);
@@ -147,7 +149,7 @@ pub fn handle(
         pr::sort_views(&mut items);
         let mut out = json!({"items": items, "standardId": std.and_then(|r| r.get("id")).cloned().unwrap_or(Value::Null), "login": who.login,
                              "canEditCommon": who.common_ok, "canEditDefault": who.default_ok, "max": MAX_ITEMS});
-        crate::row_check::notes(out.as_object_mut().unwrap(), &iso, unreadable);
+        crate::row_check::notes(out.as_object_mut().unwrap(), DASHBOARDS.name, &all, &iso, unreadable);
         return Some((200, out));
     }
     if master_rows::unreadable_u64_ok(body) {
@@ -156,21 +158,21 @@ pub fn handle(
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
     // routes/common の repo.find: id の合う最初の行（元は見ない。隔てた行なら書かない）。その行がセットでなければ「無い」
-    let find = |id: i64| pr::find_row(DASHBOARDS.name, &all, &iso, id);
+    let find = |id: i64, delete: bool| pr::find_row(DASHBOARDS.name, &all, &iso, id, delete);
     if let Route::Delete(id) = route {
         // 消す道は先に base_rev が本文を読む（表でない真の本文は Python では道の外の例外。窓は答えない）
         if crate::worksum::truthy(&parsed) && !parsed.is_object() {
             return None;
         }
         let base = base_rev(&parsed, query);
-        let found = match find(id) {
+        let found = match find(id, true) {
             Ok(f) => f,
             Err(a) => return Some(a),
         };
         let Some(old) = found.filter(|r| r.get("元").and_then(Value::as_str) == Some(SOURCE)) else {
             return Some((200, json!({"ok": true})));
         };
-        if let Err(a) = who.gate(old, WHAT) {
+        if let Err(a) = who.gate(&old, WHAT) {
             return Some(a);
         }
         return Some(match master_rows::delete(store, &DASHBOARDS, id, base) {
@@ -207,14 +209,14 @@ pub fn handle(
         }
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
-            let found = match find(id) {
+            let found = match find(id, false) {
                 Ok(f) => f,
                 Err(a) => return Some(a),
             };
             let Some(old) = found.filter(|r| r.get("元").and_then(Value::as_str) == Some(SOURCE)) else {
                 return Some(layout_error(format!("セット id={id} が見つかりません（ほかの PC が消した可能性があります）。")));
             };
-            if let Err(a) = who.gate(old, WHAT) {
+            if let Err(a) = who.gate(&old, WHAT) {
                 return Some(a);
             }
             let mut row = match pr::clean_row(d, &who.login, true, Some(SOURCE), &body_text) {

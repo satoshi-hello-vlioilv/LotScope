@@ -550,7 +550,7 @@ impl Lot {
         let place = crate::access::Place::from_json(&s.access["place"]);
         let read = || -> Option<crate::shifts_write::Read> {
             Some(crate::shifts_write::Read {
-                shifts: place.rows(crate::shifts_write::NAME).ok()?,
+                shifts: place.rows_all(crate::shifts_write::NAME).ok()?,
                 work_logs: place.rows("work_log_files").ok()?,
                 unreadable: place.share_problem(crate::shifts_write::NAME),
             })
@@ -582,7 +582,7 @@ impl Lot {
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
-        let rows = crate::access::Place::from_json(&s.access["place"]).rows(route.kind().name()).ok()?;
+        let rows = crate::access::Place::from_json(&s.access["place"]).rows_all(route.kind().name()).ok()?;
         let store = self.store_for(&s.access)?;
         let (status, v) = crate::equip_write::handle(&store, route, query, body, &rows)?;
         if method != "GET" && (200..300).contains(&status) {
@@ -3146,12 +3146,12 @@ mod tests {
         let ask_none = || Ok(json!({"source": "", "engine": "rust", "lists": {"hidden": []}}));
         assert!(Lot::new(dir.join("c3")).handle_body("GET", "/api/masters/equipment", "", b"", &ask_none).is_none());
         assert!(lot.handle_body("GET", "/api/masters/%65quipment", "", b"", &ask_boss).is_none());
-        // ⑥ 置き場の行の項目が並びなら、版 3.107.0 から窓もその行を隔てて答える（一覧に出さず、触れる直す・消すは断る。前は Python に任せた）
+        // ⑥ 置き場の行の名前の列が並びなら、版 3.107.0 から窓も Python の str() の字で一覧に出し（隔てない。作った後の採点の割れ 1）、消せる
         std::fs::write(share.join("roll_master.json"), doc(json!([{"id": 9, "設備": ["L-1"]}]))).unwrap();
-        let (st, v) = lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).expect("窓が隔てて答える");
-        assert_eq!((st, v), (200, json!([])));
-        let (st, v) = lot.handle_body("DELETE", "/api/masters/rolls/9", "", b"", &ask_boss).expect("窓が断る");
-        assert_eq!((st, v["kind"].as_str()), (503, Some("master_unreadable")), "{v}");
+        let (st, v) = lot.handle_body("GET", "/api/masters/rolls", "", b"", &ask_boss).expect("窓が答える");
+        assert_eq!((st, v), (200, json!([{"id": 9, "rev": 1, "設備": "['L-1']"}])));
+        let (st, v) = lot.handle_body("DELETE", "/api/masters/rolls/9", "", b"", &ask_boss).expect("窓が消す");
+        assert_eq!((st, v["status"].as_str()), (200, Some("deleted")), "{v}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3237,16 +3237,21 @@ mod tests {
             std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
             assert!(lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).is_none(), "{bad}");
         }
-        for (bad, why) in [
-            (json!({"id": "x", "名称": "字の id"}), "id が数ではありません（'x'）"),
+        for (bad, why, summary) in [
+            (json!({"id": "x", "名称": "字の id"}), "id が数ではありません（'x'）", "id 'x'・名称 '字の id'"),
             (
                 json!({"id": 9, "名称": "NaN", "区分": "[{\"name\":\"a\",\"start\":\"23:00\",\"end\":\"7:00\",\"dayOffset\":NaN}]"}),
                 "「区分」に数でない値（NaN・Infinity）があります",
+                "id 9・名称 'NaN'",
             ),
         ] {
             std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
             let (st, v) = lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).expect("窓が隔てて答える");
-            assert_eq!((st, v["items"].clone(), v["skipped"].clone()), (200, json!([]), json!([{"row": 1, "why": why}])), "{bad}");
+            let mut want = json!({"row": 1, "why": why, "summary": summary});
+            if let Some(id) = bad["id"].as_i64() {
+                want["id"] = json!(id);
+            }
+            assert_eq!((st, v["items"].clone(), v["skipped"].clone()), (200, json!([]), json!([want])), "{bad}");
         }
         assert!(lot.handle_body("GET", "/api/masters/%73hifts", "", b"", &ask_boss).is_none(), "百分率符号で書いた道は Python");
         let _ = std::fs::remove_dir_all(&dir);

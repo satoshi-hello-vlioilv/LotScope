@@ -288,7 +288,12 @@ struct P<'a> {
     depth: usize,
     /// 対の無い代用字（\ud800 など）を U+FFFD に替えたか（本文の門が断る。src/body.rs）
     lone: bool,
+    /// 対の無い代用字を U+FFFD でなく LONE_BASE からの字で持つ（置き場の行。src/held.rs が \udXXX の字で書き戻す。版 3.107.0）
+    keep: bool,
 }
+
+/// 対の無い代用字 U+D800〜U+DFFF を持つ字（補助私用領域 B の終わりの 0x800 字。データに出ない）
+pub const LONE_BASE: u32 = 0x10F800;
 
 /// int() の桁の上限（Python の sys.get_int_max_str_digits() の既定。json.loads は 4,300 桁を超える整数で ValueError）
 pub const INT_MAX_DIGITS: usize = 4300;
@@ -300,7 +305,16 @@ pub fn loads(text: &str) -> Result<J, String> {
 
 /// json.loads(text) と、対の無い代用字があったか（窓の字は片割れを持てないので U+FFFD に替えて読む。版 3.104.0）
 pub fn loads_flagged(text: &str) -> Result<(J, bool), String> {
-    let mut p = P { s: text.as_bytes(), i: 0, depth: 0, lone: false };
+    loads_with(text, false)
+}
+
+/// json.loads(text)。対の無い代用字は LONE_BASE からの字で持つ（置き場の行を値を変えずに書き戻すため。版 3.107.0）
+pub fn loads_keep_lone(text: &str) -> Result<J, String> {
+    loads_with(text, true).map(|(v, _)| v)
+}
+
+fn loads_with(text: &str, keep: bool) -> Result<(J, bool), String> {
+    let mut p = P { s: text.as_bytes(), i: 0, depth: 0, lone: false, keep };
     p.ws();
     let v = p.value()?;
     p.ws();
@@ -440,6 +454,10 @@ impl P<'_> {
                             }
                             if (0xD800..0xE000).contains(&hi) {
                                 self.lone = true;
+                                if self.keep {
+                                    out.push(char::from_u32(LONE_BASE + hi - 0xD800).unwrap());
+                                    continue;
+                                }
                             }
                             out.push(char::from_u32(hi).unwrap_or('\u{FFFD}'));
                         }

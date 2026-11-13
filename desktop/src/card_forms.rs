@@ -310,8 +310,8 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         return None;
     }
     // 置き場の読めない行は隔てる（版 3.107.0。カードの行の中身の形も row_problem で。前は任せた）
-    let (all, iso) = pr::read_rows(&place.rows(DASHBOARDS.name).ok()?, DASHBOARDS.name)?;
-    let rows = pr::good_rows(&all, &iso);
+    let (all, iso) = pr::read_rows(&place.rows_all(DASHBOARDS.name).ok()?, DASHBOARDS.name)?;
+    let rows = pr::good_rows(DASHBOARDS.name, &all, &iso);
     let who = Who::of(me, DASHBOARDS.name);
     if route == Route::List {
         let q = crate::lotlist::parse_query(query);
@@ -330,7 +330,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         let mut out = json!({"items": items, "standardId": std.and_then(|r| r.get("id")).cloned().unwrap_or(Value::Null), "login": who.login,
                              "canEditCommon": who.common_ok, "canEditDefault": who.default_ok, "cols": [COLS.0, COLS.1, COLS.2],
                              "row": [ROW.0, ROW.1, ROW.2], "colors": COLORS, "bgs": BGS});
-        crate::row_check::notes(out.as_object_mut().unwrap(), &iso, place.share_problem(DASHBOARDS.name));
+        crate::row_check::notes(out.as_object_mut().unwrap(), DASHBOARDS.name, &all, &iso, place.share_problem(DASHBOARDS.name));
         return Some((200, out));
     }
     if master_rows::unreadable(body) {
@@ -338,18 +338,18 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64| pr::find_row(DASHBOARDS.name, &all, &iso, id);
+    let find = |id: i64, delete: bool| pr::find_row(DASHBOARDS.name, &all, &iso, id, delete);
     if let Route::Delete(id) = route {
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
         let base = base_rev(&parsed, query);
-        let found = match find(id) {
+        let found = match find(id, true) {
             Ok(f) => f,
             Err(a) => return Some(a),
         };
-        let Some(old) = found.filter(|r| is_card(r)) else { return Some((200, json!({"ok": true}))) };
-        if let Err(a) = who.gate(old, WHAT) {
+        let Some(old) = found.filter(is_card) else { return Some((200, json!({"ok": true}))) };
+        if let Err(a) = who.gate(&old, WHAT) {
             return Some(a);
         }
         return Some(match master_rows::delete(store, &DASHBOARDS, id, base) {
@@ -382,14 +382,14 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
-            let found = match find(id) {
+            let found = match find(id, false) {
                 Ok(f) => f,
                 Err(a) => return Some(a),
             };
-            let Some(old) = found.filter(|r| is_card(r)) else {
+            let Some(old) = found.filter(is_card) else {
                 return Some(card_error(format!("カードの設計 id={id} が見つかりません（ほかの PC が消した可能性があります）。")));
             };
-            if let Err(a) = who.gate(old, WHAT) {
+            if let Err(a) = who.gate(&old, WHAT) {
                 return Some(a);
             }
             let mut row = match pr::clean_row(d, &who.login, true, None, &body_text) {

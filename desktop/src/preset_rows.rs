@@ -144,18 +144,24 @@ pub fn read_rows(rows: &[Value], name: &str) -> Option<(Vec<Value>, master_rows:
 }
 
 /// 隔てた行を除いた行
-pub fn good_rows(rows: &[Value], iso: &master_rows::Iso) -> Vec<Value> {
-    crate::row_check::good(rows, iso).into_iter().cloned().collect()
+pub fn good_rows(name: &str, rows: &[Value], iso: &master_rows::Iso) -> Vec<Value> {
+    crate::row_check::good(name, rows, iso)
 }
 
-/// 道の id の行（routes/common の repo.find: 隔てた行なら書かない＝MasterUnreadable の答え）
-pub fn find_row<'a>(name: &str, rows: &'a [Value], iso: &master_rows::Iso, id: i64) -> Result<Option<&'a Map<String, Value>>, Answer> {
+/// 道の id の行（routes/common の repo.find。一覧と同じく str() で読んだ写し）。直すときは隔てた行なら書かない（MasterUnreadable の答え）、
+/// 消すとき（delete）は隔てた行も返す（値を読まずに消せる。版 3.107.0 の割れ 1）
+pub fn find_row(name: &str, rows: &[Value], iso: &master_rows::Iso, id: i64, delete: bool) -> Result<Option<Map<String, Value>>, Answer> {
+    if delete {
+        if let Some(i) = crate::row_check::isolated_hit(rows, iso, id) {
+            return Ok(crate::row_check::coerce(name, &rows[i]).as_object().cloned());
+        }
+    }
     crate::row_check::guard(name, rows, iso, id).map_err(|e| (e.status(), e.payload()))?;
     Ok(rows
         .iter()
         .enumerate()
         .find(|(i, r)| !crate::row_check::is_isolated(iso, *i) && master_rows::same_id(r, id))
-        .and_then(|(_, r)| r.as_object()))
+        .and_then(|(_, r)| crate::row_check::coerce(name, r).as_object().cloned()))
 }
 
 /// Python の str(v or "")（真でない値は空の字）
@@ -248,7 +254,7 @@ pub(crate) fn write(
                 for k in spec.fields {
                     row.insert((*k).into(), json!(""));
                 }
-                check_name(rows, data, None, what)?;
+                crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| check_name(rs, data, None, what))?;
                 row.insert("rev".into(), json!(0));
                 rows.push(Value::Object(row));
                 rows.len() - 1
@@ -266,7 +272,7 @@ pub(crate) fn write(
                 for (k, v) in data {
                     merged.insert(k.clone(), v.clone());
                 }
-                check_name(rows, &merged, Some(id), what)?;
+                crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| check_name(rs, &merged, Some(id), what))?;
                 i
             }
         };
@@ -284,8 +290,15 @@ pub(crate) fn write(
             let g = group_of(&done);
             for (j, r) in rows.iter_mut().enumerate() {
                 let Some(o) = r.as_object_mut() else { continue };
-                // 隔てた行はそのまま書き戻す（★も外さない。版 3.107.0）
-                if j != i && !crate::row_check::is_isolated(&iso, j) && s(o, "標準") == Some("1") && group_of(o) == g {
+                if j == i || s(o, "標準") != Some("1") || group_of(o) != g {
+                    continue;
+                }
+                // 隔てた行の★だけを外す（ほかの値・版はそのまま書き戻す。版 3.107.0 の割れ 4。Python の _preset_write と同じ）
+                if crate::row_check::is_isolated(&iso, j) {
+                    o.insert("標準".into(), json!(""));
+                    continue;
+                }
+                {
                     let rev = o.get("rev").and_then(master_rows::py_int).unwrap_or(1);
                     o.insert("標準".into(), json!(""));
                     o.insert("rev".into(), json!(rev + 1));

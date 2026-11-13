@@ -184,7 +184,7 @@
       const r = await fetch(`/api/card-forms?source=${encodeURIComponent(sourceOf(k))}`, { cache: "no-store" });
       const d = await r.json();
       if (r.ok) Object.assign(FORMS[k], { list: d.items || [], standardId: d.standardId, canEditCommon: d.canEditCommon, canEditDefault: d.canEditDefault, login: d.login, loaded: true,
-        skip: TPA.skipNote(d, "dashboards") });     // 読めない行・読めないファイルの知らせ（版 3.107.0。デザインの選びの横の札）
+        skip: TPA.skipNote(d, "dashboards", { here: sourceOf(k) }) });     // 読めない行・読めないファイルの知らせ（版 3.107.0。デザインの選びの横の札）
     } catch (_) { FORMS[k].loaded = true; }
     return FORMS[k];
   }

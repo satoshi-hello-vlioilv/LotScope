@@ -842,7 +842,7 @@ fn status_of(store: &Store, local: &Local, peek: bool) -> Option<Value> {
                 crate::row_check::normalize_like_specs(n, &mut rows);
                 let iso = crate::row_check::check(n, &rows, crate::row_check::fields_of(n));
                 if !iso.is_empty() && crate::row_check::STATUS.contains(&n) {
-                    out["masters"][n]["skipped"] = crate::row_check::skipped_of(&iso);
+                    out["masters"][n]["skipped"] = crate::row_check::skipped_with(n, &rows, &iso);
                 }
             }
             Err(crate::master_store::MasterError::Unreadable(why)) => {

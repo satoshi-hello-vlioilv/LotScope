@@ -463,22 +463,20 @@ impl Place {
         }
         dirs.push(&self.data);
         dirs.push(&self.defaults);
-        dirs.iter().any(|d| {
-            std::fs::read(d.join(&file)).is_ok_and(|b| {
-                let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
-                std::str::from_utf8(b).is_err() || crate::master_rows::split_wide(b)
-            })
-        })
+        dirs.iter().any(|d| read_cached(&d.join(&file)).is_ok_and(|c| c.wide))
     }
 
     /// 共有のファイルが読めない理由（版 3.107.0。Python の MasterStore.share_problem と同じ。読みは写しで続けるので、一覧の帯で知らせる）
     pub fn share_problem(&self, name: &str) -> Option<String> {
         let share = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name))?;
         let path = share.join(format!("{name}.json"));
-        let raw = std::fs::read(&path).ok()?;
-        match crate::master_store::parse_master(&raw, &path) {
+        let c = read_cached(&path).ok()?;
+        if c.doc.is_ok() || c.wide {
+            return None; // 読める（i64 に入らない整数は道が任せる）
+        }
+        match crate::master_store::parse_master(&c.raw, &path) {
             Ok(_) | Err(crate::master_store::ReadErr::Wide(_)) => None,
-            Err(e) => Some(crate::master_store::read_reason("共有の", &path, &raw, &e)),
+            Err(e) => Some(crate::master_store::read_reason("共有の", &path, &c.raw, &e)),
         }
     }
 
@@ -501,7 +499,21 @@ impl Place {
         crate::master_store::seed_through(share, name).unwrap_or(false)
     }
 
+    /// マスタの行（Python の _list と同じく、一覧が隔てる行は除く: row_check::FILTERED。版 3.107.0 の割れ 2。束・ダッシュボードの問い合わせ・
+    /// 式の変換表・直の当て方が隔てた行を使わない）。自分で行を隔てて skipped を言う道は rows_all
     pub fn rows(&self, name: &str) -> Result<Vec<Value>, String> {
+        let rows = self.rows_all(name)?;
+        if !crate::row_check::FILTERED.contains(&name) {
+            return Ok(rows);
+        }
+        let mut norm = rows.clone();
+        crate::row_check::normalize_like_specs(name, &mut norm);
+        let iso = crate::row_check::check(name, &norm, crate::row_check::fields_of(name));
+        Ok(rows.into_iter().enumerate().filter(|(i, _)| !crate::row_check::is_isolated(&iso, *i)).map(|(_, r)| r).collect())
+    }
+
+    /// マスタの全部の行（隔てる前。行を隔てて skipped を言う道・書く前の確かめ）
+    pub fn rows_all(&self, name: &str) -> Result<Vec<Value>, String> {
         self.doc(name).map(|(rows, _)| rows)
     }
 
@@ -561,9 +573,9 @@ impl Place {
         tries.push(self.defaults.join(&file));
         let last = tries.len() - 1;
         for (i, path) in tries.iter().enumerate() {
-            match std::fs::read(path) {
-                Ok(b) => match doc_of(&b) {
-                    Ok(doc) => return Ok(doc),
+            match read_cached(path) {
+                Ok(c) => match &c.doc {
+                    Ok(doc) => return Ok(doc.clone()),
                     // 共有のファイルが書きかけ・壊れている: 写しで続ける（Python の _maybe_refresh も写しで続ける）
                     Err(_) if i == 0 && tries.len() > 3 => continue,
                     Err(e) => return Err(format!("{}: {e}", path.display())),
@@ -574,6 +586,44 @@ impl Place {
         }
         Ok((vec![], 0))
     }
+}
+
+/// 読んだファイルの覚え（版 3.107.0 の割れ 6: 一覧 1 回で同じファイルを split_file・rows・share_problem が別々に読み・JSON にしていた）。
+/// 鍵はファイルの道、目印は (更新時刻, 大きさ)
+struct Cached {
+    sig: Option<(u128, u64)>,
+    raw: Vec<u8>,
+    wide: bool,
+    doc: Result<(Vec<Value>, i64), String>,
+}
+
+static READ_MEMO: std::sync::Mutex<Option<std::collections::HashMap<PathBuf, std::sync::Arc<Cached>>>> = std::sync::Mutex::new(None);
+
+/// ファイルを読む（同じ目印なら前の答えを使い回す。覚えるのは 32 個まで）
+fn read_cached(path: &std::path::Path) -> std::io::Result<std::sync::Arc<Cached>> {
+    let sig = crate::master_store::stat_sig(path);
+    if sig.is_some() {
+        let g = READ_MEMO.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = g.as_ref().and_then(|m| m.get(path)).filter(|c| c.sig == sig) {
+            return Ok(c.clone());
+        }
+    }
+    let raw = std::fs::read(path)?;
+    let body = raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&raw);
+    let wide = std::str::from_utf8(body).is_err() || crate::master_rows::split_wide(body);
+    let doc = doc_of(&raw);
+    // 字は読めないときの理由の言葉にだけ使う（読める大きなファイルの字は覚えない）
+    let raw = if doc.is_err() { raw } else { vec![] };
+    let c = std::sync::Arc::new(Cached { sig, doc, wide, raw });
+    if sig.is_some() {
+        let mut g = READ_MEMO.lock().unwrap_or_else(|e| e.into_inner());
+        let m = g.get_or_insert_with(std::collections::HashMap::new);
+        if m.len() >= 32 {
+            m.clear();
+        }
+        m.insert(path.to_path_buf(), c.clone());
+    }
+    Ok(c)
 }
 
 /// {schema, revision, rows} か行の配列（同梱の data/ の昔の形）→ (行, 版の番号)。読みは Store と同じ parse_master（版 3.107.0。

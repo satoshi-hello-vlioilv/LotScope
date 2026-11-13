@@ -109,7 +109,7 @@ def presets_delete(item_id):
     base = base_rev()
 
     def go():
-        old = master_repo().find(pp.NAME, item_id)
+        old = master_repo().find(pp.NAME, item_id, delete=True)
         if old is not None:
             _gate(old, login, common_ok, default_ok, revoked)
             master_repo().preset_delete(item_id, base)

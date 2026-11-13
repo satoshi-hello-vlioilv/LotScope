@@ -140,6 +140,14 @@ fn builtin_skip(rows: &[Value], login: &str) -> Result<(Off, Vec<String>), Stop>
     let mut off: Off = vec![];
     for r in rows.iter().filter_map(Value::as_object).filter(|r| s(r, "元") == Some(HIDE_SOURCE) && pr::visible(r, login)) {
         let text = s(r, "中身").filter(|t| !t.is_empty()).unwrap_or("{}");
+        // 中身が表でない・keys が数の行は、外した鍵なしとして読む（Python の builtin_skip の except。版 3.107.0 の割れ 8）
+        if let Some(b) = Tree::parse(&crate::master_rows::inner_text(text)) {
+            let bad_body = lc::truthy(&b) && !matches!(b, Tree::Obj(_));
+            let bad_keys = b.get("keys").is_some_and(|k| lc::truthy(k) && !matches!(k, Tree::Arr(_) | Tree::Str(_) | Tree::Obj(_)));
+            if bad_body || bad_keys {
+                continue;
+            }
+        }
         let (v, _) = lc::clean_hide_body(&Tree::Str(text.to_string()))?;
         for k in v["keys"].as_array().into_iter().flatten().filter_map(Value::as_str) {
             if !off.iter().any(|(x, _)| x == k) {
@@ -186,12 +194,12 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     }
     // 置き場の読めない行は隔てる（版 3.107.0。前は任せた）。組ごとの中身の確かめ（組み込みと同じ名前の行・外した組み込み・前の版の条件）は
     // まだ任せる（Python は LayoutError の 500・AttributeError で落ちる。row_check で隔てる形にしていない）
-    let (all, iso) = pr::read_rows(&place.rows(name).ok()?, name)?;
-    let rows = pr::good_rows(&all, &iso);
+    let (all, iso) = pr::read_rows(&place.rows_all(name).ok()?, name)?;
+    let rows = pr::good_rows(name, &all, &iso);
     let who = Who::of(me, name);
     if route == Route::List {
         // 前の版の条件のマスタの読めない行（表でない・条件が表でない）は隔てて読む（版 3.107.0。前は Python が落ちた）
-        let mut settings = place.rows(SETTINGS).ok()?;
+        let mut settings = place.rows_all(SETTINGS).ok()?;
         crate::master_rows::normalize_all(
             &mut settings,
             &master_rows::Spec { name: SETTINGS, fields: &["キー", "条件", "備考"], unique: Some("キー"), renamed: &[] },
@@ -200,9 +208,9 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
             return None;
         }
         let siso = crate::row_check::check(SETTINGS, &settings, &["キー", "条件", "備考"]);
-        let settings = pr::good_rows(&settings, &siso);
+        let settings = pr::good_rows(SETTINGS, &settings, &siso);
         let mut out = list(&rows, &settings, &who)?;
-        crate::row_check::notes(out.1.as_object_mut().unwrap(), &iso, place.share_problem(name));
+        crate::row_check::notes(out.1.as_object_mut().unwrap(), name, &all, &iso, place.share_problem(name));
         return Some(out);
     }
     if master_rows::unreadable(body) {
@@ -211,18 +219,18 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
     let tree: Tree = if blank { Tree::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64| pr::find_row(name, &all, &iso, id);
+    let find = |id: i64, delete: bool| pr::find_row(name, &all, &iso, id, delete);
     if let Route::Delete(id) = route {
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
         let base = base_rev(&parsed, query);
-        let found = match find(id) {
+        let found = match find(id, true) {
             Ok(f) => f,
             Err(a) => return Some(a),
         };
-        let Some(old) = found.filter(|r| is_dash(r)) else { return Some((200, json!({"ok": true}))) };
-        if let Err(a) = who.gate(old, WHAT) {
+        let Some(old) = found.filter(is_dash) else { return Some((200, json!({"ok": true}))) };
+        if let Err(a) = who.gate(&old, WHAT) {
             return Some(a);
         }
         return Some(match master_rows::delete(store, &DASHBOARDS, id, base) {
@@ -273,14 +281,14 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
             // routes/dashboard.dashboards_update: id の行が無いかダッシュボードでなければ「見つかりません」
-            let found = match find(id) {
+            let found = match find(id, false) {
                 Ok(f) => f,
                 Err(a) => return Some(a),
             };
-            let Some(old) = found.filter(|r| is_dash(r)) else {
+            let Some(old) = found.filter(is_dash) else {
                 return Some(layout_error(format!("id={id} が見つかりません（ほかの PC が消した可能性があります）。")));
             };
-            if let Err(a) = who.gate(old, WHAT) {
+            if let Err(a) = who.gate(&old, WHAT) {
                 return Some(a);
             }
             let row = match pr::clean_row(d, &who.login, true, None, &body_text) {
@@ -288,7 +296,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
                 Err(_) if py.get() => return None,
                 Err(m) => return Some(layout_error(m)),
             };
-            let mut row = match with_builtin_replace(row, Some(old)) {
+            let mut row = match with_builtin_replace(row, Some(&old)) {
                 Ok(r) => r,
                 Err(Stop::Py) => return None,
                 Err(Stop::Layout(m)) => return Some(layout_error(m)),
@@ -316,7 +324,12 @@ fn list(rows: &[Value], settings: &[Value], who: &Who) -> Option<Answer> {
     let mut items = vec![];
     for r in &mine {
         // 組み込みと同じ名前の行は中身に replaces を入れてから見せる（確かめに通らなければ Python は 500。窓は答えない）
-        let r2 = with_builtin_replace((*r).clone(), None).ok()?;
+        // 中身が確かめに通らなければ入れ替えずにそのまま出す（Python の with_builtin_replace_view。版 3.107.0 の割れ 8）
+        let r2 = match with_builtin_replace((*r).clone(), None) {
+            Ok(x) => x,
+            Err(Stop::Layout(_)) => (*r).clone(),
+            Err(Stop::Py) => return None,
+        };
         items.push(who.view(&r2, view_body(&r2).ok()?));
     }
     pr::sort_views(&mut items);

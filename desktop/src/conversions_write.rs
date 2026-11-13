@@ -576,7 +576,7 @@ fn read(place: &Place) -> Option<Read> {
     master_rows::normalize_all(&mut all, &SPEC);
     // 読めない行（id・版・名前の型・判定の NaN・入れ子）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値・標準の読めない行はまだ任せる
     let iso = crate::row_check::check(NAME, &all, &FIELDS);
-    let rows: Vec<Value> = crate::row_check::good(&all, &iso).into_iter().cloned().collect();
+    let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
     let plain = |rows: &[Value]| {
         rows.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain))))
     };
@@ -616,7 +616,7 @@ fn listing(store: &Store, me: &Value, place: &Place, r: &Read) -> Option<Value> 
     let mut out = json!({"items": items, "ops": map(&OPS), "modes": map(&MODES), "places": map(&PLACES),
                          "presets": presets.into_iter().collect::<Vec<_>>(), "customDefaults": !r.own.is_empty(),
                          "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)});
-    crate::row_check::notes(out.as_object_mut().unwrap(), &r.iso, r.unreadable.clone());
+    crate::row_check::notes(out.as_object_mut().unwrap(), NAME, &r.all, &r.iso, r.unreadable.clone());
     Some(out)
 }
 

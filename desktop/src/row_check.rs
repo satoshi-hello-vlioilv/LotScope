@@ -56,6 +56,19 @@ pub const CONTENT_COLS: [(&str, &[&str]); 10] = [
 /// 行を丸ごと答える（一覧が行をそのまま返す）マスタ: 知らない鍵の数でない値も答えに出るので隔てる
 pub const RAW: [&str; 2] = ["equipment_master", "roll_master"];
 pub const STRICT: [&str; 2] = ["access_permissions", "tab_access"];
+/// 一覧と同じく、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも隔てた行を使わないマスタ（access::Place::rows。Python の row_check.FILTERED）
+pub const FILTERED: [&str; 10] = [
+    "equipment_master",
+    "roll_master",
+    "shift_patterns",
+    "equipment_groups",
+    "conversions",
+    "display_formats",
+    "pivot_presets",
+    "pivot_quick",
+    "dashboards",
+    "dashboard_settings",
+];
 /// マスタの置き場の状態で隔てた行を知らせるマスタ（Python の row_check.STATUS）
 pub const STATUS: [&str; 13] = [
     "equipment_master",
@@ -112,8 +125,13 @@ fn is_int(v: &Value) -> bool {
 /// 中身の列の字の理由（隔てないなら None）。JSON として読めない字は隔てない（道が今どおりに読む・断る）
 pub fn content_problem(col: &str, text: Option<&Value>) -> Option<String> {
     let t = text?.as_str().filter(|t| !t.is_empty() && !held::is_held(text.unwrap()))?;
-    if crate::master_rows::json_depth(t.as_bytes()) >= DEEP {
+    let brackets = t.matches('[').count() + t.matches('{').count();
+    if brackets >= DEEP && crate::master_rows::json_depth(t.as_bytes()) >= DEEP {
         return Some(format!("「{col}」の入れ子が深すぎます（{DEEP} 段以上）"));
+    }
+    // 数でない値・対の無い代用字になりうる字（NaN・Infinity・\u・指数・300 桁を超える数）が無ければ読まない（速さ。答えは同じ。割れ 5・6）
+    if !suspicious(t) {
+        return None;
     }
     let (j, lone) = crate::pyjson::loads_flagged(t).ok()?;
     if nonfinite(&j) {
@@ -123,6 +141,25 @@ pub fn content_problem(col: &str, text: Option<&Value>) -> Option<String> {
         return Some(format!("「{col}」に対の無い代用字があります"));
     }
     None
+}
+
+/// 中身の字に、数でない値・対の無い代用字になりうる字があるか（無ければ JSON として読まずに「隔てない」と分かる）
+fn suspicious(t: &str) -> bool {
+    let b = t.as_bytes();
+    if t.contains("NaN") || t.contains("Infinity") || t.contains("\\u") {
+        return true;
+    }
+    // 指数（数字の後の e・E）
+    let exp = |c: char| t.match_indices(c).any(|(i, _)| i > 0 && b[i - 1].is_ascii_digit());
+    if exp('e') || exp('E') {
+        return true;
+    }
+    // 300 桁を超える小数（float() で inf になりうる）: 小数点の前後の数字の長さ
+    t.match_indices('.').any(|(i, _)| {
+        let before = b[..i].iter().rev().take_while(|c| c.is_ascii_digit()).count();
+        let after = b[i + 1..].iter().take_while(|c| c.is_ascii_digit()).count();
+        before + after > 300
+    })
 }
 
 fn nonfinite(j: &crate::pyjson::J) -> bool {
@@ -135,7 +172,9 @@ fn nonfinite(j: &crate::pyjson::J) -> bool {
     }
 }
 
-/// 行の理由（隔てないなら None。Python の row_check.problem と同じ順に見る）。fields はそのマスタの置く項目
+/// 行の理由（隔てないなら None。Python の row_check.problem と同じ順に見る）。fields はそのマスタの置く項目。
+/// 版 3.107.0 の作った後の採点の割れ 1（機能を減らさない）: 隔てるのは値を読めない・書き戻すと壊れる形だけ。型だけが違う値（名前が数・
+/// 字の列が並び）は隔てず、一覧では str() で読む（coerce）
 pub fn problem(name: &str, r: &Value, fields: &[&str]) -> Option<String> {
     let Some(o) = r.as_object() else { return Some("表でない行".into()) };
     if let Some(v) = o.get("id") {
@@ -149,24 +188,21 @@ pub fn problem(name: &str, r: &Value, fields: &[&str]) -> Option<String> {
         }
     }
     let name_col = find(&NAME_COLS, name);
-    let strs = find(&STR_COLS, name).unwrap_or(&[]);
     let mut cols: Vec<&str> = fields.to_vec();
     if let Some(n) = name_col.filter(|n| !fields.contains(n)) {
         cols.push(n);
     }
+    let strict = STRICT.contains(&name);
     for k in cols {
         let Some(v) = o.get(k) else { continue };
-        if v.is_array() || v.is_object() {
+        if held::has_nonfinite(v) {
+            return Some(format!("「{k}」に数でない値（NaN・Infinity）があります"));
+        }
+        // 権限の 2 つは型の違う値も今どおり止める（Python の row_check.problem と同じ）
+        if strict && (v.is_array() || v.is_object()) {
             return Some(format!("「{k}」が並び・表です（{}）", short(v)));
         }
-        if held::is_nonfinite(v) {
-            return Some(format!("「{k}」が数でない値です（{}）", short(v)));
-        }
-        let text = v.is_string() && !held::is_held(v);
-        if strs.contains(&k) && !text {
-            return Some(format!("「{k}」が字ではありません（{}）", short(v)));
-        }
-        if Some(k) == name_col && !v.is_null() && !text {
+        if strict && Some(k) == name_col && !v.is_null() && !(v.is_string() && !held::is_held(v)) {
             return Some(format!("「{k}」が字ではありません（{}）", short(v)));
         }
     }
@@ -175,10 +211,46 @@ pub fn problem(name: &str, r: &Value, fields: &[&str]) -> Option<String> {
             return Some(why);
         }
     }
+    if held::has_lone(r) {
+        return Some("対の無い代用字があります".into());
+    }
     if RAW.contains(&name) && held::has_nonfinite(r) {
         return Some("数でない値（NaN・Infinity）があります".into());
     }
     None
+}
+
+/// 一覧に出す行（写し）: 名前の列・字だけの列の、字でない値（数・並び・表・真偽）を Python の str() の字にする（Python の row_check.coerce）
+pub fn coerce(name: &str, r: &Value) -> Value {
+    let mut out = r.clone();
+    let Some(o) = out.as_object_mut() else { return out };
+    let mut cols: Vec<&str> = find(&STR_COLS, name).unwrap_or(&[]).to_vec();
+    if let Some(n) = find(&NAME_COLS, name) {
+        cols.push(n);
+    }
+    for k in cols {
+        if let Some(v) = o.get_mut(k) {
+            if !v.is_null() && !(v.is_string() && !held::is_held(v)) {
+                *v = Value::String(crate::worksum::py_str(v));
+            }
+        }
+    }
+    out
+}
+
+/// 読めない行の生の値の要約（知らせの面: id と名前の列。Python の row_check.summary）
+pub fn summary(name: &str, r: &Value) -> String {
+    let Some(o) = r.as_object() else { return short(r) };
+    let mut parts = vec![];
+    if let Some(v) = o.get("id") {
+        parts.push(format!("id {}", short(v)));
+    }
+    if let Some(col) = find(&NAME_COLS, name) {
+        if let Some(v) = o.get(col) {
+            parts.push(format!("{col} {}", short(v)));
+        }
+    }
+    parts.join("・")
 }
 
 /// 組ごとの中身の確かめ（窓が同じに扱えない中身の形。Python の master_repository.EXTRA_CHECKS）
@@ -195,9 +267,56 @@ pub fn isolated(name: &str, rows: &[Value], fields: &[&str], extra: Extra) -> Ve
         .collect()
 }
 
-/// 隔てた行の知らせ（答えの skipped）
+/// 隔てた行の知らせ（答えの skipped）。rows を渡すと生の値の要約（summary）と、元の列が字なら source を添える（Python の skipped_of）
 pub fn skipped_of(iso: &[(usize, usize, String)]) -> Value {
     Value::Array(iso.iter().map(|(_, n, why)| json!({"row": n, "why": why})).collect())
+}
+
+pub fn skipped_with(name: &str, rows: &[Value], iso: &[(usize, usize, String)]) -> Value {
+    Value::Array(
+        iso.iter()
+            .map(|(i, n, why)| {
+                let mut x = json!({"row": n, "why": why, "summary": summary(name, &rows[*i])});
+                if let Some(s) = rows[*i].get("元").filter(|v| v.is_string() && !held::is_held(v)) {
+                    x["source"] = s.clone();
+                }
+                // 道の id（int() が読めて i64 に入れば。Python の skipped_of と同じ）
+                if let Some(n) = rows[*i].as_object().and_then(|o| o.get("id")).and_then(as_int).and_then(|n| n.small()) {
+                    x["id"] = json!(n);
+                }
+                x
+            })
+            .collect(),
+    )
+}
+
+/// 道の id が int() で当たる隔てた行の位置（Python の isolated_hit）
+pub fn isolated_hit(rows: &[Value], iso: &[(usize, usize, String)], item_id: i64) -> Option<usize> {
+    iso.iter()
+        .map(|(i, _, _)| *i)
+        .find(|i| rows[*i].as_object().and_then(|o| o.get("id")).and_then(as_int).is_some_and(|x| x.small() == Some(item_id)))
+}
+
+/// 名前の重なり・行の確かめ（check(行の並び) が断る）を、読める行で当ててから隔てた行と 1 つずつ当てる（Python の dup_checked）
+pub fn dup_checked(
+    name: &str,
+    rows: &[Value],
+    iso: &[(usize, usize, String)],
+    check: &dyn Fn(&[Value]) -> Result<(), MasterError>,
+) -> Result<(), MasterError> {
+    let good: Vec<Value> = rows.iter().enumerate().filter(|(i, _)| !is_isolated(iso, *i)).map(|(_, r)| r.clone()).collect();
+    check(&good)?;
+    for (i, n, why) in iso {
+        if !rows[*i].is_object() {
+            continue;
+        }
+        if let Err(MasterError::Duplicate(_) | MasterError::Invalid(_)) = check(std::slice::from_ref(&rows[*i])) {
+            return Err(MasterError::Duplicate(format!(
+                "{name}.json の {n} 行目の読めない行（{why}）と名前が重なります。その行を消すか、ファイルを直してください。"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// 隔てた行の知らせの言葉（3 行まで）
@@ -212,13 +331,13 @@ pub fn is_isolated(iso: &[(usize, usize, String)], i: usize) -> bool {
     iso.iter().any(|(j, _, _)| *j == i)
 }
 
-/// 直す・消す行が隔てた行なら書かない（Python の master_repository.guard）
+/// 直す行が隔てた行なら書かない（Python の master_repository.guard。消すのは通す: isolated_hit で値を読まずに除く）
 pub fn guard(name: &str, rows: &[Value], iso: &[(usize, usize, String)], item_id: i64) -> Result<(), MasterError> {
-    for (i, n, why) in iso {
-        let hit = rows[*i].as_object().and_then(|o| o.get("id")).and_then(as_int).is_some_and(|x| x.small() == Some(item_id));
-        if hit {
-            return Err(refuse_row(name, *n, why));
-        }
+    if let Some(i) = isolated_hit(rows, iso, item_id) {
+        let (_, n, why) = iso.iter().find(|(j, _, _)| *j == i).unwrap();
+        return Err(MasterError::Unreadable(format!(
+            "{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。"
+        )));
     }
     Ok(())
 }
@@ -236,18 +355,18 @@ pub fn refuse_strict(name: &str, iso: &[(usize, usize, String)]) -> Result<(), M
 }
 
 /// 一覧の答えに添える知らせ（Python の routes/common.row_notes。無ければ足さない）
-pub fn notes(out: &mut Map<String, Value>, iso: &[(usize, usize, String)], unreadable: Option<String>) {
+pub fn notes(out: &mut Map<String, Value>, name: &str, rows: &[Value], iso: &[(usize, usize, String)], unreadable: Option<String>) {
     if !iso.is_empty() {
-        out.insert("skipped".into(), skipped_of(iso));
+        out.insert("skipped".into(), skipped_with(name, rows, iso));
     }
     if let Some(u) = unreadable {
         out.insert("unreadable".into(), json!(u));
     }
 }
 
-/// 一覧に出す行（隔てた行を除く）
-pub fn good<'a>(rows: &'a [Value], iso: &[(usize, usize, String)]) -> Vec<&'a Value> {
-    rows.iter().enumerate().filter(|(i, r)| r.is_object() && !is_isolated(iso, *i)).map(|(_, r)| r).collect()
+/// 一覧に出す行（隔てた行を除き、名前の列などの字でない値を str() で読んだ写し: coerce）
+pub fn good(name: &str, rows: &[Value], iso: &[(usize, usize, String)]) -> Vec<Value> {
+    rows.iter().enumerate().filter(|(i, r)| r.is_object() && !is_isolated(iso, *i)).map(|(_, r)| coerce(name, r)).collect()
 }
 
 /// 組ごとの中身の確かめ（Python の master_repository.EXTRA_CHECKS）

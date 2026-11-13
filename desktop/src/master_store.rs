@@ -224,8 +224,6 @@ pub enum ReadErr {
     Shape,
     /// 版の番号（revision）を int() で読めない（Python も読めないファイルとして写しで続ける）
     Rev(String),
-    /// 対の無い代用字がある（窓の字が持てない。Python も写しに書けない）
-    Lone,
     /// i64・u64 に入らない整数（窓は値を変えずに書けない。H2 で桁のまま持つまで、道は Python に任せる）
     Wide(String),
 }
@@ -237,7 +235,6 @@ pub fn read_reason(where_: &str, path: &Path, raw: &[u8], e: &ReadErr) -> String
         ReadErr::Broken(err) => unreadable_text(where_, path, raw, err.as_ref()),
         ReadErr::Shape => unreadable_text(where_, path, raw, None),
         ReadErr::Rev(v) => format!("{where_} {name} が読めません（版の番号 revision が読めません: {v}）"),
-        ReadErr::Lone => format!("{where_} {name} が読めません（対の無い代用字があります）"),
         ReadErr::Wide(m) => m.clone(),
     }
 }
@@ -276,7 +273,6 @@ pub fn parse_master(raw: &[u8], path: &Path) -> Result<Value, ReadErr> {
             }
             match crate::held::parse(text) {
                 Ok(v) => v,
-                Err(crate::held::Bad::Lone) => return Err(ReadErr::Lone),
                 Err(crate::held::Bad::Broken(_)) => return Err(ReadErr::Broken(Some(e))),
             }
         }

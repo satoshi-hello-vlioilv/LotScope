@@ -153,7 +153,7 @@
     if (!r.ok) throw new Error(d.error || "ダッシュボードを読めませんでした");
     Object.assign(S, { list: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, canEditDefault: !!d.canEditDefault,
       standardId: d.standardId, rowsRange: d.rowsRange || [4, 16], hidden: d.hidden || [],
-      skip: TPA.skipNote(d, "dashboards") });     // 読めない行・読めないファイルの知らせ（版 3.107.0。道具の行の札）
+      skip: TPA.skipNote(d, "dashboards", { here: (s) => s === "dash" || s === "dashset" || s === "dashoff" || s === "" }) });     // 読めない行・読めないファイルの知らせ（版 3.107.0。道具の行の札）
   }
   /* ---------------- セット（版 3.46.0。利用者の要望 2026-10-21 の 7）: いくつかのダッシュボードの束を、道具の行のタブで切り替える。
      置き場は /api/dashboard-sets（共通デフォルト＝開発者の標準のセット・共通・自分のパターンと ★標準。ダッシュボードと同じ決まり）。

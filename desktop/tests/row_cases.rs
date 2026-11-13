@@ -17,6 +17,15 @@ fn rows_are_isolated_like_the_table() {
         if got != c["why"] {
             bad.push(format!("{}: 窓 {got}（表 {}）", c["name"], c["why"]));
         }
+        // 隔てない行の、名前の列・字だけの列の字でない値は str() で読む（Python の row_check.coerce と同じ）
+        if let Some(want) = c.get("coerced").and_then(Value::as_object) {
+            let got = row_check::coerce(master, &rows[0]);
+            for (k, w) in want {
+                if &got[k.as_str()] != w {
+                    bad.push(format!("{}: {k} は窓 {}（表 {w}）", c["name"], got[k.as_str()]));
+                }
+            }
+        }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }

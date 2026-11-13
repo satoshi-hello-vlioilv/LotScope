@@ -279,12 +279,14 @@ function paintPlace(news) {
   if (cur.error) {
     html += `<span class="place-caution" title="${escapeHtml(cur.error)}">⚠ ${escapeHtml(cur.error)}</span>`;
   } else if ((cur.skipped && cur.skipped.length) || (cur.badRows && cur.badRows.length)) {
-    // 版 3.107.0: 隔てた行は理由つき（skipped。表でない行も）。権限の 2 つと参照先は一覧に出したまま、その行（権限はマスタ）を保存しない
+    // 版 3.107.0: 隔てた行は理由つき（skipped。表でない行も）。権限の 2 つと参照先は一覧に出したまま、その行（権限はマスタ）を保存しない。
+    // 帯を押すと読めない行の面（何行目・理由・生の値の要約）が開き、消せる行はそこから消せる（作った後の採点の割れ 1・画面の 1〜2）
     const name = MASTER_DEFS[mstate.tab].name, sk = cur.skipped || cur.badRows.map((n) => ({ row: n, why: "表でない行" }));
     const rows = sk.slice(0, 3).map((s) => `${s.row} 行目（${s.why}）`).join("・") + (sk.length > 3 ? ` ほか ${sk.length - 3} 行` : "");
     const keep = ["access_permissions", "tab_access", "path_settings"].includes(name);
-    const why = `${name}.json の ${rows}が読めません（ファイルを直してください。${keep ? "直すまで保存できません" : "一覧では飛ばしています"}）`;
-    html += `<span class="place-caution" title="${escapeHtml(why)}">⚠ ${escapeHtml(why)}</span>`;
+    const why = `${name}.json の ${rows}が読めません（${keep ? "直すまで保存できません" : "一覧では飛ばしています"}。押すと消す・直し方）`;
+    TPA.me = TPA.me || mstate.me;
+    html += TPA.skipNote({ skipped: sk }, name, { cls: "place-caution", label: `⚠ ${why}`, reload: () => refreshPlace() });
   }
   html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える。全員の PC がそろっているかも出ます">マスタの置き場 ›</button>';
   if (news && news.length) html += `<span class="place-news">${news.map(escapeHtml).join(" ／ ")}</span>`;

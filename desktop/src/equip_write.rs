@@ -125,7 +125,7 @@ fn awkward(v: &Value) -> bool {
 /// id・版・並び・表は版 3.107.0 から row_check が隔てる）
 fn readable(rows: &[Value], spec: &Spec) -> bool {
     let fields: Vec<&str> = spec.fields.iter().copied().chain(spec.renamed.iter().map(|(old, _)| *old)).collect();
-    rows.iter().all(|r| r.as_object().is_some_and(|o| fields.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain))))
+    rows.iter().all(|r| r.as_object().is_some_and(|o| fields.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain_or_container))))
 }
 
 /// 必須の列が空か（routes/masters._blank: null も空。0・False は空でない）
@@ -148,7 +148,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], rows: &[Val
     let mut all = rows.to_vec();
     master_rows::normalize_all(&mut all, spec);
     let iso = crate::row_check::check(spec.name, &all, spec.fields);
-    let good: Vec<Value> = crate::row_check::good(&all, &iso).into_iter().cloned().collect();
+    let good: Vec<Value> = crate::row_check::good(spec.name, &all, &iso);
     let rows = good.as_slice();
     // i64 に入らない整数の値（u64 の数・大きな整数の形の小数）はまだ任せる（H2。Python の str() は桁のまま）
     if !readable(rows, spec) {

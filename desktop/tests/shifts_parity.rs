@@ -72,7 +72,11 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     let route = route_of(method, path).expect("窓が受ける道");
     let place = access::Place::from_json(&c["place"]);
     let read = || {
-        Some(Read { shifts: place.rows(NAME).ok()?, work_logs: place.rows("work_log_files").ok()?, unreadable: place.share_problem(NAME) })
+        Some(Read {
+            shifts: place.rows_all(NAME).ok()?,
+            work_logs: place.rows("work_log_files").ok()?,
+            unreadable: place.share_problem(NAME),
+        })
     };
     handle(store, &me, route, step["query"].as_str().unwrap_or(""), &gated, &read().unwrap(), &read)
 }

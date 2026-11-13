@@ -24,6 +24,7 @@ import decimal
 import email.utils
 import hashlib
 import json
+import math
 import logging
 import mimetypes
 import re
@@ -153,11 +154,26 @@ def _json_default(o):
     raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
 
+def _finite(o):
+    """数でない値（NaN・Infinity）を null にした写し（答えは JSON。窓の答え〈serde〉も NaN を持てず null にする）"""
+    if isinstance(o, float) and not math.isfinite(o):
+        return None
+    if isinstance(o, dict):
+        return {k: _finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite(v) for v in o]
+    return o
+
+
 def dumps(obj, **kw) -> str:
-    """JSON の文字（鍵の順にそろえ、日本語は \\u で書く）。"""
+    """JSON の文字（鍵の順にそろえ、日本語は \\u で書く）。答えに NaN・Infinity は出さない（版 3.107.0 の割れ 2: 前は置き場の NaN が
+    そのまま字になり、画面の r.json() が読めなかった。出せない値は null。窓と同じ）"""
     kw.setdefault("ensure_ascii", True)
     kw.setdefault("sort_keys", True)
-    return json.dumps(obj, default=_json_default, **kw)
+    try:
+        return json.dumps(obj, default=_json_default, allow_nan=False, **kw)
+    except ValueError:
+        return json.dumps(_finite(obj), default=_json_default, allow_nan=False, **kw)
 
 
 def jsonify(*args, **kwargs):

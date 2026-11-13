@@ -27,12 +27,26 @@ class RowCases(unittest.TestCase):
         bad = [f"{c['name']}: Python {why_of(c)!r}（表 {c['why']!r}）" for c in CASES if why_of(c) != c["why"]]
         self.assertEqual(bad, [])
 
+    def test_coerced_values(self):
+        """隔てない行の、名前の列・字だけの列の字でない値は str() で読む（一覧に出す行。割れ 1）"""
+        bad = []
+        for c in CASES:
+            if "coerced" not in c:
+                continue
+            row = mr._normalize(json.loads(c["raw"]), mr.SPECS[c["master"]])
+            got = row_check.coerce(c["master"], row)
+            for k, want in c["coerced"].items():
+                if got.get(k) != want:
+                    bad.append(f"{c['name']}: {k} は {got.get(k)!r}（表 {want!r}）")
+        self.assertEqual(bad, [])
+
     def test_the_table_covers_every_rule(self):
         """表は決まりの全部の言葉を少なくとも 1 回ずつ持つ（決まりを足したら事例も足す）"""
         whys = " ".join(c["why"] or "" for c in CASES)
-        for word in ["表でない行", "id が数ではありません", "版（rev）が読めません", "が並び・表です", "が数でない値です", "が字ではありません",
-                     "に数でない値（NaN・Infinity）があります", "に対の無い代用字があります", "の入れ子が深すぎます", "数でない値（NaN・Infinity）があります",
-                     "の形が違います", "が表ではありません", "の part が並び・表です", "column・expr", "タブの名前", "項目の字の欄"]:
+        for word in ["表でない行", "id が数ではありません", "版（rev）が読めません", "に数でない値（NaN・Infinity）があります",
+                     "に対の無い代用字があります", "の入れ子が深すぎます", "数でない値（NaN・Infinity）があります", "対の無い代用字があります",
+                     "の形が違います", "が表ではありません", "の part が並び・表です", "column・expr", "タブの名前", "項目の字の欄",
+                     "が並び・表です（", "が字ではありません"]:
             self.assertIn(word, whys)
         self.assertTrue(any(c["why"] is None for c in CASES))
 
