@@ -29,6 +29,8 @@ def build(root, run):
         share.mkdir()
         for name, doc in run["masters"].items():
             (share / f"{name}.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        if run.get("lock"):   # ほかの PC の生きた錠（版 3.110.0 の作った後の採点の割れ 3）
+            (share / "master.lock.json").write_text(json.dumps(run["lock"], ensure_ascii=False), encoding="utf-8")
         settings = {"dir": str(share)}
     elif run["place"] == "unreachable":
         settings = {"dir": str(root / "無い共有")}
@@ -90,8 +92,9 @@ class SeedsCases(unittest.TestCase):
             with self.subTest(run["name"]):
                 root = self.tmp / f"run{i}"
                 store = build(root, run)
-                with mock.patch.object(master_seeds, "LOCKED_WAIT_SEC", 0):
+                with mock.patch.object(master_seeds, "LOCKED_WAIT_SEC", 0), mock.patch.object(master_seeds.time, "sleep") as slept:
                     applied = master_seeds.run(store)
+                self.assertEqual(slept.call_count, run["expect"].get("waits", 0), "錠を待った回数")
                 ex = run["expect"]
                 self.assertEqual(applied, ex["applied"])
                 got = files(root, run)

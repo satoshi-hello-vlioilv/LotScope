@@ -433,7 +433,14 @@ async function masterPart(p, tag) {
   }
   // ⑧ データ元の面: 見出しは 1 段の「この画面の行（一覧・読みでは使っています）」、止めている事は面の下の小さな字（太字でない）
   if (await p.$(".tpa-menu")) await closeMenu(p);
-  await p.evaluate(() => document.querySelector('#masterTabs [data-tab="sources"]')?.click()); await sleep(1200);
+  await p.evaluate(() => document.querySelector('#masterTabs [data-tab="sources"]')?.click());
+  // 帯の札が移った先（データ元）の札に替わるまで待ってから押す（版 3.110.0 の作った後の採点の割れ 4。前は 1.2 秒で押し、帯が 5 秒ごとの
+  // 見直しまで設備マスタの札のままだと設備マスタの面が開いた）
+  const bandSrc = await p.waitForFunction(() => /^⚠ データ元の読めない行/.test(document.querySelector(".master-place .tpa-skip")?.textContent || ""), null, { timeout: 2000 })
+    .then(() => true, () => false);
+  check(`⑧ ${tag} データ元のタブへ移ると、帯の札はすぐ（2 秒以内）データ元の札に替わる`, bandSrc,
+    await p.evaluate(() => document.querySelector(".master-place .tpa-skip")?.textContent || ""));
+  await sleep(300);
   await p.click(".master-place .tpa-skip"); await sleep(300);
   const ds = await p.evaluate(() => {
     const m = document.querySelector(".tpa-menu"); if (!m) return null;

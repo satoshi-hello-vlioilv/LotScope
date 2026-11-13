@@ -8,7 +8,8 @@ use std::time::Duration;
 
 fn table() -> Value {
     let p = common::program().join("tests").join("fixtures").join("seeds_cases.json");
-    common::json_keep(&std::fs::read(p).unwrap()).expect("事例の表が読めない")
+    // NaN・Infinity・1e400 の事例があるので、serde で読めなければ Python の json.loads と同じ J で読む（common::file_value）
+    common::file_value(&std::fs::read(p).unwrap())
 }
 
 #[test]
@@ -68,7 +69,11 @@ fn each_run_like_the_table() {
         for (m, n) in ex["counts"].as_object().cloned().unwrap_or_default() {
             assert_eq!(json!(rows_of(&got[&m]).len()), n, "{name}: {m}");
         }
-        assert_eq!(waited.get(), 0, "{name}: 錠に当たらない形では待たない");
+        assert_eq!(
+            json!(waited.get()),
+            ex.get("waits").cloned().unwrap_or(json!(0)),
+            "{name}: 錠を待った回数（錠に当たらない形では待たない）"
+        );
         if run["place"] == "unreachable" {
             assert!(!root.join("無い共有").exists(), "{name}: 届かない共有は作らない");
         }

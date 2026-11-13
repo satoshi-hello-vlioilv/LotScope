@@ -226,6 +226,10 @@ pub fn seeds_store(root: &std::path::Path, run: &serde_json::Value, who: &str) -
             for (name, doc) in run["masters"].as_object().unwrap() {
                 std::fs::write(s.join(format!("{name}.json")), doc.to_string()).unwrap();
             }
+            if run["lock"].is_object() {
+                // ほかの PC の生きた錠（版 3.110.0 の作った後の採点の割れ 3）
+                std::fs::write(s.join(da_core::master_store::LOCK_FILENAME), run["lock"].to_string()).unwrap();
+            }
             Some(s)
         }
         "unreachable" => Some(root.join("無い共有")),

@@ -2016,6 +2016,22 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   作る途中で見つけた割れ: 共有の書式の窓の上で開いた面・確かめの窓の Esc と外側の押下を、先に開いた書式の窓も受けて一緒に閉じた → Esc と外側の押下は
   いちばん上の窓・面だけが受ける（`TPA.dismissable`・`confirmBox` の escStack）。`ui-eval-skiprows.mjs` の ⑨。開発用サーバーに `TPA_UI_SHARE`（shared・down）。
 
+- 作った後の採点（画面 85.0 点で合格・減点なし・画面に出ない部分 67.7 点。`2026-11-stage2-ui.json` の built・`2026-11-stage2-built.json`）の割れを直した（built_fixed）:
+  1 引っ越した後の最初の起動で、初期値が前の置き場へ当たった（同じ瞬間に束を組む糸〈更新の係・warm・最初の画面〉が印をたどり終える前に、
+  初期値の糸が古い覚えを読み、「見たばかり」でたどらなかった。300 回中 122 回）→ `bundle::Builder::place_of` が、この PC の覚えを読む所から
+  印をたどって覚えを書き終えるまでを moved_checked の錠の中の 1 本にした（束の種まき・Lot::store_for・access::Place も同じ place なので、ほかの書く係の
+  同じ穴も塞がる）。念のため `Lot::run_seeds` は、引っ越し先のフォルダがあるのに印の残った前の置き場なら当てずに次の起動へ。
+  2 配った設定に NaN・Infinity・i64 を超える整数があると窓も Python も当てなかった → 置き場の材料（寛い読み・名乗り・置き場・印）を束の厳しい読みから
+  切り離した `Builder::place_inputs` を run_seeds が使う。3 事例の表に rev の 1e400・NaN・Infinity・並び・空の並び、検査計の NaN・\u001c・ゼロ幅空白、
+  走らせる形に「ほかの PC の生きた錠に 5 回当たって止まる」を足した（42 件・9 形）。4 `ui-eval-skiprows.mjs` の ⑧ データ元の面（版 3.109.0 から）:
+  master.js の goTab・openMasterAt がタブを移ったらすぐ帯を描き直す。
+  試験: `lot::tests::the_seeds_never_land_in_the_old_place_while_another_thread_follows_the_move`（Barrier で 300 回。直す前に戻す変異で落ちる）・
+  `lot::tests::the_seeds_are_applied_even_when_the_distributed_settings_cannot_be_bundled`・`seeds_parity` の
+  `settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python`（Python と同じ共有）と `the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app`
+  （束の種まき・初期値・Python の create_app〈`seeds_oracle.py create`〉を同じ空の共有で同時に）・`tests/test_seeds_cases.py`（錠を待った回数も）・skiprows の ⑧。
+- 次の版で（画面の採点の減点ではない提案。見た目は今の版で変えない）: 読めない行の面の行の焦点に輪か線を足す（今は淡い緑の地だけ）・
+  共有に届かない形の 1280 で、マスタ管理の帯（「共有に届きません」・道・「もう一度つなぐ」・札・「マスタの置き場 ›」）と左のナビ（「マスタの置き場 届かない」）を 1 段に収める
+
 #### 段 ② の残りの順（版 3.110.0 で決めた。採点の evaluation の d_first・later）
 
 | 項 | 何 | 段 | どうする |

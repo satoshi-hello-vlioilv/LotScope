@@ -332,6 +332,9 @@ async function goTab(tab) {
   mstate.search = "";
   $("#masterSearch").value = "";
   buildMasterTabs();
+  // 帯（置き場・読めない行の札）を移った先のマスタで描き直す（版 3.110.0 の作った後の採点の割れ 4。前は 5 秒ごとの見直しまで前のタブの札が残り、
+  // 押すと前のマスタの面が開いた）
+  paintPlace();
   ensureTabLoaded(mstate.tab).then(renderMasterTable);
 }
 /* 置き場の今の状態 → [札の文字, 色の cls, 説明]。見出しの帯・ナビ・置き場の頁で同じ言葉を使う */
@@ -479,6 +482,7 @@ async function openMasterAt(tab, focus = "") {
   if (!$("#masterOverlay").classList.contains("hidden") && tab !== mstate.tab && !(await leaveOk(`${(MASTER_DEFS[tab] || {}).label || "ほか"}のタブへ移る`))) return;
   if (tab !== mstate.tab) TPA.toastClear();   // ほかのタブへ移るときは消した後の一言を残さない（版 3.110.0。goTab と同じ）
   mstate.tab = tab;
+  paintPlace();   // 帯も移った先のマスタで（goTab と同じ。置き場の答えがまだ無ければ何もしない）
   await openMaster();
 }
 window.openMasterAt = openMasterAt;

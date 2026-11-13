@@ -832,6 +832,360 @@
    "why": "Python の int（窓は pyfmt::PyInt）。i64・u64 に入らない数も小数に丸めない"
   },
   {
+   "name": "検査計: rev が 1e400（float の inf） は int() で読めないので次の起動へ",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": 1e400
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "int(inf) は OverflowError・int(nan) は ValueError・int([1]) は TypeError。どれも止めて次の起動へ"
+  },
+  {
+   "name": "検査計: rev が NaN は int() で読めないので次の起動へ",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": NaN
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "int(inf) は OverflowError・int(nan) は ValueError・int([1]) は TypeError。どれも止めて次の起動へ"
+  },
+  {
+   "name": "検査計: rev が Infinity は int() で読めないので次の起動へ",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": Infinity
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "int(inf) は OverflowError・int(nan) は ValueError・int([1]) は TypeError。どれも止めて次の起動へ"
+  },
+  {
+   "name": "検査計: rev が 並び [1] は int() で読めないので次の起動へ",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": [
+      1
+     ]
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "int(inf) は OverflowError・int(nan) は ValueError・int([1]) は TypeError。どれも止めて次の起動へ"
+  },
+  {
+   "name": "検査計: rev が空の並び [] は (rev or 1) で 1",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": []
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "LS4",
+      "検査計": "有"
+     },
+     {
+      "id": 3,
+      "設備名": "DL2",
+      "検査計": "有"
+     },
+     {
+      "id": 4,
+      "設備名": "TLV",
+      "検査計": "有"
+     },
+     {
+      "id": 5,
+      "設備名": "NS1",
+      "検査計": "有"
+     }
+    ]
+   },
+   "why": "[] は偽"
+  },
+  {
+   "name": "検査計: NaN の欄は空でない（str は 'nan'）",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": NaN
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "NaN は真で str(NaN) は 'nan'。人が決めた値と見て触れない"
+  },
+  {
+   "name": "検査計: 情報区切りの字（\\u001c）だけの欄は空",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "\u001c",
+     "rev": 1
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "LS4",
+      "検査計": "有"
+     },
+     {
+      "id": 3,
+      "設備名": "DL2",
+      "検査計": "有"
+     },
+     {
+      "id": 4,
+      "設備名": "TLV",
+      "検査計": "有"
+     },
+     {
+      "id": 5,
+      "設備名": "NS1",
+      "検査計": "有"
+     }
+    ]
+   },
+   "why": "Python の str.strip() は U+001C〜U+001F も空白として外す（str.isspace が真）"
+  },
+  {
+   "name": "検査計: ゼロ幅空白（\\u200b）だけの欄は空でない",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "​"
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "U+200B は str.isspace が偽なので strip で外れない"
+  },
+  {
    "name": "検査計: id の形（字の id・数の字・小数）から次の id",
    "seed": "2026-09-29-inspection-meter",
    "rows": [
@@ -1917,6 +2271,52 @@
     }
    },
    "why": "共有の置き場が無ければ同梱の data/ に行の配列で書く（write_local）"
+  },
+  {
+   "name": "ほかの PC の生きた錠に 5 回当たれば止め、記録しない",
+   "place": "share",
+   "masters": {
+    "app_seeds": {
+     "schema": 1,
+     "revision": 2,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": []
+    },
+    "equipment_master": {
+     "schema": 1,
+     "revision": 3,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "設備名": "LS3",
+       "検査計": ""
+      }
+     ]
+    }
+   },
+   "lock": {
+    "token": "t-other",
+    "holder_pc": "PC-他",
+    "holder_login": "他",
+    "holder_instance": "inst-other:py",
+    "acquired_at": "2026-11-13T10:00:00",
+    "expires_at": "2026-11-13T10:00:20"
+   },
+   "expect": {
+    "applied": [],
+    "stopped": "2026-09-29-inspection-meter",
+    "skipped": false,
+    "seeds": [],
+    "waits": 4,
+    "revisions": {
+     "app_seeds": 2,
+     "equipment_master": 3
+    }
+   },
+   "why": "錠（ほかの係が保存中）は 1 秒おきに 5 回まで試し（待つのは 4 回）、取れなければ次の起動へ。錠の残りは見てからの経過で測るので試験の中では切れない"
   },
   {
    "name": "共有に届かなければ何も書かず次の起動へ",

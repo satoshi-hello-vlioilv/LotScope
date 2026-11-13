@@ -4,6 +4,9 @@
     python tests/seeds_oracle.py 作業フォルダ
         … 事例の表 seeds_cases.json の走らせる形（runs）と足した場面を、場面ごとのフォルダ〈作業フォルダ/n/py〉に作って Python の
           master_seeds.run で当て、当てた初期値と終わった後のマスタのファイルを JSON で出す（窓は同じ形を自分のフォルダで当てて突き合わせる）
+    python tests/seeds_oracle.py create 共有 作業場所 ready の印 go の印
+        … 錠の取り合いの場面（版 3.110.0 の作った後の採点の割れ 3）: 窓の初期値と同じ瞬間に Python の create_app（起動の参照先の読み＝
+          path_settings の種まき）を起こす。支度を終えて ready の印を置き、go の印を見てから create_app
     python tests/seeds_oracle.py race 共有 作業場所 ready の印 go の印 [--old]
         … 2 つのプロセスの場面: この共有へ Python の係で当てる。app_seeds を読んだ直後に ready の印を置き、go の印があるまで待つ
           （窓も同じ所で待ち合わせ、同じ時に当てる形を起こす）。--old は版 3.109.0 までの係（錠の中で見直さず、変えなくても書き、記録も足す）
@@ -52,6 +55,8 @@ def build(root, run, who="py"):
         share.mkdir(exist_ok=True)
         for name, d in run["masters"].items():
             (share / f"{name}.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+        if run.get("lock"):
+            (share / "master.lock.json").write_text(json.dumps(run["lock"], ensure_ascii=False), encoding="utf-8")
         settings = {"dir": str(share)}
     elif run["place"] == "unreachable":
         settings = {"dir": str(root / "無い共有")}
@@ -122,9 +127,29 @@ def race(share, local, ready, go, old):
     return {"applied": applied}
 
 
+def create(share, local, ready, go):
+    import os
+    local = Path(local)
+    (local / "master_cache").mkdir(parents=True, exist_ok=True)
+    (local / "instance_id").write_text("inst-py", encoding="utf-8")
+    base = local / "base"
+    (base / "data").mkdir(parents=True, exist_ok=True)
+    os.environ["TRANSFER_LOCAL_ROOT"] = str(local)
+    from app import create_app
+    store = MasterStore(base, local_root=local, settings={"dir": share}, who={"pc": "PC-py", "login": "py"})
+    Path(ready).write_text("1", encoding="utf-8")
+    end = time.monotonic() + 30
+    while not Path(go).exists() and time.monotonic() < end:
+        time.sleep(0.001)
+    create_app({"MASTER_STORE": store})
+    return {"seeded": (Path(share) / "path_settings.json").exists()}
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
-    if a and a[0] == "race":
+    if a and a[0] == "create":
+        print(json.dumps(create(a[1], a[2], a[3], a[4]), ensure_ascii=False))
+    elif a and a[0] == "race":
         print(json.dumps(race(a[1], a[2], a[3], a[4], "--old" in a), ensure_ascii=False))
     else:
         print(json.dumps(scenarios(a[0]), ensure_ascii=False))

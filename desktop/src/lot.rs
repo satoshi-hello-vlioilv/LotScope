@@ -377,8 +377,21 @@ impl Lot {
     /// 束の材料を組めなければ当てずに次の起動へ（理由を返す）。wait は錠を待つ間（main.rs の裏の糸は 1 秒眠る。試験は数えるだけ）
     pub fn run_seeds(&self, wait: &dyn Fn(std::time::Duration)) -> Result<crate::seeds::Outcome, String> {
         let b = self.bundle.lock().unwrap().clone().ok_or_else(|| "束の材料がありません".to_string())?;
-        let inp = b.inputs().map_err(|e| format!("束の材料を組めません（{}）", e.why))?;
-        let store = crate::master_store::shared_store(&json!({"who": inp.who, "place": inp.place}))
+        // 置き場の材料だけを読む（版 3.110.0 の作った後の採点の割れ 2: 束を組めない配った設定〈NaN・Infinity・大きな整数〉でも当てる。
+        // 前は束の失敗で当てず、Python も seeds を名乗られて当てなかった）
+        let (who, place) = b.place_inputs().map_err(|e| format!("マスタの置き場を読めません（{}）", e.why))?;
+        // 念のため（割れ 1）: 置き場に引っ越しの印が残り、引っ越し先のフォルダがあるのにまだ前の置き場なら当てない（次の起動へ）。
+        // 引っ越し先に届かない印は、窓も Python もたどらずに前の置き場を使い続けるので、そのまま当てる
+        let share = place["shareDir"].as_str().unwrap_or("");
+        let moved = std::fs::read(std::path::Path::new(share).join(crate::master_place::MOVED_FILENAME))
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+            .and_then(|m| m["to"].as_str().map(str::to_string))
+            .filter(|to| !to.trim().is_empty() && std::path::Path::new(to.trim()).is_dir() && to.trim() != share);
+        if let (false, Some(to)) = (share.is_empty(), moved) {
+            return Err(format!("引っ越しの印のある置き場（{share} → {to}）には当てません（次の起動で引っ越し先に当てます）"));
+        }
+        let store = crate::master_store::shared_store(&json!({"who": who, "place": place}))
             .ok_or_else(|| "マスタの置き場が決まりません".to_string())?;
         Ok(crate::seeds::run(&store, wait))
     }
@@ -2203,6 +2216,72 @@ mod tests {
         assert_eq!(read("equipment_master")["revision"], rev, "2 回目は書かない");
         assert_eq!(waited.get(), 0);
         let _ = std::fs::remove_dir_all(&work);
+    }
+
+    /// 引っ越した後の置き場（前の置き場 old に印 → new）と配った設定 cfg_text の Lot（試験の置き場）
+    fn moved_lot(work: &std::path::Path, cfg_text: &str) -> (Lot, PathBuf, PathBuf) {
+        let _ = std::fs::remove_dir_all(work);
+        let (old, new) = (work.join("old"), work.join("new"));
+        for d in [work.join("local"), work.join("base").join("data"), old.clone(), new.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(old.join("_MOVED.json"), json!({"to": new.to_string_lossy(), "at": "2026-11-13T10:00:00"}).to_string()).unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, cfg_text.replace("@OLD", &json!(old.to_string_lossy()).to_string())).unwrap();
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        (lot, old, new)
+    }
+
+    #[test]
+    fn the_seeds_never_land_in_the_old_place_while_another_thread_follows_the_move() {
+        // 版 3.110.0 の作った後の採点の割れ 1: 起動の同じ瞬間に束を組むほかの糸（更新の係・warm・最初の画面）と初期値の糸が
+        // 同時に引っ越しの印をたどると、前は初期値の糸がたどり終える前の古い覚えを読み、前の置き場へ当てた（300 回中 122 回）。
+        // 覚えを読む所から覚えを書き終えるまでを 1 本にした（bundle::Builder::place_of）。前の置き場には印の外に何も書かれない
+        let base = std::env::temp_dir().join(format!("da-lot-seeds-race-{}", std::process::id()));
+        for round in 0..300 {
+            let work = base.join(format!("r{round}"));
+            let (lot, old, new) = moved_lot(&work, r#"{"master_share": {"dir": @OLD}}"#);
+            let start = std::sync::Barrier::new(2);
+            let (_, seeded) = std::thread::scope(|s| {
+                let a = s.spawn(|| {
+                    start.wait();
+                    lot.own_bundle()
+                });
+                let b = s.spawn(|| {
+                    start.wait();
+                    lot.run_seeds(&|_| ())
+                });
+                (a.join().unwrap(), b.join().unwrap())
+            });
+            let left: Vec<String> =
+                std::fs::read_dir(&old).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+            assert_eq!(left, vec!["_MOVED.json".to_string()], "r{round}: 前の置き場に書いた {seeded:?}");
+            assert_eq!(seeded.as_ref().map(|o| o.applied.len()), Ok(3), "r{round}");
+            assert!(new.join("app_seeds.json").exists(), "r{round}: 引っ越し先に当たる");
+            let _ = std::fs::remove_dir_all(&work);
+        }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_seeds_are_applied_even_when_the_distributed_settings_cannot_be_bundled() {
+        // 版 3.110.0 の作った後の採点の割れ 2: 配った設定に NaN・Infinity・i64 を超える整数があると、束は組めない（Python に尋ねる）が、
+        // 初期値は置き場の材料（寛い読み）だけで当てる。前は窓も Python（seeds を名乗られた）も当てなかった
+        let base = std::env::temp_dir().join(format!("da-lot-seeds-cfg-{}", std::process::id()));
+        for (i, extra) in ["NaN", "Infinity", "100000000000000000000"].iter().enumerate() {
+            let work = base.join(format!("c{i}"));
+            let (lot, old, new) =
+                moved_lot(&work, &format!(r#"{{"master_share": {{"dir": @OLD}}, "lot_list": {{"page_size": {extra}}}}}"#));
+            let o = lot.run_seeds(&|_| ()).unwrap_or_else(|e| panic!("{extra}: {e}"));
+            assert_eq!(o.applied.len(), 3, "{extra}: {o:?}");
+            assert!(new.join("app_seeds.json").exists() && !old.join("app_seeds.json").exists(), "{extra}: 引っ越し先に当てる");
+            let eq: Value = serde_json::from_slice(&std::fs::read(new.join("equipment_master.json")).unwrap()).unwrap();
+            assert_eq!(eq["rows"].as_array().unwrap().len(), 5, "{extra}");
+        }
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

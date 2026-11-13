@@ -187,3 +187,96 @@ fn the_window_never_adds_a_second_record_even_beside_the_old_python() {
         }
     }
 }
+
+/// 配った設定 cfg の Lot（作業場所 work・共有 share。版 3.110.0 の作った後の直し）
+fn lot_at(work: &Path, share: &Path, cfg: &str) -> da_core::lot::Lot {
+    for d in [work.join("local"), work.join("base").join("data"), share.to_path_buf()] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    let c = work.join("config.json");
+    std::fs::write(&c, cfg.replace("@SHARE", &json!(share.to_string_lossy()).to_string())).unwrap();
+    let env = da_core::bundle::Env { base: work.join("base"), program: common::program(), local: work.join("local"), config: c, now: None };
+    let lot = da_core::lot::Lot::new(work.join("local").join("db_cache"));
+    lot.set_bundle(da_core::bundle::Builder::new(env));
+    lot
+}
+
+#[test]
+fn settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python() {
+    // 作った後の採点の割れ 2: 配った設定に NaN・Infinity・i64 を超える整数があっても、窓は置き場の材料だけで当て、終わった後の共有は
+    // Python が空の共有に当てた形（答えの元の最初の場面）と同じ
+    let base = common::work("seeds-cfg");
+    let oracle = common::python_json("seeds_oracle.py", &[base.join("oracle").to_str().unwrap()]);
+    let first = &oracle["scenarios"][0];
+    assert!(first["name"].as_str().unwrap().contains("空の共有"));
+    let mut py = first["files"].clone();
+    mask(&mut py);
+    for (i, extra) in ["NaN", "Infinity", "100000000000000000000"].iter().enumerate() {
+        let (work, share) = (base.join(format!("c{i}")), base.join(format!("c{i}-share")));
+        let lot = lot_at(&work, &share, &format!(r#"{{"master_share": {{"dir": @SHARE}}, "lot_list": {{"page_size": {extra}}}}}"#));
+        assert!(lot.own_bundle().is_some_and(|b| b.is_err()), "{extra}: 束は組めない形");
+        let o = lot.run_seeds(&|_: Duration| ()).unwrap_or_else(|e| panic!("{extra}: {e}"));
+        assert_eq!(json!(o.applied), first["applied"], "{extra}");
+        // 当てた 4 つのマスタ（共有の置き場を直に読む）
+        let mut rs: Value = Value::Object(
+            ["app_seeds", "equipment_master", "access_permissions", "conversions"]
+                .iter()
+                .map(|n| (n.to_string(), common::file_value(&std::fs::read(share.join(format!("{n}.json"))).unwrap())))
+                .collect(),
+        );
+        mask(&mut rs);
+        for name in ["app_seeds", "equipment_master", "access_permissions", "conversions"] {
+            if let Some(d) = common::diff(&py[name], &rs[name], name) {
+                panic!("{extra}: {name} が Python と違う: {d}");
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn the_seeds_win_the_lock_against_the_bundle_seeding_and_python_create_app() {
+    // 作った後の採点の割れ 3: 起動の同じ瞬間に、窓の束の種まき（Builder::inputs。warm・最初の画面・更新の係の道）と Python の create_app
+    // （起動の参照先の読み＝ path_settings の種まき）が同じ空の共有で錠を取り合っても、初期値は 5 回の待ちの中で当たり、中身は 1 つずつ・
+    // 錠は残らない
+    let base = common::work("seeds-lock");
+    for round in 0..3 {
+        let (work, share) = (base.join(format!("r{round}")), base.join(format!("r{round}-share")));
+        let lot = lot_at(&work, &share, r#"{"master_share": {"dir": @SHARE}}"#);
+        let (ready, go) = (work.join("ready-py"), work.join("go"));
+        let wait = |_: Duration| std::thread::sleep(Duration::from_millis(200));
+        let start = std::sync::Barrier::new(3);
+        let (py, seeded, _) = std::thread::scope(|s| {
+            let args: Vec<String> =
+                ["create", share.to_str().unwrap(), work.join("py").to_str().unwrap(), ready.to_str().unwrap(), go.to_str().unwrap()]
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect();
+            let hp = s.spawn(move || {
+                let a: Vec<&str> = args.iter().map(String::as_str).collect();
+                common::python_json("seeds_oracle.py", &a)
+            });
+            until(&ready);
+            let hb = s.spawn(|| {
+                start.wait();
+                lot.own_bundle()
+            });
+            let hs = s.spawn(|| {
+                start.wait();
+                lot.run_seeds(&wait)
+            });
+            start.wait();
+            std::fs::write(&go, "1").unwrap();
+            (hp.join().unwrap(), hs.join().unwrap(), hb.join().unwrap())
+        });
+        let o = seeded.unwrap_or_else(|e| panic!("r{round}: {e}"));
+        assert_eq!((o.applied.len(), o.stopped.clone()), (3, None), "r{round}: {o:?}");
+        // Python の create_app は最後まで動く（参照先の種まきが錠に当たった回は、写しで答えて次に読むときにまた置く＝前からの決まり。
+        // 置いたかは回によって違うので決め打ちしない）
+        assert!(py["seeded"].is_boolean(), "r{round}: Python の create_app が動き終えた {py}");
+        contents_once(&share, &format!("錠の取り合い r{round}"));
+        let recs = rows(&share, seeds::SEEDS_MASTER);
+        assert_eq!(recs.len(), 3, "r{round}: {recs:?}");
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}
