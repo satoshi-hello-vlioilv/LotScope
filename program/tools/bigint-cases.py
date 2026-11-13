@@ -12,6 +12,11 @@
 - next_order… 行の表示順の並び（JSON の字）→ row_order.next_order の答え
 - json      … JSON の字 → json.dumps(json.loads(字), ensure_ascii=False)（桁のまま書き戻す。画面へ返す答え〈held::reply_bytes〉と同じ字）
 - marks     … 印の字と同じ頭（NUL・J・:）で始まる利用者の字。字のまま書き戻し・str() も字・int() の誤りの文
+- content   … 版 3.109.0（H3）: 置き場の中身の字の境の数（2^63−1・2^63・10^19・2^64−1・2^64・−2^63−1・10^20）を、カードの設計の方眼・日付の列・
+               ラベル・項目の幅・ダッシュボードのパネルの w と段の数と題・セットの並び・共有の書式の並べ替えと値・すぐに見るの並び・前の版の条件の値・
+               知らない鍵に置き、Python の清め方（card_forms.clean_body・dashboard.clean_layout・clean_set_body・display_formats.clean_body・
+               pivot_presets.clean_quick・dashboard.condition_of。どれも Python の int・str() で読む）の答えを焼く。窓は src/held.rs の印の字で読み、
+               desktop/src/held.rs の content_like_the_table が同じ答えか（字は 1 字まで、値は印の字のまま比べる）
 next_id・next_order は app を使わない独立の答え（Python の int で仕様どおりに数える）
 """
 import json
@@ -68,6 +73,61 @@ def _int_err(s):
         return str(e)
 
 
+EDGES = [2 ** 63 - 1, 2 ** 63, 10 ** 19, 2 ** 64 - 1, 2 ** 64, -(2 ** 63) - 1, 10 ** 20]
+
+
+def content():
+    """中身の字の境の数（版 3.109.0）。答えは Python の清め方（app）の答え"""
+    import logging
+    if str(PROGRAM) not in sys.path:
+        sys.path.insert(0, str(PROGRAM))
+    from app.services import card_forms, dashboard, display_formats, pivot_presets
+    # 清め方の中の記録を黙らせる間だけ止め、元に戻す（試験の中で呼ばれても、後の試験の記録〈assertLogs〉を止めない）
+    level = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        return _content(card_forms, dashboard, display_formats, pivot_presets)
+    finally:
+        logging.disable(level)
+
+
+def _content(card_forms, dashboard, display_formats, pivot_presets):
+    out = []
+    for e in EDGES:
+        texts = {
+            "card": json.dumps({"cols": e, "row": e, "theme": {"radius": e}, "items": [
+                {"id": "a", "kind": "dates", "cols": [e, "b"], "label": e, "x": e, "y": 0, "w": e, "h": 1},
+                {"id": "b", "kind": "field", "col": e, "x": 0, "y": 2, "w": 2, "h": e}]}),
+            "layout": json.dumps({"rows": e, "x": e, "panels": [{"id": "a", "x": 0, "y": 0, "w": e, "h": 2, "visual": "bar", "source": "work",
+                                                                 "title": e, "top": e,
+                                                                 "body": {"rows": [{"column": "設備"}], "measures": [{"agg": "lots"}], "chartAt": e}}]}),
+            "set": json.dumps({"items": [e, "1", str(e)], "n": e}),
+            "format": json.dumps({"sorts": [{"column": e, "dir": "asc"}], "slicer": {"cards": [{"col": "a", "values": [e, "x"]}]}, "n": e}),
+            "quick": json.dumps([e, "3", " " + str(e) + " ", "b:" + str(e)]),
+            "condition": json.dumps({"filters": [{"column": "a", "op": "eq", "value": e}, {"column": e, "op": "in", "values": [e]}],
+                                     "search": e}),
+        }
+        for kind, text in texts.items():
+            try:
+                if kind == "card":
+                    want = card_forms.clean_body(text)[1]
+                elif kind == "layout":
+                    want = dashboard.clean_layout(text)[1]
+                elif kind == "set":
+                    want = dashboard.clean_set_body(text)[1]
+                elif kind == "format":
+                    want = display_formats.clean_body(text)[1]
+                elif kind == "quick":
+                    want = json.dumps(pivot_presets.clean_quick(json.loads(text)), ensure_ascii=False)
+                else:
+                    want = json.dumps(dashboard.condition_of([{"キー": "wip", "条件": text}], "wip"), ensure_ascii=False)
+                err = None
+            except Exception as x:   # noqa: BLE001 — 誤りの文も答え
+                want, err = None, str(x)
+            out.append({"kind": kind, "edge": str(e), "text": text, "want": want, "error": err})
+    return out
+
+
 def build():
     ints = [int(s) for s in INTS]
     return {
@@ -82,6 +142,7 @@ def build():
         # 印の字（窓の src/held.rs の持っている値の頭）と同じ頭で始まる利用者の字（版 3.108.0 の作った後の採点の割れ 1）: 字のまま読み・書き戻し、
         # int() は読めず、str() は字のまま
         "marks": [{"text": json.dumps({"a": m}), "want": json.dumps({"a": m}, ensure_ascii=False), "str": m, "int_err": _int_err(m)} for m in MARKS],
+        "content": content(),
     }
 
 

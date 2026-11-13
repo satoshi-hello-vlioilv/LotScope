@@ -175,6 +175,17 @@ SCENARIOS = [
     {"name": "共有のファイルの版 revision が読めない（写しで続け、書く道は断る）", "mode": "shared", "rows": ROWS, "settings": [], "rev": "abc", "steps": [],
      "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body=P("a", L(Pn())))), W(S(PART, "PUT", 3, {"name": "x"})), W(S(PART, "DELETE", 3))]},
 ]
+# 版 3.109.0（H3）: 大きな整数のファイル・中身の字も窓が桁のまま読んで答える（前は Place::split_file・row_check::wide_content で任せた。カード・ダッシュボードとセットの食い違いも消えた）
+SCENARIOS += [
+    {"name": f"置き場の{what}が i64 に入らない整数（窓も桁のまま読む）", "mode": "shared", "rows": rows, "settings": settings, "steps": [],
+      # 前の版の条件のマスタは一覧の道（GET）だけが読む（測って分かった: 書く道は窓が答える）
+      "delegates": [W(x) for x in (S(PART, "GET"), S(PART, "POST", body=P("a", L(Pn()))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), S(PART, "GET"))]}
+    for what, rows, settings in [
+        ("dashboards.json の知らない鍵", ROWS + [dict(R(20, "x", "dash", "共通", body=GOOD), x=10 ** 20)], []),
+        ("ダッシュボードの行の中身の字", ROWS + [R(20, "x", "dash", "共通", body='{"rows": 8, "panels": [], "n": 100000000000000000000}')], []),
+        ("前の版の条件のマスタの知らない鍵", ROWS, [{"id": 1, "キー": "wip", "条件": "{}", "x": 10 ** 20}]),
+        ("前の版の条件のマスタの条件の字", ROWS, [{"id": 1, "キー": "wip", "条件": '{"a": 100000000000000000000}'}]),
+        ("ダッシュボードの行のパネルの w・条件の値", ROWS + [R(20, "x", "dash", "共通", body='{"rows": 18446744073709551615, "panels": [{"id": "a", "x": 0, "y": 0, "w": 10000000000000000000, "h": 2, "visual": "bar", "source": "work", "title": 9223372036854775807, "cond": {"x": [18446744073709551616]}}]}')], [])]]
 FILE_NAME = "dashboards"
 SETTINGS = "dashboard_settings"
 

@@ -137,9 +137,6 @@ pub fn read_rows(rows: &[Value], name: &str) -> Option<(Vec<Value>, master_rows:
         Spec { name: if name == "pivot_presets" { "pivot_presets" } else { "dashboards" }, fields: &FIELDS, unique: None, renamed: &[] };
     let mut rows = rows.to_vec();
     master_rows::normalize_all(&mut rows, &spec);
-    if name != "pivot_presets" && crate::row_check::wide_content(spec.name, &rows) {
-        return None;
-    }
     let iso = crate::row_check::check(spec.name, &rows, &FIELDS);
     Some((rows, iso))
 }

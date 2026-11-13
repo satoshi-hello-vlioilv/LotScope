@@ -265,6 +265,8 @@
   // 何行目かで消せるマスタ（版 3.108.0。id で引けない行〈id が字〉・表でない行も消す道 /api/masters/rows/…。サーバーの master_repository.ROW_DELETE と同じ）
   const SKIP_ROWS = new Set(["equipment_master", "roll_master", "shift_patterns", "equipment_groups", "conversions", "display_formats", "path_settings",
     "data_sources", "work_log_files", "conversion_defaults"]);
+  // 読みでは隔てず使うマスタ（版 3.108.0。サーバーの row_check の FILTERED に無く STATUS で知らせる物）。面の言葉を分ける（版 3.109.0）
+  const READ_KEEP = new Set(["data_sources", "work_log_files"]);
   const SKIP_DEL = { equipment_master: "/api/masters/equipment", roll_master: "/api/masters/rolls", shift_patterns: "/api/masters/shifts",
     equipment_groups: "/api/masters/equipgroups", conversions: "/api/masters/conversions", display_formats: "/api/masters/formats",
     pivot_presets: "/api/pivot-presets" };
@@ -314,12 +316,16 @@
       const row = (s) => {
         const del = can && route(s);
         const why = `${TPA.skipWhat(it.file, s.source || "")}・${s.why}`;
-        return { icon: del ? "×" : "⚠", label: `${s.row} 行目 ${s.summary || ""}`.trim(), why: del ? `${why}。押すとこの行を消します（元に戻せません）` : why,
+        // 消せる行の × は確かめの窓の「× 消す」と同じ赤（版 3.109.0。前は灰の小さな字で、確かめの赤とそろわなかった）
+        return { icon: del ? "×" : "⚠", icoCls: del ? "is-del" : "", label: `${s.row} 行目 ${s.summary || ""}`.trim(), why: del ? `${why}。押すとこの行を消します（元に戻せません）` : why,
                  note: del ? `${why}。押すと消します` : "", disabled: !del, run: () => TPA.skipDelete(it, s, del) };
       };
       const items = [];
       if (it.d.unreadable) items.push({ group: "ファイル" }, { icon: "⚠", label: `${it.file}.json が読めません`, why: it.d.unreadable, disabled: true });
-      if (mine.length) items.push({ group: "この画面の行（一覧では飛ばしています）" }, ...mine.map(row));   // 何の行かは面の頭で言う
+      // データ元・実績の設備の読めない行は、版 3.108.0 から一覧・読みでは隔てず使う（直す・並べ替え・探し直しだけを止める）。ほかのマスタは一覧で飛ばす。
+      // 見出しは 1 段に短く、止めている事は面の下の小さな字で言う（版 3.109.0。前は「一覧では飛ばしています」と今の動きに合わなかった）
+      const used = READ_KEEP.has(it.file);
+      if (mine.length) items.push({ group: used ? "この画面の行（一覧・読みでは使っています）" : "この画面の行（一覧では飛ばしています）" }, ...mine.map(row));   // 何の行かは面の頭で言う
       if (others.length) items.push({ group: "ほかの画面の行" }, ...others.map(row));
       items.push({ sep: true });
       // マスタ管理の中か（中では「マスタ管理で見る」「マスタ管理で直せます」と言わない。版 3.108.0: 一般ユーザーの言葉も）
@@ -328,8 +334,9 @@
       if (!can) items.push({ icon: "ⓘ", label: "管理者（マスタを直せる人）に知らせてください", disabled: true,
         why: inMaster ? `${it.file}.json の何行目かを伝えると、管理者がこの画面で消すか、共有のフォルダのファイルを直します` : `${it.file}.json の何行目かを伝えると、マスタ管理か共有のフォルダのファイルで直せます` });
       else if (tab && window.openMasterAt && !inMaster) items.push({ icon: "›", label: "マスタ管理で見る", run: () => window.openMasterAt(tab) });
-      else if (tab) items.push({ icon: "ⓘ", label: "× の行は押すと消せます", why: rest, disabled: true });   // マスタ管理の中では「見る」を出さない
+      else if (tab) items.push({ icon: "ⓘ", lead: "×", label: " の行は押すと消せます", why: rest, disabled: true });   // マスタ管理の中では「見る」を出さない
       else items.push({ icon: "ⓘ", label: "消すか、ファイルを直してください", why: `× の行は押すと消せます。${rest}`, disabled: true });
+      if (used && mine.length) items.push({ foot: "この行に当たる直す・並べ替え・探し直しは、消すか直すまで止めています" });
       const r = btn.getBoundingClientRect();
       // 面は字を切らずに折り返し、知らせ・直し方は本文の色で出す（.tpa-skipmenu。2 回目の採点の減点 1〜3）
       TPA.menu({ x: r.left, y: r.bottom + 4, head: `${it.what}の読めない行（${it.file}.json）`, items, cls: "tpa-skipmenu" });
@@ -345,15 +352,77 @@
         return `/api/masters/rows/${file}/${s.row}?summary=${encodeURIComponent(s.summary)}&key=${encodeURIComponent(s.key)}`;
       return null;
     },
+    /** 読めない行を消す（版 3.109.0。2026-11-delegates-3109-ui.json で決めた C）: 画面の真ん中の確かめの窓で、何のマスタの何行目か・中身（要約）・
+        理由を見せてから消し、消した後は一言（中身と残りの数。帯の札の数と同じ）を出す。前は小さな面で「ファイル名の n 行目を消しますか」だけを聞き、
+        消した後は何も言わなかった */
     async skipDelete(it, s, url) {
-      let yes = false;      // 押した項目は閉じた後に走るので、閉じたときに答える（Esc・外側は「やめる」）
-      const sure = await new Promise((done) => TPA.menu({ x: innerWidth / 2 - 120, y: innerHeight / 3, head: `${it.file}.json の ${s.row} 行目を消しますか（元に戻せません）`, cls: "tpa-skipmenu",
-        items: [{ icon: "×", label: "消す", danger: true, run: () => { yes = true; } }, { icon: "", label: "やめる", run: () => {} }],
-        onClose: () => setTimeout(() => done(yes), 0) }));
+      const what = TPA.skipWhat(it.file, s.source || "");
+      const sure = await TPA.confirmBox({ title: `${what}の読めない行を消しますか`,
+        rows: [["ファイル", `${it.file}.json の ${s.row} 行目`], ["中身", s.summary || "（要約なし）"], ["理由", s.why || ""]],
+        note: `消すと元に戻せません。消さずに直すときは、共有のフォルダの ${it.file}.json を直します。`, ok: "× 消す", cancel: "やめる" });
       if (!sure) return;
       const r = await fetch(url, { method: "DELETE" }); const d = await r.json().catch(() => ({}));
       if (!r.ok) { alert(d.error || `消せませんでした（${r.status}）`); return; }
-      if (it.reload) it.reload(); else location.reload();
+      // 残りの数は帯の札と同じ数え方（今の面の元に当たる行）
+      const left = Math.max(0, (it.d.skipped || []).filter(it.hit).length - 1);
+      const msg = `✓ ${what}の ${s.row} 行目${s.summary ? `（${s.summary}）` : ""}を消しました。`;
+      const rest = left ? `読めない行は残り ${left}` : "読めない行はもうありません";
+      if (it.reload) await it.reload(); else { TPA.session.set("tpa.skipToast", [msg, rest]); location.reload(); return; }
+      TPA.toast(msg, { rest });
+    },
+    /** 真ん中の確かめの窓（版 3.109.0）: 題・項目の表（[名前, 値]）・説明・［やめる］［ok］。焦点は「やめる」（いちばん安全な方）。
+        Esc・後ろを押す・Tab で外へ出ない。→ Promise<bool>（ok を押したときだけ true） */
+    confirmBox({ title, rows = [], note = "", ok = "OK", cancel = "やめる" }) {
+      return new Promise((done) => {
+        const id = `tpaConfirm${++SKIP_SEQ}`;
+        const back = document.createElement("div");
+        back.className = "tpa-confirm-back";
+        back.innerHTML = `<div class="tpa-confirm" role="dialog" aria-modal="true" aria-labelledby="${id}"><h3 id="${id}">${TPA.esc(title)}</h3>`
+          + (rows.length ? `<dl>${rows.map(([k, v]) => `<dt>${TPA.esc(k)}</dt><dd>${TPA.esc(v)}</dd>`).join("")}</dl>` : "")
+          + (note ? `<p>${TPA.esc(note)}</p>` : "")
+          + `<div class="tpa-confirm-btns"><button type="button" class="btn-ghost" data-act="no">${TPA.esc(cancel)}</button>`
+          + `<button type="button" class="tpa-confirm-ok" data-act="ok">${TPA.esc(ok)}</button></div></div>`;
+        const before = document.activeElement;
+        const close = (yes) => { back.remove(); document.removeEventListener("keydown", key, true); before?.focus?.({ preventScroll: true }); done(yes); };
+        const key = (e) => {
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(false); return; }
+          if (e.key === "Tab") {   // 窓の中の 2 つの釦だけを回る
+            const bs = [...back.querySelectorAll("button")], i = bs.indexOf(document.activeElement);
+            e.preventDefault(); bs[(i + (e.shiftKey ? -1 : 1) + bs.length) % bs.length].focus();
+          }
+        };
+        back.addEventListener("mousedown", (e) => { if (e.target === back) { e.preventDefault(); close(false); } });
+        back.addEventListener("click", (e) => { const b = e.target.closest("button[data-act]"); if (b) close(b.dataset.act === "ok"); });
+        document.addEventListener("keydown", key, true);
+        document.body.append(back);
+        back.querySelector('[data-act="no"]').focus();
+      });
+    },
+    /** 短い知らせ（版 3.109.0。消した後の一言など）: 数秒で消え、マウスが乗っている間は消さない（role=status で読み上げにも届く）。
+        マスタ管理の中では表（か設定の面）の枠の中の下に出し、右の直す欄にまたがらない。ほかの画面では窓の下の真ん中。
+        rest は後ろに添える短い字（残りの数など）で、途中で折らない（入らなければ丸ごと次の段へ） */
+    toast(text, { rest = "", ms = 6000 } = {}) {
+      document.querySelector(".tpa-toast")?.remove();
+      const el = document.createElement("div");
+      el.className = "tpa-toast"; el.setAttribute("role", "status");
+      el.textContent = text;
+      if (rest) el.insertAdjacentHTML("beforeend", ` <span class="tpa-toast-rest">${TPA.esc(rest)}</span>`);
+      document.body.append(el);
+      const inMaster = document.querySelector("#masterOverlay:not(.hidden)");
+      const frame = inMaster && [...inMaster.querySelectorAll(".master-table-wrap, #masterSettings")].find((x) => x.offsetParent && x.getBoundingClientRect().width > 0);
+      if (frame) {
+        const r = frame.getBoundingClientRect();
+        el.classList.add("in-frame");
+        el.style.maxWidth = `${Math.max(200, r.width - 32)}px`;
+        el.style.left = `${r.left + r.width / 2}px`;
+        el.style.bottom = `${Math.max(8, innerHeight - r.bottom + 16)}px`;
+      }
+      let timer = null;
+      const start = () => { clearTimeout(timer); timer = setTimeout(() => el.remove(), ms); };
+      el.addEventListener("mouseenter", () => clearTimeout(timer));
+      el.addEventListener("mouseleave", start);
+      start();
+      return el;
     },
     $: (s, r = document) => r.querySelector(s),
     $$: (s, r = document) => [...r.querySelectorAll(s)],
@@ -542,8 +611,9 @@
       return out;
     },
     /** 右クリックのメニュー（版 3.44.0。表示列の窓・ダッシュボードで同じ形）。押した位置に出し、外側・Esc で閉じる。
-        items: [{ label, run, key?（右に添えるキーの字）, icon?（左の 1 字）, danger?, disabled?, why?（押せない理由・説明）, note?（押せる項目の下に添える説明。版 3.107.0）, on?（いま効いている印 ✓）} |
-                { group: "見出し" }（まとまりの見出し。前に線） | { sep: true }（線）]
+        items: [{ label, run, key?（右に添えるキーの字）, icon?（左の 1 字）, danger?, disabled?, why?（押せない理由・説明）, note?（押せる項目の下に添える説明。版 3.107.0）, on?（いま効いている印 ✓）,
+                  icoCls?（左の字の組。is-del は消す印の赤）, lead?（名前の頭の字。tm-lead の組で赤。版 3.109.0）} |
+                { group: "見出し" }（まとまりの見出し。前に線） | { sep: true }（線） | { foot: "説明" }（面の下の小さな字。版 3.109.0）]
         head: いちばん上の太字（何に対するメニューか）。矢印・Home・End で移り、Enter で押す。戻り値: 閉じる関数 */
     menu({ x, y, head = "", items, onClose = null, cls = "" }) {
       document.querySelector(".tpa-menu")?._close?.();
@@ -553,9 +623,10 @@
       m.innerHTML = (head ? `<p class="tm-head">${TPA.esc(head)}</p>` : "") + items.filter(Boolean).map((it) => {
         if (it.sep) return '<hr class="tm-sep">';
         if (it.group) return `<p class="tm-group">${TPA.esc(it.group)}</p>`;
+        if (it.foot) return `<p class="tm-foot">${TPA.esc(it.foot)}</p>`;   // 面の下の小さな説明（押せない。版 3.109.0）
         acts.push(it);
         return `<button type="button" role="menuitem" data-i="${acts.length - 1}" class="${it.danger ? "is-danger" : ""}${it.on ? " is-on" : ""}"${it.disabled ? " disabled" : ""}${it.why ? ` title="${TPA.esc(it.why)}"` : ""}>`
-          + `<i class="tm-ico" aria-hidden="true">${it.on ? "✓" : TPA.esc(it.icon || "")}</i><span>${TPA.esc(it.label)}${(it.disabled && it.why) || it.note ? `<small class="tm-why">${TPA.esc(it.disabled && it.why ? it.why : it.note)}</small>` : ""}</span>${it.key ? `<kbd>${TPA.esc(it.key)}</kbd>` : ""}</button>`;
+          + `<i class="tm-ico${it.icoCls ? ` ${it.icoCls}` : ""}" aria-hidden="true">${it.on ? "✓" : TPA.esc(it.icon || "")}</i><span>${it.lead ? `<b class="tm-lead">${TPA.esc(it.lead)}</b>` : ""}${TPA.esc(it.label)}${(it.disabled && it.why) || it.note ? `<small class="tm-why">${TPA.esc(it.disabled && it.why ? it.why : it.note)}</small>` : ""}</span>${it.key ? `<kbd>${TPA.esc(it.key)}</kbd>` : ""}</button>`;
       }).join("");
       document.body.append(m);
       // 下に入らなければ、押した所の上に開く（押した行をメニューで覆わない）。上にも入らなければ画面に収める
@@ -772,4 +843,10 @@
       return api;
     },
   };
+  // 消した後に頁を読み直す画面（ダッシュボード・一覧の面）でも、読み直した後に消した後の一言を出す（版 3.109.0）
+  const pendingToast = () => {
+    const m = TPA.session.get("tpa.skipToast", null);
+    if (Array.isArray(m) && m.length === 2) { TPA.session.remove("tpa.skipToast"); TPA.toast(String(m[0]), { rest: String(m[1]) }); }
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", pendingToast); else pendingToast();
 })();

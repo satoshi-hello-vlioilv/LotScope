@@ -291,6 +291,34 @@ def scenarios(work):
     # 版 3.108.0（H2）: 設備グループ・変換表のファイルの JSON の数が i64・u64 に入らない整数（束は桁のまま組む。前は節を組まなかった）
     sc("設備グループと変換表の id・表示順が u64 に入らない整数", wide_ints)
 
+    # 版 3.109.0（H3）: 束の材料のマスタに i64・u64 に入らない整数・データ元の行の値が並び（前は窓がその節を組まずに broken〈window〉にし、
+    # 一覧・作業実績・ダッシュボード・勤務体系の道を 503 で断った。Python は組む）。窓も src/held.rs の印の字で持ち、str() は repr で同じ束を組む
+    def add_row(r, fname, extra):
+        p = r / "share" / f"{fname}.json"
+        d = json.loads(p.read_text(encoding="utf-8"))
+        d["rows"] = list(d.get("rows") or []) + [extra]
+        write(p, d)
+
+    def wide_in(fname, extra):
+        return lambda r: (masters(share=r / "share"), add_row(r, fname, extra), config(r))[2]
+    for fname, extra in [("path_settings", {"id": 90, "項目": "x.big", "値": "", "n": 10 ** 20}),
+                         ("data_sources", {"id": 90, "キー": "big", "表示名": "big", "場所": "/big", "n": 10 ** 20}),
+                         ("work_log_files", {"id": 90, "キー": "wbig", "設備名": "BIG", "n": 10 ** 20}),
+                         ("equipment_master", {"id": 90, "設備名": "BIG", "n": 10 ** 20}),
+                         ("shift_patterns", {"id": 90, "名称": "BIG", "n": 10 ** 20})]:
+        sc(f"置き場の {fname}.json に i64 に入らない整数（窓も桁のまま組む）", wide_in(fname, extra))
+    for fname, extra in [("data_sources", {"id": 91, "キー": "nanx", "表示名": "x", "場所": "/x", "確かめる間隔": ["x"]}),
+                         ("work_log_files", {"id": 91, "キー": "wl", "設備名": ["X"]})]:
+        sc(f"置き場の {fname}.json の行の値が並び（窓も Python の str() で組む）", wide_in(fname, extra))
+    # 境の数（2^63−1・2^63・10^19・2^64−1・2^64・−2^63−1）を束が字にする欄へ（確かめる間隔は写しの係の秒〈i64。Python は int(float())〉なので 10^18）
+    sc("置き場の束の材料の欄に境の大きな整数（窓も桁のまま組む）", lambda r: (
+        masters(share=r / "share"),
+        add_row(r, "data_sources", {"id": 92, "キー": "edge", "表示名": 10 ** 19, "場所": "/e", "並び": 2 ** 63, "確かめる間隔": 10 ** 18}),
+        add_row(r, "work_log_files", {"id": 93, "キー": "w-edge", "設備名": 2 ** 64 - 1, "並び": -(2 ** 63) - 1}),
+        add_row(r, "equipment_master", {"id": 94, "設備名": 2 ** 64, "巻取方向": 10 ** 20}),
+        add_row(r, "shift_patterns", {"id": 95, "名称": 2 ** 64, "区分": "[]"}),
+        config(r))[5])
+
     # 窓は組まず Python に尋ねる形
     sc("配った設定に NaN", lambda r: (masters(share=r / "share"),
                                      json.dumps(config(r), ensure_ascii=False).replace('"page_size": 300', '"page_size": NaN'))[1], expect="delegate")

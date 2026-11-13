@@ -1928,10 +1928,43 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 | 束: 引っ越しの印（束を組めない設定でたどる） | 1 | settings | ③ | 上と同じ（印をたどる係は窓。束の材料が読めない形だけ尋ねる） |
 | 本文: 正規表現（長さの決まらない後読み） | 1 | conversions | ③ | Python の re が読めず窓の fancy-regex は読む。re の文法の決まりを事例の表（formula_regex_cases）に足して窓が同じ言葉で断る |
 
-数えていない残り（突き合わせの場面が無い。次に足す）: Place::split_file で今も Python に尋ねる大きな整数のファイル（束の作業実績の登録・データ元・
-参照先・設備マスタ・勤務体系、カードの設計・ダッシュボードの道〈dashboards.json〉・すぐに見る）と、中身の字の大きな整数（row_check::wide_content:
-ダッシュボード・カード・セット・すぐに見るの中身）。どれも held の読み手で読めるので、段 ① の続き（部品ごとに W の場面を足して外す）で消える。
+数えていない残り（突き合わせの場面が無かった）は、版 3.109.0 で場面を足して数え（任せる歩 50・束の止まる節 6・読む道の任せ 7）、同じ版で消した（下の節）。
 段 ②（裏の係を窓へ）で消える形は、この 17 には無い（写しの係・スケジュールの係・種まきは版 3.96.0〜3.105.0 で窓へ移した）。
+
+### 段 ① の 6 歩目: 大きな整数のファイル・中身の字も窓が読む（H3）・束の止まる節を閉じる・消す確かめの窓 — 版 3.109.0（数えていない 50 歩 → 0）
+
+案は `tools/ui-proposals/2026-11-delegates-3109.json`（版の 7 案。決まり 2026-11-06。1 位 A 61.7 点で 80 に届かず、採点の指摘 first_fixes を全部入れた形で作った）と
+`2026-11-delegates-3109-ui.json`（画面の 6 案。決まり 2026-10-17。1 位 C 81.4 点で合格。result.build_notes を入れた）。
+
+- 測った数（案出しの係。場面を答えの元に足し、窓の *_parity で窓が本当に答えない歩だけを数えた）: カード 15・ダッシュボード 14・セット 10・組み方とすぐに見る 6・
+  共有の書式 5 の計 50 歩が Python に任せる歩だった（どれも Python は 2xx）。束は任せず、6 場面で窓が節を broken（window）にして一覧・作業実績・ダッシュボード・
+  勤務体系の道を 503 で止めていた（Python は組む。参照先に 10^20 → lot_list・sources・work／データ元 → sources／実績の設備 → dash・work／設備マスタ → dash／
+  勤務体系 → shifts／データ元の行の値が並び → sources）。読む道の任せが 7 歩（/api/config・/api/sources・/api/settings・/api/update/settings）、LotDsp の道は
+  参照先・設備マスタの大きな整数で 503（コードで確かめた）。
+- 作る順は採点の指摘どおり、先に束（止まる形）を閉じ、次に中身の読み手を移した。
+- 束: `Inputs::check`・`section_broken`・`lotdsp_inputs` の split_file と HELD_OK を外し、全部のマスタを src/held.rs の印の字で読む。`bundle.rs` の `s()`・`pstr()` は
+  表・並びも Python の str()（`worksum::py_str`＝repr）で字にする（前は「字にする表・並び」で節を組まなかった）。`Inputs::check` の「データ元・実績の設備の読めない行は
+  Python に尋ねる」も外した。
+- G の逃げ道: まだ窓が Python と同じに組めない節（window: true。例: 結合の字の中の NaN）は、道を断らずに束を Python に尋ね（`Lot::settings`。印 `bundle_window`）、
+  Python も答えないときだけ 503。理由（`window_why`）は節のファイルのうち読めない行のあるファイルと何行目かを言い（前は file が空の字）、`Lot::refuse` はファイルごとに
+  1 つにまとめる（前は節ごとに同じ文を「／」で並べた）。
+- 中身の読み手: 中身の字（"{…}"）は `held::text_value` の 1 つで読む（J で読み、大きな整数は印の字。カードの設計・セット・共有の書式・組み方の段・すぐに見るの並び・
+  ダッシュボードの入れ替え）。`card_forms.rs`・`dashboards_write.rs`・`pivot_presets.rs`（すぐに見る）の split_file と `row_check::wide_content` を外し、`Place::split_file`
+  と読んだファイルの覚えの wide も外した。中身の割れの確かめは `master_rows::text_split_held`（大きな整数は割れない）。本文と送った順の木を serde から直に読んでいた
+  4 か所（dashboards_write・formats_write・dashboard の panel_of・builder の body_of）は `held::body_value`・`Tree::parse_bytes` にそろえた。
+- layout_clean: `num_str` は u64 の整数も桁の字（前は "1e+19"）・`py_str`・`py_repr` は印の字を str(int)・`s_of`・`is_in`・計算・単位・per・中身の字は印の字を字と見ない
+  （Python の isinstance(str) が偽）・`float_of` は印の字の大きな整数を float(int)。int_of・card_forms の _int は飽和の範囲で Python の min・max と同じ答えなので写し直さない
+  （事例の表で確かめる）。LotDsp の `py_str_value`・`py_float_of` も印の字を元の値で読む（設備マスタの大きな整数の設備名）。
+- 評価関数: 測った 11 場面と境の数の場面（2^63−1〜10^20）を cards・dashboards・sets・presets・formats の答えの元に W の歩で、束の 8 場面を settings_oracle に expect same で
+  足した。`bigint_cases.json` の content（42 件。Python の清め方の答え）と `held::tests::content_like_the_table`。`lot::tests` の 2 つ（大きな整数のマスタで止まらない・
+  印の字が漏れない／window の節は Python に尋ねる）。予算は 17 のまま（`delegate-count.py --check`）。
+- 画面（C）: 消す確かめは画面の真ん中の窓（`TPA.confirmBox`。題「〈何〉の読めない行を消しますか」・ファイル／中身／理由・焦点は「やめる」・Esc と後ろでやめる・Tab は窓の中）。
+  消した後は一言（`TPA.toast`。中身と「残り n」〈帯の札と同じ数〉・マスタ管理では表の枠の中の下・マウスが乗っている間は消えない。頁を読み直す画面は読み直した後に出す）。
+  面の × と「× の行は…」の × は「× 消す」と同じ赤。データ元・実績の設備の面は見出し「この画面の行（一覧・読みでは使っています）」と面の下の小さな説明。
+  `ui-eval-skiprows.mjs` の ⑧（ダッシュボード・共有の書式・組み方・マスタ管理で同じ窓）。
+- 残した物（決めた）: 束の中の中身の字（データ元の結合・設備グループのルール・変換表の欄・LotDsp の学び）の NaN・入れ子は今どおり text_split_py で節を window にする
+  （G の逃げ道で Python が組むので止まらない。印 bundle_window で数える）。写しの係の確かめる間隔は i64 の秒（Python は int(float()) で 2^63 を超える。292 億年を超える
+  間隔なので直さない）。起動の初期値（master_seeds）を窓へ移す C は次の版、束の 5 歩（D）は段 ③。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

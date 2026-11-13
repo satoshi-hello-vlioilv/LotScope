@@ -49,11 +49,11 @@ pub struct Py(pub &'static str);
 type R<T> = Result<T, Py>;
 
 // ------------------------------------------------------------------ Python の字の扱い
-/// Python の str(v).strip()（None は ""。表・並びは Python の repr と字が違うので組まない）
+/// Python の str(v).strip()（None は ""。表・並びは Python の repr の字〈['x']〉。版 3.109.0: 前は組まずに節を broken にした）。
+/// 持っている大きな整数（src/held.rs の印の字）は桁の字（worksum::py_str）
 fn s(v: Option<&Value>) -> R<String> {
     match v {
         None | Some(Value::Null) => Ok(String::new()),
-        Some(Value::Array(_) | Value::Object(_)) => Err(Py("字にする表・並び")),
         Some(x) => Ok(pyfmt::strip(&py_str(x)).to_string()),
     }
 }
@@ -133,11 +133,10 @@ fn int_of(v: Option<&Value>) -> R<PyInt> {
     }
 }
 
-/// Python の str(v or "")（空白は落とさない。表・並びは Python の repr と字が違うので組まない）
+/// Python の str(v or "")（空白は落とさない。表・並びは Python の repr の字。版 3.109.0: 前は組まなかった）
 fn pstr(v: Option<&Value>) -> R<String> {
     match v {
         x if !truthy(x) => Ok(String::new()),
-        Some(Value::Array(_) | Value::Object(_)) => Err(Py("字にする表・並び")),
         Some(x) => Ok(py_str(x)),
         None => Ok(String::new()),
     }
@@ -1568,10 +1567,6 @@ fn name_of(r: &Value, k: &str) -> R<String> {
     }
 }
 
-/// i64・u64 に入らない整数のファイルも束が読むマスタ（版 3.108.0。src/held.rs が桁のまま持ち、束の読み〈group_views・conv_views の
-/// 表示順と id は held::int_value、名前・設備は py_str〉が Python の int と同じに扱う）。ほかのマスタは今どおり Python に尋ねる
-const HELD_OK: [&str; 2] = ["equipment_groups", "conversions"];
-
 /// 束・画面・/api/config の材料（Builder::inputs）
 pub struct Inputs {
     /// 配った設定（APP_SETTINGS）
@@ -1585,20 +1580,10 @@ pub struct Inputs {
 }
 
 impl Inputs {
-    /// 窓が Python と同じに読めないマスタ（読めない字・共有にまだ無い）は組まない
+    /// 窓が Python と同じに読めないマスタ（共有にまだ無い）は組まない。版 3.109.0（H3）: i64・u64 に入らない整数のファイルも
+    /// src/held.rs の印の字で読み（前は Place::split_file で Python に尋ねた）、データ元・実績の設備の読めない行（値が並び・表）も
+    /// Python の str()（repr）で読む（前は Python に尋ねた）
     pub fn check(&self, name: &str) -> R<()> {
-        if self.p.split_file(name) && !HELD_OK.contains(&name) {
-            return Err(Py("マスタのファイルが窓の読めない字"));
-        }
-        // データ元・実績の設備の読めない行は Python が読みでは使う（版 3.108.0。隔てない）。窓はその値を同じに読めると限らないので尋ねる
-        if (name == "data_sources" || name == "work_log_files")
-            && self.p.rows_all(name).is_ok_and(|rows| {
-                // 表でない行は今どおり飛ばして読む（版 3.102.0。節の warn が言う）。見るのは表の行の読めない形だけ
-                crate::master_rows::isolated_of(name, &rows).iter().any(|(i, _, _)| rows[*i].is_object())
-            })
-        {
-            return Err(Py("データ元・実績の設備に読めない行（Python が読む）"));
-        }
         if !self.p.seed(name) {
             return Err(Py("共有にまだ無いマスタ（Python が写しから最初の版を作る）"));
         }
@@ -2058,13 +2043,8 @@ impl Builder {
     /// 作った後の採点の割れ 4: 前は黙って空の設備マスタ・配った設定に戻り、誤った理由で断った）
     pub fn lotdsp_inputs(&self) -> Result<(Value, Value, Vec<Value>), &'static str> {
         let inp = self.inputs().map_err(|_| "設定の束")?;
-        if inp.p.split_file("path_settings") {
-            return Err("参照先");
-        }
+        // 版 3.109.0（H3）: 大きな整数のファイルも読む（前は split_file で 503「参照先」「設備マスタ」。Python は答えた）
         let rows = inp.rows("path_settings").map_err(|_| "参照先")?;
-        if inp.p.split_file("equipment_master") {
-            return Err("設備マスタ");
-        }
         let equipment = inp.rows("equipment_master").map_err(|_| "設備マスタ")?;
         let eff = effective(&inp.settings, &rows, &["pathItems", "configItems"]).map_err(|_| "参照先")?;
         let app = inp.settings.get("lotdsp_import").cloned().unwrap_or(Value::Null);
@@ -2145,7 +2125,7 @@ impl Builder {
             match f() {
                 Ok(v) => v,
                 Err(e) => {
-                    broken.insert(name.into(), json!({"why": e.0, "file": "", "window": true}));
+                    broken.insert(name.into(), window_why(&inp, name, &e));
                     Value::Null
                 }
             }
@@ -2241,6 +2221,26 @@ pub const SECTIONS: [(&str, &[&str]); 6] = [
     ("conversions", &["conversions"]),
 ];
 
+/// 窓が節を Python と同じに組めなかった理由（版 3.109.0。window: true。Lot::settings は束を Python に尋ね、Python も答えないときだけ道を断る）。
+/// 前は file を空の字にし、理由も「字にする表・並び」だけでどのファイルの何行目かを言わなかった。節のファイルのうち読めない行
+/// （row_check の決まり）のあるファイルと行を言い、無ければ節のファイルを並べる
+fn window_why(inp: &Inputs, name: &str, e: &Py) -> Value {
+    let files = SECTIONS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f).unwrap_or(&[]);
+    for f in files {
+        let Ok(rows) = inp.p.rows_all(f) else { continue };
+        let iso = crate::master_rows::isolated_of(f, &rows);
+        let iso: Vec<&(usize, usize, String)> = iso.iter().filter(|(i, _, _)| rows[*i].is_object()).collect();
+        if let Some((_, _, why)) = iso.first() {
+            let shown: Vec<String> = iso.iter().take(5).map(|(_, n, _)| n.to_string()).collect();
+            let more = if iso.len() > 5 { " ほか" } else { "" };
+            return json!({"why": format!("{f}.json の {}{more} 行目を窓が Python と同じに読めません（{why}）", shown.join("・")),
+                          "file": format!("{f}.json"), "window": true});
+        }
+    }
+    let names: Vec<String> = files.iter().map(|f| format!("{f}.json")).collect();
+    json!({"why": format!("{} から窓が Python と同じに組めません（{}）", names.join("・"), e.0), "file": names.join("・"), "window": true})
+}
+
 /// 表でない行の理由の言葉（Python の master_repository.bad_rows_text と同じ）
 pub fn bad_rows_text(name: &str, bad: &[usize]) -> String {
     let shown: Vec<String> = bad.iter().take(5).map(|n| n.to_string()).collect();
@@ -2265,10 +2265,6 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
         }
         if let Some(why) = inp.p.unreadable(f) {
             return Some(json!({"why": why, "file": file}));
-        }
-        if inp.p.split_file(f) && !HELD_OK.contains(f) {
-            return Some(json!({"why": format!("{file} に窓の読めない字（NaN・Infinity・大きな数・深い入れ子・読めない版）があります"),
-                               "file": file, "window": true}));
         }
         match inp.p.rows_all(f) {
             Err(e) => return Some(json!({"why": format!("{file}: {e}"), "file": file, "window": true})),

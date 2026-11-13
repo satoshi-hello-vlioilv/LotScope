@@ -2,7 +2,10 @@
  "title": "Rust 化の版 3.109.0 で何をするか（段 ① の数えていない残り・段 ② の始め・3.108.0 で回した画面の 4 つ）の案出し（2026-11-13）",
  "rule": "2026-11-06",
  "applies_note": "画面に出ない部分（Rust 化）は決まり 2026-11-06（案の採点は 1 回だけ）。画面の部分（マスタ管理の読めない行の面）は決まり 2026-10-17 の手順 1〜7 で、案と画像は別の採点のファイル 2026-11-delegates-3109-ui.json（ui_score.py が判定できる形）に書いた。下の版の案のうち画面を含む案（B・E・F・G）は、その採点で決まった画面の案を入れる。採点はまだ（別の係がする）",
- "ui": {"file": "2026-11-delegates-3109-ui.json", "definitions": "2026-11-delegates-3109.mjs"},
+ "ui": {
+  "file": "2026-11-delegates-3109-ui.json",
+  "definitions": "2026-11-delegates-3109.mjs"
+ },
  "measured": {
   "where": "作業場所 /home/user/LotScope/.claude/worktrees/deleg-3109（ブランチ deleg-3109・版 3.108.0 の aab0ff6 から）。Linux の開発コンテナ。cargo は CARGO_TARGET_DIR=/home/user/LotScope/desktop/target",
   "now": "python program/tools/delegate-count.py 作業フォルダ --check → 計 17（OS 6・engine=python 5・束 5・本文 1）・『予算と同じです』。3.108.0 の節の表と同じ",
@@ -14,34 +17,238 @@
   "stage2": "段 ②（裏の係を窓へ）で残る物をコードで洗い出した: (1) 起動の初期値 master_seeds（app/boot.py が起動のたびに裏の糸で走らせる。3 つの初期値〈2026-09-29 検査計・最初の管理者、2026-10-23 釜番日付の変換表〉を共有のマスタに 1 回だけ当て、app_seeds に記録。窓には無い〈master_store.rs は app_seeds を共有するマスタの名前として知るだけ〉。Python 103 行・試験 107 行）、(2) 束を Python に尋ねる道 GET /api/lotlist/settings（main.rs の lot_settings。窓が束を組めない〈bundle_inputs〉・種をまけなかった〈bundle_seed〉ときだけ。画面からは呼ばない）、(3) 更新の置き場の設定を尋ねる道（update_settings。窓が同じ字にできない形だけ）と画面の読みの任せ（page）。ほかの裏の糸（品質の写し・作業実績の写し・心拍・スケジュール・LotDsp の見張り・配布とマスタの置き場の写す係）は版 3.60.0〜3.105.0 で窓が名乗り（sidecar.rs の SERVES）、Python は受け身・動かない。Python が受け身のまま残すのは、配った設定で engine を python にした形・スケジュールの係を降りた形（https・プロキシ・窓の持たない charset）で、段 ③・④ の話",
   "delegate_kinds_in_window": "窓が Python に任せた回数を数える印（delegate::note）は 5 種: bundle_inputs・bundle_seed・settings_refused・update_settings・page。段 ① で窓が任せる歩は、ほかに道ごとの None（Python へ回す）がある"
  },
- "evaluator": "",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で流した数と読んだコードで採点した（画面の 4 つは別のファイル 2026-11-delegates-3109-ui.json の採点で決まるので、ここでは Rust 化の部分だけを比べた）。流した物: git worktree add scratchpad/score-3109 4b9a5e3 に oracle-scenes.patch を当て、(1) python program/tools/delegate-count.py → 計 74（置き場の字 50・束 12〈うち 7 は束の 7 場面の expect が既定の delegate のままのため。案の係は broken で数えて 67〉・OS 6・engine=python 5・本文 1）。足した 50 歩はどれも『i64 に入らない整数』で Python は 2xx 50＝主張 1 は正しい。(2) TPA_MEASURE で 7 場面を expect same にして cargo test --test bundle_parity → 6 場面で Python の broken は None・窓は window: true の節（path_settings→lot_list・sources・work／data_sources→sources／work_log_files→dash／equipment_master→dash／shift_patterns→shifts／data_sources の行の並び→sources〈file が空の字『字にする表・並び』〉）＝主張 2 は正しい。(3) 同じく page_parity → 窓が答えず Python に任せる読み 7 歩（/api/config・/api/sources ×4・/api/settings・/api/update/settings）＝主張 3 は正しい。(4) 一時の試験を lot.rs に足し、本物の道（Lot::handle・handle_body）で再現: 手元の shift_patterns.json の 2 行目の知らない鍵 n に 10^20 → GET /api/worklog が 503 kind settings broken [shifts]／path_settings.json に 10^20 → GET /api/worklog 503 [work, sources]・GET /api/lotlist 503 [lot_list, sources]・POST /api/lots/fetch-lotdsp-api 503『LotDsp の設定・設備マスタを読めません（参照先）』（主張 4 も正しい）。どれも Python へは尋ねない（asked 0）。(5) 一時の試験で layout_clean::clean_layout に条件の値 10^19（u64 に入り i64 に入らない）を渡すと value が \"1e+19\"（Python の str() は \"10000000000000000000\"）。今は dashboards_write が unreadable（split_number）で u64 の範囲も任せるので表に出ないが、案 A が中身を held::body_value で読むと出る割れ。(6) 主張 5 は app/boot.py・services/master_seeds.py（103 行）・sidecar.rs の SERVES（10 の係）・delegate::note の 5 種を読んで確かめた。一時の作業場所・試験・試験の実行ファイル・/tmp の作業フォルダは消した。deleg-3109 の作業場所で変えたのはこのファイルだけ",
  "rounds": [
-  {"name": "1 回目",
+  {
+   "name": "1 回目",
    "images": "画面に出ない部分は画像なし（測った数とコード）。画面の部分の画像は 2026-11-delegates-3109-ui.json の images",
    "self_check": "案を作った者が自分で確かめたこと: (1) delegate-count.py を場面を足す前（17・予算と同じ）と後（67）で流した。(2) 足した場面ごとに、窓が本当に答えないかを窓の突き合わせの試験で確かめた（cards・dashboards・sets・presets・formats の各 *_parity を流し、最初に dashboards の前の版の条件のマスタの書く道 3 歩・presets の組み方の書く道 2 歩を窓が答えると分かったので、その歩を W() に移して流し直し、5 本とも test result: ok）。(3) 束は expect same → bundle_parity が 6 場面で broken の節を出す（組んだ節の名前を全部出させ、expect を broken:… に直して ok）・page_parity を same で流して任せる読み 7 歩・broken で流して ok。(4) 段 ② の残りは app/boot.py・services/master_seeds.py・desktop/src/sidecar.rs の SERVES・main.rs の Python へ尋ねる所・delegate::note の印を読んで洗い出した。測るために足した場面と予算は commit せず、作業場所から戻した（差分は scratchpad の oracle-scenes.patch）",
    "proposals": {
     "A 大きな整数を全部の読み手で持つ（H3。数えていない残りを数えて消す）": {
-     "text": "方向: 持ち方をそろえる（3.108.0 の H2 の続き）。変える所: Place::split_file と row_check::wide_content を外し、残る読み手を src/held.rs の 1 つに寄せる。中身の字を serde で読む所 8 か所（card_forms.rs 127・161・341、dash_sets.rs 74・160、formats_write.rs 117・130・269、dashboards_write.rs 162・221〜222）を held::body_value（pivot_presets::body_json の形）に替え、束の HELD_OK を外して全部のマスタを held で組む（Inputs::check・section_broken・lotdsp_inputs の split_file も）。測った場面 11（cards 3・dashboards 4・sets 2・presets 2・formats 1）と束の 7 場面を答えの元に足し、歩を W() で窓が答える歩へ。減る見込み: 足して数える 50 歩 → 0（予算 67 → 17）・束の 6 場面の broken（一覧・作業実績・ダッシュボード・勤務体系の道の 503）→ Python と同じ束・読む 7 歩 → 窓が答える・LotDsp の 503 → 答える。数える 17 は変わらない。危うさ: 中身の数を数として使う所（ダッシュボードのパネルの x・y・w・h・rows、カードの方眼の数、セットの並び）に大きな整数が来たときの Python の int の動き（min・max・range・比べ方）を held の PyInt で写す要（layout_clean::clean_panel は i64 で読む）。知らない鍵のまま持つ所は H2 と同じで割れにくいが、数として使う所は 1 つずつ確かめる。試験: 測った場面を各 *_oracle.py に足す（W の歩）・bigint_cases.json に『中身の字の中の大きな整数』の節（知らない鍵・パネルの w・方眼の数・並びの id。Python の int で焼いた独立の答え: 読み → 書き戻した字が同じ・数として使う所の結果）・束は settings_oracle の 7 場面を expect same に。作る量: Rust 250〜450 行（中身の読み手 8 か所・束の HELD_OK と split_file の 5 か所・clean_panel の大きな整数）、Python 0 行（Python は既に読む）、答えの元に約 60 行。1 版"
+     "text": "方向: 持ち方をそろえる（3.108.0 の H2 の続き）。変える所: Place::split_file と row_check::wide_content を外し、残る読み手を src/held.rs の 1 つに寄せる。中身の字を serde で読む所 8 か所（card_forms.rs 127・161・341、dash_sets.rs 74・160、formats_write.rs 117・130・269、dashboards_write.rs 162・221〜222）を held::body_value（pivot_presets::body_json の形）に替え、束の HELD_OK を外して全部のマスタを held で組む（Inputs::check・section_broken・lotdsp_inputs の split_file も）。測った場面 11（cards 3・dashboards 4・sets 2・presets 2・formats 1）と束の 7 場面を答えの元に足し、歩を W() で窓が答える歩へ。減る見込み: 足して数える 50 歩 → 0（予算 67 → 17）・束の 6 場面の broken（一覧・作業実績・ダッシュボード・勤務体系の道の 503）→ Python と同じ束・読む 7 歩 → 窓が答える・LotDsp の 503 → 答える。数える 17 は変わらない。危うさ: 中身の数を数として使う所（ダッシュボードのパネルの x・y・w・h・rows、カードの方眼の数、セットの並び）に大きな整数が来たときの Python の int の動き（min・max・range・比べ方）を held の PyInt で写す要（layout_clean::clean_panel は i64 で読む）。知らない鍵のまま持つ所は H2 と同じで割れにくいが、数として使う所は 1 つずつ確かめる。試験: 測った場面を各 *_oracle.py に足す（W の歩）・bigint_cases.json に『中身の字の中の大きな整数』の節（知らない鍵・パネルの w・方眼の数・並びの id。Python の int で焼いた独立の答え: 読み → 書き戻した字が同じ・数として使う所の結果）・束は settings_oracle の 7 場面を expect same に。作る量: Rust 250〜450 行（中身の読み手 8 か所・束の HELD_OK と split_file の 5 か所・clean_panel の大きな整数）、Python 0 行（Python は既に読む）、答えの元に約 60 行。1 版",
+     "score": {
+      "order": 7,
+      "chunk": 7,
+      "hierarchy": 8,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "bundle.rs の s()・pstr()（56・140 行）: data_sources の行の確かめる間隔が並び → sources の節を組まず 503（一覧・作業実績・ダッシュボード・データ元の道）。案の変える所（split_file・HELD_OK）では消えない。bundle_parity の『data_sources.json に読めない行』の場面で採点者が確かめた"
+      }
+     ],
+     "seen": "数えた 50 歩（cards 15・dashboards 14・sets 10・presets 6・formats 5）を 0 にし、束の大きな整数の 5 場面・読む 7 歩・LotDsp の 503 を塞ぐ唯一の案。持ち方を src/held.rs の 1 つに寄せる向きは 3.107.0・3.108.0 と同じで統一感が高い。割れ・足りない所: (1) 束の 6 場面のうち『data_sources の行の確かめる間隔が並び』は大きな整数ではなく、bundle.rs の s()・pstr() が並び・表を『字にする表・並び』で断る所なので、split_file と HELD_OK を外しても残る（減点）。(2) 危うさの見立てがずれている: パネルの x・y・w・h・rows・カードの方眼は layout_clean::int_of・card_forms::_int が i128 の飽和で読んで範囲に収めるので、10^20 でも Python の min・max と同じ答え（写す要は小さい）。本当に割れるのは str()・isinstance(str)・== の所: layout_clean の num_str は u64 の範囲の整数を float_repr で \"1e+19\" にする（採点者が確かめた）、s_of・is_in・py_str・truthy は印の字（held::mark）を字として扱う、カードの日付の列 str(c)[:200]・ラベル。(3) 束の材料を held で組むと、印の字が束の lists に入り、窓の中の読み手（dashboard::equipment_seen・worksum・shifts・lists.rs）と答えに漏れうる。(4) 量 250〜450 行は少ない見込み（layout_clean 1,293 行の字の扱いの洗い直し・束の読み手・答えの元の 18 場面で 450〜750 行）。(5) 窓がまだ同じに読めない形（window: true）が残ったときの逃げ道を持たない（3.102.0 から、窓が読めない節は Python が読めても 503 になる）"
     },
     "B A ＋ 画面の 4 つ（3.108.0 で回した提案）": {
-     "text": "方向: A に、3.108.0 の画面の採点で次の版に回した 4 つ（消す確かめに行の中身・消した後の一言・× の色・データ元と実績の設備の面の言葉）を足す。画面の形は 2026-11-delegates-3109-ui.json の採点（決まり 2026-10-17・別の係）で決めた案。減る見込み: A と同じ（数える 50 → 0・束の 6 節・読む 7 歩）。危うさ: A の危うさに、画面の言葉と確かめの面の形を shared.js の 1 か所（openSkip・skipDelete）で替える分が乗る。データ元・実績の設備の面の言葉は、窓が A で束を Python に任せなくなった後の動き（読みでは使う・この行に当たる直す・並べ替え・探し直しは止める）と合わせる。試験: A の試験に、ui-eval-skiprows.mjs の段を足す（確かめの面に何のマスタ・何行目・要約・理由が出る・消した直後に一言が role=status で出て数が合う・× の色がコントラスト 4.5 以上で確かめの『消す』と同じ色・データ元の面の言葉・3 つの大きさで 1 段・はみ出さない）。作る量: A ＋ JS 60〜120 行（案による）・CSS 10〜30 行・評価関数 80 行。1 版"
+     "text": "方向: A に、3.108.0 の画面の採点で次の版に回した 4 つ（消す確かめに行の中身・消した後の一言・× の色・データ元と実績の設備の面の言葉）を足す。画面の形は 2026-11-delegates-3109-ui.json の採点（決まり 2026-10-17・別の係）で決めた案。減る見込み: A と同じ（数える 50 → 0・束の 6 節・読む 7 歩）。危うさ: A の危うさに、画面の言葉と確かめの面の形を shared.js の 1 か所（openSkip・skipDelete）で替える分が乗る。データ元・実績の設備の面の言葉は、窓が A で束を Python に任せなくなった後の動き（読みでは使う・この行に当たる直す・並べ替え・探し直しは止める）と合わせる。試験: A の試験に、ui-eval-skiprows.mjs の段を足す（確かめの面に何のマスタ・何行目・要約・理由が出る・消した直後に一言が role=status で出て数が合う・× の色がコントラスト 4.5 以上で確かめの『消す』と同じ色・データ元の面の言葉・3 つの大きさで 1 段・はみ出さない）。作る量: A ＋ JS 60〜120 行（案による）・CSS 10〜30 行・評価関数 80 行。1 版",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 4,
+      "effortless": 5,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 5,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "bundle.rs の s()・pstr()（56・140 行）: data_sources の行の確かめる間隔が並び → sources の節を組まず 503（一覧・作業実績・ダッシュボード・データ元の道）。案の変える所（split_file・HELD_OK）では消えない。bundle_parity の『data_sources.json に読めない行』の場面で採点者が確かめた"
+      }
+     ],
+     "seen": "Rust 化の部分は A と同じ（同じ割れ・同じ減点）。画面の 4 つは別のファイルの採点で形が決まる物で、A の量の見込みが既に少ないところに JS 60〜120 行・評価関数 80 行が乗り、1 版の中で主の狙い（機能が止まる形を消す）と従（言葉・色）が並ぶ。データ元・実績の設備の面の言葉を『A の後の動き』に合わせると書くが、A の (1) の並びの行が残るとその言葉が実際とずれる"
     },
     "C 段 ② の始め: 起動の初期値（master_seeds）を窓へ": {
-     "text": "方向: 裏の係を窓へ（段 ②）。変える所: 起動の初期値の係を窓の 1 つにする（sidecar.rs の SERVES に seeds を名乗り、Python の boot.start は名乗られたら master_seeds を走らせない）。窓は起動の裏で app_seeds を読み、まだの初期値（検査計の 5 設備・最初の管理者・釜番日付の変換表〈同梱の master_defaults/conversions.json から〉）を Store::write で当て、当てたら app_seeds に書く。錠に当たったら 1 秒おきに 5 回まで（Python の LOCKED_TRIES と同じ）・共有に届かなければ次の起動へ。減る見込み: 数える任せる歩は変わらない（0）。Python だけが持つ裏の係が 1 → 0（段 ④ で Python を外す前に要る）。危うさ: 前の版の PC（Python が当てる）と新しい版の窓が同時に当てる（どちらも錠の中で app_seeds と中身を見直すので 2 回当てない形にする）・『当てる中身もまだ決まっていないときだけ』の比べ方（normalize_part・空の検査計・id と表示順の次の数〈H2 の next_id・next_order〉）を写す・Python が居ない起動でも当たる。試験: seeds_oracle.py（場面: 共有が空・app_seeds が一部・人が直した後・錠・届かない・2 つのプロセス〈窓と Python〉が同時）で Python と窓の終わった後のファイルを突き合わせる・仕様から人が書いた事例の表 seeds_cases.json（3 つの初期値の当て方。独立の答え）・tests/test_master_seeds.py に名乗りの試験。作る量: Rust 200〜300 行・Python 10 行・答えの元 150 行。1 版"
+     "text": "方向: 裏の係を窓へ（段 ②）。変える所: 起動の初期値の係を窓の 1 つにする（sidecar.rs の SERVES に seeds を名乗り、Python の boot.start は名乗られたら master_seeds を走らせない）。窓は起動の裏で app_seeds を読み、まだの初期値（検査計の 5 設備・最初の管理者・釜番日付の変換表〈同梱の master_defaults/conversions.json から〉）を Store::write で当て、当てたら app_seeds に書く。錠に当たったら 1 秒おきに 5 回まで（Python の LOCKED_TRIES と同じ）・共有に届かなければ次の起動へ。減る見込み: 数える任せる歩は変わらない（0）。Python だけが持つ裏の係が 1 → 0（段 ④ で Python を外す前に要る）。危うさ: 前の版の PC（Python が当てる）と新しい版の窓が同時に当てる（どちらも錠の中で app_seeds と中身を見直すので 2 回当てない形にする）・『当てる中身もまだ決まっていないときだけ』の比べ方（normalize_part・空の検査計・id と表示順の次の数〈H2 の next_id・next_order〉）を写す・Python が居ない起動でも当たる。試験: seeds_oracle.py（場面: 共有が空・app_seeds が一部・人が直した後・錠・届かない・2 つのプロセス〈窓と Python〉が同時）で Python と窓の終わった後のファイルを突き合わせる・仕様から人が書いた事例の表 seeds_cases.json（3 つの初期値の当て方。独立の答え）・tests/test_master_seeds.py に名乗りの試験。作る量: Rust 200〜300 行・Python 10 行・答えの元 150 行。1 版",
+     "score": {
+      "order": 5,
+      "chunk": 8,
+      "hierarchy": 7,
+      "visual": 5,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 7,
+      "form": 7,
+      "place": 8,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "束の 6 場面: 共有のマスタの知らない鍵に 10^20 が 1 つ → 窓では GET /api/worklog・/api/lotlist が 503 kind settings（lot.rs の一時の試験で再現・Python は組む）。この案は塞がない"
+      },
+      {
+       "kind": "lost",
+       "where": "bundle.rs の lotdsp_inputs（2061・2065 行の split_file）: path_settings に 10^20 → POST /api/lots/fetch-lotdsp-api が 503『（参照先）』（一時の試験で再現）。この案は塞がない"
+      }
+     ],
+     "seen": "master_seeds（103 行・3 つの初期値・app_seeds の記録・錠のやり直し 5 回）を読んだ。どの初期値も『まだ決まっていないときだけ』なので 2 回当てても中身は同じで、前の版の Python と窓が同時に当てても壊れにくい（危うさの見立ては妥当）。ただし Python は中身と app_seeds を別々の write で書くので、窓も同じ 2 段でよく、『錠の中で両方を見直す』を作り込む要は無い。数える任せる歩は動かず、いま機能が止まる 6 節と LotDsp の 503 を残したまま段 ② へ進む順になる（減点 2）。段 ④ で Python を外すには要る仕事なので、A の後の版に回すのがよい"
     },
     "D 束の 5 歩を事例の表で窓が組む（段 ③ の前倒し）": {
-     "text": "方向: 断る形を決めて写す（3.102.0 の broken の続き）。変える所: 数える 17 のうち束の 5 歩（配った設定に NaN・段が字・表でない・更新の段が null・束を組めない設定での引っ越しの印）を、配った設定を J で読み、Python が落ちる・読む形を事例の表 tests/fixtures/settings_cases.json に決めて窓が組む（落ちる形は broken の節と理由、読む形は Python と同じ束）。これで窓が束を Python に尋ねる道（bundle_inputs）は種まきの失敗だけになる。減る見込み: 数える 17 → 12。危うさ: Python が落ちる形（500）を正しい答えとして写さず、断る言葉を決める要（何を正しい答えにするかを決めてから）・配った設定は全員に同じなので、1 つの誤りが全部の PC に出る。試験: settings_cases.json（仕様から人が書く。独立の答え）・bundle_parity の 5 場面を expect same／broken に・page_parity。作る量: Rust 150〜250 行・Python 30 行（落ちる形を直す）・表 40 件。1 版"
+     "text": "方向: 断る形を決めて写す（3.102.0 の broken の続き）。変える所: 数える 17 のうち束の 5 歩（配った設定に NaN・段が字・表でない・更新の段が null・束を組めない設定での引っ越しの印）を、配った設定を J で読み、Python が落ちる・読む形を事例の表 tests/fixtures/settings_cases.json に決めて窓が組む（落ちる形は broken の節と理由、読む形は Python と同じ束）。これで窓が束を Python に尋ねる道（bundle_inputs）は種まきの失敗だけになる。減る見込み: 数える 17 → 12。危うさ: Python が落ちる形（500）を正しい答えとして写さず、断る言葉を決める要（何を正しい答えにするかを決めてから）・配った設定は全員に同じなので、1 つの誤りが全部の PC に出る。試験: settings_cases.json（仕様から人が書く。独立の答え）・bundle_parity の 5 場面を expect same／broken に・page_parity。作る量: Rust 150〜250 行・Python 30 行（落ちる形を直す）・表 40 件。1 版",
+     "score": {
+      "order": 5,
+      "chunk": 7,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 7,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 6,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "束の 6 場面: 共有のマスタの知らない鍵に 10^20 が 1 つ → 窓では GET /api/worklog・/api/lotlist が 503 kind settings（lot.rs の一時の試験で再現・Python は組む）。この案は塞がない"
+      },
+      {
+       "kind": "lost",
+       "where": "bundle.rs の lotdsp_inputs（2061・2065 行の split_file）: path_settings に 10^20 → POST /api/lots/fetch-lotdsp-api が 503『（参照先）』（一時の試験で再現）。この案は塞がない"
+      }
+     ],
+     "seen": "数える 17 のうち束の 5 歩（配った設定の NaN など）を 12 にする案。配った設定は人が手で直した時にしか崩れず、いま 5 歩は Python が組むので止まってはいない。Python が 500 で落ちる形の『正しい答え』を決めてから写す要があり、決めを誤ると全部の PC に出る（危うさの見立ては正しい）。止まる 6 節と LotDsp は残る（減点 2）"
     },
     "E 数えて知らせるだけ（場面と予算を足し、束の 6 節は画面で知らせる）＋ 画面の 4 つ": {
-     "text": "方向: 減らさずに数える（見える化）。変える所: 測った 11 場面と束の 7 場面をそのまま答えの元に足し、予算を 17 → 67 に上げる（数えていない残りを数える形にする）。束の 6 節の broken は今の帯の知らせ（503 kind settings の言葉）に『大きな数（〈ファイル〉の n 行目）』を足す。画面の 4 つを入れる。減る見込み: 0（数えるだけ。予算は 50 増える）。危うさ: 機能が止まる形（6 節）を残したまま版を出す・予算を上げるのは『新しく任せる歩を足すときは理由を書く』の逆向き。試験: 足した場面・ui-eval-skiprows.mjs の段。作る量: 答えの元 60 行・JS 60〜120 行。半版"
+     "text": "方向: 減らさずに数える（見える化）。変える所: 測った 11 場面と束の 7 場面をそのまま答えの元に足し、予算を 17 → 67 に上げる（数えていない残りを数える形にする）。束の 6 節の broken は今の帯の知らせ（503 kind settings の言葉）に『大きな数（〈ファイル〉の n 行目）』を足す。画面の 4 つを入れる。減る見込み: 0（数えるだけ。予算は 50 増える）。危うさ: 機能が止まる形（6 節）を残したまま版を出す・予算を上げるのは『新しく任せる歩を足すときは理由を書く』の逆向き。試験: 足した場面・ui-eval-skiprows.mjs の段。作る量: 答えの元 60 行・JS 60〜120 行。半版",
+     "score": {
+      "order": 4,
+      "chunk": 6,
+      "hierarchy": 4,
+      "visual": 8,
+      "steps": 9,
+      "effortless": 3,
+      "intuitive": 4,
+      "form": 5,
+      "place": 5,
+      "layout": 4,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "束の 6 場面: 共有のマスタの知らない鍵に 10^20 が 1 つ → 窓では GET /api/worklog・/api/lotlist が 503 kind settings（lot.rs の一時の試験で再現・Python は組む）。この案は塞がない"
+      },
+      {
+       "kind": "lost",
+       "where": "bundle.rs の lotdsp_inputs（2061・2065 行の split_file）: path_settings に 10^20 → POST /api/lots/fetch-lotdsp-api が 503『（参照先）』（一時の試験で再現）。この案は塞がない"
+      }
+     ],
+     "seen": "数えていない 50 歩を数える形にするだけで、予算を 17 → 67 に上げる（予算は下げる向きの決まりの逆）。止まる 6 節は帯の言葉を足すだけで止まったまま（減点 2）。いまの 503 の言葉は同じファイルの理由を節の数だけ『／』で並べ（path_settings なら同じ文が 2 回）、何行目かも言わないので、知らせを直すだけでも価値はあるが、それは A・G の中でも直せる"
     },
     "F A ＋ C ＋ 画面の 4 つ（段 ① を閉じて段 ② に入る）": {
-     "text": "方向: 組み合わせ（段 ① の数えていない残りを閉じ、段 ② の最初の係を移す）。減る見込み: A の全部（数える 50 → 0・束の 6 節・読む 7 歩・LotDsp）＋ C（Python だけの裏の係 1 → 0）＋ 画面。危うさ: A と C の危うさの和・量が 1 版に収まらない見込み（Rust 450〜750 行）。2 版に分ける（3.109.0 に A ＋ 画面、3.110.0 に C）のが現実的。試験: A・B・C の試験の和。作る量: Rust 450〜750 行・JS 60〜120 行・答えの元 210 行。2 版"
+     "text": "方向: 組み合わせ（段 ① の数えていない残りを閉じ、段 ② の最初の係を移す）。減る見込み: A の全部（数える 50 → 0・束の 6 節・読む 7 歩・LotDsp）＋ C（Python だけの裏の係 1 → 0）＋ 画面。危うさ: A と C の危うさの和・量が 1 版に収まらない見込み（Rust 450〜750 行）。2 版に分ける（3.109.0 に A ＋ 画面、3.110.0 に C）のが現実的。試験: A・B・C の試験の和。作る量: Rust 450〜750 行・JS 60〜120 行・答えの元 210 行。2 版",
+     "score": {
+      "order": 7,
+      "chunk": 5,
+      "hierarchy": 5,
+      "visual": 8,
+      "steps": 3,
+      "effortless": 4,
+      "intuitive": 8,
+      "form": 9,
+      "place": 9,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "bundle.rs の s()・pstr()（56・140 行）: data_sources の行の確かめる間隔が並び → sources の節を組まず 503（一覧・作業実績・ダッシュボード・データ元の道）。案の変える所（split_file・HELD_OK）では消えない。bundle_parity の『data_sources.json に読めない行』の場面で採点者が確かめた"
+      }
+     ],
+     "seen": "A と C の和で、案の係も『1 版に収まらない・2 版に分ける』と書く。A の量が既に少ない見込みなので、F は実際は 3.109.0 に A、3.110.0 に C の計画と同じで、1 つの案としての中身は A と同じ。A の割れ (1)〜(5) をそのまま持つ"
     },
     "G 応急: 束の節を組めないときは Python に尋ねる（止めない）＋ 画面の 4 つ": {
-     "text": "方向: 安全側に倒す（いま止まる所だけを先に直す）。変える所: section_broken の window: true（窓が Python と同じに読めない字）の節は、窓が断らずに束を Python に尋ねる（Lot::settings の bundle_inputs と同じ形。Python は組める）。カード・ダッシュボードなどの 50 歩は今どおり任せたまま、場面だけを答えの元に足して数える。画面の 4 つを入れる。減る見込み: 数える歩は 17 → 73（50 ＋ 束の 6 場面が任せる歩として数えられる）。機能が止まる 6 節 → 0（Python に任せるので答える）。危うさ: 任せる歩が増える向き（段 ① の狙いの逆）・Python が起きていない間（起動の直後）は束が組めず待たせる・A を作れば外す応急の部品になる。試験: bundle_parity の 6 場面を expect delegate に・lot::tests に『大きな数のマスタで一覧が 503 にならない』・ui-eval-skiprows.mjs の段。作る量: Rust 20〜40 行・答えの元 60 行・JS 60〜120 行。半版"
+     "text": "方向: 安全側に倒す（いま止まる所だけを先に直す）。変える所: section_broken の window: true（窓が Python と同じに読めない字）の節は、窓が断らずに束を Python に尋ねる（Lot::settings の bundle_inputs と同じ形。Python は組める）。カード・ダッシュボードなどの 50 歩は今どおり任せたまま、場面だけを答えの元に足して数える。画面の 4 つを入れる。減る見込み: 数える歩は 17 → 73（50 ＋ 束の 6 場面が任せる歩として数えられる）。機能が止まる 6 節 → 0（Python に任せるので答える）。危うさ: 任せる歩が増える向き（段 ① の狙いの逆）・Python が起きていない間（起動の直後）は束が組めず待たせる・A を作れば外す応急の部品になる。試験: bundle_parity の 6 場面を expect delegate に・lot::tests に『大きな数のマスタで一覧が 503 にならない』・ui-eval-skiprows.mjs の段。作る量: Rust 20〜40 行・答えの元 60 行・JS 60〜120 行。半版",
+     "score": {
+      "order": 8,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 9,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 5,
+      "place": 5,
+      "layout": 7,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "bundle.rs の lotdsp_inputs（2061・2065 行の split_file）: path_settings に 10^20 → POST /api/lots/fetch-lotdsp-api が 503『（参照先）』（一時の試験で再現）。この案は塞がない"
+      }
+     ],
+     "seen": "section_broken の window: true の節で Python に尋ねる形は 20〜40 行で、data_sources の並びの行も含めて 6 節すべてで道を止めない（A が取りこぼす 1 場面も塞ぐ）。3.102.0 より前の『読めなければ束を Python に尋ねる』へ、window: true の節だけ戻す形。ただし LotDsp の lotdsp_inputs の split_file は別の所なので、書いたとおりでは 503 が残る（減点）。任せる歩が 17 → 73 に増え（段 ① の向きの逆）、カード・ダッシュボードなどの 50 歩は任せたまま。Python が起きる前は束を待たせる。単独で出す案ではなく、A の中に『窓がまだ同じに読めない形が残ったときの逃げ道』として入れると最も効く"
     }
    }
   }
- ]
+ ],
+ "evaluation": {
+  "verified_claims": [
+   "主張 1 は正しい: 足した 50 歩はどれも『置き場の字: i64 に入らない整数』で Python の答えは 2xx 50。delegate-count.py は束の 7 場面を expect delegate の既定で数えると 74、案の係のように broken で数えると 67",
+   "主張 2 は正しい: bundle_parity を expect same で流すと 6 場面で Python の broken は None・窓は window: true。本物の道で GET /api/worklog・/api/lotlist が 503 kind settings（lot.rs の一時の試験）。work_log_files の行の設備名が並びの場面は窓も同じ束（same）",
+   "主張 3 は正しい: page_parity を same で流すと窓が答えない読み 7 歩（Python は 200）",
+   "主張 4 は正しい: path_settings に 10^20 → POST /api/lots/fetch-lotdsp-api が 503『LotDsp の設定・設備マスタを読めません（参照先）。』",
+   "主張 5 は正しい: Python だけの裏の糸で窓が名乗っていないのは master_seeds（boot.py 35 行）だけ。窓が Python に尋ねる印は bundle_inputs・bundle_seed・settings_refused・update_settings・page の 5 種",
+   "足して見つけた: 6 節のうち data_sources の並びの行は大きな整数ではなく bundle.rs の s()・pstr() が断る形で、broken の file が空の字・why が『字にする表・並び』（どのファイルの何行目かを言わない）",
+   "足して見つけた: 503 の言葉は節ごとに同じ理由を『／』で並べる（path_settings なら同じ文が 2 回）",
+   "足して見つけた: layout_clean::num_str は u64 に入り i64 に入らない整数を \"1e+19\" にする（Python の str() は桁）。今は dashboards_write の unreadable が任せるので表に出ない"
+  ],
+  "rank": "1 位 A（61.7）。2 位 B（58.2。Rust 化の部分は A と同じで、画面の 4 つを足した分だけ量と散らばりが増える）・3 位 G（55.1）。どれも合格点 80 に届かないが、決まり 2026-11-06 により案出しをやり直さず、A に下の指摘を入れた形（G の逃げ道を含む）で作る。画面の 4 つを同じ版に入れるかは 2026-11-delegates-3109-ui.json の判定による",
+  "first_fixes": [
+   "順: 先に束（機能が止まる形）を閉じ、次に中身の読み手（数えた 50 歩）を移す。版に収まらなければ束の側だけで 3.109.0 を出す",
+   "G の逃げ道を A に入れる: 束の節が window: true（窓がまだ同じに読めない字）なら 503 で断らず、Python が答えるときは束を Python に尋ね（delegate::note は bundle_inputs と別の印 bundle_window にして数える）、Python も答えないときだけ 503。A の後に window: true が 0 になったことを bundle_parity と delegate-count.py で確かめ、予算に入れる",
+   "data_sources・work_log_files の行の並び・表の値: bundle.rs の s()・pstr() は Python の str()（repr。held::repr／pyfmt::str_repr）で字にし、Inputs::check の『データ元・実績の設備に読めない行』の任せも外す。settings_oracle の『data_sources.json に読めない行』を expect same に",
+   "broken の理由は、節ごとに同じ文を並べず、ファイルごとに 1 つ・何行目か（row_check の言い方）を言う。f() が Err のときに file を空の字にしない",
+   "layout_clean の字の扱いを印の字に合わせる: num_str は as_u64 を先に見て桁の字に、py_str・py_repr は held::big_digits_str の印の字を桁の字（Python の int の str）に、s_of・is_in は held::is_text でない字を字として扱わない（Python の isinstance(v, str) が偽）。truthy は印の字を真（大きな整数は 0 でない）",
+   "int_of・card_forms の _int（方眼・rows・chartAt・top・dec・digits・group）は飽和の範囲で Python の min・max と同じ答えになるので、PyInt で写し直さず、事例の表で確かめるだけにする（量を減らす）",
+   "カードの clean_body の日付の列 str(c)[:200]・ラベル・式の欄、セット・書式・すぐに見るの中身で str() をとる所を、worksum::py_str（印の字を桁で書く）にそろえる",
+   "束の材料を held で組むと印の字が束の lists に入る: Settings・束の答えをファイル・画面へ出す所は held::reply_bytes／to_pretty を通し、窓の中の読み手（dashboard::equipment_seen・worksum・shifts の hm・lists.rs・lotdsp の設備マスタ）が印の字を設備名などの字として使わないことを試験で確かめる（答えに held::mark() の字が出ない試験）",
+   "jsontree を serde から直に読む所（dashboards_write.rs 222・formats_write.rs 269・dashboard.rs 1119・builder.rs 103）は u64 を超える整数を小数に丸める。中身の字と同じく Tree::parse_bytes（J で読む）にそろえる",
+   "セットだけファイルの知らない鍵の大きな整数を窓が答え、カード・ダッシュボードは任せる食い違い（card_forms.rs 310・dashboards_write.rs 193 の split_file）を同じ版で消す",
+   "LotDsp: lotdsp_inputs の split_file を外し、lot::tests に『参照先・設備マスタに 10^20 でも LotDsp の道が 503 にならない』を足す（lotdsp_oracle は delegate-count.py に入らないので、ここで確かめる）",
+   "試験: 測った 11 場面と束の 7 場面を W の歩・expect same で答えの元に入れる。bigint_cases.json の『中身の字』の節に境の数（2^63−1・2^63・10^19・2^64−1・2^64・−2^63−1・10^20）を、条件の値・カードの日付の列・パネルの w・方眼・知らない鍵で入れ、Python の int で焼いた答えと突き合わせる。lot::tests に本物の道で『大きな整数のマスタで一覧・作業実績・ダッシュボード・勤務体系・LotDsp が 503 にならない』",
+   "量の見込みを直す: Rust 450〜750 行・答えの元と事例の表 150 行。予算は 17 のまま（新しく足した W の歩は 0）にして delegate-count.py --check を通す"
+  ],
+  "later": [
+   "C（master_seeds を窓へ）は A の後の版で。Python と同じく中身と app_seeds を別の write で当て、どの初期値も『まだ決まっていないときだけ』なので、窓と前の版の Python が同時に当てても同じ中身になることを 2 つのプロセスの場面で確かめる",
+   "D（束の 5 歩）は段 ③ で。Python が 500 で落ちる形の正しい答えを先に決める"
+  ]
+ },
+ "built_prepared": {
+  "name": "作った後（版 3.109.0。A に first_fixes を全部入れた形・G の逃げ道つき）。採点はまだ（別の係に頼む。決まり 2026-11-06 の 1 回）",
+  "done": [
+   "1 順: 束（止まる 6 場面）を先に閉じ、次に中身の読み手を移した（両方を 3.109.0 に入れた）",
+   "2 G の逃げ道: window: true の節は Lot::settings が束を Python に尋ね（印 bundle_window）、Python も答えないときだけ 503（lot::tests::a_window_section_asks_python_before_refusing）",
+   "3 bundle.rs の s()・pstr() は表・並びも worksum::py_str（repr）。Inputs::check のデータ元・実績の設備の読めない行の任せを外した（settings_oracle の 2 場面を expect same）",
+   "4 503 の言葉: window_why が節のファイルの読めない行と何行目かを言い（file を空にしない）、Lot::refuse がファイルごとに 1 つにまとめる",
+   "5 int_of・_int は写し直さず、bigint_cases の content（方眼・幅・段の数・chartAt）で確かめた",
+   "6 layout_clean: num_str は as_u64 を先に見る・py_str と py_repr は印の字を桁の字・s_of と is_in と per・utext・unit・計算・条件・中身・外した組み込みの鍵は印の字を字と見ない・float_of は float(int)",
+   "7 str() は worksum::py_str にそろえた（セットの並びの str(x) も。カード・書式・すぐに見るは既に py_str）。LotDsp の py_str_value・py_float_of も印の字を元の値で読む",
+   "8 印の字が漏れない試験: lot::tests::big_integers_in_the_masters_do_not_stop_the_routes（束の材料の字・一覧・作業実績・勤務体系・ダッシュボード・LotDsp の答えの字に held::mark() が出ない。行をそのまま渡す勤務体系の知らない鍵だけは Python と同じく数）",
+   "9 jsontree を serde から直に読む 4 か所（dashboards_write・formats_write・dashboard の panel_of・builder の body_of）を Tree::parse_bytes／held::body_value に",
+   "10 card_forms.rs・dashboards_write.rs・pivot_presets.rs の split_file と row_check::wide_content を外し、Place::split_file と読んだファイルの覚えの wide も外した（カード・ダッシュボードとセットの食い違いが消えた）",
+   "11 lotdsp_inputs の split_file を外した（lot::tests で参照先・設備マスタに 10^20 でも LotDsp の取込が 200）",
+   "12 試験: 測った 11 場面と境の数の場面を W の歩、束の 8 場面を expect same。bigint_cases.json の content 42 件（2^63−1・2^63・10^19・2^64−1・2^64・−2^63−1・10^20）と held::tests::content_like_the_table",
+   "13 予算: delegate-count.py --check は 17 のまま『予算と同じです』"
+  ],
+  "left": "束の中の中身の字（データ元の結合・設備グループのルール・変換表の欄・LotDsp の学び）の NaN・入れ子は今どおり window の節（G の逃げ道で Python が組む）。写しの係の確かめる間隔は i64 の秒（settings_oracle の境の場面は 10^18 にした）。C（master_seeds）は次の版、D は段 ③"
+ }
 }

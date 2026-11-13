@@ -124,7 +124,7 @@ fn container(v: Option<&Value>) -> bool {
 pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
     let t = row.get("中身")?.as_str()?;
     let t = if t.is_empty() { "{}" } else { t };
-    let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return None };
+    let Some(Value::Object(b)) = crate::held::text_value(t) else { return None };
     for k in ["rows", "cols"] {
         let bad = b
             .get(k)
@@ -308,7 +308,7 @@ fn quick_key(k: &Value) -> Option<Option<String>> {
 }
 
 /// clean_quick: 数の id か "b:鍵"・同じ物は 1 つ・QUICK_MAX まで。窓が読めない字があれば None（Python に任せる）
-fn clean_quick(keys: &Value) -> Option<Result<Vec<String>, String>> {
+pub(crate) fn clean_quick(keys: &Value) -> Option<Result<Vec<String>, String>> {
     let Some(ks) = keys.as_array() else { return Some(Err("すぐに見るの並びの形が違います。".into())) };
     let mut out: Vec<String> = vec![];
     for k in ks {
@@ -332,7 +332,8 @@ fn quick_for(rows: &[Value], source: &str, login: &str) -> Result<Option<Vec<Str
         return Ok(None);
     };
     let text = s(row, "並び").filter(|t| !t.is_empty()).unwrap_or_else(|| "[]".into());
-    let Ok(v) = serde_json::from_str::<Value>(&text) else { return Ok(None) };
+    // 並びの字の大きな整数も桁のまま読む（版 3.109.0。src/held.rs。前は wide_content で任せた。serde は小数に丸める）
+    let Some(v) = crate::held::text_value(&text) else { return Ok(None) };
     match clean_quick(&v) {
         None => Err(()),
         Some(r) => Ok(r.ok()),
@@ -349,13 +350,11 @@ fn default_quick(items: &[Value]) -> Vec<String> {
     out
 }
 
-/// すぐに見るの置き場の行（版 3.107.0）: 形をそろえ、隔てた行を分ける → (隔てた行を除いた行, 隔てた行)。並びの字に i64 に入らない整数があれば None（H2）
+/// すぐに見るの置き場の行（版 3.107.0）: 形をそろえ、隔てた行を分ける → (隔てた行を除いた行, 隔てた行)。並びの字の大きな整数も
+/// 版 3.109.0 から桁のまま読む（前は None で任せた）
 fn quick_read(rows: &[Value]) -> Option<(Vec<Value>, master_rows::Iso, Vec<Value>)> {
     let mut rows = rows.to_vec();
     master_rows::normalize_all(&mut rows, &QUICK_SPEC);
-    if crate::row_check::wide_content(QUICK_NAME, &rows) {
-        return None;
-    }
     let iso = crate::row_check::check(QUICK_NAME, &rows, &QUICK_FIELDS);
     Some((pr::good_rows(QUICK_NAME, &rows, &iso), iso, rows))
 }
@@ -368,8 +367,9 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         _ => &[NAME],
     };
     // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（組み方とすぐに見る。版 3.105.0。置けなければ前どおり任せる）
-    // i64・u64 に入らない整数の組み方のファイルも版 3.108.0 から読む（src/held.rs が桁のまま持つ。すぐに見るは今どおり Place::split_file で任せる）
-    if place.split_file(QUICK_NAME) && names.contains(&QUICK_NAME) || (route == Route::List && !store.seed_absent(names)) {
+    // i64・u64 に入らない整数の組み方のファイルも版 3.108.0 から、すぐに見るのファイルも版 3.109.0 から読む（src/held.rs が桁のまま持つ。
+    // 前は Place::split_file で任せた）
+    if route == Route::List && !store.seed_absent(names) {
         return None;
     }
     // 置き場の読めない行は隔てる（版 3.107.0。中身の段・値の形は row_problem で。前は任せた）。長い chartAt の字も版 3.108.0 から桁のまま

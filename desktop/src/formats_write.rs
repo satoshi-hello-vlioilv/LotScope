@@ -114,7 +114,7 @@ fn view(row: &Map<String, Value>) -> Value {
         .get("中身")
         .and_then(Value::as_str)
         .filter(|t| !t.is_empty())
-        .and_then(|t| serde_json::from_str::<Value>(&master_rows::inner_text(t)).ok())
+        .and_then(crate::held::text_value)
         .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
     json!({"id": row.get("id").cloned().unwrap_or(Value::Null), "name": s("名前"), "source": s("元"), "table": s("表"),
@@ -127,7 +127,7 @@ fn view(row: &Map<String, Value>) -> Value {
 /// （並びか表）でない・スライサーの cards が並びでない・列で絞り込むの値が並び・表
 pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
     let t = row.get("中身").and_then(Value::as_str).filter(|t| !t.is_empty()).unwrap_or("{}");
-    let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return None };
+    let Some(Value::Object(b)) = crate::held::text_value(t) else { return None };
     for (k, list, label) in PARTS {
         let Some(v) = b.get(k).filter(|v| truthy(v)) else { continue };
         let bad = !part_ok(v, list)
@@ -148,11 +148,11 @@ fn str_or_empty(v: Option<&Value>) -> String {
 }
 
 /// 中身 → 置く字（display_formats.clean_body。送った順のまま・知らない部品と形の違う部品は外す）。Ok(None) は Python に任せる
-fn clean_body(body: Option<&Tree>) -> Result<Option<String>, String> {
+pub(crate) fn clean_body(body: Option<&Tree>) -> Result<Option<String>, String> {
     let parsed;
     let body = match body {
         Some(Tree::Str(t)) => {
-            if master_rows::text_split_py(t) {
+            if master_rows::text_split_held(t) {
                 return Ok(None);
             }
             parsed = Tree::parse(&master_rows::inner_text(t)).ok_or("書式の中身が JSON ではありません。")?;
@@ -236,9 +236,6 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     // 置き場の読めない行は隔てる（版 3.107.0。中身の部品の形は row_problem で。前は任せた）。中身の字に i64 に入らない整数はまだ任せる
     let mut all = place.rows_all(NAME).ok()?;
     master_rows::normalize_all(&mut all, &SPEC);
-    if crate::row_check::wide_content(NAME, &all) {
-        return None;
-    }
     let iso = crate::row_check::check(NAME, &all, &FIELDS);
     let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
     if route == Route::List {
@@ -266,7 +263,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         return None; // 足す・直す道の get_json(force=True) は空の本文で BadRequest（道の外。窓は答えない）。消す道は版を読むだけ
     }
     let (parsed, tree): (Value, Tree) =
-        if blank { (Value::Null, Tree::Null) } else { (serde_json::from_slice(body).ok()?, serde_json::from_slice(body).ok()?) };
+        if blank { (Value::Null, Tree::Null) } else { (crate::held::body_value(body)?, Tree::parse_bytes(body)?) };
     if truthy(&parsed) && !parsed.is_object() {
         return None; // 表でない真の本文は Python の例外（窓は答えない）
     }
