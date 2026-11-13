@@ -475,7 +475,8 @@ pub struct Supervisor {
 
 struct Inner {
     /// 起こす Python（PC に見つからなければ理由。版 3.111.0: 見つからなくても窓は画面を開き、起こすたびにこの理由で Down になる）
-    py: Result<Python, String>,
+    /// 版 3.111.0 の作った後の採点の割れ 7: 見つからない係は心拍のたびに起こし直さない。「もう一度起こす」（retry）だけが探し直す
+    py: Mutex<Result<Python, String>>,
     /// 起こそうとした回数（試験が、止まった中身を心拍が起こし直すかを数える）
     attempts: AtomicU64,
     program: PathBuf,
@@ -500,7 +501,7 @@ impl Supervisor {
     pub fn with_retry(py: Result<Python, String>, program: PathBuf, log_dir: PathBuf, progress: Progress, retry: Duration) -> Self {
         Supervisor {
             inner: Arc::new(Inner {
-                py,
+                py: Mutex::new(py),
                 attempts: AtomicU64::new(0),
                 program,
                 log_dir,
@@ -525,9 +526,10 @@ impl Supervisor {
         i.phases.get_then(
             || {
                 i.attempts.fetch_add(1, Ordering::SeqCst);
-                match &i.py {
-                    Ok(py) => Sidecar::spawn(py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
-                    Err(e) => Err(e.clone()),
+                let py = i.py.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                match py {
+                    Ok(py) => Sidecar::spawn(&py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
+                    Err(e) => Err(e),
                 }
             },
             i.start_wait + Duration::from_secs(5),
@@ -556,6 +558,10 @@ impl Supervisor {
 
     /// 「もう一度」: 起こせなかった理由を忘れて、裏で起こし直す
     pub fn retry(&self) {
+        // PC に Python が見つからなかった係は、ここでだけ探し直す（入れた後に「もう一度起こす」を押せば起きる）
+        if !self.has_python() {
+            *self.inner.py.lock().unwrap_or_else(|e| e.into_inner()) = crate::locate::python();
+        }
         self.inner.phases.forget_down();
         self.kick();
     }
@@ -584,7 +590,7 @@ impl Supervisor {
 
     /// PC に Python が見つかったか
     pub fn has_python(&self) -> bool {
-        self.inner.py.is_ok()
+        self.inner.py.lock().unwrap_or_else(|e| e.into_inner()).is_ok()
     }
 
     /// いまの様子（待たない。版 3.111.0: 心拍・/api/health）。止まっていれば裏で起こし直しを始める（kick。起こせなかった直後の
@@ -597,8 +603,9 @@ impl Supervisor {
         if self.starting() {
             return PythonNow { state: "starting", why: String::new() };
         }
-        // 起こせなかった直後（RETRY_AFTER の内）・止めた: 起こさずに止まったと答える
-        if self.inner.phases.busy() {
+        // 起こせなかった直後（RETRY_AFTER の内）・止めた・PC に Python が無い（一度起こして理由を持った後）: 起こさずに止まったと答える
+        // （Python が無い係を 30 秒ごとに起こし直すと、心拍の答え・知らせの段・利用状況の印が starting へ揺れた。作った後の採点の割れ 7）
+        if self.inner.phases.busy() || (!self.has_python() && self.down_reason().is_some()) {
             return PythonNow { state: "stopped", why: self.down_reason().unwrap_or_default() };
         }
         // まだ起こしていない・起こし直しの間が過ぎた: 裏で起こし始める（糸が起こし始める前に尋ねられても「起こしている最中」と答える）
@@ -783,8 +790,35 @@ mod tests {
         assert_eq!(sup.attempts(), 1);
         assert!(sup.get().is_err(), "問い合わせは理由で断る");
         assert_eq!(sup.attempts(), 1, "起こせなかった直後は起こし直さない");
+        // 版 3.111.0 の作った後の採点の割れ 7: Python が見つからない係は、間が過ぎても心拍の問いでは起こし直さない（starting へ揺れない）
         std::thread::sleep(Duration::from_millis(200));
-        let _ = wait_stopped(&sup);
+        for _ in 0..5 {
+            assert_eq!(sup.now().state, "stopped", "揺れない");
+        }
+        assert_eq!(sup.attempts(), 1, "見つからない係は心拍で起こし直さない");
+    }
+
+    #[test]
+    fn a_stopped_python_is_kicked_by_the_heartbeat_after_the_wait() {
+        // 起こした Python が終わった（PC には Python がある）: 間が過ぎれば、様子を尋ねただけ（心拍）で起こし直す（kick）。
+        // 試験の Python は TPA_PYTHON の無い道の代わりに、すぐ終わる物（false）で起こす
+        let progress: Progress = Arc::new(|_| {});
+        let quit = Python {
+            exe: PathBuf::from(if cfg!(windows) { "cmd" } else { "false" }),
+            args: if cfg!(windows) { vec!["/c".into(), "exit".into(), "1".into()] } else { vec![] },
+        };
+        let sup = Supervisor::with_retry(Ok(quit), PathBuf::from("."), std::env::temp_dir(), progress, Duration::from_millis(150));
+        let stopped = |sup: &Supervisor| {
+            let t0 = Instant::now();
+            while sup.now().state != "stopped" && t0.elapsed() < Duration::from_secs(10) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        stopped(&sup);
+        assert_eq!(sup.attempts(), 1);
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = sup.now();
+        stopped(&sup);
         assert_eq!(sup.attempts(), 2, "間が過ぎれば、様子を尋ねただけで起こし直す（kick）");
     }
 

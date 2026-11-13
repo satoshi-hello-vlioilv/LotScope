@@ -545,7 +545,6 @@ body.py-band-on{--pyband-h:38px}
 .py-bar{display:flex;align-items:center;gap:12px;padding:0 18px;height:38px;box-sizing:border-box;position:relative;z-index:40;
   background:#fff3d6;color:#4a3700;border-bottom:1px solid #e9c46a;font-size:var(--fs-sm)}
 .py-bar[hidden]{display:none}
-.py-bar:focus{outline:none}.py-bar:focus-visible{outline:2px solid #2f5f9f;outline-offset:-2px}
 .py-bar b{font-weight:800;white-space:nowrap}
 .py-bar span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .py-bar.is-ok{background:#e3f4ea;color:#1e5a36;border-bottom-color:#9fd3b2}
@@ -559,7 +558,13 @@ body.py-band-on{--pyband-h:38px}
 .hstat .pill.py-pill[hidden]{display:none}
 .hstat .pill.py-pill:hover{background:#8f5900}
 .hstat .pill.py-pill.is-wait{background:rgba(255,255,255,.12);color:#dfe9f2;font-weight:700;cursor:default}
-.hstat .pill.py-pill:focus-visible{outline:2px solid #ffe2a8;outline-offset:-2px}
+.hstat .pill.py-pill:focus-visible,.hstat #conn:focus-visible{outline:2px solid #ffe2a8;outline-offset:-2px}
+.hstat #conn:focus:not(:focus-visible){outline:none}
+/* 札は隠した「待機中」の札と同じ幅（app.js の paintIdle が幅を置く）。字は詰めて真ん中に */
+.hstat .pill.py-pill{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:3px 4px;white-space:nowrap;overflow:hidden;box-sizing:border-box}
+.hstat .pill.py-pill .wait-spin{width:10px;height:10px;border-width:2px;border-color:rgba(255,255,255,.35);border-top-color:#fff}
+.py-bar b{display:inline-flex;align-items:center;gap:8px}
+.py-bar .wait-spin{width:13px;height:13px;border-color:#e9c46a;border-top-color:#7a4b00}
 .hstat.py-last .pill.py-pill{border-radius:0 999px 999px 0}
 /* 止まっている間は、暇なときの「待機中」の札だけを隠して幅を返す（計算中・エラーの札は出す。採点の作るときの指摘 c） */
 .hstat #status.idle-hide{display:none}

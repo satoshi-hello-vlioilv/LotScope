@@ -8,8 +8,9 @@
 //!   作業場所・共有・配った設定（config/appsettings.json・TRANSFER_APP_CONFIG）・権限の表は**読まない**（読むと「環境」の失敗が混ざり、
 //!   共有が落ちた朝に全員の PC が前の版へ戻る）。Python も見ない（Python が無い・遅い・すぐ終わる版でも戻さない）。
 //! - 画面の合図: 窓の準備だけで確かめ終えると、画面の JS が壊れた版（static の構文の誤り）を見ない。画面の JS が最初の心拍を送った
-//!   （頁が起きた）ことを確かめの印を消す条件にし、BEAT_LIMIT のうちに来なければ戻す。ただし Python を起こしている最中は待つ
-//!   （画面の JS は一覧の設定〈/api/config〉を読み終えてから心拍を始める。窓が設定を組めない形では、その答えが Python の準備を待つ）。
+//!   （頁が起きた）ことを確かめの印を消す条件にし、来なければ戻す。いつ「来ない」と決めるかは page_of（画面を開いて BEAT_LIMIT を過ぎ、
+//!   画面の JS が /api/config を尋ねもしない・答えを受けて AFTER_CONFIG たっても心拍が無い）。答えを待つ間（窓が設定を組めず Python に回す）は
+//!   待つ。自己診断が送る心拍（X-TPA-Selftest）は数えない（main.rs）。
 //! - 決め（decide）: 事実 → 行うこと の純粋な関数。どれが「戻す」でどれが「戻さない」かは、仕様から人が書いた事例の表
 //!   tests/fixtures/boot_cases.json（desktop/tests/boot_cases.rs が読む。Python には頼らない。独立の答えは表そのもの）。
 //!
@@ -21,8 +22,32 @@ use serde_json::{json, Value};
 use std::path::Path;
 use std::time::Duration;
 
-/// 画面の JS が最初の心拍を送るまで待つ長さ（入れ替えた直後だけ）。過ぎても Python を起こしている最中なら待ち続ける
+/// 画面の JS が最初の心拍を送るまで待つ長さ（入れ替えた直後だけ。画面を開いた時から）
 pub const BEAT_LIMIT: Duration = Duration::from_secs(60);
+/// 画面の JS が /api/config の答えを受けてから、最初の心拍を送るまで待つ長さ（app.js の boot は答えの直後に心拍を始める）
+pub const AFTER_CONFIG: Duration = Duration::from_secs(15);
+/// 画面の JS が /api/config を尋ねて答えが無いまま待つ上限（窓が Python に回す問い合わせの上限 ASK_WAIT と同じ）
+pub const ASK_LIMIT: Duration = Duration::from_secs(600);
+
+/// 画面の様子を時刻から決める（純粋な関数。版 3.111.0 の作った後の採点の割れ 2）。open は画面を開いてから・asked は画面の JS が
+/// /api/config を最初に尋ねてから・answered は最後に答えてからの長さ。上限の時計は、画面の JS が答えを待っている間は進めない:
+/// 窓が束を組めない設定では /api/config が Python の準備（最大 125 秒）を待つので、その間に 60 秒を過ぎ、Python が Down に移った瞬間
+/// （答えは 503 で返り、心拍は数百 ms 後）に戻していた（4 回中 3 回）。答えてから AFTER_CONFIG のうちは待ち、尋ねもしない（app.js が
+/// 読み込みで落ちた）・答えの後に心拍が来ない（boot が答えの後で落ちた）ときだけ Late＝画面の JS の壊れ
+pub fn page_of(open: Duration, beat: bool, asked: Option<Duration>, answered: Option<Duration>) -> Page {
+    if beat {
+        return Page::Beat;
+    }
+    if open < BEAT_LIMIT {
+        return Page::Waiting;
+    }
+    match (asked, answered) {
+        (_, Some(a)) if a < AFTER_CONFIG => Page::Waiting,
+        (_, Some(_)) => Page::Late,
+        (Some(q), None) if q < ASK_LIMIT => Page::Waiting,
+        _ => Page::Late,
+    }
+}
 
 /// 版の壊れ（窓の準備で見つけた物）。kind は事例の表の window の字
 #[derive(Debug, Clone, PartialEq)]
@@ -176,8 +201,7 @@ pub fn decide(f: &Facts) -> Vec<Act> {
         _ if !fresh => vec![],
         Page::Beat => vec![Confirm, Maintain, Cleanup],
         Page::Waiting => vec![AwaitBeat],
-        // 画面の JS が起きない。Python を起こしている最中は、画面が設定の答えを待っているだけかもしれないので待つ
-        Page::Late if f.python == Python::Starting => vec![AwaitBeat],
+        // 画面の JS が起きない（尋ねもしない・答えの後に心拍が来ない。page_of）。Python の様子は見ない（答えを待つ間は page_of が Waiting にする）
         Page::Late => vec![Revert],
     }
 }
@@ -256,7 +280,7 @@ mod tests {
     #[test]
     fn python_never_reverts() {
         // どの画面の様子でも、Python の様子だけを替えて戻すことにはならない（Starting の待ちを除き、決めは同じ）
-        for page in [Page::NotOpened, Page::Waiting, Page::Beat] {
+        for page in [Page::NotOpened, Page::Waiting, Page::Beat, Page::Late] {
             for w in [true, false] {
                 let base = decide(&Facts { installed: true, applied: true, window_ok: w, page, python: Python::Ready });
                 for py in [Python::Starting, Python::Down, Python::Missing] {

@@ -1,11 +1,11 @@
 {
- "_about": "起動の決め（版 3.111.0。desktop/src/boot.rs の window_ready・decide・failed_blocks）の事例の表。仕様（2026-11-stage2b.json の版の案 B と採点の指摘）から人が書いた。desktop/tests/boot_cases.rs が読む（Python には頼らない。独立の答えは表そのもの）。setup は本物の program の写しに当てる変え方（op: write・remove・app_id）、window は窓の準備の答え（ok か壊れの種類）、page・python は決めの材料、acts は行うこと（並べた順）、revert は人が決めた「戻す／戻さない」",
+ "_about": "起動の決め（版 3.111.0。desktop/src/boot.rs の window_ready・decide・failed_blocks）の事例の表。仕様（2026-11-stage2b.json の版の案 B と採点の指摘）から人が書いた。desktop/tests/boot_cases.rs が読む（Python には頼らない。独立の答えは表そのもの）。setup は本物の program の写しに当てる変え方（op: write・remove・app_id）、window は窓の準備の答え（ok か壊れの種類）、page・python は決めの材料、acts は行うこと（並べた順）、revert は人が決めた「戻す／戻さない」。clock は画面の様子を boot::page_of で決める時刻（秒。open は画面を開いてから・asked は /api/config を最初に尋ねてから・answered は最後に答えてから・beat は最初の心拍が来たか）。verify は画面の心拍が来る・来ないを本物の窓で確かめる desktop/bundle/verify.py の場面",
  "beatLimitSec": 60,
  "cases": [
   {
    "name": "配った設定（config/appsettings.json）が JSON でない: 起動の最初",
    "revert": false,
-   "why": "配った設定は環境（配る人が直せば次の起動で直る）。窓の準備は配った設定を読まない。前は Python が JSONDecodeError で 1 秒で終わり、戻して FAILED にした（採点者の測り badconffresh）",
+   "why": "配った設定は環境（配る人が直せば次の起動で直る）。窓の準備は配った設定を読まない。前は Python が JSONDecodeError で 1 秒で終わり、戻して FAILED にした（採点者の測り badconffresh）。画面の心拍が来ることは本物の窓で確かめる（verify.py の update 4d。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
    "setup": [
     {
      "op": "write",
@@ -21,12 +21,13 @@
    "acts": [
     "open",
     "await_beat"
-   ]
+   ],
+   "verify": "update 4d"
   },
   {
    "name": "配った設定が JSON でない: Python はすぐ終わったが画面の心拍は来た",
    "revert": false,
-   "why": "窓は束を組めなくても既定の形で画面を描く（Lot::page）。画面が起きれば確かめ終える",
+   "why": "窓は束を組めなくても既定の形で画面を描く（Lot::page）。画面が起きれば確かめ終える。画面の心拍が来ることは本物の窓で確かめる（verify.py の update 4d。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
    "setup": [
     {
      "op": "write",
@@ -43,12 +44,13 @@
     "confirm",
     "maintain",
     "cleanup"
-   ]
+   ],
+   "verify": "update 4d"
   },
   {
    "name": "Python が 120 秒を超える（起こしている最中）: 画面は開いて心拍が来た",
    "revert": false,
-   "why": "遅いだけで戻さない（前は start_wait 120 秒で切れて戻した。採点者の測り slowfresh）。画面は Python を待たない",
+   "why": "遅いだけで戻さない（前は start_wait 120 秒で切れて戻した。採点者の測り slowfresh）。画面は Python を待たない。画面の心拍が来ることは本物の窓で確かめる（verify.py の update 4c。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
    "setup": [],
    "installed": true,
    "applied": true,
@@ -59,7 +61,8 @@
     "confirm",
     "maintain",
     "cleanup"
-   ]
+   ],
+   "verify": "update 4c"
   },
   {
    "name": "Python が 120 秒を超えて起こせなかった（Sidecar の start_wait で切れた）",
@@ -80,21 +83,27 @@
   {
    "name": "Python が 120 秒を超える: 画面の心拍がまだ 60 秒来ない（設定の答えが Python を待っている）",
    "revert": false,
-   "why": "画面の JS は /api/config を読み終えてから心拍を始める。窓が設定を組めない形ではその答えが Python の準備を待つので、起こしている最中は待つ",
+   "why": "画面の JS は /api/config の答えを待っている（窓が設定を組めず Python に回す）。答えを待つ間は上限の時計を進めない（page_of。版 3.111.0 の作った後の採点の割れ 2）",
    "setup": [],
    "installed": true,
    "applied": true,
    "window": "ok",
-   "page": "late",
+   "page": null,
    "python": "starting",
    "acts": [
     "await_beat"
-   ]
+   ],
+   "clock": {
+    "open": 70,
+    "beat": false,
+    "asked": 69.9,
+    "answered": null
+   }
   },
   {
    "name": "Python が見つからない: 起動の最初",
    "revert": false,
-   "why": "窓は Python の無い係で画面を開く（前は splash.fail で画面を開かなかった。採点者の測り nopython）",
+   "why": "窓は Python の無い係で画面を開く（前は splash.fail で画面を開かなかった。採点者の測り nopython）。画面の心拍が来ることは本物の窓で確かめる（verify.py の local。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
    "setup": [],
    "installed": true,
    "applied": true,
@@ -104,12 +113,13 @@
    "acts": [
     "open",
     "await_beat"
-   ]
+   ],
+   "verify": "local"
   },
   {
    "name": "Python が見つからない: 画面の心拍が来た",
    "revert": false,
-   "why": "",
+   "why": "画面の心拍が来ることは本物の窓で確かめる（verify.py の local。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
    "setup": [],
    "installed": true,
    "applied": true,
@@ -120,12 +130,13 @@
     "confirm",
     "maintain",
     "cleanup"
-   ]
+   ],
+   "verify": "local"
   },
   {
    "name": "Python がすぐ終わる（sidecar.py を壊した版）: 起動の最初",
    "revert": false,
-   "why": "窓は sidecar.py を読まない。Python だけ壊れた版は戻さず、その版の間は任せる形が使えない（配布の画面の「中身の起きない PC」で見える）",
+   "why": "窓は sidecar.py を読まない。Python だけ壊れた版は戻さず、その版の間は任せる形が使えない（配布の画面の「中身の起きない PC」で見える）。画面の心拍が来ることは本物の窓で確かめる（verify.py の update 4b。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
    "setup": [
     {
      "op": "write",
@@ -141,12 +152,13 @@
    "acts": [
     "open",
     "await_beat"
-   ]
+   ],
+   "verify": "update 4b"
   },
   {
    "name": "Python がすぐ終わる版: 画面の心拍が来た",
    "revert": false,
-   "why": "",
+   "why": "画面の心拍が来ることは本物の窓で確かめる（verify.py の update 4b。窓は Python が止まっても画面を既定の形で描き、app.js は読み込みの途中の知らせでも落ちない）",
    "setup": [
     {
      "op": "write",
@@ -163,7 +175,8 @@
     "confirm",
     "maintain",
     "cleanup"
-   ]
+   ],
+   "verify": "update 4b"
   },
   {
    "name": "共有に届かない（配った設定の共有の置き場が無いフォルダ）",
@@ -566,6 +579,154 @@
    "acts": [
     "revert"
    ]
+  },
+  {
+   "name": "束を組めない設定で Python を待つ間に 60 秒を過ぎ、Python が Down に移った直後（/api/config は今 503 で返った）",
+   "revert": false,
+   "why": "答えを受けてから AFTER_CONFIG（15 秒）は心拍を待つ（前は Down に移った瞬間に戻し、4 回中 3 回 FAILED に入った）",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "clock": {
+    "open": 70.1,
+    "beat": false,
+    "asked": 70.0,
+    "answered": 0.2
+   },
+   "python": "down",
+   "acts": [
+    "await_beat"
+   ]
+  },
+  {
+   "name": "束を組めない設定で Python が 60 秒を超えてから起きた直後（答えが今返った）",
+   "revert": false,
+   "why": "同じく答えから 15 秒は待つ",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "clock": {
+    "open": 75,
+    "beat": false,
+    "asked": 74.9,
+    "answered": 0.3
+   },
+   "python": "ready",
+   "acts": [
+    "await_beat"
+   ]
+  },
+  {
+   "name": "/api/config の答えから 15 秒たっても心拍が無い（画面の JS が答えの後で落ちた）",
+   "revert": true,
+   "why": "boot は答えの直後に心拍を始める。来なければ画面の JS の壊れ",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/static/js/app.js",
+     "text": "function ( {\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "clock": {
+    "open": 80,
+    "beat": false,
+    "asked": 79.9,
+    "answered": 16
+   },
+   "python": "down",
+   "acts": [
+    "revert"
+   ],
+   "verify": "update 4e"
+  },
+  {
+   "name": "画面の JS が読み込みで落ちた（/api/config を尋ねもしない）: 開いて 60 秒",
+   "revert": true,
+   "why": "app.js が落ちると boot が走らず、設定も尋ねない",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/static/js/app.js",
+     "text": "function ( {\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "clock": {
+    "open": 61,
+    "beat": false,
+    "asked": null,
+    "answered": null
+   },
+   "python": "ready",
+   "acts": [
+    "revert"
+   ],
+   "verify": "update 4e"
+  },
+  {
+   "name": "画面の JS が読み込みで落ちた: 開いて 59 秒はまだ待つ",
+   "revert": false,
+   "why": "BEAT_LIMIT（60 秒）の内",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "clock": {
+    "open": 59,
+    "beat": false,
+    "asked": null,
+    "answered": null
+   },
+   "python": "ready",
+   "acts": [
+    "await_beat"
+   ]
+  },
+  {
+   "name": "/api/config を尋ねて 600 秒たっても答えが無い",
+   "revert": true,
+   "why": "窓が Python に回す問い合わせの上限（ASK_WAIT）を過ぎても答えが無い",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "clock": {
+    "open": 700,
+    "beat": false,
+    "asked": 600,
+    "answered": null
+   },
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "自己診断の心拍だけが来た（画面の JS は落ちた）",
+   "revert": true,
+   "why": "自己診断の心拍（X-TPA-Selftest）は合図に数えない（main.rs）ので beat は偽",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "clock": {
+    "open": 61,
+    "beat": false,
+    "asked": null,
+    "answered": null
+   },
+   "python": "ready",
+   "acts": [
+    "revert"
+   ],
+   "verify": "update 4e"
   }
  ],
  "failed": [
@@ -625,5 +786,7 @@
    "version": "3.112.0",
    "blocks": false
   }
- ]
+ ],
+ "afterConfigSec": 15,
+ "askLimitSec": 600
 }

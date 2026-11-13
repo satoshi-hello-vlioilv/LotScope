@@ -156,8 +156,24 @@ fn band(w: &WebviewWindow, reason: Option<&str>) {
 
 /// 中身の起こし直しの係（画面を読み直したときに帯を出し直す。版 3.86.0）
 static SUP: OnceLock<Supervisor> = OnceLock::new();
-/// 画面の JS が最初の心拍を送った時刻（版 3.111.0。入れ替えた直後の確かめの合図。src/boot.rs）
+/// 画面の JS が最初の心拍を送った時刻（版 3.111.0。入れ替えた直後の確かめの合図。src/boot.rs）。自己診断の心拍（X-TPA-Selftest）は数えない
 static FIRST_BEAT: OnceLock<Instant> = OnceLock::new();
+/// 画面の JS が /api/config を最初に尋ねた時刻と、最後に答えた時刻（版 3.111.0 の作った後の採点の割れ 2。boot::page_of の時計）
+static CONFIG_ASKED: OnceLock<Instant> = OnceLock::new();
+static CONFIG_ANSWERED: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// 画面からの問い合わせを数える（答える前・答えた後。プロトコルの受け口から）
+fn watch_request(path: &str, method: &str, selftest: bool, answered: bool) {
+    match (path, method) {
+        ("/api/config", _) if !answered => {
+            let _ = CONFIG_ASKED.set(Instant::now());
+        }
+        ("/api/config", _) => *CONFIG_ANSWERED.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now()),
+        // 最初の心拍は「画面の JS が起きた」合図。答える前に数える（答えが遅くても合図は来た）
+        ("/api/heartbeat", "POST") if !answered && !selftest && FIRST_BEAT.set(Instant::now()).is_ok() => log("BEAT 画面の最初の心拍"),
+        _ => {}
+    }
+}
 
 /// 自己診断の結果を書いて終わる（TPA_SELFTEST が無ければ何もしない）。
 fn selftest_finish(app: &AppHandle, result: &serde_json::Value) {
@@ -317,9 +333,6 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         // 版 3.111.0: 中身の様子では断らない（窓が生きていれば 200。python に様子を添える）。様子を尋ねるたびに止まった中身の起こし直しも
         // 始める（Backend::python_now）。最初の心拍は「画面の JS が起きた」合図（入れ替えた直後の確かめ。src/boot.rs）
         ("POST", "/api/heartbeat") => {
-            if FIRST_BEAT.set(Instant::now()).is_ok() {
-                log("BEAT 画面の最初の心拍");
-            }
             lot.heartbeat(&|| lot_settings(backend), &|| backend.python_now()).map(|(status, v)| Reply { status, ..json_reply(&v) })
         }
         // 画面（版 3.85.0。src/page.rs）: Python が答えなくても画面の HTML は窓が描く。描けない形は Python へ回す
@@ -327,7 +340,18 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         (method @ ("GET" | "HEAD"), "/")
             if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") =>
         {
-            let r = lot.page(method == "HEAD", &|| backend.ready_now()).map(|h| Reply { status: 200, headers: h.headers, body: h.body });
+            let py = || backend.python_now().state;
+            let mut r = lot.page(method == "HEAD", &py);
+            // 束の材料を組めない設定で中身を起こしている最中（版 3.111.0 の作った後の採点の割れ 4）: 3.110.0 と同じく中身の準備を待ち、
+            // 起きたら Python に描かせる・止まったら窓が既定の形で描く（前は起動の最初はいつも既定の形〈空の変換表〉で描いた）
+            if r.is_none() && lot.page_why().starts_with("束の材料") {
+                let t = Instant::now();
+                while backend.python_now().state == "starting" && t.elapsed() < Duration::from_secs(130) {
+                    std::thread::sleep(Duration::from_millis(200));
+                }
+                r = lot.page(method == "HEAD", &py);
+            }
+            let r = r.map(|h| Reply { status: 200, headers: h.headers, body: h.body });
             if r.is_none() {
                 log(&format!("PAGE python {}", lot.page_why())); // 窓が画面を描けなかった理由（Python が描く）
                 da_core::delegate::note("page");
@@ -773,17 +797,13 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
 }
 
 /// 入れ替えた直後の確かめ（版 3.111.0。src/boot.rs の decide）: 画面を開いたあと、画面の JS の最初の心拍を待つ。来れば確かめの印を消し・
-/// ショートカットを直し・写しを片付ける。BEAT_LIMIT を過ぎても来なければ（Python を起こしている最中を除き）控えへ戻して開き直す
+/// ショートカットを直し・写しを片付ける。来ないと決めたら（boot::page_of: 画面の JS が /api/config を尋ねもしない・答えの後に心拍が来ない）
+/// 控えへ戻して開き直す。答えを待つ間は待つ
 fn await_beat(app: AppHandle, paths: Paths, sup: Supervisor, opened: Instant) {
-    use da_core::boot::{decide, Act, Facts, Page};
+    use da_core::boot::{decide, page_of, Act, Facts};
     loop {
-        let page = if FIRST_BEAT.get().is_some() {
-            Page::Beat
-        } else if opened.elapsed() < da_core::boot::BEAT_LIMIT {
-            Page::Waiting
-        } else {
-            Page::Late
-        };
+        let answered = CONFIG_ANSWERED.lock().unwrap_or_else(|e| e.into_inner()).map(|t| t.elapsed());
+        let page = page_of(opened.elapsed(), FIRST_BEAT.get().is_some(), CONFIG_ASKED.get().map(|t| t.elapsed()), answered);
         let python = python_fact(&sup);
         let acts = decide(&Facts { installed: true, applied: paths.applied().exists(), window_ok: true, page, python });
         if acts == [Act::AwaitBeat] {
@@ -799,7 +819,11 @@ fn await_beat(app: AppHandle, paths: Paths, sup: Supervisor, opened: Instant) {
             ));
         }
         if acts.contains(&Act::Revert) {
-            let why = format!("画面の JS が {} 秒たっても起きません（最初の心拍が来ません）", da_core::boot::BEAT_LIMIT.as_secs());
+            let since = match CONFIG_ANSWERED.lock().unwrap_or_else(|e| e.into_inner()).map(|t| t.elapsed().as_secs()) {
+                Some(a) => format!("設定の答えから {a} 秒たっても"),
+                None => "設定を尋ねもせず".to_string(),
+            };
+            let why = format!("画面の JS が起きません（開いて {} 秒・{since}最初の心拍が来ません）", opened.elapsed().as_secs());
             if let Some(back) = update::revert(&paths, &why) {
                 log(&format!("UPDATE 版 {} は画面が起きないので {} に戻しました", back.from, back.to));
                 if relaunch(&app, &paths).is_ok() {
@@ -1108,10 +1132,14 @@ fn main() {
         .register_asynchronous_uri_scheme_protocol(SCHEME, move |_ctx, req, responder| {
             let slot = proto_slot.clone();
             std::thread::spawn(move || {
+                let (path, method) = (req.uri().path().to_string(), req.method().as_str().to_string());
+                let selftest = req.headers().contains_key("X-TPA-Selftest");
+                watch_request(&path, &method, selftest, false);
                 let resp = match slot.get() {
                     Some(r) => r.handle(&req),
                     None => router::to_response(error_reply(503, "starting", "起動中です。"), "shell"),
                 };
+                watch_request(&path, &method, selftest, true);
                 responder.respond(resp);
             });
         })

@@ -257,6 +257,19 @@
   /* ---------------- 描く ---------------- */
   // パネルの中の札で見せ方を替えた（ABC 分析の設備の札など。版 3.46.0）: そのパネルだけ描き直す（数は引き直さない）
   document.addEventListener("dash:repaint", (e) => { const el = e.target.closest && e.target.closest(".db-p"); if (el) paintPanel(el.dataset.id, true); });
+  /* グリッドの段の高さ（版 3.111.0。作った後の採点の減点 1）: 中身（Python）が止まった知らせの段（38px）が出ている間も、数字のパネルの段は
+     ふだんの高さのまま（主の数の字が縮まない・並べ方が替わらない）。縮めるのはほかの段（グラフ・表）だけ。数字のパネルの段しか無ければ皆で縮める */
+  function rowTemplate(g) {
+    const n = S.layout.rows, even = `repeat(${n}, minmax(0, 1fr))`;
+    const band = parseFloat(getComputedStyle(document.body).getPropertyValue("--pyband-h")) || 0;
+    if (!band) return even;
+    const keep = new Set();
+    S.layout.panels.forEach((p) => { if (p.visual === "kpi") for (let r = p.y; r < p.y + p.h; r++) keep.add(r); });
+    if (!keep.size || keep.size >= n || !g.clientHeight) return even;   // 隠れている間は測れない（出すときの paint で決め直す）
+    const gap = parseFloat(getComputedStyle(g).rowGap) || 0, h = (g.clientHeight + band - gap * (n - 1)) / n;
+    return Array.from({ length: n }, (_, i) => (keep.has(i) ? `${h.toFixed(2)}px` : "minmax(0, 1fr)")).join(" ");
+  }
+  document.addEventListener("tpa:pyband", () => { const g = $("#dashGrid"); if (g && S.layout) g.style.gridTemplateRows = rowTemplate(g); });
   function paint() {
     const box = $("#dashScreen");
     if (!box) return;
@@ -265,7 +278,7 @@
     if (!S.layout) { g.innerHTML = `<p class="db-wait">${esc(S.msg || "読んでいます…")}</p>`; return; }
     box.classList.toggle("is-edit", S.edit);
     g.style.setProperty("--rows", S.layout.rows);
-    g.style.gridTemplateRows = `repeat(${S.layout.rows}, minmax(0, 1fr))`;
+    g.style.gridTemplateRows = rowTemplate(g);
     const ids = new Set(S.layout.panels.map((p) => p.id));
     [...g.querySelectorAll(".db-p")].forEach((el) => { if (!ids.has(el.dataset.id)) el.remove(); });
     S.layout.panels.forEach((p) => {

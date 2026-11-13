@@ -57,7 +57,7 @@ fn reads_seed_the_same_masters_as_python() {
         let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
         let (path, query) = (sc["path"].as_str().unwrap(), sc["query"].as_str().unwrap());
         let got = match path {
-            "/" => lot.page(false, &|| true).map(|_| 200u16),
+            "/" => lot.page(false, &|| "ready").map(|_| 200u16),
             "/api/sources" => lot.sources_list(query).map(|(st, _)| st),
             _ => lot.handle_body("GET", path, query, b"", &ask).map(|(st, _)| st),
         };

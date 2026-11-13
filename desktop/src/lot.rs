@@ -403,9 +403,10 @@ impl Lot {
     }
 
     /// 画面（GET /・HEAD /。版 3.85.0）を窓が描く。束を組む係が無い・窓が Python と同じに描けない形は None（Python に任せる）。
-    /// 中身（Python）が答えないとき（alive が偽）は、窓が同じに読めない埋める物（画面の控え・初期設定・変換表）を Python の except と同じ
+    /// 中身（Python）が答えないとき（python が ready でない）は、窓が同じに読めない埋める物（画面の控え・初期設定・変換表）を Python の except と同じ
     /// 既定の形（空の控え・既定の見せ方・空の変換表）に落として描く（画面は開く。作った後の採点の指摘 7）
-    pub fn page(&self, head: bool, alive: &dyn Fn() -> bool) -> Option<crate::page::Html> {
+    /// python は中身の様子（"ready"・"starting"・"stopped"。main.rs の Backend::python_now）。版 3.111.0
+    pub fn page(&self, head: bool, python: &dyn Fn() -> &'static str) -> Option<crate::page::Html> {
         let why = |w: String| {
             *self.page_why.lock().unwrap() = w;
             None
@@ -421,7 +422,9 @@ impl Lot {
             Ok(i) => i,
             // 束の材料を組めず（配った設定が JSON でない など）中身（Python）も答えない: 既定の形で窓が描く（版 3.111.0。画面が開き、
             // 画面の JS が心拍を送れる＝入れ替えた直後の確かめが「環境」の失敗で戻さない。src/boot.rs）
-            Err(e) if !alive() => {
+            // 版 3.111.0 の作った後の採点の割れ 4: 既定の形に落とすのは中身が止まっているときだけ（起こしている最中は Python に描かせる。
+            // main.rs は準備を待ってから描き直す）
+            Err(e) if python() == "stopped" => {
                 let parts = crate::page::Parts {
                     ui_state: presence::ui_state::load_exact(&b.env().local).unwrap_or_else(|| json!({"rev": 0, "keys": {}})),
                     ui_profile: json!({"keys": profile, "defaults": {}, "updatedAt": "", "updatedBy": {}}),
@@ -445,7 +448,7 @@ impl Lot {
             .and_then(|_| crate::page::conversion_views(&inp.rows("conversions").ok()?, inp.revision("conversions").ok()?).ok());
         let parts = match (ui_state, ui_profile, conversions) {
             (Some(ui_state), Some(ui_profile), Some(conversions)) => crate::page::Parts { ui_state, ui_profile, conversions },
-            (s, p, c) if !alive() => crate::page::Parts {
+            (s, p, c) if python() != "ready" => crate::page::Parts {
                 ui_state: s.unwrap_or_else(|| json!({"rev": 0, "keys": {}})),
                 ui_profile: p.unwrap_or_else(|| json!({"keys": profile, "defaults": {}, "updatedAt": "", "updatedBy": {}})),
                 conversions: c.unwrap_or_else(|| json!({"items": [], "revision": null})),
@@ -2407,23 +2410,23 @@ mod tests {
             .to_string(),
         )
         .unwrap();
-        assert!(lot.page(false, &|| true).is_none(), "Python が生きていれば、窓が同じに描けない形は Python");
+        assert!(lot.page(false, &|| "ready").is_none(), "Python が生きていれば、窓が同じに描けない形は Python");
         // Python が答えないときは既定の形に落として窓が描く（画面は開く）
-        let h = lot.page(false, &|| false).expect("Python が答えなくても画面は窓が描く");
+        let h = lot.page(false, &|| "stopped").expect("Python が答えなくても画面は窓が描く");
         let body = String::from_utf8(h.body).unwrap();
         assert!(body.contains(r#"window.TPA_CONVERSIONS = {"items": [], "revision": null};"#), "空の変換表");
         assert!(body.contains(r#""defaults": {}"#), "既定の見せ方");
         let csp = &h.headers.iter().find(|(k, _)| k == "Content-Security-Policy").unwrap().1;
         let nonce = csp.split("nonce-").nth(1).unwrap().split('\'').next().unwrap();
         assert_eq!(body.matches(&format!("nonce=\"{nonce}\"")).count(), 4, "見出しの印と同じ印を 4 つの <script> に");
-        let head = lot.page(true, &|| false).unwrap();
+        let head = lot.page(true, &|| "stopped").unwrap();
         assert!(head.body.is_empty() && head.headers.iter().any(|(k, v)| k == "Content-Length" && v.parse::<usize>().unwrap() > 1000));
         // 共有に置けば Python が生きていても窓が描く
         let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
         for n in ["ui_defaults", "conversions"] {
             std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
         }
-        assert!(String::from_utf8(lot.page(false, &|| true).unwrap().body).unwrap().contains(r#""revision": 4"#));
+        assert!(String::from_utf8(lot.page(false, &|| "ready").unwrap().body).unwrap().contains(r#""revision": 4"#));
         // /api/config・ダッシュボードのデータの並びも Python 無しで（束に使うマスタが共有にある形。無ければ Python が最初の版を作るので任せる）
         assert!(lot.handle_body("GET", "/api/config", "", b"", &down).is_none(), "共有にまだ参照先が無い: Python に任せる");
         for n in ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns"] {
@@ -2438,8 +2441,21 @@ mod tests {
         // 版 3.105.0: 錠が外れれば、共有にまだ無い初期設定は窓が最初の版を置いて描く（Python が生きていても）
         std::fs::remove_file(&lock).unwrap();
         std::fs::remove_file(share.join("ui_defaults.json")).unwrap();
-        assert!(lot.page(false, &|| true).is_some(), "窓が置いて描く");
+        assert!(lot.page(false, &|| "ready").is_some(), "窓が置いて描く");
         assert!(share.join("ui_defaults.json").exists(), "初期設定の最初の版を置いた");
+        // 版 3.111.0 の作った後の採点の割れ 4: 束の材料を組めない（配った設定が JSON でない）PC。中身を起こしている最中・起きていれば
+        // Python に描かせ（None。main.rs は起こしている最中なら準備を待ってから描き直す）、止まっているときだけ既定の形で窓が描く
+        let bad = work.join("bad.json");
+        std::fs::write(&bad, "{ 壊れた設定").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let env2 = crate::bundle::Env { base: work.join("base"), program, local: work.join("local2"), config: bad, now: None };
+        let lot2 = Lot::new(work.join("local2").join("db_cache"));
+        lot2.set_bundle(crate::bundle::Builder::new(env2));
+        assert!(lot2.page(false, &|| "starting").is_none(), "起こしている最中は既定の形で描かない（Python を待つ）");
+        assert!(lot2.page_why().starts_with("束の材料"), "{}", lot2.page_why());
+        assert!(lot2.page(false, &|| "ready").is_none(), "起きていれば Python が描く");
+        let h = lot2.page(false, &|| "stopped").expect("止まっていれば窓が既定の形で描く（画面が開き、心拍を送れる）");
+        assert!(String::from_utf8(h.body).unwrap().contains(r#"window.TPA_CONVERSIONS = {"items": [], "revision": null};"#));
         let _ = std::fs::remove_dir_all(&work);
     }
 
@@ -4114,7 +4130,7 @@ mod tests {
         let asked = std::sync::atomic::AtomicUsize::new(0);
         let counting = || {
             asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            stopped()
+            ready() // 様子を替えない（替えると裏の糸が書き直し、下の使い終わりと競う）
         };
         for _ in 0..3 {
             lot.heartbeat(&ask, &counting).unwrap();

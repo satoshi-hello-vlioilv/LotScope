@@ -2,20 +2,26 @@
 //   node program/tools/ui-eval-pydown.mjs [撮る出力フォルダ]
 // 開発用サーバーを、手元のマスタに読めない行を足し（TPA_UI_BAD_ROWS）、共有に届かない形（TPA_UI_SHARE=down）で起こし、1728×1152・1536×864・1280×720 で、
 // 本物のキーとマウスで:
-// ① ふだん（動いている）: 知らせの段も札「中身 停止」も無く、暇な「待機中」は出る
+// ① ふだん（動いている）: 知らせの段も札「中身停止」も無く、暇な「待機中」は出る
 // ② 止まる（窓が知らせる tpa:python と、心拍の答えの python）: 見出しのすぐ下に 1 段の知らせの段（38px・字も釦も 1 段・切れない）。画面は 38px 縮み、
 //    段の下から始まる（表に重ならない・窓の下にはみ出さない）。「接続 ●」・権限の札・「マスタ管理」は窓の答えのまま。段が出ている間は札を出さない。
 //    見出しは 1 段で「終了」まで届く。1728 は見出しのタブの絵が残る
 // ③ 待機中: 止まっている間は暇な「待機中」だけを隠し、計算中・エラーの札は出す。動いていれば「待機中」も出す
 // ④ 送り位置: 一覧を送って行を選んだまま止まる・起きるで、送り位置（scrollTop）と選んだ行・焦点が変わらない
 // ⑤ 「詳しく」（マウス）で接続の様子の面が窓の中に開き、Esc で閉じて「詳しく」に焦点が戻る
-// ⑥ 「畳む」で段が消えて画面の高さが戻り、札「中身 停止」（button）が残る。札を Enter・Space で押すと段が戻り、焦点は段の「もう一度起こす」
+// ⑥ 「畳む」で段が消えて画面の高さが戻り、札「中身停止」（button）が残る。札を Enter・Space で押すと段が戻り、焦点は段の「もう一度起こす」
 // ⑦ 「もう一度起こす」（マウス）: 段が「起きるのを待っています…」に替わり、起きたら「✓ 中身（Python）が動きました」を 2〜3 秒出してから畳む。
 //    起きた後に権限を読み直し（/api/access/me）、札と「マスタ管理」は残る
 // ⑧ 出さないタブ: 止まっていても窓の名乗りの出さないタブ（計算）は出さない。権限を 1 度も読めなければ決まりのあるタブを出さない（札「権限 ?」）
 // ⑨ 面の行の焦点: キーボードは :focus-visible に藍の輪。マウスで確かめの窓の「やめる」を押すと押した行に輪と札「やめた行」、4 秒で消える（焦点は残る）・
 //    キーを押しても消える
 // ⑩ 共有に届かない帯: 1 段（道は末尾「…/<名前>」・全部は title・「写しを表示中・保存できません」）。ナビは名前の下の段に「届かない」（折れない）
+// 版 3.111.0 の作った後の採点の直し:
+// ⑪ 見出しのタブの並び（出ているタブ・「ほか N」・絵・詰めた形）が、ふだん・止まった（段）・畳んだ・起こしている（段・札）・起きた（「✓」の段）で同じ
+// ⑫ キーで「もう一度起こす」を押すと、焦点は段に入る前の所（無ければ「接続 ●」）へ戻る（段そのものや body に落ちない）。起こしている間は回る印
+// ⑬ ダッシュボード: 段が出ても数字のパネルの主の数は 16px 以上で、止まる前と同じ大きさ・並べ方（縮めるのはほかの段）
+// ⑭ 頁の読み込みの途中に中身が止まった知らせ（window.__tpaPython）が来ても、画面のエラー無しに起き、段が出る
+// ⑮ 権限を読んでいる最中（答えを遅らせた間）も、決まりのあるタブ（計算・実績・ダッシュボード）を出さない
 // 撮る出力フォルダを渡すと pydown-<所>-<大きさ>.png を置く。全部合えば終了コード 0。
 process.env.TPA_UI_BAD_ROWS = "1";
 process.env.TPA_UI_SHARE = "down";
@@ -53,6 +59,10 @@ const look = (p) => p.evaluate(() => {
     more: !!document.querySelector(".screen-tabs .tab-more"), quitIn: quit.right <= innerWidth + 1 && quit.bottom <= head.bottom + 1,
     headOne: [...document.querySelectorAll("header .hstat, header #meChip, header #masterBtn, header #quitBtn")].filter(vis).every((e) => e.getBoundingClientRect().bottom <= head.bottom + 1),
     bodyOn: document.body.classList.contains("py-band-on"), focus: document.activeElement?.dataset?.py || document.activeElement?.id || document.activeElement?.tagName,
+    tabSig: JSON.stringify({ shown: tabs.map((t) => t.dataset.screen), more: document.querySelector(".screen-tabs .tab-more")?.textContent || "",
+      tight: document.querySelector(".screen-tabs").classList.contains("is-tight"), icons: tabs.filter((t) => { const s = t.querySelector("svg"); return s && s.getBoundingClientRect().width > 0; }).length }),
+    spin: !!document.querySelector("#pyBar .wait-spin, #pyPill:not([hidden]) .wait-spin"),
+    headOver: document.querySelector("header").scrollWidth > document.querySelector("header").clientWidth + 1,
   };
 });
 /** 送り位置と選んだ行（焦点を置いたロットの行。段の釦へ焦点が移った後は、前に置いた行の印で見る）・カードに選んだ行 */
@@ -86,7 +96,7 @@ try {
     await sleep(3500);   // 心拍が 1 度は通る
     // ① ふだん
     const a = await look(p);
-    check(`① ${tag} ふだんは段も札「中身 停止」も無く、暇な「待機中」は出る`, !a.bar && !a.pill.shown && a.status.shown && a.status.text === "待機中" && !a.bodyOn && a.conn === "接続 ●", a);
+    check(`① ${tag} ふだんは段も札「中身停止」も無く、暇な「待機中」は出る`, !a.bar && !a.pill.shown && a.status.shown && a.status.text === "待機中" && !a.bodyOn && a.conn === "接続 ●", a);
     await shot(p, `pydown-ok-${tag}`);
     // ④ の支度: 一覧を送り、行を押して選ぶ
     await p.evaluate(() => { const w = document.querySelector(".ll-grid-wrap"); if (w) w.scrollTop = 600; });
@@ -107,6 +117,7 @@ try {
     check(`② ${tag} 「接続 ●」・権限の札・「マスタ管理」は窓の答えのまま・段が出ている間は札を出さない`, b.conn === "接続 ●" && b.chip && b.chip !== "権限 ?" && b.master && !b.pill.shown, b);
     check(`② ${tag} 見出しは 1 段で「終了」まで届く${view.width === 1728 ? "・タブの絵が残る" : ""}`, b.quitIn && b.headOne && (view.width !== 1728 || b.icons === b.tabs), b);
     await shot(p, `pydown-stopped-${tag}`);
+    const sigs = { normal: a.tabSig, stopped: b.tabSig };
     // 心拍が同じ様子を答えても描き直さない（焦点が外れない）
     await p.focus('#pyBar [data-py="more"]'); await sleep(3500);
     check(`② ${tag} 心拍が来ても段を描き直さず焦点が残る`, (await look(p)).focus === "more", await look(p));
@@ -132,9 +143,18 @@ try {
     // ⑥ 畳む → 札 → Enter・Space
     await p.click('#pyBar [data-py="fold"]'); await sleep(300);
     const f1 = await look(p);
-    check(`⑥ ${tag} 畳むと段が消えて画面の高さが戻り、札「中身 停止」（button）が残り焦点は札`, !f1.bar && f1.screenH === a.screenH && f1.pill.shown && f1.pill.text === "中身 停止" && f1.pill.button && f1.focus === "pyPill", f1);
+    check(`⑥ ${tag} 畳むと段が消えて画面の高さが戻り、札「中身停止」（button）が残り焦点は札`, !f1.bar && f1.screenH === a.screenH && f1.pill.shown && f1.pill.text === "中身停止" && f1.pill.button && f1.focus === "pyPill", f1);
     check(`⑥ ${tag} 畳んだ形も見出しは 1 段で「終了」まで届く`, f1.quitIn && f1.headOne, f1);
     await shot(p, `pydown-folded-${tag}`);
+    sigs.folded = f1.tabSig;
+    // 畳んだまま起こしている形（札「中身」と回る印）
+    await p.evaluate(() => window.dispatchEvent(new CustomEvent("tpa:python", { detail: { state: "starting", why: "" } }))); await sleep(300);
+    const fs0 = await look(p);
+    sigs.foldedStarting = fs0.tabSig;
+    check(`⑫ ${tag} 畳んだまま起こしている間は札に回る印・見出しからはみ出さない`, fs0.pill.shown && fs0.spin && !fs0.headOver, fs0);
+    await shot(p, `pydown-folded-starting-${tag}`);
+    await p.evaluate((why) => window.dispatchEvent(new CustomEvent("tpa:python", { detail: { state: "stopped", why } })), PY_WHY); await sleep(300);
+    check(`⑥ ${tag} 畳んだ形の札は見出しからはみ出さない`, !f1.headOver, f1);
     await p.keyboard.press("Enter"); await sleep(300);
     const f2 = await look(p);
     check(`⑥ ${tag} 札を Enter で押すと段が戻り、焦点は段の「もう一度起こす」`, f2.bar && !f2.pill.shown && f2.focus === "restart", f2);
@@ -142,14 +162,17 @@ try {
     await p.focus("#pyPill"); await p.keyboard.press("Space"); await sleep(300);
     const f3 = await look(p);
     check(`⑥ ${tag} 札を Space で押しても段が戻る`, f3.bar && f3.focus === "restart", f3);
-    // ⑦ もう一度起こす（マウス）
+    // ⑦ もう一度起こす（キー: 段に入る前の焦点は見出しの権限の札）
     const reads0 = meReads;
-    await p.click('#pyBar [data-py="restart"]'); await sleep(400);
+    await p.focus("#meChip"); await p.focus('#pyBar [data-py="restart"]'); await p.keyboard.press("Enter"); await sleep(400);
     const g1 = await look(p);
+    sigs.starting = g1.tabSig;
+    check(`⑫ ${tag} キーで「もう一度起こす」を押すと焦点は段に入る前の所（権限の札）へ戻る・段に回る印`, g1.focus === "meChip" && g1.spin, g1);
     check(`⑦ ${tag} 「もう一度起こす」で段が「起きるのを待っています…」に替わる（窓の口へ 1 回）`, g1.bar && /起きるのを待っています/.test(g1.barText) && !g1.buttons.length && retries === 1, { g1, retries });
     await shot(p, `pydown-starting-${tag}`);
     await sleep(1600);
     const g2 = await look(p);
+    sigs.ok = g2.tabSig;
     check(`⑦ ${tag} 起きたら段に「✓ 中身（Python）が動きました」`, g2.bar && g2.ok && /動きました/.test(g2.barText), g2);
     await shot(p, `pydown-back-${tag}`);
     await sleep(2800);
@@ -158,6 +181,9 @@ try {
     check(`⑦ ${tag} 起きた後に権限を読み直し、札と「マスタ管理」は残る`, meReads > reads0 && g3.chip && g3.chip !== "権限 ?" && g3.master, { meReads, reads0, g3 });
     const keep2 = await keep(p);
     check(`④ ${tag} 段が消えても送り位置と選んだ行は同じ`, JSON.stringify(keep0) === JSON.stringify(keep2), { keep0, keep2 });
+    sigs.after = g3.tabSig;
+    check(`⑪ ${tag} 見出しのタブの並びは中身の様子で動かない（ふだん・段・畳む・起こす・起きた）`, Object.values(sigs).every((x) => x === sigs.normal), sigs);
+    check(`⑫ ${tag} 起きて段が畳まれても焦点は body に落ちない`, g3.focus !== "BODY", g3);
 
     // ⑧ 出さないタブ（窓の名乗りに出さないタブ「計算」）: 止まっていても出さない・起きた後も
     await p.route("**/api/access/me", async (route) => {
@@ -180,6 +206,44 @@ try {
     check(`⑧ ${tag} 権限を 1 度も読めなければ決まりのあるタブを出さない（札「権限 ?」・「マスタ管理」は隠す）`, h2.chip === "権限 ?" && !h2.master && h2.denied, h2);
     await shot(q, `pydown-meunknown-${tag}`);
     await q.context().close();
+
+    // ⑬ ダッシュボードの数字のパネル: 段が出ても主の数は 16px 以上・同じ大きさ・同じ並べ方
+    const dsh = await app.newPage("light", view, { screen: "dash" });
+    await sleep(2500);
+    const kpis = () => dsh.evaluate(() => [...document.querySelectorAll("#dashGrid .db-p")].map((el) => {
+      const k = el.querySelector(".dp-kpi"); if (!k) return null;
+      const n = k.querySelector(".dp-num"); return { id: el.dataset.id, cls: k.className, pair: k.querySelector(".dp-kpair")?.className || "", size: n ? parseFloat(getComputedStyle(n).fontSize) : null };
+    }).filter(Boolean));
+    const kpA = await kpis();
+    await tell(dsh, "stopped", PY_WHY); await sleep(2500);
+    const kpB = await kpis();
+    const same = kpA.length > 0 && kpA.length === kpB.length && kpA.every((x, i) => x.cls === kpB[i].cls && x.pair === kpB[i].pair && x.size === kpB[i].size);
+    check(`⑬ ${tag} ダッシュボード: 段が出ても数字のパネルの主の数は 16px 以上・止まる前と同じ大きさと並べ方`, same && kpB.every((x) => x.size == null || x.size >= 16), { kpA, kpB });
+    const dl = await look(dsh);
+    check(`⑬ ${tag} ダッシュボード: 段の下から始まり窓の下にはみ出さない`, dl.bar && dl.screenTop >= dl.barBottom && dl.screenBottom <= dl.inner && dl.pageY, dl);
+    await shot(dsh, `pydown-dash-${tag}`);
+    await dsh.context().close();
+
+    // ⑭ 頁の読み込みの途中に中身が止まった知らせが来た（窓は読み込み中の頁に window.__tpaPython を置く）
+    const early = await app.newPage("light", view);
+    const errs = [];
+    early.on("pageerror", (e) => errs.push(e.message));
+    await early.addInitScript((why) => { window.__tpaPython = { state: "stopped", why }; }, PY_WHY);
+    await early.reload(); await early.waitForSelector("#llBody tr[data-i]", { timeout: 30000 }); await sleep(800);
+    const ea = await look(early);
+    check(`⑭ ${tag} 読み込みの途中に中身が止まった知らせが来ても、画面のエラー無しに起きて段が出る`, !errs.length && ea.bar && ea.chip && ea.chip !== "確認中", { errs, ea });
+    await early.context().close();
+
+    // ⑮ 権限を読んでいる最中（答えを 3 秒遅らせる）も、決まりのあるタブを出さない
+    const slow = await app.newPage("light", view);
+    await slow.route("**/api/access/me", async (route) => { await sleep(3000); await route.continue(); });
+    await slow.reload(); await sleep(1200);
+    const s1 = await slow.evaluate(() => ({ me: !!state.me, shown: [...document.querySelectorAll(".screen-tabs [data-screen]")].filter((b) => !b.hasAttribute("data-denied") && b.offsetParent).map((b) => b.dataset.screen) }));
+    check(`⑮ ${tag} 権限を読んでいる最中は、決まりのあるタブ（ダッシュボード・品質・計算・実績）を出さない`, !s1.me && !["dash", "list", "calc", "work"].some((k) => s1.shown.includes(k)), s1);
+    await slow.waitForSelector("#llBody tr[data-i]", { timeout: 30000 }); await sleep(500);
+    const s2 = await slow.evaluate(() => ({ me: !!state.me, screen: state.screen, list: !document.querySelector("#tabList").hasAttribute("data-denied") }));
+    check(`⑮ ${tag} 読めたら頁の印の最初の画面（品質）を開く`, s2.me && s2.screen === "list" && s2.list, s2);
+    await slow.context().close();
 
     // ⑨ ⑩ マスタ管理（共有に届かない形・読めない行の面）
     const m = await app.newPage("light", view);

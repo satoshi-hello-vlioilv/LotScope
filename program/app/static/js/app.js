@@ -201,6 +201,7 @@ function clearError() { $("#error").classList.add("hidden"); }
 
 /* ================= 起動 ================= */
 async function boot() {
+  pyBoot();                                    // 中身の様子（読み込みの途中に来た知らせも）はここから描く（版 3.111.0）
   loadOverrides();
   try {
     const r = await fetch("/api/config");
@@ -249,7 +250,8 @@ async function loadMe() {
   }
   state.meUnknown = false;
   state.me = got;
-  TPA.me = state.me;      // 読めない行の知らせの面が、直せる人か・管理者に知らせる人かを分ける（版 3.107.0）
+  TPA.me = state.me;
+  if (state.pendingScreen && !state.screen) { const want = state.pendingScreen; state.pendingScreen = null; showScreen(want); }   // 読めてから最初の画面      // 読めない行の知らせの面が、直せる人か・管理者に知らせる人かを分ける（版 3.107.0）
   const me = state.me, chip = $("#meChip");
   chip.textContent = me.role;
   chip.className = `pill me-chip role-${TPA.roleKey(me.role)}`;
@@ -270,13 +272,22 @@ function paintMeUnknown() {
   chip.title = "自分の権限を読めません（設定の束を組めず、アプリの中身も答えません）。読めるまで、権限で出し分けるタブは出しません。";
   $("#masterBtn").classList.add("hidden");
   if (state.sources) loadSources();
+  if (state.pendingScreen && !state.screen) { const want = state.pendingScreen; state.pendingScreen = null; hiddenScreen(want, {}); }
 }
 /* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの services/access.py の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc）。
-   権限を 1 度も読めないまま読みに失敗したら、どのタブも出さない（版 3.111.0。fail-closed。読んでいる最中は前と同じく出す） */
-function tabHidden(key) { return state.me ? (state.me.hiddenTabs || []).includes(key) : !!state.meUnknown; }
+   権限をまだ 1 度も読めていなければ（読んでいる最中も・読めなかった後も）、決まりのあるタブは出さない（版 3.111.0。fail-closed。
+   前は読んでいる最中は出したので、窓が名乗りを決められず中身を起こしている間〈最大 125 秒〉、出さないタブが出た） */
+function tabHidden(key) { return state.me ? (state.me.hiddenTabs || []).includes(key) : true; }
 var FIXED_TAB_KEY = { dash: "dash", list: "lot", calc: "calc", work: "work" };   // 決まった画面 → タブの権限のキー（var: 初めの画面を出す前にも読む）
 let mePopOff = null;
 function closeMePop() { $("#mePop").classList.add("hidden"); if (mePopOff) mePopOff(); mePopOff = null; }
+/** 出さない画面を開こうとした: 権限をまだ読んでいる最中なら、読めてから開く（最初の画面）。読めた後なら開ける画面へ */
+function hiddenScreen(name, opts) {
+  if (state.screen) return;
+  if (!state.me && !state.meUnknown) { state.pendingScreen = name; return; }
+  const to = firstAllowed();
+  if (to !== name && !(FIXED_TAB_KEY[to] && tabHidden(FIXED_TAB_KEY[to]))) showScreen(to, opts);
+}
 $("#meChip").onclick = () => {
   const pop = $("#mePop"), me = state.me;
   if (!me || !pop.classList.contains("hidden")) { closeMePop(); return; }
@@ -590,7 +601,9 @@ document.addEventListener("tpa:masters-changed", () => {          // マスタ�
    様子の元は心拍の答えの python と、窓が起こした結果を知らせる tpa:python（main.rs の band）。暇なときの「待機中」の札は止まっている間だけ隠す（指摘 c） */
 state.py = { state: "ready", why: "" };
 state.pyBarClosed = false;
-let pyOkTimer = 0, connPopOff = null;
+// 描けるか（版 3.111.0 の作った後の採点の割れ 1）: 読み込みの途中で中身が止まった知らせ（window.__tpaPython・tpa:python）が来ても、描くのは boot() の後。
+// 前は読み込みのときに setPython → fitTabs が、まだ宣言されていない tabEls（const）に触れて app.js が落ち、画面が空で心拍も来なかった
+let pyBooted = false, pyOkTimer = 0, connPopOff = null, pyFocusBack = null;
 const PY_USE = "画面・ダッシュボード・一覧・マスタ管理は使えます（窓が読めない一部の形だけ使えません）";
 function setPython(p) {
   const next = { state: ["ready", "starting", "stopped"].includes(p && p.state) ? p.state : "ready", why: String((p && p.why) || "") };
@@ -598,6 +611,7 @@ function setPython(p) {
   if (next.state === was && next.why === state.py.why) return;
   state.py = next;
   if (was === "ready" && next.state !== "ready") state.pyBarClosed = false;   // 新しく止まったら段を出す
+  if (!pyBooted) return;                       // 描くのは boot() の後（boot が描く）
   if (next.state === "ready" && was !== "ready") {
     loadMe();                                  // 起きた後も窓の名乗りで読み直す（前は起きた後に権限を読み直さず、札が空のままだった）
     closeConnPop();
@@ -605,39 +619,61 @@ function setPython(p) {
   }
   paintPython();
 }
+/** boot() の頭: ここから中身の様子を描く（読み込みの途中に来た知らせも、ここで描く） */
+function pyBoot() {
+  pyBooted = true;
+  if (window.__tpaPython) setPython(window.__tpaPython);
+  if (state.py.state !== "ready") paintPython();
+}
 /** 段の出し入れで表が 38px 動いても、送り位置（scrollTop）を保つ（選んだ行は描き直さない） */
 function keepScroll(f) {
   const scr = [...document.querySelectorAll('[id$="Screen"]:not(.hidden) *')].filter((el) => el.scrollTop > 0).map((el) => [el, el.scrollTop]);
   f();
   for (const [el, top] of scr) el.scrollTop = top;
   requestAnimationFrame(() => { for (const [el, top] of scr) if (el.isConnected && el.scrollTop !== top) el.scrollTop = top; });
+  document.dispatchEvent(new CustomEvent("tpa:pyband"));   // ダッシュボードが数字のパネルの段の高さを保つ（dashboard.js）
 }
+/** 段の釦をキーで押して段が描き直る・畳まれるとき、焦点を段に入る前の所（無ければ見出しの「接続 ●」）へ戻す（作った後の採点の弱い所 3） */
+function pyFocusOut() {
+  const to = pyFocusBack && pyFocusBack.isConnected && !$("#pyBar").contains(pyFocusBack) ? pyFocusBack : $("#conn");
+  to.focus({ preventScroll: true });
+}
+document.addEventListener("focusin", (e) => {
+  const bar = $("#pyBar"), pop = $("#connPop");
+  if (bar && !bar.contains(e.target) && !(pop && pop.contains(e.target)) && e.target !== $("#pyPill")) pyFocusBack = e.target;
+}, true);
 function flashPyOk() {
-  const bar = $("#pyBar");
+  const bar = $("#pyBar"), had = bar.contains(document.activeElement);
   clearTimeout(pyOkTimer);
   bar.className = "py-bar is-ok"; bar.dataset.key = "ok";
   bar.innerHTML = "<b>✓ 中身（Python）が動きました</b><span>中身の要る形も、もう使えます</span>";
+  if (had) pyFocusOut();
   paintPill();
   pyOkTimer = setTimeout(() => { pyOkTimer = 0; paintPython(); }, 2500);
 }
 function paintPill() {
   const p = state.py, pill = $("#pyPill"), conn = $("#conn"), down = p.state !== "ready";
   pill.hidden = !(down && state.pyBarClosed);
-  pill.textContent = p.state === "starting" ? "中身 起動中…" : "中身 停止";
+  // 札は「待機中」の札と同じ置き場・同じ幅（隠した「待機中」の幅をそのまま使う）。見出しのタブの並びが中身の様子で動かない（採点の作るときの指摘 b・弱い所 2）
+  pill.innerHTML = p.state === "starting" ? '<i class="wait-spin" aria-hidden="true"></i>中身' : "中身停止";
+  pill.setAttribute("aria-label", p.state === "starting" ? "中身（Python）を起こしています" : "中身（Python）が止まっています。押すと知らせの段を出します");
   pill.classList.toggle("is-wait", p.state === "starting");
   pill.title = p.state === "starting" ? "中身（Python）を起こしています" : `窓とはつながっています。中身（Python）が止まっています${p.why ? `: ${p.why}` : ""}（押すと知らせの段を出します）`;
-  if (conn && conn.classList.contains("conn-ok")) conn.title = down ? "画面とアプリ（窓）はつながっています（中身〈Python〉の様子は右の札・見出しの下の段）" : "アプリ（窓）と中身（Python）に接続中";
+  if (conn && conn.classList.contains("conn-ok")) conn.title = down ? "画面とアプリ（窓）はつながっています（中身〈Python〉の様子は見出しの下の段・右の札）" : "アプリ（窓）と中身（Python）に接続中";
   paintIdle();
 }
-/** 止まっている間だけ、暇なときの「待機中」の札を隠して幅を返す（計算中・エラーの札は出す） */
+/** 止まっている間だけ、暇なときの「待機中」の札を隠して幅を札に渡す（計算中・エラーの札は出す） */
 function paintIdle() {
-  const st = $("#status"); if (!st || !state.py) return;
-  const hide = state.py.state !== "ready" && st.textContent.trim() === "待機中";
+  const st = $("#status"), pill = $("#pyPill"); if (!st || !state.py || !pill) return;
+  const idle = st.textContent.trim() === "待機中";
+  if (idle && !st.classList.contains("idle-hide") && st.offsetWidth) state.idleW = st.offsetWidth;   // ふだんの「待機中」の幅（札の幅に使う）
+  const hide = state.py.state !== "ready" && idle;
   st.classList.toggle("idle-hide", hide);
-  $(".hstat").classList.toggle("py-last", hide && !$("#pyPill").hidden);
+  pill.style.width = hide && state.idleW ? `${state.idleW}px` : "";
+  $(".hstat").classList.toggle("py-last", hide && !pill.hidden);
 }
 function paintPython() {
-  if (pyOkTimer) return;                       // 「動きました」を出している間は描き直さない
+  if (pyOkTimer || !pyBooted) return;          // 「動きました」を出している間・boot の前は描き直さない
   const p = state.py, bar = $("#pyBar"), down = p.state !== "ready", show = down && !state.pyBarClosed;
   const key = show ? `${p.state}|${p.why}` : "";
   const had = bar.contains(document.activeElement) ? (document.activeElement.dataset.py || "bar") : "";
@@ -646,17 +682,17 @@ function paintPython() {
       bar.className = "py-bar"; bar.dataset.key = key;
       bar.hidden = !show;
       document.body.classList.toggle("py-band-on", show);
-      bar.innerHTML = !show ? "" : `<b>⚠ 中身（Python）が${p.state === "starting" ? "起きるのを待っています…" : "止まっています"}</b><span title="${esc(p.why)}">${PY_USE}</span>`
+      // 起こしている間は回る印（ダッシュボードの待ちの印と同じ部品 .wait-spin。弱い所 4）
+      bar.innerHTML = !show ? "" : `<b>${p.state === "starting" ? '<i class="wait-spin" aria-hidden="true"></i>中身（Python）が起きるのを待っています…' : "⚠ 中身（Python）が止まっています"}</b><span title="${esc(p.why)}">${PY_USE}</span>`
         + (p.state === "stopped" ? '<button type="button" class="py-restart" data-py="restart" title="中身（Python）をもう一度起こします">もう一度起こす</button>'
           + '<button type="button" data-py="more" aria-haspopup="dialog" title="画面と窓・中身のつながりと、止まった理由">詳しく</button>'
-          + '<button type="button" data-py="fold" title="畳みます（見出しの「中身 停止」の札は残ります）">畳む</button>' : "");
+          + '<button type="button" data-py="fold" title="畳みます（見出しの「中身停止」の札は残ります）">畳む</button>' : "");
     });
-    bar.tabIndex = -1;
     const b = (k) => bar.querySelector(`[data-py="${k}"]`);
     if (b("restart")) b("restart").onclick = pyRetry;
     if (b("more")) b("more").onclick = (e) => openConnPop(e.currentTarget);
     if (b("fold")) b("fold").onclick = () => { state.pyBarClosed = true; paintPython(); $("#pyPill").focus(); };
-    if (had && show) (b(had) || bar).focus({ preventScroll: true });   // 描き直しても焦点を段の中に残す
+    if (had) { if (show && had !== "bar" && b(had)) b(had).focus({ preventScroll: true }); else pyFocusOut(); }   // 押した釦が無くなったら段に入る前の所へ
   }
   paintPill();
   if (typeof fitTabs === "function") fitTabs();
@@ -688,10 +724,9 @@ function openConnPop(anchor) {
 }
 $("#pyPill").onclick = () => {                 // 畳んだ段を戻す（焦点は段へ移す: 札は段が出ている間は出さない）
   state.pyBarClosed = false; paintPython();
-  const bar = $("#pyBar"); (bar.querySelector('[data-py="restart"]') || bar).focus({ preventScroll: true });
+  const bar = $("#pyBar"); (bar.querySelector('[data-py="restart"]') || bar.querySelector("button"))?.focus({ preventScroll: true });
 };
 window.addEventListener("tpa:python", (e) => setPython(e.detail));   // 窓が起こした結果（main.rs の band。心拍を待たずに）
-if (window.__tpaPython) setPython(window.__tpaPython);
 
 /* ---------------- 心拍（利用状況・接続） ----------------
    数秒ごとに /api/heartbeat へ送る。答えで「接続 ●」と、見出しの版の札（新しい版あり・切断）を決める。
@@ -1114,7 +1149,7 @@ function showScreen(name, opts = {}) {
     setCurrent(g, name); name = gs;
   }
   if (!SCREENS[name] || state.screen === name) return;
-  if (FIXED_TAB_KEY[name] && tabHidden(FIXED_TAB_KEY[name])) { if (!state.screen) showScreen(firstAllowed(), opts); return; }   // 出さないタブ（Alt＋数字・頁の印でも）
+  if (FIXED_TAB_KEY[name] && tabHidden(FIXED_TAB_KEY[name])) { hiddenScreen(name, opts); return; }   // 出さないタブ（Alt＋数字・頁の印でも）
   // 保存していない変更（ダッシュボードの編集・表示列やルールの窓）があれば、移る前に聞く（版 3.43.0。何も無ければすぐ移る）
   if (state.screen && TPA.unsaved.pending(["dash", "list"]).length) {
     TPA.unsaved.leave(["dash", "list"], `「${$(SCREENS[name].tab).textContent.trim()}」の画面へ移る`).then((ok) => { if (ok) moveTo(name, opts); });
@@ -1124,7 +1159,7 @@ function showScreen(name, opts = {}) {
 }
 function moveTo(name, { focus = true } = {}) {
   if (!SCREENS[name] || state.screen === name) return;
-  if (FIXED_TAB_KEY[name] && tabHidden(FIXED_TAB_KEY[name])) { if (!state.screen) showScreen(firstAllowed(), opts); return; }   // 出さないタブ（Alt＋数字・頁の印でも）
+  if (FIXED_TAB_KEY[name] && tabHidden(FIXED_TAB_KEY[name])) { hiddenScreen(name, opts); return; }   // 出さないタブ（Alt＋数字・頁の印でも）
   const prev = state.screen;
   state.screen = name;
   const panel = SCREENS[name].panel;
@@ -1302,7 +1337,17 @@ function applyTabs() {
 /* 見出しのタブを帯に収める（版 3.54.0。データ元のグループ・結合した表でタブが増えても、右端の「アプリ」「終了」を切らない。
    2026-10-srclist の作った後の採点）: まずタブを詰め（印を外す。名前は切らない）、それでも入らなければ、選んでいないタブを
    後ろから「ほか N ▾」にまとめる（押すと残りのタブのメニュー。作業実績の設備のタブと同じ考え）。Alt＋数字はまとめたタブにも効く */
+/** 見出しのタブを詰める。中身（Python）の様子で並びが動かないよう、「待機中」を隠している間（止まった・起こしている）も、ふだんの形
+    （「待機中」を出し、札「中身停止」は隠す）で測って並べてから戻す（版 3.111.0 の作った後の採点の弱い所 2: 1280 は段が出ると「ほか 2 ▾」が消え、
+    1728 は畳むと絵が消えた）。札は「待機中」と同じ幅なので、戻した後も見出しからはみ出さない */
 function fitTabs() {
+  // 札が出ている間は「待機中」と同じ幅なのでそのまま測る（札を隠すと、札にある焦点が落ちる）。札も「待機中」も隠れている（段が出ている）間だけ、
+  // 「待機中」を出して測る（「待機中」は焦点を持たない）
+  const st = $("#status"), pill = $("#pyPill"), swap = !!st && st.classList.contains("idle-hide") && (!pill || pill.hidden);
+  if (swap) st.classList.remove("idle-hide");
+  try { fitTabsNow(); } finally { if (swap) st.classList.add("idle-hide"); }
+}
+function fitTabsNow() {
   const nav = $(".screen-tabs"), head = nav && nav.closest("header");
   if (!head) return;
   const over = () => head.scrollWidth > head.clientWidth + 1;

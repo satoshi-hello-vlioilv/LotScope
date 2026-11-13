@@ -38,8 +38,10 @@
   };
   try {
     // 1) 起動が終わる（画面の JS が設定と自分の権限を読み終えた）
-    const end = performance.now() + 60000;
-    const booted = () => typeof state === "object" && state.config && state.me;
+    // 画面の JS（app.js）が読み込みで落ちた版（boot が無い）は、窓が確かめの上限で前の版へ戻して開き直すまで待つ（その窓の結果を書かない）
+    const end = performance.now() + (typeof boot === "function" ? 60000 : 150000);
+    // 権限を読めない（窓が名乗りを決められず中身も止まった）ときは、その形（「権限 ?」）に着けば起動が終わった（版 3.111.0）
+    const booted = () => typeof state === "object" && state.config && (state.me || state.meUnknown);
     while (!booted() && performance.now() < end) await sleep(200);
     okw("起動が終わる（設定と権限を読み終える）", booted(), ((performance.now() - t0) / 1000).toFixed(1) + " 秒");
     const app = document.querySelector('meta[name="tpa-app"]');
@@ -101,7 +103,8 @@
     ok("誤りの答え（400 と日本語の理由）", bad.r.status === 400 && /形が違います/.test(why) && bad.by === "python", why);
     const wbad = await get("/api/ui-state", json("POST", { changed: "形が違う" }));
     okw("窓が答える誤り（画面の設定の控え）", wbad.r.status === 400 && wbad.by === "shell" && /形が違います/.test(JSON.parse(wbad.text).error || ""), wbad.text.slice(0, 80));
-    const hb = await get("/api/heartbeat", json("POST", { visible: true }));
+    // 自己診断の心拍には印（X-TPA-Selftest）を付ける: 窓は入れ替えた直後の確かめ（画面の JS が起きた合図）に数えない（版 3.111.0 の作った後の採点の割れ 5）
+    const hb = await get("/api/heartbeat", { ...json("POST", { visible: true }), headers: { "Content-Type": "application/json", "X-TPA-Selftest": "1" } });
     let hbj = {}; try { hbj = JSON.parse(hb.text); } catch (_) { /* 下で言う */ }
     okw("心拍は窓が答える（中身の様子を添える。版 3.111.0 から中身が止まっていても 200）",
         hb.r.ok && hb.by === "shell" && "revoked" in hbj && hbj.python && hbj.python.state === python, `${hb.r.status} ${hb.by} python=${JSON.stringify(hbj.python)}`);

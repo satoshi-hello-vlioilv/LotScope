@@ -16,6 +16,8 @@
   4b. Python だけ壊れた版（+4。sidecar.py を壊した）→ 戻さず、その版のまま開く。心拍 200・python stopped・窓だけの自己診断の項目が通る・
      利用状況に中身の様子・確かめの印は画面の最初の心拍で消える
   4c. Python が遅い版（+5。sidecar.py の頭で 30 秒眠る）→ 画面は待たずに開き、確かめの印は数秒で消え（Python の準備より前）、ショートカットも直る
+  4d. 入れ替えた直後に配った設定が JSON でない（+6。環境の失敗）→ 戻さない。Python はすぐ終わるが、窓は画面を既定の形で描き、画面の JS が心拍を送る
+  4e. 画面の JS（app.js）が壊れた版（+7）→ 画面の JS が設定を尋ねもせず心拍も来ないので、60 秒で控え（+6）へ戻す（自己診断の心拍は数えない）
   5. 配る版を前の版（+1。distribute.json）に戻す → 1 回開くだけで配る版になり、配る版を作業場所に覚える（want.json）
   6. 新しい PC（まっさらな作業場所）が配る入口を開くだけで、配る版をこの PC へ入れて開き、入口の置き場を控える
   ショートカット: 無ければ画面が尋ねる・共有を指すショートカットは次の起動でこの PC の app（作業フォルダも）に直す
@@ -91,7 +93,8 @@ def tree_digest(root: Path) -> str:
 
 def place(stage: Path, version: str, rel_root: Path, broken: str = "") -> None:
     """配る形 stage の版を書き換えて ZIP にし、置き場の <アプリ>/<版>/ に release.json と並べて置く。
-    broken: "window"＝窓が描けない版（画面の型を消す）・"python"＝Python だけ起きない版・"slow"＝Python が 30 秒遅い版"""
+    broken: "window"＝窓が描けない版（画面の型を消す）・"python"＝Python だけ起きない版・"slow"＝Python が 30 秒遅い版・
+    "js"＝画面の JS（app.js）が読み込みで落ちる版"""
     b = bundle.brand()
     work = Path(tempfile.mkdtemp(prefix="da-variant-"))
     try:
@@ -106,6 +109,9 @@ def place(stage: Path, version: str, rel_root: Path, broken: str = "") -> None:
             (top / "program" / "app" / "templates" / "index.html").unlink()
         elif broken == "python":   # 中身（Python）だけが起動できない版（窓の準備は通る。戻さない）
             side.write_text('raise SystemExit("試験のために壊した版")\n', encoding="utf-8")
+        elif broken == "js":   # 画面の JS が構文の誤りで落ちる版（窓の準備は JS を読まないので通る。画面の最初の心拍で戻す）
+            js = top / "program" / "app" / "static" / "js" / "app.js"
+            js.write_text(js.read_text(encoding="utf-8") + "\nfunction ( {\n", encoding="utf-8")
         elif broken == "slow":   # 中身の準備が 30 秒遅い版（Windows の Defender の走査・遅いディスクの見立て）
             head = "from __future__ import annotations\n"     # __future__ の行より前には書けない
             text = side.read_text(encoding="utf-8")
@@ -400,6 +406,34 @@ def update(exe: Path, work: Path) -> bool:
                 "4c. 確かめの印は画面の最初の心拍で消えた（数秒・Python の準備より前）", f"確かめ {confirm_ms} ms・Python の準備 {ready_ms} ms")
     got = read_link(lnk)
     ok &= check(bool(got) and same(got[0], app / b["exe"]), "4c. ショートカットも直った（Python の準備を待たない）", got)
+
+    # 4d. 入れ替えた直後に、配った設定が JSON でない（環境の失敗）→ 戻さない（版 3.111.0 の作った後の採点の割れ 1・5）
+    v6, v7 = bump(v0, 6), bump(v0, 7)
+    place(Path(built["stage"]), v6, rel_root)
+    good_conf = conf.read_text(encoding="utf-8")
+    conf.write_text("{ 試験のために壊した配った設定", encoding="utf-8")
+    try:
+        r = run.open(app / b["exe"], "badconf")
+    finally:
+        conf.write_text(good_conf, encoding="utf-8")
+    info = r.get("info") or {}
+    fj = json.loads((local / "update" / "FAILED.json").read_text(encoding="utf-8"))
+    ok &= check(info.get("version") == v6 and fj.get("versions") == [v3], f"4d. 配った設定が JSON でなくても {v6} を戻さない", f"{info.get('version')} {fj.get('versions')}")
+    ok &= check(not (local / "update" / "applied.json").exists() and boot_log_has(local, "BOOT 入れ替えた版を確かめた"),
+                "4d. 画面の JS が心拍を送り、確かめの印が消えた", "")
+    # 配った設定が読めないので一覧などは 503 で答える（窓だけの項目のうち設定の要る物は通らない）。見るのは、画面の JS が読み込みで落ちないこと
+    errs = next((x for x in r.get("results", []) if x["name"] == "画面のエラーが無い"), {})
+    ok &= check(r.get("python") == "stopped" and errs and "before initialization" not in errs.get("info", "") and "ReferenceError" not in errs.get("info", ""),
+                "4d. Python は止まったが画面の JS は落ちない（読み込みの途中に中身が止まった知らせが来ても）", f"python={r.get('python')} {errs.get('info', '')[:200]}")
+
+    # 4e. 画面の JS が壊れた版 → 60 秒で戻す（自己診断の心拍は合図に数えない）
+    place(Path(built["stage"]), v7, rel_root, broken="js")
+    r = run.open(app / b["exe"], "js-broken")
+    info = r.get("info") or {}
+    fj = json.loads((local / "update" / "FAILED.json").read_text(encoding="utf-8"))
+    ok &= check(r.get("ok") is True and info.get("version") == v6, f"4e. 画面の JS が壊れた {v7} は {v6} に戻して開き直した", info.get("version"))
+    ok &= check(fj.get("versions") == [v3, v7] and "画面の JS が起きません" in json.dumps((fj.get("why") or {}).get(v7, {}), ensure_ascii=False),
+                f"4e. {v7} に理由つきの印（画面の JS が起きません）", fj)
 
     # 5. 配る版を前の版（v1）に戻す → 1 回開くだけで配る版になり、配る版を作業場所に覚える
     (rel_root / b["name"] / "distribute.json").write_text(json.dumps(

@@ -181,7 +181,14 @@ export const PY_WHY = "アプリの中身（Python）がすぐに終わりまし
 export function PYDOWN_STEPS() {
   return [
     ["pydown", async (p) => {
-      await p.keyboard.press("Escape").catch(() => {});
+      // 前の状態の窓（「保存していない変更があります」など）を残したまま撮らない: 一覧の頁を読み直してから（版 3.111.0 の作った後の採点の道具の不具合）
+      const accept = (d) => d.accept().catch(() => {});
+      p.on("dialog", accept);
+      await p.goto(new URL("/#screen=list", p.url()).href).catch(() => {});
+      await p.reload().catch(() => {});
+      p.off("dialog", accept);
+      await p.waitForSelector("#llBody tr[data-i]", { timeout: 30000 }).catch(() => {});
+      await sleep(600);
       await p.evaluate((why) => window.dispatchEvent(new CustomEvent("tpa:python", { detail: { state: "stopped", why } })), PY_WHY);
       await sleep(400);
     }, "[data-next], #pyBar [data-py]"],

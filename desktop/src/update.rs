@@ -125,8 +125,15 @@ pub fn validate_dist(dir: &Path, exe: &str, app_id: &str, expect: Option<&str>) 
 }
 
 /// 配る形の program に窓の準備（boot::window_ready。画面の型と指紋・同梱の既定。作業場所・共有・配った設定は読まない）を当てる。
-/// 取り込み（stage_release）と版を置く（distribute::place）で使う。起動のときの確かめ（main.rs）は別に残す
-pub fn validate_window(dir: &Path, app_id: &str) -> Result<(), String> {
+/// 取り込み（stage_release）と版を置く（distribute::place）で使う。起動のときの確かめ（main.rs）は別に残す。
+/// 当てるのは、配る形の exe がいまのこの PC の窓（mine）と同じ物（sha256 が同じ＝同じ窓の決まり）のときだけ（版 3.111.0 の作った後の採点の割れ 3）:
+/// exe が替わる版は、新しい窓が画面の型・既定の形を広げているかもしれないので、いまの窓の決まりで断らず、新しい窓の起動のときの確かめ
+/// （窓の準備と画面の最初の心拍）に任せる。前は次の版が型を広げると、全員が取り込めず、配る人も置けなかった
+pub fn validate_window(dir: &Path, exe: &str, mine: &Path, app_id: &str) -> Result<(), String> {
+    let same = matches!((sha256_file(&dir.join(exe)), sha256_file(mine)), (Ok(a), Ok(b)) if a == b);
+    if !same {
+        return Ok(());
+    }
     crate::boot::window_ready(&dir.join("program"), app_id).map(|_| ()).map_err(|b| format!("窓が開けない版です: {}", b.detail))
 }
 
@@ -253,7 +260,7 @@ pub fn stage_release(p: &Paths, rel: &Release, app_id: &str, progress: &dyn Fn(&
         let root = dist_root(&tmp).ok_or("ZIP に program\\sidecar.py がありません")?;
         validate_dist(&root, &rel.exe, app_id, Some(&rel.version))?;
         // 窓の準備（版 3.111.0。src/boot.rs）も入れ替える前に当てる: 窓が描けない版は取り込まない（全員の PC が 1 回ずつ入れ替えて戻すのを防ぐ）
-        validate_window(&root, app_id)?;
+        validate_window(&root, &rel.exe, &p.app().join(&rel.exe), app_id)?;
         let _ = std::fs::remove_dir_all(p.stage());
         let _ = std::fs::remove_file(p.stage_record());
         std::fs::rename(&root, p.stage()).map_err(|e| format!("取り込んだ版を置けません: {e}"))?;
@@ -685,6 +692,7 @@ mod tests {
         // 版 3.111.0: 窓の準備（画面の型・型が指す部品・同梱の既定）も入れ替える前に当てる。Python だけ壊れた版は取り込む（戻さない決め）
         let d = tmp("window");
         let p = Paths::new(&d.join("local"));
+        dist(&p.app(), "3.9.0", "x"); // いまの窓（同じ exe）
         let rel_dir = d.join("rel");
         std::fs::create_dir_all(&rel_dir).unwrap();
         for (what, rel, body) in [
@@ -709,6 +717,26 @@ mod tests {
         std::fs::write(d.join("new").join("program").join("config").join("appsettings.json"), "JSON でない").unwrap();
         let sha = zip_of(&d.join("new"), "App", &rel_dir.join("App.zip"));
         assert!(stage_release(&p, &release(&rel_dir, "3.10.0", &sha), ID, &|_| {}).is_ok(), "Python だけ・配った設定だけの壊れは取り込む");
+        // 版 3.111.0 の作った後の採点の割れ 3: exe が替わる版は、いまの窓の決まりで型を見ない（新しい窓なら描ける型かもしれない）。
+        // 新しい窓の起動のときの確かめ（窓の準備・画面の最初の心拍）に任せる
+        for (what, rel, body) in [
+            (
+                "新しい窓だけが埋める値",
+                "program/app/templates/index.html",
+                Some("<script>window.X = {{ new_thing|tojson|upper }};</script>{% if brand %}{% endif %}"),
+            ),
+            ("設定の見本を移した", "program/config/appsettings.example.json", None),
+            ("新しい形の既定", "program/app/master_defaults/conversions.json", Some(r#"{"schema": 2, "items": {}}"#)),
+        ] {
+            let _ = std::fs::remove_dir_all(d.join("new"));
+            dist(&d.join("new"), "3.10.0", "新しい窓の exe");
+            match body {
+                None => std::fs::remove_file(d.join("new").join(rel)).unwrap(),
+                Some(b) => std::fs::write(d.join("new").join(rel), b).unwrap(),
+            }
+            let sha = zip_of(&d.join("new"), "App", &rel_dir.join("App.zip"));
+            assert!(stage_release(&p, &release(&rel_dir, "3.10.0", &sha), ID, &|_| {}).is_ok(), "{what}: exe が替わる版は取り込む");
+        }
         let _ = std::fs::remove_dir_all(&d);
     }
 

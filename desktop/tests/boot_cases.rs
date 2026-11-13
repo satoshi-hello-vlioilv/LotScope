@@ -5,6 +5,7 @@
 use da_core::boot::{self, Act, Facts, Page, Python};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 fn program() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("program")
@@ -66,6 +67,22 @@ fn table() -> Value {
 fn boot_decides_like_the_table() {
     let t = table();
     assert_eq!(t["beatLimitSec"].as_u64(), Some(boot::BEAT_LIMIT.as_secs()), "画面の心拍を待つ上限は表と同じ");
+    assert_eq!(t["afterConfigSec"].as_u64(), Some(boot::AFTER_CONFIG.as_secs()), "設定の答えから心拍を待つ長さは表と同じ");
+    assert_eq!(t["askLimitSec"].as_u64(), Some(boot::ASK_LIMIT.as_secs()), "設定の答えを待つ上限は表と同じ");
+    // 画面の心拍が来る（来ない）ことを前提にした行は、本物の窓で確かめる場面（verify.py）を名指す（版 3.111.0 の作った後の採点の割れ 5）
+    let verify = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("bundle").join("verify.py")).unwrap();
+    for c in t["cases"].as_array().unwrap() {
+        if let Some(v) = c.get("verify").and_then(Value::as_str) {
+            let scene = v.rsplit(' ').next().unwrap();
+            assert!(
+                verify.contains(&format!("\"{scene}."))
+                    || verify.contains(&format!("{scene}. "))
+                    || verify.contains(&format!("def {scene}(")),
+                "{}: verify.py に場面 {v} が無い",
+                c["name"]
+            );
+        }
+    }
     let id = app_id();
     let dir = std::env::temp_dir().join(format!("da-boot-cases-{}", std::process::id()));
     let mut bad = vec![];
@@ -88,7 +105,14 @@ fn boot_decides_like_the_table() {
             installed: c["installed"].as_bool().unwrap(),
             applied: c["applied"].as_bool().unwrap(),
             window_ok: ready.is_ok(),
-            page: Page::of(c["page"].as_str().unwrap()).expect("page"),
+            page: match c.get("clock") {
+                // 画面の様子を時刻から決める（版 3.111.0 の作った後の採点の割れ 2。boot::page_of）
+                Some(k) => {
+                    let s = |v: &Value| v.as_f64().map(Duration::from_secs_f64);
+                    boot::page_of(s(&k["open"]).unwrap(), k["beat"].as_bool().unwrap(), s(&k["asked"]), s(&k["answered"]))
+                }
+                None => Page::of(c["page"].as_str().unwrap()).expect("page"),
+            },
             python: Python::of(c["python"].as_str().unwrap()).expect("python"),
         };
         let acts: Vec<&str> = boot::decide(&facts).into_iter().map(Act::name).collect();
