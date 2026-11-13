@@ -124,7 +124,7 @@ fn scalar(v: Option<&Value>) -> bool {
 pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
     let t = row.get("中身")?.as_str()?;
     let t = if t.is_empty() { "{}" } else { t };
-    let Ok(Value::Object(b)) = serde_json::from_str::<Value>(&master_rows::inner_text(t)) else { return None };
+    let Some(Value::Object(b)) = crate::held::text_value(t) else { return None };
     if b.get("tabs").and_then(Value::as_array).is_some_and(|ts| ts.iter().filter_map(Value::as_object).any(|t| !scalar(t.get("name")))) {
         return Some("中身のタブの名前が並び・表です".into());
     }
@@ -154,11 +154,11 @@ fn style(st: Option<&Value>) -> Value {
 }
 
 /// カードの設計の中身（表か JSON 字）→ (中身, 置く字)（card_forms.clean_body。body_plain を通った物だけを渡す）
-fn clean_body(body: Option<&Value>) -> Result<(Value, String), String> {
+pub(crate) fn clean_body(body: Option<&Value>) -> Result<(Value, String), String> {
     let parsed;
     let body = match body {
         Some(Value::String(t)) => {
-            parsed = serde_json::from_str::<Value>(&crate::master_rows::inner_text(t)).map_err(|_| "中身の形が違います。".to_string())?;
+            parsed = crate::held::text_value(t).ok_or_else(|| "中身の形が違います。".to_string())?;
             &parsed
         }
         Some(b) => b,
@@ -306,8 +306,10 @@ fn is_card(r: &Map<String, Value>) -> bool {
 
 /// 置き場から行を読んで答える（Lot::cards_route と試験 tests/cards_parity.rs の入口）。窓が答えない形は None
 pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8], place: &crate::access::Place) -> Option<Answer> {
-    // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）
-    if place.split_file(DASHBOARDS.name) || (route == Route::List && !store.seed_absent(&[DASHBOARDS.name])) {
+    // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（版 3.105.0。置けなければ前どおり任せる）。
+    // i64・u64 に入らない整数のファイル・中身の字も版 3.109.0 から読む（src/held.rs。前は Place::split_file・wide_content で任せ、
+    // 同じファイルを読むセットだけが答えていた）
+    if route == Route::List && !store.seed_absent(&[DASHBOARDS.name]) {
         return None;
     }
     // 置き場の読めない行は隔てる（版 3.107.0。カードの行の中身の形も row_problem で。前は任せた）
@@ -365,7 +367,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     let d = parsed.as_object().unwrap_or(&empty);
     // 本文の欄の型（名前・備考・範囲・中身の項目の字の欄が並び・表）は本文の門が断る（body_rules.TYPES。版 3.106.0。前は plain_input・card_plain で
     // 任せていた）。ここで見るのは、中身の字を窓が同じに読めるか（大きな整数など。text_split）だけ
-    if matches!(d.get("body"), Some(Value::String(t)) if master_rows::text_split_py(t)) {
+    if matches!(d.get("body"), Some(Value::String(t)) if master_rows::text_split_held(t)) {
         return None;
     }
     let body_text = |b: Option<&Value>| -> Result<String, String> { clean_body(b).map(|(_, t)| t) };

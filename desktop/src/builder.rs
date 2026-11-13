@@ -100,7 +100,8 @@ pub fn body_of(body: &[u8]) -> Option<Tree> {
     if body.iter().all(|b| b.is_ascii_whitespace()) {
         return Some(empty);
     }
-    let t: Tree = serde_json::from_slice(body).ok()?;
+    // J で読む（版 3.109.0。serde から直に読むと u64 を超える整数を小数に丸める。Tree::parse_bytes の 1 つ）
+    let t: Tree = Tree::parse_bytes(body)?;
     match &t {
         Tree::Obj(_) => Some(t),
         x if !crate::layout_clean::truthy(x) => Some(empty),

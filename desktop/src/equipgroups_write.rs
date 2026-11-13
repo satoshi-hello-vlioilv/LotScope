@@ -263,7 +263,9 @@ fn read(place: &Place) -> Option<Read> {
     // 読めない行（id・版・名称の型・ルールの NaN・数のまとめ方）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値は版 3.108.0 から桁のまま
     let iso = crate::row_check::check(NAME, &rows, &FIELDS);
     let good: Vec<Value> = crate::row_check::good(NAME, &rows, &iso);
-    if !good.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain)))) {
+    // 設備の並び（並びの中の並びも）は Python の equipment_list と同じに str()（repr）で読む（版 3.109.0 の作った後の採点の割れ 5。前は任せた）
+    let plain = |k: &str, v: &Value| if k == "設備" { master_rows::value_plain_or_container(v) } else { master_rows::value_plain(v) };
+    if !good.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(|v| plain(k, v))))) {
         return None;
     }
     crate::bundle::group_views(&good).ok()?;

@@ -20,9 +20,7 @@ use crate::master_rows::{base_rev, no_check, Spec};
 use crate::master_store::{MasterError, Store};
 use crate::pyfmt::PyInt;
 use crate::pyfmt::{self, strip};
-use crate::worksum::{
-    crosses_midnight, equipment_list, hm, normalize_part, order_of, pad_hm, py_int_of, py_str, segments_of, truthy, DAYOFF_LIMIT,
-};
+use crate::worksum::{crosses_midnight, equipment_list, hm, normalize_part, pad_hm, py_int_of, py_str, segments_of, truthy, DAYOFF_LIMIT};
 use serde_json::{json, Map, Value};
 
 pub const NAME: &str = "shift_patterns";
@@ -239,7 +237,7 @@ fn view(row: &Value) -> Value {
         "equipment": eq,
         "equipmentText": if eq.is_empty() { "全設備共通".to_string() } else { eq.join("・") },
         "segments": segments_of(row).iter().map(|s| s.json()).collect::<Vec<_>>(),
-        "order": order_of(row),
+        "order": crate::held::int_value(&crate::worksum::order_int(row)),
         "note": raw_or("備考", json!("")),
         "rev": row.get("rev").cloned().unwrap_or(json!(1)),
         "updated_at": row.get("updated_at").cloned().unwrap_or(json!("")),
@@ -290,7 +288,8 @@ fn listing(store: &Store, me: &Value, read: &Read) -> Value {
 
 fn listing_of(store: &Store, me: &Value, read: &Read, rows: &[Value]) -> Value {
     let mut items: Vec<Value> = rows.iter().map(view).collect();
-    items.sort_by_key(|x| (x["order"].as_i64().unwrap_or(0), x.get("id").filter(|v| truthy(v)).and_then(py_int_of).unwrap_or(0)));
+    let int = |v: &Value| crate::row_check::as_int(v).unwrap_or(pyfmt::PyInt::Small(0));
+    items.sort_by_key(|x| (int(&x["order"]), x.get("id").filter(|v| truthy(v)).map(int).unwrap_or(pyfmt::PyInt::Small(0))));
     let mut equipments: Vec<String> = vec![];
     let names = read
         .work_logs
@@ -308,19 +307,10 @@ fn listing_of(store: &Store, me: &Value, read: &Read, rows: &[Value]) -> Value {
            "shared": store.is_shared(NAME), "revision": store.revision(NAME), "dayOffsetDefault": crate::worksum::DAYOFF_DEFAULT})
 }
 
-/// 窓が Python と同じに読める行か（版 3.75.0。作った後の採点で見つけた形は Python に任せる）: i64 に入らない表示順
-/// （Python の int は桁のまま並べる・次の表示順を数える）・数でない id（Python の並べ替えは数と字を比べられず 500）・
-/// Python の json は読めて窓は読めない区分の字（NaN・Infinity など）
+/// 窓が Python と同じに読める行か（版 3.75.0）。版 3.109.0 から i64 に入らない表示順も桁のまま並べる（worksum::order_int。前は任せた）。
+/// 残るのは名称・備考の値の形（id・版・並びや表の名称・区分の NaN は版 3.107.0 から隔てる）
 fn readable(rows: &[Value]) -> bool {
-    rows.iter().all(|r| {
-        let order_ok = match r.get("表示順") {
-            Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.abs() < 9.0e15),
-            v => v.filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18),
-        };
-        // 名称・備考の値の形（i64 に入らない整数は Python。id・版・並びや表の名称・区分の NaN は版 3.107.0 から隔てる）
-        let id_ok = ["名称", "備考"].iter().all(|k| r.get(*k).is_none_or(crate::master_rows::value_plain_or_container));
-        order_ok && id_ok
-    })
+    rows.iter().all(|r| ["名称", "備考"].iter().all(|k| r.get(*k).is_none_or(crate::master_rows::value_plain_or_container)))
 }
 
 /// 窓が受ける 4 本を答える（門番は呼ぶ側が通した）。read は書く前の読み、reread は書いた後に読み直す係。窓が答えない形は None

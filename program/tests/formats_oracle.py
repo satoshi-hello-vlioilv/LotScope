@@ -175,6 +175,15 @@ SCENARIOS = [
      "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}})), W(S(PART, "DELETE", 1)),
                    W(S(PART, "PUT", 1, {"name": "b"}))]},
 ]
+# 版 3.109.0（H3）: 大きな整数のファイル・中身の字も窓が桁のまま読んで答える（前は Place::split_file・row_check::wide_content で任せた。カード・ダッシュボードとセットの食い違いも消えた）
+SCENARIOS += [
+    {"name": "置き場の共有の書式の行の中身の字が i64 に入らない整数（窓も桁のまま読む）", "mode": "shared",
+      "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), R(2, "大きな中身", "lot", '{"sorts":[],"n":100000000000000000000}')], "steps": [],
+      "delegates": [W(x) for x in (S(PART, "GET"), S(PART, "POST", body={"name": "a", "source": "lot", "body": {"sorts": []}}), S(PART, "PUT", 1, {"name": "b"}),
+                                  S(PART, "DELETE", 1), S(PART, "GET"))]},
+    {"name": "置き場の共有の書式の行の中身の並べ替え・スライサーの値が境の大きな整数（窓も桁のまま読む）", "mode": "shared",
+     "rows": [R(1, "良い行", "lot", '{"sorts":[]}'), R(2, "境の中身", "lot", '{"sorts":[{"column":18446744073709551616,"dir":"asc"}],"slicer":{"cards":[{"col":"a","values":[9223372036854775808,-9223372036854775809,"x"]}]},"filters":[10000000000000000000]}')], "steps": [],
+     "delegates": [W(x) for x in (S(PART, "GET"), S(PART, "PUT", 2, {"name": "b"}), S(PART, "GET"))]}]
 FILE_NAME = "display_formats"
 
 

@@ -270,6 +270,8 @@ def kind_of(scene, s, prof, oracle=""):
     """(層, 形)"""
     name = scene.get("name", "") if isinstance(scene, dict) else ""
     if not isinstance(s, dict) or "method" not in s:          # 設定の束の場面（settings_oracle）
+        if isinstance(s, dict) and s.get("window"):          # 版 3.109.0: 窓がまだ組めない節（Python は組む）。束を Python に尋ねる
+            return "束", "束: 窓がまだ組めない節（中身の字の NaN・式が引く変換表の大きな整数。bundle_window）"
         if "まだ無い" in name:
             return "束", "束: 種まき（共有にまだ無いマスタ）"
         if "引っ越し" in name:

@@ -179,6 +179,16 @@ SCENARIOS = [
     {"name": "共有のファイルの版 revision が読めない（写しで続け、書く道は断る）", "mode": "shared", "rows": ROWS, "rev": "abc", "steps": [],
      "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body=P("a", B(F("a"))))), W(S(PART, "PUT", 3, {"name": "x"})), W(S(PART, "DELETE", 3))]},
 ]
+# 版 3.109.0（H3）: 大きな整数のファイル・中身の字も窓が桁のまま読んで答える（前は Place::split_file・row_check::wide_content で任せた。カード・ダッシュボードとセットの食い違いも消えた）
+SCENARIOS += [
+    {"name": f"置き場の dashboards.json の{what}が i64 に入らない整数（窓も桁のまま読む）", "mode": "shared",
+      "rows": [R(1, "良い行", SRC, "共通", body=GOOD), R(3, "私の", SRC, "ID", login="p1", body=GOOD), bad], "steps": [],
+      "delegates": [W(x) for x in (S(PART, "GET"), S(PART, "POST", body=P("a", B(F("a")))), S(PART, "PUT", 3, {"name": "直す"}), S(PART, "DELETE", 3), S(PART, "GET"))]}
+    for what, bad in [("ダッシュボードの行の知らない鍵", dict(R(2, "x", "dash", "共通", body='{"rows": 8, "panels": []}'), x=10 ** 20)),
+                      ("ダッシュボードの行の知らない鍵（2^64）", dict(R(2, "x", "dash", "共通", body='{"rows": 8, "panels": []}'), x=2 ** 64)),
+                      ("カードの行の方眼の数と日付の列", R(2, "x", SRC, "共通", body='{"cols": 18446744073709551616, "row": 9223372036854775808, "items": [{"id": "a", "kind": "dates", "cols": [100000000000000000000, "b"], "label": -9223372036854775809, "x": 0, "y": 0, "w": 10000000000000000000, "h": 1}]}')),
+                      ("カードの行の中身の字", R(2, "x", SRC, "共通", body=j(B(F("a"), n=10 ** 20)))),
+                      ("ダッシュボードの行の中身の字", R(2, "x", "dash", "共通", body='{"rows": 8, "panels": [], "n": 100000000000000000000}'))]]
 FILE_NAME = "dashboards"
 
 

@@ -267,7 +267,8 @@ pub fn truthy(v: Option<&Value>) -> bool {
 
 /// str(v)
 pub fn py_str_value(v: &Value) -> String {
-    J::from_value(v).py_str()
+    // 置き場の持っている値（src/held.rs の印の字: 大きな整数・NaN）は元の値の str()（版 3.109.0。設備マスタも大きな整数のファイルを読む）
+    crate::held::to_j(v).py_str()
 }
 
 /// str(v or "")
@@ -284,6 +285,11 @@ pub fn py_float_of(v: Option<&Value>, def: f64) -> Result<f64, String> {
         None => Ok(def),
         Some(Value::Number(n)) => Ok(n.as_f64().unwrap_or(f64::NAN)),
         Some(Value::Bool(b)) => Ok(if *b { 1.0 } else { 0.0 }),
+        Some(x @ Value::String(_)) if crate::held::is_held(x) => match crate::held::to_j(x) {
+            J::Float(f) => Ok(f),
+            J::Big(d) => pyfmt::py_float_of_int(&d),
+            j => Ok(j.to_value().as_f64().unwrap_or(f64::NAN)),
+        },
         Some(Value::String(s)) => pyfmt::py_float(s),
         Some(x) => Err(format!("float() argument must be a string or a real number, not '{}'", J::from_value(x).type_name())),
     }

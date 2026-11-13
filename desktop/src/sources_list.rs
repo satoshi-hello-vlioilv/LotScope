@@ -197,7 +197,13 @@ pub fn answer(inp: &Inputs, me: &Value, store: &Store, live: &Live) -> Option<Va
             None
         };
         let rows = if d["kind"] == "view" { view_rows(&live.joins, &d).ok()? } else { rows_of(m.as_ref(), &d) };
-        d.insert("mirror".into(), m.as_ref().map(|m| m.source_info()).unwrap_or(Value::Null));
+        let mut info = m.as_ref().map(|m| m.source_info()).unwrap_or(Value::Null);
+        // 写しの係の間隔は i64 の秒（飽和）。i64 に入らない間隔は Python と同じく束の値（int(float) の桁）で見せる（版 3.109.0）
+        let r = &read["refresh_seconds"];
+        if info.is_object() && (crate::held::big_digits(r).is_some() || (r.as_u64().is_some() && r.as_i64().is_none())) {
+            info["interval_sec"] = r.clone();
+        }
+        d.insert("mirror".into(), info);
         d.insert("rows".into(), rows);
         d.insert("joinStats".into(), join_stats(&live.joins, &d).ok()?);
         items.push(Value::Object(d));

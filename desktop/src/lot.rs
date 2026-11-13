@@ -80,7 +80,17 @@ impl Settings {
         if hit.is_empty() {
             return None;
         }
-        let whys: Vec<String> = hit.iter().map(|(_, w)| w["why"].as_str().unwrap_or("").to_string()).collect();
+        // 理由はファイルごとに 1 つ（版 3.109.0。前は節ごとに同じ文を「／」で並べ、参照先なら同じ文が 2〜3 回出た）
+        let mut whys: Vec<String> = vec![];
+        let mut files: Vec<&str> = vec![];
+        for (_, w) in &hit {
+            let (file, why) = (w["file"].as_str().unwrap_or(""), w["why"].as_str().unwrap_or(""));
+            if (!file.is_empty() && files.contains(&file)) || whys.iter().any(|x| x.as_str() == why) {
+                continue;
+            }
+            files.push(file);
+            whys.push(why.to_string());
+        }
         crate::delegate::note("settings_refused");
         Some((
             503,
@@ -365,7 +375,7 @@ impl Lot {
     /// 窓が組んだ束（組めなければ None）。試験と記録のため
     pub fn own_bundle(&self) -> Option<Result<Value, &'static str>> {
         let b = self.bundle.lock().unwrap().clone()?;
-        Some(b.build().map_err(|e| e.0))
+        Some(b.build().map_err(|e| e.why))
     }
 
     /// 画面（GET /・HEAD /。版 3.85.0）を窓が描く。束を組む係が無い・窓が Python と同じに描けない形は None（Python に任せる）。
@@ -379,7 +389,7 @@ impl Lot {
         let Some(b) = self.bundle.lock().unwrap().clone() else { return why("束を組む係が無い".into()) };
         let inp = match b.inputs() {
             Ok(i) => i,
-            Err(e) => return why(format!("束の材料: {}", e.0)),
+            Err(e) => return why(format!("束の材料: {}", e.why)),
         };
         // 初期設定・変換表が共有にまだ無ければ、Python の画面と同じく読むときに最初の版を置く（版 3.105.0。inp.check が Place::seed で置く）
         let profile: Vec<String> = crate::bundle::tables()["uiProfileKeys"]
@@ -411,10 +421,10 @@ impl Lot {
                     miss.push("画面の控え".to_string());
                 }
                 if p.is_none() {
-                    miss.push(format!("初期設定（{}）", inp.check("ui_defaults").err().map(|e| e.0).unwrap_or("読めない")));
+                    miss.push(format!("初期設定（{}）", inp.check("ui_defaults").err().map(|e| e.why).unwrap_or("読めない")));
                 }
                 if c.is_none() {
-                    miss.push(format!("変換表（{}）", inp.check("conversions").err().map(|e| e.0).unwrap_or("読めない")));
+                    miss.push(format!("変換表（{}）", inp.check("conversions").err().map(|e| e.why).unwrap_or("読めない")));
                 }
                 return why(miss.join("・"));
             }
@@ -830,7 +840,7 @@ impl Lot {
         let cwd = builder.as_ref().map(|b| b.env().program.clone()).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
         let me = || -> Result<Value, String> {
             let b = builder.as_ref().ok_or("設定の束を組む係がありません")?;
-            let inp = b.inputs().map_err(|e| format!("配った設定・マスタの置き場を読めません: {}", e.0))?;
+            let inp = b.inputs().map_err(|e| format!("配った設定・マスタの置き場を読めません: {}", e.why))?;
             self.gate.forget(); // 置き場を変える前は、いまの権限の表で決める
             self.gate.me(&json!({"who": inp.who, "place": inp.place}))
         };
@@ -1136,10 +1146,13 @@ impl Lot {
         // 共有を見直してから（Store::seed）なので、Python と同時でも 1 回だけ。置けなかった（錠・書けない）ときだけ、束を Python に尋ねる
         // （Python は写しで答える）。Python が答えなければ自分の束のまま（その節を使う道は理由つきで断る）
         let seed = own.as_ref().is_some_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["seed"] == true)));
+        // 窓がまだ Python と同じに組めない節（window: true。版 3.109.0）も、道を断らずに束を Python に尋ねる（Python は組める）。
+        // Python も答えないときだけ自分の束のまま（その節の道は理由つきで 503）。印は bundle_window（種まきの bundle_seed と分けて数える）
+        let window = own.as_ref().is_some_and(|v| v["broken"].as_object().is_some_and(|m| m.values().any(|w| w["window"] == true)));
         let (mine, mut v) = match own {
-            Some(v) if seed => match ask() {
+            Some(v) if seed || window => match ask() {
                 Ok(p) => {
-                    crate::delegate::note("bundle_seed");
+                    crate::delegate::note(if seed { "bundle_seed" } else { "bundle_window" });
                     (false, p)
                 }
                 Err(_) => (true, v),
@@ -2625,6 +2638,186 @@ mod tests {
     }
 
     #[test]
+    fn big_integers_in_the_masters_do_not_stop_the_routes() {
+        // 版 3.109.0（H3）: 共有のマスタ（参照先・データ元・実績の設備・設備マスタ・勤務体系）に i64・u64 に入らない整数が 1 つ入っても、
+        // 窓は束を組み（前は節を broken〈window〉にして一覧・作業実績・ダッシュボード・勤務体系の道を 503 で断った）、LotDsp も答える
+        // （前は lotdsp_inputs の split_file で 503「参照先」「設備マスタ」）。Python には尋ねない。束の材料と答えに印の字（src/held.rs の
+        // mark()）が字として漏れない（大きな整数の設備名は Python の str() の桁の字）
+        let work = std::env::temp_dir().join(format!("da-lot-bigint-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(
+            &cfg,
+            json!({"master_share": {"dir": share}, "lot_list": {"source": "/無い/q.sqlite3"},
+                   "lotdsp_import": {"url": "http://127.0.0.1:9/配った/", "api": {"enabled": false}}})
+            .to_string(),
+        )
+        .unwrap();
+        let login = crate::bundle::login_id();
+        let perm = json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        // 字で書く（json! は u64 を超える整数を持てない）
+        let doc = |rows: &str| format!(r#"{{"schema": 1, "revision": 4, "rows": {rows}}}"#);
+        let big = "100000000000000000000";
+        let master: Value = serde_json::from_slice(&std::fs::read(program.join("data/equipment_master.json")).unwrap()).unwrap();
+        let rows = master.get("rows").cloned().unwrap_or(master).to_string();
+        let rows = format!(r#"{}, {{"id": 900, "設備名": 18446744073709551616, "n": {big}, "rev": 1}}]"#, rows.trim_end_matches(']'));
+        std::fs::write(share.join("equipment_master.json"), doc(&rows)).unwrap();
+        for (n, rows) in [
+            (
+                "path_settings",
+                format!(r#"[{{"id": 1, "項目": "lotdsp_import.url", "値": "http://127.0.0.1:9/参照先/", "n": {big}, "rev": 1}}]"#),
+            ),
+            ("data_sources", format!(r#"[{{"id": 90, "キー": "big", "表示名": "big", "場所": "/big", "n": {big}, "rev": 1}}]"#)),
+            (
+                "work_log_files",
+                format!(r#"[{{"id": 1, "キー": "w1", "設備名": "CAL", "ファイル名": "実績_CAL.sqlite3", "n": {big}, "rev": 1}}]"#),
+            ),
+            ("shift_patterns", format!(r#"[{{"id": 1, "名称": "交替", "区分": "[]", "n": {big}, "rev": 1}}]"#)),
+            ("equipment_groups", "[]".to_string()),
+            ("conversions", "[]".to_string()),
+        ] {
+            std::fs::write(share.join(format!("{n}.json")), doc(&rows)).unwrap();
+        }
+        let env =
+            crate::bundle::Env { base: work.join("base"), program: program.clone(), local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let asked = std::cell::Cell::new(0);
+        let down = || -> Result<Value, String> {
+            asked.set(asked.get() + 1);
+            Err("中身（Python）が答えません".into())
+        };
+        let s = lot.settings(&down).expect("束は組める");
+        assert_eq!(asked.get(), 0, "Python に尋ねない");
+        assert!(s.broken.as_object().is_none_or(|m| m.values().all(|w| w["window"] != true)), "窓が組めない節が無い: {}", s.broken);
+        fn held_at(v: &Value, at: &str) -> Vec<String> {
+            match v {
+                Value::Array(a) => a.iter().enumerate().flat_map(|(i, x)| held_at(x, &format!("{at}[{i}]"))).collect(),
+                Value::Object(m) => m.iter().flat_map(|(k, x)| held_at(x, &format!("{at}.{k}"))).collect(),
+                x if crate::held::is_held(x) => vec![at.to_string()],
+                _ => vec![],
+            }
+        }
+        // 印の字で持つのは、行をそのまま渡す所（勤務体系の行）の知らない鍵 n の大きな整数だけ（Python も数のまま渡す）。設備名・データ元・
+        // 実績の設備の名前など、束が字にする所は Python の str() の桁の字
+        let held: Vec<String> = held_at(&s.lists, "lists").into_iter().filter(|p| !p.ends_with(".n")).collect();
+        assert_eq!(held, Vec::<String>::new(), "束の材料の字に印の字が残らない");
+        let no_settings = |what: &str, got: Option<(u16, Value)>| {
+            let (st, v) = got.unwrap_or_else(|| panic!("{what}: 窓が答える"));
+            assert_ne!(v["kind"], json!("settings"), "{what}: 503 で断らない: {st} {v}");
+            let text = String::from_utf8(crate::held::reply_bytes(&v)).unwrap();
+            assert!(!text.contains(crate::held::mark()), "{what}: 答えに印の字が出ない");
+            (st, v)
+        };
+        no_settings("品質の一覧", lot.handle("GET", "/api/lotlist", "", &down));
+        no_settings("作業実績", lot.handle("GET", "/api/worklog", "equip=CAL", &down));
+        let (_, v) = no_settings("勤務体系", lot.handle_body("GET", "/api/masters/shifts", "", b"", &down));
+        assert!(v.to_string().contains("交替"), "{v}");
+        let panel = json!({"panel": {"id": "a", "x": 0, "y": 0, "w": 4, "h": 2, "visual": "number", "source": "work",
+                                     "body": {"rows": [], "cols": [], "measures": [{"agg": "lots"}]}}});
+        if let Some(got) = lot.handle_body("POST", "/api/dashboard/query", "", panel.to_string().as_bytes(), &down) {
+            no_settings("ダッシュボード", Some(got));
+        }
+        let fixture = std::fs::read_to_string(program.join("tests/fixtures/lotdsp_progress_L7150C0.html")).unwrap();
+        let body = json!({"html": fixture, "lot_no": "L7150C0"}).to_string();
+        let (st, _) = no_settings("LotDsp", lot.handle_body("POST", "/api/lots/import-lotdsp", "", body.as_bytes(), &down));
+        assert_eq!(st, 200);
+        assert_eq!(asked.get(), 0, "Python に尋ねない");
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
+    fn a_window_section_asks_python_before_refusing() {
+        // 版 3.109.0（G の逃げ道）: 窓がまだ Python と同じに組めない節（window: true）は、道を断らずに束を Python に尋ね、印 bundle_window で数える。
+        // Python も答えないときだけ 503 kind settings で、理由はファイルごとに 1 つ・何行目かを言う（前は節ごとに同じ文を並べ、file が空の字）
+        let work = std::env::temp_dir().join(format!("da-lot-window-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let data = work.join("base").join("data");
+        for d in [work.join("local"), data.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"lot_list": {"source": "/無い/q.sqlite3"}, "master_share": {}}).to_string()).unwrap();
+        // 結合の字の中の NaN（窓の serde が読めない字。Python は読む）: データ元の節だけが window
+        std::fs::write(
+            data.join("data_sources.json"),
+            r#"[{"id": 1, "キー": "s1", "表示名": "x", "場所": "/x", "結合": "[{\"a\": NaN}]"}]"#,
+        )
+        .unwrap();
+        let env = crate::bundle::Env {
+            base: work.join("base"),
+            program: program.clone(),
+            local: work.join("local"),
+            config: cfg.clone(),
+            now: None,
+        };
+        // Python の答えの代わり: 同じ設定で、結合の字を直した置き場から組んだ束（節は全部組める）
+        let fixed = work.join("fixed");
+        std::fs::create_dir_all(fixed.join("data")).unwrap();
+        std::fs::write(fixed.join("data").join("data_sources.json"), r#"[{"id": 1, "キー": "s1", "表示名": "x", "場所": "/x"}]"#).unwrap();
+        let py_bundle =
+            crate::bundle::Builder::new(crate::bundle::Env { base: fixed, program, local: work.join("local2"), config: cfg, now: None })
+                .build()
+                .expect("直した置き場の束");
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let before = crate::delegate::counts()["bundle_window"].as_u64().unwrap_or(0);
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let s = lot.settings(&down).expect("束は組める");
+        let w = &s.broken["sources"];
+        assert_eq!((w["window"].clone(), w["file"].clone()), (json!(true), json!("data_sources.json")), "{}", s.broken);
+        assert!(w["why"].as_str().unwrap().contains("data_sources.json の 1 行目"), "何行目かを言う: {w}");
+        let (st, v) = lot.handle("GET", "/api/lotlist", "", &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (503, json!("settings")), "Python も答えないときだけ断る: {v}");
+        assert_eq!(v["error"].as_str().unwrap().matches("data_sources.json").count(), 1, "ファイルごとに 1 つ: {v}");
+        // Python が答えれば、その束で答える（断らない）
+        lot.invalidate();
+        let py = || -> Result<Value, String> { Ok(py_bundle.clone()) };
+        let s2 = lot.settings(&py).expect("Python の束");
+        assert!(s2.broken.as_object().is_none_or(|m| m.is_empty()), "{}", s2.broken);
+        assert!(crate::delegate::counts()["bundle_window"].as_u64().unwrap_or(0) > before, "bundle_window で数える");
+        // 版 3.109.0 の作った後の採点の割れ 1: 原因は組めない理由を作った行。前の行が隔てる行（版が読めない）でも、その行を原因と言わない
+        let cause = |file: &str, text: &str, sec: &str| {
+            std::fs::write(data.join(file), text).unwrap();
+            lot.invalidate();
+            let s = lot.settings(&down).expect("束は組める");
+            s.broken[sec].clone()
+        };
+        let w = cause(
+            "data_sources.json",
+            r#"[{"id": 1, "キー": "s0", "表示名": "版", "場所": "/a", "rev": "abc"}, {"id": 2, "キー": "s1", "表示名": "x", "場所": "/x", "結合": "[{\"a\": NaN}]"}]"#,
+            "sources",
+        );
+        assert_eq!(w["file"], json!("data_sources.json"), "{w}");
+        assert!(
+            w["why"].as_str().unwrap().contains("data_sources.json の 2 行目") && !w["why"].as_str().unwrap().contains("版"),
+            "原因の行: {w}"
+        );
+        // FILTERED のマスタ（変換表）の隔てた行は束の前に除かれるので原因でない。原因は式が引く形の大きな整数の行
+        std::fs::write(data.join("data_sources.json"), r#"[]"#).unwrap();
+        let w = cause(
+            "conversions.json",
+            r#"[{"id": "x", "名前": "隔てる行", "入力": "[]"}, {"id": 2, "名前": "大きな判定", "入力": "[\"a\"]", "判定": "[{\"when\": {\"a\": 100000000000000000000}, \"out\": \"x\"}]"}]"#,
+            "conversions",
+        );
+        assert_eq!((w["file"].clone(), w["window"].clone()), (json!("conversions.json"), json!(true)), "{w}");
+        assert!(w["why"].as_str().unwrap().contains("conversions.json の 2 行目"), "隔てた 1 行目を言わない: {w}");
+        // Python も落ちる形（間隔が inf）は window にせず、Python に尋ねない（ファイルと行を言う）
+        std::fs::write(data.join("conversions.json"), r#"[]"#).unwrap();
+        let w = cause("data_sources.json", r#"[{"id": 1, "キー": "s1", "表示名": "x", "場所": "/x", "確かめる間隔": "inf"}]"#, "sources");
+        assert!(w["window"].is_null() && w["why"].as_str().unwrap().contains("data_sources.json の 1 行目"), "{w}");
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
     fn the_window_answers_lotdsp_from_the_bundle() {
         // 版 3.98.0（作った後の採点の割れ 4）: LotDsp の道は本物の配線（Lot::handle_body → bundle.rs の lotdsp_inputs）で材料を読む。
         // 参照先で直した URL が効く（調べる道具の場所）・設備マスタで取込を絞る。設備マスタ・参照先が読めなければ 503 kind settings
@@ -3294,13 +3487,16 @@ mod tests {
             body_refused(lot.handle_body("DELETE", "/api/masters/shifts/2", "rev=1", b"[1]", &ask_boss)),
             "表でない本文は門が断る（前は 500）"
         );
-        // 大きすぎる表示順は Python に任せる（H2）。字の id・NaN の区分の行は版 3.107.0 から窓も隔てて答える（skipped で知らせる）
-        for bad in [
-            json!({"id": 9, "名称": "大", "表示順": "99999999999999999999"}),
-            json!({"id": 9, "名称": "数の大", "表示順": 99999999999999999999.0_f64}),
+        // 大きすぎる表示順も版 3.109.0 から窓が桁のまま答える（int(表示順)。前は Python に任せた）。字の id・NaN の区分の行は版 3.107.0 から
+        // 窓も隔てて答える（skipped で知らせる）
+        for (bad, order) in [
+            (json!({"id": 9, "名称": "大", "表示順": "99999999999999999999"}), "99999999999999999999"),
+            (json!({"id": 9, "名称": "数の大", "表示順": 99999999999999999999.0_f64}), "100000000000000000000"),
         ] {
             std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
-            assert!(lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).is_none(), "{bad}");
+            let (st, v) = lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).expect("窓が答える");
+            let text = String::from_utf8(crate::held::reply_bytes(&v)).unwrap();
+            assert!(st == 200 && text.contains(&format!("\"order\": {order}")), "{bad}: {text}");
         }
         for (bad, why, summary) in [
             (json!({"id": "x", "名称": "字の id"}), "id が数ではありません（'x'）", "id 'x'・名称 '字の id'"),

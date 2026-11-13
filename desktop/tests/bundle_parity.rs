@@ -110,6 +110,12 @@ fn bundle_is_built_like_python() {
                 if w["why"].as_str().is_none_or(str::is_empty) || w["seed"] == true {
                     bad.push(format!("{name}: 節 {k} の理由が無い・種まきになった: {w}"));
                 }
+                // 版 3.109.0: 窓だけが組めない節（Python は組む）は window: true（束を Python に尋ねる）、Python も落ちる節は window にしない。
+                // どれもファイルの名前を言う（空の字にしない）
+                let want_window = sc["window"].as_array().is_some_and(|a| a.iter().any(|x| x == k));
+                if (w["window"] == true) != want_window || w["file"].as_str().is_none_or(str::is_empty) {
+                    bad.push(format!("{name}: 節 {k} の window・file が違う（window のはず {want_window}）: {w}"));
+                }
             }
             // ほかの節は Python と同じ（Python の答えが JSON で渡せたとき）
             let mut want = sc["answer"].clone();
@@ -140,7 +146,7 @@ fn bundle_is_built_like_python() {
         let mut got = match got {
             Ok(v) => v,
             Err(e) => {
-                bad.push(format!("{name}: 窓が組めない（{}）", e.0));
+                bad.push(format!("{name}: 窓が組めない（{}）", e.why));
                 continue;
             }
         };

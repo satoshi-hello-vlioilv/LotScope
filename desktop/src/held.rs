@@ -176,6 +176,13 @@ pub fn body_value(body: &[u8]) -> Option<Value> {
     parse(t).ok().filter(|v| !has_nonfinite(v))
 }
 
+/// 置き場の中身の字（"{…}"。ダッシュボード・カード・セット・書式・すぐに見るの中身・前の版の条件）→ 値（版 3.109.0。Python の
+/// json.loads と同じく i64・u64 に入らない整数も読み、印の字で持つ。整数の -0 は 0。前は serde で読み、大きな整数を小数に丸めるので
+/// row_check::wide_content でその道を Python に任せた）。NaN・Infinity・読めない字は None（行の確かめが先に隔てる）
+pub fn text_value(t: &str) -> Option<Value> {
+    body_value(crate::master_rows::inner_text(t).as_bytes())
+}
+
 /// 画面へ返す答えの字（版 3.108.0。Flask の jsonify と同じく大きな整数は桁のまま。NaN・Infinity は null〈答えは allow_nan=False〉）。
 /// 持っている値が無ければ前と同じ serde の字
 pub fn reply_bytes(v: &Value) -> Vec<u8> {
@@ -196,6 +203,54 @@ pub fn reply_bytes(v: &Value) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 中身の字の境の数（版 3.109.0・H3）: program/tests/fixtures/bigint_cases.json の content（Python の清め方の答え）と、窓の清め方
+    /// （カードの設計・ダッシュボード・セット・共有の書式・すぐに見る・前の版の条件）が同じ字・同じ値か。窓は中身を text_value で読み、
+    /// 印の字（大きな整数）は str() で桁の字・書き戻しで桁の数
+    #[test]
+    fn content_like_the_table() {
+        use crate::jsontree::Tree;
+        let table: Value = serde_json::from_str(include_str!("../../program/tests/fixtures/bigint_cases.json")).unwrap();
+        let mut bad = vec![];
+        let same_value = |a: &str, b: &str| parse(a).ok() == parse(b).ok();
+        for c in table["content"].as_array().unwrap() {
+            let (kind, text) = (c["kind"].as_str().unwrap(), c["text"].as_str().unwrap());
+            let want = c["want"].as_str();
+            let got: Option<String> = match kind {
+                "card" => crate::card_forms::clean_body(Some(&json_text(text))).ok().map(|x| x.1),
+                "layout" => crate::layout_clean::clean_layout(&Tree::Str(text.into())).ok().map(|x| x.1),
+                "set" => crate::dash_sets::clean_body(Some(&json_text(text))).ok().flatten().map(|x| x.1),
+                "format" => crate::formats_write::clean_body(Some(&Tree::Str(text.into()))).ok().flatten(),
+                "quick" => text_value(text)
+                    .and_then(|v| crate::pivot_presets::clean_quick(&v))
+                    .and_then(Result::ok)
+                    .map(|ks| format!("[{}]", ks.iter().map(|k| serde_json::to_string(k).unwrap()).collect::<Vec<_>>().join(", "))),
+                "shift" => Some(
+                    serde_json::to_string(
+                        &crate::worksum::segments_of(&serde_json::json!({"区分": text})).iter().map(|s| s.json()).collect::<Vec<_>>(),
+                    )
+                    .unwrap(),
+                ),
+                _ => {
+                    let rows = [Tree::Obj(vec![("キー".into(), Tree::Str("wip".into())), ("条件".into(), Tree::Str(text.into()))])];
+                    crate::layout_clean::condition_of(&rows, "wip").ok().map(|v| String::from_utf8(reply_bytes(&v)).unwrap())
+                }
+            };
+            let ok = match (kind, want, &got) {
+                // 前の版の条件は値で比べる（鍵の順・区切りの字は答えの組み方による）
+                ("condition" | "shift", Some(w), Some(g)) => same_value(w, g),
+                (_, w, g) => w == g.as_deref(),
+            };
+            if !ok {
+                bad.push(format!("{kind} {}: 窓 {got:?} / Python {want:?}", c["edge"]));
+            }
+        }
+        assert!(bad.is_empty(), "{} 件違います:\n{}", bad.len(), bad.join("\n"));
+    }
+
+    fn json_text(t: &str) -> Value {
+        Value::String(t.to_string())
+    }
 
     #[test]
     fn keeps_nan_and_writes_it_back() {

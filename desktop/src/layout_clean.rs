@@ -161,9 +161,15 @@ fn arr(t: Option<&Tree>) -> &[Tree] {
     }
 }
 
+/// 持っている値（src/held.rs の印の字: 大きな整数・NaN）か。Python では数（isinstance(v, str) が偽）
+fn held_str(s: &str) -> bool {
+    s.starts_with(crate::held::mark())
+}
+
 fn s_of(t: Option<&Tree>) -> Option<&str> {
     match t {
-        Some(Tree::Str(s)) => Some(s),
+        // 持っている大きな整数・NaN は字でない（版 3.109.0。Python の isinstance(v, str) が偽）
+        Some(Tree::Str(s)) if !held_str(s) => Some(s),
         _ => None,
     }
 }
@@ -178,6 +184,7 @@ pub fn truthy(t: &Tree) -> bool {
         Tree::Null => false,
         Tree::Bool(b) => *b,
         Tree::Num(n) => n.as_f64().is_some_and(|f| f != 0.0),
+        // 持っている大きな整数は 0 でない・NaN は真（Python の bool）。字の空でないと同じ真
         Tree::Str(s) => !s.is_empty(),
         Tree::Arr(a) => !a.is_empty(),
         Tree::Obj(m) => !m.is_empty(),
@@ -189,9 +196,11 @@ fn truthy_o(t: Option<&Tree>) -> bool {
 }
 
 fn num_str(n: &serde_json::Number) -> String {
-    match n.as_i64() {
-        Some(i) => i.to_string(),
-        None => pyfmt::float_repr(n.as_f64().unwrap_or(0.0)),
+    // u64 に入り i64 に入らない整数も桁の字（版 3.109.0。前は小数の "1e+19"。Python の str(int) は桁）
+    match (n.as_i64(), n.as_u64()) {
+        (Some(i), _) => i.to_string(),
+        (None, Some(u)) => u.to_string(),
+        _ => pyfmt::float_repr(n.as_f64().unwrap_or(0.0)),
     }
 }
 
@@ -199,6 +208,8 @@ fn num_str(n: &serde_json::Number) -> String {
 fn py_repr(t: &Tree) -> R<String> {
     Ok(match t {
         // 版 3.104.0 から pyfmt::str_repr が Python の isprintable の表で逃がす（前は和文の範囲の外の字を Python に任せた）
+        // 持っている大きな整数・NaN は数の repr（版 3.109.0。桁の字・nan）
+        Tree::Str(s) if held_str(s) => crate::held::repr(&serde_json::Value::String(s.clone())),
         Tree::Str(s) => pyfmt::str_repr(s),
         other => py_str(other)?,
     })
@@ -210,6 +221,8 @@ fn py_str(t: &Tree) -> R<String> {
         Tree::Null => "None".into(),
         Tree::Bool(b) => if *b { "True" } else { "False" }.into(),
         Tree::Num(n) => num_str(n),
+        // 持っている大きな整数・NaN は str(int)・str(float)（版 3.109.0。前は印の字のまま）
+        Tree::Str(s) if held_str(s) => crate::held::repr(&serde_json::Value::String(s.clone())),
         Tree::Str(s) => s.clone(),
         Tree::Arr(a) => format!("[{}]", a.iter().map(py_repr).collect::<R<Vec<_>>>()?.join(", ")),
         Tree::Obj(m) => format!(
@@ -259,6 +272,13 @@ fn float_of(t: Option<&Tree>) -> R<Option<f64>> {
     let f = match t {
         Some(Tree::Bool(b)) => Some(if *b { 1.0 } else { 0.0 }),
         Some(Tree::Num(n)) => n.as_f64(),
+        // 持っている大きな整数は float(int)・NaN は有限でない（版 3.109.0）
+        // f64 に入らない大きさは Python の float() が OverflowError で落ちる（_float は受けない）ので任せる（版 3.109.0 の割れ 6）
+        Some(Tree::Str(s)) if held_str(s) => match crate::held::big_digits_str(s).map(pyfmt::py_float_of_int) {
+            Some(Ok(f)) => Some(f),
+            Some(Err(_)) => return Err(Stop::Py),
+            None => None,
+        },
         Some(Tree::Str(s)) => {
             if !num_text_plain(s) {
                 return Err(Stop::Py);
@@ -357,11 +377,11 @@ fn period(t: Option<&Tree>) -> R<Value> {
 fn clean_calc(t: Option<&Tree>) -> R<Option<Value>> {
     let parsed;
     let v = match t {
-        Some(Tree::Str(s)) => {
+        Some(Tree::Str(s)) if !held_str(s) => {
             if strip(s).is_empty() {
                 return Ok(None);
             }
-            if crate::master_rows::text_split_py(s) {
+            if crate::master_rows::text_split_held(s) {
                 return Err(Stop::Py);
             }
             match Tree::parse(&crate::master_rows::inner_text(s)) {
@@ -380,7 +400,7 @@ fn clean_calc(t: Option<&Tree>) -> R<Option<Value>> {
         let mut out = Map::new();
         if let Some(Tree::Obj(m)) = d {
             for (k, x) in m.iter().take(n) {
-                if let Tree::Str(x) = x {
+                if let Some(x) = s_of(Some(x)) {
                     if !strip(k).is_empty() {
                         out.insert(take(k, 200), json!(take(x, size)));
                     }
@@ -481,7 +501,7 @@ fn agg_clean(m: &Tree, column: &str, names: &[String]) -> R<Map<String, Value>> 
         }
         out.insert("expr".into(), json!(expr));
     }
-    if let Some(Tree::Str(per)) = get(m, "per") {
+    if let Some(per) = s_of(get(m, "per")) {
         let per = strip(per);
         if !per.is_empty() {
             if !names.iter().any(|n| n == per) {
@@ -493,7 +513,7 @@ fn agg_clean(m: &Tree, column: &str, names: &[String]) -> R<Map<String, Value>> 
     if let Some(d) = float_of(get(m, "dec"))? {
         out.insert("dec".into(), json!(d.round_ties_even().clamp(0.0, 6.0) as i64));
     }
-    if let Some(Tree::Str(u)) = get(m, "utext") {
+    if let Some(u) = s_of(get(m, "utext")) {
         out.insert("utext".into(), json!(take(strip(u), 12)));
     }
     if matches!(get(m, "hideExpr"), Some(Tree::Bool(true))) {
@@ -561,7 +581,7 @@ fn clean_own(t: Option<&Tree>) -> R<Option<Vec<Value>>> {
         if matches!(get(x, "each"), Some(Tree::Bool(true))) {
             b.insert("each".into(), json!(true));
         }
-        if let Some(Tree::Str(u)) = get(x, "unit") {
+        if let Some(u) = s_of(get(x, "unit")) {
             let u = take(strip(u), 6);
             if !u.is_empty() {
                 b.insert("unit".into(), json!(u));
@@ -749,7 +769,7 @@ fn clean_fmt(t: Option<&Tree>) -> R<Option<Value>> {
     if !e.is_empty() && e.chars().all(expr_char) {
         out.insert("expr".into(), json!(e));
     }
-    if let Some(Tree::Str(u)) = get(v, "utext") {
+    if let Some(u) = s_of(get(v, "utext")) {
         out.insert("utext".into(), json!(take(strip(u), UNIT_MAX)));
     }
     Ok(if out.is_empty() { None } else { Some(Value::Object(out)) })
@@ -1150,8 +1170,9 @@ fn overlaps(a: &Map<String, Value>, b: &Map<String, Value>) -> bool {
 pub fn clean_layout(body: &Tree) -> R<(Value, String)> {
     let parsed;
     let body = match body {
-        Tree::Str(s) => {
-            if crate::master_rows::text_split_py(s) {
+        // 持っている大きな整数・NaN は字でない（版 3.109.0。Python の isinstance(body, str) が偽）
+        Tree::Str(s) if !held_str(s) => {
+            if crate::master_rows::text_split_held(s) {
                 return Err(Stop::Py);
             }
             match Tree::parse(&crate::master_rows::inner_text(s)) {
@@ -1219,8 +1240,9 @@ pub fn clean_layout(body: &Tree) -> R<(Value, String)> {
 pub fn clean_hide_body(body: &Tree) -> R<(Value, String)> {
     let parsed;
     let body = match body {
-        Tree::Str(s) => {
-            if crate::master_rows::text_split_py(s) {
+        // 持っている大きな整数・NaN は字でない（版 3.109.0。Python の isinstance(body, str) が偽）
+        Tree::Str(s) if !held_str(s) => {
+            if crate::master_rows::text_split_held(s) {
                 return Err(Stop::Py);
             }
             parsed = Tree::parse(&crate::master_rows::inner_text(s)).unwrap_or(Tree::Obj(vec![]));
@@ -1238,7 +1260,7 @@ pub fn clean_hide_body(body: &Tree) -> R<(Value, String)> {
     };
     let items: Vec<String> = match &raw {
         Tree::Arr(a) => a.iter().map(py_str).collect::<R<_>>()?,
-        Tree::Str(s) => s.chars().map(|c| c.to_string()).collect(),
+        Tree::Str(s) if !held_str(s) => s.chars().map(|c| c.to_string()).collect(),
         Tree::Obj(m) => m.iter().map(|(k, _)| k.clone()).collect(),
         _ => return Err(Stop::Py), // 数・真は TypeError（並べられない）
     };
@@ -1276,8 +1298,8 @@ pub fn condition_of(rows: &[Tree], key: &str) -> R<Value> {
     let text = row.and_then(|r| get(r, "条件"));
     let d = match text {
         Some(t) if truthy(t) => match t {
-            Tree::Str(s) => {
-                if crate::master_rows::text_split_py(s) {
+            Tree::Str(s) if !held_str(s) => {
+                if crate::master_rows::text_split_held(s) {
                     return Err(Stop::Py);
                 }
                 Tree::parse(&crate::master_rows::inner_text(s)).unwrap_or(Tree::Obj(vec![]))

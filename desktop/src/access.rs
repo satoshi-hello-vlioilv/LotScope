@@ -448,31 +448,13 @@ impl Place {
 
     /// マスタの行（MasterStore.read と同じ物: 共有するマスタは共有のファイル → 写し、無ければ同梱の data/ → 最初の中身）。
     /// 共有のファイルを直に読む（Python の写しは Python が読むときに取り直すので、窓が読むときに古いことがある）
-    /// 置き場のマスタのファイル（共有・写し・同梱の data/・既定）のどれかを、窓が Python と同じに読めないか（版 3.79.0）:
-    /// master_rows::text_split（入れ子 SERDE_DEPTH 段以上・NaN・Infinity・1e400 のような指数の数・-0・i64 に入らない整数・
-    /// 対の無い代用字の \u）か、UTF-8 でない。あれば窓は読む物・書き戻す物が Python と割れる（共有を読めずに写しへ流れる・
-    /// NaN を読めずに書けない・-0 を -0.0 と書き戻す・代用字を U+FFFD に読み替える）ので、そのマスタを使う道は Python に任せる
-    pub fn split_file(&self, name: &str) -> bool {
-        // 版 3.107.0: NaN・Infinity・1e400・入れ子・-0・読めない版・対の無い代用字は、読む所（parse_master と src/held.rs・src/row_check.rs）が
-        // Python と同じに扱う（行を隔てる・持ったまま書き戻す・ファイルを読めないとして写しで続ける）。残るのは i64 に入らない整数（H2）だけ
-        let file = format!("{name}.json");
-        let mut dirs: Vec<&PathBuf> = vec![];
-        if let Some(share) = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name)) {
-            dirs.push(share);
-            dirs.push(&self.cache);
-        }
-        dirs.push(&self.data);
-        dirs.push(&self.defaults);
-        dirs.iter().any(|d| read_cached(&d.join(&file)).is_ok_and(|c| c.wide))
-    }
-
     /// 共有のファイルが読めない理由（版 3.107.0。Python の MasterStore.share_problem と同じ。読みは写しで続けるので、一覧の帯で知らせる）
     pub fn share_problem(&self, name: &str) -> Option<String> {
         let share = self.share_dir.as_ref().filter(|_| self.shared.iter().any(|n| n == name))?;
         let path = share.join(format!("{name}.json"));
         let c = read_cached(&path).ok()?;
-        if c.doc.is_ok() || c.wide {
-            return None; // 読める（i64 に入らない整数は道が任せる）
+        if c.doc.is_ok() {
+            return None; // 読める（i64 に入らない整数も版 3.109.0 から src/held.rs の印の字で読む。前は split_file で道が任せた）
         }
         match crate::master_store::parse_master(&c.raw, &path) {
             Ok(_) => None,
@@ -587,12 +569,11 @@ impl Place {
     }
 }
 
-/// 読んだファイルの覚え（版 3.107.0 の割れ 6: 一覧 1 回で同じファイルを split_file・rows・share_problem が別々に読み・JSON にしていた）。
+/// 読んだファイルの覚え（版 3.107.0 の割れ 6: 一覧 1 回で同じファイルを rows・share_problem が別々に読み・JSON にしていた）。
 /// 鍵はファイルの道、目印は (更新時刻, 大きさ)
 struct Cached {
     sig: Option<(u128, u64)>,
     raw: Vec<u8>,
-    wide: bool,
     doc: Result<(Vec<Value>, i64), String>,
 }
 
@@ -608,12 +589,10 @@ fn read_cached(path: &std::path::Path) -> std::io::Result<std::sync::Arc<Cached>
         }
     }
     let raw = std::fs::read(path)?;
-    let body = raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&raw);
-    let wide = std::str::from_utf8(body).is_err() || crate::master_rows::split_wide(body);
     let doc = doc_of(&raw);
     // 字は読めないときの理由の言葉にだけ使う（読める大きなファイルの字は覚えない）
     let raw = if doc.is_err() { raw } else { vec![] };
-    let c = std::sync::Arc::new(Cached { sig, doc, wide, raw });
+    let c = std::sync::Arc::new(Cached { sig, doc, raw });
     if sig.is_some() {
         let mut g = READ_MEMO.lock().unwrap_or_else(|e| e.into_inner());
         let m = g.get_or_insert_with(std::collections::HashMap::new);

@@ -1,0 +1,120 @@
+{
+ "title": "Rust 化の段 ① の 6 歩目: 大きな整数のファイル・中身の字も窓が読む（H3）・束の止まる節を閉じる・G の逃げ道・消す確かめの窓。版 3.109.0 の作った後の採点（2026-11-13）",
+ "rule": "2026-11-06",
+ "applies": "2026-11-delegates-3109.json",
+ "applies_note": "版 3.109.0 は 2026-11-delegates-3109.json の回の 1 位 A（61.7 点・80 に届かず）に、採点の指摘 first_fixes 13 項目と G の逃げ道を入れて作った物。新しい案出しは無いので rounds は空にし、判定は 3109 の『届かずに選ぶ』を引いて、作った後（built）だけを決まり 2026-11-06 の物差しで 1 回採点する。画面の部分（消す確かめの窓・一言・赤い ×・データ元の面の言葉）は別の係が 2026-11-delegates-3109-ui.json で採点する。ここで見た画面の JS は言葉と数の正しさだけ",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff 4b9a5e3 6e85569 を読み、自分で試験を流し、一時の試験（desktop/tests/zz_grader_tmp.rs。採点の後に消した）と、同じ置き場を Python の道（Flask の test_client）に当てる一時の確かめ（scratchpad の py_probe.py）で割れを再現した",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.109.0・commit 6e85569。束の止まる 6 場面を閉じる・G の逃げ道〈bundle_window〉・window_why・held::text_value・layout_clean の印の字・LotDsp の str()／float()・C 案の画面）",
+  "images": "画面に出ない改良なので画像は無い（自分で流した試験・数え直した任せる歩・一時の試験と Python の道で再現した割れ・読んだコードで採点した）。画面は別の係（2026-11-delegates-3109-ui.json）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）",
+  "measured": {
+   "cargo": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked --test 〈bundle_parity・page_parity・bigint_cases・cards_parity・dashboards_parity・sets_parity・presets_parity・formats_parity・layout_cases〉 → 9 本とも test result: ok・終了コード 0。cargo test --locked --lib -- held:: lot::tests::big_integers lot::tests::a_window lot::tests::the_window_answers_lotdsp bundle::tests → 9 passed（content_like_the_table・big_integers_in_the_masters_do_not_stop_the_routes・a_window_section_asks_python_before_refusing を含む）・終了コード 0（記録 /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3109/cargo1.log・lib.log）",
+   "python": "cd program && python -m unittest tests.test_bigint_cases tests.test_ui_score tests.test_delegates_budget tests.test_row_cases tests.test_body_routes → Ran 30 tests・OK・終了コード 0（このファイルを書く前）。python tools/bigint-cases.py --check → 0（表は古くない）",
+   "delegates": "python program/tools/delegate-count.py /tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/g3109/count --check → 計 17（OS 6・口 5・束 5・本文 1）・『予算と同じです』・終了コード 0。ただし G の逃げ道の印 bundle_window は答えの元の場面を数える delegate-count.py に入らない（bundle_parity の broken: の 3 場面〈設備グループのルールの op が並び・設備の並びの中に並び・データ元の行の間隔が inf〉はどれも window: true で、本物の窓では束を Python に尋ねる）",
+   "repro": "一時の試験（cargo test --test zz_grader_tmp -- --nocapture。手元だけの置き場〈base/data〉・Python は答えない）: (a) data_sources の 1 行目が rev 'abc'（隔てる形・束は使える）、2 行目の確かめる間隔が 10^20 → GET /api/lotlist 503『data_sources.json の 1 行目を窓が Python と同じに読めません（版（rev）が読めません（'abc'））』＝原因でない行を言う。(b) equipment_master に id 'x' の行・equipment_groups のルールの op が並び → GET /api/dashboard/sources 503『equipment_master.json の 2 行目を…（id が数ではありません（'x'））』＝原因のファイル（equipment_groups）を言わない。(c) 間隔 10^20 だけ → 『data_sources.json・path_settings.json から窓が Python と同じに組めません（データ元の行の間隔が u64 に入らない整数）』（何行目かも言わず、関係ない path_settings.json も並べる）。(d) data_sources の結合の字に 10^20 → sources が window『結合の字が窓の読めない JSON』。(e) equipment_groups のルールの字に 10^20 → dash が window・503。(f) shift_patterns の区分の字 [{name: 10^20, start: 8:00, end: 17:00}] → 窓が答える GET /api/masters/shifts の segments の name が \"1e+20\"、Python の道は \"100000000000000000000\"。(g) 印の字の漏れ: 設備マスタ・実績の設備・勤務体系・設備グループ・データ元・参照先の名前・表示順・値に 10^20 を置き、17 の道（一覧・作業実績・ダッシュボードの元と設備の木と札と問い合わせ・/api/config・/api/settings・マスタの一覧・スケジュール）を叩いて reply_bytes の字に held::mark() は 0 件。/api/dashboard/sources・equip-tree・masters/worklog・masters/equipment・schedule は Python の道と同じ型・同じ字。(h) 勤務体系の表示順 10^20・設備グループの設備が並び → /api/masters/shifts・equipgroups を窓は答えず Python に任せる（答えの元に場面が無く、数に出ない）"
+  },
+  "cracks": [
+   {
+    "name": "1. window_why が原因でない行・ファイルを言う（指摘 4 が半分）",
+    "where": "desktop/src/bundle.rs:2224-2242（window_why）・2125-2129（section の Err で呼ぶ）・desktop/src/lot.rs:83-93（Settings::refuse のファイルごとの 1 つ）",
+    "path": "節の f() が Err（Py）になると、window_why は節のファイルを順に見て、row_check の隔てる行が 1 つでもあればその行を理由にする。だが (i) FILTERED のマスタ（equipment_master・equipment_groups・conversions・shift_patterns）の隔てた行は束の前に Place::rows が除いているので原因になりえない、(ii) データ元・実績の設備の隔てた行（rev 'abc' など）は束が読めるので原因でないことが多い。原因の行が別にあっても、最初の隔てた行を『窓が Python と同じに読めません』と言う（measured.repro (a)(b)）。隔てた行が無いと、節の全部のファイルを『・』で並べ、file にも全部を入れる（原因でない path_settings.json も。何行目かも言わない。repro (c)(d)(e)）。refuse の重複除けは file の字で比べるので、同じ原因でも節ごとに file の並びが違うと文が並ぶ",
+    "fix": "Py に原因のファイルと行を持たせる（R の Err を Py { why, file, row } にし、s()・num_of・joins_of・group_rules・conv の読みが呼ぶ所の行の番号を添える）。持てない所だけ今の言い方にし、隔てた行は『その行を除いて組み直すと組める』ときだけ原因にする。a_window_section_asks_python_before_refusing に、原因の行の前に隔てる行を置いた形と、FILTERED のマスタに隔てた行・別のマスタに原因がある形を足す",
+    "reproduced": true
+   },
+   {
+    "name": "2. 束の中の中身の字の大きな整数は今も window（G の逃げ道で Python に尋ねる。Python が居なければ 503）。残した物の見立てと予算に出ていない",
+    "where": "desktop/src/bundle.rs:892（joins_of の text_split_py）・1212（group_rules）・1343（conv_tables）・1471（学び）・796-812（num_of: 2^64 以上の間隔）・desktop/src/lot.rs:1151-1159（bundle_window）・program/docs/RUST_PORT_PLAN.md の『残した物』",
+    "path": "text_split_py は split_number を含むので、データ元の結合・設備グループのルール・変換表の式が引く形・LotDsp の学びの字の中の i64・u64 に入らない整数は、NaN・入れ子と同じく節を window にする（repro (d)(e)）。データ元の確かめる間隔が 2^64 以上も sources の節が window（repro (c)）。RUST_PORT_PLAN の『残した物』は NaN・入れ子と『写しの係の間隔は i64 の秒』しか書かず、大きな整数の中身と間隔 2^64 以上で節ごと Python に頼る（段 ④ で Python を外すと一覧・作業実績・ダッシュボードが 503）ことを書いていない。設備グループのルール・変換表の NaN は row_check が行を隔てる（FILTERED）ので window にならず、見立ての並びも合っていない。bundle_window は delegate-count.py の数（予算 17）に入らず、指摘 2 の『window: true が 0 になったことを確かめ、予算に入れる』は満たしていない（bundle_parity の broken: 3 場面も window: true）。また G の逃げ道は Supervisor::get が中身の起動を start_wait＋5 秒（125 秒）まで待つので、起動の途中は window の節がある間、束の要る道が待つ（コードで確かめた）",
+    "fix": "joins_of・group_rules・conv_tables・lotdsp_status を text_split_held＋held::text_value に替える（中身の大きな整数は印の字で持ち、比べる所は PyInt）。num_of は PyInt で桁のまま渡し、写しの係へは飽和の秒で渡す。残る window の形（NaN・入れ子・Bad::Python）は settings_oracle に expect broken の場面として足し、delegate-count.py が bundle_window の場面を数えて予算に入れる。RUST_PORT_PLAN の残した物を直す（292 億年 → 2920 億年も）",
+    "reproduced": true
+   },
+   {
+    "name": "3. 勤務体系の区分の字（中身の列）を serde で読み、大きな整数の名前を小数の字にする（中身の読み手が 1 つでない）",
+    "where": "desktop/src/worksum.rs:235-238（segments_of の serde_json::from_str）。使う所: shifts_write の一覧（GET /api/masters/shifts）・worksum::pattern_for（作業実績・ダッシュボードの直の名前）",
+    "path": "shift_patterns の区分は row_check の CONTENT_COLS にあり、大きな整数は隔てない（読める）→ 窓は serde で読むので 10^20 を 1e20 の小数にし、py_str で \"1e+20\" と書く。Python の segments_of は str(10**20)＝\"100000000000000000000\"。窓が答える道で字が割れる（repro (f)。Python の道は同じ置き場で \"100000000000000000000\"）。版の主張『中身の字は held::text_value の 1 つで読む』の外に残った読み手",
+    "fix": "segments_of を held::text_value（J で読み、大きな整数は印の字）にし、py_str（印の字は桁）で名前を作る。shifts_oracle か bigint_cases の content に勤務体系の区分（name・start・end・dayOffset に境の数）を足して Python の segments_of と突き合わせる。ほかの中身の列の読み手も held::text_value か text_split_held で守られているかを 1 つの試験（CONTENT_COLS の全部の列 × 境の数）で見る",
+    "reproduced": true
+   },
+   {
+    "name": "4. 消した後の一言の『残り n』が、ほかの画面の行を消したときに帯の札と 1 つずれる",
+    "where": "program/app/static/js/shared.js:366（left = mine.length − 1）",
+    "path": "札の数は今の面の元に当たる行（mine）。面の『ほかの画面の行』（others）も消せる（row の del は mine・others で同じ）。others の行を消すと札の数は変わらないのに、left は mine の数から 1 を引くので『残り n−1』と言う。mine が 0 で others だけ（ファイルが読めない札から開いた形）なら『もうありません』と言う。ui-eval-skiprows の ⑧ は mine の行を消す形だけを見ている（コードで確かめた。画面では動かしていない）",
+    "fix": "left は (it.d.skipped).filter(it.hit).length − (it.hit(s) ? 1 : 0)。読み直しの後の答え（it.reload が返す新しい skipped）があればそれで数える。ui-eval-skiprows に others の行を消す形を足す",
+    "reproduced": false
+   },
+   {
+    "name": "5. 数えていない任せる歩が残る（勤務体系の表示順が 19 桁以上・設備グループの設備が並び）",
+    "where": "desktop/src/shifts_write.rs:314-323（readable の digits_len ≤ 18）・desktop/src/equipgroups_write.rs:263（value_plain が並びを読まない）",
+    "path": "置き場の勤務体系の表示順が 10^20、または設備グループの設備が並び（Python は読む）だと、/api/masters/shifts・/api/masters/equipgroups を窓は答えず Python に任せる（repro (h)）。答えの元に場面が無いので delegate-count.py の 17 に出ない。版 3.109.0 の新しい割れではないが、『数えていない残りは数えて消した』の主張の外",
+    "fix": "shifts_oracle・equipgroups_oracle に置き場の場面（表示順 10^20・設備が並び）を足して数え、表示順は PyInt で並べる・設備の並びは group_views と同じに読む",
+    "reproduced": true
+   },
+   {
+    "name": "6. float(int) の上限（約 1.8e308 を超える桁）を窓は inf にする（Python は OverflowError）",
+    "where": "desktop/src/lotdsp.rs:288-292（py_float_of の J::Big）・desktop/src/layout_clean.rs:276（float_of の印の字）",
+    "path": "4,300 桁までの整数は J::Big で持てるので、309 桁以上の整数を float() するとき、窓は parse::<f64>() の inf（lotdsp は Ok(inf)・layout_clean は有限でないので None）、Python は OverflowError。どこで答えが割れるかは確かめていない（コードだけ。重さは低い）",
+    "fix": "big の桁が f64 の上限を超えるときは Python と同じ誤り（OverflowError の文）か任せるにする。bigint_cases に 400 桁の事例を足す",
+    "reproduced": false
+   }
+  ],
+  "not_cracks": [
+   "指摘 1（順）: 束の止まる 6 場面を閉じた上で中身の読み手を移した。settings_oracle の 8 場面が expect same で bundle_parity・page_parity が通る",
+   "指摘 3: s()・pstr() は表・並びも worksum::py_str（repr）。Inputs::check の任せを外した。データ元・実績の設備の行の値が並びの場面も same で通る",
+   "指摘 5・6: layout_clean の num_str は as_u64 を先に見る・held_str の字は字として扱わない・float_of は float(int)。int_of・_int は飽和の範囲で min・max と同じで、bigint_cases.json の content 42 件（card・layout・set・format・quick・condition × 境の数 7）を content_like_the_table が 1 字まで突き合わせて通る",
+   "指摘 7・9・10・11: セットの str(x) は py_str。serde から直に読んでいた 4 か所は Tree::parse_bytes／held::body_value。card_forms・dashboards_write・pivot_presets の split_file と wide_content は外れ、Place::split_file も無い。lotdsp_inputs の split_file も外れ、参照先・設備マスタの 10^20 で LotDsp の取込が 200",
+   "指摘 8（印の字の漏れ）: 一時の試験で 17 の道を叩き、答えの字に held::mark() は 0 件。大きな整数の設備名は名前の列なら桁の字（row_check::coerce・py_str）、生の値の所（実績の設備の name・表示順）は数で、同じ置き場の Python の道と同じ型・同じ字（/api/dashboard/sources・equip-tree・masters/worklog・masters/equipment・schedule）",
+   "指摘 12・13: 答えの元に W の歩・束の 8 場面 same・lot::tests 2 本。delegate-count.py --check は 17 で予算と同じ",
+   "G の逃げ道の分かれ目（Python が答えれば Python の束・答えなければ自分の束で節の道だけ 503・印 bundle_window）は a_window_section_asks_python_before_refusing のとおり。Python の束を使うときは scheduleConf を入れない（種まきと同じ。スケジュールは Python が答える）のも前どおり",
+   "印の字は版 3.108.0 の割れ 1 の直しで起動ごとの乱数つきなので、外から来る字が印を名乗れない（held::mark）。layout_clean の held_str も同じ mark() で見る"
+  ],
+  "result": {
+   "score": {
+    "order": 8,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 7,
+    "steps": 9,
+    "effortless": 6,
+    "intuitive": 7,
+    "form": 7,
+    "place": 6,
+    "layout": 7,
+    "tone": 6
+   },
+   "minus": [
+    {
+     "kind": "hidden_state",
+     "where": "割れ 1（measured.repro (a)(b)(c)）: 503 の理由が原因でない行・ファイル（rev 'abc' の行・設備マスタの id 'x' の行・関係のない path_settings.json）を言い、直す人が別の所を直す"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 2（measured.repro (c)(d)(e)）: 中身の字の大きな整数・2^64 以上の間隔で節が window になり Python に頼るが、残した物の見立てにも予算（bundle_window は数えない）にも出ていない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 3（measured.repro (f)）: 勤務体系の区分の名前 10^20 を窓が \"1e+20\" と答え、Python は \"100000000000000000000\"（黙って字が替わる）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 4: ほかの画面の行を消すと、一言の『残り n』が帯の札の数と 1 つずれる（shared.js:366。コードで確かめた）"
+    }
+   ],
+   "seen": "狙い（数えた 50 歩を 0 に・束の止まる 6 場面を閉じる・LotDsp が 503 にならない）は果たした: 9 本の突き合わせ・lib の 9 試験・Python 30 試験が通り、delegate-count.py は 17 で予算と同じ。大きな整数のマスタで一覧・作業実績・ダッシュボード・勤務体系・LotDsp が止まらず、印の字は 17 の道の答えに出ない（一時の試験）。first_fixes 13 項目のうち 11 は入っている。弱い所: 指摘 4（理由はファイルごとに 1 つ・何行目か）は、原因でない行を言う形と、全部のファイルを並べる形が残る（割れ 1）。指摘 2 の『window: true が 0 になったことを確かめ予算に入れる』は満たしておらず、束の中の中身の字の大きな整数・間隔 2^64 以上は今も window で、残した物の見立ても足りない（割れ 2）。中身の読み手を 1 つにした主張の外に勤務体系の区分の serde の読みが残り、字が割れる（割れ 3）。画面の『残り n』のずれ（割れ 4）。G の逃げ道は中身の起動を最大 125 秒待つ（割れ 2 に書いた）。1 版が大きい（37 ファイル・+1,419 行）"
+  }
+ },
+ "built_fixed": {
+  "name": "作った後の採点（built）の割れを直した形（決まり 2026-11-06: 採点し直さず、割れを全部直して試験に足し、通ったら終わり）",
+  "fixes": [
+   "1 503 の理由: bundle::Py を {why, file, row, python_too} にし、データ元（組み込みの行・足した行・キー）・参照先の項目・設備グループ（id・ルール・設備）・変換表の行の処理が Py::at で原因の行を添える。何行目かは Inputs::row_no が置き場のファイル（表でない行・隔てた行も数える）から、rows と同じ形にそろえて（norm_row の 1 つ）最初に同じ行を探す。window_why は添えた行だけを原因と言い、行に結べない理由は節の材料のファイルの名前で言う（全部を並べない）。Python も同じ所で落ちる形（設備グループのルールの op が並び・データ元の間隔が inf）は python_too で window にせず Python に尋ねない",
+   "2 束の中の中身の字: データ元の結合・設備グループのルール・LotDsp の学びは text_split_held＋held::text_value（大きな整数は印の字で、str() は桁の字）。データ元の間隔（num_of）は int(float) の桁のまま（held::int_value）、num_setting は印の字を数と読み、写しの係へは lists::num が飽和の秒、/api/sources の interval_sec は i64 に入らなければ束の値。設備の並びの中の並び・表は worksum::equipment_list の str()（repr）で組む（eq_list の任せを外した）。窓がまだ組めない形は 2 つ（変換表の式が引く形の大きな整数・中身の字の NaN）だけで、settings_oracle の場面（expect broken）にし、Python は組む節を \"window\" に並べ \"delegate\": true で delegate-count.py と窓の common::delegate_count の両方に数える（予算 17 → 19。delegates_budget.json の raisedWhy）。bundle_parity は節ごとの window: true が Python は組む節だけか・file が空でないかを確かめる",
+   "3 勤務体系の区分: worksum::segments_of を held::text_value にした（名前の大きな整数は py_str で桁の字。作業実績・ダッシュボードの直の名前も同じ読み手）",
+   "4 消した後の一言: 残りは mine の数から、消した行が今の面の行のときだけ 1 を引く（shared.js）",
+   "5 数えていない任せる歩: 勤務体系の表示順は worksum::order_int（PyInt）で並べ、一覧の order も桁のまま（readable の 18 桁の任せを外した）。設備グループの設備は並び・表も読む（equipgroups_write の read）",
+   "6 float(int): pyfmt::py_float_of_int の 1 つ（f64 に入らない桁は Python と同じ『int too large to convert to float』）。LotDsp の py_float_of はその文で断り、layout_clean の float_of は任せる（Python の _float は OverflowError を受けずに落ちる）",
+   "そのほか: RUST_PORT_PLAN.md の残した物を直した（窓がまだ組めない節は 2 つ・設備グループのルールと変換表の行の NaN は window にならない・2920 億年）。画面の提案 3 つ（タブを替えたら一言を消す・手元のみの言葉・Esc の後の焦点）は『次の版で』に書いた。作業場所に desktop/tests/zz_grader_tmp.rs などの残りが無いことを確かめた"
+  ],
+  "tests": "settings_oracle の 5 場面（データ元の確かめる間隔が 10^20 と 2^64・結合と設備グループのルールの字に 10^20・設備の並びの中に並び〈same〉・変換表の判定の字に 10^20・結合の字に NaN〈window・delegate〉）と bundle_parity の window・file の確かめ・page_parity（/api/sources の間隔）・lot::tests::a_window_section_asks_python_before_refusing（隔てた前の行を言わない・FILTERED の隔てた行を言わない・Python も落ちる形は window にしない）・shifts_oracle の『区分の名前と表示順が i64・u64 に入らない整数』・equipgroups_oracle の『設備が並び』・bigint_cases.json の float_of_int（9 件）と content の shift（7 件）を bigint_cases::float_of_int_is_like_python・held::tests::content_like_the_table・ui-eval-skiprows.mjs の『ほかの画面の行を消した一言の残り n が帯の札と同じ』（102 項目 OK）・delegate-count.py --check（19・予算と同じ）"
+ }
+}
