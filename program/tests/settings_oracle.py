@@ -131,6 +131,12 @@ def scenarios(work):
        env={"TPA_ORACLE_ROOT": "@root"})
     sc("端末の名前に空白とコロン（名乗りの鍵に sha1 の 6 字）", lambda r: (masters(share=r / "share"), config(r, identity={"pc_name": " PC 1:北 "}))[1])
     sc("試験の「いま」", lambda r: (masters(share=r / "share"), config(r))[1], now="2026-10-03 10:00:00")
+    # 版 3.106.0 の作った後の採点の割れ 1・2: 配った設定の数の設定が数でない（手で直した「abc」・空白だけ）・float() で読める「12.5」。
+    # Python（services/num_setting）も窓（bundle.rs の num_setting）も既定に替えて知らせる（前は Python が起動できなかった）
+    sc("配った設定の数の設定が数でない", lambda r: (masters(share=r / "share"), config(
+        r, lot_list={"source": "/配った/品質.sqlite3", "table": "", "refresh_seconds": "12.5", "stale_hours": "abc", "page_size": 300},
+        work_log={"folder": "\\\\srv\\配った実績", "pattern": "実績_*.sqlite3", "stale_hours": "abc", "refresh_seconds": "   "},
+        sources={"defaults": {"page_size": 200, "stale_hours": "x", "refresh_seconds": "１２"}, "wip": {"source": "/既定の仕掛.sqlite3"}}))[1])
 
     def moved(r):
         masters(share=r / "share")

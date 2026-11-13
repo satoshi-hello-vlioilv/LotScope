@@ -252,12 +252,14 @@ SKIP = {
 S, L, OBJ, J = "s", "l", "o", "j"
 TYPE_NAMES = {S: "字", L: "並び", OBJ: "表", J: "中身"}
 _PRESET = [("name", S), ("note", S), ("scope", S), ("source", S)]
-_CARD = [("body", J), ("body.tabs[].name", S), *[(f"body.items[].{k}", S) for k in ("label", "col", "expr", "text", "tab")],
-         ("body.items[].cols[]", S)]
+_CARD = [("body", J), ("body.tabs[].id", S), ("body.tabs[].name", S),
+         *[(f"body.items[].{k}", S) for k in ("id", "label", "col", "expr", "text", "tab")], ("body.items[].cols[]", S)]
 _PIVOT = [("body", J), ("body.rows[].part", S), ("body.cols[].part", S), ("body.measures[].column", S), ("body.measures[].expr", S)]
-_CONV = [("name", S), ("other", S), ("inputs", L), ("inputs[].name", S), ("inputs[].type", S), ("inputs[].columns[]", S),
-         ("rows", L), ("rows[].out", S), ("rows[].when.*[].op", S), ("rows[].when.*[].v[]", S), ("rows[].when.*[].min", S),
-         ("rows[].when.*[].max", S), ("apply", OBJ), ("apply.mode", S)]
+# 版 3.106.0 の作った後の採点の割れ 5: 字で送る inputs・rows・apply は中身の欄（j）で中まで見る。apply.column・apply.place も字の欄
+# （前は apply.place に並びで Python が TypeError の 500）
+_CONV = [("name", S), ("other", S), ("inputs", J), ("inputs", L), ("inputs[].name", S), ("inputs[].type", S), ("inputs[].columns[]", S),
+         ("rows", J), ("rows", L), ("rows[].out", S), ("rows[].when.*[].op", S), ("rows[].when.*[].v[]", S), ("rows[].when.*[].min", S),
+         ("rows[].when.*[].max", S), ("apply", J), ("apply", OBJ), ("apply.mode", S), ("apply.column", S), ("apply.place", S)]
 _EGROUP = [("name", S), ("set", S), ("note", S), ("equipment", L), ("equipment[]", S), ("except", L), ("except[]", S),
            ("rules", L), ("rules[].op", S), ("rules[].value", S)]
 _EQUIP = [("設備名", S), ("巻取方向", S), ("ライン方向", S), ("同一工程", S), ("検査計", S)]
@@ -285,7 +287,8 @@ TYPES = {
     ("POST", "/api/masters/conversions"): _CONV,
     ("PUT", "/api/masters/conversions/<int:item_id>"): _CONV,
     # 取り込み（利用者の前の版のファイル）: 字の欄の数・真偽・null は今どおり str() で受け、並び・表だけを断る（s の決まりのまま）
-    ("POST", "/api/masters/conversions/import"): [("items", L)] + [(f"items[].{p}", t) for p, t in _CONV],
+    # 取り込みの中の字の欄（inputs・rows・apply を字で書いた物）は中まで見ない（中身の欄 j は表の上の段だけ。道が今どおり読む）
+    ("POST", "/api/masters/conversions/import"): [("items", L)] + [(f"items[].{p}", t) for p, t in _CONV if t != J],
     ("POST", "/api/masters/equipgroups"): _EGROUP,
     ("PUT", "/api/masters/equipgroups/<int:item_id>"): _EGROUP,
     ("POST", "/api/masters/equipment"): _EQUIP,

@@ -297,16 +297,14 @@ fn clean_test(t: &Tree) -> C<Tree> {
     Ok(Tree::Obj(vec![("op".into(), s(op)), ("v".into(), Tree::Arr(vs.iter().map(|x| s(x)).collect()))]))
 }
 
-/// 式の入れ子の上限（版 3.106.0。Python の conversions.NEST_MAX と同じ）: かっこ・負の符号・「!」と not の数の合計。
-/// Python の再帰の上限と窓の段の数（formula.rs の MAX_DEPTH）は境が違うので、どちらも同じ字の数え方で先に断る
-/// （前は窓が任せていた。作った後の採点: not を 90 重ねた式で窓だけが断った）。同梱の変換表の式はいちばん多くて 5
-pub const NEST_MAX: usize = 60;
+/// 式の入れ子の上限（版 3.106.0。Python の conversions.NEST_MAX と同じ）: 字と列の名前の外の「(」・単項の「-」・語の not の数の合計
+/// （formula::nest_count）。Python の再帰の上限と窓の段の数（formula.rs の MAX_DEPTH 200）は境が違うので、どちらも同じ数え方で先に断る。
+/// 90 は、かっこだけを重ねても両方が読める段（Python の道の中で約 120・窓は 99 まで）より手前。同梱の変換表の式はいちばん多くて 5
+pub const NEST_MAX: usize = 90;
 
-/// 式の入れ子の数え方（Python の conversions.nest_count: 「(」「-」「!」の数と、小文字にした字の中の not の数）。
-/// Python の str.lower() で n・o・t になる字は ASCII の N・O・T だけなので、to_ascii_lowercase と同じ
+/// 式の入れ子の数え方（Python の conversions.nest_count → formula.nest_count）
 pub fn nest_count(src: &str) -> usize {
-    let nots = src.to_ascii_lowercase().matches("not").count();
-    src.chars().filter(|c| matches!(c, '(' | '-' | '!')).count() + nots
+    crate::formula::nest_count(src)
 }
 
 /// 式の読めない理由の言葉（Python の conversions._formula_error）: 正規表現の読めない理由は、re の言葉（位置など）を出さない
@@ -330,6 +328,10 @@ fn check_out(o: Option<&Tree>, names: &[String], place: &str) -> C<String> {
         Some(x) => scalar(x)?.chars().take(OUT_MAX).collect(),
     };
     if let Some(src) = t.strip_prefix('=') {
+        // 式の正規表現の「読めるか」が Python の re と割れうる形（後読み）は任せる（formula::regex_split。版 3.106.0 の作った後の採点の割れ 4）
+        if crate::formula::regex_split(src) {
+            return Err(Bad::Delegate);
+        }
         if nest_count(src) > NEST_MAX {
             return conv(format!("{place}の式の入れ子が深すぎます（かっこ・負の符号・not は合わせて {NEST_MAX} までです）。"));
         }

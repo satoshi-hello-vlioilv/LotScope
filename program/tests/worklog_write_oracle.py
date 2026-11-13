@@ -154,7 +154,7 @@ SCENARIOS = [
     {"name": "39 桁を超える並びが 2 行", "mode": "shared", "big": True, "steps": [S("DELETE", f"{M}/5", query="rev=1")], "delegates": [
         S("GET", M), S("GET", F), S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}), S("POST", f"{M}/scan")]},
     # 配った設定の古さの時間が数でない（参照先は数に直すが、配った設定はそのまま束に入る）。版 3.106.0 から Python（work_log.params）も
-    # 窓（bundle の work）も既定の 36 時間で続け、staleWarn で知らせる（前は Python が float() の 400・500、窓は任せていた）
+    # 窓（bundle の work）も既定の 36 時間で続け、settingsWarn で知らせる（前は Python が float() の 400・500、窓は任せていた）
     {"name": "配った設定の古さが abc（フォルダに届く）", "mode": "shared", "cfg_stale": "abc", "steps": [
         S("PUT", f"{M}/1", {"備考": "直せる"}), S("DELETE", f"{M}/5")], "delegates": [
         W(S("GET", M)), W(S("GET", F)), W(S("POST", f"{M}/scan")), W(S("PUT", f"{M}/order", {"keys": ["c3", "a1"]}))]},

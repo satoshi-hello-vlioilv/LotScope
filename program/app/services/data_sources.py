@@ -36,7 +36,7 @@ import re
 import uuid
 
 from ..fsio import unquote_path
-from . import data_join
+from . import data_join, num_setting
 from .identity import normalize_part
 
 NAME = "data_sources"
@@ -137,9 +137,20 @@ def conn_of(item, row, settings_items, defaults):
                         "effective": v or dflt, "rev": (row or {}).get("rev") or 0})
         else:
             it = settings_items.get(where) or {}
-            out.append({**conn_spec(field, it), "bind": "settings", "item": where, "value": "" if it.get("value") is None else it["value"],
-                        "default": "" if it.get("default") is None else it["default"], "effective": it.get("effective"),
-                        "rev": it.get("rev") or 0})
+            d = {**conn_spec(field, it), "bind": "settings", "item": where, "value": "" if it.get("value") is None else it["value"],
+                 "default": "" if it.get("default") is None else it["default"], "effective": it.get("effective"), "rev": it.get("rev") or 0}
+            if field in ("refresh", "stale"):
+                # 配った設定の数の設定が数でなければ（手で直した「abc」）、既定と効いている値を写しの係と同じ既定に替えて知らせる（版 3.106.0）
+                # 空・None はそのまま（読めないときだけ替える）
+                code = READ_DEFAULTS["refresh_seconds" if field == "refresh" else "stale_hours"]
+                warns = []
+                for k in ("effective", "default"):
+                    if not num_setting.read(d[k], code)[1]:
+                        warns.append(num_setting.warn(field, d[k], code))
+                        d[k] = code
+                if warns:
+                    d["warn"] = warns[0]
+            out.append(d)
     return out
 
 
@@ -183,6 +194,9 @@ def read_params(settings, key, row=None):
             out[k] = _get(settings, bind[field])
         elif row and _s(row.get(ROW_READ[k])):
             out[k] = _num(row.get(ROW_READ[k]), out[k])
+    # 数の設定は services/num_setting で読む（版 3.106.0: 配った設定の「abc」は既定に替える。前は写しの係の float()・int() で落ちた）
+    for k in ("refresh_seconds", "stale_hours"):
+        out[k], _ = num_setting.read(out[k], READ_DEFAULTS[k])
     return out
 
 

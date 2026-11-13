@@ -963,6 +963,36 @@ enum Tok {
     Name(String),
 }
 
+/// 窓の js_regex と Python の re で「読めるか」が割れうる式か（版 3.106.0。作った後の採点の割れ 4）: 後読み（(?<= ・(?<! ）。
+/// Python の re は長さの決まらない後読み（(?<=L|CR) など）を読めず、窓の fancy-regex は読む。事例は tests/fixtures/formula_regex_cases.json
+/// （cargo test --test formula_regex_cases が、割れる形はみなこれに当たることを確かめる）。変換表の道はこの式を Python に任せる
+pub fn regex_split(src: &str) -> bool {
+    src.contains("(?<=") || src.contains("(?<!")
+}
+
+/// 式の入れ子の数え方（版 3.106.0。Python の formula.nest_count と同じ。変換表の式の上限 conversions_write::NEST_MAX）: 式の字を lex で分け、
+/// 字と列の名前の中は数えずに、「(」・単項の「-」（式の頭・演算子・「(」・「,」・not／and／or の後ろ）・語の not を数える。読めない式は 0
+pub fn nest_count(src: &str) -> usize {
+    let s: Vec<u16> = src.encode_utf16().collect();
+    let Ok(ts) = lex(&s) else { return 0 };
+    let (mut n, mut prev): (usize, Option<&Tok>) = (0, None);
+    for t in &ts {
+        let unary = match prev {
+            None | Some(Tok::Op(_) | Tok::LParen | Tok::Comma) => true,
+            Some(Tok::Name(w)) => matches!(w.as_str(), "not" | "and" | "or"),
+            _ => false,
+        };
+        match t {
+            Tok::LParen => n += 1,
+            Tok::Name(w) if w == "not" => n += 1,
+            Tok::Op("-") if unary => n += 1,
+            _ => {}
+        }
+        prev = Some(t);
+    }
+    n
+}
+
 fn lex(s: &[u16]) -> R<Vec<Tok>> {
     let (mut out, mut i) = (Vec::new(), 0usize);
     let is = |i: usize, c: u8| s.get(i) == Some(&(c as u16));

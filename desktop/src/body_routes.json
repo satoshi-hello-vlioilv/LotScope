@@ -73,6 +73,14 @@
      [
       "items[].apply.mode",
       "s"
+     ],
+     [
+      "items[].apply.column",
+      "s"
+     ],
+     [
+      "items[].apply.place",
+      "s"
      ]
     ]
    }
@@ -154,6 +162,10 @@
      ],
      [
       "inputs",
+      "j"
+     ],
+     [
+      "inputs",
       "l"
      ],
      [
@@ -167,6 +179,10 @@
      [
       "inputs[].columns[]",
       "s"
+     ],
+     [
+      "rows",
+      "j"
      ],
      [
       "rows",
@@ -194,10 +210,22 @@
      ],
      [
       "apply",
+      "j"
+     ],
+     [
+      "apply",
       "o"
      ],
      [
       "apply.mode",
+      "s"
+     ],
+     [
+      "apply.column",
+      "s"
+     ],
+     [
+      "apply.place",
       "s"
      ]
     ]
@@ -809,7 +837,15 @@
       "j"
      ],
      [
+      "body.tabs[].id",
+      "s"
+     ],
+     [
       "body.tabs[].name",
+      "s"
+     ],
+     [
+      "body.items[].id",
       "s"
      ],
      [
@@ -996,6 +1032,10 @@
      ],
      [
       "inputs",
+      "j"
+     ],
+     [
+      "inputs",
       "l"
      ],
      [
@@ -1009,6 +1049,10 @@
      [
       "inputs[].columns[]",
       "s"
+     ],
+     [
+      "rows",
+      "j"
      ],
      [
       "rows",
@@ -1036,10 +1080,22 @@
      ],
      [
       "apply",
+      "j"
+     ],
+     [
+      "apply",
       "o"
      ],
      [
       "apply.mode",
+      "s"
+     ],
+     [
+      "apply.column",
+      "s"
+     ],
+     [
+      "apply.place",
       "s"
      ]
     ]
@@ -1563,7 +1619,15 @@
       "j"
      ],
      [
+      "body.tabs[].id",
+      "s"
+     ],
+     [
       "body.tabs[].name",
+      "s"
+     ],
+     [
+      "body.items[].id",
       "s"
      ],
      [

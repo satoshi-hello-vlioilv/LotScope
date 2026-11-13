@@ -847,6 +847,26 @@
     }
    ],
    "seen": "作る前に消えていた設備の表・直すことが戻り、直すことの 1 行目に既にある札の形（m-chip c-warn・『古い』と同じ黄）で『配った設定』と、知らせの字（13px・本文の色 #1b2733・黄の地）が 1 行で出る。3 つの大きさとも 1 行に収まり（1280 で右端まで約 150px 残る）、切れ・重なり・折り返し・横の送りは無い。『直すことが 3 つあります』の数にも入る。弱い所: 札の言葉『配った設定』は何がおかしいのかを言わず、本文に技術の鍵『work_log.stale_hours』が出る。直す手（ボタン・どこで直すか）が無い。同じ項目を変えられる『接続』の段の古さの警告の欄（参照先で数を入れれば直る）へ案内せず、その段の要約は『古さの警告なし』・既定『abc』と食い違う。設備の段の見出しの札にも出ないので、段を開くまで見えない"
+  },
+  "fixed": {
+   "date": "2026-11-13",
+   "summary": "画面の減点 2 つと言葉・案内を直した（画面の改良の手順 7。採点は別の係が撮り直した画像で付ける）",
+   "items": [
+    {
+     "crack": "「接続」の段の要約が「古さの警告なし」・欄の既定が「abc」で知らせと食い違う（after-1536x864-conn.png）",
+     "fixed": "要約は「36 時間で警告」と札「古さの時間が数でない（36 時間で見ています）」、欄の既定は「既定: 36」、欄の下に知らせ（11.5px・#7a4a00）"
+    },
+    {
+     "crack": "「設備」の段の見出しに知らせが無い（after-1728x1152.png・after-1280x720.png）",
+     "fixed": "段の見出しに同じ札（「HOT 古い」「SL3 見つからない」と同じ sr-tag is-warn の形・同じ置き場。畳んだままでも見える）"
+    },
+    {
+     "crack": "札の言葉が技術の鍵（work_log.stale_hours）で、直す所へ案内しない",
+     "fixed": "「直すこと」の札は「設定が数でない」、言葉は「配った設定の古さの警告の時間「abc」が数ではないので、既定の 36 時間で見ています。」。「接続の欄で直す」を押すと接続の段が開き、古さの警告の欄に移る"
+    }
+   ],
+   "images": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/ui-stale2/（採点の係の撮る道具 ui-tools/ の shot.mjs・conn.mjs で 1728×1152・1536×864・1280×720。自分で開いて、札がはみ出さない・知らせと欄の既定が合う・直すことの 1 行目を確かめた）",
+   "eval": "node program/tools/ui-eval-numwarn.mjs（3 つの大きさで 24 項目すべて合う）"
   }
  },
  "built": {
@@ -921,5 +941,37 @@
    ],
    "seen": "任せる歩は 313 → 209（−104・33%。予算と同じ）で、置き場の字の -0 8 歩は 0、本文の層は 95 → 11。関わる突き合わせの 13 本・lot::tests 33・Python の 24 試験・画面の評価関数 6 本が通る。D2 の表は app の services/body_rules.py の 1 か所に置き、窓は焼いた body_routes.json（37 道。どれも門の need・read の道）で同じ順に当て、断る言葉も同じ。表に無い欄を見る部品の確かめ（s_or・scalar・card_plain・body_obj_plain）は、表の欄では表が先に断り、表に無い欄（apply.column・apply.place・tabs[].id・items[].id）では任せるだけなので、窓と Python が違う答えを返す所は見つからなかった。重なる鍵（pyjson は Python の dict と同じく後ろ勝ち）・4,300 桁を超える整数・BOM・読めない中身の字（両方とも道に任せる）・代用字（中身の欄は read でも断る）も同じに読む。-0 の読み手 inner_text は字の外の『-0』の後ろが . e E 数字でない所だけを替え、Place（doc_revision・doc_rows・split_file）と Store（read_json）と中身の字の読みが同じ部品を通る。外側に大きな整数があって元の本文をそのまま渡す形でも、部品が inner_text で読み直すので割れない。式の入れ子の上限 60 は、窓の段（or_expr と unary が 1 段ずつ・かっこ 1 つで 2 段）で多くて約 122 段で 200 の内、Python の再帰（かっこ 100 で読める）の内にも収まる。dashboards-hidden の keys の字は Python が 1 字ずつ回す形を写し、Python の clean_hide_body({keys: 'ab'}) は []（窓は同じ回し方を写し、dashboards_parity が通る）。保存済みのファイルは門が見ないので、字の欄に数が入った古い行も直す・書き戻すことができる（門が断るのは並び・表を送った本文だけで、画面は送らない。変換表の取り込みも字の欄の数・真偽・null は str() のまま）。減らした所: S が作業実績の古さだけで、同じ形の品質・データ元の間隔と古さ（Python は ValueError・窓は既定）が残る。nest_count が字・列の名前の中の『-』『not』も数え、両方が読める 31 重ねの if（'L-1' の字）を断る。正規表現の読めるかの判定を窓が自分で答えるようになったが、Python の re と窓の translate の一致を見る事例の表が無い（formula_cases の 48 件だけ）。staleWarn がデータ元の接続の段に届かない（built_ui）。-0 の読み手のうち束の行の中身・変換表の同梱の表・字の inputs は text_split のまま（任せるので割れはしない）"
   }
+ },
+ "built_fixed": {
+  "date": "2026-11-13",
+  "summary": "作った後の採点（画面に出ない部分 73.2 点・1 回だけ）の割れ 1〜5 を全部直し、どれも事例の表か突き合わせの場面に足した（採点し直さない。決まり 2026-11-06）。割れ 6 は 3.107.0（E3＋E4）。任せる歩は後読みの 1 歩を任せる形に戻して 209 → 210",
+  "items": [
+   {
+    "crack": "1. 同じ形の割れが品質・データ元に残る（lot_list.stale_hours 'abc' で Python が起動しない・refresh_seconds '12.5' で int() が落ちる）",
+    "fixed": "数の設定を読む部品を 1 つにした: Python services/num_setting.read（None・空は既定、float() で読める値はそのまま、読めない値は既定と知らせ）を work_log.params・__init__.lot_list_params・data_sources.read_params が使う。窓は bundle::num_setting を束の work・lot_list の上の段・read_params が使う。DbMirror の間隔は int(float())（窓の lists.rs の num と同じ切り捨て）",
+    "test": "事例の表 tests/fixtures/num_setting_cases.json（13 事例。Python tests/test_num_setting.py・窓 cargo test --lib bundle::tests::num_setting_like_the_table〈lists::num の値も〉）・settings_oracle の場面「配った設定の数の設定が数でない」（lot_list の 12.5 と abc・work_log の abc と空白だけ・sources の既定の x と全角の１２。bundle_parity・page_parity）"
+   },
+   {
+    "crack": "2. 知らせが「接続」の段に届かない（GET /api/sources の read.stale_hours が 'abc'・要約が「古さの警告なし」・欄の既定が「既定: abc」）",
+    "fixed": "read_params は num_setting で既定に替え、conn_of（窓は bundle.rs の conn_of）は結び付いた間隔・古さの既定と効いている値が数でなければ既定に替え、知らせ（warn）を載せる。作業実績の知らせは settingsWarn（古さ・間隔の両方。技術の鍵を書かない）",
+    "test": "page_parity（GET /api/sources を同じ場面で突き合わせ）・ui-eval-numwarn.mjs"
+   },
+   {
+    "crack": "3. 正しい式を断る（字と列の名前の中の - と not まで数えた）",
+    "fixed": "formula.nest_count（Python は _lex・窓は lex の分け方で、字と列の名前の外の「(」・単項の「-」・語の not）にし、上限を 90 に（同梱の表の最大 5・かっこだけで Python の道の中は約 120、窓は 99 まで読める）",
+    "test": "事例の表 tests/fixtures/nest_cases.json（24 事例。Python tests/test_nest_cases.py〈同梱の表の最大と上限ちょうどを読める〉・窓 cargo test --test nest_cases〈上限ちょうどのかっこと not を窓が読める〉）・conversions_oracle の W の歩（if を 31 重ねる・列の名前と字の中の not・取り込み・上限ちょうど 90 と 91）"
+   },
+   {
+    "crack": "4. 正規表現の守りを外した（窓の js_regex と Python の re の読めるかが割れうる）",
+    "fixed": "式の正規表現の事例の表を作り（設備グループの事例 206 形＋JavaScript の書き方 49 形）、割れた 1 形（長さの決まらない後読み）は formula::regex_split で変換表の道が任せる",
+    "test": "tests/fixtures/formula_regex_cases.json（tools/formula-regex-cases.py が Python の js_regex から焼く。古い表は tests/test_formula_regex_cases.py）・cargo test --test formula_regex_cases（割れる形はみな regex_split に当たる）・conversions_oracle の任せる歩「長さの決まらない後読みの正規表現」"
+   },
+   {
+    "crack": "5. 表に無い欄が残る（変換表の apply.column・apply.place、カードの tabs[].id・items[].id、字で送る inputs・rows）",
+    "fixed": "body_rules.TYPES に apply.column・apply.place・tabs[].id・items[].id を字の欄で、inputs・rows・apply を中身の欄（j）で足した（取り込みの中は j を当てない）",
+    "test": "body_type_cases.json に 11 事例（apply.place の並び〈前は Python の 500〉・字で送る inputs・rows・apply の中・取り込みの中は見ない・カードの id）"
+   }
+  ],
+  "check_all": "/tmp/claude-0/-home-user-LotScope/66dc7058-7f80-52ba-b6e1-f7add4f4b2ea/scratchpad/deleg-3106/check3/summary.txt"
  }
 }

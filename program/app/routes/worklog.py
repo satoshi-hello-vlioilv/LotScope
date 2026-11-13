@@ -65,7 +65,7 @@ def worklog_files():
         v["items"] = [x for x in v["items"] if x["visible"]]
     work_log.mark_stale(v["items"], wl["stale_hours"])
     return jsonify(folder=wl["folder"], pattern=wl["pattern"], canEdit=can_write(work_log.NAME), staleHours=wl["stale_hours"],
-                   staleWarn=wl["staleWarn"], **v)
+                   settingsWarn=wl["settingsWarn"], **v)
 
 
 def worklog_plan(need_copy=True, key=None, rows=None, wait=True, joined=True):
@@ -220,7 +220,7 @@ def _master_view(fresh=False):
     v = work_log.view(master_repo().work_logs(), found, err)
     work_log.mark_stale(v["items"], wl["stale_hours"])
     return {"folder": wl["folder"], "pattern": wl["pattern"], "canEdit": can_write(work_log.NAME), "shared": st.is_shared(work_log.NAME),
-            "revision": st.revision(work_log.NAME), "staleHours": wl["stale_hours"], "staleWarn": wl["staleWarn"], **v}
+            "revision": st.revision(work_log.NAME), "staleHours": wl["stale_hours"], "settingsWarn": wl["settingsWarn"], **v}
 
 
 @bp.get("/api/masters/worklog")

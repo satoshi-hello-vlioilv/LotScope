@@ -1,0 +1,133 @@
+{
+ "about": "数の設定の読み方の事例（版 3.106.0。作った後の採点の割れ 1・2）。services/num_setting.read・warn の決まり（null・空は既定、Python の float() で読める値はそのまま、読めない字は既定と知らせ）から人が書いた答え。Python は tests/test_num_setting.py、窓は cargo test --lib bundle::tests::num_setting_like_the_table（bundle::num_setting・num_warn と、一覧の lists::num が num の値）",
+ "cases": [
+  {
+   "name": "数はそのまま",
+   "key": "stale_hours",
+   "value": 12,
+   "default": 36,
+   "want": 12,
+   "ok": true,
+   "warn": "",
+   "num": 12.0
+  },
+  {
+   "name": "小数の字はそのまま（float() で読める）",
+   "key": "refresh_seconds",
+   "value": "12.5",
+   "default": 60,
+   "want": "12.5",
+   "ok": true,
+   "warn": "",
+   "num": 12.5
+  },
+  {
+   "name": "全角の数字の字",
+   "key": "refresh_seconds",
+   "value": "１２",
+   "default": 60,
+   "want": "１２",
+   "ok": true,
+   "warn": "",
+   "num": 12.0
+  },
+  {
+   "name": "前後の空白",
+   "key": "stale_hours",
+   "value": " 36 ",
+   "default": 36,
+   "want": " 36 ",
+   "ok": true,
+   "warn": "",
+   "num": 36.0
+  },
+  {
+   "name": "下線の入った数の字",
+   "key": "stale_hours",
+   "value": "1_000",
+   "default": 36,
+   "want": "1_000",
+   "ok": true,
+   "warn": "",
+   "num": 1000.0
+  },
+  {
+   "name": "nan の字（float() は読む）",
+   "key": "stale",
+   "value": "nan",
+   "default": 36,
+   "want": "nan",
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "真偽",
+   "key": "stale_hours",
+   "value": true,
+   "default": 36,
+   "want": true,
+   "ok": true,
+   "warn": ""
+  },
+  {
+   "name": "null は既定（知らせない）",
+   "key": "stale_hours",
+   "value": null,
+   "default": 36,
+   "want": 36,
+   "ok": true,
+   "warn": "",
+   "num": 36.0
+  },
+  {
+   "name": "空の字は既定（知らせない）",
+   "key": "refresh",
+   "value": "",
+   "default": 60,
+   "want": 60,
+   "ok": true,
+   "warn": "",
+   "num": 60.0
+  },
+  {
+   "name": "数でない字",
+   "key": "stale_hours",
+   "value": "abc",
+   "default": 36,
+   "want": 36,
+   "ok": false,
+   "warn": "配った設定の古さの警告の時間「abc」が数ではないので、既定の 36 時間で見ています。",
+   "num": 36.0
+  },
+  {
+   "name": "空白だけ",
+   "key": "refresh_seconds",
+   "value": "   ",
+   "default": 60,
+   "want": 60,
+   "ok": false,
+   "warn": "配った設定の確かめる間隔「   」が数ではないので、既定の 60 秒で見ています。",
+   "num": 60.0
+  },
+  {
+   "name": "制御字の後ろ（U+001C は float() の空白でない）",
+   "key": "stale",
+   "value": "4\u001c",
+   "default": 36,
+   "want": 36,
+   "ok": false,
+   "warn": "配った設定の古さの警告の時間「4\u001c」が数ではないので、既定の 36 時間で見ています。",
+   "num": 36.0
+  },
+  {
+   "name": "数でない字（間隔）",
+   "key": "refresh",
+   "value": "x",
+   "default": 60,
+   "want": 60,
+   "ok": false,
+   "warn": "配った設定の確かめる間隔「x」が数ではないので、既定の 60 秒で見ています。",
+   "num": 60.0
+  }
+ ]
+}

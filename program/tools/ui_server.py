@@ -81,6 +81,9 @@ def build(quality=1500, work_rows=400, wip=1200):
     shutil.copytree(PROGRAM / "data", WORK / "base" / "data", ignore=shutil.ignore_patterns("*.sqlite3", "cache", "local"))
     settings = app_env.load_settings(PROGRAM)
     settings["work_log"] = {**settings.get("work_log", {}), "folder": str(folder)}
+    # 配った設定の作業実績の古さの時間を数でない字にする（版 3.106.0。ui-eval-numwarn.mjs が「設定が数でない」の札と案内を撮る・確かめる）
+    if os.environ.get("TPA_UI_WORK_STALE"):
+        settings["work_log"]["stale_hours"] = os.environ["TPA_UI_WORK_STALE"]
     # フォルダ・ファイルの欄の補助（参照… の窓・よく使う場所）を撮るための共有の形: 品質データの元ファイル・前のマスタの置き場・配布の置き場
     shared = WORK / "共有"
     for sub in ("検査データ", "旧_2025", "台帳"):

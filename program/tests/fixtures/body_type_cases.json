@@ -708,6 +708,105 @@
    "want": {
     "ok": true
    }
+  },
+  {
+   "name": "変換表の当て方の置き場が並び（前は Python が TypeError の 500）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": {\"mode\": \"add\", \"place\": [\"end\"]}}",
+   "want": {
+    "error": "本文の「apply.place」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の当て方の列が表",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": {\"mode\": \"add\", \"column\": {\"a\": 1}}}",
+   "want": {
+    "error": "本文の「apply.column」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の当て方を JSON の字で送り、置き場が並び",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": [{\"name\": \"a\"}], \"rows\": [], \"apply\": \"{\\\"mode\\\": \\\"add\\\", \\\"place\\\": [\\\"end\\\"]}\"}",
+   "want": {
+    "error": "本文の「apply.place」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の入力を JSON の字で送り、名前が並び",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": \"[{\\\"name\\\": [\\\"a\\\"]}]\"}",
+   "want": {
+    "error": "本文の「inputs[].name」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の入力を JSON の字で送り、中身が表（並びの欄）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": \"{\\\"a\\\": 1}\"}",
+   "want": {
+    "error": "本文の「inputs」は並びで送ってください。"
+   }
+  },
+  {
+   "name": "変換表の判定の行を JSON の字で送り、比べ方が並び",
+   "method": "PUT",
+   "path": "/api/masters/conversions/1",
+   "raw": "{\"rows\": \"[{\\\"when\\\": {\\\"a\\\": [{\\\"op\\\": [\\\"eq\\\"]}]}}]\"}",
+   "want": {
+    "error": "本文の「rows[].when.*[].op」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "変換表の判定の行の字に NaN",
+   "method": "PUT",
+   "path": "/api/masters/conversions/1",
+   "raw": "{\"rows\": \"[{\\\"out\\\": NaN}]\"}",
+   "want": {
+    "error": "本文に NaN・Infinity か、大きすぎて読めない数があります（数で送ってください）。"
+   }
+  },
+  {
+   "name": "変換表の入力を JSON の字で送る（正しい形）",
+   "method": "POST",
+   "path": "/api/masters/conversions",
+   "raw": "{\"name\": \"x\", \"inputs\": \"[{\\\"name\\\": \\\"a\\\", \\\"columns\\\": [\\\"A\\\"]}]\"}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "取り込みの中の字の入力は中まで見ない（道が今どおり読む）",
+   "method": "POST",
+   "path": "/api/masters/conversions/import",
+   "raw": "{\"items\": [{\"name\": \"x\", \"inputs\": \"[{\\\"name\\\": [\\\"a\\\"]}]\"}]}",
+   "want": {
+    "ok": true
+   }
+  },
+  {
+   "name": "カードの項目の id が並び",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"items\": [{\"id\": [\"a\"]}]}}",
+   "want": {
+    "error": "本文の「body.items[].id」は字で送ってください（並び・表は送れません）。"
+   }
+  },
+  {
+   "name": "カードのタブの id が表",
+   "method": "POST",
+   "path": "/api/card-forms",
+   "raw": "{\"name\": \"a\", \"body\": {\"tabs\": [{\"id\": {\"a\": 1}}]}}",
+   "want": {
+    "error": "本文の「body.tabs[].id」は字で送ってください（並び・表は送れません）。"
+   }
   }
  ]
 }

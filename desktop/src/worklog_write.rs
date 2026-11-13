@@ -235,9 +235,9 @@ fn of_master(e: MasterError) -> Answer {
     }
 }
 
-/// 配った設定の古さの時間が数でないときの知らせ（版 3.106.0。束の work の staleWarn。読めない時間は束が既定に替えてある）
-fn stale_warn(work: &Value) -> Value {
-    work.get("staleWarn").cloned().unwrap_or(json!(""))
+/// 配った設定の古さの時間が数でないときの知らせ（版 3.106.0。束の work の settingsWarn。読めない時間は束が既定に替えてある）
+fn settings_warn(work: &Value) -> Value {
+    work.get("settingsWarn").cloned().unwrap_or(json!(""))
 }
 
 /// 古さの警告の時間（float(stale_hours or 0)）。読めなければ Python に任せる
@@ -263,7 +263,7 @@ fn master_view(store: &Store, cx: &Ctx, rows: &[Value], fresh: bool) -> D<Value>
     let (mut items, new) = view(rows, &found, &err)?;
     mark_stale(&mut items, stale_of(cx.work)?, cx.now);
     Ok(json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit, "shared": store.is_shared(NAME),
-              "revision": store.revision(NAME), "staleHours": cx.work["stale_hours"], "staleWarn": stale_warn(cx.work), "items": items,
+              "revision": store.revision(NAME), "staleHours": cx.work["stale_hours"], "settingsWarn": settings_warn(cx.work), "items": items,
               "new": new, "error": err}))
 }
 
@@ -316,7 +316,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
             Some((
                 200,
                 json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit,
-                              "staleHours": cx.work["stale_hours"], "staleWarn": stale_warn(cx.work), "items": items, "new": new,
+                              "staleHours": cx.work["stale_hours"], "settingsWarn": settings_warn(cx.work), "items": items, "new": new,
                               "error": err}),
             ))
         }

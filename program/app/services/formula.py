@@ -611,6 +611,26 @@ _NUM = re.compile(r"[0-9]+(?:\.[0-9]+)?")
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
+def nest_count(src):
+    """式の入れ子の数え方（版 3.106.0。変換表の式の上限 conversions.NEST_MAX。窓は formula.rs の nest_count）: 式の字を _lex で分け、
+    字（'…'・"…"）と列の名前（[…]）の中は数えずに、「(」・単項の「-」（式の頭・演算子・「(」・「,」・not／and／or の後ろ）・語の not を数える。
+    字として読めない式（閉じない [ ・使えない文字）は 0（式を読む所が理由を言う）"""
+    try:
+        ts = _lex(src)
+    except FormulaError:
+        return 0
+    n, prev = 0, None
+    for kind, v in ts:
+        if kind == "(":
+            n += 1
+        elif kind == "name" and v == "not":
+            n += 1
+        elif kind == "op" and v == "-" and (prev is None or prev[0] in ("op", "(", ",") or (prev[0] == "name" and prev[1] in ("not", "and", "or"))):
+            n += 1
+        prev = (kind, v)
+    return n
+
+
 def _lex(src):
     out, i, s = [], 0, str(src or "")
     while i < len(s):
