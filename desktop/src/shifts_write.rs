@@ -262,16 +262,32 @@ fn templates() -> Value {
 pub struct Read {
     pub shifts: Vec<Value>,
     pub work_logs: Vec<Value>,
+    /// 共有のファイルが読めない理由（版 3.107.0。access::Place::share_problem。一覧の帯）
+    pub unreadable: Option<String>,
 }
 
-/// 一覧（routes/shifts._listing）
+/// 置き場の行を形をそろえて隔てる（版 3.107.0）→ (形をそろえた行〈表でない行も〉, 隔てた行)
+fn isolate(shifts: &[Value]) -> (Vec<Value>, crate::master_rows::Iso) {
+    let mut all = shifts.to_vec();
+    crate::master_rows::normalize_all(&mut all, &SPEC);
+    let iso = crate::row_check::check(NAME, &all, &FIELDS);
+    (all, iso)
+}
+
+/// 一覧（routes/shifts._listing。読めない行は隔てて skipped で知らせる。表でない行は badRows も）
 fn listing(store: &Store, me: &Value, read: &Read) -> Value {
-    let mut rows: Vec<Value> = read.shifts.clone();
-    for r in rows.iter_mut() {
-        if let Some(o) = r.as_object_mut() {
-            o.entry("rev").or_insert(json!(1));
-        }
+    let (all, iso) = isolate(&read.shifts);
+    let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
+    let bad = crate::master_rows::bad_rows(&all);
+    let mut out = listing_of(store, me, read, &rows);
+    if !bad.is_empty() {
+        out["badRows"] = json!(bad);
     }
+    crate::row_check::notes(out.as_object_mut().unwrap(), NAME, &all, &iso, read.unreadable.clone());
+    out
+}
+
+fn listing_of(store: &Store, me: &Value, read: &Read, rows: &[Value]) -> Value {
     let mut items: Vec<Value> = rows.iter().map(view).collect();
     items.sort_by_key(|x| (x["order"].as_i64().unwrap_or(0), x.get("id").filter(|v| truthy(v)).and_then(py_int_of).unwrap_or(0)));
     let mut equipments: Vec<String> = vec![];
@@ -300,13 +316,9 @@ fn readable(rows: &[Value]) -> bool {
             Some(Value::Number(n)) => n.as_i64().is_some() || n.as_f64().is_some_and(|f| f.abs() < 9.0e15),
             v => v.filter(|v| truthy(v)).map(py_str).is_none_or(|v| pyfmt::py_int(strip(&v)).is_err() || digits_len(&v) <= 18),
         };
-        // id・版と、名称・備考の値の形（版 3.77.0。大きな id・読めない版・並びや表の名称は Python）
-        let id_ok = crate::master_rows::rows_plain(std::slice::from_ref(r), &["名称", "備考"]);
-        let seg_ok = match r.get("区分") {
-            Some(Value::String(s)) if !s.is_empty() => serde_json::from_str::<Value>(s).is_ok() || crate::access::py_json(s).is_none(),
-            _ => true,
-        };
-        order_ok && id_ok && seg_ok
+        // 名称・備考の値の形（i64 に入らない整数は Python。id・版・並びや表の名称・区分の NaN は版 3.107.0 から隔てる）
+        let id_ok = ["名称", "備考"].iter().all(|k| r.get(*k).is_none_or(crate::master_rows::value_plain_or_container));
+        order_ok && id_ok
     })
 }
 
@@ -320,19 +332,16 @@ pub fn handle(
     read: &Read,
     reread: &dyn Fn() -> Option<Read>,
 ) -> Option<Answer> {
-    // 表でない行（版 3.102.0 の作った後の採点の割れ 1）: 一覧は読める行で答えて badRows で言い、書く道は断る（Python と同じ。前は Python に任せた）
+    // 表でない行（版 3.102.0 の作った後の採点の割れ 1）: 一覧は読める行で答えて badRows で言い、書く道は断る（Python と同じ。前は Python に任せた）。
+    // 読めない行（id・版・名称の型・区分の NaN）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない表示順はまだ任せる（H2）
     let bad = crate::master_rows::bad_rows(&read.shifts);
-    let good = Read { shifts: read.shifts.iter().filter(|r| r.is_object()).cloned().collect(), work_logs: read.work_logs.clone() };
-    let read = &good;
-    if !readable(&read.shifts) {
+    let (all, iso) = isolate(&read.shifts);
+    let dicts: Vec<Value> = all.iter().filter(|r| r.is_object()).cloned().collect();
+    if !readable(&crate::row_check::good(NAME, &all, &iso)) {
         return None;
     }
     if route == Route::List {
-        let mut v = listing(store, me, read);
-        if !bad.is_empty() {
-            v["badRows"] = json!(bad);
-        }
-        return Some((200, v));
+        return Some((200, listing(store, me, read)));
     }
     // 直す・消す道は先に routes/common.base_rev が本文を silent で読む: 窓が読めない本文（NaN・1e400 など）は Python に任せ、
     // 表でない本文（並び・字・数）は Python が body.get で落ちて 500 になり書かない（作った後の採点で見つけた。access_write と同じ）
@@ -372,7 +381,7 @@ pub fn handle(
             };
             if strip(&s_or(row.get("表示順"))).is_empty() {
                 // 表示順の決まりは master_rows の 1 つ（変換表と同じ。版 3.93.0）
-                row.insert("表示順".into(), json!(crate::master_rows::next_order(&read.shifts)?));
+                row.insert("表示順".into(), json!(crate::master_rows::next_order(&dicts)?));
             }
             if let Err(e) = crate::master_rows::refuse_bad_rows(NAME, &bad) {
                 return Some(of_master(e));

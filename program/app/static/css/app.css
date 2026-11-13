@@ -673,3 +673,16 @@ body.tpa-sorting,body.tpa-sorting *{cursor:grabbing!important;user-select:none}
 .tpa-sch b{font-size:12px;color:var(--h-meta);font-weight:800;white-space:nowrap}
 .tpa-sch small{font-size:11.5px;color:var(--muted);font-weight:400}
 .tpa-sch small i{font-style:normal;font-weight:700;color:var(--h-meta);margin-right:4px}
+/* 一覧の読めない行の知らせの札（版 3.107.0。形はダッシュボードの知らせの札 .db-warnb のまま。見出しの字との間だけ空ける） */
+.pv-phead .tpa-skip,.fm-head .tpa-skip{margin-left:8px;vertical-align:1px}
+/* 札は押せるボタン（版 3.107.0 の作った後の直し）。置き場の面のボタンの形に替わらないよう、知らせの札 .db-warnb の形を保つ */
+button.db-warnb.tpa-skip,#llFormatPanel .fm-head button.db-warnb.tpa-skip{height:20px;min-height:0;padding:0 7px;border-radius:999px;background:var(--amber-soft);
+  border:1px solid var(--amber-line);color:var(--amber-ink);font:inherit;font-size:11.5px;font-weight:800;line-height:1;cursor:pointer;box-shadow:none}
+button.db-warnb.tpa-skip:focus-visible{outline:2px solid var(--amber-ink);outline-offset:1px}
+/* 読めない行の面（版 3.107.0 の 2 回目の採点の直し）: 字を切らずに折り返す・知らせと直し方は押せない灰でなく本文の色（押せない項目は印とカーソルで分ける） */
+.tpa-menu.tpa-skipmenu{max-width:min(480px,calc(100vw - 16px))}
+.tpa-skipmenu .tm-head,.tpa-skipmenu button > span{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.tpa-skipmenu button:disabled{color:var(--ink);cursor:default}
+.tpa-skipmenu button:disabled .tm-ico{color:var(--muted)}
+.tpa-skipmenu .tm-why{color:#4f5b66}
+.tpa-skipmenu .tm-group{color:#4f5b66}

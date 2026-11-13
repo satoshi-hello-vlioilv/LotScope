@@ -258,25 +258,40 @@ fn check_unique(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>)
 // ------------------------------------------------------------------ 読む
 /// 置き場の行（窓が Python と同じに読める物だけ）: id・版・値の形（rows_plain）・一覧の形（bundle::group_views。正規表現のルール・
 /// 読めない JSON の字・i64 に入らない表示順は任せる）・まとめ方は字（Python は字でないまとめ方を値のまま組に分ける）
-fn read(place: &Place) -> Option<Vec<Value>> {
+fn read(place: &Place) -> Option<Read> {
     if place.split_file(NAME) {
         return None;
     }
     // 種はまかずに読む（Python が読む歩でだけ道ごとの seed で置く。版 3.105.0 から Place::rows は読むときに置くので rows_peek）
     let mut rows = place.rows_peek(NAME).ok()?;
-    if !master_rows::rows_plain(&rows, &FIELDS) {
-        return None;
-    }
     master_rows::normalize_all(&mut rows, &SPEC);
-    if rows.iter().any(|r| r.get("まとめ方").is_some_and(|v| truthy(v) && !v.is_string())) {
+    // 読めない行（id・版・名称の型・ルールの NaN・数のまとめ方）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値はまだ任せる（H2）
+    let iso = crate::row_check::check(NAME, &rows, &FIELDS);
+    let good: Vec<Value> = crate::row_check::good(NAME, &rows, &iso);
+    if !good.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain)))) {
         return None;
     }
-    crate::bundle::group_views(&rows).ok()?;
-    Some(rows)
+    crate::bundle::group_views(&good).ok()?;
+    Some(Read { all: rows, iso, good, unreadable: place.share_problem(NAME) })
+}
+
+/// 置き場の行（形をそろえた全部の行・隔てた行・隔てた行を除いた行・共有のファイルが読めない理由）
+struct Read {
+    all: Vec<Value>,
+    iso: master_rows::Iso,
+    good: Vec<Value>,
+    unreadable: Option<String>,
+}
+
+/// まとめ方が字でない行の理由（版 3.107.0。隔てる。Python の equip_groups.row_problem と同じ。前は Python が値のまま組に分けていた）
+pub fn row_problem(row: &Map<String, Value>) -> Option<String> {
+    let v = row.get("まとめ方").filter(|v| truthy(v) && !v.is_string())?;
+    Some(format!("「まとめ方」が字ではありません（{}）", crate::row_check::short(v)))
 }
 
 /// 一覧（routes/equipgroups._listing）。seen は選べる設備（equipment_seen）
-fn listing(store: &Store, me: &Value, rows: &[Value], mut seen: Vec<Value>) -> Option<Value> {
+fn listing(store: &Store, me: &Value, read: &Read, mut seen: Vec<Value>) -> Option<Value> {
+    let rows = &read.good[..];
     let mut items = crate::bundle::group_views(rows).ok()?;
     let mut names: Vec<String> = seen.iter().map(|x| py_str(&x["name"])).collect();
     let mut have: Vec<String> = names.iter().map(|n| crate::worksum::normalize_part(n)).collect();
@@ -302,9 +317,11 @@ fn listing(store: &Store, me: &Value, rows: &[Value], mut seen: Vec<Value>) -> O
         }
     }
     let sets: Vec<Value> = sets.into_iter().map(|(n, g)| json!({"name": n, "groups": g})).collect();
-    Some(json!({"items": items, "sets": sets, "equipments": names, "seen": seen,
-                "ruleOps": crate::bundle::tables()["equipGroups"]["ruleOpLabels"],
-                "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)}))
+    let mut out = json!({"items": items, "sets": sets, "equipments": names, "seen": seen,
+                         "ruleOps": crate::bundle::tables()["equipGroups"]["ruleOpLabels"],
+                         "canEdit": crate::access::can_write(me, NAME), "shared": store.is_shared(NAME), "revision": store.revision(NAME)});
+    crate::row_check::notes(out.as_object_mut().unwrap(), NAME, &read.all, &read.iso, read.unreadable.clone());
+    Some(out)
 }
 
 /// 窓が受ける 4 本を答える（門番は呼ぶ側が通した）。seen は選べる設備を数える係（数えられなければ None）。窓が答えない形は None
@@ -369,7 +386,7 @@ pub fn handle(
                 Err(a) => return a,
             };
             seed(store, place, NAME); // equip_group_create は表示順を数えるか書くために設備グループを読む
-            let rows = read(place)?;
+            let rows = read(place)?.all;
             let seen = count(check_unique(&rows, &row, None).is_err())?;
             if strip(&py_str(row.get("表示順").unwrap_or(&json!("")))).is_empty() {
                 let order = master_rows::next_order(&rows)?;
@@ -388,8 +405,13 @@ pub fn handle(
             let mut data = d.as_object().cloned().unwrap_or_default();
             data.remove("base_rev");
             seed(store, place, NAME); // 今の行を読む（設備・ルールの一部だけが来たときの残り）
-            let rows = read(place)?;
-            let old = rows.iter().find(|r| master_rows::same_id(r, id)).and_then(Value::as_object);
+            let read = read(place)?;
+            // routes/equipgroups の repo.find: 隔てた行なら書かない（503）
+            if let Err(e) = crate::row_check::guard(NAME, &read.all, &read.iso, id) {
+                return Some(of_master(e));
+            }
+            let old = read.good.iter().find(|r| master_rows::same_id(r, id)).and_then(Value::as_object);
+            let rows = read.all.clone();
             let row = match clean(&data, true, old) {
                 Ok(row) => row,
                 Err(a) => return a,
@@ -413,7 +435,16 @@ pub fn handle(
         Route::Delete(id) => {
             let base = rev_of(body, query)?;
             seed(store, place, NAME); // 消す係は書く前に共有から取り直す（無ければ最初の版を置く）
-            let rows = read(place)?;
+            let read = read(place)?;
+            // 隔てた行は値を読まずに消せる（版 3.107.0 の割れ 1。master_rows::delete）
+            if crate::row_check::isolated_hit(&read.all, &read.iso, id).is_some() {
+                let seen = count(false)?;
+                return match master_rows::delete(store, &SPEC, id, base) {
+                    Ok(()) => done(200, json!({}), seen),
+                    Err(e) => Some(of_master(e)),
+                };
+            }
+            let rows = read.all;
             let refused = match rows.iter().find(|r| master_rows::same_id(r, id)) {
                 None => base.is_none(), // 無い行は 404（版を添えたなら、もう消えている＝望みどおりで一覧）
                 Some(r) => master_rows::check_rev(r, base).is_err(),

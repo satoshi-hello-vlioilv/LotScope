@@ -130,16 +130,38 @@ pub fn sort_views(items: &mut [Value]) {
 /// 字の JSON を Python と窓で読みが割れるか（master_rows::text_split。ここでも同じ名前で使う）
 pub use crate::master_rows::text_split;
 
-/// 置き場の行を窓が Python と同じに読めるか: id・版が読め（master_rows::row_readable）、置く項目は字か無い（Python の並べ替え・比べ方が
-/// 字のときと同じになる）、中身の字は窓の serde が Python の json.loads と同じに読める（text_split）
-pub fn rows_plain(rows: &[Value]) -> bool {
-    rows.iter().all(|r| {
-        r.as_object().is_some_and(|o| {
-            master_rows::row_readable(o)
-                && FIELDS.iter().all(|k| o.get(*k).is_none_or(Value::is_string))
-                && s(o, "中身").is_none_or(|t| !master_rows::text_split_py(t))
-        })
-    })
+/// 置き場の行を読む（版 3.107.0）: 形をそろえ（版の無い行は 1）、隔てた行を分ける。中身の字に i64 に入らない整数があれば None（H2。Python に任せる）
+pub fn read_rows(rows: &[Value], name: &str) -> Option<(Vec<Value>, master_rows::Iso)> {
+    let spec =
+        Spec { name: if name == "pivot_presets" { "pivot_presets" } else { "dashboards" }, fields: &FIELDS, unique: None, renamed: &[] };
+    let mut rows = rows.to_vec();
+    master_rows::normalize_all(&mut rows, &spec);
+    if crate::row_check::wide_content(spec.name, &rows) {
+        return None;
+    }
+    let iso = crate::row_check::check(spec.name, &rows, &FIELDS);
+    Some((rows, iso))
+}
+
+/// 隔てた行を除いた行
+pub fn good_rows(name: &str, rows: &[Value], iso: &master_rows::Iso) -> Vec<Value> {
+    crate::row_check::good(name, rows, iso)
+}
+
+/// 道の id の行（routes/common の repo.find。一覧と同じく str() で読んだ写し）。直すときは隔てた行なら書かない（MasterUnreadable の答え）、
+/// 消すとき（delete）は隔てた行も返す（値を読まずに消せる。版 3.107.0 の割れ 1）
+pub fn find_row(name: &str, rows: &[Value], iso: &master_rows::Iso, id: i64, delete: bool) -> Result<Option<Map<String, Value>>, Answer> {
+    if delete {
+        if let Some(i) = crate::row_check::isolated_hit(rows, iso, id) {
+            return Ok(crate::row_check::coerce(name, &rows[i]).as_object().cloned());
+        }
+    }
+    crate::row_check::guard(name, rows, iso, id).map_err(|e| (e.status(), e.payload()))?;
+    Ok(rows
+        .iter()
+        .enumerate()
+        .find(|(i, r)| !crate::row_check::is_isolated(iso, *i) && master_rows::same_id(r, id))
+        .and_then(|(_, r)| crate::row_check::coerce(name, r).as_object().cloned()))
 }
 
 /// Python の str(v or "")（真でない値は空の字）
@@ -221,7 +243,10 @@ pub(crate) fn write(
     what: &str,
 ) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        master_rows::normalize_all(rows, spec);
+        let iso = master_rows::prepare(rows, spec)?;
+        if let Some(id) = item_id {
+            crate::row_check::guard(spec.name, rows, &iso, id)?;
+        }
         let i = match item_id {
             None => {
                 let mut row = Map::new();
@@ -229,7 +254,7 @@ pub(crate) fn write(
                 for k in spec.fields {
                     row.insert((*k).into(), json!(""));
                 }
-                check_name(rows, data, None, what)?;
+                crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| check_name(rs, data, None, what))?;
                 row.insert("rev".into(), json!(0));
                 rows.push(Value::Object(row));
                 rows.len() - 1
@@ -247,7 +272,7 @@ pub(crate) fn write(
                 for (k, v) in data {
                     merged.insert(k.clone(), v.clone());
                 }
-                check_name(rows, &merged, Some(id), what)?;
+                crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| check_name(rs, &merged, Some(id), what))?;
                 i
             }
         };
@@ -265,7 +290,15 @@ pub(crate) fn write(
             let g = group_of(&done);
             for (j, r) in rows.iter_mut().enumerate() {
                 let Some(o) = r.as_object_mut() else { continue };
-                if j != i && s(o, "標準") == Some("1") && group_of(o) == g {
+                if j == i || s(o, "標準") != Some("1") || group_of(o) != g {
+                    continue;
+                }
+                // 隔てた行の★だけを外す（ほかの値・版はそのまま書き戻す。版 3.107.0 の割れ 4。Python の _preset_write と同じ）
+                if crate::row_check::is_isolated(&iso, j) {
+                    o.insert("標準".into(), json!(""));
+                    continue;
+                }
+                {
                     let rev = o.get("rev").and_then(master_rows::py_int).unwrap_or(1);
                     o.insert("標準".into(), json!(""));
                     o.insert("rev".into(), json!(rev + 1));

@@ -836,6 +836,14 @@ fn status_of(store: &Store, local: &Local, peek: bool) -> Option<Value> {
                 if !bad.is_empty() {
                     out["masters"][n]["badRows"] = json!(bad);
                 }
+                // 隔てた行（版 3.107.0。表でない行も・理由つき。マスタの画面の帯が言う。Python の status と同じ）
+                // 一覧と同じく形をそろえてから見る（旧い列名の読み替え。Python の status と同じ）
+                let mut rows = doc.rows.clone();
+                crate::row_check::normalize_like_specs(n, &mut rows);
+                let iso = crate::row_check::check(n, &rows, crate::row_check::fields_of(n));
+                if !iso.is_empty() && crate::row_check::STATUS.contains(&n) {
+                    out["masters"][n]["skipped"] = crate::row_check::skipped_with(n, &rows, &iso);
+                }
             }
             Err(crate::master_store::MasterError::Unreadable(why)) => {
                 out["masters"][n] = json!({"revision": null, "rows": null, "updated_at": "", "updated_by": {},

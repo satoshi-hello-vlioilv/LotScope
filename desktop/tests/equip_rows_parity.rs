@@ -85,7 +85,7 @@ fn files(root: &Path) -> Map<String, Value> {
         // 設備・ロールのファイルだけを比べる（Python は権限を読むとき、タブの権限などほかのマスタの共有のファイルを作る〈読みの副作用〉）
         for n in names.into_iter().filter(|n| n.starts_with("equipment_master") || n.starts_with("roll_master")) {
             let b = std::fs::read(root.join(d).join(&n)).unwrap();
-            let v = serde_json::from_slice::<Value>(&b).unwrap_or_else(|_| json!("<読めない>"));
+            let v = common::file_value(&b);
             out.insert(format!("{d}/{n}"), norm(&v));
         }
     }

@@ -25,11 +25,15 @@ def _payload(required):
     return data
 
 
+_NAMES = {"equipment": "equipment_master", "rolls": "roll_master"}
+
+
 def _register_master_api(kind, prefix, required):
     url = f"/api/masters/{kind}"
 
     def list_():
-        return master_call(lambda: getattr(master_repo(), prefix)())
+        # 読めない行は隔てる（版 3.107.0。答えは行の並びのまま。隔てた行はマスタの置き場の状態の skipped が言う）
+        return master_call(lambda: master_repo().view(_NAMES[prefix])[0])
 
     def create():
         def run():

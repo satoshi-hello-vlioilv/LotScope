@@ -24,6 +24,7 @@ from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity  # noqa: E402
 import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 BOSS, M1, U = ("boss", "PC-1"), ("m2", "PC-2"), ("u1", "PC-9")
 
@@ -47,11 +48,12 @@ def S(who, method, path, body=None, query=""):
 
 
 SCENARIOS = [
-    {"name": "権限の行・タブの権限の行の値が並び（窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0（E3）: 権限の 2 つは読みは今どおり、隔てる形の行（値が並び・版が読めない・id が数でない）があれば書く道を全部断る（503）
+    {"name": "権限の行・タブの権限の行の値が並び（書く道を断る）", "mode": "shared",
      "perm": ADMIN_ROWS + [{"id": 9, "ログインID": ["noid"], "PC名": "", "権限区分": "一般ユーザー"}],
      "tabs": [{"id": 1, "タブ": ["work"], "出さない区分": "設備作業者"}], "steps": [],
-     "delegates": [S(BOSS, "POST", "/api/masters/access", {"ログインID": "['noid']", "権限区分": "一般ユーザー"}),
-                   S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}})]},
+     "delegates": [W(S(BOSS, "POST", "/api/masters/access", {"ログインID": "['noid']", "権限区分": "一般ユーザー"})),
+                   W(S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}}))]},
     {"name": "id の無い行（行の確かめは id のある行とだけ比べる。版 3.77.0）", "mode": "shared",
      "perm": ADMIN_ROWS + [{"ログインID": "noid", "PC名": "", "権限区分": "一般ユーザー"}], "tabs": TAB_ROWS, "steps": [
         S(BOSS, "POST", "/api/masters/access", {"ログインID": "noid", "権限区分": "一般ユーザー"}),
@@ -61,13 +63,15 @@ SCENARIOS = [
      "tabs": [{"id": True, "タブ": "work", "出さない区分": "設備作業者"}], "steps": [
         S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}}),
     ]},
-    {"name": "権限の行の版が読めない（窓は答えず Python に任せる）", "mode": "shared",
+    {"name": "権限の行の版が読めない（権限の書く道を断る・タブの権限は書ける）", "mode": "shared",
      "perm": ADMIN_ROWS + [{"id": 9, "ログインID": "z", "PC名": "", "権限区分": "一般ユーザー", "rev": "x"}], "tabs": TAB_ROWS, "steps": [],
-     "delegates": [S(BOSS, "POST", "/api/masters/access", {"ログインID": "n1", "権限区分": "一般ユーザー"}), S(BOSS, "PUT", "/api/masters/access/4", {"ログインID": "u1", "備考": "x"}),
-                   S(BOSS, "DELETE", "/api/masters/access/4"), S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"work": ["一般ユーザー"]}})]},
-    {"name": "タブの権限の行の版が読めない・大きな id（窓は答えず Python に任せる）", "mode": "shared", "perm": ADMIN_ROWS,
+     "delegates": [W(x) for x in [S(BOSS, "POST", "/api/masters/access", {"ログインID": "n1", "権限区分": "一般ユーザー"}),
+                                  S(BOSS, "PUT", "/api/masters/access/4", {"ログインID": "u1", "備考": "x"}),
+                                  S(BOSS, "DELETE", "/api/masters/access/4"), S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"work": ["一般ユーザー"]}})]]},
+    {"name": "タブの権限の行の版が読めない・大きな id（タブの権限の書く道を断る）", "mode": "shared", "perm": ADMIN_ROWS,
      "tabs": [{"id": 1, "タブ": "work", "出さない区分": "設備作業者", "rev": "x"}, {"id": 1e19, "タブ": "sch", "出さない区分": "一般ユーザー"}],
-     "steps": [], "delegates": [S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"work": ["一般ユーザー"]}}), S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}})]},
+     "steps": [], "delegates": [W(S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"work": ["一般ユーザー"]}})),
+                                W(S(BOSS, "PUT", "/api/masters/tabaccess", {"rules": {"dash": ["一般ユーザー"]}}))]},
     {"name": "管理する人がまだ居ない → 最初の 1 人", "mode": "shared", "perm": [], "tabs": [], "steps": [
         S(U, "POST", "/api/masters/access", {"ログインID": "u1", "権限区分": "開発者"}),
         S(U, "POST", "/api/masters/access", {"ログインID": "boss", "権限区分": "開発者", "マスタ編集": "編集可"}),

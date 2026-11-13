@@ -153,26 +153,21 @@ SCENARIOS = [
         S(BOSS, "POST", R, {"設備": "CR1"}),
         S(BOSS, "GET", E),
     ], "delegates": []},
-    {"name": "置き場の行の項目が並び（窓は答えず Python に任せる）", "mode": "shared", "rows": {"equipment_master": [{"id": 1, "設備名": ["CR1"], "rev": 1}], "roll_master": [{"id": 1, "設備": "CR1", "備考": {"a": 1}}]}, "steps": [], "delegates": [
-        S(BOSS, "GET", E), S(BOSS, "POST", E, {"設備名": "X"}), S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1}),
-        S(BOSS, "DELETE", f"{E}/1"), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "X"}), S(BOSS, "PUT", f"{R}/1", {"本数": 1}),
-        S(BOSS, "DELETE", f"{R}/1", query="rev=1"),
+    {"name": "置き場の行の項目が並び（版 3.107.0 から行を隔てて答える）", "mode": "shared", "rows": {"equipment_master": [{"id": 1, "設備名": ["CR1"], "rev": 1}], "roll_master": [{"id": 1, "設備": "CR1", "備考": {"a": 1}}]}, "steps": [], "delegates": [
+        W(S(BOSS, "GET", E)), W(S(BOSS, "POST", E, {"設備名": "X"})), W(S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1})), W(S(BOSS, "DELETE", f"{E}/1")), W(S(BOSS, "GET", R)), W(S(BOSS, "POST", R, {"設備": "X"})), W(S(BOSS, "PUT", f"{R}/1", {"本数": 1})), W(S(BOSS, "DELETE", f"{R}/1", query="rev=1")), W(S(BOSS, "GET", E)), W(S(BOSS, "GET", R)),
     ]},
-    {"name": "置き場の行の版が読めない（窓は答えず Python に任せる）", "mode": "shared", "rows": {"equipment_master": [{"id": 1, "設備名": "CR1", "rev": "x"}], "roll_master": [{"id": 1, "設備": "CR1", "rev": None}]}, "steps": [], "delegates": [
-        S(BOSS, "GET", E), S(BOSS, "POST", E, {"設備名": "X"}), S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1}),
-        S(BOSS, "DELETE", f"{E}/1"), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "X"}), S(BOSS, "PUT", f"{R}/1", {"本数": 1}),
-        S(BOSS, "DELETE", f"{R}/1", query="rev=1"),
+    {"name": "置き場の行の版が読めない（版 3.107.0 から行を隔てて答える）", "mode": "shared", "rows": {"equipment_master": [{"id": 1, "設備名": "CR1", "rev": "x"}], "roll_master": [{"id": 1, "設備": "CR1", "rev": None}]}, "steps": [], "delegates": [
+        W(S(BOSS, "GET", E)), W(S(BOSS, "POST", E, {"設備名": "X"})), W(S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1})), W(S(BOSS, "DELETE", f"{E}/1")), W(S(BOSS, "GET", R)), W(S(BOSS, "POST", R, {"設備": "X"})), W(S(BOSS, "PUT", f"{R}/1", {"本数": 1})), W(S(BOSS, "DELETE", f"{R}/1", query="rev=1")), W(S(BOSS, "GET", E)), W(S(BOSS, "GET", R)),
     ]},
-    {"name": "置き場の行の id が大きな数・字（窓は答えず Python に任せる）", "mode": "shared", "rows": {"equipment_master": [{"id": 1e19, "設備名": "CR1"}], "roll_master": [{"id": "3", "設備": "CR1"}]}, "steps": [], "delegates": [
-        S(BOSS, "GET", E), S(BOSS, "POST", E, {"設備名": "X"}), S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1}),
-        S(BOSS, "DELETE", f"{E}/1"), S(BOSS, "GET", R), S(BOSS, "POST", R, {"設備": "X"}), S(BOSS, "PUT", f"{R}/1", {"本数": 1}),
-        S(BOSS, "DELETE", f"{R}/1", query="rev=1"),
+    {"name": "置き場の行の id が大きな数・字（版 3.107.0 から行を隔てて答える）", "mode": "shared", "rows": {"equipment_master": [{"id": 1e19, "設備名": "CR1"}], "roll_master": [{"id": "3", "設備": "CR1"}]}, "steps": [], "delegates": [
+        W(S(BOSS, "GET", E)), W(S(BOSS, "POST", E, {"設備名": "X"})), W(S(BOSS, "PUT", f"{E}/1", {"巻取方向": "上", "base_rev": 1})), W(S(BOSS, "DELETE", f"{E}/1")), W(S(BOSS, "GET", R)), W(S(BOSS, "POST", R, {"設備": "X"})), W(S(BOSS, "PUT", f"{R}/1", {"本数": 1})), W(S(BOSS, "DELETE", f"{R}/1", query="rev=1")), W(S(BOSS, "PUT", f"{R}/3", {"本数": 2})), W(S(BOSS, "DELETE", f"{R}/3")), W(S(BOSS, "GET", R)),
     ]},
     {"name": "真偽の id（int(True) は 1）", "mode": "shared", "rows": {"equipment_master": [{"id": True, "設備名": "A"}], "roll_master": [{"id": False, "設備": "A"}]},
      "steps": [S(BOSS, "POST", E, {"設備名": "B"}), S(BOSS, "POST", R, {"設備": "B"}), S(BOSS, "GET", E), S(BOSS, "GET", R)], "delegates": []},
-    {"name": "置き場の行の値が i64 に入らない整数（窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0: 設備名が数の行は隔てる（窓も答える）。ロールの本数の u64 に入らない整数はまだ任せる（H2）
+    {"name": "置き場の行の値が i64 に入らない整数（ロールは窓は答えず Python に任せる）", "mode": "shared",
      "rows": {"equipment_master": [{"id": 1, "設備名": 10000000000000000000}], "roll_master": [{"id": 1, "設備": "A", "本数": 18446744073709551616}]},
-     "steps": [], "delegates": [S(BOSS, "POST", E, {"設備名": "Q", "同一工程": "10000000000000000000"}), S(BOSS, "GET", E), S(BOSS, "GET", R),
+     "steps": [], "delegates": [W(S(BOSS, "POST", E, {"設備名": "Q", "同一工程": "10000000000000000000"})), W(S(BOSS, "GET", E)), S(BOSS, "GET", R),
                                 S(BOSS, "POST", R, {"設備": "B"})]},
     # 版 3.102.0 の作った後の採点の割れ 1: 表でない行は一覧では飛ばし（読めない行はマスタの置き場の状態の badRows が言う）、書く道は断る。前は窓が Python に任せた
     {"name": "置き場に表でない行（一覧は読める行・書く道は断る）", "mode": "shared",

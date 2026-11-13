@@ -174,3 +174,12 @@ pub fn gate(method: &str, path: &str, body: &[u8]) -> Result<Vec<u8>, (u16, serd
         da_core::body::Gate::Refuse(status, v) => Err((status, v)),
     }
 }
+
+/// 置き場のファイルの中身（版 3.107.0）: serde で読めなければ Python の json.loads と同じ J で読む（NaN・Infinity は src/held.rs の印の字。
+/// 前は "<読めない>" で、NaN を持ったまま書き戻したファイルを Python と突き合わせられなかった）
+pub fn file_value(b: &[u8]) -> serde_json::Value {
+    let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
+    serde_json::from_slice::<serde_json::Value>(b).unwrap_or_else(|_| {
+        std::str::from_utf8(b).ok().and_then(|t| da_core::held::parse(t).ok()).unwrap_or_else(|| serde_json::json!("<読めない>"))
+    })
+}

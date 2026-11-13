@@ -40,7 +40,7 @@ fn files(root: &Path) -> Map<String, Value> {
         for n in ["data_sources.json", "path_settings.json"] {
             let p = root.join(d).join(n);
             if let Ok(b) = std::fs::read(&p) {
-                out.insert(format!("{d}/{n}"), norm(&serde_json::from_slice::<Value>(&b).unwrap_or_else(|_| json!("<読めない>"))));
+                out.insert(format!("{d}/{n}"), norm(&common::file_value(&b)));
             }
         }
     }

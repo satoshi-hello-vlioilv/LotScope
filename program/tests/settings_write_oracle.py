@@ -144,9 +144,11 @@ SCENARIOS = [
         W(S(BOSS, "PUT", P + "lot_list.table", V("y", base_rev="²"))),
         W(S(BOSS, "PUT", P + "lot%5Flist.table", V("y"))),       # 版 3.106.0: 窓も百分率符号を戻して項目を探す
     ]},
-    {"name": "置き場の行の版・値が読めない（窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0（E3）: 版・値の読めない行は隔てる（その項目を置くと断り、ほかの項目は置ける。前は英語の 400）
+    {"name": "置き場の行の版・値が読めない（その項目は断る・ほかは置ける）", "mode": "shared",
      "rows": [{"id": 1, "項目": "lot_list.table", "値": "x", "rev": "x"}, {"id": 2, "項目": "work_log.pattern", "値": ["a"]}], "steps": [],
-     "delegates": [S(BOSS, "PUT", P + "lot_list.table", V("y")), S(BOSS, "PUT", P + "lot_list.source", V("y"))]},
+     "delegates": [W(S(BOSS, "PUT", P + "lot_list.table", V("y"))), W(S(BOSS, "PUT", P + "lot_list.source", V("y"))),
+                   W(S(BOSS, "PUT", P + "work_log.pattern", V("z"))), W(S(BOSS, "PUT", P + "work_log.pattern", V(None)))]},
     {"name": "書ける段と門番", "mode": "shared", "rows": [], "steps": [
         S(PART, "PUT", P + "lot_list.table", V("部分的編集可")),
         S(VIEW, "PUT", P + "lot_list.table", V("閲覧のみは書けない")),

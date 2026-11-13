@@ -236,6 +236,7 @@ async function boot() {
 state.me = null;
 async function loadMe() {
   try { state.me = await (await fetch("/api/access/me")).json(); } catch (_) { return; }
+  TPA.me = state.me;      // 読めない行の知らせの面が、直せる人か・管理者に知らせる人かを分ける（版 3.107.0）
   const me = state.me, chip = $("#meChip");
   chip.textContent = me.role;
   chip.className = `pill me-chip role-${TPA.roleKey(me.role)}`;

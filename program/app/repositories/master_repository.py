@@ -11,7 +11,7 @@
 import json
 from pathlib import Path
 
-from ..services import conversions, dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, shifts, work_log
+from ..services import conversions, dashboard, data_sources, display_formats, equip_groups, equipment_names, pivot_presets, row_check, shifts, work_log
 from ..services.identity import normalize_part as _key     # 名前の比べ方（NFKC・前後の空白を除く・大文字）は1箇所
 from ..services.row_order import next_order
 from .master_store import DuplicateKey, MasterError, MasterStore, MasterUnreadable, NotFound, RowConflict, next_id
@@ -101,14 +101,115 @@ def bad_rows_text(name, bad):
     return f"{name}.json の {'・'.join(map(str, bad[:5]))}{' ほか' if len(bad) > 5 else ''} 行目が読めません（表でない行）"
 
 
+def _name_of(spec):
+    return next((k for k, v in SPECS.items() if v is spec), "マスタ")
+
+
 def _normalize_all(rows, spec):
-    """書く前に形をそろえる。表でない行があれば書かない（その行を消さない。版 3.102.0。前は AttributeError で HTML の 500）"""
+    """書く前に形をそろえる。表でない行があれば書かない（その行を消さない。版 3.102.0。前は AttributeError で HTML の 500）。
+    → 隔てた行（版 3.107.0。row_check.problem）: id(行) → (何行目, 理由)。権限の 2 つは隔てる形の行があれば書かない"""
+    name = _name_of(spec)
     bad = bad_rows(rows)
     if bad:
-        name = next((k for k, v in SPECS.items() if v is spec), "マスタ")
         raise MasterUnreadable(f"{bad_rows_text(name, bad)}。ファイルを直すまで保存しません。")
     for r in rows:
         _normalize(r, spec)
+    iso = isolated(name, rows)
+    if iso and name in STRICT_ROWS:
+        raise MasterUnreadable(f"{row_check.skipped_text(name, skipped_of(iso))}。ファイルを直すまで保存しません。")
+    return iso
+
+
+# 組ごとの中身の確かめ（版 3.107.0。窓が同じに扱えない中身の形。隔てる）。dashboards はカードの設計の行だけ（元 card:…）
+
+
+def _dashboards_extra(r):
+    from ..services import card_forms
+    return card_forms.row_problem(r) if str(r.get("元") or "").startswith(card_forms.SOURCE_PREFIX) else None
+
+
+EXTRA_CHECKS = {"display_formats": display_formats.row_problem, "pivot_presets": pivot_presets.row_problem, "dashboards": _dashboards_extra,
+                "dashboard_settings": dashboard.settings_problem, "equipment_groups": equip_groups.row_problem}
+
+
+def isolated(name, rows):
+    """隔てた行（表でない行も）: id(行) → (何行目, 理由)"""
+    fields = SPECS[name]["fields"] if name in SPECS else ()
+    extra = EXTRA_CHECKS.get(name)
+    out = {}
+    for i, r in enumerate(rows):
+        why = row_check.problem(name, r, fields) or (extra(r) if extra else None)
+        if why:
+            out[id(r)] = (i + 1, why)
+    return out
+
+
+def skipped_of(iso, name=None, rows=None):
+    """隔てた行の知らせ（答えの skipped: [{row, why, summary?, source?}]。行の順）。rows を渡すと、生の値の要約（summary: id と名前の列）と、
+    元の列が字なら source（今の面の元に当たる行だけを札の数にする。版 3.107.0 の割れ 7）を添える"""
+    by = {id(r): r for r in rows} if rows is not None else {}
+    out = []
+    for key, (n, why) in sorted(iso.items(), key=lambda kv: kv[1]):
+        x = {"row": n, "why": why}
+        r = by.get(key)
+        if rows is not None:
+            x["summary"] = row_check.summary(name, r)
+            if isinstance(r, dict) and isinstance(r.get("元"), str):
+                x["source"] = r["元"]
+            # 道の id（int() が読めて i64 に入れば。知らせの面がその行を消す道に使う）
+            v = row_check.as_int(r.get("id")) if isinstance(r, dict) and "id" in r else None
+            if v is not None and -2 ** 63 <= v < 2 ** 63:
+                x["id"] = v
+        out.append(x)
+    return out
+
+
+def isolated_hit(rows, iso, item_id):
+    """道の id が int() で当たる隔てた行（無ければ None）"""
+    return next((r for r in rows if id(r) in iso and isinstance(r, dict) and row_check.as_int(r.get("id")) == item_id), None)
+
+
+def guard(name, rows, iso, item_id):
+    """直す行が隔てた行なら書かない（版 3.107.0。前は版の読めない行で英語の 400・id が字の行で「見つかりません」）。
+    消すのは通す（値を読まずに行を除くだけ。割れ 1: 前に画面で消せた行は今も消せる。_delete）"""
+    r = isolated_hit(rows, iso, item_id)
+    if r is not None:
+        n, why = iso[id(r)]
+        raise MasterUnreadable(f"{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。")
+
+
+def dup_checked(name, rows, iso, fn):
+    """名前の重なり・行の確かめ（fn(行の並び) が断る）を、読める行で当ててから隔てた行と 1 つずつ当てる。隔てた行と当たったら、
+    何行目の読めない行と重なるかを言う（版 3.107.0 の割れ 3。前は見えない行と「もうあります」と言った。窓の row_check::dup_checked と同じ）"""
+    fn([r for r in rows if id(r) not in iso])
+    for r in rows:
+        if id(r) in iso and isinstance(r, dict):
+            try:
+                fn([r])
+            except (DuplicateKey, InvalidRow):
+                n, why = iso[id(r)]
+                raise DuplicateKey(f"{name}.json の {n} 行目の読めない行（{why}）と名前が重なります。その行を消すか、ファイルを直してください。") from None
+
+
+# 隔てた行の覚え（割れ 5: 一覧・状態のたびに数え直さない）: (置き場, 名前) → (中身の目印, [(行の位置, 何行目, 理由)])
+_ISO_MEMO = {}
+
+
+def isolated_memo(store, name, rows):
+    """isolated と同じ答えを、ファイルの目印（版・時刻・大きさ。MasterStore.stamp）で覚えて使い回す"""
+    try:
+        stamp = store.stamp(name)
+    except Exception:
+        stamp = None
+    key = (id(store), name)
+    hit = _ISO_MEMO.get(key)
+    if stamp is not None and hit and hit[0] == stamp and all(i < len(rows) for i, _, _ in hit[1]):
+        return {id(rows[i]): (n, why) for i, n, why in hit[1]}
+    iso = isolated(name, rows)
+    pos = {id(r): i for i, r in enumerate(rows)}
+    if stamp is not None:
+        _ISO_MEMO[key] = (stamp, [(pos[k], n, why) for k, (n, why) in iso.items()])
+    return iso
 
 
 class MasterRepository:
@@ -126,11 +227,40 @@ class MasterRepository:
             bad = bad_rows(rows)
             if bad:
                 raise MasterUnreadable(bad_rows_text(name, bad))
-        return [_normalize(r, spec) for r in rows if isinstance(r, dict)]
+        rows = [_normalize(r, spec) if isinstance(r, dict) else r for r in rows]
+        # 一覧が隔てる行は、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも使わない（版 3.107.0 の割れ 2。窓の Place::rows と同じ）
+        iso = isolated_memo(self.store, name, rows) if name in row_check.FILTERED else {}
+        return [r for r in rows if isinstance(r, dict) and id(r) not in iso]
 
     def bad_rows(self, name):
         """表でない行の番号（束が節を組めるかを見る）"""
         return bad_rows(self.store.read(name))
+
+    def _viewed(self, name):
+        spec = SPECS[name]
+        rows = [_normalize(r, spec) if isinstance(r, dict) else r for r in self.store.read(name)]
+        return rows, isolated_memo(self.store, name, rows)
+
+    def view(self, name):
+        """一覧に出す行（名前の列の字でない値は str() で読む: row_check.coerce）と、隔てた行の知らせ（版 3.107.0）→ (行, skipped)"""
+        rows, iso = self._viewed(name)
+        return [row_check.coerce(name, r) for r in rows if isinstance(r, dict) and id(r) not in iso], skipped_of(iso, name, rows)
+
+    def find(self, name, item_id, delete=False):
+        """道の id の行（一覧と同じく str() で読んだ写し）。無ければ None。隔てた行は、消すとき（delete）はその行を返し（値を読まずに消せる）、
+        直すときは MasterUnreadable で書かない"""
+        rows, iso = self._viewed(name)
+        if delete:
+            hit = isolated_hit(rows, iso, item_id)
+            if hit is not None:
+                return row_check.coerce(name, hit)
+        guard(name, rows, iso, item_id)
+        hit = next((r for r in rows if isinstance(r, dict) and id(r) not in iso and r.get("id") == item_id), None)
+        return row_check.coerce(name, hit) if hit is not None else None
+
+    def share_problem(self, name):
+        """共有のファイルが読めない理由（読めれば・共有しなければ None。一覧の帯）"""
+        return self.store.share_problem(name)
 
     @staticmethod
     def _find(rows, item_id):
@@ -193,9 +323,8 @@ class MasterRepository:
         spec = SPECS[name]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
-            self._check_unique(rows, spec, data)
-            self._check_row(name, rows, data)
+            iso = _normalize_all(rows, spec)
+            dup_checked(name, rows, iso, lambda rs: (self._check_unique(rs, spec, data), self._check_row(name, rs, data)))
             row = {"id": next_id(rows)}
             row.update({k: _clean(data.get(k)) for k in spec["fields"]})
             row.update(rev=1, **stamp)
@@ -207,15 +336,16 @@ class MasterRepository:
         spec = SPECS[name]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            iso = _normalize_all(rows, spec)
+            guard(name, rows, iso, item_id)
             _, row = self._find(rows, item_id)
             if row is None:
                 if base_rev is not None:
                     raise RowConflict(None)
                 raise NotFound(f"id={item_id} が見つかりません。")
             self._check_rev(row, base_rev)
-            self._check_unique(rows, spec, data, self_id=item_id)
-            self._check_row(name, rows, {**row, **data}, self_id=item_id)
+            dup_checked(name, rows, iso, lambda rs: (self._check_unique(rs, spec, data, self_id=item_id),
+                                                    self._check_row(name, rs, {**row, **data}, self_id=item_id)))
             for k in spec["fields"]:
                 if k in data:
                     row[k] = _clean(data.get(k))
@@ -227,7 +357,11 @@ class MasterRepository:
         spec = SPECS[name]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            iso = _normalize_all(rows, spec)
+            hit = isolated_hit(rows, iso, item_id)
+            if hit is not None:      # 隔てた行は値を読まずに消す（版は確かめない。版 3.107.0 の割れ 1）
+                rows.pop(next(i for i, r in enumerate(rows) if r is hit))
+                return None
             i, row = self._find(rows, item_id)
             if row is None:
                 if base_rev is not None:
@@ -325,9 +459,12 @@ class MasterRepository:
         spec = SPECS["path_settings"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            iso = _normalize_all(rows, spec)
             i = next((k for k, r in enumerate(rows) if r.get("項目") == key), -1)
             row = rows[i] if i >= 0 else None
+            if row is not None and id(row) in iso:      # 隔てた行は直さない・消さない（版 3.107.0。前は版の読めない行で英語の 400）
+                n, why = iso[id(row)]
+                raise MasterUnreadable(f"path_settings.json の {n} 行目が読めません（{why}）。ファイルを直すまで保存しません。")
             if base_rev is not None:
                 have = int(row.get("rev", 1)) if row else 0
                 if have != int(base_rev):
@@ -489,10 +626,11 @@ class MasterRepository:
         spec = SPECS[name]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            iso = _normalize_all(rows, spec)
+            guard(name, rows, iso, item_id)
             if item_id is None:
                 row = {"id": next_id(rows), **{k: "" for k in spec["fields"]}}
-                self._check_row(name, rows, data)
+                dup_checked(name, rows, iso, lambda rs: self._check_row(name, rs, data))
                 rows.append(row)
                 row["rev"] = 0
             else:
@@ -502,7 +640,7 @@ class MasterRepository:
                         raise RowConflict(None)
                     raise NotFound(f"id={item_id} が見つかりません。")
                 self._check_rev(row, base_rev)
-                self._check_row(name, rows, {**row, **data}, self_id=item_id)
+                dup_checked(name, rows, iso, lambda rs: self._check_row(name, rs, {**row, **data}, self_id=item_id))
             for k in spec["fields"]:
                 if k in data:
                     row[k] = _clean(data.get(k))
@@ -510,8 +648,14 @@ class MasterRepository:
             if row.get("標準") == "1":
                 g = pivot_presets.group_of(row)
                 for r in rows:
-                    if r is not row and r.get("標準") == "1" and pivot_presets.group_of(r) == g:
-                        r.update(標準="", rev=int(r.get("rev", 1)) + 1, **stamp)
+                    if r is row or r.get("標準") != "1" or pivot_presets.group_of(r) != g:
+                        continue
+                    if id(r) in iso:
+                        # 隔てた行の★だけを外す（ほかの値・版はそのまま書き戻す。版 3.107.0 の割れ 4: 前は同じ組に★が 2 つ残り、
+                        # ファイルを直した後にどちらが標準になるかが並び次第だった。断ると★を付けられなくなるので、外す方に決めた）
+                        r["標準"] = ""
+                        continue
+                    r.update(標準="", rev=int(r.get("rev", 1)) + 1, **stamp)
             return dict(row)
         return self.store.write(name, mutate)
 
@@ -546,8 +690,8 @@ class MasterRepository:
         spec = SPECS["pivot_quick"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
-            mine = [r for r in rows if r.get("ログインID") == login and r.get("元") == source]
+            iso = _normalize_all(rows, spec)
+            mine = [r for r in rows if id(r) not in iso and r.get("ログインID") == login and r.get("元") == source]
             for r in mine[1:] + (mine[:1] if keys is None else []):
                 rows.remove(r)
             if keys is None:
@@ -640,8 +784,13 @@ class MasterRepository:
         spec = SPECS["conversions"]
 
         def mutate(cur, stamp):
-            _normalize_all(cur, spec)
-            by = {str(r.get("名前") or ""): r for r in cur}
+            iso = _normalize_all(cur, spec)
+            # 隔てた行と同じ名前の表は取り込まない（触れる書き。版 3.107.0。窓の import_rows と同じ）
+            by = {str(r.get("名前") or ""): r for r in cur if id(r) not in iso}
+            blocked = {str(r.get("名前") or ""): iso[id(r)] for r in cur if id(r) in iso}
+            hit = next((blocked[k] for k in (str(d.get("名前") or "") for d in rows) if k in blocked), None)
+            if hit:
+                raise MasterUnreadable(f"conversions.json の {hit[0]} 行目が読めません（{hit[1]}）。ファイルを直すまで保存しません。")
             top = int(next_order(cur)) - 10
             added = replaced = 0
             for data in rows:

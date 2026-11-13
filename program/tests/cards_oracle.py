@@ -167,15 +167,17 @@ SCENARIOS = [
     {"name": "写しだけで最初に読む（版 3.105.0 から窓も Python も読むだけで共有に最初の版を作る）", "mode": "mirror", "rows": ROWS, "steps": [], "delegates": [W(S(PART, "GET"))]},
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "lock": True,
      "steps": [S(PART, "POST", body=P("錠", B(F("a")))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), S(PART, "GET")], "delegates": []},
-    *[{"name": f"置き場のカードの行の中身が {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", SRC, "共通", body=GOOD), bad],
+    # 版 3.107.0: 読めない行（中身の字の欄が並び・NaN・名前が数）は行を隔てて答える（一覧は skipped・触れる直す・消すは断る）
+    *[{"name": f"置き場のカードの行の中身が {what}（行を隔てて答える）", "mode": "shared", "rows": [R(1, "良い行", SRC, "共通", body=GOOD), bad],
        # 版 3.104.0: 方眼の数の全角の数字は窓も Python の int() と同じに読む（pyfmt::py_int_of）ので、その場面の歩は窓が答える
-       "steps": [], "delegates": [(W if what == "全角の数" else dict)(x) for x in (S(PART, "GET"), S(PART, "POST", body=P("a", B(F("a")))))]}
+       "steps": [], "delegates": [W(x) for x in (S(PART, "GET"), S(PART, "POST", body=P("a", B(F("a")))), S(PART, "PUT", 2, {"name": "直す"}),
+                                                 S(PART, "DELETE", 2), S(PART, "GET"))]}
       for what, bad in [("並びの名前", R(2, "x", SRC, "共通", body=j(B(F("a", label=["x"]))))),
                         ("全角の数", R(2, "x", SRC, "共通", body=j(B(F("a", w="３"))))),
                         ("NaN", R(2, "x", SRC, "共通", body='{"items": [{"col": "a", "w": NaN}]}')),
                         ("名前が数", R(2, 5, SRC, "共通", body=GOOD))]],
-    {"name": "共有のファイルの版 revision が読めない（窓は答えず Python に任せる）", "mode": "shared", "rows": ROWS, "rev": "abc", "steps": [],
-     "delegates": [S(PART, "GET"), S(PART, "POST", body=P("a", B(F("a"))))]},
+    {"name": "共有のファイルの版 revision が読めない（写しで続け、書く道は断る）", "mode": "shared", "rows": ROWS, "rev": "abc", "steps": [],
+     "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body=P("a", B(F("a"))))), W(S(PART, "PUT", 3, {"name": "x"})), W(S(PART, "DELETE", 3))]},
 ]
 FILE_NAME = "dashboards"
 

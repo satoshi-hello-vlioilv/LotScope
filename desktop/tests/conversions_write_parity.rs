@@ -41,7 +41,7 @@ fn files(root: &Path) -> Map<String, Value> {
     for d in ["share", "base/data"] {
         for f in FILES {
             if let Ok(b) = std::fs::read(root.join(d).join(f)) {
-                out.insert(format!("{d}/{f}"), norm(&serde_json::from_slice::<Value>(&b).unwrap_or_else(|_| json!("<読めない>"))));
+                out.insert(format!("{d}/{f}"), norm(&common::file_value(&b)));
             }
         }
     }

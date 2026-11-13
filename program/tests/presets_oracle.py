@@ -147,8 +147,14 @@ SCENARIOS = [
      "quick": [QR(1, "p1", "lot", ["3"], rev="3"), QR(2, "boss", "lot", ["1"], rev=2.0), QR(3, "v1", "lot", ["1"], rev=True), QR(4, "p1", "work", ["1"], rev=" 4 ")],
      "steps": [Q(PART, {"source": "lot", "keys": ["7"]}), Q(PART, {"source": "lot", "keys": ["7", "3"]}), Q(BOSS, {"source": "lot", "keys": ["2"]}),
                Q(VIEW, {"source": "lot", "keys": []}), Q(PART, {"source": "work", "keys": ["5"]})], "delegates": []},
-    {"name": "すぐに見るの置き場に表でない行（窓は答えず Python に任せる）", "mode": "shared", "rows": ROWS, "quick": ["x", QR(2, "p1", "lot", ["3"])],
-     "steps": [], "delegates": [Q(PART, {"source": "lot", "keys": ["7"]}), Q(PART, {"source": "lot", "reset": True}), S(PART, "GET")]},
+    # 版 3.107.0: 窓も表でない行のあるすぐに見るは書かない（503）・一覧は quickSkipped で知らせる
+    {"name": "すぐに見るの置き場に表でない行（書かない・一覧は知らせる）", "mode": "shared", "rows": ROWS, "quick": ["x", QR(2, "p1", "lot", ["3"])],
+     "steps": [], "delegates": [W(Q(PART, {"source": "lot", "keys": ["7"]})), W(Q(PART, {"source": "lot", "reset": True})), W(S(PART, "GET"))]},
+    {"name": "すぐに見るの置き場に読めない行（版・並びの NaN・ログイン ID が数。隔てて書き戻す）", "mode": "shared", "rows": ROWS,
+     "quick": [QR(1, "p1", "lot", ["3"], rev="x"), {"id": 2, "ログインID": "p1", "元": "lot", "並び": '["1", NaN]'}, QR(3, 7, "lot", ["1"]),
+               QR(4, "p1", "work", ["1"])],
+     "steps": [S(PART, "GET"), Q(PART, {"source": "lot", "keys": ["7"]}), S(PART, "GET"), Q(PART, {"source": "work", "reset": True}),
+               Q(PART, {"source": "lot", "reset": True}), S(PART, "GET")], "delegates": []},
     # 版 3.106.0: 窓も Python の rows.remove（== で先の行を消し、書き換えた行が残らない）を写す（pivot_presets::quick_put）
     {"name": "自分のすぐに見るの行が中身まで同じ 2 つ（Python の remove は == で先の行を消す）", "mode": "shared", "rows": ROWS,
      "quick": [QR(1, "p1", "lot", ["3"]), QR(1, "p1", "lot", ["3"])], "steps": [],
@@ -156,9 +162,10 @@ SCENARIOS = [
     {"name": "自分のすぐに見るの行が中身まで同じ 3 つ・ほかの人の行を挟む（版 3.106.0）", "mode": "shared", "rows": ROWS,
      "quick": [QR(1, "p1", "lot", ["3"]), QR(2, "p2", "lot", ["3"]), QR(1, "p1", "lot", ["3"]), QR(1, "p1", "lot", ["3"])],
      "steps": [Q(PART, {"source": "lot", "keys": ["7", "3"]}), S(PART, "GET"), Q(PART, {"source": "lot", "reset": True}), S(PART, "GET")]},
-    *[{"name": f"共通デフォルトの組み方の id が {what}（既定のすぐに見るの並べ方。窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0: null・小数の id の行は隔てる（窓も Python も）。真の id は int として並べる
+    *[{"name": f"共通デフォルトの組み方の id が {what}（既定のすぐに見るの並べ方）", "mode": "shared",
        "rows": [R(a, "既定の一", "lot", "共通デフォルト", body=GOOD), R(b, "既定の二", "lot", "共通デフォルト", body=GOOD)], "quick": [],
-       "steps": [S(PART, "GET", query="source=work")], "delegates": [S(PART, "GET")]}
+       "steps": [S(PART, "GET", query="source=work")], "delegates": [W(S(PART, "GET"))]}
       for what, a, b in [("null と 2", None, 2), ("真と 0", True, 0), ("小数と 1", 2.0, 1)]],
     # 版 3.106.0: 窓も Python の isdigit の表（pyfmt::is_digit）で読む
     {"name": "すぐに見るの行に ASCII でない id", "mode": "shared", "rows": ROWS, "quick": [QR(1, "p1", "lot", ["²", "3", "５", "①", "½"])],
@@ -187,14 +194,17 @@ SCENARIOS = [
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "quick": QUICK_ROWS, "lock": True,
      "steps": [S(PART, "POST", body=P("錠", B(D("a")))), S(PART, "PUT", 3, {"name": "x"}), S(PART, "DELETE", 3), Q(PART, {"source": "lot", "keys": []}),
                S(PART, "GET")], "delegates": []},
-    *[{"name": f"置き場の組み方の行の中身が {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", "lot", "共通", body=GOOD), bad],
-       "quick": [], "steps": [], "delegates": [S(PART, "GET"), S(PART, "POST", body=P("a", B(D("a"))))]}
+    # 版 3.107.0: 読めない行は隔てて答える（長い chartAt の字は大きな整数なのでまだ任せる。H2）
+    *[{"name": f"置き場の組み方の行の中身が {what}（{'窓は答えず Python に任せる' if what == '長い chartAt' else '行を隔てて答える'}）", "mode": "shared",
+       "rows": [R(1, "良い行", "lot", "共通", body=GOOD), bad],
+       "quick": [], "steps": [], "delegates": [(W if what != "長い chartAt" else (lambda x: x))(x) for x in [
+           S(PART, "GET"), S(PART, "POST", body=P("a", B(D("a")))), S(PART, "PUT", 2, {"name": "直す"}), S(PART, "DELETE", 2), S(PART, "GET")]]}
       for what, bad in [("並びの part", R(2, "x", "lot", "共通", body=j(B(D("a", part=["x"]))))),
                         ("長い chartAt", R(2, "x", "lot", "共通", body=j(B(D("a"), chartAt="9" * 30)))),
                         ("NaN", R(2, "x", "lot", "共通", body='{"rows": [{"column": "a", "width": NaN}]}')),
                         ("名前が数", R(2, 5, "lot", "共通", body=GOOD))]],
-    {"name": "共有のファイルの版 revision が読めない（窓は答えず Python に任せる）", "mode": "shared", "rows": ROWS, "quick": [], "rev": "abc", "steps": [],
-     "delegates": [S(PART, "GET"), S(PART, "POST", body=P("a", B(D("a"))))]},
+    {"name": "共有のファイルの版 revision が読めない（写しで続け、書く道は断る）", "mode": "shared", "rows": ROWS, "quick": [], "rev": "abc", "steps": [],
+     "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body=P("a", B(D("a"))))), W(S(PART, "PUT", 3, {"name": "x"})), W(S(PART, "DELETE", 3))]},
 ]
 FILE_NAME = "pivot_presets"
 QUICK = "pivot_quick"

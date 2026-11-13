@@ -5,7 +5,7 @@ from ..web import jsonify
 
 from ..services import shifts
 from ..services.identity import normalize_part
-from .common import base_rev, bp, can_write, master_call, master_repo, req_body
+from .common import base_rev, bp, can_write, master_call, master_repo, req_body, row_notes
 
 
 def _equipments(items):
@@ -19,13 +19,16 @@ def _equipments(items):
 
 
 def _listing():
-    st = master_repo().store
-    items = sorted((shifts.view(r) for r in master_repo().shift_patterns()), key=lambda x: (x["order"], x["id"] or 0))
+    repo = master_repo()
+    st = repo.store
+    rows, skipped = repo.view(shifts.NAME)       # 読めない行は隔てる（版 3.107.0。前は id が字の行で 500）
+    items = sorted((shifts.view(r) for r in rows), key=lambda x: (x["order"], x["id"] or 0))
     out = {"items": items, "templates": shifts.TEMPLATES, "equipments": _equipments(items), "canEdit": can_write(shifts.NAME),
            "shared": st.is_shared(shifts.NAME), "revision": st.revision(shifts.NAME), "dayOffsetDefault": shifts.DAYOFF_DEFAULT}
-    bad = master_repo().bad_rows(shifts.NAME)
+    bad = repo.bad_rows(shifts.NAME)
     if bad:      # 表でない行（一覧では飛ばした行。版 3.102.0 の作った後の採点の割れ 1: 画面が「n 行目が読めません」と知らせる）
         out["badRows"] = bad
+    out.update(row_notes(repo, shifts.NAME, skipped))
     return out
 
 

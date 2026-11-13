@@ -176,9 +176,12 @@ SCENARIOS = [
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": ROWS, "lock": True,
      "steps": [S(PART, "POST", body={"name": "錠", "scope": "me", "body": {"items": ["1"]}}), S(PART, "PUT", 4, {"name": "x"}),
                S(PART, "DELETE", 4), S(PART, "GET")], "delegates": []},
-    *[{"name": f"置き場の行の形が違う: {what}（窓は答えず Python に任せる）", "mode": "shared", "rows": [R(1, "良い行", "dashset", "共通"), bad],
-       "steps": [], "delegates": [(W if what == "中身に -0" else (lambda x: x))(x)
-                                  for x in [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}})]]}
+    # 版 3.107.0（E3・E4）: 読めない行は行ごとに隔てて窓も Python も答える（一覧は skipped で知らせ、触れる直す・消すだけを断る）
+    *[{"name": f"置き場の行の形が違う: {what}（行を隔てて答える）", "mode": "shared", "rows": [R(1, "良い行", "dashset", "共通"), bad],
+       "steps": [], "delegates": [W(x) for x in [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}),
+                                                 S(PART, "PUT", int(bad["id"]), {"name": "直す"}), S(PART, "DELETE", int(bad["id"])),
+                                                 S(PART, "PUT", 1, {"name": "良い行 2"}),
+                                                 S(PART, "GET")]]}
       for what, bad in [("名前が数", R(2, 5, "dashset", "共通")),
                         ("中身に NaN", R(2, "NaN の中身", "dashset", "共通", body='{"items": ["1"], "x": NaN}')),
                         ("中身に -0", R(2, "-0 の中身", "dashset", "共通", body='{"items": [-0]}')),
@@ -186,27 +189,30 @@ SCENARIOS = [
                         ("id が字", {"id": "4", "名前": "字の id", "元": "dashset", "範囲": "共通", "中身": "{}"}),
                         ("中身の入れ子が 200 段", R(2, "深い中身", "dashset", "共通", body=DEEP)),
                         ("ほかの元の行の値の入れ子が 130 段", dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130)))]],
-    *[{"name": f"共有のファイルの字に {what}（窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0（E4）: 読まない値（ほかの元の行の知らない鍵）の NaN・Infinity・1e400 は持ったまま書き戻す。対の無い代用字はファイルごと読めない
+    # （写しで続けて帯・書く道は断る）。i64 に入らない整数はまだ任せる（H2）
+    *[{"name": f"共有のファイルの字に {what}（{'窓は答えず Python に任せる' if raw.startswith('1' + '0' * 5) else '窓も答える'}）", "mode": "shared",
        "rows": [R(1, "良い行", "dashset", "共通"), dict(R(2, "生の値", "dash", "共通", note=note), x="@RAW@")], "raw": raw,
-       "steps": [], "delegates": [(W if raw == "-0" else (lambda x: x))(x) for x in [
+       "steps": [], "delegates": [(W if not raw.startswith("1" + "0" * 5) else (lambda x: x))(x) for x in [
            S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}), S(PART, "PUT", 1, {"name": "b"})]]}
       # 版 3.106.0: 整数の -0 は窓も Python と同じ 0 と読み、0 と書き戻す（master_rows::inner_text）
       for what, note, raw in [("NaN", "", "NaN"), ("Infinity", "", "Infinity"), ("1e400", "", "1e400"), ("整数の -0", "", "-0"),
                               ("i64 に入らない整数", "", "1" + "0" * 30), ("対の無い代用字", "@SUR@", '"x"')]],
-    *[{"name": f"共有のファイルの版 revision が {what}（Python の int() が読めない。窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0（E3）: 版の読めないファイルは読めないファイルとして写しで続け（一覧に unreadable の帯）、書く道は断る
+    *[{"name": f"共有のファイルの版 revision が {what}（Python の int() が読めない。写しで続け、書く道は断る）", "mode": "shared",
        "rows": [R(1, "良い行", "dashset", "共通"), R(4, "私の", "dashset", "ID", login="p1")], "rev": rev, "steps": [],
-       "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}),
-                     S(PART, "PUT", 4, {"name": "b"}), S(PART, "DELETE", 4)]}
+       "delegates": [W(x) for x in [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}),
+                                    S(PART, "PUT", 4, {"name": "b"}), S(PART, "DELETE", 4)]]}
       for what, rev in [("字の abc", "abc"), ("null", None), ("表", {}), ("字の 3.5", "3.5")]],
     {"name": "共有のファイルの版 revision が前後に空白のある字の 3（Python も窓も読む）", "mode": "shared", "rows": [R(1, "良い行", "dashset", "共通")],
      "rev": " 3 ", "steps": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}), S(PART, "GET")],
      "delegates": []},
     {"name": "共有のフォルダにまだ無い・写しだけで最初に読む（版 3.105.0 から窓も Python も読むだけで共有に最初の版を作る）", "mode": "mirror",
      "rows": [R(1, "写しの行", "dashset", "共通")], "steps": [], "delegates": [W(S(PART, "GET"))]},
-    {"name": "共有のファイルの値の入れ子が 130 段・写しは前の中身（窓は答えず Python に任せる）", "mode": "shared",
+    {"name": "共有のファイルの値の入れ子が 130 段・写しは前の中身（版 3.107.0 から窓も共有を J で読んで答える）", "mode": "shared",
      "rows": [R(1, "新", "dashset", "共通"), dict(R(2, "深い値", "dash", "共通"), x=json.loads("[" * 130 + "]" * 130))],
      "mirror_rows": [R(1, "前", "dashset", "共通")], "steps": [],
-     "delegates": [S(PART, "GET"), S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}})]},
+     "delegates": [W(S(PART, "GET")), W(S(PART, "POST", body={"name": "a", "scope": "me", "body": {"items": ["1"]}}))]},
 ]
 FILE_NAME = "dashboards"
 

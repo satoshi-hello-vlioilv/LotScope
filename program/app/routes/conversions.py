@@ -3,8 +3,9 @@
 読むのは誰でも（一覧の計算列が使う）。書くのは現場のマスタと同じ（部分的編集可から。門番 routes/access.py が確かめる）。"""
 from ..web import jsonify, request
 
+from ..repositories.master_store import MasterUnreadable
 from ..services import conversions
-from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body
+from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body, row_notes
 
 
 def _listing():
@@ -12,11 +13,12 @@ def _listing():
     repo = master_repo()
     st = repo.store
     presets = {r["名前"] for r in repo.conversion_presets()}
+    rows, skipped = repo.view(conversions.NAME)      # 読めない行は隔てる（版 3.107.0）
     items = [{**conversions.view(r), "rev": r.get("rev", 1), "preset": conversions.view(r)["name"] in presets}
-             for r in conversions.ordered(repo.conversions())]
+             for r in conversions.ordered(rows)]
     return {"items": items, "ops": conversions.OPS, "modes": conversions.MODES, "places": conversions.PLACES,
             "presets": sorted(presets), "customDefaults": repo.conversion_defaults_custom(), "canEdit": can_write(conversions.NAME),
-            "shared": st.is_shared(conversions.NAME), "revision": st.revision(conversions.NAME)}
+            "shared": st.is_shared(conversions.NAME), "revision": st.revision(conversions.NAME), **row_notes(repo, conversions.NAME, skipped)}
 
 
 @bp.get("/api/masters/conversions")
@@ -49,7 +51,10 @@ def conversions_reset(item_id):
     """標準に戻す: 同梱のプリセット（app/master_defaults/conversions.json）の同じ名前の表の中身（入力・判定・その他・当て方）へ戻す。"""
     base = base_rev()
     repo = master_repo()
-    row = next((r for r in repo.conversions() if r.get("id") == item_id), None)
+    try:
+        row = repo.find(conversions.NAME, item_id)      # 隔てた行は標準に戻さない（版 3.107.0）
+    except MasterUnreadable as e:
+        return jsonify(e.payload()), e.status
     if not row:
         return error("その変換表はもうありません（ほかの PC が消した可能性があります）。", 404, "not_found")
     preset = conversions.preset_of(repo.conversion_presets(), row.get("名前"))
@@ -70,7 +75,7 @@ def conversions_export():
     """書き出す（版 3.43.0）: which=current（今の表）か defaults（標準）。→ {items: [{name, inputs, rows, other, apply}]}。
     ファイルにするのは画面（TPA.saveJson。形は {kind, version, savedAt, items}）"""
     repo = master_repo()
-    rows = repo.conversion_presets() if request.args.get("which") == "defaults" else repo.conversions()
+    rows = repo.conversion_presets() if request.args.get("which") == "defaults" else repo.view(conversions.NAME)[0]   # 隔てた行は書き出さない（版 3.107.0）
     return jsonify({"items": conversions.export_items(rows)})
 
 
@@ -99,6 +104,6 @@ def conversions_defaults():
 
     def run():
         repo = master_repo()
-        repo.conversion_defaults_set([{k: r.get(k) for k in conversions.FIELDS} for r in conversions.ordered(repo.conversions())] if which == "current" else [])
+        repo.conversion_defaults_set([{k: r.get(k) for k in conversions.FIELDS} for r in conversions.ordered(repo.view(conversions.NAME)[0])] if which == "current" else [])
         return _listing()
     return master_call(run)

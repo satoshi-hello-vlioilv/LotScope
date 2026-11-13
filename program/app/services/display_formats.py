@@ -103,6 +103,28 @@ def parts_of(body):
     return out
 
 
+def row_problem(row):
+    """置き場の行の中身の部品の形が違う理由（版 3.107.0。隔てる。窓の formats_write::row_problem と同じ）: 真の部品が決めた形
+    （並びか表）でない・スライサーの cards が並びでない・列で絞り込むの値が並び・表"""
+    try:
+        body = json.loads(row.get("中身") or "{}")
+    except (ValueError, TypeError, RecursionError):
+        return None
+    if not isinstance(body, dict):
+        return None
+    for k, (typ, label) in PARTS.items():
+        v = body.get(k)
+        if not v:
+            continue
+        if not isinstance(v, typ):
+            return f"中身の「{label}」の形が違います"
+        if k == "slicer" and v.get("cards") and not isinstance(v.get("cards"), list):
+            return f"中身の「{label}」の形が違います"
+        if k == "adhoc" and isinstance(v.get("value"), (list, dict)):
+            return f"中身の「{label}」の形が違います"
+    return None
+
+
 def view(row):
     """マスタの行 → 画面の形。中身が壊れていれば body は {}（parts も空）。"""
     try:

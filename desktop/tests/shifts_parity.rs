@@ -71,7 +71,13 @@ fn answer(store: &Store, conf: &Value, step: &Value) -> Option<(u16, Value)> {
     }
     let route = route_of(method, path).expect("窓が受ける道");
     let place = access::Place::from_json(&c["place"]);
-    let read = || Some(Read { shifts: place.rows(NAME).ok()?, work_logs: place.rows("work_log_files").ok()? });
+    let read = || {
+        Some(Read {
+            shifts: place.rows_all(NAME).ok()?,
+            work_logs: place.rows("work_log_files").ok()?,
+            unreadable: place.share_problem(NAME),
+        })
+    };
     handle(store, &me, route, step["query"].as_str().unwrap_or(""), &gated, &read().unwrap(), &read)
 }
 
@@ -85,7 +91,7 @@ fn files(root: &Path) -> Map<String, Value> {
         // 勤務体系のファイルだけを比べる（Python は権限を読むとき、タブの権限などほかのマスタの共有のファイルを作る〈読みの副作用〉）
         for n in names.into_iter().filter(|n| n.starts_with("shift_patterns")) {
             let b = std::fs::read(root.join(d).join(&n)).unwrap();
-            let v = serde_json::from_slice::<Value>(&b).unwrap_or_else(|_| json!("<読めない>"));
+            let v = common::file_value(&b);
             out.insert(format!("{d}/{n}"), norm(&v));
         }
     }

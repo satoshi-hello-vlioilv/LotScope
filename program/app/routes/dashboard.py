@@ -15,7 +15,7 @@ from ..web import current_app, jsonify, request
 from .. import effective_settings
 from ..services import aggregate, builder, card_forms, dash_progress, dashboard, data_sources, db_mirror, equip_groups, formula, operation, pivot, shifts, work_log
 from ..services.identity import normalize_part
-from .common import base_rev, bp, error, find_row, master_call, master_repo, req_body
+from .common import base_rev, bp, error, master_call, master_repo, req_body, row_notes
 from .lotlist import lotlist_plan
 from .presets import _gate, _who
 from .sources import src_plan
@@ -80,10 +80,11 @@ def dashboards_list():
     """ダッシュボードの並び（自分の ID → 共通 → 共通デフォルト〈置いた物 → 組み込み〉）。standardId はいま開く標準
     （ID → 共通 → 共通デフォルトの標準。無ければ組み込みの「標準」）。"""
     login, common_ok, default_ok, _ = _who(dashboard.LAYOUT_NAME)
-    every = master_repo().dashboards()
+    repo = master_repo()
+    every, skipped = repo.view(dashboard.LAYOUT_NAME)     # 読めない行は隔てて知らせる（版 3.107.0）
     rows = [r for r in every if pp_visible(r, login)]
     std = dashboard.pivot_presets.standard_for(rows, dashboard.LAYOUT_SOURCE, login)
-    items = sorted((dashboard.layout_view(dashboard.with_builtin_replace(r), login, common_ok, default_ok) for r in rows),
+    items = sorted((dashboard.layout_view(dashboard.with_builtin_replace_view(r), login, common_ok, default_ok) for r in rows),
                    key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
     # 組み込みは、外した物・入れ替えた物を出さない（版 3.48.0）。入れ替えた物は replaces（"b:鍵"。セットのタブ・覚えた id がそれを開く）
     off, swapped = dashboard.builtin_skip(every, login)
@@ -92,13 +93,14 @@ def dashboards_list():
         if x["body"].get("replaces"):
             x["replaces"] = f"b:{x['body']['replaces']}"
     names = {b["key"]: b["name"] for b in dashboard.BUILTIN_LAYOUTS}
-    legacy = master_repo().dashboard_rows()       # 版 3.36.0 の 1 枚の表の条件（前の版で保存した 1 枚の表へ引き継ぐ）
+    legacy = repo.view(dashboard.NAME)[0]       # 版 3.36.0 の 1 枚の表の条件（前の版で保存した 1 枚の表へ引き継ぐ。読めない行は隔てる。版 3.107.0）
     for x in items:
         dashboard.with_legacy_conditions(x["body"], legacy)
     return jsonify(items=items, login=login, canEditCommon=common_ok, canEditDefault=default_ok,
                    standardId=std.get("id") if std else (items[-1]["id"] if items else None), cols=dashboard.GRID_COLS,
                    rowsRange=[dashboard.ROWS_MIN, dashboard.ROWS_MAX],
-                   hidden=[{"id": f"b:{k}", "name": names.get(k, k), "scope": sc} for k, sc in off.items()])
+                   hidden=[{"id": f"b:{k}", "name": names.get(k, k), "scope": sc} for k, sc in off.items()],
+                   **row_notes(repo, dashboard.LAYOUT_NAME, skipped))
 
 
 @bp.put("/api/dashboards-hidden")
@@ -115,7 +117,8 @@ def dashboards_hidden():
         want = {"元": dashboard.HIDE_SOURCE, "範囲": dashboard.pivot_presets.SCOPES[scope], "ログインID": login if scope == "me" else ""}
         _gate(want, login, common_ok, default_ok, revoked, "組み込みのダッシュボード")
         repo = master_repo()
-        old = next((r for r in repo.dashboards() if dashboard.pivot_presets.group_of(r) == dashboard.pivot_presets.group_of(want)), None)
+        old = next((r for r in repo.view(dashboard.LAYOUT_NAME)[0]
+                    if dashboard.pivot_presets.group_of(r) == dashboard.pivot_presets.group_of(want)), None)
         keys = dashboard.clean_hide_body({"keys": d.get("keys") or []})[0]["keys"]
         if not keys:
             if old:
@@ -153,7 +156,7 @@ def dashboards_update(item_id):
     base = base_rev()
 
     def go():
-        old = find_row(master_repo().dashboards(), item_id)
+        old = master_repo().find(dashboard.LAYOUT_NAME, item_id)
         if old is None or old.get("元") != dashboard.LAYOUT_SOURCE:       # セット（元 dashset）はセットの道で直す
             raise dashboard.LayoutError(f"id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
         _gate(old, login, common_ok, default_ok, revoked, "ダッシュボード")
@@ -169,7 +172,7 @@ def dashboards_delete(item_id):
     base = base_rev()
 
     def go():
-        old = find_row(master_repo().dashboards(), item_id)
+        old = master_repo().find(dashboard.LAYOUT_NAME, item_id, delete=True)
         if old is not None and old.get("元") == dashboard.LAYOUT_SOURCE:
             _gate(old, login, common_ok, default_ok, revoked, "ダッシュボード")
             master_repo().dashboard_delete(item_id, base)
@@ -178,23 +181,26 @@ def dashboards_delete(item_id):
 
 
 # ---------------------------------------------------------------- ダッシュボードのセット（版 3.46.0。services/dashboard.py の SET_SOURCE）
-def _set_rows(login):
-    return [r for r in master_repo().dashboards() if r.get("元") == dashboard.SET_SOURCE and dashboard.pivot_presets.visible(r, login)]
+def _set_rows(login, rows=None):
+    rows = master_repo().view(dashboard.LAYOUT_NAME)[0] if rows is None else rows
+    return [r for r in rows if r.get("元") == dashboard.SET_SOURCE and dashboard.pivot_presets.visible(r, login)]
 
 
 @bp.get("/api/dashboard-sets")
 def dashboard_sets_list():
     """セットの並び（自分の ID → 共通 → 共通デフォルト）と、いま開く標準のセット（standardId。無ければ null＝セットを使わない）"""
     login, common_ok, default_ok, _ = _who(dashboard.LAYOUT_NAME)
-    rows = _set_rows(login)
+    repo = master_repo()
+    every, skipped = repo.view(dashboard.LAYOUT_NAME)
+    rows = _set_rows(login, every)
     std = dashboard.pivot_presets.standard_for(rows, dashboard.SET_SOURCE, login)
     items = sorted((dashboard.set_view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
     return jsonify(items=items, standardId=std.get("id") if std else None, login=login, canEditCommon=common_ok, canEditDefault=default_ok,
-                   max=dashboard.MAX_SET_ITEMS)
+                   max=dashboard.MAX_SET_ITEMS, **row_notes(repo, dashboard.LAYOUT_NAME, skipped))
 
 
 def _old_set(item_id):
-    old = find_row(master_repo().dashboards(), item_id)
+    old = master_repo().find(dashboard.LAYOUT_NAME, item_id)
     if old is None or old.get("元") != dashboard.SET_SOURCE:
         raise dashboard.LayoutError(f"セット id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
     return old
@@ -231,7 +237,7 @@ def dashboard_sets_delete(item_id):
     base = base_rev()
 
     def go():
-        old = find_row(master_repo().dashboards(), item_id)
+        old = master_repo().find(dashboard.LAYOUT_NAME, item_id, delete=True)
         if old is not None and old.get("元") == dashboard.SET_SOURCE:
             _gate(old, login, common_ok, default_ok, revoked, "ダッシュボードのセット")
             master_repo().dashboard_delete(item_id, base)
@@ -240,8 +246,9 @@ def dashboard_sets_delete(item_id):
 
 
 # ---------------------------------------------------------------- カードの設計（版 3.55.0。services/card_forms.py。置き場と決まりはダッシュボードと同じ）
-def _card_rows(login, source=None):
-    return [r for r in master_repo().dashboards() if str(r.get("元") or "").startswith(card_forms.SOURCE_PREFIX)
+def _card_rows(login, source=None, rows=None):
+    rows = master_repo().view(dashboard.LAYOUT_NAME)[0] if rows is None else rows
+    return [r for r in rows if str(r.get("元") or "").startswith(card_forms.SOURCE_PREFIX)
             and (source is None or r.get("元") == source) and dashboard.pivot_presets.visible(r, login)]
 
 
@@ -253,15 +260,18 @@ def card_forms_list():
     src = request.args.get("source", "")
     if not card_forms.source_ok(src):
         return error("表の鍵（source）が違います。", 400, "invalid")
-    rows = _card_rows(login, src)
+    repo = master_repo()
+    every, skipped = repo.view(dashboard.LAYOUT_NAME)
+    rows = _card_rows(login, src, every)
     std = dashboard.pivot_presets.standard_for(rows, src, login)
     items = sorted((card_forms.view(r, login, common_ok, default_ok) for r in rows), key=lambda x: (SCOPE_ORDER[x["scope"]], x["name"]))
     return jsonify(items=items, standardId=std.get("id") if std else None, login=login, canEditCommon=common_ok, canEditDefault=default_ok,
-                   cols=list(card_forms.COLS), row=list(card_forms.ROW), colors=list(card_forms.COLORS), bgs=list(card_forms.BGS))
+                   cols=list(card_forms.COLS), row=list(card_forms.ROW), colors=list(card_forms.COLORS), bgs=list(card_forms.BGS),
+                   **row_notes(repo, dashboard.LAYOUT_NAME, skipped))
 
 
 def _old_card(item_id):
-    old = find_row(master_repo().dashboards(), item_id)
+    old = master_repo().find(dashboard.LAYOUT_NAME, item_id)
     if old is None or not str(old.get("元") or "").startswith(card_forms.SOURCE_PREFIX):
         raise card_forms.CardFormError(f"カードの設計 id={item_id} が見つかりません（ほかの PC が消した可能性があります）。")
     return old
@@ -298,7 +308,7 @@ def card_forms_delete(item_id):
     base = base_rev()
 
     def go():
-        old = find_row(master_repo().dashboards(), item_id)
+        old = master_repo().find(dashboard.LAYOUT_NAME, item_id, delete=True)
         if old is not None and str(old.get("元") or "").startswith(card_forms.SOURCE_PREFIX):
             _gate(old, login, common_ok, default_ok, revoked, "カードの設計")
             master_repo().dashboard_delete(item_id, base)

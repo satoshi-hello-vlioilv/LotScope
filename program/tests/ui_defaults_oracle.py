@@ -86,8 +86,9 @@ SCENARIOS = [
      "rows": [{"名前": P, "値": "x"}, {"名前": P}, {"名前": L, "値": "1"}, {"名前": L, "値": "2"}], "steps": [S(BOSS, "GET")], "delegates": []},
     {"name": "ほかの PC が保存している途中（錠）", "mode": "shared", "rows": OLD, "lock": True,
      "steps": [S(BOSS, "PUT", {"keys": {P: "1"}}), S(BOSS, "GET")], "delegates": []},
-    {"name": "置き場の行の値が字でない（窓は答えず Python に任せる）", "mode": "shared", "rows": [{"名前": P, "値": 100}, {"名前": ["x"], "値": "1"}], "steps": [],
-     "delegates": [S(BOSS, "GET"), S(BOSS, "PUT", {"keys": {P: "1"}})]},
+    # 版 3.107.0: 名前・値が字でない行も窓が Python と同じに読む（名前は str()・字でない値は落とす）
+    {"name": "置き場の行の値が字でない（窓も同じに読む）", "mode": "shared", "rows": [{"名前": P, "値": 100}, {"名前": ["x"], "値": "1"}], "steps": [],
+     "delegates": [W(S(BOSS, "GET")), W(S(BOSS, "PUT", {"keys": {P: "1"}}))]},
 ]
 
 

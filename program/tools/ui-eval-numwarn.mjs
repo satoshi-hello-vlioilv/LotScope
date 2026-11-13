@@ -43,7 +43,7 @@ try {
       const src = await p.evaluate(async () => (await (await fetch("/api/sources")).json()).items.find((x) => x.key === "work"));
       const f = (src.conn || []).find((x) => x.id === "stale") || {};
       LABEL = f.label || ""; TAG = `${LABEL}が数でない`;
-      check("⑥ 言葉の決まり: 欄の名前は「古さの警告（時間）」・知らせはその名前で始まる", LABEL === "古さの警告（時間）" && String(f.warn || "").startsWith(LABEL), f);
+      check("⑥ 言葉の決まり: 欄の名前は「古さの警告（時間）」・知らせは出どころとその名前（版 3.107.0）", LABEL === "古さの警告（時間）" && String(f.warn || "").startsWith(`全員の設定ファイルの${LABEL}の値`), f);
     }    // ① 接続の段（実績の「変える…」で最初に開く段）
     const conn = await sec(p, "conn");
     check(`① ${tag} 接続の段の要約に札`, conn && conn.tags.some((t) => t.text === TAG && /is-warn/.test(t.cls)), conn);
@@ -55,7 +55,7 @@ try {
                size: warn ? parseFloat(getComputedStyle(warn).fontSize) : 0 };
     });
     check(`① ${tag} 古さの警告の欄の既定は 36・欄の下に知らせと直し方（技術の鍵・「配った設定」を書かない・11px 以上）`,
-      field.ph === "既定: 36" && field.warn.startsWith(`${LABEL}の既定の値「abc」が数ではないので、36 時間で見ています。`) && /この欄に数を入れて保存すると直ります/.test(field.warn)
+      field.ph === "既定: 36" && field.warn.startsWith(`全員の設定ファイルの${LABEL}の値「abc」が数ではないので、36 時間で見ています。`) && /この欄に数を入れて保存すると直ります/.test(field.warn)
       && !/work_log|配った/.test(field.warn) && field.size >= 11, field);
     check(`⑥ ${tag} 欄の名前が言葉の決まりと同じ`, field.label === LABEL, field.label);
     const path = await p.evaluate(() => {

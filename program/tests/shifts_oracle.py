@@ -23,6 +23,7 @@ from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
 from app.services import identity  # noqa: E402
 import oracle_gate  # noqa: E402
+from oracle_gate import W  # noqa: E402
 
 BOSS, PART, VIEW = ("boss", "PC-1"), ("p1", "PC-2"), ("v1", "PC-3")
 PERM = [{"id": 1, "ログインID": "boss", "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1},
@@ -114,15 +115,22 @@ SCENARIOS = [
         S(BOSS, "POST", P, {"name": "次の id", "segments": THREE}),
         S(BOSS, "GET", P),
     ]},
-    {"name": "置き場の行の版が読めない（窓は答えず Python に任せる）", "mode": "shared",
-     "shifts": [{"id": 1, "名称": "a", "区分": "[]", "rev": "x"}], "steps": [], "delegates": [S(BOSS, "GET", P), S(BOSS, "POST", P, {"name": "新", "segments": THREE}), S(BOSS, "PUT", f"{P}/1", {"note": "x"}),
-                   S(BOSS, "DELETE", f"{P}/1", query="rev=1")]},
-    {"name": "置き場の行の id が大きな数・字（窓は答えず Python に任せる）", "mode": "shared",
-     "shifts": [{"id": 1e19, "名称": "a", "区分": "[]"}, {"id": "3", "名称": "b", "区分": "[]"}], "steps": [], "delegates": [S(BOSS, "GET", P), S(BOSS, "POST", P, {"name": "新", "segments": THREE}), S(BOSS, "PUT", f"{P}/1", {"note": "x"}),
-                   S(BOSS, "DELETE", f"{P}/1", query="rev=1")]},
-    {"name": "置き場の行の名称が並び（窓は答えず Python に任せる）", "mode": "shared",
+    # 版 3.107.0（E3）: 読めない行は隔てて答える（一覧は skipped・触れる直す・消すは断る・足すは通す。前は id が字で 500・版で英語の 400）
+    {"name": "置き場の行の版が読めない（行を隔てて答える）", "mode": "shared",
+     "shifts": [{"id": 1, "名称": "a", "区分": "[]", "rev": "x"}], "steps": [], "delegates": [W(x) for x in [
+         S(BOSS, "GET", P), S(BOSS, "POST", P, {"name": "新", "segments": THREE}), S(BOSS, "PUT", f"{P}/1", {"note": "x"}),
+         S(BOSS, "DELETE", f"{P}/1", query="rev=1"), S(BOSS, "PUT", f"{P}/2", {"note": "足した行は直せる"})]]},
+    {"name": "置き場の行の id が大きな数・字（行を隔てて答える。次の id は隔てた行も数える）", "mode": "shared",
+     "shifts": [{"id": 1e19, "名称": "a", "区分": "[]"}, {"id": "3", "名称": "b", "区分": "[]"}], "steps": [], "delegates": [W(x) for x in [
+         S(BOSS, "GET", P), S(BOSS, "POST", P, {"name": "新", "segments": THREE}), S(BOSS, "PUT", f"{P}/1", {"note": "x"}),
+         S(BOSS, "DELETE", f"{P}/1", query="rev=1"), S(BOSS, "PUT", f"{P}/3", {"note": "x"}), S(BOSS, "DELETE", f"{P}/3")]]},
+    {"name": "置き場の行の名称が並び（行を隔てて答える。名前の重なりは隔てた行も見る）", "mode": "shared",
      "shifts": [{"id": 1, "名称": ["x"], "区分": "[]"}, {"id": 2, "名称": "y", "備考": {"a": 1}, "区分": "[]"}], "steps": [],
-     "delegates": [S(BOSS, "POST", P, {"name": "['x']", "segments": THREE}), S(BOSS, "GET", P)]},
+     "delegates": [W(S(BOSS, "POST", P, {"name": "['x']", "segments": THREE})), W(S(BOSS, "GET", P)),
+                   W(S(BOSS, "POST", P, {"name": "z", "segments": THREE})), W(S(BOSS, "DELETE", f"{P}/2"))]},
+    {"name": "置き場の区分の字が NaN（行を隔てて答える）", "mode": "shared",
+     "shifts": [{"id": 1, "名称": "a", "区分": '[{"name": "1直", "start": NaN}]'}, {"id": 2, "名称": "b", "区分": "[]"}], "steps": [
+         S(BOSS, "GET", P), S(BOSS, "PUT", f"{P}/1", {"note": "x"}), S(BOSS, "PUT", f"{P}/2", {"note": "y"}), S(BOSS, "GET", P)], "delegates": []},
     # 版 3.102.0 の作った後の採点の割れ 1: 表でない行は、一覧では飛ばして badRows で言い、書く道は断る（行もファイルも消さない）。前は窓が Python に任せた
     {"name": "置き場に表でない行（一覧は読める行と badRows・書く道は断る）", "mode": "shared",
      "shifts": ["壊れた行", {"id": 7, "名称": "読める行", "区分": "[]", "rev": 1}, 5], "steps": [

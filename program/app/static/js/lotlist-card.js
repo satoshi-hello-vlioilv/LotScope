@@ -183,7 +183,8 @@
     try {
       const r = await fetch(`/api/card-forms?source=${encodeURIComponent(sourceOf(k))}`, { cache: "no-store" });
       const d = await r.json();
-      if (r.ok) Object.assign(FORMS[k], { list: d.items || [], standardId: d.standardId, canEditCommon: d.canEditCommon, canEditDefault: d.canEditDefault, login: d.login, loaded: true });
+      if (r.ok) Object.assign(FORMS[k], { list: d.items || [], standardId: d.standardId, canEditCommon: d.canEditCommon, canEditDefault: d.canEditDefault, login: d.login, loaded: true,
+        skip: TPA.skipNote(d, "dashboards", { here: sourceOf(k) }) });     // 読めない行・読めないファイルの知らせ（版 3.107.0。デザインの選びの横の札）
     } catch (_) { FORMS[k].loaded = true; }
     return FORMS[k];
   }
@@ -226,7 +227,7 @@
     } else {
       const all = designs(), cur = d;
       const opt = (x) => `<option value="${esc(x.id)}"${String(x.id) === String(cur.id) ? " selected" : ""}>${esc(x.name)}（${esc(scopeName(x))}${x.standard ? "・★" : ""}）</option>`;
-      tools.innerHTML = `<label class="cf-pick">デザイン<select data-cf="pick" aria-label="カードのデザイン">${all.map(opt).join("")}</select></label>`
+      tools.innerHTML = `<label class="cf-pick">デザイン<select data-cf="pick" aria-label="カードのデザイン">${all.map(opt).join("")}</select></label>${(FORMS[formKey()] || {}).skip || ""}`
         + `<label class="lk-check"><input type="checkbox" data-k="hideEmpty"${L.hideEmpty ? " checked" : ""}>空欄を隠す</label><span class="lc-sp"></span>`
         + '<button type="button" data-cf="edit" title="このカードの見た目のまま、項目の置き場・大きさ・名前・中身・見栄えを直します">デザインを直す</button>';
     }

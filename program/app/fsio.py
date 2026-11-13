@@ -51,7 +51,8 @@ def write_json_atomic(path, data, *, indent: int = 2, durable: bool = False, ret
     try:
         # 改行は OS によらず "\n"（窓〈Rust〉と同じ字。版 3.101.0: Windows では文字のモードが "\r\n" に替え、Python と窓が書いた同じマスタの
         # バイトが違って、引っ越しの写す量が Windows の CI だけ食い違った。読む側はどちらも読めるが、書く形は 1 つにする）
-        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        # 対の無い代用字（隔てて書き戻す行の字。版 3.107.0）は UTF-8 にできないので、JSON の \\udXXX の字にして書く（窓の src/held.rs と同じ字）
+        with open(tmp, "w", encoding="utf-8", newline="\n", errors="backslashreplace") as f:
             json.dump(data, f, ensure_ascii=False, indent=indent)
             f.write("\n")
             if durable:

@@ -1822,6 +1822,52 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   W の印を付けた歩（中身の字の -0・置き場の -0・百分率符号の道・すぐに見るの id と同じ中身の行〈3 つと他人の行を挟む場面を足した〉・
   配った設定の古さ〈全角の数の場面を足した〉・式の入れ子〈上限ちょうど・1 つ超える〉・正規表現〈出す値〉）。
 
+### 段 ① の 4 歩目: 置き場の読めない行を行ごとに隔てる（E3）・読まない値は持ったまま書き戻す（E4）・Store の行だけの J — 版 3.107.0（任せる歩 210 → 59）
+
+3.106.0 の採点の evaluation.later_fixes と決めてほしいことへの答え（2026-11-delegates-3106.json）のとおりに作った。決まり 2026-11-06（画面に出ない部分）と、
+画面の知らせは画面の改良の手順（作った後に別の係が前後を撮って採点）。
+
+- 隔てる決まり（Python `services/row_check.py`・窓 `desktop/src/row_check.rs`。1 つの決まり）: 表でない行・id が int（真偽も）でない・版（rev）が int() で読めない・
+  置く項目の値が並び・表・数でない値（NaN・Infinity）・字だけの列（STR_COLS: プリセットの行の形・書式・すぐに見る）が字でない・名前の列（NAME_COLS）が字か null でない・
+  中身の列（CONTENT_COLS: JSON の字。変換表のその他は式なので入れない）に数でない値・対の無い代用字・入れ子 128 段以上・行を丸ごと答えるマスタ（設備・ロール）の知らない鍵の
+  数でない値。組ごとの確かめ（EXTRA_CHECKS）: 書式の中身の部品の形・組み方の段の part と値の column・expr・カードの設計のタブの名前と項目の字の欄・前の版の条件が表でない・
+  設備グループのまとめ方が字でない。理由の言葉は「〈名〉.json の n 行目（理由）が読めません」で、値は repr の 30 字まで。
+- 読み（`MasterRepository.view`・`find`／窓の `row_check::check`・`good`・`preset_rows::read_rows`・`find_row`）: 隔てた行は一覧に出さず、答えに
+  skipped（{row, why}）と、共有のファイルが読めない理由 unreadable（`MasterStore.share_problem`・`access::Place::share_problem`）を添える。
+  `_list` は今どおり（束・ダッシュボードの問い合わせなど、ほかの使い手は変えない）。マスタの置き場の状態（status）にも skipped（STATUS のマスタだけ）。
+- 書き（`_normalize_all` → 隔てた行の表 → `guard`／窓の `master_rows::prepare` → `row_check::guard`）: 隔てた行に触れる直す・消す（道の id が int() で当たる・
+  参照先の同じ項目・変換表の同じ名前の取り込み・標準に戻す）だけを 503 kind master_unreadable で断る。足すは通し、次の id（`next_id`）は隔てた行の id も int() が読めれば数える
+  （"4"・1e19 → 10000000000000000001。窓は u64 で答える）。名前の重なり・★標準の付け替え・すぐに見るの自分の行は隔てた行を数えない／書き換えない（そのまま書き戻す）。
+  権限の 2 つ（STRICT）は読みは今どおりで、隔てる形の行があれば書く道を全部断る。表でない行はマスタ全体を止める（3.102.0 のまま）。
+- ファイル: 版の番号（revision）が int() で読めない・対の無い代用字がある共有のファイルは、読めないファイルとして写しで続け（一覧に unreadable）、書く道は断る
+  （`_read_master`・窓の `master_store::parse_master`。Store と Place の読みは 1 か所）。前は英語の 400・PUT は「見つかりません」・DELETE は書かずに {ok: true}。
+- J の小さな部品（`desktop/src/held.rs`）: 置き場のファイルを serde が読めなければ pyjson::J で読み、serde の Value に移す。移せない値（NaN・Infinity・
+  u64 に入らない整数）は「\u0J:」＋ J の字で持ち、書くときに J へ戻して Python の json.dumps(indent=2) と同じ字（NaN・Infinity）で書き戻す（持っている値が無ければ前と同じ
+  serde の字）。i64・u64 に入らない整数のファイルは今どおり Store が断り、道は `Place::split_file`（`master_rows::split_wide`）で任せる（H2 は 3.108.0）。
+  `worksum::py_str` は並び・表を Python の repr（['x']）・持っている値を nan・inf で書く（隔てた行の名前の重なりも Python の _key(str(v)) と同じ）。
+- 読み手を 1 つに（3.106.0 の採点で次の版に回した物）: 束の行の中身（`bundle.rs` の joins_of・group_rules・conv_j・学びのファイル）・変換表の同梱の表（bundled）・
+  字で送った inputs（`conversions_write::j`）を `master_rows::inner_text`（整数の -0 は 0）で読む。すぐに見るの並びは row_check の中身の列。
+- 言葉: データ元の接続の欄の知らせを「全員の設定ファイルの古さの警告（時間）の値「abc」が数ではないので、36 時間で見ています。」に（`num_setting.SOURCE`・
+  窓 `bundle::num_warn`。前は「既定の値」で、欄の空の字「既定: 36」と同じ言葉だった）。
+- 画面: 一覧の答えの skipped・unreadable を `TPA.skipNote`（shared.js）が知らせの札にする（形はダッシュボードのパネルの知らせ .db-warnb のまま。新しい見た目は作らない）:
+  ダッシュボードの道具の行・カードのデザインの選びの横・組み方の面の見出し・共有の書式の面の見出し。マスタ管理の置き場の帯は理由つき（skipped。表でない行も）。
+- 直した Python の誤り: NaN の行で書式・組み方の一覧の答えが JSON でない（中身の NaN は隔てる）／名前が数・前の版の条件が並び・組み方の id が null の行で一覧が 500／
+  版の読めない行・ファイルで英語の 400・「見つかりません」・書かない {ok: true}／id が字の行があると次の id が ValueError で足せない（勤務体系・設備）。
+- 減った歩（delegate-count.py。210 → 63、−147）: sets 42・equip_rows 26・formats 18・presets 11・cards 8・access_write 8・shifts 10・dashboards 10・
+  conversions 5・equipgroups 5・settings_write 2・ui_defaults 2。残す 7 歩（E3・E4 の 154 のうち）: ダッシュボードの組み込みと同じ名前の行の中身・外した組み込みの行
+  （Python の LayoutError・AttributeError の形）2・設備グループの選べる設備を数える束がルールの NaN・設備マスタの並びの名前を読めない 4・長い chartAt（H2）。
+- 評価関数: `cargo test --test row_cases`・`tests/test_row_cases.py`（人が仕様から書いた事例の表 `tests/fixtures/row_cases.json` 61 件。次の id）・
+  各 *_parity（置き場の場面の歩を W で窓が答える歩へ。触れる直す・消す・足す・読み直しの歩を足した。ファイルの突き合わせは serde で読めなければ J で読む
+  〈common::file_value〉ので NaN を持ったまま書き戻したファイルも比べる）・`masters_parity`（NaN・1E400 の行を持ったまま書き戻す）・`held::tests`・
+  `node program/tools/ui-eval-skiprows.mjs`（3 つの大きさで札が 1 段・はみ出さない・重ならない・title の理由・マスタの帯）。変異: 守り（guard）を外す・J の読みを外すと
+  sets_parity が 10・23 件で落ちる。
+
+- 作った後の採点（画面に出ない部分 54.9 点・画面の知らせ 76.1 点。2026-11-delegates-3107.json）の割れを直した（built_fixed・built_ui.fixed）: 3106 の決め
+  「名前が数の行は隔てる」を改め、機能を減らさないことを優先して、隔てるのは値を読めない・書き戻すと壊れる形だけに絞った（型だけ違う値は一覧で str() の字。
+  row_check.coerce）。隔てた行の DELETE は通す・知らせの面（札を押すと開く。何行目・要約・理由・消す・管理者に知らせる）・_list と Place::rows も隔てる・答えに NaN を出さない・
+  名前の重なりで読めない行を言う・隔てた★を外す・隔てた行の答えと読んだファイルを覚える（速さ）・札の数を今の面の元に・ダッシュボードの 2 形を許す・代用字を行ごとに。
+  任せる歩 63 → 59。データ元・作業実績の登録・変換表の標準はまだ隔てない（3.108.0 で束の行の J と一緒に）。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

@@ -59,7 +59,15 @@ fn clean(keys: &Map<String, Value>, profile: &[String]) -> Result<Map<String, Va
 
 /// 置き場の行を窓が Python と同じに読めるか（行が表・名前と値が字か無い）
 fn readable(rows: &[Value]) -> bool {
-    rows.iter().all(|r| r.as_object().is_some_and(|o| ["名前", "値"].iter().all(|k| o.get(*k).is_none_or(Value::is_string))))
+    // 名前・値が字でない行（数・並び）も、版 3.107.0 から窓が Python と同じに読む（名前は str()〈並びは repr。worksum::py_str〉・字でない値は落とす）。
+    // 残るのは窓が str() を同じ字にできない値（i64 に入らない整数・持っている NaN）だけ
+    rows.iter().all(|r| {
+        r.as_object().is_some_and(|o| {
+            ["名前", "値"]
+                .iter()
+                .all(|k| o.get(*k).is_none_or(|v| crate::master_rows::value_plain_or_container(v) && !crate::held::has_held(v)))
+        })
+    })
 }
 
 /// 画面に埋める形（system.ui_profile）。窓が Python と同じに読めない行なら None（版 3.85.0。page.rs）

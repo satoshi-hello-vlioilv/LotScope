@@ -1254,6 +1254,13 @@ pub fn clean_hide_body(body: &Tree) -> R<(Value, String)> {
 }
 
 /// condition_of: 前の版の 1 枚の表の条件（マスタ dashboard_settings の行のうち キー が key の物）。Python が落ちる形は Stop::Py
+/// 前の版の条件のマスタの行の条件が表でない理由（版 3.107.0。隔てる。Python の dashboard.settings_problem と同じ）
+pub fn settings_problem(row: &serde_json::Map<String, Value>) -> Option<String> {
+    let t = row.get("条件")?.as_str().filter(|t| !t.is_empty())?;
+    let d = Tree::parse(&crate::master_rows::inner_text(t))?;
+    (!matches!(d, Tree::Obj(_))).then(|| "「条件」が表ではありません".to_string())
+}
+
 pub fn condition_of(rows: &[Tree], key: &str) -> R<Value> {
     let mut row = None;
     for r in rows {

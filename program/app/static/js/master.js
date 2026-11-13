@@ -278,10 +278,13 @@ function paintPlace(news) {
   // 読めない行・読めないファイル（版 3.102.0）: 一覧では飛ばした行を、置き場の帯の注意の札で知らせる（直すのは人。ファイルは消さない）
   if (cur.error) {
     html += `<span class="place-caution" title="${escapeHtml(cur.error)}">⚠ ${escapeHtml(cur.error)}</span>`;
-  } else if (cur.badRows && cur.badRows.length) {
-    const rows = cur.badRows.slice(0, 5).join("・") + (cur.badRows.length > 5 ? " ほか" : "");
-    const why = `${MASTER_DEFS[mstate.tab].name}.json の ${rows} 行目が読めません（ファイルを直してください。一覧では飛ばしています）`;
-    html += `<span class="place-caution" title="${escapeHtml(why)}">⚠ ${escapeHtml(why)}</span>`;
+  } else if ((cur.skipped && cur.skipped.length) || (cur.badRows && cur.badRows.length)) {
+    // 版 3.107.0: 隔てた行は理由つき（skipped。表でない行も）。権限の 2 つと参照先は一覧に出したまま、その行（権限はマスタ）を保存しない。
+    // 帯を押すと読めない行の面（何行目・理由・生の値の要約）が開き、消せる行はそこから消せる（作った後の採点の割れ 1・画面の 1〜2）
+    const name = MASTER_DEFS[mstate.tab].name, sk = cur.skipped || cur.badRows.map((n) => ({ row: n, why: "表でない行" }));
+    // 行ごとの理由・直すまで保存できないことは面で言う（帯は 1 段に収める短い札。形はほかの 4 か所と同じ .db-warnb。2 回目の採点の減点 4・弱い所 6）
+    TPA.me = TPA.me || mstate.me;
+    html += TPA.skipNote({ skipped: sk }, name, { label: `⚠ 読めない行 ${sk.length}`, reload: () => refreshPlace() });
   }
   html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える。全員の PC がそろっているかも出ます">マスタの置き場 ›</button>';
   if (news && news.length) html += `<span class="place-news">${news.map(escapeHtml).join(" ／ ")}</span>`;

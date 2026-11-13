@@ -33,7 +33,7 @@
     const r = await fetch(`/api/masters/formats?source=${src}`, { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "共有の書式を読めませんでした");
-    list = { items: d.items || [], canEdit: !!d.canEdit, shared: !!d.shared };
+    list = { items: d.items || [], canEdit: !!d.canEdit, shared: !!d.shared, skip: TPA.skipNote(d, "display_formats", { here: (s) => !s || s === src }) };   // 読めない行の知らせ（版 3.107.0）
     paintButton();
   }
   /** 入口の札（いまの所に当てた書式の名前・共有で上書きされたら印）。件数の行の札は版 3.25.0 で外した（入口の札と同じ物が 2 か所にあった。
@@ -73,7 +73,7 @@
           <label class="fm-all"><input type="checkbox" data-all${others.length && others.every((p) => picked.has(p.key)) ? " checked" : ""}> 全部</label>
           ${others.map((p) => `<label><input type="checkbox" data-key="${esc(p.key)}"${picked.has(p.key) ? " checked" : ""}> ${esc(p.label)}${curOf(p)}</label>`).join("")}
         </div></fieldset>`;
-    panel.innerHTML = `<div class="fm-head"><b>共有の書式</b>${list.shared ? '<span class="fm-shared">全員の PC</span>' : '<span class="fm-shared is-local">この PC だけ</span>'}
+    panel.innerHTML = `<div class="fm-head"><b>共有の書式</b>${list.shared ? '<span class="fm-shared">全員の PC</span>' : '<span class="fm-shared is-local">この PC だけ</span>'}${list.skip || ""}
         <small>表示列・並び・条件・スライサー・色付けに名前を付けて共有に置き、ほかの${work ? "設備・ほかの" : ""} PC で呼び出します</small></div>
       ${toHtml}
       <p class="fm-msg" id="fmMsg" aria-live="polite"${msg ? "" : " hidden"}>${msg || ""}</p>

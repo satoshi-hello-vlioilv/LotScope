@@ -152,7 +152,8 @@
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || "ダッシュボードを読めませんでした");
     Object.assign(S, { list: d.items || [], login: d.login || "", canEditCommon: !!d.canEditCommon, canEditDefault: !!d.canEditDefault,
-      standardId: d.standardId, rowsRange: d.rowsRange || [4, 16], hidden: d.hidden || [] });
+      standardId: d.standardId, rowsRange: d.rowsRange || [4, 16], hidden: d.hidden || [],
+      skip: TPA.skipNote(d, "dashboards", { here: (s) => s === "dash" || s === "dashset" || s === "dashoff" || s === "" }) });     // 読めない行・読めないファイルの知らせ（版 3.107.0。道具の行の札）
   }
   /* ---------------- セット（版 3.46.0。利用者の要望 2026-10-21 の 7）: いくつかのダッシュボードの束を、道具の行のタブで切り替える。
      置き場は /api/dashboard-sets（共通デフォルト＝開発者の標準のセット・共通・自分のパターンと ★標準。ダッシュボードと同じ決まり）。
@@ -654,7 +655,7 @@
       + `${icon}<b>${esc(it ? it.name : "ダッシュボード")}</b>${it ? `<small>${esc(SCOPE_NAME[it.scope] || "")}${it.builtin ? "・組み込み" : it.replaces ? "・組み込みと入れ替え" : ""}</small>` : ""}${std ? '<i class="db-std" title="標準（最初に開く物）">★</i>' : ""}<i aria-hidden="true">▾</i></button>`;
     const msg = `<span class="db-msg" aria-live="polite">${esc(S.msg)}</span>`;
     if (!S.edit) {
-      bar.innerHTML = pick + msg + `<span class="db-wbar" hidden></span><span class="db-sp"></span>${barCfg().off && S.layout ? D.cfgBtn(sliceInfo(), true) : ""}<small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
+      bar.innerHTML = pick + (S.skip || "") + msg + `<span class="db-wbar" hidden></span><span class="db-sp"></span>${barCfg().off && S.layout ? D.cfgBtn(sliceInfo(), true) : ""}<small class="db-when" title="出ているあいだは 1 分ごとに引き直します">${when ? `${when} の数` : ""}</small>`
         + `<button type="button" class="pv-btn" data-db-refresh title="いま引き直す">↻ 引き直す</button>`
         // ダッシュボードが 1 つも無いときは「編集」を出さない（何を編集するのか分からない。空の画面の知らせから作る・戻す）
         + (it ? `<button type="button" class="btn-primary db-editbtn" data-db-editmode title="パネルを足す・動かす・大きさを変える・組む">編集</button>` : "");
@@ -670,7 +671,7 @@
       : `<button type="button" class="btn-ghost" data-db-leave>${dirty() ? "やめる" : "編集を終える"}</button>`;
     paintSlicer();
     const sl = sliceState(), sw = sl ? [sl.period && sl.period.kind ? sliceWord(sl.period) : "", (sl.equips || []).length ? eqWord(sl.equips) : ""].filter(Boolean).join("・") : "";
-    bar.innerHTML = pick + `<span class="db-editing">編集中</span>`
+    bar.innerHTML = pick + (S.skip || "") + `<span class="db-editing">編集中</span>`
       + (sw ? `<button type="button" class="ds-mini" data-ds-clear title="スライサー（${esc(sw)}）が効いています。押すと外します">スライサー ${esc(sw)} ×</button>` : "")
       + `<button type="button" class="pv-btn" data-db-add title="空いた所にパネルを足して、組む所を開きます">＋ パネル</button>${rows}`
       + `<button type="button" class="pv-btn" data-ds-cfg aria-haspopup="dialog" title="帯のスライサーを出す・出さない／出す物（このダッシュボードの設定。保存すると全員）／列の値で絞るパネルを足す">スライサー${barCfg().off ? " OFF" : ""} ▾</button>`

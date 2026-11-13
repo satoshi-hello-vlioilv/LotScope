@@ -131,9 +131,11 @@ fn parse(item: &Value, raw: Option<&Value>) -> Result<Option<String>, Bad> {
     Ok(parse_value(item, raw)?.map(|v| py_str(&v)))
 }
 
-/// 置き場の行を窓が Python と同じに読み書きできるか（id・版は master_rows の読み方・項目と値は字か数か真偽）
+/// 置き場の行を窓が Python と同じに読み書きできるか（項目と値は字か数か真偽。id・版・並びの値の行は版 3.107.0 から隔てる〈row_check。
+/// 触れる項目の行なら put_by_key が断る〉。残るのは i64 に入らない整数だけ）
 fn readable(rows: &[Value]) -> bool {
-    crate::master_rows::rows_plain(rows, &FIELDS)
+    rows.iter()
+        .all(|r| r.as_object().is_none_or(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(crate::master_rows::value_plain_or_container))))
 }
 
 /// GET /api/settings の答え（routes/settings.settings_get）

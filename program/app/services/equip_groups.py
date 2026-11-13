@@ -156,6 +156,15 @@ def ordered(rows):
     return sorted(rows, key=lambda r: (_order(r), int(r.get("id") or 0)))
 
 
+def row_problem(row):
+    """まとめ方が字でない行の理由（版 3.107.0。隔てる。窓の equipgroups_write::row_problem と同じ。前は値のまま組に分けていた）"""
+    v = row.get("まとめ方")
+    if v and not isinstance(v, str):
+        from .row_check import short
+        return f"「まとめ方」が字ではありません（{short(v)}）"
+    return None
+
+
 def view(row):
     """画面へ出す形"""
     return {"id": row.get("id"), "name": row.get("名称") or "", "set": row.get("まとめ方") or SET_DEFAULT,

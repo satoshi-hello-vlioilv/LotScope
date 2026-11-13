@@ -145,6 +145,30 @@ def can_edit(row, login, common_ok, default_ok=False):
     return default_ok if scope == "default" else common_ok if scope == "all" else (bool(login) and row.get("ログインID") == login)
 
 
+def row_problem(row):
+    """置き場の行の中身の形が窓と同じに扱えない理由（版 3.107.0。隔てる。窓の pivot_presets::row_problem と同じ）:
+    段（rows・cols の先頭 3 つ）の part・値（measures の先頭 4 つ）の column・expr が並び・表"""
+    text = row.get("中身")
+    if not isinstance(text, str):
+        return None
+    try:
+        body = json.loads(text or "{}")
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(body, dict):
+        return None
+    for k in ("rows", "cols"):
+        ds = body.get(k)
+        for d in (ds if isinstance(ds, list) else [])[:3]:
+            if isinstance(d, dict) and isinstance(d.get("part"), (list, dict)):
+                return f"中身の段（{k}）の part が並び・表です"
+    ms = body.get("measures")
+    for m in (ms if isinstance(ms, list) else [])[:4]:
+        if isinstance(m, dict) and (isinstance(m.get("column"), (list, dict)) or isinstance(m.get("expr"), (list, dict))):
+            return "中身の値（measures）の column・expr が並び・表です"
+    return None
+
+
 def view(row, login="", common_ok=False, default_ok=False, body_of=None):
     """マスタの行 → 画面の形。中身が壊れていれば body は {}（body_of は中身の字 → dict。既定は組み方の clean_body）。"""
     try:

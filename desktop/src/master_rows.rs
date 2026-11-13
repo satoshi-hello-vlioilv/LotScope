@@ -66,6 +66,18 @@ pub(crate) fn normalize_all(rows: &mut [Value], spec: &Spec) {
     }
 }
 
+/// 隔てた行（src/row_check.rs: (位置, 何行目, 理由)）
+pub(crate) type Iso = Vec<(usize, usize, String)>;
+
+/// 書く前の形そろえ（Python の _normalize_all。版 3.107.0）: 表でない行があれば書かない・形をそろえる・隔てた行を返す（権限の 2 つは隔てる形の行があれば書かない）
+pub(crate) fn prepare(rows: &mut [Value], spec: &Spec) -> Result<Iso, MasterError> {
+    refuse_bad_rows(spec.name, &bad_rows(rows))?;
+    normalize_all(rows, spec);
+    let iso = crate::row_check::check(spec.name, rows, spec.fields);
+    crate::row_check::refuse_strict(spec.name, &iso)?;
+    Ok(iso)
+}
+
 /// 本文の数の字のうち、Python の json.loads と窓の serde_json で読みが割れる物があるか（版 3.77.0。字の中は見ない）:
 /// 整数の -0（Python は int の 0、serde は小数の -0.0）・i64 に入らない整数（Python の int は桁のまま、serde は u64 か小数）。
 /// 事例の表 tests/fixtures/jsonnum_cases.json（Python 3.13 の json.loads と str()）で突き合わせる
@@ -99,7 +111,12 @@ fn split_number_in(body: &[u8], wide: bool) -> bool {
                 i += 1;
             }
             let tok = std::str::from_utf8(&body[start..i]).unwrap_or("");
-            if !tok.contains(['.', 'e', 'E']) && (tok == "-0" || (tok.parse::<i64>().is_err() && !(wide && tok.parse::<u64>().is_ok()))) {
+            // 数字の無い字（-Infinity の「-」）は数ではない（版 3.107.0）
+            let digits = tok.bytes().any(|c| c.is_ascii_digit());
+            if digits
+                && !tok.contains(['.', 'e', 'E'])
+                && (tok == "-0" || (tok.parse::<i64>().is_err() && !(wide && tok.parse::<u64>().is_ok())))
+            {
                 return true;
             }
             continue;
@@ -107,6 +124,11 @@ fn split_number_in(body: &[u8], wide: bool) -> bool {
         i += 1;
     }
     false
+}
+
+/// 字の外に i64 に入らない整数があるか（整数の -0 は割れない: inner_text が 0 と読む。版 3.107.0 から置き場のファイルで任せるのはこれだけ。H2）
+pub fn split_wide(body: &[u8]) -> bool {
+    split_number(&inner_text(&String::from_utf8_lossy(body)).into_owned().into_bytes())
 }
 
 /// 字の外の整数の -0 の位置（「-0」の後ろが数の続き〈. e E 数字〉でない）。本文の門（body::gate）・中身の欄・置き場のファイルの読みが共にする
@@ -257,6 +279,11 @@ pub(crate) fn value_plain(v: &Value) -> bool {
     }
 }
 
+/// value_plain と同じだが、並び・表は書ける物と見る（隔てる行の型は row_check が見る。版 3.107.0: 残るのは i64 に入らない整数だけ）
+pub(crate) fn value_plain_or_container(v: &Value) -> bool {
+    v.is_array() || v.is_object() || value_plain(v)
+}
+
 /// 数の値を窓が Python の str() と同じ字に書けるか（value_plain の数の所。i64 に入らない整数の形の小数は Python では桁のまま）。
 /// 本文の欄の並び・表は版 3.106.0 から本文の門（body_rules.TYPES）が断るので、本文の欄にはこれだけを見る
 pub(crate) fn num_plain(v: &Value) -> bool {
@@ -334,9 +361,12 @@ pub(crate) fn check_unique(rows: &[Value], spec: &Spec, data: &Map<String, Value
 /// 足す（_create: 版の無い行は 1・一意・行の確かめ・次の id・置く項目は字で前後の空白を除く・版 1・書いた人と時刻）
 pub(crate) fn create(store: &Store, spec: &Spec, data: &Map<String, Value>, check: CheckRow) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        normalize_all(rows, spec);
-        check_unique(rows, spec, data, None)?;
-        check(rows, data, None)?;
+        let iso = prepare(rows, spec)?;
+        // 名前の重なり・行の確かめは、読める行で当ててから隔てた行と 1 つずつ（隔てた行と当たれば何行目かを言う。版 3.107.0 の割れ 3）
+        crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| {
+            check_unique(rs, spec, data, None)?;
+            check(rs, data, None)
+        })?;
         let mut row = Map::new();
         row.insert("id".into(), json!(next_id(rows)));
         for k in spec.fields {
@@ -359,7 +389,8 @@ pub(crate) fn update(
     check: CheckRow,
 ) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        normalize_all(rows, spec);
+        let iso = prepare(rows, spec)?;
+        crate::row_check::guard(spec.name, rows, &iso, id)?;
         let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
             return Err(if base.is_some() {
                 MasterError::Conflict(None)
@@ -368,12 +399,14 @@ pub(crate) fn update(
             });
         };
         check_rev(&rows[i], base)?;
-        check_unique(rows, spec, data, Some(id))?;
         let mut merged = rows[i].as_object().cloned().unwrap_or_default();
         for (k, v) in data {
             merged.insert(k.clone(), v.clone());
         }
-        check(rows, &merged, Some(id))?;
+        crate::row_check::dup_checked(spec.name, rows, &iso, &|rs| {
+            check_unique(rs, spec, data, Some(id))?;
+            check(rs, &merged, Some(id))
+        })?;
         let row = rows[i].as_object_mut().ok_or_else(|| MasterError::Error("行の形が違います".into()))?;
         for k in spec.fields {
             if data.contains_key(*k) {
@@ -390,7 +423,12 @@ pub(crate) fn update(
 /// 消す（_delete: 無い行は 404〈版を添えたならもう消えている＝望みどおり〉・行の版）
 pub(crate) fn delete(store: &Store, spec: &Spec, id: i64, base: Option<Rev>) -> Result<(), MasterError> {
     store.write(spec.name, |rows, _stamp| {
-        normalize_all(rows, spec);
+        let iso = prepare(rows, spec)?;
+        // 隔てた行は値を読まずに消す（版は確かめない。版 3.107.0 の割れ 1: 前に画面で消せた行は今も消せる）
+        if let Some(i) = crate::row_check::isolated_hit(rows, &iso, id) {
+            rows.remove(i);
+            return Ok(());
+        }
         let Some(i) = rows.iter().position(|r| same_id(r, id)) else {
             return if base.is_some() { Ok(()) } else { Err(MasterError::NotFound(format!("id={id} が見つかりません。"))) };
         };
@@ -457,8 +495,12 @@ pub(crate) fn put_by_key(
     base: Option<Rev>,
 ) -> Result<Value, MasterError> {
     store.write(spec.name, |rows, stamp| {
-        normalize_all(rows, spec);
+        let iso = prepare(rows, spec)?;
         let i = rows.iter().position(|r| r.get(key_col).and_then(Value::as_str) == Some(key));
+        // 隔てた行は直さない・消さない（版 3.107.0。前は版の読めない行で Python が英語の 400）
+        if let Some((_, n, why)) = i.and_then(|i| iso.iter().find(|(j, _, _)| *j == i)) {
+            return Err(crate::row_check::refuse_row(spec.name, *n, why));
+        }
         if let Some(b) = base {
             let have = match i {
                 Some(i) => py_int(rows[i].get("rev").unwrap_or(&json!(1))),

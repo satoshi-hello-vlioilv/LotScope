@@ -24,6 +24,18 @@ MAX_FILTERS = 20
 PERIODS_KEYS = tuple(PERIODS)
 
 
+def settings_problem(row):
+    """前の版の条件のマスタの行の条件が表でない理由（版 3.107.0。隔てる。窓の layout_clean::settings_problem と同じ）"""
+    t = row.get("条件")
+    if not isinstance(t, str) or not t:
+        return None
+    try:
+        d = json.loads(t)
+    except (ValueError, RecursionError):
+        return None
+    return None if isinstance(d, dict) else "「条件」が表ではありません"
+
+
 def condition_of(rows, key):
     """マスタの行から、版 3.36.0 の 1 枚の表の条件 {filters, search}（キーは wip / work。行が無い・壊れていれば条件なし）"""
     row = next((r for r in rows or [] if str(r.get("キー") or "") == key), None)
@@ -799,6 +811,15 @@ HIDE_SOURCE = "dashoff"
 HIDE_NAME = "外した組み込み"
 
 
+def with_builtin_replace_view(r):
+    """一覧に出す行（with_builtin_replace。中身が確かめに通らなければ、入れ替えずにそのまま出す: layout_view が空のパネルで見せ、
+    画面で直せる。版 3.107.0 の割れ 8: 前は LayoutError の 500 で、その ID の人のダッシュボードの画面が開かなかった。窓も同じ）"""
+    try:
+        return with_builtin_replace(r)
+    except LayoutError:
+        return r
+
+
 def clean_hide_body(body):
     if isinstance(body, str):
         try:
@@ -827,7 +848,13 @@ def builtin_skip(rows, login):
     """一覧に出さない組み込みの鍵 → (外した鍵 {鍵: 範囲}, 入れ替えた鍵 set)。rows はマスタの行（見える物だけを見る）"""
     off = {}
     for r in hidden_rows(rows, login):
-        for k in clean_hide_body(r.get("中身") or "{}")[0]["keys"]:
+        # 中身が表でない・keys が数の行は、外した鍵なしとして読む（版 3.107.0 の割れ 8: 前は AttributeError・TypeError の 500。
+        # 外す・戻すの道が同じ組の行を置き換えて直せる。窓の dashboards_write::builtin_skip と同じ）
+        try:
+            keys = clean_hide_body(r.get("中身") or "{}")[0]["keys"]
+        except (AttributeError, TypeError):
+            keys = []
+        for k in keys:
             off.setdefault(k, pivot_presets.scope_of(r))
     swapped = set()
     for r in rows:
