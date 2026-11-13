@@ -43,6 +43,21 @@ const openMenu = async (p, sel, how = "click") => {
   });
 };
 const closeMenu = async (p) => { await p.keyboard.press("Escape"); await sleep(200); };
+/** 開いた面の字: 切れ（scrollWidth ＞ clientWidth）とコントラスト（項目の字・下の小さな字。押せない項目も） */
+const menuText = (p) => p.evaluate(() => {
+  const lum = (c) => { const m = c.match(/[\d.]+/g).map(Number); const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(m[0]) + 0.7152 * f(m[1]) + 0.0722 * f(m[2]); };
+  const bgOf = (el) => { for (let e = el; e; e = e.parentElement) { const b = getComputedStyle(e).backgroundColor; if (b && !/rgba\(0, 0, 0, 0\)|transparent/.test(b)) return b; } return "rgb(255,255,255)"; };
+  const cr = (el) => { const a = lum(getComputedStyle(el).color), b = lum(bgOf(el)); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+  const m = document.querySelector(".tpa-menu"); if (!m) return null;
+  const parts = [...m.querySelectorAll(".tm-head, button[role=menuitem] > span, button[role=menuitem] small")];
+  const cut = parts.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent.slice(0, 40));
+  const low = parts.filter((e) => cr(e) < 4.5 || parseFloat(getComputedStyle(e.closest("button") || e).opacity) < 1).map((e) => `${e.textContent.slice(0, 30)} ${cr(e).toFixed(2)}`);
+  return { cut, low };
+});
+/** 札の形（色・角・字の大きさ・高さ） */
+const chipShape = (p, sel) => p.evaluate((s) => { const c = document.querySelector(`${s} .tpa-skip`); if (!c) return null; const k = getComputedStyle(c);
+  return [k.backgroundColor, k.borderTopColor, k.borderRadius, k.fontSize, k.fontWeight, Math.round(c.getBoundingClientRect().height)].join(" "); }, sel);
+const SHAPES = new Set();
 
 process.env.TPA_UI_BAD_ROWS = "1";
 const app = await launch();
@@ -65,12 +80,15 @@ try {
     await sleep(800);
     const bar = await chip(p, "#dashBar");
     check(`① ${tag} ダッシュボードの道具の行に押せる札（何の行かを言う・数は今の面の 2・1 段・はみ出さない・重ならない・11px 以上）`,
-      bar && bar.button && bar.visible && bar.inside && !bar.overlap && bar.oneLine && bar.font >= 11 && bar.pageX && /^⚠ 保存したダッシュボード・ダッシュボードのセットの読めない行 2$/.test(bar.text), bar);
+      bar && bar.button && bar.visible && bar.inside && !bar.overlap && bar.oneLine && bar.font >= 11 && bar.pageX && bar.text === "⚠ ダッシュボードの読めない行 2", bar);
+    SHAPES.add(await chipShape(p, "#dashBar"));
     const barH = await p.evaluate(() => document.querySelector("#dashBar").getBoundingClientRect().height);
     check(`① ${tag} 道具の行の高さは 1 段（56px 以下）`, barH <= 56, barH);
     await shot(p, `skip-dash-${tag}`, bar && bar.clip);
     const m1 = await openMenu(p, "#dashBar", "enter");
-    check(`② ${tag} 札を Enter で押すと理由の面（何行目・要約・理由・消す・ほかの画面の行・画面に収まる）`, m1 && m1.inView && /dashboards\.json の読めない行/.test(m1.head)
+    const t1 = await menuText(p);
+    check(`② ${tag} 面の字が切れない・コントラスト 4.5 以上（直せる人）`, t1 && !t1.cut.length && !t1.low.length, t1);
+    check(`② ${tag} 札を Enter で押すと理由の面（何の行か・何行目・要約・理由・消す・ほかの画面の行・画面に収まる）`, m1 && m1.inView && /保存したダッシュボード・ダッシュボードのセットの読めない行（dashboards\.json）/.test(m1.head)
       && m1.items.some((x) => /行目 id 903・名前 '版の読めないダッシュボード'/.test(x.text) && /保存したダッシュボード・版（rev）が読めません/.test(x.title) && !x.disabled)
       && m1.groups.includes("ほかの画面の行") && m1.items.some((x) => /壊れたカード/.test(x.text)), m1);
     await shot(p, `skip-dash-open-${tag}`, m1 && m1.clip);
@@ -78,6 +96,8 @@ try {
     // 一般ユーザーの言葉（権限で分ける: マスタを直せない人）
     await p.evaluate(() => { TPA.me = { ...(TPA.me || {}), canEditFieldMaster: false }; });
     const m2 = await openMenu(p, "#dashBar");
+    const t2 = await menuText(p);
+    check(`② ${tag} 面の字が切れない・コントラスト 4.5 以上（一般ユーザー・押せない項目も）`, t2 && !t2.cut.length && !t2.low.length, t2);
     check(`② ${tag} 一般ユーザーには「管理者に知らせてください」と消す行を出さない`, m2 && m2.items.some((x) => /管理者（マスタを直せる人）に知らせてください/.test(x.text)) && m2.items.filter((x) => /行目/.test(x.text)).every((x) => x.disabled), m2);
     await shot(p, `skip-dash-user-${tag}`, m2 && m2.clip);
     await closeMenu(p);
@@ -91,6 +111,8 @@ try {
       await sleep(300);
     }
     check(`${tag} 頁の誤りが無い`, errors.length === 0, errors);
+    check(`${tag} 札の形が 4 か所で同じ（ダッシュボード・書式・組み方・マスタ管理の帯。カードは今の表に当たる行が無い）`, SHAPES.size === 1 && !SHAPES.has(null), [...SHAPES]);
+    SHAPES.clear();
     await q.context().close();
   }
 } finally {
@@ -104,6 +126,7 @@ async function formatsPart(p, tag) {
   const fm = await chip(p, "#llFormatPanel .fm-head");
   check(`③ ${tag} 共有の書式の面の札は品質の行だけを数える（1）・はみ出さない・重ならない`, fm && fm.button && fm.visible && fm.inside && !fm.overlap && fm.oneLine
     && fm.text === "⚠ 共有の書式の読めない行 1", fm);
+  SHAPES.add(await chipShape(p, "#llFormatPanel .fm-head"));
   await shot(p, `skip-formats-${tag}`, await p.evaluate(() => { const r = document.querySelector("#llFormatPanel").getBoundingClientRect(); return { x: Math.max(0, r.left - 8), y: Math.max(0, r.top - 8), width: Math.min(innerWidth - Math.max(0, r.left - 8), r.width + 16), height: Math.min(innerHeight - Math.max(0, r.top - 8), r.height + 16) }; }));
   const m = await openMenu(p, "#llFormatPanel .fm-head");
   check(`③ ${tag} 面に作業実績の行は「ほかの画面の行」で出る`, m && m.groups.includes("ほかの画面の行") && m.items.some((x) => /作業実績の壊れた書式/.test(x.text)), m);
@@ -125,16 +148,25 @@ async function presetsPart(p, tag) {
   const pv = await chip(p, ".pv-phead");
   check(`④ ${tag} 組み方の面の見出しに押せる札（pivot_presets.json・はみ出さない・重ならない）`, pv && pv.button && pv.visible && pv.inside && !pv.overlap && pv.oneLine
     && pv.text === "⚠ 組み方の読めない行 1", pv);
+  SHAPES.add(await chipShape(p, ".pv-phead"));
   await shot(p, `skip-presets-${tag}`, pv && pv.clip);
 }
 
 async function masterPart(p, tag) {
   await p.click("#masterBtn"); await p.waitForSelector("#masterOverlay:not(.hidden)"); await sleep(600);
   await p.evaluate(() => document.querySelector('#masterTabs [data-tab="equipment"]')?.click()); await sleep(900);
-  const band = await p.evaluate(() => { const c = document.querySelector(".master-place .place-caution"); return c ? { text: c.textContent, button: c.tagName === "BUTTON" } : null; });
-  check(`⑤ ${tag} マスタ管理の設備マスタの帯に理由つきの押せる知らせ`, band && band.button && /equipment_master\.json の \d+ 行目（id が数ではありません（'x'））・\d+ 行目（数でない値（NaN・Infinity）があります）が読めません/.test(band.text), band);
+  const band = await p.evaluate(() => {
+    const c = document.querySelector(".master-place .tpa-skip"), go = document.querySelector("#masterPlaceGo"); if (!c) return null;
+    const a = c.getBoundingClientRect(), b = go.getBoundingClientRect();
+    return { text: c.textContent, title: c.title, button: c.tagName === "BUTTON", oneLine: Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 8 };
+  });
+  check(`⑤ ${tag} マスタ管理の設備マスタの帯に押せる札（短く 1 段・「マスタの置き場 ›」と同じ段・理由は title と面）`, band && band.button && band.oneLine && band.text === "⚠ 読めない行 2"
+    && /equipment_master\.json の \d+ 行目（id が数ではありません（'x'））・\d+ 行目（数でない値（NaN・Infinity）があります）が読めません/.test(band.title), band);
+  SHAPES.add(await chipShape(p, ".master-place"));
   await shot(p, `skip-master-${tag}`, await p.evaluate(() => { const r = (document.querySelector(".master-place") || document.body).getBoundingClientRect(); return { x: 0, y: Math.max(0, r.top - 60), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 60), r.height + 260) }; }));
-  await p.click(".master-place .place-caution"); await sleep(300);
+  await p.click(".master-place .tpa-skip"); await sleep(300);
+  const t3 = await menuText(p);
+  check(`⑤ ${tag} マスタ管理の面の字が切れない・コントラスト 4.5 以上`, t3 && !t3.cut.length && !t3.low.length, t3);
   const m = await p.evaluate(() => { const m = document.querySelector(".tpa-menu"); return m ? [...m.querySelectorAll("button[role=menuitem]")].map((b) => ({ text: b.textContent, disabled: b.disabled })) : null; });
   check(`⑤ ${tag} 帯を押すと面: id で引ける行（902）は消せる・id が字の行は消せない`, m && m.some((x) => /id 902/.test(x.text) && !x.disabled) && m.some((x) => /id 'x'/.test(x.text) && x.disabled), m);
   await shot(p, `skip-master-open-${tag}`);

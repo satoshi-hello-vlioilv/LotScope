@@ -12,7 +12,7 @@
   違う版の人には見出しの版の札の横に知らせを出す（止めはしない）。
 """
 APP_VERSION = "3.107.0"
-RELEASE = {"version": "3.107.0", "digest": "a8c608709d77327a"}
+RELEASE = {"version": "3.107.0", "digest": "563e0f1c09e8aba8"}
 
 CHANGELOG = [
     {"version": "3.107.0", "date": "2026-11-13", "notes": [

@@ -280,16 +280,20 @@
         : Array.isArray(here) ? here.includes(s.source || "") : (s.source || "") === here);
       const mine = sk.filter(hit);
       if (!mine.length && !un) return "";
-      const what = [...new Set(mine.map((s) => TPA.skipWhat(file, s.source)))].join("・") || TPA.skipWhat(file, "");
+      const kinds = [...new Set(mine.map((s) => TPA.skipWhat(file, s.source)))];
+      const what = kinds.join("・") || TPA.skipWhat(file, "");
       const id = `s${++SKIP_SEQ}`;
       SKIPS.set(id, { d: { skipped: sk, unreadable: un }, file, hit, what, reload: opts.reload || null });
-      const label = opts.label || (un ? `⚠ ${TPA.skipWhat(file, "")}のファイルが読めません` : `⚠ ${what}の読めない行 ${mine.length}`);
+      // 札は短く（何の行かは 1 語。詳しい言葉は面の頭。2 回目の採点の弱い所 5: 長い札が主の「標準 ▾」より目を引いた）
+      const word = kinds.length === 1 ? kinds[0] : TPA.skipWhat(file, "", true);
+      const label = opts.label || (un ? `⚠ ${TPA.skipWhat(file, "", true)}のファイルが読めません` : `⚠ ${word}の読めない行 ${mine.length}`);
       const tip = un ? un : `${file}.json の ${mine.map((s) => `${s.row} 行目（${s.why}）`).slice(0, 3).join("・")}${mine.length > 3 ? " ほか" : ""}が読めません。押すと理由と直し方`;
       return `<button type="button" class="${opts.cls || "db-warnb"} tpa-skip" data-skip="${id}" aria-haspopup="menu" title="${TPA.esc(tip)}">${TPA.esc(label)}</button>`;
     },
     /** 何の行か（知らせの言葉の 1 か所。file はマスタ、source は行の元） */
-    skipWhat(file, source = "") {
+    skipWhat(file, source = "", short = false) {
       if (file === "dashboards") {
+        if (short) return "ダッシュボード";
         return source.startsWith("card:") ? "カードの設計" : source === "dashset" ? "ダッシュボードのセット" : source === "dashoff" ? "外した組み込み" : "保存したダッシュボード";
       }
       return SKIP_WHAT[file] || file;
@@ -309,14 +313,16 @@
       };
       const items = [];
       if (it.d.unreadable) items.push({ group: "ファイル" }, { icon: "⚠", label: `${it.file}.json が読めません`, why: it.d.unreadable, disabled: true });
-      if (mine.length) items.push({ group: `${it.what}の読めない行（一覧では飛ばしています）` }, ...mine.map(row));
+      if (mine.length) items.push({ group: "この画面の行（一覧では飛ばしています）" }, ...mine.map(row));   // 何の行かは面の頭で言う
       if (others.length) items.push({ group: "ほかの画面の行" }, ...others.map(row));
       items.push({ sep: true });
       if (!can) items.push({ icon: "ⓘ", label: "管理者（マスタを直せる人）に知らせてください", why: `${it.file}.json の何行目かを伝えると、マスタ管理か共有のフォルダのファイルで直せます`, disabled: true });
-      else if (tab && window.openMasterAt) items.push({ icon: "›", label: "マスタ管理で見る", run: () => window.openMasterAt(tab) });
+      else if (tab && window.openMasterAt && document.querySelector("#masterOverlay.hidden")) items.push({ icon: "›", label: "マスタ管理で見る", run: () => window.openMasterAt(tab) });
+      else if (tab) items.push({ icon: "ⓘ", label: "× の行は押すと消せます", why: `ほかは共有のフォルダの ${it.file}.json を直します`, disabled: true });   // マスタ管理の中では「見る」を出さない
       else items.push({ icon: "ⓘ", label: "消すか、ファイルを直してください", why: `× の行は押すと消せます。そのほかは共有のフォルダの ${it.file}.json を直します`, disabled: true });
       const r = btn.getBoundingClientRect();
-      TPA.menu({ x: r.left, y: r.bottom + 4, head: `${it.file}.json の読めない行`, items });
+      // 面は字を切らずに折り返し、知らせ・直し方は本文の色で出す（.tpa-skipmenu。2 回目の採点の減点 1〜3）
+      TPA.menu({ x: r.left, y: r.bottom + 4, head: `${it.what}の読めない行（${it.file}.json）`, items, cls: "tpa-skipmenu" });
     },
     /** 読めない行を消す道（マスタ・元 → DELETE の道。id で引けない行は null） */
     skipRoute(file, source, id) {
@@ -327,7 +333,7 @@
     },
     async skipDelete(it, s, url) {
       let yes = false;      // 押した項目は閉じた後に走るので、閉じたときに答える（Esc・外側は「やめる」）
-      const sure = await new Promise((done) => TPA.menu({ x: innerWidth / 2 - 120, y: innerHeight / 3, head: `${it.file}.json の ${s.row} 行目を消しますか（元に戻せません）`,
+      const sure = await new Promise((done) => TPA.menu({ x: innerWidth / 2 - 120, y: innerHeight / 3, head: `${it.file}.json の ${s.row} 行目を消しますか（元に戻せません）`, cls: "tpa-skipmenu",
         items: [{ icon: "×", label: "消す", danger: true, run: () => { yes = true; } }, { icon: "", label: "やめる", run: () => {} }],
         onClose: () => setTimeout(() => done(yes), 0) }));
       if (!sure) return;
@@ -525,10 +531,10 @@
         items: [{ label, run, key?（右に添えるキーの字）, icon?（左の 1 字）, danger?, disabled?, why?（押せない理由・説明）, note?（押せる項目の下に添える説明。版 3.107.0）, on?（いま効いている印 ✓）} |
                 { group: "見出し" }（まとまりの見出し。前に線） | { sep: true }（線）]
         head: いちばん上の太字（何に対するメニューか）。矢印・Home・End で移り、Enter で押す。戻り値: 閉じる関数 */
-    menu({ x, y, head = "", items, onClose = null }) {
+    menu({ x, y, head = "", items, onClose = null, cls = "" }) {
       document.querySelector(".tpa-menu")?._close?.();
       const m = document.createElement("div");
-      m.className = "tpa-menu"; m.setAttribute("role", "menu");
+      m.className = `tpa-menu${cls ? ` ${cls}` : ""}`; m.setAttribute("role", "menu");
       const acts = [];
       m.innerHTML = (head ? `<p class="tm-head">${TPA.esc(head)}</p>` : "") + items.filter(Boolean).map((it) => {
         if (it.sep) return '<hr class="tm-sep">';

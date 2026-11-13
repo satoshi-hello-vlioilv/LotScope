@@ -814,5 +814,3 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 /* 道具の段は窓の上の縁に着ける（-14px は .master-settings の上の余白。前は余白の分だけすき間ができ、送った表の行が覗いた。作った後の採点） */
 .ta-top{top:-14px;margin-top:-14px;padding-top:16px}
 .ta-mx tbody tr:not(.ta-g):hover > *{background:#f6f9fd}
-/* 読めない行の知らせ（版 3.107.0）: 帯の注意の札を押せるボタンにした（形は .place-caution のまま。押すと読めない行の面） */
-.master-place button.place-caution{background:none;border:0;padding:0;font:inherit;text-align:left;text-decoration:underline dotted;text-underline-offset:3px}
