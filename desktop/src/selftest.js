@@ -2,20 +2,36 @@
    本物の WebView の中から、窓（Rust）と中身（Python）の組が正しく動くかを確かめて /__desktop/selftest へ送る。窓は結果を書いて終わる。
    調べること: 起動が終わる・振り分け（部品と画面は Rust〈画面は Python の画面と突き合わせる〉・API は Python・窓のことは Rust）・使い回しの決まり・大きな日本語の本文・
    日本語の問い合わせ文字・40 本同時・安全な文脈・保存領域・保存（ダウンロード）・窓の情報・品質異常（Rust と Python の突き合わせ）・
-   画面のエラーが無い・速さ。 */
+   画面のエラーが無い・速さ。
+   版 3.111.0: 中身（Python）が起きていなければ、Python を通す項目（ok）は「中身（Python）を通す項目」の包みに数えて飛ばし、窓だけの項目（okw）を流す
+   （名前の一覧は desktop/bundle/verify.py の WINDOW_ONLY）。 */
 (async () => {
   const res = [];
-  const ok = (name, cond, info = "") => res.push({ name, ok: !!cond, info: String(info).slice(0, 300) });
   const t0 = performance.now();
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+  // 中身（Python）の様子（版 3.111.0）: 起こしている最中は 130 秒まで待つ（Sidecar の start_wait 120 秒より長く）。起きなければ、
+  // Python を通す項目（ok）は 1 つの包み「中身を通す項目」に数えて飛ばし、窓だけの項目（okw）は流す。窓だけの項目の名前の一覧は
+  // desktop/bundle/verify.py の WINDOW_ONLY が持ち、Python の無い通しで全部が通ったかを見る
+  let python = "starting";
+  for (const until = performance.now() + 130000; performance.now() < until;) {
+    try { python = (await (await fetch("/api/health", { cache: "no-store" })).json()).python || "?"; } catch (_) { python = "?"; }
+    if (python !== "starting") break;
+    await sleep(250);
+  }
+  const pyUp = python === "ready";
+  // Python を通す項目の待ちの輪（最初の版を置く途中・写しの途中を尋ね直す）は、中身が起きていなければ待たない（1 回だけ尋ねる）
+  const pyWait = (ms) => (pyUp ? ms : 0);
+  const skipped = [];
+  const okw = (name, cond, info = "") => res.push({ name, ok: !!cond, info: String(info).slice(0, 300), window: true });
+  const ok = (name, cond, info = "") => (pyUp ? res.push({ name, ok: !!cond, info: String(info).slice(0, 300) }) : skipped.push(name));
   const get = async (url, opt) => { const r = await fetch(url, opt); return { r, by: r.headers.get("X-TPA-By"), text: await r.text() }; };
   const json = (method, body) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  // 窓の情報（版 3.86.0: 画面は中身の準備を待たずに開くので、中身の版〈backend〉は準備ができてから載る。60 秒まで待つ）
+  // 窓の情報（版 3.111.0: 中身の版は窓が読んだ program_version。Python の準備〈backend〉を待たない。中身が起きていれば backend も載る）
   const infoReady = async () => {
     let i = {};
     for (let n = 0; n < 300; n++) {
       i = await (await fetch("/__desktop/info")).json();
-      if (i.backend && i.backend.version) return i;
+      if (i.program_version && (!pyUp || (i.backend && i.backend.version))) return i;
       await sleep(200);
     }
     return i;
@@ -25,19 +41,19 @@
     const end = performance.now() + 60000;
     const booted = () => typeof state === "object" && state.config && state.me;
     while (!booted() && performance.now() < end) await sleep(200);
-    ok("起動が終わる（設定と権限を読み終える）", booted(), ((performance.now() - t0) / 1000).toFixed(1) + " 秒");
+    okw("起動が終わる（設定と権限を読み終える）", booted(), ((performance.now() - t0) / 1000).toFixed(1) + " 秒");
     const app = document.querySelector('meta[name="tpa-app"]');
-    ok("画面の題（窓が描いた HTML・アプリの名前）", app && document.title === app.content, document.title);
-    ok("画面の JS が動いている（TPA の共通部品）", typeof TPA === "object" && typeof TPA.download === "function");
+    okw("画面の題（窓が描いた HTML・アプリの名前）", app && document.title === app.content, document.title);
+    okw("画面の JS が動いている（TPA の共通部品）", typeof TPA === "object" && typeof TPA.download === "function");
 
     // 2) 振り分けと使い回しの決まり
     const fp = (document.querySelector('meta[name="tpa-build"]') || {}).content || "x";
     const js = await get(`/static/js/shared.js?v=${fp}`);
-    ok("部品は Rust が返す（指紋付きは長く使い回す）", js.by === "shell" && js.r.ok && /immutable/.test(js.r.headers.get("Cache-Control") || ""), js.by);
+    okw("部品は Rust が返す（指紋付きは長く使い回す）", js.by === "shell" && js.r.ok && /immutable/.test(js.r.headers.get("Cache-Control") || ""), js.by);
     const plain = await get("/static/js/shared.js");
-    ok("指紋の無い部品は毎回確かめる（no-cache）", plain.by === "shell" && plain.r.headers.get("Cache-Control") === "no-cache" && plain.text === js.text);
+    okw("指紋の無い部品は毎回確かめる（no-cache）", plain.by === "shell" && plain.r.headers.get("Cache-Control") === "no-cache" && plain.text === js.text);
     const three = await get(`/static/vendor/three/three-bundle.min.js?v=${fp}`);
-    ok("大きな部品（three.js）も Rust が返す", three.by === "shell" && three.r.ok && three.text.length > 100000, `${three.r.status} ${three.text.length}字`);
+    okw("大きな部品（three.js）も Rust が返す", three.by === "shell" && three.r.ok && three.text.length > 100000, `${three.r.status} ${three.text.length}字`);
     // 画面は窓が描く（版 3.85.0。src/page.rs）。使い回さない（no-store）・CSP の印。Python が描いた画面（?engine=python）と、印を揃えると 1 字も違わない
     // 先に Python の画面（共有に初期設定がまだ無い PC では、Python が描くときに写しから最初の版を作る。窓はその形を Python に任せる）。
     // 版 3.86.0 から最初の画面は Python の準備を待たずに窓が描くので、その版はここで初めてできることがある
@@ -45,23 +61,24 @@
     // 置かれるまで 15 秒まで尋ね直す（版 3.89.0 の CI で、起動の直後に Python が描いた。10a' と同じ）
     let pyPage = await get("/?engine=python");
     let page = await get("/");
-    for (const until = Date.now() + 15000; page.by !== "shell" && Date.now() < until;) {
+    for (const until = Date.now() + pyWait(15000); page.by !== "shell" && Date.now() < until;) {
       await new Promise((r) => setTimeout(r, 1000));
       pyPage = await get("/?engine=python"); page = await get("/");
     }
     const csp = page.r.headers.get("Content-Security-Policy") || "";
-    ok("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
+    okw("画面は窓が描く（使い回さない・CSP の印）", page.by === "shell" && page.r.ok && page.r.headers.get("Cache-Control") === "no-store" && /'nonce-[A-Za-z0-9_-]{22}'/.test(csp), `${page.by} ${csp.slice(0, 40)}`);
     const nonceOf = (x) => ((x.r.headers.get("Content-Security-Policy") || "").match(/nonce-([A-Za-z0-9_-]+)/) || [])[1] || "@";
     const norm = (x) => x.text.split(nonceOf(x)).join("@NONCE@");
     // 起動の直後は Python がマスタの最初の版を置いている最中のことがあり、2 回の読みの間に置かれると埋め込んだマスタの revision だけが
     // 食い違う（版 3.99.0 の CI: 窓の起動が 0.2 秒で、Python の種まきと重なった）。同じ時点の形になるまで 15 秒まで読み直す（比べる中身は同じ）
-    for (const until = Date.now() + 15000; page.by === "shell" && pyPage.by === "python" && norm(page) !== norm(pyPage) && Date.now() < until;) {
+    for (const until = Date.now() + pyWait(15000); page.by === "shell" && pyPage.by === "python" && norm(page) !== norm(pyPage) && Date.now() < until;) {
       await new Promise((r) => setTimeout(r, 1000));
       pyPage = await get("/?engine=python"); page = await get("/");
     }
     const at = [...norm(page)].findIndex((c, i) => c !== norm(pyPage)[i]);
     ok("窓の画面と Python の画面が同じ（印を揃えて）", pyPage.by === "python" && norm(page) === norm(pyPage), at < 0 ? pyPage.by : `${at} 字目: ${norm(page).slice(Math.max(0, at - 30), at + 40)}`);
     const escape = await get("/static/%2e%2e/templates/index.html");
+    // WebView は %2e%2e を道の .. に読んで畳むので、窓の static には来ず Python の 404（中身の項目）
     ok("static の外へは出ない", escape.r.status === 404, escape.r.status);
 
     // 3) API
@@ -83,9 +100,11 @@
     const why = (JSON.parse(bad.text).error || "");
     ok("誤りの答え（400 と日本語の理由）", bad.r.status === 400 && /形が違います/.test(why) && bad.by === "python", why);
     const wbad = await get("/api/ui-state", json("POST", { changed: "形が違う" }));
-    ok("窓が答える誤り（画面の設定の控え）", wbad.r.status === 400 && wbad.by === "shell" && /形が違います/.test(JSON.parse(wbad.text).error || ""), wbad.text.slice(0, 80));
+    okw("窓が答える誤り（画面の設定の控え）", wbad.r.status === 400 && wbad.by === "shell" && /形が違います/.test(JSON.parse(wbad.text).error || ""), wbad.text.slice(0, 80));
     const hb = await get("/api/heartbeat", json("POST", { visible: true }));
-    ok("心拍は窓が答える（中身が生きていれば 200）", hb.r.ok && hb.by === "shell" && "revoked" in JSON.parse(hb.text), `${hb.r.status} ${hb.by}`);
+    let hbj = {}; try { hbj = JSON.parse(hb.text); } catch (_) { /* 下で言う */ }
+    okw("心拍は窓が答える（中身の様子を添える。版 3.111.0 から中身が止まっていても 200）",
+        hb.r.ok && hb.by === "shell" && "revoked" in hbj && hbj.python && hbj.python.state === python, `${hb.r.status} ${hb.by} python=${JSON.stringify(hbj.python)}`);
 
     // 4) 大きな日本語の本文（約 460KB）が往復する——画面の設定の控えへ重ねて読み戻し、消す
     const big = "汚れ位置・発見設備と転写".repeat(13000), key = "tpa.selftestBig";
@@ -117,13 +136,13 @@
     ok("40 本同時でも、それぞれの答えが届く", all.every((x, i) => x.r.ok && (i % 2 ? JSON.parse(x.text).version : x.by === "shell")));
 
     // 7) 安全な文脈・保存領域
-    ok("安全な文脈（クリップボードへ写せる）", window.isSecureContext && !!(navigator.clipboard && navigator.clipboard.writeText),
+    okw("安全な文脈（クリップボードへ写せる）", window.isSecureContext && !!(navigator.clipboard && navigator.clipboard.writeText),
        `isSecureContext=${window.isSecureContext}`);
     localStorage.setItem("tpaSelftestV1", "1");
-    ok("localStorage が使える", localStorage.getItem("tpaSelftestV1") === "1");
+    okw("localStorage が使える", localStorage.getItem("tpaSelftestV1") === "1");
     localStorage.removeItem("tpaSelftestV1");
     const idb = await new Promise((done) => { const r = indexedDB.open("tpaSelftest", 1); r.onsuccess = () => { r.result.close(); done(true); }; r.onerror = () => done(false); });
-    ok("IndexedDB が使える", idb);
+    okw("IndexedDB が使える", idb);
 
     // 8) 保存（ダウンロード）: 画面の保存の道（TPA.download）で CSV が名前どおり・中身どおりに届く。窓は自己診断のときだけ記録する
     TPA.download(new Blob(["﻿ロット,値\r\nA,1\r\n"], { type: "text/csv;charset=utf-8" }), "自己診断_保存.csv");
@@ -132,7 +151,7 @@
       await sleep(200);
       saved = (await (await fetch("/__desktop/downloads")).json()).find((x) => x.state === "finished");
     }
-    ok("保存: CSV が日本語の名前どおり・中身どおりに届く", saved && saved.success && saved.head === "efbbbfe3" && /自己診断_保存.*\.csv$/.test(saved.path || ""),
+    okw("保存: CSV が日本語の名前どおり・中身どおりに届く", saved && saved.success && saved.head === "efbbbfe3" && /自己診断_保存.*\.csv$/.test(saved.path || ""),
        JSON.stringify(saved));
 
     // 9) 窓の情報（枠の約束の版・目印・受け持ち）
@@ -144,9 +163,9 @@
 
     // 10) 品質異常（Rust が写しから引く・lot.rs）。同じ問い合わせを Python（engine=python）でも引き、答えが同じか
     const ll = await get("/api/lotlist?page=1");
-    ok("一覧は Rust が答える", ll.by === "shell", `${ll.by} ${ll.r.status}`);
+    okw("一覧は Rust が答える", ll.by === "shell", `${ll.by} ${ll.r.status}`);
     const llSrc = await get("/api/lotlist/source");
-    ok("データの時刻は Rust が答える（共有を見に行かない）", llSrc.by === "shell" && llSrc.r.ok, llSrc.text.slice(0, 120));
+    okw("データの時刻は Rust が答える（共有を見に行かない）", llSrc.by === "shell" && llSrc.r.ok, llSrc.text.slice(0, 120));
     let llCount = 0; try { llCount = JSON.parse(ll.text).count || 0; } catch (_) { /* 下で言う */ }
     if (llCount > 0) {
       const canon = (v) => Array.isArray(v) ? v.map(canon) : v && typeof v === "object"
@@ -183,7 +202,7 @@
       // 先に Python に尋ねる（共有にまだマスタの最初の版が無い PC では、Python が読んだときに写しから作る。それまで窓は Python に任せる）。
       // 新しい共有を最初に開いたときは、最初の版を置く錠がぶつかって置けない回がある（「保存中」）ので、置かれるまで 15 秒まで尋ね直す
       let py = await get("/api/sources?engine=python"), rs = await get("/api/sources");
-      for (const until = Date.now() + 15000; rs.by !== "shell" && Date.now() < until;) {
+      for (const until = Date.now() + pyWait(15000); rs.by !== "shell" && Date.now() < until;) {
         await new Promise((r) => setTimeout(r, 1000));
         py = await get("/api/sources?engine=python"); rs = await get("/api/sources");
       }
@@ -208,7 +227,7 @@
         return `${at || "/"}: 窓 ${JSON.stringify(a)?.slice(0, 60)} / Python ${JSON.stringify(b)?.slice(0, 60)}`;
       };
       let py, rs, same = false, where = "";
-      for (const until = Date.now() + 15000; ;) {
+      for (const until = Date.now() + pyWait(15000); ;) {
         py = await get("/api/settings?engine=python"); rs = await get("/api/settings");
         same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
         try { where = diffAt(canonP(JSON.parse(rs.text)), canonP(JSON.parse(py.text))); } catch (_) { where = "読めない答え"; }
@@ -255,7 +274,7 @@
       for (const a of ["/api/worklog/files?all=1", "/api/masters/worklog"]) {
         // 新しい PC を最初に開いたときは Python が共有へマスタの最初の版を置く途中なので、15 秒まで尋ね直す（10a' と同じ）
         let rs, py, same = false;
-        for (const until = Date.now() + 15000; ;) {
+        for (const until = Date.now() + pyWait(15000); ;) {
           py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python"); rs = await get(a);
           same = rs.r.status === py.r.status && py.by === "python";
           try { same = same && JSON.stringify(canonW(JSON.parse(rs.text))) === JSON.stringify(canonW(JSON.parse(py.text))); } catch (_) { same = false; }
@@ -288,7 +307,7 @@
       for (const a of ["/api/masters/conversions", "/api/masters/conversions/export?which=defaults"]) {
         // 新しい PC を最初に開いたときは共有へマスタの最初の版を置く途中なので、15 秒まで尋ね直す（10a' と同じ）
         let rs, py, same = false;
-        for (const until = Date.now() + 15000; ;) {
+        for (const until = Date.now() + pyWait(15000); ;) {
           py = await get(a + (a.includes("?") ? "&" : "?") + "engine=python"); rs = await get(a);
           same = rs.r.status === py.r.status && py.by === "python";
           try { same = same && JSON.stringify(canonC(JSON.parse(rs.text))) === JSON.stringify(canonC(JSON.parse(py.text))); } catch (_) { same = false; }
@@ -323,7 +342,7 @@
       try { sch = (JSON.parse((await get("/api/dashboard/sources")).text).items || []).some((x) => x.key === "src:sch" && x.place && x.equip); } catch (_) { sch = false; }
       const want = "shell";
       let rs, py, same = false;
-      for (const until = Date.now() + 15000; ;) {      // 最初の版を置く途中・データ元の最初の写しの途中は尋ね直す（10b' と同じ）
+      for (const until = Date.now() + pyWait(15000); ;) {      // 最初の版を置く途中・データ元の最初の写しの途中は尋ね直す（10b' と同じ）
         py = await get(a + "?engine=python"); rs = await get(a);
         same = rs.r.status === py.r.status && py.by === "python";
         try { same = same && JSON.stringify(canonG(JSON.parse(rs.text))) === JSON.stringify(canonG(JSON.parse(py.text))); } catch (_) { same = false; }
@@ -348,7 +367,7 @@
         ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortU(v[k])])) : v;
       const canonU = (t) => { const v = JSON.parse(t); if (v && v.who && "error" in v.who) v.who.error = "<理由>"; return JSON.stringify(sortU(v)); };
       let rs, py, same = false;
-      for (const until = Date.now() + 15000; ;) {      // 最初の版を置く途中は尋ね直す（10b' と同じ）
+      for (const until = Date.now() + pyWait(15000); ;) {      // 最初の版を置く途中は尋ね直す（10b' と同じ）
         py = await get("/api/update/settings?engine=python"); rs = await get("/api/update/settings");
         same = rs.r.status === 200 && py.r.status === 200 && py.by === "python";
         try { same = same && canonU(rs.text) === canonU(py.text); } catch (_) { same = false; }
@@ -377,7 +396,7 @@
       for (const p of paths) {
         let rs, py, same = false, tries = 0;
         const t0 = Date.now();
-        for (const until = Date.now() + 30000; ;) {
+        for (const until = Date.now() + pyWait(30000); ;) {
           tries += 1;
           rs = await get(p);
           py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python");
@@ -454,7 +473,7 @@
         // 列の値の見本は写しの中身から出すので、写しが入れ替わる途中（更新の通しの、版を入れ替えた直後の起動）に窓と Python が
         // 違う時点を読むことがある。同じ時点の答えになるまで 30 秒まで読み直す（スケジュール・画面の比べと同じ。コードの違いは残る）
         let rs, py, good, tries = 0;
-        for (const until = Date.now() + 30000; ;) {
+        for (const until = Date.now() + pyWait(30000); ;) {
           tries += 1;
           rs = await get(p, opt);
           py = await get(p + (p.includes("?") ? "&" : "?") + "engine=python", opt);
@@ -548,7 +567,7 @@
       for (const a of asks) {
         const pyAsk = a + (a.includes("?") ? "&" : "?") + "engine=python";
         let rs = await get(a), py = await get(pyAsk);
-        for (const until = Date.now() + 60000; (copying(rs) || copying(py)) && Date.now() < until;) {
+        for (const until = Date.now() + pyWait(60000); (copying(rs) || copying(py)) && Date.now() < until;) {
           await new Promise((r) => setTimeout(r, 500));
           rs = await get(a); py = await get(pyAsk);
         }
@@ -620,16 +639,16 @@
     // 11) 配布の画面の係（窓）: 答えが返る・版を置けない人は理由つきで断られる（だれが置けるかは Python の権限）
     const rel = await get("/__desktop/release");
     let relj = {}; try { relj = JSON.parse(rel.text); } catch (_) { /* 下で言う */ }
-    ok("配布の画面の係が答える（置き場に届くか・権限）", rel.by === "shell" && rel.r.ok && "reachable" in relj && relj.me,
+    okw("配布の画面の係が答える（置き場に届くか・権限）", rel.by === "shell" && rel.r.ok && "reachable" in relj && relj.me,
        `${rel.r.status} reachable=${relj.reachable} canRelease=${(relj.me || {}).canRelease} ${relj.why || ""}`);
     // 覚えた答え（cached=1）: 上でたどった答えを、置き場をたどり直さずに返す（タブを開いたときに待たせない）
     const relT0 = performance.now(), relc = await get("/__desktop/release?cached=1"), relMs = performance.now() - relT0;
     let relcj = {}; try { relcj = JSON.parse(relc.text); } catch (_) { /* 下で言う */ }
-    ok("配布の画面: 覚えた答えをすぐ返す（cached=1）", relc.r.ok && relcj.cached === true && !!relcj.me && relcj.reachable === relj.reachable,
+    okw("配布の画面: 覚えた答えをすぐ返す（cached=1）", relc.r.ok && relcj.cached === true && !!relcj.me && relcj.reachable === relj.reachable,
        `${relMs.toFixed(0)}ms cached=${relcj.cached} checkedAt=${relcj.checkedAt}`);
     if (relj.me && !relj.me.canRelease) {
       const put = await get("/__desktop/release/place?name=x.zip", { method: "POST", headers: { "Content-Type": "application/zip" }, body: new Uint8Array([80, 75]) });
-      ok("版を置けない人は理由つきで断られる", put.r.status === 403 && /開発者・メンテナンス者/.test(put.text), `${put.r.status} ${put.text.slice(0, 80)}`);
+      okw("版を置けない人は理由つきで断られる", put.r.status === 403 && /開発者・メンテナンス者/.test(put.text), `${put.r.status} ${put.text.slice(0, 80)}`);
     }
 
     // 11b) 権限（版 3.65.0 から窓が決める: access.rs）: 画面が名乗った見出し X-TPA-Me は効かない。
@@ -645,7 +664,7 @@
         .replace(/[\u0080-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
       const forged = await get("/api/access/me", { headers: { "X-TPA-Me": fake } });
       let fj = {}; try { fj = JSON.parse(forged.text); } catch (_) { /* 下で言う */ }
-      ok("権限: 窓が決めた名乗りで答え（版 3.76.0 から窓が答える）、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && am.by === "shell" && forged.by === "shell" && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
+      okw("権限: 窓が決めた名乗りで答え（版 3.76.0 から窓が答える）、画面が名乗った見出しは効かない", am.r.ok && forged.r.ok && am.by === "shell" && forged.by === "shell" && !!amj.role && amj.loginId !== "FAKE" && fj.loginId === amj.loginId && fj.role === amj.role,
          `${amj.loginId}@${amj.pcName} ${amj.role}・${amj.masterEdit} / 偽の見出し → ${fj.loginId} ${fj.role}`);
       const ta = await get("/api/masters/tabaccess?engine=python"), tf = await get("/api/masters/tabaccess?engine=python", { headers: { "X-TPA-Me": fake } });
       let taj = {}, tfj = {}; try { taj = JSON.parse(ta.text); tfj = JSON.parse(tf.text); } catch (_) { /* 下で言う */ }
@@ -657,17 +676,44 @@
            + (taj.canEdit ? "（偽の見出しが効けば false になる形で確かめた）" : "（この PC は書けないので、偽の見出しは見分けられない）"));
     }
 
+    // 11c) 出さないタブ・権限の札・マスタ管理の入口（版 3.111.0）: 中身（Python）が止まっていても窓の名乗りで決める（前は 503 の本文を me にし、
+    //      出さないタブが出た・札が空・入口が消えた）。利用状況のいま使っている印に中身の様子（起きていなければ stopped）
+    {
+      const me = state.me || {}, hid = me.hiddenTabs || [];
+      const denied = Object.entries(FIXED_TAB_KEY).filter(([, k]) => hid.includes(k))
+        .every(([screen]) => { const b = document.querySelector(`.screen-tabs [data-screen="${screen}"]`); return !b || b.hasAttribute("data-denied"); });
+      const srcShown = [...document.querySelectorAll('.screen-tabs [data-screen^="src:"]')].filter((b) => hid.includes(b.dataset.screen.slice(4)));
+      okw("出さないタブを出さない・権限の札とマスタ管理の入口は窓の名乗り（中身が止まっていても）",
+          typeof me.role === "string" && document.querySelector("#meChip").textContent === me.role && denied && !srcShown.length
+            && document.querySelector("#masterBtn").classList.contains("hidden") === !me.canOpenMaster,
+          `python=${python} 区分 ${me.role} 出さない ${JSON.stringify(hid)} 札「${document.querySelector("#meChip").textContent}」 入口 ${!document.querySelector("#masterBtn").classList.contains("hidden")}`);
+      let mine = null, st = 0;
+      for (const until = Date.now() + 15000; Date.now() < until;) {
+        const pr = await get("/api/presence");
+        st = pr.r.status;
+        if (!pr.r.ok) break;
+        let pj = {}; try { pj = JSON.parse(pr.text); } catch (_) { /* 下で言う */ }
+        mine = ((pj.fleet || {}).items || []).find((x) => x.key === pj.me) || null;
+        const want = pyUp ? null : python;
+        if (mine && ((mine.python && mine.python.state) || null) === want) break;
+        await sleep(500);
+      }
+      okw("利用状況のいま使っている印に中身の様子（起きていなければ stopped・起きていれば無い）",
+          st === 403 || (mine && ((mine.python && mine.python.state) || null) === (pyUp ? null : python)),
+          st === 403 ? "この PC の区分は利用状況を見られない（見ない）" : `${st} ${JSON.stringify(mine && mine.python)}`);
+    }
+
     // 12) 画面のエラーが無い（窓の外の受け口 /__desktop/update などが無くても、画面は黙って続ける）
     await sleep(500);
     const errs = window.__tpaErrors || [];
-    ok("画面のエラーが無い", errs.length === 0, errs.join(" / "));
+    okw("画面のエラーが無い", errs.length === 0, errs.join(" / "));
 
     // 13) 速さ（参考）: Python へ 30 回・Rust の部品 30 回の平均（ミリ秒）
     const avg = async (url) => { const s = performance.now(); for (let i = 0; i < 30; i++) await (await fetch(url)).arrayBuffer(); return (performance.now() - s) / 30; };
     const py = await avg("/api/build?engine=python"), sh = await avg(`/static/js/shared.js?v=${fp}`);
     ok("問い合わせの速さ（参考）", py < 300, `Python ${py.toFixed(1)}ms / Rust の部品 ${sh.toFixed(1)}ms`);
   } catch (e) {
-    ok("例外", false, e && (e.stack || e.message || e));
+    okw("例外", false, e && (e.stack || e.message || e));
   }
   // 更新の係（この PC のアプリで動くときだけ取り込む）。取り込み中なら落ち着くまで待ち、状態を結果に添える（verify.py が読む）
   let update = null, info = null;
@@ -680,12 +726,15 @@
     }
     info = await infoReady();
     info.install = await (await fetch("/__desktop/install")).json();
-    ok("更新の係が答える（取り込めない理由が無い）", update.state !== "error", `${update.state} ${update.ready || ""} ${update.problem || update.detail || ""}`);
+    okw("更新の係が答える（取り込めない理由が無い）", update.state !== "error", `${update.state} ${update.ready || ""} ${update.problem || update.detail || ""}`);
   } catch (e) {
-    ok("更新の係が答える", false, e && e.message);
+    okw("更新の係が答える", false, e && e.message);
   }
+  // 中身を通す項目（中身が起きていないときに飛ばした物）は 1 つの包みに数える（版 3.111.0）
+  if (skipped.length) res.push({ name: "中身（Python）を通す項目", ok: true, window: true, skipped: skipped.length, info: `中身が起きていない（${python}）: ${skipped.length} 項目を飛ばした`, names: skipped });
   const body = JSON.stringify({ ok: res.every((r) => r.ok), elapsed_ms: Math.round(performance.now() - t0), ua: navigator.userAgent, results: res,
-    update, info: info && { exe: info.exe, program: info.program, installed: info.installed, version: (info.backend || {}).version,
-      install: info.install, local_root: info.local_root } });
+    python, skipped: skipped.length,
+    update, info: info && { exe: info.exe, program: info.program, installed: info.installed, version: info.program_version,
+      backend_version: (info.backend || {}).version, install: info.install, local_root: info.local_root } });
   await fetch("/__desktop/selftest", { method: "POST", headers: { "Content-Type": "application/json" }, body });
 })();

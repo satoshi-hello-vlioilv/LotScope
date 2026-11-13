@@ -133,6 +133,8 @@ impl Splash {
     fn version(&self, app: &AppHandle, version: &str) {
         self.say(app, format!("splash.version(...{})", json!([version])));
     }
+    /// 窓が画面を開けない失敗（中身の置き場が無い・この PC へ写せない など）。自己診断はここで終える。
+    /// 版 3.111.0 から Python の失敗（見つからない・起きない・遅い）ではここへ来ない（画面を開き、帯と心拍の python で見せる）
     fn fail(&self, app: &AppHandle, title: &str, detail: &str) {
         log(&format!("FAIL {title}: {}", detail.replace('\n', " / ")));
         // 画面を開いたあとの帯は、起こした結果の受け手（on_changed・band）が出す
@@ -161,6 +163,8 @@ fn band(w: &WebviewWindow, reason: Option<&str>) {
 
 /// 中身の起こし直しの係（画面を読み直したときに帯を出し直す。版 3.86.0）
 static SUP: OnceLock<Supervisor> = OnceLock::new();
+/// 画面の JS が最初の心拍を送った時刻（版 3.111.0。入れ替えた直後の確かめの合図。src/boot.rs）
+static FIRST_BEAT: OnceLock<Instant> = OnceLock::new();
 
 /// 自己診断の結果を書いて終わる（TPA_SELFTEST が無ければ何もしない）。
 fn selftest_finish(app: &AppHandle, result: &serde_json::Value) {
@@ -201,18 +205,13 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         }
         // 生きているか（版 3.102.0。主のセッションの決め 5）: 窓が答え、Python の様子を添える（?engine=python は Python の道＝Python が答えているかの印）
         ("GET", "/api/health") if !da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "engine" && v == "python") => {
-            let python = if backend.ready_now() {
-                "ready"
-            } else if backend.alive() {
-                "starting"
-            } else {
-                "stopped"
-            };
-            Some(json_reply(&da_core::small_reads::health(python)))
+            Some(json_reply(&da_core::small_reads::health(backend.python_now().state)))
         }
+        // program_version（版 3.111.0）は窓が読んだ中身の版（app/version.py）。Python が起きていなくても載る（自己診断・verify.py が使う）
         ("GET", "/__desktop/info") => {
             let mut v = info.clone();
             v["backend"] = backend.ready();
+            v["python_state"] = json!(backend.python_now().state);
             Some(json_reply(&v))
         }
         // 更新の係（updater.rs）
@@ -322,8 +321,13 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             Some(json_reply(&json!({"received": true})))
         }
         // 心拍（版 3.71.0。利用状況を書き〈裏の糸〉、古い版か・切断されているかを返す。中身が止まっていれば 503＝画面は「未接続」）
+        // 版 3.111.0: 中身の様子では断らない（窓が生きていれば 200。python に様子を添える）。様子を尋ねるたびに止まった中身の起こし直しも
+        // 始める（Backend::python_now）。最初の心拍は「画面の JS が起きた」合図（入れ替えた直後の確かめ。src/boot.rs）
         ("POST", "/api/heartbeat") => {
-            lot.heartbeat(&|| lot_settings(backend), &|| backend.alive()).map(|(status, v)| Reply { status, ..json_reply(&v) })
+            if FIRST_BEAT.set(Instant::now()).is_ok() {
+                log("BEAT 画面の最初の心拍");
+            }
+            lot.heartbeat(&|| lot_settings(backend), &|| backend.python_now()).map(|(status, v)| Reply { status, ..json_reply(&v) })
         }
         // 画面（版 3.85.0。src/page.rs）: Python が答えなくても画面の HTML は窓が描く。描けない形は Python へ回す
         // （?engine=python は Python が描く。自己診断が 2 つの画面を突き合わせる）
@@ -345,9 +349,10 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
             },
         }),
         // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
-        (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => lot
-            .access_read(method, path, &|| lot_settings(backend), &|| backend.alive())
-            .map(|(status, v)| Reply { status, ..json_reply(&v) }),
+        // 版 3.111.0: 中身（Python）が止まっていても窓の me で答える（出さないタブ・権限の札・マスタ管理の入口が Python に依らない）
+        (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => {
+            lot.access_read(method, path, &|| lot_settings(backend)).map(|(status, v)| Reply { status, ..json_reply(&v) })
+        }
         // データ元の並び（版 3.87.0。src/sources_list.rs）: 見出しのタブを Python の準備を待たずに描く。スケジュールのカードは
         // Python の覚え（プロセスのメモリ）なので、中身が起きているときだけ尋ねる（起きていなければ起こした直後と同じ形）
         ("GET", "/api/sources") => lot.sources_list(req.query).map(|(status, v)| Reply { status, ..json_reply(&v) }),
@@ -574,7 +579,8 @@ fn record_download(ev: DownloadEvent<'_>) -> bool {
     true
 }
 
-/// 中身（Python）を探して起こし、準備できたら主の窓を画面へ切り替える（裏の糸で。窓は先に出しておく）。
+/// 中身（program）を見つけ、入れ替えた直後なら窓の準備で確かめ（src/boot.rs）、中身（Python）を裏で起こし始めて、待たずに主の窓を画面へ
+/// 切り替える（裏の糸で。窓は先に出しておく）。版 3.111.0 から Python が見つからない・起きない・遅いときも画面を開く。
 fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     if let Some(j) = job().get() {
         if run_job(&app, &splash, j) {
@@ -590,13 +596,10 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
     let paths = Paths::new(&locate::local_root());
     let installed = same_dir(&program, &paths.app().join("program"));
     let mut notes = vec![];
-    // 入れ替えた直後の版か（このときだけは中身の準備を待ってから画面を開く: 壊れた版の画面を描かず、起動できなければ前の版へ戻す）
-    let mut fresh = false;
     if installed {
         launch_update(&app, &splash, &paths, &mut notes);
         match update::apply_staged(&paths, &brand().exe) {
             Ok(Some(a)) => {
-                fresh = true;
                 log(&format!("UPDATE {} → {} に入れ替えました", a.from, a.to));
                 splash.step(&app, "program", "ok", &format!("版 {} → {} に入れ替えました", a.from, a.to));
                 if a.exe_changed {
@@ -614,31 +617,63 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         }
     }
     // 版は入れ替えたあとの物（中身を起こす前に、名乗りの下へ）
-    if let Some(v) = update::program_version(&program) {
-        splash.version(&app, &v);
+    let program_version = update::program_version(&program);
+    if let Some(v) = &program_version {
+        splash.version(&app, v);
     }
-    let py = match locate::python() {
-        Ok(p) => p,
+    // 窓の準備（版 3.111.0。src/boot.rs）: 入れ替えた直後の版を、Python の準備ではなく窓が読む物だけで確かめる（数 ms）。
+    // 入れ替えた直後の印が残っている（前の起動が確かめる前に閉じた）起動も同じ。通らなければ画面を開く前に控えへ戻して開き直す
+    let applied = installed && paths.applied().exists();
+    let window = da_core::boot::window_ready(&program, &brand().app_id);
+    if let Err(b) = &window {
+        log(&format!("BOOT 窓の準備が通りません: {b}"));
+    }
+    let plan = da_core::boot::decide(&da_core::boot::Facts {
+        installed,
+        applied,
+        window_ok: window.is_ok(),
+        page: da_core::boot::Page::NotOpened,
+        python: da_core::boot::Python::Starting,
+    });
+    if applied || window.is_err() {
+        log(&format!("BOOT installed={installed} applied={applied} → {}", plan.iter().map(|a| a.name()).collect::<Vec<_>>().join(",")));
+    }
+    if plan.contains(&da_core::boot::Act::Revert) {
+        let why = window.as_ref().err().map(|b| b.detail.clone()).unwrap_or_default();
+        if let Some(back) = update::revert(&paths, &why) {
+            log(&format!("UPDATE 版 {} は窓が開けないので {} に戻しました: {why}", back.from, back.to));
+            splash.step(&app, "program", "warn", &format!("版 {} は開けないので、前の版 {} に戻して開き直します", back.from, back.to));
+            if relaunch(&app, &paths).is_ok() {
+                return;
+            }
+        }
+        log("BOOT 控えへ戻せないので、この版のまま開きます");
+    }
+    // Python（版 3.111.0: 見つからなくても画面は開く。中身の係は理由を持って Down になり、帯と心拍の python: stopped で見せる）
+    let py = locate::python();
+    let py_text = match &py {
+        Ok(p) => {
+            let t = format!("{} {}", p.exe.display(), p.args.join(" ")).trim().to_string();
+            splash.step(&app, "python", "ok", &t);
+            t
+        }
         Err(e) => {
-            splash.step(&app, "python", "bad", "見つかりません");
-            return splash.fail(&app, "Python が見つかりません", &e);
+            splash.step(&app, "python", "warn", "見つかりません（画面は開きます。中身の要る所だけ使えません）");
+            format!("（見つかりません） {}", e.lines().next().unwrap_or(""))
         }
     };
-    let py_text = format!("{} {}", py.exe.display(), py.args.join(" ")).trim().to_string();
     log(&format!("START program={} python={py_text}", program.display()));
-    splash.step(&app, "python", "ok", &py_text);
     splash.step(&app, "backend", "now", "Python でアプリの中身を読み込んでいます…");
     let (app_p, splash_p) = (app.clone(), splash.clone());
     let progress: Progress = Arc::new(move |h| {
         let text = h["text"].as_str().unwrap_or("起動前の確認をしています");
         splash_p.step(&app_p, "backend", if h["bad"] == true { "warn" } else { "now" }, text);
     });
-    let version = update::program_version(&program).unwrap_or_else(|| "?".into());
+    let version = program_version.clone().unwrap_or_else(|| "?".into());
     let sup = Supervisor::new(py, program.clone(), locate::local_root().join("logs"), progress);
     let _ = SUP.set(sup.clone());
+    let sup_for_boot = sup.clone();
     let t0 = Instant::now();
-    // 入れ替えた直後の印が残っている（前の起動が、中身の準備の前に閉じた）ときも、入れ替えた直後と同じに準備を待つ
-    fresh = fresh || (installed && paths.applied().exists());
     // 起こした結果（最初・止まったあとの起こし直し・「もう一度」）: 記録に残し、画面を開いたあとは帯を出す・消す
     let (app_c, splash_c) = (app.clone(), splash.clone());
     sup.on_changed(Arc::new(move |r| {
@@ -657,29 +692,25 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
             }
         }
     }));
-    if fresh {
-        // 入れ替えた直後: 今までと同じく準備を待つ（起動できなければ控え〈直前の版〉へ戻して開き直す）
-        if let Err(e) = sup.get() {
-            started(&app, &sup, &splash, &paths, installed, t0, Err(e));
-            return;
+    // 中身（Python）は裏の糸で起こし、準備を待たずに画面を開く（版 3.86.0。版 3.111.0 から入れ替えた直後も待たない）
+    let s2 = sup.clone();
+    let _ = std::thread::Builder::new().name("sidecar-first".into()).spawn(move || {
+        if s2.get().is_ok() {
+            // 起こした物と本物が違えば、入口（別名の python.exe）を通っている（止めるときは本物を待つ）
+            if let Some((spawned, Some(real))) = s2.up().map(|s| s.pids()) {
+                log(&format!("PID 起こした {spawned}・本物の Python {real}"));
+            }
         }
-        started(&app, &sup, &splash, &paths, installed, t0, Ok(()));
-    } else {
-        // 版 3.86.0: 中身（Python）は裏の糸で起こし、準備を待たずに画面を開く（画面・設定・ダッシュボード・一覧・保存の道は窓が答え、
-        // Python の道は Supervisor が準備を待ち合わせる）。準備・失敗のあとの片付け（確かめ・ショートカット・前の版へ戻す）は started
-        let (a2, s2, sp2, p2) = (app.clone(), sup.clone(), splash.clone(), Paths::new(&locate::local_root()));
-        let _ = std::thread::Builder::new().name("sidecar-first".into()).spawn(move || {
-            let r = s2.get().map(|_| ());
-            started(&a2, &s2, &sp2, &p2, installed, t0, r);
-        });
-    }
+    });
+
     let info = json!({
         "shell": "tauri", "app_id": brand().app_id, "shell_version": env!("CARGO_PKG_VERSION"), "commit": env!("TPA_BUILD_COMMIT"), "protocol": sidecar::PROTOCOL,
         "serves": sidecar::SERVES, "program": program, "python": py_text, "local_root": locate::local_root(),
         "exe": std::env::current_exe().unwrap_or_default(), "backend": null, "url": app_url("/").as_str(),
-        "installed": installed, "app": paths.app(),
+        "installed": installed, "app": paths.app(), "program_version": program_version,
+        "window_ready": window.as_ref().err().map(|b| b.to_string()),
     });
-    let upd = Updater::new(paths, installed, version.clone(), notes);
+    let upd = Updater::new(paths.clone(), installed, version.clone(), notes);
     let static_dir = program.join("app").join("static");
     // 品質異常（写しは作業場所の db_cache・Python と同じ台帳）
     let lot = Arc::new(Lot::new(locate::local_root().join("db_cache")));
@@ -738,55 +769,91 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         ));
         let _ = w.navigate(app_url("/"));
     }
+    // 入れ替えた直後: 画面の最初の心拍を待って確かめる。そうでなければ手入れはすぐ（版 3.111.0。前は Python の準備のあと）
+    if plan.contains(&da_core::boot::Act::AwaitBeat) {
+        let (a, s3) = (app.clone(), sup_for_boot);
+        let opened = Instant::now();
+        let _ = std::thread::Builder::new().name("boot-beat".into()).spawn(move || await_beat(a, paths, s3, opened));
+    } else {
+        settle(&paths, &plan);
+    }
 }
 
-/// 中身の最初の準備が済んだ・起こせなかったあと（版 3.86.0。待つ形と裏の糸の形の両方から）
-fn started(app: &AppHandle, sup: &Supervisor, splash: &Splash, paths: &Paths, installed: bool, t0: Instant, r: Result<(), String>) {
-    match r {
-        Ok(()) => {
-            let ready = sup.ready();
-            // 起こした物と本物が違えば、入口（別名の python.exe）を通っている（止めるときは本物を待つ）
-            if let Some((spawned, Some(real))) = sup.up().map(|s| s.pids()) {
-                log(&format!("PID 起こした {spawned}・本物の Python {real}"));
-            }
-            splash.step(
-                app,
-                "backend",
-                "ok",
-                &format!("版 {} ・ {:.1} 秒", ready["version"].as_str().unwrap_or("?"), t0.elapsed().as_secs_f64()),
-            );
-            if installed {
-                update::confirm(paths);
-                // ショートカットの指す先・作業フォルダ・アイコンを直す（共有の exe を指す物・前の名前の物・前の絵の物。消された物は作り直さない）
-                std::thread::spawn(|| {
-                    let p = Paths::new(&locate::local_root());
-                    for f in install::maintain(&p, &lnk::places(), &lnk::pinned(), &lnk::OsLinks, &names()) {
-                        log(&format!("SHORTCUT {f}"));
-                    }
-                });
-                if let Ok(me) = std::env::current_exe() {
-                    std::thread::spawn(move || update::cleanup_copies(&Paths::new(&locate::local_root()), &me));
-                }
-            }
+/// 入れ替えた直後の確かめ（版 3.111.0。src/boot.rs の decide）: 画面を開いたあと、画面の JS の最初の心拍を待つ。来れば確かめの印を消し・
+/// ショートカットを直し・写しを片付ける。BEAT_LIMIT を過ぎても来なければ（Python を起こしている最中を除き）控えへ戻して開き直す
+fn await_beat(app: AppHandle, paths: Paths, sup: Supervisor, opened: Instant) {
+    use da_core::boot::{decide, Act, Facts, Page};
+    loop {
+        let page = if FIRST_BEAT.get().is_some() {
+            Page::Beat
+        } else if opened.elapsed() < da_core::boot::BEAT_LIMIT {
+            Page::Waiting
+        } else {
+            Page::Late
+        };
+        let python = python_fact(&sup);
+        let acts = decide(&Facts { installed: true, applied: paths.applied().exists(), window_ok: true, page, python });
+        if acts == [Act::AwaitBeat] {
+            std::thread::sleep(Duration::from_millis(250));
+            continue;
         }
-        Err(e) => {
-            // この PC の app の版が起動できなかった → 控え（直前の版）へ戻して開き直す
-            if installed {
-                if let Some(back) = update::revert(paths) {
-                    log(&format!("UPDATE 版 {} が起動できないので {} に戻しました: {}", back.from, back.to, e.replace('\n', " / ")));
-                    splash.step(
-                        app,
-                        "backend",
-                        "warn",
-                        &format!("版 {} が起動できないので、前の版 {} に戻して開き直します", back.from, back.to),
-                    );
-                    if relaunch(app, paths).is_ok() {
-                        return;
-                    }
+        if !acts.is_empty() {
+            log(&format!(
+                "BOOT 画面 {page:?}・Python {} ms={} → {}",
+                python.name(),
+                opened.elapsed().as_millis(),
+                acts.iter().map(|a| a.name()).collect::<Vec<_>>().join(",")
+            ));
+        }
+        if acts.contains(&Act::Revert) {
+            let why = format!("画面の JS が {} 秒たっても起きません（最初の心拍が来ません）", da_core::boot::BEAT_LIMIT.as_secs());
+            if let Some(back) = update::revert(&paths, &why) {
+                log(&format!("UPDATE 版 {} は画面が起きないので {} に戻しました", back.from, back.to));
+                if relaunch(&app, &paths).is_ok() {
+                    return;
                 }
             }
-            splash.step(app, "backend", "bad", "起動できません");
-            splash.fail(app, "アプリの中身（Python）が起動できません", &e);
+            log("BOOT 控えへ戻せないので、この版のまま使います");
+            return;
+        }
+        settle(&paths, &acts);
+        return;
+    }
+}
+
+/// 決めの材料の Python の様子（起こし直しはしない）
+fn python_fact(sup: &Supervisor) -> da_core::boot::Python {
+    use da_core::boot::Python;
+    if sup.up().is_some() {
+        Python::Ready
+    } else if sup.starting() {
+        Python::Starting
+    } else if !sup.has_python() {
+        Python::Missing
+    } else {
+        Python::Down
+    }
+}
+
+/// 決めた手入れ（確かめの印を消す・ショートカット・写しの片付け）を行う
+fn settle(paths: &Paths, acts: &[da_core::boot::Act]) {
+    use da_core::boot::Act;
+    if acts.contains(&Act::Confirm) {
+        update::confirm(paths);
+        log("BOOT 入れ替えた版を確かめた（画面の最初の心拍）");
+    }
+    if acts.contains(&Act::Maintain) {
+        // ショートカットの指す先・作業フォルダ・アイコンを直す（共有の exe を指す物・前の名前の物・前の絵の物。消された物は作り直さない）
+        std::thread::spawn(|| {
+            let p = Paths::new(&locate::local_root());
+            for f in install::maintain(&p, &lnk::places(), &lnk::pinned(), &lnk::OsLinks, &names()) {
+                log(&format!("SHORTCUT {f}"));
+            }
+        });
+    }
+    if acts.contains(&Act::Cleanup) {
+        if let Ok(me) = std::env::current_exe() {
+            std::thread::spawn(move || update::cleanup_copies(&Paths::new(&locate::local_root()), &me));
         }
     }
 }

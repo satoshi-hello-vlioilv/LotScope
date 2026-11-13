@@ -124,6 +124,12 @@ pub fn validate_dist(dir: &Path, exe: &str, app_id: &str, expect: Option<&str>) 
     Ok(v)
 }
 
+/// 配る形の program に窓の準備（boot::window_ready。画面の型と指紋・同梱の既定。作業場所・共有・配った設定は読まない）を当てる。
+/// 取り込み（stage_release）と版を置く（distribute::place）で使う。起動のときの確かめ（main.rs）は別に残す
+pub fn validate_window(dir: &Path, app_id: &str) -> Result<(), String> {
+    crate::boot::window_ready(&dir.join("program"), app_id).map(|_| ()).map_err(|b| format!("窓が開けない版です: {}", b.detail))
+}
+
 pub fn sha256_file(p: &Path) -> std::io::Result<String> {
     let mut f = std::fs::File::open(p)?;
     let mut h = Sha256::new();
@@ -201,12 +207,20 @@ pub fn failed_versions(p: &Paths) -> Vec<String> {
         .collect()
 }
 
-pub fn mark_failed(p: &Paths, version: &str) {
+/// 起動できなかった版に印を付ける。versions は前の版の窓も読む並び（字だけ）。why（版 3.111.0）は版 → {理由・時刻}（前の窓は読まず、
+/// 書き直すときも残す: read_json して versions だけを足す）。取り込みを止めるかは boot::failed_blocks の 1 か所
+pub fn mark_failed(p: &Paths, version: &str, why: &str) {
+    let mut doc = read_json(&p.failed()).filter(Value::is_object).unwrap_or_else(|| json!({}));
     let mut vs = failed_versions(p);
     if !vs.iter().any(|v| v == version) {
         vs.push(version.to_string());
     }
-    let _ = write_json(&p.failed(), &json!({ "versions": vs }));
+    doc["versions"] = json!(vs);
+    if !doc["why"].is_object() {
+        doc["why"] = json!({});
+    }
+    doc["why"][version] = json!({"why": why, "at": now_text()});
+    let _ = write_json(&p.failed(), &doc);
 }
 
 /// 取り込み済みの次の版（stage.json の中身）。版のフォルダが無ければ None。
@@ -238,6 +252,8 @@ pub fn stage_release(p: &Paths, rel: &Release, app_id: &str, progress: &dyn Fn(&
         extract_zip(&dl, &tmp)?;
         let root = dist_root(&tmp).ok_or("ZIP に program\\sidecar.py がありません")?;
         validate_dist(&root, &rel.exe, app_id, Some(&rel.version))?;
+        // 窓の準備（版 3.111.0。src/boot.rs）も入れ替える前に当てる: 窓が描けない版は取り込まない（全員の PC が 1 回ずつ入れ替えて戻すのを防ぐ）
+        validate_window(&root, app_id)?;
         let _ = std::fs::remove_dir_all(p.stage());
         let _ = std::fs::remove_file(p.stage_record());
         std::fs::rename(&root, p.stage()).map_err(|e| format!("取り込んだ版を置けません: {e}"))?;
@@ -300,7 +316,8 @@ pub fn apply_staged(p: &Paths, exe: &str) -> Result<Option<Applied>, String> {
     let Some(rec) = staged(p) else { return Ok(None) };
     let to = rec["version"].as_str().unwrap_or("").to_string();
     let from = program_version(&p.app().join("program")).unwrap_or_default();
-    if to.is_empty() || to == from || failed_versions(p).contains(&to) {
+    let failed = read_json(&p.failed()).unwrap_or(Value::Null);
+    if to.is_empty() || to == from || crate::boot::failed_blocks(&failed, &to) {
         let _ = std::fs::remove_dir_all(p.stage());
         let _ = std::fs::remove_file(p.stage_record());
         return Ok(None);
@@ -312,11 +329,12 @@ pub fn apply_staged(p: &Paths, exe: &str) -> Result<Option<Applied>, String> {
     Ok(Some(Applied { exe_changed: exe_sum(&p.app(), exe) != before, from, to }))
 }
 
-/// 入れ替えた版が起動できなかった: その版に印を付け、控え（直前の版）へ戻す。→ 戻した版（戻せなければ None）。
-pub fn revert(p: &Paths) -> Option<Applied> {
+/// 入れ替えた版が起動できなかった: その版に印を付け（理由 why）、控え（直前の版）へ戻す。→ 戻した版（戻せなければ None）。
+/// 版 3.111.0 から決めるのは窓の準備と画面の合図（src/boot.rs）。控えを「中身がある」と見る印の program/sidecar.py は段 ④ で替える
+pub fn revert(p: &Paths, why: &str) -> Option<Applied> {
     let rec = read_json(&p.applied())?;
     let (from, to) = (rec["from"].as_str().unwrap_or("").to_string(), rec["to"].as_str().unwrap_or("").to_string());
-    mark_failed(p, &to);
+    mark_failed(p, &to, why);
     let _ = std::fs::remove_file(p.applied());
     if !p.old().join("program").join("sidecar.py").is_file() {
         return None;
@@ -574,6 +592,11 @@ mod tests {
         std::fs::write(dir.join("program").join("sidecar.py"), "#").unwrap();
         std::fs::write(app.join("brand.json"), format!(r#"{{"app_id":"{ID}"}}"#)).unwrap();
         std::fs::write(app.join("version.py"), format!("APP_VERSION = \"{version}\"\n")).unwrap();
+        for (rel, body) in crate::boot::min_program_files() {
+            let f = dir.join("program").join(rel);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(f, body).unwrap();
+        }
     }
 
     fn zip_of(dir: &Path, top: &str, out: &Path) -> String {
@@ -647,13 +670,60 @@ mod tests {
         assert_eq!(program_version(&p.app().join("program")).as_deref(), Some("3.10.0"));
         assert_eq!(program_version(&p.old().join("program")).as_deref(), Some("3.9.0"), "直前の版は控えに");
         // 新しい版が起動できなかった → 控えへ戻し、もう取り込まない
-        let back = revert(&p).unwrap();
+        let back = revert(&p, "試験").unwrap();
         assert_eq!((back.from.as_str(), back.to.as_str()), ("3.10.0", "3.9.0"));
         assert_eq!(program_version(&p.app().join("program")).as_deref(), Some("3.9.0"));
         assert_eq!(failed_versions(&p), ["3.10.0"]);
         stage_release(&p, &release(&rel_dir, "3.10.0", &sha), ID, &|_| {}).unwrap();
         assert_eq!(apply_staged(&p, EXE).unwrap(), None, "起動できなかった版へは入れ替えない");
         assert!(!should_localize(&p, "3.10.0"), "起動できなかった版を共有から写し直さない");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn staging_refuses_a_version_the_window_cannot_open() {
+        // 版 3.111.0: 窓の準備（画面の型・型が指す部品・同梱の既定）も入れ替える前に当てる。Python だけ壊れた版は取り込む（戻さない決め）
+        let d = tmp("window");
+        let p = Paths::new(&d.join("local"));
+        let rel_dir = d.join("rel");
+        std::fs::create_dir_all(&rel_dir).unwrap();
+        for (what, rel, body) in [
+            ("画面の型が無い", "program/app/templates/index.html", None),
+            ("型が指す部品が無い", "program/app/static/js/app.js", None),
+            ("同梱の既定が壊れた", "program/app/master_defaults/conversions.json", Some("{壊れた")),
+        ] {
+            let _ = std::fs::remove_dir_all(d.join("new"));
+            dist(&d.join("new"), "3.10.0", "x");
+            match body {
+                None => std::fs::remove_file(d.join("new").join(rel)).unwrap(),
+                Some(b) => std::fs::write(d.join("new").join(rel), b).unwrap(),
+            }
+            let sha = zip_of(&d.join("new"), "App", &rel_dir.join("App.zip"));
+            let e = stage_release(&p, &release(&rel_dir, "3.10.0", &sha), ID, &|_| {}).unwrap_err();
+            assert!(e.contains("窓が開けない版"), "{what}: {e}");
+            assert!(staged(&p).is_none(), "{what}: 何も置かない");
+        }
+        let _ = std::fs::remove_dir_all(d.join("new"));
+        dist(&d.join("new"), "3.10.0", "x");
+        std::fs::write(d.join("new").join("program").join("sidecar.py"), "raise SystemExit('壊した')").unwrap();
+        std::fs::write(d.join("new").join("program").join("config").join("appsettings.json"), "JSON でない").unwrap();
+        let sha = zip_of(&d.join("new"), "App", &rel_dir.join("App.zip"));
+        assert!(stage_release(&p, &release(&rel_dir, "3.10.0", &sha), ID, &|_| {}).is_ok(), "Python だけ・配った設定だけの壊れは取り込む");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn the_failed_mark_keeps_the_old_list_and_adds_why() {
+        // 版 3.111.0: 前の版の窓が読む versions（字の並び）はそのまま。理由は why に足す（前の窓は読まない）
+        let d = tmp("failedwhy");
+        let p = Paths::new(&d);
+        write_json(&p.failed(), &json!({"versions": ["3.8.0"]})).unwrap();
+        mark_failed(&p, "3.9.0", "画面の型がありません");
+        let f = read_json(&p.failed()).unwrap();
+        assert_eq!(f["versions"], json!(["3.8.0", "3.9.0"]));
+        assert_eq!(f["why"]["3.9.0"]["why"], "画面の型がありません");
+        assert_eq!(failed_versions(&p), ["3.8.0", "3.9.0"]);
+        assert!(crate::boot::failed_blocks(&f, "3.8.0") && crate::boot::failed_blocks(&f, "3.9.0"), "理由の無い印も止める");
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -725,7 +795,7 @@ mod tests {
         assert_eq!(launch_check(&p, &src, ID, "3.10.0", wait, &|_| {}), Launch::Staged("3.9.0".into()));
         assert_eq!(read_json(&p.want()).unwrap()["version"], "3.9.0", "配る版を作業場所に覚える");
         // 起動できなかった版は取り込まない
-        mark_failed(&p, "3.9.0");
+        mark_failed(&p, "3.9.0", "試験");
         assert!(matches!(launch_check(&p, &src, ID, "3.10.0", wait, &|_| {}), Launch::Nothing(w) if w.contains("起動できなかった")));
         // 届かない置き場は理由を言うだけ（いまの版で開く）
         assert!(matches!(launch_check(&p, &d.join("無い").display().to_string(), ID, "3.10.0", wait, &|_| {}), Launch::Nothing(_)));

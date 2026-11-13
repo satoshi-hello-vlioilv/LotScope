@@ -234,8 +234,21 @@ async function boot() {
    - 自分の区分の札（押すとログインID・PC名・マスタ編集）。マスタ管理を開けない区分なら入口を隠す
    - 切断されている（管理する人が一時的に止めた）ときは上に帯 */
 state.me = null;
+state.meUnknown = false;   // 1 度も読めないまま読みに失敗した（版 3.111.0。出さないタブの決まりが分からない）
 async function loadMe() {
-  try { state.me = await (await fetch("/api/access/me")).json(); } catch (_) { return; }
+  let got = null;
+  try {
+    const r = await fetch("/api/access/me", { cache: "no-store" });
+    if (r.ok) got = await r.json();
+  } catch (_) { /* 下で */ }
+  if (!got || typeof got !== "object" || typeof got.role !== "string") {
+    // 版 3.111.0: 読めなければ前の me を保つ（前は 503 の誤りの本文を me にし、出さないタブが出て札が空になった）。まだ 1 度も
+    // 読めていなければ、決まりのあるタブ（データ元・ダッシュボード・計算・実績）を出さない（fail-closed）。心拍が通るたびに読み直す
+    if (!state.me && !state.meUnknown) paintMeUnknown();
+    return;
+  }
+  state.meUnknown = false;
+  state.me = got;
   TPA.me = state.me;      // 読めない行の知らせの面が、直せる人か・管理者に知らせる人かを分ける（版 3.107.0）
   const me = state.me, chip = $("#meChip");
   chip.textContent = me.role;
@@ -246,8 +259,21 @@ async function loadMe() {
   const hid = JSON.stringify(me.hiddenTabs || []);
   if (hid !== state.hiddenSig) { state.hiddenSig = hid; if (state.sources) loadSources(); }     // タブの権限が変わった → タブを組み直す
 }
-/* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの services/access.py の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc） */
-function tabHidden(key) { return !!state.me && (state.me.hiddenTabs || []).includes(key); }
+/* 自分の権限を 1 度も読めない（窓が名乗りを決められず、中身〈Python〉も答えない）: 決まりのあるタブを出さない。札は「権限 ?」・マスタ管理の入口は隠す
+   （版 3.111.0 の仮の形。見せ方は画面の案で決める） */
+function paintMeUnknown() {
+  state.meUnknown = true;
+  state.hiddenSig = "?";
+  const chip = $("#meChip");
+  chip.textContent = "権限 ?";
+  chip.className = "pill me-chip";
+  chip.title = "自分の権限を読めません（設定の束を組めず、アプリの中身も答えません）。読めるまで、権限で出し分けるタブは出しません。";
+  $("#masterBtn").classList.add("hidden");
+  if (state.sources) loadSources();
+}
+/* 見出しのタブの権限（版 3.58.0。決めるのはサーバーの services/access.py の hidden_tabs）: 出さないタブ（データ元のキー・dash・calc）。
+   権限を 1 度も読めないまま読みに失敗したら、どのタブも出さない（版 3.111.0。fail-closed。読んでいる最中は前と同じく出す） */
+function tabHidden(key) { return state.me ? (state.me.hiddenTabs || []).includes(key) : !!state.meUnknown; }
 var FIXED_TAB_KEY = { dash: "dash", list: "lot", calc: "calc", work: "work" };   // 決まった画面 → タブの権限のキー（var: 初めの画面を出す前にも読む）
 let mePopOff = null;
 function closeMePop() { $("#mePop").classList.add("hidden"); if (mePopOff) mePopOff(); mePopOff = null; }
@@ -268,6 +294,10 @@ function paintRevoked(r) {
     + "そのあいだマスタは読むだけです。" + (r.reason ? ` 理由: ${r.reason}` : "");
 }
 function paintBeat(d) {
+  // 中身（Python）の様子（版 3.111.0。心拍は中身が止まっていても窓が 200 で答える）。仮の形: 札の説明だけ替える（見せ方は画面の案で決める）
+  const py = d && d.python, conn = $("#conn");
+  if (py && conn) conn.title = py.state === "stopped" ? `窓とは接続中。アプリの中身（Python）は止まっています${py.why ? `: ${py.why}` : ""}`
+    : py.state === "starting" ? "窓とは接続中。アプリの中身（Python）を起こしています" : "アプリの中身（Python）と接続中";
   state.versionNotice = (d && d.version) || null;
   paintVersionNotice();
   if (d && "revoked" in d) paintRevoked(d.revoked);
@@ -568,6 +598,7 @@ function startHeartbeat() {
       if (!r.ok) throw new Error("bad");
       hbFailCount = 0; setConn(true);
       try { paintBeat(await r.json()); } catch (_) { /* 版・切断の答えが無くても続ける */ }
+      if (!state.me) loadMe();             // 権限をまだ読めていない（版 3.111.0）: 心拍が通るたびに読み直す
     } catch (e) {
       hbFailCount++; if (hbFailCount >= 2) setConn(false);
     }

@@ -4,6 +4,7 @@ pub mod access;
 pub mod access_write;
 pub mod aggregate;
 pub mod body;
+pub mod boot;
 pub mod builder;
 pub mod bundle;
 pub mod calc;

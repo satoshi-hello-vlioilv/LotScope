@@ -94,6 +94,8 @@ pub fn place(p: &Paths, found: &Path, zip: &Path, source_name: &str, app_id: &st
             return Err("ZIP の名前の定義（brand.json の name・exe）が正しくありません".to_string());
         }
         let version = validate_dist(&root, &exe, app_id, None)?;
+        // 窓が開けない版は置かない（版 3.111.0。取り込みと同じ窓の準備。置く前に断れば、どの PC も入れ替えて戻さない）
+        update::validate_window(&root, app_id)?;
         Ok((version, exe, name))
     })();
     let _ = std::fs::remove_dir_all(&tmp);
@@ -354,6 +356,7 @@ mod tests {
             ("App/program/app/brand.json".into(), format!(r#"{{"app_id":"{app_id}","name":"App","exe":"{exe}"}}"#)),
             ("App/program/app/version.py".into(), format!("APP_VERSION = \"{version}\"\n")),
         ];
+        files.extend(crate::boot::min_program_files().into_iter().map(|(rel, body)| (format!("App/program/{rel}"), body.to_string())));
         files.extend(legacy.iter().map(|l| (format!("App/{l}"), exe_body.to_string())));
         for (n, body) in files {
             z.start_file(n, o).unwrap();

@@ -1,0 +1,629 @@
+{
+ "_about": "起動の決め（版 3.111.0。desktop/src/boot.rs の window_ready・decide・failed_blocks）の事例の表。仕様（2026-11-stage2b.json の版の案 B と採点の指摘）から人が書いた。desktop/tests/boot_cases.rs が読む（Python には頼らない。独立の答えは表そのもの）。setup は本物の program の写しに当てる変え方（op: write・remove・app_id）、window は窓の準備の答え（ok か壊れの種類）、page・python は決めの材料、acts は行うこと（並べた順）、revert は人が決めた「戻す／戻さない」",
+ "beatLimitSec": 60,
+ "cases": [
+  {
+   "name": "配った設定（config/appsettings.json）が JSON でない: 起動の最初",
+   "revert": false,
+   "why": "配った設定は環境（配る人が直せば次の起動で直る）。窓の準備は配った設定を読まない。前は Python が JSONDecodeError で 1 秒で終わり、戻して FAILED にした（採点者の測り badconffresh）",
+   "setup": [
+    {
+     "op": "write",
+     "path": "config/appsettings.json",
+     "text": "{ これは JSON ではない"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "open",
+    "await_beat"
+   ]
+  },
+  {
+   "name": "配った設定が JSON でない: Python はすぐ終わったが画面の心拍は来た",
+   "revert": false,
+   "why": "窓は束を組めなくても既定の形で画面を描く（Lot::page）。画面が起きれば確かめ終える",
+   "setup": [
+    {
+     "op": "write",
+     "path": "config/appsettings.json",
+     "text": "{ これは JSON ではない"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "beat",
+   "python": "down",
+   "acts": [
+    "confirm",
+    "maintain",
+    "cleanup"
+   ]
+  },
+  {
+   "name": "Python が 120 秒を超える（起こしている最中）: 画面は開いて心拍が来た",
+   "revert": false,
+   "why": "遅いだけで戻さない（前は start_wait 120 秒で切れて戻した。採点者の測り slowfresh）。画面は Python を待たない",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "beat",
+   "python": "starting",
+   "acts": [
+    "confirm",
+    "maintain",
+    "cleanup"
+   ]
+  },
+  {
+   "name": "Python が 120 秒を超えて起こせなかった（Sidecar の start_wait で切れた）",
+   "revert": false,
+   "why": "Python の失敗は帯と心拍の python で見せる。版の壊れに数えない",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "beat",
+   "python": "down",
+   "acts": [
+    "confirm",
+    "maintain",
+    "cleanup"
+   ]
+  },
+  {
+   "name": "Python が 120 秒を超える: 画面の心拍がまだ 60 秒来ない（設定の答えが Python を待っている）",
+   "revert": false,
+   "why": "画面の JS は /api/config を読み終えてから心拍を始める。窓が設定を組めない形ではその答えが Python の準備を待つので、起こしている最中は待つ",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "late",
+   "python": "starting",
+   "acts": [
+    "await_beat"
+   ]
+  },
+  {
+   "name": "Python が見つからない: 起動の最初",
+   "revert": false,
+   "why": "窓は Python の無い係で画面を開く（前は splash.fail で画面を開かなかった。採点者の測り nopython）",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "not_opened",
+   "python": "missing",
+   "acts": [
+    "open",
+    "await_beat"
+   ]
+  },
+  {
+   "name": "Python が見つからない: 画面の心拍が来た",
+   "revert": false,
+   "why": "",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "beat",
+   "python": "missing",
+   "acts": [
+    "confirm",
+    "maintain",
+    "cleanup"
+   ]
+  },
+  {
+   "name": "Python がすぐ終わる（sidecar.py を壊した版）: 起動の最初",
+   "revert": false,
+   "why": "窓は sidecar.py を読まない。Python だけ壊れた版は戻さず、その版の間は任せる形が使えない（配布の画面の「中身の起きない PC」で見える）",
+   "setup": [
+    {
+     "op": "write",
+     "path": "sidecar.py",
+     "text": "raise SystemExit(\"試験のために壊した版\")\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "not_opened",
+   "python": "down",
+   "acts": [
+    "open",
+    "await_beat"
+   ]
+  },
+  {
+   "name": "Python がすぐ終わる版: 画面の心拍が来た",
+   "revert": false,
+   "why": "",
+   "setup": [
+    {
+     "op": "write",
+     "path": "sidecar.py",
+     "text": "raise SystemExit(\"試験のために壊した版\")\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "beat",
+   "python": "down",
+   "acts": [
+    "confirm",
+    "maintain",
+    "cleanup"
+   ]
+  },
+  {
+   "name": "共有に届かない（配った設定の共有の置き場が無いフォルダ）",
+   "revert": false,
+   "why": "共有が落ちた朝に全員の PC が前の版へ戻らないよう、窓の準備は共有を見ない",
+   "setup": [
+    {
+     "op": "write",
+     "path": "config/appsettings.json",
+     "text": "{\"masterStore\": {\"shareDir\": \"/どこにも無い/共有\", \"masters\": [\"access_permissions\"]}}"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "open",
+    "await_beat"
+   ]
+  },
+  {
+   "name": "権限の表が読めない（同梱の data の権限の表が壊れた）",
+   "revert": false,
+   "why": "権限の表は作業場所・共有・data の物（環境）。窓の準備は同梱の既定（app/master_defaults）だけを読む",
+   "setup": [
+    {
+     "op": "write",
+     "path": "data/access_permissions.json",
+     "text": "{壊れた"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "open",
+    "await_beat"
+   ]
+  },
+  {
+   "name": "画面の心拍を待っている（60 秒の内）",
+   "revert": false,
+   "why": "",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "waiting",
+   "python": "ready",
+   "acts": [
+    "await_beat"
+   ]
+  },
+  {
+   "name": "入れ替えた直後でない起動で窓の準備が通らない（戻す控えの印が無い）",
+   "revert": false,
+   "why": "入れ替えた直後でなければ戻す物が無い。開いて、画面は Python に任せる",
+   "setup": [
+    {
+     "op": "remove",
+     "path": "app/templates/index.html"
+    }
+   ],
+   "installed": true,
+   "applied": false,
+   "window": "template",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "open",
+    "maintain",
+    "cleanup"
+   ]
+  },
+  {
+   "name": "入れ替えた直後でない起動: 心拍が来ても行うことは無い",
+   "revert": false,
+   "why": "",
+   "setup": [],
+   "installed": true,
+   "applied": false,
+   "window": "ok",
+   "page": "beat",
+   "python": "ready",
+   "acts": []
+  },
+  {
+   "name": "入れ替えた直後でない起動: 画面が起きなくても戻さない",
+   "revert": false,
+   "why": "",
+   "setup": [],
+   "installed": true,
+   "applied": false,
+   "window": "ok",
+   "page": "late",
+   "python": "ready",
+   "acts": []
+  },
+  {
+   "name": "開発の形（この PC の app でない）で窓の準備が通らない",
+   "revert": false,
+   "why": "",
+   "setup": [
+    {
+     "op": "remove",
+     "path": "app/templates/index.html"
+    }
+   ],
+   "installed": false,
+   "applied": false,
+   "window": "template",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "open"
+   ]
+  },
+  {
+   "name": "開発の形: 起動の最初",
+   "revert": false,
+   "why": "",
+   "setup": [],
+   "installed": false,
+   "applied": false,
+   "window": "ok",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "open"
+   ]
+  },
+  {
+   "name": "app/version.py が読めない",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/version.py",
+     "text": "APP_VERSION = 壊れた\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "version",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "app/version.py が無い",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "remove",
+     "path": "app/version.py"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "version",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "画面の型 templates/index.html が無い",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "remove",
+     "path": "app/templates/index.html"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "template",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "画面の型が窓の読めない書き方（{% %}）",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/templates/index.html",
+     "text": "<title>{% if brand %}{{ brand.name }}{% endif %}</title>\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "template",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "指紋を作れない（画面の型が指す部品 static/js/app.js が無い）",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "remove",
+     "path": "app/static/js/app.js"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "fingerprint",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "同梱の既定 app/master_defaults/conversions.json が壊れた",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/master_defaults/conversions.json",
+     "text": "{壊れた"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "defaults",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "同梱の既定が表でも並びでもない",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/master_defaults/conversions.json",
+     "text": "\"字だけ\""
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "defaults",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "設定の見本 config/appsettings.example.json が壊れた",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "write",
+     "path": "config/appsettings.example.json",
+     "text": "{壊れた"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "defaults",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "app_id が違う（ほかのアプリの program）",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "app_id",
+     "value": "other.app"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "app_id",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "brand.json が無い",
+   "revert": true,
+   "why": "",
+   "setup": [
+    {
+     "op": "remove",
+     "path": "app/brand.json"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "app_id",
+   "page": "not_opened",
+   "python": "starting",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "窓の準備が通らない版は、Python が起きていても戻す",
+   "revert": true,
+   "why": "窓が描けない版は Python の様子によらず戻す（変異: 窓の準備を見ない決めはここで落ちる）",
+   "setup": [
+    {
+     "op": "remove",
+     "path": "app/templates/index.html"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "template",
+   "page": "not_opened",
+   "python": "ready",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "画面の JS が 60 秒たっても起きない（static の構文の誤り）・Python は起きた",
+   "revert": true,
+   "why": "窓の準備だけでは画面の JS の壊れを見ない。最初の心拍が上限までに来なければ戻す",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/static/js/app.js",
+     "text": "function ( {\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "late",
+   "python": "ready",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "画面の JS が起きない・Python は止まった",
+   "revert": true,
+   "why": "Python が止まっていても画面の JS は心拍を送れる（設定の答えは 503 ですぐ返る）。来なければ画面の壊れ",
+   "setup": [
+    {
+     "op": "write",
+     "path": "app/static/js/app.js",
+     "text": "function ( {\n"
+    }
+   ],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "late",
+   "python": "down",
+   "acts": [
+    "revert"
+   ]
+  },
+  {
+   "name": "画面の JS が起きない・Python が見つからない",
+   "revert": true,
+   "why": "",
+   "setup": [],
+   "installed": true,
+   "applied": true,
+   "window": "ok",
+   "page": "late",
+   "python": "missing",
+   "acts": [
+    "revert"
+   ]
+  }
+ ],
+ "failed": [
+  {
+   "name": "3.110.0 までの窓が Python の失敗で付けた印（理由なし）",
+   "file": {
+    "versions": [
+     "3.110.0"
+    ]
+   },
+   "version": "3.110.0",
+   "blocks": true,
+   "why": "その版へ戻すと、その版の窓が前の決まり（Python の準備）で確かめ直して同じ失敗で戻し、3.111.0 の窓がまた取り込む、を起動のたびに繰り返す。消さずに止めたまま"
+  },
+  {
+   "name": "3.111.0 からの窓が窓の準備で付けた印（理由つき）",
+   "file": {
+    "versions": [
+     "3.112.0"
+    ],
+    "why": {
+     "3.112.0": {
+      "why": "画面の型がありません",
+      "at": "2026-11-13T09:00:00"
+     }
+    }
+   },
+   "version": "3.112.0",
+   "blocks": true
+  },
+  {
+   "name": "ほかの版の印",
+   "file": {
+    "versions": [
+     "3.110.0"
+    ]
+   },
+   "version": "3.112.0",
+   "blocks": false
+  },
+  {
+   "name": "理由だけで並びに無い（書きかけ）",
+   "file": {
+    "why": {
+     "3.112.0": {
+      "why": "x"
+     }
+    }
+   },
+   "version": "3.112.0",
+   "blocks": false,
+   "why": "前の版の窓が読むのは versions の並び。並びに無ければどの窓も止めない"
+  },
+  {
+   "name": "印のファイルが空の表",
+   "file": {},
+   "version": "3.112.0",
+   "blocks": false
+  }
+ ]
+}

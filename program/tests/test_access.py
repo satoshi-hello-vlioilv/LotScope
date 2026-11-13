@@ -205,6 +205,24 @@ class Presence(Env):
         self.assertTrue(me["online"])
         self.assertEqual(me["version"], APP_VERSION)
 
+    def test_fleet_counts_pcs_whose_python_is_stopped(self):
+        """版 3.111.0: 窓は中身（Python）が起きていない PC の印に python {state, why} を書く。Python の読み手（前の版の Python も）は知らない鍵を
+        無視して同じ PC を数え、配布の画面の「中身の起きない PC」（pythonDown）に止まった PC だけを数える"""
+        self.beat()
+        d = presence.presence_dir()
+        now = datetime.now().isoformat(timespec="seconds")
+        for login, pc, py in (("u7", "PC-7", {"state": "stopped", "why": "Python が見つかりません"}), ("u8", "PC-8", {"state": "starting", "why": ""}),
+                              ("u6", "PC-6", "読めない形")):
+            key = presence.terminal_key(login, pc)
+            (d / f"{key}.json").write_text(json.dumps({"key": key, "login": login, "pc": pc, "role": "一般ユーザー", "version": APP_VERSION,
+                                                       "since": now, "at": now, "python": py}, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(sorted(r["login"] for r in presence._online()), ["u1", "u6", "u7", "u8"], "知らない鍵があっても読む")
+        fl = self.c.get("/api/presence").get_json()["fleet"]
+        self.assertEqual((fl["online"], fl["pythonDown"]), (4, 1), "止まった PC だけを数える")
+        by = {x["login"]: x for x in fl["items"]}
+        self.assertEqual(by["u7"]["python"]["why"], "Python が見つかりません")
+        self.assertIsNone(by["u1"]["python"], "Python が書いた印（起きている）には無い")
+
     def test_latest_version_and_outdated_notice(self):
         self.beat()
         self.write_history("u9", "PC-9", "9.9.9")

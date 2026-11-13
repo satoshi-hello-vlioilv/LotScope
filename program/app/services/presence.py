@@ -511,10 +511,17 @@ def fleet(roles_of):
                       "sessions": h.get("sessions", 0), "totalSec": h.get("totalSec", 0),
                       "versions": h.get("versions", {}), "counted": counted,
                       "outdated": counted and behind(latest, ver, dist),
-                      "revoked": rv})
+                      "revoked": rv, "python": (o or {}).get("python")})
     items.sort(key=lambda x: (not x["outdated"], not x["online"], x["pc"], x["login"]))
     return {"items": items, "latest": latest, "distributed": dist, "online": sum(1 for x in items if x["online"]),
-            "outdated": sum(1 for x in items if x["outdated"]), "total": len(items)}
+            "outdated": sum(1 for x in items if x["outdated"]), "total": len(items),
+            "pythonDown": sum(1 for x in items if x["online"] and _python_down(x["python"]))}
+
+
+def _python_down(v):
+    """いま使っている PC の印の python（版 3.111.0。窓が、中身〈Python〉の起きていないときだけ {state, why} を書く）が止まっているか。
+    配布の画面の「中身の起きない PC」に数える（窓の presence::python_down と同じ）。Python が書く印には付かない（書くのは起きている Python）"""
+    return isinstance(v, dict) and v.get("state") == "stopped"
 
 
 # ------------------------------------------------------------------ 切断

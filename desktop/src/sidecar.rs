@@ -474,7 +474,10 @@ pub struct Supervisor {
 }
 
 struct Inner {
-    py: Python,
+    /// 起こす Python（PC に見つからなければ理由。版 3.111.0: 見つからなくても窓は画面を開き、起こすたびにこの理由で Down になる）
+    py: Result<Python, String>,
+    /// 起こそうとした回数（試験が、止まった中身を心拍が起こし直すかを数える）
+    attempts: AtomicU64,
     program: PathBuf,
     log_dir: PathBuf,
     phases: Phases<Sidecar>,
@@ -489,13 +492,19 @@ struct Inner {
 pub type Changed = Arc<dyn Fn(Result<&Value, &str>) + Send + Sync>;
 
 impl Supervisor {
-    pub fn new(py: Python, program: PathBuf, log_dir: PathBuf, progress: Progress) -> Self {
+    pub fn new(py: Result<Python, String>, program: PathBuf, log_dir: PathBuf, progress: Progress) -> Self {
+        Self::with_retry(py, program, log_dir, progress, RETRY_AFTER)
+    }
+
+    /// 起こせなかったあと起こし直すまでの間を決めて作る（試験）
+    pub fn with_retry(py: Result<Python, String>, program: PathBuf, log_dir: PathBuf, progress: Progress, retry: Duration) -> Self {
         Supervisor {
             inner: Arc::new(Inner {
                 py,
+                attempts: AtomicU64::new(0),
                 program,
                 log_dir,
-                phases: Phases::new(RETRY_AFTER),
+                phases: Phases::new(retry),
                 progress,
                 notices: Notices::default(),
                 start_wait: Duration::from_secs(120),
@@ -514,7 +523,13 @@ impl Supervisor {
         let i = &self.inner;
         let changed = i.changed.lock().unwrap().clone();
         i.phases.get_then(
-            || Sidecar::spawn(&i.py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
+            || {
+                i.attempts.fetch_add(1, Ordering::SeqCst);
+                match &i.py {
+                    Ok(py) => Sidecar::spawn(py, &i.program, &i.log_dir, i.start_wait, &i.progress, i.notices.clone()),
+                    Err(e) => Err(e.clone()),
+                }
+            },
             i.start_wait + Duration::from_secs(5),
             |r| {
                 if let Some(f) = changed {
@@ -559,6 +574,36 @@ impl Supervisor {
         let _ = std::thread::Builder::new().name("sidecar-start".into()).spawn(move || {
             let _ = me.get();
         });
+    }
+
+    /// 起こそうとした回数（試験）
+    #[cfg(test)]
+    pub fn attempts(&self) -> u64 {
+        self.inner.attempts.load(Ordering::SeqCst)
+    }
+
+    /// PC に Python が見つかったか
+    pub fn has_python(&self) -> bool {
+        self.inner.py.is_ok()
+    }
+
+    /// いまの様子（待たない。版 3.111.0: 心拍・/api/health）。止まっていれば裏で起こし直しを始める（kick。起こせなかった直後の
+    /// RETRY_AFTER の間は起こさない）。前は Backend::alive() の副作用で、心拍から alive を外すと起こし直しの合図も消えるため、ここに置く
+    pub fn now(&self) -> da_core::presence::PythonNow {
+        use da_core::presence::PythonNow;
+        if self.up().is_some() {
+            return PythonNow::ready();
+        }
+        if self.starting() {
+            return PythonNow { state: "starting", why: String::new() };
+        }
+        // 起こせなかった直後（RETRY_AFTER の内）・止めた: 起こさずに止まったと答える
+        if self.inner.phases.busy() {
+            return PythonNow { state: "stopped", why: self.down_reason().unwrap_or_default() };
+        }
+        // まだ起こしていない・起こし直しの間が過ぎた: 裏で起こし始める（糸が起こし始める前に尋ねられても「起こしている最中」と答える）
+        self.kick();
+        PythonNow { state: "starting", why: String::new() }
     }
 
     /// 準備できたときの知らせ（動いていなければ null。窓の情報 /__desktop/info に載せる）
@@ -708,6 +753,39 @@ mod tests {
             assert!(t.join().unwrap().is_ok());
         }
         assert_eq!(heard.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_missing_python_is_down_and_the_heartbeat_keeps_kicking() {
+        // 版 3.111.0: Python が見つからなくても係は作る（窓は画面を開く）。起こすたびに理由で Down。様子を尋ねる（心拍）たびに、
+        // 起こし直しの間が過ぎていれば裏で起こし直す（前は alive() の副作用。心拍から alive を外しても止まった中身を起こし直す）
+        let progress: Progress = Arc::new(|_| {});
+        let sup = Supervisor::with_retry(
+            Err("Python が見つかりません。".into()),
+            PathBuf::from("."),
+            std::env::temp_dir(),
+            progress,
+            Duration::from_millis(150),
+        );
+        assert!(!sup.has_python());
+        let wait_stopped = |sup: &Supervisor| {
+            let t0 = Instant::now();
+            loop {
+                let n = sup.now();
+                if n.state == "stopped" || t0.elapsed() > Duration::from_secs(5) {
+                    return n;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        let n = wait_stopped(&sup);
+        assert_eq!((n.state, n.why.as_str()), ("stopped", "Python が見つかりません。"));
+        assert_eq!(sup.attempts(), 1);
+        assert!(sup.get().is_err(), "問い合わせは理由で断る");
+        assert_eq!(sup.attempts(), 1, "起こせなかった直後は起こし直さない");
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = wait_stopped(&sup);
+        assert_eq!(sup.attempts(), 2, "間が過ぎれば、様子を尋ねただけで起こし直す（kick）");
     }
 
     #[test]
