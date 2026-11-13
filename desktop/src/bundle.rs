@@ -1100,7 +1100,8 @@ fn sources_all(settings: &Value, rows: &[Value], full: bool) -> R<Vec<Map<String
         } else {
             PyInt::Small(0)
         };
-        let id = if truthy(d.get("id")) { int_of(d.get("id"))? } else { PyInt::Small(0) };
+        // int() で読めない id（"x"）は 0（版 3.108.0。Python の data_sources.sources と同じ。前は Python が落ちた）
+        let id = if truthy(d.get("id")) { wide_int(&d["id"]).unwrap_or(PyInt::Small(0)) } else { PyInt::Small(0) };
         keyed.push(((a, if builtin { 0 } else { 1 }, id), d));
     }
     keyed.sort_by(|a, b| a.0.cmp(&b.0));
@@ -1290,10 +1291,6 @@ fn eq_list(v: Option<&Value>) -> R<Vec<String>> {
     Ok(equipment_list(v))
 }
 
-fn order_i64(n: PyInt) -> R<i64> {
-    n.small().ok_or(Py("表示順が i64 に入らない（JSON で同じに渡せない）"))
-}
-
 fn group_order(row: &Map<String, Value>) -> PyInt {
     if !truthy(row.get("表示順")) {
         return PyInt::Small(0);
@@ -1315,7 +1312,7 @@ pub(crate) fn group_views(rows: &[Value]) -> R<Vec<Value>> {
         let (rules, ex, unapplied) = group_rules(o)?;
         let pick = |k: &str, d: Value| o.get(k).filter(|v| truthy(Some(v))).cloned().unwrap_or(d);
         let mut v = json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pick("名称", json!("")), "set": pick("まとめ方", set_default.clone()),
-                        "equipment": eq_list(o.get("設備"))?, "rules": rules, "except": ex, "order": order_i64(group_order(o))?,
+                        "equipment": eq_list(o.get("設備"))?, "rules": rules, "except": ex, "order": crate::held::int_value(&group_order(o)),
                         "note": pick("備考", json!("")), "rev": o.get("rev").cloned().unwrap_or(json!(1)),
                         "updated_at": o.get("updated_at").cloned().unwrap_or(json!("")), "updated_by": pick("updated_by", json!({}))});
         if !unapplied.is_empty() {
@@ -1328,11 +1325,21 @@ pub(crate) fn group_views(rows: &[Value]) -> R<Vec<Value>> {
 
 // ------------------------------------------------------------------ 変換表（services/conversions.py の tables）
 /// conversions._j: 並び・表はそのまま、空でない字は JSON として読み、型が既定と違えば既定
-fn conv_j(v: Option<&Value>, list: bool) -> R<Value> {
+fn conv_j(v: Option<&Value>, list: bool, keep_big: bool) -> R<Value> {
     let dflt = if list { json!([]) } else { json!({}) };
     let x = match v {
         Some(x @ (Value::Array(_) | Value::Object(_))) => return Ok(x.clone()),
-        Some(Value::String(t)) if !pyfmt::strip(t).is_empty() => {
+        Some(Value::String(t)) if !pyfmt::strip(t).is_empty() && !crate::held::is_held(v.unwrap()) => {
+            // i64・u64 に入らない整数は、画面の形（conv_views）では桁のまま持つ（版 3.108.0。src/held.rs）。式が引く形（conv_tables）は
+            // 数として比べるので今どおり Python に尋ねる
+            if keep_big && crate::master_rows::split_wide(t.as_bytes()) {
+                let x = (crate::master_rows::json_depth(t.as_bytes()) < crate::master_rows::SERDE_DEPTH)
+                    .then(|| crate::held::parse(&crate::master_rows::inner_text(t)).ok())
+                    .flatten()
+                    .filter(|x| !crate::held::has_nonfinite(x) && !crate::held::has_lone(x))
+                    .ok_or(Py("変換表の字が窓の読めない JSON"))?;
+                return Ok(if x.is_array() == list && (x.is_array() || x.is_object()) { x } else { dflt });
+            }
             if crate::master_rows::text_split_py(t) {
                 return Err(Py("変換表の字が窓の読めない JSON"));
             }
@@ -1366,12 +1373,12 @@ pub fn conv_order_index(rows: &[Value]) -> R<Vec<usize>> {
 }
 
 /// 変換表の行（conversions.view の表示順を除いた形）を ordered（表示順 → id）の順に
-fn conv_rows(rows: &[Value]) -> R<Vec<(PyInt, Value)>> {
+fn conv_rows(rows: &[Value], keep_big: bool) -> R<Vec<(PyInt, Value)>> {
     let mut out = vec![];
     for i in conv_order_index(rows)? {
         let o = rows[i].as_object().ok_or(Py("変換表の行が表でない"))?;
         let order = conv_order(o);
-        let rows = match conv_j(o.get("判定"), true)? {
+        let rows = match conv_j(o.get("判定"), true, keep_big)? {
             Value::Array(a) => a
                 .into_iter()
                 .filter_map(|x| x.as_object().cloned())
@@ -1387,8 +1394,8 @@ fn conv_rows(rows: &[Value]) -> R<Vec<(PyInt, Value)>> {
         };
         out.push((
             order,
-            json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pstr(o.get("名前"))?, "inputs": conv_j(o.get("入力"), true)?,
-                                "rows": rows, "other": other, "apply": conv_j(o.get("当て方"), false)?}),
+            json!({"id": o.get("id").cloned().unwrap_or(Value::Null), "name": pstr(o.get("名前"))?, "inputs": conv_j(o.get("入力"), true, keep_big)?,
+                                "rows": rows, "other": other, "apply": conv_j(o.get("当て方"), false, keep_big)?}),
         ));
     }
     Ok(out)
@@ -1396,10 +1403,10 @@ fn conv_rows(rows: &[Value]) -> R<Vec<(PyInt, Value)>> {
 
 /// 変換表の画面の形（conversions.view。表示順も）を ordered の順に。表示順が JSON の数（i64）に入らなければ Err（画面は Python が描く）
 pub fn conv_views(rows: &[Value]) -> R<Vec<Value>> {
-    conv_rows(rows)?
+    conv_rows(rows, true)?
         .into_iter()
         .map(|(order, mut v)| {
-            v["order"] = json!(order.small().ok_or(Py("変換表の表示順が大きすぎる"))?);
+            v["order"] = crate::held::int_value(&order); // 大きな表示順も桁のまま（版 3.108.0）
             Ok(v)
         })
         .collect()
@@ -1408,7 +1415,7 @@ pub fn conv_views(rows: &[Value]) -> R<Vec<Value>> {
 /// 式の conv が引く形（conversions.tables: 名前ごとに最初の表）
 fn conv_tables(rows: &[Value]) -> R<Value> {
     let mut out = Map::new();
-    for (_, v) in conv_rows(rows)? {
+    for (_, v) in conv_rows(rows, false)? {
         let name = v["name"].as_str().unwrap_or("").to_string();
         if name.is_empty() || out.contains_key(&name) {
             continue;
@@ -1554,11 +1561,15 @@ fn work_ordered(rows: &[Value]) -> R<Vec<&Value>> {
 fn name_of(r: &Value, k: &str) -> R<String> {
     match r.get(k) {
         x if !truthy(x) => Ok(String::new()),
-        Some(Value::Array(_) | Value::Object(_)) => Err(Py("名前が表・並び")),
+        // 並び・表の名前は Python の str() の字（['X']。版 3.108.0。前は束を組めず、設備グループの選べる設備も Python に任せた）
         Some(x) => Ok(py_str(x)),
         None => Ok(String::new()),
     }
 }
+
+/// i64・u64 に入らない整数のファイルも束が読むマスタ（版 3.108.0。src/held.rs が桁のまま持ち、束の読み〈group_views・conv_views の
+/// 表示順と id は held::int_value、名前・設備は py_str〉が Python の int と同じに扱う）。ほかのマスタは今どおり Python に尋ねる
+const HELD_OK: [&str; 2] = ["equipment_groups", "conversions"];
 
 /// 束・画面・/api/config の材料（Builder::inputs）
 pub struct Inputs {
@@ -1575,7 +1586,7 @@ pub struct Inputs {
 impl Inputs {
     /// 窓が Python と同じに読めないマスタ（読めない字・共有にまだ無い）は組まない
     pub fn check(&self, name: &str) -> R<()> {
-        if self.p.split_file(name) {
+        if self.p.split_file(name) && !HELD_OK.contains(&name) {
             return Err(Py("マスタのファイルが窓の読めない字"));
         }
         if !self.p.seed(name) {
@@ -2245,7 +2256,7 @@ fn section_broken(inp: &Inputs, name: &str) -> Option<Value> {
         if let Some(why) = inp.p.unreadable(f) {
             return Some(json!({"why": why, "file": file}));
         }
-        if inp.p.split_file(f) {
+        if inp.p.split_file(f) && !HELD_OK.contains(f) {
             return Some(json!({"why": format!("{file} に窓の読めない字（NaN・Infinity・大きな数・深い入れ子・読めない版）があります"),
                                "file": file, "window": true}));
         }

@@ -475,7 +475,7 @@ impl Place {
             return None; // 読める（i64 に入らない整数は道が任せる）
         }
         match crate::master_store::parse_master(&c.raw, &path) {
-            Ok(_) | Err(crate::master_store::ReadErr::Wide(_)) => None,
+            Ok(_) => None,
             Err(e) => Some(crate::master_store::read_reason("共有の", &path, &c.raw, &e)),
         }
     }
@@ -540,7 +540,6 @@ impl Place {
             let err = match crate::master_store::parse_master(&b, path) {
                 Ok(v) if v.is_array() || v.get("rows").is_some_and(Value::is_array) => return None,
                 Ok(_) => crate::master_store::ReadErr::Shape,
-                Err(crate::master_store::ReadErr::Wide(_)) => return None,
                 Err(e) => e,
             };
             if i == 0 && n > 3 {
@@ -639,23 +638,6 @@ fn doc_of(b: &[u8]) -> Result<(Vec<Value>, i64), String> {
             }
         }
         Ok(_) => Err("マスタの形が読めません".into()),
-        // i64・u64 に入らない整数は前と同じく serde で読む（道は split_file で Python に任せる。H2 で桁のまま持つまで）
-        Err(crate::master_store::ReadErr::Wide(_)) => {
-            let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
-            let v = py_json(&crate::master_rows::inner_text(std::str::from_utf8(b).map_err(|e| e.to_string())?))
-                .ok_or("JSON として読めません")?;
-            match v {
-                Value::Array(a) => Ok((a, 0)),
-                Value::Object(mut o) => {
-                    let rev = o.get("revision").and_then(crate::row_check::as_int).and_then(|n| n.small()).unwrap_or(0);
-                    match o.remove("rows") {
-                        Some(Value::Array(a)) => Ok((a, rev)),
-                        _ => Err("マスタの形が読めません".into()),
-                    }
-                }
-                _ => Err("マスタの形が読めません".into()),
-            }
-        }
         Err(e) => Err(format!("{e:?}")),
     }
 }
@@ -947,7 +929,12 @@ pub fn guard(method: &str, path: &str, me: &Value) -> Option<(u16, &'static str,
     if matches!(method, "GET" | "HEAD" | "OPTIONS") || (method == "POST" && check) {
         return None;
     }
-    let (_, name) = GUARDED.iter().find(|(p, _)| path.starts_with(p))?;
+    // 読めない行を何行目かで消す道（/api/masters/rows/<名前>/<n>。版 3.108.0）は道のマスタの名前で見る（Python の _row_master と同じ）
+    let row_name = path.strip_prefix("/api/masters/rows/").map(|r| r.split('/').next().unwrap_or("")).filter(|n| !n.is_empty());
+    let name = match GUARDED.iter().find(|(p, _)| path.starts_with(p)) {
+        Some((_, n)) => *n,
+        None => row_name?,
+    };
     if let Some(r) = me.get("revoked").filter(|r| truthy(r)) {
         let by = r.get("by").filter(|v| truthy(v)).map(py_str).unwrap_or_else(|| "管理する人".into());
         let left = r.get("remainingSec").and_then(Value::as_i64).unwrap_or(0).div_euclid(60) + 1;

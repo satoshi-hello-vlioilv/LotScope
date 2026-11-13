@@ -93,7 +93,9 @@ pub(crate) fn parse_value(item: &Value, raw: Option<&Value>) -> Result<Option<Va
             if lo.as_f64().is_some_and(|l| n < l) || hi.as_f64().is_some_and(|h| n > h) {
                 return fail(format!("「{label}」は {}〜{} で入れてください。", edge(&lo), edge(&hi)));
             }
-            Ok(Some(if kind == "int" { json!(n as i64) } else { json!(n) }))
+            // int(n) は Python の int と同じく桁のまま（上限の無い項目でも。版 3.108.0）
+            let int = || pyfmt::py_int_of(pyfmt::IntArg::Num(&serde_json::Number::from_f64(n)?)).ok().map(|i| crate::held::int_value(&i));
+            Ok(Some(if kind == "int" { int().unwrap_or(Value::Null) } else { json!(n) }))
         }
         "url" if !(s.starts_with("http://") || s.starts_with("https://")) => {
             fail(format!("「{label}」は http:// か https:// で始まる URL を入れてください。"))
@@ -155,8 +157,9 @@ pub fn put(store: &Store, key: &str, query: &str, body: &[u8], rows: &[Value]) -
     let Some(item) = item_of(key) else {
         return Some((400, json!({"error": "知らない項目です。", "kind": "error"})));
     };
-    // get_json(force=True, silent=True) or {}（読めない本文は {}。Python に任せる本文は master_rows::py_body が決める）
-    let parsed = crate::master_rows::py_body(body)?;
+    // get_json(force=True, silent=True) or {}（読めない本文は {}。Python に任せる本文は master_rows::py_body が決める。
+    // i64・u64 に入らない整数は版 3.108.0 から桁のまま読む: 値は str() の字〈py_str〉で読む）
+    let parsed = crate::master_rows::py_body_held(body)?;
     let value = match parse(item, parsed.get("value")) {
         Ok(v) => v,
         Err(Bad::Invalid(m)) => return Some((400, json!({"error": m, "kind": "invalid"}))),

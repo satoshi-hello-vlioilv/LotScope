@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """現場のマスタ（設備・ロール）の読み書き・マスタの置き場の状態。アクセス権限マスタは access.py。"""
-from ..web import current_app, jsonify
+from ..web import current_app, jsonify, request
 
 from ..services import master_place
 from .common import base_rev, bp, master_call, master_repo, req_body
@@ -70,6 +70,17 @@ def equipment_inspection():
     """{names: [...]} → {inspection: {設備名: 検査計があるか}}。画面が発見設備を自動で選ぶ（実績のうち検査計がある最後の設備）ため。"""
     names = [str(n) for n in ((req_body()).get("names") or [])][:100]
     return master_call(lambda: {"inspection": master_repo().inspection_of(names)})
+
+
+@bp.delete("/api/masters/rows/<name>/<int:row>")
+def masters_row_delete(name, row):
+    """読めない行を何行目かで消す（版 3.108.0。知らせの面の × から。?summary= は面に出した生の値の要約で、違えば消さない）。
+    id で引けない行（id が字）・表でない行も消せる。書けるかは門番（routes/access.py。道のマスタの名前で見る）"""
+    from ..repositories.master_repository import ROW_DELETE
+    if name not in ROW_DELETE:
+        return jsonify({"error": f"{name} の読めない行は、ここからは消せません（ファイルを直してください）。", "kind": "not_found"}), 404
+    summary = request.args.get("summary", "")
+    return master_call(lambda: {"ok": True, **master_repo().delete_unreadable_row(name, row, summary)})
 
 
 @bp.get("/api/masters/status")

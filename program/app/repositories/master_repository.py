@@ -178,6 +178,22 @@ def guard(name, rows, iso, item_id):
         raise MasterUnreadable(f"{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。")
 
 
+# 何行目かで読めない行を消せるマスタ（版 3.108.0。id で引けない行〈id が字〉・表でない行も画面の知らせの面から消す。窓の
+# master_rows::ROW_DELETE と同じ）。権限の 2 つは消すと権限が変わるので入れない（ファイルを直す）。ダッシュボード・組み方・すぐに見るは
+# 行ごとの持ち主で書ける人が決まるので入れない（id で引ける行は今どおりそれぞれの道で消す）
+ROW_DELETE = ("equipment_master", "roll_master", "shift_patterns", "equipment_groups", "conversions", "display_formats", "path_settings",
+              "data_sources", "work_log_files", "conversion_defaults")
+
+
+def key_guard(name, rows, iso, col, key):
+    """キーで引く行（data_sources のキー・作業実績の登録のキー）が隔てた行なら書かない（版 3.108.0。guard のキーの形。
+    前はデータ元・作業実績の登録の行を隔てず、版の読めない行で英語の 400 だった。窓の row_check::key_guard と同じ）"""
+    r = next((r for r in rows if id(r) in iso and isinstance(r, dict) and r.get(col) == key), None)
+    if r is not None:
+        n, why = iso[id(r)]
+        raise MasterUnreadable(f"{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。")
+
+
 def dup_checked(name, rows, iso, fn):
     """名前の重なり・行の確かめ（fn(行の並び) が断る）を、読める行で当ててから隔てた行と 1 つずつ当てる。隔てた行と当たったら、
     何行目の読めない行と重なるかを言う（版 3.107.0 の割れ 3。前は見えない行と「もうあります」と言った。窓の row_check::dup_checked と同じ）"""
@@ -257,6 +273,25 @@ class MasterRepository:
         guard(name, rows, iso, item_id)
         hit = next((r for r in rows if isinstance(r, dict) and id(r) not in iso and r.get("id") == item_id), None)
         return row_check.coerce(name, hit) if hit is not None else None
+
+    def delete_unreadable_row(self, name, n, summary):
+        """読めない行（隔てた行・表でない行）を、何行目（n。1 から）と生の値の要約（summary。知らせの skipped と同じ字）で消す（版 3.108.0）。
+        その行がもう読めない行でない・要約が違う（開いた後にほかの PC が直した・消した・並びが変わった）なら消さずに NotFound。
+        ほかの行は形をそろえずにそのまま書き戻す。→ {row, why}"""
+        spec = SPECS[name]
+        extra = EXTRA_CHECKS.get(name)
+
+        def mutate(rows, stamp):
+            r = rows[n - 1] if 1 <= n <= len(rows) else None
+            why = None
+            if 1 <= n <= len(rows):
+                norm = _normalize(dict(r), spec) if isinstance(r, dict) else r
+                why = row_check.problem(name, norm, spec["fields"]) or (extra(norm) if extra and isinstance(norm, dict) else None)
+            if not why or row_check.summary(name, r) != summary:
+                raise NotFound(f"{name}.json の {n} 行目は、開いたあとに変わりました（ほかの PC が直した・消した可能性があります）。画面を開き直してください。")
+            rows.pop(n - 1)
+            return {"row": n, "why": why}
+        return self.store.write(name, mutate)
 
     def share_problem(self, name):
         """共有のファイルが読めない理由（読めれば・共有しなければ None。一覧の帯）"""
@@ -491,12 +526,15 @@ class MasterRepository:
         spec = SPECS["data_sources"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
-            row = next((r for r in rows if r.get("キー") == key), None)
+            iso = _normalize_all(rows, spec)
+            # 読めない行は隔てる（版 3.108.0。キーの当たる隔てた行は書かない・名前の重なりは隔てた行と 1 つずつ）
+            row = next((r for r in rows if id(r) not in iso and r.get("キー") == key), None)
+            if row is None:
+                key_guard("data_sources", rows, iso, "キー", key)
             if base_rev is not None and (int(row.get("rev", 1)) if row else 0) != int(base_rev):
                 raise RowConflict(dict(row) if row else None)
             if row is None:
-                self._check_unique(rows, spec, {"キー": key})
+                dup_checked("data_sources", rows, iso, lambda rs: self._check_unique(rs, spec, {"キー": key}))
                 row = {"id": next_id(rows), "rev": 0}
                 rows.append(row)
             row.update({k: _clean(data.get(k)) for k in spec["fields"]})
@@ -511,8 +549,11 @@ class MasterRepository:
         spec = SPECS["data_sources"]
 
         def mutate(have, stamp):
-            _normalize_all(have, spec)
-            by = {r.get("キー"): r for r in have}
+            iso = _normalize_all(have, spec)
+            by = {r.get("キー"): r for r in have if id(r) not in iso}      # 隔てた行は並べない（版 3.108.0。キーが当たれば書かない）
+            for key in rows:
+                if key not in by:
+                    key_guard("data_sources", have, iso, "キー", key)
             for key, data in rows.items():
                 row = by.get(key)
                 if row is None:
@@ -530,11 +571,12 @@ class MasterRepository:
         spec = SPECS["data_sources"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
+            iso = _normalize_all(rows, spec)
             i = next((k for k, r in enumerate(rows) if r.get("キー") == key), -1)
             if i < 0:
                 return None
-            self._check_rev(rows[i], base_rev)
+            if id(rows[i]) not in iso:       # 隔てた行は値を読まずに消す（版 3.108.0。_delete と同じ）
+                self._check_rev(rows[i], base_rev)
             rows.pop(i)
             return None
         self.store.write("data_sources", mutate)
@@ -565,11 +607,12 @@ class MasterRepository:
         spec = SPECS["work_log_files"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
-            for r, n in work_log.order_numbers(rows, keys):
+            iso = _normalize_all(rows, spec)
+            good = [r for r in rows if id(r) not in iso]     # 隔てた行は並べず、そのまま書き戻す（版 3.108.0）
+            for r, n in work_log.order_numbers(good, keys):
                 if str(r.get("並び") or "") != n:
                     r.update({"並び": n, "rev": int(r.get("rev", 1)) + 1, **stamp})
-            return [dict(r) for r in work_log.ordered(rows)]
+            return [dict(r) for r in work_log.ordered(good)]
         return self.store.write("work_log_files", mutate)
 
     def work_log_sync(self, found):
@@ -579,8 +622,11 @@ class MasterRepository:
         spec = SPECS["work_log_files"]
 
         def mutate(rows, stamp):
-            _normalize_all(rows, spec)
-            m = work_log.match(rows, found)
+            iso = _normalize_all(rows, spec)
+            # 隔てた行には結ばず、その行のファイルも新しい設備として足さない（版 3.108.0。行はそのまま書き戻す）
+            held = {str(r.get("ファイル名") or "").lower() for r in rows if id(r) in iso and isinstance(r, dict)}
+            m = work_log.match([r for r in rows if id(r) not in iso], found)
+            m["new"] = [f for f in m["new"] if f["file"].lower() not in held]
             out = {"added": [], "renamed": [], "missing": [dict(r) for r in m["missing"]]}
             for r, f in m["linked"] + m["renamed"]:
                 changed = {}

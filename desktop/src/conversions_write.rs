@@ -29,6 +29,7 @@ use crate::access::Place;
 use crate::jsontree::Tree;
 use crate::master_rows::{self, base_rev, Rev, Spec};
 use crate::master_store::{next_id, MasterError, Store};
+use crate::pyfmt::PyInt;
 use crate::pyfmt::{self, strip};
 use crate::worksum::{py_str, truthy};
 use serde_json::{json, Map, Number, Value};
@@ -66,13 +67,13 @@ const OPS: [(&str, &str); 11] = [
 const MODES: [(&str, &str); 2] = [("replace", "列の値を作り替える"), ("add", "列を足す")];
 const PLACES: [(&str, &str); 3] = [("left", "いちばん左"), ("after", "元の列の右"), ("end", "右の端")];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
     List,
     Create,
-    Update(i64),
-    Preset(i64),
-    Delete(i64),
+    Update(PyInt),
+    Preset(PyInt),
+    Delete(PyInt),
     Export,
     Import,
     Defaults,
@@ -128,11 +129,11 @@ fn t_truthy(t: Option<&Tree>) -> bool {
     t.is_some_and(|t| truthy(&t.to_value()))
 }
 
-/// str(v)（並び・表は Python の repr が要るので任せる。i64 に入らない整数も）
+/// str(v)（並び・表は Python の repr が要るので任せる。i64・u64 に入らない整数は版 3.108.0 から印の字〈Tree::Str〉で、py_str が桁の字にする）
 fn scalar(t: &Tree) -> C<String> {
     match t {
         Tree::Arr(_) | Tree::Obj(_) => Err(Bad::Delegate),
-        Tree::Num(n) if !master_rows::value_plain(&Value::Number(n.clone())) => Err(Bad::Delegate),
+        // 本文は版 3.108.0 から大きな整数を印の字で読む（strict・Tree::parse）ので、残る小数は本当の小数（str() は float の repr: 1e+25）
         t => Ok(py_str(&t.to_value())),
     }
 }
@@ -239,11 +240,9 @@ fn num_or_blank(v: Option<&Tree>) -> C<Option<Tree>> {
         _ => return bad(),
     };
     if f.fract() == 0.0 {
-        // int(f): 2^63 以上は Python の int が桁のまま（窓の i64 に入らない）
-        if !(-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&f) {
-            return Err(Bad::Delegate);
-        }
-        return Ok(Some(Tree::Num(Number::from(f as i64))));
+        // int(f): 2^63 以上も Python の int と同じく桁のまま（版 3.108.0。i64・u64 に入らなければ src/held.rs の印の字で、書くときに桁に戻る）
+        let n = pyfmt::py_int_of(pyfmt::IntArg::Num(&Number::from_f64(f).ok_or(Bad::Delegate)?)).map_err(|_| Bad::Delegate)?;
+        return Ok(Some(Tree::from_value(&crate::held::int_value(&n))));
     }
     Ok(Some(Tree::Num(Number::from_f64(f).ok_or(Bad::Delegate)?)))
 }
@@ -499,7 +498,7 @@ fn s_or(v: Option<&Value>) -> String {
 }
 
 /// 名前は 1 つずつ（master_repository._check_row の conversions: 字そのままで比べる。言葉は来た名前）
-fn check(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
+fn check(rows: &[Value], data: &Map<String, Value>, self_id: Option<&PyInt>) -> Result<(), MasterError> {
     if !data.contains_key("名前") {
         return Ok(());
     }
@@ -565,22 +564,26 @@ pub(crate) fn seed(store: &Store, place: &Place, name: &str) {
 /// 置き場から読む（窓が同じに読めない形は None）。共有にまだ無いファイルは置かずに、写し・同梱の data/・最初の中身から読む
 /// （置く版の中身と同じ。置くのは道ごとに seed で）
 fn read(place: &Place) -> Option<Read> {
-    for name in [DEFAULTS, NAME] {
-        if place.split_file(name) {
-            return None;
-        }
-    }
+    // i64・u64 に入らない整数のファイルも版 3.108.0 から読む（src/held.rs が桁のまま持つ。前は Place::split_file で任せた）
     // 種はまかずに読む（Python が読む歩でだけ道ごとの seed で置く。版 3.105.0 から Place::rows は読むときに置くので rows_peek）
     let mut all = place.rows_peek(NAME).ok()?;
-    let mut own = place.rows_peek(DEFAULTS).ok()?;
+    let own_all = place.rows_peek(DEFAULTS).ok()?;
+    // 標準の読めない行も版 3.108.0 から隔てる（Python の _list と同じ row_check::FILTERED。前は Python に任せた）
+    let mut own: Vec<Value> = {
+        let mut norm = own_all.clone();
+        crate::row_check::normalize_like_specs(DEFAULTS, &mut norm);
+        let iso = crate::row_check::check(DEFAULTS, &norm, crate::row_check::fields_of(DEFAULTS));
+        own_all.into_iter().enumerate().filter(|(i, r)| r.is_object() && !crate::row_check::is_isolated(&iso, *i)).map(|(_, r)| r).collect()
+    };
     master_rows::normalize_all(&mut all, &SPEC);
-    // 読めない行（id・版・名前の型・判定の NaN・入れ子）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値・標準の読めない行はまだ任せる
+    // 読めない行（id・版・名前の型・判定の NaN・入れ子）は版 3.107.0 から隔てる（前は任せた）。i64 に入らない数の値は版 3.108.0 から桁のまま
+    // （中身の字も bundle::conv_views が src/held.rs で読む）。標準の読めない行はまだ任せる
     let iso = crate::row_check::check(NAME, &all, &FIELDS);
     let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
     let plain = |rows: &[Value]| {
         rows.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain))))
     };
-    if !plain(&rows) || !master_rows::rows_plain(&own, &FIELDS) || crate::row_check::wide_content(NAME, &rows) {
+    if !plain(&rows) || !master_rows::rows_plain(&own, &FIELDS) {
         return None;
     }
     master_rows::normalize_all(&mut own, &SPEC_D);
@@ -641,15 +644,16 @@ fn export_items(rows: &[Value]) -> Option<Vec<Value>> {
 /// 本文の読み方（get_json(force=True)〈silent でない〉 or {}）。空・読めない本文は Python（400 の HTML）。
 /// 表でない真の本文は、Python が道の外で落ちる道（other_500）では任せ、master_call の中で落ちる道（足す・取り込む）は同じ答え
 pub(crate) fn strict(body: &[u8], other_500: bool) -> Option<Result<Tree, Answer>> {
-    if body.iter().all(|b| b.is_ascii_whitespace()) || master_rows::unreadable(body) {
+    // i64・u64 に入らない整数は版 3.108.0 から桁のまま読む（src/held.rs の印の字。前は Python に任せた）
+    if body.iter().all(|b| b.is_ascii_whitespace()) || master_rows::unreadable_held(body) {
         return None;
     }
-    let v: Value = serde_json::from_slice(body).ok()?;
+    let v: Value = crate::held::body_value(body)?;
     if !truthy(&v) {
         return Some(Ok(Tree::Obj(vec![])));
     }
     if v.is_object() {
-        return Some(Ok(serde_json::from_slice::<Tree>(body).ok()?));
+        return Some(Ok(Tree::parse_bytes(body)?));
     }
     if other_500 {
         return None;
@@ -666,7 +670,7 @@ pub(crate) fn strict(body: &[u8], other_500: bool) -> Option<Result<Tree, Answer
 
 /// 開いたときの行の版（routes/common.base_rev: 本文を silent で読む・表でない真の本文は道の外で 500）。読めない版の字は None（任せる）
 pub(crate) fn rev_of(body: &[u8], query: &str) -> Option<Option<Rev>> {
-    let parsed = master_rows::py_body(body)?;
+    let parsed = master_rows::py_body_held(body)?;
     Some(base_rev(&parsed, query))
 }
 
@@ -813,7 +817,7 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 Err(Bad::Delegate) => return None,
                 Err(Bad::Conv(m)) => return Some(conv_error(m)),
             };
-            match master_rows::update(store, &SPEC, id, &row, base, &check) {
+            match master_rows::update(store, &SPEC, &id, &row, base, &check) {
                 Ok(_) => done(200, json!({})),
                 Err(e) => Some(of_master(e)),
             }
@@ -821,10 +825,10 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
         Route::Preset(id) => {
             let base = rev_of(body, query)?;
             seed(store, place, NAME); // 行を探す（repo.find: 隔てた行なら書かない）
-            if let Err(e) = crate::row_check::guard(NAME, &r.all, &r.iso, id) {
+            if let Err(e) = crate::row_check::guard(NAME, &r.all, &r.iso, &id) {
                 return Some(of_master(e));
             }
-            let Some(row) = r.rows.iter().find(|x| master_rows::same_id(x, id)) else {
+            let Some(row) = r.rows.iter().find(|x| master_rows::same_id(x, &id)) else {
                 return Some((
                     404,
                     json!({"error": "その変換表はもうありません（ほかの PC が消した可能性があります）。", "kind": "not_found"}),
@@ -850,14 +854,14 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
                 }
                 data.insert(k.into(), v.clone());
             }
-            match master_rows::update(store, &SPEC, id, &data, base, &check) {
+            match master_rows::update(store, &SPEC, &id, &data, base, &check) {
                 Ok(_) => done(200, json!({})),
                 Err(e) => Some(of_master(e)),
             }
         }
         Route::Delete(id) => {
             let base = rev_of(body, query)?;
-            match master_rows::delete(store, &SPEC, id, base) {
+            match master_rows::delete(store, &SPEC, &id, base) {
                 Ok(()) => done(200, json!({})),
                 Err(e) => Some(of_master(e)),
             }
@@ -925,13 +929,17 @@ mod tests {
         assert_eq!(route_of("GET", "/api/masters/conversions/export"), Some(Route::Export));
         assert_eq!(route_of("POST", "/api/masters/conversions/import"), Some(Route::Import));
         assert_eq!(route_of("POST", "/api/masters/conversions/defaults"), Some(Route::Defaults));
-        assert_eq!(route_of("PUT", "/api/masters/conversions/０7"), Some(Route::Update(7)));
-        assert_eq!(route_of("POST", "/api/masters/conversions/3/preset"), Some(Route::Preset(3)));
-        assert_eq!(route_of("DELETE", "/api/masters/conversions/12"), Some(Route::Delete(12)));
+        assert_eq!(route_of("PUT", "/api/masters/conversions/０7"), Some(Route::Update(PyInt::Small(7))));
+        assert_eq!(route_of("POST", "/api/masters/conversions/3/preset"), Some(Route::Preset(PyInt::Small(3))));
+        assert_eq!(route_of("DELETE", "/api/masters/conversions/12"), Some(Route::Delete(PyInt::Small(12))));
         assert_eq!(route_of("PUT", "/api/masters/conversions/export"), None);
         assert_eq!(route_of("POST", "/api/masters/conversions/3"), None);
         assert_eq!(route_of("GET", "/api/masters/conversions/3"), None);
-        assert_eq!(route_of("PUT", "/api/masters/conversions/99999999999999999999"), None, "i64 に入らない id は Python");
+        assert_eq!(
+            route_of("PUT", "/api/masters/conversions/99999999999999999999"),
+            Some(Route::Update(PyInt::Big("99999999999999999999".into()))),
+            "i64 に入らない id も桁のまま（版 3.108.0）"
+        );
     }
 
     #[test]
@@ -968,7 +976,9 @@ mod tests {
         };
         assert_eq!(bad(r#"{"op": "range", "min": true}"#), "範囲の端は数で入れてください（True）。");
         assert_eq!(bad(r#"{"op": "range", "min": "nan"}"#), "範囲の端は数で入れてください（nan）。");
-        assert_eq!(bad(r#"{"op": "range", "min": "1e19"}"#), "任せる", "2^63 以上の整数は Python");
+        // 2^63 以上の整数も Python の int と同じく桁のまま（版 3.108.0。前は任せた）
+        assert_eq!(bad(r#"{"op": "range", "min": "1e19"}"#), r#"{"op": "range", "min": 10000000000000000000}"#);
+        assert_eq!(bad(r#"{"op": "range", "min": "1e20"}"#), r#"{"op": "range", "min": 100000000000000000000}"#);
         assert_eq!(bad(r#"{"op": ["eq"]}"#), "任せる", "unhashable は Python");
         assert_eq!(bad(r#"{"op": "starts", "v": ["", null]}"#), "「で始まる」の値を入れてください。");
     }

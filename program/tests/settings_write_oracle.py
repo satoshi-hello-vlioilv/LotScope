@@ -139,7 +139,8 @@ SCENARIOS = [
         S(BOSS, "PUT", P + "lot_list.table", V({"a": 1})),
         S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": NaN}'),
         S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": 1e400}'),
-        S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": 99999999999999999999}'),
+        W(S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": 99999999999999999999}')),     # 版 3.108.0（H2）: 窓も桁のまま読む
+        W(S(BOSS, "PUT", P + "lot_list.table", '{"value": 123456789012345678901234567890}')),
         W(S(BOSS, "PUT", P + "lot_list.refresh_seconds", '{"value": -0}')),
         W(S(BOSS, "PUT", P + "lot_list.table", V("y", base_rev="²"))),
         W(S(BOSS, "PUT", P + "lot%5Flist.table", V("y"))),       # 版 3.106.0: 窓も百分率符号を戻して項目を探す

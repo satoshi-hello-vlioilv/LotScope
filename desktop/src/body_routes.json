@@ -1764,6 +1764,12 @@
    }
   },
   {
+   "rule": "/api/masters/rows/<name>/<int:row>",
+   "modes": {
+    "DELETE": "skip"
+   }
+  },
+  {
    "rule": "/api/settings/<path:key>",
    "modes": {
     "PUT": "read"

@@ -56,8 +56,9 @@ pub const CONTENT_COLS: [(&str, &[&str]); 10] = [
 /// 行を丸ごと答える（一覧が行をそのまま返す）マスタ: 知らない鍵の数でない値も答えに出るので隔てる
 pub const RAW: [&str; 2] = ["equipment_master", "roll_master"];
 pub const STRICT: [&str; 2] = ["access_permissions", "tab_access"];
-/// 一覧と同じく、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも隔てた行を使わないマスタ（access::Place::rows。Python の row_check.FILTERED）
-pub const FILTERED: [&str; 10] = [
+/// 一覧と同じく、束・ダッシュボードの問い合わせ・式の変換表・直の当て方でも隔てた行を使わないマスタ（access::Place::rows。Python の row_check.FILTERED）。
+/// 版 3.108.0 からデータ元・作業実績の登録・変換表の標準も（前は一覧が行をそのまま返し、束・写しの係が読んでいた）
+pub const FILTERED: [&str; 13] = [
     "equipment_master",
     "roll_master",
     "shift_patterns",
@@ -68,9 +69,12 @@ pub const FILTERED: [&str; 10] = [
     "pivot_quick",
     "dashboards",
     "dashboard_settings",
+    "data_sources",
+    "work_log_files",
+    "conversion_defaults",
 ];
 /// マスタの置き場の状態で隔てた行を知らせるマスタ（Python の row_check.STATUS）
-pub const STATUS: [&str; 13] = [
+pub const STATUS: [&str; 16] = [
     "equipment_master",
     "roll_master",
     "shift_patterns",
@@ -81,10 +85,15 @@ pub const STATUS: [&str; 13] = [
     "pivot_quick",
     "dashboards",
     "dashboard_settings",
+    "data_sources",
+    "work_log_files",
+    "conversion_defaults",
     "path_settings",
     "access_permissions",
     "tab_access",
 ];
+/// 行を id で引かないマスタ（データ元はキーで引く・変換表の標準は丸ごと置き換える）: id の型は見ない（版 3.108.0。Python の row_check.ID_FREE）
+pub const ID_FREE: [&str; 2] = ["data_sources", "conversion_defaults"];
 pub const DEEP: usize = 128;
 const SHORT: usize = 30;
 
@@ -177,7 +186,7 @@ fn nonfinite(j: &crate::pyjson::J) -> bool {
 /// 字の列が並び）は隔てず、一覧では str() で読む（coerce）
 pub fn problem(name: &str, r: &Value, fields: &[&str]) -> Option<String> {
     let Some(o) = r.as_object() else { return Some("表でない行".into()) };
-    if let Some(v) = o.get("id") {
+    if let Some(v) = o.get("id").filter(|_| !ID_FREE.contains(&name)) {
         if !is_int(v) {
             return Some(format!("id が数ではありません（{}）", short(v)));
         }
@@ -291,10 +300,8 @@ pub fn skipped_with(name: &str, rows: &[Value], iso: &[(usize, usize, String)]) 
 }
 
 /// 道の id が int() で当たる隔てた行の位置（Python の isolated_hit）
-pub fn isolated_hit(rows: &[Value], iso: &[(usize, usize, String)], item_id: i64) -> Option<usize> {
-    iso.iter()
-        .map(|(i, _, _)| *i)
-        .find(|i| rows[*i].as_object().and_then(|o| o.get("id")).and_then(as_int).is_some_and(|x| x.small() == Some(item_id)))
+pub fn isolated_hit(rows: &[Value], iso: &[(usize, usize, String)], item_id: &crate::pyfmt::PyInt) -> Option<usize> {
+    iso.iter().map(|(i, _, _)| *i).find(|i| rows[*i].as_object().and_then(|o| o.get("id")).and_then(as_int).as_ref() == Some(item_id))
 }
 
 /// 名前の重なり・行の確かめ（check(行の並び) が断る）を、読める行で当ててから隔てた行と 1 つずつ当てる（Python の dup_checked）
@@ -332,9 +339,22 @@ pub fn is_isolated(iso: &[(usize, usize, String)], i: usize) -> bool {
 }
 
 /// 直す行が隔てた行なら書かない（Python の master_repository.guard。消すのは通す: isolated_hit で値を読まずに除く）
-pub fn guard(name: &str, rows: &[Value], iso: &[(usize, usize, String)], item_id: i64) -> Result<(), MasterError> {
+pub fn guard(name: &str, rows: &[Value], iso: &[(usize, usize, String)], item_id: &crate::pyfmt::PyInt) -> Result<(), MasterError> {
     if let Some(i) = isolated_hit(rows, iso, item_id) {
         let (_, n, why) = iso.iter().find(|(j, _, _)| *j == i).unwrap();
+        return Err(MasterError::Unreadable(format!(
+            "{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。"
+        )));
+    }
+    Ok(())
+}
+
+/// キーで引く行（データ元のキー）が隔てた行なら書かない（版 3.108.0。Python の master_repository.key_guard と同じ言葉）
+pub fn key_guard(name: &str, rows: &[Value], iso: &[(usize, usize, String)], col: &str, key: &str) -> Result<(), MasterError> {
+    let hit = iso
+        .iter()
+        .find(|(i, _, _)| rows[*i].as_object().and_then(|o| o.get(col)).is_some_and(|v| held::is_text(v) && v.as_str() == Some(key)));
+    if let Some((_, n, why)) = hit {
         return Err(MasterError::Unreadable(format!(
             "{name}.json の {n} 行目が読めません（{why}）。直すにはファイルを直すか、行を消してください。"
         )));

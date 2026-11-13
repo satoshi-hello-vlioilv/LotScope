@@ -224,8 +224,6 @@ pub enum ReadErr {
     Shape,
     /// 版の番号（revision）を int() で読めない（Python も読めないファイルとして写しで続ける）
     Rev(String),
-    /// i64・u64 に入らない整数（窓は値を変えずに書けない。H2 で桁のまま持つまで、道は Python に任せる）
-    Wide(String),
 }
 
 /// 読めない理由の言葉（Python の master_store._read_master の MasterUnreadable と同じ）
@@ -235,13 +233,12 @@ pub fn read_reason(where_: &str, path: &Path, raw: &[u8], e: &ReadErr) -> String
         ReadErr::Broken(err) => unreadable_text(where_, path, raw, err.as_ref()),
         ReadErr::Shape => unreadable_text(where_, path, raw, None),
         ReadErr::Rev(v) => format!("{where_} {name} が読めません（版の番号 revision が読めません: {v}）"),
-        ReadErr::Wide(m) => m.clone(),
     }
 }
 
 /// マスタのファイルの字 → 値（BOM を外す・整数の -0 は 0・NaN・Infinity・1e400・入れ子 128 段以上は J で読む〈src/held.rs〉）。
 /// 形（{rows} か行の配列）と版の番号も確かめる
-pub fn parse_master(raw: &[u8], path: &Path) -> Result<Value, ReadErr> {
+pub fn parse_master(raw: &[u8], _path: &Path) -> Result<Value, ReadErr> {
     let b = raw.strip_prefix(b"\xef\xbb\xbf").unwrap_or(raw);
     // 字の外の整数の -0 は Python の json.loads と同じ 0 に読む（版 3.106.0。書き戻す字も Python と同じ 0。Place の読みも同じ部品）
     let fixed;
@@ -252,28 +249,16 @@ pub fn parse_master(raw: &[u8], path: &Path) -> Result<Value, ReadErr> {
         }
         _ => b,
     };
-    let v = match serde_json::from_slice::<Value>(b) {
-        Ok(v) => {
-            // serde_json は i64・u64 に入らない整数を小数に変えて読む。書き戻すと値が黙って変わるので、窓は書かずに断る
-            if has_wide_int(b) {
-                return Err(ReadErr::Wide(format!(
-                    "{}: 窓では値を変えずに書けない大きな整数があります（Python の書く係で保存してください）",
-                    path.display()
-                )));
-            }
-            v
-        }
-        Err(e) => {
-            let Ok(text) = std::str::from_utf8(b) else { return Err(ReadErr::Broken(Some(e))) };
-            if has_wide_int(b) {
-                return Err(ReadErr::Wide(format!(
-                    "{}: 窓では値を変えずに書けない大きな整数があります（Python の書く係で保存してください）",
-                    path.display()
-                )));
-            }
+    // i64・u64 に入らない整数（版 3.108.0 から src/held.rs が桁のまま持つ。前は窓が書かずに断り、道は Python に任せた）・NaN・Infinity・
+    // 深い入れ子は J で読む（serde は大きな整数を小数に丸める・NaN を読めない）
+    let wide = has_wide_int(b);
+    let v = match (wide, serde_json::from_slice::<Value>(b)) {
+        (false, Ok(v)) => v,
+        (_, r) => {
+            let Ok(text) = std::str::from_utf8(b) else { return Err(ReadErr::Broken(r.err())) };
             match crate::held::parse(text) {
                 Ok(v) => v,
-                Err(crate::held::Bad::Broken(_)) => return Err(ReadErr::Broken(Some(e))),
+                Err(crate::held::Bad::Broken(_)) => return Err(ReadErr::Broken(r.err())),
             }
         }
     };
@@ -288,7 +273,7 @@ pub fn parse_master(raw: &[u8], path: &Path) -> Result<Value, ReadErr> {
 }
 
 /// 字の外に、i64・u64 に入らない整数（小数点・指数の無い数）があるか
-pub(crate) fn has_wide_int(b: &[u8]) -> bool {
+pub fn has_wide_int(b: &[u8]) -> bool {
     let (mut i, mut in_str) = (0, false);
     while i < b.len() {
         let c = b[i];
@@ -513,7 +498,6 @@ impl Doc {
         let raw = std::fs::read(path).map_err(io_err)?;
         match parse_master(&raw, path) {
             Ok(v) => Ok(Doc::from_value(v)),
-            Err(ReadErr::Wide(m)) => Err(io_err(m)),
             Err(e) => Err(MasterError::Unreadable(read_reason(where_, path, &raw, &e))),
         }
     }
@@ -1300,29 +1284,20 @@ impl Store {
 /// 新しい行の id（いまの最大 + 1。Python の next_id: int(r.get("id") or 0) の読める行だけ。版 3.107.0 から隔てた行の字の "4"・小数の 1e19 も数え、
 /// 読めない id〈"abc"・並び〉は数えない〈前は Python が ValueError〉）。i64 に入らなければ u64 の数（1e19 の行の次は 10000000000000000001）
 pub fn next_id(rows: &[Value]) -> Value {
+    // max(int(id or 0)) + 1。Python の int と同じく桁のまま数える（版 3.108.0。前は i128 で数え、入らない数は小数に丸めた）
     let top = rows
         .iter()
         .filter(|r| r.is_object())
         .filter_map(|r| {
             let v = &r["id"];
             if !crate::worksum::truthy(v) {
-                return Some(0i128);
+                return Some(crate::pyfmt::PyInt::Small(0));
             }
-            match crate::row_check::as_int(v)? {
-                crate::pyfmt::PyInt::Small(i) => Some(i as i128),
-                crate::pyfmt::PyInt::Big(s) => s.parse::<i128>().ok(),
-            }
+            crate::row_check::as_int(v)
         })
         .max()
-        .unwrap_or(0)
-        + 1;
-    if let Ok(i) = i64::try_from(top) {
-        json!(i)
-    } else if let Ok(u) = u64::try_from(top) {
-        json!(u)
-    } else {
-        json!(top as f64)
-    }
+        .unwrap_or(crate::pyfmt::PyInt::Small(0));
+    crate::held::int_value(&top.succ())
 }
 
 #[cfg(test)]

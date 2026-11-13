@@ -159,12 +159,16 @@ SCENARIOS = [
         S("POST", C, T("mode が表", apply={"mode": {}})),
         S("POST", C, T("当て方が並び", apply=[1])),
         S("POST", C, T("入力が表", inputs={"a": 1})),
-        S("POST", C, T("大きな範囲", rows=[{"when": {"b": [{"op": "range", "min": "1e19"}]}}])),
+        # 版 3.108.0（H2）: 大きな範囲の端・大きな表示順は窓も桁のまま（Python の int と同じ字）
+        W(S("POST", C, T("大きな範囲", rows=[{"when": {"b": [{"op": "range", "min": "1e19"}]}}]))),
+        W(S("POST", C, T("もっと大きな範囲", rows=[{"when": {"b": [{"op": "range", "min": "1e30", "max": 1e25}]}}]))),
+        W(S("POST", C, '{"name": "大きな整数の範囲", "inputs": [{"name": "b", "type": "num"}], "rows": [{"when": {"b": [{"op": "range", "min": 100000000000000000000}]}, "out": 7}]}')),
         W(S("POST", C, T("正規表現", other="=extract([a], '(')"))),       # 版 3.106.0: re の言葉（位置）を出さない
         # 作った後の採点の割れ 4: 長さの決まらない後読みは Python の re が読めず窓の fancy-regex は読む（formula_regex_cases）。窓は任せる
         S("POST", C, T("長さの決まらない後読みの正規表現", other="=extract([a], '(?<=L|CR)\\d')")),
         S("POST", C, T(["名前が並び"])),
-        S("POST", C, T("順が大きい", order="1" + "0" * 40)),
+        W(S("POST", C, T("順が大きい", order="1" + "0" * 40))),
+        W(S("POST", C, T("順の後ろへ足す"))), W(S("GET", C)), W(S("GET", f"{C}/export")),
         S("POST", C, T("出す値が並び", other=[1])),
         S("POST", C, T("値が並び", rows=[{"when": {"a": [{"op": "eq", "v": [[1]]}]}}])),
         # 版 3.106.0: 式の入れ子は Python も窓も同じ数え方（かっこ・負の符号・! と not の数）の上限 60 で断る（conversions.NEST_MAX）
@@ -209,7 +213,8 @@ SCENARIOS = [
         S("GET", C),
     ], "delegates": [
         S("PUT", f"{C}/1", "[1]"), S("PUT", f"{C}/1", ""), S("PUT", f"{C}/1", "壊れた本文"),
-        W(S("PUT", f"{C}/1", {"name": "x", "base_rev": "²"})), S("PUT", f"{C}/99999999999999999999", {"name": "x"}),
+        W(S("PUT", f"{C}/1", {"name": "x", "base_rev": "²"})), W(S("PUT", f"{C}/99999999999999999999", {"name": "x"})),
+        W(S("DELETE", f"{C}/99999999999999999999")), W(S("POST", f"{C}/99999999999999999999/preset")),
         S("PUT", f"{C}/1", {"name": {"a": 1}}), W(S("PUT", f"{C}/1", '{"name": "x", "base_rev": -0}')),
     ]},
     {"name": "標準に戻す", "mode": "shared", "extra_rows": [{"id": 13, "名前": 5, "rev": 1}, {"id": 14, "rev": 1}], "steps": [
@@ -228,6 +233,8 @@ SCENARIOS = [
         S("POST", f"{C}/2/preset", "[1]"), W(S("POST", f"{C}/2/preset", {"base_rev": "²"})),
         S("POST", f"{C}/2/preset", '{"base_rev": NaN}'),
     ]},
+    {"name": "標準に読めない行（隔てて答える）", "mode": "shared", "own": True, "own_bad": True, "steps": [
+        S("GET", C), S("GET", f"{C}/export", query="which=defaults"), S("POST", f"{C}/1/preset"), S("POST", f"{C}/2/preset"), S("GET", C)]},
     {"name": "標準を差し替えた（取り込んだ標準）", "mode": "shared", "own": True, "steps": [
         S("GET", C), S("GET", f"{C}/export", query="which=defaults"),
         S("POST", f"{C}/2/preset"), S("POST", f"{C}/1/preset"), S("GET", C),
@@ -334,8 +341,15 @@ SCENARIOS = [
     ]},
     {"name": "置き場の行を窓が同じに読めない", "mode": "shared", "extra_rows": [
         {"id": 15, "名前": "大きな表示順", "入力": "[]", "判定": "[]", "表示順": "1" + "0" * 20, "rev": 1}], "steps": [], "delegates": [
-        S("GET", C), S("GET", f"{C}/export"), S("POST", C, T("x")), S("PUT", f"{C}/1", {"name": "x"}),
-        S("POST", f"{C}/import", {"items": [T("x")]})]},
+        # 版 3.108.0（H2）: 窓も桁のまま読む
+        W(x) for x in [S("GET", C), S("GET", f"{C}/export"), S("POST", C, T("x")), S("PUT", f"{C}/1", {"name": "x"}),
+                       S("POST", f"{C}/import", {"items": [T("x")]}), S("PUT", f"{C}/15", {"name": "直す"}), S("GET", C)]]},
+    {"name": "置き場の id・表示順・判定の値が i64・u64 に入らない整数", "mode": "shared", "extra_rows": [
+        {"id": 10 ** 20, "名前": "大きな id", "入力": '[{"name": "b", "type": "num", "columns": ["b"]}]',
+         "判定": '[{"when": {"b": [{"op": "range", "min": 100000000000000000000000}]}, "out": "大"}]', "表示順": 10 ** 22, "rev": 1}],
+     "steps": [], "delegates": [W(x) for x in [S("GET", C), S("GET", f"{C}/export"), S("POST", C, T("足す")),
+                                              S("PUT", f"{C}/100000000000000000000", {"name": "直す", "base_rev": 1}), S("GET", C),
+                                              S("DELETE", f"{C}/100000000000000000000"), S("GET", C)]]},
     # 版 3.107.0（E3・E4）: 読めない行は隔てて答える（一覧は skipped・触れる直す・消す・標準に戻す・同じ名前の取り込みは断る・足すは通す）
     {"name": "置き場の行の版が読めない（行を隔てて答える）", "mode": "shared", "extra_rows": [{"id": 16, "名前": "版が字", "rev": "abc"}], "steps": [],
      "delegates": [W(x) for x in [S("GET", C), S("POST", C, T("x")), S("DELETE", f"{C}/16"), S("POST", f"{C}/16/preset"),
@@ -381,6 +395,9 @@ def place(root, sc):
     if sc.get("own"):
         own = [{"id": 1, "名前": "地取区分", "入力": j([{"name": "地取", "type": "text", "columns": ["地取区分"]}]),
                 "判定": j([{"when": {}, "out": "標準を差し替えた"}]), "その他": "", "当て方": j({"mode": "replace"}), "表示順": "", "rev": 1}]
+    if sc.get("own_bad"):     # 版 3.108.0: 標準の読めない行（id が字・判定の NaN）は隔てる
+        own += [{"id": "x", "名前": "版が字", "入力": "[]", "判定": "[]", "rev": "abc"},
+                {"id": 7, "名前": "工程", "入力": "[]", "判定": '[{"when": {}, "out": NaN}]', "rev": 1}]
     masters = {"access_permissions": sc.get("perm") or perm(), "conversions": conv, "conversion_defaults": own}
     for n in ("path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns"):
         masters[n] = []

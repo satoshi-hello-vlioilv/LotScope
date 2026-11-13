@@ -30,6 +30,7 @@ use crate::access::{
 };
 use crate::master_rows::{base_rev, clean, py_int, same_id, stamped, Spec};
 use crate::master_store::{next_id, MasterError, Store};
+use crate::pyfmt::PyInt;
 use crate::worksum::py_str;
 use serde_json::{json, Map, Value};
 
@@ -48,18 +49,18 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
             let id = p.strip_prefix("/api/masters/access/")?;
             // Python の <int:item_id>（数字だけ）
             // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Route {
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
     Tabs,
 }
 
@@ -217,7 +218,7 @@ fn perm_gate(me: &Value, rows: &[Map<String, Value>], data: &Map<String, Value>,
 }
 
 /// ログインID と PC名 の組は 1 行だけ（_check_row の access_permissions）
-fn check_row(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>) -> Result<(), MasterError> {
+fn check_row(rows: &[Value], data: &Map<String, Value>, self_id: Option<&PyInt>) -> Result<(), MasterError> {
     let key = (normalize_part(data.get("ログインID")), normalize_part(data.get("PC名")));
     for r in rows {
         if crate::master_rows::is_self(r, self_id) {
@@ -459,27 +460,27 @@ fn answer(store: &Store, me: &Value, rows: &[Map<String, Value>], route: Route, 
             };
             let fallback = {
                 let mut m = Map::new();
-                m.insert("id".into(), json!(id));
+                m.insert("id".into(), crate::held::int_value(&id));
                 m
             };
-            let old = rows.iter().find(|r| r.get("id").is_some_and(|v| same_id(&json!({"id": v}), id))).unwrap_or(&fallback);
+            let old = rows.iter().find(|r| r.get("id").is_some_and(|v| same_id(&json!({"id": v}), &id))).unwrap_or(&fallback);
             if let Err(why) = perm_gate(me, &rows, &data, Some(old)) {
                 return forbidden(why);
             }
-            match crate::master_rows::update(store, &PERM_SPEC, id, &data, base, &check_row) {
+            match crate::master_rows::update(store, &PERM_SPEC, &id, &data, base, &check_row) {
                 Ok(row) => (200, row),
                 Err(e) => of_master(e),
             }
         }
         Route::Delete(id) => {
             let base = base_rev(parsed, query);
-            if let Some(old) = rows.iter().find(|r| r.get("id").is_some_and(|v| same_id(&json!({"id": v}), id))) {
+            if let Some(old) = rows.iter().find(|r| r.get("id").is_some_and(|v| same_id(&json!({"id": v}), &id))) {
                 if let Err(why) = delete_check(&rows, me["login"].as_str().unwrap_or(""), me["pc"].as_str().unwrap_or(""), old) {
                     return forbidden(why);
                 }
             }
-            match crate::master_rows::delete(store, &PERM_SPEC, id, base) {
-                Ok(()) => (200, json!({"status": "deleted", "id": id})),
+            match crate::master_rows::delete(store, &PERM_SPEC, &id, base) {
+                Ok(()) => (200, json!({"status": "deleted", "id": crate::held::int_value(&id)})),
                 Err(e) => of_master(e),
             }
         }

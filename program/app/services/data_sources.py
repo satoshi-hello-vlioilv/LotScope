@@ -36,7 +36,7 @@ import re
 import uuid
 
 from ..fsio import unquote_path
-from . import data_join, num_setting
+from . import data_join, num_setting, row_check
 from .identity import normalize_part
 
 NAME = "data_sources"
@@ -319,8 +319,9 @@ def sources(settings, rows):
     # 並び: 品質データ・作業実績は先頭に決まる。ほかは「並び」の順（無ければ足した順。仕掛は足した元より前・
     # あとから組み込んだ元〈スケジュール〉は最後。いまのタブの並びを崩さない）
     head, rest = out[:2], out[2:]
+    # id はキーで引く元の足した順（版 3.108.0: int() で読めない id〈"x"〉は 0。前は ValueError で一覧ごと 500。row_check.ID_FREE）
     rest.sort(key=lambda d: (_order(d["order"]) if d["order"] or not d["builtin"] else (10 ** 7 if d.get("last") else 0),
-                             0 if d["builtin"] else 1, int(d.get("id") or 0)))
+                             0 if d["builtin"] else 1, row_check.as_int(d.get("id") or 0) or 0))
     out = head + rest
     by = {d["key"]: d for d in out}
     for d in out:                               # 結合した表: 場所・表は元の物（読むのは元の写し）

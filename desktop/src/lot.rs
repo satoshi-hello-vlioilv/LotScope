@@ -330,7 +330,8 @@ impl Lot {
         }
         let store = self.store_for(&access)?;
         let place = crate::access::Place::from_json(&inp.place);
-        // 作業実績の設備（work_log.ordered の順・表示しない設備も）→ 設備マスタ（行の順）。名前が並び・表・大きな数なら任せる
+        // 作業実績の設備（work_log.ordered の順・表示しない設備も）→ 設備マスタ（行の順）。名前は Python の str(v or "")（並び・表は
+        // repr の字〈['X']〉・大きな数は桁のまま。版 3.108.0。前は並び・表・大きな数なら任せた）
         let known = || -> Option<Vec<(String, &'static str)>> {
             let work = place.rows("work_log_files").ok()?;
             let equip = place.rows("equipment_master").ok()?;
@@ -339,9 +340,6 @@ impl Lot {
             {
                 for r in rows {
                     let n = r.get("設備名").filter(|v| worksum::truthy(v));
-                    if n.is_some_and(|v| !crate::master_rows::value_plain(v)) {
-                        return None;
-                    }
                     out.push((n.map(worksum::py_str).unwrap_or_default(), from));
                 }
             }
@@ -561,6 +559,27 @@ impl Lot {
             self.invalidate(); // 一覧の設定（勤務体系を直せるか・作業実績のまとめの直）を捨てる（書いて読み直せなかった 503 も）
         }
         Some((status, v))
+    }
+
+    /// 読めない行を何行目かで消す道（版 3.108.0。master_rows::rows_delete。Python の routes/masters.masters_row_delete と同じ答え・言葉）。
+    /// 門番は道のマスタの名前で見る（access::guard）。判定の材料が無い・me を決められないときは None（Python が答える）
+    fn rows_route(&self, method: &str, path: &str, name: &str, row: &str, query: &str, ask: AskSettings) -> Option<(u16, Value)> {
+        let s = self.settings(ask).ok()?;
+        if !s.access.is_object() {
+            return None;
+        }
+        self.gate.forget(); // 書く前は、いまの権限の表で決める
+        let me = self.gate.me(&s.access).ok()?;
+        if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
+            return Some((status, json!({"error": msg, "kind": kind})));
+        }
+        let store = self.store_for(&s.access)?;
+        let answer = crate::master_rows::rows_delete(&store, name, row, query)?;
+        if answer.0 == 200 {
+            self.invalidate(); // 一覧の設定（束の材料）を次の問い合わせで組み直す
+            self.gate.forget();
+        }
+        Some(answer)
     }
 
     /// 設備・ロールのマスタの 8 本（版 3.77.0。src/equip_write.rs）を窓が受ける。書く道は門番を通し、窓の書く係で書く。
@@ -1331,6 +1350,9 @@ impl Lot {
         }
         if crate::calc::is_route(method, path) {
             return self.calc_route(path, query, body, ask);
+        }
+        if let Some((decoded, name, row)) = crate::master_rows::rows_route_of(method, path) {
+            return self.rows_route(method, &decoded, &name, &row, query, ask);
         }
         if let Some(route) = crate::shifts_write::route_of(method, path) {
             return self.shifts_route(method, path, route, query, body, ask);

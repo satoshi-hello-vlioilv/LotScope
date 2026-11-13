@@ -19,6 +19,7 @@
 use crate::master_rows::{self, base_rev, Spec};
 use crate::master_store::{next_id, MasterError, Store};
 use crate::preset_rows::{self as pr, Answer, Who};
+use crate::pyfmt::PyInt;
 use crate::worksum::{py_str, truthy};
 use serde_json::{json, Map, Value};
 use std::sync::OnceLock;
@@ -65,13 +66,13 @@ const CHARTS: [&str; 28] = [
 ];
 const AGGS: [&str; 6] = ["count", "lots", "sum", "avg", "min", "max"];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
     List,
     Quick,
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
 }
 
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
@@ -85,7 +86,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
             // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -109,8 +110,9 @@ fn str_or(v: Option<&Value>) -> String {
     }
 }
 
+/// isinstance(v, (int, float)) and not bool（持っている大きな整数も int。版 3.108.0）
 fn is_num(v: Option<&Value>) -> bool {
-    matches!(v, Some(Value::Number(_)))
+    matches!(v, Some(Value::Number(_))) || v.is_some_and(|x| crate::held::big_digits(x).is_some())
 }
 
 fn container(v: Option<&Value>) -> bool {
@@ -151,29 +153,27 @@ fn body_obj_plain(b: &Value) -> bool {
         .get("measures")
         .and_then(Value::as_array)
         .is_none_or(|ms| ms.iter().take(4).filter_map(Value::as_object).all(|m| !container(m.get("column")) && !container(m.get("expr"))));
-    let at_ok = b.get("chartAt").and_then(Value::as_str).is_none_or(|s| s.chars().count() <= 18);
-    dims_ok("rows") && dims_ok("cols") && ms_ok && at_ok
+    // 長い chartAt の字（大きな整数）は版 3.108.0 から chart_at が桁のまま読む（前は 18 字を超える字を任せた）
+    dims_ok("rows") && dims_ok("cols") && ms_ok
 }
 
-/// 本文の中身 → 窓が答えてよいか（字は text_split・中身の chartAt の字の長さ）
+/// 中身の字を読む（大きな整数は src/held.rs の印の字で桁のまま。整数の -0 は 0）
+fn body_json(t: &str) -> Option<Value> {
+    crate::held::body_value(master_rows::inner_text(t).as_bytes())
+}
+
+/// 本文の中身 → 窓が答えてよいか（字は text_split。大きな整数は版 3.108.0 から読む）
 fn body_input_ok(b: Option<&Value>) -> bool {
-    let at_ok = |v: &Value| v.get("chartAt").and_then(Value::as_str).is_none_or(|s| s.chars().count() <= 18);
     match b {
-        Some(Value::String(t)) => {
-            !master_rows::text_split_py(t) && serde_json::from_str::<Value>(&master_rows::inner_text(t)).map_or(true, |v| at_ok(&v))
-        }
-        Some(v) => at_ok(v),
-        None => true,
+        Some(Value::String(t)) => !master_rows::text_split_held(t),
+        _ => true,
     }
 }
 
 /// 置き場の行の中身の字・表 → 窓が答えてよいか（字は text_split も見る。置き場の行の型は版 3.107.0 の E3 で隔てる）
 fn body_plain(b: Option<&Value>) -> bool {
     match b {
-        Some(Value::String(t)) => {
-            !master_rows::text_split_py(t)
-                && serde_json::from_str::<Value>(&master_rows::inner_text(t)).map_or(true, |v| body_obj_plain(&v))
-        }
+        Some(Value::String(t)) => !master_rows::text_split_held(t) && body_json(t).is_none_or(|v| body_obj_plain(&v)),
         Some(v) => body_obj_plain(v),
         None => true,
     }
@@ -184,7 +184,10 @@ fn dims(v: Option<&Value>) -> Vec<Value> {
     let mut out = vec![];
     for d in v.and_then(Value::as_array).into_iter().flatten().take(3) {
         let Some(d) = d.as_object() else { continue };
-        let Some(col) = d.get("column").and_then(Value::as_str).filter(|c| !c.is_empty()) else { continue };
+        // isinstance(column, str)（持っている大きな整数は int なので字でない）
+        let Some(col) = d.get("column").filter(|v| crate::held::is_text(v)).and_then(Value::as_str).filter(|c| !c.is_empty()) else {
+            continue;
+        };
         let mut x = Map::new();
         x.insert("column".into(), json!(take(col, 200)));
         x.insert("part".into(), json!(take(&str_or(d.get("part")), 10)));
@@ -200,25 +203,33 @@ fn dims(v: Option<&Value>) -> Vec<Value> {
 
 /// Python の round（偶数へ）→ int → 0〜DEC_MAX
 fn dec_of(v: &Value) -> i64 {
+    // 持っている大きな整数（版 3.108.0）: 負なら 0、正なら DEC_MAX
+    if let Some(d) = crate::held::big_digits(v) {
+        return if d.starts_with('-') { 0 } else { DEC_MAX as i64 };
+    }
     let f = v.as_f64().unwrap_or(0.0);
     f.round_ties_even().clamp(0.0, DEC_MAX) as i64
 }
 
-/// chartAt: max(0, int(str(v or 0).strip()))。読めなければ 0（字の長い物は body_plain が任せる）
-fn chart_at(v: Option<&Value>) -> i64 {
-    match v {
-        Some(Value::String(s)) if !s.is_empty() => crate::pyfmt::py_int(crate::pyfmt::strip(s)).map_or(0, |n| n.saturating().max(0)),
-        Some(Value::Number(n)) => n.as_i64().map_or(0, |n| n.max(0)), // 小数の str() は int() で読めない
-        _ => 0,                                                       // 真偽・null・並び・表の str() も読めない
-    }
+/// chartAt: max(0, int(str(v or 0).strip()))。読めなければ 0。版 3.108.0 から大きな数も Python の int と同じく桁のまま
+/// （前は字の長い物を任せ、u64 の整数は 0 にしていた）
+fn chart_at(v: Option<&Value>) -> Value {
+    let n = match v {
+        Some(x) if crate::held::big_digits(x).is_some() => crate::pyfmt::py_int_of(x.into()).ok(),
+        Some(Value::String(s)) if !s.is_empty() => crate::pyfmt::py_int(crate::pyfmt::strip(s)).ok(),
+        // 整数の str() は桁の字（小数の str() は int() で読めない）
+        Some(Value::Number(n)) if n.is_i64() || n.is_u64() => crate::pyfmt::py_int_of(crate::pyfmt::IntArg::Num(n)).ok(),
+        _ => None, // 真偽・null・並び・表の str() も読めない
+    };
+    crate::held::int_value(&n.filter(|n| *n > PyInt::Small(0)).unwrap_or(PyInt::Small(0)))
 }
 
 /// 組み方の中身（表か JSON 字）→ (中身, 置く字)（pivot_presets.clean_body。body_plain を通った物だけを渡す）
 pub fn clean_body(body: Option<&Value>) -> Result<(Value, String), String> {
     let parsed;
     let body = match body {
-        Some(Value::String(t)) => {
-            parsed = serde_json::from_str::<Value>(&crate::master_rows::inner_text(t)).map_err(|_| "中身の形が違います。".to_string())?;
+        Some(Value::String(t)) if !crate::held::is_held(body.unwrap()) => {
+            parsed = body_json(t).ok_or_else(|| "中身の形が違います。".to_string())?;
             &parsed
         }
         Some(b) => b,
@@ -256,7 +267,7 @@ pub fn clean_body(body: Option<&Value>) -> Result<(Value, String), String> {
         };
         out.insert(k.into(), json!(v));
     }
-    out.insert("chartAt".into(), json!(chart_at(b.get("chartAt"))));
+    out.insert("chartAt".into(), chart_at(b.get("chartAt")));
     if out["rows"].as_array().is_none_or(Vec::is_empty) {
         return Err("行の段が 1 つも無い組み方は保存できません（左のカラムの［行］を押してから保存してください）。".into());
     }
@@ -329,7 +340,8 @@ fn quick_for(rows: &[Value], source: &str, login: &str) -> Result<Option<Vec<Str
 /// default_quick: 共通デフォルトのうち開発者が置いた物（id の順）→ 組み込みの quick の物
 fn default_quick(items: &[Value]) -> Vec<String> {
     let mut placed: Vec<&Value> = items.iter().filter(|x| x["scope"] == "default" && x["builtin"] != true).collect();
-    placed.sort_by_key(|x| x["id"].as_i64().or_else(|| x["id"].as_bool().map(i64::from)).unwrap_or(0)); // 真は 1・偽は 0（Python の int）
+    // 真は 1・偽は 0（Python の int）。大きな id も桁で比べる（版 3.108.0）
+    placed.sort_by_key(|x| crate::row_check::as_int(&x["id"]).unwrap_or(PyInt::Small(0)));
     let mut out: Vec<String> = placed.iter().map(|x| py_str(&x["id"])).collect();
     out.extend(items.iter().filter(|x| x["builtin"] == true && x.get("quick").is_some_and(truthy)).map(|x| py_str(&x["id"])));
     out
@@ -354,10 +366,11 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         _ => &[NAME],
     };
     // 一覧は、共有にまだ無ければ Python の読みと同じく最初の版を置いてから読む（組み方とすぐに見る。版 3.105.0。置けなければ前どおり任せる）
-    if names.iter().any(|n| place.split_file(n)) || (route == Route::List && !store.seed_absent(names)) {
+    // i64・u64 に入らない整数の組み方のファイルも版 3.108.0 から読む（src/held.rs が桁のまま持つ。すぐに見るは今どおり Place::split_file で任せる）
+    if place.split_file(QUICK_NAME) && names.contains(&QUICK_NAME) || (route == Route::List && !store.seed_absent(names)) {
         return None;
     }
-    // 置き場の読めない行は隔てる（版 3.107.0。中身の段・値の形は row_problem で。前は任せた）。長い chartAt の字（大きな整数。H2）はまだ任せる
+    // 置き場の読めない行は隔てる（版 3.107.0。中身の段・値の形は row_problem で。前は任せた）。長い chartAt の字も版 3.108.0 から桁のまま
     let (all, iso) = pr::read_rows(&place.rows_all(NAME).ok()?, NAME)?;
     let rows = pr::good_rows(NAME, &all, &iso);
     if !rows.iter().filter_map(Value::as_object).all(|r| body_plain(r.get("中身"))) {
@@ -383,11 +396,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         let chosen = quick_for(&quick_rows, &src, &who.login).ok()?;
         let known: Vec<String> = items.iter().map(|x| py_str(&x["id"])).collect();
         // 既定のすぐに見るは共通デフォルトの行を id で並べる（Python の sorted。小数・null・字の id の行は版 3.107.0 から隔てる。
-        // u64 の id〈i64 に入らない〉は比べ方が違うので任せる）
-        let placed: Vec<&Value> = items.iter().filter(|x| x["scope"] == "default" && x["builtin"] != true).collect();
-        if placed.len() >= 2 && placed.iter().any(|x| x["id"].as_i64().is_none() && !x["id"].is_boolean()) {
-            return None;
-        }
+        // u64・大きな整数の id も版 3.108.0 から Python の int と同じく桁で比べる〈default_quick〉）
         let dflt = default_quick(&items);
         let quick = match &chosen {
             Some(c) => c.iter().filter(|k| known.contains(k)).cloned().collect(),
@@ -403,13 +412,14 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         return Some((200, out));
     }
-    if master_rows::unreadable(body) {
+    // 本文の大きな整数は版 3.108.0 から桁のまま読む（src/held.rs）
+    if master_rows::unreadable_held(body) {
         return None;
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
-    let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64, delete: bool| pr::find_row(NAME, &all, &iso, id, delete);
-    if let Route::Delete(id) = route {
+    let parsed: Value = if blank { Value::Null } else { crate::held::body_value(body)? };
+    let find = |id: &PyInt, delete: bool| pr::find_row(NAME, &all, &iso, id, delete);
+    if let Route::Delete(id) = &route {
         if truthy(&parsed) && !parsed.is_object() {
             return None; // 消す道は先に base_rev が本文を読む（表でない真の本文は Python では道の外の例外）
         }
@@ -461,7 +471,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
             // routes/common の repo.find: id の合う最初の行（元は見ない。隔てた行なら書かない）
-            let found = match find(id, false) {
+            let found = match find(&id, false) {
                 Ok(f) => f,
                 Err(a) => return Some(a),
             };
@@ -478,7 +488,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         _ => return None,
     };
-    Some(match pr::write(store, &SPEC, id, &row, base, WHAT) {
+    Some(match pr::write(store, &SPEC, id.as_ref(), &row, base, WHAT) {
         Ok(Value::Object(done)) => (if id.is_none() { 201 } else { 200 }, who.view(&done, view_body(&done))),
         Ok(_) => (500, json!({"error": "組み方を書けませんでした。", "kind": "error"})),
         Err(e) => (e.status(), e.payload()),
@@ -566,7 +576,11 @@ mod tests {
         let at = |v: Value| chart_at(Some(&v));
         assert_eq!(
             (at(json!(" 3 ")), at(json!("-2")), at(json!("2.5")), at(json!(2.5)), at(json!(true)), at(json!("1_0"))),
-            (3, 0, 0, 0, 0, 10)
+            (json!(3), json!(0), json!(0), json!(0), json!(0), json!(10))
         );
+        // 大きな数も Python の int と同じく桁のまま（版 3.108.0。前は 18 字を超える字を任せ、u64 の整数は 0）
+        assert_eq!(at(json!("9".repeat(30))), json!(format!("{}{}", crate::held::MARK, "9".repeat(30))));
+        assert_eq!(at(json!(10000000000000000000u64)), json!(10000000000000000000u64));
+        assert_eq!(at(json!("9".repeat(4301))), json!(0), "4,300 桁を超える字は int() が読めない");
     }
 }

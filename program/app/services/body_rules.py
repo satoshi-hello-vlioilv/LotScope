@@ -234,6 +234,7 @@ SKIP = {
     ("POST", "/api/masters/worklog/scan"): "本文を読まない",
     ("POST", "/api/presence/prune"): "本文を読まない",
     ("POST", "/api/src/<key>/refresh"): "本文を読まない",
+    ("DELETE", "/api/masters/rows/<name>/<int:row>"): "本文を読まない（何行目と要約は道と ?summary=。版 3.108.0）",
 }
 
 

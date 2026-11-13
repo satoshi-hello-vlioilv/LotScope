@@ -130,13 +130,14 @@ pub fn sort_views(items: &mut [Value]) {
 /// 字の JSON を Python と窓で読みが割れるか（master_rows::text_split。ここでも同じ名前で使う）
 pub use crate::master_rows::text_split;
 
-/// 置き場の行を読む（版 3.107.0）: 形をそろえ（版の無い行は 1）、隔てた行を分ける。中身の字に i64 に入らない整数があれば None（H2。Python に任せる）
+/// 置き場の行を読む（版 3.107.0）: 形をそろえ（版の無い行は 1）、隔てた行を分ける。中身の字に i64 に入らない整数があれば None（Python に任せる）。
+/// 組み方の中身は版 3.108.0 から桁のまま読む（pivot_presets::body_json。ダッシュボード・カード・セットの中身の確かめはまだ任せる）
 pub fn read_rows(rows: &[Value], name: &str) -> Option<(Vec<Value>, master_rows::Iso)> {
     let spec =
         Spec { name: if name == "pivot_presets" { "pivot_presets" } else { "dashboards" }, fields: &FIELDS, unique: None, renamed: &[] };
     let mut rows = rows.to_vec();
     master_rows::normalize_all(&mut rows, &spec);
-    if crate::row_check::wide_content(spec.name, &rows) {
+    if name != "pivot_presets" && crate::row_check::wide_content(spec.name, &rows) {
         return None;
     }
     let iso = crate::row_check::check(spec.name, &rows, &FIELDS);
@@ -150,7 +151,13 @@ pub fn good_rows(name: &str, rows: &[Value], iso: &master_rows::Iso) -> Vec<Valu
 
 /// 道の id の行（routes/common の repo.find。一覧と同じく str() で読んだ写し）。直すときは隔てた行なら書かない（MasterUnreadable の答え）、
 /// 消すとき（delete）は隔てた行も返す（値を読まずに消せる。版 3.107.0 の割れ 1）
-pub fn find_row(name: &str, rows: &[Value], iso: &master_rows::Iso, id: i64, delete: bool) -> Result<Option<Map<String, Value>>, Answer> {
+pub fn find_row(
+    name: &str,
+    rows: &[Value],
+    iso: &master_rows::Iso,
+    id: &crate::pyfmt::PyInt,
+    delete: bool,
+) -> Result<Option<Map<String, Value>>, Answer> {
     if delete {
         if let Some(i) = crate::row_check::isolated_hit(rows, iso, id) {
             return Ok(crate::row_check::coerce(name, &rows[i]).as_object().cloned());
@@ -217,7 +224,7 @@ pub fn clean_row(
 }
 
 /// 同じ組（元・範囲・持ち主）の名前は 1 つ（master_repository._check_row の pivot_presets・dashboards。what は組の言葉）
-fn check_name(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>, what: &str) -> Result<(), MasterError> {
+fn check_name(rows: &[Value], data: &Map<String, Value>, self_id: Option<&crate::pyfmt::PyInt>, what: &str) -> Result<(), MasterError> {
     let g = group_of(data);
     let key = crate::access::normalize_part(data.get("名前"));
     for r in rows {
@@ -237,7 +244,7 @@ fn check_name(rows: &[Value], data: &Map<String, Value>, self_id: Option<i64>, w
 pub(crate) fn write(
     store: &Store,
     spec: &Spec,
-    item_id: Option<i64>,
+    item_id: Option<&crate::pyfmt::PyInt>,
     data: &Map<String, Value>,
     base: Option<Rev>,
     what: &str,
@@ -264,7 +271,7 @@ pub(crate) fn write(
                     return Err(if base.is_some() {
                         MasterError::Conflict(None)
                     } else {
-                        MasterError::NotFound(format!("id={id} が見つかりません。"))
+                        MasterError::NotFound(format!("id={} が見つかりません。", id.text()))
                     });
                 };
                 master_rows::check_rev(&rows[i], base)?;

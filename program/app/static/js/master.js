@@ -284,7 +284,8 @@ function paintPlace(news) {
     const name = MASTER_DEFS[mstate.tab].name, sk = cur.skipped || cur.badRows.map((n) => ({ row: n, why: "表でない行" }));
     // 行ごとの理由・直すまで保存できないことは面で言う（帯は 1 段に収める短い札。形はほかの 4 か所と同じ .db-warnb。2 回目の採点の減点 4・弱い所 6）
     TPA.me = TPA.me || mstate.me;
-    html += TPA.skipNote({ skipped: sk }, name, { label: `⚠ 読めない行 ${sk.length}`, reload: () => refreshPlace() });
+    // 札の言葉はほかの 4 か所と同じ「〈何〉の読めない行 n」（TPA.skipWhat の 1 か所。版 3.108.0。前は「⚠ 読めない行 n」で何の行かを言わなかった）
+    html += TPA.skipNote({ skipped: sk }, name, { reload: () => refreshPlace() });
   }
   html += '<button type="button" class="place-btn place-go" id="masterPlaceGo" title="マスタの置き場（共有フォルダ）を見る・変える。全員の PC がそろっているかも出ます">マスタの置き場 ›</button>';
   if (news && news.length) html += `<span class="place-news">${news.map(escapeHtml).join(" ／ ")}</span>`;

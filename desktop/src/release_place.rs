@@ -955,14 +955,13 @@ pub struct Args {
 /// 本文 → Args（get_json(force=True, silent=True) or {}）。窓が Python と同じ字にできない値（並び・表〈Python は repr の字〉・
 /// 読みの割れる数）・表でない真の本文（Python は .get で落ちる）は None（Python に任せる）
 pub fn args_of(body: &[u8]) -> Option<Args> {
-    let b = crate::master_rows::py_body(body)?;
+    // i64・u64 に入らない整数は版 3.108.0 から桁のまま読む（src/held.rs。str() は桁の字）
+    let b = crate::master_rows::py_body_held(body)?;
     let text = |k: &str| -> Option<String> {
         match b.get(k) {
             None => Some(String::new()),
             Some(v) if !truthy(v) => Some(String::new()),
-            Some(Value::String(s)) => Some(s.clone()),
-            Some(v @ Value::Bool(_)) => Some(py_str(v)),
-            Some(v @ Value::Number(n)) if n.as_i64().is_some() || n.is_f64() => Some(py_str(v)),
+            Some(v @ (Value::String(_) | Value::Bool(_) | Value::Number(_))) => Some(py_str(v)),
             _ => None,
         }
     };

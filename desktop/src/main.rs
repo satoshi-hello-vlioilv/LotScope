@@ -461,7 +461,8 @@ fn json_reply(v: &serde_json::Value) -> Reply {
     Reply {
         status: 200,
         headers: vec![("Content-Type".into(), "application/json".into())],
-        body: serde_json::to_vec(v).unwrap_or_default(),
+        // 大きな整数は桁のまま（src/held.rs の持っている値。版 3.108.0。Python の jsonify と同じ）
+        body: da_core::held::reply_bytes(v),
     }
 }
 

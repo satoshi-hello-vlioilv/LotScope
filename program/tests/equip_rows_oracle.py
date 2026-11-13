@@ -15,6 +15,7 @@ import shutil
 import sys
 from pathlib import Path
 from unittest import mock
+from urllib.parse import quote
 
 PROGRAM = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROGRAM))
@@ -85,7 +86,9 @@ SCENARIOS = [
         S(BOSS, "POST", E, {"設備名": "並び", "同一工程": ["A", "B"]}),
         S(BOSS, "POST", E, {"設備名": "表", "巻取方向": {"b": 1, "a": 2}}),
         W(S(BOSS, "POST", E, '{"設備名": "負の零", "ライン方向": -0}')),
-        S(BOSS, "POST", E, '{"設備名": "大きな整数", "ライン方向": 100000000000000000000}'),
+        W(S(BOSS, "POST", E, '{"設備名": "大きな整数", "ライン方向": 100000000000000000000}')),      # 版 3.108.0（H2）
+        W(S(BOSS, "POST", E, '{"設備名": "負の大きな整数", "ライン方向": -100000000000000000000, "同一工程": 123456789012345678901234567890}')),
+        W(S(BOSS, "PUT", f"{E}/99999999999999999999", {"巻取方向": "上"})), W(S(BOSS, "DELETE", f"{E}/99999999999999999999")),
         W(S(BOSS, "POST", E, '{"設備名": "i64 の外", "ライン方向": 9223372036854775808}')),
         S(BOSS, "POST", E, '{"設備名": "NaN", "ライン方向": NaN}'),
         S(BOSS, "POST", E, '{"設備名": "1e400", "ライン方向": 1e400}'),
@@ -167,8 +170,27 @@ SCENARIOS = [
     # 版 3.107.0: 設備名が数の行は隔てる（窓も答える）。ロールの本数の u64 に入らない整数はまだ任せる（H2）
     {"name": "置き場の行の値が i64 に入らない整数（ロールは窓は答えず Python に任せる）", "mode": "shared",
      "rows": {"equipment_master": [{"id": 1, "設備名": 10000000000000000000}], "roll_master": [{"id": 1, "設備": "A", "本数": 18446744073709551616}]},
-     "steps": [], "delegates": [W(S(BOSS, "POST", E, {"設備名": "Q", "同一工程": "10000000000000000000"})), W(S(BOSS, "GET", E)), S(BOSS, "GET", R),
-                                S(BOSS, "POST", R, {"設備": "B"})]},
+     # 版 3.108.0（H2）: ロールの本数の u64 に入らない整数も窓が桁のまま持ち、そのまま書き戻す
+     "steps": [], "delegates": [W(S(BOSS, "POST", E, {"設備名": "Q", "同一工程": "10000000000000000000"})), W(S(BOSS, "GET", E)), W(S(BOSS, "GET", R)),
+                                W(S(BOSS, "POST", R, {"設備": "B"})), W(S(BOSS, "PUT", f"{R}/1", {"備考": "直す"})), W(S(BOSS, "GET", R))]},
+    # 版 3.108.0: 読めない行（id が字・表でない行・数でない値）を何行目と要約で消す道（知らせの面の ×）。要約が違う・もう読めない行でない・
+    # 行が無い・消せないマスタ（権限）は消さずに 404、書けない人は門番が 403。消した後は一覧に戻る・ほかの行はそのまま
+    {"name": "読めない行を何行目かで消す", "mode": "shared",
+     "rows": {"equipment_master": [EQ[0], {"id": "x", "設備名": "字の id"}, "壊れた行", {"id": 6, "設備名": "数でない", "x": float("nan")}],
+              "roll_master": [ROLLS[0], {"id": 2, "設備": "版が字", "rev": "二"}]}, "steps": [
+        S(VIEW, "DELETE", "/api/masters/rows/equipment_master/2", query="summary=" + quote("id 'x'・設備名 '字の id'")),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/2", query="summary=" + quote("id 'x'・設備名 'ちがう'")),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/1", query="summary=" + quote("id 1・設備名 'CR1'")),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/99", query="summary=x"),
+        S(BOSS, "DELETE", "/api/masters/rows/access_permissions/1", query="summary=x"),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/2", query="summary=" + quote("id 'x'・設備名 '字の id'")),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/２", query="summary=" + quote("'壊れた行'")),
+        S(PART, "DELETE", "/api/masters/rows/equipment_master/2", query="summary=" + quote("id 6・設備名 '数でない'")),
+        S(PART, "DELETE", "/api/masters/rows/data_sources/1", query="summary=x"),
+        S(BOSS, "DELETE", "/api/masters/rows/roll%5Fmaster/2", query="summary=" + quote("id 2・設備 '版が字'")),
+        S(BOSS, "DELETE", "/api/masters/rows/equipment_master/99999999999999999999", query="summary=x"),
+        S(BOSS, "GET", E), S(BOSS, "GET", R),
+    ], "delegates": []},
     # 版 3.102.0 の作った後の採点の割れ 1: 表でない行は一覧では飛ばし（読めない行はマスタの置き場の状態の badRows が言う）、書く道は断る。前は窓が Python に任せた
     {"name": "置き場に表でない行（一覧は読める行・書く道は断る）", "mode": "shared",
      "rows": {"equipment_master": [EQ[0], "壊れた行"], "roll_master": [7, {"id": 1, "設備": "CR1", "rev": 1}]}, "steps": [

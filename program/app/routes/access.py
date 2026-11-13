@@ -25,6 +25,12 @@ _GUARDED = (("/api/masters/equipment", "equipment_master"), ("/api/masters/rolls
 # ダッシュボードのパネルの問い合わせ・ダッシュボードの保存（自分の ID へも）は止めない（routes/dashboard.py が決める）
 
 
+def _row_master(path):
+    """読めない行を何行目かで消す道（/api/masters/rows/<名前>/<n>。版 3.108.0）は、道のマスタの名前で門番が見る（窓の access::guard と同じ）"""
+    rest = path[len("/api/masters/rows/"):] if path.startswith("/api/masters/rows/") else ""
+    return rest.split("/", 1)[0] or None
+
+
 @bp.before_app_request
 def _access_guard():
     from .common import _shell_me
@@ -36,7 +42,7 @@ def _access_guard():
         or (request.path.startswith("/api/sources/") and request.path.endswith("/conn/check"))
     if request.method in ("GET", "HEAD", "OPTIONS") or (request.method == "POST" and check):
         return None
-    name = next((n for pfx, n in _GUARDED if request.path.startswith(pfx)), None)
+    name = next((n for pfx, n in _GUARDED if request.path.startswith(pfx)), None) or _row_master(request.path)
     if not name:
         return None
     try:

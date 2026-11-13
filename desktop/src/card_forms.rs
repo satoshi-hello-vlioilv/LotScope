@@ -18,6 +18,7 @@
 use crate::master_rows::{self, base_rev};
 use crate::master_store::Store;
 use crate::preset_rows::{self as pr, Answer, Who, DASHBOARDS};
+use crate::pyfmt::PyInt;
 use crate::worksum::{py_str, truthy};
 use serde_json::{json, Map, Value};
 
@@ -40,12 +41,12 @@ const DENSITY: [&str; 3] = ["normal", "compact", "roomy"];
 const COLORS: [&str; 9] = ["", "ink", "muted", "blue", "teal", "green", "amber", "red", "purple"];
 const BGS: [&str; 9] = ["", "white", "pale", "blue", "teal", "green", "amber", "red", "gray"];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Route {
     List,
     Create,
-    Update(i64),
-    Delete(i64),
+    Update(PyInt),
+    Delete(PyInt),
 }
 
 pub fn route_of(method: &str, path: &str) -> Option<Route> {
@@ -56,7 +57,7 @@ pub fn route_of(method: &str, path: &str) -> Option<Route> {
         (m @ ("PUT" | "DELETE"), r) => {
             let id = r.strip_prefix('/')?;
             // Python の <int:…>（\d+: 全角・アラビア文字などの数字も）。i64 に入らない id は Python に任せる（版 3.104.0）
-            let id: i64 = crate::pyfmt::path_int(id)?;
+            let id = crate::pyfmt::path_int(id)?;
             Some(if m == "PUT" { Route::Update(id) } else { Route::Delete(id) })
         }
         _ => None,
@@ -338,8 +339,8 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
     }
     let blank = body.iter().all(|b| b.is_ascii_whitespace());
     let parsed: Value = if blank { Value::Null } else { serde_json::from_slice(body).ok()? };
-    let find = |id: i64, delete: bool| pr::find_row(DASHBOARDS.name, &all, &iso, id, delete);
-    if let Route::Delete(id) = route {
+    let find = |id: &PyInt, delete: bool| pr::find_row(DASHBOARDS.name, &all, &iso, id, delete);
+    if let Route::Delete(id) = &route {
         if truthy(&parsed) && !parsed.is_object() {
             return None;
         }
@@ -382,7 +383,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         Route::Update(id) => {
             let base = base_rev(&parsed, query);
-            let found = match find(id, false) {
+            let found = match find(&id, false) {
                 Ok(f) => f,
                 Err(a) => return Some(a),
             };
@@ -401,7 +402,7 @@ pub fn answer(store: &Store, me: &Value, route: Route, query: &str, body: &[u8],
         }
         _ => return None,
     };
-    Some(match pr::write(store, &DASHBOARDS, id, &row, base, "カードの設計") {
+    Some(match pr::write(store, &DASHBOARDS, id.as_ref(), &row, base, "カードの設計") {
         Ok(Value::Object(done)) => (if id.is_none() { 201 } else { 200 }, who.view(&done, view_body(&done))),
         Ok(_) => (500, json!({"error": "カードの設計を書けませんでした。", "kind": "error"})),
         Err(e) => (e.status(), e.payload()),

@@ -9,6 +9,9 @@
 // ④ 組み方の面の見出しに札（pivot_presets.json）
 // ⑤ マスタ管理の設備マスタの置き場の帯（押すと同じ面）・面から読めない行を消すと帯から消える（前に画面で消せた行は今も消せる）
 // ⑥ 型だけが違う行（名前が数の書式・ダッシュボード）は隔てずに一覧に出て、直せる（PUT が 200。作った後の採点の割れ 1）。前は名前が数で一覧が 500
+// ⑦ 版 3.108.0: マスタ管理の帯の札もほかの 4 か所と同じ「⚠ 設備マスタの読めない行 2」（TPA.skipWhat の 1 か所の言葉）。id が字の行も
+//    何行目かで消す道（/api/masters/rows/…）で面から消せる（前は理由を言うだけ）。マスタ管理の中で開いた一般ユーザーの面は
+//    「マスタ管理か…で直せます」と言わず「管理者がこの画面で消すか…」と言う
 // 撮る出力フォルダを渡すと、各所の画像（skip-<所>-<大きさ>.png。面を開いた所は skip-<所>-open-<大きさ>.png）を置く。全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 import fs from "node:fs";
@@ -160,21 +163,50 @@ async function masterPart(p, tag) {
     const a = c.getBoundingClientRect(), b = go.getBoundingClientRect();
     return { text: c.textContent, title: c.title, button: c.tagName === "BUTTON", oneLine: Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 8 };
   });
-  check(`⑤ ${tag} マスタ管理の設備マスタの帯に押せる札（短く 1 段・「マスタの置き場 ›」と同じ段・理由は title と面）`, band && band.button && band.oneLine && band.text === "⚠ 読めない行 2"
+  check(`⑤⑦ ${tag} マスタ管理の設備マスタの帯に押せる札（何の行かを言う・1 段・「マスタの置き場 ›」と同じ段・理由は title と面）`, band && band.button && band.oneLine
+    && band.text === "⚠ 設備マスタの読めない行 2"
     && /equipment_master\.json の \d+ 行目（id が数ではありません（'x'））・\d+ 行目（数でない値（NaN・Infinity）があります）が読めません/.test(band.title), band);
+  const bandLine = await p.evaluate(() => { const c = document.querySelector(".master-place .tpa-skip"), h = document.querySelector(".master-place"); if (!c || !h) return null;
+    const r = c.getBoundingClientRect(), b = h.getBoundingClientRect(); return { chipH: Math.round(r.height), bandH: Math.round(b.height), inside: r.right <= b.right + 1, pageX: document.documentElement.scrollWidth <= innerWidth + 1 }; });
+  check(`⑦ ${tag} 帯の札が 1 段（高さ 24px 以下・帯からはみ出さない・横に送らない）`, bandLine && bandLine.chipH <= 24 && bandLine.inside && bandLine.pageX, bandLine);
   SHAPES.add(await chipShape(p, ".master-place"));
   await shot(p, `skip-master-${tag}`, await p.evaluate(() => { const r = (document.querySelector(".master-place") || document.body).getBoundingClientRect(); return { x: 0, y: Math.max(0, r.top - 60), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 60), r.height + 260) }; }));
   await p.click(".master-place .tpa-skip"); await sleep(300);
   const t3 = await menuText(p);
   check(`⑤ ${tag} マスタ管理の面の字が切れない・コントラスト 4.5 以上`, t3 && !t3.cut.length && !t3.low.length, t3);
   const m = await p.evaluate(() => { const m = document.querySelector(".tpa-menu"); return m ? [...m.querySelectorAll("button[role=menuitem]")].map((b) => ({ text: b.textContent, disabled: b.disabled })) : null; });
-  check(`⑤ ${tag} 帯を押すと面: id で引ける行（902）は消せる・id が字の行は消せない`, m && m.some((x) => /id 902/.test(x.text) && !x.disabled) && m.some((x) => /id 'x'/.test(x.text) && x.disabled), m);
+  check(`⑤⑦ ${tag} 帯を押すと面: id で引ける行（902）も id が字の行も消せる（何行目かで消す道）`, m && m.some((x) => /id 902/.test(x.text) && !x.disabled) && m.some((x) => /id 'x'/.test(x.text) && !x.disabled)
+    && m.some((x) => /× の行は押すと消せます/.test(x.text)), m);
   await shot(p, `skip-master-open-${tag}`);
+  await closeMenu(p);
+  // ⑦ マスタ管理の中で開いた一般ユーザーの面（もうマスタ管理の中にいるので「マスタ管理か…」と言わない）
+  await p.evaluate(() => { window.__me = TPA.me; TPA.me = { ...(TPA.me || {}), canEditFieldMaster: false }; });
+  await p.click(".master-place .tpa-skip"); await sleep(300);
+  const mu = await p.evaluate(() => { const m = document.querySelector(".tpa-menu"); return m ? [...m.querySelectorAll("button[role=menuitem]")].map((b) => ({ text: b.textContent, title: b.title, disabled: b.disabled })) : null; });
+  const tu = await menuText(p);
+  check(`⑦ ${tag} マスタ管理の中の一般ユーザーの面は「この画面で消すか」と言い「マスタ管理か」と言わない・消す行を出さない`, mu
+    && mu.some((x) => /管理者（マスタを直せる人）に知らせてください/.test(x.text) && /管理者がこの画面で消すか/.test(x.text + x.title) && !/マスタ管理か/.test(x.text + x.title))
+    && mu.filter((x) => /行目/.test(x.text)).every((x) => x.disabled), mu);
+  check(`⑦ ${tag} 一般ユーザーの面の字が切れない・コントラスト 4.5 以上`, tu && !tu.cut.length && !tu.low.length, tu);
+  await shot(p, `skip-master-user-${tag}`);
+  await closeMenu(p);
+  await p.evaluate(() => { TPA.me = window.__me; });
+  await p.click(".master-place .tpa-skip"); await sleep(300);
   if (tag === "1280x720") {
     // 面から消す（確かめの面で「消す」）→ 帯からその行が消える（前に画面で消せた行は今も消せる。割れ 1）
     await p.evaluate(() => [...document.querySelectorAll(".tpa-menu button[role=menuitem]")].find((b) => /id 902/.test(b.textContent))?.click()); await sleep(300);
     await p.evaluate(() => [...document.querySelectorAll(".tpa-menu button[role=menuitem]")].find((b) => b.textContent.includes("消す"))?.click()); await sleep(1500);
     const after = await p.evaluate(async () => (await (await fetch("/api/masters/status")).json()).masters.equipment_master.skipped || []);
     check(`⑤ ${tag} 面から消すと読めない行が 1 つ減る（id が字の行だけが残る）`, after.length === 1 && /id 'x'/.test(after[0].summary), after);
+    // ⑦ id が字の行も面から消せる（何行目かで消す道）→ 帯から札が消える
+    const bandNow = await p.evaluate(() => document.querySelector(".master-place .tpa-skip")?.textContent || "");
+    check(`⑦ ${tag} 消した後の帯の札は「⚠ 設備マスタの読めない行 1」`, bandNow === "⚠ 設備マスタの読めない行 1", bandNow);
+    await p.click(".master-place .tpa-skip"); await sleep(300);
+    await p.evaluate(() => [...document.querySelectorAll(".tpa-menu button[role=menuitem]")].find((b) => /id 'x'/.test(b.textContent))?.click()); await sleep(300);
+    await p.evaluate(() => [...document.querySelectorAll(".tpa-menu button[role=menuitem]")].find((b) => b.textContent.includes("消す"))?.click()); await sleep(1500);
+    const after2 = await p.evaluate(async () => (await (await fetch("/api/masters/status")).json()).masters.equipment_master.skipped || []);
+    const gone = await p.evaluate(() => !document.querySelector(".master-place .tpa-skip"));
+    check(`⑦ ${tag} id が字の行も面から消せる（読めない行が 0・帯の札が消える）`, after2.length === 0 && gone, { after2, gone });
+    await shot(p, `skip-master-after-${tag}`, await p.evaluate(() => { const r = (document.querySelector(".master-place") || document.body).getBoundingClientRect(); return { x: 0, y: Math.max(0, r.top - 60), width: innerWidth, height: Math.min(innerHeight - Math.max(0, r.top - 60), r.height + 260) }; }));
   }
 }

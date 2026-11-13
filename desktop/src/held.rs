@@ -8,7 +8,10 @@
 //! - 対の無い代用字（\ud800 など）は pyjson::LONE_BASE からの字で持ち（行の確かめが is_lone で見て、その行を隔てる）、書くときに
 //!   \udXXX の字へ戻す（Python は書くときに backslashreplace で同じ字にする。版 3.107.0 の採点の割れ 9b: 前はファイルごと読めないにした）
 //!
-//! 次の版（3.108.0）の H2（大きな整数を桁のまま持つ）は、この上に載せる（いまは u64 に入らない整数のファイルを Store が断り、道は任せる）。
+//! 版 3.108.0（H2。大きな整数を桁のまま持つ）: u64 に入らない整数も同じ印の字（MARK ＋桁の字）で持つ。置き場のファイルも書く道の本文も
+//! この形で読み（int_value・body_value）、Python の int と同じに比べ・並べ（pyfmt::PyInt。IntArg が印の字を読む）、書き戻す（to_pretty・
+//! 答えの字 reply_bytes・送った順の木 jsontree::Tree・join::py_dumps が桁のまま書く）。str() は桁の字（worksum::py_str）。
+//! 前は u64 に入らない整数のファイルを Store が断り、本文の大きな整数も道ごと Python に任せた。
 
 use crate::pyjson::{self, J};
 use serde_json::Value;
@@ -118,6 +121,62 @@ pub fn to_pretty(v: &Value) -> std::io::Result<Vec<u8>> {
 /// Python の repr(値)（持っている値は元の値の repr: nan・inf）
 pub fn repr(v: &Value) -> String {
     to_j(v).repr()
+}
+
+/// Python の int の値（版 3.108.0）: i64・u64 に入れば数、入らなければ印の字（桁のまま。書くときに桁の数に戻る）
+pub fn int_value(n: &crate::pyfmt::PyInt) -> Value {
+    match n {
+        crate::pyfmt::PyInt::Small(i) => Value::from(*i),
+        crate::pyfmt::PyInt::Big(s) => match s.parse::<u64>() {
+            Ok(u) => Value::from(u),
+            Err(_) => Value::String(format!("{MARK}{s}")),
+        },
+    }
+}
+
+/// 持っている大きな整数（u64 に入らない整数）の桁の字（符号つき）
+pub fn big_digits(v: &Value) -> Option<&str> {
+    big_digits_str(v.as_str()?)
+}
+
+/// big_digits の字の形（jsontree::Tree の字）
+pub fn big_digits_str(s: &str) -> Option<&str> {
+    let s = s.strip_prefix(MARK)?;
+    let d = s.strip_prefix('-').unwrap_or(s);
+    (!d.is_empty() && d.bytes().all(|b| b.is_ascii_digit())).then_some(s)
+}
+
+/// 値が JSON の字（持っている値でない字）か。持っている大きな整数・NaN は Python では数（isinstance(v, str) が偽）
+pub fn is_text(v: &Value) -> bool {
+    v.is_string() && !is_held(v)
+}
+
+/// 書く道の本文（版 3.108.0）: 字の外に i64・u64 に入らない整数があれば J で読み、その数を印の字で持つ（serde は小数に丸める）。
+/// 無ければ serde のまま。整数の -0 は本文の門（body::gate）が 0 に書き直してある。読めなければ None
+pub fn body_value(body: &[u8]) -> Option<Value> {
+    if !crate::master_store::has_wide_int(body) && !crate::master_rows::has_int_minus_zero(body) {
+        return serde_json::from_slice(body).ok();
+    }
+    let t = std::str::from_utf8(body).ok()?;
+    // 数でない値（NaN・Infinity）は読めない本文と同じに扱う（呼ぶ側が Python に任せる）
+    parse(t).ok().filter(|v| !has_nonfinite(v))
+}
+
+/// 画面へ返す答えの字（版 3.108.0。Flask の jsonify と同じく大きな整数は桁のまま。NaN・Infinity は null〈答えは allow_nan=False〉）。
+/// 持っている値が無ければ前と同じ serde の字
+pub fn reply_bytes(v: &Value) -> Vec<u8> {
+    if !has_held(v) {
+        return serde_json::to_vec(v).unwrap_or_default();
+    }
+    fn plain(j: J) -> J {
+        match j {
+            J::Float(f) if !f.is_finite() => J::Null,
+            J::Arr(a) => J::Arr(a.into_iter().map(plain).collect()),
+            J::Obj(m) => J::Obj(m.into_iter().map(|(k, v)| (k, plain(v))).collect()),
+            x => x,
+        }
+    }
+    plain(to_j(v)).dumps(None).into_bytes()
 }
 
 #[cfg(test)]

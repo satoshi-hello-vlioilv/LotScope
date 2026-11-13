@@ -355,6 +355,8 @@ fn replace(tmp: &Path, dest: &Path) -> std::io::Result<()> {
 /// Python の json.dumps(v, ensure_ascii=False, sort_keys=True) と同じ字（区切りは ", " と ": "）
 pub fn py_dumps(v: &Value) -> String {
     match v {
+        // 持っている値（src/held.rs: 大きな整数・NaN。版 3.108.0）は Python の json.dumps と同じ字（桁のまま・NaN）
+        Value::String(_) if crate::held::is_held(v) => crate::held::to_j(v).dumps(None),
         Value::Object(m) => {
             let mut keys: Vec<&String> = m.keys().collect();
             keys.sort();
