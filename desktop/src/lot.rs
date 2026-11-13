@@ -372,6 +372,17 @@ impl Lot {
         self.invalidate();
     }
 
+    /// 起動の初期値（版 3.110.0。src/seeds.rs。係は窓の 1 つ: sidecar.rs の SERVES に seeds）。束の材料で置き場を決め（引っ越しの印を
+    /// たどった後）、種まきと同じ書く係（master_store::shared_store）で当てる。Python に尋ねない（Python が居なくても当たる）。
+    /// 束の材料を組めなければ当てずに次の起動へ（理由を返す）。wait は錠を待つ間（main.rs の裏の糸は 1 秒眠る。試験は数えるだけ）
+    pub fn run_seeds(&self, wait: &dyn Fn(std::time::Duration)) -> Result<crate::seeds::Outcome, String> {
+        let b = self.bundle.lock().unwrap().clone().ok_or_else(|| "束の材料がありません".to_string())?;
+        let inp = b.inputs().map_err(|e| format!("束の材料を組めません（{}）", e.why))?;
+        let store = crate::master_store::shared_store(&json!({"who": inp.who, "place": inp.place}))
+            .ok_or_else(|| "マスタの置き場が決まりません".to_string())?;
+        Ok(crate::seeds::run(&store, wait))
+    }
+
     /// 窓が組んだ束（組めなければ None）。試験と記録のため
     pub fn own_bundle(&self) -> Option<Result<Value, &'static str>> {
         let b = self.bundle.lock().unwrap().clone()?;
@@ -2160,6 +2171,38 @@ mod tests {
         assert!(lot.handle_body("DELETE", "/api/pivot-presets/\u{ff11}", "", b"", &ask).is_some());
         assert_eq!(lot.handle_body("DELETE", "/api/pivot-presets/1", "rev=1", b"", &ask).unwrap(), (200, json!({"ok": true})));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_window_applies_the_seeds_without_python() {
+        // 版 3.110.0: 起動の初期値は窓が当てる（係は窓の 1 つ。Python に尋ねない＝ Python が居なくても当たる）。置き場は束の材料が
+        // 引っ越しの印をたどった後の置き場。2 回目は記録があるので何も書かない
+        let work = std::env::temp_dir().join(format!("da-lot-seeds-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let (old, new) = (work.join("old"), work.join("new"));
+        for d in [work.join("local"), work.join("base").join("data"), old.clone(), new.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(old.join("_MOVED.json"), json!({"to": new.to_string_lossy(), "at": "2026-11-13T10:00:00"}).to_string()).unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": old.to_string_lossy()}}).to_string()).unwrap();
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let waited = std::cell::Cell::new(0);
+        let o = lot.run_seeds(&|_| waited.set(waited.get() + 1)).expect("束の材料は窓が組む");
+        assert_eq!(o.applied.len(), 3, "{o:?}");
+        let read = |name: &str| -> Value { serde_json::from_slice(&std::fs::read(new.join(format!("{name}.json"))).unwrap()).unwrap() };
+        assert_eq!(read("app_seeds")["rows"].as_array().unwrap().len(), 3);
+        assert_eq!(read("equipment_master")["rows"].as_array().unwrap().len(), 5);
+        assert!(!old.join("app_seeds.json").exists(), "引っ越した後の置き場に当てる");
+        let rev = read("equipment_master")["revision"].clone();
+        let again = lot.run_seeds(&|_| ()).unwrap();
+        assert!(again.applied.is_empty() && again.stopped.is_none(), "{again:?}");
+        assert_eq!(read("equipment_master")["revision"], rev, "2 回目は書かない");
+        assert_eq!(waited.get(), 0);
+        let _ = std::fs::remove_dir_all(&work);
     }
 
     #[test]

@@ -22,13 +22,14 @@
   "S3 写しの取り直し（MasterStore._maybe_refresh・_pull。Python が読むたびに 5 秒に 1 回、共有から master_cache を置き換える）: 窓も同じ写しを置き換える（3.101.0 の観察 2: Windows で互いの置き換えを断る PermissionDenied を 0.5 秒やり直す形で凌いだ）。3.101.0 で『係を寄せるのは種まきと一緒に ⑤ 裏の係で』と決めた物",
   "S4 Python の種まき（MasterStore._seed。Python が読むときに共有にまだ無いマスタの最初の版を置く）: 窓も 3.105.0 から種をまく。同じ PC で 2 つの係（錠と place_parity の『先に来た者が 1 回だけ』で守っている）",
   "S5 引っ越しの印（follow_moved）: bundle を名乗るので Python は印をたどらず、この PC の覚え（master_share.json）を読み直すだけ。受け身（移す物は無いが、S3 と同じ『読むたびに見る』の中にある）",
-  "S6 束を Python に尋ねる内側の口 GET /api/lotlist/settings（main.rs の lot_settings 6 か所・lot.rs の AskSettings 30 か所から。印 bundle_inputs〈束の材料を組めない: 配った設定の 4 形・引っ越しの印 1〉・bundle_window〈窓がまだ組めない節 2 形〉・bundle_seed〈窓の種まきが錠に当たった〉）。任せる歩 19 のうち 7",
-  "S7 更新の置き場の設定の任せ（main.rs の update_settings・upd.run の 2 か所。印 update_settings。窓が同じ字にできない更新の置き場）",
-  "S8 画面 GET / の任せ（main.rs。Lot::page が描けない形。印 page）",
-  "S9 スケジュールの係を降りる形（schedule.rs の fetch_plan・resign。https・システムのプロキシ・数でない timeout・窓の持たない charset・Python が落ちる形）: その間は受け身の Python が CM3 へ取りに行き世代を置く。delegate-count.py の数には入らない（schedule_oracle は係を起こしたままの答えの元）",
+  "S6 束を Python に尋ねる内側の口 GET /api/lotlist/settings（main.rs の lot_settings を呼ぶ所 5〈heartbeat・access_read・handle_body・guard・warm〉・lot.rs の AskSettings 30 か所から。印 bundle_inputs〈束の材料を組めない: 配った設定の 4 形・引っ越しの印 1〉・bundle_window〈窓がまだ組めない節 2 形〉・bundle_seed〈窓の種まきが錠に当たった〉）。任せる歩 19 のうち 7。**段 ③ の物**（利用者に伝えた予定どおり。採点で直した）",
+  "S7 更新の置き場の設定の任せ（main.rs の update_settings・upd.run の 2 か所。印 update_settings。窓が同じ字にできない更新の置き場）。**段 ③ の物**",
+  "S8 画面 GET / の任せ（main.rs。Lot::page が描けない形。印 page）。**段 ③ の物**",
+  "S9 スケジュールの係を降りる形（schedule.rs の fetch_plan・resign。https・システムのプロキシ・数でない timeout・窓の持たない charset・Python が落ちる形）: その間は受け身の Python が CM3 へ取りに行き世代を置く。delegate-count.py の数には入らない（schedule_oracle は係を起こしたままの答えの元）。**段 ③ の最後（④ の前）で閉じる**: https とシステムのプロキシは窓が取る（TLS の crate を足すかは利用者と決める。足さないなら理由つきで断る）、窓の持たない charset・数でない timeout は理由つきで断る（Python に任せない）",
   "S10 窓の答えが Python の生死を見る所（Lot::heartbeat の alive〈止まっていれば 503＝画面の『未接続』〉・access_read〈中身が答えなければ Python へ〉・lot.warm の lot_settings）: Python が居ないと画面は『未接続』",
   "S11 Python の起動そのもの（main.rs の start: 毎回 Supervisor が裏の糸で起こす。入れ替えた直後は準備を待ち、起動できなければ控えの版へ戻す＝ S11 は更新の安全の確かめも兼ねる）",
-  "S12 もう空の係（消すだけ）: boot.start の LOT_MIRROR.start（受け身で何もしない）・boot.stop の lotdsp_direct.shutdown（窓が lotdsp を受け持つ）・心拍の presence.touch_async（presence を名乗るので書かない）・作業実績とデータ元の写し（受け身）・配布とマスタの置き場の Mover（409）・LotDsp の 9 本（409）・起動の指紋 app_build.fingerprint（5 ms。ready の build。窓は page.rs で自分で数える）",
+  "S12 もう空の係（消すだけ）: boot.start の LOT_MIRROR.start（受け身で何もしない）・boot.stop の lotdsp_direct.shutdown（窓が lotdsp を受け持つ）・心拍の presence.touch_async（presence を名乗るので書かない）・作業実績とデータ元の写し（受け身）・配布とマスタの置き場の Mover（409）・LotDsp の 9 本（409）。起動の指紋（app.config[\"BUILD\"]）は空の係ではないので外した（Python が描く画面の static の ?v=。S8 の画面の任せと ?engine=python の画面が使う。採点で直した）。段 ④ で Python ごと消える",
+  "S12b folder_browse・master_place の裏の糸（「参照…」の中身の印・置き場の届くかの確かめ）: 窓が place を名乗るので、Python が答える OS の任せ 6（~ユーザー・file: の [ ]・NUL・255 バイトを超える名前）のときだけ動く。**段 ③ で OS の任せと一緒に消える**（採点で足した）",
   "S13 段 ④ の物（ここでは移さない）: 配った設定 desktop.lotlist_engine=python で係を Python に戻す形・?engine=python の口 5"
  ],
  "rounds": [
@@ -38,27 +39,208 @@
    "self_check": "案を作った者が自分で確かめたこと: (1) delegate-count.py --check を流し 19・予算と同じ（終了コード 0）を見た。(2) sidecar.py を窓と同じ名乗りで 7 回起こし、ready までの時間・RSS・起動だけで共有に置かれる物（5 つ）を測った。create_app だけで path_settings が置かれること・2 台目でも写しが 2 つ置き換わることを別の台本で確かめた。(3) 段 ② の一覧は app/boot.py・app/__init__.py（shell_serves・create_app）・sidecar.py・services の threading の全部（presence・folder_browse・release_place・schedule・lotdsp_api・lotdsp_direct・master_place・db_mirror・work_log）・master_store.py（_maybe_refresh・_seed・follow_moved）・routes/access.py の before_app_request・routes/system.py の心拍・desktop/src/sidecar.rs の SERVES・main.rs の Python へ尋ねる所（lot_settings・update_settings・page・heartbeat・access_read・warm）・schedule.rs の降りる形を読んで作った。(4) 各案の量はコードの行を読んで見積もった（作っていない）。案 E の Python を遅れて起こす形は、入れ替えた直後の『準備を待って起動できなければ控えへ戻す』（main.rs の fresh）を壊さない形にした。(5) 測るための台本は commit していない",
    "proposals": {
     "A 起動の初期値だけを窓へ（名乗りで止める・最小）": {
-     "text": "方向: 1 つずつ（3.109.0 の C）。変える所: sidecar.rs の SERVES に seeds を名乗り、Python の boot.start は名乗られたら master_seeds を走らせない（app/__init__.py に seeds_are_external）。窓は起動の裏の糸で app_seeds を読み、まだの初期値を Store::write で当て、当てたら app_seeds に書く（Python と同じ 2 段の write。錠は 1 秒おきに 5 回・共有に届かなければ次の起動へ）。当てる決まり（normalize_part の比べ方・空の検査計だけ『有』・ID が無いときだけ・同じ名前の表が無いときだけ・next_id と next_order は PyInt）を写す。釜番日付の表は同梱の master_defaults/conversions.json から。競い合い: 同じ PC は名乗りで 1 つ。2 台の PC（前の版の Python と新しい版の窓）は、どの初期値も『まだ決まっていないときだけ』で 2 回当てても中身が同じ（app_seeds の行が 2 つになり得るのは今の Python 同士と同じ）。減る Python の係: 1（S1）。減る任せる歩: 0（19 のまま）。危うさ: 起動の時の順（窓の種まき〈束を組むとき〉と同じ瞬間に初期値の write が錠を取り合う。Python と同じく待つ）・Python の居ない形でも当たる（今は Python が起きないと当たらない）。試験: seeds_oracle.py（場面: 共有が空・app_seeds が一部・人が直した後・同じ ID の行がある・錠・届かない・手元のみ）で Python と窓の終わった後のファイルを突き合わせる・仕様から人が書いた事例の表 tests/fixtures/seeds_cases.json（独立の答え）・2 つのプロセス（窓と前の版の Python）が同時に当てる場面・tests/test_master_seeds.py に名乗りの試験。作る量: Rust 200〜300 行・Python 10 行・答えの元 150 行・事例 40 件。1 版"
+     "text": "方向: 1 つずつ（3.109.0 の C）。変える所: sidecar.rs の SERVES に seeds を名乗り、Python の boot.start は名乗られたら master_seeds を走らせない（app/__init__.py に seeds_are_external）。窓は起動の裏の糸で app_seeds を読み、まだの初期値を Store::write で当て、当てたら app_seeds に書く（Python と同じ 2 段の write。錠は 1 秒おきに 5 回・共有に届かなければ次の起動へ）。当てる決まり（normalize_part の比べ方・空の検査計だけ『有』・ID が無いときだけ・同じ名前の表が無いときだけ・next_id と next_order は PyInt）を写す。釜番日付の表は同梱の master_defaults/conversions.json から。競い合い: 同じ PC は名乗りで 1 つ。2 台の PC（前の版の Python と新しい版の窓）は、どの初期値も『まだ決まっていないときだけ』で 2 回当てても中身が同じ（app_seeds の行が 2 つになり得るのは今の Python 同士と同じ）。減る Python の係: 1（S1）。減る任せる歩: 0（19 のまま）。危うさ: 起動の時の順（窓の種まき〈束を組むとき〉と同じ瞬間に初期値の write が錠を取り合う。Python と同じく待つ）・Python の居ない形でも当たる（今は Python が起きないと当たらない）。試験: seeds_oracle.py（場面: 共有が空・app_seeds が一部・人が直した後・同じ ID の行がある・錠・届かない・手元のみ）で Python と窓の終わった後のファイルを突き合わせる・仕様から人が書いた事例の表 tests/fixtures/seeds_cases.json（独立の答え）・2 つのプロセス（窓と前の版の Python）が同時に当てる場面・tests/test_master_seeds.py に名乗りの試験。作る量: Rust 200〜300 行・Python 10 行・答えの元 150 行・事例 40 件。1 版",
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 8,
+      "effortless": 6,
+      "intuitive": 8,
+      "form": 8,
+      "place": 8,
+      "layout": 7,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "裏の糸で動く Python だけの係（master_seeds。boot.py 35 行）を、名乗り（SERVES）で止めて窓へ移す最小の案。段 ④ では Python の master_seeds.py と名乗りの 10 行を消すだけで、窓の側はそのまま使える（二度手間が最も少ない）。Python が居ない形でも初期値が当たる（今は Python が起きないと当たらない）。起動の時の順は、窓の束の種まき・Python の create_app の path_settings の種まきと同じ 1 つの錠（置き場ごとの master.lock.json）を取り合うだけで、裏の糸で 1 秒×5 回待つので画面の問い合わせを待たせない。足りない所: (1) app_seeds の行が 2 つになる形を『今の Python 同士と同じ』として残す（採点者が 2 つの MasterStore で再現: 6 行・中身の版が空の write で 1 つ上がる）。2 回目の write の中で seed がもう記録にあるかを錠の中で見直すだけで塞げる。(2) 写す決まりの書き出しが足りない: 検査計の『空』は str(v or \"\").strip() なので 0・false・[]・空白も空、設備名は normalize_part（NFKC・大文字。数の 123 も字に）で同じ名前が 2 行あると後の行だけに当たる、rev は int() で『abc』なら ValueError で、その初期値も後の初期値も当てずに次の起動へ（break）、釜番日付は名前を normalize せず完全一致、行が表でないと AttributeError で全部を次の起動へ。3.107.0 の隔てた行を窓がどう扱うか（Python は落ちて次の起動へ）を決める要。(3) 窓の Rust には normalize_part が 2 つ（worksum の字・access の値）あり、Python と同じ str(v or \"\") の形は access 側。(4) どの Store で走らせるか（seed_through と同じ shared_store の係にしないと、同じ窓の 2 つの係が別々に錠を取り合う）を書いていない。(5) 量の見込み 200〜300 行は妥当"
     },
     "B 起動で共有に触れない Python（S1・S2・S12 を 1 版で）": {
-     "text": "方向: 束ねる（起動の時の仕事をまとめて窓へ・空の係を消す）。変える所: A に加えて、create_app は窓が lotlist を名乗るとき LOT_APPLIED を読まない（effective_settings を起動で呼ばない。名乗られていない形・ブラウザの開発用サーバーは今のまま）。boot.start の LOT_MIRROR.start・boot.stop の lotdsp の後始末・起動の指紋（ready の build は窓が数える）など、名乗りで空になった係を名乗りで外す（S12）。測った形: 起動だけで空の共有に置く 5 つ → 0・写しの置き換え 2 → 0（Python は最初に尋ねられたときに初めて読む）。減る Python の係: 3（S1・S2・S12 の空の係はまとめて 1）。減る任せる歩: 0。危うさ: Python が最初に尋ねられたとき（束の口・任せる歩）に初めて共有を読むので、その 1 回が今より遅い（種まき・写しの取り直しが重なる）・試験・開発用サーバー（create_app で LOT_APPLIED を前提にする所）を名乗りの有無で分ける。試験: A の試験＋起動だけで共有と写しに何も書かないことを見る試験（boot_measure と同じ形を tests/test_boot_quiet.py に）・名乗らない形は今と同じ答え。作る量: Rust 200〜300 行・Python 40〜70 行・答えの元 170 行。1 版"
+     "text": "方向: 束ねる（起動の時の仕事をまとめて窓へ・空の係を消す）。変える所: A に加えて、create_app は窓が lotlist を名乗るとき LOT_APPLIED を読まない（effective_settings を起動で呼ばない。名乗られていない形・ブラウザの開発用サーバーは今のまま）。boot.start の LOT_MIRROR.start・boot.stop の lotdsp の後始末・起動の指紋（ready の build は窓が数える）など、名乗りで空になった係を名乗りで外す（S12）。測った形: 起動だけで空の共有に置く 5 つ → 0・写しの置き換え 2 → 0（Python は最初に尋ねられたときに初めて読む）。減る Python の係: 3（S1・S2・S12 の空の係はまとめて 1）。減る任せる歩: 0。危うさ: Python が最初に尋ねられたとき（束の口・任せる歩）に初めて共有を読むので、その 1 回が今より遅い（種まき・写しの取り直しが重なる）・試験・開発用サーバー（create_app で LOT_APPLIED を前提にする所）を名乗りの有無で分ける。試験: A の試験＋起動だけで共有と写しに何も書かないことを見る試験（boot_measure と同じ形を tests/test_boot_quiet.py に）・名乗らない形は今と同じ答え。作る量: Rust 200〜300 行・Python 40〜70 行・答えの元 170 行。1 版",
+     "score": {
+      "order": 7,
+      "chunk": 6,
+      "hierarchy": 6,
+      "visual": 7,
+      "steps": 6,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "app/__init__.py 136〜141 行: S12 で外すとする起動の指紋（app.config[\"BUILD\"]）は空の係ではなく、Python が描く画面の静的ファイルの ?v=（_static_build）に使う。S8 の画面の任せ（main.rs 336 行の delegate::note(\"page\")）と ?engine=python の画面で、外すと Python の画面が描けない（採点者がコードで確かめた）"
+      }
+     ],
+     "seen": "A に、起動で Python が共有に触れない形（create_app で effective_settings を読まない）と空の係の掃除を足す案。測った『起動だけで Python が共有に置く 5 → 0』は採点者も同じ数を見たが、窓は自分の最初の読み（warm・束）で同じ path_settings に種をまき写しを置き換えるので、共有・写しへの書きの合計はあまり減らず、Python の最初の任せる歩で同じ読みが起きる（減るのは起動の同じ瞬間の重なりだけ）。足す Python の 40〜70 行は段 ④ でそっくり消える二度手間。落とし穴: (1) 起動の指紋は空の係ではない（減点）。(2) LOT_APPLIED を読まない条件は『lotlist を名乗る』だけでは足りず、mirror_is_external と同じく配った設定の engine も見ないと、S13（lotlist_engine=python）の形で Python の一覧が前の設定で動く。(3) S12 に並べた物の多くは名乗りで既に受け身（LOT_MIRROR.start は 0 ms・lotdsp の後始末は何もしない）で、外しても測れる違いが無い"
     },
     "C 共有へ書く係を窓 1 つに（Python は共有に対して受け身。S1〜S4）": {
-     "text": "方向: 競い合いを無くす（同じ PC で共有と写しに書くのは窓だけ）。変える所: B に加えて、窓が seeds を名乗る形では、Python の MasterStore は共有から写しを取り直さず（_maybe_refresh・_pull を止める）、種もまかない（_seed を止める）。Python が読むのは窓が置いた写し（master_cache）だけ。写しが無い・古い（窓がまだそのマスタを読んでいない）ときは、知らせの枠 {\"event\": \"master\", name} で窓に取り直しを頼んで待つ（作業実績の写し・スケジュールと同じ型。待つのは最大 2 秒、過ぎたら今の写しで答え、status に『取り直しを窓に頼んでいます』）。書く道は窓が答えるので Python は書かない（任せる歩の中の書く道は Python の書く係が錠を取って書く＝今のまま）。減る Python の係: 4（S1〜S4）。減る任せる歩: 0。測った形: 3.101.0 の観察 2（写しの置き換え合い）が消える。危うさ: Python が任せる歩で古い写しを読む（頼んで待つ間に共有が変わる）・窓が止まった・答えないときに Python が写しを取れない（Python が居て窓が居ない形は無いが、窓の糸が詰まる形）・Windows の CI で写しの置き換えの断りが消えたことを確かめる要。試験: A・B の試験＋2 つのプロセスで写しを置き換えるのは窓だけ（Python の _pull が 0 回）・任せる歩を全部流して Python が知らせで頼んだ写しで答えが同じ（*_parity を名乗りつきで流し直す）・Windows の CI の place_cases に置き換えの断りが起きない形。作る量: Rust 300〜450 行・Python 80〜140 行・答えの元 250 行。1〜2 版"
+     "text": "方向: 競い合いを無くす（同じ PC で共有と写しに書くのは窓だけ）。変える所: B に加えて、窓が seeds を名乗る形では、Python の MasterStore は共有から写しを取り直さず（_maybe_refresh・_pull を止める）、種もまかない（_seed を止める）。Python が読むのは窓が置いた写し（master_cache）だけ。写しが無い・古い（窓がまだそのマスタを読んでいない）ときは、知らせの枠 {\"event\": \"master\", name} で窓に取り直しを頼んで待つ（作業実績の写し・スケジュールと同じ型。待つのは最大 2 秒、過ぎたら今の写しで答え、status に『取り直しを窓に頼んでいます』）。書く道は窓が答えるので Python は書かない（任せる歩の中の書く道は Python の書く係が錠を取って書く＝今のまま）。減る Python の係: 4（S1〜S4）。減る任せる歩: 0。測った形: 3.101.0 の観察 2（写しの置き換え合い）が消える。危うさ: Python が任せる歩で古い写しを読む（頼んで待つ間に共有が変わる）・窓が止まった・答えないときに Python が写しを取れない（Python が居て窓が居ない形は無いが、窓の糸が詰まる形）・Windows の CI で写しの置き換えの断りが消えたことを確かめる要。試験: A・B の試験＋2 つのプロセスで写しを置き換えるのは窓だけ（Python の _pull が 0 回）・任せる歩を全部流して Python が知らせで頼んだ写しで答えが同じ（*_parity を名乗りつきで流し直す）・Windows の CI の place_cases に置き換えの断りが起きない形。作る量: Rust 300〜450 行・Python 80〜140 行・答えの元 250 行。1〜2 版",
+     "score": {
+      "order": 5,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 3,
+      "effortless": 3,
+      "intuitive": 6,
+      "form": 7,
+      "place": 7,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [],
+     "seen": "同じ PC で共有と写しに書くのを窓だけにして、3.101.0 の観察 2（写しの置き換え合い）を根から消す案。狙いは正しいが、知らせの枠 {event: master} と Python の待ち（最大 2 秒）・古い写しで答える形は、段 ④ で Python ごと消える新しい仕組みで、Python 80〜140 行・答えの元 250 行が二度手間になる。落とし穴: (1) Python の MasterStore.write は錠の中で _pull(force=True) を呼んでから当てる（master_store.py 853 行）。『_pull を止める』を書く道にまで当てると、任せる歩の書きが古い写しの上で当たり、ほかの PC の保存を消す。案の『書く道は今のまま』をはっきり『write の _pull は残す』と書く要。(2) 窓の糸が詰まると Python の読みが 2 秒ずつ待つ（任せる歩が遅くなる）。(3) 任せる歩は 19 のままで、段 ③ で答えの元を外せば要らなくなる係を、段 ② で作り込む順になる"
     },
     "D 尋ねる口を先に閉じる（束・更新の置き場・画面を窓が組み、GET /api/lotlist/settings を外す。S6〜S8）": {
-     "text": "方向: 順を変える（任せる歩の減る物を先に。裏の係は後の版）。変える所: 配った設定を J（jsontree）で読み、Python が落ちる・読む形を事例の表 tests/fixtures/appsettings_cases.json に決めて、窓が束の材料を組む（NaN・段が字・表でない・更新の段が null の 4 形。Python が落ちる形は窓も理由つきで断る＝ Python に尋ねない）。引っ越しの印も束の材料が読めない形でたどる。window の 2 節（式が引く変換表の大きな整数＝印の字を数で比べる所・束の中の中身の字の NaN と 128 段の入れ子）を窓が組む。bundle_seed（窓の種まきが錠に当たった）は Python に尋ねず、錠の長さまで待ってもう一度組む。update_settings・page の任せも同じ材料で閉じ、lot_settings を消す。減る任せる歩: 19 → 12（束 7）。減る口: 3（S6〜S8。残るのは S10 の生死の見方）。減る Python の係: 0（S1〜S4 はそのまま）。危うさ: 段 ③ の前倒しで、Python が落ちる形を『窓は理由つきで断る』に替える決め（利用者・主のセッション）が要る・束を Python に尋ねる逃げ道（G の逃げ道）が無くなるので、窓が組めない形は止まる（今は Python が組めば止まらない）。試験: settings_oracle の 7 場面を expect same か『両方が同じ言葉で断る』に・事例の表（独立の答え: 配った設定の字 → 組めるか・理由）・bundle_parity・page_parity・delegate-count.py の予算を 12 に。作る量: Rust 400〜700 行・Python 0〜30 行（Python の誤りを直すなら）・答えの元 200 行・事例 60 件。1〜2 版"
+     "text": "方向: 順を変える（任せる歩の減る物を先に。裏の係は後の版）。変える所: 配った設定を J（jsontree）で読み、Python が落ちる・読む形を事例の表 tests/fixtures/appsettings_cases.json に決めて、窓が束の材料を組む（NaN・段が字・表でない・更新の段が null の 4 形。Python が落ちる形は窓も理由つきで断る＝ Python に尋ねない）。引っ越しの印も束の材料が読めない形でたどる。window の 2 節（式が引く変換表の大きな整数＝印の字を数で比べる所・束の中の中身の字の NaN と 128 段の入れ子）を窓が組む。bundle_seed（窓の種まきが錠に当たった）は Python に尋ねず、錠の長さまで待ってもう一度組む。update_settings・page の任せも同じ材料で閉じ、lot_settings を消す。減る任せる歩: 19 → 12（束 7）。減る口: 3（S6〜S8。残るのは S10 の生死の見方）。減る Python の係: 0（S1〜S4 はそのまま）。危うさ: 段 ③ の前倒しで、Python が落ちる形を『窓は理由つきで断る』に替える決め（利用者・主のセッション）が要る・束を Python に尋ねる逃げ道（G の逃げ道）が無くなるので、窓が組めない形は止まる（今は Python が組めば止まらない）。試験: settings_oracle の 7 場面を expect same か『両方が同じ言葉で断る』に・事例の表（独立の答え: 配った設定の字 → 組めるか・理由）・bundle_parity・page_parity・delegate-count.py の予算を 12 に。作る量: Rust 400〜700 行・Python 0〜30 行（Python の誤りを直すなら）・答えの元 200 行・事例 60 件。1〜2 版",
+     "score": {
+      "order": 4,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 8,
+      "steps": 5,
+      "effortless": 4,
+      "intuitive": 7,
+      "form": 7,
+      "place": 6,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [
+      {
+       "kind": "hidden_state",
+       "where": "案の text『bundle_seed は Python に尋ねず、錠の長さまで待ってもう一度組む』: 錠の長さは LOCK_TTL_DEFAULT 20 秒（master_store.py 60 行）。今は Python に尋ねてすぐ答える問い合わせ（一覧・ダッシュボード・作業実績）が、画面に何も出ないまま最大 20 秒待つ。Python の _pull と同じく錠に当たったら写しで答える形にすれば待たない"
+      }
+     ],
+     "seen": "任せる歩 19 → 12（束 7）を数で示せる唯一の案で、段 ④ の前に要る仕事でもある（二度手間にはならない）。ただし利用者に伝えてある段の予定では束は段 ③（答えの元を事例の表と独立の答えに置き換える）の物で、Python が落ちる 4 形（Python の答え『なし』を採点者も delegate-count で見た）の正しい答えを決める仕事が、③ の独立の答えの作り方と同じ。ここで先にやると、決めを ③ の事例の表の前に入れることになる。配った設定は人が手で直した時にしか崩れず、いま 7 歩は Python が組むので止まっていない（急ぐ理由が弱い）。stage2_list は S6〜S8 を段 ② の物に数えるが、利用者への予定とずれている（S6〜S8 は ③ の物として並べ直すのがよい）。窓が組めない形が残れば Python の逃げ道が無いので 503 になる（3.109.0 の window: true の教え）"
     },
     "E Python を要るときだけ起こす（S1・S2・S10・S11）": {
-     "text": "方向: 起動の形を変える（Python が居ない形を普段の形にする）。変える所: A（初期値を窓へ）と B（起動で共有に触れない）に加えて、窓は起動で Python を起こさない（入れ替えた直後〈fresh〉だけは今と同じく準備を待ち、起動できなければ控えへ戻す）。Python は最初に尋ねる要（任せる歩・束の口・更新の置き場・画面の任せ）が来たときに Supervisor::get で起こす（その 1 回は約 0.65 秒〈Linux。Windows はもっと〉待つ）。心拍の『接続 ●』と access_read は Python の生死ではなく窓の答えで決め（S10）、Python が起きていないことは『中身: 休み』として窓の情報・自己診断に出す。lot.warm は束を窓が組めるときは Python を起こさない。測った形: 任せる歩が 1 度も来ない日の起動は Python の 0.65 秒・33 MB・import 80 ms ぶん軽い。減る Python の係: 3（S1・S2・S11。S10 の見方を窓へ）。減る任せる歩: 0（ただし任せる歩が来た時だけ Python が動く）。危うさ: 最初の任せる歩・束の口の問い合わせが遅い（待ちの印が要る）・更新で入れた新しい版の Python が壊れていても、入れ替えた直後以外は気づくのが遅れる（起動の確かめは fresh のときだけになる）・2 つの PC は A と同じ・自己診断（10b-*）は Python を起こしてから流す。試験: A・B の試験＋Python を起こさずに開いた窓で、全部の道が答えるか、任せる歩で初めて Python が起きて同じ答えか（lot::tests に Backend の作り物で『起こした回数』を数える）・心拍が Python 無しで『接続 ●』・fresh の流れは verify.py の update の通しで確かめる。作る量: Rust 350〜550 行（main.rs の start・Supervisor の起こし方・heartbeat・access_read・warm）・Python 40〜70 行・答えの元 150 行。2 版（A＋B の版、E の版）"
+     "text": "方向: 起動の形を変える（Python が居ない形を普段の形にする）。変える所: A（初期値を窓へ）と B（起動で共有に触れない）に加えて、窓は起動で Python を起こさない（入れ替えた直後〈fresh〉だけは今と同じく準備を待ち、起動できなければ控えへ戻す）。Python は最初に尋ねる要（任せる歩・束の口・更新の置き場・画面の任せ）が来たときに Supervisor::get で起こす（その 1 回は約 0.65 秒〈Linux。Windows はもっと〉待つ）。心拍の『接続 ●』と access_read は Python の生死ではなく窓の答えで決め（S10）、Python が起きていないことは『中身: 休み』として窓の情報・自己診断に出す。lot.warm は束を窓が組めるときは Python を起こさない。測った形: 任せる歩が 1 度も来ない日の起動は Python の 0.65 秒・33 MB・import 80 ms ぶん軽い。減る Python の係: 3（S1・S2・S11。S10 の見方を窓へ）。減る任せる歩: 0（ただし任せる歩が来た時だけ Python が動く）。危うさ: 最初の任せる歩・束の口の問い合わせが遅い（待ちの印が要る）・更新で入れた新しい版の Python が壊れていても、入れ替えた直後以外は気づくのが遅れる（起動の確かめは fresh のときだけになる）・2 つの PC は A と同じ・自己診断（10b-*）は Python を起こしてから流す。試験: A・B の試験＋Python を起こさずに開いた窓で、全部の道が答えるか、任せる歩で初めて Python が起きて同じ答えか（lot::tests に Backend の作り物で『起こした回数』を数える）・心拍が Python 無しで『接続 ●』・fresh の流れは verify.py の update の通しで確かめる。作る量: Rust 350〜550 行（main.rs の start・Supervisor の起こし方・heartbeat・access_read・warm）・Python 40〜70 行・答えの元 150 行。2 版（A＋B の版、E の版）",
+     "score": {
+      "order": 6,
+      "chunk": 6,
+      "hierarchy": 7,
+      "visual": 7,
+      "steps": 4,
+      "effortless": 5,
+      "intuitive": 5,
+      "form": 6,
+      "place": 6,
+      "layout": 5,
+      "tone": 6
+     },
+     "minus": [
+      {
+       "kind": "lost",
+       "where": "main.rs 737〜763 行の started(): update::confirm（入れ替えた印を外す）・install::maintain（ショートカットの指す先・アイコンを直す）・update::cleanup_copies（古い写しを消す）は、Python の準備が済んだ Ok のときだけ走る。版 3.86.0 から入れ替えた直後でない起動も裏の糸 sidecar-first で s2.get() を待ってから started を呼ぶので、Python を起こさない形ではショートカットの手入れと写しの片付けが止まる。案は fresh の流れだけを見ていて触れていない"
+      }
+     ],
+     "seen": "Python が居ない形を普段の形にする案で、段 ④ の下ごしらえ（心拍の alive・access_read の alive を窓の答えにする・起動と更新の確かめを Python から外す）としては最も向きが合う。ただし版 3.86.0 から Python は既に裏の糸で起こし、画面は準備を待たずに開く（main.rs 670〜676 行）ので、利用者が感じる起動の速さは今も変わらない（減るのは裏の 0.65 秒・33 MB だけ）。その代わり最初の任せる歩・束の口が Python の起動を待つ（Windows はもっと長い）。D（束を窓が組む）より先にやると、束の 7 形・更新の置き場・画面の任せのたびに Python を起こす。落とし穴: (1) started() に Python の準備と結び付いた片付けがある（減点）。(2) 入れ替えた直後でない起動で Python が起きないと控えへ戻す（update::revert）も効かなくなる。(3) 心拍の『未接続』を窓の答えで決めると、Python が死んでいても画面は『接続 ●』で、任せる歩だけが失敗する（Python の様子は別に見せる要）"
     },
     "F 初期値を『読む時』に当てる（裏の糸を持たない）": {
-     "text": "方向: 当てる時を変える（起動の裏の糸ではなく、窓が初めてそのマスタを読むとき）。変える所: 窓の読みの 1 か所（access::Place → master_store::seed_through。3.105.0 の種まきと同じ所）で、種まきの次に『そのマスタの初期値で app_seeds に無い物』を同じ錠の中で当てる（equipment_master・access_permissions・conversions を初めて読む道で）。SERVES に seeds を名乗り、Python の master_seeds は走らせない。競い合い: 種まきと同じ Store::seed の錠の中で app_seeds と中身を見直すので、同じ PC の窓の 2 つの糸・窓と前の版の Python も 1 回だけ（place_parity の『先に来た者が 1 回だけ』と同じ型で確かめる）。減る Python の係: 1（S1）。減る任せる歩: 0。危うさ: 読む道が書く（最初の 1 回の読みが錠と書きのぶん遅い・読むだけの権限の PC でも当たる＝今の Python も権限を見ずに当てるので同じ）・そのマスタを読まない PC では当たらない（3 つとも一覧・権限の判定で読むので実際には当たる）・起動の順に依らない。試験: A の事例の表と突き合わせ＋読む道ごとに『初めて読むと当たる・2 回目は当てない』（seed_reads_parity に初期値の場面を足す）・2 つのプロセスが一斉に読む場面（an_empty_share_is_seeded_once… と同じ合図）。作る量: Rust 180〜280 行・Python 10 行・答えの元 120 行。1 版"
+     "text": "方向: 当てる時を変える（起動の裏の糸ではなく、窓が初めてそのマスタを読むとき）。変える所: 窓の読みの 1 か所（access::Place → master_store::seed_through。3.105.0 の種まきと同じ所）で、種まきの次に『そのマスタの初期値で app_seeds に無い物』を同じ錠の中で当てる（equipment_master・access_permissions・conversions を初めて読む道で）。SERVES に seeds を名乗り、Python の master_seeds は走らせない。競い合い: 種まきと同じ Store::seed の錠の中で app_seeds と中身を見直すので、同じ PC の窓の 2 つの糸・窓と前の版の Python も 1 回だけ（place_parity の『先に来た者が 1 回だけ』と同じ型で確かめる）。減る Python の係: 1（S1）。減る任せる歩: 0。危うさ: 読む道が書く（最初の 1 回の読みが錠と書きのぶん遅い・読むだけの権限の PC でも当たる＝今の Python も権限を見ずに当てるので同じ）・そのマスタを読まない PC では当たらない（3 つとも一覧・権限の判定で読むので実際には当たる）・起動の順に依らない。試験: A の事例の表と突き合わせ＋読む道ごとに『初めて読むと当たる・2 回目は当てない』（seed_reads_parity に初期値の場面を足す）・2 つのプロセスが一斉に読む場面（an_empty_share_is_seeded_once… と同じ合図）。作る量: Rust 180〜280 行・Python 10 行・答えの元 120 行。1 版",
+     "score": {
+      "order": 7,
+      "chunk": 8,
+      "hierarchy": 8,
+      "visual": 6,
+      "steps": 7,
+      "effortless": 6,
+      "intuitive": 6,
+      "form": 8,
+      "place": 8,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "3.105.0 の種まき（seed_through）と同じ 1 か所で初期値を当てる案で、起動の順に依らず、Rust だけで段 ④ にもそのまま使える。錠の中で app_seeds と中身を見直すので、新しい版の窓同士では app_seeds の行が 2 つにならない（前の版の Python がほかの PC に居る間は、その Python が 2 行目を足しうる）。足りない所: (1) seed_through は共有の置き場ごとの係（SEEDERS の share で探す）なので、手元のみの PC（data/ に当てる形）には届かない。今の Python は手元のみでも当てる（同梱の data/ が既に持つ物が多く害は小さいが、名乗りで Python を止めると当たらない形が出る）。(2) 中身と app_seeds の 2 つのマスタを 1 つの錠で書く口が Store に無い。with_lock は入れ子にできない（acquire_lock は同じプロセスの生きた token なら is_mine が偽で Locked を返す）ので、exclusive の中で錠を持ったまま書く口を作る要。(3) 権限の判定（access_permissions）は毎回の問い合わせで読むので、最初の問い合わせが共有の錠と 2 回の書きを待つ（網の共有では目に見える）。A の裏の糸なら問い合わせを待たせない。(4) 案の『錠の順』の危うさは当たらない（錠は置き場に 1 つ）"
     },
     "G 初期値を表にして両方が読む（競い合いを『両方が走ってよい形』で防ぐ）": {
-     "text": "方向: 決まりをデータにする（コードを写さない）。変える所: 3 つの初期値を同梱の表 app/master_defaults/seeds.json（{id, マスタ, 鍵の列, 比べ方 normalize, 当て方: 空なら値を入れる／無ければ行を足す／同梱の表から同じ名前が無ければ足す, 中身}）にし、Python の master_seeds と窓の新しい seeds.rs が同じ表を読む。名乗りで止めず、同じ PC で両方が走ってもよい形にする（どちらも Store の錠の中で app_seeds と中身を見直してから当てる＝ 2 つの write を 1 つの錠の中にまとめる。Python も直す）。段 ④ で Python を外すと Python の側が消えるだけ。これからの初期値は表に 1 行足すだけ（コードの写しが要らない）。減る Python の係: 0（この版。段 ④ で 1）。減る任せる歩: 0。危うさ: 表の形が 3 つの決まりに足りるか（釜番日付は同梱の表からの写し・検査計は 5 設備の空の欄）・錠の中に 2 つのマスタの write をまとめる作りの変更（錠の順を決めないと 2 つのプロセスで待ち合う）・Python も変えるので前の版の Python との競い合いは A と同じ。試験: 表を独立の答え（人が仕様から書いた事例 seeds_cases.json）で確かめる・Python と窓が同じ表で同じファイルを作る（seeds_oracle）・2 つのプロセスが同時に走っても app_seeds の行が 1 つ・錠の順の試験。作る量: Rust 220〜320 行・Python 60〜100 行・表 1 つ・答えの元 150 行。1 版"
+     "text": "方向: 決まりをデータにする（コードを写さない）。変える所: 3 つの初期値を同梱の表 app/master_defaults/seeds.json（{id, マスタ, 鍵の列, 比べ方 normalize, 当て方: 空なら値を入れる／無ければ行を足す／同梱の表から同じ名前が無ければ足す, 中身}）にし、Python の master_seeds と窓の新しい seeds.rs が同じ表を読む。名乗りで止めず、同じ PC で両方が走ってもよい形にする（どちらも Store の錠の中で app_seeds と中身を見直してから当てる＝ 2 つの write を 1 つの錠の中にまとめる。Python も直す）。段 ④ で Python を外すと Python の側が消えるだけ。これからの初期値は表に 1 行足すだけ（コードの写しが要らない）。減る Python の係: 0（この版。段 ④ で 1）。減る任せる歩: 0。危うさ: 表の形が 3 つの決まりに足りるか（釜番日付は同梱の表からの写し・検査計は 5 設備の空の欄）・錠の中に 2 つのマスタの write をまとめる作りの変更（錠の順を決めないと 2 つのプロセスで待ち合う）・Python も変えるので前の版の Python との競い合いは A と同じ。試験: 表を独立の答え（人が仕様から書いた事例 seeds_cases.json）で確かめる・Python と窓が同じ表で同じファイルを作る（seeds_oracle）・2 つのプロセスが同時に走っても app_seeds の行が 1 つ・錠の順の試験。作る量: Rust 220〜320 行・Python 60〜100 行・表 1 つ・答えの元 150 行。1 版",
+     "score": {
+      "order": 6,
+      "chunk": 7,
+      "hierarchy": 7,
+      "visual": 6,
+      "steps": 5,
+      "effortless": 5,
+      "intuitive": 6,
+      "form": 8,
+      "place": 7,
+      "layout": 6,
+      "tone": 7
+     },
+     "minus": [],
+     "seen": "決まりをデータにして Python と窓が同じ表を読み、中身と app_seeds を 1 つの錠の中で書く案。app_seeds の行が 2 つになる形を新しい版同士で塞ぐのは本当（採点者の再現した形）。ただし段 ② の狙い（Python の係を窓へ）では減る係が 0 で、Python に足す 60〜100 行（表を読む・2 つの write を 1 つの錠に）は段 ④ で消える二度手間。初期値は 2 か月で 3 つと少なく、『当て方』の 3 種の型（空なら入れる・無ければ足す・同梱の表から写す）で次の初期値が書ける保証も無い（表の型を 3 つの決まりから逆に作る形）。危うさの見立てがずれている: 錠は置き場に 1 つ（master.lock.json）なので 2 つのマスタの錠の順で待ち合うことは起きない。本当の危うさは F と同じく、錠を持ったまま 2 つ書く口が今の Store に無いこと（Python の write も窓の with_lock も入れ子にできない）"
     }
    }
   }
- ]
+ ],
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の 1 回だけの採点）。画面に出ない改良なので、画像の代わりに自分で流した数と読んだコードで採点した（画面の 3 つは別のファイル 2026-11-stage2-ui.json の採点で決まるので、ここでは Rust 化の部分だけを比べた）。流した物（台本は案の係の物を使わず自分で書いた。scratchpad/score-3110。終わったら消した）: (1) sidecar.py を窓と同じ名乗り（TPA_SHELL=desktop・SERVES の 10）で 7 回起こす → ready の枠まで中央値 0.653 秒（0.624〜0.731）・Python の elapsed 中央値 0.383 秒・空の共有に 5 つ（access_permissions・app_seeds・conversions・equipment_master・path_settings）・手元に master_cache の 5 つと instance_id（主張どおり）。(2) create_app だけで共有に path_settings.json が置かれ、LOT_MIRROR は passive（主張どおり）。(3) 同じ共有で 2 台目を起こす → 2 台目の master_cache は app_seeds・path_settings の 2 つ・共有は 1 バイトも変わらない・app_seeds は 3 行（主張どおり）。(4) 2 台の PC の競い合い: MasterStore を 2 つ（別の手元・同じ共有）作り、master_seeds.run を 2 本の糸で走らせ、app_seeds を読んだ直後で待ち合わせる → 両方が 3 つとも『当てた』と答え、app_seeds は 6 行（同じ seed が 2 行ずつ・revision 7）。中身は 1 つずつ（LS3 1 行・satoshi-harada 1 行・釜番日付 1 表）だが、equipment_master・access_permissions・conversions の revision は何も変えない 2 回目の write で 3 に上がる（主張は本当。害は記録の重複と全 PC の写しの取り直し）。(5) python program/tools/delegate-count.py --check → 計 19（束 7・OS 6・口 5・本文 1）・『予算と同じです』・終了コード 0。(6) コードで読んだ物: app/boot.py・app/__init__.py（effective_settings・shell_serves・mirror_is_external は配った設定の engine も見る・BUILD）・services/master_seeds.py・repositories/master_store.py（read・_maybe_refresh・_pull・_seed・write・錠は置き場に 1 つの master.lock.json）・sidecar.py・services の threading の全部・desktop/src/main.rs（start・started・heartbeat・access_read・warm・lot_settings・update_settings・page）・lot.rs（AskSettings 30・heartbeat の alive・access_read の alive・warm）・master_store.rs（write・seed・with_lock・acquire_lock・is_mine・exclusive・seed_through）・sidecar.rs の SERVES。cargo は使っていない",
+ "evaluation": {
+  "verified_claims": [
+   "起動 0.654 秒は正しい: 採点者の台本で 7 回 → ready の枠まで中央値 0.653 秒（0.624〜0.731）・elapsed 中央値 0.383 秒",
+   "起動だけで空の共有に 5 つは正しい（access_permissions・app_seeds・conversions・equipment_master・path_settings）。手元には master_cache の 5 つと instance_id",
+   "create_app だけで path_settings が置かれる（S2 の種まき）は正しい。LOT_MIRROR は passive",
+   "2 台目の起動で写しの置き換え 2 つ（app_seeds・path_settings）・共有は変わらない、は正しい",
+   "app_seeds の行が 2 つになり得るは本当: 2 つの MasterStore（別の手元・同じ共有）で master_seeds.run を同時に走らせ、app_seeds を読んだ直後で待ち合わせると app_seeds は 6 行（seed ごとに 2 行）・revision 7。中身は 1 つずつだが、equipment_master・access_permissions・conversions の revision は空の 2 回目の write で 3 に上がる（全 PC が写しを取り直す）。人の値を戻す害は無い（中身は『まだ決まっていないときだけ』）",
+   "任せる歩 19（束 7・OS 6・口 5・本文 1）は正しい: delegate-count.py --check で『予算と同じです』・終了コード 0",
+   "AskSettings 30 か所は正しい。main.rs の lot_settings( 6 か所は fn の定義を含む数（呼ぶ所は 5: heartbeat・access_read・handle_body・guard・warm）",
+   "直す所: S12 の『起動の指紋 app_build.fingerprint』は空の係ではない。app.config[\"BUILD\"] は Python が描く画面の静的ファイルの ?v=（app/__init__.py 139〜141 行）で、S8 の画面の任せと ?engine=python の画面が使う",
+   "足りない所: S9（スケジュールの係を降りる形: https・システムのプロキシ・数でない timeout・窓の持たない charset）は一覧に有るが、A〜G のどれも受け持たない。段 ④ で Python を外す前に、③ で窓が取るか理由つきで断るかを決める要",
+   "足りない所: folder_browse・master_place の裏の糸（参照…・置き場の確かめ）は S12 に無い。任せる歩の OS 6 と一緒に段 ③ で消える物として一覧に足すとよい",
+   "S6〜S8（束・更新の置き場・画面の任せ）は利用者に伝えた予定では段 ③ の物。stage2_list で段 ② に数えるのはずれている"
+  ],
+  "rank": "1 位 A（73.8）。2 位 F（69.9）・3 位 G（63.5）・4 位 D（58.5）・5 位 C（55.9）・6 位 B（52.5）・7 位 E（46.7）。どれも合格点 80 に届かないが、決まり 2026-11-06 により案出しをやり直さず、A に下の指摘（F・G の『錠の中で見直す』を含む）を入れた形で作る。足りない 6.2 点は、A が段 ② の 13 項のうち S1 だけを移し（Python の係は 1 つ減るだけ・任せる歩は 19 のまま）、決まりの写しの細部と app_seeds の重複を案の中で決めていないため",
+  "d_first": "D を先にはしない。(1) 利用者に伝えた予定で束は段 ③ の物で、Python が落ちる 4 形の正しい答えを決める仕事は ③ の事例の表・独立の答えと同じ作り方。(2) 7 歩は人が手で崩した配った設定でしか起きず、今は Python が組むので止まっていない。(3) 書いたとおりの bundle_seed の待ち（錠の長さ 20 秒）は今より悪い。ただし E のように Python を遅れて起こす形を入れるなら、その前に D が要る（束の口のたびに Python を起こさないため）。D は段 ③ の最初に置き、bundle_seed は Python と同じく錠に当たったら写しで答える形にする",
+  "first_fixes": [
+   "app_seeds の重複を塞ぐ: 2 回目の write（app_seeds に足す）の mutate の中で、同じ seed がもう行にあるかを錠の中で見直し、あれば足さない。1 回目の write も mutate が何も変えなければ書かない（版を上げない）形にする（Store::write に『変えなければ書かない』の口、または mutate が変えたかを返す形）。Python の master_seeds にも同じ見直しを 3〜5 行入れる（前の版の Python との競い合いは残るが、新しい版同士は塞がる。段 ④ で master_seeds.py ごと消える）。中身と app_seeds を 1 つの錠で書く形にするなら、with_lock は入れ子にできない（同じプロセスの生きた token は is_mine が偽で Locked）ので、exclusive の中で錠を持ったまま書く口を作る",
+   "写す決まりを人が仕様から書いた事例の表（tests/fixtures/seeds_cases.json）に全部出す: 検査計の空は str(v or \"\").strip()（0・false・[]・空白も空）／設備名は normalize_part（NFKC・前後の空白・大文字。数の 123 も字に。窓は access::normalize_part の値の形を使い、worksum の字の形は使わない）・同じ名前の行が 2 つなら dict の後の行だけに当たる／rev は int(r.get(\"rev\") or 1)+1（『abc』は ValueError でその初期値と後ろの初期値を当てずに次の起動へ・1.5 は 1・true は 1・i64 に入らない数は pyfmt::PyInt）／ログインID は normalize_part で比べる／釜番日付は名前を normalize せず str(v or \"\") の完全一致・同梱の表に無ければ何もしない（記録はする）・同梱の表が読めなければ次の起動へ／id は master_store::next_id、表示順は master_rows::next_order（字の \"n\"）／行が表でない・3.107.0 で隔てる行の扱い（Python は AttributeError で全部を次の起動へ）を決めて表に書く／app_seeds の seed は str() で比べる／当てる順は検査計 → 管理者 → 釜番日付で、1 つ失敗したら後ろは次の起動へ（break）",
+   "どの係で走らせるか: seed_through と同じ shared_store の Store（同じ置き場・同じ名乗りで 1 つ）で走らせ、同じ窓の中の書きと serialized で 1 本にする。手元のみの PC は Store::write → write_local（data/ に行の配列）で当てる。共有に届かなければ記録せず次の起動へ（Python と同じ）",
+   "起動の時の順: 窓の裏の糸は、置き場（access の place）が決まってから 1 回だけ走る。錠に当たったら 1 秒おきに 5 回まで待つのは裏の糸だけ（画面の問い合わせの道では待たない）。窓の warm・束の種まき・Python の create_app の path_settings の種まきと同じ錠を取り合う場面を試験に入れる",
+   "名乗り: SERVES に seeds を足し、Python は boot.start で \"seeds\" in shell_serves() なら master_seeds を走らせない（engine=python〈S13〉によらない。初期値は engine の係と関係ない）。名乗らない形（開発用サーバー・試験・前の版の窓）は今のまま",
+   "試験: seeds_oracle.py で Python と窓の終わった後のファイルを突き合わせる（共有が空・app_seeds が一部・人が直した後・同じ ID の行・rev が読めない・表でない行・錠・届かない・手元のみ）＋事例の表の独立の答え＋2 つのプロセスの場面（窓と前の版の Python・窓と窓）で、採点者が再現した『app_seeds を読んだ直後で待ち合わせる』形を入れ、新しい版同士は app_seeds が 3 行・中身の版が空の write で上がらないことを見る。Python が居ない形（Supervisor を起こさない lot::tests）でも当たること。tests/test_master_seeds.py に名乗りの試験",
+   "stage2_list を直す: S12 から起動の指紋を外す（Python の画面の ?v= に要る）・lot_settings( は呼ぶ所 5・S6〜S8 は段 ③ の物と書く・S9 をどの段で閉じるか（窓が https・システムのプロキシ・charset を持つか、理由つきで断るか）を書く・folder_browse・master_place の裏の糸を OS の任せと一緒に ③ と書く",
+   "予算は 19 のまま（delegate-count.py --check）。量の見込みは Rust 250〜350 行（見直しと『変えなければ書かない』の口を足す）・Python 15 行・答えの元 150 行・事例 40〜60 件"
+  ],
+  "later": [
+   "段 ③ の最初に D（束・更新の置き場・画面の口）。bundle_seed は錠を待たずに写しで答える。Python が落ちる 4 形の答えは事例の表で決める",
+   "段 ④ の下ごしらえとして E の中身（心拍・access_read の alive を窓の答えにし Python の様子は別に見せる・started() の update::confirm・install::maintain・cleanup_copies・revert を Python の準備から外す）。Python を遅れて起こす形は採らず、④ で起こさない形へ直に進む",
+   "C（写しの置き換えを窓 1 つに）・B（起動で共有に触れない Python）は段 ④ で Python ごと消えるので作らない。3.101.0 の観察 2（写しの置き換えの断り）は今の 0.5 秒のやり直しで凌ぐ"
+  ]
+ },
+ "stage2_order": {
+  "note": "段 ② の残りの順（版 3.110.0 で決めた。RUST_PORT_PLAN.md の『段 ② の 1 歩目』の節と同じ）",
+  "done": "S1 起動の初期値（版 3.110.0。窓の src/seeds.rs。SERVES に seeds）",
+  "stage3": [
+   "最初に S6〜S8（束・更新の置き場・画面の口。採点の d_first: bundle_seed は錠を待たずに写しで答え、Python が落ちる 4 形の答えは事例の表で決める）",
+   "S12b と OS の任せ 6（folder_browse・master_place の裏の糸ごと）",
+   "最後に S9（スケジュールの係を降りる形）"
+  ],
+  "stage4": [
+   "下ごしらえ: S10・S11（心拍・access_read の alive を窓の答えにし Python の様子は別に見せる・started() の update::confirm・install::maintain・cleanup_copies・revert を Python の準備から外す。Python を遅れて起こす形〈E〉は採らない）",
+   "S2〜S5・S12・S13 は Python ごと消す（B・C は作らない。3.101.0 の観察 2 は今の 0.5 秒のやり直しで凌ぐ）"
+  ]
+ },
+ "built_prepared": {
+  "name": "作った後（版 3.110.0。案 A に採点の指摘 first_fixes の 8 つを入れた形）。採点はまだ（別の係に頼む。決まり 2026-11-06: 1 回だけ）",
+  "fixes_applied": [
+   "1 重複を塞ぐ: 窓は Store::write_changed（mutate が〈値, 変えたか〉を返し、変えなければ書かない・版を上げない。手元のみも）。中身と app_seeds の 2 つの write は Python と同じ 2 段（with_lock を入れ子にしない）。app_seeds は錠の中で読み直した記録に同じ seed（str() で比べる）があれば足さない。Python の master_seeds も同じ見直し（_Same で書かずに抜ける・_record）",
+   "2 決まりを人が仕様から書いた事例の表 tests/fixtures/seeds_cases.json に全部（当て方 34 件・走らせる形 8）: 検査計の空は str(v or \"\").strip()（0・false・[]・空白・全角空白・欄なし）／設備名は access::normalize_part（値の形。数の 5 も字に）・同じ名前は後の行だけ／rev は int(rev or 1)+1（abc・1.5 の字・漢数字は次の起動へ・1.5 は 1・true は 1・0 は 1・空白つきの 4・u64 と u64 を超える整数は桁のまま）／ログインID は normalize_part（大文字・空白・全角）／釜番日付は名前を normalize しない完全一致・同梱の行に欠けた欄は空の字・同梱に無ければ書かず記録・同梱が読めない・表なら次の起動へ／id は next_id（字の 7・小数 2.5 も数え、x は数えない）・表示順は master_rows::next_order（² と abc は数えない）／表でない行は次の起動へ（Python と同じ。人が直すまで当てない）・3.107.0 で隔てる行は表なので比べる（版が漢数字の行は rev の決まりで止まる・id が字の行は当てる）／記録の seed は str()（null・数）／順は 検査計 → 管理者 → 釜番日付で、止まったら後ろは次の起動へ",
+   "3 走らせる係: master_store::shared_store の Store（種まきと同じ置き場・同じ名乗りで 1 つ。serialized で窓の書き込みと 1 本）。手元のみは write_local。共有に届かなければ記録せず次の起動へ（Unavailable で止まる）",
+   "4 起動の時の順: main.rs が束の材料を入れた後、裏の糸 seeds で 1 回だけ Lot::run_seeds（束の材料 bundle::Builder::inputs が引っ越しの印をたどった後の置き場）。錠を 1 秒おきに 5 回まで待つのはこの糸だけ（画面の問い合わせの道では待たない）。記録に SEEDS applied・stopped・skipped",
+   "5 名乗り: sidecar.rs の SERVES に seeds。Python の boot.start は \"seeds\" in shell_serves() なら master_seeds を走らせない（engine=python によらない）。名乗らない形（開発用サーバー・試験・前の版の窓）は今のまま",
+   "6 試験: cargo test --test seeds_cases（事例の表・走らせる形）・tests/test_seeds_cases.py（同じ表を Python で・名乗りで止まる）・cargo test --test seeds_parity（← tests/seeds_oracle.py。表の 8 形＋足した 3 形〈記録が一部・人が直した設備・同じ ID・大きな整数の版と id・手元のみの前からの行〉の終わった後のファイルを時刻と書いた人を伏せて突き合わせ／2 つのプロセスが app_seeds を読んだ直後で待ち合わせる場面を 5 回ずつ: 窓と窓・窓と今の版の Python〈記録は seed ごとに 1 行・中身の版は空の書き込みで上がらない・錠が残らない〉・窓と前の版の Python〈中身は 1 つずつ・窓は先の記録の後に足さない〉）・lot::tests::the_window_applies_the_seeds_without_python（Python に尋ねずに当たる・引っ越しの印をたどった後の置き場・2 回目は書かない）。変異で確かめた: 記録の見直しを外すと事例の表と競い合いの 3 つが落ちる",
+   "7 stage2_list を直した（S6〜S8 は段 ③・lot_settings を呼ぶ所は 5・S9 を閉じる段・S12 から起動の指紋を外す・folder_browse と master_place の裏の糸を S12b として段 ③ に）。段 ② の残りの順は stage2_order と RUST_PORT_PLAN.md",
+   "8 予算は 19 のまま（delegate-count.py --check）"
+  ],
+  "measured": "任せる歩: delegate-count.py --check → 19・予算と同じ。Python が起動で共有に書く物: 窓が seeds を名乗る形では 5 → 1（create_app の path_settings の種まきだけが残る。S2。段 ④ で Python ごと消える）",
+  "self_check": "作った者が確かめたこと: 事例の表は app を使わずに仕様から書き、Python（3 つ）と窓（2 つ）の両方が初めから表どおり。突き合わせ 4 つが通る。記録の見直しを外す変異で事例の表と競い合いの 3 つが落ちることを見て元に戻した"
+ }
 }

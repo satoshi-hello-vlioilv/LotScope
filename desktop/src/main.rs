@@ -689,6 +689,13 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
                                       // 設定の束は窓が組む（版 3.84.0。src/bundle.rs）。組めない形だけ中身（Python）に尋ねる
     lot.set_bundle(da_core::bundle::Builder::new(da_core::bundle::Env::production(&program, &locate::local_root())));
     let _ = LOT.set(lot.clone()); // 窓を閉じるときの使い終わり（RunEvent::Exit）
+                                  // 起動の初期値（版 3.110.0。src/seeds.rs）: 置き場が決まってから（束の材料が引っ越しの印をたどった後）、裏の糸で 1 回だけ当てる。
+                                  // 錠を 1 秒おきに 5 回まで待つのはこの糸だけ（画面の問い合わせの道では待たない）。Python に尋ねない
+    let seeds_lot = lot.clone();
+    let _ = std::thread::Builder::new().name("seeds".into()).spawn(move || match seeds_lot.run_seeds(&std::thread::sleep) {
+        Ok(o) => log(&format!("SEEDS applied={:?} stopped={:?} skipped={:?}", o.applied, o.stopped, o.skipped)),
+        Err(e) => log(&format!("SEEDS 当てずに次の起動へ: {e}")),
+    });
     std::thread::spawn(da_core::lotdsp_direct::sweep_profiles); // 前に落ちた窓が残した見えない Edge の一時プロファイルを消す（版 3.98.0）
                                                                 // 受け身の Python からの「写して」（作業実績・データ元の写しが要るとき。版 3.60.0）
     let told = lot.clone();

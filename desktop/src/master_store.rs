@@ -1107,6 +1107,11 @@ impl Store {
         &self.cfg.data
     }
 
+    /// マスタの最初の中身（app/master_defaults。起動の初期値が釜番日付の表を読む。版 3.110.0）
+    pub fn defaults_dir(&self) -> &Path {
+        &self.cfg.defaults
+    }
+
     /// 共有するマスタの名前（名前の順）
     pub fn shared_names(&self) -> Vec<String> {
         let mut v: Vec<String> = self.shared.iter().cloned().collect();
@@ -1215,6 +1220,13 @@ impl Store {
 
     /// `mutate(rows, stamp)` が行の配列を直し、画面へ返す値を返す。競合は MasterError で返る（Python の MasterStore.write）
     pub fn write<T>(&self, name: &str, mutate: impl FnOnce(&mut Vec<Value>, &Value) -> R<T>) -> R<T> {
+        self.write_changed(name, |rows, stamp| mutate(rows, stamp).map(|t| (t, true)))
+    }
+
+    /// write と同じだが、`mutate` が（返す値, 行を変えたか）を返す。変えなければ書かない（版を上げず、共有も写しも置き換えない。
+    /// 全部の PC が写しを取り直さない）。錠の中で読み直した行を見て決めるので、同じ時に当てたほかの係の後でも 2 回書かない
+    /// （版 3.110.0。起動の初期値 src/seeds.rs が、もう当たっている中身・app_seeds の記録を足し直さないため）
+    pub fn write_changed<T>(&self, name: &str, mutate: impl FnOnce(&mut Vec<Value>, &Value) -> R<(T, bool)>) -> R<T> {
         self.serialized(|| {
             let stamp = json!({"updated_at": iso(now_local()), "updated_by": self.who()});
             if !self.is_shared(name) {
@@ -1225,7 +1237,10 @@ impl Store {
                 self.pull(name, true, true)?; // 当てる前に共有から取り直す
                 let pulled = stat_sig(&share);
                 let mut doc = self.read(&self.mirror(name))?;
-                let result = mutate(&mut doc.rows, &stamp)?;
+                let (result, changed) = mutate(&mut doc.rows, &stamp)?;
+                if !changed {
+                    return Ok(result);
+                }
                 // 版が端（i64 の最大）なら足せない。Python は大きな整数で続けるが、窓は書かずに断る（黙って負へ回さない）
                 doc.revision = doc.revision.checked_add(1).ok_or_else(|| io_err("マスタの版の番号が大きすぎて、窓では保存できません"))?;
                 doc.updated_at = stamp["updated_at"].clone();
@@ -1242,14 +1257,17 @@ impl Store {
     }
 
     /// 手元だけのマスタ（data/）を書く。錠も data/ に取り、行の配列（昔の形）のまま書く
-    fn write_local<T>(&self, name: &str, mutate: impl FnOnce(&mut Vec<Value>, &Value) -> R<T>, stamp: &Value) -> R<T> {
+    fn write_local<T>(&self, name: &str, mutate: impl FnOnce(&mut Vec<Value>, &Value) -> R<(T, bool)>, stamp: &Value) -> R<T> {
         let path = self.bundled(name);
         let _s = self.scoped(|w| w.local = true);
         self.with_lock(|token| {
             let first = self.initial(name); // 錠を取ってから決めて読む
             let pulled = stat_sig(&path);
             let mut doc = if first.exists() { self.read(&first)? } else { Doc::empty() };
-            let result = mutate(&mut doc.rows, stamp)?;
+            let (result, changed) = mutate(&mut doc.rows, stamp)?;
+            if !changed {
+                return Ok(result);
+            }
             let cur = self.read_lock();
             if cur.as_ref().and_then(|c| c.get("token")) != Some(&json!(token)) || stat_sig(&path) != pulled {
                 return Err(self.locked(cur.as_ref(), 2));

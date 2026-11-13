@@ -1,0 +1,1934 @@
+{
+ "note": "起動の初期値（services/master_seeds.py・desktop/src/seeds.rs）の決まりを、人が仕様から書いた事例の表（版 3.110.0）。期待値は app を使わずに決めた。cases は当て方の 1 つずつ（rows に当てた後の行。stamp は下の stamp を重ねる）、runs は置き場ごとに走らせた結果。Python は tests/test_seeds_cases.py、窓は cargo test --test seeds_cases が同じ表を読む",
+ "stamp": {
+  "updated_at": "T",
+  "updated_by": {
+   "pc": "P",
+   "login": "L"
+  }
+ },
+ "order": [
+  "2026-09-29-inspection-meter",
+  "2026-09-29-first-developer",
+  "2026-10-23-kama-date-table"
+ ],
+ "cases": [
+  {
+   "name": "検査計: 空の表には 5 設備を順に足す",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "LS4",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 3,
+      "設備名": "DL2",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 4,
+      "設備名": "TLV",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 5,
+      "設備名": "NS1",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "無い設備は id を next_id（いまの最大 + 1）で、METERS の順に足す"
+  },
+  {
+   "name": "検査計: 全部ある・「有」なら書かない",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "有",
+     "rev": 1
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "有",
+     "rev": 1
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有",
+     "rev": 1
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有",
+     "rev": 1
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有",
+     "rev": 1
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "当てる中身が無ければ書かない（版を上げない。版 3.110.0）"
+  },
+  {
+   "name": "検査計: 空の 1 行は「有」・rev を 1 上げ、ほかは足す",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": 2
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": "有",
+      "rev": 3,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "LS4",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 3,
+      "設備名": "DL2",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 4,
+      "設備名": "TLV",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 5,
+      "設備名": "NS1",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "rev は int(rev or 1) + 1・stamp を重ねる"
+  },
+  {
+   "name": "検査計: 空の形（0・false・[]・空白と全角空白・欄なし）は空",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": 0,
+     "rev": 1
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": false,
+     "rev": 1
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": [],
+     "rev": 1
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": " 　\t",
+     "rev": 1
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "rev": 1
+    },
+    {
+     "id": 6,
+     "設備名": "KEN",
+     "検査計": null
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "LS4",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 3,
+      "設備名": "DL2",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 4,
+      "設備名": "TLV",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 5,
+      "設備名": "NS1",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 6,
+      "設備名": "KEN",
+      "検査計": null
+     }
+    ]
+   },
+   "why": "空は str(v or \"\").strip() が空。KEN は当てない設備なので触れない"
+  },
+  {
+   "name": "検査計: 空でない値（無・字の 0・数の 1・空白つきの字）は触れない",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "無"
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "0"
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": 1
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": " x "
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "人が決めた値を上書きしない"
+  },
+  {
+   "name": "検査計: 設備名のゆれ（前後の空白・小文字・全角・タブ）も同じ設備",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": " ls3 ",
+     "検査計": ""
+    },
+    {
+     "id": 2,
+     "設備名": "ＬＳ４",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "dl2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "tlv\t",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "Ns1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": " ls3 ",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "ＬＳ４",
+      "検査計": "有"
+     },
+     {
+      "id": 3,
+      "設備名": "dl2",
+      "検査計": "有"
+     },
+     {
+      "id": 4,
+      "設備名": "tlv\t",
+      "検査計": "有"
+     },
+     {
+      "id": 5,
+      "設備名": "Ns1",
+      "検査計": "有"
+     }
+    ]
+   },
+   "why": "比べるのは normalize_part（NFKC・前後の空白・大文字）。書く名前は直さない"
+  },
+  {
+   "name": "検査計: 同じ名前が 2 行なら後の行だけ",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": ""
+    },
+    {
+     "id": 2,
+     "設備名": "ls3",
+     "検査計": ""
+    },
+    {
+     "id": 3,
+     "設備名": "LS4",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 6,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": ""
+     },
+     {
+      "id": 2,
+      "設備名": "ls3",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 3,
+      "設備名": "LS4",
+      "検査計": "有"
+     },
+     {
+      "id": 4,
+      "設備名": "DL2",
+      "検査計": "有"
+     },
+     {
+      "id": 5,
+      "設備名": "TLV",
+      "検査計": "有"
+     },
+     {
+      "id": 6,
+      "設備名": "NS1",
+      "検査計": "有"
+     }
+    ]
+   },
+   "why": "have = {normalize_part(設備名): 行} は後の行が勝つ"
+  },
+  {
+   "name": "検査計: 設備名が数・null・欄なしの行は当たらない",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": 5
+    },
+    {
+     "id": 2,
+     "設備名": null
+    },
+    {
+     "id": 3
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": 5
+     },
+     {
+      "id": 2,
+      "設備名": null
+     },
+     {
+      "id": 3
+     },
+     {
+      "id": 4,
+      "設備名": "LS3",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 5,
+      "設備名": "LS4",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 6,
+      "設備名": "DL2",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 7,
+      "設備名": "TLV",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 8,
+      "設備名": "NS1",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "数の設備名も字にして比べる（5 → \"5\"）"
+  },
+  {
+   "name": "検査計: rev が int() で読めない字（abc）は当てずに次の起動へ",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": "abc"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "int('abc') は ValueError。この初期値と後ろの初期値を当てず、記録もしない（break）"
+  },
+  {
+   "name": "検査計: rev が小数の字（1.5）も読めない",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": "1.5"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "int('1.5') は ValueError"
+  },
+  {
+   "name": "検査計: 版が読めない隔てる行（rev が漢数字）も読めない",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": "x",
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": "二"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "3.107.0 で一覧が隔てる行も表なのでほかの行と同じに比べ、int('二') で止まる"
+  },
+  {
+   "name": "検査計: rev の形（1.5 は 1・true は 1・字の 7・0・空白つきの 4）",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": 1.5
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "",
+     "rev": true
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "",
+     "rev": "7"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "",
+     "rev": 0
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "",
+     "rev": " 4 "
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "LS4",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 3,
+      "設備名": "DL2",
+      "検査計": "有",
+      "rev": 8,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 4,
+      "設備名": "TLV",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 5,
+      "設備名": "NS1",
+      "検査計": "有",
+      "rev": 5,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "int(1.5)=1・int(True)=1・int('7')=7・0 は (0 or 1)=1・int(' 4 ')=4。それぞれ + 1"
+  },
+  {
+   "name": "検査計: 大きな整数の rev は桁のまま + 1",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "",
+     "rev": 12345678901234567890
+    },
+    {
+     "id": 2,
+     "設備名": "LS4",
+     "検査計": "",
+     "rev": 100000000000000000000
+    },
+    {
+     "id": 3,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 5,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": "有",
+      "rev": 12345678901234567891,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 2,
+      "設備名": "LS4",
+      "検査計": "有",
+      "rev": 100000000000000000001,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 3,
+      "設備名": "DL2",
+      "検査計": "有"
+     },
+     {
+      "id": 4,
+      "設備名": "TLV",
+      "検査計": "有"
+     },
+     {
+      "id": 5,
+      "設備名": "NS1",
+      "検査計": "有"
+     }
+    ]
+   },
+   "why": "Python の int（窓は pyfmt::PyInt）。i64・u64 に入らない数も小数に丸めない"
+  },
+  {
+   "name": "検査計: id の形（字の id・数の字・小数）から次の id",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": "x",
+     "設備名": "KEN"
+    },
+    {
+     "id": "7",
+     "設備名": "AP3"
+    },
+    {
+     "id": 2.5,
+     "設備名": "FS4"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": "x",
+      "設備名": "KEN"
+     },
+     {
+      "id": "7",
+      "設備名": "AP3"
+     },
+     {
+      "id": 2.5,
+      "設備名": "FS4"
+     },
+     {
+      "id": 8,
+      "設備名": "LS3",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 9,
+      "設備名": "LS4",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 10,
+      "設備名": "DL2",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 11,
+      "設備名": "TLV",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 12,
+      "設備名": "NS1",
+      "巻取方向": "",
+      "ライン方向": "",
+      "同一工程": "",
+      "検査計": "有",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "next_id: int() で読めない id（x）は数えず、字の 7 は 7・2.5 は 2。最大 7 の次から"
+  },
+  {
+   "name": "検査計: id が字の隔てる行も表なので当てる",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": "x",
+     "設備名": "LS4",
+     "検査計": ""
+    },
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "有"
+    },
+    {
+     "id": 2,
+     "設備名": "DL2",
+     "検査計": "有"
+    },
+    {
+     "id": 3,
+     "設備名": "TLV",
+     "検査計": "有"
+    },
+    {
+     "id": 4,
+     "設備名": "NS1",
+     "検査計": "有"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": "x",
+      "設備名": "LS4",
+      "検査計": "有",
+      "rev": 2,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     },
+     {
+      "id": 1,
+      "設備名": "LS3",
+      "検査計": "有"
+     },
+     {
+      "id": 2,
+      "設備名": "DL2",
+      "検査計": "有"
+     },
+     {
+      "id": 3,
+      "設備名": "TLV",
+      "検査計": "有"
+     },
+     {
+      "id": 4,
+      "設備名": "NS1",
+      "検査計": "有"
+     }
+    ]
+   },
+   "why": "隔てる行を飛ばすと同じ設備をもう 1 行足してしまう。表なら比べる"
+  },
+  {
+   "name": "検査計: 表でない行があれば当てずに次の起動へ",
+   "seed": "2026-09-29-inspection-meter",
+   "rows": [
+    {
+     "id": 1,
+     "設備名": "LS3",
+     "検査計": "有"
+    },
+    "壊れた行"
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "Python の r.get が AttributeError。人が直すまで当てない（記録もしない）"
+  },
+  {
+   "name": "管理者: 空の表には 1 行足す",
+   "seed": "2026-09-29-first-developer",
+   "rows": [],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "ログインID": "satoshi-harada",
+      "PC名": "",
+      "権限区分": "開発者",
+      "マスタ編集": "編集可",
+      "有効": "有",
+      "備考": "最初の管理者（配った版で登録）",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "id は next_id"
+  },
+  {
+   "name": "管理者: 大文字・空白のゆれでもあれば書かない",
+   "seed": "2026-09-29-first-developer",
+   "rows": [
+    {
+     "id": 3,
+     "ログインID": " SATOSHI-HARADA ",
+     "権限区分": "一般ユーザー"
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "比べるのは normalize_part。人が決めた権限区分を戻さない"
+  },
+  {
+   "name": "管理者: 全角でもあれば書かない",
+   "seed": "2026-09-29-first-developer",
+   "rows": [
+    {
+     "id": 1,
+     "ログインID": "ｓａｔｏｓｈｉ－ｈａｒａｄａ"
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "NFKC で半角に"
+  },
+  {
+   "name": "管理者: ほかの人と空の ID だけなら足す",
+   "seed": "2026-09-29-first-developer",
+   "rows": [
+    {
+     "id": 4,
+     "ログインID": "tanaka"
+    },
+    {
+     "id": "9",
+     "ログインID": null
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 4,
+      "ログインID": "tanaka"
+     },
+     {
+      "id": "9",
+      "ログインID": null
+     },
+     {
+      "id": 10,
+      "ログインID": "satoshi-harada",
+      "PC名": "",
+      "権限区分": "開発者",
+      "マスタ編集": "編集可",
+      "有効": "有",
+      "備考": "最初の管理者（配った版で登録）",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "字の id 9 も数える"
+  },
+  {
+   "name": "管理者: 表でない行があれば当てずに次の起動へ",
+   "seed": "2026-09-29-first-developer",
+   "rows": [
+    [
+     "satoshi-harada"
+    ]
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "r.get が AttributeError"
+  },
+  {
+   "name": "釜番日付: 無ければ同梱の表から 5 つの欄を写して足す",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    {
+     "id": 1,
+     "名前": "課名",
+     "表示順": "10"
+    },
+    {
+     "id": 2,
+     "名前": "管理分類",
+     "表示順": "20"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "名前": "課名",
+      "表示順": "10"
+     },
+     {
+      "id": 2,
+      "名前": "管理分類",
+      "表示順": "20"
+     },
+     {
+      "id": 3,
+      "名前": "釜番日付",
+      "入力": "[\"釜番\"]",
+      "判定": "[[\"x\"]]",
+      "その他": "",
+      "当て方": "kamadate",
+      "表示順": "30",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "名前・入力・判定・その他・当て方だけを写す（同梱の id・表示順は写さない）。表示順は next_order（最大 + 10 の字）",
+   "bundled": [
+    {
+     "名前": "課名",
+     "入力": "[]"
+    },
+    {
+     "id": 9,
+     "名前": "釜番日付",
+     "入力": "[\"釜番\"]",
+     "判定": "[[\"x\"]]",
+     "その他": "",
+     "当て方": "kamadate",
+     "表示順": "90"
+    }
+   ]
+  },
+  {
+   "name": "釜番日付: あれば書かない（同梱の表も読まない）",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    {
+     "id": 1,
+     "名前": "課名",
+     "表示順": "10"
+    },
+    {
+     "id": 2,
+     "名前": "管理分類",
+     "表示順": "20"
+    },
+    {
+     "id": 3,
+     "名前": "釜番日付",
+     "入力": "[]"
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "人が直した表を戻さない。同梱の表が読めなくても書かない",
+   "bundled_error": true
+  },
+  {
+   "name": "釜番日付: 名前は normalize しない（前に空白の名前は別の表）",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    {
+     "id": 1,
+     "名前": " 釜番日付",
+     "表示順": "10"
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "名前": " 釜番日付",
+      "表示順": "10"
+     },
+     {
+      "id": 2,
+      "名前": "釜番日付",
+      "入力": "[\"釜番\"]",
+      "判定": "[[\"x\"]]",
+      "その他": "",
+      "当て方": "kamadate",
+      "表示順": "20",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "str(v or \"\") の完全一致",
+   "bundled": [
+    {
+     "名前": "課名",
+     "入力": "[]"
+    },
+    {
+     "id": 9,
+     "名前": "釜番日付",
+     "入力": "[\"釜番\"]",
+     "判定": "[[\"x\"]]",
+     "その他": "",
+     "当て方": "kamadate",
+     "表示順": "90"
+    }
+   ]
+  },
+  {
+   "name": "釜番日付: 同梱の行に欠けた欄は空の字",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "名前": "釜番日付",
+      "入力": "[]",
+      "判定": "",
+      "その他": "",
+      "当て方": "",
+      "表示順": "10",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "src.get(k, \"\")",
+   "bundled": [
+    {
+     "名前": "釜番日付",
+     "入力": "[]"
+    }
+   ]
+  },
+  {
+   "name": "釜番日付: 同梱の表に無ければ何もしない（記録はする）",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    {
+     "id": 1,
+     "名前": "課名",
+     "表示順": "10"
+    },
+    {
+     "id": 2,
+     "名前": "管理分類",
+     "表示順": "20"
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "src が None",
+   "bundled": [
+    {
+     "名前": "課名"
+    }
+   ]
+  },
+  {
+   "name": "釜番日付: 同梱の表が読めなければ次の起動へ",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    {
+     "id": 1,
+     "名前": "課名",
+     "表示順": "10"
+    },
+    {
+     "id": 2,
+     "名前": "管理分類",
+     "表示順": "20"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "json.loads が落ちる",
+   "bundled_error": true
+  },
+  {
+   "name": "釜番日付: 同梱の表が表の並びでない（表）なら次の起動へ",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    {
+     "id": 1,
+     "名前": "課名",
+     "表示順": "10"
+    },
+    {
+     "id": 2,
+     "名前": "管理分類",
+     "表示順": "20"
+    }
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "鍵の字を回して r.get が AttributeError",
+   "bundled": {
+    "釜番日付": {
+     "名前": "釜番日付"
+    }
+   }
+  },
+  {
+   "name": "釜番日付: 表示順の形（字・上付きの 2・数・読めない字・null・空白つき）",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    {
+     "id": 1,
+     "名前": "a",
+     "表示順": "20"
+    },
+    {
+     "id": 2,
+     "名前": "b",
+     "表示順": "²"
+    },
+    {
+     "id": 3,
+     "名前": "c",
+     "表示順": 35
+    },
+    {
+     "id": 4,
+     "名前": "d",
+     "表示順": "abc"
+    },
+    {
+     "id": 5,
+     "名前": "e",
+     "表示順": null
+    },
+    {
+     "id": 6,
+     "名前": "f",
+     "表示順": " 40 "
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "名前": "a",
+      "表示順": "20"
+     },
+     {
+      "id": 2,
+      "名前": "b",
+      "表示順": "²"
+     },
+     {
+      "id": 3,
+      "名前": "c",
+      "表示順": 35
+     },
+     {
+      "id": 4,
+      "名前": "d",
+      "表示順": "abc"
+     },
+     {
+      "id": 5,
+      "名前": "e",
+      "表示順": null
+     },
+     {
+      "id": 6,
+      "名前": "f",
+      "表示順": " 40 "
+     },
+     {
+      "id": 7,
+      "名前": "釜番日付",
+      "入力": "[\"釜番\"]",
+      "判定": "[[\"x\"]]",
+      "その他": "",
+      "当て方": "kamadate",
+      "表示順": "50",
+      "rev": 1,
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "int(str(v or 0).strip()) で読めない行（²・abc）は数えない。最大 40 + 10",
+   "bundled": [
+    {
+     "名前": "課名",
+     "入力": "[]"
+    },
+    {
+     "id": 9,
+     "名前": "釜番日付",
+     "入力": "[\"釜番\"]",
+     "判定": "[[\"x\"]]",
+     "その他": "",
+     "当て方": "kamadate",
+     "表示順": "90"
+    }
+   ]
+  },
+  {
+   "name": "釜番日付: 表でない行があれば次の起動へ",
+   "seed": "2026-10-23-kama-date-table",
+   "rows": [
+    7
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "r.get が AttributeError",
+   "bundled": [
+    {
+     "名前": "課名",
+     "入力": "[]"
+    },
+    {
+     "id": 9,
+     "名前": "釜番日付",
+     "入力": "[\"釜番\"]",
+     "判定": "[[\"x\"]]",
+     "その他": "",
+     "当て方": "kamadate",
+     "表示順": "90"
+    }
+   ]
+  },
+  {
+   "name": "記録: 空の記録に足す",
+   "seed": "record",
+   "rows": [],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "seed": "2026-09-29-inspection-meter",
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "id は next_id",
+   "sid": "2026-09-29-inspection-meter"
+  },
+  {
+   "name": "記録: 同じ seed があれば足さない",
+   "seed": "record",
+   "rows": [
+    {
+     "id": 4,
+     "seed": "2026-09-29-inspection-meter"
+    }
+   ],
+   "expect": {
+    "changed": false
+   },
+   "why": "錠の中で読み直した記録で決める（版 3.110.0。2 つの PC が同じ時に当てても 1 行）",
+   "sid": "2026-09-29-inspection-meter"
+  },
+  {
+   "name": "記録: seed は str() で比べる（null・数は別の字）",
+   "seed": "record",
+   "rows": [
+    {
+     "id": 1,
+     "seed": null
+    },
+    {
+     "id": 2,
+     "seed": 5
+    }
+   ],
+   "expect": {
+    "changed": true,
+    "rows": [
+     {
+      "id": 1,
+      "seed": null
+     },
+     {
+      "id": 2,
+      "seed": 5
+     },
+     {
+      "id": 3,
+      "seed": "2026-09-29-inspection-meter",
+      "updated_at": "T",
+      "updated_by": {
+       "pc": "P",
+       "login": "L"
+      }
+     }
+    ]
+   },
+   "why": "str(None) は 'None'",
+   "sid": "2026-09-29-inspection-meter"
+  },
+  {
+   "name": "記録: 表でない行があれば次の起動へ",
+   "seed": "record",
+   "rows": [
+    "x"
+   ],
+   "expect": {
+    "error": true
+   },
+   "why": "r.get が AttributeError",
+   "sid": "2026-09-29-inspection-meter"
+  }
+ ],
+ "runs": [
+  {
+   "name": "空の共有には 3 つとも当て、記録は 3 行",
+   "place": "share",
+   "masters": {},
+   "expect": {
+    "applied": [
+     "2026-09-29-inspection-meter",
+     "2026-09-29-first-developer",
+     "2026-10-23-kama-date-table"
+    ],
+    "stopped": null,
+    "skipped": false,
+    "seeds": [
+     "2026-09-29-inspection-meter",
+     "2026-09-29-first-developer",
+     "2026-10-23-kama-date-table"
+    ],
+    "revisions": {
+     "equipment_master": 2,
+     "access_permissions": 2,
+     "conversions": 1,
+     "app_seeds": 4
+    },
+    "counts": {
+     "equipment_master": 5,
+     "access_permissions": 1
+    }
+   },
+   "why": "共有に無いマスタは読むとき・書く前に最初の版を置く（版 1）。同梱の最初の変換表にはもう釜番日付があるので書かない（版 1 のまま）"
+  },
+  {
+   "name": "全部済みなら何も書かない",
+   "place": "share",
+   "masters": {
+    "app_seeds": {
+     "schema": 1,
+     "revision": 4,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "seed": "2026-09-29-inspection-meter"
+      },
+      {
+       "id": 2,
+       "seed": "2026-09-29-first-developer"
+      },
+      {
+       "id": 3,
+       "seed": "2026-10-23-kama-date-table"
+      }
+     ]
+    },
+    "equipment_master": {
+     "schema": 1,
+     "revision": 3,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": []
+    }
+   },
+   "expect": {
+    "applied": [],
+    "stopped": null,
+    "skipped": false,
+    "seeds": [
+     "2026-09-29-inspection-meter",
+     "2026-09-29-first-developer",
+     "2026-10-23-kama-date-table"
+    ],
+    "revisions": {
+     "app_seeds": 4,
+     "equipment_master": 3
+    }
+   },
+   "why": "記録にある初期値は当てない（人が消した設備も戻さない）"
+  },
+  {
+   "name": "記録が消えても、決まっている中身は書かず記録だけ足す",
+   "place": "share",
+   "masters": {
+    "app_seeds": {
+     "schema": 1,
+     "revision": 5,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": []
+    },
+    "equipment_master": {
+     "schema": 1,
+     "revision": 7,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "設備名": "LS3",
+       "検査計": "有"
+      },
+      {
+       "id": 2,
+       "設備名": "LS4",
+       "検査計": "有"
+      },
+      {
+       "id": 3,
+       "設備名": "DL2",
+       "検査計": "有"
+      },
+      {
+       "id": 4,
+       "設備名": "TLV",
+       "検査計": "有"
+      },
+      {
+       "id": 5,
+       "設備名": "NS1",
+       "検査計": "有"
+      }
+     ]
+    },
+    "access_permissions": {
+     "schema": 1,
+     "revision": 3,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "ログインID": "satoshi-harada"
+      }
+     ]
+    },
+    "conversions": {
+     "schema": 1,
+     "revision": 2,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "名前": "釜番日付"
+      }
+     ]
+    }
+   },
+   "expect": {
+    "applied": [
+     "2026-09-29-inspection-meter",
+     "2026-09-29-first-developer",
+     "2026-10-23-kama-date-table"
+    ],
+    "stopped": null,
+    "skipped": false,
+    "seeds": [
+     "2026-09-29-inspection-meter",
+     "2026-09-29-first-developer",
+     "2026-10-23-kama-date-table"
+    ],
+    "revisions": {
+     "app_seeds": 8,
+     "equipment_master": 7,
+     "access_permissions": 3,
+     "conversions": 2
+    }
+   },
+   "why": "当てる中身が無ければ版を上げない（版 3.110.0）"
+  },
+  {
+   "name": "rev が読めない検査計の行は、3 つとも当てずに次の起動へ",
+   "place": "share",
+   "masters": {
+    "app_seeds": {
+     "schema": 1,
+     "revision": 2,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": []
+    },
+    "equipment_master": {
+     "schema": 1,
+     "revision": 3,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "設備名": "LS3",
+       "検査計": "",
+       "rev": "abc"
+      }
+     ]
+    }
+   },
+   "expect": {
+    "applied": [],
+    "stopped": "2026-09-29-inspection-meter",
+    "skipped": false,
+    "seeds": [],
+    "revisions": {
+     "app_seeds": 2,
+     "equipment_master": 3
+    }
+   },
+   "why": "1 つ止まったら後ろも当てない（break）"
+  },
+  {
+   "name": "権限のマスタに表でない行があれば、検査計だけ当てる",
+   "place": "share",
+   "masters": {
+    "app_seeds": {
+     "schema": 1,
+     "revision": 1,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": []
+    },
+    "equipment_master": {
+     "schema": 1,
+     "revision": 1,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      {
+       "id": 1,
+       "設備名": "LS3",
+       "検査計": "有"
+      },
+      {
+       "id": 2,
+       "設備名": "LS4",
+       "検査計": "有"
+      },
+      {
+       "id": 3,
+       "設備名": "DL2",
+       "検査計": "有"
+      },
+      {
+       "id": 4,
+       "設備名": "TLV",
+       "検査計": "有"
+      },
+      {
+       "id": 5,
+       "設備名": "NS1",
+       "検査計": "有"
+      }
+     ]
+    },
+    "access_permissions": {
+     "schema": 1,
+     "revision": 4,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      "壊れた行"
+     ]
+    }
+   },
+   "expect": {
+    "applied": [
+     "2026-09-29-inspection-meter"
+    ],
+    "stopped": "2026-09-29-first-developer",
+    "skipped": false,
+    "seeds": [
+     "2026-09-29-inspection-meter"
+    ],
+    "revisions": {
+     "app_seeds": 2,
+     "equipment_master": 1,
+     "access_permissions": 4
+    }
+   },
+   "why": "当てた順に記録し、止まった所から後ろは次の起動へ"
+  },
+  {
+   "name": "記録に表でない行があれば何もしない",
+   "place": "share",
+   "masters": {
+    "app_seeds": {
+     "schema": 1,
+     "revision": 3,
+     "updated_at": "",
+     "updated_by": {},
+     "rows": [
+      "x"
+     ]
+    }
+   },
+   "expect": {
+    "applied": [],
+    "stopped": null,
+    "skipped": true,
+    "seeds": null,
+    "revisions": {
+     "app_seeds": 3
+    }
+   },
+   "why": "記録を読めないと、どれを当てたか分からない（Python は MASTER_SEEDS_SKIP）"
+  },
+  {
+   "name": "手元のみの PC は data/ に当てる",
+   "place": "local",
+   "masters": {},
+   "expect": {
+    "applied": [
+     "2026-09-29-inspection-meter",
+     "2026-09-29-first-developer",
+     "2026-10-23-kama-date-table"
+    ],
+    "stopped": null,
+    "skipped": false,
+    "seeds": [
+     "2026-09-29-inspection-meter",
+     "2026-09-29-first-developer",
+     "2026-10-23-kama-date-table"
+    ],
+    "counts": {
+     "equipment_master": 5,
+     "access_permissions": 1
+    }
+   },
+   "why": "共有の置き場が無ければ同梱の data/ に行の配列で書く（write_local）"
+  },
+  {
+   "name": "共有に届かなければ何も書かず次の起動へ",
+   "place": "unreachable",
+   "masters": {},
+   "expect": {
+    "applied": [],
+    "stopped": "2026-09-29-inspection-meter",
+    "skipped": false,
+    "seeds": null
+   },
+   "why": "読みは写し・同梱の data/ で続くが、書けないので記録しない"
+  }
+ ]
+}

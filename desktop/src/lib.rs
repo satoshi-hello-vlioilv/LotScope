@@ -57,6 +57,7 @@ pub mod release_place;
 pub mod row_check;
 pub mod schedule;
 pub mod search_index;
+pub mod seeds;
 pub mod settings_write;
 pub mod shifts_write;
 pub mod small_reads;
