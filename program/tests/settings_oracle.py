@@ -275,7 +275,7 @@ def scenarios(work):
         masters(share=r / "share")
         write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": [["a"], "b"]}]))
         return config(r)
-    sc("設備の並びの中に並び", nested, expect="broken:dash")
+    sc("設備の並びの中に並び", nested)          # 版 3.109.0: 窓も Python の str()（repr）で組む（前は broken:dash で window）
     sc("表示順が i64 に入らない設備グループ", lambda r: (masters(share=r / "share"),
                                                  write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": "a", "表示順": "99999999999999999999"}])),
                                                  config(r))[2])       # 版 3.108.0（H2）: 窓も桁のまま組む（前は dash の節を組まなかった）
@@ -310,6 +310,35 @@ def scenarios(work):
     for fname, extra in [("data_sources", {"id": 91, "キー": "nanx", "表示名": "x", "場所": "/x", "確かめる間隔": ["x"]}),
                          ("work_log_files", {"id": 91, "キー": "wl", "設備名": ["X"]})]:
         sc(f"置き場の {fname}.json の行の値が並び（窓も Python の str() で組む）", wide_in(fname, extra))
+    # 版 3.109.0 の作った後の採点の割れ 2: 束の中の中身の字（データ元の結合・設備グループのルール）と確かめる間隔の大きな整数も窓が組む
+    # （前は text_split_py・num_of が節を window にし、Python が居なければ 503）
+    big = 10 ** 20
+    sc("データ元の確かめる間隔が 10^20 と 2^64（窓も Python の int(float) の桁で組む）", lambda r: (
+        masters(share=r / "share"),
+        add_row(r, "data_sources", {"id": 96, "キー": "iv1", "表示名": "間隔", "場所": "/iv1", "確かめる間隔": big}),
+        add_row(r, "data_sources", {"id": 97, "キー": "iv2", "表示名": "間隔 2", "場所": "/iv2", "確かめる間隔": str(2 ** 64)}),
+        config(r))[3])
+    sc("データ元の結合と設備グループのルールの字に 10^20（窓も桁のまま組む）", lambda r: (
+        masters(share=r / "share"),
+        add_row(r, "data_sources", {"id": 98, "キー": "jb", "表示名": "結合", "場所": "/jb",
+                                    "結合": json.dumps([{"with": big, "how": big, "on": [["a", big], [big, "b"]], "cols": [big, "c"]}])}),
+        write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": [big, "a"], "ルール": json.dumps(
+            {"rules": [{"op": "prefix", "value": big}, {"op": big, "value": "x"}], "except": [big, "L-9"]})}])),
+        config(r))[3])
+    # 窓がまだ組めない形（window。Python は組む）: 変換表の式が引く形の大きな整数・結合の字の中の NaN。窓は束を Python に尋ねる
+    # （印 bundle_window。この場面は "delegate": true で任せる歩に数える）
+    def conv_big(r):
+        masters(share=r / "share")
+        cv = json.loads((r / "share" / "conversions.json").read_text(encoding="utf-8"))
+        cv["rows"] += [{"id": 50, "名前": "大きな判定", "入力": json.dumps(["a"]), "判定": '[{"when": {"a": 100000000000000000000}, "out": "x"}]',
+                        "その他": "", "表示順": 5}]
+        write(r / "share" / "conversions.json", cv)
+        return config(r)
+    sc("変換表の判定の字に 10^20（式が引く形は窓がまだ組めない）", conv_big, expect="broken:conversions")
+    sc("データ元の結合の字に NaN（窓がまだ組めない）", lambda r: (
+        masters(share=r / "share"),
+        add_row(r, "data_sources", {"id": 99, "キー": "jn", "表示名": "結合", "場所": "/jn", "結合": '[{"with": "x", "on": [["a", "b"]], "n": NaN}]'}),
+        config(r))[2], expect="broken:sources")
     # 境の数（2^63−1・2^63・10^19・2^64−1・2^64・−2^63−1）を束が字にする欄へ（確かめる間隔は写しの係の秒〈i64。Python は int(float())〉なので 10^18）
     sc("置き場の束の材料の欄に境の大きな整数（窓も桁のまま組む）", lambda r: (
         masters(share=r / "share"),
@@ -623,7 +652,13 @@ def main():
         shutil.move(str(keep), s["root"])          # 尋ねる前の形へ戻す（窓は同じフォルダから組む）
         root = s["root"]
         # 窓が Python に尋ねる場面の答えは比べない（NaN を含むと JSON で渡せない）。broken の場面は渡せるときだけ
-        out.append({"name": s["name"], "expect": s["expect"], "pyFollows": s["pyFollows"],
+        # 窓が組まない節のうち Python は組む節（版 3.109.0）: 窓は束を Python に尋ねる（bundle_window）ので、任せる歩に数える
+        window = []
+        if s["expect"].startswith("broken:") and isinstance(answer, dict):
+            py_broken = set((answer.get("broken") or {}).keys())
+            window = [n for n in s["expect"][len("broken:"):].split(",") if n not in py_broken]
+        out.append({"name": s["name"], "expect": s["expect"], "pyFollows": s["pyFollows"], "window": window,
+                    **({"delegate": True} if window else {}),
                     "answer": answer if s["expect"] in ("same", "seed") or (s["expect"].startswith("broken:") and finite(answer)) else None, "override": after, "reads": reads,
                     "shareAfter": s.get("shareAfter") if s["expect"] == "seed" else None,
                     "expectOverride": str(root / s["expectOverride"]) if s["expectOverride"] else None,

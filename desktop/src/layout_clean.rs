@@ -273,7 +273,12 @@ fn float_of(t: Option<&Tree>) -> R<Option<f64>> {
         Some(Tree::Bool(b)) => Some(if *b { 1.0 } else { 0.0 }),
         Some(Tree::Num(n)) => n.as_f64(),
         // 持っている大きな整数は float(int)・NaN は有限でない（版 3.109.0）
-        Some(Tree::Str(s)) if held_str(s) => crate::held::big_digits_str(s).and_then(|d| d.parse::<f64>().ok()),
+        // f64 に入らない大きさは Python の float() が OverflowError で落ちる（_float は受けない）ので任せる（版 3.109.0 の割れ 6）
+        Some(Tree::Str(s)) if held_str(s) => match crate::held::big_digits_str(s).map(pyfmt::py_float_of_int) {
+            Some(Ok(f)) => Some(f),
+            Some(Err(_)) => return Err(Stop::Py),
+            None => None,
+        },
         Some(Tree::Str(s)) => {
             if !num_text_plain(s) {
                 return Err(Stop::Py);

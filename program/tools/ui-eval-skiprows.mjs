@@ -136,6 +136,17 @@ try {
     await p.keyboard.press("Escape"); await sleep(200);
     check(`⑧ ${tag} Esc でやめる（窓が閉じる）`, !(await p.$(".tpa-confirm")), "");
     await closeMenu(p);
+    if (tag === "1280x720") {
+      // 版 3.109.0 の作った後の採点の割れ 4: ほかの画面の行（カードの設計）を消しても、帯の札の数（今の面の行）は減らない。一言の「残り n」も同じ数
+      await openMenu(p, "#dashBar");
+      await openConfirm(p, /壊れたカード/);
+      await p.click('.tpa-confirm [data-act="ok"]');
+      await p.waitForLoadState("load").catch(() => {}); await sleep(2500);
+      const after = await p.evaluate(() => ({ toast: document.querySelector(".tpa-toast")?.textContent || "", chip: document.querySelector("#dashBar .tpa-skip")?.textContent || "" }));
+      check(`⑧ ${tag} ほかの画面の行を消した一言の「残り n」が帯の札の数と同じ（残り 2・札 2）`, /カードの設計の \d+ 行目（id 901・名前 '壊れたカード'）を消しました。 ?読めない行は残り 2/.test(after.toast)
+        && after.chip === "⚠ ダッシュボードの読めない行 2", after);
+      await shot(p, `skip-dash-toast-${tag}`);
+    }
     // 一般ユーザーの言葉（権限で分ける: マスタを直せない人）
     await p.evaluate(() => { TPA.me = { ...(TPA.me || {}), canEditFieldMaster: false }; });
     const m2 = await openMenu(p, "#dashBar");

@@ -287,7 +287,7 @@ pub fn py_float_of(v: Option<&Value>, def: f64) -> Result<f64, String> {
         Some(Value::Bool(b)) => Ok(if *b { 1.0 } else { 0.0 }),
         Some(x @ Value::String(_)) if crate::held::is_held(x) => match crate::held::to_j(x) {
             J::Float(f) => Ok(f),
-            J::Big(d) => Ok(d.parse::<f64>().unwrap_or(f64::NAN)),
+            J::Big(d) => pyfmt::py_float_of_int(&d),
             j => Ok(j.to_value().as_f64().unwrap_or(f64::NAN)),
         },
         Some(Value::String(s)) => pyfmt::py_float(s),

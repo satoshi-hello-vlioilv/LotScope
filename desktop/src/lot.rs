@@ -375,7 +375,7 @@ impl Lot {
     /// 窓が組んだ束（組めなければ None）。試験と記録のため
     pub fn own_bundle(&self) -> Option<Result<Value, &'static str>> {
         let b = self.bundle.lock().unwrap().clone()?;
-        Some(b.build().map_err(|e| e.0))
+        Some(b.build().map_err(|e| e.why))
     }
 
     /// 画面（GET /・HEAD /。版 3.85.0）を窓が描く。束を組む係が無い・窓が Python と同じに描けない形は None（Python に任せる）。
@@ -389,7 +389,7 @@ impl Lot {
         let Some(b) = self.bundle.lock().unwrap().clone() else { return why("束を組む係が無い".into()) };
         let inp = match b.inputs() {
             Ok(i) => i,
-            Err(e) => return why(format!("束の材料: {}", e.0)),
+            Err(e) => return why(format!("束の材料: {}", e.why)),
         };
         // 初期設定・変換表が共有にまだ無ければ、Python の画面と同じく読むときに最初の版を置く（版 3.105.0。inp.check が Place::seed で置く）
         let profile: Vec<String> = crate::bundle::tables()["uiProfileKeys"]
@@ -421,10 +421,10 @@ impl Lot {
                     miss.push("画面の控え".to_string());
                 }
                 if p.is_none() {
-                    miss.push(format!("初期設定（{}）", inp.check("ui_defaults").err().map(|e| e.0).unwrap_or("読めない")));
+                    miss.push(format!("初期設定（{}）", inp.check("ui_defaults").err().map(|e| e.why).unwrap_or("読めない")));
                 }
                 if c.is_none() {
-                    miss.push(format!("変換表（{}）", inp.check("conversions").err().map(|e| e.0).unwrap_or("読めない")));
+                    miss.push(format!("変換表（{}）", inp.check("conversions").err().map(|e| e.why).unwrap_or("読めない")));
                 }
                 return why(miss.join("・"));
             }
@@ -840,7 +840,7 @@ impl Lot {
         let cwd = builder.as_ref().map(|b| b.env().program.clone()).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
         let me = || -> Result<Value, String> {
             let b = builder.as_ref().ok_or("設定の束を組む係がありません")?;
-            let inp = b.inputs().map_err(|e| format!("配った設定・マスタの置き場を読めません: {}", e.0))?;
+            let inp = b.inputs().map_err(|e| format!("配った設定・マスタの置き場を読めません: {}", e.why))?;
             self.gate.forget(); // 置き場を変える前は、いまの権限の表で決める
             self.gate.me(&json!({"who": inp.who, "place": inp.place}))
         };
@@ -2784,6 +2784,36 @@ mod tests {
         let s2 = lot.settings(&py).expect("Python の束");
         assert!(s2.broken.as_object().is_none_or(|m| m.is_empty()), "{}", s2.broken);
         assert!(crate::delegate::counts()["bundle_window"].as_u64().unwrap_or(0) > before, "bundle_window で数える");
+        // 版 3.109.0 の作った後の採点の割れ 1: 原因は組めない理由を作った行。前の行が隔てる行（版が読めない）でも、その行を原因と言わない
+        let cause = |file: &str, text: &str, sec: &str| {
+            std::fs::write(data.join(file), text).unwrap();
+            lot.invalidate();
+            let s = lot.settings(&down).expect("束は組める");
+            s.broken[sec].clone()
+        };
+        let w = cause(
+            "data_sources.json",
+            r#"[{"id": 1, "キー": "s0", "表示名": "版", "場所": "/a", "rev": "abc"}, {"id": 2, "キー": "s1", "表示名": "x", "場所": "/x", "結合": "[{\"a\": NaN}]"}]"#,
+            "sources",
+        );
+        assert_eq!(w["file"], json!("data_sources.json"), "{w}");
+        assert!(
+            w["why"].as_str().unwrap().contains("data_sources.json の 2 行目") && !w["why"].as_str().unwrap().contains("版"),
+            "原因の行: {w}"
+        );
+        // FILTERED のマスタ（変換表）の隔てた行は束の前に除かれるので原因でない。原因は式が引く形の大きな整数の行
+        std::fs::write(data.join("data_sources.json"), r#"[]"#).unwrap();
+        let w = cause(
+            "conversions.json",
+            r#"[{"id": "x", "名前": "隔てる行", "入力": "[]"}, {"id": 2, "名前": "大きな判定", "入力": "[\"a\"]", "判定": "[{\"when\": {\"a\": 100000000000000000000}, \"out\": \"x\"}]"}]"#,
+            "conversions",
+        );
+        assert_eq!((w["file"].clone(), w["window"].clone()), (json!("conversions.json"), json!(true)), "{w}");
+        assert!(w["why"].as_str().unwrap().contains("conversions.json の 2 行目"), "隔てた 1 行目を言わない: {w}");
+        // Python も落ちる形（間隔が inf）は window にせず、Python に尋ねない（ファイルと行を言う）
+        std::fs::write(data.join("conversions.json"), r#"[]"#).unwrap();
+        let w = cause("data_sources.json", r#"[{"id": 1, "キー": "s1", "表示名": "x", "場所": "/x", "確かめる間隔": "inf"}]"#, "sources");
+        assert!(w["window"].is_null() && w["why"].as_str().unwrap().contains("data_sources.json の 1 行目"), "{w}");
         let _ = std::fs::remove_dir_all(&work);
     }
 
@@ -3457,13 +3487,16 @@ mod tests {
             body_refused(lot.handle_body("DELETE", "/api/masters/shifts/2", "rev=1", b"[1]", &ask_boss)),
             "表でない本文は門が断る（前は 500）"
         );
-        // 大きすぎる表示順は Python に任せる（H2）。字の id・NaN の区分の行は版 3.107.0 から窓も隔てて答える（skipped で知らせる）
-        for bad in [
-            json!({"id": 9, "名称": "大", "表示順": "99999999999999999999"}),
-            json!({"id": 9, "名称": "数の大", "表示順": 99999999999999999999.0_f64}),
+        // 大きすぎる表示順も版 3.109.0 から窓が桁のまま答える（int(表示順)。前は Python に任せた）。字の id・NaN の区分の行は版 3.107.0 から
+        // 窓も隔てて答える（skipped で知らせる）
+        for (bad, order) in [
+            (json!({"id": 9, "名称": "大", "表示順": "99999999999999999999"}), "99999999999999999999"),
+            (json!({"id": 9, "名称": "数の大", "表示順": 99999999999999999999.0_f64}), "100000000000000000000"),
         ] {
             std::fs::write(share.join("shift_patterns.json"), doc(json!([bad.clone()]))).unwrap();
-            assert!(lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).is_none(), "{bad}");
+            let (st, v) = lot.handle_body("GET", "/api/masters/shifts", "", b"", &ask_boss).expect("窓が答える");
+            let text = String::from_utf8(crate::held::reply_bytes(&v)).unwrap();
+            assert!(st == 200 && text.contains(&format!("\"order\": {order}")), "{bad}: {text}");
         }
         for (bad, why, summary) in [
             (json!({"id": "x", "名称": "字の id"}), "id が数ではありません（'x'）", "id 'x'・名称 '字の id'"),

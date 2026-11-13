@@ -225,6 +225,12 @@ mod tests {
                     .and_then(|v| crate::pivot_presets::clean_quick(&v))
                     .and_then(Result::ok)
                     .map(|ks| format!("[{}]", ks.iter().map(|k| serde_json::to_string(k).unwrap()).collect::<Vec<_>>().join(", "))),
+                "shift" => Some(
+                    serde_json::to_string(
+                        &crate::worksum::segments_of(&serde_json::json!({"区分": text})).iter().map(|s| s.json()).collect::<Vec<_>>(),
+                    )
+                    .unwrap(),
+                ),
                 _ => {
                     let rows = [Tree::Obj(vec![("キー".into(), Tree::Str("wip".into())), ("条件".into(), Tree::Str(text.into()))])];
                     crate::layout_clean::condition_of(&rows, "wip").ok().map(|v| String::from_utf8(reply_bytes(&v)).unwrap())
@@ -232,7 +238,7 @@ mod tests {
             };
             let ok = match (kind, want, &got) {
                 // 前の版の条件は値で比べる（鍵の順・区切りの字は答えの組み方による）
-                ("condition", Some(w), Some(g)) => same_value(w, g),
+                ("condition" | "shift", Some(w), Some(g)) => same_value(w, g),
                 (_, w, g) => w == g.as_deref(),
             };
             if !ok {

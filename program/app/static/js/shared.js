@@ -363,8 +363,8 @@
       if (!sure) return;
       const r = await fetch(url, { method: "DELETE" }); const d = await r.json().catch(() => ({}));
       if (!r.ok) { alert(d.error || `消せませんでした（${r.status}）`); return; }
-      // 残りの数は帯の札と同じ数え方（今の面の元に当たる行）
-      const left = Math.max(0, (it.d.skipped || []).filter(it.hit).length - 1);
+      // 残りの数は帯の札と同じ数え方（今の面の元に当たる行）。ほかの画面の行を消しても札の数は変わらない（版 3.109.0 の作った後の採点の割れ 4）
+      const left = Math.max(0, (it.d.skipped || []).filter(it.hit).length - (it.hit(s) ? 1 : 0));
       const msg = `✓ ${what}の ${s.row} 行目${s.summary ? `（${s.summary}）` : ""}を消しました。`;
       const rest = left ? `読めない行は残り ${left}` : "読めない行はもうありません";
       if (it.reload) await it.reload(); else { TPA.session.set("tpa.skipToast", [msg, rest]); location.reload(); return; }
