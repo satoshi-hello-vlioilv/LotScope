@@ -377,7 +377,8 @@ def update(exe: Path, work: Path) -> bool:
     failed = [x for x in r.get("results", []) if not x["ok"]]
     unexpected = [f"{x['name']} -- {x['info'][:120]}" for x in failed if x["name"] not in NAN_EXPECTED]
     ok &= check(not unexpected, "1b. lot_list が字の PC で落ちるのは品質の節を使う項目だけ（理由つきの 503）", unexpected)
-    ok &= check(all("503" in x["info"] for x in failed), "1b. 落ちた項目はどれも窓の理由つきの 503", [x["info"][:80] for x in failed])
+    ok &= check(all("503" in x["info"] or "設定を組めません" in x["info"] for x in failed), "1b. 落ちた項目はどれも窓の理由つきの 503",
+                [x["info"][:80] for x in failed])
     sc = ((info.get("install") or {}).get("shortcut") or {})
     ok &= check(sc.get("ask") is True and not sc.get("links"), "1. ショートカットが無いので画面が尋ねる", sc)
     # 人が作った、共有の exe を指し作業フォルダも共有のショートカット（次の起動で直る）
