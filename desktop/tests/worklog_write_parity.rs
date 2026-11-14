@@ -95,7 +95,9 @@ fn work_log_registration_matches_python() {
                 let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();
                 t[1..t.len() - 1].to_string()
             };
-            let got: Value = serde_json::from_str(&got.to_string().replace(&esc("rs"), &esc("py"))).unwrap();
+            // 答えは窓が画面へ返す字（held::reply_bytes: 持っている NaN は null）で比べる
+            let text = String::from_utf8(da_core::held::reply_bytes(&got)).unwrap();
+            let got: Value = serde_json::from_str(&text.replace(&esc("rs"), &esc("py"))).unwrap();
             let want = &st["json"];
             if status as i64 != st["status"].as_i64().unwrap() || common::diff(&norm(want, &fids), &norm(&got, &fids), "").is_some() {
                 bad.push(format!(

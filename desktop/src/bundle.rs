@@ -1619,120 +1619,6 @@ fn conv_tables(rows: &[Value]) -> R<Value> {
     Ok(Value::Object(out))
 }
 
-// ------------------------------------------------------------------ LotDsp の API の学び（services/lotdsp_api.py の KeyMap と status）
-/// KeyMap.key が真の値を返すか（窓は値を使わず、真か偽かだけを見る。Python が落ちる形は Err）
-fn km_key(data: &Map<String, Value>, name: &str, col: &str) -> R<bool> {
-    let sec = match data.get(name) {
-        x if !truthy(x) => return Ok(false),
-        Some(Value::Object(o)) => o,
-        _ => return Err(Py("学びの段が表でない")),
-    };
-    let cols = match sec.get("cols") {
-        None => return Ok(false),
-        Some(Value::Object(o)) => o,
-        _ => return Err(Py("学びの列が表でない")),
-    };
-    let c = match cols.get(col) {
-        x if !truthy(x) => return Ok(false),
-        Some(Value::Object(o)) => o,
-        _ => return Err(Py("学びの列の形が違う")),
-    };
-    let cands = match c.get("cands") {
-        x if !truthy(x) => return Ok(false),
-        Some(Value::Array(a)) => a,
-        _ => return Err(Py("候補が並びでない")),
-    };
-    let seen = match c.get("seen") {
-        None => 0.0,
-        Some(Value::Number(n)) => n.as_f64().ok_or(Py("数"))?,
-        Some(Value::Bool(b)) => *b as i64 as f64,
-        // 持っている大きな整数（版 3.109.0）は float(int) で比べる（309 桁を超えれば Python も比べられるが窓は inf。ここは大小だけ）
-        Some(x) if crate::held::big_digits(x).is_some() => {
-            crate::held::big_digits(x).and_then(|d| d.parse::<f64>().ok()).ok_or(Py("数"))?
-        }
-        _ => return Err(Py("seen が数でない")),
-    };
-    let tie = t(&["lotdsp", "tieSeen"]).as_f64().unwrap_or(3.0);
-    let min = t(&["lotdsp", "minSeen"]).as_f64().unwrap_or(2.0);
-    Ok(if cands.len() > 1 {
-        name == "lot" && seen >= tie && truthy(cands.first())
-    } else {
-        (truthy(c.get("trusted")) || seen >= min) && truthy(cands.first())
-    })
-}
-
-/// lotdsp_api.status(KeyMap(作業場所の lotdsp_api_map.json), settings)。学びのファイルは尋ねるたびに読む（Python が裏で書く）
-pub fn lotdsp_status(path: &Path, enabled: bool) -> R<Value> {
-    let data = match std::fs::read_to_string(path) {
-        Err(_) => Map::new(),
-        Ok(text) => {
-            // 大きな整数も印の字で読む（版 3.109.0。NaN・深い入れ子は今どおり Python に尋ねる）
-            if crate::master_rows::text_split_held(&text) {
-                return Err(Py("学びのファイルが窓の読めない JSON（NaN・深い入れ子）"));
-            }
-            match crate::held::text_value(&text) {
-                Some(Value::Object(o)) => o,
-                _ => Map::new(),
-            }
-        }
-    };
-    let req = t(&["lotdsp", "required"]).as_object().cloned().unwrap_or_default();
-    let mut missing = vec![];
-    for (name, cols) in &req {
-        let sec = match data.get(name) {
-            x if !truthy(x) => Map::new(),
-            Some(Value::Object(o)) => o.clone(),
-            _ => return Err(Py("学びの段が表でない")),
-        };
-        if name != "lot" && !truthy(sec.get("list")) {
-            missing.push(format!("{name}.（並び）"));
-            continue;
-        }
-        for c in cols.as_array().into_iter().flatten().filter_map(Value::as_str) {
-            if !km_key(&data, name, c)? {
-                missing.push(format!("{name}.{c}"));
-            }
-        }
-    }
-    let density_seen = match data.get("lot") {
-        Some(Value::Object(l)) => match l.get("cols") {
-            Some(Value::Object(cols)) => match cols.get("density") {
-                x if !truthy(x) => false,
-                Some(Value::Object(d)) => truthy(d.get("seen")),
-                _ => return Err(Py("比重の学びの形が違う")),
-            },
-            None => false,
-            _ => return Err(Py("学びの列が表でない")),
-        },
-        x if !truthy(x) => false,
-        _ => return Err(Py("学びの段が表でない")),
-    };
-    if density_seen && !km_key(&data, "lot", "density")? {
-        missing.push("lot.density".into());
-    }
-    // (data.get(s) or {}).get("cols", {}) を回す: 段が真で表でない・cols が有って表でない（null も）と Python は落ちる
-    let mut learned = 0;
-    for name in ["actual", "design", "lot"] {
-        let sec = match data.get(name) {
-            x if !truthy(x) => continue,
-            Some(Value::Object(o)) => o,
-            _ => return Err(Py("学びの段が表でない")),
-        };
-        let cols = match sec.get("cols") {
-            None => continue,
-            Some(Value::Object(o)) => o,
-            _ => return Err(Py("学びの列が表でない")),
-        };
-        for c in cols.keys() {
-            learned += km_key(&data, name, c)? as i64;
-        }
-    }
-    Ok(json!({"enabled": enabled, "ready": !data.is_empty() && missing.is_empty(), "missing": missing,
-              "login_free": data.get("login_free").cloned().unwrap_or(Value::Null),
-              "last_error": data.get("last_error").cloned().unwrap_or(Value::Null),
-              "probe": if truthy(data.get("probe")) { data["probe"].clone() } else { json!({}) }, "learned": learned}))
-}
-
 // ------------------------------------------------------------------ 束を組む
 /// work_log.ordered を、選んだ行（ダッシュボードの表示する設備など）に。並びが字にできなければ None
 pub fn work_order(rows: Vec<&Value>) -> Option<Vec<&Value>> {
@@ -2134,51 +2020,39 @@ impl Builder {
         &self.env
     }
 
-    /// GET /api/config（routes/system.py の config）。Python が落ちる形・窓が同じに読めない形は Err（Python に任せる）
-    pub fn config(&self) -> R<Value> {
+    /// GET /api/config（routes/system.py の config）→ (状態, 答え)。版 3.113.0 から窓はどの形も答える（採点の指摘 4。前は LotDsp の学びの
+    /// 形・待つ秒の読めない字などで Err にして中身へ回した）: lotdsp_import が表でなければ Python の StageBroken と同じ理由つきの 503、
+    /// api・direct の段が表でない・秒が読めない・request_fields が表でない・extra_args が並びでない形は既定で読む（Python も同じに直した。
+    /// 事例は tests/fixtures/rowshape_cases.json の config）。学びの覚えは lotdsp::KeyMap の 1 か所で読む（/api/lotdsp/status と同じ答え）
+    pub fn config(&self) -> R<(u16, Value)> {
         let inp = self.inputs()?;
         let _ = inp.check("path_settings");
         let (eff, _) =
             effective(&inp.settings, &inp.rows("path_settings").unwrap_or_default(), &["pathItems", "configItems"], &inp.config_name);
         let li = match eff.get("lotdsp_import") {
+            None => Map::new(),
             x if !truthy(x) => Map::new(),
             Some(Value::Object(o)) => o.clone(),
-            _ => return Err(Py("lotdsp_import が表でない")),
-        };
-        let sub = |k: &str| -> R<Map<String, Value>> {
-            match li.get(k) {
-                x if !truthy(x) => Ok(Map::new()),
-                Some(Value::Object(o)) => Ok(o.clone()),
-                _ => Err(Py("lotdsp_import の段が表でない")),
+            Some(v) => {
+                // path_settings.StageBroken（版 3.112.0 の作った後の採点の割れ 3）と同じ言葉
+                let kind = match v {
+                    Value::String(_) if crate::held::is_held(v) => "数",
+                    Value::String(_) => "字",
+                    Value::Array(_) => "並び",
+                    _ => "数",
+                };
+                let why = format!("配った設定の「lotdsp_import」が表でない（{kind}）ので組めません。「lotdsp_import」を {{ … }} の形に直してください");
+                return Ok((
+                    503,
+                    json!({"error": format!("設定を組めません: {why}。ファイルを直すと、この画面も読めるようになります。"), "kind": "settings",
+                           "broken": ["lotdsp_import"]}),
+                ));
             }
         };
-        let (a, d) = (sub("api")?, sub("direct")?);
-        let url = if truthy(li.get("url")) { s(li.get("url"))? } else { String::new() };
+        let sub = |k: &str| -> Map<String, Value> { li.get(k).and_then(Value::as_object).cloned().unwrap_or_default() };
+        let (a, d) = (sub("api"), sub("direct"));
+        let url = s(li.get("url"))?;
         let flag = |m: &Map<String, Value>, k: &str| m.get(k).map(|v| truthy(Some(v))).unwrap_or(true);
-        // lotdsp_api.settings_of・lotdsp_direct.settings_of が読む値（float・並び）を Python と同じに読めるか（読めなければ Python は落ちる）
-        let num = |m: &Map<String, Value>, k: &str| -> R<()> { m.get(k).map(|v| py_float(Some(v)).map(|_| ())).unwrap_or(Ok(())) };
-        num(&a, "timeout_seconds")?;
-        if truthy(a.get("request_fields")) && !a.get("request_fields").is_some_and(Value::is_object) {
-            return Err(Py("request_fields が表でない"));
-        }
-        for k in [
-            "timeout_seconds",
-            "reach_timeout_seconds",
-            "start_timeout_seconds",
-            "keep_seconds",
-            "login_wait_seconds",
-            "window_keep_seconds",
-        ] {
-            num(&d, k)?;
-        }
-        if truthy(d.get("extra_args")) && !d.get("extra_args").is_some_and(|v| v.is_array() || v.is_object() || v.is_string()) {
-            return Err(Py("extra_args が並びでない"));
-        }
-        for k in ["search_url", "entity_path", "candidates_path", "detail_path"] {
-            if a.get(k).is_some_and(|v| v.is_array() || v.is_object()) {
-                return Err(Py("LotDsp の道の字が表・並び"));
-            }
-        }
         let api_on = flag(&a, "enabled") && (!url.is_empty() || truthy(a.get("search_url")));
         let direct_on = flag(&d, "enabled") && !url.is_empty();
         // 心拍・表示の初期設定の段（版 3.112.0）: 表でない（null・字）なら空の段として読む（Python の s.get(k, {}).get は落ちる。
@@ -2187,13 +2061,16 @@ impl Builder {
         let (beat, ui) = (section("presence"), section("ui_defaults"));
         let max_rows = config_num("max_rows", ui.get("max_rows"));
         let interval = config_num("heartbeat_interval_seconds", beat.get("heartbeat_interval_seconds"));
-        let km = crate::bundle::lotdsp_status(&self.env.local.join("lotdsp_api_map.json"), api_on)?;
+        let km = crate::lotdsp::KeyMap::load(&self.env.local.join("lotdsp_api_map.json")).status(api_on);
         let brand = read_json(&self.env.program.join("app").join("brand.json")).ok_or(Py("brand.json が読めない"))?;
-        Ok(json!({"lotdsp_url": li.get("url").cloned().unwrap_or(json!("")), "lotdsp_direct": direct_on,
+        Ok((
+            200,
+            json!({"lotdsp_url": li.get("url").cloned().unwrap_or(json!("")), "lotdsp_direct": direct_on,
                   "lotdsp_login_window": direct_on && flag(&d, "login_window"), "lotdsp_api": km,
                   "default_unwind": t(&["defaultUnwind"]), "defaults": eff.get("ui_defaults").filter(|v| v.is_object()).cloned().unwrap_or(json!({})),
                   "max_rows": max_rows, "heartbeat_interval_seconds": interval,
-                  "app": {"name": brand["name"], "subtitle": brand["subtitle"]}}))
+                  "app": {"name": brand["name"], "subtitle": brand["subtitle"]}}),
+        ))
     }
 
     /// 束（Python の GET /api/lotlist/settings と同じ形。版 3.112.0 から答えに settingsBroken〈配った設定の段の壊れ〉も）。

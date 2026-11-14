@@ -16,25 +16,18 @@ const READS: [&str; 7] =
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 // 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
-const MUST_DELEGATE: [(&str, &str); 8] = [
-    // 作った後の採点（版 3.85.0）の割れ
-    ("画面の控えの rev が i64 に入らない", "/"),
-    ("画面の控えの rev が字の大きな整数", "/"),
-    ("画面の控えに対の無い代用字", "/"),
-    ("画面の控えに入れ子 130 段", "/"),
-    ("LotDsp の学びの cols が null", "/api/config"),
-    ("LotDsp の学びの cols が並び", "/api/config"),
+const MUST_DELEGATE: [(&str, &str); 0] = [
+    // 版 3.113.0（採点の指摘 3・4）: 画面の控えの 4 形（i64 に入らない版・字の大きな整数の版・対の無い代用字・入れ子 130 段）の画面と、
+    // LotDsp の学びの cols が null・並び・形が違う・待つ秒が読めない /api/config は、窓が Python と同じに答える（前は任せた。
+    // 控えは src/held.rs の J で読み、画面の型の tojson は対の無い代用字を \udXXX で書く。学びは lotdsp::KeyMap の 1 か所）
     // 版 3.108.0（H2）: 「大きな数・全角の並べ替え」の画面は窓も桁のまま書く（前は変換表の表示順が i64 に入らないので任せた）
-    ("LotDsp の待つ秒が読めない", "/api/config"),
-    ("LotDsp の学びの形が違う", "/api/config"),
     // 版 3.105.0: 「初期設定が共有にまだ無い」の画面は、窓も読むときに最初の版を置いて答える（前は任せた）
     // 版 3.112.0: 「更新の段が null で参照先に更新の置き場」の /api/settings は窓も Python（_set の直し）も答える（前は任せた）
 ];
 
 /// 版 3.112.0: Python が落ちて（500）窓が事例の表 appsettings_cases.json の決めで答える場面と道（値は appsettings_cases が確かめる）
-const TABLE_ANSWERS: [(&str, &str); 3] = [
-    ("心拍の段が null（Python は /api/config で落ちる）", "/api/config"),
-    ("max_rows が int() で読めない", "/api/config"),
+const TABLE_ANSWERS: [(&str, &str); 1] = [
+    // 版 3.113.0: 「心拍の段が null」「max_rows が int() で読めない」の /api/config は Python も既定で答える（前は 500）
     // 版 3.112.0 の作った後の採点の割れ 4: ダッシュボードのデータの並びはデータ元の節だけを使う（設備グループが組めなくても答える。Python は落ちる）
     ("設備グループのルールの op が並び", "/api/dashboard/sources"),
 ];

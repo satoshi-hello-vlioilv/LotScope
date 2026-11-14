@@ -83,15 +83,16 @@ class ApiError(Exception):
 
 # ------------------------------------------------------------------ 設定
 def settings_of(lotdsp_import):
-    li = lotdsp_import or {}
-    a = li.get("api") or {}
+    li = lotdsp_import if isinstance(lotdsp_import, dict) else {}
+    a = li.get("api") if isinstance(li.get("api"), dict) else {}     # 表でない段は空（版 3.113.0。窓の lotdsp::section と同じ）
+    rf = a.get("request_fields") if isinstance(a.get("request_fields"), dict) else {}
     url = str(li.get("url") or "").strip()
     return {
         "enabled": bool(a.get("enabled", True)) and bool(url or a.get("search_url")),
         # 場所の組み立ては lotdsp_rules.site_base の 1 か所（版 3.98.0。前は # の URL で問い合わせ先を取り違えた）
         "search_url": str(a.get("search_url") or lotdsp_rules.api_search_url(url)),
-        "timeout_seconds": float(a.get("timeout_seconds", 15)),
-        "fields": dict({"lotNo": "lotNo", "inspectionNo": "kensaNo", "page": "nowPage"}, **(a.get("request_fields") or {})),
+        "timeout_seconds": lotdsp_rules.setting_seconds(a, "timeout_seconds", 15),
+        "fields": dict({"lotNo": "lotNo", "inspectionNo": "kensaNo", "page": "nowPage"}, **rf),
         "entity": str(a.get("entity_path", "entity")),
         "candidates": str(a.get("candidates_path", "searchKeyInfos")),
         "detail": str(a.get("detail_path", "staffCommonBean")),
@@ -263,6 +264,14 @@ def align(items, rows):
 
 
 # ------------------------------------------------------------------ 学んだ対応（この PC）
+def _seen(c):
+    """手がかりの数（数でなければ 0。真偽は 0・1。窓の lotdsp::seen_of と同じ）"""
+    v = c.get("seen", 0)
+    if isinstance(v, (int, float)) and not (isinstance(v, float) and v != v):
+        return v
+    return 0
+
+
 class KeyMap:
     """{section: {"list": 場所, "box": №のキー, "cols": {列: {"cands": [キー…] | None, "seen": 手がかりの数}}}, "log": [...]}"""
 
@@ -283,27 +292,40 @@ class KeyMap:
     def section(self, name):
         return self.data.setdefault(name, {"list": None, "box": None, "cols": {}})
 
+    # 学びの段・列の形が違うとき（手で直した・前の版の覚え）は、その段・列を学んでいない形として読む（版 3.113.0。採点の指摘 4。
+    # 前は cols が null・並びで AttributeError の 500 になり、/api/config〈起動の確かめの合図〉も答えなかった。窓の lotdsp::KeyMap と同じ。
+    # 事例は tests/fixtures/lotdsp_rules_cases.json の keymap）
+    def _sec(self, name):
+        sec = self.data.get(name)
+        return sec if isinstance(sec, dict) else {}
+
+    def _cols(self, name):
+        cols = self._sec(name).get("cols")
+        return cols if isinstance(cols, dict) else {}
+
+    def _col(self, name, col):
+        c = self._cols(name).get(col)
+        return c if isinstance(c, dict) else {}
+
     def key(self, name, col):
-        c = (self.data.get(name) or {}).get("cols", {}).get(col) or {}
+        c = self._col(name, col)
         cands = c.get("cands")
-        if not cands:
+        if not isinstance(cands, list) or not cands or not isinstance(cands[0], str):
             return None
         if len(cands) > 1:
-            return cands[0] if name == "lot" and c.get("seen", 0) >= TIE_SEEN else None
-        return cands[0] if c.get("trusted") or c.get("seen", 0) >= MIN_SEEN else None
+            return cands[0] if name == "lot" and _seen(c) >= TIE_SEEN else None
+        return cands[0] if c.get("trusted") or _seen(c) >= MIN_SEEN else None
 
     def missing(self):
         """取込に要るのに、まだ1つのキーに決まっていない列 → [(section, 列)]。"""
         out = []
         for name, cols in REQUIRED.items():
-            sec = self.data.get(name) or {}
-            if name != "lot" and not sec.get("list"):
+            if name != "lot" and not self._sec(name).get("list"):
                 out.append((name, "（並び）"))
                 continue
             out += [(name, c) for c in cols if not self.key(name, c)]
-        lot = (self.data.get("lot") or {}).get("cols", {})
         # 比重は、画面に値が出たことがあるなら要る（無い画面なら API でも既定の 2.7 になり、同じ）
-        if (lot.get("density") or {}).get("seen") and not self.key("lot", "density"):
+        if self._col("lot", "density").get("seen") and not self.key("lot", "density"):
             out.append(("lot", "density"))
         return out
 
@@ -636,5 +658,5 @@ def _status(km, cfg):
         "login_free": km.data.get("login_free"),
         "last_error": km.data.get("last_error"),
         "probe": km.data.get("probe") or {},       # まだ決まらない列: 画面の値の形と応答の候補の形（値は含まない）
-        "learned": sum(1 for s in ("actual", "design", "lot") for c in (km.data.get(s) or {}).get("cols", {}) if km.key(s, c)),
+        "learned": sum(1 for s in ("actual", "design", "lot") for c in km._cols(s) if km.key(s, c)),
     }

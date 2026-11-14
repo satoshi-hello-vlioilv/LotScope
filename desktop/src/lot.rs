@@ -334,7 +334,8 @@ impl Lot {
         if let Some((status, kind, msg)) = crate::access::guard(method, path, &me) {
             return Some((status, json!({"error": msg, "kind": kind})));
         }
-        let rows = crate::access::Place::from_json(&s.access["place"]).rows(NAME).ok()?;
+        let place = crate::access::Place::from_json(&s.access["place"]);
+        let rows = place.rows(NAME).ok()?;
         let store = self.store_for(&s.access)?;
         let (folder, pattern) = (work["folder"].as_str()?.to_string(), work["pattern"].as_str()?.to_string());
         let cx = crate::worklog_write::Ctx {
@@ -347,6 +348,7 @@ impl Lot {
                 Some(f) => Some(f()),
                 None => crate::worklog_write::new_key(),
             },
+            unreadable: place.share_problem(NAME),
         };
         let (status, v) = crate::worklog_write::handle(&store, route, query, body, &cx)?;
         if writes && (200..300).contains(&status) {
@@ -575,7 +577,7 @@ impl Lot {
     /// GET /api/config（版 3.85.0）。束を組む係が無い・組めない形は None
     fn config_route(&self) -> Option<(u16, Value)> {
         let b = self.bundle.lock().unwrap().clone()?;
-        b.config().ok().map(|v| (200, v))
+        b.config().ok()
     }
 
     /// ダッシュボードの数える係の持ち物を組んで f に渡す（POST /api/dashboard/query・GET /api/dashboard/equip-tree）
@@ -3125,9 +3127,10 @@ mod tests {
     }
 
     #[test]
-    fn an_unreadable_ui_state_is_not_written_back_empty() {
-        // 版 3.112.0（採点の指摘 4）: 画面の任せ（Python が起きていれば Python が控えを描く）は残す。中身が止まっている間は空の控えで描くが、
-        // その画面の書き込み（POST /api/ui-state）で読めない控え（大きな rev・入れ子・代用字）を空で上書きしない（窓は答えず、中身へ回す）
+    fn the_ui_state_forms_python_reads_are_read_and_written_by_the_window() {
+        // 版 3.113.0（採点の指摘 3。前は画面の任せ〈中身が起きていれば中身が描く〉と、読めない控えを書き戻さない形を残した）: 控えの 4 形
+        // （i64 に入らない版・字の大きな整数の版・対の無い代用字・入れ子 130 段）を窓が Python の json.loads と同じに読み、画面を描き、
+        // 書き込みは版を桁のまま +1・対の無い代用字を \udXXX の字のまま・ほかの名前を残して重ねる（Python の ui_state.merge も同じに直した）
         let work = std::env::temp_dir().join(format!("da-lot-uistate-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&work);
         let local = work.join("local");
@@ -3145,17 +3148,31 @@ mod tests {
             now: None,
         }));
         let body = br#"{"changed": {"tpa.x": "1"}, "removed": []}"#;
-        for text in [r#"{"rev": 99999999999999999999, "keys": {"tpa.a": "1"}}"#, r#"{"rev": 3, "keys": {"tpa.a": "\ud800"}}"#] {
+        let deep = format!(r#"{{"rev": 3, "keys": {{"tpa.a": "1"}}, "x": {}{}}}"#, "[".repeat(130), "]".repeat(130));
+        for (text, rev, a) in [
+            (r#"{"rev": 99999999999999999999, "keys": {"tpa.a": "1"}}"#.to_string(), "100000000000000000000", r#""1""#),
+            (r#"{"rev": "99999999999999999999", "keys": {}}"#.to_string(), "100000000000000000000", ""),
+            (r#"{"rev": 3, "keys": {"tpa.a": "x\ud800y"}}"#.to_string(), "4", r#""x\ud800y""#),
+            (deep, "4", r#""1""#),
+        ] {
             let f = local.join("ui_state.json");
-            std::fs::write(&f, text).unwrap();
-            assert!(lot.page(false, &|| "ready").is_none(), "中身が起きていれば中身が描く（画面の任せは残す）: {text}");
-            assert!(lot.page(false, &|| "stopped").is_some(), "止まっていれば空の控えで描く");
-            assert!(lot.handle_body("POST", "/api/ui-state", "", body).is_none(), "書き戻さない（中身へ回す）: {text}");
-            assert_eq!(std::fs::read_to_string(&f).unwrap(), text, "控えはそのまま");
+            std::fs::write(&f, &text).unwrap();
+            for py in ["ready", "stopped"] {
+                assert!(lot.page(false, &|| py).is_some(), "窓が描く（中身が {py}）: {text:.60}");
+            }
+            let (st, got) = lot.handle_body("GET", "/api/ui-state", "", b"").expect("窓が答える");
+            let reply = String::from_utf8(crate::held::reply_bytes(&got)).unwrap().replace(' ', "");
+            assert_eq!(st, 200);
+            assert!(reply.contains(&format!("\"rev\":{}", &text[8..text.find(',').unwrap()].trim_matches('"'))), "{reply}");
+            let (st, v) = lot.handle_body("POST", "/api/ui-state", "", body).expect("窓が書く");
+            assert_eq!((st, String::from_utf8(crate::held::reply_bytes(&v)).unwrap().replace(' ', "")), (200, format!("{{\"rev\":{rev}}}")), "{text:.60}");
+            let after = std::fs::read_to_string(&f).unwrap();
+            assert!(after.contains(&format!("\"rev\": {rev}")) && after.contains("\"tpa.x\": \"1\""), "{after}");
+            if !a.is_empty() {
+                assert!(after.contains(&format!("\"tpa.a\": {a}")), "ほかの名前は残す: {after}");
+            }
+            assert!(!after.contains("\"x\""), "知らない鍵は書き戻さない（Python と同じ）");
         }
-        // 読める控えは窓が書く
-        std::fs::write(local.join("ui_state.json"), r#"{"rev": 3, "keys": {"tpa.a": "1"}}"#).unwrap();
-        assert_eq!(lot.handle_body("POST", "/api/ui-state", "", body), Some((200, json!({"rev": 4}))));
         let _ = std::fs::remove_dir_all(&work);
     }
 

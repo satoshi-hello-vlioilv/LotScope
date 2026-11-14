@@ -50,6 +50,27 @@ fn lone_char(c: char) -> bool {
     (pyjson::LONE_BASE..=pyjson::LONE_BASE + 0x7FF).contains(&(c as u32))
 }
 
+/// 持っている対の無い代用字なら、その代用字の番号（0xD800〜0xDFFF。版 3.113.0: 画面の型の tojson が \udXXX で書く）
+pub fn lone_unit(c: char) -> Option<u32> {
+    lone_char(c).then(|| c as u32 - pyjson::LONE_BASE + 0xD800)
+}
+
+/// 字の中の持っている対の無い代用字を \udXXX の字に戻す（Python の errors="backslashreplace"・ensure_ascii と同じ字）
+pub fn lone_escaped(t: &str) -> String {
+    if !t.as_bytes().contains(&0xF4) {
+        return t.to_string();
+    }
+    t.chars().map(|c| match lone_unit(c) {
+        Some(u) => format!("\\u{u:04x}"),
+        None => c.to_string(),
+    }).collect()
+}
+
+/// Python の json.dumps(v, ensure_ascii=False, indent=indent) を書いた字（持っている値は元の字・対の無い代用字は \udXXX。版 3.113.0）
+pub fn to_text(v: &Value, indent: Option<usize>) -> String {
+    lone_escaped(&to_j(v).dumps(indent))
+}
+
 /// 値のどこか（字・鍵）に対の無い代用字があるか
 pub fn has_lone(v: &Value) -> bool {
     match v {
@@ -126,10 +147,7 @@ pub fn to_pretty(v: &Value) -> std::io::Result<Vec<u8>> {
         return serde_json::to_vec_pretty(v).map_err(std::io::Error::other);
     }
     // 対の無い代用字は \udXXX の字に戻す（Python の errors="backslashreplace" と同じ字）
-    let t = to_j(v).dumps(Some(2));
-    let out: String =
-        t.chars().map(|c| if lone_char(c) { format!("\\u{:04x}", c as u32 - pyjson::LONE_BASE + 0xD800) } else { c.to_string() }).collect();
-    Ok(out.into_bytes())
+    Ok(to_text(v, Some(2)).into_bytes())
 }
 
 /// Python の repr(値)（持っている値は元の値の repr: nan・inf）
@@ -186,7 +204,7 @@ pub fn text_value(t: &str) -> Option<Value> {
 /// 画面へ返す答えの字（版 3.108.0。Flask の jsonify と同じく大きな整数は桁のまま。NaN・Infinity は null〈答えは allow_nan=False〉）。
 /// 持っている値が無ければ前と同じ serde の字
 pub fn reply_bytes(v: &Value) -> Vec<u8> {
-    if !has_held(v) {
+    if !has_held(v) && !has_lone(v) {
         return serde_json::to_vec(v).unwrap_or_default();
     }
     fn plain(j: J) -> J {
@@ -197,7 +215,8 @@ pub fn reply_bytes(v: &Value) -> Vec<u8> {
             x => x,
         }
     }
-    plain(to_j(v)).dumps(None).into_bytes()
+    // 対の無い代用字は \udXXX（Flask の jsonify〈ensure_ascii〉と同じ。版 3.113.0: 画面の控えの字。前は持つ字のまま書いた）
+    lone_escaped(&plain(to_j(v)).dumps(None)).into_bytes()
 }
 
 #[cfg(test)]

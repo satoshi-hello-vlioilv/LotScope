@@ -64,13 +64,10 @@ type Answer = (u16, Value);
 pub struct Delegate;
 type D<T> = Result<T, Delegate>;
 
-/// Python の str(v or "")（偽の値は ""・並びと表は repr が要るので任せる）
+/// Python の str(v or "")（偽の値は ""・並びと表は repr の字。版 3.113.0 から窓も repr で読む〈前は任せた〉）
 fn s_or(v: Option<&Value>) -> D<String> {
     match v {
-        Some(x) if truthy(x) => match x {
-            Value::Array(_) | Value::Object(_) => Err(Delegate),
-            x => Ok(py_str(x)),
-        },
+        Some(x) if truthy(x) => Ok(py_str(x)),
         _ => Ok(String::new()),
     }
 }
@@ -223,6 +220,8 @@ pub struct Ctx<'a> {
     pub now: f64,
     /// 新しい行のキー（work_log.new_key: 16 進 12 字。試験は差し替える）
     pub new_key: &'a dyn Fn() -> Option<String>,
+    /// 共有のファイルが読めない理由（access::Place::share_problem。一覧の unreadable）
+    pub unreadable: Option<String>,
 }
 
 fn of_master(e: MasterError) -> Answer {
@@ -259,9 +258,22 @@ fn master_view(store: &Store, cx: &Ctx, rows: &[Value], fresh: bool) -> D<Value>
     };
     let (mut items, new) = view(rows, &found, &err)?;
     mark_stale(&mut items, stale_of(cx.work)?, cx.now);
-    Ok(json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit, "shared": store.is_shared(NAME),
+    let mut out = json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit, "shared": store.is_shared(NAME),
               "revision": store.revision(NAME), "staleHours": cx.work["stale_hours"], "settingsWarn": settings_warn(cx.work), "items": items,
-              "new": new, "error": err}))
+              "new": new, "error": err});
+    notes(&mut out, cx);
+    Ok(out)
+}
+
+/// 登録の読めない行の知らせ（版 3.113.0。採点の指摘 6。Python の routes/worklog._row_notes）: 表でない行（一覧から飛ばす）と、一覧には出すが
+/// 触れる書きを断る行（字の版・数でない値）を、ほかのマスタの一覧と同じ skipped・unreadable で添える（前は黙って飛ばし、窓は道を中身へ回した）
+fn notes(out: &mut Value, cx: &Ctx) {
+    let mut all = cx.rows.to_vec();
+    crate::row_check::normalize_like_specs(NAME, &mut all);
+    let iso = crate::row_check::check(NAME, &all, crate::row_check::fields_of(NAME));
+    if let Some(o) = out.as_object_mut() {
+        crate::row_check::notes(o, NAME, &all, &iso, cx.unreadable.clone());
+    }
 }
 
 /// 本文（get_json(force=True)〈silent でない〉 or {}）: 空・読めない本文は Python（400 の HTML）、表でない真の本文も Python（500）
@@ -277,9 +289,9 @@ fn strict_body(body: &[u8]) -> D<Map<String, Value>> {
     }
 }
 
-/// 読む前に正規化した行（_normalize_all: 版の無い行は 1）
+/// 読む前に正規化した行（repo.work_logs(): 表でない行は飛ばす・版の無い行は 1）
 fn normalized(rows: &[Value]) -> Vec<Value> {
-    let mut r = rows.to_vec();
+    let mut r: Vec<Value> = rows.iter().filter(|x| x.is_object()).cloned().collect();
     normalize_all(&mut r, &SPEC);
     r
 }
@@ -287,10 +299,8 @@ fn normalized(rows: &[Value]) -> Vec<Value> {
 /// 窓が受ける 6 本を答える（門番は呼ぶ側が通した）。窓が答えない形は None
 pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -> Option<Answer> {
     // 読めない行（row_check）は、Python が読みでは使い、触れる書きだけを断る（版 3.108.0。参照先と同じ。隔てると設備が消える）。
-    // 窓は読めない行（字の id・字の版）を Python と同じに読めると限らないので、読めない行があればこの道は Python に任せる
-    if !crate::master_rows::isolated_of(NAME, cx.rows).is_empty() || !crate::master_rows::rows_plain(NAME, cx.rows, &FIELDS) {
-        return None;
-    }
+    // 版 3.113.0 から窓も同じに読む（表でない行は飛ばして skipped で知らせ、値の並び・表は str() の repr。触れる書きは master_rows の
+    // update・delete・prepare が Python と同じ言葉で断る）。前は読めない行・並びの値が 1 つでもあれば道を全部中身へ回した（採点の指摘 6）
     let q = crate::lotlist::parse_query(query);
     let flag = |k: &str| q.iter().any(|(n, v)| n == k && v == "1");
     let rows = normalized(cx.rows);
@@ -312,12 +322,11 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
                 items.retain(|x| x["visible"] == json!(true));
             }
             mark_stale(&mut items, stale_of(cx.work).ok()?, cx.now);
-            Some((
-                200,
-                json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit,
+            let mut out = json!({"folder": cx.work["folder"], "pattern": cx.work["pattern"], "canEdit": cx.can_edit,
                               "staleHours": cx.work["stale_hours"], "settingsWarn": settings_warn(cx.work), "items": items, "new": new,
-                              "error": err}),
-            ))
+                              "error": err});
+            notes(&mut out, cx);
+            Some((200, out))
         }
         Route::Scan => {
             let found = match (cx.found)(true) {
@@ -380,8 +389,9 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
                     added.push(row.get("設備名").cloned().unwrap_or(Value::Null));
                     have.push(Value::Object(row));
                 }
-                // 書いた後の一覧（_master_view は repo.work_logs()〈隔てた行を除く〉で組む）
-                let now: Vec<Value> = have.iter().enumerate().filter(|(i, _)| !crate::row_check::is_isolated(&iso, *i)).map(|(_, r)| r.clone()).collect();
+                // 書いた後の一覧（_master_view は repo.work_logs() で組む: 作業実績の登録は読めない行も一覧に出す〈row_check::FILTERED に無い〉。
+                // 版 3.113.0 の前は隔てた行を除いていた〈読めない行があれば道を中身へ回したので出なかった〉）
+                let now: Vec<Value> = have.iter().filter(|r| r.is_object()).cloned().collect();
                 Ok((added, renamed, missing, now))
             });
             match r {
@@ -428,7 +438,7 @@ pub fn handle(store: &Store, route: Route, query: &str, body: &[u8], cx: &Ctx) -
                         stamped(r, stamp);
                     }
                 }
-                Ok(good.iter().map(|&i| have[i].clone()).collect::<Vec<_>>())
+                Ok(have.iter().filter(|r| r.is_object()).cloned().collect::<Vec<_>>())
             });
             match r {
                 Err(e) => Some(of_master(e)),

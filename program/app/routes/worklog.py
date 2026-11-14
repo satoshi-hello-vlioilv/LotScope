@@ -9,7 +9,7 @@ from ..web import current_app, jsonify, request
 from .. import effective_settings
 from ..repositories.master_store import MasterError
 from ..services import lot_list, pivot, shifts, work_log, work_summary
-from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body, tab_denied
+from .common import base_rev, bp, can_write, error, master_call, master_repo, req_body, row_notes, tab_denied
 
 
 class FolderUnreachable(MasterError):
@@ -55,6 +55,16 @@ def _found(wl, fresh=False):
         return [], str(e)
 
 
+def _row_notes():
+    """登録の読めない行の知らせ（版 3.113.0。採点の指摘 6）: 表でない行（一覧から飛ばす）と、一覧には出すが触れる書きを断る行
+    （字の版・数でない値。row_check）を、ほかのマスタの一覧と同じ skipped・unreadable で添える。前は表でない行を黙って飛ばし、
+    直すと初めて「n 行目が読めません」と断られた（窓の worklog_write::master_view と同じ）"""
+    from ..repositories.master_repository import skipped_of
+    repo = master_repo()
+    rows, iso = repo._viewed(work_log.NAME)
+    return row_notes(repo, work_log.NAME, skipped_of(iso, work_log.NAME, rows))
+
+
 @bp.get("/api/worklog/files")
 def worklog_files():
     """作業実績のタブで選べる設備（表示が「有」の行。all=1 なら全部）と、いま読むファイル・状態・まだ登録していないファイル（new）。"""
@@ -65,7 +75,7 @@ def worklog_files():
         v["items"] = [x for x in v["items"] if x["visible"]]
     work_log.mark_stale(v["items"], wl["stale_hours"])
     return jsonify(folder=wl["folder"], pattern=wl["pattern"], canEdit=can_write(work_log.NAME), staleHours=wl["stale_hours"],
-                   settingsWarn=wl["settingsWarn"], **v)
+                   settingsWarn=wl["settingsWarn"], **v, **_row_notes())
 
 
 def worklog_plan(need_copy=True, key=None, rows=None, wait=True, joined=True):
@@ -220,7 +230,7 @@ def _master_view(fresh=False):
     v = work_log.view(master_repo().work_logs(), found, err)
     work_log.mark_stale(v["items"], wl["stale_hours"])
     return {"folder": wl["folder"], "pattern": wl["pattern"], "canEdit": can_write(work_log.NAME), "shared": st.is_shared(work_log.NAME),
-            "revision": st.revision(work_log.NAME), "staleHours": wl["stale_hours"], "settingsWarn": wl["settingsWarn"], **v}
+            "revision": st.revision(work_log.NAME), "staleHours": wl["stale_hours"], "settingsWarn": wl["settingsWarn"], **v, **_row_notes()}
 
 
 @bp.get("/api/masters/worklog")

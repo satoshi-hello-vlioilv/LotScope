@@ -62,10 +62,17 @@ class DirectError(Exception):
 
 
 # ------------------------------------------------------------------ 設定
+def _extra_args(v):
+    """起動に足す引数（並び・字・表は回した物の str()。数・真偽は無し〈版 3.113.0。前は TypeError で /api/config が 500〉）"""
+    if isinstance(v, (list, str, dict)):
+        return [str(a) for a in v]
+    return []
+
+
 def settings_of(lotdsp_import):
     """lotdsp_import の設定から、直接読むための値。"""
-    li = lotdsp_import or {}
-    d = li.get("direct") or {}
+    li = lotdsp_import if isinstance(lotdsp_import, dict) else {}
+    d = li.get("direct") if isinstance(li.get("direct"), dict) else {}     # 表でない段は空（版 3.113.0。窓の lotdsp::section と同じ）
     url = str(li.get("url") or "").strip()
     return {
         "enabled": bool(d.get("enabled", True)) and bool(url),
@@ -74,17 +81,17 @@ def settings_of(lotdsp_import):
         # 場所の組み立ては lotdsp_rules.site_base の 1 か所（版 3.98.0。前は # の URL で # を 2 つ重ねた場所を開いた）
         "search_url": str(d.get("search_url") or lotdsp_rules.direct_search_url(url)),
         "browser": unquote_path(d.get("browser")),
-        "timeout_seconds": float(d.get("timeout_seconds", 60)),
-        "reach_timeout_seconds": float(d.get("reach_timeout_seconds", 4)),
+        "timeout_seconds": lotdsp_rules.setting_seconds(d, "timeout_seconds", 60),
+        "reach_timeout_seconds": lotdsp_rules.setting_seconds(d, "reach_timeout_seconds", 4),
         # 起こしたブラウザが DevTools を開くまで待つ長さ。ふつうの PC は 1 秒ほど。遅い機械（CI など）では、新しい
         # プロファイルでの起動が 15 秒前後かかることがあるので、その環境の設定で延ばせる（既定は今までと同じ 15 秒）
-        "start_timeout_seconds": float(d.get("start_timeout_seconds", 15)),
-        "extra_args": [str(a) for a in (d.get("extra_args") or [])],   # 起動に足す引数（既定なし。試験の環境などで使う）
-        "keep_seconds": float(d.get("keep_seconds", 300)),   # 読み終わったブラウザを次の検索のために残す長さ（0＝毎回閉じる）
+        "start_timeout_seconds": lotdsp_rules.setting_seconds(d, "start_timeout_seconds", 15),
+        "extra_args": _extra_args(d.get("extra_args")),   # 起動に足す引数（既定なし。試験の環境などで使う）
+        "keep_seconds": lotdsp_rules.setting_seconds(d, "keep_seconds", 300),   # 読み終わったブラウザを次の検索のために残す長さ（0＝毎回閉じる）
         # LotDsp の窓（ログインが要るとき、利用者がログインする窓）
         "login_window": bool(d.get("login_window", True)),
-        "login_wait_seconds": float(d.get("login_wait_seconds", 300)),     # 利用者のログインを待つ長さ
-        "window_keep_seconds": float(d.get("window_keep_seconds", 1800)),  # ログインした窓を残す長さ（ログインし直しを減らす）
+        "login_wait_seconds": lotdsp_rules.setting_seconds(d, "login_wait_seconds", 300),     # 利用者のログインを待つ長さ
+        "window_keep_seconds": lotdsp_rules.setting_seconds(d, "window_keep_seconds", 1800),  # ログインした窓を残す長さ（ログインし直しを減らす）
         "window_profile": unquote_path(d.get("window_profile")) or str(app_env.local_root() / "lotdsp-window"),
     }
 

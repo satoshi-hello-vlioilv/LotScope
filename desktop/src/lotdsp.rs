@@ -279,19 +279,28 @@ pub fn py_text(v: Option<&Value>) -> String {
     }
 }
 
-/// float(v)（無ければ既定）
-pub fn py_float_of(v: Option<&Value>, def: f64) -> Result<f64, String> {
+/// LotDsp の設定の秒（版 3.113.0。採点の指摘 4）: 数の設定の読み方（Python の services/num_setting.read と同じ: null・空の字・float() で
+/// 読めない字・並び・表は既定）で読み、float() の値にする。前は読めない字で設定の誤り（Python は /api/config も 500）にしていた。
+/// 事例は tests/fixtures/num_setting_cases.json の lotdsp
+pub fn py_float_of(v: Option<&Value>, def: f64) -> f64 {
     match v {
-        None => Ok(def),
-        Some(Value::Number(n)) => Ok(n.as_f64().unwrap_or(f64::NAN)),
-        Some(Value::Bool(b)) => Ok(if *b { 1.0 } else { 0.0 }),
+        None | Some(Value::Null) => def,
+        Some(Value::String(s)) if s.is_empty() => def,
+        Some(Value::Number(n)) => n.as_f64().unwrap_or(f64::NAN),
+        Some(Value::Bool(b)) => {
+            if *b {
+                1.0
+            } else {
+                0.0
+            }
+        }
         Some(x @ Value::String(_)) if crate::held::is_held(x) => match crate::held::to_j(x) {
-            J::Float(f) => Ok(f),
-            J::Big(d) => pyfmt::py_float_of_int(&d),
-            j => Ok(j.to_value().as_f64().unwrap_or(f64::NAN)),
+            J::Float(f) => f,
+            J::Big(d) => pyfmt::py_float_of_int(&d).unwrap_or(def),
+            j => j.to_value().as_f64().unwrap_or(f64::NAN),
         },
-        Some(Value::String(s)) => pyfmt::py_float(s),
-        Some(x) => Err(format!("float() argument must be a string or a real number, not '{}'", J::from_value(x).type_name())),
+        Some(Value::String(s)) => pyfmt::py_float(s).unwrap_or(def),
+        Some(_) => def,
     }
 }
 
@@ -934,7 +943,7 @@ impl ApiCfg {
         Ok(ApiCfg {
             enabled: a.get("enabled").map(|v| truthy(Some(v))).unwrap_or(true) && (!url.is_empty() || truthy(a.get("search_url"))),
             search_url: if search.is_empty() { rules::api_search_url(&url) } else { search },
-            timeout: py_float_of(a.get("timeout_seconds"), 15.0).map_err(|e| format!("lotdsp_import.api.timeout_seconds: {e}"))?,
+            timeout: py_float_of(a.get("timeout_seconds"), 15.0),
             fields,
             entity: s("entity_path", "entity"),
             candidates: s("candidates_path", "searchKeyInfos"),
@@ -1352,6 +1361,14 @@ pub fn system_now_iso() -> NowIso {
 fn seen_of(c: &J) -> i64 {
     match c.get("seen") {
         Some(J::Int(i)) => *i,
+        // i64 に入らない整数は大小だけ（版 3.113.0。Python の _seen は int のまま比べる）
+        Some(J::Big(d)) => {
+            if d.starts_with('-') {
+                i64::MIN
+            } else {
+                i64::MAX
+            }
+        }
         Some(J::Float(f)) => *f as i64,
         Some(J::Bool(b)) => *b as i64,
         _ => 0,

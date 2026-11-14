@@ -125,6 +125,20 @@ def reached_status(code):
 
 
 # ------------------------------------------------------------------ 秒・残す長さ
+def setting_seconds(section, key, default):
+    """設定の秒（lotdsp_import.api・direct の timeout_seconds など。版 3.113.0。採点の指摘 4）: 数の設定の読み方（num_setting.read:
+    null・空の字・float() で読めない字・並び・表は既定）で読んだ float。前は float() の ValueError で /api/config〈起動の確かめの合図〉が
+    500 になり、窓は中身へ回していた（窓の lotdsp::py_float_of と同じ）"""
+    v = section.get(key, default) if isinstance(section, dict) else default
+    if v is None or (isinstance(v, str) and v == ""):
+        return float(default)
+    try:
+        return float(v)
+    except (TypeError, ValueError, OverflowError):
+        return float(default)
+
+
+
 def seconds_of(t0, t1):
     """道の全体の秒（小数 1 桁）。"""
     return round(max(0.0, t1 - t0), 1)

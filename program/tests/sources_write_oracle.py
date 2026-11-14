@@ -185,11 +185,13 @@ SCENARIOS = [
         S("POST", P, {"表示名": "錠", "場所": "/l.sqlite3"}),
         S("POST", f"{P}/order", {"keys": ["wip"]}),
     ]},
-    # 版 3.112.0（採点の指摘 8）: 予算外で見つけた任せ。置き場の行の「結合」が JSON の字でなく並び（画面は字で書くが、手で直した共有の行）。
-    # 窓の書く道はまだ行の形を Python と同じに読めない（sources_write の行の形）ので任せる。数えて予算に足す（閉じるのは次の版）
-    {"name": "置き場の行の結合が並び（予算外の任せ）", "mode": "shared",
-     "rows": ROWS + [{"id": 9, "キー": "jl", "表示名": "結合が並び", "場所": "/jl.sqlite3", "結合": [{"with": "wip", "on": [["a", "b"]]}], "rev": 1}],
-     "steps": [], "delegates": [
+    # 版 3.113.0（採点の指摘 7）: 置き場の行の「結合」が JSON の字でなく並び（画面は字で書くが、手で直した共有の行）。窓も J のまま持ち、
+    # 触れない行は並びのまま書き戻し、その行に触れる書き（直す・その場で変える・接続の設定・消す）は Python と同じく data_join.clean の
+    # JSON の字に書き直す（前の版は 7 本とも中身へ回した＝任せる歩 7）
+    {"name": "置き場の行の結合が並び（窓も J のまま持つ）", "mode": "shared",
+     "rows": ROWS + [{"id": 9, "キー": "jl", "表示名": "結合が並び", "場所": "/jl.sqlite3", "結合": [{"with": "wip", "on": [["a", "b"]], "how": "inner"}], "rev": 1},
+                     {"id": 10, "キー": "jm", "表示名": "結合が並び 2", "場所": "/jm.sqlite3", "結合": [{"with": "s1", "on": [["x", "y"]]}], "並び": "9", "rev": 2}],
+     "steps": [
          S("POST", P, {"表示名": "x", "場所": "y"}),
          S("PUT", f"{P}/s3", {"備考": "x", "base_rev": 5}),
          S("PUT", f"{P}/s3/conn", {"field": "refresh", "value": "60"}),
@@ -197,6 +199,37 @@ SCENARIOS = [
          S("POST", f"{P}/groups", {"from": "工程", "to": "工程 2"}),
          S("POST", f"{P}/order", {"keys": ["s4", "s3"]}),
          S("DELETE", f"{P}/s4"),
+         # その行そのものに触れる歩
+         S("PUT", f"{P}/jl", {"備考": "並びの行を直す", "base_rev": 1}),
+         S("POST", f"{P}/jm/quick", {"画面": "無", "base_rev": 2}),
+         S("PUT", f"{P}/jm/conn", {"field": "refresh", "value": "30"}),
+         S("POST", f"{P}/order", {"keys": ["jm", "jl", "s3"]}),
+         S("DELETE", f"{P}/jl"),
+     ]},
+    # 版 3.113.0: 結合の字に NaN（読めない行。データ元は読みでは隔てず、その行に触れる書きだけを断る）。窓も道を中身へ回さない
+    {"name": "置き場の行の結合の字に NaN（触れる書きだけ断る）", "mode": "shared",
+     "rows": ROWS + [{"id": 9, "キー": "jn", "表示名": "NaN の結合", "場所": "/jn", "結合": '[{"with": "wip", "on": [["a", "b"]], "n": NaN}]', "rev": 1}],
+     "steps": [
+         S("POST", P, {"表示名": "x", "場所": "y"}),
+         S("PUT", f"{P}/s3", {"備考": "x", "base_rev": 5}),
+         S("PUT", f"{P}/jn", {"備考": "読めない行を直す", "base_rev": 1}),
+         S("POST", f"{P}/jn/quick", {"画面": "無"}),
+         S("PUT", f"{P}/jn/conn", {"field": "refresh", "value": "30"}),
+         S("POST", f"{P}/order", {"keys": ["jn", "s3"]}),
+         S("POST", f"{P}/groups", {"from": "工程", "to": "工程 3"}),
+         S("DELETE", f"{P}/jn"),
+         S("DELETE", f"{P}/s4"),
+     ]},
+    # 版 3.113.0: 行の値が並び・表（表示名・備考・場所）。読みは str()（repr）で、触れる書きは Python と同じく行の写しから書き直す
+    {"name": "置き場の行の値が並び・表（str() で読む）", "mode": "shared",
+     "rows": ROWS + [{"id": 9, "キー": "jv", "表示名": ["並びの名前"], "場所": "/jv", "備考": {"a": 1}, "グループ": "工程", "rev": 1}],
+     "steps": [
+         S("POST", P, {"表示名": "x", "場所": "y"}),
+         S("PUT", f"{P}/s3", {"備考": "x", "base_rev": 5}),
+         S("PUT", f"{P}/jv", {"備考": "直す", "base_rev": 1}),
+         S("POST", f"{P}/groups", {"from": "工程", "to": "工程 4"}),
+         S("POST", f"{P}/order", {"keys": ["s4", "jv"]}),
+         S("DELETE", f"{P}/jv"),
      ]},
 ]
 

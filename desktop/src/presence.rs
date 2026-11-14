@@ -137,6 +137,12 @@ fn tmp_name(path: &Path) -> PathBuf {
 /// Python の json.dump(data, ensure_ascii=False, indent=indent) と改行 1 つ（字下げは presence 1・ui_state 0）
 pub fn dumps_indent(data: &Value, indent: &[u8]) -> Vec<u8> {
     use serde::Serialize;
+    // 持っている値（大きな整数）・対の無い代用字は Python の json.dump と同じ字（版 3.113.0。画面の控えの版・字）
+    if crate::held::has_held(data) || crate::held::has_lone(data) {
+        let mut out = crate::held::to_text(data, Some(indent.len())).into_bytes();
+        out.push(b'\n');
+        return out;
+    }
     let mut buf = Vec::new();
     let mut ser = serde_json::Serializer::with_formatter(&mut buf, serde_json::ser::PrettyFormatter::with_indent(indent));
     data.serialize(&mut ser).expect("JSON の値は書ける");
@@ -1158,6 +1164,7 @@ pub fn is_route(method: &str, path: &str) -> bool {
 
 pub mod ui_state {
     use super::*;
+    use crate::pyfmt::PyInt;
 
     const PREFIX: &str = "tpa.";
     const MAX_BYTES: usize = 4 * 1024 * 1024;
@@ -1167,61 +1174,60 @@ pub mod ui_state {
         local_root.join("ui_state.json")
     }
 
-    /// → {"rev", "keys"}。無い・壊れているときは空（ui_state.load）
-    pub fn load(local_root: &Path) -> Value {
-        let empty = json!({"rev": 0, "keys": {}});
-        let Doc::Ok(Value::Object(d)) = read(&path(local_root)) else { return empty };
+    /// 控えの字を Python の json.loads と同じに読む（版 3.113.0。採点の指摘 3）: src/held.rs の J で、i64 に入らない版・字の大きな整数・
+    /// 入れ子 128 段以上・対の無い代用字も読む（前は serde で読めない 4 形を中身へ回した）。UTF-8 でない・BOM・JSON でないときは None
+    fn doc(local_root: &Path) -> Option<Map<String, Value>> {
+        let b = std::fs::read(path(local_root)).ok()?;
+        let t = std::str::from_utf8(&b).ok()?;
+        if t.starts_with('\u{feff}') {
+            return None; // json.loads は BOM を読めない（ValueError）
+        }
+        match crate::held::parse(t) {
+            Ok(Value::Object(d)) => Some(d),
+            _ => None,
+        }
+    }
+
+    /// → {"rev", "keys"}。無い・壊れているときは空（ui_state.load）。版は Python の int() と同じく桁のまま（pyfmt::PyInt）
+    fn read(local_root: &Path) -> (PyInt, Map<String, Value>) {
+        let empty = (PyInt::Small(0), Map::new());
+        let Some(d) = doc(local_root) else { return empty };
         let keys: Map<String, Value> = match d.get("keys") {
+            // 字の値だけ（持っている値〈大きな整数・NaN〉は Python では数）
             Some(Value::Object(k)) => {
-                k.iter().filter(|(k, v)| k.starts_with(PREFIX) && v.is_string()).map(|(k, v)| (k.clone(), v.clone())).collect()
+                k.iter().filter(|(k, v)| k.starts_with(PREFIX) && crate::held::is_text(v)).map(|(k, v)| (k.clone(), v.clone())).collect()
             }
             Some(x) if truthy(x) => return empty,
             _ => Map::new(),
         };
         let rev = match d.get("rev") {
-            Some(x) if truthy(x) => match py_int_of(x) {
+            // int(nan)・int(inf)・int("5.0") は読めない（空。Python も版 3.113.0 から OverflowError も空に読む）
+            Some(x) if truthy(x) => match crate::row_check::as_int(x) {
                 Some(n) => n,
                 None => return empty,
             },
-            _ => 0,
+            _ => PyInt::Small(0),
         };
-        json!({"rev": rev, "keys": keys})
+        (rev, keys)
     }
 
-    /// 控えを Python の ui_state.load と同じに読めるときだけ load の答え（版 3.85.0。作った後の採点の割れ）。読めない形は None（Python に任せる）:
-    /// serde が読めない・入れ子 128 段以上（text_split）・代用字の \\u（対の無い代用字を窓は置き換える）・rev が i64 に入らない数
+    pub fn load(local_root: &Path) -> Value {
+        let (rev, keys) = read(local_root);
+        json!({"rev": crate::held::int_value(&rev), "keys": keys})
+    }
+
+    /// load と同じ（版 3.113.0 から窓はどの控えも Python と同じに読む。前は読めない 4 形で None〈中身へ回す〉）
     pub fn load_exact(local_root: &Path) -> Option<Value> {
-        if let Ok(t) = std::fs::read_to_string(path(local_root)) {
-            let surrogate = t.as_bytes().windows(4).any(|w| {
-                (w[0] == b'u' || w[0] == b'U')
-                    && w[1].eq_ignore_ascii_case(&b'd')
-                    && matches!(w[2].to_ascii_lowercase(), b'8'..=b'9' | b'a'..=b'f')
-            });
-            if crate::master_rows::text_split(&t) || (surrogate && t.contains('\\')) {
-                return None;
-            }
-            if let Ok(Value::Object(d)) = serde_json::from_str::<Value>(&t) {
-                let big = match d.get("rev") {
-                    Some(Value::Number(n)) => n.as_i64().is_none() && n.as_f64().is_some_and(|f| f.abs() >= 9.2e18),
-                    Some(Value::String(x)) => crate::bundle::wide_int_text(x).is_some_and(|n| i64::try_from(n).is_err()),
-                    _ => false,
-                };
-                if big {
-                    return None;
-                }
-            }
-        }
         Some(load(local_root))
     }
 
-    /// 変わった名前と消した名前を控えに重ねる（ui_state.merge。POST /api/ui-state）。読めない本文（片割れの代用字など）は None（Python に任せる）
+    /// 変わった名前と消した名前を控えに重ねる（ui_state.merge。POST /api/ui-state）。読めない本文（片割れの代用字など）は None（Python に任せる）。
+    /// 版 3.113.0（採点の指摘 3）: 版は桁のまま +1（Python の int と同じ字）、控えの対の無い代用字は \udXXX の字のまま書き戻す
+    /// （Python も同じに直した: 前は大きさを数える encode("utf-8") の UnicodeEncodeError で 400 になり、以後どの設定も控えに入らなかった）
     pub fn post(local_root: &Path, body: &[u8]) -> Option<(u16, Value)> {
         if crate::access_write::needs_python(body) {
             return None;
         }
-        // 版 3.112.0（採点の指摘 4）: 控えを Python と同じに読めない形（入れ子・対の無い代用字・大きな rev）は書き戻さない（Python に任せる。
-        // 中身が止まっていれば 503）。前は中身が止まっている間に描いた画面（空の控え）の書き込みが、読めない控えを空で上書きして消した
-        load_exact(local_root)?;
         let b: Value = serde_json::from_slice(body).ok().filter(truthy).unwrap_or(json!({}));
         let b = b.as_object()?;
         let bad = |e: &str| Some((400, json!({"error": e})));
@@ -1231,8 +1237,7 @@ pub mod ui_state {
             return bad("changed・removed の形が違います。");
         };
         let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let cur = load(local_root);
-        let mut keys = cur["keys"].as_object().cloned().unwrap_or_default();
+        let (rev, mut keys) = read(local_root);
         for (k, v) in changed {
             if k.starts_with(PREFIX) && v.is_string() {
                 keys.insert(k.clone(), v.clone());
@@ -1241,12 +1246,14 @@ pub mod ui_state {
         for k in removed.iter().filter_map(Value::as_str).filter(|k| k.starts_with(PREFIX)) {
             keys.remove(k);
         }
-        // 大きさは Python の json.dumps の区切り（", " と ": "）の字で数える
-        if crate::join::py_dumps(&Value::Object(keys.clone())).len() > MAX_BYTES {
+        // 大きさは Python の json.dumps の区切り（", " と ": "）の字の UTF-8（対の無い代用字は書くときの \udXXX の 6 字）で数える
+        let keys = Value::Object(keys);
+        let text = crate::join::py_dumps(&keys);
+        let lone = if crate::held::has_lone(&keys) { text.chars().filter(|c| crate::held::lone_unit(*c).is_some()).count() } else { 0 };
+        if text.len() + 2 * lone > MAX_BYTES {
             return bad("画面の設定が大きすぎます。");
         }
-        // i64 に入らない版の番号（壊れた控え）は Python に任せる（Python の int は上限が無い）
-        let rev = cur["rev"].as_i64().unwrap_or(0).checked_add(1)?;
+        let rev = crate::held::int_value(&rev.succ());
         if let Err(e) = write_json_atomic(&path(local_root), &json!({"rev": rev, "keys": keys}), b"", 0.0) {
             return Some((500, json!({"error": e.to_string(), "kind": "error"})));
         }
@@ -1309,10 +1316,11 @@ mod tests {
         assert!(p.touch("u", "PC", "一般ユーザー", "PC@u", true));
         assert!(d.join("share/presence_tpa/history/PC@u.json").exists());
         assert!(!p.touch("u", "PC", "一般ユーザー", "../x", true), "鍵の正しくない名乗りは書かない");
-        // 壊れた控え: i64 に入らない版の番号は Python に任せる（Python の int は上限が無い。作った後の採点）
+        // 版の番号が i64 の端: 版 3.113.0 から窓も Python の int と同じく桁のまま +1（前は Python に任せた）
         std::fs::create_dir_all(d.join("local")).unwrap();
         std::fs::write(ui_state::path(&d.join("local")), r#"{"rev": 9223372036854775807, "keys": {}}"#).unwrap();
-        assert!(ui_state::post(&d.join("local"), br#"{"changed": {"tpa.a": "1"}}"#).is_none());
+        let (st, v) = ui_state::post(&d.join("local"), br#"{"changed": {"tpa.a": "1"}}"#).unwrap();
+        assert_eq!((st, String::from_utf8(crate::held::reply_bytes(&v)).unwrap().replace(' ', "")), (200, r#"{"rev":9223372036854775808}"#.to_string()));
         let _ = std::fs::remove_dir_all(&d);
     }
 }

@@ -565,17 +565,10 @@ const GONE: &str = "そのデータ元はありません（ほかの PC が消�
 
 /// 窓が受ける 7 本を答える（門番は呼ぶ側が通した）。窓が答えない形は None
 pub fn handle(store: &Store, route: &Route, query: &str, body: &[u8], cx: &Ctx) -> Option<Done> {
-    // 置き場の行の版・列の値を窓が Python と同じに読めない形は任せる（読めない行は版 3.108.0 から隔ててある〈cx.rows は Place::rows〉。
-    // id はキーで引くので見ない〈row_check::ID_FREE〉: 字の id も next_id が int() で読めれば数える）
+    // 置き場の行の値が並び・表・結合が並び・読めない行（NaN の結合・字の版）も版 3.113.0 から窓が答える（採点の指摘 7。前は道を全部中身へ
+    // 回した）。読みは cx.items（窓が組んだ並び。並びは str()・結合は J で読む）、書きは行の写し（row_of）から Python と同じく書き直し、
+    // 読めない行に触れる書きは data_source_put・data_source_order の key_guard が理由つきで断る（Python の master_repository.key_guard）
     let fields = strs(t(&["sourcesList", "fields"]));
-    let plain = |o: &Map<String, Value>| {
-        crate::master_rows::row_readable(NAME, o) && fields.iter().all(|k| o.get(k.as_str()).is_none_or(crate::master_rows::value_plain))
-    };
-    // 読めない行（row_check）は、Python が読みでは使い、触れる書きだけを断る（版 3.108.0。参照先と同じ。隔てると見出しのタブが消える）。
-    // 窓は読めない行の値（NaN・字の版）を Python と同じに読めると限らないので、読めない行があればこの道は Python に任せる
-    if !crate::master_rows::isolated_of(NAME, cx.rows).is_empty() || !cx.rows.iter().all(|r| r.as_object().is_some_and(plain)) {
-        return None;
-    }
     let parsed = crate::master_rows::py_body(body)?;
     let data = parsed.as_object().cloned().unwrap_or_default();
     let known = join_targets(cx.items);

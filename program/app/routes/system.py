@@ -69,21 +69,32 @@ def health():
     return jsonify(status="ok")
 
 
+def _config_num(kind, v, default):
+    """int()・float() で読めなければ既定（窓の bundle::config_num と同じ）"""
+    try:
+        return kind(v)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
 @bp.get("/api/config")
 def config():
     s = effective_settings(current_app)          # 参照先マスタで変えた値（LotDsp の URL など）を重ねる
     from ..services.path_settings import stage
     stage(s, "lotdsp_import")                    # 段が表でなければ理由つきの 503（版 3.112.0 の作った後の採点の割れ 3）
-    beat = s.get("presence", {})
+    # 心拍・表示の初期設定の段が表でない・数が読めない形は既定（版 3.113.0。前は 500 で、窓は事例の表 appsettings_cases.json の決めで
+    # 答えていた。/api/config は起動の確かめの合図なので落とさない。窓の bundle::Builder::config・config_num と同じ）
+    beat = s.get("presence") if isinstance(s.get("presence"), dict) else {}
+    ui = s.get("ui_defaults") if isinstance(s.get("ui_defaults"), dict) else {}
     return jsonify(
         lotdsp_url=(s.get("lotdsp_import") or {}).get("url", ""),
         lotdsp_direct=lotdsp_direct.settings_of(s.get("lotdsp_import"))["enabled"],
         lotdsp_login_window=all(lotdsp_direct.settings_of(s.get("lotdsp_import"))[k] for k in ("enabled", "login_window")),
         lotdsp_api=lotdsp_api.status(api_map(), api_settings()),
         default_unwind=DEFAULT_UNWIND,
-        defaults=s.get("ui_defaults", {}),
-        max_rows=int(s.get("ui_defaults", {}).get("max_rows", 25)),
-        heartbeat_interval_seconds=float(beat.get("heartbeat_interval_seconds", 3)),
+        defaults=ui,
+        max_rows=_config_num(int, ui.get("max_rows", 25), 25),
+        heartbeat_interval_seconds=_config_num(float, beat.get("heartbeat_interval_seconds", 3), 3.0),
         app={"name": BRAND["name"], "subtitle": BRAND["subtitle"]},
     )
 
