@@ -1071,6 +1071,11 @@ fn py_iter(v: Option<&Value>) -> R<Vec<Value>> {
     }
 }
 
+/// 行の「結合」の決まりの並び（data_join.parse。事例の表 rowshape_cases.json の sources を確かめる。読めなければ None）
+pub fn joins_value(v: Option<&Value>) -> Option<Value> {
+    joins_of(v).ok()
+}
+
 /// 行の「結合」→ 決まりの並び（data_join.parse）
 fn joins_of(v: Option<&Value>) -> R<Value> {
     let items: Vec<Value> = match v {
