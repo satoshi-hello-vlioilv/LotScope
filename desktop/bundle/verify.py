@@ -69,6 +69,22 @@ WINDOW_ONLY = [
 WINDOW_MAYBE = {"版を置けない人は理由つきで断られる", "例外", "更新の係が答える"}
 
 
+# 1b（配った設定の lot_list が字・作業実績の古さが NaN）で落ちてよい自己診断の項目と理由（版 3.112.0 の作った後の採点の割れ 6c）。
+# どれも品質（lot_list）の節を使う道で、窓は「設定を組めません: 配った設定（…）の「lot_list」が表でない…」の 503 で断る
+NAN_EXPECTED = {
+    "データの時刻は Rust が答える（共有を見に行かない）": "品質のデータの時刻は lot_list の節を使う",
+    "集計表・グラフは窓が答え、Python と同じ答え（6 通り・カラムの札・作業日×直・失敗の答え）": "品質の集計表は lot_list の節を使う",
+    "ダッシュボードのパネルは窓が答え、Python と同じ答え（11 通り・数字・グラフ・合わせた表・別のデータ・稼働・ABC 分析・失敗の答え）":
+        "品質の元のパネル（kpi/lot・bar/lot・品質を合わせた表）は lot_list の節を使う。ほかの元のパネルは答える",
+    "組む所の読み 7 本は窓が答え、Python と同じ答え（札・当てる列・結合の欄の列・確かめる・試す）": "品質の元の札・当てる列は lot_list の節を使う",
+    "設備グループの一覧は、スケジュールの元（CM3）がある PC でも窓が答え、Python と同じ答え（版 3.96.0 から窓がスケジュールの係）":
+        "選べる設備は品質の元の設備の列も数える（lot_list の節）",
+    "設備グループを書く道も窓が受ける（無いグループを直すを Python と同じ言葉で断る。書けない人は門番が断る）": "同上（書く前に選べる設備を数える）",
+    "一覧は Rust が答える": "品質の一覧は lot_list の節を使う",
+    "日本語の問い合わせ文字（Python が JSON で答える）": "品質の一覧の検索は lot_list の節を使う",
+}
+
+
 def window_only_ok(r: dict, label: str) -> tuple[bool, str]:
     """Python が居ない通しの自己診断: 窓だけの項目が全部あって通り、ほかは包みに数えた（飛ばした）か"""
     res = r.get("results", [])
@@ -356,6 +372,12 @@ def update(exe: Path, work: Path) -> bool:
                 f"1b. 配った設定に NaN・lot_list が字でも、使っている間に {v1} を取り込んだ（更新の置き場を見失わない）", json.dumps(upd_nan, ensure_ascii=False)[:300])
     rel = next((x for x in r.get("results", []) if x["name"] == "配布の画面の係が答える（置き場に届くか・権限）"), {})
     ok &= check(rel.get("ok") is True, "1b. 配布の画面の係が答える（窓が置き場を読む）", rel.get("info"))
+    # 版 3.112.0 の作った後の採点の割れ 6c: lot_list の節を使う項目だけが落ちてよい（窓が理由つきの 503 で断る。NAN_EXPECTED に理由）。
+    # ほかの項目が落ちたら割れ（前は 1b の 2 項目しか見ず、断り過ぎ・Python の HTML の 500 を見逃した）
+    failed = [x for x in r.get("results", []) if not x["ok"]]
+    unexpected = [f"{x['name']} -- {x['info'][:120]}" for x in failed if x["name"] not in NAN_EXPECTED]
+    ok &= check(not unexpected, "1b. lot_list が字の PC で落ちるのは品質の節を使う項目だけ（理由つきの 503）", unexpected)
+    ok &= check(all("503" in x["info"] for x in failed), "1b. 落ちた項目はどれも窓の理由つきの 503", [x["info"][:80] for x in failed])
     sc = ((info.get("install") or {}).get("shortcut") or {})
     ok &= check(sc.get("ask") is True and not sc.get("links"), "1. ショートカットが無いので画面が尋ねる", sc)
     # 人が作った、共有の exe を指し作業フォルダも共有のショートカット（次の起動で直る）

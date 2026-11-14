@@ -307,3 +307,42 @@ fn a_broken_config_writes_nothing_new_to_the_share() {
     }
     let _ = std::fs::remove_dir_all(&work);
 }
+
+/// 1 つの段の壊れで、その段を使わない道まで断らない（版 3.112.0 の作った後の採点の割れ 4）: lot_list・work_log・sources が字の形で、
+/// 道とパネルの元ごとに要る節だけを断る（理由つきの 503 kind settings）。ほかの元のパネル・一覧は設定では断らない（データが無い
+/// 試験の形なので、写しの 503 copying や 404 はよい）
+#[test]
+fn a_broken_stage_refuses_only_the_routes_that_use_it() {
+    let t = table();
+    let work = common::work("appsettings-refuse");
+    let panel = |src: &str| json!({"panel": {"id": "p", "visual": "kpi", "source": src, "measure": {"agg": "count"}}}).to_string();
+    // (事例, 道, 本文, 設定で断るか)
+    let rows: [(&str, &str, &str, String, bool); 12] = [
+        ("lot_list が字", "POST", "/api/dashboard/query", panel("lot"), true),
+        ("lot_list が字", "POST", "/api/dashboard/query", panel("work"), false),
+        ("lot_list が字", "POST", "/api/dashboard/query", panel("src:wip"), false),
+        ("lot_list が字", "GET", "/api/src/無い元", String::new(), false),
+        ("lot_list が字", "GET", "/api/worklog", String::new(), false),
+        ("lot_list が字", "GET", "/api/dashboard/sources", String::new(), false),
+        ("work_log が字", "POST", "/api/dashboard/query", panel("lot"), false),
+        ("work_log が字", "POST", "/api/dashboard/query", panel("work"), true),
+        ("work_log が字", "GET", "/api/dashboard/sources", String::new(), false),
+        ("sources が字", "GET", "/api/lotlist", String::new(), false),
+        ("sources が字", "GET", "/api/worklog", String::new(), false),
+        ("sources が字", "GET", "/api/src/wip", String::new(), true),
+    ];
+    let mut bad = vec![];
+    for (i, (name, m, path, body, refuse)) in rows.iter().enumerate() {
+        let c = t["cases"].as_array().unwrap().iter().find(|c| c["name"] == *name).unwrap();
+        let (lot, env, _) = place(&work.join(format!("r{i}")), c);
+        lot.set_bundle(Builder::new(env));
+        let (path, q) = path.split_once('?').unwrap_or((path, if path.starts_with("/api/worklog") { "equip=x" } else { "" }));
+        let got = lot.handle_body(m, path, q, body.as_bytes());
+        let settings = got.as_ref().is_some_and(|(st, v)| *st == 503 && v["kind"] == "settings");
+        if got.is_none() || settings != *refuse {
+            bad.push(format!("{name}: {m} {path} {body} → {got:?}（設定で断る {refuse}）"));
+        }
+    }
+    let _ = std::fs::remove_dir_all(&work);
+    assert!(bad.is_empty(), "{} か所:\n{}", bad.len(), bad.join("\n"));
+}

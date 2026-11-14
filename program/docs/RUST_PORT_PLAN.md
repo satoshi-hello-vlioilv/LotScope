@@ -2154,6 +2154,13 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   字でも節を組む・束の答えに NaN の印を残す・心拍の段が null を断る（以上 appsettings_cases）・種まきの錠で写しを使わない・錠の束を覚える・画面の控えを
   空で書き戻す・式の conv が印の字を数に読まない（lot::tests）・Python の `_set` の直しを戻す（test_appsettings_cases）。
 
+- 作った後の採点（46.3 点。`2026-11-stage3a-built.json`）の割れ 6 つを直した（built_fixed）: 壊れた段で窓が中身へ回していた道は、道が使う節の
+  理由つきの 503（`Lot::refused`）にし、一覧の係の決めは `bundle::engine_of` の 1 か所・置き場の画面は配った設定が壊れても答える・更新の置き場が
+  決まらないときの GET /api/update/settings は窓が 503。道が使う節は道とパネルの元ごと（`sections_for`・`sections_for_body`・`sections_of_source`。
+  bundle_cases.json の routes・bodies）。update が null で参照先に置き場の行がある形も決まらない（控えを残す）。Python は段の読みを
+  `path_settings.stage` にして理由つきの JSON で断り、/api/ の想定外の誤りも JSON の 500。route_reach は事例の表の全件も回し、道ごとの転送の当たり
+  （場面 × 型）を予算 `routerForwardTotal`（183。比べる口の GET /api/lotlist/settings 129 を含む）と比べる。任せる歩（delegate-count.py）は 27 のまま。
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。

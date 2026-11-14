@@ -108,5 +108,25 @@
    ],
    "seen": "狙い（窓は束・更新の置き場を Python に尋ねない）の作りはコンパイルで保たれている: main.rs と lot.rs の本体から尋ねる口が消え、試験の口 given は cfg(test)・feature testing の中だけ。配った設定は read_settings の 1 か所で held::parse（NaN・Infinity・1e400・大きな整数・代用字）で読み、段が表でない形は settingsBroken・節の broken の stage に理由を付けて束は組む。更新の置き場は update.source の段だけで決まり、決まらないときは None で控えを残す（4d の直し）。事例の表 56 件・num_setting の jcases と config・verify の local と 1b・seed の写しへの逃げ・覚えない束は、関係の試験と採点者の変異で効いている。ただ『その段を使う道だけ断る』『置き場・権限・更新はどの段でも止めない』は道の側で届いていない: 事例の表の形のまま、窓は 9〜20 の道の型を中身へ回し（割れ 1）、そのうち Python が起きない形では見出しのデータ元のタブ（desktop が字）や置き場の画面が理由の無い 503 になる。Python は起きるようになった形で道ごとに 500 の HTML を返し（割れ 3）、窓の sections_for はダッシュボード全体と /api/src を 1 つの段の壊れで断る（割れ 4）。数え方は道ごとの転送を入れず（割れ 2）、route_reach は事例の表の形を回さないので、これらはどの試験にも出ない。update の段が null の形は控えを空で上書きする（割れ 5）"
   }
+ },
+ "built_fixed": {
+  "name": "作った後の採点（46.3 点）の割れ 6 つを根から直した（決まり 2026-11-06: 採点し直さない）。版は 3.112.0 のまま（app_build.py --release --amend）",
+  "fixes": [
+   "割れ 1（壊れた段で窓が多くの道を中身へ回し、Python が起きない形で理由の無い 503）: (a) 一覧の係の決めを bundle::engine_of の 1 か所にし、束・データ元の並び（sources_list）・見出しのタブ（sources_parts の shellLists）が同じに読む（desktop が表でなければ rust）。(b) Builder::configured_dir は配った設定が読めない・置き場の段が表でないとき Err でなく ''（置き場の画面はこの PC の覚えた置き場で答える）。(c) 節が原因で答えられない道は Lot::refused（道が使う節の 503 kind settings・理由つき）: 組む所の読み 5 本（元ごとの節）・設備グループ・参照先の確かめる・タブの権限・データ元の並びと書く道・作業実績の登録・勤務体系・スケジュールの 3 本（schedule の段が表でない: lists::sch_plan と /api/schedule・card）。(d) 更新の置き場が決まらないとき GET /api/update/settings は窓が 503（理由つき）、/api/fs/places は配布の置き場を空にして答える。参照先を書く道（PUT /api/settings/<key>）は段が表でない配った設定でも窓が書く（Python の _set も飛ばす）。schedule の段が表でないときデータ元の並びはスケジュールの設備の数 0 で答える",
+   "割れ 2（任せる歩の数え方の穴）: route_reach は settings_oracle の全場面（73）と appsettings_cases.json の全件（56。fail-closed の 1 件を除く）を回し、許す並び routerForward の当たり（場面 × 型）を予算 routerForwardTotal（183）と比べる（増えても減っても落とす）。delegate-count.py は任せる歩の計（27）と並べて routerForwardTotal を出す。settings_oracle の共有のふつうのマスタから『入力が表の変換表の行』『結合が並びのデータ元の行』を外し、専用の場面 2 つにして、許す並びの場面を名前で狭めた（変換表 8 は 1 場面・データ元の書く 7 は 3 場面〈結合が並び・結合の字に NaN・行の値が並び〉）。閉じた任せ 5 項目（組む所・設備グループ・データ元の並び・勤務体系・参照先を書く道・update が字）は並びから外した",
+   "割れ 3（Python の道が壊れた段で HTML の 500）: Python は段の読みを path_settings.stage の 1 つにし（lot_list_params・work_log.params・data_sources.read_params・schedule.config・/api/config の lotdsp_import）、表でなければ StageBroken（503 kind settings・窓と同じ形の理由）で答える（web.App.handle の payload）。束の節の理由も StageBroken の言葉。/api/ の道で起きた想定外の誤りは JSON の 500（前は HTML）。/api/fs/places は段の形で落ちない（_get）",
+   "割れ 4（窓だけが断り過ぎ）: lot::sections_for を道が本当に使う節だけにした（品質の一覧は lot_list・作業実績は work と shifts・データ元は sources・ダッシュボードのデータの並びは sources）。パネルの問い合わせは本文の元（source の字: lot → lot_list・work → work と shifts・src:キー → sources。いつも dash）ごとの節の和（sections_for_body）。組む所の読みも元ごと（sections_of_source）。/api/src/<無いキー> は lot_list が壊れても 404",
+   "割れ 5（update の段が null で参照先に update.source の行があるのに '' と答え、控えを空で上書き）: Inputs::update_source はこの形も決まらない（Err）。Lot::update_settings が None・更新の係は確かめずに控えた置き場を残す（事例の表の @unknown）。null で参照先の行が無い形は「置かない」の ''（新しい事例）",
+   "割れ 6: (a) 事例の表『共有に置く名前が数の並び』に access.place.shared（既定の roll_master・equipment_master といつも共有する名前）を足した。(b) 2 台の PC の試験は、ふつうの配った設定の窓と壊れた配った設定の窓に同じ手順を当て、共有のマスタのファイルの名前と中身（時刻を除く）・利用状況のファイルの数と鍵が同じことを見て、その共有を前の版の読み手の写し（ふつうの設定の Python: tests/share_reader_oracle.py）が節の壊れなしに読むことを見る。(c) verify.py の 1b は落ちてよい項目の名前と理由の並び NAN_EXPECTED（どれも lot_list の節を使う項目）を持ち、それ以外の項目が落ちたら 1b を落とす。落ちた項目はどれも 503 であることも見る"
+  ],
+  "tests": [
+   "cargo test --test appsettings_cases: settings_are_read_like_the_table（57 件。update が null の 2 形・共有に置く名前）・a_broken_config_writes_nothing_new_to_the_share（ふつうの窓と比べる・前の版の読み手）・a_broken_stage_refuses_only_the_routes_that_use_it（lot_list・work_log・sources が字で 12 の道とパネル）",
+   "cargo test --test route_reach（129 場面・当たり 183 が予算 routerForwardTotal と同じ）",
+   "cargo test --test bundle_cases（routes を直し、パネルの本文の元ごとの bodies 7 件）",
+   "cargo test --bin LotScope updater::tests::a_broken_update_stage_keeps_the_remembered_place（update が null で参照先に置き場・字・JSON でない: 控えた置き場が残る）",
+   "python -m unittest tests.test_appsettings_cases: test_python_routes_answer_json_on_broken_stages（段の壊れた件で 16 の道が JSON・500 でない・理由が段を言う）",
+   "desktop/bundle/verify.py update の 1b（NAN_EXPECTED の外の項目が落ちたら落とす）",
+   "変異（直しを戻す）で落ちることを確かめた: 共有に置く名前の既定を空に（appsettings_cases）・品質の一覧がデータ元の節も要る（bundle_cases）・パネルの元によらず全部の節（appsettings_cases）・update が null で参照先の行でも空（appsettings_cases）・データ元の並びが desktop の段で中身へ回す・置き場の画面が配った設定の壊れで中身へ回す・節が組めない組む所の読みを中身へ回す（以上 route_reach）・Python の stage が段の形を見ない（test_appsettings_cases）"
+  ]
  }
 }
