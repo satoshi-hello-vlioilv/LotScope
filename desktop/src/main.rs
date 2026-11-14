@@ -783,13 +783,26 @@ fn await_beat(app: AppHandle, paths: Paths, sup: Supervisor, opened: Instant) {
                 None => "設定を尋ねもせず".to_string(),
             };
             let why = format!("画面の JS が起きません（開いて {} 秒・{since}最初の心拍が来ません）", opened.elapsed().as_secs());
-            if let Some(back) = update::revert(&paths, &why) {
+            // 画面を開いた後の戻し: 先に app を掴む物を止める（中身の Python は作業フォルダが app\program。LotDsp の見えない Edge も）。
+            // Windows は掴まれたフォルダの名前を替えられない（版 3.111.0 の Windows の CI の 4e: 戻せず、壊れた版のまま開いていた）
+            let stop = || {
+                log("BOOT 戻す前に中身（Python）を止めます");
+                sup.stop();
+                if let Some(lot) = LOT.get() {
+                    lot.lotdsp.shutdown();
+                }
+            };
+            if let Some(back) = update::revert_running(&paths, &why, &stop, Duration::from_secs(15)) {
                 log(&format!("UPDATE 版 {} は画面が起きないので {} に戻しました", back.from, back.to));
                 if relaunch(&app, &paths).is_ok() {
                     return;
                 }
             }
-            log("BOOT 控えへ戻せないので、この版のまま使います");
+            log(if paths.applied().exists() {
+                "BOOT 控えへ入れ替えられないので、この版のまま使います（次の起動でもう一度確かめて戻します）"
+            } else {
+                "BOOT 控えへ戻せないので、この版のまま使います"
+            });
             return;
         }
         settle(&paths, &acts);
