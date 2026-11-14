@@ -22,6 +22,7 @@
 //    焦点は同じマスタの新しい札。ダッシュボード・共有の書式の面でも同じ。直すファイルの言葉はサーバーの置き場の状態から（手元のみ「この PC のアプリの
 //    data/ の …json」〈帯と同じ言葉〉・共有「共有のフォルダの …json」・届かない「共有のフォルダ（いまは届きません）の …json」。開発用サーバーの
 //    TPA_UI_SHARE で撮る）。消した後の一言は中身つきのまま、タブを替えたとき（押す・キー・goTab）とマスタ管理を閉じたときに消える
+// ⑩ 版 3.113.0: 作業実績の登録（データ元の「実績」の欄の「設備」の段）の表の要約の段にも同じ札（表でない行・版の読めない行。押すと同じ面）
 // 撮る出力フォルダを渡すと、各所の画像（skip-<所>-<大きさ>.png。面を開いた所は skip-<所>-open-<大きさ>.png）を置く。全部合えば終了コード 0。
 import { launch, sleep, parseView } from "./ui-harness.mjs";
 import fs from "node:fs";
@@ -456,5 +457,31 @@ async function masterPart(p, tag) {
     && ds.rows.some((x) => /id 990・キー 'bad1'/.test(x)), ds);
   check(`⑧ ${tag} データ元の面の字が切れない・コントラスト 4.5 以上`, td && !td.cut.length && !td.low.length, td);
   await shot(p, `skip-sources-open-${tag}`);
+  await closeMenu(p);
+  await worklogPart(p, tag);
+}
+
+// ⑩ 版 3.113.0（採点の指摘 6）: 作業実績の登録の一覧（データ元の「実績」の欄の「設備」の段）も、表でない行と触れる書きを断る行を
+// skipped で知らせ、表の要約の段に同じ札（.db-warnb・「⚠ 実績の設備の読めない行 2」・押すと同じ面）。前は表でない行を黙って飛ばした
+async function worklogPart(p, tag) {
+  await p.evaluate(() => document.querySelector('[data-sr-open="work"]')?.click()); await sleep(900);
+  await p.evaluate(() => document.querySelector('.sr-card.is-open [data-sr-sec="equip"]')?.click());
+  await p.waitForSelector(".sr-card.is-open [data-sr-wl] .wl-sum", { timeout: 8000 }).catch(() => {});
+  await sleep(600);
+  const c = await chip(p, ".sr-card.is-open [data-sr-wl] .wl-sum");
+  const clip = await p.evaluate(() => { const r = (document.querySelector(".sr-card.is-open [data-sr-wl]") || document.body).getBoundingClientRect();
+    return { x: 0, y: Math.max(0, r.top - 80), width: innerWidth, height: Math.max(40, Math.min(innerHeight - Math.max(0, r.top - 80), r.height + 120)) }; });
+  await shot(p, `skip-worklog-${tag}`, clip);
+  check(`⑩ ${tag} 実績の設備の表の要約の段に札（押せるボタン・「⚠ 実績の設備の読めない行 2」・1 段・段からはみ出さない・重ならない・横に送らない）`,
+    c && c.button && c.visible && c.text === "⚠ 実績の設備の読めない行 2" && c.oneLine && c.inside && !c.overlap && c.pageX
+    && SHAPES.has(await chipShape(p, ".sr-card.is-open [data-sr-wl] .wl-sum")), c);
+  if (!c || !c.button) return;
+  const m = await openMenu(p, ".sr-card.is-open [data-sr-wl] .wl-sum");
+  const tm = await menuText(p);
+  check(`⑩ ${tag} 札を押すと同じ面（実績の設備の読めない行・この画面の行〈一覧・読みでは使っています〉・表でない行と版の読めない行・× で消せる）`, m
+    && /実績の設備の読めない行（work_log_files\.json）/.test(m.head) && m.groups.some((g) => g === "この画面の行（一覧・読みでは使っています）")
+    && m.items.some((x) => /表でない行/.test(x.title) && !x.disabled) && m.items.some((x) => /id 991/.test(x.text) && !x.disabled) && m.inView, m);
+  check(`⑩ ${tag} 実績の設備の面の字が切れない・コントラスト 4.5 以上`, tm && !tm.cut.length && !tm.low.length, tm);
+  await shot(p, `skip-worklog-open-${tag}`);
   await closeMenu(p);
 }

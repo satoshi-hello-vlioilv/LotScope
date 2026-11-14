@@ -786,6 +786,8 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
     ...(loose.length ? [`<div><span class="m-chip c-plain">登録していない</span><span>${loose.length} 個（${loose.map((f) => escapeHtml(f.equipment)).join("・")}）</span>`
       + (can ? '<button type="button" class="pz-btn" data-wl-scan>設備として足す</button>' : "") + "</div>"] : []),
   ])];
+  // 読めない行（版 3.113.0。サーバーの skipped・unreadable）: 表でない行・版の読めない行を、ほかの画面と同じ札（.db-warnb・TPA.skipNote）で
+  // 要約の段に出す。押すと同じ面（何行目・理由・消す）。前は表でない行を黙って飛ばし、直そうとすると初めて断られた
   const tally = [`<span class="wl-n">表示 ${shown}</span>`, miss.length ? `<span class="wl-n is-ng">見つからない ${miss.length}</span>` : "",
     old.length ? `<span class="wl-n is-warn">古い ${old.length}</span>` : "", shown < d.items.length ? `<span class="wl-n">表示しない ${d.items.length - shown}</span>` : ""].join("");
   box.innerHTML = `<section class="wl-page${embed ? " is-embed" : ""}">
@@ -797,7 +799,7 @@ async function renderWorklog({ fresh = false, notice = null, box = $("#masterSet
     <div class="ps-result${notice ? ` ${notice[0]}` : " hidden"}" id="wlNotice" aria-live="polite">${notice ? notice[1] : ""}</div>
     ${d.error ? `<div class="dz-bad"><b>フォルダに届きません。</b>${escapeHtml(d.error)}<br>場所・ネットワークのつながりを確かめてください。前に写した設備は、写しのまま見られます。</div>` : ""}
     ${todo.length ? `<div class="wl-todo" role="region" aria-label="直すこと"><b>直すことが ${todo.length} つあります</b>${todo.join("")}</div>` : ""}
-    <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}
+    <div class="wl-sum"><b>設備 ${d.items.length} 台</b>${tally}${TPA.skipNote(d, "work_log_files", { reload: () => again() })}
       ${embed ? "" : "<small>表示ルール（表示列・条件・並び）は設備ごとに覚えます。ファイルの名前が変わっても、同じ設備のまま続きます。</small>"}
       ${embed && can ? '<button type="button" class="pz-btn wl-rescan" data-wl-scan title="フォルダの中で決まりに合うファイルを探し、新しい設備を足し、名前が変わったファイルをたどって登録を直します">↻ フォルダを探し直す</button>' : ""}
       ${sortable ? '<small class="wl-sorthint">⋮⋮ をつかんで並べ替え（選んで ↑↓ でも）。実績のタブも同じ並びになります</small>' : ""}</div>

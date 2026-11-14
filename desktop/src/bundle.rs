@@ -2046,7 +2046,9 @@ impl Builder {
                     Value::Array(_) => "並び",
                     _ => "数",
                 };
-                let why = format!("配った設定の「lotdsp_import」が表でない（{kind}）ので組めません。「lotdsp_import」を {{ … }} の形に直してください");
+                let why = format!(
+                    "配った設定の「lotdsp_import」が表でない（{kind}）ので組めません。「lotdsp_import」を {{ … }} の形に直してください"
+                );
                 return Ok((
                     503,
                     json!({"error": format!("設定を組めません: {why}。ファイルを直すと、この画面も読めるようになります。"), "kind": "settings",

@@ -23,6 +23,7 @@ fn regexes_read_like_the_table() {
     // 画面だけが読む形（長さの決まらない後読み）が表にあり、窓は断る
     let js_only = cases.iter().filter(|c| c["js"] == true && c["want"] == false).count();
     assert!(js_only >= 3, "画面だけが読む後読みの形が表にある: {js_only}");
-    let split = cases.iter().filter(|c| c["pattern"].as_str().is_some_and(|p| p.contains("(?<=") && p.contains('|')) && c["want"] == true).count();
+    let split =
+        cases.iter().filter(|c| c["pattern"].as_str().is_some_and(|p| p.contains("(?<=") && p.contains('|')) && c["want"] == true).count();
     assert!(split >= 3, "枝の長さの違う後読みが読める形で表にある: {split}");
 }

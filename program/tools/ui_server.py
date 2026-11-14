@@ -151,7 +151,9 @@ def build(quality=1500, work_rows=400, wip=1200):
                                    {"id": 902, "名前": "作業実績の壊れた書式", "元": "work", "中身": "{\"sorts\": [NaN]}"}],
                "equipment_master": [{"id": "x", "設備名": "壊れた設備"}, {"id": 902, "設備名": "数でない値の設備", "x": float("nan")}],
                # 版 3.109.0: データ元の読めない行（確かめる間隔が並び）。読みでは隔てず使い、面の言葉が「一覧・読みでは使っています」
-               "data_sources": [{"id": 990, "キー": "bad1", "表示名": "壊れたデータ元", "場所": "/無い/壊れた.sqlite3", "確かめる間隔": ["x"], "rev": "二"}]}
+               "data_sources": [{"id": 990, "キー": "bad1", "表示名": "壊れたデータ元", "場所": "/無い/壊れた.sqlite3", "確かめる間隔": ["x"], "rev": "二"}],
+               # 版 3.113.0: 作業実績の登録の表でない行と版の読めない行（一覧の skipped で知らせる。実績の設備の表の要約の段に札）
+               "work_log_files": [7, {"id": 991, "キー": "bad-w", "設備名": "版の読めない設備", "ファイル名": "実績_壊れた.sqlite3", "表示": "有", "rev": "二"}]}
         for name, rows in bad.items():
             f = data / f"{name}.json"
             have = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []

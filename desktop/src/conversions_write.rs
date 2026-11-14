@@ -581,7 +581,8 @@ fn read(place: &Place) -> Option<Read> {
     // 行の値が並び・表（手で直した共有の行）も版 3.113.0 から窓が読む（中身の列の形が違う行は row_check::SHAPES で隔てた。名前・その他の
     // 並びは Python の str()〈repr〉・表示順は int() が読めなければ 0。前は道を全部中身へ回した: 採点の指摘 2）
     let plain = |rows: &[Value]| {
-        rows.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain_or_container))))
+        rows.iter()
+            .all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain_or_container))))
     };
     if !plain(&rows) || !plain(&own) || !own.iter().all(|r| r.as_object().is_some_and(|o| master_rows::row_readable(DEFAULTS, o))) {
         return None;

@@ -60,10 +60,12 @@ pub fn lone_escaped(t: &str) -> String {
     if !t.as_bytes().contains(&0xF4) {
         return t.to_string();
     }
-    t.chars().map(|c| match lone_unit(c) {
-        Some(u) => format!("\\u{u:04x}"),
-        None => c.to_string(),
-    }).collect()
+    t.chars()
+        .map(|c| match lone_unit(c) {
+            Some(u) => format!("\\u{u:04x}"),
+            None => c.to_string(),
+        })
+        .collect()
 }
 
 /// Python の json.dumps(v, ensure_ascii=False, indent=indent) を書いた字（持っている値は元の字・対の無い代用字は \udXXX。版 3.113.0）

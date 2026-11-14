@@ -2720,30 +2720,48 @@ mod tests {
         let perm = json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "rev": 1}]});
         std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
         let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
-        for n in ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversion_defaults"] {
+        for n in [
+            "path_settings",
+            "data_sources",
+            "work_log_files",
+            "equipment_master",
+            "equipment_groups",
+            "shift_patterns",
+            "conversion_defaults",
+        ] {
             std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
         }
         let bad_row = json!({"id": 1, "名前": "入力が表", "入力": {"a": 1, "b": [2]}, "判定": "[]", "rev": 1});
         let list_row = json!({"id": 2, "名前": "並びの入力", "入力": [{"name": "a", "type": "text", "columns": ["列A"]}], "判定": [], "当て方": {"mode": "add"}, "rev": 1});
-        std::fs::write(share.join("conversions.json"), json!({"schema": 1, "revision": 4, "rows": [bad_row, list_row]}).to_string()).unwrap();
+        std::fs::write(share.join("conversions.json"), json!({"schema": 1, "revision": 4, "rows": [bad_row, list_row]}).to_string())
+            .unwrap();
         let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
         let lot = Lot::new(work.join("local").join("db_cache"));
         lot.set_bundle(crate::bundle::Builder::new(env));
         let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
         let (st, v) = lot.handle_body_with("GET", "/api/masters/conversions", "", b"", &down).expect("窓が答える");
-        assert_eq!((st, v["items"].as_array().unwrap().len(), v["skipped"][0]["why"].clone()), (200, 1, json!("「入力」が並びではありません（表）")), "{v}");
+        assert_eq!(
+            (st, v["items"].as_array().unwrap().len(), v["skipped"][0]["why"].clone()),
+            (200, 1, json!("「入力」が並びではありません（表）")),
+            "{v}"
+        );
         let table = json!({"name": "後読み", "inputs": [{"name": "a"}], "rows": [], "other": "=extract([a], '(?<=L|CR)\\d')"});
-        let (st, v) = lot.handle_body_with("POST", "/api/masters/conversions", "", table.to_string().as_bytes(), &down).expect("窓が答える");
+        let (st, v) =
+            lot.handle_body_with("POST", "/api/masters/conversions", "", table.to_string().as_bytes(), &down).expect("窓が答える");
         assert_eq!(st, 201, "{v}");
-        let (st, _) = lot.handle_body_with("PUT", "/api/masters/conversions/2", "", r#"{"name": "並びの入力を直す"}"#.as_bytes(), &down).unwrap();
+        let (st, _) =
+            lot.handle_body_with("PUT", "/api/masters/conversions/2", "", r#"{"name": "並びの入力を直す"}"#.as_bytes(), &down).unwrap();
         assert_eq!(st, 200);
         let (st, v) = lot.handle_body_with("PUT", "/api/masters/conversions/1", "", br#"{"name": "x"}"#, &down).unwrap();
         assert_eq!((st, v["kind"].clone()), (503, json!("master_unreadable")), "隔てた行に触れる書きは断る: {v}");
         let after: Value = serde_json::from_slice(&std::fs::read(share.join("conversions.json")).unwrap()).unwrap();
         let rows = after["rows"].as_array().unwrap();
         assert_eq!(rows[0], bad_row, "隔てた行は値を変えずに書き戻す（3.112.0 の PC は前と同じに読む）");
-        assert_eq!((rows[1]["入力"].clone(), rows[1]["判定"].clone(), rows[1]["当て方"].clone()),
-                   (list_row["入力"].clone(), list_row["判定"].clone(), list_row["当て方"].clone()), "並びそのものの値は並びのまま");
+        assert_eq!(
+            (rows[1]["入力"].clone(), rows[1]["判定"].clone(), rows[1]["当て方"].clone()),
+            (list_row["入力"].clone(), list_row["判定"].clone(), list_row["当て方"].clone()),
+            "並びそのものの値は並びのまま"
+        );
         assert_eq!(rows[1]["名前"], json!("並びの入力を直す"));
         assert_eq!(rows[2]["その他"], json!("=extract([a], '(?<=L|CR)\\d')"), "後読みの式は普通の字");
         let _ = std::fs::remove_dir_all(&work);
@@ -3211,9 +3229,13 @@ mod tests {
             let (st, got) = lot.handle_body("GET", "/api/ui-state", "", b"").expect("窓が答える");
             let reply = String::from_utf8(crate::held::reply_bytes(&got)).unwrap().replace(' ', "");
             assert_eq!(st, 200);
-            assert!(reply.contains(&format!("\"rev\":{}", &text[8..text.find(',').unwrap()].trim_matches('"'))), "{reply}");
+            assert!(reply.contains(&format!("\"rev\":{}", text[8..text.find(',').unwrap()].trim_matches('"'))), "{reply}");
             let (st, v) = lot.handle_body("POST", "/api/ui-state", "", body).expect("窓が書く");
-            assert_eq!((st, String::from_utf8(crate::held::reply_bytes(&v)).unwrap().replace(' ', "")), (200, format!("{{\"rev\":{rev}}}")), "{text:.60}");
+            assert_eq!(
+                (st, String::from_utf8(crate::held::reply_bytes(&v)).unwrap().replace(' ', "")),
+                (200, format!("{{\"rev\":{rev}}}")),
+                "{text:.60}"
+            );
             let after = std::fs::read_to_string(&f).unwrap();
             assert!(after.contains(&format!("\"rev\": {rev}")) && after.contains("\"tpa.x\": \"1\""), "{after}");
             if !a.is_empty() {

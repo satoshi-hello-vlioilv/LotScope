@@ -1320,7 +1320,10 @@ mod tests {
         std::fs::create_dir_all(d.join("local")).unwrap();
         std::fs::write(ui_state::path(&d.join("local")), r#"{"rev": 9223372036854775807, "keys": {}}"#).unwrap();
         let (st, v) = ui_state::post(&d.join("local"), br#"{"changed": {"tpa.a": "1"}}"#).unwrap();
-        assert_eq!((st, String::from_utf8(crate::held::reply_bytes(&v)).unwrap().replace(' ', "")), (200, r#"{"rev":9223372036854775808}"#.to_string()));
+        assert_eq!(
+            (st, String::from_utf8(crate::held::reply_bytes(&v)).unwrap().replace(' ', "")),
+            (200, r#"{"rev":9223372036854775808}"#.to_string())
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 }

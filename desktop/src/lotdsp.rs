@@ -281,7 +281,7 @@ pub fn py_text(v: Option<&Value>) -> String {
 
 /// LotDsp の設定の秒（版 3.113.0。採点の指摘 4）: 数の設定の読み方（Python の services/num_setting.read と同じ: null・空の字・float() で
 /// 読めない字・並び・表は既定）で読み、float() の値にする。前は読めない字で設定の誤り（Python は /api/config も 500）にしていた。
-/// 事例は tests/fixtures/num_setting_cases.json の lotdsp
+/// 事例は tests/fixtures/rowshape_cases.json の seconds（Python は lotdsp_rules.setting_seconds）
 pub fn py_float_of(v: Option<&Value>, def: f64) -> f64 {
     match v {
         None | Some(Value::Null) => def,
