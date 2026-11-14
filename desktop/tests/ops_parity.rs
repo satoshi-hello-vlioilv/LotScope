@@ -15,6 +15,14 @@ fn strip(v: &mut Value) {
     match v {
         Value::Object(o) => {
             o.remove("timing");
+            // 写している途中の済んだバイト・速さ・残り秒は、問い合わせた時に写しの糸がどこまで進んでいたかで決まる（版 3.111.0。
+            // Windows の CI で、窓だけが写しの途中の bytes を持つ形が出た）。数え方そのものは dashboard::tests の
+            // copying_is_counted_within_one_data_source が決まった数で確かめるので、ここでは何台写したか（done・total・name）だけを比べる
+            if let Some(Value::Object(c)) = o.get_mut("copy") {
+                for k in ["bytes", "rate", "leftSec"] {
+                    c.remove(k);
+                }
+            }
             if let Some(Value::Array(ms)) = o.get_mut("mirrors") {
                 for m in ms.iter_mut() {
                     *m = json!({"remote": m["remote"], "interval_sec": m["interval_sec"], "staleHours": m["staleHours"], "mirrored": m["mirrored"]});
