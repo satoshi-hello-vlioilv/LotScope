@@ -79,6 +79,14 @@ def _cell(v):
     return _clean(v)
 
 
+def _conv_cell(k, v):
+    """変換表の標準へ置く字（_clean）。中身の列（入力・判定・当て方）の並び・表そのもの（手で直した共有の行）はそのまま置く（版 3.113.0。
+    前は str() の repr の字〈'name' の一重引用符〉にして、標準の表が JSON として読めず入力の無い表になった。窓の conversions_write::defaults_set と同じ）"""
+    if k in ("入力", "判定", "当て方") and isinstance(v, (list, dict)):
+        return v
+    return _clean(v)
+
+
 def _normalize(row, spec):
     """読むときの形をそろえる（旧い列名の読み替え・版が無い行は1）。"""
     for old, new in spec["renamed"].items():
@@ -833,7 +841,7 @@ class MasterRepository:
         def mutate(cur, stamp):
             cur.clear()
             for i, data in enumerate(rows, 1):
-                cur.append({"id": i, **{k: _clean(data.get(k)) for k in spec["fields"]}, "rev": 1, **stamp})
+                cur.append({"id": i, **{k: _conv_cell(k, data.get(k)) for k in spec["fields"]}, "rev": 1, **stamp})
             return len(cur)
         return self.store.write("conversion_defaults", mutate)
 

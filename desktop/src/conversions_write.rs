@@ -328,10 +328,8 @@ fn check_out(o: Option<&Tree>, names: &[String], place: &str) -> C<String> {
         Some(x) => scalar(x)?.chars().take(OUT_MAX).collect(),
     };
     if let Some(src) = t.strip_prefix('=') {
-        // 式の正規表現の「読めるか」が Python の re と割れうる形（後読み）は任せる（formula::regex_split。版 3.106.0 の作った後の採点の割れ 4）
-        if crate::formula::regex_split(src) {
-            return Err(Bad::Delegate);
-        }
+        // 後読みの式も版 3.113.0 から窓が答える（前は formula::regex_split で Python に任せた）。読めるかの正しい答えは事例の表
+        // formula_regex_cases.json の want（画面の JavaScript が読み、サーバーも計算できる）。Python は枝ごとの後読みに書き替えて読む
         if nest_count(src) > NEST_MAX {
             return conv(format!("{place}の式の入れ子が深すぎます（かっこ・負の符号・not は合わせて {NEST_MAX} までです）。"));
         }
@@ -580,10 +578,12 @@ fn read(place: &Place) -> Option<Read> {
     // （中身の字も bundle::conv_views が src/held.rs で読む）。標準の読めない行も隔てる（上の own。row_check::FILTERED）
     let iso = crate::row_check::check(NAME, &all, &FIELDS);
     let rows: Vec<Value> = crate::row_check::good(NAME, &all, &iso);
+    // 行の値が並び・表（手で直した共有の行）も版 3.113.0 から窓が読む（中身の列の形が違う行は row_check::SHAPES で隔てた。名前・その他の
+    // 並びは Python の str()〈repr〉・表示順は int() が読めなければ 0。前は道を全部中身へ回した: 採点の指摘 2）
     let plain = |rows: &[Value]| {
-        rows.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain))))
+        rows.iter().all(|r| r.as_object().is_some_and(|o| FIELDS.iter().all(|k| o.get(*k).is_none_or(master_rows::value_plain_or_container))))
     };
-    if !plain(&rows) || !master_rows::rows_plain(DEFAULTS, &own, &FIELDS) {
+    if !plain(&rows) || !plain(&own) || !own.iter().all(|r| r.as_object().is_some_and(|o| master_rows::row_readable(DEFAULTS, o))) {
         return None;
     }
     master_rows::normalize_all(&mut own, &SPEC_D);
@@ -692,7 +692,12 @@ fn defaults_set(store: &Store, rows: &[Map<String, Value>]) -> Result<usize, Mas
             let mut row = Map::new();
             row.insert("id".into(), json!(i + 1));
             for k in FIELDS {
-                row.insert(k.into(), json!(master_rows::clean(data.get(k))));
+                // 中身の列の並び・表そのもの（手で直した共有の行）はそのまま置く（版 3.113.0。Python の _conv_cell と同じ。前は repr の字にした）
+                let v = match data.get(k) {
+                    Some(v @ (Value::Array(_) | Value::Object(_))) if matches!(k, "入力" | "判定" | "当て方") => v.clone(),
+                    v => json!(master_rows::clean(v)),
+                };
+                row.insert(k.into(), v);
             }
             row.insert("rev".into(), json!(1));
             master_rows::stamped(&mut row, stamp);
@@ -849,7 +854,7 @@ pub fn handle(store: &Store, me: &Value, place: &Place, route: Route, query: &st
             let mut data = Map::new();
             for k in ["入力", "判定", "その他", "当て方"] {
                 let v = preset.get(k)?; // 列の無い標準は Python が道の外で落ちる（KeyError）
-                if !master_rows::value_plain(v) {
+                if !master_rows::value_plain_or_container(v) {
                     return None;
                 }
                 data.insert(k.into(), v.clone());

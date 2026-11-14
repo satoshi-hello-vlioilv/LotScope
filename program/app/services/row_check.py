@@ -50,6 +50,11 @@ STATUS = FILTERED | {"path_settings", "data_sources", "work_log_files"} | STRICT
 # 行を id で引かないマスタ（データ元はキーで引く・変換表の標準は丸ごと置き換える）: id の型は見ない（版 3.108.0。読めない値ではないので
 # 隔てると、前に使えた元が消える。窓の row_check::ID_FREE と同じ）
 ID_FREE = frozenset({"data_sources", "conversion_defaults"})
+# 中身の列の形（版 3.113.0。採点の指摘 2）: 読んだ値（JSON の字なら読んだ物）が決めた型でなければ隔てる。前は Python が表のまま
+# 一覧へ素通しで答え、画面（conversions.js の plan・master-conv.js の inputs.map）が TypeError で落ち、窓は道を全部中身へ回していた。
+# 空・null・JSON として読めない字は今どおり（既定の空として読む）。事例は tests/fixtures/rowshape_cases.json（窓は row_check::SHAPES）
+_CONV_SHAPES = {"入力": list, "判定": list, "当て方": dict}
+SHAPES = {"conversions": _CONV_SHAPES, "conversion_defaults": _CONV_SHAPES}
 DEEP = 128          # 中身の入れ子の段（窓の serde は 128 段で読むのをやめる。Python は読むが、同じ答えにするため隔てる）
 SHORT = 30          # 理由に添える値の字の長さ
 
@@ -143,6 +148,41 @@ def content_problem(col, text):
     return None
 
 
+def kind_of(v):
+    """値の型の言葉（理由に添える）"""
+    if isinstance(v, bool):
+        return "真偽"
+    if isinstance(v, (int, float)):
+        return "数"
+    if isinstance(v, str):
+        return "字"
+    if isinstance(v, list):
+        return "並び"
+    if isinstance(v, dict):
+        return "表"
+    return type(v).__name__
+
+
+def shape_problem(col, v, want):
+    """中身の列の形の理由（隔てないなら None。SHAPES）"""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        if not v.strip():
+            return None
+        try:
+            x = json.loads(v)
+        except (ValueError, RecursionError):
+            return None
+        if x is None:
+            return None
+    else:
+        x = v
+    if isinstance(x, want):
+        return None
+    return f"「{col}」が{'並び' if want is list else '表'}ではありません（{kind_of(x)}）"
+
+
 def problem(name, r, fields):
     """行の理由（隔てないなら None）。fields はそのマスタの置く項目（master_repository の SPECS）。
     版 3.107.0 の作った後の採点の割れ 1（機能を減らさない）: 隔てるのは、値を読めない・書き戻すと壊れる形だけ（表でない行・数でない id・
@@ -166,6 +206,10 @@ def problem(name, r, fields):
             return f"「{k}」が字ではありません（{short(r[k])}）"
     for k in CONTENT_COLS.get(name, ()):
         why = content_problem(k, r.get(k))
+        if why:
+            return why
+    for k, want in SHAPES.get(name, {}).items():
+        why = shape_problem(k, r.get(k), want)
         if why:
             return why
     if lone(r):

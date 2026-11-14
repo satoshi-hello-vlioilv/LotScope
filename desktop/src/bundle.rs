@@ -1580,7 +1580,7 @@ fn conv_rows(rows: &[Value], keep_big: bool) -> R<Vec<(PyInt, Value)>> {
         };
             let other = match o.get("その他") {
                 x if !truthy(x) => String::new(),
-                Some(Value::Array(_) | Value::Object(_)) => return Err(Py("変換表のその他が表・並び")),
+                // 並び・表は Python の str()（repr。版 3.113.0。前は Python に尋ねた）
                 Some(x) => py_str(x),
                 None => String::new(),
             };

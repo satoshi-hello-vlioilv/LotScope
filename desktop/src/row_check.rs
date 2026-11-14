@@ -93,6 +93,11 @@ pub const STATUS: [&str; 16] = [
 ];
 /// 行を id で引かないマスタ（データ元はキーで引く・変換表の標準は丸ごと置き換える）: id の型は見ない（版 3.108.0。Python の row_check.ID_FREE）
 pub const ID_FREE: [&str; 2] = ["data_sources", "conversion_defaults"];
+/// 中身の列の形（版 3.113.0。採点の指摘 2。Python の row_check.SHAPES）: 読んだ値（JSON の字なら読んだ物）が決めた型（true は並び・
+/// false は表）でなければ隔てる。前は Python が表のまま一覧へ素通しで答え、画面が TypeError で落ち、窓は道を全部中身へ回していた。
+/// 空・null・JSON として読めない字は今どおり（既定の空として読む）。事例は tests/fixtures/rowshape_cases.json
+const CONV_SHAPES: &[(&str, bool)] = &[("入力", true), ("判定", true), ("当て方", false)];
+pub const SHAPES: [(&str, &[(&str, bool)]); 2] = [("conversions", CONV_SHAPES), ("conversion_defaults", CONV_SHAPES)];
 pub const DEEP: usize = 128;
 const SHORT: usize = 30;
 
@@ -180,6 +185,40 @@ fn nonfinite(j: &crate::pyjson::J) -> bool {
     }
 }
 
+/// 値の型の言葉（理由に添える。Python の row_check.kind_of）
+pub fn kind_of(v: &crate::pyjson::J) -> &'static str {
+    use crate::pyjson::J;
+    match v {
+        J::Bool(_) => "真偽",
+        J::Int(_) | J::Big(_) | J::Float(_) => "数",
+        J::Str(_) => "字",
+        J::Arr(_) => "並び",
+        J::Obj(_) => "表",
+        J::Null => "NoneType",
+    }
+}
+
+/// 中身の列の形の理由（隔てないなら None。SHAPES。Python の row_check.shape_problem）
+pub fn shape_problem(col: &str, v: Option<&Value>, list: bool) -> Option<String> {
+    use crate::pyjson::J;
+    let v = v?;
+    let x: J = match v {
+        Value::Null => return None,
+        Value::String(t) if !held::is_held(v) => {
+            if crate::pyfmt::strip(t).is_empty() {
+                return None;
+            }
+            match crate::pyjson::loads(t) {
+                Ok(J::Null) | Err(_) => return None,
+                Ok(x) => x,
+            }
+        }
+        v => held::to_j(v),
+    };
+    let ok = if list { matches!(x, J::Arr(_)) } else { matches!(x, J::Obj(_)) };
+    (!ok).then(|| format!("「{col}」が{}ではありません（{}）", if list { "並び" } else { "表" }, kind_of(&x)))
+}
+
 /// 行の理由（隔てないなら None。Python の row_check.problem と同じ順に見る）。fields はそのマスタの置く項目。
 /// 版 3.107.0 の作った後の採点の割れ 1（機能を減らさない）: 隔てるのは値を読めない・書き戻すと壊れる形だけ。型だけが違う値（名前が数・
 /// 字の列が並び）は隔てず、一覧では str() で読む（coerce）
@@ -216,6 +255,11 @@ pub fn problem(name: &str, r: &Value, fields: &[&str]) -> Option<String> {
     }
     for k in find(&CONTENT_COLS, name).unwrap_or(&[]) {
         if let Some(why) = content_problem(k, o.get(*k)) {
+            return Some(why);
+        }
+    }
+    for (k, list) in find(&SHAPES, name).unwrap_or(&[]) {
+        if let Some(why) = shape_problem(k, o.get(*k), *list) {
             return Some(why);
         }
     }
