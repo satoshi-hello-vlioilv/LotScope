@@ -111,9 +111,7 @@ pub fn sections_for(path: &str, conv: bool) -> Vec<&'static str> {
         vec!["lot_list"]
     } else if path.starts_with("/api/worklog") {
         vec!["work", "shifts"]
-    } else if path.starts_with("/api/src/") {
-        vec!["sources"]
-    } else if path == "/api/dashboard/sources" {
+    } else if path.starts_with("/api/src/") || path == "/api/dashboard/sources" {
         vec!["sources"]
     } else if path.starts_with("/api/dashboard/") {
         DASH_ALL.to_vec()
