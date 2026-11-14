@@ -141,6 +141,14 @@
    "routes": [
     "PUT /api/settings/<path:key>"
    ]
+  },
+  {
+   "why": "update の段が表でない字の配った設定（版 3.112.0: 更新の置き場が決まらない＝窓は答えず、更新の係は控えた置き場を残す）。GET /api/update/settings と、更新の置き場を候補に出す「参照…」のよく使う場所は中身へ回す（中身が止まっていれば 503）。閉じるのは次の版",
+   "scenes": "^束に出ない項目の段が字$",
+   "routes": [
+    "GET /api/update/settings",
+    "GET /api/fs/places"
+   ]
   }
  ]
 }
