@@ -92,6 +92,39 @@ class AppSettingsCases(unittest.TestCase):
                     json.dumps(bundle, allow_nan=False)
         self.assertEqual(bad, [], "\n".join(bad))
 
+    # 版 3.112.0 の作った後の採点の割れ 3: 段の壊れた配った設定で Python の道が HTML の 500 を返さない（理由つきの JSON）。
+    # 当てるのは、窓が中身へ回しうる道と比べる口（採点者の測り g3112/py_probe.py の 13 本に一覧と並びを足した）
+    ROUTES = [("GET", "/api/lotlist?page=1"), ("GET", "/api/lotlist/pivot?fields=1"), ("GET", "/api/lotlist/source"),
+              ("GET", "/api/dashboard/fields"), ("GET", "/api/data/columns"), ("GET", "/api/masters/equipgroups"),
+              ("POST", "/api/settings/check"), ("GET", "/api/sources"), ("GET", "/api/masters/tabaccess"), ("GET", "/api/worklog/files"),
+              ("GET", "/api/config"), ("GET", "/api/update/settings"), ("GET", "/api/fs/places"), ("GET", "/api/dashboard/sources"),
+              ("GET", "/api/worklog?equip=x"), ("GET", "/api/src/wip")]
+
+    def test_python_routes_answer_json_on_broken_stages(self):
+        bad = []
+        for i, c in enumerate(TABLE["cases"]):
+            w = c["want"]
+            if not w["python"]["starts"] or not (w.get("stages") or w.get("broken")):
+                continue
+            share, local, base = place(self.tmp / f"r{i}", c)
+            root = self.tmp / f"r{i}"
+            os.environ.update({"TPA_SHELL": "desktop", "TPA_SHELL_SERVES": "lotlist,lists,access,presence,ui_state,bundle,release",
+                               "TRANSFER_APP_CONFIG": str(root / "config.json"), "TRANSFER_LOCAL_ROOT": str(local)})
+            cfg = json.loads((root / "config.json").read_text(encoding="utf-8-sig"))
+            # データ元の写しの係は受け身で、窓へ「写して」と知らせない（知らせると窓の周回を 30 秒待つ。settings_oracle と同じ）
+            from app.services import work_log
+            mirrors = work_log.Mirrors(local / "db_cache" / "sources", passive=True, prefix="src", notify=None)
+            app = create_app({"MASTER_STORE": MasterStore(base, local_root=local, settings=cfg.get("master_share")), "SRC_MIRRORS": mirrors})
+            cl = app.test_client()
+            for m, path in self.ROUTES:
+                r = cl.open(path, method=m, json={} if m == "POST" else None)
+                ct = r.headers.get("Content-Type") or ""
+                if "json" not in ct or r.status_code == 500:
+                    bad.append(f"{c['name']}: {m} {path} {r.status_code} {ct} {r.get_data(as_text=True)[:80]}")
+                elif r.status_code == 503 and (r.get_json() or {}).get("kind") == "settings" and "配った設定" not in (r.get_json() or {}).get("error", ""):
+                    bad.append(f"{c['name']}: {m} {path} の理由が段を言わない: {r.get_json()}")
+        self.assertEqual(bad, [], "\n".join(bad))
+
     def test_set_skips_a_stage_that_is_not_a_table(self):
         """_set の直し（版 3.112.0）: 段が表でない・null なら重ねずに飛ばす（前は TypeError で create_app が落ちた）"""
         from app.services.path_settings import _set

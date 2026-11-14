@@ -184,7 +184,8 @@ def _s(v):
 def read_params(settings, key, row=None):
     """写し直す間隔・古いとみなす時間・1 頁の件数（このマスタの行 → 設定 sources.<キー> → sources の既定 → 決まった既定）。
     品質・実績・スケジュールは、接続の設定の置き場（参照先の項目）の値（版 3.58.0。前は sources の既定だけで、参照先の間隔と食い違えた）。"""
-    src = (settings or {}).get("sources") or {}
+    from .path_settings import stage
+    src = stage(settings, "sources")
     out = dict(READ_DEFAULTS)
     for layer in (src.get("defaults") or {}, src.get(key) or {}):
         out.update({k: v for k, v in layer.items() if k in READ_DEFAULTS and v not in (None, "")})

@@ -74,7 +74,8 @@ def _words(v):
 
 def config(settings):
     """設定 schedule を既定に重ねた形（設備・点検の言葉・HOT の設備は並びにする）。"""
-    raw = dict((settings or {}).get("schedule") or {})
+    from .path_settings import stage
+    raw = dict(stage(settings, "schedule"))
     cfg = {**DEFAULTS, **{k: v for k, v in raw.items() if v not in (None, "") and k != "hot"}}
     cfg["hot"] = {**DEFAULTS["hot"], **{k: v for k, v in (raw.get("hot") or {}).items() if v not in (None, "")}}
     eqs = []

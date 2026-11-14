@@ -25,7 +25,8 @@ def lot_list_params(settings):
     """ロット一覧の元の設定 → (元ファイル, 写し直す間隔 秒, 古いとみなす時間)。起動時とロット一覧の問い合わせで同じ読み方をする。
     数の設定は services/num_setting で読む（版 3.106.0: 数でない「abc」は既定に替える。前は DbMirror の float()・int() で起動できなかった）"""
     from .services import num_setting
-    ll = settings.get("lot_list") or {}
+    from .services.path_settings import stage
+    ll = stage(settings, "lot_list")
     refresh, _ = num_setting.read(ll.get("refresh_seconds", 60), 60)
     stale, _ = num_setting.read(ll.get("stale_hours", 36), 36)
     return (ll.get("source", ""), refresh, stale)
@@ -128,7 +129,7 @@ def create_app(test_config=None):
     # 起動したときの参照先（ロット一覧）。参照先マスタがこれから変わったら、ロット一覧の問い合わせで切り替える
     try:
         app.config["LOT_APPLIED"] = lot_list_params(effective_settings(app))
-    except (AttributeError, TypeError):    # lot_list の段が表でない（版 3.112.0: 起きて、束は lot_list の節だけを組まない。appsettings_cases.json）
+    except Exception:    # lot_list の段が表でない（StageBroken）（版 3.112.0: 起きて、束は lot_list の節だけを組まない。appsettings_cases.json）
         app.config["LOT_APPLIED"] = ("", 60, 36)
     if "LOT_MIRROR" not in app.config:
         # ロット一覧の元（品質データ SQLite）を手元へ写す係。写し始めるのは起動したとき（boot.start）か、
