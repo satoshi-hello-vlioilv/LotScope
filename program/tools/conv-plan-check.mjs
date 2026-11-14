@@ -6,6 +6,8 @@
 // 3. 課名は設備の列ごとに「列名_課」を、その列の右に足す
 // 4. 当てた後の式で一覧の行を計算すると、M 言語と同じ答え（例の行）
 // 5. 当てた所にもう 1 度当てても、並びも式も変わらない（done）
+// 6. 置き場の行の形（tests/fixtures/rowshape_cases.json の rows。版 3.113.0 の採点の指摘 2）: 窓と Python が読む行の答え（view）を
+//    画面の部品（plan・summary・マスタ管理の inputs.map）に渡しても落ちない。隔てる行（入力が表など）の前の Python の答え（素通し）は落ちる
 // 最後の行が OK なら合っている。
 import fs from "node:fs";
 import path from "node:path";
@@ -58,5 +60,25 @@ check("4. 1 行の答え（M 言語と同じ）", JSON.stringify(["形状区分"
 const withCol = C.plan("管理分類", [...COLS, "形状区分"], {});
 check("2. 形状区分の列があれば [形状区分] を読む", withCol.targets[0].formula.startsWith("conv('管理分類', [形状区分], "), withCol.targets[0].formula);
 check("summary: コードは「0 → 0:一般」、判定表は出す値", C.summary(C.get("地取区分")).startsWith("0 → 0:一般・2 → 2:再手配") && C.summary(C.get("形状区分")).startsWith("HOT・2HI・箔"), [C.summary(C.get("地取区分")), C.summary(C.get("形状区分"))]);
+// 6. 置き場の行の形（rowshape_cases.json）
+const SHAPES = JSON.parse(fs.readFileSync(path.resolve(HERE, "../tests/fixtures/rowshape_cases.json"), "utf8"));
+const parts = (item) => {
+  const out = [];
+  for (const mode of ["add", "replace"]) {
+    C.take({ revision: 9, items: [{ id: 1, ...item, apply: { ...(item.apply || {}), mode } }] });
+    for (const [nm, fn] of [["plan", () => C.plan(item.name, ["列A", "材質"], {})], ["summary", () => C.summary(C.get(item.name))],
+      ["inputs.map", () => C.get(item.name).inputs.map((x) => x.name)]]) {
+      try { fn(); } catch (e) { out.push(`${mode} ${nm}: ${e.message}`); }
+    }
+  }
+  return out;
+};
+const base = { name: "T", inputs: [], rows: [], other: "", apply: {} };
+const read = SHAPES.rows.filter((c) => c.why === null && c.view);
+const fails = read.map((c) => [c.name, parts({ ...base, ...c.view, name: "T" })]).filter(([, f]) => f.length);
+check(`6. 読む行の形（${read.length} 件）の答えを画面の部品に渡しても落ちない`, read.length >= 15 && fails.length === 0, fails);
+const old = SHAPES.rows.filter((c) => c.why && c.why.startsWith("「入力」が並びではありません（表）")).map((c) => JSON.parse(c.raw)["入力"]).filter((v) => v && typeof v === "object");
+check("6. 隔てる行（入力が表）の前の Python の答え（表のまま素通し）は画面の部品で落ちる（だから隔てる）",
+  old.length >= 1 && old.every((inputs) => parts({ ...base, inputs }).length > 0), old);
 console.log(bad ? `NG ${bad} 件` : "OK 変換表を当てる計画は合っています");
 process.exit(bad ? 1 : 0);

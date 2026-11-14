@@ -2702,6 +2702,54 @@ mod tests {
     }
 
     #[test]
+    fn a_3_113_pc_keeps_the_rows_a_3_112_pc_reads_in_the_same_share() {
+        // 版 3.113.0（採点の指摘 11。2 台の PC）: 3.112.0 の PC（Python が読む・窓は中身へ回す）と 3.113.0 の PC（窓が答える）が同じ共有で動く。
+        // 3.113.0 は入力が表の行を隔て、入力が並びそのものの行は読む。どちらの行も書き戻すときに値を変えない（3.112.0 の PC が前と同じに読む）。
+        // 3.113.0 が通した枝の長さの違う後読みの式は、普通の字として置く（3.112.0 の Python は読めずに直すと断るが、ファイルは壊さない）
+        let work = std::env::temp_dir().join(format!("da-lot-twopc-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&work);
+        let share = work.join("share");
+        for d in [work.join("local"), work.join("base"), share.clone()] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(work.join("local").join("instance_id"), "inst1").unwrap();
+        let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("program");
+        let cfg = work.join("config.json");
+        std::fs::write(&cfg, json!({"master_share": {"dir": share}}).to_string()).unwrap();
+        let login = crate::bundle::login_id();
+        let perm = json!({"schema": 1, "revision": 1, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "rev": 1}]});
+        std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
+        let doc = json!({"schema": 1, "revision": 4, "rows": []}).to_string();
+        for n in ["path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "shift_patterns", "conversion_defaults"] {
+            std::fs::write(share.join(format!("{n}.json")), &doc).unwrap();
+        }
+        let bad_row = json!({"id": 1, "名前": "入力が表", "入力": {"a": 1, "b": [2]}, "判定": "[]", "rev": 1});
+        let list_row = json!({"id": 2, "名前": "並びの入力", "入力": [{"name": "a", "type": "text", "columns": ["列A"]}], "判定": [], "当て方": {"mode": "add"}, "rev": 1});
+        std::fs::write(share.join("conversions.json"), json!({"schema": 1, "revision": 4, "rows": [bad_row, list_row]}).to_string()).unwrap();
+        let env = crate::bundle::Env { base: work.join("base"), program, local: work.join("local"), config: cfg, now: None };
+        let lot = Lot::new(work.join("local").join("db_cache"));
+        lot.set_bundle(crate::bundle::Builder::new(env));
+        let down = || -> Result<Value, String> { Err("中身（Python）が答えません".into()) };
+        let (st, v) = lot.handle_body_with("GET", "/api/masters/conversions", "", b"", &down).expect("窓が答える");
+        assert_eq!((st, v["items"].as_array().unwrap().len(), v["skipped"][0]["why"].clone()), (200, 1, json!("「入力」が並びではありません（表）")), "{v}");
+        let table = json!({"name": "後読み", "inputs": [{"name": "a"}], "rows": [], "other": "=extract([a], '(?<=L|CR)\\d')"});
+        let (st, v) = lot.handle_body_with("POST", "/api/masters/conversions", "", table.to_string().as_bytes(), &down).expect("窓が答える");
+        assert_eq!(st, 201, "{v}");
+        let (st, _) = lot.handle_body_with("PUT", "/api/masters/conversions/2", "", r#"{"name": "並びの入力を直す"}"#.as_bytes(), &down).unwrap();
+        assert_eq!(st, 200);
+        let (st, v) = lot.handle_body_with("PUT", "/api/masters/conversions/1", "", br#"{"name": "x"}"#, &down).unwrap();
+        assert_eq!((st, v["kind"].clone()), (503, json!("master_unreadable")), "隔てた行に触れる書きは断る: {v}");
+        let after: Value = serde_json::from_slice(&std::fs::read(share.join("conversions.json")).unwrap()).unwrap();
+        let rows = after["rows"].as_array().unwrap();
+        assert_eq!(rows[0], bad_row, "隔てた行は値を変えずに書き戻す（3.112.0 の PC は前と同じに読む）");
+        assert_eq!((rows[1]["入力"].clone(), rows[1]["判定"].clone(), rows[1]["当て方"].clone()),
+                   (list_row["入力"].clone(), list_row["判定"].clone(), list_row["当て方"].clone()), "並びそのものの値は並びのまま");
+        assert_eq!(rows[1]["名前"], json!("並びの入力を直す"));
+        assert_eq!(rows[2]["その他"], json!("=extract([a], '(?<=L|CR)\\d')"), "後読みの式は普通の字");
+        let _ = std::fs::remove_dir_all(&work);
+    }
+
+    #[test]
     fn the_window_answers_conversions() {
         // 版 3.93.0: 変換表の 8 本は Python が起きていなくても窓が答える（本物の道: Lot::handle_body → conversions_route）。
         // 足した表・取り込んだ表は一覧の設定（式の conv が引く表）に効く（invalidate）。共有にまだ無い標準は最初の版を置いてから読む。
@@ -3320,6 +3368,19 @@ mod tests {
         }
         // 途中経過・中止は材料が要らない
         assert_eq!(lot.handle_body_with("GET", "/api/lots/fetch-lotdsp/status", "", b"", &down).unwrap().0, 200);
+        // 版 3.113.0（採点の指摘 4）: /api/config の学びと API の状態の道は lotdsp::KeyMap の 1 か所で読み、同じ答え（学びの段・列の形が違っても。
+        // 前は /api/config だけが bundle の写し〈lotdsp_status・km_key〉で読み、cols が null・並びで中身へ回した）
+        for learned in [
+            json!({"actual": {"list": "e", "cols": null}}),
+            json!({"design": {"list": "e", "cols": ["a"]}, "lot": [1]}),
+            json!({"lot": {"cols": {"lot_no": {"cands": ["n"], "seen": 2}}}}),
+        ] {
+            std::fs::write(work.join("local").join("lotdsp_api_map.json"), learned.to_string()).unwrap();
+            let (st, c) = lot.handle_body_with("GET", "/api/config", "", b"", &down).expect("窓が答える");
+            let (st2, a) = lot.handle_body_with("GET", "/api/lots/lotdsp-api/status", "", b"", &down).expect("窓が答える");
+            assert_eq!((st, st2), (200, 200), "{learned}");
+            assert_eq!(c["lotdsp_api"], a, "{learned}");
+        }
         let _ = std::fs::remove_dir_all(&work);
     }
 
