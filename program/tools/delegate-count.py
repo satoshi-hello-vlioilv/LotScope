@@ -410,6 +410,10 @@ def main():
             print(f"   {n:3d}  {k}")
     total = sum(got["kinds"].values())
     print("== 計", total)
+    # 道ごとに中身へ回す当たり（場面 × 型。版 3.112.0 の作った後の採点の割れ 2）: 窓の試験 route_reach が数え、予算 routerForwardTotal と比べる
+    # （この道具は Rust を流さないので、予算の数を並べて出す）
+    rf = json.loads(BUDGET.read_text(encoding="utf-8")).get("routerForwardTotal")
+    print("== 道ごとに中身へ回す当たり（route_reach が数える予算）", rf)
     for layer, n in got["layers"].most_common():
         print(f"   {n:4d}  層: {layer}")
     for k, n in got["kinds"].most_common():

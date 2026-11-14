@@ -61,7 +61,7 @@ SOURCES = [{"id": 1, "キー": "wip", "表示名": "仕掛X", "場所": '"/wip.s
            {"id": 5, "キー": "s1", "表示名": "製造条件", "役割": "マスタ", "場所": "/m.sqlite3", "表": "M", "並び": "1",
             "結合": json.dumps([{"with": "wip", "how": "inner", "on": [["合金", "材質"], ["", "x"], "ab"], "cols": ["c1", " ", "c2"]},
                                 {"with": "lot", "how": "bad", "on": "xy", "cols": "ab"}], ensure_ascii=False), "古さの警告": "2.5"},
-           {"id": 6, "キー": "s2", "表示名": "結合した表", "元": "wip", "結合": [{"with": "s1", "on": [["a", "b"]]}], "並び": ""},
+           {"id": 6, "キー": "s2", "表示名": "結合した表", "元": "wip", "結合": json.dumps([{"with": "s1", "on": [["a", "b"]]}]), "並び": ""},
            {"id": 7, "キー": "s3", "表示名": "", "元": "s2", "確かめる間隔": "abc"},
            {"id": 8, "キー": "s4", "元": "無い元", "画面": "無"},
            {"id": 9, "キー": "s5", "表示名": "後", "場所": "/s5.sqlite3", "並び": "x"},
@@ -82,7 +82,7 @@ GROUPS = [{"id": 2, "名称": "L ライン", "まとめ方": "ライン別", "�
 CONV = [{"id": 2, "名前": "読み替え", "入力": json.dumps([{"name": "a", "type": "text", "columns": ["A"]}]),
          "判定": json.dumps([{"when": {"a": [{"op": "eq", "v": ["1"]}]}, "out": "x", "note": "古いメモ"}, 1, {"out": "y"}]), "その他": "z", "表示順": "2"},
         {"id": 1, "名前": "読み替え", "入力": "[]", "判定": "[]", "表示順": "2"},
-        {"id": 3, "名前": "数の名", "入力": {"a": 1}, "判定": "{}", "その他": 5, "表示順": "1"},
+        {"id": 3, "名前": "数の名", "入力": "{\"a\": 1}", "判定": "{}", "その他": 5, "表示順": "1"},
         {"id": 4, "名前": "", "入力": "[]"}]
 SHIFTS = [{"id": 1, "名称": "交替勤務", "適用設備": "", "区分": "[]", "表示順": "10"}]
 
@@ -111,6 +111,13 @@ def config(root, **kw):
     return c
 
 
+def add_row(r, fname, extra):
+    p = r / "share" / f"{fname}.json"
+    d = json.loads(p.read_text(encoding="utf-8"))
+    d["rows"] = list(d.get("rows") or []) + [extra]
+    write(p, d)
+
+
 def scenarios(work):
     out = []
 
@@ -130,6 +137,12 @@ def scenarios(work):
     sc("共有・ふつう（管理者の名乗り）", lambda r: (masters(share=r / "share"), write(r / "share" / "access_permissions.json", doc([
         {"id": 1, "ログインID": identity.current_login_id(), "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1}])),
         config(r))[2])
+    # 版 3.112.0 の作った後の採点の割れ 2: 予算外の任せ（窓の書く道が行の形を Python と同じに読めない）は、その形の行がある場面だけ
+    # （前は共有のふつうのマスタにこの 2 行があり、ほとんどの場面で回して許していた）
+    sc("変換表の行の入力が表（予算外の任せ）", lambda r: (masters(share=r / "share"), add_row(r, "conversions", {"id": 8, "名前": "入力が表", "入力": {"a": 1}, "判定": "{}", "表示順": "3"}),
+                                           config(r))[2])
+    sc("データ元の行の結合が並び（予算外の任せ）", lambda r: (masters(share=r / "share"), add_row(r, "data_sources", {"id": 13, "キー": "s7", "表示名": "並びの結合", "元": "wip",
+                                                                                              "結合": [{"with": "s1", "on": [["a", "b"]]}]}), config(r))[2])
     sc("手元だけ（同梱の data/）", lambda r: (masters(data=r / "base" / "data"), config(r, master_share={}))[1])
     sc("既定の中身だけ（master_defaults）", lambda r: config(r, master_share={}, identity={}), tree=True)
     sc("共有に置く名前を選ぶ・字の秒", lambda r: (masters(share=r / "share", data=r / "base" / "data"),
@@ -303,12 +316,6 @@ def scenarios(work):
 
     # 版 3.109.0（H3）: 束の材料のマスタに i64・u64 に入らない整数・データ元の行の値が並び（前は窓がその節を組まずに broken〈window〉にし、
     # 一覧・作業実績・ダッシュボード・勤務体系の道を 503 で断った。Python は組む）。窓も src/held.rs の印の字で持ち、str() は repr で同じ束を組む
-    def add_row(r, fname, extra):
-        p = r / "share" / f"{fname}.json"
-        d = json.loads(p.read_text(encoding="utf-8"))
-        d["rows"] = list(d.get("rows") or []) + [extra]
-        write(p, d)
-
     def wide_in(fname, extra):
         return lambda r: (masters(share=r / "share"), add_row(r, fname, extra), config(r))[2]
     for fname, extra in [("path_settings", {"id": 90, "項目": "x.big", "値": "", "n": 10 ** 20}),

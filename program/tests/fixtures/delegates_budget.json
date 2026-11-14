@@ -48,8 +48,8 @@
    ]
   },
   {
-   "why": "予算外の任せ（版 3.112.0 で数えた）: 置き場の変換表の行の「入力」が表（settings_oracle の共有の変換表に id 3 の行。conversions_oracle の「置き場の行の入力が表」で 8 歩に数える）。閉じるのは次の版",
-   "scenes": ".",
+   "why": "予算外の任せ（版 3.112.0 で数えた）: 置き場の変換表の行の「入力」が表（settings_oracle の場面「変換表の行の入力が表（予算外の任せ）」だけ。版 3.112.0 の作った後の採点の割れ 2 で全部の場面から狭めた。conversions_oracle の「置き場の行の入力が表」で 8 歩に数える）。閉じるのは次の版",
+   "scenes": "^変換表の行の入力が表",
    "routes": [
     "GET /api/masters/conversions",
     "GET /api/masters/conversions/export",
@@ -62,8 +62,8 @@
    ]
   },
   {
-   "why": "予算外の任せ（版 3.112.0 で数えた）: 置き場のデータ元の行の「結合」が並び（settings_oracle の共有のデータ元に id 6 の行。sources_write_oracle の「置き場の行の結合が並び」で 7 歩に数える）。閉じるのは次の版",
-   "scenes": ".",
+   "why": "予算外の任せ（版 3.112.0 で数えた）: 置き場のデータ元の行の「結合」が並び（settings_oracle の場面「データ元の行の結合が並び（予算外の任せ）」だけ。版 3.112.0 の作った後の採点の割れ 2 で全部の場面から狭めた。sources_write_oracle の「置き場の行の結合が並び」で 7 歩に数える）。閉じるのは次の版。同じ「窓の書く道が行の形を Python と同じに読めない」形: 行の結合の字に NaN・行の値が並び（読みは窓が組む）",
+   "scenes": "^(データ元の行の結合が並び|データ元の結合の字に NaN|置き場の data_sources.json の行の値が並び)",
    "routes": [
     "POST /api/sources",
     "PUT /api/sources/<key>",
@@ -76,7 +76,7 @@
   },
   {
    "why": "/api/config の LotDsp の学び・待つ秒の形（bundle.rs の config の Py。採点の指摘 9: 束を尋ねる口とは別の転送の残り）",
-   "scenes": "^LotDsp の(学び|待つ秒)",
+   "scenes": "^(LotDsp の(学び|待つ秒)|表: lotdsp_import が字)",
    "routes": [
     "GET /api/config"
    ]
@@ -90,40 +90,6 @@
    ]
   },
   {
-   "why": "束の節が組めない場面（Python も組めない形を含む）で、その節を使う組む所の読み・設備グループの道は、まだ理由つきで断らず中身へ回す（中身が止まっていれば 503）。閉じるのは次の版",
-   "scenes": "^(lot_list が表でない|データ元の行の間隔が inf|手元の勤務体系が途中で切れた|設備グループのルールの op が並び)$",
-   "routes": [
-    "GET /api/dashboard/fields",
-    "POST /api/dashboard/fields",
-    "GET /api/data/columns",
-    "POST /api/settings/check",
-    "GET /api/masters/equipgroups",
-    "PUT /api/masters/equipgroups/<int:item_id>",
-    "DELETE /api/masters/equipgroups/<int:item_id>"
-   ]
-  },
-  {
-   "why": "データ元の節が組めない（間隔が inf。Python も落ちる）とき、データ元の並び・タブの権限・データ元の列と結合の確かめは中身へ回す。閉じるのは次の版",
-   "scenes": "^(lot_list が表でない|データ元の行の間隔が inf|手元の勤務体系が途中で切れた|設備グループのルールの op が並び)$",
-   "routes": [
-    "GET /api/sources",
-    "GET /api/masters/tabaccess",
-    "GET /api/sources/<key>/columns",
-    "POST /api/sources/<key>/conn/check",
-    "POST /api/sources/join/preview"
-   ]
-  },
-  {
-   "why": "手元の勤務体系のファイルが途中で切れた（読めない）とき、勤務体系の道は中身へ回す（Python は理由つきで答える）。閉じるのは次の版",
-   "scenes": "^手元の勤務体系が途中で切れた$",
-   "routes": [
-    "GET /api/masters/shifts",
-    "POST /api/masters/shifts",
-    "PUT /api/masters/shifts/<int:item_id>",
-    "DELETE /api/masters/shifts/<int:item_id>"
-   ]
-  },
-  {
    "why": "作業実績の登録に表でない行・値が並びの行（読みでは隔てない形）のとき、作業実績の登録の 6 本は中身へ回す。閉じるのは次の版",
    "scenes": "^(作業実績の登録に表でない行|置き場の work_log_files.json の行の値が並び)",
    "routes": [
@@ -134,21 +100,8 @@
     "POST /api/masters/worklog/scan",
     "GET /api/worklog/files"
    ]
-  },
-  {
-   "why": "lot_list の段が表でない配った設定へ参照先の値を書く道（settings_write: 段が表でない項目は書かずに中身へ回す。Python も _set で重ねない）",
-   "scenes": "^lot_list が表でない$",
-   "routes": [
-    "PUT /api/settings/<path:key>"
-   ]
-  },
-  {
-   "why": "update の段が表でない字の配った設定（版 3.112.0: 更新の置き場が決まらない＝窓は答えず、更新の係は控えた置き場を残す）。GET /api/update/settings と、更新の置き場を候補に出す「参照…」のよく使う場所は中身へ回す（中身が止まっていれば 503）。閉じるのは次の版",
-   "scenes": "^束に出ない項目の段が字$",
-   "routes": [
-    "GET /api/update/settings",
-    "GET /api/fs/places"
-   ]
   }
- ]
+ ],
+ "routerForwardTotal": 183,
+ "routerForwardWhy": "routerForward の当たり（場面 × 型）の数（版 3.112.0 の作った後の採点の割れ 2）。desktop/tests/route_reach.rs が settings_oracle の全部の場面と appsettings_cases.json の全件で数え、この数と同じかを見る（増えても減っても落とす）。delegate-count.py の任せる歩（total）とは別に並べて報告する。版 3.112.0 の作った後の直しで 183（場面 129〈settings_oracle 73・事例の表 56〉: 比べる口 GET /api/lotlist/settings 129・変換表の行の入力が表 8・データ元の書く道 21〈3 場面 × 7〉・/api/config の LotDsp 5・画面の控え 8・作業実績の登録 12）"
 }

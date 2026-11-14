@@ -654,6 +654,10 @@ impl Lot {
     /// 勤務体系の 4 本（版 3.75.0。src/shifts_write.rs）を窓が受ける。書く道は権限を読み直して門番に通し、窓の書く係で書く。
     /// 判定の材料（access）が無い・me を決められない・マスタを読めない・窓が答えない形は None（Python が答える）
     fn shifts_route(&self, method: &str, path: &str, route: crate::shifts_write::Route, query: &str, body: &[u8]) -> Option<(u16, Value)> {
+        // 勤務体系のファイルが読めない（節が組めない）: 理由つきで断る（版 3.112.0 の作った後の採点の割れ 1。前は中身へ回した）
+        if let Some(r) = self.refused(&["shifts"]) {
+            return Some(r);
+        }
         let s = self.settings().ok()?;
         if !s.access.is_object() {
             return None;
@@ -907,11 +911,9 @@ impl Lot {
                 Some((200, crate::settings_write::get_answer(items, &store, share, &builder.config_file())))
             }
             Route::Put(key) => {
-                // 書いた後に Python が配った設定へ重ねて落ちる形（段が表でない）は、Python に任せて同じ答えにする（作った後の採点で見つけた）
+                // 版 3.112.0（作った後の採点の割れ 1）: 段が表でない配った設定にも参照先の行は書く（Python の _set も重ねずに飛ばすので、前の版の
+                // 「書いた後に Python が重ねて落ちる」形は無い。効かないことは束の settingsBroken が言う）
                 inp.settings_items().ok()?;
-                if !crate::bundle::sections_ok(&inp.settings, &key) {
-                    return None;
-                }
                 let rows = crate::access::Place::from_json(&inp.place).rows(NAME).ok()?;
                 let (status, v) = crate::settings_write::put(&store, &key, query, body, &rows)?;
                 if (200..300).contains(&status) {
@@ -1624,7 +1626,17 @@ impl Lot {
                 if s.engine != "rust" {
                     return None;
                 }
-                let cfg = crate::schedule::Cfg::from_section(Some(s.lists.get("scheduleConf")?)).ok()?;
+                // スケジュールの段が表でない（版 3.112.0 の作った後の採点の割れ 1）: 理由つきで断る（前は中身へ回した）
+                let cfg = match crate::schedule::Cfg::from_section(Some(s.lists.get("scheduleConf")?)) {
+                    Ok(c) => c,
+                    Err(why) => {
+                        return Some((
+                            503,
+                            json!({"error": format!("スケジュールの設定を組めません（{why}）。全員の設定ファイルの「schedule」を直してください"),
+                                                 "kind": "settings"}),
+                        ))
+                    }
+                };
                 return Some((200, if path == "/api/schedule" { self.lists.sched.meta(&cfg) } else { self.lists.sched.card(&cfg) }));
             }
             _ => {}

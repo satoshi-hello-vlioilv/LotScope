@@ -146,6 +146,15 @@ fn present(v: Option<&Value>) -> bool {
     !matches!(v, None | Some(Value::Null)) && v != Some(&Value::String(String::new()))
 }
 
+/// 一覧の係（desktop.lotlist_engine。版 3.112.0 の作った後の採点の割れ 1: 束とデータ元の並び・見出しのタブで同じ 1 か所の決め）。
+/// 段が表でない・無いときは既定の rust
+pub fn engine_of(settings: &Value) -> Value {
+    match settings.get("desktop") {
+        Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
+        _ => json!("rust"),
+    }
+}
+
 /// 値の形の名前（理由の言葉。版 3.112.0）
 fn kind_name(v: &Value) -> String {
     match v {
@@ -2004,7 +2013,8 @@ fn conn_of(item: &Map<String, Value>, row: Option<&Map<String, Value>>, items: &
 
 /// schedule.config の設備の数（「、」「,」「，」・空白で区切り、「:」の前が設備。同じ設備は 1 つ）
 fn schedule_equips(eff: &Value) -> R<usize> {
-    let raw = dict_or_empty(eff.get("schedule"))?;
+    // 段が表でない（版 3.112.0 の作った後の採点の割れ 1）: 設備の数は 0（データ元の並びは答える。段の壊れは束の settingsBroken）
+    let Ok(raw) = dict_or_empty(eff.get("schedule")) else { return Ok(0) };
     if truthy(raw.get("hot")) && !raw.get("hot").is_some_and(Value::is_object) {
         return Err(Py("schedule.hot が表でない（Python は落ちる）"));
     }
@@ -2060,11 +2070,7 @@ impl Inputs {
             }
         }
         let items_ps = effective_items(&self.settings, &ps_rows)?;
-        let engine_rust = match self.settings.get("desktop") {
-            Some(Value::Object(o)) => o.get("lotlist_engine").map(|v| v == "rust").unwrap_or(true),
-            x if !truthy(x) => true,
-            _ => return Err(Py("desktop が表でない")),
-        };
+        let engine_rust = engine_of(&self.settings) == "rust";
         let mut items = sources_full(&self.eff, &ds_rows)?;
         for x in items.iter_mut() {
             let key = x["key"].as_str().unwrap_or("").to_string();
@@ -2319,16 +2325,11 @@ impl Builder {
         let inp = self.inputs()?;
         let (settings, eff, who, place) = (&inp.settings, &inp.eff, inp.who.clone(), inp.place.clone());
         let mut problems = inp.problems.clone();
-        let engine = match settings.get("desktop") {
-            Some(Value::Object(o)) => o.get("lotlist_engine").cloned().unwrap_or(json!("rust")),
-            None => json!("rust"),
-            x if !truthy(x) => json!("rust"),
-            // 版 3.112.0: 表でなければ既定の rust（前は束全部を組まなかった。Python の lot_engine は落ちて起動できない）
-            Some(x) => {
-                problems.push(self.problem("desktop", format!("表でない（{}）ので、一覧の係は既定の rust", kind_name(x))));
-                json!("rust")
-            }
-        };
+        let engine = engine_of(settings);
+        // 版 3.112.0: 表でなければ既定の rust（前は束全部を組まなかった。Python の lot_engine は落ちて起動できない）
+        if let Some(x) = settings.get("desktop").filter(|x| truthy(Some(x)) && !x.is_object()) {
+            problems.push(self.problem("desktop", format!("表でない（{}）ので、一覧の係は既定の rust", kind_name(x))));
+        }
         // 節ごとに組む（版 3.102.0）。組めない節は値を null にし、理由（どのファイル・どの行）を broken に書く。黙って空や既定に替えない
         let mut broken = Map::new();
         // 配った設定が読めない（版 3.112.0）: 配った設定を使う節（品質・データ元・作業実績）は組まない（空の設定で組むと「元が無い」と

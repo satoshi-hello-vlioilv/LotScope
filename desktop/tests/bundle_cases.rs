@@ -15,6 +15,11 @@ fn sections_and_routes_are_like_the_table() {
         let got = sections_for(r["path"].as_str().unwrap(), r["conv"].as_bool().unwrap());
         assert_eq!(json!(got), r["need"], "{}", r);
     }
+    // 版 3.112.0: パネルの問い合わせは本文の元ごと
+    for b in t["bodies"].as_array().unwrap() {
+        let got = da_core::lot::sections_for_body(b["body"].to_string().as_bytes());
+        assert_eq!(json!(got), b["need"], "{}", b["why"]);
+    }
 }
 
 #[test]

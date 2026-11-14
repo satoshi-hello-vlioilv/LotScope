@@ -769,7 +769,19 @@ impl Lists {
 
     /// スケジュールの段取り（Python の schedule_plan）。Ok(None) は窓が答えない形（Python に任せる）
     fn sch_plan(&self, conf: &Conf, q: &Quality, s: &Value, equip: &str, force: bool, joined: bool) -> Result<Option<Plan>, Fail> {
-        let Some(Ok(cfg)) = conf.sched_cfg() else { return Ok(None) };
+        let cfg = match conf.sched_cfg() {
+            Some(Ok(cfg)) => cfg,
+            // スケジュールの段が表でない（版 3.112.0 の作った後の採点の割れ 1）: 理由つきで断る（前は中身へ回した）
+            Some(Err(why)) => {
+                return Err(error(
+                    503,
+                    &format!("スケジュールの設定を組めません（{why}）。全員の設定ファイルの「schedule」を直してください"),
+                    Some("settings"),
+                    &[],
+                ))
+            }
+            None => return Ok(None),
+        };
         let code = Self::sch_equip(&cfg, equip)?;
         if code == HOT_KEY {
             return self.hot_plan(conf, q, s, cfg, force);

@@ -1,5 +1,5 @@
 {
- "about": "設定の束の節（版 3.102.0）: 節が使うマスタ（Python の routes/lotlist.SECTIONS・窓の desktop/src/bundle.rs の SECTIONS）と、道が使う節（窓の desktop/src/lot.rs の sections_for）。組めない節を使う道だけを 503 kind settings で断り、ほかの道は答え続ける。conv は計算列の式が変換表を引く問い合わせ。cases（版 3.102.0 の作った後の採点の割れ 2）: 手元のマスタ（data/）の中身ごとに、節を組むか（built）・警告か（warn）・理由の言葉（why）",
+ "about": "設定の束の節（版 3.102.0）: 節が使うマスタ（Python の routes/lotlist.SECTIONS・窓の desktop/src/bundle.rs の SECTIONS）と、道が使う節（窓の desktop/src/lot.rs の sections_for）。組めない節を使う道だけを 503 kind settings で断り、ほかの道は答え続ける。conv は計算列の式が変換表を引く問い合わせ。cases（版 3.102.0 の作った後の採点の割れ 2）: 手元のマスタ（data/）の中身ごとに、節を組むか（built）・警告か（warn）・理由の言葉（why）。版 3.112.0（作った後の採点の割れ 4）: routes は道が本当に使う節だけ（品質の一覧はデータ元の節を要らない など）、bodies はダッシュボードのパネルの問い合わせの本文の元（source の字）ごとの節（lot.rs の sections_for_body）",
  "sections": {
   "lot_list": [
    "path_settings"
@@ -29,8 +29,7 @@
    "path": "/api/lotlist",
    "conv": false,
    "need": [
-    "lot_list",
-    "sources"
+    "lot_list"
    ]
   },
   {
@@ -38,7 +37,6 @@
    "conv": true,
    "need": [
     "lot_list",
-    "sources",
     "conversions"
    ]
   },
@@ -46,8 +44,7 @@
    "path": "/api/lotlist/source",
    "conv": false,
    "need": [
-    "lot_list",
-    "sources"
+    "lot_list"
    ]
   },
   {
@@ -55,8 +52,7 @@
    "conv": false,
    "need": [
     "work",
-    "shifts",
-    "sources"
+    "shifts"
    ]
   },
   {
@@ -65,7 +61,6 @@
    "need": [
     "work",
     "shifts",
-    "sources",
     "conversions"
    ]
   },
@@ -73,17 +68,14 @@
    "path": "/api/src/wip",
    "conv": false,
    "need": [
-    "sources",
-    "lot_list"
+    "sources"
    ]
   },
   {
    "path": "/api/dashboard/sources",
    "conv": false,
    "need": [
-    "dash",
-    "sources",
-    "work"
+    "sources"
    ]
   },
   {
@@ -174,6 +166,119 @@
    "built": false,
    "warn": false,
    "why": "手元の shift_patterns.json が読めません（途中で切れています（41 バイト））"
+  }
+ ],
+ "bodies": [
+  {
+   "why": "品質のパネル",
+   "body": {
+    "panel": {
+     "visual": "kpi",
+     "source": "lot"
+    }
+   },
+   "need": [
+    "lot_list",
+    "dash"
+   ]
+  },
+  {
+   "why": "作業実績のパネル",
+   "body": {
+    "panel": {
+     "visual": "time",
+     "source": "work"
+    }
+   },
+   "need": [
+    "dash",
+    "work",
+    "shifts"
+   ]
+  },
+  {
+   "why": "データ元のパネル",
+   "body": {
+    "panel": {
+     "visual": "bar",
+     "source": "src:wip"
+    }
+   },
+   "need": [
+    "dash",
+    "sources"
+   ]
+  },
+  {
+   "why": "合わせた表（品質と作業実績）",
+   "body": {
+    "panel": {
+     "visual": "board",
+     "parts": [
+      {
+       "source": "lot"
+      },
+      {
+       "source": "work"
+      }
+     ]
+    }
+   },
+   "need": [
+    "lot_list",
+    "dash",
+    "work",
+    "shifts"
+   ]
+  },
+  {
+   "why": "別のデータを合わせる（品質＋データ元）",
+   "body": {
+    "panel": {
+     "source": "lot",
+     "other": {
+      "source": "src:wip"
+     }
+    }
+   },
+   "need": [
+    "lot_list",
+    "dash",
+    "sources"
+   ]
+  },
+  {
+   "why": "元が書いていない",
+   "body": {
+    "panel": {
+     "visual": "kpi"
+    }
+   },
+   "need": [
+    "lot_list",
+    "dash",
+    "sources",
+    "work",
+    "shifts"
+   ]
+  },
+  {
+   "why": "計算列の式が変換表を引く",
+   "body": {
+    "panel": {
+     "source": "lot",
+     "calc": {
+      "formulas": {
+       "k": "conv('t', [a])"
+      }
+     }
+    }
+   },
+   "need": [
+    "lot_list",
+    "dash",
+    "conversions"
+   ]
   }
  ]
 }
