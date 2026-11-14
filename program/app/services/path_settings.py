@@ -85,11 +85,19 @@ def default_of(settings, key):
 
 
 def _set(d, dotted, value):
+    """値を重ねる。途中の段が表でない（字・null・並び・数）なら重ねずに飛ばす（版 3.112.0。前は TypeError・AttributeError で
+    create_app ごと落ち、Python が起きなかった。窓の desktop/src/bundle.rs の effective も同じに飛ばし、理由を束の settingsBroken に言う。
+    決めは事例の表 tests/fixtures/appsettings_cases.json）"""
     parts = dotted.split(".")
     cur = d
     for part in parts[:-1]:
         cur = cur.setdefault(part, {})
+        if not isinstance(cur, dict):
+            return False
+    if not isinstance(cur, dict):
+        return False
     cur[parts[-1]] = value
+    return True
 
 
 def parse(item, raw):

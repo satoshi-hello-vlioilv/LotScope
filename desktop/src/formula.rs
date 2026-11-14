@@ -1745,6 +1745,14 @@ struct ConvTable {
 pub struct Tables(HashMap<String, Arc<ConvTable>>);
 
 fn json_text(v: &Value) -> Vec<u16> {
+    // 持っている大きな整数（src/held.rs の印の字。版 3.112.0）は、画面の JavaScript が JSON の数を読んだ double の字（1e+21 など）。
+    // NaN・Infinity は答えでは null（画面も空）
+    if let Some(d) = crate::held::big_digits(v) {
+        return u16s(&js_num_text(d.parse::<f64>().unwrap_or(f64::NAN)));
+    }
+    if crate::held::is_held(v) {
+        return Vec::new();
+    }
     match v {
         Value::Null => Vec::new(),
         Value::String(s) => u16s(s),

@@ -216,8 +216,9 @@ fn settings_the_window_cannot_bundle_still_get_the_same_seeds_as_python() {
     for (i, extra) in ["NaN", "Infinity", "100000000000000000000"].iter().enumerate() {
         let (work, share) = (base.join(format!("c{i}")), base.join(format!("c{i}-share")));
         let lot = lot_at(&work, &share, &format!(r#"{{"master_share": {{"dir": @SHARE}}, "lot_list": {{"page_size": {extra}}}}}"#));
-        assert!(lot.own_bundle().is_some_and(|b| b.is_err()), "{extra}: 束は組めない形");
         let o = lot.run_seeds(&|_: Duration| ()).unwrap_or_else(|e| panic!("{extra}: {e}"));
+        // 版 3.112.0: 束も組める（前は組めない形だった。配った設定を J で読む）
+        assert!(lot.own_bundle().is_some_and(|b| b.is_ok()), "{extra}: 束も組める");
         assert_eq!(json!(o.applied), first["applied"], "{extra}");
         // 当てた 4 つのマスタ（共有の置き場を直に読む）
         let mut rs: Value = Value::Object(

@@ -16,12 +16,12 @@ fn main() {
     let (mut rows, mut total) = (vec![], (0.0, 0.0));
     for a in doc["cases"].as_array().unwrap() {
         let body = serde_json::to_vec(&json!({"panel": a["panel"]})).unwrap();
-        let first = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask);
+        let first = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask);
         let mut xs = vec![];
         for _ in 0..5 {
             lot.forget_dashboard();
             let t = Instant::now();
-            let _ = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask);
+            let _ = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask);
             xs.push(t.elapsed().as_secs_f64() * 1000.0);
         }
         xs.sort_by(|a, b| a.partial_cmp(b).unwrap());

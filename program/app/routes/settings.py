@@ -67,6 +67,7 @@ def update_settings():
     だれが（版を置く・配る版を決めてよいか。決めるのは services/access.py。置く・配るのは desktop/src/distribute.rs）と、
     この PC が使うマスタの置き場（配る版と一緒に全員へ配る。版 3.34.0）。"""
     up = effective_settings(current_app).get("update") or {}
+    up = up if isinstance(up, dict) else {}        # update の段が表でない（版 3.112.0: 更新を確かめない。appsettings_cases.json）
     try:
         m = me()
         who = {"login": m["login"], "pc": m["pc"], "role": m["flags"]["role"],

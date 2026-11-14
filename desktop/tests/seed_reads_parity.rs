@@ -59,7 +59,7 @@ fn reads_seed_the_same_masters_as_python() {
         let got = match path {
             "/" => lot.page(false, &|| "ready").map(|_| 200u16),
             "/api/sources" => lot.sources_list(query).map(|(st, _)| st),
-            _ => lot.handle_body("GET", path, query, b"", &ask).map(|(st, _)| st),
+            _ => lot.handle_body_with("GET", path, query, b"", &ask).map(|(st, _)| st),
         };
         let esc = |k: &str| {
             let t = serde_json::to_string(sc[k].as_str().unwrap()).unwrap();

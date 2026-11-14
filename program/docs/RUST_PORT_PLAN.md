@@ -1929,6 +1929,9 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 | 本文: 正規表現（長さの決まらない後読み） | 1 | conversions | ③ | Python の re が読めず窓の fancy-regex は読む。re の文法の決まりを事例の表（formula_regex_cases）に足して窓が同じ言葉で断る |
 | 束: 窓がまだ組めない節（版 3.109.0 で数えた。bundle_window） | 2 | settings | ③ | 変換表の式が引く形の大きな整数（印の字を数で比べる所が要る）・束の中の中身の字の NaN。G の逃げ道で Python が組むので止まらない |
 
+版 3.112.0 で束の 7（配った設定 4・引っ越しの印 1・窓がまだ組めない節 2）を閉じ（窓が組む・Python も落ちた 3 形は事例の表で決める）、予算外で見つけた 2 形
+（変換表の行の「入力」が表 8・データ元の行の「結合」が並び 7）を場面にして数えた。いまの任せる歩は 27（段 ③ の 1 歩目の節）。
+
 数えていない残り（突き合わせの場面が無かった）は、版 3.109.0 で場面を足して数え（任せる歩 50・束の止まる節 6・読む道の任せ 7）、同じ版で消した（下の節）。
 段 ②（裏の係を窓へ）で消える形は、この 17 には無い（写しの係・スケジュールの係・種まきは版 3.96.0〜3.105.0 で窓へ移した）。
 
@@ -2037,7 +2040,7 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
 | 項 | 何 | 段 | どうする |
 |---|---|---|---|
 | S1 | 起動の初期値 | ② | 版 3.110.0 で窓へ（上の節） |
-| S6〜S8 | 束を Python に尋ねる口（lot_settings を呼ぶ所 5: heartbeat・access_read・handle_body・guard・warm）・更新の置き場・画面の任せ | ③ の最初 | 束の 7 形を窓が組む（案 D）。bundle_seed は錠を待たずに写しで答える。Python が落ちる 4 形の答えは事例の表で決める |
+| S6〜S8 | 束を Python に尋ねる口（lot_settings を呼ぶ所 5: heartbeat・access_read・handle_body・guard・warm）・更新の置き場・画面の任せ | ③ の最初 | 版 3.112.0 で閉じた（段 ③ の 1 歩目の節）。画面の任せは画面の控えの 4 形だけ残した |
 | S12b | folder_browse・master_place の裏の糸（「参照…」・置き場の確かめ） | ③ | OS の任せ 6 と一緒に消える |
 | S9 | スケジュールの係を降りる形（https・システムのプロキシ・数でない timeout・窓の持たない charset） | ③ の最後 | https とプロキシは窓が取る（TLS の crate を足すかは利用者と決める。足さないなら理由つきで断る）。charset・timeout は理由つきで断る |
 | S10・S11 | 窓の答えが Python の生死を見る所・Python の起動そのもの（版 3.111.0 で窓の準備へ。上の節） | ④ の下ごしらえ | 心拍・access_read の alive を窓の答えにし Python の様子は別に見せる。started() の update::confirm・install::maintain・cleanup_copies・revert を Python の準備から外す。Python を遅れて起こす形は採らない |
@@ -2097,6 +2100,59 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   中身の準備を待って描く（既定の形は止まったときだけ）。5 自己診断の心拍は合図に数えない・verify の 4d・4e。6 権限を読んでいる最中も出さないタブを出さない。
   7 Python が無い係は心拍で起こし直さない（「もう一度起こす」だけが探し直す）。画面: 数字のパネルの段の高さを保つ・タブの並びを中身の様子で動かさない（札は「待機中」と同じ幅の「中身停止」）・
   キーで起こした後の焦点・回る印・撮る道具の片付け。
+
+### 段 ③ の 1 歩目: 束・更新の置き場を Python に尋ねる口を閉じる（S6〜S8）— 版 3.112.0（束の任せる歩 7 → 0）
+
+案は `tools/ui-proposals/2026-11-stage3a.json`（7 案。決まり 2026-11-06。1 位 A「束・更新の置き場・画面の口を閉じる」72.4 点で 80 に届かず、採点の
+指摘 first_fixes の 12 を全部入れた形で作った）。
+
+- 口を消した: lot.rs の `AskSettings` と、それを受け取っていた道の関数の引数・main.rs の `lot_settings`（心拍・権限の読む 2 本・handle_body・
+  門番・warm の 5 か所）と `ask_update_settings`（配布の画面の 6 本と更新の係）。窓は束も更新の置き場も Python に尋ねない（コードに口が無い）。
+  束を組む係の無い Lot に束を差し込む口は試験の組み立てだけ（`lot::given`。`#[cfg(any(test, feature = "testing"))]`、feature は
+  Cargo.toml の dev-dependencies〈自分〉が試験のときだけ入れる。`cargo build`・`tauri build` には無い）。`appsettings_cases` の
+  `the_window_has_no_mouth_that_asks_python_for_the_bundle` が main.rs と lot.rs の本体に口の名前が無いことも見る。
+  GET /api/lotlist/settings は Python の道として残す（engine=python の比べる口。窓は呼ばない。段 ④ で消す）。
+- 配った設定の読み（採点の指摘 2・6）: `Builder::read_settings` の 1 か所で Python の json.loads と同じく読む（src/held.rs の印の字で NaN・Infinity・
+  1e400・大きな整数・-0・代用字）。束の答えは jsonify と同じく NaN を null（`finite`）。数の設定の読み手は NaN を float() で読める値として扱い
+  （`num_setting`）、並び・表は既定と知らせ（前は束を組まなかった）。/api/config の max_rows は int()、心拍の秒は float()（`config_num`。Python が
+  落ちる形は既定）。事例は `num_setting_cases.json` の jcases・config（Python は `tests/test_num_setting.py`、窓は `bundle::tests::num_setting_like_the_table`）。
+- 束全部を止めていた Err の道（採点の指摘 2）を洗い出し、どれも「その段だけ組まず理由（stage）」か「表で決めた答え」にした:
+  配った設定が読めない・JSON でない・表でない → 配った設定を使う節（品質・データ元・作業実績）だけ組まない（置き場はこの PC の覚えから。覚えも無いときだけ
+  置き場が決まらないので束を組まない＝出さないタブを出さない fail-closed のまま）・identity が表でない → 名乗りは OS の名前（stage）・置き場の段が表でない・
+  錠の長さと見直す間が数でない・共有の名前が字でない → 焼いた既定（stage）・desktop が表でない → rust（stage）・値を重ねる段が表でない（字・null・並び・数）
+  → その項目を重ねない（stage。Python の `_set` も飛ばすように直した）・lot_list／work_log／sources の段が表でない → その節だけ組まない（理由は配った設定の
+  ファイルと段。Python も落ちる形なので window にしない）・参照先の値が並び・表 → Python の str()（repr）で読む。答えの `settingsBroken`
+  （{stage, file, why}）は答えにだけ載せ、共有に書かない（採点の指摘 11）。
+- 事例の表 `tests/fixtures/appsettings_cases.json`（56 件。仕様から人が書いた。採点の指摘 12）: 束を組むか・組まない節と段・段の壊れ・束の値・
+  更新の置き場・/api/config の値と、Python（版 3.112.0 の最小の直しの後）が起きるか・組まない節・更新の置き場。窓は `cargo test --test appsettings_cases`、
+  Python は `tests/test_appsettings_cases.py`。settings_oracle の前の "delegate" 7 場面は、Python が組む 4 つを "same"（引っ越しの印は Python にも
+  たどらせて比べる）、Python も落ちた 3 つを "table:事例の名前"（組まない節と段の壊れは表と、ほかの節は Python と比べる。bundle_parity）にした。
+- 更新の置き場（採点の指摘 1）: `update_source_of` は update.source の段だけを見る（ほかの段が壊れても・配った設定が NaN でも決まる）。update の段が
+  null のときは参照先を重ねず空（置かない）。決まらない形（配った設定が読めず参照先にも無い・update の段が字・並び・数・マスタの置き場が決まらない）は
+  `Lot::update_settings` が None（事例の表の @unknown）: 更新の係は確かめずに控えた置き場（source.json）を残し、配布の画面は理由つきで断る
+  （check-all の窓の通しの 4d・4e で見つけた: 前の作りは空の字を答え、更新の係が控えを空で上書きして、次の起動で新しい版を見つけられなかった）。verify.py の update に 1b（NaN と lot_list が字の配った設定の別の PC でも、使っている間に次の版を取り込み、配布の画面の係が答える）。
+- 窓がまだ組めなかった 2 つの節（前の bundle_window）: データ元の結合の字は J で読む（NaN の鍵は結合に使わない）・式が引く変換表の大きな整数は印の字のまま
+  持ち、式の conv は画面の JavaScript が JSON の数を読んだ double の字で比べる（`formula::json_text`）。
+- 種まきの錠（採点の指摘 5。前の bundle_seed）: 共有にまだ無いマスタをほかの PC が置いている途中なら、この PC の写し（master_cache）で組み、写しも無い
+  節だけ seed（理由「共有の錠」）。その束は覚えない（次の問い合わせでまき直す）。`lot::tests::a_seed_that_meets_another_pcs_lock_uses_the_copy_and_is_not_remembered`。
+- 画面の任せ（採点の指摘 4）: 画面の控え（ui_state.json）の 4 形（入れ子・代用字・大きな rev）は窓が Python と同じに読めないので、中身が起きていれば
+  中身が描く任せを残した。中身が止まっている間は空の控えで描くが、その画面の書き込み（POST /api/ui-state）で読めない控えを空で上書きしない
+  （`presence::ui_state::post` が `load_exact` の読めない形を断る。前は上書きして消した）。`lot::tests::an_unreadable_ui_state_is_not_written_back_empty`。
+  束の材料を組めない形で中身を 130 秒待つ流れ（main.rs）は、置き場が決まらない形だけに残る。
+- Python の最小の直し（採点の指摘 7。13 行）: `path_settings._set` は段が表でなければ重ねずに飛ばす・create_app の品質の設定は lot_list の段が表でなければ
+  既定（束は lot_list の節だけ組まない）・GET /api/update/settings は update の段が表でなければ空。lot_list が字・update が字／null の配った設定でも
+  Python が起きる（前は create_app の TypeError で起きなかった）。refresh_seconds が Infinity の形は品質の写しの係の int(inf) で今も起きない（表に書いた。段 ④ で消える係）。
+- 中身へ回す道の型（採点の指摘 8・9）: `cargo test --test route_reach` が settings_oracle の全部の場面（管理者の名乗りの「共有・ふつう」を足した）で、
+  Flask の道の型 138 を Python の答えない形で窓に当て、窓が答えない型が `delegates_budget.json` の routerForward（理由と場面の正規表現）に入っているか、
+  並びの項目が 1 度は当たるかを見る（約 25 秒）。残り: GET /api/lotlist/settings（比べる口）・変換表の 8 本（行の「入力」が表）・データ元の書く 7 本（行の
+  「結合」が並び）・/api/config の LotDsp の学びと待つ秒の 4 形（`Builder::config` の Py。束を尋ねる口とは別）・画面の控えの 2 本（4 形）・束の節が
+  組めない場面の組む所の読み・設備グループ・データ元の並び・勤務体系・作業実績の登録の道（まだ理由つきで断らず中身へ回す）・lot_list が字の配った設定へ
+  参照先を書く道。どれも次の版で閉じる候補。
+- 任せる歩（`delegate-count.py`）: 19 → 27。束の 7 を閉じて 12（OS の道 6・engine=python 5・正規表現 1）、予算外で見つけた 2 形を場面にして 15 を足した
+  （`conversions_oracle` の「置き場の行の入力が表」8・`sources_write_oracle` の「置き場の行の結合が並び」7）。
+- 変異（直しを 1 つ戻す）で落ちることを確かめた: 段の壊れで束全部を組まない・lot_list が壊れると更新の置き場を見失う・配った設定を serde で読む・lot_list が
+  字でも節を組む・束の答えに NaN の印を残す・心拍の段が null を断る（以上 appsettings_cases）・種まきの錠で写しを使わない・錠の束を覚える・画面の控えを
+  空で書き戻す・式の conv が印の字を数に読まない（lot::tests）・Python の `_set` の直しを戻す（test_appsettings_cases）。
 
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 

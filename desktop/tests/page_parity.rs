@@ -16,9 +16,7 @@ const READS: [&str; 7] =
 
 /// 窓が答えない（Python に任せる）場面と道（Python が落ちる・窓が同じ字にできない・窓が同じに読めない形）
 // 版 3.98.0: ブラウザの欄（版 3.87.0 から Python に任せていた）は窓も trusted_browser で確かめて答える（場面「ブラウザの欄に値がある」は突き合わせる）
-const MUST_DELEGATE: [(&str, &str); 11] = [
-    // 版 3.89.0（作った後の採点）: 参照先の値を重ねる配った設定の段が表でない（Python の _set が落ちる）
-    ("更新の段が null で参照先に更新の置き場", "/api/settings"),
+const MUST_DELEGATE: [(&str, &str); 8] = [
     // 作った後の採点（版 3.85.0）の割れ
     ("画面の控えの rev が i64 に入らない", "/"),
     ("画面の控えの rev が字の大きな整数", "/"),
@@ -27,12 +25,15 @@ const MUST_DELEGATE: [(&str, &str); 11] = [
     ("LotDsp の学びの cols が null", "/api/config"),
     ("LotDsp の学びの cols が並び", "/api/config"),
     // 版 3.108.0（H2）: 「大きな数・全角の並べ替え」の画面は窓も桁のまま書く（前は変換表の表示順が i64 に入らないので任せた）
-    ("心拍の段が null（Python は /api/config で落ちる）", "/api/config"),
-    ("max_rows が int() で読めない", "/api/config"),
     ("LotDsp の待つ秒が読めない", "/api/config"),
     ("LotDsp の学びの形が違う", "/api/config"),
     // 版 3.105.0: 「初期設定が共有にまだ無い」の画面は、窓も読むときに最初の版を置いて答える（前は任せた）
+    // 版 3.112.0: 「更新の段が null で参照先に更新の置き場」の /api/settings は窓も Python（_set の直し）も答える（前は任せた）
 ];
+
+/// 版 3.112.0: Python が落ちて（500）窓が事例の表 appsettings_cases.json の決めで答える場面と道（値は appsettings_cases が確かめる）
+const TABLE_ANSWERS: [(&str, &str); 2] =
+    [("心拍の段が null（Python は /api/config で落ちる）", "/api/config"), ("max_rows が int() で読めない", "/api/config")];
 
 fn short(v: &Value) -> String {
     v.to_string().chars().take(400).collect()
@@ -85,7 +86,7 @@ fn page_and_first_reads_are_like_python() {
                 // スケジュールのカードは Python が起きていない形（起こした直後と同じ。場面の Python も CM3 を見に行っていない）
                 lot.sources_list("").map(|(st, v)| (st, String::new(), v))
             } else {
-                lot.handle_body("GET", path, "", b"", &ask).map(|(st, v)| (st, String::new(), v))
+                lot.handle_body_with("GET", path, "", b"", &ask).map(|(st, v)| (st, String::new(), v))
             };
             let must_delegate = MUST_DELEGATE.contains(&(name, path));
             let Some((status, html, v)) = got else {
@@ -112,6 +113,15 @@ fn page_and_first_reads_are_like_python() {
             }
             if must_delegate {
                 bad.push(format!("{name} {path}: 窓が答えた（Python に任せるはず）"));
+                continue;
+            }
+            if TABLE_ANSWERS.contains(&(name, path)) {
+                if status != 200 || py["status"] == 200 {
+                    bad.push(format!(
+                        "{name} {path}: 表で決めた答え（窓 200・Python 落ちる）と違う: 窓 {status} / Python {}",
+                        py["status"]
+                    ));
+                }
                 continue;
             }
             if py.is_null() {

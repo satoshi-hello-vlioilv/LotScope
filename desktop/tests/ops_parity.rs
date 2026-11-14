@@ -30,7 +30,7 @@ fn strip(v: &mut Value) {
 fn check(lot: &Lot, settings: &Value, c: &Value, label: &str, bad: &mut Vec<String>) -> bool {
     let ask = || Ok(settings.clone());
     let body = serde_json::to_vec(&json!({"panel": c["panel"]})).unwrap();
-    let Some((status, mut got)) = lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask) else {
+    let Some((status, mut got)) = lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask) else {
         bad.push(format!("{label}: 窓が答えません（Python に回した）"));
         return false;
     };
@@ -52,7 +52,8 @@ fn recount_after_refresh(lot: &Lot, o: &Value, bad: &mut Vec<String>) {
     lot.invalidate();
     let body =
         serde_json::to_vec(&json!({"panel": {"id": "g1", "visual": "gantt", "source": "work", "equips": ["TXT"], "ops": {}}})).unwrap();
-    let count = || lot.handle_body("POST", "/api/dashboard/query", "", &body, &ask).and_then(|(_, v)| v["equips"][0]["count"].as_i64());
+    let count =
+        || lot.handle_body_with("POST", "/api/dashboard/query", "", &body, &ask).and_then(|(_, v)| v["equips"][0]["count"].as_i64());
     let before = count();
     if before != count() {
         bad.push("写しが同じなのに答えが変わりました（控え）".into());
@@ -62,7 +63,7 @@ fn recount_after_refresh(lot: &Lot, o: &Value, bad: &mut Vec<String>) {
     drop(db);
     let rows = settings["lists"]["work"]["rows"].as_array().cloned().unwrap_or_default();
     let key = rows.iter().find(|r| r["設備名"] == "TXT").and_then(|r| r["キー"].as_str()).unwrap_or("").to_string();
-    let r = lot.handle("POST", "/api/worklog/refresh", &format!("equip={key}"), &ask).expect("写し直しは窓が答える");
+    let r = lot.handle_with("POST", "/api/worklog/refresh", &format!("equip={key}"), &ask).expect("写し直しは窓が答える");
     if r.1["result"]["updated"] != true {
         bad.push(format!("TXT を写し直せません: {}", r.1));
     }

@@ -94,7 +94,7 @@ fn lot_gate_forgets_after_writes() {
     };
     let lot = Lot::new(d.join("cache"));
     let role = |method: &str, path: &str| {
-        lot.access_check(method, path, &settings).map(|m| serde_json::from_str::<Value>(&m.unwrap()).unwrap()["flags"]["role"].clone())
+        lot.access_check_with(method, path, &settings).map(|m| serde_json::from_str::<Value>(&m.unwrap()).unwrap()["flags"]["role"].clone())
     };
     put("設備作業者");
     assert!(role("POST", "/api/masters/equipment").is_err(), "設備作業者は書けない");
@@ -120,10 +120,10 @@ fn lot_gate_forgets_after_writes() {
     // （切断の指示は Python と同じく 5 秒覚えるので、新しい窓で確かめる）
     let lot = Lot::new(d.join("cache"));
     put("メンテナンス者");
-    assert_eq!(lot.access_check("POST", "/api/masters/equipment", &settings).unwrap_err().1, "revoked");
+    assert_eq!(lot.access_check_with("POST", "/api/masters/equipment", &settings).unwrap_err().1, "revoked");
     *who.borrow_mut() = "boss".into();
     lot.invalidate(); // 名乗りは設定（この端末の名前）を書くと替わり、そのときは一覧の設定の覚えを捨てる
-    let boss = lot.access_check("POST", "/api/masters/equipment", &settings).unwrap().unwrap();
+    let boss = lot.access_check_with("POST", "/api/masters/equipment", &settings).unwrap().unwrap();
     let boss: Value = serde_json::from_str(&boss).unwrap();
     assert_eq!(
         (boss["flags"]["role"].as_str(), &boss["revoked"]),
@@ -132,7 +132,7 @@ fn lot_gate_forgets_after_writes() {
     );
     *who.borrow_mut() = "u1".into();
     lot.invalidate();
-    assert_eq!(lot.access_check("POST", "/api/masters/equipment", &settings).unwrap_err().1, "revoked");
+    assert_eq!(lot.access_check_with("POST", "/api/masters/equipment", &settings).unwrap_err().1, "revoked");
     std::fs::remove_file(pres.join("PC-1@u1.revoke.json")).unwrap();
     let gate = Gate::default();
     assert_eq!(gate.check("POST", "/api/masters/equipment", None), Ok(None), "名乗りが無ければ載せない");

@@ -41,7 +41,7 @@ fn lot_of(e: &Value) -> Lot {
 
 fn call(lot: &Lot, st: &Value) -> Option<(u16, Value)> {
     let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
-    lot.handle_body(
+    lot.handle_body_with(
         st["method"].as_str().unwrap(),
         st["path"].as_str().unwrap(),
         st["query"].as_str().unwrap_or(""),

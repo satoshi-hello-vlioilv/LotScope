@@ -103,7 +103,7 @@ fn no_python() -> Result<Value, String> {
 }
 
 fn call(lot: &Lot, st: &Value) -> Option<(u16, Value)> {
-    lot.handle_body(
+    lot.handle_body_with(
         st["method"].as_str().unwrap(),
         st["path"].as_str().unwrap(),
         st["query"].as_str().unwrap_or(""),
@@ -227,7 +227,7 @@ fn schedule_matches_python() {
         .map(|_| {
             let lot = lot.clone();
             std::thread::spawn(move || {
-                lot.handle_body("GET", "/api/src/sch", "equip=L-2", b"", &no_python).map(|(s, v)| (s, v["error"].clone()))
+                lot.handle_body_with("GET", "/api/src/sch", "equip=L-2", b"", &no_python).map(|(s, v)| (s, v["error"].clone()))
             })
         })
         .collect();
@@ -259,7 +259,7 @@ fn schedule_matches_python() {
         let mut seen = 0;
         for (i, c) in order.chars().enumerate() {
             if c == 'r' {
-                let got = lot.handle_body("POST", "/api/src/sch/refresh", "equip=L-1", b"", &no_python);
+                let got = lot.handle_body_with("POST", "/api/src/sch/refresh", "equip=L-1", b"", &no_python);
                 if got.as_ref().map(|x| x.0) != Some(200) {
                     bad.push(format!("2 つのプロセス {order} [{i}] 窓の取り直し {got:?}"));
                 }
@@ -413,7 +413,7 @@ fn back_after_resign(base: &Path, change: &Value, live: &mut common::Live, bad: 
             v.sort();
             v
         };
-        let get = |path: &str, method: &str| lot.handle_body(method, path, "equip=L-1", b"", &no_python);
+        let get = |path: &str, method: &str| lot.handle_body_with(method, path, "equip=L-1", b"", &no_python);
         // 0: 窓が係（1 回目の答え）
         let list0 = get("/api/src/sch", "GET");
         let first = get("/api/src/sch/source", "GET");

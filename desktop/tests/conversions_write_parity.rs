@@ -70,7 +70,7 @@ fn conversion_tables_match_python() {
         da_core::conversions_write::set_between_writes(hook);
         let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
         let call = |st: &Value| {
-            lot.handle_body(
+            lot.handle_body_with(
                 st["method"].as_str().unwrap(),
                 st["path"].as_str().unwrap(),
                 st["query"].as_str().unwrap_or(""),

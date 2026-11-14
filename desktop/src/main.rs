@@ -24,7 +24,7 @@ use da_core::lot::Lot;
 use da_core::update::{self, Paths};
 use router::{error_reply, After, Backend, Guard, Native, Router};
 use serde_json::json;
-use sidecar::{Ask, Progress, Reply, Supervisor};
+use sidecar::{Progress, Reply, Supervisor};
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -242,11 +242,11 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         }
         ("POST", "/__desktop/shortcut/decline") => Some(reply_of(install::decline(&upd.paths).map_err(|e| (500, e)))),
         // 配布の画面（da_core::distribute・updater.rs）。置き場とだれが置いてよいかは窓が読む（版 3.95.0。Lot::update_settings。
-        // 窓が同じ字にできない形だけ Python に尋ねる）
+        // 版 3.112.0 から Python に尋ねない）
         // cached=1: 覚えた答え（裏の確認・前に開いたときにたどった物）をすぐ返す。画面はそのあと cached なしで確かめ直す
         ("GET", "/__desktop/release") => {
             let cached = da_core::lotlist::parse_query(req.query).iter().any(|(k, v)| k == "cached" && v == "1");
-            Some(match update_settings(&lot, backend) {
+            Some(match update_settings(&lot) {
                 Ok(s) => json_reply(&upd.release_view(&s, cached)),
                 Err(e) => Reply { status: 503, ..json_reply(&json!({"error": e})) },
             })
@@ -254,7 +254,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         ("GET", "/__desktop/release/progress") => Some(json_reply(&upd.place_progress())),
         ("POST", "/__desktop/release/place") => {
             let name = da_core::lotlist::parse_query(req.query).into_iter().find(|(k, _)| k == "name").map(|(_, v)| v).unwrap_or_default();
-            Some(reply_of(update_settings(&lot, backend).map_err(|e| (503, e)).and_then(|s| upd.place(&s, &name, req.body)).map(|r| {
+            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.place(&s, &name, req.body)).map(|r| {
                 upd.wake();
                 json!({"version": r["version"], "bytes": r["bytes"]})
             })))
@@ -262,23 +262,23 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         ("POST", "/__desktop/release/distribute") => {
             let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
             let version = v["version"].as_str().unwrap_or("").to_string();
-            Some(reply_of(update_settings(&lot, backend).map_err(|e| (503, e)).and_then(|s| upd.distribute(&s, &version))))
+            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.distribute(&s, &version))))
         }
         ("POST", "/__desktop/release/masters") => {
             let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
             let dir = v["dir"].as_str().unwrap_or("").to_string();
-            Some(reply_of(update_settings(&lot, backend).map_err(|e| (503, e)).and_then(|s| upd.set_masters(&s, &dir))))
+            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.set_masters(&s, &dir))))
         }
         ("POST", "/__desktop/release/recommend") => {
             let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
             let (version, on, note) =
                 (v["version"].as_str().unwrap_or("").to_string(), v["on"] == true, v["note"].as_str().unwrap_or("").to_string());
-            Some(reply_of(update_settings(&lot, backend).map_err(|e| (503, e)).and_then(|s| upd.set_recommended(&s, &version, on, &note))))
+            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.set_recommended(&s, &version, on, &note))))
         }
         ("POST", "/__desktop/release/remove") => {
             let v: serde_json::Value = serde_json::from_slice(req.body).unwrap_or_default();
             let version = v["version"].as_str().unwrap_or("").to_string();
-            Some(reply_of(update_settings(&lot, backend).map_err(|e| (503, e)).and_then(|s| upd.remove(&s, &version))))
+            Some(reply_of(update_settings(&lot).map_err(|e| (503, e)).and_then(|s| upd.remove(&s, &version))))
         }
         ("POST", "/__desktop/update/apply") => {
             if upd.status()["state"] != "ready" || !upd.installed {
@@ -332,9 +332,7 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         // 心拍（版 3.71.0。利用状況を書き〈裏の糸〉、古い版か・切断されているかを返す。中身が止まっていれば 503＝画面は「未接続」）
         // 版 3.111.0: 中身の様子では断らない（窓が生きていれば 200。python に様子を添える）。様子を尋ねるたびに止まった中身の起こし直しも
         // 始める（Backend::python_now）。最初の心拍は「画面の JS が起きた」合図（入れ替えた直後の確かめ。src/boot.rs）
-        ("POST", "/api/heartbeat") => {
-            lot.heartbeat(&|| lot_settings(backend), &|| backend.python_now()).map(|(status, v)| Reply { status, ..json_reply(&v) })
-        }
+        ("POST", "/api/heartbeat") => lot.heartbeat(&|| backend.python_now()).map(|(status, v)| Reply { status, ..json_reply(&v) }),
         // 画面（版 3.85.0。src/page.rs）: Python が答えなくても画面の HTML は窓が描く。描けない形は Python へ回す
         // （?engine=python は Python が描く。自己診断が 2 つの画面を突き合わせる）
         (method @ ("GET" | "HEAD"), "/")
@@ -368,12 +366,12 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
         // 権限の読む 2 本（版 3.76.0。窓の me から答える。中身が答えなければ Python へ回す＝前と同じ失敗）
         // 版 3.111.0: 中身（Python）が止まっていても窓の me で答える（出さないタブ・権限の札・マスタ管理の入口が Python に依らない）
         (method @ "GET", path @ ("/api/access/me" | "/api/masters/access")) => {
-            lot.access_read(method, path, &|| lot_settings(backend)).map(|(status, v)| Reply { status, ..json_reply(&v) })
+            lot.access_read(method, path).map(|(status, v)| Reply { status, ..json_reply(&v) })
         }
         // データ元の並び（版 3.87.0。src/sources_list.rs）: 見出しのタブを Python の準備を待たずに描く。スケジュールのカードは
         // Python の覚え（プロセスのメモリ）なので、中身が起きているときだけ尋ねる（起きていなければ起こした直後と同じ形）
         ("GET", "/api/sources") => lot.sources_list(req.query).map(|(status, v)| Reply { status, ..json_reply(&v) }),
-        (method, path) => lot.handle_body(method, path, req.query, req.body, &|| lot_settings(backend)).map(|(status, v)| {
+        (method, path) => lot.handle_body(method, path, req.query, req.body).map(|(status, v)| {
             // 参照先の更新の置き場を窓が書いた（版 3.89.0。Python が書いたときの after と同じ）: すぐ確かめる
             if method == "PUT" && status == 200 && path.starts_with("/api/settings/update.") {
                 upd.wake();
@@ -383,41 +381,16 @@ fn native(app: AppHandle, info: serde_json::Value, lot: Arc<Lot>, upd: Arc<Updat
     })
 }
 
-/// 品質異常の設定を中身（Python）に尋ねる（lot.rs が 10 秒覚える）。
-fn lot_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
-    let r = backend.ask(&Ask { method: "GET", path: "/api/lotlist/settings", query: "", headers: vec![], body: &[] });
-    if r.status != 200 {
-        return Err(format!("一覧の設定を読めません（{}）", r.status));
-    }
-    serde_json::from_slice(&r.body).map_err(|e| e.to_string())
-}
-
-/// 更新の置き場の設定（置き場・だれが・マスタの置き場）。版 3.95.0 から窓が読む（src/release_place.rs・Lot::update_settings。
-/// Python が起きていなくても更新を確かめ、配布の操作が 503 にならない）。窓が同じ字にできない形だけ中身（Python）に尋ねる
-fn update_settings(lot: &Lot, backend: &dyn Backend) -> Result<serde_json::Value, String> {
-    match lot.update_settings() {
-        Some(v) => Ok(v),
-        None => {
-            da_core::delegate::note("update_settings"); // 窓が同じ字にできない更新の置き場（版 3.102.0。形の名前と回数だけ数える）
-            ask_update_settings(backend)
-        }
-    }
-}
-
-/// 更新の置き場の設定を中身（Python）に尋ねる（窓が組めない形）
-fn ask_update_settings(backend: &dyn Backend) -> Result<serde_json::Value, String> {
-    let r = backend.ask(&Ask { method: "GET", path: "/api/update/settings", query: "", headers: vec![], body: &[] });
-    if r.status != 200 {
-        return Err(format!("更新の設定を読めません（{}）", r.status));
-    }
-    serde_json::from_slice(&r.body).map_err(|e| e.to_string())
+/// 更新の置き場の設定（置き場・だれが・マスタの置き場）。版 3.95.0 から窓が読み（src/release_place.rs・Lot::update_settings）、
+/// 版 3.112.0 から Python に尋ねない（窓は束も更新の置き場も Python に尋ねる口を持たない。採点の指摘 1）
+fn update_settings(lot: &Lot) -> Result<serde_json::Value, String> {
+    lot.update_settings().ok_or_else(|| "更新の置き場が決まりません（配った設定が読めない・update の段が表でない）".to_string())
 }
 
 /// 中身へ回す前: 権限を決めて門番に通し、決めた me を見出しに載せる（版 3.65.0。src/access.rs・Lot::access_check）
 fn guard(lot: Arc<Lot>) -> Guard {
-    Box::new(move |req, backend| {
-        lot.access_check(req.method, req.path, &|| lot_settings(backend))
-            .map_err(|(status, kind, message)| error_reply(status, kind, &message))
+    Box::new(move |req, _backend| {
+        lot.access_check(req.method, req.path).map_err(|(status, kind, message)| error_reply(status, kind, &message))
     })
 }
 
@@ -756,25 +729,11 @@ fn start(app: AppHandle, slot: Arc<OnceLock<AppRouter>>, splash: Arc<Splash>) {
         after: after(lot.clone(), upd.clone()),
     });
     // 更新の係: 使っている間に置き場を確かめ、新しい版を取り込んでおく（入れ替えは次の起動の最初。起動の最初にも確かめる: launch_update）
-    // 置き場は窓が読む（版 3.95.0）。窓が組めない形だけ中身に尋ねる（起きるまでは「起動中です」）
-    let (ask_slot, upd_lot) = (slot.clone(), lot.clone());
-    upd.run(
-        move || match upd_lot.update_settings() {
-            Some(v) => Ok(v),
-            None => {
-                da_core::delegate::note("update_settings");
-                ask_slot.get().ok_or("起動中です".to_string()).and_then(|r| ask_update_settings(&r.backend))
-            }
-        },
-        log,
-    );
+    // 置き場は窓が読む（版 3.95.0。版 3.112.0 から中身に尋ねない）
+    let upd_lot = lot.clone();
+    upd.run(move || update_settings(&upd_lot), log);
     // 起動の直後から写し始める（一覧を開いたときに待たせない）
-    let warm = slot.clone();
-    std::thread::spawn(move || {
-        if let Some(r) = warm.get() {
-            lot.warm(&|| lot_settings(&r.backend));
-        }
-    });
+    std::thread::spawn(move || lot.warm());
     splash.step(&app, "open", "now", "画面を開いています…");
     if let Some(w) = app.get_webview_window("main") {
         // 画面を開いたあとは、起動前の確認の進み具合を起動画面へ流さない（画面の中で splash は動かない）

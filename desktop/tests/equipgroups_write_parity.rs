@@ -86,7 +86,7 @@ fn equipment_groups_match_python() {
         let rs = PathBuf::from(sc["rs"].as_str().unwrap());
         let ask = || -> Result<Value, String> { Err("Python は居ない".into()) };
         let call = |st: &Value| {
-            lot.handle_body(
+            lot.handle_body_with(
                 st["method"].as_str().unwrap(),
                 st["path"].as_str().unwrap(),
                 st["query"].as_str().unwrap_or(""),

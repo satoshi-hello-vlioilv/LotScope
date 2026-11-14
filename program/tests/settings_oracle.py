@@ -11,7 +11,9 @@
 "delegate" は窓が束を組まずに Python に尋ねる場面（配った設定が窓の読めない字など）・"seed" は共有にまだ無いマスタがある場面（版 3.105.0 から
 窓も Python と同じく最初の版を置いてから組む。前は "delegate"。Python が束を答えた直後の共有のマスタ〈shareAfter〉も渡し、窓が置いた物と比べる）・
 "broken:節,…" は窓がその節だけを組まずに理由を言い、ほかの節は Python と同じに組む場面（版 3.102.0。前は束全部を Python に尋ねた。
-窓の読めない字・窓が Python と同じに組めない形）。broken の場面の Python の答えは JSON で渡せるとき（NaN が無いとき）だけ渡す。
+窓の読めない字・窓が Python と同じに組めない形）。"table:事例の名前" は前の版で Python も落ちた形（版 3.112.0）: 組まない節と段の壊れは
+仕様から人が書いた事例の表 tests/fixtures/appsettings_cases.json の答えと比べ（Python の答えに頼らない。段 ④ で答え合わせ役を外しても残る）、
+ほかの節は Python と同じに組む。版 3.112.0 から "delegate" の場面は無い（窓は束を Python に尋ねない）。broken の場面の Python の答えは JSON で渡せるとき（NaN が無いとき）だけ渡す。
 "pyFollows" の場面は Python に引っ越しの印をたどらせて（bundle を名乗らない）答えを取り、窓が同じ置き場へたどるか・この PC の覚えに
 同じ置き場を書くかを見る（製品では、印をたどる係は窓の 1 つ）。
 
@@ -33,6 +35,7 @@ sys.path.insert(0, str(PROGRAM))
 
 from app import create_app  # noqa: E402
 from app.repositories.master_store import MasterStore  # noqa: E402
+from app.services import identity  # noqa: E402
 
 SERVES = "lotlist,lists,access,presence,ui_state,bundle,release"
 NAMES = ("path_settings", "data_sources", "work_log_files", "equipment_master", "equipment_groups", "conversions", "shift_patterns")
@@ -122,6 +125,11 @@ def scenarios(work):
                     "program": program, "expectOverride": override, "tree": tree, "serves": serves})
 
     sc("共有・ふつう", lambda r: (masters(share=r / "share"), config(r))[1])
+    # 版 3.112.0（採点の指摘 8）: 管理者の名乗り（データ元・変換表を書ける人）。desktop/tests/route_reach.rs が窓の道を当てて、窓が答えずに
+    # 中身へ回す道の型を数える（管理者でないと、書く道は窓の門番が先に断るので数えられない）
+    sc("共有・ふつう（管理者の名乗り）", lambda r: (masters(share=r / "share"), write(r / "share" / "access_permissions.json", doc([
+        {"id": 1, "ログインID": identity.current_login_id(), "PC名": "", "権限区分": "開発者", "マスタ編集": "編集可", "有効": "有", "rev": 1}])),
+        config(r))[2])
     sc("手元だけ（同梱の data/）", lambda r: (masters(data=r / "base" / "data"), config(r, master_share={}))[1])
     sc("既定の中身だけ（master_defaults）", lambda r: config(r, master_share={}, identity={}), tree=True)
     sc("共有に置く名前を選ぶ・字の秒", lambda r: (masters(share=r / "share", data=r / "base" / "data"),
@@ -249,7 +257,8 @@ def scenarios(work):
         masters(share=r / "share2")
         write(r / "share" / "_MOVED.json", {"to": str(r / "share2"), "at": "2026-11-01T09:00:00"})
         return json.dumps(config(r), ensure_ascii=False).replace('"page_size": 300', '"page_size": NaN')
-    sc("束を組めない設定でも引っ越しの印は窓がたどる", nan_cfg_moved, expect="delegate", override="share2")
+    # 版 3.112.0: NaN の配った設定でも窓が束を組む（前は "delegate"）。印をたどる係は窓なので、Python にもたどらせて同じ置き場の答えと比べる
+    sc("NaN の配った設定でも引っ越しの印は窓がたどる", nan_cfg_moved, py_follows=True, override="share2")
 
     def bad_rows(r):
         masters(share=r / "share")
@@ -269,7 +278,8 @@ def scenarios(work):
         ps["rows"].append({"id": 99, "項目": "update.source", "値": "C:\\x"})
         write(r / "share" / "path_settings.json", ps)
         return config(r, update="x")
-    sc("束に出ない項目の段が字", update_str, expect="delegate")
+    # 版 3.112.0: Python も落ちた形（_set の TypeError）。決めは事例の表 tests/fixtures/appsettings_cases.json（"table:事例の名前"）
+    sc("束に出ない項目の段が字", update_str, expect="table:update が字で参照先に更新の置き場")
 
     def nested(r):
         masters(share=r / "share")
@@ -325,8 +335,8 @@ def scenarios(work):
         write(r / "share" / "equipment_groups.json", doc([{"id": 1, "名称": "g", "設備": [big, "a"], "ルール": json.dumps(
             {"rules": [{"op": "prefix", "value": big}, {"op": big, "value": "x"}], "except": [big, "L-9"]})}])),
         config(r))[3])
-    # 窓がまだ組めない形（window。Python は組む）: 変換表の式が引く形の大きな整数・結合の字の中の NaN。窓は束を Python に尋ねる
-    # （印 bundle_window。この場面は "delegate": true で任せる歩に数える）
+    # 版 3.109.0 で窓がまだ組めなかった形（window。Python は組む）: 変換表の式が引く形の大きな整数・結合の字の中の NaN。版 3.112.0 から窓も組む
+    # （前は窓が束を Python に尋ね〈印 bundle_window〉、"delegate": true で任せる歩に数えた）
     def conv_big(r):
         masters(share=r / "share")
         cv = json.loads((r / "share" / "conversions.json").read_text(encoding="utf-8"))
@@ -334,11 +344,12 @@ def scenarios(work):
                         "その他": "", "表示順": 5}]
         write(r / "share" / "conversions.json", cv)
         return config(r)
-    sc("変換表の判定の字に 10^20（式が引く形は窓がまだ組めない）", conv_big, expect="broken:conversions")
-    sc("データ元の結合の字に NaN（窓がまだ組めない）", lambda r: (
+    # 版 3.112.0: 窓も組む（式の conv は印の字を画面の JavaScript と同じ数の字で比べる。前は broken:conversions で window〈Python に尋ねた〉）
+    sc("変換表の判定の字に 10^20（窓も組む）", conv_big)
+    sc("データ元の結合の字に NaN（窓も組む）", lambda r: (
         masters(share=r / "share"),
         add_row(r, "data_sources", {"id": 99, "キー": "jn", "表示名": "結合", "場所": "/jn", "結合": '[{"with": "x", "on": [["a", "b"]], "n": NaN}]'}),
-        config(r))[2], expect="broken:sources")
+        config(r))[2])          # 版 3.112.0: 窓も J で読んで組む（前は broken:sources で window）
     # 境の数（2^63−1・2^63・10^19・2^64−1・2^64・−2^63−1）を束が字にする欄へ（確かめる間隔は写しの係の秒〈i64。Python は int(float())〉なので 10^18）
     sc("置き場の束の材料の欄に境の大きな整数（窓も桁のまま組む）", lambda r: (
         masters(share=r / "share"),
@@ -348,9 +359,9 @@ def scenarios(work):
         add_row(r, "shift_patterns", {"id": 95, "名称": 2 ** 64, "区分": "[]"}),
         config(r))[5])
 
-    # 窓は組まず Python に尋ねる形
+    # 版 3.112.0: 配った設定を J で読み、窓も組む（前は "delegate"。答えの NaN は Python の jsonify と同じく null）
     sc("配った設定に NaN", lambda r: (masters(share=r / "share"),
-                                     json.dumps(config(r), ensure_ascii=False).replace('"page_size": 300', '"page_size": NaN'))[1], expect="delegate")
+                                     json.dumps(config(r), ensure_ascii=False).replace('"page_size": 300', '"page_size": NaN'))[1])
 
     def inf(r):
         masters(share=r / "share")
@@ -404,7 +415,7 @@ def scenarios(work):
                                                  shutil.copy(r / "share" / "work_log_files.json", r / "local" / "master_cache"),
                                                  (r / "share" / "work_log_files.json").unlink(), (r / "share" / "shift_patterns.json").unlink(),
                                                  (r / "share" / "conversions.json").unlink()], config(r))[3], expect="seed")
-    sc("lot_list が表でない", lambda r: (masters(share=r / "share"), config(r, lot_list="x"))[1], expect="delegate")
+    sc("lot_list が表でない", lambda r: (masters(share=r / "share"), config(r, lot_list="x"))[1], expect="table:lot_list が字")
 
     # 画面と最初の画面の読む道（版 3.85.0。page_parity.rs）
     def page_parts(r):
@@ -540,7 +551,7 @@ def scenarios(work):
         ps["rows"].append({"id": 31, "項目": "update.source", "値": "C:\\置き場"})
         write(r / "share" / "path_settings.json", ps)
         return config(r, update=None)
-    sc("更新の段が null で参照先に更新の置き場", section_null, expect="delegate")
+    sc("更新の段が null で参照先に更新の置き場", section_null, expect="table:update が null で参照先に更新の置き場")
     return out
 
 
@@ -566,6 +577,8 @@ def ask(s, follows):
     tc["SRC_MIRRORS"] = work_log.Mirrors(root / "local" / "db_cache" / "sources", passive=True, prefix="src", notify=None)
     try:
         app = create_app(tc)
+        if not ROUTES:      # 道の型（方法 × 道。版 3.112.0: desktop/tests/route_reach.rs が窓に当てる）
+            ROUTES.extend(sorted({(m, r.rule) for r in app.url_map.iter_rules() for m in r.methods if m != "HEAD"}))
         c = app.test_client()
         r = c.get("/api/lotlist/settings")
         answer = r.get_json() if r.status_code == 200 else None
@@ -590,6 +603,7 @@ def share_files(root):
     return {f.name: json.loads(f.read_text(encoding="utf-8-sig")) for f in sorted(share.glob("*.json"))} if share.is_dir() else {}
 
 
+ROUTES = []
 READS = ("/", "/api/config", "/api/dashboard/sources", "/api/dashboard/equip-tree", "/api/sources", "/api/settings", "/api/update/settings")
 
 
@@ -659,14 +673,14 @@ def main():
             window = [n for n in s["expect"][len("broken:"):].split(",") if n not in py_broken]
         out.append({"name": s["name"], "expect": s["expect"], "pyFollows": s["pyFollows"], "window": window,
                     **({"delegate": True} if window else {}),
-                    "answer": answer if s["expect"] in ("same", "seed") or (s["expect"].startswith("broken:") and finite(answer)) else None, "override": after, "reads": reads,
+                    "answer": answer if s["expect"] in ("same", "seed") or (s["expect"].startswith(("broken:", "table:")) and finite(answer)) else None, "override": after, "reads": reads,
                     "shareAfter": s.get("shareAfter") if s["expect"] == "seed" else None,
                     "expectOverride": str(root / s["expectOverride"]) if s["expectOverride"] else None,
                     "env": {"base": str(root / "base"), "program": s["program"] or str(PROGRAM), "local": str(root / "local"),
                             "config": str(root / "config.json"),
                             "now": s["now"]},
                     "vars": {k: (str(root) if v == "@root" else v) for k, v in s["env"].items()}})
-    json.dump({"scenarios": out}, sys.stdout, ensure_ascii=False)
+    json.dump({"scenarios": out, "routes": [{"method": m, "rule": r} for m, r in ROUTES]}, sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

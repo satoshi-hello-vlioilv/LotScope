@@ -2,13 +2,15 @@
 """配る形と更新の通しを、本物の窓で確かめる（評価関数・設計書「更新（B+）」）。Windows の CI と、手元の Linux（xvfb-run の下）で流す。
 
     python verify.py update --exe <作った exe> [--work <作業フォルダ>] [--keep]
-    python verify.py local --exe <作った exe> [--work <作業フォルダ>] [--keep]   作業場所の窓だけ・Python の無い PC（版 3.111.0）
+    python verify.py local --exe <作った exe> [--work <作業フォルダ>] [--keep]   作業場所の窓だけ・Python の無い PC（版 3.111.0。版 3.112.0 から
+                                                                              配った設定に NaN の形も）
     python verify.py rename --old-exe <前の版の exe> --old-repo <前の版のリポジトリ> --exe <作った exe> [--work …] [--keep]
 
 利用者の PC を真似る: 作業場所（TRANSFER_LOCAL_ROOT）はまっさら、配る形は共有を真似たフォルダ、更新の置き場は BOX を真似たフォルダ。
 窓は自己診断（TPA_SELFTEST）で起こし、結果のファイル（selftest.js が更新の係の状態と、動いている exe・program を添える）を読む。
 
   1. 共有の exe を開く → この PC の app へ写り、版ごとの写しの窓で開く。使っている間に置き場の次の版（+1）を取り込む（ready）。置き場を控える
+  1b. 配った設定に NaN があり lot_list が字の PC（別の作業場所）でも、使っている間に +1 を取り込む・配布の画面の係が答える（版 3.112.0）
   2. app の exe（ショートカットの行き先）を開く → 起動の最初に +1 へ入れ替わり、その版で開く。直前の版は控えに
   3. 閉じている間に次の版（+2）を置く → ショートカットから 1 回開くだけで +2 になる（起動の最初に取り込んで入れ替える・版 3.38.0）
   4. 窓が描けない版（+3。templates/index.html を消した）を置く。取り込みは窓の準備で断る（版 3.111.0）。前の版の窓が取り込んだ形
@@ -338,6 +340,22 @@ def update(exe: Path, work: Path) -> bool:
     ok &= check(info.get("installed") is True and info.get("version") == v0, f"1. 版 {v0}", json.dumps(info, ensure_ascii=False))
     ok &= check(upd.get("state") == "ready" and upd.get("ready") == v1, f"1. 使っている間に {v1} を取り込んだ", json.dumps(upd, ensure_ascii=False)[:300])
     ok &= check(bundle.app_version(app / "program") == v0, "1. 取り込んでも動いている app はそのまま")
+    # 1b. 配った設定に NaN があり lot_list が表でない PC（版 3.112.0。採点の指摘 1・10）: 窓は束を Python に尋ねず、更新の置き場は
+    # update.source の段だけで決まるので、別の作業場所で同じ共有の exe を開いても、使っている間に次の版を取り込む（品質の一覧の項目は
+    # 理由つきの 503 で通らないので、自己診断の全部は見ない）
+    nan_conf = work / "appsettings-nan.json"
+    bad = json.loads(conf.read_text(encoding="utf-8"))
+    bad["lot_list"] = "設定ファイルを手で壊した字"
+    bad.setdefault("work_log", {})["stale_hours"] = float("nan")
+    nan_conf.write_text(json.dumps(bad, ensure_ascii=False, allow_nan=True), encoding="utf-8")
+    local_nan = work / "local-nan"
+    r = Run(work, {**env, "TRANSFER_APP_CONFIG": str(nan_conf), "TRANSFER_LOCAL_ROOT": str(local_nan),
+                   "TPA_LINK_DIRS": os.pathsep.join(str(work / "links-nan" / n) for n in ("Desktop", "Programs"))}).open(share_exe, "nan-config")
+    upd_nan = r.get("update") or {}
+    ok &= check(upd_nan.get("state") == "ready" and upd_nan.get("ready") == v1,
+                f"1b. 配った設定に NaN・lot_list が字でも、使っている間に {v1} を取り込んだ（更新の置き場を見失わない）", json.dumps(upd_nan, ensure_ascii=False)[:300])
+    rel = next((x for x in r.get("results", []) if x["name"] == "配布の画面の係が答える（置き場に届くか・権限）"), {})
+    ok &= check(rel.get("ok") is True, "1b. 配布の画面の係が答える（窓が置き場を読む）", rel.get("info"))
     sc = ((info.get("install") or {}).get("shortcut") or {})
     ok &= check(sc.get("ask") is True and not sc.get("links"), "1. ショートカットが無いので画面が尋ねる", sc)
     # 人が作った、共有の exe を指し作業フォルダも共有のショートカット（次の起動で直る）
@@ -499,6 +517,15 @@ def local(exe: Path, work: Path) -> bool:
     ok &= check(boot_log_has(work / "local", "BACKEND 起こせません") and boot_log_has(work / "local", "OPEN 画面を開きます"),
                 "local. 窓の記録: 画面を開き、中身は理由つきで起こせない", "")
     ok &= check((r.get("info") or {}).get("version") == bundle.app_version(), "local. 中身の版は窓が読んだ program_version", r.get("info"))
+    # 版 3.112.0（採点の指摘 10）: 配った設定に NaN（Python の json.loads は読む・窓の serde は読めない）があっても、Python の無い PC で
+    # 窓だけの項目が全部通る（前は窓が束を Python に尋ね、心拍・一覧・配布の画面など 8 項目が落ちた）
+    s = json.loads(conf.read_text(encoding="utf-8"))
+    s["lot_list"]["page_size"] = float("nan")
+    s.setdefault("presence", {})["heartbeat_interval_seconds"] = float("inf")
+    conf.write_text(json.dumps(s, ensure_ascii=False, allow_nan=True), encoding="utf-8")
+    r = Run(work, {**env, "TRANSFER_LOCAL_ROOT": str(work / "local-nan")}).open(exe, "no-python-nan")
+    good, why = window_only_ok(r, "no-python-nan")
+    ok &= check(r.get("ok") is True and good, "local. 配った設定に NaN・Infinity があっても、窓だけの項目が全部通る（窓は束を Python に尋ねない）", why)
     left = leftover_python(work)
     ok &= check(not left, "終わったあと Python が残らない", left)
     return ok
