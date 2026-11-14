@@ -3642,18 +3642,20 @@ mod tests {
         let key = v["row"]["キー"].as_str().unwrap().to_string();
         assert!(key.len() == 9 && key.starts_with('s'), "{key}");
         assert!(lot.handle_body_with("POST", "/api/sources", "engine=python", b"{}", &down).is_none(), "?engine=python は Python");
-        // 版 3.108.0: データ元に読めない行（版が字）があると、Python は読みでは使い触れる書きだけを断る。窓はその値を同じに読めると限らないので
-        // この道と束の節を Python に任せる（隔てて見出しのタブを消さない。作った後の採点の落とし穴）。行を直せば窓がまた答える
+        // 版 3.108.0: データ元に読めない行（版が字）があると、Python は読みでは使い触れる書きだけを断る（隔てて見出しのタブを消さない）。
+        // 版 3.113.0 から窓も同じに答える（前は道を Python に任せた）: 足すは通し、その行に触れる書きは理由つきで断る
         let ds = share.join("data_sources.json");
         let before = std::fs::read_to_string(&ds).unwrap();
         let mut d: Value = serde_json::from_str(&before).unwrap();
         d["rows"].as_array_mut().unwrap().push(json!({"id": 30, "キー": "rv", "表示名": "版が字", "場所": "/r.sqlite3", "rev": "abc"}));
         std::fs::write(&ds, d.to_string()).unwrap();
         lot.invalidate();
-        assert!(
-            lot.handle_body_with("POST", "/api/sources", "", r#"{"表示名": "x"}"#.as_bytes(), &down).is_none(),
-            "読めない行があれば Python"
-        );
+        let (st, _) = lot
+            .handle_body_with("POST", "/api/sources", "", r#"{"表示名": "x", "場所": "/x.sqlite3"}"#.as_bytes(), &down)
+            .expect("窓が答える");
+        assert_eq!(st, 201, "読めない行があっても足すは通す");
+        let (st, v) = lot.handle_body_with("PUT", "/api/sources/rv", "", r#"{"備考": "x"}"#.as_bytes(), &down).expect("窓が答える");
+        assert_eq!((st, v["kind"].clone()), (503, json!("master_unreadable")), "読めない行に触れる書きは断る: {v}");
         std::fs::write(&ds, &before).unwrap();
         lot.invalidate();
         assert!(
