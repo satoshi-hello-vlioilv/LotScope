@@ -408,10 +408,6 @@ impl Lot {
         if lotlist::parse_query(query).iter().any(|(k, v)| k == "engine" && v == "python") {
             return None;
         }
-        // 選べる設備はデータ元の設備の列をダッシュボードの数え方で数える: その節が組めなければ理由つきで断る（版 3.112.0）
-        if let Some(r) = self.refused(&DASH_ALL) {
-            return Some(r);
-        }
         let builder = self.bundle.lock().unwrap().clone()?;
         let inp = builder.inputs().ok()?;
         let access = json!({"who": inp.who, "place": inp.place});
@@ -440,11 +436,23 @@ impl Lot {
             }
             Some(out)
         };
+        let refusal: std::cell::RefCell<Option<(u16, Value)>> = std::cell::RefCell::new(None);
         let seen = || -> Option<Vec<Value>> {
             let known = known()?;
+            // 選べる設備はデータ元の設備の列をダッシュボードの数え方で数える: その節が組めなければ理由つきで断る（版 3.112.0 の作った後の
+            // 採点の割れ 1。数えるときだけ見る: 道の初めに束を組むと、Python が置かない歩で共有に最初の版を置いてしまう）
+            if let Some(r) = self.refused(&DASH_ALL) {
+                *refusal.borrow_mut() = Some(r);
+                return None;
+            }
             self.with_dash(&DASH_ALL, |cx| dashboard::equipment_seen(cx, &known))
         };
-        let (status, v) = crate::equipgroups_write::handle(&store, &me, &place, route, query, body, &seen)?;
+        let r = crate::equipgroups_write::handle(&store, &me, &place, route, query, body, &seen);
+        if let Some(x) = refusal.borrow_mut().take() {
+            return Some(x);
+        }
+        // 窓が答えない形で、数える材料の節が組めないなら理由つきで断る（中身へ回さない）
+        let Some((status, v)) = r else { return self.refused(&DASH_ALL) };
         if writes {
             self.invalidate(); // 一覧の設定（ダッシュボードの設備グループ）を次の問い合わせで組み直す
         }
@@ -2938,11 +2946,13 @@ mod tests {
         std::fs::write(share.join("access_permissions.json"), json!({"schema": 1, "revision": 2, "rows": [{"id": 1, "ログインID": login, "PC名": "", "権限区分": "一般ユーザー", "マスタ編集": "閲覧のみ", "rev": 1}]}).to_string()).unwrap();
         let (st, v) = lot.handle_body_with("PUT", "/api/settings/lot_list.table", "", br#"{"value": "y"}"#, &down).unwrap();
         assert_eq!((st, v["kind"].clone()), (403, json!("forbidden")), "{v}");
-        // 作った後の採点で見つけた形: 値を重ねる配った設定の段が表でない（Python の _set が落ちる）は、読む道も書く道も Python に任せる
+        // 値を重ねる配った設定の段が表でない形（版 3.112.0: Python の _set も重ねずに飛ばすので落ちない）は、書く道も窓が書く
+        // （前は Python に任せた。効かないことは束の settingsBroken が言う）
         std::fs::write(share.join("access_permissions.json"), perm.to_string()).unwrap();
         std::fs::write(&cfg, json!({"master_share": {"dir": share}, "update": null}).to_string()).unwrap();
         lot.invalidate();
-        assert!(lot.handle_body_with("PUT", "/api/settings/update.source", "", br#"{"value": "C:/x"}"#, &down).is_none(), "書くと落ちる段");
+        let put = lot.handle_body_with("PUT", "/api/settings/update.source", "", br#"{"value": "C:/x"}"#, &down);
+        assert_eq!(put.map(|r| r.0), Some(200), "段が null でも参照先の行は書く");
         assert!(lot.handle_body_with("GET", "/api/settings", "", b"", &down).is_some(), "まだ重ねる行が無ければ落ちない");
         let ps = json!({"schema": 1, "revision": 5, "rows": [{"id": 1, "項目": "update.source", "値": "C:/x", "rev": 1}]});
         std::fs::write(share.join("path_settings.json"), ps.to_string()).unwrap();
@@ -3105,9 +3115,12 @@ mod tests {
         let s = lot.settings().expect("束は組める");
         let w = &s.broken["sources"];
         assert!(w["window"].is_null() && w["why"].as_str().unwrap().contains("data_sources.json の 1 行目"), "{w}");
-        let (st, v) = lot.handle("GET", "/api/lotlist", "").unwrap();
+        // データ元の節を使う道だけが断る（版 3.112.0 の作った後の採点の割れ 4: 品質の一覧はデータ元の節を要らない）
+        let (st, v) = lot.handle("GET", "/api/src/s1", "").unwrap();
         assert_eq!((st, v["kind"].clone()), (503, json!("settings")), "{v}");
         assert_eq!(v["error"].as_str().unwrap().matches("data_sources.json").count(), 1, "ファイルごとに 1 つ: {v}");
+        let (_, v) = lot.handle("GET", "/api/lotlist", "").unwrap();
+        assert_ne!(v["kind"], "settings", "品質の一覧は断らない: {v}");
         let _ = std::fs::remove_dir_all(&work);
     }
 

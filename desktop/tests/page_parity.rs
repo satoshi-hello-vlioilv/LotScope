@@ -32,8 +32,16 @@ const MUST_DELEGATE: [(&str, &str); 8] = [
 ];
 
 /// 版 3.112.0: Python が落ちて（500）窓が事例の表 appsettings_cases.json の決めで答える場面と道（値は appsettings_cases が確かめる）
-const TABLE_ANSWERS: [(&str, &str); 2] =
-    [("心拍の段が null（Python は /api/config で落ちる）", "/api/config"), ("max_rows が int() で読めない", "/api/config")];
+const TABLE_ANSWERS: [(&str, &str); 3] = [
+    ("心拍の段が null（Python は /api/config で落ちる）", "/api/config"),
+    ("max_rows が int() で読めない", "/api/config"),
+    // 版 3.112.0 の作った後の採点の割れ 4: ダッシュボードのデータの並びはデータ元の節だけを使う（設備グループが組めなくても答える。Python は落ちる）
+    ("設備グループのルールの op が並び", "/api/dashboard/sources"),
+];
+
+/// 版 3.112.0 の作った後の採点の割れ 5: 更新の置き場が決まらない形（update の段が字・null で参照先に置き場の行）は、窓が理由つきの 503 で断る
+/// （Python は空の置き場と答える。窓は更新の係の控えを残す: appsettings_cases の @unknown）
+const UPDATE_UNKNOWN: [&str; 2] = ["束に出ない項目の段が字", "更新の段が null で参照先に更新の置き場"];
 
 fn short(v: &Value) -> String {
     v.to_string().chars().take(400).collect()
@@ -99,6 +107,16 @@ fn page_and_first_reads_are_like_python() {
             };
             // 版 3.102.0: 束の組めない節を使う道は、窓が理由（どのファイル・どの行）を添えて 503 kind settings で断る（ほかの道は答え続ける）。
             // Python は表でない行を飛ばす・窓の読めない字を読むので 200 のことがある。断るのは窓の束に組めない節があるときだけ
+            if path == "/api/update/settings" && UPDATE_UNKNOWN.contains(&name) {
+                if status != 503
+                    || v["kind"] != "settings"
+                    || !v["error"].as_str().is_some_and(|e| e.contains("更新の置き場が決まりません"))
+                {
+                    bad.push(format!("{name} {path}: 更新の置き場が決まらない形なのに {status} {}", short(&v)));
+                }
+                refused += 1;
+                continue;
+            }
             if status == 503 && v["kind"] == "settings" {
                 let own = lot.own_bundle().and_then(Result::ok).unwrap_or_default();
                 let broken = own["broken"].as_object().cloned().unwrap_or_default();
