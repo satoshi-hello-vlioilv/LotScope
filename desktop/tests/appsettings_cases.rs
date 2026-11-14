@@ -8,6 +8,7 @@ mod common;
 use da_core::bundle::{Builder, Env};
 use da_core::lot::Lot;
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 fn table() -> Value {
@@ -204,50 +205,105 @@ fn the_window_has_no_mouth_that_asks_python_for_the_bundle() {
     }
 }
 
-/// 2 台の PC（採点の指摘 11）: 3.111.0 と 3.112.0 の PC が同じ壊れた配った設定（NaN・lot_list が字）と同じ共有で動くとき、3.112.0 の窓は
-/// 答えるが、共有に書く物は増やさない（段の壊れの理由〈settingsBroken・stage〉は答えにだけ載せる）。共有のファイルは前の版の Python と
-/// 窓が読む形（最初の版の種と利用状況）だけで、知らない鍵を書かない
+/// 共有のファイル → 比べる形（版 3.112.0 の作った後の採点の割れ 6b）: マスタは名前と中身（時刻の鍵を除く）、利用状況は名前の数と鍵の並び
+fn share_shape(share: &Path) -> (BTreeMap<String, Value>, Vec<Vec<String>>) {
+    fn strip(v: &mut Value) {
+        match v {
+            Value::Object(m) => {
+                for k in ["updated_at", "at", "acquired_at", "expires_at", "seenAt", "startedAt", "lastSeen", "since", "beatAt"] {
+                    m.remove(k);
+                }
+                m.values_mut().for_each(strip);
+            }
+            Value::Array(a) => a.iter_mut().for_each(strip),
+            _ => {}
+        }
+    }
+    let (mut masters, mut presence) = (BTreeMap::new(), vec![]);
+    fn walk(d: &Path, out: &mut Vec<PathBuf>) {
+        for e in std::fs::read_dir(d).into_iter().flatten().flatten() {
+            if e.path().is_dir() {
+                walk(&e.path(), out);
+            } else {
+                out.push(e.path());
+            }
+        }
+    }
+    let mut files = vec![];
+    walk(share, &mut files);
+    for f in files {
+        let rel = f.strip_prefix(share).unwrap().to_string_lossy().replace('\\', "/");
+        let mut v = common::file_value(&std::fs::read(&f).unwrap());
+        if rel.starts_with("presence_tpa/") {
+            let mut keys: Vec<String> = v.as_object().map(|m| m.keys().cloned().collect()).unwrap_or_default();
+            keys.sort();
+            presence.push(keys);
+        } else {
+            strip(&mut v);
+            masters.insert(rel, v);
+        }
+    }
+    presence.sort();
+    (masters, presence)
+}
+
+/// 同じ手順（一覧・設定・作業実績・権限・更新の置き場・心拍 2 回・使い終わり）で窓を動かす
+fn run_window(lot: &Lot, env: Env) {
+    lot.set_bundle(Builder::new(env));
+    let ready = || da_core::presence::PythonNow { state: "ready", why: String::new() };
+    let stopped = || da_core::presence::PythonNow { state: "stopped", why: "試験".into() };
+    let _ = lot.handle_body("GET", "/api/lotlist", "", b"");
+    let _ = lot.handle_body("GET", "/api/config", "", b"");
+    let _ = lot.handle_body("GET", "/api/worklog", "equip=x", b"");
+    let _ = lot.access_read("GET", "/api/access/me");
+    let _ = lot.update_settings();
+    assert!(lot.heartbeat(&ready).is_some_and(|r| r.0 == 200), "心拍");
+    assert!(lot.heartbeat(&stopped).is_some_and(|r| r.0 == 200), "心拍（中身が止まっていても）");
+    std::thread::sleep(std::time::Duration::from_millis(300)); // 利用状況は裏の糸が書く
+    lot.leave();
+}
+
+/// 2 台の PC（採点の指摘 11・版 3.112.0 の作った後の採点の割れ 6b）: 壊れた配った設定（NaN・lot_list が字・update が null・identity が字）の
+/// 3.112.0 の窓が共有に書く物は、ふつうの配った設定の窓が同じ手順で書く物とファイルの名前・中身（時刻を除く）が同じ（段の壊れの理由は
+/// 答えにだけ載せる）。その共有を、ふつうの配った設定の Python（前の版の読み手の写し: program/tests/share_reader_oracle.py）が読み、
+/// 束を節の壊れなしに組む
 #[test]
 fn a_broken_config_writes_nothing_new_to_the_share() {
     let t = table();
     let work = common::work("appsettings-share");
+    let normal = t["cases"].as_array().unwrap().iter().find(|c| c["name"] == "ふつう").unwrap();
     for name in ["lot_list が字", "page_size が NaN", "update が null で参照先に更新の置き場", "identity が字"] {
         let c = t["cases"].as_array().unwrap().iter().find(|c| c["name"] == name).unwrap();
-        let root = work.join(name.replace(' ', "_"));
-        let (lot, env, share) = place(&root, c);
-        lot.set_bundle(Builder::new(env));
-        let ready = || da_core::presence::PythonNow { state: "ready", why: String::new() };
-        let stopped = || da_core::presence::PythonNow { state: "stopped", why: "試験".into() };
-        let _ = lot.handle_body("GET", "/api/lotlist", "", b"");
-        let _ = lot.handle_body("GET", "/api/config", "", b"");
-        let _ = lot.handle_body("GET", "/api/worklog", "equip=x", b"");
-        let _ = lot.access_read("GET", "/api/access/me");
-        let _ = lot.update_settings();
-        assert!(lot.heartbeat(&ready).is_some_and(|r| r.0 == 200), "{name}: 心拍");
-        assert!(lot.heartbeat(&stopped).is_some_and(|r| r.0 == 200), "{name}: 心拍（中身が止まっていても）");
-        std::thread::sleep(std::time::Duration::from_millis(300)); // 利用状況は裏の糸が書く
-        lot.leave();
-        let mut files = vec![];
-        fn walk(d: &Path, out: &mut Vec<PathBuf>) {
-            for e in std::fs::read_dir(d).into_iter().flatten().flatten() {
-                if e.path().is_dir() {
-                    walk(&e.path(), out);
-                } else {
-                    out.push(e.path());
-                }
+        // ふつうの設定で、同じ参照先の行の共有
+        let mut base = normal.clone();
+        base["paths"] = c["paths"].clone();
+        if name == "identity が字" {
+            base["config"]["identity"] = Value::Null; // 名乗りは OS の名前（壊れた形と同じ PC 名）
+        }
+        let root_a = work.join(format!("a-{}", name.replace(' ', "_")));
+        let (lot_a, env_a, share_a) = place(&root_a, &base);
+        run_window(&lot_a, env_a);
+        let root_b = work.join(format!("b-{}", name.replace(' ', "_")));
+        let (lot_b, env_b, share_b) = place(&root_b, c);
+        run_window(&lot_b, env_b);
+        let (ma, pa) = share_shape(Path::new(&share_a));
+        let (mb, pb) = share_shape(Path::new(&share_b));
+        assert_eq!(ma.keys().collect::<Vec<_>>(), mb.keys().collect::<Vec<_>>(), "{name}: 共有のマスタのファイルの並び");
+        for (f, v) in &ma {
+            if let Some(d) = common::diff(v, &mb[f], f) {
+                panic!("{name}: 共有の {f} の中身が違う: {d}");
             }
         }
-        walk(Path::new(&share), &mut files);
-        for f in &files {
-            let text = std::fs::read_to_string(f).unwrap_or_default();
-            for k in ["settingsBroken", "\"stage\"", "config.json"] {
-                assert!(!text.contains(k), "{name}: 共有の {} に答えの鍵 {k}", f.display());
-            }
-            let rel = f.strip_prefix(&share).unwrap().to_string_lossy().into_owned();
-            let top = f.parent() == Some(Path::new(&share));
-            let known = rel.starts_with("presence_tpa") || (top && rel.ends_with(".json"));
-            assert!(known, "{name}: 共有に知らないファイル {rel}");
+        assert_eq!(pa, pb, "{name}: 利用状況のファイルの数と鍵");
+        for f in mb.keys() {
+            assert!(!mb[f].to_string().contains("settingsBroken") && !mb[f].to_string().contains("\"stage\""), "{name}: {f} に答えの鍵");
         }
+        // 前の版の読み手の写し: ふつうの配った設定の Python が壊れた設定の窓の後の共有を読む
+        let cfg = root_b.join("reader.json");
+        let esc = serde_json::to_string(&share_b).unwrap();
+        std::fs::write(&cfg, normal["config"].to_string().replace("@share", &esc[1..esc.len() - 1])).unwrap();
+        let r = common::python_json("share_reader_oracle.py", &[cfg.to_str().unwrap(), root_b.join("reader-local").to_str().unwrap()]);
+        assert_eq!((r["status"].as_u64(), r["broken"].clone()), (Some(200), json!({})), "{name}: Python の読み手: {r}");
     }
     let _ = std::fs::remove_dir_all(&work);
 }
