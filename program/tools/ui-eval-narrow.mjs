@@ -7,9 +7,10 @@
 // ④ 重なり: 3D の札どうし・札と凡例が重なっている／札が 3D の枠の外へ出ている（計算の 3D。見えている札だけ）
 // ⑤ 届く: 見出し帯の操作（画面のタブ・マスタ管理・アプリ・終了）がどれも画面の中にあって押せる
 // ⑥ 名前: 縮めて出す名前（書式の名前・効いている物の名前）が、出ているのに 3 字も読めない（「異…」のように 1〜2 字で切れる）
+// 版 3.111.0: 中身（Python）が止まった形（pydown・pydown-fold）も、一覧から直に当てて数える。
 // 全部 0 なら終了コード 0。
 import path from "node:path";
-import { launch, walk } from "./ui-harness.mjs";
+import { launch, walk, PYDOWN_STEPS } from "./ui-harness.mjs";
 
 const OUT = process.argv[2] ? path.resolve(process.argv[2]) : "";
 const VIEWS = [{ width: 1728, height: 1152 }, { width: 1536, height: 864 }, { width: 1280, height: 720 }];
@@ -127,6 +128,19 @@ try {
       }
     }, STATES);
     await p.context().close();
+    // 版 3.111.0: 中身（Python）が止まった形（見出しの下の知らせの段・畳んで札「中身 停止」だけ）。一覧から直に当てる
+    const q = await app.newPage("light", view);
+    for (const [state, go] of PYDOWN_STEPS()) {
+      await go(q);
+      const got = await q.evaluate(inspect);
+      const bad = got.folded.length + got.cut.length + Object.keys(got.rows).length + got.overlap.length + got.reach.length + got.names.length;
+      console.log(`${bad ? "NG" : "OK"} ${tag} ${state}` + (bad ? `: ${JSON.stringify(got)}` : ""));
+      if (bad) {
+        fails.push(`${tag} ${state}`);
+        if (OUT) await q.screenshot({ path: path.join(OUT, `${state}-${view.width}.png`) });
+      }
+    }
+    await q.context().close();
   }
 } finally {
   await app.close();

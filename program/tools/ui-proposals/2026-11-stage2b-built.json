@@ -1,0 +1,148 @@
+{
+ "title": "Rust 化の段 ② の 2 歩目: 起動の確かめを窓の準備に（boot.rs の window_ready・decide・最初の心拍で確定）・心拍と権限の読む 2 本が Python の生死を見ない・Python が無くても窓は開く。版 3.111.0 の作った後の採点（2026-11-13）",
+ "rule": "2026-11-06",
+ "applies": "2026-11-stage2b.json",
+ "applies_note": "版 3.111.0 は 2026-11-stage2b.json の回の 1 位 B（73.4 点・80 に届かず）に、採点の指摘 first_fixes の 12 を入れて作った物（画面に出ない部分は commit 9104432、画面の部品は b697c01）。新しい案出しは無いので rounds は空にし、判定は 2026-11-stage2b.json の『届かずに選ぶ』を引いて、作った後（built）だけを決まり 2026-11-06 の物差しで 1 回採点する。画面の見た目（知らせの段・札・面）は別の係が 2026-11-stage2b-ui.json で採点する。ここで見た画面の JS（app.js の setPython・loadMe・心拍、master.js、shared.js）は振る舞いの正しさだけ",
+ "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13。決まり 2026-11-06 の作った後の 1 回だけの採点）。作った者の報告は鵜呑みにせず、git diff 5c85442 HEAD を読み、作業場所の窓を組み直し（debug・37 秒）、自分の台本（scratchpad の g3111/probe.py・st.py。commit しない）で installed＋update/applied.json（入れ替えた直後）の本物の窓を xvfb で 18 回起こして割れを探し、一時の試験（desktop/tests/zz_g3111_tmp.rs。採点の後に消した）で取り込みの確かめを見た",
+ "rounds": [],
+ "built": {
+  "name": "作った後（版 3.111.0・commit 9104432＋b697c01。src/boot.rs〈window_ready・decide・failed_blocks〉・main.rs の start／await_beat／settle・Supervisor::now と Python の無い係・Lot::heartbeat と access_read から alive を外す・Lot::page の既定の形・update::validate_window〈stage_release・distribute::place〉・FAILED.json の why・presence の python／pythonDown・selftest.js の okw と包み・verify.py の 4／4b／4c／local・事例の表 boot_cases.json・app.js の setPython／loadMe／paintMeUnknown）",
+  "images": "画面に出ない改良なので画像は無い（自分で流した試験・本物の窓の台本・一時の試験で再現した割れ・読んだコードで採点した）。割れ 1 の空の画面は台本が撮った scratchpad/g3111/keep/run-badconf/shot-end.png・run-pybroken_delay03/shot-end.png（記録も同じフォルダの desktop.log）。画面の見た目は別の係（2026-11-stage2b-ui.json）",
+  "evaluator": "案を作っていない採点者（別のエージェント・2026-11-13）",
+  "measured": {
+   "cargo": "CARGO_TARGET_DIR=/home/user/LotScope/desktop/target cargo test --locked --test boot_cases → 3 passed（boot_decides_like_the_table・failed_marks_like_the_table・the_real_program_is_ready）。cargo test --lib -- update:: distribute:: boot:: sidecar:: presence:: lot::tests → 56 passed（lot::tests 38 を含む: the_window_answers_the_heartbeat_and_presence・the_window_writes_access_masters・the_window_draws_the_page_without_python ほか）。cargo test --bins -- sidecar:: router:: → 11 passed（a_missing_python_is_down_and_the_heartbeat_keeps_kicking を含む）。--test presence_parity 1 passed・--test access_parity 6 passed。どれも終了コード 0",
+   "python": "cd program && python -m unittest tests.test_access tests.test_version tests.test_brand → Ran 47 tests・OK（test_fleet_counts_pcs_whose_python_is_stopped を含む）",
+   "delegates": "python program/tools/delegate-count.py 作業フォルダ --check → 計 19（本文 1・OS 6・engine=python 5・束 4＋2＋1・正規表現 1）・『予算と同じです』・終了コード 0",
+   "window_runs": "本物の窓（作業場所の debug を組み直した物。xvfb 1728x1152）を installed（TPA_PROGRAM_DIR＝作業場所/app/program）＋update/applied.json（3.110.0 → 3.111.0）＋update/old/program で起こした（入口の exe は置かないので、戻した後の開き直しは『控えへ戻せないので、この版のまま』と記録されるが、FAILED.json と applied.json の消え方は本物と同じ）。結果: (1) badconf（配った設定が JSON でない。事例の表が『戻さない』と決めた形）→ 60 秒で『BOOT 画面 Late・Python down → revert』・FAILED.json に 3.111.0（why『画面の JS が 60 秒たっても起きません』）・画面は見出しと知らせの段だけの空（2 回とも）。(2) nopy（TPA_PYTHON を無い道・PATH から外す）→ 1.25 秒で BEAT・confirm・FAILED なし。(3) nanconf_slow（配った設定に NaN＝窓は束を組めず Python は読める＋Python が 140 秒眠る）→ 120.17 秒で BEAT（画面の JS は /api/config の答えを Python に 120 秒待った）・confirm。(4) nanconf_exit70（同じ設定で Python が 70 秒眠ってから終わる）を 4 回同時に → 3 回が『Late・Python down → revert』で FAILED、1 回だけ Beat が先。(5) nanconf_ready70（70 秒眠ってから起きる）を 3 回 → 3 回とも Beat が先で confirm。(6) pybroken_delay（Python だけ壊れた版。sidecar.py が 0.3／0.8／1.5 秒眠ってから SystemExit）→ 0.3 秒は revert＋FAILED と空の画面（もう 1 回流しても同じ）、0.8・1.5 秒は confirm。(7) 自己診断（TPA_SELFTEST・開発の形・配った設定が JSON でない）→ 『画面のエラーが無い』が ReferenceError: Cannot access 'tabEls' before initialization、『起動が終わる』60.1 秒で NG。(8) 作業場所の写しの app.js の 694 行だけを queueMicrotask(() => setPython(...)) に替えて (1) と (6) の 0.3 秒を流し直す → どちらも 1.0 秒で BEAT・confirm・FAILED なし（直さない写しの 0.3 秒は同じ時に流して revert）",
+   "repro": "一時の試験（desktop/tests/zz_g3111_tmp.rs。採点の後に消した）: 本物の program の写しを次の版の形に変えて da_core::boot::window_ready を当てた（取り込みの update::validate_window と版を置く distribute::place が呼ぶ物）。(a) 画面の型に <script>window.TPA_NEW = {{ new_thing|tojson }};</script> を足す → Broken template『画面を描けません』。(b) {% if brand %}…{% endif %} を足す → template『窓の読めない書き方』。(c) config/appsettings.example.json を消す → defaults。(d) {{ brand.name|upper }} を足す → template。(e) master_defaults に {\"schema\": 2, \"items\": {…}} を足す → defaults。3.110.0 までの窓は (a)(b)(d) を Python に描かせて開いた（Lot::page の『画面の型・指紋』は Python へ回す）",
+   "code_reading": "diff の全部（boot.rs・main.rs の start／await_beat／python_fact／settle／band・sidecar.rs の Supervisor::now／has_python／with_retry・router.rs の python_now・lot.rs の page／access_read／heartbeat・presence.rs の PythonNow／set_python／mark／fleet・update.rs の validate_window／mark_failed／revert・distribute.rs・selftest.js・verify.py・app.js・master.js・shared.js・presence.py・boot_cases.json と boot_cases.rs・RUST_PORT_PLAN.md）。first_fixes 12 の入り方を 1 つずつ見た（not_cracks）"
+  },
+  "cracks": [
+   {
+    "name": "1. 中身（Python）が画面の読み込みの途中で終わると、app.js が読み込みのうちに落ち（tabEls の TDZ）、画面が空のまま心拍も来ない → 入れ替えた直後なら 60 秒で前の版へ戻して FAILED（案 B のいちばんの狙い『環境の失敗で戻さない』が、採点者の測りの badconffresh そのものの形で破れる）",
+    "where": "program/app/static/js/app.js:694（読み込みのときに if (window.__tpaPython) setPython(window.__tpaPython)）→ 595 setPython → 639 paintPython → 662 fitTabs() → 1311 tabEls()。tabEls は 1279 行の const で、694 行の時点では初期化前（ReferenceError）。投げると app.js の残り（1873 行の boot() まで）が走らない。desktop/src/main.rs:672-684（sup.on_changed が band(&w, r.err()) で window.__tpaPython を置く）は画面の読み込みの途中にも来る",
+    "path": "Python が起動から約 0.3〜1 秒で終わる（配った設定が JSON でない＝JSONDecodeError・Python だけ壊れた版で Windows のように起動が遅い・import の失敗）→ その時、窓は画面の HTML を読み込み中 → on_changed の band が新しい頁に window.__tpaPython＝stopped を置く → app.js の 694 行が setPython → paintPython → fitTabs → tabEls の TDZ で落ちる → boot() が走らず、/api/config・権限・心拍が無い。画面は見出しと『中身（Python）が止まっています』の段だけの空（札は『確認中』・出さないタブも『マスタ管理』も出たまま）。入れ替えた直後なら await_beat が 60 秒で Late・Python down → revert（FAILED.json は消えないので、この PC はその版を二度と取り込まない）。入れ替えた直後でなくても、その起動の画面は使えない（読み直せば on_page_load の Finished の後の band なので直る）。Python が画面より先に（0.3 秒より前に）終わる・後に終わる形は通る（verify の 4b・local がたまたま通る理由）",
+    "repro": "measured.window_runs (1)(6)(7)(8): badconf を installed＋applied.json で 2 回 → 2 回とも 60.07 秒で revert・FAILED.json に 3.111.0・空の画面（keep/run-badconf/shot-end.png）。Python だけ壊れた版の 0.3 秒 → 2 回とも revert（0.8・1.5 秒は通る）。自己診断で ReferenceError: Cannot access 'tabEls' before initialization。694 行だけを queueMicrotask に替えた写しでは両方 1.0 秒で confirm",
+    "fix": "読み込みのときの setPython を boot() の中（state と DOM の部品が揃った後。例: startHeartbeat の直前）か queueMicrotask に移す。paintPython の fitTabs も boot の後だけ呼ぶ（tabEls が使える印を見る）。確かめの試験: verify.py の update に『入れ替えた直後・配った設定が JSON でない → 戻さない・確かめの印は数秒で消える』（4d）と『Python だけ壊れた版で sidecar.py が 0.3 秒眠ってから終わる → 戻さない・画面が起きる』を足し、自己診断に『読み込みの途中で中身が終わっても画面のエラーが無い』の窓だけの項目（okw）を足す。事例の表 boot_cases.json の環境の失敗の行は page＝beat を前提にしているので、本物の窓で心拍が来ることを verify で確かめる",
+    "reproduced": true
+   },
+   {
+    "name": "2. 最初の心拍の 60 秒の上限と Python の様子の移り目が競う: 画面の JS が Python を待っている（窓が束を組めず /api/config を Python に回す）間に 60 秒を過ぎ、Python が Down に移った瞬間に戻す（心拍は数百 ms 後に来る）",
+    "where": "desktop/src/main.rs:777-815（await_beat は 250 ms ごとに FIRST_BEAT と python_fact を見て decide）・desktop/src/boot.rs:180-181（Late は Starting の間だけ待ち、それ以外は Revert）。app.js:203-222（boot は await fetch(\"/api/config\") の後に startHeartbeat）・desktop/src/lot.rs:480-483（config_route は束を組めなければ None → Python へ回す。起こしている最中は最大 125 秒待つ）",
+    "path": "配った設定に窓の読めない字（NaN・Infinity・入れ子 128 段・ほか text_split の形。Python は読む＝任せる歩として予算にある環境）＋ Python の起動が 60 秒を超えてから失敗（start_wait 120 秒で切れる・遅れて落ちる）→ 画面の JS は /api/config の答えを待ったまま 60 秒を越え、Late・Starting で待つ → Phase が Down になった瞬間、/api/config は 503 で返り JS が心拍へ進むが、await_beat の次の見回り（最大 250 ms）が先に Late・Down を見て revert・FAILED。Python の準備が遅いだけの環境（Windows の Defender の初回走査）の失敗を版の壊れに数える形が、事例の表の『戻さない』と逆に残る。Late・Ready（Python が 60 秒を超えてから起きる）も同じ競いの形（3 回では Beat が先）。Python が起きていて答えが 60 秒より遅い（重い問い合わせの後ろに並ぶ）ときも同じ",
+    "repro": "measured.window_runs (4): nanconf_exit70 を 4 回同時に → 3 回が『BOOT 画面 Late・Python down ms=70070〜70076 → revert』の後に同じ秒で『BEAT 画面の最初の心拍』（FAILED.json に 3.111.0）、1 回は Beat が先。(3) の 140 秒（120 秒で Down）は Beat が先だった。(5) の起きる形は 3 回とも Beat が先",
+    "fix": "Late を『Python の様子が変わってから一定の間（例 15 秒）変わらないのに心拍が無い』に替える（decide の材料に python が今の様子になってからの長さを足し、事例の表に『Down に移った直後は待つ』『Ready に移った直後は待つ』を足す）。または上限の時計を画面の JS が /api/config の答えを受けた（窓が答えた・Python から返した）時から数える。どちらでも、BEAT_LIMIT で戻すのは画面の JS の壊れだけに絞る。lot::tests か boot の試験に、Down へ移る時刻と心拍の時刻を差し替えた時計で並べる場面を足す（今の decide は時刻を持たないので変異で落とせない）",
+    "reproduced": true
+   },
+   {
+    "name": "3. 取り込みと版を置く確かめ（validate_window）が『いまの窓の読み方』で次の版の program を見るので、次の版が画面の型や同梱の既定の形を広げると、3.111.0 からの窓は全員その版を取り込めず、配る人も置けない（前へ進めない）",
+    "where": "desktop/src/update.rs:129-131・256（stage_release の validate_dist の続きで validate_window）・desktop/src/distribute.rs:98（版を置くとき）・desktop/src/boot.rs:62-115（window_ready はいま動いている exe の page::Template::parse・Page::index・parse_master・bundle::read_config・指紋の 13 字を使う）",
+    "path": "次の版（例 3.112.0）が、新しい exe の窓だけが埋める値を画面の型に {{ x|tojson }} で足す・{% %} を使う・フィルタを足す・段 ④ で config/appsettings.example.json を移す・master_defaults に新しい形を足す → 3.111.0 の窓の stage_release が『窓が開けない版です』で断り続ける（起動の launch_check も裏の確かめも）。配る人が 3.111.0 の配布の画面で置こうとしても distribute::place が断る。その版の新しい exe なら描ける（起動のときの window_ready は新しい exe が当てるので正しい）のに、古い exe の決まりで止める。3.110.0 までは、窓が描けない型は Python に描かせて開いていた（Lot::page の理由『画面の型・指紋』）。直す道が無い（手で置き場に置いても全員の窓が断る）",
+    "repro": "measured.repro: 一時の試験で (a) 新しい tojson の値・(b) {% %}・(c) 設定の見本を移す・(d) 新しいフィルタ・(e) 新しい形の既定のどれも window_ready が Broken（template・defaults）",
+    "fix": "取り込みと置く確かめでは、次の版の exe が今の exe と同じ（sha256 が同じ＝同じ窓の決まり）ときだけ validate_window を当て、違えば validate_dist だけにして起動のとき（新しい exe の window_ready）に任せる。または次の版の exe に確かめさせる（新しい exe を --window-ready <program> で起こし終了コードを読む）。update.rs の試験に『exe が違う版の型に今の窓の読めない値がある → 取り込む』『exe が同じで型が無い → 断る』を足し、distribute.rs も同じ",
+    "reproduced": true
+   },
+   {
+    "name": "4. 窓が束を組めない（配った設定が窓の読めない字）PC では、起動のたびの最初の画面が『既定の形』（空の変換表・共有の表示の初期値なし）になり、Python が描ける画面と食い違う",
+    "where": "desktop/src/lot.rs:420-433（inputs が Err で !alive() なら既定の形で描く）・desktop/src/main.rs:330（alive に backend.ready_now() を渡す。画面は Python の準備を待たずに 0〜2 ms で開くので、起動の最初はいつも偽）",
+    "path": "配った設定に NaN など（Python は読み、束の材料は Python に任せる歩＝予算 19 のうち束 4）→ 起動の最初の GET / は ready_now が偽 → 3.111.0 で足した腕が TPA_CONVERSIONS＝{items: []}・TPA_UI_PROFILE の defaults＝{} の画面を描く。conversions.js は埋めた表で始まり（127 行）、マスタの変換表を開くまで読み直さないので、その起動の間 conv('釜番日付') などの式と同梱の変換表を当てる列が空、共有の表示の初期値も当たらない。3.110.0 は同じ形で Python に描かせた（約 0.8 秒待って同じ画面）。lot::tests は page(false, &|| true) と &|| false しか見ず、起動の最初の『Python を起こしている最中』を通らない",
+    "repro": "コードで確かめた（measured.window_runs (3)(4)(5) の nanconf の窓は 0 ms で画面を開き、記録に PAGE python が無い＝窓が描いた。画面の中身は撮っていない）",
+    "fix": "既定の形に落とすのは Python が止まっている（python_now が stopped）ときだけにし、起こしている最中は前と同じく Python に回す（画面の確かめの上限は割れ 2 の直し方で Python の移り目を待つ）。lot::tests に『束の材料を組めず Python は起こしている最中 → None（Python が描く）』を足す",
+    "reproduced": false
+   },
+   {
+    "name": "5. 確かめの試験が割れ 1・2 を通してしまう: 事例の表は環境の失敗の行で page＝beat を前提にし、verify.py の 4b・4c の『確かめの印は最初の心拍で消えた』は自己診断の心拍でも通る",
+    "where": "program/tests/fixtures/boot_cases.json（『配った設定が JSON でない: Python はすぐ終わったが画面の心拍は来た』など。window_ready と decide だけを見て、画面が本当に心拍を送るかは見ない）・desktop/src/main.rs:319-325（FIRST_BEAT はどの POST /api/heartbeat でも立つ）・desktop/src/selftest.js（3 の項で /api/heartbeat を送る）・desktop/bundle/verify.py の 4b・4c（TPA_SELFTEST で起こす）",
+    "path": "verify.py の通しは自己診断の形で窓を起こすので、app.js が落ちて心拍を送らなくても、注入した自己診断が送る心拍で FIRST_BEAT が立ち、確かめの印が消える（『画面の JS が壊れた版を戻す』も『画面が起きた』も見分けられない）。配った設定が JSON でない入れ替えた直後の形は verify に無い。採点者の測りの badconffresh（案の採点で『いちばん大きい利点』とした形）を本物の窓で流した確かめが無かったので、割れ 1 が通った",
+    "repro": "コードで確かめた（自己診断は on_page_load の Finished で注入され、3 の項で POST /api/heartbeat を送る。割れ 1 の形でも自己診断の心拍は届く: measured.window_runs (7) の『心拍は窓が答える … 503 shell』）",
+    "fix": "自己診断の心拍は見出し（例 X-TPA-Selftest）で印を付け、FIRST_BEAT に数えない（記録の BEAT に送り手を書く）。verify.py に 4d（入れ替えた直後・配った設定が JSON でない → 戻さない）と 4e（画面の JS が壊れた版 → 60 秒で戻す。app.js に構文の誤り）を足し、事例の表の環境の失敗の行は verify の場面の名前を添えて本物の窓で確かめた印にする",
+    "reproduced": false
+   },
+   {
+    "name": "6. 権限の fail-closed が『読めなかった後』だけで、読んでいる最中（窓が名乗りを決められず Python を起こしている間、最大 125 秒）は出さないタブを出す（first_fixes 3 の『まだ 1 度も読めていなければ出さない』からずれた）",
+    "where": "program/app/static/js/app.js:276（tabHidden は state.me が無ければ meUnknown の時だけ隠す）・238-250（loadMe は 503 が返ってから paintMeUnknown）",
+    "path": "窓が束を組めない設定（割れ 2・4 と同じ環境）で Python を起こしている間、/api/access/me は Python へ回って最大 125 秒返らない → その間、一般ユーザーにも出さない決まりのタブ（計算・実績・データ元）が出て押せる（書き込みは窓の門番が断るので、データの書き換えには届かない）。窓が名乗りを決められる環境（いつもの形）では数 ms なので出ない",
+    "repro": "コードで確かめた（measured.window_runs (3) の nanconf_slow では画面の JS が /api/config を 120 秒待ち、その後に loadMe が走る）",
+    "fix": "tabHidden は state.me が無い間はいつも決まりのあるタブを隠し（読み込みの間も fail-closed）、出すのは me を読めた後にする。ui-eval か自己診断に『権限を読むのを遅らせた間も出さないタブが出ない』を足す",
+    "reproduced": false
+   },
+   {
+    "name": "7. PC に Python が無いときも 30 秒ごとに起こし直し、心拍の答えが『starting』に 1 回替わる（知らせの段が『起きるのを待っています…』に替わって［もう一度起こす］が消え、利用状況の印も様子が替わるたびに書き直す）",
+    "where": "desktop/src/sidecar.rs:592-607（Supervisor::now は RETRY_AFTER を過ぎると kick して starting と答える。has_python が偽でも同じ）・desktop/src/presence.rs の set_python（様子が替わると last_write を 0 にして次の心拍で書く）",
+    "path": "locate::python が失敗した係（py が Err）は起こしても必ず同じ理由で Down になるのに、30 秒ごとに起こし直しの糸を立て、その間の心拍は starting を返す → 画面の段と札がその都度描き直され、利用状況のファイルも 30 秒に 2 回書き直す。記録にも BACKEND が 30 秒ごとに並ぶ（measured.window_runs (2)）",
+    "repro": "measured.window_runs (2) の記録で BACKEND 起こせません: Python が見つかりません が 30 秒ごと。now の分岐はコードで確かめた",
+    "fix": "has_python が偽の係は now で kick せず stopped と理由を返す（［もう一度起こす］の retry だけが PATH を探し直す＝locate::python をやり直す形にする）。sidecar の試験 a_missing_python_is_down_and_the_heartbeat_keeps_kicking の期待をそれに合わせて直す",
+    "reproduced": true
+   }
+  ],
+  "not_cracks": [
+   "first_fixes 1（Python が無くても窓を開く）は入っている: start の locate::python の失敗で splash.fail せず、py を Err のまま Supervisor に渡し、起こすたびに理由で Down。verify.py の local は TPA_PYTHON を無い道にし PATH も空のフォルダにする。採点者の nopy（installed＋applied.json）でも 1.25 秒で画面の心拍・confirm",
+   "first_fixes 2（止まった中身の起こし直し）は入っている: 心拍の python は Supervisor::now で、Up が死んでいれば busy が偽になり kick する（Phase::Up(s) if s.is_alive の外は busy でない）。起こせなかった直後の RETRY_AFTER の間は起こさない（前と同じ）。sidecar の試験で 150 ms の間を過ぎると心拍の問いだけで 2 回目を起こす",
+   "first_fixes 4 の『起動の窓の準備は残す・(c) は作業場所・共有・配った設定を読まない』は入っている（window_ready が読むのは program の version.py・brand.json・templates・static・master_defaults・config/appsettings.example.json だけ。事例の表の共有に届かない・権限の表が壊れた・配った設定が JSON でないは window ok）。割れは取り込みで当てる時の決まりの版ずれ（割れ 3）だけ",
+   "first_fixes 5（事例の表と純粋な決め）は入っている: boot_cases.json 31 件・印 5 件、必ず入れる 11 の名前を試験が確かめる。decide は Facts → [Act] の純粋な関数で、boot::tests::python_never_reverts が Python の様子だけで決めが変わらないことを見る",
+   "first_fixes 7（2 台の PC）: 利用状況の印に python {state, why}（起きていれば書かない＝前の版と同じ形・様子が替われば WRITE_INTERVAL を待たずに書く）、fleet の python・pythonDown が窓と Python で同じ（presence_parity が通る）。前の版の Python の読み手は知らない鍵を無視する（test_access の test_fleet_counts_pcs_whose_python_is_stopped）。配布の画面の 1 行は masterRequest('/api/presence') が 403 なら出さない",
+   "first_fixes 8（既に FAILED に入った版）: failed_blocks は理由の無い印も止める、と決めて事例の表に書いた。3.110.0 までの窓が環境の失敗で印を付けた版はその PC で飛ばされるが、次の版は取り込めるので永くは止まらない。前の窓は versions の並びだけを読み、mark_failed は why を残して versions を足す（the_failed_mark_keeps_the_old_list_and_adds_why）",
+   "first_fixes 9（自己診断）: ok と okw に分け、中身が起きていなければ ok を包みに数えて飛ばし、待ちの輪（pyWait）を回さない。infoReady は program_version。verify.py の WINDOW_ONLY と食い違えば local が落ちる。作った者の check-all（09-verify・10-verify-local）は全部 PASS",
+   "first_fixes 10・12（段 ④ の印・範囲外）は boot.rs の頭と RUST_PORT_PLAN.md の 3.111.0 の節に書いてある（validate_dist・revert・staged・dist_root・plan・locate の sidecar.py の印／exe が替わった窓の panic）",
+   "first_fixes 11 の Windows の型: install::maintain の呼ぶ時が変わる所は、作った者が lnk.rs・install.rs・update.rs を小さな作業用クレートに写して x86_64-pc-windows-msvc で確かめた跡がある（scratchpad/d3111/wincheck）。採点者は流し直していない",
+   "Python が遅いだけ（設定は窓が組める）の入れ替えた直後は戻さない: verify 4c（30 秒）と採点者の nanconf_ready70・nanconf_slow で画面の心拍が先に来て confirm。前の版の『スプラッシュのまま 120 秒 → 戻す』は無くなった",
+   "Python の様子が戻しの理由にならないこと（decide）・窓の準備が通らない版は画面を開く前に戻すこと・戻せないとき（控えが無い）はその版のまま開くこと・applied.json が残る起動も確かめ直すことは、コードと事例の表で正しい",
+   "心拍の答え: 設定を組めて me が決まれば Python の様子によらず 200・python を添える。設定を組めず Python が止まっていれば 503（窓は me を決められない）、起こしている最中なら Python に回す、は lot::tests の通り。FIRST_BEAT は答えの前に立つので 503 でも心拍の合図になる",
+   "access_read は alive を見ない: 窓が me を決められれば Python が止まっていても 200。決められなければ Python へ回して 503（画面は fail-closed の『権限 ?』）。access_parity・the_window_writes_access_masters が通る",
+   "master.js の openMaster は 503 の本文を me にしない（前の me か TPA.me を保つ）。shared.js の openSkip の was は振る舞いの変わりが無い（焦点の札だけ）",
+   "任せる歩は 19 で予算と同じ（この版は任せる歩を動かさない）"
+  ],
+  "result": {
+   "score": {
+    "order": 7,
+    "chunk": 7,
+    "hierarchy": 7,
+    "visual": 6,
+    "steps": 6,
+    "effortless": 5,
+    "intuitive": 5,
+    "form": 7,
+    "place": 7,
+    "layout": 7,
+    "tone": 6
+   },
+   "minus": [
+    {
+     "kind": "lost",
+     "where": "割れ 1（measured.window_runs (1)(6)(7)）: Python が画面の読み込みの途中で終わると app.js が tabEls の TDZ で落ち、画面が空（keep/run-badconf/shot-end.png）。入れ替えた直後なら 60 秒で戻して FAILED（配った設定が JSON でない 2/2・Python だけ壊れた版の 0.3 秒 2/2）"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 2（measured.window_runs (4)）: 窓が束を組めない設定で Python が 60 秒を超えてから Down になると、心拍の数百 ms 前に戻して FAILED（4 回中 3 回）。画面にも記録にも『遅いだけ』とは出ず、印は消えない"
+    },
+    {
+     "kind": "hidden_state",
+     "where": "割れ 3（measured.repro）: 次の版の画面の型・同梱の既定の形を今の窓の決まりで断るので、新しい exe なら開ける版を 3.111.0 からの窓が全員取り込めず、配る人も置けない。理由は『窓が開けない版です』とだけ出る"
+    }
+   ],
+   "seen": "狙い（起動の確かめを Python の準備から窓の準備と画面の合図へ移し、心拍と権限の読む 2 本を Python の生死から外し、Python が無くても窓を開く）の作りは筋が通っている: boot.rs の純粋な決めと人が書いた事例の表・Supervisor::now の kick・Python の無い係・利用状況の python と pythonDown・自己診断の okw と包み・verify の 4／4b／4c／local が入り、関係の cargo 試験・Python の試験・presence_parity・access_parity・任せる歩の予算が通る。first_fixes 12 のうち 1・2・5・7〜12 は入り、3・4 は半分（割れ 3・6）。採点者が本物の窓で測ると、いちばんの狙いの『環境の失敗で戻さない』が、案の採点で測った形そのもの（入れ替えた直後・配った設定が JSON でない）で破れる: Python が画面の読み込みの途中で終わると app.js の読み込みのときの setPython が tabEls の TDZ で落ち、画面が空で心拍も来ず、60 秒で戻して FAILED に入る（割れ 1。1 行の直しで消えることも確かめた）。窓が束を組めない設定では、60 秒の上限と Python の移り目が競って遅いだけの PC を戻す（割れ 2）。取り込みの確かめは古い exe の決まりで次の版を見るので、型を広げた版で全員が前へ進めなくなる（割れ 3）。どれも事例の表と verify が『画面は心拍を送る』『同じ窓が確かめる』を前提にしていて見ていなかった（割れ 5）"
+  }
+ },
+ "built_fixed": {
+  "name": "作った後の採点（47.3 点）の割れ 7 つを根から直した（決まり 2026-11-06: 採点し直さない）。版は 3.111.0 のまま（app_build.py --release --amend）",
+  "fixes": [
+   "割れ 1（読み込みの途中に中身が終わると app.js が tabEls の TDZ で落ち、画面が空・心拍が来ず戻して FAILED）: app.js の読み込みのときの setPython(window.__tpaPython) を外し、中身の様子を描くのは boot() の頭（pyBoot）から。setPython は boot の前は様子を覚えるだけ（pyBooted）。読み込みのときに走る文を洗い出し、同じ形の早すぎる呼び出しはほかに無い（loadSources は await の後に触る）",
+   "割れ 2（60 秒の上限と Python の移り目が競う）: 上限の時計を『画面の JS が答えを待っている間』は進めない形にした。boot::page_of（純粋な関数）が、画面を開いてから・/api/config を最初に尋ねてから・最後に答えてからの長さで Waiting／Late を決める: 開いて 60 秒の内は待つ・答えてから AFTER_CONFIG（15 秒）は待つ・尋ねて答えが無い間は ASK_LIMIT（600 秒）まで待つ・尋ねもしない（app.js が読み込みで落ちた）か答えの後に心拍が来ない（boot が答えの後で落ちた）ときだけ Late。decide の Late は Python の様子を見ずに戻す（答えを待つ間は page_of が Waiting にする）。時計は main.rs のプロトコルの受け口（watch_request）が数える",
+   "割れ 3（取り込み・版を置く確かめが今の exe の決まりで次の版を見る）: update::validate_window は、配る形の exe がこの PC の窓（app の exe）と sha256 で同じときだけ窓の準備を当てる。exe が替わる版は新しい窓の起動のときの確かめ（窓の準備・画面の最初の心拍）に任せる（取り込み stage_release と版を置く distribute::place の両方）",
+   "割れ 4（窓が束を組めない設定の PC で、起動のたびの最初の画面が既定の形）: Lot::page は中身の様子の字（ready・starting・stopped）を受け、束の材料を組めない形で既定の形に落とすのは stopped のときだけ。起こしている最中は None（main.rs の GET / は中身の準備を最大 130 秒待ってから描き直す: 起きれば Python が描く・止まれば窓が既定の形で描く。3.110.0 と同じく待って描く）",
+   "割れ 5（試験の穴）: 自己診断の心拍に見出し X-TPA-Selftest を付け、窓は最初の心拍の合図（FIRST_BEAT）に数えない（プロトコルの受け口で数える）。自己診断は app.js が読み込みで落ちた頁（boot が無い）では 150 秒待つ（窓が戻して開き直した後の窓が結果を書く）。verify.py に 4d（入れ替えた直後に配った設定が JSON でない → 戻さない・確かめの印が消える・画面の JS が落ちない）と 4e（app.js に構文の誤りの版 → 60 秒で戻す・理由つきの印）を足した。boot_cases.json の『画面の心拍は来る』を前提にした環境の行と画面の JS の壊れの行に verify の場面の名前を添え、試験が verify.py にその場面があるかを見る",
+   "割れ 6（権限の fail-closed が読んでいる最中に効かない）: tabHidden は me をまだ読めていなければ（読んでいる最中も）決まりのあるタブを隠す。最初の画面は me が読めてから開く（pendingScreen。読めなければ開ける画面へ）",
+   "割れ 7（Python が無い PC で 30 秒ごとに起こし直し、心拍の答えと段が starting へ揺れる・利用状況を書き直す）: Supervisor::now は、PC に Python が見つからない係（一度起こして理由を持った後）では起こし直さず stopped と理由を返す。「もう一度起こす」（retry）だけが locate::python で探し直す（入れた後に押せば起きる）",
+   "Windows の CI（desktop.yml の verify 4e）で見つけた割れ: 画面を開いた後の戻し（boot::page_of の Late）は、中身の Python（作業フォルダが app\\program）が app を掴んだまま名前を替えようとして、Windows で断られていた（Linux は替えられる）。update::revert は入れ替えの前に印を付けて applied.json を消していたので、FAILED の印だけが残り壊れた版のまま開いた。→ update::revert_running が先に app を掴む物（Supervisor::stop で本物の Python が終わるまで・LotDsp の見えない Edge）を止め、入れ替えられるまで 15 秒やり直す。revert は入れ替えが済んでから印を付けて applied.json を消す（入れ替えられなければ何も変えず、次の起動でやり直す。控えが無いときだけ印を付けて消す）"
+  ],
+  "tests": [
+   "boot_cases.json に clock の形（boot::page_of の時刻）7 件と verify の場面の名前（4b・4c・4d・4e・local）を足した（38 件）。afterConfigSec・askLimitSec を表に置き、試験が boot.rs の定数と同じかを見る。変異: 答えの後を待たない（M6）・答えを待つ間も時計を進める（M7）で表の試験が落ちる",
+   "update::tests::staging_refuses_a_version_the_window_cannot_open（同じ exe の版は断る・exe が替わる版は型を広げても取り込む 3 形）・distribute::tests::a_version_the_window_cannot_open_is_refused_only_with_the_same_exe。変異: exe を比べない（M8）で 2 つとも落ちる",
+   "lot::tests::the_window_draws_the_page_without_python に束の材料を組めない PC の 3 形（starting → None・ready → None・stopped → 既定の形）",
+   "sidecar::tests::a_missing_python_is_down_and_the_heartbeat_keeps_kicking を『見つからない係は心拍で起こし直さない・揺れない』に直し、a_stopped_python_is_kicked_by_the_heartbeat_after_the_wait（PC に Python があって終わった係は間の後に心拍で起こし直す）を足した",
+   "desktop/bundle/verify.py の update の 4d・4e（本物の窓）",
+   "program/tools/ui-eval-pydown.mjs の ⑭（読み込みの途中に中身が止まった知らせ〈window.__tpaPython〉が来ても画面のエラー無しに起きる）・⑮（権限の答えを遅らせた間も決まりのあるタブを出さない・読めたら最初の画面）",
+   "update::tests::a_running_revert_stops_the_users_of_app_first_and_changes_nothing_until_it_can_swap（掴みを『入れ替え先の空でないフォルダ』で差し替える: 掴まれたままは何も変えない・止めれば戻す・控えが無ければ印を付けて消す）。変異: 止めずに戻す（前の形）・入れ替える前に印を付ける（前の形）で落ちる"
+  ]
+ }
+}

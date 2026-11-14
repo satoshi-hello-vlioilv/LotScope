@@ -308,8 +308,34 @@ pub fn online_in(master_dir: &Path, now: NaiveDateTime) -> Option<Vec<Value>> {
     Some(seen.into_iter().map(|(pc, login)| json!({"pc": pc, "login": login})).collect())
 }
 
+/// 中身（Python）の様子（版 3.111.0。心拍の答えの python と、利用状況のいま使っているの印に書く物）。
+/// state は ready・starting・stopped（/api/health と同じ字）。why は止まった理由の短い字
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PythonNow {
+    pub state: &'static str,
+    pub why: String,
+}
+
+impl PythonNow {
+    pub fn ready() -> PythonNow {
+        PythonNow { state: "ready", why: String::new() }
+    }
+    /// 利用状況に書く形（起きていれば書かない＝前の版の印と同じ形。Python が書く印もこの形）
+    fn mark(&self) -> Option<Value> {
+        (!self.state.is_empty() && self.state != "ready")
+            .then(|| json!({"state": self.state, "why": self.why.chars().take(200).collect::<String>()}))
+    }
+}
+
+/// いま使っている PC の印の python が「止まっている」か（配布の画面の「中身の起きない PC」。Python の presence._python_down と同じ）
+pub fn python_down(v: Option<&Value>) -> bool {
+    v.and_then(|p| p.get("state")).and_then(Value::as_str) == Some("stopped")
+}
+
 pub struct Presence {
     clock: Clock,
+    /// 中身（Python）の様子（心拍のたびに置く。版 3.111.0）
+    python: Mutex<PythonNow>,
     local_root: PathBuf,
     dir: Mutex<Option<PathBuf>>,
     st: Mutex<State>,
@@ -326,6 +352,7 @@ impl Presence {
     pub fn new(local_root: PathBuf, clock: Clock) -> Presence {
         Presence {
             clock,
+            python: Mutex::new(PythonNow::ready()),
             local_root,
             dir: Mutex::default(),
             st: Mutex::default(),
@@ -354,6 +381,15 @@ impl Presence {
             *self.version.lock().unwrap() = v;
         }
         self.version.lock().unwrap().clone()
+    }
+
+    /// 中身（Python）の様子を置く（心拍のたびに。次に書くいま使っているの印に入る）
+    pub fn set_python(&self, now: PythonNow) {
+        let mut cur = self.python.lock().unwrap();
+        if cur.state != now.state {
+            *self.last_write.lock().unwrap() = 0.0; // 様子が替わったら、次の心拍で WRITE_INTERVAL を待たずに書き直す
+        }
+        *cur = now;
     }
 
     /// 置き場（一覧の設定の access.place.presence。マスタの置き場が移れば付いてくる）
@@ -682,8 +718,12 @@ impl Presence {
         if st.since.is_none() || st.session_key.as_deref() != Some(key) {
             st.since = Some(now_s.clone());
         }
-        let doc = json!({"key": key, "login": login, "pc": pc, "role": role, "version": self.app_version(),
-                         "since": st.since, "at": now_s});
+        let mut doc = json!({"key": key, "login": login, "pc": pc, "role": role, "version": self.app_version(),
+                             "since": st.since, "at": now_s});
+        // 中身（Python）が起きていなければ様子を添える（版 3.111.0。配る人が「中身の起きない PC」を数える。前の版の読み手は知らない鍵を読まない）
+        if let Some(py) = self.python.lock().unwrap().mark() {
+            doc["python"] = py;
+        }
         let ok = match under(&dir, key, ".json") {
             Some(p) => self.write(&p, &doc),
             None => false,
@@ -853,6 +893,14 @@ impl Presence {
         json!({"version": self.version_notice(me["flags"]["role"].as_str().unwrap_or("")), "revoked": me["revoked"]})
     }
 
+    /// 心拍の答え（窓。版 3.111.0）: answer に中身（Python）の様子を添える
+    pub fn answer_with_python(&self, me: &Value) -> Value {
+        let mut v = self.answer(me);
+        let py = self.python.lock().unwrap().clone();
+        v["python"] = json!({"state": py.state, "why": py.why});
+        v
+    }
+
     /// 利用状況の画面の中身（presence.fleet）
     fn fleet(&self, rows: &[Map<String, Value>]) -> Value {
         let mut online: Vec<(String, Map<String, Value>)> = vec![];
@@ -896,6 +944,7 @@ impl Presence {
                 "versions": h.get("versions").cloned().unwrap_or(json!({})), "counted": counted,
                 "outdated": counted && behind(latest.as_deref(), &text(Some(&ver)), dist),
                 "revoked": revocation(dir.as_deref(), k, now),
+                "python": o.and_then(|o| o.get("python")).cloned().unwrap_or(Value::Null),
             }));
         }
         items.sort_by(|a, b| {
@@ -906,7 +955,9 @@ impl Presence {
         });
         let n_on = items.iter().filter(|x| x["online"] == true).count();
         let n_out = items.iter().filter(|x| x["outdated"] == true).count();
-        json!({"items": items, "latest": latest, "distributed": dist, "online": n_on, "outdated": n_out, "total": keys.len()})
+        let n_py = items.iter().filter(|x| x["online"] == true && python_down(x.get("python"))).count();
+        json!({"items": items, "latest": latest, "distributed": dist, "online": n_on, "outdated": n_out, "total": keys.len(),
+               "pythonDown": n_py})
     }
 
     fn disconnect(&self, key: &str, by: &str, by_pc: &str, reason: &str) -> bool {

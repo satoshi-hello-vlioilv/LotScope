@@ -94,6 +94,9 @@ pub fn place(p: &Paths, found: &Path, zip: &Path, source_name: &str, app_id: &st
             return Err("ZIP の名前の定義（brand.json の name・exe）が正しくありません".to_string());
         }
         let version = validate_dist(&root, &exe, app_id, None)?;
+        // 窓が開けない版は置かない（版 3.111.0。取り込みと同じ窓の準備。置く前に断れば、どの PC も入れ替えて戻さない）
+        // exe がこの PC の窓と同じ版だけ（exe が替わる版は新しい窓の起動のときに確かめる。update::validate_window）
+        update::validate_window(&root, &exe, &p.app().join(&exe), app_id)?;
         Ok((version, exe, name))
     })();
     let _ = std::fs::remove_dir_all(&tmp);
@@ -344,8 +347,17 @@ mod tests {
         make_zip_named(out, version, "App.exe", exe_body, app_id, &[]);
     }
 
+    /// 画面の型（app/templates/index.html）の無い配る ZIP（窓が開けない版。版 3.111.0）
+    fn make_zip_no_template(out: &Path, version: &str, exe_body: &str) {
+        make_zip_files(out, version, "App.exe", exe_body, ID, &[], &["App/program/app/templates/index.html"]);
+    }
+
     /// exe の名前と、同じ中身で置く前の名前の exe（名前の歴史）を選べる配る ZIP。
     fn make_zip_named(out: &Path, version: &str, exe: &str, exe_body: &str, app_id: &str, legacy: &[&str]) {
+        make_zip_files(out, version, exe, exe_body, app_id, legacy, &[]);
+    }
+
+    fn make_zip_files(out: &Path, version: &str, exe: &str, exe_body: &str, app_id: &str, legacy: &[&str], without: &[&str]) {
         let mut z = zip::ZipWriter::new(std::fs::File::create(out).unwrap());
         let o = zip::write::SimpleFileOptions::default();
         let mut files = vec![
@@ -354,12 +366,32 @@ mod tests {
             ("App/program/app/brand.json".into(), format!(r#"{{"app_id":"{app_id}","name":"App","exe":"{exe}"}}"#)),
             ("App/program/app/version.py".into(), format!("APP_VERSION = \"{version}\"\n")),
         ];
+        files.extend(crate::boot::min_program_files().into_iter().map(|(rel, body)| (format!("App/program/{rel}"), body.to_string())));
         files.extend(legacy.iter().map(|l| (format!("App/{l}"), exe_body.to_string())));
-        for (n, body) in files {
+        for (n, body) in files.into_iter().filter(|(n, _)| !without.contains(&n.as_str())) {
             z.start_file(n, o).unwrap();
             z.write_all(body.as_bytes()).unwrap();
         }
         z.finish().unwrap();
+    }
+
+    #[test]
+    fn a_version_the_window_cannot_open_is_refused_only_with_the_same_exe() {
+        // 版 3.111.0: 窓の準備（画面の型）は、置く版の exe がこの PC の窓と同じときだけ当てる（作った後の採点の割れ 3）。exe が替わる版は
+        // 新しい窓が描けるかもしれないので置く（新しい窓の起動のときに確かめる）
+        let d = tmp("winready");
+        let (rels, p) = (d.join("Releases"), Paths::new(&d.join("local")));
+        std::fs::create_dir_all(&rels).unwrap();
+        std::fs::create_dir_all(p.app()).unwrap();
+        std::fs::write(p.app().join("App.exe"), "今の窓").unwrap();
+        let who = Who { login: "maint".into(), pc: "PC1".into() };
+        let none = |_: &str, _: u64, _: u64| {};
+        make_zip_no_template(&d.join("same.zip"), "3.10.0", "今の窓");
+        let e = place(&p, &rels, &d.join("same.zip"), "same.zip", ID, &who, &none).unwrap_err();
+        assert!(e.contains("窓が開けない版"), "同じ exe で画面の型が無い版は置かない: {e}");
+        make_zip_no_template(&d.join("other.zip"), "3.11.0", "新しい窓");
+        assert!(place(&p, &rels, &d.join("other.zip"), "other.zip", ID, &who, &none).is_ok(), "exe が替わる版は置く");
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

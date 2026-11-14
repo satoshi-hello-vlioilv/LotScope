@@ -40,7 +40,9 @@ jobs:
 
   desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 60   # 窓の通し（約 25 分）と Rust の組み立て（控えが効かないと約 13 分）で 40 分を越えた（版 3.91.0 の PR）
+    # 版 3.111.0 で 60 → 90 分: 窓の通しに 4b〜4e と Python の無い PC の通しを足し、更新の通しが約 44 分（場面ごとに debug の窓の自己診断が 2〜4 分）になって、
+    # Rust の試験（約 11 分）・自己診断（約 3 分）と合わせて 60 分で切れた（PR #111。最後の段の Python の無い PC の通しは通った直後）。控えが効かないと組み立てで約 13 分増える
+    timeout-minutes: 90
     env:
       TPA_PYTHON: python
     steps:
@@ -95,6 +97,9 @@ jobs:
       # 更新の通し（desktop/bundle/verify.py）: 共有から写る → 裏で取り込む → 次の起動で入れ替わる → 閉じている間に置いた版に 1 回の起動で入れ替わる → 壊れた版は控えへ戻す → 配る版を戻す
       - name: 更新の通し（本物の窓・WebKitGTK）
         run: xvfb-run -a python desktop/bundle/verify.py update --exe desktop/target/debug/$(python desktop/bundle/bundle.py brand exe | sed 's/\.exe$//') --work "$RUNNER_TEMP/verify"
+      # Python の無い PC（版 3.111.0）: 作業場所の窓だけを、TPA_PYTHON を無い道・PATH から Python を外して開く → 画面を開き、窓だけの自己診断の項目が通る
+      - name: Python の無い PC の通し（本物の窓・WebKitGTK）
+        run: xvfb-run -a python desktop/bundle/verify.py local --exe desktop/target/debug/$(python desktop/bundle/bundle.py brand exe | sed 's/\.exe$//') --work "$RUNNER_TEMP/verify-local"
       - name: 記録
         if: always()
         run: tail -n 40 "$RUNNER_TEMP"/root/logs/*.log || true

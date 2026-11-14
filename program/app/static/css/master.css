@@ -814,3 +814,10 @@ table.master-table.pz-table{table-layout:auto}   /* 列の幅は中身に合わ�
 /* 道具の段は窓の上の縁に着ける（-14px は .master-settings の上の余白。前は余白の分だけすき間ができ、送った表の行が覗いた。作った後の採点） */
 .ta-top{top:-14px;margin-top:-14px;padding-top:16px}
 .ta-mx tbody tr:not(.ta-g):hover > *{background:#f6f9fd}
+
+/* 共有に届かない形（版 3.111.0。共通の決め 2）: 帯の道は末尾だけ（全部は title）・ナビは名前の下の段に「届かない」（帯と同じ言葉。語の途中で折らない） */
+.master-tabs .tab[data-tab="place"]:has(.tab-state.below){flex-wrap:wrap}
+.master-tabs .tab .tab-state.below{margin-left:0;flex-basis:100%;width:max-content;max-width:max-content}
+.master-place .place-dir.is-tail{word-break:normal;white-space:nowrap}
+/* 配布の画面の「中身（Python）の起きない PC」（版 3.111.0。見出しの下の知らせの段と同じ色の 1 行） */
+.dz-nopy{display:inline-block;margin:6px 0;padding:3px 10px;border-radius:6px;background:#fff3d6;color:#4a3700;border:1px solid #e9c46a;font-weight:700}
