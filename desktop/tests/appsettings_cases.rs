@@ -188,7 +188,9 @@ fn settings_are_read_like_the_table() {
 /// 窓は束を Python に尋ねない（版 3.112.0。採点の指摘 8・コンパイルで保つ）: 窓の中身（main.rs・lot.rs の本体）に束を尋ねる口の名前が無い
 #[test]
 fn the_window_has_no_mouth_that_asks_python_for_the_bundle() {
-    let src = |f: &str| std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join(f)).unwrap();
+    // Windows の CI の checkout は改行を CRLF にする（git の autocrlf）ので、LF にそろえてから探す（版 3.112.0）
+    let src =
+        |f: &str| std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join(f)).unwrap().replace("\r\n", "\n");
     let main = src("main.rs");
     for w in ["/api/lotlist/settings", "/api/update/settings", "lot_settings", "ask_update_settings", "AskSettings"] {
         assert!(!main.contains(w), "main.rs に {w}");
