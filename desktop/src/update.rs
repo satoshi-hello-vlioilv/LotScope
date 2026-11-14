@@ -336,14 +336,17 @@ pub fn apply_staged(p: &Paths, exe: &str) -> Result<Option<Applied>, String> {
     Ok(Some(Applied { exe_changed: exe_sum(&p.app(), exe) != before, from, to }))
 }
 
-/// 入れ替えた版が起動できなかった: その版に印を付け（理由 why）、控え（直前の版）へ戻す。→ 戻した版（戻せなければ None）。
-/// 版 3.111.0 から決めるのは窓の準備と画面の合図（src/boot.rs）。控えを「中身がある」と見る印の program/sidecar.py は段 ④ で替える
+/// 入れ替えた版が起動できなかった: 控え（直前の版）へ戻し、その版に印を付ける（理由 why）。→ 戻した版（戻せなければ None）。
+/// 版 3.111.0 から決めるのは窓の準備と画面の合図（src/boot.rs）。控えを「中身がある」と見る印の program/sidecar.py は段 ④ で替える。
+/// 印を付けて入れ替えた直後の印（applied.json）を消すのは、入れ替えが済んでから（版 3.111.0 の Windows の CI で見つけた）: app を掴む物
+/// （中身の Python は作業フォルダが app\program）が居て名前を替えられないと、前は印だけ付けて applied.json を消し、壊れた版のまま二度と
+/// 確かめ直さなかった。入れ替えられなければ何も変えず、次の起動でやり直す。控えが無い（戻せない）ときだけ印を付けて印を消す（繰り返さない）
 pub fn revert(p: &Paths, why: &str) -> Option<Applied> {
     let rec = read_json(&p.applied())?;
     let (from, to) = (rec["from"].as_str().unwrap_or("").to_string(), rec["to"].as_str().unwrap_or("").to_string());
-    mark_failed(p, &to, why);
-    let _ = std::fs::remove_file(p.applied());
     if !p.old().join("program").join("sidecar.py").is_file() {
+        mark_failed(p, &to, why);
+        let _ = std::fs::remove_file(p.applied());
         return None;
     }
     let broken = p.work().join(format!("broken-{}", std::process::id()));
@@ -352,8 +355,28 @@ pub fn revert(p: &Paths, why: &str) -> Option<Applied> {
         let _ = std::fs::rename(&broken, p.app());
         return None;
     }
+    mark_failed(p, &to, why);
+    let _ = std::fs::remove_file(p.applied());
     let _ = std::fs::remove_dir_all(&broken);
     Some(Applied { from: to, to: from, exe_changed: true })
+}
+
+/// 画面を開いた後（中身の Python が動いている間）に戻す（版 3.111.0 の Windows の CI で見つけた）: 先に app を掴む物を止めてから入れ替える。
+/// Windows は、作業フォルダが中にあるプロセス（中身の Python は app\program で動く）や開いたファイルがあると、フォルダの名前を替えられない
+/// （Linux は替えられるので、手元の通しでは見えなかった）。stop_users は止め終えるまで待つ（Supervisor::stop は本物の Python が終わるまで待つ）。
+/// 止めた後も握りが残るとき（ウイルス対策の検査など）に備え、limit の間やり直す（revert は入れ替えが済むまで何も変えないので、やり直してよい）
+pub fn revert_running(p: &Paths, why: &str, stop_users: &dyn Fn(), limit: Duration) -> Option<Applied> {
+    stop_users();
+    let end = std::time::Instant::now() + limit;
+    loop {
+        if let Some(a) = revert(p, why) {
+            return Some(a);
+        }
+        if !p.applied().exists() || std::time::Instant::now() >= end {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
 }
 
 /// 中身が起動できた: 入れ替えた直後の印を消す（控えは次の入れ替えまで残す）。
@@ -737,6 +760,45 @@ mod tests {
             let sha = zip_of(&d.join("new"), "App", &rel_dir.join("App.zip"));
             assert!(stage_release(&p, &release(&rel_dir, "3.10.0", &sha), ID, &|_| {}).is_ok(), "{what}: exe が替わる版は取り込む");
         }
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_running_revert_stops_the_users_of_app_first_and_changes_nothing_until_it_can_swap() {
+        // 版 3.111.0 の Windows の CI で見つけた: 画面を開いた後に戻すとき、app を掴む物（中身の Python。作業フォルダが app\program）が
+        // 居ると Windows は app の名前を替えられない。前は印（FAILED）だけ付けて applied.json を消し、壊れた版のまま開いていた。
+        // Linux はフォルダを掴んでいても名前を替えられるので、掴みは「入れ替え先に空でないフォルダがある」で差し替える
+        let d = tmp("revert-running");
+        let p = Paths::new(&d);
+        dist(&p.app(), "3.10.0", "exe");
+        dist(&p.old(), "3.9.0", "exe");
+        write_json(&p.applied(), &json!({"from": "3.9.0", "to": "3.10.0"})).unwrap();
+        let lock = p.work().join(format!("broken-{}", std::process::id()));
+        std::fs::create_dir_all(&lock).unwrap();
+        std::fs::write(lock.join("掴んでいる"), "x").unwrap();
+        // 掴まれたまま: 何も変えない（印を付けない・applied.json は残す＝次の起動でやり直す）
+        assert!(revert(&p, "画面の JS が起きません").is_none());
+        assert!(p.applied().exists(), "入れ替えられなければ印を消さない");
+        assert!(failed_versions(&p).is_empty(), "入れ替えられなければ FAILED に付けない");
+        assert_eq!(program_version(&p.app().join("program")).as_deref(), Some("3.10.0"));
+        // 先に使っている物を止めれば（掴みが外れる）戻せる
+        let stopped = std::cell::Cell::new(false);
+        let stop = || {
+            stopped.set(true);
+            let _ = std::fs::remove_dir_all(&lock);
+        };
+        let back = revert_running(&p, "画面の JS が起きません", &stop, Duration::from_secs(2)).expect("止めてから戻す");
+        assert!(stopped.get());
+        assert_eq!((back.from.as_str(), back.to.as_str()), ("3.10.0", "3.9.0"));
+        assert_eq!(program_version(&p.app().join("program")).as_deref(), Some("3.9.0"));
+        assert_eq!(failed_versions(&p), ["3.10.0"]);
+        assert!(!p.applied().exists());
+        // 控えが無いときは戻せないので、印を付けて印を消す（起動のたびに繰り返さない）
+        dist(&p.app(), "3.11.0", "exe");
+        let _ = std::fs::remove_dir_all(p.old());
+        write_json(&p.applied(), &json!({"from": "3.9.0", "to": "3.11.0"})).unwrap();
+        assert!(revert(&p, "x").is_none());
+        assert!(!p.applied().exists() && failed_versions(&p).contains(&"3.11.0".to_string()));
         let _ = std::fs::remove_dir_all(&d);
     }
 

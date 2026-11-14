@@ -55,3 +55,17 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
+
+# debug の窓でも、更新の取り込み・入れ替えの sha256 と ZIP の展開だけは最適化して組む（版 3.111.0）。opt-level 0 では 370 MB の debug の exe の
+# sha256 が 1 回 7.4 秒・ZIP の展開が 10 秒かかり（最適化で 0.3 秒・2.3 秒）、窓の通し（verify.py）の場面ごとに Linux の CI で約 1.5 分を足していた
+# （Windows の CI は release の exe で 10 秒）。待ちの長さ（確かめの上限など）は変えない。release は全体が opt-level 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.zip]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.zlib-rs]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3

@@ -132,7 +132,8 @@
    "割れ 4（窓が束を組めない設定の PC で、起動のたびの最初の画面が既定の形）: Lot::page は中身の様子の字（ready・starting・stopped）を受け、束の材料を組めない形で既定の形に落とすのは stopped のときだけ。起こしている最中は None（main.rs の GET / は中身の準備を最大 130 秒待ってから描き直す: 起きれば Python が描く・止まれば窓が既定の形で描く。3.110.0 と同じく待って描く）",
    "割れ 5（試験の穴）: 自己診断の心拍に見出し X-TPA-Selftest を付け、窓は最初の心拍の合図（FIRST_BEAT）に数えない（プロトコルの受け口で数える）。自己診断は app.js が読み込みで落ちた頁（boot が無い）では 150 秒待つ（窓が戻して開き直した後の窓が結果を書く）。verify.py に 4d（入れ替えた直後に配った設定が JSON でない → 戻さない・確かめの印が消える・画面の JS が落ちない）と 4e（app.js に構文の誤りの版 → 60 秒で戻す・理由つきの印）を足した。boot_cases.json の『画面の心拍は来る』を前提にした環境の行と画面の JS の壊れの行に verify の場面の名前を添え、試験が verify.py にその場面があるかを見る",
    "割れ 6（権限の fail-closed が読んでいる最中に効かない）: tabHidden は me をまだ読めていなければ（読んでいる最中も）決まりのあるタブを隠す。最初の画面は me が読めてから開く（pendingScreen。読めなければ開ける画面へ）",
-   "割れ 7（Python が無い PC で 30 秒ごとに起こし直し、心拍の答えと段が starting へ揺れる・利用状況を書き直す）: Supervisor::now は、PC に Python が見つからない係（一度起こして理由を持った後）では起こし直さず stopped と理由を返す。「もう一度起こす」（retry）だけが locate::python で探し直す（入れた後に押せば起きる）"
+   "割れ 7（Python が無い PC で 30 秒ごとに起こし直し、心拍の答えと段が starting へ揺れる・利用状況を書き直す）: Supervisor::now は、PC に Python が見つからない係（一度起こして理由を持った後）では起こし直さず stopped と理由を返す。「もう一度起こす」（retry）だけが locate::python で探し直す（入れた後に押せば起きる）",
+   "Windows の CI（desktop.yml の verify 4e）で見つけた割れ: 画面を開いた後の戻し（boot::page_of の Late）は、中身の Python（作業フォルダが app\\program）が app を掴んだまま名前を替えようとして、Windows で断られていた（Linux は替えられる）。update::revert は入れ替えの前に印を付けて applied.json を消していたので、FAILED の印だけが残り壊れた版のまま開いた。→ update::revert_running が先に app を掴む物（Supervisor::stop で本物の Python が終わるまで・LotDsp の見えない Edge）を止め、入れ替えられるまで 15 秒やり直す。revert は入れ替えが済んでから印を付けて applied.json を消す（入れ替えられなければ何も変えず、次の起動でやり直す。控えが無いときだけ印を付けて消す）"
   ],
   "tests": [
    "boot_cases.json に clock の形（boot::page_of の時刻）7 件と verify の場面の名前（4b・4c・4d・4e・local）を足した（38 件）。afterConfigSec・askLimitSec を表に置き、試験が boot.rs の定数と同じかを見る。変異: 答えの後を待たない（M6）・答えを待つ間も時計を進める（M7）で表の試験が落ちる",
@@ -140,7 +141,8 @@
    "lot::tests::the_window_draws_the_page_without_python に束の材料を組めない PC の 3 形（starting → None・ready → None・stopped → 既定の形）",
    "sidecar::tests::a_missing_python_is_down_and_the_heartbeat_keeps_kicking を『見つからない係は心拍で起こし直さない・揺れない』に直し、a_stopped_python_is_kicked_by_the_heartbeat_after_the_wait（PC に Python があって終わった係は間の後に心拍で起こし直す）を足した",
    "desktop/bundle/verify.py の update の 4d・4e（本物の窓）",
-   "program/tools/ui-eval-pydown.mjs の ⑭（読み込みの途中に中身が止まった知らせ〈window.__tpaPython〉が来ても画面のエラー無しに起きる）・⑮（権限の答えを遅らせた間も決まりのあるタブを出さない・読めたら最初の画面）"
+   "program/tools/ui-eval-pydown.mjs の ⑭（読み込みの途中に中身が止まった知らせ〈window.__tpaPython〉が来ても画面のエラー無しに起きる）・⑮（権限の答えを遅らせた間も決まりのあるタブを出さない・読めたら最初の画面）",
+   "update::tests::a_running_revert_stops_the_users_of_app_first_and_changes_nothing_until_it_can_swap（掴みを『入れ替え先の空でないフォルダ』で差し替える: 掴まれたままは何も変えない・止めれば戻す・控えが無ければ印を付けて消す）。変異: 止めずに戻す（前の形）・入れ替える前に印を付ける（前の形）で落ちる"
   ]
  }
 }

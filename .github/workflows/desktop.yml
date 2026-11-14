@@ -17,9 +17,9 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    # 版 3.96.0 で 45 → 60 分: rust-cache の鍵（Cargo.toml）が変わった版は全部を組み直し（試験 +2.5 分・release +3.4 分）、
-    # スケジュールの突き合わせ（Windows は断られる口・届かない名前に数秒ずつかかる）も加わって 45 分を超えた（PR #96。止まってはいない）
-    timeout-minutes: 60
+    # 版 3.111.0 で 60 → 90 分: 更新の通しに 4b〜4e を足して約 24 分になり、Rust の試験（約 20 分）・exe（約 5 分）と合わせて 4e の失敗で終わった所が 54 分（PR #111）。
+    # 通れば配る ZIP と成果物で約 2 分、rust-cache の鍵（Cargo.toml）が変わった版は全部を組み直して約 6 分増え（試験 +2.5 分・release +3.4 分。版 3.96.0 で 45 → 60 分にした訳）、60 分に余りが無い
+    timeout-minutes: 90
     defaults:
       run:
         shell: pwsh
