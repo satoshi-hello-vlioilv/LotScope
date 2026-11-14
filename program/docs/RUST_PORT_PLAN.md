@@ -2161,6 +2161,52 @@ A2＋D2＋G2＋S は 74.0 点で 80 点に届かないので、採点の指摘�
   `path_settings.stage` にして理由つきの JSON で断り、/api/ の想定外の誤りも JSON の 500。route_reach は事例の表の全件も回し、道ごとの転送の当たり
   （場面 × 型）を予算 `routerForwardTotal`（183。比べる口の GET /api/lotlist/settings 129 を含む）と比べる。任せる歩（delegate-count.py）は 27 のまま。
 
+### 段 ③ の 2 歩目: 置き場の行の形・/api/config・画面の控え・後読みの式を窓が答える — 版 3.113.0（任せる歩 27 → 11・転送の当たり 183 → 129）
+
+案は `tools/ui-proposals/2026-11-stage3b.json`（8 案。決まり 2026-11-06。1 位 A「置き場の行の形と読み手の残りを窓が組む」70.2 点で 80 に届かず、
+採点の指摘 first_fixes の 11 を全部入れた形で作った）。
+
+- 正しい答えの決め方（指摘 1）: Python の今の答えをそのまま正しい答えにせず、形ごとに正しい答えと版 3.112.0 の Python の答え（py）を並べた事例の表
+  `tests/fixtures/rowshape_cases.json`（76 件。人が仕様から書いた）を作った。窓は `cargo test --test row_cases` の `rowshape_like_the_table`、
+  Python は `tests/test_row_cases.py` の RowShape。want と py が違う形（変換表の入力が表・作業実績の登録の表でない行の知らせ・LotDsp の学びの
+  cols が null・並び・秒の読めない字・画面の控えの代用字の書き込み・Infinity の版）は Python も同じ版で直した。
+- 変換表（指摘 2）: 置き場の行の「入力」「判定」が並びでない・「当て方」が表でない行（表・字・数・真偽。JSON の字でも）は読めない行として隔てる
+  （`row_check.SHAPES`。窓と Python の 1 か所。理由「「入力」が並びではありません（表）」）。並び・表そのものの値でも型が合えば読む。名前・その他の
+  並びは str()（repr）・表示順の並びは 0。標準にする（from current）は中身の列の並び・表をそのまま置く（Python の `_conv_cell`。前は repr の字にして
+  標準が読めなくなった）。窓の 8 本は行の値が並びでも中身へ回さない。画面の plan は入力の無い表で落ちない（`noInputs`）。
+- 画面の控え（指摘 3）: 窓は控えを src/held.rs の J で読み（i64 に入らない版・字の大きな整数・入れ子 130 段・対の無い代用字）、版は PyInt で桁のまま +1、
+  対の無い代用字は \udXXX の字のまま書き戻す（`held::to_text`・答えの `reply_bytes`・画面の型の tojson も同じ字）。Python の merge は大きさを書く字
+  （backslashreplace）で数え、load は OverflowError も空に読む。画面の任せ（中身が起きていれば中身が描く）は無くなった。
+- /api/config（指摘 4）: 学びは `lotdsp::KeyMap` の 1 か所（bundle の `lotdsp_status`・`km_key` を消した）。Python の KeyMap も段・列・候補の形が違えば
+  学んでいない形に読む（`_sec`・`_cols`・`_col`・`_seen`）。秒は数の設定の読み方（`lotdsp_rules.setting_seconds`・窓の `lotdsp::py_float_of`）。
+  api・direct の段が表でない・request_fields が表でない・extra_args が数は既定。lotdsp_import が表でないときは Python の StageBroken と同じ理由つきの 503。
+  心拍・初期設定の段が表でない・数が読めないときは Python も既定（前は 500）。/api/config は起動の確かめの合図なので、boot_cases・心拍の試験・
+  verify.py update を check-all --verify で流した。
+- 正規表現（指摘 5）: 正しい答えは「画面の JavaScript が読み、サーバーも計算できる」（`formula_regex_cases.json` の want = js かつ ok。js は
+  `tools/formula-regex-js.mjs`）。Python は枝の長さの違う後読みを枝ごとの後読みに書き替えて読む（`formula.split_lookbehind`。包むだけの (?: ) も外す）。
+  長さの決まらない後読み（(?<=L+)・(?<=a{1,2})・(?<=(L)\1)・(?<=(?:L|(?:C|DE)))）は窓も Python も「正規表現として読めません」で断る。
+  `formula::regex_split` と任せる歩 1 を消した。
+- 作業実績の登録（指摘 6）: 一覧（GET /api/masters/worklog・/api/worklog/files）は読めない行（表でない行・字の版・数でない値）を skipped・unreadable で
+  知らせる（Python の `routes/worklog._row_notes`・窓の `worklog_write::notes`）。窓は読めない行・値の並びでも中身へ回さず、書いた後の一覧にも読めない行を出す。
+  画面はデータ元の「実績」の「設備」の段の要約に、ほかの画面と同じ札（.db-warnb）を出す（決めた形をそのまま当てた）。
+- データ元（指摘 7）: 結合が並び・結合の字に NaN・値が並びの行も窓が答える（読みは窓が組んだ並び、書きは行の写しから Python と同じく書き直し、
+  読めない行に触れる書きは key_guard）。
+- repr の部品の統合（指摘 8）はこの版から外した（段 ⑤ へ）。表の名前・その他の 2 つ以上の鍵の表の repr は、窓が鍵を並べ替えて持つので Python と
+  字の順が割れうる（前からの名前の列と同じ。手で書いた形でだけ起きる）。
+- 予算（指摘 9）: `delegates_budget.json` の total 27 → 11（conversions 0・sources_write 0）、routerForward は比べる口の 1 行だけ・`routerForwardTotal` 129。
+- 2 台の PC（指摘 11）: `lot::tests::a_3_113_pc_keeps_the_rows_a_3_112_pc_reads_in_the_same_share`（隔てた行も並びの値も値を変えずに書き戻す・後読みの式は普通の字）。
+- 変異（直しを 1 つ戻す）で落ちることを確かめた: 窓が形で隔てない（conversions_write_parity）・学びの形が違えば中身へ回す（page_parity）・控えを serde で読む
+  （presence_parity・row_cases）・後読みを任せる（conversions_write_parity）・作業実績の登録で知らせない（worklog_write_parity）・結合が並びで任せる
+  （sources_write_parity）・Python の SHAPES・split_lookbehind・backslashreplace・`_sec`・setting_seconds を戻す（test_row_cases・test_formula_regex_cases）。
+
+#### 版 3.113.0 の後に残る任せる歩（11）と転送（比べる口 129）
+
+| 形 | 数 | 元 | 消える段 | 理由 |
+|---|---|---|---|---|
+| engine=python（自己診断・突き合わせの口） | 5 | fs 1・place 1・release_place 3 | ④ | Python と比べるための口そのもの。Python を外すと口も外す |
+| OS の道（~ユーザー・file:// の [ ]・NUL・255 バイトを超える名前） | 6 | fs 2・release_place 4 | ③ | OS によらない事例の表と独立の答えにしてから窓が答える（案 B。Windows の答えは CI で） |
+| 転送: GET /api/lotlist/settings | 129 当たり | settings_oracle の全部の場面 | ④ | 比べる口（engine=python）。窓は呼ばない |
+
 ### 移すのとは別の速さの改良 — 版 3.66.0（起動・検索・カラムの札）
 
 §3 で「Rust にしても縮まない」と分かった所（検索の LIKE とカラムの札の DISTINCT は SQLite の中の手間）と、起動の Python の手間を、作りを変えて縮めた。
